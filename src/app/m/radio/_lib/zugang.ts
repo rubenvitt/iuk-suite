@@ -276,13 +276,13 @@ export function istRadioUpdater(viewer: RadioViewer | null): boolean {
  * derselbe Missstand, den der Link abstellen soll, nur eine Stufe tiefer.
  *
  * ⛔ EINE DRITTE FUNKTION, KEIN `||` IN `istRadioAdmin` — dieselbe Auflage wie unten bei
- * `requireRadioVerwaltung` (`:498-499`) und im Kopf von `istRadioUpdater` (`:245-248`). Das
+ * `requireRadioVerwaltung` (`:547-548`) und im Kopf von `istRadioUpdater` (`:245-248`). Das
  * `||` gehoert HIERHER, in die zusammensetzende Frage; in `istRadioAdmin` waere es die
  * Aufweichung, die jede Updater-Person durch JEDEN Admin-Riegel liesse, und `typecheck`,
  * `lint` und `build` blieben dabei gruen. ⛔ `istRadioAdmin` bleibt strikt strenger.
  *
  * ⚠️ DIE REIHENFOLGE DER ODER-ARME IST HIER GLEICHGUELTIG, ANDERS ALS IN
- * `requireRadioVerwaltung` — dort entscheidet sie die zurueckgegebene ROLLE (`:493-496`),
+ * `requireRadioVerwaltung` — dort entscheidet sie die zurueckgegebene ROLLE (`:542-545`),
  * hier gibt es nur ein `boolean`. Wer diese Funktion je um eine Rollenauskunft erweitert,
  * erbt damit die Rangfolge-Auflage von dort und darf sie nicht neu erfinden.
  *
@@ -293,7 +293,7 @@ export function istRadioUpdater(viewer: RadioViewer | null): boolean {
  * beiden Geschwister zeichengleich.
  *
  * ⚠️ WAS DIESE FUNKTION BEWUSST NICHT TUT: sie ersetzt NICHT das Argument von
- * `requireRadioVerwaltung` (`:502`). Das ist eine Riegelstelle; sie wird an dieser Aufgabe
+ * `requireRadioVerwaltung` (`:551`). Das ist eine Riegelstelle; sie wird an dieser Aufgabe
  * nicht angefasst, und `riegel.test.ts` Klausel (d) bewacht ihre heutige Form.
  */
 export function istRadioVerwaltung(viewer: RadioViewer | null): boolean {
@@ -345,8 +345,8 @@ function meldeFehlendeGruppe(sub: string, gruppen: string[]): void {
  * ✅ SEIT PLANTEIL 4 / V3 HAT SIE IHREN AUFRUFER (bis dahin ⬜, REVIEW-Z4 Fund K1): das
  * `beforeEach` der Verhaltensfaelle in `src/app/m/radio/_lib/zugang.test.ts` ruft sie vor
  * JEDEM Fall. ⛔ IHR TRAEGER IST GENAU EIN FALL, und er entstand erst in Fix-Runde 1 zu V3:
- * „meldet die fehlende Gruppe EINMAL JE PERSON" (`zugang.test.ts:754`) weist ABSICHTLICH
- * denselben `sub` ab wie der Fall auf `:597`; ohne diese Zeile saehe er NULL statt EINEM
+ * „meldet die fehlende Gruppe EINMAL JE PERSON" (`zugang.test.ts:866`) weist ABSICHTLICH
+ * denselben `sub` ab wie der Fall auf `:709`; ohne diese Zeile saehe er NULL statt EINEM
  * Aufruf. ⛔ GEMESSEN (Sonde E8): solange jeder Fall seinen EIGENEN `sub` trug, lief die
  * Datei ohne den Reset `55 passed`, 0 rot — die Zeile war inert. Vorbild und ECHTER
  * Fehlschlag: `src/app/m/lagerbuch/_lib/zugang.test.ts:41` / `:72` / Begruendung `:60-71`.
@@ -471,7 +471,7 @@ export function verwaltungsZiel(headersEingang: Headers): string {
  *
  * DER UPSERT DARF FEHLSCHLAGEN, ER WIRD PROTOKOLLIERT UND NICHT GEWORFEN — nur die
  * Ereignisliste zeigt dann die rohe Kennung (Form 1:1 aus `konto.ts:118-123`). ⚠️ NUR ER:
- * `getDb()` wertet der Aufrufer aus (`_lib/zugang.ts:469`), sein Fehler faellt durch den Riegel.
+ * `getDb()` wertet der Aufrufer aus (`_lib/zugang.ts:518`), sein Fehler faellt durch den Riegel.
  */
 export function merkeNutzer(db: DB, viewer: RadioViewer): void {
   const jetzt = new Date();

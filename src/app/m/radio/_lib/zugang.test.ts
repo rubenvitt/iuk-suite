@@ -541,7 +541,7 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
  *
  * ⛔ UND DIE RICHTUNG, IN DER ES NICHT WACHSEN DARF: es ist eine DRITTE Funktion NEBEN
  * `istRadioAdmin` und `istRadioUpdater`, kein `||` IN einem der beiden. Dieselbe Auflage
- * wie bei `requireRadioVerwaltung` (`_lib/zugang.ts:498-499`): das `||` gehoert in die
+ * wie bei `requireRadioVerwaltung` (`_lib/zugang.ts:547-548`): das `||` gehoert in die
  * zusammensetzende Funktion, nie in die Admin-Stufe — dort waere es die Aufweichung, die
  * jede Updater-Person durch JEDEN Admin-Riegel liesse.
  */
@@ -585,7 +585,7 @@ describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", ()
      * GESCHLOSSEN IST (`updaterGruppe()` gaebe `null`) — und nicht, weil die Gruppen des
      * Viewers nicht passen. Er waere damit auch ueber einem Praedikat gruen, das jede
      * angemeldete Person durchliesse, sobald der Betreiber die Gruppe eintraegt.
-     * ⚠️ Genau diese Klasse benennt `.superpowers/sdd/adminlink/KONTEXT.md:74-78`.
+     * ⚠️ Dieselbe Klasse „gruen, weil die Stufe geschlossen ist" benennt `zugang.test.ts:258-262`.
      */
     try {
       process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
@@ -599,7 +599,7 @@ describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", ()
     /*
      * ⛔ SPEC §4.9.6: „ein sichtbarer Weg dorthin, wo die aufrufende Person nicht hindarf,
      * verletzt die Gegenprobe" (`docs/design/README.md:420`, zitiert in
-     * `(ausleihe)/geraete/page.tsx:144-147`). Die Ausleihflaeche ist anonym erreichbar;
+     * `(ausleihe)/geraete/page.tsx:142-146`). Die Ausleihflaeche ist anonym erreichbar;
      * `viewerOderNull()` gibt dort `null`, und dieses Praedikat MUSS darauf `false` geben,
      * ohne zu werfen — ein werfender Riegel schickte jeden anonymen Scan nach `/login`
      * (`page.tsx:119-124`).
@@ -636,7 +636,7 @@ describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", ()
 describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
   /**
    * ⛔ `_resetGemeldeteGruppen()` GEHOERT IN DAS `beforeEach`, UND DER GRUND STEHT SEIT
-   * PLANTEIL 2 IM QUELLTEXT (`_lib/zugang.ts:296-303`): `bereitsGemeldet` ist prozess-lokal
+   * PLANTEIL 2 IM QUELLTEXT (`_lib/zugang.ts:345-352`): `bereitsGemeldet` ist prozess-lokal
    * und ueberlebt jeden Fall dieser Datei. ⛔ SEIN TRAEGER IST GENAU EIN FALL: „meldet die
    * fehlende Gruppe EINMAL JE PERSON" (`:754`) weist ABSICHTLICH denselben `sub` ab wie der
    * Fall auf `:597`. Jeder ANDERE Fall traegt seinen eigenen — ohne jenen waere die Zeile inert.
@@ -869,17 +869,17 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
      * Vorbild: `src/app/m/lagerbuch/_lib/zugang.test.ts:55-73`, wo derselbe Fall denselben
      * Dienst tut („Der Fehlschlag ist echt und wurde gesehen").
      *
-     * 1. DER DEDUP-ZWEIG `if (bereitsGemeldet.has(sub)) return;` (`_lib/zugang.ts:282`):
+     * 1. DER DEDUP-ZWEIG `if (bereitsGemeldet.has(sub)) return;` (`_lib/zugang.ts:331`):
      *    ohne ihn schriebe ein Abweisungssturm je ANFRAGE eine Protokollzeile, und dieser
      *    Fall saehe ZWEI Aufrufe statt einem.
      * 2. ⛔ `_resetGemeldeteGruppen()` IM `beforeEach` OBEN: dieser Fall traegt ABSICHTLICH
      *    denselben `sub` wie „ohne beide Gruppen endet requireRadioVerwaltung im notFound"
-     *    (`_lib/zugang.test.ts:597`). Der Speicher ist prozess-lokal und ueberlebt jeden Fall
+     *    (`_lib/zugang.test.ts:709`). Der Speicher ist prozess-lokal und ueberlebt jeden Fall
      *    dieser Datei — ohne den Reset stuende `sub-n1` beim Betreten hier schon drin, und
      *    dieser Fall saehe NULL statt EINEM Aufruf. ⛔ GEMESSEN (Fix-Runde 1, Sonde E8):
      *    VOR diesem Fall lief die Datei ohne den Reset `55 passed`, **0 rot** — jeder
      *    abweisende Fall trug seinen eigenen `sub`, die Zeile im `beforeEach` war inert, und
-     *    die Zusage in `_lib/zugang.ts:296-303` hatte keinen Traeger.
+     *    die Zusage in `_lib/zugang.ts:345-352` hatte keinen Traeger.
      */
     try {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
