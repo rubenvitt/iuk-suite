@@ -113,8 +113,13 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  * die Zahl bewusst anheben.
  *
  *   Planteil 3 (`t/[code]/route.ts`, `abmelden/route.ts`) -> 2 · V18 `import/hochladen`
- *   -> 3 · V22 `geraete/export` -> 4 · G5 `sw.js/route.ts` -> 5 — ⛔ ALLE ERLEDIGT; FUER
- *   DIESE ZAHL braucht die naechste Anhebung einen NEUEN EINTRAG HIER, keine stille Zahl.
+ *   -> 3 · V22 `geraete/export` -> 4 · G5 `sw.js/route.ts` -> 5 · ⛔ **L4 die NEUN
+ *   ALIAS-ROUTEN -> 14** (Betreiberentscheidung 2026-08-27, `.superpowers/sdd/adminlink/
+ *   KONTEXT.md`: „Die alten Pfade bekommen Alias-Routen im Modul"): `loan/`, `return/`,
+ *   `token-setup/`, `admin/login/`, `admin/devices/`, `admin/devices/[id]/`,
+ *   `admin/history/`, `admin/update/`, `admin/einstellungen/` — je `route.ts`.
+ *   ⛔ ALLE ERLEDIGT; FUER DIESE ZAHL braucht die naechste Anhebung einen NEUEN EINTRAG
+ *   HIER, keine stille Zahl.
  *
  *   Planteil 3 baut `page.tsx` und den Ausleihzweig — beide AUSSERHALB von `admin/`,
  *                                                    -> ADMIN_SEITEN_ANZAHL bleibt 0
@@ -137,12 +142,19 @@ const MODUL = join(process.cwd(), "src/app/m/radio");
 const SELBST = join(MODUL, "riegel.test.ts");
 
 /**
- * ⛔ HEUTE FUENF — EXAKT, nicht „mindestens". `t/[code]/route.ts`, `abmelden/route.ts`
- * (Planteil 3, Aufgabe A10), `admin/(arbeit)/import/hochladen/route.ts` (V18, E-V16),
- * `admin/(arbeit)/geraete/export/route.ts` (V22) und `sw.js/route.ts` (Planteil 5, G5) —
- * DER FAHRPLAN OBEN IST ABGEARBEITET. Die Konstante steht hier, damit es EINE Zeile ist.
+ * ⛔ HEUTE VIERZEHN — EXAKT, nicht „mindestens". FUENF Bestandshandler: `t/[code]/route.ts`,
+ * `abmelden/route.ts` (Planteil 3, Aufgabe A10), `admin/(arbeit)/import/hochladen/route.ts`
+ * (V18, E-V16), `admin/(arbeit)/geraete/export/route.ts` (V22) und `sw.js/route.ts`
+ * (Planteil 5, G5). Dazu NEUN ALIAS-ROUTEN aus **L4** — DER FAHRPLAN OBEN IST ABGEARBEITET.
+ * Die Konstante steht hier, damit es EINE Zeile ist.
+ *
+ * ⚠️ DIE NEUN ALIASSE BESTEHEN KLAUSEL (c) OHNE AUSNAHME, und das ist der Grund, warum sie
+ * Route Handler sind: jeder nennt `hostAbweisung(` und KEINEN werfenden Personen-Riegel. Als
+ * `page.tsx` fielen sie in Klausel (e)/(f) und muessten den Riegel ihres ZIELS tragen — eine
+ * Weiterleitung hinter dem Recht, auf das sie weiterleitet. Ausgeschrieben im Kopf von
+ * `_lib/aliasse.test.ts`; die Tafel selbst liegt in `_lib/aliasse.ts`.
  */
-const HANDLER_ANZAHL = 5;
+const HANDLER_ANZAHL = 14;
 
 /**
  * ⛔ HEUTE ZEHN — EXAKT, wie `HANDLER_ANZAHL`. V12 die Uebersicht (0 auf 1), V13 die Liste

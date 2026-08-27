@@ -210,8 +210,15 @@ const VERBOTE_ANZAHL = 5;
  * DER ANHEBE-FAHRPLAN, als Auflage an die Nachfolger: G7 legt KEINE Quelldatei an (E-G7 —
  * `/api/health/radio` bekommt keine Datei). Wer als Naechster eine `.ts`/`.tsx` unter
  * `src/app/m/radio/` anlegt, hebt diese Zahl HIER und traegt seinen Grund ein.
+ *
+ * ⛔ ANGEHOBEN VON 98 AUF 108 — Aufgabe **L4**, 2026-08-27/28: die ALIAS-ROUTEN fuer die alten
+ * Pfade (Betreiberentscheidung, `.superpowers/sdd/adminlink/KONTEXT.md`). ZEHN Dateien: die
+ * Tafel `_lib/aliasse.ts` und NEUN Route Handler (`loan/`, `return/`, `token-setup/`,
+ * `admin/login/`, `admin/devices/`, `admin/devices/[id]/`, `admin/history/`, `admin/update/`,
+ * `admin/einstellungen/` — je `route.ts`). ⚠️ `_lib/aliasse.test.ts` zaehlt hier NICHT mit:
+ * `quellDateien` nimmt Testdateien aus.
  */
-const QUELLDATEIEN_ANZAHL = 98;
+const QUELLDATEIEN_ANZAHL = 108;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.

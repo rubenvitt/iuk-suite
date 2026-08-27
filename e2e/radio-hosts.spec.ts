@@ -707,4 +707,61 @@ test.describe("radio-Host-Riegel", () => {
       "dasselbe Cookie, nicht nur irgendeines — woertlich Spec:6916, aber NICHT falsifizierbar",
     ).toBe(vorher);
   });
+
+  /**
+   * DIE ALIAS-ROUTEN AUF DEM AEUSSEREN PFAD — DER EINE WIRKNACHWEIS, DEN KEIN UNIT-FALL FUEHREN
+   * KANN (Fix-Runde 1 zu L4, Fund W1).
+   *
+   * `src/app/m/radio/_lib/aliasse.test.ts` misst ZWEI HAELFTEN GETRENNT: die
+   * Middleware-Entscheidung (`decideRoute`) und das Verhalten der Handler, direkt per
+   * `import("../loan/route")` geladen. Was ZWISCHEN beiden liegt — dass Next.js den AEUSSEREN
+   * Pfad `/loan` ueber den Host-Rewrite auf GENAU DIESE Datei aufloest — ist dort nirgends
+   * gemessen. Das ist die Klasse „gruen im Test und tot im Betrieb", vor der die Bauformwahl im
+   * Kopf jener Datei ausdruecklich warnt: eine `redirects()`-Regel in `next.config.ts` haette
+   * beide Haelften ebenso bestanden und waere trotzdem tot.
+   *
+   * ⛔ DIESELBE BEGRUENDUNG WIE BEIM ABRAEUM-WORKER OBEN (`:554-559`): die zwei Pfade
+   * `/m/radio/sw.js` und `/sw.js` messen VERSCHIEDENE STRECKEN. Hier wird NUR die aeussere
+   * gefahren, weil ausschliesslich sie die offene Frage beantwortet — der innere Pfad umginge
+   * genau den Rewrite, um den es geht.
+   *
+   * ⛔ WARUM HIER EIN `toBe(303)` STEHT, OBWOHL `:68-74` ES AUSSCHLIESST: jener Absatz nimmt es
+   * aus der `EINSTIEGE`-SCHLEIFE heraus — die prueft `not.toBe(404)` MIT folgenden
+   * Umleitungen, und dort waere die Umleitung nicht die Zusage. Hier IST sie die ganze Zusage.
+   * Der Fall steht deshalb eigenstaendig, wie `/sw.js` und `/api/health/radio`, und faehrt
+   * `maxRedirects: 0` (Bauform 27) — sonst folgte Playwright der 303 und meldete den Status
+   * des ZIELS.
+   *
+   * ⛔ ANONYM, UND DAS IST DIE ZWEITE HAELFTE DER MESSUNG. `page.request.get` ohne `devLogin`
+   * hat keine Suite-Sitzung. Dass `/admin/devices` trotzdem mit 303 auf `/admin/geraete`
+   * antwortet — und NICHT mit einer Umleitung nach `/login` —, belegt, dass der Alias VOR jedem
+   * Personen-Riegel greift. Genau das koennte eine `page.tsx` nicht: sie fiele in
+   * `src/app/m/radio/riegel.test.ts` Klausel (e) und muesste `requireRadioVerwaltung()` als
+   * erste Anweisung tragen. ⚠️ Das ist KEINE §4.9.6-Verletzung: verboten ist ein SICHTBARER
+   * Verwaltungsweg auf einer anonymen Flaeche, nicht die Antwort auf ein getipptes altes
+   * Lesezeichen. Das Ziel traegt seinen Riegel unveraendert selbst
+   * (`admin/(arbeit)/geraete/page.tsx:5` Import, `:53` erste Anweisung).
+   *
+   * ⚠️ ZWEI ALIASSE UND NICHT NEUN: die uebrigen sieben pruefen dieselbe Aufloesungsklasse ein
+   * zweites Mal, und ihr VERHALTEN deckt der Unit-Fall an allen neun ab. Hier steht je einer
+   * der zwei Strecken — der Kioskpfad `/loan` (wirkt ab Cutover sofort) und der
+   * `admin/`-Pfad `/admin/devices` (der anonyme Fall).
+   *
+   * ⛔ ER IST GRUEN GESCHRIEBEN UND DANN AN DER QUELLE ROT GEMESSEN, nicht rot-zuerst — die
+   * neun Handler standen bereits. Sonde H (`_lib/aliasse.ts`, Ziel `/loan` auf `/rueckgabe`
+   * getauscht) und Sonde I (`loan/route.ts` entfernt) faerbten ihn je `1 rot`, Sonde I mit
+   * `404 statt 303`: das ist der Beleg, dass der aeussere Pfad wirklich in DIESER Datei landet.
+   */
+  test("die Alias-Routen antworten auf dem AEUSSEREN Pfad mit 303 auf ihr Ziel", async ({
+    page,
+  }) => {
+    for (const [alt, ziel] of [
+      ["/loan", "/ausleihen"],
+      ["/admin/devices", "/admin/geraete"],
+    ] as const) {
+      const antwort = await page.request.get(radioUrl(alt), { maxRedirects: 0 });
+      expect(antwort.status(), `${alt} auf ${RADIO_HOST}`).toBe(303);
+      expect(antwort.headers()["location"], `${alt}: das Ziel`).toBe(ziel);
+    }
+  });
 });

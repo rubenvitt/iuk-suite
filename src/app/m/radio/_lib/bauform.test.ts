@@ -38,10 +38,16 @@ const GATE_FLAECHEN = ["t/[code]/route.ts", "_actions/gate.ts", "_actions/sitzun
  * Menge wie `GATE_FLAECHEN`: `abmelden` loest nichts ein, `_actions/*` liefert keinen Status.
  *
  * ⛔ HIER STEHEN NUR DIE UMLEITENDEN HANDLER, und das ist eine Auflage an die Nachfolger:
- * `HANDLER_ANZAHL` ist mit V22 (`admin/(arbeit)/geraete/export/route.ts`) auf 4 und mit
- * Planteil 5 (`sw.js/route.ts`, G5) auf 5 gewachsen — `riegel.test.ts:115-117` fuehrt den
- * Fahrplan, `:145` die Zahl. KEINER DER BEIDEN GEHOERT IN DIESE LISTE: ein Export antwortet
- * mit 200 und einem Rumpf, `sw.js` ebenso. Wer sie eintraegt, macht den 303-Fall rot. Sie hat
+ * `HANDLER_ANZAHL` ist mit V22 (`admin/(arbeit)/geraete/export/route.ts`) auf 4, mit
+ * Planteil 5 (`sw.js/route.ts`, G5) auf 5 und mit **L4** (die neun ALIAS-ROUTEN) auf
+ * VIERZEHN gewachsen — `riegel.test.ts:115-122` fuehrt den Fahrplan, `:157` die Zahl.
+ * KEINER DER BEIDEN GEHOERT IN DIESE LISTE: ein Export antwortet mit 200 und einem Rumpf,
+ * `sw.js` ebenso. Wer sie eintraegt, macht den 303-Fall rot.
+ * ⛔ DIE NEUN ALIASSE GEHOEREN EBENFALLS NICHT HIER HEREIN, obwohl sie mit 303 antworten:
+ * dieser Fall scannt `toMatch(/status:\s*303\b/)` im QUELLTEXT jeder gelisteten Datei, und die
+ * neun bauen ihre Antwort nicht selbst, sondern rufen `aliasAntwort` (`_lib/aliasse.ts`). Der
+ * Scan zielt auf die EINE Datei, in der die Zahl steht — ausgeschrieben und gemessen in
+ * `_lib/aliasse.test.ts`. Sie hat
  * bewusst keine Vollzaehligkeits-Zusicherung wie `GATE_FLAECHEN` (`toEqual(GATE_FLAECHEN)`) —
  * sie ist eine Auswahl nach Antwortform, keine Menge, die vollstaendig sein muss.
  */

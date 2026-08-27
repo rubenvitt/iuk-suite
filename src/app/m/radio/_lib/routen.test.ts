@@ -132,16 +132,23 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
     expect(fahre("/sw.js")).toEqual({ action: "rewrite", target: "/m/radio/sw.js", moduleKey: "radio" });
   });
 
-  it("/admin/login ergibt einen Rewrite und danach 404 — hingenommen, mit Runbook-Zeile", () => {
+  it("/admin/login ergibt einen Rewrite — und seit L4 einen Alias, keine 404", () => {
     /*
      * Spec:399-405: der Alt-Verwaltungshost `radio-admin.iuk-ue.de` bekommt einen
      * pfaderhaltenden Traefik-`redirectRegex`. Ein Lesezeichen auf
      * `radio-admin.iuk-ue.de/login` wird damit zu `radio.iuk-ue.de/admin/login` — und das
      * ist KEIN Passthrough, weil `/admin/login` nicht mit `/login` beginnt. Es wird also
-     * ins Modul umgeschrieben und ergibt 404.
+     * ins Modul umgeschrieben.
      *
-     * Dieser Fall haelt die Kette fest, damit niemand spaeter aus dem 404 auf einen
-     * Routing-Fehler schliesst. Die Abhilfe ist eine Runbook-Zeile, KEIN Code im Repo.
+     * ⛔ DIE ZUSICHERUNG DIESES FALLES IST UNVERAENDERT — sie hielt und haelt die
+     * MIDDLEWARE-Entscheidung fest, damit niemand spaeter aus dem Ergebnis auf einen
+     * Routing-Fehler schliesst. UEBERHOLT IST NUR IHRE BEGRUENDUNG: hier stand
+     * „hingenommen … Die Abhilfe ist eine Runbook-Zeile, KEIN Code im Repo." Die
+     * Betreiberentscheidung vom 2026-08-27 (`.superpowers/sdd/adminlink/KONTEXT.md`) kehrt
+     * das um — die alten Pfade bekommen Alias-Routen IM Modul, und `/admin/login` ist einer
+     * davon (`_lib/aliasse.ts`, Ziel `/admin`; der Verhaltensfall steht in
+     * `_lib/aliasse.test.ts`). ⚠️ Der Rewrite ist die VORBEDINGUNG dafuer: ohne ihn
+     * erreichte der Handler das Modul nie.
      */
     expect(fahre("/admin/login")).toEqual({
       action: "rewrite", target: "/m/radio/admin/login", moduleKey: "radio",
