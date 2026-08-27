@@ -165,13 +165,16 @@ import {
  * ────────────────────────────────────────────────────────────────────────────
  * ⛔ WELCHE ZEILE WELCHEN FALL TRAEGT — GEMESSEN AM 2026-08-27, NICHT ABGELEITET
  * ────────────────────────────────────────────────────────────────────────────
- * ⛔ ZWEI VERSCHIEDENE ARTEN VON MESSUNG, UND SIE WERDEN NICHT ZUSAMMENGEZAEHLT: FUENF
- * MUTATIONSSONDEN auf Produktcode (jede muss rot werden) und VIER STEUERPROBEN, die
+ * ⛔ ZWEI VERSCHIEDENE ARTEN VON MESSUNG, UND SIE WERDEN NICHT ZUSAMMENGEZAEHLT: ELF
+ * MUTATIONSSONDEN auf Produktcode (sie SOLLEN rot werden) und VIER STEUERPROBEN, die
  * belegen, WARUM eine Zusicherung ueberhaupt dasteht (sie bleiben absichtlich gruen).
  * „Vier Steuerproben mit 0 rot" waere zusammengezaehlt eine falsche Zahl.
  *
- * FUENF MUTATIONSSONDEN — je eine Zeile im Produktcode entfernt, danach ein Lauf dieser
- * Datei. ⛔ KEINE ergab 0 rot:
+ * ELF MUTATIONSSONDEN — je eine Zeile im Produktcode entfernt, bei den letzten zwei je ZWEI,
+ * danach ein Lauf dieser Datei. ⛔ ZWEI DAVON ERGABEN 0 ROT, UND DAS IST EIN BEFUND UEBER DIE
+ * FLAECHE, NICHT UEBER DEN TEST — die zwei Ersatzfassungen stehen darunter und ergaben je 1 rot.
+ * ⚠️ SECHS DER ELF SIND IN DER FIX-RUNDE 1 NACHGETRAGEN (Review-Hinweis H1): vorher hatten die
+ * drei werfenden Schleifeneintraege und der Health-Fall keine gemessene Mutation.
  *
  *   | Mutation                                                      | rot                 |
  *   |---------------------------------------------------------------|---------------------|
@@ -180,10 +183,33 @@ import {
  *   | `EINSTIEGE` — ein Eintrag gestrichen                           | Laengenfall (9 statt 10 Bloecke liefen) |
  *   | `abmelden/route.ts:63` — der Host-Abgleich faellt weg          | Schleife `/m/radio/abmelden` (Umweg-Zeile) und Cookie-Fall |
  *   | `abmelden/route.ts` — Riegel HINTER die Raeumung, und die Raeumung faehrt auf der 404 mit | Cookie-Fall (Kopfzeilen-Zeile); ⛔ die Schleife BLEIBT gruen |
+ *   | `admin/(arbeit)/geraete/export/route.ts:77` — `radioHostOderNull(...) === null` faellt weg | Schleife `/m/radio/admin/geraete/export` (404 -> 200) |
+ *   | `api/health/[modul]/route.ts:24` — `revision: laufendeRevision()` faellt weg | Health-Fall (`Received value: {"module":"radio","status":"ok"}`) |
+ *   | `page.tsx:60` — `requireRadioHost(kopf)` faellt weg (ALLEIN) | ⛔ NICHTS — `10 passed`, **0 rot** |
+ *   | `admin/(arbeit)/layout.tsx:60` — `requireRadioHost(kopf)` faellt weg (ALLEIN) | ⛔ NICHTS — `10 passed`, **0 rot** |
+ *   | `page.tsx:60` UND `_lib/ausleihZugang.ts:120` — BEIDE weg | Schleife `/m/radio`, an der UMWEG-Zeile: `Expected: "/m/radio" / Received: "/geraete"` |
+ *   | `admin/(arbeit)/layout.tsx:60` UND `_lib/zugang.ts:462` — BEIDE weg | Schleife `/m/radio/admin` (404 -> 200) |
  *
- * ⛔ DAS LETZTE PAAR IST DER GRUND, WARUM DER COOKIE-FALL EINE EIGENE ZUSAGE IST: der 404
- * allein unterscheidet „der Riegel greift vor jeder Wirkung" nicht von „der Riegel greift
+ * ⛔ DAS PAAR UM `abmelden` IST DER GRUND, WARUM DER COOKIE-FALL EINE EIGENE ZUSAGE IST: der
+ * 404 allein unterscheidet „der Riegel greift vor jeder Wirkung" nicht von „der Riegel greift
  * danach". Gemessen: Schleifeneintrag gruen, Cookie-Fall rot.
+ *
+ * ⛔ WARUM DIE ZWEI EINZEL-SONDEN 0 ROT ERGABEN — GEMESSEN AM 2026-08-27, UND ES STEHT SONST
+ * NIRGENDS: die zwei WERFENDEN Einstiege sind DOPPELT geriegelt, und die Doppelung ist
+ * angeordnet, nicht versehentlich. `page.tsx:60` traegt `requireRadioHost` ZUSAETZLICH zu dem
+ * Aufruf, den `ausleihZugangOderNull` intern schon macht (`_lib/ausleihZugang.ts:120`; der
+ * Grund steht dort `:104-112` und in Spec:2767 / Spec:2759-2763). Dasselbe gilt fuer
+ * `admin/(arbeit)/layout.tsx:60` gegenueber `requireRadioAdmin` (`_lib/zugang.ts:462`,
+ * „erst der Host, dann die Person"). ⛔ EINE EINZEL-SONDE IST DORT ALSO EIN NULL-EINGRIFF —
+ * dieselbe Klasse wie S-T4g in der Fassung des Briefs und wie Probe P1 aus R-T3-1. Nicht der
+ * TEST ist schwach, sondern die Sonde greift eine Ebene zu tief an; erst beide Zeilen zusammen
+ * sind die Mutation, die der Eintrag zu fangen vorgibt.
+ * ⚠️ UND DIE ROTE ZEILE BEI `/m/radio` IST NICHT DIE 404-ZEILE, SONDERN DIE UMWEG-ZEILE. Ohne
+ * beide Riegel liefert das Gate auf dem fremden Host die Weiche `redirect("/geraete")` — die
+ * Anfrage folgt ihr, `/geraete` hat heute noch keine Datei und antwortet 404, und Zusicherung 1
+ * BLIEBE gruen. Gefangen hat es `new URL(fremd.url()).pathname`. ⛔ Das ist derselbe
+ * Umweg-Mechanismus, den der Brief fuer `/m/radio/abmelden` beschreibt — hier zum zweiten Mal
+ * gemessen, an einem anderen Eintrag.
  *
  * VIER STEUERPROBEN — sie messen die NOTWENDIGKEIT einer Zusicherung, nicht die Wirkung
  * einer Zeile:
