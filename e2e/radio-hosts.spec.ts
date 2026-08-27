@@ -206,10 +206,34 @@ import {
  * sind die Mutation, die der Eintrag zu fangen vorgibt.
  * ⚠️ UND DIE ROTE ZEILE BEI `/m/radio` IST NICHT DIE 404-ZEILE, SONDERN DIE UMWEG-ZEILE. Ohne
  * beide Riegel liefert das Gate auf dem fremden Host die Weiche `redirect("/geraete")` — die
- * Anfrage folgt ihr, `/geraete` hat heute noch keine Datei und antwortet 404, und Zusicherung 1
- * BLIEBE gruen. Gefangen hat es `new URL(fremd.url()).pathname`. ⛔ Das ist derselbe
- * Umweg-Mechanismus, den der Brief fuer `/m/radio/abmelden` beschreibt — hier zum zweiten Mal
- * gemessen, an einem anderen Eintrag.
+ * Anfrage folgt ihr, `/geraete` antwortet auf dem FREMDEN Host 404, und Zusicherung 1 BLIEBE
+ * gruen. Gefangen hat es `new URL(fremd.url()).pathname`.
+ *
+ * ⛔ WARUM DIESER 404 KOMMT — VIER SCHRITTE, JEDER BELEGT, UND NICHT DER GRUND, DER HIER BIS
+ * ZUR FIX-RUNDE 2 STAND. Der fruehere Wortlaut hiess „`/geraete` hat heute noch keine Datei
+ * und antwortet 404". ⛔ ER IST FALSCH: `src/app/m/radio/(ausleihe)/geraete/page.tsx` liegt
+ * seit `e80808cf` (2026-08-24) im Baum, mit `page.test.tsx` daneben. Der tragende Grund:
+ *   1. `src/app/m/radio/page.tsx:76` wirft `redirect("/geraete")` — ein RELATIVER Pfad. Er
+ *      wird gegen den FREMDEN Origin aufgeloest, nicht gegen `radio.localtest.me`.
+ *   2. Auf `feedback.localtest.me` ist `/geraete` KEIN `/m/*`-Pfad; der interne Zweig von
+ *      `decideRoute` greift nicht (`src/core/routing.ts:68`).
+ *   3. Der Host-Zweig loest gegen das Modul `feedback` auf (`src/core/routing.ts:79`).
+ *      `feedback` traegt `requiresAuth: false` (`src/core/registry.ts:79-80`), also steigt
+ *      `canAccess` in `src/core/registry.ts:265` sofort mit `true` aus — KEIN `forbidden` und
+ *      KEIN `login`, obwohl die Schleife mit `RADIO_ADMIN_GRUPPE` angemeldet faehrt.
+ *   4. `src/core/routing.ts:88-89` schreibt auf `/m/feedback/geraete` um, und das FREMDE Modul
+ *      hat diese Flaeche nicht (`ls src/app/m/feedback/` listet `(admin)/ (print)/ _db/ _lib/
+ *      _ui/ f/` und keine `geraete`). Daher der 404.
+ * ⛔ DIE UNTERSCHEIDENDE MESSUNG, am 2026-08-27 DIREKT gefahren statt geschlossen (eine
+ * Wegwerf-Spec gegen denselben Server, danach entfernt): `feedback.localtest.me/geraete` -> 404,
+ * `radio.localtest.me/geraete` -> 200. Der 404 kommt also daher, dass das FREMDE Modul den Pfad
+ * nicht hat, NICHT daher, dass `radio` ihn nicht haette.
+ * ⚠️ WER DEN FRUEHEREN WORTLAUT LAS, ZOG DIE FALSCHE KONSEQUENZ — er las, der Praezedenzfall
+ * fuer Zusicherung 2 verfalle, sobald `/geraete` gebaut sei. Er ist gebaut, und der
+ * Praezedenzfall gilt trotzdem.
+ *
+ * ⛔ Das ist derselbe Umweg-Mechanismus, den der Brief fuer `/m/radio/abmelden` beschreibt —
+ * hier zum zweiten Mal gemessen, an einem anderen Eintrag.
  *
  * VIER STEUERPROBEN — sie messen die NOTWENDIGKEIT einer Zusicherung, nicht die Wirkung
  * einer Zeile:

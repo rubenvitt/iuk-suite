@@ -32,7 +32,7 @@ import s from "./_ui/ausleihe.module.css";
  * ⚠️ DER HOST-RIEGEL STEHT HIER ZUSAETZLICH, obwohl `ausleihZugangOderNull` ihn INTERN als
  * ersten Schritt ruft (`_lib/ausleihZugang.ts:120`). Das ist die eine angeordnete Ausnahme
  * von Pflicht 16 („kein zweiter Aufruf"), ausgeschrieben in `_lib/ausleihZugang.ts:104-113`
- * und in `_lib/host.ts:80`: Route-Group-Grenzen sind keine Sicherheitsgrenzen, und die
+ * und in `_lib/host.ts:114-116`: Route-Group-Grenzen sind keine Sicherheitsgrenzen, und die
  * tragende Zusage sind die aufrufbaren Funktionen (Spec:2759-2763).
  *
  * ⛔ KEINE `<Shell>` (Entscheidung E9, `KOPF.md:629-636`) und KEIN `AusleihRahmen`: der
@@ -64,9 +64,9 @@ export default async function RadioGatePage({
    * Uebersicht — die liegt bei `radio` an `/geraete` und NICHT an `/` (Entscheidung E1;
    * `_lib/routen.ts:30-37` fuehrt beide Pfade als eigene Rewrite-Ziele).
    *
-   * ⚠️ ERWARTETER ZWISCHENZUSTAND ZWISCHEN A11 UND A18, kein Mangel: `/geraete` hat heute
-   * noch keine Datei und ist damit eine saubere 404. `_lib/routen.test.ts:15-19` sichert
-   * den REWRITE zu, nicht die Existenz einer Datei, und schreibt genau das aus.
+   * ⚠️ UEBERHOLT UND HIER BERICHTIGT (Fix-Runde 2 zu T4, Fund N1): der fruehere Wortlaut hiess
+   * „`/geraete` hat heute noch keine Datei" — `e80808cf` hat sie gebaut, und `radio.localtest.me/geraete`
+   * antwortet gemessen 200. `_lib/routen.test.ts:15-19` bleibt richtig: sie sichert den REWRITE zu.
    *
    * ⛔ NICHT IN EINEM `try`/`catch`. `redirect()` arbeitet ueber einen geworfenen Sentinel;
    * ein `catch` verschluckt ihn, und die Weiterleitung findet STILL nicht statt

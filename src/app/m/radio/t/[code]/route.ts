@@ -74,7 +74,7 @@ export async function GET(req: Request, ctx: RouteKontext) {
    * und steigt bei `requiresAuth: false` sofort mit `true` aus. Ein Riegel HINTER der
    * Einloesung antwortete genauso mit 404, haette aber `last_used_at` auf dem fremden Host
    * schon geschrieben und die Sitzung fuer die fremde Herkunft ausgestellt. Das host-only
-   * Cookie aus `_lib/ausleihSitzung.ts:207-219` ist die ZWEITE HAELFTE dieses Riegels — es
+   * Cookie aus `_lib/ausleihSitzung.ts:207-221` ist die ZWEITE HAELFTE dieses Riegels — es
    * greift dort, wo die erste versagt. ⛔ BEIDE HAELFTEN, ODER KEINE.
    */
   if (!radioHostOderNull(kopf)) return new Response("Not found", { status: 404 });
