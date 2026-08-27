@@ -96,6 +96,23 @@ export const RADIO_ENV: Record<string, string> = {
   // `SUITE_HOST_RADIO` hier absichtlich fehlt (Absatz unten). Er erfuellt sie
   // trotzdem, damit dieselbe Zeile auch in einem Dev-Versuch MIT Host traegt.
   RADIO_AUSLEIH_SITZUNG_SECRET: "e2e-radio-ausleih-secret-nicht-produktiv-32z",
+  // ⛔ WERTGLEICH MIT DER VORBELEGUNG, UND DESHALB VERHALTENSNEUTRAL:
+  // `_lib/grenzen.ts:76` fuehrt `RADIO_AUSLEIH_SITZUNG_STUNDEN` mit
+  // `vorgabe: 12` (Datei 366 Zeilen). Diese Zeile aendert am Lauf nichts — sie
+  // holt die Zahl nur aus einer im Testprozess UNERREICHBAREN Vorbelegung in
+  // einen ABLESBAREN konfigurierten Wert.
+  // ⛔ SIE STEHT HIER UND NICHT IN `.env.local`: ein Wert dort machte den Lauf
+  // nicht rot, sondern rennabhaengig gruen (derselbe Grund wie beim Geheimnis
+  // darueber; ein in `webServer.env` gesetzter Wert hat Vorrang vor jeder
+  // `.env`-Datei).
+  // ⛔ UND SIE IST DER GRUND, WARUM IN `e2e/radio-kiosk.spec.ts` KEINE `12`
+  // STEHT: Spec:6573 woertlich „Der Test prueft die Grenze relativ zum
+  // konfigurierten Wert, nie die Zahl 12 — sonst wandert die Entscheidung in
+  // eine Testdatei." Dieselbe Bauform traegt `lagerbuch`
+  // (`e2e/helpers/lagerbuch.ts:76`, `LAGERBUCH_HELFER_SITZUNG_STUNDEN: "12"`,
+  // Vermerk „kuerzer bringt nichts, weil kein Test 12 h wartet") — und genau
+  // jene Zeile nennt Spec:6570-6572 als Vorbild.
+  RADIO_AUSLEIH_SITZUNG_STUNDEN: "12",
 };
 
 /**

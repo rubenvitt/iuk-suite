@@ -9,11 +9,11 @@ import {
   RADIO_UPDATER_GRUPPE,
   radioUrl,
 } from "../../../../../e2e/helpers/radio";
-import { ausleihSitzungGeheimnis } from "./grenzen";
+import { ausleihSitzungGeheimnis, grenzen } from "./grenzen";
 import { istRadioAdmin, updaterGruppe, istInUpdaterGruppe } from "./zugang";
 
 /**
- * DIE DREI ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT.
+ * DIE VIER ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT.
  *
  * ⛔ WARUM ES DIESE DATEI GIBT, UND SIE IST DIE ANTWORT AUF EINEN BAU-ANHALTENDEN FUND.
  * `.superpowers/sdd/planteil4/VORABSCAN.md`, Fund **F24**: `playwright.config.ts`s
@@ -40,6 +40,18 @@ import { istRadioAdmin, updaterGruppe, istInUpdaterGruppe } from "./zugang";
  * Host setzt (`e2e/helpers/lagerbuch.ts:67`) und dessen Fall `:99-111` deshalb
  * `grenzenFehler` fahren darf — hier waere derselbe Fall eine Zusage ueber einen Weg, den
  * der Lauf nie geht.
+ *
+ * ⛔ DIE VIERTE ZEILE IST DIE SITZUNGSDAUER, UND SIE KAM IN AUFGABE T2 DAZU. Sie ist
+ * WERTGLEICH mit der Vorbelegung aus `_lib/grenzen.ts` (`RADIO_AUSLEIH_SITZUNG_STUNDEN`,
+ * dort `vorgabe: 12`) und aendert deshalb am Lauf nichts — sie holt die Zahl nur aus einer
+ * im TESTPROZESS unerreichbaren Vorbelegung in einen ABLESBAREN konfigurierten Wert.
+ * ⛔ WOZU: `e2e/radio-kiosk.spec.ts` prueft die Gueltigkeit des Ausleih-Cookies RELATIV zu
+ * diesem Wert und traegt deshalb die Zahl `12` nirgends — `Spec:6573` woertlich: „Der Test
+ * prueft die Grenze relativ zum konfigurierten Wert, nie die Zahl 12 — sonst wandert die
+ * Entscheidung in eine Testdatei." Dieselbe Bauform traegt `lagerbuch`
+ * (`e2e/helpers/lagerbuch.ts:76`). ⛔ Der Fall „fuehrt die Sitzungsstunden WERTGLEICH …"
+ * unten haelt genau diese Wertgleichheit — ohne ihn waere die Behauptung
+ * „verhaltensneutral" unbewacht.
  *
  * ⚠️ DIESE DATEI LIEGT UNTER `src/`, NICHT UNTER `e2e/`: `vitest.config.ts` schliesst
  * `e2e/**` aus (dort liegen die Playwright-Specs), ein Test dort liefe nie. Vorbild:
@@ -89,8 +101,8 @@ const envZeilen = readFileSync(path.join(WURZEL, ".env.example"), "utf8")
   .split("\n")
   .map((z) => z.trim());
 
-describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E-Servers", () => {
-  it("traegt beide Namen mit ihren Konstanten, das Geheimnis und keinen vierten", () => {
+describe("RADIO_ENV — die zwei Gruppenzeilen, das Sitzungsgeheimnis und die Sitzungsstunden des E2E-Servers", () => {
+  it("traegt beide Namen mit ihren Konstanten, das Geheimnis, die Stunden und keinen fuenften", () => {
     /*
      * ⛔ DAS GEHEIMNIS STEHT HIER ALS LITERAL UND NICHT ALS IMPORTIERTE KONSTANTE. Die zwei
      * Gruppennamen haben eine, weil die Specs sie fuer `devLogin(…, { groups })` brauchen —
@@ -101,11 +113,41 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
      * Testdateien gruen). Vorbild: `lagerbuch` haelt seinen
      * `LAGERBUCH_HELFER_SITZUNG_SECRET` ebenfalls inline (`e2e/helpers/lagerbuch.ts:71`).
      */
+    /*
+     * ⚠️ DIE VIERTE ZEILE STEHT HIER NICHT ALS LITERAL, UND DAS IST KEIN BRUCH MIT DEM
+     * ABSATZ DARUEBER, SONDERN SEINE ANWENDUNG: fuer das Geheimnis ist ein unabhaengiges
+     * Literal die schaerfere Wache, weil sein Wert frei gewaehlt ist. Die Stundenzahl ist
+     * gerade NICHT frei gewaehlt — ihre einzige Zusage ist „wertgleich mit der Vorbelegung
+     * des Moduls". Ein Literal `"12"` hier schriebe die Entscheidung in eine Testdatei
+     * (`Spec:6573`) und bliebe still stehen, wenn `ZAHLEN` sie aenderte.
+     */
     expect(RADIO_ENV).toEqual({
       SUITE_ADMIN_GROUP_RADIO: RADIO_ADMIN_GRUPPE,
       SUITE_UPDATER_GROUP_RADIO: RADIO_UPDATER_GRUPPE,
       RADIO_AUSLEIH_SITZUNG_SECRET: "e2e-radio-ausleih-secret-nicht-produktiv-32z",
+      RADIO_AUSLEIH_SITZUNG_STUNDEN: String(grenzen({}).ausleihSitzungStunden),
     });
+  });
+
+  it("fuehrt die Sitzungsstunden WERTGLEICH mit der Vorbelegung — die Zeile ist verhaltensneutral", () => {
+    /*
+     * ⛔ DIE BEHAUPTUNG, DIE DIESER FALL BEWACHT, steht in `e2e/helpers/radio.ts` neben der
+     * Zeile selbst und noch einmal im Kopf dieser Datei: die E2E-Zeile aendert am Lauf
+     * NICHTS, sie macht die Zahl nur ablesbar. Faellt die Wertgleichheit, ist der Kommentar
+     * dort falsch UND der e2e-Fall misst gegen eine andere Dauer als die, die das Modul
+     * ohne diese Zeile haette.
+     *
+     * ⛔ GEMESSEN WIRD DURCH DEN LESER, NICHT AUF DER ZEICHENKETTE: `grenzen()` ist die
+     * Stelle, die `RADIO_AUSLEIH_SITZUNG_STUNDEN` im Betrieb auswertet (`_lib/grenzen.ts`,
+     * `grenzen()` → `zahl("RADIO_AUSLEIH_SITZUNG_STUNDEN", env)`), und
+     * `ausleihGueltigkeitSekunden()` rechnet genau darauf (`_lib/ausleihSitzung.ts:97-99`).
+     * Ein Wert, den `zahl()` ablehnte (leer, nicht ganzzahlig, ausserhalb `1..24`), wuerfe
+     * hier — im Lauf faellt derselbe Fehler erst beim ersten Einloesen eines Codes auf.
+     */
+    expect(
+      grenzen(RADIO_ENV).ausleihSitzungStunden,
+      "die E2E-Stundenzahl weicht von der Vorbelegung des Moduls ab — die Zeile ist dann NICHT verhaltensneutral",
+    ).toBe(grenzen({}).ausleihSitzungStunden);
   });
 
   it("haelt das Geheimnis zeichengleich gegen die Vorlage `.env.example`", () => {
@@ -144,7 +186,7 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
      * ⛔ DIE WERT-KLASSE HALTEN ZWEI FAELLE DARUEBER, UND ZWAR UNGLEICH. Hier stand einmal
      * „und nur er" — das war falsch (`REVIEW-T1.md`, Fund F-T1-6). Ein verdrehter Wert IN
      * `RADIO_ENV` faerbt BEIDE: den Fall „traegt beide Namen mit ihren Konstanten, das
-     * Geheimnis und keinen vierten", weil dessen `toEqual` den Wert als UNABHAENGIGES
+     * Geheimnis, die Stunden und keinen fuenften", weil dessen `toEqual` den Wert als UNABHAENGIGES
      * Literal fuehrt (Grund im Kommentar jenes Falls), UND den Fall „haelt das Geheimnis
      * zeichengleich gegen die Vorlage `.env.example`". Eine verdrehte VORLAGENZEILE faerbt
      * dagegen NUR den zweiten — das Literal kennt `.env.example` nicht. Beides in Fix-Runde 2
