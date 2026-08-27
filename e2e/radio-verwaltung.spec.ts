@@ -78,13 +78,15 @@ import {
  *                                                   80 (8 + 64 + 8). Die fremde Datei wurde
  *                                                   NICHT geaendert — dies ist die Messung
  *                                                   dieser Flaeche, keine Berichtigung dort.
- *                                                   ⚠️ Dieselbe Sonde faerbt auch
- *                                                   `e2e/shell-mobil.spec.ts:634` und `:653`
- *                                                   sowie den gleichnamigen Fall in
- *                                                   `src/core/shell/shell-css.test.ts` rot —
- *                                                   ERWARTET und kein Befund; waehrend des
- *                                                   Sondenfensters laeuft NUR dieser eine Fall
- *                                                   und KEIN `vitest`.
+ *                                                   ⚠️ Dieselbe Sonde faerbt GEMESSEN auch
+ *                                                   `src/core/shell/shell-css.test.ts` rot
+ *                                                   („nimmt dem Umschalter die von antd
+ *                                                   geerbte Zeilenhoehe", `1 failed |
+ *                                                   34 passed`) und HERGELEITET, nicht
+ *                                                   gemessen, `e2e/shell-mobil.spec.ts:634`
+ *                                                   und `:653`. Beides ist ERWARTET und kein
+ *                                                   Befund; waehrend des Sondenfensters lief
+ *                                                   NUR der eine Playwright-Fall.
  *   S-T5d   `admin/(druck)/layout.tsx:49`, `requireRadioAdmin()` -> `requireRadioVerwaltung()`
  *                                                 -> **0 rot**, `1 passed`.
  *   S-T5d2  dieselbe Absenkung ZUSAETZLICH in `admin/(druck)/zugaenge/blatt/page.tsx:103`
@@ -100,10 +102,14 @@ import {
  * Sicherheitsgrenzen"; ausgeschrieben in `admin/(druck)/layout.tsx:32-38`). Eine Sonde, die
  * nur EINE der zwei Linien absenkt, kann den Fall nicht rot machen — dieselbe Klasse wie
  * S-T4i/S-T4j in `e2e/radio-hosts.spec.ts` und wie Probe P1 zum Ausleihzweig.
- * ⚠️ S-T5d und S-T5d2 faerben zugleich `src/app/m/radio/riegel.test.ts:395-398` rot, S-T5d3
- * zusaetzlich die Klausel „V21: … nennt requireRadioAdmin, NICHT requireRadioVerwaltung" in
- * `src/app/m/radio/admin/actions.test.ts`. Beides ist ERWARTET und kein Befund; gemessen wird
- * ausschliesslich, ob DIESER Fall rot wird.
+ * ⚠️ S-T5d und S-T5d2 faerben zugleich Klausel (g) von `src/app/m/radio/riegel.test.ts` rot
+ * (die zwei Zusicherungen ueber `(druck)/layout.tsx`). Fuer S-T5d3 ist die Nebenwirkung
+ * GEMESSEN und groesser als die eine erwartete Klausel: `rtk pnpm vitest run
+ * src/app/m/radio/admin/actions.test.ts src/app/m/radio/riegel.test.ts` meldet unter dieser
+ * Sonde `5 failed | 36 passed` in ZWEI Dateien — zwei Faelle in `admin/actions.test.ts` (die
+ * V21-Klausel UND die Zaehlung „genau VIER Verwaltungsseiten nennen requireRadioAdmin") und
+ * drei in `riegel.test.ts` (Klauseln (e), (g), (h)). Alles ERWARTET und kein Befund; gemessen
+ * wird ausschliesslich, ob DIESER Playwright-Fall rot wird.
  *
  * ✅ **⬜ V-L14 IST DAMIT ABGELESEN, UND ZWAR IN BEIDE RICHTUNGEN.** S-T5d2 zeigt, dass der
  * Fall die STUFE misst und nicht die Huelle (404 -> 200, sobald beide Linien fallen). S-T5d3
@@ -380,11 +386,13 @@ test.describe("radio-Verwaltung", () => {
 
     /*
      * ⛔ EINE WARTENDE ZUSICHERUNG VOR JEDEM `allTextContents()` UND JEDEM `count()` — beide
-     * WARTEN NICHT. ⚠️ GEMESSEN AM 2026-08-27, beim ersten Lauf dieses Falles: ohne diese
-     * Zeile las er auf dem kalt uebersetzenden Dev-Server ein LEERES Array ab und meldete
-     * „die Spalte „Update-Stand“ steht nicht in der Kopfzeile" — eine Meldung ueber die
-     * Spaltenwahl, wo in Wahrheit die Tabelle noch nicht da war. Fall 2 oben faehrt seit V13
-     * dieselbe Reihenfolge, und aus demselben Grund.
+     * sind EINMALIGE Ablesungen ohne Wiederholung, anders als jedes `expect(locator)`.
+     * ⚠️ GEMESSEN AM 2026-08-27, beim ersten Lauf dieses Falles: ohne diese Zeile las er ein
+     * LEERES Array ab und meldete „die Spalte „Update-Stand“ steht nicht in der Kopfzeile" —
+     * eine Meldung ueber die SPALTENWAHL, waehrend das Tabellenmarkup in jenem Augenblick
+     * schlicht noch nicht im DOM stand. ⛔ WARUM es dort nicht stand, ist NICHT gemessen und
+     * steht deshalb hier auch nicht; die Abhilfe braucht die Ursache nicht. Fall 2 oben faehrt
+     * seit V13 dieselbe Reihenfolge.
      */
     await expect(
       page.locator("table thead th").first(),
@@ -822,10 +830,11 @@ test.describe("radio-Verwaltung", () => {
      * DIE KONTROLLE ZU BEIDEN ZEILEN DARUNTER — ohne Leihzeile ist jede Zellen-Zusage
      * leer-gruen. Der Seed legt vier Leihen an (`_lib/seedLokal.ts:204-226`).
      *
-     * ⛔ UND SIE STEHT ALS WARTENDE ZUSICHERUNG, WEIL `count()` NICHT WARTET. ⚠️ Gemessen am
-     * 2026-08-27, beim ersten Lauf: ohne sie las der Fall auf dem kalt uebersetzenden
-     * Dev-Server `0` ab und meldete „ohne Leihzeile misst die Zellen-Zusage nichts" — eine
-     * Meldung ueber den Seed, wo in Wahrheit die Tabelle noch nicht da war.
+     * ⛔ UND SIE STEHT ALS WARTENDE ZUSICHERUNG, WEIL `count()` EINE EINMALIGE ABLESUNG IST.
+     * ⚠️ Gemessen am 2026-08-27, beim ersten Lauf: ohne sie las der Fall `0` ab und meldete
+     * „ohne Leihzeile misst die Zellen-Zusage nichts" — eine Meldung ueber den SEED, waehrend
+     * das Tabellenmarkup in jenem Augenblick noch nicht im DOM stand. ⛔ Warum es dort nicht
+     * stand, ist nicht gemessen und steht deshalb hier auch nicht.
      */
     const zeilen = page.locator("table tbody tr.ant-table-row");
     await expect(zeilen.first(), "ohne Leihzeile misst die Zellen-Zusage nichts").toBeVisible();

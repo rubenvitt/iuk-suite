@@ -1454,11 +1454,15 @@ describe("(h) wer die Codeliste im Klartext liest, traegt die Admin-Stufe", () =
  * Riegelebenen greifen also unabhaengig voneinander — genau die Doppelung, die `Spec:569-571`
  * verlangt. ⬜ V-L14 ist eingeloest.
  *
- * ⚠️ **DIE ERWARTETEN NEBENWIRKUNGEN, DAMIT SIE NIEMAND FUER EINEN BEFUND HAELT:** S-T5d und
- * S-T5d2 faerben Klausel (g) dieser Datei rot (die zwei Zusicherungen ueber `(druck)/layout.tsx`),
- * S-T5d3 zusaetzlich die Klausel „V21: admin/(druck)/zugaenge/blatt/page.tsx liegt in (druck)
- * und nennt requireRadioAdmin, NICHT requireRadioVerwaltung" in `admin/actions.test.ts`.
- * ⛔ Gemessen wird ausschliesslich, ob DER DAUERFALL rot wird — nicht, was sonst noch mitfaellt.
+ * ⚠️ **DIE ERWARTETEN NEBENWIRKUNGEN, DAMIT SIE NIEMAND FUER EINEN BEFUND HAELT.** S-T5d und
+ * S-T5d2 faerben Klausel (g) dieser Datei rot (die zwei Zusicherungen ueber `(druck)/layout.tsx`).
+ * Fuer S-T5d3 ist die Menge GEMESSEN statt behauptet:
+ * `rtk pnpm vitest run src/app/m/radio/admin/actions.test.ts src/app/m/radio/riegel.test.ts`
+ * meldete unter dieser Sonde `5 failed | 36 passed` in ZWEI Dateien — zwei Faelle in
+ * `admin/actions.test.ts` („V21: … nennt requireRadioAdmin, NICHT requireRadioVerwaltung" UND
+ * „V21: genau VIER Verwaltungsseiten nennen requireRadioAdmin") und DREI hier, Klauseln (e),
+ * (g) und (h). ⛔ Gemessen wird ausschliesslich, ob DER DAUERFALL rot wird — nicht, was sonst
+ * noch mitfaellt.
  *
  * ⛔ **WAS AUCH JETZT NICHT ABGELESEN IST, und es steht hier statt verschwiegen zu werden:**
  * ⬜ Z-L1 ist damit NICHT geschlossen. Offen bleiben nach diesem Fall die Flaechen, die
