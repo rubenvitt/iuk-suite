@@ -229,12 +229,14 @@ describe("das Gate an /", () => {
      *
      * ⛔ DIE ZUSICHERUNG LIEST `href`, NICHT `data-rolle`: ein Verwaltungsweg unter einem
      * anderen Etikett waere derselbe Ausfall, und ein Scan auf `gate-admin` allein saehe ihn
-     * nicht. Die zweite Zeile haelt den Fall gegen leeres Gruen — ohne sie bestuende ihn
-     * auch eine Seite, die gar nichts rendert.
+     * nicht. ⛔ UND `*=`, NICHT `^=` — zeichengleich zum Bestandswaechter: ein Praefix-
+     * Vergleich uebersaehe die innere Pfadform `/m/radio/admin/…`. Die zweite Zeile haelt
+     * den Fall gegen leeres Gruen — ohne sie bestuende ihn auch eine Seite, die gar nichts
+     * rendert.
      */
     await rendere();
 
-    expect(queryAll('a[href^="/admin"]')).toHaveLength(0);
+    expect(queryAll('a[href*="/admin"]')).toHaveLength(0);
     expect(exists('[data-rolle="gate-formular"]')).toBe(true);
   });
 
