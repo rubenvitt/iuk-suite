@@ -633,8 +633,14 @@ test.describe("radio-Host-Riegel", () => {
    * „das ist keine Schwaeche des Tests, sondern die gemessene Lage" — der Satz stimmt, aber er
    * las sich wie eine Freizeichnung. Richtig gefasst: die woertliche Zusage von `Spec:6916` ist
    * im Lauf NICHT abgelesen, sie bleibt Restmenge von ⬜ Z-L1 (Aufstellung im Kopf dieser
-   * Datei). Die Zusicherung `:649-652` bleibt trotzdem stehen — sie IST der Spec-Wortlaut, und ein
-   * stiller Wegfall waere schlimmer als eine benannte Leerstelle.
+   * Datei). Die Zusicherung am ENDE dieses Falls (`dasselbe Cookie, nicht nur irgendeines`)
+   * bleibt trotzdem stehen — sie IST der Spec-Wortlaut, und ein stiller Wegfall waere schlimmer
+   * als eine benannte Leerstelle.
+   * ⚠️ SIE WIRD UEBER IHREN WORTLAUT BENANNT UND NICHT UEBER EINE ZEILENNUMMER, UND DAS IST KEINE
+   * STILFRAGE: in der Fix-Runde 1 stand hier zuerst eine Ziffer, und der naechste Einschub in
+   * DIESEN Kopfkommentar verschob die Zusicherung um 26 Zeilen — die Angabe war nach zwei
+   * Commits falsch. Das ist genau die Klasse, die Review-Fund W1 ist, am eigenen Diff wieder
+   * aufgetreten. ⛔ EIN WORTLAUT UEBERLEBT EINEN EINSCHUB, EINE ZIFFER NICHT.
    * ⛔ DIE FALSIFIZIERBARE HAELFTE IST DIE KOPFZEILEN-ZUSICHERUNG: die 404-Antwort des fremden
    * Hosts darf KEIN `Set-Cookie` fuer `radio_ausleihe` tragen. Genau die wandert mit dem
    * Riegel — ein Handler, der erst raeumt und dann abweist, schickt die Raeumung mit.
