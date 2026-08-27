@@ -104,7 +104,7 @@ export default async function RadioGatePage({
    * und als Posten 7 derselben Datei.
    *
    * ✅ DER WEG IN DIE VERWALTUNG GEHOERT IN DEN KOPF DER AUSLEIHFLAECHE — dorthin, wo der
-   * Bestand ihn selbst verortet (`_lib/zugang.ts:456-458`: „am /admin-Link der
+   * Bestand ihn selbst verortet (`_lib/zugang.ts:505-507`: „am /admin-Link der
    * Ausleihflaeche") und wo eine verwaltende Person nach dieser Weiterleitung tatsaechlich
    * steht: `_ui/AusleihRahmen.tsx`, neben dem dort schon vorhandenen, praedikatsgebundenen
    * Link „Zur Suite" (`:153-156`). ⛔ WER IHN HIER WIEDER EINSETZT, BAUT DENSELBEN TOTEN

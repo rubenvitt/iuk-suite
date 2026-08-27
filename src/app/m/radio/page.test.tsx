@@ -203,7 +203,7 @@ describe("das Gate an /", () => {
      * (`_lib/ausleihZugang.ts:148-152`, Auflage 5 `:138-143`). Eine verwaltende Person ist
      * damit KEIN eigener Zustand dieser Seite: sie wird wie jede andere angemeldete Person
      * behandelt und landet auf `/geraete`. Der Weg in die Verwaltung entsteht DORT, im Kopf
-     * der Ausleihflaeche — der Bestand verortet ihn selbst so (`_lib/zugang.ts:456-458`:
+     * der Ausleihflaeche — der Bestand verortet ihn selbst so (`_lib/zugang.ts:505-507`:
      * „am /admin-Link der Ausleihflaeche").
      *
      * ⚠️ DIESER FALL IST VON ANFANG AN GRUEN, und das steht hier ausgeschrieben statt
@@ -330,8 +330,8 @@ describe("das Gate an /", () => {
 });
 
 /*
- * DIE BAUFORM DES GATES — der Quelltext-Scan, der den entfernten Verwaltungszweig
- * dauerhaft draussen haelt.
+ * DIE BAUFORM DES GATES — der Quelltext-Scan gegen die Rueckkehr des entfernten
+ * Verwaltungszweiges.
  *
  * ⛔ WARUM UEBERHAUPT EIN SCAN UND NICHT NUR EIN BAUMFALL: der Zweig war
  * `darfVerwalten && …` — er rendert nichts, solange das Praedikat falsch ist. Ein Baumfall
@@ -344,6 +344,17 @@ describe("das Gate an /", () => {
  * `data-rolle="gate-admin"` IST eines. Die negative Zusicherung waere damit STILL gruen,
  * genau die Richtung, vor der der Kopf jener Datei warnt („weniger Text heisst weniger
  * gefundene Verstoesse", `_lib/quelltextScan.ts:95-101`).
+ *
+ * ⚠️ WAS ER NICHT LEISTET, UND WARUM DAS HIER STEHT statt in einem Wort wie „dauerhaft"
+ * (Fix-Runde 1 zu L2, Fund K1). GEMESSEN (Sonde M-1): ein Zweig unter ANDEREN Namen —
+ * `data-rolle="gate-pflege"` und `href="/m/radio/admin/geraete"`, hinter einer Bedingung, die
+ * im Test nie wahr wird — lief durch ALLE elf Faelle. Er rendert nichts, also sieht ihn der
+ * Baumfall nicht, und er traegt keinen der drei benannten Namen, also sah ihn der Scan nicht.
+ * Dagegen steht seit dieser Runde das VIERTE, klassenweite Verbot unten.
+ *
+ * ⛔ AUCH DAS FAENGT NICHT ALLES: ein `redirect()` in den Verwaltungsbereich oder ein Weg
+ * unter einer Adresse OHNE `/admin` kaeme weiter durch. Dieser Block ist ein
+ * Rueckfallwaechter fuer die gemessene Klasse, kein Beweis der Abwesenheit.
  */
 describe("Bauform des Gates", () => {
   const quelle = () => ohneKommentare(readFileSync(QUELLE, "utf8"));
@@ -361,16 +372,42 @@ describe("Bauform des Gates", () => {
       .toMatch(/ausleihZugangOderNull\s*\(/);
 
     /*
-     * ⛔ DIE DREI VERBOTE. Der Zweig bestand aus genau diesen drei Spuren
+     * ⛔ ZUERST DIE BENANNTEN SPUREN. Der Zweig bestand aus genau diesen dreien
      * (`page.tsx:125-126` und `:151-157`, Stand vor dieser Aufgabe). Sie stehen EINZELN da
      * und nicht als eine Alternative, damit die Fehlermeldung sagt, WELCHE Haelfte
      * zurueckgekommen ist.
+     *
+     * ⚠️ DAS VERBOT VON `istRadioVerwaltung(` IST EINE FOLGE VON §2.10 DER MESSUNG, KEINE
+     * SPEC-REGEL. Der Betreiber hat am 2026-08-27 entschieden, WER den Link sieht — beide
+     * Rechtestufen, `KONTEXT.md:24-33` —, NICHT wo er wohnt; dass er nicht ans Gate gehoert,
+     * sagt `BERICHT-urls-und-adminzugang.md` §2.10. Wer §2.10 ueberstimmt, aendert diesen
+     * Fall MIT: er ist kein Einspruch des Betreibers, sondern eine Bau-Entscheidung.
+     *
+     * ⛔ DIE PRAEDIKATSLISTE FUEHRT SEIT DER FIX-RUNDE 1 AUCH `istRadioUpdater(` UND
+     * `viewerAusSession(`: die Sonde P-4 der Pruefung kam mit
+     * `istRadioUpdater(viewerAusSession(await auth()))` an den frueheren zwei Namen vorbei
+     * — derselbe Zweig, nur ohne die verbotenen Woerter.
      */
     expect(quelle(), "das Etikett des toten Gate-Links ist zurueck (Bericht §2.10)")
       .not.toMatch(/gate-admin/);
     expect(quelle(), "ein Verwaltungs-Praedikat auf dem Gate — es kann hier nie wahr werden")
-      .not.toMatch(/\bistRadioAdmin\s*\(|\bistRadioVerwaltung\s*\(/);
+      .not.toMatch(
+        /\bistRadioAdmin\s*\(|\bistRadioVerwaltung\s*\(|\bistRadioUpdater\s*\(|\bviewerAusSession\s*\(/,
+      );
     expect(quelle(), "`viewerOderNull(` auf dem Gate — die Sitzung entscheidet hier nichts")
       .not.toMatch(/\bviewerOderNull\s*\(/);
+
+    /*
+     * ⛔ UND DAS NETZ DARUNTER: KEIN WEG NACH `/admin` IM RUMPF — unter welchem Etikett und
+     * hinter welchem Praedikat auch immer. Die drei Verbote darueber treffen die Klasse nur
+     * stichprobenhaft; dieses trifft sie.
+     *
+     * ⚠️ ES IST KEINE DOPPELUNG DES BAUMFALLS „zeigt einem anonymen Besucher KEINEN Weg in
+     * die Verwaltung". Jener misst das GERENDERTE Ergebnis und bleibt gruen, solange der
+     * Zweig nichts ausgibt — genau die Lage der Sonde M-1. Dieser misst den DATEITEXT und
+     * wird dort rot. Gegenprobe gefahren, `1 rot` und zwar nur dieser.
+     */
+    expect(quelle(), "ein Weg nach /admin im Gate-Rumpf — er gehoert in die Ausleihflaeche")
+      .not.toMatch(/\/admin/);
   });
 });

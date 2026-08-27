@@ -112,7 +112,7 @@
 /*
  * ⛔ HIER STANDEN `.adminZeile` UND `.adminLink`, DIE ZWEI KLASSEN DES GATE-VERWALTUNGSLINKS.
  * Sie sind am 2026-08-27 mit ihm gefallen: der Zweig war tot durch Konstruktion
- * (`../page.tsx:78-105`, Messung `.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.10).
+ * (`../page.tsx:77-111`, Messung `.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.10).
  *
  * ⛔ UND SIE SIND NICHT WIEDERZUVERWENDEN, wenn der Link im Kopf der Ausleihflaeche neu
  * entsteht. `.adminLink` las `var(--radio-gate-marke)`, `.adminZeile` las

@@ -81,8 +81,8 @@ export function viewerAusSession(
 }
 
 /**
- * DIE NICHT-WERFENDE FORM — fuer das Gate und fuer den /admin-Link der Ausleihflaeche.
- *
+ * DIE NICHT-WERFENDE FORM — fuer die zwei Route Handler unter `admin/(arbeit)/` und ab L3
+ * fuer den /admin-Link der Ausleihflaeche. ⛔ NICHT MEHR fuer das Gate (seit 2026-08-27).
  * ⛔ SIE RUFT `requireRadioHost` ABSICHTLICH NICHT (Spec §1.4.4, Gegenregel, Zeilen
  * 595-607). Das Gate ist die Flaeche, die eine ANONYME Person zuerst sieht;
  * `requireRadioAdmin()` an ihrer Weiche schickte jeden anonymen Aufruf nach /login statt
@@ -263,7 +263,7 @@ export function istRadioUpdater(viewer: RadioViewer | null): boolean {
  * ⛔ Ein Link aendert daran nichts — und ein fehlender Link sichert nichts.
  *
  * ⛔ WARUM NICHT `requireRadioVerwaltung()` AN DIESER STELLE: dieselbe Begruendung wie bei
- * `viewerOderNull` (`:86-90`) und beim /admin-Link der Ausleihflaeche
+ * `viewerOderNull` (`:86-90`) und in der Begruendung am Gate
  * (`src/app/m/radio/page.tsx:89-94`). Ein werfender Riegel schickte jede anonyme Person
  * nach `/login` — auf einer Flaeche, die unter `requiresAuth: false` gerade anonym erreichbar
  * sein SOLL. „Keine Sitzung" ist hier ein dritter gueltiger Fall, kein Fehlerfall.
