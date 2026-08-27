@@ -444,11 +444,11 @@ describe("radio-AusleihRahmen: die Ablaufgrenze rechnet der RAHMEN (§4.2)", () 
  * (`.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.7, `riegel.test.ts` Klauseln (a)
  * und (e)). ⛔ Ein Link aendert daran nichts — und ein fehlender Link sichert nichts.
  *
- * ⛔ WARUM HIER UND NICHT AM GATE: `page.tsx` trug den Link bis zum 2026-08-27 und er war
- * TOT DURCH KONSTRUKTION — wer eine Suite-Sitzung hat, ist von `page.tsx:75` laengst nach
- * `/geraete` weitergeschickt (Bericht §2.10, Posten 7, entfernt in `4b4d1627`). Der
- * Bestand verortet ihn selbst hier: `_lib/zugang.ts:456-458` nennt „am /admin-Link der
- * Ausleihflaeche" als Grund, warum `istRadioAdmin` die Admin-Stufe bleibt.
+ * ⛔ WARUM HIER UND NICHT AM GATE: `page.tsx` trug den Link bis zum 2026-08-27 und er war TOT DURCH
+ * KONSTRUKTION — wer eine Suite-Sitzung hat, ist von `page.tsx:75` laengst nach `/geraete`
+ * weitergeschickt (§2.10, Posten 7, entfernt in `4b4d1627`). Der Bestand verortet ihn selbst hier:
+ * `_lib/zugang.ts:505-507` nennt „am /admin-Link der Ausleihflaeche" als Grund, warum `istRadioAdmin`
+ * die Admin-Stufe bleibt. ⚠️ Die Messung nennt `:456-458`; seither gewandert, Wortlaut gleich.
  *
  * ⛔ BEIDE STUFEN, UND DAS IST GEMESSEN (Betreiberentscheidung 2026-08-27, Bericht §2.8):
  * SECHS der zehn Verwaltungsseiten stehen dem UPDATER offen, `/admin` selbst
