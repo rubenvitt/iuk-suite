@@ -247,7 +247,7 @@ test.describe("radio-Kiosk", () => {
      * der ENDSEITE (200) und DEREN Kopfzeilen — nie die 303 und nie ihr `Set-Cookie`. Das
      * Haus schreibt den Griff aus: `e2e/lagerbuch-helfer.spec.ts:187` („`page.request` MIT
      * `maxRedirects: 0`, NICHT `page.on(\"response\")`"), Fall `:194-201`; ebenso
-     * `e2e/radio-verwaltung.spec.ts:1137` und `:1148`.
+     * `e2e/radio-verwaltung.spec.ts:1534` und `:1545`.
      */
     const einloesung = await page.request.get(radioUrl(`/m/radio/t/${E2E_CODE_AKTIV}`), {
       maxRedirects: 0,

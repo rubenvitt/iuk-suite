@@ -94,6 +94,16 @@ import {
  *   S-T5d3  NUR `blatt/page.tsx:103` abgesenkt, das Layout unveraendert
  *                                                 -> **0 rot**, `1 passed` — der Updater
  *                                                   bekommt weiterhin 404.
+ *   S-T5e   `AusleihenTabelle.tsx:96`, `return aktiv ? (` -> `return !aktiv ? (`
+ *                                                 -> **0 rot HIER**, `1 passed`; ROT wird
+ *                                                   `AusleihenTabelle.test.tsx` (`2 failed |
+ *                                                   16 passed`, darunter der Fall an `:258`).
+ *                                                   ⛔ DIE NULL IST ABSICHT UND KEIN
+ *                                                   TESTFEHLER: der Leihfall sichert
+ *                                                   MENGENZUGEHOERIGKEIT zu, nicht die
+ *                                                   Zuordnung. Die Arbeitsteilung steht am
+ *                                                   Fall selbst ausgeschrieben.
+ *                                                   Nachgetragen in Fix-Runde 1 (Fund H1).
  *
  * ⛔ **WAS S-T5d MISST UND WAS NICHT — DIE NULL IST HIER KEIN TESTFEHLER, SONDERN EIN
  * NULL-EINGRIFF.** Der Druckzweig ist DOPPELT geriegelt: `admin/(druck)/layout.tsx:49` UND
@@ -359,7 +369,7 @@ test.describe("radio-Verwaltung", () => {
      * `:157`, `:158`, `:159`, `:160`, `:161`, `:162`, `:170`, `:180`, `:194`, jede Zeile
      * einzeln aufgeschlagen, keine steht in einem Kommentar.
      *
-     * ⛔ WARUM NICHT EINE DER ZWOELF `render: text`-SPALTEN: `text` (`:72`) reicht eine
+     * ⛔ WARUM NICHT EINE DER ZEHN `render: text`-SPALTEN: `text` (`:72`) reicht eine
      * nicht-leere Zeichenkette UNVERAENDERT durch. Unter der Sonde „die `render`-Funktion
      * durch ein `String(wert)` ersetzen" saehe die Zelle fuer jeden belegten Wert GLEICH aus
      * — der Fall waere vakuoes gruen, genau der Zustand, vor dem der Bauauftrag warnt.
@@ -847,6 +857,22 @@ test.describe("radio-Verwaltung", () => {
       "nicht jede Leihzeile traegt eine Statusmarke — die render-Funktion aus :157 ist weg",
     ).toHaveCount(anzahl);
 
+    /*
+     * ⛔ DIESELBE GRENZE WIE IM GERAETEFALL OBEN, UND SIE STEHT HIER, DAMIT NIEMAND SIE FUER
+     * eine Zuordnungszusage haelt: geprueft ist MENGENZUGEHOERIGKEIT, nicht die Zuordnung.
+     * Eine Vertauschung INNERHALB der zwei Woerter — ein invertierter Zweig in `StatusMarke`
+     * (`AusleihenTabelle.tsx:95-103`), wo der rohe Wahrheitswert `z.aktiv` DIREKT auf das Wort
+     * abbildet — bliebe von diesem Fall ungefangen. Der Waechter dagegen ist NICHT dieser Fall,
+     * sondern `AusleihenTabelle.test.tsx:258`: dort steht das Paar GEORDNET in einem
+     * `toEqual([...])`, gespeist aus zwei Zeilen mit `aktiv: true` und `aktiv: false` (`:253`,
+     * `:254`). Eine Inversion dreht dort die Reihenfolge und faellt auf.
+     *
+     * ⛔ GEMESSEN, NICHT BEHAUPTET — Sonde S-T5e (Fix-Runde 1 zu T5, 2026-08-27): `StatusMarke`
+     * invertiert (`return aktiv ? (` → `return !aktiv ? (`). Ergebnis: `AusleihenTabelle.test.tsx`
+     * wird ROT (2 von 18, darunter der Fall an `:258` — die zwei Woerter kamen in umgekehrter
+     * Reihenfolge), DIESER Fall bleibt GRUEN (`1 passed`). Die Arbeitsteilung ist damit gemessen
+     * und nicht geschlossen. Sonde zurueckgenommen.
+     */
     const woerter = await marken.allTextContents();
     expect(
       woerter.filter((w) => !["Aktiv", "Zurückgegeben"].includes(w)),
