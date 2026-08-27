@@ -253,6 +253,55 @@ export function istRadioUpdater(viewer: RadioViewer | null): boolean {
 }
 
 /**
+ * DAS NICHT-WERFENDE PRAEDIKAT DER VERWALTUNGS-STUFE — Admin ODER Updater, als ANZEIGE-Frage.
+ *
+ * ⛔ ES RIEGELT NICHTS, UND DAS IST KEINE EINSCHRAENKUNG, SONDERN SEIN ZWECK. Es beantwortet
+ * „darf ich dieser Person den Weg in die Verwaltung ueberhaupt ZEIGEN?". Die zwoelf
+ * Verwaltungsflaechen tragen ihren Riegel als ERSTE Anweisung, unabhaengig davon, ob
+ * irgendwo ein Link auf sie zeigt (gemessen in
+ * `.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.7, alle zwoelf mit `datei:zeile`).
+ * ⛔ Ein Link aendert daran nichts — und ein fehlender Link sichert nichts.
+ *
+ * ⛔ WARUM NICHT `requireRadioVerwaltung()` AN DIESER STELLE: dieselbe Begruendung wie bei
+ * `viewerOderNull` (`:86-90`) und beim /admin-Link der Ausleihflaeche (`page.tsx:119-124`).
+ * Ein werfender Riegel schickte jede anonyme Person nach `/login` — auf einer Flaeche, die
+ * unter `requiresAuth: false` gerade anonym erreichbar sein SOLL. „Keine Sitzung" ist hier
+ * ein dritter gueltiger Fall, kein Fehlerfall.
+ *
+ * ⛔ BEIDE STUFEN — BETREIBERENTSCHEIDUNG 2026-08-27, UND SIE IST AUF ZAHLEN GEFALLEN:
+ * SECHS der zehn Verwaltungsseiten stehen dem UPDATER offen, `/admin` selbst eingeschlossen
+ * (`admin/(arbeit)/page.tsx:91` traegt `requireRadioVerwaltung()`, nicht
+ * `requireRadioAdmin()`; Aufstellung im Bericht §2.8). Haenge der Link an `istRadioAdmin`,
+ * bliebe der Updater ohne sichtbaren Weg auf eine Seite, die er VOLLBERECHTIGT oeffnet —
+ * derselbe Missstand, den der Link abstellen soll, nur eine Stufe tiefer.
+ *
+ * ⛔ EINE DRITTE FUNKTION, KEIN `||` IN `istRadioAdmin` — dieselbe Auflage wie unten bei
+ * `requireRadioVerwaltung` (`:498-499`) und im Kopf von `istRadioUpdater` (`:245-248`). Das
+ * `||` gehoert HIERHER, in die zusammensetzende Frage; in `istRadioAdmin` waere es die
+ * Aufweichung, die jede Updater-Person durch JEDEN Admin-Riegel liesse, und `typecheck`,
+ * `lint` und `build` blieben dabei gruen. ⛔ `istRadioAdmin` bleibt strikt strenger.
+ *
+ * ⚠️ DIE REIHENFOLGE DER ODER-ARME IST HIER GLEICHGUELTIG, ANDERS ALS IN
+ * `requireRadioVerwaltung` — dort entscheidet sie die zurueckgegebene ROLLE (`:493-496`),
+ * hier gibt es nur ein `boolean`. Wer diese Funktion je um eine Rollenauskunft erweitert,
+ * erbt damit die Rangfolge-Auflage von dort und darf sie nicht neu erfinden.
+ *
+ * ⚠️ DER EXPLIZITE NULL-ZWEIG IST FORMAL REDUNDANT — beide Teilpraedikate fangen `null`
+ * selbst ab (`:189`, `:251`). Er steht trotzdem da, aus zwei Gruenden: er macht die
+ * Zusicherung „anonym sieht keinen Verwaltungsweg" (§4.9.6) an EINER eigenen Zeile
+ * pruefbar statt als Seiteneffekt zweier fremder Funktionen, und er haelt die Form der
+ * beiden Geschwister zeichengleich.
+ *
+ * ⚠️ WAS DIESE FUNKTION BEWUSST NICHT TUT: sie ersetzt NICHT das Argument von
+ * `requireRadioVerwaltung` (`:502`). Das ist eine Riegelstelle; sie wird an dieser Aufgabe
+ * nicht angefasst, und `riegel.test.ts` Klausel (d) bewacht ihre heutige Form.
+ */
+export function istRadioVerwaltung(viewer: RadioViewer | null): boolean {
+  if (!viewer) return false;
+  return istRadioAdmin(viewer) || istRadioUpdater(viewer);
+}
+
+/**
  * DIE EINZIGE STELLE, AN DER FALLE 23 UEBERHAUPT SICHTBAR WIRD.
  *
  * Spec:206-210 verlangt sie ausdruecklich und nennt sie so: „Das gehoert als Zeile in die

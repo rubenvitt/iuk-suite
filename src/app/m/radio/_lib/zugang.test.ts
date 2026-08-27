@@ -77,6 +77,7 @@ import {
   viewerAusSession,
   istRadioAdmin,
   istRadioUpdater,
+  istRadioVerwaltung,
   updaterGruppe,
   istInUpdaterGruppe,
   requireRadioAdmin,
@@ -517,6 +518,117 @@ describe("updaterGruppe / istInUpdaterGruppe — die Gruppenquelle der zweiten S
     const rumpf = funktionsRumpf(readFileSync(ZUGANG_QUELLE, "utf8"), "istRadioUpdater");
     expect(rumpf, "istRadioUpdater nicht gefunden — der Scan waere leer-gruen").not.toBe("");
     expect(rumpf, "Gegenregel §1.4.4: istRadioUpdater ruft requireRadioHost NICHT")
+      .not.toMatch(/\brequireRadioHost\b/);
+  });
+});
+
+/**
+ * ================================================================================
+ * AUFGABE L1 — DAS NICHT-WERFENDE PRAEDIKAT DER VERWALTUNGS-STUFE
+ * ================================================================================
+ *
+ * ⛔ WOFUER ES DA IST UND WOFUER NICHT: es beantwortet eine ANZEIGE-Frage — „darf ich
+ * dieser Person den Weg in die Verwaltung ueberhaupt zeigen?". Es riegelt NICHTS. Alle
+ * zwoelf Verwaltungsflaechen tragen ihren Riegel als ERSTE Anweisung, unabhaengig davon,
+ * ob irgendwo ein Link auf sie zeigt (`.superpowers/sdd/BERICHT-urls-und-adminzugang.md`
+ * §2.7). ⛔ Ein Link aendert daran nichts — und ein fehlender Link sichert nichts.
+ *
+ * ⛔ BEIDE STUFEN, UND DAS IST GEMESSEN, KEIN GESCHMACK (Betreiberentscheidung 2026-08-27,
+ * Bericht §2.8): SECHS der zehn Verwaltungsseiten stehen dem UPDATER offen, `/admin` selbst
+ * eingeschlossen — `admin/(arbeit)/page.tsx:91` traegt `requireRadioVerwaltung()`, nicht
+ * `requireRadioAdmin()`. Haenge der Link an `istRadioAdmin`, bliebe der Updater ohne
+ * sichtbaren Weg auf eine Seite, die er VOLLBERECHTIGT oeffnet.
+ *
+ * ⛔ UND DIE RICHTUNG, IN DER ES NICHT WACHSEN DARF: es ist eine DRITTE Funktion NEBEN
+ * `istRadioAdmin` und `istRadioUpdater`, kein `||` IN einem der beiden. Dieselbe Auflage
+ * wie bei `requireRadioVerwaltung` (`_lib/zugang.ts:498-499`): das `||` gehoert in die
+ * zusammensetzende Funktion, nie in die Admin-Stufe — dort waere es die Aufweichung, die
+ * jede Updater-Person durch JEDEN Admin-Riegel liesse.
+ */
+describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", () => {
+  it("die Admin-Stufe sieht den Weg", () => {
+    /*
+     * ⛔ DIE UPDATER-STUFE IST DABEI ABSICHTLICH OFFEN GESETZT, und der Viewer steht
+     * trotzdem NICHT in ihr. Ohne das truege dieser Fall nicht, was sein Name sagt: bei
+     * geschlossener Updater-Stufe waere `istRadioUpdater` fuer JEDEN Viewer `false`, und
+     * ein Praedikat, das versehentlich nur die Admin-Gruppe kennte, saehe genauso aus.
+     * Die zweite Zusicherung haelt das fest — dieselbe Richtung wie `zugang.test.ts:258-262`.
+     */
+    try {
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      const v = viewer(["iuk-radio-admin"]);
+      expect(istRadioUpdater(v)).toBe(false);
+      expect(istRadioVerwaltung(v)).toBe(true);
+    } finally { zuruecksetzen(); }
+  });
+
+  it("die Updater-Stufe sieht ihn ebenfalls — das ist der Sinn der Entscheidung", () => {
+    /*
+     * ⛔ DER TRAGENDE FALL. Er ist zugleich die Gegenprobe gegen die naheliegende
+     * Fehlbauform „der Link haengt an `istRadioAdmin`": die erste Zusicherung haelt fest,
+     * dass diese Person die ADMIN-Stufe NICHT hat, die zweite, dass sie den Weg trotzdem
+     * sieht. ⛔ `admin` bleibt dabei strikt strenger als `updater` — hier waechst NICHTS
+     * zusammen, es kommt nur eine dritte, schwaechere Frage daneben.
+     */
+    try {
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      const v = viewer(["eine-updater-gruppe"]);
+      expect(istRadioAdmin(v)).toBe(false);
+      expect(istRadioVerwaltung(v)).toBe(true);
+    } finally { zuruecksetzen(); }
+  });
+
+  it("angemeldet ohne jede Stufe: false — bei OFFENER Updater-Stufe", () => {
+    /*
+     * ⛔ DIE OFFENE UPDATER-STUFE IST HIER DIE TRAGENDE ZEILE, nicht Beiwerk. Bliebe
+     * SUITE_UPDATER_GROUP_RADIO ungesetzt, waere dieser Fall gruen, WEIL DIE STUFE
+     * GESCHLOSSEN IST (`updaterGruppe()` gaebe `null`) — und nicht, weil die Gruppen des
+     * Viewers nicht passen. Er waere damit auch ueber einem Praedikat gruen, das jede
+     * angemeldete Person durchliesse, sobald der Betreiber die Gruppe eintraegt.
+     * ⚠️ Genau diese Klasse benennt `.superpowers/sdd/adminlink/KONTEXT.md:74-78`.
+     */
+    try {
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      expect(updaterGruppe()).toBe("eine-updater-gruppe");
+      expect(istRadioVerwaltung(viewer(["irgendeine-andere"]))).toBe(false);
+      expect(istRadioVerwaltung(viewer([]))).toBe(false);
+    } finally { zuruecksetzen(); }
+  });
+
+  it("anonym: false — und das ist der Fall, den die ANONYME Flaeche stellt", () => {
+    /*
+     * ⛔ SPEC §4.9.6: „ein sichtbarer Weg dorthin, wo die aufrufende Person nicht hindarf,
+     * verletzt die Gegenprobe" (`docs/design/README.md:420`, zitiert in
+     * `(ausleihe)/geraete/page.tsx:144-147`). Die Ausleihflaeche ist anonym erreichbar;
+     * `viewerOderNull()` gibt dort `null`, und dieses Praedikat MUSS darauf `false` geben,
+     * ohne zu werfen — ein werfender Riegel schickte jeden anonymen Scan nach `/login`
+     * (`page.tsx:119-124`).
+     *
+     * ⛔ BEIDE UMGEBUNGSLAGEN, weil `null` zwei Wege durch die Funktion nehmen kann: mit
+     * offener Updater-Stufe laeuft ein fehlender Null-Schutz in `viewer.groups` und damit
+     * in einen TypeError statt in ein `false`.
+     */
+    try {
+      expect(istRadioVerwaltung(null)).toBe(false);
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      expect(istRadioVerwaltung(null)).toBe(false);
+    } finally { zuruecksetzen(); }
+  });
+
+  it("istRadioVerwaltung ruft requireRadioHost nicht", () => {
+    /*
+     * DIE GEGENREGEL §1.4.4 (Spec:595-607) FUER DAS DRITTE PRAEDIKAT, als Rumpf-Scan —
+     * Form 1:1 aus dem Fall „istRadioUpdater ruft requireRadioHost nicht" darueber.
+     * Ein Host-Riegel in einer SICHTBARKEITSfrage machte aus ihr eine zweite Sperre, und
+     * zwar an einer Stelle, an der der Aufrufer die Header gar nicht hat.
+     *
+     * ⚠️ DER SCAN ZIELT AUF DEN RUMPF, NICHT AUF DIE DATEI: `_lib/zugang.ts` ENTHAELT
+     * `requireRadioHost` — als erste Anweisung von `riegelAufStufe`, und genau dort MUSS
+     * es stehen. Ein dateiweites `not.toMatch` waere dauerhaft rot.
+     */
+    const rumpf = funktionsRumpf(readFileSync(ZUGANG_QUELLE, "utf8"), "istRadioVerwaltung");
+    expect(rumpf, "istRadioVerwaltung nicht gefunden — der Scan waere leer-gruen").not.toBe("");
+    expect(rumpf, "Gegenregel §1.4.4: istRadioVerwaltung ruft requireRadioHost NICHT")
       .not.toMatch(/\brequireRadioHost\b/);
   });
 });
