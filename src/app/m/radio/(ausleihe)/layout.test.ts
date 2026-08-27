@@ -13,9 +13,26 @@ import { createElement } from "react";
  *
  * ⛔ WAS DIESE DATEI NICHT BELEGT — und das ist die Grenze, nicht eine Auslassung: sie sagt
  * NICHTS darueber, ob Next ein Group-Layout ueberhaupt ausfuehrt und ob der Riegel bei einem
- * ECHTEN Abruf GREIFT (⬜ A-L9, Erbe von ⬜ Z-L1, `riegel.test.ts:50-55`). Das liest Planteil 5
- * beim ersten e2e-Lauf ab. Hier laeuft die exportierte Funktion, mehr nicht — und genau das
- * war die Luecke.
+ * ECHTEN Abruf GREIFT. Hier laeuft die exportierte Funktion, mehr nicht — und genau das war
+ * die Luecke.
+ *
+ * ✅ ⬜ A-L9: DIESE FRAGE IST NICHT MEHR OFFEN, UND DER SATZ STEHT DESHALB IM PERFEKT. Bis zur
+ * Fix-Runde 2 zu T3 stand hier: „(⬜ A-L9, Erbe von ⬜ Z-L1, `riegel.test.ts:50-55`). Das liest
+ * Planteil 5 beim ersten e2e-Lauf ab." ⛔ Der Lauf hat am 2026-08-27 stattgefunden, und
+ * abgelesen ist er in der Datei NEBENAN: `(ausleihe)/layout.tsx:38-68` traegt die zwei
+ * Wirkproben P1/P2 mit Messwerten (P2 = Seitenzeile neutralisiert, Layoutzeile unberuehrt
+ * -> Fall 4 Hop 1 weiterhin `307` auf `/abmelden?grund=gesperrt`). Ergebnis: Next FUEHRT das
+ * Group-Layout aus, und der Riegel darin greift bei einem echten Abruf AUCH ALLEIN. Die
+ * Dauerfaelle stehen in `e2e/radio-zugang.spec.ts` (Kopf `:21-23`).
+ * ⚠️ ZWEI GRENZEN BLEIBEN, damit dieser Absatz nicht das naechste zu grosse Wort wird:
+ * ⬜ A-L9 ist als GANZES nicht geschlossen — die Host-Schleife ueber zwei Hosts (T4,
+ * `_lib/bauform.test.ts:654`), der `abgelaufen`-Zweig von `_lib/ausleihZugang.ts:240` (in KEINEM
+ * der vier Faelle bei einem echten Abruf gemessen; in `e2e/radio-zugang.spec.ts` kommt das Wort
+ * nur in zwei KOMMENTARzeilen vor, `:380` und `:725` — nachgezaehlt, nicht geschaetzt), `/sw.js`
+ * und `/api/health/radio` (T4/T5) und der Personenriegel im `(druck)`-Zweig (⬜ V-L14, T5)
+ * stehen aus. Und der Anker `riegel.test.ts:50-55` aus dem alten Wortlaut zeigt heute auf die
+ * Ablesung des VERWALTUNGSzweigs (V23, 2026-08-26) — er trug den Satz ohnehin nur als Herkunft,
+ * nicht als Beleg.
  *
  * ⚠️ KEIN jsdom UND KEIN `mount()`: die Huelle rendert nichts, sie REICHT DURCH. Die Zusage
  * ist eine Identitaet (`toBe`), und die misst man ohne DOM schaerfer als an einem Baum. Damit

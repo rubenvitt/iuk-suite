@@ -16,10 +16,10 @@ import { viewerAusSession } from "./zugang";
  * jede Flaeche einzeln nebeneinanderstellt. Das waere die Liste, die die naechste Datei
  * vergisst.
  *
- * ⬜ A-L9 — DIE GRENZE DIESER DATEI, BENANNT STATT BEHAUPTET: dass diese Riegel bei einem
- * ECHTEN Abruf GREIFEN, ist unbewiesen (Erbe von Z-L1, `riegel.test.ts:50-55`);
- * Eigentuemer ist Planteil 5 mit dem ersten e2e-Lauf. Was hier und in
- * `ausleihZugang.test.ts` belegt ist: die LOGIK des Praedikats.
+ * ✅ ⬜ A-L9 IST FUER DIE SPERRE DIESER DATEI AM 2026-08-27 ABGELESEN — hier stand bis dahin
+ * „unbewiesen; Eigentuemer ist Planteil 5 mit dem ersten e2e-Lauf". Gemessen bei ECHTEM Abruf:
+ * `radio-zugang.spec.ts:21-23` (Fall 4, Fall 5; Sonde `:181`). LOGIK: hier + `ausleihZugang.test.ts`.
+ * ⬜ OFFEN, nie bei echtem Abruf gemessen: HOST-Haelfte und `abgelaufen`-Zweig von `:240` (T4).
  *
  * ⚠️ ABWEICHUNG VOM VORBILD `src/app/m/lagerbuch/_lib/helferZugang.ts`, ABSICHTLICH UND
  * TRAGEND: dort steht `requireLagerbuchHost(await headers())` als erste Anweisung JEDER

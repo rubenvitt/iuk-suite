@@ -20,7 +20,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  * verbietet.
  *
  * ⛔ WAS DIESE DATEI NICHT BELEGT: dass der Riegel bei einem ECHTEN Abruf GREIFT
- * (⬜ A-L9, Erbe von Z-L1, `riegel.test.ts:50-55`). Sie belegt die LOGIK der Weiche.
+ * (⬜ A-L9, Stand `e2e/radio-zugang.spec.ts:11-23`). Sie belegt die LOGIK der Weiche.
  * Kein Fall hier darf etwas anderes behaupten.
  */
 
