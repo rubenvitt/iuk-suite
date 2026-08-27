@@ -8,7 +8,6 @@ import { gateGesperrt } from "./_lib/gateSchranke";
 import { gateMeldung } from "./_lib/gateTexte";
 import { requireRadioHost } from "./_lib/host";
 import { sanitizeReturnTo } from "./_lib/returnTo";
-import { istRadioAdmin, viewerOderNull } from "./_lib/zugang";
 import { GateFormular } from "./_ui/GateFormular";
 import s from "./_ui/ausleihe.module.css";
 
@@ -75,6 +74,43 @@ export default async function RadioGatePage({
   const zugang = await ausleihZugangOderNull(getDb());
   if (zugang) redirect("/geraete");
 
+  /*
+   * ⛔ HIER STAND BIS ZUM 2026-08-27 EIN LINK „Zur Verwaltung" (`darfVerwalten && …`, frueher
+   * `:125-126` und `:151-157`). ER WAR TOT DURCH KONSTRUKTION, NICHT FALSCH EINSORTIERT —
+   * und die zwei Zeilen darueber sind der Grund. `befund` gibt JEDER Suite-Sitzung
+   * `{ weg: "suite" }`, OHNE jede Gruppenpruefung (`_lib/ausleihZugang.ts:148-152`, Auflage 5
+   * `:138-143`); `viewerOderNull()` las DIESELBE Sitzung ueber DASSELBE Symbol
+   * (`_lib/ausleihZugang.ts:9` importiert `viewerAusSession` aus `./zugang`, definiert in
+   * `_lib/zugang.ts:71`). War der Viewer also nicht `null`, hatte `redirect("/geraete")` die
+   * Anfrage laengst weitergeschickt: der Zweig konnte in KEINEM erreichbaren Zustand wahr
+   * werden. Sein Testfall war gruen ueber einem unmoeglichen Zustand — er mockte die beiden
+   * Quellen unabhaengig voneinander.
+   *
+   * ⛔ UND ES KEHRT AUCH NICHT ALS RIEGEL ZURUECK — die Begruendung, die frueher an der
+   * geloeschten Praedikatszeile stand, gilt unveraendert: ein `requireRadioAdmin()` oder
+   * `requireRadioVerwaltung()` an dieser Stelle schickte JEDEN anonymen Scan nach `/login`,
+   * bevor die Person das Gate je saehe — genau der Ausfall, den `requiresAuth: false`
+   * verhindern soll (NS-Z6), und er waere typkorrekt, lint-sauber und fuer `pnpm build`
+   * unsichtbar. `riegel.test.ts` Klausel (f) weist beide Namen auf DIESER Datei ab.
+   *
+   * ⛔ UND DIE UMSTELLUNG DER REIHENFOLGE IST NICHT DIE REPARATUR, so nahe sie liegt.
+   * `src/app/m/lagerbuch/page.tsx:41` darf seine Weiche vor alles ziehen, WEIL dort ein
+   * `redirect` folgt. Zoege man sie hier nach vorn und liesse einen LINK folgen, faende die
+   * Weiterleitung nach `/geraete` fuer Verwaltende nicht mehr statt: eine Person, die gerade
+   * ein Funkgeraet ausleihen will, landete im Codefeld statt im Bestand — woertlich der
+   * Schaden, gegen den §3.6.3 Punkt 3 steht (Spec:2914-2924), nur mit umgekehrtem
+   * Vorzeichen. Ausgeschrieben in `.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.10
+   * („Das Gate ist der falsche Ort — die Umstellung der Reihenfolge repariert es NICHT")
+   * und als Posten 7 derselben Datei.
+   *
+   * ✅ DER WEG IN DIE VERWALTUNG GEHOERT IN DEN KOPF DER AUSLEIHFLAECHE — dorthin, wo der
+   * Bestand ihn selbst verortet (`_lib/zugang.ts:456-458`: „am /admin-Link der
+   * Ausleihflaeche") und wo eine verwaltende Person nach dieser Weiterleitung tatsaechlich
+   * steht: `_ui/AusleihRahmen.tsx`, neben dem dort schon vorhandenen, praedikatsgebundenen
+   * Link „Zur Suite" (`:153-156`). ⛔ WER IHN HIER WIEDER EINSETZT, BAUT DENSELBEN TOTEN
+   * ZWEIG NEU — der Block „Bauform des Gates" in `page.test.tsx` haelt das fest.
+   */
+
   const { grund, returnTo } = await searchParams;
 
   /*
@@ -109,22 +145,6 @@ export default async function RadioGatePage({
    */
   const sauberesZiel = sanitizeReturnTo(returnTo);
 
-  /*
-   * ⛔ EIN LINK, KEIN REDIRECT, UND ER HAENGT AM PRAEDIKAT (§3.6.3 Punkt 3 und 4,
-   * Spec:2914-2924; NS-Z6). Spec §1.2.1 Zeile 277 schreibt „ein radio-admin wird nach
-   * `/admin` geleitet"; §3.6.3 Punkt 3 STICHT: „Ein `radio`-Admin bekommt ueber
-   * `weg: "suite"` Zugang zur Ausleihe — nicht als Admin." Ein Redirect wuerfe eine Person,
-   * die gerade ein Funkgeraet ausleihen will, aus der Ausleihe heraus.
-   *
-   * ⛔ `istRadioAdmin(await viewerOderNull())`, NIEMALS `requireRadioAdmin()`. Der werfende
-   * Riegel schickte JEDEN anonymen Scan nach `/login`, bevor die Person das Gate je saehe —
-   * genau der Ausfall, den `requiresAuth: false` verhindern soll, und er waere typkorrekt,
-   * lint-sauber und fuer `pnpm build` unsichtbar. `viewerOderNull` ruft den Host-Riegel
-   * ihrerseits bewusst nicht (`_lib/zugang.ts:86-97`, Klausel (d) in `riegel.test.ts`).
-   */
-  const viewer = await viewerOderNull();
-  const darfVerwalten = istRadioAdmin(viewer);
-
   return (
     <main className={s.gate}>
       <h1 className={s.titel}>Funkgeräte</h1>
@@ -148,13 +168,6 @@ export default async function RadioGatePage({
         (`src/app/m/lagerbuch/_ui/Gate.tsx:187-188`).
       */}
       <GateFormular fehlerText={meldung} returnTo={sauberesZiel ?? ""} />
-      {darfVerwalten && (
-        <p className={s.adminZeile}>
-          <a className={s.adminLink} href="/admin" data-rolle="gate-admin">
-            Zur Verwaltung
-          </a>
-        </p>
-      )}
     </main>
   );
 }

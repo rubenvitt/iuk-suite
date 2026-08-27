@@ -602,7 +602,7 @@ describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", ()
      * `(ausleihe)/geraete/page.tsx:142-146`). Die Ausleihflaeche ist anonym erreichbar;
      * `viewerOderNull()` gibt dort `null`, und dieses Praedikat MUSS darauf `false` geben,
      * ohne zu werfen — ein werfender Riegel schickte jeden anonymen Scan nach `/login`
-     * (`src/app/m/radio/page.tsx:119-124`).
+     * (`src/app/m/radio/page.tsx:89-94`).
      *
      * ⛔ BEIDE UMGEBUNGSLAGEN, weil `null` zwei Wege durch die Funktion nehmen kann: mit
      * offener Updater-Stufe laeuft ein fehlender Null-Schutz in `viewer.groups` und damit

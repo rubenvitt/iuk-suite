@@ -110,22 +110,18 @@
 }
 
 /*
- * DER VERWALTUNGSWEG IST EIN LINK, KEIN REDIRECT (§3.6.3 Punkt 3 und 4, Spec:2914-2924) — und
- * er haengt am PRAEDIKAT `istRadioAdmin(await viewerOderNull())`, nicht am werfenden
- * Riegel. Er steht deshalb optisch nachgeordnet: die Ausleihe ist der Regelfall dieser
- * Seite, auch fuer eine verwaltende Person.
+ * ⛔ HIER STANDEN `.adminZeile` UND `.adminLink`, DIE ZWEI KLASSEN DES GATE-VERWALTUNGSLINKS.
+ * Sie sind am 2026-08-27 mit ihm gefallen: der Zweig war tot durch Konstruktion
+ * (`../page.tsx:78-105`, Messung `.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.10).
+ *
+ * ⛔ UND SIE SIND NICHT WIEDERZUVERWENDEN, wenn der Link im Kopf der Ausleihflaeche neu
+ * entsteht. `.adminLink` las `var(--radio-gate-marke)`, `.adminZeile` las
+ * `var(--radio-gate-linie)` — beide sind AUSSCHLIESSLICH auf `.gate` deklariert (`:35-39`,
+ * festgehalten in `AusleihVorgang.test.tsx:626`). Unter `.rahmen` loesen sie nicht auf, und
+ * der Ausfall ist STILL: die Linie verschwindet einfach und die Farbe faellt auf den
+ * geerbten Wert zurueck (Falle 2, `CLAUDE.md:14-16`). Ein Link dort traegt seine Toene vom
+ * Traeger `.rahmen` oder bringt sie selbst mit.
  */
-.adminZeile {
-  margin: 0;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--radio-gate-linie);
-  font-size: 0.9375rem;
-}
-
-.adminLink {
-  color: var(--radio-gate-marke);
-  touch-action: manipulation;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════
  * A16 — DER AUSLEIH-RAHMEN, DER STATUS-CHIP UND DIE RESTZEIT.

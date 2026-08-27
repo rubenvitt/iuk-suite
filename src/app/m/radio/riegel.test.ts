@@ -759,7 +759,7 @@ describe("(f) jede Ausleih-Flaeche traegt die Riegelform IHRER Art", () => {
    *          durch — selbst gemessen, ebenso mit `requireAusleihSchreibend(getDb())`.
    *          Ein WERFENDER Riegel schickte jeden anonymen Scan nach `/login`, bevor die
    *          Person das Gate je saehe (NS-Z6; die Begruendung steht ausgeschrieben in
-   *          `page.tsx:119-123`); `requireAusleihSchreibend` wirft nicht, sondern gibt ein
+   *          `page.tsx:89-94`); `requireAusleihSchreibend` wirft nicht, sondern gibt ein
    *          ERGEBNIS zurueck, das auf einer Flaeche niemand prueft — typkorrekt,
    *          lint-sauber, wirkungslos (Bauform-Zulaessigkeitstafel Zeile 10).
    *

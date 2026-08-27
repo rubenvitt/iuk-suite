@@ -264,7 +264,7 @@ export function istRadioUpdater(viewer: RadioViewer | null): boolean {
  *
  * ⛔ WARUM NICHT `requireRadioVerwaltung()` AN DIESER STELLE: dieselbe Begruendung wie bei
  * `viewerOderNull` (`:86-90`) und beim /admin-Link der Ausleihflaeche
- * (`src/app/m/radio/page.tsx:119-124`). Ein werfender Riegel schickte jede anonyme Person
+ * (`src/app/m/radio/page.tsx:89-94`). Ein werfender Riegel schickte jede anonyme Person
  * nach `/login` — auf einer Flaeche, die unter `requiresAuth: false` gerade anonym erreichbar
  * sein SOLL. „Keine Sitzung" ist hier ein dritter gueltiger Fall, kein Fehlerfall.
  *

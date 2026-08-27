@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 // src/app/m/radio/page.test.tsx
+import { readFileSync } from "node:fs";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 /**
@@ -29,6 +30,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  * Host, unter dem der Zweig faehrt, ist `radio.localtest.me` — dieselbe Konstante, die
  * `_lib/ausleihZugang.test.ts:39` schon fuehrt.
  */
+/** Der Dateitext, den der Bauform-Scan am Ende dieser Datei liest. */
+const QUELLE = "src/app/m/radio/page.tsx";
+
 const HOST = "radio.localtest.me";
 const ABSENDER = "203.0.113.7";
 
@@ -89,8 +93,6 @@ vi.mock("./_lib/gateSchranke", () => ({
   }),
 }));
 
-vi.mock("./_lib/zugang", () => ({ viewerOderNull: vi.fn(), istRadioAdmin: vi.fn() }));
-
 vi.mock("./_lib/host", async (echt) => ({
   ...(await echt<typeof import("./_lib/host")>()),
   requireRadioHost: (h: Headers) => hostRiegel(h),
@@ -115,19 +117,15 @@ vi.mock("./_ui/GateFormular", () => ({
 
 import { ausleihZugangOderNull } from "./_lib/ausleihZugang";
 import { gateGesperrt, gateFehlversuchBuchen } from "./_lib/gateSchranke";
-import { viewerOderNull, istRadioAdmin } from "./_lib/zugang";
 import RadioGatePage, { dynamic } from "./page";
-import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
-
-const VIEWER = { sub: "u-1", name: "Anna", groups: ["radio-admins"] };
+import { ohneKommentare } from "./_lib/quelltextScan";
+import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 
 beforeEach(() => {
   kopfzeilen = new Headers({ host: HOST, "cf-connecting-ip": ABSENDER });
   umleitungen.length = 0;
   vi.mocked(ausleihZugangOderNull).mockResolvedValue(null);
   vi.mocked(gateGesperrt).mockReturnValue(null);
-  vi.mocked(viewerOderNull).mockResolvedValue(null);
-  vi.mocked(istRadioAdmin).mockReturnValue(false);
 });
 afterEach(async () => {
   await unmount();
@@ -198,44 +196,45 @@ describe("das Gate an /", () => {
     expect(hostRiegel).toHaveBeenCalledWith(kopfzeilen);
   });
 
-  it("zeigt den admin-Link bei istRadioAdmin, und als Link statt als Redirect", async () => {
+  it("jede Suite-Sitzung wird ebenso nach /geraete geleitet, auch eine verwaltende", async () => {
     /*
-     * §3.6.3 Punkt 3 und 4 (Spec:2914-2924), NS-Z6. Spec §1.2.1 Zeile 277 sagt „ein
-     * radio-admin wird nach `/admin` geleitet"; Punkt 3 sticht: „Ein `radio`-Admin bekommt
-     * ueber `weg: "suite"` Zugang zur Ausleihe — nicht als Admin." Ein Redirect wuerfe eine
-     * Person, die gerade ein Funkgeraet ausleihen will, aus der Ausleihe heraus.
+     * ⛔ DER FALL, DEN ES WIRKLICH GIBT — und er ersetzt den unmoeglichen Fall darueber.
+     * `befund` gibt JEDER Suite-Sitzung `{ weg: "suite" }`, OHNE jede Gruppenpruefung
+     * (`_lib/ausleihZugang.ts:148-152`, Auflage 5 `:138-143`). Eine verwaltende Person ist
+     * damit KEIN eigener Zustand dieser Seite: sie wird wie jede andere angemeldete Person
+     * behandelt und landet auf `/geraete`. Der Weg in die Verwaltung entsteht DORT, im Kopf
+     * der Ausleihflaeche — der Bestand verortet ihn selbst so (`_lib/zugang.ts:456-458`:
+     * „am /admin-Link der Ausleihflaeche").
      *
-     * ⛔ UND ER HAENGT AM PRAEDIKAT: `istRadioAdmin(await viewerOderNull())`, nie
-     * `requireRadioAdmin()` — der werfende Riegel schickte jeden anonymen Scan nach
-     * `/login`.
+     * ⚠️ DIESER FALL IST VON ANFANG AN GRUEN, und das steht hier ausgeschrieben statt
+     * verschwiegen: er ist ein Rueckfallwaechter, kein Nachweis einer neuen Zeile. Rot wird
+     * er, wenn `if (zugang) redirect("/geraete")` in `page.tsx:76` faellt.
      */
-    vi.mocked(viewerOderNull).mockResolvedValue(VIEWER);
-    vi.mocked(istRadioAdmin).mockReturnValue(true);
+    vi.mocked(ausleihZugangOderNull).mockResolvedValue({
+      weg: "suite",
+      sub: "u-1",
+      name: "Anna",
+    });
 
-    await rendere();
-
-    const link = query<HTMLAnchorElement>('[data-rolle="gate-admin"]');
-    expect(link.tagName).toBe("A");
-    expect(link.getAttribute("href")).toBe("/admin");
-    expect(umleitungen).toEqual([]);
-    // Das Codefeld bleibt stehen — die Ausleihe ist auch fuer eine verwaltende Person der
-    // Regelfall dieser Seite.
-    expect(exists('[data-rolle="gate-formular"]')).toBe(true);
-    expect(vi.mocked(istRadioAdmin)).toHaveBeenCalledWith(VIEWER);
+    await expect(rendere()).rejects.toThrow("NEXT_REDIRECT");
+    expect(umleitungen).toEqual(["/geraete"]);
   });
 
-  it("zeigt den admin-Link NICHT ohne istRadioAdmin", async () => {
+  it("zeigt einem anonymen Besucher KEINEN Weg in die Verwaltung", async () => {
     /*
-     * DIE ZWEITE HAELFTE, und ohne sie waere der Fall darueber halb-gruen: eine Seite, die
-     * den Link IMMER zeigt, bestuende ihn. Spec:2917-2918 („zeigt nie einen Verwaltungsweg
-     * an eine Person ohne `istRadioAdmin`").
+     * §4.9.6 (Spec:3919-3922) am gerenderten BAUM, nicht am Dateitext: „ein sichtbarer Weg
+     * dorthin, wo die aufrufende Person nicht hindarf, verletzt die Gegenprobe"
+     * (`docs/design/README.md:420`). Zeichengleiche Form wie der Bestandswaechter
+     * `(ausleihe)/geraete/page.test.tsx:419-421`.
+     *
+     * ⛔ DIE ZUSICHERUNG LIEST `href`, NICHT `data-rolle`: ein Verwaltungsweg unter einem
+     * anderen Etikett waere derselbe Ausfall, und ein Scan auf `gate-admin` allein saehe ihn
+     * nicht. Die zweite Zeile haelt den Fall gegen leeres Gruen — ohne sie bestuende ihn
+     * auch eine Seite, die gar nichts rendert.
      */
-    vi.mocked(viewerOderNull).mockResolvedValue(VIEWER);
-    vi.mocked(istRadioAdmin).mockReturnValue(false);
-
     await rendere();
 
-    expect(exists('[data-rolle="gate-admin"]')).toBe(false);
+    expect(queryAll('a[href^="/admin"]')).toHaveLength(0);
     expect(exists('[data-rolle="gate-formular"]')).toBe(true);
   });
 
@@ -325,5 +324,51 @@ describe("das Gate an /", () => {
      * §4.7 (Spec:3827) setzt dasselbe fuer die drei Ausleihseiten.
      */
     expect(dynamic).toBe("force-dynamic");
+  });
+});
+
+/*
+ * DIE BAUFORM DES GATES — der Quelltext-Scan, der den entfernten Verwaltungszweig
+ * dauerhaft draussen haelt.
+ *
+ * ⛔ WARUM UEBERHAUPT EIN SCAN UND NICHT NUR EIN BAUMFALL: der Zweig war
+ * `darfVerwalten && …` — er rendert nichts, solange das Praedikat falsch ist. Ein Baumfall
+ * ueber der anonymen Seite bliebe also gruen, wenn ihn jemand woertlich wieder einsetzte.
+ * Rot wird nur eine Zusicherung ueber dem DATEITEXT. Hausform:
+ * `src/app/m/lagerbuch/page.test.tsx:345-360`.
+ *
+ * ⛔ ER LAEUFT UEBER `ohneKommentare`, NICHT UEBER `bereinigt` (`_lib/quelltextScan.ts:61`
+ * bzw. `:126`). `bereinigt` leert zusaetzlich Zeichenkettenliterale — und
+ * `data-rolle="gate-admin"` IST eines. Die negative Zusicherung waere damit STILL gruen,
+ * genau die Richtung, vor der der Kopf jener Datei warnt („weniger Text heisst weniger
+ * gefundene Verstoesse", `_lib/quelltextScan.ts:95-101`).
+ */
+describe("Bauform des Gates", () => {
+  const quelle = () => ohneKommentare(readFileSync(QUELLE, "utf8"));
+
+  it("traegt keinen Verwaltungszweig — er war tot durch Konstruktion", () => {
+    /*
+     * ⛔ ZUERST DIE LEER-GRUEN-PROBE, DANN DIE VERBOTE. Liefe der Scan ins Leere — falscher
+     * Pfad, leere Datei —, waere JEDES `not.toMatch` darunter still wahr. Dieselbe Lehre,
+     * die L1 in `_lib/zugang.test.ts` gemessen hat: die Probe ist dort rot geworden, nicht
+     * bloss behauptet.
+     */
+    expect(quelle(), "der Scan liest nichts — jedes Verbot darunter waere leer-gruen")
+      .not.toBe("");
+    expect(quelle(), "der Scan liest nicht das Gate — die Weiche fehlt im Text")
+      .toMatch(/ausleihZugangOderNull\s*\(/);
+
+    /*
+     * ⛔ DIE DREI VERBOTE. Der Zweig bestand aus genau diesen drei Spuren
+     * (`page.tsx:125-126` und `:151-157`, Stand vor dieser Aufgabe). Sie stehen EINZELN da
+     * und nicht als eine Alternative, damit die Fehlermeldung sagt, WELCHE Haelfte
+     * zurueckgekommen ist.
+     */
+    expect(quelle(), "das Etikett des toten Gate-Links ist zurueck (Bericht §2.10)")
+      .not.toMatch(/gate-admin/);
+    expect(quelle(), "ein Verwaltungs-Praedikat auf dem Gate — es kann hier nie wahr werden")
+      .not.toMatch(/\bistRadioAdmin\s*\(|\bistRadioVerwaltung\s*\(/);
+    expect(quelle(), "`viewerOderNull(` auf dem Gate — die Sitzung entscheidet hier nichts")
+      .not.toMatch(/\bviewerOderNull\s*\(/);
   });
 });
