@@ -135,8 +135,10 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
      * hier NICHT „dieselbe Bauform wie der Updater-Fall unten". Der haelt `updaterGruppe()`
      * gegen die UNABHAENGIGE Konstante `RADIO_UPDATER_GRUPPE`; dieser Fall haelt den Leser
      * gegen DENSELBEN `RADIO_ENV`-Eintrag, den er ihm reicht — beide Seiten wandern
-     * gemeinsam, ein verdrehter WERT liesse ihn gruen. Gemessen in der Aussenpruefung zu T1
-     * (Mutation „nur der Wert verdreht": dieser Fall blieb gruen). ⛔ Die Wert-Klasse haelt
+     * gemeinsam, ein verdrehter WERT liesse ihn gruen — abzulesen an der Zusicherung zwei
+     * Zeilen tiefer, deren beide Seiten denselben `RADIO_ENV`-Eintrag holen. Zusaetzlich
+     * gemessen in `.superpowers/sdd/planteil5/REVIEW-T1.md`, Fund F-T1-3 (Mutation D: nur
+     * der Wert verdreht, dieser Fall blieb gruen). ⛔ Die Wert-Klasse haelt
      * der Fall „haelt das Geheimnis zeichengleich gegen die Vorlage `.env.example`"
      * darueber, und nur er.
      */
