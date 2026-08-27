@@ -263,10 +263,10 @@ export function istRadioUpdater(viewer: RadioViewer | null): boolean {
  * ⛔ Ein Link aendert daran nichts — und ein fehlender Link sichert nichts.
  *
  * ⛔ WARUM NICHT `requireRadioVerwaltung()` AN DIESER STELLE: dieselbe Begruendung wie bei
- * `viewerOderNull` (`:86-90`) und beim /admin-Link der Ausleihflaeche (`page.tsx:119-124`).
- * Ein werfender Riegel schickte jede anonyme Person nach `/login` — auf einer Flaeche, die
- * unter `requiresAuth: false` gerade anonym erreichbar sein SOLL. „Keine Sitzung" ist hier
- * ein dritter gueltiger Fall, kein Fehlerfall.
+ * `viewerOderNull` (`:86-90`) und beim /admin-Link der Ausleihflaeche
+ * (`src/app/m/radio/page.tsx:119-124`). Ein werfender Riegel schickte jede anonyme Person
+ * nach `/login` — auf einer Flaeche, die unter `requiresAuth: false` gerade anonym erreichbar
+ * sein SOLL. „Keine Sitzung" ist hier ein dritter gueltiger Fall, kein Fehlerfall.
  *
  * ⛔ BEIDE STUFEN — BETREIBERENTSCHEIDUNG 2026-08-27, UND SIE IST AUF ZAHLEN GEFALLEN:
  * SECHS der zehn Verwaltungsseiten stehen dem UPDATER offen, `/admin` selbst eingeschlossen

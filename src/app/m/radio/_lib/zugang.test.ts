@@ -602,7 +602,7 @@ describe("istRadioVerwaltung — das nicht-werfende Praedikat beider Stufen", ()
      * `(ausleihe)/geraete/page.tsx:142-146`). Die Ausleihflaeche ist anonym erreichbar;
      * `viewerOderNull()` gibt dort `null`, und dieses Praedikat MUSS darauf `false` geben,
      * ohne zu werfen — ein werfender Riegel schickte jeden anonymen Scan nach `/login`
-     * (`page.tsx:119-124`).
+     * (`src/app/m/radio/page.tsx:119-124`).
      *
      * ⛔ BEIDE UMGEBUNGSLAGEN, weil `null` zwei Wege durch die Funktion nehmen kann: mit
      * offener Updater-Stufe laeuft ein fehlender Null-Schutz in `viewer.groups` und damit
@@ -638,8 +638,8 @@ describe("requireRadioVerwaltung — die zweite Stufe, werfend", () => {
    * ⛔ `_resetGemeldeteGruppen()` GEHOERT IN DAS `beforeEach`, UND DER GRUND STEHT SEIT
    * PLANTEIL 2 IM QUELLTEXT (`_lib/zugang.ts:345-352`): `bereitsGemeldet` ist prozess-lokal
    * und ueberlebt jeden Fall dieser Datei. ⛔ SEIN TRAEGER IST GENAU EIN FALL: „meldet die
-   * fehlende Gruppe EINMAL JE PERSON" (`:754`) weist ABSICHTLICH denselben `sub` ab wie der
-   * Fall auf `:597`. Jeder ANDERE Fall traegt seinen eigenen — ohne jenen waere die Zeile inert.
+   * fehlende Gruppe EINMAL JE PERSON" (`zugang.test.ts:866`) weist ABSICHTLICH denselben `sub`
+   * ab wie der Fall auf `:709`; jeder ANDERE traegt seinen eigenen, sonst waere der Reset inert.
    *
    * Der WARN-Spy steht hier, weil die Abweisungsfaelle sonst je eine echte Zeile in die
    * Suitenausgabe schreiben; der Fall, der das Protokoll PRUEFT, legt seinen eigenen Spy
