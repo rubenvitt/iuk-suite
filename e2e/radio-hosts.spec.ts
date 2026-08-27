@@ -109,6 +109,13 @@ import {
  * dass der 404 dort wirklich der Host-Riegel ist. ⛔ Die LEERE Stufe hat ihren eigenen Fall in
  * `e2e/radio-verwaltung.spec.ts` („V-L3 B") und wird hier NICHT dupliziert.
  *
+ * ⚠️ DER GELTUNGSBEREICH DIESES SATZES, AUSGESCHRIEBEN STATT VORAUSGESETZT: `devLogin` steht in
+ * der SCHLEIFE und im DATENWIRKUNGS-FALL. Der Worker-, der Health- und der Cookie-Fall melden
+ * sich NICHT an, und das aendert an ihrer Aussage nichts: `radio` traegt `requiresAuth: false`
+ * (`src/core/registry.ts:197-199`), und `canAccess` steigt deshalb schon in `:265`
+ * (`if (!mod.requiresAuth) return true;`) mit `true` aus — AUCH fuer `groups === null`. Ein
+ * GRUPPENriegel kann dort also gar nicht die Ursache eines 404 sein; es bleibt der HOSTriegel.
+ *
  * ────────────────────────────────────────────────────────────────────────────
  * ⚠️ `page.request` ODER `page.goto` — DER GELTUNGSBEREICH, AUSGESCHRIEBEN (Vorabscan F12)
  * ────────────────────────────────────────────────────────────────────────────
@@ -212,6 +219,28 @@ import {
  *
  * ⛔ ALLE SONDEN SIND ZURUECKGENOMMEN; `rtk git status --short` und `rtk git diff --stat`
  * waren danach leer bis auf diese neue Datei.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * ⬜ WAS DIESE DATEI FUER Z-L1 NICHT ABLIEST — DIE RESTMENGE, HIER STATT NUR IM BERICHT
+ * ────────────────────────────────────────────────────────────────────────────
+ * ⛔ DIE ZWEITE HAELFTE VON `Spec:6916` IST IM LAUF NICHT ABGELESEN, UND DAS IST DIE WICHTIGSTE
+ * ZEILE DIESES KOPFES. Abgelesen und FALSIFIZIERT ist ihr Stellvertreter: die 404-Antwort des
+ * fremden Hosts traegt kein `Set-Cookie` fuer `radio_ausleihe` (Sonde S-T4f). Die woertliche
+ * Zusage — „das Cookie der laufenden Sitzung ist danach unveraendert vorhanden" — steht als
+ * Zusicherung im Cookie-Fall unten und ist dort NACHWEISLICH NICHT falsifizierbar; der Grund
+ * ist die Bauform (host-only Cookie) und im Kommentar jenes Falls ausgeschrieben.
+ * ⛔ WER SIE FUER DEN WIRKNACHWEIS HAELT, UEBERSCHAETZT SIE. Sie gehoert in die RESTMENGE von
+ * ⬜ Z-L1 und ist NICHT erledigt. ⛔ DESHALB HEISST DER FALL AUCH NICHT MEHR, WIE ER IN
+ * `briefs/T4.md` HEISST: bis zum 2026-08-27 trug er den Namen „der Abmelde-Handler auf fremdem
+ * Host laesst das Sitzungs-Cookie stehen" — er sagte damit die unbewachte Haelfte zu. Der
+ * heutige Name sagt die bewachte.
+ *   Was die Restmenge schloesse: ein Fall, der das Cookie auf `RADIO_HOST` NACH dem
+ *   Fremdversuch wirklich noch BENUTZT — eine geschuetzte Ausleih-Flaeche abruft und dort nicht
+ *   nach `/abmelden?grund=…` umgeleitet wird. Das ist eine ANDERE Zusage als „derselbe
+ *   Cookie-Wert", und sie ist hier NICHT gebaut.
+ * ⚠️ Ebenfalls offen und von dieser Datei NICHT gedeckt: `/m/radio/admin/import/hochladen` (nur
+ * `POST`, Grund oben), ⬜ G-L5 (der Rumpf von `/api/health/radio` im BETRIEB) und ⬜ G-L7 (was
+ * nach dem Abraeumen in „Application → Service Workers" steht).
  *
  * ────────────────────────────────────────────────────────────────────────────
  * ⛔ ZEHN LAUFENDE `test()`-BLOECKE AUS SECHS `test(`-QUELLEN — nachgezaehlt, nicht geschaetzt
@@ -507,7 +536,15 @@ test.describe("radio-Host-Riegel", () => {
 
       const rumpf = await antwort.text();
       expect(rumpf, `${pfad}: der Worker traegt sich aus`).toContain("registration.unregister");
-      expect(rumpf, `${pfad}: der Worker raeumt ALLE Cache-Namen`).toContain("caches.keys");
+      /*
+       * ⚠️ DIESE ZEILE SAGT NICHT „ALLE" ZU, UND SIE HIESS BIS ZUM 2026-08-27 SO
+       * („der Worker raeumt ALLE Cache-Namen"). `toContain("caches.keys")` belegt, dass der
+       * Worker die Cache-LISTE abgreift — dass danach `caches.delete` ueber JEDEN Namen laeuft,
+       * prueft dieser Fall nicht. Die Vollzaehligkeit haelt der Unit-Fall
+       * `src/app/m/radio/_lib/sw-quelle.test.ts:132` („er loescht ALLE Cache-Namen, nicht nur
+       * radio-inventar-v1"), und dort ist sie mit drei Fake-Namen falsifiziert.
+       */
+      expect(rumpf, `${pfad}: der Worker greift die Cache-Liste ab`).toContain("caches.keys");
       expect(rumpf, `${pfad}: KEIN fetch-Handler`).not.toContain('addEventListener("fetch"');
     }
   });
@@ -565,15 +602,23 @@ test.describe("radio-Host-Riegel", () => {
    *       `radio.localtest.me` gar nicht loeschen.
    *
    * ⛔ DIE DIFFERENZIELLE COOKIE-ZUSICHERUNG IST DESHALB NICHT FALSIFIZIERBAR: sie bleibt auch
-   * dann gruen, wenn der Host-Riegel des Abmelde-Handlers HINTER die Raeumung wandert. Das ist
-   * keine Schwaeche des Tests, sondern die gemessene Lage — und sie steht hier, statt eine
-   * Zusage zu behaupten, die die Bauform nicht halten kann.
+   * dann gruen, wenn der Host-Riegel des Abmelde-Handlers HINTER die Raeumung wandert.
+   * ⚠️ UND DAS IST EIN OFFENER POSTEN, KEINE ERLEDIGTE ZEILE. Bis zum 2026-08-27 stand hier
+   * „das ist keine Schwaeche des Tests, sondern die gemessene Lage" — der Satz stimmt, aber er
+   * las sich wie eine Freizeichnung. Richtig gefasst: die woertliche Zusage von `Spec:6916` ist
+   * im Lauf NICHT abgelesen, sie bleibt Restmenge von ⬜ Z-L1 (Aufstellung im Kopf dieser
+   * Datei). Die Zusicherung `:649-652` bleibt trotzdem stehen — sie IST der Spec-Wortlaut, und ein
+   * stiller Wegfall waere schlimmer als eine benannte Leerstelle.
    * ⛔ DIE FALSIFIZIERBARE HAELFTE IST DIE KOPFZEILEN-ZUSICHERUNG: die 404-Antwort des fremden
    * Hosts darf KEIN `Set-Cookie` fuer `radio_ausleihe` tragen. Genau die wandert mit dem
    * Riegel — ein Handler, der erst raeumt und dann abweist, schickt die Raeumung mit.
    * Die Mutationssonde S-T4f faerbt genau diese Zeile (siehe `BERICHT-T4.md`).
+   * ⛔ DARUM HEISST DIESER FALL, WIE ER HEISST. Bis zum 2026-08-27 hiess er „der Abmelde-Handler
+   * auf fremdem Host laesst das Sitzungs-Cookie stehen" — so, wie `briefs/T4.md:103` ihn nennt.
+   * Der Name sagte damit die UNBEWACHTE Haelfte zu; der heutige sagt die bewachte. Der alte
+   * Wortlaut steht hier als Zitat, damit die Ablesung nachvollziehbar bleibt.
    */
-  test("der Abmelde-Handler auf fremdem Host laesst das Sitzungs-Cookie stehen", async ({
+  test("der Abmelde-Handler auf fremdem Host schickt keine Cookie-Raeumung mit", async ({
     page,
   }) => {
     legeCodeAn(CODE_COOKIEFALL, CODE_COOKIEFALL_ID, "e2e T4 Aufsteller Cookie-Fall");
@@ -601,6 +646,9 @@ test.describe("radio-Host-Riegel", () => {
     expect(geraeumt, "der Riegel muss VOR der Raeumung greifen").toEqual([]);
 
     const nachher = await ausleihCookieWert(page);
-    expect(nachher, "dasselbe Cookie, nicht nur irgendeines").toBe(vorher);
+    expect(
+      nachher,
+      "dasselbe Cookie, nicht nur irgendeines — woertlich Spec:6916, aber NICHT falsifizierbar",
+    ).toBe(vorher);
   });
 });
