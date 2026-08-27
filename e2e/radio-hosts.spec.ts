@@ -26,7 +26,7 @@ import {
  * Sichtwirkung, sondern eine DATENWIRKUNG: `/m/radio/t/<code>` praegt eine Ausleih-Sitzung und
  * schreibt `zugangscodes.last_used_at` (`_lib/schreibpfade/codeEinloesung.ts:70`, Datei 77
  * Zeilen). Der Bestand schreibt denselben Befund aus: `src/app/m/radio/_lib/host.ts:10-20`
- * (Datei 139 Zeilen) und `t/[code]/route.ts:55-62` (Datei 162 Zeilen).
+ * (Datei 146 Zeilen) und `t/[code]/route.ts:71-78` (Datei 178 Zeilen).
  *
  * ⛔ KEIN GATE SIEHT DAS: `src/core/routing.test.ts` prueft AUSDRUECKLICH, dass interne Pfade
  * nach dem Segment gegatet werden — das Verhalten ist nicht bloss ungetestet, es ist
@@ -34,7 +34,7 @@ import {
  * sonst gegen genau EINEN `baseURL`.
  *
  * ⛔ EINE SCHLEIFE, KEINE ZWEI STICHPROBEN (§8.4.3). Route Handler haben KEIN Layout, und die
- * Sperre erreicht sie ueber kein Group-Layout (`_lib/host.ts:68-105` listet jede Aufrufstelle
+ * Sperre erreicht sie ueber kein Group-Layout (`_lib/host.ts:75-112` listet jede Aufrufstelle
  * namentlich). Vor dieser Datei war genau EIN Pfad bei echtem Abruf geprueft
  * (`/m/radio/admin`, `e2e/radio-verwaltung.spec.ts`, Fall 8) — die uebrigen fehlten.
  *
@@ -151,7 +151,7 @@ import {
  *   - KEINE `loans`-ZEILE. Diese Datei bucht nichts. `e2e/radio-zugang.spec.ts` fuehrt seine
  *     eigene Liste und nennt fuer sich GENAU EINE Zeile — diese Datei aendert daran nichts.
  *   - KEIN GATE-FEHLVERSUCH. Beide Einloesungen hier sind ERFOLGREICH, und ein richtiger Code
- *     kostet kein Budget (`t/[code]/route.ts:118-121` bucht nur im Misserfolgszweig). Die
+ *     kostet kein Budget (`t/[code]/route.ts:134-137` bucht nur im Misserfolgszweig). Die
  *     Grenze `RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN` traegt `einheit: "Anzahl/min"`
  *     (`src/app/m/radio/_lib/grenzen.ts:82`) — eine PRO-MINUTE-Grenze, keine Lauf-Grenze.
  *
@@ -169,7 +169,7 @@ import {
  *   | Mutation                                                      | rot                 |
  *   |---------------------------------------------------------------|---------------------|
  *   | `sw.js/route.ts:31` — `hostAbweisung(req) ??` faellt weg       | Schleife `/m/radio/sw.js` (404 -> 200) |
- *   | `t/[code]/route.ts:64` — der Host-Abgleich faellt weg          | Datenwirkungs-Fall  |
+ *   | `t/[code]/route.ts:80` — der Host-Abgleich faellt weg          | Datenwirkungs-Fall  |
  *   | `EINSTIEGE` — ein Eintrag gestrichen                           | Laengenfall (9 statt 10 Bloecke liefen) |
  *   | `abmelden/route.ts:63` — der Host-Abgleich faellt weg          | Schleife `/m/radio/abmelden` (Umweg-Zeile) und Cookie-Fall |
  *   | `abmelden/route.ts` — Riegel HINTER die Raeumung, und die Raeumung faehrt auf der 404 mit | Cookie-Fall (Kopfzeilen-Zeile); ⛔ die Schleife BLEIBT gruen |
@@ -308,7 +308,7 @@ function legeCodeAn(code: string, id: string, bezeichnung: string): void {
  *
  * ⛔ DIE FORM IST NICHT KOSMETIK. `loeseCodeEin` normalisiert NICHT selbst
  * (`_lib/schreibpfade/codeEinloesung.ts:40-47`); der Einloeseweg normalisiert VORHER
- * (`t/[code]/route.ts:108`) und sucht dann auf GLEICHHEIT gegen `zugangscodes.code`. Ein Wert
+ * (`t/[code]/route.ts:124`) und sucht dann auf GLEICHHEIT gegen `zugangscodes.code`. Ein Wert
  * ausserhalb des Alphabets („0123456789ABCDEFGHJKMNPQRSTVWXYZ", ohne I, L, O, U —
  * `_lib/code.ts:53`) ueberlebte die Normalisierung nicht unveraendert, und der Fall fiele an
  * seiner eigenen Vorbedingung statt an der Flaeche, die er misst.
@@ -415,7 +415,7 @@ test.describe("radio-Host-Riegel", () => {
    * DIE ZEILE, DIE FALLE 61 BEZAHLT: nach dem Versuch von einem fremden Host ist
    * `zugangscodes.last_used_at` NACHWEISLICH unveraendert. Ein 404 allein sagte nichts
    * darueber, ob der Code vorher schon verbraucht wurde — der Riegel muss VOR jeder Wirkung
-   * greifen, und `t/[code]/route.ts:64` steht VOR jeder anderen Anweisung des Rumpfes.
+   * greifen, und `t/[code]/route.ts:80` steht VOR jeder anderen Anweisung des Rumpfes.
    *
    * ⛔ DIE ZUSICHERUNGEN SIND DIFFERENZIELL, NICHT ABSOLUT — nie gegen `NULL`. Ein Vergleich
    * gegen `NULL` haenge am SEED-Zustand statt am Test selbst („in welchem falschen Zustand
@@ -428,7 +428,7 @@ test.describe("radio-Host-Riegel", () => {
    * deshalb haengt hier nichts an der Frage, ob T2 vor oder nach dieser Datei lief.
    *
    * ⛔ UND DIE DIFFERENZIELLE ZEILE IST HIER DIE TRAGENDE, NICHT DER 404 — GEMESSEN. Mit
-   * probehalber entferntem Host-Abgleich in `t/[code]/route.ts:64` antwortete der FREMDE Host
+   * probehalber entferntem Host-Abgleich in `t/[code]/route.ts:80` antwortete der FREMDE Host
    * WEITERHIN mit 404: der Handler liefert dann seinen relativen 303 nach `/`, `page.goto`
    * folgt ihm auf `feedback.localtest.me/`, und DIESE Wurzel antwortet ihrerseits 404. Rot
    * wurde die Zeile darunter — „der Riegel muss VOR jeder Wirkung greifen", `Expected:
@@ -557,7 +557,7 @@ test.describe("radio-Host-Riegel", () => {
    * ⛔ WARUM DIESER FALL ZWEI ZUSICHERUNGEN TRAEGT UND NICHT EINE — GEMESSEN, NICHT VERMUTET
    * ────────────────────────────────────────────────────────────────────────────
    * Das Ausleih-Cookie ist HOST-ONLY: `ausleihCookieOptionen` gibt kein `domain` zurueck
-   * (`_lib/ausleihSitzung.ts:207-221`), und `t/[code]/route.ts:60-62` nennt genau das „die
+   * (`_lib/ausleihSitzung.ts:207-221`), und `t/[code]/route.ts:76-78` nennt genau das „die
    * ZWEITE HAELFTE dieses Riegels". Daraus folgt zweierlei, und beides ist unangenehm:
    *
    *   (a) Die Anfrage an `fremdUrl(...)` traegt das Cookie ueberhaupt nicht mit.

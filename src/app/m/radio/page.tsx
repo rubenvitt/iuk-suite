@@ -32,7 +32,7 @@ import s from "./_ui/ausleihe.module.css";
  * ⚠️ DER HOST-RIEGEL STEHT HIER ZUSAETZLICH, obwohl `ausleihZugangOderNull` ihn INTERN als
  * ersten Schritt ruft (`_lib/ausleihZugang.ts:120`). Das ist die eine angeordnete Ausnahme
  * von Pflicht 16 („kein zweiter Aufruf"), ausgeschrieben in `_lib/ausleihZugang.ts:104-113`
- * und in `_lib/host.ts:73`: Route-Group-Grenzen sind keine Sicherheitsgrenzen, und die
+ * und in `_lib/host.ts:80`: Route-Group-Grenzen sind keine Sicherheitsgrenzen, und die
  * tragende Zusage sind die aufrufbaren Funktionen (Spec:2759-2763).
  *
  * ⛔ KEINE `<Shell>` (Entscheidung E9, `KOPF.md:629-636`) und KEIN `AusleihRahmen`: der
@@ -100,7 +100,7 @@ export default async function RadioGatePage({
 
   /*
    * ⛔ `?returnTo=` GEHOERT DAZU, auch wenn der Aufgabenbrief nur `?grund=` aufzaehlt:
-   * `t/[code]/route.ts:76-84` schreibt ihn auf die Gate-URL und schreibt daneben
+   * `t/[code]/route.ts:92-100` schreibt ihn auf die Gate-URL und schreibt daneben
    * „⛔ DAS GATE LIEST IHN (Spec:2400-2419)". Ohne diese Zeile faellt das gescannte
    * Regaletikett zwischen Handeingabe und Weiterleitung still auf den Boden.
    * `sanitizeReturnTo` laesst nur lokale Pfade durch (`_lib/returnTo.ts:52-60`) — der Wert

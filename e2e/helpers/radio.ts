@@ -81,7 +81,7 @@ export const RADIO_UPDATER_GRUPPE = "iuk-radio-updater";
  * `lagerbuch` (`e2e/helpers/lagerbuch.ts:67`), wo Boot-Pruefungen an
  * `prodHostsFor(...).length > 0` haengen. `moduleForHost` trifft
  * `radio.localtest.me` VOR und UNABHAENGIG von `prodHostsFor`, gemessen und
- * ausgeschrieben in `src/app/m/radio/_lib/host.ts:37-41`.
+ * ausgeschrieben in `src/app/m/radio/_lib/host.ts:44-48`.
  */
 export const RADIO_ENV: Record<string, string> = {
   SUITE_ADMIN_GROUP_RADIO: RADIO_ADMIN_GRUPPE,

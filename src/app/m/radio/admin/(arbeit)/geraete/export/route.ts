@@ -18,8 +18,8 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
  * ausgeschrieben `Spec:4379`; `riegel.test.ts` Klausel (c) prueft sie einzeln, gemessen
  * `riegel.test.ts:406-465`):
  *
- *   `radioHostOderNull(request.headers)`  ja  — die nicht-werfende Form (`_lib/host.ts:64`)
- *   `requireRadioHost(`                   nein — sie wirft `notFound()` (`_lib/host.ts:58-59`)
+ *   `radioHostOderNull(request.headers)`  ja  — die nicht-werfende Form (`_lib/host.ts:71`)
+ *   `requireRadioHost(`                   nein — sie wirft `notFound()` (`_lib/host.ts:65-66`)
  *   werfender Personen-Riegel             nein — `requireRadioAdmin` endet in
  *                                              `redirect('/login?…')` bzw. `notFound()`;
  *                                              woertlich umgesetzt landete ein anonymer GET

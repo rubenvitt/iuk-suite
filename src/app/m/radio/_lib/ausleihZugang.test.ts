@@ -213,7 +213,7 @@ describe("radio-Ausleihzugang: die Reihenfolge des Befunds", () => {
      * ⛔ BEIDE WEGE, UND DAS IST DER PUNKT DES FALLES (Fix-Runde 1, Fund W4). Die erste
      * Haelfte faehrt den SUITE-Weg — der steigt bei Schritt 2 aus, und alles ab Schritt 3
      * waere von ihm unbewacht. Ein ZWEITER `requireRadioHost(await headers())` auf dem
-     * Code-Weg — die naheliegende „Sicherheitsverbesserung", vor der `_lib/host.ts:121-125`
+     * Code-Weg — die naheliegende „Sicherheitsverbesserung", vor der `_lib/host.ts:128-132`
      * warnt — bliebe damit unentdeckt, obwohl der Name des Falles und der Testauftrag
      * (Spec:3092) beide Wege versprechen. Sonde R-A7i.
      *

@@ -335,7 +335,7 @@ const AUSLEIH_COOKIE_ANFANG = `${AUSLEIH_COOKIE_NAME}=`;
  *
  * ⛔ DIE FORM IST NICHT KOSMETIK. `loeseCodeEin` normalisiert NICHT selbst
  * (`_lib/schreibpfade/codeEinloesung.ts:39-47`); der Einloeseweg normalisiert VORHER
- * (`t/[code]/route.ts:108`, Datei 162 Zeilen) und sucht dann auf GLEICHHEIT gegen
+ * (`t/[code]/route.ts:124`, Datei 178 Zeilen) und sucht dann auf GLEICHHEIT gegen
  * `zugangscodes.code`. Ein Wert ausserhalb des Alphabets („0123456789ABCDEFGHJKMNPQRSTVWXYZ",
  * ohne I, L, O, U — `_lib/code.ts:53`, Datei 168 Zeilen) ueberlebte die Normalisierung nicht
  * unveraendert, und der Fall fiele an seiner eigenen Vorbedingung statt an der Flaeche, die

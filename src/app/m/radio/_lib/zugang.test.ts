@@ -33,7 +33,7 @@ import { users } from "../_db/schema";
  *
  *   `next/navigation` — `redirect()` und `notFound()` werfen in der echten Laufzeit
  *   Next-interne Fehler. Fuer die Unit-Aussage genuegt ein ERKENNBARER Wurf. ⛔ Der Mock
- *   gilt modulweit und deckt damit auch `_lib/host.ts:58-60` ab, dessen `notFound()` der
+ *   gilt modulweit und deckt damit auch `_lib/host.ts:65-67` ab, dessen `notFound()` der
  *   Host-Fall unten braucht.
  *
  *   `next/headers` — `riegelAufStufe` ruft `headers()`, und das gibt es ausserhalb einer

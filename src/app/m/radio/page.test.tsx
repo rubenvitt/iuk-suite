@@ -299,7 +299,7 @@ describe("das Gate an /", () => {
 
   it("reicht ein lokales returnTo weiter und verwirft ein fremdes Ziel", async () => {
     /*
-     * ⛔ `?returnTo=` GEHOERT AUF DIESE SEITE: `t/[code]/route.ts:76-84` schreibt ihn auf
+     * ⛔ `?returnTo=` GEHOERT AUF DIESE SEITE: `t/[code]/route.ts:92-100` schreibt ihn auf
      * die Gate-URL und schreibt daneben „⛔ DAS GATE LIEST IHN (Spec:2400-2419)". Ohne die
      * Weitergabe faellt das gescannte Regaletikett zwischen Handeingabe und Weiterleitung
      * still auf den Boden.

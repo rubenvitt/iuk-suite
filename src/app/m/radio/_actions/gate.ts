@@ -50,7 +50,7 @@ export async function einloesenAmGate(
    * „Actions werfen nicht, sie geben zurueck" (Bauform-Zulaessigkeitstafel Zeile 11,
    * Spec:2360-2362): ein Action-POST auf dem falschen Host ist kein Betriebsfall, den ein
    * Formular anzeigen muesste, sondern ein manipulierter. Die Existenz eines Pfades auf
-   * einem fremden Host wird nicht verraten (`_lib/host.ts:56-57`).
+   * einem fremden Host wird nicht verraten (`_lib/host.ts:63-64`).
    *
    * ⛔ ER STEHT ALS ERSTE ANWEISUNG DA, UND ZWAR MIT `await headers()` DARIN — nicht hinter
    * einem `const kopf = await headers();`. `_actions/guards.test.ts:572-577` prueft fuer

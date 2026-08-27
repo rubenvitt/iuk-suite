@@ -254,7 +254,7 @@ test.describe("radio-Kiosk", () => {
     });
 
     // Zusage 1 — 303, nicht 302: die Antwort auf ein GET soll auch nach dem Folgen ein GET
-    // sein (`src/app/m/radio/t/[code]/route.ts:157-161`, Datei 162 Zeilen).
+    // sein (`src/app/m/radio/t/[code]/route.ts:173-177`, Datei 178 Zeilen).
     expect(
       einloesung.status(),
       "Zusage 1 — die Einloese-Route antwortet nicht mit 303",
@@ -269,15 +269,15 @@ test.describe("radio-Kiosk", () => {
      * Fund G1): eine absolute Adresse beginnt mit `h` und faellt schon an dieser Zeile —
      * eine nachgestellte Zusicherung koennte STRUKTURELL nie die erste rote Zeile sein und
      * bewachte damit nichts. ⚠️ GEMESSEN, nicht geschlossen: Sonde F1 hat der Einloese-Route
-     * ein absolutes `Location` untergeschoben (`src/app/m/radio/t/[code]/route.ts:161` in
-     * `antwort()`, Datei 162 Zeilen), und rot wurde genau DIESE Zeile, mit dem empfangenen
+     * ein absolutes `Location` untergeschoben (`src/app/m/radio/t/[code]/route.ts:177` in
+     * `antwort()`, Datei 178 Zeilen), und rot wurde genau DIESE Zeile, mit dem empfangenen
      * Wert `https://radio.localtest.me/` in der Meldung.
      */
     expect(ziel, "Zusage 1 — das Location ist nicht relativ").toMatch(/^\/(?!\/)/);
     /*
      * ⬜ T-L2, gemessen: das Ziel ist `/` und NICHT `/geraete`. Die Route kennt kein
      * hinterlegtes Codeziel; ohne `?returnTo=` leitet sie auf `/`
-     * (`t/[code]/route.ts:137`), und die Gate-Weiche schickt von dort mit gueltigem Zugang
+     * (`t/[code]/route.ts:153`), und die Gate-Weiche schickt von dort mit gueltigem Zugang
      * weiter auf `/geraete` (Entscheidung E1, `src/app/m/radio/page.tsx:76`).
      */
     expect(ziel, "Zusage 1 — das Ziel der Einloesung ist nicht die Gate-Weiche").toBe("/");
@@ -298,7 +298,7 @@ test.describe("radio-Kiosk", () => {
     /*
      * ⛔ OHNE `Domain=` — HOST-ONLY (§8.7 Nr. 2, `Spec:2437-2447`). Ein `Domain=`-Attribut
      * streute die Kiosk-Sitzung ueber ALLE Suite-Hosts; das host-only Cookie ist die
-     * ZWEITE Haelfte des Host-Riegels (`t/[code]/route.ts:55-62`).
+     * ZWEITE Haelfte des Host-Riegels (`t/[code]/route.ts:71-78`).
      */
     expect(
       sitzungsCookie!.value.toLowerCase(),

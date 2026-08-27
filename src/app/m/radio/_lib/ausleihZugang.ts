@@ -97,14 +97,14 @@ async function befund(db: DB): Promise<Befund> {
    * Liste, die die naechste Action vergisst — Server Actions haben kein Layout ueber sich.
    *
    * ⛔ DIE UMKEHRUNG IST GLEICH STARK UND DIE HAEUFIGERE FEHLERQUELLE: wer diese Datei
-   * benutzt, ruft `requireRadioHost` NICHT NOCH EINMAL (Pflicht 16, `_lib/host.ts:121-125`).
+   * benutzt, ruft `requireRadioHost` NICHT NOCH EINMAL (Pflicht 16, `_lib/host.ts:128-132`).
    * Ein zweiter Aufruf waere keine Haertung, sondern die Behauptung, das Praedikat sei
    * host-blind — und die naechste Person entfernt dann den falschen der beiden.
    *
    * ⚠️ EINE EINZIGE AUSNAHME, UND SIE IST ANGEORDNET — `page.tsx`, die Weiche
    * Gate-oder-Ausleihe (A11): sie traegt `requireRadioHost` ZUSAETZLICH. Spec:2767 schreibt
    * fuer genau diese Datei „`requireRadioHost` + `ausleihZugangOderNull`", und
-   * `_lib/host.ts:73` sagt dasselbe. Der Grund steht in Spec:2759-2763, und er ist ein
+   * `_lib/host.ts:80` sagt dasselbe. Der Grund steht in Spec:2759-2763, und er ist ein
    * allgemeiner: Route-Group-Grenzen sind KEINE Sicherheitsgrenzen, „ein Layout ist eine
    * Bequemlichkeit; die tragende Zusage sind die aufrufbaren Funktionen. Deshalb steht der
    * Riegel in jeder Datei als erste Anweisung, auch wenn ein Layout darueber ihn schon
@@ -113,7 +113,7 @@ async function befund(db: DB): Promise<Befund> {
    *
    * ⛔ FUER JEDEN ANDEREN AUFRUFER GILT DER SATZ OBEN OHNE EINSCHRAENKUNG: Spec:2768-2769
    * fuehrt `(ausleihe)/layout.tsx` und jede Seite darunter mit `requireAusleihZugang`
-   * ALLEIN, und `_lib/host.ts:74-75` schreibt dort ausdruecklich „KEINER — das
+   * ALLEIN, und `_lib/host.ts:81-82` schreibt dort ausdruecklich „KEINER — das
    * Zugangspraedikat ruft ihn intern". Wer die Ausnahme verallgemeinert, baut die
    * vergessliche Liste, gegen die Auflage 1 steht.
    */

@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
  * `name="kode"` samt entferntem `returnTo`-Feld, und das Aushaengen des oertlichen
  * Umschlags `amGate` (`?? {}` und `catch`) — jedes Mal `258 passed`, `typecheck` sauber.
  * Die erste Mutation macht das Gate unbenutzbar und toetet zugleich das Etiketten-Plumbing
- * aus A10 (`t/[code]/route.ts:76-84`).
+ * aus A10 (`t/[code]/route.ts:92-100`).
  *
  * ⚠️ DAS ZWEIDATEIEN-MUSTER STAMMT AUS DEM BESTAND, UND ZWAR MIT BEIDEN HAELFTEN:
  * `src/app/m/lagerbuch/page.test.tsx:13` begruendet das Mocken der Insel woertlich damit,
@@ -200,7 +200,7 @@ describe("GateFormular — was beim Absenden wirklich ankommt", () => {
      * `einloesenAmGate`". Ein Feld ausserhalb des `<form>` saehe im Markup identisch aus
      * und kaeme nie an; ein umbenanntes `name` ebenso. Genau diese Mutation hat der Review
      * als still gruen gemessen — und mit ihr faellt zugleich das Etiketten-Plumbing aus
-     * A10 (`t/[code]/route.ts:76-84` schreibt `returnTo` auf die Gate-URL,
+     * A10 (`t/[code]/route.ts:92-100` schreibt `returnTo` auf die Gate-URL,
      * `_actions/gate.ts:64` liest ihn aus `formData`).
      *
      * ⚠️ DER CODE STEHT HIER IN DER SCHREIBWEISE DES AUFSTELLERS, mit Trennern und

@@ -66,7 +66,7 @@ export async function GET(req: Request, ctx: RouteKontext) {
    * SCHRITT 1 — Host. Die NICHT-werfende Form, und nicht die werfende: ein `notFound()` ist
    * keine brauchbare Antwort auf einen GESCANNTEN QR-Code — es waere eine HTML-Fehlerseite
    * mit `Content-Type: text/html`. Der Handler baut seine 404 selbst
-   * (`_lib/host.ts:62-63`, `riegel.test.ts:442-451` macht die werfende Form hier rot).
+   * (`_lib/host.ts:69-70`, `riegel.test.ts:442-451` macht die werfende Form hier rot).
    *
    * ⛔ ER STEHT VOR ALLEM ANDEREN, UND DAS HAT DATENWIRKUNG (§3.4.6, Spec:2616-2629):
    * `/m/<modul>/*` antwortet auf JEDEM Host, der auf den Suite-Container terminiert —

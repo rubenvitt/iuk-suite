@@ -29,10 +29,10 @@ import { LESE_FEHLER, lesEinCsv } from "../../../../_lib/csv/einlesen";
  * ⛔ DIE NICHT-WERFENDE RIEGELFORM, DREI HAELFTEN (B10/B11/B17, `Spec:100`/`:99`/`:117`,
  * ausgeschrieben `Spec:4379`; `riegel.test.ts` Klausel (c) prueft sie einzeln):
  *
- *   `radioHostOderNull(request.headers)`  ja  — die nicht-werfende Form (`_lib/host.ts:64`)
+ *   `radioHostOderNull(request.headers)`  ja  — die nicht-werfende Form (`_lib/host.ts:71`)
  *   `requireRadioHost(`                   nein — sie wirft `notFound()`, und das ist im
  *                                              Antwortweg eines Route Handlers keine
- *                                              brauchbare Antwort (`_lib/host.ts:62-63`)
+ *                                              brauchbare Antwort (`_lib/host.ts:69-70`)
  *   werfender Personen-Riegel             nein — `requireRadioAdmin` endet in
  *                                              `redirect('/login?…')`; woertlich umgesetzt
  *                                              landete ein anonymer POST im LOGIN-UMWEG
