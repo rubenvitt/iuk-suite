@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import {
   FREMDER_HOST,
   RADIO_ADMIN_GRUPPE,
@@ -33,6 +33,83 @@ import {
  * ⛔ DIE VIER WIRKPROBEN SIND DAUERFAELLE, KEINE EINMALIGE ABLESUNG. Fuer „V-L3 D" ist das
  * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
  * strukturell nicht.
+ *
+ * ⛔ **SEIT DEM 2026-08-27 SIND ES EINUNDZWANZIG `test()`-BLOECKE, NICHT SIEBZEHN**
+ * (Planteil 5, Aufgabe T5). Die Zahl ist an Playwrights eigener Zaehlzeile abgelesen —
+ * „Running 21 tests using 1 worker" / „21 passed" — und ⛔ **nicht** mit
+ * `grep -c "test("`, der `test.describe(` und Kommentartreffer mitzaehlt. Vier Faelle kamen
+ * dazu:
+ *
+ *   * „eine Geraetezeile zeigt ihren formatierten Wert, nicht das Rohfeld" und
+ *     „eine Leihzeile zeigt ihren formatierten Wert, nicht das Rohfeld" — sie schliessen die
+ *     gemessene Luecke in `Spec:6874`: von den drei dort genannten „sicheren" Flaechen trug
+ *     nur EINE (Fall 8) eine Zusicherung auf eine ZELLE; Fall 2 und Fall 5 pruefen die
+ *     Kopfzeile, und die ist statisches JSX. ⬜ **T-L1 ist damit abgelesen** — die zwei
+ *     Spalten stehen namentlich in den Faellen.
+ *   * „die Hoehe eines App-Umschalter-Eintrags ist kleiner als die Kopfzeilenhoehe" — Falle 8,
+ *     als VERHAELTNIS und nicht als Zahl.
+ *   * „das Druckblatt riegelt die Verwaltungsstufe ab" — ⬜ **V-L14 / T-L3**, die Wirkprobe
+ *     des Personenriegels im `(druck)`-Zweig. ⛔ Ein UEBERNOMMENER Posten: Eigentuemer war
+ *     laut `src/app/m/radio/riegel.test.ts:81-87` die Schlusspruefung von Planteil 4, sie hat
+ *     ihn nicht abgelesen, und Planteil 5 uebernimmt ihn ausdruecklich statt ihn
+ *     weiterzureichen.
+ *
+ * ⛔ **DIE SECHS MUTATIONSSONDEN ZU DIESEN VIER FAELLEN — GEMESSEN AM 2026-08-27, JEDE
+ * ZURUECKGENOMMEN.** Sie stehen hier und nicht nur im Bericht: der Berichtsordner ist
+ * git-ignoriert (`.gitignore:17`), und dieselbe Tafelform fuehrt `e2e/radio-hosts.spec.ts`
+ * fuer T4.
+ * ⚠️ **UND SIE SIND DIE FALSIFIZIERBARKEIT DIESER VIER FAELLE, NICHT EIN ROTER ERSTLAUF:**
+ * alle vier beschreiben Verhalten, das am Bautag bereits GEBAUT war (beide `render`-Funktionen,
+ * `shell.module.css:486`, beide `requireRadioAdmin()`-Zeilen). Sie waren beim ersten Lauf
+ * gruen, und eine absichtlich falsche Zusicherung, nur um eine rote Zeile vorzuweisen, waere
+ * genau die Fehlerform, gegen die dieses Haus vernarbt ist.
+ *
+ *   S-T5a   `GeraeteTabelle.tsx:139-141`, die `render`-Funktion der Spalte `updateStand`
+ *           durch `String(wert)` ersetzt          -> **1 rot**: acht Zellen `[object Object]`
+ *                                                   statt `Aktuell`/`Veraltet`/`Unbekannt`.
+ *   S-T5b   `AusleihenTabelle.tsx:157`, dieselbe Ersetzung an der Spalte `Status`
+ *                                                 -> **1 rot**: `toHaveCount` erwartete 4,
+ *                                                   erhielt 0 — die Marke entsteht nicht mehr.
+ *   S-T5c   `src/core/shell/shell.module.css:486`, `line-height: normal` am GEMEINSAMEN
+ *           Vorfahren `.umschalter` entfernt      -> **1 rot**: ein Panel-Eintrag ist
+ *                                                   **80 px** hoch in einer **64 px** hohen
+ *                                                   Kopfzeile. ⚠️ Der Kommentar an jener
+ *                                                   Regel nennt 82 px; hier gemessen sind es
+ *                                                   80 (8 + 64 + 8). Die fremde Datei wurde
+ *                                                   NICHT geaendert — dies ist die Messung
+ *                                                   dieser Flaeche, keine Berichtigung dort.
+ *                                                   ⚠️ Dieselbe Sonde faerbt auch
+ *                                                   `e2e/shell-mobil.spec.ts:634` und `:653`
+ *                                                   sowie den gleichnamigen Fall in
+ *                                                   `src/core/shell/shell-css.test.ts` rot —
+ *                                                   ERWARTET und kein Befund; waehrend des
+ *                                                   Sondenfensters laeuft NUR dieser eine Fall
+ *                                                   und KEIN `vitest`.
+ *   S-T5d   `admin/(druck)/layout.tsx:49`, `requireRadioAdmin()` -> `requireRadioVerwaltung()`
+ *                                                 -> **0 rot**, `1 passed`.
+ *   S-T5d2  dieselbe Absenkung ZUSAETZLICH in `admin/(druck)/zugaenge/blatt/page.tsx:103`
+ *                                                 -> **1 rot**: `Expected 404 / Received 200`.
+ *   S-T5d3  NUR `blatt/page.tsx:103` abgesenkt, das Layout unveraendert
+ *                                                 -> **0 rot**, `1 passed` — der Updater
+ *                                                   bekommt weiterhin 404.
+ *
+ * ⛔ **WAS S-T5d MISST UND WAS NICHT — DIE NULL IST HIER KEIN TESTFEHLER, SONDERN EIN
+ * NULL-EINGRIFF.** Der Druckzweig ist DOPPELT geriegelt: `admin/(druck)/layout.tsx:49` UND
+ * `admin/(druck)/zugaenge/blatt/page.tsx:103` rufen beide `requireRadioAdmin()`, und die
+ * Doppelung ist ANGEORDNET (`Spec:569-571`, „Route-Group-Grenzen sind keine
+ * Sicherheitsgrenzen"; ausgeschrieben in `admin/(druck)/layout.tsx:32-38`). Eine Sonde, die
+ * nur EINE der zwei Linien absenkt, kann den Fall nicht rot machen — dieselbe Klasse wie
+ * S-T4i/S-T4j in `e2e/radio-hosts.spec.ts` und wie Probe P1 zum Ausleihzweig.
+ * ⚠️ S-T5d und S-T5d2 faerben zugleich `src/app/m/radio/riegel.test.ts:395-398` rot, S-T5d3
+ * zusaetzlich die Klausel „V21: … nennt requireRadioAdmin, NICHT requireRadioVerwaltung" in
+ * `src/app/m/radio/admin/actions.test.ts`. Beides ist ERWARTET und kein Befund; gemessen wird
+ * ausschliesslich, ob DIESER Fall rot wird.
+ *
+ * ✅ **⬜ V-L14 IST DAMIT ABGELESEN, UND ZWAR IN BEIDE RICHTUNGEN.** S-T5d2 zeigt, dass der
+ * Fall die STUFE misst und nicht die Huelle (404 -> 200, sobald beide Linien fallen). S-T5d3
+ * zeigt, dass die Linie IM LAYOUT allein traegt: mit abgesenkter Seite und unveraendertem
+ * Layout bleibt der Updater bei 404. Die zwei Riegelebenen greifen also unabhaengig
+ * voneinander — dieselbe Aussage, die Probe P1/P2 fuer den Ausleihzweig ergeben hat.
  */
 
 /**
@@ -87,6 +164,79 @@ test.describe("radio-Verwaltung", () => {
       toene.filter((ton) => VERBOTENE_ROTTOENE.includes(ton)),
       "die Kennzahl „Veraltet“ traegt einen Rotton (Falle 3, Spec:4877)",
     ).toEqual([]);
+  });
+
+  test("die Hoehe eines App-Umschalter-Eintrags ist kleiner als die Kopfzeilenhoehe", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ FALLE 8, UND KEIN GATE DIESES REPOS FINDET SIE. `antd/es/layout/style/index.js` setzt
+     * auf `.ant-layout-header` ein `line-height` in KOPFZEILENHOEHE und vererbt es an jedes
+     * Kind. Die Regel wird zur Laufzeit ueber cssinjs eingespritzt — sie steht in KEINER Datei
+     * des Repos, `tsc` und `eslint` sehen sie nicht, und jsdom rechnet keine Zeilenboxen.
+     * Gemessen war jeder Panel-Eintrag dadurch 82 px hoch (8 px Polster + 64 px Zeilenbox +
+     * 8 px Polster) in einer 64 px hohen Kopfzeile; die Gegenmassnahme ist EINE Zeile am
+     * GEMEINSAMEN VORFAHREN, `line-height: normal` an `.umschalter`
+     * (`src/core/shell/shell.module.css:486`, Begruendung `:482-487`).
+     *
+     * ⛔ ALS VERHAELTNIS UND NICHT ALS ZAHL. `shell-css.test.ts` haelt fest, dass die
+     * Gegenmassnahme DASTEHT; `e2e/shell-mobil.spec.ts:653-660` misst den Eintrag gegen die
+     * feste Zahl 56 auf `portal.localtest.me`. ⛔ DIESER FALL IST BEIDES NICHT: er misst auf
+     * der VERWALTUNGSFLAECHE DIESES MODULS und stellt die Eintragshoehe gegen die
+     * TATSAECHLICHE Kopfzeilenhoehe. Eine feste Zahl waere eine zweite Wahrheit ueber
+     * `headerHeight`; das Verhaeltnis bleibt richtig, wenn die Kopfzeile einmal anders hoch
+     * ist.
+     *
+     * ⛔ DIE VORBEDINGUNG WIRD MITGEPRUEFT, SONST GEHT DER FALL STILL VAKUOES: spritzte antd
+     * die Regel eines Tages nicht mehr ein, waere der Eintrag ohnehin niedrig und die
+     * Zusicherung gruen, ohne noch irgendetwas zu bewachen. Deshalb liest die Zeile darunter
+     * die geerbte Zeilenhoehe der Kopfzeile ab und haelt sie gegen deren eigene Hoehe.
+     *
+     * ⛔ `klickeWennRuhig` UND KEIN BLANKES `.click()` — Falle 12, Bauform 24. `/admin` laeuft
+     * in `FullShell` mit `SessionProvider`; die Navigation wechselt nach dem Nachladen der
+     * Sitzung von der schmalen Platzhalter- auf die volle Spalte, der Inhalt rutscht rund
+     * 240 px hoch, und zwar NACH `load` und hinter Playwrights eigener Stabilitaetsprobe. Die
+     * Begruendung steht in voller Laenge in `e2e/fixtures.ts:45-88`.
+     *
+     * ⚠️ KEIN `test.use({ viewport })` — das setzte die Breite fuer JEDEN Fall dieser Datei
+     * still um. Playwrights Vorgabe 1280x720 traegt `md === true` bereits, und genau darauf
+     * verlassen sich die Tabellenzweige der Faelle 2 und 5 seit V13.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin"));
+    expect(antwort?.status(), "/admin auf dem radio-Host").toBe(200);
+
+    const kopf = page.getByTestId("suite-header");
+    await expect(kopf, "die Suite-Kopfzeile fehlt — es gibt nichts, wogegen zu messen waere").toBeVisible();
+    const kopfKasten = await kopf.boundingBox();
+    expect(kopfKasten, "die Kopfzeile hat keinen Kasten").not.toBeNull();
+
+    // DIE VORBEDINGUNG DER FALLE: antd vererbt die Kopfzeilenhoehe als Zeilenhoehe weiter.
+    // Faellt sie weg, bewacht der Vergleich darunter nichts mehr — dann ist diese Zeile rot,
+    // und das ist die richtige Meldung.
+    expect(
+      await kopf.evaluate((el) => getComputedStyle(el).lineHeight),
+      "antd vererbt der Kopfzeile keine Zeilenhoehe mehr — Falle 8 ist weg, und dieser Fall waere vakuoes",
+    ).toBe(`${kopfKasten!.height}px`);
+
+    await klickeWennRuhig(page.getByTestId("app-umschalter"));
+
+    const panel = page.getByTestId("app-panel");
+    await expect(panel, "das Panel des App-Umschalters ist nicht aufgegangen").toBeVisible();
+    const eintrag = panel.getByTestId("app-eintrag").first();
+    await expect(
+      eintrag,
+      "kein einziger Eintrag im Panel — die Hoehenzusage darunter maesse nichts",
+    ).toBeVisible();
+
+    const eintragKasten = await eintrag.boundingBox();
+    expect(eintragKasten, "der Eintrag hat keinen Kasten").not.toBeNull();
+    expect(
+      eintragKasten!.height,
+      `ein Panel-Eintrag ist ${eintragKasten!.height} px hoch bei einer ${kopfKasten!.height} px ` +
+        "hohen Kopfzeile — die geerbte Zeilenhoehe ist zurueck (shell.module.css:486)",
+    ).toBeLessThan(kopfKasten!.height);
   });
 
   test("Fall 2: /admin/geraete zeigt die Tabelle, und ein Filter landet in der URL", async ({ page }) => {
@@ -180,6 +330,104 @@ test.describe("radio-Verwaltung", () => {
      */
     await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\?/);
     expect(new URL(page.url()).searchParams.get("ausleihbar")).toBe("1");
+  });
+
+  test("eine Geraetezeile zeigt ihren formatierten Wert, nicht das Rohfeld", async ({ page }) => {
+    /*
+     * ⛔ DIE LUECKE, DIE DIESER FALL SCHLIESST — GEMESSEN, NICHT VERMUTET. `Spec:6874` nennt
+     * DREI „sichere" Flaechen fuer die Zellen-Zusage. Am 2026-08-27 Zeile fuer Zeile
+     * nachgelesen trug sie nur EINE: Fall 8 („/admin/versionen") sichert den Inhalt einer
+     * DATENZEILE aus einer `render`-Funktion zu. Fall 2 (Geraeteliste) und Fall 5
+     * (Ausleihenliste) pruefen `table thead th` — und die Kopfzeile ist statisches JSX aus
+     * den `title`-Feldern. Sie stuende unveraendert da, wenn JEDE `render`-Funktion durch
+     * ihren Rohwert ersetzt waere.
+     *
+     * ⚠️ EREIGNISSE (Fall 4) UND ZUGAENGE (Fall 9) HABEN DIESELBE LUECKE — ⛔ dieser Fall
+     * schliesst sie NICHT und behauptet es auch nicht. `Spec:6874` verspricht fuer sie keine
+     * Zelle; wer sie nachtraegt, traegt sie nach. Wer daraus eine Vollzaehligkeitsbehauptung
+     * macht, nicht.
+     *
+     * ⬜ **T-L1 IST HIER ABGELESEN: DIE SPALTE IST `updateStand`.** Gemessen am 2026-08-27:
+     * `GeraeteTabelle.tsx` (573 Zeilen) traegt FUENFZEHN `render:`-Vorkommen, und alle
+     * fuenfzehn sind echte Spalten-Props — `:125`, `:129`, `:130`, `:131`, `:139`, `:153`,
+     * `:157`, `:158`, `:159`, `:160`, `:161`, `:162`, `:170`, `:180`, `:194`, jede Zeile
+     * einzeln aufgeschlagen, keine steht in einem Kommentar.
+     *
+     * ⛔ WARUM NICHT EINE DER ZWOELF `render: text`-SPALTEN: `text` (`:72`) reicht eine
+     * nicht-leere Zeichenkette UNVERAENDERT durch. Unter der Sonde „die `render`-Funktion
+     * durch ein `String(wert)` ersetzen" saehe die Zelle fuer jeden belegten Wert GLEICH aus
+     * — der Fall waere vakuoes gruen, genau der Zustand, vor dem der Bauauftrag warnt.
+     * `updateStand` faltet dagegen SICHTBAR: aus dem Rohwert `aktuell|veraltet|unbekannt`
+     * (`_lib/updateStand.ts`) wird das grossgeschriebene Wort aus `STAND_WORT` (`:87-91`),
+     * gesetzt in ein `Tag` (`:139-141`).
+     *
+     * ⛔ UND DIE SPALTE TRAEGT KEIN `dataIndex` (`:133-142`): rc-table reicht der
+     * `render`-Funktion dann den DATENSATZ als ersten Parameter, ein `String(wert)` ergibt
+     * dort `[object Object]`. Die Sonde ist damit nicht nur wirksam, sondern laut.
+     *
+     * ⛔ SIE STEHT OHNE ZUTUN IN DER TABELLE — eine der ACHT Vorgabespalten (`:200-209`).
+     * Ein frischer Playwright-Kontext hat keinen `localStorage`, und `serverSchnappschuss()`
+     * liefert dieselbe Vorgabe.
+     *
+     * ⛔ DER SPALTENINDEX WIRD ABGELESEN, NICHT GESCHRIEBEN. Ein festes `nth-child(5)` waere
+     * eine zweite Wahrheit ueber die Spaltenreihenfolge und stuende still daneben, sobald
+     * `VORGABE_SPALTEN` sich aendert.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/geraete"));
+    expect(antwort?.status(), "/admin/geraete auf dem radio-Host").toBe(200);
+
+    /*
+     * ⛔ EINE WARTENDE ZUSICHERUNG VOR JEDEM `allTextContents()` UND JEDEM `count()` — beide
+     * WARTEN NICHT. ⚠️ GEMESSEN AM 2026-08-27, beim ersten Lauf dieses Falles: ohne diese
+     * Zeile las er auf dem kalt uebersetzenden Dev-Server ein LEERES Array ab und meldete
+     * „die Spalte „Update-Stand“ steht nicht in der Kopfzeile" — eine Meldung ueber die
+     * Spaltenwahl, wo in Wahrheit die Tabelle noch nicht da war. Fall 2 oben faehrt seit V13
+     * dieselbe Reihenfolge, und aus demselben Grund.
+     */
+    await expect(
+      page.locator("table thead th").first(),
+      "keine Tabellenkopfzeile — die Insel ist an der RSC-Grenze gebrochen (Falle 9)",
+    ).toBeVisible();
+
+    const kopfTexte = await page.locator("table thead th").allTextContents();
+    expect(
+      kopfTexte,
+      "die Spalte „Update-Stand“ steht nicht in der Kopfzeile — die Zusicherung darunter maesse nichts",
+    ).toContain("Update-Stand");
+    const spalte = kopfTexte.indexOf("Update-Stand") + 1;
+
+    /*
+     * ⛔ DIE KONTROLLE ZUR ZEILE DARUNTER, und ohne sie waere jene ein NO-OP: eine
+     * Zellen-Zusage ueber NULL Datenzeilen ist leer-gruen. Dieselbe Ueberlegung wie in
+     * Fall 2 und in `e2e/lagerbuch-checklisten.spec.ts:112-123`.
+     */
+    await expect(
+      page.locator("table tbody tr.ant-table-row").first(),
+      "ohne Datenzeile misst die Zellen-Zusage nichts",
+    ).toBeVisible();
+    expect(
+      await page.locator("table tbody tr.ant-table-row").count(),
+      "ohne Datenzeile misst die Zellen-Zusage nichts",
+    ).toBeGreaterThan(0);
+
+    const zellen = page.locator(`table tbody tr.ant-table-row td:nth-child(${spalte})`);
+    const werte = await zellen.allTextContents();
+    /*
+     * ⛔ DIE MENGE ALLER DREI WOERTER, NICHT EIN EINZELNES. Welcher Stand in Zeile 1 steht,
+     * haengt an der Zielversion und am Seed (`_lib/seedLokal.ts:118-127`, `:135-179`) — und
+     * Fall 7 legt im SELBEN Lauf ueber den Import weitere Geraete an. Die Zusage lautet
+     * „jede Zelle traegt das gefaltete Wort", nicht „Zeile 1 traegt Aktuell".
+     */
+    expect(
+      werte.filter((w) => !["Aktuell", "Veraltet", "Unbekannt"].includes(w)),
+      "eine Zelle der Spalte „Update-Stand“ zeigt nicht das Wort aus STAND_WORT (GeraeteTabelle.tsx:87-91)",
+    ).toEqual([]);
+    await expect(
+      zellen.first().locator(".ant-tag"),
+      "die Marke um das Wort fehlt — die render-Funktion hat die RSC-Grenze nicht heil ueberstanden",
+    ).toHaveCount(1);
   });
 
   test("Fall 3: /admin/geraete/<id> zeigt das Formular", async ({ page }) => {
@@ -528,6 +776,73 @@ test.describe("radio-Verwaltung", () => {
     ).toHaveCount(1);
     const mitZeitraum = await page.goto(radioUrl("/admin/ausleihen?von=2026-06-14&bis=2026-06-14"));
     expect(mitZeitraum?.status(), "ein gesetzter Zeitraum wirft die Seite ab").toBe(200);
+  });
+
+  test("eine Leihzeile zeigt ihren formatierten Wert, nicht das Rohfeld", async ({ page }) => {
+    /*
+     * ⛔ DIE ZWEITE HAELFTE DERSELBEN LUECKE (`Spec:6874`, dritte „sichere" Flaeche). Fall 5
+     * oben prueft `table thead th` und die Anwesenheit der Insel; beide Zusagen ueberleben
+     * eine `render`-Funktion, die nur noch den Rohwert durchreicht. Die Begruendung steht
+     * ausgeschrieben im Zwillingsfall zu Fall 2.
+     *
+     * ⬜ **T-L1 IST HIER ABGELESEN: DIE SPALTE IST `Status`** (`AusleihenTabelle.tsx:155-158`).
+     *
+     * ⛔ DIE ZAHL, UND SIE IST GEZAEHLT STATT ABGESCHRIEBEN. `grep -c "render:"` liefert auf
+     * `AusleihenTabelle.tsx` (415 Zeilen) am 2026-08-27 **ACHT** Vorkommen — davon sind
+     * **SIEBEN** echte Spalten-Props (`:122`, `:129`, `:136`, `:143`, `:150`, `:157`, `:162`);
+     * das achte steht auf `:70` INNERHALB eines Kommentars („je `render: (v) => v || '—'`").
+     * ⛔ Der Plan sagt „acht Vorkommen" und verbietet zugleich die blanke Zahl „sieben" —
+     * beides ist richtig, weil es zwei verschiedene Groessen sind. ⛔ Und die ALT-Datei
+     * `LoanList.tsx` (fuenf `render`) existiert in diesem Repo nicht; sie liegt in
+     * `/Users/rubeen/dev/personal/drk/radio-admin/client/src/features/loans/`.
+     *
+     * ⛔ WARUM DIE STATUS-SPALTE UND KEINE DER SECHS ANDEREN. Sechs reichen eine ZEICHENKETTE
+     * durch und wickeln sie nur in ein `<span data-rolle=…>`; die Zeitfaltung von
+     * `ausgeliehenText`/`zurueckText` geschieht im LESEPFAD und nicht in `render`
+     * (`AusleihenTabelle.tsx:75-79`, `_db/leihen.ts`). Eine Zusicherung darauf pruefte den
+     * Anker, nicht die Formatierung. `Status` faltet dagegen einen ROHEN WAHRHEITSWERT
+     * (`z.aktiv`, im Lesepfad `returnedAt === null`) in ein WORT — `StatusMarke`
+     * (`:95-103`) liefert „Aktiv" oder „Zurückgegeben" in einem `Tag`.
+     *
+     * ⚠️ DIE ZWEI WOERTER STEHEN MIT IHREN UMLAUTEN DA, UND DAS IST DIE HAUSAUSNAHME:
+     * woertlich uebernommener Bildschirmtext behaelt sie. Dieselben zwei Zeichenketten
+     * fuehrt Fall 5 oben bereits in seiner Kopfzeilen-Zusicherung.
+     *
+     * ⛔ DER GRIFF IST AUF `table tbody` VERANKERT: die Insel hat ZWEI Zweige, und der mobile
+     * setzt dieselbe `StatusMarke` (`:382`). Auf 1280x720 rendert nur der Tabellenzweig
+     * (`breit = bildschirm.md === true`, `:309-310`) — die Verankerung haelt die Zusage auch
+     * dann eindeutig, wenn jemand die Breite dieser Datei einmal aendert.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/ausleihen"));
+    expect(antwort?.status(), "/admin/ausleihen auf dem radio-Host").toBe(200);
+
+    /*
+     * DIE KONTROLLE ZU BEIDEN ZEILEN DARUNTER — ohne Leihzeile ist jede Zellen-Zusage
+     * leer-gruen. Der Seed legt vier Leihen an (`_lib/seedLokal.ts:204-226`).
+     *
+     * ⛔ UND SIE STEHT ALS WARTENDE ZUSICHERUNG, WEIL `count()` NICHT WARTET. ⚠️ Gemessen am
+     * 2026-08-27, beim ersten Lauf: ohne sie las der Fall auf dem kalt uebersetzenden
+     * Dev-Server `0` ab und meldete „ohne Leihzeile misst die Zellen-Zusage nichts" — eine
+     * Meldung ueber den Seed, wo in Wahrheit die Tabelle noch nicht da war.
+     */
+    const zeilen = page.locator("table tbody tr.ant-table-row");
+    await expect(zeilen.first(), "ohne Leihzeile misst die Zellen-Zusage nichts").toBeVisible();
+    const anzahl = await zeilen.count();
+    expect(anzahl, "ohne Leihzeile misst die Zellen-Zusage nichts").toBeGreaterThan(0);
+
+    const marken = page.locator('table tbody [data-rolle="radio-leihe-status"]');
+    await expect(
+      marken,
+      "nicht jede Leihzeile traegt eine Statusmarke — die render-Funktion aus :157 ist weg",
+    ).toHaveCount(anzahl);
+
+    const woerter = await marken.allTextContents();
+    expect(
+      woerter.filter((w) => !["Aktiv", "Zurückgegeben"].includes(w)),
+      "eine Statuszelle zeigt nicht das Wort aus StatusMarke (AusleihenTabelle.tsx:95-103)",
+    ).toEqual([]);
   });
 
   test("Fall 6: /admin/software zeigt den Update-Modus", async ({ page }) => {
@@ -1003,6 +1318,53 @@ test.describe("radio-Verwaltung", () => {
       page.locator('[data-rolle="radio-blatt"]'),
       "der Bogen selbst fehlt — die zwei Abwesenheitszusagen messen dann nichts",
     ).toHaveCount(1);
+  });
+
+  test("das Druckblatt riegelt die Verwaltungsstufe ab", async ({ page }) => {
+    /*
+     * ⛔ ⬜ **V-L14 / T-L3 — DIE UEBERNAHME EINES FREMDEN POSTENS, UND DAS STEHT HIER, STATT
+     * VERSCHWIEGEN ZU WERDEN.** Eigentuemer war laut `src/app/m/radio/riegel.test.ts:81-87`
+     * „die Schlusspruefung von Planteil 4"; sie hat ihn nicht abgelesen. Planteil 5 uebernimmt
+     * ihn AUSDRUECKLICH, statt ihn weiterzureichen — er gehoert in die e2e-Flaeche, und die
+     * entsteht hier.
+     *
+     * ⛔ WAS BIS HEUTE FEHLTE: fuer `admin/(druck)` gab es keine Wirkprobe des PERSONEN-Riegels.
+     * Die einzige Messung dort war Fall 5a („das Blatt druckt ohne Kopfzeile und ohne
+     * Navigationsleiste") — und die betrifft die HUELLE, nicht die STUFE. Ein Blatt mit den
+     * Zugangscodes IM KLARTEXT (`admin/(druck)/layout.tsx:14-21`) haette damit auf der
+     * Verwaltungsstufe offenstehen koennen, ohne dass ein Tor rot wird.
+     *
+     * ⛔ DIE ZWEITE HAELFTE TRAEGT DEN FALL, wie bei „V-L3 D": ohne sie ist der 404 oben
+     * mehrdeutig — er saehe genauso aus, wenn die Seite gar nicht existierte, wenn der
+     * Host-Riegel griffe oder wenn die Updater-Gruppe im Serverprozess unbekannt waere
+     * (⬜ V-L1 / Vorabscan-Fund F24: ein fehlender `SUITE_UPDATER_GROUP_RADIO` SCHLIESST die
+     * Stufe). Erst „mit Admin 200, mit Updater 404, auf derselben Adresse" benennt die STUFE
+     * als Ursache.
+     *
+     * ⚠️ ZWEI ANMELDUNGEN IN EINEM FALL, mit `clearCookies()` dazwischen — beides aus
+     * demselben gemessenen Grund wie in „V-L3 D": zwei getrennte `test()` liessen eine
+     * Haelfte still ausfallen, und ohne `clearCookies()` leitet `/login` eine bereits
+     * angemeldete Person sofort weiter, das E-Mail-Feld erscheint nie und `devLogin` laeuft in
+     * die vollen 90 s.
+     *
+     * ⛔ DIE AEUSSERE ADRESSFORM `/admin/zugaenge/blatt`, nie `/m/radio/admin/…` und nie mit
+     * der Route-Group im Pfad: `(druck)` ist ein Dateiname-Klammerausdruck und steht in keiner
+     * URL. Dieselbe Adresse fuehrt Fall 5a.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_UPDATER_GRUPPE });
+    const alsUpdater = await page.request.get(radioUrl("/admin/zugaenge/blatt"));
+    expect(
+      alsUpdater.status(),
+      "das Druckblatt ist fuer die Updater-Stufe offen — die Zugangscodes stehen darauf im Klartext",
+    ).toBe(404);
+
+    await page.context().clearCookies();
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+    const alsAdmin = await page.request.get(radioUrl("/admin/zugaenge/blatt"));
+    expect(
+      alsAdmin.status(),
+      "das Druckblatt antwortet auch der Admin-Stufe nicht — der 404 oben misst dann nichts",
+    ).toBe(200);
   });
 
   test("Fall 6: /admin/geraete/export liefert text/csv und beginnt mit dem BOM", async ({

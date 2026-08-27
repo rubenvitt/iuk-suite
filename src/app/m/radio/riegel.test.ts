@@ -78,13 +78,13 @@ import { bereinigt, ohneKommentare } from "./_lib/quelltextScan";
  *      sind keine Sicherheitsgrenzen"), nicht der einzige. Die Sonde ist zurueckgenommen,
  *      der Arbeitsbaum danach byteweise gleich.
  *
- * ⛔ WAS DAS NICHT HEISST, und es steht hier, statt verschwiegen zu werden: A bis E messen
- * den `(arbeit)`-Zweig. Fuer `admin/(druck)` gibt es keine eigene Wirkprobe des
- * PERSONEN-Riegels — die einzige Messung dort ist Fall 5a („das Blatt druckt ohne Kopfzeile
- * und ohne Navigationsleiste"), und die betrifft die Huelle, nicht die Stufe. ⬜ **V-L14** —
- * die Wirkprobe fuer `requireRadioAdmin()` in `admin/(druck)/layout.tsx` fehlt (eigene Nummer
- * seit dem 2026-08-26); Eigentuemer ist die Schlusspruefung von Planteil 4.
- * ⛔ Kein Fall in dieser Datei darf mehr behaupten als das hier Abgelesene.
+ * ✅ ⬜ **V-L14 IST AM 2026-08-27 ABGELESEN** (Planteil 5, T5). Bis dahin stand hier: „Fuer
+ * `admin/(druck)` gibt es keine eigene Wirkprobe des PERSONEN-Riegels — die einzige Messung
+ * dort ist Fall 5a …, und die betrifft die Huelle, nicht die Stufe … Eigentuemer ist die
+ * Schlusspruefung von Planteil 4." Der Dauerfall heisst jetzt „das Druckblatt riegelt die
+ * Verwaltungsstufe ab" (`e2e/radio-verwaltung.spec.ts`): Updater **404**, Admin **200**.
+ * ⛔ DIE VOLLE ABLESUNG STEHT AM DATEIENDE (Abschnitt „⬜ V-L14") — ein Einschub HIER
+ * verschoebe jeden Anker darunter. ⛔ Kein Fall hier darf mehr behaupten als das Abgelesene.
  *
  * ⚠️ ZWEI FORMEN, UND DER UNTERSCHIED IST TRAGEND (Vorbild `bauform.test.ts:13-37`):
  *
@@ -1409,3 +1409,59 @@ describe("(h) wer die Codeliste im Klartext liest, traegt die Admin-Stufe", () =
     expect(verstoesse).toEqual([]);
   });
 });
+
+/*
+ * ⬜ **V-L14 — DIE ABLESUNG, 2026-08-27 (Planteil 5, Aufgabe T5).**
+ *
+ * ⛔ SIE STEHT AM DATEIENDE UND NICHT OBEN IM KOPF, UND DAS IST ABSICHT. Diese Datei wird von
+ * rund dreissig `riegel.test.ts:<zeile>`-Ankern aus `src/`, `e2e/` und `docs/` adressiert; ein
+ * Einschub im Kopf haette jeden davon verschoben. Der Kopf traegt deshalb nur die
+ * zeilenzahl-neutrale Kurzfassung und verweist hierher. Dieselbe Ueberlegung und dieselbe
+ * Bauform wie der Nachtrag am Ende von `.superpowers/sdd/planteil5/KONTEXT.md`.
+ *
+ * **DIE FRAGE.** Wirkt der PERSONEN-Riegel in `admin/(druck)/layout.tsx:49`
+ * (`await requireRadioAdmin()`) bei einem ECHTEN Abruf? Der Quelltext-Scan in Klausel (g)
+ * dieser Datei belegt, dass er DASTEHT — eine Bauform, keine Wirkung.
+ *
+ * **DER DAUERFALL.** „das Druckblatt riegelt die Verwaltungsstufe ab" in
+ * `e2e/radio-verwaltung.spec.ts`, nach dem Muster von „V-L3 D": derselbe Pfad
+ * `/admin/zugaenge/blatt`, zwei Anmeldungen in EINEM `test()`.
+ *
+ *   F  `/admin/zugaenge/blatt` mit der Updater-Gruppe -> HTTP **404**,
+ *      mit der Admin-Gruppe -> HTTP **200**.
+ *
+ * **UND DIE DREI SONDEN, DIE ENTSCHEIDEN, WAS DER FALL MISST** (jede gefahren, jede
+ * zurueckgenommen, der Arbeitsbaum danach byteweise gleich):
+ *
+ *   S-T5d   NUR `admin/(druck)/layout.tsx:49` von `requireRadioAdmin()` auf
+ *           `requireRadioVerwaltung()` abgesenkt        -> **`1 passed`, 0 rot**
+ *   S-T5d2  dieselbe Absenkung ZUSAETZLICH in
+ *           `admin/(druck)/zugaenge/blatt/page.tsx:103` -> **`1 failed`**,
+ *                                                          `Expected 404 / Received 200`
+ *   S-T5d3  NUR `blatt/page.tsx:103` abgesenkt, das Layout unveraendert
+ *                                                       -> **`1 passed`**, der Updater bekommt
+ *                                                          weiterhin 404
+ *
+ * ⛔ **DIE NULL BEI S-T5d IST KEIN TESTFEHLER, SONDERN EIN NULL-EINGRIFF.** Der Druckzweig ist
+ * DOPPELT geriegelt, und die Doppelung ist angeordnet (`Spec:569-571`, „Route-Group-Grenzen
+ * sind keine Sicherheitsgrenzen"; ausgeschrieben in `admin/(druck)/layout.tsx:32-38` und in
+ * `admin/(druck)/zugaenge/blatt/page.tsx:14-16`). Eine Sonde, die nur EINE der zwei Linien
+ * absenkt, KANN den Fall nicht rot machen. Dieselbe Klasse fuehrt das Ledger fuer den
+ * Ausleihzweig (Probe P1) und fuer die zwei werfenden Einstiege (S-T4i/S-T4j).
+ *
+ * ✅ **WAS DAMIT GILT — IN BEIDE RICHTUNGEN GEMESSEN:** S-T5d2 zeigt, dass der Fall die STUFE
+ * misst und nicht die Huelle; S-T5d3 zeigt, dass **die Linie IM LAYOUT allein traegt**. Beide
+ * Riegelebenen greifen also unabhaengig voneinander — genau die Doppelung, die `Spec:569-571`
+ * verlangt. ⬜ V-L14 ist eingeloest.
+ *
+ * ⚠️ **DIE ERWARTETEN NEBENWIRKUNGEN, DAMIT SIE NIEMAND FUER EINEN BEFUND HAELT:** S-T5d und
+ * S-T5d2 faerben Klausel (g) dieser Datei rot (die zwei Zusicherungen ueber `(druck)/layout.tsx`),
+ * S-T5d3 zusaetzlich die Klausel „V21: admin/(druck)/zugaenge/blatt/page.tsx liegt in (druck)
+ * und nennt requireRadioAdmin, NICHT requireRadioVerwaltung" in `admin/actions.test.ts`.
+ * ⛔ Gemessen wird ausschliesslich, ob DER DAUERFALL rot wird — nicht, was sonst noch mitfaellt.
+ *
+ * ⛔ **WAS AUCH JETZT NICHT ABGELESEN IST, und es steht hier statt verschwiegen zu werden:**
+ * ⬜ Z-L1 ist damit NICHT geschlossen. Offen bleiben nach diesem Fall die Flaechen, die
+ * Planteil 5 selbst anlegt, und `import/hochladen` (POST-only) — die Vollzaehligkeitstafel
+ * dazu fuehrt der Planteil, nicht diese Datei.
+ */
