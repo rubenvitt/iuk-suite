@@ -602,10 +602,17 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
     expect(fehler).toHaveLength(1);
     /*
      * ⛔ FUND W4, NACHGEZAEHLT (Fund N1): UNTER DIESEM BLOCK STEHEN SECHS `toContain`.
-     * ⛔ Die VIER LETZTEN pruefen sich selbst — gemessen (Sonde P1b): loescht man sie alle
-     * vier, bleiben 39 gruen. Die Schluss-Kette jeder Meldung (`KETTE`,
-     * `grenzen.ts:339-343`) nennt ohnehin alle drei Namen mit Wert, und kuerzte man die
-     * Meldung auf `KETTE` allein, blieben sie gruen.
+     * ⛔ Die VIER LETZTEN sind logischer Beleg, keine Messung (Fund N5 der Review): beide
+     * Namen und beide Zahlen stehen wortgleich schon in der ANKERNDEN Zusage darunter
+     * (`toMatch(/^…PRO_ABSENDER_PRO_MIN=40 ist groesser als …GESAMT_PRO_MIN=30\./)`) UND in
+     * der Schluss-Kette jeder Meldung (`KETTE`, `grenzen.ts:339-343`) — sobald eine der
+     * beiden haelt, halten diese vier zwangslaeufig mit.
+     * ⚠️ Hier stand vorher „gemessen (Sonde P1b): loescht man sie alle vier, bleiben 39
+     * gruen" als Beleg — das war KEINE Messung: eine geloeschte `expect`-Zeile kann einen
+     * vitest-Fall strukturell nicht rot machen (kein `expect.assertions`/
+     * `.hasAssertions` im Repo, selbst nachgeprueft). „0 rot" gilt deshalb fuer JEDE Zeile
+     * hier, tragend oder nicht, und unterscheidet nichts — dieselbe geloeschte-Zusage-Sonde
+     * ergab, an den ZWEI TRAGENDEN darunter gefahren, ebenfalls „0 rot".
      * ⛔ Die ZWEI ERSTEN sind TRAGEND und duerfen nicht als Vakuum mitgestrichen werden —
      * jede ist einzeln gemessen: `…GESAMT_PRO_STUNDE=300` (Zusage A8) faellt mit Sonde
      * P1a (dritter Name aus `KETTE` entfernt → 2 rot), der Erklaersatz mit Sonde M9/P1c
@@ -644,7 +651,8 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
     });
     expect(fehler).toHaveLength(1);
     // ⛔ Fund W4, zweite Haelfte: ohne diese Zusage waere ein Vertauschen der beiden
-    // Meldungstexte gruen geblieben.
+    // Meldungstexte gruen geblieben — gemessen (Kopf-Reihenfolge der beiden Namen
+    // getauscht, Begruendung unveraendert): mit der Zusage 1 rot, ohne sie 0 rot.
     expect(fehler[0]).toMatch(
       /^RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN=100 ist groesser als RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE=50\./,
     );
@@ -698,8 +706,15 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
      * 30 liegt in allen drei Bereichen (max 60, 600, 3600), der Fall misst also
      * ausschliesslich die Kette und nicht nebenbei eine Bereichsgrenze.
      *
-     * Die zweite Zeile steht trotzdem: sie sichert zu, dass die AUSGELIEFERTEN
-     * Vorbelegungen (5/30/300, `grenzen.ts:82`, `:86`, `:91`) die eigene Kette einhalten.
+     * ⛔ FUND (dieser Runde): die zweite Zeile hiess frueher „sichert zu, dass die
+     * AUSGELIEFERTEN Vorbelegungen die eigene Kette einhalten" — das stimmt NICHT, wenn
+     * `5`/`30`/`300` als LITERALE gesetzt werden: diese Zeichenketten pruefen nur sich
+     * selbst, unabhaengig davon, was `vorgabe` in `grenzen.ts:76-91` tatsaechlich traegt.
+     * Gemessen: `vorgabe: 30` auf `350` gesetzt (verletzt die Kette, 350 > 300) liess acht
+     * ANDERE Faelle rot werden, aber GENAU DIESEN Fall gruen — die Literale schuetzten
+     * nichts. Also die drei GATE-Variablen UNGESETZT gelassen: nur so liest `zahl()` seine
+     * eigenen `vorgabe`-Werte, und nur so testet diese Zeile die tatsaechlich
+     * AUSGELIEFERTEN Vorbelegungen statt einer Kopie ihres heutigen Wortlauts.
      */
     expect(
       grenzenFehler({
@@ -710,12 +725,7 @@ describe("radio-Grenzen: grenzenFehler sammelt, statt zu werfen", () => {
       }),
     ).toEqual([]);
     expect(
-      grenzenFehler({
-        RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG,
-        RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN: "5",
-        RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN: "30",
-        RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE: "300",
-      }),
+      grenzenFehler({ RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIM_GUELTIG }),
     ).toEqual([]);
   });
 
