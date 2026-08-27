@@ -4,6 +4,7 @@ import { moduleUrl } from "@/core/shell/moduleUrl";
 import { beenden } from "../_actions/sitzung";
 import { uhrzeit } from "../_lib/anzeige";
 import type { AusleihZugang } from "../_lib/ausleihZugang";
+import { istRadioVerwaltung, viewerOderNull } from "../_lib/zugang";
 import { Ikone, type IkonName } from "./ikonen";
 import { Restzeit } from "./Restzeit";
 import s from "./ausleihe.module.css";
@@ -82,7 +83,20 @@ const FUSSNAV: readonly { schluessel: AusleihAbschnitt; href: string; text: stri
 /** Der Abschnitt, den die aufrufende Seite markiert haben will. */
 export type AusleihAbschnitt = "uebersicht" | "ausleihen" | "rueckgabe";
 
-export function AusleihRahmen({
+/**
+ * ⚠️ SEIT L3 `async`, UND DAS IST DER PREIS VON WEG (a) (Bericht §2.10): der Rahmen fragt
+ * die Rechtestufe SELBST, statt sie sich als Prop reichen zu lassen. In RSC ist eine
+ * `async`-Komponente zulaessig; die drei Aufrufer (`(ausleihe)/geraete/page.tsx:106`,
+ * `ausleihen/page.tsx:139`, `rueckgabe/page.tsx:92`) brauchen dafuer keine Zeile.
+ * ⛔ WARUM NICHT DER PROP-WEG (b): eine vierte Ausleihflaeche kann eine Prop VERGESSEN,
+ * und der Ausfall waere still — der Link fehlte einfach. Eine Frage, die der Rahmen selbst
+ * stellt, kann niemand vergessen. Der Bestand hat die Stelle ohnehin so benannt
+ * (`_lib/zugang.ts:84-85`: „ab L3 fuer den /admin-Link der Ausleihflaeche", Einzahl).
+ * ⚠️ FOLGE FUER TESTS: `mount(<AusleihRahmen …/>)` treibt eine `async`-Komponente nicht an
+ * (react-dom rendert kein Promise). Die Hauspraezedenz ist der direkte Aufruf mit
+ * anschliessendem Mount (`lagerbuch/page.test.tsx:139`, `(ausleihe)/geraete/page.test.tsx:17-22`).
+ */
+export async function AusleihRahmen({
   aktiv,
   zugang,
   children,
@@ -121,6 +135,31 @@ export function AusleihRahmen({
    */
   const portal = zugang.weg === "suite" ? moduleUrl("portal") : null;
 
+  /*
+   * ⛔ DER WEG IN DIE VERWALTUNG — L3, Posten 9 der Messung
+   * (`.superpowers/sdd/BERICHT-urls-und-adminzugang.md`). Er steht HIER und nicht am Gate:
+   * dort war er tot durch Konstruktion, weil `page.tsx:75` jede Suite-Sitzung nach
+   * `/geraete` weiterschickt, BEVOR ein Link rendern koennte (§2.10, entfernt in `4b4d1627`).
+   * Der Bestand verortet ihn selbst hier — `_lib/zugang.ts:505-507`: „am /admin-Link der
+   * Ausleihflaeche". ⚠️ Die Messung nennt dafuer `:456-458`; die Stelle ist seither
+   * gewandert, der Wortlaut ist derselbe.
+   *
+   * ⛔ EIN PRAEDIKAT, KEIN RIEGEL (Auflage 2 der Betreiberentscheidung; Spec-Zusage an
+   * Kapitel 4). `requireRadioVerwaltung()` an dieser Stelle schickte JEDE anonyme Person
+   * vom Aufsteller-QR nach `/login`, bevor sie die Geraeteliste je saehe — genau der
+   * Ausfall, den `requiresAuth: false` verhindern soll (NS-Z6). Sichtbarkeit ist ausserdem
+   * KEINE Absicherung: alle zwoelf Verwaltungsflaechen tragen ihren Riegel als erste
+   * Anweisung (§2.7), und ein fehlender Link sichert nichts.
+   *
+   * ⛔ BEIDE STUFEN, GEMESSEN (Betreiberentscheidung 2026-08-27, §2.8): SECHS der zehn
+   * Verwaltungsseiten stehen dem UPDATER offen, `/admin` selbst eingeschlossen
+   * (`admin/(arbeit)/page.tsx` traegt `requireRadioVerwaltung()`). Mit `istRadioAdmin`
+   * bliebe der Updater ohne sichtbaren Weg auf eine Seite, die er vollberechtigt oeffnet.
+   * ⛔ Deshalb `istRadioVerwaltung` — das DRITTE Praedikat neben den zweien, kein `||` in
+   * einem von ihnen (`_lib/zugang.ts:299-302`).
+   */
+  const darfVerwalten = istRadioVerwaltung(await viewerOderNull());
+
   return (
     <div className={s.rahmen} data-rolle="radio-ausleih-rahmen">
       <header className={s.kopf}>
@@ -150,6 +189,25 @@ export function AusleihRahmen({
         </div>
 
         <div className={s.kopfEnde}>
+          {/*
+            ⛔ DIE BEDINGUNG IST DER GANZE PUNKT DIESER ZEILE, und sie hat eine
+            Spec-Begruendung — §4.9.6 (Spec:3919-3922): der Bestand setzte einen Knopf
+            „Geraete verwalten" auf `/admin` (`radio-inventar/.../DeviceList.tsx:89-98`) —
+            auf eine ANONYME Flaeche. „Ein sichtbarer Weg dorthin, wo die aufrufende Person
+            nicht hindarf, verletzt die Gegenprobe" (`docs/design/README.md:420`). Die
+            Ausleihflaeche ist anonym erreichbar; wer ueber den Aufsteller-QR kam, hat keine
+            Suite-Sitzung. ⛔ WER SIE ALS „unnoetige Bedingung" ENTFERNT, baut den Knopf des
+            Alt-Bestands nach. `AusleihRahmen.test.tsx` haelt den anonymen Fall fest.
+            ⛔ UND SIE WIRD NICHT UM `zugang.weg === "suite"` ERGAENZT, so nahe die Zeile
+            darunter das legt: das Praedikat schliesst den Fall bereits ein (ohne Sitzung
+            gibt `viewerOderNull()` `null`), und die Ergaenzung blendete genau die
+            Verwalterin aus, die am Aufsteller steht.
+          */}
+          {darfVerwalten ? (
+            <Link href="/admin" className={s.verwaltungsLink} data-rolle="radio-verwaltungslink">
+              Zur Verwaltung
+            </Link>
+          ) : null}
           {portal !== null ? (
             <Link href={portal} className={s.portalLink} data-rolle="radio-portallink">
               Zur Suite

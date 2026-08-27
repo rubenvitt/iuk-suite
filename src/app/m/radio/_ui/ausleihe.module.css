@@ -209,7 +209,13 @@
   color: inherit;
 }
 
-.portalLink {
+/*
+ * Zwei Wege aus dem Kopf heraus, EIN Aussehen: „Zur Verwaltung" (L3, nur fuer Berechtigte)
+ * und „Zur Suite" (nur mit Suite-Sitzung). Sie stehen nebeneinander in `.kopfEnde` und
+ * sind gleichrangig — zwei Regeln waeren zwei Wahrheiten ueber dieselbe Gestalt.
+ */
+.portalLink,
+.verwaltungsLink {
   color: var(--radio-rahmen-marke);
   font-size: 0.9375rem;
   touch-action: manipulation;

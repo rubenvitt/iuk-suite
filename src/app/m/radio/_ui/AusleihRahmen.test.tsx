@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // src/app/m/radio/_ui/AusleihRahmen.test.tsx
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -14,8 +14,24 @@ import { join } from "node:path";
 const beendenMock = vi.hoisted(() => vi.fn());
 vi.mock("../_actions/sitzung", () => ({ beenden: beendenMock }));
 
+/**
+ * L3 — ⛔ NUR `viewerOderNull` IST ERSETZT, `istRadioVerwaltung` LAEUFT ECHT.
+ *
+ * `viewerOderNull` ist die einzige Stelle des Rahmens mit IO: sie ruft `auth()` und
+ * braeuchte sonst eine Sitzung. Das PRAEDIKAT dagegen muss echt bleiben — waere es
+ * mitgemockt, maesse der Updater-Fall unten die Attrappe und nicht die
+ * Betreiberentscheidung vom 2026-08-27 („der Link zeigt sich BEIDEN Stufen").
+ * Dieselbe Teilmocken-Bauform wie `_lib/host.test.ts` sie fuer `_lib/zugang` vorgibt.
+ */
+const viewerMock = vi.hoisted(() => vi.fn());
+vi.mock("../_lib/zugang", async (echt) => ({
+  ...(await echt<typeof import("../_lib/zugang")>()),
+  viewerOderNull: viewerMock,
+}));
+
 import { mount, hydrate, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 import type { AusleihZugang } from "../_lib/ausleihZugang";
+import { istRadioAdmin, type RadioViewer } from "../_lib/zugang";
 import { AusleihRahmen } from "./AusleihRahmen";
 
 const QUELLE = "src/app/m/radio/_ui/AusleihRahmen.tsx";
@@ -155,9 +171,37 @@ const serverBaum = (html: string): HTMLElement => {
   return traeger;
 };
 
+/**
+ * L3 — die zwei Umgebungsvariablen, die das Praedikat liest, und ihre Ruecknahme.
+ *
+ * ⛔ WARUM SIE VOR JEDEM FALL GELOESCHT WERDEN und nicht bloss am Ende zurueckgestellt:
+ * `.env`-Dateien laedt vitest hier nicht, ein in der Shell oder in der CI EXPORTIERTES
+ * SUITE_UPDATER_GROUP_RADIO dagegen kaeme mit — und faerbte den anonymen Fall unten
+ * still um. Zeichengleiche Bauform aus `_lib/zugang.test.ts:109-126`.
+ */
+const alterAdmin = process.env.SUITE_ADMIN_GROUP_RADIO;
+const alterUpdater = process.env.SUITE_UPDATER_GROUP_RADIO;
+const zuruecksetzen = () => {
+  for (const [name, wert] of [
+    ["SUITE_ADMIN_GROUP_RADIO", alterAdmin],
+    ["SUITE_UPDATER_GROUP_RADIO", alterUpdater],
+  ] as const) {
+    if (wert === undefined) delete process.env[name];
+    else process.env[name] = wert;
+  }
+};
+
+beforeEach(() => {
+  delete process.env.SUITE_ADMIN_GROUP_RADIO;
+  delete process.env.SUITE_UPDATER_GROUP_RADIO;
+  // Der Regelfall dieser Datei ist die ANONYME Ausleihflaeche: keine Suite-Sitzung.
+  viewerMock.mockResolvedValue(null);
+});
+
 afterEach(async () => {
   await unmount();
   beendenMock.mockClear();
+  viewerMock.mockReset();
 });
 
 describe("radio-AusleihRahmen: die Bauform", () => {
@@ -256,17 +300,13 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      * zwoelf Stunden alt.
      */
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     expect(query("[data-rolle='radio-sitzungsetikett']").textContent).toContain("Aufsteller Wache");
 
     await unmount();
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_SUITE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
     );
     const etikett = query("[data-rolle='radio-sitzungsetikett']").textContent ?? "";
     expect(etikett).toContain("Rita Roth");
@@ -283,9 +323,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      */
     await unmount();
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_SUITE_OHNE_NAMEN}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE_OHNE_NAMEN, children: <p /> }),
     );
     const rueckfall = query("[data-rolle='radio-sitzungsetikett']").textContent ?? "";
     expect(rueckfall, "ohne Namen traegt der Rueckfalltext").toContain("Angemeldet");
@@ -302,9 +340,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      * ⚠️ Der Anker ist umlautfrei (Global Constraints): „Funkger", nicht das ganze Wort.
      */
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     expect(query(`[data-rolle='${L10}']`).textContent).toContain("Funkger");
   });
@@ -316,9 +352,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      * ueber einen QR-Code kam, hat keine Suite-Sitzung — der Link fuehrte in den Login.
      */
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     expect(exists("[data-rolle='radio-portallink']")).toBe(false);
   });
@@ -327,9 +361,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
     // Die positive Haelfte. Ohne sie bliebe „kein Link" auch dann gruen, wenn es den Link
     // ueberhaupt nicht gibt — dieselbe Fehlerklasse wie ein Waechter ueber leerer Menge.
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_SUITE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
     );
     expect(exists("[data-rolle='radio-portallink']")).toBe(true);
   });
@@ -342,17 +374,13 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      * belegt, dass die Flaeche daraus auch das Richtige macht.
      */
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     expect(exists("[data-rolle='radio-restzeit']")).toBe(true);
 
     await unmount();
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_SUITE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
     );
     expect(exists("[data-rolle='radio-restzeit']")).toBe(false);
   });
@@ -379,9 +407,7 @@ describe("radio-AusleihRahmen: die Ablaufgrenze rechnet der RAHMEN (§4.2)", () 
   it("weit vor Ablauf traegt das Server-HTML KEINEN Ablaufsatz", async () => {
     let html = "";
     await hydrate(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
       (wirt) => {
         html = wirt.innerHTML;
       },
@@ -394,14 +420,158 @@ describe("radio-AusleihRahmen: die Ablaufgrenze rechnet der RAHMEN (§4.2)", () 
     const abgelaufen: AusleihZugang = { ...ZUGANG_CODE, laeuftAb: new Date(Date.now() - 60_000) };
     let html = "";
     await hydrate(
-      <AusleihRahmen aktiv="uebersicht" zugang={abgelaufen}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: abgelaufen, children: <p /> }),
       (wirt) => {
         html = wirt.innerHTML;
       },
     );
     expect(serverBaum(html).querySelector("[data-rolle='radio-restzeit-abgelaufen']")).not.toBeNull();
+  });
+});
+
+/**
+ * ================================================================================
+ * AUFGABE L3 — DER WEG IN DIE VERWALTUNG, IM KOPF DER AUSLEIHFLAECHE
+ * ================================================================================
+ *
+ * ⛔ WOFUER DIESE FAELLE DA SIND UND WOFUER NICHT: sie messen eine ANZEIGE-Entscheidung.
+ * Sie riegeln NICHTS. Alle zwoelf Verwaltungsflaechen tragen ihren Riegel als erste
+ * Anweisung, unabhaengig davon, ob ein Link auf sie zeigt
+ * (`.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.7, `riegel.test.ts` Klauseln (a)
+ * und (e)). ⛔ Ein Link aendert daran nichts — und ein fehlender Link sichert nichts.
+ *
+ * ⛔ WARUM HIER UND NICHT AM GATE: `page.tsx` trug den Link bis zum 2026-08-27 und er war
+ * TOT DURCH KONSTRUKTION — wer eine Suite-Sitzung hat, ist von `page.tsx:75` laengst nach
+ * `/geraete` weitergeschickt (Bericht §2.10, Posten 7, entfernt in `4b4d1627`). Der
+ * Bestand verortet ihn selbst hier: `_lib/zugang.ts:456-458` nennt „am /admin-Link der
+ * Ausleihflaeche" als Grund, warum `istRadioAdmin` die Admin-Stufe bleibt.
+ *
+ * ⛔ BEIDE STUFEN, UND DAS IST GEMESSEN (Betreiberentscheidung 2026-08-27, Bericht §2.8):
+ * SECHS der zehn Verwaltungsseiten stehen dem UPDATER offen, `/admin` selbst
+ * eingeschlossen (`admin/(arbeit)/page.tsx` traegt `requireRadioVerwaltung()`). Haenge der
+ * Link an `istRadioAdmin`, bliebe der Updater ohne sichtbaren Weg auf eine Seite, die er
+ * VOLLBERECHTIGT oeffnet. Sonde P2 unten misst genau diese Fehlbauform.
+ *
+ * ⛔ DER ANKER IST DER VERTRAG AN L6: `data-rolle="radio-verwaltungslink"`, umlautfrei.
+ * `gate-admin` gibt es nicht mehr; der e2e-Fall ankert auf DIESEM Namen.
+ */
+describe("radio-AusleihRahmen: der Weg in die Verwaltung (L3)", () => {
+  const VERWALTUNGSLINK = "[data-rolle='radio-verwaltungslink']";
+  const person = (groups: string[]): RadioViewer => ({ sub: "pid-7", name: "V. Person", groups });
+
+  it("die Admin-Stufe sieht den Weg", async () => {
+    /*
+     * ⛔ DIE UPDATER-STUFE IST ABSICHTLICH OFFEN GESETZT, und der Viewer steht trotzdem
+     * NICHT in ihr. Ohne das truege der Fall nicht, was sein Name sagt: bei geschlossener
+     * Updater-Stufe waere `istRadioUpdater` fuer JEDEN Viewer `false`, und ein Rahmen, der
+     * versehentlich nur die Admin-Gruppe kennte, saehe genauso aus
+     * (dieselbe Richtung wie `_lib/zugang.test.ts:549-563`).
+     */
+    try {
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      viewerMock.mockResolvedValue(person(["iuk-radio-admin"]));
+      await mount(
+        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
+      );
+      const link = query(VERWALTUNGSLINK);
+      /*
+       * ⛔ DER AEUSSERE PFAD, NICHT `/m/radio/admin` — ein innerer wuerde auf dem
+       * Modul-Host doppelt praefixiert (`AusleihRahmen.tsx:70-72`, gemessen in
+       * `lagerbuch/_ui/HelferRahmen.tsx:37-40`).
+       */
+      expect(link.getAttribute("href")).toBe("/admin");
+      expect(link.tagName, "ein Anker, kein Knopf").toBe("A");
+      expect(link.textContent?.trim(), "ein Zeichen allein traegt nicht").not.toBe("");
+    } finally {
+      zuruecksetzen();
+    }
+  });
+
+  it("die Updater-Stufe sieht ihn ebenfalls — das ist der Sinn der Entscheidung", async () => {
+    /*
+     * ⛔ DER TRAGENDE FALL, und zugleich die Gegenprobe gegen die naheliegende
+     * Fehlbauform „der Link haengt an `istRadioAdmin`": die erste Zusicherung haelt fest,
+     * dass diese Person die ADMIN-Stufe NICHT hat, die zweite, dass sie den Weg trotzdem
+     * sieht. ⛔ `admin` bleibt dabei strikt strenger als `updater`; hier waechst nichts
+     * zusammen, der Rahmen fragt nur die schwaechere der drei Fragen.
+     */
+    try {
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      viewerMock.mockResolvedValue(person(["eine-updater-gruppe"]));
+      await mount(
+        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
+      );
+      expect(istRadioAdmin(person(["eine-updater-gruppe"])), "sonst misst der Fall die Admin-Stufe")
+        .toBe(false);
+      expect(query(VERWALTUNGSLINK).getAttribute("href")).toBe("/admin");
+    } finally {
+      zuruecksetzen();
+    }
+  });
+
+  it("die ANONYME Ausleihflaeche zeigt ihn NICHT — §4.9.6", async () => {
+    /*
+     * ⛔ DER WICHTIGSTE FALL, UND ER HAT EINE SPEC-BEGRUENDUNG (§4.9.6, Spec:3919-3922):
+     * der Bestand setzte auf der anonymen Flaeche einen Knopf „Geraete verwalten" auf
+     * `/admin` (`radio-inventar/.../DeviceList.tsx:89-98`) — „ein sichtbarer Weg dorthin,
+     * wo die aufrufende Person nicht hindarf, verletzt die Gegenprobe"
+     * (`docs/design/README.md:420`). Die Betreiberentscheidung vom 2026-08-27 hebt das
+     * NICHT auf, sie erfuellt es: der Link erscheint NUR Berechtigten.
+     *
+     * ⛔ BEIDE UMGEBUNGSLAGEN, weil `null` zwei Wege durch das Praedikat nimmt: bei
+     * OFFENER Updater-Stufe liefe ein fehlender Null-Schutz in `viewer.groups` und damit
+     * in einen TypeError statt in ein `false` (`_lib/zugang.test.ts:610-620`).
+     */
+    try {
+      viewerMock.mockResolvedValue(null);
+      await mount(
+        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
+      );
+      expect(exists(VERWALTUNGSLINK), "geschlossene Updater-Stufe").toBe(false);
+
+      await unmount();
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+      await mount(
+        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
+      );
+      expect(exists(VERWALTUNGSLINK), "offene Updater-Stufe").toBe(false);
+
+      /*
+       * ⛔ UND DIE DRITTE LAGE, die weder anonym noch berechtigt ist: eine ANGEMELDETE
+       * Person OHNE jede Stufe. Ohne sie bliebe der Fall auch ueber einem Rahmen gruen,
+       * der schlicht auf „ist da eine Sitzung?" prueft statt auf die Rechtestufe —
+       * `zugang.weg === "suite"` steht in dieser Datei zwei Zeilen ueber dem Praedikat und
+       * ist der naheliegende Fehlgriff.
+       */
+      await unmount();
+      viewerMock.mockResolvedValue(person(["irgendeine-andere"]));
+      await mount(
+        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
+      );
+      expect(exists(VERWALTUNGSLINK), "angemeldet ohne Stufe").toBe(false);
+    } finally {
+      zuruecksetzen();
+    }
+  });
+
+  it("haengt am Praedikat und NICHT am Zugangsweg — auch der Code-Zugang zeigt ihn", async () => {
+    /*
+     * ⛔ DIE GEGENPROBE ZUR AUFLAGE 2 („der Link haengt am Praedikat, nicht am Riegel") in
+     * ihrer hier drohenden Gestalt: ein spaeterer Leser sieht `zugang.weg === "suite"` an
+     * der Zeile darueber und ergaenzt es als vermeintlich fehlende Bedingung. Das blendete
+     * genau die Verwalterin aus, die am Aufsteller steht und ueber den QR-Code hereinkam —
+     * die Luecke, die L3 schliessen soll. Das Praedikat schliesst den Fall bereits ein:
+     * ohne Suite-Sitzung gibt `viewerOderNull()` `null`.
+     */
+    try {
+      viewerMock.mockResolvedValue(person(["iuk-radio-admin"]));
+      await mount(
+        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
+      );
+      expect(exists(VERWALTUNGSLINK)).toBe(true);
+    } finally {
+      zuruecksetzen();
+    }
   });
 });
 
@@ -415,9 +585,7 @@ describe("radio-AusleihRahmen: die Fussnavigation", () => {
      * praefixiert (`lagerbuch/_ui/HelferRahmen.tsx:37-40`).
      */
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     const ziele = queryAll("[data-rolle='radio-fussnav'] a").map((a) => a.getAttribute("href"));
     expect(ziele).toEqual(["/geraete", "/ausleihen", "/rueckgabe"]);
@@ -431,9 +599,7 @@ describe("radio-AusleihRahmen: die Fussnavigation", () => {
     ] as const) {
       await unmount();
       await mount(
-        <AusleihRahmen aktiv={aktiv} zugang={ZUGANG_CODE}>
-          <p />
-        </AusleihRahmen>,
+        await AusleihRahmen({ aktiv: aktiv, zugang: ZUGANG_CODE, children: <p /> }),
       );
       const markiert = queryAll("[data-rolle='radio-fussnav'] [aria-current='page']");
       expect(markiert.length, aktiv).toBe(1);
@@ -446,9 +612,7 @@ describe("radio-AusleihRahmen: die Fussnavigation", () => {
     // (Spec:3747-3752). Dieselbe Regel gilt fuer die Leiste: das Zeichen ist `aria-hidden`,
     // die Beschriftung traegt.
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     for (const eintrag of queryAll("[data-rolle='radio-fussnav'] a")) {
       expect(eintrag.textContent?.trim(), eintrag.getAttribute("href") ?? "?").not.toBe("");
@@ -460,9 +624,7 @@ describe("radio-AusleihRahmen: die Fussnavigation", () => {
 describe("radio-AusleihRahmen: der Beenden-Knopf und der Inhalt", () => {
   it("ist ein Formular auf die Server Action, kein Anker", async () => {
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
     );
     const knopf = query("[data-rolle='radio-beenden']");
     expect(knopf.tagName).toBe("BUTTON");
@@ -472,9 +634,7 @@ describe("radio-AusleihRahmen: der Beenden-Knopf und der Inhalt", () => {
 
   it("rendert die Kinder im main", async () => {
     await mount(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p data-rolle="kind">Inhalt</p>
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p data-rolle="kind">Inhalt</p> }),
     );
     expect(query("main [data-rolle='kind']").textContent).toBe("Inhalt");
   });
@@ -490,9 +650,7 @@ describe("radio-AusleihRahmen: ⬜ L10, die Zeichenkette fuer den Cutover-Pruefs
      */
     let html = "";
     await hydrate(
-      <AusleihRahmen aktiv="uebersicht" zugang={ZUGANG_CODE}>
-        <p />
-      </AusleihRahmen>,
+      await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
       (wirt) => {
         html = wirt.innerHTML;
       },

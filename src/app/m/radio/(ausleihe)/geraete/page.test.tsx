@@ -102,6 +102,19 @@ vi.mock("../../_lib/host", async (echt) => ({
   requireRadioHost: (h: Headers) => hostRiegel(h),
 }));
 vi.mock("../../_lib/ausleihZugang", () => ({ requireAusleihZugang: vi.fn() }));
+/*
+ * L3 — ⚠️ `_lib/zugang` WIRD GEMOCKT, OBWOHL DIE SEITE ES NICHT IMPORTIERT, dieselbe
+ * Bauform und derselbe Zweck wie beim `next/headers`-Mock darueber: der Leerbestand-Fall
+ * unten faehrt eine zweite Lage MIT Verwaltungsrechten und haelt fest, dass der
+ * SEITENKOERPER auch dann keinen Weg nach `/admin` baut. Der eine Weg liegt im Rahmen
+ * (`_ui/AusleihRahmen.tsx`), und der ist hier durch eine Attrappe ersetzt.
+ * ⛔ NUR `viewerOderNull` ist ersetzt — ein mitgemocktes Praedikat maesse die Attrappe.
+ */
+const viewerMock = vi.hoisted(() => vi.fn());
+vi.mock("../../_lib/zugang", async (echt) => ({
+  ...(await echt<typeof import("../../_lib/zugang")>()),
+  viewerOderNull: viewerMock,
+}));
 vi.mock("../../_db/client", () => ({ getDb: () => halter.db }));
 
 /*
@@ -155,6 +168,8 @@ beforeEach(() => {
   halter.db = db;
   umleitungen.length = 0;
   vi.mocked(requireAusleihZugang).mockResolvedValue(ZUGANG);
+  // L3 — der Regelfall dieser Flaeche ist die anonyme Kiosk-Sitzung ohne Suite-Anmeldung.
+  viewerMock.mockResolvedValue(null);
 });
 
 afterEach(async () => {
@@ -397,7 +412,7 @@ describe("die Uebersicht an /geraete", () => {
     }
   });
 
-  it("zeigt ohne Geraete den Satz aus _lib/meldungen.ts, ohne Weg in die Verwaltung", async () => {
+  it("zeigt ohne Geraete den Satz aus _lib/meldungen.ts — der SEITENKOERPER traegt keinen Weg in die Verwaltung, auf KEINER Stufe", async () => {
     /*
      * §4.9.6 (Spec:3919-3922) und `_lib/meldungen.ts` (A14). ⛔ OHNE VERWEIS AUF DIE
      * VERWALTUNG: der Bestand setzt hier einen Knopf „Geraete verwalten" auf `/admin`
@@ -410,16 +425,45 @@ describe("die Uebersicht an /geraete", () => {
      *
      * ⛔ UND DIE INSEL ERSCHEINT DANN GAR NICHT: eine leere Filterleiste ueber nichts ist
      * eine Bedienfläche ohne Gegenstand.
+     *
+     * ⚠️ NACHGESCHNITTEN IN L3 (Posten 10 der Messung), UND DIE ZUSAGE IST ENGER GEWORDEN,
+     * NICHT WEITER. Bis zum 2026-08-27 hiess der Fall „ohne Weg in die Verwaltung" und las
+     * sich als Aussage ueber die ganze Flaeche. Das ist sie nicht und war sie nie: ab
+     * `:119-126` ist `AusleihRahmen` durch eine ATTRAPPE ersetzt, dieser Baum enthaelt also
+     * nur, was `page.tsx` SELBST baut. Seit L3 traegt der ECHTE Rahmen einen Link nach
+     * `/admin` — fuer Berechtigte, und NUR fuer sie. Dass er Anonymen fehlt, haelt
+     * `_ui/AusleihRahmen.test.tsx` („die ANONYME Ausleihflaeche zeigt ihn NICHT"); dieser
+     * Fall hier haelt die andere Haelfte: EINEN Weg, und er liegt im Rahmen, nicht im
+     * Seitenkoerper. Zwei Wege waeren zwei Wahrheiten.
+     *
+     * ⛔ DESHALB DIE ZWEITE LAGE MIT EINEM ADMIN-VIEWER. Sie ist die Stufen-
+     * Fallunterscheidung, die der alten Fassung fehlte: der Seitenkoerper darf den Link
+     * auch dann nicht bauen, wenn die aufrufende Person ihn sehen DUERFTE. Sie folgt der
+     * Bauform des `next/headers`-Mocks (`:76-80`): ⚠️ `_lib/zugang` WIRD GEMOCKT, OBWOHL
+     * DIE SEITE ES NICHT IMPORTIERT — genau deshalb. Wer hier eine zweite,
+     * stufenabhaengige Verwaltungszeile ergaenzt, macht diese Lage rot; die anonyme bliebe
+     * gruen und meldete nichts (gemessen als Sonde P5 zu L3).
      */
     await rendere();
 
     const leer = query('[data-rolle="radio-leer-bestand"]');
     expect(leer.textContent).toContain(SATZ_KEINE_GERAETE);
     expect(leer.querySelector("a")).toBe(null);
-    expect(query('[data-rolle="radio-rahmen"]').querySelectorAll('a[href*="/admin"]')).toHaveLength(
-      0,
-    );
+    expect(
+      query('[data-rolle="radio-rahmen"]').querySelectorAll('a[href*="/admin"]'),
+      "anonym: der Seitenkoerper baut keinen Weg in die Verwaltung",
+    ).toHaveLength(0);
     expect(exists('[data-rolle="radio-liste-attrappe"]')).toBe(false);
+
+    await unmount();
+    viewerMock.mockResolvedValue({ sub: "pid-7", name: "V. Person", groups: ["iuk-radio-admin"] });
+    await rendere();
+
+    expect(query('[data-rolle="radio-leer-bestand"]').querySelector("a")).toBe(null);
+    expect(
+      query('[data-rolle="radio-rahmen"]').querySelectorAll('a[href*="/admin"]'),
+      "auch berechtigt: der EINE Weg liegt im Rahmen (_ui/AusleihRahmen.tsx), nicht hier",
+    ).toHaveLength(0);
   });
 
   it("traegt den Aktualisieren-Knopf als Formular auf listeAktualisieren", async () => {
