@@ -560,7 +560,7 @@ test.describe("radio-Host-Riegel", () => {
    * Runbook-Zeile aus §4.7.2 Haelfte 1 lautet `curl "$B/sw.js"` — der AEUSSERE Pfad. Erst mit
    * beiden Haelften ist „die Haelfte-1-Messung im Lauf" wahr, und erst dann ist der ERSTE
    * STILLE FALL aus §7.4.4 (der Rewrite greift nicht) im Lauf gedeckt statt nur im Unit-Test
-   * (`src/app/m/radio/_lib/routen.test.ts:122-133`, Datei 251 Zeilen).
+   * (`src/app/m/radio/_lib/routen.test.ts:122-133`, Datei 267 Zeilen).
    *
    * ⚠️ DIE VORAUSSETZUNG IST GEMESSEN: `moduleForHost` (`src/core/registry.ts:251-258`) trifft
    * `` `${m.key}.localtest.me` `` in `:254`, also VOR dem `prodHostsFor`-Vergleich in `:255`.
@@ -742,15 +742,30 @@ test.describe("radio-Host-Riegel", () => {
    * Lesezeichen. Das Ziel traegt seinen Riegel unveraendert selbst
    * (`admin/(arbeit)/geraete/page.tsx:5` Import, `:53` erste Anweisung).
    *
-   * ⚠️ ZWEI ALIASSE UND NICHT NEUN: die uebrigen sieben pruefen dieselbe Aufloesungsklasse ein
-   * zweites Mal, und ihr VERHALTEN deckt der Unit-Fall an allen neun ab. Hier steht je einer
-   * der zwei Strecken — der Kioskpfad `/loan` (wirkt ab Cutover sofort) und der
-   * `admin/`-Pfad `/admin/devices` (der anonyme Fall).
+   * ⚠️ DREI ALIASSE UND NICHT NEUN, UND DIE DRITTE IST IN FIX-RUNDE 2 DAZUGEKOMMEN (Fund N3).
+   * Hier steht je einer der zwei Strecken — der Kioskpfad `/loan` (wirkt ab Cutover sofort) und
+   * der `admin/`-Pfad `/admin/devices` (der anonyme Fall) — PLUS `/admin/devices/g-1`. Die
+   * uebrigen SECHS pruefen dieselbe Aufloesungsklasse ein zweites Mal, und ihr VERHALTEN deckt
+   * der Unit-Fall an allen neun ab.
+   *
+   * ⛔ WARUM DER DRITTE KEINE WIEDERHOLUNG IST: `admin/devices/[id]/route.ts` ist der einzige
+   * Alias mit DYNAMISCHEM SEGMENT und der einzige, der einen KONTEXT VOM FRAMEWORK entgegennimmt
+   * (`type RouteKontext = { params: Promise<{ id: string }> }`, dort `:24`, gelesen in `:35`).
+   * Ein `[id]`-Ordner plus `params`-Vertrag ist eine ANDERE Aufloesungsklasse als ein statischer
+   * Pfad — und der Unit-Fall kann sie strukturell nicht sehen, weil er `ctx` SELBST baut
+   * (`src/app/m/radio/_lib/aliasse.test.ts:191`, `params: Promise.resolve({ id: BEISPIEL_ID })`;
+   * die Konstante steht in `:143` — sie traegt den Beleg weiter, falls die Zeile wandert).
+   * Der Satz „die uebrigen pruefen dasselbe ein zweites Mal" stimmte fuer ihn also nicht; er
+   * wurde nicht umformuliert, sondern wahr gemacht.
    *
    * ⛔ ER IST GRUEN GESCHRIEBEN UND DANN AN DER QUELLE ROT GEMESSEN, nicht rot-zuerst — die
    * neun Handler standen bereits. Sonde H (`_lib/aliasse.ts`, Ziel `/loan` auf `/rueckgabe`
    * getauscht) und Sonde I (`loan/route.ts` entfernt) faerbten ihn je `1 rot`, Sonde I mit
    * `404 statt 303`: das ist der Beleg, dass der aeussere Pfad wirklich in DIESER Datei landet.
+   * ⛔ SONDE J FUER DEN DRITTEN EINTRAG (Fix-Runde 2): `admin/devices/[id]/route.ts:35`
+   * `(await ctx.params).id` gegen die Konstante `"mutant"` getauscht — `1 rot`,
+   * `/admin/geraete/mutant` statt `/admin/geraete/g-1`. Damit ist gemessen, dass der `params`
+   * dieses NEUEN Ordners wirklich vom Framework kommt und nicht bloss vom Test.
    */
   test("die Alias-Routen antworten auf dem AEUSSEREN Pfad mit 303 auf ihr Ziel", async ({
     page,
@@ -758,6 +773,7 @@ test.describe("radio-Host-Riegel", () => {
     for (const [alt, ziel] of [
       ["/loan", "/ausleihen"],
       ["/admin/devices", "/admin/geraete"],
+      ["/admin/devices/g-1", "/admin/geraete/g-1"],
     ] as const) {
       const antwort = await page.request.get(radioUrl(alt), { maxRedirects: 0 });
       expect(antwort.status(), `${alt} auf ${RADIO_HOST}`).toBe(303);

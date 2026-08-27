@@ -132,7 +132,7 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
     expect(fahre("/sw.js")).toEqual({ action: "rewrite", target: "/m/radio/sw.js", moduleKey: "radio" });
   });
 
-  it("/admin/login ergibt einen Rewrite — und seit L4 einen Alias, keine 404", () => {
+  it("/admin/login ergibt einen Rewrite — die Vorbedingung des Alias", () => {
     /*
      * Spec:399-405: der Alt-Verwaltungshost `radio-admin.iuk-ue.de` bekommt einen
      * pfaderhaltenden Traefik-`redirectRegex`. Ein Lesezeichen auf
@@ -149,6 +149,15 @@ describe("radio: jeder aeussere Pfad wird ins Modul umgeschrieben", () => {
      * davon (`_lib/aliasse.ts`, Ziel `/admin`; der Verhaltensfall steht in
      * `_lib/aliasse.test.ts`). ⚠️ Der Rewrite ist die VORBEDINGUNG dafuer: ohne ihn
      * erreichte der Handler das Modul nie.
+     *
+     * ⛔ UND DESHALB HEISST DER FALL NUR NOCH „die Vorbedingung des Alias" (Fix-Runde 2 zu L4,
+     * Fund N2). Er hiess zwischenzeitlich „… und seit L4 einen Alias, keine 404" — ein Name,
+     * der mehr versprach, als die eine `expect()` unten haelt: sie misst `decideRoute`, also
+     * die MIDDLEWARE-Entscheidung, und nichts in dieser Datei misst „einen Alias" oder „keine
+     * 404". Dass der Alias antwortet, ist gemessen — im `it.each` „%s leitet auf %s" von
+     * `_lib/aliasse.test.ts` und im e2e-Fall „die Alias-Routen antworten auf dem AEUSSEREN
+     * Pfad" (`e2e/radio-hosts.spec.ts`). Ein Fallname, der eine fremde Zusicherung mitliest,
+     * laesst sie beim Streichen jener Datei still verschwinden.
      */
     expect(fahre("/admin/login")).toEqual({
       action: "rewrite", target: "/m/radio/admin/login", moduleKey: "radio",

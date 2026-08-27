@@ -74,8 +74,16 @@ const anfrage = (pfad: string, kopf: HeadersInit): Request =>
 /**
  * ⛔ DIE FUENF ROUTE HANDLER, DIE KEINE ALIASSE SIND — namentlich, damit die Abziehung unten
  * nicht ins Leere laeuft. Stand VOR dieser Aufgabe: `HANDLER_ANZAHL = 5`
- * (`git show HEAD:src/app/m/radio/riegel.test.ts`, dort Zeile 145); heute `riegel.test.ts:157`
- * mit 14.
+ * (`git show bf1c0198:src/app/m/radio/riegel.test.ts`, dort Zeile 145, Wert 5); heute
+ * `riegel.test.ts:157` mit 14.
+ *
+ * ⛔ DER ANKER IST DIE SHA UND AUSDRUECKLICH NICHT `HEAD` (Fix-Runde 2 zu L4, Fund N1). `HEAD`
+ * wandert mit jedem Commit, und schon derjenige, der diesen Satz ablegte, machte ihn falsch:
+ * dasselbe Kommando gegen `HEAD` liefert heute `157:const HANDLER_ANZAHL = 14;`, und Zeile 145
+ * traegt dort Fliesstext statt der Zahl. Ein `HEAD`-Verweis in einer committeten Datei ist NIE
+ * haltbar — er zeigt per Bauart auf den Stand NACH der Aenderung, die er beschreiben soll.
+ * ⚠️ Der Wert steht zusaetzlich ausgeschrieben, weil eine Zweig-SHA eine Verdichtung beim Merge
+ * nicht ueberlebt; faellt der Anker, traegt die Zahl den Satz weiter.
  * Ein sechster Nicht-Alias-Handler macht den Vollzaehligkeitsfall rot, und das ist gewollt.
  */
 const NICHT_ALIAS = [
