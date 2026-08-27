@@ -352,9 +352,31 @@ describe("das Gate an /", () => {
  * Baumfall nicht, und er traegt keinen der drei benannten Namen, also sah ihn der Scan nicht.
  * Dagegen steht seit dieser Runde das VIERTE, klassenweite Verbot unten.
  *
- * ⛔ AUCH DAS FAENGT NICHT ALLES: ein `redirect()` in den Verwaltungsbereich oder ein Weg
- * unter einer Adresse OHNE `/admin` kaeme weiter durch. Dieser Block ist ein
- * Rueckfallwaechter fuer die gemessene Klasse, kein Beweis der Abwesenheit.
+ * ⛔ AUCH DAS FAENGT NICHT ALLES — aber die Luecke liegt ANDERS, als diese Zeile bis zur
+ * Fix-Runde 2 behauptete (Fund K6). Vier Sonden, alle an der QUELLE (`page.tsx`), je einzeln
+ * gefahren und pfadgebunden zurueckgenommen:
+ *
+ *   · P-6 `redirect("/m/radio/admin/geraete")`                              → `1 rot`
+ *   · P-9 `const ZIEL = "/m/radio/admin/geraete"; redirect(ZIEL);`           → `1 rot`
+ *   · P-7 `const ziel = "/m/radio/" + "admin/geraete"; redirect(ziel);`      → `0 rot`
+ *   · P-8 `redirect(VERWALTUNGS_PFADE[1])` aus `_lib/routen.ts`             → `0 rot`
+ *
+ * ⛔ EIN WOERTLICHER `redirect()` IN DEN VERWALTUNGSBEREICH KOMMT ALSO NICHT DURCH (P-6), UND
+ * EINE OERTLICHE KONSTANTE MIT DEM VOLLEN LITERAL AUCH NICHT (P-9). Jedes Verwaltungsziel des
+ * Moduls liegt unter `src/app/m/radio/admin/`, traegt damit `/admin` in seinem Literal, und
+ * dieses Verbot liest den GANZEN Rumpf statt nur ein `href=`.
+ *
+ * ⚠️ DIE RESTLUECKE IST SCHAERFER, ALS „aus einer Konstante" klingt: es entscheidet ALLEIN, ob
+ * die Zeichenfolge `/admin` ZUSAMMENHAENGEND IM TEXT DIESER DATEI steht. Was durchkommt, ist ein
+ * Ziel, das aus Teilen gefuegt (P-7) oder aus einem ANDEREN Modul geholt wird (P-8). Dagegen
+ * hilft kein Textscan, sondern nur ein Abruf (L6).
+ *
+ * ⚠️ Der zweite Halbsatz von damals („ein Weg unter einer Adresse OHNE `/admin`") ist heute
+ * GEGENSTANDSLOS, nicht falsch: `src/app/m/radio/admin/` ist der einzige Verwaltungsbereich des
+ * Moduls (`(arbeit)/`, `(druck)/`, `actions.ts`). Als Vorgriff auf eine kuenftige Flaeche
+ * ausserhalb davon bleibt er zulaessig.
+ *
+ * Dieser Block ist ein Rueckfallwaechter fuer die gemessene Klasse, kein Beweis der Abwesenheit.
  */
 describe("Bauform des Gates", () => {
   const quelle = () => ohneKommentare(readFileSync(QUELLE, "utf8"));
