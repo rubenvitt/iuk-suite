@@ -619,7 +619,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * Der Stand am 2026-08-26, selbst nachgezaehlt und nicht aus dem Plan
      * abgeschrieben: `filesBootFehler` (`src/app/m/files/_lib/boot.ts:82`),
      * `lagerbuchBootFehler` (`src/app/m/lagerbuch/_lib/boot.ts:42`),
-     * `radioBootFehler` (`src/app/m/radio/_lib/boot.ts:226`).
+     * `radioBootFehler` (`src/app/m/radio/_lib/boot.ts:234`).
      *
      * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
      * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"

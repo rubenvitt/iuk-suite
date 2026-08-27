@@ -835,7 +835,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
     taktSqlite.close();
     expect(() => vi.advanceTimersByTime(ERSTLAUF_MS)).not.toThrow();
     // Anker auf Praefix UND Meldung: dieser Diff legt ZWEI `[radio]`-Fehlerzeilen an
-    // (`_lib/boot.ts:544-548` und `:585-588`) — die MELDUNG trennt die beiden (REVIEW-G4 H4),
+    // (`_lib/boot.ts:547-551` und `:588-591`) — die MELDUNG trennt die beiden (REVIEW-G4 H4),
     // der PRAEFIX ist die Form, die R-G2-1 gegen `radio:` haelt und sonst niemand bewacht (N2).
     expect(fehlerText()).toContain("[radio] Retention-Lauf");
     expect(vi.getTimerCount()).toBe(1);
@@ -856,7 +856,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
   it("ein Fehler der Bestandswarnung nimmt den Takt nicht mit", () => {
     /*
      * ⛔ DER UNBEWACHTE ZWEIG AUS FIX-RUNDE 1 (REVIEW-G4 W3). `bestandswarnung()` hat ein
-     * EIGENES `try`/`catch` (`_lib/boot.ts:574-589`), und die Zusage darueber lautet: „ein
+     * EIGENES `try`/`catch` (`_lib/boot.ts:577-592`), und die Zusage darueber lautet: „ein
      * gescheiterter Bestandsblick darf den Takt nicht mitnehmen — er ist die weniger
      * wichtige der drei Aufgaben". Ohne diesen Fall war das eine Zusage ohne Waechter:
      * gemessen blieben 56/56 gruen, als das `catch` durch `throw grund;` ersetzt wurde.
@@ -865,7 +865,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
      *
      * ⚠️ WAS DIESER FALL VON „WIRFT NIE" (Bauform 4) DECKT UND WAS NICHT: er deckt die
      * Bahn ueber den gescheiterten Tabellenblick. Er deckt NICHT
-     * `prodHostsFor(getModule("radio"), env)` (`_lib/boot.ts:573`) — die steht VOR dem
+     * `prodHostsFor(getModule("radio"), env)` (`_lib/boot.ts:576`) — die steht VOR dem
      * einzigen `try`, und `getModule` wirft bei unbekanntem Schluessel
      * (`src/core/registry.ts:217-221`). Das ist eine BENANNTE GRENZE, kein Loch: `radio`
      * steht unbedingt in `src/core/registry.ts:53-213` (R-G1-1: elf Eintraege), der Zweig
@@ -894,7 +894,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
      * ⛔ HIER STEHT KEIN `stoppeRadioHintergrund()` ZWISCHEN DEN ZWEI STARTS, UND DAS IST
      * DIE SCHAERFERE FASSUNG — nicht die bequemere (REVIEW-G4 W2, Ruling R-G4-1). Unter
      * `RADIO_HISTORIE_PURGE=0` kehrt `starteRadioHintergrund()` zurueck, BEVOR eine Uhr
-     * registriert wird (`_lib/boot.ts:634`); ein `stoppe…` dazwischen raeumte also nichts
+     * registriert wird (`_lib/boot.ts:637`); ein `stoppe…` dazwischen raeumte also nichts
      * weg, was je entstanden waere. Es oeffnete aber genau den Weg, den dieser Fall
      * schliessen soll: eine `schonGemeldet`-Flagge, die in `stoppeRadioHintergrund()`
      * mit zurueckgesetzt wird — was naheliegt, die Funktion setzt bereits drei
