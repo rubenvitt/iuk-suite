@@ -19,6 +19,22 @@ function buche(p: { ts: Date; typ?: "zugang" | "entnahme" | "korrektur" | "umlag
   }).run();
 }
 
+/**
+ * ⏱ EIN COMMIT STATT N — der Grund steht ausfuehrlich am Kopf von
+ * `lesepfade/bz.test.ts`. Kurz: `migrierteTestDb` liefert eine Datei-SQLite ohne
+ * WAL, jedes `.run()` ausserhalb einer Transaktion ist ein eigener Commit mit
+ * fsync. Gemessen (PR #80, Lauf 33090214227): diese Datei lokal 306 ms, in der
+ * CI 10 658 ms — Faktor 35, waehrend die ganze Suite nur Faktor 4 hat. Die drei
+ * Schleifen unten legen 100, 101 und 121 Zeilen an; ohne diese Klammer waeren
+ * das ebenso viele Commits, und die CI kam damit auf ueber 50 ms je Stueck.
+ *
+ * `buche` schreibt bewusst weiter ueber `t.db`: better-sqlite3 haelt EINE
+ * Verbindung, das `BEGIN` dieser Transaktion umfasst sie also mit.
+ */
+function inEinemCommit(fn: () => void) {
+  t.db.transaction(fn);
+}
+
 beforeEach(() => {
   t = migrierteTestDb("lagerbuch-lp-journal-");
   t.db.insert(artikel).values([
@@ -35,7 +51,9 @@ afterEach(() => t.schliessen());
 
 describe("journalEintraege — der Deckel ist BEOBACHTBAR (§5.14.3)", () => {
   it("GRENZE Zeilen -> mehrVorhanden false", () => {
-    for (let i = 0; i < JOURNAL_GRENZE; i++) buche({ ts: T("2026-06-01T10:00:00Z") });
+    inEinemCommit(() => {
+      for (let i = 0; i < JOURNAL_GRENZE; i++) buche({ ts: T("2026-06-01T10:00:00Z") });
+    });
     const e = journalEintraege(t.db);
     expect(e.zeilen).toHaveLength(JOURNAL_GRENZE);
     expect(e.mehrVorhanden).toBe(false);
@@ -48,7 +66,9 @@ describe("journalEintraege — der Deckel ist BEOBACHTBAR (§5.14.3)", () => {
      * Treffer" UNBEDINGT — auch wenn drei Zeilen zurueckkommen —, und es gibt im
      * gesamten Modul KEINEN Weg herauszufinden, ob eine Grenze zugeschlagen hat.
      */
-    for (let i = 0; i < JOURNAL_GRENZE + 1; i++) buche({ ts: T("2026-06-01T10:00:00Z") });
+    inEinemCommit(() => {
+      for (let i = 0; i < JOURNAL_GRENZE + 1; i++) buche({ ts: T("2026-06-01T10:00:00Z") });
+    });
     const e = journalEintraege(t.db);
     expect(e.zeilen).toHaveLength(JOURNAL_GRENZE);
     expect(e.mehrVorhanden).toBe(true);
@@ -166,10 +186,12 @@ describe("journalEintraege — die Filter greifen VOR dem Limit", () => {
     // `queries.ts:82-85`: die WHERE-Bedingungen greifen VOR dem LIMIT. Sonst
     // durchsuchte die Suche nur die neuesten 100 Zeilen — und faende bei einem
     // wachsenden Journal immer weniger.
-    for (let i = 0; i < JOURNAL_GRENZE + 20; i++) {
-      buche({ ts: new Date(T("2026-06-01T10:00:00Z").getTime() + i * 60_000) });
-    }
-    buche({ ts: T("2020-01-01T00:00:00Z"), kommentar: "uraltnadel" });
+    inEinemCommit(() => {
+      for (let i = 0; i < JOURNAL_GRENZE + 20; i++) {
+        buche({ ts: new Date(T("2026-06-01T10:00:00Z").getTime() + i * 60_000) });
+      }
+      buche({ ts: T("2020-01-01T00:00:00Z"), kommentar: "uraltnadel" });
+    });
     const e = journalEintraege(t.db, { q: "uraltnadel" });
     expect(e.zeilen).toHaveLength(1);
     expect(e.mehrVorhanden).toBe(false);

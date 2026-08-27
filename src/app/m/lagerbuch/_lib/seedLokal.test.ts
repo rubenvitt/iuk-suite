@@ -75,7 +75,44 @@ function gelbUeberMonatsendeErreichbar(jetzt: Date): boolean {
 beforeEach(() => { t = migrierteTestDb("lagerbuch-seed-"); });
 afterEach(() => { t.schliessen(); });
 
-describe("seedLokalLagerbuch", () => {
+/**
+ * ⏱ WARUM DIESE SUITE 20 SEKUNDEN BEKOMMT UND NICHT DIE VORGABE VON FUENF.
+ *
+ * Jeder der 15 Faelle ruft `seedLokalLagerbuch` VOLLSTAENDIG — das ist die
+ * Bedingung, unter der die zwei schaerfsten Zusagen der Datei ueberhaupt etwas
+ * behaupten: „ist idempotent" und „ergaenzt nach einem abgebrochenen Lauf nur
+ * das Fehlende" brauchen beide eine JUNGFRAEULICHE Datenbank. Eine geteilte,
+ * einmal geseedete DB waere schneller und wuerde beide Zusagen inhaltsleer
+ * machen. Die Laufzeit ist hier also sachlich begruendet und nicht verschwendet.
+ *
+ * Der Seed schreibt in 16 Tabellen, und er tut es zu grossen Teilen mit
+ * einzelnen `.run()`-Aufrufen (`seedLokal.ts`; nur die Schreibpfade um Zeile
+ * 392/406/443/509/537 klammern selbst). Auf einer Datei-SQLite ohne WAL — und
+ * genau die gibt `_db/testdb.ts` zurueck — ist jeder davon ein eigener Commit
+ * mit fsync.
+ *
+ * GEMESSEN (PR #80, Lauf 33090214227, `ubuntu-24.04`):
+ *   – ein Fall lokal unter voller Suitenlast: 57 ms; einzeln 61 ms; auf `main`
+ *     einzeln 54 ms (eigener Worktree — die Datei ist dort byte-identisch)
+ *   – diese Datei in der CI: 39 493 ms auf 15 Faelle, also ~2 630 ms je Fall,
+ *     EINSCHLIESSLICH der `beforeEach`-Hooks
+ *   – Faktor dieser Datei CI/lokal: 41, waehrend die GANZE Suite bei 4 liegt
+ *     (lokal 170 s, CI 686 s). Der Runner ist nicht gleichmaessig langsamer:
+ *     Dateien mit einer Datei-SQLite je Test liegen bei 30–125, reine Rechen-
+ *     und jsdom-Dateien bei 1,5–7.
+ *
+ * ⚠️ WIE GROSSZUEGIG SIND 20 SEKUNDEN WIRKLICH? Ehrlicherweise: unbekannt nach
+ * oben. „hat einen abgeschlossenen und einen offenen Check" wurde in der CI bei
+ * 5 000 ms ABGEBROCHEN — die echte Rumpfdauer ist damit nicht gemessen, sondern
+ * nur nach unten begrenzt. Sie kann 6 s gewesen sein oder 15 s. 20 000 ms sind
+ * das Vierfache dieser ABBRUCHGRENZE, nicht das Vierfache eines Endwertes.
+ * Gegen den einzigen vollstaendig gemessenen Bezugspunkt — ~2 630 ms je Fall
+ * im Dateidurchschnitt — sind es rund das Achtfache. Wer die Zahl spaeter
+ * pruefen will, braucht dafuer einen CI-Lauf, der NICHT abbricht.
+ * ⛔ Die Zahl gilt NUR fuer diese Suite. Der globale `testTimeout` bleibt bei 5 s;
+ * er heraufzusetzen wuerde jeden kuenftigen Fall derselben Art verdecken.
+ */
+describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
   it("fuellt jede Fachtabelle des Moduls", async () => {
     const protokoll = await seedLokalLagerbuch(t.db);
 
