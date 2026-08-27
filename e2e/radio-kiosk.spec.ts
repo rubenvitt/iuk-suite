@@ -25,7 +25,8 @@ import { E2E_CODE_AKTIV, RADIO_ENV, radioUrl } from "./helpers/radio";
  * Fluss alle vier der Reihe nach durchlaeuft. ⛔ **Bedingung, und sie ist die ganze
  * Begruendung: jede Station traegt ihre EIGENE Statuspruefung**, statt nur auf einen
  * Folgezustand zu warten (Stationen 1 bis 4 unten, je ein eigenes `expect` auf
- * `antwort.status()`). Der andere Auftrag — die Zellen-Luecke — geht als Ergaenzung in
+ * `antwort.status()` — und daneben, ⛔ **untrennbar davon**, eines auf den VERBLEIB der
+ * Adresse; die Begruendung steht bei den `PFAD_`-Konstanten). Der andere Auftrag — die Zellen-Luecke — geht als Ergaenzung in
  * `e2e/radio-verwaltung.spec.ts` (Aufgabe T5). Eine eigene Datei fuer denselben Abruf
  * waere kein zusaetzlicher Beweis.
  *
@@ -98,6 +99,18 @@ import { E2E_CODE_AKTIV, RADIO_ENV, radioUrl } from "./helpers/radio";
  * Bedingung, faellt E-G9, und `e2e/radio-tabellen.spec.ts` waere doch noetig. ⛔ Wer eine
  * der vier `status()`-Zusicherungen unten entfernt oder abschwaecht, entfernt damit die
  * Begruendung fuer eine fehlende Datei — und muss jene Datei anlegen.
+ *
+ * ⛔ UND DIE UMKEHRUNG GILT GENAUSO — sie ist in der Fix-Runde zu T2 nachgetragen worden,
+ * weil die erste Fassung dieser Datei sie nicht hatte: der Status ALLEIN traegt den
+ * Anspruch nicht. `page.goto` folgt Umleitungen, ein abgewiesener Abruf landete mit 200 am
+ * Gate, und die Station waere gruen ohne je gerendert zu haben. Deshalb steht neben jeder
+ * `status()`-Zeile eine `pathname`-Zeile, und beide gehoeren zusammen.
+ * ⛔ GEMESSEN, NICHT UEBERLEGT (Sonde S-T2h, `.superpowers/sdd/planteil5/BERICHT-T2.md`):
+ * mit einem unbedingten `redirect("/abmelden?grund=sitzung")` in `(ausleihe)/layout.tsx` —
+ * dem Umweg, den `requireAusleihZugang` bei abgewiesener Sitzung wirklich geht — blieb die
+ * `status()`-Zeile von Station 2 **gruen** (200, vom Gate), und rot wurde erst die
+ * Verbleib-Zeile: `Expected: "/geraete" / Received: "/"`. Ohne sie waere die Station gruen
+ * gewesen, ohne je gerendert zu haben.
  */
 
 /**
@@ -151,7 +164,23 @@ const AUSLEIH_COOKIE_ANFANG = "radio_ausleihe=";
  */
 const ERWARTETE_SITZUNG_SEKUNDEN = Number(RADIO_ENV.RADIO_AUSLEIH_SITZUNG_STUNDEN) * 3600;
 
-/** Die aeusseren Pfade der drei Ausleihstationen — sie stehen zweimal (GET und POST). */
+/**
+ * Die aeusseren Pfade der vier Stationen. Sie stehen mehrfach: im Abruf, in der
+ * Verbleib-Zusicherung jeder Station und (fuer zwei von ihnen) im `waitForResponse`-Filter
+ * des POST.
+ *
+ * ⛔ WARUM ES DIE VERBLEIB-ZUSICHERUNG UEBERHAUPT GIBT, und sie ist die tragende Haelfte
+ * von Zusage 3: `page.goto` FOLGT Umleitungen und liefert die Antwort des LETZTEN
+ * Dokuments. Wiese der `(ausleihe)`-Riegel die Sitzung ab und leitete auf `/` um
+ * (`_lib/ausleihZugang.ts`, der Umweg bei fehlendem Cookie), lieferte `status()` die
+ * **200 des Gates** — und die Station bliebe gruen, obwohl sie nie gerendert hat. Ein so
+ * eingesammelter Statuscode ist genau das, was Bauform-Zulaessigkeitstafel Nr. 22
+ * „Folgewirkung statt Antwort" nennt. ⛔ Erst Status UND Verbleib zusammen halten den
+ * Rundgang-Anspruch aus E-G9; ohne den Verbleib saehe der Kommentar zu Sonde S-T2c oben
+ * mehr zu, als die vier Zeilen halten.
+ */
+const PFAD_GATE = "/";
+const PFAD_GERAETE = "/geraete";
 const PFAD_AUSLEIHEN = "/ausleihen";
 const PFAD_RUECKGABE = "/rueckgabe";
 
@@ -190,10 +219,14 @@ test.describe("radio-Kiosk", () => {
      * (`src/app/m/radio/page.tsx:75-76`, Datei 160 Zeilen). Anonym ist „kein Zugang" hier
      * der REGELFALL (`Spec:2407`) — und genau das ist die Zusage: kein Login-Riegel.
      */
-    const gate = await page.goto(radioUrl("/"));
+    const gate = await page.goto(radioUrl(PFAD_GATE));
     expect(gate?.status(), "Station 1 — das Gate antwortet dem anonymen Abruf nicht mit 200").toBe(
       200,
     );
+    expect(
+      new URL(page.url()).pathname,
+      "Station 1 — der anonyme Abruf ist nicht auf dem Gate geblieben",
+    ).toBe(PFAD_GATE);
     await expect(
       page.locator(GATE_CODEFELD),
       "Station 1 — das Codefeld fehlt; der anonyme Abruf ist irgendwo anders gelandet",
@@ -278,11 +311,15 @@ test.describe("radio-Kiosk", () => {
     ).toBe(ERWARTETE_SITZUNG_SEKUNDEN);
 
     /* ────────── STATION 2 von 4: die Geraeteliste (Zusage 3) ────────── */
-    const uebersicht = await page.goto(radioUrl("/geraete"));
+    const uebersicht = await page.goto(radioUrl(PFAD_GERAETE));
     expect(
       uebersicht?.status(),
       "Station 2 — /geraete antwortet der eingeloesten Sitzung nicht mit 200",
     ).toBe(200);
+    expect(
+      new URL(page.url()).pathname,
+      "Station 2 — der Abruf ist nicht auf /geraete geblieben (Umweg ans Gate?)",
+    ).toBe(PFAD_GERAETE);
     await expect(
       page.locator("[data-rolle='radio-liste']"),
       "Station 2 — die Geraeteliste fehlt",
@@ -299,6 +336,16 @@ test.describe("radio-Kiosk", () => {
       ausleihseite?.status(),
       "Station 3 — /ausleihen antwortet der eingeloesten Sitzung nicht mit 200",
     ).toBe(200);
+    /*
+     * ⛔ SIE STEHT VOR DEM ERSTEN KLICK: die Geraeteauswahl schreibt `?geraete=` mit
+     * `router.replace` in die Adresse (`_ui/AusleihVorgang.tsx:244`) — danach traegt die
+     * URL eine Suche, und der Vergleich braeuchte eine Sonderbehandlung, die nichts
+     * zusaetzlich belegte.
+     */
+    expect(
+      new URL(page.url()).pathname,
+      "Station 3 — der Abruf ist nicht auf /ausleihen geblieben (Umweg ans Gate?)",
+    ).toBe(PFAD_AUSLEIHEN);
 
     /*
      * ⛔ DIE VORBEDINGUNG WIRD GEMESSEN, NICHT ANGENOMMEN (Falle 4): vor diesem Schritt
@@ -401,6 +448,10 @@ test.describe("radio-Kiosk", () => {
       rueckgabeseite?.status(),
       "Station 4 — /rueckgabe antwortet der eingeloesten Sitzung nicht mit 200",
     ).toBe(200);
+    expect(
+      new URL(page.url()).pathname,
+      "Station 4 — der Abruf ist nicht auf /rueckgabe geblieben (Umweg ans Gate?)",
+    ).toBe(PFAD_RUECKGABE);
 
     /*
      * ⛔ ZUSAGE 4, ZWEITE HAELFTE — DIE LISTE AKTIVER LEIHEN ZEIGT GENAU DIESE ZEILE. Der
