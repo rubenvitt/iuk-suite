@@ -80,9 +80,8 @@ function nextEintrag(): { command: string; env?: Record<string, string> } {
  * Die Vorlage, gegen die der E2E-Wert des Geheimnisses gehalten wird.
  *
  * ⛔ OHNE ZEILENNUMMER, UND DAS IST DIE LEHRE AUS EINER GEMESSENEN DRIFT: der Wert stand
- * einmal auf `.env.example:453`, heute auf `:546` (Datei 647 Zeilen) — eine Aufgabe
- * dieses Planteils hat 174 Zeilen darueber eingefuegt. Ein Textanker findet die Zeile nach
- * jeder weiteren Verschiebung, eine Zahl nicht. Bauform 1:1 aus
+ * einmal auf `.env.example:453`, heute auf `:546` (Datei 647 Zeilen). Ein Textanker findet
+ * die Zeile nach jeder weiteren Verschiebung, eine Zahl nicht. Bauform 1:1 aus
  * `src/app/m/files/_lib/devAufbau.test.ts:87-88` und `:225`.
  */
 const WURZEL = path.resolve(__dirname, "../../../../..");
@@ -126,12 +125,20 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
 
   it("nennt den Namen, den der Ausleihzweig wirklich liest — ein Tippfehler faellt hier auf", () => {
     /*
-     * ⛔ DIE KOPPLUNG AN DEN LESER, nicht an eine zweite Namensliste — dieselbe Bauform wie
-     * der Updater-Fall unten. `ausleihSitzungGeheimnis()` liest
-     * `env.RADIO_AUSLEIH_SITZUNG_SECRET` und WIRFT bei fehlendem oder leerem Wert
-     * (`_lib/grenzen.ts:234-240`). Ein verschriebener Schluessel in `RADIO_ENV` liesse den
-     * Aufruf hier werfen — und im Lauf beim ersten Einloesen eines Codes am Gate, mit einer
-     * Meldung, die nach etwas ganz anderem klingt.
+     * ⛔ DIE KOPPLUNG AN DEN LESER, nicht an eine zweite Namensliste.
+     * `ausleihSitzungGeheimnis()` liest `env.RADIO_AUSLEIH_SITZUNG_SECRET` und WIRFT bei
+     * fehlendem oder leerem Wert (`_lib/grenzen.ts:234-240`). Ein verschriebener Schluessel
+     * in `RADIO_ENV` liesse den Aufruf hier werfen — und im Lauf beim ersten Einloesen eines
+     * Codes am Gate, mit einer Meldung, die nach etwas ganz anderem klingt.
+     *
+     * ⚠️ ER FAENGT DIE SCHLUESSELNAMEN-KLASSE, NICHT DIE WERT-KLASSE — und deshalb steht
+     * hier NICHT „dieselbe Bauform wie der Updater-Fall unten". Der haelt `updaterGruppe()`
+     * gegen die UNABHAENGIGE Konstante `RADIO_UPDATER_GRUPPE`; dieser Fall haelt den Leser
+     * gegen DENSELBEN `RADIO_ENV`-Eintrag, den er ihm reicht — beide Seiten wandern
+     * gemeinsam, ein verdrehter WERT liesse ihn gruen. Gemessen in der Aussenpruefung zu T1
+     * (Mutation „nur der Wert verdreht": dieser Fall blieb gruen). ⛔ Die Wert-Klasse haelt
+     * der Fall „haelt das Geheimnis zeichengleich gegen die Vorlage `.env.example`"
+     * darueber, und nur er.
      */
     expect(ausleihSitzungGeheimnis(RADIO_ENV)).toBe(RADIO_ENV.RADIO_AUSLEIH_SITZUNG_SECRET);
   });
@@ -183,11 +190,22 @@ describe("RADIO_ENV — die zwei Gruppenzeilen und das Sitzungsgeheimnis des E2E
 });
 
 describe("playwright.config.ts — der radio-Teil (Vorabscan-Fund F24)", () => {
-  it("reicht BEIDE Gruppenzeilen an den next-dev-Server durch", () => {
+  it("reicht JEDE RADIO_ENV-Zeile an den next-dev-Server durch, auch das Sitzungsgeheimnis", () => {
     /*
      * ⛔ DIE EIGENTLICHE ZUSAGE DIESER DATEI: `RADIO_ENV` zu haben genuegt nicht, es muss
      * auch eingespreizt sein. Ohne `...RADIO_ENV` in `webServer.env` waere jede Zusicherung
      * darueber wahr und der Serverprozess kennte die Variablen trotzdem nicht.
+     *
+     * ⛔ DER NAME SAGT „JEDE" UND NICHT „BEIDE GRUPPENZEILEN", weil die Schleife unten ueber
+     * `Object.entries(RADIO_ENV)` laeuft und seit T1 DREI Schluessel abfaehrt — einer davon
+     * (`RADIO_AUSLEIH_SITZUNG_SECRET`) ist gerade KEINE Gruppenzeile. Der alte Name
+     * beschrieb den Fall falsch; ein Testname, der weniger zusagt als der Fall haelt, ist
+     * derselbe Fehlfall wie einer, der mehr zusagt.
+     *
+     * ⚠️ WAS ER NICHT BELEGT: dass ein WERT im Serverprozess ankommt. Beide Seiten des
+     * Vergleichs stammen aus `RADIO_ENV` (`playwright.config.ts` spreizt es ein), sie
+     * wandern also gemeinsam. Bewacht ist genau die Einspreizung — gemessen: ohne
+     * `...RADIO_ENV` in `playwright.config.ts:326` faellt dieser Fall.
      */
     const env = nextEintrag().env ?? {};
     for (const [name, wert] of Object.entries(RADIO_ENV)) {
