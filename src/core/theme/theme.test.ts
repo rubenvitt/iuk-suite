@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createElement } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -21,12 +23,85 @@ describe("buildTheme", () => {
 
   it.each(MODES)("setzt Suite-Rot als Seed im Modus %s", (mode) => {
     // Geprüft wird der SEED, nicht der abgeleitete Token: antds darkAlgorithm
-    // rechnet colorPrimary für den Kontrast auf dunklem Grund bewusst um
-    // (#c8000f -> #ad0310, via generate(seed, {theme:'dark'})[5]). Diese
-    // Verschiebung ist gewollt — sie zurückzudrehen hieße, dem Design-System
-    // seine Lesbarkeitsregel zu nehmen. Unsere Zusage ist "die Suite ist auf
-    // Suite-Rot eingestellt", nicht "jeder Modus zeigt denselben Hexwert".
+    // rechnet colorPrimary auf dunklem Grund um (#c8000f -> #ad0310, via
+    // generate(seed, {theme:'dark'})[5]). Für FLÄCHEN ist das richtig (weißer
+    // Text darauf: 7,5:1). Hier stand bis 2026-08-28, die Verschiebung sei „die
+    // Lesbarkeitsregel des Design-Systems" — das stimmte nur für Flächen; als
+    // TEXT trug #ad0310 auf #141414 ganze 2,45:1. Die Textrollen korrigiert
+    // der zweite Algorithmus-Schritt in `theme.ts`, geprüft unten.
     expect(buildTheme(mode).token?.colorPrimary).toBe(FARBEN.rot);
+  });
+
+  /**
+   * WCAG-Kontrast (sRGB-linearisiert) — dieselbe Rechnung wie im Kommentar von
+   * `app/globals.css` an `--iuk-marke`. Hier im Test, damit ein späterer
+   * „schönerer" Rotton den Text nicht still wieder unter die Schwelle drückt.
+   */
+  const kontrast = (a: string, b: string) => {
+    const lum = (hex: string) => {
+      const c = hex.replace("#", "");
+      const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [hoch, tief] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hoch + 0.05) / (tief + 0.05);
+  };
+
+  const TEXTROLLEN = [
+    "colorLink",
+    "colorLinkHover",
+    "colorPrimaryText",
+    "colorPrimaryTextHover",
+    "colorError",
+    "colorErrorText",
+    "colorErrorHover",
+    "colorErrorTextHover",
+  ] as const;
+
+  it("hebt Suite-Rot im Dunkelmodus als Text auf AA (4,5:1)", () => {
+    // Der Anlass: „Veraltete Geräte" in der Funkverwaltung, dunkelrote Links
+    // auf nahezu Schwarz. Gemessen wird gegen die beiden dunklen Flächen, auf
+    // denen Text tatsächlich sitzt: colorBgContainer (Karte, #141414) und
+    // colorBgElevated (Popover/Modal, #1f1f1f). Nicht gegen bodyBg #000000 —
+    // dort ist der Kontrast ohnehin höher.
+    const token = antdTheme.getDesignToken(buildTheme("dark"));
+    for (const rolle of TEXTROLLEN) {
+      for (const flaeche of [token.colorBgContainer, token.colorBgElevated]) {
+        expect(
+          kontrast(token[rolle], flaeche),
+          `${rolle} ${token[rolle]} auf ${flaeche}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+    // Active-Stufen sind flüchtig (nur während des Drucks) — dort reicht die
+    // Kartenfläche; auf #1f1f1f liegen sie knapp darunter, und das ist bekannt.
+    expect(kontrast(token.colorLinkActive, token.colorBgContainer)).toBeGreaterThanOrEqual(4.5);
+    expect(kontrast(token.colorErrorActive, token.colorBgContainer)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("lässt die Flächenrollen im Dunkelmodus bei antds Rechnung", () => {
+    // Ein gefüllter Primärknopf trägt weißen Text; würde colorPrimary mit
+    // angehoben, fiele der auf 3,5:1. Beide Forderungen zugleich sind
+    // rechnerisch unerfüllbar (Begründung an `FARBEN.rotAufDunkel`).
+    const token = antdTheme.getDesignToken(buildTheme("dark"));
+    expect(token.colorPrimary.toLowerCase()).not.toBe(FARBEN.rotAufDunkel);
+    expect(kontrast("#ffffff", token.colorPrimary)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("zeigt in antd dasselbe Dunkel-Rot wie eigenes Markup (`--iuk-marke`)", () => {
+    // `globals.css` ist CSS und kann `FARBEN` nicht importieren; das Paar wird
+    // deshalb hier zusammengehalten, nicht in einer Build-Regel.
+    const css = readFileSync(resolve(__dirname, "../../app/globals.css"), "utf8");
+    const dunkelzweig = css.slice(css.indexOf(':root[data-theme="dark"]'));
+    expect(dunkelzweig).toMatch(new RegExp(`--iuk-marke:\\s*${FARBEN.rotAufDunkel};`));
+  });
+
+  it("lässt die Textrollen im hellen Modus unverändert", () => {
+    const token = antdTheme.getDesignToken(buildTheme("light"));
+    expect(token.colorLink.toLowerCase()).toBe(FARBEN.rot);
+    expect(token.colorError.toLowerCase()).toBe(FARBEN.rot);
   });
 
   it("gibt Suite-Rot im hellen Modus unverändert durch", () => {

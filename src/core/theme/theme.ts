@@ -1,5 +1,42 @@
-import { theme as antdTheme, type ThemeConfig } from "antd";
+import { theme as antdTheme, type MappingAlgorithm, type ThemeConfig } from "antd";
 import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
+
+/**
+ * ZWEITER ALGORITHMUS-SCHRITT IM DUNKELMODUS: Suite-Rot als Text lesbar machen.
+ *
+ * antds `darkAlgorithm` leitet aus dem Seed `#c8000f` für ALLE Rollen dasselbe
+ * `#ad0310` ab — Fläche wie Text. Als Fläche unter weißem Text ist das richtig
+ * (7,5:1); als Text auf `#141414` sind es 2,45:1, und genau so sahen Links,
+ * Formularfehler, `Typography.Text type="danger"` und `Button danger` aus.
+ *
+ * Warum ein Algorithmus-Schritt und kein `token`-Eintrag: `colorLink` und
+ * `colorError` sind SEED-Token, und antd streicht Seeds aus den Overrides,
+ * bevor es die abgeleiteten Werte zusammensetzt (`theme/util/alias.js`) — ein
+ * `token.colorLink: "#e45a66"` liefe durch `generate()` und käme als `#c5505a`
+ * (4,10:1) heraus. Ein Mapping-Schritt NACH `darkAlgorithm` setzt dagegen die
+ * fertigen Werte; antd nimmt `algorithm` als Array genau dafür entgegen.
+ *
+ * Was NICHT angehoben wird: `colorPrimary` und seine Flächenableitungen
+ * (`colorPrimaryHover/Active/Bg/Border`) — Begründung an `FARBEN.rotAufDunkel`.
+ * `colorError` dagegen schon: in dieser Suite trägt es ausschließlich Text und
+ * Konturen (`Button danger` ist hier nie `type="primary"`, `Alert type="error"`
+ * ist durch Falle 3 aus den Modulen verbannt).
+ */
+const dunkleTextfarben: MappingAlgorithm = (_seed, map) => ({
+  ...map!,
+  colorLink: FARBEN.rotAufDunkel,
+  colorLinkHover: FARBEN.rotAufDunkelHover,
+  colorLinkActive: FARBEN.rotAufDunkelActive,
+  colorPrimaryText: FARBEN.rotAufDunkel,
+  colorPrimaryTextHover: FARBEN.rotAufDunkelHover,
+  colorPrimaryTextActive: FARBEN.rotAufDunkelActive,
+  colorError: FARBEN.rotAufDunkel,
+  colorErrorHover: FARBEN.rotAufDunkelHover,
+  colorErrorActive: FARBEN.rotAufDunkelActive,
+  colorErrorText: FARBEN.rotAufDunkel,
+  colorErrorTextHover: FARBEN.rotAufDunkelHover,
+  colorErrorTextActive: FARBEN.rotAufDunkelActive,
+});
 
 /** Die beiden Betriebsarten des Suite-Themes. Hier definiert, weil sie zum
  *  Theme gehören — `mode.ts` (Cookie-Transport) reicht den Typ nur weiter. */
@@ -23,7 +60,7 @@ export type ThemePreference = "auto" | "light" | "dark";
 export function buildTheme(mode: ThemeMode): ThemeConfig {
   const dark = mode === "dark";
   return {
-    algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+    algorithm: dark ? [antdTheme.darkAlgorithm, dunkleTextfarben] : antdTheme.defaultAlgorithm,
     // CSS-Variablen statt eingebetteter Werte: der Moduswechsel ist damit ein
     // Variablen-Swap und keine Neu-Serialisierung der Stylesheets.
     cssVar: { key: "iuk" },

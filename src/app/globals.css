@@ -81,6 +81,13 @@
  * Kontrast fuer 14px-Text nicht. antds Dunkel-Algorithmus rechnet sich seine
  * eigene Primaerfarbe aus; eigenes Markup muss das selbst tun.
  *
+ * SEIT 2026-08-28 IST DER WERT AUCH ANTDS TEXT-ROT: `core/theme/theme.ts`
+ * hebt im Dunkelmodus `colorLink`, `colorError` und die `*Text`-Rollen auf
+ * genau diesen Wert (`FARBEN.rotAufDunkel`), weil antds eigene Rechnung
+ * (`#ad0310`) als Text auf `#141414` nur 2,45:1 trug. `theme.test.ts` prueft,
+ * dass diese Zeile und die Konstante gleich bleiben — wer hier aendert,
+ * aendert dort mit.
+ *
  * `--iuk-marke` WEICHT IM DUNKELN ABSICHTLICH VON `--lb-rot` AB
  * (`verwaltung.module.css:25`, dort `#e04452`) — und zwar wegen zweier
  * verschiedener AA-Schwellen. `--lb-rot` traegt dort Konturen und
