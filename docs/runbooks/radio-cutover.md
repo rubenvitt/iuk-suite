@@ -190,7 +190,7 @@ mit `datei:zeile` belegt — es ist keine Vermutung und muss am Abend nicht noch
 | U7 | Lief `radio-admin` in Prod je mit `AUTH_DEV_BYPASS`? | | **beantwortet durch Abfrage A9** (§V) — ⛔ letzte Gelegenheit ist §5.5 (Volume-Löschung), danach nie wieder (Risiko R5) | Lesbarkeit der Auditspalten; nach dem gelöschten Volume nicht mehr beantwortbar |
 | U8 | **Volumengröße und Dump-Dauer** beider Stacks | | **Messung in der Generalprobe** (§P.12), nicht am Abend | Das Fenster ist unbemessen (§A Nr. 7) |
 | U9 | Sind Repo- und Server-`compose.yaml` am 19.07. auseinandergelaufen? **Im Repo nicht nachweisbar, deshalb Frage und nicht Tatsache** | | **Betreiber**, ohne Frist — blockiert nichts | nichts; die Aufschreibpflicht aus §B hängt nicht daran |
-| U10 | **Wo liegt die Deployment-Dokumentation, die auf `/api/health/*` zeigt** — Repo, Wiki, Server-README? Oder gibt es keine? ⛔ `docs/deployment.md` existiert in diesem Repo **nicht** (gemessen 2026-08-27) | | **Betreiber**, vor §D Nr. 15 — ohne Frist davor, blockiert das Fenster nicht | §D Nr. 15 und §H Punkt 25 werden entweder **ohne Handlung abgehakt** oder halten an. Gibt es keine, ist der Punkt auf **Monitor allein** zusammenzuziehen |
+| U10 | **VERKLEINERT am 2026-08-28.** Gefunden: `docs/runbooks/auto-rollout.md` **ist** die Deployment-Doku und zeigt fünfmal auf `/api/health/*`, tragend ist `SUITE_HEALTH_URL` (Vorbelegung `https://iuk-ue.de/api/health/portal`, `:181`). ⛔ `docs/deployment.md` gibt es weiterhin nicht — sie heißt nur anders. **Offen bleiben zwei Hälften:** (a) gibt es **darüber hinaus** eine Fassung im Wiki oder in einer Server-README? (b) ist `SUITE_HEALTH_URL` beim radio-Cutover umzustellen — vermutlich **nein**, sie misst den Rollout der **ganzen Suite**, nicht ein Modul | | **Betreiber**, vor §D Nr. 15 — ohne Frist davor, blockiert das Fenster nicht | §D Nr. 15 und §H Punkt 25 werden entweder **ohne Handlung abgehakt** oder halten an. Gibt es keine weitere, ist der Punkt auf **Monitor allein plus `auto-rollout.md`** zusammenzuziehen |
 | N1 | Hält der reguläre Stack `radio.db` **nach dem Boot dauerhaft offen**? | ✅ **JA** — `getModuleDb` cacht den Handle auf `globalThis.__suiteDb` und schließt ihn **nie** (`src/core/db/index.ts:24-34`); `starteRadioHintergrund()` (`src/app/m/radio/_lib/boot.ts:611`) öffnet ihn beim Boot über `bestandswarnung(env)` (`:612` → `:578`, dort steht das `getDb()`) bzw. über `raeumeLeihhistorie` (`:545`) — **nicht** mit einem eigenen `getDb()`-Aufruf; `:610` ist die Kommentarzeile darüber | **abgelesen aus dem Bau am 2026-08-27** — nichts mehr zu tun | — (eingelöst; sie begründet, warum im Fenster **kein** `immutable=1` gelesen wird, §L.3) |
 | N2 | Ist die `compose.yaml` **mit** der `radio-admin-alt`-Labelgruppe bereits **auf dem Server** ausgerollt? | | **Betreiber am Server**, ⛔ **vor §A** und damit vor dem Fenster: `docker compose config \| grep -A2 radio-admin-alt` | ⛔ §C Schritt 9 Nr. 3 greift ins Leere: `SUITE_REDIRECT_RULE_RADIO_ADMIN` hat nichts zu parametrisieren (§0.1) |
 | N3 | Die **tatsächliche** numerische Kennung des Suite-Prozesses: `docker inspect "$(docker compose ps -q suite)" --format '{{.Config.User}}'` bzw. `SUITE_USER` aus der Server-`.env`. ⚠️ **Nicht am Fenster-Prüfcontainer ablesen** — den gibt es zu diesem Zeitpunkt noch nicht, und ⬜ L13 ist ein **Port**, kein Containername | | **Betreiber am Server**, ⚠️ **vor der Generalprobe** | ⛔ §C Schritt 4 Handgriff 3 setzt die **falsche** Kennung, und die Erwartung dort ist auf einem Standardhost zwangsläufig rot |
@@ -4824,11 +4824,26 @@ danebenschreiben, nicht nur abhaken (`files-cutover.md:192-196`).
 - [ ] **15. Der Monitor zeigt auf `/api/health/radio`**, nicht auf `/api/health`; **die
       Deployment-Dokumentation mit umstellen — ⬜ U10.**
       ⛔ **`docs/deployment.md` gibt es in diesem Repo NICHT** (`find . -name 'deployment*.md'` →
-      keine Ausgabe, und keines der sieben anderen Haus-Runbooks kennt den Namen). **Wo die
-      Deployment-Dokumentation liegt, die auf `/api/health/*` zeigt — Repo, Wiki, Server-README —,
-      ist ⬜ U10 und eine Betreiberauskunft.** Ohne sie wird dieser Punkt am Abend entweder
-      **ohne Handlung abgehakt** oder er hält an. Gibt es sie nicht, ist der Punkt auf **Monitor
-      allein** zusammenzuziehen und das hier zu protokollieren.
+      keine Ausgabe, und keines der sieben anderen Haus-Runbooks kennt den Namen).
+
+      ✅ **Teilantwort, gemessen am 2026-08-28: sie heißt anders und liegt im Repo.**
+      `docs/runbooks/auto-rollout.md` **ist** die Deployment-Dokumentation, und sie zeigt an
+      **fünf** Stellen auf `/api/health/*` — die entscheidende ist `SUITE_HEALTH_URL` mit der
+      **Vorbelegung `https://iuk-ue.de/api/health/portal`** (`:181`, „Öffentliche Gegenprobe nach
+      dem Rollout"; `aus` schaltet sie ab). Dazu Schritt 7 der Rollout-Kette (`:227`, `revision`
+      aus `/api/health/portal` **im Container** vergleichen), die zwei Abnahmebefehle (`:256`,
+      `:260`) und die Rollback-Gegenprobe (`:293`).
+      ⚠️ **Das entscheidet den Punkt NICHT allein** — es verkleinert ihn. Zwei Dinge bleiben
+      Betreiberauskunft: **(a)** ob es **darüber hinaus** eine Fassung im Wiki oder in einer
+      Server-README gibt (nur Ruben kann das sagen; das Repo weiß es nicht), und **(b)** ob
+      `SUITE_HEALTH_URL` beim radio-Cutover überhaupt umzustellen ist. ⚠️ **Zu (b) ist die
+      naheliegende Antwort vermutlich NEIN:** die Variable ist die Gegenprobe des **Rollouts der
+      ganzen Suite**, nicht des Moduls `radio` — sie auf `/api/health/radio` zu ziehen hieße, jeden
+      künftigen Suite-Rollout an der Gesundheit **eines** Moduls zu messen. Dieselbe Logik wie beim
+      Docker-Healthcheck eine Zeile weiter unten. **Entschieden ist das nicht** (⬜ U10 bleibt),
+      aber wer den Punkt abends liest, hat jetzt eine Datei statt einer offenen Suche.
+      Gibt es keine weitere, ist der Punkt auf **Monitor allein plus `auto-rollout.md`**
+      zusammenzuziehen und das hier zu protokollieren.
       Deployment-Dokumentation liegt: ____________________ ☐ es gibt keine ⚠️ **Der Docker-Healthcheck bleibt auf
       `/api/health/portal`** (`compose.yaml:141`) und wird **nicht** umgestellt — er soll den
       Container nicht wegen `radio` neu starten. (Vorbild für den Fehlfall:
