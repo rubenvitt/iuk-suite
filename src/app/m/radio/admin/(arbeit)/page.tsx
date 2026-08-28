@@ -46,19 +46,19 @@ import s from "../../_ui/verwaltung.module.css";
  * nennt den Grund: die vier Rundlaeufe waren eine Folge der HTTP-Grenze, nicht der
  * Fachlichkeit.
  *
- * ⛔ KEIN `#cf1322`, KEIN `#3f8600`, KEIN `#8c8c8c` (`Dashboard.tsx:33`, `:41`, `:49`).
- * Falle 3: `colorError === colorPrimary` (`src/core/theme/theme.ts:32-33`) — ein rotes
- * Zeichen auf einer Datenflaeche sieht aus wie eine Primaeraktion, und Rot bleibt allein den
- * zerstoerenden Knoepfen. Die Kennzahlen tragen deshalb GAR KEINE Farbe (`Spec:4555-4561`).
- * Der Waechter dagegen steht in `page.test.tsx` („nennt keinen Farbwert"); dass die
- * gerenderte Karte nicht rot ist, liest erst der Playwright-Fall aus `Spec:4877` ab (V23).
+ * ⛔ DIE VIER ZEICHEN TRAGEN FARBE — EINE AUFGEHOBENE FALLE 3. Betreiberbefund vom
+ * 2026-08-28 („die Farben der Icons fehlen"), Entscheidung desselben Tages: Gesamt
+ * neutral, Aktuell gruen, Veraltet rot, Unbekannt grau (`Dashboard.tsx:33`, `:41`, `:49`).
+ * ⛔ Die Ausnahme gilt dem ZEICHEN, nicht der Zahl: der Bestand faerbte ueber `valueStyle`
+ * den WERT, hier bleibt er neutral. ⛔ KEIN HEXWERT HIER — die Toene stehen als Klassen
+ * im Blatt (`_ui/verwaltung.module.css`), je mit Hell- und Dunkelwert; der Waechter
+ * „nennt keinen Farbwert" in `page.test.tsx` bleibt deshalb gruen. Dass „Veraltet" ihr
+ * Zeichen ROT traegt und die Zahl NICHT, misst Fall 1 in `e2e/radio-verwaltung.spec.ts` —
+ * dort umgedreht, nicht entfernt.
  *
- * ⛔ DIE VIER ZEICHEN SIND SEIT DEM 2026-08-28 ZURUECK, 1:1 `Dashboard.tsx:28-50` (`FiRadio`,
- * `FiCheckCircle`, `FiAlertTriangle`, `FiHelpCircle`) als `Statistic prefix=`. Hier stand die
- * Begruendung „die eine Zeichenquelle ist `_ui/ikonen.tsx`, auf ZWOELF festgenagelt" — sie ist
- * ueberholt: `_ui/verwaltungIkonen.tsx` ist die ZWEITE Quelle, allein fuer den Verwaltungszweig.
- * ⚠️ `react-icons/pi` IST IN EINER SERVER COMPONENT GEMESSEN SICHER (`lagerbuch`, 2026-08-12);
- * Falle 7 gilt `@ant-design/icons`. ⛔ Und ein Zeichen traegt KEINE Farbe — siehe den Absatz davor.
+ * ⛔ DIE ZEICHEN STEHEN SEIT DEM 2026-08-28 IN DER KOPFZEILE DER KARTE (Titel links,
+ * Zeichen rechts), nicht mehr als `Statistic prefix=`. ⚠️ `react-icons/pi` ist in einer
+ * Server Component gemessen sicher (`lagerbuch`, 2026-08-12); Falle 7 gilt `@ant-design/icons`.
  *
  * ⚠️ BENANNTE ABWEICHUNG BEI DER PFADFORM: `Spec:4788` schreibt
  * `/m/radio/admin/geraete?updateStand=veraltet` — die INNERE Form. Sie ist hier falsch.
@@ -103,11 +103,11 @@ export default async function RadioUebersichtPage() {
    * `hoverable={card.filter !== undefined}`) — es gibt keinen ungefilterten Listenaufruf,
    * den die Karte ausdruecken koennte.
    */
-  const karten: { schluessel: string; titel: string; wert: number; zeichen: VerwaltungsIkonName; filter?: UpdateStand }[] = [
-    { schluessel: "gesamt", titel: "Geräte gesamt", wert: zahlen.gesamt, zeichen: "funk" },
-    { schluessel: "aktuell", titel: "Aktuell", wert: zahlen.aktuell, zeichen: "haken-kreis", filter: "aktuell" },
-    { schluessel: "veraltet", titel: "Veraltet", wert: zahlen.veraltet, zeichen: "warnung", filter: "veraltet" },
-    { schluessel: "unbekannt", titel: "Unbekannt", wert: zahlen.unbekannt, zeichen: "frage", filter: "unbekannt" },
+  const karten: { schluessel: string; titel: string; wert: number; zeichen: VerwaltungsIkonName; farbe: string; filter?: UpdateStand }[] = [
+    { schluessel: "gesamt", titel: "Geräte gesamt", wert: zahlen.gesamt, zeichen: "funk", farbe: s.zeichenNeutral },
+    { schluessel: "aktuell", titel: "Aktuell", wert: zahlen.aktuell, zeichen: "haken-kreis", farbe: s.zeichenGruen, filter: "aktuell" },
+    { schluessel: "veraltet", titel: "Veraltet", wert: zahlen.veraltet, zeichen: "warnung", farbe: s.zeichenRot, filter: "veraltet" },
+    { schluessel: "unbekannt", titel: "Unbekannt", wert: zahlen.unbekannt, zeichen: "frage", farbe: s.zeichenGrau, filter: "unbekannt" },
   ];
 
   return (
@@ -117,16 +117,16 @@ export default async function RadioUebersichtPage() {
       {/* `gutter={[16, 16]}` und `xs={12} md={6}` 1:1 aus `Dashboard.tsx:57-59`. */}
       <Row gutter={[16, 16]}>
         {karten.map((karte) => {
-          /*
-           * ⛔ DIE ZWEI DATENATTRIBUTE SIND DER GRIFF DES PLAYWRIGHT-FALLES aus `Spec:4877`
-           * („vier Kennzahlen sichtbar, ‚Veraltet' ist nicht rot"). Sie haengen an EIGENEM
-           * Markup und nicht an einer antd-Klasse: `.ant-statistic-*` ist ein internes
-           * Detail des Zeichenpakets, und ein Test darauf misst die naechste antd-Version
-           * statt dieser Flaeche.
-           */
+          /* ⛔ EIGENES MARKUP UND KEINE `.ant-statistic-*`-KLASSE: an den drei Griffen haengt
+             der Playwright-Fall (`Spec:4877`, Fall 1); eine antd-Klasse waere ein internes
+             Detail des Zeichenpakets, und ein Test darauf maesse die naechste antd-Version. */
           const inhalt = (
             <div data-rolle="radio-kennzahl" data-schluessel={karte.schluessel}>
-              <Statistic title={karte.titel} value={karte.wert} prefix={<VIkone name={karte.zeichen} />} />
+              <div className={s.kennzahlKopf}>
+                <span className={s.kennzahlTitel}>{karte.titel}</span>
+                <span data-rolle="radio-kennzahl-zeichen" className={karte.farbe}><VIkone name={karte.zeichen} groesse={20} /></span>
+              </div>
+              <Statistic value={karte.wert} />
             </div>
           );
           return (

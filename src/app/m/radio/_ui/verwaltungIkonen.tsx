@@ -113,6 +113,9 @@ export const ZEICHEN: Record<VerwaltungsIkonName, IconType> = {
  *
  * ⛔ 16 UND NICHT 18: die Verwaltung laeuft auf `SCHREIBTISCHDICHTE` (32/40,
  * `core/theme/theme.ts`). Ein 18er Zeichen in einem 32px-Knopf ist zu laut.
+ * ⚠️ DER EINZIGE AUFRUFER MIT EINEM ANDEREN MASZ IST DIE KENNZAHLKARTE (`groesse={20}`,
+ * `admin/(arbeit)/page.tsx`): dort steht das Zeichen NICHT in einem Knopf, sondern allein
+ * in der Kopfzeile einer Karte, ueber einer gemessenen 24px-Zahl — 16 verschwaende dort.
  *
  * ⛔ KEIN `staerke`-Regler. Der Verwaltungszweig hat keinen Aufrufer dafuer (in `lagerbuch`
  * ist es allein der Helfer-Stepper), und ein Regler ohne Aufrufer ist ein zweites Aussehen

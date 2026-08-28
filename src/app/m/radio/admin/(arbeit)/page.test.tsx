@@ -13,6 +13,8 @@ import { openModuleDatabase } from "@/core/db";
 import * as schema from "../../_db/schema";
 import { devices, softwareVersions } from "../../_db/schema";
 import { ohneKommentare } from "../../_lib/quelltextScan";
+import { VIkone } from "../../_ui/verwaltungIkonen";
+import s from "../../_ui/verwaltung.module.css";
 
 /**
  * DIE VERWALTUNGSUEBERSICHT AN `/admin` (Spec §5.11, `Spec:4778-4794`; Entscheidung E-V15,
@@ -145,11 +147,38 @@ async function seite(): Promise<ReactNode> {
   return (await UebersichtPage()) as ReactNode;
 }
 
+/**
+ * Jede Kennzahlkarte mit allem, was sie an ihrem eigenen Markup traegt.
+ *
+ * ⛔ DER TITEL KOMMT SEIT DEM 2026-08-28 NICHT MEHR AUS `Statistic title=`. Die Karte
+ * traegt eine Kopfzeile (Titel links, Zeichen rechts, `_ui/verwaltung.module.css`), und
+ * `Statistic` bekommt nur noch die Zahl — sonst haette das Zeichen keine Zeile neben dem
+ * Titel. Der Laeufer liest deshalb den Kartenknoten, nicht das antd-Bauteil.
+ */
+function karten(
+  baum: ReactNode,
+): { titel: string; wert: number; zeichen?: string; farbe?: string }[] {
+  return elementeVomTyp(baum, "div")
+    .filter((el) => (el.props as Record<string, unknown>)["data-rolle"] === "radio-kennzahl")
+    .map((el) => {
+      const zeichenHuelle = elementeVomTyp(el, "span").find(
+        (sp) => (sp.props as Record<string, unknown>)["data-rolle"] === "radio-kennzahl-zeichen",
+      );
+      const titel = elementeVomTyp(el, "span").find(
+        (sp) => (sp.props as { className?: string }).className === s.kennzahlTitel,
+      );
+      return {
+        titel: text(titel),
+        wert: (elementeVomTyp(el, Statistic)[0]?.props as { value?: number } | undefined)
+          ?.value as number,
+        zeichen: (elementeVomTyp(el, VIkone)[0]?.props as { name?: string } | undefined)?.name,
+        farbe: (zeichenHuelle?.props as { className?: string } | undefined)?.className,
+      };
+    });
+}
+
 function kennzahlen(baum: ReactNode): { titel: string; wert: number }[] {
-  return elementeVomTyp(baum, Statistic).map((el) => {
-    const p = el.props as { title?: ReactNode; value?: number };
-    return { titel: text(p.title), wert: p.value as number };
-  });
+  return karten(baum).map(({ titel, wert }) => ({ titel, wert }));
 }
 
 /** Je Link: sein Ziel und die Kennzahltitel, die IN ihm liegen. */
@@ -227,7 +256,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     expect(griffe).toEqual(["gesamt", "aktuell", "veraltet", "unbekannt"]);
   });
 
-  it("traegt an jeder Kennzahl ihr Zeichen — und zwar JE KARTE das richtige", async () => {
+  it("traegt an jeder Kennzahl ihr Zeichen UND ihre Farbe — je Karte die richtigen", async () => {
     /*
      * ⛔ 1:1 `Dashboard.tsx:28-50`: `FiRadio` · `FiCheckCircle` · `FiAlertTriangle` ·
      * `FiHelpCircle`, hier als `funk` · `haken-kreis` · `warnung` · `frage` aus
@@ -235,30 +264,34 @@ describe("die Verwaltungsuebersicht an /admin", () => {
      * die damalige Begruendung (`_ui/ikonen.tsx` sei die EINE Quelle und auf zwoelf Namen
      * festgenagelt) ist mit der zweiten Quelle hinfaellig.
      *
+     * ⛔ SEIT DEM 2026-08-28 STEHT AUCH DIE FARBE HIER (Betreiberbefund „die Farben der
+     * Icons fehlen", Falle 3 fuer diese vier Zeichen aufgehoben): Gesamt neutral, Aktuell
+     * gruen, Veraltet rot, Unbekannt grau — 1:1 `Dashboard.tsx:33`, `:41`, `:49`, dort
+     * allerdings am WERT (`valueStyle`) und hier am ZEICHEN.
+     *
      * ⛔ GEMESSEN WIRD DIE ZUORDNUNG, NICHT DIE ANWESENHEIT. Ein Quelltext-Scan auf vier
-     * `prefix={<VIkone name="…"` (die Form, die `GeraetFormular.test.tsx:523` fuer die
-     * NICHT montierbare Geraeteseite waehlen musste) bliebe gruen, wenn `warnung` und
-     * `frage` die Karte tauschten — die vier Namen staenden ja alle da. Diese Datei hat
-     * den Baumlaeufer, also wird Karte fuer Karte abgelesen.
+     * Namen bliebe gruen, wenn `warnung` und `frage` die Karte tauschten — die vier Namen
+     * staenden ja alle da. Dieselbe Luecke haette ein Scan auf vier Klassennamen. Diese
+     * Datei hat den Baumlaeufer, also wird Karte fuer Karte abgelesen.
+     *
+     * ⛔ ARBEITSTEILUNG BEI DER FARBE, und ohne sie waere dieser Fall die halbe Wahrheit:
+     * HIER steht Karte→Klasse. Dass die Klasse im Blatt UEBERHAUPT DEKLARIERT ist, misst
+     * `_ui/verwaltung-css.test.ts` („nennt nur Klassen, die verwaltung.module.css
+     * DEKLARIERT"); welchen TON sie ergibt, misst der Playwright-Fall 1. ⚠️ Der Grund ist
+     * gemessen: Vitest liefert fuer ein CSS-Modul einen Proxy, der JEDEN Namen beantwortet
+     * — `s.gibtsNichtXY` ergibt `"_gibtsNichtXY_3d106f"`. Ein Tippfehler in der Seite waere
+     * hier also NICHT rot, wohl aber im Klassenscan des Blattes.
      *
      * ⚠️ `react-icons/pi` IN EINER SERVER COMPONENT IST GEMESSEN SICHER (`lagerbuch`,
-     * 2026-08-12, echter Abruf); Falle 7 gilt `@ant-design/icons`. Dass die Seite mit dem
-     * `prefix` weiterhin 200 liefert, sieht Vitest strukturell NICHT — das misst der
-     * Playwright-Fall „Fall 1" in `e2e/radio-verwaltung.spec.ts`.
+     * 2026-08-12, echter Abruf); Falle 7 gilt `@ant-design/icons`. Dass die Seite weiterhin
+     * 200 liefert, sieht Vitest strukturell NICHT — das misst der Playwright-Fall.
      */
     sechsVeraltete();
-    const zeichen = elementeVomTyp(await seite(), Statistic).map((el) => {
-      const p = el.props as { title?: ReactNode; prefix?: ReactNode };
-      const marke = isValidElement(p.prefix)
-        ? (p.prefix.props as { name?: string }).name
-        : undefined;
-      return { titel: text(p.title), zeichen: marke };
-    });
-    expect(zeichen).toEqual([
-      { titel: "Geräte gesamt", zeichen: "funk" },
-      { titel: "Aktuell", zeichen: "haken-kreis" },
-      { titel: "Veraltet", zeichen: "warnung" },
-      { titel: "Unbekannt", zeichen: "frage" },
+    expect(karten(await seite())).toEqual([
+      { titel: "Geräte gesamt", wert: 9, zeichen: "funk", farbe: s.zeichenNeutral },
+      { titel: "Aktuell", wert: 1, zeichen: "haken-kreis", farbe: s.zeichenGruen },
+      { titel: "Veraltet", wert: 6, zeichen: "warnung", farbe: s.zeichenRot },
+      { titel: "Unbekannt", wert: 2, zeichen: "frage", farbe: s.zeichenGrau },
     ]);
   });
 
@@ -378,13 +411,17 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     ).toEqual(["Alle veralteten anzeigen"]);
   });
 
-  it("nennt keinen Farbwert — die drei Alt-Hexwerte wandern nicht mit", async () => {
+  it("nennt keinen Farbwert — die Toene stehen im Blatt, nicht in der Seite", async () => {
     /*
-     * ⛔ FALLE 3, UND SIE IST DER GRUND DIESES FALLES: `colorError === colorPrimary`
-     * (`src/core/theme/theme.ts:32-33`), ein rotes Zeichen auf einer Datenflaeche sieht aus
-     * wie eine Primaeraktion. `Dashboard.tsx:33`, `:41`, `:49` faerben „Aktuell" `#3f8600`,
-     * „Veraltet" `#cf1322` und „Unbekannt" `#8c8c8c` ueber `valueStyle`; keiner der drei
-     * wandert mit (`Spec:4555-4561`).
+     * ⛔ DIESER FALL IST SEIT DEM 2026-08-28 UMGEDREHT UND NICHT ENTFERNT. Bis dahin sagte
+     * er „gar keine Farbe" (Falle 3: `colorError === colorPrimary`,
+     * `src/core/theme/theme.ts:32-33`). Der Betreiber hat die Farbe fuer die vier Zeichen
+     * angeordnet — aber KEINEN HEXWERT IN DIESER DATEI: die Toene stehen als Klassen im
+     * Blatt (`_ui/verwaltung.module.css`), je mit Hell- UND Dunkelwert. Ein `style={{ color:
+     * "#cf1322" }}` in der Seite kennt nur EINEN Modus und stuende in der Dunkeldarstellung
+     * falsch da; genau das faengt dieser Scan weiterhin. `Dashboard.tsx:33`, `:41`, `:49`
+     * faerben `#3f8600`, `#cf1322` und `#8c8c8c` ueber `valueStyle` — als LITERALE wandert
+     * keiner der drei mit.
      *
      * ⛔ GELESEN WIRD UEBER `ohneKommentare`, NICHT UEBER `bereinigt`: `bereinigt` leert
      * auch ZEICHENKETTEN (`_lib/quelltextScan.ts`), und genau in einer Zeichenkette staende
@@ -393,7 +430,8 @@ describe("die Verwaltungsuebersicht an /admin", () => {
      * Hexwerte selbst nennt.
      *
      * ⚠️ ER FAENGT NICHT JEDES ROT: `color="red"` oder ein Token kaeme durch. Dafuer steht
-     * der Playwright-Fall aus `Spec:4877` („‚Veraltet' ist nicht rot"), abgelesen in V23.
+     * der Playwright-Fall 1, der seit dem 2026-08-28 misst, dass das ZEICHEN der Karte
+     * „Veraltet" rot IST und ihre ZAHL nicht.
      *
      * ⛔ UND ER IST ZUGLEICH DIE HALBE ZUSAGE „kein ZWEITER Hexsatz unter admin/"
      * (`.superpowers/sdd/planteil4/briefs/KOPF.md:288`, NS-A8b): die eine Quelle bleibt

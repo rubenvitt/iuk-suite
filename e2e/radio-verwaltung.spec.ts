@@ -135,14 +135,18 @@ import {
  */
 
 /**
- * Die Rottoene, die auf einer Datenflaeche dieses Moduls nicht vorkommen duerfen.
+ * Die Rottoene, die auf der ZAHL einer Kennzahlkarte nicht vorkommen duerfen.
  *
  * ⛔ FALLE 3, UND SIE HAT ZWEI QUELLEN: der Alt-Ton `#cf1322` der Kennzahl „Veraltet"
  * (`radio-admin/client/src/features/dashboard/Dashboard.tsx:41`) UND die Markenfarbe der
  * Suite, die zugleich `colorError` UND `colorPrimary` ist (`src/core/theme/theme.ts:32-33`,
- * `src/app/globals.css:153` hell, `:160` dunkel). Ein rotes Zeichen auf einer Datenflaeche
- * sieht deshalb aus wie eine Primaeraktion; Rot bleibt allein den zerstoerenden Knoepfen
- * (`Spec:4555-4561`).
+ * `src/app/globals.css:153` hell, `:160` dunkel). Eine rote ZAHL auf einer Datenflaeche
+ * sieht aus wie eine Primaeraktion (`Spec:4555-4561`).
+ *
+ * ⛔ SEIT DEM 2026-08-28 GILT DAS NICHT MEHR FUER DAS ZEICHEN DER KARTE — Betreiberbefund
+ * „die Farben der Icons fehlen", Entscheidung desselben Tages, Falle 3 fuer die vier
+ * Kennzahlzeichen aufgehoben. Fall 1 unten ist deshalb UMGEDREHT und nicht entfernt: das
+ * Zeichen der Karte „Veraltet" MUSS rot sein, die Zahl daneben darf es nicht.
  *
  * ⚠️ ALS `rgb(...)`, WEIL `getComputedStyle` NIE EINEN HEXWERT LIEFERT.
  */
@@ -152,8 +156,18 @@ const VERBOTENE_ROTTOENE = [
   "rgb(228, 90, 102)", // #e45a66 — --iuk-marke dunkel
 ];
 
+/**
+ * Die zwei Toene, die `--iuk-marke` je Farbmodus annimmt.
+ *
+ * ⛔ BEIDE UND NICHT NUR DER HELLE: der Lauf setzt kein Theme-Cookie, und welchen Modus die
+ * Vorgabe `auto` aufloest, haengt am Betriebssystem des Laeufers — eine Zusicherung auf den
+ * hellen Ton allein waere auf einem dunkel eingestellten Rechner rot, ohne dass etwas
+ * kaputt waere.
+ */
+const MARKE_ROTTOENE = ["rgb(200, 0, 15)", "rgb(228, 90, 102)"];
+
 test.describe("radio-Verwaltung", () => {
-  test("Fall 1: /admin zeigt vier Kennzahlen, und „Veraltet“ ist nicht rot", async ({ page }) => {
+  test("Fall 1: /admin zeigt vier Kennzahlen, und „Veraltet“ traegt ihr Zeichen rot", async ({ page }) => {
     /*
      * ⛔ ANGEMELDET MIT DER ADMIN-GRUPPE, und der Wert kommt aus DERSELBEN Quelle wie
      * `webServer.env` (`e2e/helpers/radio.ts`): mit falschem `groups` bezeugte der Lauf den
@@ -172,20 +186,45 @@ test.describe("radio-Verwaltung", () => {
     }
 
     /*
-     * ⛔ GEMESSEN WIRD DER GANZE TEILBAUM DER KARTE, nicht ein einzelner Knoten: der
-     * Alt-Bestand faerbt ueber `valueStyle` (`Dashboard.tsx:68`), also den WERT — ein
-     * spaeterer Griff koennte ebenso den Titel oder ein Zeichen einfaerben. Die Frage ist
-     * „ist an dieser Karte irgendwo Rot", und nur so ist sie beantwortet.
+     * ⛔ GEMESSEN WIRD DER GANZE TEILBAUM DER KARTE, nicht ein einzelner Knoten — und seit
+     * dem 2026-08-28 IN ZWEI HAELFTEN: das Zeichen MUSS rot sein, alles andere an der Karte
+     * darf es nicht. Der Alt-Bestand faerbte ueber `valueStyle` (`Dashboard.tsx:68`), also
+     * den WERT; genau der bleibt hier neutral.
+     *
+     * ⛔ DIE TRENNLINIE IST `closest('[data-rolle="radio-kennzahl-zeichen"]')` UND NICHT
+     * `closest('[data-zeichen]')`: der Traeger der Farbe ist die HUELLE um das SVG (die
+     * Zeichenkomponente nimmt keine Klasse entgegen). Ein `[data-zeichen]`-Griff faende das
+     * SVG, nicht die Huelle — die Huelle landete in der falschen Haelfte und der Fall waere
+     * auf einer richtigen Seite rot.
      */
     const toene = await page.locator('[data-schluessel="veraltet"]').evaluate((el) =>
-      [el, ...Array.from(el.querySelectorAll("*"))].map(
-        (knoten) => getComputedStyle(knoten as Element).color,
-      ),
+      [el, ...Array.from(el.querySelectorAll("*"))].map((knoten) => ({
+        zeichen: (knoten as Element).closest('[data-rolle="radio-kennzahl-zeichen"]') !== null,
+        farbe: getComputedStyle(knoten as Element).color,
+      })),
     );
+    const zeichenToene = toene.filter((knoten) => knoten.zeichen).map((knoten) => knoten.farbe);
+    expect(zeichenToene.length, "kein Knoten mit dem Griff des Zeichens").toBeGreaterThan(0);
     expect(
-      toene.filter((ton) => VERBOTENE_ROTTOENE.includes(ton)),
-      "die Kennzahl „Veraltet“ traegt einen Rotton (Falle 3, Spec:4877)",
+      zeichenToene.filter((farbe) => MARKE_ROTTOENE.includes(farbe)),
+      "das Zeichen der Kennzahl „Veraltet“ traegt NICHT den Markenton (Betreiber, 2026-08-28)",
+    ).not.toEqual([]);
+    expect(
+      toene.filter((knoten) => !knoten.zeichen && VERBOTENE_ROTTOENE.includes(knoten.farbe)),
+      "ausserhalb des Zeichens traegt die Karte „Veraltet“ einen Rotton (Falle 3, Spec:4877)",
     ).toEqual([]);
+
+    /*
+     * ⛔ DIE GEGENPROBE AN DER NACHBARKARTE: waere die Farbe an ALLE vier Zeichen gehaengt
+     * statt je Karte, bliebe die Haelfte oben trotzdem gruen. „Aktuell" traegt Gruen, also
+     * KEINEN der drei Rottoene.
+     */
+    const aktuell = await page
+      .locator('[data-schluessel="aktuell"] [data-rolle="radio-kennzahl-zeichen"]')
+      .evaluate((el) => getComputedStyle(el as Element).color);
+    expect(VERBOTENE_ROTTOENE, "„Aktuell“ traegt dasselbe Rot wie „Veraltet“").not.toContain(
+      aktuell,
+    );
   });
 
   test("die Hoehe eines App-Umschalter-Eintrags ist kleiner als die Kopfzeilenhoehe", async ({

@@ -11,10 +11,10 @@
  * die vier Suite-Variablen auf `:root` (`src/app/globals.css:152-164`), die ihren
  * Dunkelzweig selbst mittragen; hier genutzt: `--iuk-linie` und `--iuk-gedaempft`.
  *
- * ⛔ KEINE FLAECHEN- UND KEINE FLIESZTEXTFARBE. Der Verwaltungszweig laeuft IN der Shell,
- * und antds `Layout` setzt beides je Hell/Dunkel. Ein verdrahtetes `color: #000` waere in
- * der Dunkeldarstellung schwarz auf schwarz — und `pnpm build`, `typecheck` und Vitest
- * saehen davon nichts (Hauslehre „UI-Abnahme: messen, nicht schauen").
+ * ⛔ KEINE FLAECHEN- UND KEINE FLIESZTEXTFARBE, und die EINE Ausnahme steht am FUSS dieser
+ * Datei (die vier Kennzahlzeichen, Betreiberentscheidung 2026-08-28). Ein verdrahtetes
+ * `color: #000` waere in der Dunkeldarstellung schwarz auf schwarz — und `pnpm build`,
+ * `typecheck` und Vitest saehen davon nichts („UI-Abnahme: messen, nicht schauen").
  *
  * ⛔ KEINE HOEHE UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 32
  * wird geerbt, nicht geschrieben.
@@ -343,5 +343,93 @@
  */
 .codeNeben {
   display: block;
+  color: var(--iuk-gedaempft);
+}
+
+/*
+ * ── Die Kopfzeile der vier Kennzahlkarten (2026-08-28) ───────────────────────
+ *
+ * Betreiberbefund vom 2026-08-28: „Die Farben der Icons fehlen, und die Icons sehen
+ * unpassend gelayoutet aus." Beides zeigte dasselbe Bild — das Zeichen sass als
+ * `Statistic prefix=` FARBLOS VOR DER ZAHL, statt wie im Bestand oben in der Karte zu
+ * stehen (`radio-admin/client/src/features/dashboard/Dashboard.tsx:28-50`).
+ *
+ * ⛔ FALLE 3 IST FUER DIESE VIER ZEICHEN AUFGEHOBEN — Betreiberentscheidung vom
+ * 2026-08-28, und sie ist eng: sie gilt dem ZEICHEN, nicht der Zahl und nicht der
+ * Flaeche. Die Regel „`colorError === colorPrimary`, also kein Rot auf einer
+ * Datenflaeche" (`CLAUDE.md`, Falle 3) bleibt fuer alles Uebrige dieses Blattes stehen;
+ * `.dialogFehler` und `.loeschWarnung` weiter oben tragen weiterhin KEIN Rot. Der
+ * Waechter dazu ist umgedreht, nicht entfernt: `e2e/radio-verwaltung.spec.ts`, Fall 1,
+ * misst jetzt, dass das Zeichen der Karte „Veraltet" rot IST und die Zahl daneben nicht.
+ *
+ * ⛔ ROT KOMMT AUS `--iuk-marke` UND NICHT AUS EINEM ZWEITEN HEXSATZ (NS-A8b): der
+ * Alt-Ton `#cf1322` waere ein zweites Rot neben dem der Suite. Grau kommt aus
+ * `--iuk-gedaempft` — ⚠️ BENANNTE ABWEICHUNG vom Auftrag, der auch fuer Grau eine
+ * modul-eigene Variable vorsah: der Alt-Ton `#8c8c8c` erreicht auf Weiss nur 3.05:1 und
+ * `--iuk-gedaempft` ist der Ton, den `.geraetIssi` und `.leer` in diesem Blatt schon
+ * fuehren. Modul-eigen ist damit ALLEIN das Gruen, das die Suite nicht kennt.
+ *
+ * ⛔ DIE VARIABLE HAENGT AN `.kennzahlKopf` UND NICHT AN `:root`: ein CSS-Modul kann
+ * `:root` nicht scopen (Hausform `_ui/ausleihe.module.css:354`,
+ * `core/shell/shell.module.css:413-417`, `lagerbuch/_ui/verwaltung.module.css:2`).
+ * Der Dunkelzweig haengt an `:root[data-theme="dark"]`, ⛔ NIE an
+ * `prefers-color-scheme` — die Suite schaltet ueber ein Cookie-Attribut
+ * (`core/theme/mode.ts:18-19`), und ein Media Query saehe die Wahl gar nicht.
+ *
+ * ⚠️ DIE KARTENFLAECHE IST ABGELESEN UND NICHT ERINNERT (`getComputedStyle` an
+ * `.ant-card` auf `/m/radio/admin`, 2026-08-28): `rgb(255,255,255)` hell,
+ * `rgb(20,20,20)` dunkel. Dagegen gerechnet: `#3f8600` 4.54:1 und `#8bc34a` 8.78:1,
+ * `--iuk-marke` 6.07:1 / 5.22:1, `--iuk-gedaempft` 5.93:1 / 7.27:1. Die Untergrenze fuer
+ * ein 20px-Zeichen ist 3:1 (WCAG 1.4.11, Nicht-Text-Kontrast) — die acht Werte liegen
+ * darueber. ⛔ WER EINEN TON AENDERT, RECHNET GEGEN DIESE ZWEI FLAECHEN NACH; welcher Ton
+ * ueberhaupt ankommt, misst `e2e/radio-verwaltung.spec.ts`, Fall 1.
+ */
+.kennzahlKopf {
+  --radio-zeichen-gruen: #3f8600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 4px;
+}
+
+:root[data-theme="dark"] .kennzahlKopf {
+  --radio-zeichen-gruen: #8bc34a;
+}
+
+/*
+ * Der Titel steht jetzt in EIGENEM Markup und nicht mehr in `Statistic title=` — sonst
+ * bekaeme das Zeichen keine Zeile neben ihm. ⛔ Deshalb muss der gedaempfte Ton hier
+ * stehen: `.ant-statistic-title` brachte ihn mit, und ohne Ersatz saehe der Titel aus wie
+ * die Zahl. `0.875rem` ist antds `fontSize` 14 in der Wurzelgroesse 16 dieser Suite.
+ */
+.kennzahlTitel {
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+}
+
+/*
+ * Die vier Zeichenfarben. ⛔ EINE KLASSE JE KARTE UND KEIN INLINE-`style`: ein Hexwert in
+ * `admin/(arbeit)/page.tsx` waere gegen den Waechter „nennt keinen Farbwert" (dort in
+ * `page.test.tsx`), und ein Wert je Farbmodus ginge in einem `style=` gar nicht.
+ *
+ * ⚠️ `.zeichenNeutral` IST NICHT LEER UND DARF ES NICHT SEIN: „Geraete gesamt" traegt im
+ * Bestand keine Farbe (`Dashboard.tsx:28`), und `color: inherit` schreibt genau das hin.
+ * Eine leere Regel loeschte der naechste Leser, und mit ihr den Griff, an dem
+ * `page.test.tsx` die Zuordnung Karte→Farbe abliest.
+ */
+.zeichenNeutral {
+  color: inherit;
+}
+
+.zeichenGruen {
+  color: var(--radio-zeichen-gruen);
+}
+
+.zeichenRot {
+  color: var(--iuk-marke);
+}
+
+.zeichenGrau {
   color: var(--iuk-gedaempft);
 }

@@ -140,28 +140,78 @@ describe("radio-verwaltung.module.css: die drei Zusicherungen seines Kopfes", ()
     expect(css, "eine --ant-Variable ausserhalb von antds Scope (Falle 2)").not.toMatch(
       /var\(\s*--ant-/,
     );
+    /*
+     * ⛔ SEIT DEM 2026-08-28 IST DIE ZWEITE HAELFTE „--iuk- ODER IM BLATT SELBST DEKLARIERT"
+     * (Betreiberentscheidung zur Zeichenfarbe): `--radio-zeichen-gruen` steht an
+     * `.kennzahlKopf` und ist ein modul-eigener Wert, kein Griff in ein fremdes Blatt.
+     * ⛔ UND DAS IST KEINE NAMENSAUSNAHME, SONDERN DIE SCHAERFERE FASSUNG: ein vertipptes
+     * `var(--radio-zeichn-gruen)` ist NIRGENDS deklariert und wird hier rot — eine
+     * Ausnahmeliste auf `--radio-` liesse es durch.
+     */
+    const eigene = new Set(
+      [...css.matchAll(/(--[A-Za-z0-9_-]+)\s*:/g)].map((m) => m[1]!),
+    );
     const fremde = [...css.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)]
       .map((m) => m[1]!)
-      .filter((name) => !name.startsWith("--iuk-"));
-    expect([...new Set(fremde)], "nur die --iuk-Variablen sind hier lesbar").toEqual([]);
+      .filter((name) => !name.startsWith("--iuk-") && !eigene.has(name));
+    expect([...new Set(fremde)], "weder --iuk- noch in diesem Blatt deklariert").toEqual([]);
   });
 
-  it("verdrahtet weder Farbe noch Hoehe", () => {
+  it("verdrahtet keine Farbe ausser den zwei benannten Zeilen, und keine Hoehe", () => {
     /*
      * ⛔ FALLE 3 UND FALLE 4, beide als Textteil. Ein verdrahtetes `color: #000` waere in der
      * Dunkeldarstellung schwarz auf schwarz, und `build`, `typecheck` und Vitest saehen davon
      * nichts; eine feste Hoehe naehme der Flaeche die Bediendichte, die sie erbt
      * (`CLAUDE.md:18-22`, `_ui/RadioVerwaltungsRahmen.tsx:18-21`).
      *
+     * ⚠️ FALLE 3 IST SEIT DEM 2026-08-28 FUER GENAU ZWEI ZEILEN AUFGEHOBEN (Hell- und
+     * Dunkelwert der modul-eigenen Zeichenfarbe) — die Ausnahme steht unten als REGEX ueber
+     * einer ZEILE, nicht als Ausnahme fuer diese Datei.
+     *
      * ⚠️ ER FAENGT NICHT JEDES ROT: `color: red` steht als Schluesselwort da und faellt hier
      * durch die Wertpruefung, `background: url(...)` mit einem eingebetteten Ton nicht. Der
      * gerenderte Ton in beiden Farbmodi bleibt der Browserlauf (⬜ V23).
      */
     const css = blatt();
-    expect(css.match(/#[0-9a-fA-F]{3,8}\b/g), "ein Farbwert im Stylesheet (Falle 3)").toBeNull();
+    /*
+     * ⛔ DIE NAMENTLICHE AUSNAHME VOM 2026-08-28, UND SIE IST EINE ZEILENFORM UND KEINE
+     * DATEIAUSNAHME: erlaubt ist ALLEIN die Deklaration einer modul-eigenen
+     * `--radio-*`-Variablen mit einem Hexwert. Ein `color: #cf1322` an einer Klasse faellt
+     * weiterhin durch, ebenso ein Hexwert an einer Flaeche. Grund: die vier Kennzahlzeichen
+     * tragen seit dem 2026-08-28 Farbe (Betreiberentscheidung, Falle 3 fuer sie aufgehoben),
+     * und die Suite kennt kein Gruen — Rot kommt aus `--iuk-marke`, Grau aus
+     * `--iuk-gedaempft`, nur das Gruen ist modul-eigen.
+     */
+    const AUSNAHME = /^\s*--radio-[a-z0-9-]+:\s*#[0-9a-fA-F]{3,8};\s*$/;
+    const zeilen = css.split("\n");
+    const ausgenommen = zeilen.filter((zeile) => AUSNAHME.test(zeile));
+    /*
+     * ⛔ DIE GEGENPROBE ZUR AUSNAHME (R-V11-1): eine Ausnahme ohne Untergrenze ist ein
+     * unbewachtes Loch, das aussieht wie eine Regel. Zwei Zeilen, weil jede modul-eigene
+     * Variable einen Hell- UND einen Dunkelwert braucht — die Zuordnung dazu misst der
+     * Block darunter.
+     */
+    expect(ausgenommen.length, "keine --radio-Variable mehr — die Ausnahme kann weg").toBe(2);
+    expect(
+      zeilen.filter((zeile) => !AUSNAHME.test(zeile)).join("\n").match(/#[0-9a-fA-F]{3,8}\b/g),
+      "ein Farbwert im Stylesheet (Falle 3)",
+    ).toBeNull();
+    /*
+     * ⛔ JEDE MODUL-EIGENE VARIABLE BRAUCHT EINEN DUNKELWERT, und der Ausfall waere STILL:
+     * fehlte er, faerbte der Hellwert auch die Dunkeldarstellung — kein Gate saehe es, und
+     * auf dem Bildschirm bliebe ein zu dunkles Gruen auf fast schwarzem Grund stehen.
+     * ⛔ UEBER `:root[data-theme="dark"]`, NIE `prefers-color-scheme`: die Suite schaltet
+     * ueber ein Cookie-Attribut (`core/theme/mode.ts:18-19`).
+     */
+    const dunkel = [...css.matchAll(/:root\[data-theme="dark"\][^{]*\{([^}]*)\}/g)]
+      .map((m) => m[1]!)
+      .join("\n");
+    for (const name of new Set([...css.matchAll(/(--radio-[A-Za-z0-9-]+)\s*:/g)].map((m) => m[1]!))) {
+      expect(dunkel, `${name} hat keinen Wert im Dunkelzweig`).toContain(`${name}:`);
+    }
     const werte = [...css.matchAll(/(?:^|[\s;{])(?:background-color|background|color)\s*:\s*([^;}]+)/g)]
       .map((m) => m[1]!.trim())
-      .filter((wert) => wert !== "inherit" && !/^var\(\s*--iuk-/.test(wert));
+      .filter((wert) => wert !== "inherit" && !/^var\(\s*--(?:iuk|radio)-/.test(wert));
     expect(werte, "eine verdrahtete Flaechen- oder Fliesztextfarbe").toEqual([]);
     expect(css, "eine feste Hoehe — 32 wird geerbt, nicht geschrieben (Falle 4)").not.toMatch(
       /(?:^|[\s;{])(?:min-|max-)?height\s*:/,
