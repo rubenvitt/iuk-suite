@@ -13,6 +13,27 @@
 export const FARBEN = {
   rot: "#c8000f",
   rotDunkel: "#a2000c",
+  /**
+   * SUITE-ROT ALS TEXT AUF DUNKLEM GRUND. `#c8000f` selbst ist nie das
+   * Problem — antds Dunkel-Algorithmus rechnet den Seed auf `#ad0310` herunter,
+   * und das trägt auf `#141414` (Kartenfläche) 2,45:1: jeder Link, jede
+   * Fehlermeldung, jeder `danger`-Knopf war im Dunkelmodus praktisch unlesbar
+   * (gemessen 2026-08-28 in der Funkverwaltung, „Veraltete Geräte"; der Wert
+   * gilt aber suiteweit, weil er im Theme sitzt). Derselbe Farbton (≈355°),
+   * angehoben: 5,22:1 auf `#141414`, 4,67:1 auf `#1f1f1f` (Popover, Modal),
+   * 5,95:1 auf `#000000`. Identisch mit `--iuk-marke` im Dunkelzweig von
+   * `app/globals.css` — eigenes Markup und antd zeigen damit DASSELBE Rot;
+   * `theme.test.ts` hält beide Stellen zusammen. Die zwei Nachbarn sind die
+   * Hover-/Active-Stufen und bestehen ebenfalls 4,5:1 auf `#141414`.
+   *
+   * NUR TEXTROLLEN, nicht `colorPrimary`: ein gefüllter Knopf braucht weißen
+   * Text mit 4,5:1 auf seiner Fläche, und das schließt sich mit 4,5:1 der
+   * Fläche gegen `#141414` rechnerisch aus (L ≤ 0,18 gegen L ≥ 0,20). antds
+   * Trennung bleibt deshalb: dunkles Rot als Fläche, dieses Rot als Text.
+   */
+  rotAufDunkel: "#e45a66",
+  rotAufDunkelHover: "#ef7f89",
+  rotAufDunkelActive: "#d9525e",
   rotBg: "#fbe9eb",
   tinte: "#1a1d20",
   stahl: "#5b6570",

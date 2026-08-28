@@ -262,3 +262,48 @@ test("Auto-Modus, Gegenprobe: eine ausdrueckliche Wahl ignoriert denselben OS-We
     await kontext.close();
   }
 });
+
+/**
+ * SUITE-ROT ALS TEXT IM DUNKELMODUS — der Wert, den der Browser wirklich
+ * anlegt, nicht der, den `getDesignToken` in Vitest berechnet. antd legt
+ * seine Tokens als `--ant-*`-Variablen auf der Scope-Klasse `.iuk` ab (der
+ * `cssVar.key` benennt die KLASSE, nicht das Praefix — gemessen, `a { color:
+ * var(--ant-color-link) }`); ob der zweite Algorithmus-Schritt aus `core/theme/theme.ts`
+ * (Array statt einzelner Funktion) den Weg durch `ConfigProvider` und cssinjs
+ * bis in ein echtes Stylesheet findet, sieht nur ein echter Abruf.
+ *
+ * `/login` wie oben: login-frei, und die Anmeldekarte ist eine antd-Fläche,
+ * die die Scope-Klasse traegt.
+ */
+for (const [modus, erwartet] of [
+  ["dark", "#e45a66"],
+  ["light", "#c8000f"],
+] as const) {
+  test(`Link- und Fehlerfarbe im Modus ${modus} kommen als CSS-Variable an`, async ({
+    browser,
+  }) => {
+    const kontext = await browser.newContext({ colorScheme: modus });
+    try {
+      await kontext.addCookies([{ name: "iuk-theme-pref", value: modus, url: PORTAL }]);
+      const seite = await kontext.newPage();
+      await seite.goto(`${PORTAL}/login`);
+      await expect(seite.locator("html")).toHaveAttribute("data-theme", modus);
+
+      const traeger = seite.locator(".iuk").first();
+      await expect(traeger).toBeAttached();
+      const gelesen = await traeger.evaluate((el) => {
+        const stil = getComputedStyle(el);
+        return {
+          link: stil.getPropertyValue("--ant-color-link").trim(),
+          fehler: stil.getPropertyValue("--ant-color-error").trim(),
+          fehlerText: stil.getPropertyValue("--ant-color-error-text").trim(),
+        };
+      });
+      expect(gelesen.link).toBe(erwartet);
+      expect(gelesen.fehler).toBe(erwartet);
+      expect(gelesen.fehlerText).toBe(erwartet);
+    } finally {
+      await kontext.close();
+    }
+  });
+}
