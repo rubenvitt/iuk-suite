@@ -182,7 +182,7 @@ darunter, nicht hier. Die Spalte „Quelle der Ablesung" sagt es je Zeile.
 | **L2** | Ob better-sqlite3 die SQLite-Meldung `UNIQUE constraint failed: loans.device_id` unverändert durchreicht oder in einen `SqliteError` mit `code: SQLITE_CONSTRAINT_UNIQUE` verpackt. **Die Meldung selbst ist gemessen** (mit `sqlite3` gegen die DDL aus §1.8); offen ist allein die Verpackung durch den Treiber | Bau (erster Testlauf) | §1.6.3 Fall B |
 | **L3** | Namen und **vollständige** Spaltenlisten der **vier** übrigen Paritätssichten (`software_versions` 6, `users` 3, `device_events` 8, `loans` 12). Abzulesen je Sicht: (a) trägt sie **jede** Spalte der Zieltabelle, (b) läuft jede `mode: "timestamp"`-Spalte durch `sekunden()`, (c) bleibt `devices.last_updated_at` **unumgerechnet** | Bau | §1.5.2, §2.1.4 |
 | **L4** | `select count(*) from __drizzle_migrations;` in `radio.db` gegen die Zahl der Einträge in `src/app/m/radio/_db/migrations/meta/_journal.json` (Muster `lagerbuch-cutover.md:72`). Die Zahl ist heute nicht nennbar, weil das Verzeichnis nicht existiert | Bau | §2.6 |
-| **L5** | Die Ausgabe von `/api/health/radio` samt der Angabe, **welches Feld** darin den Modulnamen und **welches** den DB-Zugriff belegt (`src/app/api/health/[modul]/route.ts:11-18`) | Bau | §2.6, §3.2.6 V3, §4.6 Nr. 3 |
+| **L5** | **Verkleinert, Nachtrag 2026-08-18 (Cutover-Leitplan NS8).** Aus dem Repo heute lesbar: `module` = der **Modulname**, `status: "ok"` = der **DB-Zugriff** (er entsteht **erst nach** `openModuleDatabase(moduleDbPath(key))` plus `db.prepare("SELECT 1").get()`), `revision` = der **Commit** — `src/core/health/index.ts:4-15` und `src/app/api/health/[modul]/route.ts:23-26`. **Offen bleibt allein der WERT von `revision`.** ⚠️ Der bisher zitierte Beleg `route.ts:11-18` zeigt **nicht** auf die Antwortform, sondern mitten in einen Kommentarblock (`/*` auf `:7`, `*/` auf `:22`) | **§4.2 Nr. 1** — die Protokollzeile des ersten Deploys, **nicht** der Bau (im Runbook ist das **§A Nr. 1**) | §2.6, §3.2.6 V3, §4.6 Nr. 3 |
 | **L6** | Die genaue **Abschlusszeile** von `scripts/import/radio.ts`. Bei `portal` ist es die Zeichenkette `parity green` (`portal-cutover.md:20`, `:33`); das Runbook prüft **Zeichenkette und Exit-Code**, nicht nur einen von beiden | Bau | §3.1.2, G2 |
 | **L7** | Der genaue `Location`-Kopf der `/admin`-Weiterleitung: **Statuscode** (307 oder 302) sowie Protokoll und Host, die `verwaltungsZiel(headers)` in die `callbackUrl` schreibt. Protokolliert wird der **vollständige** Wert, in jedem Fall | Bau / Abruf | §3.2.6 V2, §4.6 Nr. 5 |
 | **L8** | Was `GET /m/radio` mit `Host: iuk-ue.de` liefern **soll** — 404 aus dem Host-Riegel oder eine gerenderte Fläche. Spec 1 §1.2 entscheidet es; **abgelesen und protokolliert wird es in jedem Fall** (Falle 61) | Bau | §3.2.6 V7 |
@@ -2589,6 +2589,27 @@ sleep 15
 docker logs radio-gp 2>&1 | tail -30      # Boot-Pruefungen: siehe 3.2.4
 ```
 
+⚠️ **Nachtrag 2026-08-18 (Cutover-Leitplan NS11): der FENSTER-Prüfcontainer (§4.5 Schritt 8) hat
+DREI Unterschiede zu `radio-gp`, nicht zwei.** W5 nennt zwei — das **produktive Volume** statt des
+Bind-Pfads `$GP/data` (W5 schreibt es als `-v suite_data:/data`; verbindlich ist die
+**Protokollzeile `$VOL_SUITE`** aus §4.5 Schritt 4 Handgriff 1, weil der echte Name das
+Projektpräfix tragen kann), und ⛔ **kein** `AUTH_DEV_LOGIN`. Der dritte:
+**`SUITE_HOST_RADIO=localhost,radio.iuk-ue.de`** statt `SUITE_HOST_RADIO=localhost` — eine
+**Kommaliste mit zwei Werten**. Ohne den zweiten Wert findet `moduleForHost` für
+`radio.iuk-ue.de` kein Modul und liefert `null` (`src/core/registry.ts:251-257`), worauf
+`decideRoute` auf das **Portal** zurückfällt (`src/core/routing.ts:79`,
+`moduleForHost(host) ?? getModule("portal")`) — und die Fenster-Probe mit vorgetäuschtem `Host`
+misst still das Portal statt `radio`. Nachgemessen: `envHostsFor` splittet auf `,`
+(`src/core/hosts.ts:39-46`), und `validateHostConfig` hat gegen zwei Werte in einer Liste nichts
+(`:65-99` — es prüft Protokoll/Port im Wert und Doppelvergabe **zwischen** Modulen, nicht die
+Anzahl).
+⚠️ **Der Beleg wurde beim Eintragen berichtigt:** die Vorlage nannte `src/core/hosts.ts:52-57` für
+`moduleForHost`. Die Funktion steht dort nicht — `hosts.ts` führt nur `envVarName` (`:29`),
+`envHostsFor` (`:39`) und `validateHostConfig` (`:65`); `:52-57` liegt in einem **Kommentarblock**,
+der den Namen lediglich erwähnt. Dieselbe Fehlerklasse wie beim alten L5-Beleg.
+**Eine Ergänzung zu W5, kein Widerspruch zu ihm** — für die **Generalprobe** bleibt es bei dem
+einen Wert `localhost`, und die `docker run`-Zeile oben bleibt deshalb unverändert.
+
 **Zeile für Zeile, weil jede eine Prüfung ist oder eine Falle vermeidet:**
 
 | Zeile | Warum sie so lautet |
@@ -4288,15 +4309,76 @@ union all select 'device_events',     count(*) from device_events
 union all select 'loans',             count(*) from loans;"
 ```
 
-Ziel (**fünf** Zahlen, gegen `radio.db`):
+⚠️ **Nachtrag 2026-08-18 (Re-Kritik, dreifach gemeldet — RK-A4 erster und zweiter Durchgang,
+RK-A2 dritter, EIN Fund):** der Zielarm las mit `sqlite3 -readonly "$DATA_DIR/radio.db"` **auf dem
+Host**. Diesen Pfad gibt es dort nicht — `DATA_DIR=/data` ist ein Wert **im Container**
+(`compose.yaml:79`), gemountet wird das benannte Volume `suite_data` (`compose.yaml:99`,
+Deklaration siehe dritter Nachtrag), und ein benanntes Volume hat keinen vereinbarten Host-Pfad. Die
+Nachbarblöcke R und Z verbieten die Form zwanzig Zeilen weiter ausdrücklich; A war der eine von
+dreien, an dem sie stehen blieb. Ersetzt durch die §2.2.2-Form gegen `$VOL_SUITE`, **einschließlich**
+der Gegenprobe `docker run --rm -v "$VOL_SUITE":/data alpine ls -ln /data`.
+
+⚠️ **Zweiter Nachtrag 2026-08-21 (NT8), an derselben Zeile:** die Ersatzform liest **ohne**
+`-readonly`. Eine frisch importierte `radio.db` liegt im **WAL-Modus** und trägt noch **kein**
+`-shm`; ein Readonly-Handle darf es nicht anlegen und scheitert mit `unable to open database file
+(14)` — eine Meldung, die wie ein **Importfehler** aussieht und keiner ist. Die Datei gehört uns,
+das Anlegen der `-shm` ist harmlos. Für die **Quelle** gilt das Gegenteil: dort bleibt `-readonly`
+Pflicht, solange `pragma journal_mode` der Alt-DB `delete` liefert.
+
+Ziel (**fünf** Zahlen, gegen `radio.db` **im Volume**):
 
 ```bash
+# ⚠️ ZUERST den ECHTEN Volume-Namen ablesen. Das ist die ZWEITE Ablesung
+#    desselben Namens — die erste steht in §4.5 Schritt 4 Handgriff 1, im
+#    Fenster-Protokoll. Sie wird hier NICHT geerbt, und das ist Absicht:
+#    dieser Abschnitt laeuft fruehestens vierzehn Tage spaeter in einer NEUEN
+#    Shell, in der die Zuweisung von damals laengst weg ist. Eine ungesetzte
+#    Variable liest ein leeres Volume, und dessen Nullen sehen aus wie ein
+#    Datenbefund.
+# ⛔ BEIDE Ablesungen MUESSEN denselben Namen ergeben. Der hier abgelesene Wert
+#    wird gegen die Protokollzeile aus §4.5 Schritt 4 Handgriff 1 GEGENGELESEN,
+#    bevor eine einzige Zahl gezaehlt wird.
+docker volume ls | grep -i suite
+VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:252-254)
+
+# Gegenprobe VOR der ersten Zaehlung — sie entscheidet, ob eine 0 ein Befund ist:
+docker run --rm -v "$VOL_SUITE":/data alpine ls -ln /data
+#   Erwartet: portal.db, qr.db, feedback.db, files.db, lagerbuch.db, aufgaben.db,
+#   konto.db UND radio.db — die ACHT aus MODULE_MIGRATIONS (src/core/bootstrap.ts:21-58,
+#   `radio` steht dort selbst auf :57) plus CORE_MIGRATIONS (:76-78, `konto` auf :77).
+#   ⚠️ radio.db entsteht damit schon beim MIGRATIONSLAUF, nicht erst durch den Import —
+#   eine vorhandene radio.db belegt also NICHTS ueber den Import. Das belegen die
+#   Zaehlungen darunter.
+#   Steht dort NUR radio.db, ist der Volume-Name falsch: `docker run` hat ein
+#   neues, leeres Volume angelegt, und JEDE folgende 0 ist ein Volume-Fehler,
+#   kein Datenbefund.
+
+# KEIN -readonly (NT8, siehe Nachtrag oben).
 for t in devices software_versions users device_events loans; do
-  printf '%s\t' "$t"; sqlite3 -readonly "$DATA_DIR/radio.db" "select count(*) from $t;"
+  printf '%s\t' "$t"
+  echo "select count(*) from $t;" | docker run --rm -i -v "$VOL_SUITE":/data alpine \
+    sh -c 'apk add --no-cache sqlite >/dev/null 2>&1; sqlite3 /data/radio.db'
 done
+
 # zusaetzlich, nur fuers Protokoll — Tabelle ohne Quellgegenstueck:
-sqlite3 -readonly "$DATA_DIR/radio.db" "select 'zugangscodes', count(*) from zugangscodes;"
+echo "select 'zugangscodes', count(*) from zugangscodes;" | docker run --rm -i \
+  -v "$VOL_SUITE":/data alpine \
+  sh -c 'apk add --no-cache sqlite >/dev/null 2>&1; sqlite3 /data/radio.db'
 ```
+
+⚠️ **Mount OHNE `:ro`, ⛔ kein `immutable=1`.** SQLite im WAL-Modus braucht zum **Lesen** eine
+beschreibbare `-shm`-Datei; auf einem `:ro`-Mount scheitert der Befehl mit „unable to open database
+file", **obwohl die Datenbank in Ordnung ist**. `immutable=1` hat dieselbe Wirkung wie `-readonly`
+und ist hier ebenfalls unzulässig: zum Abbau-Zeitpunkt bedient der reguläre Stack `radio.iuk-ue.de`
+seit vierzehn Tagen und hält sein Handle über die Prozesslebensdauer (`src/core/db/index.ts:24-34`,
+`globalThis.__suiteDb`).
+
+⚠️ **Dritter Nachtrag 2026-08-28 (C2), und er betrifft jeden `compose.yaml`-Verweis dieses
+Dokuments:** die sechs Redirect-Labels des Alt-Hosts haben **31 Zeilen nach `compose.yaml:155`**
+eingefügt. Verweise auf Zeilen **ab `:156`** sind seitdem um **+31** verschoben. Die Deklaration des
+benannten Volumes `suite_data` stand als `:221-223` und steht heute auf **`:252-254`**; unter
+`:221-223` liegt heute ein `files_data:/data/files:ro`-Mount am clamd-Dienst. Die Verweise `:79`,
+`:99` und `:155` liegen **vor** dem Einfügepunkt und stimmen unverändert.
 
 ⚠️ **Es sind fünf Paare, nicht sechs** — vollständig entschieden in **W4**. Die Sechs-Tabellen-Schleife
 aus Spec 1 §9.4.3 scheitert im Zielarm an `no such table: api_tokens`; das ist laut, aber ein
@@ -4342,12 +4424,13 @@ select count(*) from loans
 
 # Ziel, Sekunden — derselbe Cutoff, ohne Faktor. Und wieder die §2.2.2-Form gegen
 # dieselbe Protokollzeile $VOL_SUITE wie §4.5 Schritt 4 Handgriff 1: `$DATA_DIR/radio.db`
-# gibt es auf dem HOST nicht (compose.yaml:79, :99, :221-223).
+# gibt es auf dem HOST nicht (compose.yaml:79, :99, :252-254 — Nachtrag 2026-08-28).
+# KEIN -readonly gegen radio.db (NT8, 2026-08-21) — siehe den Nachtrag an Abfrage A.
 echo "select count(*) from loans
  where returned_at is not null
    and returned_at < strftime('%s','<freeze_iso>','-2 months');" \
 | docker run --rm -i -v "$VOL_SUITE":/data alpine \
-    sh -c 'apk add --no-cache sqlite >/dev/null 2>&1; sqlite3 -readonly /data/radio.db'
+    sh -c 'apk add --no-cache sqlite >/dev/null 2>&1; sqlite3 /data/radio.db'
 ```
 
 * ⚠️ **Der Faktor 1000 steht im Quellarm absichtlich im SQL** und **nicht** im Zielarm. Wer ihn im
@@ -4371,7 +4454,11 @@ Cutoff zu brauchen — **und sie sagt, WELCHE Spalte betroffen ist:**
 ⚠️ **Gelesen wird die Datei IM VOLUME, mit der `docker run`-Form aus §2.2.2** und derselben
 `$VOL_SUITE`-Protokollzeile wie §4.5 Schritt 4 Handgriff 1 — `sqlite3` auf dem Host gegen
 `"$DATA_DIR/radio.db"` liest einen Pfad, den es auf dem Host **nicht gibt** (`compose.yaml:79`,
-`:99`, `:221-223`). Mount **ohne** `:ro`, `sqlite3 -readonly`, ⛔ **kein** `immutable=1`.
+`:99`, `:252-254` — Nachtrag 2026-08-28). Mount **ohne** `:ro`, ⛔ **kein** `immutable=1`.
+⚠️ *Nachtrag 2026-08-21 (NT8): auch hier **ohne** `-readonly`. Diese Zeile forderte es bis dahin
+ausdrücklich — gegen eine frisch importierte, im WAL-Modus liegende `radio.db` ohne `-shm`
+scheitert ein Readonly-Handle mit `unable to open database file (14)`, und die Meldung sieht wie
+ein Importfehler aus. Begründung vollständig am Nachtrag zu Abfrage A.*
 
 ```bash
 echo "
@@ -4406,7 +4493,7 @@ select 'devices.last_updated_at (Formatprobe)', count(*) from devices
    where last_updated_at is not null
      and last_updated_at not glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]';" \
 | docker run --rm -i -v "$VOL_SUITE":/data alpine \
-    sh -c 'apk add --no-cache sqlite >/dev/null 2>&1; sqlite3 -readonly /data/radio.db'
+    sh -c 'apk add --no-cache sqlite >/dev/null 2>&1; sqlite3 /data/radio.db'
 ```
 
 * `946684800` = 2000-01-01T00:00:00Z, `4000000000` = 2096-10-02T07:06:40Z. **Alle zehn Zahlen MÜSSEN
@@ -4607,7 +4694,12 @@ docker run --rm -v "$PWD":/a postgres:16-alpine \
 Jede Zeile einzeln abhaken, und keine, bevor ihre Bedingung grün protokolliert ist.
 
 > ⛔ **Kein Häkchen in dieser Liste, solange ein Block aus §5.2 offen oder rot ist.** Die Abbau-Sperren
-> sind: **A, T, R, Z, P1, P2, P3, P4** und **beide Archivproben** aus §5.2.4.
+> sind: **A, T, R, Z, P1, P2, P3, P4, P6** und **beide Archivproben** aus §5.2.4.
+> **P5 ist Protokoll, keine Sperre** — **P6 ist Sperre, kein Protokoll.**
+>
+> ⚠️ *Nachtrag 2026-08-18:* P6 fehlte in diesem Kasten, obwohl §5.2.3 ihn mit „Erst danach darf das
+> Volume fallen" überschreibt und Posten 3 den Abbau ausdrücklich „erst nach P6" bindet — der
+> `pg_dump` ist die **einzige** Sicherung, die dieses Volume je hatte.
 
 | # | Posten | Frist | Bedingung |
 |---|---|---|---|
@@ -4794,8 +4886,18 @@ die Klammer darüber.
       Fixture-Werten · asymmetrische Idempotenz Fall A und B (Zusicherung = **Fehlschlag**) ·
       Spaltenposition gegen die echte Alt-DDL
 - [ ] 2. **Die Quelltext-Zusicherung zur Cookie-Domain** (Spec 1 §3.8) und **R36** (§3.2.6 V8) sind grün
-- [ ] 3. ⛔ **`HISTORY_RETENTION_MONTHS` neutralisiert oder Volume kopiert** — **vor dem ersten
-      Generalproben-Snapshot** (W1): nachgewiesen am ______ durch ____________
+- [ ] 3. ⛔ **Der Standby-Stack kann keine Historie mehr löschen — Nachweis ist das KOPIERTE
+      VOLUME**, **vor dem ersten Generalproben-Snapshot** (W1): nachgewiesen am ______ durch ______
+      *Nachtrag 2026-08-18 (**N7**): „`HISTORY_RETENTION_MONTHS` neutralisieren" ist **kein**
+      ausführbarer Zweig. `export const HISTORY_RETENTION_MONTHS = 2;`
+      (`radio-admin@265abd5:server/src/services/retentionService.ts:9`) ist eine
+      **Quelltextkonstante**; der Name wird nirgends aus `process.env` gelesen und kommt weder in
+      `.env.example` noch in `docker-compose.yml` vor (`git grep -n HISTORY_RETENTION 265abd5` =
+      **drei** Treffer: `retentionService.ts:9` und `:19` sowie eine Entwurfsnotiz in
+      `docs/loan-ownership-migration.md:100`). „Neutralisieren" hieße Quelltext ändern und
+      `radio-admin:local` neu bauen (`radio-admin@265abd5:docker-compose.yml:3-4`) — was §5.3
+      Posten 6 („Image behalten") bricht. **Verfügbar sind nur: Volume kopieren, oder nicht
+      starten.***
 - [ ] 4. **⬜ L13 und ⬜ L14 abgelesen** — ohne sie ist §4.5 Schritt 8 nicht ausführbar
 
 **Generalprobe**
@@ -4807,9 +4909,13 @@ die Klammer darüber.
 
 **Vor dem Fenster**
 
-- [ ] 9. **§4.2 Nr. 1–12 vollständig**, insbesondere: `/api/health/radio` antwortet **200** (nicht 503)
+- [ ] 9. **§4.2 Nr. 1–13 vollständig**, insbesondere: `/api/health/radio` antwortet **200** (nicht 503)
       · Abräum-Worker deployt · Cloudflare-Zonenregeln gelesen · `X-Forwarded-Host` am Server belegt ·
-      Weg A/B entschieden
+      Weg A/B entschieden · ⛔ **Nr. 13** (heutige Router-Regel **beider** Hosts wörtlich
+      protokolliert, samt Rückstell-Befehl)
+      *Nachtrag 2026-08-18: „Nr. 1–12" ließ genau den Posten aus, der ausweislich des Kopfes von
+      §4.2 das Ergebnis des vorigen Kritikdurchgangs ist und selbst ein ⛔ trägt — ohne ihn hat der
+      erste Handgriff des Umschwenks kein ausführbares Ziel.*
 - [ ] 10. ⛔ **U4 / C.5 ist beantwortet** — sie blockiert den **Freeze**, nicht erst den Abbau
 - [ ] 11. **E1–E8 ausgefüllt und im Protokoll**, `<E1>` exakt wie im `groups`-Claim
 - [ ] 12. **Der Ausstellungsplan für die Zugangscodes steht** (§4.8), Zweig nach C.3 gewählt, Person
@@ -4825,8 +4931,12 @@ die Klammer darüber.
       protokolliert** (§3.5 Klasse B)
 - [ ] 16. **Fünf Paare gleich** (§4.5 Schritt 5 a), **fünf** Feldstichproben zeilengenau (b), die
       Zeitstempel-Stichprobe aus `returned_at IS NOT NULL` (c)
-- [ ] 17. **R und Z grün**, mit `<freeze_iso>` in **beiden** Armen: R Quelle ______ / Ziel ______ · Z
-      alle drei `0`
+- [ ] 17. **R und Z grün**, mit `<freeze_iso>` in **beiden** Armen: R Quelle ______ / Ziel ______ ·
+      **Z: alle zehn Zeilen `0`** (neun Zahlgrenzproben + die Formatprobe
+      `devices.last_updated_at`)
+      *Nachtrag 2026-08-18: „alle drei" gegen zehn `union all`-Glieder und gegen §5.2.2, die „alle
+      zehn Zahlen" schon sagt. Wer drei Zahlen abhakt und sieben ungelesen lässt, gibt ein Volume
+      frei, dessen Zeitstempelspalten zu sieben Zehnteln ungeprüft sind.*
 - [ ] 18. **`loans_device_active_uidx` existiert im Ziel** (§2.6) und `zugangscode_id` ist überall NULL
 - [ ] 19. **Schritt 9 war EIN Schritt:** Alt-Router zuerst weg, dann die drei ⏸-Zeilen, dann `up -d`
 
@@ -4888,9 +4998,9 @@ gepolsterte Liste um 23 Uhr überflogen wird.
 |---|---|---|
 | A-1 | **Blockierende Einstufung** — Spec 1 §2.8.3 nennt „Nummer 2, 4 und 6", Kapitel 2 markiert acht A-Marken ⛔, Kapitel 3 sechs Zeilen | **Konsistent.** Die Zahlen zählen in **drei verschiedenen Numerierungen**. Nach A-Marken aufgelöst ergibt sich **eine** Menge (W11); Kapitel 2 ist ein Superset und weitet nur, es widerspricht nicht |
 | A-2 | **`api_tokens` in der Zählkette** — Kapitel 1 §1.8 führt sie in Glied (1) und (2), nicht in (4); Kapitel 2 A1 und Kapitel 5 Abfrage A führen sie im Quellarm | **Konsistent, und genau richtig:** Quelle protokolliert, Ziel existiert nicht (W4) |
-| A-3 | **Postgres im Freeze nicht gestoppt, im Rückweg gestartet** — §4.5 Schritt 1 stoppt nur `backend`, §4.9 3b startet `postgres backend` | **Harmlos.** Der Postgres hat keinen eigenen Schreiber; das Stoppen von `backend` schließt den Schreibweg. `start postgres backend` ist auf einen laufenden Postgres idempotent, und die Zeile bleibt, weil sie im Rollback keine Annahme über den Zustand macht |
+| A-3 | **Postgres im Freeze nicht gestoppt, im Rückweg gestartet** — §4.5 Schritt 1 stoppt nur `backend`, §4.9 3b startet `postgres backend` | **Teilweise bestätigt, Nachtrag 2026-08-18.** Was **harmlos bleibt**: der Postgres hat keinen eigenen Schreiber, das Stoppen von `backend` schließt den Schreibweg, und `start postgres backend` ist auf einen laufenden Postgres idempotent. Was **nicht harmlos ist und hier berichtigt wird**: §4.9 3b fehlt `--profile full-app`. `backend` steht hinter `profiles: ["full-app"]` (`radio-inventar@f883ec4:docker-compose.yml:27`, unabhängig nachgelesen; `postgres` auf `:3` trägt keines) — und §4.5 Schritt 1 begründet für den **Stopp** ausdrücklich, warum das Profil in den Befehl gehört („ohne das Profil kann der Stopp ein No-op sein, und ein No-op sieht wie ein Erfolg aus"). **Das Argument ist richtungsunabhängig.** Verbindlich: der Stopp-Befehl aus Schritt 1 ist die Vorlage des Start-Befehls in §4.9, Wort für Wort, nur `stop` gegen `start` getauscht |
 | A-4 | **Rückwegfrist gegen Standby-Frist** — eine Stunde gegen zwei Wochen | **Zwei verschiedene Dinge**, in §5.1.1 auseinandergehalten: die Stunde schützt den **Rückweg**, die zwei Wochen die **Datenquelle**. Die Fehllesart „zwei Wochen = Rollback-Fenster" ist dort ausdrücklich benannt |
-| A-5 | **Zwei Zeitstempelproben** — §3.1.5.3 (b) `min/max(returned_at)` gegen Abfrage Z (drei Spalten, feste Epoche) | **Komplementär, nicht doppelt.** (b) ist die eine eindeutige Zeile für die Generalprobe, Z benennt zusätzlich **welche** Spalte. Beide bleiben; Z ist die Abbau-Sperre |
+| A-5 | **Zwei Zeitstempelproben** — §3.1.5.3 (b) `min/max(returned_at)` gegen Abfrage Z (**zehn** Spalten, feste Epoche) | **Komplementär, nicht doppelt.** (b) ist die eine eindeutige Zeile für die Generalprobe, Z benennt zusätzlich **welche** Spalte. Beide bleiben; Z ist die Abbau-Sperre. *Nachtrag 2026-08-18: die Nebenbemerkung „drei Spalten" war derselbe Zählfehler wie in Erfüllungspunkt 17 — es sind zehn, gezählt an den `union all`-Gliedern von Abfrage Z (§5.2.2). Die Entscheidung von A-5 ist davon unberührt.* |
 | A-6 | **Posten 1 der Abbauliste ist ein Cutover-Schritt** | **Absicht.** Er steht in §5.3 „nur der Vollständigkeit halber" und wird in §4.5 Schritt 9.1 ausgeführt — sonst hielten zwei Router denselben Host |
 
 ---
