@@ -157,7 +157,7 @@ services:
       # ZWEITER, EIGENER Router. `radio-admin.iuk-ue.de` gehoert AUSDRUECKLICH NICHT in
       # SUITE_TRAEFIK_RULE oben: der Host erreichte dann den Container, kein SUITE_HOST_*
       # beansprucht ihn, und `decideRoute` schreibt auf portal um
-      # (`const mod = moduleForHost(host) ?? getModule("portal")`, src/core/routing.ts:69).
+      # (`const mod = moduleForHost(host) ?? getModule("portal")`, src/core/routing.ts:79).
       # Der Alt-Host zeigte dann das PORTAL — ein funktionierender Abruf mit falschem Inhalt.
       #
       # Der Variablenname ist bewusst NICHT `SUITE_HOST_`-praefigiert: `const PREFIX =

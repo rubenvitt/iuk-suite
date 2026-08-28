@@ -838,7 +838,7 @@ den auch das Fenster fährt.
   ⚠️ **Und der Riegel, der beide Zustände überspannt — er wird nie ohne seinen Geltungsbereich
   zitiert:** **die `docker run`-Zeile DER GENERALPROBE enthält die Zeichenkette `suite_data` nicht.**
   Ein `-v suite_data:/data` ist ein Zeichen Unterschied und schreibt in die Produktion
-  (`compose.yaml:221-223` nagelt den Namen ohne Projektpräfix fest). **Für den
+  (`compose.yaml:252-254` nagelt den Namen ohne Projektpräfix fest). **Für den
   Fenster-Prüfcontainer (§4.5 Schritt 8) gilt dieser Riegel NICHT** — dort ist `suite_data` das
   Prüfobjekt (W5). Wer ihn ohne Geltungsbereich zitiert, macht Schritt 8 unausführbar.
 
@@ -1456,7 +1456,7 @@ besetzt ist und zwei Router auf einer Domain eine physische Grenze sind, keine V
   ClamAV für `files`-Uploads und ist für `radio` ohne Bedeutung.
 
   **Welches Volume: ⚠️ in der GENERALPROBE niemals das produktive.** Prod ist `suite_data` —
-  deterministisch, ohne Projektpräfix (`compose.yaml:221-223`). Der Prüfcontainer der Probe mountet
+  deterministisch, ohne Projektpräfix (`compose.yaml:252-254`). Der Prüfcontainer der Probe mountet
   das Wegwerf-Verzeichnis aus §G4. `files_data` und `aufgaben_data` werden ebenfalls **nicht**
   gemountet; der Container ist für die Dauer der Probe eine Suite ohne Dateien und ohne Aufgaben —
   **das ist richtig und kein Mangel.**

@@ -1463,7 +1463,7 @@ der Verlust wäre **stumm**. Dazu **E2** und **E3** als Werte.
 
   ⚠️ **`$DATA_DIR/radio.db` gibt es auf dem HOST nicht.** `DATA_DIR=/data` ist ein Wert **im
   Container** (`compose.yaml:79`); dort mountet `compose.yaml:99` das **benannte Volume**
-  `suite_data` (`compose.yaml:221-223`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad.
+  `suite_data` (`compose.yaml:252-254`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad.
   Der Import dagegen läuft zwingend aus einem **Repo-Checkout auf dem Host** — das standalone-Image
   führt weder `scripts/` noch `tsx` (`portal-cutover.md:23-25`). Deshalb sind es **vier Handgriffe**
   und nicht zwei.

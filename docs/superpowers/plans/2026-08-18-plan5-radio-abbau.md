@@ -143,7 +143,7 @@ Werte, die aus **anderen** Kapiteln kommen — mit dem exakten Namen, unter dem 
 |---|---|---|---|
 | `<freeze_iso>` | ISO-8601 **UTC**, der Freeze-Zeitpunkt | §4.5 Schritt 1 (`date -u +%Y-%m-%dT%H:%M:%SZ`) | Abfrage R hat in beiden Armen keinen Cutoff (W3) |
 | `<umschwenk_iso>` / `<umschwenk_epoch_sekunden>` | ISO **und** Sekunden, der Umschwenk-Zeitpunkt | ⛔ **entsteht heute in keinem Schritt** — Zusage an den Planteil zu Kapitel 4, §4.5 Schritt 9 | §5.1 kann Standby-Ende und Ein-Stunden-Frist nicht datieren; §4.9s Nachtrag hat kein Filterargument |
-| `$VOL_SUITE` | der **abgelesene** Name des Suite-Volumes (in Prod `suite_data`, `compose.yaml:221-223`) | §4.5 Schritt 4 Handgriff 1 (`docker volume ls \| grep -i suite`) | jede Zielarm-Abfrage liest ein anderes Volume; eine `0` sieht aus wie ein Datenbefund |
+| `$VOL_SUITE` | der **abgelesene** Name des Suite-Volumes (in Prod `suite_data`, `compose.yaml:252-254`) | §4.5 Schritt 4 Handgriff 1 (`docker volume ls \| grep -i suite`) | jede Zielarm-Abfrage liest ein anderes Volume; eine `0` sieht aus wie ein Datenbefund |
 | Sollwerte A1 (fünf Zählungen + `api_tokens`) | die Zahlen gegen die Snapshot-Kopie | §4.5 Schritt 2 (§2.4) | Abfrage A hat keine linke Seite |
 | Zahlen **R** und **Z** | einmal ermittelt, **zweimal gelesen** | §4.5 Schritt 5 (d) — dort als Freigabe | §5.2 hat keine Abbau-Sperre, und §4.6 Nr. 14 keinen Grund, `RADIO_HISTORIE_PURGE=0` zu entfernen (W10) |
 | `radio-admin-snapshot.sqlite` | die `.backup`-Kopie, **nie** ein `cp` (W1) | §4.5 Schritt 2 | jede Quellarm-Abfrage liest eine abgeschnittene Datei — paritätsgrün |
@@ -438,7 +438,7 @@ zählen" ist der beim Namen genannte Fehler der Phase 4
   #    Gelegenheiten fuer zwei verschiedene Volumes; genau dagegen steht das
   #    Gegenlesen.
   docker volume ls | grep -i suite
-  VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:221-223)
+  VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:252-254)
 
   # Gegenprobe VOR der ersten Zaehlung — sie entscheidet, ob eine 0 ein Befund ist:
   docker run --rm -v "$VOL_SUITE":/data alpine ls -ln /data

@@ -427,7 +427,7 @@ sqlite3 -readonly radio-admin-snapshot.sqlite '<SQL>'
 # Abschnitt erbt die Protokollzeile SEINES Laufs und zitiert sie zurueck. Eine dritte
 # Ablesung waere eine dritte Gelegenheit, ein ANDERES Volume zu erwischen.
 # ⚠️ ZWEI BEGRUENDUNGEN, und nur eine gilt fuer $VOL_SUITE: dessen Name ist in der
-# compose.yaml GEPINNT (`name: suite_data`, compose.yaml:221-223) — das Projektpraefix
+# compose.yaml GEPINNT (`name: suite_data`, compose.yaml:252-254) — das Projektpraefix
 # entfaellt, und diese zweite Ablesung ist reine VORSICHT gegen einen umbenannten
 # Compose-Projektnamen. ⛔ Sie wird deshalb NICHT gestrichen: sie kostet nichts.
 # Die Praefix-Falle selbst gilt fuer E2 und E3 — radio-admin/docker-compose.yml:16-17
@@ -2423,7 +2423,7 @@ herauszuhalten ist der **zweite, unabhängige Riegel** neben den fehlenden Label
 für `files`-Uploads und ist für `radio` ohne Bedeutung.
 
 **Welches Volume: ⚠️ in der GENERALPROBE niemals das produktive.** Prod ist `suite_data` —
-deterministisch, ohne Projektpräfix (`compose.yaml:221-223`). Der Prüfcontainer der Probe mountet
+deterministisch, ohne Projektpräfix (`compose.yaml:252-254`). Der Prüfcontainer der Probe mountet
 das Wegwerf-Verzeichnis aus §P.4. `files_data` und `aufgaben_data` werden ebenfalls **nicht**
 gemountet; der Container ist für die Dauer der Probe eine Suite ohne Dateien und ohne Aufgaben —
 **das ist richtig und kein Mangel.**
@@ -3924,7 +3924,7 @@ verwendet** — ein Anker mit Umlaut und U+2014 ist über zwei Shell-Ebenen nich
 
 ⚠️ **`$DATA_DIR/radio.db` gibt es auf dem HOST nicht.** `DATA_DIR=/data` ist ein Wert **im
 Container** (`compose.yaml:79`); dort mountet `compose.yaml:99` das **benannte Volume** `suite_data`
-(`compose.yaml:221-223`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad. Der Import
+(`compose.yaml:252-254`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad. Der Import
 dagegen läuft zwingend aus einem **Repo-Checkout auf dem Host** — das standalone-Image führt weder
 `scripts/` noch `tsx`. Deshalb sind es **vier Handgriffe** und nicht zwei.
 
@@ -5340,7 +5340,7 @@ union all select 'loans',             count(*) from loans;"
 #    hier wird ein anderes Volume gezaehlt als im Fenster befuellt wurde —
 #    Stopp-Punkt, kein Datenbefund.
 docker volume ls | grep -i suite
-VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:221-223)
+VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:252-254)
 
 # Gegenprobe VOR der ersten Zaehlung — sie entscheidet, ob eine 0 ein Befund ist:
 docker run --rm -v "$VOL_SUITE":/data alpine ls -ln /data
@@ -5878,7 +5878,7 @@ falschen Verzeichnis antwortet jeder `-f`-Befehl `no configuration file provided
 **deklarierten** Namen (`postgres_data`, `radio-data`); die echten tragen das Projektpräfix
 (⬜ **E2**, ⬜ **E3**) — beide Alt-Repos deklarieren ihre Volumes **ohne** `name:`
 (`radio-admin/docker-compose.yml:16-17`, `radio-inventar/docker-compose.yml:61-62`), anders als die
-Suite (`compose.yaml:221-223`). **Ein `docker volume rm postgres_data` löscht im besten Fall nichts
+Suite (`compose.yaml:252-254`). **Ein `docker volume rm postgres_data` löscht im besten Fall nichts
 und meldet `no such volume`; im schlechteren löscht es ein gleichnamiges Volume eines anderen
 Projekts.**
 

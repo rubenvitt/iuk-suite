@@ -1705,7 +1705,7 @@ Der Lesebefehl auf dem Zielarm, mit dem Schritt, der ihm vorausgeht:
 # praefixt deklarierte Volumes mit dem Projektnamen. Ein erfundener Name legt ein
 # NEUES, LEERES Volume an, und `sqlite3` liefert dann null Zeilen OHNE Fehler.
 docker volume ls | grep -i suite
-VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:221-223)
+VOL_SUITE=<die Zeile aus dem Befehl oben>     # in Prod: suite_data (compose.yaml:252-254)
 
 # Kein `-p`, KEINE Traefik-Labels, kein Netz-Alias, kein `--network` auf das Proxy-Netz.
 # Dieser Container BOOTET NICHT — er ist alpine plus sqlite3 und nichts sonst.
@@ -2552,7 +2552,7 @@ herauszuhalten ist der **zweite, unabhängige Riegel** neben den fehlenden Label
 für `files`-Uploads und ist für `radio` ohne Bedeutung.
 
 **Welches Volume: ⚠️ in der GENERALPROBE niemals das produktive.** Prod ist `suite_data` —
-deterministisch, ohne Projektpräfix, weil `compose.yaml:221-223` es mit `name: suite_data` festnagelt.
+deterministisch, ohne Projektpräfix, weil `compose.yaml:252-254` es mit `name: suite_data` festnagelt.
 Der Prüfcontainer der Probe mountet stattdessen das Wegwerf-Verzeichnis aus §3.1.2.
 
 > **Der Riegel, der das hält, ist eine Textprüfung, und sie steht so im Runbook — mit ihrem
@@ -2564,7 +2564,7 @@ Der Prüfcontainer der Probe mountet stattdessen das Wegwerf-Verzeichnis aus §3
 genau das Prüfobjekt, weil nur dieses Volume die importierten Daten trägt. **W5** schreibt es aus. Wer
 den Riegel ohne Geltungsbereich zitiert, macht Schritt 8 unausführbar.
 
-Auch nicht gemountet werden `files_data` und `aufgaben_data` (`compose.yaml:225-227`). Der Container
+Auch nicht gemountet werden `files_data` und `aufgaben_data` (`compose.yaml:256-258`). Der Container
 ist für die Dauer der Probe eine Suite ohne Dateien und ohne Aufgaben — das ist richtig und kein
 Mangel.
 
@@ -3524,7 +3524,7 @@ Skript, dasselbe positionale Argument, ein **anderes `DATA_DIR` je Lauf.**
 
 ⚠️ **`$DATA_DIR/radio.db` gibt es auf dem HOST nicht.** `DATA_DIR=/data` ist ein Wert **im Container**
 (`compose.yaml:79`); dort mountet `compose.yaml:99` das **benannte Volume** `suite_data`
-(`compose.yaml:221-223`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad. Der Import
+(`compose.yaml:252-254`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad. Der Import
 dagegen läuft zwingend aus einem **Repo-Checkout auf dem Host** (§3.1.2 Nr. 2 — das standalone-Image
 führt weder `scripts/` noch `tsx`). Deshalb sind es **vier Handgriffe** und nicht zwei: der Import
 schreibt auf den Host, und **ein eigener Container legt die Datei ins Volume** — dieselbe
