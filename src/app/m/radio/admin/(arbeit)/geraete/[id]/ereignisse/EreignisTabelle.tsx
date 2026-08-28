@@ -38,12 +38,12 @@ import s from "../../../../../_ui/verwaltung.module.css";
  * KOMMT DESHALB ALS `import type` IN EINER EIGENEN ANWEISUNG, nie als `type` in einer
  * gemischten Klammer.
  *
- * ⛔ KEIN `size` (Falle 4): die Verwaltung laeuft in `FullShell` mit `controlHeight: 44`
- * (`src/core/theme/theme.ts:207-209`), auch auf dem Telefon. Platz schafft
+ * ⛔ KEIN `size` (Falle 4): die Verwaltung laeuft in `SCHREIBTISCHDICHTE` mit
+ * `controlHeight: 32` (`src/core/theme/theme.ts`), auch auf dem Telefon. Platz schafft
  * `scroll={{ x: "max-content" }}`, nicht `size`.
  */
 
-/** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx:69`. */
+/** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx:70`. */
 const LEER = "—";
 
 /**
@@ -51,7 +51,7 @@ const LEER = "—";
  *
  * ⚠️ ER STEHT HIER EIN ZWEITES MAL, obwohl der Lesepfad bereits faltet
  * (`_lib/lesepfade/ereignisse.ts`, `wertText`) — und das ist die Hausform, nicht eine
- * Nachlaessigkeit: `GeraeteTabelle.tsx:69-72` fuehrt dieselbe Konstante und denselben
+ * Nachlaessigkeit: `GeraeteTabelle.tsx:70-73` fuehrt dieselbe Konstante und denselben
  * Rueckfall. Was ueber die Props hereinkommt, ist der Vertrag DIESER Datei; die leere
  * Zeichenkette ist der Wert, den `toEventValue` fuer ein geleertes Feld herausgibt
  * (`radio-admin/shared/src/diff-device.ts:4-6`).

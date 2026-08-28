@@ -2,8 +2,8 @@
  * DAS STYLESHEET DES VERWALTUNGSZWEIGS — angelegt in V12 mit der Uebersicht; die Flaechen
  * V13 bis V21 erweitern dieselbe Datei (`.superpowers/sdd/planteil4/briefs/V12.md`, Files).
  * Das Gegenstueck des Ausleih-Zweigs ist `_ui/ausleihe.module.css`; zwei Zweige, zwei
- * Stylesheets, weil sie unter zwei verschiedenen Bediendichten laufen (`FullShell` mit
- * `controlHeight: 44` hier, 56/72 dort — `_ui/RadioVerwaltungsRahmen.tsx:18-21`).
+ * Stylesheets, weil sie unter zwei Bediendichten laufen (`SCHREIBTISCHDICHTE` 32/40 hier,
+ * 56/72 dort — `_ui/RadioVerwaltungsRahmen.tsx:18-21`; der 44er der Shell liegt darueber).
  *
  * ⛔ EIGENE KLASSEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
  * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
@@ -16,7 +16,7 @@
  * der Dunkeldarstellung schwarz auf schwarz — und `pnpm build`, `typecheck` und Vitest
  * saehen davon nichts (Hauslehre „UI-Abnahme: messen, nicht schauen").
  *
- * ⛔ KEINE HOEHE UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 44
+ * ⛔ KEINE HOEHE UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 32
  * wird geerbt, nicht geschrieben.
  */
 
@@ -25,8 +25,8 @@
  * in einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md:11`).
  */
 .titel {
-  margin: 0 0 16px;
-  font-size: 1.5rem;
+  margin: 0 0 12px;
+  font-size: 1.375rem;
   font-weight: 600;
 }
 
@@ -46,6 +46,17 @@
    im Bestand (`radio-admin/client/src/features/dashboard/Dashboard.tsx:56`). */
 .abstand {
   margin-block-start: 24px;
+}
+
+/*
+ * Der Rueckweg-Link mit seinem Pfeil (`geraete/[id]/ereignisse/page.tsx`). ⛔ `inline-flex`
+ * und ein Abstand, sonst sitzt das Zeichen auf der Grundlinie und klebt am Wort; ⛔ keine
+ * Farbe — die Linkfarbe kommt aus antds `Layout`.
+ */
+.zurueckLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Die fuenf veralteten Geraete als schlichte Liste: kein `List.Item.Meta` (Falle 1) und
@@ -102,7 +113,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-block-end: 16px;
+  margin-block-end: 12px;
 }
 
 /* `Space.Compact style={{ width: 360, maxWidth: '100%' }}` (`DeviceList.tsx:135`). */
@@ -192,7 +203,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin-block-start: 16px;
+  margin-block-start: 12px;
 }
 
 .blaetterungText {

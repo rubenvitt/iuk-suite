@@ -6,6 +6,7 @@ import { ereignisseFuerGeraet } from "../../../../../_lib/lesepfade/ereignisse";
 import { geraet } from "../../../../../_lib/lesepfade/geraete";
 import { requireRadioVerwaltung } from "../../../../../_lib/zugang";
 import s from "../../../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../../../_ui/verwaltungIkonen";
 import { EreignisTabelle } from "./EreignisTabelle";
 
 /**
@@ -102,8 +103,16 @@ export default async function RadioGeraetEreignissePage({
     <>
       <h1 className={s.titel}>Änderungen: {titel}</h1>
 
+      {/*
+        Der Pfeil am Rueckweg — `_ui/verwaltungIkonen.tsx`. ⛔ `.zurueckLink` steht im Blatt und
+        nicht inline: Zeichen und Wort brauchen `inline-flex` samt Abstand, sonst sitzt das
+        Zeichen auf der Grundlinie und klebt am Wort (`_ui/verwaltung.module.css`).
+      */}
       <p className={s.abstand}>
-        <Link href={`/admin/geraete/${akte.id}`}>Zurück zum Gerät</Link>
+        <Link href={`/admin/geraete/${akte.id}`} className={s.zurueckLink}>
+          <VIkone name="pfeil-links" />
+          Zurück zum Gerät
+        </Link>
       </p>
 
       <div className={s.abstand}>

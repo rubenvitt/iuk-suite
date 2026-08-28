@@ -436,6 +436,81 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
     expect(exists('[data-rolle="radio-geraete-export"]')).toBe(true);
   });
 
+  it("die Knoepfe der Werkzeugleiste und die Abweichungsmarke tragen ihre Zeichen", async () => {
+    /*
+     * ⛔ GEMESSEN WIRD DAS `data-zeichen` IM DOM, NICHT DER IMPORT: `VIkone` stempelt den
+     * Namen an das `<svg>` (`_ui/verwaltungIkonen.tsx`), und ein vertauschtes oder
+     * weggefallenes Zeichen ist sonst still — `typecheck`, `lint` und `build` sehen von einem
+     * falschen Bild auf einem Knopf nichts. Vorbild `lagerbuch/.../GeraeteListe.test.tsx:229`.
+     *
+     * ⛔ DIE ZUORDNUNG IST DIE DES BESTANDS, NICHT EINE NEUE: `FiFilter` am Filterknopf
+     * (`DeviceList.tsx:145`), `FiDownload` am Export (`:152`), `FiPlus` am Anlegen (`:155`),
+     * `FiColumns` an der Spaltenwahl (`ColumnPicker.tsx:19`), `FiSliders` an der Suchfeldwahl
+     * (`SearchFieldPicker.tsx:36`), `FiAlertTriangle` in der Abweichungsmarke (`:221`).
+     *
+     * ⚠️ UND DER SUCHFELD-KNOPF TRAEGT KEIN WORT MEHR (1:1 `SearchFieldPicker.tsx:36`) —
+     * deshalb steht sein Name im `aria-label`. Ohne diese Haelfte waere der Knopf fuer eine
+     * Vorlesehilfe namenlos, und kein anderes Tor saehe es.
+     */
+    await mount(<GeraeteTabelle {...eigenschaften({ zeilen: [zeile({ hatAbweichung: true })] })} />);
+
+    const zeichenVon = (rolle: string) =>
+      query(`[data-rolle="${rolle}"] [data-zeichen]`).getAttribute("data-zeichen");
+    expect(zeichenVon("radio-filterknopf")).toBe("filter");
+    expect(zeichenVon("radio-geraete-export")).toBe("herunterladen");
+    expect(zeichenVon("radio-geraet-anlegen")).toBe("plus");
+    expect(zeichenVon("radio-spaltenwahl")).toBe("spalten");
+    expect(zeichenVon("radio-suchfeldwahl")).toBe("regler");
+
+    const suchfeldKnopf = query('[data-rolle="radio-suchfeldwahl"]');
+    expect(
+      (suchfeldKnopf.textContent ?? "").trim(),
+      "der Suchfeld-Knopf traegt ein Wort — der Bestand zeigt dort nur das Zeichen",
+    ).toBe("");
+    expect(
+      suchfeldKnopf.getAttribute("aria-label"),
+      "ein Knopf ohne Wort UND ohne aria-label ist namenlos",
+    ).toBe("Suchfelder");
+    expect(
+      query('[data-rolle="radio-spaltenwahl"]').getAttribute("aria-label"),
+      "der beschriftete Knopf braucht kein zweites Etikett",
+    ).toBeNull();
+
+    const warndreieck = query('[data-zeichen="warnung"]');
+    expect(
+      warndreieck.closest(".ant-tag"),
+      "das Warndreieck steht ausserhalb der Marke",
+    ).not.toBeNull();
+
+    /*
+     * ⛔ DIE BLAETTERUNG BLEIBT NACKT, UND DAS IST EINE ENTSCHEIDUNG: `_ui/verwaltungIkonen.tsx`
+     * fuehrt nur `pfeil-links`; ein Pfeil an „Zurück" neben einem nackten „Weiter" waere
+     * schiefer als keiner. Faellt die Zusicherung eines Tages, gehoert der Gegenpfeil in die
+     * Zeichenquelle — nicht ein einzelner Pfeil an einen der beiden Knoepfe.
+     */
+    expect(
+      query('[data-rolle="radio-blaettern-zurueck"]').querySelector("[data-zeichen]"),
+      "die Blaetterung hat ein halbes Pfeilpaar bekommen",
+    ).toBeNull();
+  });
+
+  it("der Filter-Anwenden-Knopf traegt den Haken", async () => {
+    /*
+     * Der Knopf liegt im Portal der Schublade, nicht im Baum der Insel — deshalb ein eigener
+     * Fall statt einer Zeile im Fall darueber. ⛔ „Zuruecksetzen" traegt bewusst KEIN Zeichen
+     * (Begruendung in `FilterSchublade.tsx`), und die zweite Zusicherung haelt das fest.
+     */
+    await mount(<GeraeteTabelle {...eigenschaften()} />);
+    await click('[data-rolle="radio-filterknopf"]');
+    expect(
+      queryPortal('[data-rolle="radio-filter-anwenden"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("haken");
+    expect(
+      queryPortal('[data-rolle="radio-filter-zuruecksetzen"]').querySelector("[data-zeichen]"),
+      "Zuruecksetzen hat ein Zeichen bekommen, ohne dass die Zeichenquelle eines fuehrt",
+    ).toBeNull();
+  });
+
   it("der Export-Ausloeser ist ein Anker auf die AEUSSERE Adresse und traegt download", async () => {
     /*
      * ⛔ AUFGABE V22. Bis der Handler stand, sicherte diese Datei nur zu, dass der Knopf DA
@@ -494,7 +569,7 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
      */
     /*
      * ⛔ ZWEIMAL, NICHT „IRGENDWO" — UND DAS IST DIE TRAGENDE HAELFTE DIESES FALLES. Die
-     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx:497-500`)
+     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx:505-508`)
      * und `onClick` an der Karte des mobilen Zweigs (`:517`). Ein `toMatch` allein fand den
      * mobilen Treffer und blieb gruen, wenn der GANZE `onRow`-Block verschwand — gemessen in
      * der Schlusspruefung (`.superpowers/sdd/planteil4/REVIEW-V13.md:98`, Fund W2: Block

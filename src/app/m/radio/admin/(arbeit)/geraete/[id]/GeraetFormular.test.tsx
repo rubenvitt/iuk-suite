@@ -245,7 +245,15 @@ describe("radio-Geraetakte: der Feldriegel der Updater-Stufe", () => {
     expect(Object.keys(FELD_ETIKETTEN).sort()).toEqual([...FORMULAR_FELDER].sort());
 
     const quelle = ohneKommentare(readFileSync(QUELLE_FORMULAR, "utf8"));
-    const imMarkup = [...quelle.matchAll(/\bname="([a-zA-Z]+)"/g)].map((t) => t[1]!);
+    /*
+     * ⛔ DIE ZEICHEN WERDEN VORHER HERAUSGESCHNITTEN, DAS MUSTER WIRD NICHT VERENGT:
+     * `<VIkone name="haken" />` (seit dem 2026-08-28 am Speichern-Knopf) traegt auch ein
+     * `name=`, ist aber kein Formularfeld — gemessen meldete dieser Fall „haken" als
+     * einundzwanzigsten Feldnamen. Ein enger gefasstes `name=`-Muster haette dagegen ein
+     * verlorenes Formularfeld nicht mehr gesehen; geschnitten wird deshalb das ZEICHEN.
+     */
+    const ohneZeichen = quelle.replace(/<VIkone\b[^>]*\/>/g, "");
+    const imMarkup = [...ohneZeichen.matchAll(/\bname="([a-zA-Z]+)"/g)].map((t) => t[1]!);
     expect(new Set(imMarkup).size, "ein Feldname steht doppelt im Markup").toBe(imMarkup.length);
     expect(imMarkup.sort()).toEqual([...FORMULAR_FELDER].sort());
 
@@ -374,7 +382,7 @@ describe("radio-Geraetakte: der Diff des Formulars", () => {
 
   it("ein nicht kanonisch geordnetes deviceModes laeuft NICHT rund durch den Diff", () => {
     /*
-     * ⛔ DER WAECHTER UEBER ⬜ **V14-L2** (`GeraetFormular.tsx:161`), und er haelt die HEUTE
+     * ⛔ DER WAECHTER UEBER ⬜ **V14-L2** (`GeraetFormular.tsx:162`), und er haelt die HEUTE
      * GEMESSENE Lage fest — er segnet sie NICHT ab. `GERAETE_MODI` ist die kanonische Ordnung
      * (`_lib/geraeteFelder.ts:134`); ein gespeichertes `"DMO,TMO"` faellt ueber
      * `modiZuListe` → `listeZuModi` auf `"TMO,DMO"` zurueck, und der Diff macht daraus einen
@@ -475,6 +483,65 @@ describe("radio-Geraetakte: der Diff des Formulars", () => {
     expect(
       baueGeaenderteFelder(mitTag, { ...formularWerte(mitTag), lastUpdatedAt: null }),
     ).toEqual({ lastUpdatedAt: null });
+  });
+});
+
+describe("radio-Geraetakte: die Zeichen der drei Bedienelemente", () => {
+  it("Speichern traegt den Haken, Loeschen den Muelleimer, Anhaengen das Plus", async () => {
+    /*
+     * ⛔ GEMESSEN WIRD DAS `data-zeichen` IM DOM (`_ui/verwaltungIkonen.tsx` stempelt es an das
+     * `<svg>`), nicht der Import: ein vertauschtes Zeichen ist sonst still — `typecheck`,
+     * `lint` und `build` sehen von einem falschen Bild auf einem Knopf nichts. Vorbild
+     * `lagerbuch/.../GeraeteListe.test.tsx:229`.
+     *
+     * ⛔ DER MUELLEIMER IST 1:1 DER BESTAND (`DeviceDetailDrawer.tsx:119`, `FiTrash2`); Haken
+     * und Plus stehen fuer Speichern und Anhaengen, wo der Bestand kein Zeichen fuehrte —
+     * Entscheidung 3 der Betreiberrunde vom 2026-08-28.
+     */
+    const zeichenVon = (rolle: string) =>
+      query(`[data-rolle="${rolle}"] [data-zeichen]`).getAttribute("data-zeichen");
+
+    await mount(
+      <GeraetFormular
+        geraet={werte()}
+        rolle="admin"
+        vorschlaege={LEERE_VORSCHLAEGE}
+        versionen={[]}
+      />,
+    );
+    expect(zeichenVon("radio-formular-speichern")).toBe("haken");
+    await unmount();
+
+    await mount(<GeraetLoeschen geraetId="g-1" offeneLeiheEntleiher={null} />);
+    expect(zeichenVon("radio-loeschen-knopf")).toBe("papierkorb");
+    await unmount();
+
+    await mount(<NotizFeld geraetId="g-1" anmerkung={null} rolle="updater" />);
+    expect(zeichenVon("radio-notiz-anhaengen")).toBe("plus");
+  });
+
+  it("die Abweichungsmarke der Seite traegt das Warndreieck", () => {
+    /*
+     * Die Seite ist eine Server Component und laesst sich hier nicht mounten (`getDb`,
+     * `requireRadioVerwaltung`, `next/headers`) — gemessen wird die Quelle, wie bei den
+     * Kopfdaten. ⛔ 1:1 `DeviceDetailDrawer.tsx:97` (`FiAlertTriangle` im `Tag`).
+     * ⚠️ `react-icons/pi` IST IN EINER SERVER COMPONENT GEMESSEN SICHER (`lagerbuch`,
+     * 2026-08-12, echter Abruf); Falle 7 ist `@ant-design/icons` — der frueher hier
+     * behauptete Gegensatz war sachlich falsch.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
+    /*
+     * ⛔ ZWEI LOSE ANKER STATT EINER EXAKTEN ZEILE: eine Zeichenkette ueber das ganze Element
+     * ist gemessen FALSCH-ROT, sobald jemand ein Attribut umbricht — bei null
+     * Verhaltensaenderung (dieselbe Lehre wie beim `Divider`-Fall weiter unten).
+     */
+    expect(quelle, "das Warndreieck fehlt in der Abweichungsmarke").toMatch(
+      /icon=\{<VIkone name="warnung"/,
+    );
+    expect(quelle, "die Marke hat ihren Warnton verloren").toMatch(/<Tag color="warning"/);
+    expect(quelle, "die Seite zieht das Zeichenpaket der AUSLEIHflaeche").not.toMatch(
+      /from\s+["'][^"']*_ui\/ikonen["']/,
+    );
   });
 });
 

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Button, Input, Space } from "antd";
 import { versionAnlegenAction } from "../../actions";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import s from "../../../_ui/verwaltung.module.css";
 
 /**
@@ -100,16 +101,18 @@ export function NeuVersion() {
           onPressEnter={anlegen}
           data-rolle="radio-neuversion-eingabe"
         />
-        {/* ⚠️ BENANNTE ABWEICHUNG: KEIN `<FiPlus />` (`:196`). `_ui/ikonen.tsx` ist die EINE
-            Zeichenquelle des Moduls (Entscheidung E-V7, NS-A8b) und auf ZWOELF Namen
-            festgenagelt (`_ui/ikonen.tsx:55-67`, gehalten von `_ui/ikonen.test.tsx:108`); ein
-            Pluszeichen ist dort nicht dabei, und ein `react-icons`-Import waere Falle 7. Die
-            Beschriftung traegt die Aussage — dieselbe Wahl wie in `geraete/GeraeteTabelle.tsx`
-            und `software/UpdateSuche.tsx`. */}
+        {/* ✅ DAS PLUSZEICHEN IST ZURUECK — 1:1 `SoftwareVersionsPage.tsx:196`
+            (`icon={<FiPlus />}`), Betreiberentscheidung vom 2026-08-28. Es kommt aus
+            `_ui/verwaltungIkonen.tsx`, der zweiten Zeichenquelle des Moduls (Phosphor); die
+            zwoelf Inline-SVGs in `_ui/ikonen.tsx` bleiben der Ausleihflaeche.
+            ⚠️ HIER STAND „ein `react-icons`-Import waere Falle 7" — DAS WAR SACHLICH FALSCH:
+            Falle 7 gilt `@ant-design/icons`, `react-icons/pi` ist gemessen RSC-sicher
+            (`lagerbuch`, 2026-08-12). */}
         <Button
           type="primary"
           loading={laeuft}
           onClick={anlegen}
+          icon={<VIkone name="plus" />}
           data-rolle="radio-neuversion-anlegen"
         >
           {NEUVERSION_TEXTE.anlegen}

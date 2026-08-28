@@ -497,6 +497,33 @@ describe("radio-Import: die vier Schritte", () => {
     expect(schritt(), "ein Fehlschlag hat die Vorschau geoeffnet").toBe("mapping");
     expect(text("radio-import-fehler")).toBe("ISSI-Spalte muss zugeordnet sein");
   });
+  it("das Ablegefeld und die Schrittknoepfe tragen ihre Zeichen", async () => {
+    /*
+     * ✅ `hochladen` steht im Ablegefeld wie im Bestand (`ImportWizard.tsx:159-161`), gesetzt
+     * am 2026-08-28; `pfeil-links` und `haken` sind Zutaten der Suite an Knoepfen mit klarer
+     * Semantik (Zurueck, Weiter).
+     * ⛔ GEMESSEN AM `data-zeichen`-ATTRIBUT und nicht an einem `<svg>`-Zaehler: `Upload` und
+     * `Steps` bringen eigene SVGs mit, ein Zaehler waere gruen, ohne dass DIESES Zeichen da
+     * stuende. ⛔ ZWEI SCHRITTE IN EINEM FALL, weil die Knoepfe erst im Zuordnungsschritt
+     * entstehen — im Ablegeschritt gibt es sie nicht.
+     */
+    await mount(<ImportAssistent />);
+    /* ⛔ UEBER DIE antd-KLASSE UND NICHT UEBER EINEN EIGENEN GRIFF: das Ablegefeld traegt
+       bewusst KEIN `data-rolle` (die Begruendung steht an der Stelle selbst, Fund F6). */
+    expect(
+      query(".ant-upload [data-zeichen]").getAttribute("data-zeichen"),
+      "dem Ablegefeld fehlt sein Zeichen",
+    ).toBe("hochladen");
+
+    await legeDateiAb();
+    expect(schritt()).toBe("mapping");
+    expect(
+      query('[data-rolle="radio-import-zurueck"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("pfeil-links");
+    expect(
+      query('[data-rolle="radio-import-weiter"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("haken");
+  });
 });
 
 describe("radio-Import: die Vorschau und der Abschluss", () => {

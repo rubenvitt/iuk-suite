@@ -16,6 +16,7 @@ import {
   type GeraetFilterWerte,
 } from "../../../_lib/suchparameter";
 import s from "../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 
 /**
  * DIE FILTERSCHUBLADE DER GERAETELISTE — Nachfolgerin von
@@ -153,6 +154,12 @@ export function FilterSchublade({
       width={360}
       extra={
         <Space wrap>
+          {/*
+            ⚠️ „Zuruecksetzen" TRAEGT BEWUSST KEIN ZEICHEN: der Bestand setzt an dieser Stelle
+            keines (`DeviceFilterDrawer.tsx`), und `_ui/verwaltungIkonen.tsx` fuehrt heute
+            keinen Ruecklaufpfeil — ein zugekauftes Zeichen waere ein einundzwanzigster Name
+            ohne Vorbild. Das Wort traegt die Aussage. ⛔ Und kein `size` — Falle 4.
+          */}
           <Button
             data-rolle="radio-filter-zuruecksetzen"
             onClick={() => {
@@ -165,6 +172,7 @@ export function FilterSchublade({
           <Button
             type="primary"
             data-rolle="radio-filter-anwenden"
+            icon={<VIkone name="haken" />}
             onClick={() => aufAnwenden(entwurf)}
           >
             Anwenden

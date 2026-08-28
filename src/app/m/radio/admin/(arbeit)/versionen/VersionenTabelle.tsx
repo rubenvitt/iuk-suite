@@ -9,6 +9,7 @@ import {
   versionZielSetzenAction,
   versionenSortierenAction,
 } from "../../actions";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import s from "../../../_ui/verwaltung.module.css";
 
 /**
@@ -39,23 +40,27 @@ import s from "../../../_ui/verwaltung.module.css";
  * sonst `drizzle-orm` und `better-sqlite3` in den Browser (`_lib/csv/klassifizieren.ts:6-9`).
  *
  * ⛔ DIE FUENF `size="small"` DES BESTANDS ENTFALLEN ERSATZLOS (`:119`, `:126`, `:145`, `:155`,
- * `:167`) — **Falle 4**: die Verwaltung laeuft in `FullShell` mit `controlHeight: 44`
- * (`src/core/theme/theme.ts:207-209`), auch auf dem Telefon. Platz schafft
+ * `:167`) — **Falle 4**: die Verwaltung laeuft seit dem 2026-08-28 auf `SCHREIBTISCHDICHTE`
+ * mit `controlHeight: 32` (`src/core/theme/theme.ts`, angelegt fuer genau diese Flaechen);
+ * ein `size` am Bedienelement bliebe auch dort falsch. Platz schafft zusaetzlich
  * `scroll={{ x: "max-content" }}`.
  *
- * ⚠️ ZWEI BENANNTE ABWEICHUNGEN, BEIDE AUS DER HAUSFORM:
- *   * ⛔ KEINE ZEICHEN AN DEN VIER KNOEPFEN (`FiArrowUp`, `FiArrowDown`, `FiCheck`, `FiTrash2`;
- *     `:120`, `:127`, `:146`, `:155`, `:167`) — ⛔ UND AUCH NICHT AN DER ZIEL-MARKE: der Bestand
- *     traegt dort `FiTarget` (`:93`, `<Tag color="green" icon={<FiTarget aria-hidden />}>`).
- *     Es ist die FUENFTE Zeichenstelle der Tabelle, sie ist DEKORATIV (`aria-hidden`), und die
- *     Beschriftung „Ziel" traegt die Aussage allein. `_ui/ikonen.tsx` ist die EINE Zeichenquelle des
- *     Moduls (Entscheidung E-V7, NS-A8b) und auf zwoelf Namen festgenagelt
- *     (`_ui/ikonen.test.tsx:108`); ein dreizehnter gehoerte in eine Aufgabe, die jene Datei
- *     fuehrt, und ein `react-icons`-Import waere Falle 7. Die Beschriftungen tragen die
- *     Aussage allein — dieselbe Wahl und derselbe Grund wie in `geraete/GeraeteTabelle.tsx`
- *     und `software/UpdateSuche.tsx`. ⚠️ Die zwei Reihenfolge-Knoepfe des Bestands sind reine
- *     Zeichenknoepfe mit `aria-label` (`:121`, `:128`); hier steht dasselbe Wort SICHTBAR,
- *     sonst waeren sie leer.
+ * ✅ DIE FUENF ZEICHENSTELLEN DES BESTANDS SIND ZURUECK (Betreiberentscheidung 2026-08-28):
+ *     `pfeil-oben`/`pfeil-unten` an den Reihenfolge-Knoepfen (`FiArrowUp`/`FiArrowDown`,
+ *     `:120`, `:127`), `haken` an „Als Ziel" (`FiCheck`, `:146`), `papierkorb` an BEIDEN
+ *     Loeschknoepfen (`FiTrash2`, `:155`, `:167`) und `ziel` an der Ziel-MARKE (`FiTarget`,
+ *     `:93`). Sie kommen aus `_ui/verwaltungIkonen.tsx` (Phosphor), der ZWEITEN Zeichenquelle
+ *     des Moduls; `_ui/ikonen.tsx` bleibt mit seinen zwoelf Inline-SVGs der Ausleihflaeche.
+ *     ⚠️ HIER STAND „ein `react-icons`-Import waere Falle 7" — DAS WAR SACHLICH FALSCH: Falle 7
+ *     gilt `@ant-design/icons`, dessen nackter Spezifizierer in der RSC-Ebene auf CJS
+ *     aufloest; `react-icons/pi` ist gemessen RSC-sicher (`lagerbuch`, 2026-08-12).
+ *     ⛔ DIE ZEICHEN BLEIBEN DEKORATIV UND ERSETZEN KEINE BESCHRIFTUNG (`aria-hidden` sitzt in
+ *     `VIkone`): die zwei Reihenfolge-Knoepfe des Bestands sind reine Zeichenknoepfe mit
+ *     `aria-label` (`:121`, `:128`), hier steht das Wort weiterhin SICHTBAR daneben.
+ *     ⛔ UND NUR AN DER ZIEL-MARKE, NICHT AN „Aktuelles Ziel": auch der Bestand traegt das
+ *     Zeichen nur an der einen Marke (`:93`, nicht `:142`).
+ *
+ * ⚠️ EINE BENANNTE ABWEICHUNG, AUS DER HAUSFORM:
  *   * ⛔ `color="success"` STATT `color="green"` an den zwei Ziel-Marken (`:93`, `:142`): das
  *     Modul benennt seine Toene semantisch (`GeraeteTabelle.tsx:154` `color="warning"`,
  *     `AusleihenTabelle.tsx:97` `color="processing"`). Es ist derselbe gruene Ton aus antds
@@ -209,7 +214,11 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
             <span data-rolle="radio-version-wert">{z.wert}</span>
           )}
           {z.isTarget && (
-            <Tag color="success" data-rolle="radio-version-zielmarke">
+            <Tag
+              color="success"
+              icon={<VIkone name="ziel" groesse={12} />}
+              data-rolle="radio-version-zielmarke"
+            >
               {VERSIONEN_TEXTE.zielMarke}
             </Tag>
           )}
@@ -247,6 +256,7 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
           <Button
             disabled={index === 0 || sortiert}
             onClick={() => verschieben(index, -1)}
+            icon={<VIkone name="pfeil-oben" />}
             data-rolle="radio-version-hoch"
           >
             {VERSIONEN_TEXTE.nachOben}
@@ -254,6 +264,7 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
           <Button
             disabled={index === zeilen.length - 1 || sortiert}
             onClick={() => verschieben(index, 1)}
+            icon={<VIkone name="pfeil-unten" />}
             data-rolle="radio-version-runter"
           >
             {VERSIONEN_TEXTE.nachUnten}
@@ -288,6 +299,7 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
             <Button
               loading={zielt}
               onClick={() => alsZiel(z.id)}
+              icon={<VIkone name="haken" />}
               data-rolle="radio-version-alsziel"
             >
               {VERSIONEN_TEXTE.alsZiel}
@@ -310,7 +322,12 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
              */
             <Tooltip title={VERSIONEN_TEXTE.loeschSperre(z.deviceCount)}>
               <span data-rolle="radio-version-loeschen-huelle">
-                <Button danger disabled data-rolle="radio-version-loeschen">
+                <Button
+                  danger
+                  disabled
+                  icon={<VIkone name="papierkorb" />}
+                  data-rolle="radio-version-loeschen"
+                >
                   {VERSIONEN_TEXTE.loeschen}
                 </Button>
               </span>
@@ -323,7 +340,12 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
               cancelText={VERSIONEN_TEXTE.abbrechen}
               onConfirm={() => loeschen(z.id)}
             >
-              <Button danger loading={loescht} data-rolle="radio-version-loeschen">
+              <Button
+                danger
+                loading={loescht}
+                icon={<VIkone name="papierkorb" />}
+                data-rolle="radio-version-loeschen"
+              >
                 {VERSIONEN_TEXTE.loeschen}
               </Button>
             </Popconfirm>

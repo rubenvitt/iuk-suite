@@ -8,6 +8,7 @@ import { geraetAendernAction, notizAnfuegenAction } from "../../actions";
 import { tagAusWert } from "../../../_lib/csv/spalten";
 import type { UpdateKarteZeile } from "../../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../../_lib/updateStand";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import s from "../../../_ui/verwaltung.module.css";
 
 /**
@@ -72,14 +73,19 @@ import s from "../../../_ui/verwaltung.module.css";
  *     und ist in Vitest strukturell nicht messbar — es gibt dort keinen Server. Der Fall
  *     steht schon: `e2e/radio-verwaltung.spec.ts`, Fall 6.
  *
- * ⚠️ ZWEI WEITERE BENANNTE ABWEICHUNGEN, BEIDE AUS DER HAUSFORM:
- *   * ⛔ KEIN `size="small"` an der Karte (`UpdateDeviceCard.tsx:44`) — Falle 4: `FullShell`
- *     traegt `controlHeight: 44` (`src/core/theme/theme.ts:207-209`), auch auf dem Telefon.
- *   * ⛔ KEINE ZEICHEN AN DEN ZWEI KNOEPFEN (`FiCheck`, `FiAlertTriangle`,
- *     `UpdateDeviceCard.tsx:56`, `:59`). `_ui/ikonen.tsx` ist die EINE Zeichenquelle des Moduls
- *     und auf zwoelf Namen festgenagelt (`_ui/ikonen.test.tsx:108`); ein dreizehnter gehoerte
- *     in eine Aufgabe, die jene Datei fuehrt. Die Beschriftungen tragen die Aussage allein —
- *     dieselbe Wahl und derselbe Grund wie in `geraete/GeraeteTabelle.tsx`.
+ * ⚠️ EINE WEITERE BENANNTE ABWEICHUNG, AUS DER HAUSFORM:
+ *   * ⛔ KEIN `size="small"` an der Karte (`UpdateDeviceCard.tsx:44`) — Falle 4: das Mass des
+ *     Bestands kommt seit dem 2026-08-28 aus `SCHREIBTISCHDICHTE` (`controlHeight: 32`,
+ *     `src/core/theme/theme.ts`), nicht aus einem `size` am Bauteil.
+ *
+ * ✅ DIE ZEICHEN DER ZWEI KNOEPFE SIND ZURUECK (Betreiberentscheidung 2026-08-28): `haken` am
+ *     Anwenden (`FiCheck`, `UpdateDeviceCard.tsx:56`) und `warnung` am Anmerkungs-Knopf
+ *     (`FiAlertTriangle`, `:59`). Der Speichern-Knopf der Anmerkung traegt `plus` — er trug im
+ *     Bestand keines (`:73`), und `haken` steht in derselben Karte schon am Anwenden; zwei
+ *     gleiche Zeichen nebeneinander waeren keine Aussage, sondern ein Rateschritt.
+ *     Quelle ist `_ui/verwaltungIkonen.tsx` (Phosphor), die ZWEITE Zeichenquelle des Moduls;
+ *     `_ui/ikonen.tsx` bleibt mit seinen zwoelf Inline-SVGs der Ausleihflaeche.
+ *     ⛔ NICHT AN `Input.Search`: das Bauteil bringt sein Lupenzeichen selbst mit.
  */
 
 /**
@@ -399,11 +405,16 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
           data-rolle="radio-update-tap"
           loading={laeuft}
           disabled={!ziel}
+          icon={<VIkone name="haken" />}
           onClick={anwenden}
         >
           Auf {ziel || "—"} aktualisiert
         </Button>
-        <Button data-rolle="radio-update-anmerkung-knopf" onClick={() => setOffen((o) => !o)}>
+        <Button
+          data-rolle="radio-update-anmerkung-knopf"
+          icon={<VIkone name="warnung" />}
+          onClick={() => setOffen((o) => !o)}
+        >
           {UPDATE_TEXTE.anmerkungKnopf}
         </Button>
       </Space>
@@ -418,7 +429,12 @@ function UpdateKarte({ zeile, ziel }: { zeile: UpdateKarteZeile; ziel: string })
             onChange={(e) => setText(e.target.value)}
             onPressEnter={anhaengen}
           />
-          <Button data-rolle="radio-update-anmerkung-speichern" loading={laeuft} onClick={anhaengen}>
+          <Button
+            data-rolle="radio-update-anmerkung-speichern"
+            loading={laeuft}
+            icon={<VIkone name="plus" />}
+            onClick={anhaengen}
+          >
             Speichern
           </Button>
         </Space.Compact>

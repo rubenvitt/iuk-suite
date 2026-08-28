@@ -584,6 +584,25 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
       queryAll('[data-rolle="radio-code-zustand"]').map((k) => (k.textContent ?? "").trim()),
     ).toEqual(["aktiv", "gesperrt"]);
   });
+  it("die zwei Knoepfe tragen ihre Zeichen", async () => {
+    /*
+     * ✅ DIE ZEICHEN DER ALT-ANWENDUNG (`ApiTokensPage.tsx:137` `FiPlus`, `:133` `FiKey`),
+     * gesetzt am 2026-08-28. ⛔ GEMESSEN AM `data-zeichen`-ATTRIBUT UND NICHT AN EINEM
+     * `<svg>`-ZAEHLER: antd-Bauteile bringen eigene SVGs mit (die Rueckfrage, das Ladezeichen),
+     * ein Zaehler waere also gruen, ohne dass DIESES Zeichen da stuende. Der Name kommt aus
+     * `_ui/verwaltungIkonen.tsx`; ein Tippfehler darin ist ein Typfehler, kein stilles Nichts.
+     */
+    await mount(<CodeTabelle zeilen={[zeile()]} />);
+
+    expect(
+      query('[data-rolle="radio-neucode-anlegen"] [data-zeichen]').getAttribute("data-zeichen"),
+      "am Anlegen fehlt das Pluszeichen",
+    ).toBe("plus");
+    expect(
+      query('[data-rolle="radio-code-umschalten"] [data-zeichen]').getAttribute("data-zeichen"),
+      "am Umschalten fehlt der Schluessel",
+    ).toBe("schluessel");
+  });
 });
 
 describe("radio-Zugaenge: das Anlegefeld", () => {

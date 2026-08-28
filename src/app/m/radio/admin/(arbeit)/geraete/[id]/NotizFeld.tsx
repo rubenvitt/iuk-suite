@@ -6,6 +6,7 @@ import { Button, Input, Space } from "antd";
 import { notizAnfuegenAction } from "../../../actions";
 import type { RadioRolle } from "../../../../_lib/rollen";
 import s from "../../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../../_ui/verwaltungIkonen";
 import { gesperrtFuer } from "./GeraetFormular";
 
 /**
@@ -100,7 +101,12 @@ export function NotizFeld({ geraetId, anmerkung, rolle }: NotizFeldProps) {
           onPressEnter={anhaengen}
           data-rolle="radio-notiz-eingabe"
         />
-        <Button onClick={anhaengen} loading={laeuft} data-rolle="radio-notiz-anhaengen">
+        <Button
+          onClick={anhaengen}
+          loading={laeuft}
+          icon={<VIkone name="plus" />}
+          data-rolle="radio-notiz-anhaengen"
+        >
           Hinzufügen
         </Button>
       </Space.Compact>

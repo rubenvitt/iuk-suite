@@ -6,6 +6,7 @@ import { Badge, Button, Input, Space } from "antd";
 import { SUCHFELDER } from "../../../_lib/geraeteFelder";
 import type { GeraetFilterWerte } from "../../../_lib/suchparameter";
 import s from "../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import { aktiveFilterZahl } from "./FilterSchublade";
 import { SpaltenWahl, type SpaltenOption } from "./SpaltenWahl";
 
@@ -141,8 +142,9 @@ export function GeraeteWerkzeugleiste({
       <Space wrap>
         {/*
           `Space.Compact` und `Input.Search` 1:1 aus `DeviceList.tsx:135-143`. ⛔ OHNE `size`
-          — Falle 4: `FullShell` traegt `controlHeight: 44`, und die Hoehe wird geerbt, nicht
-          geschrieben (`_ui/AusleihRahmen.test.tsx:210-214` setzt das modulweit durch).
+          — Falle 4: der Verwaltungsrahmen traegt `controlHeight: 32` (`SCHREIBTISCHDICHTE`,
+          `core/theme/theme.ts`), und die Hoehe wird geerbt, nicht geschrieben
+          (`_ui/AusleihRahmen.test.tsx:210-214` setzt das modulweit durch).
         */}
         <Space.Compact className={s.suchfeld}>
           <Input.Search
@@ -161,6 +163,8 @@ export function GeraeteWerkzeugleiste({
             wert={suchfelder}
             aufAenderung={aufSuchfelder}
             knopfEtikett="Suchfelder"
+            zeichen="regler"
+            nurZeichen
             knopfRolle="radio-suchfeldwahl"
             listenRolle="radio-suchfeldliste"
           />
@@ -170,7 +174,11 @@ export function GeraeteWerkzeugleiste({
           dieselbe Falle 4.
         */}
         <Badge count={aktiveFilterZahl(filter)}>
-          <Button data-rolle="radio-filterknopf" onClick={aufFilterOeffnen}>
+          <Button
+            data-rolle="radio-filterknopf"
+            icon={<VIkone name="filter" />}
+            onClick={aufFilterOeffnen}
+          >
             Filter
           </Button>
         </Badge>
@@ -181,6 +189,7 @@ export function GeraeteWerkzeugleiste({
           wert={spalten}
           aufAenderung={aufSpalten}
           knopfEtikett="Spalten"
+          zeichen="spalten"
           knopfRolle="radio-spaltenwahl"
           listenRolle="radio-spaltenliste"
         />
@@ -190,12 +199,22 @@ export function GeraeteWerkzeugleiste({
           (`admin/actions.ts:447`) und der eigene Riegel von `geraete/export/route.ts` (V22).
         */}
         {darfExportieren && (
-          <Button data-rolle="radio-geraete-export" href="/admin/geraete/export" download>
+          <Button
+            data-rolle="radio-geraete-export"
+            icon={<VIkone name="herunterladen" />}
+            href="/admin/geraete/export"
+            download
+          >
             Exportieren
           </Button>
         )}
         {darfAnlegen && (
-          <Button type="primary" data-rolle="radio-geraet-anlegen" onClick={aufAnlegen}>
+          <Button
+            type="primary"
+            data-rolle="radio-geraet-anlegen"
+            icon={<VIkone name="plus" />}
+            onClick={aufAnlegen}
+          >
             Gerät anlegen
           </Button>
         )}

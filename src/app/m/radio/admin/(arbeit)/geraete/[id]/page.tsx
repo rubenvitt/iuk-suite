@@ -9,6 +9,7 @@ import { geraet, geraetFormWerte, vorschlaege } from "../../../../_lib/lesepfade
 import { versionenMitGeraetezahl } from "../../../../_lib/lesepfade/versionen";
 import { requireRadioVerwaltung } from "../../../../_lib/zugang";
 import s from "../../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../../_ui/verwaltungIkonen";
 import { GeraetFormular } from "./GeraetFormular";
 import { GeraetLoeschen } from "./GeraetLoeschen";
 import { NotizFeld } from "./NotizFeld";
@@ -156,14 +157,16 @@ export default async function RadioGeraetAktePage({
         {akte.updateAnmerkung && (
           <KopfZeile etikett="Abweichung">
             {/*
-              ⚠️ BENANNTE ABWEICHUNG: der Bestand setzt hier ein `<FiAlertTriangle>` in den
-              `Tag` (`:97`). Die eine Zeichenquelle des Moduls ist `_ui/ikonen.tsx`
-              (Entscheidung E-V7, NS-A8b) und auf ZWOELF Namen festgenagelt
-              (`_ui/ikonen.test.tsx:108`); das Warndreieck ist dort ausdruecklich gestrichen
-              (`_ui/ikonen.tsx:44-52`). Das Wort traegt die Aussage. Dieselbe Entscheidung wie
-              in der Abweichungsspalte der Liste (`GeraeteTabelle.tsx`).
+              Das Warndreieck im `Tag` 1:1 aus `DeviceDetailDrawer.tsx:97` — seit dem
+              2026-08-28 aus `_ui/verwaltungIkonen.tsx`, der Zeichenquelle des
+              VERWALTUNGSzweigs (`_ui/ikonen.tsx` bleibt die der Ausleihflaeche). Dieselbe
+              Marke wie in der Abweichungsspalte der Liste (`GeraeteTabelle.tsx`).
+              ⚠️ `react-icons/pi` IN EINER SERVER COMPONENT IST GEMESSEN SICHER (`lagerbuch`,
+              2026-08-12, echter Abruf); Falle 7 ist `@ant-design/icons`, nicht dies hier.
             */}
-            <Tag color="warning">gemeldet</Tag>
+            <Tag color="warning" icon={<VIkone name="warnung" />}>
+              gemeldet
+            </Tag>
           </KopfZeile>
         )}
       </div>

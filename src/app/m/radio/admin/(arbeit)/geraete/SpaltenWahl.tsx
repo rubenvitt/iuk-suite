@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Button, Checkbox, Dropdown } from "antd";
 import s from "../../../_ui/verwaltung.module.css";
+import { VIkone, type VerwaltungsIkonName } from "../../../_ui/verwaltungIkonen";
 
 /**
  * DIE SPALTENAUSWAHL — Nachfolgerin von `ColumnPicker.tsx` UND `CheckboxDropdown.tsx`
@@ -23,14 +24,17 @@ import s from "../../../_ui/verwaltung.module.css";
  * Kopie unter anderem Namen waere die handgepflegte Doppelung, gegen die Ruling R-V11-1
  * steht (`.superpowers/sdd/planteil4/progress.md`).
  *
- * ⚠️ KEIN ZEICHEN AUF DEN ZWEI KNOEPFEN — benannte Abweichung von `ColumnPicker.tsx:19`
- * (`FiColumns`) und `SearchFieldPicker.tsx:36` (`FiSliders`, nur `aria-label`). Die eine
- * Zeichenquelle des Moduls ist `_ui/ikonen.tsx` (Entscheidung E-V7, NS-A8b), und ihr Bestand
- * ist auf ZWOELF festgenagelt (`_ui/ikonen.test.tsx:108`); die Dateiliste dieser Aufgabe
- * fuehrt sie nicht. Dieselbe Entscheidung hat V12 fuer die Kennzahlkarten getroffen
- * (`admin/(arbeit)/page.tsx:54-61`). Die Beschriftung traegt die Aussage — und beim
- * Suchfeld-Aufklapper traegt sie MEHR als vorher: der Bestand hatte dort nur ein
- * `aria-label`.
+ * ⚠️ DIE ZWEI KNOEPFE TRAGEN SEIT DEM 2026-08-28 WIEDER IHR ZEICHEN — die frueher hier
+ * benannte Abweichung (E-V7, „eine Zeichenquelle, auf ZWOELF Namen festgenagelt") ist von der
+ * Betreiberentscheidung zur Verwaltungsdichte ueberholt: der Verwaltungszweig hat mit
+ * `_ui/verwaltungIkonen.tsx` seine EIGENE Zeichenquelle (Phosphor), `_ui/ikonen.tsx` bleibt
+ * unberuehrt die der Ausleihflaeche. 1:1 zum Bestand: `ColumnPicker.tsx:19` setzt `FiColumns`
+ * NEBEN das Wort „Spalten", `SearchFieldPicker.tsx:36` setzt `FiSliders` OHNE Wort.
+ *
+ * ⛔ UND DESHALB `nurZeichen` STATT EINES LEEREN ETIKETTS: ein Knopf ohne Beschriftung
+ * braucht seinen Namen im `aria-label` (`SearchFieldPicker.tsx:36` tut genau das). Das
+ * Etikett bleibt in beiden Faellen PFLICHT — es ist entweder sichtbar oder vorgelesen, nie
+ * keines von beidem.
  *
  * ⛔ DER AUFKLAPPER BLEIBT BEIM UMSCHALTEN OFFEN — 1:1 aus `CheckboxDropdown.tsx:17-21`:
  * „the popup stays open while toggling — only an outside click or Esc closes it, because the
@@ -43,8 +47,15 @@ export type SpaltenWahlProps = {
   optionen: SpaltenOption[];
   wert: string[];
   aufAenderung: (naechste: string[]) => void;
-  /** Die Beschriftung des Aufklappers — ⛔ ein WORT, kein Zeichen (siehe Kopf). */
+  /**
+   * Die Beschriftung des Aufklappers — ⛔ PFLICHT, auch bei `nurZeichen`: dort wird sie zum
+   * `aria-label` und ist der einzige Name, den der Knopf noch hat (siehe Kopf).
+   */
   knopfEtikett: string;
+  /** Das Zeichen am Knopf (`spalten` bzw. `regler`, 1:1 zum Bestand). */
+  zeichen: VerwaltungsIkonName;
+  /** Nur das Zeichen, kein Wort — der Suchfeld-Aufklapper (`SearchFieldPicker.tsx:36`). */
+  nurZeichen?: boolean;
   knopfRolle: string;
   listenRolle: string;
 };
@@ -54,6 +65,8 @@ export function SpaltenWahl({
   wert,
   aufAenderung,
   knopfEtikett,
+  zeichen,
+  nurZeichen = false,
   knopfRolle,
   listenRolle,
 }: SpaltenWahlProps) {
@@ -94,7 +107,14 @@ export function SpaltenWahl({
         </div>
       )}
     >
-      <Button data-rolle={knopfRolle}>{knopfEtikett}</Button>
+      {/* ⛔ OHNE `size` — Falle 4; die Hoehe kommt aus der Bediendichte des Rahmens. */}
+      <Button
+        data-rolle={knopfRolle}
+        icon={<VIkone name={zeichen} />}
+        aria-label={nurZeichen ? knopfEtikett : undefined}
+      >
+        {nurZeichen ? null : knopfEtikett}
+      </Button>
     </Dropdown>
   );
 }

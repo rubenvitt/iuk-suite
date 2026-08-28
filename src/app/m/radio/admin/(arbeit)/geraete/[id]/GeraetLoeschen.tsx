@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button, Popconfirm } from "antd";
 import { geraetLoeschenAction } from "../../../actions";
 import s from "../../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../../_ui/verwaltungIkonen";
 
 /**
  * DIE LOESCHFLAECHE — 1:1 aus `DeviceDetailDrawer.tsx:111-123`.
@@ -35,13 +36,13 @@ import s from "../../../../_ui/verwaltung.module.css";
  * Prop ueber die Grenze (`offeneLeiheZuGeraet`, `_db/leihen.ts:379`) — Vorabscan-Fund F2
  * Punkt c: „Ohne den Namen als serialisierten Prop kann die Warnung ihn nicht nennen."
  *
- * ⚠️ BENANNTE ABWEICHUNG: DER KNOPF TRAEGT KEIN MUELLEIMERZEICHEN. Der Bestand setzt
- * `icon={<FiTrash2 />}` (`DeviceDetailDrawer.tsx:119`). Die eine Zeichenquelle des Moduls ist
- * `_ui/ikonen.tsx` (Entscheidung E-V7, NS-A8b) und auf ZWOELF Namen festgenagelt
- * (`_ui/ikonen.tsx:55-67`, festgehalten von `_ui/ikonen.test.tsx:108`); ein Muelleimer ist dort
- * nicht dabei. ⛔ Ein `react-icons`-Import an dieser Stelle waere Falle 7 und eine dreizehnte
- * Zeichenquelle. Die Beschriftung „Gerät löschen" plus `danger` traegt die Aussage — dieselbe
- * Behandlung wie beim Warndreieck der Abweichungszeile (`page.tsx`, Abweichung A9).
+ * ⚠️ DER KNOPF TRAEGT SEIT DEM 2026-08-28 WIEDER SEIN MUELLEIMERZEICHEN — 1:1
+ * `icon={<FiTrash2 />}` (`DeviceDetailDrawer.tsx:119`), hier aus `_ui/verwaltungIkonen.tsx`.
+ * ⛔ DER FRUEHERE KOMMENTAR AN DIESER STELLE WAR SACHLICH FALSCH: er nannte einen
+ * `react-icons`-Import „Falle 7". Falle 7 ist `@ant-design/icons` — dessen nackter
+ * Spezifizierer loest in der RSC-Ebene auf CJS auf und ruft `createContext` auf Modulebene.
+ * `react-icons/pi` ist davon gemessen NICHT betroffen (`lagerbuch`, 2026-08-12, echter
+ * Abruf), und diese Datei ist ohnehin eine `"use client"`-Insel.
  *
  * ⛔ KEIN TOAST — Entscheidung E6: das „Gerät gelöscht" aus `DeviceDetailDrawer.tsx:54` faellt
  * als benannte Abweichung weg. Es waere ohnehin unsichtbar: die Action endet in einem
@@ -89,7 +90,12 @@ export function GeraetLoeschen({ geraetId, offeneLeiheEntleiher }: GeraetLoesche
         cancelText="Abbrechen"
         onConfirm={loeschen}
       >
-        <Button danger loading={laeuft} data-rolle="radio-loeschen-knopf">
+        <Button
+          danger
+          loading={laeuft}
+          icon={<VIkone name="papierkorb" />}
+          data-rolle="radio-loeschen-knopf"
+        >
           Gerät löschen
         </Button>
       </Popconfirm>

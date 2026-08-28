@@ -106,7 +106,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
      * Grund, den `_lib/lesepfade/ereignisse.test.ts:351-353` fuer den Lesepfad ausschreibt.
      *
      * ⛔ UND DIE INSEL TRAEGT IHREN EIGENEN RUECKFALL, obwohl der Lesepfad bereits faltet
-     * (`_lib/lesepfade/ereignisse.ts`, `wertText`). Das ist die Hausform: `GeraeteTabelle.tsx:69`
+     * (`_lib/lesepfade/ereignisse.ts`, `wertText`). Das ist die Hausform: `GeraeteTabelle.tsx:70`
      * fuehrt dieselbe Konstante ein zweites Mal. Der Grund ist die Grenze — was ueber die
      * Props hereinkommt, ist der Vertrag DIESER Datei, und die leere Zeichenkette ist der
      * Wert, den `toEventValue` fuer ein geleertes Feld herausgibt
@@ -316,7 +316,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
      * Sonst sieht die Seite kaputt aus: ein Tabellenkopf ueber nichts liest sich wie ein
      * Ladefehler, nicht wie „hier ist nichts passiert". ⛔ DIE TABELLE WIRD GAR NICHT ERST
      * GEBAUT — `locale={{ emptyText }}` liesse ihre Huelle stehen (die Form, die
-     * `GeraeteTabelle.tsx:479` fuehrt, weil dort eine Suche mit Filtern darueber steht und
+     * `GeraeteTabelle.tsx:487` fuehrt, weil dort eine Suche mit Filtern darueber steht und
      * die Spalten die Auskunft geben, WONACH gesucht wurde). Hier gibt es weder Suche noch
      * Filter, also traegt der Kopf keine Auskunft.
      *
@@ -521,5 +521,21 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
     expect(quelle, "innere Pfadform in einem href — sie gehoert allein revalidatePath").not.toMatch(
       /href=\{?["'`]?\/m\/radio/,
     );
+  });
+
+  it("der Rueckweg traegt seinen Pfeil", () => {
+    /*
+     * ⛔ ZEICHEN UND KLASSE GEHOEREN ZUSAMMEN: ohne `.zurueckLink` (`inline-flex`) sitzt der
+     * Pfeil auf der Grundlinie und klebt am Wort — und das saehe kein Tor, weil jsdom keine
+     * Zeilenboxen rechnet (`CLAUDE.md`, Falle 8 in ihrer Ursache). Deshalb wird HIER
+     * wenigstens gehalten, dass beide gemeinsam dastehen. Die Seite ist eine Server Component
+     * und laesst sich nicht mounten; gemessen wird die Quelle.
+     * ⚠️ `react-icons/pi` in einer Server Component ist gemessen sicher (`lagerbuch`,
+     * 2026-08-12); Falle 7 ist `@ant-design/icons`.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
+    /* ⛔ OHNE DAS SCHLIESSENDE `/>`: ein Umbruch des Attributs waere sonst falsch-rot. */
+    expect(quelle, "der Pfeil am Rueckweg fehlt").toMatch(/<VIkone name="pfeil-links"/);
+    expect(quelle, "der Pfeil steht ohne seine Klasse").toMatch(/className=\{s\.zurueckLink\}/);
   });
 });

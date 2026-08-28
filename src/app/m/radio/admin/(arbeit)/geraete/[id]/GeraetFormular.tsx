@@ -12,6 +12,7 @@ import { UPDATER_FELDER, type RadioRolle } from "../../../../_lib/rollen";
 import { tagAusWert } from "../../../../_lib/csv/spalten";
 import type { UpdateStand } from "../../../../_lib/updateStand";
 import s from "../../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../../_ui/verwaltungIkonen";
 
 /**
  * INSEL 6 — DAS GERAETEFORMULAR (`Spec:4508`, §5.7; Aufgabe V14). Nachfolger von
@@ -52,8 +53,8 @@ import s from "../../../../_ui/verwaltung.module.css";
  *      (`_ui/EntleiherFeld.tsx:12-18`), kein zweites Muster. Der Eintrag „Anlegen: <Text>"
  *      (`Combobox.tsx:51`) entfaellt ersatzlos: bei einem `AutoComplete` IST der getippte Text
  *      der Wert, der Eintrag saehe wie ein zweiter Weg zum selben Ergebnis aus.
- *   2. `size` steht auf keinem Bedienelement (Falle 4, `CLAUDE.md`): `FullShell` traegt
- *      `controlHeight: 44`.
+ *   2. `size` steht auf keinem Bedienelement (Falle 4, `CLAUDE.md`): der Verwaltungsrahmen
+ *      traegt `controlHeight: 32` (`SCHREIBTISCHDICHTE`).
  */
 
 /**
@@ -248,7 +249,7 @@ export function baueGeaenderteFelder(
  * Zeichen auf einer Datenflaeche saehe aus wie eine Primaeraktion.
  *
  * ⚠️ ZWEITE KOPIE, BENANNT STATT STILL: dieselbe Zuordnung steht in
- * `admin/(arbeit)/geraete/GeraeteTabelle.tsx:81-91`. Sie von dort zu importieren zoege die
+ * `admin/(arbeit)/geraete/GeraeteTabelle.tsx:82-92`. Sie von dort zu importieren zoege die
  * ganze Tabelleninsel in das Bundle dieser Seite. ⬜ **V14-L1** — sie in `_lib/geraeteFelder.ts`
  * zusammenzulegen ist ein ClickUp-Board-Posten, kein Bauwert in diesem Fenster (dieselbe
  * Behandlung wie ⬜ V-L9).
@@ -606,6 +607,7 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
           type="primary"
           htmlType="submit"
           loading={laeuft}
+          icon={<VIkone name="haken" />}
           data-rolle="radio-formular-speichern"
         >
           Speichern

@@ -495,6 +495,46 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
     expect(query('[data-rolle="radio-version-angelegt"]').textContent).toBe("01.02.2026, 08:00");
   });
 
+  it("die vier Knoepfe und die Ziel-Marke tragen ihre Zeichen", async () => {
+    /*
+     * ✅ DIE FUENF ZEICHENSTELLEN DES BESTANDS (`SoftwareVersionsPage.tsx:93`, `:120`, `:127`,
+     * `:146`, `:155`/`:167`), gesetzt am 2026-08-28. ⛔ GEMESSEN AM `data-zeichen`-ATTRIBUT und
+     * nicht an einem `<svg>`-Zaehler: antd bringt eigene SVGs mit, ein Zaehler waere gruen,
+     * ohne dass DIESES Zeichen da stuende.
+     * ⛔ ZWEI ZEILEN, WEIL DIE AKTIONSSPALTE ZWEI TERNAERE FUEHRT: `isTarget` entscheidet
+     * zwischen Marke und „Als Ziel"-Knopf, `deviceCount` zwischen dem GESPERRTEN Loeschknopf
+     * (in seiner `<span>`-Huelle) und dem mit Rueckfrage. Beide Loeschzweige tragen das
+     * Zeichen; mit nur einer Zeile bliebe je einer der vier Faelle ungeprueft.
+     */
+    await mount(
+      <VersionenTabelle
+        zeilen={[
+          zeile({ id: "v-1", isTarget: true, deviceCount: 3 }),
+          zeile({ id: "v-2", isTarget: false, deviceCount: 0 }),
+        ]}
+      />,
+    );
+
+    expect(
+      query('[data-rolle="radio-version-zielmarke"] [data-zeichen]').getAttribute("data-zeichen"),
+      "der Ziel-Marke fehlt ihr Zeichen",
+    ).toBe("ziel");
+    expect(
+      query('[data-rolle="radio-version-hoch"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("pfeil-oben");
+    expect(
+      query('[data-rolle="radio-version-runter"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("pfeil-unten");
+    expect(
+      query('[data-rolle="radio-version-alsziel"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("haken");
+    expect(
+      queryAll('[data-rolle="radio-version-loeschen"] [data-zeichen]').map((z) =>
+        z.getAttribute("data-zeichen"),
+      ),
+      "einem der zwei Loeschzweige fehlt der Papierkorb",
+    ).toEqual(["papierkorb", "papierkorb"]);
+  });
 });
 
 describe("radio-Versionen: das Anlegefeld", () => {
@@ -589,6 +629,14 @@ describe("radio-Versionen: das Anlegefeld", () => {
     expect(anlegenMock.mock.calls[0]![0], "Enter sendet einen anderen Wert als der Knopf").toBe(
       "FW 12.3",
     );
+  });
+  it("das Anlegen traegt sein Pluszeichen", async () => {
+    // ✅ 1:1 `SoftwareVersionsPage.tsx:196` (`icon={<FiPlus />}`), gesetzt am 2026-08-28.
+    await mount(<NeuVersion />);
+
+    expect(
+      query('[data-rolle="radio-neuversion-anlegen"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("plus");
   });
 });
 

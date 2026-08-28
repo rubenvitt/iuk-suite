@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, Input, Popconfirm, Space, Table, Tag, type TableColumnType } from "antd";
 import type { CodeZeile } from "../../../_lib/lesepfade/codes";
 import { erstelleCode, setzeCodeAktiv } from "../../../_actions/codes";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import s from "../../../_ui/verwaltung.module.css";
 
 /**
@@ -78,12 +79,13 @@ import s from "../../../_ui/verwaltung.module.css";
  * bleibt der Erfolg trotzdem: die Liste laedt nach, die neue Zeile steht oben, das Feld ist
  * leer.
  *
- * ⛔ KEINE ZEICHEN AN DEN KNOEPFEN. `_ui/ikonen.tsx` ist die EINE Zeichenquelle des Moduls
- * (Entscheidung E-V7, NS-A8b) und auf zwoelf Namen festgenagelt (`_ui/ikonen.test.tsx:108`);
- * ein dreizehnter gehoerte in eine Aufgabe, die jene Datei fuehrt, und ein
- * `react-icons`-Import in einer fremden Datei waere Falle 7. Die Beschriftungen tragen die
- * Aussage allein — dieselbe Wahl wie in `geraete/GeraeteTabelle.tsx`,
- * `software/UpdateSuche.tsx` und `versionen/VersionenTabelle.tsx`.
+ * ✅ ZEICHEN AN DEN KNOEPFEN — seit dem 2026-08-28 (Betreiberentscheidung): `plus` am
+ * Anlegen, `schluessel` am Umschalten. Die Alt-Anwendung trug beide (`ApiTokensPage.tsx:137`
+ * `FiPlus`, `:133` `FiKey`). Sie kommen aus `_ui/verwaltungIkonen.tsx`, der ZWEITEN
+ * Zeichenquelle des Moduls; `_ui/ikonen.tsx` (zwoelf Inline-SVGs) bleibt der Ausleihflaeche.
+ * ⚠️ DER FRUEHERE KOMMENTAR HIER SAGTE „ein `react-icons`-Import waere Falle 7" — DAS WAR
+ * SACHLICH FALSCH: Falle 7 gilt `@ant-design/icons`; `react-icons/pi` ist gemessen RSC-sicher
+ * (`lagerbuch`, 2026-08-12).
  */
 
 /**
@@ -354,7 +356,11 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
           cancelText={CODE_TEXTE.abbrechen}
           onConfirm={() => umschalten(z.id, !z.aktiv)}
         >
-          <Button loading={schaltet} data-rolle="radio-code-umschalten">
+          <Button
+            loading={schaltet}
+            icon={<VIkone name="schluessel" />}
+            data-rolle="radio-code-umschalten"
+          >
             {z.aktiv ? CODE_TEXTE.sperren : CODE_TEXTE.entsperren}
           </Button>
         </Popconfirm>
@@ -380,6 +386,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
             type="primary"
             loading={legtAn}
             onClick={anlegen}
+            icon={<VIkone name="plus" />}
             data-rolle="radio-neucode-anlegen"
           >
             {CODE_TEXTE.anlegen}

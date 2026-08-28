@@ -540,6 +540,36 @@ describe("radio-Update-Modus: was ein Tap schreibt", () => {
 
     expect(texte("radio-update-karte-name")).toEqual(["41/12", "HE FD 41/12", "1234567"]);
   });
+  it("die drei Knoepfe der Karte tragen ihre Zeichen", async () => {
+    /*
+     * ✅ `haken` und `warnung` sind die Zeichen des Bestands (`UpdateDeviceCard.tsx:56`,
+     * `:59`), gesetzt am 2026-08-28. `plus` am Speichern der Anmerkung ist eine BENANNTE
+     * Zutat: der Bestand trug dort keines (`:73`), und `haken` steht in derselben Karte
+     * schon am Anwenden.
+     * ⛔ GEMESSEN AM `data-zeichen`-ATTRIBUT und nicht an einem `<svg>`-Zaehler: antd bringt
+     * eigene SVGs mit (Ladezeichen, Suchlupe), ein Zaehler waere gruen, ohne dass DIESES
+     * Zeichen da stuende. ⛔ DAS ANMERKUNGSFELD MUSS ERST GEOEFFNET WERDEN — es haengt an
+     * `offen`, und ohne den Griff waere die dritte Zusicherung nicht bloss rot, sondern
+     * unerfuellbar.
+     */
+    await mount(<UpdateSuche {...props()} />);
+
+    expect(
+      query('[data-rolle="radio-update-tap"] [data-zeichen]').getAttribute("data-zeichen"),
+    ).toBe("haken");
+    expect(
+      query('[data-rolle="radio-update-anmerkung-knopf"] [data-zeichen]').getAttribute(
+        "data-zeichen",
+      ),
+    ).toBe("warnung");
+
+    await click('[data-rolle="radio-update-anmerkung-knopf"]');
+    expect(
+      query('[data-rolle="radio-update-anmerkung-speichern"] [data-zeichen]').getAttribute(
+        "data-zeichen",
+      ),
+    ).toBe("plus");
+  });
 });
 
 describe("radio-Update-Modus: die Bauform der Insel und ihrer Seite", () => {

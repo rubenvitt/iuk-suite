@@ -17,6 +17,7 @@ import {
   type Spaltenzuordnung,
   type Zusammenfassung,
 } from "../../../_lib/csv/klassifizieren";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import s from "../../../_ui/verwaltung.module.css";
 /*
  * ⛔ EIN TYPIMPORT AUS DEM HANDLER, UND ZWAR ABSICHTLICH: die Antwortform von
@@ -84,17 +85,20 @@ import type { HochladenAntwort } from "./hochladen/route";
  * `ImportWizard.tsx:170-178`), und `colorWarning`/`colorSuccess` sind eigene Toene
  * (`theme.ts:34-35`). Die Begruendung steht an der Stelle selbst.
  *
- * ⛔ KEIN `size=` — Falle 4 (`FullShell` traegt `controlHeight: 44`,
- * `src/core/theme/theme.ts:207-209`), modulweit durchgesetzt von
+ * ⛔ KEIN `size=` — Falle 4 (die Verwaltung laeuft seit dem 2026-08-28 auf
+ * `SCHREIBTISCHDICHTE`, `controlHeight: 32`, `src/core/theme/theme.ts`; das Mass kommt aus
+ * der Dichte und nie aus einem `size` am Bauteil), modulweit durchgesetzt von
  * `_ui/AusleihRahmen.test.tsx:196-214`. Damit entfallen `Space size="large"`/`size="middle"`
  * (`ImportWizard.tsx:138`, `:169`, `:295`) und ⛔ das `size="small"` an der Vorschautabelle
  * (`:305`) — Platz schafft dort `scroll={{ x: "max-content" }}`.
  *
- * ⛔ KEIN ZEICHEN AM ABLEGEFELD — benannte Abweichung von `ImportWizard.tsx:159-161`
- * (`FiUpload`). `@ant-design/icons` ist modulweit verboten (Falle 7), und `_ui/ikonen.tsx`
- * ist auf ZWOELF Namen festgenagelt (`_ui/ikonen.test.tsx:108`); ein dreizehnter gehoerte in
- * eine Aufgabe, die jene Datei fuehrt. Die Beschriftung traegt die Aussage allein — dieselbe
- * Wahl und derselbe Grund wie in `software/UpdateSuche.tsx` und `admin/(arbeit)/page.tsx`.
+ * ✅ DAS ZEICHEN AM ABLEGEFELD IST ZURUECK — 1:1 `ImportWizard.tsx:159-161` (`FiUpload` in
+ * einem eigenen Absatz, dort `fontSize: 32`), Betreiberentscheidung vom 2026-08-28. Dazu
+ * tragen die Schrittknoepfe `pfeil-links` (zurueck), `haken` (weiter/importieren) und `funk`
+ * (zu den Geraeten — `FiRadio` ist im Bestand das Zeichen der Geraete, `Dashboard.tsx:28`).
+ * ⚠️ HIER STAND, `@ant-design/icons` SEI DER GRUND — das stimmt fuer jenes Paket (Falle 7)
+ * und NICHT fuer `react-icons/pi`, das gemessen RSC-sicher ist (`lagerbuch`, 2026-08-12).
+ * Quelle ist `_ui/verwaltungIkonen.tsx`; `_ui/ikonen.tsx` bleibt der Ausleihflaeche.
  *
  * ⚠️ WAS DIESE DATEI NICHT LIEST: `_lib/csv/einlesen.ts`. Dort laufen die Node-Bausteine —
  * das Einlesen gehoert dem Handler (`hochladen/route.ts`), und ein Wertimport von hier zoege
@@ -402,6 +406,13 @@ export function ImportAssistent() {
                 Verbraucher sieht aus wie ein Waechter und ist keiner. Wer die
                 Verarbeitungsmeldung messen will, braucht einen haengenden `fetch`; wer sie
                 braucht, legt den Griff mit seinem Fall zusammen wieder an. */}
+            {/* ⛔ EIN EIGENER ABSATZ UEBER DEM TEXT UND NICHT IN IHM — 1:1
+                `ImportWizard.tsx:159-161`. `groesse={32}` ist die Pixelzahl am `<svg>`
+                (⛔ NICHT `size` an einem Bedienelement, Falle 4 ist nicht beruehrt) und
+                ersetzt das dortige `style={{ fontSize: 32 }}`. */}
+            <p>
+              <VIkone name="hochladen" groesse={32} />
+            </p>
             <p>{IMPORT_TEXTE.ablegen}</p>
             {laeuft && <p>{IMPORT_TEXTE.laeuft}</p>}
           </Upload.Dragger>
@@ -475,7 +486,11 @@ export function ImportAssistent() {
                 `ImportWizard.tsx:208`. ⛔ DAS ZIEL IST EIN ANDERES ALS BEI DER
                 Vorschau-Taste (`:226` -> `mapping`); wer beide einebnet, macht aus dieser
                 hier eine TOTE TASTE und laesst nur noch das Neuladen der Seite. */}
-            <Button onClick={() => setSchritt("upload")} data-rolle="radio-import-zurueck">
+            <Button
+              onClick={() => setSchritt("upload")}
+              icon={<VIkone name="pfeil-links" />}
+              data-rolle="radio-import-zurueck"
+            >
               {IMPORT_TEXTE.zurueck}
             </Button>
             {/* ⛔ GESPERRT, SOLANGE DIE ISSI-SPALTE FEHLT — 1:1 `ImportWizard.tsx:211`. */}
@@ -484,6 +499,7 @@ export function ImportAssistent() {
               disabled={!issiZugeordnet}
               loading={laeuft}
               onClick={() => void starteVorschau()}
+              icon={<VIkone name="haken" />}
               data-rolle="radio-import-weiter"
             >
               {IMPORT_TEXTE.weiter}
@@ -523,13 +539,18 @@ export function ImportAssistent() {
           </div>
           <Space>
             {/* ⛔ ZURUECK FUEHRT IN DIE ZUORDNUNG, NICHT IN DEN DATEISCHRITT — 1:1 `:226`. */}
-            <Button onClick={() => setSchritt("mapping")} data-rolle="radio-import-zurueck">
+            <Button
+              onClick={() => setSchritt("mapping")}
+              icon={<VIkone name="pfeil-links" />}
+              data-rolle="radio-import-zurueck"
+            >
               {IMPORT_TEXTE.zurueck}
             </Button>
             <Button
               type="primary"
               loading={laeuft}
               onClick={() => void starteImport()}
+              icon={<VIkone name="haken" />}
               data-rolle="radio-import-ausfuehren"
             >
               {IMPORT_TEXTE.ausfuehren}
@@ -552,7 +573,12 @@ export function ImportAssistent() {
               /* ⛔ `Button href`, NIEMALS `<Link><Button/></Link>` — das verschachtelte ein
                  `<button>` in einem `<a>` (`lagerbuch/.../ChecklisteKnopf.tsx:15-28`). Und der
                  AEUSSERE Pfad (`_lib/nav.ts:9-11`), nicht `/devices` (`ImportWizard.tsx:237`). */
-              <Button type="primary" href={GERAETELISTE} data-rolle="radio-import-zu-geraeten">
+              <Button
+                type="primary"
+                href={GERAETELISTE}
+                icon={<VIkone name="funk" />}
+                data-rolle="radio-import-zu-geraeten"
+              >
                 {IMPORT_TEXTE.zuDenGeraeten}
               </Button>
             }

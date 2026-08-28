@@ -15,6 +15,7 @@ import {
   type GeraeteSuchWerte,
 } from "../../../_lib/suchparameter";
 import s from "../../../_ui/verwaltung.module.css";
+import { VIkone } from "../../../_ui/verwaltungIkonen";
 import { FilterSchublade } from "./FilterSchublade";
 import { GeraeteWerkzeugleiste } from "./GeraeteWerkzeugleiste";
 import { NeuGeraetModal } from "./NeuGeraetModal";
@@ -100,18 +101,18 @@ const STAND_WORT: Record<UpdateStand, string> = {
  * Fall „die sechs sortierbaren Spalten stehen alle in der Sortierliste des Servers" ist der
  * Waechter.
  *
- * ⚠️ ZWEI BENANNTE ABWEICHUNGEN, BEIDE AUS DERSELBEN ENTSCHEIDUNG (E-V7, `_ui/ikonen.tsx`
- * ist die eine Zeichenquelle des Moduls und auf ZWOELF Namen festgenagelt,
- * `_ui/ikonen.test.tsx:108`; die Dateiliste dieser Aufgabe fuehrt sie nicht):
- *   * die Ueberschrift der Abweichungsspalte ist das WORT „Abweichung" statt
- *     `<FiAlertTriangle>` (`deviceColumns.tsx:25`), und die Zelle traegt ein
- *     `Tag color="warning"` statt eines eingefaerbten Zeichens — `color="#d48806"` waere
- *     ausserdem der zweite Hexsatz, den NS-A8b verbietet;
- *   * „Ausleihbar" und „Alamos" zeigen ein „Ja" statt `<FiCheck>` (`:32-33`). Der leere Fall
- *     bleibt LEER, genau wie im Bestand (`null`), nicht „Nein".
- * ⛔ Das ETIKETT der Abweichungsspalte bleibt dagegen zeichengleich „⚠ Abweichung"
- * (`deviceColumns.tsx:25`) — es ist ein Schriftzeichen in einer Zeichenkette, kein Import
- * aus einem Zeichenpaket, und damit weder Falle 7 noch NS-A8b.
+ * ⚠️ DIE ABWEICHUNGS-MARKE TRAEGT SEIT DEM 2026-08-28 IHR WARNDREIECK (1:1
+ * `DeviceList.tsx:221`, `FiAlertTriangle` im `Tag`) — aus `_ui/verwaltungIkonen.tsx`, der
+ * Zeichenquelle des VERWALTUNGSzweigs; `_ui/ikonen.tsx` bleibt die der Ausleihflaeche. ⛔ Der
+ * Ton bleibt `Tag color="warning"` und wird NICHT als Farbe ans Zeichen geschrieben:
+ * `color="#d48806"` waere der zweite Hexsatz, den NS-A8b verbietet.
+ *
+ * ⚠️ EINE BENANNTE ABWEICHUNG BLEIBT: „Ausleihbar" und „Alamos" zeigen ein „Ja" statt
+ * `<FiCheck>` (`deviceColumns.tsx:32-33`) — ein Haken IN einer Datenzelle ist kein Knopfzeichen,
+ * und der leere Fall bleibt LEER wie im Bestand (`null`), nicht „Nein".
+ * ⛔ Das ETIKETT der Abweichungsspalte bleibt zeichengleich „⚠ Abweichung"
+ * (`deviceColumns.tsx:25`) — es ist ein Schriftzeichen in einer Zeichenkette und geht durch
+ * die Spaltenwahl, wo ein Bauteil nichts zu suchen hat.
  */
 export const COLUMN_DEFS: SpaltenDef[] = [
   {
@@ -151,7 +152,11 @@ export const COLUMN_DEFS: SpaltenDef[] = [
       key: "hatAbweichung",
       align: "center",
       render: (_: unknown, d: GeraetZeile) =>
-        d.hatAbweichung ? <Tag color="warning">Abweichung</Tag> : null,
+        d.hatAbweichung ? (
+          <Tag color="warning" icon={<VIkone name="warnung" />}>
+            Abweichung
+          </Tag>
+        ) : null,
     },
   },
   { schluessel: "hersteller", etikett: "Hersteller", spalte: { title: "Hersteller", dataIndex: "hersteller", key: "hersteller", render: text } },
@@ -362,6 +367,9 @@ function Blaetterung({
         (`CLAUDE.md`), und ein handzurueckgesetzter Knopf braeuchte ein `background`, das
         `_ui/verwaltung-css.test.ts:158-165` zu Recht als verdrahteten Flaechenwert meldet
         (gemessen: `background: none` faerbte den Waechter rot). ⛔ OHNE `size` — Falle 4.
+        ⚠️ UND OHNE ZEICHEN, ANDERS ALS DIE UEBRIGEN KNOEPFE DIESER FLAECHE: die Blaetterung
+        braucht ZWEI Pfeile, und `_ui/verwaltungIkonen.tsx` fuehrt heute nur `pfeil-links`.
+        Ein Pfeil an „Zurück" neben einem nackten „Weiter" waere schiefer als keiner.
       */}
       <Button
         data-rolle="radio-blaettern-zurueck"
@@ -530,8 +538,12 @@ export function GeraeteTabelle({
                 )}
                 <div className={s.mobilMarken}>
                   {zeile.lagerort && <Tag>{zeile.lagerort}</Tag>}
-                  {/* Die Marke „Abweichung" 1:1 aus `DeviceList.tsx:220-224`, ohne Zeichen (E-V7). */}
-                  {zeile.hatAbweichung && <Tag color="warning">Abweichung</Tag>}
+                  {/* Die Marke „Abweichung" 1:1 aus `DeviceList.tsx:220-224`, mit Warndreieck. */}
+                  {zeile.hatAbweichung && (
+                    <Tag color="warning" icon={<VIkone name="warnung" />}>
+                      Abweichung
+                    </Tag>
+                  )}
                 </div>
               </Card>
             </List.Item>
