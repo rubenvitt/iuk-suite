@@ -545,10 +545,30 @@ Service heißt **`suite`** (`compose.yaml:2`); es gibt in dieser Datei keinen Se
 
   ```bash
   rtk pnpm vitest run scripts/compose-radio-redirect.test.ts     # Erwartung: 7 grün
-  docker compose config | grep -A2 radio-admin-alt
+  AUTH_SECRET=x docker compose config | grep -A2 radio-admin-alt
+  # ⚠️ `AUTH_SECRET=x` davor, weil `compose.yaml:81` die einzige `:?`-Zeile der Datei ist
+  # und `docker compose config` sonst abbricht, bevor es irgendetwas ausgibt.
+  #
   # Erwartung: die Regel steht mit der Vorbelegung `Host(`radio-admin.invalid`)` da,
-  # und `replacement` endet auf `/admin/${1}` — mit EINEM Dollarzeichen, weil Compose
-  # das doppelte hier aufloest. Steht dort `/admin/` ohne `${1}`, ist das `$$` verloren.
+  # und `replacement` endet auf `/admin/$${1}` — mit ZWEI Dollarzeichen.
+  #
+  # ⛔ KORRIGIERT AM 2026-08-28 (L5), GEMESSEN AUF DOCKER COMPOSE v5.1.2. Diese Zeile
+  #   verlangte vorher EIN Dollarzeichen. Das ist falsch und haette am Cutover-Abend
+  #   einen FALSCHEN ABBRUCH ueber einer richtigen Konfiguration ausgeloest: Compose
+  #   loest `$${1}` intern zwar auf, RE-ESCAPET den Wert aber beim Serialisieren, damit
+  #   seine Ausgabe selbst wieder eine gueltige Compose-Datei ist — in `config` wie in
+  #   `config --format json`. Gegenprobe im selben Lauf: ein `${FOO:-vorbelegt}` wird zu
+  #   `vorbelegt` aufgeloest, die Interpolation laeuft also.
+  #
+  # Was Traefik wirklich sieht, ist der Wert AM CONTAINER, und der ist einfach:
+  docker inspect "$(docker compose ps -q suite)" \
+    --format '{{ index .Config.Labels "traefik.http.middlewares.radio-admin-alt-redirect.redirectregex.replacement" }}'
+  # Erwartung: https://radio.iuk-ue.de/admin/${1}   — hier EIN Dollarzeichen.
+  #
+  # Der stille Fehlfall (ein einfaches `$` in der compose.yaml) ist auf v5.1.2 uebrigens
+  # nicht mehr still: `docker compose config` bricht mit „invalid interpolation format"
+  # ab. Auf aelteren Fassungen verschluckte Compose das `$`. Der Regressionstest
+  # `scripts/compose-radio-redirect.test.ts` deckt beide Faelle ab.
   ```
 
   ⚠️ Diese Ausgabe **gehört ins Protokoll des Rollouts** — sie ist die Vorlage, gegen die §C
