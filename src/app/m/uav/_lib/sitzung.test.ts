@@ -39,6 +39,9 @@ describe("Teilnehmer-Session", () => {
     const roh = sessionErzeugen(db, "p1");
     db.update(participants).set({ aktiv: 0 }).run();
     expect(sessionValidieren(db, roh)).toBeNull();
+    // Kollisionsfall: eine AKTIVE Teilnehmer-ID gleich der Admin-subjectId — ohne den
+    // kind-Guard würde die Admin-Session sonst fälschlich als Teilnehmer durchgehen.
+    db.insert(participants).values({ id: "x", name: "Kollision", loginCode: "ZZZZZZZZ", aktiv: 1, createdAt: "2026-01-01T00:00:00.000Z" }).run();
     db.insert(sessions).values({ token: tokenHash("adm"), kind: "admin", subjectId: "x", createdAt: "2026-01-01T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z" }).run();
     expect(sessionValidieren(db, "adm")).toBeNull();
   });
