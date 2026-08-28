@@ -8,7 +8,9 @@
 > C1–C41 Cutover) und **6** aus Planteil 1 zum Bau von **Spec 1** (**M1–M6**), geschrieben seit dem
 > 2026-08-21 und **gebaut** — sie heben Zaesur 1 fuer B5–B17. Die M-Aufgaben stehen unten **an ihrem
 > Platz in der Reihenfolge** — zwischen B4 und B5, denn genau dort liegt die Naht.
-> **23 von 64 Aufgaben sind erledigt** (B1–B17, M1–M6) — **der ganze Bauweg steht, Plan 1 ist abgeschlossen und schlussgeprueft.**
+> **64 von 64 Aufgaben sind erledigt** (B1–B17, M1–M6, C1–C41) — **beide Straenge stehen: der
+> Bauweg und der Cutover-Weg.** Was bleibt, ist keine Aufgabe mehr, sondern die **Zaesur** darunter
+> (Betreiberfragen, Server-Ablesungen) und der **Abend selbst**.
 
 **Stand 2026-08-21.** Grundlage: `docs/superpowers/specs/2026-08-18-radio-cutover-design.md`
 (Spec 2 — Import · Paritaet · Generalprobe · Cutover · Abbau) und
@@ -29,8 +31,12 @@
    **0 kritische Funde**, **118 Tests gruen** (`rtk pnpm vitest run scripts/import/
    src/app/m/radio/`, Exit 0). ⬜ **L6 ist geschlossen**, byteweise abgelesen und in einem
    **verfolgten** Artefakt festgehalten (`../berichte/2026-08-21-radio-import-abnahme.md`).
-   **Die naechste ausfuehrbare Aufgabe ist C1** — und sie beginnt eine andere Art Arbeit: ab hier
-   entsteht kein Code mehr, sondern **ein Dokument**, `docs/runbooks/radio-cutover.md`.
+   **Der Cutover-Weg ist seit dem 2026-08-28 ebenfalls fertig.** C1–C40 haben
+   `docs/runbooks/radio-cutover.md` geschrieben (6676 Zeilen, 26 Abschnitte, Commit `58ee49ef`);
+   die zwei Aufgaben mit einem Ergebnis **ausserhalb** des Runbooks sind **C2** (die sechs
+   Redirect-Labels in `compose.yaml` samt Regressionstest, `0fc85370`) und **C41** (der datierte
+   Nachtrag in Spec 2, `d8fe3bd`). **Es gibt keine naechste ausfuehrbare Aufgabe mehr** — der
+   naechste Schritt ist die Zaesur unten und dann die Generalprobe.
    ⛔ **Vier Nachtraege (NT8–NT11) binden diesen Weg** — drei davon treffen Runbook-Schritte, die
    sonst am Cutover-Abend scheitern wuerden.
 5. **Die eiserne Regel dieses Wegs:** wo ein Wert erst der Bau oder der Server hergibt, steht eine
@@ -268,7 +274,8 @@ kann.
 
 ## Nachtraege — was der Bau an den Dokumenten und am Werkzeug gefunden hat
 
-Elf Funde: drei vom 2026-08-20 (B1–B4), zwei aus dem Abschluss-Review des M1–M6-Laufs
+**Fuenfzehn Funde**, vier davon vom 2026-08-28 aus dem Bau von C41 (**NT12** bis **NT15** — alle
+vier am Cutover-Weg und alle vier still; **NT15 stand im Runbook selbst**). Die elf aelteren: drei vom 2026-08-20 (B1–B4), zwei aus dem Abschluss-Review des M1–M6-Laufs
 (2026-08-21), **zwei aus dem Bau von B5–B13** (NT6 am Bau-Leitplan, NT7 am Werkzeug) und **vier aus
 dem Bau von B14–B17 samt Schlusspruefung** (2026-08-21). ⛔ **NT8, NT9 und NT10 treffen
 Runbook-Schritte, die sonst am Cutover-Abend scheitern wuerden** — sie sind die wichtigsten Zeilen
@@ -288,6 +295,10 @@ gruen und gegengeprueft. Wer sie nicht eintraegt, laeuft beim naechsten Durchgan
 | **NT8** | ⛔ **`sqlite3 -readonly` scheitert gegen eine frisch importierte `radio.db`** — sie liegt im **WAL-Modus** und traegt noch **kein `-shm`**, und ein Readonly-Handle darf das Shared-Memory-File nicht anlegen. Meldung: `Parse error in 3rd command line argument: unable to open database file (14)` — sie sieht wie ein **Importfehler** aus und ist keiner. ⚠️ Die naheliegende Erstdiagnose („das mehrzeilige SQL scheitert, einzeilig laeuft es") ist **gemessen widerlegt**: es scheitert auch einzeilig, auch mit absolutem Pfad, auch ueber `file:?mode=ro`. Der scheinbar funktionierende Einzeiler lief, **nachdem** ein vorheriger Schreibzugriff die `-shm` angelegt hatte. ✅ **Der Importer selbst ist nicht betroffen** (`better-sqlite3` mit `readonly: true` oeffnet eine WAL-DB ohne `-shm`; die Quellseite liegt ohnehin im `delete`-Modus — beides gesondet) | **Cutover-Runbook**: betrifft **C15, C28, C33, C34** — jede Gegenzaehlung und Feldstichprobe gegen das frische Ziel. Der tragende Weg **und seine Begruendung** stehen als fertiges Snippet in `../berichte/2026-08-21-radio-import-abnahme.md`. ⛔ **Dort steht auch die Auflage, `pragma journal_mode` der QUELLE am Freeze-Abend neu zu messen** — die heutige Ablesung (`delete`) ist datiert, und ein Update von `radio-admin` genuegt, um sie umzustossen |
 | **NT9** | ⛔ **Die Paritaet ist gegen einen VERALTETEN Schnappschuss strukturell blind.** Beide Arme von `checkRadioParitaet` stammen aus **demselben**, einmal gelesenen `quelle`-Objekt. Ein Schnappschuss, der zwei Stunden alt, aber in sich konsistent ist, ergibt plausible Zahlen, einen sauberen Import und **gruene** Paritaet. Die **Zaehlzeile** ist die einzige Verteidigung — und sie verteidigt nichts, solange das Runbook keine **Vorabzaehlung aus der laufenden Alt-Anwendung** mitfuehrt, gegen die der Betreiber sie stellt | **Cutover-Runbook**: **C13** (die dreizehn Abfragen vor dem Import) und **C28**. Der Codekommentar sagt es; das Runbook muss es **einloesen** |
 | **NT10** | **`DATA_DIR` vergessen → Import nach `./.data/radio.db`, Paritaet gruen.** Ein stiller Ast, den der Plan woertlich benennt und dem er einen **eigenen Runbook-Schritt** zuweist (Gegenzaehlung gegen die Zieldatei). Ausdruecklich **kein** Fund gegen `radio.ts` | **Cutover-Runbook**: der Gegenzaehlungs-Schritt muss in den Planteilen zu **Kapitel 3 und 4** wirklich stehen |
+| **NT15** | ⛔ **Eine Gegenprobe, die ueber FESTE Zeilennummern in ein Dokument hineinzeigt, haelt keinen Nachtrag aus — und eine davon stand im RUNBOOK.** §I fuhr `sed -n '4784,4876p'` gegen Spec 2, um die 37 Erfuellungspunkte gegenzuzaehlen. C41 hat die Spec um 79 Zeilen verlaengert; **derselbe Befehl liest seitdem 3 statt 37** und erzeugt ein falsches Rot an genau der Pruefung, welche die Vollstaendigkeit der Erfuellungsklammer sichert — am Cutover-Abend, an dem niemand Zeit hat, einem falschen Rot nachzugehen. Vier weitere solche Bereiche standen in den Gegenproben des Planteils zu Kapitel 5 | ✅ **BEHOBEN 2026-08-28**, alle fuenf wortlaut-verankert; Restbestand `sed -n '<zahl>,<zahl>p' docs` in Runbook und Plan 5: **0**. ⚠️ **Der Ersatz-Anker war beim ersten Versuch selbst falsch** und ist nachgemessen worden: die Spec hat **keine** `### Abfrage Z`-Ueberschrift, und der naheliegende Abschnittsanker `/^### 5.2.2 /,/^### 5.2.3 /p` liefert **elf** statt zehn, weil das erste Glied von Abfrage A ebenfalls mit `select '` beginnt. Verbindlich ist der Anker auf die erste Z-Zeile. **Die Lehre gilt ueber diesen Fund hinaus:** ein Anker ist eine Behauptung wie jede andere und wird gemessen, bevor er eingebaut wird |
+| **NT14** | ⚠️ **Derselbe Drift wie NT12, aber am QUELLTEXT — und er ist groesser, aelter und NICHT von C2 verursacht.** `src/core/routing.ts:69` steht in **18** verbindlichen Dokumentstellen (Runbook, Specs, Plaene) und meint ueberall denselben Ausdruck, `const mod = moduleForHost(host) ?? getModule("portal")`. Der steht heute auf **`:79`**; auf `:69` liegt seit dem internen Host-Rewrite ein `if (internal) {`. Die Fassung `:69-73` (der Login-Zweig) ist heute `:81-83`. Ebenso `src/core/registry.ts:225` fuer `moduleForHost` in **11** verbindlichen Stellen — richtig ist **`:251-257`**. Stichprobe ueber acht Fundstellen: alle meinen denselben Ausdruck, der Versatz ist systematisch. Dazu je fuenf bzw. sechs Vorkommen in `berichte/` und `-teile/`, die als datierte Momentaufnahmen **bleiben sollen** | ⛔ **Gemeldet, NICHT behoben — und das ist eine Entscheidung, keine Unfertigkeit.** Ein pauschales Ersetzen ueber 29 Stellen waere genau der Fehler, gegen den dieser Weg gebaut ist: `2026-07-30-files-modul-design.md:478` zitiert `routing.ts:69` in einem anderen Zusammenhang (Routing **und** Login-Allowlist), und ob jede Stelle den Ausdruck oder den Block meint, entscheidet sich am Wortlaut, nicht am Muster. **Braucht einen eigenen Durchgang mit Einzelpruefung.** Bis dahin gilt die Hausregel des Kopfes verschaerft: **ueber den Wortlaut suchen, nicht ueber die Nummer** — und zwar jetzt auch in Specs und Runbook, nicht nur in Leitplaenen und Berichten |
+| **NT12** | ⛔ **C2 hat jeden `compose.yaml`-Zeilenverweis dieses Wegs verschoben — und der bekannteste zeigt jetzt auf etwas Falsches, statt ins Leere.** Die sechs Redirect-Labels (`0fc85370`) fuegen **31 Zeilen nach `compose.yaml:155`** ein; jeder Verweis auf eine Zeile **ab `:156`** ist seitdem um **+31** daneben. Der am haeufigsten zitierte ist `:221-223`, die Deklaration des benannten Volumes `suite_data` — sie liegt heute auf **`:252-254`**, und unter `:221-223` steht ein `files_data:/data/files:ro`-Mount am clamd-Dienst. ⚠️ **Das ist die stille Sorte:** wer am Cutover-Abend nachschlaegt, findet dort eine gueltig aussehende Zeile ueber ein anderes Volume — kein Fehler, keine Meldung, nur eine falsche Auskunft an der Stelle, die begruendet, **warum** der Zielarm im Container gelesen wird. Unveraendert richtig bleiben `:79`, `:99` und `:155`; sie liegen vor dem Einfuegepunkt | **Spec 2** ist am 2026-08-28 fuer **Kapitel 5** nachgezogen (`d8fe3bd`, als dritter datierter Nachtrag an Abfrage A festgehalten). ⛔ **Offen: die uebrigen Verweise in Spec 2 (Kapitel 1–4), im Runbook und in den Plaenen** — ein reiner Zeilennachzug ohne fachliche Entscheidung, aber abend-anhaltend |
+| **NT13** | **Spec 2 traegt NT8 an drei Stellen ausserhalb Kapitel 5 noch nicht nach — und an einer vierten das Gegenteil.** NT8 (2026-08-21) hat gemessen, dass `sqlite3 -readonly` gegen eine frisch importierte `radio.db` scheitert; das Runbook liest die Zieldatenbank deshalb an **dreizehn** Stellen ohne. In Spec 2 stehen weiterhin: **§1.8** (`:1516`) fuehrt `sqlite3 -readonly "$DATA_DIR/radio.db"` als **gueltigen** Weg der Generalprobe, und **Kapitel 4** liest dreimal `sqlite3 -readonly /data/radio.db` in der Containerform. ⚠️ **Umgekehrt beim Quellarm:** das Runbook liest die Snapshot-Kopie an fuenf Stellen **mit** `-readonly`, Spec 2 Kapitel 5 an sieben **ohne** — hier ist die Spec die laxere. **Bewusst nicht eigenmaechtig geheilt:** `-readonly` an der Quelle haengt am Zweig `pragma journal_mode` (§L.1 des Runbooks: `delete` → bleibt, `wal` → faellt weg), und diesen Verzweigungsapparat hat die Spec nicht | **Spec 2, Kapitel 1 und 4** — nicht der Planteil zu Kapitel 5, der sie am 2026-08-28 gefunden hat (C41 hat nur die zwei Stellen in **seinem** Bereich gezogen: Abfrage R und Z). ⚠️ **NT8 nennt als Wirkort bisher nur C15, C28, C33, C34** — also Runbook-Aufgaben; **dass auch die SPEC die widerlegte Form weitertraegt, war bis heute nirgends verzeichnet**. ✅ **Die URSACHE der Kapitel-4-Haelfte ist am 2026-08-28 gefunden und behoben:** **Zusage 4** des Planteils zu Kapitel 5 („Was dieser Teil anderen Planteilen zusagt") schrieb die Zielarm-Form **mit** `-readonly` vor — und Zusagen sind laut derselben Ueberschrift **zeichengleich** zu benutzen. Die drei Spec-Stellen in §4.5 sind also **diese Zeile**, kein eigener Fehler jenes Planteils. Die Zusage traegt jetzt die NT8-Form; **die drei Spec-Stellen und §1.8 sind nachzuziehen** |
 | **NT11** | **Ein geparkter Waechter, faellig mit Kapitel 3:** `scripts/import/radio-paritaet.test.ts:140` prueft `toBeGreaterThanOrEqual(SICHTEN.length)` — also **≥ 5**, nicht **= 6**. Zoege jemand `zugangscodes` in eine eigene Schemadatei, fiele die Zahl auf 5, **der Waechter bliebe gruen, und die Tabelle waere wieder unbewacht** — dieselbe Fehlerklasse, die der Schlussfix gerade geschlossen hat. Abhilfe ist ein Einzeiler (`toBe(6)`) | **Bauweg Spec 1, Planteil zu Kapitel 3** — dort wird `zugangscodes` gebaut, das ist der natuerliche Ort. Kein Merge-Blocker |
 
 ### ⚠️ Und ein Fund am Repo, der jedes Tor dieses Wegs betrifft
@@ -301,16 +312,33 @@ Dateien**, also einer **mehr**. Die Fehlschlaege sind von dieser Arbeit unabhaen
 jsdom. Ein Verdacht, **nicht geprueft**: `pnpm-lock.yaml` fuehrt `vitest@4.1.10`, die Plaene haben
 gegen `4.1.5` gemessen.
 
+> ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen — `441 passed (441)`
+> Testdateien, `7991 passed (7991)` Tests, Exit 0. Die Ursache der 170 war die, die der
+> Absatz oben als Leitbild nennt: Node 26 bringt ein eigenes `localStorage` mit, das jsdoms
+> verdeckt. Gerichtet auf `main` in `d085057` und `40981bc`. Messung und Randbedingungen:
+> `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
 **Zwei Folgen:**
 
 * **Das Tor „voller `vitest run` gruen" ist heute nicht erreichbar.** Bis das gerichtet ist, gilt als
   Tor: `typecheck` **0 Fehler** · `lint` **0 Fehler** · **die eigenen Testdateien gruen** · **kein
   neuer Fehlschlag** in einer unberuehrten Datei. Der Streitfall wird mit der
   **Beiseitelege-Gegenprobe** entschieden, nicht mit dem Zaehlwert.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Das Tor „voller `vitest run` gruen" ist wieder erreichbar
+  > (441/441 Testdateien, 7991/7991 Tests, Exit 0). Die Ersatzformel (typecheck 0 · lint 0 ·
+  > eigene Dateien gruen · kein neuer Fremdfehlschlag) bleibt gueltig und ist die schaerfere
+  > Lesart — sie ist ab jetzt nur nicht mehr die einzig moegliche. Beleg:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
 * ⛔ **§3.6 Nr. 1 verlangt drei gruene Tests vor der ersten Generalprobe.** Solange die Suite so
   bleibt, kann **keine** radio-Aufgabe ihr Tor plankonform gruen melden. Die 170 zu richten ist ein
   **eigener Auftrag** an `m/feedback` und `m/files` plus die vitest-Frage — er ist **vor dem
   Cutover** faellig und steht in keinem der fuenf Plaene.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen, §3.6 Nr. 1 ist damit nicht
+  > mehr durch eine rote Suite blockiert, und der Auftrag „die 170 richten" ist erledigt. Beleg:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
 
 ### ⛔ Und ein zweiter Fund am Werkzeug, der jedes Tor UNSICHTBAR gruen macht (2026-08-21)
 
@@ -396,87 +424,99 @@ Fuehrt `2026-08-18-radio-cutover-leitplan.md` — dort stehen die Nahtstellen NS
 Aenderungstabelle. Die §-Marken sind die **nach NS2 verbindlichen**, nicht durchgehend die der
 Teiltexte.
 
-- [ ] **C1** Runbook anlegen: Kopf, ⚠️-Kopfabschnitt, §0, Abschnittsanker  
+✅ **Alle 41 Haekchen sind am 2026-08-28 gesetzt worden, und sie stuetzen sich auf zwei Messungen,
+nicht auf eine Erinnerung:** `.superpowers/sdd/runbook/K-vollstaendigkeit.md` hat das fertige
+Runbook gegen die Aufgabenliste gehalten und **41/41 abgebildet** gezaehlt, bei **0** Abweichungen
+in allen neun nachgefahrenen Gegenlesungsbloecken; ihre zwei Zeilen „C-Deliverables ausserhalb des
+Runbooks nicht ausgefuehrt" nennen genau **C2** und **C41**, und beide sind seither gebaut
+(`0fc85370`, `d8fe3bd`). ⚠️ **„Abgebildet" ist Abdeckung, nicht Fehlerfreiheit** — die vier
+abend-anhaltenden Funde derselben Kritik (F1–F4) sind eingearbeitet, die zwei grep-baren davon vor
+dem Setzen der Haekchen gegengeprueft: `IMG=` steht jetzt auch im Fenster
+(`radio-cutover.md:4444`, per `docker inspect` statt als Abschrift), und die Zeile
+`existierte vor diesem Start nicht` ist aus der WARN-Liste heraus und traegt einen eigenen,
+ankergestuetzten Stopp (`:4404`, `# MUSS 0 sein`).
+
+- [x] **C1** Runbook anlegen: Kopf, ⚠️-Kopfabschnitt, §0, Abschnittsanker  
       `2026-08-18-plan4-radio-cutover.md:166` — Aufgabe 1
-- [ ] **C2** `compose.yaml`: sechs Redirect-Labels des Alt-Hosts + Regressionstest  
+- [x] **C2** `compose.yaml`: sechs Redirect-Labels des Alt-Hosts + Regressionstest  
       `2026-08-18-plan4-radio-cutover.md:347`
-- [ ] **C3** `.env.example`: `radio`-Block, Prod-Domain-Zeile, Rollback-Handgriff  
+- [x] **C3** `.env.example`: `radio`-Block, Prod-Domain-Zeile, Rollback-Handgriff  
       `2026-08-18-plan4-radio-cutover.md:565`
-- [ ] **C4** §L — der Leseapparat auf beiden Armen, mit lauf-abhängiger Lesart  
+- [x] **C4** §L — der Leseapparat auf beiden Armen, mit lauf-abhängiger Lesart  
       `2026-08-18-plan2-radio-paritaet.md:679`
-- [ ] **C5** §V — die dreizehn Vorabfragen A1–A13 mit Ergebnisspalte  
+- [x] **C5** §V — die dreizehn Vorabfragen A1–A13 mit Ergebnisspalte  
       `2026-08-18-plan2-radio-paritaet.md:883`
-- [ ] **C6** §S.1/§S.2 — Zeilenauswahl und die drei symmetrischen Abfragen  
+- [x] **C6** §S.1/§S.2 — Zeilenauswahl und die drei symmetrischen Abfragen  
       `2026-08-18-plan2-radio-paritaet.md:1280`
-- [ ] **C7** §S.3 — die Zeitstempel-Stichprobe, mit berichtigter Lesart  
+- [x] **C7** §S.3 — die Zeitstempel-Stichprobe, mit berichtigter Lesart  
       `2026-08-18-plan2-radio-paritaet.md:1475`
-- [ ] **C8** §S.4 — `devices.last_updated_at`, der Sonderfall  
+- [x] **C8** §S.4 — `devices.last_updated_at`, der Sonderfall  
       `2026-08-18-plan2-radio-paritaet.md:1661`
-- [ ] **C9** §Z — die Gegenzählungen nach dem Import  
+- [x] **C9** §Z — die Gegenzählungen nach dem Import  
       `2026-08-18-plan2-radio-paritaet.md:1807`
-- [ ] **C10** §P.0 — Eingaben und Ablesungen der Generalprobe  
+- [x] **C10** §P.0 — Eingaben und Ablesungen der Generalprobe  
       `2026-08-18-plan3-radio-generalprobe.md:129` — Aufgabe 1
-- [ ] **C11** §P.1 — Was vor der Generalprobe grün sein muss  
+- [x] **C11** §P.1 — Was vor der Generalprobe grün sein muss  
       `2026-08-18-plan3-radio-generalprobe.md:269` — Aufgabe 2
-- [ ] **C12** §P.2 — Der Schnappschuss der Alt-Datenbank  
+- [x] **C12** §P.2 — Der Schnappschuss der Alt-Datenbank  
       `2026-08-18-plan3-radio-generalprobe.md:405` — Aufgabe 3
-- [ ] **C13** §P.3 — Die dreizehn Abfragen gegen die Kopie, vor dem Import  
+- [x] **C13** §P.3 — Die dreizehn Abfragen gegen die Kopie, vor dem Import  
       `2026-08-18-plan3-radio-generalprobe.md:538` — Aufgabe 4
-- [ ] **C14** §P.4 — Wegwerf-Aufbau und Import  
+- [x] **C14** §P.4 — Wegwerf-Aufbau und Import  
       `2026-08-18-plan3-radio-generalprobe.md:652` — Aufgabe 5
-- [ ] **C15** §P.5 — Die Gegenzählungen im Ziel  
+- [x] **C15** §P.5 — Die Gegenzählungen im Ziel  
       `2026-08-18-plan3-radio-generalprobe.md:872` — Aufgabe 6
-- [ ] **C16** §P.6 — Die fünf Verwechslungspaare, feldweise  
+- [x] **C16** §P.6 — Die fünf Verwechslungspaare, feldweise  
       `2026-08-18-plan3-radio-generalprobe.md:1041` — Aufgabe 7
-- [ ] **C17** §P.7 — Die Gegenprobe gegen den Faktor 1000  
+- [x] **C17** §P.7 — Die Gegenprobe gegen den Faktor 1000  
       `2026-08-18-plan3-radio-generalprobe.md:1245` — Aufgabe 8
-- [ ] **C18** §P.8 — Der ephemere Prüfcontainer  
+- [x] **C18** §P.8 — Der ephemere Prüfcontainer  
       `2026-08-18-plan3-radio-generalprobe.md:1419`
-- [ ] **C19** §P.9 — Der kopfgestützte Prüfsatz (Stufe 1)  
+- [x] **C19** §P.9 — Der kopfgestützte Prüfsatz (Stufe 1)  
       `2026-08-18-plan3-radio-generalprobe.md:1740`
-- [ ] **C20** §P.10 — Der browsergestützte Prüfsatz (Stufe 3)  
+- [x] **C20** §P.10 — Der browsergestützte Prüfsatz (Stufe 3)  
       `2026-08-18-plan3-radio-generalprobe.md:1970`
-- [ ] **C21** §P.11 — Das Log der Probe  
+- [x] **C21** §P.11 — Das Log der Probe  
       `2026-08-18-plan3-radio-generalprobe.md:2146`
-- [ ] **C22** §P.12 — Aufräumen, und die zwei Messungen für das Fenster  
+- [x] **C22** §P.12 — Aufräumen, und die zwei Messungen für das Fenster  
       `2026-08-18-plan3-radio-generalprobe.md:2238`
-- [ ] **C23** §P.13 — Der Abbruchpunkt: was rot macht und was rot bedeutet  
+- [x] **C23** §P.13 — Der Abbruchpunkt: was rot macht und was rot bedeutet  
       `2026-08-18-plan3-radio-generalprobe.md:2348`
-- [ ] **C24** §P.14 — Was am ephemeren Container nicht prüfbar ist  
+- [x] **C24** §P.14 — Was am ephemeren Container nicht prüfbar ist  
       `2026-08-18-plan3-radio-generalprobe.md:2486`
-- [ ] **C25** §A — Was vor dem Fenster fertig sein muss (**vierzehn** Punkte)  
+- [x] **C25** §A — Was vor dem Fenster fertig sein muss (**vierzehn** Punkte)  
       `2026-08-18-plan4-radio-cutover.md:755`
-- [ ] **C26** §B — Die `.env`, mit genau **drei** ⏸-Zeilen  
+- [x] **C26** §B — Die `.env`, mit genau **drei** ⏸-Zeilen  
       `2026-08-18-plan4-radio-cutover.md:972`
-- [ ] **C27** §C Schritt 1–3 — Freeze, echter Snapshot, Volume sichern  
+- [x] **C27** §C Schritt 1–3 — Freeze, echter Snapshot, Volume sichern  
       `2026-08-18-plan4-radio-cutover.md:1200`
-- [ ] **C28** §C Schritt 4–5 — Import, Paritaet, Feldstichproben, Abfrage R und Abfrage Z  
+- [x] **C28** §C Schritt 4–5 — Import, Paritaet, Feldstichproben, Abfrage R und Abfrage Z  
       `2026-08-18-plan4-radio-cutover.md:1400`
-- [ ] **C29** §C Schritt 6–9 — `.env` scharf, `up -d`, Prüfcontainer, Router  
+- [x] **C29** §C Schritt 6–9 — `.env` scharf, `up -d`, Prüfcontainer, Router  
       `2026-08-18-plan4-radio-cutover.md:1718`
-- [ ] **C30** §D + §E — die Abnahme (**sechzehn** Punkte) und der Service Worker  
+- [x] **C30** §D + §E — die Abnahme (**sechzehn** Punkte) und der Service Worker  
       `2026-08-18-plan4-radio-cutover.md:1965`
-- [ ] **C31** §F + §G — Ausstellungsplan und Rückweg  
+- [x] **C31** §F + §G — Ausstellungsplan und Rückweg  
       `2026-08-18-plan4-radio-cutover.md:2271`
-- [ ] **C32** §5.1 — Standby: drei Fristen und das Protokollformular  
+- [x] **C32** §5.1 — Standby: drei Fristen und das Protokollformular  
       `2026-08-18-plan5-radio-abbau.md:151`
-- [ ] **C33** §5.2 — Die Zählungen gegen radio-admin: A, T, R, Z und Abfrage 8  
+- [x] **C33** §5.2 — Die Zählungen gegen radio-admin: A, T, R, Z und Abfrage 8  
       `2026-08-18-plan5-radio-abbau.md:291`
-- [ ] **C34** §5.3 — Die Zählungen gegen radio-inventar: P1 bis P6  
+- [x] **C34** §5.3 — Die Zählungen gegen radio-inventar: P1 bis P6  
       `2026-08-18-plan5-radio-abbau.md:615`
-- [ ] **C35** §5.4 — Die Archivprobe: beide Dateien werden geöffnet  
+- [x] **C35** §5.4 — Die Archivprobe: beide Dateien werden geöffnet  
       `2026-08-18-plan5-radio-abbau.md:834`
-- [ ] **C36** §5.5 — Die Abbauliste und der Sperrenkasten  
+- [x] **C36** §5.5 — Die Abbauliste und der Sperrenkasten  
       `2026-08-18-plan5-radio-abbau.md:933`
-- [ ] **C37** §5.6 — Die Geheimnisse: der Posten, der liegen bleibt  
+- [x] **C37** §5.6 — Die Geheimnisse: der Posten, der liegen bleibt  
       `2026-08-18-plan5-radio-abbau.md:1060`
-- [ ] **C38** §5.7 — Der alte Purge ist kein Cron  
+- [x] **C38** §5.7 — Der alte Purge ist kein Cron  
       `2026-08-18-plan5-radio-abbau.md:1156`
-- [ ] **C39** §5.8 + §5.9 — Der Redirect und sein Ende · was der Abbau nicht anfasst  
+- [x] **C39** §5.8 + §5.9 — Der Redirect und sein Ende · was der Abbau nicht anfasst  
       `2026-08-18-plan5-radio-abbau.md:1325`
-- [ ] **C40** §H — Die Erfüllungspunkte: die Klammer, die um 23 Uhr gelesen wird  
+- [x] **C40** §H — Die Erfüllungspunkte: die Klammer, die um 23 Uhr gelesen wird  
       `2026-08-18-plan5-radio-abbau.md:1470`
-- [ ] **C41** Der datierte Nachtrag in Spec 2 — sieben Stellen und zwei Anhangszeilen  
+- [x] **C41** Der datierte Nachtrag in Spec 2 — sieben Stellen und zwei Anhangszeilen  
       `2026-08-18-plan5-radio-abbau.md:1695`
 
 ---
@@ -495,7 +535,16 @@ Drei Dinge, die aus keinem Plan kommen:
       `docs/superpowers/berichte/2026-08-19-re-kritik-radio-spec2.md`. Sie betreffen die **Spec**,
       nicht die Plaene; **C41** traegt die Nachtraege ein. Der schaerfste ist **RK-A3**: der Rueckweg
       startet den Alt-Kiosk **ohne** `--profile full-app` und laeuft ohne Fehlermeldung ins Leere —
-      in der einen Stunde, in der es keine zweite Gelegenheit gibt
+      in der einen Stunde, in der es keine zweite Gelegenheit gibt.
+      ⚠️ **Haelfte erledigt am 2026-08-28 (`d8fe3bd`), Haelfte offen — und die offene ist die, die
+      am Abend getippt wird.** C41 hat die **Bewertung** nachgezogen: Anhang **A-3** nennt den Fund
+      nicht mehr „harmlos", sondern „teilweise bestaetigt", mit dem Repo-Beleg
+      `radio-inventar@f883ec4:docker-compose.yml:27` (`profiles: ["full-app"]` am `backend`,
+      `postgres` auf `:3` ohne). ⛔ **Der BEFEHL in §4.9 3b traegt das Profil weiterhin nicht** —
+      das ist **Zusage 3** an den Planteil zu Kapitel 4 (Plan 5, „Was dieser Teil anderen
+      Planteilen zusagt"), und dieselbe Zusagenliste fuehrt drei weitere offene: `$VOL_SUITE` im
+      Rueckweg-Nachtrag (**RK-2** in `SPERREN-radio-spec2.md`), §4.5 Schritt 3 „fuenf (P1–P5)"
+      statt sechs, und §4.2 Nr. 3 mit seinem zweiten, nicht ausfuehrbaren Zweig
 
 ---
 
@@ -535,6 +584,7 @@ Basisverzeichnis, wo nicht anders angegeben: `docs/superpowers/plans/`.
 | `berichte/2026-08-19-re-kritik-radio-spec2.md` | 34 Funde an Spec 2, vier blockierend — sie betreffen die Spec, nicht die Plaene |
 | `berichte/2026-08-19-gegenpruefung-radio-plaene.md` | 15 Funde an den Plaenen, alle eingearbeitet |
 | `berichte/2026-08-19-einarbeitung-radio-plaene.md` · `-restarbeiten-radio-plaene.md` | wie sie eingearbeitet und nachgemessen wurden |
+| `berichte/2026-08-21-vitest-basislinie.md` | die neu gemessene Grundlinie der vollen Testsuite (441/441 Testdateien, 7991/7991 Tests, Exit 0) — hebt die 170-Fehlschlaege-Randbedingung weiter unten in diesem Dokument auf |
 
 ## Ausfuehrungsart
 

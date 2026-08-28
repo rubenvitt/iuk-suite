@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { theme as antdTheme } from "antd";
-import { ARBEITSDICHTE, buildTheme, type ThemeMode } from "@/core/theme/theme";
+import { createElement } from "react";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { ConfigProvider, theme as antdTheme } from "antd";
+import { ARBEITSDICHTE, SCHREIBTISCHDICHTE, buildTheme, type ThemeMode } from "@/core/theme/theme";
 import { FARBEN, SPACE, TAP, TAP_XL } from "@/core/theme/tokens";
 
 const MODES: ThemeMode[] = ["light", "dark"];
@@ -121,5 +124,130 @@ describe("ARBEITSDICHTE", () => {
     const t = buildTheme("light");
     expect(t.token?.controlHeight).toBe(56);
     expect(t.token?.controlHeightLG).toBe(72);
+  });
+});
+
+describe("SCHREIBTISCHDICHTE", () => {
+  it("setzt genau die zwei Größen und erbt alles andere", () => {
+    /*
+     * DIE DRITTE DICHTE, und die einzige, die unter 44 geht — Betreiberentscheidung
+     * vom 2026-08-28 für den Verwaltungszweig von `radio`. 32/40 ist antds eigene
+     * Vorgabe und das Maß der Alt-Anwendung, nicht eine vierte Skala.
+     *
+     * `components` ist HIER LEER, und das ist die Zusicherung dieses Falls: die
+     * Dichte wird INNERHALB von `ARBEITSDICHTE` gesetzt (`RadioVerwaltungsRahmen`
+     * wickelt `{children}` in `<Schreibtischdichte>`, innerhalb von `Shell`), und
+     * antd mischt `components` eine Ebene tief (`useTheme.js:44-53`).
+     * `Radio: { radioSize: 16, dotSize: 8 }` kommt damit von auszen. Wiederholte
+     * man es, liefe die Kopie beim nächsten Themewechsel still auseinander — genau
+     * derselbe Grund wie eine Ebene höher.
+     */
+    expect(SCHREIBTISCHDICHTE.token).toEqual({ controlHeight: 32, controlHeightLG: 40 });
+    expect(SCHREIBTISCHDICHTE.components, "Radio wird geerbt, nie wiederholt").toBeUndefined();
+    expect(SCHREIBTISCHDICHTE.algorithm, "algorithm wird geerbt, nie wiederholt").toBeUndefined();
+    expect(
+      SCHREIBTISCHDICHTE.token?.colorPrimary,
+      "Farben werden geerbt, nie wiederholt",
+    ).toBeUndefined();
+  });
+
+  it("trägt einen ausdrücklichen cssVar-Schlüssel", () => {
+    // Ohne ihn erzeugt antd über `useId` einen generierten Schlüssel und warnt in
+    // der Entwicklung davor (useTheme.js:19). `iuk` für die Suite, `iuk-arbeit` für
+    // die zweite, `iuk-schreibtisch` für die dritte Dichte — im Inspektor
+    // auseinanderzuhalten ist der halbe Zweck.
+    expect(SCHREIBTISCHDICHTE.cssVar).toEqual({ key: "iuk-schreibtisch" });
+  });
+
+  it("lässt die beiden anderen Dichten unverändert", () => {
+    /*
+     * Was sich geändert hat, ist allein die REICHWEITE — wie schon bei
+     * `ARBEITSDICHTE`. Das Handschuh-Maß bleibt die Vorgabe der Suite, und 44/48
+     * bleibt der Boden jeder `FullShell`-Fläche, die diese Dichte NICHT anlegt.
+     * Ohne diesen Fall wäre „nur wo ein Modul sie ausdrücklich anlegt" eine
+     * Behauptung im Kommentar statt einer Zusicherung.
+     */
+    const t = buildTheme("light");
+    expect(t.token?.controlHeight).toBe(56);
+    expect(t.token?.controlHeightLG).toBe(72);
+    expect(ARBEITSDICHTE.token).toEqual({ controlHeight: 44, controlHeightLG: 48 });
+  });
+});
+
+/**
+ * DIE VERSCHACHTELUNG, AUSGEFUEHRT STATT GELESEN.
+ *
+ * `SCHREIBTISCHDICHTE` steht INNERHALB von `ARBEITSDICHTE` (`RadioVerwaltungsRahmen`
+ * wickelt `{children}` in `<Schreibtischdichte>`, innerhalb von `Shell`). Die ganze
+ * Aufgabe haengt an einem Satz, den vier Kommentare aus
+ * `antd/es/config-provider/hooks/useTheme.js:44-53` ABLESEN: „der innere Provider gewinnt
+ * bei `token`, alles Uebrige wird geerbt".
+ *
+ * ⛔ EIN GELESENER SATZ IST KEINE MESSUNG. Mischte antd `token` durch ERSETZUNG statt
+ * durch Spread, waere die Dichte ein stiller Leerlauf — `typecheck`, `lint`, `build` und
+ * jeder Wertetest oben blieben gruen, und auf dem Bildschirm stuende weiter 44. Genau
+ * dafuer gibt es diesen Fall: er rendert die Schachtelung wirklich und liest den
+ * abgeleiteten Token aus `useToken()`.
+ *
+ * ⛔ UND ER UNTERSCHEIDET WIRKLICH — gegengeprobt am 2026-08-28 mit einer Wegwerf-Datei,
+ * beide Male GRUEN: dieselbe Sonde meldet **44**, wenn man die zwei Dichten VERTAUSCHT,
+ * und ebenso 44, wenn man die innerste ganz weglaesst. Die 32 unten kommt also aus der
+ * Schachtelung und nicht daher, dass die Sonde irgendetwas ablaese.
+ *
+ * ⚠️ WAS ER NICHT MESSEN KANN: die Radio-Marke. `useToken()` gibt die GLOBALEN Tokens,
+ * nicht die je Komponente; `radioSize` liegt unter `components.Radio` und ist von hier aus
+ * unsichtbar. Die Erbung folgt derselben Mischung, die dieser Fall an `colorPrimary`
+ * belegt — `SCHREIBTISCHDICHTE` fuehrt gar keinen `components`-Block, es gibt also nichts
+ * zu ueberschreiben. Die gerenderte Geometrie bleibt der Browserlauf; jsdom rechnet keine
+ * Hoehen (Hauslehre „UI-Abnahme: messen, nicht schauen").
+ */
+describe("ARBEITSDICHTE + SCHREIBTISCHDICHTE verschachtelt", () => {
+  it("der innere Provider gewinnt bei den Groessen und erbt den Rest", async () => {
+    const gelesen: { controlHeight: number; controlHeightLG: number; colorPrimary: string }[] = [];
+
+    function Sonde() {
+      const { token } = antdTheme.useToken();
+      gelesen.push({
+        controlHeight: token.controlHeight,
+        controlHeightLG: token.controlHeightLG,
+        colorPrimary: token.colorPrimary,
+      });
+      return null;
+    }
+
+    const traeger = document.createElement("div");
+    document.body.append(traeger);
+    const wurzel = createRoot(traeger);
+    await act(async () => {
+      wurzel.render(
+        createElement(
+          ConfigProvider,
+          { theme: buildTheme("light") },
+          createElement(
+            ConfigProvider,
+            { theme: ARBEITSDICHTE },
+            createElement(
+              ConfigProvider,
+              { theme: SCHREIBTISCHDICHTE },
+              createElement(Sonde, null),
+            ),
+          ),
+        ),
+      );
+    });
+
+    const token = gelesen.at(-1);
+    expect(token, "die Sonde hat nie gerendert — der Fall waere leer-gruen").toBeDefined();
+    expect(token!.controlHeight, "die innerste Dichte setzt sich NICHT durch").toBe(32);
+    expect(token!.controlHeightLG).toBe(40);
+    expect(
+      token!.colorPrimary.toLowerCase(),
+      "Suite-Rot kommt durch beide Schachteln nicht durch",
+    ).toBe(FARBEN.rot);
+
+    await act(async () => {
+      wurzel.unmount();
+    });
+    traeger.remove();
   });
 });

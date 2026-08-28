@@ -7,6 +7,37 @@ import { lagerortOptionen, bzGeraeteUebersicht, bzGeraetDetail, bzGeraetByBarcod
 import { BZ_LOGBUCH_GRENZE } from "../grenzen";
 import { akkuLebensdauer } from "../domain/bz";
 
+/**
+ * ⏱ WARUM DIE VIER FIXTURE-SCHLEIFEN DIESER DATEI IN EINER TRANSAKTION LAUFEN.
+ *
+ * `migrierteTestDb` gibt eine DATEI-Datenbank ohne WAL zurueck (`_db/testdb.ts`
+ * setzt `journal_mode` nicht, es gilt also `delete`). Jedes `.run()` ausserhalb
+ * einer Transaktion ist damit ein eigener Commit: Journaldatei anlegen,
+ * schreiben, fsync, entfernen. Auf einer schnellen Platte kostet das nichts, auf
+ * dem CI-Runner alles.
+ *
+ * GEMESSEN (PR #80, Lauf 33090214227, `ubuntu-24.04`):
+ *   – diese Datei lokal 338 ms, in der CI 16 035 ms — Faktor 47
+ *   – die ganze Suite lokal 170 s, in der CI 686 s — Faktor 4
+ * Der CI-Runner ist also nicht gleichmaessig langsamer. Dateien, die je Test
+ * eine Datei-SQLite anlegen und pro Anweisung committen, liegen bei Faktor
+ * 30–125; reine Rechen- und jsdom-Dateien bei 1,5–7. Der Verstaerker ist die
+ * COMMIT-ZAHL, nicht die Anweisungszahl.
+ *
+ * `liefert mehrVorhanden bei BZ_LOGBUCH_GRENZE + 1` bestand aus exakt 100
+ * Einzel-Commits und einem SELECT und lief in der CI in `Test timed out in
+ * 5000ms` — also ueber 50 ms je Commit. Lokal brauchte derselbe Fall 52 ms unter
+ * voller Suitenlast, 64 ms einzeln und 40 ms einzeln auf `main` (eigener
+ * Worktree; die Datei war dort byte-identisch). Der Zweig hat also nichts
+ * verschoben. Die Laufzeit war nicht sachlich begruendet, sondern verschwendet;
+ * die Transaktion macht aus 100 Commits einen — gemessen 64 ms → 9 ms.
+ *
+ * ⚠️ Am Verhalten aendert das NICHTS: better-sqlite3 ist synchron, die Zeilen
+ * sind nach dem Rueckkehren der Transaktion sichtbar, und die Trigger aus
+ * `0002_bz_kontrollen_append_only.sql` feuern innerhalb der Transaktion
+ * unveraendert. Wer hier eine Schleife ergaenzt, nimmt sie mit hinein.
+ */
+
 const NOW = new Date("2026-06-15T10:00:00Z");
 const vorTagen = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 let t: TestDb;
@@ -181,26 +212,29 @@ describe("bzGeraetDetail — refSnapshot wird SICHTBAR (§5.11)", () => {
      * 99 neuen Zeilen teilen sich absichtlich denselben Zeitstempel, damit der
      * zweite Sortierschluessel `id DESC` beobachtbar wird.
      */
-    for (let i = 0; i < BZ_LOGBUCH_GRENZE - 1; i++) {
-      t.db.insert(bzKontrollen).values({
-        id: `detail-${String(i).padStart(3, "0")}`,
-        geraetId: "bz-1",
-        ts: vorTagen(1),
-        quelleTyp: "system",
-        quelleId: "s",
-        level1Wert: null,
-        level1ImBereich: null,
-        level2Wert: null,
-        level2ImBereich: null,
-        kompresseVerfall: null,
-        sticks: 0,
-        lanzetten: 0,
-        batterieGewechselt: false,
-        kommentar: null,
-        bestanden: true,
-        refSnapshot: null,
-      }).run();
-    }
+    // EIN COMMIT STATT 99 — siehe den Block am Kopf dieser Datei.
+    t.db.transaction((tx) => {
+      for (let i = 0; i < BZ_LOGBUCH_GRENZE - 1; i++) {
+        tx.insert(bzKontrollen).values({
+          id: `detail-${String(i).padStart(3, "0")}`,
+          geraetId: "bz-1",
+          ts: vorTagen(1),
+          quelleTyp: "system",
+          quelleId: "s",
+          level1Wert: null,
+          level1ImBereich: null,
+          level2Wert: null,
+          level2ImBereich: null,
+          kompresseVerfall: null,
+          sticks: 0,
+          lanzetten: 0,
+          batterieGewechselt: false,
+          kommentar: null,
+          bestanden: true,
+          refSnapshot: null,
+        }).run();
+      }
+    });
 
     const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
     expect(d.logbuch).toHaveLength(BZ_LOGBUCH_GRENZE);
@@ -216,26 +250,29 @@ describe("bzGeraetDetail — refSnapshot wird SICHTBAR (§5.11)", () => {
   });
 
   it("meldet bei exakt 100 Detailzeilen keinen abgeschnittenen Rest", () => {
-    for (let i = 0; i < BZ_LOGBUCH_GRENZE - 2; i++) {
-      t.db.insert(bzKontrollen).values({
-        id: `exakt-${String(i).padStart(3, "0")}`,
-        geraetId: "bz-1",
-        ts: vorTagen(1),
-        quelleTyp: "system",
-        quelleId: "s",
-        level1Wert: null,
-        level1ImBereich: null,
-        level2Wert: null,
-        level2ImBereich: null,
-        kompresseVerfall: null,
-        sticks: 0,
-        lanzetten: 0,
-        batterieGewechselt: false,
-        kommentar: null,
-        bestanden: true,
-        refSnapshot: null,
-      }).run();
-    }
+    // EIN COMMIT STATT 98 — siehe den Block am Kopf dieser Datei.
+    t.db.transaction((tx) => {
+      for (let i = 0; i < BZ_LOGBUCH_GRENZE - 2; i++) {
+        tx.insert(bzKontrollen).values({
+          id: `exakt-${String(i).padStart(3, "0")}`,
+          geraetId: "bz-1",
+          ts: vorTagen(1),
+          quelleTyp: "system",
+          quelleId: "s",
+          level1Wert: null,
+          level1ImBereich: null,
+          level2Wert: null,
+          level2ImBereich: null,
+          kompresseVerfall: null,
+          sticks: 0,
+          lanzetten: 0,
+          batterieGewechselt: false,
+          kommentar: null,
+          bestanden: true,
+          refSnapshot: null,
+        }).run();
+      }
+    });
 
     const d = bzGeraetDetail(t.db, "bz-1", NOW)!;
     expect(d.logbuch).toHaveLength(BZ_LOGBUCH_GRENZE);
@@ -290,14 +327,18 @@ describe("bzGeraetByBarcode", () => {
 
 describe("bzLogbuchGesamt — der Deckel wird beobachtbar", () => {
   it("liefert mehrVorhanden bei BZ_LOGBUCH_GRENZE + 1", () => {
-    for (let i = 0; i < BZ_LOGBUCH_GRENZE; i++) {
-      t.db.insert(bzKontrollen).values({
-        id: `m${i}`, geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "system", quelleId: "s",
-        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
-        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
-        kommentar: null, bestanden: false, refSnapshot: null,
-      }).run();
-    }
+    // EIN COMMIT STATT 100 — siehe den Block am Kopf dieser Datei. Genau dieser
+    // Fall lief in der CI von PR #80 in `Test timed out in 5000ms`.
+    t.db.transaction((tx) => {
+      for (let i = 0; i < BZ_LOGBUCH_GRENZE; i++) {
+        tx.insert(bzKontrollen).values({
+          id: `m${i}`, geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "system", quelleId: "s",
+          level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+          kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+          kommentar: null, bestanden: false, refSnapshot: null,
+        }).run();
+      }
+    });
     const l = bzLogbuchGesamt(t.db);
     expect(l.zeilen).toHaveLength(BZ_LOGBUCH_GRENZE);
     expect(l.mehrVorhanden).toBe(true);
@@ -314,14 +355,17 @@ describe("bzLogbuchGesamt — der Deckel wird beobachtbar", () => {
      *
      * k1 und k2 stehen schon in der Fixture, also werden `GRENZE − 2` ergaenzt.
      */
-    for (let i = 0; i < BZ_LOGBUCH_GRENZE - 2; i++) {
-      t.db.insert(bzKontrollen).values({
-        id: `g${i}`, geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "system", quelleId: "s",
-        level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
-        kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
-        kommentar: null, bestanden: false, refSnapshot: null,
-      }).run();
-    }
+    // EIN COMMIT STATT 98 — siehe den Block am Kopf dieser Datei.
+    t.db.transaction((tx) => {
+      for (let i = 0; i < BZ_LOGBUCH_GRENZE - 2; i++) {
+        tx.insert(bzKontrollen).values({
+          id: `g${i}`, geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "system", quelleId: "s",
+          level1Wert: null, level1ImBereich: null, level2Wert: null, level2ImBereich: null,
+          kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+          kommentar: null, bestanden: false, refSnapshot: null,
+        }).run();
+      }
+    });
     const l = bzLogbuchGesamt(t.db);
     expect(l.zeilen).toHaveLength(BZ_LOGBUCH_GRENZE);
     expect(l.mehrVorhanden).toBe(false);

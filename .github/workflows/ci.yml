@@ -52,7 +52,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
-  # DREI SHARDS, NICHT MEHR WORKER — und das ist keine Geschmacksfrage.
+  # FUENF SHARDS, NICHT MEHR WORKER — und das ist keine Geschmacksfrage.
   # `playwright.config.ts` steht auf `workers: 1`, weil der Fake-clamd seine
   # Modusdatei prozessweit teilt und `FILES_AV_PARALLEL: 1` die Reihenfolge
   # festnagelt; zwei Worker auf EINER Maschine wuerden sich gegenseitig den
@@ -62,16 +62,68 @@ jobs:
   # derselben Datei bleiben unter `--shard` beieinander, die Reihenfolge
   # innerhalb einer Spec ueberlebt also.
   #
-  # Warum drei: gemessen 211 Tests in 18:18 bei einem Worker, davon ~90-120 s
-  # Fixkosten je Shard (Checkout, setup-node, `playwright install`, Server-Boot).
-  # 3 Shards ≈ 8 min, 4 ≈ 6,5 min — danach frisst der Vorspann den Gewinn.
+  # WARUM FUENF UND NICHT MEHR DREI — der Grund ist ein Ausfall, keine Rechnung.
+  #
+  # Die alte Begruendung lautete: gemessen 211 Tests in 18:18 bei einem Worker,
+  # ~90-120 s Fixkosten je Shard, 3 Shards ≈ 8 min, 4 ≈ 6,5 min, danach frisst der
+  # Vorspann den Gewinn. Das ist eine Aussage ueber WANDUHRZEIT und bleibt richtig.
+  # Sie war nur nie die einzige Groesse.
+  #
+  # Am 2026-08-28 hat sich `e2e (2)` zweimal in Folge den Dev-Server zerlegt
+  # (Laeufe 33166458248 und 33170618131, jeweils Test 119 von 132,
+  # `login-dev-gruppen.spec.ts:57`):
+  #
+  #   thread 'tokio-rt-worker' panicked at
+  #   turbopack/crates/turbo-tasks-backend/src/backend/operation/mod.rs:292:17:
+  #   Restore of All for task TaskId 1038233 failed in another thread: restoring failed
+  #   turbo-tasks: an internal panic occurred outside the per-task panic boundary
+  #   Aborting.
+  #
+  # Danach fielen die restlichen 15 Tests mit `ERR_CONNECTION_RESET/REFUSED` —
+  # ein Bild, das nach kaputter Anmeldung aussieht und keine ist. `Restore of …`
+  # ist der Rueckweg von Turbopacks Plattencache: der schnappschusst seinen
+  # Aufgabengraphen nach `.next/dev/cache/turbopack` (Vorgabe `true` seit Next
+  # 16.1.0), raeumt unter Speicherdruck die Kopien im Speicher weg
+  # (`turbopackMemoryEviction: 'auto'`) und holt sie bei Bedarf zurueck. Je mehr
+  # Routen EIN Dev-Server uebersetzt hat, desto mehr wird geraeumt und
+  # zurueckgeholt — und desto oefter faellt der Wuerfel auf diesen Pfad.
+  #
+  # ⛔ DEN CACHE ABZUSCHALTEN IST DIE FALSCHE ABHILFE, GEMESSEN UND VERWORFEN
+  # (`fb9fe44e`, zurueckgenommen in `63b5b820`). `turbopackFileSystemCacheForDev:
+  # false` liess den Panic zwar verschwinden — der Shard starb dann aber bei Test
+  # 82 bzw. 84 statt bei 119, weil ohne Platte NICHTS mehr zu raeumen ist und
+  # alles im Speicher bleibt. „In der CI liest den Cache ohnehin niemand" gilt
+  # ZWISCHEN Laeufen und nicht INNERHALB eines Laufs.
+  #
+  # Bleibt die Routenflaeche je Server, und die schrumpft nur ueber Shards.
+  # Gezaehlt mit `playwright test --shard=n/N --list`, jeweils der schwerste:
+  #
+  #   3 Shards → 132 Tests: lagerbuch + files + admin + konto + launcher/keystone
+  #              — die breiteste Flaeche der Suite, und genau der rote Shard
+  #   4 Shards →  91 Tests: lagerbuch + qr + portal + admin — schmaler, aber
+  #              `lagerbuch-hosts` (15 Einstiege x 2 Hosts) bleibt mit
+  #              `lagerbuch-mobil` und `mobil-admin` zusammen: eine Verschiebung
+  #   5 Shards →  87 Tests: NUR lagerbuch (+ konto-widerruf)
+  #
+  # Fuenf trennt die Module sauber, vier nicht. Die Wanduhr leidet nicht: der
+  # kritische Pfad ist bei jeder Aufteilung der `aufgaben`-Shard (86 Tests, die
+  # unter `--shard` ohnehin beieinander bleiben), nicht die Summe.
+  #
+  # ⚠️ KEIN TOR FINDET DEN AUSFALL, DEN DIESE ZAHL ABWEHRT. `pnpm build` faehrt
+  # `next build` und haengt am ANDEREN Schalter (`…ForBuild`); `typecheck` und
+  # `lint` sehen eine Zahl in einer Konfiguration; Vitest startet keinen
+  # Dev-Server. Sichtbar wird es ausschliesslich in einem e2e-Lauf unter Last —
+  # und dort nicht als gescheiterte Zusicherung, sondern als abgebrochene
+  # Verbindung. Wer die Zahl wieder senken will, prueft zuerst, ob der
+  # Restore-Pfad in einer neueren Next-Version geheilt ist (in 16.3.1 bis 16.3.3
+  # steht dazu nichts).
   e2e:
     strategy:
       # Ohne das verdeckt der erste rote Shard die anderen, und man sieht nach
       # einem Fehlschlag nur einen Teil der Suite.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +136,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm e2e --shard=${{ matrix.shard }}/3
+      - run: pnpm e2e --shard=${{ matrix.shard }}/5
       # OHNE DIESEN SCHRITT IST DER EINZIGE BELEG EINES ROTEN E2E-LAUFS WEG.
       # Playwright legt zu jedem Fehlschlag `test-results/<test>/error-context.md`
       # an (der `ariaSnapshot` der Seite im Moment des Scheiterns) und ab dem

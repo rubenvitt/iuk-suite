@@ -82,6 +82,15 @@ DDL Backticks trägt. **Die Strukturprobe trägt:**
   Gegenprobe **ohne** die vier B1–B4-Dateien ergibt **171 in 10 Dateien**, also einen **mehr**.
   Leitbild: `TypeError: Cannot read properties of undefined (reading 'clear')` auf
   `localStorage.clear()` — diese Tests laufen in der `node`-Umgebung statt in jsdom.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen — `441 passed (441)`
+  > Testdateien, `7991 passed (7991)` Tests, Exit 0. Die Ursache der 170 war die, die der
+  > Absatz oben als Leitbild nennt: Node 26 bringt ein eigenes `localStorage` mit, das jsdoms
+  > verdeckt. Gerichtet auf `main` in `d085057` und `40981bc`. Messung und Randbedingungen:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`. Die untenstehende Ersatzformel
+  > bleibt gueltig und ist die schaerfere Lesart — sie ist ab jetzt nur nicht mehr die einzig
+  > moegliche.
+
   **Als Tor je Aufgabe gilt deshalb:** `rtk pnpm typecheck` **0 Fehler** · `rtk pnpm lint`
   **0 Fehler** · **die eigenen Testdateien der Aufgabe grün** · **kein neuer Fehlschlag** in einer
   Datei, die der Diff nicht anfasst. Behauptet jemand, seine Änderung habe die Suite rot gemacht:

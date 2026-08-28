@@ -109,8 +109,9 @@ function abweisen(
  * ohne echte Teilnehmer mit verschiedenen Mobilfunk-IPs zu behindern. Sie ist
  * deshalb nur noch der Schlüssel des `tokenGuard`; echte Abgaben zählt
  * `submitLimiter` unter `${ip}|${surveyId}`. Aufgelöst wird sie von
- * `clientIpAus` (`core/ratelimit`) — vor der Suite stehen Cloudflare und
- * Traefik, deshalb `cf-connecting-ip` vor `x-forwarded-for`.
+ * `clientIpAus` (`core/ratelimit`) — seit der CWE-348-Umstellung liest sie
+ * ausschließlich `cf-connecting-ip`, `x-forwarded-for` wird nicht mehr
+ * gelesen (`core/ratelimit.ts`).
  */
 // Brute-Force-Schutz UNVERÄNDERT: zählt nur ungültige Token/Secrets, Schlüssel = IP.
 const tokenGuard = new RateLimiter({ windowMs: 60_000, max: 10 });

@@ -7168,15 +7168,26 @@ die **Anzahl** der Geheimnisse (genau eines, frisch erzeugt) ist dagegen hier ge
 
 ### 9.2.1 Die gepruefte Antwort: `radio-admin.iuk-ue.de` gehoert **ausdruecklich NICHT** in `SUITE_TRAEFIK_RULE`
 
-Gepruefte Lage: `compose.yaml:146-156` definiert **genau einen** Router,
+Gepruefte Lage **zum 2026-08-17**: `compose.yaml:146-155` definierte **genau einen** Router,
 ``traefik.http.routers.iuk-suite.rule=${SUITE_TRAEFIK_RULE:-Host(`iuk-ue.de`)}`` (`:153`), und
 `.env.example:366-369` fuehrt die Variable mit dem Erweiterungshinweis fuer einen Cutover.
+
+⚠️ **Nachtrag 2026-08-28 (C2, `0fc85370`): es sind jetzt ZWEI Router — und das ist die Einloesung
+dieses Abschnitts, kein Widerspruch zu ihm.** Der zweite ist genau der hier verlangte „zweite,
+eigene Router" fuer den Alt-Host; er steht auf **`compose.yaml:156-186`** und traegt die sechs
+Traefik-Labels samt Middleware. Der Suite-Router bleibt unveraendert auf `:146-155`, die Rule-Zeile
+unveraendert auf `:153`. ⛔ **Wer diesen Absatz als Bestandspruefung liest** („definiert genau
+einen") **und ihn heute nachmisst, findet zwei und haelt das fuer einen Fehler** — es ist der
+gebaute Soll-Zustand.
 
 Wer `radio-admin.iuk-ue.de` dort mit aufnimmt, bekommt **nicht** den Redirect, sondern den stillen
 Portal-Fallback: der Host erreicht den Container, kein `SUITE_HOST_*` beansprucht ihn, und
 `decideRoute` schreibt auf **portal** um — `const mod = moduleForHost(host) ?? getModule("portal")`
-(`src/core/routing.ts:69`; `moduleForHost` selbst steht in `src/core/registry.ts:225`, **nicht** in
-`hosts.ts`). Der Kommentar, der genau diesen Fehlfall ausschreibt, steht daneben in
+(`src/core/routing.ts:79`; `moduleForHost` selbst steht in `src/core/registry.ts:251-257`,
+**nicht** in `hosts.ts` — beide Zeilenangaben am 2026-08-28 nachgemessen und berichtigt, sie
+standen als `:69` und `:225` da. ⚠️ **Die Sachaussage stimmte und war die genauere von zweien:**
+die Cutover-Spec hat sie als `hosts.ts:52-57` uebernommen und damit auf den Kommentarblock unten
+gezeigt statt auf die Funktion). Der Kommentar, der genau diesen Fehlfall ausschreibt, steht daneben in
 `src/core/hosts.ts:52-57` („der Host fällt dann in `moduleForHost` auf das Portal zurück und die
 QR-Domain zeigt stillschweigend das Portal"). Der Alt-Verwaltungshost zeigt dann das Portal: ein
 funktionierender Ausdruck mit falschem Inhalt, und **kein Test des Repos sieht Traefik-Labels an**.

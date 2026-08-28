@@ -1,0 +1,435 @@
+/*
+ * DAS STYLESHEET DES VERWALTUNGSZWEIGS — angelegt in V12 mit der Uebersicht; die Flaechen
+ * V13 bis V21 erweitern dieselbe Datei (`.superpowers/sdd/planteil4/briefs/V12.md`, Files).
+ * Das Gegenstueck des Ausleih-Zweigs ist `_ui/ausleihe.module.css`; zwei Zweige, zwei
+ * Stylesheets, weil sie unter zwei Bediendichten laufen (`SCHREIBTISCHDICHTE` 32/40 hier,
+ * 56/72 dort — `_ui/RadioVerwaltungsRahmen.tsx:18-21`; der 44er der Shell liegt darueber).
+ *
+ * ⛔ EIGENE KLASSEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
+ * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
+ * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Lesbar sind allein
+ * die vier Suite-Variablen auf `:root` (`src/app/globals.css:152-164`), die ihren
+ * Dunkelzweig selbst mittragen; hier genutzt: `--iuk-linie` und `--iuk-gedaempft`.
+ *
+ * ⛔ KEINE FLAECHEN- UND KEINE FLIESZTEXTFARBE, und die EINE Ausnahme steht am FUSS dieser
+ * Datei (die vier Kennzahlzeichen, Betreiberentscheidung 2026-08-28). Ein verdrahtetes
+ * `color: #000` waere in der Dunkeldarstellung schwarz auf schwarz — und `pnpm build`,
+ * `typecheck` und Vitest saehen davon nichts („UI-Abnahme: messen, nicht schauen").
+ *
+ * ⛔ KEINE HOEHE UND KEIN `size` AUF EINEM BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 32
+ * wird geerbt, nicht geschrieben.
+ */
+
+/*
+ * Die Seitenueberschrift. Ein nacktes `<h1>` statt `Typography.Title` — Compound-Zugriff
+ * in einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md:11`).
+ */
+.titel {
+  margin: 0 0 12px;
+  font-size: 1.375rem;
+  font-weight: 600;
+}
+
+/*
+ * Die Huelle einer klickbaren Kennzahlkarte. Sie ist ein LINK und kein `onClick`
+ * (Entscheidung E-V15) — deshalb muss die Linkfarbe hier heraus, sonst faerbt sie den
+ * ganzen Kartentext blau. `display: block` gibt der Karte die volle Spaltenbreite zurueck,
+ * die ihr das inline-Verhalten eines `<a>` sonst nimmt.
+ */
+.kartenLink {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Der Abstand zwischen den Kennzahlen und der Liste darunter — 1:1 zu `Space size="large"`
+   im Bestand (`radio-admin/client/src/features/dashboard/Dashboard.tsx:56`). */
+.abstand {
+  margin-block-start: 24px;
+}
+
+/*
+ * Der Rueckweg-Link mit seinem Pfeil (`geraete/[id]/ereignisse/page.tsx`). ⛔ `inline-flex`
+ * und ein Abstand, sonst sitzt das Zeichen auf der Grundlinie und klebt am Wort; ⛔ keine
+ * Farbe — die Linkfarbe kommt aus antds `Layout`.
+ */
+.zurueckLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Die fuenf veralteten Geraete als schlichte Liste: kein `List.Item.Meta` (Falle 1) und
+   kein `renderItem` (Falle 9) — E-V15. */
+.veralteteListe {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.veralteteZeile {
+  border-block-end: 1px solid var(--iuk-linie);
+}
+
+.veralteteZeile:last-child {
+  border-block-end: none;
+}
+
+/* Die ganze Zeile ist das Ziel, nicht nur das Wort — der Bestand macht dasselbe ueber
+   `onClick` auf dem `List.Item` (`Dashboard.tsx:89-92`). */
+.geraetLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0;
+}
+
+.geraetName {
+  font-weight: 600;
+}
+
+.geraetIssi {
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+}
+
+/* Der Leertext des Bestands (`Dashboard.tsx:87`), gedaempft wie jede Leermeldung. */
+.leer {
+  margin: 0;
+  color: var(--iuk-gedaempft);
+}
+
+/*
+ * ── Die Geraeteliste (V13) ───────────────────────────────────────────────────
+ *
+ * ⛔ HIER STEHT KEINE HOEHE UND KEIN `size` — Falle 4, wie im Kopf. Die Werkzeugleiste ersetzt
+ * `Space wrap style={{ width:'100%', justifyContent:'space-between' }}`
+ * (`radio-admin/client/src/features/devices/DeviceList.tsx:133`); ein `size` waere dort im
+ * Bestand nicht gesetzt und ist es hier auch nicht.
+ */
+.werkzeugleiste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 12px;
+}
+
+/* `Space.Compact style={{ width: 360, maxWidth: '100%' }}` (`DeviceList.tsx:135`). */
+.suchfeld {
+  width: 360px;
+  max-width: 100%;
+}
+
+/*
+ * Die Liste im Aufklapper der Spalten- und der Suchfeldwahl — 1:1 zur Polsterung aus
+ * `CheckboxDropdown.tsx:41`, `:47`. ⛔ OHNE `max-height`: der Kopf dieser Datei verbietet
+ * jede Hoehenangabe, und `overflow-y` ohne Deckel waere ohnehin wirkungslos. Die Flaeche
+ * bekommt Hintergrund und Rundung von antds `Dropdown`-Huelle, nicht von hier — ein eigener
+ * Flaechenton waere Falle 2 (`--ant-*` ist ausserhalb von antds Scope nicht lesbar).
+ */
+.wahlListe {
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.wahlZeile {
+  padding: 6px 12px;
+}
+
+/* Ein beschriftetes Feld der Filterschublade — statt `Form.Item` (siehe FilterSchublade.tsx). */
+.filterFeld {
+  margin-block-end: 16px;
+}
+
+.filterEtikett {
+  display: block;
+  margin-block-end: 4px;
+}
+
+/* `style={{ width: '100%' }}` an den Auswahlfeldern (`DeviceFilterDrawer.tsx:53`). */
+.filterWeit {
+  width: 100%;
+}
+
+/* Die drei Schalter: Beschriftung links, Schalter rechts (`DeviceFilterDrawer.tsx:92-94`). */
+.filterSchalter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 16px;
+}
+
+/*
+ * Die Zuordnungszeile des Import-Assistenten (V18): das Auswahlfeld fuellt seine Spalte.
+ * ⛔ 1:1 `style={{ width: '100%' }}` aus `ImportWizard.tsx:189` — als Klasse und nicht inline,
+ * weil dieses Modul seine Masze im Blatt fuehrt (`_ui/ikonen.tsx:185` ist die einzige
+ * Ausnahme, und sie ist eine Zeichenhuelle, keine Flaeche).
+ */
+.importWeit {
+  width: 100%;
+}
+
+/*
+ * Die Zeile darum — Beschriftung links, Auswahlfeld rechts, neunzehnmal untereinander.
+ * ⛔ EIGENE KLASSE UND NICHT `.filterFeld`, obwohl der Wert heute derselbe ist: `.filterFeld`
+ * ist namentlich an die Filterschublade gebunden (siehe ihren Kommentar oben), und dieselbe
+ * Begruendung hat in V18 schon `.filterWeit` ausgeschlossen (Abweichung A5). Zwei Flaechen an
+ * EINER Klasse heisst, dass die naechste Massaenderung an der einen die andere still mitzieht.
+ * ⛔ UND SIE IST KEIN 1:1-WERT, SONDERN EIN ERSATZ: im Bestand kommt der Abstand aus
+ * `Space direction="vertical" size="middle"` (`ImportWizard.tsx:169`) — `size=` ist im Modul
+ * verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:196-214`). ⛔ DIE 16 PX SIND NACHGESCHLAGEN
+ * UND NICHT GESCHAETZT: `antd/es/space/style/index.js:73` setzt `spaceGapMiddleSize` auf
+ * `token.padding`, `antd/es/theme/util/alias.js:98` bildet `padding` auf `size` ab, und
+ * `antd/es/theme/themes/shared/genSizeMapToken.js:17` rechnet `sizeUnit * sizeStep` = 4 * 4
+ * (`antd/es/theme/themes/seed.js:54-55`). `src/core/theme/theme.ts` uebersteuert keinen davon.
+ */
+.importZeile {
+  margin-block-end: 16px;
+}
+
+/* Der Fehler im Anlegen-Dialog — gedaempft, ⛔ NICHT rot (Falle 3). */
+.dialogFehler {
+  margin: 8px 0 0;
+  color: var(--iuk-gedaempft);
+}
+
+/* Die URL-schreibende Blaetterung (Regime B) — sie ersetzt antds `pagination`. */
+.blaetterung {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-block-start: 12px;
+}
+
+.blaetterungText {
+  color: var(--iuk-gedaempft);
+}
+
+/* Die ganze Tabellenzeile fuehrt auf die Geraeteakte (`DeviceList.tsx:182-185`). */
+.tabelleZeile {
+  cursor: pointer;
+}
+
+/* Der mobile Zweig — 1:1 zu `DeviceList.tsx:198-229`, ohne `Space size` (Falle 4). */
+.mobilKarte {
+  display: block;
+  width: 100%;
+}
+
+.mobilKopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobilName {
+  font-weight: 600;
+}
+
+.mobilNeben {
+  display: block;
+  margin-block-start: 4px;
+  color: var(--iuk-gedaempft);
+}
+
+.mobilMarken {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-block-start: 8px;
+}
+
+/*
+ * DIE GERAETEAKTE (V14) — die Kopfdaten als schlichtes Markup.
+ *
+ * ⛔ SIE ERSETZEN `Descriptions`/`Descriptions.Item` (`DeviceDetailDrawer.tsx:77-102`), weil
+ * Compound-Zugriff in einer Server Component HTTP 500 ist (Falle 1) und eine Insel fuer fuenf
+ * Lesefelder Ballast waere.
+ */
+.kopfListe {
+  display: grid;
+  gap: 8px;
+  margin-block-end: 24px;
+}
+
+.kopfZeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding-block-end: 8px;
+  border-block-end: 1px solid var(--iuk-linie);
+}
+
+.kopfZeile:last-child {
+  border-block-end: none;
+  padding-block-end: 0;
+}
+
+.kopfEtikett {
+  flex: 0 0 12rem;
+  color: var(--iuk-gedaempft);
+}
+
+.kopfWert {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
+/* Der Datumswaehler fuellt seine Spalte (`DeviceFields.tsx:164`, `style={{ width: '100%' }}`). */
+.feldWeit {
+  width: 100%;
+}
+
+/*
+ * Das Notizfeld (`UpdateNotePanel.tsx:28`, `style={{ width: '100%' }}`).
+ *
+ * ⛔ DER ABSTAND VON 8 STEHT HIER UND NICHT ALS `size={8}` AM BAUTEIL: `size=` ist auf jedem
+ * antd-Bauteil dieses Moduls verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:196-215`).
+ */
+.notizFeld {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/*
+ * ⛔ `pre-wrap` 1:1 aus `UpdateNotePanel.tsx:31`: die Anmerkung ist eine zeilenweise Historie,
+ * und ohne den Umbruchserhalt liefe sie zu einem Absatz zusammen.
+ */
+.notizText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notizZeile {
+  width: 100%;
+}
+
+/* Die Loeschflaeche steht abgesetzt unter der Akte (`DeviceDetailDrawer.tsx:111-123`). */
+.loeschZeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-block-start: 24px;
+}
+
+/*
+ * Die Warnung aus ⬜ V-L6 im `Popconfirm`-Zweig. ⛔ OHNE EIGENE FARBE: `colorError` ist die
+ * Markenfarbe (Falle 3), und die Warnung soll gelesen, nicht wie eine Primaeraktion aussehen.
+ */
+.loeschWarnung {
+  display: block;
+  max-inline-size: 28rem;
+}
+
+/*
+ * ── Die Zugangsverwaltung (V20) ──────────────────────────────────────────────
+ *
+ * Die Nebenzeile unter der Zustandsmarke: „gesperrt am … von …" (`_db/schema.ts:184-187`).
+ * ⛔ OHNE EIGENE FARBE AUS EINEM HEXWERT — `--iuk-gedaempft` ist die Suite-Variable, die auch
+ * `.geraetIssi` und `.leer` benutzen; ein zweiter Hexsatz waere NS-A8b (`_lib/status.ts:125`).
+ * ⚠️ Sie traegt KEINE eigene Schriftgroesse: `<small>` bringt sie mit, und eine Zahl daneben
+ * waere ein zweiter Wahrheitsort.
+ */
+.codeNeben {
+  display: block;
+  color: var(--iuk-gedaempft);
+}
+
+/*
+ * ── Die Kopfzeile der vier Kennzahlkarten (2026-08-28) ───────────────────────
+ *
+ * Betreiberbefund vom 2026-08-28: „Die Farben der Icons fehlen, und die Icons sehen
+ * unpassend gelayoutet aus." Beides zeigte dasselbe Bild — das Zeichen sass als
+ * `Statistic prefix=` FARBLOS VOR DER ZAHL, statt wie im Bestand oben in der Karte zu
+ * stehen (`radio-admin/client/src/features/dashboard/Dashboard.tsx:28-50`).
+ *
+ * ⛔ FALLE 3 IST FUER DIESE VIER ZEICHEN AUFGEHOBEN — Betreiberentscheidung vom
+ * 2026-08-28, und sie ist eng: sie gilt dem ZEICHEN, nicht der Zahl und nicht der
+ * Flaeche. Die Regel „`colorError === colorPrimary`, also kein Rot auf einer
+ * Datenflaeche" (`CLAUDE.md`, Falle 3) bleibt fuer alles Uebrige dieses Blattes stehen;
+ * `.dialogFehler` und `.loeschWarnung` weiter oben tragen weiterhin KEIN Rot. Der
+ * Waechter dazu ist umgedreht, nicht entfernt: `e2e/radio-verwaltung.spec.ts`, Fall 1,
+ * misst jetzt, dass das Zeichen der Karte „Veraltet" rot IST und die Zahl daneben nicht.
+ *
+ * ⛔ ROT KOMMT AUS `--iuk-marke` UND NICHT AUS EINEM ZWEITEN HEXSATZ (NS-A8b): der
+ * Alt-Ton `#cf1322` waere ein zweites Rot neben dem der Suite. Grau kommt aus
+ * `--iuk-gedaempft` — ⚠️ BENANNTE ABWEICHUNG vom Auftrag, der auch fuer Grau eine
+ * modul-eigene Variable vorsah: der Alt-Ton `#8c8c8c` erreicht auf Weiss nur 3.05:1 und
+ * `--iuk-gedaempft` ist der Ton, den `.geraetIssi` und `.leer` in diesem Blatt schon
+ * fuehren. Modul-eigen ist damit ALLEIN das Gruen, das die Suite nicht kennt.
+ *
+ * ⛔ DIE VARIABLE HAENGT AN `.kennzahlKopf` UND NICHT AN `:root`: ein CSS-Modul kann
+ * `:root` nicht scopen (Hausform `_ui/ausleihe.module.css:354`,
+ * `core/shell/shell.module.css:413-417`, `lagerbuch/_ui/verwaltung.module.css:2`).
+ * Der Dunkelzweig haengt an `:root[data-theme="dark"]`, ⛔ NIE an
+ * `prefers-color-scheme` — die Suite schaltet ueber ein Cookie-Attribut
+ * (`core/theme/mode.ts:18-19`), und ein Media Query saehe die Wahl gar nicht.
+ *
+ * ⚠️ DIE KARTENFLAECHE IST ABGELESEN UND NICHT ERINNERT (`getComputedStyle` an
+ * `.ant-card` auf `/m/radio/admin`, 2026-08-28): `rgb(255,255,255)` hell,
+ * `rgb(20,20,20)` dunkel. Dagegen gerechnet: `#3f8600` 4.54:1 und `#8bc34a` 8.78:1,
+ * `--iuk-marke` 6.07:1 / 5.22:1, `--iuk-gedaempft` 5.93:1 / 7.27:1. Die Untergrenze fuer
+ * ein 20px-Zeichen ist 3:1 (WCAG 1.4.11, Nicht-Text-Kontrast) — die acht Werte liegen
+ * darueber. ⛔ WER EINEN TON AENDERT, RECHNET GEGEN DIESE ZWEI FLAECHEN NACH; welcher Ton
+ * ueberhaupt ankommt, misst `e2e/radio-verwaltung.spec.ts`, Fall 1.
+ */
+.kennzahlKopf {
+  --radio-zeichen-gruen: #3f8600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 4px;
+}
+
+:root[data-theme="dark"] .kennzahlKopf {
+  --radio-zeichen-gruen: #8bc34a;
+}
+
+/*
+ * Der Titel steht jetzt in EIGENEM Markup und nicht mehr in `Statistic title=` — sonst
+ * bekaeme das Zeichen keine Zeile neben ihm. ⛔ Deshalb muss der gedaempfte Ton hier
+ * stehen: `.ant-statistic-title` brachte ihn mit, und ohne Ersatz saehe der Titel aus wie
+ * die Zahl. `0.875rem` ist antds `fontSize` 14 in der Wurzelgroesse 16 dieser Suite.
+ */
+.kennzahlTitel {
+  color: var(--iuk-gedaempft);
+  font-size: 0.875rem;
+}
+
+/*
+ * Die vier Zeichenfarben. ⛔ EINE KLASSE JE KARTE UND KEIN INLINE-`style`: ein Hexwert in
+ * `admin/(arbeit)/page.tsx` waere gegen den Waechter „nennt keinen Farbwert" (dort in
+ * `page.test.tsx`), und ein Wert je Farbmodus ginge in einem `style=` gar nicht.
+ *
+ * ⚠️ `.zeichenNeutral` IST NICHT LEER UND DARF ES NICHT SEIN: „Geraete gesamt" traegt im
+ * Bestand keine Farbe (`Dashboard.tsx:28`), und `color: inherit` schreibt genau das hin.
+ * Eine leere Regel loeschte der naechste Leser, und mit ihr den Griff, an dem
+ * `page.test.tsx` die Zuordnung Karte→Farbe abliest.
+ */
+.zeichenNeutral {
+  color: inherit;
+}
+
+.zeichenGruen {
+  color: var(--radio-zeichen-gruen);
+}
+
+.zeichenRot {
+  color: var(--iuk-marke);
+}
+
+.zeichenGrau {
+  color: var(--iuk-gedaempft);
+}

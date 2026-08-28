@@ -76,6 +76,24 @@ const SICHTEN = [
   { name: "loans", tabelle: schema.loans, sicht: paritaetsSichtLeihe, spaltenzahl: 12 },
 ] as const;
 
+/**
+ * ⛔ DIE ZAHL DER TABELLEN IN `src/app/m/radio/_db/schema.ts` — EXAKT, NICHT ALS
+ * UNTERGRENZE (NT11). Heute sechs: `devices`, `softwareVersions`, `users`, `deviceEvents`,
+ * `zugangscodes`, `loans`.
+ *
+ * ⚠️ SIE HEISST NICHT `..._MINDESTENS`, UND DAS IST DERSELBE GRUND WIE BEI
+ * `HANDLER_ANZAHL` (src/app/m/radio/riegel.test.ts:69-72): eine Untergrenze ist fuer jede
+ * Liste wahr und hat keine Mutation, die sie rot macht — und der naechste Leser
+ * „repariert" einen Namen mit `MINDESTENS` darin zurueck auf `>=`.
+ *
+ * ⛔ WER EINE TABELLE ANLEGT, HEBT DIESE ZAHL AN — bewusst, in derselben Aenderung. Das ist
+ * der Preis, der unten bei der Sonde ausgeschrieben steht.
+ * (Nachgetragen in der Fix-Runde 1 zu A8, REVIEW-A8 S4: die Haertung uebernahm das
+ * Argument aus `riegel.test.ts:61-73`, aber nicht seine Form — die Zahl stand nackt im
+ * `toBe`, waehrend `_actions/guards.test.ts:65` es im selben Commit richtig machte.)
+ */
+const ZIEL_TABELLEN_ANZAHL = 6;
+
 describe("Die fuenf Paritaetssichten decken das Zielschema vollstaendig ab (Spec 2 §2.1.4)", () => {
   for (const { name, tabelle, sicht, spaltenzahl } of SICHTEN) {
     it(`${name}: die Sicht fuehrt JEDE Spalte der Zieltabelle — keine mehr, keine weniger`, () => {
@@ -119,7 +137,14 @@ describe("Das Zielschema haelt die Zeiteinheit der Suite ein", () => {
    * ⛛ Ergaenzung dieses Plans (Schlusspruefung, Fund 3). Der Testname sagt "KEINE
    * radio-Zeitspalte", die Schleife lief vorher aber ueber `SICHTEN` — also ueber die
    * FUENF Tabellen, fuer die es eine Paritaetssicht gibt. `zugangscodes` hat keine Sicht
-   * (Kapitel 3 baut sie erst) und blieb damit unbewacht: ein Copy-Paste aus
+   * und BEKOMMT AUCH KEINE — die Tabelle ist nicht Teil des Imports, "es gibt in der
+   * Quelle nichts, was ihnen entspraeche"
+   * (docs/superpowers/specs/2026-08-17-radio-modul-design.md:1675). Eine Paritaetssicht
+   * vergleicht per Definition QUELLE gegen ZIEL (scripts/import/portal.ts:73-76); ohne
+   * Quellzeilen gaebe es nichts, wogegen sie pruefen koennte, und
+   * `rg "paritaetsSichtZugangscode" scripts/import/` liefert null Treffer. Das bleibt so.
+   * ⛔ HIER STAND BIS ZUM 2026-08-23 "Kapitel 3 baut sie erst" — das las sich als Auftrag,
+   * eine sechste Sicht nachzuliefern. Sie blieb damit unbewacht: ein Copy-Paste aus
    * `src/app/m/qr/_db/schema.ts:19-20` (den `src/app/m/lagerbuch/_db/schema.ts:11-16`
    * als den wahrscheinlichsten Weg in den Fehler benennt) haette dort `timestamp_ms`
    * gesetzt, und dieser Test — der sich zustaendig NENNT — waere gruen geblieben.
@@ -127,8 +152,21 @@ describe("Das Zielschema haelt die Zeiteinheit der Suite ein", () => {
    * Deshalb hier ueber die Tabellen des SCHEMA-MODULS selbst, nicht ueber `SICHTEN`:
    * `Object.values(schema)` traegt zur Laufzeit nur die `sqliteTable(...)`-Objekte (die
    * Typaliase am Fuss der Datei existieren nur in TypeScript, nicht im JS-Modul), und
-   * `is(t, SQLiteTable)` filtert sauber auf sie. Eine sechste Tabelle im Ziel bekommt die
-   * Probe damit automatisch, ohne dass jemand `SICHTEN` nachtraegt.
+   * `is(t, SQLiteTable)` filtert sauber auf sie.
+   *
+   * ⛔ NT11 (2026-08-23): die Zahl steht EXAKT, nicht als Untergrenze. Bis dahin stand hier
+   * `toBeGreaterThanOrEqual(SICHTEN.length)` — also `6 >= 5`, trivial wahr. Die Luecke lag
+   * in der RICHTUNG: zoege jemand `zugangscodes` in eine eigene Schemadatei — ein
+   * Refactoring, das an der Fachlichkeit nichts aendert —, saehe `Object.values(schema)`
+   * nur noch FUENF Tabellen, `5 >= 5` bliebe GRUEN, und diese Zeitsonde pruefte
+   * `zugangscodes` still nicht mehr mit. GEMESSEN am 2026-08-23: mit `>=` lief genau
+   * dieser Umbau mit 22 von 22 Faellen gruen durch; mit `toBe(6)` faellt er auf `5` rot.
+   *
+   * ⚠️ DER PREIS IST BENANNT UND ANGENOMMEN, und er kehrt einen frueheren Satz hier um:
+   * eine SIEBTE Tabelle im Ziel bekommt die Probe NICHT MEHR "automatisch" — sie faerbt
+   * diesen Fall rot, bis jemand die Zahl bewusst anhebt. Das ist gewollt (dieselbe
+   * Begruendung wie bei `HANDLER_ANZAHL` in src/app/m/radio/riegel.test.ts:61-73: eine
+   * Untergrenze ist fuer jede Liste wahr und hat keine Mutation, die sie rot macht).
    */
   it("KEINE radio-Zeitspalte ist mode:'timestamp_ms' — der Faktor-1000-Fehler waere paritaetsgruen", () => {
     // src/app/m/lagerbuch/_db/schema.ts:11-16 nennt den wahrscheinlichsten Weg dorthin:
@@ -137,7 +175,10 @@ describe("Das Zielschema haelt die Zeiteinheit der Suite ein", () => {
     const tabellen = (Object.values(schema) as unknown[]).filter(
       (t): t is SQLiteTable => is(t, SQLiteTable),
     );
-    expect(tabellen.length).toBeGreaterThanOrEqual(SICHTEN.length);
+    expect(
+      tabellen.length,
+      "eine Tabelle hat schema.ts verlassen — die Timestamp-Sonde prueft sie nicht mehr mit (NT11)",
+    ).toBe(ZIEL_TABELLEN_ANZAHL);
     for (const tabelle of tabellen) {
       for (const [feld, spalte] of Object.entries(spalten(tabelle))) {
         if (spalte.columnType !== "SQLiteTimestamp") continue;

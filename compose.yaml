@@ -153,6 +153,45 @@ services:
       - traefik.http.routers.iuk-suite.rule=${SUITE_TRAEFIK_RULE:-Host(`iuk-ue.de`)}
       - traefik.http.routers.iuk-suite.entrypoints=web
       - traefik.http.services.iuk-suite.loadbalancer.server.port=3000
+      # ── Redirect des Alt-Hosts radio-admin.iuk-ue.de → radio.iuk-ue.de/admin ──
+      # ZWEITER, EIGENER Router. `radio-admin.iuk-ue.de` gehoert AUSDRUECKLICH NICHT in
+      # SUITE_TRAEFIK_RULE oben: der Host erreichte dann den Container, kein SUITE_HOST_*
+      # beansprucht ihn, und `decideRoute` schreibt auf portal um
+      # (`const mod = moduleForHost(host) ?? getModule("portal")`, src/core/routing.ts:79).
+      # Der Alt-Host zeigte dann das PORTAL — ein funktionierender Abruf mit falschem Inhalt.
+      #
+      # Der Variablenname ist bewusst NICHT `SUITE_HOST_`-praefigiert: `const PREFIX =
+      # "SUITE_HOST_"` (src/core/hosts.ts:20), und `validateHostConfig` bricht bei jedem
+      # Namen mit diesem Praefix ab, der zu keinem Modul-Key passt. So ist die Zeile
+      # boot-neutral.
+      #
+      # Die Vorbelegung `radio-admin.invalid` loest niemand auf; ohne sie scheitert
+      # `docker compose config`, sobald die Variable fehlt.
+      - traefik.http.routers.radio-admin-alt.rule=${SUITE_REDIRECT_RULE_RADIO_ADMIN:-Host(`radio-admin.invalid`)}
+      # DIESELBEN Entrypoints wie der Suite-Router eine Zeile hoeher. TLS endet VOR Traefik,
+      # an einem Edge-Proxy — im ganzen Compose gibt es kein `tls`- und kein
+      # `certresolver`-Label. Fuehrt dieser Router einen anderen Entrypoint, antwortet
+      # https://radio-admin.iuk-ue.de/ gar nicht oder mit einem Zertifikatsfehler, und die
+      # Abnahme laeuft ins Leere STATT rot zu werden (⬜ N6).
+      - traefik.http.routers.radio-admin-alt.entrypoints=web
+      # Middleware am ROUTER, nicht am Service: am Service traefe der Redirect die Suite selbst.
+      - traefik.http.routers.radio-admin-alt.middlewares=radio-admin-alt-redirect
+      - traefik.http.middlewares.radio-admin-alt-redirect.redirectregex.regex=^https?://radio-admin\.iuk-ue\.de/(.*)
+      # `$${1}` erreicht Traefik als `${1}`.
+      # ⚠️ HIER STAND BIS ZUM 2026-08-28: „Ein einfaches `$` verschluckt Compose, und die
+      # Ersetzung liefert `/admin/` fuer JEDEN Pfad … Das ist der stille Fehlfall dieses
+      # Blocks." Das beschreibt AELTERE Compose-Fassungen. GEMESSEN am 2026-08-28 auf
+      # Docker Compose v5.1.2, an einer Kopie dieser Datei mit einfachem `$`:
+      # `docker compose config` BRICHT AB — „invalid interpolation format for
+      # services.suite.labels.[]". Der Fehlfall ist hier also LAUT, nicht still.
+      # ⛔ ER BLEIBT TROTZDEM UNGESEHEN, UND DAS IST DER GRUND FUER DEN TEST DANEBEN: kein
+      # CI-Schritt dieses Repos ruft `docker compose config` ueberhaupt auf. Wer die Zeile
+      # verdirbt, merkt es erst am Cutover-Abend — es sei denn,
+      # `scripts/compose-radio-redirect.test.ts:100-113` faengt sie vorher.
+      - traefik.http.middlewares.radio-admin-alt-redirect.redirectregex.replacement=https://radio.iuk-ue.de/admin/$${1}
+      # 302, nie 301: ein 301 liegt im Cache jedes Telefons, das den Alt-Host je besucht hat,
+      # und macht den Rueckweg praktisch unmoeglich.
+      - traefik.http.middlewares.radio-admin-alt-redirect.redirectregex.permanent=false
 
   # Virenscanner des Moduls `files`. Gescannt wird per `zSCAN` mit einem PFAD,
   # nicht per INSTREAM — deshalb braucht clamd die Blobs als Mount und nicht nur

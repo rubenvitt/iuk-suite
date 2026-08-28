@@ -27,38 +27,51 @@ describe("RateLimiter", () => {
 });
 
 describe("clientIpAus", () => {
-  /*
-   * Vorrang nur belegbar, wenn BEIDE Header mit VERSCHIEDENEN Werten anliegen:
-   * mit nur `cf-connecting-ip` wäre auch die vertauschte Reihenfolge grün.
-   */
-  it("gibt `cf-connecting-ip` den Vorrang vor `x-forwarded-for`", () => {
-    const h = new Headers({
-      "cf-connecting-ip": "203.0.113.7",
-      "x-forwarded-for": "198.51.100.1",
-    });
+  it("nimmt `cf-connecting-ip`", () => {
+    const h = new Headers({ "cf-connecting-ip": "203.0.113.7" });
     expect(clientIpAus(h)).toBe("203.0.113.7");
   });
 
-  /*
-   * Ein Fall gegen zwei Mutationen gleichzeitig: „ganzen Header zurückgeben"
-   * (dann käme die Liste) und „`.trim()` weglassen" (dann käme " 203.0.113.7").
+  /**
+   * DIE ZEILE, WEGEN DER ES DIESEN TEST GIBT — CWE-348, Vorarbeit vor
+   * Planteil 3 des Moduls `radio` (2026-08-21). `clientIpAus` nahm bislang
+   * ohne `cf-connecting-ip` den ERSTEN `x-forwarded-for`-Eintrag — den vom
+   * Client selbst behaupteten Wert. Der Suite-Container ist auf dem Server
+   * direkt erreichbar (Betreiber, 03.08.2026,
+   * `src/app/m/lagerbuch/_lib/absender.ts:6-7`); wer ihn direkt erreicht,
+   * setzt den Header vollständig selbst — gleich ob der erste oder ein
+   * anderer Eintrag gelesen wird.
+   *
+   * Die Mutation, die ohne diesen Test grün bliebe: „x-forwarded-for als
+   * Rückfall wieder einbauen". Sie sieht wie eine Verbesserung aus (mehr
+   * Präzision ohne Cloudflare) und ist der ganze Fehler.
    */
-  it("nimmt ohne `cf-connecting-ip` den ERSTEN Wert aus `x-forwarded-for`, getrimmt", () => {
-    const h = new Headers({ "x-forwarded-for": "  203.0.113.7 , 198.51.100.1" });
-    expect(clientIpAus(h)).toBe("203.0.113.7");
+  it("liest x-forwarded-for in KEINER Richtung — weder als einziger Kopf noch neben cf-connecting-ip", () => {
+    expect(clientIpAus(new Headers({ "x-forwarded-for": "198.51.100.1, 203.0.113.9" }))).toBe(
+      "unknown",
+    );
+    expect(clientIpAus(new Headers({ "x-forwarded-for": "198.51.100.1" }))).toBe("unknown");
+    expect(
+      clientIpAus(
+        new Headers({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "198.51.100.1" }),
+      ),
+    ).toBe("203.0.113.7");
   });
 
-  it("liefert ohne beide Header `\"unknown\"`", () => {
+  it('liefert ohne "cf-connecting-ip" "unknown"', () => {
     expect(clientIpAus(new Headers())).toBe("unknown");
   });
 
-  /*
-   * Heutiges Verhalten, ausdrücklich festgehalten statt „behoben": ein leeres
-   * erstes Segment fällt auf "unknown" durch, es wird NICHT zum zweiten Wert
-   * weitergesucht. Die Hebung ändert die Signatur, nicht die Auswertung.
+  /**
+   * Der residuale Sammel-Eimer, bewusst nicht beseitigt (Begründung in
+   * `clientIpAus`, Schritt 3 der Vorarbeit): ohne Präfix — anders als
+   * lagerbuchs `absenderAus` — kann ein gefälschtes
+   * `cf-connecting-ip: unknown` denselben Sammel-Eimer treffen wie ein
+   * kopfloser Aufruf. Das ist eine BÜNDELUNG, keine neue Fälschbarkeit: sie
+   * verstopft/teilt einen Eimer, sie eröffnet KEINEN frischen je Versuch —
+   * das unterscheidet sie von CWE-348.
    */
-  it("fällt bei leerem erstem `x-forwarded-for`-Segment auf `\"unknown\"` zurück", () => {
-    const h = new Headers({ "x-forwarded-for": "  , 198.51.100.1" });
-    expect(clientIpAus(h)).toBe("unknown");
+  it('ein gefälschtes "cf-connecting-ip: unknown" trifft denselben Sammel-Eimer wie ein kopfloser Aufruf', () => {
+    expect(clientIpAus(new Headers({ "cf-connecting-ip": "unknown" }))).toBe("unknown");
   });
 });

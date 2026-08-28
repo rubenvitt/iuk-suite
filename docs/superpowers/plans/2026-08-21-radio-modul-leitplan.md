@@ -123,6 +123,43 @@ hier, damit niemand rätselt, was fehlt:
 | Das Entfernen des Suite-Admin-Kurzschlusses in `core/groups.ts` | Entscheidung 9 (`radio` ignoriert `isModuleAdmin` **modulintern**) — ohne den Posten trägt Planteil 2 die Umgehung selbst | vor Planteil 4 |
 | Das suiteweite Gating von `/m/*` | nichts hier zwingend; Entscheidung 10 baut den Riegel ohnehin in jede Seite, Action und jeden Handler | — |
 
+### ⬜ Nachtrag 2026-08-22 — die Frist-Begründung oben zitiert eine verworfene Variante
+
+Die Zeile oben begründet die Dringlichkeit wörtlich mit „Ohne Ratenbegrenzung ist ein
+sechsstelliger Code ratbar" — **das ist Rechnung A der Spec, und die ist nicht die gewählte.**
+Spec 1 §3.2.1 setzt **28 Zeichen Crockford-Base32** (140 bit), nicht sechs Ziffern:
+
+> „28 Zeichen × 5 bit = **140 bit Entropie**. Die Zahl ist nicht gegriffen: sie ist die kleinste
+> Vielfache-von-vier-Länge über der 128-bit-Schwelle …"
+> (`docs/superpowers/specs/2026-08-17-radio-modul-design.md:2082-2084`)
+
+Und §3.7.4 sagt ausdrücklich, dass dieses Kapitel **nicht** an der CWE-348-Umstellung hängt:
+
+> „Und das steht hier genauso deutlich: dieses Kapitel hängt nicht daran."
+> „Wer diese Spec mit der Begründung „CWE-348 ist noch offen" zurückhält, hält sie ohne
+> Sicherheitsgewinn zurück."
+> (`docs/superpowers/specs/2026-08-17-radio-modul-design.md:3063-3065`)
+
+**Folge 1: Der Posten blockiert Planteil 3 nicht mehr.** Der 28-Zeichen-Coderaum trägt Rechnung B
+der Spec (§3.7.1) auch ohne die Umstellung — sie macht die Notbremse wirksamer, sie ist nicht die
+Mauer.
+
+⛔ **Folge 2, und ohne sie ist dieser Nachtrag gefährlich:** wer den Coderaum aus §3.2.1 später
+verkürzt, macht die Umstellung zur echten Voraussetzung. Die Spec selbst warnt wörtlich:
+
+> „Wer umgekehrt den Coderaum aus 3.2.1 verkürzt, macht sie zur echten Voraussetzung — dann gilt
+> Rechnung A, und dann ist die Umstellung blockierend. Die zwei Entscheidungen hängen aneinander
+> und dürfen nicht getrennt geändert werden."
+> (`docs/superpowers/specs/2026-08-17-radio-modul-design.md:3066-3068`)
+
+Zum Stand der Umstellung selbst (Commit `7d71b6c`, geprüft in `.superpowers/sdd/REVIEW-ratelimit.md`
+und gemessen in `docs/superpowers/berichte/2026-08-22-client-ip-hinter-cloudflare.md`): sie härtet
+den Apex, ist aber **kein** Rate-Limit-Fix für Module auf eigenem Host — und `radio` wird ein
+solches Modul sein. Solange der 28-Zeichen-Coderaum unverkürzt bleibt, ändert das nichts an Folge 1
+oben; würde `radio` `clientIpAus` als Absenderschlüssel auf einem Modul-Host einsetzen (Spec 1
+§3.7.2), erbt der Per-Absender-Zähler denselben Sammel-Eimer wie `files`
+(`.superpowers/sdd/KONTEXT-radio-planteil2.md`, Nachtrag).
+
 ---
 
 ## Die Sperren dieses Wegs
@@ -168,14 +205,30 @@ formuliert haben, gilt die **Vereinigung**.
   `src/app/m/feedback/f/[slugSecret]/Zettel.test.tsx` — diese Tests laufen in der `node`-Umgebung
   statt in jsdom. Ein Verdacht, **nicht** geprüft: `pnpm-lock.yaml` führt `vitest@4.1.10`, die
   radio-Pläne haben gegen `4.1.5` gemessen.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Die Suite ist vollstaendig gruen — `441 passed (441)`
+  > Testdateien, `7991 passed (7991)` Tests, Exit 0. Die Ursache der 170 war die, die der
+  > Absatz oben als Leitbild nennt: Node 26 bringt ein eigenes `localStorage` mit, das jsdoms
+  > verdeckt. Gerichtet auf `main` in `d085057` und `40981bc`. Messung und Randbedingungen:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
   **Deshalb gilt als Tor je Aufgabe:** `rtk pnpm typecheck` **grün** (0 Fehler) ·
   `rtk pnpm lint` **0 Fehler** · **die eigenen Testdateien der Aufgabe grün** · und **kein neuer
   Fehlschlag** in einer Datei, die der Diff nicht anfasst. Wer behauptet, seine Änderung habe die
   Suite rot gemacht, entscheidet das mit der **Beiseitelege-Gegenprobe** (die eigenen Dateien
   temporär verschieben, voll laufen lassen, zurücklegen), nicht mit dem Zählwert allein.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Das Tor „voller `vitest run` gruen" ist wieder erreichbar. Die
+  > obige Ersatzformel bleibt gueltig und ist die schaerfere Lesart — sie ist ab jetzt nur nicht
+  > mehr die einzig moegliche. Beleg: `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
+
   ⚠️ Die 170 zu richten ist ein **eigener Auftrag** an `m/feedback` und `m/files` plus die
   vitest-Frage — und §3.6 Nr. 1 von Spec 2 verlangt drei grüne Tests vor der ersten Generalprobe,
   weshalb dieser Posten vor dem Cutover fällig ist, aber nicht hier.
+
+  > ✅ **UEBERHOLT am 2026-08-21.** Dieser Auftrag ist erledigt, und §3.6 Nr. 1 ist nicht mehr
+  > durch eine rote Suite blockiert. Beleg:
+  > `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
 
 * **`pnpm build` und Playwright** werden von Planteil 1 nicht berührt (er fasst kein `src/app/**`
   außer `src/app/m/radio/_db/` und `_lib/` an, und legt dort keine Route an). Von Planteil 2 an

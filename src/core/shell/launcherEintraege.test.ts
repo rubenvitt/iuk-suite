@@ -41,6 +41,7 @@ describe("modulEintraege", () => {
       "feedback",
       "files",
       "lagerbuch",
+      "radio",
       "gamma",
     ]);
     const gamma = modulEintraege(groups).find((e) => e.key === "gamma");
@@ -56,7 +57,7 @@ describe("modulEintraege", () => {
 
   it("filtert weiterhin auf die Gruppen der Session", () => {
     expect(modulEintraege(["alpha-users"]).map((e) => e.key)).toContain("alpha");
-    expect(modulEintraege(null).map((e) => e.key)).toEqual(["qr"]);
+    expect(modulEintraege(null).map((e) => e.key)).toEqual(["qr", "radio"]);
   });
 
   it("steckt alle Module in denselben Abschnitt und trägt ihren Icon-Namen", () => {

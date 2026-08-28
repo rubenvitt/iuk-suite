@@ -30,7 +30,8 @@ Zusage an Teilnehmende und muss den Satz mitändern — nicht stillschweigend se
 ## Die IP: nur Ratenbegrenzung, flüchtig, nie an der Antwort
 
 Der anonyme Abgabepfad liest die Client-IP (`clientIpAus()` aus `@/core/ratelimit`: `cf-connecting-ip`,
-sonst der erste Wert aus `x-forwarded-for`). Sie wird **ausschließlich** als Schlüssel der
+sonst der konstante Sammelwert `"unknown"` — seit der CWE-348-Umstellung wird `x-forwarded-for` in
+keiner Richtung mehr gelesen). Sie wird **ausschließlich** als Schlüssel der
 Ratenbegrenzung verwendet:
 
 - `RateLimiter` (`@/core/ratelimit`) hält die Treffer in einer **`Map` im Prozessspeicher** —

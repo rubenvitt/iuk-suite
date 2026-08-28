@@ -100,7 +100,44 @@ function zaehle(db: ReturnType<typeof oeffne>) {
   };
 }
 
-describe("seedLokalFiles — die Daten entstehen wirklich", () => {
+/*
+ * DIE VIER SUITEN MIT ECHTER DATENBANK TRAGEN EINEN EIGENEN TIMEOUT — und
+ * der Grund ist NICHT, dass hier Laufzeit verschwendet wuerde.
+ *
+ * Was die Zeit kostet, ist `bcryptHash` mit cost 12 aus `_lib/passwort.ts`: jeder
+ * `seedLokalFiles`-Aufruf hasht genau ein Passwort, und ein Hash kostet lokal
+ * gemessen 223 ms (`bcrypt.hashSync("geheim", 12)`, Median aus drei Laeufen), ein
+ * `compareSync` ebenso viel. Genau daraus besteht der Grossteil jedes Falls hier.
+ *
+ * Diese Laufzeit ist sachlich begruendet und laesst sich nicht wegoptimieren:
+ *   – cost 12 IST der Produktivparameter, und mehrere Faelle sagen die Praefixform
+ *     `$2b$12$` ausdruecklich zu. Ein kleinerer cost machte die Zusage inhaltsleer.
+ *   – Jeder Fall braucht eine JUNGFRAEULICHE Datenbank samt Ablage: die Suite
+ *     „Idempotenz und Bestandsschutz" sagt zu, was ein ZWEITER Lauf tut. Eine
+ *     einmal geseedete, geteilte DB waere schneller und machte das inhaltsleer.
+ *   – Es sind auch keine Einzel-Commits in einer Schleife, die man klammern
+ *     koennte: der Seed schreibt rund 20 Zeilen, das ist neben 223 ms Rechenzeit
+ *     nicht messbar. Ein `journal_mode = WAL` wie in `lagerbuch/_db/testdb.ts`
+ *     traegt hier deshalb nichts — und waere sogar riskant, weil dieselbe Datei
+ *     ueber `getModuleDb` von einer ZWEITEN Verbindung geoeffnet wird (siehe den
+ *     `-wal`/`-shm`-Hinweis oben).
+ *
+ * GEMESSEN (27.08.2026, lokal, macOS/APFS):
+ *   – langsamster Fall unter VOLLER Suitenlast: 1412 ms
+ *     („verlangt für den geschützten Share ein Passwort und kennt genau eines" —
+ *     ein Hash im Seed plus mehrere `compareSync`)
+ *   – derselbe Fall einzeln: 846 ms; ganze Datei einzeln 6,17 s auf 18 Faelle
+ *   – Faktor dieser Datei CI/lokal: 4,1 (PR #80, Lauf 33090214227, `ubuntu-24.04`)
+ *   – Projektion: 1412 ms × 4,1 = 5789 ms — ueber der 5-Sekunden-Grenze.
+ *
+ * ⚠️ Die 20 s sind bewusst grosszuegig. Der Runner verstaerkt Rechenzeit mit
+ * Faktor 1,5 bis 7 (nicht mit 30 bis 125 wie bei commit-lastigen Dateien), aber
+ * 4,1 ist ein DATEI-Durchschnitt, und die Projektion hat bei PR #80 schon einmal
+ * zu niedrig gelegen (ein Fall projizierte 2462 ms und riss real 5000 ms).
+ * ⛔ Die Zahl gilt NUR fuer diese Suiten. Der globale `testTimeout` bleibt bei 5 s;
+ * ihn heraufzusetzen wuerde jeden kuenftigen Fall derselben Art verdecken.
+ */
+describe("seedLokalFiles — die Daten entstehen wirklich", { timeout: 20_000 }, () => {
   it("legt Shares, Dateien, Abgabelink und Posteingang an", async () => {
     const db = oeffne();
     const protokoll = await seedLokalFiles(db);
@@ -230,7 +267,8 @@ describe("seedLokalFiles — die Daten entstehen wirklich", () => {
   });
 });
 
-describe("seedLokalFiles — AV-Zustaende", () => {
+/* Timeout: Begruendung und Messung stehen ueber der ersten Suite dieser Datei. */
+describe("seedLokalFiles — AV-Zustaende", { timeout: 20_000 }, () => {
   it("setzt nie eine VOLLSTAENDIGE Zeile auf 'scanning'", async () => {
     // Genau dieses Paar waehlt `auftraege()` in `_lib/av.ts` aus. Ohne
     // antwortenden Scanner faellt so eine Zeile nach `FILES_AV_VERSUCHE` auf
@@ -291,7 +329,8 @@ describe("seedLokalFiles — AV-Zustaende", () => {
   });
 });
 
-describe("seedLokalFiles — die Prüfkette sieht dieselben Daten", () => {
+/* Timeout: Begruendung und Messung stehen ueber der ersten Suite dieser Datei. */
+describe("seedLokalFiles — die Prüfkette sieht dieselben Daten", { timeout: 20_000 }, () => {
   it("liefert für den offenen Share einen ladbaren Zustand", async () => {
     const db = oeffne();
     await seedLokalFiles(db);
@@ -399,7 +438,8 @@ describe("seedLokalFiles — die Prüfkette sieht dieselben Daten", () => {
   });
 });
 
-describe("seedLokalFiles — Idempotenz und Bestandsschutz", () => {
+/* Timeout: Begruendung und Messung stehen ueber der ersten Suite dieser Datei. */
+describe("seedLokalFiles — Idempotenz und Bestandsschutz", { timeout: 20_000 }, () => {
   it("legt beim zweiten Lauf weder Zeilen noch Blobs doppelt an", async () => {
     const db = oeffne();
     await seedLokalFiles(db);

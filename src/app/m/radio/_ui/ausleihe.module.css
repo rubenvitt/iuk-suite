@@ -1,0 +1,1062 @@
+/*
+ * DAS STYLESHEET DER AUSLEIHFLAECHE — angelegt in A11 mit dem GATE-TEIL; A16 und A18-A20
+ * erweitern dieselbe Datei (`.superpowers/sdd/planteil3/briefs/A11.md:7`).
+ *
+ * ⛔ EIGENE VARIABLEN, NIE `--ant-*` (Falle 2, `CLAUDE.md:14-15`): antd deklariert seine
+ * Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und der Fehler ist
+ * STILL, die Regel steht richtig da und die Linie verschwindet einfach. Die VIER
+ * Suite-Variablen unten (`--iuk-marke`, `--iuk-gedaempft`, `--iuk-linie`,
+ * `--iuk-flaeche-aktiv`) stehen dagegen auf `:root` und tragen ihren Dunkelzweig selbst
+ * mit (`src/app/globals.css:152-164`) — sie sind das einzige Farbvokabular, das eigenes
+ * Markup in dieser Suite lesen darf. ⚠️ Bis zur Fix-Runde 1 zu A11 stand hier „die drei",
+ * waehrend `.meldung` bereits die vierte las (REVIEW-A11, Fund K2).
+ *
+ * ⛔ `.gate` IST DER TRAEGER ALLER VARIABLEN dieses Zweigs, nach dem Vorbild
+ * `src/app/m/lagerbuch/_ui/helfer.module.css:24-26` („`.rahmen` IST DER TRAEGER ALLER
+ * VARIABLEN"). Eine Regel dieser Datei greift deshalb nie auf einen Wert zu, den nur ein
+ * anderer Traeger kennt.
+ *
+ * ⛔ KEINE FARBE FUER DEN FLIESZTEXT UND KEINE FLAECHENFARBE. Das Gate laeuft OHNE Shell
+ * (Entscheidung E9) und damit ohne antd-`Layout`; das Wurzel-Layout setzt
+ * `style={{ colorScheme: mode }}` auf `<html>` (`src/app/layout.tsx:153`), und die
+ * Vorgabefarben des Browsers folgen damit dem Hell/Dunkel-Zustand von selbst. Ein
+ * verdrahtetes `color: #000` waere in der Dunkeldarstellung schwarz auf schwarz — und
+ * `pnpm build`, `typecheck` und Vitest saehen davon nichts (Hauslehre
+ * „UI-Abnahme: messen, nicht schauen").
+ *
+ * ⛔ KEINE HOEHE AUF EINEM BEDIENELEMENT. Die Flaeche erbt `controlHeight: TAP = 56` vom
+ * Wurzelprovider (`src/core/theme/theme.ts:50-51`), weil sie ohne `FullShell` laeuft; 72
+ * (`size="large"`) wird nirgends gesetzt und 56 nirgends geschrieben, nur geerbt
+ * (Entscheidung E8, Falle 4 `CLAUDE.md:18-22`). Die Klassen fuer 44 und 64 entstehen in
+ * A16, nicht hier.
+ */
+
+.gate {
+  --radio-gate-breite: 34rem;
+  --radio-gate-linie: var(--iuk-linie);
+  --radio-gate-gedaempft: var(--iuk-gedaempft);
+  --radio-gate-marke: var(--iuk-marke);
+  --radio-gate-flaeche: var(--iuk-flaeche-aktiv);
+
+  box-sizing: border-box;
+  max-width: var(--radio-gate-breite);
+  margin-inline: auto;
+  padding: 2rem 1.25rem 3rem;
+  font-family: var(--font-body);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.titel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--radio-gate-marke);
+}
+
+.hinweis {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--radio-gate-gedaempft);
+}
+
+/*
+ * DER EINE MELDUNGSORT. Er steht NICHT in `page.tsx`, sondern in der Insel
+ * `_ui/GateFormular.tsx:148` unter `role="alert"` (die Rollenwahl ist in der Fix-Runde 1
+ * zu A11 entschieden, REVIEW-A11 Fund W3; die Begruendung steht an der Zeile selbst) und
+ * traegt den Satz aus `_lib/gateTexte.ts` — ⛔ NIE ein antd `Alert type="error"`:
+ * `colorError === colorPrimary === #c8000f` (`src/core/theme/theme.ts:32-33`), eine
+ * Fehlerbox saehe damit aus wie die Primaeraktion (Falle 3, `CLAUDE.md:16-17`; Entscheidungen E3 und E6).
+ * Die Markierung traegt deshalb die KANTE, nicht die Flaeche.
+ */
+.meldung {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-inline-start: 3px solid var(--radio-gate-marke);
+  border-radius: 0 4px 4px 0;
+  background: var(--radio-gate-flaeche);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.formular {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * `touch-action: manipulation` auf JEDEM Bedienelement — §4.6.3 fuehrt es als Nachbau,
+ * weil antd dafuer keinen Token hat. Es nimmt dem Browser die 300-ms-Wartezeit auf einen
+ * moeglichen Doppeltipp; auf einer handschuhbedienten Flaeche ist das der Unterschied
+ * zwischen „reagiert" und „haengt".
+ */
+.feld,
+.knopf {
+  touch-action: manipulation;
+}
+
+.feld {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.knopf {
+  min-width: 12rem;
+}
+
+/*
+ * ⛔ HIER STANDEN `.adminZeile` UND `.adminLink`, DIE ZWEI KLASSEN DES GATE-VERWALTUNGSLINKS.
+ * Sie sind am 2026-08-27 mit ihm gefallen: der Zweig war tot durch Konstruktion
+ * (`../page.tsx:77-111`, Messung `.superpowers/sdd/BERICHT-urls-und-adminzugang.md` §2.10).
+ *
+ * ⛔ UND SIE SIND NICHT WIEDERZUVERWENDEN, wenn der Link im Kopf der Ausleihflaeche neu
+ * entsteht. `.adminLink` las `var(--radio-gate-marke)`, `.adminZeile` las
+ * `var(--radio-gate-linie)` — beide sind AUSSCHLIESSLICH auf `.gate` deklariert (`:35-39`,
+ * festgehalten in `AusleihVorgang.test.tsx:626`). Unter `.rahmen` loesen sie nicht auf, und
+ * der Ausfall ist STILL: die Linie verschwindet einfach und die Farbe faellt auf den
+ * geerbten Wert zurueck (Falle 2, `CLAUDE.md:14-16`). Ein Link dort traegt seine Toene vom
+ * Traeger `.rahmen` oder bringt sie selbst mit.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * A16 — DER AUSLEIH-RAHMEN, DER STATUS-CHIP UND DIE RESTZEIT.
+ *
+ * ⛔ `.rahmen` IST DER TRAEGER SEINER VARIABLEN, wie `.gate` es fuer den Gate-Teil ist
+ * (Kopf dieser Datei) und wie `helfer.module.css:24-26` es ausschreibt. Eine Regel dieses
+ * Abschnitts greift nie auf einen Wert zu, den nur ein anderer Traeger kennt.
+ * ⚠️ `.chip` ist die eine benannte Ausnahme und traegt seine vier Toene SELBST — siehe
+ * dort. Der Grund ist Falle 2 in ihrer stillsten Gestalt.
+ *
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT — es gibt hier keins (Entscheidung E9). 56
+ * wird geerbt und nirgends geschrieben, 72 nirgends gesetzt (Falle 4). Was hier steht,
+ * sind die zwei NACHBAU-Masze 44 und 64 aus Spec:3711-3722, je als `min-height` UND
+ * `min-width`, plus `touch-action: manipulation` — fuer beides gibt es kein antd-Token.
+ * ⚠️ ⛔ OB `min-width` GEGEN ANTD DURCHKOMMT, IST HIER NICHT ENTSCHIEDEN: das ist Falle 5,
+ * und sie ist STILL — antd spritzt seine Regeln zur Laufzeit ueber cssinjs ein, sie stehen
+ * in KEINER Datei dieses Repos, und jsdom rechnet keine Zeilenboxen. ⬜ Gemessen wird das
+ * im echten Browser, in BEIDEN Farbmodi, vor dem Merge. Da die Elemente hier alle eigenes
+ * Markup sind (kein antd), ist heute kein Wettstreit zu erwarten — behauptet ist das
+ * nicht.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.rahmen {
+  --radio-rahmen-linie: var(--iuk-linie);
+  --radio-rahmen-gedaempft: var(--iuk-gedaempft);
+  --radio-rahmen-marke: var(--iuk-marke);
+  --radio-rahmen-flaeche: var(--iuk-flaeche-aktiv);
+  /* Das Tap-Mass der Fussnavigation, Spec:3714 („Fussnavigation je Eintrag 64"). */
+  --radio-tap-nav: 64px;
+  /* WCAG 2.5.5 Stufe AAA, Spec:3715,3717 („Statuschips im Filter 44", „Gruppenkopf 44"). */
+  --radio-tap-klein: 44px;
+
+  box-sizing: border-box;
+  min-height: 100dvh; /* NICHT 100vh: sonst rutscht die Fussleiste unter die Adressleiste */
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-body);
+}
+
+.kopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--radio-rahmen-linie);
+}
+
+.kopfEnde {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.marke {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--radio-rahmen-marke);
+}
+
+.etikett {
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+.restzeit {
+  display: inline-block;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+/*
+ * Der abgelaufene Zustand traegt die KANTE, nicht die Flaeche — derselbe Grund wie bei
+ * `.meldung` oben: `colorError === colorPrimary === #c8000f`
+ * (`src/core/theme/theme.ts:32-33`), eine rote Flaeche saehe aus wie die Primaeraktion
+ * (Falle 3).
+ */
+.restzeitAbgelaufen {
+  padding-inline-start: 0.5rem;
+  border-inline-start: 3px solid var(--radio-rahmen-marke);
+  color: inherit;
+}
+
+/*
+ * Zwei Wege aus dem Kopf heraus, EIN Aussehen: „Zur Verwaltung" (L3, nur fuer Berechtigte)
+ * und „Zur Suite" (nur mit Suite-Sitzung). Sie stehen nebeneinander in `.kopfEnde` und
+ * sind gleichrangig — zwei Regeln waeren zwei Wahrheiten ueber dieselbe Gestalt.
+ *
+ * ⬜ UNGEMESSEN, UND DAS STEHT HIER STATT ZWISCHEN ZWEI PRUEFUNGEN ZU VERSCHWINDEN
+ * (REVIEW-L3 Fund 6): die Verwalterin MIT Suite-Sitzung sieht DREI Elemente in `.kopfEnde`
+ * (Verwaltungslink · Portallink · Beenden-Knopf), wo bisher zwei standen. Typografie und
+ * Farbe sind bestandsgeprueft, weil beide Wege DIESE Regel teilen; neu und ungemessen ist
+ * die ANORDNUNG. ⛔ Kein Tor findet das (Falle 8, `CLAUDE.md`: „Kein Gate findet das" —
+ * antd spritzt die Kopfzeilen-`line-height` zur Laufzeit ein, jsdom rechnet keine
+ * Zeilenboxen). Gehoert an die UI-Abnahme, in BEIDEN Farbmodi und am Telefonumbruch.
+ */
+.portalLink,
+.verwaltungsLink {
+  color: var(--radio-rahmen-marke);
+  font-size: 0.9375rem;
+  touch-action: manipulation;
+}
+
+/*
+ * Der Beenden-Knopf ist eigenes Markup und erbt deshalb NICHTS von antd — weder Hoehe noch
+ * Rahmen noch Hintergrund. Der Reset steht hier, damit die 44 wirklich die 44 ist
+ * (Vorbild `helfer.module.css`, Button-Reset).
+ */
+.beenden {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: var(--radio-tap-klein);
+  min-width: var(--radio-tap-klein);
+  padding-inline: 0.75rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.inhalt {
+  flex: 1 1 auto;
+  padding: 1rem;
+}
+
+/*
+ * Die Fussleiste steht am unteren Rand und bleibt dort stehen — auf einem Telefon ist sie
+ * der Weg zwischen den drei Flaechen, und eine Leiste, die man erst herunterscrollen muss,
+ * ist keine.
+ */
+.fussnav {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--radio-rahmen-linie);
+  /*
+   * ⛔ `Canvas` UND NICHT `inherit`. `.rahmen` setzt bewusst KEINE Flaechenfarbe (Kopf
+   * dieser Datei: die Vorgabefarben des Browsers folgen `style={{ colorScheme: mode }}`
+   * aus `src/app/layout.tsx:153` von selbst) — ein `inherit` loeste damit auf
+   * `transparent` auf, und gescrollter Inhalt liefe SICHTBAR unter der Leiste durch.
+   * `Canvas` ist das Systemschluesselwort fuer genau diese Vorgabeflaeche und folgt
+   * demselben `color-scheme`; es haelt die Regel des Rahmens ein, statt sie zu brechen.
+   * ⬜ Im Browserlauf vor dem Merge gegenzupruefen, in BEIDEN Farbmodi.
+   */
+  background: Canvas;
+}
+
+.navEintrag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-height: var(--radio-tap-nav);
+  min-width: var(--radio-tap-nav);
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+/*
+ * ⛔ DIE MARKIERUNG HAENGT AN `aria-current`, NICHT AN EINER ZWEITEN KLASSE. Damit prueft
+ * ein spaeterer e2e dieselbe Sache, die eine Bildschirmleserin hoert
+ * (`lagerbuch/_ui/HelferRahmen.tsx:123-126`).
+ */
+.navEintrag[aria-current="page"] {
+  color: var(--radio-rahmen-marke);
+  background: var(--radio-rahmen-flaeche);
+}
+
+.navText {
+  font-size: 0.8125rem;
+  line-height: 1.2;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────────────────
+ * DER STATUS-CHIP (Entscheidung E3, ⬜ A-L10).
+ *
+ * ⛔ DIE ACHT WERTE STEHEN HIER ALS EIGENE VARIABLEN, NIE ALS `--ant-*` (Falle 2): antd
+ * deklariert seine Variablen auf SEINER Scope-Klasse, eigenes Markup sieht sie nicht — und
+ * der Fehler ist still, die Regel steht richtig da und die Farbe verschwindet einfach.
+ * Abgelesen aus `STATUS_HEX` in `src/app/m/radio/_lib/status.ts`, das sie seinerseits
+ * woertlich aus dem Alt-Kiosk fuehrt (dort mit dem WCAG-AA-Grund). ⛔ NICHT aus
+ * antd-Tokens abgeleitet (Spec:3691-3694).
+ *
+ * ⛔ `.chip` TRAEGT SIE SELBST und nicht `.rahmen`. Der Chip erscheint ab A18 in
+ * Geraetezeilen, Gruppenkoepfen und Filtern; haengte er an einem Vorfahren, faellt er
+ * beim ersten Aufrufort ausserhalb des Rahmens still auf gar keine Farbe zurueck.
+ *
+ * ⛔ DER DUNKELZWEIG HAENGT AN `:root[data-theme="dark"]`, NICHT AN `prefers-color-scheme`.
+ * Der Umschalter der Suite hat drei Zustaende und `data-theme` traegt IMMER den
+ * aufgeloesten Wert (`src/app/globals.css:159`, `src/app/layout.tsx`). Eine Systemabfrage
+ * braeche den Fall „System dunkel, Umschalter hell".
+ * ⚠️ Hier stehen DIESELBEN VIER Namen wie im Hellzweig. Einer, der fehlte, bliebe auf
+ * seinem Hellwert stehen — still, und nur auf dunklen Geraeten sichtbar.
+ *
+ * ⬜ IM BROWSERLAUF VOR DEM MERGE GEGENZUPRUEFEN, IN BEIDEN FARBMODI — derselbe Posten
+ * wie `:268` und derselbe Eigentuemer, nur fuer den Chip statt fuer die Fussleiste.
+ * Gemessen wird, ob die vier Dunkelwerte auf einem dunklen Geraet wirklich greifen und
+ * lesbar bleiben. Der Textvergleich in `StatusChip.test.tsx:122-154` haelt allein die
+ * Bindung NAME->WERT fest; jsdom rechnet keine Farben (Hauslehre „UI-Abnahme: messen,
+ * nicht schauen", und immer BEIDE Farbmodi).
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.chip {
+  --radio-status-frei: #22c55e;
+  --radio-status-vergeben: #f59e0b;
+  --radio-status-defekt: #ef4444;
+  --radio-status-wartung: #6b7280;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+:root[data-theme="dark"] .chip {
+  --radio-status-frei: #16a34a;
+  --radio-status-vergeben: #d97706;
+  --radio-status-defekt: #dc2626;
+  --radio-status-wartung: #9ca3af;
+}
+
+.chip[data-ton="frei"] .chipPunkt {
+  background: var(--radio-status-frei);
+}
+
+.chip[data-ton="vergeben"] .chipPunkt {
+  background: var(--radio-status-vergeben);
+}
+
+.chip[data-ton="defekt"] .chipPunkt {
+  background: var(--radio-status-defekt);
+}
+
+.chip[data-ton="wartung"] .chipPunkt {
+  background: var(--radio-status-wartung);
+}
+
+/*
+ * 10px, `aria-hidden` am Element (`StatusChip.tsx`) — ⛔ FARBE IST NIE DER EINZIGE
+ * TRAEGER (Spec:3696-3697). Der Punkt steht NEBEN dem Etikett, nie an seiner Stelle.
+ * `flex: none`, damit er in einer engen Zeile nicht zur Ellipse gedrueckt wird.
+ */
+.chipPunkt {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* ───────────────────────────────────────────────────────────────────────────────────────
+ * DIE GERAETEUEBERSICHT (A18) — Filterleiste, Standortgruppen, Geraetezeile.
+ *
+ * ⛔ NACHBAU, WEIL KEIN ANTD-BAUSTEIN PASST (Entscheidung E8, Spec:3712-3717). Die
+ * Geraetezeile ist kein antd-Bedienelement; `controlHeight` deckt nur die HOEHE von
+ * Bedienelementen ab, und `min-width` setzt antd ohnehin nicht. Eine zweite
+ * `ConfigProvider`-Ebene waere eine Client-Komponente und machte den Server-Rahmen zur
+ * Client-Grenze (`AusleihRahmen.tsx:43-45`).
+ *
+ * ⛔ DIE ZWEI MASSE SIND 44 UND 64, UND SONST KEINES (Spec:3724-3726). 64 traegt die
+ * Geraetezeile — der Haupt-Tap mit Handschuh (Spec:3713, im Bestand 56,
+ * `DeviceRow.tsx:53`); 44 tragen Filterknopf und Gruppenkopf (Spec:3715, `:3717`).
+ * ⛔ 72 STEHT NIRGENDS (das waere `size="large"`, Falle 4), 56 STEHT NIRGENDS — es wird
+ * vom Wurzelprovider geerbt (`src/core/theme/theme.ts:50-51`), weil diese Flaeche ohne
+ * `FullShell` laeuft.
+ * ⛔ `touch-action: manipulation` UND `min-width` SIND DER NACHBAU, fuer den es kein
+ * antd-Token gibt (Spec:3724-3725; Alt-Quelle `components/ui/touch-button.tsx:36` — Spec:3725 nennt `:35`,
+ * dort steht die schliessende Klammer, das `style={{ touchAction }}` steht auf `:36`).
+ *
+ * ⛔ KEINE FARBE FUER DEN FLIESZTEXT UND KEINE FLAECHENFARBE — dieselbe Regel wie im Kopf
+ * dieser Datei. Ein verdrahtetes `color: #000` waere in der Dunkeldarstellung schwarz auf
+ * schwarz, und kein Tor saehe es.
+ *
+ * ⚠️ DER STATUSPUNKT DER ZEILE IST DER CHIP AUS `StatusChip.tsx` — hier entsteht KEINE
+ * zweite Farbtafel. Die acht Werte stehen einmal, oben bei `.chip`.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.filterleiste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * ⛔ KEINE HOEHE. Das Suchfeld ist ein antd-`Input`; es erbt 56 (`theme.ts:50`). Ein
+ * `size`-Prop waere 72 (Falle 4), eine Hoehe hier waere die zweite Wahrheit daneben.
+ */
+.suchfeld {
+  width: 100%;
+}
+
+.filterreihe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/*
+ * 44 — WCAG 2.5.5 Target Size (Enhanced), im Bestand `DeviceFilterBar.tsx:76`.
+ * ⛔ `min-width` GEHOERT DAZU: antd setzt Hoehen, nie Breiten (Spec:3724-3725). Ein
+ * Filter „Alle" waere sonst ein 40px breites Ziel.
+ */
+.filterknopf {
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 1rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.filterknopf[aria-pressed="true"] {
+  border-color: var(--radio-rahmen-marke);
+  background: var(--radio-rahmen-flaeche);
+  font-weight: 600;
+}
+
+.trefferzeile {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+.gruppen,
+.zeilen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gruppen {
+  gap: 1rem;
+}
+
+.gruppe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* 44 — im Bestand `DeviceGroup.tsx:24`. Bei aktivem Suchtext ist er `disabled`. */
+.gruppenkopf {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--radio-rahmen-gedaempft);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.gruppenkopf:disabled {
+  cursor: default;
+}
+
+.gruppenZahl {
+  font-weight: 400;
+}
+
+/*
+ * DIE GERAETEZEILE — 64px, der Haupt-Tap (Spec:3713).
+ *
+ * ⛔ SIE IST EIN `a` ODER EIN `div`, JE NACH LEIHSTAND (`GeraeteZeile.tsx`), und beide
+ * tragen dieselbe Klasse: die Aussage „antippbar" haengt am Element und an
+ * `aria-disabled`, nicht an einer Farbe.
+ */
+.zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  min-height: 64px;
+  min-width: 64px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+/*
+ * 60 % Deckkraft fuer ein vergebenes Geraet, 1:1 aus `DeviceRow.tsx:57` (`opacity-60`).
+ * ⛔ DECKKRAFT IST NICHT DER TRAEGER DER AUSSAGE — `aria-disabled` und der fehlende
+ * `href` sind es (`DeviceRow.tsx:47`, `:49-50`). Farbe und Deckkraft sind nie der einzige
+ * Traeger (Spec:3696-3697).
+ */
+.zeile[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.zeileText {
+  flex: 1;
+  min-width: 0;
+}
+
+.zeileRufname {
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zeileNeben {
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--radio-rahmen-gedaempft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Der Leerzustand der Insel: kein Treffer fuer Suchtext oder Filter. */
+.leerTreffer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  color: var(--radio-rahmen-gedaempft);
+  text-align: center;
+}
+
+/*
+ * Die Kopfzeile der Uebersicht: Ueberschrift links, Aktualisieren-Knopf rechts.
+ * ⛔ DIE UEBERSCHRIFT IST EIN NACKTES `h1`, kein `Typography.Title` — Compound-Zugriff in
+ * einer Server Component ist HTTP 500 (Falle 1, `CLAUDE.md:11-13`, Spec:3349-3351).
+ */
+.uebersichtKopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.uebersichtTitel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+/*
+ * DIE ERFOLGSZEILE NACH EINER BUCHUNG (`?gebucht=<n>`, Entscheidung E6: kein Toast).
+ *
+ * ⛔ GRUEN AUS DEM CHIP-SATZ, NICHT `colorSuccess` — ein Farbsystem je Flaeche
+ * (Spec:3754-3776, Entscheidung E6). `--radio-status-frei` steht auf `.chip`; diese Regel
+ * setzt den Wert deshalb SELBST, mit demselben Hell- und Dunkelwert wie dort
+ * (`_lib/status.ts`, ⬜ A-L10). ⛔ NIE `--ant-*` (Falle 2) und nie `colorError` auf einer
+ * Datenflaeche (Falle 3: `colorError === colorPrimary`, `src/core/theme/theme.ts:32-33`).
+ */
+.gebucht {
+  --radio-gebucht-farbe: #22c55e;
+
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--radio-gebucht-farbe);
+  border-radius: 0.5rem;
+  border-left-width: 4px;
+}
+
+:root[data-theme="dark"] .gebucht {
+  --radio-gebucht-farbe: #16a34a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * A19 — DER AUSLEIHVORGANG: AUSWAHL, NAMENSFELD, INLINE-ERNEUERUNG.
+ *
+ * ⛔ DIESER ABSCHNITT LIEST AUSSCHLIESSLICH `--radio-rahmen-*`, nie `--radio-gate-*`. Der
+ * Kopf dieser Datei schreibt die Regel aus: „`.gate` IST DER TRAEGER ALLER VARIABLEN dieses
+ * Zweigs … Eine Regel dieser Datei greift deshalb nie auf einen Wert zu, den nur ein
+ * anderer Traeger kennt." Die Ausleihflaechen haengen unter `.rahmen`
+ * (`_ui/AusleihRahmen.tsx`), nicht unter `.gate`.
+ * ⚠️ ACHT REGELN DES A16/A18-ABSCHNITTS TATEN GENAU DAS und sind in dieser Aufgabe
+ * mitgehoben worden (`:441`, `:452`, `:453`, `:460`, `:490`, `:522`, `:556`, `:568`) —
+ * zeilenzahl-neutral, 613 Zeilen vor wie nach dem Eingriff. Falle 2 in ihrer stillsten
+ * Gestalt (`CLAUDE.md:14-15`): der Wert ist unter `.rahmen` schlicht nicht deklariert, die
+ * Erklaerung ist damit „invalid at computed-value time", und die gedaempfte Farbe faellt
+ * still auf die geerbte zurueck. Kein Tor sieht das — `_ui/AusleihVorgang.test.tsx` haelt es
+ * ab jetzt fest.
+ *
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 56 wird geerbt
+ * und nirgends geschrieben, 72 nirgends gesetzt. Was hier steht, sind die NACHBAU-Masze aus
+ * Spec:3711-3722, je als `min-height` UND `min-width`, plus `touch-action: manipulation` —
+ * fuer beides gibt es kein antd-Token (Entscheidung E8).
+ * ⚠️ ⬜ OB `min-width` GEGEN ANTD DURCHKOMMT, IST HIER NICHT ENTSCHIEDEN — das ist Falle 5,
+ * und sie ist STILL. Gemessen wird das im echten Browser, in BEIDEN Farbmodi, vor dem
+ * Merge; dieselbe offene Probe wie `:145`.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.ausleihForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.schritt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/*
+ * ⛔ EIN NACKTES `h2`, kein `Typography.Title` — Compound-Zugriff in einer Server Component
+ * ist HTTP 500 (Falle 1). Die Insel ist zwar Client, aber zwei Bauformen fuer dieselbe
+ * Ueberschrift waeren die Einladung, die falsche zu kopieren.
+ * Die Nummerierung „1." / „2." ist 1:1 aus `routes/loan.tsx:75`, `:83`.
+ */
+.schrittTitel {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.25;
+}
+
+.auswahlListe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/*
+ * DIE AUSWAHLZEILE — 64px, der Haupt-Tap (Spec:3713), zeichengleich zu `.zeile` des
+ * Uebersichtszweigs.
+ *
+ * ⛔ SIE IST EIN `button` ODER EIN `div`, JE NACH ZUSTAND (`_ui/AusleihVorgang.tsx`), und
+ * beide tragen dieselbe Klasse — deshalb der vollstaendige Knopf-Rueckbau (`font`,
+ * `background`, `text-align`): ohne ihn saehe die waehlbare Zeile anders aus als die
+ * gesperrte, und der Unterschied laege an der Bauform statt an der Aussage.
+ */
+.auswahlZeile {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  min-width: 64px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/*
+ * ⛔ DER GEWAEHLTE ZUSTAND HAENGT AN `aria-pressed`, die Klasse folgt daraus — nicht
+ * umgekehrt. Dieselbe Anordnung wie beim Statusfilter (`.filterknopf[aria-pressed="true"]`)
+ * und beim `aria-current` der Fussnavigation. ⛔ FARBE IST NICHT DER EINZIGE TRAEGER: die
+ * Zeile zeigt zusaetzlich das Hakenzeichen (Spec:3696-3697, `DeviceRow.tsx:69`).
+ */
+.auswahlZeile[aria-pressed="true"] {
+  border-color: var(--radio-rahmen-marke);
+  background: var(--radio-rahmen-flaeche);
+}
+
+/*
+ * 60 % Deckkraft fuer ein nicht freies Geraet, 1:1 aus `DeviceRow.tsx:57` (`opacity-60`).
+ * ⛔ DECKKRAFT IST NICHT DER TRAEGER DER AUSSAGE — `aria-disabled` und das fehlende
+ * Bedienelement sind es (`DeviceRow.tsx:47`, `:49-50`).
+ */
+.auswahlZeile[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/*
+ * DER SICHTBARE DECKEL (Spec:3482-3484). ⛔ KEIN ROT auf einer Datenflaeche
+ * (`colorError === colorPrimary`, `src/core/theme/theme.ts:32-33`, Falle 3) — die Kante
+ * traegt die Markenfarbe, die schon der Meldungsort des Gates benutzt.
+ */
+.deckel {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--radio-rahmen-marke);
+  border-radius: 0.25rem;
+  background: var(--radio-rahmen-flaeche);
+  font-size: 0.9375rem;
+}
+
+/*
+ * DER FELDFEHLER — am Namensfeld (A-L17) und am Codefeld der Inline-Erneuerung.
+ * ⛔ KEINE FARBE AUS `colorError`: Rot ist in dieser Suite die Primaeraktion (Falle 3). Der
+ * Traeger der Aussage ist `role="alert"` und die Stellung unter dem Feld, nicht die Farbe.
+ */
+.feldFehler {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+/* Das Namensfeld nimmt die volle Breite; die Hoehe erbt es (56, `theme.ts:50`). */
+.entleiherFeld {
+  width: 100%;
+}
+
+/*
+ * EIN VORSCHLAG IM AUFKLAPPER — ⛔ 44 JE ZEILE IST NACHBAU (Spec:3496-3500 Punkt 3,
+ * `BorrowerInput.tsx:283`): antd bringt ARIA, Tastatur und Tap mit, aber kein Tap-MASZ.
+ */
+.vorschlag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.vorschlagName {
+  font-weight: 600;
+}
+
+/*
+ * ⛔ DIE NEBENZEILE „zuletzt am …" IST NACHBAU (Spec:3496-3500 Punkt 2) und der Posten, der
+ * beim Port STILL verschwaende — `Vorschlag` ist kein `string` (`_db/leihen.ts:112-121`).
+ *
+ * ⛔ DIE EINZIGE REGEL DIESES ZWEIGS, DIE `--iuk-*` DIREKT LIEST, UND DER GRUND IST DIE
+ * BAUFORM: die drei `.vorschlag*`-Regeln kleiden Markup, das antds `AutoComplete` in ein
+ * PORTAL an `document.body` haengt (`_ui/EntleiherFeld.tsx`) — also AUSSERHALB von
+ * `.rahmen`. `--radio-rahmen-gedaempft` ist ausschliesslich dort deklariert (`:151-155`);
+ * im Portal ist der Wert nicht da, die Erklaerung wird „invalid at computed-value time",
+ * und die gedaempfte Farbe faellt still auf die geerbte zurueck. Das ist Falle 2 eine Stufe
+ * tiefer als der Fund aus A19 §6 (dort las eine Regel die Variable des FALSCHEN Traegers;
+ * hier ist der richtige Traeger schlicht kein Vorfahr). `--iuk-gedaempft` steht auf `:root`
+ * (`src/app/globals.css:152-156`, Dunkelzweig `:159-164`) und ist damit die einzige Quelle,
+ * die JEDER Knoten des Dokuments sieht.
+ * ⛔ BEWACHT, NICHT NUR BEGRUENDET: `_ui/AusleihVorgang.test.tsx`, Fall „keine Regel eines
+ * PORTAL-Bausteins liest eine Variable des Rahmen-Traegers" — er misst die Portallage am
+ * DOM und liest die Klassen dort aus, statt eine Liste zu behaupten.
+ */
+.vorschlagZuletzt {
+  font-size: 0.875rem;
+  color: var(--iuk-gedaempft);
+  white-space: nowrap;
+}
+
+/*
+ * DIE INLINE-ERNEUERUNG (E12, Spec:2563-2570) — sie ist selbst kein Modal und kein Redirect.
+ * Sie steht in ZWEI Wirten: unter `.rahmen` (A19) und im Rueckgabe-`Modal`, das in einem
+ * PORTAL an `document.body` haengt (A20). Deshalb liest sie nur `--iuk-*` von `:root`, nie
+ * `--radio-rahmen-*` — dort ist es nicht deklariert (Falle 2, `RueckgabeDialog.test.tsx`).
+ */
+.erneuern {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--iuk-linie);
+  border-radius: 0.5rem;
+}
+
+.erneuernLabel {
+  font-size: 0.875rem;
+  color: var(--iuk-gedaempft);
+}
+
+.erneuernZeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/*
+ * ⛔ `min-width` IST NACHBAU: antd setzt Hoehen, nie Breiten (Spec:3724-3725). Ohne sie
+ * schruempfte der Knopf neben dem Codefeld auf Textbreite.
+ */
+.erneuernKnopf {
+  min-width: 11rem;
+  touch-action: manipulation;
+}
+
+.erneuernErledigt {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+}
+
+/*
+ * DER SATZ ZUM VERLUST EINER VORWAHL (§4.3.3, Spec:3486-3488). ⛔ KEIN ROT (Falle 3) und
+ * kein antd-`Alert`: dieselbe Kante wie der Meldungsort des Gates.
+ */
+.verlust {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-inline-start: 3px solid var(--radio-rahmen-marke);
+  border-radius: 0.25rem;
+  background: var(--radio-rahmen-flaeche);
+  line-height: 1.4;
+}
+
+/*
+ * DER ABSENDEKNOPF. ⛔ KEIN `size` (Falle 4) — die Hoehe erbt er. `min-width` ist Nachbau
+ * (Spec:3724-3725, `ConfirmLoanButton.tsx:75` setzt im Bestand `w-full` plus
+ * `min-w-[200px]` am Aufrufer, `routes/loan.tsx:98`).
+ */
+.absenden {
+  min-width: 12.5rem;
+  touch-action: manipulation;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+ * A20 — DIE RUECKGABE: KARTENLISTE IM WIRT, DIALOG IM PORTAL.
+ *
+ * ⛔ DIESER ABSCHNITT HAT ZWEI HAELFTEN MIT VERSCHIEDENEN TRAEGERN, und das ist keine
+ * Ordnungsfrage. Die Kartenliste haengt unter `.rahmen` (`_ui/AusleihRahmen.tsx`) und darf
+ * `--radio-rahmen-*` lesen. Der Dialog haengt in einem PORTAL an `document.body`
+ * (antd `Modal`) — dort ist WEDER `.rahmen` NOCH `.gate` Vorfahr, und jede Erklaerung, die
+ * eine ihrer Variablen liest, wird „invalid at computed-value time": die Farbe faellt still
+ * auf die geerbte zurueck (Falle 2, `CLAUDE.md:14-15`). Kein Tor sieht das — `typecheck`,
+ * `lint` und jsdom rechnen keine Kaskade; `_ui/RueckgabeDialog.test.tsx` liest deshalb die
+ * im Portal TATSAECHLICH vorkommenden Klassen aus dem DOM und prueft ihre Regelkoerper.
+ * ⚠️ DERSELBE FALL HAT A19 SCHON EINMAL GETROFFEN (`_ui/AusleihVorgang.test.tsx`, der
+ * Vorschlags-Aufklapper) und traf mit dieser Aufgabe zwei Regeln der Inline-Erneuerung
+ * (`.erneuern`, `.erneuernLabel`) — sie lesen seither `--iuk-*`, weil ihre Insel in BEIDEN
+ * Wirten steht.
+ *
+ * ⛔ `.dialogForm` IST DER TRAEGER ALLER VARIABLEN DIESER HAELFTE, nach demselben Vorbild wie
+ * `.gate` und `.rahmen` (Kopf dieser Datei). Er liest ausschliesslich die vier
+ * Suite-Variablen von `:root` (`src/app/globals.css:153-156`, Dunkelzweig `:160-163`) — sie
+ * sind die einzigen, die JEDER Knoten des Dokuments sieht.
+ *
+ * ⛔ KEINE HOEHE AUF EINEM ANTD-BEDIENELEMENT (Falle 4, `CLAUDE.md:18-22`): 56 wird geerbt
+ * und nirgends geschrieben, 72 nirgends gesetzt. Spec:3720 fuehrt die Dialogknoepfe
+ * ausdruecklich als „geerbt (56)"; was hier steht, sind `min-width` und
+ * `touch-action: manipulation`, fuer die es kein antd-Token gibt (Entscheidung E8).
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.rueckgabe {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/*
+ * DIE ERFOLGSZEILE NACH EINER RUECKGABE (§4.4 Schritt 5, Spec:3562).
+ *
+ * ⛔ GRUEN AUS DEM CHIP-SATZ, NICHT `colorSuccess` — ein Farbsystem je Flaeche
+ * (Spec:3754-3776, Entscheidung E6), und `colorError === colorPrimary` macht Rot auf einer
+ * Datenflaeche ohnehin unbrauchbar (Falle 3, `src/core/theme/theme.ts:32-33`). Die zwei
+ * Werte sind dieselben wie bei `.gebucht` — dieselbe Aussage auf der Nachbarflaeche, und
+ * `--radio-status-frei` steht auf `.chip`, also nicht hier.
+ *
+ * ⛔ DIE SCHREIBWEISE `--radio-<flaeche>-farbe` IST VERBINDLICH UND KEIN GESCHMACK. An ihr
+ * haengt der Waechter `StatusChip.test.tsx` („jede --radio-*-farbe traegt den ERFOLGSTON aus
+ * STATUS_HEX, in BEIDEN Zweigen"): er sammelt JEDE so benannte Variable ein und bindet sie
+ * gegen `STATUS_HEX.frei` (`_lib/status.ts`) — heute `--radio-gebucht-farbe` (`.gebucht`) und
+ * `--radio-rueckgabe-farbe` hier. Wer die vierte Kopie `--radio-erfolg-ton` nennt, faellt aus
+ * dem Schnitt, und die drei Kopien laufen wieder still auseinander. ⛔ SELBST GEMESSEN, mit
+ * dem Waechter stillgelegt: `--radio-rueckgabe-farbe` in BEIDEN Zweigen auf den Defekt-Ton
+ * gedreht (`#ef4444`/`#dc2626`) — also genau das Rot, das Falle 3 auf einer Datenflaeche
+ * verbietet — und der Modullauf blieb bei 518 gruen, 0 rot.
+ *
+ * ⬜ WAS DER WAECHTER NICHT ZUSAMMENLEGT, UND WARUM ES HIER STEHEN BLEIBT (REVIEW-A20,
+ * Fix-Runde 2, der Restposten zu Fund F3). Das Gruenpaar `#22c55e`/`#16a34a` steht in dieser
+ * Datei DREIMAL: auf `.chip` als `--radio-status-frei` (`:331`, `:345`), auf `.gebucht` als
+ * `--radio-gebucht-farbe` (`:602`, `:612`) und hier. Der Waechter bindet die zweite und die
+ * dritte Kopie; die erste haengt an der ANDEREN Schreibweise und an ihrem eigenen Fall
+ * (`StatusChip.test.tsx:122-154`). ⛔ ZUSAMMENLEGEN HIESSE, `.chip`s DEKLARATIONSORT
+ * ANZUFASSEN (`:311-313`: „`.chip` TRAEGT SIE SELBST und nicht `.rahmen`" — der Chip
+ * erscheint auch AUSSERHALB des Rahmens und fiele sonst still auf gar keine Farbe zurueck),
+ * und damit jenen Fall. Das ist ein eigener Umbau und keine Zeile dieser Aufgabe.
+ * ⚠️ EINEN EIGENTUEMER INNERHALB VON PLANTEIL 3 HAT ER NICHT MEHR — A15 und A19 sind gebaut,
+ * A20 ist die letzte Aufgabe. Er ist deshalb HIER benannt, im verfolgten Baum, und nicht nur
+ * in einem Bericht unter `.superpowers/` (git-ignoriert, `.gitignore:17`).
+ */
+.rueckgabeErfolg {
+  --radio-rueckgabe-farbe: #22c55e;
+
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--radio-rueckgabe-farbe);
+  border-radius: 0.5rem;
+  border-left-width: 4px;
+}
+
+:root[data-theme="dark"] .rueckgabeErfolg {
+  --radio-rueckgabe-farbe: #16a34a;
+}
+
+.leihkarten {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/*
+ * DIE KARTE EINER OFFENEN AUSLEIHE — ⛔ 64 IST NACHBAU, wie bei der Geraetezeile. Spec:3711
+ * hebt die Zeile des Bestands von 56 auf 64 („der Haupt-Tap mit Handschuh"); die Alt-Karte
+ * traegt dieselben 56 (`LoanedDeviceCard.tsx:48`, `min-h-[56px]`) und ist auf dieser Flaeche
+ * derselbe Haupt-Tap. ⛔ `min-width` UND `touch-action: manipulation` gehoeren dazu — fuer
+ * beides gibt es kein antd-Token (Spec:3724-3725).
+ * ⛔ EIN ECHTER `<button>` BRAUCHT DEN KNOPF-RESET: `text-align`, `font` und `background`
+ * kommen sonst vom Browser (`src/app/globals.css` setzt den Reset fuer nackte Knoepfe, die
+ * Kante und die Flaeche stehen hier).
+ */
+.leihkarte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-height: 64px;
+  min-width: 44px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--radio-rahmen-linie);
+  border-radius: 0.5rem;
+  text-align: start;
+  touch-action: manipulation;
+}
+
+/* ⛔ „Rufname FETT" ist die Zusage aus Spec:3558 (`LoanedDeviceCard.tsx:59`). */
+.leihkarteRufname {
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.leihkarteZeit {
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--radio-rahmen-gedaempft);
+}
+
+/*
+ * ⛔ AB HIER STEHT ALLES IM PORTAL. Der Traeger deklariert die drei Werte, die der Dialog
+ * braucht, aus den Suite-Variablen auf `:root` — nie aus `--radio-rahmen-*`/`--radio-gate-*`.
+ */
+.dialogForm {
+  --radio-dialog-linie: var(--iuk-linie);
+  --radio-dialog-gedaempft: var(--iuk-gedaempft);
+  --radio-dialog-marke: var(--iuk-marke);
+  --radio-dialog-flaeche: var(--iuk-flaeche-aktiv);
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* „Optional: Zustandsnotiz hinterlassen" — 1:1 aus `ReturnDialog.tsx:84`. */
+.dialogHinweis {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--radio-dialog-gedaempft);
+}
+
+/*
+ * ⛔ KEINE HOEHE AM BEDIENELEMENT, aber eine MINDESTHOEHE am Textfeld: der Bestand setzt
+ * `min-h-[120px]` (`ReturnDialog.tsx:94`), und ein Notizfeld, das eine Zeile hoch beginnt,
+ * laedt nicht zum Schreiben ein. Das ist keine `controlHeight`-Frage — antds `rows` setzt
+ * Zeilen, nicht Pixel.
+ */
+.dialogNotiz {
+  min-height: 120px;
+}
+
+/*
+ * DER FELDFEHLER IM DIALOG (die zu lange Notiz) UND DER SATZ DES SERVERS.
+ * ⛔ KEINE FARBE AUS `colorError`: Rot ist in dieser Suite die Primaeraktion (Falle 3). Der
+ * Traeger der Aussage ist `role="alert"` und die Stellung, nicht die Farbe — zeichengleich
+ * zu `.feldFehler` und `.meldung`, nur mit dem Traeger dieses Portals.
+ */
+.dialogFeldFehler {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.dialogFehler {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-inline-start: 3px solid var(--radio-dialog-marke);
+  border-radius: 0 4px 4px 0;
+  background: var(--radio-dialog-flaeche);
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+/*
+ * ⛔ DIE ZWEI KNOEPFE STEHEN NEBENEINANDER UND UMBRECHEN AUF SCHMALEM SCHIRM
+ * (`ReturnDialog.tsx:103`, `gap-2 sm:gap-0`). ⛔ „Zurueckgeben" steht RECHTS, wie im Bestand
+ * (`:112`) — die bestaetigende Handlung ist die letzte in der Lesereihenfolge.
+ */
+.dialogFuss {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--radio-dialog-linie);
+}
+
+/* ⛔ `min-width` IST NACHBAU: antd setzt Hoehen, nie Breiten (Spec:3724-3725). */
+.dialogKnopf {
+  min-width: 9rem;
+  touch-action: manipulation;
+}

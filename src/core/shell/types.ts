@@ -15,9 +15,9 @@
  * nutzt, steht absichtlich nicht einmal namentlich in diesem Kommentar).
  */
 export type NavIkonName =
-  | "uebersicht" | "artikel" | "verfall" | "fahrzeuge" | "vorlagen"
-  | "checks" | "bz" | "sauerstoff" | "geraete" | "bestellung"
-  | "inventur" | "journal" | "tokens" | "etiketten" | "import";
+  | "uebersicht" | "artikel" | "verfall" | "fahrzeuge" | "vorlagen" | "checks"
+  | "bz" | "sauerstoff" | "geraete" | "bestellung" | "inventur" | "journal"
+  | "tokens" | "etiketten" | "import" | "ausleihen" | "update" | "versionen";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

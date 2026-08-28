@@ -42,7 +42,26 @@ ohne Widerruf. Anonym ist gewollt; unbefristet und unwiderruflich ist der Fehler
 
 ---
 
-## 2. Zwei Rollen oder eine? ⛔ blockierend
+## 2. Zwei Rollen oder eine? ✅ ENTSCHIEDEN am 2026-08-21
+
+> ✅ **Ruben hat entschieden: ZWEI Rollen, wie im Bestand.** `SUITE_UPDATER_GROUP_RADIO` wird echt
+> gebaut — Updater pflegt Gerätestände, Admin verwaltet. Die Trennung aus `radio-admin`
+> (`shared/src/role.test.ts:4`, `UPDATER_EDITABLE_FIELDS`) zieht mit um.
+> **Damit ist die Empfehlung unten überstimmt** — sie bleibt als Begründung stehen, sie gilt
+> nicht mehr als Auftrag.
+>
+> ⛔ **Was diese Entscheidung kostet, wörtlich aus dem Absatz „Preis der Alternative" unten:**
+> Kapitel 5 der Spec muss mit den Kapiteln **3** und **8** zusammengeführt werden — heute
+> widersprechen sie sich (Kapitel **B4** der Spec). Dieser Abgleich ist **Auflage an Planteil 4**
+> und steht in keinem der Planteile.
+>
+> **Und eine Auflage an Planteil 2:** die Verwaltungsfläche entsteht erst in Planteil 4, aber
+> die **Riegelform aus Spec 1 §1.5 muss die zweite Stufe bereits vorsehen**. Sonst wird der
+> Zugriffsriegel zweimal gebaut — einmal einstufig in Planteil 2, einmal zweistufig in Planteil 4.
+>
+> **Folgen im Cutover-Weg** (`SPERREN-radio-spec2.md`, Tabelle (c) und Zeile 240): an C.6/B4 hing
+> **genau eine `.env`-Zeile** in **Cut 3** und **Cut 26**. Sie fällt jetzt auf „zwei Rollen" —
+> damit kommen **eine sechste Boot-Prüfung** und **eine sechste Eingabe neben E1** hinzu.
 
 **Frage:** Bekommt `radio` in der Suite **zwei** Verwaltungsstufen — Admin und „Updater" — oder nur
 eine?
@@ -208,6 +227,11 @@ richtig. Der vollständige Abschnitt mit der Messtabelle steht im Ausführungspl
 Werkzeug, und `CLAUDE.md` schreibt es für jeden Befehl vor. **Meine Empfehlung: vor der
 Generalprobe richten**, zusammen mit dem anderen Werkzeug-Auftrag (die 170 vorbestehend roten
 Tests). Beide sind Voraussetzung dafür, dass §3.6 Nr. 1 überhaupt prüfbar ist.
+
+> ✅ **UEBERHOLT am 2026-08-21.** Die 170 vorbestehend roten Tests sind behoben — die Suite ist
+> vollstaendig gruen (`441 passed (441)` Testdateien, `7991 passed (7991)` Tests, Exit 0).
+> Gerichtet auf `main` in `d085057` und `40981bc`. §3.6 Nr. 1 ist damit fuer diesen Teil des
+> Auftrags pruefbar. Beleg: `docs/superpowers/berichte/2026-08-21-vitest-basislinie.md`.
 
 **Was ein „später" kostet:** jedes typecheck-Tor dieses Wegs bleibt unbelegt, solange nicht jemand
 daran denkt, `NO_COLOR=1 FORCE_COLOR=0` davorzusetzen. Die vier Commits vom 2026-08-21 sind

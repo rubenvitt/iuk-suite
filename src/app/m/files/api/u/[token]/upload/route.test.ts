@@ -220,7 +220,7 @@ async function put(opts: {
     method: "PUT",
     headers: {
       "x-forwarded-host": opts.host ?? INBOX_HOST,
-      "x-forwarded-for": opts.ip ?? neueIp(),
+      "cf-connecting-ip": opts.ip ?? neueIp(),
     },
     // Kopie in einen eigenen ArrayBuffer: `BodyInit` verlangt `Uint8Array<ArrayBuffer>`.
     body: new Uint8Array(opts.koerper ?? []),
@@ -251,7 +251,7 @@ async function post(opts: { token: string; host?: string }): Promise<{
       method: "POST",
       headers: {
         "x-forwarded-host": opts.host ?? INBOX_HOST,
-        "x-forwarded-for": neueIp(),
+        "cf-connecting-ip": neueIp(),
       },
       body: daten,
     },

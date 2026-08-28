@@ -134,7 +134,7 @@ als Protokollzeile, nicht der Bau. Die Runbook-Stellen tragen deshalb nur noch d
 | Nr. | Was abzulesen / zu entscheiden ist | Quelle | Begründung, warum sie fehlt | Blockiert |
 |---|---|---|---|---|
 | **N2** | Ist die `compose.yaml` **mit** der `radio-admin-alt`-Labelgruppe bereits auf dem Server ausgerollt? Beleg: `docker compose config \| grep -A2 radio-admin-alt` **am Server, vor dem Fenster** | Server | Spec 2 §4.4.4 sagt „die Labels gehören in die Repo-`compose.yaml`", §4.2 beschreibt den früheren Deploy — die **Verbindung** steht nirgends. `scripts/deploy.sh:84-105` diffed `compose.yaml` byteweise und bricht bei Abweichung ab; eine Compose-Änderung am Cutover-Abend ist ein eigener Rollout | ⛔ §C Schritt 9 Nr. 3 (`docker compose config \| grep -A2 radio-admin-alt` trifft sonst nichts, und `SUITE_REDIRECT_RULE_RADIO_ADMIN` hat nichts zu parametrisieren) |
-| **N3** | Die **tatsächliche** numerische Kennung, unter der der Suite-Prozess läuft: `docker inspect <L13> --format '{{.Config.User}}'` bzw. die Zeile `SUITE_USER` der Server-`.env` | Server | Spec 2 §4.5 Schritt 4 Handgriff 0 liest sie aus dem **Image** (`docker run --entrypoint sh "$IMG" -c 'id -u'`). Maßgeblich ist aber `compose.yaml:62` (`user: ${SUITE_USER:-1001:1001}`), und Image und Service weichen dokumentiert ab: `Dockerfile:42-43` legt `nextjs` **ohne** `-G nodejs` an, `USER nextjs` (`Dockerfile:88`) läuft also als 1001:65533(nogroup) — so steht es wörtlich im Docblock `compose.yaml:47-61`, und `.env.example:210` verlangt auf arm64 sogar `SUITE_USER=1001:1000` | ⛔ §C Schritt 4 Handgriff 0/3 und Schritt 7 (die Erwartung „dieselbe Kennung wie die übrigen Modul-DBs" ist mit dem Image-Wert auf einem Standardhost **zwangsläufig rot**) |
+| **N3** | Die **tatsächliche** numerische Kennung, unter der der Suite-Prozess läuft: `docker inspect <L13> --format '{{.Config.User}}'` bzw. die Zeile `SUITE_USER` der Server-`.env` | Server | Spec 2 §4.5 Schritt 4 Handgriff 0 liest sie aus dem **Image** (`docker run --entrypoint sh "$IMG" -c 'id -u'`). Maßgeblich ist aber `compose.yaml:62` (`user: ${SUITE_USER:-1001:1001}`), und Image und Service weichen dokumentiert ab: `Dockerfile:42-43` legt `nextjs` **ohne** `-G nodejs` an, `USER nextjs` (`Dockerfile:88`) läuft also als 1001:65533(nogroup) — so steht es wörtlich im Docblock `compose.yaml:47-61`, und `.env.example:252` verlangt auf arm64 sogar `SUITE_USER=1001:1000` | ⛔ §C Schritt 4 Handgriff 0/3 und Schritt 7 (die Erwartung „dieselbe Kennung wie die übrigen Modul-DBs" ist mit dem Image-Wert auf einem Standardhost **zwangsläufig rot**) |
 | **N5** | Mit welcher Env läuft der Host-Cron `scripts/backup.sh` (`DATA_DIR`, `BLOB_DIR`), und wo landet das Tarball? Abzulesen aus Crontab bzw. Timer-Unit | Betreiber/Server, gleiche Klasse wie U4b | `scripts/backup.sh:7` fällt ohne Env auf `DATA_DIR=/data` zurück — ein Pfad, den es auf dem Host nach der Argumentation dieser Spec gerade **nicht** gibt; `:32-35` bricht dann hart ab (`no *.db in $DATA_DIR — aborting`). §4.6 Nr. 13 ruft das Skript bar auf und nennt den Fundort des Tarballs nicht | §D Nr. 13 |
 | **N1** | Hält der reguläre Stack `radio.db` **nach dem Boot dauerhaft offen**? (Die Re-Kritik hat für dieselbe Lücke die Bezeichnung **L15** vorgeschlagen — es ist **eine** Nummer, hier N1.) | Bau / Abruf | W5 Residuum 2 begründet das Verbot von `immutable=1` im Fenster mit „der reguläre Stack hält `radio.db` offen (Migrationen, Health, Boot-Haken)". Zwei der drei Wege schließen ihr Handle nachweislich wieder — `src/core/bootstrap.ts:99-105` ruft `sqlite.close()`, `src/core/health/index.ts:13-15` schließt im `finally`; der dritte Weg ist ungebaut. L14 fragt nach zwei **bootenden** Prozessen, **nicht** nach Löschen und Ersetzen unter einem laufenden | §C Schritt 4 Handgriff 3 (dort mit der Zwischenlösung aus Aufgabe 7), §C Schritt 5 (a) |
 | **N6** | Der Edge-Proxy: (a) **setzt** er `X-Forwarded-Host` oder reicht er ihn durch, (b) welche **Entrypoints** gibt er an Traefik weiter, (c) ist `radio-admin.iuk-ue.de` dort überhaupt bekannt | Server | §4.2 Nr. 8 und §4.4.4 Punkt 6 verlangen beide eine Server-Ablesung und verweisen auf „die U-Tabelle im Kopf" — dort gibt es **keine passende Zeile**. Ohne (b)/(c) laufen die drei `curl` aus §D Nr. 7 in einen Verbindungs- oder TLS-Fehler, **statt rot zu werden** | §A Nr. 8, §D Nr. 7 |
@@ -545,10 +545,30 @@ Service heißt **`suite`** (`compose.yaml:2`); es gibt in dieser Datei keinen Se
 
   ```bash
   rtk pnpm vitest run scripts/compose-radio-redirect.test.ts     # Erwartung: 7 grün
-  docker compose config | grep -A2 radio-admin-alt
+  AUTH_SECRET=x docker compose config | grep -A2 radio-admin-alt
+  # ⚠️ `AUTH_SECRET=x` davor, weil `compose.yaml:81` die einzige `:?`-Zeile der Datei ist
+  # und `docker compose config` sonst abbricht, bevor es irgendetwas ausgibt.
+  #
   # Erwartung: die Regel steht mit der Vorbelegung `Host(`radio-admin.invalid`)` da,
-  # und `replacement` endet auf `/admin/${1}` — mit EINEM Dollarzeichen, weil Compose
-  # das doppelte hier aufloest. Steht dort `/admin/` ohne `${1}`, ist das `$$` verloren.
+  # und `replacement` endet auf `/admin/$${1}` — mit ZWEI Dollarzeichen.
+  #
+  # ⛔ KORRIGIERT AM 2026-08-28 (L5), GEMESSEN AUF DOCKER COMPOSE v5.1.2. Diese Zeile
+  #   verlangte vorher EIN Dollarzeichen. Das ist falsch und haette am Cutover-Abend
+  #   einen FALSCHEN ABBRUCH ueber einer richtigen Konfiguration ausgeloest: Compose
+  #   loest `$${1}` intern zwar auf, RE-ESCAPET den Wert aber beim Serialisieren, damit
+  #   seine Ausgabe selbst wieder eine gueltige Compose-Datei ist — in `config` wie in
+  #   `config --format json`. Gegenprobe im selben Lauf: ein `${FOO:-vorbelegt}` wird zu
+  #   `vorbelegt` aufgeloest, die Interpolation laeuft also.
+  #
+  # Was Traefik wirklich sieht, ist der Wert AM CONTAINER, und der ist einfach:
+  docker inspect "$(docker compose ps -q suite)" \
+    --format '{{ index .Config.Labels "traefik.http.middlewares.radio-admin-alt-redirect.redirectregex.replacement" }}'
+  # Erwartung: https://radio.iuk-ue.de/admin/${1}   — hier EIN Dollarzeichen.
+  #
+  # Der stille Fehlfall (ein einfaches `$` in der compose.yaml) ist auf v5.1.2 uebrigens
+  # nicht mehr still: `docker compose config` bricht mit „invalid interpolation format"
+  # ab. Auf aelteren Fassungen verschluckte Compose das `$`. Der Regressionstest
+  # `scripts/compose-radio-redirect.test.ts` deckt beide Faelle ab.
   ```
 
   ⚠️ Diese Ausgabe **gehört ins Protokoll des Rollouts** — sie ist die Vorlage, gegen die §C
@@ -656,7 +676,7 @@ Umarbeitung.
 
 - [ ] **Schritt 3: Die Prod-Domain-Zeile ergänzen**
 
-  `.env.example:112` trägt heute `# SUITE_HOST_RADIO=`. Die Zeile bleibt auskommentiert (sie wird
+  `.env.example:154` trägt heute `# SUITE_HOST_RADIO=`. Die Zeile bleibt auskommentiert (sie wird
   erst im Fenster gesetzt) und bekommt **darüber** den Nachsatz:
 
   ```dotenv
@@ -670,8 +690,8 @@ Umarbeitung.
 
 - [ ] **Schritt 4: Den `── Modul radio ──`-Block anlegen**
 
-  Hinter den `lagerbuch`-Block, vor `.env.example:309` (`─── Modul aufgaben ───`). Form nach dem
-  Vorbild `.env.example:231-239`:
+  Hinter den `lagerbuch`-Block, vor `.env.example:351` (`─── Modul aufgaben ───`). Form nach dem
+  Vorbild `.env.example:273-281`:
 
   ```dotenv
   # ── Modul radio ───────────────────────────────────────────────────────────────
@@ -725,7 +745,7 @@ Umarbeitung.
 
 - [ ] **Schritt 5: Den Nachsatz neben `SUITE_TRAEFIK_RULE` ergänzen**
 
-  Unter `.env.example:369` (`SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`)`):
+  Unter `.env.example:458` (`SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`)`):
 
   ```dotenv
   # ⚠️ radio-admin.iuk-ue.de gehoert AUSDRUECKLICH NICHT in SUITE_TRAEFIK_RULE. Wer ihn
@@ -903,7 +923,7 @@ fiel aus der Klammer, obwohl sie selbst ein ⛔ trägt. In diesem Runbook heißt
         ⚠️ **Nicht aus dem Image ableiten.** `Dockerfile:42-43` legt `nextjs` **ohne** `-G nodejs`
         an, `USER nextjs` (`Dockerfile:88`) läuft also als 1001:65533(nogroup) — der Service
         startet dagegen als `user: ${SUITE_USER:-1001:1001}` (`compose.yaml:62`), und auf arm64
-        verlangt `.env.example:210` sogar `SUITE_USER=1001:1000`. Wer die Image-Zahl nimmt, setzt
+        verlangt `.env.example:252` sogar `SUITE_USER=1001:1000`. Wer die Image-Zahl nimmt, setzt
         in §C Schritt 4 eine Kennung, die von der der übrigen Modul-Datenbanken **abweicht** —
         und die Erwartung dort ist dann zwangsläufig rot, ohne dass ein Fehler vorläge.
 
@@ -1015,10 +1035,10 @@ als `<E1>`/`<E4>`, nicht als erfundene Beispiele.
   **einkommentiert, nicht neu getippt.**
 
   ```dotenv
-  # ── im Block „Prod-Domains der Module" (.env.example:112) ──
+  # ── im Block „Prod-Domains der Module" (.env.example:154) ──
   # ⏸ SUITE_HOST_RADIO=radio.iuk-ue.de        # erst in §C Schritt 9
 
-  # ── Block „── Modul radio ──" (neu, nach dem lagerbuch-Block, vor .env.example:309) ──
+  # ── Block „── Modul radio ──" (neu, nach dem lagerbuch-Block, vor .env.example:351) ──
   SUITE_ADMIN_GROUP_RADIO=<E1>
   # SUITE_ACCESS_GROUP_RADIO  — DIESE ZEILE DARF NICHT EXISTIEREN. Siehe Tabelle unten.
   RADIO_AUSLEIH_SITZUNG_SECRET=<openssl rand -base64 32, frisch, NICHT gleich AUTH_SECRET>
@@ -1030,7 +1050,7 @@ als `<E1>`/`<E4>`, nicht als erfundene Beispiele.
   # RADIO_HISTORIE_MONATE=2                 # Vorbelegung, im Fenster nicht setzen
   # RADIO_HISTORIE_ERSTLAUF_MINUTEN=1440    # Vorbelegung, im Fenster nicht setzen
 
-  # ── neben der SUITE_TRAEFIK_RULE-Zeile (.env.example:366-369) ──
+  # ── neben der SUITE_TRAEFIK_RULE-Zeile (.env.example:455-458) ──
   # ⏸ SUITE_TRAEFIK_RULE=Host(`iuk-ue.de`) || … || Host(`radio.iuk-ue.de`)   # erst in §C Schritt 9
   # ⏸ SUITE_REDIRECT_RULE_RADIO_ADMIN=Host(`radio-admin.iuk-ue.de`)          # erst in §C Schritt 9
   ```
@@ -1053,7 +1073,7 @@ als `<E1>`/`<E4>`, nicht als erfundene Beispiele.
   | `SUITE_HOST_RADIO` | `radio.iuk-ue.de` | Fehlt sie: `moduleForHost` fällt auf **portal** zurück (`src/core/hosts.ts:52-57`), der Rewrite auf `/m/radio<rest>` greift nicht, `/sw.js` landet im Portal-Modul, und der Login-Rückweg wirft auf das Portal (`:59-63`). **Alles davon still.** ⚠️ Bei `radio` schärfer als sonst: der Portal-Fallback überdeckt die **Ausleihe** — die anonyme Fläche, die **kein Anmeldefenster zeigt, an dem jemand den Fehler bemerkt** |
   | `SUITE_ADMIN_GROUP_RADIO` | `<E1>`, **nicht leer** | Leer oder fehlend = **Startabbruch** der ganzen Suite. Der Boot-Riegel existiert genau deshalb: die Alternative wäre ein **stummes 404 für JEDE Verwaltungsseite und alle Verwaltenden auf einmal** — `radio` ignoriert den `isModuleAdmin`-Kurzschluss modulintern, es gibt keine Suite-Admin-Rückfallebene |
   | `SUITE_ACCESS_GROUP_RADIO` | ⚠️ **Zeile gar nicht vorhanden** | ⚠️ **Diese Variable invertiert `SUITE_HOST_RADIO`, und die naheliegende Zeile ist der Startabbruch.** Die Prüfung ist `!== undefined`, und ein `SUITE_ACCESS_GROUP_RADIO=` kommt per `env_file` als **leerer String**, also als *definiert*, im Prozess an → **Boot-Abbruch**. Gemeint ist: die Zeile **ersatzlos entfernen**. Wäre sie gesetzt und würde nicht geprüft, wäre sie **still wirkungslos** (`src/core/registry.ts:239`) |
-  | `RADIO_AUSLEIH_SITZUNG_SECRET` | frisch, ≥ 32 Zeichen | Fehlt, zu kurz **oder gleich `AUTH_SECRET`** → **Startabbruch**. ⚠️ **Hier gibt es nichts zu erben** — anders als bei `lagerbuch`, wo `HELFER_SESSION_SECRET` wertgleich aus der Prod-Umgebung übernommen wurde, damit laufende Sitzungen den Cutover überleben (`.env.example:252-258`). Der heutige Zugang des Kiosk ist ein base64-Bearer-Token im `localStorage`, kein signiertes Cookie. **Wer nach einem zu übernehmenden Wert sucht, sucht vergeblich** |
+  | `RADIO_AUSLEIH_SITZUNG_SECRET` | frisch, ≥ 32 Zeichen | Fehlt, zu kurz **oder gleich `AUTH_SECRET`** → **Startabbruch**. ⚠️ **Hier gibt es nichts zu erben** — anders als bei `lagerbuch`, wo `HELFER_SESSION_SECRET` wertgleich aus der Prod-Umgebung übernommen wurde, damit laufende Sitzungen den Cutover überleben (`.env.example:294-300`). Der heutige Zugang des Kiosk ist ein base64-Bearer-Token im `localStorage`, kein signiertes Cookie. **Wer nach einem zu übernehmenden Wert sucht, sucht vergeblich** |
   | `RADIO_AUSLEIH_SITZUNG_STUNDEN` | `<E4>`, ganze Zahl `1..168` | Außerhalb des Bereichs → **Startabbruch**. Ohne die Zeile gilt die Vorbelegung 12 |
   | `RADIO_GATE_VERSUCHE_PRO_ABSENDER_PRO_MIN` | `5` | Je Absender, **nur Fehlversuche**. Keine ganze Zahl im Bereich → Startabbruch |
   | `RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN` | `30` | Modulweite Burst-Kappe gegen Rotation des Absenderschlüssels (= sechs Absender-Budgets) |
@@ -1443,7 +1463,7 @@ der Verlust wäre **stumm**. Dazu **E2** und **E3** als Werte.
 
   ⚠️ **`$DATA_DIR/radio.db` gibt es auf dem HOST nicht.** `DATA_DIR=/data` ist ein Wert **im
   Container** (`compose.yaml:79`); dort mountet `compose.yaml:99` das **benannte Volume**
-  `suite_data` (`compose.yaml:221-223`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad.
+  `suite_data` (`compose.yaml:252-254`), und ein benanntes Volume hat keinen vereinbarten Host-Pfad.
   Der Import dagegen läuft zwingend aus einem **Repo-Checkout auf dem Host** — das standalone-Image
   führt weder `scripts/` noch `tsx` (`portal-cutover.md:23-25`). Deshalb sind es **vier Handgriffe**
   und nicht zwei.
@@ -1461,7 +1481,7 @@ der Verlust wäre **stumm**. Dazu **E2** und **E3** als Werte.
   #        (compose.yaml:62, `user: ${SUITE_USER:-1001:1001}`), NICHT `USER nextjs`:
   #        `adduser --system --uid 1001 nextjs` setzt kein `-G nodejs` (Dockerfile:42-43),
   #        `USER nextjs` laeuft also als 1001:65533(nogroup) — so steht es woertlich im
-  #        Docblock compose.yaml:47-61, und auf arm64 verlangt .env.example:210 sogar
+  #        Docblock compose.yaml:47-61, und auf arm64 verlangt .env.example:252 sogar
   #        SUITE_USER=1001:1000. Wer die Image-Zahl nimmt, setzt eine Kennung, die von der
   #        der uebrigen Modul-Datenbanken ABWEICHT — und die Erwartung unten ist dann
   #        zwangslaeufig rot, ohne dass ein Fehler vorlaege.
@@ -2790,7 +2810,7 @@ besetzt `§0` und `§A`–`§H`; `§P` und `§S` sind als leere Anker angelegt.
 | **RK-A2** — der Bergungsbefehl in §4.9 ist doppelt nicht ausführbar | **Aufgabe 8, Schritt 3** erzeugt `<umschwenk_iso>` **und** `<umschwenk_epoch_sekunden>`; **Aufgabe 10, Schritt 2** schreibt den Nachtrag in der `docker run`/`$VOL_SUITE`-Form, zeichengleich zu Abfrage Z |
 | **RK-A3** — `--profile full-app` fehlt in §4.9 3b | **Aufgabe 10, Schritt 2**: das Profil steht im Start-Befehl, und die Regel ist ausgeschrieben („der Stopp-Befehl aus §C Schritt 1 ist die Vorlage — Wort für Wort"). Zusätzlich in **Aufgabe 6** als Stopp-Befehl-**Tabelle** angelegt, damit die Vorlage eine Fundstelle hat |
 | **RK-A5** — der Rückweg hat keine Rücklesung | **Aufgabe 10, Schritt 2**: dieselben drei Zeilen wie im Freeze, mit umgekehrter Erwartung (`ps` = `running`, beide `curl` gegen die Ablesung aus §A Nr. 5) |
-| **RK-A6** — die Kennung wird aus dem Image gelesen statt vom Service | **Aufgabe 4 (§A Nr. 12)** liest sie am Server (`docker inspect … {{.Config.User}}` bzw. `SUITE_USER`), **Aufgabe 7** benutzt sie. Neue Nummer ⬜ **N3**. Beleg im Repo nachgeprüft: `Dockerfile:42-43` ohne `-G nodejs`, `compose.yaml:62`, Docblock `compose.yaml:47-61`, `.env.example:210` |
+| **RK-A6** — die Kennung wird aus dem Image gelesen statt vom Service | **Aufgabe 4 (§A Nr. 12)** liest sie am Server (`docker inspect … {{.Config.User}}` bzw. `SUITE_USER`), **Aufgabe 7** benutzt sie. Neue Nummer ⬜ **N3**. Beleg im Repo nachgeprüft: `Dockerfile:42-43` ohne `-G nodejs`, `compose.yaml:62`, Docblock `compose.yaml:47-61`, `.env.example:252` |
 | **RK-A7** — Dateitausch unter einem laufenden Prozess, und Schritt 7 belegt den Neustart nicht | **Aufgabe 7**: Container-ID vor Handgriff 3 ins Protokoll, ⬜ **N1** als benannte Lücke plus die konservative Zwischenlösung (`docker compose stop suite`) samt ihrem Preis. **Aufgabe 8**: `up -d --force-recreate suite` und die zweite ID — Gleichheit ist ein Stopp-Punkt, auch in §H Punkt 14 |
 | **RK-A8 / RK-A1 (2. Durchgang)** — Erfüllungspunkt 9 sagt „Nr. 1–12", §4.2 hat dreizehn | **Aufgabe 10 (§H Punkt 1)**: „§A Nr. 1–14 vollständig", Nr. 13 **namentlich** in der insbesondere-Aufzählung, mit ⛔ — und die Korrektur an Spec 2 in den Zusagen an die Zusammenführung |
 | **RK-A9 / RK-A6 (2. Durchgang)** — „Z alle drei `0`" gegen zehn Glieder | **Aufgabe 7, Schritt 4** schreibt Z vollständig mit zehn Gliedern aus und beschriftet sie „alle zehn"; **Aufgabe 9 (§D Nr. 14)** und **§H Punkt 12** nennen die Formatprobe eigens |

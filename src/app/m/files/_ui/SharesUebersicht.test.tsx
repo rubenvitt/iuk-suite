@@ -342,7 +342,24 @@ describe("Punkt 4 — die Zeile traegt Zustand, Menge und Datum", () => {
 // Punkt 5 — der Leerzustand
 // ---------------------------------------------------------------------------
 
-describe("Punkt 5 — Leerzustand mit Ausweg", () => {
+/*
+ * EIGENER TIMEOUT FUER DIESE SUITE — sie enthaelt den langsamsten Fall der Datei,
+ * und seine Zeit ist weder verschwendet noch zu klammern: `markup()` rendert die
+ * antd-Tabelle einmal vollstaendig in jsdom, und der ERSTE Durchlauf einer Datei
+ * traegt die Aufwaermkosten der Umgebung mit. Es gibt hier keine Datenbank und
+ * keinen Commit, den man zusammenfassen koennte.
+ *
+ * GEMESSEN (27.08.2026, lokal, macOS/APFS):
+ *   – dieser Fall unter VOLLER Suitenlast: 119 ms; einzeln 74 ms
+ *   – zweiter Fall derselben Suite: 42 ms — der Rest der Datei liegt unter 30 ms
+ *   – Faktor dieser Datei CI/lokal: 20 (PR #80, Lauf 33090214227)
+ *   – Projektion: 119 ms × 20 = 2380 ms. Das reisst die 5 s heute NICHT, aber der
+ *     Abstand ist nur 2,1-fach, und dieselbe Projektion lag bei PR #80 schon
+ *     einmal zu niedrig (2462 ms projiziert, real ueber 5000 ms).
+ *
+ * ⛔ Die Zahl gilt NUR fuer diese Suite. Der globale `testTimeout` bleibt bei 5 s.
+ */
+describe("Punkt 5 — Leerzustand mit Ausweg", { timeout: 15_000 }, () => {
   it("nennt den Zustand und bietet den Knopf, der ihn beendet", async () => {
     const quelle = await markup();
     expect(quelle).toContain("Noch keine Freigabe angelegt");

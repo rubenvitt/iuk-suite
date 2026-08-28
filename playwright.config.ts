@@ -6,6 +6,7 @@ import { defineConfig } from "@playwright/test";
 import { AV_MODUS_DATEI } from "./e2e/helpers/avModus";
 import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
+import { RADIO_ENV } from "./e2e/helpers/radio";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -136,9 +137,25 @@ export default defineConfig({
        * unbedenklich vor jedem Lauf neu auszufuehren. `pnpm seed:lokal aufgaben` selbst ruft
        * `migrateAllModules()` auf und braucht dafuer keinen laufenden Server — reiner Dateizugriff
        * auf dieselbe `DATA_DIR`, die `next dev` gleich danach oeffnet.
+       *
+       * ⛔ `scripts/seed-lokal.ts radio` DANEBEN, UND DAS SCHLIESST ⬜ V13-L2 (Aufgabe V23,
+       * `.superpowers/sdd/planteil4/progress.md`, Zeile „V14-L3"). Aus demselben Grund wie bei
+       * `aufgaben`: `radio` steht in `MODULE_MIGRATIONS` ohne Eintrag in `seedAllModules()`
+       * (`src/core/bootstrap.ts:49-56`), der Boot-Pfad legt also kein einziges Geraet an. Ohne
+       * diese Zeile faende `e2e/radio-verwaltung.spec.ts` keine Tabellenzeile, und die Faelle 2
+       * bis 4 fielen an ihrer eigenen Vorbedingung — nicht an der Flaeche, die sie messen.
+       *
+       * ⚠️ DER SEED LEGT EINE EINLOESBARE ZUGANGSZEILE AN (`zc-1`,
+       * `src/app/m/radio/_lib/seedLokal.ts:19-21`). Das ist HIER unbedenklich und anderswo
+       * nicht: diese Zeile steht in der Playwright-Konfiguration, nicht am Boot-Pfad. Die
+       * Auflage jenes Kopfkommentars („wer `radio` in `seedAllModules()` eintraegt … MUSS `zc-1`
+       * entfernen") und ihr Waechter (`scripts/seed-lokal.test.ts:56`, er liest ausschliesslich
+       * `src/core/bootstrap.ts` und `src/instrumentation.ts` — am 2026-08-26 nachgelesen) zielen
+       * beide auf den Boot, den `SUITE_SEED=1` in der Generalprobe wahr macht. Ein
+       * `pnpm exec tsx`-Aufruf vor `next dev` erreicht ihn nicht.
        */
       command:
-        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && next dev -p 3100",
+        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && next dev -p 3100",
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -295,6 +312,18 @@ export default defineConfig({
          * Kopplungspruefungen aus §10.5 greifen sonst, bevor ein Test laeuft.
          */
         ...LAGERBUCH_ENV,
+        /*
+         * Die zwei radio-Gruppenzeilen, aus derselben Quelle wie die
+         * `devLogin(…, { groups })` der radio-Specs (`e2e/helpers/radio.ts`).
+         *
+         * ⛔ OHNE `SUITE_UPDATER_GROUP_RADIO` IST DIE UPDATER-STUFE IM LAUF FUER
+         * JEDE IDENTITAET ZU — ein leerer oder fehlender Wert SCHLIESST sie
+         * (`src/app/m/radio/_lib/zugang.ts:225-227`). Die zwei Wirkproben der
+         * zweiten Rechtestufe in Aufgabe V23 bekaemen ihren 404 dann aus dem
+         * falschen Grund. Gemessener Befund:
+         * `.superpowers/sdd/planteil4/VORABSCAN.md`, Fund F24.
+         */
+        ...RADIO_ENV,
       },
     },
   ],
