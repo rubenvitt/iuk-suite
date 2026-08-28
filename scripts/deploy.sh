@@ -16,6 +16,9 @@
 #  1. ES PRÜFT VOR DEM ANFASSEN. Passt der Stand im Registry nicht zum Commit dieses
 #     Laufs oder weicht die `compose.yaml` des Servers von der des Repos ab, bricht es
 #     ab, BEVOR ein Container ausgetauscht wird. Ein Abbruch hier ist folgenlos.
+#     Eine Ausnahme endet grün statt rot: liegt auf dem Tag BEWEISBAR ein Nachfolger
+#     des erwarteten Commits, ist dieser Lauf überholt und der neuere erledigt den
+#     Rollout (Schritt 2) — auch dann wird nichts angefasst.
 #  2. ES BEWEIST DEN NEUEN STAND. Nach dem Austausch wird nicht „antwortet etwas?"
 #     geprüft, sondern „antwortet DIESER Commit?" (`revision` aus
 #     `/api/health/portal`). Ein hängengebliebener alter Container ist von einem
@@ -120,10 +123,42 @@ echo "  Label image.revision: ${rev_label:-<leer>}"
 echo "  ENV SUITE_REVISION:   ${rev_env:-<leer>}"
 
 if [ "$rev_label" != "$ERWARTET" ]; then
-  abbruch "Das Tag :$TAG trägt Commit '${rev_label:-<leer>}', erwartet war '$ERWARTET'.
-  Häufigster Grund: ein NEUERER main-Merge hat :$TAG inzwischen überschrieben — dann ist
-  dieser Rollout überholt und der neuere Lauf erledigt ihn. Sonst: der merge-Job dieses
-  Laufs ist nicht durchgelaufen. In beiden Fällen bleibt Produktion unberührt."
+  # ── Überholt statt kaputt? ───────────────────────────────────────────────────────────
+  # Der häufigste Grund für diese Abweichung ist KEIN Fehler dieses Laufs: der Deploy
+  # wartet auf seine Freigabe, und währenddessen überschreibt ein NEUERER main-Merge das
+  # Tag (gemessen am 2026-08-28, Lauf 33179101270: erwartet 6fdee090, auf :latest lag
+  # bereits e04ba803 aus PR #85 — jede Freigabe eines älteren Laufs war damit rot, und
+  # erst der jeweils neueste wurde grün). Diesen Fall grün zu beenden ist ehrlich —
+  # ausgerollt wird nichts, und den Rollout erledigt der Lauf des neueren Merges — aber
+  # nur mit BEWEIS statt Vermutung: der Stand auf dem Tag muss ein voller Commit-SHA und
+  # in der Historie ein NACHFOLGER des erwarteten Commits sein (merge-base --is-ancestor;
+  # dafür zieht der Checkout des deploy-Jobs die volle Historie, fetch-depth: 0, und hier
+  # wird origin/main nachgeholt, weil der Checkout auf dem Commit DIESES Laufs steht).
+  # Alles andere — leeres Label, unbekannter Commit, abgeschnittene Historie, ein nicht
+  # gelaufener merge-Job — bleibt ein roter Abbruch wie bisher.
+  if printf '%s' "$rev_label" | grep -qE '^[0-9a-f]{40}$' \
+    && git -C "$REPO_WURZEL" rev-parse --git-dir >/dev/null 2>&1 \
+    && { git -C "$REPO_WURZEL" fetch --quiet origin main 2>/dev/null || true; } \
+    && git -C "$REPO_WURZEL" cat-file -e "$rev_label" 2>/dev/null \
+    && git -C "$REPO_WURZEL" merge-base --is-ancestor "$ERWARTET" "$rev_label" 2>/dev/null; then
+    melde "ÜBERHOLT: :$TAG trägt bereits den NEUEREN main-Commit $rev_label."
+    echo "  Diesen Stand rollt der Lauf des neueren Merges aus — hier gibt es nichts zu tun."
+    echo "  Produktion ist unberührt."
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      {
+        echo "### Rollout übersprungen — überholt"
+        echo
+        echo "\`:$TAG\` trägt bereits \`$rev_label\` — einen Nachfolger von \`$ERWARTET\`."
+        echo "Den Rollout erledigt der Lauf des neueren Merges; Produktion ist unberührt."
+      } >>"$GITHUB_STEP_SUMMARY"
+    fi
+    exit 0
+  fi
+  abbruch "Das Tag :$TAG trägt Commit '${rev_label:-<leer>}', erwartet war '$ERWARTET' —
+  und das ist NICHT als überholter Lauf beweisbar (dafür müsste der Stand auf dem Tag ein
+  Nachfolger des erwarteten Commits in der Historie sein). Wahrscheinlichster Grund: der
+  merge-Job dieses Laufs ist nicht durchgelaufen — dort ins Protokoll schauen. Produktion
+  bleibt unberührt."
 fi
 if [ "$rev_env" != "$ERWARTET" ]; then
   abbruch "Das Image trägt das richtige Label, aber ENV SUITE_REVISION='${rev_env:-<leer>}'.
