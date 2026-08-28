@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { devLogin, klickeWennRuhig } from "./fixtures";
 import {
+  E2E_CODE_AKTIV,
   FREMDER_HOST,
   RADIO_ADMIN_GRUPPE,
   RADIO_HOST,
@@ -34,11 +35,16 @@ import {
  * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
  * strukturell nicht.
  *
- * ⛔ **SEIT DEM 2026-08-27 SIND ES EINUNDZWANZIG `test()`-BLOECKE, NICHT SIEBZEHN**
- * (Planteil 5, Aufgabe T5). Die Zahl ist an Playwrights eigener Zaehlzeile abgelesen —
- * „Running 21 tests using 1 worker" / „21 passed" — und ⛔ **nicht** mit
- * `grep -c "test("`, der `test.describe(` und Kommentartreffer mitzaehlt. Vier Faelle kamen
- * dazu:
+ * ⛔ **SEIT DEM 2026-08-28 SIND ES FUENFUNDZWANZIG `test()`-BLOECKE.** Die Zahl ist an
+ * Playwrights eigener Zaehlzeile abgelesen — „Running 25 tests using 1 worker" / „25 passed
+ * (1.1m)" — und ⛔ **nicht** mit `grep -c "test("`, der `test.describe(` und Kommentartreffer
+ * mitzaehlt. Die letzten vier sind „L6 A" bis „L6 D" am Ende der Datei (Aufgabe L6): der
+ * Verwaltungsweg als KETTE, von der Wurzel ueber den sichtbaren Link bis auf die 200 der
+ * Verwaltung, je Rechtestufe, plus der anonyme Gegenfall und das alte Lesezeichen. Ihre
+ * Begruendung und ihre vier Mutationssonden stehen unmittelbar ueber ihnen.
+ *
+ * ⛔ **DAVOR, SEIT DEM 2026-08-27, WAREN ES EINUNDZWANZIG, NICHT SIEBZEHN**
+ * (Planteil 5, Aufgabe T5). Vier Faelle kamen damals dazu:
  *
  *   * „eine Geraetezeile zeigt ihren formatierten Wert, nicht das Rohfeld" und
  *     „eine Leihzeile zeigt ihren formatierten Wert, nicht das Rohfeld" — sie schliessen die
@@ -1660,5 +1666,344 @@ test.describe("radio-Verwaltung", () => {
       alsAdmin.status(),
       "/admin/versionen antwortet auch der Admin-Stufe nicht — der 404 oben misst dann nichts",
     ).toBe(200);
+  });
+
+  /*
+   * ⬜ L6 — DER VERWALTUNGSWEG ALS KETTE, UND ER IST DER EINE, DEN EIN VITEST-MOCK
+   * STRUKTURELL NICHT BEWEISEN KANN.
+   *
+   * ⛔ WAS VOR DIESEN VIER FAELLEN UNGEDECKT WAR — GEMESSEN, NICHT BEHAUPTET. Am 2026-08-28
+   * lieferte `grep -rl "gate-admin\|Zur Verwaltung" e2e/` KEINEN Treffer: von der Kette
+   * „angemeldeter Verwalter -> Wurzel -> sichtbarer Weg -> `/admin` mit 200" war kein einziges
+   * Glied in einem echten Abruf gemessen. Die Einzelteile waren es sehr wohl:
+   * `AusleihRahmen.test.tsx:462-580` mockt das Praedikat und prueft das Markup, `V-L3 B/C`
+   * oben pruefen den Riegel an `/admin`. ⛔ WAS DAZWISCHEN LIEGT, KANN KEINER VON BEIDEN
+   * SEHEN: dass die Weiche auf der Wurzel (`src/app/m/radio/page.tsx:75`) die verwaltende
+   * Person ueberhaupt DORTHIN schickt, wo der Link steht, und dass Praedikat,
+   * Umleitungsreihenfolge und Riegel in DIESER Reihenfolge zusammenspielen. Ein Mock setzt
+   * Viewer und Zugang unabhaengig voneinander — genau daran war der frueher am Gate stehende
+   * Link gruen ueber einem unmoeglichen Zustand (`page.tsx:78-87` schreibt den Fall aus).
+   *
+   * ⛔ BEIDE RECHTESTUFEN, UND DAS IST EINE BETREIBERENTSCHEIDUNG VOM 2026-08-27, KEINE
+   * VOLLSTAENDIGKEITSGESTE: 6 von 10 Verwaltungsseiten stehen dem Updater offen, `/admin`
+   * eingeschlossen. Saehe nur die Admin-Stufe den Link, bliebe der Updater ohne sichtbaren Weg
+   * auf Flaechen, die er vollberechtigt oeffnen darf. Traegt der Link also nur eine Stufe,
+   * muss L6 B rot werden — und genau das misst Sonde S-L6b unten.
+   *
+   * ⛔ SICHTBARKEIT IST KEIN RIEGEL, und diese vier Faelle aendern daran nichts. Sie fassen
+   * keine Riegelstelle an; die Riegel messen `V-L3 A` bis `D` daneben. Was hier gemessen wird,
+   * ist der WEG — und in L6 C sein Fehlen dort, wo er nicht hingehoert (Spec §4.9.6).
+   *
+   * ⛔ DIE MUTATIONSSONDEN STEHEN HIER UND NICHT NUR IM BERICHT: `.superpowers/` ist
+   * git-ignoriert (`.gitignore:17`), dieselbe Ablageform wie fuer die sechs Sonden im Kopf
+   * dieser Datei. ⛔ JEDE MUTIERT DIE QUELLE, KEINE EINE ZUSICHERUNG — die Lehre vom
+   * 2026-08-27. Gemessen am 2026-08-28, jede zurueckgenommen; waehrend jedes Sondenfensters
+   * lief NUR der genannte Playwright-Fall.
+   *
+   *   S-L6a  `_ui/AusleihRahmen.tsx:214`, die Bedingung entfernt: `{darfVerwalten ? (`
+   *          -> `{true ? (`                    -> **1 rot**: L6 C, der anonyme Ausleiher sieht
+   *                                              den Verwaltungsweg. L6 A/B bleiben gruen —
+   *                                              die Sonde macht den Link WEITER, nicht enger.
+   *   S-L6b  `_ui/AusleihRahmen.tsx:169`, das Praedikat auf die obere Stufe verengt:
+   *          `istRadioVerwaltung` -> `istRadioAdmin` (samt Import)
+   *                                          -> **1 rot**: L6 B. L6 A bleibt gruen — genau die
+   *                                              Asymmetrie, die die Betreiberentscheidung
+   *                                              beschreibt.
+   *   S-L6c  `src/app/m/radio/page.tsx:75`, die Weiche entfernt (`if (zugang) redirect(...)`)
+   *                                          -> **3 rot**: L6 A, L6 B UND L6 C, je am ersten
+   *                                              Hop. ⚠️ ERWARTET WAREN ZWEI, GEMESSEN SIND
+   *                                              DREI, und die Zahl steht so, wie sie gemessen
+   *                                              ist: L6 C haengt an derselben Weiche, weil die
+   *                                              Einloese-Route ohne `?returnTo=` auf `/`
+   *                                              zeigt und ERST die Weiche von dort auf
+   *                                              `/geraete` fuehrt. Ohne sie antwortet die
+   *                                              Wurzel 200 mit dem Gate, und JEDE Person mit
+   *                                              gueltigem Zugang — verwaltend oder nicht —
+   *                                              stuende wieder im Codefeld.
+   *                                              ⛔ SIE IST DAMIT DIE SONDE, DIE DIE KETTE ALS
+   *                                              KETTE BELEGT: die drei Faelle teilen sich
+   *                                              genau ein Glied, und ein Mock haette es nie
+   *                                              betreten.
+   *   S-L6d  `_lib/aliasse.ts:124`, das Ziel von `/admin/login` auf `/admin/geraete` getauscht
+   *                                          -> **1 rot**: L6 D, `Expected "/admin" / Received
+   *                                              "/admin/geraete"`.
+   *
+   * ⛔ WAS KEINE SONDE DIESER RUNDE ISOLIERT — UND ES STEHT HIER, STATT ALS ZUSAGE ZU GELTEN:
+   * die ZWEITE Haelfte von L6 D (die Kette endet mit 200). Rot wuerde sie, wenn `/admin` der
+   * Admin-Stufe nicht mehr antwortet — dafuer muesste eine Sonde eine RIEGELSTELLE anfassen,
+   * und das verbietet Auflage 1 dieses Bauwegs. Dieselbe Zusage misst `V-L3 D` unten in ihrer
+   * zweiten Haelfte, und die hat mit S-T5d2 (Kopf dieser Datei) ihren eigenen Nachweis.
+   *
+   * ⚠️ NEBENWIRKUNGEN DER SONDEN AUF VITEST — HIER STEHT, WAS DAVON GEMESSEN IST. Waehrend
+   * jedes Sondenfensters lief NUR der genannte Playwright-Aufruf; die vitest-Wirkung ist
+   * NACHTRAEGLICH und einzeln gemessen (2026-08-28, je Sonde erneut gesetzt und wieder
+   * zurueckgenommen):
+   *
+   *   S-L6a -> `AusleihRahmen.test.tsx`: `1 failed | 23 passed (24)` — „die ANONYME
+   *            Ausleihflaeche zeigt ihn NICHT — §4.9.6"
+   *   S-L6b -> `AusleihRahmen.test.tsx`: `1 failed | 23 passed (24)` — „die Updater-Stufe
+   *            sieht ihn ebenfalls"
+   *   S-L6d -> `aliasse.test.ts`: `3 failed | 54 passed (57)` — die Solltafel und die zwei
+   *            Faelle zu `/admin/login`
+   *
+   * Alle drei sind ERWARTET und kein Befund: dieselbe Quellzeile traegt beide Ebenen.
+   */
+
+  test("L6 A: die Admin-Stufe kommt von der Wurzel ueber den sichtbaren Weg in die Verwaltung", async ({
+    page,
+  }) => {
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    /*
+     * ────────── HOP 1: die Wurzel schickt die angemeldete Person auf die Ausleihflaeche
+     *
+     * ⛔ `maxRedirects: 0`, WEIL DIE UMLEITUNG SELBST DIE ZUSAGE IST (Bauform-
+     * Zulaessigkeitstafel Nr. 27, wie `V-L3 A` oben). Mit gefolgtem Umweg saehe der Fall nur
+     * die 200 der Endseite — und die gaebe es auch dann, wenn die Wurzel der Verwalterin das
+     * Gate zeigte.
+     *
+     * ⛔ DER STATUSCODE STEHT ALS MENGE UND NICHT ALS ZAHL, dieselbe Auflage wie in `V-L3 A`:
+     * `redirect()` waehlt ihn zur Laufzeit, eine hier festgeschriebene Zahl waere eine Zusage
+     * ueber eine Bauform, die die Spec nicht festlegt.
+     */
+    const wurzel = await page.request.get(radioUrl("/"), { maxRedirects: 0 });
+    expect(
+      [301, 302, 303, 307, 308],
+      `die Wurzel antwortete der Admin-Stufe mit ${wurzel.status()} statt einer Umleitung`,
+    ).toContain(wurzel.status());
+    expect(
+      wurzel.headers()["location"],
+      "die Wurzel fuehrt die angemeldete Person nicht auf die Ausleihflaeche (page.tsx:75)",
+    ).toBe("/geraete");
+
+    /*
+     * ⛔ WARMLAUF DES ZIELS (Falle 10a). `page.request` erzeugt KEINE `page`-Ereignisse, der
+     * `waitForResponse`-Filter unten kann ihn also nicht mit der Antwort des Klicks
+     * verwechseln. Ohne ihn kann die Erstuebersetzung von `/admin` in genau das Fenster des
+     * Klicks fallen, und der Fall liefe in sein Zeitbudget mit einer Meldung, die nach einem
+     * kaputten Link klingt.
+     */
+    await page.request.get(radioUrl("/admin"));
+
+    /* ────────── HOP 2: der Weg ist auf der Ausleihflaeche sichtbar (L3) ────────── */
+    await page.goto(radioUrl("/"));
+    await page.waitForURL(radioUrl("/geraete"));
+    const rahmen = page.locator("[data-rolle='radio-ausleih-rahmen']");
+    await expect(
+      rahmen,
+      "die Weiterleitung ist nicht auf der Ausleihflaeche gelandet — der Rest des Falls maesse nichts",
+    ).toBeVisible();
+    const weg = page.locator("[data-rolle='radio-verwaltungslink']");
+    await expect(weg, "die Admin-Stufe sieht den Weg nach /admin nicht").toBeVisible();
+    await expect(weg, "der Weg zeigt nicht auf den AEUSSEREN Pfad /admin").toHaveAttribute(
+      "href",
+      "/admin",
+    );
+
+    /*
+     * ────────── HOP 3: und er fuehrt wirklich hin — 200, nicht nur eine Adresse
+     *
+     * ⛔ DER FILTER PRUEFT NUR DEN PFAD, NICHT DEN STATUS. Stuende `r.status() === 200` im
+     * Filter, traefe eine 404 ihn NIE: `waitForResponse` liefe in die vollen 90 s und meldete
+     * einen Zeitablauf statt der Zahl, die der Fall messen will. Der Status gehoert in die
+     * Zusicherung, damit ein roter Lauf „Received 404" sagt.
+     *
+     * ⛔ UND ER PRUEFT NICHT AUF `isNavigationRequest()`: `<Link>` navigiert im App Router
+     * WEICH — was hinausgeht, ist ein RSC-Abruf auf `/admin?_rsc=…`, keine Dokumentnavigation.
+     *
+     * ⚠️ WAS DIESE ZEILE ALLEIN NICHT AUSSCHLIESST: Next darf denselben Pfad beim Ueberfahren
+     * vorausladen, und ein solcher Abruf traegt denselben Pfad und dieselbe 200. Deshalb steht
+     * die Adresszusicherung darunter — erst beide zusammen heissen „der Klick ist angekommen".
+     *
+     * ⛔ `klickeWennRuhig` UND NICHT `.click()` (Falle 12, `CLAUDE.md`): die Huelle holt die
+     * Sitzung nach und bricht dabei um; ein Klick, dessen `mouseup` daneben faellt, feuert auf
+     * dem gemeinsamen Vorfahren, und ein `<div>` navigiert nicht.
+     */
+    const [antwort] = await Promise.all([
+      page.waitForResponse((a) => new URL(a.url()).pathname === "/admin"),
+      klickeWennRuhig(weg),
+    ]);
+    expect(
+      antwort.status(),
+      "der Weg fuehrt die Admin-Stufe nicht auf eine erreichbare Verwaltung",
+    ).toBe(200);
+
+    await page.waitForURL(radioUrl("/admin"));
+    /*
+     * ⛔ SIEBEN MENUEPUNKTE, UND DIE ZAHL IST DIE STUFE: `radioNav("admin")` gibt alle sieben
+     * Eintraege (`_lib/nav.ts:59-83`), `radioNav("updater")` blendet drei aus. Ohne sie bliebe
+     * „angekommen" auch dann gruen, wenn die Verwaltung die falsche Stufe rendert.
+     * ⛔ GEZAEHLT WIRD INNERHALB DER MODULLEISTE — `nav-link` vergibt auch der Drawer
+     * (`core/shell/SuiteNav.tsx:151`), eine freie Zaehlung maesse beide zusammen.
+     */
+    await expect(
+      page.getByTestId("modulleiste").getByTestId("nav-link"),
+      "die Verwaltung zeigt nicht die sieben Eintraege der Admin-Stufe (radioNav(admin))",
+    ).toHaveCount(7);
+  });
+
+  test("L6 B: die Updater-Stufe kommt denselben Weg an — beide Stufen, nicht nur die obere", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ DIESER FALL IST DIE BETREIBERENTSCHEIDUNG VOM 2026-08-27, UND ER IST NICHT DIE KOPIE
+     * VON L6 A. Er ist die Haelfte, die verschwindet, sobald jemand das Praedikat auf
+     * `istRadioAdmin` verengt — eine Aenderung, die typecheck, lint und build klaglos
+     * bestehen und die kein anderer Fall dieses Repos in einem ECHTEN Abruf faengt.
+     * Sonde S-L6b faerbt genau ihn und NUR ihn.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_UPDATER_GRUPPE });
+
+    const wurzel = await page.request.get(radioUrl("/"), { maxRedirects: 0 });
+    expect(
+      [301, 302, 303, 307, 308],
+      `die Wurzel antwortete der Updater-Stufe mit ${wurzel.status()} statt einer Umleitung`,
+    ).toContain(wurzel.status());
+    expect(
+      wurzel.headers()["location"],
+      "die Wurzel fuehrt die Updater-Stufe nicht auf die Ausleihflaeche",
+    ).toBe("/geraete");
+
+    await page.request.get(radioUrl("/admin"));
+
+    await page.goto(radioUrl("/"));
+    await page.waitForURL(radioUrl("/geraete"));
+    await expect(
+      page.locator("[data-rolle='radio-ausleih-rahmen']"),
+      "die Weiterleitung ist nicht auf der Ausleihflaeche gelandet",
+    ).toBeVisible();
+    const weg = page.locator("[data-rolle='radio-verwaltungslink']");
+    await expect(
+      weg,
+      "die Updater-Stufe sieht den Weg nach /admin nicht — das ist der Sinn der Entscheidung",
+    ).toBeVisible();
+
+    const [antwort] = await Promise.all([
+      page.waitForResponse((a) => new URL(a.url()).pathname === "/admin"),
+      klickeWennRuhig(weg),
+    ]);
+    expect(
+      antwort.status(),
+      "der Weg fuehrt die Updater-Stufe nicht auf eine erreichbare Verwaltung",
+    ).toBe(200);
+
+    await page.waitForURL(radioUrl("/admin"));
+    /*
+     * ⛔ VIER UND NICHT SIEBEN — dieselbe Zahl wie in `V-L3 C`, und hier traegt sie zusaetzlich
+     * die Aussage, dass der Weg die STUFE nicht anhebt: der Updater kommt an, und er kommt als
+     * Updater an.
+     */
+    await expect(
+      page.getByTestId("modulleiste").getByTestId("nav-link"),
+      "die Verwaltung zeigt der Updater-Stufe nicht genau vier Eintraege (radioNav(updater))",
+    ).toHaveCount(4);
+  });
+
+  test("L6 C: der anonyme Ausleiher mit gueltigem Code sieht KEINEN Verwaltungsweg", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ SPEC §4.9.6, UND DER FALL EXISTIERT WEGEN EINES BESTANDSFEHLERS: die Alt-Anwendung
+     * setzte einen Knopf „Geraete verwalten" auf eine ANONYME Flaeche
+     * (`radio-inventar/.../DeviceList.tsx:89-98`). „Ein sichtbarer Weg dorthin, wo die
+     * aufrufende Person nicht hindarf, verletzt die Gegenprobe" (`docs/design/README.md:420`).
+     * Die Betreiberentscheidung „beide Stufen sehen den Link" hebt das NICHT auf — sie
+     * erfuellt es: der Link erscheint nur Berechtigten.
+     *
+     * ⛔ KEIN `devLogin` — DAS IST DER FALL. Der Zugang kommt ueber den Aufsteller-Code, es
+     * gibt also eine gueltige Ausleih-Sitzung und KEINE Suite-Sitzung. ⚠️ Genau diese
+     * Kombination unterscheidet den Fall von „gar kein Zugang": eine Person, die das Codefeld
+     * nie verlassen hat, saehe den Link trivialerweise nicht.
+     *
+     * ⛔ WARMLAUF DER EINLOESE-ROUTE (Falle 10a). Er darf denselben Code nehmen, weil Codes
+     * nicht verbraucht werden (`_lib/schreibpfade/codeEinloesung.ts:64`, `:70`).
+     */
+    await page.request.get(radioUrl(`/m/radio/t/${E2E_CODE_AKTIV}`), { maxRedirects: 0 });
+
+    const einloesung = await page.goto(radioUrl(`/m/radio/t/${E2E_CODE_AKTIV}`));
+    expect(
+      einloesung?.status(),
+      "die Einloesung des gueltigen Codes ist nicht auf einer Seite gelandet",
+    ).toBe(200);
+    /*
+     * Die Route leitet ohne `?returnTo=` auf `/` (`t/[code]/route.ts:153`), und die Weiche auf
+     * der Wurzel schickt mit gueltigem Zugang weiter auf `/geraete` — derselbe Weg wie in
+     * L6 A/B, nur mit der anderen Zugangsart.
+     */
+    await page.waitForURL(radioUrl("/geraete"));
+
+    /*
+     * ⛔ DIE VORBEDINGUNG TRAEGT DIE GANZE NEGATIVE ZUSICHERUNG. Ohne sie waere „kein
+     * Verwaltungsweg" auch auf einer Fehlerseite, im Codefeld oder auf einer leeren Antwort
+     * gruen — und zwar aus dem falschen Grund. Erst „der Rahmen steht, und in IHM fehlt der
+     * Weg" ist eine Aussage. ⚠️ Der `Beenden`-Knopf steht daneben, weil er im selben
+     * Kopfbereich lebt wie der fehlende Link: er belegt, dass genau diese Flaeche gerendert
+     * ist und nicht bloss irgendein Rahmen.
+     */
+    await expect(
+      page.locator("[data-rolle='radio-ausleih-rahmen']"),
+      "Vorbedingung — der Code-Zugang ist nicht auf der Ausleihflaeche gelandet",
+    ).toBeVisible();
+    await expect(
+      page.locator("[data-rolle='radio-beenden']"),
+      "Vorbedingung — der Kopf der Ausleihflaeche ist nicht gerendert",
+    ).toBeVisible();
+
+    await expect(
+      page.locator("[data-rolle='radio-verwaltungslink']"),
+      "die ANONYME Ausleihflaeche zeigt einen Verwaltungsweg — Spec §4.9.6",
+    ).toHaveCount(0);
+  });
+
+  test("L6 D: das alte Lesezeichen /admin/login traegt den Verwalter bis auf 200 durch", async ({
+    page,
+  }) => {
+    /*
+     * ⛔ WARUM DIESER ALIAS EINEN E2E-FALL VERDIENT UND DIE UEBRIGEN ACHT NICHT — die
+     * Entscheidung ist begruendet, nicht gegriffen.
+     *
+     * `e2e/radio-hosts.spec.ts:770` misst die AUFLOESUNGSKLASSE der Aliasse: dass der AEUSSERE
+     * Pfad ueber den Host-Rewrite in der Handler-Datei landet und mit 303 auf sein Ziel
+     * antwortet — an drei Eintraegen, anonym, mit `maxRedirects: 0`. ⛔ DIESER FALL MISST ETWAS
+     * ANDERES: die KETTE BIS 200. Jener endet an der 303 und sagt nichts darueber, ob das Ziel
+     * fuer eine verwaltende Person auch antwortet; ein Alias, der sauber auf eine Adresse
+     * zeigt, die dann 404 gibt, bestuende ihn. ⚠️ WER HIER EINE WIEDERHOLUNG SIEHT, HAT DIE
+     * ZWEI ZUSAGEN VERWECHSELT — der Unterschied steht deshalb hier und nicht nur im Bericht.
+     *
+     * ⛔ UND `/admin/login` IST DER EINE, BEI DEM DIE KETTE ZAEHLT: er ist der Alt-Pfad, den
+     * ein Verwalter im Lesezeichen hat (die Alt-Anwendung bediente ihre Anmeldung dort), und
+     * sein Ziel ist genau die Wurzel der Verwaltung, um die dieser ganze Bauweg geht. Ein
+     * altes Lesezeichen, das im Betrieb ins Leere laeuft, ist der Ausfall, den L4 + L6
+     * verhindern sollen.
+     *
+     * ⛔ NUR DIE ADMIN-STUFE, UND DAS IST KEINE LUECKE: die Alias-Antwort entsteht VOR jedem
+     * Personenriegel (`radio-hosts.spec.ts:734-741` misst sie sogar anonym), sie ist also
+     * stufenunabhaengig. Dass die Updater-Stufe an `/admin` mit 200 ankommt, misst L6 B und
+     * `V-L3 C`. Eine zweite Anmeldung hier fuegte dem nichts hinzu und kostete den Lauf eine
+     * volle Anmeldung.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const umleitung = await page.request.get(radioUrl("/admin/login"), { maxRedirects: 0 });
+    expect(umleitung.status(), "/admin/login antwortet nicht mit 303").toBe(303);
+    expect(
+      umleitung.headers()["location"],
+      "/admin/login zeigt nicht auf die Wurzel der Verwaltung",
+    ).toBe("/admin");
+
+    /*
+     * ⛔ DIE ZWEITE HAELFTE IST DIE, DIE DEN FALL TRAEGT: derselbe Pfad noch einmal, diesmal
+     * MIT gefolgtem Umweg. Ohne sie bliebe die 303 oben eine Aussage ueber einen Kopf, nicht
+     * ueber eine erreichbare Verwaltung.
+     */
+    const ziel = await page.request.get(radioUrl("/admin/login"));
+    expect(
+      ziel.status(),
+      "das alte Lesezeichen endet nicht auf einer erreichbaren Verwaltung",
+    ).toBe(200);
+    expect(
+      new URL(ziel.url()).pathname,
+      "die Kette endet nicht auf /admin",
+    ).toBe("/admin");
   });
 });
