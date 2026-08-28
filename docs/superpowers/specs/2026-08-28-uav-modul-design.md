@@ -110,11 +110,14 @@ offline-fähig) und für Alt-Clients im Standby.
 
 ## 5. Oberfläche
 
-**Teilnehmer (Minimal-Shell, offline-fähig):** `/` Fortschritt nach Teil 1–3 · `/aufgabe/[id]`
+**Teilnehmer (Minimal-Shell, offline-fähig):** `/` Fortschritt nach Teil 1–3 · `/aufgabe?id=<taskId>`
 Lernziel, Schritte, Hinweise, Illustration, Erfassung (Datum, Steuerer, Beobachter),
-Zielanzahl/„nicht anwendbar" · `/login` (Modul-Route; die Brücke aus §3 landet hier) mit
-Code-Eingabe und Auto-Einlösung bei `?code=`. Tap-Höhen aus dem Design-System (Handschuh),
-antd-Komponenten, kein Recharts.
+Zielanzahl/„nicht anwendbar" (der Alt-Pfad `/aufgabe/<id>` wird per 308 umgeleitet; der
+Query-Pfad hält die Offline-Shell auf **eine** cachebare Seite — das qr-Muster) · `/login`
+(Modul-Route; die Brücke aus §3 landet hier) mit Code-Eingabe und Auto-Einlösung bei `?code=`.
+Das ist eine **öffentliche Ansicht** im Sinn von `docs/design/README.md`: eigene CSS-Module
+(portiert aus `src/styles.css`), **kein antd**, Client-Insel wie die Alt-SPA. Tap-Höhen aus dem
+Design-System (Handschuh).
 
 **Offline:** eigener Allowlist-Worker nach dem `qr`-Muster (`qr/_lib/sw-source.ts`): precacht
 `/`, `/aufgabe/*`-Shell, Illustrationen, Manifest; **nie** `/api/`, nie `/m/uav/admin`. Die
