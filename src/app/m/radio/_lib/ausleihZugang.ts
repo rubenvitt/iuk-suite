@@ -46,6 +46,10 @@ import { viewerAusSession } from "./zugang";
  * den Wert dann ab (`.../routes/__root.tsx:59-72`). Er wird NICHT uebergangsweise
  * mitakzeptiert — eine Doppelakzeptanz brauchte ein Ablaufdatum, das niemand setzt, und
  * waere genau der unbefristete, unwiderrufliche Zugang, den Entscheidung 8 ausschliesst.
+ * ⚠️ SEIT 2026-08-28 GIBT ES EINE BRUECKE, UND SIE VERLETZT DAS NICHT: `_lib/altToken.ts`
+ * UEBERSETZT den Alt-Token am Gate auf `/t/<code>`; die Sitzung entsteht dort aus dem
+ * Zugangscode, mit Ablaufdatum per `RADIO_ALT_TOKEN_BIS`. Diese Datei liest weiterhin nur
+ * das Cookie und die Suite-Sitzung.
  *
  * ⚠️ DIESE DREI WOERTER STEHEN HIER ABSICHTLICH AUSGESCHRIEBEN, und sie sind zugleich die
  * LAST des Scans in `ausleihZugang.test.ts`: er liest die Quelle ueber `ohneKommentare`

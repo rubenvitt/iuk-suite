@@ -23,6 +23,7 @@ import { moduleDbPath } from "@/core/db";
 import { getModule, prodHostsFor } from "@/core/registry";
 import { getDb, type DB } from "../_db/client";
 import { devices, loans } from "../_db/schema";
+import { altTokenFehler } from "./altToken";
 import { grenzenFehler } from "./grenzen";
 
 type EnvLike = Record<string, string | undefined>;
@@ -252,7 +253,7 @@ export async function radioBootFehler(env: EnvLike = process.env): Promise<strin
    * exportiert wird (`_lib/grenzen.ts:96-105`). `grenzenFehler()` faengt die Wuerfe von
    * `zahl()` selbst ab und liefert immer eine Liste.
    */
-  const fehler: string[] = [...grenzenFehler(env)];
+  const fehler: string[] = [...grenzenFehler(env), ...altTokenFehler(env)];
 
   /*
    * Pruefung 1 — SUITE_ADMIN_GROUP_RADIO ist gesetzt und nicht leer.

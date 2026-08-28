@@ -63,6 +63,8 @@
  * Codefeld (Bericht §1.5). Das ist entschieden und zweifach bewacht
  * (`_lib/ausleihZugang.test.ts:535-540`); die Abhilfe ist betrieblich — die gedruckten Codes
  * einsammeln —, nicht technisch. Ein Alias kann daran nichts richten.
+ * ⚠️ UEBERHOLT AM 2026-08-28: `_lib/altToken.ts` uebersetzt `?token=` am Gate auf `/t/<code>`,
+ * befristet ueber `RADIO_ALT_TOKEN_BIS`. Ohne gesetzte Variablen gilt der Absatz oben weiter.
  */
 
 /** Der EINE Platzhalter, den ein Alt-Pfad tragen darf. */

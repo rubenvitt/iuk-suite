@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { clientIpAus } from "@/core/ratelimit";
 import { getDb } from "./_db/client";
+import { altTokenZiel } from "./_lib/altToken";
 import { ausleihZugangOderNull } from "./_lib/ausleihZugang";
 import { gateGesperrt } from "./_lib/gateSchranke";
 import { gateMeldung } from "./_lib/gateTexte";
@@ -53,7 +54,7 @@ export const dynamic = "force-dynamic";
 export default async function RadioGatePage({
   searchParams,
 }: {
-  searchParams: Promise<{ grund?: string; returnTo?: string }>;
+  searchParams: Promise<{ grund?: string; returnTo?: string; token?: string }>;
 }) {
   const kopf = await headers();
   requireRadioHost(kopf);
@@ -111,7 +112,20 @@ export default async function RadioGatePage({
    * ZWEIG NEU — der Block „Bauform des Gates" in `page.test.tsx` haelt das fest.
    */
 
-  const { grund, returnTo } = await searchParams;
+  const { grund, returnTo, token } = await searchParams;
+
+  /*
+   * DER GEDRUCKTE ALT-QR (`/?token=<base64>`), Betreiberentscheidung vom 2026-08-28: er
+   * fuellt NICHT das Codefeld — der Wert ist der API-Token des Alt-Kiosks, kein Zugangscode —,
+   * sondern wird auf `/t/<code>` UEBERSETZT und laeuft dort durch dieselbe Einloesung wie
+   * jeder Aufsteller-QR. Begruendung, Ablaufdatum und die drei Variablen: `_lib/altToken.ts`.
+   * Passt nichts, faellt die Seite still auf das leere Codefeld zurueck (Bericht §1.5).
+   *
+   * ⛔ HINTER der Weiche oben: wer schon Zugang hat, gehoert auf `/geraete`, nicht in eine
+   * zweite Einloesung. ⛔ NICHT IN EINEM `try`/`catch` — `redirect()` wirft.
+   */
+  const altZiel = altTokenZiel(token);
+  if (altZiel) redirect(altZiel);
 
   /*
    * ⛔ DER GRUND WANDERT UEBER DIE URL, DIE ZAHL NICHT (Spec:2391-2394). Diese Seite hat
