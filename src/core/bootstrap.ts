@@ -55,6 +55,9 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // Anmeldung Geraete ausleihen und zurueckgeben. Das lokale Seed-Skript deckt den
   // Entwicklungsbetrieb vollstaendig ab.
   { key: "radio", migrationsFolder: "src/app/m/radio/_db/migrations" },
+  // uav: OHNE Schema-Import und OHNE Boot-Seed — ein geseedeter Teilnehmer-Code wäre in einer
+  // Generalprobe (SUITE_SEED=1) ein gültiger anonymer Zugang. Das lokale Seed-Skript deckt Dev ab.
+  { key: "uav", migrationsFolder: "src/app/m/uav/_db/migrations" },
 ];
 
 /**
