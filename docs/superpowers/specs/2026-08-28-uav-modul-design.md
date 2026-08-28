@@ -155,8 +155,8 @@ Blob-Umzug):
 - Health `/api/health/uav` (Muster `[modul]/route.ts`), Backup: `backup.sh` nimmt `*.db` — keine
   Änderung nötig.
 
-**Nebenbefund für den Abbau:** `uav-praxis/.env` enthält einen `FAL_KEY` im Klartext
-(gitignored). Beim Archivieren des Repos: Datei löschen, Key in fal.ai rotieren.
+**Zum `FAL_KEY` in `uav-praxis/.env`:** nur für die Bildgenerierung in Dev (`pnpm gen:images`),
+kein Prod-Geheimnis — bleibt, wo er ist (Betreiber, 28.08.2026).
 
 ## 7. Tests
 
