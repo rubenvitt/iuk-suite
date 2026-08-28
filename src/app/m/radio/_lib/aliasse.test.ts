@@ -351,7 +351,7 @@ describe("radio-Aliasse: die Antwortform", () => {
     /*
      * ⛔ DIE ZWEITE HAELFTE IST DIE TRAGENDE — uebernommen aus `_lib/bauform.test.ts:672-696`.
      * `30(?!3)\d` deckt jede 3xx-Umleitung ausser 303 ab, auch die PERMANENTEN 301 und 308.
-     * Und genau die sind hier der teure Fehler: `.env.example:607-608` schreibt fuer denselben
+     * Und genau die sind hier der teure Fehler: `.env.example` schreibt fuer denselben
      * Umzug aus („permanent=false → 302, nie 301"), weil ein permanenter Redirect im Cache
      * jedes Telefons liegt und den Rollback unmoeglich macht. Ein Alias ist eine
      * Uebergangsbruecke; sie darf sich nicht in den Geraeten festsetzen.

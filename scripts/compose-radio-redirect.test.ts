@@ -22,7 +22,10 @@ import path from "node:path";
  *                                               services.a.labels.[]" ab. Aeltere Compose-Fassungen
  *                                               verschluckten das eine `$` und lieferten `/admin/`
  *                                               fuer JEDEN Pfad; genau darauf beruht die
- *                                               Beschreibung in `.env.example:608-612`. Der Test
+ *                                               Beschreibung in `.env.example` (Textanker
+ *                                               „DOPPELTES `$$` GEGEN DIE COMPOSE-
+ *                                               INTERPOLATION"; die Zeilennummer ist am
+ *                                               2026-08-28 gewandert). Der Test
  *                                               traegt in beiden Faellen, und aus einem Grund, der
  *                                               von der Compose-Fassung unabhaengig ist: KEIN
  *                                               CI-Schritt dieses Repos ruft `docker compose
@@ -104,9 +107,12 @@ describe("compose.yaml — der Redirect vom Alt-Host radio-admin.iuk-ue.de", () 
     expect(rep).toBe(
       "traefik.http.middlewares.radio-admin-alt-redirect.redirectregex.replacement=https://radio.iuk-ue.de/admin/$${1}",
     );
-    // Das eine `$` ist der Fehlfall, der den Redirect funktionieren laesst und den Pfad verliert.
-    // Auf Compose v5.1.2 bricht `docker compose config` darauf ab (Kopf der Datei) — nur ruft ihn
-    // kein Tor dieses Repos auf, diese Zeile also schon.
+    // ⚠️ REDUNDANTE DOPPELSICHERUNG, KEIN EIGENER WAECHTER — berichtigt am 2026-08-28
+    // (Pruefung L5, Fund K1). Der Waechter ist das `toBe` darueber: es pinnt den GANZEN
+    // String, ist also strikt staerker, und es gibt keine Mutation von `compose.yaml`, die
+    // diese Zeile zum Entscheider machte. Gemessen: `/admin/$${1}` -> `/admin/${1}` faerbt
+    // `:104`, nicht diese Zeile. Sie bleibt stehen, weil sie den GRUND benennt (das eine
+    // `$` ist der Fehlfall, der den Pfad verliert), und sie kostet nichts.
     expect(rep).not.toMatch(/[^$]\$\{1\}/);
   });
 
@@ -125,6 +131,15 @@ describe("compose.yaml — der Redirect vom Alt-Host radio-admin.iuk-ue.de", () 
   it("radio-admin.iuk-ue.de steht NICHT in der Vorbelegung von SUITE_TRAEFIK_RULE", () => {
     // Sonst erreicht der Alt-Host den Container und faellt STILL auf portal zurueck
     // (`src/core/routing.ts:69`), statt umgeleitet zu werden.
+    //
+    // ⛔ UND HIER STEHT, WIE WEIT DIESER FALL REICHT — NICHT WEITER (Pruefung L5, Fund W1,
+    // eingearbeitet 2026-08-28). Er liest ausschliesslich `suiteLabels()`, also Zeilen aus
+    // `compose.yaml` — geprueft wird die VORBELEGUNG in `compose.yaml:153`. ⛔ DIE STELLE,
+    // AN DER DER BETREIBER WIRKLICH SETZT, IST DIE SERVER-`.env`, UND DIE SIEHT KEIN TEST
+    // DIESES REPOS. Wer den Alt-Host dort in `SUITE_TRAEFIK_RULE` aufnimmt, bekommt den
+    // stillen Portal-Rueckfall, und diese Zeile bleibt gruen. Dagegen traegt allein die
+    // Abnahme im Cutover-Fenster (Runbook-Vorbedingung: `SUITE_TRAEFIK_RULE` der
+    // Server-`.env` enthaelt `radio-admin` NICHT).
     const rule = suiteLabels().find((l) => l.startsWith("traefik.http.routers.iuk-suite.rule="));
     expect(rule).toBeTruthy();
     expect(rule).not.toContain("radio-admin");
