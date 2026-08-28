@@ -656,7 +656,12 @@ zählen" ist der beim Namen genannte Fehler der Phase 4
   # (a) Z fuehrt genau zehn Glieder — gemessen, nicht behauptet:
   sed -n '/^### Abfrage Z/,/^### /p' docs/runbooks/radio-cutover.md | grep -cE "^select '"
   # Erwartung: 10   (dieselbe Zaehlung gegen die Spec liefert ebenfalls 10:
-  #   sed -n '4376,4410p' docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
+  #   (NACHTRAG 2026-08-28: wortlaut-verankert, vorher der feste Bereich '4376,4410p'.
+  #    ⚠️ Der Anker ist die ERSTE Z-ZEILE, nicht der Abschnitt: die Spec hat keine
+  #    '### Abfrage Z'-Ueberschrift, und '/^### 5.2.2 /,/^### 5.2.3 /p' liefert ELF —
+  #    das erste Glied von Abfrage A beginnt ebenfalls mit "select '". Beides gemessen.)
+  #   sed -n "/^select 'loans.returned_at',        count/,/^\`\`\`$/p" \
+  #         docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
   #     | grep -cE "^select '")
 
   # (b) das Wort ueber der Liste nennt dieselbe Zahl:
@@ -1753,7 +1758,10 @@ Löchern ist genau der W8-Fehler, gegen den dieses Kapitel gebaut ist.
   sed -n '/^## §H /,$p' docs/runbooks/radio-cutover.md | grep -cE '^- \[ \] [0-9]+\.'
   # Erwartung: 38
   # Gegenzaehlung an der Spec (dort 37):
-  sed -n '4784,4876p' docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
+  # ⛔ NACHTRAG 2026-08-28: wortlaut-verankert statt ueber Zeilennummern — C41 hat die Spec
+  #    um 79 Zeilen verlaengert, `sed -n '4784,4876p'` liest seitdem 3 statt 37.
+  sed -n '/^# Erfüllungspunkte/,/^# Anhang A/p' \
+        docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
     | grep -cE '^- \[ \] [0-9]+\.'
   # Erwartung: 37 — die Differenz ist Punkt 38 und im Kopf von §H begruendet.
 
@@ -1947,7 +1955,8 @@ Bereich liegt — und die Zusage an Kapitel 4 steht unten in der Zusagenliste.
 
   ```bash
   # (a) der Host-Lesebefehl wird in Kapitel 5 der Spec nicht mehr AUSGEFUEHRT:
-  sed -n '4165,4879p' docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
+  sed -n '/^## 5.1 /,/^# Erfüllungspunkte/p' \
+        docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
     | grep -c 'sqlite3 -readonly "\$DATA_DIR/radio.db"'
   # Erwartung: 1 — und der eine Treffer ist namentlich bekannt: die Nachtragszeile, die
   # Schritt 1 dieser Aufgabe UEBER den ersetzten Block schreibt und die die Zeichenkette
@@ -1955,7 +1964,8 @@ Bereich liegt — und die Zusage an Kapitel 4 steht unten in der Zusagenliste.
   # korrekter Arbeit rot — vor der Aenderung stand die Form hier zweimal als
   # ausfuehrbarer Zielarm (§5.2.2 Abfrage A, Spec-Zeilen 4295 und 4298).
   # Gegenprobe, dass es wirklich die Nachtragszeile ist und kein Zielarm-Rest:
-  sed -n '4165,4879p' docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
+  sed -n '/^## 5.1 /,/^# Erfüllungspunkte/p' \
+        docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
     | grep -n 'sqlite3 -readonly "\$DATA_DIR/radio.db"'
   # Erwartung: der Treffer steht in einem Satz, der die Form VERBIETET — nicht in einer
   # Zeile, die sie ausfuehrt.
@@ -2024,8 +2034,16 @@ Diese sechs Zusagen sind **Namen und Formen**, die andere Teile zeichengleich be
    ⛔ **Beide Ablesungen müssen denselben Namen ergeben**, und §5.2 liest den Wert ausdrücklich
    gegen das Fenster-Protokoll gegen, bevor die erste Zahl gezählt wird. Jeder Zielarm-Befehl fährt
    `docker run --rm -i -v "$VOL_SUITE":/data
-   alpine sh -c 'apk add --no-cache sqlite …; sqlite3 -readonly /data/radio.db'`, Mount **ohne**
+   alpine sh -c 'apk add --no-cache sqlite …; sqlite3 /data/radio.db'`, Mount **ohne**
    `:ro`, ⛔ **kein** `immutable=1`.
+   ⛔ **Nachtrag 2026-08-28 (NT8, gemessen am 2026-08-21): OHNE `-readonly`.** Diese Zusage schrieb
+   die Form bis heute **mit** vor — und weil eine Zusage laut der Überschrift dieses Abschnitts
+   „zeichengleich" zu benutzen ist, hat Kapitel 4 sie zeichengleich übernommen: die drei
+   `sqlite3 -readonly /data/radio.db` in Spec 2 §4.5 sind **diese Zeile**, nicht ein eigener Fehler
+   jenes Planteils. Gegen eine frisch importierte, im WAL-Modus liegende `radio.db` ohne `-shm`
+   scheitert ein Readonly-Handle mit `unable to open database file (14)` — eine Meldung, die wie
+   ein Importfehler aussieht und keiner ist. Für die **Quelle** (`radio-admin-snapshot.sqlite`)
+   bleibt `-readonly` Pflicht, solange `pragma journal_mode` dort `delete` liefert (Runbook §L.1).
 5. **P1–P6, nicht P1–P5** — der Planteil zu **Kapitel 4** korrigiert §4.5 Schritt 3 („Die fünf
    Postgres-Zählungen (P1–P5)") auf **sechs**, und P6 ist dort wie hier eine **Sperre**.
 6. **§4.2 Nr. 3 hat nur EINEN ausführbaren Zweig** — der Planteil zu **Kapitel 4** streicht dort

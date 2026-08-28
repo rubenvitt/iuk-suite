@@ -240,11 +240,19 @@ Abnahmeliste (§D), weil wer abnimmt prüft, was entschieden wurde.
 Eine von Hand am Cutover-Abend ergänzte Label-Sektion wäre **genau** diese Abweichung — der nächste
 Rollout schlüge fehl oder risse die Ergänzung wieder heraus.
 
-⛔ **Stand 2026-08-27: die Labelgruppe steht NICHT in der `compose.yaml` dieses Repos.** Dort führt
-der Service `suite` genau **einen** Router (`compose.yaml:146-155`: `traefik.http.routers.iuk-suite.*`,
-`entrypoints=web`). Die Zeilen unten stehen heute nur als Kommentar in `.env.example:600-605`. **Sie
-sind zu übernehmen, zu testen und auszurollen, bevor das Fenster geplant wird** — und danach ist ⬜ N2
-abzulesen.
+✅ **Stand 2026-08-28: die Labelgruppe IST im Repo — C2 hat sie gebaut** (`0fc85370`). Sie steht in
+`compose.yaml:156-186` als **zweiter, eigener Router** `radio-admin-alt`, unter den unveränderten
+Suite-Labels (`:146-155`, `traefik.http.routers.iuk-suite.*`, `entrypoints=web`), und ein
+Regressionstest wacht darüber (`scripts/compose-radio-redirect.test.ts`, 7 Fälle: Middleware am
+**Router**, `permanent=false`, das doppelte Dollarzeichen in `$${1}`, und die Abwesenheit des
+Alt-Hosts in `SUITE_TRAEFIK_RULE`).
+
+⛔ **Damit ist der Repo-Teil erledigt, der SERVER-Teil nicht.** Was bleibt: **ausrollen** und danach
+⬜ **N2** ablesen — `docker compose config | grep -A2 radio-admin-alt` **am Server**. Bis dahin
+greift §C Schritt 9 Nr. 3 ins Leere. ⚠️ *Nachtrag 2026-08-28: dieser Absatz forderte bis heute, die
+Zeilen unten „zu übernehmen" — wer ihn jetzt liest und der Anweisung folgt, baut die Labels ein
+zweites Mal ein.* Die Fassung unten bleibt als **Beleg dessen stehen, was ausgerollt sein muss**;
+maßgeblich ist `compose.yaml` im Repo.
 
 Die sechs Zeilen gehören in `compose.yaml`, Service `suite`, unter die vorhandenen `traefik.*`-Labels:
 
@@ -6541,10 +6549,16 @@ sed -n '/^## §H /,$p' docs/runbooks/radio-cutover.md \
 # Erwartung: 1 2 3 … 38, jede Zahl GENAU EINMAL. Eine Luecke ist ein Stopp-Punkt.
 sed -n '/^## §H /,$p' docs/runbooks/radio-cutover.md | grep -cE '^- \[ \] [0-9]+\.'
 # Erwartung: 38
-# Gegenzaehlung an der Spec (dort 37):
-sed -n '4784,4876p' docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
+# Gegenzaehlung an der Spec (dort 37) — WORTLAUT-VERANKERT, nicht ueber Zeilennummern:
+sed -n '/^# Erfüllungspunkte/,/^# Anhang A/p' \
+      docs/superpowers/specs/2026-08-18-radio-cutover-design.md \
   | grep -cE '^- \[ \] [0-9]+\.'
 # Erwartung: 37 — die Differenz ist Punkt 38 und im Kopf von §H begruendet.
+# ⛔ NACHTRAG 2026-08-28: hier stand `sed -n '4784,4876p'`. C41 hat die Spec um 79 Zeilen
+#   verlaengert; derselbe Befehl liest heute 3 statt 37 und erzeugt ein FALSCHES ROT an
+#   der Pruefung, die die Vollstaendigkeit der Erfuellungsklammer sichert. Ein fester
+#   Zeilenbereich in ein Dokument hinein haelt keinen Nachtrag aus — und dieses Runbook
+#   selbst fuehrt im Kopf die Regel, ueber den Wortlaut zu ankern.
 # ⚠️ Der Schlussabschnitt "Was dieses Runbook NICHT beantwortet" steht NACH §H und faellt
 #   damit in den Bereich '/^## §H /,$p'. Er ist eine TABELLE und traegt bewusst KEINE
 #   '- [ ] <Zahl>.'-Zeile — sonst zaehlte dieser Befehl mehr als 38.
