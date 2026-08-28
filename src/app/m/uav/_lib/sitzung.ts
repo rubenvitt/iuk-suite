@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { UavDb } from "../_db/client";
 import { participants, sessions } from "../_db/schema";
@@ -30,9 +30,11 @@ export function sessionValidieren(db: UavDb, roh: string): Identity | null {
   const hash = tokenHash(roh);
   const zeile = db.select().from(sessions).where(eq(sessions.token, hash)).get();
   if (!zeile) return null;
-  // Zeitkonstanter Vergleich des gefundenen Hashs gegen den berechneten — der Index-Lookup ist
-  // nicht zeitkonstant, aber der Hash ist es, was hier verglichen wird (Spec §3, Zeile 3).
-  if (!timingSafeEqual(Buffer.from(zeile.token), Buffer.from(hash))) return null;
+  // Der Token ist 256 Bit Zufall und wird über seinen Hash per Primärschlüssel
+  // (`sessions.token`) nachgeschlagen — genau das Muster der Alt-Anwendung
+  // (`uav-praxis/server/auth/sessions.ts`). Ein Index-Lookup kann nicht anders
+  // ausfallen als "Treffer" oder "kein Treffer"; ein zeitkonstanter Vergleich
+  // obendrauf hätte nichts mehr zu vergleichen, das nicht schon feststeht.
   if (new Date(zeile.expiresAt).getTime() <= Date.now()) {
     db.delete(sessions).where(eq(sessions.token, hash)).run();
     return null;
