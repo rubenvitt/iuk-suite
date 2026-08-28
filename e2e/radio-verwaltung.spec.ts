@@ -35,10 +35,10 @@ import {
  * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
  * strukturell nicht.
  *
- * ⛔ **SEIT DEM 2026-08-28 SIND ES FUENFUNDZWANZIG `test()`-BLOECKE.** Die Zahl ist an
- * Playwrights eigener Zaehlzeile abgelesen — „Running 25 tests using 1 worker" / „25 passed
- * (1.1m)" — und ⛔ **nicht** mit `grep -c "test("`, der `test.describe(` und Kommentartreffer
- * mitzaehlt. Die letzten vier sind „L6 A" bis „L6 D" am Ende der Datei (Aufgabe L6): der
+ * ⛔ **SEIT DEM 2026-08-28 SIND ES SECHSUNDZWANZIG `test()`-BLOECKE.** Die Zahl ist an
+ * Playwrights eigener Zaehlzeile abgelesen — „26 passed (1.2m)" — und ⛔ **nicht** mit
+ * `grep -c "test("`, der `test.describe(` und Kommentartreffer mitzaehlt. Der letzte ist
+ * „die Verwaltung misst 32" (die dritte Bediendichte); davor „L6 A" bis „L6 D" (Aufgabe L6): der
  * Verwaltungsweg als KETTE, von der Wurzel ueber den sichtbaren Link bis auf die 200 der
  * Verwaltung, je Rechtestufe, plus der anonyme Gegenfall und das alte Lesezeichen. Ihre
  * Begruendung und ihre vier Mutationssonden stehen unmittelbar ueber ihnen.
@@ -2005,5 +2005,117 @@ test.describe("radio-Verwaltung", () => {
       new URL(ziel.url()).pathname,
       "die Kette endet nicht auf /admin",
     ).toBe("/admin");
+  });
+
+  test("die Verwaltung misst 32, die Huelle der Suite bleibt bei 44", async ({ page }) => {
+    /*
+     * ⛔ DER EINZIGE WAECHTER UEBER DER DRITTEN BEDIENDICHTE, UND ER MUSS EIN BROWSERLAUF SEIN.
+     * `SCHREIBTISCHDICHTE` (32/40, `core/theme/theme.ts`) wickelt seit dem 2026-08-28 den
+     * Verwaltungszweig ein (`_ui/RadioVerwaltungsRahmen.tsx`). Was Vitest davon sehen kann, ist
+     * die THEME-MISCHUNG — `core/theme/theme.test.ts` rendert die Schachtelung in jsdom und
+     * liest `controlHeight: 32` aus `useToken()`. Was es strukturell NICHT sehen kann, ist die
+     * GERENDERTE GEOMETRIE: jsdom rechnet keine Kaesten (Falle 8), und antds cssinjs spritzt
+     * die Regeln zur Laufzeit ein — die zweite `cssVar`-Ebene (`iuk-schreibtisch` INNERHALB von
+     * `iuk-arbeit`) steht in keiner Datei dieses Repos. Ein stiller Leerlauf des inneren
+     * Providers waere bei gruenem `typecheck`, `lint`, `vitest` und `build` nicht zu bemerken.
+     *
+     * ⛔ DREI ZUSICHERUNGEN, UND DIE MITTLERE IST DIE WICHTIGE. Eine Dichte, die auf die HUELLE
+     * durchschlaegt, waere der eigentliche Schaden: Kopfzeile und Modulleiste stehen in `Shell`,
+     * also AUSSERHALB des inneren Providers, und die Suite soll in jedem Modul gleich aussehen.
+     * Der Theme-Umschalter ist der Griff dafuer — er ist ein antd-`Button` OHNE `size`
+     * (`core/theme/ThemeToggle.tsx`), erbt seine Hoehe also aus der Dichte, die ihn umgibt, und
+     * ist damit genau die Sonde, die anschlaegt, wenn die 32 zu weit nach aussen wandert.
+     * ⚠️ `theme-toggle` IST DER DESKTOP-KNOPF; der Zwilling in der Schublade traegt
+     * `theme-toggle-drawer` (`core/shell/SuiteNav.tsx:360`, `:469`) — kein Strict-Mode-Konflikt.
+     *
+     * ⛔ KEIN `test.use({ viewport })` — das setzte die Breite fuer JEDEN Fall dieser Datei
+     * still um; Playwrights Vorgabe 1280x720 traegt `md === true`, worauf die Tabellenzweige der
+     * Faelle 2 und 5 sich seit V13 verlassen. Dieselbe Warnung steht am Umschalter-Fall oben.
+     *
+     * ⛔ JEDE ZUSICHERUNG HAT EINE UNTERGRENZE, SONST GEHT SIE STILL VAKUOES: ein Knoten mit
+     * Hoehe 0 (ausgeblendet, noch nicht gesetzt) bestuende jede reine Obergrenze. Deshalb steht
+     * vor jeder Messung ein `toBeVisible()` und unter jeder Obergrenze ein Boden.
+     *
+     * ⛔ **DIE MESSWERTE, GELESEN AM 2026-08-28 — sie stehen hier und nicht nur im Bericht, weil
+     * der Berichtsordner git-ignoriert ist (`.gitignore:17`); dieselbe Tafelform fuehrt die
+     * Datei fuer T4/T5 weiter oben:**
+     *
+     *   Anlegeknopf        **32 px**  (erwartet 32 ±1)
+     *   Suchfeld-Huelle    **32 px**  (erwartet <= 34)
+     *   Theme-Umschalter   **56 px**  (erwartet >= 44)
+     *
+     * ⚠️ DER UMSCHALTER MISST 56, NICHT 44, UND DAS IST KEIN FEHLSCHLAG: die Zusicherung ist
+     * eine UNTERgrenze und fragt „hat die 32 die Huelle erreicht" — nein. Dass es 56 und nicht
+     * 44 sind, heisst, dass die Navigationsspalte ausserhalb der ARBEITSDICHTE steht; das ist
+     * Bestand und wird hier festgehalten, nicht mitgemessen. ⛔ Wer daraus eine `toBe(44)` macht,
+     * misst eine fremde Flaeche.
+     *
+     * ⛔ **DIE MUTATIONSSONDE, GEMESSEN UND ZURUECKGENOMMEN.** `<Schreibtischdichte>` aus
+     * `_ui/RadioVerwaltungsRahmen.tsx:51` entfernt (`{children}` blank) -> **1 rot**: der
+     * Anlegeknopf misst **44 px** statt 32, mit genau der Meldung unten. Der Fall ist damit
+     * falsifizierbar und nicht bloss beim ersten Lauf gruen gewesen.
+     */
+    await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+    const antwort = await page.goto(radioUrl("/admin/geraete"));
+    expect(antwort?.status(), "/admin/geraete auf dem radio-Host").toBe(200);
+
+    /*
+     * (a) DER ANLEGEKNOPF — 32 statt 44, und das Zeichen ist wieder da (`DeviceList.tsx:155`,
+     * `FiPlus`). ⚠️ ±1: der Kasten kommt aus `getBoundingClientRect`, also als Fliesskommazahl
+     * nach Layout und Zoomfaktor; auf die Zahl selbst genagelt waere der Fall auf einem anderen
+     * Geraeteverhaeltnis falsch-rot, ohne dass sich etwas geaendert haette.
+     */
+    const anlegen = page.locator('[data-rolle="radio-geraet-anlegen"]');
+    await expect(anlegen, "der Anlegeknopf fehlt — es gaebe nichts zu messen").toBeVisible();
+    const anlegenKasten = await anlegen.boundingBox();
+    expect(anlegenKasten, "der Anlegeknopf hat keinen Kasten").not.toBeNull();
+    expect(
+      Math.abs(anlegenKasten!.height - 32),
+      `der Anlegeknopf ist ${anlegenKasten!.height} px hoch, erwartet 32 (±1) — ` +
+        "SCHREIBTISCHDICHTE greift nicht (core/theme/theme.ts, _ui/RadioVerwaltungsRahmen.tsx)",
+    ).toBeLessThanOrEqual(1);
+    await expect(
+      anlegen.locator('[data-zeichen="plus"]'),
+      "am Anlegeknopf fehlt das Plus (DeviceList.tsx:155, _ui/verwaltungIkonen.tsx)",
+    ).toHaveCount(1);
+
+    /*
+     * (b) DIE HUELLE BLEIBT 44. ⛔ Als Untergrenze und nicht als Gleichheit: gemessen wird, dass
+     * die Schreibtischdichte NICHT nach aussen durchschlaegt — waere die Kopfzeile eines Tages
+     * bewusst hoeher, bliebe diese Aussage richtig.
+     */
+    const themaKnopf = page.getByTestId("theme-toggle");
+    await expect(themaKnopf, "der Theme-Umschalter der Kopfzeile fehlt").toBeVisible();
+    const themaKasten = await themaKnopf.boundingBox();
+    expect(themaKasten, "der Theme-Umschalter hat keinen Kasten").not.toBeNull();
+    expect(
+      themaKasten!.height,
+      `der Theme-Umschalter ist ${themaKasten!.height} px hoch — die 32 der Verwaltung hat die ` +
+        "Shell erreicht (ARBEITSDICHTE, core/theme/theme.ts)",
+    ).toBeGreaterThanOrEqual(44);
+
+    /*
+     * (c) DAS SUCHFELD. ⚠️ GEMESSEN WIRD DIE HUELLE, NICHT DAS `<input>`: `aria-label="Suche"`
+     * sitzt am inneren Feld, und `allowClear` legt antd eine Affix-Huelle darum — das `<input>`
+     * allein ist niedriger als das Bedienelement, das man sieht. Der Griff geht deshalb vom
+     * `aria-label` AUS und laeuft ueber `closest(...)` hoch. ⛔ Die antd-Klasse steht hier
+     * bewusst und als einzige: eigenes Markup gibt es an dieser Stelle nicht (dieselbe
+     * Einraeumung wie beim Ablegefeld des Imports, `.ant-upload`).
+     */
+    const suchfeld = page.locator('[aria-label="Suche"]');
+    await expect(suchfeld, "das Suchfeld der Geraeteliste fehlt").toBeVisible();
+    const suchHoehe = await suchfeld.evaluate((el) => {
+      const huelle = el.closest(".ant-input-search, .ant-input-affix-wrapper, .ant-input-group-wrapper");
+      return huelle ? huelle.getBoundingClientRect().height : 0;
+    });
+    expect(
+      suchHoehe,
+      "das Suchfeld hat keine Huelle mit Hoehe — der Griff misst nichts (Vakuum-Riegel)",
+    ).toBeGreaterThan(20);
+    expect(
+      suchHoehe,
+      `die Huelle des Suchfelds ist ${suchHoehe} px hoch — erwartet hoechstens 34 (32 plus Rahmen)`,
+    ).toBeLessThanOrEqual(34);
   });
 });

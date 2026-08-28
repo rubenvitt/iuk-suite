@@ -67,23 +67,23 @@ ungenügend"), darf Rot **niemals auf einer Datenfläche** erscheinen — kein r
 `controlHeight: TAP` (56) ist die Suite-Vorgabe und schon das richtige Touch-Maß;
 `controlHeightLG` ist 72. **`size` auf Bedienelementen also gar nicht setzen.**
 
-**⚠️ SEIT 2026-08-13 GIBT ES ZWEI BEDIENDICHTEN, und die alte Ausnahme ist damit gefallen.**
-Hier stand: „Ausnahme: `size="small"` innerhalb von Tabellenzeilen, weil eine 56px-Zeilenaktion die
-Zeile sprengt." Beides ist überholt:
+**⚠️ SEIT 2026-08-13 GIBT ES MEHR ALS EINE BEDIENDICHTE — seit dem 2026-08-28 sind es DREI —, und
+die alte Ausnahme ist damit gefallen.** Hier stand: „Ausnahme: `size="small"` innerhalb von
+Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt." Beides ist überholt:
 
 - **Auf `FullShell`-Seiten (Arbeitsflächen) sind Bedienelemente 44px**, nicht 56 — `ARBEITSDICHTE`
   in `core/theme/theme.ts` legt sie über den Inhalt. 56/72 gilt weiter für `MinimalShell` (`qr`,
   `beta`) und für alles ohne Shell (`lagerbuch/helfer`, `feedback/f`, `files/(oeffentlich-*)`).
   44 ist WCAG 2.5.5 (Target Size, Enhanced — Stufe AAA, die Suite geht hier also über die
   AA-Untergrenze hinaus) und gilt **überall**, weil `FullShell` auch auf dem Telefon rendert.
+- **Die dritte Dichte ist `SCHREIBTISCHDICHTE` (32/40) und gilt NUR, wo ein Modul sie ausdrücklich
+  anlegt** — heute allein die Verwaltung des Moduls `radio` (Betreiberentscheidung 2026-08-28,
+  Maus-und-Tastatur-Datenfläche im Maß der Alt-Anwendung): unter AAA, hält AA 24 (WCAG 2.5.8).
 - **Die `size="small"`-Ausnahme trägt nicht mehr.** Ihr Grund waren die 56px; eine 44px-Zeilenaktion
   sprengt keine Zeile. Was bliebe, wäre der Schaden: an einer ikonischen Zeilenaktion ergibt
-  `size="small"` 24px und unterbietet die Mindesttapfläche. `e2e/lagerbuch-mobil.spec.ts:312` hat
-  seine Messung **wegen genau eines solchen Knopfes** von „44px breit" auf „44px breit UND hoch"
-  verschärft.
+  `size="small"` 24px. `e2e/lagerbuch-mobil.spec.ts:312` misst deshalb „44px breit UND hoch".
 
-Wo eine Zeile mit 44px-Aktionen wirklich zu voll wird, ist das ein Entwurfsproblem der Zeile — kein
-Anlass, die Tapfläche zu unterbieten.
+Wo eine Zeile mit 44px-Aktionen zu voll wird, ist das ein Entwurfsproblem der Zeile — kein Anlass, die Tapfläche zu unterbieten.
 
 **5. Eigenes CSS und antd-CSS treffen sich, und die Spezifität entscheidet — meist gegen dich.**
 Der Fehler ist immer still: im Quelltext steht alles richtig, die Regel matcht, sie greift nur nicht.

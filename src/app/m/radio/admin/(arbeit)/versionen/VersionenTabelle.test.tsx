@@ -930,9 +930,9 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
     /*
      * ⛔ **FALLE 4 ALS QUELLTEXT-ZUSICHERUNG — der einzige Weg, sie in Vitest zu fassen.** Der
      * Bestand traegt `size="small"` an FUENF Stellen (`SoftwareVersionsPage.tsx:119`, `:126`,
-     * `:145`, `:155`, `:167`); sie entfallen ersatzlos, weil die Verwaltung in `FullShell` mit
-     * `controlHeight: 44` laeuft (`src/core/theme/theme.ts:207-209`), auch auf dem Telefon.
-     * Platz schafft `scroll={{ x: "max-content" }}`.
+     * `:145`, `:155`, `:167`); sie entfallen ersatzlos, weil die Verwaltung seit dem 2026-08-28
+     * auf `SCHREIBTISCHDICHTE` mit `controlHeight: 32` laeuft (`core/theme/theme.ts`), auch auf
+     * dem Telefon. Platz schafft `scroll={{ x: "max-content" }}`.
      *
      * ⚠️ ER IST NICHT DER EINZIGE WAECHTER, UND DAS IST ABSICHT: derselbe Scan laeuft modulweit
      * ueber JEDE `.tsx` (`_ui/AusleihRahmen.test.tsx:210-214`). Dieser hier steht an der

@@ -5,6 +5,7 @@ import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufg
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import vonAllenGeraetenAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-14-von-allen-geraeten-abmelden";
+import verwaltungDichter from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-verwaltung-dichter";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -31,6 +32,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   checklisteAlsPdf,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
+  verwaltungDichter,
 ];
 
 /**

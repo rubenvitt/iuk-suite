@@ -57,8 +57,8 @@ import s from "../../../_ui/verwaltung.module.css";
  * `desc(borrowedAt)` ohne Sortierpfeil (`loanRepo.ts:153`), Seitengroesse zwanzig ohne
  * Groessenwechsler (`LoanList.tsx:8`, `:66`).
  *
- * ⛔ KEIN `size` (Falle 4): die Verwaltung laeuft in `FullShell` mit `controlHeight: 44`
- * (`src/core/theme/theme.ts:207-209`), auch auf dem Telefon. Platz schafft
+ * ⛔ KEIN `size` (Falle 4): die Verwaltung laeuft seit dem 2026-08-28 auf `SCHREIBTISCHDICHTE`
+ * mit `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon. Platz schafft
  * `scroll={{ x: "max-content" }}`.
  */
 

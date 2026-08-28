@@ -227,6 +227,59 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     expect(griffe).toEqual(["gesamt", "aktuell", "veraltet", "unbekannt"]);
   });
 
+  it("traegt an jeder Kennzahl ihr Zeichen — und zwar JE KARTE das richtige", async () => {
+    /*
+     * ⛔ 1:1 `Dashboard.tsx:28-50`: `FiRadio` · `FiCheckCircle` · `FiAlertTriangle` ·
+     * `FiHelpCircle`, hier als `funk` · `haken-kreis` · `warnung` · `frage` aus
+     * `_ui/verwaltungIkonen.tsx`. Bis zum 2026-08-28 trug diese Flaeche gar keine Zeichen;
+     * die damalige Begruendung (`_ui/ikonen.tsx` sei die EINE Quelle und auf zwoelf Namen
+     * festgenagelt) ist mit der zweiten Quelle hinfaellig.
+     *
+     * ⛔ GEMESSEN WIRD DIE ZUORDNUNG, NICHT DIE ANWESENHEIT. Ein Quelltext-Scan auf vier
+     * `prefix={<VIkone name="…"` (die Form, die `GeraetFormular.test.tsx:523` fuer die
+     * NICHT montierbare Geraeteseite waehlen musste) bliebe gruen, wenn `warnung` und
+     * `frage` die Karte tauschten — die vier Namen staenden ja alle da. Diese Datei hat
+     * den Baumlaeufer, also wird Karte fuer Karte abgelesen.
+     *
+     * ⚠️ `react-icons/pi` IN EINER SERVER COMPONENT IST GEMESSEN SICHER (`lagerbuch`,
+     * 2026-08-12, echter Abruf); Falle 7 gilt `@ant-design/icons`. Dass die Seite mit dem
+     * `prefix` weiterhin 200 liefert, sieht Vitest strukturell NICHT — das misst der
+     * Playwright-Fall „Fall 1" in `e2e/radio-verwaltung.spec.ts`.
+     */
+    sechsVeraltete();
+    const zeichen = elementeVomTyp(await seite(), Statistic).map((el) => {
+      const p = el.props as { title?: ReactNode; prefix?: ReactNode };
+      const marke = isValidElement(p.prefix)
+        ? (p.prefix.props as { name?: string }).name
+        : undefined;
+      return { titel: text(p.title), zeichen: marke };
+    });
+    expect(zeichen).toEqual([
+      { titel: "Geräte gesamt", zeichen: "funk" },
+      { titel: "Aktuell", zeichen: "haken-kreis" },
+      { titel: "Veraltet", zeichen: "warnung" },
+      { titel: "Unbekannt", zeichen: "frage" },
+    ]);
+  });
+
+  it("holt die Zeichen aus der VERWALTUNGS-Quelle, nicht aus der der Ausleihflaeche", () => {
+    /*
+     * ⛔ DIE GEGENPROBE ZUM FALL DARUEBER, und sie ist nicht redundant: der Baumlaeufer
+     * sieht nur den NAMEN, nicht das Modul, aus dem `VIkone` stammt. `_ui/ikonen.tsx` ist
+     * auf die AUSLEIHflaeche gebunden (Spec §4.6.4, Inline-SVG) und fuehrt `funk`, `haken`
+     * und `haken-kreis` unter denselben Namen — ein Import ueber die Zweiggrenze waere ein
+     * zweiter Zeichenstil auf derselben Flaeche und bliebe sonst still.
+     * Zeichengleiche Form: `GeraetFormular.test.tsx:543`.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(quelle, "die Uebersicht zieht das Zeichenpaket der AUSLEIHflaeche").not.toMatch(
+      /from\s+["'][^"']*_ui\/ikonen["']/,
+    );
+    expect(quelle, "die Zeichenquelle des Verwaltungszweigs fehlt").toMatch(
+      /from\s+["'][^"']*_ui\/verwaltungIkonen["']/,
+    );
+  });
+
   it("macht genau die DREI gefilterten Karten zu Links — „Geräte gesamt“ bleibt stumm", async () => {
     /*
      * ⛔ LINKS UND KEINE `onClick`-KARTEN (Entscheidung E-V15): der Bestand navigiert ueber

@@ -748,9 +748,9 @@ describe("radio-Update-Modus: die Bauform der Insel und ihrer Seite", () => {
 
   it("die Insel setzt kein size an einem antd-Bedienelement", () => {
     /*
-     * ⛔ FALLE 4: `FullShell` traegt `controlHeight: 44` (`src/core/theme/theme.ts:207-209`),
-     * auch auf dem Telefon. Der Bestand setzt `size="small"` an der Karte
-     * (`UpdateDeviceCard.tsx:44`) — ⛔ das wandert NICHT mit.
+     * ⛔ FALLE 4: die Verwaltung traegt seit dem 2026-08-28 `SCHREIBTISCHDICHTE` mit
+     * `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon. Der Bestand setzt
+     * `size="small"` an der Karte (`UpdateDeviceCard.tsx:44`) — ⛔ das wandert NICHT mit.
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_INSEL, "utf8"));
     expect(quelle, "ein size-Attribut an einem antd-Bedienelement (Falle 4)").not.toMatch(

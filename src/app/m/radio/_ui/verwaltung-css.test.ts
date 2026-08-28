@@ -163,7 +163,7 @@ describe("radio-verwaltung.module.css: die drei Zusicherungen seines Kopfes", ()
       .map((m) => m[1]!.trim())
       .filter((wert) => wert !== "inherit" && !/^var\(\s*--iuk-/.test(wert));
     expect(werte, "eine verdrahtete Flaechen- oder Fliesztextfarbe").toEqual([]);
-    expect(css, "eine feste Hoehe — 44 wird geerbt, nicht geschrieben (Falle 4)").not.toMatch(
+    expect(css, "eine feste Hoehe — 32 wird geerbt, nicht geschrieben (Falle 4)").not.toMatch(
       /(?:^|[\s;{])(?:min-|max-)?height\s*:/,
     );
   });

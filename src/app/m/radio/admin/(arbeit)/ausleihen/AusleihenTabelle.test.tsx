@@ -509,8 +509,8 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
      * geschnittenen zwanzig Zeilen (derselbe Satz steht in `GeraeteTabelle.tsx`). Deshalb ein
      * Quelltext-Scan und nicht eine DOM-Zusicherung.
      *
-     * ⛔ UND KEIN `size` — Falle 4: `FullShell` traegt `controlHeight: 44`
-     * (`src/core/theme/theme.ts:207-209`). Platz schafft `scroll={{ x: "max-content" }}`.
+     * ⛔ UND KEIN `size` — Falle 4: die Verwaltung traegt `SCHREIBTISCHDICHTE`,
+     * `controlHeight: 32` (`core/theme/theme.ts`). Platz schafft `scroll={{ x: "max-content" }}`.
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
     expect(quelle, "die Tabelle blaettert selbst").toMatch(/pagination=\{false\}/);

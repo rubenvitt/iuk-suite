@@ -5,6 +5,7 @@ import { getDb } from "../../_db/client";
 import { geraeteKennzahlen, geraeteListe } from "../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../_lib/updateStand";
 import { requireRadioVerwaltung } from "../../_lib/zugang";
+import { VIkone, type VerwaltungsIkonName } from "../../_ui/verwaltungIkonen";
 import s from "../../_ui/verwaltung.module.css";
 
 /**
@@ -52,13 +53,12 @@ import s from "../../_ui/verwaltung.module.css";
  * Der Waechter dagegen steht in `page.test.tsx` („nennt keinen Farbwert"); dass die
  * gerenderte Karte nicht rot ist, liest erst der Playwright-Fall aus `Spec:4877` ab (V23).
  *
- * ⛔ KEIN ZEICHEN AUF DEN KARTEN — benannte Abweichung von `Dashboard.tsx:28-50`
- * (`FiRadio`, `FiCheckCircle`, `FiAlertTriangle`, `FiHelpCircle`). Die eine Zeichenquelle
- * des Moduls ist `_ui/ikonen.tsx` (Entscheidung E-V7, NS-A8b), und ihr Bestand ist auf
- * ZWOELF festgenagelt (`_ui/ikonen.test.tsx:108`, Anker `Spec:3743`); zwei der vier Zeichen
- * — Warndreieck und Fragezeichen — sind dort ausdruecklich gestrichen
- * (`_ui/ikonen.tsx:44-52`). Die Beschriftung traegt die Aussage; ein Zeichen ist Schmuck,
- * und der Preis waere eine Aenderung an einem Waechter mit eigenem Spec-Anker.
+ * ⛔ DIE VIER ZEICHEN SIND SEIT DEM 2026-08-28 ZURUECK, 1:1 `Dashboard.tsx:28-50` (`FiRadio`,
+ * `FiCheckCircle`, `FiAlertTriangle`, `FiHelpCircle`) als `Statistic prefix=`. Hier stand die
+ * Begruendung „die eine Zeichenquelle ist `_ui/ikonen.tsx`, auf ZWOELF festgenagelt" — sie ist
+ * ueberholt: `_ui/verwaltungIkonen.tsx` ist die ZWEITE Quelle, allein fuer den Verwaltungszweig.
+ * ⚠️ `react-icons/pi` IST IN EINER SERVER COMPONENT GEMESSEN SICHER (`lagerbuch`, 2026-08-12);
+ * Falle 7 gilt `@ant-design/icons`. ⛔ Und ein Zeichen traegt KEINE Farbe — siehe den Absatz davor.
  *
  * ⚠️ BENANNTE ABWEICHUNG BEI DER PFADFORM: `Spec:4788` schreibt
  * `/m/radio/admin/geraete?updateStand=veraltet` — die INNERE Form. Sie ist hier falsch.
@@ -103,11 +103,11 @@ export default async function RadioUebersichtPage() {
    * `hoverable={card.filter !== undefined}`) — es gibt keinen ungefilterten Listenaufruf,
    * den die Karte ausdruecken koennte.
    */
-  const karten: { schluessel: string; titel: string; wert: number; filter?: UpdateStand }[] = [
-    { schluessel: "gesamt", titel: "Geräte gesamt", wert: zahlen.gesamt },
-    { schluessel: "aktuell", titel: "Aktuell", wert: zahlen.aktuell, filter: "aktuell" },
-    { schluessel: "veraltet", titel: "Veraltet", wert: zahlen.veraltet, filter: "veraltet" },
-    { schluessel: "unbekannt", titel: "Unbekannt", wert: zahlen.unbekannt, filter: "unbekannt" },
+  const karten: { schluessel: string; titel: string; wert: number; zeichen: VerwaltungsIkonName; filter?: UpdateStand }[] = [
+    { schluessel: "gesamt", titel: "Geräte gesamt", wert: zahlen.gesamt, zeichen: "funk" },
+    { schluessel: "aktuell", titel: "Aktuell", wert: zahlen.aktuell, zeichen: "haken-kreis", filter: "aktuell" },
+    { schluessel: "veraltet", titel: "Veraltet", wert: zahlen.veraltet, zeichen: "warnung", filter: "veraltet" },
+    { schluessel: "unbekannt", titel: "Unbekannt", wert: zahlen.unbekannt, zeichen: "frage", filter: "unbekannt" },
   ];
 
   return (
@@ -126,7 +126,7 @@ export default async function RadioUebersichtPage() {
            */
           const inhalt = (
             <div data-rolle="radio-kennzahl" data-schluessel={karte.schluessel}>
-              <Statistic title={karte.titel} value={karte.wert} />
+              <Statistic title={karte.titel} value={karte.wert} prefix={<VIkone name={karte.zeichen} />} />
             </div>
           );
           return (

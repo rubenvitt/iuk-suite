@@ -887,9 +887,9 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
 
   it("kein Bedienelement traegt size", () => {
     /*
-     * ⛔ **FALLE 4 ALS QUELLTEXT-ZUSICHERUNG** — die Verwaltung laeuft in `FullShell` mit
-     * `controlHeight: 44` (`src/core/theme/theme.ts:207-209`), auch auf dem Telefon. Platz
-     * schafft `scroll={{ x: "max-content" }}`, nicht `size`.
+     * ⛔ **FALLE 4 ALS QUELLTEXT-ZUSICHERUNG** — die Verwaltung laeuft seit dem 2026-08-28 auf
+     * `SCHREIBTISCHDICHTE` mit `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon.
+     * Platz schafft `scroll={{ x: "max-content" }}`, nicht `size`.
      *
      * ⚠️ ER IST NICHT DER EINZIGE WAECHTER (derselbe Scan laeuft modulweit ueber JEDE `.tsx`,
      * `_ui/AusleihRahmen.test.tsx:210-214`) — dieser hier steht an der Flaeche und nennt sie

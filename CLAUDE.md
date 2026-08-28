@@ -15,11 +15,11 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
    Markup sieht sie nicht, und der Fehler ist still (die Linie verschwindet einfach).
 3. **`colorError === colorPrimary === #c8000f`** — ein `Alert type="error"` sieht aus wie eine
    Primäraktion. In Modulen, wo Rot fachliche Bedeutung trägt, gehört Rot nie auf eine Datenfläche.
-4. **`size="large"` ist 72px** — `size` auf Bedienelementen also gar nicht setzen. **Seit dem
-   Navigations-Umbau gibt es zwei Bediendichten:** `FullShell`-Inhalte tragen `controlHeight: 44`
-   (`ARBEITSDICHTE` in `core/theme/theme.ts`), `MinimalShell` (`qr`, `beta`) und alles ohne Shell
-   behalten 56/72. 44 ist WCAG 2.5.5 (Target Size, Enhanced — Stufe AAA) und gilt **überall**, weil
-   `FullShell` auch auf dem Telefon rendert.
+4. **`size="large"` ist 72px** — `size` auf Bedienelementen also gar nicht setzen. **Drei Bediendichten,
+   alle in `core/theme/theme.ts`:** `FullShell`-Inhalte 44 (`ARBEITSDICHTE`; WCAG 2.5.5 AAA, gilt **überall**,
+   weil `FullShell` auch auf dem Telefon rendert); `MinimalShell` (`qr`, `beta`) und alles ohne Shell 56/72;
+   `SCHREIBTISCHDICHTE` 32/40 nur, wo ein Modul sie ausdrücklich anlegt — heute allein `radio`s Verwaltung
+   (Betreiberentscheidung 2026-08-28; unterschreitet AAA bewusst, hält die AA-Untergrenze 24, WCAG 2.5.8).
 5. **Eigenes CSS gegen antd-CSS entscheidet die Spezifität, meist gegen dich** — und immer still: die
    Regel steht richtig da und greift nur nicht. Drei Ausprägungen (Gleichstand → antd gewinnt durch
    Reihenfolge · eigene Regel zu schwach · eigene Regel zu stark und trifft das eigene Modul). Wo antd

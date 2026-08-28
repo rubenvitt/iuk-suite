@@ -141,14 +141,25 @@ describe("verwaltungIkonen: die Bauform der Zeichenquelle", () => {
 
   it("jeder literal benutzte Name unter admin/ steht in der Union", () => {
     /*
-     * ⚠️ HEUTE LEER UND DESHALB MIT UNTERGRENZE. Task 1 legt die Quelle an, aber noch keine
-     * Aufrufstelle — ohne die erste Zusicherung waere dieser Fall leer-gruen und laese sich
-     * wie eine Deckung, die er noch nicht hat. Die Untergrenze belegt wenigstens, dass der
-     * Walker den Verwaltungsbaum wirklich liest; die Namenspruefung traegt ab der Aufgabe,
-     * die die Zeichen setzt.
+     * ⚠️ HIER STAND „HEUTE LEER UND DESHALB MIT UNTERGRENZE" — seit dem 2026-08-28 traegt
+     * dieser Fall echte Last: die Verwaltungsflaechen rufen `VIkone` an ueber zwanzig Stellen.
+     *
+     * ⛔ DIE ZWEITE UNTERGRENZE IST DER GRUND, WARUM ER NICHT WIEDER LEER-GRUEN WERDEN KANN.
+     * Die Zusicherung darunter ist eine NICHT-Aussage („kein unbekannter Name"), und die ist
+     * auch dann gruen, wenn gar kein Name mehr gefunden wird — etwa weil jemand die
+     * Aufrufform aendert und `literaleNamen` sie nicht mehr erkennt. Dann bewachte der Fall
+     * nichts und saehe dabei aus wie eine Deckung. Deshalb wird BEIDES gezaehlt: dass der
+     * Walker den Baum liest, und dass er darin wirklich Namen findet.
      */
     const dateien = quellDateien(VERWALTUNG);
     expect(dateien.length, "der Walker liest den Verwaltungsbaum nicht").toBeGreaterThan(10);
+    const benutzt = dateien.flatMap((pfad) =>
+      literaleNamen(relative(process.cwd(), pfad), readFileSync(pfad, "utf8")),
+    );
+    expect(
+      benutzt.length,
+      "kein einziger Zeichenname unter admin/ — die Zusicherung darunter waere vakuoes",
+    ).toBeGreaterThan(15);
     const unbekannt = dateien.flatMap((pfad) =>
       literaleNamen(relative(process.cwd(), pfad), readFileSync(pfad, "utf8"))
         .filter((name) => !(name in ZEICHEN))
