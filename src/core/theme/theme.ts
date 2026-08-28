@@ -209,3 +209,39 @@ export const ARBEITSDICHTE: ThemeConfig = {
   token: { controlHeight: 44, controlHeightLG: 48 },
   components: { Radio: { radioSize: 16, dotSize: 8 } },
 };
+
+/**
+ * DIE DRITTE BEDIENDICHTE — für Datenflächen, die nur mit Maus und Tastatur
+ * bedient werden. Betreiberentscheidung vom 2026-08-28.
+ *
+ * `ARBEITSDICHTE` (44/48) hat den Einsatzwert 56/72 dort zurückgenommen, wo am
+ * Schreibtisch gearbeitet wird. Für die VERWALTUNG des Moduls `radio` war auch
+ * das noch zu groß: die Alt-Anwendung fuhr ihre Tabellen, Filterleisten und
+ * Formulare auf antds Vorgabe 32/40, und der Nachbau wirkt daneben leer.
+ * 32/40 ist deshalb kein neuer Wert, sondern antds eigene Vorgabe.
+ *
+ * BEWUSSTE ABWEICHUNG VON 44, nicht Unachtsamkeit. 44px ist WCAG 2.5.5 (Target
+ * Size, Enhanced — Stufe AAA) und sonst die Untergrenze des Repos. 32 liegt
+ * darunter, aber über der AA-Untergrenze 24 (WCAG 2.5.8, Target Size, Minimum).
+ * Der Betreiber hat diesen Tausch für den Verwaltungszweig ausdrücklich
+ * beauftragt; wer ihn zurückdreht, dreht eine Entscheidung zurück, kein Versehen.
+ *
+ * REICHWEITE: NUR wo ein Modul sie ausdrücklich anlegt — heute allein
+ * `src/app/m/radio/_ui/RadioVerwaltungsRahmen.tsx`. Kein Shell-Pfad zieht sie
+ * von selbst; der Ausleih-Zweig von `radio` (56/72, ohne Shell) und jedes andere
+ * Modul bleiben unberührt. Damit steht sie in `core`, obwohl heute genau EIN
+ * Modul sie braucht — die Regel „nur was ein zweites Modul braucht" (`CLAUDE.md`)
+ * ist hier bewusst zugunsten der Betreiberentscheidung ausgesetzt, weil die
+ * Dichte zum Theme gehört und nicht in ein Modul-Stylesheet gehört (Falle 5).
+ *
+ * ZWEI GRÖSZEN, ALLES ANDERE GEERBT — wie bei `ARBEITSDICHTE` und aus demselben
+ * Grund (`useTheme.js:44-53`: `token` flach, `components` eine Ebene tief).
+ * `Radio: { radioSize: 16, dotSize: 8 }` steht schon in `ARBEITSDICHTE`, in die
+ * hinein diese Dichte geschachtelt wird; eine Wiederholung liefe still
+ * auseinander. `cssVar.key` ausdrücklich, sonst generiert antd einen Schlüssel
+ * und warnt (useTheme.js:19). KEIN `"use client"` in dieser Datei (Falle 6).
+ */
+export const SCHREIBTISCHDICHTE: ThemeConfig = {
+  cssVar: { key: "iuk-schreibtisch" },
+  token: { controlHeight: 32, controlHeightLG: 40 },
+};

@@ -43,6 +43,28 @@ const STYLESHEET = "src/app/m/radio/_ui/ausleihe.module.css";
 const MODUL = "src/app/m/radio";
 
 /**
+ * ⛔ DIE EINE NAMENTLICHE AUSNAHME VOM `size=`-SCAN, seit dem 2026-08-28.
+ *
+ * `_ui/verwaltungIkonen.tsx` ist die Phosphor-Zeichenquelle des Verwaltungszweigs. Sie
+ * reicht ihre Kantenlaenge als `size` an `react-icons` durch, und das ist der EINZIGE Weg:
+ * `IconBase` setzt `height`/`width` NACH dem Spread der uebrigen Props
+ * (`node_modules/react-icons/lib/iconBase.js`) — ein durchgereichtes `width`/`height` waere
+ * wirkungslos. Es ist eine PIXELZAHL an einem `<svg>`, nicht antds Groessenwort an einem
+ * Bedienelement; Falle 4 ist hier gar nicht beruehrt.
+ *
+ * ⛔ AUSNAHME AM BLATT, NICHT AM MUSTER: die naheliegende „Reparatur" waere gewesen, den
+ * Scan auf `size="large"` zu verengen. Das haette ihn fuer alle uebrigen ~70 `.tsx` des
+ * Moduls geschwaecht, um eine Datei zu entlasten.
+ *
+ * ⛔ UND SIE IST KEIN LOCH: `_ui/verwaltungIkonen.test.tsx` sichert, dass jene Datei GENAU
+ * `react-icons/lib` und `react-icons/pi` importiert — ein antd-Bedienelement kann dort
+ * nicht entstehen. Der Fall unten fuehrt zusaetzlich die Gegenprobe, dass die Ausnahme
+ * ueberhaupt noch gebraucht wird (Vorbild `lagerbuch/_ui/ikonen.test.ts`, „braucht keine
+ * SVG-Ausnahme mehr").
+ */
+const FALLE4_AUSNAHMEN = new Set([join(MODUL, "_ui", "verwaltungIkonen.tsx")]);
+
+/**
  * ⛔ ERZEUGT, NICHT AUFGEZAEHLT — und das ist die Behebung eines gemessenen Lochs
  * (REVIEW-A18, Fund 2). Hier stand bis zur Fix-Runde 1 zu A18 eine HARTCODIERTE Liste der
  * vier Dateien aus A16. A18 legte drei weitere `_ui/`-Flaechen an und hob die Liste nicht;
@@ -54,7 +76,15 @@ const MODUL = "src/app/m/radio";
  * rendert, nicht nur einer Insel. `(ausleihe)/geraete/page.tsx` rendert `Empty` und liegt
  * ausserhalb von `_ui/` — ein Scan nur ueber `_ui/*.tsx` liesse genau sie aus.
  */
-const FALLE4_DATEIEN = () => quellDateien(MODUL).filter((p) => p.endsWith(".tsx"));
+const MODUL_TSX = () => quellDateien(MODUL).filter((p) => p.endsWith(".tsx"));
+
+/**
+ * ⛔ DIE AUSNAHME GEHOERT NUR DER EINEN ABGELEITETEN MENGE. `MODUL_TSX` ist die gemeinsame
+ * Wurzel, `FALLE4_DATEIEN` zieht die Ausnahme ab, `STYLESHEET_LESER` NICHT — sonst waere
+ * eine Datei, die eines Tages `ausleihe.module.css` liest, still auch vom Klassenscan
+ * befreit. Die Regel „ZWEI ABGELEITETE MENGEN UND NICHT EINE" (unten) meint genau das.
+ */
+const FALLE4_DATEIEN = () => MODUL_TSX().filter((p) => !FALLE4_AUSNAHMEN.has(p));
 
 /**
  * Die Teilmenge davon, die `ausleihe.module.css` ueberhaupt liest.
@@ -65,7 +95,7 @@ const FALLE4_DATEIEN = () => quellDateien(MODUL).filter((p) => p.endsWith(".tsx"
  * anlegen — deren Klassen stuenden dann zu Recht nicht in `ausleihe.module.css`.
  */
 const STYLESHEET_LESER = () =>
-  FALLE4_DATEIEN().filter((pfad) =>
+  MODUL_TSX().filter((pfad) =>
     /\bimport\s+s\s+from\s+["'][^"']*ausleihe\.module\.css["']/.test(
       ohneKommentare(readFileSync(pfad, "utf8")),
     ),
@@ -259,6 +289,23 @@ describe("radio-AusleihRahmen: die Bauform", () => {
     expect(gescannt.length, "leere Dateiliste — der Scan waere leer-gruen").toBeGreaterThan(9);
     for (const pfad of gescannt) {
       expect(ohneKommentare(readFileSync(pfad, "utf8")), `${pfad}: Falle 4`).not.toMatch(/\bsize=/);
+    }
+  });
+
+  it("die Falle-4-Ausnahme wird noch gebraucht — sonst faellt sie", () => {
+    /*
+     * ⛔ DIE GEGENPROBE ZUR AUSNAHMELISTE (Vorbild `lagerbuch/_ui/ikonen.test.ts`, „braucht
+     * keine SVG-Ausnahme mehr"). Eine Ausnahme, die niemand mehr braucht, ist ein
+     * unbewachtes Loch, das aussieht wie eine Regel. Faellt `size=` in
+     * `_ui/verwaltungIkonen.tsx` je weg, wird dieser Fall rot und die Datei gehoert zurueck
+     * in den Scan — nicht die Zusicherung gelockert.
+     */
+    expect([...FALLE4_AUSNAHMEN].sort()).toEqual([join(MODUL, "_ui", "verwaltungIkonen.tsx")]);
+    for (const pfad of FALLE4_AUSNAHMEN) {
+      expect(
+        ohneKommentare(readFileSync(pfad, "utf8")),
+        `${pfad} braucht keine Falle-4-Ausnahme mehr`,
+      ).toMatch(/\bsize=/);
     }
   });
 

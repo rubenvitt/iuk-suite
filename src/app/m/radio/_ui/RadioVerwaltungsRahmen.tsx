@@ -1,6 +1,7 @@
 // src/app/m/radio/_ui/RadioVerwaltungsRahmen.tsx
 import { getModule } from "@/core/registry";
 import { Shell } from "@/core/shell/Shell";
+import { Schreibtischdichte } from "@/core/theme/Schreibtischdichte";
 import type { SuiteNavItem } from "@/core/shell/types";
 
 /**
@@ -20,6 +21,18 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * (ARBEITSDICHTE, core/theme/theme.ts:207; Falle 4, `CLAUDE.md`), und `pnpm build` findet
  * das nicht (Spec:442-447, Spec:734-736).
  *
+ * ⚠️ UND SEIT DEM 2026-08-28 LAEUFT DER VERWALTUNGSZWEIG AUF 32/40, NICHT AUF 44/48.
+ * `{children}` steckt in `<Schreibtischdichte>` — INNERHALB von `Shell`, also innerhalb
+ * der ARBEITSDICHTE: antds `ConfigProvider` mischt das innere Theme in das aeussere
+ * (`antd/es/config-provider/hooks/useTheme.js:44-53`), der innere Provider gewinnt bei
+ * `controlHeight`/`controlHeightLG`, und `Radio: {radioSize:16,dotSize:8}` kommt weiter
+ * von aussen. Grund: die Verwaltung ist eine Maus-und-Tastatur-Datenflaeche und lief in
+ * der Alt-Anwendung auf antds Vorgabemass (Betreiberentscheidung; die volle Begruendung
+ * samt der bewussten Abweichung von der 44px-Regel steht am Wert selbst,
+ * `src/core/theme/SCHREIBTISCHDICHTE` in `core/theme/theme.ts`).
+ * ⛔ DIE KOPFZEILE UND DIE MODULLEISTE BLEIBEN 44: sie stehen in `Shell`, also AUSSERHALB
+ * dieses Providers — die Suite sieht in jedem Modul gleich aus.
+ *
  * KEIN "use client" und KEIN `@ant-design/icons`-Import: dies ist eine Server Component
  * (Falle 7). `Shell` selbst ist ein reiner Weichensteller ueber `variant`
  * (core/shell/Shell.tsx:7-33) und ueber die RSC-Grenze erprobt.
@@ -35,7 +48,7 @@ export function RadioVerwaltungsRahmen({
 
   return (
     <Shell variant={mod.shell} moduleKey="radio" nav={nav}>
-      {children}
+      <Schreibtischdichte>{children}</Schreibtischdichte>
     </Shell>
   );
 }

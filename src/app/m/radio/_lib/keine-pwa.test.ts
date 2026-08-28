@@ -217,8 +217,13 @@ const VERBOTE_ANZAHL = 5;
  * `admin/login/`, `admin/devices/`, `admin/devices/[id]/`, `admin/history/`, `admin/update/`,
  * `admin/einstellungen/` — je `route.ts`). ⚠️ `_lib/aliasse.test.ts` zaehlt hier NICHT mit:
  * `quellDateien` nimmt Testdateien aus.
+ *
+ * ⛔ ANGEHOBEN VON 108 AUF 109 — Bediendichte und Zeichen des Verwaltungszweigs,
+ * 2026-08-28 (Betreiberentscheidung). EINE Datei: `_ui/verwaltungIkonen.tsx`, die
+ * Phosphor-Zeichenquelle der Verwaltungsflaechen. ⚠️ `_ui/verwaltungIkonen.test.tsx` zaehlt
+ * hier NICHT mit, und `src/core/theme/Schreibtischdichte.tsx` liegt ausserhalb von `MODUL`.
  */
-const QUELLDATEIEN_ANZAHL = 108;
+const QUELLDATEIEN_ANZAHL = 109;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.
