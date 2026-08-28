@@ -177,6 +177,48 @@ describe("das Gate an /", () => {
     expect(umleitungen).toEqual(["/geraete"]);
   });
 
+  it("übersetzt den gedruckten Alt-QR (?token=) auf /t/<code>, wenn die Brücke passt", async () => {
+    /*
+     * BETREIBERENTSCHEIDUNG VOM 2026-08-28 (`_lib/altToken.ts`): der Alt-Kiosk-QR traegt den
+     * Base64-kodierten API-Token; er wird NICHT ins Codefeld gefuellt, sondern auf die
+     * Aufsteller-Route umgeleitet, die die eigentliche Einloesung macht. Die Seite selbst
+     * setzt KEIN Cookie und ruft KEINE Einloesung.
+     */
+    vi.stubEnv("RADIO_ALT_TOKEN", "radio-inventar-2025-secure-token");
+    vi.stubEnv("RADIO_ALT_TOKEN_CODE", "4Y1Q-7K3M-2N8P-5R6S-9T0V-W1X2-Y3Z4");
+    vi.stubEnv("RADIO_ALT_TOKEN_BIS", "2999-01-01");
+    try {
+      await expect(
+        rendere({ token: Buffer.from("radio-inventar-2025-secure-token").toString("base64") }),
+      ).rejects.toThrow("NEXT_REDIRECT");
+      expect(umleitungen).toEqual(["/t/4Y1Q-7K3M-2N8P-5R6S-9T0V-W1X2-Y3Z4"]);
+      expect(vi.mocked(gateFehlversuchBuchen)).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("ein fremder oder unkonfigurierter ?token= landet still im leeren Codefeld", async () => {
+    // Ohne RADIO_ALT_TOKEN ist die Bruecke aus — die Antwort aus Bericht §1.5 bleibt.
+    await rendere({ token: Buffer.from("radio-inventar-2025-secure-token").toString("base64") });
+    expect(exists('[data-rolle="gate-formular"]')).toBe(true);
+    expect(umleitungen).toEqual([]);
+    expect(meldungAusBaum()).toBe("");
+    await unmount();
+
+    vi.stubEnv("RADIO_ALT_TOKEN", "radio-inventar-2025-secure-token");
+    vi.stubEnv("RADIO_ALT_TOKEN_CODE", "4Y1Q-7K3M-2N8P-5R6S-9T0V-W1X2-Y3Z4");
+    vi.stubEnv("RADIO_ALT_TOKEN_BIS", "2999-01-01");
+    try {
+      await rendere({ token: Buffer.from("ein-ganz-anderer-token-gleich-lang").toString("base64") });
+      expect(exists('[data-rolle="gate-formular"]')).toBe(true);
+      expect(umleitungen).toEqual([]);
+      expect(vi.mocked(gateFehlversuchBuchen)).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("liest die Kopfzeilen genau einmal", async () => {
     /*
      * ⛔ KEIN ZWEITER HOST-RIEGEL UND KEINE ZWEITE LESUNG (Pflicht 16,
