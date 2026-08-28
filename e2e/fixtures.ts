@@ -134,3 +134,59 @@ export async function klickeWennRuhig(
       `zuletzt gemessen ${JSON.stringify(vorher)}`,
   );
 }
+
+/**
+ * MELDET DIE LAUFENDE SITZUNG AB UND MELDET SICH NEU AN — der Rollenwechsel
+ * innerhalb EINES Testfalls.
+ *
+ * ⚠️ `about:blank` VOR `clearCookies()`, UND DAS IST GEMESSEN, NICHT VORSORGE.
+ * Gemessen auf `main` (Lauf 33173490683, Job `e2e (1)`, Versuch 2 von
+ * `aufgaben.spec.ts:1716`), aus dem Netzwerkteil der Ablaufverfolgung gelesen:
+ *
+ *     13:11:18.522  GET /api/auth/session   Cookie: csrf, theme, callback-url, session-token
+ *     13:11:18.526  GET /api/auth/session   (dito)          ← beide VOR clearCookies losgeschickt
+ *     ~13:11:18.55  clearCookies()
+ *     ~13:11:18.60  Antwort auf .522 landet: Set-Cookie: authjs.session-token=…
+ *     13:11:18.603  GET /login?callbackUrl=%2Fverteilen
+ *                   Cookie: authjs.session-token   ← csrf, callback-url, theme sind WEG,
+ *                                                    die Sitzung ist WIEDER DA
+ *                   → 307 nach "/"
+ *
+ * Der Cookie-Krug beweist es Feld für Feld: alles, was `clearCookies()` gelöscht
+ * hat, fehlt — nur der Sitzungscookie steht wieder drin, weil die Antwort einer
+ * NOCH LAUFENDEN `/api/auth/session`-Anfrage ihn Millisekunden vor der
+ * Navigation neu gesetzt hat. `SessionProvider` holt diese Route im Hintergrund
+ * nach, und next-auth erneuert den Cookie bei JEDEM Lesen (`Set-Cookie` steht
+ * auf jeder 200-Antwort dieser Route).
+ *
+ * ⚠️ DAS SYMPTOM ZEIGT AUF DIE FALSCHE STELLE: `/login` leitet eine bestehende
+ * Sitzung sofort weiter (`src/app/login/page.tsx`, `if (session?.user)
+ * redirect("/")`), `devLogin`s `waitForURL` löst dabei SOFORT auf (die Adresse
+ * verlässt "/login" ja tatsächlich), und der Fehlschlag kommt 80 Sekunden später
+ * als `locator.fill: waiting for getByLabel('email')` — eine Meldung, die nach
+ * einem kaputten Anmeldeformular klingt und keins meint. Dieselbe Familie wie
+ * CLAUDE.mds Fallen 10/11/12: ein Test, der etwas anderes misst, als sein Name
+ * sagt.
+ *
+ * `about:blank` beendet das Dokument samt seiner laufenden Anfragen; danach kann
+ * nichts mehr einen Cookie setzen. Die Prüfung des leeren Krugs danach kostet
+ * nichts und macht einen künftigen Rückfall LAUT statt still.
+ *
+ * ⚠️ KEIN GATE FINDET DAS: `build`/`typecheck`/`lint` sehen einen Aufruf, Vitest
+ * startet keinen Browser, und lokal ist es unsichtbar — der Krug wird nur dann
+ * neu gefüllt, wenn die Antwort in genau das Fenster zwischen `clearCookies()`
+ * und der nächsten Navigation fällt, und das braucht die Latenz eines kleinen
+ * CI-Runners.
+ */
+export async function wechsleAnmeldung(
+  page: Page,
+  opts: Parameters<typeof devLogin>[1],
+): Promise<void> {
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+  expect(
+    (await page.context().cookies()).map((c) => c.name),
+    "Nach clearCookies() steht noch ein Cookie im Krug — eine laufende Anfrage hat ihn neu gesetzt",
+  ).toEqual([]);
+  await devLogin(page, opts);
+}

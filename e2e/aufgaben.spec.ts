@@ -1,5 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { devLogin, klickeWennRuhig, wechsleAnmeldung } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import {
   AUFGABEN_KOORDINATION_GRUPPE,
@@ -1648,13 +1648,18 @@ function inTagen(n: number): string {
  * "schon angemeldet" sagt. Das Cookie-Loeschen bildet nach, was Spec §13 ohnehin als vorgesehenen
  * Rollenwechsel beschreibt ("man wechselt sich, indem man sich mit einer anderen Adresse
  * anmeldet") — ohne bestehende Sitzung waere es ohnehin wirkungslos.
+ *
+ * ⛔ DAS ABMELDEN SELBST STEHT IN `wechsleAnmeldung` (`e2e/fixtures.ts`) UND NICHT MEHR HIER: ein
+ * blankes `clearCookies()` verliert ein Rennen gegen die noch laufenden `/api/auth/session`-
+ * Anfragen der alten Seite, deren Antworten den Sitzungscookie NEU SETZEN. Gemessen im Lauf
+ * 33173490683 (Job `e2e (1)`, Versuch 2 genau dieses Tests) — die volle Messung samt Cookie-Krug
+ * steht im Kopfkommentar dort.
  */
 async function wechsleRolle(
   page: import("@playwright/test").Page,
   opts: Parameters<typeof devLogin>[1],
 ): Promise<void> {
-  await page.context().clearCookies();
-  await devLogin(page, opts);
+  await wechsleAnmeldung(page, opts);
 }
 
 /**
@@ -1668,15 +1673,30 @@ async function wechsleRolle(
  * (`{ok:false, fieldErrors}`) — die eigentliche Zusicherung je Schritt im Test unten ist deshalb
  * immer ein sichtbarer ZUSTANDSWECHSEL (ein Link erscheint, ein Dialog schliesst sich, ein
  * Status-Chip aendert sich), NIE allein diese Antwortpruefung.
+ *
+ * ⛔ GEKLICKT WIRD MIT `klickeWennRuhig` UND NICHT MIT `.click()` — Falle 12, und hier zweimal
+ * gemessen (Lauf 33173490683, Job `e2e (1)`, Versuche 1 und 3 des vollen Durchlaufs). Das
+ * Fehlerbild ist genau das der Falle: Playwright meldet den Klick als gelungen, der Knopf traegt
+ * danach den Fokus (`button "Fertig melden" [active]` im Seitenabbild des Fehlerkontexts) — und
+ * fuer die Seite steht KEINE POST-Anfrage im Netzwerkteil. `waitForResponse` wartet dann auf eine
+ * Anfrage, die nie hinausging, und meldet nach 90 s einen Zeitueberschreitung, die nach einem
+ * haengenden Server klingt und keinen meint. Der Umbruch dazwischen hat hier zwei Quellen: nach
+ * `wechsleRolle` + `goto` holt `SessionProvider` die Sitzung nach und die Huelle wechselt von der
+ * schmalen auf die volle Spalte; nach dem Bildnachweis waechst der Nachweisblock, sobald das Bild
+ * geladen ist, und schiebt den Aktionsblock darunter. Beide Male misst Playwrights eigene
+ * Stabilitaetsprobe VOR dem Klick, nicht waehrend seiner ~200 ms.
+ *
+ * DER PARAMETER IST DESHALB EIN `Locator` UND KEIN RUECKRUF: ein Rueckruf koennte wieder ein
+ * blankes `.click()` einschleusen, ohne dass ein Tor rot wird.
  */
 async function klickeUndWarteAufSeite(
   page: import("@playwright/test").Page,
-  aktion: () => Promise<void>,
+  ziel: Locator,
 ): Promise<void> {
   const seite = page.url();
   const [antwort] = await Promise.all([
     page.waitForResponse((r) => r.request().method() === "POST" && r.url() === seite),
-    aktion(),
+    klickeWennRuhig(ziel),
   ]);
   expect(
     antwort.ok(),
@@ -1740,9 +1760,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   // das Auswahlfeld nur bei angehaktem Schalter) — die umgekehrte Reihenfolge schluege still fehl.
   await page.locator("#af-nachweispflicht").check();
   await waehleAusListe(page, "#af-nachweisart", "Bild");
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
   await page.goto(`http://${HOST}:3100/`);
   const neueAufgabe = page.getByRole("link", { name: titel });
@@ -1781,9 +1799,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   await expect(vorschlagFeld).toBeVisible();
   await waehleDatum(page, `#zi-${aufgabeId}-datum`, vorschlagDatum);
   await waehleZeit(page, `#zi-${aufgabeId}-zeit`, "09:00");
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: /^Carla/ }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: /^Carla/ }));
   // DIE ZEILE VERLAESST DEN POSTEINGANG: das ist der eigentliche Beleg, dass die Aufgabe
   // `status: "eingegangen"` verlassen hat — ein Zustand aus der Datenbank, kein Knopftext. Mit dem
   // Wegfall des Modals faellt auch dessen Selbstschliessen als Zwischenbeleg fort; die staerkere
@@ -1813,7 +1829,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
    */
   const annehmenKnopf = page.getByRole("button", { name: /^Annehmen:/ });
   await expect(annehmenKnopf).toBeVisible();
-  await klickeUndWarteAufSeite(page, () => annehmenKnopf.click());
+  await klickeUndWarteAufSeite(page, annehmenKnopf);
   // DIE AUFGABE VERLAESST DEN POSTEINGANG: `wartetAufEinplanung` verlangt `planDatum === null`,
   // und das ist nach „Annehmen" nicht mehr wahr — der eigentliche Beleg, kein Knopftext. Gemessen
   // an der ganzen Flaeche statt an der Zone, aus Grund (a) oben.
@@ -1824,9 +1840,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
   // 4. BEARBEITUNG STARTEN — Carla, auf der Detailseite.
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
   await expect(page.getByRole("heading", { name: titel, level: 1 })).toBeVisible();
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Bearbeitung starten" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Bearbeitung starten" }));
   await expect(page.getByText("In Bearbeitung")).toBeVisible();
 
   // 5. FERTIG MELDEN MIT BILDNACHWEIS — WARMLAUF ZUERST (Lektion 1: Turbopack-Kompilierfenster,
@@ -1850,9 +1864,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
 
   await wartenAufNachweisStatus(page, async () => (await page.getByTestId("nachweis-bild").count()) > 0);
 
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Fertig melden" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Fertig melden" }));
   await expect(page.getByText("Freigabe offen")).toBeVisible();
 
   // 6. FREIGEBEN — zurueck zu Malte: Auftraggeber UND (weil keine Selbstaufgabe) automatisch der
@@ -1864,7 +1876,7 @@ test("Der volle Durchlauf: einstellen, verteilen mit Zeitvorschlag, annehmen, st
     callbackPath: "/",
   });
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
-  await klickeUndWarteAufSeite(page, () => page.getByTestId(`freigeben-${aufgabeId}`).click());
+  await klickeUndWarteAufSeite(page, page.getByTestId(`freigeben-${aufgabeId}`));
   // `exact: true`, NICHT nur `getByText("Abgeschlossen")` (gefunden beim ersten Lauf): das Journal
   // traegt seit `abgeschlossen` NUN AUCH eine Verlaufszeile, deren Text "Abgeschlossen" ALS
   // TEILSTRING enthaelt ("... — Abgeschlossen", `EREIGNIS_TEXT`) — ohne `exact` waere die Abfrage
@@ -2070,9 +2082,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // liesse jede spaetere Handlung dieses BuFDi scheitern, und zwar mit einem Befund, der nach
   // einem Rechteproblem aussieht statt nach einem Datum.
   await waehleDatum(page, "#pf-aktiv-von", inTagen(0));
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Person anlegen" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Person anlegen" }));
   // DER SICHTBARE ZUSTANDSWECHSEL (ein Feldfehler antwortet ebenfalls mit 200): die Zeile steht in
   // der Tabelle. `getByRole("cell")` statt `getByText`, weil das Namensfeld des Formulars den
   // gesendeten Wert zurueckträgt und sonst mehrdeutig waere.
@@ -2084,9 +2094,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   await page.locator("#af-beschreibung").fill("Vom Leerstart-Rundlauf angelegte Testaufgabe.");
   await waehleDatum(page, "#af-faelligAm", inTagen(21));
   await page.locator("#af-dauerMinuten").fill("45");
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
   // 4. VERTEILEN — die Id kommt aus dem gerenderten Markup (`data-testid="verteilen-<id>"`), nicht
   // fest verdrahtet: es ist eine `nanoid`, wie ueberall in dieser Datei.
@@ -2110,8 +2118,9 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // ZWEI WOCHEN VORAUS — haelt die Aufgabe aus der aktuellen Woche heraus (s. Blockkommentar).
   await waehleDatum(page, `#zi-${aufgabeId}-datum`, inTagen(14));
   await waehleZeit(page, `#zi-${aufgabeId}-zeit`, "10:00");
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: new RegExp(`^${bufdiName}`) }).click(),
+  await klickeUndWarteAufSeite(
+    page,
+    page.getByRole("button", { name: new RegExp(`^${bufdiName}`) }),
   );
   await expect(page.getByTestId(`verteilen-${aufgabeId}`)).toHaveCount(0);
 
@@ -2129,21 +2138,17 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
   // Zone entfaellt — `expect(posteingangZeile).toHaveCount(1)` haette 0 gemessen.
   const annehmen = page.getByRole("button", { name: /^Annehmen:/ });
   await expect(annehmen).toBeVisible();
-  await klickeUndWarteAufSeite(page, () => annehmen.click());
+  await klickeUndWarteAufSeite(page, annehmen);
   await expect(
     page.getByTestId("aufgaben-flaeche").getByRole("button", { name: /^Annehmen:/ }),
   ).toHaveCount(0);
 
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Bearbeitung starten" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Bearbeitung starten" }));
   await expect(page.getByText("In Bearbeitung")).toBeVisible();
   // OHNE NACHWEISPFLICHT (bewusst — der Bildnachweis ist die Sache des vollen Durchlaufs oben):
   // „Fertig melden" fuehrt direkt nach `freigabe_offen`.
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Fertig melden" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Fertig melden" }));
   await expect(page.getByText("Freigabe offen")).toBeVisible();
 
   // 6. FREIGEBEN — zurueck zur Koordination. Sie ist hier zugleich der eingetragene Pruefer
@@ -2157,7 +2162,7 @@ test("Leerer Start: der volle Rundlauf ohne Seed-Vorleistung — Person anlegen,
     callbackPath: "/",
   });
   await page.goto(`http://${HOST}:3100/a/${aufgabeId}`);
-  await klickeUndWarteAufSeite(page, () => page.getByTestId(`freigeben-${aufgabeId}`).click());
+  await klickeUndWarteAufSeite(page, page.getByTestId(`freigeben-${aufgabeId}`));
   await expect(page.getByText("Abgeschlossen", { exact: true })).toBeVisible();
 });
 
@@ -2212,9 +2217,7 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
   await page.locator("#af-beschreibung").fill("Vom Brett-Fall der vierten Oberflaechen-Runde angelegt.");
   await waehleDatum(page, "#af-faelligAm", inTagen(28));
   await page.locator("#af-dauerMinuten").fill("45");
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: "Aufgabe einstellen" }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: "Aufgabe einstellen" }));
 
   await page.goto(`http://${HOST}:3100/`);
   const href = await page.getByRole("link", { name: titel }).getAttribute("href");
@@ -2242,9 +2245,7 @@ test("Brett: eine Karte wandert ohne Ziehen aus dem Posteingang in die Spalte ih
   const vorschlagFeld = page.locator(`#zi-${aufgabeId}-datum`);
   await expect(vorschlagFeld, "das Zielfeld ist nicht aufgegangen").toBeVisible();
   await waehleDatum(page, `#zi-${aufgabeId}-datum`, inTagen(21));
-  await klickeUndWarteAufSeite(page, () =>
-    page.getByRole("button", { name: /^Carla/ }).click(),
-  );
+  await klickeUndWarteAufSeite(page, page.getByRole("button", { name: /^Carla/ }));
 
   // 4. DIE KARTE IST GEWANDERT — aus dem Stapel heraus UND in Carlas Spalte hinein.
   await expect(stapel, "die Karte steht noch im Stapel").not.toContainText(titel);
