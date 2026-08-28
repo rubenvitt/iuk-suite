@@ -205,7 +205,7 @@ services:
     # ein `linux/amd64`-Manifest. Auf arm64 bricht `docker compose up` mit „no
     # matching manifest" ab — am Zielhost, nicht in der CI. Dort gehört eine
     # `-debian`-Variante in die `.env`.
-    image: ${SUITE_CLAMAV_IMAGE:-clamav/clamav:1.4}
+    image: ${SUITE_CLAMAV_IMAGE:-clamav/clamav:1.5}
     restart: unless-stopped
     # NUR das interne Netz, und `internal: true` ist der Kern der Abschottung:
     # clamd ist UNAUTHENTIFIZIERT und lauscht im Container auf 0.0.0.0:3310. Am
