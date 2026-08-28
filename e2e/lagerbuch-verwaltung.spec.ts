@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import {
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -20,58 +20,40 @@ import {
  * Nicht-Vakuitäts-Reparatur.
  */
 /*
- * AUFZEICHNUNG AUCH BEIM ERSTEN VERSUCH — NUR IN DIESER DATEI, UND AUS EINEM
- * GEMESSENEN GRUND.
+ * „MARKIERT AUF EINER DETAILSEITE GAR NICHTS" KLICKT SEIT 2026-08-28 MIT
+ * `klickeWennRuhig` — UND DAS IST GEMESSEN, NICHT VERMUTET.
  *
- * `main`, Lauf 31960413191, Shard 3: „markiert auf einer Detailseite gar
- * nichts" (weiter unten) lief in den vollen 30-s-Riegel (63 Pollversuche auf
- * `/verwaltung/geraete`) und war im zweiten Versuch gruen — im Bericht also
- * `flaky`, nicht rot. Es ist das ZWEITE Mal fuer genau diese Zeile; am
- * 12.08.2026 waren es 13 Pollversuche.
+ * Die Zeile fiel dreimal (`main` 31960413191 am 13.08., davor am 12.08., zuletzt
+ * PR #83, Lauf 33188325209, Shard 5 — dort in allen drei Versuchen), immer mit
+ * demselben Bild: `toHaveURL(/geraete\/[^/]+$/)` pollt 30 s die alte Adresse.
+ * Hier stand bis dahin „bewusst NICHT auf `klickeWennRuhig` umgestellt", weil
+ * zwei Ursachen infrage kamen und nur eine Ablaufverfolgung des ROTEN Versuchs
+ * sie trennt (`trace: "on-first-retry"` zeichnet erst den zweiten, meist
+ * gruenen auf). Dafuer trug diese Datei vier Wochen lang
+ * `test.use({ trace: "retain-on-failure" })`. Der Lauf 33188325209 hat sie
+ * geliefert, und sie entscheidet fuer Falle 12 (CLAUDE.md):
  *
- * ⚠️ UND GENAU DESHALB LIESS SICH DIE URSACHE NICHT ENTSCHEIDEN.
- * `playwright.config.ts` steht auf `trace: "on-first-retry"` — der
- * FEHLGESCHLAGENE erste Versuch bekommt damit gar keine Ablaufverfolgung,
- * aufgezeichnet wird erst der (hier gruene) zweite. Uebrig blieb ein
- * `error-context.md` ohne Netzwerkteil, und damit sind zwei voellig
- * verschiedene Ursachen nicht auseinanderzuhalten:
+ *   - Netzwerkteil: fuer `/verwaltung/geraete/e2e-geraet` steht KEIN Aufruf —
+ *     weder Dokument noch RSC. Uebersetzungslatenz (Ursache a) scheidet damit
+ *     aus; bei ihr staende der Aufruf da und wartete nur.
+ *   - Zeitachse: `click` 57445–57704 ms; die ersten `/api/auth/session`-
+ *     Antworten treffen um 57669 ms ein — mitten im Klick.
+ *   - Bildzeiten: bei 57539 ms (Klick laeuft) steht die Seitenleiste noch
+ *     als schmaler Platzhalter, der Anker „E2E Spineboard" bei (55, 392). Bei
+ *     57694 ms ist die Sitzung da, die Leiste voll ausgeklappt, der Inhalt
+ *     ~150 px nach rechts und ~115 px nach oben geruckt — und unter dem
+ *     urspruenglichen Klickpunkt liegt jetzt der Leisteneintrag „Checks", der
+ *     im Bild den Hover traegt. `mousedown` traf den Anker, `mouseup` traf
+ *     „Checks", `click` feuerte auf dem gemeinsamen Vorfahren. Nichts
+ *     navigiert, und deshalb traegt danach auch KEIN Element den Fokus —
+ *     genau die Beobachtung, die frueher gegen Falle 12 zu sprechen schien.
  *
- *   a) Uebersetzungslatenz — `next dev` uebersetzt `/verwaltung/geraete/[id]`
- *      beim ersten Treffer; die Adresse wechselt bei einem `next/link` erst,
- *      wenn die RSC-Antwort da ist. Dann waere 30 s schlicht zu knapp.
- *   b) Falle 12 (CLAUDE.md) — der Klick trifft, aber die Huelle bricht
- *      zwischen `mousedown` und `mouseup` um, und es geht NIE eine Anfrage
- *      hinaus.
- *
- * Die beiden trennt genau eine Beobachtung: ob fuer das Ziel ein Aufruf im
- * Netzwerkteil steht. Der steht nur in der Ablaufverfolgung.
- *
- * ⚠️ BEWUSST NICHT SCHON JETZT AUF `klickeWennRuhig` UMGESTELLT. Der
- * ariaSnapshot des roten Versuchs spricht sogar GEGEN (b): bei der belegten
- * Falle 12 trug der geklickte Anker danach den Fokus (`[active]`), weil der
- * `mousedown` ihn getroffen hatte — hier traegt ihn NICHTS. Eine Abhilfe
- * einzubauen, deren Ursache nicht belegt ist, hiesse den naechsten Leser
- * glauben zu machen, der Fall sei verstanden. Erst messen, dann beheben.
- *
- * ⚠️ AUF DATEIEBENE, NICHT IM `describe` — UND DAS IST KEINE STILFRAGE.
- * Playwright lehnt `test.use({ trace })` in einer Gruppe rundheraus ab:
- *
- *     Cannot use({ trace }) in a describe group, because it forces a new
- *     worker. Make it top-level in the test file or put in the configuration
- *     file.
- *
- * Das ist ein LADEFEHLER, kein Testfehlschlag: die Datei wird in jedem Shard
- * eingelesen, also faerbt er alle drei rot, bevor ein einziger Fall laeuft
- * (gemessen in PR #63, Lauf 31962559118). `pnpm typecheck` sieht es nicht —
- * die Option ist typkorrekt, nur an dieser Stelle unzulaessig.
- *
- * Kosten: `retain-on-failure` zeichnet in dieser Datei jeden Lauf auf und
- * verwirft ihn bei Erfolg. `playwright.config.ts` begruendet, warum das nicht
- * suiteweit steht (Zeit und Platz in JEDEM Test) — hier traegt es EINE Datei
- * mit elf Faellen, und es faellt beim naechsten Vorkommen die Entscheidung,
- * die diesmal fehlte.
+ * Die Aufzeichnung auf Dateiebene ist mit der Entscheidung wieder entfallen:
+ * sie kostete in jedem Lauf Zeit und Platz und hatte genau diesen einen Zweck.
+ * Wer die Bilder nachsehen will: Artefakt `playwright-artefakte-shard-5` des
+ * genannten Laufs, `trace.zip` des ersten Versuchs, Bilder 57539 und 57694.
  */
-test.use({ trace: "retain-on-failure" });
+
 
 test.describe("lagerbuch — Modulnavigation", () => {
   test.beforeEach(async ({ page }) => {
@@ -107,7 +89,8 @@ test.describe("lagerbuch — Modulnavigation", () => {
     // aria-current) auch bei einem verunglückten data-testid nichts.
     await expect(leiste.getByRole("link", { name: "Geräte" })).toBeVisible();
 
-    await page.getByRole("link", { name: "E2E Spineboard" }).click();
+    // `klickeWennRuhig` statt `.click()`: Falle 12, Messung im Dateikopf.
+    await klickeWennRuhig(page.getByRole("link", { name: "E2E Spineboard" }));
     /*
      * EIGENES ZEITBUDGET, und der Grund steht in `playwright.config.ts` an
      * `retries`: `next dev` übersetzt die Zielroute beim ERSTEN Aufruf. Der
