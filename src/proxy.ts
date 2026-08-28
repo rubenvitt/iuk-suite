@@ -28,7 +28,7 @@ const weiche: Weiche = (req) => {
   const { nextUrl } = req;
   const groups = req.auth?.user?.groups ?? null;
 
-  const decision = decideRoute({ host, pathname: nextUrl.pathname, groups });
+  const decision = decideRoute({ host, pathname: nextUrl.pathname, groups, search: nextUrl.search });
 
   switch (decision.action) {
     case "next":

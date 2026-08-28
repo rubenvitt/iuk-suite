@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { decideRoute, resolveHost } from "@/core/routing";
 
 describe("decideRoute", () => {
@@ -176,5 +176,24 @@ describe("gefälschter x-forwarded-host verschiebt nur die Modulauswahl, nicht d
       ["other"],
     );
     expect(d.action).toBe("forbidden");
+  });
+});
+
+describe("Magic-Link-Brücke uav (Spec §3 #2)", () => {
+  const env = { SUITE_HOST_UAV: "uav-training.iuk-ue.de" };
+  const vorher = process.env.SUITE_HOST_UAV;
+  beforeAll(() => { process.env.SUITE_HOST_UAV = env.SUITE_HOST_UAV; });
+  afterAll(() => { if (vorher === undefined) delete process.env.SUITE_HOST_UAV; else process.env.SUITE_HOST_UAV = vorher; });
+
+  it("uav-Host + /login?code=… → rewrite ins Modul", () => {
+    expect(decideRoute({ host: "uav-training.iuk-ue.de", pathname: "/login", groups: null, search: "?code=ABCDEFGH" }))
+      .toEqual({ action: "rewrite", target: "/m/uav/login", moduleKey: "uav" });
+  });
+  it("uav-Host + /login ohne code → Passthrough (SSO-Login für Admins)", () => {
+    expect(decideRoute({ host: "uav-training.iuk-ue.de", pathname: "/login", groups: null, search: "" })).toEqual({ action: "next" });
+    expect(decideRoute({ host: "uav-training.iuk-ue.de", pathname: "/login", groups: null, search: "?code=" })).toEqual({ action: "next" });
+  });
+  it("fremder Host + /login?code=… → Passthrough", () => {
+    expect(decideRoute({ host: "iuk-ue.de", pathname: "/login", groups: null, search: "?code=ABCDEFGH" })).toEqual({ action: "next" });
   });
 });
