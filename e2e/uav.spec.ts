@@ -184,6 +184,17 @@ test("Verwaltung-Gating: ohne Gruppe 404, mit Gruppe Liste, fremder Host 404 fü
   // (`resolveHost`), der hier `feedback.localtest.me` ist, nicht `uav`.
   const antwort = await page.request.get(fremdUrl("/m/uav/api/admin/participants"));
   expect(antwort.status()).toBe(404);
+
+  // M1: derselbe Riegel auf LAYOUT-Ebene, nicht nur auf der API. Ohne
+  // `requireUavHost(await headers())` als erste Anweisung in `(teilnehmer)/
+  // layout.tsx` bzw. `(admin)/layout.tsx` rendert die Teilnehmer-Insel bzw. die
+  // Verwaltung auf JEDEM Suite-Host, der auf den Container terminiert — die
+  // relativen `/api/*`-Aufrufe der Teilnehmer-Insel träfen dort das falsche
+  // Modul (`src/app/m/uav/_lib/host.ts`).
+  const fremdTeilnehmer = await page.request.get(fremdUrl("/m/uav/"));
+  expect(fremdTeilnehmer.status()).toBe(404);
+  const fremdVerwaltung = await page.request.get(fremdUrl("/m/uav/admin"));
+  expect(fremdVerwaltung.status()).toBe(404);
 });
 
 test("Erfassung offline → online → in der Verwaltung sichtbar (Check 7)", async ({ page, context }) => {

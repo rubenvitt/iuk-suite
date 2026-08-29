@@ -1,8 +1,10 @@
+import { headers } from "next/headers";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 import { canAdminModule } from "@/core/auth/guards";
 import { RegisterSW } from "../RegisterSW";
 import { swModus } from "../_lib/boot";
+import { requireUavHost } from "../_lib/host";
 
 /**
  * Die Hülle des Teilnehmer-Zweigs (`/`, `/aufgabe`, `/login`) — Vorbild
@@ -18,8 +20,14 @@ import { swModus } from "../_lib/boot";
  * ist eine Teilnehmer-PWA-Angelegenheit, die Verwaltung braucht ihn nicht. Im
  * Modus `abraeumen` (Vorgabe) registriert die Komponente ohnehin nichts — kein
  * Verhalten geht verloren, nur der Aufruf zieht in den Zweig, der ihn braucht.
+ *
+ * `requireUavHost(await headers())` steht als ERSTE Anweisung (Vorbild `radio/_lib/
+ * host.ts`-Kopfkommentar, Zeile „fuer LAYOUTS UND SEITEN, erste Anweisung"): ohne ihn
+ * rendert dieser Zweig unter JEDEM Suite-Host, der auf den Container terminiert, und
+ * die relativen `/api/*`-Aufrufe des Teilnehmer-Inselcodes träfen dort das FALSCHE Modul.
  */
 export default async function UavTeilnehmerLayout({ children }: { children: React.ReactNode }) {
+  requireUavHost(await headers());
   const mod = getModule("uav");
   const darfVerwalten = await canAdminModule("uav");
 

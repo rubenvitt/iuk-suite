@@ -68,11 +68,17 @@ self.addEventListener("activate", (event) => {
  * `credentials: "omit"`. Bei `qr` trägt "/" eingeloggt personalisierte Presets
  * (samt WLAN-Passwort) im HTML — ein anonymer Fetch war dort die einzige
  * Möglichkeit, dieses HTML nie in den Cache zu legen. Die Insel dieses Moduls
- * (`/`, `/aufgabe`, `/login`) ist dagegen in BEIDEN Session-Zuständen dieselbe
- * Shell OHNE Nutzdaten im HTML — Aufgaben, Fortschritt, Teilnehmer-Identität
- * kommen erst clientseitig aus `localStorage`/API. Ein anonymer Fetch brächte
- * hier also keinen Sicherheitsgewinn, nur eine zweite, überflüssige
- * Netzwerkrunde bei jeder Installation/Auffrischung.
+ * (`/`, `/aufgabe`, `/login`) trägt dagegen KEINE Nutzdaten im HTML — Aufgaben,
+ * Fortschritt, Teilnehmer-Identität kommen erst clientseitig aus
+ * `localStorage`/API. Die gecachte Shell unterscheidet sich zwischen den zwei
+ * Session-Zuständen NUR um einen Navigationseintrag: `(teilnehmer)/layout.tsx`
+ * blendet „Verwaltung" ein, wenn `canAdminModule("uav")` für die anfragende
+ * Session zutrifft — trägt also im Grenzfall den Menüpunkt DERSELBEN
+ * Browser-Session, mit der er geholt wurde, nicht fremde Daten und keinen
+ * fremden Zugriff (der Link selbst bleibt hinter `requireUavAdminPage()`
+ * gegatet). Harmlos, und genau deshalb bringt ein anonymer Fetch hier keinen
+ * Sicherheitsgewinn, nur eine zweite, überflüssige Netzwerkrunde bei jeder
+ * Installation/Auffrischung.
  */
 export const UAV_SW_CACHE_QUELLE = `
 // v1: erste Fassung dieses Cache-Workers.
