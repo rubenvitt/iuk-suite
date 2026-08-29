@@ -46,4 +46,16 @@ describe("POST /api/admin/tasks/reorder", () => {
     const { POST } = await import("./route");
     expect((await POST(bad)).status).toBe(400);
   });
+
+  it("ungültiges JSON → 400 invalid_json (nicht validation_error)", async () => {
+    const bad = new Request("http://x/api/admin/tasks/reorder", {
+      method: "POST",
+      headers: { host: "uav-training.iuk-ue.de", "content-type": "application/json" },
+      body: "{nicht json",
+    });
+    const { POST } = await import("./route");
+    const res = await POST(bad);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("invalid_json");
+  });
 });

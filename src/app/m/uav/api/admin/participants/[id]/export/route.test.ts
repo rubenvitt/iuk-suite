@@ -38,7 +38,9 @@ describe("GET /api/admin/participants/[id]/export", () => {
     const res = await GET(req(p.id), { params: Promise.resolve({ id: p.id }) });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-disposition")).toBe('attachment; filename="teilnehmer-Ada_M_ller-auswertung.csv"');
-    const text = await res.text();
+    // `res.text()` streicht das BOM spec-konform (WHATWG) — der Vertrag ist der
+    // Byte-Rumpf, deshalb hier mit `ignoreBOM` decodieren statt `.text()`.
+    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(await res.arrayBuffer());
     expect(text.startsWith('﻿"Teil","Nummer","Titel","Anzahl","Ziel","Erledigt","NichtAnwendbar","LetzteDurchführung"\r\n')).toBe(true);
   });
 });

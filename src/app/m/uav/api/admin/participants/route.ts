@@ -10,7 +10,8 @@ export async function GET(req: Request) {
 }
 export async function POST(req: Request) {
   const ab = hostAbweisung(req) ?? (await adminAbweisung()); if (ab) return ab;
-  const parsed = teilnehmerAnlegenSchema.safeParse(await req.json().catch(() => null));
+  let body: unknown; try { body = await req.json(); } catch { return NextResponse.json({ error: { code: "invalid_json", message: "Ungültiger JSON-Body" } }, { status: 400 }); }
+  const parsed = teilnehmerAnlegenSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: { code: "validation_error", message: parsed.error.message } }, { status: 400 });
   return NextResponse.json(teilnehmerAnlegen(getDb(), parsed.data.name, parsed.data.beginn ?? null), { status: 201 });
 }

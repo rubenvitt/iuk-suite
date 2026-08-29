@@ -42,4 +42,16 @@ describe("POST /api/admin/participants", () => {
     expect(res.status).toBe(201);
     expect((await res.json()).name).toBe("Bruno");
   });
+  it("ungültiges JSON → 400 invalid_json (nicht validation_error)", async () => {
+    gruppen = ["uav-training-admin"];
+    const { POST } = await import("./route");
+    const req = new Request("http://x/api/admin/participants", {
+      method: "POST",
+      headers: { host: "uav-training.iuk-ue.de", "content-type": "application/json" },
+      body: "{nicht json",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("invalid_json");
+  });
 });

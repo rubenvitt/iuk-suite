@@ -70,6 +70,14 @@ describe("PATCH /api/admin/tasks/[id]", () => {
     const res = await PATCH(req("xyz", { method: "PATCH", body: JSON.stringify({ titel: "Neu" }) }), { params: Promise.resolve({ id: "xyz" }) });
     expect(res.status).toBe(404);
   });
+
+  it("ungültiges JSON → 400 invalid_json (nicht validation_error)", async () => {
+    const t = await anlegen();
+    const { PATCH } = await import("./route");
+    const res = await PATCH(req(t.id, { method: "PATCH", body: "{nicht json" }), { params: Promise.resolve({ id: t.id }) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("invalid_json");
+  });
 });
 
 describe("DELETE /api/admin/tasks/[id]", () => {

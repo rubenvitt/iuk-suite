@@ -76,6 +76,19 @@ describe("PATCH /api/admin/participants/[id]", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("ungültiges JSON → 400 invalid_json (nicht validation_error)", async () => {
+    const { getDb } = await import("../../../../_db/client");
+    const { teilnehmerAnlegen } = await import("../../../../_lib/queries");
+    const p = teilnehmerAnlegen(getDb(), "Ada", null);
+    const { PATCH } = await import("./route");
+    const res = await PATCH(
+      req(`/api/admin/participants/${p.id}`, { method: "PATCH", body: "{nicht json" }),
+      { params: Promise.resolve({ id: p.id }) },
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error.code).toBe("invalid_json");
+  });
 });
 
 describe("DELETE /api/admin/participants/[id]", () => {

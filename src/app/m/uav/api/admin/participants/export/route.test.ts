@@ -33,7 +33,9 @@ describe("GET /api/admin/participants/export", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/csv");
     expect(res.headers.get("content-disposition")).toBe('attachment; filename="teilnehmer-uebersicht.csv"');
-    const text = await res.text();
+    // `res.text()` streicht das BOM spec-konform (WHATWG) — der Vertrag ist der
+    // Byte-Rumpf, deshalb hier mit `ignoreBOM` decodieren statt `.text()`.
+    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(await res.arrayBuffer());
     expect(text.startsWith('﻿"Name","Beginn","Erledigt","Gesamt","Quote","LetzteAktivität","Status"\r\n')).toBe(true);
     expect(text).toContain('"Ada","2026-01-01"');
   });

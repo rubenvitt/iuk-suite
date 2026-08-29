@@ -14,7 +14,8 @@ const notFoundJson = (e: NotFound) => NextResponse.json({ error: { code: e.code,
 export async function PATCH(req: Request, ctx: RouteKontext) {
   const ab = hostAbweisung(req) ?? (await adminAbweisung()); if (ab) return ab;
   const { id } = await ctx.params;
-  const parsed = taskPatchSchema.safeParse(await req.json().catch(() => null));
+  let raw: unknown; try { raw = await req.json(); } catch { return NextResponse.json({ error: { code: "invalid_json", message: "Ungültiger JSON-Body" } }, { status: 400 }); }
+  const parsed = taskPatchSchema.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: { code: "validation_error", message: parsed.error.message } }, { status: 400 });
   // Leerer String = Bild entfernen (→ null); fehlendes Feld = unverändert lassen;
   // explizites `null` bleibt als Schlüssel erhalten und entfernt das Bild ebenso

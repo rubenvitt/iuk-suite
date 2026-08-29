@@ -11,21 +11,19 @@ export function csvFeld(v: string): string {
 /**
  * BOM + CRLF + jedes Feld in Anführungszeichen — Excel-tauglich, formelsicher.
  *
- * `Response.text()` entfernt nach WHATWG-Spezifikation beim UTF-8-Decodieren ein
- * führendes BOM (gemessen unter Node/undici) — für eine Excel-taugliche CSV-Antwort
- * ist das BOM aber Vertragsbestandteil, kein Decodier-Artefakt. Die Überschreibung
- * liefert exakt den erzeugten String zurück; Statuscode, Header und der tatsächliche
- * Byte-Body, den Next.js beim Senden über die Leitung liest, bleiben die echten aus
- * `Response`.
+ * Der Vertrag ist der Byte-Rumpf auf der Leitung, nicht `Response.text()`: die
+ * WHATWG-Spezifikation lässt `text()` beim UTF-8-Decodieren ein führendes BOM
+ * verschlucken (gemessen unter Node/undici) — das ist korrektes Verhalten einer
+ * spec-konformen `Response`, kein Fehler, den Produktionscode umgehen müsste.
+ * Wer das BOM prüfen will, liest die Bytes (`arrayBuffer()`) oder decodiert mit
+ * `ignoreBOM: true`.
  */
 export function csvAntwort(zeilen: string[][], dateiname: string): Response {
   const csv = "﻿" + zeilen.map((z) => z.map(csvFeld).join(",")).join("\r\n") + "\r\n";
-  const res = new Response(csv, {
+  return new Response(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="${dateiname}"`,
     },
   });
-  res.text = () => Promise.resolve(csv);
-  return res;
 }

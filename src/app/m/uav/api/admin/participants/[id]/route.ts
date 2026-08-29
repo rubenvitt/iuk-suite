@@ -26,7 +26,8 @@ export async function GET(req: Request, ctx: RouteKontext) {
 export async function PATCH(req: Request, ctx: RouteKontext) {
   const ab = hostAbweisung(req) ?? (await adminAbweisung()); if (ab) return ab;
   const { id } = await ctx.params;
-  const parsed = teilnehmerPatchSchema.safeParse(await req.json().catch(() => null));
+  let body: unknown; try { body = await req.json(); } catch { return NextResponse.json({ error: { code: "invalid_json", message: "Ungültiger JSON-Body" } }, { status: 400 }); }
+  const parsed = teilnehmerPatchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: { code: "validation_error", message: parsed.error.message } }, { status: 400 });
   try {
     return NextResponse.json(teilnehmerAendern(getDb(), id, parsed.data));
