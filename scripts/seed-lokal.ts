@@ -47,6 +47,8 @@ import { getDb as getAufgabenDb } from "@/app/m/aufgaben/_db/client";
 import { seedLokalAufgaben } from "@/app/m/aufgaben/_lib/seedLokal";
 import * as radioSchema from "@/app/m/radio/_db/schema";
 import { seedLokalRadio } from "@/app/m/radio/_lib/seedLokal";
+import * as uavSchema from "@/app/m/uav/_db/schema";
+import { seedLokalUav } from "@/app/m/uav/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -61,6 +63,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "lagerbuch", lauf: () => seedLokalLagerbuch(getLagerbuchDb()) },
   { key: "aufgaben", lauf: () => seedLokalAufgaben(getAufgabenDb()) },
   { key: "radio", lauf: () => seedLokalRadio(getModuleDb("radio", radioSchema)) },
+  { key: "uav", lauf: () => seedLokalUav(getModuleDb("uav", uavSchema)) },
 ];
 
 /**
