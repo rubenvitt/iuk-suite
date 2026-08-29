@@ -1,0 +1,632 @@
+/*
+ * Teilnehmer-Ansicht von `uav` — PUBLIC-Ansicht (docs/design/README.md): kein
+ * antd, kein `--ant-*`-Token. `.app` trägt deshalb einen eigenen, vollständigen
+ * Satz Oberflächen-Variablen (`--uav-*`), 1:1 die Werte aus
+ * `uav-praxis/src/design/tokens.css`, nur umbenannt und hierher gescoped statt
+ * auf `:root` — ein CSS-Modul kann `:root` ohnehin nicht scopen, und globale
+ * Namen wären eine Kollision, die erst in einem fremden Modul auffiele.
+ *
+ * `--uav-akzent` ist `var(--iuk-marke)` (globals.css) — die Suite-Markenfarbe,
+ * damit die Teilnehmer-Ansicht farblich zur Suite gehört, ohne selbst Rot neu
+ * zu erfinden. Alles andere (Papier/Flächen/Tinte) bleibt eigen, weil ohne
+ * antd kein Theme-Provider diese Rollen liefert.
+ *
+ * WARUM `:root[data-theme="dark"] .app` UND NICHT `prefers-color-scheme`: der
+ * Umschalter der Suite hat drei Zustände (`auto|light|dark`), aufgelöst auf
+ * `<html data-theme>` — eine Medienabfrage sähe „System dunkel, Umschalter
+ * hell" nicht (docs/design/README.md).
+ */
+.app {
+  --uav-tinte: #16181d;
+  --uav-stahl: #6b7280;
+  --uav-stahl-hell: #9aa0a6;
+  --uav-linie: #ececec;
+  --uav-papier: #ffffff;
+  --uav-flaeche: #f7f8f9;
+  --uav-erfolg: #16a34a;
+  --uav-warnung: #d97706;
+  --uav-akzent: var(--iuk-marke, #c8000f);
+  --uav-akzent-weich: #fff5f5;
+  --uav-radius: 14px;
+  --uav-radius-s: 10px;
+  --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
+
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 16px 96px;
+  font-family: var(--font-body, system-ui, sans-serif);
+  color: var(--uav-tinte);
+  background: var(--uav-papier);
+}
+
+:root[data-theme="dark"] .app {
+  --uav-tinte: #e8e9ec;
+  --uav-stahl: #a1a7b0;
+  --uav-stahl-hell: #71777f;
+  --uav-linie: #2e3138;
+  --uav-papier: #1a1c20;
+  --uav-flaeche: #25282e;
+  --uav-erfolg: #22c55e;
+  --uav-warnung: #f59e0b;
+  --uav-akzent-weich: #2a1417;
+  --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Kopf ─────────────────────────────────────────────────────────── */
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--uav-akzent);
+}
+
+.kopf-titel {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+/* ── Fortschritts-Karte ───────────────────────────────────────────── */
+.fortschritt-karte {
+  margin: 20px 0 28px;
+  padding: 20px;
+  background: var(--uav-papier);
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius);
+  box-shadow: var(--uav-schatten);
+}
+
+.fortschritt-zahl {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.fortschritt-sub {
+  margin: 6px 0 14px;
+  font-size: 0.9rem;
+  color: var(--uav-stahl);
+}
+
+.balken {
+  height: 8px;
+  background: var(--uav-flaeche);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.balken-fuell {
+  height: 100%;
+  background: var(--uav-akzent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* ── Sektionen je Teil ────────────────────────────────────────────── */
+.teil-sektion {
+  margin-top: 26px;
+}
+
+.sektion-titel {
+  margin: 0 0 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--uav-stahl-hell);
+}
+
+.aufgaben-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Aufgaben-Zeile ───────────────────────────────────────────────── */
+.aufgabe-zeile {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius-s);
+  background: var(--uav-papier);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aufgabe-zeile:hover {
+  border-color: var(--uav-stahl-hell);
+}
+
+.aufgabe-zeile:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+}
+
+.aufgabe-nummer {
+  font-weight: 800;
+  color: var(--uav-akzent);
+  font-variant-numeric: tabular-nums;
+}
+
+.aufgabe-titel {
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.aufgabe-badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-zaehler {
+  background: var(--uav-flaeche);
+  color: var(--uav-stahl);
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-erledigt {
+  background: var(--uav-akzent);
+  color: #fff;
+}
+
+.badge-na {
+  background: transparent;
+  color: var(--uav-stahl);
+}
+
+.status-erledigt {
+  border-color: var(--uav-akzent);
+}
+
+/* „nicht anwendbar“: nur Nummer + Titel abdunkeln, den Status-Badge NICHT (sonst
+   würde der Badge-Text durch die Eltern-Opacity zusätzlich verblassen). */
+.status-nicht-anwendbar .aufgabe-nummer,
+.status-nicht-anwendbar .aufgabe-titel {
+  opacity: 0.6;
+}
+
+/* ── Detailseite ──────────────────────────────────────────────────── */
+.zurueck {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  background: none;
+  border: none;
+  color: var(--uav-akzent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.detail-titel {
+  margin: 4px 0 16px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.detail-bild {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 0 20px;
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius);
+}
+
+.schritte {
+  margin: 0 0 16px;
+  padding-left: 1.3em;
+}
+
+.schritte li {
+  margin-bottom: 6px;
+  line-height: 1.45;
+}
+
+.lernziel {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--uav-flaeche);
+  border-radius: var(--uav-radius-s);
+  color: var(--uav-stahl);
+  line-height: 1.45;
+}
+
+.hinweise {
+  margin-bottom: 16px;
+}
+
+.hinweise ul {
+  margin: 0;
+  padding-left: 1.3em;
+}
+
+.hinweise li {
+  margin-bottom: 4px;
+  line-height: 1.45;
+}
+
+.warnung {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--uav-akzent);
+  border-radius: var(--uav-radius-s);
+  background: var(--uav-akzent-weich);
+}
+
+.warnung-titel {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--uav-akzent);
+}
+
+.warnung ul {
+  margin: 0;
+  padding-left: 1.3em;
+}
+
+.warnung li {
+  margin-bottom: 4px;
+  line-height: 1.45;
+}
+
+.na-toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 16px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius-s);
+  line-height: 1.4;
+  cursor: pointer;
+  min-height: 56px;
+}
+
+.na-toggle input {
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  accent-color: var(--uav-akzent);
+  flex-shrink: 0;
+}
+
+/* ── Erfassung ────────────────────────────────────────────────────── */
+.erfassung {
+  margin-top: 8px;
+}
+
+.erfassung-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.erfassung-kopf .sektion-titel {
+  margin: 0;
+}
+
+.erledigt-marke {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--uav-akzent);
+  color: #fff;
+}
+
+.liste {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.liste li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--uav-flaeche);
+  border-radius: var(--uav-radius-s);
+}
+
+.liste-text {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.loeschen {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--uav-stahl-hell);
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: var(--uav-radius-s);
+}
+
+.loeschen:hover {
+  color: var(--uav-akzent);
+}
+
+.loeschen:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+}
+
+/* ── Felder & Formular ────────────────────────────────────────────── */
+.feld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feld-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--uav-stahl);
+}
+
+.ziel {
+  margin: 14px 0;
+  max-width: 160px;
+}
+
+.df-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.feld input {
+  min-height: 56px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--uav-tinte);
+  background: var(--uav-papier);
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius-s);
+}
+
+.feld input:focus-visible {
+  outline: none;
+  border-color: var(--uav-akzent);
+  box-shadow: 0 0 0 3px var(--uav-akzent-weich);
+}
+
+/* Primäraktionen (Erfassen/Anmelden) — Handschuh-Bedienung, ≥ 56px Ziel. */
+.btn-primaer {
+  min-height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--uav-akzent);
+  color: #fff;
+  border: none;
+  border-radius: var(--uav-radius-s);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn-primaer:hover {
+  filter: brightness(0.94);
+}
+
+.btn-primaer:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+}
+
+/* ── Speicher-Warnbanner ──────────────────────────────────────────── */
+.speicher-warnung {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--uav-akzent);
+  border-radius: var(--uav-radius-s);
+  background: var(--uav-akzent-weich);
+}
+
+.speicher-warnung .warnung-titel {
+  color: var(--uav-akzent);
+}
+
+.speicher-warnung p {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--uav-stahl);
+}
+
+/* ── Hinweis „bitte anmelden" (kein Teilnehmer, offline muss die Insel
+   trotzdem stehen — deshalb kein Redirect, siehe TeilnehmerApp.tsx) ─── */
+.anmelde-hinweis {
+  margin: 40px 0;
+  padding: 20px;
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius);
+  background: var(--uav-flaeche);
+  text-align: center;
+}
+
+.anmelde-hinweis p {
+  margin: 0 0 16px;
+  color: var(--uav-stahl);
+  line-height: 1.5;
+}
+
+/* ── Teilnehmer-Login ─────────────────────────────────────────────── */
+.login {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100dvh;
+  max-width: 420px;
+  padding: 32px 20px calc(96px + env(safe-area-inset-bottom));
+}
+
+.login-kopf {
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.login-kopf h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+}
+
+.login-hinweis {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--uav-stahl);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-form label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--uav-stahl);
+}
+
+.login-code {
+  min-height: 56px;
+  padding: 12px 16px;
+  font: inherit;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--uav-tinte);
+  background: var(--uav-papier);
+  border: 1px solid var(--uav-linie);
+  border-radius: var(--uav-radius-s);
+}
+
+.login-code::placeholder {
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--uav-stahl-hell);
+}
+
+.login-code:focus-visible {
+  outline: none;
+  border-color: var(--uav-akzent);
+  box-shadow: 0 0 0 3px var(--uav-akzent-weich);
+}
+
+.login-button {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.login-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login-fehler {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--uav-akzent);
+  background: var(--uav-akzent-weich);
+  border: 1px solid var(--uav-akzent);
+  border-radius: var(--uav-radius-s);
+}
+
+.verwaltung-link {
+  display: block;
+  margin-top: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--uav-stahl);
+}
+
+/* ── Sync-Indikator ───────────────────────────────────────────────── */
+.sync-indikator {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  font-size: 0.78rem;
+  color: var(--uav-stahl);
+  background: var(--uav-papier);
+  border: 1px solid var(--uav-linie);
+  border-radius: 999px;
+  box-shadow: var(--uav-schatten);
+}
+
+.sync-punkt {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--uav-stahl-hell);
+  flex-shrink: 0;
+}
+
+.sync-online .sync-punkt,
+.sync-synced .sync-punkt {
+  background: var(--uav-erfolg);
+}
+
+.sync-offline .sync-punkt {
+  background: var(--uav-warnung);
+}
+
+.sync-syncing .sync-punkt {
+  background: var(--uav-akzent);
+}
+
+.sync-fehler .sync-punkt {
+  background: var(--uav-akzent);
+}
