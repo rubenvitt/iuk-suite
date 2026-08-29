@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 import { canAdminModule } from "@/core/auth/guards";
+import { RegisterSW } from "./RegisterSW";
+import { swModus } from "./_lib/boot";
 
 export const metadata: Metadata = { manifest: "/manifest.webmanifest" };
 
@@ -18,7 +20,7 @@ export default async function UavLayout({ children }: { children: React.ReactNod
         ...(darfVerwalten ? [{ key: "admin", title: "Verwaltung", href: "/admin" }] : []),
       ]}
     >
-      {/* RegisterSW folgt in Task 14. */}
+      <RegisterSW modus={swModus(process.env)} />
       {children}
     </Shell>
   );

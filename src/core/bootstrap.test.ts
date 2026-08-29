@@ -621,6 +621,11 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * `lagerbuchBootFehler` (`src/app/m/lagerbuch/_lib/boot.ts:42`),
      * `radioBootFehler` (`src/app/m/radio/_lib/boot.ts:234`).
      *
+     * ⛔ ANGEHOBEN VON `3` AUF `4` AM 2026-08-29 (Modul-uav-Aufgabe 14, Spec
+     * 2026-08-28 §5): `uavBootFehler` (`src/app/m/uav/_lib/boot.ts`) kam mit der
+     * Boot-Pruefung fuer `UAV_SW_MODUS` dazu. Wird die Zahl rot, wird sie
+     * ANGEHOBEN, nicht geloescht.
+     *
      * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
      * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"
      * (`src/app/m/radio/riegel.test.ts:99-100`). Der Halbsatz „und bewacht
@@ -630,7 +635,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ohne Anfuehrungszeichen, damit nichts eine Woertlichkeit behauptet, die
      * nicht besteht.
      */
-    expect(bootHaken.length).toBe(3);
+    expect(bootHaken.length).toBe(4);
   });
 
   it("jeder Hintergrundstarter aus einer _lib/boot.ts ist in startBackgroundWork eingehaengt", () => {
