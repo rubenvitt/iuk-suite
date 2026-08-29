@@ -39,7 +39,12 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
+      # `lfs: true`, weil `src/lfs-medien.test.ts` den INHALT der Medien prueft und
+      # nicht bloss ihre Existenz — ohne die Objekte waere er rot. Warum die Zeile
+      # ueberhaupt eine Rolle spielt, steht am Checkout des build-Jobs.
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: pnpm/action-setup@v4
         with:
           version: 11.0.9
@@ -126,6 +131,10 @@ jobs:
         shard: [1, 2, 3, 4, 5]
     runs-on: ubuntu-latest
     steps:
+      # BEWUSST OHNE `lfs: true`, anders als `checks` und `build`: kein e2e-Fall
+      # sichert heute ein Bild zu, und die Objekte fuenfmal — einmal je Shard — zu
+      # holen kostet ohne Gegenwert. Wer hier eine Bildzusicherung ergaenzt, ergaenzt
+      # die Zeile mit; sonst laeuft sie gegen eine Zeigerdatei.
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
@@ -214,7 +223,23 @@ jobs:
       contents: read
       packages: write
     steps:
+      # ⚠️ AN DIESER ZEILE HAENGEN DIE BILDER IM AUSGELIEFERTEN IMAGE.
+      # Die statischen Medien unter `public/` liegen in Git LFS (`.gitattributes`:
+      # *.webp, *.jpg, *.jpeg, *.png). `actions/checkout` holt LFS-Objekte NICHT von
+      # sich aus (`lfs` ist per Vorgabe `false`) — ohne diese Zeile liegen im
+      # Arbeitsbaum 130-Byte-ZEIGERdateien („version https://git-lfs.github.com/
+      # spec/v1"), und `COPY . .` im Dockerfile legt genau die ins Image.
+      #
+      # DER AUSFALL IST AUF JEDER STUFE STILL: `pnpm build` baut gruen, das Image
+      # startet, der Container antwortet auf `/m/uav/illustrations/1-1.webp` mit
+      # HTTP 200 — nur mit Text statt WebP. Sichtbar wird es erst auf dem Geraet,
+      # als kaputtes Bildsymbol. Gemeldet am 29.08.2026 fuer das Drohnentraining;
+      # `public/login-bg.jpg` (Anmeldehintergrund) traf es unbemerkt genauso.
+      # Deshalb prueft der image-smoke unten den INHALT einer Bildantwort und nicht
+      # ihren Statuscode: der Statuscode ist in beiden Faellen 200.
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: docker/setup-buildx-action@v3
       - name: Log in to ghcr.io
         if: github.event_name != 'pull_request'
@@ -248,7 +273,7 @@ jobs:
           # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
           cache-from: type=gha,scope=${{ matrix.platform }}
           cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
-      - name: image-smoke — Health mit Host-Header
+      - name: image-smoke — Health mit Host-Header und ein echtes Bild
         run: |
           docker run -d --rm --name smoke -p 3000:3000 \
             -e AUTH_SECRET=smoke -e AUTH_DEV_LOGIN=true iuk-suite:ci
@@ -256,9 +281,22 @@ jobs:
             if curl -fsS -H "Host: iuk-ue.de" http://127.0.0.1:3000/api/health/portal; then ok=1; break; fi
             sleep 2
           done
+          # DAS EINZIGE TOR, DAS DIE MEDIEN IM AUSGELIEFERTEN IMAGE WIRKLICH SIEHT.
+          # Eine LFS-Zeigerdatei wird mit HTTP 200 ausgeliefert wie ein Bild — der
+          # Statuscode taugt hier also nicht, nur die Signatur der Antwort. WebP ist
+          # ein RIFF-Container: Byte 0-3 „RIFF", Byte 8-11 „WEBP"; eine Zeigerdatei
+          # beginnt mit „version https://git-lfs.github.com/spec/v1".
+          # `/m/uav/…` ist ein interner Pfad (core/routing.ts) und geht auf jedem Host
+          # nach `public/` durch — der Host-Header spielt hier keine Rolle.
+          curl -fsS -H "Host: iuk-ue.de" \
+            http://127.0.0.1:3000/m/uav/illustrations/1-1.webp -o /tmp/smoke.webp || bild=abruf-fehlgeschlagen
           docker logs smoke | tail -30
           docker stop smoke
           test "${ok:-0}" = "1"
+          test "${bild:-ok}" = "ok"
+          head -c 64 /tmp/smoke.webp | od -c | head -4
+          test "$(head -c 4 /tmp/smoke.webp)" = "RIFF"
+          test "$(tail -c +9 /tmp/smoke.webp | head -c 4)" = "WEBP"
       - name: Push by digest (nur main)
         id: push
         if: github.event_name != 'pull_request'
