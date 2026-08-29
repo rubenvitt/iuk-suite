@@ -8,6 +8,7 @@ import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/po
 import vonAllenGeraetenAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-14-von-allen-geraeten-abmelden";
 import alteQrCodesGeltenWeiter from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-alte-qr-codes-gelten-weiter";
 import funkInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-funk-in-der-suite";
+import bilderInDenUebungsaufgaben from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-bilder-in-den-uebungsaufgaben";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
 
 /**
@@ -39,6 +40,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,
+  bilderInDenUebungsaufgaben,
 ];
 
 /**
