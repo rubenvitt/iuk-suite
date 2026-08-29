@@ -118,10 +118,6 @@ export function useFortschritt(katalog: TaskDTO[], identity: Identity | null) {
     return map;
   }, [sicher.fortschritt, katalog]);
 
-  // Eingeloggter Teilnehmer: nur dann werden Schreibvorgänge zusätzlich in die
-  // Sync-Queue gespiegelt (anon/admin/unbekannt → rein lokaler Modus).
-  const eingeloggterTeilnehmer = identity?.kind === "participant";
-
   // Aktuellen Stand für Event-Handler/Effekte ohne Stale-Closure halten.
   // (Aktualisierung im Effekt, nicht während des Renderns.)
   const stateRef = useRef(sicher);
@@ -198,9 +194,21 @@ export function useFortschritt(katalog: TaskDTO[], identity: Identity | null) {
   }, [identity]);
 
   // Spiegelt eine Execution-Mutation (Upsert/Tombstone) in die Queue + triggert Sync.
+  //
+  // KEIN `eingeloggterTeilnehmer`-Wächter mehr (Reviewer-Fund, Fix-Runde 1):
+  // eine Mutation, die entsteht, bevor `api.me()` eine Teilnehmer-Identität
+  // bestätigt hat, ging sonst NIE in die Queue — und `snapshotAnwenden` baut
+  // den Fortschritt beim nächsten Sync aus Snapshot ∪ Queue neu auf. Ohne
+  // Queue-Eintrag verschwand die Erfassung dort endgültig (Spec §3 #4,
+  // reproduziert mit einem alten Alt-Übernahme-Marker: die einmalige
+  // Übernahme läuft dann gar nicht mehr, und nichts anderes hätte den
+  // Eintrag je nachgeliefert). Der Sync-Lauf selbst bleibt an die bestätigte
+  // Identität gebunden (`syncEngine.start()` in `TeilnehmerApp.tsx`) — Server-
+  // Upserts sind über die Client-UUID idempotent, ein zu früh gequeuter
+  // Eintrag ist also harmlos, auch wenn er erst nach einer späteren
+  // Bestätigung tatsächlich gesendet wird.
   const execMutation = useCallback(
     (taskId: string, d: Durchfuehrung, geloescht: boolean) => {
-      if (!eingeloggterTeilnehmer) return;
       localStore.queueAnfuegen({
         art: "execution",
         daten: {
@@ -214,13 +222,13 @@ export function useFortschritt(katalog: TaskDTO[], identity: Identity | null) {
       });
       syncEngine.mutationGemeldet();
     },
-    [eingeloggterTeilnehmer],
+    [],
   );
 
   // Spiegelt eine TaskStatus-Mutation (Zielanzahl/nicht-anwendbar) in die Queue.
+  // Ebenfalls ohne `eingeloggterTeilnehmer`-Wächter — Begründung s. `execMutation`.
   const statusMutation = useCallback(
     (taskId: string, f: AufgabenFortschritt) => {
-      if (!eingeloggterTeilnehmer) return;
       localStore.queueAnfuegen({
         art: "taskStatus",
         daten: {
@@ -232,7 +240,7 @@ export function useFortschritt(katalog: TaskDTO[], identity: Identity | null) {
       });
       syncEngine.mutationGemeldet();
     },
-    [eingeloggterTeilnehmer],
+    [],
   );
 
   const aendern = useCallback(

@@ -257,6 +257,34 @@ export const localStore = {
     for (const e of pending.executions) execAufnehmen(e);
     for (const s of pending.taskStatus) statusByTask.set(s.taskId, s);
 
+    // Lokal-only Executions nachqueuen (Reviewer-Fund, Fix-Runde 1, Spec §3 #4):
+    // eine Execution, die im lokalen Fortschritt steht, aber WEDER im Snapshot
+    // NOCH in der Queue auftaucht, wurde nie gepusht — z. B. weil sie entstand,
+    // bevor eine Teilnehmer-Identität bestätigt war, oder weil die Alt-App den
+    // einmaligen Übernahme-Marker schon gesetzt hatte (die Übernahme lief dann
+    // nie, und ohne diese Nachholung wäre der Eintrag beim Rebuild unten
+    // ersatzlos verschwunden). Ein Tombstone für dieselbe id STEHT im Snapshot
+    // (mit `deletedAt`) — die id gilt dann als bekannt, wird also nicht erneut
+    // gequeut: ein Cross-Device-Löschen bleibt gelöscht, kein Resurrect.
+    const bekannteIds = new Set<string>();
+    for (const e of snapshot.executions) bekannteIds.add(e.id);
+    for (const e of pending.executions) bekannteIds.add(e.id);
+    for (const [taskId, f] of Object.entries(this.fortschrittLesen())) {
+      for (const d of f.durchfuehrungen) {
+        if (bekannteIds.has(d.id)) continue;
+        bekannteIds.add(d.id);
+        const daten: ExecutionDTO = {
+          id: d.id,
+          taskId,
+          datum: d.datum,
+          drohnensteuerer: d.drohnensteuerer,
+          luftraumbeobachter: d.luftraumbeobachter,
+        };
+        this.queueAnfuegen({ art: "execution", daten });
+        execAufnehmen(daten);
+      }
+    }
+
     const execByTask = new Map<string, ExecutionDTO[]>();
     for (const [taskId, map] of execByTaskMap) execByTask.set(taskId, [...map.values()]);
 

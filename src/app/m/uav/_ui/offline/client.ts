@@ -83,8 +83,8 @@ export const api = {
    * Wirft `ApiError` (401 `invalid_code`, 429 `rate_limited`) bei Fehlschlag.
    * Die neue Identität bitte anschließend über `me()` laden.
    */
-  participantLogin(code: string): Promise<void> {
-    return anfrage<void>("/anmeldung", { method: "POST", body: { code } });
+  participantLogin(code: string): Promise<{ ok: true }> {
+    return anfrage<{ ok: true }>("/anmeldung", { method: "POST", body: { code } });
   },
 
   /** Aktuelle Session beenden. */

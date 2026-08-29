@@ -35,7 +35,7 @@ afterEach(async () => {
 
 describe("LoginForm — Magic-Link (code-Prop)", () => {
   it("löst den Rohwert genau einmal ein", async () => {
-    vi.mocked(api.participantLogin).mockResolvedValue(undefined);
+    vi.mocked(api.participantLogin).mockResolvedValue({ ok: true });
     stubReplace();
     await mount(<LoginForm code="abcd-1234" />);
 
@@ -46,7 +46,7 @@ describe("LoginForm — Magic-Link (code-Prop)", () => {
   });
 
   it("leitet bei Erfolg per vollem Reload auf / weiter", async () => {
-    vi.mocked(api.participantLogin).mockResolvedValue(undefined);
+    vi.mocked(api.participantLogin).mockResolvedValue({ ok: true });
     const replace = stubReplace();
     await mount(<LoginForm code="ABCD-1234" />);
 
@@ -82,7 +82,7 @@ describe("LoginForm — Magic-Link (code-Prop)", () => {
 
 describe("LoginForm — manuelle Eingabe (ohne code)", () => {
   it("sendet den getippten Wert unverändert", async () => {
-    vi.mocked(api.participantLogin).mockResolvedValue(undefined);
+    vi.mocked(api.participantLogin).mockResolvedValue({ ok: true });
     stubReplace();
     await mount(<LoginForm />);
 

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { TaskDTO } from "../../_lib/typen";
-import { type AufgabenFortschritt, gesamtFortschritt } from "../offline/progress";
+import { type AufgabenFortschritt, gesamtFortschritt, leererFortschritt } from "../offline/progress";
 import { TaskCard } from "./TaskCard";
 import styles from "./uav.module.css";
 
@@ -56,7 +56,15 @@ export function Dashboard({ katalog, fortschritt }: Props) {
             {katalog
               .filter((a) => a.teil === teil)
               .map((a) => (
-                <TaskCard key={a.id} aufgabe={a} fortschritt={fortschritt[a.id]} />
+                <TaskCard
+                  key={a.id}
+                  aufgabe={a}
+                  // Wie in TeilnehmerApp/TaskDetail: ohne noUncheckedIndexedAccess
+                  // sieht TypeScript den möglichen undefined-Zugriff nicht — ein
+                  // Render-Fenster zwischen frisch geladenem Katalog und dem
+                  // Fortschritt-Merge-Effekt reicht sonst für einen Absturz.
+                  fortschritt={fortschritt[a.id] ?? leererFortschritt(a.zielanzahlDefault)}
+                />
               ))}
           </div>
         </section>
