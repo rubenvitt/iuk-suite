@@ -269,15 +269,17 @@ describe("paritaetUav", () => {
 
   it("bricht ab (assertParity wirft), bevor es 'fertig' meldet — und die Zielzeilen stehen bereits", () => {
     const quelle = altDb();
-    teilnehmer(quelle);
+    teilnehmer(quelle); // login_code-Menge bleibt auf beiden Seiten gleich — das isoliert
+    // diesen Test von der Zusatzprüfung oben und trifft gezielt `assertParity` selbst.
     const ziel = frischeZielDb();
 
-    // Eine Fremdzeile, die es in der Quelle nicht gibt: der Importer schreibt nur
-    // additiv/upsert, löscht also nichts — die Parität muss deshalb ROT werden
-    // (missingInSource), BEVOR irgendeine Erfolgsmeldung entstehen kann.
-    ziel.insert(schema.participants).values({
-      id: "fremd", name: "Fremdzeile", loginCode: "FREMDCOD", aktiv: 1,
-      beginn: null, createdAt: "2020-01-01T00:00:00.000Z", lastSeen: null,
+    // Eine Fremdzeile in `tasks`, die es in der Quelle nicht gibt: der Importer schreibt
+    // nur additiv/upsert, löscht also nichts — die Tabellenparität muss deshalb ROT
+    // werden (missingInSource), BEVOR irgendeine Erfolgsmeldung entstehen kann.
+    ziel.insert(schema.tasks).values({
+      id: "fremd", teil: 1, nummer: "9.9", titel: "Fremdzeile", lernziel: "", schritte: "[]",
+      durchfuehrungshinweise: "[]", sicherheitshinweise: "[]", zielanzahlDefault: 1,
+      sortOrder: 0, aktiv: 1, bild: null, updatedAt: "2020-01-01T00:00:00.000Z",
     }).run();
 
     expect(() => schreibeUndPruefe(quelle, ziel, JETZT)).toThrow(/Parity check FAILED/);
@@ -285,6 +287,8 @@ describe("paritaetUav", () => {
     // Der Import selbst ist bereits gelaufen — "abgebrochen" heißt hier: die
     // Erfolgsmeldung fehlt, nicht dass am Ziel nichts passiert wäre.
     const zielTeilnehmer = ziel.select().from(schema.participants).all();
-    expect(zielTeilnehmer.map((p) => p.id).sort()).toEqual(["fremd", "p-1"]);
+    expect(zielTeilnehmer.map((p) => p.id)).toEqual(["p-1"]);
+    const zielAufgaben = ziel.select().from(schema.tasks).all();
+    expect(zielAufgaben.map((t) => t.id).sort()).toEqual(["fremd"]);
   });
 });
