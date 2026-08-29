@@ -10,6 +10,10 @@ import alteQrCodesGeltenWeiter from "@/app/m/portal/_lib/neuigkeiten/notizen/rad
 import funkInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-funk-in-der-suite";
 import bilderInDenUebungsaufgaben from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-bilder-in-den-uebungsaufgaben";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
+import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
+import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
+import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-trainingsansicht-ohne-suite-leiste";
+import verwaltungAufDemTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-verwaltung-auf-dem-telefon";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -41,6 +45,10 @@ const NOTIZEN: readonly Releasenotiz[] = [
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,
   bilderInDenUebungsaufgaben,
+  katalogOhneCodeAnsehen,
+  trainingsansichtOhneSuiteLeiste,
+  fortschrittZaehltDurchfuehrungen,
+  verwaltungAufDemTelefon,
 ];
 
 /**
