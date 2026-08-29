@@ -61,3 +61,39 @@ describe("useFortschritt — Queue unabhängig von der Identität", () => {
     expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: 5 } });
   });
 });
+
+/**
+ * Der Fund, der `e2e/uav.spec.ts`s Check 7 (Offline-Erfassung) blockierte,
+ * bevor `neueId()` auf `randomId()` aus `@/core/zufallsId` umgestellt wurde:
+ * `crypto.randomUUID()` existiert nur im Secure Context, `http://uav.localtest.me`
+ * (wie jede LAN-IP im echten Einsatz) ist keiner —
+ * `Uncaught TypeError: crypto.randomUUID is not a function` riss die ganze
+ * Seite ab, sobald „Durchführung hinzufügen" den Handler erreichte.
+ *
+ * jsdom stellt `crypto.randomUUID` UNABHÄNGIG vom Secure Context bereit (das
+ * Konzept existiert dort nicht) — ein Vitest-Lauf ohne diesen Test hätte den
+ * Fund deshalb strukturell nicht sehen können, egal wie oft
+ * `durchfuehrungHinzufuegen` aufgerufen wird. Dieser Test nimmt
+ * `crypto.randomUUID` gezielt weg (dieselbe Bauform wie
+ * `src/core/zufallsId.test.ts`) und stellt damit genau die Bedingung her, die
+ * den Absturz im Browser auslöste.
+ */
+describe("useFortschritt — Erfassung ohne crypto.randomUUID (Secure-Context-Fallback)", () => {
+  it("legt eine Durchführung an, ohne dass crypto.randomUUID existiert", async () => {
+    const original = globalThis.crypto;
+    Object.defineProperty(globalThis, "crypto", { value: {}, configurable: true });
+    try {
+      await mount(<Harness identity={null} />);
+      await click("button");
+    } finally {
+      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
+    }
+    const queue = localStore.queueLesen();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({ art: "execution", daten: { taskId: "1-1" } });
+    // `randomId()`s Fallback bleibt UUID-v4-förmig — ein Verbraucher darf am
+    // Format nicht unterscheiden können, ob crypto.randomUUID verfügbar war.
+    const id = (queue[0] as { daten: { id: string } }).daten.id;
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});

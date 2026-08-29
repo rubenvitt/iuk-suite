@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { randomId } from "@/core/zufallsId";
 import type { Identity } from "../../_lib/sitzung";
 import type { TaskDTO } from "../../_lib/typen";
 import { type AufgabenFortschritt, type Durchfuehrung, leererFortschritt } from "../offline/progress";
@@ -69,8 +70,17 @@ function migrieren(state: AppState): AppState {
   return { schemaVersion: SCHEMA_VERSION, fortschritt: state.fortschritt ?? {} };
 }
 
+/**
+ * NICHT `crypto.randomUUID()` direkt (Bug, gemessen per `e2e/uav.spec.ts`,
+ * Check 7: `Uncaught TypeError: crypto.randomUUID is not a function`) — die
+ * Funktion existiert nur im Secure Context, und `http://uav.localtest.me`
+ * (wie jede LAN-IP im echten Einsatz) ist keiner. `randomId()` aus
+ * `@/core/zufallsId` fällt in genau diesem Fall auf ein UUID-v4-förmiges
+ * Ergebnis ohne `crypto.randomUUID` zurück (dieselbe Lösung, die `qr`
+ * bereits für denselben Fall trägt).
+ */
 function neueId(): string {
-  return crypto.randomUUID();
+  return randomId();
 }
 
 function jetztIso(): string {

@@ -1,3 +1,4 @@
+import { randomId } from "@/core/zufallsId";
 import type { HistoryEntry, QrPayload } from "./types";
 
 // 1:1 aus easy-qr uebernommen. Der Schluessel darf sich nicht aendern, sonst
@@ -257,18 +258,6 @@ export function subscribeHistory(onChange: () => void): () => void {
     listeners.delete(onChange);
     window.removeEventListener("storage", onStorage);
   };
-}
-
-/**
- * `crypto.randomUUID` existiert nur im Secure Context. Im Einsatz laeuft die
- * App auch ueber http auf einer LAN-IP — dort fehlt die Funktion, und ein
- * direkter Aufruf risse die Seite mit einem TypeError ab. Aus easy-qr
- * uebernommen; die ids sind reine Verlaufs-Schluessel, kein Sicherheitsmerkmal.
- */
-export function randomId(): string {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c?.randomUUID) return c.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 /** Kurzform fuer die Erzeuger: id und Zeitstempel gehoeren nicht in jede
