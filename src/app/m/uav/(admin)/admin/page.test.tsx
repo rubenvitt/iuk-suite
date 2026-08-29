@@ -35,6 +35,12 @@ describe("teilnehmerInhalt — Kopf, Formular, Tabelle", () => {
     expect(query("h1").textContent).toBe("Teilnehmer");
     expect(document.body.textContent).toContain("Bruno");
   });
+
+  it("Fix-Runde 1: zeigt den Login-Code und einen Magic-Link-Kopieren-Knopf je Zeile", async () => {
+    await mount(teilnehmerInhalt([zeile("Bruno")]));
+    expect(document.body.textContent).toContain("ABCDEFGH");
+    expect(document.body.textContent).toContain("Link kopieren");
+  });
 });
 
 describe("AdminTeilnehmerPage — Gate", () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { rmSync } from "node:fs";
 import { migrateAllModules } from "@/core/bootstrap";
+import { NotFound } from "../_lib/queries";
 
 // Vorbild `api/admin/participants/route.test.ts`: eigenes DATA_DIR, echte
 // Migration, mutierbare `gruppen` statt jeder Test-Datei ihre eigene DB-Mock-
@@ -83,7 +84,7 @@ describe("teilnehmerAendernAction", () => {
   it("unbekannte id wirft NotFound", async () => {
     gruppen = ["uav-training-admin"];
     const { teilnehmerAendernAction } = await import("./teilnehmer");
-    await expect(teilnehmerAendernAction("unbekannt", { name: "X" })).rejects.toThrow();
+    await expect(teilnehmerAendernAction("unbekannt", { name: "X" })).rejects.toThrow(NotFound);
   });
 });
 
@@ -135,6 +136,6 @@ describe("teilnehmerLoeschenAction", () => {
   it("unbekannte id wirft NotFound", async () => {
     gruppen = ["uav-training-admin"];
     const { teilnehmerLoeschenAction } = await import("./teilnehmer");
-    await expect(teilnehmerLoeschenAction("unbekannt")).rejects.toThrow();
+    await expect(teilnehmerLoeschenAction("unbekannt")).rejects.toThrow(NotFound);
   });
 });

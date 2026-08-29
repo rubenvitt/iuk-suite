@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { rmSync } from "node:fs";
 import { migrateAllModules } from "@/core/bootstrap";
+import { NotFound } from "../_lib/queries";
 
 const DIR = "./.data/uav-actions-katalog-test";
 let gruppen: string[] | null = null;
@@ -80,7 +81,7 @@ describe("aufgabeAendernAction", () => {
   it("unbekannte id wirft NotFound", async () => {
     gruppen = ["uav-training-admin"];
     const { aufgabeAendernAction } = await import("./katalog");
-    await expect(aufgabeAendernAction("unbekannt", { titel: "X" })).rejects.toThrow();
+    await expect(aufgabeAendernAction("unbekannt", { titel: "X" })).rejects.toThrow(NotFound);
   });
 });
 
@@ -103,7 +104,7 @@ describe("aufgabeLoeschenAction", () => {
   it("unbekannte id wirft NotFound", async () => {
     gruppen = ["uav-training-admin"];
     const { aufgabeLoeschenAction } = await import("./katalog");
-    await expect(aufgabeLoeschenAction("unbekannt")).rejects.toThrow();
+    await expect(aufgabeLoeschenAction("unbekannt")).rejects.toThrow(NotFound);
   });
 });
 

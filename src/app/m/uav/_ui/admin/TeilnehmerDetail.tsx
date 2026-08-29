@@ -135,7 +135,10 @@ export function TeilnehmerDetail({
         </div>
         <div>
           <div style={SCHRIFT.neben}>Magic-Link</div>
-          <Button onClick={() => kopieren(link, "link")}>{kopiert === "link" ? "Kopiert" : "Link kopieren"}</Button>
+          <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
+            <span style={{ ...SCHRIFT.mono, userSelect: "text", wordBreak: "break-all" }}>{link}</span>
+            <Button onClick={() => kopieren(link, "link")}>{kopiert === "link" ? "Kopiert" : "Kopieren"}</Button>
+          </div>
         </div>
       </div>
 
