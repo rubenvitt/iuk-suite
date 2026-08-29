@@ -79,4 +79,25 @@ describe("localStore — die Alt-Keys tragen den Umzug", () => {
     expect(state.fortschritt["1-1"].durchfuehrungen).toEqual([]);
     expect(localStore.queueLesen()).toEqual([]);
   });
+
+  it("ein lokal-only Aufgabenstatus (weder Snapshot noch Queue) übersteht snapshotAnwenden und landet in der Queue", () => {
+    localStore.tasksSchreiben([{ id: "1-1", teil: 1, nummer: "1.1", titel: "t", lernziel: "", schritte: [], durchfuehrungshinweise: [], sicherheitshinweise: [], zielanzahlDefault: 2, sortOrder: 0, aktiv: true }]);
+    // Zielanzahl 5 weicht vom Katalog-Default (2) ab — entstand, während die
+    // Teilnehmer-Identität noch nicht bestätigt war, taucht deshalb weder im
+    // Snapshot noch in der Queue auf.
+    localStore.fortschrittSchreiben({
+      schemaVersion: 1,
+      fortschritt: { "1-1": { zielanzahl: 5, nichtAnwendbar: false, durchfuehrungen: [] } },
+    });
+
+    const state = localStore.snapshotAnwenden(
+      { executions: [], taskStatus: [], serverTime: "2026-08-28T00:00:00.000Z" },
+      { executions: [], taskStatus: [] },
+    );
+
+    expect(state.fortschritt["1-1"].zielanzahl).toBe(5);
+    const queue = localStore.queueLesen();
+    expect(queue).toHaveLength(1);
+    expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: 5 } });
+  });
 });

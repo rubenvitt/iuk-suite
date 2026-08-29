@@ -89,8 +89,22 @@ class SyncEngine {
     }
   }
 
-  /** Nach einer Mutation aufzurufen: debounced einen Sync (~2s). */
+  /**
+   * Nach einer Mutation aufzurufen: debounced einen Sync (~2s).
+   *
+   * Reviewer-Fund (Fix-Runde 2): ohne den `aktiv`-Wächter löste eine Mutation
+   * VOR `start()` — also vor einer bestätigten Teilnehmer-Identität
+   * (`TeilnehmerApp.tsx` startet die Engine erst dann) — nach der Debounce-
+   * Zeit trotzdem einen echten `POST /api/sync` aus. Das Ergebnis war ein
+   * 401 und der `SyncStatus`-Chip zeigte „Sync fehlgeschlagen" schon auf dem
+   * Anmelde-Hinweis-Bildschirm. Ungefährlich für die Queue selbst (die Sweep-
+   * Logik in `localStore.queueAnfuegen` läuft unabhängig davon weiter) —
+   * `start()` stößt beim Aktivieren ohnehin sofort `triggerSync()` an, ein
+   * bereits gequeuter Eintrag geht also nicht verloren, nur der verfrühte
+   * Versuch entfällt.
+   */
   mutationGemeldet(): void {
+    if (!this.aktiv) return;
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;

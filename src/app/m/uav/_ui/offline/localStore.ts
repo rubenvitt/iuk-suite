@@ -266,10 +266,12 @@ export const localStore = {
     // ersatzlos verschwunden). Ein Tombstone für dieselbe id STEHT im Snapshot
     // (mit `deletedAt`) — die id gilt dann als bekannt, wird also nicht erneut
     // gequeut: ein Cross-Device-Löschen bleibt gelöscht, kein Resurrect.
+    const lokalerFortschritt = this.fortschrittLesen();
+
     const bekannteIds = new Set<string>();
     for (const e of snapshot.executions) bekannteIds.add(e.id);
     for (const e of pending.executions) bekannteIds.add(e.id);
-    for (const [taskId, f] of Object.entries(this.fortschrittLesen())) {
+    for (const [taskId, f] of Object.entries(lokalerFortschritt)) {
       for (const d of f.durchfuehrungen) {
         if (bekannteIds.has(d.id)) continue;
         bekannteIds.add(d.id);
@@ -283,6 +285,31 @@ export const localStore = {
         this.queueAnfuegen({ art: "execution", daten });
         execAufnehmen(daten);
       }
+    }
+
+    // Dieselbe Regel für TaskStatus: eine lokale Zielanzahl/„nicht anwendbar"
+    // die vom Katalog-Default abweicht (`statusWeichtAb`-Logik, wie in der
+    // Übernahme-Sweep in `useFortschritt`), aber für die es WEDER im Snapshot
+    // NOCH in der Queue einen Eintrag zu dieser Aufgabe gibt, wurde ebenfalls
+    // nie gepusht — sonst überschreibt der Rebuild unten sie stillschweigend
+    // mit dem Katalog-Default. `taskIdBekannt` wird VOR dieser Ergänzung
+    // eingefroren: ein taskId-Eintrag im Snapshot ODER in der Queue gilt als
+    // bekannt (auch wenn sein Wert zufällig dem Default entspricht) und wird
+    // nicht durch die lokale Abweichung überschrieben.
+    const taskIdBekannt = new Set(statusByTask.keys());
+    for (const t of katalog) {
+      if (taskIdBekannt.has(t.id)) continue;
+      const f = lokalerFortschritt[t.id];
+      if (!f) continue;
+      if (!f.nichtAnwendbar && f.zielanzahl === t.zielanzahlDefault) continue;
+      const daten: TaskStatusDTO = {
+        taskId: t.id,
+        zielanzahl: f.zielanzahl,
+        nichtAnwendbar: f.nichtAnwendbar,
+        updatedAt: new Date().toISOString(),
+      };
+      this.queueAnfuegen({ art: "taskStatus", daten });
+      statusByTask.set(t.id, daten);
     }
 
     const execByTask = new Map<string, ExecutionDTO[]>();

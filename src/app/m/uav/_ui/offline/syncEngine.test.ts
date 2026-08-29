@@ -52,4 +52,22 @@ describe("syncEngine", () => {
     await syncEngine.syncJetzt();
     expect(localStore.queueLesen()).toEqual([]);
   });
+
+  // Reviewer-Fund, Fix-Runde 2: `mutationGemeldet()` hatte keinen `aktiv`-
+  // Wächter. Eine Mutation vor bestätigter Identität (bevor `TeilnehmerApp`
+  // `syncEngine.start()` je aufgerufen hat) löste trotzdem nach ~2s einen
+  // echten `POST /api/sync` aus — 401, und der SyncStatus-Chip zeigte „Sync
+  // fehlgeschlagen" schon auf dem Anmelde-Hinweis-Bildschirm.
+  it("mutationGemeldet() vor start() löst keinen Sync aus", async () => {
+    syncEngine.stop(); // sicherstellen: nicht aktiv, unabhängig von der Testreihenfolge
+    const spy = vi.spyOn(api, "sync");
+    vi.useFakeTimers();
+    try {
+      syncEngine.mutationGemeldet();
+      await vi.advanceTimersByTimeAsync(2100);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(spy).not.toHaveBeenCalled();
+  });
 });
