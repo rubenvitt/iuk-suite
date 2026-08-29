@@ -58,4 +58,71 @@ describe("Dashboard", () => {
     );
     expect(exists('a[href="/aufgabe?id=1-1"]')).toBe(true);
   });
+
+  /*
+   * DIE ÜBERSCHRIFT OHNE INHALT. Der Fixture-Katalog hat Aufgaben in Teil 1 und
+   * 2, keine in Teil 3 — die Überschrift „Teil 3 · …" stand trotzdem da, weil
+   * die drei Teile fest aus einer Konstanten gerendert wurden. Im Seed sah das
+   * aus, als sei die Liste nicht fertig geladen.
+   */
+  it("zeigt keine Überschrift für einen Teil ohne Aufgaben", async () => {
+    await mount(<Dashboard katalog={KATALOG} fortschritt={leererKatalogFortschritt()} />);
+    const ueberschriften = queryAll("h2").map((h) => h.textContent);
+    expect(ueberschriften).toEqual([
+      "Teil 1 · Grundlegende Steuerung",
+      "Teil 2 · Sichere Steuerung in einsatznahen Situationen",
+    ]);
+  });
+
+  it("zeigt einen Leerzustand statt einer blanken Fläche, wenn der Katalog leer ist", async () => {
+    await mount(<Dashboard katalog={[]} fortschritt={{}} />);
+    expect(queryAll("h2")).toHaveLength(0);
+    expect(document.body.textContent).toContain("Noch keine Aufgaben");
+  });
+
+  /*
+   * DIE ZWEITE, FEINERE ZAHL. `gesamtFortschritt` zählt Aufgaben, und eine
+   * Aufgabe zählt erst, wenn ihre Zielanzahl voll ist — mit 2 von 3
+   * Durchführungen steht die grobe Zahl weiter auf 0 %. Die Legende darunter
+   * zeigt die Bewegung, ohne die grobe Rechnung umzudeuten.
+   */
+  it("nennt neben den erledigten Aufgaben auch die erfassten Durchführungen", async () => {
+    const fortschritt = leererKatalogFortschritt();
+    fortschritt["1-1"] = {
+      zielanzahl: 3,
+      nichtAnwendbar: false,
+      durchfuehrungen: [
+        { id: "a", datum: "2026-01-06", drohnensteuerer: "M", luftraumbeobachter: "E" },
+        { id: "b", datum: "2026-01-13", drohnensteuerer: "E", luftraumbeobachter: "M" },
+      ],
+    };
+    await mount(<Dashboard katalog={KATALOG} fortschritt={fortschritt} />);
+    // Grobe Zahl unverändert: keine Aufgabe ist fertig.
+    expect(document.body.textContent).toContain("0 von 2 Aufgaben");
+    // Feine Zahl: 2 von 3 + 2 = 5 nötigen Durchführungen.
+    expect(document.body.textContent).toContain("2 von 5 Durchführungen erfasst");
+  });
+
+  it("zählt eine nicht anwendbare Aufgabe in keiner der beiden Zahlen mit", async () => {
+    const fortschritt = leererKatalogFortschritt();
+    fortschritt["2-1"] = { zielanzahl: 2, nichtAnwendbar: true, durchfuehrungen: [] };
+    await mount(<Dashboard katalog={KATALOG} fortschritt={fortschritt} />);
+    expect(document.body.textContent).toContain("0 von 1 Aufgaben");
+    expect(document.body.textContent).toContain("0 von 3 Durchführungen erfasst");
+  });
+
+  it("deckelt die Durchführungen bei der Zielanzahl statt über 100 % zu zählen", async () => {
+    const fortschritt = leererKatalogFortschritt();
+    fortschritt["2-1"] = {
+      zielanzahl: 2,
+      nichtAnwendbar: false,
+      durchfuehrungen: [
+        { id: "a", datum: "2026-01-06", drohnensteuerer: "", luftraumbeobachter: "" },
+        { id: "b", datum: "2026-01-07", drohnensteuerer: "", luftraumbeobachter: "" },
+        { id: "c", datum: "2026-01-08", drohnensteuerer: "", luftraumbeobachter: "" },
+      ],
+    };
+    await mount(<Dashboard katalog={KATALOG} fortschritt={fortschritt} />);
+    expect(document.body.textContent).toContain("2 von 5 Durchführungen erfasst");
+  });
 });

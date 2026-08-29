@@ -87,8 +87,7 @@
 }
 
 /*
- * `flex: 0 1 auto` UND `min-width: 0` — die Reparatur eines echten Überlaufs,
- * heute nur noch als Absicherung stehend.
+ * `flex: 0 1 auto` — die Reparatur eines echten Überlaufs.
  *
  * Hier stand einmal `0 0 auto`: `.rechts` gab nicht nach, nachgeben konnte
  * allein der Titel. GEMESSEN bei 768px Viewport (fünf Module, DAMALS noch als
@@ -100,22 +99,50 @@
  * Geschwister von `.rechts` in `.kopf`), nicht mehr an einer Knopfreihe
  * innerhalb von `.rechts`. `.rechts` trägt seitdem nur noch den mobilen
  * Menü-Knopf, den Theme-Umschalter und den Avatar-/Anmelden-Knopf — weit unter
- * der Breite, die damals überlief. Beide Deklarationen bleiben trotzdem
- * stehen: sie schaden nicht, und ein künftiger dritter Inhalt in `.rechts`
- * fände die Absicherung schon vor.
+ * der Breite, die damals überlief. Die Deklaration bleibt trotzdem stehen: sie
+ * schadet nicht, und ein künftiger dritter Inhalt in `.rechts` fände die
+ * Absicherung schon vor.
  *
  * Dass der Titel (heute: `.umschalter`, der ihn ersetzt) lesbar bleibt, hängt
  * an genau dieser Nachbarschaft — er behält seinen Anteil an der verfügbaren
  * Breite und wird nie 0. Ein `min-width` am Titel wäre eine zweite Skala und
  * ist deshalb bewusst NICHT gesetzt. `e2e/shell-mobil.spec.ts` misst genau
  * diese Breite mit.
+ *
+ * ⚠️ DANEBEN STAND `min-width: 0`, UND ES WAR DIE URSACHE EINES ZWEITEN,
+ * ENTGEGENGESETZTEN ÜBERLAUFS — am schmalen Ende statt in der Mitte.
+ *
+ * Gemessen am 2026-08-29 bei 320px (schmalstes real verbreitetes Gerät,
+ * abgemeldeter Zustand, uav-Teilnehmeransicht): `.kopf` hatte 288px Inhalt,
+ * `.titel` wollte 135px, `.rechts` 183px (Menü-Knopf 56 + 8 + Anmelden-Knopf
+ * 119). Beide Kinder gaben anteilig nach — `.titel` auf 116px, `.rechts` auf
+ * 156px. Nur: `.titel` KANN nachgeben (`overflow: hidden`, Ellipse), `.rechts`
+ * nicht: der Anmelden-Knopf trägt seine Inhaltsbreite. Er stand danach mit
+ * seiner rechten Kante bei 330px in einem 320px-Fenster, und
+ * `documentElement.scrollWidth` war 330. Die Suite sperrt den Zoom
+ * (`app/layout.tsx`) — ein waagerechter Überlauf ist damit unheilbar, niemand
+ * kann herauszoomen.
+ *
+ * `min-width: 0` ERLAUBT einem Flex-Kind, unter seine Mindestinhaltsbreite zu
+ * schrumpfen. Das ist genau richtig am Titel, der dafür eine Ellipse hat, und
+ * genau falsch an einer Knopfreihe, die keine hat. Ohne die Deklaration gilt
+ * wieder `min-width: auto` (= Inhaltsbreite): `.rechts` bleibt bei 183px, und
+ * das Nachgeben übernimmt vollständig der Titel — bei 320px blieben ihm
+ * gemessen 89px, sichtbar und ellipsiert.
+ *
+ * `flex: 0 1 auto` BLEIBT: die Kombination „darf schrumpfen, aber nicht unter
+ * den Inhalt" ist die richtige. Der historische Fall, der `0 0 auto` kippte
+ * (die Knopfreihe `.modulzeile` mit 806px Inhalt), ist mit ihr ohnehin
+ * erledigt — sie existiert seit dem Navigations-Umbau nicht mehr.
+ *
+ * Die Wirkung besitzt ein Browser, nicht dieser Quelltext:
+ * `e2e/shell-mobil.spec.ts` misst 320px mit.
  */
 .rechts {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 0 1 auto;
-  min-width: 0;
 }
 
 /*

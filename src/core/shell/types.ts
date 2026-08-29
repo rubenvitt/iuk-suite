@@ -17,7 +17,15 @@
 export type NavIkonName =
   | "uebersicht" | "artikel" | "verfall" | "fahrzeuge" | "vorlagen" | "checks"
   | "bz" | "sauerstoff" | "geraete" | "bestellung" | "inventur" | "journal"
-  | "tokens" | "etiketten" | "import" | "ausleihen" | "update" | "versionen";
+  | "tokens" | "etiketten" | "import" | "ausleihen" | "update" | "versionen"
+  // Drei Zeichen fuer die Verwaltung des Moduls `uav` (Drohnentraining). Keiner der
+  // achtzehn Namen darueber traegt die Sache: es gibt keinen fuer Personen, keinen fuer
+  // einen Uebungskatalog und keinen fuer die Trainingsansicht selbst. Ein geliehener
+  // Name waere schlimmer als ein neuer — `versionen` (PiListNumbers) sieht einem
+  // Aufgabenkatalog aehnlich und hiesse an dieser Stelle etwas anderes, und der naechste
+  // Leser haette einen falschen Begriff statt eines fehlenden. Dieselbe Begruendung und
+  // dasselbe Vorgehen wie bei den drei Zeichen, die `radio` mitgebracht hat.
+  | "teilnehmer" | "katalog" | "training";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

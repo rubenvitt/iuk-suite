@@ -17,6 +17,37 @@ type Props = {
   fortschritt: Record<string, AufgabenFortschritt>;
 };
 
+/**
+ * Die feinere zweite Zahl der Fortschrittskarte: erfasste Durchführungen
+ * gegen die Summe der Zielanzahlen.
+ *
+ * SIE DEUTET `gesamtFortschritt` NICHT UM und rührt es nicht an — an jener
+ * Rechnung („eine Aufgabe zählt, wenn ihre Zielanzahl voll ist") hängen der
+ * Verwaltungszweig und dessen Tests. Sie steht daneben, weil die grobe Zahl
+ * allein lange 0 % zeigt, während jemand längst arbeitet: mit drei Aufgaben
+ * springt sie in Drittelschritten, und wer 2 von 3 Durchführungen einer
+ * Aufgabe erfasst hat, sieht ohne diese Zeile keinerlei Bewegung.
+ *
+ * Gedeckelt wie `aufgabenQuote`: mehr Durchführungen als das Ziel zählen nicht
+ * über 100 %, sonst stünde „4 von 3". Nicht anwendbare Aufgaben bleiben außen
+ * vor — genau wie in `gesamtFortschritt`.
+ */
+function durchfuehrungsStand(
+  katalog: TaskDTO[],
+  fortschritt: Record<string, AufgabenFortschritt>,
+): { erfasst: number; noetig: number } {
+  let erfasst = 0;
+  let noetig = 0;
+  for (const t of katalog) {
+    const f = fortschritt[t.id];
+    if (!f || f.nichtAnwendbar) continue;
+    const ziel = Math.max(1, f.zielanzahl);
+    noetig += ziel;
+    erfasst += Math.min(ziel, f.durchfuehrungen.length);
+  }
+  return { erfasst, noetig };
+}
+
 /** Port aus uav-praxis/src/components/Dashboard.tsx (`onSelect` entfällt — TaskCard verlinkt selbst). */
 export function Dashboard({ katalog, fortschritt }: Props) {
   // Gesamtfortschritt nur über die aktuell sichtbaren Katalog-Aufgaben rechnen —
@@ -31,6 +62,17 @@ export function Dashboard({ katalog, fortschritt }: Props) {
   }, [katalog, fortschritt]);
   const { erledigt, gesamt } = gesamtFortschritt(sichtbarerFortschritt);
   const prozent = gesamt === 0 ? 0 : Math.round((erledigt / gesamt) * 100);
+  const { erfasst, noetig } = durchfuehrungsStand(katalog, sichtbarerFortschritt);
+  const durchfuehrungsProzent = noetig === 0 ? 0 : Math.round((erfasst / noetig) * 100);
+
+  // Nur Teile mit mindestens einer Aufgabe: eine Überschrift über dem Nichts
+  // („Teil 3 · Training von Einsatzszenarien" ohne eine einzige Zeile darunter)
+  // sieht aus, als sei etwas nicht geladen.
+  const teileMitAufgaben = TEILE.map(({ teil, titel }) => ({
+    teil,
+    titel,
+    aufgaben: katalog.filter((a) => a.teil === teil),
+  })).filter((t) => t.aufgaben.length > 0);
 
   return (
     <div>
@@ -45,17 +87,26 @@ export function Dashboard({ katalog, fortschritt }: Props) {
           Gesamtfortschritt · {erledigt} von {gesamt} Aufgaben
         </p>
         <div className={styles.balken}>
+          <div className={styles["balken-vor"]} style={{ width: `${durchfuehrungsProzent}%` }} />
           <div className={styles["balken-fuell"]} style={{ width: `${prozent}%` }} />
         </div>
+        <p className={styles["fortschritt-legende"]}>
+          {erfasst} von {noetig} Durchführungen erfasst
+        </p>
       </section>
 
-      {TEILE.map(({ teil, titel }) => (
-        <section key={teil} className={styles["teil-sektion"]}>
-          <h2 className={styles["sektion-titel"]}>{titel}</h2>
-          <div className={styles["aufgaben-liste"]}>
-            {katalog
-              .filter((a) => a.teil === teil)
-              .map((a) => (
+      {teileMitAufgaben.length === 0 ? (
+        <p className={styles.leer}>
+          <strong className={styles["leer-titel"]}>Noch keine Aufgaben</strong>
+          Sobald deine Kursleitung Aufgaben freigibt und du einmal online warst, stehen sie hier —
+          danach auch ohne Netz.
+        </p>
+      ) : (
+        teileMitAufgaben.map(({ teil, titel, aufgaben }) => (
+          <section key={teil} className={styles["teil-sektion"]}>
+            <h2 className={styles["sektion-titel"]}>{titel}</h2>
+            <div className={styles["aufgaben-liste"]}>
+              {aufgaben.map((a) => (
                 <TaskCard
                   key={a.id}
                   aufgabe={a}
@@ -66,9 +117,10 @@ export function Dashboard({ katalog, fortschritt }: Props) {
                   fortschritt={fortschritt[a.id] ?? leererFortschritt(a.zielanzahlDefault)}
                 />
               ))}
-          </div>
-        </section>
-      ))}
+            </div>
+          </section>
+        ))
+      )}
     </div>
   );
 }

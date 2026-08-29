@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { datumKurz } from "../../_lib/datum";
 import type { Durchfuehrung } from "../offline/progress";
 import { useLocalStorage } from "./useFortschritt";
 import styles from "./uav.module.css";
@@ -33,7 +34,21 @@ export function DurchfuehrungForm({ onAdd, heute }: Props) {
   return (
     <form className={styles["df-form"]} onSubmit={absenden}>
       <label className={styles.feld} htmlFor="df-datum">
-        <span className={styles["feld-label"]}>Datum</span>
+        {/*
+         * Das gewählte Datum steht in deutscher Form NEBEN der Beschriftung.
+         *
+         * Die Anzeigeform des nativen Feldes bestimmt die Sprache des BROWSERS,
+         * nicht das Dokument: mit `lang="de"` am `<html>` und einem Browser auf
+         * `de-DE` (Accept-Language und `navigator.language`) zeigte Chromium
+         * gemessen weiterhin `08/29/2026` — es folgt seiner UI-Sprache, die eine
+         * Seite nicht setzt. Das Feld bleibt trotzdem nativ (Datumswähler des
+         * Telefons, Tastatur mit Ziffernblock); daneben steht, welcher Tag
+         * gemeint ist.
+         */}
+        <span className={styles["feld-label"]}>
+          Datum
+          {datumKurz(datum) && <span className={styles["feld-wert"]}>{datumKurz(datum)}</span>}
+        </span>
         <input
           id="df-datum"
           type="date"

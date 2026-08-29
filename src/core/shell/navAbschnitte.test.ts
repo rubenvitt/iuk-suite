@@ -53,9 +53,30 @@ describe("gruppiereNav", () => {
  * `abschnitt` hier zum ersten Mal in einem `minimal`-Modul auf, soll das eine
  * bewusste Entscheidung sein und keine zufällige.
  */
+/*
+ * `uav` IST DIE EINE BENANNTE AUSNAHME, UND SIE IST GENAU DER FALL, FUER DEN DIE
+ * MARKIERUNG DARUEBER GEDACHT IST. Das Registry fuehrt das Modul mit
+ * `shell: "minimal"` — das beschreibt den TEILNEHMER-Zweig, der auf einem Telefon
+ * ohne Seitenleiste laeuft. Seine VERWALTUNG ist ein Geschwister-Segment mit einer
+ * eigenen Huelle und setzt `variant="full"` ausdruecklich
+ * (`app/m/uav/(admin)/layout.tsx`); `_lib/nav.ts` beliefert ausschliesslich diese
+ * Huelle und bekommt damit dieselbe Seitenleiste wie jedes `full`-Modul.
+ *
+ * Der Registry-Wert allein beantwortet die Frage dieses Tests also nicht mehr. Eine
+ * ABLEITUNG statt der Liste — etwa ein Quelltextscan nach `variant="full"` unter
+ * `app/m/<key>` — waere die naheliegende Verallgemeinerung und hier die schlechtere
+ * Loesung: `uav` erwaehnt die Zeichenkette in DREI Layouts, zweimal davon nur im
+ * Kommentar, und ein Test, der Kommentare fuer Konfiguration haelt, sagt beim
+ * naechsten Modul etwas Falsches. Eine Liste mit einem Eintrag und einer Begruendung
+ * ist ehrlicher als eine Heuristik mit keiner.
+ */
+const FULL_TROTZ_REGISTRY: readonly string[] = ["uav"];
+
 describe("Abschnitte werden bislang nur in der full-Shell vergeben", () => {
   it("kein minimal- oder kiosk-Modul vergibt abschnitt in seiner Nav", () => {
-    const nichtFull = MODULES.filter((m) => m.shell !== "full").map((m) => m.key);
+    const nichtFull = MODULES.filter((m) => m.shell !== "full")
+      .map((m) => m.key)
+      .filter((key) => !FULL_TROTZ_REGISTRY.includes(key));
     for (const key of nichtFull) {
       const verzeichnis = `src/app/m/${key}`;
       let dateien: string[];

@@ -36,6 +36,41 @@ describe("teilnehmerInhalt — Kopf, Formular, Tabelle", () => {
     expect(document.body.textContent).toContain("Bruno");
   });
 
+  it("benutzt den Seitenkopf der Suite: Beschreibung und CSV-Weg als Aktion", async () => {
+    /*
+     * Die Seite baute ihren Kopf bis dahin selbst — ein eigenes `<h1>` in einer
+     * eigenen Flex-Zeile mit dem CSV-Knopf daneben. Dieser Fall haelt fest, dass
+     * jetzt `core/shell/Seitenkopf` traegt (die beiden `data-testid` gehoeren ihm)
+     * und dass die Seite sagt, wofuer sie da ist.
+     */
+    await mount(teilnehmerInhalt([zeile("Bruno")]));
+    expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Zugang");
+    const aktionen = query('[data-testid="seitenkopf-aktionen"]');
+    expect(aktionen.textContent).toContain("Liste als CSV");
+    expect(aktionen.querySelector("a")?.getAttribute("href")).toBe("/api/admin/participants/export");
+  });
+
+  it("verlinkt den Namen ohne Suite-Rot und ohne vollen Seitenwechsel", async () => {
+    /*
+     * Der Name war ein nacktes `<a href>`: antds `colorLink` ist in dieser Suite
+     * `#c8000f` (Falle 3), also stand eine Datenflaeche in der Farbe der
+     * Primaeraktion — und ein `<a>` warf die Anwendung weg statt clientseitig zu
+     * navigieren. Beides ist an dieser Stelle nicht direkt messbar (jsdom rechnet
+     * keine Farben, `next/link` rendert ebenfalls ein `<a>`), messbar ist die
+     * Gegenmassnahme: die Zelle setzt ihre Farbe selbst auf `inherit`.
+     */
+    await mount(teilnehmerInhalt([zeile("Bruno")]));
+    const links = [...document.querySelectorAll("a")].filter(
+      (a) => a.getAttribute("href") === "/admin/teilnehmer/Bruno",
+    );
+    expect(links.length).toBeGreaterThan(0);
+    const namensLink = links.find((a) => a.textContent === "Bruno");
+    expect(namensLink).toBeDefined();
+    expect(namensLink?.style.color).toBe("inherit");
+    // WCAG 2.5.5: der Zeilenlink ist rohes Markup und erbt die 44px nicht.
+    expect(namensLink?.style.minHeight).toBe("44px");
+  });
+
   it("Fix-Runde 1: zeigt den Login-Code und einen Magic-Link-Kopieren-Knopf je Zeile", async () => {
     await mount(teilnehmerInhalt([zeile("Bruno")]));
     expect(document.body.textContent).toContain("ABCDEFGH");

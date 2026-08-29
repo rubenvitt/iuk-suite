@@ -45,6 +45,28 @@ describe("katalogInhalt — Kopf und Tabelle", () => {
     expect(query("h1").textContent).toBe("Aufgabenkatalog");
     expect(document.body.textContent).toContain("Aufgabe 1.1");
   });
+
+  it("stellt den Anlegen-Knopf in den Seitenkopf, nicht in eine eigene Zeile", async () => {
+    /*
+     * Der Knopf stand in einer rechtsbuendigen Zeile UEBER der Tabelle, ohne Bezug
+     * zur Ueberschrift daneben. Er sitzt jetzt im `aktionen`-Platz von
+     * `core/shell/Seitenkopf` — ausnahmsweise aus der Client-Insel heraus gerendert,
+     * weil er den `Drawer`-Zustand der Tabelle teilt (Begruendung in
+     * `_ui/admin/KatalogTabelle.tsx`).
+     */
+    await mount(katalogInhalt([{ ...aufgabe("1.1"), id: "a1", sortOrder: 0 }]));
+    expect(query('[data-testid="seitenkopf-aktionen"]').textContent).toContain("Aufgabe anlegen");
+  });
+
+  it("sagt im Seitenkopf, wofuer die Seite da ist", async () => {
+    await mount(katalogInhalt([{ ...aufgabe("1.1"), id: "a1", sortOrder: 0 }]));
+    expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Teilnehmer");
+  });
+
+  it("zeigt einen Leerzustand statt einer nackten Tabelle", async () => {
+    await mount(katalogInhalt([]));
+    expect(document.body.textContent).toContain("Noch keine Aufgaben im Katalog.");
+  });
 });
 
 describe("AdminKatalogPage — Gate", () => {

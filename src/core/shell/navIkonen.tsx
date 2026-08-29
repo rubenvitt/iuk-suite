@@ -16,6 +16,7 @@ import {
   PiSquaresFour, PiPackage, PiCalendarX, PiTruck, PiLayout, PiCheckSquare, PiHeartbeat,
   PiWind, PiCube, PiShoppingCart, PiClipboardText, PiClockCounterClockwise, PiKey,
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
+  PiUsersThree, PiListChecks, PiDrone,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -41,6 +42,13 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   ausleihen: PiArrowsLeftRight,
   update: PiArrowsClockwise,
   versionen: PiListNumbers,
+  // Drei Zeichen fuer die Verwaltung des Moduls `uav` (Drohnentraining) — die
+  // Begruendung, warum es neue sind und keine geliehenen, steht an der Union in
+  // `types.ts`. `PiDrone` steht fuer den Weg zurueck in die Trainingsansicht, also
+  // fuer das Modul selbst, nicht fuer eine Verwaltungsflaeche.
+  teilnehmer: PiUsersThree,
+  katalog: PiListChecks,
+  training: PiDrone,
 };
 
 /**
