@@ -1,22 +1,29 @@
 /*
  * Teilnehmer-Ansicht von `uav` — PUBLIC-Ansicht (docs/design/README.md): kein
- * antd, kein `--ant-*`-Token. `.app` trägt deshalb einen eigenen, vollständigen
- * Satz Oberflächen-Variablen (`--uav-*`), 1:1 die Werte aus
+ * antd, kein `--ant-*`-Token. `.rahmen` trägt deshalb einen eigenen,
+ * vollständigen Satz Oberflächen-Variablen (`--uav-*`), 1:1 die Werte aus
  * `uav-praxis/src/design/tokens.css`, nur umbenannt und hierher gescoped statt
  * auf `:root` — ein CSS-Modul kann `:root` ohnehin nicht scopen, und globale
  * Namen wären eine Kollision, die erst in einem fremden Modul auffiele.
+ *
+ * ⚠️ DIE VARIABLEN STEHEN AN `.rahmen`, NICHT MEHR AN `.app` — seit der Zweig
+ * ohne `<Shell>` läuft (Betreiberentscheidung 2026-08-29,
+ * `_ui/teilnehmer/TeilnehmerRahmen.tsx`). Der Rahmen ist der äußerste Knoten
+ * dieses Zweigs und färbt auch seine Kopfleiste; `.app` liegt IMMER darin und
+ * erbt sie. An beiden Stellen zu deklarieren wären zwei Paletten, die beim
+ * nächsten Anfassen auseinanderlaufen.
  *
  * `--uav-akzent` ist `var(--iuk-marke)` (globals.css) — die Suite-Markenfarbe,
  * damit die Teilnehmer-Ansicht farblich zur Suite gehört, ohne selbst Rot neu
  * zu erfinden. Alles andere (Papier/Flächen/Tinte) bleibt eigen, weil ohne
  * antd kein Theme-Provider diese Rollen liefert.
  *
- * WARUM `:root[data-theme="dark"] .app` UND NICHT `prefers-color-scheme`: der
- * Umschalter der Suite hat drei Zustände (`auto|light|dark`), aufgelöst auf
+ * WARUM `:root[data-theme="dark"] .rahmen` UND NICHT `prefers-color-scheme`:
+ * der Umschalter der Suite hat drei Zustände (`auto|light|dark`), aufgelöst auf
  * `<html data-theme>` — eine Medienabfrage sähe „System dunkel, Umschalter
  * hell" nicht (docs/design/README.md).
  */
-.app {
+.rahmen {
   --uav-tinte: #16181d;
   --uav-stahl: #6b7280;
   --uav-stahl-hell: #9aa0a6;
@@ -31,15 +38,22 @@
   --uav-radius-s: 10px;
   --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
 
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 20px 16px 96px;
+  /*
+   * `min-height: 100dvh` UND `flex-direction: column`, damit `.app` als
+   * wachsendes Kind den Rest der Höhe bekommt — daran hängt die senkrechte
+   * Mitte der Anmeldefläche, die dadurch OHNE eigene Höhenrechnung auskommt.
+   * KEIN `height` und KEIN `overflow: hidden` (das wäre `KioskShell`): jede
+   * Fläche dieses Zweigs ist länger als ein Telefonbildschirm.
+   */
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
   font-family: var(--font-body, system-ui, sans-serif);
   color: var(--uav-tinte);
   background: var(--uav-papier);
 }
 
-:root[data-theme="dark"] .app {
+:root[data-theme="dark"] .rahmen {
   --uav-tinte: #e8e9ec;
   --uav-stahl: #a1a7b0;
   --uav-stahl-hell: #71777f;
@@ -50,6 +64,104 @@
   --uav-warnung: #f59e0b;
   --uav-akzent-weich: #2a1417;
   --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Eigene Kopfleiste (ersetzt die Suite-Kopfzeile) ──────────────── */
+
+/* Der Markenstreifen — dieselbe Geste wie in der Suite-Hülle, 5px. */
+.rahmen-streifen {
+  flex: none;
+  height: 5px;
+  background: var(--uav-akzent);
+}
+
+.rahmen-kopfleiste {
+  flex: none;
+  border-block-end: 1px solid var(--uav-linie);
+  background: var(--uav-papier);
+}
+
+/*
+ * Dieselbe Spalte wie der Inhalt (640px, zentriert, 16px Rand): Wortmarke und
+ * Überschrift stehen damit auf einer Fluchtlinie.
+ */
+.rahmen-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 640px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.rahmen-marke {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  font-family: var(--font-display, var(--font-body, system-ui, sans-serif));
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--uav-tinte);
+  text-decoration: none;
+  /* Der Modulname ist eine Marke und bricht nicht um; schmal genug ist er. */
+  white-space: nowrap;
+}
+
+/*
+ * Die Nebentür in die Verwaltung: 56px hoch wie jedes Bedienelement dieser
+ * Fläche (Falle 4), aber grau und klein gesetzt — sie ist nicht gleichrangig
+ * zum Training.
+ */
+.rahmen-neben {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  font-size: 0.9rem;
+  color: var(--uav-stahl);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.rahmen-marke:focus-visible,
+.rahmen-neben:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+  border-radius: var(--uav-radius-s);
+}
+
+.rahmen-neben:hover {
+  color: var(--uav-akzent);
+}
+
+/*
+ * DIE INHALTSSPALTE — und seit dem Wegfall der `MinimalShell` bestimmt sie ihre
+ * Breite und ihre Ränder ALLEIN.
+ *
+ * Vorher lagen drei Begrenzungen ineinander: `SuiteRahmen`s `<Content>` mit
+ * 16px Polster, `MinimalShell`s 640px-Spalte und diese hier mit nochmals 640px
+ * und 16px. Gemessen auf 390px begann der Text dadurch erst bei 32px und es
+ * blieben 326px — ein Sechstel der Bildbreite für zwei Ränder derselben Sache.
+ * Mit dem eigenen Rahmen bleibt EIN Rand von 16px, und die Textbreite steigt
+ * auf 358px.
+ *
+ * `flex: 1`: die Spalte füllt den Rest der Rahmenhöhe. Nur deshalb kann
+ * `.login` senkrecht mittig stehen, ohne die Höhe der Kopfleiste zu kennen.
+ *
+ * DIE 96px UNTEN SIND DIE FREIHALTUNG FÜR DEN SYNC-CHIP. Gemessen auf 390px
+ * bricht seine längste Meldung („Offline — Änderungen werden gespeichert") auf
+ * zwei Zeilen und wird 58px hoch; mit 16px Abstand zur Kante braucht er 74px.
+ * Am Seitenende verdeckt er damit nichts — mittendrin schwebt er weiterhin
+ * über dem Inhalt, aber er zeigt sich seit `SyncStatus.tsx` nur noch, wenn
+ * etwas zu melden ist.
+ */
+.app {
+  flex: 1;
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
 }
 
 /* ── Kopf ─────────────────────────────────────────────────────────── */
@@ -93,18 +205,42 @@
   color: var(--uav-stahl);
 }
 
+/*
+ * ZWEI SCHICHTEN, ZWEI AUSSAGEN. Die kraeftige Fuellung ist der
+ * Gesamtfortschritt (erledigte Aufgaben, `gesamtFortschritt`) — die Zahl, an
+ * der die Verwaltung misst; die blasse dahinter sind die bereits erfassten
+ * Durchfuehrungen. Ohne die zweite Schicht steht der Balken tagelang auf 0 %,
+ * waehrend jemand arbeitet: eine Aufgabe zaehlt erst, wenn ihre Zielanzahl
+ * voll ist. Beide Werte stehen zusaetzlich als Text daneben — Bedeutung nie
+ * allein ueber Farbe (docs/design/README.md).
+ */
 .balken {
-  height: 8px;
+  position: relative;
+  height: 10px;
   background: var(--uav-flaeche);
   border-radius: 999px;
   overflow: hidden;
 }
 
+.balken-vor,
 .balken-fuell {
-  height: 100%;
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
   background: var(--uav-akzent);
   border-radius: 999px;
   transition: width 0.3s ease;
+}
+
+.balken-vor {
+  opacity: 0.28;
+}
+
+.fortschritt-legende {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--uav-stahl);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Sektionen je Teil ────────────────────────────────────────────── */
@@ -112,19 +248,45 @@
   margin-top: 26px;
 }
 
+/*
+ * `--uav-stahl`, NICHT `--uav-stahl-hell`: gemessen ergab `#9aa0a6` auf
+ * `--uav-papier` (#fff) ein Kontrastverhaeltnis von 2,6:1 — bei 0.74rem
+ * (11,8px) klar unter AA (4,5:1), und Herunterzoomen gibt es suiteweit nicht
+ * (`app/layout.tsx`). `#6b7280` auf Weisz sind 4,8:1, im Dunkelmodus `#a1a7b0`
+ * auf `#1a1c20` 7,4:1. Die Abschnittstitel („TEIL 1 · …") sind die
+ * Gliederung der Uebersicht und keine Randnotiz.
+ */
 .sektion-titel {
   margin: 0 0 10px;
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--uav-stahl-hell);
+  color: var(--uav-stahl);
 }
 
 .aufgaben-liste {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Leerzustand — die Uebersicht darf nie als blanke Flaeche dastehen. */
+.leer {
+  margin: 20px 0 0;
+  padding: 20px 16px;
+  border: 1px dashed var(--uav-linie);
+  border-radius: var(--uav-radius);
+  background: var(--uav-flaeche);
+  color: var(--uav-stahl);
+  line-height: 1.5;
+}
+
+.leer-titel {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--uav-tinte);
+  font-weight: 700;
 }
 
 /* ── Aufgaben-Zeile ───────────────────────────────────────────────── */
@@ -167,9 +329,14 @@
   line-height: 1.25;
 }
 
+/*
+ * 0.8rem (12,8px) statt 0.72 (11,5): der Zaehler „2 / 3" ist die einzige
+ * Mengenangabe der Uebersicht, und heranzoomen kann ihn niemand (Zoomsperre
+ * in `app/layout.tsx`).
+ */
 .aufgabe-badge {
   flex-shrink: 0;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 999px;
@@ -233,6 +400,28 @@
   margin: 0 0 20px;
   border: 1px solid var(--uav-linie);
   border-radius: var(--uav-radius);
+}
+
+/*
+ * Der Platz der Abbildung, wenn sie nicht kommt (TaskDetail.tsx). Flach, ohne
+ * Rahmenfarbe, ohne Warnton: ein fehlendes Bild ist kein Fehler der Person und
+ * hält niemanden auf. Die Höhe ist bewusst kleiner als ein Bild — die Fläche
+ * soll erkennbar sein, nicht die Schritte nach unten schieben.
+ */
+.detail-bild-leer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 88px;
+  margin: 0 0 20px;
+  padding: 16px;
+  border: 1px dashed var(--uav-linie);
+  border-radius: var(--uav-radius);
+  background: var(--uav-flaeche);
+  color: var(--uav-stahl);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .schritte {
@@ -330,6 +519,12 @@
   margin: 0;
 }
 
+/* Überschrift des Erfassungsformulars — es stand vorher ohne Ankündigung
+   unter der Liste und war von ihr kaum zu unterscheiden. */
+.erfassung-titel {
+  margin: 22px 0 0;
+}
+
 .erledigt-marke {
   font-size: 0.72rem;
   font-weight: 600;
@@ -359,10 +554,37 @@
 }
 
 .liste-text {
-  font-size: 0.9rem;
-  line-height: 1.3;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.95rem;
+  line-height: 1.35;
 }
 
+/* Das Datum trennt sich vom Team, statt in einer Zeile mit ihm zu verschwimmen. */
+.liste-datum {
+  display: block;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.liste-team {
+  display: block;
+  color: var(--uav-stahl);
+}
+
+.liste-leer {
+  margin: 14px 0 0;
+  color: var(--uav-stahl);
+  font-size: 0.95rem;
+}
+
+/*
+ * `--uav-stahl` statt `--uav-stahl-hell`: `#9aa0a6` auf der Zeilenflaeche
+ * `#f7f8f9` sind 2,5:1 — ein Bedienelement braucht 3:1 (WCAG 1.4.11), und ein
+ * Loeschknopf, den man suchen musz, ist keiner.
+ */
 .loeschen {
   flex-shrink: 0;
   width: 56px;
@@ -372,8 +594,8 @@
   justify-content: center;
   background: none;
   border: none;
-  color: var(--uav-stahl-hell);
-  font-size: 0.9rem;
+  color: var(--uav-stahl);
+  font-size: 1rem;
   cursor: pointer;
   border-radius: var(--uav-radius-s);
 }
@@ -395,9 +617,30 @@
 }
 
 .feld-label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  align-items: baseline;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--uav-stahl);
+}
+
+/*
+ * DIE DEUTSCHE LESART DES DATUMS, NEBEN DEM FELD.
+ *
+ * Die Anzeigeform eines `<input type="date">` bestimmt die Sprache des
+ * BROWSERS, nicht das Dokument: gemessen mit `lang="de"` am `<html>` und
+ * einem Kontext auf `de-DE` (Accept-Language UND `navigator.language`) zeigte
+ * Chromium unveraendert `08/29/2026` — es folgt der UI-Sprache des Browsers,
+ * die eine Seite nicht setzen kann. Statt das zu bekaempfen, steht die
+ * deutsche Form daneben; das Feld selbst bleibt nativ und behaelt damit den
+ * Datumswaehler des Telefons.
+ */
+.feld-wert {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--uav-tinte);
 }
 
 .ziel {
@@ -422,10 +665,18 @@
   border-radius: var(--uav-radius-s);
 }
 
+/*
+ * FOKUS ALS OUTLINE, NICHT ALS SCHATTEN IN `--uav-akzent-weich`.
+ *
+ * Der weiche Akzent ist im Dunkelmodus `#2a1417` — ein 3px-Ring in dieser
+ * Farbe auf `#1a1c20` ist praktisch unsichtbar, und der Fokus war damit
+ * genau dort weg, wo man ihn am ehesten braucht. Dieselbe Outline wie an
+ * Knoepfen und Aufgabenzeilen: eine Fokusform fuer die ganze Flaeche.
+ */
 .feld input:focus-visible {
-  outline: none;
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
   border-color: var(--uav-akzent);
-  box-shadow: 0 0 0 3px var(--uav-akzent-weich);
 }
 
 /* Primäraktionen (Erfassen/Anmelden) — Handschuh-Bedienung, ≥ 56px Ziel. */
@@ -473,31 +724,69 @@
   color: var(--uav-stahl);
 }
 
-/* ── Hinweis „bitte anmelden" (kein Teilnehmer, offline muss die Insel
-   trotzdem stehen — deshalb kein Redirect, siehe TeilnehmerApp.tsx) ─── */
-.anmelde-hinweis {
-  margin: 40px 0;
-  padding: 20px;
-  border: 1px solid var(--uav-linie);
+/* ── Hinweis „zum Eintragen brauchst du einen Code" ───────────────────
+ *
+ * HIER STANDEN DIE STILE EINES SPERRBILDSCHIRMS („Bitte mit deinem Code
+ * anmelden."), zentriert, mit grossem Knopf. Den gibt es seit dem 2026-08-29
+ * nicht mehr: der Katalog ist ohne Code lesbar, und dieser Hinweis steht nur
+ * noch dort, wo die Erfassung stuende (`_ui/teilnehmer/CodeHinweis.tsx`).
+ *
+ * DESHALB RUHIG UND LINKSBUENDIG, ohne Kontur in der Markenfarbe: das anonyme
+ * Blaettern ist ein vorgesehener Zustand, kein Fehlerfall — und Rot ist auf
+ * dieser Flaeche die Farbe der Sicherheitshinweise.
+ */
+.code-hinweis {
+  margin: 20px 0 28px;
+  padding: 16px;
   border-radius: var(--uav-radius);
   background: var(--uav-flaeche);
-  text-align: center;
 }
 
-.anmelde-hinweis p {
-  margin: 0 0 16px;
+.code-hinweis p {
+  margin: 0;
   color: var(--uav-stahl);
   line-height: 1.5;
 }
 
+/*
+ * Ein Textlink, kein Knopf — und trotzdem 56px hoch: die Bediendichte gilt
+ * auch fuer Nebenwege (Falle 4). Ein roter Knopf machte aus dem Hinweis eine
+ * Aufforderung, und aufgefordert wird hier niemand.
+ */
+.code-hinweis-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  font-weight: 600;
+  color: var(--uav-akzent);
+  text-decoration: none;
+}
+
+.code-hinweis-link:hover {
+  text-decoration: underline;
+}
+
+.code-hinweis-link:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+  border-radius: var(--uav-radius-s);
+}
+
 /* ── Teilnehmer-Login ─────────────────────────────────────────────── */
+/*
+ * KEINE EIGENE HOEHENRECHNUNG MEHR. `.app` ist als `flex: 1`-Kind von
+ * `.rahmen` (min-height 100dvh) ohnehin so hoch wie der Rest des Bildschirms;
+ * `justify-content: center` setzt die Maske damit in dessen Mitte, ohne eine
+ * Kopfzeilenhoehe zu kennen. Vorher stand hier `min-height: 100dvh` — INNERHALB
+ * der Suite-Huelle, deren Kopfzeile oben drauf kam: die Anmeldeseite war auf
+ * einem 844px hohen Bildschirm 945px hoch und scrollte ohne Inhalt.
+ */
 .login {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 100dvh;
   max-width: 420px;
-  padding: 32px 20px calc(96px + env(safe-area-inset-bottom));
+  padding: 24px 16px calc(48px + env(safe-area-inset-bottom));
 }
 
 .login-kopf {
@@ -553,10 +842,11 @@
   color: var(--uav-stahl-hell);
 }
 
+/* Fokusform wie an allen anderen Feldern — Begruendung bei `.feld input`. */
 .login-code:focus-visible {
-  outline: none;
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
   border-color: var(--uav-akzent);
-  box-shadow: 0 0 0 3px var(--uav-akzent-weich);
 }
 
 .login-button {
@@ -580,26 +870,28 @@
   border-radius: var(--uav-radius-s);
 }
 
-.verwaltung-link {
-  display: block;
-  margin-top: 24px;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--uav-stahl);
-}
-
-/* ── Sync-Indikator ───────────────────────────────────────────────── */
+/* ── Sync-Indikator ───────────────────────────────────────────────────
+ *
+ * Der Chip schwebt weiterhin ueber dem Inhalt — aber nur noch, wenn er etwas
+ * zu sagen hat (`SyncStatus.tsx`). Dauerhaft „Synchronisiert" zu zeigen war
+ * Laerm UND Verdeckung zugleich: auf der Aufgabenseite lag er beim Scrollen
+ * auf den Eintraegen der Durchfuehrungsliste. Die Huelle (`.sync-huelle`)
+ * bleibt immer im DOM, damit die Meldung als Live-Region angesagt wird — eine
+ * Region, die erst mit ihrem Text entsteht, liest kein Screenreader vor.
+ */
 .sync-indikator {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 14px;
-  font-size: 0.78rem;
-  color: var(--uav-stahl);
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  color: var(--uav-tinte);
   background: var(--uav-papier);
   border: 1px solid var(--uav-linie);
   border-radius: 999px;
@@ -629,4 +921,30 @@
 
 .sync-fehler .sync-punkt {
   background: var(--uav-akzent);
+}
+
+/*
+ * HIER STAND EINE REGEL, DIE UNTER 768px `padding-inline: 0` SETZTE — sie ist
+ * mit der Suite-Huelle weggefallen und darf nicht zurueckkommen.
+ *
+ * Ihr Sinn war, den ZWEITEN Seitenrand loszuwerden: `SuiteRahmen`s `<Content>`
+ * gab 16px, `.app` noch einmal 16px, macht 32px je Seite und auf 390px ein
+ * Sechstel der Bildbreite. Seit der Zweig ohne `<Shell>` laeuft
+ * (`_ui/teilnehmer/TeilnehmerRahmen.tsx`), gibt es diesen zweiten Rand nicht
+ * mehr: `.app` traegt den einzigen, und auf 0 gesetzt klebte der Text an der
+ * Bildkante. Der Breakpoint der Suite (768px) wird auf dieser Flaeche damit
+ * gar nicht gebraucht.
+ */
+
+/*
+ * Bewegung nur, wo sie gewuenscht ist (docs/design/README.md, Barrierefreiheit).
+ * Betroffen sind heute die beiden Fortschrittsbalken und die Kantenwechsel der
+ * Aufgabenzeile.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .balken-vor,
+  .balken-fuell,
+  .aufgabe-zeile {
+    transition: none;
+  }
 }

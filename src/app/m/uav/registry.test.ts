@@ -3,7 +3,18 @@ import { getModule, moduleForHost, canAccess } from "@/core/registry";
 import { isModuleAdmin } from "@/core/groups";
 
 describe("Registry-Eintrag uav", () => {
-  it("ist ein anonymes Minimal-Shell-Modul mit der Admin-Gruppe uav-training-admin", () => {
+  /*
+   * ⚠️ `shell: "minimal"` STEHT WEITERHIN IM REGISTRY, WIRD IM MODUL ABER
+   * NIRGENDS MEHR GELESEN. Der Teilnehmer-Zweig läuft seit der
+   * Betreiberentscheidung vom 2026-08-29 ganz ohne `<Shell>` in einem eigenen
+   * Rahmen (`_ui/teilnehmer/TeilnehmerRahmen.tsx`), die Verwaltung setzt
+   * `variant="full"` ausdrücklich (`(admin)/layout.tsx`). Der Wert bleibt
+   * stehen, weil `ShellVariant` ein Pflichtfeld des Registry-Eintrags ist —
+   * wer ihn ändert, ändert damit heute NICHTS am Bild, und genau das soll
+   * hier stehen, bevor jemand daraus auf eine Hülle schließt, die es nicht
+   * mehr gibt.
+   */
+  it("ist ein anonymes Modul mit der Admin-Gruppe uav-training-admin", () => {
     const m = getModule("uav");
     expect(m.shell).toBe("minimal");
     expect(m.requiresAuth).toBe(false);

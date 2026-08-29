@@ -46,6 +46,34 @@ describe("teilnehmerDetailInhalt — Kopf und Stammdaten (Vorbild personenInhalt
     expect(query("h1").textContent).toBe("Jonas");
     expect(document.body.textContent).toContain("ABCDEFGH");
   });
+
+  it("fuehrt ueber den Rueckweg des Seitenkopfs zurueck zur Uebersicht", async () => {
+    /*
+     * Hier stand ein nacktes `<a href="/admin">← Teilnehmer</a>`: ohne
+     * `<nav>`-Landmark (per Screenreader springt man zwischen Landmarks), in antds
+     * `colorLink` — also Suite-Rot (Falle 3) — und unter der 44px-Tapflaeche. Der
+     * Rueckweg gehoert `core/shell/Seitenkopf`, samt seinem `data-testid`.
+     */
+    await mount(teilnehmerDetailInhalt(fixture()));
+    const zurueck = query('[data-testid="seitenkopf-zurueck"]');
+    expect(zurueck.getAttribute("href")).toBe("/admin");
+    expect(zurueck.textContent).toContain("Teilnehmer");
+    expect(zurueck.closest("nav")?.getAttribute("aria-label")).toBe("Zurück");
+  });
+
+  it("bietet den Detail-CSV-Weg als Aktion des Seitenkopfs, nicht als roten Textlink", async () => {
+    await mount(teilnehmerDetailInhalt(fixture()));
+    const aktionen = query('[data-testid="seitenkopf-aktionen"]');
+    expect(aktionen.textContent).toContain("Auswertung als CSV");
+    expect(aktionen.querySelector("a")?.getAttribute("href")).toBe(
+      "/api/admin/participants/p1/export",
+    );
+  });
+
+  it("sagt im Seitenkopf, wofuer die Seite da ist", async () => {
+    await mount(teilnehmerDetailInhalt(fixture()));
+    expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Zugang");
+  });
 });
 
 describe("AdminTeilnehmerDetailPage", () => {

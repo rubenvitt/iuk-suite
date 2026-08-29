@@ -1,12 +1,16 @@
-import Link from "next/link";
-import { LoginForm } from "../../_ui/teilnehmer/LoginForm";
-import styles from "../../_ui/teilnehmer/uav.module.css";
+import { AnmeldeFlaeche } from "../../_ui/teilnehmer/AnmeldeFlaeche";
 
 /**
- * Teilnehmer-Login (`/login`, optional `?code=` als Magic-Link) — Port aus
+ * Teilnehmer-Login über den MAGIC-LINK (`/login?code=…`) — Port aus
  * uav-praxis/src/pages/LoginPage.tsx. `/api/auth/signin` (Passthrough,
  * Auth.js) ist die Verwaltungs-Anmeldung; `/login` ist auf diesem Host die
  * Brücke für den Teilnehmer-Code, NICHT die Suite-weite Login-Route.
+ *
+ * ⚠️ DIESE ADRESSE ERREICHT MAN NUR MIT `?code=…`. `core/routing.ts` schreibt
+ * `/login` auf dem uav-Host ausschließlich mit nichtleerem `code`-Parameter
+ * hierher um; ohne ihn bleibt `/login` der Suite-Login. Der code-lose Weg zum
+ * Code-Feld ist deshalb `/anmelden` — dieselbe Fläche, andere Adresse
+ * (Begründung im Kopf von `_ui/teilnehmer/AnmeldeFlaeche.tsx`).
  */
 export default async function Login({
   searchParams,
@@ -15,22 +19,5 @@ export default async function Login({
 }) {
   const { code } = await searchParams;
 
-  return (
-    <main className={`${styles.app} ${styles.login}`}>
-      <header className={styles["login-kopf"]}>
-        <p className={styles.eyebrow}>Training · BOS</p>
-        <h1>Anmelden</h1>
-      </header>
-
-      <p className={styles["login-hinweis"]}>
-        Bitte gib deinen persönlichen Code ein. Du hast ihn von deiner Kursleitung erhalten.
-      </p>
-
-      <LoginForm code={typeof code === "string" ? code : undefined} />
-
-      <Link href="/api/auth/signin?callbackUrl=%2Fadmin" className={styles["verwaltung-link"]}>
-        Verwaltung (Anmeldung mit Suite-Konto)
-      </Link>
-    </main>
-  );
+  return <AnmeldeFlaeche code={typeof code === "string" ? code : undefined} />;
 }

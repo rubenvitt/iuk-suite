@@ -8,6 +8,8 @@ import { datumZeit } from "../../_lib/datum";
 import type { ParticipantDetailDTO, ParticipantDTO, Teil } from "../../_lib/typen";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+import { Datumsfeld } from "./Datumsfeld";
+import s from "./admin.module.css";
 
 const TEIL_TITEL: Record<Teil, string> = { 1: "Teil 1", 2: "Teil 2", 3: "Teil 3" };
 
@@ -22,6 +24,18 @@ const TEIL_TITEL: Record<Teil, string> = { 1: "Teil 1", 2: "Teil 2", 3: "Teil 3"
  * Query-Parameter — Host und Schema bleiben für die Lebensdauer der Seite
  * gleich —, deshalb schreibt `codeNeuErzeugen` den neuen Code per `URL` in
  * den bestehenden Link, statt die Server-Logik ins Client-Bundle zu ziehen.
+ *
+ * ÜBERSCHRIFT, RÜCKWEG UND CSV-WEG STEHEN NICHT MEHR HIER, sondern im
+ * `Seitenkopf` der Seite darüber (`(admin)/admin/teilnehmer/[id]/page.tsx`,
+ * Begründung dort). Diese Datei fängt jetzt bei den Kennzahlen an.
+ *
+ * DAS DATUMSFELD IST `Datumsfeld.tsx` UND KEIN ROHES `<input type="date">` mehr
+ * (Begründung dort). Der Wert bleibt `YYYY-MM-DD` — an `teilnehmerAendernAction`
+ * ändert sich nichts.
+ *
+ * DIE FORMULARZEILE STEHT AUF DEM TELEFON UNTEREINANDER (`admin.module.css`):
+ * fünf Bedienelemente in einer umbrechenden Flex-Zeile ergaben bei 390px drei
+ * ungleich lange Reihen, in denen „Löschen" neben „Speichern" stand.
  */
 export function TeilnehmerDetail({
   detail,
@@ -99,15 +113,8 @@ export function TeilnehmerDetail({
   }
 
   return (
-    <div style={{ display: "grid", gap: SPACE.xl }}>
-      <a href="/admin">← Teilnehmer</a>
-
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.xl }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: SPACE.sm }}>
-        <h1 style={{ ...SCHRIFT.titel, margin: 0 }}>{teilnehmer.name}</h1>
-        <a href={`/api/admin/participants/${teilnehmer.id}/export`}>Detail-CSV</a>
-      </div>
 
       <div style={{ display: "flex", gap: SPACE.xxl, flexWrap: "wrap" }}>
         <div>
@@ -142,31 +149,29 @@ export function TeilnehmerDetail({
         </div>
       </div>
 
-      <form
-        onSubmit={speichern}
-        style={{ display: "flex", gap: SPACE.md, alignItems: "flex-end", flexWrap: "wrap" }}
-      >
-        <div>
+      <form onSubmit={speichern} className={s.formular}>
+        <div className={s.feld}>
           <label htmlFor="tn-detail-name" style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
             Name
           </label>
           <Input id="tn-detail-name" value={name} onChange={(ereignis) => setName(ereignis.target.value)} />
         </div>
-        <div>
+        <div className={s.feld}>
           <label htmlFor="tn-detail-beginn" style={{ ...SCHRIFT.neben, display: "block", marginBlockEnd: SPACE.xs }}>
             Beginn
           </label>
-          <input
-            id="tn-detail-beginn"
-            type="date"
-            value={beginn}
-            onChange={(ereignis) => setBeginn(ereignis.target.value)}
-          />
+          <Datumsfeld id="tn-detail-beginn" wert={beginn} aufAenderung={setBeginn} platzhalter="Tag auswählen" />
         </div>
-        <label style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
+        {/*
+          * `minHeight: 44` AM SCHALTER-LABEL: die Fläche, die man antippt, ist hier das
+          * Label mitsamt dem Wort „aktiv", nicht nur antds `Switch` — und rohes Markup
+          * erbt `ARBEITSDICHTE` nicht (WCAG 2.5.5, dieselbe Lage und dieselbe Antwort
+          * wie am Rückweg in `core/shell/Seitenkopf.tsx`).
+          */}
+        <label style={{ display: "flex", alignItems: "center", gap: SPACE.sm, minHeight: 44 }}>
           <Switch checked={aktiv} onChange={setAktiv} /> aktiv
         </label>
-        <Button type="primary" htmlType="submit" loading={pending}>
+        <Button className={s.aktion} type="primary" htmlType="submit" loading={pending}>
           Speichern
         </Button>
         <Popconfirm
@@ -176,7 +181,9 @@ export function TeilnehmerDetail({
           cancelText="Abbrechen"
           onConfirm={codeNeuErzeugen}
         >
-          <Button loading={pending}>Neuen Code erzeugen</Button>
+          <Button className={s.aktion} loading={pending}>
+            Neuen Code erzeugen
+          </Button>
         </Popconfirm>
         <Popconfirm
           title="Teilnehmer löschen?"
@@ -186,7 +193,7 @@ export function TeilnehmerDetail({
           cancelText="Abbrechen"
           onConfirm={loeschen}
         >
-          <Button danger loading={pending}>
+          <Button className={s.aktion} danger loading={pending}>
             Löschen
           </Button>
         </Popconfirm>

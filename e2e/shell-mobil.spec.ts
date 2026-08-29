@@ -857,3 +857,54 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Mittelband 820px", () 
     expect((await page.getByTestId("module-title").boundingBox())!.width).toBeGreaterThan(0);
   });
 });
+
+/*
+ * DAS SCHMALSTE REAL VERBREITETE GERAET (320px, iPhone SE 1. Generation und
+ * jedes Geraet, das sich so meldet). Es ist nicht dasselbe wie 390: dort passt
+ * die Kopfzeile, hier nicht mehr von selbst.
+ *
+ * GEMESSEN am 2026-08-29, anonym: `.rechts` trug `min-width: 0` und schrumpfte
+ * damit unter seine Inhaltsbreite — der Anmelden-Knopf tat es NICHT und stand
+ * mit seiner rechten Kante bei 330px in einem 320px-Fenster
+ * (`documentElement.scrollWidth` 330). Zoom ist suiteweit gesperrt
+ * (`app/layout.tsx`), ein waagerechter Ueberlauf also unheilbar. Die
+ * Gegenmassnahme steht in `core/shell/shell.module.css`; dass sie WIRKT, kann
+ * nur ein Browser sagen — ein Quelltext-Scan kennt die Breite eines Knopfes
+ * nicht.
+ *
+ * Anonym, weil genau dieser Zustand den breiten Knopf zeigt: angemeldet steht
+ * dort ein runder Avatar von 56px, und der Defekt tritt gar nicht auf.
+ */
+test.describe("Schmalstes Geraet (320px)", () => {
+  test.use({ viewport: { width: 320, height: 844 } });
+
+  test("anonym scrollt bei 320px nichts seitwaerts und der Anmelden-Knopf bleibt im Fenster", async ({
+    page,
+  }) => {
+    // `qr` ist `requiresAuth: false` — dieselbe Begruendung wie beim
+    // 390px-Lauf oben.
+    await page.goto("http://qr.localtest.me:3100/");
+    await expect(page.getByTestId("anmelden")).toBeVisible();
+
+    const quer = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+      knopfRechts: Math.round(
+        document.querySelector("[data-testid='anmelden']")!.getBoundingClientRect().right,
+      ),
+    }));
+    console.log(
+      `320px anonym: scrollWidth ${quer.scrollWidth}, innerWidth ${quer.innerWidth}, Anmelden-Kante ${quer.knopfRechts}`,
+    );
+    expect(quer.scrollWidth).toBeLessThanOrEqual(quer.innerWidth);
+    expect(quer.knopfRechts).toBeLessThanOrEqual(quer.innerWidth);
+
+    // Und der Titel gibt nach, statt den Knopf hinauszuschieben — er bleibt
+    // sichtbar (ellipsiert), wird aber nie 0.
+    const titel = await page
+      .getByTestId("module-title")
+      .evaluate((el) => Math.round((el.closest("a") ?? el).getBoundingClientRect().width));
+    console.log(`320px anonym: sichtbare Titelbreite ${titel}px`);
+    expect(titel).toBeGreaterThan(0);
+  });
+});

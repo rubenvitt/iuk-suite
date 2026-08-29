@@ -642,6 +642,41 @@ describe("shell.module.css", () => {
     expect(basis![1], "der Drawer braucht das Tap-Masz").toMatch(/min-height:\s*56px/);
   });
 
+  it("laesst `.rechts` NICHT unter seine Inhaltsbreite schrumpfen", () => {
+    /*
+     * DIE UMKEHRUNG EINER ZUSICHERUNG: hier darf `min-width` NICHT stehen.
+     *
+     * `.rechts` trug `min-width: 0` und schrumpfte damit unter die Breite
+     * seines Inhalts. Der Anmelden-Knopf tat das nicht mit: er stand bei einem
+     * 320px-Fenster mit seiner rechten Kante bei 330px, die Seite scrollte
+     * seitwaerts — und Zoom ist suiteweit gesperrt, also unheilbar (gemessen
+     * 2026-08-29, Begruendung an der Regel selbst).
+     *
+     * Nachgeben soll der Titel, der eine Ellipse dafuer hat. Genau deshalb
+     * traegt `.titel` sein `min-width: 0` weiterhin — beide Haelften stehen
+     * hier zusammen, sonst wandert die Deklaration bei der naechsten
+     * Aufraeumrunde an die falsche Stelle zurueck.
+     *
+     * Wirken kann das nur im Browser: `e2e/shell-mobil.spec.ts` misst 320px.
+     */
+    const rechts = cssRegeln(OHNE_KOMMENTARE).filter(
+      (regel) => regel.selektor.trim() === ".rechts",
+    );
+    expect(rechts.length, "Basisregel .rechts fehlt").toBe(1);
+    expect(
+      deklarationsWerte(rechts, "min-width"),
+      ".rechts darf nicht unter seine Inhaltsbreite schrumpfen — sonst laeuft der Anmelden-Knopf bei 320px aus dem Fenster",
+    ).toEqual([]);
+    expect(deklarationsWerte(rechts, "flex")).toEqual(["0 1 auto"]);
+
+    const titel = cssRegeln(OHNE_KOMMENTARE).filter((regel) => regel.selektor.trim() === ".titel");
+    expect(titel.length, "Basisregel .titel fehlt").toBe(1);
+    expect(
+      deklarationsWerte(titel, "min-width"),
+      "nachgeben soll der Titel — er braucht sein min-width: 0",
+    ).toEqual(["0"]);
+  });
+
   it("setzt die Leiste mit einer Kante vom Inhalt ab", () => {
     // Ohne sie steht die Leiste ohne erkennbaren Grund neben dem Inhalt —
     // die zweite Hälfte von „passt nicht hinein". `--iuk-linie` gibt es

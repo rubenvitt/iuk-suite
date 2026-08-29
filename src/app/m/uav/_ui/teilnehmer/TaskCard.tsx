@@ -8,6 +8,8 @@ import styles from "./uav.module.css";
 type Props = {
   aufgabe: TaskDTO;
   fortschritt: AufgabenFortschritt;
+  /** Ohne Code: keine Zähler, keine Statusmarke — siehe `TeilnehmerApp.tsx`. */
+  nurLesen?: boolean;
 };
 
 /**
@@ -15,8 +17,25 @@ type Props = {
  * `onClick`/`navigate` wird zu einem echten `next/link` mit der äußeren
  * Pfadform (`/aufgabe?id=…`, niemals `/m/uav/…`).
  */
-export function TaskCard({ aufgabe, fortschritt }: Props) {
+export function TaskCard({ aufgabe, fortschritt, nurLesen = false }: Props) {
   const status = aufgabenStatus(fortschritt);
+  /*
+   * OHNE CODE ZEIGT DIE ZEILE NUR DIE AUFGABE — kein Zähler, keine
+   * Statusfarbe. Der lokale Fortschritt liegt im `localStorage` des Geräts und
+   * gehört auf einem geteilten Tablet der zuletzt angemeldeten Person; ihn
+   * anonym anzuzeigen wäre eine Auskunft über sie.
+   */
+  if (nurLesen) {
+    return (
+      <Link
+        href={`/aufgabe?id=${encodeURIComponent(aufgabe.id)}`}
+        className={styles["aufgabe-zeile"]}
+      >
+        <span className={styles["aufgabe-nummer"]}>{aufgabe.nummer}</span>
+        <span className={styles["aufgabe-titel"]}>{aufgabe.titel}</span>
+      </Link>
+    );
+  }
   return (
     <Link
       href={`/aufgabe?id=${encodeURIComponent(aufgabe.id)}`}

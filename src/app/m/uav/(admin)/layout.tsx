@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { Shell } from "@/core/shell/Shell";
 import { requireUavAdminPage } from "../_lib/requireUavAdmin";
 import { requireUavHost } from "../_lib/host";
+import { UAV_NAV } from "../_lib/nav";
 
 /**
  * Die Hülle der Verwaltung — GESCHWISTER-SEGMENT von `(teilnehmer)/layout.tsx`
@@ -19,21 +20,19 @@ import { requireUavHost } from "../_lib/host";
  * einzelnen Seite (Vorbild `radio/(ausleihe)/layout.tsx`s Kopfkommentar): eine
  * Route-Group ist Bequemlichkeit, keine Sicherheitsgrenze, und ein
  * `page.test.tsx` rendert die Seite ohnehin ohne dieses Layout.
+ *
+ * DIE EINTRAEGE STEHEN IN `_lib/nav.ts` UND NICHT HIER — dort tragen sie Zeichen und
+ * Abschnitte und koennen von einem Test gelesen werden (`_lib/nav.test.ts`,
+ * `core/shell/navIkonen.test.tsx`). Ein Literal an dieser Stelle war fuer beides
+ * unerreichbar. `_lib/` und nicht `_ui/`: die Liste ist ein WERT, den eine Server
+ * Component liest (Falle 6).
  */
 export default async function UavAdminLayout({ children }: { children: React.ReactNode }) {
   requireUavHost(await headers());
   await requireUavAdminPage();
 
   return (
-    <Shell
-      variant="full"
-      moduleKey="uav"
-      nav={[
-        { key: "teilnehmer", title: "Teilnehmer", href: "/admin" },
-        { key: "katalog", title: "Katalog", href: "/admin/katalog" },
-        { key: "training", title: "Training", href: "/" },
-      ]}
-    >
+    <Shell variant="full" moduleKey="uav" nav={UAV_NAV}>
       {children}
     </Shell>
   );

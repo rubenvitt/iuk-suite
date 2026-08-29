@@ -35,6 +35,18 @@ describe("DurchfuehrungForm", () => {
     expect(query<HTMLInputElement>("#df-datum").value).toBe("2026-06-02");
   });
 
+  /*
+   * DIE DEUTSCHE LESART NEBEN DEM FELD. Die Anzeigeform des nativen
+   * `<input type="date">` bestimmt die Sprache des BROWSERS, nicht das Dokument
+   * — mit `lang="de"` am `<html>` und einem Browser auf `de-DE` zeigte Chromium
+   * gemessen weiterhin `08/29/2026`. Diese Zeile ist die Antwort darauf; sie
+   * prueft den formatierten Text, nicht das Feld selbst.
+   */
+  it("stellt das gewählte Datum in deutscher Form neben die Beschriftung", async () => {
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" />);
+    expect(query("label[for='df-datum']").textContent).toContain("02.06.2026");
+  });
+
   it("füllt die Namensfelder aus der letzten Eingabe vor", async () => {
     await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" />);
     await fill("#df-drohnensteuerer", "Max");

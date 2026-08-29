@@ -62,7 +62,7 @@ describe("Cache-Worker: Verhalten in der nachgebauten Worker-Umgebung", () => {
   function createNetwork() {
     return vi.fn(async (input: SwRequest | string, init?: { credentials?: string }) => {
       const url = new URL(typeof input === "string" ? input : input.url, ORIGIN);
-      if (["/", "/aufgabe", "/login"].includes(url.pathname)) {
+      if (["/", "/aufgabe", "/anmelden", "/login"].includes(url.pathname)) {
         return new Response(`<html><body>${url.pathname}${init?.credentials === "omit" ? " anon" : " mit-cookies"}</body></html>`, { status: 200 });
       }
       return new Response(`asset:${url.pathname}`, { status: 200 });
@@ -124,7 +124,7 @@ describe("Cache-Worker: Verhalten in der nachgebauten Worker-Umgebung", () => {
     await sw.drain(sw.dispatch("install", navigation("/")));
 
     const shellCalls = net.mock.calls.filter(([input]) =>
-      ["/", "/aufgabe", "/login"].includes(new URL(typeof input === "string" ? input : input.url, ORIGIN).pathname),
+      ["/", "/aufgabe", "/anmelden", "/login"].includes(new URL(typeof input === "string" ? input : input.url, ORIGIN).pathname),
     );
     expect(shellCalls.length).toBeGreaterThan(0);
     for (const [, init] of shellCalls) {
@@ -132,10 +132,10 @@ describe("Cache-Worker: Verhalten in der nachgebauten Worker-Umgebung", () => {
     }
   });
 
-  it("legt alle drei Shell-Routen beim Install ab", async () => {
+  it("legt alle Shell-Routen beim Install ab", async () => {
     const sw = boot(createNetwork());
     await sw.drain(sw.dispatch("install", navigation("/")));
-    for (const path of ["/", "/aufgabe", "/login"]) {
+    for (const path of ["/", "/aufgabe", "/anmelden", "/login"]) {
       expect(sw.cachedPaths()).toContain(path);
     }
   });

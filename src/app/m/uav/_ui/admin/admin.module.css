@@ -1,0 +1,63 @@
+/*
+ * DIE FORMULARZEILEN DER VERWALTUNG.
+ *
+ * WARUM UEBERHAUPT CSS UND KEIN INLINE-STIL: die Regel, die hier zaehlt, ist eine
+ * Media Query — „Handlungsknoepfe unter 768px sind volle Breite und stehen
+ * untereinander, nie nebeneinander" (`docs/design/README.md`). Ein `style`-Attribut
+ * kann keine Media Query tragen; jede JS-Loesung dafuer waere ein zweiter Breakpoint
+ * in JavaScript und zeigte beim ersten Render die falsche Variante (ebenda: „Die
+ * Umschaltung ist CSS, nie JavaScript").
+ *
+ * 767.98px UND NICHT 768: bei exakt 768px gaelten sonst beide Seiten der Abfrage und
+ * die Reihenfolge im Stylesheet entschiede. Der Suite-Breakpoint heisst in
+ * `max-width`-Abfragen 767.98px.
+ */
+
+.formular {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+/*
+ * Ein Feld darf SCHRUMPFEN — und das ist der Teil, der ohne `min-width: 0`
+ * fehlschlaegt. Die Vorgabe `min-width: auto` eines Flex-Kindes ist der Grund, warum
+ * ein Eingabefeld eine Zeile sonst ueber den Viewport hinausschiebt, statt schmaler
+ * zu werden.
+ */
+.feld {
+  /*
+   * `0 1 280px` UND NICHT `1 1 …`: die Felder sollen SCHRUMPFEN duerfen, aber nicht
+   * wachsen. Mit `flex-grow: 1` teilten „Name" und „Beginn" auf einem 1280px breiten
+   * Bildschirm die ganze Zeile unter sich auf — zwei 400px-Felder fuer einen Vornamen
+   * und ein Datum, mit dem Knopf am rechten Rand. Gemessen, nicht geschaetzt.
+   */
+  flex: 0 1 280px;
+  min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+  .formular {
+    /*
+     * EINE SPALTE, UND `minmax(0, 1fr)` STATT `1fr`. `1fr` ist eine Kurzform fuer
+     * `minmax(auto, 1fr)` — dieselbe Falle wie oben, nur im Grid: die Spur waere so
+     * breit wie ihr breitestes Kind und die Seite liefe waagerecht ueber.
+     */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  /*
+   * ⚠️ SPEZIFITAETSERHOEHUNG MIT ABSICHT, NICHT AUS VERSEHEN — bitte beim Aufraeumen
+   * stehen lassen. Der Gegenspieler ist antds eigene Regel `.ant-btn`, und die ist
+   * (0,1,0). `.aktion` allein waere Gleichstand, und bei Gleichstand entscheidet die
+   * Dokumentreihenfolge — antds Stylesheet kommt spaeter, also verloere diese Regel
+   * still (`docs/design/README.md`, Falle 5). `.formular .aktion` ist (0,2,0) und
+   * gewinnt regulaer. Kein `!important`.
+   */
+  .formular .aktion {
+    width: 100%;
+  }
+}

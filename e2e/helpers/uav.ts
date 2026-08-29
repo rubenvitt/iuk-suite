@@ -108,7 +108,11 @@ export function fremdUrl(pfad: string): string {
 export async function warmeUavRouten(request: {
   get(url: string): Promise<unknown>;
 }): Promise<void> {
-  const routen = ["/api/anmeldung", "/api/me", "/api/tasks", "/api/progress", "/api/sync"];
+  // `/anmelden` ist KEIN Route Handler, sondern die code-lose Anmeldeflaeche
+  // (`(teilnehmer)/anmelden/page.tsx`) — sie steht trotzdem hier: Check 10
+  // navigiert dorthin, und ihre Erstuebersetzung faellt sonst in das
+  // Zeitbudget der Zusicherung statt in diesen Warmlauf.
+  const routen = ["/api/anmeldung", "/api/me", "/api/tasks", "/api/progress", "/api/sync", "/anmelden"];
   for (const pfad of routen) {
     await request.get(uavUrl(pfad)).catch(() => {});
   }

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import type { Identity } from "../../_lib/sitzung";
 import { api } from "../offline/client";
 import { syncEngine } from "../offline/syncEngine";
@@ -18,8 +17,8 @@ const IDENTITY_KEY = "uav-identity";
 /**
  * Zuletzt per `api.me()` bestätigte Identität, sitzungsweit gecacht — NICHT
  * für Zugriffsentscheidungen (die trifft ausschließlich der Server), sondern
- * nur damit die Insel bei einem Offline-Reload im selben Tab weiß, ob sie den
- * „Bitte anmelden"-Hinweis zeigen muss oder normal weiterlaufen darf.
+ * nur damit die Insel bei einem Offline-Reload im selben Tab weiß, ob sie die
+ * Erfassung zeigen darf oder auf Nur-Lesen bleibt.
  */
 function identitaetAusCache(): Identity | null {
   try {
@@ -43,12 +42,25 @@ function identitaetCachen(identity: Identity): void {
  * uav-praxis/src/pages/TeilnehmerApp.tsx. Liest die Aufgaben-ID aus der
  * äußeren Route (`?id=`, `ansicht="aufgabe"`) statt aus einem Router-Param.
  *
- * Identität: `api.me()` statt `AuthContext`. Ein Fehlschlag (offline) darf den
- * Hinweis „Bitte mit deinem Code anmelden“ NIEMALS auslösen — die Insel muss
- * offline stehen. Deshalb: solange kein erfolgreicher `api.me()`-Aufruf (in
- * dieser Tab-Sitzung oder aus `sessionStorage`) eine Nicht-Teilnehmer-Identität
- * bestätigt hat, läuft die App normal weiter; erst eine BESTÄTIGTE
- * `anon`/`admin`-Antwort zeigt den Hinweis.
+ * Identität: `api.me()` statt `AuthContext`. Ein Fehlschlag (offline) darf die
+ * Erfassung NIEMALS abschalten — die Insel muss offline stehen. Deshalb:
+ * solange kein erfolgreicher `api.me()`-Aufruf (in dieser Tab-Sitzung oder aus
+ * `sessionStorage`) eine Nicht-Teilnehmer-Identität bestätigt hat, läuft die
+ * App vollständig weiter; erst eine BESTÄTIGTE `anon`/`admin`-Antwort schaltet
+ * auf Nur-Lesen.
+ *
+ * ⛔ HIER STAND EIN SPERRBILDSCHIRM („Bitte mit deinem Code anmelden."), und er
+ * ist seit dem 2026-08-29 weg — Betreiberentscheidung: „Auf einem geteilten
+ * Tablet soll man den Aufgabenkatalog auch ohne jeden Code durchblättern können
+ * — nur lesen, nichts erfassen. Zum Eintragen einer Durchführung braucht es
+ * dann weiterhin einen Code."
+ *
+ * WAS `nurLesen` VERBIRGT, ist alles Persönliche: Fortschrittskarte, Zähler je
+ * Aufgabe, Zielanzahl, „nicht anwendbar", die Liste der Durchführungen und das
+ * Erfassungsformular. Das ist nicht nur Ton, sondern nötig: auf einem GETEILTEN
+ * Tablet steht im `localStorage` noch der Fortschritt der zuletzt angemeldeten
+ * Person (`useFortschritt`, Alt-Key `drk-drohnen-fortschritt`) — ohne diese
+ * Weiche zeigte die anonyme Ansicht deren Zähler.
  */
 export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
   const router = useRouter();
@@ -104,43 +116,36 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
     if (aktiv && !aufgabe && katalog.length > 0) router.replace("/");
   }, [aktiv, aufgabe, katalog.length, router]);
 
-  const zeigeHinweis = identity !== null && identity.kind !== "participant";
+  // Erst eine BESTÄTIGTE Nicht-Teilnehmer-Identität schaltet auf Nur-Lesen —
+  // `null` (noch unbestätigt, z. B. offline) NICHT: sonst verlöre eine
+  // Teilnehmerin im Funkloch beim ersten Laden ihr Erfassungsformular.
+  const nurLesen = identity !== null && identity.kind !== "participant";
 
   return (
     <main className={styles.app}>
-      {zeigeHinweis ? (
-        <div className={styles["anmelde-hinweis"]}>
-          <p>Bitte mit deinem Code anmelden.</p>
-          <Link href="/login" className={styles["btn-primaer"]}>
-            Anmelden
-          </Link>
+      {speicherfehler && !nurLesen && (
+        <div className={styles["speicher-warnung"]} role="alert">
+          <strong className={styles["warnung-titel"]}>Fortschritt nicht gespeichert</strong>
+          <p>
+            Der Fortschritt kann nicht gespeichert werden (Speicher voll oder nicht verfügbar).
+            Eingaben gehen beim Schließen der App verloren.
+          </p>
         </div>
-      ) : (
-        <>
-          {speicherfehler && (
-            <div className={styles["speicher-warnung"]} role="alert">
-              <strong className={styles["warnung-titel"]}>Fortschritt nicht gespeichert</strong>
-              <p>
-                Der Fortschritt kann nicht gespeichert werden (Speicher voll oder nicht verfügbar).
-                Eingaben gehen beim Schließen der App verloren.
-              </p>
-            </div>
-          )}
+      )}
 
-          {aufgabe && aufgabeFortschritt ? (
-            <TaskDetail
-              aufgabe={aufgabe}
-              fortschritt={aufgabeFortschritt}
-              heute={heute}
-              onAdd={(e) => durchfuehrungHinzufuegen(aufgabe.id, e)}
-              onRemove={(eid) => durchfuehrungEntfernen(aufgabe.id, eid)}
-              onZielanzahl={(z) => zielanzahlSetzen(aufgabe.id, z)}
-              onNichtAnwendbar={(w) => nichtAnwendbarSetzen(aufgabe.id, w)}
-            />
-          ) : (
-            <Dashboard katalog={katalog} fortschritt={fortschritt} />
-          )}
-        </>
+      {aufgabe && aufgabeFortschritt ? (
+        <TaskDetail
+          aufgabe={aufgabe}
+          fortschritt={aufgabeFortschritt}
+          heute={heute}
+          nurLesen={nurLesen}
+          onAdd={(e) => durchfuehrungHinzufuegen(aufgabe.id, e)}
+          onRemove={(eid) => durchfuehrungEntfernen(aufgabe.id, eid)}
+          onZielanzahl={(z) => zielanzahlSetzen(aufgabe.id, z)}
+          onNichtAnwendbar={(w) => nichtAnwendbarSetzen(aufgabe.id, w)}
+        />
+      ) : (
+        <Dashboard katalog={katalog} fortschritt={fortschritt} nurLesen={nurLesen} />
       )}
 
       <SyncStatus />

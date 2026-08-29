@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button, Drawer, Table, Tag } from "antd";
 import { aufgabenSortierenAction } from "../../_actions/katalog";
 import type { TaskDTO, Teil } from "../../_lib/typen";
+import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabeFormular } from "./AufgabeFormular";
 
@@ -23,6 +25,26 @@ const TEIL_TITEL: Record<Teil, string> = { 1: "Teil 1", 2: "Teil 2", 3: "Teil 3"
  * ANLEGEN/BEARBEITEN/LÖSCHEN LAUFEN ÜBER `AufgabeFormular` IM `Drawer` — die
  * Aktionen selbst liefern die aktualisierte/neue Zeile zurück, der lokale
  * State wird direkt daraus fortgeschrieben, kein zusätzlicher Refetch nötig.
+ *
+ * ══ DER `Seitenkopf` STEHT HIER UND NICHT IN `page.tsx`, UND DAS IST DIE EINZIGE
+ *    DER DREI VERWALTUNGSSEITEN, BEI DER DAS SO IST. Sein `aktionen`-Platz trägt
+ *    „Aufgabe anlegen", und dieser Knopf öffnet den `Drawer` — er braucht also
+ *    denselben Zustand wie die Tabelle. Die Alternativen wären ein Context nur für
+ *    ein Boolean oder eine zweite Client-Komponente, die den Zustand hochhebt und
+ *    danach exakt diese Datei wäre. `Seitenkopf` trägt kein `"use client"`, ist aber
+ *    reines Markup plus `next/link` und deshalb in einer Client-Insel unverändert
+ *    richtig (Vorbild `files/_ui/PosteingangTabelle.tsx`, dieselbe Bauform).
+ *    Vorher stand der Knopf in einer eigenen rechtsbündigen Zeile ÜBER der Tabelle,
+ *    ohne Bezug zur Überschrift daneben.
+ *
+ * ══ EINE SPUR, DIE SCHRUMPFEN DARF — UND DAS WAR DER GANZE MOBILE ÜBERLAUF. `/admin/katalog`
+ *    maß bei 390px Viewport `documentElement.scrollWidth === 808`, obwohl die Tabelle
+ *    ihr `scroll={{ x: "max-content" }}` längst trug. Die Ursache lag eine Ebene
+ *    darüber: ein Gitter- (wie ein Flex-) Kind hat die Vorgabe `min-width: auto` und
+ *    schrumpft deshalb NICHT unter die Inhaltsbreite seines Kindes — der eigene
+ *    Scroll-Container der Tabelle kam nie zum Zug, weil ihm niemand eine schmalere
+ *    Spur gab. `gridTemplateColumns: "minmax(0, 1fr)"` ist die Spur, die schrumpfen
+ *    darf. Kein Gate sieht das: die Zahl kennt nur ein echter Browser.
  */
 export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDTO[] }) {
   const [aufgaben, setAufgaben] = useState<TaskDTO[]>(anfangsAufgaben);
@@ -57,12 +79,16 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
   }
 
   return (
-    <div style={{ display: "grid", gap: SPACE.lg }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button type="primary" onClick={() => setNeuOffen(true)}>
-          Aufgabe anlegen
-        </Button>
-      </div>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.lg }}>
+      <Seitenkopf
+        titel="Aufgabenkatalog"
+        beschreibung="Diese Aufgaben sehen die Teilnehmer in ihrem Training. Du legst fest, in welcher Reihenfolge sie erscheinen, wie oft jede geübt werden soll und welche gerade gilt."
+        aktionen={
+          <Button type="primary" onClick={() => setNeuOffen(true)}>
+            Aufgabe anlegen
+          </Button>
+        }
+      />
 
       <Table<TaskDTO>
         rowKey="id"
@@ -71,17 +97,17 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
         scroll={{ x: "max-content" }}
         locale={{ emptyText: "Noch keine Aufgaben im Katalog." }}
         columns={[
-          { title: "Teil", key: "teil", render: (_: unknown, a: TaskDTO) => TEIL_TITEL[a.teil] },
-          { title: "Nummer", key: "nummer", render: (_: unknown, a: TaskDTO) => a.nummer },
-          { title: "Titel", key: "titel", render: (_: unknown, a: TaskDTO) => a.titel },
-          { title: "Ziel", key: "ziel", render: (_: unknown, a: TaskDTO) => a.zielanzahlDefault },
+          { title: <span style={SCHRIFT.kicker}>Teil</span>, key: "teil", render: (_: unknown, a: TaskDTO) => TEIL_TITEL[a.teil] },
+          { title: <span style={SCHRIFT.kicker}>Nummer</span>, key: "nummer", render: (_: unknown, a: TaskDTO) => a.nummer },
+          { title: <span style={SCHRIFT.kicker}>Titel</span>, key: "titel", render: (_: unknown, a: TaskDTO) => a.titel },
+          { title: <span style={SCHRIFT.kicker}>Ziel</span>, key: "ziel", render: (_: unknown, a: TaskDTO) => a.zielanzahlDefault },
           {
-            title: "Aktiv",
+            title: <span style={SCHRIFT.kicker}>Aktiv</span>,
             key: "aktiv",
             render: (_: unknown, a: TaskDTO) => <Tag color={a.aktiv ? "green" : "default"}>{a.aktiv ? "aktiv" : "inaktiv"}</Tag>,
           },
           {
-            title: "Bild",
+            title: <span style={SCHRIFT.kicker}>Bild</span>,
             key: "bild",
             render: (_: unknown, a: TaskDTO) =>
               a.bildUrl ? (
@@ -92,7 +118,7 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
               ),
           },
           {
-            title: "Reihenfolge",
+            title: <span style={SCHRIFT.kicker}>Reihenfolge</span>,
             key: "reihenfolge",
             render: (_: unknown, a: TaskDTO, index: number) => (
               <div style={{ display: "flex", gap: SPACE.xs }}>
@@ -110,7 +136,7 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
             ),
           },
           {
-            title: "Aktionen",
+            title: <span style={SCHRIFT.kicker}>Aktionen</span>,
             key: "aktionen",
             render: (_: unknown, a: TaskDTO) => <Button onClick={() => setBearbeiten(a)}>Bearbeiten</Button>,
           },

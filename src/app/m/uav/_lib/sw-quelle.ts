@@ -86,9 +86,20 @@ const CACHE = "uav-pwa-v1";
 const NAV_FALLBACK = "/";
 
 /**
- * Die drei Shell-Routen der Teilnehmer-Insel, offline erreichbar.
+ * Die Shell-Routen der Teilnehmer-Insel, offline erreichbar.
+ *
+ * ACHTUNG, KEINE RUECKWAERTSHOCHKOMMAS IN DIESEM KOMMENTAR: dieser Quelltext
+ * liegt in einem Template-Literal (UAV_SW_CACHE_QUELLE), ein Hochkomma beendet
+ * es und der Parser bricht mitten in einem Satz ab.
+ *
+ * /anmelden steht mit in der Liste, seit es die code-lose Adresse der
+ * Anmeldeflaeche ist (siehe (teilnehmer)/anmelden/page.tsx): sie ist der Weg
+ * zurueck in die App, wenn die Sitzung im Funkloch ablaeuft — genau dort
+ * braucht man sie aus dem Cache. /login bleibt daneben stehen; ohne
+ * code-Parameter liefert diese Adresse zwar den Suite-Login, mit ihm aber den
+ * Magic-Link-Weg, und der ist der haeufigste Einstieg ueberhaupt.
  */
-const SHELL_ROUTES = [NAV_FALLBACK, "/aufgabe", "/login"];
+const SHELL_ROUTES = [NAV_FALLBACK, "/aufgabe", "/anmelden", "/login"];
 
 /** Wie lange eine geholte Offline-Fassung als frisch genug gilt, siehe qr. */
 const SHELL_MAX_AGE_MS = 5 * 60 * 1000;
