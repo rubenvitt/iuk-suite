@@ -19,10 +19,12 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * wer „Training" liest, erwartet eine weitere Einstellflaeche und landet in der
  * Trainingsansicht. Die Ueberschrift sagt es vorher.
  *
- * ⚠️ `uav` STEHT IM REGISTRY MIT `shell: "minimal"` — das gilt fuer den
- * Teilnehmer-Zweig. Die Verwaltung setzt `variant="full"` ausdruecklich
- * (`(admin)/layout.tsx`), diese Eintraege landen also in der Seitenleiste der
- * `FullShell`. `core/shell/navAbschnitte.test.ts` fuehrt `uav` deshalb als benannte
+ * ⚠️ `uav` STEHT IM REGISTRY MIT `shell: "minimal"`, UND DIESER WERT IST HEUTE
+ * TOT: der Teilnehmer-Zweig laeuft seit der Betreiberentscheidung vom
+ * 2026-08-29 ganz ohne `<Shell>` (eigener Rahmen,
+ * `_ui/teilnehmer/TeilnehmerRahmen.tsx`), und die Verwaltung setzt
+ * `variant="full"` ausdruecklich (`(admin)/layout.tsx`). Diese Eintraege landen
+ * also in der Seitenleiste der `FullShell` — unabhaengig vom Registry-Wert. `core/shell/navAbschnitte.test.ts` fuehrt `uav` deshalb als benannte
  * Ausnahme seiner Markierung „bislang vergibt nur ein `full`-Modul `abschnitt`" — der
  * Test ist genau dafuer da, dass dieser Fall eine bewusste Entscheidung ist und keine
  * zufaellige.

@@ -89,26 +89,80 @@ test("/api/admin/participants/export löst zur Export-Route auf, nicht zur [id]-
   expect(text).toContain('"Name","Beginn","Erledigt","Gesamt","Quote","LetzteAktivität","Status"');
 });
 
-test("Verwaltung und Teilnehmer-Ansicht tragen je genau eine Kopfzeile (Check 2)", async ({ page }) => {
+test("Die Verwaltung trägt genau eine Kopfzeile, die Teilnehmer-Ansicht gar keine (Check 2)", async ({
+  page,
+}) => {
   await devLogin(page, { host: UAV_HOST, groups: UAV_ADMIN_GRUPPE, callbackPath: "/admin" });
   await expect(page.getByTestId("suite-header")).toHaveCount(1);
-  // `(admin)/layout.tsx` trägt `variant="full"` (`FullShell`) — die
-  // `MinimalShell` des äußeren `(teilnehmer)/layout.tsx` darf hier NICHT
-  // zusätzlich rendern (genau das wäre die doppelte Hülle aus Check 2).
+  // `(admin)/layout.tsx` trägt `variant="full"` (`FullShell`) — eine
+  // `MinimalShell` darf hier NICHT zusätzlich rendern (genau das wäre die
+  // doppelte Hülle aus Check 2).
   await expect(page.getByTestId("minimal-shell")).toHaveCount(0);
 
-  // Teilnehmer-Zweig separat prüfen: eigener Login-Mechanismus (Magic-Link-
-  // Cookie `sid`, kein Auth.js) — Cookies erst leeren (dieselbe Bauform wie
-  // `wechsleAnmeldung`, Falle „laufende /api/auth/session-Antwort setzt den
-  // Cookie neu"), dann frisch als Teilnehmer anmelden.
+  /*
+   * ⛔ DIE ZWEITE HÄLFTE HAT SICH UMGEDREHT — BETREIBERENTSCHEIDUNG 2026-08-29.
+   *
+   * Hier stand: der Teilnehmer-Zweig trägt genau EINE `suite-header` und genau
+   * EINE `minimal-shell`. Das war die Zusage zu Aufgabe 15. Der Betreiber hat
+   * sie aufgehoben: „anonymer Zugriff muss möglich sein und im Kiosk Mode ohne
+   * Shell auch für Teilnehmer." Die Trainingsansicht läuft seither ohne jede
+   * Suite-Hülle in ihrem eigenen, schlanken Rahmen
+   * (`_ui/teilnehmer/TeilnehmerRahmen.tsx`) — Vorbild sind `radio/(ausleihe)`
+   * und `lagerbuch/helfer`.
+   *
+   * Was die Zusage BLEIBT, ist ihr Kern: die beiden Zweige dürfen sich ihre
+   * Hüllen nicht gegenseitig unterschieben. Deshalb wird hier weiterhin
+   * gezählt — nur eben auf null. Ein `<Shell>` im Teilnehmer-Zweig ist ab
+   * jetzt der Defekt, nicht seine Abwesenheit.
+   *
+   * Teilnehmer-Zweig separat prüfen: eigener Login-Mechanismus (Magic-Link-
+   * Cookie `sid`, kein Auth.js) — Cookies erst leeren (dieselbe Bauform wie
+   * `wechsleAnmeldung`, Falle „laufende /api/auth/session-Antwort setzt den
+   * Cookie neu"), dann frisch als Teilnehmer anmelden.
+   */
   await page.goto("about:blank");
   await page.context().clearCookies();
   await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
   await page.waitForURL((url) => url.pathname !== "/login");
-  await expect(page.getByTestId("suite-header")).toHaveCount(1);
-  // `(teilnehmer)/layout.tsx` trägt `variant={mod.shell}` = `"minimal"`
-  // (Registry) — genau EINE `MinimalShell`, keine zweite/verschachtelte.
-  await expect(page.getByTestId("minimal-shell")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Drohnen-Trainingsbegleiter" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("suite-header")).toHaveCount(0);
+  await expect(page.getByTestId("minimal-shell")).toHaveCount(0);
+  // Und der eigene Rahmen ist wirklich da — sonst wäre „keine Kopfzeile" auch
+  // dann grün, wenn die ganze Hülle fehlte.
+  await expect(page.locator("[data-rolle='uav-verwaltungslink']")).toHaveCount(1);
+});
+
+/*
+ * DER WEG IN DIE APP UND DER WEG IN DIE VERWALTUNG — beide anonym, beide
+ * sichtbar. Gemessen am 2026-08-29 fehlte beides: der Hinweis sagte „Bitte mit
+ * deinem Code anmelden", sein Knopf führte auf `/login`, und dort steht ohne
+ * `code`-Parameter der Suite-Login mit Pocket ID statt eines Code-Feldes
+ * (`core/routing.ts` schreibt `/login` nur MIT nichtleerem `code` ins Modul um).
+ * Der Verwaltungseintrag wiederum hing an `canAdminModule("uav")` — einer
+ * Bedingung, die am Einstieg nie wahr ist.
+ */
+test("anonym führen beide Wege irgendwohin: Code-Feld und Verwaltung (Check 10)", async ({
+  page,
+}) => {
+  await page.goto("about:blank");
+  await page.context().clearCookies();
+  const start = await page.goto(uavUrl("/"));
+  expect(start?.status()).toBe(200);
+
+  // Der Verwaltungsweg steht im eigenen Rahmen — OHNE vorherige Anmeldung, und
+  // mit `callbackUrl`, damit man danach in der Verwaltung landet und nicht
+  // wieder auf der Trainingsansicht.
+  const verwaltung = page.locator("[data-rolle='uav-verwaltungslink']");
+  await expect(verwaltung).toBeVisible();
+  await expect(verwaltung).toHaveAttribute("href", "/api/auth/signin?callbackUrl=%2Fadmin");
+
+  // Und der Knopf des Hinweises führt auf ein echtes Code-Feld (`/anmelden`),
+  // nicht auf den Pocket-ID-Login.
+  await klickeWennRuhig(page.getByRole("link", { name: "Mit Code anmelden" }));
+  await expect(page).toHaveURL(uavUrl("/anmelden"));
+  await expect(page.locator("#login-code")).toBeVisible();
 });
 
 test("PWA: Manifest im HTML, sw.js im Modus 'cachen', fremder Host liefert 404 (Check 4)", async ({
@@ -249,6 +303,14 @@ test("Erfassung offline → online → in der Verwaltung sichtbar (Check 7)", as
   const antwort = await syncAntwort;
   expect(antwort.status()).toBe(200);
 
+  /*
+   * „Synchronisiert" ist seit 2026-08-29 eine BESTAETIGUNG UND KEIN DAUERZUSTAND
+   * (`_ui/teilnehmer/SyncStatus.tsx`): der Chip zeigt sich nur noch nach einer
+   * Stoerung — hier also genau nach dem Offline-Fenster oben — und blendet sich
+   * nach sechs Sekunden aus. Die Zusage gilt deshalb unveraendert, aber sie hat
+   * ein Zeitfenster; ohne die vorangehende Offline-Phase gaebe es den Chip gar
+   * nicht mehr zu sehen.
+   */
   await expect(page.getByText("Synchronisiert")).toBeVisible();
 
   // Als Admin (devLogin mit Gruppe, frischer Kontext) das Detail öffnen:

@@ -1,22 +1,29 @@
 /*
  * Teilnehmer-Ansicht von `uav` — PUBLIC-Ansicht (docs/design/README.md): kein
- * antd, kein `--ant-*`-Token. `.app` trägt deshalb einen eigenen, vollständigen
- * Satz Oberflächen-Variablen (`--uav-*`), 1:1 die Werte aus
+ * antd, kein `--ant-*`-Token. `.rahmen` trägt deshalb einen eigenen,
+ * vollständigen Satz Oberflächen-Variablen (`--uav-*`), 1:1 die Werte aus
  * `uav-praxis/src/design/tokens.css`, nur umbenannt und hierher gescoped statt
  * auf `:root` — ein CSS-Modul kann `:root` ohnehin nicht scopen, und globale
  * Namen wären eine Kollision, die erst in einem fremden Modul auffiele.
+ *
+ * ⚠️ DIE VARIABLEN STEHEN AN `.rahmen`, NICHT MEHR AN `.app` — seit der Zweig
+ * ohne `<Shell>` läuft (Betreiberentscheidung 2026-08-29,
+ * `_ui/teilnehmer/TeilnehmerRahmen.tsx`). Der Rahmen ist der äußerste Knoten
+ * dieses Zweigs und färbt auch seine Kopfleiste; `.app` liegt IMMER darin und
+ * erbt sie. An beiden Stellen zu deklarieren wären zwei Paletten, die beim
+ * nächsten Anfassen auseinanderlaufen.
  *
  * `--uav-akzent` ist `var(--iuk-marke)` (globals.css) — die Suite-Markenfarbe,
  * damit die Teilnehmer-Ansicht farblich zur Suite gehört, ohne selbst Rot neu
  * zu erfinden. Alles andere (Papier/Flächen/Tinte) bleibt eigen, weil ohne
  * antd kein Theme-Provider diese Rollen liefert.
  *
- * WARUM `:root[data-theme="dark"] .app` UND NICHT `prefers-color-scheme`: der
- * Umschalter der Suite hat drei Zustände (`auto|light|dark`), aufgelöst auf
+ * WARUM `:root[data-theme="dark"] .rahmen` UND NICHT `prefers-color-scheme`:
+ * der Umschalter der Suite hat drei Zustände (`auto|light|dark`), aufgelöst auf
  * `<html data-theme>` — eine Medienabfrage sähe „System dunkel, Umschalter
  * hell" nicht (docs/design/README.md).
  */
-.app {
+.rahmen {
   --uav-tinte: #16181d;
   --uav-stahl: #6b7280;
   --uav-stahl-hell: #9aa0a6;
@@ -32,39 +39,21 @@
   --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
 
   /*
-   * KEINE EIGENE `max-width` MEHR, UND KEIN `margin: 0 auto`.
-   *
-   * Der Teilnehmer-Zweig rendert ausschlieszlich in der `MinimalShell`
-   * (`(teilnehmer)/layout.tsx`), und die begrenzt ihren Inhalt bereits auf
-   * 640px und zentriert ihn (`core/shell/MinimalShell.tsx`). Eine zweite
-   * Begrenzung auf denselben Wert an derselben Stelle ist keine Absicherung,
-   * sondern eine zweite Zahl, die beim naechsten Anfassen auseinanderlaeuft.
-   * `.login` setzt weiterhin eine EIGENE, ENGERE Breite (420px) — das ist eine
-   * andere Aussage und bleibt.
-   *
-   * DIE SEITENPOLSTERUNG GEHT UNTER 768px AUF NULL (Regel am Dateiende): den
-   * Seitenrand des Telefons traegt dort der Shell-Content (`SPACE.lg` = 16px,
-   * `core/shell/SuiteRahmen.tsx`). Gemessen auf 390px: mit beiden Polstern
-   * begann der Text bei 32px und es blieben 326px Textbreite — ein Sechstel der
-   * Bildbreite ging fuer zwei Raender derselben Sache drauf. Der Shell-Rand ist
-   * Suite-Eigentum und wird hier NICHT verbogen; was diese Flaeche bestimmen
-   * darf, ist ihr eigener Rand, und der ist auf dem Telefon ueberzaehlig.
+   * `min-height: 100dvh` UND `flex-direction: column`, damit `.app` als
+   * wachsendes Kind den Rest der Höhe bekommt — daran hängt die senkrechte
+   * Mitte der Anmeldefläche, die dadurch OHNE eigene Höhenrechnung auskommt.
+   * KEIN `height` und KEIN `overflow: hidden` (das wäre `KioskShell`): jede
+   * Fläche dieses Zweigs ist länger als ein Telefonbildschirm.
    */
-  /*
-   * DIE 96px UNTEN SIND DIE FREIHALTUNG FÜR DEN SYNC-CHIP, und sie bleiben.
-   * Gemessen auf 390px bricht seine längste Meldung („Offline — Änderungen
-   * werden gespeichert") auf zwei Zeilen und wird 58px hoch; mit 16px Abstand
-   * zur Kante braucht er 74px. Am Seitenende verdeckt er damit nichts —
-   * mittendrin schwebt er weiterhin über dem Inhalt, aber er zeigt sich seit
-   * `SyncStatus.tsx` nur noch, wenn etwas zu melden ist.
-   */
-  padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
   font-family: var(--font-body, system-ui, sans-serif);
   color: var(--uav-tinte);
   background: var(--uav-papier);
 }
 
-:root[data-theme="dark"] .app {
+:root[data-theme="dark"] .rahmen {
   --uav-tinte: #e8e9ec;
   --uav-stahl: #a1a7b0;
   --uav-stahl-hell: #71777f;
@@ -75,6 +64,104 @@
   --uav-warnung: #f59e0b;
   --uav-akzent-weich: #2a1417;
   --uav-schatten: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ── Eigene Kopfleiste (ersetzt die Suite-Kopfzeile) ──────────────── */
+
+/* Der Markenstreifen — dieselbe Geste wie in der Suite-Hülle, 5px. */
+.rahmen-streifen {
+  flex: none;
+  height: 5px;
+  background: var(--uav-akzent);
+}
+
+.rahmen-kopfleiste {
+  flex: none;
+  border-block-end: 1px solid var(--uav-linie);
+  background: var(--uav-papier);
+}
+
+/*
+ * Dieselbe Spalte wie der Inhalt (640px, zentriert, 16px Rand): Wortmarke und
+ * Überschrift stehen damit auf einer Fluchtlinie.
+ */
+.rahmen-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 640px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.rahmen-marke {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  font-family: var(--font-display, var(--font-body, system-ui, sans-serif));
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--uav-tinte);
+  text-decoration: none;
+  /* Der Modulname ist eine Marke und bricht nicht um; schmal genug ist er. */
+  white-space: nowrap;
+}
+
+/*
+ * Die Nebentür in die Verwaltung: 56px hoch wie jedes Bedienelement dieser
+ * Fläche (Falle 4), aber grau und klein gesetzt — sie ist nicht gleichrangig
+ * zum Training.
+ */
+.rahmen-neben {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  font-size: 0.9rem;
+  color: var(--uav-stahl);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.rahmen-marke:focus-visible,
+.rahmen-neben:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+  border-radius: var(--uav-radius-s);
+}
+
+.rahmen-neben:hover {
+  color: var(--uav-akzent);
+}
+
+/*
+ * DIE INHALTSSPALTE — und seit dem Wegfall der `MinimalShell` bestimmt sie ihre
+ * Breite und ihre Ränder ALLEIN.
+ *
+ * Vorher lagen drei Begrenzungen ineinander: `SuiteRahmen`s `<Content>` mit
+ * 16px Polster, `MinimalShell`s 640px-Spalte und diese hier mit nochmals 640px
+ * und 16px. Gemessen auf 390px begann der Text dadurch erst bei 32px und es
+ * blieben 326px — ein Sechstel der Bildbreite für zwei Ränder derselben Sache.
+ * Mit dem eigenen Rahmen bleibt EIN Rand von 16px, und die Textbreite steigt
+ * auf 358px.
+ *
+ * `flex: 1`: die Spalte füllt den Rest der Rahmenhöhe. Nur deshalb kann
+ * `.login` senkrecht mittig stehen, ohne die Höhe der Kopfleiste zu kennen.
+ *
+ * DIE 96px UNTEN SIND DIE FREIHALTUNG FÜR DEN SYNC-CHIP. Gemessen auf 390px
+ * bricht seine längste Meldung („Offline — Änderungen werden gespeichert") auf
+ * zwei Zeilen und wird 58px hoch; mit 16px Abstand zur Kante braucht er 74px.
+ * Am Seitenende verdeckt er damit nichts — mittendrin schwebt er weiterhin
+ * über dem Inhalt, aber er zeigt sich seit `SyncStatus.tsx` nur noch, wenn
+ * etwas zu melden ist.
+ */
+.app {
+  flex: 1;
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
 }
 
 /* ── Kopf ─────────────────────────────────────────────────────────── */
@@ -640,12 +727,16 @@
 /* ── Hinweis „bitte anmelden" (kein Teilnehmer, offline muss die Insel
    trotzdem stehen — deshalb kein Redirect, siehe TeilnehmerApp.tsx) ─── */
 .anmelde-hinweis {
-  margin: 40px 0;
-  padding: 20px;
+  margin: 24px 0;
+  padding: 24px 20px;
   border: 1px solid var(--uav-linie);
   border-radius: var(--uav-radius);
   background: var(--uav-flaeche);
   text-align: center;
+}
+
+.anmelde-hinweis .kopf-titel {
+  margin: 0 0 12px;
 }
 
 .anmelde-hinweis p {
@@ -654,23 +745,36 @@
   line-height: 1.5;
 }
 
+.anmelde-hinweis .eyebrow {
+  margin-bottom: 6px;
+  color: var(--uav-akzent);
+}
+
+/*
+ * Der Knopf über die volle Breite: unter 768px stehen Handlungsknöpfe voll
+ * breit und untereinander (docs/design/README.md). Als Inline-Element mitten
+ * auf einer leeren Fläche sah er aus wie ein Etikett, nicht wie das eine, was
+ * hier zu tun ist.
+ */
+.anmelde-hinweis .btn-primaer {
+  width: 100%;
+}
+
 /* ── Teilnehmer-Login ─────────────────────────────────────────────── */
 /*
- * `100dvh` MINUS DER HUELLE, nicht `100dvh`: die Anmeldung sitzt in der
- * `MinimalShell`, ueber ihr stehen der Markenstreifen (5px), die Kopfzeile
- * (64px) und die Polsterung des Shell-Inhalts (2 × 16px) — zusammen 101px.
- * Mit vollen `100dvh` war die Seite auf einem 844px hohen Bildschirm 945px
- * hoch: ein Bildlauf ueber eine knapp halb gefuellte Anmeldemaske, allein weil
- * die Rechnung die Huelle nicht kannte. `104px` statt `101` — drei Pixel Luft,
- * damit ein gerundeter Wert nicht doch einen Bildlauf ausloest.
+ * KEINE EIGENE HOEHENRECHNUNG MEHR. `.app` ist als `flex: 1`-Kind von
+ * `.rahmen` (min-height 100dvh) ohnehin so hoch wie der Rest des Bildschirms;
+ * `justify-content: center` setzt die Maske damit in dessen Mitte, ohne eine
+ * Kopfzeilenhoehe zu kennen. Vorher stand hier `min-height: 100dvh` — INNERHALB
+ * der Suite-Huelle, deren Kopfzeile oben drauf kam: die Anmeldeseite war auf
+ * einem 844px hohen Bildschirm 945px hoch und scrollte ohne Inhalt.
  */
 .login {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: calc(100dvh - 104px);
   max-width: 420px;
-  padding: 24px 20px calc(48px + env(safe-area-inset-bottom));
+  padding: 24px 16px calc(48px + env(safe-area-inset-bottom));
 }
 
 .login-kopf {
@@ -754,28 +858,6 @@
   border-radius: var(--uav-radius-s);
 }
 
-/*
- * Auch ein Textlink ist ein Ziel fuer einen Daumen: `min-height` 56px wie
- * jedes andere Bedienelement dieser Flaeche (56/72 gilt ohne `FullShell`,
- * docs/design/README.md, Falle 4).
- */
-.verwaltung-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 56px;
-  margin-top: 16px;
-  text-align: center;
-  font-size: 0.9rem;
-  color: var(--uav-stahl);
-}
-
-.verwaltung-link:focus-visible {
-  outline: 2px solid var(--uav-akzent);
-  outline-offset: 2px;
-  border-radius: var(--uav-radius-s);
-}
-
 /* ── Sync-Indikator ───────────────────────────────────────────────────
  *
  * Der Chip schwebt weiterhin ueber dem Inhalt — aber nur noch, wenn er etwas
@@ -829,32 +911,18 @@
   background: var(--uav-akzent);
 }
 
-/* ── Schmale Geräte ───────────────────────────────────────────────────
+/*
+ * HIER STAND EINE REGEL, DIE UNTER 768px `padding-inline: 0` SETZTE — sie ist
+ * mit der Suite-Huelle weggefallen und darf nicht zurueckkommen.
  *
- * DER SUITE-BREAKPOINT, KEIN ZWEITER: 767.98px ist die `max-width`-Form der
- * 768px aus `core/shell/shell-css.test.ts` (bei exakt 768 gälten sonst beide
- * Seiten und die Reihenfolge im Stylesheet entschiede).
- *
- * Unter dieser Breite traegt den Seitenrand allein der Shell-Content (16px,
- * `SPACE.lg`). Der eigene Rand dieser Flaeche faellt weg — er stand dort
- * ZUSAETZLICH und kostete auf 390px 32 von 390 Pixeln, also ein Sechstel der
- * Bildbreite fuer denselben Zweck. Auf dem Schreibtisch bleibt er: dort ist
- * Platz, und die 640px-Spalte braucht ihren Innenabstand zur Kante.
- *
- * `.login` steht mit in der Regel: sie traegt `.app` UND `.login`, beide
- * (0,1,0) — ohne den zweiten Selektor hier gewaenne die spaetere
- * `.login`-Kurzform `padding` die Kaskade und die Anmeldemaske behielte ihre
- * 20px.
+ * Ihr Sinn war, den ZWEITEN Seitenrand loszuwerden: `SuiteRahmen`s `<Content>`
+ * gab 16px, `.app` noch einmal 16px, macht 32px je Seite und auf 390px ein
+ * Sechstel der Bildbreite. Seit der Zweig ohne `<Shell>` laeuft
+ * (`_ui/teilnehmer/TeilnehmerRahmen.tsx`), gibt es diesen zweiten Rand nicht
+ * mehr: `.app` traegt den einzigen, und auf 0 gesetzt klebte der Text an der
+ * Bildkante. Der Breakpoint der Suite (768px) wird auf dieser Flaeche damit
+ * gar nicht gebraucht.
  */
-@media (max-width: 767.98px) {
-  .app {
-    padding-inline: 0;
-  }
-
-  .login {
-    padding-inline: 0;
-  }
-}
 
 /*
  * Bewegung nur, wo sie gewuenscht ist (docs/design/README.md, Barrierefreiheit).

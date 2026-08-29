@@ -109,10 +109,32 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
   return (
     <main className={styles.app}>
       {zeigeHinweis ? (
+        /*
+         * DIE ERSTE FLÄCHE, DIE EINE TRAINIERENDE PERSON SIEHT — und bis
+         * hierher stand darauf ein Satz und ein Knopf.
+         *
+         * Sie sagte weder, was diese App ist, noch woher man einen Code
+         * bekommt; und der Knopf führte auf `/login`, wo ohne `code`-Parameter
+         * der Suite-Login mit Pocket ID steht statt eines Code-Feldes
+         * (`core/routing.ts`). Deshalb: Name, ein Satz zur Sache, die Herkunft
+         * des Codes — und der Knopf auf `/anmelden`, die code-lose Adresse
+         * derselben Anmeldefläche (`_ui/teilnehmer/AnmeldeFlaeche.tsx`).
+         *
+         * Der Weg in die Verwaltung steht NICHT hier, sondern klein und grau in
+         * der Kopfleiste des Rahmens (`_ui/teilnehmer/TeilnehmerRahmen.tsx`) —
+         * dort trägt ihn jede Fläche dieses Zweigs, und er steht auf jedem
+         * Bildschirm an derselben Stelle.
+         */
         <div className={styles["anmelde-hinweis"]}>
-          <p>Bitte mit deinem Code anmelden.</p>
-          <Link href="/login" className={styles["btn-primaer"]}>
-            Anmelden
+          <p className={styles.eyebrow}>Training · BOS</p>
+          <h1 className={styles["kopf-titel"]}>Drohnen-Trainingsbegleiter</h1>
+          <p>
+            Dein Trainingsplan mit allen Übungen, Durchführungen und Nachweisen — auch ohne Netz.
+            Zum Öffnen brauchst du deinen persönlichen Code; den bekommst du von deiner
+            Kursleitung.
+          </p>
+          <Link href="/anmelden" className={styles["btn-primaer"]}>
+            Mit Code anmelden
           </Link>
         </div>
       ) : (
