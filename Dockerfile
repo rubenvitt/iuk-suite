@@ -55,6 +55,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/files/_db/migrations ./
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/lagerbuch/_db/migrations ./src/app/m/lagerbuch/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/aufgaben/_db/migrations ./src/app/m/aufgaben/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/radio/_db/migrations ./src/app/m/radio/_db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/uav/_db/migrations ./src/app/m/uav/_db/migrations
 # core führt seit dem Sitzungswiderruf eine eigene Datenbank (`CORE_MIGRATIONS`).
 COPY --from=builder --chown=nextjs:nodejs /app/src/core/konto/_db/migrations ./src/core/konto/_db/migrations
 

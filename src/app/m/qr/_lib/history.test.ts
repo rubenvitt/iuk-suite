@@ -6,7 +6,6 @@ import {
   addEntry,
   clearHistory,
   recordEntry,
-  randomId,
   subscribeHistory,
   setHistoryOwner,
   getHistorySnapshot,
@@ -304,12 +303,6 @@ describe("Verlauf ist an die Sitzung gebunden", () => {
 });
 
 /**
- * `crypto.randomUUID` gibt es nur im Secure Context. Im Einsatz laeuft die App
- * auch mal ueber http auf einer LAN-IP — dort ist die Funktion schlicht nicht
- * da, und ein direkter Aufruf risse die Seite mit einem TypeError ab, statt
- * einen Verlaufseintrag anzulegen.
- */
-/**
  * Der Verlauf ist ein externer Speicher: der Server kennt ihn nicht, der
  * Browser schon. `useSyncExternalStore` verlangt dafür einen Schnappschuss, der
  * bei unveränderten Daten IDENTISCH bleibt — gäbe getSnapshot jedes Mal ein
@@ -459,19 +452,6 @@ describe("Tab-Synchronisierung", () => {
   });
 });
 
-describe("randomId", () => {
-  it("liefert eindeutige Werte", () => {
-    const ids = new Set(Array.from({ length: 100 }, () => randomId()));
-    expect(ids.size).toBe(100);
-  });
-
-  it("funktioniert ohne crypto.randomUUID", () => {
-    const original = globalThis.crypto;
-    Object.defineProperty(globalThis, "crypto", { value: {}, configurable: true });
-    try {
-      expect(randomId()).toMatch(/^\d+-[a-z0-9]+$/);
-    } finally {
-      Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
-    }
-  });
-});
+// `randomId` selbst (Eindeutigkeit, Fallback ohne crypto.randomUUID) ist nach
+// `src/core/zufallsId.ts` gehoben und dort getestet (`zufallsId.test.ts`) —
+// `history.ts` importiert sie nur noch, kein lokaler Nachbau mehr hier.

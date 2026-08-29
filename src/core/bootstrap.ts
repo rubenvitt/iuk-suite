@@ -13,6 +13,7 @@ import { seedFeedback } from "@/app/m/feedback/_lib/seed";
 import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot";
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
 import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot";
+import { uavBootFehler } from "@/app/m/uav/_lib/boot";
 import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
@@ -55,6 +56,9 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // Anmeldung Geraete ausleihen und zurueckgeben. Das lokale Seed-Skript deckt den
   // Entwicklungsbetrieb vollstaendig ab.
   { key: "radio", migrationsFolder: "src/app/m/radio/_db/migrations" },
+  // uav: OHNE Schema-Import und OHNE Boot-Seed — ein geseedeter Teilnehmer-Code wäre in einer
+  // Generalprobe (SUITE_SEED=1) ein gültiger anonymer Zugang. Das lokale Seed-Skript deckt Dev ab.
+  { key: "uav", migrationsFolder: "src/app/m/uav/_db/migrations" },
 ];
 
 /**
@@ -101,6 +105,9 @@ export async function assertHostConfig(): Promise<void> {
     // Sie läuft VOR migrateAllModules() (`src/instrumentation.ts:55` vor `:56`) und liest
     // deshalb KEINE Tabelle — bewacht in `src/app/m/radio/_lib/boot.test.ts`.
     ...(await radioBootFehler()),
+    // uav: greift nur bei gesetztem SUITE_HOST_UAV und WIRFT NIE (Spec 2026-08-28 §5).
+    // Sie läuft VOR migrateAllModules() und liest deshalb KEINE Tabelle.
+    ...(await uavBootFehler()),
   ];
   if (errors.length > 0) {
     throw new Error(`Ungültige Host-Konfiguration:\n  - ${errors.join("\n  - ")}`);

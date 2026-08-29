@@ -7,6 +7,7 @@ import { AV_MODUS_DATEI } from "./e2e/helpers/avModus";
 import { AUFGABEN_ENV } from "./e2e/helpers/aufgaben";
 import { LAGERBUCH_ENV } from "./e2e/helpers/lagerbuch";
 import { RADIO_ENV } from "./e2e/helpers/radio";
+import { UAV_ENV } from "./e2e/helpers/uav";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -154,8 +155,20 @@ export default defineConfig({
        * beide auf den Boot, den `SUITE_SEED=1` in der Generalprobe wahr macht. Ein
        * `pnpm exec tsx`-Aufruf vor `next dev` erreicht ihn nicht.
        */
+      /*
+       * `scripts/seed-lokal.ts uav` NACH `radio` (Task 21): dasselbe Muster wie
+       * `aufgaben`/`radio` oben — `uav` steht in `MODULE_MIGRATIONS` ohne
+       * Eintrag in `seedAllModules()` (`_lib/seedLokal.ts`s Kopfkommentar:
+       * ein geseedeter Teilnehmer-Code waere am Boot-Pfad ein gueltiger
+       * anonymer Zugang, `SUITE_SEED=1` ist der Generalproben-Schalter). Ohne
+       * diese Zeile faende `e2e/uav.spec.ts` weder die Codes `E2ETEST1`/
+       * `E2EGESP2` noch die drei Aufgaben (`1-1`/`1-2`/`2-1`) noch die zwei
+       * vorbelegten Durchfuehrungen zu `1-1` — die Grundlage des
+       * Offline-Sync-Checks (Aufgabe 21, Check 7: „anzahl 1-1 ist 1 mehr als
+       * die 2 aus dem Seed").
+       */
       command:
-        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && next dev -p 3100",
+        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && next dev -p 3100",
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
@@ -324,6 +337,12 @@ export default defineConfig({
          * `.superpowers/sdd/planteil4/VORABSCAN.md`, Fund F24.
          */
         ...RADIO_ENV,
+        /*
+         * Die uav-Zeilen (`SUITE_ADMIN_GROUP_UAV`, `UAV_SW_MODUS`), aus
+         * derselben Quelle wie `devLogin(…, { groups })` in `e2e/uav.spec.ts`
+         * (`e2e/helpers/uav.ts`) — dieselbe Bauform wie `...RADIO_ENV` darueber.
+         */
+        ...UAV_ENV,
       },
     },
   ],

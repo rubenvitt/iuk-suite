@@ -8,6 +8,7 @@ import {
   FolderOutlined,
   GlobalOutlined,
   QrcodeOutlined,
+  RocketOutlined,
   ScheduleOutlined,
   WifiOutlined,
 } from "@ant-design/icons";
@@ -146,4 +147,5 @@ export const ICONS: Record<string, ComponentType> = {
   ContainerOutlined,
   ScheduleOutlined,
   WifiOutlined,
+  RocketOutlined,
 };

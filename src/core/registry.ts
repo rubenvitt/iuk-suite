@@ -197,6 +197,12 @@ export const MODULES: ModuleDef[] = [
   { key: "radio", title: "Funkgeräte", icon: "WifiOutlined", shell: "full",
     requiresAuth: false, requiredGroups: [], adminGroups: ["iuk-radio-admin"],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
+  // uav: Teilnehmer melden sich mit einem Dauer-Code an (kein SSO) → requiresAuth:false.
+  // Die Verwaltung gated `_lib/requireUavAdmin.ts` (Layout UND jeder Handler unter api/admin/).
+  // Vorgabe uav-training-admin (Betreiber, 28.08.2026); Instanzwert über SUITE_ADMIN_GROUP_UAV.
+  { key: "uav", title: "Drohnentraining", icon: "RocketOutlined", shell: "minimal",
+    requiresAuth: false, requiredGroups: [], adminGroups: ["uav-training-admin"],
+    prodHosts: [], showInSwitcher: true, switcherGroupSources: ["admin"] },
   { key: "alpha", title: "Alpha", icon: "BorderOutlined", shell: "full",
     requiresAuth: true, requiredGroups: ["alpha-users"], adminGroups: [],
     prodHosts: [], showInSwitcher: true, switcherGroupSources: ["access"] },

@@ -44,8 +44,18 @@ export function decideRoute(input: {
   host: string;
   pathname: string;
   groups: string[] | null;
+  search?: string;
 }): RouteDecision {
   const { host, pathname, groups } = input;
+  const search = input.search ?? "";
+
+  // MAGIC-LINK-BRÜCKE uav (Spec 2026-08-28 §3 #2): verteilte Links der Form
+  // https://uav-training.…/login?code=XXXX müssen ins Modul, nicht in den SSO-Login.
+  // Bewusst an Host UND Parameter gebunden; ohne `code` bleibt /login der Suite-Login.
+  if (pathname === "/login" && moduleForHost(host)?.key === "uav") {
+    const code = new URLSearchParams(search).get("code");
+    if (code && code.trim() !== "") return { action: "rewrite", target: "/m/uav/login", moduleKey: "uav" };
+  }
 
   if (PASSTHROUGH.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return { action: "next" };
