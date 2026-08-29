@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Input, Popconfirm, Progress, Switch, Tag } from "antd";
 import { codeNeuAction, teilnehmerAendernAction, teilnehmerLoeschenAction } from "../../_actions/teilnehmer";
+import { datumZeit } from "../../_lib/datum";
 import type { ParticipantDetailDTO, ParticipantDTO, Teil } from "../../_lib/typen";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
@@ -121,7 +122,7 @@ export function TeilnehmerDetail({
         </div>
         <div>
           <div style={SCHRIFT.neben}>Letzte Aktivität</div>
-          <div>{detail.letzteAktivitaet ?? "—"}</div>
+          <div>{datumZeit(detail.letzteAktivitaet) || "—"}</div>
         </div>
         <div>
           <div style={SCHRIFT.neben}>Login-Code</div>

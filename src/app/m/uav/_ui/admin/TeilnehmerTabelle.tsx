@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Progress, Table, Tag } from "antd";
+import { datumKurz, datumZeit } from "../../_lib/datum";
 import type { ParticipantProgressDTO } from "../../_lib/typen";
 
 /*
@@ -32,7 +33,7 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: ParticipantProgressDTO[]
         {
           title: "Beginn",
           key: "beginn",
-          render: (_: unknown, zeile: ParticipantProgressDTO) => zeile.participant.beginn ?? "—",
+          render: (_: unknown, zeile: ParticipantProgressDTO) => datumKurz(zeile.participant.beginn) || "—",
         },
         {
           title: "Fortschritt",
@@ -47,7 +48,7 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: ParticipantProgressDTO[]
         {
           title: "Letzte Aktivität",
           key: "letzteAktivitaet",
-          render: (_: unknown, zeile: ParticipantProgressDTO) => zeile.participant.lastSeen ?? "—",
+          render: (_: unknown, zeile: ParticipantProgressDTO) => datumZeit(zeile.participant.lastSeen) || "—",
         },
         {
           title: "Status",
