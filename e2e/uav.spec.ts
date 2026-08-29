@@ -158,6 +158,28 @@ test("anonym führen beide Wege irgendwohin: Code-Feld und Verwaltung (Check 10)
   await expect(verwaltung).toBeVisible();
   await expect(verwaltung).toHaveAttribute("href", "/api/auth/signin?callbackUrl=%2Fadmin");
 
+  /*
+   * ANONYM IST DER KATALOG LESBAR — Betreiberentscheidung 2026-08-29: „Auf
+   * einem geteilten Tablet soll man den Aufgabenkatalog auch ohne jeden Code
+   * durchblättern können — nur lesen, nichts erfassen." Vorher lag hier ein
+   * Sperrbildschirm. Die Aufgaben stammen aus dem Seed und kommen über
+   * `GET /api/tasks`, das anonyme Aufrufe seit derselben Entscheidung mit 200
+   * beantwortet (`api/tasks/route.ts`).
+   */
+  const aufgabe = page.getByRole("link", { name: /Vorflugkontrolle/ });
+  await expect(aufgabe).toBeVisible();
+  // ...aber ohne alles Persönliche: keine Fortschrittskarte, kein Zähler.
+  await expect(page.getByText("Gesamtfortschritt")).toHaveCount(0);
+  await expect(page.getByText(/Durchführungen erfasst/)).toHaveCount(0);
+
+  await klickeWennRuhig(aufgabe);
+  await expect(page).toHaveURL(/\/aufgabe\?id=1-1/);
+  // Der Inhalt ist da (Schritt aus dem Seed), die Erfassung nicht.
+  await expect(page.getByText("Akkuzustand prüfen")).toBeVisible();
+  await expect(page.getByLabel("Drohnensteuerer")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Durchführung hinzufügen" })).toHaveCount(0);
+  await expect(page.getByText(/^Durchführungen \d+ \/ \d+$/)).toHaveCount(0);
+
   // Und der Knopf des Hinweises führt auf ein echtes Code-Feld (`/anmelden`),
   // nicht auf den Pocket-ID-Login.
   await klickeWennRuhig(page.getByRole("link", { name: "Mit Code anmelden" }));

@@ -17,8 +17,8 @@ const IDENTITY_KEY = "uav-identity";
 /**
  * Zuletzt per `api.me()` bestätigte Identität, sitzungsweit gecacht — NICHT
  * für Zugriffsentscheidungen (die trifft ausschließlich der Server), sondern
- * nur damit die Insel bei einem Offline-Reload im selben Tab weiß, ob sie den
- * „Bitte anmelden"-Hinweis zeigen muss oder normal weiterlaufen darf.
+ * nur damit die Insel bei einem Offline-Reload im selben Tab weiß, ob sie die
+ * Erfassung zeigen darf oder auf Nur-Lesen bleibt.
  */
 function identitaetAusCache(): Identity | null {
   try {
