@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { TeilnehmerApp } from "../_ui/teilnehmer/TeilnehmerApp";
+import { TeilnehmerApp } from "../../_ui/teilnehmer/TeilnehmerApp";
 
 export default function AufgabePage() {
   return (

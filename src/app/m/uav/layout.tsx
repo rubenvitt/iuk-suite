@@ -1,27 +1,23 @@
 import type { Metadata } from "next";
-import { Shell } from "@/core/shell/Shell";
-import { getModule } from "@/core/registry";
-import { canAdminModule } from "@/core/auth/guards";
-import { RegisterSW } from "./RegisterSW";
-import { swModus } from "./_lib/boot";
 
-export const metadata: Metadata = { manifest: "/manifest.webmanifest" };
+/**
+ * NUR DER MANIFEST-VERWEIS, SONST `{children}` — Vorbild `lagerbuch/layout.tsx`/
+ * `radio/layout.tsx`. Dieses Layout ist Vorfahr JEDES Kindes unter `m/uav`,
+ * auch der Verwaltung (`(admin)/`) — eine Shell hier wäre für sie falsch:
+ * die Verwaltung braucht `variant="full"`, der Teilnehmer-Zweig
+ * `variant="minimal"` (Registry), und Next.js-Layouts stapeln sich pro
+ * Pfad-Segment, nicht pro Route-Group — ein zweites `<Shell>` in
+ * `(teilnehmer)/layout.tsx` läge sonst INNERHALB von diesem hier.
+ *
+ * Seit Aufgabe 15 tragen deshalb `(teilnehmer)/layout.tsx` (`variant="minimal"`,
+ * RegisterSW, Boot-Modus) und `(admin)/layout.tsx` (`variant="full"`) ihre
+ * Shell-Entscheidung jeweils selbst — Geschwister-Segmente unter `m/uav`,
+ * keines importiert das andere.
+ */
+export const metadata: Metadata = {
+  manifest: "/manifest.webmanifest",
+};
 
-export default async function UavLayout({ children }: { children: React.ReactNode }) {
-  const mod = getModule("uav");
-  const darfVerwalten = await canAdminModule("uav");
-
-  return (
-    <Shell
-      variant={mod.shell}
-      moduleKey={mod.key}
-      nav={[
-        { key: "start", title: "Training", href: "/" },
-        ...(darfVerwalten ? [{ key: "admin", title: "Verwaltung", href: "/admin" }] : []),
-      ]}
-    >
-      <RegisterSW modus={swModus(process.env)} />
-      {children}
-    </Shell>
-  );
+export default function UavLayout({ children }: { children: React.ReactNode }) {
+  return children;
 }

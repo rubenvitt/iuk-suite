@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { LoginForm } from "../_ui/teilnehmer/LoginForm";
-import styles from "../_ui/teilnehmer/uav.module.css";
+import { LoginForm } from "../../_ui/teilnehmer/LoginForm";
+import styles from "../../_ui/teilnehmer/uav.module.css";
 
 /**
  * Teilnehmer-Login (`/login`, optional `?code=` als Magic-Link) — Port aus
