@@ -372,8 +372,9 @@ jobs:
       url: https://iuk-ue.de
     # Zwei Rollouts duerfen sich nicht ueberholen. `cancel-in-progress: false`, weil ein
     # ABGEBROCHENER Rollout schlimmer ist als ein spaeter: er kann zwischen Pin und
-    # `up -d` stehen. Ein ueberholter Lauf bricht ohnehin folgenlos ab — sein Commit
-    # steht dann nicht mehr auf :latest (Schritt 2 in scripts/deploy.sh).
+    # `up -d` stehen. Ein ueberholter Lauf endet ohnehin folgenlos und gruen als
+    # UEBERHOLT — sein Commit steht dann nicht mehr auf :latest (Schritt 2 in
+    # scripts/deploy.sh).
     concurrency:
       group: deploy-produktion
       cancel-in-progress: false
@@ -385,9 +386,19 @@ jobs:
       # `persist-credentials: false`: ohne das bliebe ein GitHub-Token in der
       # `.git/config` im Arbeitsverzeichnis des Runners liegen — auf einem GitHub-Runner
       # verschwindet der mit der Maschine, auf diesem hier nicht.
+      #
+      # `fetch-depth: 0`, und das ist kein Luxus: waehrend dieser Job auf seine Freigabe
+      # wartet, kann ein NEUERER main-Merge :latest ueberschreiben. scripts/deploy.sh
+      # beweist diesen Fall per `git merge-base --is-ancestor` und endet gruen als
+      # UEBERHOLT statt rot — der Beweis braucht die Historie zwischen beiden Commits,
+      # und eine Tiefe-1-Kopie hat sie nicht (dann bliebe jeder ueberholte Lauf rot,
+      # gemessen am 2026-08-28, Lauf 33179101270). Das Nachholen des neueren Commits
+      # selbst erledigt deploy.sh per `git fetch origin main` — anonym, das Repo ist
+      # oeffentlich und die Zugangsdaten sind hier bewusst nicht persistiert.
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       # Kein dauerhaftes Zugangsdaten-Depot auf dem Server: der GITHUB_TOKEN dieses
       # Laufs reicht zum Ziehen und wird im letzten Schritt wieder entwertet.
       - name: Log in to ghcr.io

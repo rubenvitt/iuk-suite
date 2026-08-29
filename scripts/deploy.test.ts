@@ -177,6 +177,21 @@ describe("scripts/deploy.sh", () => {
     expect(deploySh).toMatch(/zurueck_und_raus/);
   });
 
+  it("ein überholter Lauf endet grün — mit Beweis, nicht mit Vermutung", () => {
+    /*
+     * Der deploy-Job wartet auf seine Freigabe; überschreibt währenddessen ein neuerer
+     * main-Merge das Tag, war die Freigabe des älteren Laufs bisher IMMER rot (gemessen
+     * am 2026-08-28, Lauf 33179101270) — ein Fehlerbild ohne Fehler, das echte Abbrüche
+     * unglaubwürdig macht. Grün wird der Fall aber nur mit Beweis: der Stand auf dem
+     * Tag muss in der Historie ein NACHFOLGER des erwarteten Commits sein.
+     */
+    expect(deploySh).toMatch(/merge-base --is-ancestor/);
+    expect(deploySh).toMatch(/ÜBERHOLT/);
+    // Der Beweis braucht die Historie zwischen beiden Commits — eine Tiefe-1-Kopie
+    // hat sie nicht, und der überholte Lauf bliebe still wieder rot.
+    expect(deployJob).toMatch(/fetch-depth:\s*0/);
+  });
+
   it("hat in ausführbaren Zeilen keinen unescapten Backtick", () => {
     /*
      * Gemessen am 16.08.2026 beim Probelauf gegen eine Docker-Attrappe, nicht vermutet:

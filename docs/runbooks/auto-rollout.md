@@ -219,7 +219,7 @@ einschließlich Schritt 4 ist ein Abbruch folgenlos**, danach greift der Rollbac
 |---|---|---|
 | 0 | Voraussetzungen (Verzeichnis, `.env` schreibbar, Compose v2) | Abbruch, nichts angefasst |
 | 1 | `compose.yaml` + `clamd.files.conf` gegen das Repo | Abbruch mit Diff → **E2** |
-| 2 | `docker pull :latest`, Revision aus **Label und ENV** prüfen | Abbruch → **E3/E4** |
+| 2 | `docker pull :latest`, Revision aus **Label und ENV** prüfen | überholt → **grün beendet**, sonst Abbruch → **E3/E4** |
 | 3 | Rückweg festhalten (gepinnter Digest, sonst laufender Container) | Warnung, kein Abbruch |
 | 4 | `SUITE_BACKUP_CMD`, falls gesetzt | Abbruch — kein Rollout ohne Sicherung |
 | 5 | Digest in die `.env` pinnen, `docker compose up -d` | ab hier: Rollback |
@@ -344,13 +344,20 @@ er fordert die Freigabe erneut an).
 > ein leeres **Verzeichnis** an — clamd startet ohne Konfiguration, wird nie `healthy`,
 > und **die ganze Suite startet nicht** (`depends_on: service_healthy`).
 
-### E3 — Abbruch in Schritt 2: „Das Tag :latest trägt Commit X, erwartet war Y"
+### E3 — Schritt 2: „Das Tag :latest trägt Commit X, erwartet war Y"
 
-Meist harmlos: ein **neuerer** main-Merge hat `:latest` inzwischen überschrieben. Dann
-ist dieser Rollout überholt, und der neuere Lauf erledigt ihn — nichts zu tun.
+Der häufigste Fall endet seit dem 2026-08-28 **grün** mit `ÜBERHOLT`: ein **neuerer**
+main-Merge hat `:latest` überschrieben, während dieser Lauf auf seine Freigabe wartete.
+Das Skript beweist das über die Git-Historie (`git merge-base --is-ancestor` — X muss
+ein Nachfolger von Y sein), rollt nichts aus und überlässt den Rollout dem Lauf des
+neueren Merges. Vorher war genau dieser Fall bei jeder Freigabe eines älteren Laufs ein
+**roter** Abbruch (gemessen am 2026-08-28, Lauf 33179101270) — ein Fehlerbild ohne
+Fehler, sichtbar als „nur der jeweils neueste Lauf wird grün".
 
-Ist Y **neuer** als X, ist der `merge`-Job dieses Laufs nicht durchgelaufen (oder hat die
-Manifest-Liste nicht getaggt). Dann dort ins Protokoll schauen, nicht auf den Server.
+Bricht der Job dagegen **rot** ab, war genau dieser Beweis nicht möglich. Ist Y neuer
+als X, ist der `merge`-Job dieses Laufs nicht durchgelaufen (oder hat die Manifest-Liste
+nicht getaggt) — dann dort ins Protokoll schauen, nicht auf den Server. Trägt das Tag
+gar keinen vollen Commit-SHA, wurde das Image außerhalb der Pipeline gebaut (siehe E4).
 
 ### E4 — Abbruch in Schritt 2: „ENV SUITE_REVISION ist leer"
 
