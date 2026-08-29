@@ -87,7 +87,9 @@ curl -s https://iuk-ue.de/api/health/uav
 
 Erwartet: `{"status":"ok",...,"revision":"<merge-sha>"}` — `revision` ist der Merge-SHA, die
 Gegenprobe aus `auto-rollout.md` Teil C, Schritt 3, nur auf den Modul-Health-Pfad angewandt statt
-auf `/api/health/portal`.
+auf `/api/health/portal`. Dieser Abruf prüft den auf der APEX-Domain (`iuk-ue.de`) bedienten,
+PASSTHROUGH-geschalteten Health-Pfad — der host-gebundene Verify auf `uav-training.iuk-ue.de` folgt
+erst in §C.5, nach dem Traefik-Schwenk.
 
 **Der `uav`-Host zeigt zu diesem Zeitpunkt noch die Alt-App** — `SUITE_HOST_UAV` steht zwar in
 der `.env` (§A), aber `SUITE_TRAEFIK_RULE`/der Traefik-Router für die Domain zeigt bis §C
@@ -117,6 +119,15 @@ Bricht der Lauf ab, steht die Ursache in der Fehlermeldung — entweder ein `Par
 `login_code`-Menge (`paritaetUav`, `scripts/import/uav.ts:373-382` — das ist die einzige Prüfung,
 die **vor** jeder anderen Parität wirft, weil der Dauer-Code der einzige Zugangsweg eines
 Teilnehmers ist). **Bricht die Generalprobe ab: kein Cutover, Ursache klären.**
+
+⚠️ **Der Import (und sein Paritätscheck) läuft gegen ein FRISCHES, noch unbenutztes `DATA_DIR` —
+bevor sich irgendjemand anmeldet.** `paritaetUav` vergleicht `sessions`/`executions`/`task_status`
+nur gegen die importierten Schlüssel und bleibt deshalb auch dann grün, wenn sich danach jemand
+anmeldet oder eine Durchführung erfasst — das ist gewollt (kein Fehlalarm nach dem ersten Login).
+Bei `participants`/`tasks` bleibt der Vergleich dagegen VOLL: ein erneuter Lauf gegen ein bereits
+benutztes `DATA_DIR` (z. B. eine wiederholte Generalprobe) meldet eine dort lokal angelegte
+Teilnehmer- oder Aufgabenzeile als echten Befund (`missingInSource`) — das ist die korrekte,
+gewollte Reaktion, KEIN gescheiterter Import.
 
 Danach lokal gegen den Import-Stand prüfen, dass ein Magic-Link wirklich einlöst:
 
@@ -164,6 +175,12 @@ Reihenfolge ist entscheidend, nie beide Router gleichzeitig aktiv:
    verdrahtet ist und die Snapshot-Datei ins Suite-Volume kopiert wurde.) Entscheidend: Ausgabe
    endet mit `uav-Import OK — <n> Zeilen, Parität grün.` — sonst **kein Cutover**, Volume-Snapshot
    (falls vorhanden) zurückspielen, `uav-praxis` wieder starten.
+
+   Dieser Lauf ist der EINZIGE Import gegen das produktive `DATA_DIR`, und er passiert VOR §C.4 —
+   also bevor irgendjemand über den neuen Host eine Sitzung anlegt. Genau deshalb ist die
+   Parität hier voll aussagekräftig; ein späterer Re-Import (etwa nach einem Rollback, §S) läuft
+   gegen ein bereits benutztes `DATA_DIR` und kann eine dort lokal angelegte Teilnehmer- oder
+   Aufgabenzeile korrekt als Befund melden, ohne dass das ein Fehler des Imports wäre.
 4. **Traefik-Regel setzen** — jetzt erst den Host aktiv schalten (Muster
    `aufgaben-inbetriebnahme.md`):
    ```
@@ -201,7 +218,10 @@ Erst wenn alle fünf Punkte stehen, gilt der Cutover als vollzogen.
 
 ## §S — Standby (14 Tage)
 
-`uav-praxis` bleibt gestoppt, Volume unangetastet. **Rollback:**
+`uav-praxis` bleibt gestoppt, Volume unangetastet. **Während des gesamten Standby (`UAV_SW_MODUS`
+noch `abraeumen`) lässt sich die App auf einem Gerät ohne Netzverbindung nicht neu öffnen** — der
+Abräum-Worker registriert nichts, das offline bedienen könnte; laufende Aufzeichnung auf einer
+bereits geöffneten Seite funktioniert unverändert, erst der Neustart ohne Netz nicht. **Rollback:**
 
 ```bash
 # 1. SUITE_TRAEFIK_RULE der Suite wieder auf den Stand vor §C.4 zurücksetzen, dann:
@@ -257,6 +277,7 @@ Bildgenerierung (`pnpm gen:images`, kein Prod-Geheimnis) und bleibt bestehen —
 | ⬜ | Snapshot der Alt-DB (`.backup`) auf dem Server erzeugt | vor §P |
 | ⬜ | Traefik-Regel / `SUITE_HOST_UAV` gesetzt | §C |
 | ⬜ | Ein Teilnehmergerät für den Verify verfügbar (Magic-Link + alte Installation) | §C |
+| ⬜ | `UAV_SW_MODUS=cachen` setzen (§E.1) | nach Ende des Standby — bis dahin ist die App offline nicht zu öffnen |
 
 ---
 
