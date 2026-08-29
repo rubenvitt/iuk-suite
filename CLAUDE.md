@@ -194,6 +194,15 @@ neue Fläche, ein neuer Knopf, ein anderer Weg, ein anderes Wort auf dem Bildsch
 anders aussieht als gestern. Umbauten unter der Haube, Tests, CI, Abhängigkeiten bekommen keine —
 eine Notiz über etwas, das niemand sehen kann, macht die Liste unglaubwürdig, nicht vollständig.
 
+**Zwei Fälle sind nicht verhandelbar: ein neues Feature und eine spürbare Verbesserung.** Für beide
+gehört eine Notiz in denselben Commit wie die Änderung — nicht „später nachgetragen", denn nachgetragen
+wird sie nicht. Ein Feature ist etwas, das vorher nicht ging; eine spürbare Verbesserung ist etwas,
+das vorher ging und sich jetzt anders anfühlt (eine Fläche, die auf dem Telefon endlich bedienbar ist;
+ein Weg, der kürzer wurde; eine Ansicht, die sich neu ordnet). Im Zweifel gilt die Probe: **Würde
+jemand, der die App gestern benutzt hat, den Unterschied heute bemerken?** Ja → Notiz. Und sie ist
+**für Anwender geschrieben, nicht für Entwickler** — verständlich, so wenig technisch wie möglich,
+in den Wörtern, die auf dem Bildschirm stehen. Der ausführliche Stil steht unten und ist verbindlich.
+
 **Eine Datei je Notiz**, `src/app/m/portal/_lib/neuigkeiten/notizen/<modul>/<YYYY-MM-DD>-<slug>.ts`,
 plus **eine Zeile in `register.ts`**. Das Dreieck ist Dateiname ↔ Felder (`modul`, `datum`, `slug`) ↔
 Registerzeile; `register.test.ts` liest das Verzeichnis und hält alle drei zusammen — eine nicht
