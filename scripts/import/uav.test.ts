@@ -292,3 +292,62 @@ describe("paritaetUav", () => {
     expect(zielAufgaben.map((t) => t.id).sort()).toEqual(["fremd"]);
   });
 });
+
+describe("paritaetUav — Wiederverwendung nach dem ersten Login (I1)", () => {
+  it("bleibt grün, wenn nach dem Import eine echte Anmeldung und eine echte Durchführung im Ziel entstehen", () => {
+    const quelle = altDb();
+    teilnehmer(quelle);
+    aufgabe(quelle);
+    durchfuehrung(quelle);
+    aufgabenStatus(quelle);
+    sitzung(quelle);
+    const ziel = frischeZielDb();
+    importUav(quelle, ziel, JETZT);
+
+    // Simuliert einen echten Login gegen die bereits importierte DB: eine neue
+    // Sitzungszeile, die die Quelle nie gesehen hat.
+    ziel
+      .insert(schema.sessions)
+      .values({
+        token: "nach-dem-import-angemeldet",
+        kind: "participant",
+        subjectId: "p-1",
+        createdAt: "2026-06-02T00:00:00.000Z",
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      })
+      .run();
+
+    // Simuliert eine echte Aufzeichnung gegen die bereits importierte DB: eine neue
+    // Durchführung mit Client-UUID, die die Quelle ebenfalls nie gesehen hat.
+    ziel
+      .insert(schema.executions)
+      .values({
+        id: "e-nach-dem-import",
+        participantId: "p-1",
+        taskId: "1-1",
+        datum: "2026-06-02",
+        drohnensteuerer: "Anna Nova",
+        luftraumbeobachter: "Bert Falk",
+        createdAt: "2026-06-02T00:00:00.000Z",
+        deletedAt: null,
+      })
+      .run();
+
+    const reports = paritaetUav(quelle, ziel, JETZT);
+    expect(reports.every((r) => r.ok)).toBe(true);
+  });
+
+  it("bleibt rot, wenn eine IMPORTIERTE Durchführung im Ziel wieder verschwindet", () => {
+    const quelle = altDb();
+    teilnehmer(quelle);
+    aufgabe(quelle);
+    durchfuehrung(quelle); // e-1
+    const ziel = frischeZielDb();
+    importUav(quelle, ziel, JETZT);
+
+    ziel.delete(schema.executions).where(eq(schema.executions.id, "e-1")).run();
+
+    const reports = paritaetUav(quelle, ziel, JETZT);
+    expect(reports.some((r) => !r.ok)).toBe(true);
+  });
+});

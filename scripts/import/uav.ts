@@ -337,15 +337,47 @@ export function paritaetsSichtSitzung(r: schema.SessionRow) {
  * ein fehlender Code ist ein Zugangsverlust, kein gewöhnlicher Feldunterschied, auch
  * wenn die volle Teilnehmer-Zeile aus anderem Grund schon rot wäre.
  *
- * ⚠️ `sessions` vergleicht NUR die importierbaren Quellzeilen (radio.ts:604-607-Muster:
- * der Zielarm liest ohne WHERE — Zeilen, die der Import bewusst übersprungen hat, dürfen
- * die Parität nicht rot färben).
+ * ⚠️ `sessions`, `executions` UND `task_status` vergleichen den Zielarm NUR gegen die
+ * importierten Schlüssel (Token bzw. `id` bzw. `participantId`+`taskId` der Quelle) —
+ * nicht gegen alle Zielzeilen. Grund: sobald jemand sich gegen die importierte DB anmeldet
+ * (neue `sessions`-Zeile) oder eine Durchführung/Erledigung erfasst (neue `executions`-/
+ * `task_status`-Zeile, Client-UUID bzw. Upsert), existiert im Ziel eine echte, korrekte
+ * Zeile, die die Quelle nie gesehen hat — ein voller Vergleich färbt einen erneuten Lauf
+ * dann fälschlich rot (`missingInSource`), obwohl der Import stimmt. Die Schlüssel-
+ * Einschränkung lässt genau diese Zeilen unangetastet und prüft trotzdem weiter, ob jede
+ * IMPORTIERTE Zeile im Ziel unverändert und vollständig ankam (radio.ts:604-607-Muster,
+ * hier verallgemeinert). `participants`/`tasks` bleiben VOLL verglichen: ein Re-Import
+ * muss weiterhin merken, wenn eine importierte Zeile im Ziel fehlt oder verändert wurde
+ * — dafür MUSS der Import gegen ein noch unbenutztes `DATA_DIR` laufen, siehe Runbook
+ * §P/§C. (Eine später lokal angelegte Teilnehmer-/Aufgabenzeile bliebe bei vollem
+ * Vergleich ein echter Befund — das ist gewollt, kein Fehlalarm wie oben.)
  */
 export function paritaetUav(quelle: Database.Database, ziel: UavDb, jetzt: Date = new Date()): ParityReport[] {
   const q = lieseQuelle(quelle);
   const importierbareSessions = importierbareSitzungen(q.sessions, jetzt);
 
   const zielTeilnehmer = ziel.select().from(schema.participants).all();
+
+  const quellExecutionIds = new Set(q.executions.map((z) => z.id));
+  const zielExecutionenImportiert = ziel
+    .select()
+    .from(schema.executions)
+    .all()
+    .filter((r) => quellExecutionIds.has(r.id));
+
+  const quellTaskStatusSchluessel = new Set(q.taskStatus.map((z) => `${z.participant_id} ${z.task_id}`));
+  const zielTaskStatusImportiert = ziel
+    .select()
+    .from(schema.taskStatus)
+    .all()
+    .filter((r) => quellTaskStatusSchluessel.has(`${r.participantId} ${r.taskId}`));
+
+  const quellSessionTokens = new Set(importierbareSessions.map((z) => z.token));
+  const zielSessionsImportiert = ziel
+    .select()
+    .from(schema.sessions)
+    .all()
+    .filter((r) => quellSessionTokens.has(r.token));
 
   const reports: ParityReport[] = [
     checkParity(
@@ -358,15 +390,15 @@ export function paritaetUav(quelle: Database.Database, ziel: UavDb, jetzt: Date 
     ),
     checkParity(
       q.executions.map((z) => paritaetsSichtDurchfuehrung(toNeueDurchfuehrung(z))),
-      ziel.select().from(schema.executions).all().map(paritaetsSichtDurchfuehrung),
+      zielExecutionenImportiert.map(paritaetsSichtDurchfuehrung),
     ),
     checkParity(
       q.taskStatus.map((z) => paritaetsSichtAufgabenStatus(toNeuerAufgabenStatus(z))),
-      ziel.select().from(schema.taskStatus).all().map(paritaetsSichtAufgabenStatus),
+      zielTaskStatusImportiert.map(paritaetsSichtAufgabenStatus),
     ),
     checkParity(
       importierbareSessions.map((z) => paritaetsSichtSitzung(toNeueSitzung(z))),
-      ziel.select().from(schema.sessions).all().map(paritaetsSichtSitzung),
+      zielSessionsImportiert.map(paritaetsSichtSitzung),
     ),
   ];
 
