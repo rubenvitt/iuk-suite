@@ -6,6 +6,7 @@ import { datumKurz } from "../../_lib/datum";
 import type { TaskDTO } from "../../_lib/typen";
 import { type AufgabenFortschritt, type Durchfuehrung, aufgabenStatus } from "../offline/progress";
 import { AnzahlFeld } from "./AnzahlFeld";
+import { CodeHinweis } from "./CodeHinweis";
 import { DurchfuehrungForm } from "./DurchfuehrungForm";
 import styles from "./uav.module.css";
 
@@ -13,6 +14,14 @@ type Props = {
   aufgabe: TaskDTO;
   fortschritt: AufgabenFortschritt;
   heute: string;
+  /**
+   * Ohne Code: Beschreibung, Schritte, Lernziel und Hinweise bleiben lesbar,
+   * alles Erfassende verschwindet (Betreiberentscheidung 2026-08-29, siehe
+   * `TeilnehmerApp.tsx`) — Zielanzahl, „nicht anwendbar", die Liste der
+   * Durchführungen und das Formular. An ihrer Stelle steht der Hinweis, wofür
+   * ein Code gebraucht wird.
+   */
+  nurLesen?: boolean;
   onAdd: (eintrag: Omit<Durchfuehrung, "id">) => void;
   onRemove: (eintragId: string) => void;
   onZielanzahl: (ziel: number) => void;
@@ -67,6 +76,7 @@ export function TaskDetail({
   aufgabe,
   fortschritt,
   heute,
+  nurLesen = false,
   onAdd,
   onRemove,
   onZielanzahl,
@@ -118,7 +128,9 @@ export function TaskDetail({
         </div>
       )}
 
-      {istTeil23 && (
+      {nurLesen && <CodeHinweis />}
+
+      {!nurLesen && istTeil23 && (
         <label className={styles["na-toggle"]}>
           <input
             type="checkbox"
@@ -129,7 +141,7 @@ export function TaskDetail({
         </label>
       )}
 
-      {!fortschritt.nichtAnwendbar && (
+      {!nurLesen && !fortschritt.nichtAnwendbar && (
         <section className={styles.erfassung}>
           <header className={styles["erfassung-kopf"]}>
             <h3 className={styles["sektion-titel"]}>

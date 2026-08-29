@@ -42,12 +42,13 @@ const MIT_EINTRAG: AufgabenFortschritt = {
 
 const LEER: AufgabenFortschritt = { zielanzahl: 3, nichtAnwendbar: false, durchfuehrungen: [] };
 
-function rendern(aufgabe: TaskDTO, fortschritt: AufgabenFortschritt) {
+function rendern(aufgabe: TaskDTO, fortschritt: AufgabenFortschritt, nurLesen = false) {
   return mount(
     <TaskDetail
       aufgabe={aufgabe}
       fortschritt={fortschritt}
       heute="2026-08-29"
+      nurLesen={nurLesen}
       onAdd={vi.fn()}
       onRemove={vi.fn()}
       onZielanzahl={vi.fn()}
@@ -100,6 +101,27 @@ describe("TaskDetail", () => {
     await rendern({ ...AUFGABE, bildUrl: null }, LEER);
     expect(exists("img")).toBe(false);
     expect(document.body.textContent).not.toContain("Abbildung nicht verfügbar");
+  });
+
+  /*
+   * OHNE CODE bleibt die Aufgabe vollständig lesbar — Schritte, Lernziel,
+   * Hinweise —, und alles Erfassende verschwindet. Auch hier mit einem
+   * GEFÜLLTEN Fortschritt geprüft: der stammt auf einem geteilten Tablet von
+   * der zuletzt angemeldeten Person.
+   */
+  it("zeigt ohne Code den Inhalt, aber keine Erfassung", async () => {
+    await rendern({ ...AUFGABE, teil: 2 }, MIT_EINTRAG, true);
+    expect(document.body.textContent).toContain("Akkuzustand prüfen");
+    expect(document.body.textContent).toContain("Die Teilnehmerin prüft das Fluggerät");
+
+    expect(document.body.textContent).not.toContain("Zielanzahl");
+    expect(document.body.textContent).not.toContain("Nicht anwendbar");
+    expect(document.body.textContent).not.toContain("13.01.2026");
+    expect(document.body.textContent).not.toContain("Neue Durchführung");
+    expect(exists("form")).toBe(false);
+    expect(exists("input")).toBe(false);
+
+    expect(document.body.textContent).toContain("Zum Eintragen einer Durchführung");
   });
 
   it("kündigt das Erfassungsformular an, statt es unbeschriftet an die Liste zu hängen", async () => {

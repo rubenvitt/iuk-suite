@@ -111,6 +111,33 @@ describe("Dashboard", () => {
     expect(document.body.textContent).toContain("0 von 3 Durchführungen erfasst");
   });
 
+  /*
+   * OHNE CODE: DER KATALOG BLEIBT, DAS PERSÖNLICHE GEHT.
+   *
+   * Der Fortschritt liegt im `localStorage` des GERÄTS. Auf einem geteilten
+   * Tablet ist das der Stand der zuletzt angemeldeten Person — ihn anonym
+   * anzuzeigen wäre eine Auskunft über sie. Deshalb prüft dieser Fall mit
+   * einem GEFÜLLTEN Fortschritt, nicht mit einem leeren: nur so kann er
+   * fehlschlagen.
+   */
+  it("zeigt ohne Code die Aufgaben, aber weder Fortschrittskarte noch Zähler", async () => {
+    const fortschritt = leererKatalogFortschritt();
+    fortschritt["1-1"] = {
+      zielanzahl: 3,
+      nichtAnwendbar: false,
+      durchfuehrungen: [
+        { id: "a", datum: "2026-01-06", drohnensteuerer: "Erika", luftraumbeobachter: "Klaus" },
+      ],
+    };
+    await mount(<Dashboard katalog={KATALOG} fortschritt={fortschritt} nurLesen />);
+
+    expect(document.body.textContent).toContain("Schwebeflug");
+    expect(document.body.textContent).not.toContain("Gesamtfortschritt");
+    expect(document.body.textContent).not.toContain("Durchführungen erfasst");
+    expect(document.body.textContent).not.toContain("1 / 3");
+    expect(document.body.textContent).toContain("Zum Eintragen einer Durchführung");
+  });
+
   it("deckelt die Durchführungen bei der Zielanzahl statt über 100 % zu zählen", async () => {
     const fortschritt = leererKatalogFortschritt();
     fortschritt["2-1"] = {

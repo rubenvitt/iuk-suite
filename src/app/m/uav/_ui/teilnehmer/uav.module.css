@@ -724,40 +724,52 @@
   color: var(--uav-stahl);
 }
 
-/* ── Hinweis „bitte anmelden" (kein Teilnehmer, offline muss die Insel
-   trotzdem stehen — deshalb kein Redirect, siehe TeilnehmerApp.tsx) ─── */
-.anmelde-hinweis {
-  margin: 24px 0;
-  padding: 24px 20px;
-  border: 1px solid var(--uav-linie);
+/* ── Hinweis „zum Eintragen brauchst du einen Code" ───────────────────
+ *
+ * HIER STANDEN DIE STILE EINES SPERRBILDSCHIRMS („Bitte mit deinem Code
+ * anmelden."), zentriert, mit grossem Knopf. Den gibt es seit dem 2026-08-29
+ * nicht mehr: der Katalog ist ohne Code lesbar, und dieser Hinweis steht nur
+ * noch dort, wo die Erfassung stuende (`_ui/teilnehmer/CodeHinweis.tsx`).
+ *
+ * DESHALB RUHIG UND LINKSBUENDIG, ohne Kontur in der Markenfarbe: das anonyme
+ * Blaettern ist ein vorgesehener Zustand, kein Fehlerfall — und Rot ist auf
+ * dieser Flaeche die Farbe der Sicherheitshinweise.
+ */
+.code-hinweis {
+  margin: 20px 0 28px;
+  padding: 16px;
   border-radius: var(--uav-radius);
   background: var(--uav-flaeche);
-  text-align: center;
 }
 
-.anmelde-hinweis .kopf-titel {
-  margin: 0 0 12px;
-}
-
-.anmelde-hinweis p {
-  margin: 0 0 16px;
+.code-hinweis p {
+  margin: 0;
   color: var(--uav-stahl);
   line-height: 1.5;
 }
 
-.anmelde-hinweis .eyebrow {
-  margin-bottom: 6px;
+/*
+ * Ein Textlink, kein Knopf — und trotzdem 56px hoch: die Bediendichte gilt
+ * auch fuer Nebenwege (Falle 4). Ein roter Knopf machte aus dem Hinweis eine
+ * Aufforderung, und aufgefordert wird hier niemand.
+ */
+.code-hinweis-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 56px;
+  font-weight: 600;
   color: var(--uav-akzent);
+  text-decoration: none;
 }
 
-/*
- * Der Knopf über die volle Breite: unter 768px stehen Handlungsknöpfe voll
- * breit und untereinander (docs/design/README.md). Als Inline-Element mitten
- * auf einer leeren Fläche sah er aus wie ein Etikett, nicht wie das eine, was
- * hier zu tun ist.
- */
-.anmelde-hinweis .btn-primaer {
-  width: 100%;
+.code-hinweis-link:hover {
+  text-decoration: underline;
+}
+
+.code-hinweis-link:focus-visible {
+  outline: 2px solid var(--uav-akzent);
+  outline-offset: 2px;
+  border-radius: var(--uav-radius-s);
 }
 
 /* ── Teilnehmer-Login ─────────────────────────────────────────────── */

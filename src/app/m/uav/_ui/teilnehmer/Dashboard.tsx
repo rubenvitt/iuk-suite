@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import type { TaskDTO } from "../../_lib/typen";
 import { type AufgabenFortschritt, gesamtFortschritt, leererFortschritt } from "../offline/progress";
+import { CodeHinweis } from "./CodeHinweis";
 import { TaskCard } from "./TaskCard";
 import styles from "./uav.module.css";
 
@@ -15,6 +16,13 @@ const TEILE: { teil: 1 | 2 | 3; titel: string }[] = [
 type Props = {
   katalog: TaskDTO[];
   fortschritt: Record<string, AufgabenFortschritt>;
+  /**
+   * Ohne Code: der Katalog ist lesbar, alles Persönliche bleibt weg
+   * (Betreiberentscheidung 2026-08-29, siehe `TeilnehmerApp.tsx`). Betrifft
+   * hier die Fortschrittskarte und die Zähler an den Aufgabenzeilen — auf
+   * einem geteilten Tablet gehörten sie sonst der zuletzt angemeldeten Person.
+   */
+  nurLesen?: boolean;
 };
 
 /**
@@ -49,7 +57,7 @@ function durchfuehrungsStand(
 }
 
 /** Port aus uav-praxis/src/components/Dashboard.tsx (`onSelect` entfällt — TaskCard verlinkt selbst). */
-export function Dashboard({ katalog, fortschritt }: Props) {
+export function Dashboard({ katalog, fortschritt, nurLesen = false }: Props) {
   // Gesamtfortschritt nur über die aktuell sichtbaren Katalog-Aufgaben rechnen —
   // ein lokaler Stand für inzwischen deaktivierte/entfernte Aufgaben zählt nicht mit.
   const sichtbarerFortschritt = useMemo(() => {
@@ -81,6 +89,9 @@ export function Dashboard({ katalog, fortschritt }: Props) {
         <h1 className={styles["kopf-titel"]}>Drohnen-Trainingsbegleiter</h1>
       </header>
 
+      {nurLesen ? (
+        <CodeHinweis />
+      ) : (
       <section className={styles["fortschritt-karte"]} aria-label="Gesamtfortschritt">
         <div className={styles["fortschritt-zahl"]}>{prozent}%</div>
         <p className={styles["fortschritt-sub"]}>
@@ -94,6 +105,7 @@ export function Dashboard({ katalog, fortschritt }: Props) {
           {erfasst} von {noetig} Durchführungen erfasst
         </p>
       </section>
+      )}
 
       {teileMitAufgaben.length === 0 ? (
         <p className={styles.leer}>
@@ -115,6 +127,7 @@ export function Dashboard({ katalog, fortschritt }: Props) {
                   // Render-Fenster zwischen frisch geladenem Katalog und dem
                   // Fortschritt-Merge-Effekt reicht sonst für einen Absturz.
                   fortschritt={fortschritt[a.id] ?? leererFortschritt(a.zielanzahlDefault)}
+                  nurLesen={nurLesen}
                 />
               ))}
             </div>
