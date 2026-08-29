@@ -74,7 +74,14 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
     };
   }, []);
 
-  useEffect(() => syncEngine.start(), []);
+  // Nur für eine BESTÄTIGTE Teilnehmer-Identität starten: sonst würde ein
+  // 401 von `/api/sync` (anon/admin) den Status auf „fehler" setzen, und der
+  // SyncStatus-Chip zeigte „Sync fehlgeschlagen" ausgerechnet auf dem
+  // Anmelde-Hinweis-Bildschirm, wo nie etwas synchronisiert werden soll.
+  useEffect(() => {
+    if (identity?.kind !== "participant") return;
+    return syncEngine.start();
+  }, [identity]);
 
   const katalog = useKatalog();
   const {
@@ -88,6 +95,7 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
 
   const heute = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const aufgabe = aktiv ? katalog.find((a) => a.id === aktiv) ?? null : null;
+  const aufgabeFortschritt = aufgabe ? fortschritt[aufgabe.id] : undefined;
 
   // Unbekannte Aufgaben-ID in der URL (z. B. veralteter Deep-Link) → zurück zum
   // Dashboard. Erst wenn der Katalog tatsächlich geladen ist (sonst würde ein
@@ -119,10 +127,10 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
             </div>
           )}
 
-          {aufgabe ? (
+          {aufgabe && aufgabeFortschritt ? (
             <TaskDetail
               aufgabe={aufgabe}
-              fortschritt={fortschritt[aufgabe.id]}
+              fortschritt={aufgabeFortschritt}
               heute={heute}
               onAdd={(e) => durchfuehrungHinzufuegen(aufgabe.id, e)}
               onRemove={(eid) => durchfuehrungEntfernen(aufgabe.id, eid)}
