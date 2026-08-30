@@ -2206,10 +2206,10 @@ greift** (er ist der einzige Wächter des dritten Beins): die `COPY`-Zeile probe
 Test laufen lassen — er muss ROT werden —, dann zurücknehmen. ⚠️ **Diese Form der Gegenprobe war zum
 Zeitpunkt dieses Plans nicht erfüllbar**: der Wächter las den Dockerfile-Rohtext mit
 `toContain(migrationsFolder)`, und ein vorangestelltes `#` entfernt den Teilstring nicht — der Test
-blieb grün. Belegt gefahren wurde stattdessen ersatzweise „Zeile löschen → Test wird rot". Seit
-DRK-187 zerlegt der Wächter die `COPY`-Zeilen und vergleicht den Zielpfad; die auskommentierte Zeile
-ist dort als eigener Test hinterlegt, und die Gegenprobe in ihrer ursprünglich verlangten Form ist
-damit wieder wirksam.
+blieb grün. Gefahren wurde stattdessen „Zeile löschen → Test wird rot"; eine Aufzeichnung dieses
+Ersatzlaufs findet sich im Repo allerdings nicht. Seit DRK-187 zerlegt der Wächter die `COPY`-Zeilen
+und vergleicht den Zielpfad; die auskommentierte Zeile ist dort als eigener Test hinterlegt, und die
+Gegenprobe in ihrer ursprünglich verlangten Form greift damit erstmals.
 
 - [ ] **Schritt 10: Gates und Commit**
 
@@ -3882,9 +3882,9 @@ Bevor Teil 2 beginnt, muss **alles** hiervon zutreffen:
       (auskommentierte `COPY`-Zeile → roter Test) war sie zu diesem Zeitpunkt nicht erfüllbar**: der
       Wächter las den Dockerfile-Rohtext mit `toContain(migrationsFolder)`, und ein vorangestelltes
       `#` entfernt den Teilstring nicht — der Test blieb grün. Gefahren wurde deshalb „Zeile löschen
-      → Test wird rot". Seit DRK-187 zerlegt der Wächter die `COPY`-Zeilen und vergleicht den
-      **Ziel**pfad; die auskommentierte Zeile ist dort als eigener Test hinterlegt (samt der zweiten,
-      teureren Blindstelle: vertipptes Ziel bei korrekter Quelle).
+      → Test wird rot" (nicht aufgezeichnet). Seit DRK-187 zerlegt der Wächter die `COPY`-Zeilen und
+      vergleicht den **Ziel**pfad; die auskommentierte Zeile ist dort als eigener Test hinterlegt
+      (samt der zweiten, teureren Blindstelle: vertipptes Ziel bei korrekter Quelle).
 - [ ] Der Schema-Diff aus T14 ist abschließend und protokolliert.
 - [ ] `_db/append-only.test.ts` behauptet **vier** Trigger, die o2-Gegenprobe und das
       `INSERT OR REPLACE`-Verhalten.

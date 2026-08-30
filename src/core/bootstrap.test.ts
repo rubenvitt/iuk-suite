@@ -123,6 +123,13 @@ describe("Modul-Registrierung ist vollständig", () => {
    * JSON-Array-Form (`COPY ["a", "b"]`) und eine über `\` fortgesetzte Zeile
    * kommen im `Dockerfile` heute nicht vor und werden hier nicht gelesen — wer
    * eine davon einführt, weitet zuerst diese Funktion.
+   *
+   * ⬜ UND: die Funktion kennt keine STAGES. Ein Migrations-`COPY`, das in
+   * `deps`/`builder` statt in `runner` landet, hält sie für erfüllt, obwohl im
+   * Prod-Image nichts ankommt. Das bleibt hier bewusst offen, weil dieser
+   * Ausfall LAUT ist — `migrateAllModules()` wirft beim Boot, und der
+   * `image-smoke` der CI wartet vergeblich auf `/api/health/portal`. Still ist
+   * nur, was dieser Test deckt.
    */
   function kopierteZiele(dockerfile: string): string[] {
     return dockerfile
@@ -182,17 +189,23 @@ describe("Modul-Registrierung ist vollständig", () => {
     });
 
     it("eine auskommentierte COPY-Zeile zählt NICHT als kopiert", () => {
-      const text = `# ${ECHT}`;
+      // Die WIRKSAME Nachbarzeile steht mit im Text, und zwar nicht als
+      // Beiwerk: gegen ein blosses `not.toContain` wäre auch ein `kopierteZiele`,
+      // das immer `[]` liefert, grün. Erst „diese eine, jene keine" schliesst
+      // die leer-grüne Fassung aus.
+      const text = `# ${ECHT}\nCOPY --from=builder /app/public ./public`;
       expect(text).toContain(PFAD);
-      expect(kopierteZiele(text)).not.toContain(PFAD);
+      expect(kopierteZiele(text)).toEqual(["public"]);
     });
 
     it("ein vertipptes Ziel zählt NICHT als kopiert, obwohl die Quelle stimmt", () => {
       // `…/migration` statt `…/migrations`: läuft lokal (cwd = Repo-Root) und
-      // bricht im Container, wo cwd `/app` ist.
-      const text = `COPY --from=builder --chown=nextjs:nodejs /app/${PFAD} ./${PFAD.slice(0, -1)}`;
+      // bricht im Container, wo cwd `/app` ist. `toEqual` statt `not.toContain`
+      // aus demselben Grund wie oben.
+      const falsch = PFAD.slice(0, -1);
+      const text = `COPY --from=builder --chown=nextjs:nodejs /app/${PFAD} ./${falsch}`;
       expect(text).toContain(PFAD);
-      expect(kopierteZiele(text)).not.toContain(PFAD);
+      expect(kopierteZiele(text)).toEqual([falsch]);
     });
   });
 });
