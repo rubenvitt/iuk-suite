@@ -95,15 +95,32 @@ export function svgFormFehler(svg: string): string | null {
  * „Überschreiben oder anders benennen?", gleiche Zusammenstellung → „Trotzdem
  * zusätzlich sichern?". Nichts wird still ueberschrieben.
  *
- * Die Namensfrage kommt zuerst, weil ihre Antwort die andere erledigt: wer
- * ueberschreibt, legt nichts Zweites an.
+ * Die Namensfrage kommt zuerst, UND IHRE ANTWORT ERLEDIGT DIE ANDERE MIT: wer
+ * ueberschreibt, legt nichts Zweites an — „trotzdem zusaetzlich sichern?" hat
+ * danach keinen Gegenstand mehr.
+ *
+ * ⛔ GENAU DARAN HING EINE ENDLOSSCHLEIFE (Review Aufgabe 7, Befund W1). Liegen
+ * BEIDE Konflikte zugleich an — „X" traegt Kanon K1, „Y" traegt K2, und K2 wird
+ * unter dem Namen „X" gespeichert —, dann kann ein EINZELNES `bestaetigung`-Feld
+ * nur eine der beiden Fragen beantworten. Vorher hiess das: „Ueberschreiben"
+ * loeste die Zusammenstellungsfrage aus, „Trotzdem sichern" wieder die
+ * Namensfrage, und so fort. Auf dem Bildschirm wechselten sich zwei Kaesten ab,
+ * gespeichert wurde nie, und der Ausweg (anders benennen) stand nirgends.
+ *
+ * Die Auffanglinie ist die frueh gesetzte Rueckgabe unten: ist der Name vergeben,
+ * entscheidet ALLEIN die Namensfrage — beantwortet heisst fertig, unbeantwortet
+ * heisst dieselbe Frage noch einmal. Ein Kreis entsteht nicht mehr, weil der
+ * einzige Knopf an dieser Frage „Ueberschreiben" traegt.
+ *
+ * Eine Bestaetigung gilt weiterhin NUR fuer ihren Fall: `"ueberschreiben"` ohne
+ * vergebenen Namen laeuft ins Leere und laesst die Zusammenstellungsfrage stehen.
  */
 export function konfliktFrage(
   namenVergeben: boolean,
   gleicheZusammenstellungAls: string | null,
   bestaetigung: string,
 ): "name" | "zusammenstellung" | null {
-  if (namenVergeben && bestaetigung !== "ueberschreiben") return "name";
+  if (namenVergeben) return bestaetigung === "ueberschreiben" ? null : "name";
   if (gleicheZusammenstellungAls !== null && bestaetigung !== "zusaetzlich") {
     return "zusammenstellung";
   }

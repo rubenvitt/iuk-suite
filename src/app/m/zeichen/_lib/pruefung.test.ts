@@ -107,4 +107,24 @@ describe("Konfliktfrage", () => {
     expect(konfliktFrage(true, null, "zusaetzlich")).toBe("name");
     expect(konfliktFrage(false, "Zugtrupp Nord", "ueberschreiben")).toBe("zusammenstellung");
   });
+
+  /*
+   * ⛔ ZWEI KONFLIKTE ZUGLEICH DUERFEN NICHT PENDELN (Review Aufgabe 7, Befund W1).
+   * Lage: „X" traegt Kanon K1, „Y" traegt K2 — jetzt wird K2 unter dem Namen „X"
+   * gespeichert. Beide Bedingungen sind erfuellt, und ein EINZELNES
+   * `bestaetigung`-Feld kann nur eine der beiden Fragen beantworten: „Ueberschreiben"
+   * loeste bisher die Zusammenstellungsfrage aus, „Trotzdem sichern" wieder die
+   * Namensfrage, und so fort — zwei Kaesten wechselten sich ab, gespeichert wurde nie.
+   *
+   * AUFGELOEST WIRD ES DURCH DIE NAMENSFRAGE, und die Begruendung stand schon vorher
+   * ueber dieser Funktion: WER UEBERSCHREIBT, LEGT NICHTS ZWEITES AN. Die Frage
+   * „trotzdem zusaetzlich sichern?" hat damit keinen Gegenstand mehr.
+   */
+  it("pendelt nicht, wenn beide Konflikte zugleich anliegen", () => {
+    expect(konfliktFrage(true, "Zugtrupp Nord", "")).toBe("name");
+    expect(konfliktFrage(true, "Zugtrupp Nord", "ueberschreiben")).toBeNull();
+    // „zusaetzlich" beantwortet die Namensfrage NICHT — sie bleibt stehen, und der
+    // einzige Knopf daran fuehrt zu „ueberschreiben". Kein Kreis.
+    expect(konfliktFrage(true, "Zugtrupp Nord", "zusaetzlich")).toBe("name");
+  });
 });
