@@ -2203,7 +2203,13 @@ pnpm vitest run src/core/bootstrap.test.ts
 
 Erwartet: PASS. Der Test prüft jetzt alle drei Beine für `lagerbuch`. **Gegenprobe, dass er wirklich
 greift** (er ist der einzige Wächter des dritten Beins): die `COPY`-Zeile probeweise auskommentieren,
-Test laufen lassen — er muss ROT werden —, dann zurücknehmen.
+Test laufen lassen — er muss ROT werden —, dann zurücknehmen. ⚠️ **Diese Form der Gegenprobe war zum
+Zeitpunkt dieses Plans nicht erfüllbar**: der Wächter las den Dockerfile-Rohtext mit
+`toContain(migrationsFolder)`, und ein vorangestelltes `#` entfernt den Teilstring nicht — der Test
+blieb grün. Gefahren wurde stattdessen „Zeile löschen → Test wird rot"; eine Aufzeichnung dieses
+Ersatzlaufs findet sich im Repo allerdings nicht. Seit DRK-187 zerlegt der Wächter die `COPY`-Zeilen
+und vergleicht den Zielpfad; die auskommentierte Zeile ist dort als eigener Test hinterlegt, und die
+Gegenprobe in ihrer ursprünglich verlangten Form greift damit erstmals.
 
 - [ ] **Schritt 10: Gates und Commit**
 
@@ -3872,7 +3878,13 @@ Bevor Teil 2 beginnt, muss **alles** hiervon zutreffen:
       dokumentierten Zusatzdateien).
 - [ ] `pnpm typecheck`, `pnpm lint`, `pnpm vitest run` und `pnpm build` sind grün.
 - [ ] `src/core/bootstrap.test.ts` prüft alle **drei** Beine des Dreiecks für `lagerbuch`, und die
-      Gegenprobe (auskommentierte `COPY`-Zeile → roter Test) ist einmal gefahren worden.
+      Gegenprobe ist einmal gefahren worden. ⚠️ **In der hier ursprünglich verlangten Form
+      (auskommentierte `COPY`-Zeile → roter Test) war sie zu diesem Zeitpunkt nicht erfüllbar**: der
+      Wächter las den Dockerfile-Rohtext mit `toContain(migrationsFolder)`, und ein vorangestelltes
+      `#` entfernt den Teilstring nicht — der Test blieb grün. Gefahren wurde deshalb „Zeile löschen
+      → Test wird rot" (nicht aufgezeichnet). Seit DRK-187 zerlegt der Wächter die `COPY`-Zeilen und
+      vergleicht den **Ziel**pfad; die auskommentierte Zeile ist dort als eigener Test hinterlegt
+      (samt der zweiten, teureren Blindstelle: vertipptes Ziel bei korrekter Quelle).
 - [ ] Der Schema-Diff aus T14 ist abschließend und protokolliert.
 - [ ] `_db/append-only.test.ts` behauptet **vier** Trigger, die o2-Gegenprobe und das
       `INSERT OR REPLACE`-Verhalten.
