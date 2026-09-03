@@ -144,8 +144,27 @@ describe("Naht zu @einsatzzeichen", () => {
    * Testdateien sind ausgenommen, wie oben: sie landen nie in einem Bundle.
    */
   const INSEL_ORDNER = "src/app/m/zeichen/_ui/baukasten";
-  /** Die vier Module, die Katalog-Code ziehen — direkt oder ueber `./paket`. */
-  const GESCHUETZT = ["paket", "zustand", "vokabular", "BaukastenInsel"];
+  const PAKET = `${INSEL_ORDNER}/paket.ts`;
+  const LADER = `${INSEL_ORDNER}/BaukastenLader.tsx`;
+  const ENDUNGEN = [".ts", ".tsx", ".mts", ".js", ".jsx"];
+
+  /**
+   * DIE FUENF BEZUGSFORMEN — DIESELBEN WIE IM SCAN OBEN, nur mit Fangklammer.
+   *
+   * ⚠️ Sie muessen deckungsgleich bleiben, und beide Abweichungen kosteten etwas:
+   * ohne `require(` haette dieser Riegel eine Luecke, die der obere nicht hat, und
+   * ohne den `(?!type\b)`-Ausschluss meldete er reine TYPimporte — die
+   * verschwinden im Build und ziehen keinen Code. Ein falscher Alarm an einer
+   * Stelle wie dieser ist teuer: er lehrt den naechsten Leser, dem Riegel nicht zu
+   * glauben.
+   */
+  const BEZUGSFORMEN: readonly { muster: RegExp; dynamisch: boolean }[] = [
+    { muster: /^\s*import\s+(?!type\b)[^;]*from\s+["']([^"']+)["']/gm, dynamisch: false },
+    { muster: /^\s*import\s+["']([^"']+)["']/gm, dynamisch: false },
+    { muster: /^\s*export\s+(?!type\b)[^;]*from\s+["']([^"']+)["']/gm, dynamisch: false },
+    { muster: /\bimport\(\s*["']([^"']+)["']/g, dynamisch: true },
+    { muster: /\brequire\(\s*["']([^"']+)["']/g, dynamisch: true },
+  ];
 
   /** Das Ziel eines Spezifizierers als Repo-Pfad, oder `null` fuer ein Paket. */
   function zielPfad(datei: string, spezifizierer: string): string | null {
@@ -156,27 +175,130 @@ describe("Naht zu @einsatzzeichen", () => {
     return null;
   }
 
-  function bezuegeAufDieInsel(): { datei: string; modul: string }[] {
+  function quelldateien(): string[] {
     const roh = execFileSync("git", ["ls-files", "src", "scripts"], { encoding: "utf8" });
-    const treffer: { datei: string; modul: string }[] = [];
-    for (const datei of roh.split("\n")) {
-      if (!/\.(ts|tsx|mts|js|jsx)$/.test(datei)) continue;
-      if (datei.endsWith(".test.ts") || datei.endsWith(".test.tsx")) continue;
-      const inhalt = ohneKommentare(readFileSync(datei, "utf8"));
-      for (const m of inhalt.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
-        const ziel = zielPfad(datei, m[1]);
-        if (ziel === null || !ziel.startsWith(`${INSEL_ORDNER}/`)) continue;
-        const modul = posix.basename(ziel).replace(/\.(ts|tsx|mts|js|jsx)$/, "");
-        if (GESCHUETZT.includes(modul)) treffer.push({ datei, modul });
-      }
-    }
-    return treffer;
+    return roh
+      .split("\n")
+      .filter((p) => ENDUNGEN.some((e) => p.endsWith(e)))
+      .filter((p) => !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"));
   }
 
+  /** Alle Bezuege einer Datei auf einen Repo-Pfad, mit ihrer Bezugsform. */
+  function bezuege(datei: string): { ziel: string; dynamisch: boolean }[] {
+    const inhalt = ohneKommentare(readFileSync(datei, "utf8"));
+    const gefunden: { ziel: string; dynamisch: boolean }[] = [];
+    for (const { muster, dynamisch } of BEZUGSFORMEN) {
+      for (const treffer of inhalt.matchAll(muster)) {
+        const ziel = zielPfad(datei, treffer[1]);
+        if (ziel !== null) gefunden.push({ ziel, dynamisch });
+      }
+    }
+    return gefunden;
+  }
+
+  const INSEL_DATEIEN = quelldateien().filter((p) => posix.dirname(p) === INSEL_ORDNER);
+
+  /** Ein Spezifiziererziel auf eine Quelldatei des Inselordners abbilden. */
+  function alsInseldatei(ziel: string): string | null {
+    const kandidaten = ["", ...ENDUNGEN].flatMap((e) => [`${ziel}${e}`, `${ziel}/index${e}`]);
+    return INSEL_DATEIEN.find((d) => kandidaten.includes(d)) ?? null;
+  }
+
+  /** Die Kanten INNERHALB des Ordners — Quelle, Ziel, Bezugsform. */
+  function innenkanten(): { von: string; nach: string; dynamisch: boolean }[] {
+    const kanten: { von: string; nach: string; dynamisch: boolean }[] = [];
+    for (const datei of INSEL_DATEIEN) {
+      for (const { ziel, dynamisch } of bezuege(datei)) {
+        const nach = alsInseldatei(ziel);
+        if (nach !== null) kanten.push({ von: datei, nach, dynamisch });
+      }
+    }
+    return kanten;
+  }
+
+  /**
+   * DIE GESCHUETZTE MENGE WIRD GERECHNET, NICHT AUFGEZAEHLT: jede Datei des
+   * Ordners, die `paket.ts` ueber STATISCHE Kanten erreicht, zieht den Katalog
+   * genauso wie `paket.ts` selbst.
+   *
+   * ⛔ EINE HANDGEPFLEGTE LISTE WAR HIER SCHON EINMAL FALSCH. Sie fuehrte vier
+   * Namen und liess `AchsenFelder.tsx` aus, das ueber `./vokabular` und
+   * `./zustand` genauso am Katalog haengt — ein Fremdimport davon waere am Riegel
+   * vorbeigelaufen. Gerechnet kann die Menge nicht wieder veralten, und der
+   * Nachweis, dass die Namen ueberhaupt existierenden Dateien entsprechen, faellt
+   * mit ab: sie KOMMEN aus dem Dateisystem.
+   *
+   * ⛔ DYNAMISCHE KANTEN VERERBEN NICHT, und das ist keine Nachlaessigkeit,
+   * sondern die Grenze selbst: `BaukastenLader.tsx` zieht die Insel ueber
+   * `dynamic(() => import("./BaukastenInsel"), { ssr: false })` — genau dieser
+   * Schnitt haelt den Katalog von der Serverseite fern. Wuerde er vererben, waere
+   * der Lader selbst geschuetzt und `(shell)/baukasten/page.tsx` ein Verstoss,
+   * obwohl es der vorgesehene Weg ist. Fuer den Bezug VON AUSSEN zaehlt die Form
+   * dagegen nicht: ein `await import("./zustand")` in einer Server Component zieht
+   * den Katalog genauso.
+   */
+  function geschuetzteDateien(): Set<string> {
+    const kanten = innenkanten().filter((k) => !k.dynamisch);
+    const geschuetzt = new Set<string>([PAKET]);
+    for (let gewachsen = true; gewachsen; ) {
+      gewachsen = false;
+      for (const kante of kanten) {
+        if (geschuetzt.has(kante.nach) && !geschuetzt.has(kante.von)) {
+          geschuetzt.add(kante.von);
+          gewachsen = true;
+        }
+      }
+    }
+    return geschuetzt;
+  }
+
+  /*
+   * ⛔ DER POSITIVANKER. Die drei Zusicherungen darunter pruefen auf LEERE Listen —
+   * sie waeren also auch dann gruen, wenn der Scan gar nichts mehr faende: ein
+   * verrutschter `INSEL_ORDNER`, ein umbenannter Ordner oder eine kaputte
+   * Bezugsform machten sie STILL gruen. Dieselbe Bauform, die diese Datei schon
+   * einmal am `ssr:false`-Test korrigiert hat (er war durch seinen eigenen
+   * Kommentar erfuellbar). Deshalb steht hier eine POSITIVE Erwartung, wie beim
+   * `toEqual(AUSNAHMEN)` des Scans oben.
+   *
+   * Die Listen werden beim Umbau ANGEPASST, nicht geloescht: eine neue Innenkante
+   * ist eine bewusste Entscheidung, und eine neue geschuetzte Datei erst recht.
+   */
+  it("findet die bekannten Innenkanten und daraus die geschuetzte Menge", () => {
+    const kanten = innenkanten()
+      .map((k) => `${posix.basename(k.von)} -> ${posix.basename(k.nach)}${k.dynamisch ? " (dynamisch)" : ""}`)
+      .sort();
+    expect(kanten, "der Scan findet die Innenkanten des Inselordners nicht mehr").toEqual([
+      "AchsenFelder.tsx -> vokabular.ts",
+      "AchsenFelder.tsx -> zustand.ts",
+      "BaukastenInsel.tsx -> AchsenFelder.tsx",
+      "BaukastenInsel.tsx -> SpeichernFormular.tsx",
+      "BaukastenInsel.tsx -> paket.ts",
+      "BaukastenInsel.tsx -> vokabular.ts",
+      "BaukastenInsel.tsx -> zustand.ts",
+      "BaukastenLader.tsx -> BaukastenInsel.tsx (dynamisch)",
+      "vokabular.ts -> paket.ts",
+      "zustand.ts -> paket.ts",
+    ]);
+
+    expect(
+      [...geschuetzteDateien()].map((d) => posix.basename(d)).sort(),
+      "die gerechnete Menge weicht ab — kam eine Datei dazu oder faellt der Scan aus?",
+    ).toEqual(["AchsenFelder.tsx", "BaukastenInsel.tsx", "paket.ts", "vokabular.ts", "zustand.ts"]);
+  });
+
   it("laesst den Katalog nur INNERHALB von _ui/baukasten weiterreichen", () => {
-    const draussen = bezuegeAufDieInsel()
-      .filter((t) => posix.dirname(t.datei) !== INSEL_ORDNER)
-      .map((t) => `${t.datei} -> ${t.modul}`);
+    const geschuetzt = geschuetzteDateien();
+    const draussen: string[] = [];
+    for (const datei of quelldateien()) {
+      if (posix.dirname(datei) === INSEL_ORDNER) continue;
+      for (const { ziel } of bezuege(datei)) {
+        const nach = alsInseldatei(ziel);
+        if (nach !== null && geschuetzt.has(nach)) {
+          draussen.push(`${datei} -> ${posix.basename(nach)}`);
+        }
+      }
+    }
     expect(
       draussen.sort(),
       "Diese Dateien ziehen Katalog-Code in ihren eigenen Graphen. Wird eine davon " +
@@ -193,10 +315,9 @@ describe("Naht zu @einsatzzeichen", () => {
    * `dynamic(..., { ssr: false })` und damit die ganze Vorkehrung.
    */
   it("bindet BaukastenInsel ausschliesslich ueber den Lader ein", () => {
-    const fremd = bezuegeAufDieInsel()
-      .filter((t) => t.modul === "BaukastenInsel")
-      .filter((t) => t.datei !== `${INSEL_ORDNER}/BaukastenLader.tsx`)
-      .map((t) => t.datei);
+    const fremd = innenkanten()
+      .filter((k) => k.nach === `${INSEL_ORDNER}/BaukastenInsel.tsx` && k.von !== LADER)
+      .map((k) => k.von);
     expect(fremd.sort(), "nur BaukastenLader.tsx darf die Insel kennen").toEqual([]);
   });
 });
