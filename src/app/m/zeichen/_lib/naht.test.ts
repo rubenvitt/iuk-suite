@@ -32,6 +32,16 @@ const AUSNAHMEN = [
   "src/app/m/zeichen/_ui/baukasten/paket.ts",
 ];
 
+/**
+ * Blockkommentare und Zeilenkommentare raus. Vorbild `core/shell/icons.test.ts`, und
+ * aus demselben Grund: mehrere Dateien dieses Moduls SCHREIBEN ueber die Bedingung,
+ * die hier geprueft wird — ein Scan ueber den Rohtext faellt ueber die eigene
+ * Begruendung.
+ */
+function ohneKommentare(quelle: string): string {
+  return quelle.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
 function dateienMitWertimport(): string[] {
   const roh = execFileSync("git", ["ls-files", "src", "scripts"], { encoding: "utf8" });
   return roh
@@ -39,7 +49,9 @@ function dateienMitWertimport(): string[] {
     .filter((p) => /\.(ts|tsx|mts|js|jsx)$/.test(p))
     .filter((p) => !p.endsWith(".test.ts") && !p.endsWith(".test.tsx"))
     .filter((pfad) => {
-      const inhalt = readFileSync(pfad, "utf8");
+      // Auch hier ohne Kommentare: mehrere Dateien dieses Moduls nennen
+      // `@einsatzzeichen/...` in ihrer Begruendung, ohne es zu beziehen.
+      const inhalt = ohneKommentare(readFileSync(pfad, "utf8"));
       /*
        * Fuenf Bezugsformen, und die reinen Typformen fallen heraus.
        *
@@ -82,8 +94,23 @@ describe("Naht zu @einsatzzeichen", () => {
     expect(AUSNAHMEN.length).toBe(2);
   });
 
+  /*
+   * ⚠️ KOMMENTARE ERST WEG, DANN PRUEFEN — und die Pruefung gilt EINEM Ausdruck.
+   * Gemessen: ein blosses /ssr:\s*false/ ueber den Rohtext bleibt gruen, wenn man in
+   * `BaukastenLader.tsx` auf `{ ssr: true }` umstellt, denn der einzige Treffer ist dann
+   * der Kommentar „`ssr: false` IST DIE GEMESSENE BEDINGUNG" darueber. Ein Test, der
+   * eine gemessene Build-Bedingung huetet und von seiner eigenen Begruendung erfuellt
+   * wird, huetet nichts.
+   *
+   * `(?:(?!dynamic\()[\s\S])*?` heisst: zwischen `dynamic(` und `ssr: false` darf kein
+   * zweites `dynamic(` liegen. Sonst genuegte irgendein `dynamic(` in der Datei plus
+   * irgendwo spaeter ein `ssr: false` aus einem anderen Aufruf.
+   */
   it("laedt den Baukasten mit ssr:false", () => {
-    const lader = readFileSync("src/app/m/zeichen/_ui/baukasten/BaukastenLader.tsx", "utf8");
-    expect(lader).toMatch(/ssr:\s*false/);
+    const lader = ohneKommentare(
+      readFileSync("src/app/m/zeichen/_ui/baukasten/BaukastenLader.tsx", "utf8"),
+    );
+    expect(lader).toMatch(/dynamic\((?:(?!dynamic\()[\s\S])*?ssr:\s*false/);
+    expect(lader).not.toMatch(/ssr:\s*true/);
   });
 });

@@ -15,6 +15,11 @@
  *
  * Die zehn Werte sind gegen `BodyVariantId` des installierten Pakets 1.1.0 gemessen
  * und decken sich mit den zehn, die in den 232 Hauptrezepten tatsaechlich vorkommen.
+ *
+ * ⚠️ DIE NAMEN TRAGEN ECHTE UMLAUTE, die Kommentare drumherum nicht. Das ist kein
+ * Versehen und keine Inkonsequenz: die ASCII-Umschrift ist die Konvention der
+ * KOMMENTARE dieses Repos, waehrend `koerperformName` diese Strings unveraendert auf
+ * den Bildschirm gibt. „Fussband" stuende dort als Schreibfehler.
  */
 export const BODY_VARIANT_NAMEN: Record<string, string> = {
   /** Angehobene Rumpfform, am Wasser- wie am Luftfahrzeug je separat vermessen. */
@@ -22,7 +27,7 @@ export const BODY_VARIANT_NAMEN: Record<string, string> = {
   /** Eingesenkter unterer Halbkreis der Wasserfahrzeuge aus Anhang I. */
   "inset-hull": "Eingesenkter Rumpf",
   /** Ausschliesslich ein schwarzes 3-mm-Fussband. */
-  "foot-band": "Fussband",
+  "foot-band": "Fußband",
   /** Die zwei schlichten Radringe der F.2-Landdarstellungen — ohne Kategoriebedeutung. */
   "plain-wheel-pair": "Radpaar ohne Zusatz",
   /** Der F.3-Kreis mit separat vermessenem Giebel. */
@@ -30,7 +35,7 @@ export const BODY_VARIANT_NAMEN: Record<string, string> = {
   /** Umgekehrter Rumpf auf Kette (N.1.1). */
   "inverted-hull-track": "Umgekehrter Rumpf mit Kette",
   /** Starrfluegelrumpf der Flugzeuge aus Anhang N. */
-  "fixed-wing-hull": "Starrfluegelrumpf",
+  "fixed-wing-hull": "Starrflügelrumpf",
   /** Um 1 mm angehobener Kreis (N.2.3). */
   "raised-circle-1mm": "Um 1 mm angehobener Kreis",
   /** Die kompakte 26-mm-Personenraute aus I.5. */

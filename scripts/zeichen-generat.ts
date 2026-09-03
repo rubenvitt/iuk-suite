@@ -19,7 +19,7 @@
  *
  * Lauf: pnpm exec tsx scripts/zeichen-generat.ts
  */
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 import {
@@ -38,8 +38,24 @@ import { falte } from "../src/app/m/zeichen/_lib/falte";
 import { ORDNUNG, kanonischerSchluessel } from "../src/app/m/zeichen/_lib/kanon";
 
 const require_ = createRequire(import.meta.url);
-const ZIEL = "src/app/m/zeichen/_lib/katalog.generiert.json";
+const STANDARD_ZIEL = "src/app/m/zeichen/_lib/katalog.generiert.json";
 const FONT_ZIEL = "src/app/m/zeichen/_fonts";
+
+/*
+ * DER ZIELPFAD IST EIN ARGUMENT, und das ist der Unterschied zwischen einem Waechter
+ * und einem Selbstheiler. Schriebe der Waechtertest aus `_lib/katalog.test.ts` in die
+ * eingecheckte Datei, waere ein veraltetes Generat genau EINMAL rot: der Lauf, der die
+ * Abweichung meldet, hat sie zugleich weggeschrieben. Der zweite Lauf ist gruen, ohne
+ * dass jemand etwas repariert hat — und „Drift ist strukturell ausgeschlossen" waere
+ * eine Zusicherung, die nur ein frischer CI-Checkout einloest.
+ *
+ * Mit Argument schreibt der Test in einen Wegwerfpfad und vergleicht; die Quelle wird
+ * nicht angefasst. Zwei Nebenwirkungen verschwinden mit: der Arbeitsbaum bleibt nach
+ * `pnpm vitest run` sauber (sonst wechselte `erzeugtAm` taeglich), und kein paralleler
+ * Vitest-Worker kann die halb geschriebene 541-KB-Datei lesen.
+ */
+const ZIEL = process.argv[2] ?? STANDARD_ZIEL;
+const istProbelauf = process.argv[2] !== undefined;
 
 /** Laut statt still: ein Drift-Befund bricht den Generatorlauf ab. */
 export class KatalogDriftFehler extends Error {
@@ -96,10 +112,6 @@ function pflichtText(wert: string | undefined, was: string, id: string): string 
   return wert;
 }
 
-function optionalerText(wert: string | undefined): string | null {
-  return !wert || wert.includes("undefined") ? null : wert;
-}
-
 const hauptRezepte = Object.entries(RECIPES).filter(([k]) => !k.includes("#"));
 const alternativen = Object.entries(RECIPES).filter(([k]) => k.includes("#"));
 
@@ -134,8 +146,15 @@ for (const [abschnitt, rezept] of hauptRezepte) {
   const spec: SymbolSpec = rezept.spec;
   const drawing = composeFromCatalog(spec, rezept.title);
   const bedeutung = pflichtText(describeSymbolSpec(spec), "Bedeutung", id);
+  /*
+   * `pflichtText`, NICHT `optionalerText`: der Zweig wird nur betreten, wenn die Quelle
+   * eine Organisation FUEHRT. Faende sich dann kein Etikett, waere das Drift — und
+   * `optionalerText` schluckte sie lautlos zu `null`. Heute null Faelle, also Vorsorge;
+   * der Ausfall waere aber still und teuer, weil `organisationen()` die Filterfassette
+   * speist und eine verschwundene Fassette wie eine Designentscheidung aussieht.
+   */
   const organisation = spec.organization
-    ? optionalerText(ORGANIZATION_LABELS[spec.organization])
+    ? pflichtText(ORGANIZATION_LABELS[spec.organization], "Organisation", id)
     : null;
   eintraege.push({
     id,
@@ -144,7 +163,8 @@ for (const [abschnitt, rezept] of hauptRezepte) {
     mehrdeutigerTitel: false,
     abschnitt,
     kapitel: kapitelFuer(abschnitt),
-    grundform: optionalerText(symbolKindLabel(spec.kind)),
+    // `kind` ist ein Pflichtfeld der Spec — ein leeres Etikett ist immer Drift.
+    grundform: pflichtText(symbolKindLabel(spec.kind), "Grundform", id),
     organisation,
     staerke: spec.strength ?? null,
     bedeutung,
@@ -174,7 +194,7 @@ for (const eintrag of Object.values(BASE_SYMBOLS)) {
     mehrdeutigerTitel: false,
     abschnitt: schluessel,
     kapitel: "Grundzeichen",
-    grundform: optionalerText(symbolKindLabel(eintrag.kind)),
+    grundform: pflichtText(symbolKindLabel(eintrag.kind), "Grundform", id),
     organisation: null,
     staerke: null,
     bedeutung: eintrag.title,
@@ -242,13 +262,34 @@ for (const [schluessel, rezept] of alternativen) {
   const abschnittVon = (sourceId: string) => sourceId.slice(sourceId.indexOf(":") + 1);
 
   /*
-   * ⚠️ Die Dateinamen tragen LEERZEICHEN („F.1.1_Medizinische Task Force.svg"). Ein
-   * Muster auf `\S+\.svg` schwaerzte davon nur „Force.svg" und liesse den Rest des
-   * Namens im ausgelieferten Text stehen — die Schwaerzung waere da und wirkte nicht.
-   * Deshalb bis zur naechsten Anfuehrung greifen: im Bestand stehen die Namen
-   * durchgaengig in Backticks oder deutschen Anfuehrungszeichen.
+   * DIE SCHWAERZUNG HAENGT AN DEN BEGRENZERN, NICHT AN DER ENDUNG — zwei gemessene
+   * Gruende, die in entgegengesetzte Richtungen zeigen:
+   *
+   *   ZU WENIG: nicht jeder Name endet auf `.svg`. „5.5.2_Bereitschaft (Verband II)"
+   *   in der Notiz zu E.1.31 traegt gar keine Endung und stand mit einem Muster auf
+   *   `.svg` unveraendert im ausgelieferten Text.
+   *
+   *   ZU VIEL: ein Muster, das Leerzeichen ueberspannt, laeuft ohne Begrenzung bis zum
+   *   Satzanfang zurueck — aus „… wie E.1.6_Zugtrupp der Feuerwehr.svg und bleibt
+   *   normgerecht." wuerde „der Referenzdatei und bleibt normgerecht.". Heute
+   *   unschaedlich, beim naechsten Paketstand still.
+   *
+   * Gemessen stehen alle neun Namen in Begrenzern (`…` oder „…") und beginnen mit
+   * einem Abschnittsschluessel plus Unterstrich. Beides zusammen begrenzt den Treffer
+   * nach VORN wie nach HINTEN. Der Abschnittsanker haelt zugleich `LABEL_SIDE_MARGIN_MM`
+   * aus der Notiz zu E.2.26 heraus — eine Codekonstante, die kein Dateiname ist.
    */
-  const DATEINAME = /[^\s`„"]+(?: [^\s`„"]+)*\.svg/g;
+  const ABSCHNITT = String.raw`(?:[A-Z]\.)?\d+(?:\.\d+)*`;
+  const DATEINAME = new RegExp(String.raw`[\`„]${ABSCHNITT}_[^\`"„]*["\`]`, "g");
+
+  /*
+   * DER RIEGEL GEGEN DIE ERSTE RICHTUNG: bleibt nach der Schwaerzung noch irgendwo das
+   * Muster „Abschnitt_" oder eine `.svg`-Endung stehen, hat ein kuenftiger Paketstand
+   * die Namen anders gesetzt — und die Schwaerzung liefe ins Leere, ohne dass irgendwo
+   * etwas rot wuerde. Lieber ein abgebrochener Generatorlauf als ein ausgelieferter
+   * BABZ-Dateiname.
+   */
+  const REST = new RegExp(String.raw`${ABSCHNITT}_|\.svg`);
 
   let notizen = 0;
   for (const zeile of COVERAGE_MANIFEST.entries ?? []) {
@@ -259,10 +300,16 @@ for (const [schluessel, rezept] of alternativen) {
         `die Abweichungsnotiz zu ${zeile.sourceId} findet kein Zeichen`,
       );
     }
-    ziel.reviewNotiz =
-      String(zeile.review.technical.note ?? "")
-        .replace(DATEINAME, "der Referenzdatei")
-        .trim() || null;
+    const notiz = String(zeile.review.technical.note ?? "")
+      .replace(DATEINAME, "der Referenzdatei")
+      .trim();
+    const uebrig = REST.exec(notiz);
+    if (uebrig) {
+      throw new KatalogDriftFehler(
+        `die Notiz zu ${zeile.sourceId} traegt nach der Schwaerzung noch "${uebrig[0]}"`,
+      );
+    }
+    ziel.reviewNotiz = notiz || null;
     notizen += 1;
   }
   if (notizen !== 12) {
@@ -273,10 +320,15 @@ for (const [schluessel, rezept] of alternativen) {
 // 6. Arimo mitkopieren. 66 % der Zeichen tragen <text font-family="Arimo">, und die
 //    Textgeometrie ist gegen Arimo vermessen — ohne die Schrift laufen "KatSL",
 //    "UEMANV-S" und "MLW IV Lbw" aus ihren Boxen.
-mkdirSync(FONT_ZIEL, { recursive: true });
-const assets = `${WURZEL}dist/assets/`;
-copyFileSync(`${assets}Arimo[wght].ttf`, `${FONT_ZIEL}/Arimo[wght].ttf`);
-copyFileSync(`${assets}Arimo-OFL.txt`, `${FONT_ZIEL}/Arimo-OFL.txt`);
+//
+//    NUR BEIM KANONISCHEN LAUF: ein Probelauf des Waechtertests darf nichts im
+//    Arbeitsbaum anfassen, auch keine Schriftdatei.
+if (!istProbelauf) {
+  mkdirSync(FONT_ZIEL, { recursive: true });
+  const assets = `${WURZEL}dist/assets/`;
+  copyFileSync(`${assets}Arimo[wght].ttf`, `${FONT_ZIEL}/Arimo[wght].ttf`);
+  copyFileSync(`${assets}Arimo-OFL.txt`, `${FONT_ZIEL}/Arimo-OFL.txt`);
+}
 
 const generat = {
   stand: {
@@ -290,7 +342,14 @@ const generat = {
   zeichen: eintraege.sort((a, b) => String(a.id).localeCompare(String(b.id))),
 };
 
-writeFileSync(ZIEL, `${JSON.stringify(generat, null, 0)}\n`, "utf8");
+/*
+ * Erst daneben schreiben, dann umbenennen. `writeFileSync` allein ist nicht atomar:
+ * ein Leser, der waehrend der 541 KB zugreift, bekaeme halbes JSON. `renameSync` im
+ * SELBEN Verzeichnis ist es — deshalb liegt die Zwischendatei neben dem Ziel und
+ * nicht in /tmp (ueber Dateisystemgrenzen hinweg waere es wieder ein Kopieren).
+ */
+writeFileSync(`${ZIEL}.tmp`, `${JSON.stringify(generat, null, 0)}\n`, "utf8");
+renameSync(`${ZIEL}.tmp`, ZIEL);
 console.log(
   `${ZIEL}: ${eintraege.length} Zeichen, Paket ${generat.stand.paket}, Daten ${generat.stand.daten}`,
 );

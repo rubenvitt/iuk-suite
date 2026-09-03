@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -20,12 +22,49 @@ describe("Katalog-Generat", () => {
    * DER WAECHTER. Er baut das Generat bei JEDEM Lauf neu und vergleicht byteweise.
    * Damit ist Drift zwischen eingechecktem Stand und installiertem Paket
    * strukturell ausgeschlossen, nicht nur geregelt.
+   *
+   * ⚠️ ER BAUT IN EINEN WEGWERFPFAD UND FASST DIE EINGECHECKTE DATEI NICHT AN. Schriebe
+   * er dorthin, heilte er sich selbst: ein veraltetes Generat waere genau EINMAL rot —
+   * derselbe Lauf, der die Abweichung meldet, haette sie schon weggeschrieben —, und der
+   * zweite Lauf gruen, ohne dass jemand etwas repariert hat. Die Zusicherung „Drift ist
+   * strukturell ausgeschlossen" haette dann nur der frische CI-Checkout eingeloest, nicht
+   * dieser Test. Nebenbei bleibt so der Arbeitsbaum nach `pnpm vitest run` sauber
+   * (`erzeugtAm` wechselt taeglich) und kein paralleler Worker liest eine halb
+   * geschriebene 541-KB-Datei.
    */
   it("entspricht dem installierten Paket", () => {
+    const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
+    try {
+      const probe = join(ordner, "katalog.probe.json");
+      execFileSync("pnpm", ["exec", "tsx", "scripts/zeichen-generat.ts", probe], {
+        stdio: "pipe",
+      });
+      expect(ohneDatum(readFileSync(probe, "utf8"))).toBe(
+        ohneDatum(readFileSync(GENERAT, "utf8")),
+      );
+    } finally {
+      rmSync(ordner, { recursive: true, force: true });
+    }
+  });
+
+  /*
+   * Die Gegenprobe zum Waechter: er darf die Quelle NICHT veraendern. Waere das anders,
+   * hinterliesse jeder Testlauf einen schmutzigen Arbeitsbaum — und der Waechter oben
+   * pruefte am Ende nur noch sich selbst.
+   */
+  it("laesst das eingecheckte Generat unangetastet", () => {
     const vorher = readFileSync(GENERAT, "utf8");
-    execFileSync("pnpm", ["exec", "tsx", "scripts/zeichen-generat.ts"], { stdio: "pipe" });
-    const nachher = readFileSync(GENERAT, "utf8");
-    expect(ohneDatum(nachher)).toBe(ohneDatum(vorher));
+    const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
+    try {
+      execFileSync(
+        "pnpm",
+        ["exec", "tsx", "scripts/zeichen-generat.ts", join(ordner, "wegwerf.json")],
+        { stdio: "pipe" },
+      );
+      expect(readFileSync(GENERAT, "utf8")).toBe(vorher);
+    } finally {
+      rmSync(ordner, { recursive: true, force: true });
+    }
   });
 
   /*

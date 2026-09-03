@@ -1,6 +1,7 @@
 import { RECIPES } from "@einsatzzeichen/catalog";
 import { describe, expect, it } from "vitest";
 
+import type { OrdnungDecktSymbolSpec } from "./kanon";
 import { ORDNUNG, kanonischerSchluessel } from "./kanon";
 
 const HAUPT = Object.entries(RECIPES).filter(([k]) => !k.includes("#"));
@@ -55,5 +56,37 @@ describe("kanonischerSchluessel", () => {
     for (const [, r] of HAUPT) for (const k of Object.keys(r.spec)) vorhanden.add(k);
     const unbekannt = [...vorhanden].filter((k) => !(ORDNUNG as readonly string[]).includes(k));
     expect(unbekannt).toEqual([]);
+  });
+
+  /*
+   * DIE ANDERE RICHTUNG, und die faengt der Test darueber NICHT: er sieht nur Felder,
+   * die ein Rezept auch BELEGT. Ein Feld, das eine kuenftige Paketversion einfuehrt,
+   * das aber noch kein Rezept fuehrt, kaeme dort still durch — waehrend der Baukasten
+   * es bereits setzen kann. Diese Zuweisung fragt den TYP: fehlt ein Feld in ORDNUNG,
+   * ist `OrdnungDecktSymbolSpec` gleich `never`, und `pnpm typecheck` bricht mit dem
+   * Namen des fehlenden Feldes ab. Vitest allein kann das nicht sehen — esbuild wirft
+   * Typen weg, statt sie zu pruefen.
+   */
+  it("ORDNUNG deckt jedes Feld des TYPS SymbolSpec ab, auch ein unbenutztes", () => {
+    const vollstaendig: OrdnungDecktSymbolSpec = true;
+    expect(vollstaendig).toBe(true);
+  });
+
+  /*
+   * GEGEN DEN STILLEN DATENVERLUST: `String(v)` auf einem verschachtelten Objekt ergab
+   * `[object Object]` — gemessen in 20 der 232 Rezepte (etwa F.2.11, Feld
+   * `labels.topLeftMetrics`). Zwei Zeichen, die sich allein dort unterscheiden,
+   * bekaemen denselben Schluessel.
+   */
+  it("serialisiert verschachtelte Werte, statt sie zu [object Object] zu machen", () => {
+    for (const [abschnitt, r] of HAUPT) {
+      expect(kanonischerSchluessel(r.spec), abschnitt).not.toContain("[object Object]");
+    }
+  });
+
+  it("unterscheidet Zeichen, die sich nur tief im Objekt unterscheiden", () => {
+    const a = { kind: "formation", labels: { topLeft: "X", topLeftMetrics: { breite: 1 } } } as never;
+    const b = { kind: "formation", labels: { topLeft: "X", topLeftMetrics: { breite: 2 } } } as never;
+    expect(kanonischerSchluessel(a)).not.toBe(kanonischerSchluessel(b));
   });
 });
