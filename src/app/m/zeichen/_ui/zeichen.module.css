@@ -67,6 +67,24 @@
 }
 
 /*
+ * DIE LERNFARBEN (Aufgabe 8, `_lib/lernfarben.ts`). Zwei Quellen desselben Wertes —
+ * `lernfarben.test.ts` haelt TS und CSS zusammen. KEIN SUITE-ROT (Falle 3): `falsch`
+ * ist ein gedaempftes Ocker, keine Fehlerfarbe.
+ */
+:root[data-theme="light"] .modul {
+  --tz-lern-richtig: #1f7a4d;
+  --tz-lern-falsch: #8a5a00;
+  --tz-lern-gefestigt: #14603c;
+  --tz-lern-offen: #5c6470;
+}
+:root[data-theme="dark"] .modul {
+  --tz-lern-richtig: #4ec98a;
+  --tz-lern-falsch: #e0a34a;
+  --tz-lern-gefestigt: #3fae76;
+  --tz-lern-offen: #9aa4b2;
+}
+
+/*
  * DIE EINE REGEL, DIE DAS PRAESENTATIONSATTRIBUT SCHLAEGT. `renderSvg` schreibt
  * `font-family="Arimo"` als ATTRIBUT ins SVG; ein Attribut hat Spezifitaet 0, jede
  * CSS-Regel gewinnt. Nicht gemessen, argumentativ sicher — H2 aus Spec §9 ist der

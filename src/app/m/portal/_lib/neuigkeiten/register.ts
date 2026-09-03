@@ -16,6 +16,7 @@ import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/not
 import verwaltungAufDemTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-verwaltung-auf-dem-telefon";
 import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-eigene-zeichen-bauen";
 import zeichenNachschlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-taktische-zeichen-nachschlagen";
+import zeichenUeben from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-03-zeichen-ueben";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -53,6 +54,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verwaltungAufDemTelefon,
   zeichenNachschlagen,
   eigeneZeichenBauen,
+  zeichenUeben,
 ];
 
 /**

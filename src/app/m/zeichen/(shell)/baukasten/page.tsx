@@ -1,6 +1,8 @@
 import { Alert, Card } from "antd";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
 import { SPACE } from "@/core/theme/tokens";
+import { getDb } from "../../_db/client";
+import { aktiveLernsets, idsAusSet } from "../../_db/lernen";
 import { BaukastenLader } from "../../_ui/baukasten/BaukastenLader";
 import { VORBEHALT } from "../../_lib/vorbehalt";
 
@@ -19,8 +21,22 @@ import { VORBEHALT } from "../../_lib/vorbehalt";
  * DER VORBEHALT KOMMT AUS `_lib/vorbehalt.ts`, nicht als abgeschriebener Satz:
  * eine zweite Fassung liefe von der auf der Startseite und auf `/lernen`
  * auseinander, und kein Tor saehe es.
+ *
+ * DIE VERDRAHTUNG DER BAUUEBUNG AN EIN LERNSET (Aufgabe 8, Spec §6.5): dieselbe
+ * `?set=<slug>`-URL wie auf `/lernen`. Die IDs werden HIER, serverseitig, ueber
+ * `idsAusSet` aufgeloest und als SERIALISIERBARES Array (`readonly string[]`) an
+ * `BaukastenLader` gereicht — eine Liste von Zeichenketten ueberquert die
+ * RSC-Grenze ohne Weiteres, anders als eine Funktion (Falle 9). Ein unbekannter
+ * oder nicht mehr aktiver Slug faellt still auf den ganzen Bestand zurueck,
+ * dieselbe Regel wie auf `/lernen`.
  */
-export default function BaukastenSeite() {
+export default async function BaukastenSeite(props: { searchParams: Promise<{ set?: string }> }) {
+  const { set } = await props.searchParams;
+  const db = getDb();
+  const sets = aktiveLernsets(db);
+  const gewaehlt = set && sets.some((x) => x.slug === set) ? set : undefined;
+  const nurIds = gewaehlt ? idsAusSet(db, gewaehlt) : undefined;
+
   return (
     <>
       <Seitenkopf
@@ -36,7 +52,7 @@ export default function BaukastenSeite() {
         description={VORBEHALT.text}
       />
       <Card>
-        <BaukastenLader />
+        <BaukastenLader nurIds={nurIds} />
       </Card>
     </>
   );

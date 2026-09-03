@@ -79,7 +79,14 @@ function anfangsVersion(): string | null {
   return new URLSearchParams(window.location.search).get("v");
 }
 
-export default function BaukastenInsel() {
+/**
+ * `nurIds` kommt aus `(shell)/baukasten/page.tsx`, das den `?set=<slug>`-Parameter
+ * serverseitig gegen `idsAusSet` aufgeloest hat (Aufgabe 8, Spec §6.5: „aus den 232
+ * oder aus dem zuletzt auf /lernen gewaehlten Lernset"). `undefined` heisst „ganzer
+ * Bestand", `[]` heisst „dieses Set hat kein aufloesbares Zeichen" — `ziehePruefaufgabe`
+ * unterscheidet die beiden schon (Aufgabe 7).
+ */
+export default function BaukastenInsel({ nurIds }: { nurIds?: readonly string[] } = {}) {
   const [spec, setSpec] = useState<SymbolSpec>(anfangsSpec);
   const [herkunftVersion, setHerkunftVersion] = useState<string | null>(anfangsVersion);
   const [aufgabe, setAufgabe] = useState<Uebungsaufgabe | null>(null);
@@ -226,12 +233,7 @@ export default function BaukastenInsel() {
   };
 
   const starteUebung = () => {
-    /*
-     * Die Einschraenkung auf ein Lernset kommt mit Aufgabe 8 (`idsAusSet(db, slug)`
-     * und derselbe `?set=<slug>`-Parameter wie auf `/lernen`). Bis dahin steht hier
-     * `undefined` — der ganze Bestand ist im Spiel, und die Naht ist schon da.
-     */
-    const nurIds: readonly string[] | undefined = undefined;
+    // Die Einschraenkung auf ein Lernset kommt als Prop herein (Aufgabe 8).
     setAufgabe(ziehePruefaufgabe(UEBUNGSPOOL, Math.random, nurIds));
     setUrteil(null);
     aendere(LEERE_SPEC);

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/core/auth";
+import { requireModuleAdmin } from "@/core/auth/guards";
 import { getDb } from "./_db/client";
 import {
   eigenesZeichenMitKanon,
@@ -10,9 +11,11 @@ import {
   legeEigenesZeichenAn,
   ueberschreibeEigenesZeichen,
 } from "./_db/eigeneZeichen";
-import { merkliste } from "./_db/schema";
+import { schreibeAntwort } from "./_db/lernen";
+import { lernsets, lernsetZeichen, merkliste } from "./_db/schema";
 import { kanonischerSchluessel } from "./_lib/kanon";
 import { KATALOG_STAND, findeZeichen } from "./_lib/katalog";
+import { FRAGETYPEN, type Fragetyp } from "./_lib/lernen/fragen";
 import { konfliktFrage, specFormFehler, svgFormFehler } from "./_lib/pruefung";
 
 /*
@@ -214,4 +217,138 @@ export async function speichereEigenesZeichen(
 
   revalidate();
   return { ok: true, name };
+}
+
+/*
+ * --- Lernen (Aufgabe 8) ---------------------------------------------------------------
+ */
+
+/**
+ * Bewertet eine Antwort und schreibt den Stand. DIE ACTION IST DIE WAHRHEIT ueber den
+ * Fortschritt — die Insel kennt die Optionen ohnehin, ein signiertes Fragetoken waere
+ * Aufwand gegen jemanden, der sich nur selbst belaege.
+ */
+export async function beantworte(
+  zeichenId: string,
+  typ: Fragetyp,
+  gewaehlteId: string,
+): Promise<{ richtig: boolean }> {
+  const sub = (await auth())?.user?.id;
+  // Der Typ luegt: @auth/core baut `user` ohne `id`. TypeScript sieht das nicht.
+  if (!sub) throw new Error("Forbidden");
+  if (!FRAGETYPEN.includes(typ)) throw new Error("Unbekannter Fragetyp");
+
+  const richtig = gewaehlteId === zeichenId;
+  const heute = new Date().toISOString().slice(0, 10);
+  schreibeAntwort(getDb(), sub, zeichenId, richtig ? "richtig" : "falsch", heute);
+  revalidatePath("/m/zeichen/lernen");
+  return { richtig };
+}
+
+/*
+ * --- Lernsets, Verwaltung (Aufgabe 8) --------------------------------------------------
+ *
+ * JEDE Action hier beginnt mit `await requireModuleAdmin("zeichen")` — nicht
+ * `moduleAdminPageOrNotFound`: das ist die Seitenform (liefert 404), Actions nehmen
+ * die WERFENDE Form (Falle unterschieden im CLAUDE.md-Abschnitt „Zugriffsschutz").
+ */
+
+const LERNSETS_WURZEL = "/m/zeichen/verwaltung/lernsets";
+
+export type LernsetFormState =
+  | { ok: true }
+  | { ok: false; feldFehler: Record<string, string> };
+
+/**
+ * Ein Lernset anlegen. `aktiv` beginnt auf `false` (Schema-Vorgabe) — ein Set entsteht
+ * ueber mehrere Sitzungen, ohne Entwurfszustand saehe jeder Lernende jede Halbfertigkeit.
+ */
+export async function legeLernsetAn(
+  _vorher: LernsetFormState,
+  formData: FormData,
+): Promise<LernsetFormState> {
+  await requireModuleAdmin("zeichen");
+
+  const titel = String(formData.get("titel") ?? "").trim();
+  const slug = String(formData.get("slug") ?? "").trim();
+
+  const feldFehler: Record<string, string> = {};
+  if (!titel) feldFehler.titel = "Bitte einen Titel angeben.";
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    feldFehler.slug = "Nur Kleinbuchstaben, Ziffern und Bindestriche.";
+  }
+  if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler };
+
+  const sub = (await auth())?.user?.id;
+  if (!sub) throw new Error("Forbidden");
+
+  const bestehend = getDb().select().from(lernsets).where(eq(lernsets.slug, slug)).get();
+  if (bestehend) {
+    return { ok: false, feldFehler: { slug: "Dieses Kürzel gibt es schon." } };
+  }
+
+  getDb().insert(lernsets).values({ slug, titel, erstelltVon: sub }).run();
+  revalidatePath(LERNSETS_WURZEL);
+  return { ok: true };
+}
+
+/** Ein Set sichtbar schalten oder wieder zurueckziehen. */
+export async function setzeLernsetAktiv(lernsetId: string, aktiv: boolean): Promise<void> {
+  await requireModuleAdmin("zeichen");
+  getDb()
+    .update(lernsets)
+    .set({ aktiv, geaendertAm: new Date() })
+    .where(eq(lernsets.id, lernsetId))
+    .run();
+  revalidatePath(LERNSETS_WURZEL);
+  revalidatePath("/m/zeichen/lernen");
+}
+
+/**
+ * Ein Zeichen in ein Lernset aufnehmen. Der `titelSchnappschuss` wird — wie bei der
+ * Merkliste (Spec §4.2) — HIER aus dem Generat genommen, nicht vom Client geliefert.
+ *
+ * Eine unbekannte Katalog-ID ist ein Feldfehler, kein Wurf: die Admin-Person hat sich
+ * vertippt, das ist kein Zugriffsproblem.
+ */
+export async function fuegeZeichenZuSetHinzu(
+  lernsetId: string,
+  zeichenId: string,
+): Promise<{ ok: boolean; fehler?: string }> {
+  await requireModuleAdmin("zeichen");
+
+  const zeichen = findeZeichen(zeichenId);
+  if (zeichen === null) return { ok: false, fehler: "Diese Zeichen-ID kennt der Katalog nicht." };
+
+  const db = getDb();
+  const bisherige = db
+    .select()
+    .from(lernsetZeichen)
+    .where(eq(lernsetZeichen.lernsetId, lernsetId))
+    .all();
+  if (bisherige.some((z) => z.zeichenId === zeichen.id)) {
+    return { ok: false, fehler: "Dieses Zeichen steht schon im Set." };
+  }
+
+  db.insert(lernsetZeichen)
+    .values({
+      lernsetId,
+      zeichenId: zeichen.id,
+      titelSchnappschuss: zeichen.titel,
+      position: bisherige.length,
+    })
+    .run();
+  revalidatePath(`${LERNSETS_WURZEL}/${lernsetId}`);
+  return { ok: true };
+}
+
+/** Ein Zeichen aus einem Lernset nehmen. Wie bei der Merkliste: kein Katalog-Abgleich
+ *  noetig, eine verwaiste Zeile muss sich genauso entfernen lassen. */
+export async function entferneZeichenAusSet(lernsetId: string, zeichenId: string): Promise<void> {
+  await requireModuleAdmin("zeichen");
+  getDb()
+    .delete(lernsetZeichen)
+    .where(and(eq(lernsetZeichen.lernsetId, lernsetId), eq(lernsetZeichen.zeichenId, zeichenId)))
+    .run();
+  revalidatePath(`${LERNSETS_WURZEL}/${lernsetId}`);
 }

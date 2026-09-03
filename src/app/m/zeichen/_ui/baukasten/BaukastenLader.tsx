@@ -23,6 +23,11 @@ import dynamic from "next/dynamic";
  */
 const BaukastenInsel = dynamic(() => import("./BaukastenInsel"), { ssr: false });
 
-export function BaukastenLader() {
-  return <BaukastenInsel />;
+/**
+ * `nurIds` reicht die auf `/baukasten?set=<slug>` aufgeloeste Lernset-Einschraenkung
+ * (Aufgabe 8) unveraendert an die Insel durch — ein Array von Zeichenketten, kein
+ * Funktionswert, deshalb unproblematisch fuer die RSC-Grenze (Falle 9).
+ */
+export function BaukastenLader({ nurIds }: { nurIds?: readonly string[] }) {
+  return <BaukastenInsel nurIds={nurIds} />;
 }
