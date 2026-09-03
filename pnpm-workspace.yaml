@@ -7,7 +7,12 @@ allowBuilds:
 # `fileURLToPath` auf Modulebene, und Next ersetzt `node:url` dort durch native-url, das
 # die Funktion nicht kennt — die ganze Baukasten-Insel blieb leer, waehrend build,
 # typecheck, lint und Vitest gruen waren. Begruendung, Messung und die verworfenen
-# Alternativen stehen im Commit 21778c2.
+# Alternativen stehen im Commit 8b66405.
+# ⛔ DER PATCH UEBERSPRINGT NUR IM BROWSER (`typeof window`). Die Literalform
+# `new URL('…', import.meta.url)` bleibt stehen, weil der Bundler genau dieses Muster
+# statisch umschreibt — daran haengt, dass ein Katalog-Import im Server-Graph den Build
+# weiterhin abbricht (M1). Wer den Ausdruck in eine Hilfsfunktion hebt, schaltet die
+# Zusage ab, ohne dass ein Tor rot wird (gemessen, Fix-Runde 2).
 # ⛔ VIER ECKEN, NICHT DREI: dieser Eintrag, die Datei unter `patches/` UND die Zeile
 # `COPY patches ./patches` in der deps-Stage des Dockerfiles. `src/docker-kontext.test.ts`
 # haelt sie zusammen; ein Upgrade des Pakets faellt pnpm selbst auf (ERR_PNPM_UNUSED_PATCH).

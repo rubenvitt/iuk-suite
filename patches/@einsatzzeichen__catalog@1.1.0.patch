@@ -1,59 +1,69 @@
 diff --git a/dist/src/fonts.js b/dist/src/fonts.js
-index 344c7194e5bef3deb694054072bdcb07c969281d..07a19cd97be5cf34fcb0defc132de28987accecc 100644
+index 344c7194e5bef3deb694054072bdcb07c969281d..9d32a04fca381ee46d3453346afecca06fa721b6 100644
 --- a/dist/src/fonts.js
 +++ b/dist/src/fonts.js
-@@ -11,13 +11,41 @@ import { TEXT_FONT_FAMILY_ATTR } from '@einsatzzeichen/core';
+@@ -11,13 +11,47 @@ import { TEXT_FONT_FAMILY_ATTR } from '@einsatzzeichen/core';
   * auseinanderlaufbar; die Abhängigkeitsrichtung catalog → core ist bereits gegeben.
   */
  export const TEXT_FONT_FAMILY = TEXT_FONT_FAMILY_ATTR;
 -export const TEXT_FONT_PATH = fileURLToPath(new URL('../assets/Arimo[wght].ttf', import.meta.url));
-+// PATCH iuk-suite (Commit 21778c2), Nachtrag Fix-Runde 1.
++// PATCH iuk-suite (Commit 8b66405), Fassung Fix-Runde 2.
 +//
-+// Ohne den Patch wirft dieser Aufruf auf MODULEBENE und nimmt das ganze Paket mit:
-+// im Browserbuendel ersetzt Next `node:url` durch `next/dist/compiled/native-url`,
-+// und das kennt `fileURLToPath` nicht.
++// ⛔ NUR DER BROWSER UEBERSPRINGT DIE AUFLOESUNG — SONST NIEMAND.
 +//
-+// ⛔ AUFGESCHOBEN, NICHT VERSCHLUCKT — und genau das ist der Unterschied zur ersten
-+// Fassung, die '' zurueckgab. Ein leerer String ist ein PLAUSIBEL AUSSEHENDER Pfad:
-+// er kaeme durch jede Signatur und liefe erst tief in resvg oder in `fs` auf, weit
-+// weg von seiner Ursache. Der Fehler wird deshalb GEMERKT und von der einzigen
-+// Konsumentin dieser Pfade — `resvgFontOptions()`, nur in Node gebraucht — mit
-+// Klartext geworfen. Wer ihn braucht, bekommt ihn; wer ihn nicht anfasst (der
-+// Browser), sieht ihn nicht.
-+let pfadFehler = null;
-+const dateipfad = (relativ) => {
-+    try {
-+        return fileURLToPath(new URL(relativ, import.meta.url));
-+    } catch (ursache) {
-+        pfadFehler ?? (pfadFehler = `Die Schriftpfade von @einsatzzeichen/catalog sind nur in `
-+            + `Node aufloesbar (${relativ}): \`fileURLToPath\` fehlt in dieser Umgebung. Im `
-+            + `Browserbuendel ersetzt Next \`node:url\` durch native-url, im RSC-Graph fehlt `
-+            + `import.meta.url. Gebraucht werden die Pfade allein von resvgFontOptions() bei `
-+            + `der Rasterung — dort gehoert dieser Aufruf hin, nicht in eine Oberflaeche. `
-+            + `Siehe patches/@einsatzzeichen__catalog@1.1.0.patch (iuk-suite). Ursache: ${ursache}`);
-+        // `undefined` und NICHT '': ein leerer String saehe aus wie ein Pfad.
-+        return undefined;
-+    }
-+};
-+export const TEXT_FONT_PATH = dateipfad('../assets/Arimo[wght].ttf');
++// Ohne den Patch bricht die Modulauswertung im BROWSERBUENDEL ab: Next ersetzt
++// `node:url` dort durch `next/dist/compiled/native-url`, und das exportiert
++// gemessen genau `parse, format, resolve, resolveObject, Url` — kein
++// `fileURLToPath`. Die Baukasten-Insel blieb leer, waehrend build, typecheck,
++// lint und Vitest gruen waren (Vitest laedt in Node, wo die Funktion existiert).
++//
++// ⛔ DIE LITERALFORM `new URL('…', import.meta.url)` MUSS STEHEN BLEIBEN, und das
++// ist der ganze Witz dieser Fassung. Turbopack und webpack erkennen genau dieses
++// Muster STATISCH und schreiben es in eine eigene Asset-Referenz um; im
++// Server-Buendel kommt dabei ein URL-Objekt aus einem anderen Realm heraus, das
++// Nodes `fileURLToPath` ablehnt — „The 'path' argument must be of type string or
++// an instance of URL. Received an instance of URL", ERR_INVALID_ARG_TYPE, Phase
++// „Collecting page data". GENAU DAS ist M1: der Grund, warum ein Katalog-Import
++// im Server-Graph den Build zerlegt.
++//
++// Eine frueherer Fassung dieses Patches reichte den Pfad als VARIABLE in eine
++// Hilfsfunktion. Das Muster passte damit nicht mehr, der Bundler liess den
++// Ausdruck in Ruhe, `import.meta.url` blieb eine echte Datei-URL — und der Build
++// lief auch mit einem Katalog-Import in einer Server Component durch (gemessen:
++// Exit 0, `TEXT_FONT_PATH` ein echter absoluter Pfad). Der Patch hatte M1 damit
++// nicht verschoben, sondern ABGESCHALTET. Ein try/catch haette dasselbe getan.
++//
++// Deshalb hier eine BEDINGUNG statt eines Fangnetzes: im Browser wird gar nicht
++// erst aufgeloest, ueberall sonst laeuft der unveraenderte Ausdruck — Node,
++// Skripte und Vitest bekommen ihre Pfade, RSC/SSR/Build bekommen ihren Abbruch.
++const imBrowser = typeof window !== 'undefined';
++export const TEXT_FONT_PATH = imBrowser
++    ? undefined
++    : fileURLToPath(new URL('../assets/Arimo[wght].ttf', import.meta.url));
  /**
   * Textmetriken des Subsets (Vorschubbreiten je Codepoint, Kopfwerte) als JSON — von
   * `scripts/font/export-metrics.py` aus derselben Datei exportiert, damit eine Laufweitenprüfung
   * ohne Fontparser auskommt. Wird von `fonts.test.ts` gegen die TTF selbst abgeglichen.
   */
 -export const TEXT_FONT_METRICS_PATH = fileURLToPath(new URL('../assets/arimo-metrics.json', import.meta.url));
-+export const TEXT_FONT_METRICS_PATH = dateipfad('../assets/arimo-metrics.json');
++export const TEXT_FONT_METRICS_PATH = imBrowser
++    ? undefined
++    : fileURLToPath(new URL('../assets/arimo-metrics.json', import.meta.url));
  /**
   * Prüfsumme des Upstream-Originals (Google Fonts, Arimo 1.341, 496 268 Byte), aus dem das
   * eingecheckte Subset erzeugt wurde. `scripts/font/subset-arimo.sh` prüft den Download dagegen,
-@@ -41,6 +69,10 @@ export const TEXT_FONT_SOURCE_SHA256 = 'e43898b143ec826ac8cb4034816458a7047fbe08
+@@ -41,6 +75,14 @@ export const TEXT_FONT_SOURCE_SHA256 = 'e43898b143ec826ac8cb4034816458a7047fbe08
   */
  export const TEXT_FONT_SHA256 = 'e68be22b52529b0541129578216dab440cb00026114868370b6d34798b2ce5a3';
  export function resvgFontOptions() {
-+    // Der aufgeschobene Wurf (siehe `dateipfad` oben): hier und nur hier werden die
-+    // Pfade wirklich gebraucht, also faellt der Fehler hier — mit Klartext.
-+    if (pfadFehler !== null)
-+        throw new Error(pfadFehler);
++    // NUR DER BROWSERFALL KOMMT HIER AN: ueberall sonst haben die Pfade oben schon
++    // aufgeloest oder die Modulauswertung ist abgebrochen. Im Browser sind sie
++    // `undefined` — dann lieber hier laut werden als mit fontFiles:[undefined] in
++    // resvg laufen. Gebraucht wird die Rasterung ohnehin nur in Node.
++    if (imBrowser)
++        throw new Error('@einsatzzeichen/catalog: resvgFontOptions() braucht die Schriftpfade, '
++            + 'und die loesen nur in Node auf. Im Browser gibt es keine Rasterung — siehe '
++            + 'patches/@einsatzzeichen__catalog@1.1.0.patch (iuk-suite).');
      return {
          fontFiles: [TEXT_FONT_PATH],
          loadSystemFonts: false,
