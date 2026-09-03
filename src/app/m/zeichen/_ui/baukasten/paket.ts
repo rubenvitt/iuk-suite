@@ -5,8 +5,27 @@
  * importiert. Er wird ausschliesslich ueber BaukastenLader.tsx mit
  * dynamic(..., { ssr: false }) geladen und deshalb NIE serverseitig ausgewertet —
  * das ist die gemessene Bedingung dafuer, dass next.config.ts unangetastet bleibt.
- * Ein Import aus einer Server Component oder aus einer SSR-gerenderten Client-
- * Komponente bricht `pnpm build` (siehe _lib/naht.test.ts).
+ *
+ * WAS BEI EINEM IMPORT AN DER FALSCHEN STELLE PASSIERT, ist gemessen (03.09.2026,
+ * Next 16.3.3) und faellt je nach Stelle verschieden aus:
+ *   - `@einsatzzeichen/catalog` DIREKT in einer Server Component: `pnpm build`
+ *     bricht ab — ERR_INVALID_ARG_TYPE in der Phase „Collecting page data" (M1).
+ *   - DIESE Datei oder eine der drei, die sie weiterreichen (`zustand`,
+ *     `vokabular`, `BaukastenInsel`), in einer SSR-gerenderten Client-Komponente:
+ *     das Modulladen stirbt mit demselben Fehler, die Seite antwortet mit HTTP
+ *     500 — und `pnpm build` bleibt dabei gruen, solange die Route dynamisch ist.
+ *   - Dieselben drei in einer Server Component: laeuft durch, weil `"use client"`
+ *     daraus eine Client-Referenz macht. Verboten bleibt es trotzdem — es ist der
+ *     erste Schritt in den Fall darueber.
+ * `_lib/naht.test.ts` riegelt alle drei ab: den Spezifizierer hier UND die
+ * Weitergabe ueber die drei Zwischenmodule.
+ *
+ * ⚠️ DIE LAUTSTAERKE HAENGT AN EINEM PATCH. `patches/@einsatzzeichen__catalog@1.1.0.patch`
+ * ueberspringt die Aufloesung der Schriftpfade NUR im Browser (`typeof window`);
+ * die Literalform `new URL('…', import.meta.url)` bleibt stehen, damit der
+ * Bundler sie weiterhin umschreibt und der Server-Graph weiterhin abbricht. Eine
+ * Zwischenfassung des Patches hatte den Ausdruck in eine Hilfsfunktion gehoben —
+ * damit lief auch der Server-Graph klaglos durch, und M1 war ersatzlos weg.
  *
  * WARUM HIER ZWOELF NAMEN MEHR STEHEN ALS NACH AUFGABE 2: der Baukasten braucht
  * die WERTELISTEN seiner neun Achsen und die deutschen Bezeichnungen dazu. Beides

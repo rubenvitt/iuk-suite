@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { posix } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -112,5 +113,90 @@ describe("Naht zu @einsatzzeichen", () => {
     );
     expect(lader).toMatch(/dynamic\((?:(?!dynamic\()[\s\S])*?ssr:\s*false/);
     expect(lader).not.toMatch(/ssr:\s*true/);
+  });
+
+  /*
+   * ⛔ DER RIEGEL GILT DER GANZEN KETTE, NICHT NUR IHREM ERSTEN GLIED.
+   *
+   * Der Scan oben sucht den Spezifizierer `@einsatzzeichen/…` und findet damit
+   * genau EINE Datei: `paket.ts`. Den Katalog beziehen aber auch `zustand.ts`,
+   * `vokabular.ts` und `BaukastenInsel.tsx` — ueber `./paket`. Wer eine dieser
+   * drei anfasst, holt sich den Katalog, ohne dass der Scan oben etwas saehe.
+   *
+   * WAS DANN PASSIERT, IST GEMESSEN (03.09.2026, Next 16.3.3, mit Wegwerf-Route):
+   *   - Eine SSR-GERENDERTE CLIENT-KOMPONENTE wertet die Kette in Node aus und
+   *     stirbt beim Modulladen: `TypeError: The "path" argument must be of type
+   *     string or an instance of URL. Received an instance of URL`
+   *     (ERR_INVALID_ARG_TYPE) — HTTP 500 fuer die ganze Seite. Nur der Lader mit
+   *     `dynamic(..., { ssr: false })` haelt das von der Serverseite fern.
+   *   - `pnpm build` bleibt dabei GRUEN, solange die Route dynamisch ist: sie wird
+   *     nie vorgerendert, der Ausfall faellt erst beim Abruf. Auf einer statischen
+   *     Route zerlegte derselbe Import den Build.
+   *   - Eine SERVER COMPONENT, die eine der drei Dateien importiert, laeuft
+   *     dagegen durch: `"use client"` macht daraus eine Client-Referenz, das Modul
+   *     wird serverseitig gar nicht ausgewertet. Harmlos ist es trotzdem nicht —
+   *     es ist der erste Schritt dahin, dass jemand die Kette in eine
+   *     SSR-gerenderte Flaeche zieht.
+   * Deshalb gilt die Regel fuer die Kette als GANZE und nicht fuer einen
+   * ausgewaehlten Kompositionsfall: die Unterscheidung „wird das hier
+   * serverseitig ausgewertet?" ist genau die, die niemand im Kopf behaelt.
+   *
+   * Testdateien sind ausgenommen, wie oben: sie landen nie in einem Bundle.
+   */
+  const INSEL_ORDNER = "src/app/m/zeichen/_ui/baukasten";
+  /** Die vier Module, die Katalog-Code ziehen — direkt oder ueber `./paket`. */
+  const GESCHUETZT = ["paket", "zustand", "vokabular", "BaukastenInsel"];
+
+  /** Das Ziel eines Spezifizierers als Repo-Pfad, oder `null` fuer ein Paket. */
+  function zielPfad(datei: string, spezifizierer: string): string | null {
+    if (spezifizierer.startsWith("."))
+      return posix.normalize(posix.join(posix.dirname(datei), spezifizierer));
+    if (spezifizierer.startsWith("@/"))
+      return posix.normalize(posix.join("src", spezifizierer.slice(2)));
+    return null;
+  }
+
+  function bezuegeAufDieInsel(): { datei: string; modul: string }[] {
+    const roh = execFileSync("git", ["ls-files", "src", "scripts"], { encoding: "utf8" });
+    const treffer: { datei: string; modul: string }[] = [];
+    for (const datei of roh.split("\n")) {
+      if (!/\.(ts|tsx|mts|js|jsx)$/.test(datei)) continue;
+      if (datei.endsWith(".test.ts") || datei.endsWith(".test.tsx")) continue;
+      const inhalt = ohneKommentare(readFileSync(datei, "utf8"));
+      for (const m of inhalt.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+        const ziel = zielPfad(datei, m[1]);
+        if (ziel === null || !ziel.startsWith(`${INSEL_ORDNER}/`)) continue;
+        const modul = posix.basename(ziel).replace(/\.(ts|tsx|mts|js|jsx)$/, "");
+        if (GESCHUETZT.includes(modul)) treffer.push({ datei, modul });
+      }
+    }
+    return treffer;
+  }
+
+  it("laesst den Katalog nur INNERHALB von _ui/baukasten weiterreichen", () => {
+    const draussen = bezuegeAufDieInsel()
+      .filter((t) => posix.dirname(t.datei) !== INSEL_ORDNER)
+      .map((t) => `${t.datei} -> ${t.modul}`);
+    expect(
+      draussen.sort(),
+      "Diese Dateien ziehen Katalog-Code in ihren eigenen Graphen. Wird eine davon " +
+        "serverseitig ausgewertet (SSR einer Client-Komponente), stirbt das Modulladen " +
+        "mit ERR_INVALID_ARG_TYPE und die Seite antwortet mit 500 — gemessen, und weder " +
+        "`pnpm build` noch Vitest sieht es. Der Weg fuehrt ueber BaukastenLader.tsx und " +
+        "dynamic(..., { ssr: false }).",
+    ).toEqual([]);
+  });
+
+  /*
+   * Und INNERHALB des Ordners bleibt die Insel selbst dem Lader vorbehalten: ein
+   * statischer Import von `BaukastenInsel` aus irgendeiner anderen Datei umginge
+   * `dynamic(..., { ssr: false })` und damit die ganze Vorkehrung.
+   */
+  it("bindet BaukastenInsel ausschliesslich ueber den Lader ein", () => {
+    const fremd = bezuegeAufDieInsel()
+      .filter((t) => t.modul === "BaukastenInsel")
+      .filter((t) => t.datei !== `${INSEL_ORDNER}/BaukastenLader.tsx`)
+      .map((t) => t.datei);
+    expect(fremd.sort(), "nur BaukastenLader.tsx darf die Insel kennen").toEqual([]);
   });
 });
