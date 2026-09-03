@@ -3,6 +3,7 @@ import { act, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, unmount, query, queryAll, exists, fill, click } from "@/app/m/qr/_lib/test-dom";
 import { alleZeichen, findeZeichen } from "../_lib/katalog";
+import { AKTION_FEHLGESCHLAGEN } from "../_lib/aktionsfehler";
 
 /*
  * DREI MOCKS, UND JEDER HAT EINEN GRUND.
@@ -222,5 +223,41 @@ describe("KatalogInsel — Merken", () => {
     expect(query('[data-testid="zeichen-detailbereich"]').textContent).toContain(
       "Merken braucht eine Verbindung",
     );
+  });
+});
+
+/*
+ * KORREKTUR 9 DES AUFTRAGS: eine ABGEWIESENE Server Action zeigt einen Satz, sie
+ * zerlegt keine Flaeche.
+ *
+ * Die Form aus Aufgabe 6 `await`ete in einer Transition OHNE `catch`; ein
+ * `Forbidden` nach abgelaufener Sitzung nahm damit den ganzen Katalog mit. Der
+ * Text steht in `_lib/aktionsfehler.ts` und ist fuer beide Inseln derselbe.
+ */
+describe("KatalogInsel — abgewiesene Aktion", () => {
+  it("zeigt einen Satz und laesst die Flaeche stehen", async () => {
+    suchparameter = new URLSearchParams(`z=${ERSTE.id}`);
+    merkeMock.mockRejectedValueOnce(new Error("Forbidden"));
+    await mount(<KatalogInsel />);
+
+    await click('[data-testid="zeichen-merken"]');
+
+    expect(query('[data-testid="zeichen-aktionsfehler"]').textContent).toContain(
+      AKTION_FEHLGESCHLAGEN,
+    );
+    expect(exists('[data-testid="zeichen-detailbereich"]')).toBe(true);
+    // Der Knopf steht weiter auf „Merken": geschrieben wurde nichts.
+    expect(query('[data-testid="zeichen-merken"]').textContent).toContain("Merken");
+  });
+
+  it("nimmt den Satz beim naechsten gelungenen Versuch zurueck", async () => {
+    suchparameter = new URLSearchParams(`z=${ERSTE.id}`);
+    merkeMock.mockRejectedValueOnce(new Error("Forbidden"));
+    await mount(<KatalogInsel />);
+
+    await click('[data-testid="zeichen-merken"]');
+    expect(exists('[data-testid="zeichen-aktionsfehler"]')).toBe(true);
+    await click('[data-testid="zeichen-merken"]');
+    expect(exists('[data-testid="zeichen-aktionsfehler"]')).toBe(false);
   });
 });

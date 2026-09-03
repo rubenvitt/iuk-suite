@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "antd";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { entferneZeichen } from "../actions";
+import { AKTION_FEHLGESCHLAGEN } from "../_lib/aktionsfehler";
 import { VERWAIST_TEXT, type MerkAnzeige } from "../_lib/merkliste";
 import s from "./zeichen.module.css";
 
@@ -32,6 +33,13 @@ export function MerklisteZeilen({ zeilen }: { zeilen: readonly MerkAnzeige[] }) 
    */
   const [laufend, setLaufend] = useState<string | null>(null);
   const [imUebergang, starte] = useTransition();
+  /*
+   * ⛔ EIN ABGEWIESENER SCHREIBVORGANG ZEIGT EINEN SATZ, ER ZERLEGT KEINE FLAECHE.
+   * `entferneZeichen` wirft ohne Sitzung — ohne `catch` lief der Wurf aus der
+   * Transition heraus und nahm die ganze Merkliste mit. Derselbe Text wie in der
+   * Katalog-Insel, aus `_lib/aktionsfehler.ts`.
+   */
+  const [aktionsfehler, setAktionsfehler] = useState<string | null>(null);
 
   if (zeilen.length === 0) {
     return (
@@ -42,54 +50,74 @@ export function MerklisteZeilen({ zeilen }: { zeilen: readonly MerkAnzeige[] }) 
   }
 
   return (
-    <ul className={s.merkliste} data-testid="zeichen-merkliste">
-      {zeilen.map((z) => (
-        <li
-          key={z.zeichenId}
-          className={s.merkzeile}
-          data-testid={`zeichen-merkzeile-${z.zeichenId}`}
+    <>
+      {/* Gedaempft, nie rot — colorError === colorPrimary (Falle 3). */}
+      {aktionsfehler !== null && (
+        <p
+          className={s.hinweis}
+          style={SCHRIFT.neben}
+          data-testid="zeichen-aktionsfehler"
+          role="status"
         >
-          {/* Kein Bild fuer eine verwaiste Zeile: es gaebe keines, und ein
-              erfundenes waere schlimmer als ein leerer Platzhalter. */}
-          {z.svg === null ? (
-            <span className={s.zeichenfehlt} aria-hidden="true" />
-          ) : (
-            <span
-              className={s.zeichenflaeche}
-              aria-hidden="true"
-              dangerouslySetInnerHTML={{ __html: z.svg }}
-            />
-          )}
+          {aktionsfehler}
+        </p>
+      )}
 
-          <div className={s.merktext}>
-            {z.verwaist ? (
-              /* Kein Link — `/katalog/<id>` liefe hier in ein notFound(). */
-              <span style={SCHRIFT.text}>{z.titel}</span>
-            ) : (
-              <Link
-                href={`/m/zeichen/katalog/${encodeURIComponent(z.zeichenId)}`}
-                style={SCHRIFT.text}
-              >
-                {z.titel}
-              </Link>
-            )}
-            <span style={SCHRIFT.neben}>{z.verwaist ? VERWAIST_TEXT : z.bedeutung}</span>
-          </div>
-
-          <Button
-            data-testid={`zeichen-merkliste-entfernen-${z.zeichenId}`}
-            loading={imUebergang && laufend === z.zeichenId}
-            onClick={() => {
-              setLaufend(z.zeichenId);
-              starte(async () => {
-                await entferneZeichen(z.zeichenId);
-              });
-            }}
+      <ul className={s.merkliste} data-testid="zeichen-merkliste">
+        {zeilen.map((z) => (
+          <li
+            key={z.zeichenId}
+            className={s.merkzeile}
+            data-testid={`zeichen-merkzeile-${z.zeichenId}`}
           >
-            Entfernen
-          </Button>
-        </li>
-      ))}
-    </ul>
+            {/* Kein Bild fuer eine verwaiste Zeile: es gaebe keines, und ein
+                erfundenes waere schlimmer als ein leerer Platzhalter. */}
+            {z.svg === null ? (
+              <span className={s.zeichenfehlt} aria-hidden="true" />
+            ) : (
+              <span
+                className={s.zeichenflaeche}
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{ __html: z.svg }}
+              />
+            )}
+
+            <div className={s.merktext}>
+              {z.verwaist ? (
+                /* Kein Link — `/katalog/<id>` liefe hier in ein notFound(). */
+                <span style={SCHRIFT.text}>{z.titel}</span>
+              ) : (
+                <Link
+                  href={`/m/zeichen/katalog/${encodeURIComponent(z.zeichenId)}`}
+                  style={SCHRIFT.text}
+                >
+                  {z.titel}
+                </Link>
+              )}
+              <span style={SCHRIFT.neben}>{z.verwaist ? VERWAIST_TEXT : z.bedeutung}</span>
+            </div>
+
+            <Button
+              data-testid={`zeichen-merkliste-entfernen-${z.zeichenId}`}
+              loading={imUebergang && laufend === z.zeichenId}
+              onClick={() => {
+                setLaufend(z.zeichenId);
+                starte(async () => {
+                  setAktionsfehler(null);
+                  try {
+                    await entferneZeichen(z.zeichenId);
+                  } catch {
+                    // Die Zeile bleibt stehen: entfernt wurde nichts.
+                    setAktionsfehler(AKTION_FEHLGESCHLAGEN);
+                  }
+                });
+              }}
+            >
+              Entfernen
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

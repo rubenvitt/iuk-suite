@@ -4,8 +4,16 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/core/auth";
 import { getDb } from "./_db/client";
+import {
+  eigenesZeichenMitKanon,
+  eigenesZeichenMitNamen,
+  legeEigenesZeichenAn,
+  ueberschreibeEigenesZeichen,
+} from "./_db/eigeneZeichen";
 import { merkliste } from "./_db/schema";
-import { findeZeichen } from "./_lib/katalog";
+import { kanonischerSchluessel } from "./_lib/kanon";
+import { KATALOG_STAND, findeZeichen } from "./_lib/katalog";
+import { konfliktFrage, specFormFehler, svgFormFehler } from "./_lib/pruefung";
 
 /*
  * DIE ZWEI ACTIONS DES KATALOGS. Beide werden von Client-Inseln DIREKT
@@ -81,4 +89,129 @@ export async function entferneZeichen(zeichenId: string): Promise<void> {
     .where(and(eq(merkliste.sub, sub), eq(merkliste.zeichenId, zeichenId)))
     .run();
   revalidate();
+}
+
+/**
+ * Der Rueckgabetyp von `speichereEigenesZeichen`.
+ *
+ * Ein Typexport aus einer "use server"-Datei ist zulaessig — er verschwindet im
+ * Build (Vorbild `files/(verwaltung)/actions.ts` mit `ShareFormZustand`).
+ *
+ * DREI AUSGAENGE, WEIL ES DREI LAGEN GIBT: Erfolg, Feldfehler (der Name fehlt) und
+ * RUECKFRAGE (§6.6). Die Rueckfrage ist ausdruecklich KEIN Feldfehler: es ist
+ * nichts falsch, es ist nur etwas zu entscheiden — und die Entscheidung trifft die
+ * Person, nicht die Action.
+ */
+export type SpeichernZustand =
+  | { ok: true; name: string }
+  | { ok: false; art: "fehler"; feldFehler: Record<string, string>; werte: Record<string, string> }
+  | {
+      ok: false;
+      art: "rueckfrage";
+      frage: "name" | "zusammenstellung";
+      text: string;
+      werte: Record<string, string>;
+    };
+
+const feld = (formData: FormData, name: string): string => {
+  const wert = formData.get(name);
+  return typeof wert === "string" ? wert : "";
+};
+
+/**
+ * EIN EIGENES ZEICHEN SPEICHERN (Spec §6.6).
+ *
+ * Die Kette: `sub` pruefen → FORMpruefung von Spec und SVG → kanonischer
+ * Schluessel → Konfliktfrage → schreiben → revalidatePath.
+ *
+ * ⛔ DER KANONISCHE SCHLUESSEL WIRD HIER GERECHNET, nicht vom Client uebernommen.
+ * Er beantwortet die Frage „schon gespeichert?", und ein mitgelieferter Wert
+ * koennte sie beliebig beantworten. `_lib/kanon.ts` importiert keinen Katalogcode,
+ * das Rechnen ist reine Zeichenkettenarbeit.
+ *
+ * ⚠️ ER WIRD ZUGLEICH GESPEICHERT, und damit wird sein FORMAT zur Datenzusage:
+ * aendert sich die Serialisierung in `_lib/kanon.ts`, antwortet „schon
+ * gespeichert?" fuer jede alte Zeile still „nein". Die lange Fassung dieser
+ * Warnung steht ueber `_db/eigeneZeichen.ts`.
+ *
+ * ⛔ EINE FACHLICHE PRUEFUNG DER SPEC GIBT ES NICHT: sie braeuchte
+ * `composeFromCatalog` und zoege den Katalog in den Server-Graph (M1). Gespeichert
+ * wird das von der Insel gelieferte SVG; auf /meine wird es als `<img>`-Datenquelle
+ * gerendert und nie als HTML ausgefuehrt (§4.3).
+ *
+ * `paket_version`/`daten_version` kommen aus `KATALOG_STAND` — als Literale
+ * notiert loegen sie ab dem ersten Upgrade.
+ *
+ * Zugriffsverletzungen WERFEN; Feldfehler kommen zurueck.
+ */
+export async function speichereEigenesZeichen(
+  _vorher: SpeichernZustand,
+  formData: FormData,
+): Promise<SpeichernZustand> {
+  const sub = await eigenerSub();
+
+  const name = feld(formData, "name").trim();
+  const specJson = feld(formData, "spec");
+  const svg = feld(formData, "svg");
+  const bestaetigung = feld(formData, "bestaetigung");
+  const werte = { name };
+
+  if (name === "") {
+    return {
+      ok: false,
+      art: "fehler",
+      werte,
+      feldFehler: { name: "Gib dem Zeichen einen Namen, damit du es wiederfindest." },
+    };
+  }
+  if (name.length > 80) {
+    return { ok: false, art: "fehler", werte, feldFehler: { name: "Höchstens 80 Zeichen." } };
+  }
+  const specFehler = specFormFehler(specJson);
+  if (specFehler) return { ok: false, art: "fehler", werte, feldFehler: { spec: specFehler } };
+  const svgFehler = svgFormFehler(svg);
+  if (svgFehler) return { ok: false, art: "fehler", werte, feldFehler: { spec: svgFehler } };
+
+  const kanon = kanonischerSchluessel(JSON.parse(specJson));
+  const db = getDb();
+  const gleicherName = eigenesZeichenMitNamen(db, sub, name);
+  const gleicheForm = eigenesZeichenMitKanon(db, sub, kanon);
+  const frage = konfliktFrage(
+    gleicherName !== null,
+    gleicheForm && gleicheForm.name !== name ? gleicheForm.name : null,
+    bestaetigung,
+  );
+  if (frage === "name") {
+    return {
+      ok: false,
+      art: "rueckfrage",
+      frage,
+      werte,
+      text: "Unter diesem Namen hast du schon ein Zeichen. Überschreiben oder anders benennen?",
+    };
+  }
+  if (frage === "zusammenstellung") {
+    return {
+      ok: false,
+      art: "rueckfrage",
+      frage,
+      werte,
+      text:
+        `Diese Zusammenstellung hast du schon als „${gleicheForm?.name}“ gespeichert — ` +
+        "trotzdem zusätzlich sichern?",
+    };
+  }
+
+  const gemeinsam = {
+    specJson,
+    specKanon: kanon,
+    svg,
+    paketVersion: KATALOG_STAND.paket,
+    datenVersion: KATALOG_STAND.daten,
+  };
+  if (gleicherName) ueberschreibeEigenesZeichen(db, gleicherName.id, gemeinsam);
+  else legeEigenesZeichenAn(db, { sub, name, ...gemeinsam });
+
+  revalidate();
+  return { ok: true, name };
 }

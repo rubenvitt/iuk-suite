@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, unmount, query, queryAll, exists, click } from "@/app/m/qr/_lib/test-dom";
 import { findeZeichen } from "../_lib/katalog";
 import { merkAnzeige, VERWAIST_TEXT } from "../_lib/merkliste";
+import { AKTION_FEHLGESCHLAGEN } from "../_lib/aktionsfehler";
 
 const entferneMock = vi.fn<(id: string) => Promise<void>>(async () => {});
 vi.mock("../actions", () => ({
@@ -88,5 +89,24 @@ describe("MerklisteZeilen", () => {
     expect(exists('[data-testid="zeichen-merkliste"]')).toBe(false);
     expect(document.body.textContent).toContain("Merken");
     expect(document.body.textContent).toContain("Katalog");
+  });
+});
+
+/*
+ * KORREKTUR 9 DES AUFTRAGS — dieselbe Zusage wie in der Katalog-Insel: ein
+ * abgewiesener Schreibvorgang zeigt einen Satz und laesst die Liste stehen. Ohne
+ * `catch` nahm ein `Forbidden` nach abgelaufener Sitzung die ganze Flaeche mit.
+ */
+describe("MerklisteZeilen — abgewiesene Aktion", () => {
+  it("zeigt einen Satz und behaelt die Zeilen", async () => {
+    entferneMock.mockRejectedValueOnce(new Error("Forbidden"));
+    await mount(<MerklisteZeilen zeilen={ZEILEN} />);
+
+    await click(`[data-testid="zeichen-merkliste-entfernen-${ANKER}"]`);
+
+    expect(query('[data-testid="zeichen-aktionsfehler"]').textContent).toContain(
+      AKTION_FEHLGESCHLAGEN,
+    );
+    expect(queryAll('[data-testid^="zeichen-merkzeile-"]')).toHaveLength(2);
   });
 });

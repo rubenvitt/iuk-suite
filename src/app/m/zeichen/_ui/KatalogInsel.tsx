@@ -7,6 +7,7 @@ import { Button } from "antd";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { entferneZeichen, merkeZeichen } from "../actions";
+import { AKTION_FEHLGESCHLAGEN } from "../_lib/aktionsfehler";
 import {
   findeZeichen,
   grundformen,
@@ -96,6 +97,13 @@ export function KatalogInsel({
   const [grenze, setGrenze] = useState(RASTER_SCHRITT);
   const [merkstand, setMerkstand] = useState<readonly string[]>(gemerkt);
   const [schreibt, schreibe] = useTransition();
+  /*
+   * ⛔ EINE ABGEWIESENE ACTION ZEIGT EINEN SATZ, SIE ZERLEGT KEINE FLAECHE. Ohne
+   * `catch` nahm ein `Forbidden` nach abgelaufener Sitzung den ganzen Katalog mit
+   * — der Wurf lief aus der Transition heraus in die Fehlerhuelle. Der Text ist
+   * derselbe wie in `MerklisteZeilen` und kommt aus `_lib/aktionsfehler.ts`.
+   */
+  const [aktionsfehler, setAktionsfehler] = useState<string | null>(null);
 
   const { treffer, gesamt } = useMemo(
     () =>
@@ -256,12 +264,18 @@ export function KatalogInsel({
                   loading={schreibt}
                   onClick={() =>
                     schreibe(async () => {
-                      if (istGemerkt) {
-                        await entferneZeichen(detail.id);
-                        setMerkstand((m) => m.filter((x) => x !== detail.id));
-                      } else {
-                        await merkeZeichen(detail.id);
-                        setMerkstand((m) => [...m, detail.id]);
+                      setAktionsfehler(null);
+                      try {
+                        if (istGemerkt) {
+                          await entferneZeichen(detail.id);
+                          setMerkstand((m) => m.filter((x) => x !== detail.id));
+                        } else {
+                          await merkeZeichen(detail.id);
+                          setMerkstand((m) => [...m, detail.id]);
+                        }
+                      } catch {
+                        // Der Merkstand bleibt, wie er war: geschrieben wurde nichts.
+                        setAktionsfehler(AKTION_FEHLGESCHLAGEN);
                       }
                     })
                   }
@@ -289,6 +303,18 @@ export function KatalogInsel({
               Schließen
             </Button>
           </div>
+
+          {/* Gedaempft, nie rot — colorError === colorPrimary (Falle 3). */}
+          {aktionsfehler !== null && (
+            <p
+              className={s.hinweis}
+              style={SCHRIFT.neben}
+              data-testid="zeichen-aktionsfehler"
+              role="status"
+            >
+              {aktionsfehler}
+            </p>
+          )}
         </section>
       )}
 

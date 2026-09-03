@@ -14,6 +14,7 @@ import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/no
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
 import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-trainingsansicht-ohne-suite-leiste";
 import verwaltungAufDemTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-verwaltung-auf-dem-telefon";
+import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-eigene-zeichen-bauen";
 import zeichenNachschlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-taktische-zeichen-nachschlagen";
 
 /**
@@ -51,6 +52,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   fortschrittZaehltDurchfuehrungen,
   verwaltungAufDemTelefon,
   zeichenNachschlagen,
+  eigeneZeichenBauen,
 ];
 
 /**

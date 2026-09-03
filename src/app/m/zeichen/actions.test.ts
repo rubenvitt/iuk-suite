@@ -116,3 +116,185 @@ describe("entferneZeichen", () => {
     await expect(entferneZeichen(ANKER)).rejects.toThrow("Forbidden");
   });
 });
+
+/*
+ * DIE DRITTE ACTION — speichern, mit den ZWEI RUECKFRAGEN aus Spec §6.6.
+ *
+ * Geprueft wird hier die Verdrahtung, nicht die Formpruefung (`_lib/pruefung.test.ts`)
+ * und nicht die Datenzugriffe (`_db/eigeneZeichen.test.ts`): dass nichts geschrieben
+ * wird, solange eine Frage offen ist, und dass die Bestaetigung genau ihren Fall
+ * erledigt.
+ */
+const START = { ok: false, art: "fehler", feldFehler: {}, werte: {} } as const;
+
+function formular(felder: Record<string, string>): FormData {
+  const daten = new FormData();
+  for (const [k, v] of Object.entries(felder)) daten.set(k, v);
+  return daten;
+}
+
+const SPEC = '{"kind":"formation","organization":"thw"}';
+const SVG = "<svg><g/></svg>";
+
+async function eigene(sub: string) {
+  const { getDb } = await import("./_db/client");
+  const { eigeneZeichenVon } = await import("./_db/eigeneZeichen");
+  return eigeneZeichenVon(getDb(), sub);
+}
+
+describe("speichereEigenesZeichen", () => {
+  it("legt an und traegt den heutigen Katalogstand ein", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    const { KATALOG_STAND } = await import("./_lib/katalog");
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "Zugtrupp Nord", spec: SPEC, svg: SVG }),
+    );
+    expect(zustand.ok).toBe(true);
+    const zeilen = await eigene(ANNA);
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]?.paketVersion).toBe(KATALOG_STAND.paket);
+    expect(zeilen[0]?.datenVersion).toBe(KATALOG_STAND.daten);
+  });
+
+  /*
+   * DER KANONISCHE SCHLUESSEL WIRD SERVERSEITIG GERECHNET, nicht vom Client
+   * uebernommen: er beantwortet „schon gespeichert?", und ein mitgelieferter Wert
+   * koennte sie beliebig beantworten. Ein Feld `specKanon` in der FormData darf
+   * deshalb keine Wirkung haben.
+   */
+  it("rechnet den kanonischen Schluessel selbst", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    const { kanonischerSchluessel } = await import("./_lib/kanon");
+    await speichereEigenesZeichen(
+      START,
+      formular({ name: "Zugtrupp Nord", spec: SPEC, svg: SVG, specKanon: "geloegen" }),
+    );
+    expect((await eigene(ANNA))[0]?.specKanon).toBe(kanonischerSchluessel(JSON.parse(SPEC)));
+  });
+
+  it("verlangt einen Namen und schreibt vorher nichts", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "   ", spec: SPEC, svg: SVG }),
+    );
+    expect(zustand.ok).toBe(false);
+    if (!zustand.ok && zustand.art === "fehler") expect(zustand.feldFehler.name).toBeTruthy();
+    expect(await eigene(ANNA)).toHaveLength(0);
+  });
+
+  it("meldet einen Formfehler der Spec als Feldfehler", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "Krumm", spec: "kein json", svg: SVG }),
+    );
+    expect(zustand.ok).toBe(false);
+    if (!zustand.ok && zustand.art === "fehler") expect(zustand.feldFehler.spec).toBeTruthy();
+    expect(await eigene(ANNA)).toHaveLength(0);
+  });
+
+  /*
+   * ⛔ NICHTS WIRD STILL UEBERSCHRIEBEN (Spec §6.6). Der zweite Aufruf mit
+   * demselben Namen fragt zurueck — und laesst die vorhandene Zeile UNVERAENDERT.
+   */
+  it("fragt beim gleichen Namen zurueck und aendert dabei nichts", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    await speichereEigenesZeichen(START, formular({ name: "Doppelt", spec: SPEC, svg: SVG }));
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "Doppelt", spec: '{"kind":"person"}', svg: SVG }),
+    );
+    expect(zustand.ok).toBe(false);
+    if (!zustand.ok && zustand.art === "rueckfrage") expect(zustand.frage).toBe("name");
+    const zeilen = await eigene(ANNA);
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]?.specJson).toBe(SPEC);
+  });
+
+  it("ueberschreibt erst nach der Bestaetigung — und legt nichts Zweites an", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    await speichereEigenesZeichen(START, formular({ name: "Doppelt", spec: SPEC, svg: SVG }));
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({
+        name: "Doppelt",
+        spec: '{"kind":"person"}',
+        svg: SVG,
+        bestaetigung: "ueberschreiben",
+      }),
+    );
+    expect(zustand.ok).toBe(true);
+    const zeilen = await eigene(ANNA);
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0]?.specJson).toBe('{"kind":"person"}');
+  });
+
+  it("fragt bei gleicher Zusammenstellung unter anderem Namen zurueck und nennt den alten", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    await speichereEigenesZeichen(START, formular({ name: "Erster", spec: SPEC, svg: SVG }));
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "Zweiter", spec: SPEC, svg: SVG }),
+    );
+    expect(zustand.ok).toBe(false);
+    if (!zustand.ok && zustand.art === "rueckfrage") {
+      expect(zustand.frage).toBe("zusammenstellung");
+      expect(zustand.text).toContain("Erster");
+    }
+    expect(await eigene(ANNA)).toHaveLength(1);
+  });
+
+  it("sichert nach der Bestaetigung ein zweites Mal", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    await speichereEigenesZeichen(START, formular({ name: "Erster", spec: SPEC, svg: SVG }));
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "Zweiter", spec: SPEC, svg: SVG, bestaetigung: "zusaetzlich" }),
+    );
+    expect(zustand.ok).toBe(true);
+    expect(await eigene(ANNA)).toHaveLength(2);
+  });
+
+  /*
+   * Eine Bestaetigung fuer den einen Fall darf den anderen nicht miterledigen:
+   * „zusaetzlich" beantwortet die Namensfrage NICHT.
+   */
+  it("laesst die falsche Bestaetigung nicht durchgehen", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    await speichereEigenesZeichen(START, formular({ name: "Doppelt", spec: SPEC, svg: SVG }));
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({
+        name: "Doppelt",
+        spec: '{"kind":"person"}',
+        svg: SVG,
+        bestaetigung: "zusaetzlich",
+      }),
+    );
+    expect(zustand.ok).toBe(false);
+    if (!zustand.ok && zustand.art === "rueckfrage") expect(zustand.frage).toBe("name");
+  });
+
+  /* IDOR: dieselbe Zusammenstellung einer ANDEREN Person loest keine Rueckfrage aus. */
+  it("sieht nur die eigenen Zeichen", async () => {
+    const { speichereEigenesZeichen } = await import("./actions");
+    await speichereEigenesZeichen(START, formular({ name: "Erster", spec: SPEC, svg: SVG }));
+    angemeldet = BERT;
+    const zustand = await speichereEigenesZeichen(
+      START,
+      formular({ name: "Erster", spec: SPEC, svg: SVG }),
+    );
+    expect(zustand.ok).toBe(true);
+    expect(await eigene(BERT)).toHaveLength(1);
+  });
+
+  it("wirft ohne Sitzung, BEVOR etwas geschrieben wurde", async () => {
+    angemeldet = null;
+    const { speichereEigenesZeichen } = await import("./actions");
+    await expect(
+      speichereEigenesZeichen(START, formular({ name: "X", spec: SPEC, svg: SVG })),
+    ).rejects.toThrow("Forbidden");
+  });
+});
