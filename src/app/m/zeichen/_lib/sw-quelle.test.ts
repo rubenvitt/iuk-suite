@@ -64,6 +64,35 @@ function antwort(
   return res;
 }
 
+/**
+ * EINE UNDURCHSICHTIGE UMLEITUNG — das, was `fetch` einer NAVIGATION bei
+ * abgelaufener Sitzung wirklich zurueckgibt.
+ *
+ * ⛔ GEMESSEN AM 2026-09-03 im vollen Chromium gegen den Prod-Build, nicht
+ * angenommen. Ein Navigations-Request traegt `redirect: "manual"`, und dann
+ * liefert derselbe 307 -> /login etwas voellig anderes als bei "follow":
+ *
+ *   redirect:"manual" -> {type:"opaqueredirect", status:0, ok:false, redirected:FALSE}
+ *   redirect:"follow" -> {type:"basic", status:200, ok:true, redirected:true, url:…/login}
+ *
+ * `res.url` traegt dabei die URSPRUNGS-Adresse, nicht das Ziel — die Antwort
+ * sagt also NICHT, wohin sie zeigt. Genau daran ist die erste Fassung des
+ * Navigationsriegels gescheitert: `res.redirected` war false, der Riegel feuerte
+ * nie, und dieser Nachbau war gruen, weil er Follow-Semantik nachbildete. Ein
+ * Test, dessen Attrappe die Wirklichkeit verfehlt, beweist nichts.
+ */
+function undurchsichtigeUmleitung(pfad: string): Response {
+  // `new Response(null, { status: 0 })` verbietet die Spezifikation; die Felder
+  // werden deshalb nachtraeglich beschattet — wie bei `antwort()`.
+  const res = new Response(null, { status: 200 });
+  Object.defineProperty(res, "type", { value: "opaqueredirect" });
+  Object.defineProperty(res, "status", { value: 0 });
+  Object.defineProperty(res, "ok", { value: false });
+  Object.defineProperty(res, "redirected", { value: false });
+  Object.defineProperty(res, "url", { value: new URL(pfad, ORIGIN).href });
+  return res;
+}
+
 function baueCacheSpeicher() {
   const caches = new Map<string, Map<string, Response>>();
   /** Die Reihenfolge der Schreibvorgaenge — die Zusage „Buendel vor HTML". */
@@ -130,21 +159,32 @@ function netz(
   opt: {
     offline?: boolean;
     abgelaufen?: boolean;
+    /** Wohin die Umleitung zeigt. Vorgabe `/login`; ein anderer Wert stellt eine
+     *  LEGITIME Weiterleitung nach (Schraegstrich-Normalisierung, Modulwechsel). */
+    umleitungAuf?: string;
     manifestUmgeleitet?: boolean;
     personalisiert?: boolean;
     fehlenderChunk?: string;
     fehlantwort?: Response;
   } = {},
 ) {
-  return vi.fn(async (eingabe: SwRequest | string) => {
+  return vi.fn(async (eingabe: SwRequest | string, init?: { redirect?: string }) => {
     if (opt.offline) throw new TypeError("Failed to fetch");
     const pfad = new URL(typeof eingabe === "string" ? eingabe : eingabe.url, ORIGIN).pathname;
+    const istNavigation = typeof eingabe !== "string" && eingabe.mode === "navigate";
+    const folgtAusdruecklich = init?.redirect === "follow";
 
     // Der gemessene Kern (M17.1/M17.2): ein auth-pflichtiger Host beantwortet
-    // JEDEN Pfad ohne Sitzung mit 307 -> /login, und `fetch` FOLGT dem — die
-    // Antwort kommt mit status 200, ok true, redirected true zurueck.
+    // JEDEN Pfad ohne Sitzung mit 307 -> /login.
     if (opt.abgelaufen) {
-      return antwort(LOGIN_HTML, { url: "/login", redirected: true });
+      // ⛔ ZWEI SEMANTIKEN, UND DAS IST DER GANZE PUNKT DIESES NACHBAUS. Eine
+      // Navigation traegt redirect:"manual" und bekommt eine undurchsichtige
+      // Antwort ohne erkennbares Ziel; erst wer AUSDRUECKLICH mit
+      // redirect:"follow" nachfasst, sieht, wohin sie zeigt. Alles andere
+      // (Unterressourcen, die Precache-Abrufe ueber holeGeprueft) faehrt
+      // "follow" und sieht redirected:true.
+      if (istNavigation && !folgtAusdruecklich) return undurchsichtigeUmleitung(pfad);
+      return antwort(LOGIN_HTML, { url: opt.umleitungAuf ?? "/login", redirected: true });
     }
     if (opt.fehlenderChunk && pfad === opt.fehlenderChunk) return opt.fehlantwort!;
     if (pfad === OFFLINE) {
@@ -420,6 +460,29 @@ describe("Service Worker zeichen", () => {
 
     expect(await res!.clone().text()).toBe(OFFLINE_HTML);
     expect(await res!.clone().text()).not.toContain("Anmelden");
+  });
+
+  it("verschluckt eine legitime Weiterleitung NICHT", async () => {
+    /*
+     * DIE GEGENPROBE ZUM NACHFASSEN — ohne sie waere die billigere Abhilfe
+     * ununterscheidbar. JEDEN `opaqueredirect` pauschal als „Sitzung weg" zu
+     * lesen spart die zweite Anfrage, verschluckt aber jede LEGITIME
+     * Weiterleitung (Schraegstrich-Normalisierung, Wechsel auf einen anderen
+     * Modul-Host) und lieferte dann die Offline-Flaeche, wo jemand etwas ganz
+     * anderes wollte. Hier zeigt die Umleitung auf /katalog/ statt auf /login:
+     * der Worker muss sie DURCHREICHEN, damit der Browser ihr folgt.
+     */
+    const speicher = baueCacheSpeicher();
+    const online = boot(netz(), speicher);
+    await online.drain(online.dispatch("install", navigation("/")));
+
+    const umgeleitet = boot(netz({ abgelaufen: true, umleitungAuf: "/katalog/" }), speicher);
+    const event = umgeleitet.dispatch("fetch", navigation("/katalog"));
+    const res = await event.response;
+    await umgeleitet.drain(event);
+
+    expect(res!.type).toBe("opaqueredirect");
+    expect(await res!.text()).not.toContain("Offline kannst du");
   });
 
   it("jede nicht gecachte Navigation faellt auf /offline zurueck", async () => {

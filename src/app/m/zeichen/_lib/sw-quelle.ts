@@ -242,21 +242,70 @@ async function raeumeGeraet() {
   await loescheGeraeteDatenbank();
 }
 
+/** Der Pfad einer Antwort-URL, ohne zu werfen. */
+function pfadVon(u) {
+  try { return new URL(u, self.location.origin).pathname; } catch (e) { return ""; }
+}
+
+/**
+ * Zeigt diese Antwort auf die Anmeldemaske?
+ *
+ * ⛔ ZWEI FAELLE, UND DER ZWEITE IST DER EINZIGE, DER AUF EINER NAVIGATION
+ * UEBERHAUPT VORKOMMT. GEMESSEN am 2026-09-03 im vollen Chromium gegen den
+ * Prod-Build, nicht angenommen: ein Navigations-Request traegt
+ * redirect:"manual", und derselbe 307 -> /login kommt dann voellig anders an
+ * als bei "follow":
+ *
+ *   redirect:"manual" -> type "opaqueredirect", status 0, ok false, redirected FALSE
+ *   redirect:"follow" -> type "basic", status 200, ok true, redirected true, url …/login
+ *
+ * Die erste Fassung dieses Riegels prueft nur res.redirected. Der war auf jeder
+ * Navigation FALSE, der Riegel feuerte nie, und die Navigation lief auf /login
+ * weiter — mit gefuelltem Cache und kontrollierendem Worker gegengemessen. Der
+ * Unit-Test blieb gruen, weil seine Netzattrappe Follow-Semantik nachbildete;
+ * heute bildet sie beide nach.
+ *
+ * ⛔ WARUM NACHGEFASST WIRD, STATT JEDEN opaqueredirect ALS "SITZUNG WEG" ZU
+ * LESEN: eine undurchsichtige Antwort sagt NICHT, wohin sie zeigt (ihr url-Feld
+ * traegt die Ursprungsadresse). Sie pauschal zu verschlucken kostet nichts an
+ * Anfragen, verschluckt aber JEDE legitime Weiterleitung — eine
+ * Schraegstrich-Normalisierung, einen Wechsel auf einen anderen Modul-Host —
+ * und lieferte dann die Offline-Flaeche, wo jemand etwas ganz anderes wollte.
+ * Der Preis des Nachfassens ist EINE zusaetzliche Anfrage, und sie faellt nur
+ * in dem Fall an, in dem ohnehin gerade nichts funktioniert
+ * (Betreiberentscheidung 2026-09-03).
+ */
+async function zeigtAufDenLogin(res, url) {
+  // Fall A: die Antwort traegt ihr Ziel selbst (redirect:"follow").
+  if (res.redirected) return pfadVon(res.url).indexOf("/login") === 0;
+  // Fall B: undurchsichtig — einmal nachfassen, um das Ziel wirklich zu sehen.
+  if (res.type !== "opaqueredirect") return false;
+  let nach;
+  try {
+    nach = await fetch(url.href, { credentials: "include", redirect: "follow" });
+  } catch (e) {
+    // Das Netz ist zwischendurch weggebrochen. Dann WISSEN wir es nicht, und
+    // der Aufrufer faellt ueber seinen eigenen catch-Zweig auf den Cache.
+    return false;
+  }
+  const ziel = nach.redirected ? pfadVon(nach.url) : "";
+  // Diese Antwort wird nie ausgeliefert — ihr Body MUSS freigegeben werden,
+  // sonst legt sie die Abruf-Pipeline des Workers still (siehe releaseBody).
+  await releaseBody(nach);
+  return ziel.indexOf("/login") === 0;
+}
+
 async function navigationsAntwort(req, url) {
   const cache = await caches.open(CACHE);
   try {
     const res = await fetch(req);
     // DER REDIRECT-RIEGEL AUF DEM NAVIGATIONSZWEIG: mit Netz, aber abgelaufener
-    // Sitzung antwortet die Suite 307 -> /login, und fetch folgt dem still.
-    // Ohne diesen Zweig verloere jemand mit schwacher Verbindung den
-    // vollstaendig vorhandenen Katalog an eine Anmeldemaske.
-    if (res.redirected) {
-      let ziel = "";
-      try { ziel = new URL(res.url, self.location.origin).pathname; } catch (e) { ziel = ""; }
-      if (ziel.indexOf("/login") === 0) {
-        const gecacht = await cache.match(NAV_FALLBACK);
-        if (gecacht) { await releaseBody(res); return gecacht; }
-      }
+    // Sitzung antwortet die Suite 307 -> /login. Ohne diesen Zweig verloere
+    // jemand mit schwacher Verbindung den vollstaendig vorhandenen Katalog an
+    // eine Anmeldemaske — mitten im Einsatz, wo ihn niemand neu anmelden kann.
+    if (await zeigtAufDenLogin(res, url)) {
+      const gecacht = await cache.match(NAV_FALLBACK);
+      if (gecacht) { await releaseBody(res); return gecacht; }
     }
     return res;
   } catch (e) {
