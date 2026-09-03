@@ -57,29 +57,47 @@ export async function seedLokalZeichen(db: DB): Promise<string[]> {
   ));
   zeilen.push(await seedeSet(
     db, "rettungsdienst", "Rettungsdienst",
-    "Die Zeichen, die im Sanitaetsdienst am haeufigsten vorkommen.", RETTUNGSDIENST_SET,
+    "Die Zeichen, die im Sanitätsdienst am häufigsten vorkommen.", RETTUNGSDIENST_SET,
   ));
 
+  // Wie `seedeSet`: die Protokollzeile zaehlt das TATSAECHLICH Geschriebene, nicht die
+  // Laenge der Eingabeliste — sonst behauptet sie nach einem Paketupgrade weiter "3
+  // Zeichen", waehrend eine der drei IDs schon uebersprungen wurde.
+  let merklisteAngelegt = 0;
+  let merklisteUebersprungen = 0;
   for (const zeichenId of GRUNDLAGEN_SET.slice(0, 3)) {
     const z = findeZeichen(zeichenId);
-    if (!z) continue;
+    if (!z) { merklisteUebersprungen += 1; continue; }
     db.insert(merkliste).values({
       sub: DEV_SUB, zeichenId, titelSchnappschuss: z.titel,
     }).onConflictDoNothing().run();
+    merklisteAngelegt += 1;
   }
-  zeilen.push(`Merkliste fuer ${DEV_SUB}: 3 Zeichen — /m/zeichen/merkliste`);
+  const merklisteZusatz =
+    merklisteUebersprungen > 0 ? ` (${merklisteUebersprungen} nicht im Katalog)` : "";
+  zeilen.push(`Merkliste für ${DEV_SUB}: ${merklisteAngelegt} Zeichen${merklisteZusatz} — /m/zeichen/merkliste`);
 
+  // `gefestigt` steht an der Fixtur selbst statt aus `stufe`/`faelligAm` neu
+  // hergeleitet zu werden — die Klassifikation ist eine Demodaten-Entscheidung
+  // dieses Seeds, keine fachliche Regel, die anderswo im Modul lebt.
   const staende = [
-    { zeichenId: "rezept:C.1.1", stufe: 3, faelligAm: "2099-01-01", richtig: 4, falsch: 0 },
-    { zeichenId: "rezept:E.1.1", stufe: 1, faelligAm: "2000-01-01", richtig: 1, falsch: 2 },
-    { zeichenId: "rezept:I.3.5", stufe: 0, faelligAm: "2000-01-01", richtig: 0, falsch: 1 },
+    { zeichenId: "rezept:C.1.1", stufe: 3, faelligAm: "2099-01-01", richtig: 4, falsch: 0, gefestigt: true },
+    { zeichenId: "rezept:E.1.1", stufe: 1, faelligAm: "2000-01-01", richtig: 1, falsch: 2, gefestigt: false },
+    { zeichenId: "rezept:I.3.5", stufe: 0, faelligAm: "2000-01-01", richtig: 0, falsch: 1, gefestigt: false },
   ];
-  for (const s of staende) {
-    if (!findeZeichen(s.zeichenId)) continue;
+  let gefestigtAngelegt = 0;
+  let faelligAngelegt = 0;
+  let staendeUebersprungen = 0;
+  for (const { gefestigt, ...s } of staende) {
+    if (!findeZeichen(s.zeichenId)) { staendeUebersprungen += 1; continue; }
     db.insert(lernstand).values({ sub: DEV_SUB, ...s }).onConflictDoNothing().run();
+    if (gefestigt) gefestigtAngelegt += 1; else faelligAngelegt += 1;
   }
+  const staendeZusatz =
+    staendeUebersprungen > 0 ? ` (${staendeUebersprungen} nicht im Katalog)` : "";
   zeilen.push(
-    `Lernstand fuer ${DEV_SUB}: 1 gefestigt, 2 faellig — /m/zeichen/lernen`,
+    `Lernstand für ${DEV_SUB}: ${gefestigtAngelegt} gefestigt, ${faelligAngelegt} fällig` +
+    `${staendeZusatz} — /m/zeichen/lernen`,
   );
   zeilen.push(
     `Verwaltung der Lernsets: /m/zeichen/verwaltung/lernsets — ` +
