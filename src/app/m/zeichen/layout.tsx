@@ -1,5 +1,8 @@
 import localFont from "next/font/local";
 
+import { RegisterSW } from "./RegisterSW";
+import { zeichenSwAn } from "./_lib/boot";
+
 /**
  * ARIMO — DIE SCHRIFT, GEGEN DIE DIE ZEICHEN VERMESSEN SIND (Spec §3.5).
  *
@@ -76,6 +79,11 @@ export default function ZeichenLayout({ children }: { children: React.ReactNode 
   return (
     <div className={arimo.variable}>
       <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
+      {/* HIER UND NICHT IN `(shell)/layout.tsx`: `(rahmenlos)` ist ein
+          GESCHWISTER-Segment, kein Kind. Ein `RegisterSW` im Shell-Layout liefe
+          auf `/offline` nie — und genau dort ist es am nuetzlichsten, weil das
+          die Route ist, die als `start_url` geoeffnet wird. */}
+      <RegisterSW an={zeichenSwAn(process.env)} />
       {children}
     </div>
   );

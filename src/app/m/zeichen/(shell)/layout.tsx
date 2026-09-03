@@ -1,6 +1,7 @@
 import { canAdminModule } from "@/core/auth/guards";
 import { Shell } from "@/core/shell/Shell";
 import { zeichenNav } from "../_lib/nav";
+import { MerklisteSpiegel } from "../_ui/MerklisteSpiegel";
 
 /**
  * DIE HUELLE DER ARBEITSFLAECHEN — Startseite, Katalog, Merkliste, Baukasten, Meine Zeichen,
@@ -29,6 +30,11 @@ export default async function ZeichenShellLayout({ children }: { children: React
 
   return (
     <Shell variant="full" moduleKey="zeichen" nav={zeichenNav(darfVerwalten)}>
+      {/* Spiegelt die Merkliste bei JEDEM Online-Aufruf aufs Geraet (Spec §7.5)
+          und rendert nichts. Hier und nicht auf `/offline`: dort gibt es weder
+          Sitzung noch Datenbank, und ein `auth()`-Aufruf traege den Klarnamen
+          ins HTML — genau das, was der Inhaltsriegel des Workers ablehnt. */}
+      <MerklisteSpiegel />
       {children}
     </Shell>
   );

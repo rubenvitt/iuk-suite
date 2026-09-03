@@ -17,6 +17,7 @@ import verwaltungAufDemTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/uav
 import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-eigene-zeichen-bauen";
 import zeichenNachschlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-taktische-zeichen-nachschlagen";
 import zeichenUeben from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-03-zeichen-ueben";
+import zeichenOhneNetz from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-03-zeichen-ohne-netz";
 
 /**
  * DAS VERZEICHNIS ALLER NOTIZEN — eine Zeile je Datei, und das ist die einzige
@@ -55,6 +56,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   zeichenNachschlagen,
   eigeneZeichenBauen,
   zeichenUeben,
+  zeichenOhneNetz,
 ];
 
 /**

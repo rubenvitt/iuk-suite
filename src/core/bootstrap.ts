@@ -14,6 +14,7 @@ import { filesBootFehler, starteFilesHintergrund } from "@/app/m/files/_lib/boot
 import { lagerbuchBootFehler } from "@/app/m/lagerbuch/_lib/boot";
 import { radioBootFehler, starteRadioHintergrund } from "@/app/m/radio/_lib/boot";
 import { uavBootFehler } from "@/app/m/uav/_lib/boot";
+import { zeichenBootFehler } from "@/app/m/zeichen/_lib/boot";
 import { starteAufgabenScanArbeiter } from "@/app/m/aufgaben/_lib/scan";
 
 // Module mit eigener SQLite-DB + Migrationen. Neue Module hier eintragen.
@@ -115,6 +116,11 @@ export async function assertHostConfig(): Promise<void> {
     // uav: greift nur bei gesetztem SUITE_HOST_UAV und WIRFT NIE (Spec 2026-08-28 §5).
     // Sie läuft VOR migrateAllModules() und liest deshalb KEINE Tabelle.
     ...(await uavBootFehler()),
+    // zeichen: greift nur bei ZEICHEN_SW=1 und WIRFT NIE (Spec 2026-09-02 §7.1, mit der
+    // im Plan begruendeten Abweichung: an den Schalter gebunden statt an NODE_ENV, sonst
+    // braeche jeder unbeteiligte Deploy zwischen Merge und Cutover ab).
+    // Sie läuft VOR migrateAllModules() und liest deshalb KEINE Tabelle.
+    ...(await zeichenBootFehler()),
   ];
   if (errors.length > 0) {
     throw new Error(`Ungültige Host-Konfiguration:\n  - ${errors.join("\n  - ")}`);
