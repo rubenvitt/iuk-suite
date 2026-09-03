@@ -59,6 +59,13 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   // uav: OHNE Schema-Import und OHNE Boot-Seed — ein geseedeter Teilnehmer-Code wäre in einer
   // Generalprobe (SUITE_SEED=1) ein gültiger anonymer Zugang. Das lokale Seed-Skript deckt Dev ab.
   { key: "uav", migrationsFolder: "src/app/m/uav/_db/migrations" },
+  // zeichen: bewusst OHNE Schema-Import und OHNE Seed in `seedAllModules()`. Der
+  // Schema-Import waere toter Code (`migrateAllModules()` migriert schema-frei), und ein
+  // Boot-Seed ist hier zwar ungefaehrlich — die Tabellen tragen weder Zugangs- noch
+  // Schreibrechte —, aber wertlos: die Demodaten schluesseln auf `dev:<email>`, und
+  // `shouldSeed()` ist bei SUITE_SEED=1 auch in der GENERALPROBE wahr. Dort erschienen
+  // dann Lernstaende und Merklisten einer Person, die es auf der Instanz nicht gibt.
+  { key: "zeichen", migrationsFolder: "src/app/m/zeichen/_db/migrations" },
 ];
 
 /**
