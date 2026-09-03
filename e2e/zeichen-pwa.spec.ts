@@ -222,6 +222,38 @@ test("offline: start_url oeffnen, suchen, Treffer sehen", async ({ page, context
    * hydrierte Insel samt ihrem Datenpaket. Steht nur das Standbild, waere der
    * Test gruen und die Zusage falsch.
    */
+  /*
+   * ⛔ ZUERST: GENAU EINE KATALOGFLAECHE. Ein Lauf des Betreuers brach hier mit
+   * einer Playwright-„strict mode violation" ab — `zeichen-trefferzahl` loeste zu
+   * ZWEI Knoten auf, der erste innerhalb von `zeichen-offline`, der zweite
+   * ausserhalb.
+   *
+   * ⬜ WOHER DER ZWEITE STAMMEN KANN, ist im Repo eindeutig: die Kennung steht an
+   * genau EINER Stelle im Quelltext (`_ui/KatalogInsel.tsx:237`), und die Insel
+   * wird an genau ZWEI Stellen eingebunden — auf `/offline` (INNERHALB von
+   * `zeichen-offline`) und auf `(shell)/katalog` (ausserhalb, in der Huelle). Ein
+   * Knoten ausserhalb gehoert also zur Shell-Katalogseite: genau der Seite, auf
+   * der dieser Fall unmittelbar vor `page.goto("/")` steht (`devLogin(...,
+   * callbackPath: "/katalog")`). Zwei Knoten heissen damit „die vorige Seite
+   * haengt noch im Baum", nicht „die Offline-Flaeche rendert doppelt".
+   *
+   * ⬜ NICHT REPRODUZIERT, und deshalb steht hier eine Zusicherung und keine
+   * Erklaerung: 18 Ausfuehrungen dieses Falls blieben gruen — einzeln, im vollen
+   * Lauf, sechsfach wiederholt, am Stand VOR der Fix-Welle, mit dunklem
+   * Farbschema und unter Vollast. 400 Abtastungen des Baums im 5-ms-Takt
+   * unmittelbar nach der Navigation sahen durchweg genau EINEN Knoten, und die
+   * gecachte `/offline`-Huelle enthaelt die Kennung genau einmal.
+   *
+   * ⛔ DIE ABHILFE IST KEIN `.first()`, DAS DEN ZWEITEN KNOTEN WEGBLENDET.
+   * `toHaveCount(1)` WIEDERHOLT (Playwright wartet die Zusicherung aus) und macht
+   * ein Rennen damit unschaedlich, ohne die Frage offenzulassen: bliebe wirklich
+   * ein zweiter Knoten stehen, faellt der Fall hier mit „expected 1, received 2" —
+   * einer Zahl, die den Befund nennt, statt einer Strict-Mode-Meldung, die nach
+   * etwas ganz anderem klingt.
+   */
+  await expect(page.getByTestId("zeichen-offline")).toHaveCount(1);
+  await expect(page.getByTestId("zeichen-trefferzahl")).toHaveCount(1);
+
   await expect(page.getByTestId("zeichen-trefferzahl")).toHaveText("246 von 246 Zeichen");
   await page.getByTestId("zeichen-suche").fill("loeschgruppe");
   await expect(page.getByTestId("zeichen-trefferzahl")).toHaveText("1 von 246 Zeichen");
