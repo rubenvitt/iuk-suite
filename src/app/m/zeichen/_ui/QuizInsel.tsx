@@ -25,8 +25,17 @@ export function QuizInsel(props: {
     typ: Frage["typ"],
     gewaehlteId: string,
   ) => Promise<{ richtig: boolean }>;
+  /**
+   * Der auf `/lernen` gewaehlte Lernset-Slug, unveraendert durchgereicht von
+   * `runde/page.tsx`. ⛔ FIX-RUNDE 1, BEFUND W1: ohne dieses Prop haengte der
+   * „Naechstes Zeichen"-Link fest auf `/m/zeichen/lernen/runde` OHNE `?set=` — die
+   * zweite und jede weitere Frage einer Lernset-Runde uebte danach still im ganzen
+   * Bestand, obwohl „Loesueben" mit gewaehltem Set gestartet wurde. Genau die Zusage,
+   * die die Release-Notiz macht.
+   */
+  set?: string;
 }) {
-  const { frage, svg, beantworte } = props;
+  const { frage, svg, beantworte, set } = props;
   const [gewaehlt, setGewaehlt] = useState<string | null>(null);
   const [richtig, setRichtig] = useState<boolean | null>(null);
   const [aktionsfehler, setAktionsfehler] = useState<string | null>(null);
@@ -107,7 +116,12 @@ export function QuizInsel(props: {
               Richtig wäre <strong>{zielAntwort}</strong> gewesen.{" "}
             </>
           )}
-          <Button href="/m/zeichen/lernen/runde" type="link" style={{ paddingInline: 0 }}>
+          <Button
+            href={`/m/zeichen/lernen/runde${set ? `?set=${set}` : ""}`}
+            type="link"
+            data-testid="quiz-naechstes"
+            style={{ paddingInline: 0 }}
+          >
             Nächstes Zeichen
           </Button>
         </div>

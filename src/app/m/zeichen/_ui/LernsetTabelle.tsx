@@ -106,7 +106,7 @@ export function LernsetTabelle({ zeilen }: { zeilen: readonly LernsetZeile[] }) 
               <tr
                 key={z.id}
                 data-testid={`lernset-zeile-${z.slug}`}
-                className={s.merkzeile}
+                className={s.tabellenzeile}
               >
                 <td>
                   <Link href={`/m/zeichen/verwaltung/lernsets/${z.id}`}>{z.titel}</Link>

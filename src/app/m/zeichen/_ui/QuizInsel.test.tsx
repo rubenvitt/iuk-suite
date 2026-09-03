@@ -54,4 +54,28 @@ describe("QuizInsel", () => {
     await click('[data-testid="quiz-option"]:nth-of-type(2)');
     expect(beantworte).toHaveBeenCalledTimes(1);
   });
+
+  /*
+   * FIX-RUNDE 1, BEFUND W1: der „Naechstes Zeichen"-Link haengte fest auf
+   * `/m/zeichen/lernen/runde` OHNE `?set=` — wer mit gewaehltem Lernset startete, uebte
+   * ab der zweiten Frage still im ganzen Bestand. Das Set kommt jetzt als Prop herein
+   * und haengt am Link.
+   */
+  it("haengt das gewaehlte Lernset an den Weiter-Link", async () => {
+    const beantworte = vi.fn().mockResolvedValue({ richtig: true });
+    await mount(
+      <QuizInsel frage={FRAGE} svg="<svg></svg>" beantworte={beantworte} set="rettungsdienst" />,
+    );
+    await click('[data-testid="quiz-option"]');
+    const link = query<HTMLAnchorElement>('[data-testid="quiz-naechstes"]');
+    expect(link.getAttribute("href")).toBe("/m/zeichen/lernen/runde?set=rettungsdienst");
+  });
+
+  it("verlinkt ohne Parameter, wenn kein Lernset gewaehlt ist", async () => {
+    const beantworte = vi.fn().mockResolvedValue({ richtig: true });
+    await mount(<QuizInsel frage={FRAGE} svg="<svg></svg>" beantworte={beantworte} />);
+    await click('[data-testid="quiz-option"]');
+    const link = query<HTMLAnchorElement>('[data-testid="quiz-naechstes"]');
+    expect(link.getAttribute("href")).toBe("/m/zeichen/lernen/runde");
+  });
 });

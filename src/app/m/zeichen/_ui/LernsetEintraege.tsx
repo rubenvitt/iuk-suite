@@ -32,7 +32,21 @@ export function LernsetEintraege(props: {
   const [imUebergang, starte] = useTransition();
   const [laufend, setLaufend] = useState<string | null>(null);
   const [aktionsfehler, setAktionsfehler] = useState<string | null>(null);
-  const [ausgewaehlt, setAusgewaehlt] = useState(optionen[0]?.id ?? "");
+  /*
+   * ⛔ FIX-RUNDE 1, BEFUND W4: `ausgewaehlt` merkt sich nur, WAS die Person zuletzt
+   * ANGEKLICKT hat — nicht, was gerade gueltig ist. Eine Einmal-Initialisierung aus
+   * `optionen[0]` (der urspruengliche Stand) blieb nach einer erfolgreichen Aufnahme
+   * stehen, obwohl das aufgenommene Zeichen aus `optionen` verschwunden war (Server
+   * Action revalidiert, `optionen` kommt neu herein): das kontrollierte `<select>` fand
+   * keine passende `<option>` mehr und zeigte nichts an, und ein zweiter Klick auf
+   * „Hinzufuegen" schickte die veraltete ID erneut — abgewiesen mit „Dieses Zeichen
+   * steht schon im Set." `effektiveAuswahl` ist deshalb eine ABLEITUNG aus State UND
+   * Props bei jedem Render, keine einmalige Kopie: faellt die gemerkte Auswahl aus
+   * `optionen`, springt sie automatisch auf die erste noch verfuegbare Option.
+   */
+  const [ausgewaehlt, setAusgewaehlt] = useState<string | null>(null);
+  const auswahlGueltig = ausgewaehlt !== null && optionen.some((o) => o.id === ausgewaehlt);
+  const effektiveAuswahl = auswahlGueltig ? (ausgewaehlt as string) : (optionen[0]?.id ?? "");
 
   function entfernen(zeichenId: string) {
     setLaufend(zeichenId);
@@ -47,12 +61,12 @@ export function LernsetEintraege(props: {
   }
 
   function hinzufuegen() {
-    if (!ausgewaehlt) return;
+    if (!effektiveAuswahl) return;
     setLaufend("__hinzufuegen__");
     starte(async () => {
       setAktionsfehler(null);
       try {
-        const ergebnis = await fuegeZeichenZuSetHinzu(set.id, ausgewaehlt);
+        const ergebnis = await fuegeZeichenZuSetHinzu(set.id, effektiveAuswahl);
         if (!ergebnis.ok) setAktionsfehler(ergebnis.fehler ?? AKTION_FEHLGESCHLAGEN);
       } catch {
         setAktionsfehler(AKTION_FEHLGESCHLAGEN);
@@ -98,7 +112,7 @@ export function LernsetEintraege(props: {
           <select
             id="lernset-hinzufuegen-auswahl"
             className={s.eingabe}
-            value={ausgewaehlt}
+            value={effektiveAuswahl}
             onChange={(e) => setAusgewaehlt(e.target.value)}
             data-testid="lernset-hinzufuegen-auswahl"
             disabled={optionen.length === 0}

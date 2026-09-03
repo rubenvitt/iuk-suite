@@ -1,7 +1,8 @@
 import { and, asc, eq, lte } from "drizzle-orm";
 import { findeZeichen, type Zeichen, type ZeichenId } from "../_lib/katalog";
-import { fragbareZeichen } from "../_lib/lernen/fragen";
+import { baueFrage, fragbareZeichen, richtungFuer, type Frage } from "../_lib/lernen/fragen";
 import { naechsterStand, type Ergebnis } from "../_lib/lernen/leitner";
+import { seedAus } from "../_lib/lernen/zufall";
 import type { DB } from "./client";
 import { lernsets, lernsetZeichen, lernstand } from "./schema";
 
@@ -154,6 +155,42 @@ export function schreibeAntwort(
       },
     })
     .run();
+}
+
+/**
+ * FIX-RUNDE 1, BEFUND W2: baut Karte UND Frage in EINEM testbaren Schritt.
+ *
+ * Vorher lag diese Verdrahtung nur in `runde/page.tsx` und war damit fuer Vitest
+ * unerreichbar (eine `.tsx`-Seite mit `searchParams`-Promise laesst sich nicht als
+ * gewoehnliche Funktion aufrufen und pruefen). Der ungetestete Teil war genau der
+ * kritische: `fragbareZeichen()` OHNE Argument fuer die Distraktoren, WAEHREND
+ * `naechsteKarte` mit `nur` auf ein Lernset eingeschraenkt sein darf. Ein
+ * Tippfehler — `fragbareZeichen(nur)` statt `fragbareZeichen()` — verriete bei einem
+ * kleinen Set ab der vierten Frage die Loesung, und die alte Testsuite haette es NICHT
+ * gesehen (`_lib/lernen/fragen.test.ts` uebergibt fuer `bestand` immer den vollen
+ * Bestand, das kleine Set kam darin nie vor — die Zusicherung war wahr, unabhaengig
+ * davon, was der Aufrufer tatsaechlich tut). Jetzt deckt `_db/lernen.test.ts` genau
+ * diesen Aufrufer ab.
+ */
+export interface Rundenfrage {
+  frage: Frage;
+  svg: string;
+}
+
+export function baueRundenfrage(
+  db: DB,
+  sub: string,
+  heute: string,
+  nur?: readonly ZeichenId[],
+): Rundenfrage | null {
+  const karte = naechsteKarte(db, sub, heute, nur);
+  if (!karte) return null;
+
+  const typ = richtungFuer(karte.zeichen, karte.stufe, seedAus(sub, karte.zeichen.id, "richtung"));
+  // ⛔ IMMER OHNE Argument — die Distraktoren kommen aus dem GANZEN fragbaren Katalog,
+  // auch wenn `nur` die Karte selbst auf ein Lernset eingeschraenkt hat.
+  const frage = baueFrage(karte.zeichen, typ, fragbareZeichen(), seedAus(sub, karte.zeichen.id, typ));
+  return { frage, svg: karte.zeichen.svg };
 }
 
 /**

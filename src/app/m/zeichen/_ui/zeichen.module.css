@@ -264,3 +264,19 @@
   gap: 4px;
   min-width: 0;
 }
+
+/*
+ * TABELLENZEILEN — EIGENE KLASSE, NICHT `.merkzeile` (Fix-Runde 1, Befund W3).
+ * `.merkzeile` ist `display: flex`, gebaut fuer `<li>`-Eintraege der Merkliste. Auf
+ * einem `<tr>` nimmt `display: flex` der Zeile ihre `table-row`-Rolle: jede
+ * Koerperzeile wird zu einer anonymen Einzelzelle, und die Spaltenkoepfe im
+ * `<thead>` fluchten mit nichts mehr. Falle 5, dritte Auspraegung (eigene Regel zu
+ * stark und trifft das eigene Modul) — kein Gate sieht es, nur ein echter Browser.
+ */
+.tabellenzeile {
+  border-block-end: 1px solid var(--tz-linie);
+}
+
+.tabellenzeile > td {
+  padding-block: 8px;
+}

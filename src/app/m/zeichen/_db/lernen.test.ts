@@ -4,6 +4,7 @@ import { testDb } from "./testdb";
 import {
   aktiveLernsets,
   alleLernsetsMitAnzahl,
+  baueRundenfrage,
   einLernsetMitEintraegen,
   idsAusSet,
   lernUebersicht,
@@ -133,6 +134,46 @@ describe("schreibeAntwort", () => {
     expect(z.stufe).toBe(3);
     expect(z.faelligAm).toBe("2099-01-01");
     expect(z.richtig).toBe(5);
+  });
+});
+
+/*
+ * FIX-RUNDE 1, BEFUND W2: `_lib/lernen/fragen.test.ts` uebergibt fuer `bestand`
+ * IMMER den vollen Bestand — das kleine Set kommt darin nie vor, die dortige
+ * Zusicherung „zieht Distraktoren aus dem ganzen Katalog" ist deshalb wahr,
+ * unabhaengig davon, was der eigentliche Aufrufer (`runde/page.tsx` bzw.
+ * `baueRundenfrage`) tatsaechlich tut. Dieser Block prueft den echten Aufrufer.
+ */
+describe("baueRundenfrage", () => {
+  it("liefert null, wenn das Set kein aufloesbares Zeichen hat", () => {
+    const db = testDb();
+    expect(baueRundenfrage(db, SUB, HEUTE, [])).toBeNull();
+  });
+
+  it("baut eine Frage aus einer faelligen oder neuen Karte", () => {
+    const db = testDb();
+    const ergebnis = baueRundenfrage(db, SUB, HEUTE);
+    expect(ergebnis).not.toBeNull();
+    expect(ergebnis!.frage.optionen.length).toBe(4);
+    expect(ergebnis!.svg).toContain("<svg");
+  });
+
+  /*
+   * DIE REGRESSION SELBST: `nur` schraenkt auf ein 2-Zeichen-Set ein (eines davon ist
+   * zwangslaeufig das Ziel). Mit VIER Optionen MUESSEN mindestens zwei Distraktoren von
+   * ausserhalb des Sets kommen, wenn sie wirklich aus dem ganzen fragbaren Katalog
+   * gezogen werden. Ein Tippfehler `fragbareZeichen(nur)` statt `fragbareZeichen()` in
+   * `baueRundenfrage` liesse den Pool auf hoechstens zwei Kandidaten schrumpfen — die
+   * Frage haette dann entweder weniger als vier Optionen oder gar keine.
+   */
+  it("zieht die Distraktoren aus dem GANZEN Katalog, auch wenn `nur` die Karte auf zwei Zeichen einschraenkt", () => {
+    const db = testDb();
+    const klein = ["rezept:C.1.1", "rezept:E.1.1"];
+    const ergebnis = baueRundenfrage(db, SUB, HEUTE, klein);
+    expect(ergebnis).not.toBeNull();
+    expect(ergebnis!.frage.optionen.length).toBe(4);
+    const ausserhalb = ergebnis!.frage.optionen.filter((o) => !klein.includes(o.id));
+    expect(ausserhalb.length).toBeGreaterThanOrEqual(2);
   });
 });
 

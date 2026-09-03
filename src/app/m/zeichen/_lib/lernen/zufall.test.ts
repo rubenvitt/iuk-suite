@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { mische, zufallsfolge } from "./zufall";
 
@@ -42,5 +43,27 @@ describe("mische", () => {
 
   it("mischt zum selben Seed gleich", () => {
     expect(mische([1, 2, 3, 4, 5], 7)).toEqual(mische([1, 2, 3, 4, 5], 7));
+  });
+});
+
+describe("zufall.ts ist kein Client-Modul", () => {
+  /*
+   * FIX-RUNDE 1 ZU AUFGABE 8, FUENFTER BEFUND (hochgestuft): `_db/lernen.ts` liest
+   * diese Datei als WERT — `baueRundenfrage`/`idsAusSet` werden von Server Components
+   * (`/lernen`, `/lernen/runde`, der Lernset-Verwaltung) importiert, und
+   * `(shell)/verwaltung/lernsets/[id]/page.tsx` liest `fragbareZeichen` sogar direkt.
+   * Truege diese Datei ein `"use client"`, kaeme dort ueberall eine Client-Referenz
+   * statt des Wertes an — HTTP 500, und weder `typecheck` noch `build` noch Vitest
+   * saehe es (hier ist die Direktive ein wirkungsloser String). Nur der
+   * Quelltext-Scan sieht es.
+   *
+   * ⚠️ REGEX UEBER DEN DATEIANFANG, NICHT `trimStart().startsWith(...)` (Vorbild
+   * `_lib/merkliste.test.ts`, nicht `lagerbuch/_lib/nav.test.ts`): nach ECMAScripts
+   * Directive-Prologue-Regel bleibt die Direktive auch dann wirksam, wenn ihr NUR
+   * KOMMENTARE vorausgehen — die `startsWith`-Form uebersaehe genau diesen Fall.
+   */
+  it("ist kein Client-Modul", () => {
+    const quelle = readFileSync("src/app/m/zeichen/_lib/lernen/zufall.ts", "utf8");
+    expect(quelle.slice(0, 200)).not.toMatch(/["']use client["']/);
   });
 });
