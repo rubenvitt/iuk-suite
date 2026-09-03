@@ -22,17 +22,34 @@ function knotentext(svg: string, knoten: "title" | "desc"): string | null {
 }
 
 /**
- * Das SVG ohne seine ZEICHNERISCHEN Beschriftungen.
+ * DIE ACHT ZEICHEN, DEREN TITEL TEIL DER ZEICHNUNG IST — namentlich, nicht als Zahl.
  *
  * ⬜ GEMESSEN am 2026-09-03 ueber alle 246 Eintraege: 158 SVGs enthalten
- * `<text>`-Knoten, und bei ACHT davon steht dort der Titel selbst: `Stab`
- * (E.1.21), `KTW`/`RTW`/`NEF`/`NAW` (F.2.1, F.2.3–F.2.5), `Raft` (I.3.10),
- * `Strömungsretter` (I.5.2) und `Taucher` (I.5.3). Diese Kuerzel sind TEIL DES
- * ZEICHENS, nicht seine Beschriftung — sie zu entfernen
+ * `<text>`-Knoten, und bei genau diesen ACHT steht dort der Titel selbst. Die
+ * Kuerzel sind TEIL DES ZEICHENS, nicht seine Beschriftung — sie zu entfernen
  * hiesse, das Zeichen zu zerstoeren; wer „RTW" sieht, sieht das Zeichen so, wie
- * die Vorschrift es zeichnet. `stummesSvg` fasst sie deshalb ausdruecklich nicht
- * an, und die Zusicherungen unten messen den Rest.
+ * die Vorschrift es zeichnet. `stummesSvg` fasst sie deshalb nicht an.
+ *
+ * ⛔ DIE LISTE STEHT HIER ALS MENGE UND NICHT ALS PAUSCHALE AUSNAHME, und das ist
+ * der ganze Punkt. Die erste Fassung dieses Tests strich vor der Pruefung JEDEN
+ * `<text>`-Knoten aus ALLEN 246 SVGs — nichts pinnte die Zahl auf acht. Truege
+ * eine Neugenerierung morgen den Titel in einen neunten, in fuenfzig oder in
+ * alle 158 `<text>`-tragenden Zeichen, waere der Test gruen geblieben, waehrend
+ * das Quiz seine Antworten wieder verriete. Dass diese Liste bei einem
+ * Paketupgrade angefasst werden muss, ist der Zweck und kein Nachteil.
  */
+const KUERZEL_IN_DER_ZEICHNUNG: readonly string[] = [
+  "rezept:E.1.21", // Stab
+  "rezept:F.2.1", // KTW
+  "rezept:F.2.3", // RTW
+  "rezept:F.2.4", // NEF
+  "rezept:F.2.5", // NAW
+  "rezept:I.3.10", // Raft
+  "rezept:I.5.2", // Strömungsretter
+  "rezept:I.5.3", // Taucher
+];
+
+/** Das SVG ohne seine zeichnerischen Beschriftungen — nur fuer die acht oben. */
 function ohneZeichnungstext(svg: string): string {
   return svg.replace(/<text\b[^>]*>[\s\S]*?<\/text>/gi, "");
 }
@@ -65,9 +82,17 @@ describe("stummesSvg", () => {
       // Titel ueberall dort, wo er nicht Teil der Zeichnung ist (siehe
       // `ohneZeichnungstext`).
       expect(stumm, z.id).not.toContain(z.bedeutung);
-      const ohneText = ohneZeichnungstext(stumm);
-      expect(ohneText, z.id).not.toContain(z.titel);
-      expect(ohneText, z.id).not.toContain(z.antwort);
+
+      if (KUERZEL_IN_DER_ZEICHNUNG.includes(z.id)) {
+        // Bei den acht ueberlebt der Titel NUR in der Zeichnung — und nirgends
+        // sonst. Ohne diese Zeile deckte die Ausnahme auch ein
+        // stehengebliebenes `<title>` mit ab.
+        expect(ohneZeichnungstext(stumm), z.id).not.toContain(z.titel);
+        expect(ohneZeichnungstext(stumm), z.id).not.toContain(z.antwort);
+      } else {
+        expect(stumm, z.id).not.toContain(z.titel);
+        expect(stumm, z.id).not.toContain(z.antwort);
+      }
     }
   });
 
@@ -91,6 +116,24 @@ describe("stummesSvg", () => {
       "<svg><path/></svg>",
     );
     expect(stummesSvg("<svg><desc>Zeile\nZwei</desc><path/></svg>")).toBe("<svg><path/></svg>");
+  });
+
+  it("genau diese acht Zeichen tragen ihren Titel in der Zeichnung — kein neuntes", () => {
+    /*
+     * DIE ZUSICHERUNG, DIE DIE AUSNAHME BEGRENZT. Sie ist eine Gleichheit und
+     * keine Teilmenge: ein neuntes Zeichen mit dem Titel im `<text>` faellt hier
+     * auf, und ein Zeichen, das seinen Titel VERLIERT, ebenso — dann stimmt die
+     * Liste oben nicht mehr, und wer sie streicht, soll das bewusst tun.
+     */
+    const ueberlebende = alleZeichen()
+      .filter((z) => {
+        const stumm = stummesSvg(z.svg);
+        return stumm.includes(z.titel) || stumm.includes(z.antwort);
+      })
+      .map((z) => z.id)
+      .sort();
+
+    expect(ueberlebende).toEqual([...KUERZEL_IN_DER_ZEICHNUNG].sort());
   });
 
   it("laesst ein SVG ohne Beschriftung unveraendert", () => {
