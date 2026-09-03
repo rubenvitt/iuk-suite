@@ -107,6 +107,43 @@ describe("Merkliste im Geraet", () => {
     expect(attrappe.geloescht).toContain("zeichen-merkliste");
   });
 
+  it("der Loeschknopf laesst den Offline-Katalog stehen", async () => {
+    /*
+     * ⛔ FIX-RUNDE 1, DRITTER PUNKT: der Knopf steht unter „Deine Merkliste"
+     * und heisst „Von diesem Geraet loeschen". Die erste Fassung raeumte
+     * zusaetzlich ALLE Caches — also den offline verfuegbaren Katalog, um den
+     * es in diesem ganzen Feature geht — und sagte das nirgends: nicht in der
+     * Beschriftung, nicht im Hinweis, nicht in der Release-Notiz.
+     *
+     * Statt den Text zu weiten, ist die Tat verengt worden, und der Grund ist
+     * eine Messung: im HTTP-Cache liegt nichts Personenbezogenes (der
+     * Inhaltsriegel haelt „userName"/„angemeldet" heraus, und der Abruf am
+     * 2026-09-03 zeigte 0 Treffer im ausgelieferten /offline). Den Katalog
+     * mitzuloeschen kauft also KEINEN Datenschutz und kostet genau die
+     * Faehigkeit, fuer die das Modul offline geht.
+     *
+     * Der Logout-Haken im Worker raeumt weiterhin BEIDES ab — das ist eine
+     * andere Handlung („ich gehe von diesem Geraet") und steht so in der
+     * Release-Notiz.
+     */
+    const geloeschteCaches: string[] = [];
+    (globalThis as Record<string, unknown>).caches = {
+      keys: async () => ["zeichen-pwa-v1"],
+      delete: async (name: string) => {
+        geloeschteCaches.push(name);
+        return true;
+      },
+    };
+
+    const { loescheGeraetedaten } = await import("./merkgeraet");
+    await loescheGeraetedaten();
+
+    expect(attrappe.geloescht).toContain("zeichen-merkliste");
+    expect(geloeschteCaches).toEqual([]);
+
+    delete (globalThis as Record<string, unknown>).caches;
+  });
+
   it("Worker und Insel meinen dieselbe Datenbank", async () => {
     /*
      * DAS DRITTE DREIECK DIESER AUFGABE. Der Logout-Haken im Worker loescht

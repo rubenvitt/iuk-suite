@@ -103,10 +103,28 @@ export async function liesMerkliste(): Promise<readonly MerkEintrag[]> {
 }
 
 /**
- * Der Loeschknopf: Geraetedatenbank UND HTTP-Cache, sofort und ohne
- * Rueckfrage-Dialog (Spec §7.5). Der Cache muss mit — sonst blieben die
- * gecachten Seiten liegen und der Knopf loeschte nur die Haelfte dessen, was er
- * verspricht.
+ * Der Loeschknopf: die GERAETEDATENBANK, sofort und ohne Rueckfrage-Dialog
+ * (Spec §7.5).
+ *
+ * ⛔ AUSDRUECKLICH NICHT DER HTTP-CACHE, und das ist eine Korrektur aus
+ * Fix-Runde 1. Die erste Fassung raeumte zusaetzlich alle Caches — also den
+ * offline verfuegbaren Katalog. Der Knopf steht unter „Deine Merkliste" und
+ * heisst „Von diesem Geraet loeschen"; weder Beschriftung noch Hinweis noch
+ * Release-Notiz sagten, dass damit auch der Katalog weg ist. In einem Feature,
+ * dessen ganzer Punkt die Ehrlichkeit darueber ist, was auf dem Geraet liegt,
+ * war das ein fehlender Halbsatz.
+ *
+ * Von den zwei moeglichen Abhilfen — Text weiten oder Tat verengen — ist die
+ * Tat verengt worden, weil eine Messung dafuer spricht: im HTTP-Cache liegt
+ * nichts Personenbezogenes. Der Inhaltsriegel des Workers haelt „userName" und
+ * „angemeldet" heraus, und der Abruf gegen den Prod-Build am 2026-09-03 fand im
+ * ausgelieferten /offline 0 Treffer fuer beide. Den Katalog mitzuloeschen kauft
+ * also KEINEN Datenschutz und kostet genau die Faehigkeit, fuer die dieses
+ * Modul offline geht — bis der Worker neu einliest, stuende das Geraet ohne
+ * Offline-Flaeche da.
+ *
+ * ⬜ DER LOGOUT-HAKEN IM WORKER RAEUMT WEITERHIN BEIDES AB. Das ist eine andere
+ * Handlung („ich gehe von diesem Geraet") und steht so in der Release-Notiz.
  */
 export async function loescheGeraetedaten(): Promise<void> {
   const f = fabrik();
@@ -123,9 +141,5 @@ export async function loescheGeraetedaten(): Promise<void> {
       anfrage.onerror = () => fertig();
       anfrage.onblocked = () => fertig();
     });
-  }
-  if (typeof caches !== "undefined") {
-    const namen = await caches.keys();
-    await Promise.all(namen.map((n) => caches.delete(n)));
   }
 }

@@ -313,7 +313,21 @@ self.addEventListener("fetch", (event) => {
       const treffer = await cache.match(req);
       if (treffer) return treffer;
       const res = await fetch(req);
-      if (res.ok) cache.put(req, res.clone());
+      // DERSELBE REDIRECT-RIEGEL WIE AUF DEM PRECACHE-PFAD, und er gehoert
+      // ZWINGEND auch hierher: isCacheableAsset laesst neben /_next/static/
+      // (das in PASSTHROUGH steht und deshalb nie durch Login-HTML ersetzt
+      // werden kann) auch /manifest.webmanifest und /pwa-icon.svg durch — und
+      // die beiden sind auth-pflichtig. Bei abgelaufener Sitzung kommen sie als
+      // {ok:true, redirected:true, url:/login} zurueck; ein blosses if (res.ok)
+      // ist genau der Waechter, den der Kopf dieser Datei als unzureichend
+      // beschreibt. Erreichbar ueber Cache-Fehltreffer PLUS abgelaufene
+      // Sitzung, etwa nach dem Loeschknopf, der die Caches leert, waehrend der
+      // Worker weiterlaeuft. Dann braennte sich die Anmeldeseite dauerhaft als
+      // Manifest ein — cache-first, nie revalidiert.
+      // Die Antwort geht unveraendert an die Seite: nur der cache.put entfaellt,
+      // und deshalb braucht dieser Zweig auch KEIN releaseBody (der Body wird
+      // gelesen, nur nicht von uns).
+      if (res.ok && !res.redirected) cache.put(req, res.clone());
       return res;
     }),
   );

@@ -262,6 +262,50 @@ describe("Service Worker zeichen", () => {
     expect(sw.cachedPaths()).toContain("/pwa-icon.svg");
   });
 
+  it("cacht auch zur LAUFZEIT kein weitergeleitetes Asset", async () => {
+    /*
+     * REPARATUR 2 GILT AUF BEIDEN PFADEN, UND DER FALL DANEBEN SIEHT NUR EINEN.
+     * Der Precache-Zweig laeuft ueber `holeGeprueft` und traegt den Riegel; der
+     * Laufzeitzweig des `fetch`-Handlers holt bei einem Cache-FEHLTREFFER
+     * selbst nach. `isCacheableAsset` laesst dort `/manifest.webmanifest` und
+     * `/pwa-icon.svg` durch — und die beiden stehen NICHT in `PASSTHROUGH`,
+     * kommen bei abgelaufener Sitzung also als {ok:true, redirected:true,
+     * url:/login} zurueck. Ein `if (res.ok)` allein ist genau der Waechter, den
+     * der Kopf dieser Datei als unzureichend beschreibt.
+     *
+     * ERREICHBAR ist die Lage ueber Cache-Fehltreffer PLUS abgelaufene Sitzung
+     * — etwa unmittelbar nach dem Loeschknopf, der die Caches leert, waehrend
+     * der Worker weiterlaeuft. Dann braennte sich Login-HTML unter dem
+     * Manifest-Schluessel ein: cache-first, nie revalidiert, solange der
+     * Cache-Name gleich bleibt.
+     *
+     * ⛔ DIESER TEST VERSCHICKT EIN `fetch`-EREIGNIS, KEIN `install`. Der Fall
+     * „cacht auch kein weitergeleitetes Manifest" verschickt nur `install` und
+     * bliebe hier gruen — er hat den Laufzeitzweig nie ausgeloest.
+     */
+    const sw = boot(netz({ abgelaufen: true }));
+    const event = sw.dispatch("fetch", unterressource("/manifest.webmanifest"));
+    const res = await event.response;
+    await sw.drain(event);
+
+    // Die Antwort geht unveraendert an die Seite — nur in den Cache darf sie nicht.
+    expect(event.responded).toBe(true);
+    expect(await res!.clone().text()).toBe(LOGIN_HTML);
+    expect(sw.cachedPaths()).toEqual([]);
+  });
+
+  it("cacht ein Asset zur Laufzeit, wenn es wirklich von seinem Pfad kommt", async () => {
+    // GEGENPROBE zum Fall darueber, und sie ist nicht Kosmetik: ein Riegel, der
+    // ALLES ablehnt, waere dort ebenfalls gruen — und die PWA haette keinen
+    // Laufzeitcache mehr, ohne dass ein Test es meldet.
+    const sw = boot(netz());
+    const event = sw.dispatch("fetch", unterressource("/pwa-icon.svg"));
+    await event.response;
+    await sw.drain(event);
+
+    expect(sw.cachedPaths()).toContain("/pwa-icon.svg");
+  });
+
   it("cacht kein HTML mit userName", async () => {
     // Der Inhaltsriegel. GEMESSEN (M17.3): jede Seite unter `SuiteRahmen`
     // traegt {"userName":"…","angemeldet":true} im Flight-Payload. Auf einem
@@ -337,6 +381,33 @@ describe("Service Worker zeichen", () => {
      * Anmeldemaske — und zwar mitten im Einsatz, wo ihn niemand neu anmelden
      * kann. Die Adresszeile steht dann auf /katalog, waehrend /offline
      * gerendert wird; das ist der bewusst gewaehlte kleinere Schaden.
+     *
+     * ⛔⛔ WAS DIESER TEST NICHT ZEIGT, GEMESSEN AM 2026-09-03 IM ECHTEN
+     * CHROMIUM GEGEN DEN PROD-BUILD — hier statt verschwiegen, weil ein gruener
+     * Test sonst etwas verspricht, was der Browser nicht einloest:
+     *
+     * Die Netzattrappe oben bildet `redirect: "follow"` nach. Ein
+     * NAVIGATIONS-Request traegt aber `redirect: "manual"`, und dann liefert
+     * `fetch` bei abgelaufener Sitzung KEINE weitergeleitete Antwort, sondern
+     * eine undurchsichtige:
+     *
+     *   redirect:"manual" -> {type:"opaqueredirect", status:0, ok:false, redirected:FALSE}
+     *   redirect:"follow" -> {type:"basic", status:200, ok:true, redirected:true, url:…/login}
+     *
+     * `res.redirected` ist im Browser also `false`, der Riegel unten feuert
+     * nicht, und die Navigation laeuft auf /login weiter. Gegengemessen mit
+     * gefuelltem Cache (59 Eintraege, /offline dabei) und kontrollierender
+     * Registrierung: die Adresszeile landete auf
+     * /login?callbackUrl=%2Fkatalog, die Seite zeigte die Anmeldemaske.
+     *
+     * REPARATUR 5 IST DAMIT IM BROWSER HEUTE WIRKUNGSLOS. Die Abhilfe ist eine
+     * Entscheidung, keine Zeile: entweder `res.type === "opaqueredirect"`
+     * pauschal als „das Netz will uns woanders hin" lesen (einfach, verschluckt
+     * aber JEDE Weiterleitung), oder in diesem Fall EINMAL mit
+     * `redirect: "follow"` nachfassen, um das Ziel wirklich zu sehen (genau die
+     * Semantik unten, ein Zusatzabruf im seltenen Fall). Solange das nicht
+     * entschieden ist, deckt dieser Test den PRECACHE-Pfad und die
+     * follow-Semantik ab — und nur die.
      */
     const speicher = baueCacheSpeicher();
     const online = boot(netz(), speicher);

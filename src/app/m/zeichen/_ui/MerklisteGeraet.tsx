@@ -73,7 +73,8 @@ export function MerklisteGeraet() {
 
       <p style={{ ...SCHRIFT.neben, margin: 0 }} data-testid="zeichen-merkliste-geraet-hinweis">
         Deine Merkliste ist auf diesem Gerät gespeichert, damit sie ohne Verbindung da ist. Auf
-        einem geteilten Gerät sieht sie auch, wer sich nach dir anmeldet.
+        einem geteilten Gerät sieht sie auch, wer sich nach dir anmeldet. Der Knopf darunter
+        löscht nur die Merkliste — die gespeicherten Zeichen bleiben.
       </p>
 
       <button

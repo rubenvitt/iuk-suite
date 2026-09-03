@@ -44,10 +44,14 @@ export default function OfflineSeite() {
 
       <AbgemeldetStreifen />
       <MerklisteGeraet />
-      {/* SUSPENSE IST PFLICHT: KatalogInsel ruft useSearchParams(). /offline liest
-          keine dynamische Server-API und wird deshalb statisch vorgerendert — ohne
-          Grenze bricht der Build („useSearchParams() should be wrapped in a suspense
-          boundary") bzw. kippt ausgerechnet die Offline-Route ganz in CSR. */}
+      {/* SUSPENSE UM DIE INSEL, WEIL SIE `useSearchParams()` RUFT.
+          ⬜ GEMESSEN am 2026-09-03: `pnpm build` listet diese Route heute als
+          „ƒ (Dynamic) server-rendered on demand", NICHT als statisch vorgerendert —
+          die Grenze ist damit heute nicht build-erzwingend. Sie bleibt trotzdem
+          stehen, als Vorsorge: kippt die Route je ins statische Vorrendern (eine
+          Aenderung an der Wurzel genuegt), bricht der Build ohne sie mit
+          „useSearchParams() should be wrapped in a suspense boundary" — oder,
+          schlimmer, die Offline-Route kippt ganz in CSR. Sie kostet nichts. */}
       <Suspense>
         <KatalogInsel offline />
       </Suspense>

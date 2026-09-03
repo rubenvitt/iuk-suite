@@ -31,7 +31,8 @@ const notiz: Releasenotiz = {
     absatz(
       "Deine Merkliste wird dafür auf dem Gerät gespeichert. Auf einem geteilten Tablet sieht " +
         "sie damit auch, wer sich nach dir anmeldet. In der Offline-Ansicht steht deshalb ein " +
-        "Knopf „Von diesem Gerät löschen“, und beim Abmelden räumt die App von sich auf.",
+        "Knopf „Von diesem Gerät löschen“ — er entfernt die Merkliste, die gespeicherten " +
+        "Zeichen bleiben. Beim Abmelden räumt die App beides von sich auf.",
     ),
     hinweis("Öffne den Katalog einmal mit Netz, bevor du losfährst."),
   ],
