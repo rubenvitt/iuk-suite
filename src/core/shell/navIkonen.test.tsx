@@ -11,14 +11,20 @@ import { NAV_IKONEN } from "./navIkonen";
 import { LAGERBUCH_NAV } from "@/app/m/lagerbuch/_lib/nav";
 import { radioNav } from "@/app/m/radio/_lib/nav";
 import { UAV_NAV } from "@/app/m/uav/_lib/nav";
+import { ZEICHEN_NAV } from "@/app/m/zeichen/_lib/nav";
 
 /*
  * ⛔ `radioNav("admin")` UND NICHT `radioNav("updater")`: die Admin-Form ist die
  * OBERMENGE (sieben Eintraege statt vier). Die Updater-Form liesse genau die drei
  * Eintraege ungeprueft, die die Admin-Stufe allein sieht — darunter zwei der drei
  * Zeichen, die mit dem Modul `radio` neu in die Map gekommen sind.
+ *
+ * ⛔ AUS DEMSELBEN GRUND `ZEICHEN_NAV` UND NICHT `zeichenNav(false)`: die Konstante ist die
+ * Obermenge (sechs Eintraege statt fuenf). Die gefilterte Form liesse ausgerechnet den
+ * Verwaltungseintrag „Lernsets" ungeprueft — und damit `lernsets`/`PiCardsThree`, einen der
+ * fuenf Namen, die mit diesem Modul neu in die Map kommen.
  */
-const GESETZTE_NAVS = [...LAGERBUCH_NAV, ...radioNav("admin"), ...UAV_NAV];
+const GESETZTE_NAVS = [...LAGERBUCH_NAV, ...radioNav("admin"), ...UAV_NAV, ...ZEICHEN_NAV];
 
 describe("Nav-Zeichen", () => {
   it("kennt zu jedem in einer Modulnavigation gesetzten Schluessel eine Komponente", () => {
