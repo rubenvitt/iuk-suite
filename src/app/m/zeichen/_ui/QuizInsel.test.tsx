@@ -71,6 +71,75 @@ describe("QuizInsel", () => {
     expect(link.getAttribute("href")).toBe("/m/zeichen/lernen/runde?set=rettungsdienst");
   });
 
+  /*
+   * ABSCHLUSSREVIEW, W1 — DIE RUNDE VERRIET IHRE ANTWORT IM BILD.
+   *
+   * Die zwei Faelle unten benutzen ABSICHTLICH ein SVG in der Form des Generats
+   * (`<title>` = Titel, `<desc>` = Bedeutung, `aria-labelledby` auf beide). Ein
+   * Test mit `<svg></svg>` — wie die fuenf Faelle darueber ihn fuehren — waere
+   * gruen, ohne irgendetwas zu belegen: da ist nichts, was auslaufen koennte.
+   */
+  const ECHTES_SVG = (id: string, titel: string, bedeutung: string) =>
+    `<svg role="img" viewBox="0 0 10 10" aria-labelledby="${id}-t ${id}-d">` +
+    `<title id="${id}-t">${titel}</title><desc id="${id}-d">${bedeutung}</desc>` +
+    `<path d="M0 0"/></svg>`;
+
+  it("zeigt das Fragebild ohne seine eigene Beschriftung", async () => {
+    await mount(
+      <QuizInsel
+        frage={FRAGE}
+        svg={ECHTES_SVG("z1", "Löschstaffel", "Löschstaffel der Feuerwehr")}
+        beantworte={vi.fn()}
+      />,
+    );
+    const bild = query('[data-testid="quiz-zeichen"]');
+
+    // Die drei Dinge sind weg …
+    expect(bild.innerHTML).not.toContain("<title");
+    expect(bild.innerHTML).not.toContain("<desc");
+    expect(bild.innerHTML).not.toContain("aria-labelledby");
+    // … und damit auch der Antworttext, den die Optionen anbieten.
+    expect(bild.innerHTML).not.toContain("Löschstaffel");
+    // Das Bild selbst steht noch da — sonst waere „nichts rendern" auch gruen.
+    expect(bild.innerHTML).toContain("<path");
+
+    // Die Beschriftung kommt von aussen und ist der FRAGETEXT, nicht der Name.
+    expect(bild.getAttribute("role")).toBe("img");
+    const name = bild.getAttribute("aria-label") ?? "";
+    expect(name.length).toBeGreaterThan(0);
+    expect(name).not.toContain("Löschstaffel");
+  });
+
+  it("nennt einem Bildschirmleser nicht die Namen der Bildoptionen", async () => {
+    const bildfrage = {
+      zeichenId: "rezept:C.1.1",
+      typ: "bedeutung_zeichen" as const,
+      stamm: "Eine Staffel der Feuerwehr zum Löschen.",
+      optionen: [
+        { id: "rezept:C.1.1", antwort: "Löschstaffel", svg: ECHTES_SVG("a", "Löschstaffel", "A") },
+        { id: "rezept:C.1.2", antwort: "Löschgruppe", svg: ECHTES_SVG("b", "Löschgruppe", "B") },
+        { id: "rezept:C.1.3", antwort: "Löschzug", svg: ECHTES_SVG("c", "Löschzug", "C") },
+        { id: "rezept:C.1.4", antwort: "Löschtrupp", svg: ECHTES_SVG("d", "Löschtrupp", "D") },
+      ],
+    };
+    await mount(<QuizInsel frage={bildfrage} svg="" beantworte={vi.fn()} />);
+
+    const knoepfe = queryAll('[data-testid="quiz-option"]');
+    expect(knoepfe.length).toBe(4);
+
+    knoepfe.forEach((knopf, i) => {
+      // Der Name des Knopfes ist die laufende Nummer — nicht der des Zeichens.
+      expect(knopf.getAttribute("aria-label")).toBe(`Antwort ${i + 1}`);
+      // Das Bild ist aus dem Baum genommen; sein Markup traegt keinen Namen mehr.
+      const flaeche = knopf.firstElementChild;
+      expect(flaeche?.getAttribute("aria-hidden")).toBe("true");
+      for (const o of bildfrage.optionen) {
+        expect(knopf.innerHTML).not.toContain(o.antwort);
+      }
+      expect(knopf.innerHTML).toContain("<path");
+    });
+  });
+
   it("verlinkt ohne Parameter, wenn kein Lernset gewaehlt ist", async () => {
     const beantworte = vi.fn().mockResolvedValue({ richtig: true });
     await mount(<QuizInsel frage={FRAGE} svg="<svg></svg>" beantworte={beantworte} />);
