@@ -6,7 +6,14 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { BODY_VARIANT_NAMEN } from "./bezeichnungen";
-import { KATALOG_STAND, alleZeichen, findeZeichen, kapitelListe, sucheZeichen } from "./katalog";
+import {
+  KATALOG_STAND,
+  alleZeichen,
+  findeZeichen,
+  kapitelListe,
+  sucheZeichen,
+  zeichenIdAusPfad,
+} from "./katalog";
 
 const GENERAT = "src/app/m/zeichen/_lib/katalog.generiert.json";
 
@@ -175,5 +182,42 @@ describe("sucheZeichen", () => {
     const k = kapitelListe();
     expect(k.length).toBeGreaterThan(20);
     expect(k.reduce((s, e) => s + e.anzahl, 0)).toBe(246);
+  });
+});
+
+/*
+ * ⚠️ GEMESSEN AM 2026-09-03 GEGEN `next dev` (Next 16.3.3, Turbopack), NICHT
+ * VERMUTET: `/m/zeichen/katalog/[id]` bekommt seinen `params.id` PROZENTKODIERT.
+ * Der Abruf von `/katalog/rezept%3AC.1.1` lieferte HTTP 404, und ein
+ * Debug-Log in der Seite zeigte `params.id = "rezept%3AC.1.1"` — mit
+ * `findeZeichen(...) === null`. Dasselbe Bild bei einem LITERALEN Doppelpunkt in
+ * der Adresse (`/katalog/rezept:C.1.1`): auch dort steht `%3A` im Parameter.
+ *
+ * Der Aufgabenbrief ging vom Gegenteil aus („der von Next dekodierte
+ * `params.id`"). Ohne diese Umkehr waere die Detailseite fuer JEDE Zeichen-Id
+ * mit Doppelpunkt — also fuer alle 246 — dauerhaft 404 gewesen, und kein Tor
+ * haette es gesehen: `typecheck`, `lint`, `build` und Vitest kennen die
+ * Parameterkodierung eines echten Requests nicht.
+ */
+describe("zeichenIdAusPfad", () => {
+  it("dekodiert den prozentkodierten Doppelpunkt, den Next im Parameter liefert", () => {
+    expect(zeichenIdAusPfad("rezept%3AC.1.1")).toBe("rezept:C.1.1");
+    expect(findeZeichen(zeichenIdAusPfad("rezept%3AC.1.1"))).not.toBeNull();
+  });
+
+  it("laesst eine bereits dekodierte Id unveraendert — der Aufruf ist idempotent", () => {
+    expect(zeichenIdAusPfad("rezept:C.1.1")).toBe("rezept:C.1.1");
+  });
+
+  /*
+   * `decodeURIComponent("%")` wirft `URIError`. Ein Wurf auf dem Seitenpfad
+   * waere HTTP 500 fuer eine kaputte Adresse — 404 ist die richtige Antwort,
+   * und die kommt von `findeZeichen`, wenn hier der Rohwert durchgereicht wird.
+   * Vorbild: `lagerbuch/_lib/barcode.ts`.
+   */
+  it("wirft nicht an einer kaputten Prozentfolge, sondern reicht sie durch", () => {
+    expect(zeichenIdAusPfad("%")).toBe("%");
+    expect(zeichenIdAusPfad("%ZZ")).toBe("%ZZ");
+    expect(findeZeichen(zeichenIdAusPfad("%"))).toBeNull();
   });
 });

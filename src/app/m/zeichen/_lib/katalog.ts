@@ -106,3 +106,29 @@ export function grundformen(): readonly string[] {
 export function svgFuer(id: string): string | null {
   return findeZeichen(id)?.svg ?? null;
 }
+
+/**
+ * Die Zeichen-Id aus einem PFADSEGMENT lesen.
+ *
+ * ⚠️ GEMESSEN AM 2026-09-03 GEGEN `next dev` (Next 16.3.3, Turbopack): der
+ * `params.id` von `/m/zeichen/katalog/[id]` kommt PROZENTKODIERT an —
+ * `"rezept%3AC.1.1"`, nicht `"rezept:C.1.1"`. Das gilt auch dann, wenn in der
+ * Adresszeile ein LITERALER Doppelpunkt steht. Ohne diese Umkehr laege
+ * `findeZeichen` fuer jede der 246 Ids daneben und die Detailseite antwortete
+ * dauerhaft mit 404 — sichtbar ausschliesslich bei einem echten Abruf:
+ * `typecheck`, `lint`, `build` und Vitest kennen die Parameterkodierung eines
+ * Requests nicht.
+ *
+ * ⛔ WIRFT NIE, wie alles andere in dieser Datei. `decodeURIComponent("%")`
+ * wirft `URIError`; auf einem Seitenpfad waere das HTTP 500 fuer eine bloss
+ * kaputte Adresse. Der Rohwert geht dann unveraendert weiter und laeuft in
+ * `findeZeichen` in ein sauberes `null` — also in 404, die richtige Antwort.
+ * Vorbild: `lagerbuch/_lib/barcode.ts`.
+ */
+export function zeichenIdAusPfad(roh: string): ZeichenId {
+  try {
+    return decodeURIComponent(roh);
+  } catch {
+    return roh;
+  }
+}
