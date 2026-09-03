@@ -1,0 +1,156 @@
+/*
+ * ⛔ HIER STEHT KEIN `--ant-*`. antd deklariert seine Variablen auf SEINER
+ * Scope-Klasse, eigenes Markup sieht sie nicht, und der Fehler ist still — die
+ * Linie verschwindet einfach (Falle 2). Die `--tz-*`-Variablen des Moduls kommen
+ * aus `_ui/zeichen.module.css` (die Insel traegt dessen `.modul` an ihrer Wurzel);
+ * die `var(..., …)`-Rueckfaelle hier halten den Baukasten auch dann lesbar, wenn
+ * er einmal ausserhalb dieses Traegers gerendert wird.
+ *
+ * ⚠️ EINE LEERE REGEL EXISTIERT NACH DEM BUILD NICHT — gemessen in Aufgabe 6:
+ * `.detailbereich {}` taucht in der Exportkarte des CSS-Moduls GAR NICHT auf,
+ * `css.detailbereich` waere `undefined`. Wer hier eine Klasse anlegt, muss ihr
+ * etwas zu tun geben.
+ *
+ * ⛔ KEINE `font-size` AN FELDERN. `app/globals.css` setzt
+ * `input, textarea, select { font-size: 16px }` mit BEWUSST niedriger Spezifitaet
+ * (0,0,1) als Untergrenze gegen den iOS-Zoom; eine Klasse (0,1,0) schluege sie
+ * still (Falle 5 in ihrer dritten Auspraegung). `.meldung` ist ein `<span>` und
+ * deshalb davon nicht betroffen.
+ */
+
+/*
+ * DIE HELLE PLATTE. Gemessen tragen alle drei RENDER_THEMES `surface: '#ffffff'`,
+ * und `renderSvg` malt keinen Hintergrund. Jedes Zeichen liegt deshalb auf einer
+ * hellen Flaeche, nie auf einem umgefaerbten Theme — die Organisationsfarben sind
+ * fachlich festgelegt und duerfen im Dunkelmodus nicht kippen.
+ */
+.blatt {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  background: var(--tz-blatt, #ffffff);
+  border-radius: 8px;
+}
+
+/*
+ * Arimo. Gemessen tragen 160 von 242 Rezepten `<text font-family="Arimo">`, und
+ * die Textgeometrie ist gegen Arimo vermessen. Diese Regel schlaegt das
+ * Praesentationsattribut (Attributspezifitaet 0) — Falle 5 in die richtige
+ * Richtung. Die Klasse steht hier ein zweites Mal, weil ein CSS-Modul LOKAL
+ * benannt ist: dieselbe Regel im zweiten Geltungsbereich, keine zweite Wahrheit.
+ */
+.blatt svg text {
+  font-family: var(--tz-zeichenschrift, sans-serif);
+}
+
+/*
+ * Das erzeugte SVG bringt nur eine viewBox mit, keine Breite/Hoehe — ohne die
+ * explizite Groesse faellt es auf die Ersatzgroesse des Browsers (300x150).
+ */
+.vorschau > svg {
+  display: block;
+  width: 100%;
+  max-width: 256px;
+  height: auto;
+}
+
+/*
+ * Der Hinweis am Feld: 3 px linke Kante, gedaempft — NIE rot (Falle 3:
+ * colorError === colorPrimary === #c8000f, ein roter Hinweis saehe aus wie eine
+ * Primaeraktion).
+ */
+.hinweis {
+  margin: 4px 0 0;
+  padding-inline-start: 8px;
+  border-inline-start: 3px solid var(--tz-hinweis, #b26a00);
+}
+
+/*
+ * Die originale Paketmeldung UNTER dem eigenen Satz (Spec §6.3): sie nennt
+ * Millimeter und Katalogkennungen und ist damit die Auskunft, mit der eine
+ * Rueckfrage beantwortbar wird — aber nicht die, mit der man anfaengt.
+ */
+.meldung {
+  display: block;
+  color: var(--tz-stahl, #5b6570);
+  font-size: 0.875em;
+}
+
+/* ARBEITSDICHTE als Literal: eigenes Markup erbt den antd-Token nicht (Falle 4). */
+.feld {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-block-start: 4px;
+  padding: 8px;
+  color: var(--tz-tinte, #1a1d20);
+  background: var(--tz-feld, #ffffff);
+  border: 1px solid var(--tz-linie, #d9dde1);
+  border-radius: 8px;
+}
+
+.beschriftungsfeld {
+  display: block;
+  margin-block-start: 8px;
+}
+
+.kachel {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-width: 88px;
+  min-height: 44px;
+  padding: 8px;
+  color: var(--tz-tinte, #1a1d20);
+  background: var(--tz-blatt, #ffffff);
+  border: 1px solid var(--tz-linie, #d9dde1);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Die Auswahl markiert eine KONTUR, nicht Rot und nicht Farbe allein —
+   `aria-pressed` traegt sie zusaetzlich vor. */
+.kachel[aria-pressed="true"] {
+  outline: 2px solid var(--tz-stahl, #5b6570);
+  outline-offset: 1px;
+}
+
+.kachelraster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 8px;
+}
+
+.knopfzeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-block-start: 12px;
+}
+
+.schalter {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+}
+
+.abschnitt {
+  margin-block-end: 24px;
+}
+
+.markenliste {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.markenzeile {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+}

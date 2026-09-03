@@ -1,0 +1,282 @@
+/*
+ * Modul-CSS von `zeichen`. `.modul` ist der Traeger aller --tz-*-Variablen.
+ *
+ * WARUM EIGENE VARIABLEN UND NICHT --ant-*: antd deklariert seine Variablen auf
+ * SEINER Scope-Klasse, nicht an `:root`. Eigenes Markup ausserhalb eines
+ * antd-Komponentenbaums sieht sie NICHT, und der Fehler ist still — die Linie
+ * verschwindet einfach (Falle 2).
+ *
+ * WARUM :root[data-theme="dark"] UND NICHT prefers-color-scheme: der Umschalter
+ * der Suite hat DREI Zustaende (auto|light|dark, zwei Cookies). Auf die
+ * Medienabfrage zu selektieren bricht den Fall „System dunkel, Umschalter hell".
+ *
+ * KEINE MEDIENABFRAGE UND KEINE ANIMATION. Das Raster regelt seine Spalten ueber
+ * `auto-fill`, und diese Datei fuehrt keinen `transition` — wo nichts sich
+ * bewegt, gibt es nichts zu reduzieren. Wer hier spaeter einen Hover-Effekt
+ * ergaenzt, schuldet in derselben Aenderung die
+ * `prefers-reduced-motion`-Ausnahme.
+ *
+ * KEINE `font-size`-REGEL AN EIGENEN FELDERN, UND DAS IST FALLE 5 IN IHRER
+ * DRITTEN AUSPRAEGUNG („eigene Regel zu stark"): `app/globals.css` setzt
+ * `input, textarea, select { font-size: 16px }` mit BEWUSST niedriger
+ * Spezifitaet (0,0,1) als Untergrenze. Eine Klasse `.eingabe` (0,1,0) schlaegt
+ * sie — eine `font-size` hier unterliefe die Untergrenze, ohne dass ein Tor rot
+ * wird. `core/theme/feldschrift.test.ts` bewacht die andere Richtung, nicht
+ * diese.
+ *
+ * DIE AUFGABEN 7 UND 9 ERWEITERN DIESE DATEI, SIE LEGEN SIE NICHT NEU AN.
+ */
+.modul {
+  /*
+   * ⛔ --tz-blatt BLEIBT IN BEIDEN ZWEIGEN #ffffff. Gemessen haben alle drei
+   * RENDER_THEMES des Pakets `surface: '#ffffff'`, und `renderSvg` malt keinen
+   * Hintergrund: jedes Zeichen liegt auf einer hellen PLATTE, nie auf einem
+   * umgefaerbten Theme. Die Organisationsfarben sind fachlich festgelegt — ein
+   * im Dunkelmodus aufgehelltes DRK-Rot waere eine falsche Auskunft, kein
+   * Stilfehler. Wer --tz-blatt mit --tz-feld zusammenlegt, kippt entweder die
+   * Eingabefelder auf Weiss oder die Zeichen auf Dunkelgrau.
+   */
+  --tz-blatt: #ffffff;
+  --tz-feld: #ffffff;
+  --tz-tinte: #1a1d20;
+  --tz-stahl: #5b6570;
+  --tz-linie: #d9dde1;
+  /* Der Ton fuer Hinweise am Feld und die technische Abweichungsnotiz. NIE Rot:
+     colorError === colorPrimary === #c8000f, ein roter Streifen an einer
+     Datenflaeche sieht aus wie eine Primaeraktion (Falle 3). */
+  --tz-hinweis: #b26a00;
+  /*
+   * Arimo aus `next/font/local` (Aufgabe 2/5). Gemessen tragen 160 von 242
+   * Rezepten `<text font-family="Arimo">`, und die Textgeometrie ist gegen Arimo
+   * vermessen — ohne die Schrift laufen „KatSL", „UEMANV-S" und „MLW IV Lbw" aus
+   * ihren Boxen.
+   *
+   * --tz-zeichenschrift wird NICHT hier deklariert: next/font/local setzt sie in
+   * layout.tsx (Aufgabe 5) auf dem gemeinsamen Vorfahren BEIDER Routengruppen. Eine
+   * Neudeklaration hier laege naeher am Element, ueberschriebe den geladenen Wert und
+   * wuerfe Arimo still weg — genau der Ausfall, gegen den Handlauf H2 steht.
+   */
+}
+
+:root[data-theme="dark"] .modul {
+  --tz-feld: #1f1f1f;
+  --tz-tinte: #e6e6e6;
+  --tz-stahl: #9aa4ae;
+  --tz-linie: #303030;
+  --tz-hinweis: #d9a441;
+}
+
+/*
+ * DIE LERNFARBEN (Aufgabe 8, `_lib/lernfarben.ts`). Zwei Quellen desselben Wertes —
+ * `lernfarben.test.ts` haelt TS und CSS zusammen. KEIN SUITE-ROT (Falle 3): `falsch`
+ * ist ein gedaempftes Ocker, keine Fehlerfarbe.
+ */
+:root[data-theme="light"] .modul {
+  --tz-lern-richtig: #1f7a4d;
+  --tz-lern-falsch: #8a5a00;
+  --tz-lern-gefestigt: #14603c;
+  --tz-lern-offen: #5c6470;
+}
+:root[data-theme="dark"] .modul {
+  --tz-lern-richtig: #4ec98a;
+  --tz-lern-falsch: #e0a34a;
+  --tz-lern-gefestigt: #3fae76;
+  --tz-lern-offen: #9aa4b2;
+}
+
+/*
+ * DIE EINE REGEL, DIE DAS PRAESENTATIONSATTRIBUT SCHLAEGT. `renderSvg` schreibt
+ * `font-family="Arimo"` als ATTRIBUT ins SVG; ein Attribut hat Spezifitaet 0, jede
+ * CSS-Regel gewinnt. Nicht gemessen, argumentativ sicher — H2 aus Spec §9 ist der
+ * Handlauf im echten Browser, jsdom rechnet keine Glyphen.
+ */
+.zeichenflaeche svg text,
+.zeichengross svg text {
+  font-family: var(--tz-zeichenschrift);
+}
+
+/*
+ * Das erzeugte SVG bringt nur eine viewBox mit, keine Breite/Hoehe — ohne die
+ * explizite Groesse faellt es auf die Ersatzgroesse des Browsers (300x150)
+ * zurueck statt seine Box zu fuellen. Dieselbe Regel, die `qr/QrDisplay.tsx` fuer
+ * denselben Grund braucht.
+ */
+.zeichenflaeche > svg,
+.zeichengross > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.suchzeile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-block-end: 16px;
+}
+
+.feld {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+/* 44 als LITERAL: ARBEITSDICHTE setzt `controlHeight: 44` als antd-Token, und
+   ein rohes <input>/<select> ausserhalb jeder antd-Steuerung erbt es nicht. */
+.eingabe {
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--tz-tinte);
+  background: var(--tz-feld);
+  border: 1px solid var(--tz-linie);
+  border-radius: 8px;
+}
+
+.raster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kachel {
+  display: flex;
+}
+
+.kachelKnopf {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px;
+  color: var(--tz-tinte);
+  text-align: center;
+  background: var(--tz-blatt);
+  border: 1px solid var(--tz-linie);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Die Auswahl wird ueber eine KONTUR markiert, nicht ueber Rot (Falle 3) und
+   nicht allein ueber Farbe — `aria-pressed` traegt sie zusaetzlich vor. */
+.kachelKnopf[aria-pressed="true"] {
+  outline: 2px solid var(--tz-stahl);
+  outline-offset: 1px;
+}
+
+/*
+ * DER DETAILBEREICH DER INSEL — das Blatt, der Titel, die Daten und die Knopfzeile
+ * uebereinander.
+ *
+ * ⚠️ EINE LEERE REGEL WAERE HIER WIRKUNGSLOS GEWESEN, UND ZWAR GEMESSEN: mit
+ * `.detailbereich {}` taucht der Schluessel in der Exportkarte des CSS-Moduls
+ * GAR NICHT AUF (nachgesehen nach `pnpm build` in
+ * `.next/**` — 16 Klassen dieser Datei sind dort abgebildet, `detailbereich`
+ * nicht). `s.detailbereich` waere `undefined`, `className={undefined}` rendert
+ * kein Attribut, und der Bereich traege im Browser nur seinen `data-testid`. Wer
+ * eine Klasse anlegt, muss ihr also etwas zu tun geben — sonst gibt es sie nicht.
+ *
+ * Das Layout steht deshalb HIER und nicht mehr als Inline-Stil an der Komponente.
+ * Die Zahlen sind dieselbe 4er-Skala, die diese Datei durchgehend benutzt (12 =
+ * SPACE.md, 24 = SPACE.xl) — zwei Quellen fuer dasselbe Raster liefen sonst
+ * auseinander.
+ */
+.detailbereich {
+  display: grid;
+  gap: 12px;
+  margin-block-end: 24px;
+}
+
+.detailblatt {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  background: var(--tz-blatt);
+  border: 1px solid var(--tz-linie);
+  border-radius: 8px;
+}
+
+.zeichengross {
+  width: 100%;
+  max-width: 240px;
+}
+
+.zeichenflaeche {
+  display: block;
+  width: 64px;
+}
+
+/* Der Platzhalter fuer eine Merkzeile ohne Bild. Gestrichelt und leer: er sagt
+   „hier war einmal etwas", ohne ein Zeichen zu erfinden. */
+.zeichenfehlt {
+  display: block;
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border: 1px dashed var(--tz-linie);
+  border-radius: 8px;
+}
+
+.daten {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 0;
+}
+
+.daten dt,
+.daten dd {
+  margin: 0;
+}
+
+.hinweis {
+  margin: 0;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--tz-hinweis);
+}
+
+.merkliste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.merkzeile {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 8px;
+  border-block-end: 1px solid var(--tz-linie);
+}
+
+.merktext {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/*
+ * TABELLENZEILEN — EIGENE KLASSE, NICHT `.merkzeile` (Fix-Runde 1, Befund W3).
+ * `.merkzeile` ist `display: flex`, gebaut fuer `<li>`-Eintraege der Merkliste. Auf
+ * einem `<tr>` nimmt `display: flex` der Zeile ihre `table-row`-Rolle: jede
+ * Koerperzeile wird zu einer anonymen Einzelzelle, und die Spaltenkoepfe im
+ * `<thead>` fluchten mit nichts mehr. Falle 5, dritte Auspraegung (eigene Regel zu
+ * stark und trifft das eigene Modul) — kein Gate sieht es, nur ein echter Browser.
+ */
+.tabellenzeile {
+  border-block-end: 1px solid var(--tz-linie);
+}
+
+.tabellenzeile > td {
+  padding-block: 8px;
+}

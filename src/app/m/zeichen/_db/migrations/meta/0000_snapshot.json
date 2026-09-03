@@ -1,0 +1,404 @@
+{
+  "version": "6",
+  "dialect": "sqlite",
+  "id": "e1b1fe41-0f59-4def-bea3-0c7c39180d16",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "eigene_zeichen": {
+      "name": "eigene_zeichen",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sub": {
+          "name": "sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "spec_json": {
+          "name": "spec_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "spec_kanon": {
+          "name": "spec_kanon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "svg_zwischenspeicher": {
+          "name": "svg_zwischenspeicher",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "paket_version": {
+          "name": "paket_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "daten_version": {
+          "name": "daten_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geaendert_am": {
+          "name": "geaendert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "eigene_zeichen_sub_name_idx": {
+          "name": "eigene_zeichen_sub_name_idx",
+          "columns": [
+            "sub",
+            "name"
+          ],
+          "isUnique": true
+        },
+        "eigene_zeichen_sub_kanon_idx": {
+          "name": "eigene_zeichen_sub_kanon_idx",
+          "columns": [
+            "sub",
+            "spec_kanon"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "lernset_zeichen": {
+      "name": "lernset_zeichen",
+      "columns": {
+        "lernset_id": {
+          "name": "lernset_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zeichen_id": {
+          "name": "zeichen_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel_schnappschuss": {
+          "name": "titel_schnappschuss",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "lernset_zeichen_pos_idx": {
+          "name": "lernset_zeichen_pos_idx",
+          "columns": [
+            "lernset_id",
+            "position"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "lernset_zeichen_lernset_id_lernsets_id_fk": {
+          "name": "lernset_zeichen_lernset_id_lernsets_id_fk",
+          "tableFrom": "lernset_zeichen",
+          "tableTo": "lernsets",
+          "columnsFrom": [
+            "lernset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "lernset_zeichen_lernset_id_zeichen_id_pk": {
+          "columns": [
+            "lernset_id",
+            "zeichen_id"
+          ],
+          "name": "lernset_zeichen_lernset_id_zeichen_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "lernsets": {
+      "name": "lernsets",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel": {
+          "name": "titel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "beschreibung": {
+          "name": "beschreibung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "sortierung": {
+          "name": "sortierung",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "erstellt_von": {
+          "name": "erstellt_von",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "geaendert_am": {
+          "name": "geaendert_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "lernsets_slug_idx": {
+          "name": "lernsets_slug_idx",
+          "columns": [
+            "slug"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "lernstand": {
+      "name": "lernstand",
+      "columns": {
+        "sub": {
+          "name": "sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zeichen_id": {
+          "name": "zeichen_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "stufe": {
+          "name": "stufe",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "faellig_am": {
+          "name": "faellig_am",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "richtig": {
+          "name": "richtig",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "falsch": {
+          "name": "falsch",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "letzte_antwort_am": {
+          "name": "letzte_antwort_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "lernstand_faellig_idx": {
+          "name": "lernstand_faellig_idx",
+          "columns": [
+            "sub",
+            "faellig_am"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "lernstand_sub_zeichen_id_pk": {
+          "columns": [
+            "sub",
+            "zeichen_id"
+          ],
+          "name": "lernstand_sub_zeichen_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "lernstand_stufe_check": {
+          "name": "lernstand_stufe_check",
+          "value": "\"lernstand\".\"stufe\" BETWEEN 0 AND 4"
+        }
+      }
+    },
+    "merkliste": {
+      "name": "merkliste",
+      "columns": {
+        "sub": {
+          "name": "sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "zeichen_id": {
+          "name": "zeichen_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titel_schnappschuss": {
+          "name": "titel_schnappschuss",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "merkliste_sub_zeichen_id_pk": {
+          "columns": [
+            "sub",
+            "zeichen_id"
+          ],
+          "name": "merkliste_sub_zeichen_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "indexes": {}
+  }
+}

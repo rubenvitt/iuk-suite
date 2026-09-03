@@ -706,6 +706,11 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * Boot-Pruefung fuer `UAV_SW_MODUS` dazu. Wird die Zahl rot, wird sie
      * ANGEHOBEN, nicht geloescht.
      *
+     * ⛔ ANGEHOBEN VON `4` AUF `5` AM 2026-09-02 (Modul-zeichen-Aufgabe 9, Spec
+     * 2026-09-02 §7.1): `zeichenBootFehler` (`src/app/m/zeichen/_lib/boot.ts`)
+     * kam mit der Boot-Pruefung fuer `ZEICHEN_SW`/`SUITE_HOST_ZEICHEN` dazu.
+     * Wird die Zahl rot, wird sie ANGEHOBEN, nicht geloescht.
+     *
      * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
      * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"
      * (`src/app/m/radio/riegel.test.ts:99-100`). Der Halbsatz „und bewacht
@@ -715,7 +720,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ohne Anfuehrungszeichen, damit nichts eine Woertlichkeit behauptet, die
      * nicht besteht.
      */
-    expect(bootHaken.length).toBe(4);
+    expect(bootHaken.length).toBe(5);
   });
 
   it("jeder Hintergrundstarter aus einer _lib/boot.ts ist in startBackgroundWork eingehaengt", () => {

@@ -17,6 +17,7 @@ import {
   PiWind, PiCube, PiShoppingCart, PiClipboardText, PiClockCounterClockwise, PiKey,
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
+  PiMagnifyingGlass, PiBookmarkSimple, PiPuzzlePiece, PiGraduationCap, PiCardsThree,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -49,6 +50,16 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   teilnehmer: PiUsersThree,
   katalog: PiListChecks,
   training: PiDrone,
+  // Fuenf Zeichen fuer das Modul `zeichen` (Taktische Zeichen) — Begruendung an der Union in
+  // `types.ts`. `Record<NavIkonName, IconType>` erzwingt beide Haelften typseitig: ein
+  // Union-Mitglied ohne Eintrag hier ist ein typecheck-Fehler.
+  // `baukasten` traegt ZWEI Nav-Eintraege („Baukasten" und „Meine Zeichen") — dieselbe Sache
+  // aus zwei Richtungen, deshalb dasselbe Zeichen und kein sechster Name.
+  zeichensuche: PiMagnifyingGlass,
+  merkliste: PiBookmarkSimple,
+  baukasten: PiPuzzlePiece,
+  ueben: PiGraduationCap,
+  lernsets: PiCardsThree,
 };
 
 /**

@@ -19,6 +19,14 @@ RUN apk add --no-cache python3 make g++
 RUN npm i -g pnpm@11.0.9
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# `patches/` IST PFLICHT, SOBALD `pnpm-workspace.yaml` einen `patchedDependencies`-
+# Eintrag traegt — die vierte Ecke des Dreiecks aus CLAUDE.md. Ohne diese Zeile zeigt
+# der Eintrag im Container auf eine Datei, die es dort nicht gibt: `pnpm install`
+# bricht mit ENOENT ab, und weil die builder-Stage `node_modules` fertig aus deps
+# uebernimmt, gibt es keine zweite Gelegenheit. Lokal ist das unsichtbar (das
+# Verzeichnis liegt im Arbeitsbaum), gemessen im Review zu Aufgabe 7.
+# `src/docker-kontext.test.ts` haelt Eintrag, Datei und diese Zeile zusammen.
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 
 # Stage 2: Build
@@ -56,6 +64,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/lagerbuch/_db/migration
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/aufgaben/_db/migrations ./src/app/m/aufgaben/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/radio/_db/migrations ./src/app/m/radio/_db/migrations
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/uav/_db/migrations ./src/app/m/uav/_db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/zeichen/_db/migrations ./src/app/m/zeichen/_db/migrations
 # core führt seit dem Sitzungswiderruf eine eigene Datenbank (`CORE_MIGRATIONS`).
 COPY --from=builder --chown=nextjs:nodejs /app/src/core/konto/_db/migrations ./src/core/konto/_db/migrations
 
