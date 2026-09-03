@@ -49,6 +49,8 @@ import * as radioSchema from "@/app/m/radio/_db/schema";
 import { seedLokalRadio } from "@/app/m/radio/_lib/seedLokal";
 import * as uavSchema from "@/app/m/uav/_db/schema";
 import { seedLokalUav } from "@/app/m/uav/_lib/seedLokal";
+import * as zeichenSchema from "@/app/m/zeichen/_db/schema";
+import { seedLokalZeichen } from "@/app/m/zeichen/_lib/seedLokal";
 
 export interface SeedModul {
   key: string;
@@ -64,6 +66,7 @@ export const SEED_MODULE: SeedModul[] = [
   { key: "aufgaben", lauf: () => seedLokalAufgaben(getAufgabenDb()) },
   { key: "radio", lauf: () => seedLokalRadio(getModuleDb("radio", radioSchema)) },
   { key: "uav", lauf: () => seedLokalUav(getModuleDb("uav", uavSchema)) },
+  { key: "zeichen", lauf: () => seedLokalZeichen(getModuleDb("zeichen", zeichenSchema)) },
 ];
 
 /**

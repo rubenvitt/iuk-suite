@@ -167,8 +167,18 @@ export default defineConfig({
        * Offline-Sync-Checks (Aufgabe 21, Check 7: „anzahl 1-1 ist 1 mehr als
        * die 2 aus dem Seed").
        */
+      /*
+       * `scripts/seed-lokal.ts zeichen` NACH `uav` (Aufgabe 4): dasselbe Muster —
+       * `zeichen` steht in `MODULE_MIGRATIONS` ohne Eintrag in `seedAllModules()`
+       * (`_lib/seedLokal.ts`s Kopfkommentar: die Daten schluesseln auf
+       * `dev:demo@localtest.me`, `SUITE_SEED=1` ist der Generalproben-Schalter). Anders
+       * als bei `radio`/`uav` legt dieser Seed KEINE einloesbare anonyme Zugangszeile an
+       * — `zeichen` hat `requiredGroups: []`, also keinen zusaetzlichen Schutz, den ein
+       * Seed unterlaufen koennte. Ohne diese Zeile faenden e2e-Laeufe gegen `/m/zeichen`
+       * weder die beiden kuratierten Lernsets noch Merkliste/Lernstand des Dev-Nutzers.
+       */
       command:
-        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && next dev -p 3100",
+        "rm -rf ./.data/e2e && pnpm exec tsx e2e/seed-lagerbuch.ts && pnpm exec tsx scripts/seed-lokal.ts aufgaben && pnpm exec tsx scripts/seed-lokal.ts radio && pnpm exec tsx scripts/seed-lokal.ts uav && pnpm exec tsx scripts/seed-lokal.ts zeichen && next dev -p 3100",
       /*
        * WARTET AUF DIE ANMELDESEITE, nicht auf `/api/health` — und uebersetzt sie
        * damit, bevor der erste Test laeuft. Zweck ist beides: der Server steht
