@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@einsatzzeichen/catalog@1.1.0': 40cd37f34cea787d0585a38c82f2c9d0d2a43fc849a7473c14dde50081ddf645
+
 importers:
 
   .:
@@ -19,7 +22,7 @@ importers:
         version: 1.3.0(@ant-design/cssinjs@2.1.2(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(antd@6.5.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(next@16.3.3(@babel/core@7.29.7)(@playwright/test@1.62.1)(@types/node@26.2.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@einsatzzeichen/catalog':
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.1.0(patch_hash=40cd37f34cea787d0585a38c82f2c9d0d2a43fc849a7473c14dde50081ddf645)
       '@einsatzzeichen/core':
         specifier: ^1.1.0
         version: 1.1.0
@@ -4201,7 +4204,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@einsatzzeichen/catalog@1.1.0':
+  '@einsatzzeichen/catalog@1.1.0(patch_hash=40cd37f34cea787d0585a38c82f2c9d0d2a43fc849a7473c14dde50081ddf645)':
     dependencies:
       '@einsatzzeichen/core': 1.1.0
       '@einsatzzeichen/schema': 1.1.0
