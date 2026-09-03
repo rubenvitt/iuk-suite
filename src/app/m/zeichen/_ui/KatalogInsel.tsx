@@ -119,6 +119,19 @@ export function KatalogInsel({
   const detail = gewaehlt === "" ? null : findeZeichen(gewaehlt);
   const istGemerkt = detail !== null && merkstand.includes(detail.id);
 
+  /**
+   * ⛔ JEDE AENDERUNG AN SUCHE ODER FILTER SETZT DIE SCHRANKE ZURUECK
+   * (Abschlussreview). Ohne diese Zeile blieb ein einmal per „Weitere 48
+   * anzeigen" gehobenes `grenze` stehen und galt fuer die NAECHSTE Trefferliste
+   * mit: nach einem Hub und einer Sucheingabe hingen bis zu 96 Kacheln im Baum —
+   * auf genau dem Geraet, fuer das `RASTER_SCHRITT` ueberhaupt existiert. Die
+   * Absicht des Knopfes ist „zeig mir MEHR HIERVON", nicht „hebe die Schranke
+   * dauerhaft auf".
+   */
+  function setzeSchrankeZurueck(): void {
+    setGrenze(RASTER_SCHRITT);
+  }
+
   /** Die Adresszeile nachziehen — OHNE Navigation, siehe Kopfkommentar. */
   function spiegele(schluessel: string, wert: string): void {
     if (typeof window === "undefined") return;
@@ -146,7 +159,10 @@ export function KatalogInsel({
             data-testid="zeichen-suche"
             value={text}
             placeholder="Titel, Kürzel oder Bedeutung"
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              setzeSchrankeZurueck();
+            }}
           />
         </label>
 
@@ -159,6 +175,7 @@ export function KatalogInsel({
             onChange={(e) => {
               setKapitel(e.target.value);
               spiegele("kapitel", e.target.value);
+              setzeSchrankeZurueck();
             }}
           >
             <option value="">Alle Kapitel</option>
@@ -179,6 +196,7 @@ export function KatalogInsel({
             onChange={(e) => {
               setOrganisation(e.target.value);
               spiegele("org", e.target.value);
+              setzeSchrankeZurueck();
             }}
           >
             <option value="">Alle Organisationen</option>
@@ -199,6 +217,7 @@ export function KatalogInsel({
             onChange={(e) => {
               setGrundform(e.target.value);
               spiegele("form", e.target.value);
+              setzeSchrankeZurueck();
             }}
           >
             <option value="">Alle Grundformen</option>

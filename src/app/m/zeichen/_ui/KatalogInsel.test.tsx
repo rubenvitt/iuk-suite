@@ -155,6 +155,50 @@ describe("KatalogInsel — Suche und Filter", () => {
   });
 });
 
+/**
+ * ABSCHLUSSREVIEW: DIE SCHRANKE BLIEB UEBER DEN FILTERWECHSEL HINWEG GEHOBEN.
+ *
+ * `RASTER_SCHRITT` haelt hoechstens 48 Kacheln im Baum, und der Knopf „Weitere
+ * 48 anzeigen" hebt das fuer die GERADE angesehene Liste. Ohne Ruecksetzen galt
+ * der gehobene Wert auch fuer die naechste: ein Hub plus eine Sucheingabe
+ * hingen 96 SVG-Baeume ein — auf genau dem Geraet, fuer das die Schranke
+ * ueberhaupt existiert.
+ *
+ * ⛔ DER ERSTE SCHRITT JEDES FALLS BEWEIST, DASS DER HUB WIRKT. Ohne ihn waere
+ * ein „nachher sind es 48" auch dann gruen, wenn der Knopf gar nichts taete.
+ */
+describe("KatalogInsel — die Raster-Schranke", () => {
+  const SCHRITT = 48;
+
+  it("faellt beim Tippen in der Suche auf den ersten Schritt zurueck", async () => {
+    await mount(<KatalogInsel />);
+    expect(kachelIds()).toHaveLength(SCHRITT);
+
+    await click('[data-testid="zeichen-mehr"]');
+    expect(kachelIds()).toHaveLength(SCHRITT * 2);
+
+    // „er" trifft gemessen 234 von 246 Zeichen — die Liste ist danach also
+    // weiterhin laenger als zwei Schritte, und die Zahl unten misst wirklich
+    // die Schranke und nicht das Ende der Treffer.
+    await fill('[data-testid="zeichen-suche"]', "er");
+    expect(kachelIds()).toHaveLength(SCHRITT);
+  });
+
+  it("faellt beim Filterwechsel auf den ersten Schritt zurueck", async () => {
+    await mount(<KatalogInsel />);
+    await click('[data-testid="zeichen-mehr"]');
+    expect(kachelIds()).toHaveLength(SCHRITT * 2);
+
+    // Hin (ein kleines Kapitel) und zurueck (alle) — der Rueckweg ist der Fall,
+    // in dem die Liste wieder laenger als die Schranke ist.
+    await waehle('[data-testid="zeichen-filter-kapitel"]', KOMBI.kapitel);
+    expect(kachelIds().length).toBeLessThan(SCHRITT * 2);
+
+    await waehle('[data-testid="zeichen-filter-kapitel"]', "");
+    expect(kachelIds()).toHaveLength(SCHRITT);
+  });
+});
+
 describe("KatalogInsel — der Detailbereich liegt auf DERSELBEN Seite", () => {
   it("?z=<id> oeffnet ihn beim ersten Rendern, ohne jede Navigation", async () => {
     suchparameter = new URLSearchParams(`z=${ERSTE.id}`);

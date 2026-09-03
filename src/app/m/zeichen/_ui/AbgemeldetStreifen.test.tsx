@@ -67,4 +67,31 @@ describe("AbgemeldetStreifen", () => {
     await mount(<AbgemeldetStreifen />);
     expect(exists('[data-testid="zeichen-abgemeldet"]')).toBe(false);
   });
+
+  /*
+   * ABSCHLUSSREVIEW: DIE DRITTE LAGE DECKTE „200 OHNE JSON" NICHT AB. Ein 200
+   * mit unparsbarem Koerper — ein eingeschobenes Portal, eine abgeschnittene
+   * Antwort — fiel ueber `.catch(() => null)` in denselben Zweig wie die
+   * GUELTIGE Auskunft `null` („keine Sitzung") und behauptete „abgemeldet",
+   * ohne etwas zu wissen. Der Statuscode allein taugt hier nicht als Messwert.
+   */
+  it("schweigt bei 200 ohne verwertbaren Koerper", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("<html>Anmelden</html>", { status: 200 })),
+    );
+    await mount(<AbgemeldetStreifen />);
+    expect(exists('[data-testid="zeichen-abgemeldet"]')).toBe(false);
+  });
+
+  /*
+   * Die Gegenprobe zum Fall darueber: `null` IST eine Antwort — next-auth
+   * schickt sie ohne Sitzung. Sie muss weiterhin „abgemeldet" heissen, sonst
+   * hat die Reparatur den Streifen stummgeschaltet statt ihn ehrlich gemacht.
+   */
+  it("meldet sich, wenn der Server ausdruecklich `null` schickt", async () => {
+    antworteMit(null);
+    await mount(<AbgemeldetStreifen />);
+    expect(exists('[data-testid="zeichen-abgemeldet"]')).toBe(true);
+  });
 });

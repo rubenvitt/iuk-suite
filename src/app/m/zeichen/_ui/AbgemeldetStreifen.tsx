@@ -46,6 +46,19 @@ import { SPACE } from "@/core/theme/tokens";
  */
 type Lage = "unbekannt" | "angemeldet" | "abgemeldet";
 
+/**
+ * „Die Antwort kam an, war aber kein JSON."
+ *
+ * ⛔ EIN EIGENER WERT UND NICHT `null` (Abschlussreview): `/api/auth/session`
+ * antwortet OHNE Sitzung mit dem JSON-Wert `null` — das ist eine gueltige
+ * Auskunft und heisst „abgemeldet". Ein 200 mit unparsbarem Koerper (ein
+ * eingeschobenes Portal, eine abgeschnittene Antwort) fiel ueber
+ * `.catch(() => null)` in genau denselben Zweig, und die Flaeche behauptete
+ * etwas, ohne etwas zu wissen. Der Dateikopf verspricht das Gegenteil: „Ich
+ * weiss es nicht" fuehrt zu SCHWEIGEN.
+ */
+const UNLESBAR = Symbol("unlesbare Antwort");
+
 export function AbgemeldetStreifen() {
   const [lage, setLage] = useState<Lage>("unbekannt");
 
@@ -64,8 +77,12 @@ export function AbgemeldetStreifen() {
           setLage("unbekannt");
           return;
         }
-        const daten: unknown = await res.json().catch(() => null);
+        const daten: unknown = await res.json().catch(() => UNLESBAR);
         if (!lebt) return;
+        if (daten === UNLESBAR) {
+          setLage("unbekannt");
+          return;
+        }
         const angemeldet =
           typeof daten === "object" && daten !== null && "user" in daten && daten.user != null;
         setLage(angemeldet ? "angemeldet" : "abgemeldet");

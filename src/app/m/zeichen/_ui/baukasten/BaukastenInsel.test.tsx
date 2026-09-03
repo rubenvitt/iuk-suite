@@ -193,4 +193,26 @@ describe("Baukasten-Insel — abgewiesene Aktion", () => {
     );
     expect(exists("[data-achse='grundzeichenart']")).toBe(true);
   });
+
+  /*
+   * ABSCHLUSSREVIEW: DER FEHLER LAG UNTER `feldFehler.spec` UND MARKIERTE DAS
+   * NAMENSFELD. Ein Bildschirmleser sagte „Name, ungueltig", obwohl am Namen
+   * nichts falsch ist — die einzige a11y-Falschaussage des Zweiges. Der Text
+   * bleibt sichtbar, nur die Zuordnung faellt weg.
+   */
+  it("markiert bei einem Spec-Fehler NICHT das Namensfeld", async () => {
+    const { speichereEigenesZeichen } = await import("../../actions");
+    vi.mocked(speichereEigenesZeichen).mockRejectedValueOnce(new Error("Forbidden"));
+    await mount(<BaukastenInsel />);
+
+    await submitForm("[data-testid='tz-speichern']");
+
+    const feld = query("#tz-name");
+    expect(feld.getAttribute("aria-invalid")).toBe(null);
+    expect(feld.getAttribute("aria-describedby")).toBe(null);
+    // Und der Satz steht trotzdem da — sichtbar wie hoerbar.
+    const satz = query("[data-testid='tz-speichern-fehler']");
+    expect(satz.getAttribute("role")).toBe("status");
+    expect(satz.getAttribute("id")).toBe(null);
+  });
 });

@@ -53,10 +53,21 @@ export function SpeichernFormular(props: { specJson: string; svg: string; bereit
   const [zustand, absenden] = useActionState(speichereGefangen, START);
   const [name, setName] = useState("");
 
-  const fehler =
-    !zustand.ok && zustand.art === "fehler"
-      ? (zustand.feldFehler.name ?? zustand.feldFehler.spec)
-      : undefined;
+  /*
+   * ⛔ ZWEI FEHLERQUELLEN, EIN TEXTPLATZ — UND NUR EINE DAVON GEHOERT ANS
+   * NAMENSFELD (Abschlussreview). Vorher las eine einzige Zeile
+   * `feldFehler.name ?? feldFehler.spec` und haengte `aria-invalid` an das
+   * Namensfeld, was auch immer sie fand. Ein SPEC-Fehler (die Zusammenstellung
+   * taugt nicht, oder die Action wurde abgewiesen) sagte einem Bildschirmleser
+   * damit „Name, ungueltig", obwohl am Namen nichts falsch ist — die Fassung
+   * schickte jemanden ein Feld reparieren, das in Ordnung war.
+   *
+   * Der Text steht weiter an derselben Stelle; nur die ZUORDNUNG haengt jetzt
+   * daran, welcher der beiden Fehler es ist.
+   */
+  const fehlerfall = !zustand.ok && zustand.art === "fehler" ? zustand : null;
+  const namensFehler = fehlerfall?.feldFehler.name;
+  const fehler = namensFehler ?? fehlerfall?.feldFehler.spec;
   const rueckfrage = !zustand.ok && zustand.art === "rueckfrage" ? zustand : null;
 
   return (
@@ -81,11 +92,19 @@ export function SpeichernFormular(props: { specJson: string; svg: string; bereit
         className={css.feld}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        aria-invalid={fehler ? true : undefined}
-        aria-describedby={fehler ? "tz-name-fehler" : undefined}
+        aria-invalid={namensFehler ? true : undefined}
+        aria-describedby={namensFehler ? "tz-name-fehler" : undefined}
       />
       {fehler && (
-        <p id="tz-name-fehler" className={css.hinweis} data-testid="tz-speichern-fehler">
+        /* Beim Spec-Fehler ist dieser Absatz die Beschreibung KEINES Feldes —
+           dann traegt er keine `id` (nichts verweist darauf) und meldet sich
+           stattdessen selbst an, damit er nicht stumm erscheint. */
+        <p
+          id={namensFehler ? "tz-name-fehler" : undefined}
+          role={namensFehler ? undefined : "status"}
+          className={css.hinweis}
+          data-testid="tz-speichern-fehler"
+        >
           {fehler}
         </p>
       )}
