@@ -191,10 +191,12 @@ function enthaelt(node: ReactNode, typ: unknown): boolean {
  * `'`, sodass eine Zusicherung sonst die Serialisierung statt des Wortlauts
  * pruefte — ein Apostroph in einem Fragetext reicht dafuer aus.
  *
- * NICHT ALS UNMOTIVIERT LOESCHEN: der konkrete Anlass war das damalige
- * Wortzeichen „I&K", das als `I&amp;K` im Markup stand. Es heisst seit der
- * Umbenennung „Sammelhaus" und traegt kein Ampersand mehr — die Regel bleibt
- * trotzdem richtig, sie hat nur gerade keinen so sichtbaren Zeugen.
+ * NICHT ALS UNMOTIVIERT LOESCHEN: der konkrete Anlass war das erste
+ * Wortzeichen „I&K", das als `I&amp;K` im Markup stand. Es hiess danach
+ * „Sammelhaus" und heisst heute „IDA" — seit zwei Umbenennungen also ohne
+ * Ampersand. Die Regel bleibt trotzdem richtig, sie hat nur gerade keinen so
+ * sichtbaren Zeugen; das naechste Wortzeichen oder ein Apostroph in einem
+ * Fragetext bringt ihn zurueck.
  */
 function text(markup: string): string {
   return (
@@ -686,7 +688,7 @@ describe("Gemeinsame Huelle aller Zustaende", () => {
       expect(markup.match(new RegExp(`class="[^"]*${s.fahne}[^"]*"`, "g"))?.length).toBe(1);
       expect(markup.match(new RegExp(s.wortzeichen, "g"))?.length).toBe(1);
       expect(text(markup)).toContain("Rückmeldung zum Dienstabend");
-      expect(text(markup)).toContain("Sammelhaus");
+      expect(text(markup)).toContain("IDA");
     }
   });
 

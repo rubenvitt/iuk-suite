@@ -443,7 +443,7 @@ export function SuiteNav({
           open={offen}
           onClose={() => setOffen(false)}
           placement="left"
-          title="Sammelhaus"
+          title="IDA"
           forceRender
         >
           <div data-testid="suite-drawer">

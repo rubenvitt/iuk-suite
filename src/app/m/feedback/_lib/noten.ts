@@ -22,7 +22,7 @@
  * brechen beide Zusicherungen — `noten.test.ts` rechnet sie nach.
  *
  * KEIN `#c8000f`: Suite-Rot ist auf diesen Routen Marke (3px-Fahne, Wortzeichen
- * "Sammelhaus"), niemals Note 6. Note 6 `#811221` ist deutlich dunkler und kuehler.
+ * "IDA"), niemals Note 6. Note 6 `#811221` ist deutlich dunkler und kuehler.
  *
  * BENENNUNG: die deutschen Namen hier sind die verbindliche Schnittstelle
  * (Plan Task 10). Der TS-Ausschnitt in `feedback-admin.md` §4.11 zeigt

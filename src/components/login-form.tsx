@@ -131,6 +131,7 @@ export function LoginForm({
             }}
           >
             <div
+              aria-hidden
               style={{
                 marginBottom: 20,
                 display: "flex",
@@ -147,17 +148,23 @@ export function LoginForm({
                 style={{
                   fontSize: 24,
                   fontWeight: 900,
-                  letterSpacing: "-0.025em",
+                  letterSpacing: 0,
                   color: "#ffffff",
                 }}
               >
-                {/* Kuerzel, NICHT das ausgeschriebene Wortzeichen: das Feld ist
-                    64px breit und die Schrift 24px/900 — „Sammelhaus" braeuchte
-                    dort rund 130px und liefe heraus. Die drei uebrigen
-                    Wortzeichen (files/feedback, je 13px Text im Kopf) schreiben
-                    das Wort aus; hier traegt es die `<h1>` unmittelbar
-                    darunter, die das Kuerzel aufloest. */}
-                SH
+                {/* Das ausgeschriebene Wortzeichen, kein Kuerzel mehr: „IDA"
+                    misst bei 24px/900 rund 45px und steht damit im 64px
+                    breiten Feld — die Fuellung steigt von rund 47 % auf 70 %.
+                    Weil die Kachel damit woertlich wiederholt, was 20px
+                    darunter als Ueberschrift steht, ist sie reines Dekor und
+                    `aria-hidden`; den Namen traegt die `<h1>`.
+                    `letterSpacing: 0` ist Absicht, keine Auslassung: bei einem
+                    zweibuchstabigen Kuerzel war negatives Tracking folgenlos,
+                    bei drei Versalien im Gewicht 900 laesst es das Wort
+                    gedraengt wirken. Damit schreiben alle VIER Wortzeichen der
+                    Suite das Wort aus — hier wie in files und feedback (dort
+                    je 13px Text im Kopf). */}
+                IDA
               </span>
             </div>
             <h1
@@ -168,10 +175,10 @@ export function LoginForm({
                 color: FARBEN.tinte,
               }}
             >
-              Sammelhaus
+              IDA
             </h1>
             <p style={{ marginTop: SPACE.sm, fontSize: 14, color: FARBEN.stahl }}>
-              Interne Dienste unter einem Dach
+              Interne Dienste und Anwendungen
             </p>
           </div>
 
@@ -350,7 +357,7 @@ export function LoginForm({
             color: rgba(FARBEN.stahl, 0.8),
           }}
         >
-          Sammelhaus · Interner Bereich · Zugriff nur für Berechtigte
+          IDA · Interner Bereich · Zugriff nur für Berechtigte
         </p>
       </div>
     </main>

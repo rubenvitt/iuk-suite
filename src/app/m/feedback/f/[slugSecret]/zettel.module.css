@@ -19,7 +19,7 @@
  *    `iuk-theme-pref`), sonst bricht der Fall "System dunkel, Umschalter hell".
  *
  * Suite-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne und
- * Wortzeichen "Sammelhaus". Nie als Datenflaeche, nie als Fehlerfarbe, nie als
+ * Wortzeichen "IDA". Nie als Datenflaeche, nie als Fehlerfarbe, nie als
  * Knopffuellung — sonst kippt die Semantik der Notenskala (Note 6 ist
  * `#811221`, deutlich dunkler und kuehler). Auch das prueft der Test.
  */
@@ -155,12 +155,21 @@
   color: var(--gedaempft);
 }
 
-/* Traeger 2 von zwei fuer Suite-Rot: 13px Wortzeichen. */
+/*
+ * Traeger 2 von zwei fuer Suite-Rot: 13px Wortzeichen.
+ *
+ * DIE SPERRUNG IST .10em, NICHT .04em: .04em war auf das zehnbuchstabige
+ * "Sammelhaus" typografiert. `.kicker` vererbt `text-transform: uppercase`, auf
+ * dem Bildschirm stehen seit der Umbenennung also genau DREI Versalien — und
+ * drei eng gesetzte Versalien liest man als Abkuerzung, nicht als Wortmarke.
+ * Groesse (13px) und Gewicht (700) bleiben unveraendert; beide stehen wortgenau
+ * in docs/design/feedback-oeffentliche-ansicht.md.
+ */
 .wortzeichen {
   font-size: 13px;
   line-height: 1.45;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   color: #c8000f;
 }
 

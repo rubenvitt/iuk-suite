@@ -67,7 +67,7 @@ export function OeffentlicherRahmen({
         <header className="fp-kopf">
           <p className="fp-kicker">
             {kicker}
-            <span className="fp-wortzeichen">Sammelhaus</span>
+            <span className="fp-wortzeichen">IDA</span>
           </p>
         </header>
         {children}
