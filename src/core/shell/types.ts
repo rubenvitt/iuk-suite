@@ -25,7 +25,15 @@ export type NavIkonName =
   // Aufgabenkatalog aehnlich und hiesse an dieser Stelle etwas anderes, und der naechste
   // Leser haette einen falschen Begriff statt eines fehlenden. Dieselbe Begruendung und
   // dasselbe Vorgehen wie bei den drei Zeichen, die `radio` mitgebracht hat.
-  | "teilnehmer" | "katalog" | "training";
+  | "teilnehmer" | "katalog" | "training"
+  // Fuenf Zeichen fuer das Modul `zeichen` (Taktische Zeichen). Dieselbe Begruendung wie bei
+  // `radio` und `uav`, und sie traegt hier besonders: KEIN geliehener Name. `katalog` ist von
+  // `uav` belegt und heisst dort „Aufgabenkatalog" — ein Katalog taktischer Zeichen daneben
+  // gaebe dem naechsten Leser einen FALSCHEN Begriff statt eines fehlenden. `checks` und
+  // `vorlagen` (lagerbuch) meinen Pruefungen und Fahrzeugvorlagen, nicht Uebung und Lernset.
+  // `zeichensuche` und nicht `suche`: gesucht wird hier ein taktisches Zeichen, und ein
+  // allgemeiner Name laedt das naechste Modul ein, ihn fuer etwas anderes zu nehmen.
+  | "zeichensuche" | "merkliste" | "baukasten" | "ueben" | "lernsets";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

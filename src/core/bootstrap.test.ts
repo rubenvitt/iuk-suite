@@ -105,6 +105,49 @@ describe("Modul-Registrierung ist vollständig", () => {
   // den Tisch und das Prod-Image bräche erst beim Boot.
   const ALLE_MIGRATIONEN = [...MODULE_MIGRATIONS, ...CORE_MIGRATIONS];
 
+  /**
+   * Die Zielpfade aller WIRKSAMEN `COPY`-Zeilen eines Dockerfile-Textes.
+   *
+   * Bis DRK-187 prüfte der Wächter darunter `toContain(migrationsFolder)` auf
+   * dem Rohtext und sah damit zwei Dinge nicht: ein vorangestelltes `#` lässt
+   * den Teilstring stehen, und die Zeile trägt den Pfad ZWEIMAL
+   * (`… /app/<pfad> ./<pfad>`) — der Treffer landete schon in der QUELLposition,
+   * das Ziel wurde faktisch nie geprüft. Der Zielpfad ist aber der teure: der
+   * Migrationspfad ist cwd-relativ (Dev = Repo-Root, Prod = `/app`), ein
+   * Vertipper dort läuft lokal und bricht im Container.
+   *
+   * Rein und ohne Dateizugriff, damit die Gegenproben weiter unten sie mit
+   * synthetischem Text befragen können statt am echten `Dockerfile` zu schrauben.
+   *
+   * ⬜ BENANNTE GRENZE: erkannt wird die Shell-Form auf EINER Zeile. Die
+   * JSON-Array-Form (`COPY ["a", "b"]`) und eine über `\` fortgesetzte Zeile
+   * kommen im `Dockerfile` heute nicht vor und werden hier nicht gelesen — wer
+   * eine davon einführt, weitet zuerst diese Funktion.
+   *
+   * ⬜ UND: die Funktion kennt keine STAGES. Ein Migrations-`COPY`, das in
+   * `deps`/`builder` statt in `runner` landet, hält sie für erfüllt, obwohl im
+   * Prod-Image nichts ankommt. Das bleibt hier bewusst offen, weil dieser
+   * Ausfall LAUT ist — `migrateAllModules()` wirft beim Boot, und der
+   * `image-smoke` der CI wartet vergeblich auf `/api/health/portal`. Still ist
+   * nur, was dieser Test deckt.
+   */
+  function kopierteZiele(dockerfile: string): string[] {
+    return dockerfile
+      .split("\n")
+      .map((zeile) => zeile.trim())
+      .filter((zeile) => /^COPY\s/i.test(zeile))
+      .map((zeile) => {
+        // Ziel ist das LETZTE Token; `--from=`/`--chown=` stehen davor.
+        const teile = zeile
+          .split(/\s+/)
+          .slice(1)
+          .filter((t) => !t.startsWith("--"));
+        return teile[teile.length - 1] ?? "";
+      })
+      // `./src/…` im Dockerfile vs. `src/…` in den Migrationslisten.
+      .map((ziel) => ziel.replace(/^\.\//, "").replace(/\/+$/, ""));
+  }
+
   it("jedes Modul mit _db/ steht in MODULE_MIGRATIONS", () => {
     const withDb = readdirSync(MODULE_DIR, { withFileTypes: true })
       .filter((e) => e.isDirectory() && existsSync(`${MODULE_DIR}/${e.name}/_db`))
@@ -123,10 +166,47 @@ describe("Modul-Registrierung ist vollständig", () => {
   it("jeder Migrations-Ordner wird ins Prod-Image kopiert", () => {
     // Ohne COPY fehlen die Migrationen im standalone-Image und der Boot
     // scheitert erst im Container, nicht im Build.
-    const dockerfile = readFileSync("Dockerfile", "utf8");
+    const ziele = kopierteZiele(readFileSync("Dockerfile", "utf8"));
     for (const m of ALLE_MIGRATIONEN) {
-      expect(dockerfile, `Dockerfile: COPY für ${m.key} fehlt`).toContain(m.migrationsFolder);
+      expect(ziele, `Dockerfile: COPY-Ziel für ${m.key} fehlt`).toContain(m.migrationsFolder);
     }
+  });
+
+  /**
+   * Die zwei blinden Flecken des Wächters darüber, als Zusicherung statt als
+   * Beschreibung. Beide Texte enthalten den Pfad wörtlich — der bis DRK-187
+   * hier stehende `expect(dockerfile).toContain(m.migrationsFolder)` blieb an
+   * beiden grün. Die erste `expect`-Zeile je Fall hält das fest, damit die
+   * Gegenprobe nicht irgendwann auf einem Text läuft, der den Pfad gar nicht
+   * mehr trägt und dann leer-grün ist.
+   */
+  describe("kopierteZiele — was der Rohtext-Wächter nicht sah", () => {
+    const PFAD = "src/app/m/qr/_db/migrations";
+    const ECHT = `COPY --from=builder --chown=nextjs:nodejs /app/${PFAD} ./${PFAD}`;
+
+    it("liest das Ziel, nicht die Quelle", () => {
+      expect(kopierteZiele(ECHT)).toEqual([PFAD]);
+    });
+
+    it("eine auskommentierte COPY-Zeile zählt NICHT als kopiert", () => {
+      // Die WIRKSAME Nachbarzeile steht mit im Text, und zwar nicht als
+      // Beiwerk: gegen ein blosses `not.toContain` wäre auch ein `kopierteZiele`,
+      // das immer `[]` liefert, grün. Erst „diese eine, jene keine" schliesst
+      // die leer-grüne Fassung aus.
+      const text = `# ${ECHT}\nCOPY --from=builder /app/public ./public`;
+      expect(text).toContain(PFAD);
+      expect(kopierteZiele(text)).toEqual(["public"]);
+    });
+
+    it("ein vertipptes Ziel zählt NICHT als kopiert, obwohl die Quelle stimmt", () => {
+      // `…/migration` statt `…/migrations`: läuft lokal (cwd = Repo-Root) und
+      // bricht im Container, wo cwd `/app` ist. `toEqual` statt `not.toContain`
+      // aus demselben Grund wie oben.
+      const falsch = PFAD.slice(0, -1);
+      const text = `COPY --from=builder --chown=nextjs:nodejs /app/${PFAD} ./${falsch}`;
+      expect(text).toContain(PFAD);
+      expect(kopierteZiele(text)).toEqual([falsch]);
+    });
   });
 });
 
@@ -626,6 +706,11 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * Boot-Pruefung fuer `UAV_SW_MODUS` dazu. Wird die Zahl rot, wird sie
      * ANGEHOBEN, nicht geloescht.
      *
+     * ⛔ ANGEHOBEN VON `4` AUF `5` AM 2026-09-02 (Modul-zeichen-Aufgabe 9, Spec
+     * 2026-09-02 §7.1): `zeichenBootFehler` (`src/app/m/zeichen/_lib/boot.ts`)
+     * kam mit der Boot-Pruefung fuer `ZEICHEN_SW`/`SUITE_HOST_ZEICHEN` dazu.
+     * Wird die Zahl rot, wird sie ANGEHOBEN, nicht geloescht.
+     *
      * ⛔ `toBe`, nie `toBeGreaterThanOrEqual`. Woertlich, und nur so weit reicht
      * das Zitat: „ein Waechter, der `>= 5` statt `= 6` prueft, bleibt gruen"
      * (`src/app/m/radio/riegel.test.ts:99-100`). Der Halbsatz „und bewacht
@@ -635,7 +720,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
      * ohne Anfuehrungszeichen, damit nichts eine Woertlichkeit behauptet, die
      * nicht besteht.
      */
-    expect(bootHaken.length).toBe(4);
+    expect(bootHaken.length).toBe(5);
   });
 
   it("jeder Hintergrundstarter aus einer _lib/boot.ts ist in startBackgroundWork eingehaengt", () => {

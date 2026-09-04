@@ -861,7 +861,8 @@ dürfen an Client Components übergeben werden.
 `Statistic` mit `valueStyle`, ohne `formatter` · `Progress` ohne `format` · `Tag` (neutral) ·
 `Result` · `Row`/`Col` · `Space` (**`orientation`**) · `Breadcrumb` mit `items` · `<img>` für den QR ·
 Notenpille, Notenspur, Notenlegende, Notenfunke, Notenplakette · alle Überschriften und Haarlinien.
-**Bewusst nicht verwendet:** `List` (in antd 6 abgekündigt → `Table`) · `Descriptions` (ein natives
+**Bewusst nicht verwendet:** `List` (in antd 6 abgekündigt → `Listy`; für die hier benötigten
+tabellarischen Verläufe bleibt `Table` passender) · `Descriptions` (ein natives
 `dl` ist kürzer und RSC-fest) · `Tabs` (die IA sagt „eine Arbeitsseite"; Tabs wären ein Versteck) ·
 `DatePicker` (siehe 2.3) · `core/charts/BarChart` und `LineChart` für Notendaten (siehe 5.3).
 `Form`/`Form.Item` kommen im ganzen Modul nicht vor; Preis offen benannt: keine automatische

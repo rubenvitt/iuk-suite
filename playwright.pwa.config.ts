@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { ZEICHEN_ENV } from "./e2e/helpers/zeichen";
 
 /**
  * Eigene Config für den PWA-Spike (Port 3101, parallel zur E2E-Config auf 3100).
@@ -13,11 +14,19 @@ const ORIGINS = [
   "http://beta.localtest.me:3101",
   "http://portal.localtest.me:3101",
   "http://qr.localtest.me:3101",
+  // Ohne diese Zeile ist `zeichen.localtest.me:3101` kein sicherer Kontext:
+  // `isSecureContext` bleibt false, `navigator.serviceWorker` fehlt ganz, und
+  // JEDER Fall aus `zeichen-pwa.spec.ts` scheitert an `undefined` statt an
+  // seiner Zusage.
+  "http://zeichen.localtest.me:3101",
 ].join(",");
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: /pwa-spike\.spec\.ts/,
+  // `pwa-spike` UND `zeichen-pwa`: eine Datei, die hier nicht steht, wird von
+  // dieser Config nie gefunden — und von der normalen Config (testIgnore)
+  // ausgeschlossen. Sie liefe dann in KEINEM Profil, ohne dass ein Tor rot wird.
+  testMatch: /(pwa-spike|zeichen-pwa)\.spec\.ts/,
   workers: 1,
   use: {
     baseURL: "http://beta.localtest.me:3101",
@@ -50,6 +59,25 @@ export default defineConfig({
       AUTH_COOKIE_DOMAIN: ".localtest.me",
       DATA_DIR: "./.data/pwa-spike",
       PORT: "3101",
+      /*
+       * ⛔ DIESE ZWEI ZEILEN GEHÖREN ZUSAMMEN, und die Reihenfolge ihrer Wirkung
+       * ist scharf: `zeichenBootFehler()` (`src/app/m/zeichen/_lib/boot.ts`) meldet
+       * genau dann, wenn `ZEICHEN_SW=1` gesetzt ist UND `SUITE_HOST_ZEICHEN` fehlt.
+       * Die Meldung landet in `assertHostConfig`, das bei nichtleerer Liste WIRFT —
+       * dann startet der Server gar nicht, und mit ihm fällt auch der
+       * qr/beta-Teil dieser Suite aus. Wer `ZEICHEN_SW` hier setzt, setzt
+       * `SUITE_HOST_ZEICHEN` mit.
+       *
+       * ⚠️ OHNE `ZEICHEN_SW=1` REGISTRIERT `RegisterSW` NICHTS (Plan-Abweichung zu
+       * Spec §7.1, nach dem Muster von uavs `UAV_SW_MODUS`): der Cache-Zweig wäre
+       * in E2E unprüfbar, und alle Fälle liefen in einen Timeout auf
+       * `navigator.serviceWorker.ready`.
+       */
+      SUITE_HOST_ZEICHEN: "zeichen.localtest.me",
+      ZEICHEN_SW: "1",
+      // Die Admin-Gruppe aus DERSELBEN Quelle wie im Dev-Profil — zwei Literale
+      // liefen auseinander, ohne dass ein Lauf rot würde.
+      ...ZEICHEN_ENV,
     },
   },
 });

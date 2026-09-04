@@ -4,6 +4,7 @@ import {
   CaretUpOutlined,
   CommentOutlined,
   ContainerOutlined,
+  DeploymentUnitOutlined,
   DesktopOutlined,
   FolderOutlined,
   GlobalOutlined,
@@ -148,4 +149,5 @@ export const ICONS: Record<string, ComponentType> = {
   ScheduleOutlined,
   WifiOutlined,
   RocketOutlined,
+  DeploymentUnitOutlined,
 };

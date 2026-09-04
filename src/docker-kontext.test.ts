@@ -167,3 +167,99 @@ describe("Docker-Build-Kontext", () => {
     );
   });
 });
+
+/*
+ * DAS VIERECK EINES pnpm-PATCHES — die vierte Ecke des Dreiecks aus `CLAUDE.md`.
+ *
+ * Ein Patch braucht DREI zusammenpassende Dinge, und keins davon ist heute sonst
+ * abgesichert: die Datei unter `patches/`, den Eintrag in `pnpm-workspace.yaml`
+ * und eine `COPY`-Zeile im `Dockerfile`, BEVOR `pnpm install --frozen-lockfile`
+ * laeuft.
+ *
+ * ⛔ GEMESSEN, NICHT VERMUTET (Review Aufgabe 7, Befund K1): die deps-Stage
+ * kopierte `package.json pnpm-lock.yaml pnpm-workspace.yaml` und sonst nichts. Der
+ * Eintrag zeigte damit im Container auf eine Datei, die es dort nicht gibt —
+ * `pnpm install` bricht mit ENOENT ab, und weil die builder-Stage `node_modules`
+ * fertig aus deps uebernimmt, gibt es keine zweite Gelegenheit. Das Image war
+ * nicht baubar, waehrend `typecheck`, `lint`, Vitest und `pnpm build` alle vier
+ * gruen blieben: lokal liegt `patches/` im Arbeitsbaum.
+ *
+ * Der Test ist BEDINGT formuliert — ohne Patches verlangt er keine COPY-Zeile.
+ * Wer den Patch zurueckzieht (`git revert`), soll nicht an einem Waechter
+ * haengenbleiben, dessen Gegenstand verschwunden ist.
+ */
+const PNPM_WORKSPACE = join(WURZEL, "pnpm-workspace.yaml");
+
+/**
+ * Der `patchedDependencies`-Block aus `pnpm-workspace.yaml`.
+ *
+ * Handgelesen statt mit einem YAML-Parser: das Repo fuehrt keinen als
+ * Abhaengigkeit, und der Block hat eine feste, flache Form (`'name@version':
+ * pfad`). Trifft der Leser eine Zeile, die er nicht versteht, WIRFT er — ein
+ * stillschweigend uebersprungener Eintrag waere genau der Ausfall, den dieser
+ * Test verhindern soll.
+ */
+function patchEintraege(): { paket: string; pfad: string }[] {
+  const zeilen = readFileSync(PNPM_WORKSPACE, "utf8").split("\n");
+  const start = zeilen.findIndex((z) => z.trimEnd() === "patchedDependencies:");
+  if (start === -1) return [];
+  const eintraege: { paket: string; pfad: string }[] = [];
+  for (const zeile of zeilen.slice(start + 1)) {
+    if (zeile.trim() === "" || zeile.trimStart().startsWith("#")) continue;
+    if (!/^\s+\S/.test(zeile)) break; // Ende des Blocks: neue Wurzel-Ebene
+    const treffer = zeile.match(/^\s+'?([^':]+)'?\s*:\s*(\S+)\s*$/);
+    if (!treffer) throw new Error(`patchedDependencies-Zeile nicht lesbar: ${zeile}`);
+    eintraege.push({ paket: treffer[1], pfad: treffer[2] });
+  }
+  return eintraege;
+}
+
+/** Die deps-Stage des Dockerfiles — nur sie installiert. */
+function depsStage(): string {
+  const dockerfile = readFileSync(join(WURZEL, "Dockerfile"), "utf8");
+  const stufen = dockerfile.split(/^FROM /m);
+  const deps = stufen.find((s) => s.startsWith("node:") && / AS deps/.test(s.split("\n")[0]));
+  expect(deps, "keine deps-Stage im Dockerfile gefunden").toBeDefined();
+  return deps as string;
+}
+
+describe("pnpm-Patches im Docker-Build", () => {
+  // Eigene Kontextberechnung: die des ersten Blocks liegt in dessen Geltungsbereich.
+  const kontextMitPatches = kontextDateien(ignorierMuster());
+
+  it("jeder Eintrag zeigt auf eine vorhandene Datei", () => {
+    for (const { paket, pfad } of patchEintraege()) {
+      expect(existsSync(join(WURZEL, pfad)), `${paket}: ${pfad} fehlt`).toBe(true);
+    }
+  });
+
+  it("kopiert patches/ in die deps-Stage, bevor installiert wird", () => {
+    const eintraege = patchEintraege();
+    if (eintraege.length === 0) return; // ohne Patch keine Pflicht
+
+    const stage = depsStage();
+    const copyIndex = stage.search(/^COPY\b[^\n]*\bpatches\b/m);
+    const installIndex = stage.search(/^RUN\s+pnpm\s+install\b/m);
+
+    expect(installIndex, "die deps-Stage installiert gar nicht mehr").toBeGreaterThan(-1);
+    expect(
+      copyIndex,
+      "Der Dockerfile kopiert `patches/` nicht — `pnpm install --frozen-lockfile` bricht im " +
+        "Container mit ENOENT ab, und die builder-Stage installiert nie nach.",
+    ).toBeGreaterThan(-1);
+    expect(copyIndex, "`COPY patches` steht NACH dem Install und kommt damit zu spät").toBeLessThan(
+      installIndex,
+    );
+  });
+
+  /*
+   * Der Kontext muss die Dateien auch hergeben: eine `.dockerignore`-Zeile ueber
+   * `patches/` machte die COPY-Zeile wirkungslos, und der Ausfall saehe genauso
+   * aus wie die fehlende Zeile selbst.
+   */
+  it("schliesst patches/ nicht per .dockerignore aus", () => {
+    for (const { pfad } of patchEintraege()) {
+      expect(kontextMitPatches.has(pfad), `${pfad} liegt nicht im Docker-Kontext`).toBe(true);
+    }
+  });
+});
