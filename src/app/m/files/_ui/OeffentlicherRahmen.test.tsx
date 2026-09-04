@@ -86,14 +86,14 @@ describe("OeffentlicherRahmen — Baum", () => {
    * verdrahtete Wort „Dateifreigabe" ersetzt wurde — dann traegt die Abgabeseite
    * die Beschriftung der Freigabeseite, und kein Test sagt etwas.
    */
-  it("traegt den uebergebenen Kicker und das Wortzeichen Sammelhaus", async () => {
+  it("traegt den uebergebenen Kicker und das Wortzeichen IDA", async () => {
     await mount(
       <OeffentlicherRahmen kicker="Dateifreigabe">
         <p>x</p>
       </OeffentlicherRahmen>,
     );
     expect(query(".fp-kicker").textContent).toContain("Dateifreigabe");
-    expect(query(".fp-wortzeichen").textContent).toBe("Sammelhaus");
+    expect(query(".fp-wortzeichen").textContent).toBe("IDA");
 
     await rerender(
       <OeffentlicherRahmen kicker="Dateiabgabe">

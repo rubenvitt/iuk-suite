@@ -40,8 +40,8 @@ export default function NotFound() {
         </p>
         <p className={styles.text}>
           Möglich ist auch, dass die Seite deinem Konto nicht offensteht: Was
-          nicht freigegeben ist, sieht in dieser Suite genauso aus wie etwas,
-          das es nicht gibt. Wenn du sie eigentlich brauchst, wende dich an die
+          nicht freigegeben ist, sieht hier genauso aus wie etwas, das es nicht
+          gibt. Wenn du sie eigentlich brauchst, wende dich an die
           Administration.
         </p>
         <div className={styles.aktion}>

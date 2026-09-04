@@ -516,7 +516,13 @@ Verteidigungslinie.
 
 **Aufbau (A4 Hochformat):** 3px Suite-Rot-Fahne am Oberrand · „Wie war der Dienstabend?" 40pt ·
 Gruppenname 16pt gedämpft · QR **90mm** zentriert · URL 12pt mono · eine Zeile „Anonym · 8 Noten,
-6 freie Zeilen · etwa 2 Minuten" · Fußzeile „Der Code gilt für alle Dienstabende." + Wortzeichen Sammelhaus.
+6 freie Zeilen · etwa 2 Minuten" · Fußzeile „Der Code gilt für alle Dienstabende." + Wortzeichen IDA
+(umbenannt 04.09.2026, vorher „Sammelhaus" — die Datierung beider Wechsel steht in
+`docs/design/feedback-oeffentliche-ansicht.md`, Kopf). Die beiden Fußzeilenteile stehen **8mm**
+auseinander (vorher 4mm): der Abstand muss als Trennung zwischen Satz und Marke lesbar bleiben, und
+ein dreibuchstabiges Versalwort direkt hinter einem Satzpunkt liest sich sonst als dessen Fortsetzung.
+Das Wortzeichen ist dabei **`letter-spacing: 0.1em`** gesperrt (vorher 0.04em) — dieselbe Sperrung wie
+auf dem Bildschirm, aus demselben Grund.
 
 ```css
 @page { size: A4; margin: 18mm }

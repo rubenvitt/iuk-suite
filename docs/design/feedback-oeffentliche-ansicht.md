@@ -8,7 +8,7 @@ enthält die Rangfolge, die Auflösung der Jury-Widersprüche und die umsetzungs
 
 **Die beiden in Abschnitt 4 offen gestellten Fragen sind entschieden — jeweils Option A:**
 
-1. **Suite-Rot:** nur 3px-Fahne am Oberrand plus Wortzeichen „Sammelhaus". Kein roter Absenden-Knopf, kein
+1. **Suite-Rot:** nur 3px-Fahne am Oberrand plus Wortzeichen „IDA". Kein roter Absenden-Knopf, kein
    roter Fokusring. Begründung: auf dieser Seite bedeutet Rot „Note 6 – ungenügend"; Marke am Rand und
    Bedeutung in der Mitte dürfen nie in vergleichbarer Fläche nebeneinander stehen.
 2. **Anrede:** durchgehend „Du". Die acht Bewertungsfragen sind im Altbestand im Du formuliert und
@@ -20,11 +20,21 @@ kein Gerät, keine Uhrzeit." Das dreisätzige Siegel (vormals Fassung A) ist ent
 beiden Code-Änderungen aus Abschnitt 3.9 sind umgesetzt und bleiben **verbindlich**, auch für den Teil,
 den der kurze Satz nicht mehr behauptet.
 
-**Wortzeichen (umbenannt 16.08.2026):** Das Wortzeichen lautet **„Sammelhaus"**. Bis dahin stand dort
-„I&K" — die ältere Schreibweise findet sich noch in den datierten Berichten und Plänen unter
-`docs/superpowers/`, die als Protokoll ihres Tages unverändert bleiben. Alles in DIESEM Dokument meint
-das heutige Wortzeichen. Die Regel darüber ist von der Umbenennung unberührt: es bleibt Träger 2 von
-genau zwei Stellen mit Suite-Rot, 13px in Gewicht 700, Text und niemals Fläche.
+**Wortzeichen (umbenannt 16.08.2026 · erneut umbenannt 04.09.2026):** Das Wortzeichen lautet
+**„IDA"** (Auflösung „Interne Dienste und Anwendungen"). Vom 16.08. bis 03.09.2026 stand dort
+**„Sammelhaus"**, davor **„I&K"** — beide älteren Schreibweisen finden sich noch in den datierten
+Berichten und Plänen unter `docs/superpowers/`, die als Protokoll ihres Tages unverändert bleiben.
+Alles in DIESEM Dokument meint das heutige Wortzeichen. **„I&K" ist damit nicht überall falsch:**
+umbenannt wurde die Plattform, nicht der Fachdienst, der sie betreibt — wo der Fachdienst gemeint
+ist, bleibt „I&K" stehen. Die Regel darüber ist von beiden Umbenennungen unberührt: es bleibt
+Träger 2 von genau zwei Stellen mit Suite-Rot, 13px in Gewicht 700, Text und niemals Fläche.
+
+**Sperrung des Wortzeichens: `letter-spacing .10em` (seit 04.09.2026, vorher .04em).** Die Zahl
+steht hier, weil sie sich mit dem Namen geändert hat und die Spec sie vorher nicht festhielt: „IDA"
+ist ein dreibuchstabiges Versalwort und liest sich bei .04em als zusammengedrängte Abkürzung, nicht
+als Marke — drei Versalien brauchen mehr Luft als ein neunbuchstabiges Wort in Gemischtschreibung.
+Gilt für die Wortzeichen am Bildschirm (`zettel.module.css` und `files-public.css`); das Wortzeichen
+der Aushang-Druckansicht steht in `docs/design/feedback-admin.md`, §3.5.
 
 **Zielgruppe dieses Dokuments:** wer die Route `/f/**` baut oder ändert. Was daran modulübergreifend
 gilt, steht in `docs/design/README.md`.
@@ -127,7 +137,7 @@ Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit
 
 1. **Fahne**: 3px Suite-Rot `#c8000f`, full bleed am Viewport-Oberrand.
 2. **Kopf** (linksbündig):
-   - Kicker `t0`: „RÜCKMELDUNG ZUM DIENSTABEND", rechts das Wortzeichen „Sammelhaus" (`t1`/700, Rot).
+   - Kicker `t0`: „RÜCKMELDUNG ZUM DIENSTABEND", rechts das Wortzeichen „IDA" (`t1`/700, Rot, `letter-spacing .10em`).
    - H1 `t5`/`t6` Serif: das Thema („Funk-Übung: Sprechgruppen"). Ohne Thema: „Dienstabend am 22. Juli".
    - Metazeile `t1`: „Bereitschaft Musterstadt · Mittwoch, 22. Juli 2026 · 19:30". Datum in `--tinte`/600, Rest `--gedaempft`.
    - Vertragszeile `t1` mit Haarlinie darüber: „Anonym · 8 Noten, 6 freie Zeilen · etwa 2 Minuten".
@@ -186,7 +196,7 @@ Schriften: **Geist Sans** (global vorhanden, 0 zusätzliche Requests) für alles
 **Hell:** `--papier #F4F1EA` · `--blatt #FBFAF7` · `--tinte #16181A` (15,8:1) · `--graphit #3A3F44` · `--gedaempft #5E625F` (5,5:1) · `--linie #DDD8CE` · `--linie-stark #C9C3B7` · `--tint #EDE9DF`
 **Dunkel:** `--papier #101214` · `--blatt #1B1E22` · `--tinte #ECE9E2` (14,5:1) · `--graphit #C3C8CD` · `--gedaempft #9AA0A6` (6,6:1) · `--linie #2C3035` · `--linie-stark #3A3F45` · `--tint #23272C`
 
-**Suite-Rot `#c8000f`** (echter Token aus `core/theme/tokens.ts`) an genau **zwei** Stellen, nie als Fläche >100px², nie als Knopffüllung, nie als Fehlerfarbe: die 3px-Fahne und das Wortzeichen „Sammelhaus" im Kopf. Primäraktion ist `--graphit`-Tinte: hell `#24282C` auf `#FFFFFF` (14,8:1), dunkel `#ECE9E2` auf `#101214`. Fokusring ausschließlich Tinte.
+**Suite-Rot `#c8000f`** (echter Token aus `core/theme/tokens.ts`) an genau **zwei** Stellen, nie als Fläche >100px², nie als Knopffüllung, nie als Fehlerfarbe: die 3px-Fahne und das Wortzeichen „IDA" im Kopf. Primäraktion ist `--graphit`-Tinte: hell `#24282C` auf `#FFFFFF` (14,8:1), dunkel `#ECE9E2` auf `#101214`. Fokusring ausschließlich Tinte.
 
 **Notenfarben hell** (Chipfüllung, Ziffer `#FFFFFF`), Luminanz monoton fallend:
 `1 #2F7F59` (4,88:1 · L .165) · `2 #54782A` (5,13 · .155) · `3 #7E6103` (5,84 · .130) · `4 #904708` (6,79 · .105) · `5 #912E10` (8,07 · .080) · `6 #811221` (10,28 · .052)

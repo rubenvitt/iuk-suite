@@ -89,8 +89,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sammelhaus",
-  description: "Interne Dienste unter einem Dach",
+  title: "IDA",
+  description: "Interne Dienste und Anwendungen",
 };
 
 /**

@@ -70,7 +70,7 @@ export default async function Aushang({
       <footer className="fb-aushang-fuss">
         <span>Der Code gilt für alle Dienstabende.</span>
         {/* Träger 2 von zwei für Suite-Rot: das Wortzeichen. */}
-        <span className="fb-aushang-wortzeichen">Sammelhaus</span>
+        <span className="fb-aushang-wortzeichen">IDA</span>
       </footer>
       <Drucken />
     </main>

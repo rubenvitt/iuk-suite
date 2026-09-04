@@ -12,7 +12,7 @@
  * aus eigenem Markup. Ein `--ant-*` hier waere still leer.
  *
  * Suite-Rot `#c8000f` kommt in dieser Datei GENAU ZWEIMAL vor: 3px-Fahne am
- * Oberrand und Wortzeichen "Sammelhaus" in der Fusszeile — beide sind Marke, keine
+ * Oberrand und Wortzeichen "IDA" in der Fusszeile — beide sind Marke, keine
  * Datenflaeche (§4.9, dieselbe Zweiteilung wie in `zettel.module.css`). Der
  * Aushang zeigt ueberhaupt keine Daten, also auch keine Notenfarben.
  */
@@ -124,19 +124,34 @@
   margin: 6mm 0 0;
 }
 
+/*
+ * 8mm, nicht 4mm: anders als auf dem Zettel traegt das Wortzeichen hier weder
+ * Versalien noch einen Groessensprung — es steht in denselben 12pt direkt
+ * hinter „Der Code gilt fuer alle Dienstabende.". Mit "IDA" schrumpft es von
+ * ~93px auf ~36px und liest sich bei 4mm Abstand als Abkuerzung dieses Satzes
+ * statt als eigene Marke.
+ */
 .fb-aushang-fuss {
   display: flex;
   align-items: baseline;
-  gap: 4mm;
+  gap: 8mm;
   margin-top: 12mm;
   font-size: 12pt;
   color: var(--fb-muted);
 }
 
-/* Traeger 2 von zwei fuer Suite-Rot: das Wortzeichen. */
+/*
+ * Traeger 2 von zwei fuer Suite-Rot: das Wortzeichen.
+ *
+ * 0.1em wie auf dem Bildschirm (zettel.module.css, files-public.css), nicht
+ * die frueheren 0.04em: die typografierten ein zehnbuchstabiges Wort. "IDA"
+ * sind drei Grossbuchstaben, und die lesen sich eng gesetzt als Abkuerzung
+ * statt als Marke — hier sogar staerker als auf dem Bildschirm, weil dem Blatt
+ * der Groessensprung gegenueber dem Nachbartext fehlt.
+ */
 .fb-aushang-wortzeichen {
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   color: #c8000f;
 }
 

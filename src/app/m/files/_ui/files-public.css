@@ -80,7 +80,7 @@
   --fp-ok: #1e7a3c;
   --fp-hinweis: #9a5c00;
 
-  /* Das Wortzeichen „Sammelhaus" ist TEXT, nicht Flaeche — deshalb eine eigene
+  /* Das Wortzeichen „IDA" ist TEXT, nicht Flaeche — deshalb eine eigene
      Variable statt des Literals: hell bleibt es Suite-Rot (5,81:1 auf Blatt),
      dunkel braucht es eine aufgehellte Ableitung. #c8000f erreicht auf dunklem
      Blatt (#1b1e22) nur 2,76:1, und 13px in Gewicht 700 ist nach WCAG 1.4.3
@@ -169,11 +169,18 @@
 }
 
 /* Traeger 2 von zwei: das Wortzeichen. 13px Text, keine Flaeche — und weil es
-   Text ist, laeuft die Farbe ueber die Variable (siehe `--fp-wortzeichen`). */
+   Text ist, laeuft die Farbe ueber die Variable (siehe `--fp-wortzeichen`).
+
+   DIE SPERRUNG IST .10em, NICHT .04em: .04em war auf das zehnbuchstabige
+   „Sammelhaus" typografiert. `.fp-kicker` vererbt `text-transform:
+   uppercase`, auf dem Bildschirm stehen seit der Umbenennung also genau DREI
+   Versalien — und drei eng gesetzte Versalien liest man als Abkuerzung, nicht
+   als Wortmarke. Groesse (13px) und Gewicht (700) bleiben unveraendert; beide
+   stehen wortgenau in docs/design/feedback-oeffentliche-ansicht.md. */
 .fp-wortzeichen {
   font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   color: var(--fp-wortzeichen);
 }
 

@@ -496,7 +496,7 @@ describe("`files-public.css` — die Zusagen der oeffentlichen Gestaltungsklasse
     /*
      * Sonst darf #c8000f nur in einem `:root`-Block stehen (als Hellwert von
      * `--fp-wortzeichen`), an keiner Klasse. Das Wortzeichen laeuft ueber eine
-     * Variable, weil „Sammelhaus" TEXT ist: 13px in Gewicht 700 ist nach 1.4.3 KEIN
+     * Variable, weil „IDA" TEXT ist: 13px in Gewicht 700 ist nach 1.4.3 KEIN
      * grosser Text (dafuer waeren 18,66px fett noetig), und #c8000f erreicht auf
      * dunklem `--fp-blatt` (#1b1e22) nur 2,76:1. Der Dunkelwert ist deshalb eine
      * aufgehellte Ableitung — siehe die Kontrastregel oben, die sie mitrechnet.
