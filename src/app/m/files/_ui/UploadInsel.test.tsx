@@ -503,7 +503,7 @@ describe("Die Statuscodes, auf die die Insel antworten muss", () => {
     regie = () => ({
       status: 413,
       koerper: {
-        fehler: "Die Datei ist zu gross: hoechstens 12582912 Bytes (FILES_MAX_DATEI_BYTES, Einheit: Bytes).",
+        fehler: "Die Datei ist zu groß. Erlaubt sind höchstens 12 MiB.",
         grenzeBytes: 12_582_912,
       },
     });
@@ -511,8 +511,9 @@ describe("Die Statuscodes, auf die die Insel antworten muss", () => {
     await waehle(datei("bild.png", REST, "image/png"));
     await sendeUndAntworte(erfolg("sh1234abcd", [{ fileId: "fi1234abcd", name: "bild.png" }]));
 
-    expect(eintrag("fi1234abcd").textContent).toContain("12582912 Bytes");
-    expect(eintrag("fi1234abcd").textContent).toContain("Einheit: Bytes");
+    expect(eintrag("fi1234abcd").textContent).toContain(
+      "Die Datei ist zu groß. Erlaubt sind höchstens 12 MiB.",
+    );
   });
 
   /**

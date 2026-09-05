@@ -18,3 +18,4 @@ allowBuilds:
 # haelt sie zusammen; ein Upgrade des Pakets faellt pnpm selbst auf (ERR_PNPM_UNUSED_PATCH).
 patchedDependencies:
   '@einsatzzeichen/catalog@1.1.0': patches/@einsatzzeichen__catalog@1.1.0.patch
+  '@rc-component/util@1.12.0': patches/@rc-component__util@1.12.0.patch

@@ -104,9 +104,9 @@ function prozent(eintrag: Eintrag): number {
 
 /**
  * Die Antwort des Handlers als Meldung. Der Servertext gewinnt, wo es einen
- * gibt: er traegt die Grenze SAMT EINHEIT (`… hoechstens 12582912 Bytes
- * (FILES_MAX_DATEI_BYTES, Einheit: Bytes)`), und eine hier erfundene Fassung
- * verloere genau diese Angabe.
+ * gibt: er traegt die Grenze SAMT EINHEIT (`Die Datei ist zu groß. Erlaubt
+ * sind höchstens 12 MiB.`), und eine hier erfundene Fassung verloere genau
+ * diese Angabe.
  */
 function meldungFuer(status: number, koerper: { fehler?: unknown } | null): string {
   const vomServer = typeof koerper?.fehler === "string" ? koerper.fehler : null;
