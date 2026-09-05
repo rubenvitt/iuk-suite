@@ -423,7 +423,7 @@ describe("Der Chunk-Weg", () => {
     });
   });
 
-  it("Punkt 4: die Ueberschreitung faellt beim ZAEHLEN, ergibt 413 mit Grenze und Einheit und loescht die Zwischendatei", async () => {
+  it("Punkt 4: die Ueberschreitung faellt beim ZAEHLEN, ergibt 413 mit lesbarer Grenze und loescht die Zwischendatei", async () => {
     await legeShare();
     await legeDatei({ id: DATEI_A });
 
@@ -435,14 +435,32 @@ describe("Der Chunk-Weg", () => {
 
     const koerper = (await antwort.json()) as { fehler: string; grenzeBytes: number };
     expect(koerper.grenzeBytes).toBe(MAX_DATEI_BYTES);
-    // Die EINHEIT gehoert in die Meldung, nicht in einen Kommentar (§9.1): vier
-    // Groessenlimits an vier Orten in drei Einheiten, mit zwei truegerischen Paaren.
-    expect(koerper.fehler).toContain("Bytes");
-    expect(koerper.fehler).toContain(String(MAX_DATEI_BYTES));
+    expect(koerper.fehler).toBe("Die Datei ist zu groß. Erlaubt sind höchstens 4 MiB.");
 
     expect(existsSync(teilPfad(DATEI_A))).toBe(false);
     expect((await holeDatei(DATEI_A))?.bytesVollstaendigAt).toBeNull();
   });
+
+  it.each([
+    [524_288_000, "Die Datei ist zu groß. Erlaubt sind höchstens 500 MiB."],
+    [13_107_200, "Die Datei ist zu groß. Erlaubt sind höchstens 12,5 MiB."],
+  ])(
+    "stellt eine konfigurierte Grenze von %i Bytes als deutsches MiB dar und erhaelt den Maschinenwert",
+    async (maxBytes, erwarteteMeldung) => {
+      await legeShare();
+      await legeDatei({ id: DATEI_A });
+
+      const { GroesseUeberschritten } = await import("../../../_lib/storage");
+      steuerung.schreibFehler = () => new GroesseUeberschritten(maxBytes);
+
+      const antwort = await put(DATEI_A, PNG_KOPF, { ab: 0 });
+      expect(antwort.status).toBe(413);
+      expect(await antwort.json()).toEqual({
+        fehler: erwarteteMeldung,
+        grenzeBytes: maxBytes,
+      });
+    },
+  );
 
   it("Punkt 5: der letzte Chunk stellt fest, benennt um, misst, summiert neu und reiht ein", async () => {
     // `total_size` steht absichtlich FALSCH (0) und eine zweite, schon

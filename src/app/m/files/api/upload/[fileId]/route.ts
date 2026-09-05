@@ -193,9 +193,9 @@ async function ausFehler(fehler: unknown, ziel: BlobZiel | null): Promise<Respon
     // Die Zwischendatei hat `schreibeStrom` bereits entfernt (§5.4). Die
     // EINHEIT gehoert in die Meldung, nicht in einen Kommentar (§9.1).
     return json(413, {
-      fehler:
-        `Die Datei ist zu gross: hoechstens ${fehler.maxBytes} Bytes ` +
-        `(FILES_MAX_DATEI_BYTES, Einheit: Bytes).`,
+      fehler: `Die Datei ist zu groß. Erlaubt sind höchstens ${new Intl.NumberFormat("de-DE", {
+        maximumFractionDigits: 2,
+      }).format(fehler.maxBytes / (1024 * 1024))} MiB.`,
       grenzeBytes: fehler.maxBytes,
     });
   }
