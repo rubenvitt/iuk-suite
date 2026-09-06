@@ -1,3 +1,4 @@
+import { withAuditContext, auditDenied } from "@/core/audit/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -336,6 +337,7 @@ export async function PUT(
   // --- Stufe 1: Zugangs-Guard, VOR allem anderen --------------------------
   const link = loeseTokenAuf(token, jetzt);
   if (link === null) {
+    auditDenied("files");
     // Der Zaehler wird erst HIER angefasst. Die umgekehrte Reihenfolge ist der
     // gemessene Ausfall von `drop`: dort zaehlt der `onRequest`-Hook vor jedem
     // preHandler-Guard hoch, und fuenf Uploads OHNE Zugangsdaten sperren den
@@ -380,7 +382,7 @@ export async function PUT(
     );
   }
 
-  return chunkWeg(anfrage, link, jetzt);
+  return withAuditContext({ actor: { kind: "anonymous" } }, () => chunkWeg(anfrage, link, jetzt));
 }
 
 /**

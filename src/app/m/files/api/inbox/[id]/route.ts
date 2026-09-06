@@ -1,3 +1,4 @@
+import { auditDelivery, auditActor } from "@/core/audit/server";
 /**
  * `GET /api/inbox/[id]` — der gegatete Download einer Posteingang-Datei
  * (Spec §2.1, §5.4, §6.3, §8.6; Plan T32).
@@ -97,78 +98,80 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return text("Not found", 404);
   }
 
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return auditDelivery("files", "download", "file", auditActor(auditViewer), async () => {
 
-  const { id } = await ctx.params;
+    const { id } = await ctx.params;
 
-  // `select()` ohne Argument ist im Modul nicht erlaubt (Quelltext-Zusicherung
-  // in `_db/queries.test.ts`): es zoege bei jeder spaeteren Spalte mehr ueber
-  // die Grenze, als dieser Handler braucht.
-  const [zeile] = getDb()
-    .select({
-      id: inboxFiles.id,
-      dateiname: inboxFiles.dateiname,
-      mimeType: inboxFiles.mimeType,
-      size: inboxFiles.size,
-      avStatus: inboxFiles.avStatus,
-    })
-    .from(inboxFiles)
-    .where(eq(inboxFiles.id, id))
-    .limit(1)
-    .all();
+    // `select()` ohne Argument ist im Modul nicht erlaubt (Quelltext-Zusicherung
+    // in `_db/queries.test.ts`): es zoege bei jeder spaeteren Spalte mehr ueber
+    // die Grenze, als dieser Handler braucht.
+    const [zeile] = getDb()
+      .select({
+        id: inboxFiles.id,
+        dateiname: inboxFiles.dateiname,
+        mimeType: inboxFiles.mimeType,
+        size: inboxFiles.size,
+        avStatus: inboxFiles.avStatus,
+      })
+      .from(inboxFiles)
+      .where(eq(inboxFiles.id, id))
+      .limit(1)
+      .all();
 
-  if (!zeile) return text("Diese Datei gibt es nicht (mehr).", 404);
+    if (!zeile) return text("Diese Datei gibt es nicht (mehr).", 404);
 
-  const avStatus = alsAvStatus(zeile.avStatus);
-  if (!istFreigegeben(avStatus)) {
-    // `istFreigegeben` liefert ein `boolean`, keinen Typwaechter — TypeScript
-    // kann `clean` hier nicht ausschliessen, obwohl die Zeile darueber es tut.
-    // Ein Direktvergleich waere ein zweites Statusmodell (§6.2), also wird die
-    // Einengung BEHAUPTET; getragen wird sie vom Meldungskatalog, der einen
-    // Eintrag fuer jeden Status ausser `clean` hat.
-    return text(AV_MELDUNGEN[avStatus as Exclude<AvStatus, "clean">], 403);
-  }
-
-  let strom;
-  let bytes;
-  try {
-    ({ strom, bytes } = await lieseStrom({ art: "inbox", inboxFileId: zeile.id }));
-  } catch (fehler) {
-    // §5.4: eine fehlende Datei ist ein belegter REGELzustand (Waisen in beide
-    // Richtungen) — die Alt-App lieferte dort 500. `UngueltigeId` steht daneben,
-    // weil ein Import eine Zeile mit einer ID hinterlassen kann, die keine
-    // nanoid(10) ist; auch das ist ein Datenfehler und kein 500 wert.
-    if (fehler instanceof BlobFehlt || fehler instanceof UngueltigeId) {
-      return text("Zu diesem Eintrag sind keine Daten mehr vorhanden.", 404);
+    const avStatus = alsAvStatus(zeile.avStatus);
+    if (!istFreigegeben(avStatus)) {
+      // `istFreigegeben` liefert ein `boolean`, keinen Typwaechter — TypeScript
+      // kann `clean` hier nicht ausschliessen, obwohl die Zeile darueber es tut.
+      // Ein Direktvergleich waere ein zweites Statusmodell (§6.2), also wird die
+      // Einengung BEHAUPTET; getragen wird sie vom Meldungskatalog, der einen
+      // Eintrag fuer jeden Status ausser `clean` hat.
+      return text(AV_MELDUNGEN[avStatus as Exclude<AvStatus, "clean">], 403);
     }
-    throw fehler;
-  }
 
-  if (bytes !== zeile.size) {
-    // §5.4: ausgeliefert wird die TATSAECHLICHE Groesse — ein falsches
-    // `Content-Length` bricht den Download beim Client ab, und der Fehler waere
-    // dann beim Empfaenger sichtbar statt hier im Log.
-    console.warn(
-      `[files] inbox ${zeile.id}: size-Spalte ${zeile.size}, gemessen ${bytes} — ausgeliefert wird die gemessene Groesse`,
-    );
-  }
+    let strom;
+    let bytes;
+    try {
+      ({ strom, bytes } = await lieseStrom({ art: "inbox", inboxFileId: zeile.id }));
+    } catch (fehler) {
+      // §5.4: eine fehlende Datei ist ein belegter REGELzustand (Waisen in beide
+      // Richtungen) — die Alt-App lieferte dort 500. `UngueltigeId` steht daneben,
+      // weil ein Import eine Zeile mit einer ID hinterlassen kann, die keine
+      // nanoid(10) ist; auch das ist ein Datenfehler und kein 500 wert.
+      if (fehler instanceof BlobFehlt || fehler instanceof UngueltigeId) {
+        return text("Zu diesem Eintrag sind keine Daten mehr vorhanden.", 404);
+      }
+      throw fehler;
+    }
 
-  const typ = zeile.mimeType !== null && MIME_MUSTER.test(zeile.mimeType) ? zeile.mimeType : OHNE_TYP;
+    if (bytes !== zeile.size) {
+      // §5.4: ausgeliefert wird die TATSAECHLICHE Groesse — ein falsches
+      // `Content-Length` bricht den Download beim Client ab, und der Fehler waere
+      // dann beim Empfaenger sichtbar statt hier im Log.
+      console.warn(
+        `[files] inbox ${zeile.id}: size-Spalte ${zeile.size}, gemessen ${bytes} — ausgeliefert wird die gemessene Groesse`,
+      );
+    }
 
-  return new Response(Readable.toWeb(strom) as ReadableStream<Uint8Array>, {
-    status: 200,
-    headers: {
-      "content-type": typ,
-      // IMMER `attachment`, fuer jeden Typ — die Inline-Auslieferung ist allein
-      // die Sache von `/api/preview` mit seiner Typ-Allowlist und CSP (§7.7).
-      // Beide Namensformen kommen aus `_lib/zip.ts`: der angefuehrte Teil ist
-      // der gehaertete ASCII-Rueckfall, der echte Name steht in `filename*`.
-      // `dateiname` geht in BEIDE Argumente, weil bei einer Datei — anders als
-      // beim Archivnamen — Punkt und Endung erhalten bleiben muessen.
-      "content-disposition": dispositionKopfzeile(zeile.dateiname, zeile.dateiname),
-      "x-content-type-options": "nosniff",
-      "content-length": String(bytes),
-      // Kein `Accept-Ranges`, kein 206 (§7.7, verworfen in §12).
-    },
+    const typ = zeile.mimeType !== null && MIME_MUSTER.test(zeile.mimeType) ? zeile.mimeType : OHNE_TYP;
+
+    return new Response(Readable.toWeb(strom) as ReadableStream<Uint8Array>, {
+      status: 200,
+      headers: {
+        "content-type": typ,
+        // IMMER `attachment`, fuer jeden Typ — die Inline-Auslieferung ist allein
+        // die Sache von `/api/preview` mit seiner Typ-Allowlist und CSP (§7.7).
+        // Beide Namensformen kommen aus `_lib/zip.ts`: der angefuehrte Teil ist
+        // der gehaertete ASCII-Rueckfall, der echte Name steht in `filename*`.
+        // `dateiname` geht in BEIDE Argumente, weil bei einer Datei — anders als
+        // beim Archivnamen — Punkt und Endung erhalten bleiben muessen.
+        "content-disposition": dispositionKopfzeile(zeile.dateiname, zeile.dateiname),
+        "x-content-type-options": "nosniff",
+        "content-length": String(bytes),
+        // Kein `Accept-Ranges`, kein 206 (§7.7, verworfen in §12).
+      },
+    });
   });
 }

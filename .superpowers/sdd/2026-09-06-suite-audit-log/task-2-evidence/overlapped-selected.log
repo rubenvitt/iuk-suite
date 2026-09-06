@@ -1,0 +1,53 @@
+
+ RUN  v4.1.11 /private/tmp/iuk-suite-audit-log
+
+ ❯ src/app/m/files/api/download/[id]/route.test.ts (38 tests | 2 failed) 17874ms
+     × eine `fileId` aus einem FREMDEN Share → 404 (Zusammengehörigkeit, nicht Existenz) 145ms
+     × eine unbekannte `fileId` → 404 69ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/app/m/files/api/download/[id]/route.test.ts > Parametervertrag: `[id]` ist die shareId, `?file=` wählt die Datei > eine `fileId` aus einem FREMDEN Share → 404 (Zusammengehörigkeit, nicht Existenz)
+DrizzleError: Failed to run the query 'ROLLBACK'
+ ❯ BetterSQLiteSession.run node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/src/sqlite-core/session.ts:271:9
+ ❯ SQLiteSyncDialect.migrate node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/src/sqlite-core/dialect.ts:992:11
+ ❯ migrate node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/src/better-sqlite3/migrator.ts:10:12
+ ❯ src/app/m/files/api/download/[id]/route.test.ts:59:3
+     57|   const sqlite = new Database(`${DIR}/files.db`);
+     58|   registerAuditFunctions(sqlite);
+     59|   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/mi…
+       |   ^
+     60|   sqlite.close();
+     61|   // `getModuleDb` hält die Verbindung global fest und zeigte sonst au…
+
+Caused by: SqliteError: cannot rollback - no transaction is active
+ ❯ PreparedQuery.run node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/drizzle-orm/better-sqlite3/session.js:72:22
+ ❯ BetterSQLiteSession.run node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/drizzle-orm/sqlite-core/session.js:154:74
+ ❯ SQLiteSyncDialect.migrate node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/drizzle-orm/sqlite-core/dialect.js:673:15
+ ❯ migrate node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/drizzle-orm/better-sqlite3/migrator.js:4:14
+ ❯ src/app/m/files/api/download/[id]/route.test.ts:59:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'SQLITE_ERROR' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/app/m/files/api/download/[id]/route.test.ts > Parametervertrag: `[id]` ist die shareId, `?file=` wählt die Datei > eine unbekannte `fileId` → 404
+SqliteError: UNIQUE constraint failed: share_files.id
+ ❯ PreparedQuery.run node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/src/better-sqlite3/session.ts:132:19
+ ❯ QueryPromise.run node_modules/.pnpm/drizzle-orm@0.45.2_@types+better-sqlite3@7.6.13_better-sqlite3@13.0.3/node_modules/src/sqlite-core/query-builders/insert.ts:398:25
+ ❯ legeDatei src/app/m/files/api/download/[id]/route.test.ts:141:6
+    139|       avGeprueftAt: vorgabe.avStatus === "scanning" ? null : JETZT,
+    140|     })
+    141|     .run();
+       |      ^
+    142|
+    143|   if (vorgabe.mitBlob ?? vollstaendig) {
+ ❯ src/app/m/files/api/download/[id]/route.test.ts:563:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 84 passed (85)
+      Tests  2 failed | 1924 passed (1926)
+   Start at  11:17:45
+   Duration  199.82s (transform 24.26s, setup 2.20s, import 164.06s, tests 179.66s, environment 22ms)

@@ -1,3 +1,5 @@
+import { logoutActor } from "../_lib/audit";
+import { auditEvent } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { lagerbuchHostOderNull } from "../_lib/host";
 import { HELFER_COOKIE, helferCookieOptionen } from "../_lib/helferSitzung";
@@ -88,6 +90,9 @@ export async function GET(req: Request) {
    * `requireHelferSitzung` schickte bei jedem Aufruf erneut hierher — eine
    * Schleife aus zwei 303, die erst auffaellt, wenn jemand das Protokoll liest.
    */
+  const cookie = req.headers.get("cookie")?.split(";").map(v => v.trim()).find(v => v.startsWith(`${HELFER_COOKIE}=`))?.slice(HELFER_COOKIE.length + 1);
+  const actor = await logoutActor(cookie);
   antw.cookies.set(HELFER_COOKIE, "", helferCookieOptionen(0));
+  auditEvent({ module: "lagerbuch", action: "sign_out", objectType: "session", result: "success", origin: "server" }, actor);
   return antw;
 }

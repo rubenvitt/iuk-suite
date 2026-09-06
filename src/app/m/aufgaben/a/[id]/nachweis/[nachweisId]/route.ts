@@ -1,3 +1,5 @@
+import { auditDenied } from "@/core/audit/server";
+import { auditDelivery, auditActor } from "@/core/audit/server";
 /**
  * `GET /a/<id>/nachweis/<nachweisId>` — DIE AUSLIEFERUNG DES BILDNACHWEISES (Aufgabe 19, Spec §5.3,
  * §6, §7). **DER SICHERHEITSKRITISCHSTE PFAD DES GANZEN MODULS.**
@@ -85,47 +87,49 @@ export async function GET(
   const task = aufgabe(db, id);
   if (!task) return zustand(404, NICHT_VERFUEGBAR);
   // BEDINGUNG 2.
-  if (!darfNachweisSehen(await akteurFuer(person), task)) return zustand(404, NICHT_VERFUEGBAR);
+  if (!darfNachweisSehen(await akteurFuer(person), task)) { auditDenied("aufgaben", auditActor(session?.user)); return zustand(404, NICHT_VERFUEGBAR); }
+  return auditDelivery("aufgaben", "download", "file", auditActor(session?.user), async (): Promise<Response> => {
 
-  const nachweis = nachweisNachId(db, nachweisId);
-  // DER IDOR-RIEGEL UEBER ZWEI ECKEN (s. Kopfkommentar).
-  if (!nachweis || nachweis.aufgabeId !== task.id) return zustand(404, NICHT_VERFUEGBAR);
-  if (nachweis.dateiId === null) return zustand(404, NICHT_VERFUEGBAR); // Text-Nachweis, kein Bild
+    const nachweis = nachweisNachId(db, nachweisId);
+    // DER IDOR-RIEGEL UEBER ZWEI ECKEN (s. Kopfkommentar).
+    if (!nachweis || nachweis.aufgabeId !== task.id) return zustand(404, NICHT_VERFUEGBAR);
+    if (nachweis.dateiId === null) return zustand(404, NICHT_VERFUEGBAR); // Text-Nachweis, kein Bild
 
-  const datei = dateiNachId(db, nachweis.dateiId);
-  if (!datei) return zustand(404, NICHT_VERFUEGBAR); // Datenbankinkonsistenz — kein Byte ohne Zeile
+    const datei = dateiNachId(db, nachweis.dateiId);
+    if (!datei) return zustand(404, NICHT_VERFUEGBAR); // Datenbankinkonsistenz — kein Byte ohne Zeile
 
-  // BEDINGUNG 1.
-  if (!istFreigegeben(datei.scanStatus)) return zustand(404, NICHT_VERFUEGBAR);
+    // BEDINGUNG 1.
+    if (!istFreigegeben(datei.scanStatus)) return zustand(404, NICHT_VERFUEGBAR);
 
-  if (!istErlaubterBildTyp(datei.mime)) {
-    console.error(
-      `[aufgaben][nachweis] Datei ${datei.id} traegt einen nicht zugelassenen MIME-Typ "${datei.mime}" — Auslieferung verweigert.`,
-    );
-    return zustand(404, NICHT_VERFUEGBAR);
-  }
+    if (!istErlaubterBildTyp(datei.mime)) {
+      console.error(
+        `[aufgaben][nachweis] Datei ${datei.id} traegt einen nicht zugelassenen MIME-Typ "${datei.mime}" — Auslieferung verweigert.`,
+      );
+      return zustand(404, NICHT_VERFUEGBAR);
+    }
 
-  const bytes = await leseNachweis(datei.id);
-  if (bytes === null) {
-    console.error(
-      `[aufgaben][nachweis] Datei ${datei.id} ist als 'sauber' vermerkt, aber der Blob fehlt.`,
-    );
-    return zustand(404, NICHT_VERFUEGBAR);
-  }
+    const bytes = await leseNachweis(datei.id);
+    if (bytes === null) {
+      console.error(
+        `[aufgaben][nachweis] Datei ${datei.id} ist als 'sauber' vermerkt, aber der Blob fehlt.`,
+      );
+      return zustand(404, NICHT_VERFUEGBAR);
+    }
 
-  // `new Uint8Array(bytes)` STATT `bytes` DIREKT: `leseNachweis` liefert ein Node-`Buffer`
-  // (Uint8Array<ArrayBufferLike>), und `Response`s `BodyInit`-Typ verlangt `Uint8Array<ArrayBuffer>`
-  // — derselbe Umweg wie `files/api/preview/[id]/route.ts`.
-  return new Response(new Uint8Array(bytes), {
-    status: 200,
-    headers: {
-      // AUS DER DB, NIE GERATEN: derselbe gespeicherte, gepruefte MIME-Typ, den `istErlaubterBildTyp`
-      // oben bestaetigt hat.
-      "content-type": datei.mime,
-      "content-disposition": `inline; filename="nachweis-${datei.id}.${ENDUNG_FUER[datei.mime]}"`,
-      "content-length": String(bytes.byteLength),
-      "x-content-type-options": "nosniff",
-      "cache-control": KEIN_ZWISCHENSPEICHER,
-    },
+    // `new Uint8Array(bytes)` STATT `bytes` DIREKT: `leseNachweis` liefert ein Node-`Buffer`
+    // (Uint8Array<ArrayBufferLike>), und `Response`s `BodyInit`-Typ verlangt `Uint8Array<ArrayBuffer>`
+    // — derselbe Umweg wie `files/api/preview/[id]/route.ts`.
+    return new Response(new Uint8Array(bytes), {
+      status: 200,
+      headers: {
+        // AUS DER DB, NIE GERATEN: derselbe gespeicherte, gepruefte MIME-Typ, den `istErlaubterBildTyp`
+        // oben bestaetigt hat.
+        "content-type": datei.mime,
+        "content-disposition": `inline; filename="nachweis-${datei.id}.${ENDUNG_FUER[datei.mime]}"`,
+        "content-length": String(bytes.byteLength),
+        "x-content-type-options": "nosniff",
+        "cache-control": KEIN_ZWISCHENSPEICHER,
+      },
+    });
   });
 }

@@ -1,3 +1,4 @@
+import { auditDelivery, auditActor } from "@/core/audit/server";
 import { auth } from "@/core/auth";
 import { getDb } from "@/app/m/feedback/_db/client";
 import {
@@ -73,88 +74,90 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
   } catch {
     return new Response(null, { status: 404 });
   }
+  return auditDelivery("feedback", "export", "export", auditActor(viewer), async () => {
 
-  // Aufsteigend (Entscheidung 3) — eigene Sortierung, nicht die `ORDER BY
-  // date DESC` der Abfrage: die Richtung ist hier fachlich tragend.
-  const abende = [...listEvenings(db, id)].sort(
-    (a, b) => a.date.getTime() - b.date.getTime(),
-  );
+    // Aufsteigend (Entscheidung 3) — eigene Sortierung, nicht die `ORDER BY
+    // date DESC` der Abfrage: die Richtung ist hier fachlich tragend.
+    const abende = [...listEvenings(db, id)].sort(
+      (a, b) => a.date.getTime() - b.date.getTime(),
+    );
 
-  /*
-   * DIE SPALTENVEREINIGUNG. Schlüssel ist `id|type`, NICHT die Frage-ID allein.
-   * Die ID ist über Bögen hinweg stabil, die BEDEUTUNG ist es nicht: derselbe
-   * `q1` ist im importierten Alt-Bogen eine 1–5-Bewertung (`stars`) und im neuen
-   * Bogen derselben Gruppe eine Schulnote 1–6 — eine 5 heißt dort „sehr gut" und
-   * hier „mangelhaft". Auf die ID allein geschlüsselt landeten beide Mittelwerte
-   * in EINER Spalte unter EINEM Kopf, und der Kopf (der erste gesehene) log über
-   * die Hälfte der Zahlen darunter. Die Skala gehört also in den Schlüssel.
-   *
-   * Der TEXT gehört ausdrücklich NICHT hinein: Reihenfolge ist die des ersten
-   * Auftretens — chronologisch, damit die ältesten Fragen links stehen und eine
-   * später ergänzte Frage die bestehenden Spalten nicht verschiebt — und der
-   * Kopftext ist der ERSTE gesehene. Ein bloß umformulierter Fragetext ergibt
-   * keine zweite Spalte, sonst stünden zwei halbe Zeitreihen nebeneinander.
-   */
-  const spalten = new Map<string, { kopf: string }>();
-  const zeilen: { datum: string; thema: string; rueckmeldungen: number; teilnehmer: string; werte: Map<string, string> }[] = [];
+    /*
+     * DIE SPALTENVEREINIGUNG. Schlüssel ist `id|type`, NICHT die Frage-ID allein.
+     * Die ID ist über Bögen hinweg stabil, die BEDEUTUNG ist es nicht: derselbe
+     * `q1` ist im importierten Alt-Bogen eine 1–5-Bewertung (`stars`) und im neuen
+     * Bogen derselben Gruppe eine Schulnote 1–6 — eine 5 heißt dort „sehr gut" und
+     * hier „mangelhaft". Auf die ID allein geschlüsselt landeten beide Mittelwerte
+     * in EINER Spalte unter EINEM Kopf, und der Kopf (der erste gesehene) log über
+     * die Hälfte der Zahlen darunter. Die Skala gehört also in den Schlüssel.
+     *
+     * Der TEXT gehört ausdrücklich NICHT hinein: Reihenfolge ist die des ersten
+     * Auftretens — chronologisch, damit die ältesten Fragen links stehen und eine
+     * später ergänzte Frage die bestehenden Spalten nicht verschiebt — und der
+     * Kopftext ist der ERSTE gesehene. Ein bloß umformulierter Fragetext ergibt
+     * keine zweite Spalte, sonst stünden zwei halbe Zeitreihen nebeneinander.
+     */
+    const spalten = new Map<string, { kopf: string }>();
+    const zeilen: { datum: string; thema: string; rueckmeldungen: number; teilnehmer: string; werte: Map<string, string> }[] = [];
 
-  for (const abend of abende) {
-    const survey = getSurveyByEvening(db, abend.id);
-    const fragen: Question[] = survey ? JSON.parse(survey.questions) : [];
-    const antworten = survey
-      ? listResponses(db, survey.id).map((r) => JSON.parse(r.answers) as Record<string, unknown>)
-      : [];
-    const stats = computeDAStats(fragen, antworten);
+    for (const abend of abende) {
+      const survey = getSurveyByEvening(db, abend.id);
+      const fragen: Question[] = survey ? JSON.parse(survey.questions) : [];
+      const antworten = survey
+        ? listResponses(db, survey.id).map((r) => JSON.parse(r.answers) as Record<string, unknown>)
+        : [];
+      const stats = computeDAStats(fragen, antworten);
 
-    const werte = new Map<string, string>();
-    for (const frage of stats.perQuestion) {
-      // Nur Bewertungsfragen haben einen Ø. Freitexte gehören in den
-      // Abend-Export, wo sie einzeln nachlesbar sind — als „Ø" gäbe es sie nicht.
-      if (!isRatingType(frage.type)) continue;
-      // Schlüssel ist `id|type` — dieselbe ID mit anderer Skala ist eine andere
-      // Spalte (Entscheidung 2). `|` kommt in keinem `QuestionType` vor.
-      const key = `${frage.id}|${frage.type}`;
-      if (!spalten.has(key)) spalten.set(key, { kopf: kopfMitSkala(frage.text, frage.type) });
-      if (frage.avg !== null) werte.set(key, formatiereNote(frage.avg));
+      const werte = new Map<string, string>();
+      for (const frage of stats.perQuestion) {
+        // Nur Bewertungsfragen haben einen Ø. Freitexte gehören in den
+        // Abend-Export, wo sie einzeln nachlesbar sind — als „Ø" gäbe es sie nicht.
+        if (!isRatingType(frage.type)) continue;
+        // Schlüssel ist `id|type` — dieselbe ID mit anderer Skala ist eine andere
+        // Spalte (Entscheidung 2). `|` kommt in keinem `QuestionType` vor.
+        const key = `${frage.id}|${frage.type}`;
+        if (!spalten.has(key)) spalten.set(key, { kopf: kopfMitSkala(frage.text, frage.type) });
+        if (frage.avg !== null) werte.set(key, formatiereNote(frage.avg));
+      }
+
+      zeilen.push({
+        // Kalendertag ohne Uhrzeit — `evenings.date` ist Mitternacht UTC.
+        datum: abend.date.toISOString().slice(0, 10),
+        thema: abend.topic ?? "",
+        rueckmeldungen: stats.responseCount,
+        // Kein erfundener Nenner (§2.3): ohne Teilnehmerzahl bleibt die Zelle leer.
+        teilnehmer: abend.participantCount === null ? "" : String(abend.participantCount),
+        werte,
+      });
     }
 
-    zeilen.push({
-      // Kalendertag ohne Uhrzeit — `evenings.date` ist Mitternacht UTC.
-      datum: abend.date.toISOString().slice(0, 10),
-      thema: abend.topic ?? "",
-      rueckmeldungen: stats.responseCount,
-      // Kein erfundener Nenner (§2.3): ohne Teilnehmerzahl bleibt die Zelle leer.
-      teilnehmer: abend.participantCount === null ? "" : String(abend.participantCount),
-      werte,
+    // `spaltenSchluessel`, nicht `spaltenIds`: die Einträge sind `id|type`, keine
+    // Frage-IDs. `werte` ist auf denselben Schlüssel gelegt, deshalb greift der
+    // Zugriff unten unverändert.
+    const spaltenSchluessel = [...spalten.keys()];
+    const rows: string[][] = [
+      ["Gruppe", group.name],
+      ["Dienstabende", String(zeilen.length)],
+      [],
+      ["Datum", "Thema", "Rückmeldungen", "Teilnehmer", ...spaltenSchluessel.map((k) => spalten.get(k)!.kopf)],
+      ...zeilen.map((z) => [
+        z.datum,
+        z.thema,
+        String(z.rueckmeldungen),
+        z.teilnehmer,
+        ...spaltenSchluessel.map((k) => z.werte.get(k) ?? ""),
+      ]),
+    ];
+
+    const csv = buildCsv(rows);
+    const filename = `feedback-${group.slug}-abende.csv`;
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
     });
-  }
-
-  // `spaltenSchluessel`, nicht `spaltenIds`: die Einträge sind `id|type`, keine
-  // Frage-IDs. `werte` ist auf denselben Schlüssel gelegt, deshalb greift der
-  // Zugriff unten unverändert.
-  const spaltenSchluessel = [...spalten.keys()];
-  const rows: string[][] = [
-    ["Gruppe", group.name],
-    ["Dienstabende", String(zeilen.length)],
-    [],
-    ["Datum", "Thema", "Rückmeldungen", "Teilnehmer", ...spaltenSchluessel.map((k) => spalten.get(k)!.kopf)],
-    ...zeilen.map((z) => [
-      z.datum,
-      z.thema,
-      String(z.rueckmeldungen),
-      z.teilnehmer,
-      ...spaltenSchluessel.map((k) => z.werte.get(k) ?? ""),
-    ]),
-  ];
-
-  const csv = buildCsv(rows);
-  const filename = `feedback-${group.slug}-abende.csv`;
-  return new Response(csv, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
   });
 }
 

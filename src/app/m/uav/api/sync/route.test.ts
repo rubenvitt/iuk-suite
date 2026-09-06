@@ -65,3 +65,22 @@ describe("POST /api/sync", () => {
     expect((await POST(post(gueltigerBody, cookie, "iuk-ue.de"))).status).toBe(404);
   });
 });
+
+it("audit attributes a real sync write to the server-resolved participant", async () => {
+  const { getDb } = await import("../../_db/client");
+  const { openModuleDatabase } = await import("@/core/db");
+  const q = await import("../../_lib/queries");
+  const p = q.alleTeilnehmer(getDb())[0];
+  const task = q.taskAnlegen(getDb(), { teil: 1, nummer: "1", titel: "Audit", lernziel: "", schritte: [], durchfuehrungshinweise: [], sicherheitshinweise: [], zielanzahlDefault: 1, aktiv: true });
+  const cookie = await cookieDurchAnmeldung();
+  const sqlite = openModuleDatabase(`${DIR}/uav.db`);
+  sqlite.exec("DELETE FROM audit_outbox");
+  const { POST } = await import("./route");
+  const result = await POST(post({ since: null, executions: [{ id: "execution-audit", taskId: task.id, datum: "2026-09-06" }], taskStatus: [] }, cookie));
+  expect(result.status).toBe(200);
+  const rows = sqlite.prepare("SELECT actor FROM audit_outbox WHERE object_type = 'executions'").all() as { actor: string }[];
+  expect(rows).toHaveLength(1);
+  expect(JSON.parse(rows[0].actor)).toEqual({ kind: "user", id: `uav:participant:${p.id}` });
+  expect(JSON.stringify(rows)).not.toContain(code);
+  sqlite.close();
+});

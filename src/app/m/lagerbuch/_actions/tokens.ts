@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { customAlphabet } from "nanoid";
@@ -100,76 +101,80 @@ export async function createToken(
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string; code: string }>> {
   const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ id: string; code: string }>> => {
 
-  const geparst = CreateSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  const v = geparst.data;
-  let angelegt: { id: string; code: string } | undefined;
+    const geparst = CreateSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
+    let angelegt: { id: string; code: string } | undefined;
 
-  try {
-    if (v.zielTyp === "fahrzeug") {
-      const fahrzeug = db.select({ id: lagerorte.id })
-        .from(lagerorte)
-        .where(and(
-          eq(lagerorte.id, v.zielId!),
-          eq(lagerorte.typ, "fahrzeug"),
-          eq(lagerorte.aktiv, true),
-        )!)
-        .get();
-      if (!fahrzeug) return zielFehler(FAHRZEUG_FEHLER);
-    } else if (v.zielTyp === "artikel") {
-      const zielArtikel = db.select({ id: artikel.id })
-        .from(artikel)
-        .where(and(
-          eq(artikel.id, v.zielId!),
-          eq(artikel.aktiv, true),
-        )!)
-        .get();
-      if (!zielArtikel) return zielFehler(ARTIKEL_FEHLER);
+    try {
+      if (v.zielTyp === "fahrzeug") {
+        const fahrzeug = db.select({ id: lagerorte.id })
+          .from(lagerorte)
+          .where(and(
+            eq(lagerorte.id, v.zielId!),
+            eq(lagerorte.typ, "fahrzeug"),
+            eq(lagerorte.aktiv, true),
+          )!)
+          .get();
+        if (!fahrzeug) return zielFehler(FAHRZEUG_FEHLER);
+      } else if (v.zielTyp === "artikel") {
+        const zielArtikel = db.select({ id: artikel.id })
+          .from(artikel)
+          .where(and(
+            eq(artikel.id, v.zielId!),
+            eq(artikel.aktiv, true),
+          )!)
+          .get();
+        if (!zielArtikel) return zielFehler(ARTIKEL_FEHLER);
+      }
+
+      const code = erzeugeFreienCode(db);
+      if (!code) return festerFehler(CODE_FEHLER);
+
+      const id = newId();
+      db.insert(tokens).values({
+        id,
+        code,
+        label: v.label,
+        zielTyp: v.zielTyp ?? null,
+        zielId: v.zielTyp ? v.zielId! : null,
+        aktiv: true,
+        createdAt: new Date(),
+        createdBy: viewer.sub,
+      }).run();
+      angelegt = { id, code };
+    } catch {
+      return festerFehler(ANLEGEN_FEHLER);
     }
 
-    const code = erzeugeFreienCode(db);
-    if (!code) return festerFehler(CODE_FEHLER);
-
-    const id = newId();
-    db.insert(tokens).values({
-      id,
-      code,
-      label: v.label,
-      zielTyp: v.zielTyp ?? null,
-      zielId: v.zielTyp ? v.zielId! : null,
-      aktiv: true,
-      createdAt: new Date(),
-      createdBy: viewer.sub,
-    }).run();
-    angelegt = { id, code };
-  } catch {
-    return festerFehler(ANLEGEN_FEHLER);
-  }
-
-  if (!angelegt) return festerFehler(ANLEGEN_FEHLER);
-  revalidatePath(LISTENPFAD);
-  return { ok: true, wert: angelegt };
+    if (!angelegt) return festerFehler(ANLEGEN_FEHLER);
+    revalidatePath(LISTENPFAD);
+    return { ok: true, wert: angelegt };
+  });
 }
 
 export async function setTokenAktiv(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = AktivSchema.safeParse(eingabe);
-  if (!geparst.success) return festerFehler("Ungültige Eingabe.");
+    const geparst = AktivSchema.safeParse(eingabe);
+    if (!geparst.success) return festerFehler("Ungültige Eingabe.");
 
-  try {
-    db.update(tokens)
-      .set({ aktiv: geparst.data.aktiv })
-      .where(eq(tokens.id, geparst.data.id))
-      .run();
-  } catch {
-    return festerFehler(STATUS_FEHLER);
-  }
+    try {
+      db.update(tokens)
+        .set({ aktiv: geparst.data.aktiv })
+        .where(eq(tokens.id, geparst.data.id))
+        .run();
+    } catch {
+      return festerFehler(STATUS_FEHLER);
+    }
 
-  revalidatePath(LISTENPFAD);
-  return { ok: true };
+    revalidatePath(LISTENPFAD);
+    return { ok: true };
+  });
 }

@@ -1,4 +1,5 @@
 "use server";
+import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -115,6 +116,7 @@ export async function einloesenAmGate(
   const res = await loeseCodeEin(code, getDb());
 
   if (!res.ok) {
+    auditDenied("radio");
     /*
      * SCHRITT 6 — erst JETZT wird gebucht. Die drei Zaehler liegen HINTER der Codepruefung
      * und zaehlen NUR Fehlversuche (`_lib/gateSchranke.ts:179-191`). „unbekannt" und
@@ -151,5 +153,6 @@ export async function einloesenAmGate(
    * Sentinel, ein `catch` verschluckt ihn und die Weiterleitung findet still nicht statt
    * (Bauform-Zulaessigkeitstafel Zeile 6).
    */
+  auditEvent({ module: "radio", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("radio", res.codeId));
   redirect(returnTo ?? "/");
 }

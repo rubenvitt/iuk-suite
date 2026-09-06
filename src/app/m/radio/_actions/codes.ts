@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 // src/app/m/radio/_actions/codes.ts
 //
 // ⛔ DIE DIREKTIVE STEHT IN ZEILE 1, DER PFADKOMMENTAR DARUNTER — und das ist eine
@@ -77,29 +78,31 @@ import { requireRadioAdmin } from "../_lib/zugang";
  */
 export async function erstelleCode(bezeichnung: string): Promise<{ code: string }> {
   const viewer = await requireRadioAdmin();
-  const db = getDb();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<{ code: string }> => {
+    const db = getDb();
 
-  for (let versuch = 0; versuch < 2; versuch++) {
-    const code = erzeugeCode();
-    const ergebnis = db
-      .insert(zugangscodes)
-      .values({
-        code,
-        bezeichnung,
-        aktiv: true,
-        createdAt: new Date(),
-        createdBy: viewer.sub,
-      })
-      .onConflictDoNothing({ target: zugangscodes.code })
-      .run();
-    if (ergebnis.changes > 0) return { code };
-  }
+    for (let versuch = 0; versuch < 2; versuch++) {
+      const code = erzeugeCode();
+      const ergebnis = db
+        .insert(zugangscodes)
+        .values({
+          code,
+          bezeichnung,
+          aktiv: true,
+          createdAt: new Date(),
+          createdBy: viewer.sub,
+        })
+        .onConflictDoNothing({ target: zugangscodes.code })
+        .run();
+      if (ergebnis.changes > 0) return { code };
+    }
 
-  throw new Error(
-    "[radio] Zugangscode konnte nicht ausgestellt werden: zwei UNIQUE-Konflikte auf " +
-      "zugangscodes.code in Folge. Bei 140 bit ist das kein Betriebsfall, sondern ein " +
-      "Hinweis darauf, dass erzeugeCode() nicht zufaellig ist (Spec:2183-2191).",
-  );
+    throw new Error(
+      "[radio] Zugangscode konnte nicht ausgestellt werden: zwei UNIQUE-Konflikte auf " +
+        "zugangscodes.code in Folge. Bei 140 bit ist das kein Betriebsfall, sondern ein " +
+        "Hinweis darauf, dass erzeugeCode() nicht zufaellig ist (Spec:2183-2191).",
+    );
+  });
 }
 
 /**
@@ -120,14 +123,16 @@ export async function erstelleCode(bezeichnung: string): Promise<{ code: string 
  */
 export async function setzeCodeAktiv(codeId: string, aktiv: boolean): Promise<void> {
   const viewer = await requireRadioAdmin();
-  const db = getDb();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    const db = getDb();
 
-  db.update(zugangscodes)
-    .set(
-      aktiv
-        ? { aktiv: true, gesperrtAm: null, gesperrtVon: null }
-        : { aktiv: false, gesperrtAm: new Date(), gesperrtVon: viewer.sub },
-    )
-    .where(eq(zugangscodes.id, codeId))
-    .run();
+    db.update(zugangscodes)
+      .set(
+        aktiv
+          ? { aktiv: true, gesperrtAm: null, gesperrtVon: null }
+          : { aktiv: false, gesperrtAm: new Date(), gesperrtVon: viewer.sub },
+      )
+      .where(eq(zugangscodes.id, codeId))
+      .run();
+  });
 }

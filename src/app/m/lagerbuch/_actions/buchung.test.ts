@@ -476,3 +476,12 @@ describe("bucheEntnahmeHelfer", () => {
     expect(riegel).toHaveBeenCalledTimes(1);
   });
 });
+
+it("audit attributes the real helper mutation to confirmed shared access without the code", async () => {
+  t.sqlite.exec("DELETE FROM audit_outbox");
+  expect((await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 2 }, t.db)).ok).toBe(true);
+  const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox").all() as { actor: string }[];
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "access", id: "lagerbuch:token:tk1", name: "Gemeinsamer Zugangscode" });
+  expect(JSON.stringify(rows)).not.toContain(ZUGANG_OK.zugang.code);
+});

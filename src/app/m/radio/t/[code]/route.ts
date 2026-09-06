@@ -1,3 +1,4 @@
+import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { clientIpAus } from "@/core/ratelimit";
 import { getDb } from "../../_db/client";
@@ -132,6 +133,7 @@ export async function GET(req: Request, ctx: RouteKontext) {
    * das Gate zeigt fuer beide denselben Satz (Spec:2334-2336, `_lib/gateTexte.ts`).
    */
   if (!res.ok) {
+    auditDenied("radio");
     gateFehlversuchBuchen(absender);
     return zumGate("code");
   }
@@ -152,6 +154,7 @@ export async function GET(req: Request, ctx: RouteKontext) {
    */
   const antw = antwort(returnTo ?? "/");
   antw.cookies.set(AUSLEIH_COOKIE, res.cookieValue, ausleihCookieOptionen(ausleihGueltigkeitSekunden()));
+  auditEvent({ module: "radio", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("radio", res.codeId));
   return antw;
 }
 

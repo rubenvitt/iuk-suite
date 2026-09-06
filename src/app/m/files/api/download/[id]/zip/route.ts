@@ -1,3 +1,4 @@
+import { auditDelivery } from "@/core/audit/server";
 // archiver 8 ist reines ESM ohne Default-Export: die Fabrik `archiver("zip", …)`
 // gibt es nicht mehr, an ihre Stelle tritt die Klasse `ZipArchive` (index.js
 // exportiert nur noch `Archiver`, `ZipArchive`, `TarArchive`, `JsonArchive`).
@@ -187,152 +188,154 @@ export async function GET(
   // Ein Route Handler hat kein Layout; wer sie hier vergisst, hat auf dem
   // Inbox-Host einen offenen Freigabe-Download (§3.2).
   if (rolleOderNull(req.headers) !== ROLLE) return meldung(404, NICHT_GEFUNDEN);
+  return auditDelivery("files", "download", "file", { kind: "anonymous" }, async (): Promise<Response> => {
 
-  const { id } = await kontext.params;
+    const { id } = await kontext.params;
 
-  // Die EINE Prüfkette (T15). Ohne `dateiId`: ein Archiv ist die ganze Freigabe.
-  const ladung = await ladeShare({ shareId: id, cookieLeser: cookieLeserAus(req.headers) });
-  if (ladung.zustand === "abgelaufen") return meldung(410, ABGELAUFEN);
-  if (ladung.zustand === "passwortNoetig") return meldung(401, PASSWORT_NOETIG);
-  if (ladung.zustand === "limitErreicht") return meldung(410, LIMIT_ERREICHT);
-  if (ladung.zustand !== "offen") {
-    // `unbekannt` — und die drei Zustände einer EINZELNEN Datei
-    // (`dateiNichtGefunden`, `gesperrt`, `blobFehlt`), die ohne `dateiId` gar
-    // nicht entstehen können. Sie werden trotzdem behandelt, statt hier eine
-    // Unerreichbarkeit zu behaupten: ein späterer `?file=`-Parameter auf diesem
-    // Weg fiele sonst in einen `undefined`-Körper mit HTTP 200.
-    return meldung(404, NICHT_GEFUNDEN);
-  }
-
-  const { share, inhalt } = ladung;
-
-  /*
-   * Zeilen OHNE Blob gehen als „nicht gefunden" in die Fehlliste, statt in die
-   * Kandidatenliste.
-   *
-   * Der Fall ist belegt (Waisen in beide Richtungen, Analyse Falle 9), und er
-   * muss VOR dem ersten Byte entschieden sein: käme er erst beim Öffnen, fiele
-   * `lieseStrom` mitten im Archiv — also nach HTTP 200 und nach dem Zählschritt
-   * — und der Empfänger bekäme ein abgeschnittenes ZIP. Genau das stille
-   * Weglassen, das §7.7 verbietet, nur schlimmer: hier fehlt der Rest.
-   *
-   * Übergeben wird der ANZEIGENAME, nicht die `fileId`. `planeArchiv` nimmt in
-   * diesem Parameter sonst IDs entgegen (T49: eine fremde `id` aus `?ids=`, für
-   * die es keinen Namen gibt) — hier gibt es einen, und eine nanoid in der
-   * `_HINWEIS.txt` wäre für den Empfänger unbrauchbar.
-   */
-  const kandidaten: ZipKandidat[] = [];
-  const ohneBlob: string[] = [];
-  for (const datei of inhalt.dateien) {
-    if (datei.blobFehlt) {
-      ohneBlob.push(datei.dateiname);
-      continue;
+    // Die EINE Prüfkette (T15). Ohne `dateiId`: ein Archiv ist die ganze Freigabe.
+    const ladung = await ladeShare({ shareId: id, cookieLeser: cookieLeserAus(req.headers) });
+    if (ladung.zustand === "abgelaufen") return meldung(410, ABGELAUFEN);
+    if (ladung.zustand === "passwortNoetig") return meldung(401, PASSWORT_NOETIG);
+    if (ladung.zustand === "limitErreicht") return meldung(410, LIMIT_ERREICHT);
+    if (ladung.zustand !== "offen") {
+      // `unbekannt` — und die drei Zustände einer EINZELNEN Datei
+      // (`dateiNichtGefunden`, `gesperrt`, `blobFehlt`), die ohne `dateiId` gar
+      // nicht entstehen können. Sie werden trotzdem behandelt, statt hier eine
+      // Unerreichbarkeit zu behaupten: ein späterer `?file=`-Parameter auf diesem
+      // Weg fiele sonst in einen `undefined`-Körper mit HTTP 200.
+      return meldung(404, NICHT_GEFUNDEN);
     }
-    kandidaten.push({
-      id: datei.id,
-      name: datei.dateiname,
-      avStatus: datei.avStatus,
-      // `ShareDatei` führt die Spalte als Wahrheitswert; `ZipKandidat` nimmt den
-      // rohen Spaltenwert, weil das Prädikat „NULL heißt unvollständig" in
-      // `_lib/zip.ts` gehört. Gelesen wird nur, OB der Wert null ist — der
-      // Zeitpunkt selbst geht nirgends ein.
-      bytesVollstaendigAt: datei.vollstaendig ? datei.angelegtAt : null,
+
+    const { share, inhalt } = ladung;
+
+    /*
+     * Zeilen OHNE Blob gehen als „nicht gefunden" in die Fehlliste, statt in die
+     * Kandidatenliste.
+     *
+     * Der Fall ist belegt (Waisen in beide Richtungen, Analyse Falle 9), und er
+     * muss VOR dem ersten Byte entschieden sein: käme er erst beim Öffnen, fiele
+     * `lieseStrom` mitten im Archiv — also nach HTTP 200 und nach dem Zählschritt
+     * — und der Empfänger bekäme ein abgeschnittenes ZIP. Genau das stille
+     * Weglassen, das §7.7 verbietet, nur schlimmer: hier fehlt der Rest.
+     *
+     * Übergeben wird der ANZEIGENAME, nicht die `fileId`. `planeArchiv` nimmt in
+     * diesem Parameter sonst IDs entgegen (T49: eine fremde `id` aus `?ids=`, für
+     * die es keinen Namen gibt) — hier gibt es einen, und eine nanoid in der
+     * `_HINWEIS.txt` wäre für den Empfänger unbrauchbar.
+     */
+    const kandidaten: ZipKandidat[] = [];
+    const ohneBlob: string[] = [];
+    for (const datei of inhalt.dateien) {
+      if (datei.blobFehlt) {
+        ohneBlob.push(datei.dateiname);
+        continue;
+      }
+      kandidaten.push({
+        id: datei.id,
+        name: datei.dateiname,
+        avStatus: datei.avStatus,
+        // `ShareDatei` führt die Spalte als Wahrheitswert; `ZipKandidat` nimmt den
+        // rohen Spaltenwert, weil das Prädikat „NULL heißt unvollständig" in
+        // `_lib/zip.ts` gehört. Gelesen wird nur, OB der Wert null ist — der
+        // Zeitpunkt selbst geht nirgends ein.
+        bytesVollstaendigAt: datei.vollstaendig ? datei.angelegtAt : null,
+      });
+    }
+
+    const plan = planeArchiv(kandidaten, ohneBlob);
+    if (plan.art === "leer") {
+      // Ein leeres Archiv sieht für den Empfänger wie ein Fehler seines
+      // Entpackprogramms aus, also gibt es keines. Der Unterschied 404/403 ist
+      // hier KEIN Orakel: beide Zustände setzen voraus, dass der Abrufer die
+      // Freigabe bereits geöffnet hat (bei Passwort: entsperrt hat) — er weiß
+      // längst, dass sie existiert.
+      return meldung(plan.grund === "keine-dateien" ? 404 : 403, plan.meldung);
+    }
+
+    // Der letzte Schritt vor dem ersten Byte, und die Bedingung steht IM UPDATE
+    // (§7.5, `_db/zaehler.ts`). Dass die Ladefunktion eben noch `offen` sagte,
+    // reicht nicht: zwischen ihrem LESENDEN Blick und hier liegt eine Messung des
+    // Dateisystems, in der ein zweiter Abruf denselben Rest verbrauchen kann.
+    const db = getDb();
+    if (!zaehleDownload(db, share.id)) return meldung(410, LIMIT_ERREICHT);
+    protokolliereDownload(db, { shareId: share.id, fileId: null, headers: req.headers });
+
+    const durchgang = new PassThrough();
+    const archiv = new ZipArchive({ zlib: { level: 1 } });
+    archiv.on("error", (fehler: Error) => {
+      // Laut: ab hier ist die Antwort schon unterwegs, der Abrufer sieht nur ein
+      // abgeschnittenes Archiv, und ohne diese Zeile gäbe es keine Spur davon.
+      console.error(`[files] ZIP der Freigabe ${share.id} fehlgeschlagen`, fehler);
+      durchgang.destroy(fehler);
     });
-  }
+    archiv.pipe(durchgang);
 
-  const plan = planeArchiv(kandidaten, ohneBlob);
-  if (plan.art === "leer") {
-    // Ein leeres Archiv sieht für den Empfänger wie ein Fehler seines
-    // Entpackprogramms aus, also gibt es keines. Der Unterschied 404/403 ist
-    // hier KEIN Orakel: beide Zustände setzen voraus, dass der Abrufer die
-    // Freigabe bereits geöffnet hat (bei Passwort: entsperrt hat) — er weiß
-    // längst, dass sie existiert.
-    return meldung(plan.grund === "keine-dateien" ? 404 : 403, plan.meldung);
-  }
-
-  // Der letzte Schritt vor dem ersten Byte, und die Bedingung steht IM UPDATE
-  // (§7.5, `_db/zaehler.ts`). Dass die Ladefunktion eben noch `offen` sagte,
-  // reicht nicht: zwischen ihrem LESENDEN Blick und hier liegt eine Messung des
-  // Dateisystems, in der ein zweiter Abruf denselben Rest verbrauchen kann.
-  const db = getDb();
-  if (!zaehleDownload(db, share.id)) return meldung(410, LIMIT_ERREICHT);
-  protokolliereDownload(db, { shareId: share.id, fileId: null, headers: req.headers });
-
-  const durchgang = new PassThrough();
-  const archiv = new ZipArchive({ zlib: { level: 1 } });
-  archiv.on("error", (fehler: Error) => {
-    // Laut: ab hier ist die Antwort schon unterwegs, der Abrufer sieht nur ein
-    // abgeschnittenes Archiv, und ohne diese Zeile gäbe es keine Spur davon.
-    console.error(`[files] ZIP der Freigabe ${share.id} fehlgeschlagen`, fehler);
-    durchgang.destroy(fehler);
-  });
-  archiv.pipe(durchgang);
-
-  let laufenderStrom: Readable | null = null;
-  const beiAbbruch = () => {
-    laufenderStrom?.destroy();
-    laufenderStrom = null;
-    archiv.abort();
-    durchgang.destroy();
-  };
-  req.signal.addEventListener("abort", beiAbbruch, { once: true });
-
-  // Bewusst NICHT erwartet: die Antwort geht sofort hinaus, der Körper füllt
-  // sich danach. Der Rückgabewert wird verworfen, jeder Ausgang ist im
-  // `try`/`finally` behandelt.
-  void (async () => {
-    try {
-      // Die Fehlliste zuerst — sie ist selbst ein Eintrag und hat ihren
-      // Namensplatz in der Planung schon belegt.
-      if (plan.hinweis !== null) {
-        await fuegeEin(archiv, plan.hinweis, HINWEIS_DATEINAME, req.signal);
-      }
-      for (const eintrag of plan.eintraege) {
-        if (req.signal.aborted) break;
-        const { strom } = await lieseStrom({
-          art: "share",
-          shareId: share.id,
-          fileId: eintrag.id,
-        });
-        laufenderStrom = strom;
-        try {
-          await fuegeEin(archiv, strom, eintrag.eintragsname, req.signal);
-        } finally {
-          laufenderStrom = null;
-          // HIER, nicht erst im äußeren `finally`: dort wäre `laufenderStrom`
-          // schon zurückgesetzt, und der Descriptor bliebe auf JEDEM Fehlerweg
-          // offen. Nach vollständigem Lesen ist der Strom ohnehin zu; `destroy`
-          // ist dann folgenlos.
-          strom.destroy();
-        }
-      }
-      if (!req.signal.aborted) await archiv.finalize();
-    } catch (fehler) {
-      if (!req.signal.aborted) {
-        console.error(`[files] ZIP der Freigabe ${share.id} abgebrochen`, fehler);
-      }
-      durchgang.destroy(fehler instanceof Error ? fehler : new Error(String(fehler)));
-    } finally {
-      // In JEDEM Ausgang: ein hier vergessener Strom ist ein Descriptor, den
-      // nichts mehr schließt — der Fehlermodus, den die Alt-Abbruchbehandlung
-      // auf einem Dateisystem verhindert.
-      req.signal.removeEventListener("abort", beiAbbruch);
+    let laufenderStrom: Readable | null = null;
+    const beiAbbruch = () => {
       laufenderStrom?.destroy();
       laufenderStrom = null;
-    }
-  })();
+      archiv.abort();
+      durchgang.destroy();
+    };
+    req.signal.addEventListener("abort", beiAbbruch, { once: true });
 
-  return new Response(Readable.toWeb(durchgang) as ReadableStream<Uint8Array>, {
-    status: 200,
-    headers: {
-      "content-type": "application/zip",
-      // Beide Formen: der angeführte Teil unkodiert als ASCII-Rückfall, der
-      // echte Titel prozentkodiert in `filename*` (§7.7).
-      "content-disposition": archivDisposition(share.titel),
-      "x-content-type-options": "nosniff",
-      "cache-control": KEIN_ZWISCHENSPEICHER,
-      // Kein `Accept-Ranges` und kein 206 (§12): drei Bereichsanfragen wären
-      // drei Downloads, und der Zähler ist eine harte Obergrenze.
-    },
+    // Bewusst NICHT erwartet: die Antwort geht sofort hinaus, der Körper füllt
+    // sich danach. Der Rückgabewert wird verworfen, jeder Ausgang ist im
+    // `try`/`finally` behandelt.
+    void (async () => {
+      try {
+        // Die Fehlliste zuerst — sie ist selbst ein Eintrag und hat ihren
+        // Namensplatz in der Planung schon belegt.
+        if (plan.hinweis !== null) {
+          await fuegeEin(archiv, plan.hinweis, HINWEIS_DATEINAME, req.signal);
+        }
+        for (const eintrag of plan.eintraege) {
+          if (req.signal.aborted) break;
+          const { strom } = await lieseStrom({
+            art: "share",
+            shareId: share.id,
+            fileId: eintrag.id,
+          });
+          laufenderStrom = strom;
+          try {
+            await fuegeEin(archiv, strom, eintrag.eintragsname, req.signal);
+          } finally {
+            laufenderStrom = null;
+            // HIER, nicht erst im äußeren `finally`: dort wäre `laufenderStrom`
+            // schon zurückgesetzt, und der Descriptor bliebe auf JEDEM Fehlerweg
+            // offen. Nach vollständigem Lesen ist der Strom ohnehin zu; `destroy`
+            // ist dann folgenlos.
+            strom.destroy();
+          }
+        }
+        if (!req.signal.aborted) await archiv.finalize();
+      } catch (fehler) {
+        if (!req.signal.aborted) {
+          console.error(`[files] ZIP der Freigabe ${share.id} abgebrochen`, fehler);
+        }
+        durchgang.destroy(fehler instanceof Error ? fehler : new Error(String(fehler)));
+      } finally {
+        // In JEDEM Ausgang: ein hier vergessener Strom ist ein Descriptor, den
+        // nichts mehr schließt — der Fehlermodus, den die Alt-Abbruchbehandlung
+        // auf einem Dateisystem verhindert.
+        req.signal.removeEventListener("abort", beiAbbruch);
+        laufenderStrom?.destroy();
+        laufenderStrom = null;
+      }
+    })();
+
+    return new Response(Readable.toWeb(durchgang) as ReadableStream<Uint8Array>, {
+      status: 200,
+      headers: {
+        "content-type": "application/zip",
+        // Beide Formen: der angeführte Teil unkodiert als ASCII-Rückfall, der
+        // echte Titel prozentkodiert in `filename*` (§7.7).
+        "content-disposition": archivDisposition(share.titel),
+        "x-content-type-options": "nosniff",
+        "cache-control": KEIN_ZWISCHENSPEICHER,
+        // Kein `Accept-Ranges` und kein 206 (§12): drei Bereichsanfragen wären
+        // drei Downloads, und der Zähler ist eine harte Obergrenze.
+      },
+    });
   });
 }

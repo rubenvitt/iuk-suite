@@ -1713,3 +1713,13 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     expect(verzeichnisFindByEmailMock).not.toHaveBeenCalled();
   });
 });
+
+it("audit keeps a real feedback submission anonymous even inside an authenticated context", async () => {
+  const { withAuditContext } = await import("@/core/audit/context");
+  const { submitResponseAction } = await loadActions();
+  const { token } = seedActiveSurvey("audit", "abc12");
+  sqlite.exec("DELETE FROM audit_outbox");
+  await withAuditContext({ actor: { kind: "user", id: "must-not-leak" }, correlationId: "12345678-1234-1234-1234-123456789012" }, () => submitResponseAction(token, submission()));
+  const rows = sqlite.prepare("SELECT actor, correlation_id, object_ref FROM audit_outbox WHERE object_type = 'responses'").all();
+  expect(rows).toEqual([{ actor: '{"kind":"anonymous"}', correlation_id: null, object_ref: null }]);
+});

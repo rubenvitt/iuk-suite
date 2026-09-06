@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -101,111 +102,117 @@ export async function geraetSpeichern(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  const geparst = GeraetSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  const v = geparst.data;
-  const id = v.id ?? newId();
-  const barcode = orNull(v.barcode);
+    const geparst = GeraetSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
+    const id = v.id ?? newId();
+    const barcode = orNull(v.barcode);
 
-  try {
-    if (v.id && !bzGeraetExistiert(db, v.id)) {
-      return festerFehler(BZ_GERAET_FEHLER);
-    }
+    try {
+      if (v.id && !bzGeraetExistiert(db, v.id)) {
+        return festerFehler(BZ_GERAET_FEHLER);
+      }
 
-    const lagerort = db.select({ id: lagerorte.id }).from(lagerorte)
-      .where(and(
-        eq(lagerorte.id, v.lagerortId),
-        eq(lagerorte.aktiv, true),
-      ))
-      .get();
-    if (!lagerort) return festerFehler(LAGERORT_FEHLER);
+      const lagerort = db.select({ id: lagerorte.id }).from(lagerorte)
+        .where(and(
+          eq(lagerorte.id, v.lagerortId),
+          eq(lagerorte.aktiv, true),
+        ))
+        .get();
+      if (!lagerort) return festerFehler(LAGERORT_FEHLER);
 
-    if (barcode) {
-      pruefeBarcodeFrei(
-        db,
+      if (barcode) {
+        pruefeBarcodeFrei(
+          db,
+          barcode,
+          v.id ? { tabelle: "bzGeraet", id: v.id } : null,
+        );
+      }
+
+      const felder = {
+        name: v.name,
         barcode,
-        v.id ? { tabelle: "bzGeraet", id: v.id } : null,
-      );
+        lagerortId: v.lagerortId,
+        streifenLot: orNull(v.streifenLot),
+        level1Label: orNull(v.level1Label),
+        level1Min: orNull(v.level1Min),
+        level1Max: orNull(v.level1Max),
+        level2Label: orNull(v.level2Label),
+        level2Min: orNull(v.level2Min),
+        level2Max: orNull(v.level2Max),
+      };
+
+      if (v.id) {
+        db.update(bzGeraete)
+          .set(felder)
+          .where(eq(bzGeraete.id, v.id))
+          .run();
+      } else {
+        db.insert(bzGeraete).values({
+          id,
+          aktiv: true,
+          createdAt: new Date(),
+          ...felder,
+        }).run();
+      }
+    } catch (e) {
+      if (e instanceof Error && e.name === "BarcodeKollision") {
+        return barcodeFehler();
+      }
+      return festerFehler("BZ-Gerät konnte nicht gespeichert werden.");
     }
 
-    const felder = {
-      name: v.name,
-      barcode,
-      lagerortId: v.lagerortId,
-      streifenLot: orNull(v.streifenLot),
-      level1Label: orNull(v.level1Label),
-      level1Min: orNull(v.level1Min),
-      level1Max: orNull(v.level1Max),
-      level2Label: orNull(v.level2Label),
-      level2Min: orNull(v.level2Min),
-      level2Max: orNull(v.level2Max),
-    };
-
-    if (v.id) {
-      db.update(bzGeraete)
-        .set(felder)
-        .where(eq(bzGeraete.id, v.id))
-        .run();
-    } else {
-      db.insert(bzGeraete).values({
-        id,
-        aktiv: true,
-        createdAt: new Date(),
-        ...felder,
-      }).run();
-    }
-  } catch (e) {
-    if (e instanceof Error && e.name === "BarcodeKollision") {
-      return barcodeFehler();
-    }
-    return festerFehler("BZ-Gerät konnte nicht gespeichert werden.");
-  }
-
-  revalidate(id);
-  return { ok: true, wert: { id } };
+    revalidate(id);
+    return { ok: true, wert: { id } };
+  });
 }
 
 export async function setGeraetAktiv(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = AktivSchema.safeParse(eingabe);
-  if (!geparst.success) return festerFehler("Ungültige Eingabe.");
+    const geparst = AktivSchema.safeParse(eingabe);
+    if (!geparst.success) return festerFehler("Ungültige Eingabe.");
 
-  try {
-    if (!bzGeraetExistiert(db, geparst.data.id)) {
-      return festerFehler(BZ_GERAET_FEHLER);
+    try {
+      if (!bzGeraetExistiert(db, geparst.data.id)) {
+        return festerFehler(BZ_GERAET_FEHLER);
+      }
+
+      db.update(bzGeraete)
+        .set({ aktiv: geparst.data.aktiv })
+        .where(eq(bzGeraete.id, geparst.data.id))
+        .run();
+    } catch {
+      return festerFehler("BZ-Gerätestatus konnte nicht geändert werden.");
     }
 
-    db.update(bzGeraete)
-      .set({ aktiv: geparst.data.aktiv })
-      .where(eq(bzGeraete.id, geparst.data.id))
-      .run();
-  } catch {
-    return festerFehler("BZ-Gerätestatus konnte nicht geändert werden.");
-  }
-
-  revalidate(geparst.data.id);
-  return { ok: true };
+    revalidate(geparst.data.id);
+    return { ok: true };
+  });
 }
 
 export async function geraetZuBarcode(
   rohwert: string,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string } | null>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string } | null>> => {
 
-  try {
-    const barcode = normalisiereBarcode(rohwert);
-    if (!barcode) return { ok: true, wert: null };
-    return { ok: true, wert: bzGeraetByBarcode(db, barcode) };
-  } catch {
-    return festerFehler("BZ-Gerät konnte nicht gesucht werden.");
-  }
+    try {
+      const barcode = normalisiereBarcode(rohwert);
+      if (!barcode) return { ok: true, wert: null };
+      return { ok: true, wert: bzGeraetByBarcode(db, barcode) };
+    } catch {
+      return festerFehler("BZ-Gerät konnte nicht gesucht werden.");
+    }
+  });
 }
 
 /**
@@ -218,64 +225,66 @@ export async function kontrolleErfassen(
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string; bestanden: boolean }>> {
   const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ id: string; bestanden: boolean }>> => {
 
-  const geparst = KontrolleSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  const v = geparst.data;
+    const geparst = KontrolleSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
 
-  let id: string;
-  let bestanden: boolean;
-  try {
-    const geraet = db.select().from(bzGeraete)
-      .where(eq(bzGeraete.id, v.geraetId))
-      .get();
-    if (!geraet) return festerFehler("Gerät nicht gefunden.");
+    let id: string;
+    let bestanden: boolean;
+    try {
+      const geraet = db.select().from(bzGeraete)
+        .where(eq(bzGeraete.id, v.geraetId))
+        .get();
+      if (!geraet) return festerFehler("Gerät nicht gefunden.");
 
-    const level1Wert = v.level1Wert ?? null;
-    const level2Wert = v.level2Wert ?? null;
-    const bewertung = bewerteKontrolle({
-      level1Wert,
-      level1Min: geraet.level1Min,
-      level1Max: geraet.level1Max,
-      level2Wert,
-      level2Min: geraet.level2Min,
-      level2Max: geraet.level2Max,
-    });
+      const level1Wert = v.level1Wert ?? null;
+      const level2Wert = v.level2Wert ?? null;
+      const bewertung = bewerteKontrolle({
+        level1Wert,
+        level1Min: geraet.level1Min,
+        level1Max: geraet.level1Max,
+        level2Wert,
+        level2Min: geraet.level2Min,
+        level2Max: geraet.level2Max,
+      });
 
-    const refSnapshot = JSON.stringify({
-      streifenLot: geraet.streifenLot,
-      level1Label: geraet.level1Label,
-      level1Min: geraet.level1Min,
-      level1Max: geraet.level1Max,
-      level2Label: geraet.level2Label,
-      level2Min: geraet.level2Min,
-      level2Max: geraet.level2Max,
-    });
+      const refSnapshot = JSON.stringify({
+        streifenLot: geraet.streifenLot,
+        level1Label: geraet.level1Label,
+        level1Min: geraet.level1Min,
+        level1Max: geraet.level1Max,
+        level2Label: geraet.level2Label,
+        level2Min: geraet.level2Min,
+        level2Max: geraet.level2Max,
+      });
 
-    id = newId();
-    bestanden = bewertung.bestanden;
-    db.insert(bzKontrollen).values({
-      id,
-      geraetId: geraet.id,
-      ts: new Date(),
-      quelleTyp: "oidc",
-      quelleId: viewer.sub,
-      level1Wert,
-      level1ImBereich: bewertung.level1ImBereich,
-      level2Wert,
-      level2ImBereich: bewertung.level2ImBereich,
-      kompresseVerfall: v.kompresseVerfall ?? null,
-      sticks: v.sticks,
-      lanzetten: v.lanzetten,
-      batterieGewechselt: v.batterieGewechselt,
-      kommentar: orNull(v.kommentar),
-      bestanden,
-      refSnapshot,
-    }).run();
-  } catch {
-    return festerFehler("Kontrolle konnte nicht gespeichert werden.");
-  }
+      id = newId();
+      bestanden = bewertung.bestanden;
+      db.insert(bzKontrollen).values({
+        id,
+        geraetId: geraet.id,
+        ts: new Date(),
+        quelleTyp: "oidc",
+        quelleId: viewer.sub,
+        level1Wert,
+        level1ImBereich: bewertung.level1ImBereich,
+        level2Wert,
+        level2ImBereich: bewertung.level2ImBereich,
+        kompresseVerfall: v.kompresseVerfall ?? null,
+        sticks: v.sticks,
+        lanzetten: v.lanzetten,
+        batterieGewechselt: v.batterieGewechselt,
+        kommentar: orNull(v.kommentar),
+        bestanden,
+        refSnapshot,
+      }).run();
+    } catch {
+      return festerFehler("Kontrolle konnte nicht gespeichert werden.");
+    }
 
-  revalidate(v.geraetId);
-  return { ok: true, wert: { id, bestanden } };
+    revalidate(v.geraetId);
+    return { ok: true, wert: { id, bestanden } };
+  });
 }

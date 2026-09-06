@@ -1,3 +1,4 @@
+import { withAuditContext } from "@/core/audit/server";
 /**
  * Die modul-eigene Scan-Warteschlange (Aufgabe 18, Spec §2 letzter Absatz,
  * §5.3, §6 `datei`, §7).
@@ -322,7 +323,9 @@ export function bearbeiteOffeneDateien(
  * hier gefunden — ohne diesen Aufruf bliebe sie fuer immer stehen.
  */
 export function starteAufgabenScanArbeiter(db?: AufgabenDb): void {
-  void bearbeiteOffeneDateien(db).catch((fehler) => {
-    console.error("[aufgaben][scan] ein Durchlauf der Warteschlange ist gescheitert:", fehler);
+  return withAuditContext({ actor: { kind: "system" } }, (): void => {
+    void bearbeiteOffeneDateien(db).catch((fehler) => {
+      console.error("[aufgaben][scan] ein Durchlauf der Warteschlange ist gescheitert:", fehler);
+    });
   });
 }

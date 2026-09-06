@@ -1,3 +1,4 @@
+import { withAuditContext } from "@/core/audit/server";
 // src/app/m/radio/_lib/schreibpfade/codeEinloesung.ts
 import { eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
@@ -62,16 +63,18 @@ export async function loeseCodeEin(code: string, db: DB): Promise<Einloesung> {
   // ⛔ EIN EINZIGER AUSDRUCK, nicht zwei Zweige mit zwei Rueckgaben: zwei Zweige liefen
   // irgendwann auseinander, und genau dann entstuende das Orakel oben.
   if (!zeile || !zeile.aktiv) return { ok: false };
+  return withAuditContext({ actor: { kind: "anonymous" } }, async (): Promise<Einloesung> => {
 
-  // NACH dem Doppeltest, also NUR beim Treffer (Spec:2322-2324). Ein gesperrter Code
-  // trueg sonst nach jedem Scanversuch eine frische Spur, und die Verwaltungsliste zeigte
-  // Aktivitaet, die es nicht gibt — ausgerechnet an der einen Information, an der die
-  // Leitung erkennt, ob ein verschwundenes Kaertchen noch im Umlauf ist.
-  db.update(zugangscodes).set({ lastUsedAt: new Date() }).where(eq(zugangscodes.id, zeile.id)).run();
+    // NACH dem Doppeltest, also NUR beim Treffer (Spec:2322-2324). Ein gesperrter Code
+    // trueg sonst nach jedem Scanversuch eine frische Spur, und die Verwaltungsliste zeigte
+    // Aktivitaet, die es nicht gibt — ausgerechnet an der einen Information, an der die
+    // Leitung erkennt, ob ein verschwundenes Kaertchen noch im Umlauf ist.
+    db.update(zugangscodes).set({ lastUsedAt: new Date() }).where(eq(zugangscodes.id, zeile.id)).run();
 
-  // ⛔ DIE NUTZLAST TRAEGT NUR DIE `codeId`, nie den Klartext-Code und nie die Bezeichnung
-  // (`src/app/m/radio/_lib/ausleihSitzung.ts:47`, Spec:2503-2506): beide kommen bei jedem
-  // Aufruf frisch aus dieser Zeile, sonst waeren Umbenennung und Sperre auf der Flaeche
-  // unsichtbar, bis das Cookie ablaeuft.
-  return { ok: true, cookieValue: await createAusleihSitzung({ codeId: zeile.id }), codeId: zeile.id };
+    // ⛔ DIE NUTZLAST TRAEGT NUR DIE `codeId`, nie den Klartext-Code und nie die Bezeichnung
+    // (`src/app/m/radio/_lib/ausleihSitzung.ts:47`, Spec:2503-2506): beide kommen bei jedem
+    // Aufruf frisch aus dieser Zeile, sonst waeren Umbenennung und Sperre auf der Flaeche
+    // unsichtbar, bis das Cookie ablaeuft.
+    return { ok: true, cookieValue: await createAusleihSitzung({ codeId: zeile.id }), codeId: zeile.id };
+  });
 }

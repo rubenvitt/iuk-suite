@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 /**
  * DER MANUELLE AUSLOESER DES AUFRAEUMLAUFS (Spec §7.6; Plan T46).
@@ -49,12 +50,14 @@ const INTERNER_PFAD = "/m/files";
  * (`_lib/boot.ts`).
  */
 export async function aufraeumenAction(formData: FormData): Promise<void> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<void> => {
 
-  const modus = formData.get("modus");
-  const nurVorschau = modus !== "echt";
+    const modus = formData.get("modus");
+    const nurVorschau = modus !== "echt";
 
-  await fuehreAufraeumLaufAus({ nurVorschau });
+    await fuehreAufraeumLaufAus({ nurVorschau });
 
-  revalidatePath(INTERNER_PFAD);
+    revalidatePath(INTERNER_PFAD);
+  });
 }

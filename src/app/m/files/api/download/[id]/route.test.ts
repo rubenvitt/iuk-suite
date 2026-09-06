@@ -669,3 +669,24 @@ describe("Audit-Log (§4.5, §7.8): genau eine Zeile je Erfolg", () => {
     expect(zeilen[0].clientIpUnbestaetigt).toBeNull();
   });
 });
+
+it("records actual provided bytes as anonymous and preserves delivery during audit failure", async () => {
+  const { queryAuditEvents } = await import("@/core/audit/storage");
+  const { withAuditContext } = await import("@/core/audit/context");
+  const central = new Database(`${DIR}/audit.db`);
+  migrate(drizzle(central), { migrationsFolder: "src/core/audit/_db/migrations" });
+  try {
+    const bytes = await einfacherShare();
+    const response = await withAuditContext({ actor: { kind: "user", id: "must-not-inherit" } }, () => ruf("share00001"));
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect(queryAuditEvents().events).toHaveLength(1);
+    expect(queryAuditEvents().events[0]).toMatchObject({ module: "files", action: "download", result: "success", actor: { kind: "anonymous" } });
+    central.exec("CREATE TRIGGER reject_audit BEFORE INSERT ON audit_events BEGIN SELECT RAISE(ABORT, 'secret error details'); END");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const again = await ruf("share00001");
+    expect(again.status).toBe(200);
+    expect(Buffer.from(await again.arrayBuffer())).toEqual(bytes);
+    expect(log).toHaveBeenCalledWith("[audit] Ereignis konnte nicht gespeichert werden.");
+    expect(await downloadCount("share00001")).toBe(2);
+  } finally { central.close(); }
+});

@@ -1,3 +1,5 @@
+import { auditDenied } from "@/core/audit/server";
+import { auditDelivery, auditActor } from "@/core/audit/server";
 import { headers } from "next/headers";
 import { auth } from "@/core/auth";
 import { getDb } from "../../../../_db/client";
@@ -49,52 +51,54 @@ export async function GET(request: Request): Promise<Response> {
   if (lagerbuchHostOderNull(kopf) === null) return new Response(null, { status: 404 });
 
   const viewer = viewerAusSession(await auth());
-  if (!istLagerbuchAdmin(viewer)) return new Response(null, { status: 404 });
+  if (!istLagerbuchAdmin(viewer)) { auditDenied("lagerbuch", auditActor(viewer)); return new Response(null, { status: 404 }); }
+  return auditDelivery("lagerbuch", "export", "export", auditActor(viewer), async (): Promise<Response> => {
 
-  const parameter = new URL(request.url).searchParams;
-  const gewaehlt = gewaehlteFahrzeuge(parameter.getAll("fz"));
-  const jetzt = new Date();
+    const parameter = new URL(request.url).searchParams;
+    const gewaehlt = gewaehlteFahrzeuge(parameter.getAll("fz"));
+    const jetzt = new Date();
 
-  const blaetter = checklistenDaten(
-    getDb(),
-    gewaehlt.length === 0 ? null : gewaehlt,
-    jetzt,
-  );
+    const blaetter = checklistenDaten(
+      getDb(),
+      gewaehlt.length === 0 ? null : gewaehlt,
+      jetzt,
+    );
 
-  /**
-   * KEIN LEERES PDF. Die Seite kann den leeren Fall BENENNEN („kein aktives
-   * Fahrzeug angelegt") und einen Weg zurueck anbieten; eine Datei kann das
-   * nicht — ein PDF mit null Seiten ist in manchen Betrachtern gar nicht zu
-   * oeffnen und sieht in allen uebrigen wie ein defekter Download aus. Wer
-   * hierher kommt, kam ueber den Knopf auf einem Bogen, der Blaetter zeigt;
-   * ist die Auswahl inzwischen leer, ist 404 die ehrlichere Antwort.
-   */
-  if (blaetter.length === 0) return new Response(null, { status: 404 });
+    /**
+     * KEIN LEERES PDF. Die Seite kann den leeren Fall BENENNEN („kein aktives
+     * Fahrzeug angelegt") und einen Weg zurueck anbieten; eine Datei kann das
+     * nicht — ein PDF mit null Seiten ist in manchen Betrachtern gar nicht zu
+     * oeffnen und sieht in allen uebrigen wie ein defekter Download aus. Wer
+     * hierher kommt, kam ueber den Knopf auf einem Bogen, der Blaetter zeigt;
+     * ist die Auswahl inzwischen leer, ist 404 die ehrlichere Antwort.
+     */
+    if (blaetter.length === 0) return new Response(null, { status: 404 });
 
-  const stand = standDatum(jetzt);
-  const bytes = await checklistenPdf(blaetter, {
-    stand,
-    blind: parameter.get("blind") === "1",
-    kompakt: parameter.get("kompakt") === "1",
-    erstellt: jetzt,
-  });
+    const stand = standDatum(jetzt);
+    const bytes = await checklistenPdf(blaetter, {
+      stand,
+      blind: parameter.get("blind") === "1",
+      kompakt: parameter.get("kompakt") === "1",
+      erstellt: jetzt,
+    });
 
-  // `Buffer.from`, nicht das rohe `Uint8Array`: `BodyInit` nimmt in dieser
-  // Typumgebung `Uint8Array<ArrayBufferLike>` nicht an. Der Aufruf kopiert die
-  // Bytes — bei einem Bogen von wenigen zehn Kilobyte ist das billiger als
-  // eine `as BodyInit`-Zusicherung, die eine echte Unvertraeglichkeit
-  // ueberdecken koennte.
-  return new Response(Buffer.from(bytes), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      // `attachment`: der Bogen ist zum Ablegen und Weiterschicken da. Der
-      // Dateiname ist bewusst ASCII (`pdfDateiname`) — er steht ungequotet
-      // zwischen Anfuehrungszeichen, und der ungekuerzte Fahrzeugname steht im
-      // Dokument selbst.
-      "Content-Disposition": `attachment; filename="${pdfDateiname(blaetter, stand)}"`,
-      // Die Sollmengen einer Flotte gehoeren in keinen geteilten Zwischenspeicher.
-      "Cache-Control": "private, no-store",
-    },
+    // `Buffer.from`, nicht das rohe `Uint8Array`: `BodyInit` nimmt in dieser
+    // Typumgebung `Uint8Array<ArrayBufferLike>` nicht an. Der Aufruf kopiert die
+    // Bytes — bei einem Bogen von wenigen zehn Kilobyte ist das billiger als
+    // eine `as BodyInit`-Zusicherung, die eine echte Unvertraeglichkeit
+    // ueberdecken koennte.
+    return new Response(Buffer.from(bytes), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        // `attachment`: der Bogen ist zum Ablegen und Weiterschicken da. Der
+        // Dateiname ist bewusst ASCII (`pdfDateiname`) — er steht ungequotet
+        // zwischen Anfuehrungszeichen, und der ungekuerzte Fahrzeugname steht im
+        // Dokument selbst.
+        "Content-Disposition": `attachment; filename="${pdfDateiname(blaetter, stand)}"`,
+        // Die Sollmengen einer Flotte gehoeren in keinen geteilten Zwischenspeicher.
+        "Cache-Control": "private, no-store",
+      },
+    });
   });
 }

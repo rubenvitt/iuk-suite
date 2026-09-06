@@ -1,0 +1,8 @@
+
+ RUN  v4.1.11 /private/tmp/iuk-suite-audit-log
+
+
+ Test Files  44 passed (44)
+      Tests  1023 passed (1023)
+   Start at  11:14:03
+   Duration  63.49s (transform 20.48s, setup 2.28s, import 136.41s, tests 63.36s, environment 35ms)

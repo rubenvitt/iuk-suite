@@ -1,3 +1,4 @@
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { getModule } from "@/core/registry";
 import { adminGroupsFor } from "@/core/groups";
 
@@ -47,6 +48,7 @@ export function assertGroupAccess(
 ): void {
   if (isFeedbackAdmin(viewer)) return;
   if (viewer && memberGroupIds.includes(groupId)) return;
+  auditDenied("feedback", auditActor(viewer));
   throw new Error("Forbidden");
 }
 

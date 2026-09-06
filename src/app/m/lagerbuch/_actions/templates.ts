@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq, isNotNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -81,25 +82,27 @@ export async function createTemplate(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  const geparst = TemplateSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
+    const geparst = TemplateSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
 
-  const id = newId();
-  try {
-    db.insert(fahrzeugTemplates).values({
-      id,
-      name: geparst.data.name,
-      aktiv: true,
-      createdAt: new Date(),
-    }).run();
-  } catch {
-    return festerFehler("Vorlage konnte nicht angelegt werden.");
-  }
+    const id = newId();
+    try {
+      db.insert(fahrzeugTemplates).values({
+        id,
+        name: geparst.data.name,
+        aktiv: true,
+        createdAt: new Date(),
+      }).run();
+    } catch {
+      return festerFehler("Vorlage konnte nicht angelegt werden.");
+    }
 
-  revalidate();
-  return { ok: true, wert: { id } };
+    revalidate();
+    return { ok: true, wert: { id } };
+  });
 }
 
 const RenameSchema = z.object({
@@ -111,22 +114,24 @@ export async function renameTemplate(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = RenameSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
+    const geparst = RenameSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
 
-  try {
-    db.update(fahrzeugTemplates)
-      .set({ name: geparst.data.name })
-      .where(eq(fahrzeugTemplates.id, geparst.data.id))
-      .run();
-  } catch {
-    return festerFehler("Vorlage konnte nicht umbenannt werden.");
-  }
+    try {
+      db.update(fahrzeugTemplates)
+        .set({ name: geparst.data.name })
+        .where(eq(fahrzeugTemplates.id, geparst.data.id))
+        .run();
+    } catch {
+      return festerFehler("Vorlage konnte nicht umbenannt werden.");
+    }
 
-  revalidate();
-  return { ok: true };
+    revalidate();
+    return { ok: true };
+  });
 }
 
 const TemplateAktivSchema = z.object({
@@ -138,22 +143,24 @@ export async function setTemplateAktiv(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = TemplateAktivSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
+    const geparst = TemplateAktivSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
 
-  try {
-    db.update(fahrzeugTemplates)
-      .set({ aktiv: geparst.data.aktiv })
-      .where(eq(fahrzeugTemplates.id, geparst.data.id))
-      .run();
-  } catch {
-    return festerFehler("Vorlagenstatus konnte nicht geändert werden.");
-  }
+    try {
+      db.update(fahrzeugTemplates)
+        .set({ aktiv: geparst.data.aktiv })
+        .where(eq(fahrzeugTemplates.id, geparst.data.id))
+        .run();
+    } catch {
+      return festerFehler("Vorlagenstatus konnte nicht geändert werden.");
+    }
 
-  revalidate();
-  return { ok: true };
+    revalidate();
+    return { ok: true };
+  });
 }
 
 const DeleteTemplateSchema = z.object({ id: z.string().min(1) });
@@ -162,32 +169,34 @@ export async function deleteTemplate(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = DeleteTemplateSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
+    const geparst = DeleteTemplateSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
 
-  try {
-    db.transaction((tx) => {
-      const fahrzeuge = tx.select().from(lagerorte)
-        .where(and(
-          eq(lagerorte.templateId, geparst.data.id),
-          eq(lagerorte.typ, "fahrzeug"),
-        )).all();
-      for (const fahrzeug of fahrzeuge) {
-        loeseFahrzeugVonTemplate(tx, fahrzeug.id);
-      }
-      tx.delete(templatePositionen)
-        .where(eq(templatePositionen.templateId, geparst.data.id)).run();
-      tx.delete(fahrzeugTemplates)
-        .where(eq(fahrzeugTemplates.id, geparst.data.id)).run();
-    });
-  } catch {
-    return festerFehler("Vorlage konnte nicht gelöscht werden.");
-  }
+    try {
+      db.transaction((tx) => {
+        const fahrzeuge = tx.select().from(lagerorte)
+          .where(and(
+            eq(lagerorte.templateId, geparst.data.id),
+            eq(lagerorte.typ, "fahrzeug"),
+          )).all();
+        for (const fahrzeug of fahrzeuge) {
+          loeseFahrzeugVonTemplate(tx, fahrzeug.id);
+        }
+        tx.delete(templatePositionen)
+          .where(eq(templatePositionen.templateId, geparst.data.id)).run();
+        tx.delete(fahrzeugTemplates)
+          .where(eq(fahrzeugTemplates.id, geparst.data.id)).run();
+      });
+    } catch {
+      return festerFehler("Vorlage konnte nicht gelöscht werden.");
+    }
 
-  revalidate();
-  return { ok: true };
+    revalidate();
+    return { ok: true };
+  });
 }
 
 const TemplatePosSchema = z.object({
@@ -203,35 +212,37 @@ export async function templatePositionSetzen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  const geparst = TemplatePosSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  const v = geparst.data;
-  const id = v.id ?? newId();
-  const felder = {
-    templateId: v.templateId,
-    fachLabel: v.fachLabel,
-    artikelId: v.artikelId,
-    soll: v.soll,
-    sort: v.sort,
-  };
+    const geparst = TemplatePosSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
+    const id = v.id ?? newId();
+    const felder = {
+      templateId: v.templateId,
+      fachLabel: v.fachLabel,
+      artikelId: v.artikelId,
+      soll: v.soll,
+      sort: v.sort,
+    };
 
-  try {
-    if (v.id) {
-      db.update(templatePositionen)
-        .set(felder)
-        .where(eq(templatePositionen.id, v.id))
-        .run();
-    } else {
-      db.insert(templatePositionen).values({ id, ...felder }).run();
+    try {
+      if (v.id) {
+        db.update(templatePositionen)
+          .set(felder)
+          .where(eq(templatePositionen.id, v.id))
+          .run();
+      } else {
+        db.insert(templatePositionen).values({ id, ...felder }).run();
+      }
+    } catch {
+      return festerFehler("Vorlagenposition konnte nicht gespeichert werden.");
     }
-  } catch {
-    return festerFehler("Vorlagenposition konnte nicht gespeichert werden.");
-  }
 
-  revalidate();
-  return { ok: true, wert: { id } };
+    revalidate();
+    return { ok: true, wert: { id } };
+  });
 }
 
 const TemplatePosEntfernenSchema = z.object({ id: z.string().min(1) });
@@ -240,36 +251,38 @@ export async function templatePositionEntfernen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = TemplatePosEntfernenSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
+    const geparst = TemplatePosEntfernenSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
 
-  try {
-    db.transaction((tx) => {
-      const referenzierend = tx.select().from(sollPositionen)
-        .where(eq(sollPositionen.templatePositionId, geparst.data.id)).all();
-      for (const row of referenzierend) {
-        if (row.ueberschrieben) {
-          tx.update(sollPositionen)
-            .set({ templatePositionId: null, ueberschrieben: false })
-            .where(eq(sollPositionen.id, row.id))
-            .run();
-        } else {
-          tx.delete(sollPositionen).where(eq(sollPositionen.id, row.id)).run();
+    try {
+      db.transaction((tx) => {
+        const referenzierend = tx.select().from(sollPositionen)
+          .where(eq(sollPositionen.templatePositionId, geparst.data.id)).all();
+        for (const row of referenzierend) {
+          if (row.ueberschrieben) {
+            tx.update(sollPositionen)
+              .set({ templatePositionId: null, ueberschrieben: false })
+              .where(eq(sollPositionen.id, row.id))
+              .run();
+          } else {
+            tx.delete(sollPositionen).where(eq(sollPositionen.id, row.id)).run();
+          }
+          bereinigeVerfallOhneAktivesSoll(tx, row.fahrzeugId, row.artikelId);
         }
-        bereinigeVerfallOhneAktivesSoll(tx, row.fahrzeugId, row.artikelId);
-      }
-      tx.delete(templatePositionen)
-        .where(eq(templatePositionen.id, geparst.data.id)).run();
-    });
-  } catch {
-    return festerFehler("Vorlagenposition konnte nicht entfernt werden.");
-  }
+        tx.delete(templatePositionen)
+          .where(eq(templatePositionen.id, geparst.data.id)).run();
+      });
+    } catch {
+      return festerFehler("Vorlagenposition konnte nicht entfernt werden.");
+    }
 
-  revalidate();
-  revalidatePath(VERFALL_PFAD);
-  return { ok: true };
+    revalidate();
+    revalidatePath(VERFALL_PFAD);
+    return { ok: true };
+  });
 }
 
 const ZuweisenSchema = z.object({
@@ -281,33 +294,35 @@ export async function fahrzeugTemplateZuweisen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<SyncErgebnis>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<SyncErgebnis>> => {
 
-  const geparst = ZuweisenSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
-    return festerFehler("Fahrzeug nicht gefunden.");
-  }
+    const geparst = ZuweisenSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
+      return festerFehler("Fahrzeug nicht gefunden.");
+    }
 
-  let ergebnis: SyncErgebnis;
-  try {
-    ergebnis = db.transaction((tx) => {
-      tx.update(lagerorte)
-        .set({ templateId: geparst.data.templateId })
-        .where(and(
-          eq(lagerorte.id, geparst.data.fahrzeugId),
-          eq(lagerorte.typ, "fahrzeug"),
-        ))
-        .run();
-      return syncFahrzeugTemplate(tx, geparst.data.fahrzeugId);
-    });
-  } catch {
-    return festerFehler("Vorlage konnte dem Fahrzeug nicht zugewiesen werden.");
-  }
+    let ergebnis: SyncErgebnis;
+    try {
+      ergebnis = db.transaction((tx) => {
+        tx.update(lagerorte)
+          .set({ templateId: geparst.data.templateId })
+          .where(and(
+            eq(lagerorte.id, geparst.data.fahrzeugId),
+            eq(lagerorte.typ, "fahrzeug"),
+          ))
+          .run();
+        return syncFahrzeugTemplate(tx, geparst.data.fahrzeugId);
+      });
+    } catch {
+      return festerFehler("Vorlage konnte dem Fahrzeug nicht zugewiesen werden.");
+    }
 
-  revalidate(geparst.data.fahrzeugId);
-  revalidatePath(VERFALL_PFAD);
-  return { ok: true, wert: ergebnis };
+    revalidate(geparst.data.fahrzeugId);
+    revalidatePath(VERFALL_PFAD);
+    return { ok: true, wert: ergebnis };
+  });
 }
 
 const SyncSchema = z.object({ fahrzeugId: z.string().min(1) });
@@ -316,25 +331,27 @@ export async function fahrzeugTemplateSync(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<SyncErgebnis>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<SyncErgebnis>> => {
 
-  const geparst = SyncSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
-    return festerFehler("Fahrzeug nicht gefunden.");
-  }
+    const geparst = SyncSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
+      return festerFehler("Fahrzeug nicht gefunden.");
+    }
 
-  let ergebnis: SyncErgebnis;
-  try {
-    ergebnis = db.transaction((tx) =>
-      syncFahrzeugTemplate(tx, geparst.data.fahrzeugId));
-  } catch {
-    return festerFehler("Fahrzeugvorlage konnte nicht synchronisiert werden.");
-  }
+    let ergebnis: SyncErgebnis;
+    try {
+      ergebnis = db.transaction((tx) =>
+        syncFahrzeugTemplate(tx, geparst.data.fahrzeugId));
+    } catch {
+      return festerFehler("Fahrzeugvorlage konnte nicht synchronisiert werden.");
+    }
 
-  revalidate(geparst.data.fahrzeugId);
-  revalidatePath(VERFALL_PFAD);
-  return { ok: true, wert: ergebnis };
+    revalidate(geparst.data.fahrzeugId);
+    revalidatePath(VERFALL_PFAD);
+    return { ok: true, wert: ergebnis };
+  });
 }
 
 const SyncAlleSchema = z.object({ templateId: z.string().min(1) });
@@ -343,43 +360,45 @@ export async function templateAufFahrzeugeSyncen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<SyncErgebnis & { fahrzeuge: number }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<SyncErgebnis & { fahrzeuge: number }>> => {
 
-  const geparst = SyncAlleSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
+    const geparst = SyncAlleSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
 
-  let ergebnis: SyncErgebnis & { fahrzeuge: number };
-  try {
-    ergebnis = db.transaction((tx) => {
-      const fahrzeuge = tx.select().from(lagerorte)
-        .where(and(
-          eq(lagerorte.templateId, geparst.data.templateId),
-          eq(lagerorte.typ, "fahrzeug"),
-        )).all();
-      const summe: SyncErgebnis = {
-        hinzugefuegt: 0,
-        aktualisiert: 0,
-        uebersprungen: 0,
-        entfernt: 0,
-        losgeloest: 0,
-      };
-      for (const fahrzeug of fahrzeuge) {
-        const sync = syncFahrzeugTemplate(tx, fahrzeug.id);
-        summe.hinzugefuegt += sync.hinzugefuegt;
-        summe.aktualisiert += sync.aktualisiert;
-        summe.uebersprungen += sync.uebersprungen;
-        summe.entfernt += sync.entfernt;
-        summe.losgeloest += sync.losgeloest;
-      }
-      return { fahrzeuge: fahrzeuge.length, ...summe };
-    });
-  } catch {
-    return festerFehler("Vorlage konnte nicht synchronisiert werden.");
-  }
+    let ergebnis: SyncErgebnis & { fahrzeuge: number };
+    try {
+      ergebnis = db.transaction((tx) => {
+        const fahrzeuge = tx.select().from(lagerorte)
+          .where(and(
+            eq(lagerorte.templateId, geparst.data.templateId),
+            eq(lagerorte.typ, "fahrzeug"),
+          )).all();
+        const summe: SyncErgebnis = {
+          hinzugefuegt: 0,
+          aktualisiert: 0,
+          uebersprungen: 0,
+          entfernt: 0,
+          losgeloest: 0,
+        };
+        for (const fahrzeug of fahrzeuge) {
+          const sync = syncFahrzeugTemplate(tx, fahrzeug.id);
+          summe.hinzugefuegt += sync.hinzugefuegt;
+          summe.aktualisiert += sync.aktualisiert;
+          summe.uebersprungen += sync.uebersprungen;
+          summe.entfernt += sync.entfernt;
+          summe.losgeloest += sync.losgeloest;
+        }
+        return { fahrzeuge: fahrzeuge.length, ...summe };
+      });
+    } catch {
+      return festerFehler("Vorlage konnte nicht synchronisiert werden.");
+    }
 
-  revalidate();
-  revalidatePath(VERFALL_PFAD);
-  return { ok: true, wert: ergebnis };
+    revalidate();
+    revalidatePath(VERFALL_PFAD);
+    return { ok: true, wert: ergebnis };
+  });
 }
 
 const LoesenSchema = z.object({ fahrzeugId: z.string().min(1) });
@@ -388,23 +407,25 @@ export async function fahrzeugTemplateLoesen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = LoesenSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
-    return festerFehler("Fahrzeug nicht gefunden.");
-  }
+    const geparst = LoesenSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
+      return festerFehler("Fahrzeug nicht gefunden.");
+    }
 
-  try {
-    db.transaction((tx) =>
-      loeseFahrzeugVonTemplate(tx, geparst.data.fahrzeugId));
-  } catch {
-    return festerFehler("Vorlagenverknüpfung konnte nicht gelöst werden.");
-  }
+    try {
+      db.transaction((tx) =>
+        loeseFahrzeugVonTemplate(tx, geparst.data.fahrzeugId));
+    } catch {
+      return festerFehler("Vorlagenverknüpfung konnte nicht gelöst werden.");
+    }
 
-  revalidate(geparst.data.fahrzeugId);
-  return { ok: true };
+    revalidate(geparst.data.fahrzeugId);
+    return { ok: true };
+  });
 }
 
 const AusFahrzeugSchema = z.object({
@@ -417,57 +438,59 @@ export async function templateAusFahrzeug(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  const geparst = AusFahrzeugSchema.safeParse(eingabe);
-  if (!geparst.success) return validierungsFehler(geparst.error);
-  const v = geparst.data;
-  if (!findeFahrzeug(db, v.fahrzeugId)) {
-    return festerFehler("Fahrzeug nicht gefunden.");
-  }
-  const templateId = newId();
+    const geparst = AusFahrzeugSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
+    if (!findeFahrzeug(db, v.fahrzeugId)) {
+      return festerFehler("Fahrzeug nicht gefunden.");
+    }
+    const templateId = newId();
 
-  try {
-    db.transaction((tx) => {
-      tx.insert(fahrzeugTemplates).values({
-        id: templateId,
-        name: v.name,
-        aktiv: true,
-        createdAt: new Date(),
-      }).run();
-      const rows = tx.select().from(sollPositionen)
-        .where(eq(sollPositionen.fahrzeugId, v.fahrzeugId)).all()
-        .filter((row) => !row.entfernt);
-
-      for (const row of rows) {
-        const templatePositionId = newId();
-        tx.insert(templatePositionen).values({
-          id: templatePositionId,
-          templateId,
-          fachLabel: row.fachLabel,
-          sort: row.sort,
-          artikelId: row.artikelId,
-          soll: row.soll,
+    try {
+      db.transaction((tx) => {
+        tx.insert(fahrzeugTemplates).values({
+          id: templateId,
+          name: v.name,
+          aktiv: true,
+          createdAt: new Date(),
         }).run();
+        const rows = tx.select().from(sollPositionen)
+          .where(eq(sollPositionen.fahrzeugId, v.fahrzeugId)).all()
+          .filter((row) => !row.entfernt);
+
+        for (const row of rows) {
+          const templatePositionId = newId();
+          tx.insert(templatePositionen).values({
+            id: templatePositionId,
+            templateId,
+            fachLabel: row.fachLabel,
+            sort: row.sort,
+            artikelId: row.artikelId,
+            soll: row.soll,
+          }).run();
+          if (v.verknuepfen) {
+            tx.update(sollPositionen)
+              .set({ templatePositionId, ueberschrieben: false })
+              .where(eq(sollPositionen.id, row.id))
+              .run();
+          }
+        }
+
         if (v.verknuepfen) {
-          tx.update(sollPositionen)
-            .set({ templatePositionId, ueberschrieben: false })
-            .where(eq(sollPositionen.id, row.id))
+          tx.update(lagerorte)
+            .set({ templateId })
+            .where(eq(lagerorte.id, v.fahrzeugId))
             .run();
         }
-      }
+      });
+    } catch {
+      return festerFehler("Vorlage konnte nicht aus dem Fahrzeug erstellt werden.");
+    }
 
-      if (v.verknuepfen) {
-        tx.update(lagerorte)
-          .set({ templateId })
-          .where(eq(lagerorte.id, v.fahrzeugId))
-          .run();
-      }
-    });
-  } catch {
-    return festerFehler("Vorlage konnte nicht aus dem Fahrzeug erstellt werden.");
-  }
-
-  revalidate(v.fahrzeugId);
-  return { ok: true, wert: { id: templateId } };
+    revalidate(v.fahrzeugId);
+    return { ok: true, wert: { id: templateId } };
+  });
 }

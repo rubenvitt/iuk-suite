@@ -1,3 +1,4 @@
+import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { lagerbuchHostOderNull } from "../../_lib/host";
 import { absenderAus } from "../../_lib/absender";
@@ -84,6 +85,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   // SCHRITT 6 — Misserfolg. „unbekannt" und „gesperrt" sind von aussen NICHT
   // unterscheidbar; das Gate zeigt fuer beide denselben Satz (§3.9).
   if (!res.ok) {
+    auditDenied("lagerbuch");
     gateFehlversuchBuchen(absender);
     return zumGate("code");
   }
@@ -93,6 +95,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   // selbst aus (§3.5.3).
   const antw = antwort(returnTo ?? tokenZielPfad(res.zielTyp, res.zielId));
   antw.cookies.set(HELFER_COOKIE, res.cookieValue, helferCookieOptionen(helferGueltigkeitSekunden()));
+  auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
   return antw;
 }
 

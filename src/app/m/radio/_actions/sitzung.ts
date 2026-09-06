@@ -1,5 +1,7 @@
 "use server";
+import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
 
+import { logoutActor } from "../_lib/audit";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { clientIpAus } from "@/core/ratelimit";
@@ -114,6 +116,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
   const res = await loeseCodeEin(code, getDb());
 
   if (!res.ok) {
+    auditDenied("radio");
     // SCHRITT 6 — erst jetzt buchen. „unbekannt" und „gesperrt" sind eine einzige Form
     // (Spec:2334-2336).
     gateFehlversuchBuchen(absender);
@@ -131,6 +134,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
     res.cookieValue,
     ausleihCookieOptionen(ausleihGueltigkeitSekunden()),
   );
+  auditEvent({ module: "radio", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("radio", res.codeId));
   return { ok: true };
 }
 
@@ -181,9 +185,11 @@ export async function beenden(): Promise<void> {
    * UEBERLEBT. Der Knopf leitete trotzdem um und saehe aus wie ein Erfolg; die Sitzung
    * stuende noch. ⛔ `_lib/bauform.test.ts` verbietet die Form modulweit, mit zwei Scans.
    */
+  const actor = await logoutActor((await cookies()).get?.(AUSLEIH_COOKIE)?.value);
   (await cookies()).set(AUSLEIH_COOKIE, "", ausleihCookieOptionen(0));
 
   // AEUSSERER Pfad — die Modulwurzel ist das Gate (Entscheidung E1). ⚠️ NICHT in einem
   // `try`/`catch`: `redirect()` arbeitet ueber einen geworfenen Sentinel.
+  auditEvent({ module: "radio", action: "sign_out", objectType: "session", result: "success", origin: "server" }, actor);
   redirect("/");
 }
