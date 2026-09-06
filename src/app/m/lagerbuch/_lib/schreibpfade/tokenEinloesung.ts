@@ -1,3 +1,4 @@
+import { withAuditContext } from "@/core/audit/server";
 import { eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { tokens } from "../../_db/schema";
@@ -65,21 +66,23 @@ export type Einloesung = EinloesungTreffer | { ok: false };
 export async function redeemToken(code: string, db: DB): Promise<Einloesung> {
   const t = db.select().from(tokens).where(eq(tokens.code, code)).get();
   if (!t || !t.aktiv) return { ok: false };
+  return withAuditContext({ actor: { kind: "anonymous" } }, async (): Promise<Einloesung> => {
 
-  // NUR bei einem Treffer. Ein gesperrtes Kaertchen traegt sonst nach jedem
-  // Scanversuch eine frische Spur, und die Token-Verwaltung zeigte Aktivitaet,
-  // die es nicht gibt.
-  db.update(tokens).set({ lastUsedAt: new Date() }).where(eq(tokens.id, t.id)).run();
+    // NUR bei einem Treffer. Ein gesperrtes Kaertchen traegt sonst nach jedem
+    // Scanversuch eine frische Spur, und die Token-Verwaltung zeigte Aktivitaet,
+    // die es nicht gibt.
+    db.update(tokens).set({ lastUsedAt: new Date() }).where(eq(tokens.id, t.id)).run();
 
-  // §3.4.3: die Nutzlast wird auf {tokenId} GEKUERZT. `code` und `label` kommen
-  // ab jetzt aus der DB-Zeile (§3.4.4) — sie stehen dort ohnehin und sind dort
-  // AKTUELL, waehrend ein Cookie sie zwoelf Stunden lang einfriert.
-  const payload: HelferPayload = { tokenId: t.id };
-  return {
-    ok: true,
-    cookieValue: await createHelferSitzung(payload),
-    tokenId: t.id,
-    zielTyp: t.zielTyp,
-    zielId: t.zielId,
-  };
+    // §3.4.3: die Nutzlast wird auf {tokenId} GEKUERZT. `code` und `label` kommen
+    // ab jetzt aus der DB-Zeile (§3.4.4) — sie stehen dort ohnehin und sind dort
+    // AKTUELL, waehrend ein Cookie sie zwoelf Stunden lang einfriert.
+    const payload: HelferPayload = { tokenId: t.id };
+    return {
+      ok: true,
+      cookieValue: await createHelferSitzung(payload),
+      tokenId: t.id,
+      zielTyp: t.zielTyp,
+      zielId: t.zielId,
+    };
+  });
 }

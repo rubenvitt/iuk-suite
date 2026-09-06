@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 // src/app/m/radio/_lib/ausleihZugang.test.ts
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -105,6 +106,7 @@ beforeEach(() => {
   process.env = { ...UMGEBUNG, RADIO_AUSLEIH_SITZUNG_SECRET: GEHEIMNIS };
   tmp = mkdtempSync(join(tmpdir(), "radio-ausleihzugang-"));
   sqlite = new Database(join(tmp, "radio.db"));
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/radio/_db/migrations" });
   const echtesPrepare = sqlite.prepare.bind(sqlite);

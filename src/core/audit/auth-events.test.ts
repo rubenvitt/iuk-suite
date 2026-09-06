@@ -1,0 +1,35 @@
+import { openModuleDatabase } from "@/core/db";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+vi.mock("@/core/auth/refresh", () => ({ tokenAuffrischen: async (token: unknown) => token }));
+vi.mock("@/core/konto/widerruf", () => ({ istWiderrufen: () => false }));
+import { authConfig } from "@/core/auth/config";
+import { queryAuditEvents } from "./storage";
+let dir: string;
+beforeEach(() => { dir = mkdtempSync(join(tmpdir(), "audit-auth-")); vi.stubEnv("DATA_DIR", dir); const db = openModuleDatabase(join(dir, "audit.db")); migrate(drizzle(db), { migrationsFolder: "src/core/audit/_db/migrations" }); db.close(); });
+afterEach(() => { rmSync(dir, { recursive: true, force: true }); vi.unstubAllEnvs(); });
+it("keeps the provider subject consistent across JWT and actual sign-in/sign-out hooks", async () => {
+  const config = authConfig(undefined);
+  const account = { providerAccountId: "pocket-sub", provider: "pocket-id", type: "oidc" };
+  const user = { id: "random-authjs-id", name: "Ada" };
+  const token = await config.callbacks!.jwt!({ token: { sub: user.id }, user, account, profile: { sub: "pocket-sub" } } as never);
+  await config.events!.signIn!({ user, account } as never);
+  await config.events!.signOut!({ token });
+  expect(token?.sub).toBe("pocket-sub");
+  const events = queryAuditEvents().events;
+  expect(events.map(e => e.action).sort()).toEqual(["sign_in", "sign_out"]);
+  expect(events.every(e => e.actor.kind === "user" && e.actor.id === token?.sub)).toBe(true);
+  expect(JSON.stringify(events)).not.toContain(user.id);
+});
+it("uses the confirmed credentials identity and does not count polling or refresh as sign-in", async () => {
+  const config = authConfig(undefined);
+  await config.events!.signIn!({ user: { id: "dev:ada", name: "Ada" }, account: { provider: "dev", type: "credentials", providerAccountId: "dev:ada" } } as never);
+  await config.callbacks!.jwt!({ token: { sub: "dev:ada", groups: [] } } as never);
+  config.callbacks!.session!({ session: { user: {} }, token: { sub: "dev:ada", groups: [] } } as never);
+  expect(queryAuditEvents().events).toHaveLength(1);
+  expect(queryAuditEvents().events[0].actor).toMatchObject({ kind: "user", id: "dev:ada" });
+});

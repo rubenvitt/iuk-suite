@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { canReadAudit } from "@/core/audit/access";
 import { moduleAdminPageOrNotFound } from "@/core/auth/guards";
 import { getAllServices } from "@/app/m/portal/_lib/services";
 import { leseAnsprechpartner } from "@/app/m/portal/_lib/einstellungen";
@@ -11,6 +13,7 @@ import { SPACE } from "@/core/theme/tokens";
 export default async function PortalAdminPage() {
   await moduleAdminPageOrNotFound("portal");
 
+  const darfAuditLesen = await canReadAudit();
   const services = await getAllServices();
   const ansprechpartner = await leseAnsprechpartner();
 
@@ -23,6 +26,7 @@ export default async function PortalAdminPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.xxl }} data-testid="portal-admin">
       <Seitenkopf titel="Dienste verwalten" />
+      {darfAuditLesen && <section><h2 style={{ margin: 0 }}>Audit-Log</h2><p>Änderungen, Anmeldungen und Abrufe in der gesamten Suite nachvollziehen.</p><Link href="/admin/audit" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>Audit-Log öffnen</Link></section>}
 
       <section>
         <ServiceTable services={services} deleteAction={deleteServiceAction} />

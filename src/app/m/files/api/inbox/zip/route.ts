@@ -1,3 +1,4 @@
+import { auditDelivery, auditActor } from "@/core/audit/server";
 import { PassThrough, Readable } from "node:stream";
 // archiver 8 ist reines ESM ohne Default-Export: die Fabrik `archiver("zip", …)`
 // gibt es nicht mehr, an ihre Stelle tritt die Klasse `ZipArchive` (index.js
@@ -215,181 +216,184 @@ export async function GET(req: Request): Promise<Response> {
    * dort nichts zu vereinheitlichen ist: „falscher Host" hat keinen zweiten
    * Aufrufer und keine sinnvolle Anmeldeaufforderung.
    */
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return auditDelivery("files", "export", "inbox_archive", auditActor(auditViewer), async (target): Promise<Response> => {
+    target("inbox");
 
-  const ids = ausgewaehlteIds(new URL(req.url));
-  if (ids.length === 0) {
-    // 400 und nicht ein leeres Archiv: „nichts ausgewaehlt" ist ein Zustand der
-    // aufrufenden Seite, kein Ergebnis.
-    return text("Es ist keine Datei ausgewählt.", 400);
-  }
-
-  // Aufgezaehlte Spalten, nie `select()` ohne Argument (Quelltext-Zusicherung in
-  // `_db/queries.test.ts`). Sortiert wie `ladeInhalt`, damit die Reihenfolge im
-  // Archiv nicht an der Reihenfolge in der URL haengt.
-  const zeilen = getDb()
-    .select({
-      id: inboxFiles.id,
-      dateiname: inboxFiles.dateiname,
-      avStatus: inboxFiles.avStatus,
-      bytesVollstaendigAt: inboxFiles.bytesVollstaendigAt,
-    })
-    .from(inboxFiles)
-    .where(inArray(inboxFiles.id, ids))
-    .orderBy(asc(inboxFiles.empfangenAt), asc(inboxFiles.id))
-    .all() as {
-    id: string;
-    dateiname: string;
-    avStatus: string;
-    bytesVollstaendigAt: Date | null;
-  }[];
-
-  const gefunden = new Set(zeilen.map((z) => z.id));
-  // Eine unbekannte oder fremde ID reisst die Auswahl NICHT mit: eine 404 fuer
-  // das ganze Archiv waere in einer Mehrfachauswahl eine Sackgasse, bei der
-  // niemand erfaehrt, welche Zeile schuld war (T49 Punkt 6).
-  const nichtGefundeneIds = ids.filter((id) => !gefunden.has(id));
-
-  const kandidaten: ZipKandidat[] = [];
-  for (const zeile of zeilen) {
-    const avStatus = alsAvStatus(zeile.avStatus);
-    // Nur Zeilen geprobt, die es ueberhaupt bis zum Archiv schaffen koennten:
-    // fuer eine Zeile ohne Bytes ist das Fehlen des Blobs der ERWARTETE Zustand.
-    if (
-      zeile.bytesVollstaendigAt !== null &&
-      avStatus === "clean" &&
-      !(await blobVorhanden(zeile.id))
-    ) {
-      nichtGefundeneIds.push(zeile.dateiname);
-      continue;
+    const ids = ausgewaehlteIds(new URL(req.url));
+    if (ids.length === 0) {
+      // 400 und nicht ein leeres Archiv: „nichts ausgewaehlt" ist ein Zustand der
+      // aufrufenden Seite, kein Ergebnis.
+      return text("Es ist keine Datei ausgewählt.", 400);
     }
-    kandidaten.push({
-      id: zeile.id,
-      name: zeile.dateiname,
-      avStatus,
-      bytesVollstaendigAt: zeile.bytesVollstaendigAt,
+
+    // Aufgezaehlte Spalten, nie `select()` ohne Argument (Quelltext-Zusicherung in
+    // `_db/queries.test.ts`). Sortiert wie `ladeInhalt`, damit die Reihenfolge im
+    // Archiv nicht an der Reihenfolge in der URL haengt.
+    const zeilen = getDb()
+      .select({
+        id: inboxFiles.id,
+        dateiname: inboxFiles.dateiname,
+        avStatus: inboxFiles.avStatus,
+        bytesVollstaendigAt: inboxFiles.bytesVollstaendigAt,
+      })
+      .from(inboxFiles)
+      .where(inArray(inboxFiles.id, ids))
+      .orderBy(asc(inboxFiles.empfangenAt), asc(inboxFiles.id))
+      .all() as {
+      id: string;
+      dateiname: string;
+      avStatus: string;
+      bytesVollstaendigAt: Date | null;
+    }[];
+
+    const gefunden = new Set(zeilen.map((z) => z.id));
+    // Eine unbekannte oder fremde ID reisst die Auswahl NICHT mit: eine 404 fuer
+    // das ganze Archiv waere in einer Mehrfachauswahl eine Sackgasse, bei der
+    // niemand erfaehrt, welche Zeile schuld war (T49 Punkt 6).
+    const nichtGefundeneIds = ids.filter((id) => !gefunden.has(id));
+
+    const kandidaten: ZipKandidat[] = [];
+    for (const zeile of zeilen) {
+      const avStatus = alsAvStatus(zeile.avStatus);
+      // Nur Zeilen geprobt, die es ueberhaupt bis zum Archiv schaffen koennten:
+      // fuer eine Zeile ohne Bytes ist das Fehlen des Blobs der ERWARTETE Zustand.
+      if (
+        zeile.bytesVollstaendigAt !== null &&
+        avStatus === "clean" &&
+        !(await blobVorhanden(zeile.id))
+      ) {
+        nichtGefundeneIds.push(zeile.dateiname);
+        continue;
+      }
+      kandidaten.push({
+        id: zeile.id,
+        name: zeile.dateiname,
+        avStatus,
+        bytesVollstaendigAt: zeile.bytesVollstaendigAt,
+      });
+    }
+
+    const plan = planeArchiv(kandidaten, nichtGefundeneIds);
+
+    if (plan.art === "leer") {
+      // Ein ZIP ohne Eintraege sieht fuer den Empfaenger wie ein Fehler seines
+      // Entpackprogramms aus. Stattdessen der benannte Zustand — samt der
+      // Fehlliste, denn im leeren Ast ist gerade sie die Begruendung.
+      const zeilenText = plan.ausgeschlossen.map((a) => `- ${a.name} — ${a.meldung}`);
+      return text([plan.meldung, "", ...zeilenText, ""].join("\n"), 403);
+    }
+
+    /*
+     * Ab hier laeuft die Abbruchbehandlung der Alt-App (PassThrough,
+     * `archive.on("error")`, `req.signal`-Zuhoerer, Aufraeumen im `finally`). Ihr
+     * S3-Anlass faellt weg, sie selbst nicht: sie verhindert hier geleckte
+     * FILE-DESCRIPTORS statt Sockets. Ohne den Fehler-Zuhoerer haengt der
+     * PassThrough bei einem Lesefehler fuer immer, und der Client wartet bis in
+     * sein eigenes Zeitlimit.
+     */
+    const rumpf = new PassThrough();
+    const archiv = new ZipArchive({ zlib: { level: 1 } });
+    archiv.on("error", (fehler) => {
+      console.error("[files] Posteingang-Archiv: Fehler im Archivierer", fehler);
+      rumpf.destroy(fehler);
     });
-  }
+    archiv.pipe(rumpf);
 
-  const plan = planeArchiv(kandidaten, nichtGefundeneIds);
+    /*
+     * DER ABBRUCH SCHLIESST DEN QUELLSTROM AUF ZWEI WEGEN, UND DAS IST ABSICHT —
+     * gemessen, damit niemand den einen fuer ueberfluessig haelt und wegkuerzt:
+     *
+     *  - dieser Zuhoerer hier, der SOFORT beim `abort`-Ereignis raeumt, und
+     *  - `fuegeEin`, das auf demselben Signal ablehnt, woraufhin `finally` unten
+     *    denselben Strom schliesst.
+     *
+     * Jeder deckt die Luecke des anderen: nimmt man `fuegeEin` das Signal, haengt
+     * sein Promise fuer immer und das `finally` liefe nie — dann traegt allein
+     * dieser Zuhoerer. Nimmt man diesen Zuhoerer, kommt das Aufraeumen einen
+     * Mikrotask spaeter, aber es kommt. Erst wenn BEIDE fehlen, bleibt der
+     * Deskriptor offen; genau das ist die Mutation, die der Abbruch-Test rot
+     * faerbt. `archive.abort()` selbst schliesst den Quellstrom NICHT — es ist
+     * kein dritter Weg, sondern der Grund, dass es ueberhaupt zwei braucht.
+     *
+     * Eine LISTE, obwohl `fuegeEin` hoechstens EINEN gleichzeitig offen laesst:
+     * sie ist die Form, die auch den Strom erfasst, der zwischen `lieseStrom` und
+     * dem ersten `await` steht.
+     */
+    const geoeffnet: Readable[] = [];
+    const schliesseStroeme = () => {
+      // Ein fertig gelesener Strom ist schon zerstoert; der zweite Aufruf waere
+      // folgenlos, die Abfrage haelt die Absicht trotzdem sichtbar.
+      for (const strom of geoeffnet) if (!strom.destroyed) strom.destroy();
+    };
 
-  if (plan.art === "leer") {
-    // Ein ZIP ohne Eintraege sieht fuer den Empfaenger wie ein Fehler seines
-    // Entpackprogramms aus. Stattdessen der benannte Zustand — samt der
-    // Fehlliste, denn im leeren Ast ist gerade sie die Begruendung.
-    const zeilenText = plan.ausgeschlossen.map((a) => `- ${a.name} — ${a.meldung}`);
-    return text([plan.meldung, "", ...zeilenText, ""].join("\n"), 403);
-  }
-
-  /*
-   * Ab hier laeuft die Abbruchbehandlung der Alt-App (PassThrough,
-   * `archive.on("error")`, `req.signal`-Zuhoerer, Aufraeumen im `finally`). Ihr
-   * S3-Anlass faellt weg, sie selbst nicht: sie verhindert hier geleckte
-   * FILE-DESCRIPTORS statt Sockets. Ohne den Fehler-Zuhoerer haengt der
-   * PassThrough bei einem Lesefehler fuer immer, und der Client wartet bis in
-   * sein eigenes Zeitlimit.
-   */
-  const rumpf = new PassThrough();
-  const archiv = new ZipArchive({ zlib: { level: 1 } });
-  archiv.on("error", (fehler) => {
-    console.error("[files] Posteingang-Archiv: Fehler im Archivierer", fehler);
-    rumpf.destroy(fehler);
-  });
-  archiv.pipe(rumpf);
-
-  /*
-   * DER ABBRUCH SCHLIESST DEN QUELLSTROM AUF ZWEI WEGEN, UND DAS IST ABSICHT —
-   * gemessen, damit niemand den einen fuer ueberfluessig haelt und wegkuerzt:
-   *
-   *  - dieser Zuhoerer hier, der SOFORT beim `abort`-Ereignis raeumt, und
-   *  - `fuegeEin`, das auf demselben Signal ablehnt, woraufhin `finally` unten
-   *    denselben Strom schliesst.
-   *
-   * Jeder deckt die Luecke des anderen: nimmt man `fuegeEin` das Signal, haengt
-   * sein Promise fuer immer und das `finally` liefe nie — dann traegt allein
-   * dieser Zuhoerer. Nimmt man diesen Zuhoerer, kommt das Aufraeumen einen
-   * Mikrotask spaeter, aber es kommt. Erst wenn BEIDE fehlen, bleibt der
-   * Deskriptor offen; genau das ist die Mutation, die der Abbruch-Test rot
-   * faerbt. `archive.abort()` selbst schliesst den Quellstrom NICHT — es ist
-   * kein dritter Weg, sondern der Grund, dass es ueberhaupt zwei braucht.
-   *
-   * Eine LISTE, obwohl `fuegeEin` hoechstens EINEN gleichzeitig offen laesst:
-   * sie ist die Form, die auch den Strom erfasst, der zwischen `lieseStrom` und
-   * dem ersten `await` steht.
-   */
-  const geoeffnet: Readable[] = [];
-  const schliesseStroeme = () => {
-    // Ein fertig gelesener Strom ist schon zerstoert; der zweite Aufruf waere
-    // folgenlos, die Abfrage haelt die Absicht trotzdem sichtbar.
-    for (const strom of geoeffnet) if (!strom.destroyed) strom.destroy();
-  };
-
-  const beiAbbruch = () => {
-    archiv.abort();
-    rumpf.destroy();
-    schliesseStroeme();
-  };
-  req.signal.addEventListener("abort", beiAbbruch);
-
-  // Bewusst NICHT erwartet: die Antwort geht sofort raus, das Archiv entsteht
-  // waehrend der Empfaenger schon liest — kein Temp-File, sequenziell.
-  void (async () => {
-    try {
-      for (const eintrag of plan.eintraege) {
-        if (req.signal.aborted) break;
-        const { strom } = await lieseStrom({ art: "inbox", inboxFileId: eintrag.id });
-        // VOR dem `await`: kam der Abbruch waehrend des Oeffnens, ist der
-        // Deskriptor sonst in keiner Liste, und nichts schliesst ihn mehr.
-        geoeffnet.push(strom);
-        try {
-          await fuegeEin(archiv, strom, eintrag.eintragsname, req.signal);
-        } finally {
-          // HIER und nicht erst im aeusseren `finally`: so ist der Deskriptor
-          // auf JEDEM Ausgang zu, ehe der naechste aufgeht. Nach vollstaendigem
-          // Lesen ist der Strom ohnehin zu; `destroy` ist dann folgenlos.
-          strom.destroy();
-        }
-      }
-      // Die Fehlliste ist selbst ein Eintrag, und `planeArchiv` hat ihren Namen
-      // dafuer schon belegt. Auch sie geht durch `fuegeEin`: ein nicht
-      // erwartetes `append` daneben stiehlt dem wartenden das `entry`-Ereignis.
-      if (plan.hinweis !== null) {
-        await fuegeEin(archiv, plan.hinweis, HINWEIS_DATEINAME, req.signal);
-      }
-      // Kein Abschluss auf einem abgebrochenen Archivierer: das Ergebnis will
-      // niemand mehr, und sein Promise settelt je nach Reihenfolge gar nicht.
-      // Dieselbe Abfrage wie T34 (`download/[id]/zip/route.ts:276`); sie ist
-      // hier ein Ausschluss und kein Rettungsanker, weil der Abbruch auf diesem
-      // Weg schon in `fuegeEin` ablehnt und im `catch` landet.
-      if (!req.signal.aborted) await archiv.finalize();
-    } catch (fehler) {
-      // Der Abbruch ist der Normalfall eines Empfaengers, der die Verbindung
-      // fallen laesst, und laeuft ueber denselben `catch`. Ohne die Abfrage
-      // schriebe jeder davon eine Fehlerzeile ins Log.
-      if (!req.signal.aborted) {
-        console.error("[files] Posteingang-Archiv konnte nicht gebaut werden", fehler);
-      }
-      rumpf.destroy(fehler instanceof Error ? fehler : new Error(String(fehler)));
-    } finally {
-      req.signal.removeEventListener("abort", beiAbbruch);
+    const beiAbbruch = () => {
+      archiv.abort();
+      rumpf.destroy();
       schliesseStroeme();
-    }
-  })();
+    };
+    req.signal.addEventListener("abort", beiAbbruch);
 
-  // Der Titel traegt das Datum, damit mehrere Zusammenstellungen im
-  // Download-Ordner unterscheidbar bleiben. Das Leerzeichen ist Absicht: es
-  // macht den harten ASCII-Rueckfall (`Posteingang_…`) vom echten Namen
-  // unterscheidbar, und beide Formen stehen in der Kopfzeile.
-  const titel = `Posteingang ${new Date().toISOString().slice(0, 10)}`;
+    // Bewusst NICHT erwartet: die Antwort geht sofort raus, das Archiv entsteht
+    // waehrend der Empfaenger schon liest — kein Temp-File, sequenziell.
+    void (async () => {
+      try {
+        for (const eintrag of plan.eintraege) {
+          if (req.signal.aborted) break;
+          const { strom } = await lieseStrom({ art: "inbox", inboxFileId: eintrag.id });
+          // VOR dem `await`: kam der Abbruch waehrend des Oeffnens, ist der
+          // Deskriptor sonst in keiner Liste, und nichts schliesst ihn mehr.
+          geoeffnet.push(strom);
+          try {
+            await fuegeEin(archiv, strom, eintrag.eintragsname, req.signal);
+          } finally {
+            // HIER und nicht erst im aeusseren `finally`: so ist der Deskriptor
+            // auf JEDEM Ausgang zu, ehe der naechste aufgeht. Nach vollstaendigem
+            // Lesen ist der Strom ohnehin zu; `destroy` ist dann folgenlos.
+            strom.destroy();
+          }
+        }
+        // Die Fehlliste ist selbst ein Eintrag, und `planeArchiv` hat ihren Namen
+        // dafuer schon belegt. Auch sie geht durch `fuegeEin`: ein nicht
+        // erwartetes `append` daneben stiehlt dem wartenden das `entry`-Ereignis.
+        if (plan.hinweis !== null) {
+          await fuegeEin(archiv, plan.hinweis, HINWEIS_DATEINAME, req.signal);
+        }
+        // Kein Abschluss auf einem abgebrochenen Archivierer: das Ergebnis will
+        // niemand mehr, und sein Promise settelt je nach Reihenfolge gar nicht.
+        // Dieselbe Abfrage wie T34 (`download/[id]/zip/route.ts:276`); sie ist
+        // hier ein Ausschluss und kein Rettungsanker, weil der Abbruch auf diesem
+        // Weg schon in `fuegeEin` ablehnt und im `catch` landet.
+        if (!req.signal.aborted) await archiv.finalize();
+      } catch (fehler) {
+        // Der Abbruch ist der Normalfall eines Empfaengers, der die Verbindung
+        // fallen laesst, und laeuft ueber denselben `catch`. Ohne die Abfrage
+        // schriebe jeder davon eine Fehlerzeile ins Log.
+        if (!req.signal.aborted) {
+          console.error("[files] Posteingang-Archiv konnte nicht gebaut werden", fehler);
+        }
+        rumpf.destroy(fehler instanceof Error ? fehler : new Error(String(fehler)));
+      } finally {
+        req.signal.removeEventListener("abort", beiAbbruch);
+        schliesseStroeme();
+      }
+    })();
 
-  return new Response(Readable.toWeb(rumpf) as ReadableStream, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": archivDisposition(titel),
-      "X-Content-Type-Options": "nosniff",
-      // Gegateter Inhalt gehoert in keinen geteilten Zwischenspeicher.
-      "Cache-Control": "private, no-store",
-    },
+    // Der Titel traegt das Datum, damit mehrere Zusammenstellungen im
+    // Download-Ordner unterscheidbar bleiben. Das Leerzeichen ist Absicht: es
+    // macht den harten ASCII-Rueckfall (`Posteingang_…`) vom echten Namen
+    // unterscheidbar, und beide Formen stehen in der Kopfzeile.
+    const titel = `Posteingang ${new Date().toISOString().slice(0, 10)}`;
+
+    return new Response(Readable.toWeb(rumpf) as ReadableStream, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": archivDisposition(titel),
+        "X-Content-Type-Options": "nosniff",
+        // Gegateter Inhalt gehoert in keinen geteilten Zwischenspeicher.
+        "Cache-Control": "private, no-store",
+      },
+    });
   });
 }

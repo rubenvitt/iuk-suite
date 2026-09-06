@@ -1,3 +1,5 @@
+import { auditDenied } from "@/core/audit/server";
+import { auditDelivery, auditActor } from "@/core/audit/server";
 // src/app/m/radio/admin/(arbeit)/geraete/export/route.ts
 import { getDb } from "../../../../_db/client";
 import { radioHostOderNull } from "../../../../_lib/host";
@@ -82,23 +84,28 @@ export async function GET(request: Request) {
    * DANN DIE PERSON — als PRAEDIKAT, nicht als Riegel: die 404 baut dieser Handler selbst
    * (Bauform-Zulaessigkeitstafel Nr. 9).
    */
-  if (!istRadioAdmin(await viewerOderNull())) {
+  const viewer = await viewerOderNull();
+  if (!istRadioAdmin(viewer)) {
+    auditDenied("radio", auditActor(viewer));
     return new Response(null, { status: 404 });
   }
+  return auditDelivery("radio", "export", "device_collection", auditActor(viewer), async (target) => {
+    target("devices");
 
-  const csv = baueExportCsv(geraeteFuerExport(getDb()));
+    const csv = baueExportCsv(geraeteFuerExport(getDb()));
 
-  /*
-   * ⛔ BEIDE KOPFZEILEN ZEICHENGLEICH AUS DEM BESTAND (`export.ts:73-74`). `charset=utf-8`
-   * gehoert dazu: das BOM traegt die Kodierungszusage nur fuer Excel, nicht fuer jeden
-   * anderen Leser. Und der Dateiname steht AUSSCHLIESSLICH hier — der Ausloeser in Insel 1
-   * ist ein Anker mit `download` OHNE Wert (1:1 `DeviceList.tsx:104-111`,
-   * `anchor.download = ''`).
-   */
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="funkgeraete-export.csv"',
-    },
+    /*
+     * ⛔ BEIDE KOPFZEILEN ZEICHENGLEICH AUS DEM BESTAND (`export.ts:73-74`). `charset=utf-8`
+     * gehoert dazu: das BOM traegt die Kodierungszusage nur fuer Excel, nicht fuer jeden
+     * anderen Leser. Und der Dateiname steht AUSSCHLIESSLICH hier — der Ausloeser in Insel 1
+     * ist ein Anker mit `download` OHNE Wert (1:1 `DeviceList.tsx:104-111`,
+     * `anchor.download = ''`).
+     */
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="funkgeraete-export.csv"',
+      },
+    });
   });
 }

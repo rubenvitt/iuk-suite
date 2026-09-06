@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import bcrypt from "bcryptjs";
@@ -111,6 +112,7 @@ beforeEach(async () => {
   vi.stubEnv("AUTH_SECRET", GEHEIMNIS);
   vi.stubEnv("SUITE_HOST_FILES", `${VERWALTUNG},${INBOX}`);
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

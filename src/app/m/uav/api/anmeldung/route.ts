@@ -1,3 +1,4 @@
+import { withAuditContext, auditParticipantActor, auditEvent, auditDenied } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { RateLimiter } from "@/core/ratelimit";
@@ -22,9 +23,12 @@ export async function POST(req: Request) {
   if (!limiter.check(code)) return fehler(429, "rate_limited", "Zu viele Versuche. Bitte später erneut versuchen.");
   const db = getDb();
   const t = code ? teilnehmerPerCode(db, code) : null;
-  if (!t) return fehler(401, "invalid_code", "Ungültiger oder inaktiver Code.");
-  teilnehmerGesehen(db, t.id);
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(SID_COOKIE, sessionErzeugen(db, t.id), sidCookieOptionen());
-  return res;
+  if (!t) { auditDenied("uav"); return fehler(401, "invalid_code", "Ungültiger oder inaktiver Code."); }
+  return withAuditContext({ actor: { kind: "anonymous" } }, async () => {
+    teilnehmerGesehen(db, t.id);
+    const res = NextResponse.json({ ok: true });
+    res.cookies.set(SID_COOKIE, sessionErzeugen(db, t.id), sidCookieOptionen());
+    auditEvent({ module: "uav", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditParticipantActor(t.id));
+    return res;
+  });
 }

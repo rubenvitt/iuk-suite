@@ -1,3 +1,4 @@
+import { auditDenied, auditActor } from "@/core/audit/server";
 // src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts
 import { radioHostOderNull } from "../../../../_lib/host";
 import { istRadioAdmin, viewerOderNull } from "../../../../_lib/zugang";
@@ -93,7 +94,9 @@ export async function POST(request: Request) {
    * DANN DIE PERSON — als PRAEDIKAT, nicht als Riegel: die 404 baut dieser Handler selbst
    * (Bauform-Zulaessigkeitstafel Nr. 9, `.superpowers/sdd/planteil4/briefs/KOPF.md:329`).
    */
-  if (!istRadioAdmin(await viewerOderNull())) {
+  const viewer = await viewerOderNull();
+  if (!istRadioAdmin(viewer)) {
+    auditDenied("radio", auditActor(viewer));
     return new Response(null, { status: 404 });
   }
 

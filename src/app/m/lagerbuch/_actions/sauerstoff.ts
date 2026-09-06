@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -52,45 +53,47 @@ export async function flascheSpeichern(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  const geparst = FlascheSchema.safeParse(eingabe);
-  if (!geparst.success) return fehlerhaft(geparst.error);
-  const v = geparst.data;
+    const geparst = FlascheSchema.safeParse(eingabe);
+    if (!geparst.success) return fehlerhaft(geparst.error);
+    const v = geparst.data;
 
-  if (!istAktiverLagerort(db, v.lagerortId)) {
-    return { ok: false, fehler: LAGERORT_FEHLER };
-  }
-
-  const id = v.id ?? newId();
-  if (v.id) {
-    if (!flascheExistiert(db, v.id)) {
-      return { ok: false, fehler: FLASCHE_FEHLER };
+    if (!istAktiverLagerort(db, v.lagerortId)) {
+      return { ok: false, fehler: LAGERORT_FEHLER };
     }
-    db.update(o2Flaschen)
-      .set({
+
+    const id = v.id ?? newId();
+    if (v.id) {
+      if (!flascheExistiert(db, v.id)) {
+        return { ok: false, fehler: FLASCHE_FEHLER };
+      }
+      db.update(o2Flaschen)
+        .set({
+          name: v.name,
+          lagerortId: v.lagerortId,
+          groesseLiter: v.groesseLiter ?? null,
+          nennfuelldruckBar: v.nennfuelldruckBar,
+        })
+        .where(eq(o2Flaschen.id, v.id))
+        .run();
+      revalidatePath(`${LISTENPFAD}/${v.id}`);
+    } else {
+      db.insert(o2Flaschen).values({
+        id,
         name: v.name,
         lagerortId: v.lagerortId,
         groesseLiter: v.groesseLiter ?? null,
         nennfuelldruckBar: v.nennfuelldruckBar,
-      })
-      .where(eq(o2Flaschen.id, v.id))
-      .run();
-    revalidatePath(`${LISTENPFAD}/${v.id}`);
-  } else {
-    db.insert(o2Flaschen).values({
-      id,
-      name: v.name,
-      lagerortId: v.lagerortId,
-      groesseLiter: v.groesseLiter ?? null,
-      nennfuelldruckBar: v.nennfuelldruckBar,
-      aktiv: true,
-      createdAt: new Date(),
-    }).run();
-  }
+        aktiv: true,
+        createdAt: new Date(),
+      }).run();
+    }
 
-  revalidatePath(LISTENPFAD);
-  return { ok: true, wert: { id } };
+    revalidatePath(LISTENPFAD);
+    return { ok: true, wert: { id } };
+  });
 }
 
 const AktivSchema = z.object({
@@ -102,22 +105,24 @@ export async function setFlascheAktiv(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = AktivSchema.safeParse(eingabe);
-  if (!geparst.success) return { ok: false, fehler: "Ungültige Eingabe." };
-  const v = geparst.data;
+    const geparst = AktivSchema.safeParse(eingabe);
+    if (!geparst.success) return { ok: false, fehler: "Ungültige Eingabe." };
+    const v = geparst.data;
 
-  if (!flascheExistiert(db, v.id)) {
-    return { ok: false, fehler: FLASCHE_FEHLER };
-  }
-  db.update(o2Flaschen)
-    .set({ aktiv: v.aktiv })
-    .where(eq(o2Flaschen.id, v.id))
-    .run();
-  revalidatePath(LISTENPFAD);
-  revalidatePath(`${LISTENPFAD}/${v.id}`);
-  return { ok: true };
+    if (!flascheExistiert(db, v.id)) {
+      return { ok: false, fehler: FLASCHE_FEHLER };
+    }
+    db.update(o2Flaschen)
+      .set({ aktiv: v.aktiv })
+      .where(eq(o2Flaschen.id, v.id))
+      .run();
+    revalidatePath(LISTENPFAD);
+    revalidatePath(`${LISTENPFAD}/${v.id}`);
+    return { ok: true };
+  });
 }
 
 const MessungSchema = z.object({
@@ -135,26 +140,28 @@ export async function messungErfassen(
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
   const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  const geparst = MessungSchema.safeParse(eingabe);
-  if (!geparst.success) return fehlerhaft(geparst.error);
-  const v = geparst.data;
+    const geparst = MessungSchema.safeParse(eingabe);
+    if (!geparst.success) return fehlerhaft(geparst.error);
+    const v = geparst.data;
 
-  if (!flascheExistiert(db, v.flascheId)) {
-    return { ok: false, fehler: FLASCHE_FEHLER };
-  }
+    if (!flascheExistiert(db, v.flascheId)) {
+      return { ok: false, fehler: FLASCHE_FEHLER };
+    }
 
-  const id = newId();
-  db.insert(o2Messungen).values({
-    id,
-    flascheId: v.flascheId,
-    ts: new Date(),
-    druckBar: v.druckBar,
-    quelleTyp: "oidc",
-    quelleId: viewer.sub,
-    kommentar: v.kommentar ?? null,
-  }).run();
-  revalidatePath(LISTENPFAD);
-  revalidatePath(`${LISTENPFAD}/${v.flascheId}`);
-  return { ok: true, wert: { id } };
+    const id = newId();
+    db.insert(o2Messungen).values({
+      id,
+      flascheId: v.flascheId,
+      ts: new Date(),
+      druckBar: v.druckBar,
+      quelleTyp: "oidc",
+      quelleId: viewer.sub,
+      kommentar: v.kommentar ?? null,
+    }).run();
+    revalidatePath(LISTENPFAD);
+    revalidatePath(`${LISTENPFAD}/${v.flascheId}`);
+    return { ok: true, wert: { id } };
+  });
 }

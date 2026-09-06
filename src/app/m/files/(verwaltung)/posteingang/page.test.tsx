@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { registerAuditFunctions } from "@/core/audit/context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -112,6 +113,7 @@ beforeEach(() => {
   vi.stubEnv("FILES_MAX_ABLAUF_TAGE", "7");
 
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
@@ -149,6 +151,7 @@ function legeZeile(vorgabe: {
   clientIp?: string | null;
 }): void {
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   sqlite.pragma("ignore_check_constraints = ON");
   sqlite
     .prepare(
@@ -173,6 +176,7 @@ function legeZeile(vorgabe: {
 
 function legeAbgabelink(): void {
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   sqlite
     .prepare(
       `INSERT INTO zugangslinks

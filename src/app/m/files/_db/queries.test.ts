@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach } from "vitest";
 import { mkdirSync, rmSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -34,6 +35,7 @@ beforeEach(() => {
   process.env.DATA_DIR = DIR;
   process.env.AUTH_SECRET = GEHEIMNIS;
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

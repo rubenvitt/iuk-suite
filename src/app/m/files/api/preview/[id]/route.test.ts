@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -75,6 +76,7 @@ beforeEach(() => {
   vi.stubEnv("FILES_MAX_ABLAUF_TAGE", "7");
   vi.stubEnv("FILES_VORSCHAU_MAX_BYTES", String(VORSCHAU_MAX_BYTES));
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
@@ -288,6 +290,7 @@ describe("Punkt 1 — dieselbe Prüfkette wie der Download (§7.4)", () => {
       rmSync(DIR, { recursive: true, force: true });
       mkdirSync(DIR, { recursive: true });
       const sqlite = new Database(`${DIR}/files.db`);
+      registerAuditFunctions(sqlite);
       migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
       sqlite.close();
       delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

@@ -1,0 +1,924 @@
+{
+  "src/app/.well-known/webfinger/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/api/auth/oidc-signout/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Provider redirect only; actual local logout is observed in the Auth.js signOut hook."
+  },
+  "src/app/api/health/[modul]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/api/health/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "proof_file",
+      "reference": "datei.id"
+    },
+    "denial": {
+      "via": "GET",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
+  },
+  "src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts#POST": {
+    "kind": "context",
+    "via": "POST",
+    "denial": {
+      "via": "POST",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
+  },
+  "src/app/m/aufgaben/actions.ts#aufgabeEinstellenAction": {
+    "kind": "context",
+    "via": "aufgabeEinstellenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#verteilenAction": {
+    "kind": "context",
+    "via": "verteilenGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#umverteilenAction": {
+    "kind": "context",
+    "via": "verteilenGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#zurueckziehenAction": {
+    "kind": "context",
+    "via": "zurueckziehenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#startenAction": {
+    "kind": "context",
+    "via": "einfacherUebergang"
+  },
+  "src/app/m/aufgaben/actions.ts#zuruecksetzenAction": {
+    "kind": "context",
+    "via": "einfacherUebergang"
+  },
+  "src/app/m/aufgaben/actions.ts#wiederaufnehmenAction": {
+    "kind": "context",
+    "via": "einfacherUebergang"
+  },
+  "src/app/m/aufgaben/actions.ts#einplanenAnnehmenAction": {
+    "kind": "context",
+    "via": "einplanenGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#fertigMeldenAction": {
+    "kind": "context",
+    "via": "fertigMeldenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#freigebenAction": {
+    "kind": "context",
+    "via": "freigebenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#zurueckweisenAction": {
+    "kind": "context",
+    "via": "zurueckweisenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#routineAnlegenAction": {
+    "kind": "context",
+    "via": "routineFormularGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#routineAendernAction": {
+    "kind": "context",
+    "via": "routineFormularGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#routineRuhenAction": {
+    "kind": "context",
+    "via": "routineRuhenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#rangVerschiebenAction": {
+    "kind": "context",
+    "via": "rangVerschiebenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#personenSucheAction": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/aufgaben/actions.ts#personAnlegenAction": {
+    "kind": "context",
+    "via": "personFormularGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#personAendernAction": {
+    "kind": "context",
+    "via": "personFormularGemeinsam"
+  },
+  "src/app/m/aufgaben/actions.ts#personBeendenAction": {
+    "kind": "context",
+    "via": "personBeendenAction"
+  },
+  "src/app/m/aufgaben/actions.ts#einplanenAction": {
+    "kind": "context",
+    "via": "einplanenGemeinsam"
+  },
+  "src/app/m/beta/manifest.webmanifest/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/beta/pwa-icon.svg/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/beta/sw.js/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "evening_export",
+      "reference": "String(evening.id)"
+    }
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "group_export",
+      "reference": "String(group.id)"
+    }
+  },
+  "src/app/m/feedback/actions.ts#createGroupAction": {
+    "kind": "context",
+    "via": "createGroupAction"
+  },
+  "src/app/m/feedback/actions.ts#updateGroupAction": {
+    "kind": "context",
+    "via": "updateGroupAction"
+  },
+  "src/app/m/feedback/actions.ts#regenerateSecretAction": {
+    "kind": "context",
+    "via": "regenerateSecretAction"
+  },
+  "src/app/m/feedback/actions.ts#deleteGroupAction": {
+    "kind": "context",
+    "via": "deleteGroupAction"
+  },
+  "src/app/m/feedback/actions.ts#suchePersonenAction": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/feedback/actions.ts#addGroupLeaderAction": {
+    "kind": "context",
+    "via": "addGroupLeaderAction"
+  },
+  "src/app/m/feedback/actions.ts#removeGroupLeaderAction": {
+    "kind": "context",
+    "via": "removeGroupLeaderAction"
+  },
+  "src/app/m/feedback/actions.ts#createEveningAction": {
+    "kind": "context",
+    "via": "createEveningAction"
+  },
+  "src/app/m/feedback/actions.ts#updateEveningAction": {
+    "kind": "context",
+    "via": "updateEveningAction"
+  },
+  "src/app/m/feedback/actions.ts#deleteEveningAction": {
+    "kind": "context",
+    "via": "deleteEveningAction"
+  },
+  "src/app/m/feedback/actions.ts#activateSurveyAction": {
+    "kind": "context",
+    "via": "activateSurveyAction"
+  },
+  "src/app/m/feedback/actions.ts#submitResponseAction": {
+    "kind": "context",
+    "via": "submitResponseAction"
+  },
+  "src/app/m/feedback/actions.ts#releaseDeviceAction": {
+    "kind": "excluded",
+    "reason": "Clears only the anonymous device participation marker; no authenticated session or business mutation."
+  },
+  "src/app/m/feedback/actions.ts#startFeedbackAction": {
+    "kind": "context",
+    "via": "startFeedbackAction"
+  },
+  "src/app/m/feedback/actions.ts#beendeFeedbackAction": {
+    "kind": "context",
+    "via": "beendeFeedbackAction"
+  },
+  "src/app/m/feedback/f/[slugSecret]/qr.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/files/(verwaltung)/ablage-actions.ts#aufraeumenAction": {
+    "kind": "context",
+    "via": "aufraeumenAction"
+  },
+  "src/app/m/files/(verwaltung)/actions.ts#anlegenAction": {
+    "kind": "context",
+    "via": "anlegenAction"
+  },
+  "src/app/m/files/(verwaltung)/actions.ts#bearbeitenAction": {
+    "kind": "context",
+    "via": "bearbeitenAction"
+  },
+  "src/app/m/files/(verwaltung)/actions.ts#downloadsAufstockenAction": {
+    "kind": "context",
+    "via": "downloadsAufstockenAction"
+  },
+  "src/app/m/files/(verwaltung)/actions.ts#shareLoeschenAction": {
+    "kind": "context",
+    "via": "shareLoeschenAction"
+  },
+  "src/app/m/files/(verwaltung)/actions.ts#avWiederholenAction": {
+    "kind": "context",
+    "via": "avWiederholenAction"
+  },
+  "src/app/m/files/(verwaltung)/posteingang/actions.ts#inboxLoeschenAction": {
+    "kind": "context",
+    "via": "inboxLoeschenAction"
+  },
+  "src/app/m/files/(verwaltung)/zugangslinks/actions.ts#zugangslinkAnlegenAction": {
+    "kind": "context",
+    "via": "zugangslinkAnlegenAction"
+  },
+  "src/app/m/files/(verwaltung)/zugangslinks/actions.ts#kontingentAufstockenAction": {
+    "kind": "context",
+    "via": "kontingentAufstockenAction"
+  },
+  "src/app/m/files/(verwaltung)/zugangslinks/actions.ts#zugangslinkWiderrufenAction": {
+    "kind": "context",
+    "via": "zugangslinkWiderrufenAction"
+  },
+  "src/app/m/files/api/download/[id]/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "share_file",
+      "reference": "datei.id"
+    }
+  },
+  "src/app/m/files/api/download/[id]/zip/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "share_archive",
+      "reference": "share.id"
+    }
+  },
+  "src/app/m/files/api/inbox/[id]/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "inbox_file",
+      "reference": "zeile.id"
+    }
+  },
+  "src/app/m/files/api/inbox/zip/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "inbox_archive",
+      "reference": "\"inbox\""
+    }
+  },
+  "src/app/m/files/api/preview/[id]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Inline preview, not a business download."
+  },
+  "src/app/m/files/api/s/[id]/qr.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/files/api/s/[id]/verify/route.ts#POST": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/files/api/u/[token]/qr.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/files/api/u/[token]/upload/route.ts#PUT": {
+    "kind": "context",
+    "via": "PUT"
+  },
+  "src/app/m/files/api/u/[token]/upload/route.ts#POST": {
+    "kind": "excluded",
+    "reason": "Legacy endpoint always returns 409 and writes nothing."
+  },
+  "src/app/m/files/api/upload/[fileId]/route.ts#PUT": {
+    "kind": "context",
+    "via": "PUT"
+  },
+  "src/app/m/files/api/upload/[fileId]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/files/api/upload/[fileId]/route.ts#DELETE": {
+    "kind": "context",
+    "via": "DELETE"
+  },
+  "src/app/m/lagerbuch/_actions/artikel.ts#createArtikel": {
+    "kind": "context",
+    "via": "createArtikel"
+  },
+  "src/app/m/lagerbuch/_actions/artikel.ts#updateArtikel": {
+    "kind": "context",
+    "via": "updateArtikel"
+  },
+  "src/app/m/lagerbuch/_actions/artikel.ts#setArtikelAktiv": {
+    "kind": "context",
+    "via": "setArtikelAktiv"
+  },
+  "src/app/m/lagerbuch/_actions/aussondern.ts#aussondern": {
+    "kind": "context",
+    "via": "aussondern"
+  },
+  "src/app/m/lagerbuch/_actions/bestellung.ts#markiereBestellt": {
+    "kind": "context",
+    "via": "markiereBestellt"
+  },
+  "src/app/m/lagerbuch/_actions/buchung.ts#bucheZugang": {
+    "kind": "context",
+    "via": "bucheZugang"
+  },
+  "src/app/m/lagerbuch/_actions/buchung.ts#bucheEntnahme": {
+    "kind": "context",
+    "via": "bucheEntnahme"
+  },
+  "src/app/m/lagerbuch/_actions/buchung.ts#bucheEntnahmeHelfer": {
+    "kind": "context",
+    "via": "bucheEntnahmeHelfer"
+  },
+  "src/app/m/lagerbuch/_actions/bz.ts#geraetSpeichern": {
+    "kind": "context",
+    "via": "geraetSpeichern"
+  },
+  "src/app/m/lagerbuch/_actions/bz.ts#setGeraetAktiv": {
+    "kind": "context",
+    "via": "setGeraetAktiv"
+  },
+  "src/app/m/lagerbuch/_actions/bz.ts#geraetZuBarcode": {
+    "kind": "context",
+    "via": "geraetZuBarcode"
+  },
+  "src/app/m/lagerbuch/_actions/bz.ts#kontrolleErfassen": {
+    "kind": "context",
+    "via": "kontrolleErfassen"
+  },
+  "src/app/m/lagerbuch/_actions/check.ts#checkAbschluss": {
+    "kind": "context",
+    "via": "checkAbschluss"
+  },
+  "src/app/m/lagerbuch/_actions/csv.ts#importArtikelCsv": {
+    "kind": "context",
+    "via": "importArtikelCsv"
+  },
+  "src/app/m/lagerbuch/_actions/detail.ts#getDetail": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#createFahrzeug": {
+    "kind": "context",
+    "via": "createFahrzeug"
+  },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#setFahrzeugAktiv": {
+    "kind": "context",
+    "via": "setFahrzeugAktiv"
+  },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#sollPositionSetzen": {
+    "kind": "context",
+    "via": "sollPositionSetzen"
+  },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#sollPositionEntfernen": {
+    "kind": "context",
+    "via": "sollPositionEntfernen"
+  },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#sollPositionWiederherstellen": {
+    "kind": "context",
+    "via": "sollPositionWiederherstellen"
+  },
+  "src/app/m/lagerbuch/_actions/gate.ts#einloesenAmGate": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/lagerbuch/_actions/geraete.ts#geraetSpeichern": {
+    "kind": "context",
+    "via": "geraetSpeichern"
+  },
+  "src/app/m/lagerbuch/_actions/geraete.ts#setGeraetAktiv": {
+    "kind": "context",
+    "via": "setGeraetAktiv"
+  },
+  "src/app/m/lagerbuch/_actions/geraete.ts#geraetZuBarcode": {
+    "kind": "context",
+    "via": "geraetZuBarcode"
+  },
+  "src/app/m/lagerbuch/_actions/inventur.ts#inventurKorrektur": {
+    "kind": "context",
+    "via": "inventurKorrektur"
+  },
+  "src/app/m/lagerbuch/_actions/lagerortVerfall.ts#verfallSetzen": {
+    "kind": "context",
+    "via": "verfallSetzen"
+  },
+  "src/app/m/lagerbuch/_actions/loeschen.ts#pruefeLoeschbar": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/lagerbuch/_actions/loeschen.ts#loescheElement": {
+    "kind": "context",
+    "via": "loescheElement"
+  },
+  "src/app/m/lagerbuch/_actions/loeschen.ts#deaktiviereElement": {
+    "kind": "context",
+    "via": "deaktiviereElement"
+  },
+  "src/app/m/lagerbuch/_actions/sauerstoff.ts#flascheSpeichern": {
+    "kind": "context",
+    "via": "flascheSpeichern"
+  },
+  "src/app/m/lagerbuch/_actions/sauerstoff.ts#setFlascheAktiv": {
+    "kind": "context",
+    "via": "setFlascheAktiv"
+  },
+  "src/app/m/lagerbuch/_actions/sauerstoff.ts#messungErfassen": {
+    "kind": "context",
+    "via": "messungErfassen"
+  },
+  "src/app/m/lagerbuch/_actions/sitzung.ts#erneuereSitzung": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/lagerbuch/_actions/sitzung.ts#beenden": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#createTemplate": {
+    "kind": "context",
+    "via": "createTemplate"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#renameTemplate": {
+    "kind": "context",
+    "via": "renameTemplate"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#setTemplateAktiv": {
+    "kind": "context",
+    "via": "setTemplateAktiv"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#deleteTemplate": {
+    "kind": "context",
+    "via": "deleteTemplate"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#templatePositionSetzen": {
+    "kind": "context",
+    "via": "templatePositionSetzen"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#templatePositionEntfernen": {
+    "kind": "context",
+    "via": "templatePositionEntfernen"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#fahrzeugTemplateZuweisen": {
+    "kind": "context",
+    "via": "fahrzeugTemplateZuweisen"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#fahrzeugTemplateSync": {
+    "kind": "context",
+    "via": "fahrzeugTemplateSync"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#templateAufFahrzeugeSyncen": {
+    "kind": "context",
+    "via": "templateAufFahrzeugeSyncen"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#fahrzeugTemplateLoesen": {
+    "kind": "context",
+    "via": "fahrzeugTemplateLoesen"
+  },
+  "src/app/m/lagerbuch/_actions/templates.ts#templateAusFahrzeug": {
+    "kind": "context",
+    "via": "templateAusFahrzeug"
+  },
+  "src/app/m/lagerbuch/_actions/tokens.ts#createToken": {
+    "kind": "context",
+    "via": "createToken"
+  },
+  "src/app/m/lagerbuch/_actions/tokens.ts#setTokenAktiv": {
+    "kind": "context",
+    "via": "setTokenAktiv"
+  },
+  "src/app/m/lagerbuch/abmelden/route.ts#GET": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/lagerbuch/icon-192.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/lagerbuch/icon-512.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/lagerbuch/icon-maskable-512.png/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/lagerbuch/manifest.webmanifest/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/lagerbuch/pwa-icon.svg/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/lagerbuch/t/[code]/route.ts#GET": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "checklist_collection",
+      "reference": "\"vehicle_checklists\""
+    }
+  },
+  "src/app/m/portal/actions.ts#createServiceAction": {
+    "kind": "context",
+    "via": "createServiceAction"
+  },
+  "src/app/m/portal/actions.ts#deleteServiceAction": {
+    "kind": "context",
+    "via": "deleteServiceAction"
+  },
+  "src/app/m/portal/actions.ts#setzeAnsprechpartnerAction": {
+    "kind": "context",
+    "via": "setzeAnsprechpartnerAction"
+  },
+  "src/app/m/portal/profil/actions.ts#alleSitzungenAbmelden": {
+    "kind": "context",
+    "via": "alleSitzungenAbmelden"
+  },
+  "src/app/m/qr/actions.ts#createPresetAction": {
+    "kind": "context",
+    "via": "createPresetAction"
+  },
+  "src/app/m/qr/actions.ts#updatePresetAction": {
+    "kind": "context",
+    "via": "updatePresetAction"
+  },
+  "src/app/m/qr/actions.ts#deletePresetAction": {
+    "kind": "context",
+    "via": "deletePresetAction"
+  },
+  "src/app/m/qr/actions.ts#reorderPresetsAction": {
+    "kind": "context",
+    "via": "reorderPresetsAction"
+  },
+  "src/app/m/qr/manifest.webmanifest/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/qr/pwa-icon.svg/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/qr/sw.js/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/radio/_actions/ausleihe.ts#ausleiheAnlegen": {
+    "kind": "context",
+    "via": "ausleiheAnlegen"
+  },
+  "src/app/m/radio/_actions/ausleihe.ts#rueckgabeBuchen": {
+    "kind": "context",
+    "via": "rueckgabeBuchen"
+  },
+  "src/app/m/radio/_actions/ausleihe.ts#entleiherVorschlaege": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/radio/_actions/ausleihe.ts#listeAktualisieren": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/radio/_actions/codes.ts#erstelleCode": {
+    "kind": "context",
+    "via": "erstelleCode"
+  },
+  "src/app/m/radio/_actions/codes.ts#setzeCodeAktiv": {
+    "kind": "context",
+    "via": "setzeCodeAktiv"
+  },
+  "src/app/m/radio/_actions/gate.ts#einloesenAmGate": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/radio/_actions/sitzung.ts#erneuereSitzung": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/radio/_actions/sitzung.ts#beenden": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/radio/abmelden/route.ts#GET": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/radio/admin/(arbeit)/geraete/export/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "device_collection",
+      "reference": "\"devices\""
+    }
+  },
+  "src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts#POST": {
+    "kind": "excluded",
+    "reason": "Parsing has no mutation or successful read event; local admin/identity denials remain audited by the independent denial contract.",
+    "denial": {
+      "via": "POST",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
+  },
+  "src/app/m/radio/admin/actions.ts#geraetAnlegenAction": {
+    "kind": "context",
+    "via": "geraetAnlegenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#geraetAendernAction": {
+    "kind": "context",
+    "via": "geraetAendernAction"
+  },
+  "src/app/m/radio/admin/actions.ts#geraetLoeschenAction": {
+    "kind": "context",
+    "via": "geraetLoeschenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#notizAnfuegenAction": {
+    "kind": "context",
+    "via": "notizAnfuegenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#versionAnlegenAction": {
+    "kind": "context",
+    "via": "versionAnlegenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#versionZielSetzenAction": {
+    "kind": "context",
+    "via": "versionZielSetzenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#versionLoeschenAction": {
+    "kind": "context",
+    "via": "versionLoeschenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#versionenSortierenAction": {
+    "kind": "context",
+    "via": "versionenSortierenAction"
+  },
+  "src/app/m/radio/admin/actions.ts#importSchreibenAction": {
+    "kind": "context",
+    "via": "importSchreibenAction"
+  },
+  "src/app/m/radio/admin/devices/[id]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/admin/devices/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/admin/einstellungen/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/admin/history/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/admin/login/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/admin/update/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/loan/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/return/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/radio/sw.js/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/radio/t/[code]/route.ts#GET": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/radio/token-setup/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/(teilnehmer)/aufgabe/[id]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/_actions/katalog.ts#aufgabeAnlegenAction": {
+    "kind": "context",
+    "via": "aufgabeAnlegenAction"
+  },
+  "src/app/m/uav/_actions/katalog.ts#aufgabeAendernAction": {
+    "kind": "context",
+    "via": "aufgabeAendernAction"
+  },
+  "src/app/m/uav/_actions/katalog.ts#aufgabeLoeschenAction": {
+    "kind": "context",
+    "via": "aufgabeLoeschenAction"
+  },
+  "src/app/m/uav/_actions/katalog.ts#aufgabenSortierenAction": {
+    "kind": "context",
+    "via": "aufgabenSortierenAction"
+  },
+  "src/app/m/uav/_actions/teilnehmer.ts#teilnehmerAnlegenAction": {
+    "kind": "context",
+    "via": "teilnehmerAnlegenAction"
+  },
+  "src/app/m/uav/_actions/teilnehmer.ts#teilnehmerAendernAction": {
+    "kind": "context",
+    "via": "teilnehmerAendernAction"
+  },
+  "src/app/m/uav/_actions/teilnehmer.ts#teilnehmerLoeschenAction": {
+    "kind": "context",
+    "via": "teilnehmerLoeschenAction"
+  },
+  "src/app/m/uav/_actions/teilnehmer.ts#codeNeuAction": {
+    "kind": "context",
+    "via": "codeNeuAction"
+  },
+  "src/app/m/uav/api/abmeldung/route.ts#POST": {
+    "kind": "explicit-only",
+    "reason": "Observed authentication or logout; credential write context resides in the verified redemption helper."
+  },
+  "src/app/m/uav/api/admin/participants/[id]/export/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "participant_export",
+      "reference": "detail.participant.id"
+    }
+  },
+  "src/app/m/uav/api/admin/participants/[id]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/api/admin/participants/[id]/route.ts#PATCH": {
+    "kind": "context",
+    "via": "PATCH"
+  },
+  "src/app/m/uav/api/admin/participants/[id]/route.ts#DELETE": {
+    "kind": "context",
+    "via": "DELETE"
+  },
+  "src/app/m/uav/api/admin/participants/export/route.ts#GET": {
+    "kind": "context",
+    "via": "GET",
+    "delivery": {
+      "objectType": "participant_collection",
+      "reference": "\"participants\""
+    }
+  },
+  "src/app/m/uav/api/admin/participants/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/api/admin/participants/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/uav/api/admin/tasks/[id]/route.ts#PATCH": {
+    "kind": "context",
+    "via": "PATCH"
+  },
+  "src/app/m/uav/api/admin/tasks/[id]/route.ts#DELETE": {
+    "kind": "context",
+    "via": "DELETE"
+  },
+  "src/app/m/uav/api/admin/tasks/reorder/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/uav/api/admin/tasks/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/api/admin/tasks/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/uav/api/anmeldung/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/uav/api/me/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/api/progress/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/api/sync/route.ts#POST": {
+    "kind": "context",
+    "via": "POST"
+  },
+  "src/app/m/uav/api/tasks/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."
+  },
+  "src/app/m/uav/manifest.webmanifest/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/uav/pwa-icon.svg/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/uav/sw.js/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/zeichen/actions.ts#merkeZeichen": {
+    "kind": "context",
+    "via": "merkeZeichen"
+  },
+  "src/app/m/zeichen/actions.ts#entferneZeichen": {
+    "kind": "context",
+    "via": "entferneZeichen"
+  },
+  "src/app/m/zeichen/actions.ts#speichereEigenesZeichen": {
+    "kind": "context",
+    "via": "speichereEigenesZeichen"
+  },
+  "src/app/m/zeichen/actions.ts#beantworte": {
+    "kind": "context",
+    "via": "beantworte"
+  },
+  "src/app/m/zeichen/actions.ts#legeLernsetAn": {
+    "kind": "context",
+    "via": "legeLernsetAn"
+  },
+  "src/app/m/zeichen/actions.ts#setzeLernsetAktiv": {
+    "kind": "context",
+    "via": "setzeLernsetAktiv"
+  },
+  "src/app/m/zeichen/actions.ts#fuegeZeichenZuSetHinzu": {
+    "kind": "context",
+    "via": "fuegeZeichenZuSetHinzu"
+  },
+  "src/app/m/zeichen/actions.ts#entferneZeichenAusSet": {
+    "kind": "context",
+    "via": "entferneZeichenAusSet"
+  },
+  "src/app/m/zeichen/manifest.webmanifest/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/zeichen/pwa-icon.svg/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/m/zeichen/sw.js/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Technical generated asset, not a business export."
+  },
+  "src/app/api/auth/[...nextauth]/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Delegates to Auth.js; authConfig signIn/signOut hooks observe lifecycle once. Polling and token refresh are not sign-ins."
+  },
+  "src/app/api/auth/[...nextauth]/route.ts#POST": {
+    "kind": "excluded",
+    "reason": "Delegates to Auth.js; authConfig signIn/signOut hooks observe lifecycle once. Polling and token refresh are not sign-ins."
+  },
+  "src/app/api/audit/browser/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Receiver warm-up only; no read and no event."
+  },
+  "src/app/api/audit/browser/route.ts#POST": {
+    "kind": "context",
+    "via": "POST",
+    "reason": "Strict browser export allowlist with server-confirmed identity; untrusted origin/schema/size/rate rejected without event amplification.",
+    "denial": {
+      "via": "POST",
+      "reason": "Module access denial records browser_export with the confirmed actor."
+    }
+  },
+  "src/app/m/portal/admin/audit/data/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Bounded audit read, independently guarded by the suite group through readAuditView before any storage/transfer access.",
+    "denial": {
+      "via": "requireAuditReader",
+      "path": "src/core/audit/access.ts",
+      "reason": "Shared suite-only reader guard records audit_log denial before throwing."
+    }
+  }
+}

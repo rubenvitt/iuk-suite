@@ -1,3 +1,4 @@
+import { withAuditContext, auditParticipantActor, auditDenied, auditActor } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { getDb } from "../../_db/client";
 import { hostAbweisung } from "../../_lib/hostRiegel";
@@ -14,9 +15,9 @@ export async function POST(req: Request) {
   const abweisung = hostAbweisung(req); if (abweisung) return abweisung;
   const db = getDb();
   const identitaet = await identitaetAus(req, db);
-  if (identitaet.kind !== "participant") return fehler(401, "unauthorized", "Nur für Teilnehmer");
+  if (identitaet.kind !== "participant") { auditDenied("uav", identitaet.kind === "admin" ? auditActor(identitaet) : { kind: "anonymous" }); return fehler(401, "unauthorized", "Nur für Teilnehmer"); }
   let body: unknown; try { body = await req.json(); } catch { return fehler(400, "invalid_json", "Ungültiger JSON-Body"); }
   const parsed = syncSchema.safeParse(body);
   if (!parsed.success) return fehler(400, "validation_error", parsed.error.message);
-  return NextResponse.json(sync(db, identitaet.id, parsed.data));
+  return withAuditContext({ actor: auditParticipantActor(identitaet.id) }, () => NextResponse.json(sync(db, identitaet.id, parsed.data)));
 }

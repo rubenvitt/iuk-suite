@@ -1,3 +1,4 @@
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/core/auth";
@@ -158,8 +159,9 @@ async function rueckkehrZiel(): Promise<string> {
 export async function requireFilesAccess(): Promise<Viewer> {
   const viewer = viewerAusSession(await auth());
   if (!viewer) {
+    auditDenied("files");
     redirect(`/login?callbackUrl=${encodeURIComponent(await rueckkehrZiel())}`);
   }
-  if (!isFilesAdmin(viewer)) notFound();
+  if (!isFilesAdmin(viewer)) { auditDenied("files", auditActor(viewer)); notFound(); }
   return viewer;
 }

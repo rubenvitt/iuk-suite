@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -179,6 +180,7 @@ function mitJs(f: FormData): FormData {
 
 beforeEach(() => {
   sqlite = new Database(":memory:");
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });
@@ -1710,4 +1712,14 @@ describe("addGroupLeaderAction: E-Mail über das Verzeichnis auflösen", () => {
     expect(listGroupMembers(db, g.id)).toEqual(["sub-aus-der-liste"]);
     expect(verzeichnisFindByEmailMock).not.toHaveBeenCalled();
   });
+});
+
+it("audit keeps a real feedback submission anonymous even inside an authenticated context", async () => {
+  const { withAuditContext } = await import("@/core/audit/context");
+  const { submitResponseAction } = await loadActions();
+  const { token } = seedActiveSurvey("audit", "abc12");
+  sqlite.exec("DELETE FROM audit_outbox");
+  await withAuditContext({ actor: { kind: "user", id: "must-not-leak" }, correlationId: "12345678-1234-1234-1234-123456789012" }, () => submitResponseAction(token, submission()));
+  const rows = sqlite.prepare("SELECT actor, correlation_id, object_ref FROM audit_outbox WHERE object_type = 'responses'").all();
+  expect(rows).toEqual([{ actor: '{"kind":"anonymous"}', correlation_id: null, object_ref: null }]);
 });

@@ -1,4 +1,5 @@
 "use server";
+import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -75,6 +76,7 @@ export async function einloesenAmGate(
   const res = await redeemToken(code, getDb());
 
   if (!res.ok) {
+    auditDenied("lagerbuch");
     // SCHRITT 6 — erst JETZT wird gebucht. Die drei Zaehler liegen HINTER der
     // Codepruefung und zaehlen NUR Fehlversuche (§3.5.3).
     gateFehlversuchBuchen(absender);
@@ -96,5 +98,6 @@ export async function einloesenAmGate(
 
   // AEUSSERER Pfad. Ein ausdrueckliches `returnTo` (Deep-Link) hat Vorrang;
   // sonst fuehrt der Code an sein hinterlegtes Ziel (§7.2.5).
+  auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
   redirect(returnTo ?? tokenZielPfad(res.zielTyp, res.zielId));
 }

@@ -1,3 +1,4 @@
+import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 /**
  * `POST /a/<id>/nachweis/hochladen` — DER BILDNACHWEIS-UPLOAD (Aufgabe 19, Fix-Runde 1,
  * Betreiberentscheidung 2026-08-14). WAR EINE SERVER ACTION (`nachweisHochladenAction`,
@@ -114,11 +115,11 @@ export async function POST(
 ): Promise<Response> {
   const session = await auth();
   const sub = session?.user?.id;
-  if (!sub) return keinZugriff();
+  if (!sub) { auditDenied("aufgaben", auditActor(session?.user)); return keinZugriff(); }
 
   const db = getDb();
   const person = personNachSub(db, sub);
-  if (!person) return keinZugriff();
+  if (!person) { auditDenied("aufgaben", auditActor(session?.user)); return keinZugriff(); }
 
   const { id } = await params;
   const task = aufgabe(db, id);
@@ -127,75 +128,80 @@ export async function POST(
   const heute = isoTag(new Date());
   // DIESELBE VORAUSSETZUNG WIE DIE VORGAENGER-ACTION (Kopfkommentar `_lib/zugang.ts`s
   // `darfNachweisHochladen`): der Zustand `in_arbeit` steht NEBEN dem Praedikat, nicht darin.
-  if (task.status !== "in_arbeit" || !darfNachweisHochladen(await akteurFuer(person), task, heute)) {
+  if (!darfNachweisHochladen(await akteurFuer(person), task, heute)) {
+    auditDenied("aufgaben", auditActor(session?.user));
     return keinZugriff();
   }
+  // An authorized stale form is a workflow conflict, not an access violation.
+  if (task.status !== "in_arbeit") return keinZugriff();
+  return withAuditContext({ actor: auditActor(session?.user) }, async (): Promise<Response> => {
 
-  if (inhaltZuGross(req.headers)) {
-    return antwort(413, {
-      ok: false,
-      fieldErrors: { datei: `Die Datei ist zu groß, erlaubt sind höchstens ${NACHWEIS_MAX_BYTES} Bytes.` },
-      values: { text: "" },
-    });
-  }
-
-  let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return antwort(400, { ok: false, fieldErrors: {}, values: { text: "" } });
-  }
-
-  const text = feld(formData, "text").trim();
-  const dateiFeld = formData.get("datei");
-  const hatDatei = dateiFeld instanceof File && dateiFeld.size > 0;
-
-  // DIE UNTERGRENZEN-REGEL (Spec §5.3), wortgleich mit der Vorgaenger-Action uebernommen.
-  const fieldErrors: Record<string, string> = {};
-  if (task.nachweisArt === "bild" && !hatDatei) {
-    fieldErrors.datei = "Für diese Aufgabe ist ein Bild erforderlich.";
-  }
-  if (task.nachweisArt === "text" && text === "") {
-    fieldErrors.text = "Für diese Aufgabe ist ein Text erforderlich.";
-  }
-  if (Object.keys(fieldErrors).length > 0) {
-    return antwort(400, { ok: false, fieldErrors, values: { text } });
-  }
-
-  let dateiId: string | null = null;
-  if (hatDatei) {
-    const datei = dateiFeld as File;
-    const bytes = new Uint8Array(await datei.arrayBuffer());
-    const neueId = newId();
-    const befund = await legeNachweisAb(neueId, datei.name, bytes, NACHWEIS_MAX_BYTES);
-    if (!befund.ok) {
-      return antwort(400, { ok: false, fieldErrors: { datei: befund.meldung }, values: { text } });
+    if (inhaltZuGross(req.headers)) {
+      return antwort(413, {
+        ok: false,
+        fieldErrors: { datei: `Die Datei ist zu groß, erlaubt sind höchstens ${NACHWEIS_MAX_BYTES} Bytes.` },
+        values: { text: "" },
+      });
     }
-    erstelleDatei(db, {
-      id: neueId,
+
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return antwort(400, { ok: false, fieldErrors: {}, values: { text: "" } });
+    }
+
+    const text = feld(formData, "text").trim();
+    const dateiFeld = formData.get("datei");
+    const hatDatei = dateiFeld instanceof File && dateiFeld.size > 0;
+
+    // DIE UNTERGRENZEN-REGEL (Spec §5.3), wortgleich mit der Vorgaenger-Action uebernommen.
+    const fieldErrors: Record<string, string> = {};
+    if (task.nachweisArt === "bild" && !hatDatei) {
+      fieldErrors.datei = "Für diese Aufgabe ist ein Bild erforderlich.";
+    }
+    if (task.nachweisArt === "text" && text === "") {
+      fieldErrors.text = "Für diese Aufgabe ist ein Text erforderlich.";
+    }
+    if (Object.keys(fieldErrors).length > 0) {
+      return antwort(400, { ok: false, fieldErrors, values: { text } });
+    }
+
+    let dateiId: string | null = null;
+    if (hatDatei) {
+      const datei = dateiFeld as File;
+      const bytes = new Uint8Array(await datei.arrayBuffer());
+      const neueId = newId();
+      const befund = await legeNachweisAb(neueId, datei.name, bytes, NACHWEIS_MAX_BYTES);
+      if (!befund.ok) {
+        return antwort(400, { ok: false, fieldErrors: { datei: befund.meldung }, values: { text } });
+      }
+      erstelleDatei(db, {
+        id: neueId,
+        aufgabeId: task.id,
+        dateiname: datei.name,
+        mime: befund.mime,
+        groesse: befund.groesse,
+      });
+      dateiId = neueId;
+    }
+
+    erstelleNachweis(db, {
       aufgabeId: task.id,
-      dateiname: datei.name,
-      mime: befund.mime,
-      groesse: befund.groesse,
+      art: task.nachweisArt,
+      text: text === "" ? null : text,
+      dateiId,
+      erstelltVon: person.id,
     });
-    dateiId = neueId;
-  }
 
-  erstelleNachweis(db, {
-    aufgabeId: task.id,
-    art: task.nachweisArt,
-    text: text === "" ? null : text,
-    dateiId,
-    erstelltVon: person.id,
+    // FIRE-AND-FORGET, NICHT AWAITEN — Vertragspunkt aus Aufgabe 18 (Kopfkommentar oben).
+    if (dateiId !== null) starteAufgabenScanArbeiter(db);
+
+    // Dasselbe Ziel wie `actions.ts`s privater `revalidate()`-Helfer — ein Import ueber die
+    // `"use server"`-Grenze ist nicht moeglich, deshalb hier wortgleich wiederholt (kein
+    // Sicherheitsriegel, nur ein Pfad-Literal: `git log` fuer den Vorgaenger-Wortlaut).
+    revalidatePath("/m/aufgaben", "layout");
+
+    return antwort(200, { ok: true });
   });
-
-  // FIRE-AND-FORGET, NICHT AWAITEN — Vertragspunkt aus Aufgabe 18 (Kopfkommentar oben).
-  if (dateiId !== null) starteAufgabenScanArbeiter(db);
-
-  // Dasselbe Ziel wie `actions.ts`s privater `revalidate()`-Helfer — ein Import ueber die
-  // `"use server"`-Grenze ist nicht moeglich, deshalb hier wortgleich wiederholt (kein
-  // Sicherheitsriegel, nur ein Pfad-Literal: `git log` fuer den Vorgaenger-Wortlaut).
-  revalidatePath("/m/aufgaben", "layout");
-
-  return antwort(200, { ok: true });
 }

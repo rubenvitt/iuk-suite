@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor, auditEvent } from "@/core/audit/server";
 
 import { auth } from "@/core/auth";
 import { widerrufeAlleSitzungen } from "@/core/konto/widerruf";
@@ -19,5 +20,8 @@ export async function alleSitzungenAbmelden(): Promise<void> {
   const session = await auth();
   const sub = session?.user?.id;
   if (!sub) return;
-  widerrufeAlleSitzungen(sub);
+  return withAuditContext({ actor: auditActor(session?.user) }, async (): Promise<void> => {
+    widerrufeAlleSitzungen(sub);
+    auditEvent({ module: "konto", action: "session_revoke", objectType: "sessions", result: "success", origin: "server" });
+  });
 }

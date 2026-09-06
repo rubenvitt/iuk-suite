@@ -1,3 +1,4 @@
+import { auditDenied, auditEvent } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { RateLimiter, clientIpAus } from "@/core/ratelimit";
 import { ladeVerifikationsdaten } from "../../../../_db/queries";
@@ -93,6 +94,7 @@ export async function POST(
   // — und gegen das Ausmessen dieses Unterschieds steht die Notbremse oben.
   const daten = await ladeVerifikationsdaten(id);
   if (daten === null || !bcryptVerify(passwort, daten.passwortHash)) {
+    if (daten !== null) auditDenied("files");
     return NextResponse.json(ABLEHNUNG, { status: 401 });
   }
 
@@ -105,6 +107,7 @@ export async function POST(
 
   const antwort = NextResponse.json({ ok: true });
   antwort.cookies.set(vorlage);
+  auditEvent({ module: "files", action: "sign_in", objectType: "share_access", result: "success", origin: "server" }, { kind: "anonymous" });
   return antwort;
 }
 

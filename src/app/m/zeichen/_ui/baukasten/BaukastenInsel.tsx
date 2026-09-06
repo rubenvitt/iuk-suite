@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Alert, Button, Card } from "antd";
 import type { SymbolSpec } from "@einsatzzeichen/schema";
 import { SCHRIFT } from "@/core/theme/schrift";
+import { reportBrowserExport } from "@/core/audit/browser";
 import { SPACE } from "@/core/theme/tokens";
 import { alleZeichen } from "../../_lib/katalog";
 import s from "../zeichen.module.css";
@@ -185,12 +186,13 @@ export default function BaukastenInsel({ nurIds }: { nurIds?: readonly string[] 
 
   const svg = ergebnis.ok ? ergebnis.svg : "";
 
-  const lade = (blob: Blob, dateiname: string) => {
+  const lade = (blob: Blob, format: "png" | "svg" | "json") => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = dateiname;
+    a.download = `zeichen.${format}`;
     a.click();
+    reportBrowserExport({ module: "zeichen", format });
     URL.revokeObjectURL(url);
   };
 
@@ -224,7 +226,7 @@ export default function BaukastenInsel({ nurIds }: { nurIds?: readonly string[] 
       }
       renderCanvas(zeichnung, ctx, { size: PNG_PX });
       leinwand.toBlob((blob) => {
-        if (blob) lade(blob, "zeichen.png");
+        if (blob) lade(blob, "png");
         else setExportFehler("Das Bild ließ sich nicht erzeugen.");
       }, "image/png");
     } catch {
@@ -271,7 +273,7 @@ export default function BaukastenInsel({ nurIds }: { nurIds?: readonly string[] 
           <Button
             data-testid="tz-export-svg"
             disabled={!ergebnis.ok}
-            onClick={() => lade(new Blob([svg], { type: "image/svg+xml" }), "zeichen.svg")}
+            onClick={() => lade(new Blob([svg], { type: "image/svg+xml" }), "svg")}
           >
             SVG herunterladen
           </Button>
@@ -283,7 +285,7 @@ export default function BaukastenInsel({ nurIds }: { nurIds?: readonly string[] 
             onClick={() =>
               lade(
                 new Blob([JSON.stringify(spec, null, 2)], { type: "application/json" }),
-                "zeichen.json",
+                "json",
               )
             }
           >

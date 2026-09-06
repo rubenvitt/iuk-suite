@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { canAdminModule } from "@/core/auth/guards";
@@ -155,7 +156,10 @@ export default async function PersonenPage({
   // DASSELBE PRAEDIKAT WIE DIE OBERFLAECHE: `EinstiegKoordination.tsx`s Fusszeilen-Verweis auf
   // `/personen` erscheint nur fuer die Koordination (die einzigen Menschen, die diesen Einstieg je
   // sehen) — dieselbe Bedingung, die diese Route hier durchsetzt.
-  if (!darfPersonenVerwalten(akteur, heute)) notFound();
+  if (!darfPersonenVerwalten(akteur, heute)) {
+    auditDenied("aufgaben", auditActor(akteur.person));
+    notFound();
+  }
   const { bearbeiten } = await searchParams;
   return personenInhalt(db, heute, bearbeiten, verzeichnisAktiv);
 }

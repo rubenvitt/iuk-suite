@@ -1,0 +1,149 @@
+# Audit-Anbindung: Quellinventar
+
+Automatisch aus dem aktuellen Quellbaum; jede Zeile ist in Aufgabe 2 fachlich zu klassifizieren.
+
+## Server Actions
+
+- `src/app/m/aufgaben/actions.ts`: `aufgabeEinstellenAction`, `verteilenAction`, `umverteilenAction`, `zurueckziehenAction`, `startenAction`, `zuruecksetzenAction`, `wiederaufnehmenAction`, `einplanenAction`, `einplanenAnnehmenAction`, `fertigMeldenAction`, `freigebenAction`, `zurueckweisenAction`, `routineAnlegenAction`, `routineAendernAction`, `routineRuhenAction`, `rangVerschiebenAction`, `personenSucheAction`, `personAnlegenAction`, `personAendernAction`, `personBeendenAction`
+- `src/app/m/feedback/actions.ts`: `createGroupAction`, `updateGroupAction`, `regenerateSecretAction`, `deleteGroupAction`, `suchePersonenAction`, `addGroupLeaderAction`, `removeGroupLeaderAction`, `createEveningAction`, `updateEveningAction`, `deleteEveningAction`, `activateSurveyAction`, `submitResponseAction`, `releaseDeviceAction`, `startFeedbackAction`, `beendeFeedbackAction`
+- `src/app/m/files/(verwaltung)/ablage-actions.ts`: `aufraeumenAction`
+- `src/app/m/files/(verwaltung)/actions.ts`: `anlegenAction`, `bearbeitenAction`, `downloadsAufstockenAction`, `shareLoeschenAction`, `avWiederholenAction`
+- `src/app/m/files/(verwaltung)/posteingang/actions.ts`: `inboxLoeschenAction`
+- `src/app/m/files/(verwaltung)/zugangslinks/actions.ts`: `zugangslinkAnlegenAction`, `kontingentAufstockenAction`, `zugangslinkWiderrufenAction`
+- `src/app/m/lagerbuch/_actions/artikel.ts`: `createArtikel`, `updateArtikel`, `setArtikelAktiv`
+- `src/app/m/lagerbuch/_actions/aussondern.ts`: `aussondern`
+- `src/app/m/lagerbuch/_actions/bestellung.ts`: `markiereBestellt`
+- `src/app/m/lagerbuch/_actions/buchung.ts`: `bucheZugang`, `bucheEntnahme`, `bucheEntnahmeHelfer`
+- `src/app/m/lagerbuch/_actions/bz.ts`: `geraetSpeichern`, `setGeraetAktiv`, `geraetZuBarcode`, `kontrolleErfassen`
+- `src/app/m/lagerbuch/_actions/check.ts`: `checkAbschluss`
+- `src/app/m/lagerbuch/_actions/csv.ts`: `importArtikelCsv`
+- `src/app/m/lagerbuch/_actions/detail.ts`: `getDetail`
+- `src/app/m/lagerbuch/_actions/fahrzeuge.ts`: `createFahrzeug`, `setFahrzeugAktiv`, `sollPositionSetzen`, `sollPositionEntfernen`, `sollPositionWiederherstellen`
+- `src/app/m/lagerbuch/_actions/gate.ts`: `einloesenAmGate`
+- `src/app/m/lagerbuch/_actions/geraete.ts`: `geraetSpeichern`, `setGeraetAktiv`, `geraetZuBarcode`
+- `src/app/m/lagerbuch/_actions/inventur.ts`: `inventurKorrektur`
+- `src/app/m/lagerbuch/_actions/lagerortVerfall.ts`: `verfallSetzen`
+- `src/app/m/lagerbuch/_actions/loeschen.ts`: `pruefeLoeschbar`, `loescheElement`, `deaktiviereElement`
+- `src/app/m/lagerbuch/_actions/sauerstoff.ts`: `flascheSpeichern`, `setFlascheAktiv`, `messungErfassen`
+- `src/app/m/lagerbuch/_actions/sitzung.ts`: `erneuereSitzung`, `beenden`
+- `src/app/m/lagerbuch/_actions/templates.ts`: `createTemplate`, `renameTemplate`, `setTemplateAktiv`, `deleteTemplate`, `templatePositionSetzen`, `templatePositionEntfernen`, `fahrzeugTemplateZuweisen`, `fahrzeugTemplateSync`, `templateAufFahrzeugeSyncen`, `fahrzeugTemplateLoesen`, `templateAusFahrzeug`
+- `src/app/m/lagerbuch/_actions/tokens.ts`: `createToken`, `setTokenAktiv`
+- `src/app/m/portal/actions.ts`: `createServiceAction`, `deleteServiceAction`, `setzeAnsprechpartnerAction`
+- `src/app/m/portal/profil/actions.ts`: `alleSitzungenAbmelden`
+- `src/app/m/qr/actions.ts`: `createPresetAction`, `updatePresetAction`, `deletePresetAction`, `reorderPresetsAction`
+- `src/app/m/radio/_actions/ausleihe.ts`: `ausleiheAnlegen`, `rueckgabeBuchen`, `entleiherVorschlaege`, `listeAktualisieren`
+- `src/app/m/radio/_actions/codes.ts`: `erstelleCode`, `setzeCodeAktiv`
+- `src/app/m/radio/_actions/gate.ts`: `einloesenAmGate`
+- `src/app/m/radio/_actions/sitzung.ts`: `erneuereSitzung`, `beenden`
+- `src/app/m/radio/admin/actions.ts`: `geraetAnlegenAction`, `geraetAendernAction`, `geraetLoeschenAction`, `notizAnfuegenAction`, `versionAnlegenAction`, `versionZielSetzenAction`, `versionLoeschenAction`, `versionenSortierenAction`, `importSchreibenAction`
+- `src/app/m/uav/_actions/katalog.ts`: `aufgabeAnlegenAction`, `aufgabeAendernAction`, `aufgabeLoeschenAction`, `aufgabenSortierenAction`
+- `src/app/m/uav/_actions/teilnehmer.ts`: `teilnehmerAnlegenAction`, `teilnehmerAendernAction`, `teilnehmerLoeschenAction`, `codeNeuAction`
+- `src/app/m/zeichen/actions.ts`: `merkeZeichen`, `entferneZeichen`, `speichereEigenesZeichen`, `beantworte`, `legeLernsetAn`, `setzeLernsetAktiv`, `fuegeZeichenZuSetHinzu`, `entferneZeichenAusSet`
+
+## Route Handler
+
+- `src/app/.well-known/webfinger/route.ts`: GET
+- `src/app/api/auth/[...nextauth]/route.ts`:
+- `src/app/api/auth/oidc-signout/route.ts`: GET
+- `src/app/api/health/[modul]/route.ts`: GET
+- `src/app/api/health/route.ts`: GET
+- `src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts`: GET
+- `src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts`: POST
+- `src/app/m/beta/manifest.webmanifest/route.ts`: GET
+- `src/app/m/beta/pwa-icon.svg/route.ts`: GET
+- `src/app/m/beta/sw.js/route.ts`: GET
+- `src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.ts`: GET
+- `src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.ts`: GET
+- `src/app/m/feedback/f/[slugSecret]/qr.png/route.ts`: GET
+- `src/app/m/files/api/download/[id]/route.ts`: GET
+- `src/app/m/files/api/download/[id]/zip/route.ts`: GET
+- `src/app/m/files/api/inbox/[id]/route.ts`: GET
+- `src/app/m/files/api/inbox/zip/route.ts`: GET
+- `src/app/m/files/api/preview/[id]/route.ts`: GET
+- `src/app/m/files/api/s/[id]/qr.png/route.ts`: GET
+- `src/app/m/files/api/s/[id]/verify/route.ts`: POST
+- `src/app/m/files/api/u/[token]/qr.png/route.ts`: GET
+- `src/app/m/files/api/u/[token]/upload/route.ts`: PUT, POST
+- `src/app/m/files/api/upload/[fileId]/route.ts`: PUT, GET, DELETE
+- `src/app/m/lagerbuch/abmelden/route.ts`: GET
+- `src/app/m/lagerbuch/icon-192.png/route.ts`: GET
+- `src/app/m/lagerbuch/icon-512.png/route.ts`: GET
+- `src/app/m/lagerbuch/icon-maskable-512.png/route.ts`: GET
+- `src/app/m/lagerbuch/manifest.webmanifest/route.ts`: GET
+- `src/app/m/lagerbuch/pwa-icon.svg/route.ts`: GET
+- `src/app/m/lagerbuch/t/[code]/route.ts`: GET
+- `src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.ts`: GET
+- `src/app/m/qr/manifest.webmanifest/route.ts`: GET
+- `src/app/m/qr/pwa-icon.svg/route.ts`: GET
+- `src/app/m/qr/sw.js/route.ts`: GET
+- `src/app/m/radio/abmelden/route.ts`: GET
+- `src/app/m/radio/admin/(arbeit)/geraete/export/route.ts`: GET
+- `src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts`: POST
+- `src/app/m/radio/admin/devices/[id]/route.ts`: GET
+- `src/app/m/radio/admin/devices/route.ts`: GET
+- `src/app/m/radio/admin/einstellungen/route.ts`: GET
+- `src/app/m/radio/admin/history/route.ts`: GET
+- `src/app/m/radio/admin/login/route.ts`: GET
+- `src/app/m/radio/admin/update/route.ts`: GET
+- `src/app/m/radio/loan/route.ts`: GET
+- `src/app/m/radio/return/route.ts`: GET
+- `src/app/m/radio/sw.js/route.ts`: GET
+- `src/app/m/radio/t/[code]/route.ts`: GET
+- `src/app/m/radio/token-setup/route.ts`: GET
+- `src/app/m/uav/(teilnehmer)/aufgabe/[id]/route.ts`: GET
+- `src/app/m/uav/api/abmeldung/route.ts`: POST
+- `src/app/m/uav/api/admin/participants/[id]/export/route.ts`: GET
+- `src/app/m/uav/api/admin/participants/[id]/route.ts`: GET, PATCH, DELETE
+- `src/app/m/uav/api/admin/participants/export/route.ts`: GET
+- `src/app/m/uav/api/admin/participants/route.ts`: GET, POST
+- `src/app/m/uav/api/admin/tasks/[id]/route.ts`: PATCH, DELETE
+- `src/app/m/uav/api/admin/tasks/reorder/route.ts`: POST
+- `src/app/m/uav/api/admin/tasks/route.ts`: GET, POST
+- `src/app/m/uav/api/anmeldung/route.ts`: POST
+- `src/app/m/uav/api/me/route.ts`: GET
+- `src/app/m/uav/api/progress/route.ts`: GET
+- `src/app/m/uav/api/sync/route.ts`: POST
+- `src/app/m/uav/api/tasks/route.ts`: GET
+- `src/app/m/uav/manifest.webmanifest/route.ts`: GET
+- `src/app/m/uav/pwa-icon.svg/route.ts`: GET
+- `src/app/m/uav/sw.js/route.ts`: GET
+- `src/app/m/zeichen/manifest.webmanifest/route.ts`: GET
+- `src/app/m/zeichen/pwa-icon.svg/route.ts`: GET
+- `src/app/m/zeichen/sw.js/route.ts`: GET
+
+## Kandidaten fuer Zugangswächter
+
+- `src/app/m/aufgaben/_lib/hilfe.ts`
+- `src/app/m/aufgaben/_lib/kartendaten.ts`
+- `src/app/m/aufgaben/_lib/seedLokal.ts`
+- `src/app/m/aufgaben/_lib/zugang.ts`
+- `src/app/m/aufgaben/actions.ts`
+- `src/app/m/feedback/_lib/access.ts`
+- `src/app/m/feedback/_lib/guardPage.ts`
+- `src/app/m/feedback/_lib/personen.ts`
+- `src/app/m/feedback/_lib/requireFeedbackAccess.ts`
+- `src/app/m/feedback/actions.ts`
+- `src/app/m/files/(verwaltung)/actions.ts`
+- `src/app/m/files/_db/queries.ts`
+- `src/app/m/files/_lib/access.ts`
+- `src/app/m/files/_lib/hostRolle.ts`
+- `src/app/m/files/_lib/nav.ts`
+- `src/app/m/files/_lib/seedLokal.ts`
+- `src/app/m/lagerbuch/_lib/host.ts`
+- `src/app/m/lagerbuch/_lib/hostRiegel.ts`
+- `src/app/m/lagerbuch/_lib/lesepfade/checkliste.ts`
+- `src/app/m/lagerbuch/_lib/zugang.ts`
+- `src/app/m/radio/_lib/aliasse.ts`
+- `src/app/m/radio/_lib/host.ts`
+- `src/app/m/radio/_lib/hostRiegel.ts`
+- `src/app/m/radio/_lib/lesepfade/geraete.ts`
+- `src/app/m/radio/_lib/meldungen.ts`
+- `src/app/m/radio/_lib/nav.ts`
+- `src/app/m/radio/_lib/zugang.ts`
+- `src/app/m/uav/_lib/host.ts`
+- `src/app/m/uav/_lib/requireUavAdmin.ts`
+- `src/app/m/zeichen/_lib/aktionsfehler.ts`
+- `src/app/m/zeichen/actions.ts`
+- `src/core/auth/guards.ts`
+- `src/core/shell/launcherEintraege.ts`
+- `src/proxy.ts`

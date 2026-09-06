@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -25,71 +26,73 @@ export async function aussondern(
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
   const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = AussondernSchema.safeParse(eingabe);
-  if (!geparst.success) {
-    const feldFehler = zodFehler(geparst.error);
-    return {
-      ok: false,
-      fehler: "Bitte die markierten Felder prüfen.",
-      ...(feldFehler ? { feldFehler } : {}),
-    };
-  }
-  const v = geparst.data;
+    const geparst = AussondernSchema.safeParse(eingabe);
+    if (!geparst.success) {
+      const feldFehler = zodFehler(geparst.error);
+      return {
+        ok: false,
+        fehler: "Bitte die markierten Felder prüfen.",
+        ...(feldFehler ? { feldFehler } : {}),
+      };
+    }
+    const v = geparst.data;
 
-  let fachFehler: string | null;
-  try {
-    const schwellen = verfallSchwellen();
-    const jetzt = new Date();
-    fachFehler = db.transaction((tx): string | null => {
-      const charge = tx.select().from(chargen).where(eq(chargen.id, v.chargeId)).get();
-      if (!charge) return "Charge nicht gefunden.";
+    let fachFehler: string | null;
+    try {
+      const schwellen = verfallSchwellen();
+      const jetzt = new Date();
+      fachFehler = db.transaction((tx): string | null => {
+        const charge = tx.select().from(chargen).where(eq(chargen.id, v.chargeId)).get();
+        if (!charge) return "Charge nicht gefunden.";
 
-      if (!verfallStatus(charge.verfall, schwellen, jetzt).abgelaufen) {
-        return "Nur abgelaufene Chargen können ausgesondert werden.";
-      }
+        if (!verfallStatus(charge.verfall, schwellen, jetzt).abgelaufen) {
+          return "Nur abgelaufene Chargen können ausgesondert werden.";
+        }
 
-      const chargeBuchungen = tx
-        .select()
-        .from(buchungen)
-        .where(eq(buchungen.chargeId, charge.id))
-        .all();
-      const rest =
-        bestandProLagerortUndCharge(
-          chargeBuchungen.map((buchung) => ({
-            lagerortId: buchung.lagerortId,
-            chargeId: buchung.chargeId,
-            menge: buchung.menge,
-          })),
-          HANDLAGER_ID,
-        ).get(charge.id) ?? 0;
-      if (rest <= 0) return "Charge hat keinen Restbestand im Handlager.";
+        const chargeBuchungen = tx
+          .select()
+          .from(buchungen)
+          .where(eq(buchungen.chargeId, charge.id))
+          .all();
+        const rest =
+          bestandProLagerortUndCharge(
+            chargeBuchungen.map((buchung) => ({
+              lagerortId: buchung.lagerortId,
+              chargeId: buchung.chargeId,
+              menge: buchung.menge,
+            })),
+            HANDLAGER_ID,
+          ).get(charge.id) ?? 0;
+        if (rest <= 0) return "Charge hat keinen Restbestand im Handlager.";
 
-      tx.insert(buchungen)
-        .values({
-          id: newId(),
-          ts: jetzt,
-          typ: "korrektur",
-          artikelId: charge.artikelId,
-          chargeId: charge.id,
-          lagerortId: HANDLAGER_ID,
-          menge: -rest,
-          quelleTyp: "oidc",
-          quelleId: viewer.sub,
-          referenz: null,
-          kommentar: v.kommentar,
-        })
-        .run();
-      return null;
-    });
-  } catch {
-    return { ok: false, fehler: "Aussondern fehlgeschlagen." };
-  }
+        tx.insert(buchungen)
+          .values({
+            id: newId(),
+            ts: jetzt,
+            typ: "korrektur",
+            artikelId: charge.artikelId,
+            chargeId: charge.id,
+            lagerortId: HANDLAGER_ID,
+            menge: -rest,
+            quelleTyp: "oidc",
+            quelleId: viewer.sub,
+            referenz: null,
+            kommentar: v.kommentar,
+          })
+          .run();
+        return null;
+      });
+    } catch {
+      return { ok: false, fehler: "Aussondern fehlgeschlagen." };
+    }
 
-  if (fachFehler !== null) return { ok: false, fehler: fachFehler };
+    if (fachFehler !== null) return { ok: false, fehler: fachFehler };
 
-  revalidatePath("/m/lagerbuch/verwaltung/verfall");
-  revalidatePath("/m/lagerbuch/verwaltung/artikel");
-  revalidatePath("/m/lagerbuch/verwaltung");
-  return { ok: true };
+    revalidatePath("/m/lagerbuch/verwaltung/verfall");
+    revalidatePath("/m/lagerbuch/verwaltung/artikel");
+    revalidatePath("/m/lagerbuch/verwaltung");
+    return { ok: true };
+  });
 }

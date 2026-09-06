@@ -65,7 +65,7 @@ export type Aktion =
 export type UebergangErgebnis =
   | { erlaubt: true; wirkung: "aendern"; nach: Status; planLoeschen: boolean }
   | { erlaubt: true; wirkung: "loeschen" }
-  | { erlaubt: false; grund: string };
+  | { erlaubt: false; grund: string; accessDenied?: true };
 
 /**
  * `akteur.person.id === a.zugewiesenAn` PLUS `istAktiv` — die Formel, die der Brief fuer
@@ -208,6 +208,7 @@ export function uebergang(
     if (!darf) {
       return {
         erlaubt: false,
+        accessDenied: true,
         grund: "Nur die Erstellerin bzw. der Ersteller oder die Koordination kann diese Aufgabe zurueckziehen.",
       };
     }
@@ -226,6 +227,7 @@ export function uebergang(
   if (!regel.wer(akteur, a, heute)) {
     return {
       erlaubt: false,
+      accessDenied: true,
       grund: `Diese Person darf die Aktion "${aktion}" fuer diese Aufgabe nicht ausfuehren.`,
     };
   }
@@ -234,7 +236,7 @@ export function uebergang(
 
 export type AnfangsZustandErgebnis =
   | { erlaubt: true; status: Status; zugewiesenAn: string | null; istSelbst: boolean }
-  | { erlaubt: false; grund: string };
+  | { erlaubt: false; grund: string; accessDenied?: true };
 
 /**
  * `einstellen` IST BEWUSST KEINE `Aktion` (Brief) — es hat keinen Ausgangszustand, ist also kein

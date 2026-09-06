@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 // src/app/m/radio/_lib/boot.test.ts
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -66,6 +67,7 @@ const JETZT = new Date("2026-08-17T12:00:00Z");
 beforeAll(() => {
   tmp = mkdtempSync(join(tmpdir(), "radio-boot-"));
   sqlite = new Database(join(tmp, "radio.db"));
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/radio/_db/migrations" });
   db = drizzle(sqlite, { schema });
@@ -652,6 +654,7 @@ describe("Planteil 5 / G4 — der Retention-Takt", () => {
   /** Ein migriertes Handle auf eine eigene Datei — nie `getModuleDb()` (Bauform 26). */
   function frischeDb(datei: string): { sqlite: Database.Database; db: DB } {
     const roh = new Database(datei);
+    registerAuditFunctions(roh);
     roh.pragma("foreign_keys = ON");
     migrate(drizzle(roh), { migrationsFolder: "src/app/m/radio/_db/migrations" });
     return { sqlite: roh, db: drizzle(roh, { schema }) as unknown as DB };

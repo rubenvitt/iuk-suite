@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -80,6 +81,7 @@ function gruppeMitAbend(
 
 beforeEach(() => {
   sqlite = new Database(":memory:");
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });

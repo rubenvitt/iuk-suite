@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -34,47 +35,49 @@ export async function verfallSetzen(
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ gesetzt: boolean }>> {
   const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ gesetzt: boolean }>> => {
 
-  const geparst = VerfallSchema.safeParse(eingabe);
-  if (!geparst.success) {
-    const feldFehler = zodFehler(geparst.error);
-    return {
-      ok: false,
-      fehler: "Bitte die markierten Felder prüfen.",
-      ...(feldFehler ? { feldFehler } : {}),
-    };
-  }
-  const v = geparst.data;
+    const geparst = VerfallSchema.safeParse(eingabe);
+    if (!geparst.success) {
+      const feldFehler = zodFehler(geparst.error);
+      return {
+        ok: false,
+        fehler: "Bitte die markierten Felder prüfen.",
+        ...(feldFehler ? { feldFehler } : {}),
+      };
+    }
+    const v = geparst.data;
 
-  const ort = db.select({ id: lagerorte.id })
-    .from(lagerorte)
-    .where(eq(lagerorte.id, v.lagerortId))
-    .get();
-  if (!ort) {
-    return { ok: false, fehler: "Lagerort nicht gefunden." };
-  }
+    const ort = db.select({ id: lagerorte.id })
+      .from(lagerorte)
+      .where(eq(lagerorte.id, v.lagerortId))
+      .get();
+    if (!ort) {
+      return { ok: false, fehler: "Lagerort nicht gefunden." };
+    }
 
-  const imSoll = db.select({ id: sollPositionen.id })
-    .from(sollPositionen)
-    .where(and(
-      eq(sollPositionen.fahrzeugId, v.lagerortId),
-      eq(sollPositionen.artikelId, v.artikelId),
-      eq(sollPositionen.entfernt, false),
-    ))
-    .get();
-  if (!imSoll) {
-    return { ok: false, fehler: "Artikel steht an diesem Lagerort nicht im Soll." };
-  }
+    const imSoll = db.select({ id: sollPositionen.id })
+      .from(sollPositionen)
+      .where(and(
+        eq(sollPositionen.fahrzeugId, v.lagerortId),
+        eq(sollPositionen.artikelId, v.artikelId),
+        eq(sollPositionen.entfernt, false),
+      ))
+      .get();
+    if (!imSoll) {
+      return { ok: false, fehler: "Artikel steht an diesem Lagerort nicht im Soll." };
+    }
 
-  setzeVerfall(db, {
-    lagerortId: v.lagerortId,
-    artikelId: v.artikelId,
-    verfall: v.verfall,
-    quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
+    setzeVerfall(db, {
+      lagerortId: v.lagerortId,
+      artikelId: v.artikelId,
+      verfall: v.verfall,
+      quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
+    });
+
+    revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.lagerortId}`);
+    revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
+    revalidatePath("/m/lagerbuch/verwaltung/verfall");
+    return { ok: true, wert: { gesetzt: v.verfall !== null } };
   });
-
-  revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.lagerortId}`);
-  revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
-  revalidatePath("/m/lagerbuch/verwaltung/verfall");
-  return { ok: true, wert: { gesetzt: v.verfall !== null } };
 }

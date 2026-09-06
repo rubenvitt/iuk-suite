@@ -1,3 +1,4 @@
+import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
@@ -80,7 +81,7 @@ import { isoTag } from "./datum";
 export async function personFuerSeite(db: DB): Promise<PersonRow | null> {
   const session = await auth();
   const sub = session?.user?.id;
-  if (!sub) notFound();
+  if (!sub) { auditDenied("aufgaben"); notFound(); }
   return db.select().from(personen).where(eq(personen.sub, sub)).get() ?? null;
 }
 
@@ -217,20 +218,22 @@ export async function akteurFuer(person: PersonRow): Promise<Akteur> {
  * EINE Quelle der Zeitzone —, statt eine zweite Fassung zu bauen.
  */
 function legeKoordinationAn(db: DB, sub: string, name: string): PersonRow {
-  db.insert(personen)
-    .values({
-      sub,
-      name,
-      initialen: initialenAus(name),
-      rolle: "auftrag",
-      aktivVon: isoTag(new Date()),
-      aktivBis: null,
-    })
-    .onConflictDoNothing()
-    .run();
-  const person = db.select().from(personen).where(eq(personen.sub, sub)).get();
-  if (!person) throw new Error(`Koordinationszeile fuer "${sub}" konnte nicht angelegt werden.`);
-  return person;
+  return withAuditContext({ actor: auditActor({ id: sub, name }) }, (): PersonRow => {
+    db.insert(personen)
+      .values({
+        sub,
+        name,
+        initialen: initialenAus(name),
+        rolle: "auftrag",
+        aktivVon: isoTag(new Date()),
+        aktivBis: null,
+      })
+      .onConflictDoNothing()
+      .run();
+    const person = db.select().from(personen).where(eq(personen.sub, sub)).get();
+    if (!person) throw new Error(`Koordinationszeile fuer "${sub}" konnte nicht angelegt werden.`);
+    return person;
+  });
 }
 
 /**

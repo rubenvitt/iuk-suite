@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -29,6 +30,7 @@ const DIR = "./.data/feedback-import-test";
 // als TEXT in beiden gemischten Formaten (Go time.Time + SQLite CURRENT_TIMESTAMP).
 function buildSourceDb(): Database.Database {
   const db = new Database(":memory:");
+  registerAuditFunctions(db);
   db.exec(`
     CREATE TABLE groups (
       id INTEGER PRIMARY KEY,
@@ -160,7 +162,7 @@ function buildSourceDb(): Database.Database {
 function freshDb(): BetterSQLite3Database<typeof schema> {
   rmSync(DIR, { recursive: true, force: true });
   mkdirSync(DIR, { recursive: true });
-  const db = drizzle(new Database(`${DIR}/feedback.db`), { schema });
+  const db = drizzle(registerAuditFunctions(new Database(`${DIR}/feedback.db`)), { schema });
   migrate(db, { migrationsFolder: "./src/app/m/feedback/_db/migrations" });
   return db;
 }

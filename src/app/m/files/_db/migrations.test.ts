@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { getTableColumns, getTableName, is } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -23,6 +24,7 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
 beforeAll(() => {
   tmp = mkdtempSync(join(tmpdir(), "files-migrations-"));
   sqlite = new Database(join(tmp, "files.db"));
+  registerAuditFunctions(sqlite);
   // `foreign_keys` ist eine VERBINDUNGS-Eigenschaft und in SQLite standardmäßig
   // AUS (§4.9). Ohne diese Zeile wären alle FK-Zusagen unten grün, ohne zu gelten.
   sqlite.pragma("foreign_keys = ON");
@@ -167,7 +169,7 @@ describe("files-Migration: die sechs Tabellen aus §4", () => {
       sqlite
         .prepare(
           `SELECT name FROM sqlite_master
-             WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__drizzle%'`,
+             WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '__drizzle%' AND name != 'audit_outbox'`,
         )
         .all() as { name: string }[]
     )

@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -31,6 +32,7 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
 beforeAll(() => {
   tmp = mkdtempSync(join(tmpdir(), "lagerbuch-migrations-"));
   sqlite = new Database(join(tmp, "lagerbuch.db"));
+  registerAuditFunctions(sqlite);
   // `foreign_keys` ist eine VERBINDUNGS-Eigenschaft und in SQLite standardmaessig AUS.
   // Ohne diese Zeile waeren alle FK-Zusagen unten gruen, ohne zu gelten.
   sqlite.pragma("foreign_keys = ON");
@@ -238,7 +240,7 @@ describe("16 Tabellen, Spalte fuer Spalte", () => {
   it("es sind genau 16 und keine mehr", () => {
     const namen = (sqlite.prepare(
       `select name from sqlite_master where type='table'
-         and name not like 'sqlite_%' and name not like '__drizzle%' order by name`,
+         and name not like 'sqlite_%' and name not like '__drizzle%' and name != 'audit_outbox' order by name`,
     ).all() as { name: string }[]).map((r) => r.name);
     expect(namen.sort()).toEqual(Object.keys(TABELLEN).sort());
   });
@@ -359,8 +361,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt vier Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3]);
+  it("fuehrt fuenf Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -377,7 +379,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
       expect(() => readFileSync(join(ORDNER, `${e.tag}.sql`), "utf8")).not.toThrow();
     }
     expect(journal.entries.map((e) => e.tag).slice(1))
-      .toEqual(["0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager"]);
+      .toEqual(["0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox"]);
   });
 
   it("und die GEGENRICHTUNG: keine .sql ohne Journaleintrag", () => {

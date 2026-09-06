@@ -1,5 +1,9 @@
 "use server";
+import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 
+import { auth } from "@/core/auth";
+import { isModuleAdmin } from "@/core/groups";
+import { getModule } from "@/core/registry";
 import { revalidatePath } from "next/cache";
 import { getDb, type DB } from "./_db/client";
 import {
@@ -45,7 +49,7 @@ import {
   akteurFuerSession,
 } from "./_lib/zugang";
 import { isoTag } from "./_lib/datum";
-import { canAdminModule, requireModuleAdmin } from "@/core/auth/guards";
+import { requireModuleAdmin } from "@/core/auth/guards";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
 
 /*
@@ -125,80 +129,82 @@ export async function aufgabeEinstellenAction(
 ): Promise<FormState> {
   const db = getDb();
   const ersteller = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(ersteller.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
 
-  const fuerSichSelbst = istGesetzt(formData, "fuerSichSelbst");
-  const start = anfangsZustand(ersteller, fuerSichSelbst, heute);
-  if (!start.erlaubt) throw new Error(start.grund);
+    const fuerSichSelbst = istGesetzt(formData, "fuerSichSelbst");
+    const start = anfangsZustand(ersteller, fuerSichSelbst, heute);
+    if (!start.erlaubt) { auditDenied("aufgaben", auditActor(ersteller.person)); throw new Error(start.grund); }
 
-  const values = {
-    titel: feld(formData, "titel"),
-    beschreibung: feld(formData, "beschreibung"),
-    prioritaet: feld(formData, "prioritaet"),
-    faelligAm: feld(formData, "faelligAm"),
-    faelligUhrzeit: feld(formData, "faelligUhrzeit"),
-    dauerMinuten: feld(formData, "dauerMinuten"),
-    nachweisArt: feld(formData, "nachweisArt") || "text",
-    // BEIDE SCHALTER GEHOEREN IN `values` (Review Fix-Runde 1, Punkt 2): `feldWert` liefert im
-    // Fehlerzustand NUR, was hier steht, nicht die Vorbelegung — ein fehlendes Feld kommt als LEER
-    // zurueck, nicht als "unveraendert". Bei einem Textfeld ist das harmlos; hier kippt ein
-    // verlorenes `fuerSichSelbst` die Aufgabe beim zweiten Absendeversuch von Selbst- auf
-    // Fremdaufgabe, und eine BuFDi, die `darfEinstellenFuerAndere` nicht erfuellt, wirft dann beim
-    // NAECHSTEN Versuch — auf genau der technischen Fehlerseite, die `FormState` verhindern soll.
-    fuerSichSelbst: istGesetzt(formData, "fuerSichSelbst") ? "true" : "",
-    nachweisPflicht: istGesetzt(formData, "nachweisPflicht") ? "true" : "",
-  };
+    const values = {
+      titel: feld(formData, "titel"),
+      beschreibung: feld(formData, "beschreibung"),
+      prioritaet: feld(formData, "prioritaet"),
+      faelligAm: feld(formData, "faelligAm"),
+      faelligUhrzeit: feld(formData, "faelligUhrzeit"),
+      dauerMinuten: feld(formData, "dauerMinuten"),
+      nachweisArt: feld(formData, "nachweisArt") || "text",
+      // BEIDE SCHALTER GEHOEREN IN `values` (Review Fix-Runde 1, Punkt 2): `feldWert` liefert im
+      // Fehlerzustand NUR, was hier steht, nicht die Vorbelegung — ein fehlendes Feld kommt als LEER
+      // zurueck, nicht als "unveraendert". Bei einem Textfeld ist das harmlos; hier kippt ein
+      // verlorenes `fuerSichSelbst` die Aufgabe beim zweiten Absendeversuch von Selbst- auf
+      // Fremdaufgabe, und eine BuFDi, die `darfEinstellenFuerAndere` nicht erfuellt, wirft dann beim
+      // NAECHSTEN Versuch — auf genau der technischen Fehlerseite, die `FormState` verhindern soll.
+      fuerSichSelbst: istGesetzt(formData, "fuerSichSelbst") ? "true" : "",
+      nachweisPflicht: istGesetzt(formData, "nachweisPflicht") ? "true" : "",
+    };
 
-  // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet je ein `<select>` mit
-  // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler (Brief, Eingabevalidierung).
-  if (!istGueltigePrioritaet(values.prioritaet)) {
-    throw new Error(`Unbekannte Prioritaet "${values.prioritaet}".`);
-  }
-  if (!istGueltigeNachweisArt(values.nachweisArt)) {
-    throw new Error(`Unbekannte Nachweisart "${values.nachweisArt}".`);
-  }
+    // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet je ein `<select>` mit
+    // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler (Brief, Eingabevalidierung).
+    if (!istGueltigePrioritaet(values.prioritaet)) {
+      throw new Error(`Unbekannte Prioritaet "${values.prioritaet}".`);
+    }
+    if (!istGueltigeNachweisArt(values.nachweisArt)) {
+      throw new Error(`Unbekannte Nachweisart "${values.nachweisArt}".`);
+    }
 
-  const fieldErrors: Record<string, string> = {};
-  const titel = values.titel.trim();
-  if (titel === "") fieldErrors.titel = "Titel fehlt.";
-  const beschreibung = values.beschreibung.trim();
-  if (beschreibung === "") fieldErrors.beschreibung = "Erklaerung fehlt.";
-  if (!istGueltigerIsoTag(values.faelligAm)) {
-    fieldErrors.faelligAm = "Frist fehlt oder ist ungueltig.";
-  }
-  const faelligUhrzeit = values.faelligUhrzeit.trim();
-  if (faelligUhrzeit !== "" && !istGueltigeUhrzeit(faelligUhrzeit)) {
-    fieldErrors.faelligUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
-  }
-  const dauerMinuten = Number(values.dauerMinuten);
-  if (!istGueltigeDauerMinuten(dauerMinuten)) {
-    fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    const fieldErrors: Record<string, string> = {};
+    const titel = values.titel.trim();
+    if (titel === "") fieldErrors.titel = "Titel fehlt.";
+    const beschreibung = values.beschreibung.trim();
+    if (beschreibung === "") fieldErrors.beschreibung = "Erklaerung fehlt.";
+    if (!istGueltigerIsoTag(values.faelligAm)) {
+      fieldErrors.faelligAm = "Frist fehlt oder ist ungueltig.";
+    }
+    const faelligUhrzeit = values.faelligUhrzeit.trim();
+    if (faelligUhrzeit !== "" && !istGueltigeUhrzeit(faelligUhrzeit)) {
+      fieldErrors.faelligUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+    }
+    const dauerMinuten = Number(values.dauerMinuten);
+    if (!istGueltigeDauerMinuten(dauerMinuten)) {
+      fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+    }
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  const nachweisPflicht = values.nachweisPflicht === "true";
+    const nachweisPflicht = values.nachweisPflicht === "true";
 
-  const neue = erstelleAufgabe(db, {
-    titel,
-    beschreibung,
-    prioritaet: values.prioritaet,
-    erstellerId: ersteller.person.id,
-    zugewiesenAn: start.zugewiesenAn,
-    status: start.status,
-    faelligAm: values.faelligAm,
-    faelligUhrzeit: faelligUhrzeit === "" ? null : faelligUhrzeit,
-    dauerMinuten,
-    nachweisPflicht,
-    nachweisArt: values.nachweisArt,
-    // DIE INVARIANTE, AUF DIE `istVertretungsfreigabe` SICH VERLAESST (Brief): eine Fremdaufgabe
-    // bekommt hier ihren Pruefer (den Ersteller), eine Selbstaufgabe keinen.
-    prueferId: start.istSelbst ? null : ersteller.person.id,
-    istSelbst: start.istSelbst,
+    const neue = erstelleAufgabe(db, {
+      titel,
+      beschreibung,
+      prioritaet: values.prioritaet,
+      erstellerId: ersteller.person.id,
+      zugewiesenAn: start.zugewiesenAn,
+      status: start.status,
+      faelligAm: values.faelligAm,
+      faelligUhrzeit: faelligUhrzeit === "" ? null : faelligUhrzeit,
+      dauerMinuten,
+      nachweisPflicht,
+      nachweisArt: values.nachweisArt,
+      // DIE INVARIANTE, AUF DIE `istVertretungsfreigabe` SICH VERLAESST (Brief): eine Fremdaufgabe
+      // bekommt hier ihren Pruefer (den Ersteller), eine Selbstaufgabe keinen.
+      prueferId: start.istSelbst ? null : ersteller.person.id,
+      istSelbst: start.istSelbst,
+    });
+
+    schreibeVerlauf(db, { aufgabeId: neue.id, ereignis: "eingestellt", akteurId: ersteller.person.id });
+    revalidate();
+    return { ok: true };
   });
-
-  schreibeVerlauf(db, { aufgabeId: neue.id, ereignis: "eingestellt", akteurId: ersteller.person.id });
-  revalidate();
-  return { ok: true };
 }
 
 /**
@@ -214,94 +220,99 @@ async function verteilenGemeinsam(
 ): Promise<FormState> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, aktion, akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
-  if (ergebnis.wirkung !== "aendern") {
-    // Nur eine Verteidigungslinie fuer den Typ: "verteilen"/"umverteilen" erzeugen bei `uebergang()`
-    // nie `wirkung: "loeschen"` (das ist ausschliesslich `zurueckziehen` vorbehalten).
-    throw new Error("Unerwartetes Uebergangsergebnis.");
-  }
+    const ergebnis = uebergang(task, aktion, akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
+    }
+    if (ergebnis.wirkung !== "aendern") {
+      // Nur eine Verteidigungslinie fuer den Typ: "verteilen"/"umverteilen" erzeugen bei `uebergang()`
+      // nie `wirkung: "loeschen"` (das ist ausschliesslich `zurueckziehen` vorbehalten).
+      throw new Error("Unerwartetes Uebergangsergebnis.");
+    }
 
-  /*
-   * DIE DRITTE UEBERGABE AUS AUFGABE 8 — UND DIE EINZIGE STELLE, AN DER SIE NOCH ABGEFANGEN WERDEN
-   * KANN (Brief). `uebergang()` prueft nur, ob DIESE Person `aktion` ausfuehren darf
-   * (`darfVerteilen`) — sie kennt `zielId` gar nicht und kann deshalb nicht pruefen, ob die
-   * ZIELPERSON ueberhaupt eine aktive BuFDi ist. Ohne diese Pruefung koennte die Koordination eine
-   * fremd eingestellte Aufgabe an SICH SELBST zuweisen: `istSelbst` bliebe dabei `false`
-   * (`erstellerId !== zugewiesenAn`, gespeichert bei "einstellen", nicht neu berechnet), und
-   * `darfFreigeben`s zweite Klausel waere die letzte verbleibende Bremse gegen eine
-   * Vier-Augen-Luecke.
-   *
-   * `bufdis(db, heute)` ist DIESELBE Quelle wie die Verteilliste der Oberflaeche (Betreiber-
-   * entscheidung 2026-08-13, `darfFreigeben`-Kommentar in `_lib/zugang.ts`) — die Action verlaesst
-   * sich nicht auf deren Filter, sie STELLT ihn selbst her. Ein Nachbau als
-   * `akteur.person.rolle === "bufdi" && istAktiv(...)` waere genau der Nachbau, den der Brief verbietet:
-   * er haette dieselbe Pruefung ein zweites Mal an einer Stelle liegen, die bei einer spaeteren
-   * Aenderung von `bufdis()` nicht automatisch mitzoege. SEIT DEM QUELLENWECHSEL (2026-08-15) waere
-   * er sogar EINE STUFE GEFAEHRLICHER: die koordinierende Person traegt in der Tabelle `auftrag`
-   * (`_db/schema.ts`s `ROLLEN` kennt `koordination` nicht mehr), ein handgeschriebener Rollenfilter
-   * kann sie also gar nicht mehr benennen — `bufdis()` ist der einzige Ausdruck, der sie
-   * strukturell aus der Zielliste haelt.
-   */
-  const values = {
-    // `aufgabeId` gehoert mit hinein — Vorbild `files/(verwaltung)/actions.ts` fuehrt sein `"id"`
-    // in `values` ausdruecklich mit (Review Fix-Runde 1, Punkt 2): ohne sie wuesste ein erneutes
-    // Absenden nach einem Feldfehler nicht mehr, fuer welche Aufgabe der Dialog offen war.
-    aufgabeId,
-    zielId: feld(formData, "zielId"),
-    vorschlagDatum: feld(formData, "vorschlagDatum"),
-    vorschlagUhrzeit: feld(formData, "vorschlagUhrzeit"),
-  };
-  const fieldErrors: Record<string, string> = {};
+    /*
+     * DIE DRITTE UEBERGABE AUS AUFGABE 8 — UND DIE EINZIGE STELLE, AN DER SIE NOCH ABGEFANGEN WERDEN
+     * KANN (Brief). `uebergang()` prueft nur, ob DIESE Person `aktion` ausfuehren darf
+     * (`darfVerteilen`) — sie kennt `zielId` gar nicht und kann deshalb nicht pruefen, ob die
+     * ZIELPERSON ueberhaupt eine aktive BuFDi ist. Ohne diese Pruefung koennte die Koordination eine
+     * fremd eingestellte Aufgabe an SICH SELBST zuweisen: `istSelbst` bliebe dabei `false`
+     * (`erstellerId !== zugewiesenAn`, gespeichert bei "einstellen", nicht neu berechnet), und
+     * `darfFreigeben`s zweite Klausel waere die letzte verbleibende Bremse gegen eine
+     * Vier-Augen-Luecke.
+     *
+     * `bufdis(db, heute)` ist DIESELBE Quelle wie die Verteilliste der Oberflaeche (Betreiber-
+     * entscheidung 2026-08-13, `darfFreigeben`-Kommentar in `_lib/zugang.ts`) — die Action verlaesst
+     * sich nicht auf deren Filter, sie STELLT ihn selbst her. Ein Nachbau als
+     * `akteur.person.rolle === "bufdi" && istAktiv(...)` waere genau der Nachbau, den der Brief verbietet:
+     * er haette dieselbe Pruefung ein zweites Mal an einer Stelle liegen, die bei einer spaeteren
+     * Aenderung von `bufdis()` nicht automatisch mitzoege. SEIT DEM QUELLENWECHSEL (2026-08-15) waere
+     * er sogar EINE STUFE GEFAEHRLICHER: die koordinierende Person traegt in der Tabelle `auftrag`
+     * (`_db/schema.ts`s `ROLLEN` kennt `koordination` nicht mehr), ein handgeschriebener Rollenfilter
+     * kann sie also gar nicht mehr benennen — `bufdis()` ist der einzige Ausdruck, der sie
+     * strukturell aus der Zielliste haelt.
+     */
+    const values = {
+      // `aufgabeId` gehoert mit hinein — Vorbild `files/(verwaltung)/actions.ts` fuehrt sein `"id"`
+      // in `values` ausdruecklich mit (Review Fix-Runde 1, Punkt 2): ohne sie wuesste ein erneutes
+      // Absenden nach einem Feldfehler nicht mehr, fuer welche Aufgabe der Dialog offen war.
+      aufgabeId,
+      zielId: feld(formData, "zielId"),
+      vorschlagDatum: feld(formData, "vorschlagDatum"),
+      vorschlagUhrzeit: feld(formData, "vorschlagUhrzeit"),
+    };
+    const fieldErrors: Record<string, string> = {};
 
-  const zielId = values.zielId.trim();
-  const zielIstAktiverBufdi = bufdis(db, heute).some((b) => b.id === zielId);
-  if (!zielIstAktiverBufdi) {
-    fieldErrors.zielId = "Zielperson nicht gefunden, nicht aktiv oder kein BuFDi.";
-  }
-  const vorschlagDatum = values.vorschlagDatum.trim();
-  if (vorschlagDatum !== "" && !istGueltigerIsoTag(vorschlagDatum)) {
-    fieldErrors.vorschlagDatum = "Vorschlagstag ungueltig.";
-  }
-  const vorschlagUhrzeit = values.vorschlagUhrzeit.trim();
-  if (vorschlagUhrzeit !== "" && !istGueltigeUhrzeit(vorschlagUhrzeit)) {
-    fieldErrors.vorschlagUhrzeit = "Vorschlagsuhrzeit ungueltig — Format HH:MM.";
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    const zielId = values.zielId.trim();
+    const zielIstAktiverBufdi = bufdis(db, heute).some((b) => b.id === zielId);
+    if (!zielIstAktiverBufdi) {
+      fieldErrors.zielId = "Zielperson nicht gefunden, nicht aktiv oder kein BuFDi.";
+    }
+    const vorschlagDatum = values.vorschlagDatum.trim();
+    if (vorschlagDatum !== "" && !istGueltigerIsoTag(vorschlagDatum)) {
+      fieldErrors.vorschlagDatum = "Vorschlagstag ungueltig.";
+    }
+    const vorschlagUhrzeit = values.vorschlagUhrzeit.trim();
+    if (vorschlagUhrzeit !== "" && !istGueltigeUhrzeit(vorschlagUhrzeit)) {
+      fieldErrors.vorschlagUhrzeit = "Vorschlagsuhrzeit ungueltig — Format HH:MM.";
+    }
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  aktualisiereAufgabe(db, task.id, {
-    status: ergebnis.nach,
-    zugewiesenAn: zielId,
-    // REGEL 3 (Spec §5.2), AUS `uebergang()` GENOMMEN, NICHT HIER NACHGEBAUT: `planLoeschen` ist
-    // ein Pflichtfeld auf jedem "aendern"-Erfolg (Aufgabe 8) — diese Action kann es deshalb nicht
-    // vergessen abzufragen. Bei "verteilen" ist es immer `false` (eine frisch aus dem Posteingang
-    // verteilte Aufgabe hatte noch keinen Plan); bei "umverteilen" immer `true`.
-    ...(ergebnis.planLoeschen ? { planDatum: null, planUhrzeit: null, planRang: 0 } : {}),
-    // Ein neuer Zeitvorschlag darf im selben Zug gesetzt werden (Spec §5.2). Beide Felder werden
-    // hier IMMER neu geschrieben (leer → `null`), nicht nur wenn ein Wert mitkommt: ein
-    // stehengebliebener Vorschlag aus einer vorherigen Verteilung galt der VORHERIGEN Zielperson
-    // und waere nach einer Umverteilung ein Vorschlag, den niemand ausgesprochen hat.
-    vorschlagDatum: vorschlagDatum === "" ? null : vorschlagDatum,
-    vorschlagUhrzeit: vorschlagUhrzeit === "" ? null : vorschlagUhrzeit,
+    aktualisiereAufgabe(db, task.id, {
+      status: ergebnis.nach,
+      zugewiesenAn: zielId,
+      // REGEL 3 (Spec §5.2), AUS `uebergang()` GENOMMEN, NICHT HIER NACHGEBAUT: `planLoeschen` ist
+      // ein Pflichtfeld auf jedem "aendern"-Erfolg (Aufgabe 8) — diese Action kann es deshalb nicht
+      // vergessen abzufragen. Bei "verteilen" ist es immer `false` (eine frisch aus dem Posteingang
+      // verteilte Aufgabe hatte noch keinen Plan); bei "umverteilen" immer `true`.
+      ...(ergebnis.planLoeschen ? { planDatum: null, planUhrzeit: null, planRang: 0 } : {}),
+      // Ein neuer Zeitvorschlag darf im selben Zug gesetzt werden (Spec §5.2). Beide Felder werden
+      // hier IMMER neu geschrieben (leer → `null`), nicht nur wenn ein Wert mitkommt: ein
+      // stehengebliebener Vorschlag aus einer vorherigen Verteilung galt der VORHERIGEN Zielperson
+      // und waere nach einer Umverteilung ein Vorschlag, den niemand ausgesprochen hat.
+      vorschlagDatum: vorschlagDatum === "" ? null : vorschlagDatum,
+      vorschlagUhrzeit: vorschlagUhrzeit === "" ? null : vorschlagUhrzeit,
+    });
+
+    schreibeVerlauf(db, {
+      aufgabeId: task.id,
+      ereignis,
+      akteurId: akteur.person.id,
+      notiz:
+        vorschlagDatum !== ""
+          ? `Vorschlag: ${vorschlagDatum}${vorschlagUhrzeit !== "" ? ` ${vorschlagUhrzeit}` : ""}`
+          : undefined,
+    });
+    revalidate();
+    return { ok: true };
   });
-
-  schreibeVerlauf(db, {
-    aufgabeId: task.id,
-    ereignis,
-    akteurId: akteur.person.id,
-    notiz:
-      vorschlagDatum !== ""
-        ? `Vorschlag: ${vorschlagDatum}${vorschlagUhrzeit !== "" ? ` ${vorschlagUhrzeit}` : ""}`
-        : undefined,
-  });
-  revalidate();
-  return { ok: true };
 }
 
 /** `eingegangen` → `verteilt` (Spec §5.2) — nur die Koordination (`uebergang()` prueft `darfVerteilen`). */
@@ -329,17 +340,22 @@ export async function umverteilenAction(_prev: FormState, formData: FormData): P
 export async function zurueckziehenAction(formData: FormData): Promise<void> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "zurueckziehen", akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
+    const ergebnis = uebergang(task, "zurueckziehen", akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
+    }
 
-  loescheAufgabe(db, task.id);
-  revalidate();
+    loescheAufgabe(db, task.id);
+    revalidate();
+  });
 }
 
 /*
@@ -364,23 +380,28 @@ async function einfacherUebergang(
 ): Promise<void> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, aktion, akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
-  if (ergebnis.wirkung !== "aendern") {
-    // Verteidigungslinie fuer den Typ, wie in `verteilenGemeinsam": keine dieser drei Aktionen
-    // erzeugt bei `uebergang()` `wirkung: "loeschen"`.
-    throw new Error("Unerwartetes Uebergangsergebnis.");
-  }
+    const ergebnis = uebergang(task, aktion, akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
+    }
+    if (ergebnis.wirkung !== "aendern") {
+      // Verteidigungslinie fuer den Typ, wie in `verteilenGemeinsam": keine dieser drei Aktionen
+      // erzeugt bei `uebergang()` `wirkung: "loeschen"`.
+      throw new Error("Unerwartetes Uebergangsergebnis.");
+    }
 
-  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-  schreibeVerlauf(db, { aufgabeId: task.id, ereignis, akteurId: akteur.person.id });
-  revalidate();
+    aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+    schreibeVerlauf(db, { aufgabeId: task.id, ereignis, akteurId: akteur.person.id });
+    revalidate();
+  });
 }
 
 /** `verteilt` → `in_arbeit` (Spec §5.2) — nur der zugewiesene BuFDi. */
@@ -462,65 +483,70 @@ function einplanenNotiz(task: AufgabeRow, planDatum: string, planUhrzeit: string
  * bleiben sollen — ein PFLICHTFELD haette hier Rueckwaertskompatibilitaet gegen eine schon
  * abgenommene Testreihe gebrochen, ohne dass die Fachlichkeit das verlangt.
  */
-export async function einplanenAction(_prev: FormState, formData: FormData): Promise<FormState> {
+async function einplanenGemeinsam(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "einplanen", akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
-  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
-
-  const values = {
-    aufgabeId,
-    planDatum: feld(formData, "planDatum"),
-    planUhrzeit: feld(formData, "planUhrzeit"),
-    dauerMinuten: feld(formData, "dauerMinuten"),
-  };
-  const fieldErrors: Record<string, string> = {};
-  const planDatum = values.planDatum.trim();
-  if (!istGueltigerIsoTag(planDatum)) {
-    fieldErrors.planDatum = "Plantag fehlt oder ist ungueltig.";
-  }
-  const planUhrzeit = values.planUhrzeit.trim();
-  if (planUhrzeit !== "" && !istGueltigeUhrzeit(planUhrzeit)) {
-    fieldErrors.planUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
-  }
-  // LEER = UNVERAENDERT, GESENDET = MUSS GUELTIG SEIN (Kopfkommentar oben) — dieselbe Zweiteilung wie
-  // bei `planUhrzeit`, nur mit einem anderen "leer bedeutet"-Ergebnis (dort `null`, hier "kein Patch").
-  const dauerMinutenRoh = values.dauerMinuten.trim();
-  let dauerMinuten: number | undefined;
-  if (dauerMinutenRoh !== "") {
-    const n = Number(dauerMinutenRoh);
-    if (!istGueltigeDauerMinuten(n)) {
-      fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
-    } else {
-      dauerMinuten = n;
+    const ergebnis = uebergang(task, "einplanen", akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
     }
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
-  const geplanteUhrzeit = planUhrzeit === "" ? null : planUhrzeit;
-  const planRang = planRangFuerEinplanen(db, task, planDatum);
+    const values = {
+      aufgabeId,
+      planDatum: feld(formData, "planDatum"),
+      planUhrzeit: feld(formData, "planUhrzeit"),
+      dauerMinuten: feld(formData, "dauerMinuten"),
+    };
+    const fieldErrors: Record<string, string> = {};
+    const planDatum = values.planDatum.trim();
+    if (!istGueltigerIsoTag(planDatum)) {
+      fieldErrors.planDatum = "Plantag fehlt oder ist ungueltig.";
+    }
+    const planUhrzeit = values.planUhrzeit.trim();
+    if (planUhrzeit !== "" && !istGueltigeUhrzeit(planUhrzeit)) {
+      fieldErrors.planUhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+    }
+    // LEER = UNVERAENDERT, GESENDET = MUSS GUELTIG SEIN (Kopfkommentar oben) — dieselbe Zweiteilung wie
+    // bei `planUhrzeit`, nur mit einem anderen "leer bedeutet"-Ergebnis (dort `null`, hier "kein Patch").
+    const dauerMinutenRoh = values.dauerMinuten.trim();
+    let dauerMinuten: number | undefined;
+    if (dauerMinutenRoh !== "") {
+      const n = Number(dauerMinutenRoh);
+      if (!istGueltigeDauerMinuten(n)) {
+        fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+      } else {
+        dauerMinuten = n;
+      }
+    }
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  aktualisiereAufgabe(db, task.id, {
-    planDatum,
-    planUhrzeit: geplanteUhrzeit,
-    planRang,
-    ...(dauerMinuten !== undefined ? { dauerMinuten } : {}),
+    const geplanteUhrzeit = planUhrzeit === "" ? null : planUhrzeit;
+    const planRang = planRangFuerEinplanen(db, task, planDatum);
+
+    aktualisiereAufgabe(db, task.id, {
+      planDatum,
+      planUhrzeit: geplanteUhrzeit,
+      planRang,
+      ...(dauerMinuten !== undefined ? { dauerMinuten } : {}),
+    });
+    schreibeVerlauf(db, {
+      aufgabeId: task.id,
+      ereignis: "eingeplant",
+      akteurId: akteur.person.id,
+      notiz: einplanenNotiz(task, planDatum, geplanteUhrzeit),
+    });
+    revalidate();
+    return { ok: true };
   });
-  schreibeVerlauf(db, {
-    aufgabeId: task.id,
-    ereignis: "eingeplant",
-    akteurId: akteur.person.id,
-    notiz: einplanenNotiz(task, planDatum, geplanteUhrzeit),
-  });
-  revalidate();
-  return { ok: true };
 }
 
 /**
@@ -552,7 +578,7 @@ export async function einplanenAction(_prev: FormState, formData: FormData): Pro
  * `actions.test.ts` fest, mit einem geleerten `vorschlagDatum`.
  */
 export async function einplanenAnnehmenAction(formData: FormData): Promise<void> {
-  const ergebnis = await einplanenAction(FORM_START, formData);
+  const ergebnis = await einplanenGemeinsam(FORM_START, formData);
   if (!ergebnis.ok) {
     throw new Error(
       `Annehmen fehlgeschlagen: ${Object.values(ergebnis.fieldErrors).join(" ")}`,
@@ -631,59 +657,64 @@ function bildMeldung(db: DB, vorhandene: readonly NachweisRow[]): string | null 
 export async function fertigMeldenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "fertig", akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
-  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+    const ergebnis = uebergang(task, "fertig", akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
+    }
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
-  const values = { aufgabeId, nachweisText: feld(formData, "nachweisText") };
-  const nachweisText = values.nachweisText.trim();
+    const values = { aufgabeId, nachweisText: feld(formData, "nachweisText") };
+    const nachweisText = values.nachweisText.trim();
 
-  if (task.nachweisPflicht) {
-    const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
-    if (task.nachweisArt === "bild") {
-      const meldung = bildMeldung(db, vorhandene);
-      if (meldung !== null) {
-        return {
-          ok: false,
-          // Eigener Schluessel "nachweis" statt "nachweisText": diese Ablehnung handelt vom
-          // FEHLENDEN/NOCH NICHT FREIGEGEBENEN BILD, nicht vom Inhalt des Textfelds — ein Formular
-          // mit ausgefuelltem Text UND fehlendem Bild soll nicht so aussehen, als sei der Text das
-          // Problem.
-          fieldErrors: { nachweis: meldung },
-          values,
-        };
-      }
-    } else {
-      const hatText =
-        nachweisText !== "" || vorhandene.some((n) => n.art === "text" && (n.text ?? "").trim() !== "");
-      if (!hatText) {
-        return {
-          ok: false,
-          fieldErrors: { nachweisText: "Fuer diese Aufgabe ist ein Textnachweis erforderlich." },
-          values,
-        };
+    if (task.nachweisPflicht) {
+      const vorhandene = nachweiseSeitLetzterZurueckweisung(db, task.id);
+      if (task.nachweisArt === "bild") {
+        const meldung = bildMeldung(db, vorhandene);
+        if (meldung !== null) {
+          return {
+            ok: false,
+            // Eigener Schluessel "nachweis" statt "nachweisText": diese Ablehnung handelt vom
+            // FEHLENDEN/NOCH NICHT FREIGEGEBENEN BILD, nicht vom Inhalt des Textfelds — ein Formular
+            // mit ausgefuelltem Text UND fehlendem Bild soll nicht so aussehen, als sei der Text das
+            // Problem.
+            fieldErrors: { nachweis: meldung },
+            values,
+          };
+        }
+      } else {
+        const hatText =
+          nachweisText !== "" || vorhandene.some((n) => n.art === "text" && (n.text ?? "").trim() !== "");
+        if (!hatText) {
+          return {
+            ok: false,
+            fieldErrors: { nachweisText: "Fuer diese Aufgabe ist ein Textnachweis erforderlich." },
+            values,
+          };
+        }
       }
     }
-  }
 
-  if (nachweisText !== "") {
-    erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: akteur.person.id });
-  }
+    if (nachweisText !== "") {
+      erstelleNachweis(db, { aufgabeId: task.id, art: "text", text: nachweisText, erstelltVon: akteur.person.id });
+    }
 
-  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-  schreibeVerlauf(db, {
-    aufgabeId: task.id,
-    ereignis: ergebnis.nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
-    akteurId: akteur.person.id,
+    aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+    schreibeVerlauf(db, {
+      aufgabeId: task.id,
+      ereignis: ergebnis.nach === "abgeschlossen" ? "abgeschlossen" : "fertig_gemeldet",
+      akteurId: akteur.person.id,
+    });
+    revalidate();
+    return { ok: true };
   });
-  revalidate();
-  return { ok: true };
 }
 
 /**
@@ -722,28 +753,33 @@ export async function fertigMeldenAction(_prev: FormState, formData: FormData): 
 export async function freigebenAction(formData: FormData): Promise<void> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "freigeben", akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
-  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
-
-  let notiz: string | undefined;
-  if (istVertretungsfreigabe(akteur, task) && task.prueferId !== null) {
-    const pruefer = personNachId(db, task.prueferId);
-    if (!pruefer) {
-      throw new Error(`Pruefer "${task.prueferId}" nicht gefunden — Datenbankinkonsistenz.`);
+    const ergebnis = uebergang(task, "freigeben", akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
     }
-    notiz = `Freigegeben von ${akteur.person.name} in Vertretung für ${pruefer.name}`;
-  }
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
-  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-  schreibeVerlauf(db, { aufgabeId: task.id, ereignis: "abgeschlossen", akteurId: akteur.person.id, notiz });
-  revalidate();
+    let notiz: string | undefined;
+    if (istVertretungsfreigabe(akteur, task) && task.prueferId !== null) {
+      const pruefer = personNachId(db, task.prueferId);
+      if (!pruefer) {
+        throw new Error(`Pruefer "${task.prueferId}" nicht gefunden — Datenbankinkonsistenz.`);
+      }
+      notiz = `Freigegeben von ${akteur.person.name} in Vertretung für ${pruefer.name}`;
+    }
+
+    aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+    schreibeVerlauf(db, { aufgabeId: task.id, ereignis: "abgeschlossen", akteurId: akteur.person.id, notiz });
+    revalidate();
+  });
 }
 
 /**
@@ -759,31 +795,36 @@ export async function freigebenAction(formData: FormData): Promise<void> {
 export async function zurueckweisenAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  const ergebnis = uebergang(task, "zurueckweisen", akteur, heute);
-  if (!ergebnis.erlaubt) throw new Error(ergebnis.grund);
-  if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
+    const ergebnis = uebergang(task, "zurueckweisen", akteur, heute);
+    if (!ergebnis.erlaubt) {
+      if (ergebnis.accessDenied) auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error(ergebnis.grund);
+    }
+    if (ergebnis.wirkung !== "aendern") throw new Error("Unerwartetes Uebergangsergebnis.");
 
-  const values = { aufgabeId, begruendung: feld(formData, "begruendung") };
-  const begruendung = values.begruendung.trim();
-  if (begruendung === "") {
-    return { ok: false, fieldErrors: { begruendung: "Eine Begruendung ist Pflicht." }, values };
-  }
+    const values = { aufgabeId, begruendung: feld(formData, "begruendung") };
+    const begruendung = values.begruendung.trim();
+    if (begruendung === "") {
+      return { ok: false, fieldErrors: { begruendung: "Eine Begruendung ist Pflicht." }, values };
+    }
 
-  aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
-  schreibeVerlauf(db, {
-    aufgabeId: task.id,
-    ereignis: "zurueckgewiesen",
-    akteurId: akteur.person.id,
-    notiz: begruendung,
+    aktualisiereAufgabe(db, task.id, { status: ergebnis.nach });
+    schreibeVerlauf(db, {
+      aufgabeId: task.id,
+      ereignis: "zurueckgewiesen",
+      akteurId: akteur.person.id,
+      notiz: begruendung,
+    });
+    revalidate();
+    return { ok: true };
   });
-  revalidate();
-  return { ok: true };
 }
 
 /*
@@ -855,60 +896,63 @@ async function routineFormularGemeinsam(
 ): Promise<FormState> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<FormState> => {
+    const heute = isoTag(new Date());
 
-  const bestehende = routineId === null ? null : routineNachId(db, routineId);
-  if (routineId !== null && !bestehende) {
-    throw new Error(`Routine "${routineId}" nicht gefunden.`);
-  }
-  const zielPersonId = bestehende ? bestehende.personId : akteur.person.id;
-  if (!darfRoutinenVerwalten(akteur, heute) || !darfPlanAendern(akteur, zielPersonId, heute)) {
-    throw new Error("Keine Berechtigung, diese Routine zu aendern.");
-  }
+    const bestehende = routineId === null ? null : routineNachId(db, routineId);
+    if (routineId !== null && !bestehende) {
+      throw new Error(`Routine "${routineId}" nicht gefunden.`);
+    }
+    const zielPersonId = bestehende ? bestehende.personId : akteur.person.id;
+    if (!darfRoutinenVerwalten(akteur, heute) || !darfPlanAendern(akteur, zielPersonId, heute)) {
+      auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error("Keine Berechtigung, diese Routine zu aendern.");
+    }
 
-  const indizes = wochentageAusFormData(formData);
-  const values: Record<string, string> = {
-    titel: feld(formData, "titel"),
-    // KOMMAGETRENNTE INDIZES, NICHT DIE FERTIGE MASKE (Review-Punkt aus dem Brief: „values traegt
-    // JEDES gesendete Feld zurueck"): `RoutineFormular.tsx` liest diese Liste zurueck, um nach einem
-    // Feldfehler GENAU die zuvor angehakten Kontrollkaestchen wieder zu setzen — mit der fertigen
-    // Maske allein waere das dieselbe Zerlegung ein zweites Mal, diesmal in der Client-Insel.
-    wochentage: indizes.join(","),
-    uhrzeit: feld(formData, "uhrzeit"),
-    dauerMinuten: feld(formData, "dauerMinuten"),
-  };
-  if (routineId !== null) values.routineId = routineId;
+    const indizes = wochentageAusFormData(formData);
+    const values: Record<string, string> = {
+      titel: feld(formData, "titel"),
+      // KOMMAGETRENNTE INDIZES, NICHT DIE FERTIGE MASKE (Review-Punkt aus dem Brief: „values traegt
+      // JEDES gesendete Feld zurueck"): `RoutineFormular.tsx` liest diese Liste zurueck, um nach einem
+      // Feldfehler GENAU die zuvor angehakten Kontrollkaestchen wieder zu setzen — mit der fertigen
+      // Maske allein waere das dieselbe Zerlegung ein zweites Mal, diesmal in der Client-Insel.
+      wochentage: indizes.join(","),
+      uhrzeit: feld(formData, "uhrzeit"),
+      dauerMinuten: feld(formData, "dauerMinuten"),
+    };
+    if (routineId !== null) values.routineId = routineId;
 
-  const fieldErrors: Record<string, string> = {};
-  const titel = values.titel.trim();
-  if (titel === "") fieldErrors.titel = "Titel fehlt.";
-  if (indizes.length === 0) {
-    fieldErrors.wochentage = "Mindestens ein Wochentag muss gewaehlt sein.";
-  }
-  const uhrzeit = values.uhrzeit.trim();
-  if (uhrzeit !== "" && !istGueltigeUhrzeit(uhrzeit)) {
-    fieldErrors.uhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
-  }
-  const dauerMinuten = Number(values.dauerMinuten);
-  if (!istGueltigeDauerMinuten(dauerMinuten)) {
-    fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    const fieldErrors: Record<string, string> = {};
+    const titel = values.titel.trim();
+    if (titel === "") fieldErrors.titel = "Titel fehlt.";
+    if (indizes.length === 0) {
+      fieldErrors.wochentage = "Mindestens ein Wochentag muss gewaehlt sein.";
+    }
+    const uhrzeit = values.uhrzeit.trim();
+    if (uhrzeit !== "" && !istGueltigeUhrzeit(uhrzeit)) {
+      fieldErrors.uhrzeit = "Uhrzeit ungueltig — Format HH:MM.";
+    }
+    const dauerMinuten = Number(values.dauerMinuten);
+    if (!istGueltigeDauerMinuten(dauerMinuten)) {
+      fieldErrors.dauerMinuten = "Dauerschaetzung muss eine ganze Zahl groesser 0 sein.";
+    }
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  const werte = {
-    titel,
-    wochentage: maskeAusIndizes(indizes),
-    uhrzeit: uhrzeit === "" ? null : uhrzeit,
-    dauerMinuten,
-  };
+    const werte = {
+      titel,
+      wochentage: maskeAusIndizes(indizes),
+      uhrzeit: uhrzeit === "" ? null : uhrzeit,
+      dauerMinuten,
+    };
 
-  if (bestehende) {
-    aktualisiereRoutine(db, bestehende.id, werte);
-  } else {
-    erstelleRoutine(db, { personId: zielPersonId, ...werte });
-  }
-  revalidate();
-  return { ok: true };
+    if (bestehende) {
+      aktualisiereRoutine(db, bestehende.id, werte);
+    } else {
+      erstelleRoutine(db, { personId: zielPersonId, ...werte });
+    }
+    revalidate();
+    return { ok: true };
+  });
 }
 
 /** ANLEGEN — immer fuer die anmeldende Person selbst (Spec §6, §8.1). */
@@ -935,20 +979,23 @@ export async function routineAendernAction(_prev: FormState, formData: FormData)
 export async function routineRuhenAction(formData: FormData): Promise<void> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
+    const heute = isoTag(new Date());
 
-  const routineId = feld(formData, "routineId");
-  const bestehende = routineNachId(db, routineId);
-  if (!bestehende) throw new Error(`Routine "${routineId}" nicht gefunden.`);
-  if (
-    !darfRoutinenVerwalten(akteur, heute) ||
-    !darfPlanAendern(akteur, bestehende.personId, heute)
-  ) {
-    throw new Error("Keine Berechtigung, diese Routine zu aendern.");
-  }
+    const routineId = feld(formData, "routineId");
+    const bestehende = routineNachId(db, routineId);
+    if (!bestehende) throw new Error(`Routine "${routineId}" nicht gefunden.`);
+    if (
+      !darfRoutinenVerwalten(akteur, heute) ||
+      !darfPlanAendern(akteur, bestehende.personId, heute)
+    ) {
+      auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error("Keine Berechtigung, diese Routine zu aendern.");
+    }
 
-  aktualisiereRoutine(db, bestehende.id, { aktiv: !bestehende.aktiv });
-  revalidate();
+    aktualisiereRoutine(db, bestehende.id, { aktiv: !bestehende.aktiv });
+    revalidate();
+  });
 }
 
 /*
@@ -1013,43 +1060,46 @@ function istGueltigeRichtung(s: string): s is Richtung {
 export async function rangVerschiebenAction(formData: FormData): Promise<void> {
   const db = getDb();
   const akteur = await akteurFuerSession(db);
-  const heute = isoTag(new Date());
+  return withAuditContext({ actor: auditActor(akteur.person) }, async (): Promise<void> => {
+    const heute = isoTag(new Date());
 
-  const aufgabeId = feld(formData, "aufgabeId");
-  const task = aufgabe(db, aufgabeId);
-  if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
+    const aufgabeId = feld(formData, "aufgabeId");
+    const task = aufgabe(db, aufgabeId);
+    if (!task) throw new Error(`Aufgabe "${aufgabeId}" nicht gefunden.`);
 
-  // `darfPlanAendern` will die ZIELPERSON als `string` — eine unzugewiesene Aufgabe (`null`) hat
-  // strukturell keine Person, deren Plan geaendert werden koennte, und faellt deshalb hier heraus,
-  // statt `darfPlanAendern` mit einem erfundenen Platzhalter aufzurufen.
-  const zielPersonId = task.zugewiesenAn;
-  if (zielPersonId === null || !darfPlanAendern(akteur, zielPersonId, heute)) {
-    throw new Error("Keine Berechtigung, diesen Rang zu aendern.");
-  }
-  if (task.planDatum === null) {
-    throw new Error("Aufgabe ist nicht eingeplant — kein Rang zu verschieben.");
-  }
+    // `darfPlanAendern` will die ZIELPERSON als `string` — eine unzugewiesene Aufgabe (`null`) hat
+    // strukturell keine Person, deren Plan geaendert werden koennte, und faellt deshalb hier heraus,
+    // statt `darfPlanAendern` mit einem erfundenen Platzhalter aufzurufen.
+    const zielPersonId = task.zugewiesenAn;
+    if (zielPersonId === null || !darfPlanAendern(akteur, zielPersonId, heute)) {
+      auditDenied("aufgaben", auditActor(akteur.person));
+      throw new Error("Keine Berechtigung, diesen Rang zu aendern.");
+    }
+    if (task.planDatum === null) {
+      throw new Error("Aufgabe ist nicht eingeplant — kein Rang zu verschieben.");
+    }
 
-  const richtung = feld(formData, "richtung");
-  if (!istGueltigeRichtung(richtung)) {
-    throw new Error(`Unbekannte Richtung "${richtung}".`);
-  }
+    const richtung = feld(formData, "richtung");
+    if (!istGueltigeRichtung(richtung)) {
+      throw new Error(`Unbekannte Richtung "${richtung}".`);
+    }
 
-  const zeilen = planEintraegeFuerTag(db, zielPersonId, task.planDatum);
-  const index = zeilen.findIndex((z) => z.id === task.id);
-  // Unerreichbar nach heutiger Rechtslage: `zeilen` filtert exakt auf
-  // `zugewiesenAn === zielPersonId && planDatum === task.planDatum`, und `task` selbst erfuellt beide
-  // Bedingungen (wir haben `zielPersonId`/`task.planDatum` gerade aus `task` gelesen) — kein `-1`
-  // erreichbar, ohne dass sich die Aufgabe zwischen den beiden Lesevorgaengen aenderte.
-  const nachbarIndex = richtung === "hoch" ? index - 1 : index + 1;
-  if (nachbarIndex < 0 || nachbarIndex >= zeilen.length) {
-    throw new Error("Kein Nachbar in dieser Richtung.");
-  }
-  const nachbar = zeilen[nachbarIndex]!;
+    const zeilen = planEintraegeFuerTag(db, zielPersonId, task.planDatum);
+    const index = zeilen.findIndex((z) => z.id === task.id);
+    // Unerreichbar nach heutiger Rechtslage: `zeilen` filtert exakt auf
+    // `zugewiesenAn === zielPersonId && planDatum === task.planDatum`, und `task` selbst erfuellt beide
+    // Bedingungen (wir haben `zielPersonId`/`task.planDatum` gerade aus `task` gelesen) — kein `-1`
+    // erreichbar, ohne dass sich die Aufgabe zwischen den beiden Lesevorgaengen aenderte.
+    const nachbarIndex = richtung === "hoch" ? index - 1 : index + 1;
+    if (nachbarIndex < 0 || nachbarIndex >= zeilen.length) {
+      throw new Error("Kein Nachbar in dieser Richtung.");
+    }
+    const nachbar = zeilen[nachbarIndex]!;
 
-  aktualisiereAufgabe(db, task.id, { planRang: nachbar.planRang });
-  aktualisiereAufgabe(db, nachbar.id, { planRang: task.planRang });
-  revalidate();
+    aktualisiereAufgabe(db, task.id, { planRang: nachbar.planRang });
+    aktualisiereAufgabe(db, nachbar.id, { planRang: task.planRang });
+    revalidate();
+  });
 }
 
 /*
@@ -1107,12 +1157,15 @@ export async function rangVerschiebenAction(formData: FormData): Promise<void> {
  * durchgereichter `PersonRow | null` waere eine Einladung, ihn als `erstelltVon`-artigen Wert zu
  * verwenden und dabei still `null` zu schreiben.
  */
-async function verlangePersonenverwaltung(db: DB, heute: string): Promise<void> {
-  if (await canAdminModule("aufgaben")) return;
+async function verlangePersonenverwaltung(db: DB, heute: string) {
+  const session = await auth();
+  if (isModuleAdmin(getModule("aufgaben"), session?.user?.groups)) return auditActor(session?.user);
   const bearbeiter = await akteurFuerSession(db);
   if (!darfPersonenVerwalten(bearbeiter, heute)) {
+    auditDenied("aufgaben", auditActor(bearbeiter.person));
     throw new Error("Keine Berechtigung, Personen zu verwalten.");
   }
+  return auditActor(bearbeiter.person);
 }
 
 /**
@@ -1187,101 +1240,103 @@ async function personFormularGemeinsam(
 ): Promise<FormState> {
   const db = getDb();
   const heute = isoTag(new Date());
-  await verlangePersonenverwaltung(db, heute);
+  const auditPerson = await verlangePersonenverwaltung(db, heute);
+  return withAuditContext({ actor: auditPerson }, async (): Promise<FormState> => {
 
-  const bestehende = personId === null ? null : personNachId(db, personId);
-  if (personId !== null && !bestehende) {
-    throw new Error(`Person "${personId}" nicht gefunden.`);
-  }
-
-  const values: Record<string, string> = {
-    name: feld(formData, "name"),
-    rolle: feld(formData, "rolle"),
-    initialen: feld(formData, "initialen"),
-    sollMinutenTag: feld(formData, "sollMinutenTag"),
-    aktivVon: feld(formData, "aktivVon"),
-    aktivBis: feld(formData, "aktivBis"),
-  };
-  // NUR BEIM ANLEGEN EIN FORMULARFELD (Brief, Betreiberentscheidung dieser Aufgabe — s. Bericht):
-  // `sub` ist die Pocket-ID-Kennung, unter Aufgabe 13s `NichtEingetragenSeite` fuer die betroffene
-  // Person selbst sichtbar (`_lib/zugang.ts`s `subFuerSitzung`) — sie gibt sie der Koordination
-  // durch, statt dass die Koordination sie raet. NACH DEM ANLEGEN BLEIBT `sub` UNVERAENDERLICH: ein
-  // spaeter geaendertes `sub` haengte die GESAMTE Geschichte einer Person (Aufgaben, Nachweise,
-  // Verlauf) still an eine andere Pocket-ID-Anmeldung um — `personAendernAction` liest das Feld
-  // deshalb gar nicht erst aus `formData`.
-  if (bestehende === null) values.sub = feld(formData, "sub");
-  if (personId !== null) values.personId = personId;
-
-  // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet ein `<select>` mit
-  // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler, wie bei `istGueltigePrioritaet`.
-  if (!istGueltigeRolle(values.rolle)) {
-    throw new Error(`Unbekannte Rolle "${values.rolle}".`);
-  }
-
-  const fieldErrors: Record<string, string> = {};
-  const name = values.name.trim();
-  if (name === "") fieldErrors.name = "Name fehlt.";
-  const initialen = values.initialen.trim();
-  if (initialen === "") fieldErrors.initialen = "Initialen fehlen.";
-  const sollMinutenTag = Number(values.sollMinutenTag);
-  if (!istGueltigeDauerMinuten(sollMinutenTag)) {
-    fieldErrors.sollMinutenTag = "Soll-Minuten pro Tag muss eine ganze Zahl groesser 0 sein.";
-  }
-  if (!istGueltigerIsoTag(values.aktivVon)) {
-    fieldErrors.aktivVon = "Aktiv von fehlt oder ist ungueltig.";
-  }
-  const aktivBis = values.aktivBis.trim();
-  if (aktivBis !== "" && !istGueltigerIsoTag(aktivBis)) {
-    fieldErrors.aktivBis = "Aktiv bis ist ungueltig.";
-  }
-  // `aktivBis` SCHLIESST EIN (Brief, Spec §4) — die Reihenfolge selbst ist trotzdem eine
-  // Formalpruefung: ein Enddatum vor dem Anfang waere in jeder Auslegung falsch.
-  if (aktivBis !== "" && istGueltigerIsoTag(values.aktivVon) && aktivBis < values.aktivVon) {
-    fieldErrors.aktivBis = "Aktiv bis darf nicht vor Aktiv von liegen.";
-  }
-
-  let sub = "";
-  if (bestehende === null) {
-    // KEIN `.toLowerCase()`, KEIN TRIMMEN AUSSER RANDLEERZEICHEN: Pocket-ID-`sub`-Werte sind
-    // gross-/kleinschreibungssensitiv — eine Normalisierung erzeugte eine Zeile, die bei der
-    // naechsten Anmeldung STILL nie trifft (`personFuerSeite` vergleicht exakt).
-    sub = values.sub.trim();
-    if (sub === "") {
-      fieldErrors.sub = "Die Pocket-ID-Kennung fehlt.";
-    } else if (personNachSub(db, sub)) {
-      // DIE EINDEUTIGKEIT WIRD HIER GEPRUEFT, NICHT DEM UNIQUE-INDEX UEBERLASSEN
-      // (`personen_sub_idx"): eine SQLite-Constraint-Verletzung waere ein Wurf auf der technischen
-      // Fehlerseite, obwohl es sich um ein gewoehnliches, vom Formular her erwartbares Problem
-      // handelt ("diese Person gibt es schon") — ein Feldfehler ist hier die ehrlichere Antwort.
-      fieldErrors.sub = "Diese Kennung ist bereits vergeben.";
+    const bestehende = personId === null ? null : personNachId(db, personId);
+    if (personId !== null && !bestehende) {
+      throw new Error(`Person "${personId}" nicht gefunden.`);
     }
-  }
 
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    const values: Record<string, string> = {
+      name: feld(formData, "name"),
+      rolle: feld(formData, "rolle"),
+      initialen: feld(formData, "initialen"),
+      sollMinutenTag: feld(formData, "sollMinutenTag"),
+      aktivVon: feld(formData, "aktivVon"),
+      aktivBis: feld(formData, "aktivBis"),
+    };
+    // NUR BEIM ANLEGEN EIN FORMULARFELD (Brief, Betreiberentscheidung dieser Aufgabe — s. Bericht):
+    // `sub` ist die Pocket-ID-Kennung, unter Aufgabe 13s `NichtEingetragenSeite` fuer die betroffene
+    // Person selbst sichtbar (`_lib/zugang.ts`s `subFuerSitzung`) — sie gibt sie der Koordination
+    // durch, statt dass die Koordination sie raet. NACH DEM ANLEGEN BLEIBT `sub` UNVERAENDERLICH: ein
+    // spaeter geaendertes `sub` haengte die GESAMTE Geschichte einer Person (Aufgaben, Nachweise,
+    // Verlauf) still an eine andere Pocket-ID-Anmeldung um — `personAendernAction` liest das Feld
+    // deshalb gar nicht erst aus `formData`.
+    if (bestehende === null) values.sub = feld(formData, "sub");
+    if (personId !== null) values.personId = personId;
 
-  const aktivBisWert = aktivBis === "" ? null : aktivBis;
-  if (bestehende) {
-    aktualisierePerson(db, bestehende.id, {
-      name,
-      initialen,
-      rolle: values.rolle,
-      sollMinutenTag,
-      aktivVon: values.aktivVon,
-      aktivBis: aktivBisWert,
-    });
-  } else {
-    erstellePerson(db, {
-      sub,
-      name,
-      initialen,
-      rolle: values.rolle,
-      sollMinutenTag,
-      aktivVon: values.aktivVon,
-      aktivBis: aktivBisWert,
-    });
-  }
-  revalidate();
-  return { ok: true };
+    // Nur ueber ein manipuliertes Formular erreichbar (die Oberflaeche bietet ein `<select>` mit
+    // genau den gueltigen Werten an) — deshalb Wurf statt Feldfehler, wie bei `istGueltigePrioritaet`.
+    if (!istGueltigeRolle(values.rolle)) {
+      throw new Error(`Unbekannte Rolle "${values.rolle}".`);
+    }
+
+    const fieldErrors: Record<string, string> = {};
+    const name = values.name.trim();
+    if (name === "") fieldErrors.name = "Name fehlt.";
+    const initialen = values.initialen.trim();
+    if (initialen === "") fieldErrors.initialen = "Initialen fehlen.";
+    const sollMinutenTag = Number(values.sollMinutenTag);
+    if (!istGueltigeDauerMinuten(sollMinutenTag)) {
+      fieldErrors.sollMinutenTag = "Soll-Minuten pro Tag muss eine ganze Zahl groesser 0 sein.";
+    }
+    if (!istGueltigerIsoTag(values.aktivVon)) {
+      fieldErrors.aktivVon = "Aktiv von fehlt oder ist ungueltig.";
+    }
+    const aktivBis = values.aktivBis.trim();
+    if (aktivBis !== "" && !istGueltigerIsoTag(aktivBis)) {
+      fieldErrors.aktivBis = "Aktiv bis ist ungueltig.";
+    }
+    // `aktivBis` SCHLIESST EIN (Brief, Spec §4) — die Reihenfolge selbst ist trotzdem eine
+    // Formalpruefung: ein Enddatum vor dem Anfang waere in jeder Auslegung falsch.
+    if (aktivBis !== "" && istGueltigerIsoTag(values.aktivVon) && aktivBis < values.aktivVon) {
+      fieldErrors.aktivBis = "Aktiv bis darf nicht vor Aktiv von liegen.";
+    }
+
+    let sub = "";
+    if (bestehende === null) {
+      // KEIN `.toLowerCase()`, KEIN TRIMMEN AUSSER RANDLEERZEICHEN: Pocket-ID-`sub`-Werte sind
+      // gross-/kleinschreibungssensitiv — eine Normalisierung erzeugte eine Zeile, die bei der
+      // naechsten Anmeldung STILL nie trifft (`personFuerSeite` vergleicht exakt).
+      sub = values.sub.trim();
+      if (sub === "") {
+        fieldErrors.sub = "Die Pocket-ID-Kennung fehlt.";
+      } else if (personNachSub(db, sub)) {
+        // DIE EINDEUTIGKEIT WIRD HIER GEPRUEFT, NICHT DEM UNIQUE-INDEX UEBERLASSEN
+        // (`personen_sub_idx"): eine SQLite-Constraint-Verletzung waere ein Wurf auf der technischen
+        // Fehlerseite, obwohl es sich um ein gewoehnliches, vom Formular her erwartbares Problem
+        // handelt ("diese Person gibt es schon") — ein Feldfehler ist hier die ehrlichere Antwort.
+        fieldErrors.sub = "Diese Kennung ist bereits vergeben.";
+      }
+    }
+
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+    const aktivBisWert = aktivBis === "" ? null : aktivBis;
+    if (bestehende) {
+      aktualisierePerson(db, bestehende.id, {
+        name,
+        initialen,
+        rolle: values.rolle,
+        sollMinutenTag,
+        aktivVon: values.aktivVon,
+        aktivBis: aktivBisWert,
+      });
+    } else {
+      erstellePerson(db, {
+        sub,
+        name,
+        initialen,
+        rolle: values.rolle,
+        sollMinutenTag,
+        aktivVon: values.aktivVon,
+        aktivBis: aktivBisWert,
+      });
+    }
+    revalidate();
+    return { ok: true };
+  });
 }
 
 /** ANLEGEN — der einzige Weg, aus einer Pocket-ID-Kennung eine `personen`-Zeile zu machen. */
@@ -1322,12 +1377,16 @@ export async function personAendernAction(
 export async function personBeendenAction(formData: FormData): Promise<void> {
   const db = getDb();
   const heute = isoTag(new Date());
-  await verlangePersonenverwaltung(db, heute);
+  const auditPerson = await verlangePersonenverwaltung(db, heute);
+  return withAuditContext({ actor: auditPerson }, async (): Promise<void> => {
 
-  const personId = feld(formData, "personId");
-  const ziel = personNachId(db, personId);
-  if (!ziel) throw new Error(`Person "${personId}" nicht gefunden.`);
+    const personId = feld(formData, "personId");
+    const ziel = personNachId(db, personId);
+    if (!ziel) throw new Error(`Person "${personId}" nicht gefunden.`);
 
-  aktualisierePerson(db, ziel.id, { aktivBis: heute });
-  revalidate();
+    aktualisierePerson(db, ziel.id, { aktivBis: heute });
+    revalidate();
+  });
 }
+
+export async function einplanenAction(vorher: FormState, formData: FormData): Promise<FormState> { return einplanenGemeinsam(vorher, formData); }

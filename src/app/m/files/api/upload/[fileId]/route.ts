@@ -1,3 +1,4 @@
+import { withAuditContext, auditActor } from "@/core/audit/server";
 import { eq, sql } from "drizzle-orm";
 
 import { getDb } from "../../../_db/client";
@@ -130,10 +131,10 @@ function nichtGefunden(): Response {
  * sie hier nicht in eine eigene Antwort uebersetzt wird: zwei Fassungen
  * desselben Riegels liefen auseinander.
  */
-async function riegel(req: Request): Promise<Response | null> {
-  if (rolleOderNull(req.headers) !== "verwaltung") return nichtGefunden();
-  await requireFilesAccess();
-  return null;
+async function riegel(req: Request) {
+  if (rolleOderNull(req.headers) !== "verwaltung") return { ok: false as const, response: nichtGefunden() };
+  const viewer = await requireFilesAccess();
+  return { ok: true as const, viewer };
 }
 
 function ladeZeile(fileId: string): Zeile | undefined {
@@ -240,132 +241,134 @@ export async function PUT(
   ctx: { params: Promise<{ fileId: string }> },
 ): Promise<Response> {
   const gesperrt = await riegel(req);
-  if (gesperrt) return gesperrt;
+  if (!gesperrt.ok) return gesperrt.response;
+  return withAuditContext({ actor: auditActor(gesperrt.viewer) }, async (): Promise<Response> => {
 
-  const { fileId } = await ctx.params;
-  const zeile = ladeZeile(fileId);
-  if (zeile === undefined) return nichtGefunden();
+    const { fileId } = await ctx.params;
+    const zeile = ladeZeile(fileId);
+    if (zeile === undefined) return nichtGefunden();
 
-  // Eine fertige Datei wird nicht erneut beschrieben: sonst entstuende ein
-  // neuer Blob unter einem bereits geprueften `av_status`, und der Empfaenger
-  // laedt Bytes, die niemand gesehen hat. Der Weg dafuer heisst „Freigabe
-  // loeschen und neu anlegen".
-  if (zeile.bytesVollstaendigAt !== null) {
-    return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
-  }
+    // Eine fertige Datei wird nicht erneut beschrieben: sonst entstuende ein
+    // neuer Blob unter einem bereits geprueften `av_status`, und der Empfaenger
+    // laedt Bytes, die niemand gesehen hat. Der Weg dafuer heisst „Freigabe
+    // loeschen und neu anlegen".
+    if (zeile.bytesVollstaendigAt !== null) {
+      return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
+    }
 
-  const url = new URL(req.url);
-  const rohAb = url.searchParams.get("ab");
-  const ab = rohAb === null ? 0 : Number(rohAb);
-  // Bewusst eine Ziffernpruefung und NICHT `Number()` allein: `Number("0x10")`
-  // ist 16 und ganzzahlig — dieselbe Falle, die `_lib/grenzen.ts` mit `GANZZAHL`
-  // schliesst. Ein geratener Offset ueberschriebe fremde Bytes.
-  if (!/^\d+$/.test(rohAb ?? "0") || !Number.isSafeInteger(ab)) {
-    return json(400, { fehler: "`ab` muss ein Byte-Offset sein (ganze Zahl, nicht negativ)." });
-  }
-  const ende = url.searchParams.get("ende") === "1";
+    const url = new URL(req.url);
+    const rohAb = url.searchParams.get("ab");
+    const ab = rohAb === null ? 0 : Number(rohAb);
+    // Bewusst eine Ziffernpruefung und NICHT `Number()` allein: `Number("0x10")`
+    // ist 16 und ganzzahlig — dieselbe Falle, die `_lib/grenzen.ts` mit `GANZZAHL`
+    // schliesst. Ein geratener Offset ueberschriebe fremde Bytes.
+    if (!/^\d+$/.test(rohAb ?? "0") || !Number.isSafeInteger(ab)) {
+      return json(400, { fehler: "`ab` muss ein Byte-Offset sein (ganze Zahl, nicht negativ)." });
+    }
+    const ende = url.searchParams.get("ende") === "1";
 
-  const ziel = zielFuer(zeile);
+    const ziel = zielFuer(zeile);
 
-  try {
-    // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter
-    // Mechanismus (§7.1 Schritt 3).
-    const stand = await fortschritt(ziel);
-    if (ab !== stand) {
-      return json(409, {
-        fehler: "Der Offset passt nicht zum Stand dieser Datei.",
-        erwartetesOffsetBytes: stand,
+    try {
+      // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter
+      // Mechanismus (§7.1 Schritt 3).
+      const stand = await fortschritt(ziel);
+      if (ab !== stand) {
+        return json(409, {
+          fehler: "Der Offset passt nicht zum Stand dieser Datei.",
+          erwartetesOffsetBytes: stand,
+        });
+      }
+
+      const g = grenzen();
+
+      // `anhaengen: false` NUR fuer den ersten Chunk: er oeffnet mit `wx` und
+      // laesst einen zweiten Starter auf dasselbe Ziel als EEXIST auflaufen
+      // statt in verschraenkten Bytes (`storage.ts:196-201`).
+      const { bytes } = await schreibeStrom(ziel, stromAus(req), {
+        maxBytes: g.maxDateiBytes,
+        anhaengen: ab > 0,
       });
-    }
 
-    const g = grenzen();
+      // §6.6, die ZWEITE Linie: oberhalb der scanbaren Groesse wird BENANNT
+      // abgelehnt, nicht angenommen und dauerhaft `unscanned` gesetzt — das waere
+      // eine Datei, die fail-closed nie herunterladbar ist, eine Sackgasse mit
+      // Bytes darin. Im Normalbetrieb ist der Zweig unerreichbar, weil §9.4
+      // Pruefung 3 `FILES_MAX_DATEI_BYTES <= FILES_AV_MAX_BYTES` erzwingt und
+      // damit die Grenze oben zuerst greift.
+      if (bytes > g.avMaxBytes) {
+        await loesche(ziel);
+        return json(413, {
+          fehler:
+            `Datei zu gross fuer die Virenpruefung: hoechstens ${g.avMaxBytes} Bytes ` +
+            `(FILES_AV_MAX_BYTES, Einheit: Bytes).`,
+          grenzeBytes: g.avMaxBytes,
+        });
+      }
 
-    // `anhaengen: false` NUR fuer den ersten Chunk: er oeffnet mit `wx` und
-    // laesst einen zweiten Starter auf dasselbe Ziel als EEXIST auflaufen
-    // statt in verschraenkten Bytes (`storage.ts:196-201`).
-    const { bytes } = await schreibeStrom(ziel, stromAus(req), {
-      maxBytes: g.maxDateiBytes,
-      anhaengen: ab > 0,
-    });
+      if (!ende) return json(200, { empfangeneBytes: bytes });
 
-    // §6.6, die ZWEITE Linie: oberhalb der scanbaren Groesse wird BENANNT
-    // abgelehnt, nicht angenommen und dauerhaft `unscanned` gesetzt — das waere
-    // eine Datei, die fail-closed nie herunterladbar ist, eine Sackgasse mit
-    // Bytes darin. Im Normalbetrieb ist der Zweig unerreichbar, weil §9.4
-    // Pruefung 3 `FILES_MAX_DATEI_BYTES <= FILES_AV_MAX_BYTES` erzwingt und
-    // damit die Grenze oben zuerst greift.
-    if (bytes > g.avMaxBytes) {
-      await loesche(ziel);
-      return json(413, {
-        fehler:
-          `Datei zu gross fuer die Virenpruefung: hoechstens ${g.avMaxBytes} Bytes ` +
-          `(FILES_AV_MAX_BYTES, Einheit: Bytes).`,
-        grenzeBytes: g.avMaxBytes,
+      // Die Magic-Byte-Pruefung liegt ZWISCHEN Schreiben und Umbenennen (§8.5):
+      // sie liest Bytes, die in frueheren Anfragen angekommen sind, und ihr
+      // Fehlschlag darf das Ziel nie entstehen lassen.
+      const befund = pruefeInhaltstyp({
+        praefix: await kopfBytes(ziel, MIME_PRAEFIX_BYTES),
+        gesamtGroesse: bytes,
+        deklariert: req.headers.get(DEKLARATION_KOPF),
+        dateiname: zeile.filename,
       });
+      if (!befund.ok) {
+        // Zwischendatei weg, Zeile bleibt unvollstaendig: der Client kann den
+        // Upload mit einer anderen Datei neu beginnen (§7.1, §8.2).
+        await loesche(ziel);
+        return json(415, { fehler: befund.meldung, grund: befund.grund });
+      }
+
+      // Der EINE Moment, in dem der Blob entsteht — atomar, im selben Verzeichnis.
+      const { bytes: gemessen } = await abschliesse(ziel);
+
+      const db = getDb();
+      db.update(shareFiles)
+        .set({
+          // Die Laenge der DATEI (aus `abschliesse`), nicht der Zaehler der
+          // Schreibfunktion und erst recht keine Selbstauskunft des Clients
+          // (Analyse E20 b). Laufen beide auseinander, braeche ein falsches
+          // `Content-Length` den Download beim Empfaenger ab (§5.4).
+          size: gemessen,
+          // Der FESTGESTELLTE Typ ersetzt den Platzhalter aus `anlegenAction`.
+          mimeType: befund.typ,
+          bytesVollstaendigAt: new Date(),
+        })
+        .where(eq(shareFiles.id, zeile.id))
+        .run();
+
+      // NEU SUMMIERT, nicht erhoeht: ein Inkrement waere nach jedem Abbruch,
+      // jedem Neuversuch und jedem Import um genau die Faelle daneben, die man
+      // nicht sieht. Gezaehlt werden ausschliesslich VOLLSTAENDIGE Zeilen (§4.4).
+      db.update(shares)
+        .set({
+          totalSize: sql`(SELECT COALESCE(SUM(${shareFiles.size}), 0) FROM ${shareFiles}
+                          WHERE ${shareFiles.shareId} = ${zeile.shareId}
+                            AND ${shareFiles.bytesVollstaendigAt} IS NOT NULL)`,
+        })
+        .where(eq(shares.id, zeile.shareId))
+        .run();
+
+      // Die Zeile steht schon als `scanning` in der Datenbank und ist damit
+      // bereits Teil der Warteschlange; dieser Aufruf zieht sie nur VOR den
+      // naechsten Takt (§6.4). Ohne laufenden Arbeiter tut er nichts.
+      reiheAvEin(ziel);
+
+      return json(200, {
+        fertig: true,
+        groesseBytes: gemessen,
+        mimeTyp: befund.typ,
+        abweichungen: befund.abweichungen,
+      });
+    } catch (fehler) {
+      return ausFehler(fehler, ziel);
     }
-
-    if (!ende) return json(200, { empfangeneBytes: bytes });
-
-    // Die Magic-Byte-Pruefung liegt ZWISCHEN Schreiben und Umbenennen (§8.5):
-    // sie liest Bytes, die in frueheren Anfragen angekommen sind, und ihr
-    // Fehlschlag darf das Ziel nie entstehen lassen.
-    const befund = pruefeInhaltstyp({
-      praefix: await kopfBytes(ziel, MIME_PRAEFIX_BYTES),
-      gesamtGroesse: bytes,
-      deklariert: req.headers.get(DEKLARATION_KOPF),
-      dateiname: zeile.filename,
-    });
-    if (!befund.ok) {
-      // Zwischendatei weg, Zeile bleibt unvollstaendig: der Client kann den
-      // Upload mit einer anderen Datei neu beginnen (§7.1, §8.2).
-      await loesche(ziel);
-      return json(415, { fehler: befund.meldung, grund: befund.grund });
-    }
-
-    // Der EINE Moment, in dem der Blob entsteht — atomar, im selben Verzeichnis.
-    const { bytes: gemessen } = await abschliesse(ziel);
-
-    const db = getDb();
-    db.update(shareFiles)
-      .set({
-        // Die Laenge der DATEI (aus `abschliesse`), nicht der Zaehler der
-        // Schreibfunktion und erst recht keine Selbstauskunft des Clients
-        // (Analyse E20 b). Laufen beide auseinander, braeche ein falsches
-        // `Content-Length` den Download beim Empfaenger ab (§5.4).
-        size: gemessen,
-        // Der FESTGESTELLTE Typ ersetzt den Platzhalter aus `anlegenAction`.
-        mimeType: befund.typ,
-        bytesVollstaendigAt: new Date(),
-      })
-      .where(eq(shareFiles.id, zeile.id))
-      .run();
-
-    // NEU SUMMIERT, nicht erhoeht: ein Inkrement waere nach jedem Abbruch,
-    // jedem Neuversuch und jedem Import um genau die Faelle daneben, die man
-    // nicht sieht. Gezaehlt werden ausschliesslich VOLLSTAENDIGE Zeilen (§4.4).
-    db.update(shares)
-      .set({
-        totalSize: sql`(SELECT COALESCE(SUM(${shareFiles.size}), 0) FROM ${shareFiles}
-                        WHERE ${shareFiles.shareId} = ${zeile.shareId}
-                          AND ${shareFiles.bytesVollstaendigAt} IS NOT NULL)`,
-      })
-      .where(eq(shares.id, zeile.shareId))
-      .run();
-
-    // Die Zeile steht schon als `scanning` in der Datenbank und ist damit
-    // bereits Teil der Warteschlange; dieser Aufruf zieht sie nur VOR den
-    // naechsten Takt (§6.4). Ohne laufenden Arbeiter tut er nichts.
-    reiheAvEin(ziel);
-
-    return json(200, {
-      fertig: true,
-      groesseBytes: gemessen,
-      mimeTyp: befund.typ,
-      abweichungen: befund.abweichungen,
-    });
-  } catch (fehler) {
-    return ausFehler(fehler, ziel);
-  }
+  });
 }
 
 // --- GET: der Fortschritt --------------------------------------------------
@@ -375,7 +378,7 @@ export async function GET(
   ctx: { params: Promise<{ fileId: string }> },
 ): Promise<Response> {
   const gesperrt = await riegel(req);
-  if (gesperrt) return gesperrt;
+  if (!gesperrt.ok) return gesperrt.response;
 
   const { fileId } = await ctx.params;
   const zeile = ladeZeile(fileId);
@@ -404,53 +407,55 @@ export async function DELETE(
   ctx: { params: Promise<{ fileId: string }> },
 ): Promise<Response> {
   const gesperrt = await riegel(req);
-  if (gesperrt) return gesperrt;
+  if (!gesperrt.ok) return gesperrt.response;
+  return withAuditContext({ actor: auditActor(gesperrt.viewer) }, async (): Promise<Response> => {
 
-  const { fileId } = await ctx.params;
-  const zeile = ladeZeile(fileId);
-  if (zeile === undefined) {
-    // Wiederholung nach einem Verbindungsverlust gegen fremde oder erfundene ID.
-    return abgebrochen.has(fileId) ? new Response(null, { status: 204 }) : nichtGefunden();
-  }
+    const { fileId } = await ctx.params;
+    const zeile = ladeZeile(fileId);
+    if (zeile === undefined) {
+      // Wiederholung nach einem Verbindungsverlust gegen fremde oder erfundene ID.
+      return abgebrochen.has(fileId) ? new Response(null, { status: 204 }) : nichtGefunden();
+    }
 
-  // Der Abbruch ist KEIN Loeschweg fuer fertige Dateien — der heisst
-  // `shareLoeschenAction` (T37). Ohne diese Sperre naehme ein verspaeteter
-  // Abbruch aus der Client-Schleife eine bereits ausgelieferte Datei mit.
-  if (zeile.bytesVollstaendigAt !== null) {
-    return json(409, {
-      fehler:
-        "Diese Datei ist bereits vollstaendig uebertragen und kann nicht abgebrochen werden. " +
-        "Zum Entfernen die Freigabe bearbeiten oder loeschen.",
-    });
-  }
+    // Der Abbruch ist KEIN Loeschweg fuer fertige Dateien — der heisst
+    // `shareLoeschenAction` (T37). Ohne diese Sperre naehme ein verspaeteter
+    // Abbruch aus der Client-Schleife eine bereits ausgelieferte Datei mit.
+    if (zeile.bytesVollstaendigAt !== null) {
+      return json(409, {
+        fehler:
+          "Diese Datei ist bereits vollstaendig uebertragen und kann nicht abgebrochen werden. " +
+          "Zum Entfernen die Freigabe bearbeiten oder loeschen.",
+      });
+    }
 
-  try {
-    // `loesche` ist idempotent und nimmt Ziel UND Zwischendatei mit; fuer eine
-    // unvollstaendige Zeile existiert nur die Zwischendatei.
-    await loesche(zielFuer(zeile));
-  } catch (fehler) {
-    return ausFehler(fehler, zielFuer(zeile));
-  }
+    try {
+      // `loesche` ist idempotent und nimmt Ziel UND Zwischendatei mit; fuer eine
+      // unvollstaendige Zeile existiert nur die Zwischendatei.
+      await loesche(zielFuer(zeile));
+    } catch (fehler) {
+      return ausFehler(fehler, zielFuer(zeile));
+    }
 
-  const db = getDb();
-  db.delete(shareFiles).where(eq(shareFiles.id, zeile.id)).run();
+    const db = getDb();
+    db.delete(shareFiles).where(eq(shareFiles.id, zeile.id)).run();
 
-  // DIESELBE Regel wie beim Anlegen (T26 Punkt 5), nicht eine zweite: eine
-  // verbleibende Datei → „file", mehrere → „folder". Ohne diesen Schritt zeigte
-  // ein Share nach einem abgebrochenen zweiten Upload dauerhaft „Ordner" bei
-  // einer Datei. Der Abbruch ist die EINZIGE Stelle, an der die Zahl nach dem
-  // Anlegen noch sinkt.
-  const rest =
-    db
-      .select({ anzahl: sql<number>`count(*)` })
-      .from(shareFiles)
-      .where(eq(shareFiles.shareId, zeile.shareId))
-      .get()?.anzahl ?? 0;
-  db.update(shares)
-    .set({ type: rest > 1 ? "folder" : "file" })
-    .where(eq(shares.id, zeile.shareId))
-    .run();
+    // DIESELBE Regel wie beim Anlegen (T26 Punkt 5), nicht eine zweite: eine
+    // verbleibende Datei → „file", mehrere → „folder". Ohne diesen Schritt zeigte
+    // ein Share nach einem abgebrochenen zweiten Upload dauerhaft „Ordner" bei
+    // einer Datei. Der Abbruch ist die EINZIGE Stelle, an der die Zahl nach dem
+    // Anlegen noch sinkt.
+    const rest =
+      db
+        .select({ anzahl: sql<number>`count(*)` })
+        .from(shareFiles)
+        .where(eq(shareFiles.shareId, zeile.shareId))
+        .get()?.anzahl ?? 0;
+    db.update(shares)
+      .set({ type: rest > 1 ? "folder" : "file" })
+      .where(eq(shares.id, zeile.shareId))
+      .run();
 
-  merkeAbbruch(zeile.id);
-  return new Response(null, { status: 204 });
+    merkeAbbruch(zeile.id);
+    return new Response(null, { status: 204 });
+  });
 }

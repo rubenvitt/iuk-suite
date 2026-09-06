@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { readFileSync, mkdirSync, rmSync } from "node:fs";
 import { describe, it, expect, afterEach } from "vitest";
 import Database from "better-sqlite3";
@@ -25,6 +26,7 @@ const DIR = "./.data/uav-import-test";
 // (nach scripts/import/fixtures/uav-alt-schema.sql kopiert).
 function altDb(): Database.Database {
   const db = new Database(":memory:");
+  registerAuditFunctions(db);
   db.exec(readFileSync("scripts/import/fixtures/uav-alt-schema.sql", "utf8"));
   return db;
 }
@@ -135,6 +137,7 @@ function frischeZielDb(): ReturnType<typeof drizzle<typeof schema>> {
   rmSync(DIR, { recursive: true, force: true });
   mkdirSync(DIR, { recursive: true });
   const sqlite = new Database(`${DIR}/uav.db`);
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: "./src/app/m/uav/_db/migrations" });

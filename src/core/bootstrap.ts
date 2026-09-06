@@ -1,3 +1,5 @@
+import { startAuditBackgroundWork } from "@/core/audit/transfer";
+import { auditRetentionDays } from "@/core/audit/retention";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath, getModuleDb } from "@/core/db";
@@ -87,6 +89,7 @@ export const MODULE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
  */
 export const CORE_MIGRATIONS: { key: string; migrationsFolder: string }[] = [
   { key: "konto", migrationsFolder: "src/core/konto/_db/migrations" },
+  { key: "audit", migrationsFolder: "src/core/audit/_db/migrations" },
 ];
 
 /**
@@ -130,6 +133,7 @@ export async function assertHostConfig(): Promise<void> {
 // Schema-freies Migrieren: eigene Verbindung öffnen, migrieren, schließen.
 // Muss vor dem ersten Request abgeschlossen sein (Instrumentation register()).
 export function migrateAllModules(): void {
+  auditRetentionDays();
   for (const m of [...MODULE_MIGRATIONS, ...CORE_MIGRATIONS]) {
     const sqlite = openModuleDatabase(moduleDbPath(m.key));
     migrate(drizzle(sqlite), { migrationsFolder: m.migrationsFolder });
@@ -152,6 +156,7 @@ export function shouldSeed(): boolean {
  * Hintergrundarbeiter dort nie.
  */
 export function startBackgroundWork(): void {
+  startAuditBackgroundWork();
   starteFilesHintergrund();
   // Wiederaufnahme liegen gebliebener `offen`-Dateien nach einem Absturz
   // (Aufgabe 18) — synchron und wirft nie, siehe `_lib/scan.ts`.

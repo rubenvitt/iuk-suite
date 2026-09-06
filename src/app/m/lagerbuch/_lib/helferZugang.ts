@@ -1,3 +1,4 @@
+import { auditDenied } from "@/core/audit/server";
 import { eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -136,6 +137,7 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
   requireLagerbuchHost(await headers());
   const b = await befund(db);
   if (b.ok) return b.zugang;
+  auditDenied("lagerbuch");
   if (!b.hatteCookie) redirect("/");
   redirect(b.grund === "gesperrt" ? "/abmelden?grund=gesperrt" : "/abmelden?grund=abgelaufen");
 }
@@ -172,5 +174,6 @@ export async function requireHelferSchreibend(
 ): Promise<{ ok: true; zugang: HelferZugang } | { ok: false; grund: SperrGrund }> {
   requireLagerbuchHost(await headers());
   const b = await befund(db);
+  if (!b.ok) auditDenied("lagerbuch");
   return b.ok ? { ok: true, zugang: b.zugang } : { ok: false, grund: b.grund };
 }

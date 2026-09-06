@@ -1,3 +1,4 @@
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/core/auth";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -32,7 +33,7 @@ export async function requireFeedbackAccess(): Promise<Viewer> {
   const mod = getModule("feedback");
   const session = await auth();
   const viewer = viewerFromSession(session);
-  if (!viewer) redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`);
+  if (!viewer) { auditDenied("feedback"); redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`); }
 
   /*
    * `requiredGroupsFor` statt `mod.requiredGroups`: DIESE Zeile ist der einzige
@@ -45,7 +46,7 @@ export async function requireFeedbackAccess(): Promise<Viewer> {
   const hasAccess =
     isFeedbackAdmin(viewer) ||
     viewer.groups.some((g) => requiredGroupsFor(mod).includes(g));
-  if (!hasAccess) notFound();
+  if (!hasAccess) { auditDenied("feedback", auditActor(viewer)); notFound(); }
 
   upsertKnownUser(getDb(), {
     userId: viewer.sub,

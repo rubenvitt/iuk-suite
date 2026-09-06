@@ -1,4 +1,5 @@
 import "./portal.css";
+import { canReadAudit } from "@/core/audit/access";
 import { Shell } from "@/core/shell/Shell";
 import { getModule } from "@/core/registry";
 import { canAdminModule } from "@/core/auth/guards";
@@ -21,13 +22,14 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Die Verwaltung bleibt an `darfVerwalten`: ein Eintrag, der auf 404 fuehrt,
  * ist schlimmer als kein Eintrag.
  */
-export function navFuerPortal(darfVerwalten: boolean): SuiteNavItem[] {
+export function navFuerPortal(darfVerwalten: boolean, darfAuditLesen = false): SuiteNavItem[] {
   const jeder: SuiteNavItem[] = [
     { key: "start", title: "Übersicht", href: "/" },
     { key: "neuigkeiten", title: "Neuigkeiten", href: "/neuigkeiten" },
   ];
   if (!darfVerwalten) return jeder;
-  return [...jeder, { key: "admin", title: "Verwaltung", href: "/admin" }];
+  return [...jeder, { key: "admin", title: "Verwaltung", href: "/admin" },
+    ...(darfAuditLesen ? [{ key: "audit", title: "Audit-Log", href: "/admin/audit" }] : [])];
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -36,10 +38,10 @@ export default async function PortalLayout({ children }: { children: React.React
   // Suite-Admin-Gruppe, weil `portal` keine eigene fuehrt) — also steht sie
   // auch nur ihnen in der Navigation. Ein Eintrag, der auf 404 fuehrt, ist
   // schlimmer als kein Eintrag. Dieselbe Bauform wie in `qr/layout.tsx`.
-  const darfVerwalten = await canAdminModule("portal");
+  const [darfVerwalten, darfAuditLesen] = await Promise.all([canAdminModule("portal"), canReadAudit()]);
 
   return (
-    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten)}>
+    <Shell variant={mod.shell} moduleKey={mod.key} nav={navFuerPortal(darfVerwalten, darfAuditLesen)}>
       {children}
     </Shell>
   );

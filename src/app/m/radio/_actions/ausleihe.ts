@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditAccessActor, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -140,82 +141,84 @@ export async function ausleiheAnlegen(
       betroffen: [],
     };
   }
+  return withAuditContext({ actor: schreibend.zugang.weg === "code" ? auditAccessActor("radio", schreibend.zugang.codeId) : auditActor(schreibend.zugang) }, async (): Promise<AusleihErgebnis> => {
 
-  /*
-   * ⛔ DER DECKEL 20 HAT GENAU EINEN EIGENTUEMER: `AUSWAHL_MAX` (`_lib/auswahl.ts:53`),
-   * durchgesetzt in `normalisiereIds` (`_lib/auswahl.ts:76-85`). Hier steht KEINE zweite
-   * Zahl daneben — zwei Zahlen fuer dieselbe Grenze laufen beim ersten Aendern auseinander.
-   * `auswahlLesen` wirft nie (`_lib/auswahl.ts:91-93`): der Wert ist Nutzereingabe.
-   */
-  const geraeteIds = auswahlLesen(String(formular.get(AUSWAHL_PARAMETER) ?? ""));
+    /*
+     * ⛔ DER DECKEL 20 HAT GENAU EINEN EIGENTUEMER: `AUSWAHL_MAX` (`_lib/auswahl.ts:53`),
+     * durchgesetzt in `normalisiereIds` (`_lib/auswahl.ts:76-85`). Hier steht KEINE zweite
+     * Zahl daneben — zwei Zahlen fuer dieselbe Grenze laufen beim ersten Aendern auseinander.
+     * `auswahlLesen` wirft nie (`_lib/auswahl.ts:91-93`): der Wert ist Nutzereingabe.
+     */
+    const geraeteIds = auswahlLesen(String(formular.get(AUSWAHL_PARAMETER) ?? ""));
 
-  /*
-   * ⛔ DER NAME WIRD UNVERAENDERT DURCHGEREICHT (Spec:3587-3592, §4.12 Nr. 9 Spec:4095):
-   * `sanitizeForDisplay` wandert NICHT mit (`ConfirmLoanButton.tsx:52`), und auch ein
-   * `trim()` waere eine dauerhafte Veraenderung der gespeicherten Zeichenkette — bei
-   * „Mueller & Sohn" ein Datenschaden, kein Schutz. Geprueft wird — auf NICHTLEERE UND auf
-   * LAENGE —, und zwar in `bucheAusleihe` (`_db/leihen.ts`): „Der Server prueft erneut —
-   * eine Regel, die nur im Client steht, ist keine Regel" (Spec:3583-3585).
-   *
-   * ✅ A-L17 — GESCHLOSSEN AM 2026-08-24 (Fund F2 der Schlusspruefung, Betreiberentscheidung
-   * desselben Tages). ⛔ DIESE ZEILE HAT BIS DAHIN DAS GEGENTEIL BEHAUPTET und stand damit
-   * gegen `_db/leihen.ts` — zwei Belegzeilen desselben Postens duerfen einander nicht
-   * widersprechen; das war die eigentliche Haelfte von F2, die vor den Merge gehoerte. Was
-   * jetzt gilt: der Deckel 100 des Alt-Bestands (`BORROWER_NAME_MAX`,
-   * `radio-admin/shared/src/loan.ts:5`, durchgesetzt `:39`) ist eine SERVERZUSAGE. Sie
-   * haengt an `ENTLEIHER_MAX` (`_lib/meldungen.ts`) und wird in `bucheAusleihe`
-   * durchgesetzt, mit dem `grund` `name-zu-lang` und dem Satz, den A19 dem Feld schon gab.
-   * ⚠️ A19 HAT DIE FELDHAELFTE GEBAUT (das `maxLength` und den Feldfehler) — die
-   * Serverhaelfte war offen und ist es nicht mehr. ⛔ HIER FAELLT SIE WEITERHIN NICHT: der
-   * Ort der Durchsetzung ist der Schreibpfad, nicht diese Action; hier stuende sonst eine
-   * zweite Zahl.
-   *
-   * ⚠️ WAS NICHT GESCHLOSSEN IST UND WEM ES GEHOERT: dies bleibt der einzige ANONYME
-   * Schreibpfad des Moduls, und er hat KEINE RATENBEGRENZUNG (⬜ A-L6, Zusage §4.12 Nr. 4,
-   * ausgeschrieben oben in dieser Datei). Der Deckel nimmt die unbegrenzte Feldlaenge weg,
-   * nicht die unbegrenzte Zahl der Aufrufe.
-   */
-  const entleiher = String(formular.get(FELD_ENTLEIHER) ?? "");
+    /*
+     * ⛔ DER NAME WIRD UNVERAENDERT DURCHGEREICHT (Spec:3587-3592, §4.12 Nr. 9 Spec:4095):
+     * `sanitizeForDisplay` wandert NICHT mit (`ConfirmLoanButton.tsx:52`), und auch ein
+     * `trim()` waere eine dauerhafte Veraenderung der gespeicherten Zeichenkette — bei
+     * „Mueller & Sohn" ein Datenschaden, kein Schutz. Geprueft wird — auf NICHTLEERE UND auf
+     * LAENGE —, und zwar in `bucheAusleihe` (`_db/leihen.ts`): „Der Server prueft erneut —
+     * eine Regel, die nur im Client steht, ist keine Regel" (Spec:3583-3585).
+     *
+     * ✅ A-L17 — GESCHLOSSEN AM 2026-08-24 (Fund F2 der Schlusspruefung, Betreiberentscheidung
+     * desselben Tages). ⛔ DIESE ZEILE HAT BIS DAHIN DAS GEGENTEIL BEHAUPTET und stand damit
+     * gegen `_db/leihen.ts` — zwei Belegzeilen desselben Postens duerfen einander nicht
+     * widersprechen; das war die eigentliche Haelfte von F2, die vor den Merge gehoerte. Was
+     * jetzt gilt: der Deckel 100 des Alt-Bestands (`BORROWER_NAME_MAX`,
+     * `radio-admin/shared/src/loan.ts:5`, durchgesetzt `:39`) ist eine SERVERZUSAGE. Sie
+     * haengt an `ENTLEIHER_MAX` (`_lib/meldungen.ts`) und wird in `bucheAusleihe`
+     * durchgesetzt, mit dem `grund` `name-zu-lang` und dem Satz, den A19 dem Feld schon gab.
+     * ⚠️ A19 HAT DIE FELDHAELFTE GEBAUT (das `maxLength` und den Feldfehler) — die
+     * Serverhaelfte war offen und ist es nicht mehr. ⛔ HIER FAELLT SIE WEITERHIN NICHT: der
+     * Ort der Durchsetzung ist der Schreibpfad, nicht diese Action; hier stuende sonst eine
+     * zweite Zahl.
+     *
+     * ⚠️ WAS NICHT GESCHLOSSEN IST UND WEM ES GEHOERT: dies bleibt der einzige ANONYME
+     * Schreibpfad des Moduls, und er hat KEINE RATENBEGRENZUNG (⬜ A-L6, Zusage §4.12 Nr. 4,
+     * ausgeschrieben oben in dieser Datei). Der Deckel nimmt die unbegrenzte Feldlaenge weg,
+     * nicht die unbegrenzte Zahl der Aufrufe.
+     */
+    const entleiher = String(formular.get(FELD_ENTLEIHER) ?? "");
 
-  /*
-   * ⛔ AUFLAGE 9 — DIE HERKUNFT DES ZUGANGS (Spec:2159-2164): `zugang.codeId` bei
-   * `weg: "code"`, `null` bei `weg: "suite"`. ⛔ OHNE DIESE ZEILE SCHREIBT NIEMAND DIE
-   * SPALTE `loans.zugangscode_id` — sie bliebe dauerhaft leer, und das Loeschverbot aus
-   * §3.2.4 (Spec:2218-2220, „Beides oder nichts") verloere die Haelfte, die ihm Wirkung
-   * gibt. Ueber sie loest die Historienanzeige aus Planteil 4 die `bezeichnung` auf.
-   */
-  const ergebnis = bucheAusleihe(getDb(), {
-    geraeteIds,
-    entleiher,
-    zugangscodeId: schreibend.zugang.weg === "code" ? schreibend.zugang.codeId : null,
+    /*
+     * ⛔ AUFLAGE 9 — DIE HERKUNFT DES ZUGANGS (Spec:2159-2164): `zugang.codeId` bei
+     * `weg: "code"`, `null` bei `weg: "suite"`. ⛔ OHNE DIESE ZEILE SCHREIBT NIEMAND DIE
+     * SPALTE `loans.zugangscode_id` — sie bliebe dauerhaft leer, und das Loeschverbot aus
+     * §3.2.4 (Spec:2218-2220, „Beides oder nichts") verloere die Haelfte, die ihm Wirkung
+     * gibt. Ueber sie loest die Historienanzeige aus Planteil 4 die `bezeichnung` auf.
+     */
+    const ergebnis = bucheAusleihe(getDb(), {
+      geraeteIds,
+      entleiher,
+      zugangscodeId: schreibend.zugang.weg === "code" ? schreibend.zugang.codeId : null,
+    });
+    if (!ergebnis.ok) return ergebnis;
+
+    /*
+     * ⛔ BEIDES, NICHT EINES VON BEIDEN (`.superpowers/sdd/planteil3/VORABSCAN-A.md:415-424`,
+     * Fund F26): `export const dynamic = "force-dynamic"` (A18-A20, Spec:3827)
+     * verhindert, dass die SERVERANTWORT vorgerendert ist; `revalidatePath` entwertet
+     * zusaetzlich den ROUTER-CACHE DES CLIENTS, den der `redirect` unmittelbar danach
+     * benutzt. Ein spaeterer Leser streicht sonst den, den er fuer ueberfluessig haelt.
+     *
+     * ⛔ `/geraete` UND NICHT `/` (Entscheidung E1, `KOPF.md:416-455`) — die Wahl der
+     * FLAECHE; die Wahl des PFADRAUMS steht am Kopf von `LISTENPFAD` oben. Spec:3429 schreibt
+     * `revalidatePath` auf `/` und `redirect("/?gebucht=2")` — `/` ist in dieser Suite aber
+     * das GATE, und die Uebersicht liegt an `/geraete`. Zwei Dateien auf demselben Pfad
+     * lehnt Next beim Build ab, und ein Riegel-Layout ueber `/` liefe in einen endlosen
+     * Redirect.
+     *
+     * ⚠️ `redirect()` NICHT in einem `try`/`catch` — es arbeitet ueber einen geworfenen
+     * Sentinel, ein `catch` verschluckt ihn und die Weiterleitung findet still nicht statt
+     * (Bauform-Zulaessigkeitstafel Zeile 6, `KOPF.md:347`). ⚠️ Die Tafel spricht die Warnung
+     * nur fuer `page.tsx`/`layout.tsx` aus; sie gilt fuer eine Server Action genauso
+     * (`VORABSCAN-A.md:140`, Fund F20c), und deshalb steht sie hier.
+     */
+    revalidatePath(LISTENPFAD);
+    revalidatePath(RUECKGABEPFAD);
+    // ⛔ DER `redirect` NENNT DEN AEUSSEREN PFAD — er geht an den Browser (siehe den Kopf der
+    // zwei Konstanten oben).
+    redirect(`/geraete?gebucht=${ergebnis.anzahl}`);
   });
-  if (!ergebnis.ok) return ergebnis;
-
-  /*
-   * ⛔ BEIDES, NICHT EINES VON BEIDEN (`.superpowers/sdd/planteil3/VORABSCAN-A.md:415-424`,
-   * Fund F26): `export const dynamic = "force-dynamic"` (A18-A20, Spec:3827)
-   * verhindert, dass die SERVERANTWORT vorgerendert ist; `revalidatePath` entwertet
-   * zusaetzlich den ROUTER-CACHE DES CLIENTS, den der `redirect` unmittelbar danach
-   * benutzt. Ein spaeterer Leser streicht sonst den, den er fuer ueberfluessig haelt.
-   *
-   * ⛔ `/geraete` UND NICHT `/` (Entscheidung E1, `KOPF.md:416-455`) — die Wahl der
-   * FLAECHE; die Wahl des PFADRAUMS steht am Kopf von `LISTENPFAD` oben. Spec:3429 schreibt
-   * `revalidatePath` auf `/` und `redirect("/?gebucht=2")` — `/` ist in dieser Suite aber
-   * das GATE, und die Uebersicht liegt an `/geraete`. Zwei Dateien auf demselben Pfad
-   * lehnt Next beim Build ab, und ein Riegel-Layout ueber `/` liefe in einen endlosen
-   * Redirect.
-   *
-   * ⚠️ `redirect()` NICHT in einem `try`/`catch` — es arbeitet ueber einen geworfenen
-   * Sentinel, ein `catch` verschluckt ihn und die Weiterleitung findet still nicht statt
-   * (Bauform-Zulaessigkeitstafel Zeile 6, `KOPF.md:347`). ⚠️ Die Tafel spricht die Warnung
-   * nur fuer `page.tsx`/`layout.tsx` aus; sie gilt fuer eine Server Action genauso
-   * (`VORABSCAN-A.md:140`, Fund F20c), und deshalb steht sie hier.
-   */
-  revalidatePath(LISTENPFAD);
-  revalidatePath(RUECKGABEPFAD);
-  // ⛔ DER `redirect` NENNT DEN AEUSSEREN PFAD — er geht an den Browser (siehe den Kopf der
-  // zwei Konstanten oben).
-  redirect(`/geraete?gebucht=${ergebnis.anzahl}`);
 }
 
 /**
@@ -247,48 +250,50 @@ export async function rueckgabeBuchen(
       text: rueckgabeText({ grund: schreibend.grund }),
     };
   }
+  return withAuditContext({ actor: schreibend.zugang.weg === "code" ? auditAccessActor("radio", schreibend.zugang.codeId) : auditActor(schreibend.zugang) }, async (): Promise<RueckgabeErgebnis> => {
 
-  const ausleiheId = String(formular.get(FELD_AUSLEIHE_ID) ?? "");
+    const ausleiheId = String(formular.get(FELD_AUSLEIHE_ID) ?? "");
 
-  /*
-   * ⚠️ DIE EINZIGE UMFORMUNG AUF DEM WEG IN DIE DATENBANK, und sie ist keine Bereinigung:
-   * ein nicht ausgefuelltes optionales Feld (Spec:3560, „Optional: Zustandsnotiz
-   * hinterlassen") schickt `""`. Als `""` gespeichert waere es spaeter von einer abgegebenen
-   * leeren Notiz nicht zu unterscheiden, und `_db/schema.ts` fuehrt die Spalte nullable.
-   *
-   * ⛔ ENTSCHIEDEN WIRD AUF DEM GETRIMMTEN TEXT, GESPEICHERT WIRD DER UNGETRIMMTE — die
-   * zwei Haelften sind getrennt, und das ist der ganze Punkt. Ohne den `trim()` in der
-   * BEDINGUNG landete `"   "` als `"   "` in der Spalte und waere von einer abgegebenen
-   * leeren Notiz genauso wenig zu unterscheiden wie `""`. ⛔ NICHT `roh.trim()` SPEICHERN:
-   * das waere das Umschreiben, das Auflage 6 verbietet (Spec:3587-3592) — dieselbe Klasse
-   * wie `sanitizeForDisplay`, das hier ebenfalls NICHT steht.
-   * ⚠️ DIE ALT-QUELLE MACHT BEIDES, UND NUR DIE EINE HAELFTE WIRD UEBERNOMMEN:
-   * `ReturnDialog.tsx:58` lautet
-   * `onConfirm(loan.id, trimmedNote === '' ? null : sanitizeForDisplay(trimmedNote))` — sie
-   * entscheidet auf dem getrimmten Wert (das uebernehmen wir) und speichert ihn getrimmt
-   * und bereinigt (das nicht).
-   * ⚠️ DIESELBE TRENNUNG GIBT ES IN DIESEM MODUL BEREITS EINE EBENE TIEFER, und sie ist der
-   * naehere Beleg als die Alt-Quelle: `_db/leihen.ts:506` lehnt einen Entleihernamen ueber
-   * `e.entleiher.trim().length === 0` ab — ENTSCHEIDUNG auf dem getrimmten Text — und
-   * speichert ihn trotzdem ungetrimmt, bewacht vom Fall „schreibt den Entleihernamen
-   * unveraendert, ohne Umschreiben" (Testdaten „  Mueller & Sohn  " mit Leerzeichen an
-   * beiden Enden). Diese Zeile wendet die Hausform des Namens auf die Notiz an.
-   * ⚠️ DIE LAENGENPRUEFUNG LAEUFT DAMIT AUF DEM UNGETRIMMTEN WERT (`_db/leihen.ts:653`
-   * misst `notiz.length`, nicht `notiz.trim().length`). Das ist Absicht: gemessen wird, was
-   * gespeichert wird. Wer die zwei angleicht, muss sich entscheiden, welche Seite trimmt —
-   * und die Speicherseite darf es nicht.
-   */
-  const roh = formular.get(FELD_ZUSTANDSNOTIZ);
-  const notiz = typeof roh === "string" && roh.trim().length > 0 ? roh : null;
+    /*
+     * ⚠️ DIE EINZIGE UMFORMUNG AUF DEM WEG IN DIE DATENBANK, und sie ist keine Bereinigung:
+     * ein nicht ausgefuelltes optionales Feld (Spec:3560, „Optional: Zustandsnotiz
+     * hinterlassen") schickt `""`. Als `""` gespeichert waere es spaeter von einer abgegebenen
+     * leeren Notiz nicht zu unterscheiden, und `_db/schema.ts` fuehrt die Spalte nullable.
+     *
+     * ⛔ ENTSCHIEDEN WIRD AUF DEM GETRIMMTEN TEXT, GESPEICHERT WIRD DER UNGETRIMMTE — die
+     * zwei Haelften sind getrennt, und das ist der ganze Punkt. Ohne den `trim()` in der
+     * BEDINGUNG landete `"   "` als `"   "` in der Spalte und waere von einer abgegebenen
+     * leeren Notiz genauso wenig zu unterscheiden wie `""`. ⛔ NICHT `roh.trim()` SPEICHERN:
+     * das waere das Umschreiben, das Auflage 6 verbietet (Spec:3587-3592) — dieselbe Klasse
+     * wie `sanitizeForDisplay`, das hier ebenfalls NICHT steht.
+     * ⚠️ DIE ALT-QUELLE MACHT BEIDES, UND NUR DIE EINE HAELFTE WIRD UEBERNOMMEN:
+     * `ReturnDialog.tsx:58` lautet
+     * `onConfirm(loan.id, trimmedNote === '' ? null : sanitizeForDisplay(trimmedNote))` — sie
+     * entscheidet auf dem getrimmten Wert (das uebernehmen wir) und speichert ihn getrimmt
+     * und bereinigt (das nicht).
+     * ⚠️ DIESELBE TRENNUNG GIBT ES IN DIESEM MODUL BEREITS EINE EBENE TIEFER, und sie ist der
+     * naehere Beleg als die Alt-Quelle: `_db/leihen.ts:506` lehnt einen Entleihernamen ueber
+     * `e.entleiher.trim().length === 0` ab — ENTSCHEIDUNG auf dem getrimmten Text — und
+     * speichert ihn trotzdem ungetrimmt, bewacht vom Fall „schreibt den Entleihernamen
+     * unveraendert, ohne Umschreiben" (Testdaten „  Mueller & Sohn  " mit Leerzeichen an
+     * beiden Enden). Diese Zeile wendet die Hausform des Namens auf die Notiz an.
+     * ⚠️ DIE LAENGENPRUEFUNG LAEUFT DAMIT AUF DEM UNGETRIMMTEN WERT (`_db/leihen.ts:653`
+     * misst `notiz.length`, nicht `notiz.trim().length`). Das ist Absicht: gemessen wird, was
+     * gespeichert wird. Wer die zwei angleicht, muss sich entscheiden, welche Seite trimmt —
+     * und die Speicherseite darf es nicht.
+     */
+    const roh = formular.get(FELD_ZUSTANDSNOTIZ);
+    const notiz = typeof roh === "string" && roh.trim().length > 0 ? roh : null;
 
-  const ergebnis = bucheRueckgabe(getDb(), ausleiheId, notiz);
-  if (!ergebnis.ok) return ergebnis;
+    const ergebnis = bucheRueckgabe(getDb(), ausleiheId, notiz);
+    if (!ergebnis.ok) return ergebnis;
 
-  // Beide Flaechen, aus demselben Grund wie oben (Spec:3562; `/` → `/geraete` nach E1): ein
-  // zurueckgegebenes Geraet steht auf der Uebersicht wieder frei.
-  revalidatePath(LISTENPFAD);
-  revalidatePath(RUECKGABEPFAD);
-  return ergebnis;
+    // Beide Flaechen, aus demselben Grund wie oben (Spec:3562; `/` → `/geraete` nach E1): ein
+    // zurueckgegebenes Geraet steht auf der Uebersicht wieder frei.
+    revalidatePath(LISTENPFAD);
+    revalidatePath(RUECKGABEPFAD);
+    return ergebnis;
+  });
 }
 
 /**

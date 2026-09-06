@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -49,6 +50,7 @@ let vorher: Partial<Record<(typeof GESETZTE_VARIABLEN)[number], string | undefin
 
 function oeffne(): ReturnType<typeof drizzle<typeof schema>> {
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   verbindungen.push(sqlite);
   return drizzle(sqlite, { schema });
@@ -85,6 +87,7 @@ beforeEach(() => {
   // `istCookieGueltig` (ueber `ladeShare`) wirft ohne dieses Geheimnis.
   process.env.AUTH_SECRET = "seedlokal-test-geheimnis-lang-genug";
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

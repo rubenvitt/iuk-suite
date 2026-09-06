@@ -1,0 +1,15 @@
+export const AUDIT_MODULES = ["portal", "qr", "feedback", "files", "lagerbuch", "aufgaben", "radio", "uav", "zeichen", "konto"] as const;
+export const AUDIT_ACTIONS = ["create", "update", "delete", "sign_in", "sign_out", "session_revoke", "access_denied", "download", "export"] as const;
+export const AUDIT_RESULTS = ["success", "denied", "failure"] as const;
+export const AUDIT_ORIGINS = ["server", "browser", "database"] as const;
+export type AuditModule = typeof AUDIT_MODULES[number];
+export type AuditAction = typeof AUDIT_ACTIONS[number];
+export type AuditResult = typeof AUDIT_RESULTS[number];
+export type AuditOrigin = typeof AUDIT_ORIGINS[number];
+export type AuditActor = { kind: "user" | "access"; id: string; name?: string } | { kind: "anonymous" | "system" };
+export type AuditContext = { actor: AuditActor; correlationId?: string };
+export type AuditEventInput = { module: AuditModule; action: AuditAction; objectType: string; objectRef?: string; result: AuditResult; origin: AuditOrigin };
+export type AuditEvent = AuditEventInput & AuditContext & { id: string; occurredAt: number };
+export type AuditCursor = { occurredAt: number; id: string };
+export type AuditFilters = { module?: AuditModule; action?: AuditAction; actorId?: string; objectRef?: string; objectRefHash?: string; objectType?: string; result?: AuditResult; from?: number; to?: number; cursor?: AuditCursor; limit?: number };
+export type AuditPage = { events: AuditEvent[]; nextCursor?: AuditCursor };

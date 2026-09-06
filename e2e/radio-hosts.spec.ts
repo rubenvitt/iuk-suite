@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { existsSync } from "node:fs";
 import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
@@ -331,6 +332,7 @@ function lesend<T>(arbeit: (db: Database.Database) => T): T {
 
 function schreibend<T>(arbeit: (db: Database.Database) => T): T {
   const db = new Database(DB_PFAD);
+  registerAuditFunctions(db);
   try {
     return arbeit(db);
   } finally {

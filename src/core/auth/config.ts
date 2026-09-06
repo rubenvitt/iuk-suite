@@ -1,3 +1,4 @@
+import { auditEvent, auditActor } from "@/core/audit/server";
 import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
 import type { NextRequest } from "next/server";
@@ -99,6 +100,15 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
     // die ersten drei laut, callbackUrl still auf der falschen Seite. Warum
     // csrfToken aussen vor bleibt, steht in cookies.ts.
     cookies: authCookies(),
+    events: {
+      signIn({ user, account }) {
+        auditEvent({ module: "konto", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditActor({ id: account?.providerAccountId ?? user.id, name: user.name }));
+      },
+      signOut(message) {
+        const actor = "token" in message ? auditActor({ id: message.token?.sub, name: message.token?.name }) : auditActor({ id: message.session?.userId });
+        auditEvent({ module: "konto", action: "sign_out", objectType: "session", result: "success", origin: "server" }, actor);
+      },
+    },
     callbacks: {
       async jwt({ token, profile, user, account }) {
         // On initial sign-in, store OAuth tokens

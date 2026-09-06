@@ -1,3 +1,4 @@
+import { withAuditContext } from "@/core/audit/server";
 import { cookies } from "next/headers";
 import { createHash } from "node:crypto";
 import type { ReactElement } from "react";
@@ -278,7 +279,7 @@ export default async function ParticipatePage({
   const survey = active.survey;
   // Lazy Auto-Close: abgelaufene aktive Umfrage sofort schließen.
   if (nextStatusOnAccess("active", survey.closesAt, jetzt) !== "active") {
-    setSurveyStatus(db, survey.id, "closed", { closedAt: jetzt });
+    withAuditContext({ actor: { kind: "anonymous" } }, () => setSurveyStatus(db, survey.id, "closed", { closedAt: jetzt }));
     /*
      * Auch hier gilt das Frische-Fenster: liegt die Frist Wochen zurueck und hat
      * nur niemand hingesehen (der Bogen stand darum noch auf `active`), ist

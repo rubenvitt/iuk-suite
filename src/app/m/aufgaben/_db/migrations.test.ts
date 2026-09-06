@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -12,6 +13,7 @@ const ORDNER = "src/app/m/aufgaben/_db/migrations";
 /** Eine frische Datenbank im Speicher, migriert wie beim Boot. */
 function frisch() {
   const sqlite = new Database(":memory:");
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: ORDNER });
   return sqlite;
 }

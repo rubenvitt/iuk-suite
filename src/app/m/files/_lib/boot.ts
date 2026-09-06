@@ -1,3 +1,4 @@
+import { withAuditContext } from "@/core/audit/server";
 /**
  * Die BOOT-NAHT des Moduls `files` — zwei Funktionen, zwei Zeitpunkte
  * (Spec §9.4, §6.4, §7.6).
@@ -192,18 +193,20 @@ export function stoppeAufraeumTimer(): void {
  * dieselben Zeilen, und beide zaehlten sie.
  */
 async function taktLauf(): Promise<void> {
-  if (aufraeumLaeuft) return;
-  aufraeumLaeuft = true;
-  try {
-    await fuehreAufraeumLaufAus();
-  } catch (grund) {
-    // `fuehreAufraeumLaufAus` faengt selbst; hier bleibt nur, was beim Schreiben
-    // der Protokollzeile schiefgeht. Eine Logzeile ist die Antwort, nicht das
-    // Ende des Takts.
-    console.error("[files] Aufraeumlauf konnte nicht protokolliert werden:", grund);
-  } finally {
-    aufraeumLaeuft = false;
-  }
+  return withAuditContext({ actor: { kind: "system" } }, async (): Promise<void> => {
+    if (aufraeumLaeuft) return;
+    aufraeumLaeuft = true;
+    try {
+      await fuehreAufraeumLaufAus();
+    } catch (grund) {
+      // `fuehreAufraeumLaufAus` faengt selbst; hier bleibt nur, was beim Schreiben
+      // der Protokollzeile schiefgeht. Eine Logzeile ist die Antwort, nicht das
+      // Ende des Takts.
+      console.error("[files] Aufraeumlauf konnte nicht protokolliert werden:", grund);
+    } finally {
+      aufraeumLaeuft = false;
+    }
+  });
 }
 
 /** Was ein Lauf getan hat — dieselben Zahlen, die in der Protokollzeile stehen. */

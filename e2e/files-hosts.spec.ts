@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -211,6 +212,7 @@ function db(): ReturnType<typeof drizzle> {
     `${DB_PFAD} fehlt — laeuft der e2e-Server mit DATA_DIR=./.data/e2e?`,
   ).toBe(true);
   const sqlite = new Database(DB_PFAD);
+  registerAuditFunctions(sqlite);
   // Derselbe Wartewert wie in `core/db`: der Serverprozess haelt dieselbe Datei
   // offen, und ohne ihn scheitert ein Schreibversuch sofort mit SQLITE_BUSY.
   sqlite.pragma("busy_timeout = 5000");

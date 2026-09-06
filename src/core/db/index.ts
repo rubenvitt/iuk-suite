@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
@@ -19,6 +20,7 @@ export function openModuleDatabase(path: string): Database.Database {
   sqlite.pragma("foreign_keys = ON");
   sqlite.pragma("busy_timeout = 5000");
   sqlite.pragma("synchronous = NORMAL");
+  registerAuditFunctions(sqlite);
   return sqlite;
 }
 
