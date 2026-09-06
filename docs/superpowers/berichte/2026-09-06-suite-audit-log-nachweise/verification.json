@@ -1,0 +1,70 @@
+{
+  "implementationCommit": "73ad39fed595b9ac0a026778fced656e24e92996",
+  "baseCommit": "0334c7c1",
+  "runtime": {
+    "node": "22.23.0",
+    "pnpm": "11.0.9"
+  },
+  "checks": [
+    {
+      "name": "typecheck",
+      "command": "node node_modules/typescript/bin/tsc --noEmit --pretty false",
+      "exitCode": 0
+    },
+    {
+      "name": "lint",
+      "command": "node node_modules/eslint/bin/eslint.js .",
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 13
+    },
+    {
+      "name": "vitest",
+      "command": "node node_modules/vitest/vitest.mjs run --maxWorkers=4",
+      "exitCode": 0,
+      "filesPassed": 612,
+      "testsPassed": 10039,
+      "testsSkipped": 1,
+      "durationSeconds": 111.27
+    },
+    {
+      "name": "build",
+      "command": "node node_modules/next/dist/bin/next build",
+      "exitCode": 0,
+      "compiledSeconds": 3.1,
+      "staticPages": 58
+    },
+    {
+      "name": "playwright",
+      "command": "node node_modules/@playwright/test/cli.js test --workers=1 --trace=retain-on-failure",
+      "status": "passed",
+      "configuredTests": 405,
+      "environment": {
+        "WATCHPACK_POLLING": "1000"
+      },
+      "exitCode": 0,
+      "testsPassed": 405,
+      "testsFailed": 0,
+      "durationMinutes": 17.8
+    }
+  ],
+  "review": {
+    "finalFixReview": "approved",
+    "openFindings": 0,
+    "fixtureReview": "approved"
+  },
+  "limits": [
+    "Browser reports do not prove delivery and can be absent offline",
+    "Existing auth group refresh timing applies",
+    "No cryptographic tamper resistance against direct server/database operator",
+    "Events start at activation"
+  ],
+  "browserFixtureCommit": "55236677d831297a0dad2e4b3a9429b38fbf3164",
+  "previousBrowserRun": {
+    "commit": "73ad39fe",
+    "exitCode": 1,
+    "passed": 379,
+    "failed": 26,
+    "cause": "Six raw writable E2E SQLite fixtures lacked audit function registration; corrected and independently approved in 55236677."
+  }
+}
