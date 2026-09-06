@@ -6,21 +6,23 @@ import { mkdirSync, readFileSync } from "node:fs";
 const PORTAL="http://portal.localtest.me:3100";
 const QR="http://qr.localtest.me:3100";
 const ZEICHEN="http://zeichen.localtest.me:3100";
-const ACTOR="dev:audit-e2e@localtest.me";
-function fixtureEvents() {
+function fixtureEvents(actor: string) {
  const db=new Database(".data/e2e/audit.db");
  try {
   const insert=db.prepare("INSERT INTO audit_events (id,occurred_at,module,action,object_type,object_ref,actor,result,origin,correlation_id) VALUES (?,?,?,?,?,?,?,?,?,NULL)");
-  db.transaction(()=>{ for(let i=0;i<55;i++) insert.run(randomUUID(),Date.now()-1000-i,"qr","export","qr_png","sha256:"+createHash("sha256").update("audit-private-object-"+i).digest("hex"),JSON.stringify({kind:"user",id:ACTOR,name:"Audit-Probe"}),"success","browser"); })();
+  db.transaction(()=>{ for(let i=0;i<55;i++) insert.run(randomUUID(),Date.now()-1000-i,"qr","export","qr_png","sha256:"+createHash("sha256").update("audit-private-object-"+i).digest("hex"),JSON.stringify({kind:"user",id:actor,name:"Audit-Probe"}),"success","browser"); })();
  } finally { db.close(); }
 }
 test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und drei Darstellungen",async({page},testInfo)=>{
  const SCREENSHOTS=testInfo.outputPath("screenshots");
+ // Unique for every retry/repeat on the same live server; previous evidence stays intact.
+ const email=`audit-e2e-${randomUUID()}@localtest.me`;
+ const ACTOR=`dev:${email}`;
  test.setTimeout(240_000);
  expect((await page.request.get(PORTAL+"/api/auth/session")).status()).toBe(200);
  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
- await devLogin(page,{host:"portal.localtest.me",groups:"dashboard-admins",email:"audit-e2e@localtest.me"});
- fixtureEvents();
+ await devLogin(page,{host:"portal.localtest.me",groups:"dashboard-admins",email});
+ fixtureEvents(ACTOR);
  await klickeWennRuhig(page.getByRole("link",{name:"Verwaltung",exact:true}).first());
  await expect(page).toHaveURL(/\/admin$/,{timeout:30_000});
  await klickeWennRuhig(page.getByRole("link",{name:"Audit-Log öffnen"}),{timeout:30_000});
@@ -30,22 +32,43 @@ test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und 
  await page.getByRole("combobox",{name:"Modul",exact:true}).press("ArrowDown");
  await page.getByRole("combobox",{name:"Modul",exact:true}).press("ArrowDown");
  await page.getByRole("combobox",{name:"Modul",exact:true}).press("Enter");
+ // The login is a separate audit event for this actor. Keep the 55 export fixture exact,
+ // including after removing the object scope (which also clears its module).
+ await page.getByRole("combobox",{name:"Aktion",exact:true}).click();
+ await page.getByRole("combobox",{name:"Aktion",exact:true}).press("ArrowUp");
+ await page.getByRole("combobox",{name:"Aktion",exact:true}).press("Enter");
  await page.getByLabel("Personenkennung").fill(ACTOR);
  await page.getByRole("button",{name:"Filter anwenden"}).click();
  await expect(page).toHaveURL(/module=qr/);
  await expect(page.getByRole("status")).toContainText("50 Einträge");
- const firstResponse=await page.request.get(PORTAL+"/admin/audit/data?module=qr&actorId="+encodeURIComponent(ACTOR));
+ const firstResponse=await page.request.get(PORTAL+"/admin/audit/data?module=qr&action=export&actorId="+encodeURIComponent(ACTOR));
  expect(firstResponse.status()).toBe(200);const first=await firstResponse.json();expect(first.page.events).toHaveLength(50);
  await page.getByRole("button",{name:"Details: QR-Code als PNG",exact:true}).first().click();
  const dialog=page.getByRole("dialog");await expect(dialog).toContainText("Vom Browser gemeldet");await expect(dialog).toContainText(ACTOR);
  await expect(dialog).not.toContainText("audit-private-object-");
  await dialog.getByRole("button",{name:"Nur dieses Objekt"}).click();
- await expect(page).toHaveURL(/objectRefHash=[a-f0-9]{64}/);expect(page.url()).not.toContain("audit-private-object-");
+ await expect(page).toHaveURL(/objectRefHash=[a-f0-9]{64}/);
+ expect(new URL(page.url()).searchParams.get("module")).toBe("qr");
+ expect(new URL(page.url()).searchParams.get("objectType")).toBe("qr_png");expect(page.url()).not.toContain("audit-private-object-");
  await expect(page.getByRole("status")).toContainText("1 Einträge");
  await page.getByRole("button",{name:"Objektfilter entfernen"}).click();await page.getByRole("button",{name:"Filter anwenden"}).click();
  await expect(page.getByRole("status")).toContainText("50 Einträge");
  mkdirSync(SCREENSHOTS,{recursive:true});
- await page.setViewportSize({width:1440,height:960});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({animations:"disabled",path:SCREENSHOTS+"/desktop.png"});
+ for(const width of [1280,1024]) {
+  await page.setViewportSize({width,height:960});await page.evaluate(()=>window.scrollTo(0,0));
+  await page.getByRole("button",{name:"Details: QR-Code als PNG",exact:true}).first().scrollIntoViewIfNeeded();
+  const geometry=await page.evaluate(()=>({width:window.innerWidth,document:document.documentElement.scrollWidth,overflow:Array.from(document.querySelectorAll("main, [data-testid=audit-log], [aria-busy], .ant-table-content")).map(el=>({node:el.tagName,classes:el.className,width:el.getBoundingClientRect().width,scroll:el.scrollWidth,minWidth:getComputedStyle(el).minWidth,display:getComputedStyle(el).display}))}));
+  await page.screenshot({animations:"disabled",path:SCREENSHOTS+`/desktop-${width}-geometry.png`});
+  expect(geometry.document,JSON.stringify(geometry)).toBeLessThanOrEqual(width);
+  const header=page.getByRole("columnheader",{name:"Zeit (UTC)"});
+  await expect(header.locator("span")).toHaveCSS("text-transform","uppercase");
+  const table=page.locator(".ant-table-content");
+  expect(await table.evaluate(el=>el.scrollWidth>=el.clientWidth)).toBe(true);
+  await table.evaluate(el=>{el.scrollLeft=el.scrollWidth;});
+  await expect(page.getByRole("columnheader",{name:"Details",exact:true})).toBeInViewport();
+  await table.evaluate(el=>{el.scrollLeft=0;});
+  await page.screenshot({animations:"disabled",path:SCREENSHOTS+`/desktop-${width}.png`});
+ }
  await page.getByRole("button",{name:"Ältere Einträge"}).click();await expect(page).toHaveURL(/cursorId=/);
  await expect(page.getByRole("status")).toContainText("5 Einträge");
  const secondResponse=await page.request.get(PORTAL+"/admin/audit/data?"+new URL(page.url()).searchParams);expect(secondResponse.status()).toBe(200);

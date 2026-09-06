@@ -97,3 +97,33 @@ it("declares a fixed object type and resolved reference for every delivery bound
   expect(actual.sort()).toEqual(Object.keys(entries).filter(key => entries[key].delivery).sort());
   expect(actual).toHaveLength(11);
 });
+
+import pageManifest from "./page-coverage-manifest.json";
+it("classifies every actual module page/layout 404 and redirect decision, including TSX",()=>{
+ const actual:string[]=[];
+ for(const path of files("src/app/m").filter(p=>/(page|layout)\.tsx$/.test(p))) {
+  const source=ts.createSourceFile(path,readFileSync(path,"utf8"),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const counts:Record<string,number>={};
+  function visit(node:ts.Node) {
+   if(ts.isCallExpression(node)&&["notFound","redirect","permanentRedirect"].includes(node.expression.getText(source))) {
+    let parent:ts.Node|undefined=node.parent;
+    while(parent&&!ts.isIfStatement(parent)&&!ts.isFunctionDeclaration(parent)&&!ts.isArrowFunction(parent)&&!ts.isCaseClause(parent)) parent=parent.parent;
+    const condition=parent&&ts.isIfStatement(parent)?parent.expression.getText(source):parent&&ts.isCaseClause(parent)?"case "+parent.expression.getText(source):"unconditional/catch";
+    const base=`${path}#${node.expression.getText(source)}:${condition}`;
+    const key=base+":"+(counts[base]=(counts[base]??0)+1);actual.push(key);
+    const entry=(pageManifest as Record<string,{kind:string;reason:string}>)[key];
+    expect(entry,key).toBeDefined();expect(entry.reason,key).toBeTruthy();
+    if(["denial","defensive-denial"].includes(entry.kind)) {
+     expect(parent&&ts.isIfStatement(parent),key).toBe(true);
+     expect(parent!.getText(source),key).toContain("auditDenied(");
+     expect(parent!.getText(source),key).toContain("auditActor(");
+    }
+   }
+   ts.forEachChild(node,visit);
+  }
+  visit(source);
+ }
+ expect(actual.sort()).toEqual(Object.keys(pageManifest).sort());
+ expect(Object.values(pageManifest).filter(e=>e.kind==="denial")).toHaveLength(6);
+ expect(Object.values(pageManifest).filter(e=>e.kind==="defensive-denial")).toHaveLength(1);
+});

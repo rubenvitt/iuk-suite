@@ -104,7 +104,19 @@ it("safe URL hash lookup equals raw reference lookup without hashing twice", () 
  recordAuditEvent({module:"qr",action:"export",objectType:"qr_png",objectRef:"other",origin:"browser",result:"success"});
  const raw=queryAuditEvents({objectRef:"private-bearer"});
  const hash=raw.events[0].objectRef!.slice(7);
- expect(queryAuditEvents({objectRefHash:hash})).toEqual(raw);
- for(const bad of ["private-bearer", "x".repeat(64), hash.toUpperCase(), "sha256:"+hash]) expect(()=>queryAuditEvents({objectRefHash:bad})).toThrow();
+ expect(queryAuditEvents({module:"qr",objectType:"qr_png",objectRefHash:hash})).toEqual(raw);
+ for(const bad of ["private-bearer", "x".repeat(64), hash.toUpperCase(), "sha256:"+hash]) expect(()=>queryAuditEvents({module:"qr",objectType:"qr_png",objectRefHash:bad})).toThrow();
  expect(()=>queryAuditEvents({objectRefHash:hash,objectRef:"private-bearer"})).toThrow();
+});
+
+it("exact module and object type prevent ordinary same-ID object collisions",()=>{
+ fixture();
+ for(const [module,objectType] of [["feedback","groups"],["feedback","evenings"],["feedback","surveys"],["qr","groups"]] as const)
+  recordAuditEvent({module,objectType,action:"update",objectRef:"1",result:"success",origin:"database"});
+ const hash=queryAuditEvents({module:"feedback"}).events[0].objectRef!.slice(7);
+ const scoped={module:"feedback" as const,objectType:"groups",objectRefHash:hash};
+ expect(queryAuditEvents(scoped).events.map(e=>[e.module,e.objectType])).toEqual([["feedback","groups"]]);
+ expect(()=>queryAuditEvents({objectRefHash:hash})).toThrow();
+ expect(()=>queryAuditEvents({module:"feedback",objectRefHash:hash})).toThrow();
+ expect(()=>queryAuditEvents({...scoped,objectType:"groups' OR 1=1"})).toThrow();
 });

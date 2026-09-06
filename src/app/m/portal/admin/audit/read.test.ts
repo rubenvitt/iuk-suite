@@ -39,3 +39,12 @@ it("invalid and duplicate filters do not run queries",async()=>{
  expect((await GET(new Request("http://portal.localtest.me/admin/audit/data?module=qr&module=files"))).status).toBe(400);
  expect(queryAuditEvents).not.toHaveBeenCalled();
 });
+
+it("direct handler validates the complete exact object scope before querying",async()=>{
+ const hash="a".repeat(64);
+ for(const suffix of [`objectRefHash=${hash}`,`module=feedback&objectRefHash=${hash}`,`module=feedback&objectType=groups`,`module=feedback&objectType=bad!&objectRefHash=${hash}`])
+  expect((await GET(new Request("http://portal.localtest.me/admin/audit/data?"+suffix))).status).toBe(400);
+ expect(queryAuditEvents).not.toHaveBeenCalled();
+ expect((await GET(new Request(`http://portal.localtest.me/admin/audit/data?module=feedback&objectType=groups&objectRefHash=${hash}`))).status).toBe(200);
+ expect(queryAuditEvents).toHaveBeenLastCalledWith({module:"feedback",objectType:"groups",objectRefHash:hash,limit:50});
+});

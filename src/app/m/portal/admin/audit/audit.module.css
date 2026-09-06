@@ -6,6 +6,8 @@
 .details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; }
 .details dt { color: var(--iuk-gedaempft); }
 .details dd { margin: 0; overflow-wrap: anywhere; }
+/* Let the table scroll inside this grid item instead of widening the document. */
+.desktop { min-width: 0; }
 .mobile { display: none; }
 @media (max-width: 767.98px) {
   .filters { grid-template-columns: 1fr; }

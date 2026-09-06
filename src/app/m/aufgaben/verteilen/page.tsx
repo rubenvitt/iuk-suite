@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../_db/client";
 import { verteilDaten } from "../_db/queries";
@@ -230,7 +231,10 @@ export default async function VerteilenPage({
   // DER RIEGEL STEHT VOR DEM AUSLESEN DES SUCHPARAMETERS, UND DAS IST KEINE STILFRAGE: `?ansicht=`
   // darf an keiner Entscheidung ueber ZUGANG beteiligt sein. Wer hier ankommt, kommt mit jeder
   // Ansicht hinein; wer nicht darf, bekommt 404 — mit jeder Ansicht.
-  if (!darfVerteilen(akteur, heute)) notFound();
+  if (!darfVerteilen(akteur, heute)) {
+    auditDenied("aufgaben", auditActor(akteur.person));
+    notFound();
+  }
   const { ansicht } = await searchParams;
   return verteilenInhalt(db, heute, akteur, ansicht);
 }
