@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const ab = hostAbweisung(req); if (ab) return ab;
   const zugang = await adminZugang(); if (!zugang.ok) return zugang.response;
-  return auditDelivery("uav", "export", "export", auditActor(zugang.viewer), async () => {
+  return auditDelivery("uav", "export", "participant_collection", auditActor(zugang.viewer), async (target) => {
+    target("participants");
     const header = ["Name", "Beginn", "Erledigt", "Gesamt", "Quote", "LetzteAktivität", "Status"];
     const rows = teilnehmerUebersicht(getDb()).map((z) => [
       z.participant.name,

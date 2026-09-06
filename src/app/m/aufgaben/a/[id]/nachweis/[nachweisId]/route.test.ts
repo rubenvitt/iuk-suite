@@ -1,3 +1,7 @@
+import { queryAuditEvents } from "@/core/audit/storage";
+import { openModuleDatabase } from "@/core/db";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,6 +46,9 @@ beforeEach(() => {
   datenVerzeichnis = mkdtempSync(join(tmpdir(), "aufgaben-nachweis-route-"));
   vorherigesDataDir = process.env.DATA_DIR;
   process.env.DATA_DIR = datenVerzeichnis;
+  const central = openModuleDatabase(join(datenVerzeichnis, "audit.db"));
+  migrate(drizzle(central), { migrationsFolder: "src/core/audit/_db/migrations" });
+  central.close();
 });
 afterEach(() => {
   t.schliessen();
@@ -287,5 +294,25 @@ describe("GET /a/<id>/nachweis/<nachweisId> — sonstige Ablehnungen", () => {
 
     const antwort = await ruf(task.id, nachweis.id);
     expect(antwort.status).toBe(404);
+  });
+});
+
+
+describe("persisted proof download denials preserve ordinary absence silence", () => {
+  it.each(["anonymous", "unlisted", "other", "idor", "missing_task", "missing_proof"])("%s keeps 404 with the correct audit meaning", async (kind) => {
+    const owner = legePerson("owner", "auftrag");
+    const other = legePerson("other", "bufdi");
+    const task = legeAufgabe({ erstellerId: owner.id, zugewiesenAn: owner.id, istSelbst: true });
+    const foreignTask = legeAufgabe({ erstellerId: other.id, zugewiesenAn: other.id, istSelbst: true });
+    const proof = legeNachweis(kind === "idor" ? foreignTask.id : task.id, null, owner.id);
+    if (kind === "unlisted") anmelden({ sub: "unlisted" });
+    else if (kind !== "anonymous") anmelden(kind === "other" ? other : owner);
+    expect((await ruf(kind === "missing_task" ? "missing" : task.id, kind === "missing_proof" ? "missing" : proof.id)).status).toBe(404);
+    const events = queryAuditEvents().events.filter(e => e.action === "access_denied");
+    if (kind.startsWith("missing")) expect(events).toHaveLength(0);
+    else {
+      expect(events).toHaveLength(1);
+      expect(events[0].actor).toEqual(kind === "anonymous" ? { kind: "anonymous" } : { kind: "user", id: kind === "idor" ? "owner" : kind });
+    }
   });
 });

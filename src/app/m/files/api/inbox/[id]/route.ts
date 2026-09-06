@@ -99,7 +99,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 
   const auditViewer = await requireFilesAccess();
-  return auditDelivery("files", "download", "file", auditActor(auditViewer), async () => {
+  return auditDelivery("files", "download", "inbox_file", auditActor(auditViewer), async (target) => {
 
     const { id } = await ctx.params;
 
@@ -120,6 +120,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       .all();
 
     if (!zeile) return text("Diese Datei gibt es nicht (mehr).", 404);
+    target(zeile.id);
 
     const avStatus = alsAvStatus(zeile.avStatus);
     if (!istFreigegeben(avStatus)) {

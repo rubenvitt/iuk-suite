@@ -223,7 +223,8 @@ const VERBOTE_ANZAHL = 5;
  * Phosphor-Zeichenquelle der Verwaltungsflaechen. ⚠️ `_ui/verwaltungIkonen.test.tsx` zaehlt
  * hier NICHT mit, und `src/core/theme/Schreibtischdichte.tsx` liegt ausserhalb von `MODUL`.
  */
-const QUELLDATEIEN_ANZAHL = 110;
+// Suite audit: _lib/audit.ts adds verified shared-access attribution (110 + 1).
+const QUELLDATEIEN_ANZAHL = 111;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.

@@ -73,7 +73,7 @@ export async function GET(
   void req;
   const session = await auth();
   const sub = session?.user?.id;
-  if (!sub) return zustand(404, NICHT_VERFUEGBAR);
+  if (!sub) { auditDenied("aufgaben", auditActor(session?.user)); return zustand(404, NICHT_VERFUEGBAR); }
 
   const db = getDb();
   const person = personNachSub(db, sub);
@@ -81,22 +81,27 @@ export async function GET(
   // aber hier OHNE die dortige Erklaerseiten-Ausnahme — ein Route Handler liefert keine Seite, nur
   // Bytes oder eine Ablehnung, und „nicht verfuegbar" ist fuer beide Faelle (keine Sitzung, keine
   // Personen-Zeile) dieselbe ehrliche Antwort.
-  if (!person) return zustand(404, NICHT_VERFUEGBAR);
+  if (!person) { auditDenied("aufgaben", auditActor(session?.user)); return zustand(404, NICHT_VERFUEGBAR); }
 
   const { id, nachweisId } = await params;
   const task = aufgabe(db, id);
   if (!task) return zustand(404, NICHT_VERFUEGBAR);
   // BEDINGUNG 2.
   if (!darfNachweisSehen(await akteurFuer(person), task)) { auditDenied("aufgaben", auditActor(session?.user)); return zustand(404, NICHT_VERFUEGBAR); }
-  return auditDelivery("aufgaben", "download", "file", auditActor(session?.user), async (): Promise<Response> => {
+  return auditDelivery("aufgaben", "download", "proof_file", auditActor(session?.user), async (target): Promise<Response> => {
 
     const nachweis = nachweisNachId(db, nachweisId);
     // DER IDOR-RIEGEL UEBER ZWEI ECKEN (s. Kopfkommentar).
-    if (!nachweis || nachweis.aufgabeId !== task.id) return zustand(404, NICHT_VERFUEGBAR);
+    if (!nachweis) return zustand(404, NICHT_VERFUEGBAR);
+    if (nachweis.aufgabeId !== task.id) {
+      auditDenied("aufgaben", auditActor(session?.user));
+      return zustand(404, NICHT_VERFUEGBAR);
+    }
     if (nachweis.dateiId === null) return zustand(404, NICHT_VERFUEGBAR); // Text-Nachweis, kein Bild
 
     const datei = dateiNachId(db, nachweis.dateiId);
     if (!datei) return zustand(404, NICHT_VERFUEGBAR); // Datenbankinkonsistenz — kein Byte ohne Zeile
+    target(datei.id);
 
     // BEDINGUNG 1.
     if (!istFreigegeben(datei.scanStatus)) return zustand(404, NICHT_VERFUEGBAR);

@@ -190,7 +190,7 @@ An overlapping rerun of the Download test file caused collisions in its existing
 - `src/app/m/radio/_actions/sitzung.ts#beenden` — **explicit-only**: Observed authentication or logout; credential write context resides in the verified redemption helper.
 - `src/app/m/radio/abmelden/route.ts#GET` — **explicit-only**: Observed authentication or logout; credential write context resides in the verified redemption helper.
 - `src/app/m/radio/admin/(arbeit)/geraete/export/route.ts#GET` — **context**: via `GET`.
-- `src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts#POST` — **excluded**: Parses the upload only; importSchreibenAction performs the audited database mutation.
+- `src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts#POST` — **excluded**: Successful parsing has no mutation/read event; its local admin and identity denials are independently audited (fix round 1).
 - `src/app/m/radio/admin/actions.ts#geraetAnlegenAction` — **context**: via `geraetAnlegenAction`.
 - `src/app/m/radio/admin/actions.ts#geraetAendernAction` — **context**: via `geraetAendernAction`.
 - `src/app/m/radio/admin/actions.ts#geraetLoeschenAction` — **context**: via `geraetLoeschenAction`.
@@ -287,3 +287,92 @@ rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GI
 ```
 
 Final clean rerun of the exact selected command above: **exit 0, 85 files / 1,927 tests**, 26.11 seconds. No overlapping runner. Evidence: `task-2-evidence/clean-selected-1927.log`. This closes the fixture-contention failures; no outstanding targeted test failure.
+
+
+## Review fix round 1 — R1–R4 (base c9417bcb)
+
+The independent review found four P2 issues. All four are corrected in this round; the earlier selected-suite completion statement does not supersede these review findings. The parent full suite on the reviewed base returned exit 1: 9,928 passed, one failed, one skipped; its only failure was the Radio source count (R4). This fix round does not repeat the full repository suite.
+
+- **R1:** Radio's CSV parser now records its existing local admin/identity rejection after the host guard. Aufgaben proof GET/POST record missing session identity and missing local person. Proof GET splits missing proof from an existing proof belonging to another task and records only the latter denial. All existing 404 responses remain. Persistent negative probes cover anonymous, unlisted person, wrong assignee, wrong proof ownership, foreign host, genuinely missing task/proof and successful parsing.
+- **R2:** All eleven delivery handlers provide fixed, distinct object types and server-resolved references. The reference is passed raw only within server memory and hashed by existing storage. Core persistent tests distinguish two targets and prove raw bearer IDs are absent; the real Files response probe checks lookup by the resolved file reference and absence of raw share/file IDs. A new Lagerbuch PDF route test fills a discovered test gap: it returns actual PDF bytes and checks the stored collection target; the pre-existing `druck.test.ts` covers CSS only and is not claimed as route evidence.
+- **R3:** Aufgaben proof upload checks actual assignment/activity separately from workflow state. A stale but authorized form remains 404 without an access-denied event; an unauthorized assignee remains 404 with the event.
+- **R4:** The Radio exact source-file invariant changes narrowly from 110 to 111, annotated with the new `_lib/audit.ts`. The scan and exact-count assertion remain intact.
+
+### Updated server API for Task 3
+
+```ts
+auditDelivery(
+  module: AuditModule,
+  action: "download" | "export",
+  objectType: string, // fixed source literal
+  actor: AuditActor, // existing confirmed identity
+  operation: (target: (objectRef: string) => void) => Response | Promise<Response>,
+): Promise<Response>
+```
+
+Call `target(rawId)` within the operation after the server has resolved its object. Collection exports call it with their fixed collection reference. Never provide a filename, URL, body, raw input parameter without lookup, or pre-hashed reference. The helper retains actor scope for the operation and passes the reference to storage for hashing. An early rejected/unresolved request can have no object reference. Success still means a prepared response, including a stream, rather than confirmed client receipt. Audit storage failure still preserves authorization and delivery outcomes with the fixed diagnostic. No storage or actor API changed.
+
+| Handler | Fixed object type | Server reference before storage hashing |
+| --- | --- | --- |
+| `src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET` | `proof_file` | `datei.id` |
+| `src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.ts#GET` | `evening_export` | `String(evening.id)` |
+| `src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.ts#GET` | `group_export` | `String(group.id)` |
+| `src/app/m/files/api/download/[id]/route.ts#GET` | `share_file` | `datei.id` |
+| `src/app/m/files/api/download/[id]/zip/route.ts#GET` | `share_archive` | `share.id` |
+| `src/app/m/files/api/inbox/[id]/route.ts#GET` | `inbox_file` | `zeile.id` |
+| `src/app/m/files/api/inbox/zip/route.ts#GET` | `inbox_archive` | `"inbox"` |
+| `src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.ts#GET` | `checklist_collection` | `"vehicle_checklists"` |
+| `src/app/m/radio/admin/(arbeit)/geraete/export/route.ts#GET` | `device_collection` | `"devices"` |
+| `src/app/m/uav/api/admin/participants/[id]/export/route.ts#GET` | `participant_export` | `detail.participant.id` |
+| `src/app/m/uav/api/admin/participants/export/route.ts#GET` | `participant_collection` | `"participants"` |
+
+The callable inventory remains **211 entries: 145 context, 12 explicit-only, 54 successful-operation exclusions**. A successful-read exclusion does not exclude its access denials. The manifest now explicitly records the three local masked-denial contracts and all eleven delivery target contracts. Coverage tests enforce those independent contracts in addition to the original export inventory; behavioral probes test their persistence. The Radio parser remains excluded only for successful parsing; its separate import action still owns the database mutation. The fixed references `inbox`, `vehicle_checklists`, `devices`, and `participants` designate whole collections, including filtered exports; they intentionally do not encode a selected ID list or query string.
+
+### Exact fix-round verification
+
+All commands ran from `/private/tmp/iuk-suite-audit-log`. No overlapping fixture runners were used. Log paths below are relative to this report directory.
+
+**R1/R3 RED: exit 1; 3 files, 7 expected failed / 39 passed tests.** Evidence: `task-2-evidence/fix1-denials-red.log`.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run 'src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.test.ts' 'src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.test.ts' 'src/app/m/radio/admin/(arbeit)/import/hochladen/route.test.ts' --maxWorkers=2
+```
+
+**R2 RED: exit 1; 1 file, 1 expected failed / 4 passed tests (`target is not a function` on the previous API).** Evidence: `task-2-evidence/fix1-target-red.log`.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run src/core/audit/integration.test.ts --maxWorkers=2
+```
+
+**Core/denials/R4 GREEN: exit 0; 10 files / 90 passed tests.** Evidence: `task-2-evidence/fix1-core-denials-green.log`.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run src/core/audit 'src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.test.ts' 'src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.test.ts' 'src/app/m/radio/admin/(arbeit)/import/hochladen/route.test.ts' src/app/m/radio/_lib/keine-pwa.test.ts --maxWorkers=2
+```
+
+**Existing delivery regressions GREEN: exit 0; 10 files / 146 passed tests (includes the existing Lagerbuch CSS test; PDF route evidence is separate below).** Evidence: `task-2-evidence/fix1-delivery-green.log`.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run 'src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.test.ts' 'src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.test.ts' 'src/app/m/files/api/download/[id]/route.test.ts' 'src/app/m/files/api/download/[id]/zip/route.test.ts' 'src/app/m/files/api/inbox/[id]/route.test.ts' src/app/m/files/api/inbox/zip/route.test.ts 'src/app/m/lagerbuch/verwaltung/(druck)/checklisten/druck.test.ts' 'src/app/m/radio/admin/(arbeit)/geraete/export/route.test.ts' 'src/app/m/uav/api/admin/participants/[id]/export/route.test.ts' src/app/m/uav/api/admin/participants/export/route.test.ts --maxWorkers=2
+```
+
+**New PDF handler probe GREEN: exit 0; 1 file / 3 passed tests.** Evidence: `task-2-evidence/fix1-pdf-green.log`.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run 'src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.test.ts' --maxWorkers=2
+```
+
+**Scoped ESLint: exit 0, no errors or warnings.** Evidence: `task-2-evidence/fix1-eslint.log` (empty successful output). Exact input paths are also saved in `task-2-fix1-lint-paths.json`.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH node node_modules/eslint/bin/eslint.js 'src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.test.ts' 'src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts' 'src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.test.ts' 'src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts' 'src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.ts' 'src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.ts' 'src/app/m/files/api/download/[id]/route.test.ts' 'src/app/m/files/api/download/[id]/route.ts' 'src/app/m/files/api/download/[id]/zip/route.ts' 'src/app/m/files/api/inbox/[id]/route.ts' src/app/m/files/api/inbox/zip/route.ts 'src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.ts' src/app/m/radio/_lib/keine-pwa.test.ts 'src/app/m/radio/admin/(arbeit)/geraete/export/route.ts' 'src/app/m/radio/admin/(arbeit)/import/hochladen/route.test.ts' 'src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts' 'src/app/m/uav/api/admin/participants/[id]/export/route.ts' src/app/m/uav/api/admin/participants/export/route.ts src/core/audit/coverage.test.ts src/core/audit/integration.test.ts src/core/audit/server.ts 'src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.test.ts'
+```
+
+
+**Final TypeScript: exit 0**, empty successful output in `task-2-evidence/fix1-typecheck.log`:
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH node node_modules/typescript/bin/tsc --noEmit --pretty false
+```
+
+Combined fix-round GREEN evidence: **21 files / 239 tests passed**, TypeScript exit 0, scoped ESLint exit 0. `rtk proxy git -c core.fsmonitor=false diff --check` exits 0. No implementation concern remains from R1–R4; independent re-review and the parent's final gate remain pending. The parent-owned acceptance draft `docs/superpowers/berichte/2026-09-06-suite-audit-log.md` is untouched and excluded from this fix commit.

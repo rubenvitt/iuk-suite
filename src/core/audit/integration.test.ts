@@ -64,3 +64,18 @@ it("distinguishes provided, denied and failed delivery without logging ordinary 
   for (const status of [200, 401, 403, 404, 500]) await auditDelivery("files", "download", "file", { kind: "anonymous" }, () => new Response(null, { status }));
   expect(queryAuditEvents().events.filter(e => e.action === "download").map(e => e.result).sort()).toEqual(["denied", "denied", "failure", "success"]);
 });
+
+
+it("distinguishes resolved delivery targets and hashes raw bearer IDs before persistence", async () => {
+  for (const raw of ["bearer-secret-first", "bearer-secret-second"]) {
+    await auditDelivery("files", "download", "share_archive", { kind: "anonymous" }, target => {
+      target(raw);
+      return new Response("bytes");
+    });
+  }
+  const events = queryAuditEvents().events;
+  expect(new Set(events.map(e => e.objectRef)).size).toBe(2);
+  expect(events.every(e => e.objectType === "share_archive" && e.objectRef?.startsWith("sha256:"))).toBe(true);
+  expect(JSON.stringify(events)).not.toContain("bearer-secret");
+  expect(queryAuditEvents({ objectRef: "bearer-secret-first" }).events).toHaveLength(1);
+});

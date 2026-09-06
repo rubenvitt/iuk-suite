@@ -17,11 +17,23 @@
   },
   "src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "proof_file",
+      "reference": "datei.id"
+    },
+    "denial": {
+      "via": "GET",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
   },
   "src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts#POST": {
     "kind": "context",
-    "via": "POST"
+    "via": "POST",
+    "denial": {
+      "via": "POST",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
   },
   "src/app/m/aufgaben/actions.ts#aufgabeEinstellenAction": {
     "kind": "context",
@@ -117,11 +129,19 @@
   },
   "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "evening_export",
+      "reference": "String(evening.id)"
+    }
   },
   "src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "group_export",
+      "reference": "String(group.id)"
+    }
   },
   "src/app/m/feedback/actions.ts#createGroupAction": {
     "kind": "context",
@@ -229,19 +249,35 @@
   },
   "src/app/m/files/api/download/[id]/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "share_file",
+      "reference": "datei.id"
+    }
   },
   "src/app/m/files/api/download/[id]/zip/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "share_archive",
+      "reference": "share.id"
+    }
   },
   "src/app/m/files/api/inbox/[id]/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "inbox_file",
+      "reference": "zeile.id"
+    }
   },
   "src/app/m/files/api/inbox/zip/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "inbox_archive",
+      "reference": "\"inbox\""
+    }
   },
   "src/app/m/files/api/preview/[id]/route.ts#GET": {
     "kind": "excluded",
@@ -497,7 +533,11 @@
   },
   "src/app/m/lagerbuch/verwaltung/(druck)/checklisten/pdf/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "checklist_collection",
+      "reference": "\"vehicle_checklists\""
+    }
   },
   "src/app/m/portal/actions.ts#createServiceAction": {
     "kind": "context",
@@ -585,11 +625,19 @@
   },
   "src/app/m/radio/admin/(arbeit)/geraete/export/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "device_collection",
+      "reference": "\"devices\""
+    }
   },
   "src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts#POST": {
     "kind": "excluded",
-    "reason": "Parses the upload only; importSchreibenAction performs the audited database mutation."
+    "reason": "Parsing has no mutation or successful read event; local admin/identity denials remain audited by the independent denial contract.",
+    "denial": {
+      "via": "POST",
+      "reason": "Local nonthrowing permission/identity rejection records access_denied; ordinary absence and workflow state do not."
+    }
   },
   "src/app/m/radio/admin/actions.ts#geraetAnlegenAction": {
     "kind": "context",
@@ -713,7 +761,11 @@
   },
   "src/app/m/uav/api/admin/participants/[id]/export/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "participant_export",
+      "reference": "detail.participant.id"
+    }
   },
   "src/app/m/uav/api/admin/participants/[id]/route.ts#GET": {
     "kind": "excluded",
@@ -729,7 +781,11 @@
   },
   "src/app/m/uav/api/admin/participants/export/route.ts#GET": {
     "kind": "context",
-    "via": "GET"
+    "via": "GET",
+    "delivery": {
+      "objectType": "participant_collection",
+      "reference": "\"participants\""
+    }
   },
   "src/app/m/uav/api/admin/participants/route.ts#GET": {
     "kind": "excluded",

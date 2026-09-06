@@ -13,7 +13,7 @@ const notFoundJson = (e: NotFound) => Response.json({ error: { code: e.code, mes
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const ab = hostAbweisung(req); if (ab) return ab;
   const zugang = await adminZugang(); if (!zugang.ok) return zugang.response;
-  return auditDelivery("uav", "export", "export", auditActor(zugang.viewer), async () => {
+  return auditDelivery("uav", "export", "participant_export", auditActor(zugang.viewer), async (target) => {
     const { id } = await ctx.params;
     let detail;
     try {
@@ -22,6 +22,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       if (e instanceof NotFound) return notFoundJson(e);
       throw e;
     }
+    target(detail.participant.id);
     const header = ["Teil", "Nummer", "Titel", "Anzahl", "Ziel", "Erledigt", "NichtAnwendbar", "LetzteDurchführung"];
     const rows = detail.aufgaben.map((a) => [
       String(a.teil),

@@ -112,7 +112,7 @@ export async function GET(
   // sie für sie erledigt (§3.2). `rolleOderNull` statt `requireRolle`, weil ein
   // Wurf hier keine brauchbare Antwort auf einen Download-Link ist.
   if (rolleOderNull(req.headers) !== "verwaltung") return zustand(404, NICHT_GEFUNDEN);
-  return auditDelivery("files", "download", "file", { kind: "anonymous" }, async (): Promise<Response> => {
+  return auditDelivery("files", "download", "share_file", { kind: "anonymous" }, async (target): Promise<Response> => {
 
     const { id } = await params;
     // `?file=` ohne Wert ist „nicht gesetzt", nicht „die leere Datei-ID": sonst
@@ -177,6 +177,7 @@ export async function GET(
     // `?file=` hat der Block darüber sie eingesetzt. Der Zweig schließt den Fall
     // für den Typ und wäre, falls er je einträte, kein Grund für ein Byte.
     if (datei === null) return zustand(404, NICHT_GEFUNDEN);
+    target(datei.id);
 
     const db = getDb();
 

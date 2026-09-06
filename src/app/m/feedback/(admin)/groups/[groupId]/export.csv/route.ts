@@ -74,7 +74,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
   } catch {
     return new Response(null, { status: 404 });
   }
-  return auditDelivery("feedback", "export", "export", auditActor(viewer), async () => {
+  return auditDelivery("feedback", "export", "group_export", auditActor(viewer), async (target) => {
+    target(String(group.id));
 
     // Aufsteigend (Entscheidung 3) — eigene Sortierung, nicht die `ORDER BY
     // date DESC` der Abfrage: die Richtung ist hier fachlich tragend.

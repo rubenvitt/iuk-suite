@@ -115,11 +115,11 @@ export async function POST(
 ): Promise<Response> {
   const session = await auth();
   const sub = session?.user?.id;
-  if (!sub) return keinZugriff();
+  if (!sub) { auditDenied("aufgaben", auditActor(session?.user)); return keinZugriff(); }
 
   const db = getDb();
   const person = personNachSub(db, sub);
-  if (!person) return keinZugriff();
+  if (!person) { auditDenied("aufgaben", auditActor(session?.user)); return keinZugriff(); }
 
   const { id } = await params;
   const task = aufgabe(db, id);
@@ -128,10 +128,12 @@ export async function POST(
   const heute = isoTag(new Date());
   // DIESELBE VORAUSSETZUNG WIE DIE VORGAENGER-ACTION (Kopfkommentar `_lib/zugang.ts`s
   // `darfNachweisHochladen`): der Zustand `in_arbeit` steht NEBEN dem Praedikat, nicht darin.
-  if (task.status !== "in_arbeit" || !darfNachweisHochladen(await akteurFuer(person), task, heute)) {
+  if (!darfNachweisHochladen(await akteurFuer(person), task, heute)) {
     auditDenied("aufgaben", auditActor(session?.user));
     return keinZugriff();
   }
+  // An authorized stale form is a workflow conflict, not an access violation.
+  if (task.status !== "in_arbeit") return keinZugriff();
   return withAuditContext({ actor: auditActor(session?.user) }, async (): Promise<Response> => {
 
     if (inhaltZuGross(req.headers)) {

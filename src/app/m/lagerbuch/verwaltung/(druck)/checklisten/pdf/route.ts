@@ -52,7 +52,8 @@ export async function GET(request: Request): Promise<Response> {
 
   const viewer = viewerAusSession(await auth());
   if (!istLagerbuchAdmin(viewer)) { auditDenied("lagerbuch", auditActor(viewer)); return new Response(null, { status: 404 }); }
-  return auditDelivery("lagerbuch", "export", "export", auditActor(viewer), async (): Promise<Response> => {
+  return auditDelivery("lagerbuch", "export", "checklist_collection", auditActor(viewer), async (target): Promise<Response> => {
+    target("vehicle_checklists");
 
     const parameter = new URL(request.url).searchParams;
     const gewaehlt = gewaehlteFahrzeuge(parameter.getAll("fz"));

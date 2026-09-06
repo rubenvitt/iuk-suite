@@ -1,0 +1,29 @@
+
+ RUN  v4.1.11 /private/tmp/iuk-suite-audit-log
+
+ ❯ src/core/audit/integration.test.ts (5 tests | 1 failed) 345ms
+   × distinguishes resolved delivery targets and hashes raw bearer IDs before persistence 201ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/core/audit/integration.test.ts > distinguishes resolved delivery targets and hashes raw bearer IDs before persistence
+TypeError: target is not a function
+ ❯ src/core/audit/integration.test.ts:72:7
+     70|   for (const raw of ["bearer-secret-first", "bearer-secret-second"]) {
+     71|     await auditDelivery("files", "download", "share_archive", { kind: …
+     72|       target(raw);
+       |       ^
+     73|       return new Response("bytes");
+     74|     });
+ ❯ src/core/audit/server.ts:44:30
+ ❯ withAuditContext src/core/audit/context.ts:18:18
+ ❯ Module.auditDelivery src/core/audit/server.ts:42:10
+ ❯ src/core/audit/integration.test.ts:71:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  11:37:53
+   Duration  21.67s (transform 2.57s, setup 454ms, import 17.42s, tests 345ms, environment 0ms)

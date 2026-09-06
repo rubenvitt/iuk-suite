@@ -89,7 +89,8 @@ export async function GET(request: Request) {
     auditDenied("radio", auditActor(viewer));
     return new Response(null, { status: 404 });
   }
-  return auditDelivery("radio", "export", "export", auditActor(viewer), async () => {
+  return auditDelivery("radio", "export", "device_collection", auditActor(viewer), async (target) => {
+    target("devices");
 
     const csv = baueExportCsv(geraeteFuerExport(getDb()));
 

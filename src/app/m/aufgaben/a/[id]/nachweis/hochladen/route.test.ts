@@ -1,3 +1,7 @@
+import { queryAuditEvents } from "@/core/audit/storage";
+import { openModuleDatabase } from "@/core/db";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,6 +44,9 @@ beforeEach(() => {
   datenVerzeichnis = mkdtempSync(join(tmpdir(), "aufgaben-nachweis-upload-"));
   vorherigesDataDir = process.env.DATA_DIR;
   process.env.DATA_DIR = datenVerzeichnis;
+  const central = openModuleDatabase(join(datenVerzeichnis, "audit.db"));
+  migrate(drizzle(central), { migrationsFolder: "src/core/audit/_db/migrations" });
+  central.close();
 });
 afterEach(() => {
   t.schliessen();
@@ -372,5 +379,23 @@ describe("POST /a/<id>/nachweis/hochladen — der fruehe content-length-Riegel",
     // 413 = der Riegel kam zuerst. 400 waere die Antwort des `catch`-Zweigs um `req.formData()`,
     // also der Beweis, dass der Rumpf doch gelesen wurde.
     expect(antwort.status).toBe(413);
+  });
+});
+
+
+describe("persisted upload denials distinguish identity, permission and workflow state", () => {
+  it.each(["anonymous", "unlisted", "other", "stale", "missing"])("%s keeps 404 with the correct audit meaning", async (kind) => {
+    const assigned = legePerson("assigned", "bufdi");
+    const other = legePerson("other", "bufdi");
+    const task = legeAufgabe({ erstellerId: assigned.id, zugewiesenAn: assigned.id, status: kind === "stale" ? "verteilt" : "in_arbeit" });
+    if (kind === "unlisted") anmelden({ sub: "unlisted" });
+    else if (kind !== "anonymous") anmelden(kind === "other" ? other : assigned);
+    expect((await ruf(kind === "missing" ? "missing" : task.id, form())).status).toBe(404);
+    const events = queryAuditEvents().events.filter(e => e.action === "access_denied");
+    if (kind === "stale" || kind === "missing") expect(events).toHaveLength(0);
+    else {
+      expect(events).toHaveLength(1);
+      expect(events[0].actor).toEqual(kind === "anonymous" ? { kind: "anonymous" } : { kind: "user", id: kind });
+    }
   });
 });

@@ -49,7 +49,8 @@ export async function GET(
   } catch {
     return new Response(null, { status: 404 });
   }
-  return auditDelivery("feedback", "export", "export", auditActor(viewer), async () => {
+  return auditDelivery("feedback", "export", "evening_export", auditActor(viewer), async (target) => {
+    target(String(evening.id));
 
     const group = getGroup(db, evening.groupId);
     const survey = getSurveyByEvening(db, id);

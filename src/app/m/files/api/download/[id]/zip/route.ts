@@ -188,7 +188,7 @@ export async function GET(
   // Ein Route Handler hat kein Layout; wer sie hier vergisst, hat auf dem
   // Inbox-Host einen offenen Freigabe-Download (§3.2).
   if (rolleOderNull(req.headers) !== ROLLE) return meldung(404, NICHT_GEFUNDEN);
-  return auditDelivery("files", "download", "file", { kind: "anonymous" }, async (): Promise<Response> => {
+  return auditDelivery("files", "download", "share_archive", { kind: "anonymous" }, async (target): Promise<Response> => {
 
     const { id } = await kontext.params;
 
@@ -207,6 +207,7 @@ export async function GET(
     }
 
     const { share, inhalt } = ladung;
+    target(share.id);
 
     /*
      * Zeilen OHNE Blob gehen als „nicht gefunden" in die Fehlliste, statt in die

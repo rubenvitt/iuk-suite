@@ -217,7 +217,8 @@ export async function GET(req: Request): Promise<Response> {
    * Aufrufer und keine sinnvolle Anmeldeaufforderung.
    */
   const auditViewer = await requireFilesAccess();
-  return auditDelivery("files", "export", "export", auditActor(auditViewer), async (): Promise<Response> => {
+  return auditDelivery("files", "export", "inbox_archive", auditActor(auditViewer), async (target): Promise<Response> => {
+    target("inbox");
 
     const ids = ausgewaehlteIds(new URL(req.url));
     if (ids.length === 0) {

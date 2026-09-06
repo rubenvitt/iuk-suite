@@ -59,3 +59,39 @@ it("keeps detached worker entries isolated from request identities", () => {
     expect(fn?.body?.getText(ast)).toMatch(/withAuditContext\(\{ actor: \{ kind: "system" \}/);
   }
 });
+
+
+it("keeps local masked denials covered independently of successful-read exclusions", () => {
+  const expected = [
+    "src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts#POST",
+    "src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts#POST",
+    "src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET",
+  ];
+  const entries = Object.entries(manifest) as [string, { denial?: { via: string; reason: string } }][];
+  expect(entries.filter(([, entry]) => entry.denial).map(([key]) => key).sort()).toEqual(expected.sort());
+  for (const [key, entry] of entries) {
+    if (!entry.denial) continue;
+    const path = key.split("#")[0];
+    const ast = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+    const fn = ast.statements.filter(ts.isFunctionDeclaration).find(f => f.name?.text === entry.denial?.via);
+    expect(fn?.body?.getText(ast), key).toContain("auditDenied(");
+    expect(entry.denial.reason, key).toBeTruthy();
+  }
+});
+
+it("declares a fixed object type and resolved reference for every delivery boundary", () => {
+  const entries = manifest as Record<string, { delivery?: { objectType: string; reference: string } }>;
+  const actual: string[] = [];
+  for (const path of files("src/app").filter(p => p.endsWith("/route.ts"))) {
+    const source = readFileSync(path, "utf8");
+    if (!source.includes("return auditDelivery(")) continue;
+    const key = `${path}#GET`;
+    actual.push(key);
+    const target = entries[key]?.delivery;
+    expect(target, key).toBeDefined();
+    expect(source, key).toContain(`"${target!.objectType}"`);
+    expect(source, key).toContain(`target(${target!.reference});`);
+  }
+  expect(actual.sort()).toEqual(Object.keys(entries).filter(key => entries[key].delivery).sort());
+  expect(actual).toHaveLength(11);
+});

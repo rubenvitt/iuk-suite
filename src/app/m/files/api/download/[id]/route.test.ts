@@ -681,6 +681,9 @@ it("records actual provided bytes as anonymous and preserves delivery during aud
     expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
     expect(queryAuditEvents().events).toHaveLength(1);
     expect(queryAuditEvents().events[0]).toMatchObject({ module: "files", action: "download", result: "success", actor: { kind: "anonymous" } });
+    expect(queryAuditEvents({ objectRef: "datei00001" }).events).toHaveLength(1);
+    expect(queryAuditEvents().events[0].objectType).toBe("share_file");
+    expect(JSON.stringify(queryAuditEvents().events)).not.toMatch(/share00001|datei00001/);
     central.exec("CREATE TRIGGER reject_audit BEFORE INSERT ON audit_events BEGIN SELECT RAISE(ABORT, 'secret error details'); END");
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const again = await ruf("share00001");
