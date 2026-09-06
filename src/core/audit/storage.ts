@@ -37,9 +37,10 @@ export function queryAuditEvents(filters: AuditFilters = {}): AuditPage {
   if (filters.from !== undefined && filters.to !== undefined && filters.from > filters.to) throw new Error("Invalid audit range");
   if (filters.actorId !== undefined && (typeof filters.actorId !== "string" || filters.actorId.length > 512)) throw new Error("Invalid audit actor filter");
   if (filters.objectRef !== undefined && (typeof filters.objectRef !== "string" || filters.objectRef.length > 4096)) throw new Error("Invalid audit reference filter");
+  if (filters.objectRefHash !== undefined && (typeof filters.objectRefHash !== "string" || !/^[a-f0-9]{64}$/.test(filters.objectRefHash) || filters.objectRef !== undefined)) throw new Error("Invalid audit reference hash");
   if (filters.cursor && !/^[0-9a-f-]{36}$/i.test(filters.cursor.id)) throw new Error("Invalid audit cursor");
   const clauses = ["occurred_at >= ?"]; const params: (string | number)[] = [auditCutoff()];
-  for (const [column, value] of [["module", filters.module], ["action", filters.action], ["json_extract(actor, '$.id')", filters.actorId], ["result", filters.result], ["object_ref", filters.objectRef === undefined ? undefined : safeAuditReference(filters.objectRef)]] as const) {
+  for (const [column, value] of [["module", filters.module], ["action", filters.action], ["json_extract(actor, '$.id')", filters.actorId], ["result", filters.result], ["object_ref", filters.objectRefHash !== undefined ? "sha256:" + filters.objectRefHash : filters.objectRef === undefined ? undefined : safeAuditReference(filters.objectRef)]] as const) {
     if (value !== undefined) { clauses.push(`${column} = ?`); params.push(value); }
   }
   if (filters.from !== undefined) { clauses.push("occurred_at >= ?"); params.push(filters.from); }

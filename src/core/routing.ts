@@ -57,6 +57,8 @@ export function decideRoute(input: {
     if (code && code.trim() !== "") return { action: "rewrite", target: "/m/uav/login", moduleKey: "uav" };
   }
 
+  if (pathname === "/api/audit/browser") return { action: "next" };
+
   if (PASSTHROUGH.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
     return { action: "next" };
   }

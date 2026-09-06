@@ -898,5 +898,27 @@
   "src/app/api/auth/[...nextauth]/route.ts#POST": {
     "kind": "excluded",
     "reason": "Delegates to Auth.js; authConfig signIn/signOut hooks observe lifecycle once. Polling and token refresh are not sign-ins."
+  },
+  "src/app/api/audit/browser/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Receiver warm-up only; no read and no event."
+  },
+  "src/app/api/audit/browser/route.ts#POST": {
+    "kind": "context",
+    "via": "POST",
+    "reason": "Strict browser export allowlist with server-confirmed identity; untrusted origin/schema/size/rate rejected without event amplification.",
+    "denial": {
+      "via": "POST",
+      "reason": "Module access denial records browser_export with the confirmed actor."
+    }
+  },
+  "src/app/m/portal/admin/audit/data/route.ts#GET": {
+    "kind": "excluded",
+    "reason": "Bounded audit read, independently guarded by the suite group through readAuditView before any storage/transfer access.",
+    "denial": {
+      "via": "requireAuditReader",
+      "path": "src/core/audit/access.ts",
+      "reason": "Shared suite-only reader guard records audit_log denial before throwing."
+    }
   }
 }

@@ -95,7 +95,7 @@ describe("Portal-Layout: Verdrahtung von nav an <Shell>", () => {
       nav?: unknown;
     }>;
 
-    expect(element.props.nav).toEqual(navFuerPortal(true));
+    expect(element.props.nav).toEqual(navFuerPortal(true, true));
   });
 
   it("ohne Verwaltungsrecht: <Shell> bekommt ein leeres nav-Prop", async () => {
@@ -107,4 +107,12 @@ describe("Portal-Layout: Verdrahtung von nav an <Shell>", () => {
 
     expect(element.props.nav).toEqual(navFuerPortal(false));
   });
+});
+
+it("portal-only override never gets an audit navigation entry", async () => {
+ vi.stubEnv("SUITE_ADMIN_GROUP_PORTAL","portal-only");
+ authMock.mockResolvedValue(sessionFor(["portal-only"]));
+ const element=await PortalLayout({children:null});
+ expect(element.props.nav).toEqual(navFuerPortal(true,false));
+ vi.unstubAllEnvs();
 });

@@ -63,15 +63,17 @@ it("keeps detached worker entries isolated from request identities", () => {
 
 it("keeps local masked denials covered independently of successful-read exclusions", () => {
   const expected = [
+    "src/app/api/audit/browser/route.ts#POST",
+    "src/app/m/portal/admin/audit/data/route.ts#GET",
     "src/app/m/radio/admin/(arbeit)/import/hochladen/route.ts#POST",
     "src/app/m/aufgaben/a/[id]/nachweis/hochladen/route.ts#POST",
     "src/app/m/aufgaben/a/[id]/nachweis/[nachweisId]/route.ts#GET",
   ];
-  const entries = Object.entries(manifest) as [string, { denial?: { via: string; reason: string } }][];
+  const entries = Object.entries(manifest) as [string, { denial?: { via: string; path?: string; reason: string } }][];
   expect(entries.filter(([, entry]) => entry.denial).map(([key]) => key).sort()).toEqual(expected.sort());
   for (const [key, entry] of entries) {
     if (!entry.denial) continue;
-    const path = key.split("#")[0];
+    const path = entry.denial.path ?? key.split("#")[0];
     const ast = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
     const fn = ast.statements.filter(ts.isFunctionDeclaration).find(f => f.name?.text === entry.denial?.via);
     expect(fn?.body?.getText(ast), key).toContain("auditDenied(");
