@@ -86,3 +86,45 @@ Mit Polling kam Chromium innerhalb der Sandbox bis zum Start, aber nicht in Test
 ## Selbstreview
 
 Auftragspunkte gegen Brief/API/UI-Kontext geprüft; direkte Reads bleiben vor Zugriff geschützt, Empfänger kann keine Akteure/Felder fälschen, Hashlookup bleibt äquivalent und bounded, Browsermeldung ist best effort. Nur vorhandene Client-/Server-/Theme-Verträge verwendet. Keine neue Abhängigkeit, keine editierbaren Auditdaten und keine pauschalen Server-Action-Exporte. Coverage-Diff auf die drei Ergänzungen begrenzt. Erwartete Grenzen: Gruppenaktualität bleibt der bestehende Auth-Vertrag; Rate-Limit pro Prozess; Browsermeldung beweist keine Dateizustellung; neue Ereignisse erst ab Aktivierung. Für unabhängige Review und Gesamtprüfung bereit.
+
+
+## Review-Korrekturrunde 1 — R1 bis R3
+
+Basis `e86245dc`; Review aus `task-3-review.md` gelesen und mit dem tatsächlichen Schreib-/UI-Pfad abgeglichen (receiving-code-review). R1–R3 behoben; R4–R6 bleiben gemäß Parent separat zur abschließenden Triage und werden nicht als erledigt ausgegeben.
+
+- **R1:** Die Mengenprüfung liegt jetzt nach Schema/Auth und vor beiden Schreibzweigen. Auch gültige, aber mangels Modulzugriff abgelehnte Meldungen belasten das gemeinsame Actor-/Globalbudget. Bei erschöpftem Budget folgt 429 ohne weiteren Erfolgs- oder Denial-Eintrag. Die drei neuen Regressionen prüfen tatsächliche Aufrufe der Speichersenke durch den unveränderten `auditDenied`-Helfer: höchstens 30 anonyme Denials; gemischt 15 QR-Erfolge + 15 Zeichen-Denials = gemeinsames 30er-Limit; 30 Denials + 270 Erfolge unter weiteren Akteuren = globales 300er-Limit, danach beide Zweige ohne Schreibzugriff. Jeder Test erhält eine neue kontrollierte Zeitperiode, ohne Produktions-Reset-Export. API-Formate unverändert.
+- **R2:** Screenshotziel ausschließlich `testInfo.outputPath("screenshots")`; kein macOS-Verzeichnis mehr im Test. Verzeichnis liegt im bestehenden Playwright-Ergebnisordner und ist je Test/Versuch portabel. Die vorherigen Scratchpfade weiter oben sind historische Artefakte des ursprünglichen Laufs.
+- **R3:** Reset leert `fields` und `error` ausdrücklich vor der URL-Navigation. DOM-Regression startet mit leerem committed search, tippt Person und ungültiges Datum, erzeugt den Fehler und prüft danach leere Felder, entfernte Erklärung und Navigation auf `/admin/audit` ohne einen künstlichen Remount.
+
+### RED und GREEN
+
+RED-Befehl:
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run src/app/api/audit/browser/route.test.ts src/app/m/portal/admin/audit/AuditLog.test.tsx --maxWorkers=2
+```
+
+**Exit 1, vier neue Regressionen fehlgeschlagen, 20 Tests bestanden**, 1,66 s. Denials lieferten nach Budgetende noch 403, gemischte/globale Folgeexporte 204 und der Reset ließ die Personenkennung stehen.
+
+GREEN-Befehl:
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/vitest/vitest.mjs run src/app/api/audit/browser/route.test.ts src/app/m/portal/admin/audit src/core/audit/access.test.ts src/core/audit/browser.test.ts src/core/audit/coverage.test.ts --maxWorkers=2
+```
+
+**Exit 0, sieben Dateien / 57 Tests bestanden**, 1,84 s.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/typescript/bin/tsc --noEmit --pretty false
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:$PATH GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/eslint/bin/eslint.js src/app/api/audit/browser/route.ts src/app/api/audit/browser/route.test.ts src/app/m/portal/admin/audit/AuditLog.tsx src/app/m/portal/admin/audit/AuditLog.test.tsx e2e/suite-audit.spec.ts
+```
+
+Typecheck **Exit 0**, scoped Lint abschließend **Exit 0**. Der erste Lintlauf fand den in einem neuen Test verwendeten Next-reservierten Variablennamen `module` (Exit 1); nur dieser Name wurde anschließend zu `moduleKey` korrigiert.
+
+```sh
+rtk proxy env PATH=/Users/rubeen/.local/share/mise/installs/node/22/bin:/private/tmp/iuk-suite-audit-log/node_modules/.bin:$PATH WATCHPACK_POLLING=1000 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false node node_modules/@playwright/test/cli.js test e2e/suite-audit.spec.ts --workers=1 --trace=on --grep 'Suite-Admin|Browserempfänger'
+```
+
+Gezielter Browserlauf: **2/2 bestanden, Exit 0, 41,0 s**, mit bestehender genehmigter Chromium-Eskalation und Polling. Echte Admin-Navigation, Filter/Details/Pagination sowie Herkunft-/Akteurspoofing auf beiden Modulhosts erneut geprüft. Keine vollständige Suite-Wiederholung in dieser Korrekturrunde. Neue Bilder liegen portabel unter `test-results/suite-audit-Suite-Admin-Na-90901-nzen-und-drei-Darstellungen/screenshots/` (desktop.png, mobile.png, mobile-list.png, mobile-dark-details.png, desktop-dark.png); dunkle mobile Details erneut angesehen. Aktueller absoluter Reviewpfad: `/private/tmp/iuk-suite-audit-log/test-results/suite-audit-Suite-Admin-Na-90901-nzen-und-drei-Darstellungen/screenshots/`.
+
+Nach Lauf `rtk proxy lsof -nP -iTCP:3100 -iTCP:3310 -sTCP:LISTEN`: keine Ausgabe, Exit 1, beide Testserver beendet. Generierte next-env.d.ts-Devpfade wiederhergestellt. Kein Parent-Dokument bearbeitet; nur sechs Fix-/Test-/Reportdateien gehören zur Korrektur.

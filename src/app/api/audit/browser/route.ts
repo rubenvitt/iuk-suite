@@ -50,11 +50,12 @@ export async function POST(request: Request) {
   if (!event) return new Response(null, { status: 400 });
   const session = await auth();
   const actor = auditActor(session?.user);
+  // Charge every validated claim before either success or denial can write an event.
+  if (!admit(actor.kind === "user" ? actor.id : "anonymous")) return new Response(null, { status: 429, headers: { "Retry-After": "60" } });
   if (!canAccess(getModule(event.module), session?.user?.groups ?? null)) {
     auditDenied(event.module, actor, "browser_export");
     return new Response(null, { status: 403 });
   }
-  if (!admit(actor.kind === "user" ? actor.id : "anonymous")) return new Response(null, { status: 429, headers: { "Retry-After": "60" } });
   try {
     withAuditContext({ actor }, () => recordAuditEvent({ module: event.module, action: "export", objectType: `${event.module}_${event.format}`, origin: "browser", result: "success" }));
     return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });

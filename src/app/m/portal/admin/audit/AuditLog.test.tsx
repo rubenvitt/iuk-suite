@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { fill, mount, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, fill, mount, submitForm, unmount } from "@/app/m/qr/_lib/test-dom";
 const router = vi.hoisted(()=>({ push:vi.fn(), refresh:vi.fn() }));
 vi.mock("next/navigation",()=>({useRouter:()=>router,usePathname:()=>"/admin/audit"}));
 import { AuditLog } from "./AuditLog";
@@ -29,4 +29,17 @@ it("changing a filter drops the old page cursor",async()=>{
  await mount(<AuditLog view={ready} search={{cursorTime:"12",cursorId:"00000000-0000-0000-0000-000000000000"}}/>);
  await fill('[aria-label="Personenkennung"]',"known-user");await submitForm("form");
  expect(router.push).toHaveBeenCalledWith("/admin/audit?actorId=known-user");
+});
+
+it("reset clears dirty inputs and validation errors even when the committed URL is already empty",async()=>{
+ await mount(<AuditLog view={ready} search={{}}/>);
+ await fill('[aria-label="Personenkennung"]',"uncommitted-person");
+ await fill('[aria-label="Von (UTC)"]',"2026-02-30");await submitForm("form");
+ expect(document.getElementById("audit-filter-error")).not.toBeNull();
+ const reset=Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Filter zurücksetzen")!;
+ await clickElement(reset);
+ expect((document.querySelector('[aria-label="Personenkennung"]') as HTMLInputElement).value).toBe("");
+ expect((document.querySelector('[aria-label="Von (UTC)"]') as HTMLInputElement).value).toBe("");
+ expect(document.getElementById("audit-filter-error")).toBeNull();
+ expect(router.push).toHaveBeenCalledWith("/admin/audit");
 });

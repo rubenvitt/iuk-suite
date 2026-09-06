@@ -6,7 +6,6 @@ import { mkdirSync, readFileSync } from "node:fs";
 const PORTAL="http://portal.localtest.me:3100";
 const QR="http://qr.localtest.me:3100";
 const ZEICHEN="http://zeichen.localtest.me:3100";
-const SCREENSHOTS="/private/tmp/audit-task3-shots";
 const ACTOR="dev:audit-e2e@localtest.me";
 function fixtureEvents() {
  const db=new Database(".data/e2e/audit.db");
@@ -15,7 +14,8 @@ function fixtureEvents() {
   db.transaction(()=>{ for(let i=0;i<55;i++) insert.run(randomUUID(),Date.now()-1000-i,"qr","export","qr_png","sha256:"+createHash("sha256").update("audit-private-object-"+i).digest("hex"),JSON.stringify({kind:"user",id:ACTOR,name:"Audit-Probe"}),"success","browser"); })();
  } finally { db.close(); }
 }
-test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und drei Darstellungen",async({page})=>{
+test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und drei Darstellungen",async({page},testInfo)=>{
+ const SCREENSHOTS=testInfo.outputPath("screenshots");
  test.setTimeout(240_000);
  expect((await page.request.get(PORTAL+"/api/auth/session")).status()).toBe(200);
  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));

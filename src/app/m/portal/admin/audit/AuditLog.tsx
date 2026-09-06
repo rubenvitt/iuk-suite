@@ -49,7 +49,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
         {error && <p ref={errorRef} tabIndex={-1} role="alert" id="audit-filter-error">{error}</p>}
         <Space className={css.actions} wrap style={{marginBlockStart:SPACE.lg}}>
           <Button type="primary" htmlType="submit" loading={pending}>Filter anwenden</Button>
-          <Button disabled={pending} onClick={()=>navigate({})}>Filter zurücksetzen</Button>
+          <Button disabled={pending} onClick={()=>{setFields(Object.fromEntries(FILTER_KEYS.map(key=>[key,""])));setError(null);navigate({});}}>Filter zurücksetzen</Button>
           <Button disabled={pending} onClick={()=>startTransition(()=>router.refresh())}>Neu laden</Button>
         </Space>
         <p style={{...SCHRIFT.neben,marginBlockEnd:0}}>Zeiten und Tagesgrenzen in UTC. Die Personenkennung findest du in den Details eines Eintrags.</p>
