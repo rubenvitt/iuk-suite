@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 // src/app/m/radio/_lib/lesepfade/versionen.test.ts
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -52,6 +53,7 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "radio-versionen-"));
   sqlite = new Database(join(tmp, "radio.db"));
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   migrate(drizzle(sqlite), { migrationsFolder: MIGRATIONEN });
   db = drizzle(sqlite, { schema });

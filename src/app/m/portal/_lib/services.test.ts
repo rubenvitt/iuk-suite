@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { it, expect, beforeEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -19,7 +20,7 @@ it("create + list visible", async () => {
   // Migration einmalig anwenden (Task-11-Step-4 erzeugt ./src/app/m/portal/_db/migrations)
   // better-sqlite3 legt anders als openModuleDatabase() das Verzeichnis nicht selbst an.
   mkdirSync(TEST_DATA_DIR, { recursive: true });
-  const db = drizzle(new Database(`${TEST_DATA_DIR}/portal.db`), { schema });
+  const db = drizzle(registerAuditFunctions(new Database(`${TEST_DATA_DIR}/portal.db`)), { schema });
   migrate(db, { migrationsFolder: "./src/app/m/portal/_db/migrations" });
   const { createService, getVisibleServicesForUser } = await import("@/app/m/portal/_lib/services");
   await createService({ slug: "wiki", name: "Wiki", url: "https://wiki", isPublic: true });

@@ -1,3 +1,4 @@
+export { auditOutbox } from "@/core/audit/_db/schema";
 // src/app/m/radio/_db/schema.ts
 // KEIN "use client" (Falle 6): diese Datei wird ausschliesslich serverseitig gelesen.
 //

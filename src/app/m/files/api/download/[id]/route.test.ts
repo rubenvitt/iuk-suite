@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -54,6 +55,7 @@ beforeEach(() => {
   process.env.AUTH_SECRET = GEHEIMNIS;
   vi.stubEnv("SUITE_HOST_FILES", `${VERWALTUNG},${INBOX}`);
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   // `getModuleDb` hält die Verbindung global fest und zeigte sonst auf die
@@ -277,6 +279,7 @@ describe("Prüfkette (§7.4): jede Stufe hat ihren Statuscode", () => {
       rmSync(DIR, { recursive: true, force: true });
       mkdirSync(DIR, { recursive: true });
       const sqlite = new Database(`${DIR}/files.db`);
+      registerAuditFunctions(sqlite);
       migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
       sqlite.close();
       delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
