@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { existsSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import Database from "better-sqlite3";
@@ -90,6 +91,7 @@ function legeAbgabelinkAn(
   const token = erzeugeToken();
   const jetzt = new Date();
   const sqlite = new Database(DB_PFAD);
+  registerAuditFunctions(sqlite);
   try {
     // Derselbe Wartewert wie in `core/db`: der Serverprozess hält dieselbe
     // Datei offen, und ohne ihn scheitert ein Schreibversuch sofort mit
