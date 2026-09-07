@@ -44,11 +44,11 @@ describe("PWA-Routen zeichen", () => {
     expect(await res.text()).toContain("<svg");
   });
 
-  it("mit ZEICHEN_SW=1 liefert /sw.js den Cache-Worker", async () => {
+  it("liefert waehrend der Sperre auch mit ZEICHEN_SW=1 den Abraeum-Worker", async () => {
     const res = worker({ ZEICHEN_SW: "1" });
     expect(res.headers.get("content-type")).toContain("javascript");
     expect(res.headers.get("cache-control")).toBe("no-cache");
-    expect(await res.text()).toBe(ZEICHEN_SW_QUELLE);
+    expect(await res.text()).toBe(ZEICHEN_SW_ABRAEUM_QUELLE);
   });
 
   it("ohne ZEICHEN_SW liefert /sw.js den Abraeum-Worker", async () => {

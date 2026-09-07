@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { devLogin, klickeWennRuhig, wechsleAnmeldung } from "./fixtures";
+
 import {
   ANKER_ID,
   MODULROUTEN,
@@ -11,6 +13,10 @@ import {
   warmeZeichenRouten,
   zeichenUrl,
 } from "./helpers/zeichen";
+
+// Die aktive Funktionalitaet bleibt fuer die Wiederfreigabe erhalten.
+// Den ausgelieferten Sperrzustand prueft zeichen-deaktiviert.spec.ts.
+test.skip(ZEICHEN_PAUSIERT, "Taktische Zeichen ist voruebergehend gesperrt");
 
 /**
  * DIE E2E-FAELLE DES MODULS `zeichen` (Spec §8.3).

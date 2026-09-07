@@ -34,6 +34,11 @@ const weiche: Weiche = (req) => {
   const decision = decideRoute({ host, pathname: nextUrl.pathname, groups, search: nextUrl.search });
 
   switch (decision.action) {
+    case "unavailable":
+      return new NextResponse("Taktische Zeichen ist vorübergehend nicht verfügbar.", {
+        status: 503,
+        headers: { "cache-control": "no-store" },
+      });
     case "next":
       return NextResponse.next();
     case "rewrite": {
