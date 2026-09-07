@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
 import { devLogin, klickeWennRuhig, wechsleAnmeldung } from "./fixtures";
 import Database from "better-sqlite3";
 import { randomUUID, createHash } from "node:crypto";
@@ -132,6 +133,7 @@ test("QR auf Modul-Host meldet echten PNG-Export; Meldefehler lassen den Export 
 });
 
 test("Zeichen auf Modul-Host meldet SVG, PNG und Datei erst beim Export",async({page})=>{
+ test.skip(ZEICHEN_PAUSIERT, "Taktische Zeichen ist voruebergehend gesperrt");
  test.setTimeout(240_000);
  await devLogin(page,{host:"zeichen.localtest.me",callbackPath:"/baukasten"});
  expect((await page.request.get(ZEICHEN+"/api/audit/browser")).status()).toBe(204);
