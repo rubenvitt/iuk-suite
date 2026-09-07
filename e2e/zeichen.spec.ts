@@ -345,7 +345,7 @@ test("Baukasten: ein Zeichen bauen und als SVG herunterladen", async ({ page }) 
   expect(inhalt).toContain("</svg>");
 });
 
-test("Speichern: beide Rueckfragen, und der Doppelkonflikt endet nach EINER Bestaetigung", async ({
+test("Speichern: beide Rueckfragen, und der Doppelkonflikt endet nach gemeinsamer Bestaetigung", async ({
   page,
 }) => {
   /*
@@ -425,11 +425,15 @@ test("Speichern: beide Rueckfragen, und der Doppelkonflikt endet nach EINER Best
    * Zusammenstellung C2 liegt unter dem ANDEREN Namen N3. Vorher wechselten sich
    * hier zwei Kaesten endlos ab — „Ueberschreiben" loeste die
    * Zusammenstellungsfrage aus, „Trotzdem sichern" wieder die Namensfrage, und
-   * gespeichert wurde nie. Die Zusage lautet: die Namensfrage kommt, und EINE
-   * Bestaetigung beendet den Vorgang.
+   * gespeichert wurde nie. Die Zusage lautet: eine gemeinsame Frage kommt, die
+   * beide Entscheidungen mit EINER Bestaetigung festhaelt.
    */
   await speichere(N1);
   await expect(rueckfrage).toContainText("Unter diesem Namen hast du schon ein Zeichen");
+  await expect(rueckfrage).toContainText("trotzdem zusätzlich sichern");
+  await expect(page.getByTestId("tz-rueckfrage-ja")).toHaveText(
+    "Überschreiben und trotzdem sichern",
+  );
   await mitAntwort(page, "/baukasten", () => page.getByTestId("tz-rueckfrage-ja").click());
   await expect(gespeichert).toContainText(N1);
   await expect(rueckfrage, "nach EINER Bestaetigung steht die zweite Frage da — Endlosschleife")
