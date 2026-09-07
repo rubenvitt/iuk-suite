@@ -95,10 +95,6 @@ export function svgFormFehler(svg: string): string | null {
  * „Überschreiben oder anders benennen?", gleiche Zusammenstellung → „Trotzdem
  * zusätzlich sichern?". Nichts wird still ueberschrieben.
  *
- * Die Namensfrage kommt zuerst, UND IHRE ANTWORT ERLEDIGT DIE ANDERE MIT: wer
- * ueberschreibt, legt nichts Zweites an — „trotzdem zusaetzlich sichern?" hat
- * danach keinen Gegenstand mehr.
- *
  * ⛔ GENAU DARAN HING EINE ENDLOSSCHLEIFE (Review Aufgabe 7, Befund W1). Liegen
  * BEIDE Konflikte zugleich an — „X" traegt Kanon K1, „Y" traegt K2, und K2 wird
  * unter dem Namen „X" gespeichert —, dann kann ein EINZELNES `bestaetigung`-Feld
@@ -107,10 +103,9 @@ export function svgFormFehler(svg: string): string | null {
  * Namensfrage, und so fort. Auf dem Bildschirm wechselten sich zwei Kaesten ab,
  * gespeichert wurde nie, und der Ausweg (anders benennen) stand nirgends.
  *
- * Die Auffanglinie ist die frueh gesetzte Rueckgabe unten: ist der Name vergeben,
- * entscheidet ALLEIN die Namensfrage — beantwortet heisst fertig, unbeantwortet
- * heisst dieselbe Frage noch einmal. Ein Kreis entsteht nicht mehr, weil der
- * einzige Knopf an dieser Frage „Ueberschreiben" traegt.
+ * Deshalb fasst die Rueckgabe `beide` beide Entscheidungen in einer Frage und
+ * einem eindeutigen Bestaetigungswert zusammen. Keine Entscheidung wird
+ * verworfen, und es gibt keinen Wechsel zwischen zwei Fragen.
  *
  * Eine Bestaetigung gilt weiterhin NUR fuer ihren Fall: `"ueberschreiben"` ohne
  * vergebenen Namen laeuft ins Leere und laesst die Zusammenstellungsfrage stehen.
@@ -119,7 +114,12 @@ export function konfliktFrage(
   namenVergeben: boolean,
   gleicheZusammenstellungAls: string | null,
   bestaetigung: string,
-): "name" | "zusammenstellung" | null {
+): "name" | "zusammenstellung" | "beide" | null {
+  // Beide Entscheidungen gemeinsam bestaetigen: so wird keine uebersprungen
+  // und die zwei einzelnen Rueckfragen koennen nicht endlos pendeln.
+  if (namenVergeben && gleicheZusammenstellungAls !== null) {
+    return bestaetigung === "ueberschreiben-und-zusaetzlich" ? null : "beide";
+  }
   if (namenVergeben) return bestaetigung === "ueberschreiben" ? null : "name";
   if (gleicheZusammenstellungAls !== null && bestaetigung !== "zusaetzlich") {
     return "zusammenstellung";

@@ -116,7 +116,7 @@ export type SpeichernZustand =
   | {
       ok: false;
       art: "rueckfrage";
-      frage: "name" | "zusammenstellung";
+      frage: "name" | "zusammenstellung" | "beide";
       text: string;
       werte: Record<string, string>;
     };
@@ -208,6 +208,17 @@ export async function speichereEigenesZeichen(
         text:
           `Diese Zusammenstellung hast du schon als „${gleicheForm?.name}“ gespeichert — ` +
           "trotzdem zusätzlich sichern?",
+      };
+    }
+    if (frage === "beide") {
+      return {
+        ok: false,
+        art: "rueckfrage",
+        frage,
+        werte,
+        text:
+          `Unter diesem Namen hast du schon ein Zeichen, und diese Zusammenstellung ist bereits ` +
+          `als „${gleicheForm?.name}“ gespeichert. Überschreiben und trotzdem zusätzlich sichern?`,
       };
     }
 

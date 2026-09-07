@@ -123,9 +123,19 @@ export function SpeichernFormular(props: { specJson: string; svg: string; bereit
               htmlType="submit"
               data-testid="tz-rueckfrage-ja"
               name="bestaetigung"
-              value={rueckfrage.frage === "name" ? "ueberschreiben" : "zusaetzlich"}
+              value={
+                rueckfrage.frage === "name"
+                  ? "ueberschreiben"
+                  : rueckfrage.frage === "beide"
+                    ? "ueberschreiben-und-zusaetzlich"
+                    : "zusaetzlich"
+              }
             >
-              {rueckfrage.frage === "name" ? "Überschreiben" : "Trotzdem sichern"}
+              {rueckfrage.frage === "name"
+                ? "Überschreiben"
+                : rueckfrage.frage === "beide"
+                  ? "Überschreiben und trotzdem sichern"
+                  : "Trotzdem sichern"}
             </Button>
           }
         />
