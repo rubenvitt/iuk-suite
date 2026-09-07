@@ -49,11 +49,17 @@ const ENV_VORGABE: Record<string, string> = {
   FILES_MAX_ABLAUF_TAGE: "7",
 };
 
-const { grenzenUeberschreibung, storungAmSchreiben, storungAmAbschluss } = vi.hoisted(() => ({
+const { grenzenUeberschreibung, storungAmSchreiben, storungAmAbschluss, auditDeniedMock } = vi.hoisted(() => ({
   grenzenUeberschreibung: { wert: null as Partial<Grenzen> | null },
   storungAmSchreiben: { art: null as null | "kein-platz" | "nicht-schreibbar" },
   storungAmAbschluss: { art: null as null | "kein-platz" },
+  auditDeniedMock: vi.fn(),
 }));
+
+vi.mock("@/core/audit/server", async (original) => {
+  const echt = await original<typeof import("@/core/audit/server")>();
+  return { ...echt, auditDenied: auditDeniedMock };
+});
 
 /**
  * `grenzen()` bleibt ECHT und wird nur ueberschrieben. Zwei Zweige sind anders
@@ -165,6 +171,7 @@ beforeEach(() => {
   storungAmSchreiben.art = null;
   storungAmAbschluss.art = null;
   reiheAvEinMock.mockClear();
+  auditDeniedMock.mockClear();
 });
 
 afterEach(() => sqlite.close());
@@ -378,6 +385,7 @@ describe("PUT /api/u/[token]/upload — Punkt 1: Zugangs-Guard zuerst", () => {
     // Erst 401, ab dem erschoepften Zaehler 429 — der Zaehler zaehlt also wirklich.
     expect(stati.slice(0, 10)).toEqual(new Array(10).fill(401));
     expect(stati.at(-1)).toBe(429);
+    expect(auditDeniedMock).toHaveBeenCalledTimes(10);
 
     const gueltig = await abgabe(token, PNG(), {}, { ip });
     expect(gueltig.status).toBe(200);
