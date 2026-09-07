@@ -317,33 +317,40 @@ describe("speichereEigenesZeichen — beide Konflikte zugleich", () => {
     return speichereEigenesZeichen;
   }
 
-  it("fragt zuerst nach dem Namen — und nur danach", async () => {
+  it("fragt gemeinsam nach beiden Entscheidungen", async () => {
     const speichern = await ausgangslage();
     const zustand = await speichern(START, formular({ name: "X", spec: SPEC_B, svg: SVG }));
     expect(zustand.ok).toBe(false);
-    if (!zustand.ok && zustand.art === "rueckfrage") expect(zustand.frage).toBe("name");
+    if (!zustand.ok && zustand.art === "rueckfrage") expect(zustand.frage).toBe("beide");
   });
 
   /*
-   * DIE ENTSCHEIDENDE ZUSICHERUNG: eine einzige Bestaetigung beendet den Vorgang.
-   * Wer ueberschreibt, legt nichts Zweites an — die Zusammenstellungsfrage hat
-   * damit keinen Gegenstand mehr.
+   * DIE ENTSCHEIDENDE ZUSICHERUNG: eine reine Namensbestaetigung ueberspringt
+   * nicht die unabhaengige Bestaetigung der doppelten Zusammenstellung.
    */
-  it("speichert nach EINER Bestaetigung, statt erneut zu fragen", async () => {
+  it("speichert nach einer reinen Ueberschreib-Bestaetigung noch nicht", async () => {
     const speichern = await ausgangslage();
     const zustand = await speichern(
       START,
       formular({ name: "X", spec: SPEC_B, svg: SVG, bestaetigung: "ueberschreiben" }),
     );
-    expect(zustand.ok, "es wurde erneut gefragt, statt zu speichern").toBe(true);
+    expect(zustand.ok).toBe(false);
     const zeilen = await eigene(ANNA);
-    // Zwei Zeilen wie vorher: „X" traegt jetzt SPEC_B, „Y" ist unberuehrt.
     expect(zeilen.map((z) => z.name).sort()).toEqual(["X", "Y"]);
-    expect(zeilen.find((z) => z.name === "X")?.specJson).toBe(SPEC_B);
+    expect(zeilen.find((z) => z.name === "X")?.specJson).toBe(SPEC_A);
     expect(zeilen.find((z) => z.name === "Y")?.specJson).toBe(SPEC_B);
   });
 
-  /* „zusaetzlich" beantwortet die Namensfrage nicht — die Frage bleibt dieselbe. */
+  it("speichert nach der gemeinsamen Bestaetigung", async () => {
+    const speichern = await ausgangslage();
+    const zustand = await speichern(
+      START,
+      formular({ name: "X", spec: SPEC_B, svg: SVG, bestaetigung: "ueberschreiben-und-zusaetzlich" }),
+    );
+    expect(zustand.ok).toBe(true);
+  });
+
+  /* „zusaetzlich" beantwortet die gemeinsame Frage nicht — sie bleibt dieselbe. */
   it("laeuft mit der falschen Bestaetigung nicht im Kreis", async () => {
     const speichern = await ausgangslage();
     const zustand = await speichern(
@@ -351,7 +358,7 @@ describe("speichereEigenesZeichen — beide Konflikte zugleich", () => {
       formular({ name: "X", spec: SPEC_B, svg: SVG, bestaetigung: "zusaetzlich" }),
     );
     expect(zustand.ok).toBe(false);
-    if (!zustand.ok && zustand.art === "rueckfrage") expect(zustand.frage).toBe("name");
+    if (!zustand.ok && zustand.art === "rueckfrage") expect(zustand.frage).toBe("beide");
     expect(await eigene(ANNA)).toHaveLength(2);
   });
 });
