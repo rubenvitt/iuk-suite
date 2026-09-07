@@ -337,13 +337,16 @@ export async function PUT(
   // --- Stufe 1: Zugangs-Guard, VOR allem anderen --------------------------
   const link = loeseTokenAuf(token, jetzt);
   if (link === null) {
-    auditDenied("files");
     // Der Zaehler wird erst HIER angefasst. Die umgekehrte Reihenfolge ist der
     // gemessene Ausfall von `drop`: dort zaehlt der `onRequest`-Hook vor jedem
     // preHandler-Guard hoch, und fuenf Uploads OHNE Zugangsdaten sperren den
     // naechsten Upload MIT gueltigem Token — ein Fremder kann das Postfach
     // lahmlegen (§8.4).
     const nochErlaubt = fehlversuche.check(clientIpAus(anfrage.headers));
+    // Nur die noch zugelassenen Fehlversuche dauerhaft protokollieren. Ohne
+    // diese Reihenfolge erzeugte auch jede bereits mit 429 abgewiesene Anfrage
+    // weiterhin eine neue Zeile in der zentralen Audit-Datenbank.
+    if (nochErlaubt) auditDenied("files");
     return nochErlaubt
       ? fehler(401, "token", "Dieser Abgabelink ist nicht (mehr) gültig.")
       : fehler(
