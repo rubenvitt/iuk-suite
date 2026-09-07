@@ -59,6 +59,44 @@ describe("POST /api/sync", () => {
     expect(res.status).toBe(400);
   });
 
+  it("begrenzt Mutationen und lehnt doppelte IDs ab", async () => {
+    const cookie = await cookieDurchAnmeldung();
+    const { POST } = await import("./route");
+    const execution = { id: "e", taskId: "1-1", datum: "2026-09-07" };
+    expect((await POST(post({ since: null, executions: Array.from({ length: 101 }, (_, id) => ({ ...execution, id: String(id) })), taskStatus: [] }, cookie))).status).toBe(400);
+    expect((await POST(post({ since: null, executions: [execution, { ...execution, drohnensteuerer: "anders" }], taskStatus: [] }, cookie))).status).toBe(400);
+  });
+
+  it("begrenzt die tatsächlich gelesene Body-Größe auch bei falschem Content-Length", async () => {
+    const cookie = await cookieDurchAnmeldung();
+    const { POST, SYNC_MAX_BODY_BYTES } = await import("./route");
+    const req = post({ ...gueltigerBody, padding: "x".repeat(SYNC_MAX_BODY_BYTES) }, cookie);
+    req.headers.set("content-length", "1");
+    expect((await POST(req)).status).toBe(413);
+  });
+
+  it("begrenzt Sync-Anfragen pro Teilnehmer", async () => {
+    const cookie = await cookieDurchAnmeldung();
+    const { POST } = await import("./route");
+    const statuses = [];
+    for (let i = 0; i < 11; i++) statuses.push((await POST(post(gueltigerBody, cookie))).status);
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(200));
+    expect(statuses[10]).toBe(429);
+  });
+
+  it("wendet Backpressure an, bevor der Audit-Outbox-Grenzwert überschritten wird", async () => {
+    const cookie = await cookieDurchAnmeldung();
+    const { POST, SYNC_MAX_PENDING_AUDIT_EVENTS } = await import("./route");
+    const { openModuleDatabase } = await import("@/core/db");
+    const sqlite = openModuleDatabase(`${DIR}/uav.db`);
+    const insert = sqlite.prepare("INSERT INTO audit_outbox (id, occurred_at, module, action, object_type, actor, result, origin) VALUES (?, 0, 'uav', 'update', 'executions', '{\"kind\":\"system\"}', 'success', 'database')");
+    sqlite.transaction(() => {
+      for (let i = 0; i < SYNC_MAX_PENDING_AUDIT_EVENTS; i++) insert.run(`pending-${i}`);
+    })();
+    expect((await POST(post({ since: null, executions: [{ id: "one-more", taskId: "1-1", datum: "2026-09-07" }], taskStatus: [] }, cookie))).status).toBe(503);
+    sqlite.close();
+  });
+
   it("fremder Host → 404", async () => {
     const cookie = await cookieDurchAnmeldung();
     const { POST } = await import("./route");
