@@ -43,7 +43,6 @@ describe("modulEintraege", () => {
       "lagerbuch",
       "radio",
       "gamma",
-      "zeichen",
     ]);
     const gamma = modulEintraege(groups).find((e) => e.key === "gamma");
     expect(gamma?.href).toBe("http://gamma.localtest.me:3000");

@@ -191,6 +191,16 @@ describe("Checks-Seite", () => {
     expect(ChecksSeite).toBeTypeOf("function");
   });
 
+  it("prüft die Admin-Berechtigung vor dem ersten Datenbankzugriff", () => {
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/page.tsx",
+      "utf8",
+    );
+
+    expect(quelle.indexOf("await requireLagerbuchAdmin()"))
+      .toBeLessThan(quelle.indexOf("checksInhalt(getDb()"));
+  });
+
   it("schickt nur rekursiv JSON-sichere DTOs an die route-lokale Client-Tabelle", () => {
     checkEintragen({ id: "check-hydration" });
 

@@ -297,6 +297,15 @@ curl -s https://iuk-ue.de/api/health/portal   # Revision muss der alte Commit se
 > vorwärts. Hat der zurückgerollte Stand ein Schema geändert, ist der Rückweg die
 > Sicherung aus Schritt 4 — nicht diese Zeile. Deshalb A4.
 
+**Mit Versionsnummer statt Digest** — seit der Versionierung trägt jedes main-Image
+zusätzlich das Tag `:X.Y.Z` (`docs/runbooks/versionierung.md`, Teil D). Dann geht der
+Rollback über das Skript selbst, mit allen seinen Prüfungen:
+
+```bash
+SUITE_STACK_DIR=$PWD SUITE_IMAGE_TAG=1.3.0 SUITE_REVISION_ERWARTET=<Commit zu v1.3.0> \
+  /pfad/zum/repo/scripts/deploy.sh
+```
+
 Die Zeile ganz zu **entfernen** ist ebenfalls gültig: dann greift wieder `:latest` aus
 der `compose.yaml`. Das ist allerdings der Zustand, in dem ein späteres `up -d` von Hand
 still den nächsten CI-Stand zieht — als Dauerzustand nicht gewollt.

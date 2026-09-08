@@ -1,5 +1,5 @@
 import { checkModuleHealth } from "@/core/health";
-import { laufendeRevision } from "@/core/version";
+import { laufendeRevision, laufendeVersion } from "@/core/version";
 
 export async function GET(_req: Request, ctx: { params: Promise<{ modul: string }> }) {
   const { modul } = await ctx.params;
@@ -19,9 +19,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ modul: string 
    * `/api/health` als Passthrough durch) — der Commit-SHA ist damit öffentlich. Bewusste
    * Entscheidung: er verrät nichts, was das Repo nicht ohnehin zeigt, und ohne ihn ist
    * ein Rollout von außen nicht prüfbar.
+   *
+   * `version` daneben ist die lesbare Form derselben Aussage (`docs/runbooks/
+   * versionierung.md`). Der Rollout vergleicht weiterhin `revision` — die ist je
+   * Commit eindeutig, die Nummer ist es nur je erfolgreichem Lauf.
    */
   return Response.json(
-    { ...result, revision: laufendeRevision() },
+    { ...result, revision: laufendeRevision(), version: laufendeVersion() },
     { status: result.status === "ok" ? 200 : 503 },
   );
 }

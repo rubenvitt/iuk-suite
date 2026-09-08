@@ -17,7 +17,7 @@ describe("Registry-Eintrag zeichen", () => {
     expect(m.requiresAuth).toBe(true);
     expect(m.requiredGroups).toEqual([]);
     expect(m.adminGroups).toEqual(["iuk-zeichen-admin"]);
-    expect(m.showInSwitcher).toBe(true);
+    expect(m.showInSwitcher).toBe(false);
   });
 
   /*
@@ -25,9 +25,9 @@ describe("Registry-Eintrag zeichen", () => {
    * `requiredGroups` ist `hasAnyGroup(g, [])` === `[].some(...)` === `false` — die
    * Kachel im App-Umschalter waere fuer JEDEN unsichtbar, auch fuer den Betreiber.
    */
-  it("zeigt die Kachel jedem Eingeloggten", () => {
+  it("behaelt die Zugangsgruppen bei, sperrt aber vorerst auch Eingeloggte", () => {
     expect(getModule("zeichen").switcherGroupSources).toEqual([]);
-    expect(canAccess(getModule("zeichen"), { groups: [], isAdmin: false } as never)).toBe(true);
+    expect(canAccess(getModule("zeichen"), [])).toBe(false);
   });
 
   it("wird ueber SUITE_HOST_ZEICHEN gefunden", () => {

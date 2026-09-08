@@ -22,3 +22,20 @@ export function laufendeRevision(): string {
   const wert = process.env.SUITE_REVISION?.trim();
   return wert ? wert : "unbekannt";
 }
+
+/**
+ * Welche Version läuft hier gerade? — `1.4.2`, oder `unbekannt` außerhalb eines
+ * CI-gebauten Images (lokales `next dev`, `docker build` ohne `--build-arg`).
+ *
+ * Derselbe Weg wie die Revision (Job `version` in `ci.yml` → Build-Arg → `ENV` in der
+ * Runner-Stage → hierher), aus denselben Gründen, und mit derselben Regel: Zugriff in
+ * der Funktion, nicht auf Modulebene. Die Nummer ist für Menschen — Profilseite und
+ * Health-Antwort —, der Rollout beweist weiterhin über die Revision: die ist je Commit
+ * eindeutig, eine Nummer könnte ein fehlgeschlagener Lauf theoretisch zweimal tragen.
+ *
+ * Woher die Nummer kommt und was sie bedeutet: `docs/runbooks/versionierung.md`.
+ */
+export function laufendeVersion(): string {
+  const wert = process.env.SUITE_VERSION?.trim();
+  return wert ? wert : "unbekannt";
+}

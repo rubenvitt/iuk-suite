@@ -1,6 +1,6 @@
 import { AUDIT_ACTIONS, AUDIT_MODULES, AUDIT_RESULTS, type AuditFilters } from "@/core/audit/types";
 export type AuditSearch = Record<string, string | string[] | undefined>;
-export const FILTER_KEYS = ["from", "to", "module", "actorId", "action", "result", "objectRefHash", "objectType"] as const;
+export const FILTER_KEYS = ["from", "to", "module", "actorId", "action", "result", "objectRefHash", "objectType", "includeSystem"] as const;
 export class AuditFilterError extends Error {
   constructor(message: string, readonly field?: "from" | "to" | "actorId") { super(message); }
 }
@@ -14,6 +14,8 @@ export function parseAuditFilters(search: AuditSearch): AuditFilters {
     if (value) values[key] = value;
   }
   const result: AuditFilters = { limit: 50 };
+  if (values.includeSystem && values.includeSystem !== "0" && values.includeSystem !== "1") throw Error("Wähle einen gültigen Filter für Systemeinträge.");
+  if (values.includeSystem !== "1") result.excludeSystem = true;
   const moduleKey = AUDIT_MODULES.find(m => m === values.module);
   const action = AUDIT_ACTIONS.find(a => a === values.action);
   const outcome = AUDIT_RESULTS.find(r => r === values.result);
