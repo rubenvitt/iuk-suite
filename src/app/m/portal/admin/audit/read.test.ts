@@ -20,9 +20,10 @@ it.each([null,[],["regular"],["iuk-qr-admin"],["portal-only"]])("never reaches s
  expect(queryAuditEvents).not.toHaveBeenCalled();expect(transferAuditEvents).not.toHaveBeenCalled();
 });
 it("bounds server reads and distinguishes empty from no matches",async()=>{
- expect(await readAuditView({})).toMatchObject({state:"ready",filtered:false});
+ expect(await readAuditView({})).toMatchObject({state:"ready",filtered:true});
+ expect(await readAuditView({includeSystem:"1"})).toMatchObject({state:"ready",filtered:false});
  expect(await readAuditView({module:"qr"})).toMatchObject({state:"ready",filtered:true});
- expect(queryAuditEvents).toHaveBeenLastCalledWith({module:"qr",limit:50});
+ expect(queryAuditEvents).toHaveBeenLastCalledWith({module:"qr",limit:50,excludeSystem:true});
 });
 it("preserves pending and transfer failure even with zero central entries",async()=>{
  vi.mocked(transferAuditEvents).mockReturnValue({transferred:0,pending:3,expired:0,failures:["qr"]});
@@ -46,5 +47,5 @@ it("direct handler validates the complete exact object scope before querying",as
   expect((await GET(new Request("http://portal.localtest.me/admin/audit/data?"+suffix))).status).toBe(400);
  expect(queryAuditEvents).not.toHaveBeenCalled();
  expect((await GET(new Request(`http://portal.localtest.me/admin/audit/data?module=feedback&objectType=groups&objectRefHash=${hash}`))).status).toBe(200);
- expect(queryAuditEvents).toHaveBeenLastCalledWith({module:"feedback",objectType:"groups",objectRefHash:hash,limit:50});
+ expect(queryAuditEvents).toHaveBeenLastCalledWith({module:"feedback",objectType:"groups",objectRefHash:hash,limit:50,excludeSystem:true});
 });

@@ -528,6 +528,16 @@ describe("Check-Detailseite", () => {
     expect(quelle).toMatch(/if \(!check\) notFound\(\)/);
   });
 
+  it("prüft die Admin-Berechtigung vor dem ersten Datenbankzugriff", () => {
+    const quelle = readFileSync(
+      "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/[id]/page.tsx",
+      "utf8",
+    );
+
+    expect(quelle.indexOf("await requireLagerbuchAdmin()"))
+      .toBeLessThan(quelle.indexOf("checkDetail(getDb()"));
+  });
+
   it("reicht keine rohen Datumswerte oder Domänenzeilen durch", () => {
     const props = tabellenAus(checkDetailInhalt(gefuellterCheck()));
 

@@ -1,10 +1,12 @@
 import { moduleForHost, getModule, findModule, canAccess } from "@/core/registry";
+import { ZEICHEN_PAUSIERT } from "@/app/m/zeichen/_lib/verfuegbarkeit";
 
 export type RouteDecision =
   | { action: "next" }
   | { action: "rewrite"; target: string; moduleKey: string }
   | { action: "login"; callbackUrl: string }
-  | { action: "forbidden" };
+  | { action: "forbidden" }
+  | { action: "unavailable" };
 
 // `/.well-known` ist per Definition öffentlich und host-übergreifend (aktuell:
 // WebFinger für die OIDC-Discovery). Ohne Passthrough liefe es in den
@@ -78,6 +80,16 @@ export function decideRoute(input: {
   // Begründung und Beleg: `docs/superpowers/plans/2026-08-22-modul-host-rewrite-intern.md`,
   // Kapitel 3.
   const internal = pathname.match(/^\/m\/([^/]+)(?:\/.*)?$/);
+  const ziel = internal ? findModule(internal[1]) : moduleForHost(host);
+  if (ZEICHEN_PAUSIERT && ziel?.key === "zeichen") {
+    // Worker-Updates tragen keine Sitzung. Nur dieser Pfad bleibt offen,
+    // damit installierte PWAs den Abraeum-Worker erhalten statt weiterzulaufen.
+    if (pathname === "/m/zeichen/sw.js") return { action: "next" };
+    if (!internal && pathname === "/sw.js") {
+      return { action: "rewrite", target: "/m/zeichen/sw.js", moduleKey: "zeichen" };
+    }
+    return { action: "unavailable" };
+  }
   if (internal) {
     const target = findModule(internal[1]);
     if (!target) return { action: "next" }; // unbekanntes Modul → 404, kein 500

@@ -136,6 +136,130 @@ describe("ci.yml → Dockerfile — der Commit kommt als ENV ins Image", () => {
   });
 });
 
+/*
+ * Die Versionsnummer geht denselben Weg wie die Revision und reißt an denselben
+ * Stellen still: ein vergessenes Build-Arg ergibt ein Image, dessen Profilseite
+ * „Entwicklungsstand" zeigt — in Produktion, ohne rotes Tor. Dazu zwei Riegel, die
+ * es nur hier gibt: `release` ist der EINZIGE Job mit `contents: write`, und der Tag
+ * entsteht erst hinter `merge`, nie vor dem Build (docs/runbooks/versionierung.md).
+ */
+describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht denselben Weg", () => {
+  const versionJob = rumpf(jobs, "version", 2).join("\n");
+  const releaseJob = rumpf(jobs, "release", 2).join("\n");
+  const mergeJob = rumpf(jobs, "merge", 2).join("\n");
+
+  it("der Job `version` rechnet mit VOLLER Historie und ohne pnpm", () => {
+    expect(versionJob, "Job `version` steht in ci.yml").not.toBe("");
+    // `git describe` und die First-Parent-Kette brauchen Tags und Zwischencommits —
+    // eine Tiefe-1-Kopie hat beides nicht, und das Skript würfe bei jedem Lauf.
+    expect(versionJob).toMatch(/fetch-depth:\s*0/);
+    expect(versionJob).toMatch(/node scripts\/version\.mjs/);
+    expect(versionJob).not.toMatch(/pnpm install/);
+  });
+
+  it("der Pflicht-Check `test` wartet auf `version` und prüft sein Ergebnis", () => {
+    // Ein rotes `version` ließe `build` nur ÜBERSPRINGEN, und übersprungen ist für das
+    // Ruleset kein Fehlschlag: der PR wäre mergebar, und der Fehler träfe erst den
+    // main-Lauf samt Rollout. Nur über `test` wird er zum Merge-Blocker.
+    const testJob = rumpf(jobs, "test", 2).join("\n");
+    expect(testJob).toMatch(/needs:\s*\[[^\]]*\bversion\b/);
+    expect(testJob).toMatch(/needs\.version\.result\s*\}\}"\s*=\s*"success"/);
+  });
+
+  it("`build` und `merge` warten auf `version` — sonst ist die Ausgabe leer", () => {
+    // Ein `needs.version.outputs.version` ohne `needs: version` ist in GitHub Actions
+    // kein Fehler, sondern ein leerer String: `SUITE_VERSION=` im Image, `:` als Tag.
+    expect(buildJob).toMatch(/needs:\s*\[[^\]]*\bversion\b/);
+    expect(mergeJob).toMatch(/needs:\s*\[[^\]]*\bversion\b/);
+  });
+
+  it("BEIDE build-push-Schritte reichen SUITE_VERSION durch — wie die Revision", () => {
+    const treffer = buildJob.match(/SUITE_VERSION=\$\{\{\s*needs\.version\.outputs\.version\s*\}\}/g) ?? [];
+    expect(treffer.length, "einmal im lokalen Build, einmal im Push").toBeGreaterThanOrEqual(2);
+  });
+
+  it("das Dockerfile stempelt sie als ENV, an derselben Stelle wie die Revision", () => {
+    expect(dockerfile).toMatch(/^ARG SUITE_VERSION=/m);
+    expect(dockerfile).toMatch(/^ENV SUITE_VERSION=\$\{SUITE_VERSION\}/m);
+    expect(dockerfile.indexOf("ARG SUITE_VERSION")).toBeGreaterThan(
+      dockerfile.lastIndexOf("COPY --from=builder"),
+    );
+  });
+
+  it("die Manifest-Liste trägt die Nummer als Tag, nur auf main", () => {
+    expect(mergeJob).toMatch(
+      /type=raw,value=\$\{\{\s*needs\.version\.outputs\.version\s*\}\},enable=\{\{is_default_branch\}\}/,
+    );
+  });
+
+  it("ein Versions-Tag, das in der Registry schon existiert, bleibt auf seinem Digest", () => {
+    // Ein wiederholter Lauf oder zwei sich überholende Läufe desselben Commits bauen ein
+    // Image mit anderem Digest; `:X.Y.Z` wanderte sonst still weg von dem Stand, den
+    // Git-Tag und Release nennen. Geprüft wird im Moment der Veröffentlichung gegen die
+    // Registry — eine Momentaufnahme aus dem Job `version` wäre bei zwei parallelen
+    // Läufen schon wieder alt. Deshalb: `inspect` VOR `create`, im selben Schritt.
+    const create = mergeJob.indexOf("docker buildx imagetools create");
+    const inspect = mergeJob.indexOf("docker buildx imagetools inspect \"$VERSIONSTAG\"");
+    expect(inspect, "die Registry wird nach dem Versions-Tag gefragt").toBeGreaterThan(-1);
+    expect(inspect, "… und zwar VOR dem Erzeugen der Manifest-Liste").toBeLessThan(create);
+    expect(mergeJob).not.toMatch(/needs\.version\.outputs\.getaggt/);
+  });
+
+  it("`merge` und `release` laufen je Commit nacheinander, nie gleichzeitig", () => {
+    // Prüfen-dann-Anlegen bleibt ein Rennen, wenn zwei Läufe DESSELBEN Commits
+    // gleichzeitig darin stehen. Die Gruppe hängt am SHA — nicht am Workflow —, damit
+    // Läufe verschiedener Commits sich weiter überholen dürfen und GitHubs Abbruch
+    // wartender Läufe nie einen Merge dazwischen trifft.
+    for (const [name, job] of [
+      ["merge", mergeJob],
+      ["release", releaseJob],
+    ] as const) {
+      const nebenlauf = rumpf(job.split("\n"), "concurrency", 4).join("\n");
+      expect(nebenlauf, `${name}: concurrency steht`).toMatch(/group:.*\$\{\{\s*github\.sha\s*\}\}/);
+      expect(nebenlauf, `${name}: kein Abbruch`).toMatch(/cancel-in-progress:\s*false/);
+    }
+  });
+
+  it("die Health-Route gibt sie neben der Revision aus, die Profilseite zeigt sie", () => {
+    expect(healthRoute).toMatch(/laufendeVersion\(\)/);
+    expect(healthRoute).toMatch(/version:/);
+    expect(lies("src/app/m/portal/profil/page.tsx")).toMatch(/laufendeVersion\(\)/);
+  });
+
+  it("`release` hängt hinter `merge`, läuft nur auf main und ist der EINZIGE mit contents: write", () => {
+    expect(releaseJob, "Job `release` steht in ci.yml").not.toBe("");
+    expect(releaseJob).toMatch(/needs:\s*\[[^\]]*\bmerge\b/);
+    expect(/if:\s*(.+)/.exec(releaseJob)?.[1] ?? "").toContain("refs/heads/main");
+    expect(releaseJob).toMatch(/gh release create/);
+    // Der Tag darf nie einen bestehenden überschreiben — ein gleichzeitiger Lauf eines
+    // ANDEREN Commits war dann schneller, und das soll rot sein, nicht still umgebogen.
+    expect(releaseJob).toMatch(/git ls-remote --exit-code --tags/);
+    // Ein gleichzeitiger Lauf DESSELBEN Commits dagegen ist kein Fehler: schlägt das
+    // Anlegen fehl, wird nachgeprüft, ob Tag und Release inzwischen für GITHUB_SHA
+    // existieren — dann grün. Die Prüfung ist eine Funktion und läuft vor und nach dem
+    // Anlegen, sonst bliebe die Lücke zwischen Prüfung und `gh release create`.
+    expect(releaseJob).toMatch(/tag_gehoert_uns\(\)\s*\{/);
+    expect(releaseJob).toMatch(/if ! gh release create/);
+    expect((releaseJob.match(/tag_gehoert_uns && gh release view/g) ?? []).length).toBe(2);
+    // Die Basis der Release-Notizen wird HIER frisch gerechnet, mit voller Historie:
+    // aus `version` käme bei zwei sich überholenden Läufen dieselbe alte Basis, und der
+    // spätere listete die PRs des früheren noch einmal.
+    expect(releaseJob).toMatch(/fetch-depth:\s*0/);
+    expect(releaseJob).toMatch(/node scripts\/version\.mjs/);
+    // … und die Tags werden unmittelbar davor nachgeholt, nicht nur beim Checkout.
+    expect(releaseJob).toMatch(/git fetch --tags[^\n]*\n\s*node scripts\/version\.mjs/);
+    expect(releaseJob).not.toMatch(/needs\.version\.outputs\.basis/);
+    const schreibend = jobs
+      .filter((z) => !z.trimStart().startsWith("#"))
+      .filter((z) => /^\s*contents:\s*write\b/.test(z));
+    expect(schreibend, "genau ein `contents: write` im ganzen Workflow").toHaveLength(1);
+  });
+
+  it("`deploy` wartet NICHT auf `release` — ein Tag-Fehler hält den Rollout nicht auf", () => {
+    expect(deployJob).not.toMatch(/needs:.*\brelease\b/);
+  });
+});
+
 describe("die Kette bis zur Antwort", () => {
   it("die Health-Route eines Moduls gibt die Revision aus", () => {
     expect(healthRoute).toMatch(/laufendeRevision\(\)/);

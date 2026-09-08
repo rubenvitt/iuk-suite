@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Alert, Button, Card, Input, Modal, Select, Space, Table, Tag } from "antd";
+import { Alert, Button, Card, Checkbox, Input, Modal, Select, Space, Table, Tag } from "antd";
 import type { AuditCursor, AuditEvent } from "@/core/audit/types";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -48,6 +48,7 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
           <label>Aktion<Select aria-label="Aktion" value={fields.action} options={options(ACTION_LABELS)} onChange={v=>field("action",v)} /></label>
           <label>Ergebnis<Select aria-label="Ergebnis" value={fields.result} options={options(RESULT_LABELS)} onChange={v=>field("result",v)} /></label>
         </div>
+        <Checkbox style={{minHeight:44,alignItems:"center",marginBlockStart:SPACE.md}} checked={fields.includeSystem === "1"} onChange={event=>field("includeSystem",event.target.checked ? "1" : "")}>Systemeinträge anzeigen</Checkbox>
         {fields.objectRefHash && <p>Auf dieses Objekt im Modul {MODULE_LABELS[fields.module]} und Objekttyp „{objectLabel(fields.objectType)}“ eingegrenzt. Andere Objekttypen, auch Downloads und Exporte, bleiben getrennt. <Button onClick={()=>setFields(previous=>({...previous,module:"",objectType:"",objectRefHash:""}))}>Objektfilter entfernen</Button></p>}
         {error && <p ref={errorRef} tabIndex={-1} role="alert" id="audit-filter-error">{error.message}</p>}
         <Space className={css.actions} wrap style={{marginBlockStart:SPACE.lg}}>
@@ -81,7 +82,8 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
         <div style={{marginBlockStart:SPACE.md}}><Button block onClick={()=>setDetails(event)}>Details</Button></div>
       </Card>)}</div>
     </> : <Card><h2 style={SCHRIFT.unterTitel}>{ready.filtered ? "Keine passenden Einträge" : ready.transferFailed || ready.pending ? "Noch keine übernommenen Einträge" : "Noch keine Ereignisse"}</h2>
-      <p>{ready.filtered ? "Ändere die Filter oder setze sie zurück." : "Das Audit-Log erfasst Ereignisse ab der Aktivierung. Frühere Vorgänge werden nicht nachträglich rekonstruiert."}</p></Card>)}
+      <p>{ready.filtered ? "Ändere die Filter oder setze sie zurück." : "Das Audit-Log erfasst Ereignisse ab der Aktivierung. Frühere Vorgänge werden nicht nachträglich rekonstruiert."}</p>
+      {committed.includeSystem !== "1" && <p>Systemeinträge sind ausgeblendet. Aktiviere Systemeinträge anzeigen und wähle Filter anwenden, um sie einzublenden.</p>}</Card>)}
     {ready && <Space className={css.actions} wrap>
       {(search.cursorId || ready.filtered) && <Button disabled={pending} onClick={()=>navigate(committed)}>Neueste Einträge</Button>}
       <Button disabled={pending||!ready.page.nextCursor} onClick={()=>navigate(committed,ready.page.nextCursor)}>Ältere Einträge</Button>
