@@ -8,6 +8,7 @@ import {
   type CheckHistorieZeile,
 } from "../../../_lib/lesepfade/checks";
 import { fahrzeugListe } from "../../../_lib/lesepfade/fahrzeuge";
+import { requireLagerbuchAdmin } from "../../../_lib/zugang";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ChecksFilter } from "./ChecksFilter";
 import {
@@ -164,5 +165,6 @@ export default async function ChecksSeite({
 }: {
   searchParams: Promise<CheckSuchparameter>;
 }) {
+  await requireLagerbuchAdmin();
   return checksInhalt(getDb(), await searchParams);
 }
