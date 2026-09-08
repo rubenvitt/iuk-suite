@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { isValidElement, type ReactElement } from "react";
 
 vi.mock("@/core/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/core/version", () => ({
+  laufendeVersion: () => "1.4.2",
+  laufendeRevision: () => "0123456789abcdef0123456789abcdef01234567",
+}));
 
 import { auth } from "@/core/auth";
 import ProfilPage from "@/app/m/portal/profil/page";
@@ -58,6 +62,10 @@ describe("Profilseite", () => {
       gruppen: ["iuk"],
       fachgruppen: ["fuehrung"],
       angemeldetSeit: 1_755_000_000,
+      // Die laufende Version kommt aus `core/version.ts`, nicht aus der Sitzung —
+      // die Seite reicht beide Werte fertig durch.
+      version: "1.4.2",
+      revision: "0123456789abcdef0123456789abcdef01234567",
     });
   });
 
