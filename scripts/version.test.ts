@@ -126,10 +126,29 @@ describe("berechneVersion — an einer echten Historie", () => {
     rmSync(repo, { recursive: true, force: true });
   });
 
-  it("ohne Tag ist dieser Stand 1.0.0 — keine Rechnung über die ganze Historie", () => {
-    const e = berechneVersion(repo);
-    expect(e).toMatchObject({ version: "1.0.0", basis: null, schritte: [] });
-    expect(bericht(e)).toContain("1.0.0");
+  it("ohne Tag und ohne Anker in der Historie bricht es laut ab, statt zu raten", () => {
+    // Der eingebaute Anker ist ein Commit der Suite, den dieses Wegwerf-Repo nicht
+    // kennt. Eine stille 1.0.0 gäbe zwei gleichzeitigen Läufen dieselbe Nummer
+    // (Befund aus dem Review von #109).
+    expect(() => berechneVersion(repo)).toThrow(/Anker .* kein Vorfahr/);
+  });
+
+  it("ohne Tag rechnet es vom Anker aus — je Schritt eine Nummer, wie mit Tag", () => {
+    const wurzel = git("rev-list", "--max-parents=0", "HEAD");
+    const anker = { commit: wurzel, version: "1.0.0" };
+    const e = berechneVersion(repo, "HEAD", { anker });
+    expect(e).toMatchObject({ version: "1.0.0", basis: null, ankerBenutzt: true, schritte: [] });
+    expect(bericht(e)).toContain("Anker");
+    commit("fix: erster Schritt nach dem Anker");
+    expect(berechneVersion(repo, "HEAD", { anker }).version).toBe("1.0.1");
+    commit("feat: zweiter");
+    expect(berechneVersion(repo, "HEAD", { anker }).version).toBe("1.1.0");
+    // Zwei Läufe vor dem ersten Tag: verschiedene Stände, verschiedene Nummern.
+    expect(berechneVersion(repo, "HEAD~1", { anker }).version).not.toBe(
+      berechneVersion(repo, "HEAD", { anker }).version,
+    );
+    // Aufräumen für die folgenden Fälle: zurück auf die Wurzel.
+    git("reset", "-q", "--hard", wurzel);
   });
 
   it("ein Tag ohne Schritte danach ist genau diese Version", () => {
@@ -188,14 +207,26 @@ describe("berechneVersion — an einer echten Historie", () => {
     expect(berechneVersion(repo).version).toBe("2.0.0");
   });
 
-  it("Tags, die keine Version sind, werden übergangen", () => {
-    // `v2.0.0-rc1` passt auf das Glob `v[0-9]*` und ist trotzdem keine Basis; ohne
-    // den `--exclude` in `berechneVersion` würfe `parseTag` daran.
+  it("Tags, die keine exakte Version sind, werden übergangen — auch NÄHERE", () => {
+    // Zweiter Befund aus dem Review von #109: `v2`, `v1.2`, `v1.2.3+build` passen auf
+    // jedes Glob, das `v1.2.3` trifft. Nähme `git describe` sie als Basis, würfe
+    // `parseTag` und jeder folgende Build wäre rot. Deshalb wird erst gefiltert und
+    // dann der nächste gewählt — die schiefen Tags liegen hier bewusst NÄHER an HEAD.
     git("tag", "v2.0.0");
+    commit("fix: danach");
     git("tag", "deploy-2026-09-08");
     git("tag", "v2.0.0-rc1");
-    commit("fix: danach");
+    git("tag", "v2");
+    git("tag", "v2.1");
+    git("tag", "v2.0.1+build");
     expect(berechneVersion(repo)).toMatchObject({ version: "2.0.1", basis: "v2.0.0" });
+  });
+
+  it("zwei Versionstags auf einem Commit: der höhere ist die Basis", () => {
+    // Ein von Hand nachgesetzter `v2.0.5` auf dem Commit von `v2.0.0` ist die spätere
+    // Aussage; von `v2.0.0` aus weiterzuzählen ergäbe eine schon vergebene Nummer.
+    git("tag", "v2.0.5", "v2.0.0^{commit}");
+    expect(berechneVersion(repo)).toMatchObject({ version: "2.0.6", basis: "v2.0.5" });
   });
 
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {

@@ -47,8 +47,17 @@ Drei Folgen, die man kennen sollte:
   seine Nummer unbesetzt; der nächste Stand rechnet den gescheiterten Schritt mit und
   bekommt die übernächste Nummer. Eine fehlende Nummer heißt: dieses Image gab es nie.
 
-**Der erste Tag ist `v1.0.0`**, ohne Rechnung über die ganze Historie: der erste
-`main`-Lauf nach dem Merge dieser Versionierung setzt ihn auf seinen Commit.
+**Solange es keinen Tag gibt, rechnet das Skript vom Anker aus:** einem fest
+eingetragenen Commit (`ANKER` in `scripts/version.mjs`, der `main`-Stand, auf dem die
+Versionierung gemergt wurde), der als `1.0.0` gilt. Das ist dasselbe wie ein Tag `v1.0.0`
+auf diesem Commit, und der erste `main`-Lauf danach wird deshalb `1.0.1` oder `1.1.0`, je
+nach Sprung — nicht `1.0.0`. Zwei gleichzeitige Läufe vor dem ersten Tag bekommen so
+verschiedene Nummern. Ab dem ersten echten Tag ist der Anker ohne Wirkung und darf
+entfernt werden.
+
+**Nur exakte `vX.Y.Z`-Tags zählen.** Ein `v2`, `v1.2`, `v1.2.3+build` oder `v2.0.0-rc1`
+wird übergangen, auch wenn er näher an `HEAD` liegt. Die Basis ist der nächste passende
+Tag; bei zwei passenden auf demselben Commit der höhere.
 
 `package.json` bleibt auf seiner alten Nummer und ist **nicht** die Quelle der Wahrheit.
 Der Tag auf `main` ist es. Kein Bot-Commit, keine Datei, die nachgezogen wird.
@@ -128,10 +137,14 @@ Sicherungen des normalen Rollouts. Die Warnung aus `auto-rollout.md` gilt unver�
 
 # Teil F — Fehlerbilder
 
-### F1 — `version` rot: „fatal: No names found" oder „cannot describe"
+### F1 — `version` rot: „Kein Versionstag … und der Anker … ist kein Vorfahr"
 
-Die Historie im Checkout ist unvollständig. `fetch-depth: 0` am Job prüfen
-(`scripts/deploy.test.ts` hält es fest). Von Hand: `git fetch --unshallow --tags`.
+Weder ein Tag `vX.Y.Z` noch der Anker-Commit liegen in der Historie des Checkouts. Zwei
+Ursachen: die Historie ist unvollständig (`fetch-depth: 0` am Job prüfen,
+`scripts/deploy.test.ts` hält es fest; von Hand `git fetch --unshallow --tags`) — oder sie
+wurde umgeschrieben (Force-Push auf `main`, oder ein fremder Klon ohne diese Historie).
+Im zweiten Fall einen Tag `vX.Y.Z` von Hand auf den gewünschten Stand setzen; ab dann
+zählt der Tag, nicht der Anker.
 
 ### F2 — `release` rot: „Tag vX.Y.Z existiert bereits"
 

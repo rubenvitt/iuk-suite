@@ -38,9 +38,21 @@
  *   `feat:` / `feat(modul):`                           → Minor
  *   alles andere                                        → Patch
  *
- * GIBT ES NOCH KEINEN TAG, ist dieser Commit `1.0.0`. Das ist der einmalige Anfang und
- * bewusst keine Rechnung über die ganze Historie: die zählte Dutzende `feat`-Commits
- * und ergäbe eine Nummer ohne Aussage.
+ * GIBT ES NOCH KEINEN TAG, rechnet das Skript vom ANKER aus: einem fest eingetragenen
+ * Commit, der als `1.0.0` gilt (`ANKER` unten — der `main`-Stand, auf dem die
+ * Versionierung eingeführt wurde). Das ist dasselbe wie ein Tag `v1.0.0` auf diesem
+ * Commit, nur ohne einen Push, den die Einführung nicht leisten konnte. Der Anker ist
+ * KEIN „dieser Commit wird 1.0.0": das gäbe zwei gleichzeitigen Läufen vor dem ersten
+ * Tag dieselbe Nummer (Befund aus dem Review von #109) — mit dem Anker hat auch der
+ * allererste Lauf eine Historie, aus der er rechnet. Sobald ein echter Tag existiert,
+ * ist der Anker toter Ballast; er darf dann entfernt werden. Fehlt beides — kein Tag,
+ * Anker nicht in der Historie (fremder Klon, umgeschriebene Historie) — bricht das
+ * Skript laut ab, statt still zu raten.
+ *
+ * NUR EXAKTE `vX.Y.Z`-TAGS ZÄHLEN. Ein `v2`, `v1.2` oder `v1.2.3+build` in der Historie
+ * wird übergangen, nicht als Basis genommen (zweiter Befund aus demselben Review): die
+ * Basis ist der nächstgelegene passende Tag auf der First-Parent-Kette, bei gleichem
+ * Abstand der höchste.
  *
  * LÜCKEN IN DER ZÄHLUNG SIND EHRLICH. Scheitert ein Lauf vor dem Tag (roter Build,
  * roter Smoke), bleibt seine Nummer unbesetzt — der nächste Schritt rechnet sie mit,
@@ -62,9 +74,8 @@ import { fileURLToPath } from "node:url";
 const RANG = { patch: 0, minor: 1, major: 2 };
 
 /**
- * Nur Tags dieser Form zählen als Version. `--match` in `git describe` nimmt ein
- * Glob, kein Regex — deshalb steht das Muster dort etwas gröber (`v[0-9]*`), und
- * hier wird nachgeprüft.
+ * Nur Tags GENAU dieser Form zählen als Version — `v2`, `v1.2`, `v1.2.3+build` oder
+ * `v2.0.0-rc1` nicht. `naechsterVersionstag` filtert damit, bevor es wählt.
  */
 const TAG_MUSTER = /^v(\d+)\.(\d+)\.(\d+)$/;
 
@@ -157,37 +168,92 @@ function git(args, cwd) {
 }
 
 /**
- * Die Herleitung für einen Commit in einem Repo. `null` als `basis` heißt: es gibt
- * noch keinen Versionstag, und dieser Commit wird 1.0.0.
+ * Der Stand, der ohne echten Tag als `1.0.0` gilt — siehe Kopf. Der Commit ist der
+ * `main`-Stand vom 2026-09-08, auf dem die Versionierung gemergt wurde (#109).
+ * Überschreibbar (`berechneVersion(cwd, ziel, { anker })`), damit der Test den Fall
+ * an einem Wegwerf-Repo prüfen kann.
+ */
+export const ANKER = { commit: "4e303b90685e827b9dcac27b6f1756bfb8603c5a", version: "1.0.0" };
+
+/** @param {Version} a @param {Version} b */
+function vergleiche(a, b) {
+  return a.major - b.major || a.minor - b.minor || a.patch - b.patch;
+}
+
+/**
+ * Der nächstgelegene exakte Versionstag in der Historie von `ziel`, oder `null`.
+ *
+ * `git tag --merged` statt `git describe`: `describe` nimmt ein Glob, und jedes Glob,
+ * das `v1.2.3` trifft, trifft auch `v1.2` oder `v1.2.3+build` — `parseTag` würfe dann
+ * an einem Tag, der laut Regel gar nicht zählt. Hier wird zuerst nach der Regel
+ * gefiltert und erst dann der nächste gewählt. „Nächster" heißt: die wenigsten
+ * First-Parent-Schritte bis `ziel`; bei gleichem Abstand (zwei Versionstags auf einem
+ * Commit) gewinnt die höhere Nummer, weil sie die spätere Aussage ist.
+ *
+ * @param {string} cwd
+ * @param {string} ziel
+ * @returns {string | null}
+ */
+function naechsterVersionstag(cwd, ziel) {
+  const kandidaten = git(["tag", "--list", "v*", "--merged", ziel], cwd)
+    .split("\n")
+    .map((t) => t.trim())
+    .filter((t) => TAG_MUSTER.test(t));
+  /** @type {{ tag: string; abstand: number } | null} */
+  let bester = null;
+  for (const tag of kandidaten) {
+    const abstand = Number(git(["rev-list", "--count", "--first-parent", `${tag}..${ziel}`], cwd).trim());
+    if (
+      bester === null ||
+      abstand < bester.abstand ||
+      (abstand === bester.abstand && vergleiche(parseTag(tag), parseTag(bester.tag)) > 0)
+    ) {
+      bester = { tag, abstand };
+    }
+  }
+  return bester?.tag ?? null;
+}
+
+/**
+ * Die Herleitung für einen Commit in einem Repo.
+ *
+ * `basis` ist der echte Tag, von dem aus gerechnet wurde — oder `null`, wenn es noch
+ * keinen gibt und der Anker die Basis war (`ankerBenutzt`). Der Job `release` lässt
+ * dann die PR-Liste weg, weil es kein „seit" gibt.
  *
  * @param {string} cwd Arbeitsverzeichnis im Repo
  * @param {string} ziel Commit, dessen Version gesucht ist
- * @returns {{ version: string; basis: string | null; schritte: { commit: string; sprung: Sprung; betreff: string }[] }}
+ * @param {{ anker?: { commit: string; version: string } }} [optionen]
+ * @returns {{ version: string; basis: string | null; ankerBenutzt: boolean; schritte: { commit: string; sprung: Sprung; betreff: string }[] }}
  */
-export function berechneVersion(cwd, ziel = "HEAD") {
-  let basis = null;
-  try {
-    /*
-     * `--first-parent`: nur Tags auf der `main`-Kette zählen. Ein Tag auf einem
-     * PR-Zweig gäbe es nicht, aber wenn doch, verschöbe er sonst still die Basis.
-     * `--abbrev=0`: nur der Tagname, ohne `-3-gabc1234`.
-     * `--exclude "*-*"`: ein `v2.0.0-rc1` passt auf das Glob `v[0-9]*` und wäre sonst
-     * die Basis — und `parseTag` würfe. Vorabversionen gibt es hier nicht; wer eine
-     * anlegt, hält sie so aus der Rechnung heraus.
-     */
-    basis = git(
-      ["describe", "--tags", "--match", "v[0-9]*", "--exclude", "*-*", "--abbrev=0", "--first-parent", ziel],
-      cwd,
-    ).trim();
-  } catch (fehler) {
-    const text = String(/** @type {{ stderr?: string }} */ (fehler).stderr ?? fehler);
-    if (!/No names found|No tags can describe|cannot describe/i.test(text)) throw fehler;
-  }
-  if (basis === null) {
-    return { version: "1.0.0", basis: null, schritte: [] };
+export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
+  const anker = optionen.anker ?? ANKER;
+  const basis = naechsterVersionstag(cwd, ziel);
+  let start;
+  let von;
+  if (basis !== null) {
+    start = parseTag(basis);
+    von = basis;
+  } else {
+    let istVorfahr = false;
+    try {
+      git(["merge-base", "--is-ancestor", anker.commit, ziel], cwd);
+      istVorfahr = true;
+    } catch {
+      istVorfahr = false;
+    }
+    if (!istVorfahr) {
+      throw new Error(
+        `Kein Versionstag (vX.Y.Z) in der Historie, und der Anker ${anker.commit.slice(0, 7)} ` +
+          `ist kein Vorfahr von ${ziel}. Entweder fehlt die Historie (flacher Klon — ` +
+          `fetch-depth: 0) oder sie wurde umgeschrieben. Abhilfe: docs/runbooks/versionierung.md, F1.`,
+      );
+    }
+    start = parseTag(`v${anker.version}`);
+    von = anker.commit;
   }
 
-  const kette = git(["rev-list", "--first-parent", "--reverse", `${basis}..${ziel}`], cwd)
+  const kette = git(["rev-list", "--first-parent", "--reverse", `${von}..${ziel}`], cwd)
     .split("\n")
     .filter(Boolean);
 
@@ -206,9 +272,9 @@ export function berechneVersion(cwd, ziel = "HEAD") {
     return { commit, sprung: groessterSprung(nachrichten), betreff };
   });
 
-  let version = parseTag(basis);
+  let version = start;
   for (const s of schritte) version = erhoehe(version, s.sprung);
-  return { version: formatVersion(version), basis, schritte };
+  return { version: formatVersion(version), basis, ankerBenutzt: basis === null, schritte };
 }
 
 /**
@@ -218,16 +284,16 @@ export function berechneVersion(cwd, ziel = "HEAD") {
  */
 export function bericht(ergebnis) {
   const zeilen = [];
-  if (ergebnis.basis === null) {
-    zeilen.push("Kein Versionstag in der Historie — dieser Stand wird 1.0.0.");
-  } else {
-    zeilen.push(`Basis: ${ergebnis.basis}`);
-    for (const s of ergebnis.schritte) {
-      zeilen.push(`  ${s.commit.slice(0, 7)}  ${s.sprung.padEnd(5)}  ${s.betreff}`);
-    }
-    if (ergebnis.schritte.length === 0) {
-      zeilen.push("  (keine Schritte seit dem Tag — dieser Commit IST der getaggte)");
-    }
+  zeilen.push(
+    ergebnis.basis === null
+      ? `Basis: Anker ${ANKER.commit.slice(0, 7)} als ${ANKER.version} (noch kein Versionstag)`
+      : `Basis: ${ergebnis.basis}`,
+  );
+  for (const s of ergebnis.schritte) {
+    zeilen.push(`  ${s.commit.slice(0, 7)}  ${s.sprung.padEnd(5)}  ${s.betreff}`);
+  }
+  if (ergebnis.schritte.length === 0) {
+    zeilen.push("  (keine Schritte seit der Basis — dieser Commit IST die Basis)");
   }
   zeilen.push(`Version: ${ergebnis.version}`);
   return zeilen.join("\n");
