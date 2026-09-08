@@ -96,6 +96,11 @@ VOLUME /data
 # lauffähig; `laufendeRevision()` liefert dasselbe Wort, wenn die Variable ganz fehlt.
 ARG SUITE_REVISION=unbekannt
 ENV SUITE_REVISION=${SUITE_REVISION}
+# Die Versionsnummer geht denselben Weg, aus denselben Gruenden (`scripts/version.mjs`
+# rechnet sie im Job `version`; `laufendeVersion()` gibt sie aus). Dieselbe Stelle, weil
+# auch sie sich bei jedem Commit aendert und den `pnpm build`-Layer nicht beruehren darf.
+ARG SUITE_VERSION=unbekannt
+ENV SUITE_VERSION=${SUITE_VERSION}
 
 USER nextjs
 EXPOSE 3000

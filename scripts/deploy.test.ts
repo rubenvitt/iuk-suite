@@ -136,6 +136,78 @@ describe("ci.yml → Dockerfile — der Commit kommt als ENV ins Image", () => {
   });
 });
 
+/*
+ * Die Versionsnummer geht denselben Weg wie die Revision und reißt an denselben
+ * Stellen still: ein vergessenes Build-Arg ergibt ein Image, dessen Profilseite
+ * „Entwicklungsstand" zeigt — in Produktion, ohne rotes Tor. Dazu zwei Riegel, die
+ * es nur hier gibt: `release` ist der EINZIGE Job mit `contents: write`, und der Tag
+ * entsteht erst hinter `merge`, nie vor dem Build (docs/runbooks/versionierung.md).
+ */
+describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht denselben Weg", () => {
+  const versionJob = rumpf(jobs, "version", 2).join("\n");
+  const releaseJob = rumpf(jobs, "release", 2).join("\n");
+  const mergeJob = rumpf(jobs, "merge", 2).join("\n");
+
+  it("der Job `version` rechnet mit VOLLER Historie und ohne pnpm", () => {
+    expect(versionJob, "Job `version` steht in ci.yml").not.toBe("");
+    // `git describe` und die First-Parent-Kette brauchen Tags und Zwischencommits —
+    // eine Tiefe-1-Kopie hat beides nicht, und das Skript würfe bei jedem Lauf.
+    expect(versionJob).toMatch(/fetch-depth:\s*0/);
+    expect(versionJob).toMatch(/node scripts\/version\.mjs/);
+    expect(versionJob).not.toMatch(/pnpm install/);
+  });
+
+  it("`build` und `merge` warten auf `version` — sonst ist die Ausgabe leer", () => {
+    // Ein `needs.version.outputs.version` ohne `needs: version` ist in GitHub Actions
+    // kein Fehler, sondern ein leerer String: `SUITE_VERSION=` im Image, `:` als Tag.
+    expect(buildJob).toMatch(/needs:\s*\[[^\]]*\bversion\b/);
+    expect(mergeJob).toMatch(/needs:\s*\[[^\]]*\bversion\b/);
+  });
+
+  it("BEIDE build-push-Schritte reichen SUITE_VERSION durch — wie die Revision", () => {
+    const treffer = buildJob.match(/SUITE_VERSION=\$\{\{\s*needs\.version\.outputs\.version\s*\}\}/g) ?? [];
+    expect(treffer.length, "einmal im lokalen Build, einmal im Push").toBeGreaterThanOrEqual(2);
+  });
+
+  it("das Dockerfile stempelt sie als ENV, an derselben Stelle wie die Revision", () => {
+    expect(dockerfile).toMatch(/^ARG SUITE_VERSION=/m);
+    expect(dockerfile).toMatch(/^ENV SUITE_VERSION=\$\{SUITE_VERSION\}/m);
+    expect(dockerfile.indexOf("ARG SUITE_VERSION")).toBeGreaterThan(
+      dockerfile.lastIndexOf("COPY --from=builder"),
+    );
+  });
+
+  it("die Manifest-Liste trägt die Nummer als Tag, nur auf main", () => {
+    expect(mergeJob).toMatch(
+      /type=raw,value=\$\{\{\s*needs\.version\.outputs\.version\s*\}\},enable=\{\{is_default_branch\}\}/,
+    );
+  });
+
+  it("die Health-Route gibt sie neben der Revision aus, die Profilseite zeigt sie", () => {
+    expect(healthRoute).toMatch(/laufendeVersion\(\)/);
+    expect(healthRoute).toMatch(/version:/);
+    expect(lies("src/app/m/portal/profil/page.tsx")).toMatch(/laufendeVersion\(\)/);
+  });
+
+  it("`release` hängt hinter `merge`, läuft nur auf main und ist der EINZIGE mit contents: write", () => {
+    expect(releaseJob, "Job `release` steht in ci.yml").not.toBe("");
+    expect(releaseJob).toMatch(/needs:\s*\[[^\]]*\bmerge\b/);
+    expect(/if:\s*(.+)/.exec(releaseJob)?.[1] ?? "").toContain("refs/heads/main");
+    expect(releaseJob).toMatch(/gh release create/);
+    // Der Tag darf nie einen bestehenden überschreiben — ein gleichzeitiger Lauf war
+    // dann schneller, und das soll rot sein, nicht still umgebogen.
+    expect(releaseJob).toMatch(/git ls-remote --exit-code --tags/);
+    const schreibend = jobs
+      .filter((z) => !z.trimStart().startsWith("#"))
+      .filter((z) => /^\s*contents:\s*write\b/.test(z));
+    expect(schreibend, "genau ein `contents: write` im ganzen Workflow").toHaveLength(1);
+  });
+
+  it("`deploy` wartet NICHT auf `release` — ein Tag-Fehler hält den Rollout nicht auf", () => {
+    expect(deployJob).not.toMatch(/needs:.*\brelease\b/);
+  });
+});
+
 describe("die Kette bis zur Antwort", () => {
   it("die Health-Route eines Moduls gibt die Revision aus", () => {
     expect(healthRoute).toMatch(/laufendeRevision\(\)/);

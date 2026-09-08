@@ -57,6 +57,36 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  # ══ Welche Version wird dieser Stand? ══════════════════════════════════════════════
+  # Regeln, Rollback ueber Versionstag und Fehlerbilder: docs/runbooks/versionierung.md
+  #
+  # Die Nummer folgt aus der Historie seit dem letzten Tag `vX.Y.Z` (scripts/version.mjs):
+  # jeder Schritt auf `main` ist ein Sprung, der Typ der Commits (Conventional Commits)
+  # entscheidet ueber Major/Minor/Patch. Deshalb `fetch-depth: 0` — eine Tiefe-1-Kopie
+  # kennt weder die Tags noch die Kette dazwischen, und `git describe` wuerfe.
+  #
+  # BEWUSST VOR DEM BUILD UND OHNE `pnpm install`: die Nummer wandert als Build-Arg ins
+  # Image (SUITE_VERSION, wie SUITE_REVISION), muss also feststehen, bevor `build`
+  # laeuft. Das Skript hat keine Abhaengigkeiten, Node reicht. Auf einem PR rechnet der
+  # Job dieselbe Nummer aus und schreibt sie nur in die Zusammenfassung — der Tag
+  # entsteht erst im Job `release`, nach `merge`, und nur auf `main`.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.rechne.outputs.version }}
+      # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. `release` nutzt ihn
+      # als Startpunkt der PR-Liste.
+      basis: ${{ steps.rechne.outputs.basis }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: rechne
+        run: node scripts/version.mjs
+
   # FUENF SHARDS, NICHT MEHR WORKER — und das ist keine Geschmacksfrage.
   # `playwright.config.ts` steht auf `workers: 1`, weil der Fake-clamd seine
   # Modusdatei prozessweit teilt und `FILES_AV_PARALLEL: 1` die Reihenfolge
@@ -209,7 +239,8 @@ jobs:
   # auf einem alten Image fest. Nebeneffekt: der image-smoke läuft jetzt auch
   # auf arm64 wirklich, vorher wurde dort nur gebaut und nie gestartet.
   build:
-    needs: test
+    # `version` dazu, weil die Nummer als Build-Arg ins Image geht (unten).
+    needs: [test, version]
     strategy:
       fail-fast: false
       matrix:
@@ -267,8 +298,11 @@ jobs:
           # Muss in BEIDEN build-push-Schritten stehen, nicht nur im pushenden: der
           # image-smoke unten prueft sonst ein Image, das sich vom veroeffentlichten in
           # genau der Eigenschaft unterscheidet, an der der Rollout haengt.
+          # SUITE_VERSION geht denselben Weg wie SUITE_REVISION — scripts/deploy.test.ts
+          # haelt beide Zeilen an beiden Stellen fest.
           build-args: |
             SUITE_REVISION=${{ github.sha }}
+            SUITE_VERSION=${{ needs.version.outputs.version }}
           # Cache pro Plattform trennen, sonst überschreiben sich die beiden
           # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
           cache-from: type=gha,scope=${{ matrix.platform }}
@@ -311,6 +345,7 @@ jobs:
           # `/api/health/portal` (src/core/version.ts).
           build-args: |
             SUITE_REVISION=${{ github.sha }}
+            SUITE_VERSION=${{ needs.version.outputs.version }}
           # Ohne Tag hochladen — die Tags vergibt der merge-Job auf der
           # Manifest-Liste, sonst würde jede Plattform :latest überschreiben.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
@@ -332,7 +367,7 @@ jobs:
   # Führt die per-Plattform-Digests zu einer Multi-Arch-Manifest-Liste zusammen
   # und hängt erst hier die Tags (latest/sha/branch) dran.
   merge:
-    needs: build
+    needs: [build, version]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -356,10 +391,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Die letzte Zeile ist das lesbare Gegenstueck zu `:sha-…` — fuer einen Rollback
+          # von Hand (`SUITE_IMAGE_TAG=1.4.2`, docs/runbooks/auto-rollout.md Teil D2). Nur
+          # auf main: ein Branch-Image mit Versionsnummer saehe aus wie ein Release.
+          # KEIN KOMMENTAR INNERHALB DES `|`-BLOCKS: dort waere er eine Tag-Zeile.
           tags: |
             type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ needs.version.outputs.version }},enable={{is_default_branch}}
       - name: Manifest-Liste erzeugen
         working-directory: /tmp/digests
         run: |
@@ -373,6 +413,56 @@ jobs:
             --format '{{ json .Manifest }}' | jq -r '.manifests[].platform | "\(.os)/\(.architecture)"' | sort -u | tee /tmp/platforms
           grep -q '^linux/amd64$' /tmp/platforms
           grep -q '^linux/arm64$' /tmp/platforms
+
+  # ══ Tag und GitHub-Release ═══════════════════════════════════════════════════════════
+  # Erst HIER entsteht der Tag, nicht im Job `version`: ein Tag vor dem Build stuende
+  # fuer ein Image, das es bei einem roten Build nie gab. Nach `merge` ist das Image mit
+  # dieser Nummer veroeffentlicht — der Tag sagt dann etwas Wahres. Dass die Nummer
+  # trotzdem schon VOR dem Build feststeht, traegt scripts/version.mjs: sie folgt aus
+  # der Historie, nicht aus dem Tag (Test „mit oder ohne Zwischentag dasselbe").
+  #
+  # DER EINZIGE JOB MIT `contents: write` — Tag und Release brauchen es, kein anderer.
+  # Ein mit dem GITHUB_TOKEN gesetzter Tag stoesst KEINEN weiteren Workflow an (GitHub
+  # unterdrueckt das absichtlich gegen Schleifen), also auch nicht diesen hier.
+  #
+  # `deploy` haengt NICHT an diesem Job: ein Fehlschlag hier (ein Tag, den ein
+  # gleichzeitiger Lauf schon gesetzt hat) darf den Rollout nicht aufhalten. Er ist dann
+  # rot und sichtbar; das Image traegt die Nummer trotzdem. Fehlerbilder:
+  # docs/runbooks/versionierung.md, Teil F.
+  release:
+    needs: [merge, version]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag und Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          BASIS: ${{ needs.version.outputs.basis }}
+        # Keine Backticks in diesem Block: in doppelten Anfuehrungszeichen sind sie fuer
+        # bash eine Kommandosubstitution (dieselbe Falle wie in scripts/deploy.sh).
+        run: |
+          tag="v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "::error::Tag $tag existiert bereits — siehe docs/runbooks/versionierung.md, F2."
+            exit 1
+          fi
+          kopf="$(printf 'Image: ghcr.io/%s:%s\nCommit: %s' "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA")"
+          # GitHub listet die seit dem vorigen Tag gemergten PRs. Beim ersten Tag gibt es
+          # kein „seit" — eine Liste ueber die ganze Historie sagte nichts.
+          if [ -n "$BASIS" ]; then
+            liste="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$tag" -f target_commitish="$GITHUB_SHA" \
+              -f previous_tag_name="$BASIS" --jq .body)"
+            notizen="$(printf '%s\n\n%s' "$kopf" "$liste")"
+          else
+            notizen="$(printf '%s\n\nErster Versionstag der Suite.' "$kopf")"
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$VERSION" --notes "$notizen"
+          echo "Release $tag angelegt: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
 
   # ══ Automatischer Rollout auf den Server ═══════════════════════════════════════════
   # Einrichtung, Freigabe, Fehlerbilder und Rollback: docs/runbooks/auto-rollout.md
