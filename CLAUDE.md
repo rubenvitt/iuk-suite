@@ -241,6 +241,23 @@ aus an ihre Anwender schreibt:
 * **Kein Markdown im Text.** Er wird als Textknoten gerendert; `**fett**` käme mit Sternchen auf dem
   Bildschirm an. Auch das prüft `register.test.ts`.
 
+## Versionsnummern — aus der Historie, nicht aus einer Datei
+
+Jeder Stand auf `main` bekommt automatisch eine Nummer `X.Y.Z`, einen Tag `vX.Y.Z`, ein
+GitHub-Release und ein Image-Tag `:X.Y.Z` (Runbook: `docs/runbooks/versionierung.md`).
+`scripts/version.mjs` rechnet sie aus der First-Parent-Kette seit dem letzten Tag: **jeder
+Merge auf `main` ist ein Sprung**, und der Typ der Commit-Kopfzeilen entscheidet — `feat!`
+oder `BREAKING CHANGE:` Major, `feat` Minor, alles andere Patch. **Der Commit-Präfix ist
+damit keine Stilfrage mehr:** ein `feat`, das als `fix` eingecheckt wird, ergibt eine zu
+kleine Nummer, und kein Tor meldet das.
+
+`package.json` bleibt auf seiner alten Nummer und ist nicht die Quelle der Wahrheit; es gibt
+keinen Bot-Commit. Die Nummer wandert wie die Revision als Build-Arg ins Image
+(`SUITE_VERSION`, `laufendeVersion()` in `core/version.ts`) und steht auf
+`/api/health/<modul>` und im Profil unter „Diese Suite". Der Rollout beweist weiterhin über
+die Revision. In Anwender-Notizen kommt die Nummer nicht vor. `scripts/deploy.test.ts` und
+`scripts/version.test.ts` halten die Kette zusammen.
+
 ## Cutover einer Alt-Anwendung
 
 Runbooks liegen in `docs/runbooks/`. Muster: Generalprobe mit Snapshot-Kopie → Freeze → echter Snapshot

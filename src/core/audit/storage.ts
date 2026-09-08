@@ -42,6 +42,7 @@ export function queryAuditEvents(filters: AuditFilters = {}): AuditPage {
   if (filters.objectRefHash !== undefined && (filters.module === undefined || filters.objectType === undefined)) throw new Error("Incomplete audit object scope");
   if (filters.cursor && !/^[0-9a-f-]{36}$/i.test(filters.cursor.id)) throw new Error("Invalid audit cursor");
   const clauses = ["occurred_at >= ?"]; const params: (string | number)[] = [auditCutoff()];
+  if (filters.excludeSystem) clauses.push("json_extract(actor, '$.kind') != 'system'");
   for (const [column, value] of [["module", filters.module], ["object_type", filters.objectType], ["action", filters.action], ["json_extract(actor, '$.id')", filters.actorId], ["result", filters.result], ["object_ref", filters.objectRefHash !== undefined ? "sha256:" + filters.objectRefHash : filters.objectRef === undefined ? undefined : safeAuditReference(filters.objectRef)]] as const) {
     if (value !== undefined) { clauses.push(`${column} = ?`); params.push(value); }
   }

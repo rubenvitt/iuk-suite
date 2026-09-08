@@ -4,6 +4,7 @@ import { verfallStatus, verfallSchwellen } from "../../../_lib/domain/verfall";
 import { chargeText } from "../../../_lib/format";
 import { artikelListe } from "../../../_lib/lesepfade/artikel";
 import { fahrzeugListe } from "../../../_lib/lesepfade/fahrzeuge";
+import { requireLagerbuchAdmin } from "../../../_lib/zugang";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ArtikelTable, type ArtikelAnzeigeZeile } from "./ArtikelTable";
 
@@ -45,6 +46,7 @@ export function artikelSeitenInhalt(db: DB, jetzt: Date): ReactNode {
   );
 }
 
-export default function ArtikelSeite() {
+export default async function ArtikelSeite() {
+  await requireLagerbuchAdmin();
   return artikelSeitenInhalt(getDb(), new Date());
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
+import { laufendeRevision, laufendeVersion } from "@/core/version";
 import { ProfilAnsicht } from "@/app/m/portal/_ui/ProfilAnsicht";
 import { alleSitzungenAbmelden } from "@/app/m/portal/profil/actions";
 
@@ -33,6 +34,11 @@ export default async function ProfilPage() {
         gruppen={session.user.groups ?? []}
         fachgruppen={session.user.fachgruppen ?? []}
         angemeldetSeit={session.angemeldetSeit ?? null}
+        // Zur Anfragezeit gelesen, nicht auf Modulebene: die Seite ist durch `auth()`
+        // ohnehin dynamisch, und `core/version.ts` erklärt, warum ein eingefrorener
+        // Bauzeit-Wert still `unbekannt` bliebe.
+        version={laufendeVersion()}
+        revision={laufendeRevision()}
         abmelden={alleSitzungenAbmelden}
       />
     </>

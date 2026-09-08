@@ -1,11 +1,30 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { laufendeRevision } from "@/core/version";
+import { laufendeRevision, laufendeVersion } from "@/core/version";
 
 const vorher = process.env.SUITE_REVISION;
+const vorherVersion = process.env.SUITE_VERSION;
 
 afterEach(() => {
   if (vorher === undefined) delete process.env.SUITE_REVISION;
   else process.env.SUITE_REVISION = vorher;
+  if (vorherVersion === undefined) delete process.env.SUITE_VERSION;
+  else process.env.SUITE_VERSION = vorherVersion;
+});
+
+describe("laufendeVersion", () => {
+  it("gibt die gestempelte Nummer zurück und liest bei jedem Aufruf neu", () => {
+    process.env.SUITE_VERSION = "1.4.2";
+    expect(laufendeVersion()).toBe("1.4.2");
+    process.env.SUITE_VERSION = "1.5.0";
+    expect(laufendeVersion()).toBe("1.5.0");
+  });
+
+  it("meldet `unbekannt` statt eines leeren Strings — wie die Revision", () => {
+    process.env.SUITE_VERSION = "  ";
+    expect(laufendeVersion()).toBe("unbekannt");
+    delete process.env.SUITE_VERSION;
+    expect(laufendeVersion()).toBe("unbekannt");
+  });
 });
 
 describe("laufendeRevision", () => {
