@@ -446,8 +446,19 @@ jobs:
         # bash eine Kommandosubstitution (dieselbe Falle wie in scripts/deploy.sh).
         run: |
           tag="v$VERSION"
+          # Ein Tag, der schon auf DIESEN Commit zeigt, ist kein Fehler, sondern ein
+          # wiederholter Lauf (workflow_dispatch auf main, „Re-run all jobs") — dann ist
+          # hier nichts zu tun, und der Lauf bleibt gruen. Zeigt er woanders hin, war ein
+          # gleichzeitiger Lauf schneller oder die Historie wurde umgeschrieben: rot.
+          # `^{commit}` loest einen annotierten Tag auf den Commit auf.
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            echo "::error::Tag $tag existiert bereits — siehe docs/runbooks/versionierung.md, F2."
+            git fetch -q --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
+            zeigt_auf="$(git rev-parse "$tag^{commit}")"
+            if [ "$zeigt_auf" = "$GITHUB_SHA" ]; then
+              echo "Tag $tag zeigt bereits auf $GITHUB_SHA — wiederholter Lauf, nichts zu tun."
+              exit 0
+            fi
+            echo "::error::Tag $tag existiert bereits und zeigt auf $zeigt_auf statt auf $GITHUB_SHA — siehe docs/runbooks/versionierung.md, F2."
             exit 1
           fi
           kopf="$(printf 'Image: ghcr.io/%s:%s\nCommit: %s' "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA")"

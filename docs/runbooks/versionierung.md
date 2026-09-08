@@ -146,9 +146,12 @@ wurde umgeschrieben (Force-Push auf `main`, oder ein fremder Klon ohne diese His
 Im zweiten Fall einen Tag `vX.Y.Z` von Hand auf den gewünschten Stand setzen; ab dann
 zählt der Tag, nicht der Anker.
 
-### F2 — `release` rot: „Tag vX.Y.Z existiert bereits"
+### F2 — `release` rot: „Tag vX.Y.Z existiert bereits und zeigt auf … statt auf …"
 
-Zwei Erklärungen, in dieser Reihenfolge prüfen:
+Vorweg: ein Tag, der schon auf **denselben** Commit zeigt, ist kein Fehler — dann war es ein
+wiederholter Lauf (`workflow_dispatch` auf `main`, „Re-run all jobs"), und `release` endet
+grün mit „wiederholter Lauf, nichts zu tun". Rot wird es nur, wenn der Tag **woanders**
+hinzeigt. Dafür zwei Erklärungen, in dieser Reihenfolge prüfen:
 
 1. **Die Historie wurde umgeschrieben** (Force-Push auf `main`, ein Tag von Hand gesetzt).
    Dann rechnet das Skript von einem Tag aus, der nicht mehr auf der Kette liegt, oder eine
