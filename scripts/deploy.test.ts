@@ -211,6 +211,8 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     // spätere listete die PRs des früheren noch einmal.
     expect(releaseJob).toMatch(/fetch-depth:\s*0/);
     expect(releaseJob).toMatch(/node scripts\/version\.mjs/);
+    // … und die Tags werden unmittelbar davor nachgeholt, nicht nur beim Checkout.
+    expect(releaseJob).toMatch(/git fetch --tags[^\n]*\n\s*node scripts\/version\.mjs/);
     expect(releaseJob).not.toMatch(/needs\.version\.outputs\.basis/);
     const schreibend = jobs
       .filter((z) => !z.trimStart().startsWith("#"))

@@ -450,8 +450,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Tags UNMITTELBAR vor der Rechnung nachholen: zwischen dem Checkout dieses Jobs
+      # und dem Tag eines fruehreren, sich ueberholenden Laufs liegen sonst Sekunden, in
+      # denen der lokale Tag-Stand schon wieder alt ist. Die verbleibende Luecke ist die
+      # Laufzeit dieses einen Schritts; ein dort noch fehlender Tag kostet hoechstens eine
+      # doppelt genannte PR-Zeile in den Notizen, nie einen falschen Tag (Pruefung unten).
       - id: frisch
-        run: node scripts/version.mjs
+        run: |
+          git fetch --tags --force --quiet origin
+          node scripts/version.mjs
       - name: Tag und Release anlegen
         env:
           GH_TOKEN: ${{ github.token }}
