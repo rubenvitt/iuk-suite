@@ -14,6 +14,48 @@ function fixtureEvents(actor: string) {
   db.transaction(()=>{ for(let i=0;i<55;i++) insert.run(randomUUID(),Date.now()-1000-i,"qr","export","qr_png","sha256:"+createHash("sha256").update("audit-private-object-"+i).digest("hex"),JSON.stringify({kind:"user",id:actor,name:"Audit-Probe"}),"success","browser"); })();
  } finally { db.close(); }
 }
+test("Systemeinträge sind initial ausgeblendet und per Checkbox einblendbar",async({page},testInfo)=>{
+ const email=`audit-system-${randomUUID()}@localtest.me`;
+ await devLogin(page,{host:"portal.localtest.me",groups:"dashboard-admins",email});
+ fixtureEvents(`dev:${email}`);
+ const systemId=randomUUID();
+ const db=new Database(".data/e2e/audit.db");
+ try {
+  db.prepare("INSERT INTO audit_events (id,occurred_at,module,action,object_type,actor,result,origin) VALUES (?,?,?,?,?,?,?,?)")
+   .run(systemId,Date.now(),"qr","export","qr_png",JSON.stringify({kind:"system"}),"success","server");
+ } finally { db.close(); }
+ const readPage=async()=>{
+  const response=await page.request.get(PORTAL+"/admin/audit/data?"+new URL(page.url()).searchParams);
+  expect(response.status()).toBe(200);
+  return (await response.json()).page.events as {id:string;actor:{kind:string}}[];
+ };
+ await page.goto(PORTAL+"/admin/audit");
+ const checkbox=page.getByRole("checkbox",{name:"Systemeinträge anzeigen"});
+ await expect(checkbox).not.toBeChecked();
+ expect((await readPage()).every(event=>event.actor.kind!=="system")).toBe(true);
+ for(const width of [1280,390]) {
+  await page.setViewportSize({width,height:960});
+  await checkbox.scrollIntoViewIfNeeded();
+  const label=checkbox.locator("xpath=ancestor::label");
+  expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  await page.screenshot({path:testInfo.outputPath(`systemfilter-${width}.png`),animations:"disabled"});
+ }
+ await checkbox.focus();await checkbox.press("Space");
+ await page.getByRole("button",{name:"Filter anwenden"}).click();
+ await expect(page).toHaveURL(/includeSystem=1/);
+ await expect(checkbox).toBeChecked();
+ expect((await readPage()).some(event=>event.id===systemId)).toBe(true);
+ await expect(page.getByText("QR-Codes · System",{exact:true})).toBeVisible();
+ await page.reload();await expect(checkbox).toBeChecked();
+ await page.getByRole("button",{name:"Ältere Einträge"}).click();
+ await expect(page).toHaveURL(/cursorId=/);await expect(page).toHaveURL(/includeSystem=1/);
+ await expect(checkbox).toBeChecked();
+ await page.getByRole("button",{name:"Filter zurücksetzen"}).click();
+ await expect(page).toHaveURL(PORTAL+"/admin/audit");
+ await expect(checkbox).not.toBeChecked();
+ expect((await readPage()).every(event=>event.actor.kind!=="system")).toBe(true);
+});
 test("Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und drei Darstellungen",async({page},testInfo)=>{
  const SCREENSHOTS=testInfo.outputPath("screenshots");
  // Unique for every retry/repeat on the same live server; previous evidence stays intact.
