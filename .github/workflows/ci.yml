@@ -376,6 +376,17 @@ jobs:
     needs: [build, version]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Zwei Laeufe DESSELBEN Commits (ein workflow_dispatch neben seinem Push-Lauf, ein
+    # „Re-run all jobs" waehrend der erste noch laeuft) duerfen diesen Job nicht
+    # gleichzeitig durchlaufen: beide saehen die Registry noch ohne `:X.Y.Z`, und der
+    # zweite schoebe das Tag auf seinen eigenen Digest. Die Gruppe ist BEWUSST je SHA,
+    # nicht je Workflow — Laeufe verschiedener Commits ueberholen sich weiter, und
+    # GitHubs Regel „nur ein wartender Lauf je Gruppe, aeltere werden abgebrochen" trifft
+    # so nur Wiederholungen desselben Standes, nie den Merge dazwischen. Der zweite Lauf
+    # sieht das Tag danach in der Registry und laesst es stehen (naechster Schritt).
+    concurrency:
+      group: merge-${{ github.sha }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
@@ -454,6 +465,13 @@ jobs:
     needs: [merge, version]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Dieselbe Gruppe je SHA wie bei `merge`, aus demselben Grund: zwei Laeufe desselben
+    # Commits legen Tag und Release nacheinander an, nicht gleichzeitig. Die Pruefung
+    # vor und nach dem Anlegen (unten) bleibt trotzdem — sie ist der Gurt, das hier der
+    # Airbag.
+    concurrency:
+      group: release-${{ github.sha }}
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:

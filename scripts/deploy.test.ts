@@ -205,6 +205,21 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     expect(mergeJob).not.toMatch(/needs\.version\.outputs\.getaggt/);
   });
 
+  it("`merge` und `release` laufen je Commit nacheinander, nie gleichzeitig", () => {
+    // Prüfen-dann-Anlegen bleibt ein Rennen, wenn zwei Läufe DESSELBEN Commits
+    // gleichzeitig darin stehen. Die Gruppe hängt am SHA — nicht am Workflow —, damit
+    // Läufe verschiedener Commits sich weiter überholen dürfen und GitHubs Abbruch
+    // wartender Läufe nie einen Merge dazwischen trifft.
+    for (const [name, job] of [
+      ["merge", mergeJob],
+      ["release", releaseJob],
+    ] as const) {
+      const nebenlauf = rumpf(job.split("\n"), "concurrency", 4).join("\n");
+      expect(nebenlauf, `${name}: concurrency steht`).toMatch(/group:.*\$\{\{\s*github\.sha\s*\}\}/);
+      expect(nebenlauf, `${name}: kein Abbruch`).toMatch(/cancel-in-progress:\s*false/);
+    }
+  });
+
   it("die Health-Route gibt sie neben der Revision aus, die Profilseite zeigt sie", () => {
     expect(healthRoute).toMatch(/laufendeVersion\(\)/);
     expect(healthRoute).toMatch(/version:/);

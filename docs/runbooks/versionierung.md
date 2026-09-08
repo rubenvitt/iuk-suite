@@ -84,6 +84,12 @@ seiner Historie und rechnet zwangsläufig eine andere Nummer, unabhängig davon,
 frühere seinen Tag schon gesetzt hat. `deploy` hängt nicht an `release`: scheitert der Tag
 doch einmal (F2), läuft der Rollout trotzdem, und das Image trägt die Nummer.
 
+**Zwei Läufe desselben Commits laufen nacheinander.** `merge` und `release` tragen eine
+`concurrency`-Gruppe je Commit-SHA, ohne Abbruch: ein `workflow_dispatch` neben seinem
+Push-Lauf wartet, bis der erste fertig ist, sieht dann `:X.Y.Z` in der Registry und Tag
+und Release in Git und lässt beides stehen. Läufe verschiedener Commits sind davon nicht
+betroffen.
+
 Auf einem **PR** rechnet `version` dieselbe Nummer und schreibt sie nur in die
 Zusammenfassung — so sieht man vor dem Merge, was er auslöst. `release` läuft dort nicht.
 
