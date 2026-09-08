@@ -74,9 +74,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.rechne.outputs.version }}
-      # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. `release` nutzt ihn
-      # als Startpunkt der PR-Liste.
+      # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. Nur zur Auskunft —
+      # `release` rechnet seine Basis selbst frisch.
       basis: ${{ steps.rechne.outputs.basis }}
+      # `true`, wenn `v<version>` schon auf DIESEM Commit steht: ein wiederholter Lauf
+      # eines veroeffentlichten Standes. `merge` vergibt das Image-Tag `:X.Y.Z` dann
+      # nicht noch einmal — der Neubau hat einen anderen Digest, und das Tag wanderte
+      # sonst still, waehrend Git-Tag und Release stehen bleiben.
+      getaggt: ${{ steps.rechne.outputs.getaggt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -399,13 +404,17 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # Die letzte Zeile ist das lesbare Gegenstueck zu `:sha-…` — fuer einen Rollback
           # von Hand (`SUITE_IMAGE_TAG=1.4.2`, docs/runbooks/auto-rollout.md Teil D2). Nur
-          # auf main: ein Branch-Image mit Versionsnummer saehe aus wie ein Release.
+          # auf main, und NUR wenn der Git-Tag nicht schon auf diesem Commit steht: bei
+          # einem wiederholten Lauf (workflow_dispatch, „Re-run all jobs") hat der Neubau
+          # einen anderen Digest, und `:X.Y.Z` wanderte sonst still weg von dem Stand,
+          # den Git-Tag und Release nennen. `:latest` und `:sha-…` duerfen wandern — sie
+          # versprechen keinen festen Digest, die Versionsnummer schon.
           # KEIN KOMMENTAR INNERHALB DES `|`-BLOCKS: dort waere er eine Tag-Zeile.
           tags: |
             type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ needs.version.outputs.version }},enable={{is_default_branch}}
+            type=raw,value=${{ needs.version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && needs.version.outputs.getaggt != 'true' }}
       - name: Manifest-Liste erzeugen
         working-directory: /tmp/digests
         run: |

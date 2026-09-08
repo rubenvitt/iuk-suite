@@ -186,10 +186,16 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     );
   });
 
-  it("die Manifest-Liste trägt die Nummer als Tag, nur auf main", () => {
-    expect(mergeJob).toMatch(
-      /type=raw,value=\$\{\{\s*needs\.version\.outputs\.version\s*\}\},enable=\{\{is_default_branch\}\}/,
-    );
+  it("die Manifest-Liste trägt die Nummer als Tag — nur auf main und nur beim ERSTEN Lauf", () => {
+    // Bei einem wiederholten Lauf eines schon getaggten Commits hat der Neubau einen
+    // anderen Digest; `:X.Y.Z` wanderte sonst still weg von dem Stand, den Git-Tag und
+    // Release nennen. Deshalb hängt das Tag an `getaggt` aus dem Job `version`.
+    const zeile = mergeJob
+      .split("\n")
+      .find((z) => /type=raw,value=\$\{\{\s*needs\.version\.outputs\.version\s*\}\}/.test(z));
+    expect(zeile, "Versions-Tag steht in der Manifest-Liste").toBeDefined();
+    expect(zeile).toMatch(/refs\/heads\/main/);
+    expect(zeile).toMatch(/needs\.version\.outputs\.getaggt\s*!=\s*'true'/);
   });
 
   it("die Health-Route gibt sie neben der Revision aus, die Profilseite zeigt sie", () => {

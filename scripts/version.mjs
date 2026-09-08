@@ -297,6 +297,7 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
    * Tag auf `ziel` selbst, ist es ein wiederholter Lauf und in Ordnung.
    */
   const belegt = git(["tag", "--list", `v${nummer}`], cwd).trim();
+  let bereitsGetaggt = false;
   if (belegt) {
     const zielCommit = git(["rev-parse", `${ziel}^{commit}`], cwd).trim();
     const tagCommit = git(["rev-parse", `${belegt}^{commit}`], cwd).trim();
@@ -307,9 +308,16 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
           `main-Kette. Abhilfe: docs/runbooks/versionierung.md, F2.`,
       );
     }
+    /*
+     * Der Tag zeigt auf `ziel` selbst: ein wiederholter Lauf eines schon
+     * veröffentlichten Standes. Der Job `merge` vergibt das Image-Tag `:X.Y.Z` dann
+     * NICHT noch einmal — ein Neubau desselben Commits hat einen anderen Digest, und
+     * das Tag wanderte sonst still, während Git-Tag und Release stehen bleiben.
+     */
+    bereitsGetaggt = true;
   }
 
-  return { version: nummer, basis, ankerBenutzt: basis === null, schritte };
+  return { version: nummer, basis, ankerBenutzt: basis === null, bereitsGetaggt, schritte };
 }
 
 /**
@@ -345,9 +353,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
    */
   if (process.env.GITHUB_OUTPUT) {
     // `basis` leer heißt: erster Tag. Der Job `release` lässt dann die PR-Liste weg.
+    // `getaggt=true`: wiederholter Lauf, `merge` lässt das Image-Tag `:X.Y.Z` stehen.
     appendFileSync(
       process.env.GITHUB_OUTPUT,
-      `version=${ergebnis.version}\nbasis=${ergebnis.basis ?? ""}\n`,
+      `version=${ergebnis.version}\nbasis=${ergebnis.basis ?? ""}\ngetaggt=${ergebnis.bereitsGetaggt}\n`,
     );
   }
   if (process.env.GITHUB_STEP_SUMMARY) {
