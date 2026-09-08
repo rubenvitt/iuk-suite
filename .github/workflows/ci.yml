@@ -494,17 +494,25 @@ jobs:
           # Ein Tag, der schon auf DIESEN Commit zeigt, ist kein Fehler, sondern ein
           # wiederholter Lauf (workflow_dispatch auf main, „Re-run all jobs") — dann ist
           # hier nichts zu tun, und der Lauf bleibt gruen. Zeigt er woanders hin, war ein
-          # gleichzeitiger Lauf schneller oder die Historie wurde umgeschrieben: rot.
-          # `^{commit}` loest einen annotierten Tag auf den Commit auf.
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
-            git fetch -q --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
+          # gleichzeitiger Lauf eines ANDEREN Commits schneller oder die Historie wurde
+          # umgeschrieben: rot. `^{commit}` loest einen annotierten Tag auf den Commit auf.
+          #
+          # Die Pruefung steht als Funktion, weil sie ZWEIMAL laeuft: vor dem Anlegen und
+          # noch einmal, falls das Anlegen scheitert. Zwischen beidem liegt die Luecke, in
+          # der ein gleichzeitiger Lauf DESSELBEN Commits Tag und Release schon angelegt
+          # haben kann — dann ist der Fehlschlag keiner, und dieser Lauf endet gruen.
+          # Rueckgabe 0: Tag zeigt auf GITHUB_SHA. 1: kein Tag. Fremdes Ziel: Abbruch.
+          tag_gehoert_uns() {
+            git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null || return 1
+            git fetch -q --force --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
             zeigt_auf="$(git rev-parse "$tag^{commit}")"
-            if [ "$zeigt_auf" = "$GITHUB_SHA" ]; then
-              echo "Tag $tag zeigt bereits auf $GITHUB_SHA — wiederholter Lauf, nichts zu tun."
-              exit 0
-            fi
+            if [ "$zeigt_auf" = "$GITHUB_SHA" ]; then return 0; fi
             echo "::error::Tag $tag existiert bereits und zeigt auf $zeigt_auf statt auf $GITHUB_SHA — siehe docs/runbooks/versionierung.md, F2."
             exit 1
+          }
+          if tag_gehoert_uns && gh release view "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag und Release existieren bereits fuer $GITHUB_SHA — wiederholter Lauf, nichts zu tun."
+            exit 0
           fi
           kopf="$(printf 'Image: ghcr.io/%s:%s\nCommit: %s' "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA")"
           # GitHub listet die seit dem vorigen Tag gemergten PRs. Beim ersten Tag gibt es
@@ -517,7 +525,17 @@ jobs:
           else
             notizen="$(printf '%s\n\nErster Versionstag der Suite.' "$kopf")"
           fi
-          gh release create "$tag" --target "$GITHUB_SHA" --title "$VERSION" --notes "$notizen"
+          # `gh release create` legt einen fehlenden Tag selbst an. Scheitert es, weil ein
+          # gleichzeitiger Lauf desselben Commits schneller war, ist das Ergebnis dasselbe
+          # wie unseres — dann gruen. Jeder andere Grund bleibt rot.
+          if ! gh release create "$tag" --target "$GITHUB_SHA" --title "$VERSION" --notes "$notizen"; then
+            if tag_gehoert_uns && gh release view "$tag" >/dev/null 2>&1; then
+              echo "Ein gleichzeitiger Lauf hat $tag und das Release fuer $GITHUB_SHA schon angelegt — nichts zu tun."
+              exit 0
+            fi
+            echo "::error::gh release create fuer $tag ist fehlgeschlagen — siehe docs/runbooks/versionierung.md, F2."
+            exit 1
+          fi
           echo "Release $tag angelegt: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
 
   # ══ Automatischer Rollout auf den Server ═══════════════════════════════════════════

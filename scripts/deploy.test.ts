@@ -216,9 +216,16 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     expect(releaseJob).toMatch(/needs:\s*\[[^\]]*\bmerge\b/);
     expect(/if:\s*(.+)/.exec(releaseJob)?.[1] ?? "").toContain("refs/heads/main");
     expect(releaseJob).toMatch(/gh release create/);
-    // Der Tag darf nie einen bestehenden überschreiben — ein gleichzeitiger Lauf war
-    // dann schneller, und das soll rot sein, nicht still umgebogen.
+    // Der Tag darf nie einen bestehenden überschreiben — ein gleichzeitiger Lauf eines
+    // ANDEREN Commits war dann schneller, und das soll rot sein, nicht still umgebogen.
     expect(releaseJob).toMatch(/git ls-remote --exit-code --tags/);
+    // Ein gleichzeitiger Lauf DESSELBEN Commits dagegen ist kein Fehler: schlägt das
+    // Anlegen fehl, wird nachgeprüft, ob Tag und Release inzwischen für GITHUB_SHA
+    // existieren — dann grün. Die Prüfung ist eine Funktion und läuft vor und nach dem
+    // Anlegen, sonst bliebe die Lücke zwischen Prüfung und `gh release create`.
+    expect(releaseJob).toMatch(/tag_gehoert_uns\(\)\s*\{/);
+    expect(releaseJob).toMatch(/if ! gh release create/);
+    expect((releaseJob.match(/tag_gehoert_uns && gh release view/g) ?? []).length).toBe(2);
     // Die Basis der Release-Notizen wird HIER frisch gerechnet, mit voller Historie:
     // aus `version` käme bei zwei sich überholenden Läufen dieselbe alte Basis, und der
     // spätere listete die PRs des früheren noch einmal.
