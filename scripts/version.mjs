@@ -186,15 +186,24 @@ function vergleiche(a, b) {
  * `git tag --merged` statt `git describe`: `describe` nimmt ein Glob, und jedes Glob,
  * das `v1.2.3` trifft, trifft auch `v1.2` oder `v1.2.3+build` — `parseTag` würfe dann
  * an einem Tag, der laut Regel gar nicht zählt. Hier wird zuerst nach der Regel
- * gefiltert und erst dann der nächste gewählt. „Nächster" heißt: die wenigsten
- * First-Parent-Schritte bis `ziel`; bei gleichem Abstand (zwei Versionstags auf einem
- * Commit) gewinnt die höhere Nummer, weil sie die spätere Aussage ist.
+ * gefiltert und erst dann der nächste gewählt.
+ *
+ * NUR TAGS AUF DER FIRST-PARENT-KETTE. `--merged` liefert alles, was von `ziel` aus
+ * erreichbar ist — auch einen Tag auf der Spitze eines gemergten Zweigs, der nie auf
+ * `main` lag (dritter Befund aus dem Review von #109). Von dort aus gerechnet käme eine
+ * alte oder fremde Nummer heraus. Deshalb wird die Kette einmal gelesen und jeder
+ * Kandidat muss darin vorkommen; sein Index in der Kette ist zugleich der Abstand.
+ * „Nächster" heißt: der kleinste Abstand; bei gleichem Abstand (zwei Versionstags auf
+ * einem Commit) gewinnt die höhere Nummer, weil sie die spätere Aussage ist.
  *
  * @param {string} cwd
  * @param {string} ziel
  * @returns {string | null}
  */
 function naechsterVersionstag(cwd, ziel) {
+  // Neuester zuerst: Index 0 ist `ziel` selbst, Index n liegt n Schritte davor.
+  const kette = git(["rev-list", "--first-parent", ziel], cwd).split("\n").filter(Boolean);
+  const abstandVon = new Map(kette.map((commit, i) => [commit, i]));
   const kandidaten = git(["tag", "--list", "v*", "--merged", ziel], cwd)
     .split("\n")
     .map((t) => t.trim())
@@ -202,7 +211,10 @@ function naechsterVersionstag(cwd, ziel) {
   /** @type {{ tag: string; abstand: number } | null} */
   let bester = null;
   for (const tag of kandidaten) {
-    const abstand = Number(git(["rev-list", "--count", "--first-parent", `${tag}..${ziel}`], cwd).trim());
+    // `^{commit}`: ein annotierter Tag zeigt auf ein Tag-Objekt, nicht auf den Commit.
+    const commit = git(["rev-parse", `${tag}^{commit}`], cwd).trim();
+    const abstand = abstandVon.get(commit);
+    if (abstand === undefined) continue;
     if (
       bester === null ||
       abstand < bester.abstand ||

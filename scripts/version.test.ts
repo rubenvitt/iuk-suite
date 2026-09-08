@@ -229,6 +229,29 @@ describe("berechneVersion — an einer echten Historie", () => {
     expect(berechneVersion(repo)).toMatchObject({ version: "2.0.6", basis: "v2.0.5" });
   });
 
+  it("ein Versionstag auf einem gemergten Zweig-Commit ist KEINE Basis", () => {
+    // Dritter Befund aus dem Review von #109: `git tag --merged` liefert auch ein
+    // `v0.1.0` auf der Spitze eines Zweigs, der gerade gemergt wurde — erreichbar,
+    // aber nie auf `main`. Von dort aus gerechnet käme 0.1.1 heraus, und `:0.1.1`
+    // überschriebe womöglich ein altes Image. Nur die First-Parent-Kette zählt.
+    git("checkout", "-q", "-b", "pr-4");
+    commit("fix(w): auf dem Zweig");
+    git("tag", "v0.1.0");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "pr-4", "-m", "Merge pull request #4");
+    const e = berechneVersion(repo);
+    expect(e.basis).toBe("v2.0.5");
+    expect(e.version).toBe("2.0.7");
+  });
+
+  it("ein annotierter Tag zählt wie ein leichter", () => {
+    // `rev-parse tag^{commit}` löst das Tag-Objekt auf; ohne das Suffix zeigte ein
+    // annotierter Tag auf sich selbst und fiele still aus der Kette.
+    git("tag", "-a", "v2.1.0", "-m", "annotiert");
+    commit("docs: nach dem annotierten Tag");
+    expect(berechneVersion(repo)).toMatchObject({ version: "2.1.1", basis: "v2.1.0" });
+  });
+
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {
     const leer = mkdtempSync(path.join(tmpdir(), "iuk-kein-repo-"));
     try {
