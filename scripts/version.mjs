@@ -286,7 +286,30 @@ export function berechneVersion(cwd, ziel = "HEAD", optionen = {}) {
 
   let version = start;
   for (const s of schritte) version = erhoehe(version, s.sprung);
-  return { version: formatVersion(version), basis, ankerBenutzt: basis === null, schritte };
+  const nummer = formatVersion(version);
+
+  /*
+   * IST DIE NUMMER SCHON VERGEBEN? Ein Tag `vX.Y.Z` auf einem Commit ABSEITS der Kette
+   * (von Hand auf einen Zweig gesetzt) zählt oben zu Recht nicht als Basis — belegt den
+   * Namen aber trotzdem (vierter Befund aus dem Review von #109). Ohne diese Prüfung
+   * bekäme das Image `:X.Y.Z`, und erst `release` scheiterte am Git-Tag; Image und Tag
+   * zeigten dann auf verschiedene Commits. Deshalb hier, VOR dem Build, laut. Zeigt der
+   * Tag auf `ziel` selbst, ist es ein wiederholter Lauf und in Ordnung.
+   */
+  const belegt = git(["tag", "--list", `v${nummer}`], cwd).trim();
+  if (belegt) {
+    const zielCommit = git(["rev-parse", `${ziel}^{commit}`], cwd).trim();
+    const tagCommit = git(["rev-parse", `${belegt}^{commit}`], cwd).trim();
+    if (tagCommit !== zielCommit) {
+      throw new Error(
+        `Die errechnete Nummer ${nummer} ist schon vergeben: Tag ${belegt} zeigt auf ` +
+          `${tagCommit.slice(0, 7)}, nicht auf ${zielCommit.slice(0, 7)} — ein Tag abseits der ` +
+          `main-Kette. Abhilfe: docs/runbooks/versionierung.md, F2.`,
+      );
+    }
+  }
+
+  return { version: nummer, basis, ankerBenutzt: basis === null, schritte };
 }
 
 /**

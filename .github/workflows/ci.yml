@@ -436,16 +436,33 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Volle Historie, weil die Basis fuer die Release-Notizen HIER frisch gerechnet
+      # wird und nicht aus dem Job `version` kommt: zwei sich ueberholende main-Laeufe
+      # haetten dort dieselbe alte Basis gesehen, und der spaetere listete die PRs des
+      # frueheren noch einmal. Die NUMMER dagegen kommt weiter aus `version` — sie steckt
+      # schon im Image, und sie ist aus der Historie ohnehin dieselbe (Gegenprobe unten).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: frisch
+        run: node scripts/version.mjs
       - name: Tag und Release anlegen
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
-          BASIS: ${{ needs.version.outputs.basis }}
+          VERSION_FRISCH: ${{ steps.frisch.outputs.version }}
+          BASIS: ${{ steps.frisch.outputs.basis }}
         # Keine Backticks in diesem Block: in doppelten Anfuehrungszeichen sind sie fuer
         # bash eine Kommandosubstitution (dieselbe Falle wie in scripts/deploy.sh).
         run: |
           tag="v$VERSION"
+          # Gegenprobe: die Nummer folgt aus der Historie und darf sich zwischen den Jobs
+          # nicht geaendert haben. Tut sie es doch, wurde zwischendurch getaggt oder
+          # umgeschrieben — dann lieber rot als ein Tag, der nicht zum Image passt.
+          if [ "$VERSION_FRISCH" != "$VERSION" ]; then
+            echo "::error::Das Image traegt $VERSION, die Historie ergibt jetzt $VERSION_FRISCH — siehe docs/runbooks/versionierung.md, F2."
+            exit 1
+          fi
           # Ein Tag, der schon auf DIESEN Commit zeigt, ist kein Fehler, sondern ein
           # wiederholter Lauf (workflow_dispatch auf main, „Re-run all jobs") — dann ist
           # hier nichts zu tun, und der Lauf bleibt gruen. Zeigt er woanders hin, war ein

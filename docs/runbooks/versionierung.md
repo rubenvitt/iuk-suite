@@ -71,7 +71,7 @@ Der Tag auf `main` ist es. Kein Bot-Commit, keine Datei, die nachgezogen wird.
 | `version` | `node scripts/version.mjs` mit voller Historie; Nummer in die Zusammenfassung des Laufs |
 | `build` | `SUITE_VERSION=<Nummer>` als Build-Arg, in beiden Build-Schritten |
 | `merge` | Manifest-Liste bekommt zusätzlich das Tag `:<Nummer>` |
-| `release` | prüft, dass `v<Nummer>` noch nicht existiert; legt Tag und Release an |
+| `release` | rechnet die Basis frisch (volle Historie), prüft, dass `v<Nummer>` noch nicht woanders existiert; legt Tag und Release an |
 | `deploy` | unverändert; die Zusammenfassung nennt die Nummer aus `/api/health/portal` |
 
 Warum die Nummer **vor** dem Build feststeht, der Tag aber erst **nach** `merge` entsteht:
@@ -159,6 +159,15 @@ hinzeigt. Dafür zwei Erklärungen, in dieser Reihenfolge prüfen:
    `git tag -l 'v*' --contains` die Lage der Tags.
 2. **Ein Tag von Hand mit derselben Nummer.** Tag löschen oder umbenennen, Lauf wiederholen
    (`Re-run failed jobs` — der Job rechnet nicht neu, `version` steht als Ausgabe fest).
+3. **Ein Tag von Hand auf einem Zweig-Commit**, der nie auf `main` lag (etwa `v2.0.1` auf
+   einem Patch-Zweig). Er zählt nicht als Basis, belegt den Namen aber. Diesen Fall fängt
+   schon der Job `version` ab („Die errechnete Nummer … ist schon vergeben"), also **vor**
+   dem Build — es entsteht kein Image mit dieser Nummer. Tag entfernen oder umbenennen,
+   Lauf wiederholen.
+
+Verwandt: „Das Image trägt X, die Historie ergibt jetzt Y" in `release` heißt, dass sich
+zwischen `version` und `release` ein Tag auf der Kette geändert hat. Das ist dieselbe
+Ursache 1, nur später bemerkt; der Rollout läuft trotzdem, das Image trägt X.
 
 Der Rollout ist davon nicht betroffen (`deploy` hängt nicht an `release`); das Image trägt
 die Nummer schon.

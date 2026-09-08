@@ -197,6 +197,12 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     // Der Tag darf nie einen bestehenden überschreiben — ein gleichzeitiger Lauf war
     // dann schneller, und das soll rot sein, nicht still umgebogen.
     expect(releaseJob).toMatch(/git ls-remote --exit-code --tags/);
+    // Die Basis der Release-Notizen wird HIER frisch gerechnet, mit voller Historie:
+    // aus `version` käme bei zwei sich überholenden Läufen dieselbe alte Basis, und der
+    // spätere listete die PRs des früheren noch einmal.
+    expect(releaseJob).toMatch(/fetch-depth:\s*0/);
+    expect(releaseJob).toMatch(/node scripts\/version\.mjs/);
+    expect(releaseJob).not.toMatch(/needs\.version\.outputs\.basis/);
     const schreibend = jobs
       .filter((z) => !z.trimStart().startsWith("#"))
       .filter((z) => /^\s*contents:\s*write\b/.test(z));

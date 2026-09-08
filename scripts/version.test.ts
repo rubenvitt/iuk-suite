@@ -252,6 +252,25 @@ describe("berechneVersion — an einer echten Historie", () => {
     expect(berechneVersion(repo)).toMatchObject({ version: "2.1.1", basis: "v2.1.0" });
   });
 
+  it("eine schon vergebene Nummer abseits der Kette ist ein lauter Fehler, kein Image", () => {
+    // Vierter Befund aus dem Review von #109: `v2.1.2` von Hand auf einen Zweig-Commit
+    // gesetzt zählt nicht als Basis, belegt den Namen aber. Der Merge rechnete 2.1.2,
+    // das Image bekäme `:2.1.2`, und erst `release` fiele am Git-Tag um. Deshalb bricht
+    // schon die Rechnung ab — vor dem Build.
+    git("checkout", "-q", "-b", "pr-5");
+    commit("fix(v): auf dem Zweig, von Hand getaggt");
+    git("tag", "v2.1.2");
+    git("checkout", "-q", "main");
+    git("merge", "-q", "--no-ff", "pr-5", "-m", "Merge pull request #5");
+    expect(() => berechneVersion(repo)).toThrow(/2\.1\.2 ist schon vergeben.*v2\.1\.2/);
+    // Ohne den fremden Tag ist es die normale Nummer …
+    git("tag", "-d", "v2.1.2");
+    expect(berechneVersion(repo).version).toBe("2.1.2");
+    // … und ein Tag mit dieser Nummer auf dem Commit SELBST (wiederholter Lauf) stört nicht.
+    git("tag", "v2.1.2");
+    expect(berechneVersion(repo)).toMatchObject({ version: "2.1.2", basis: "v2.1.2" });
+  });
+
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {
     const leer = mkdtempSync(path.join(tmpdir(), "iuk-kein-repo-"));
     try {
