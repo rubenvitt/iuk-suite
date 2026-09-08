@@ -265,15 +265,11 @@ describe("berechneVersion — an einer echten Historie", () => {
     expect(() => berechneVersion(repo)).toThrow(/2\.1\.2 ist schon vergeben.*v2\.1\.2/);
     // Ohne den fremden Tag ist es die normale Nummer …
     git("tag", "-d", "v2.1.2");
-    expect(berechneVersion(repo)).toMatchObject({ version: "2.1.2", bereitsGetaggt: false });
+    expect(berechneVersion(repo).version).toBe("2.1.2");
     // … und ein Tag mit dieser Nummer auf dem Commit SELBST (wiederholter Lauf) stört
-    // nicht — wird aber gemeldet, damit `merge` das Image-Tag nicht verschiebt.
+    // nicht. Ob das Image-Tag dann stehen bleibt, entscheidet `merge` gegen die Registry.
     git("tag", "v2.1.2");
-    expect(berechneVersion(repo)).toMatchObject({
-      version: "2.1.2",
-      basis: "v2.1.2",
-      bereitsGetaggt: true,
-    });
+    expect(berechneVersion(repo)).toMatchObject({ version: "2.1.2", basis: "v2.1.2" });
   });
 
   it("wirft außerhalb eines Repos, statt still 1.0.0 zu liefern", () => {

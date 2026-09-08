@@ -70,7 +70,7 @@ Der Tag auf `main` ist es. Kein Bot-Commit, keine Datei, die nachgezogen wird.
 |---|---|
 | `version` | `node scripts/version.mjs` mit voller Historie; Nummer in die Zusammenfassung des Laufs |
 | `build` | `SUITE_VERSION=<Nummer>` als Build-Arg, in beiden Build-Schritten |
-| `merge` | Manifest-Liste bekommt zusätzlich das Tag `:<Nummer>` — außer der Git-Tag steht schon auf diesem Commit (wiederholter Lauf): dann bleibt `:<Nummer>` auf dem ersten Digest |
+| `merge` | Manifest-Liste bekommt zusätzlich das Tag `:<Nummer>` — außer es existiert in der Registry schon (wiederholter oder überholter Lauf): dann bleibt `:<Nummer>` auf seinem ersten Digest, geprüft im Moment der Veröffentlichung |
 | `release` | rechnet die Basis frisch (volle Historie), prüft, dass `v<Nummer>` noch nicht woanders existiert; legt Tag und Release an |
 | `deploy` | unverändert; die Zusammenfassung nennt die Nummer aus `/api/health/portal` |
 

@@ -77,11 +77,6 @@ jobs:
       # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. Nur zur Auskunft —
       # `release` rechnet seine Basis selbst frisch.
       basis: ${{ steps.rechne.outputs.basis }}
-      # `true`, wenn `v<version>` schon auf DIESEM Commit steht: ein wiederholter Lauf
-      # eines veroeffentlichten Standes. `merge` vergibt das Image-Tag `:X.Y.Z` dann
-      # nicht noch einmal — der Neubau hat einen anderen Digest, und das Tag wanderte
-      # sonst still, waehrend Git-Tag und Release stehen bleiben.
-      getaggt: ${{ steps.rechne.outputs.getaggt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -404,22 +399,33 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # Die letzte Zeile ist das lesbare Gegenstueck zu `:sha-…` — fuer einen Rollback
           # von Hand (`SUITE_IMAGE_TAG=1.4.2`, docs/runbooks/auto-rollout.md Teil D2). Nur
-          # auf main, und NUR wenn der Git-Tag nicht schon auf diesem Commit steht: bei
-          # einem wiederholten Lauf (workflow_dispatch, „Re-run all jobs") hat der Neubau
-          # einen anderen Digest, und `:X.Y.Z` wanderte sonst still weg von dem Stand,
-          # den Git-Tag und Release nennen. `:latest` und `:sha-…` duerfen wandern — sie
-          # versprechen keinen festen Digest, die Versionsnummer schon.
+          # auf main: ein Branch-Image mit Versionsnummer saehe aus wie ein Release. Ob das
+          # Tag WIRKLICH vergeben wird, entscheidet der naechste Schritt gegen die Registry.
           # KEIN KOMMENTAR INNERHALB DES `|`-BLOCKS: dort waere er eine Tag-Zeile.
           tags: |
             type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ needs.version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && needs.version.outputs.getaggt != 'true' }}
+            type=raw,value=${{ needs.version.outputs.version }},enable={{is_default_branch}}
+      # `:X.Y.Z` VERSPRICHT EINEN FESTEN DIGEST — `:latest` und `:sha-…` nicht. Existiert
+      # das Versions-Tag in der Registry schon, bleibt es stehen: ein wiederholter Lauf
+      # (workflow_dispatch, „Re-run all jobs") oder zwei sich ueberholende Laeufe
+      # desselben Commits bauen ein Image mit ANDEREM Digest, und das Tag wanderte sonst
+      # still weg von dem Stand, den Git-Tag und Release nennen. Geprueft wird HIER, im
+      # Moment der Veroeffentlichung, gegen die Registry — nicht als Momentaufnahme im
+      # Job `version`, die bei zwei parallelen Laeufen schon wieder alt waere.
       - name: Manifest-Liste erzeugen
         working-directory: /tmp/digests
+        env:
+          VERSIONSTAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}
         run: |
+          tags="$(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")"
+          if docker buildx imagetools inspect "$VERSIONSTAG" >/dev/null 2>&1; then
+            echo "$VERSIONSTAG existiert bereits und bleibt auf seinem Digest (wiederholter oder ueberholter Lauf)."
+            tags="$(grep -vxF "$VERSIONSTAG" <<< "$tags" || true)"
+          fi
           docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf -- '-t %s ' $tags) \
             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
       - name: Verify — beide Architekturen im Manifest
         run: |
