@@ -309,6 +309,11 @@ echo "  Antwort: ${antwort:-<leer>}"
   Entweder läuft ein Stand von VOR dieser Änderung, oder der Health-Abruf ist gescheitert."
 [ "$rev_live" = "$ERWARTET" ] || zurueck_und_raus "Die laufende Instanz meldet '$rev_live', erwartet war '$ERWARTET'."
 echo "  Revision stimmt."
+# Nur zur Auskunft, kein Prüfschritt: der Beweis ist die Revision (je Commit eindeutig),
+# die Nummer ist ihre lesbare Form (docs/runbooks/versionierung.md). Ein Stand von VOR
+# der Versionierung liefert das Feld gar nicht — deshalb kein Abbruch bei leer.
+VERSION_LIVE="$(printf '%s' "$antwort" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+echo "  Version: ${VERSION_LIVE:-<kein Feld>}"
 
 # ══ Schritt 8 — öffentliche Gegenprobe über Traefik ══════════════════════════════════
 # BEWUSST NUR EINE WARNUNG, kein Rollback: Schritt 7 hat den Container bereits bewiesen.
@@ -338,6 +343,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     echo
     echo "| | |"
     echo "|---|---|"
+    echo "| Version | \`${VERSION_LIVE:-—}\` |"
     echo "| Commit | \`$ERWARTET\` |"
     echo "| Image | \`$NEUES_IMAGE\` |"
     echo "| Rückweg | \`${RUECKWEG:-— (erster Rollout)}\` |"

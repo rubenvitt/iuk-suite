@@ -57,6 +57,36 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  # ══ Welche Version wird dieser Stand? ══════════════════════════════════════════════
+  # Regeln, Rollback ueber Versionstag und Fehlerbilder: docs/runbooks/versionierung.md
+  #
+  # Die Nummer folgt aus der Historie seit dem letzten Tag `vX.Y.Z` (scripts/version.mjs):
+  # jeder Schritt auf `main` ist ein Sprung, der Typ der Commits (Conventional Commits)
+  # entscheidet ueber Major/Minor/Patch. Deshalb `fetch-depth: 0` — eine Tiefe-1-Kopie
+  # kennt weder die Tags noch die Kette dazwischen, und `git describe` wuerfe.
+  #
+  # BEWUSST VOR DEM BUILD UND OHNE `pnpm install`: die Nummer wandert als Build-Arg ins
+  # Image (SUITE_VERSION, wie SUITE_REVISION), muss also feststehen, bevor `build`
+  # laeuft. Das Skript hat keine Abhaengigkeiten, Node reicht. Auf einem PR rechnet der
+  # Job dieselbe Nummer aus und schreibt sie nur in die Zusammenfassung — der Tag
+  # entsteht erst im Job `release`, nach `merge`, und nur auf `main`.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.rechne.outputs.version }}
+      # Der Tag, von dem aus gerechnet wurde; leer beim allerersten. Nur zur Auskunft —
+      # `release` rechnet seine Basis selbst frisch.
+      basis: ${{ steps.rechne.outputs.basis }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: rechne
+        run: node scripts/version.mjs
+
   # FUENF SHARDS, NICHT MEHR WORKER — und das ist keine Geschmacksfrage.
   # `playwright.config.ts` steht auf `workers: 1`, weil der Fake-clamd seine
   # Modusdatei prozessweit teilt und `FILES_AV_PARALLEL: 1` die Reihenfolge
@@ -190,7 +220,12 @@ jobs:
   # roten Bedarf uebersprungen statt rot, und ein uebersprungener Pflicht-Check
   # blockiert genauso. Er muss laufen und scheitern.
   test:
-    needs: [checks, e2e]
+    # `version` gehoert dazu, weil es der EINZIGE Weg ist, ein rotes `version` auf
+    # einem PR zum Merge-Blocker zu machen: `build` wird bei rotem `version` nur
+    # UEBERSPRUNGEN, und ein uebersprungener Job ist fuer das Ruleset kein Fehlschlag.
+    # Ohne diese Zeile liesse sich ein Stand mergen, dessen Nummer schon vergeben ist
+    # (scripts/version.mjs) — und der Fehler traefe erst den main-Lauf, samt Rollout.
+    needs: [checks, e2e, version]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -199,9 +234,10 @@ jobs:
       # `cancelled` und `skipped` ab.
       - name: Ergebnisse der Vorstufen prüfen
         run: |
-          echo "checks=${{ needs.checks.result }} e2e=${{ needs.e2e.result }}"
+          echo "checks=${{ needs.checks.result }} e2e=${{ needs.e2e.result }} version=${{ needs.version.result }}"
           test "${{ needs.checks.result }}" = "success"
           test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.version.result }}" = "success"
 
   # Je Architektur ein Job auf NATIVEM Runner statt einem Job mit QEMU.
   # Grund: der emulierte arm64-Build kompiliert better-sqlite3 nativ und lief
@@ -209,7 +245,8 @@ jobs:
   # auf einem alten Image fest. Nebeneffekt: der image-smoke läuft jetzt auch
   # auf arm64 wirklich, vorher wurde dort nur gebaut und nie gestartet.
   build:
-    needs: test
+    # `version` dazu, weil die Nummer als Build-Arg ins Image geht (unten).
+    needs: [test, version]
     strategy:
       fail-fast: false
       matrix:
@@ -267,8 +304,11 @@ jobs:
           # Muss in BEIDEN build-push-Schritten stehen, nicht nur im pushenden: der
           # image-smoke unten prueft sonst ein Image, das sich vom veroeffentlichten in
           # genau der Eigenschaft unterscheidet, an der der Rollout haengt.
+          # SUITE_VERSION geht denselben Weg wie SUITE_REVISION — scripts/deploy.test.ts
+          # haelt beide Zeilen an beiden Stellen fest.
           build-args: |
             SUITE_REVISION=${{ github.sha }}
+            SUITE_VERSION=${{ needs.version.outputs.version }}
           # Cache pro Plattform trennen, sonst überschreiben sich die beiden
           # Matrix-Jobs gegenseitig und jeder Lauf startet kalt.
           cache-from: type=gha,scope=${{ matrix.platform }}
@@ -311,6 +351,7 @@ jobs:
           # `/api/health/portal` (src/core/version.ts).
           build-args: |
             SUITE_REVISION=${{ github.sha }}
+            SUITE_VERSION=${{ needs.version.outputs.version }}
           # Ohne Tag hochladen — die Tags vergibt der merge-Job auf der
           # Manifest-Liste, sonst würde jede Plattform :latest überschreiben.
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
@@ -332,9 +373,20 @@ jobs:
   # Führt die per-Plattform-Digests zu einer Multi-Arch-Manifest-Liste zusammen
   # und hängt erst hier die Tags (latest/sha/branch) dran.
   merge:
-    needs: build
+    needs: [build, version]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Zwei Laeufe DESSELBEN Commits (ein workflow_dispatch neben seinem Push-Lauf, ein
+    # „Re-run all jobs" waehrend der erste noch laeuft) duerfen diesen Job nicht
+    # gleichzeitig durchlaufen: beide saehen die Registry noch ohne `:X.Y.Z`, und der
+    # zweite schoebe das Tag auf seinen eigenen Digest. Die Gruppe ist BEWUSST je SHA,
+    # nicht je Workflow — Laeufe verschiedener Commits ueberholen sich weiter, und
+    # GitHubs Regel „nur ein wartender Lauf je Gruppe, aeltere werden abgebrochen" trifft
+    # so nur Wiederholungen desselben Standes, nie den Merge dazwischen. Der zweite Lauf
+    # sieht das Tag danach in der Registry und laesst es stehen (naechster Schritt).
+    concurrency:
+      group: merge-${{ github.sha }}
+      cancel-in-progress: false
     permissions:
       contents: read
       packages: write
@@ -356,15 +408,35 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Die letzte Zeile ist das lesbare Gegenstueck zu `:sha-…` — fuer einen Rollback
+          # von Hand (`SUITE_IMAGE_TAG=1.4.2`, docs/runbooks/auto-rollout.md Teil D2). Nur
+          # auf main: ein Branch-Image mit Versionsnummer saehe aus wie ein Release. Ob das
+          # Tag WIRKLICH vergeben wird, entscheidet der naechste Schritt gegen die Registry.
+          # KEIN KOMMENTAR INNERHALB DES `|`-BLOCKS: dort waere er eine Tag-Zeile.
           tags: |
             type=sha
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ needs.version.outputs.version }},enable={{is_default_branch}}
+      # `:X.Y.Z` VERSPRICHT EINEN FESTEN DIGEST — `:latest` und `:sha-…` nicht. Existiert
+      # das Versions-Tag in der Registry schon, bleibt es stehen: ein wiederholter Lauf
+      # (workflow_dispatch, „Re-run all jobs") oder zwei sich ueberholende Laeufe
+      # desselben Commits bauen ein Image mit ANDEREM Digest, und das Tag wanderte sonst
+      # still weg von dem Stand, den Git-Tag und Release nennen. Geprueft wird HIER, im
+      # Moment der Veroeffentlichung, gegen die Registry — nicht als Momentaufnahme im
+      # Job `version`, die bei zwei parallelen Laeufen schon wieder alt waere.
       - name: Manifest-Liste erzeugen
         working-directory: /tmp/digests
+        env:
+          VERSIONSTAG: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}
         run: |
+          tags="$(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")"
+          if docker buildx imagetools inspect "$VERSIONSTAG" >/dev/null 2>&1; then
+            echo "$VERSIONSTAG existiert bereits und bleibt auf seinem Digest (wiederholter oder ueberholter Lauf)."
+            tags="$(grep -vxF "$VERSIONSTAG" <<< "$tags" || true)"
+          fi
           docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf -- '-t %s ' $tags) \
             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
       - name: Verify — beide Architekturen im Manifest
         run: |
@@ -373,6 +445,116 @@ jobs:
             --format '{{ json .Manifest }}' | jq -r '.manifests[].platform | "\(.os)/\(.architecture)"' | sort -u | tee /tmp/platforms
           grep -q '^linux/amd64$' /tmp/platforms
           grep -q '^linux/arm64$' /tmp/platforms
+
+  # ══ Tag und GitHub-Release ═══════════════════════════════════════════════════════════
+  # Erst HIER entsteht der Tag, nicht im Job `version`: ein Tag vor dem Build stuende
+  # fuer ein Image, das es bei einem roten Build nie gab. Nach `merge` ist das Image mit
+  # dieser Nummer veroeffentlicht — der Tag sagt dann etwas Wahres. Dass die Nummer
+  # trotzdem schon VOR dem Build feststeht, traegt scripts/version.mjs: sie folgt aus
+  # der Historie, nicht aus dem Tag (Test „mit oder ohne Zwischentag dasselbe").
+  #
+  # DER EINZIGE JOB MIT `contents: write` — Tag und Release brauchen es, kein anderer.
+  # Ein mit dem GITHUB_TOKEN gesetzter Tag stoesst KEINEN weiteren Workflow an (GitHub
+  # unterdrueckt das absichtlich gegen Schleifen), also auch nicht diesen hier.
+  #
+  # `deploy` haengt NICHT an diesem Job: ein Fehlschlag hier (ein Tag, den ein
+  # gleichzeitiger Lauf schon gesetzt hat) darf den Rollout nicht aufhalten. Er ist dann
+  # rot und sichtbar; das Image traegt die Nummer trotzdem. Fehlerbilder:
+  # docs/runbooks/versionierung.md, Teil F.
+  release:
+    needs: [merge, version]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # Dieselbe Gruppe je SHA wie bei `merge`, aus demselben Grund: zwei Laeufe desselben
+    # Commits legen Tag und Release nacheinander an, nicht gleichzeitig. Die Pruefung
+    # vor und nach dem Anlegen (unten) bleibt trotzdem — sie ist der Gurt, das hier der
+    # Airbag.
+    concurrency:
+      group: release-${{ github.sha }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      # Volle Historie, weil die Basis fuer die Release-Notizen HIER frisch gerechnet
+      # wird und nicht aus dem Job `version` kommt: zwei sich ueberholende main-Laeufe
+      # haetten dort dieselbe alte Basis gesehen, und der spaetere listete die PRs des
+      # frueheren noch einmal. Die NUMMER dagegen kommt weiter aus `version` — sie steckt
+      # schon im Image, und sie ist aus der Historie ohnehin dieselbe (Gegenprobe unten).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Tags UNMITTELBAR vor der Rechnung nachholen: zwischen dem Checkout dieses Jobs
+      # und dem Tag eines fruehreren, sich ueberholenden Laufs liegen sonst Sekunden, in
+      # denen der lokale Tag-Stand schon wieder alt ist. Die verbleibende Luecke ist die
+      # Laufzeit dieses einen Schritts; ein dort noch fehlender Tag kostet hoechstens eine
+      # doppelt genannte PR-Zeile in den Notizen, nie einen falschen Tag (Pruefung unten).
+      - id: frisch
+        run: |
+          git fetch --tags --force --quiet origin
+          node scripts/version.mjs
+      - name: Tag und Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          VERSION_FRISCH: ${{ steps.frisch.outputs.version }}
+          BASIS: ${{ steps.frisch.outputs.basis }}
+        # Keine Backticks in diesem Block: in doppelten Anfuehrungszeichen sind sie fuer
+        # bash eine Kommandosubstitution (dieselbe Falle wie in scripts/deploy.sh).
+        run: |
+          tag="v$VERSION"
+          # Gegenprobe: die Nummer folgt aus der Historie und darf sich zwischen den Jobs
+          # nicht geaendert haben. Tut sie es doch, wurde zwischendurch getaggt oder
+          # umgeschrieben — dann lieber rot als ein Tag, der nicht zum Image passt.
+          if [ "$VERSION_FRISCH" != "$VERSION" ]; then
+            echo "::error::Das Image traegt $VERSION, die Historie ergibt jetzt $VERSION_FRISCH — siehe docs/runbooks/versionierung.md, F2."
+            exit 1
+          fi
+          # Ein Tag, der schon auf DIESEN Commit zeigt, ist kein Fehler, sondern ein
+          # wiederholter Lauf (workflow_dispatch auf main, „Re-run all jobs") — dann ist
+          # hier nichts zu tun, und der Lauf bleibt gruen. Zeigt er woanders hin, war ein
+          # gleichzeitiger Lauf eines ANDEREN Commits schneller oder die Historie wurde
+          # umgeschrieben: rot. `^{commit}` loest einen annotierten Tag auf den Commit auf.
+          #
+          # Die Pruefung steht als Funktion, weil sie ZWEIMAL laeuft: vor dem Anlegen und
+          # noch einmal, falls das Anlegen scheitert. Zwischen beidem liegt die Luecke, in
+          # der ein gleichzeitiger Lauf DESSELBEN Commits Tag und Release schon angelegt
+          # haben kann — dann ist der Fehlschlag keiner, und dieser Lauf endet gruen.
+          # Rueckgabe 0: Tag zeigt auf GITHUB_SHA. 1: kein Tag. Fremdes Ziel: Abbruch.
+          tag_gehoert_uns() {
+            git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null || return 1
+            git fetch -q --force --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
+            zeigt_auf="$(git rev-parse "$tag^{commit}")"
+            if [ "$zeigt_auf" = "$GITHUB_SHA" ]; then return 0; fi
+            echo "::error::Tag $tag existiert bereits und zeigt auf $zeigt_auf statt auf $GITHUB_SHA — siehe docs/runbooks/versionierung.md, F2."
+            exit 1
+          }
+          if tag_gehoert_uns && gh release view "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag und Release existieren bereits fuer $GITHUB_SHA — wiederholter Lauf, nichts zu tun."
+            exit 0
+          fi
+          kopf="$(printf 'Image: ghcr.io/%s:%s\nCommit: %s' "$GITHUB_REPOSITORY" "$VERSION" "$GITHUB_SHA")"
+          # GitHub listet die seit dem vorigen Tag gemergten PRs. Beim ersten Tag gibt es
+          # kein „seit" — eine Liste ueber die ganze Historie sagte nichts.
+          if [ -n "$BASIS" ]; then
+            liste="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+              -f tag_name="$tag" -f target_commitish="$GITHUB_SHA" \
+              -f previous_tag_name="$BASIS" --jq .body)"
+            notizen="$(printf '%s\n\n%s' "$kopf" "$liste")"
+          else
+            notizen="$(printf '%s\n\nErster Versionstag der Suite.' "$kopf")"
+          fi
+          # `gh release create` legt einen fehlenden Tag selbst an. Scheitert es, weil ein
+          # gleichzeitiger Lauf desselben Commits schneller war, ist das Ergebnis dasselbe
+          # wie unseres — dann gruen. Jeder andere Grund bleibt rot.
+          if ! gh release create "$tag" --target "$GITHUB_SHA" --title "$VERSION" --notes "$notizen"; then
+            if tag_gehoert_uns && gh release view "$tag" >/dev/null 2>&1; then
+              echo "Ein gleichzeitiger Lauf hat $tag und das Release fuer $GITHUB_SHA schon angelegt — nichts zu tun."
+              exit 0
+            fi
+            echo "::error::gh release create fuer $tag ist fehlgeschlagen — siehe docs/runbooks/versionierung.md, F2."
+            exit 1
+          fi
+          echo "Release $tag angelegt: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
 
   # ══ Automatischer Rollout auf den Server ═══════════════════════════════════════════
   # Einrichtung, Freigabe, Fehlerbilder und Rollback: docs/runbooks/auto-rollout.md

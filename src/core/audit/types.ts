@@ -11,5 +11,5 @@ export type AuditContext = { actor: AuditActor; correlationId?: string };
 export type AuditEventInput = { module: AuditModule; action: AuditAction; objectType: string; objectRef?: string; result: AuditResult; origin: AuditOrigin };
 export type AuditEvent = AuditEventInput & AuditContext & { id: string; occurredAt: number };
 export type AuditCursor = { occurredAt: number; id: string };
-export type AuditFilters = { module?: AuditModule; action?: AuditAction; actorId?: string; objectRef?: string; objectRefHash?: string; objectType?: string; result?: AuditResult; from?: number; to?: number; cursor?: AuditCursor; limit?: number };
+export type AuditFilters = { module?: AuditModule; action?: AuditAction; actorId?: string; excludeSystem?: boolean; objectRef?: string; objectRefHash?: string; objectType?: string; result?: AuditResult; from?: number; to?: number; cursor?: AuditCursor; limit?: number };
 export type AuditPage = { events: AuditEvent[]; nextCursor?: AuditCursor };

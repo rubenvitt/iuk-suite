@@ -34,6 +34,29 @@ it("changing a filter drops the old page cursor",async()=>{
  expect(router.push).toHaveBeenCalledWith("/admin/audit?actorId=known-user");
 });
 
+it("offers system entries as an opt-in and reset clears the selection",async()=>{
+ await mount(<AuditLog view={ready} search={{cursorTime:"12",cursorId:"00000000-0000-0000-0000-000000000000"}}/>);
+ const checkbox=document.querySelector<HTMLInputElement>('input[type="checkbox"]');
+ expect(checkbox).not.toBeNull();
+ expect(checkbox!.checked).toBe(false);
+ await clickElement(checkbox!);
+ await submitForm("form");
+ expect(router.push).toHaveBeenLastCalledWith("/admin/audit?includeSystem=1");
+ await clickElement(Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Filter zurücksetzen")!);
+ expect(checkbox!.checked).toBe(false);
+ expect(router.push).toHaveBeenLastCalledWith("/admin/audit");
+});
+
+it("preserves the committed system selection when paging despite unsaved changes",async()=>{
+ const nextCursor={occurredAt:12,id:"00000000-0000-0000-0000-000000000000"};
+ await mount(<AuditLog view={{...ready,page:{events:[],nextCursor}}} search={{includeSystem:"1"}}/>);
+ const checkbox=document.querySelector<HTMLInputElement>('input[type="checkbox"]');
+ expect(checkbox?.checked).toBe(true);
+ await clickElement(checkbox!);
+ await clickElement(Array.from(document.querySelectorAll("button")).find(button=>button.textContent==="Ältere Einträge")!);
+ expect(router.push).toHaveBeenLastCalledWith("/admin/audit?includeSystem=1&cursorTime=12&cursorId=00000000-0000-0000-0000-000000000000");
+});
+
 it("reset clears dirty inputs and validation errors even when the committed URL is already empty",async()=>{
  await mount(<AuditLog view={ready} search={{}}/>);
  await fill('[aria-label="Personenkennung"]',"uncommitted-person");
