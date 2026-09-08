@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
@@ -188,6 +189,7 @@ function sorgeFuerBestand(): Bestand {
   const inSiebenTagen = new Date(jetzt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const sqlite = new Database(DB_PFAD);
+  registerAuditFunctions(sqlite);
   try {
     // Derselbe Wartewert wie in `core/db`: der Serverprozess haelt dieselbe
     // Datei offen, und ohne ihn scheitert ein Schreibversuch sofort mit

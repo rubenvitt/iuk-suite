@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, Space, Typography } from "antd";
 import { payloadToSvg } from "@/app/m/qr/_lib/qr";
 
+import { reportBrowserExport } from "@/core/audit/browser";
 import { SPACE } from "@/core/theme/tokens";
 /**
  * Anzeige plus die vier Einsatz-Funktionen aus easy-qr: Vollbild, Invertieren
@@ -89,6 +90,7 @@ export function QrDisplay({ text, label }: { text: string; label: string }) {
         a.href = URL.createObjectURL(png);
         a.download = `${label || "qr"}.png`;
         a.click();
+        reportBrowserExport({ module: "qr", format: "png" });
         URL.revokeObjectURL(a.href);
       }, "image/png");
     } finally {

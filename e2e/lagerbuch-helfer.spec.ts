@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { test, expect } from "@playwright/test";
 import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
@@ -73,6 +74,7 @@ function leseToken(code: string): { id: string; aktiv: number } {
 
 function sperre(id: string, aktiv: boolean): void {
   const db = new Database(DB_PFAD);
+  registerAuditFunctions(db);
   try {
     db.prepare("update tokens set aktiv = ? where id = ?").run(aktiv ? 1 : 0, id);
   } finally {

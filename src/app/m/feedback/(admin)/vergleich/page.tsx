@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -31,7 +32,10 @@ import { VergleichTabelle, type VergleichZeile } from "@/app/m/feedback/_ui/Verg
  */
 export default async function VergleichPage() {
   const viewer = viewerFromSession(await auth());
-  if (!isFeedbackAdmin(viewer)) notFound();
+  if (!isFeedbackAdmin(viewer)) {
+    auditDenied("feedback", auditActor(viewer));
+    notFound();
+  }
 
   const db = getDb();
 

@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 /**
  * DIE SERVER ACTIONS DER FILESHARE-VERWALTUNG (Spec §7.1).
@@ -137,157 +138,159 @@ function ganzzahl(text: string): number | null {
  */
 export async function anlegenAction(formData: FormData): Promise<AnlegenErgebnis> {
   const viewer = await requireFilesAccess();
-  const grenze = grenzen();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<AnlegenErgebnis> => {
+    const grenze = grenzen();
 
-  // Ohne das Passwort — siehe `AnlegenErgebnis`.
-  const werte: Record<string, string> = {
-    title: feld(formData, "title"),
-    description: feld(formData, "description"),
-    expiryDays: feld(formData, "expiryDays"),
-    maxDownloads: feld(formData, "maxDownloads"),
-  };
-  const passwort = feld(formData, "password");
-  const feldFehler: Record<string, string> = {};
+    // Ohne das Passwort — siehe `AnlegenErgebnis`.
+    const werte: Record<string, string> = {
+      title: feld(formData, "title"),
+      description: feld(formData, "description"),
+      expiryDays: feld(formData, "expiryDays"),
+      maxDownloads: feld(formData, "maxDownloads"),
+    };
+    const passwort = feld(formData, "password");
+    const feldFehler: Record<string, string> = {};
 
-  const titel = werte.title.trim();
-  if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
+    const titel = werte.title.trim();
+    if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
 
-  /*
-   * Die Laufzeit wird bei JEDEM Speichern gedeckelt, nicht nur hier: `updateShare`
-   * schrieb in der Alt-App `now + expiryDays*86400` ohne Deckelung, und das
-   * Formular belegte `expiryDays` mit `useState(1)` vor — wer nur den Titel
-   * korrigierte, verkuerzte den Share still auf 24 Stunden. Deshalb gibt es hier
-   * auch KEINE Vorbelegung fuer ein leeres Feld: ein geratener Wert ist genau
-   * dieser Defekt in gruen.
-   */
-  let tage = 0;
-  const gemeldeteTage = ganzzahl(werte.expiryDays);
-  if (gemeldeteTage === null || gemeldeteTage < 1 || gemeldeteTage > grenze.maxAblaufTage) {
-    feldFehler.expiryDays = `Laufzeit in ganzen Tagen, 1 bis ${grenze.maxAblaufTage}.`;
-  } else {
-    tage = gemeldeteTage;
-  }
-
-  /*
-   * LEER heisst NULL heisst unbegrenzt; `0` ist eine ABLEHNUNG. Die Alt-Zeile
-   * `maxDownloads || null` machte aus „0 Downloads" still einen unbegrenzten
-   * Share (§4.1). Ein `??` statt `||` allein reichte nicht — es machte daraus
-   * einen sofort erschoepften Share. Nur die Ablehnung sagt, was gemeint war.
-   */
-  let maxDownloads: number | null = null;
-  const gemeldetesLimit = werte.maxDownloads.trim();
-  if (gemeldetesLimit !== "") {
-    const zahl = ganzzahl(gemeldetesLimit);
-    if (zahl === null || zahl < 1) {
-      feldFehler.maxDownloads =
-        "Download-Limit als ganze Zahl ab 1 — leer lassen heisst unbegrenzt.";
+    /*
+     * Die Laufzeit wird bei JEDEM Speichern gedeckelt, nicht nur hier: `updateShare`
+     * schrieb in der Alt-App `now + expiryDays*86400` ohne Deckelung, und das
+     * Formular belegte `expiryDays` mit `useState(1)` vor — wer nur den Titel
+     * korrigierte, verkuerzte den Share still auf 24 Stunden. Deshalb gibt es hier
+     * auch KEINE Vorbelegung fuer ein leeres Feld: ein geratener Wert ist genau
+     * dieser Defekt in gruen.
+     */
+    let tage = 0;
+    const gemeldeteTage = ganzzahl(werte.expiryDays);
+    if (gemeldeteTage === null || gemeldeteTage < 1 || gemeldeteTage > grenze.maxAblaufTage) {
+      feldFehler.expiryDays = `Laufzeit in ganzen Tagen, 1 bis ${grenze.maxAblaufTage}.`;
     } else {
-      maxDownloads = zahl;
+      tage = gemeldeteTage;
     }
-  }
 
-  // Nicht gestutzt: fuehrende und schliessende Leerzeichen sind Teil eines
-  // Passworts. Gezaehlt wird in Code Points, damit ein Emoji nicht als zwei
-  // Zeichen durchgeht.
-  if (passwort !== "" && [...passwort].length < PASSWORT_MIN_ZEICHEN) {
-    feldFehler.password = `Das Passwort braucht mindestens ${PASSWORT_MIN_ZEICHEN} Zeichen.`;
-  }
+    /*
+     * LEER heisst NULL heisst unbegrenzt; `0` ist eine ABLEHNUNG. Die Alt-Zeile
+     * `maxDownloads || null` machte aus „0 Downloads" still einen unbegrenzten
+     * Share (§4.1). Ein `??` statt `||` allein reichte nicht — es machte daraus
+     * einen sofort erschoepften Share. Nur die Ablehnung sagt, was gemeint war.
+     */
+    let maxDownloads: number | null = null;
+    const gemeldetesLimit = werte.maxDownloads.trim();
+    if (gemeldetesLimit !== "") {
+      const zahl = ganzzahl(gemeldetesLimit);
+      if (zahl === null || zahl < 1) {
+        feldFehler.maxDownloads =
+          "Download-Limit als ganze Zahl ab 1 — leer lassen heisst unbegrenzt.";
+      } else {
+        maxDownloads = zahl;
+      }
+    }
 
-  // Gestutzt wird hier UND beim Schreiben derselbe Wert: pruefte die Validierung
-  // den gestutzten Namen und die Zeile truege den rohen, hiesse eine Datei
-  // gleich „   ".
-  const namen = formData
-    .getAll("dateien")
-    .map((wert) => (typeof wert === "string" ? wert.trim() : ""));
-  if (namen.length === 0) {
-    feldFehler.dateien = "Bitte mindestens eine Datei auswählen.";
-  } else if (namen.some((name) => name === "")) {
-    feldFehler.dateien = "Eine gemeldete Datei hat keinen Namen.";
-  } else if (namen.length > grenze.maxDateienProShare) {
-    feldFehler.dateien =
-      `Höchstens ${grenze.maxDateienProShare} Dateien je Freigabe ` +
-      `(gemeldet: ${namen.length}).`;
-  }
+    // Nicht gestutzt: fuehrende und schliessende Leerzeichen sind Teil eines
+    // Passworts. Gezaehlt wird in Code Points, damit ein Emoji nicht als zwei
+    // Zeichen durchgeht.
+    if (passwort !== "" && [...passwort].length < PASSWORT_MIN_ZEICHEN) {
+      feldFehler.password = `Das Passwort braucht mindestens ${PASSWORT_MIN_ZEICHEN} Zeichen.`;
+    }
 
-  if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler, werte };
+    // Gestutzt wird hier UND beim Schreiben derselbe Wert: pruefte die Validierung
+    // den gestutzten Namen und die Zeile truege den rohen, hiesse eine Datei
+    // gleich „   ".
+    const namen = formData
+      .getAll("dateien")
+      .map((wert) => (typeof wert === "string" ? wert.trim() : ""));
+    if (namen.length === 0) {
+      feldFehler.dateien = "Bitte mindestens eine Datei auswählen.";
+    } else if (namen.some((name) => name === "")) {
+      feldFehler.dateien = "Eine gemeldete Datei hat keinen Namen.";
+    } else if (namen.length > grenze.maxDateienProShare) {
+      feldFehler.dateien =
+        `Höchstens ${grenze.maxDateienProShare} Dateien je Freigabe ` +
+        `(gemeldet: ${namen.length}).`;
+    }
 
-  const jetzt = new Date();
-  const shareId = nanoid(10);
-  const dateien = namen.map((name) => ({ fileId: nanoid(10), name }));
-  const beschreibung = werte.description.trim();
+    if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler, werte };
 
-  /*
-   * EINE Transaktion fuer Kopf und Zeilen. Ohne sie hinterliesse ein Fehler
-   * mitten in der Schleife einen Share mit zu wenigen Zeilen — sichtbar, aber
-   * unvollstaendig, und niemand koennte die fehlenden Dateien nachreichen.
-   */
-  getDb().transaction((tx) => {
-    tx.insert(shares)
-      .values({
-        id: shareId,
-        title: titel,
-        // Leer heisst NULL, nicht "": die Spalte ist nullable, und eine leere
-        // Zeichenkette waere ein zweiter Ausdruck fuer „keine Beschreibung".
-        description: beschreibung === "" ? null : beschreibung,
-        // Kleingeschrieben, 1:1-Pflicht (§4.2). Das Schema traegt bewusst KEINEN
-        // CHECK — diese Zeile ist die setzende Seite. Neu abgeleitet wird der
-        // Wert danach an genau EINER weiteren Stelle: beim Abbruch
-        // `DELETE /api/upload/<fileId>` (T27), wo die Dateizahl sinken kann.
-        type: dateien.length === 1 ? "file" : "folder",
-        expiresAt: new Date(jetzt.getTime() + tage * SEKUNDEN_PRO_TAG * 1000),
-        maxDownloads,
-        downloadCount: 0,
-        // bcryptjs, cost 12, Praefix `$2b$12$` — auch fuer NEUE Passwoerter
-        // (§4.2): ein Wechsel der Hash-Familie machte jeden geschuetzten
-        // Bestands-Share unoeffenbar.
-        passwordHash: passwort === "" ? null : bcryptHash(passwort),
-        // 0 und nicht die Client-Selbstauskunft: `total_size` ist die GEMESSENE
-        // Bytesumme (§4.2) und entsteht erst, wenn Bytes geflossen sind.
-        totalSize: 0,
-        createdAt: jetzt,
-        // Reines Audit-Feld (§4.2). `viewer.sub` ist der OIDC-`sub` und immer
-        // gesetzt: ohne `user.id` liefert `viewerAusSession` keinen Viewer, und
-        // `requireFilesAccess` ist dann schon in die Anmeldung gesprungen. Ein
-        // `?? "unbekannt"` waere hier unerreichbarer Code, der aussaehe wie ein
-        // Riegel.
-        createdBy: viewer.sub,
-      })
-      .run();
+    const jetzt = new Date();
+    const shareId = nanoid(10);
+    const dateien = namen.map((name) => ({ fileId: nanoid(10), name }));
+    const beschreibung = werte.description.trim();
 
-    for (const datei of dateien) {
-      tx.insert(shareFiles)
+    /*
+     * EINE Transaktion fuer Kopf und Zeilen. Ohne sie hinterliesse ein Fehler
+     * mitten in der Schleife einen Share mit zu wenigen Zeilen — sichtbar, aber
+     * unvollstaendig, und niemand koennte die fehlenden Dateien nachreichen.
+     */
+    getDb().transaction((tx) => {
+      tx.insert(shares)
         .values({
-          id: datei.fileId,
-          shareId,
-          // NUR Anzeige, `Content-Disposition` und ZIP-Eintragsname — NIE Teil
-          // eines Pfades (§4.6). Der Name wird hier nicht weiter bereinigt: das
-          // geschieht an der Grenze, an der er wirklich ein Pfad wird
-          // (`_lib/zip.ts:eintragsname`), und eine zweite Bereinigung hier
-          // aenderte Namen, die heute funktionieren.
-          filename: datei.name,
-          mimeType: PLATZHALTER_MIME,
-          size: 0,
-          // Alle Zeilen einer Freigabe tragen DENSELBEN Zeitpunkt — sie
-          // entstehen in einem Aufruf. Die Anzeige sortiert deshalb ueber die
-          // ID (`_db/queries.ts:ladeInhalt`).
+          id: shareId,
+          title: titel,
+          // Leer heisst NULL, nicht "": die Spalte ist nullable, und eine leere
+          // Zeichenkette waere ein zweiter Ausdruck fuer „keine Beschreibung".
+          description: beschreibung === "" ? null : beschreibung,
+          // Kleingeschrieben, 1:1-Pflicht (§4.2). Das Schema traegt bewusst KEINEN
+          // CHECK — diese Zeile ist die setzende Seite. Neu abgeleitet wird der
+          // Wert danach an genau EINER weiteren Stelle: beim Abbruch
+          // `DELETE /api/upload/<fileId>` (T27), wo die Dateizahl sinken kann.
+          type: dateien.length === 1 ? "file" : "folder",
+          expiresAt: new Date(jetzt.getTime() + tage * SEKUNDEN_PRO_TAG * 1000),
+          maxDownloads,
+          downloadCount: 0,
+          // bcryptjs, cost 12, Praefix `$2b$12$` — auch fuer NEUE Passwoerter
+          // (§4.2): ein Wechsel der Hash-Familie machte jeden geschuetzten
+          // Bestands-Share unoeffenbar.
+          passwordHash: passwort === "" ? null : bcryptHash(passwort),
+          // 0 und nicht die Client-Selbstauskunft: `total_size` ist die GEMESSENE
+          // Bytesumme (§4.2) und entsteht erst, wenn Bytes geflossen sind.
+          totalSize: 0,
           createdAt: jetzt,
-          // NULL = Upload nicht abgeschlossen (§4.4). Der Zwischenzustand
-          // „Zeile ohne Bytes" ist damit SICHTBAR: zaehlt nicht in `total_size`,
-          // nicht herunterladbar, nicht im ZIP — und der Aufraeum-Timer holt ihn
-          // samt `.part` ab. In der Alt-App war er unsichtbar und dauerhaft.
-          bytesVollstaendigAt: null,
-          // Der Startwert gehoert zum Upload-Weg, nicht in einen SQL-Default
-          // (§4.6). Eingereiht wird der Scan erst, wenn Bytes vorliegen (T27) —
-          // bis dahin ist `scanning` der ehrliche Zustand: nicht freigegeben.
-          avStatus: "scanning",
-          avGeprueftAt: null,
+          // Reines Audit-Feld (§4.2). `viewer.sub` ist der OIDC-`sub` und immer
+          // gesetzt: ohne `user.id` liefert `viewerAusSession` keinen Viewer, und
+          // `requireFilesAccess` ist dann schon in die Anmeldung gesprungen. Ein
+          // `?? "unbekannt"` waere hier unerreichbarer Code, der aussaehe wie ein
+          // Riegel.
+          createdBy: viewer.sub,
         })
         .run();
-    }
-  });
 
-  revalidatePath(INTERNER_PFAD);
-  return { ok: true, shareId, dateien };
+      for (const datei of dateien) {
+        tx.insert(shareFiles)
+          .values({
+            id: datei.fileId,
+            shareId,
+            // NUR Anzeige, `Content-Disposition` und ZIP-Eintragsname — NIE Teil
+            // eines Pfades (§4.6). Der Name wird hier nicht weiter bereinigt: das
+            // geschieht an der Grenze, an der er wirklich ein Pfad wird
+            // (`_lib/zip.ts:eintragsname`), und eine zweite Bereinigung hier
+            // aenderte Namen, die heute funktionieren.
+            filename: datei.name,
+            mimeType: PLATZHALTER_MIME,
+            size: 0,
+            // Alle Zeilen einer Freigabe tragen DENSELBEN Zeitpunkt — sie
+            // entstehen in einem Aufruf. Die Anzeige sortiert deshalb ueber die
+            // ID (`_db/queries.ts:ladeInhalt`).
+            createdAt: jetzt,
+            // NULL = Upload nicht abgeschlossen (§4.4). Der Zwischenzustand
+            // „Zeile ohne Bytes" ist damit SICHTBAR: zaehlt nicht in `total_size`,
+            // nicht herunterladbar, nicht im ZIP — und der Aufraeum-Timer holt ihn
+            // samt `.part` ab. In der Alt-App war er unsichtbar und dauerhaft.
+            bytesVollstaendigAt: null,
+            // Der Startwert gehoert zum Upload-Weg, nicht in einen SQL-Default
+            // (§4.6). Eingereiht wird der Scan erst, wenn Bytes vorliegen (T27) —
+            // bis dahin ist `scanning` der ehrliche Zustand: nicht freigegeben.
+            avStatus: "scanning",
+            avGeprueftAt: null,
+          })
+          .run();
+      }
+    });
+
+    revalidatePath(INTERNER_PFAD);
+    return { ok: true, shareId, dateien };
+  });
 }
 
 // ===========================================================================
@@ -395,112 +398,114 @@ export async function bearbeitenAction(
   _vorher: ShareFormZustand,
   formData: FormData,
 ): Promise<ShareFormZustand> {
-  await requireFilesAccess();
-  const grenze = grenzen();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ShareFormZustand> => {
+    const grenze = grenzen();
 
-  const werte = mitgeschickt(formData, [
-    "id",
-    "title",
-    "description",
-    "expiryDays",
-    "maxDownloads",
-  ]);
-  const feldFehler: Record<string, string> = {};
+    const werte = mitgeschickt(formData, [
+      "id",
+      "title",
+      "description",
+      "expiryDays",
+      "maxDownloads",
+    ]);
+    const feldFehler: Record<string, string> = {};
 
-  const id = feld(formData, "id").trim();
-  if (id === "" || !shareExistiert(id)) {
-    return { ok: false, feldFehler: { id: UNBEKANNT }, werte };
-  }
-
-  /*
-   * Ein Teilbild der Zeile, gesammelt VOR dem ersten Schreiben. Ein `UPDATE` je
-   * Feld waere sonst teilweise wirksam, sobald ein spaeteres Feld einen
-   * Feldfehler traegt — und der Betreiber saehe eine Fehlermeldung neben einer
-   * halb uebernommenen Aenderung.
-   */
-  const aenderung: {
-    title?: string;
-    description?: string | null;
-    expiresAt?: Date;
-    maxDownloads?: number | null;
-    passwordHash?: string | null;
-  } = {};
-
-  if (formData.has("title")) {
-    const titel = werte.title.trim();
-    if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
-    else aenderung.title = titel;
-  }
-
-  if (formData.has("description")) {
-    // Leer heisst NULL, nicht "": die Spalte ist nullable, und eine leere
-    // Zeichenkette waere ein zweiter Ausdruck fuer „keine Beschreibung".
-    const beschreibung = werte.description.trim();
-    aenderung.description = beschreibung === "" ? null : beschreibung;
-  }
-
-  // `feld` liefert fuer ein FEHLENDES Feld dieselbe leere Zeichenkette wie fuer
-  // ein leeres — und genau das ist hier gewollt: beides heisst „nicht
-  // angefasst". Deshalb steht hier KEIN `formData.has(…)` wie bei den anderen
-  // drei Feldern.
-  const gemeldeteTage = feld(formData, "expiryDays").trim();
-  if (gemeldeteTage !== "") {
-    const tage = ganzzahl(gemeldeteTage);
-    if (tage === null || tage < 1 || tage > grenze.maxAblaufTage) {
-      feldFehler.expiryDays = `Laufzeit in ganzen Tagen, 1 bis ${grenze.maxAblaufTage}.`;
-    } else {
-      // Wie beim Anlegen: ein `Date` an Drizzle, das die SEKUNDEN setzt — hier
-      // wird nichts selbst gerechnet (`_db/schema.ts:4-13`).
-      aenderung.expiresAt = new Date(Date.now() + tage * SEKUNDEN_PRO_TAG * 1000);
+    const id = feld(formData, "id").trim();
+    if (id === "" || !shareExistiert(id)) {
+      return { ok: false, feldFehler: { id: UNBEKANNT }, werte };
     }
-  }
 
-  if (formData.has("maxDownloads")) {
-    const gemeldetesLimit = werte.maxDownloads.trim();
-    if (gemeldetesLimit === "") {
-      aenderung.maxDownloads = null;
-    } else {
-      const zahl = ganzzahl(gemeldetesLimit);
-      if (zahl === null || zahl < 1) {
-        feldFehler.maxDownloads =
-          "Download-Limit als ganze Zahl ab 1 — leer lassen heisst unbegrenzt.";
+    /*
+     * Ein Teilbild der Zeile, gesammelt VOR dem ersten Schreiben. Ein `UPDATE` je
+     * Feld waere sonst teilweise wirksam, sobald ein spaeteres Feld einen
+     * Feldfehler traegt — und der Betreiber saehe eine Fehlermeldung neben einer
+     * halb uebernommenen Aenderung.
+     */
+    const aenderung: {
+      title?: string;
+      description?: string | null;
+      expiresAt?: Date;
+      maxDownloads?: number | null;
+      passwordHash?: string | null;
+    } = {};
+
+    if (formData.has("title")) {
+      const titel = werte.title.trim();
+      if (titel === "") feldFehler.title = "Bitte einen Titel angeben.";
+      else aenderung.title = titel;
+    }
+
+    if (formData.has("description")) {
+      // Leer heisst NULL, nicht "": die Spalte ist nullable, und eine leere
+      // Zeichenkette waere ein zweiter Ausdruck fuer „keine Beschreibung".
+      const beschreibung = werte.description.trim();
+      aenderung.description = beschreibung === "" ? null : beschreibung;
+    }
+
+    // `feld` liefert fuer ein FEHLENDES Feld dieselbe leere Zeichenkette wie fuer
+    // ein leeres — und genau das ist hier gewollt: beides heisst „nicht
+    // angefasst". Deshalb steht hier KEIN `formData.has(…)` wie bei den anderen
+    // drei Feldern.
+    const gemeldeteTage = feld(formData, "expiryDays").trim();
+    if (gemeldeteTage !== "") {
+      const tage = ganzzahl(gemeldeteTage);
+      if (tage === null || tage < 1 || tage > grenze.maxAblaufTage) {
+        feldFehler.expiryDays = `Laufzeit in ganzen Tagen, 1 bis ${grenze.maxAblaufTage}.`;
       } else {
-        aenderung.maxDownloads = zahl;
+        // Wie beim Anlegen: ein `Date` an Drizzle, das die SEKUNDEN setzt — hier
+        // wird nichts selbst gerechnet (`_db/schema.ts:4-13`).
+        aenderung.expiresAt = new Date(Date.now() + tage * SEKUNDEN_PRO_TAG * 1000);
       }
     }
-  }
 
-  // Nicht gestutzt: fuehrende und schliessende Leerzeichen sind Teil eines
-  // Passworts. Gezaehlt wird in Code Points, damit ein Emoji nicht als zwei
-  // Zeichen durchgeht.
-  const passwort = feld(formData, "password");
-  const entfernen = istGesetzt(formData, "passwortEntfernen");
-  if (entfernen && passwort !== "") {
-    // Kein stiller Vorrang: welche der beiden Absichten gewaenne, waere geraten.
-    feldFehler.password =
-      "Bitte entweder ein neues Passwort setzen ODER den Schutz entfernen, nicht beides.";
-  } else if (entfernen) {
-    aenderung.passwordHash = null;
-  } else if (passwort !== "") {
-    if ([...passwort].length < PASSWORT_MIN_ZEICHEN) {
-      feldFehler.password = `Das Passwort braucht mindestens ${PASSWORT_MIN_ZEICHEN} Zeichen.`;
-    } else {
-      // bcryptjs, cost 12, Praefix `$2b$12$` — auch fuer NEUE Passwoerter
-      // (§4.2).
-      aenderung.passwordHash = bcryptHash(passwort);
+    if (formData.has("maxDownloads")) {
+      const gemeldetesLimit = werte.maxDownloads.trim();
+      if (gemeldetesLimit === "") {
+        aenderung.maxDownloads = null;
+      } else {
+        const zahl = ganzzahl(gemeldetesLimit);
+        if (zahl === null || zahl < 1) {
+          feldFehler.maxDownloads =
+            "Download-Limit als ganze Zahl ab 1 — leer lassen heisst unbegrenzt.";
+        } else {
+          aenderung.maxDownloads = zahl;
+        }
+      }
     }
-  }
 
-  if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler, werte };
+    // Nicht gestutzt: fuehrende und schliessende Leerzeichen sind Teil eines
+    // Passworts. Gezaehlt wird in Code Points, damit ein Emoji nicht als zwei
+    // Zeichen durchgeht.
+    const passwort = feld(formData, "password");
+    const entfernen = istGesetzt(formData, "passwortEntfernen");
+    if (entfernen && passwort !== "") {
+      // Kein stiller Vorrang: welche der beiden Absichten gewaenne, waere geraten.
+      feldFehler.password =
+        "Bitte entweder ein neues Passwort setzen ODER den Schutz entfernen, nicht beides.";
+    } else if (entfernen) {
+      aenderung.passwordHash = null;
+    } else if (passwort !== "") {
+      if ([...passwort].length < PASSWORT_MIN_ZEICHEN) {
+        feldFehler.password = `Das Passwort braucht mindestens ${PASSWORT_MIN_ZEICHEN} Zeichen.`;
+      } else {
+        // bcryptjs, cost 12, Praefix `$2b$12$` — auch fuer NEUE Passwoerter
+        // (§4.2).
+        aenderung.passwordHash = bcryptHash(passwort);
+      }
+    }
 
-  // Ein `set({})` waere fuer Drizzle ein Fehler, und ein Formular ohne eine
-  // einzige Aenderung ist kein Fehlerfall — es ist einfach nichts zu tun.
-  if (Object.keys(aenderung).length > 0) {
-    getDb().update(shares).set(aenderung).where(eq(shares.id, id)).run();
-  }
+    if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler, werte };
 
-  auffrischenMitUnterrouten();
-  return { ok: true };
+    // Ein `set({})` waere fuer Drizzle ein Fehler, und ein Formular ohne eine
+    // einzige Aenderung ist kein Fehlerfall — es ist einfach nichts zu tun.
+    if (Object.keys(aenderung).length > 0) {
+      getDb().update(shares).set(aenderung).where(eq(shares.id, id)).run();
+    }
+
+    auffrischenMitUnterrouten();
+    return { ok: true };
+  });
 }
 
 /**
@@ -533,44 +538,46 @@ export async function downloadsAufstockenAction(
   _vorher: ShareFormZustand,
   formData: FormData,
 ): Promise<ShareFormZustand> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ShareFormZustand> => {
 
-  const werte = mitgeschickt(formData, ["id", "zusatzDownloads"]);
-  const feldFehler: Record<string, string> = {};
+    const werte = mitgeschickt(formData, ["id", "zusatzDownloads"]);
+    const feldFehler: Record<string, string> = {};
 
-  const id = feld(formData, "id").trim();
-  if (id === "") feldFehler.id = UNBEKANNT;
+    const id = feld(formData, "id").trim();
+    if (id === "") feldFehler.id = UNBEKANNT;
 
-  const zusatz = ganzzahl(feld(formData, "zusatzDownloads"));
-  if (zusatz === null || zusatz < 1) {
-    feldFehler.zusatzDownloads = "Bitte eine ganze Zahl ab 1 angeben.";
-  }
+    const zusatz = ganzzahl(feld(formData, "zusatzDownloads"));
+    if (zusatz === null || zusatz < 1) {
+      feldFehler.zusatzDownloads = "Bitte eine ganze Zahl ab 1 angeben.";
+    }
 
-  if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler, werte };
+    if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler, werte };
 
-  const ergebnis = getDb()
-    .update(shares)
-    .set({ maxDownloads: sql`${shares.maxDownloads} + ${zusatz}` })
-    .where(and(eq(shares.id, id), isNotNull(shares.maxDownloads)))
-    .run();
+    const ergebnis = getDb()
+      .update(shares)
+      .set({ maxDownloads: sql`${shares.maxDownloads} + ${zusatz}` })
+      .where(and(eq(shares.id, id), isNotNull(shares.maxDownloads)))
+      .run();
 
-  // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
-  // Wert (`_db/zaehler.ts`): ein `SELECT` davor und ein `UPDATE` danach waeren
-  // zwei Schritte mit einem Fenster dazwischen.
-  if (ergebnis.changes !== 1) {
-    return {
-      ok: false,
-      feldFehler: {
-        id:
-          "Diese Freigabe hat kein Download-Limit (oder es gibt sie nicht mehr) — " +
-          "aufstocken laesst sich nur ein gesetztes Limit.",
-      },
-      werte,
-    };
-  }
+    // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
+    // Wert (`_db/zaehler.ts`): ein `SELECT` davor und ein `UPDATE` danach waeren
+    // zwei Schritte mit einem Fenster dazwischen.
+    if (ergebnis.changes !== 1) {
+      return {
+        ok: false,
+        feldFehler: {
+          id:
+            "Diese Freigabe hat kein Download-Limit (oder es gibt sie nicht mehr) — " +
+            "aufstocken laesst sich nur ein gesetztes Limit.",
+        },
+        werte,
+      };
+    }
 
-  auffrischenMitUnterrouten();
-  return { ok: true };
+    auffrischenMitUnterrouten();
+    return { ok: true };
+  });
 }
 
 /**
@@ -611,50 +618,52 @@ export async function shareLoeschenAction(
   _vorher: ShareFormZustand,
   formData: FormData,
 ): Promise<ShareFormZustand> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ShareFormZustand> => {
 
-  const werte = mitgeschickt(formData, ["id"]);
-  const id = feld(formData, "id").trim();
-  if (id === "" || !shareExistiert(id)) {
-    return { ok: false, feldFehler: { id: UNBEKANNT }, werte };
-  }
+    const werte = mitgeschickt(formData, ["id"]);
+    const id = feld(formData, "id").trim();
+    if (id === "" || !shareExistiert(id)) {
+      return { ok: false, feldFehler: { id: UNBEKANNT }, werte };
+    }
 
-  // Spaltenliste statt `select()` — im Modul nicht erlaubt (§7.3).
-  const dateien = getDb()
-    .select({ id: shareFiles.id })
-    .from(shareFiles)
-    .where(eq(shareFiles.shareId, id))
-    .all();
+    // Spaltenliste statt `select()` — im Modul nicht erlaubt (§7.3).
+    const dateien = getDb()
+      .select({ id: shareFiles.id })
+      .from(shareFiles)
+      .where(eq(shareFiles.shareId, id))
+      .all();
 
-  for (const datei of dateien) {
-    await loesche({ art: "share", shareId: id, fileId: datei.id });
-  }
+    for (const datei of dateien) {
+      await loesche({ art: "share", shareId: id, fileId: datei.id });
+    }
 
-  /*
-   * Nach der Schleife, nie darin: `rmdir` gelingt erst, wenn die letzte Datei
-   * weg ist. Ein Fehlschlag darf das Loeschen NICHT scheitern lassen — die
-   * Zeilen sind der teurere Zustand, und der Vorgang liesse sich sonst nicht
-   * abschliessen. Er darf aber auch nicht still bleiben, sonst sucht der
-   * Betreiber die Ursache der steigenden „verwaisten Blobs" im Aufraeum-Bericht
-   * und findet sie nie. Dieselbe Linie wie `raeumeBytesWeg` in
-   * `api/u/[token]/upload/route.ts`.
-   */
-  try {
-    await loescheShareVerzeichnis(id);
-  } catch (grund) {
-    console.error(`[files] Verzeichnis der geloeschten Freigabe ${id} blieb stehen:`, grund);
-  }
+    /*
+     * Nach der Schleife, nie darin: `rmdir` gelingt erst, wenn die letzte Datei
+     * weg ist. Ein Fehlschlag darf das Loeschen NICHT scheitern lassen — die
+     * Zeilen sind der teurere Zustand, und der Vorgang liesse sich sonst nicht
+     * abschliessen. Er darf aber auch nicht still bleiben, sonst sucht der
+     * Betreiber die Ursache der steigenden „verwaisten Blobs" im Aufraeum-Bericht
+     * und findet sie nie. Dieselbe Linie wie `raeumeBytesWeg` in
+     * `api/u/[token]/upload/route.ts`.
+     */
+    try {
+      await loescheShareVerzeichnis(id);
+    } catch (grund) {
+      console.error(`[files] Verzeichnis der geloeschten Freigabe ${id} blieb stehen:`, grund);
+    }
 
-  // EINE Transaktion: ein Fehler zwischen den beiden DELETEs hinterliesse sonst
-  // Dateizeilen ohne Kopf — sichtbar in keiner Ansicht und nur noch per SQL
-  // auffindbar.
-  getDb().transaction((tx) => {
-    tx.delete(shareFiles).where(eq(shareFiles.shareId, id)).run();
-    tx.delete(shares).where(eq(shares.id, id)).run();
+    // EINE Transaktion: ein Fehler zwischen den beiden DELETEs hinterliesse sonst
+    // Dateizeilen ohne Kopf — sichtbar in keiner Ansicht und nur noch per SQL
+    // auffindbar.
+    getDb().transaction((tx) => {
+      tx.delete(shareFiles).where(eq(shareFiles.shareId, id)).run();
+      tx.delete(shares).where(eq(shares.id, id)).run();
+    });
+
+    auffrischenMitUnterrouten();
+    return { ok: true };
   });
-
-  auffrischenMitUnterrouten();
-  return { ok: true };
 }
 
 // ===========================================================================
@@ -711,53 +720,55 @@ function avArt(formData: FormData): AvArt | null {
  * Typumdeutung — auf einer Seite, die eine Server Component bleibt.
  */
 export async function avWiederholenAction(formData: FormData): Promise<void> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<void> => {
 
-  const art = avArt(formData);
-  const id = feld(formData, "id").trim();
-  if (art === null || id === "") return;
+    const art = avArt(formData);
+    const id = feld(formData, "id").trim();
+    if (art === null || id === "") return;
 
-  const db = getDb();
-  const treffer =
-    art === "share"
-      ? db
-          .update(shareFiles)
-          .set({ avStatus: "scanning", avGeprueftAt: null })
-          .where(and(eq(shareFiles.id, id), eq(shareFiles.avStatus, "error")))
-          .run()
-      : db
-          .update(inboxFiles)
-          .set({ avStatus: "scanning", avGeprueftAt: null })
-          .where(and(eq(inboxFiles.id, id), eq(inboxFiles.avStatus, "error")))
-          .run();
+    const db = getDb();
+    const treffer =
+      art === "share"
+        ? db
+            .update(shareFiles)
+            .set({ avStatus: "scanning", avGeprueftAt: null })
+            .where(and(eq(shareFiles.id, id), eq(shareFiles.avStatus, "error")))
+            .run()
+        : db
+            .update(inboxFiles)
+            .set({ avStatus: "scanning", avGeprueftAt: null })
+            .where(and(eq(inboxFiles.id, id), eq(inboxFiles.avStatus, "error")))
+            .run();
 
-  // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
-  // Wert — dieselbe Linie wie in `downloadsAufstockenAction` und `_db/zaehler.ts`.
-  if (treffer.changes !== 1) return;
+    // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
+    // Wert — dieselbe Linie wie in `downloadsAufstockenAction` und `_db/zaehler.ts`.
+    if (treffer.changes !== 1) return;
 
-  if (art === "share") {
-    /*
-     * ERST NACH dem `UPDATE` gelesen, und nur fuer das Blob-Ziel: `_lib/storage.ts`
-     * baut den Pfad einer Freigabedatei aus BEIDEN IDs, `fileId` allein ist kein
-     * gueltiges Ziel. Ein `SELECT` VOR dem `UPDATE` waere dagegen der zweite
-     * Schritt, den der Vorbehalt oben gerade vermeidet.
-     */
-    const zeile = db
-      .select({ shareId: shareFiles.shareId })
-      .from(shareFiles)
-      .where(eq(shareFiles.id, id))
-      .get();
-    if (zeile !== undefined) {
-      reiheAvEin({ art: "share", shareId: zeile.shareId, fileId: id });
+    if (art === "share") {
+      /*
+       * ERST NACH dem `UPDATE` gelesen, und nur fuer das Blob-Ziel: `_lib/storage.ts`
+       * baut den Pfad einer Freigabedatei aus BEIDEN IDs, `fileId` allein ist kein
+       * gueltiges Ziel. Ein `SELECT` VOR dem `UPDATE` waere dagegen der zweite
+       * Schritt, den der Vorbehalt oben gerade vermeidet.
+       */
+      const zeile = db
+        .select({ shareId: shareFiles.shareId })
+        .from(shareFiles)
+        .where(eq(shareFiles.id, id))
+        .get();
+      if (zeile !== undefined) {
+        reiheAvEin({ art: "share", shareId: zeile.shareId, fileId: id });
+      }
+    } else {
+      reiheAvEin({ art: "inbox", inboxFileId: id });
     }
-  } else {
-    reiheAvEin({ art: "inbox", inboxFileId: id });
-  }
 
-  /*
-   * `"layout"`, weil der Knopf an ZWEI Orten steht: `/shares/<id>` und
-   * `/posteingang`. Ohne die Unterrouten bliebe der jeweils andere auf dem alten
-   * Stand — dieselbe Begruendung wie bei den drei T37-Actions.
-   */
-  auffrischenMitUnterrouten();
+    /*
+     * `"layout"`, weil der Knopf an ZWEI Orten steht: `/shares/<id>` und
+     * `/posteingang`. Ohne die Unterrouten bliebe der jeweils andere auf dem alten
+     * Stand — dieselbe Begruendung wie bei den drei T37-Actions.
+     */
+    auffrischenMitUnterrouten();
+  });
 }

@@ -1,3 +1,5 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
+import type { AuditModule } from "@/core/audit/types";
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
 import { getModule } from "@/core/registry";
@@ -17,17 +19,20 @@ import { isModuleAdmin } from "@/core/groups";
  */
 
 /** Für Server Actions: bricht ab, wenn der Aufrufer das Modul nicht administrieren darf. */
-export async function requireModuleAdmin(moduleKey: string): Promise<void> {
+export async function requireModuleAdmin(moduleKey: string) {
   const session = await auth();
   if (!isModuleAdmin(getModule(moduleKey), session?.user?.groups)) {
+    auditDenied(moduleKey as AuditModule, auditActor(session?.user));
     throw new Error("Forbidden");
   }
+  return session?.user;
 }
 
 /** Für Seiten: rendert 404 statt der Seite, wenn der Nutzer nicht Admin ist. */
 export async function moduleAdminPageOrNotFound(moduleKey: string): Promise<void> {
   const session = await auth();
   if (!isModuleAdmin(getModule(moduleKey), session?.user?.groups)) {
+    auditDenied(moduleKey as AuditModule, auditActor(session?.user));
     notFound();
   }
 }

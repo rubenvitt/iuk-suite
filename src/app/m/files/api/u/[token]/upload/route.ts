@@ -1,3 +1,4 @@
+import { withAuditContext, auditDenied } from "@/core/audit/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -342,6 +343,10 @@ export async function PUT(
     // naechsten Upload MIT gueltigem Token — ein Fremder kann das Postfach
     // lahmlegen (§8.4).
     const nochErlaubt = fehlversuche.check(clientIpAus(anfrage.headers));
+    // Nur die noch zugelassenen Fehlversuche dauerhaft protokollieren. Ohne
+    // diese Reihenfolge erzeugte auch jede bereits mit 429 abgewiesene Anfrage
+    // weiterhin eine neue Zeile in der zentralen Audit-Datenbank.
+    if (nochErlaubt) auditDenied("files");
     return nochErlaubt
       ? fehler(401, "token", "Dieser Abgabelink ist nicht (mehr) gültig.")
       : fehler(
@@ -380,7 +385,7 @@ export async function PUT(
     );
   }
 
-  return chunkWeg(anfrage, link, jetzt);
+  return withAuditContext({ actor: { kind: "anonymous" } }, () => chunkWeg(anfrage, link, jetzt));
 }
 
 /**

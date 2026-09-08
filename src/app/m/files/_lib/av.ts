@@ -1,3 +1,4 @@
+import { withAuditContext } from "@/core/audit/server";
 /**
  * Der Scanner-Vertrag des Moduls `files` (Spec §6.2–§6.4).
  *
@@ -503,9 +504,11 @@ async function arbeiterSchleife(db?: FilesDb): Promise<void> {
  * bei mehreren Instanzen liefe der Takt mehrfach und braeuchte ein Lock.
  */
 export function starteAvArbeiter(db?: FilesDb): void {
-  if (arbeiterLaeuft) return;
-  arbeiterLaeuft = true;
-  void arbeiterSchleife(db);
+  return withAuditContext({ actor: { kind: "system" } }, (): void => {
+    if (arbeiterLaeuft) return;
+    arbeiterLaeuft = true;
+    void arbeiterSchleife(db);
+  });
 }
 
 /** Haelt den Arbeiter an und beendet einen laufenden Takt sofort. */
@@ -533,19 +536,21 @@ export function stoppeAvArbeiter(): void {
  *   `infected`-Zeile ist ueber ihn nicht erreichbar.
  */
 export function reiheAvEin(ziel: BlobZiel, db?: FilesDb): void {
-  if (!arbeiterLaeuft) return;
-  const g = zahlenOderNull("Sofortscan");
-  if (g === null) return;
-  const gesucht = ziel.art === "share" ? ziel.fileId : ziel.inboxFileId;
-  const tabelle: AvTabelle = ziel.art === "share" ? "share_files" : "inbox_files";
-  const lauf = (async () => {
-    const bank = await holeDb(db);
-    const t = await holeTabellen();
-    const auftrag = auftraege(bank, t).find((a) => a.tabelle === tabelle && a.id === gesucht);
-    if (auftrag === undefined) return;
-    await verarbeite(bank, t, auftrag, g);
-  })();
-  void lauf.catch((fehler) => {
-    console.error(`[files][av] Sofortscan fuer ${tabelle}/${gesucht} gescheitert:`, fehler);
+  return withAuditContext({ actor: { kind: "system" } }, (): void => {
+    if (!arbeiterLaeuft) return;
+    const g = zahlenOderNull("Sofortscan");
+    if (g === null) return;
+    const gesucht = ziel.art === "share" ? ziel.fileId : ziel.inboxFileId;
+    const tabelle: AvTabelle = ziel.art === "share" ? "share_files" : "inbox_files";
+    const lauf = (async () => {
+      const bank = await holeDb(db);
+      const t = await holeTabellen();
+      const auftrag = auftraege(bank, t).find((a) => a.tabelle === tabelle && a.id === gesucht);
+      if (auftrag === undefined) return;
+      await verarbeite(bank, t, auftrag, g);
+    })();
+    void lauf.catch((fehler) => {
+      console.error(`[files][av] Sofortscan fuer ${tabelle}/${gesucht} gescheitert:`, fehler);
+    });
   });
 }

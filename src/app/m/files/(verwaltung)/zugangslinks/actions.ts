@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
@@ -149,73 +150,75 @@ export async function zugangslinkAnlegenAction(
   formData: FormData,
 ): Promise<AnlegenErgebnis> {
   const viewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<AnlegenErgebnis> => {
 
-  const values = textfelder(formData, ["name", "laufzeitStunden", "budgetDateien", "budgetBytes"]);
-  const fieldErrors: Record<string, string> = {};
+    const values = textfelder(formData, ["name", "laufzeitStunden", "budgetDateien", "budgetBytes"]);
+    const fieldErrors: Record<string, string> = {};
 
-  const name = values.name.trim();
-  if (name === "") fieldErrors.name = "Bitte eine Bezeichnung angeben.";
+    const name = values.name.trim();
+    if (name === "") fieldErrors.name = "Bitte eine Bezeichnung angeben.";
 
-  const laufzeitStunden = zahl(
-    formData,
-    "laufzeitStunden",
-    { min: MIN_LAUFZEIT_STUNDEN, max: MAX_LAUFZEIT_STUNDEN },
-    fieldErrors,
-  );
+    const laufzeitStunden = zahl(
+      formData,
+      "laufzeitStunden",
+      { min: MIN_LAUFZEIT_STUNDEN, max: MAX_LAUFZEIT_STUNDEN },
+      fieldErrors,
+    );
 
-  // Die Vorbelegungen sind ein STARTWERT, keine harte Obergrenze (§8.4) — nach
-  // oben offen, damit ein Einsatz nicht am Formular scheitert.
-  const vorgabe = grenzen();
-  const budgetDateien =
-    zahl(formData, "budgetDateien", { min: 1, leerErlaubt: true }, fieldErrors) ??
-    vorgabe.inboxBudgetDateien;
-  const budgetBytes =
-    zahl(formData, "budgetBytes", { min: 1, leerErlaubt: true }, fieldErrors) ??
-    vorgabe.inboxBudgetBytes;
+    // Die Vorbelegungen sind ein STARTWERT, keine harte Obergrenze (§8.4) — nach
+    // oben offen, damit ein Einsatz nicht am Formular scheitert.
+    const vorgabe = grenzen();
+    const budgetDateien =
+      zahl(formData, "budgetDateien", { min: 1, leerErlaubt: true }, fieldErrors) ??
+      vorgabe.inboxBudgetDateien;
+    const budgetBytes =
+      zahl(formData, "budgetBytes", { min: 1, leerErlaubt: true }, fieldErrors) ??
+      vorgabe.inboxBudgetBytes;
 
-  if (Object.keys(fieldErrors).length > 0 || laufzeitStunden === null) {
-    return { ok: false, fieldErrors, values };
-  }
-
-  // EINE Uhr für beide Spalten. Zwei `new Date()`-Aufrufe lägen an einer
-  // Sekundengrenze um eine Sekunde auseinander, und die Laufzeit wäre dann
-  // nicht mehr exakt das, was der Betreiber eingetragen hat.
-  const jetzt = new Date();
-  const token = erzeugeToken();
-  const id = nanoid(10);
-
-  try {
-    getDb()
-      .insert(zugangslinks)
-      .values({
-        id,
-        name,
-        tokenStart: token.slice(0, TOKEN_START_LAENGE),
-        tokenHash: tokenHash(token),
-        createdAt: jetzt,
-        createdBy: viewer.sub,
-        expiresAt: new Date(jetzt.getTime() + laufzeitStunden * MILLISEKUNDEN_PRO_STUNDE),
-        budgetDateien,
-        budgetBytes,
-      })
-      .run();
-  } catch (fehler) {
-    // LAUT, nicht still: `token_hash` ist UNIQUE, weil der Hash beim Upload den
-    // Link AUFLÖST (§4.9). Eine zweite Zeile mit demselben Hash wäre dort ein
-    // stiller Mehrtreffer. Kein Wiederholungsschleifen-Zweig: bei 60 Bit
-    // Entropie und ≤ 72 h Laufzeit ist das kein erwartbarer Vorgang, und ein
-    // ungetesteter Zweig ist teurer als ein benannter Abbruch.
-    if (istEindeutigkeitsverletzung(fehler)) {
-      throw new Error(
-        "Der Abgabelink konnte nicht angelegt werden: der erzeugte Token ist bereits vergeben. " +
-          "Bitte den Vorgang wiederholen.",
-      );
+    if (Object.keys(fieldErrors).length > 0 || laufzeitStunden === null) {
+      return { ok: false, fieldErrors, values };
     }
-    throw fehler;
-  }
 
-  auffrischen();
-  return { ok: true, id, token };
+    // EINE Uhr für beide Spalten. Zwei `new Date()`-Aufrufe lägen an einer
+    // Sekundengrenze um eine Sekunde auseinander, und die Laufzeit wäre dann
+    // nicht mehr exakt das, was der Betreiber eingetragen hat.
+    const jetzt = new Date();
+    const token = erzeugeToken();
+    const id = nanoid(10);
+
+    try {
+      getDb()
+        .insert(zugangslinks)
+        .values({
+          id,
+          name,
+          tokenStart: token.slice(0, TOKEN_START_LAENGE),
+          tokenHash: tokenHash(token),
+          createdAt: jetzt,
+          createdBy: viewer.sub,
+          expiresAt: new Date(jetzt.getTime() + laufzeitStunden * MILLISEKUNDEN_PRO_STUNDE),
+          budgetDateien,
+          budgetBytes,
+        })
+        .run();
+    } catch (fehler) {
+      // LAUT, nicht still: `token_hash` ist UNIQUE, weil der Hash beim Upload den
+      // Link AUFLÖST (§4.9). Eine zweite Zeile mit demselben Hash wäre dort ein
+      // stiller Mehrtreffer. Kein Wiederholungsschleifen-Zweig: bei 60 Bit
+      // Entropie und ≤ 72 h Laufzeit ist das kein erwartbarer Vorgang, und ein
+      // ungetesteter Zweig ist teurer als ein benannter Abbruch.
+      if (istEindeutigkeitsverletzung(fehler)) {
+        throw new Error(
+          "Der Abgabelink konnte nicht angelegt werden: der erzeugte Token ist bereits vergeben. " +
+            "Bitte den Vorgang wiederholen.",
+        );
+      }
+      throw fehler;
+    }
+
+    auffrischen();
+    return { ok: true, id, token };
+  });
 }
 
 /**
@@ -238,56 +241,58 @@ export async function kontingentAufstockenAction(
   _vorher: ZugangslinkFormState,
   formData: FormData,
 ): Promise<ZugangslinkFormState> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ZugangslinkFormState> => {
 
-  const values = textfelder(formData, ["id", "zusatzDateien", "zusatzBytes"]);
-  const fieldErrors: Record<string, string> = {};
+    const values = textfelder(formData, ["id", "zusatzDateien", "zusatzBytes"]);
+    const fieldErrors: Record<string, string> = {};
 
-  const id = values.id.trim();
-  if (id === "") fieldErrors.id = "Kein Abgabelink angegeben.";
+    const id = values.id.trim();
+    if (id === "") fieldErrors.id = "Kein Abgabelink angegeben.";
 
-  const zusatzDateien = zahl(formData, "zusatzDateien", { min: 1, leerErlaubt: true }, fieldErrors);
-  const zusatzBytes = zahl(formData, "zusatzBytes", { min: 1, leerErlaubt: true }, fieldErrors);
+    const zusatzDateien = zahl(formData, "zusatzDateien", { min: 1, leerErlaubt: true }, fieldErrors);
+    const zusatzBytes = zahl(formData, "zusatzBytes", { min: 1, leerErlaubt: true }, fieldErrors);
 
-  // OHNE diese Prüfung wäre `budget + 0` für SQLite eine geänderte Zeile:
-  // `changes === 1`, also „hat geklappt" für einen Vorgang, der nichts getan
-  // hat. Der Betreiber sähe eine Erfolgsmeldung und dasselbe Restbudget.
-  if (zusatzDateien === null && zusatzBytes === null && Object.keys(fieldErrors).length === 0) {
-    fieldErrors.zusatzDateien = "Bitte angeben, um wie viel aufgestockt werden soll.";
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    // OHNE diese Prüfung wäre `budget + 0` für SQLite eine geänderte Zeile:
+    // `changes === 1`, also „hat geklappt" für einen Vorgang, der nichts getan
+    // hat. Der Betreiber sähe eine Erfolgsmeldung und dasselbe Restbudget.
+    if (zusatzDateien === null && zusatzBytes === null && Object.keys(fieldErrors).length === 0) {
+      fieldErrors.zusatzDateien = "Bitte angeben, um wie viel aufgestockt werden soll.";
+    }
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  const jetzt = new Date();
-  const ergebnis = getDb()
-    .update(zugangslinks)
-    .set({
-      budgetDateien: sql`${zugangslinks.budgetDateien} + ${zusatzDateien ?? 0}`,
-      budgetBytes: sql`${zugangslinks.budgetBytes} + ${zusatzBytes ?? 0}`,
-    })
-    .where(
-      and(
-        eq(zugangslinks.id, id),
-        isNull(zugangslinks.revokedAt),
-        gt(zugangslinks.expiresAt, jetzt),
-      ),
-    )
-    .run();
+    const jetzt = new Date();
+    const ergebnis = getDb()
+      .update(zugangslinks)
+      .set({
+        budgetDateien: sql`${zugangslinks.budgetDateien} + ${zusatzDateien ?? 0}`,
+        budgetBytes: sql`${zugangslinks.budgetBytes} + ${zusatzBytes ?? 0}`,
+      })
+      .where(
+        and(
+          eq(zugangslinks.id, id),
+          isNull(zugangslinks.revokedAt),
+          gt(zugangslinks.expiresAt, jetzt),
+        ),
+      )
+      .run();
 
-  // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
-  // Wert (`_db/zaehler.ts`). Ein `SELECT` davor und ein `UPDATE` danach wären
-  // zwei Schritte mit einem Fenster dazwischen.
-  if (ergebnis.changes !== 1) {
-    return {
-      ok: false,
-      fieldErrors: {
-        id: "Dieser Abgabelink ist nicht (mehr) gültig — abgelaufen, widerrufen oder unbekannt.",
-      },
-      values,
-    };
-  }
+    // Die Entscheidung ist die Zahl betroffener Zeilen, nie ein vorher gelesener
+    // Wert (`_db/zaehler.ts`). Ein `SELECT` davor und ein `UPDATE` danach wären
+    // zwei Schritte mit einem Fenster dazwischen.
+    if (ergebnis.changes !== 1) {
+      return {
+        ok: false,
+        fieldErrors: {
+          id: "Dieser Abgabelink ist nicht (mehr) gültig — abgelaufen, widerrufen oder unbekannt.",
+        },
+        values,
+      };
+    }
 
-  auffrischen();
-  return { ok: true };
+    auffrischen();
+    return { ok: true };
+  });
 }
 
 /**
@@ -304,30 +309,32 @@ export async function zugangslinkWiderrufenAction(
   _vorher: ZugangslinkFormState,
   formData: FormData,
 ): Promise<ZugangslinkFormState> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ZugangslinkFormState> => {
 
-  const values = textfelder(formData, ["id"]);
-  const id = values.id.trim();
-  if (id === "") {
-    return { ok: false, fieldErrors: { id: "Kein Abgabelink angegeben." }, values };
-  }
+    const values = textfelder(formData, ["id"]);
+    const id = values.id.trim();
+    if (id === "") {
+      return { ok: false, fieldErrors: { id: "Kein Abgabelink angegeben." }, values };
+    }
 
-  const ergebnis = getDb()
-    .update(zugangslinks)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(zugangslinks.id, id), isNull(zugangslinks.revokedAt)))
-    .run();
+    const ergebnis = getDb()
+      .update(zugangslinks)
+      .set({ revokedAt: new Date() })
+      .where(and(eq(zugangslinks.id, id), isNull(zugangslinks.revokedAt)))
+      .run();
 
-  if (ergebnis.changes !== 1) {
-    return {
-      ok: false,
-      fieldErrors: { id: "Dieser Abgabelink ist unbekannt oder bereits widerrufen." },
-      values,
-    };
-  }
+    if (ergebnis.changes !== 1) {
+      return {
+        ok: false,
+        fieldErrors: { id: "Dieser Abgabelink ist unbekannt oder bereits widerrufen." },
+        values,
+      };
+    }
 
-  auffrischen();
-  return { ok: true };
+    auffrischen();
+    return { ok: true };
+  });
 }
 
 /**

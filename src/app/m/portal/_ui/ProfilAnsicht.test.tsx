@@ -14,6 +14,8 @@ const BASIS = {
   gruppen: ["iuk"],
   fachgruppen: ["fuehrung"],
   angemeldetSeit: 1_755_000_000,
+  version: "1.4.2",
+  revision: "0123456789abcdef0123456789abcdef01234567",
 };
 
 afterEach(async () => {
@@ -30,6 +32,25 @@ describe("ProfilAnsicht", () => {
     expect(text).toContain("sub-42");
     expect(text).toContain("iuk");
     expect(text).toContain("fuehrung");
+  });
+
+  it("zeigt die laufende Version und den gekuerzten Stand", async () => {
+    await mount(<ProfilAnsicht {...BASIS} abmelden={vi.fn()} />);
+    expect(query('[data-testid="suite-version"]').textContent).toBe("1.4.2");
+    // Zwoelf Zeichen: eindeutig genug fuer `git show`, kurz genug fuer eine Zeile
+    // auf dem Telefon. Der volle Commit steht auf `/api/health/portal`.
+    expect(query('[data-testid="suite-revision"]').textContent).toBe("0123456789ab");
+  });
+
+  it("schreibt `unbekannt` als Entwicklungsstand aus, statt das Wort zu zeigen", async () => {
+    // Lokal (`next dev`, `docker build` ohne Build-Arg) liefern beide Funktionen
+    // `unbekannt`. Das Wort allein laese sich wie ein Fehler; die Auskunft ist
+    // „hier laeuft kein CI-Image".
+    await mount(
+      <ProfilAnsicht {...BASIS} version="unbekannt" revision="unbekannt" abmelden={vi.fn()} />,
+    );
+    expect(query('[data-testid="suite-version"]').textContent).toContain("Entwicklungsstand");
+    expect(query('[data-testid="suite-revision"]').textContent).toBe("unbekannt");
   });
 
   it("schreibt leere Mengen aus, statt eine Luecke zu lassen", async () => {

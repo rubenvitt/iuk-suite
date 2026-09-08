@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
 import { devLogin } from "./fixtures";
+
+test.skip(ZEICHEN_PAUSIERT, "Taktische Zeichen ist voruebergehend gesperrt");
 
 /**
  * DER PWA-LAUF DES MODULS `zeichen` (Spec §7, §8.3).

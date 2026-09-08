@@ -197,3 +197,10 @@ describe("Magic-Link-Brücke uav (Spec §3 #2)", () => {
     expect(decideRoute({ host: "iuk-ue.de", pathname: "/login", groups: null, search: "?code=ABCDEFGH" })).toEqual({ action: "next" });
   });
 });
+
+// Exact exception: no other audit route becomes globally reachable.
+it.each(["qr.localtest.me:3100", "zeichen.localtest.me:3100"])("passes only the browser receiver on %s", host => {
+  expect(decideRoute({host,pathname:"/api/audit/browser",groups:null})).toEqual({action:"next"});
+  expect(decideRoute({host,pathname:"/api/audit/browser/extra",groups:null})).not.toEqual({action:"next"});
+  expect(decideRoute({host,pathname:"/api/audit/data",groups:null})).not.toEqual({action:"next"});
+});

@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "antd";
@@ -105,7 +106,10 @@ export default async function RoutinenPage({
   // eine koordinierende oder eine `auftrag`-Person per direkter URL trotzdem erreichbar, auch wenn keine Navigation
   // dorthin verlinkt. Eine ROLLENFRAGE, keine Fassung der Modulzugang-Ausnahme oben — bleibt
   // `notFound()`.
-  if (!darfRoutinenVerwalten(akteur, isoTag(new Date()))) notFound();
+  if (!darfRoutinenVerwalten(akteur, isoTag(new Date()))) {
+    auditDenied("aufgaben", auditActor(akteur.person));
+    notFound();
+  }
   const { bearbeiten } = await searchParams;
   // `routinenInhalt` STELLT KEINE RECHTEFRAGE — es bekommt weiterhin die reine Zeile, nicht den
   // Akteur: die Berechtigung ist oben, an der Route, bereits entschieden.

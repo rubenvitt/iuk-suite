@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -68,6 +69,7 @@ beforeEach(() => {
   vi.stubEnv("FILES_MAX_ABLAUF_TAGE", "7");
 
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

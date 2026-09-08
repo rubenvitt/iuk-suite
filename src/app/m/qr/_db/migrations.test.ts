@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { it, expect, beforeAll, afterAll } from "vitest";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
@@ -27,7 +28,7 @@ afterAll(() => {
   rmSync(TEST_DATA_DIR, { recursive: true, force: true });
 });
 
-const openRaw = () => new Database(DB_PATH);
+const openRaw = () => registerAuditFunctions(new Database(DB_PATH));
 
 type RawPreset = {
   id: string;

@@ -1,4 +1,5 @@
 import { envHostsFor } from "@/core/hosts";
+import { ZEICHEN_PAUSIERT } from "@/app/m/zeichen/_lib/verfuegbarkeit";
 import { adminGroupsFor, envAccessGroupsFor, hasAnyGroup } from "@/core/groups";
 
 /** Wie in `hosts.ts`: nur „String rein, String oder undefined raus" — bewusst nicht `NodeJS.ProcessEnv`. */
@@ -240,7 +241,7 @@ export const MODULES: ModuleDef[] = [
   // Name faellt STILL auf AppstoreOutlined zurueck.
   { key: "zeichen", title: "Taktische Zeichen", icon: "DeploymentUnitOutlined", shell: "full",
     requiresAuth: true, requiredGroups: [], adminGroups: ["iuk-zeichen-admin"],
-    prodHosts: [], showInSwitcher: true, switcherGroupSources: [] },
+    prodHosts: [], showInSwitcher: !ZEICHEN_PAUSIERT, switcherGroupSources: [] },
 ];
 
 const BY_KEY = new Map(MODULES.map((m) => [m.key, m]));
@@ -293,6 +294,7 @@ export function canAccess(
   groups: string[] | null,
   env: EnvLike = process.env,
 ): boolean {
+  if (mod.key === "zeichen" && ZEICHEN_PAUSIERT) return false;
   if (!mod.requiresAuth) return true;
   if (groups === null) return false;
   const erlaubt = requiredGroupsFor(mod, env);

@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { readFileSync, mkdirSync, rmSync } from "node:fs";
 import { describe, it, expect, afterEach } from "vitest";
 import Database from "better-sqlite3";
@@ -58,6 +59,7 @@ function frischeZielDb(): ReturnType<typeof drizzle<typeof radioSchema>> {
   rmSync(DIR, { recursive: true, force: true });
   mkdirSync(DIR, { recursive: true });
   const sqlite = new Database(`${DIR}/radio.db`);
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   const db = drizzle(sqlite, { schema: radioSchema });
   migrate(db, { migrationsFolder: "./src/app/m/radio/_db/migrations" });

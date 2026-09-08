@@ -1,0 +1,218 @@
+{
+  "src/app/m/aufgaben/a/[id]/page.tsx#notFound:!task:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/aufgaben/a/[id]/page.tsx#notFound:!darfAufgabeSehen(akteur, task):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/aufgaben/freigaben/page.tsx#notFound:!darfFreigabenSehen(akteur, heute):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/aufgaben/hilfe/[sicht]/page.tsx#notFound:!gefunden:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/aufgaben/personen/page.tsx#notFound:!darfPersonenVerwalten(akteur, heute):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/aufgaben/plan/[personId]/page.tsx#notFound:!darfPlanSehen(betrachter, ziel.id):1": {
+    "kind": "defensive-denial",
+    "reason": "darfPlanSehen currently returns true for every registered viewer. Preserve shared-plan access; event only if this defensive branch ever rejects. Runtime negative proof is a synthetic predicate fault."
+  },
+  "src/app/m/aufgaben/plan/[personId]/page.tsx#notFound:!ziel:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/aufgaben/routinen/page.tsx#notFound:!darfRoutinenVerwalten(akteur, isoTag(new Date())):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/aufgaben/verteilen/page.tsx#notFound:!darfVerteilen(akteur, heute):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/auswertung/page.tsx#notFound:!evening:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/auswertung/page.tsx#notFound:evening.groupId !== urlGroupId:1": {
+    "kind": "excluded",
+    "reason": "Canonical parent-ID URL mismatch; does not establish denied ownership. Actual group guard separately resolves database membership."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/auswertung/page.tsx#notFound:!group:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/auswertung/page.tsx#notFound:!survey:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/page.tsx#notFound:!evening:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/page.tsx#notFound:evening.groupId !== urlGroupId:1": {
+    "kind": "excluded",
+    "reason": "Canonical parent-ID URL mismatch; does not establish denied ownership. Actual group guard separately resolves database membership."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/page.tsx#notFound:unconditional/catch:1": {
+    "kind": "delegated-denial",
+    "reason": "Existing assertGroupAccess logs with confirmed viewer before this catch preserves 404."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/page.tsx#redirect:unconditional/catch:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/page.tsx#notFound:!group:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/groups/[groupId]/trend/page.tsx#notFound:!group:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/feedback/(admin)/page.tsx#redirect:ziel !== null:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/feedback/(admin)/vergleich/page.tsx#notFound:!isFeedbackAdmin(viewer):1": {
+    "kind": "denial",
+    "reason": "Reachable role or ownership denial; confirmed page actor, exactly one explicit event before unchanged 404."
+  },
+  "src/app/m/feedback/(print)/aushang/[groupId]/page.tsx#notFound:!group:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/files/(oeffentlich-share)/s/[id]/page.tsx#notFound:case \"unbekannt\":1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/files/(oeffentlich-share)/s/[id]/page.tsx#notFound:case \"dateiNichtGefunden\":1": {
+    "kind": "excluded",
+    "reason": "Defensive file-delivery states unreachable on page because no dateiId is supplied. Actual byte handlers are separately audited."
+  },
+  "src/app/m/files/(verwaltung)/shares/[id]/bearbeiten/page.tsx#notFound:share === null:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/files/(verwaltung)/shares/[id]/page.tsx#notFound:detail === null:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/a/[artikelId]/page.tsx#redirect:istLagerbuchAdmin(await viewerOderNull()):1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/a/[artikelId]/page.tsx#redirect:!zugang:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/g/[code]/page.tsx#redirect:helfer:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/g/[code]/page.tsx#redirect:!istLagerbuchAdmin(viewer):1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/g/[code]/page.tsx#redirect:ger:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/g/[code]/page.tsx#redirect:bz:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/page.tsx#redirect:istLagerbuchAdmin(await viewerOderNull()):1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/bz/[id]/kontrolle/page.tsx#notFound:!detail:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/bz/[id]/page.tsx#notFound:!detail:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/checks/[id]/page.tsx#notFound:!check:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/page.tsx#notFound:!fahrzeug || fahrzeug.typ !== \"fahrzeug\":1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/geraete/[id]/page.tsx#notFound:!detail:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/sauerstoff/[id]/page.tsx#notFound:!detail:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/vorlagen/[id]/page.tsx#notFound:!detail:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/portal/admin/audit/page.tsx#notFound:error instanceof AuditAccessDenied:1": {
+    "kind": "delegated-denial",
+    "reason": "Existing readAuditView suite guard records the refusal before this 404 mapping."
+  },
+  "src/app/m/portal/profil/page.tsx#redirect:!session?.user:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/radio/admin/(arbeit)/geraete/[id]/ereignisse/page.tsx#notFound:akte === null:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/radio/admin/(arbeit)/geraete/[id]/page.tsx#notFound:akte === null || formWerte === null:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/radio/page.tsx#redirect:zugang:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/radio/page.tsx#redirect:altZiel:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/uav/(admin)/admin/teilnehmer/[id]/page.tsx#notFound:e instanceof NotFound:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/zeichen/(shell)/katalog/[id]/page.tsx#notFound:zeichen === null || svg === null:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
+  "src/app/m/zeichen/(shell)/katalog/page.tsx#notFound:!sub:1": {
+    "kind": "excluded",
+    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
+  },
+  "src/app/m/zeichen/(shell)/lernen/page.tsx#notFound:!sub:1": {
+    "kind": "excluded",
+    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
+  },
+  "src/app/m/zeichen/(shell)/lernen/runde/page.tsx#notFound:!sub:1": {
+    "kind": "excluded",
+    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
+  },
+  "src/app/m/zeichen/(shell)/meine/page.tsx#notFound:!sub:1": {
+    "kind": "excluded",
+    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
+  },
+  "src/app/m/zeichen/(shell)/merkliste/page.tsx#notFound:!sub:1": {
+    "kind": "excluded",
+    "reason": "Defensive identity check behind authenticated Zeichen module proxy; no reachable additional role denial established. Proxy enforces and records rejected module access."
+  },
+  "src/app/m/zeichen/(shell)/verwaltung/lernsets/[id]/page.tsx#notFound:!gefunden:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  }
+}

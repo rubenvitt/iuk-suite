@@ -1,3 +1,4 @@
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { getDb } from "../../_db/client";
 import { hostAbweisung } from "../../_lib/hostRiegel";
@@ -13,6 +14,6 @@ export async function GET(req: Request) {
   const abweisung = hostAbweisung(req); if (abweisung) return abweisung;
   const db = getDb();
   const identitaet = await identitaetAus(req, db);
-  if (identitaet.kind !== "participant") return fehler(401, "unauthorized", "Nur für Teilnehmer");
+  if (identitaet.kind !== "participant") { auditDenied("uav", identitaet.kind === "admin" ? auditActor(identitaet) : { kind: "anonymous" }); return fehler(401, "unauthorized", "Nur für Teilnehmer"); }
   return NextResponse.json(fortschritt(db, identitaet.id));
 }

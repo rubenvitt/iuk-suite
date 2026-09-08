@@ -1,3 +1,4 @@
+export { auditOutbox } from "@/core/audit/_db/schema";
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 

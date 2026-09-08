@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 /**
  * T11 — der Scanner-Vertrag des Moduls `files` (Spec §6.2–§6.4, §6.8; Plan T11).
  *
@@ -682,6 +683,7 @@ describe("AV-Warteschlange (T17) — die Warteschlange IST die Datenbank", () =>
     ablage = resolve(tmp, "ablage");
     mkdirSync(ablage, { recursive: true });
     sqlite = new Database(resolve(tmp, "files.db"));
+    registerAuditFunctions(sqlite);
     // Verbindungs-Eigenschaft, standardmaessig AUS: ohne sie waere der
     // FK share_files.share_id → shares.id hier wirkungslos.
     sqlite.pragma("foreign_keys = ON");

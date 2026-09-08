@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -85,6 +86,7 @@ const aufrufen = (groupId: number, eveningId: number) =>
 
 beforeEach(() => {
   sqlite = new Database(":memory:");
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });

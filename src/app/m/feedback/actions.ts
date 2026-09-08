@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
@@ -157,15 +158,18 @@ export async function createGroupAction(formData: FormData) {
   const viewer = viewerFromSession(await auth());
   // Nur Voll-Admin darf Gruppen anlegen (groupleader verwaltet bestehende).
   if (!viewer || !(await import("./_lib/access")).isFeedbackAdmin(viewer)) {
+    auditDenied("feedback", auditActor(viewer));
     throw new Error("Forbidden");
   }
-  const db = getDb();
-  const name = String(formData.get("name") ?? "").trim();
-  const slug = String(formData.get("slug") ?? "").trim();
-  if (!name || !slug) throw new Error("Name und Slug erforderlich");
-  const closeAfterHours = parseHours(formData.get("closeAfterHours"));
-  insertGroup(db, { name, slug, secret: generateSecret(), closeAfterHours, createdAt: new Date() });
-  revalidate();
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const db = getDb();
+    const name = String(formData.get("name") ?? "").trim();
+    const slug = String(formData.get("slug") ?? "").trim();
+    if (!name || !slug) throw new Error("Name und Slug erforderlich");
+    const closeAfterHours = parseHours(formData.get("closeAfterHours"));
+    insertGroup(db, { name, slug, secret: generateSecret(), closeAfterHours, createdAt: new Date() });
+    revalidate();
+  });
 }
 /**
  * GRUPPE BEARBEITEN (Entwurf §2.6 Punkt 1, §4.4).
@@ -185,40 +189,44 @@ export async function updateGroupAction(
   formData: FormData,
 ): Promise<FormState> {
   const id = num(formData.get("id"));
-  const { db } = await guardGroup(id);
+  const { db, viewer } = await guardGroup(id);
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<FormState> => {
 
-  const values = {
-    name: String(formData.get("name") ?? ""),
-    closeAfterHours: String(formData.get("closeAfterHours") ?? ""),
-  };
-  const name = values.name.trim();
-  const fieldErrors: Record<string, string> = {};
-  if (name === "") fieldErrors.name = "Name fehlt";
+    const values = {
+      name: String(formData.get("name") ?? ""),
+      closeAfterHours: String(formData.get("closeAfterHours") ?? ""),
+    };
+    const name = values.name.trim();
+    const fieldErrors: Record<string, string> = {};
+    if (name === "") fieldErrors.name = "Name fehlt";
 
-  // Leer heißt „Vorgabe benutzen" und ist kein Fehler; alles andere muss eine
-  // ganze Zahl über 0 sein. `parseHours` allein würde „x" zu `null` machen —
-  // ein stilles Zurücksetzen der Frist auf 48 Stunden.
-  const rohStunden = values.closeAfterHours.trim();
-  let closeAfterHours: number | null = null;
-  if (rohStunden !== "") {
-    const n = Number(rohStunden);
-    if (!Number.isInteger(n) || n <= 0) {
-      fieldErrors.closeAfterHours = "Frist ungültig — ganze Stunden über 0";
-    } else {
-      closeAfterHours = n;
+    // Leer heißt „Vorgabe benutzen" und ist kein Fehler; alles andere muss eine
+    // ganze Zahl über 0 sein. `parseHours` allein würde „x" zu `null` machen —
+    // ein stilles Zurücksetzen der Frist auf 48 Stunden.
+    const rohStunden = values.closeAfterHours.trim();
+    let closeAfterHours: number | null = null;
+    if (rohStunden !== "") {
+      const n = Number(rohStunden);
+      if (!Number.isInteger(n) || n <= 0) {
+        fieldErrors.closeAfterHours = "Frist ungültig — ganze Stunden über 0";
+      } else {
+        closeAfterHours = n;
+      }
     }
-  }
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
 
-  updateGroup(db, id, { name, closeAfterHours });
-  revalidate();
-  return { ok: true };
+    updateGroup(db, id, { name, closeAfterHours });
+    revalidate();
+    return { ok: true };
+  });
 }
 export async function regenerateSecretAction(formData: FormData) {
   const id = num(formData.get("id"));
-  const { db } = await guardGroup(id);
-  setGroupSecret(db, id, generateSecret());
-  revalidate();
+  const { db, viewer } = await guardGroup(id);
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    setGroupSecret(db, id, generateSecret());
+    revalidate();
+  });
 }
 /**
  * GRUPPE LÖSCHEN (Entwurf §2.6 Punkt 3, §4.6) — `guardAdmin`, NICHT `guardGroup`.
@@ -238,10 +246,12 @@ export async function regenerateSecretAction(formData: FormData) {
  */
 export async function deleteGroupAction(formData: FormData) {
   const id = num(formData.get("id"));
-  const { db } = await guardAdmin();
-  if (!getGroup(db, id)) throw new Error("Not found");
-  deleteGroup(db, id);
-  revalidate();
+  const { db, viewer } = await guardAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    if (!getGroup(db, id)) throw new Error("Not found");
+    deleteGroup(db, id);
+    revalidate();
+  });
 }
 
 /**
@@ -258,7 +268,7 @@ export async function deleteGroupAction(formData: FormData) {
  */
 async function guardAdmin() {
   const viewer = viewerFromSession(await auth());
-  if (!isFeedbackAdmin(viewer)) throw new Error("Forbidden");
+  if (!isFeedbackAdmin(viewer)) { auditDenied("feedback", auditActor(viewer)); throw new Error("Forbidden"); }
   return { viewer, db: getDb() };
 }
 
@@ -336,93 +346,99 @@ export async function addGroupLeaderAction(
   formData: FormData,
 ): Promise<FormState> {
   const groupId = num(formData.get("groupId"));
-  const { db } = await guardAdmin();
+  const { db, viewer } = await guardAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<FormState> => {
 
-  const values = { kennung: String(formData.get("kennung") ?? "") };
-  const eingabe = values.kennung.trim();
-  if (eingabe === "") {
-    return { ok: false, fieldErrors: { kennung: "Kennung oder E-Mail fehlt" }, values };
-  }
-
-  let userId = eingabe;
-  if (eingabe.includes("@")) {
-    const klein = eingabe.toLowerCase();
-    // LOKAL ZUERST, VERZEICHNIS DANACH. Zwei Gründe, beide tragend: der häufige
-    // Fall (die Person war schon da) kostet keinen Netzaufruf, und der Pfad kann
-    // nicht schlechter werden als vorher, wenn die API ausfällt.
-    //
-    // `filter` und nicht `find`: eine Adresse kann zu mehreren Konten gehören
-    // (sie ist im Verzeichnis weder Pflichtfeld noch eindeutig). `find` nahm das
-    // erste — eine stille Wahl zwischen Konten, von denen nur eines das richtige
-    // ist. Siehe FEHLER_EMAIL_MEHRDEUTIG.
-    const lokal = listKnownUsers(db).filter((u) => (u.email ?? "").toLowerCase() === klein);
-    if (lokal.length > 1) {
-      return { ok: false, fieldErrors: { kennung: FEHLER_EMAIL_MEHRDEUTIG }, values };
+    const values = { kennung: String(formData.get("kennung") ?? "") };
+    const eingabe = values.kennung.trim();
+    if (eingabe === "") {
+      return { ok: false, fieldErrors: { kennung: "Kennung oder E-Mail fehlt" }, values };
     }
-    if (lokal.length === 1) {
-      userId = lokal[0].userId;
-    } else {
-      const ausVerzeichnis = await ohneAusfall(() => getDirectory().findByEmail(klein));
-      if (ausVerzeichnis.people.length > 1) {
+
+    let userId = eingabe;
+    if (eingabe.includes("@")) {
+      const klein = eingabe.toLowerCase();
+      // LOKAL ZUERST, VERZEICHNIS DANACH. Zwei Gründe, beide tragend: der häufige
+      // Fall (die Person war schon da) kostet keinen Netzaufruf, und der Pfad kann
+      // nicht schlechter werden als vorher, wenn die API ausfällt.
+      //
+      // `filter` und nicht `find`: eine Adresse kann zu mehreren Konten gehören
+      // (sie ist im Verzeichnis weder Pflichtfeld noch eindeutig). `find` nahm das
+      // erste — eine stille Wahl zwischen Konten, von denen nur eines das richtige
+      // ist. Siehe FEHLER_EMAIL_MEHRDEUTIG.
+      const lokal = listKnownUsers(db).filter((u) => (u.email ?? "").toLowerCase() === klein);
+      if (lokal.length > 1) {
         return { ok: false, fieldErrors: { kennung: FEHLER_EMAIL_MEHRDEUTIG }, values };
       }
-      const treffer = ausVerzeichnis.people[0];
-      if (!treffer) {
-        return {
-          ok: false,
-          fieldErrors: {
-            // Die Meldung hängt davon ab, OB das Verzeichnis geantwortet hat.
-            // „Muss sich einmal anmelden" ist bei laufendem Verzeichnis schlicht
-            // falsch — dann gibt es kein Konto mit dieser Adresse, und der Satz
-            // schickt den Admin auf eine Suche, die nie endet.
-            kennung:
-              ausVerzeichnis.status === "ok"
-                ? FEHLER_EMAIL_UNBEKANNT
-                : FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS,
-          },
-          values,
-        };
+      if (lokal.length === 1) {
+        userId = lokal[0].userId;
+      } else {
+        const ausVerzeichnis = await ohneAusfall(() => getDirectory().findByEmail(klein));
+        if (ausVerzeichnis.people.length > 1) {
+          return { ok: false, fieldErrors: { kennung: FEHLER_EMAIL_MEHRDEUTIG }, values };
+        }
+        const treffer = ausVerzeichnis.people[0];
+        if (!treffer) {
+          return {
+            ok: false,
+            fieldErrors: {
+              // Die Meldung hängt davon ab, OB das Verzeichnis geantwortet hat.
+              // „Muss sich einmal anmelden" ist bei laufendem Verzeichnis schlicht
+              // falsch — dann gibt es kein Konto mit dieser Adresse, und der Satz
+              // schickt den Admin auf eine Suche, die nie endet.
+              kennung:
+                ausVerzeichnis.status === "ok"
+                  ? FEHLER_EMAIL_UNBEKANNT
+                  : FEHLER_EMAIL_UNBEKANNT_OHNE_VERZEICHNIS,
+            },
+            values,
+          };
+        }
+        userId = treffer.userId;
       }
-      userId = treffer.userId;
     }
-  }
 
-  // Ist-Stand SERVERSEITIG gelesen und ergänzt. Die gewünschte Liste vom Client
-  // zu übernehmen wäre Mass-Assignment: ein manipulierter Formularwert würde die
-  // ganze Leitung der Gruppe austauschen. `setGroupMembers` entdoppelt selbst.
-  setGroupMembers(db, groupId, [...listGroupMembers(db, groupId), userId]);
-  revalidate();
-  return { ok: true };
+    // Ist-Stand SERVERSEITIG gelesen und ergänzt. Die gewünschte Liste vom Client
+    // zu übernehmen wäre Mass-Assignment: ein manipulierter Formularwert würde die
+    // ganze Leitung der Gruppe austauschen. `setGroupMembers` entdoppelt selbst.
+    setGroupMembers(db, groupId, [...listGroupMembers(db, groupId), userId]);
+    revalidate();
+    return { ok: true };
+  });
 }
 
 /** Entfernen muss genauso funktionieren wie Hinzufügen (§2.6) — sonst bleibt eine
  *  Fehlzuordnung stehen. Kein Formularzustand: es gibt keine Eingabe. */
 export async function removeGroupLeaderAction(formData: FormData): Promise<void> {
   const groupId = num(formData.get("groupId"));
-  const { db } = await guardAdmin();
-  const userId = String(formData.get("userId") ?? "").trim();
-  if (userId === "") throw new Error("Kennung fehlt");
-  setGroupMembers(
-    db,
-    groupId,
-    listGroupMembers(db, groupId).filter((u) => u !== userId),
-  );
-  revalidate();
+  const { db, viewer } = await guardAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    const userId = String(formData.get("userId") ?? "").trim();
+    if (userId === "") throw new Error("Kennung fehlt");
+    setGroupMembers(
+      db,
+      groupId,
+      listGroupMembers(db, groupId).filter((u) => u !== userId),
+    );
+    revalidate();
+  });
 }
 
 // ---- Dienstabende ----
 export async function createEveningAction(formData: FormData) {
   const groupId = num(formData.get("groupId"));
-  const { db } = await guardGroup(groupId);
-  insertEvening(db, {
-    groupId,
-    date: parseDate(formData.get("date")),
-    topic: strOrNull(formData.get("topic")),
-    notes: strOrNull(formData.get("notes")),
-    participantCount: parseCount(formData.get("participantCount")),
-    createdAt: new Date(),
+  const { db, viewer } = await guardGroup(groupId);
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    insertEvening(db, {
+      groupId,
+      date: parseDate(formData.get("date")),
+      topic: strOrNull(formData.get("topic")),
+      notes: strOrNull(formData.get("notes")),
+      participantCount: parseCount(formData.get("participantCount")),
+      createdAt: new Date(),
+    });
+    revalidate();
   });
-  revalidate();
 }
 /**
  * ABEND BEARBEITEN — zwei Zusagen, die vorher still brachen.
@@ -451,60 +467,66 @@ export async function createEveningAction(formData: FormData) {
  */
 export async function updateEveningAction(formData: FormData) {
   const id = num(formData.get("id"));
-  const { db } = await guardGroup(await groupIdOfEvening(id));
-  const vorher = getEvening(db, id)!;
+  const { db, viewer } = await guardGroup(await groupIdOfEvening(id));
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const vorher = getEvening(db, id)!;
 
-  const patch: Partial<{
-    date: Date;
-    topic: string | null;
-    notes: string | null;
-    participantCount: number | null;
-  }> = {};
-  if (formData.has("date")) patch.date = parseDate(formData.get("date"));
-  if (formData.has("topic")) patch.topic = strOrNull(formData.get("topic"));
-  if (formData.has("notes")) patch.notes = strOrNull(formData.get("notes"));
-  if (formData.has("participantCount")) {
-    patch.participantCount = parseCount(formData.get("participantCount"));
-  }
-  updateEvening(db, id, patch);
-
-  const datumNeu = patch.date;
-  if (datumNeu && datumNeu.getTime() !== new Date(vorher.date).getTime()) {
-    const survey = getSurveyByEvening(db, id);
-    const effektiv = survey
-      ? nextStatusOnAccess(survey.status as SurveyStatus, survey.closesAt, new Date())
-      : null;
-    if (survey && effektiv === "active") {
-      const group = getGroup(db, vorher.groupId)!;
-      // Dieselbe Vorrangregel wie `activateSurveyAction`: Umfrage → Gruppe → Vorgabe.
-      const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
-      setSurveyStatus(db, survey.id, "active", { closesAt: computeClosesAt(datumNeu, hours) });
+    const patch: Partial<{
+      date: Date;
+      topic: string | null;
+      notes: string | null;
+      participantCount: number | null;
+    }> = {};
+    if (formData.has("date")) patch.date = parseDate(formData.get("date"));
+    if (formData.has("topic")) patch.topic = strOrNull(formData.get("topic"));
+    if (formData.has("notes")) patch.notes = strOrNull(formData.get("notes"));
+    if (formData.has("participantCount")) {
+      patch.participantCount = parseCount(formData.get("participantCount"));
     }
-  }
-  revalidate();
+    updateEvening(db, id, patch);
+
+    const datumNeu = patch.date;
+    if (datumNeu && datumNeu.getTime() !== new Date(vorher.date).getTime()) {
+      const survey = getSurveyByEvening(db, id);
+      const effektiv = survey
+        ? nextStatusOnAccess(survey.status as SurveyStatus, survey.closesAt, new Date())
+        : null;
+      if (survey && effektiv === "active") {
+        const group = getGroup(db, vorher.groupId)!;
+        // Dieselbe Vorrangregel wie `activateSurveyAction`: Umfrage → Gruppe → Vorgabe.
+        const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
+        setSurveyStatus(db, survey.id, "active", { closesAt: computeClosesAt(datumNeu, hours) });
+      }
+    }
+    revalidate();
+  });
 }
 export async function deleteEveningAction(formData: FormData) {
   const id = num(formData.get("id"));
-  const { db } = await guardGroup(await groupIdOfEvening(id));
-  deleteEvening(db, id);
-  revalidate();
+  const { db, viewer } = await guardGroup(await groupIdOfEvening(id));
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    deleteEvening(db, id);
+    revalidate();
+  });
 }
 
 // ---- Umfragen ----
 export async function activateSurveyAction(formData: FormData) {
   const id = num(formData.get("id"));
-  const { db } = await guardGroup(await groupIdOfSurvey(id));
-  const survey = getSurvey(db, id)!;
-  const eve = getEvening(db, survey.eveningId)!;
-  const group = getGroup(db, eve.groupId)!;
-  const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
-  const now = new Date();
-  // `eve.date`, NICHT `now`: `computeClosesAt` rechnet vom Abend-Tag, nicht ab
-  // jetzt. Mit `now` hing die Frist eines nachträglich gestarteten
-  // Altbestands-Entwurfs am Klickzeitpunkt — ein Abend von Montag lief bis
-  // Donnerstag, weil jemand am Mittwoch auf „Starten" geklickt hat.
-  activateSurvey(db, id, computeClosesAt(eve.date, hours), now);
-  revalidate();
+  const { db, viewer } = await guardGroup(await groupIdOfSurvey(id));
+  return withAuditContext({ actor: auditActor(viewer) }, async () => {
+    const survey = getSurvey(db, id)!;
+    const eve = getEvening(db, survey.eveningId)!;
+    const group = getGroup(db, eve.groupId)!;
+    const hours = survey.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
+    const now = new Date();
+    // `eve.date`, NICHT `now`: `computeClosesAt` rechnet vom Abend-Tag, nicht ab
+    // jetzt. Mit `now` hing die Frist eines nachträglich gestarteten
+    // Altbestands-Entwurfs am Klickzeitpunkt — ein Abend von Montag lief bis
+    // Donnerstag, weil jemand am Mittwoch auf „Starten" geklickt hat.
+    activateSurvey(db, id, computeClosesAt(eve.date, hours), now);
+    revalidate();
+  });
 }
 /*
  * `archiveSurveyAction`, `createSurveyAction` UND `closeSurveyAction` SIND
@@ -558,69 +580,71 @@ export async function submitResponseAction(
   slugSecret: string,
   formData: FormData,
 ): Promise<SubmitResult> {
-  const db = getDb();
-  const { parseToken } = await import("./_lib/token");
-  const { getGroupBySlug } = await import("./_db/queries");
-  const ip = clientIpAus(await headers());
-  const parsed = parseToken(slugSecret);
-  if (!parsed) return rejectInvalidToken(ip);
-  const group = getGroupBySlug(db, parsed.slug);
-  if (!group || group.secret !== parsed.secret) return rejectInvalidToken(ip);
+  return withAuditContext({ actor: { kind: "anonymous" } }, async (): Promise<SubmitResult> => {
+    const db = getDb();
+    const { parseToken } = await import("./_lib/token");
+    const { getGroupBySlug } = await import("./_db/queries");
+    const ip = clientIpAus(await headers());
+    const parsed = parseToken(slugSecret);
+    if (!parsed) return rejectInvalidToken(ip);
+    const group = getGroupBySlug(db, parsed.slug);
+    if (!group || group.secret !== parsed.secret) return rejectInvalidToken(ip);
 
-  /*
-   * `none` und `invalid` brauchen KEINE Umleitung, auch nicht ohne JavaScript:
-   * der native POST rendert dieselbe Route neu, und `page.tsx` liefert dann von
-   * selbst Zustand C bzw. F (Entwurf 3.8: „`none` / `invalid`: Zustand C bzw.
-   * F"). Nur die drei Abweisungen unten hätten ohne Parameter kein Bild.
-   */
-  const ohneJs = formData.get(JS_FELD) !== "1";
-  const active = activeSurveyForGroup(db, group.id);
-  if (!active) return { ok: false, code: "none" };
-  const survey = active.survey;
-  if (!submitLimiter.check(`${ip}|${survey.id}`)) return abweisen(slugSecret, ohneJs, "ratelimit");
-  // closes_at auch auf dem Submit-Pfad prüfen (nicht nur beim Anzeigen).
-  const now = new Date();
-  if (nextStatusOnAccess("active", survey.closesAt, now) !== "active") {
-    setSurveyStatus(db, survey.id, "closed", { closedAt: now });
-    return abweisen(slugSecret, ohneJs, "closed");
-  }
+    /*
+     * `none` und `invalid` brauchen KEINE Umleitung, auch nicht ohne JavaScript:
+     * der native POST rendert dieselbe Route neu, und `page.tsx` liefert dann von
+     * selbst Zustand C bzw. F (Entwurf 3.8: „`none` / `invalid`: Zustand C bzw.
+     * F"). Nur die drei Abweisungen unten hätten ohne Parameter kein Bild.
+     */
+    const ohneJs = formData.get(JS_FELD) !== "1";
+    const active = activeSurveyForGroup(db, group.id);
+    if (!active) return { ok: false, code: "none" };
+    const survey = active.survey;
+    if (!submitLimiter.check(`${ip}|${survey.id}`)) return abweisen(slugSecret, ohneJs, "ratelimit");
+    // closes_at auch auf dem Submit-Pfad prüfen (nicht nur beim Anzeigen).
+    const now = new Date();
+    if (nextStatusOnAccess("active", survey.closesAt, now) !== "active") {
+      setSurveyStatus(db, survey.id, "closed", { closedAt: now });
+      return abweisen(slugSecret, ohneJs, "closed");
+    }
 
-  const questions: Question[] = JSON.parse(survey.questions);
-  const answers: Record<string, unknown> = {};
-  for (const q of questions) {
-    const value = coerceAnswer(q, formData.get(q.id));
-    if (value !== undefined) answers[q.id] = value;
-  }
+    const questions: Question[] = JSON.parse(survey.questions);
+    const answers: Record<string, unknown> = {};
+    for (const q of questions) {
+      const value = coerceAnswer(q, formData.get(q.id));
+      if (value !== undefined) answers[q.id] = value;
+    }
 
-  /*
-   * Pflichtprüfung als LETZTE Linie (Entwurf 3.6): die Oberfläche verhindert
-   * Lücken doppelt (mit JS der Lückenspringer, ohne JS `required`) — trotzdem
-   * prüft der Server unabhängig davon, damit eine vollständig leere Absendung
-   * strukturell unmöglich ist. Sie hätte Rücklaufquote und Durchschnitte
-   * verfälscht. Pflicht sind die Noten (auch der `stars`-Zweig importierter
-   * Alt-Umfragen), Freitexte bleiben freiwillig. Eine Note außerhalb der Skala
-   * hat `coerceAnswer` verworfen und fehlt damit hier.
-   */
-  const missing = questions
-    .filter((q) => isRatingType(q.type) && answers[q.id] === undefined)
-    .map((q) => q.id);
-  if (missing.length > 0) return abweisen(slugSecret, ohneJs, "incomplete", missing);
+    /*
+     * Pflichtprüfung als LETZTE Linie (Entwurf 3.6): die Oberfläche verhindert
+     * Lücken doppelt (mit JS der Lückenspringer, ohne JS `required`) — trotzdem
+     * prüft der Server unabhängig davon, damit eine vollständig leere Absendung
+     * strukturell unmöglich ist. Sie hätte Rücklaufquote und Durchschnitte
+     * verfälscht. Pflicht sind die Noten (auch der `stars`-Zweig importierter
+     * Alt-Umfragen), Freitexte bleiben freiwillig. Eine Note außerhalb der Skala
+     * hat `coerceAnswer` verworfen und fehlt damit hier.
+     */
+    const missing = questions
+      .filter((q) => isRatingType(q.type) && answers[q.id] === undefined)
+      .map((q) => q.id);
+    if (missing.length > 0) return abweisen(slugSecret, ohneJs, "incomplete", missing);
 
-  // Zeitstempel = Mitternacht UTC des Abenddatums, nicht `now`: der Siegeltext
-  // sagt "keine Uhrzeit" (Entwurf 3.9). Die Sekunde wäre bei ~15 Abgaben ein
-  // Deanonymisierungskanal.
-  insertResponse(db, survey.id, answers, active.evening.date);
+    // Zeitstempel = Mitternacht UTC des Abenddatums, nicht `now`: der Siegeltext
+    // sagt "keine Uhrzeit" (Entwurf 3.9). Die Sekunde wäre bei ~15 Abgaben ein
+    // Deanonymisierungskanal.
+    insertResponse(db, survey.id, answers, active.evening.date);
 
-  // Mehrfach-Absende-Schutz per Cookie (24h) — 1:1 zur Alt-App (public.go:105-112).
-  (await cookies()).set(`feedback-${survey.id}`, "submitted", {
-    maxAge: 86400,
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
+    // Mehrfach-Absende-Schutz per Cookie (24h) — 1:1 zur Alt-App (public.go:105-112).
+    (await cookies()).set(`feedback-${survey.id}`, "submitted", {
+      maxAge: 86400,
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+
+    redirect(`/f/${slugSecret}/thanks`);
+    return { ok: true };
   });
-
-  redirect(`/f/${slugSecret}/thanks`);
-  return { ok: true };
 }
 
 /**
@@ -668,41 +692,43 @@ export async function startFeedbackAction(
   formData: FormData,
 ): Promise<FormState> {
   const groupId = num(formData.get("groupId"));
-  const { db } = await guardGroup(groupId);
+  const { db, viewer } = await guardGroup(groupId);
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<FormState> => {
 
-  // Eingaben zuerst einsammeln: sie müssen im Fehlerfall vollständig zurück.
-  const values = {
-    date: String(formData.get("date") ?? "").trim(),
-    topic: String(formData.get("topic") ?? ""),
-    participantCount: String(formData.get("participantCount") ?? ""),
-  };
-  const date = values.date === "" ? null : parseDateOrNull(values.date);
-  if (!date) {
-    return {
-      ok: false,
-      fieldErrors: {
-        date: values.date === "" ? "Datum fehlt" : "Datum ungültig — bitte als Tag auswählen",
-      },
-      values,
+    // Eingaben zuerst einsammeln: sie müssen im Fehlerfall vollständig zurück.
+    const values = {
+      date: String(formData.get("date") ?? "").trim(),
+      topic: String(formData.get("topic") ?? ""),
+      participantCount: String(formData.get("participantCount") ?? ""),
     };
-  }
+    const date = values.date === "" ? null : parseDateOrNull(values.date);
+    if (!date) {
+      return {
+        ok: false,
+        fieldErrors: {
+          date: values.date === "" ? "Datum fehlt" : "Datum ungültig — bitte als Tag auswählen",
+        },
+        values,
+      };
+    }
 
-  const group = getGroup(db, groupId)!;
-  const hours = group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
-  createAndStartSurvey(db, {
-    groupId,
-    date,
-    topic: strOrNull(values.topic),
-    // `notes` fällt in der neuen Oberfläche weg (§2.3): ein viertes Feld ohne
-    // Leser. Nachtragbar über die Zeilenbearbeitung im Verlauf.
-    notes: null,
-    participants: parseCount(values.participantCount),
-    closeAfterHours: hours,
-    now: new Date(),
+    const group = getGroup(db, groupId)!;
+    const hours = group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
+    createAndStartSurvey(db, {
+      groupId,
+      date,
+      topic: strOrNull(values.topic),
+      // `notes` fällt in der neuen Oberfläche weg (§2.3): ein viertes Feld ohne
+      // Leser. Nachtragbar über die Zeilenbearbeitung im Verlauf.
+      notes: null,
+      participants: parseCount(values.participantCount),
+      closeAfterHours: hours,
+      now: new Date(),
+    });
+    // Nur im Erfolgsfall (§4.4) — ein Feldfehler hat nichts revalidiert.
+    revalidate();
+    return { ok: true };
   });
-  // Nur im Erfolgsfall (§4.4) — ein Feldfehler hat nichts revalidiert.
-  revalidate();
-  return { ok: true };
 }
 
 /**
@@ -719,9 +745,11 @@ export async function startFeedbackAction(
  */
 export async function beendeFeedbackAction(formData: FormData): Promise<void> {
   const surveyId = num(formData.get("surveyId"));
-  const { db } = await guardGroup(await groupIdOfSurvey(surveyId));
-  setSurveyStatus(db, surveyId, "closed", { closedAt: new Date() });
-  revalidate();
+  const { db, viewer } = await guardGroup(await groupIdOfSurvey(surveyId));
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    setSurveyStatus(db, surveyId, "closed", { closedAt: new Date() });
+    revalidate();
+  });
 }
 
 // ---- Parser-Helfer ----

@@ -1,3 +1,6 @@
+import ereignisseNachvollziehen from "./notizen/portal/2026-09-06-ereignisse-nachvollziehen";
+import zeichenVoruebergehendPausiert from "./notizen/portal/2026-09-07-zeichen-voruebergehend-pausiert";
+import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-im-profil";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
@@ -49,6 +52,9 @@ const NOTIZEN: readonly Releasenotiz[] = [
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,
   neuerNameIda,
+  ereignisseNachvollziehen,
+  zeichenVoruebergehendPausiert,
+  versionsnummerImProfil,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,

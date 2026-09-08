@@ -111,9 +111,9 @@ describe("o2_messungen — die BEWUSSTE Gegenprobe zu Entscheidung 5 (c)", () =>
 });
 
 describe("checks und lagerort_verfall bekommen ausdruecklich KEINE Trigger", () => {
-  it("es gibt genau vier Trigger im Schema, und sie heissen so", () => {
+  it("es gibt genau vier fachliche Sperrtrigger neben den Audit-Triggern", () => {
     const namen = (t.sqlite.prepare(
-      "select name from sqlite_master where type = 'trigger' order by name",
+      "select name from sqlite_master where type = 'trigger' and name not glob 'audit_*' order by name",
     ).all() as { name: string }[]).map((r) => r.name);
     expect(namen).toEqual([
       "buchungen_no_delete", "buchungen_no_update",

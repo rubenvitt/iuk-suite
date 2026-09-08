@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -159,6 +160,7 @@ function frischeDatenbank(): void {
   mkdirSync(ABLAGE, { recursive: true });
   process.env.DATA_DIR = DIR;
   const sqlite = new Database(join(DIR, "files.db"));
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

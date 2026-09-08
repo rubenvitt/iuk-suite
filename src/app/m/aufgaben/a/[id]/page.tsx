@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../../_db/client";
 import {
@@ -214,7 +215,10 @@ export default async function AufgabeDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const task = aufgabe(db, id);
   if (!task) notFound();
-  if (!darfAufgabeSehen(akteur, task)) notFound();
+  if (!darfAufgabeSehen(akteur, task)) {
+    auditDenied("aufgaben", auditActor(akteur.person));
+    notFound();
+  }
 
   const heute = isoTag(new Date());
   return aufgabeInhalt(db, akteur, task, heute);

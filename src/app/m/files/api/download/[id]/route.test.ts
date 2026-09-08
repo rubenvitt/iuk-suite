@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -54,6 +55,7 @@ beforeEach(() => {
   process.env.AUTH_SECRET = GEHEIMNIS;
   vi.stubEnv("SUITE_HOST_FILES", `${VERWALTUNG},${INBOX}`);
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   // `getModuleDb` hält die Verbindung global fest und zeigte sonst auf die
@@ -277,6 +279,7 @@ describe("Prüfkette (§7.4): jede Stufe hat ihren Statuscode", () => {
       rmSync(DIR, { recursive: true, force: true });
       mkdirSync(DIR, { recursive: true });
       const sqlite = new Database(`${DIR}/files.db`);
+      registerAuditFunctions(sqlite);
       migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
       sqlite.close();
       delete (globalThis as { __suiteDb?: unknown }).__suiteDb;
@@ -665,4 +668,28 @@ describe("Audit-Log (§4.5, §7.8): genau eine Zeile je Erfolg", () => {
     const zeilen = await logZeilen("share00001");
     expect(zeilen[0].clientIpUnbestaetigt).toBeNull();
   });
+});
+
+it("records actual provided bytes as anonymous and preserves delivery during audit failure", async () => {
+  const { queryAuditEvents } = await import("@/core/audit/storage");
+  const { withAuditContext } = await import("@/core/audit/context");
+  const central = new Database(`${DIR}/audit.db`);
+  migrate(drizzle(central), { migrationsFolder: "src/core/audit/_db/migrations" });
+  try {
+    const bytes = await einfacherShare();
+    const response = await withAuditContext({ actor: { kind: "user", id: "must-not-inherit" } }, () => ruf("share00001"));
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes);
+    expect(queryAuditEvents().events).toHaveLength(1);
+    expect(queryAuditEvents().events[0]).toMatchObject({ module: "files", action: "download", result: "success", actor: { kind: "anonymous" } });
+    expect(queryAuditEvents({ objectRef: "datei00001" }).events).toHaveLength(1);
+    expect(queryAuditEvents().events[0].objectType).toBe("share_file");
+    expect(JSON.stringify(queryAuditEvents().events)).not.toMatch(/share00001|datei00001/);
+    central.exec("CREATE TRIGGER reject_audit BEFORE INSERT ON audit_events BEGIN SELECT RAISE(ABORT, 'secret error details'); END");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const again = await ruf("share00001");
+    expect(again.status).toBe(200);
+    expect(Buffer.from(await again.arrayBuffer())).toEqual(bytes);
+    expect(log).toHaveBeenCalledWith("[audit] Ereignis konnte nicht gespeichert werden.");
+    expect(await downloadCount("share00001")).toBe(2);
+  } finally { central.close(); }
 });

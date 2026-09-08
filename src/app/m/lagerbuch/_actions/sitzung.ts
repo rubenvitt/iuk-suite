@@ -1,5 +1,7 @@
 "use server";
+import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
 
+import { logoutActor } from "../_lib/audit";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "../_lib/host";
@@ -84,6 +86,7 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
   const res = await redeemToken(code, getDb());
 
   if (!res.ok) {
+    auditDenied("lagerbuch");
     // SCHRITT 6 — erst jetzt buchen.
     gateFehlversuchBuchen(absender);
     return {
@@ -99,6 +102,7 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
     res.cookieValue,
     helferCookieOptionen(helferGueltigkeitSekunden()),
   );
+  auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
   return { ok: true, wert: null };
 }
 
@@ -148,6 +152,8 @@ export async function beenden(): Promise<void> {
    * aus wie ein Erfolg; die Sitzung stuende noch. Das Alt-Modul kam damit
    * durch, weil es `helferCookieOptionen` noch nicht kannte.
    */
+  const actor = await logoutActor((await cookies()).get?.(HELFER_COOKIE)?.value);
   (await cookies()).set(HELFER_COOKIE, "", helferCookieOptionen(0));
+  auditEvent({ module: "lagerbuch", action: "sign_out", objectType: "session", result: "success", origin: "server" }, actor);
   redirect("/");   // AEUSSERER Pfad — die Modulwurzel ist das Gate (§2.1 b)
 }

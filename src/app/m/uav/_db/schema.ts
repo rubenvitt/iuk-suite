@@ -1,3 +1,4 @@
+export { auditOutbox } from "@/core/audit/_db/schema";
 import { sqliteTable, text, integer, index, primaryKey } from "drizzle-orm/sqlite-core";
 
 /*

@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../../_db/client";
 import { aufgabenFuerPerson, personNachId, rangGrenzen, routinenFuer } from "../../_db/queries";
@@ -54,7 +55,10 @@ export function planInhalt(
   searchParams: { woche?: string; tag?: string },
 ) {
   // `darfPlanSehen` ist heute immer wahr — der Aufruf bleibt trotzdem stehen (Kopfkommentar).
-  if (!darfPlanSehen(betrachter, ziel.id)) notFound();
+  if (!darfPlanSehen(betrachter, ziel.id)) {
+    auditDenied("aufgaben", auditActor(betrachter.person));
+    notFound();
+  }
   const darfAendern = darfPlanAendern(betrachter, ziel.id, heute);
 
   const montag = montagAusParam(searchParams.woche, heute);

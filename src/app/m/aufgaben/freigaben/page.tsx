@@ -1,3 +1,4 @@
+import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
 import { getDb, type DB } from "../_db/client";
 import { freigabeDaten } from "../_db/queries";
@@ -53,6 +54,9 @@ export default async function FreigabenPage() {
   // DASSELBE PRAEDIKAT WIE DIE OBERFLAECHE: `EinstiegAuftrag.tsx`s eigene Freigabe-Warteschlange
   // erscheint nur fuer `auftrag`, `EinstiegKoordination.tsx`s nur fuer die Koordination — dieselbe
   // Bedingung, zusammengefasst, durchsetzt diese Route.
-  if (!darfFreigabenSehen(akteur, heute)) notFound();
+  if (!darfFreigabenSehen(akteur, heute)) {
+    auditDenied("aufgaben", auditActor(akteur.person));
+    notFound();
+  }
   return freigabenInhalt(db, akteur, heute);
 }

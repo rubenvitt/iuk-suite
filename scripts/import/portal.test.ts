@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, afterEach } from "vitest";
 import { mkdirSync, rmSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -26,7 +27,7 @@ function pgRow(over: Partial<Record<string, unknown>> = {}) {
 function freshDb(): BetterSQLite3Database<typeof schema> {
   rmSync(DIR, { recursive: true, force: true });
   mkdirSync(DIR, { recursive: true });
-  const db = drizzle(new Database(`${DIR}/portal.db`), { schema });
+  const db = drizzle(registerAuditFunctions(new Database(`${DIR}/portal.db`)), { schema });
   migrate(db, { migrationsFolder: "./src/app/m/portal/_db/migrations" });
   return db;
 }

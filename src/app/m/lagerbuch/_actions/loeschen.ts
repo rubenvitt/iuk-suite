@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, count, eq, type SQL } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
@@ -225,64 +226,66 @@ export async function loescheElement(
   id: string,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let a: ElementArt;
-  let i: string;
-  try {
-    a = ArtSchema.parse(art);
-    i = IdSchema.parse(id);
-  } catch {
-    return { ok: false, fehler: "Ungültige Anfrage." };
-  }
+    let a: ElementArt;
+    let i: string;
+    try {
+      a = ArtSchema.parse(art);
+      i = IdSchema.parse(id);
+    } catch {
+      return { ok: false, fehler: "Ungültige Anfrage." };
+    }
 
-  let status: Loeschbarkeit;
-  try {
-    status = db.transaction((tx) => {
-      const aktuell = pruefe(tx, a, i);
-      if (!aktuell.loeschbar) return aktuell;
+    let status: Loeschbarkeit;
+    try {
+      status = db.transaction((tx) => {
+        const aktuell = pruefe(tx, a, i);
+        if (!aktuell.loeschbar) return aktuell;
 
-      switch (a) {
-        case "artikel":
-          loescheVerfallFuer(tx, "artikel", i);
-          tx.delete(artikel).where(eq(artikel.id, i)).run();
-          break;
-        case "fahrzeug":
-          loescheVerfallFuer(tx, "lagerort", i);
-          tx.delete(lagerorte).where(and(
-            eq(lagerorte.id, i),
-            eq(lagerorte.typ, "fahrzeug"),
-          )!).run();
-          break;
-        // ——— HIER STAND `case "token"`, UND HIER FEHLT ER ABSICHTLICH ———
-        // 8-F: `token` erreicht diesen switch nie — `pruefe()` steigt weiter
-        // oben mit `loeschbar: false` aus. Ein wiederhergestelltes
-        // `case "token"` waere die Ruecknahme von 8-F. TypeScript verlangt hier
-        // keine Vollstaendigkeit (der Block laeuft danach in `return aktuell;`),
-        // und ein `default` mit `throw` waere schaedlich: das umgebende `catch`
-        // verschluckte ihn und machte aus der benannten Ablehnung den festen
-        // Sammelfehler. Der folgende Zweig gehoert NICHT zu diesem Absatz.
+        switch (a) {
+          case "artikel":
+            loescheVerfallFuer(tx, "artikel", i);
+            tx.delete(artikel).where(eq(artikel.id, i)).run();
+            break;
+          case "fahrzeug":
+            loescheVerfallFuer(tx, "lagerort", i);
+            tx.delete(lagerorte).where(and(
+              eq(lagerorte.id, i),
+              eq(lagerorte.typ, "fahrzeug"),
+            )!).run();
+            break;
+          // ——— HIER STAND `case "token"`, UND HIER FEHLT ER ABSICHTLICH ———
+          // 8-F: `token` erreicht diesen switch nie — `pruefe()` steigt weiter
+          // oben mit `loeschbar: false` aus. Ein wiederhergestelltes
+          // `case "token"` waere die Ruecknahme von 8-F. TypeScript verlangt hier
+          // keine Vollstaendigkeit (der Block laeuft danach in `return aktuell;`),
+          // und ein `default` mit `throw` waere schaedlich: das umgebende `catch`
+          // verschluckte ihn und machte aus der benannten Ablehnung den festen
+          // Sammelfehler. Der folgende Zweig gehoert NICHT zu diesem Absatz.
 
-        case "bzGeraet":
-          tx.delete(bzGeraete).where(eq(bzGeraete.id, i)).run();
-          break;
-        case "o2Flasche":
-          tx.delete(o2Flaschen).where(eq(o2Flaschen.id, i)).run();
-          break;
-        case "geraet":
-          tx.delete(geraete).where(eq(geraete.id, i)).run();
-          break;
-      }
-      return aktuell;
-    });
-  } catch {
-    return { ok: false, fehler: FESTER_LOESCHFEHLER };
-  }
+          case "bzGeraet":
+            tx.delete(bzGeraete).where(eq(bzGeraete.id, i)).run();
+            break;
+          case "o2Flasche":
+            tx.delete(o2Flaschen).where(eq(o2Flaschen.id, i)).run();
+            break;
+          case "geraet":
+            tx.delete(geraete).where(eq(geraete.id, i)).run();
+            break;
+        }
+        return aktuell;
+      });
+    } catch {
+      return { ok: false, fehler: FESTER_LOESCHFEHLER };
+    }
 
-  if (!status.loeschbar) return { ok: false, fehler: status.grund };
+    if (!status.loeschbar) return { ok: false, fehler: status.grund };
 
-  for (const pfad of REVALIDATE[a]) revalidatePath(pfad);
-  return { ok: true };
+    for (const pfad of REVALIDATE[a]) revalidatePath(pfad);
+    return { ok: true };
+  });
 }
 
 export async function deaktiviereElement(
@@ -290,42 +293,44 @@ export async function deaktiviereElement(
   id: string,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let a: ElementArt;
-  let i: string;
-  try {
-    a = ArtSchema.parse(art);
-    i = IdSchema.parse(id);
-  } catch {
-    return { ok: false, fehler: "Ungültige Anfrage." };
-  }
+    let a: ElementArt;
+    let i: string;
+    try {
+      a = ArtSchema.parse(art);
+      i = IdSchema.parse(id);
+    } catch {
+      return { ok: false, fehler: "Ungültige Anfrage." };
+    }
 
-  if (a === "fahrzeug" && i === HANDLAGER_ID) {
-    return { ok: false, fehler: "Das Handlager kann nicht deaktiviert werden." };
-  }
+    if (a === "fahrzeug" && i === HANDLAGER_ID) {
+      return { ok: false, fehler: "Das Handlager kann nicht deaktiviert werden." };
+    }
 
-  switch (a) {
-    case "artikel":
-      db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, i)).run();
-      break;
-    case "fahrzeug":
-      db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, i)).run();
-      break;
-    case "token":
-      db.update(tokens).set({ aktiv: false }).where(eq(tokens.id, i)).run();
-      break;
-    case "bzGeraet":
-      db.update(bzGeraete).set({ aktiv: false }).where(eq(bzGeraete.id, i)).run();
-      break;
-    case "o2Flasche":
-      db.update(o2Flaschen).set({ aktiv: false }).where(eq(o2Flaschen.id, i)).run();
-      break;
-    case "geraet":
-      db.update(geraete).set({ aktiv: false }).where(eq(geraete.id, i)).run();
-      break;
-  }
+    switch (a) {
+      case "artikel":
+        db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, i)).run();
+        break;
+      case "fahrzeug":
+        db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, i)).run();
+        break;
+      case "token":
+        db.update(tokens).set({ aktiv: false }).where(eq(tokens.id, i)).run();
+        break;
+      case "bzGeraet":
+        db.update(bzGeraete).set({ aktiv: false }).where(eq(bzGeraete.id, i)).run();
+        break;
+      case "o2Flasche":
+        db.update(o2Flaschen).set({ aktiv: false }).where(eq(o2Flaschen.id, i)).run();
+        break;
+      case "geraet":
+        db.update(geraete).set({ aktiv: false }).where(eq(geraete.id, i)).run();
+        break;
+    }
 
-  for (const pfad of REVALIDATE[a]) revalidatePath(pfad);
-  return { ok: true };
+    for (const pfad of REVALIDATE[a]) revalidatePath(pfad);
+    return { ok: true };
+  });
 }

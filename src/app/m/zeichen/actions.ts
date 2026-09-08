@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
@@ -47,7 +48,7 @@ function revalidate(): void {
 
 async function eigenerSub(): Promise<string> {
   const sub = (await auth())?.user?.id;
-  if (!sub) throw new Error("Forbidden");
+  if (!sub) { auditDenied("zeichen"); throw new Error("Forbidden"); }
   return sub;
 }
 
@@ -65,15 +66,17 @@ async function eigenerSub(): Promise<string> {
  */
 export async function merkeZeichen(zeichenId: string): Promise<void> {
   const sub = await eigenerSub();
-  const zeichen = findeZeichen(zeichenId);
-  if (zeichen === null) return;
+  return withAuditContext({ actor: auditActor({ id: sub }) }, async (): Promise<void> => {
+    const zeichen = findeZeichen(zeichenId);
+    if (zeichen === null) return;
 
-  getDb()
-    .insert(merkliste)
-    .values({ sub, zeichenId: zeichen.id, titelSchnappschuss: zeichen.titel })
-    .onConflictDoNothing()
-    .run();
-  revalidate();
+    getDb()
+      .insert(merkliste)
+      .values({ sub, zeichenId: zeichen.id, titelSchnappschuss: zeichen.titel })
+      .onConflictDoNothing()
+      .run();
+    revalidate();
+  });
 }
 
 /**
@@ -87,11 +90,13 @@ export async function merkeZeichen(zeichenId: string): Promise<void> {
  */
 export async function entferneZeichen(zeichenId: string): Promise<void> {
   const sub = await eigenerSub();
-  getDb()
-    .delete(merkliste)
-    .where(and(eq(merkliste.sub, sub), eq(merkliste.zeichenId, zeichenId)))
-    .run();
-  revalidate();
+  return withAuditContext({ actor: auditActor({ id: sub }) }, async (): Promise<void> => {
+    getDb()
+      .delete(merkliste)
+      .where(and(eq(merkliste.sub, sub), eq(merkliste.zeichenId, zeichenId)))
+      .run();
+    revalidate();
+  });
 }
 
 /**
@@ -111,7 +116,7 @@ export type SpeichernZustand =
   | {
       ok: false;
       art: "rueckfrage";
-      frage: "name" | "zusammenstellung";
+      frage: "name" | "zusammenstellung" | "beide";
       text: string;
       werte: Record<string, string>;
     };
@@ -152,71 +157,84 @@ export async function speichereEigenesZeichen(
   formData: FormData,
 ): Promise<SpeichernZustand> {
   const sub = await eigenerSub();
+  return withAuditContext({ actor: auditActor({ id: sub }) }, async (): Promise<SpeichernZustand> => {
 
-  const name = feld(formData, "name").trim();
-  const specJson = feld(formData, "spec");
-  const svg = feld(formData, "svg");
-  const bestaetigung = feld(formData, "bestaetigung");
-  const werte = { name };
+    const name = feld(formData, "name").trim();
+    const specJson = feld(formData, "spec");
+    const svg = feld(formData, "svg");
+    const bestaetigung = feld(formData, "bestaetigung");
+    const werte = { name };
 
-  if (name === "") {
-    return {
-      ok: false,
-      art: "fehler",
-      werte,
-      feldFehler: { name: "Gib dem Zeichen einen Namen, damit du es wiederfindest." },
+    if (name === "") {
+      return {
+        ok: false,
+        art: "fehler",
+        werte,
+        feldFehler: { name: "Gib dem Zeichen einen Namen, damit du es wiederfindest." },
+      };
+    }
+    if (name.length > 80) {
+      return { ok: false, art: "fehler", werte, feldFehler: { name: "Höchstens 80 Zeichen." } };
+    }
+    const specFehler = specFormFehler(specJson);
+    if (specFehler) return { ok: false, art: "fehler", werte, feldFehler: { spec: specFehler } };
+    const svgFehler = svgFormFehler(svg);
+    if (svgFehler) return { ok: false, art: "fehler", werte, feldFehler: { spec: svgFehler } };
+
+    const kanon = kanonischerSchluessel(JSON.parse(specJson));
+    const db = getDb();
+    const gleicherName = eigenesZeichenMitNamen(db, sub, name);
+    const gleicheForm = eigenesZeichenMitKanon(db, sub, kanon);
+    const frage = konfliktFrage(
+      gleicherName !== null,
+      gleicheForm && gleicheForm.name !== name ? gleicheForm.name : null,
+      bestaetigung,
+    );
+    if (frage === "name") {
+      return {
+        ok: false,
+        art: "rueckfrage",
+        frage,
+        werte,
+        text: "Unter diesem Namen hast du schon ein Zeichen. Überschreiben oder anders benennen?",
+      };
+    }
+    if (frage === "zusammenstellung") {
+      return {
+        ok: false,
+        art: "rueckfrage",
+        frage,
+        werte,
+        text:
+          `Diese Zusammenstellung hast du schon als „${gleicheForm?.name}“ gespeichert — ` +
+          "trotzdem zusätzlich sichern?",
+      };
+    }
+    if (frage === "beide") {
+      return {
+        ok: false,
+        art: "rueckfrage",
+        frage,
+        werte,
+        text:
+          `Unter diesem Namen hast du schon ein Zeichen, und diese Zusammenstellung ist bereits ` +
+          `als „${gleicheForm?.name}“ gespeichert. Überschreiben und trotzdem zusätzlich sichern?`,
+      };
+    }
+
+    const gemeinsam = {
+      specJson,
+      specKanon: kanon,
+      svg,
+      paketVersion: KATALOG_STAND.paket,
+      datenVersion: KATALOG_STAND.daten,
     };
-  }
-  if (name.length > 80) {
-    return { ok: false, art: "fehler", werte, feldFehler: { name: "Höchstens 80 Zeichen." } };
-  }
-  const specFehler = specFormFehler(specJson);
-  if (specFehler) return { ok: false, art: "fehler", werte, feldFehler: { spec: specFehler } };
-  const svgFehler = svgFormFehler(svg);
-  if (svgFehler) return { ok: false, art: "fehler", werte, feldFehler: { spec: svgFehler } };
+    if (gleicherName) ueberschreibeEigenesZeichen(db, gleicherName.id, gemeinsam);
+    else legeEigenesZeichenAn(db, { sub, name, ...gemeinsam });
 
-  const kanon = kanonischerSchluessel(JSON.parse(specJson));
-  const db = getDb();
-  const gleicherName = eigenesZeichenMitNamen(db, sub, name);
-  const gleicheForm = eigenesZeichenMitKanon(db, sub, kanon);
-  const frage = konfliktFrage(
-    gleicherName !== null,
-    gleicheForm && gleicheForm.name !== name ? gleicheForm.name : null,
-    bestaetigung,
-  );
-  if (frage === "name") {
-    return {
-      ok: false,
-      art: "rueckfrage",
-      frage,
-      werte,
-      text: "Unter diesem Namen hast du schon ein Zeichen. Überschreiben oder anders benennen?",
-    };
-  }
-  if (frage === "zusammenstellung") {
-    return {
-      ok: false,
-      art: "rueckfrage",
-      frage,
-      werte,
-      text:
-        `Diese Zusammenstellung hast du schon als „${gleicheForm?.name}“ gespeichert — ` +
-        "trotzdem zusätzlich sichern?",
-    };
-  }
-
-  const gemeinsam = {
-    specJson,
-    specKanon: kanon,
-    svg,
-    paketVersion: KATALOG_STAND.paket,
-    datenVersion: KATALOG_STAND.daten,
-  };
-  if (gleicherName) ueberschreibeEigenesZeichen(db, gleicherName.id, gemeinsam);
-  else legeEigenesZeichenAn(db, { sub, name, ...gemeinsam });
-
-  revalidate();
-  return { ok: true, name };
+    revalidate();
+    return { ok: true, name };
+  });
 }
 
 /*
@@ -235,14 +253,16 @@ export async function beantworte(
 ): Promise<{ richtig: boolean }> {
   const sub = (await auth())?.user?.id;
   // Der Typ luegt: @auth/core baut `user` ohne `id`. TypeScript sieht das nicht.
-  if (!sub) throw new Error("Forbidden");
-  if (!FRAGETYPEN.includes(typ)) throw new Error("Unbekannter Fragetyp");
+  if (!sub) { auditDenied("zeichen"); throw new Error("Forbidden"); }
+  return withAuditContext({ actor: auditActor({ id: sub }) }, async (): Promise<{ richtig: boolean }> => {
+    if (!FRAGETYPEN.includes(typ)) throw new Error("Unbekannter Fragetyp");
 
-  const richtig = gewaehlteId === zeichenId;
-  const heute = new Date().toISOString().slice(0, 10);
-  schreibeAntwort(getDb(), sub, zeichenId, richtig ? "richtig" : "falsch", heute);
-  revalidatePath("/m/zeichen/lernen");
-  return { richtig };
+    const richtig = gewaehlteId === zeichenId;
+    const heute = new Date().toISOString().slice(0, 10);
+    schreibeAntwort(getDb(), sub, zeichenId, richtig ? "richtig" : "falsch", heute);
+    revalidatePath("/m/zeichen/lernen");
+    return { richtig };
+  });
 }
 
 /*
@@ -267,41 +287,45 @@ export async function legeLernsetAn(
   _vorher: LernsetFormState,
   formData: FormData,
 ): Promise<LernsetFormState> {
-  await requireModuleAdmin("zeichen");
+  const auditViewer = await requireModuleAdmin("zeichen");
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<LernsetFormState> => {
 
-  const titel = String(formData.get("titel") ?? "").trim();
-  const slug = String(formData.get("slug") ?? "").trim();
+    const titel = String(formData.get("titel") ?? "").trim();
+    const slug = String(formData.get("slug") ?? "").trim();
 
-  const feldFehler: Record<string, string> = {};
-  if (!titel) feldFehler.titel = "Bitte einen Titel angeben.";
-  if (!/^[a-z0-9-]+$/.test(slug)) {
-    feldFehler.slug = "Nur Kleinbuchstaben, Ziffern und Bindestriche.";
-  }
-  if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler };
+    const feldFehler: Record<string, string> = {};
+    if (!titel) feldFehler.titel = "Bitte einen Titel angeben.";
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      feldFehler.slug = "Nur Kleinbuchstaben, Ziffern und Bindestriche.";
+    }
+    if (Object.keys(feldFehler).length > 0) return { ok: false, feldFehler };
 
-  const sub = (await auth())?.user?.id;
-  if (!sub) throw new Error("Forbidden");
+    const sub = auditViewer?.id;
+    if (!sub) { auditDenied("zeichen"); throw new Error("Forbidden"); }
 
-  const bestehend = getDb().select().from(lernsets).where(eq(lernsets.slug, slug)).get();
-  if (bestehend) {
-    return { ok: false, feldFehler: { slug: "Dieses Kürzel gibt es schon." } };
-  }
+    const bestehend = getDb().select().from(lernsets).where(eq(lernsets.slug, slug)).get();
+    if (bestehend) {
+      return { ok: false, feldFehler: { slug: "Dieses Kürzel gibt es schon." } };
+    }
 
-  getDb().insert(lernsets).values({ slug, titel, erstelltVon: sub }).run();
-  revalidatePath(LERNSETS_WURZEL);
-  return { ok: true };
+    getDb().insert(lernsets).values({ slug, titel, erstelltVon: sub }).run();
+    revalidatePath(LERNSETS_WURZEL);
+    return { ok: true };
+  });
 }
 
 /** Ein Set sichtbar schalten oder wieder zurueckziehen. */
 export async function setzeLernsetAktiv(lernsetId: string, aktiv: boolean): Promise<void> {
-  await requireModuleAdmin("zeichen");
-  getDb()
-    .update(lernsets)
-    .set({ aktiv, geaendertAm: new Date() })
-    .where(eq(lernsets.id, lernsetId))
-    .run();
-  revalidatePath(LERNSETS_WURZEL);
-  revalidatePath("/m/zeichen/lernen");
+  const auditViewer = await requireModuleAdmin("zeichen");
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<void> => {
+    getDb()
+      .update(lernsets)
+      .set({ aktiv, geaendertAm: new Date() })
+      .where(eq(lernsets.id, lernsetId))
+      .run();
+    revalidatePath(LERNSETS_WURZEL);
+    revalidatePath("/m/zeichen/lernen");
+  });
 }
 
 /**
@@ -315,40 +339,44 @@ export async function fuegeZeichenZuSetHinzu(
   lernsetId: string,
   zeichenId: string,
 ): Promise<{ ok: boolean; fehler?: string }> {
-  await requireModuleAdmin("zeichen");
+  const auditViewer = await requireModuleAdmin("zeichen");
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<{ ok: boolean; fehler?: string }> => {
 
-  const zeichen = findeZeichen(zeichenId);
-  if (zeichen === null) return { ok: false, fehler: "Diese Zeichen-ID kennt der Katalog nicht." };
+    const zeichen = findeZeichen(zeichenId);
+    if (zeichen === null) return { ok: false, fehler: "Diese Zeichen-ID kennt der Katalog nicht." };
 
-  const db = getDb();
-  const bisherige = db
-    .select()
-    .from(lernsetZeichen)
-    .where(eq(lernsetZeichen.lernsetId, lernsetId))
-    .all();
-  if (bisherige.some((z) => z.zeichenId === zeichen.id)) {
-    return { ok: false, fehler: "Dieses Zeichen steht schon im Set." };
-  }
+    const db = getDb();
+    const bisherige = db
+      .select()
+      .from(lernsetZeichen)
+      .where(eq(lernsetZeichen.lernsetId, lernsetId))
+      .all();
+    if (bisherige.some((z) => z.zeichenId === zeichen.id)) {
+      return { ok: false, fehler: "Dieses Zeichen steht schon im Set." };
+    }
 
-  db.insert(lernsetZeichen)
-    .values({
-      lernsetId,
-      zeichenId: zeichen.id,
-      titelSchnappschuss: zeichen.titel,
-      position: bisherige.length,
-    })
-    .run();
-  revalidatePath(`${LERNSETS_WURZEL}/${lernsetId}`);
-  return { ok: true };
+    db.insert(lernsetZeichen)
+      .values({
+        lernsetId,
+        zeichenId: zeichen.id,
+        titelSchnappschuss: zeichen.titel,
+        position: bisherige.length,
+      })
+      .run();
+    revalidatePath(`${LERNSETS_WURZEL}/${lernsetId}`);
+    return { ok: true };
+  });
 }
 
 /** Ein Zeichen aus einem Lernset nehmen. Wie bei der Merkliste: kein Katalog-Abgleich
  *  noetig, eine verwaiste Zeile muss sich genauso entfernen lassen. */
 export async function entferneZeichenAusSet(lernsetId: string, zeichenId: string): Promise<void> {
-  await requireModuleAdmin("zeichen");
-  getDb()
-    .delete(lernsetZeichen)
-    .where(and(eq(lernsetZeichen.lernsetId, lernsetId), eq(lernsetZeichen.zeichenId, zeichenId)))
-    .run();
-  revalidatePath(`${LERNSETS_WURZEL}/${lernsetId}`);
+  const auditViewer = await requireModuleAdmin("zeichen");
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<void> => {
+    getDb()
+      .delete(lernsetZeichen)
+      .where(and(eq(lernsetZeichen.lernsetId, lernsetId), eq(lernsetZeichen.zeichenId, zeichenId)))
+      .run();
+    revalidatePath(`${LERNSETS_WURZEL}/${lernsetId}`);
+  });
 }

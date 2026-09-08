@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -445,45 +446,47 @@ function autorName(viewer: { sub: string; name: string | null }): string {
  */
 export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebnis<{ id: string }>> {
   const viewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis<{ id: string }>> => {
 
-  if (issiUnbrauchbar(werte.issi)) return { ok: false, fehler: ANLEGEN_FEHLER };
-  const sauber = { ...nurSchreibbareFelder(werte), issi: werte.issi };
-  // ⛔ DIE TYPPRAEDIKATE DES ANLEGESCHEMAS (`schemas.ts:50-73`), siehe `artFalsch`. Sie
-  // stehen NACH dem Feldschnitt: was `.strip()` ohnehin entfernt, braucht keine Artpruefung.
-  if (artFalsch(sauber)) return { ok: false, fehler: ANLEGEN_FEHLER };
+    if (issiUnbrauchbar(werte.issi)) return { ok: false, fehler: ANLEGEN_FEHLER };
+    const sauber = { ...nurSchreibbareFelder(werte), issi: werte.issi };
+    // ⛔ DIE TYPPRAEDIKATE DES ANLEGESCHEMAS (`schemas.ts:50-73`), siehe `artFalsch`. Sie
+    // stehen NACH dem Feldschnitt: was `.strip()` ohnehin entfernt, braucht keine Artpruefung.
+    if (artFalsch(sauber)) return { ok: false, fehler: ANLEGEN_FEHLER };
 
-  const db = getDb();
-  const jetzt = new Date();
-  const diffs: FeldDiff[] = Object.entries(sauber)
-    .filter(([, wert]) => wert !== null && wert !== undefined)
-    .map(([feld, wert]) => ({ feld, alt: null, neu: String(wert) }));
+    const db = getDb();
+    const jetzt = new Date();
+    const diffs: FeldDiff[] = Object.entries(sauber)
+      .filter(([, wert]) => wert !== null && wert !== undefined)
+      .map(([feld, wert]) => ({ feld, alt: null, neu: String(wert) }));
 
-  let id: string;
-  try {
-    id = db.transaction((tx) => {
-      if (sauber.softwareVersion) registriereVersion(tx, sauber.softwareVersion, viewer.sub);
-      const zeile = tx
-        .insert(devices)
-        .values({
-          ...sauber,
-          createdAt: jetzt,
-          updatedAt: jetzt,
-          createdBy: viewer.sub,
-          updatedBy: viewer.sub,
-        })
-        .returning({ id: devices.id })
-        .get();
-      schreibeEreignisse(tx, zeile.id, diffs, viewer.sub, "create");
-      return zeile.id;
-    });
-  } catch (fehler) {
-    return { ok: false, fehler: istUniqueVerletzung(fehler) ? ISSI_VERGEBEN : ANLEGEN_FEHLER };
-  }
+    let id: string;
+    try {
+      id = db.transaction((tx) => {
+        if (sauber.softwareVersion) registriereVersion(tx, sauber.softwareVersion, viewer.sub);
+        const zeile = tx
+          .insert(devices)
+          .values({
+            ...sauber,
+            createdAt: jetzt,
+            updatedAt: jetzt,
+            createdBy: viewer.sub,
+            updatedBy: viewer.sub,
+          })
+          .returning({ id: devices.id })
+          .get();
+        schreibeEreignisse(tx, zeile.id, diffs, viewer.sub, "create");
+        return zeile.id;
+      });
+    } catch (fehler) {
+      return { ok: false, fehler: istUniqueVerletzung(fehler) ? ISSI_VERGEBEN : ANLEGEN_FEHLER };
+    }
 
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  revalidatePath(VERSIONSLISTE);
-  return { ok: true, id };
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    revalidatePath(VERSIONSLISTE);
+    return { ok: true, id };
+  });
 }
 
 /**
@@ -506,45 +509,47 @@ export async function geraetAnlegenAction(werte: GeraetEingabe): Promise<Ergebni
  */
 export async function geraetAendernAction(id: string, patch: GeraetPatch): Promise<Ergebnis> {
   const { viewer, rolle } = await requireRadioVerwaltung();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis> => {
 
-  // ⛔ `issi` DARF FEHLEN, ABER NICHT LEER SEIN (`schemas.ts:78`) — deshalb `!== undefined`
-  // vor der Pruefung und nicht statt ihr.
-  if (patch.issi !== undefined && issiUnbrauchbar(patch.issi)) {
-    return { ok: false, fehler: SPEICHERN_FEHLER };
-  }
+    // ⛔ `issi` DARF FEHLEN, ABER NICHT LEER SEIN (`schemas.ts:78`) — deshalb `!== undefined`
+    // vor der Pruefung und nicht statt ihr.
+    if (patch.issi !== undefined && issiUnbrauchbar(patch.issi)) {
+      return { ok: false, fehler: SPEICHERN_FEHLER };
+    }
 
-  // ⛔ DIE TYPPRAEDIKATE DES PATCHSCHEMAS (`schemas.ts:76-99`), siehe `artFalsch`. Sie stehen
-  // VOR dem Lesen, weil der Bestand die Anfrage schon an der Validierung abweist
-  // (400 `invalid`, `devices.ts:102`) und gar nicht erst in die Datenbank sieht.
-  const eingang = nurSchreibbareFelder(patch);
-  if (artFalsch(eingang)) return { ok: false, fehler: SPEICHERN_FEHLER };
+    // ⛔ DIE TYPPRAEDIKATE DES PATCHSCHEMAS (`schemas.ts:76-99`), siehe `artFalsch`. Sie stehen
+    // VOR dem Lesen, weil der Bestand die Anfrage schon an der Validierung abweist
+    // (400 `invalid`, `devices.ts:102`) und gar nicht erst in die Datenbank sieht.
+    const eingang = nurSchreibbareFelder(patch);
+    if (artFalsch(eingang)) return { ok: false, fehler: SPEICHERN_FEHLER };
 
-  const db = getDb();
-  const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
-  if (!bestehend) return { ok: false, fehler: SPEICHERN_FEHLER };
+    const db = getDb();
+    const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
+    if (!bestehend) return { ok: false, fehler: SPEICHERN_FEHLER };
 
-  const erlaubt = filterSchreibbareFelder(rolle, eingang) as GeraetPatch;
-  const diffs = diffGeraet(bestehend, erlaubt);
-  if (diffs.length === 0) return { ok: true };
+    const erlaubt = filterSchreibbareFelder(rolle, eingang) as GeraetPatch;
+    const diffs = diffGeraet(bestehend, erlaubt);
+    if (diffs.length === 0) return { ok: true };
 
-  try {
-    db.transaction((tx) => {
-      if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
-      tx.update(devices)
-        .set({ ...erlaubt, updatedAt: new Date(), updatedBy: viewer.sub })
-        .where(eq(devices.id, id))
-        .run();
-      schreibeEreignisse(tx, id, diffs, viewer.sub, "manual");
-    });
-  } catch (fehler) {
-    return { ok: false, fehler: istUniqueVerletzung(fehler) ? ISSI_VERGEBEN : SPEICHERN_FEHLER };
-  }
+    try {
+      db.transaction((tx) => {
+        if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
+        tx.update(devices)
+          .set({ ...erlaubt, updatedAt: new Date(), updatedBy: viewer.sub })
+          .where(eq(devices.id, id))
+          .run();
+        schreibeEreignisse(tx, id, diffs, viewer.sub, "manual");
+      });
+    } catch (fehler) {
+      return { ok: false, fehler: istUniqueVerletzung(fehler) ? ISSI_VERGEBEN : SPEICHERN_FEHLER };
+    }
 
-  revalidatePath(`${GERAETELISTE}/${id}`);
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  revalidatePath(SOFTWARE);
-  return { ok: true };
+    revalidatePath(`${GERAETELISTE}/${id}`);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    revalidatePath(SOFTWARE);
+    return { ok: true };
+  });
 }
 
 /** Der Abbruch, der eine Transaktion zurueckrollt, ohne die Meldung zu verlieren. */
@@ -589,34 +594,36 @@ class LoeschAbbruch extends Error {}
  * (`src/core/db/index.ts:19`).
  */
 export async function geraetLoeschenAction(id: string): Promise<Ergebnis> {
-  await requireRadioAdmin();
+  const auditViewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<Ergebnis> => {
 
-  const db = getDb();
-  try {
-    db.transaction((tx) => {
-      const offene = offeneLeiheZuGeraet(db, id);
-      if (offene) {
-        const rueckgabe = bucheRueckgabe(db, offene.id, RUECKGABE_BEIM_LOESCHEN);
-        if (!rueckgabe.ok) throw new LoeschAbbruch(rueckgabe.grund);
-      }
-      const ergebnis = tx.delete(devices).where(eq(devices.id, id)).run();
-      if (ergebnis.changes === 0) throw new LoeschAbbruch("not_found");
-    });
-  } catch {
-    return { ok: false, fehler: LOESCHEN_FEHLER };
-  }
+    const db = getDb();
+    try {
+      db.transaction((tx) => {
+        const offene = offeneLeiheZuGeraet(db, id);
+        if (offene) {
+          const rueckgabe = bucheRueckgabe(db, offene.id, RUECKGABE_BEIM_LOESCHEN);
+          if (!rueckgabe.ok) throw new LoeschAbbruch(rueckgabe.grund);
+        }
+        const ergebnis = tx.delete(devices).where(eq(devices.id, id)).run();
+        if (ergebnis.changes === 0) throw new LoeschAbbruch("not_found");
+      });
+    } catch {
+      return { ok: false, fehler: LOESCHEN_FEHLER };
+    }
 
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  // ⛔ V-L6s Folge, die der Plan nachziehen muss (VORABSCAN F2 Punkt d): die Action mutiert
-  // jetzt auch `loans`, und ohne diese Zeile zeigte `/admin/ausleihen` danach eine
-  // veraltete Liste.
-  revalidatePath(AUSLEIHENLISTE);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    // ⛔ V-L6s Folge, die der Plan nachziehen muss (VORABSCAN F2 Punkt d): die Action mutiert
+    // jetzt auch `loans`, und ohne diese Zeile zeigte `/admin/ausleihen` danach eine
+    // veraltete Liste.
+    revalidatePath(AUSLEIHENLISTE);
 
-  // ⛔ AUSSERHALB JEDES `try`: `redirect()` arbeitet ueber einen geworfenen Sentinel, und ein
-  // `catch` darueber machte aus dem gelungenen Loeschen eine Fehlermeldung. Aus demselben
-  // Grund steht er NACH der Transaktion — im Rumpf haette sein Wurf sie zurueckgerollt.
-  redirect(GERAETELISTE_AUSSEN);
+    // ⛔ AUSSERHALB JEDES `try`: `redirect()` arbeitet ueber einen geworfenen Sentinel, und ein
+    // `catch` darueber machte aus dem gelungenen Loeschen eine Fehlermeldung. Aus demselben
+    // Grund steht er NACH der Transaktion — im Rumpf haette sein Wurf sie zurueckgerollt.
+    redirect(GERAETELISTE_AUSSEN);
+  });
 }
 
 /**
@@ -640,44 +647,46 @@ export async function geraetLoeschenAction(id: string): Promise<Ergebnis> {
  */
 export async function notizAnfuegenAction(id: string, text: string): Promise<Ergebnis> {
   const { viewer } = await requireRadioVerwaltung();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis> => {
 
-  // ⛔ `z.string().trim().min(1)` (`schemas.ts:103`) — GETRIMMT, anders als bei der ISSI. Ohne
-  // die Zeile haengt ein leerer Text eine dauerhafte Auditzeile ohne Inhalt an
-  // (`[YYYY-MM-DD · Autor] `), die niemand mehr entfernen kann: die Spalte ist append-only
-  // (`_db/schema.ts:56-59`).
-  if (text.trim().length === 0) return { ok: false, fehler: ANMERKUNG_FEHLER };
+    // ⛔ `z.string().trim().min(1)` (`schemas.ts:103`) — GETRIMMT, anders als bei der ISSI. Ohne
+    // die Zeile haengt ein leerer Text eine dauerhafte Auditzeile ohne Inhalt an
+    // (`[YYYY-MM-DD · Autor] `), die niemand mehr entfernen kann: die Spalte ist append-only
+    // (`_db/schema.ts:56-59`).
+    if (text.trim().length === 0) return { ok: false, fehler: ANMERKUNG_FEHLER };
 
-  const db = getDb();
-  const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
-  if (!bestehend) return { ok: false, fehler: ANMERKUNG_FEHLER };
+    const db = getDb();
+    const bestehend = db.select().from(devices).where(eq(devices.id, id)).get();
+    if (!bestehend) return { ok: false, fehler: ANMERKUNG_FEHLER };
 
-  const jetzt = new Date();
-  const autor = autorName(viewer);
-  const zeile = haengeNotizAn("", text, autor, jetzt);
-  const neueNotiz = haengeNotizAn(bestehend.updateNote, text, autor, jetzt);
+    const jetzt = new Date();
+    const autor = autorName(viewer);
+    const zeile = haengeNotizAn("", text, autor, jetzt);
+    const neueNotiz = haengeNotizAn(bestehend.updateNote, text, autor, jetzt);
 
-  try {
-    db.transaction((tx) => {
-      tx.update(devices)
-        .set({ updateNote: neueNotiz, updatedAt: jetzt, updatedBy: viewer.sub })
-        .where(eq(devices.id, id))
-        .run();
-      schreibeEreignisse(
-        tx,
-        id,
-        [{ feld: "updateNote", alt: bestehend.updateNote, neu: zeile }],
-        viewer.sub,
-        "update-note",
-      );
-    });
-  } catch {
-    return { ok: false, fehler: ANMERKUNG_FEHLER };
-  }
+    try {
+      db.transaction((tx) => {
+        tx.update(devices)
+          .set({ updateNote: neueNotiz, updatedAt: jetzt, updatedBy: viewer.sub })
+          .where(eq(devices.id, id))
+          .run();
+        schreibeEreignisse(
+          tx,
+          id,
+          [{ feld: "updateNote", alt: bestehend.updateNote, neu: zeile }],
+          viewer.sub,
+          "update-note",
+        );
+      });
+    } catch {
+      return { ok: false, fehler: ANMERKUNG_FEHLER };
+    }
 
-  revalidatePath(`${GERAETELISTE}/${id}`);
-  revalidatePath(GERAETELISTE);
-  revalidatePath(SOFTWARE);
-  return { ok: true };
+    revalidatePath(`${GERAETELISTE}/${id}`);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(SOFTWARE);
+    return { ok: true };
+  });
 }
 
 /**
@@ -692,34 +701,36 @@ export async function notizAnfuegenAction(id: string, text: string): Promise<Erg
  */
 export async function versionAnlegenAction(wert: string): Promise<Ergebnis> {
   const viewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis> => {
 
-  // `value` getrimmt, min 1 (`radio-admin/server/src/routes/softwareVersions.ts:13`). Die
-  // Fassung im Client prueft dasselbe (`SoftwareVersionsPage.tsx:28-29`) — eine Regel, die
-  // nur im Client steht, ist keine Regel (Spec:3583-3585).
-  const sauber = wert.trim();
-  if (sauber === "") return { ok: false, fehler: VERSION_ANLEGEN_FEHLER };
+    // `value` getrimmt, min 1 (`radio-admin/server/src/routes/softwareVersions.ts:13`). Die
+    // Fassung im Client prueft dasselbe (`SoftwareVersionsPage.tsx:28-29`) — eine Regel, die
+    // nur im Client steht, ist keine Regel (Spec:3583-3585).
+    const sauber = wert.trim();
+    if (sauber === "") return { ok: false, fehler: VERSION_ANLEGEN_FEHLER };
 
-  const db = getDb();
-  try {
-    const ergebnis = db
-      .insert(softwareVersions)
-      .values({
-        value: sauber,
-        createdAt: new Date(),
-        createdBy: viewer.sub,
-        sortOrder: naechsteReihenfolge(db),
-      })
-      .onConflictDoNothing({ target: softwareVersions.value })
-      .run();
-    if (ergebnis.changes === 0) return { ok: false, fehler: VERSION_VORHANDEN };
-  } catch {
-    return { ok: false, fehler: VERSION_ANLEGEN_FEHLER };
-  }
+    const db = getDb();
+    try {
+      const ergebnis = db
+        .insert(softwareVersions)
+        .values({
+          value: sauber,
+          createdAt: new Date(),
+          createdBy: viewer.sub,
+          sortOrder: naechsteReihenfolge(db),
+        })
+        .onConflictDoNothing({ target: softwareVersions.value })
+        .run();
+      if (ergebnis.changes === 0) return { ok: false, fehler: VERSION_VORHANDEN };
+    } catch {
+      return { ok: false, fehler: VERSION_ANLEGEN_FEHLER };
+    }
 
-  revalidatePath(VERSIONSLISTE);
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  return { ok: true };
+    revalidatePath(VERSIONSLISTE);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    return { ok: true };
+  });
 }
 
 /**
@@ -734,33 +745,35 @@ export async function versionAnlegenAction(wert: string): Promise<Ergebnis> {
  * an dieser einen Marke (`_db/schema.ts:84-92`).
  */
 export async function versionZielSetzenAction(id: string): Promise<Ergebnis> {
-  await requireRadioAdmin();
+  const auditViewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<Ergebnis> => {
 
-  const db = getDb();
-  let gesetzt: boolean;
-  try {
-    gesetzt = db.transaction((tx) => {
-      const ergebnis = tx
-        .update(softwareVersions)
-        .set({ isTarget: true })
-        .where(eq(softwareVersions.id, id))
-        .run();
-      if (ergebnis.changes === 0) return false;
-      tx.update(softwareVersions)
-        .set({ isTarget: false })
-        .where(ne(softwareVersions.id, id))
-        .run();
-      return true;
-    });
-  } catch {
-    return { ok: false, fehler: ZIEL_FEHLER };
-  }
-  if (!gesetzt) return { ok: false, fehler: ZIEL_FEHLER };
+    const db = getDb();
+    let gesetzt: boolean;
+    try {
+      gesetzt = db.transaction((tx) => {
+        const ergebnis = tx
+          .update(softwareVersions)
+          .set({ isTarget: true })
+          .where(eq(softwareVersions.id, id))
+          .run();
+        if (ergebnis.changes === 0) return false;
+        tx.update(softwareVersions)
+          .set({ isTarget: false })
+          .where(ne(softwareVersions.id, id))
+          .run();
+        return true;
+      });
+    } catch {
+      return { ok: false, fehler: ZIEL_FEHLER };
+    }
+    if (!gesetzt) return { ok: false, fehler: ZIEL_FEHLER };
 
-  revalidatePath(VERSIONSLISTE);
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  return { ok: true };
+    revalidatePath(VERSIONSLISTE);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    return { ok: true };
+  });
 }
 
 /**
@@ -771,34 +784,36 @@ export async function versionZielSetzenAction(id: string): Promise<Ergebnis> {
  * never orphan a device's version string."
  */
 export async function versionLoeschenAction(id: string): Promise<Ergebnis> {
-  await requireRadioAdmin();
+  const auditViewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<Ergebnis> => {
 
-  const db = getDb();
-  try {
-    const zeile = db
-      .select({ value: softwareVersions.value })
-      .from(softwareVersions)
-      .where(eq(softwareVersions.id, id))
-      .get();
-    if (!zeile) return { ok: false, fehler: VERSION_LOESCHEN_FEHLER };
+    const db = getDb();
+    try {
+      const zeile = db
+        .select({ value: softwareVersions.value })
+        .from(softwareVersions)
+        .where(eq(softwareVersions.id, id))
+        .get();
+      if (!zeile) return { ok: false, fehler: VERSION_LOESCHEN_FEHLER };
 
-    const benutzt = db
-      .select({ anzahl: sql<number>`COUNT(*)` })
-      .from(devices)
-      .where(eq(devices.softwareVersion, zeile.value))
-      .get();
-    const anzahl = benutzt?.anzahl ?? 0;
-    if (anzahl > 0) return { ok: false, fehler: versionInBenutzung(anzahl) };
+      const benutzt = db
+        .select({ anzahl: sql<number>`COUNT(*)` })
+        .from(devices)
+        .where(eq(devices.softwareVersion, zeile.value))
+        .get();
+      const anzahl = benutzt?.anzahl ?? 0;
+      if (anzahl > 0) return { ok: false, fehler: versionInBenutzung(anzahl) };
 
-    db.delete(softwareVersions).where(eq(softwareVersions.id, id)).run();
-  } catch {
-    return { ok: false, fehler: VERSION_LOESCHEN_FEHLER };
-  }
+      db.delete(softwareVersions).where(eq(softwareVersions.id, id)).run();
+    } catch {
+      return { ok: false, fehler: VERSION_LOESCHEN_FEHLER };
+    }
 
-  revalidatePath(VERSIONSLISTE);
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  return { ok: true };
+    revalidatePath(VERSIONSLISTE);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    return { ok: true };
+  });
 }
 
 /**
@@ -812,26 +827,28 @@ export async function versionLoeschenAction(id: string): Promise<Ergebnis> {
  * ⛔ UNBEKANNTE IDS WERDEN IGNORIERT, DIE ZIEL-MARKE BLEIBT UNBERUEHRT (`:124-125`).
  */
 export async function versionenSortierenAction(ids: string[]): Promise<Ergebnis> {
-  await requireRadioAdmin();
+  const auditViewer = await requireRadioAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<Ergebnis> => {
 
-  const db = getDb();
-  try {
-    db.transaction((tx) => {
-      ids.forEach((id, index) => {
-        tx.update(softwareVersions)
-          .set({ sortOrder: ids.length - index })
-          .where(eq(softwareVersions.id, id))
-          .run();
+    const db = getDb();
+    try {
+      db.transaction((tx) => {
+        ids.forEach((id, index) => {
+          tx.update(softwareVersions)
+            .set({ sortOrder: ids.length - index })
+            .where(eq(softwareVersions.id, id))
+            .run();
+        });
       });
-    });
-  } catch {
-    return { ok: false, fehler: REIHENFOLGE_FEHLER };
-  }
+    } catch {
+      return { ok: false, fehler: REIHENFOLGE_FEHLER };
+    }
 
-  revalidatePath(VERSIONSLISTE);
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  return { ok: true };
+    revalidatePath(VERSIONSLISTE);
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    return { ok: true };
+  });
 }
 
 /**
@@ -892,146 +909,148 @@ export async function importSchreibenAction(
   probelauf = false,
 ): Promise<Ergebnis<ImportBilanz>> {
   const viewer = await requireRadioAdmin();
-
-  /*
-   * ⛔ DER SCHNITT LIEGT AN DER ZUORDNUNG, DEM EINTRITTSORT DER FREMDEN DATEN — und nicht
-   * zwei Stellen dahinter. `Spaltenzuordnung` ist beim Aufruf eine Typzusage des Aufrufers,
-   * keine Pruefung, und `zeileZuEingehend` schreibt JEDEN ihrer Schluessel in die Zeile
-   * (`_lib/csv/klassifizieren.ts:186-201`).
-   *
-   * ⛔ WARUM HIER UND NICHT AM SCHREIBVORGANG (Review V10 Fund F4, beide Faelle gemessen):
-   * der Klassifikator und der Schreibvorgang muessen aus DERSELBEN Filterung speisen, so wie
-   * im Bestand, wo `row.changes` und `patch` beide aus `filterEditableFields` kommen
-   * (`apply-commit.ts:53-57`). Fiel der Schnitt nur am Schreibvorgang, dann (a) trug die
-   * Ereignisliste einer Neuanlage `{ feld: "id", … }` — eine Auditzeile ueber eine Aenderung,
-   * die nie stattfand —, und (b) machte `zuSetzen[feld] = erlaubt[feld] ?? null` aus dem
-   * weggeschnittenen Feld ein EXPLIZITES `NULL`, dessen `NOT NULL`-Verletzung den GANZEN
-   * Stapel mitriss.
-   *
-   * ⛔ DIE GRENZE IST `IMPORTIERBARE_FELDER` UND NICHT `SCHREIBBARE_FELDER`: sie ist die
-   * engere und die gemessene (`_lib/csv/kopfzeilen.ts:32-52`, 1:1 aus
-   * `radio-admin/shared/src/import/auto-map-headers.ts:2-22`, woertlich „Device columns a CSV
-   * may target (no system/identity-internal fields)"). `updateNote` faellt damit ebenfalls
-   * heraus — es ist append-only und hat einen eigenen Schreibpfad.
-   */
-  const zuordnungSauber: Spaltenzuordnung = {};
-  for (const feld of IMPORTIERBARE_FELDER) {
-    const spalte = zuordnung[feld];
-    if (spalte !== undefined) zuordnungSauber[feld] = spalte;
-  }
-
-  // ⛔ OHNE ZUGEORDNETE ISSI-SPALTE GIBT ES KEINEN SCHLUESSEL (`ImportWizard.tsx:109`, `:211`).
-  const issiSpalte = zuordnungSauber.issi;
-  if (issiSpalte === undefined) return { ok: false, fehler: ISSI_SPALTE_FEHLT };
-
-  const rolle: RadioRolle = "admin";
-  const db = getDb();
-
-  let klassifiziert: KlassifizierteZeile[];
-  let zusammenfassung: Zusammenfassung;
-  try {
-    const bestehendNachIssi = new Map<string, Geraet>();
-    for (const geraet of db.select().from(devices).all()) {
-      bestehendNachIssi.set(geraet.issi, geraet);
-    }
-
-    ({ zeilen: klassifiziert, zusammenfassung } = klassifiziereZeilen({
-      zeilen,
-      zuordnung: zuordnungSauber,
-      bestehendNachIssi,
-      rolle,
-    }));
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<Ergebnis<ImportBilanz>> => {
 
     /*
-     * ⛔ DER PROBELAUF ENDET HIER — VOR DER TRANSAKTION UND VOR JEDEM `revalidatePath`.
-     * 1:1 aus `import.ts:56-58` (`if (dryRun) return c.json({ dryRun: true, summary, rows })`).
-     * ⛔ EINE ENTWERTUNG WAERE HIER EINE LUEGE: es hat sich nichts geaendert, und der
-     * Zwischenspeicher jeder Verwaltungsflaeche fiele bei jedem Blick in die Vorschau.
-     * ⛔ UND DIE KLASSIFIKATION LAEUFT VOR DEM SCHREIBEN NOCH EINMAL — der Bestand kann sich
-     * zwischen Vorschau und Schreiben veraendert haben; deshalb ruft der Bestand denselben
-     * Endpunkt zweimal statt das Ergebnis der Vorschau weiterzureichen.
+     * ⛔ DER SCHNITT LIEGT AN DER ZUORDNUNG, DEM EINTRITTSORT DER FREMDEN DATEN — und nicht
+     * zwei Stellen dahinter. `Spaltenzuordnung` ist beim Aufruf eine Typzusage des Aufrufers,
+     * keine Pruefung, und `zeileZuEingehend` schreibt JEDEN ihrer Schluessel in die Zeile
+     * (`_lib/csv/klassifizieren.ts:186-201`).
+     *
+     * ⛔ WARUM HIER UND NICHT AM SCHREIBVORGANG (Review V10 Fund F4, beide Faelle gemessen):
+     * der Klassifikator und der Schreibvorgang muessen aus DERSELBEN Filterung speisen, so wie
+     * im Bestand, wo `row.changes` und `patch` beide aus `filterEditableFields` kommen
+     * (`apply-commit.ts:53-57`). Fiel der Schnitt nur am Schreibvorgang, dann (a) trug die
+     * Ereignisliste einer Neuanlage `{ feld: "id", … }` — eine Auditzeile ueber eine Aenderung,
+     * die nie stattfand —, und (b) machte `zuSetzen[feld] = erlaubt[feld] ?? null` aus dem
+     * weggeschnittenen Feld ein EXPLIZITES `NULL`, dessen `NOT NULL`-Verletzung den GANZEN
+     * Stapel mitriss.
+     *
+     * ⛔ DIE GRENZE IST `IMPORTIERBARE_FELDER` UND NICHT `SCHREIBBARE_FELDER`: sie ist die
+     * engere und die gemessene (`_lib/csv/kopfzeilen.ts:32-52`, 1:1 aus
+     * `radio-admin/shared/src/import/auto-map-headers.ts:2-22`, woertlich „Device columns a CSV
+     * may target (no system/identity-internal fields)"). `updateNote` faellt damit ebenfalls
+     * heraus — es ist append-only und hat einen eigenen Schreibpfad.
      */
-    if (probelauf) return { ok: true, zusammenfassung, zeilen: klassifiziert };
+    const zuordnungSauber: Spaltenzuordnung = {};
+    for (const feld of IMPORTIERBARE_FELDER) {
+      const spalte = zuordnung[feld];
+      if (spalte !== undefined) zuordnungSauber[feld] = spalte;
+    }
 
-    db.transaction((tx) => {
-      klassifiziert.forEach((zeile) => {
-        const eingehend = zeileZuEingehend(zeilen[zeile.zeilenNummer] ?? [], zuordnungSauber);
-        const { issi: _issi, ...uebrige } = eingehend;
-        // ⛔ HIER STEHT KEIN ZWEITER FELDSCHNITT: `zuordnungSauber` oben ist der EINE, und
-        // ein zweiter daneben waere genau die Asymmetrie, gegen die er gebaut ist.
-        const erlaubt = filterSchreibbareFelder(
-          rolle,
-          uebrige as Record<string, unknown>,
-        ) as GeraetPatch;
-        const jetzt = new Date();
+    // ⛔ OHNE ZUGEORDNETE ISSI-SPALTE GIBT ES KEINEN SCHLUESSEL (`ImportWizard.tsx:109`, `:211`).
+    const issiSpalte = zuordnungSauber.issi;
+    if (issiSpalte === undefined) return { ok: false, fehler: ISSI_SPALTE_FEHLT };
 
-        if (zeile.klasse === "created") {
-          if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
-          const angelegt = tx
-            .insert(devices)
-            .values({
-              ...erlaubt,
-              issi: zeile.issi,
-              createdAt: jetzt,
-              updatedAt: jetzt,
-              createdBy: viewer.sub,
-              updatedBy: viewer.sub,
-            })
-            .returning({ id: devices.id })
-            .get();
-          schreibeEreignisse(tx, angelegt.id, zeile.aenderungen, viewer.sub, "csv-import");
-          return;
-        }
+    const rolle: RadioRolle = "admin";
+    const db = getDb();
 
-        if (zeile.klasse === "updated") {
-          const bestehend = bestehendNachIssi.get(zeile.issi);
-          if (!bestehend) return;
-          /*
-           * ⛔ NUR DIE TATSAECHLICH GEAENDERTEN FELDER WERDEN GESCHRIEBEN
-           * (`apply-commit.ts:58-61`, woertlich „persist only the fields that actually
-           * changed") — nicht der ganze Patch.
-           *
-           * ⚠️ UND DAS IST HEUTE EIN NACHGEWIESENER NO-OP, DER TROTZDEM STEHENBLEIBT. Sonde
-           * S-V10r dieser Aufgabe hat `zuSetzen` durch `{ ...erlaubt }` ersetzt: `18 passed`,
-           * ⛔ 0 rot. Der Grund ist beweisbar und nicht zufaellig — `zeile.aenderungen` kommt
-           * aus `diffGeraet(bestehend, erlaubt)` (`_lib/csv/klassifizieren.ts:292`), die
-           * uebrigen Schluessel von `erlaubt` tragen also ZEICHENGLEICH den Wert, der schon
-           * in der Zeile steht. Die zwei Schreibvorgaenge sind fuer jede heutige Eingabe
-           * identisch.
-           *
-           * ⛔ DIE ZEILE BLEIBT, WEIL DER BEWEIS AN EINER ANNAHME HAENGT, die kein Tor haelt:
-           * sobald ein Feld existiert, dessen Diff-Vergleich nicht der Schreibwert ist (eine
-           * normalisierende Spalte, ein berechneter Wert), fallen die beiden Mengen
-           * auseinander — und dann ist das hier die richtige. Der Satz steht da, damit
-           * niemand die Nullmessung fuer eine Testschwaeche haelt (dieselbe Bauform wie
-           * `_lib/csv/klassifizieren.ts:170-179`).
-           */
-          const zuSetzen: Record<string, unknown> = {};
-          for (const aenderung of zeile.aenderungen) {
-            zuSetzen[aenderung.feld] = (erlaubt as Record<string, unknown>)[aenderung.feld] ?? null;
+    let klassifiziert: KlassifizierteZeile[];
+    let zusammenfassung: Zusammenfassung;
+    try {
+      const bestehendNachIssi = new Map<string, Geraet>();
+      for (const geraet of db.select().from(devices).all()) {
+        bestehendNachIssi.set(geraet.issi, geraet);
+      }
+
+      ({ zeilen: klassifiziert, zusammenfassung } = klassifiziereZeilen({
+        zeilen,
+        zuordnung: zuordnungSauber,
+        bestehendNachIssi,
+        rolle,
+      }));
+
+      /*
+       * ⛔ DER PROBELAUF ENDET HIER — VOR DER TRANSAKTION UND VOR JEDEM `revalidatePath`.
+       * 1:1 aus `import.ts:56-58` (`if (dryRun) return c.json({ dryRun: true, summary, rows })`).
+       * ⛔ EINE ENTWERTUNG WAERE HIER EINE LUEGE: es hat sich nichts geaendert, und der
+       * Zwischenspeicher jeder Verwaltungsflaeche fiele bei jedem Blick in die Vorschau.
+       * ⛔ UND DIE KLASSIFIKATION LAEUFT VOR DEM SCHREIBEN NOCH EINMAL — der Bestand kann sich
+       * zwischen Vorschau und Schreiben veraendert haben; deshalb ruft der Bestand denselben
+       * Endpunkt zweimal statt das Ergebnis der Vorschau weiterzureichen.
+       */
+      if (probelauf) return { ok: true, zusammenfassung, zeilen: klassifiziert };
+
+      db.transaction((tx) => {
+        klassifiziert.forEach((zeile) => {
+          const eingehend = zeileZuEingehend(zeilen[zeile.zeilenNummer] ?? [], zuordnungSauber);
+          const { issi: _issi, ...uebrige } = eingehend;
+          // ⛔ HIER STEHT KEIN ZWEITER FELDSCHNITT: `zuordnungSauber` oben ist der EINE, und
+          // ein zweiter daneben waere genau die Asymmetrie, gegen die er gebaut ist.
+          const erlaubt = filterSchreibbareFelder(
+            rolle,
+            uebrige as Record<string, unknown>,
+          ) as GeraetPatch;
+          const jetzt = new Date();
+
+          if (zeile.klasse === "created") {
+            if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
+            const angelegt = tx
+              .insert(devices)
+              .values({
+                ...erlaubt,
+                issi: zeile.issi,
+                createdAt: jetzt,
+                updatedAt: jetzt,
+                createdBy: viewer.sub,
+                updatedBy: viewer.sub,
+              })
+              .returning({ id: devices.id })
+              .get();
+            schreibeEreignisse(tx, angelegt.id, zeile.aenderungen, viewer.sub, "csv-import");
+            return;
           }
-          if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
-          tx.update(devices)
-            .set({ ...zuSetzen, updatedAt: jetzt, updatedBy: viewer.sub })
-            .where(eq(devices.id, bestehend.id))
-            .run();
-          schreibeEreignisse(tx, bestehend.id, zeile.aenderungen, viewer.sub, "csv-import");
-        }
-        // `unchanged` | `error` | `skipped-no-permission` schreiben nichts (`apply-commit.ts:69`).
-      });
-    });
-  } catch {
-    return { ok: false, fehler: IMPORT_FEHLER };
-  }
 
-  /*
-   * ⛔ DER ERFOLGSABSCHLUSS STEHT AUSSERHALB DES `try`, WIE IN `geraetAnlegenAction` UND
-   * `geraetAendernAction` (Review V10 Fund F13). Innerhalb machte ein Wurf aus
-   * `revalidatePath` aus einem VOLLSTAENDIG GESCHRIEBENEN Import die Meldung
-   * „Import fehlgeschlagen" — und der Bedienende faehrt ihn ein zweites Mal.
-   */
-  revalidatePath(GERAETELISTE);
-  revalidatePath(UEBERSICHT);
-  revalidatePath(VERSIONSLISTE);
-  return { ok: true, zusammenfassung, zeilen: klassifiziert };
+          if (zeile.klasse === "updated") {
+            const bestehend = bestehendNachIssi.get(zeile.issi);
+            if (!bestehend) return;
+            /*
+             * ⛔ NUR DIE TATSAECHLICH GEAENDERTEN FELDER WERDEN GESCHRIEBEN
+             * (`apply-commit.ts:58-61`, woertlich „persist only the fields that actually
+             * changed") — nicht der ganze Patch.
+             *
+             * ⚠️ UND DAS IST HEUTE EIN NACHGEWIESENER NO-OP, DER TROTZDEM STEHENBLEIBT. Sonde
+             * S-V10r dieser Aufgabe hat `zuSetzen` durch `{ ...erlaubt }` ersetzt: `18 passed`,
+             * ⛔ 0 rot. Der Grund ist beweisbar und nicht zufaellig — `zeile.aenderungen` kommt
+             * aus `diffGeraet(bestehend, erlaubt)` (`_lib/csv/klassifizieren.ts:292`), die
+             * uebrigen Schluessel von `erlaubt` tragen also ZEICHENGLEICH den Wert, der schon
+             * in der Zeile steht. Die zwei Schreibvorgaenge sind fuer jede heutige Eingabe
+             * identisch.
+             *
+             * ⛔ DIE ZEILE BLEIBT, WEIL DER BEWEIS AN EINER ANNAHME HAENGT, die kein Tor haelt:
+             * sobald ein Feld existiert, dessen Diff-Vergleich nicht der Schreibwert ist (eine
+             * normalisierende Spalte, ein berechneter Wert), fallen die beiden Mengen
+             * auseinander — und dann ist das hier die richtige. Der Satz steht da, damit
+             * niemand die Nullmessung fuer eine Testschwaeche haelt (dieselbe Bauform wie
+             * `_lib/csv/klassifizieren.ts:170-179`).
+             */
+            const zuSetzen: Record<string, unknown> = {};
+            for (const aenderung of zeile.aenderungen) {
+              zuSetzen[aenderung.feld] = (erlaubt as Record<string, unknown>)[aenderung.feld] ?? null;
+            }
+            if (erlaubt.softwareVersion) registriereVersion(tx, erlaubt.softwareVersion, viewer.sub);
+            tx.update(devices)
+              .set({ ...zuSetzen, updatedAt: jetzt, updatedBy: viewer.sub })
+              .where(eq(devices.id, bestehend.id))
+              .run();
+            schreibeEreignisse(tx, bestehend.id, zeile.aenderungen, viewer.sub, "csv-import");
+          }
+          // `unchanged` | `error` | `skipped-no-permission` schreiben nichts (`apply-commit.ts:69`).
+        });
+      });
+    } catch {
+      return { ok: false, fehler: IMPORT_FEHLER };
+    }
+
+    /*
+     * ⛔ DER ERFOLGSABSCHLUSS STEHT AUSSERHALB DES `try`, WIE IN `geraetAnlegenAction` UND
+     * `geraetAendernAction` (Review V10 Fund F13). Innerhalb machte ein Wurf aus
+     * `revalidatePath` aus einem VOLLSTAENDIG GESCHRIEBENEN Import die Meldung
+     * „Import fehlgeschlagen" — und der Bedienende faehrt ihn ein zweites Mal.
+     */
+    revalidatePath(GERAETELISTE);
+    revalidatePath(UEBERSICHT);
+    revalidatePath(VERSIONSLISTE);
+    return { ok: true, zusammenfassung, zeilen: klassifiziert };
+  });
 }

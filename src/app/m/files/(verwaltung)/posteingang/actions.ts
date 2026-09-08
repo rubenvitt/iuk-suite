@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
@@ -88,50 +89,52 @@ export async function inboxLoeschenAction(
   _vorher: PosteingangFormZustand,
   formData: FormData,
 ): Promise<PosteingangFormZustand> {
-  await requireFilesAccess();
+  const auditViewer = await requireFilesAccess();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<PosteingangFormZustand> => {
 
-  const ids = ausgewaehlteIds(formData);
-  if (ids.length === 0) {
-    return { ok: false, feldFehler: { ids: "Keine Abgabe ausgewählt." } };
-  }
+    const ids = ausgewaehlteIds(formData);
+    if (ids.length === 0) {
+      return { ok: false, feldFehler: { ids: "Keine Abgabe ausgewählt." } };
+    }
 
-  // Spaltenliste statt `select()` — im Modul nicht erlaubt (§7.3): ohne sie
-  // zöge jede spätere Spalte mehr über diese Naht, als hier gebraucht wird.
-  // Einzeln abgefragt und nicht mit `inArray`, damit die Reihenfolge der
-  // Löschungen die der Auswahl ist und ein Abbruch nachvollziehbar bleibt.
-  const db = getDb();
-  let geloescht = 0;
-  let bytes = 0;
+    // Spaltenliste statt `select()` — im Modul nicht erlaubt (§7.3): ohne sie
+    // zöge jede spätere Spalte mehr über diese Naht, als hier gebraucht wird.
+    // Einzeln abgefragt und nicht mit `inArray`, damit die Reihenfolge der
+    // Löschungen die der Auswahl ist und ein Abbruch nachvollziehbar bleibt.
+    const db = getDb();
+    let geloescht = 0;
+    let bytes = 0;
 
-  for (const id of ids) {
-    const [zeile] = db
-      .select({ id: inboxFiles.id, size: inboxFiles.size })
-      .from(inboxFiles)
-      .where(eq(inboxFiles.id, id))
-      .limit(1)
-      .all();
-    if (!zeile) continue;
+    for (const id of ids) {
+      const [zeile] = db
+        .select({ id: inboxFiles.id, size: inboxFiles.size })
+        .from(inboxFiles)
+        .where(eq(inboxFiles.id, id))
+        .limit(1)
+        .all();
+      if (!zeile) continue;
 
-    await loesche({ art: "inbox", inboxFileId: zeile.id });
-    db.delete(inboxFiles).where(eq(inboxFiles.id, zeile.id)).run();
+      await loesche({ art: "inbox", inboxFileId: zeile.id });
+      db.delete(inboxFiles).where(eq(inboxFiles.id, zeile.id)).run();
 
-    geloescht += 1;
-    bytes += zeile.size;
-  }
+      geloescht += 1;
+      bytes += zeile.size;
+    }
 
-  /*
-   * KEINE Zeile getroffen heißt: die Auswahl ist veraltet (jemand anders hat
-   * gelöscht) oder erfunden. Beides ist ein Feldfehler und kein `ok: true` —
-   * eine Erfolgsmeldung für einen Vorgang, der nichts getan hat, ist genau die
-   * Form, an der niemand merkt, dass etwas nicht stimmt.
-   */
-  if (geloescht === 0) {
-    return {
-      ok: false,
-      feldFehler: { ids: "Diese Abgabe gibt es nicht (mehr) — die Liste ist veraltet." },
-    };
-  }
+    /*
+     * KEINE Zeile getroffen heißt: die Auswahl ist veraltet (jemand anders hat
+     * gelöscht) oder erfunden. Beides ist ein Feldfehler und kein `ok: true` —
+     * eine Erfolgsmeldung für einen Vorgang, der nichts getan hat, ist genau die
+     * Form, an der niemand merkt, dass etwas nicht stimmt.
+     */
+    if (geloescht === 0) {
+      return {
+        ok: false,
+        feldFehler: { ids: "Diese Abgabe gibt es nicht (mehr) — die Liste ist veraltet." },
+      };
+    }
 
-  auffrischen();
-  return { ok: true, geloescht, bytes };
+    auffrischen();
+    return { ok: true, geloescht, bytes };
+  });
 }

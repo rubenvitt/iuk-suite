@@ -67,6 +67,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/uav/_db/migrations ./sr
 COPY --from=builder --chown=nextjs:nodejs /app/src/app/m/zeichen/_db/migrations ./src/app/m/zeichen/_db/migrations
 # core führt seit dem Sitzungswiderruf eine eigene Datenbank (`CORE_MIGRATIONS`).
 COPY --from=builder --chown=nextjs:nodejs /app/src/core/konto/_db/migrations ./src/core/konto/_db/migrations
+COPY --from=builder --chown=nextjs:nodejs /app/src/core/audit/_db/migrations ./src/core/audit/_db/migrations
 
 # (better-sqlite3 inkl. nativem Binding steckt bereits im standalone-Output —
 #  in dieser Umgebung verifiziert, siehe „Pre-flight". KEIN separater COPY: der
@@ -95,6 +96,11 @@ VOLUME /data
 # lauffähig; `laufendeRevision()` liefert dasselbe Wort, wenn die Variable ganz fehlt.
 ARG SUITE_REVISION=unbekannt
 ENV SUITE_REVISION=${SUITE_REVISION}
+# Die Versionsnummer geht denselben Weg, aus denselben Gruenden (`scripts/version.mjs`
+# rechnet sie im Job `version`; `laufendeVersion()` gibt sie aus). Dieselbe Stelle, weil
+# auch sie sich bei jedem Commit aendert und den `pnpm build`-Layer nicht beruehren darf.
+ARG SUITE_VERSION=unbekannt
+ENV SUITE_VERSION=${SUITE_VERSION}
 
 USER nextjs
 EXPOSE 3000

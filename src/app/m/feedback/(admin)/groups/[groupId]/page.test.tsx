@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -143,6 +144,7 @@ function abend(datum: string, noten: number[], freitexte: string[] = []) {
 
 beforeEach(() => {
   sqlite = new Database(":memory:");
+  registerAuditFunctions(sqlite);
   sqlite.pragma("foreign_keys = ON");
   db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });

@@ -1,7 +1,7 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/core/auth";
 import { requireModuleAdmin } from "@/core/auth/guards";
 import { validatePresetInput } from "@/app/m/qr/_lib/validator";
 import {
@@ -13,10 +13,9 @@ import {
 
 /** Guard zuerst, Validierung danach — es soll nichts geschrieben werden, bevor
  *  die Berechtigung feststeht. */
-async function adminUserId(): Promise<string> {
-  await requireModuleAdmin("qr");
-  const session = await auth();
-  return session?.user?.id ?? "unbekannt";
+async function adminUserId() {
+  const viewer = await requireModuleAdmin("qr");
+  return { userId: viewer?.id ?? "unbekannt", actor: auditActor(viewer) };
 }
 
 /** Die Ansicht cached beide Seiten; nach jeder Mutation muessen sie neu
@@ -53,27 +52,33 @@ function parse(formData: FormData) {
 }
 
 export async function createPresetAction(formData: FormData) {
-  const userId = await adminUserId();
-  await createPreset(parse(formData), userId);
-  revalidateQr();
+  const { userId, actor } = await adminUserId();
+  return withAuditContext({ actor }, async () => {
+    await createPreset(parse(formData), userId);
+    revalidateQr();
+  });
 }
 
 export async function updatePresetAction(formData: FormData) {
-  const userId = await adminUserId();
-  const id = String(formData.get("id"));
-  const parsed = parse(formData);
-  // Die Zeile wird ueber das Formularfeld `id` adressiert. Die mitvalidierte
-  // `id` aus der Nutzlast wird verworfen, damit ein Aktualisieren nie die
-  // Identitaet der Zeile verschiebt.
-  delete parsed.id;
-  await updatePreset(id, parsed, userId);
-  revalidateQr();
+  const { userId, actor } = await adminUserId();
+  return withAuditContext({ actor }, async () => {
+    const id = String(formData.get("id"));
+    const parsed = parse(formData);
+    // Die Zeile wird ueber das Formularfeld `id` adressiert. Die mitvalidierte
+    // `id` aus der Nutzlast wird verworfen, damit ein Aktualisieren nie die
+    // Identitaet der Zeile verschiebt.
+    delete parsed.id;
+    await updatePreset(id, parsed, userId);
+    revalidateQr();
+  });
 }
 
 export async function deletePresetAction(formData: FormData) {
-  await requireModuleAdmin("qr");
-  await deletePreset(String(formData.get("id")));
-  revalidateQr();
+  const auditViewer = await requireModuleAdmin("qr");
+  return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
+    await deletePreset(String(formData.get("id")));
+    revalidateQr();
+  });
 }
 
 /**
@@ -121,7 +126,9 @@ export async function deletePresetAction(formData: FormData) {
  * darf diesen Kommentar mit ihr zusammen entfernen.
  */
 export async function reorderPresetsAction(ids: string[]) {
-  await requireModuleAdmin("qr");
-  await reorderPresets(ids);
-  revalidateQr();
+  const auditViewer = await requireModuleAdmin("qr");
+  return withAuditContext({ actor: auditActor(auditViewer) }, async () => {
+    await reorderPresets(ids);
+    revalidateQr();
+  });
 }

@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { getDb } from "../_db/client";
@@ -36,30 +37,38 @@ function bildGetrimmt<T extends { bildUrl?: string | null }>(eingabe: T): T {
 }
 
 export async function aufgabeAnlegenAction(eingabe: unknown): Promise<TaskDTO> {
-  await requireUavAdminAction();
-  const geparst = bildGetrimmt(taskAnlegenSchema.parse(eingabe));
-  const aufgabe = taskAnlegen(getDb(), geparst);
-  revalidateAlle();
-  return aufgabe;
+  const auditViewer = await requireUavAdminAction();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<TaskDTO> => {
+    const geparst = bildGetrimmt(taskAnlegenSchema.parse(eingabe));
+    const aufgabe = taskAnlegen(getDb(), geparst);
+    revalidateAlle();
+    return aufgabe;
+  });
 }
 
 export async function aufgabeAendernAction(id: string, patch: unknown): Promise<TaskDTO> {
-  await requireUavAdminAction();
-  const geparst = bildGetrimmt(taskPatchSchema.parse(patch));
-  const aufgabe = taskAendern(getDb(), id, geparst);
-  revalidateAlle();
-  return aufgabe;
+  const auditViewer = await requireUavAdminAction();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<TaskDTO> => {
+    const geparst = bildGetrimmt(taskPatchSchema.parse(patch));
+    const aufgabe = taskAendern(getDb(), id, geparst);
+    revalidateAlle();
+    return aufgabe;
+  });
 }
 
 export async function aufgabeLoeschenAction(id: string): Promise<void> {
-  await requireUavAdminAction();
-  taskLoeschen(getDb(), id);
-  revalidateAlle();
+  const auditViewer = await requireUavAdminAction();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<void> => {
+    taskLoeschen(getDb(), id);
+    revalidateAlle();
+  });
 }
 
 export async function aufgabenSortierenAction(ids: string[]): Promise<void> {
-  await requireUavAdminAction();
-  const { ids: geparst } = reorderSchema.parse({ ids });
-  tasksNeuSortieren(getDb(), geparst);
-  revalidateAlle();
+  const auditViewer = await requireUavAdminAction();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<void> => {
+    const { ids: geparst } = reorderSchema.parse({ ids });
+    tasksNeuSortieren(getDb(), geparst);
+    revalidateAlle();
+  });
 }

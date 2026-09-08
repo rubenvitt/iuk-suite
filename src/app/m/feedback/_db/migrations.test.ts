@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -18,6 +19,7 @@ describe("feedback migrations", () => {
 
   beforeAll(() => {
     sqlite = new Database(":memory:");
+    registerAuditFunctions(sqlite);
     sqlite.pragma("foreign_keys = ON");
     migrate(drizzle(sqlite), {
       migrationsFolder: "src/app/m/feedback/_db/migrations",
@@ -102,6 +104,7 @@ describe("feedback migrations — bestehende DB (Stand 0000)", () => {
     );
 
     sqlite = new Database(":memory:");
+    registerAuditFunctions(sqlite);
     sqlite.pragma("foreign_keys = ON");
     // 1. Alt-Stand herstellen …
     migrate(drizzle(sqlite), { migrationsFolder: tmp });

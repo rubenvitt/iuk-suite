@@ -174,7 +174,9 @@ describe("Das Zielschema haelt die Zeiteinheit der Suite ein", () => {
     const probe = new Date(1_000_000_000_000); // 2001-09-09T01:46:40Z
     const tabellen = (Object.values(schema) as unknown[]).filter(
       (t): t is SQLiteTable => is(t, SQLiteTable),
-    );
+    ).filter((t) => getTableName(t) !== "audit_outbox");
+    // Suite-Audit ist Infrastruktur mit eigener Inventarprobe in core/audit;
+    // die sechs Fachtabellen bleiben hier eine exakte, mutationssensible Zusage.
     expect(
       tabellen.length,
       "eine Tabelle hat schema.ts verlassen — die Timestamp-Sonde prueft sie nicht mehr mit (NT11)",

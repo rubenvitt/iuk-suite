@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -50,28 +51,30 @@ export async function createArtikel(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  let v: z.output<typeof CreateSchema>;
-  try {
-    v = CreateSchema.parse(eingabe);
-  } catch (e) {
-    return validierungsFehler(e);
-  }
+    let v: z.output<typeof CreateSchema>;
+    try {
+      v = CreateSchema.parse(eingabe);
+    } catch (e) {
+      return validierungsFehler(e);
+    }
 
-  const id = newId();
-  db.insert(artikel).values({
-    id,
-    name: v.name,
-    einheit: v.einheit,
-    fach: v.fach,
-    mindestbestand: v.mindestbestand,
-    aktiv: true,
-    createdAt: new Date(),
-  }).run();
+    const id = newId();
+    db.insert(artikel).values({
+      id,
+      name: v.name,
+      einheit: v.einheit,
+      fach: v.fach,
+      mindestbestand: v.mindestbestand,
+      aktiv: true,
+      createdAt: new Date(),
+    }).run();
 
-  revalidatePath(ARTIKEL_PFAD);
-  return { ok: true, wert: { id } };
+    revalidatePath(ARTIKEL_PFAD);
+    return { ok: true, wert: { id } };
+  });
 }
 
 export async function updateArtikel(
@@ -79,44 +82,48 @@ export async function updateArtikel(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let v: z.output<typeof UpdateSchema>;
-  try {
-    v = UpdateSchema.parse(eingabe);
-  } catch (e) {
-    return validierungsFehler(e);
-  }
+    let v: z.output<typeof UpdateSchema>;
+    try {
+      v = UpdateSchema.parse(eingabe);
+    } catch (e) {
+      return validierungsFehler(e);
+    }
 
-  const aenderung: Partial<typeof artikel.$inferInsert> = {};
-  if (v.mindestbestand !== undefined) {
-    aenderung.mindestbestand = v.mindestbestand;
-  }
-  if (v.fach !== undefined) aenderung.fach = v.fach;
-  if (v.einheit !== undefined) aenderung.einheit = v.einheit;
+    const aenderung: Partial<typeof artikel.$inferInsert> = {};
+    if (v.mindestbestand !== undefined) {
+      aenderung.mindestbestand = v.mindestbestand;
+    }
+    if (v.fach !== undefined) aenderung.fach = v.fach;
+    if (v.einheit !== undefined) aenderung.einheit = v.einheit;
 
-  if (Object.keys(aenderung).length === 0) return { ok: true };
+    if (Object.keys(aenderung).length === 0) return { ok: true };
 
-  db.update(artikel).set(aenderung).where(eq(artikel.id, id)).run();
-  revalidatePath(ARTIKEL_PFAD);
-  return { ok: true };
+    db.update(artikel).set(aenderung).where(eq(artikel.id, id)).run();
+    revalidatePath(ARTIKEL_PFAD);
+    return { ok: true };
+  });
 }
 
 export async function setArtikelAktiv(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let v: z.output<typeof AktivSchema>;
-  try {
-    v = AktivSchema.parse(eingabe);
-  } catch {
-    return { ok: false, fehler: "Ungültige Eingabe." };
-  }
+    let v: z.output<typeof AktivSchema>;
+    try {
+      v = AktivSchema.parse(eingabe);
+    } catch {
+      return { ok: false, fehler: "Ungültige Eingabe." };
+    }
 
-  db.update(artikel).set({ aktiv: v.aktiv }).where(eq(artikel.id, v.id)).run();
-  revalidatePath(ARTIKEL_PFAD);
-  revalidatePath("/m/lagerbuch/verwaltung");
-  return { ok: true };
+    db.update(artikel).set({ aktiv: v.aktiv }).where(eq(artikel.id, v.id)).run();
+    revalidatePath(ARTIKEL_PFAD);
+    revalidatePath("/m/lagerbuch/verwaltung");
+    return { ok: true };
+  });
 }

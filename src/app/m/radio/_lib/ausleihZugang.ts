@@ -1,3 +1,4 @@
+import { auditDenied } from "@/core/audit/server";
 import { eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -240,6 +241,7 @@ export async function ausleihZugangOderNull(db: DB): Promise<AusleihZugang | nul
 export async function requireAusleihZugang(db: DB): Promise<AusleihZugang> {
   const b = await befund(db);
   if (b.ok) return b.zugang;
+  auditDenied("radio");
   if (!b.hatteCookie) redirect("/");
   redirect(b.grund === "gesperrt" ? "/abmelden?grund=gesperrt" : "/abmelden?grund=abgelaufen");
 }
@@ -267,5 +269,6 @@ export async function requireAusleihSchreibend(
   db: DB,
 ): Promise<{ ok: true; zugang: AusleihZugang } | { ok: false; grund: SperrGrund }> {
   const b = await befund(db);
+  if (!b.ok) auditDenied("radio");
   return b.ok ? { ok: true, zugang: b.zugang } : { ok: false, grund: b.grund };
 }

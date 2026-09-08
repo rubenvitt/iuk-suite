@@ -1,3 +1,6 @@
+import { findModule, moduleForHost } from "@/core/registry";
+import type { AuditModule } from "@/core/audit/types";
+import { auditDenied, auditActor } from "@/core/audit/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import type { NextAuthRequest } from "next-auth";
 import { auth } from "@/core/auth";
@@ -31,6 +34,11 @@ const weiche: Weiche = (req) => {
   const decision = decideRoute({ host, pathname: nextUrl.pathname, groups, search: nextUrl.search });
 
   switch (decision.action) {
+    case "unavailable":
+      return new NextResponse("Taktische Zeichen ist vorübergehend nicht verfügbar.", {
+        status: 503,
+        headers: { "cache-control": "no-store" },
+      });
     case "next":
       return NextResponse.next();
     case "rewrite": {
@@ -44,8 +52,12 @@ const weiche: Weiche = (req) => {
       url.searchParams.set("callbackUrl", decision.callbackUrl);
       return NextResponse.redirect(url);
     }
-    case "forbidden":
+    case "forbidden": {
+      const key = nextUrl.pathname.match(/^\/m\/([^/]+)/)?.[1];
+      const auditModule = (key ? findModule(key) : moduleForHost(host))?.key ?? "portal";
+      auditDenied(auditModule as AuditModule, auditActor(req.auth?.user));
       return new NextResponse("Forbidden", { status: 403 });
+    }
   }
 };
 

@@ -116,15 +116,14 @@ describe("Konfliktfrage", () => {
    * loeste bisher die Zusammenstellungsfrage aus, „Trotzdem sichern" wieder die
    * Namensfrage, und so fort — zwei Kaesten wechselten sich ab, gespeichert wurde nie.
    *
-   * AUFGELOEST WIRD ES DURCH DIE NAMENSFRAGE, und die Begruendung stand schon vorher
-   * ueber dieser Funktion: WER UEBERSCHREIBT, LEGT NICHTS ZWEITES AN. Die Frage
-   * „trotzdem zusaetzlich sichern?" hat damit keinen Gegenstand mehr.
+   * AUFGELOEST WIRD ES DURCH EINE GEMEINSAME FRAGE, die beide Entscheidungen mit
+   * einem eigenen Wert bestaetigt.
    */
   it("pendelt nicht, wenn beide Konflikte zugleich anliegen", () => {
-    expect(konfliktFrage(true, "Zugtrupp Nord", "")).toBe("name");
-    expect(konfliktFrage(true, "Zugtrupp Nord", "ueberschreiben")).toBeNull();
-    // „zusaetzlich" beantwortet die Namensfrage NICHT — sie bleibt stehen, und der
-    // einzige Knopf daran fuehrt zu „ueberschreiben". Kein Kreis.
-    expect(konfliktFrage(true, "Zugtrupp Nord", "zusaetzlich")).toBe("name");
+    expect(konfliktFrage(true, "Zugtrupp Nord", "")).toBe("beide");
+    expect(konfliktFrage(true, "Zugtrupp Nord", "ueberschreiben")).toBe("beide");
+    // Keine einzelne Bestaetigung beantwortet die gemeinsame Frage.
+    expect(konfliktFrage(true, "Zugtrupp Nord", "zusaetzlich")).toBe("beide");
+    expect(konfliktFrage(true, "Zugtrupp Nord", "ueberschreiben-und-zusaetzlich")).toBeNull();
   });
 });

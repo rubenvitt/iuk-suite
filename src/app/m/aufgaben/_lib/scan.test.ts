@@ -369,3 +369,19 @@ describe("avKonfigAusEnv — die Zahlen kommen aus den eigenen AUFGABEN_AV_*-Var
     expect(avKonfigAusEnv({ AUFGABEN_AV_PORT: "nicht-numerisch" }).port).toBe(3310);
   });
 });
+
+it("audit separates a started scan worker from the triggering request actor", async () => {
+  const { withAuditContext } = await import("@/core/audit/context");
+  const { starteAufgabenScanArbeiter } = await import("./scan");
+  const person = legePerson("request-actor");
+  const task = legeAufgabeFuer(person.id);
+  const datei = legeDatei(task, "offen");
+  t.sqlite.exec("DELETE FROM audit_outbox");
+  withAuditContext({ actor: { kind: "user", id: person.sub } }, () => starteAufgabenScanArbeiter(t.db));
+  await vi.waitFor(() => {
+    const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox WHERE object_type = 'dateien'").all() as { actor: string }[];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "system" });
+    expect(t.db.select().from(dateien).all().find(d => d.id === datei.id)?.scanStatus).not.toBe("offen");
+  });
+});

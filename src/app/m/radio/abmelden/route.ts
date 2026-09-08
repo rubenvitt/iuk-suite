@@ -1,3 +1,5 @@
+import { logoutActor } from "../_lib/audit";
+import { auditEvent } from "@/core/audit/server";
 import { NextResponse } from "next/server";
 import { radioHostOderNull } from "../_lib/host";
 import { istGateGrund } from "../_lib/gateTexte";
@@ -100,6 +102,13 @@ export async function GET(req: Request) {
    * bei jedem Aufruf erneut hierher — eine Schleife aus zwei 303, die erst auffaellt, wenn
    * jemand das Protokoll liest.
    */
+  const cookie = req.headers.get("cookie")?.split(";").map(v => v.trim()).find(v => v.startsWith(`${AUSLEIH_COOKIE}=`))?.slice(AUSLEIH_COOKIE.length + 1);
+  const actor = await logoutActor(cookie);
   antw.cookies.set(AUSLEIH_COOKIE, "", ausleihCookieOptionen(0));
+  // Ein oeffentlicher GET ohne gueltige Sitzung darf keine dauerhafte
+  // Erfolgsmeldung erzeugen. Das Cookie wird trotzdem wie bisher aufgeraeumt.
+  if (actor.kind !== "anonymous") {
+    auditEvent({ module: "radio", action: "sign_out", objectType: "session", result: "success", origin: "server" }, actor);
+  }
   return antw;
 }

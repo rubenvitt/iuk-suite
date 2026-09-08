@@ -206,6 +206,8 @@ export default defineConfig({
       env: {
         AUTH_SECRET: "test-secret",
         AUTH_DEV_LOGIN: "true",
+        ADMIN_GROUP: "dashboard-admins",
+        SUITE_ADMIN_GROUP_PORTAL: "portal-only-admin",
         AUTH_COOKIE_DOMAIN: ".localtest.me",
         DATA_DIR: "./.data/e2e",
         PORT: "3100",

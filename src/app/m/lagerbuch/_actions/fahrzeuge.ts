@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -33,30 +34,32 @@ export async function createFahrzeug(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  let v: z.output<typeof FahrzeugSchema>;
-  try {
-    v = FahrzeugSchema.parse(eingabe);
-  } catch (e) {
-    return validierungsFehler(e);
-  }
+    let v: z.output<typeof FahrzeugSchema>;
+    try {
+      v = FahrzeugSchema.parse(eingabe);
+    } catch (e) {
+      return validierungsFehler(e);
+    }
 
-  const id = newId();
-  try {
-    db.insert(lagerorte).values({
-      id,
-      name: v.name,
-      typ: "fahrzeug",
-      kennung: v.kennung || null,
-      aktiv: true,
-    }).run();
-  } catch {
-    return { ok: false, fehler: "Fahrzeug konnte nicht angelegt werden." };
-  }
+    const id = newId();
+    try {
+      db.insert(lagerorte).values({
+        id,
+        name: v.name,
+        typ: "fahrzeug",
+        kennung: v.kennung || null,
+        aktiv: true,
+      }).run();
+    } catch {
+      return { ok: false, fehler: "Fahrzeug konnte nicht angelegt werden." };
+    }
 
-  revalidatePath(FAHRZEUGE_PFAD);
-  return { ok: true, wert: { id } };
+    revalidatePath(FAHRZEUGE_PFAD);
+    return { ok: true, wert: { id } };
+  });
 }
 
 const AktivSchema = z.object({
@@ -68,29 +71,31 @@ export async function setFahrzeugAktiv(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let v: z.output<typeof AktivSchema>;
-  try {
-    v = AktivSchema.parse(eingabe);
-  } catch {
-    return { ok: false, fehler: "Ungültige Eingabe." };
-  }
-
-  try {
-    if (!findeFahrzeug(db, v.id)) {
-      return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+    let v: z.output<typeof AktivSchema>;
+    try {
+      v = AktivSchema.parse(eingabe);
+    } catch {
+      return { ok: false, fehler: "Ungültige Eingabe." };
     }
-    db.update(lagerorte)
-      .set({ aktiv: v.aktiv })
-      .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
-      .run();
-  } catch {
-    return { ok: false, fehler: "Fahrzeugstatus konnte nicht geändert werden." };
-  }
 
-  revalidatePath(FAHRZEUGE_PFAD);
-  return { ok: true };
+    try {
+      if (!findeFahrzeug(db, v.id)) {
+        return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+      }
+      db.update(lagerorte)
+        .set({ aktiv: v.aktiv })
+        .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
+        .run();
+    } catch {
+      return { ok: false, fehler: "Fahrzeugstatus konnte nicht geändert werden." };
+    }
+
+    revalidatePath(FAHRZEUGE_PFAD);
+    return { ok: true };
+  });
 }
 
 const SollSchema = z.object({
@@ -111,59 +116,61 @@ export async function sollPositionSetzen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis<{ id: string }>> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis<{ id: string }>> => {
 
-  let v: z.output<typeof SollSchema>;
-  try {
-    v = SollSchema.parse(eingabe);
-  } catch (e) {
-    return validierungsFehler(e);
-  }
-
-  const id = v.id ?? newId();
-  try {
-    if (!findeFahrzeug(db, v.fahrzeugId)) {
-      return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+    let v: z.output<typeof SollSchema>;
+    try {
+      v = SollSchema.parse(eingabe);
+    } catch (e) {
+      return validierungsFehler(e);
     }
-    if (v.id) {
-      const row = db.select().from(sollPositionen)
-        .where(eq(sollPositionen.id, v.id)).get();
-      if (!row || row.fahrzeugId !== v.fahrzeugId) {
-        return { ok: false, fehler: "Soll-Position nicht gefunden." };
-      }
-      const ueberschrieben = row?.templatePositionId
-        ? true
-        : (row?.ueberschrieben ?? false);
 
-      db.update(sollPositionen)
-        .set({
+    const id = v.id ?? newId();
+    try {
+      if (!findeFahrzeug(db, v.fahrzeugId)) {
+        return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+      }
+      if (v.id) {
+        const row = db.select().from(sollPositionen)
+          .where(eq(sollPositionen.id, v.id)).get();
+        if (!row || row.fahrzeugId !== v.fahrzeugId) {
+          return { ok: false, fehler: "Soll-Position nicht gefunden." };
+        }
+        const ueberschrieben = row?.templatePositionId
+          ? true
+          : (row?.ueberschrieben ?? false);
+
+        db.update(sollPositionen)
+          .set({
+            fahrzeugId: v.fahrzeugId,
+            fachLabel: v.fachLabel,
+            artikelId: v.artikelId,
+            soll: v.soll,
+            sort: v.sort,
+            ueberschrieben,
+            entfernt: false,
+          })
+          .where(eq(sollPositionen.id, v.id))
+          .run();
+      } else {
+        db.insert(sollPositionen).values({
+          id,
           fahrzeugId: v.fahrzeugId,
           fachLabel: v.fachLabel,
           artikelId: v.artikelId,
           soll: v.soll,
           sort: v.sort,
-          ueberschrieben,
-          entfernt: false,
-        })
-        .where(eq(sollPositionen.id, v.id))
-        .run();
-    } else {
-      db.insert(sollPositionen).values({
-        id,
-        fahrzeugId: v.fahrzeugId,
-        fachLabel: v.fachLabel,
-        artikelId: v.artikelId,
-        soll: v.soll,
-        sort: v.sort,
-      }).run();
+        }).run();
+      }
+    } catch {
+      return { ok: false, fehler: "Soll-Position konnte nicht gespeichert werden." };
     }
-  } catch {
-    return { ok: false, fehler: "Soll-Position konnte nicht gespeichert werden." };
-  }
 
-  revalidatePath(FAHRZEUGE_PFAD);
-  revalidatePath(`${FAHRZEUGE_PFAD}/${v.fahrzeugId}`);
-  return { ok: true, wert: { id } };
+    revalidatePath(FAHRZEUGE_PFAD);
+    revalidatePath(`${FAHRZEUGE_PFAD}/${v.fahrzeugId}`);
+    return { ok: true, wert: { id } };
+  });
 }
 
 const PositionIdSchema = z.object({ id: z.string().min(1) });
@@ -178,58 +185,60 @@ export async function sollPositionEntfernen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let v: z.output<typeof PositionIdSchema>;
-  try {
-    v = PositionIdSchema.parse(eingabe);
-  } catch {
-    return { ok: false, fehler: "Ungültige Eingabe." };
-  }
+    let v: z.output<typeof PositionIdSchema>;
+    try {
+      v = PositionIdSchema.parse(eingabe);
+    } catch {
+      return { ok: false, fehler: "Ungültige Eingabe." };
+    }
 
-  let row: typeof sollPositionen.$inferSelect | undefined;
-  try {
-    row = db.transaction((tx) => {
-      const gefunden = tx.select().from(sollPositionen)
-        .where(eq(sollPositionen.id, v.id)).get();
+    let row: typeof sollPositionen.$inferSelect | undefined;
+    try {
+      row = db.transaction((tx) => {
+        const gefunden = tx.select().from(sollPositionen)
+          .where(eq(sollPositionen.id, v.id)).get();
 
-      if (gefunden?.templatePositionId) {
-        tx.update(sollPositionen)
-          .set({ entfernt: true })
-          .where(eq(sollPositionen.id, v.id))
-          .run();
-      } else {
-        tx.delete(sollPositionen)
-          .where(eq(sollPositionen.id, v.id))
-          .run();
-      }
-
-      if (gefunden) {
-        const restPositionen = tx
-          .select({ id: sollPositionen.id, entfernt: sollPositionen.entfernt })
-          .from(sollPositionen)
-          .where(and(
-            eq(sollPositionen.fahrzeugId, gefunden.fahrzeugId),
-            eq(sollPositionen.artikelId, gefunden.artikelId),
-          ))
-          .all()
-          .filter((position) => position.id !== v.id && !position.entfernt);
-
-        if (restPositionen.length === 0) {
-          loescheVerfallEintrag(tx, gefunden.fahrzeugId, gefunden.artikelId);
+        if (gefunden?.templatePositionId) {
+          tx.update(sollPositionen)
+            .set({ entfernt: true })
+            .where(eq(sollPositionen.id, v.id))
+            .run();
+        } else {
+          tx.delete(sollPositionen)
+            .where(eq(sollPositionen.id, v.id))
+            .run();
         }
-      }
 
-      return gefunden;
-    });
-  } catch {
-    return { ok: false, fehler: "Soll-Position konnte nicht entfernt werden." };
-  }
+        if (gefunden) {
+          const restPositionen = tx
+            .select({ id: sollPositionen.id, entfernt: sollPositionen.entfernt })
+            .from(sollPositionen)
+            .where(and(
+              eq(sollPositionen.fahrzeugId, gefunden.fahrzeugId),
+              eq(sollPositionen.artikelId, gefunden.artikelId),
+            ))
+            .all()
+            .filter((position) => position.id !== v.id && !position.entfernt);
 
-  if (row) revalidatePath(`${FAHRZEUGE_PFAD}/${row.fahrzeugId}`);
-  revalidatePath(VERFALL_PFAD);
-  revalidatePath(FAHRZEUGE_PFAD);
-  return { ok: true };
+          if (restPositionen.length === 0) {
+            loescheVerfallEintrag(tx, gefunden.fahrzeugId, gefunden.artikelId);
+          }
+        }
+
+        return gefunden;
+      });
+    } catch {
+      return { ok: false, fehler: "Soll-Position konnte nicht entfernt werden." };
+    }
+
+    if (row) revalidatePath(`${FAHRZEUGE_PFAD}/${row.fahrzeugId}`);
+    revalidatePath(VERFALL_PFAD);
+    revalidatePath(FAHRZEUGE_PFAD);
+    return { ok: true };
+  });
 }
 
 /** Hebt den Grabstein einer zuvor entfernten Vorlagen-Position auf. */
@@ -237,31 +246,33 @@ export async function sollPositionWiederherstellen(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  let v: z.output<typeof PositionIdSchema>;
-  try {
-    v = PositionIdSchema.parse(eingabe);
-  } catch {
-    return { ok: false, fehler: "Ungültige Eingabe." };
-  }
+    let v: z.output<typeof PositionIdSchema>;
+    try {
+      v = PositionIdSchema.parse(eingabe);
+    } catch {
+      return { ok: false, fehler: "Ungültige Eingabe." };
+    }
 
-  let row: typeof sollPositionen.$inferSelect | undefined;
-  try {
-    row = db.select().from(sollPositionen)
-      .where(eq(sollPositionen.id, v.id)).get();
-    db.update(sollPositionen)
-      .set({ entfernt: false })
-      .where(eq(sollPositionen.id, v.id))
-      .run();
-  } catch {
-    return {
-      ok: false,
-      fehler: "Soll-Position konnte nicht wiederhergestellt werden.",
-    };
-  }
+    let row: typeof sollPositionen.$inferSelect | undefined;
+    try {
+      row = db.select().from(sollPositionen)
+        .where(eq(sollPositionen.id, v.id)).get();
+      db.update(sollPositionen)
+        .set({ entfernt: false })
+        .where(eq(sollPositionen.id, v.id))
+        .run();
+    } catch {
+      return {
+        ok: false,
+        fehler: "Soll-Position konnte nicht wiederhergestellt werden.",
+      };
+    }
 
-  if (row) revalidatePath(`${FAHRZEUGE_PFAD}/${row.fahrzeugId}`);
-  revalidatePath(FAHRZEUGE_PFAD);
-  return { ok: true };
+    if (row) revalidatePath(`${FAHRZEUGE_PFAD}/${row.fahrzeugId}`);
+    revalidatePath(FAHRZEUGE_PFAD);
+    return { ok: true };
+  });
 }

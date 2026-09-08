@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { it, expect, beforeEach } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
@@ -25,6 +26,7 @@ beforeEach(() => {
   process.env.DATA_DIR = TEST_DATA_DIR;
   mkdirSync(TEST_DATA_DIR, { recursive: true });
   const sqlite = new Database(`${TEST_DATA_DIR}/portal.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite, { schema }), { migrationsFolder: "./src/app/m/portal/_db/migrations" });
   sqlite.close();
   delete (globalThis as { __suiteDb?: unknown }).__suiteDb;

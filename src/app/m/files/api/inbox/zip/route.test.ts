@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { inflateRawSync } from "node:zlib";
@@ -104,6 +105,7 @@ beforeEach(() => {
   mkdirSync(DIR, { recursive: true });
   process.env.DATA_DIR = DIR;
   const sqlite = new Database(`${DIR}/files.db`);
+  registerAuditFunctions(sqlite);
   migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
   sqlite.close();
   // `getModuleDb` haelt die Verbindung global fest und zeigte sonst auf die

@@ -1,10 +1,12 @@
 import { Card, Col, Empty, Row } from "antd";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../_db/client";
 import { verfallSchwellen, verfallStatus } from "../../_lib/domain/verfall";
 import { ampelTon, chargeText, type AmpelTon } from "../../_lib/format";
 import { journalZeile } from "../../_lib/journalZeile";
+import { requireLagerbuchHost } from "../../_lib/host";
 import { artikelListe } from "../../_lib/lesepfade/artikel";
 import { kennzahlen } from "../../_lib/lesepfade/bestand";
 import {
@@ -13,6 +15,7 @@ import {
 } from "../../_lib/lesepfade/journal";
 import { SCHRIFT } from "../../_lib/schrift";
 import { fmtTs } from "../../_lib/zeit";
+import { requireLagerbuchAdmin } from "../../_lib/zugang";
 import { Chip } from "../../_ui/Chip";
 import { Kachel } from "../../_ui/Kachel";
 import { SeitenKopf } from "../../_ui/SeitenKopf";
@@ -187,6 +190,9 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
   );
 }
 
-export default function VerwaltungUebersicht() {
+export default async function VerwaltungUebersicht() {
+  requireLagerbuchHost(await headers());
+  await requireLagerbuchAdmin();
+
   return verwaltungInhalt(getDb(), new Date());
 }

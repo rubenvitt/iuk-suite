@@ -1,4 +1,5 @@
 import { zeichenSwAn } from "../_lib/boot";
+import { ZEICHEN_PAUSIERT } from "../_lib/verfuegbarkeit";
 import { ZEICHEN_SW_QUELLE, ZEICHEN_SW_ABRAEUM_QUELLE } from "../_lib/sw-quelle";
 
 /**
@@ -25,7 +26,7 @@ export function GET(): Response {
 /** Ausgelagert, damit `pwa-routen.test.ts` die Umgebung setzen kann, ohne dass
  *  der Handler eine Signatur bekommt, die Next mit einem `Request` fuellt. */
 export function baueAntwort(env: Record<string, string | undefined>): Response {
-  return new Response(zeichenSwAn(env) ? ZEICHEN_SW_QUELLE : ZEICHEN_SW_ABRAEUM_QUELLE, {
+  return new Response(!ZEICHEN_PAUSIERT && zeichenSwAn(env) ? ZEICHEN_SW_QUELLE : ZEICHEN_SW_ABRAEUM_QUELLE, {
     headers: {
       "content-type": "text/javascript; charset=utf-8",
       // no-cache, nicht no-store: der Browser prueft den Worker bei jeder

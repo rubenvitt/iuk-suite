@@ -29,6 +29,13 @@
       "when": 1785832223142,
       "tag": "0003_handlager",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788681537840,
+      "tag": "0004_audit_outbox",
+      "breakpoints": true
     }
   ]
 }

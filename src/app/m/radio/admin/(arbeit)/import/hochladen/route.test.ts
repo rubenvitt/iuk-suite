@@ -1,3 +1,4 @@
+import { queryAuditEvents } from "@/core/audit/storage";
 // src/app/m/radio/admin/(arbeit)/import/hochladen/route.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -83,6 +84,10 @@ const alterHost = process.env.SUITE_HOST_RADIO;
 
 beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), "radio-hochladen-"));
+  vi.stubEnv("DATA_DIR", tmp);
+  const central = openModuleDatabase(join(tmp, "audit.db"));
+  migrate(drizzle(central), { migrationsFolder: "src/core/audit/_db/migrations" });
+  central.close();
   sqlite = openModuleDatabase(join(tmp, "radio.db"));
   migrate(drizzle(sqlite), { migrationsFolder: MIGRATIONEN });
   testDb = drizzle(sqlite, { schema });
@@ -94,6 +99,7 @@ beforeEach(() => {
 
 afterEach(() => {
   testDb = null;
+  vi.unstubAllEnvs();
   sqlite.close();
   rmSync(tmp, { recursive: true, force: true });
   for (const [name, wert] of [
@@ -270,4 +276,21 @@ describe("POST /admin/import/hochladen — die Bauform, die kein Typ haelt", () 
       /\b403\b/,
     );
   });
+});
+
+
+it("persists parser role denials but neither a foreign host nor successful parsing", async () => {
+  sitzung = UPDATER_SITZUNG;
+  expect((await POST(anfrage(form(CSV), FREMDER_HOST))).status).toBe(404);
+  expect(queryAuditEvents().events).toHaveLength(0);
+  expect((await POST(anfrage(form(CSV)))).status).toBe(404);
+  sitzung = null;
+  expect((await POST(anfrage(form(CSV)))).status).toBe(404);
+  sitzung = ADMIN_SITZUNG;
+  expect((await POST(anfrage(form(CSV)))).status).toBe(200);
+  const events = queryAuditEvents().events;
+  expect(events).toHaveLength(2);
+  expect(events.every(e => e.action === "access_denied" && e.result === "denied")).toBe(true);
+  expect(events.map(e => e.actor.kind).sort()).toEqual(["anonymous", "user"]);
+  expect(events.find(e => e.actor.kind === "user")?.actor).toMatchObject({ id: "sub-updater" });
 });

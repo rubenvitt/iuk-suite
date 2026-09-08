@@ -1,3 +1,4 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
@@ -115,6 +116,7 @@ function berechtigt(): void {
 
 beforeAll(() => {
   const sqlite = new Database(":memory:");
+  registerAuditFunctions(sqlite);
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: "src/app/m/files/_db/migrations" });
   db.insert(zugangslinks)

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { registerAuditFunctions } from "@/core/audit/context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -676,6 +677,7 @@ describe("die Seite — Naht zu `hostFuerRolle(\"inbox\")`", () => {
     mkdirSync(DIR, { recursive: true });
     vi.stubEnv("DATA_DIR", DIR);
     const sqlite = new Database(`${DIR}/files.db`);
+    registerAuditFunctions(sqlite);
     migrate(drizzle(sqlite), { migrationsFolder: "src/app/m/files/_db/migrations" });
     /*
      * BUDGET UND REST IN VERSCHIEDENEN GROESSENORDNUNGEN, und beide Zahlen so

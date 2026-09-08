@@ -47,6 +47,8 @@ export function ProfilAnsicht({
   gruppen,
   fachgruppen,
   angemeldetSeit,
+  version,
+  revision,
   abmelden,
 }: {
   name: string | null;
@@ -55,6 +57,10 @@ export function ProfilAnsicht({
   gruppen: string[];
   fachgruppen: string[];
   angemeldetSeit: number | null;
+  /** `laufendeVersion()` — `1.4.2` oder `unbekannt` (lokal, ohne CI-Image). */
+  version: string;
+  /** `laufendeRevision()` — der volle Commit oder `unbekannt`. */
+  revision: string;
   abmelden: () => Promise<void>;
 }) {
   const [fragt, setFragt] = useState(false);
@@ -101,6 +107,33 @@ export function ProfilAnsicht({
         </Zeile>
         <Text type="secondary">
           Name, E-Mail und Gruppen werden zentral verwaltet und lassen sich hier nicht ändern.
+        </Text>
+      </Card>
+
+      {/*
+       * Die Version steht HIER und nicht in der Kopfzeile: sie ist eine Betreiber-
+       * Auskunft („welcher Stand läuft?"), keine Navigation. Das Profil ist von jedem
+       * Modul aus über das Nutzermenü erreichbar und existiert genau einmal — die
+       * eine Stelle, die im angemeldeten Zustand überall gleich weit weg ist.
+       *
+       * `unbekannt` ist der Wert außerhalb eines CI-Images (`core/version.ts`). Er
+       * wird ausgeschrieben statt versteckt: eine leere Zeile läse sich wie ein
+       * Ladefehler, und lokal ist „Entwicklungsstand" die wahre Auskunft.
+       */}
+      <Card title="Diese Suite">
+        <Zeile titel="Version">
+          <span data-testid="suite-version">
+            {version === "unbekannt" ? "Entwicklungsstand, keine Versionsnummer" : version}
+          </span>
+        </Zeile>
+        <Zeile titel="Stand">
+          <Text code data-testid="suite-revision">
+            {revision === "unbekannt" ? "unbekannt" : revision.slice(0, 12)}
+          </Text>
+        </Zeile>
+        <Text type="secondary">
+          Die Versionsnummer nennt den Stand, der gerade läuft. Was sich darin geändert hat,
+          steht unter Neuigkeiten.
         </Text>
       </Card>
 

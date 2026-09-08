@@ -1,4 +1,5 @@
 "use server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -22,19 +23,21 @@ export async function markiereBestellt(
   eingabe: unknown,
   db: DB = getDb(),
 ): Promise<ActionErgebnis> {
-  await requireLagerbuchAdmin();
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
-  const geparst = Schema.safeParse(eingabe);
-  if (!geparst.success) {
-    return { ok: false, fehler: "Ungültige Eingabe." };
-  }
+    const geparst = Schema.safeParse(eingabe);
+    if (!geparst.success) {
+      return { ok: false, fehler: "Ungültige Eingabe." };
+    }
 
-  db.update(artikel)
-    .set({ bestelltAt: geparst.data.bestellt ? new Date() : null })
-    .where(eq(artikel.id, geparst.data.artikelId))
-    .run();
+    db.update(artikel)
+      .set({ bestelltAt: geparst.data.bestellt ? new Date() : null })
+      .where(eq(artikel.id, geparst.data.artikelId))
+      .run();
 
-  revalidatePath("/m/lagerbuch/verwaltung/bestellung");
-  revalidatePath("/m/lagerbuch/verwaltung");
-  return { ok: true };
+    revalidatePath("/m/lagerbuch/verwaltung/bestellung");
+    revalidatePath("/m/lagerbuch/verwaltung");
+    return { ok: true };
+  });
 }

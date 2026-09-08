@@ -5,6 +5,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
 import { checkDetail, type CheckDetail } from "../../../../_lib/lesepfade/checks";
+import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import {
@@ -214,6 +215,7 @@ export default async function CheckDetailSeite({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireLagerbuchAdmin();
   const { id } = await params;
   const check = checkDetail(getDb(), id, new Date());
   if (!check) notFound();

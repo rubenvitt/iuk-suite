@@ -1,0 +1,10 @@
+HEAD 55236677d831297a0dad2e4b3a9429b38fbf3164
+Exit code: 0
+405 passed (17.8m)
+
+  ✓  371 e2e/suite-audit.spec.ts:16:5 › Suite-Admin: Navigation, serverseitige Filter, Details, Seitengrenzen und drei Darstellungen (6.8s)
+  ✓  372 e2e/suite-audit.spec.ts:99:5 › Direktaufruf und Navigation schließen Nutzer, Modul-Admin und Portal-Override aus (6.9s)
+  ✓  373 e2e/suite-audit.spec.ts:116:5 › Anonym erhält auch direkt keine Audit-Daten (452ms)
+  ✓  374 e2e/suite-audit.spec.ts:121:5 › QR auf Modul-Host meldet echten PNG-Export; Meldefehler lassen den Export nutzbar (708ms)
+  ✓  375 e2e/suite-audit.spec.ts:134:5 › Zeichen auf Modul-Host meldet SVG, PNG und Datei erst beim Export (2.5s)
+  ✓  376 e2e/suite-audit.spec.ts:149:5 › Browserempfänger auf beiden Modul-Hosts verwirft fremde Herkunft und Akteursfälschung (67ms)
