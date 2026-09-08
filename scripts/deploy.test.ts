@@ -157,6 +157,15 @@ describe("ci.yml → Dockerfile → version.ts — die Versionsnummer geht dense
     expect(versionJob).not.toMatch(/pnpm install/);
   });
 
+  it("der Pflicht-Check `test` wartet auf `version` und prüft sein Ergebnis", () => {
+    // Ein rotes `version` ließe `build` nur ÜBERSPRINGEN, und übersprungen ist für das
+    // Ruleset kein Fehlschlag: der PR wäre mergebar, und der Fehler träfe erst den
+    // main-Lauf samt Rollout. Nur über `test` wird er zum Merge-Blocker.
+    const testJob = rumpf(jobs, "test", 2).join("\n");
+    expect(testJob).toMatch(/needs:\s*\[[^\]]*\bversion\b/);
+    expect(testJob).toMatch(/needs\.version\.result\s*\}\}"\s*=\s*"success"/);
+  });
+
   it("`build` und `merge` warten auf `version` — sonst ist die Ausgabe leer", () => {
     // Ein `needs.version.outputs.version` ohne `needs: version` ist in GitHub Actions
     // kein Fehler, sondern ein leerer String: `SUITE_VERSION=` im Image, `:` als Tag.

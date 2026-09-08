@@ -220,7 +220,12 @@ jobs:
   # roten Bedarf uebersprungen statt rot, und ein uebersprungener Pflicht-Check
   # blockiert genauso. Er muss laufen und scheitern.
   test:
-    needs: [checks, e2e]
+    # `version` gehoert dazu, weil es der EINZIGE Weg ist, ein rotes `version` auf
+    # einem PR zum Merge-Blocker zu machen: `build` wird bei rotem `version` nur
+    # UEBERSPRUNGEN, und ein uebersprungener Job ist fuer das Ruleset kein Fehlschlag.
+    # Ohne diese Zeile liesse sich ein Stand mergen, dessen Nummer schon vergeben ist
+    # (scripts/version.mjs) — und der Fehler traefe erst den main-Lauf, samt Rollout.
+    needs: [checks, e2e, version]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -229,9 +234,10 @@ jobs:
       # `cancelled` und `skipped` ab.
       - name: Ergebnisse der Vorstufen prüfen
         run: |
-          echo "checks=${{ needs.checks.result }} e2e=${{ needs.e2e.result }}"
+          echo "checks=${{ needs.checks.result }} e2e=${{ needs.e2e.result }} version=${{ needs.version.result }}"
           test "${{ needs.checks.result }}" = "success"
           test "${{ needs.e2e.result }}" = "success"
+          test "${{ needs.version.result }}" = "success"
 
   # Je Architektur ein Job auf NATIVEM Runner statt einem Job mit QEMU.
   # Grund: der emulierte arm64-Build kompiliert better-sqlite3 nativ und lief
