@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 
 /**
  * DIE NAHT, DIE SONST NIEMAND SIEHT.
@@ -39,7 +39,16 @@ test("der Widerruf sperrt eine zweite, unabhaengige Sitzung aus", async ({ brows
   await expect(seiteB).not.toHaveURL(/\/login/);
 
   await seiteA.goto("http://portal.localtest.me:3100/profil");
-  await seiteA.getByTestId("alle-abmelden").click();
+  /*
+   * `klickeWennRuhig` statt `.click()`, und das ist Falle 12 aus docs/design/README.md,
+   * gemessen am 2026-09-08 auf main (Lauf 34225940426, e2e (2), drei Versuche in Folge):
+   * der Klick galt als gelungen, der Bestaetigungsdialog erschien nie, und
+   * `alle-abmelden-ja` lief ins Zeitbudget. Der Knopf liegt unten auf einer Seite, die
+   * nach `load` noch einmal umbricht, sobald `SessionProvider` die Sitzung nachgeholt
+   * hat — `mouseup` traf dann etwas anderes als `mousedown`. Derselbe Klick im dritten
+   * Test unten war zuvor gruen, weil dessen Seite schon warm war.
+   */
+  await klickeWennRuhig(seiteA.getByTestId("alle-abmelden"));
   /*
    * DER SYNCHRONISATIONSPUNKT, und warum es NICHT die Adresse sein kann.
    *
@@ -96,7 +105,8 @@ test("nach dem Widerruf traegt eine frische Anmeldung wieder", async ({ page }) 
   const email = "widerruf-neu@localtest.me";
   await devLogin(page, { host: "portal.localtest.me", email });
   await page.goto("http://portal.localtest.me:3100/profil");
-  await page.getByTestId("alle-abmelden").click();
+  // Aus demselben Grund wie oben (Falle 12).
+  await klickeWennRuhig(page.getByTestId("alle-abmelden"));
   // Derselbe Warteposten wie oben, aus demselben Grund.
   const abgemeldet = page.waitForRequest((req) => req.url().includes("/api/auth/oidc-signout"), {
     timeout: 45_000,
