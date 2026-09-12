@@ -112,8 +112,39 @@ describe("authConfig — Gruppen einfrieren (Regression)", () => {
     } as never);
     expect(token?.groups).toEqual(["fg-kueche"]);
     expect(token?.fachgruppen).toEqual(["kueche"]);
-    expect(token?.accessToken).toBe("at");
+    expect(token?.refreshToken).toBe("rt");
     expect(token?.expiresAt).toBe(4_000_000_000);
+  });
+
+  /**
+   * DIE SITZUNG IST DAS COOKIE — und darin hat nur Platz, was auch gelesen wird.
+   *
+   * `access_token` und `id_token` standen bis 2026-09-12 im Sitzungs-Token und
+   * wurden von keiner Zeile der Suite je gelesen (Autorisierung ueber
+   * `token.groups`, frische Gruppen aus der Token-ANTWORT in `refresh.ts`,
+   * RP-Logout ohne `id_token_hint`). Zusammen waren sie der groesste Teil des
+   * Cookies: gemessen mit `next-auth/jwt`s `encode` 950 Zeichen ohne, 4 170 mit
+   * je 1 200 Zeichen — und ab ~4 096 zerlegt Auth.js das Cookie in Teile.
+   *
+   * Zwei Zusagen in einem Fall, weil sie zusammengehoeren: beim Anmelden kommt
+   * keines der beiden Felder herein, und ein BESTANDSTOKEN verliert sie beim
+   * naechsten Aufruf.
+   */
+  it("nimmt access_token und id_token weder auf noch traegt es sie weiter", async () => {
+    const frisch = await jwtCallback(undefined)({
+      token: {},
+      account: { access_token: "at", id_token: "it", refresh_token: "rt", expires_at: 4_000_000_000 },
+    } as never);
+    expect(frisch?.accessToken).toBeUndefined();
+    expect(frisch?.idToken).toBeUndefined();
+    expect(frisch?.refreshToken).toBe("rt");
+
+    const bestand = await jwtCallback(undefined)({
+      token: { sub: "u-1", accessToken: "alt-at", idToken: "alt-it", refreshToken: "alt-rt" },
+    } as never);
+    expect(bestand?.accessToken).toBeUndefined();
+    expect(bestand?.idToken).toBeUndefined();
+    expect(bestand?.refreshToken).toBe("alt-rt");
   });
 
   it("uebernimmt die Gruppen des Dev-Logins aus user", async () => {

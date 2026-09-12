@@ -115,8 +115,18 @@ it("classifies every actual module page/layout 404 and redirect decision, includ
     expect(entry,key).toBeDefined();expect(entry.reason,key).toBeTruthy();
     if(["denial","defensive-denial"].includes(entry.kind)) {
      expect(parent&&ts.isIfStatement(parent),key).toBe(true);
-     expect(parent!.getText(source),key).toContain("auditDenied(");
-     expect(parent!.getText(source),key).toContain("auditActor(");
+     /*
+      * ZWEI ZULAESSIGE SCHREIBWEISEN, EINE ZUSAGE: die Abweisung schreibt eine
+      * Zeile MIT dem Akteur. `auditDenied(` braucht `auditActor(` daneben;
+      * `auditFeedbackDenied(` entscheidet selbst zwischen beiden
+      * Abweisungsgruenden (Person abgewiesen -> `access` mit Kennung, gar keine
+      * Sitzung -> `login_required` anonym) und traegt den Akteur damit in sich
+      * — siehe `app/m/feedback/_lib/access.ts`. Ohne diesen zweiten Zweig waere
+      * die einzige Moeglichkeit, die Zusage zu erfuellen, die Weiche an jeder
+      * Aufrufstelle auszuschreiben.
+      */
+     const text=parent!.getText(source);
+     expect(text.includes("auditFeedbackDenied(")||(text.includes("auditDenied(")&&text.includes("auditActor(")),key).toBe(true);
     }
    }
    ts.forEachChild(node,visit);

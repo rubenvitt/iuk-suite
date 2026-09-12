@@ -49,8 +49,6 @@ function abgelaufenerToken(zusatz: Partial<JWT> = {}): JWT {
     sub: "u-1",
     groups: [...ALT_GRUPPEN],
     fachgruppen: ["kueche"],
-    accessToken: "at-alt",
-    idToken: idTokenBauen({ groups: ALT_GRUPPEN, fachgruppen: ["kueche"] }),
     refreshToken: "rt-alt",
     // Sekunden seit Epoche, laengst vorbei.
     expiresAt: 1_000,
@@ -212,7 +210,6 @@ describe("tokenAuffrischen — Fehler unterscheiden", () => {
     expect(ergebnis.error).toBeUndefined();
     expect(ergebnis.groups).toEqual(ALT_GRUPPEN);
     expect(ergebnis.refreshToken).toBe("rt-alt");
-    expect(ergebnis.accessToken).toBe("at-alt");
     expect(ergebnis.refreshFailedAt).toBe(JETZT);
   });
 
@@ -301,7 +298,7 @@ describe("tokenAuffrischen — Backoff", () => {
       optionen(t),
     );
     expect(t.aufrufe).toHaveLength(2);
-    expect(ergebnis.accessToken).toBe("at-neu");
+    expect(ergebnis.refreshToken).toBe("rt-neu");
     expect(ergebnis.refreshFailedAt).toBeUndefined();
   });
 });
@@ -335,12 +332,27 @@ describe("tokenAuffrischen — Gruppen aus dem neuen id_token", () => {
   });
 
   it("ohne id_token in der Antwort bleiben die alten Gruppen stehen", async () => {
-    const alt = abgelaufenerToken();
     const t = transportBauen({ token: erfolgsAntwort({ id_token: undefined }) });
-    const ergebnis = await tokenAuffrischen(alt, optionen(t));
+    const ergebnis = await tokenAuffrischen(abgelaufenerToken(), optionen(t));
     expect(ergebnis.groups).toEqual(ALT_GRUPPEN);
-    expect(ergebnis.idToken).toBe(alt.idToken);
-    expect(ergebnis.accessToken).toBe("at-neu");
+    // Die Rotation hat trotzdem stattgefunden — nur die Gruppen bleiben stehen.
+    expect(ergebnis.refreshToken).toBe("rt-neu");
+  });
+
+  /**
+   * WAS NICHT GESPEICHERT WIRD, KANN DAS COOKIE NICHT AUFBLAEHEN. Der neue
+   * `id_token` wird oben ausgewertet (Gruppen, Fachgruppen) und danach fallen
+   * gelassen; `access_token` braucht die Suite nirgends. Die Begruendung samt
+   * gemessener Cookie-Groessen steht im `jwt`-Callback in `config.ts`.
+   */
+  it("uebernimmt weder access_token noch id_token in das Sitzungs-Token", async () => {
+    const t = transportBauen({
+      token: erfolgsAntwort({ id_token: idTokenBauen({ groups: ["fg-kueche"], fachgruppen: [] }) }),
+    });
+    const ergebnis = await tokenAuffrischen(abgelaufenerToken(), optionen(t));
+    expect(ergebnis.groups).toEqual(["fg-kueche"]);
+    expect(ergebnis.accessToken).toBeUndefined();
+    expect(ergebnis.idToken).toBeUndefined();
   });
 
   it("bei einem transienten Fehler bleiben die alten Gruppen stehen", async () => {
@@ -432,7 +444,6 @@ describe("tokenAuffrischen — Gedaechtnis gegen doppelte Rotation", () => {
     );
     expect(t.aufrufe).toHaveLength(2);
     expect(spaeter.refreshToken).toBe("rt-neu");
-    expect(spaeter.accessToken).toBe("at-neu");
   });
 
   it("nach dem Nachhall wird wieder wirklich gefragt", async () => {

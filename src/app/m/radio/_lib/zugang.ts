@@ -1,4 +1,4 @@
-import { auditDenied, auditActor } from "@/core/audit/server";
+import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/core/auth";
@@ -511,7 +511,7 @@ async function riegelAufStufe(erlaubt: (v: RadioViewer) => boolean): Promise<Rad
   const kopf = await headers();
   requireRadioHost(kopf);                       // erst der Host, dann die Person
   const viewer = viewerAusSession(await auth());
-  if (!viewer) { auditDenied("radio"); redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel(kopf))}`); }
+  if (!viewer) { auditLoginRequired("radio"); redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel(kopf))}`); }
   if (!erlaubt(viewer)) {
     auditDenied("radio", auditActor(viewer));
     meldeFehlendeGruppe(viewer.sub, viewer.groups);   // Spec:206-210 — die einzige Sicht

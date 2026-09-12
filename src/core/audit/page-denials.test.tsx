@@ -76,6 +76,23 @@ it("a registered Auftrag viewer can read another person's plan without an event"
  expect(queryAuditEvents().events).toEqual([]);
 });
 
+/*
+ * OHNE SITZUNG IST NIEMAND ABGEWIESEN WORDEN — und genau das muss die Zeile sagen.
+ *
+ * Der Anlass steht im Protokoll einer echten Instanz: „Zugriff verweigert ·
+ * Modulzugriff · Anonym" auf `feedback`, waehrend die Betreiberin angemeldet war.
+ * Beides schrieb bis dahin dieselbe Zeile — die abgewiesene Person MIT Kennung und
+ * der Aufruf ganz ohne Cookie (Bot auf der Modul-Wurzel, Linkvorschau, abgelaufene
+ * Sitzung). Der Objekttyp trennt sie jetzt; der 404 bleibt unveraendert.
+ */
+it("no session at all is recorded as login_required, not as a refused person",async()=>{
+ session=null;
+ await expect(VergleichPage()).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+ const events=queryAuditEvents().events;
+ expect(events).toHaveLength(1);
+ expect(events[0]).toMatchObject({module:"feedback",action:"access_denied",objectType:"login_required",result:"denied",origin:"server",actor:{kind:"anonymous"}});
+});
+
 it("synthetic predicate fault: defensive plan denial also persists one event and preserves 404",async()=>{
  const predicate=vi.spyOn(zugang,"darfPlanSehen").mockReturnValue(false);
  try {

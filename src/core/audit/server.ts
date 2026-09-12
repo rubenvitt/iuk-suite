@@ -27,6 +27,25 @@ export function auditEvent(event: AuditEventInput, actor?: AuditActor): void {
 export function auditDenied(module: AuditModule, actor: AuditActor = { kind: "anonymous" }, objectType = "access"): void {
   auditEvent({ module, action: "access_denied", objectType, result: "denied", origin: "server" }, actor);
 }
+/**
+ * No session at the guard — a DIFFERENT event than a refused person, and that is
+ * why it gets its own object type.
+ *
+ * `access` means "this person was not allowed": there was a session, the group was
+ * missing, and the row carries the person's id. This one means nobody was signed in.
+ * It happens on EVERY cookie-less hit on an administrative surface — a crawler on a
+ * module host root, a link preview, an expired session, the first navigation before
+ * signing in — and until 2026-09-12 it wore the same label as a real denial. The log
+ * then read "Zugriff verweigert · Modulzugriff · Anonym", indistinguishable from a
+ * person who was turned away, and measurably misleading: one unauthenticated GET on
+ * a feedback group page produced two such rows (layout guard plus page guard).
+ *
+ * Deliberately still recorded, not dropped: a burst of these on a module host is the
+ * only trace of a scan. The label is what changes, not the retention.
+ */
+export function auditLoginRequired(module: AuditModule): void {
+  auditEvent({ module, action: "access_denied", objectType: "login_required", result: "denied", origin: "server" }, { kind: "anonymous" });
+}
 export function auditSystem<T>(operation: () => T): T {
   return withAuditContext({ actor: { kind: "system" } }, operation);
 }
