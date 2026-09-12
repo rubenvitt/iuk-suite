@@ -1,5 +1,5 @@
 "use server";
-import { withAuditContext, auditActor, auditDenied } from "@/core/audit/server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
@@ -29,7 +29,7 @@ import {
   listKnownUsers,
 } from "./_db/queries";
 import type { FormState } from "./_lib/formState";
-import { assertGroupAccess, isFeedbackAdmin } from "./_lib/access";
+import { assertGroupAccess, auditFeedbackDenied, isFeedbackAdmin } from "./_lib/access";
 import { viewerFromSession } from "./_lib/viewer";
 import { generateSecret } from "./_lib/token";
 import { coerceAnswer, isRatingType, type Question } from "./_lib/questions";
@@ -158,7 +158,7 @@ export async function createGroupAction(formData: FormData) {
   const viewer = viewerFromSession(await auth());
   // Nur Voll-Admin darf Gruppen anlegen (groupleader verwaltet bestehende).
   if (!viewer || !(await import("./_lib/access")).isFeedbackAdmin(viewer)) {
-    auditDenied("feedback", auditActor(viewer));
+    auditFeedbackDenied(viewer);
     throw new Error("Forbidden");
   }
   return withAuditContext({ actor: auditActor(viewer) }, async () => {
@@ -268,7 +268,7 @@ export async function deleteGroupAction(formData: FormData) {
  */
 async function guardAdmin() {
   const viewer = viewerFromSession(await auth());
-  if (!isFeedbackAdmin(viewer)) { auditDenied("feedback", auditActor(viewer)); throw new Error("Forbidden"); }
+  if (!isFeedbackAdmin(viewer)) { auditFeedbackDenied(viewer); throw new Error("Forbidden"); }
   return { viewer, db: getDb() };
 }
 

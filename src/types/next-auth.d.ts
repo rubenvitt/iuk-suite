@@ -30,8 +30,13 @@ declare module "next-auth/jwt" {
   interface JWT {
     groups?: string[];
     fachgruppen?: string[];
-    accessToken?: string;
-    idToken?: string;
+    /**
+     * NUR das Refresh-Token. `accessToken`/`idToken` standen hier bis
+     * 2026-09-12 daneben und wurden nie gelesen — die Begruendung samt
+     * gemessener Cookie-Groessen steht im `jwt`-Callback in `core/auth/config.ts`.
+     * Wer eines von beiden wieder braucht, holt es aus der Token-Antwort in
+     * `refresh.ts`, statt es in der Sitzung zu lagern.
+     */
     refreshToken?: string;
     expiresAt?: number;
     /**

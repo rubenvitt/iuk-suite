@@ -1,4 +1,4 @@
-import { auditDenied, auditActor } from "@/core/audit/server";
+import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/core/auth";
 import { getModule, requiredGroupsFor } from "@/core/registry";
@@ -33,7 +33,7 @@ export async function requireFeedbackAccess(): Promise<Viewer> {
   const mod = getModule("feedback");
   const session = await auth();
   const viewer = viewerFromSession(session);
-  if (!viewer) { auditDenied("feedback"); redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`); }
+  if (!viewer) { auditLoginRequired("feedback"); redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`); }
 
   /*
    * `requiredGroupsFor` statt `mod.requiredGroups`: DIESE Zeile ist der einzige

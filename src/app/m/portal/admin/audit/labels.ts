@@ -11,7 +11,7 @@ export const OBJECT_LABELS: Record<string,string> = {
  device_events:"Funkgeräteereignis",devices:"Funkgerät",loans:"Ausleihe",software_versions:"Softwarestand",zugangscodes:"Ausleihzugang",
  executions:"Durchführung",participants:"Trainingsteilnehmer",task_status:"Trainingsfortschritt",tasks:"Trainingsaufgabe",
  eigene_zeichen:"Eigenes Zeichen",lernset_zeichen:"Zeichen im Lernset",lernsets:"Lernset",lernstand:"Lernstand",merkliste:"Merkliste",sitzung_widerruf:"Sitzungswiderruf",
- session:"Anmeldung",sessions:"Sitzungen",access:"Modulzugriff",share_access:"Freigabezugriff",audit_log:"Audit-Log",browser_export:"Browserexport",
+ session:"Anmeldung",sessions:"Sitzungen",access:"Modulzugriff",login_required:"Modulzugriff ohne Anmeldung",share_access:"Freigabezugriff",audit_log:"Audit-Log",browser_export:"Browserexport",
  share_file:"Datei aus Freigabe",share_archive:"Archiv aus Freigabe",inbox_file:"Datei aus Abgabe",inbox_archive:"Archiv der Abgaben",group_export:"Gruppenauswertung",evening_export:"Dienstabendauswertung",checklist_collection:"Fahrzeug-Checklisten",device_collection:"Funkgeräteübersicht",participant_export:"Teilnehmerauswertung",participant_collection:"Teilnehmerübersicht",proof_file:"Nachweisdatei",
  qr_png:"QR-Code als PNG",zeichen_png:"Zeichen als PNG",zeichen_svg:"Zeichen als SVG",zeichen_json:"Zusammenstellung als Datei",
 };

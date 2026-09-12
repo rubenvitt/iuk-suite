@@ -1,4 +1,4 @@
-import { auditDenied, auditActor } from "@/core/audit/server";
+import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
 import { getModule } from "@/core/registry";
 import { adminGroupsFor } from "@/core/groups";
 
@@ -36,6 +36,24 @@ export function isFeedbackAdmin(viewer: Viewer | null): boolean {
 }
 
 /**
+ * DIE EINE STELLE, DIE DIE ZWEI ABWEISUNGSGRÜNDE AUSEINANDERHÄLT.
+ *
+ * `feedback` mischt beide Fälle wie kein zweites Modul: seine Guards laufen auch
+ * dort, wo gar keine Sitzung sein muss (`requiresAuth: false` wegen `/f/`), und
+ * `auditActor(null)` ergibt denselben anonymen Akteur wie ein Bot auf der
+ * Modul-Wurzel. Im Protokoll war beides eine Zeile „Zugriff verweigert ·
+ * Modulzugriff · Anonym" — und damit nicht zu beantworten, ob jemand abgewiesen
+ * wurde oder ob schlicht niemand angemeldet war.
+ *
+ * Ohne Viewer gibt es niemanden, dem etwas verweigert werden könnte: das ist der
+ * Weg zum Login, nicht die Abweisung einer Person.
+ */
+export function auditFeedbackDenied(viewer: Viewer | null): void {
+  if (viewer) auditDenied("feedback", auditActor(viewer));
+  else auditLoginRequired("feedback");
+}
+
+/**
  * DIE zentrale Ownership-Guard gegen die Alt-IDOR. `memberGroupIds` kommt aus
  * user_groups (im Aufrufer via memberGroupIdsFor geladen) — hier reingereicht,
  * damit die Guard rein/testbar bleibt. Jede Route/Action mit group/evening/
@@ -48,7 +66,7 @@ export function assertGroupAccess(
 ): void {
   if (isFeedbackAdmin(viewer)) return;
   if (viewer && memberGroupIds.includes(groupId)) return;
-  auditDenied("feedback", auditActor(viewer));
+  auditFeedbackDenied(viewer);
   throw new Error("Forbidden");
 }
 

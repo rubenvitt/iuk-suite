@@ -1,4 +1,4 @@
-import { auditDenied, auditActor } from "@/core/audit/server";
+import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/core/auth";
@@ -252,7 +252,7 @@ export async function requireLagerbuchAdmin(): Promise<Viewer> {
   const kopf = await headers();
   requireLagerbuchHost(kopf);                     // §2.6 — erst der Host, dann die Person
   const viewer = viewerAusSession(await auth());
-  if (!viewer) { auditDenied("lagerbuch"); redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel(kopf))}`); }
+  if (!viewer) { auditLoginRequired("lagerbuch"); redirect(`/login?callbackUrl=${encodeURIComponent(verwaltungsZiel(kopf))}`); }
   if (!istLagerbuchAdmin(viewer)) {
     auditDenied("lagerbuch", auditActor(viewer));
     meldeFehlendeGruppe(viewer.sub, viewer.groups);

@@ -1,4 +1,3 @@
-import { auditActor, auditDenied } from "@/core/audit/server";
 import { notFound } from "next/navigation";
 import { auth } from "@/core/auth";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -6,7 +5,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "@/app/m/feedback/_db/client";
 import { listGroups, listEvenings, getSurveyByEvening, listResponses } from "@/app/m/feedback/_db/queries";
 import { viewerFromSession } from "@/app/m/feedback/_lib/viewer";
-import { isFeedbackAdmin } from "@/app/m/feedback/_lib/access";
+import { auditFeedbackDenied, isFeedbackAdmin } from "@/app/m/feedback/_lib/access";
 import { computeDAStats } from "@/app/m/feedback/_lib/aggregation";
 import { NOTEN_FENSTER } from "@/app/m/feedback/_lib/noten";
 import type { Question } from "@/app/m/feedback/_lib/questions";
@@ -33,7 +32,7 @@ import { VergleichTabelle, type VergleichZeile } from "@/app/m/feedback/_ui/Verg
 export default async function VergleichPage() {
   const viewer = viewerFromSession(await auth());
   if (!isFeedbackAdmin(viewer)) {
-    auditDenied("feedback", auditActor(viewer));
+    auditFeedbackDenied(viewer);
     notFound();
   }
 

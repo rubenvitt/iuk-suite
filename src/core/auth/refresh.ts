@@ -176,12 +176,13 @@ async function austauschen(alterToken: string, umfeld: Umfeld): Promise<Ergebnis
     };
 
     // AB HIER IST DAS ALTE REFRESH-TOKEN TOT. Was jetzt noch verworfen wird,
-    // kostet die Sitzung — deshalb wird jedes brauchbare Feld uebernommen,
-    // auch wenn andere fehlen.
+    // kostet die Sitzung — deshalb wird jedes GEBRAUCHTE Feld uebernommen,
+    // auch wenn andere fehlen. `access_token` und `id_token` gehoeren nicht
+    // dazu: der neue `id_token` wird hier unten ausgewertet und danach nicht
+    // mehr gebraucht, gespeichert wuerde er nur das Cookie aufblaehen (die
+    // Zahlen stehen im `jwt`-Callback in `config.ts`).
     const felder: Partial<JWT> = {};
     if (typeof erneuert.refresh_token === "string") felder.refreshToken = erneuert.refresh_token;
-    if (typeof erneuert.access_token === "string") felder.accessToken = erneuert.access_token;
-    if (typeof erneuert.id_token === "string") felder.idToken = erneuert.id_token;
 
     // Niemals NaN (dann wuerde nie wieder aufgefrischt) und niemals „jetzt"
     // (dann liefe jeder Request in einen neuen Austausch).

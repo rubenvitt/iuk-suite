@@ -111,13 +111,38 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
     },
     callbacks: {
       async jwt({ token, profile, user, account }) {
-        // On initial sign-in, store OAuth tokens
+        /*
+         * NUR DAS REFRESH-TOKEN WANDERT IN DIE SITZUNG — `access_token` und
+         * `id_token` bleiben absichtlich draussen.
+         *
+         * Beide wurden bis 2026-09-12 mitgeschrieben und von KEINER Zeile der
+         * Suite je gelesen: die Autorisierung laeuft ueber `token.groups`, die
+         * frischen Gruppen holt `refresh.ts` aus der Token-Antwort selbst
+         * (`erneuert.id_token`, nicht aus dem gespeicherten Feld), und der
+         * RP-Logout kommt ohne `id_token_hint` aus
+         * (`api/auth/oidc-signout/route.ts`).
+         *
+         * Ungelesen ist hier nicht gratis: die Sitzung IST das Cookie. Gemessen
+         * mit `next-auth/jwt`s `encode` und realistischen Feldern (Kennung, acht
+         * Gruppen, drei Fachgruppen): 950 Zeichen ohne die beiden Token, 2 850
+         * mit je 700 Zeichen, 4 170 mit je 1 200 — und ab ~4 096 zerlegt Auth.js
+         * das Cookie in `authjs.session-token.0/.1`. Ein geteiltes Cookie ist
+         * genau dann keins mehr, wenn ein Zwischenstueck einen Teil verliert
+         * (Header-Grenzen am Proxy): die Folge waere eine Anfrage OHNE Sitzung
+         * mitten in einer laufenden Anmeldung — und im Protokoll genau das Bild,
+         * mit dem diese Aenderung anfing (eine anonyme Abweisung, obwohl die
+         * Person angemeldet war). BELEGT IST DIESER WEG NICHT, nur moeglich; der
+         * Grund, zwei nie gelesene Felder aus der Sitzung zu nehmen, traegt auch
+         * ohne ihn.
+         */
         if (account) {
-          token.accessToken = account.access_token;
-          token.idToken = account.id_token;
           token.refreshToken = account.refresh_token;
           token.expiresAt = account.expires_at;
         }
+        // Bestandssitzungen tragen die beiden Felder noch bis zur naechsten
+        // Anmeldung mit sich; hier fallen sie beim ersten Aufruf heraus.
+        delete token.accessToken;
+        delete token.idToken;
 
         /*
          * DER ANMELDEZEITPUNKT — nur bei der Anmeldung, nie danach.
