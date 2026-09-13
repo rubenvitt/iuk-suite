@@ -522,6 +522,18 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       );
       await vergeht(60);
       expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 2);
+
+      // Kontextmenü → „Link in neuem Tab öffnen": weder click noch Mittelklick.
+      await act(async () => {
+        anker.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2 }));
+      });
+      await vergeht(2);
+      expect(mocks.refresh, "Kontextmenü: Anstoß nach 2 s").toHaveBeenCalledTimes(nachFenster + 3);
+      await rerender(
+        <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:50:00" }, ARTIKEL, LISTE]} />,
+      );
+      await vergeht(60);
+      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 3);
     } finally {
       vi.useRealTimers();
       delete (document as unknown as Record<string, unknown>).visibilityState;

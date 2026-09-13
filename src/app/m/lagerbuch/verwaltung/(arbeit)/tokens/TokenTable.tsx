@@ -286,6 +286,10 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                     onAuxClick={(ereignis) => {
                       if (ereignis.button === 1) einstiegVormerken(zeile);
                     }}
+                    // „Link in neuem Tab öffnen" aus dem Kontextmenue feuert
+                    // weder `click` noch einen Mittelklick — das Menue selbst
+                    // (Rechtsklick wie Menue-Taste) ist der letzte Weg zum Link.
+                    onContextMenu={() => einstiegVormerken(zeile)}
                     icon={<Ikone name="pfeil-rechts" groesse={16} />}
                   >
                     Einsteigen
