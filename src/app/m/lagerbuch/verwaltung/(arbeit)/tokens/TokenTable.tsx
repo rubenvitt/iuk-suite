@@ -188,6 +188,21 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                     docs/design/README.md) ist mit der Arbeitsdichte gefallen --
                     44px ist hier bereits die volle wie die halbe Bediendichte,
                     "small" unterbietet die Mindesttapflaeche (WCAG 2.5.5). */}
+                {/* EINSTEIGEN: derselbe Weg wie der gescannte QR (`t/[code]/route.ts`),
+                    also echte Einloesung mit Helfer-Sitzung, `lastUsedAt` und
+                    Protokollzeile. Neuer Tab, damit die Verwaltung offen bleibt.
+                    Nur fuer AKTIVE Codes: ein gesperrter landete am Gate und
+                    buchte einen Fehlversuch in den geteilten Eimer. */}
+                {zeile.aktiv ? (
+                  <Button
+                    href={`/t/${encodeURIComponent(zeile.code)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    icon={<Ikone name="pfeil-rechts" groesse={16} />}
+                  >
+                    Einsteigen
+                  </Button>
+                ) : null}
                 <Button
                   disabled={laeuft}
                   onClick={() => statusAendern(zeile)}

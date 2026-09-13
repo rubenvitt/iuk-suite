@@ -8,6 +8,7 @@ import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
 import lesbareDateigroesse from "@/app/m/portal/_lib/neuigkeiten/notizen/files/2026-09-05-lesbare-dateigroesse";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
+import mitCodeEinsteigen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-mit-code-einsteigen";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -49,6 +50,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verteilenZweiAnsichten,
   lesbareDateigroesse,
   checklisteAlsPdf,
+  mitCodeEinsteigen,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,
