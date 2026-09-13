@@ -16,9 +16,16 @@ import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
 const EINSTIEG_FENSTER_MS = 2 * 60_000;
 const REFRESH_ABSTAND_MS = 1_000;
+const NACHFASS_MAX_MS = 16_000;
 
 /** `bis` bleibt `null`, bis der Tab das erste Mal zurueckkehrt. */
-type OffenerEinstieg = { id: string; vorher: string; bis: number | null; zuletzt: number };
+type OffenerEinstieg = {
+  id: string;
+  vorher: string;
+  bis: number | null;
+  zuletzt: number;
+  versuche: number;
+};
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -87,6 +94,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     if (zeile && zeile.lastUsedText !== offen?.vorher) einstieg.current = null;
   }, [zeilen]);
   useEffect(() => {
+    let nachfass: ReturnType<typeof setTimeout> | undefined;
     const zurueck = () => {
       const offen = einstieg.current;
       if (!offen || document.visibilityState === "hidden") return;
@@ -97,10 +105,19 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       offen.bis ??= jetzt + EINSTIEG_FENSTER_MS;
       if (jetzt > offen.bis) einstieg.current = null;
       router.refresh();
+      // Bleibt man im Tab, waehrend `/t/<code>` noch schreibt, holt kein weiteres
+      // Ereignis den Refresh zurueck — also selbst nachfassen: 2, 4, 8, dann alle
+      // 16 Sekunden, nur solange sichtbar und nur bis zum Ende des Fensters.
+      if (einstieg.current) {
+        offen.versuche += 1;
+        clearTimeout(nachfass);
+        nachfass = setTimeout(zurueck, Math.min(NACHFASS_MAX_MS, 1000 * 2 ** offen.versuche));
+      }
     };
     window.addEventListener("focus", zurueck);
     document.addEventListener("visibilitychange", zurueck);
     return () => {
+      clearTimeout(nachfass);
       window.removeEventListener("focus", zurueck);
       document.removeEventListener("visibilitychange", zurueck);
     };
@@ -249,6 +266,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                         vorher: zeile.lastUsedText,
                         bis: null,
                         zuletzt: 0,
+                        versuche: 0,
                       };
                     }}
                     icon={<Ikone name="pfeil-rechts" groesse={16} />}

@@ -429,13 +429,24 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(einstiege("t2"), "gesperrt: am Gate wäre es ein Fehlversuch").toEqual([]);
   });
 
-  it("frischt nach „Einsteigen“ bei jeder Rückkehr auf, bis die Zeile neu ist — sonst nie", async () => {
-    let jetzt = 1_000_000;
-    const uhr = vi.spyOn(Date, "now").mockImplementation(() => jetzt);
+  it("frischt nach „Einsteigen“ auf, bis die Zeile neu ist — auch ohne weiteren Tabwechsel", async () => {
+    await mount(<TokenTable zeilen={ZEILEN} />);
+    let sichtbar = true;
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => (sichtbar ? "visible" : "hidden"),
+    });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     try {
-      await mount(<TokenTable zeilen={ZEILEN} />);
-      const rueckkehr = async (sekunden: number) => {
-        jetzt += sekunden * 1000;
+      const vergeht = async (sekunden: number) => {
+        await act(async () => { vi.advanceTimersByTime(sekunden * 1000); });
+      };
+      const weg = async (sekunden: number) => {
+        sichtbar = false;
+        await vergeht(sekunden);
+      };
+      const zurueck = async () => {
+        sichtbar = true;
         await act(async () => {
           window.dispatchEvent(new Event("focus"));
           document.dispatchEvent(new Event("visibilitychange"));
@@ -450,38 +461,51 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
         await clickElement(anker);
       };
 
-      await rueckkehr(5);
+      await zurueck();
       expect(mocks.refresh, "Rückkehr ohne Einstieg").not.toHaveBeenCalled();
 
       await einsteigen();
-      await rueckkehr(1);
+      await weg(1);
+      await zurueck();
       expect(mocks.refresh, "focus + visibilitychange = ein Refresh").toHaveBeenCalledTimes(1);
 
-      // Zu früh zurück: die Zeile ist noch alt, die nächste Rückkehr frischt erneut auf.
-      await rueckkehr(5);
-      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+      // Zu früh zurück und im Tab geblieben: ohne weiteres Ereignis fasst die Tabelle nach.
+      await vergeht(2);
+      expect(mocks.refresh, "Nachfassen nach 2 s").toHaveBeenCalledTimes(2);
 
-      // Die Einlösung ist angekommen: danach lädt keine Rückkehr mehr neu.
+      // Im Hintergrund fasst sie nicht nach; die nächste Rückkehr schon.
+      await weg(60);
+      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+      await zurueck();
+      expect(mocks.refresh).toHaveBeenCalledTimes(3);
+
+      // Die Einlösung ist angekommen: kein Nachfassen, keine Rückkehr lädt mehr neu.
       await rerender(
         <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:40:00" }, ARTIKEL, LISTE]} />,
       );
-      await rueckkehr(5);
-      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+      await vergeht(30);
+      await weg(5);
+      await zurueck();
+      expect(mocks.refresh).toHaveBeenCalledTimes(3);
 
       // Lange im Ziel geblieben: die erste Rückkehr frischt trotzdem auf — das
       // Fenster zählt erst ab ihr, nicht ab dem Klick.
       await einsteigen();
-      await rueckkehr(300);
-      expect(mocks.refresh, "Rückkehr nach 5 min").toHaveBeenCalledTimes(3);
+      await weg(300);
+      await zurueck();
+      expect(mocks.refresh, "Rückkehr nach 5 min").toHaveBeenCalledTimes(4);
 
-      // Wird die Zeile nie neu, frischt die letzte Rückkehr im abgelaufenen
-      // Fenster noch einmal auf; danach ist Schluss.
-      await rueckkehr(121);
-      expect(mocks.refresh).toHaveBeenCalledTimes(4);
-      await rueckkehr(5);
-      expect(mocks.refresh).toHaveBeenCalledTimes(4);
+      // Wird die Zeile nie neu, endet das Nachfassen mit dem Fenster.
+      await vergeht(200);
+      const nachFenster = mocks.refresh.mock.calls.length;
+      expect(nachFenster).toBeGreaterThan(4);
+      await vergeht(200);
+      await weg(5);
+      await zurueck();
+      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster);
     } finally {
-      uhr.mockRestore();
+      vi.useRealTimers();
+      delete (document as unknown as Record<string, unknown>).visibilityState;
     }
   });
 
