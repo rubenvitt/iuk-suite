@@ -339,7 +339,7 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     expect(zeilenIds()).toEqual([]);
   });
 
-  it("kombiniert alle drei Checkboxen mit der Suche und zeigt Treffer gegen die Vollmenge", async () => {
+  it("kombiniert alle vier Checkboxen mit der Suche und zeigt Treffer gegen die Vollmenge", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     await clickElement(checkboxMitText("unter Mindestbestand"));
@@ -347,26 +347,28 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     await clickElement(checkboxMitText("Charge kritisch"));
     expect(zeilenIds()).toEqual(["alpha"]);
     await clickElement(checkboxMitText("inaktive ausblenden"));
+    await clickElement(checkboxMitText("Bestand 0 ausblenden"));
     await fill("input[type='search']", "alpha");
     expect(zeilenIds()).toEqual(["alpha"]);
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 5");
-    expect(queryAll(".ant-checkbox-input")).toHaveLength(3);
+    expect(queryAll(".ant-checkbox-input")).toHaveLength(4);
     expect(exists(".ant-radio-group")).toBe(false);
     expect(exists(".ant-segmented")).toBe(false);
   });
 
-  it("setzt Suche und alle drei Filter gemeinsam zurück", async () => {
+  it("setzt Suche und alle vier Filter gemeinsam zurück", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
     await fill("input[type='search']", "alpha");
     await clickElement(checkboxMitText("unter Mindestbestand"));
     await clickElement(checkboxMitText("Charge kritisch"));
     await clickElement(checkboxMitText("inaktive ausblenden"));
+    await clickElement(checkboxMitText("Bestand 0 ausblenden"));
 
     await clickElement(knopfMitText("Zurücksetzen"));
 
     expect(query<HTMLInputElement>("input[type='search']").value).toBe("");
     expect(queryAll<HTMLInputElement>("input[type='checkbox']").map((feld) => feld.checked))
-      .toEqual([false, false, false]);
+      .toEqual([false, false, false, false]);
     expect(zeilenIds()).toEqual(["alpha", "beta", "delta", "gamma", "zulu"]);
     expect(exists(`.${s.filtertreffer}`)).toBe(false);
     expect(queryAll("button").some((knopf) => knopf.textContent?.includes("Zurücksetzen")))
@@ -383,14 +385,68 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     ["Mindestfilter", async () => clickElement(checkboxMitText("unter Mindestbestand"))],
     ["Chargenfilter", async () => clickElement(checkboxMitText("Charge kritisch"))],
     ["Inaktivfilter", async () => clickElement(checkboxMitText("inaktive ausblenden"))],
+    ["Bestand-0-Filter", async () => clickElement(checkboxMitText("Bestand 0 ausblenden"))],
   ])("erkennt %s allein für den gefilterten Leertext", async (_name, filtern) => {
     const einzelne = _name === "Inaktivfilter"
       ? [{ ...ZEILEN[4] }]
-      : [{ ...ZEILEN[2] }];
+      : _name === "Bestand-0-Filter"
+        ? [{ ...ZEILEN[2], bestand: 0 }]
+        : [{ ...ZEILEN[2] }];
     await mount(<ArtikelTable zeilen={einzelne} fahrzeuge={FAHRZEUGE} />);
     await filtern();
     expect(zeilenIds()).toEqual([]);
     expect(document.body.textContent).toContain("Kein Artikel passt zu Suche und Filter.");
+  });
+});
+
+/**
+ * DER FILTER AUS DRK-295 („0 Stueck ausblenden koennen?").
+ *
+ * Eigener Block, weil er zwei Dinge festhaelt, die die vier Zeilen oben nicht
+ * zeigen: die SCHWELLE (genau 0, nicht „wenig") und die FOLGE FUER DEN EXPORT.
+ * Die Excel-Liste haengt an derselben abgeleiteten Liste wie die Tabelle
+ * (`ArtikelTable.tsx:118-121`) — ein Filter, der die Tabelle kuerzt und die
+ * Datei nicht, waere genau der stille Auseinanderlauf, gegen den §9.4 gebaut
+ * ist. Der Test prueft das ueber `data-export-zeilen`, nicht ueber einen
+ * Klick: die Bibliothek wird erst beim Klick nachgeladen.
+ */
+describe("ArtikelTable: „Bestand 0 ausblenden“ (DRK-295)", () => {
+  const MIT_NULL = [
+    { ...ZEILEN[2], id: "leer", name: "Leerer Artikel", bestand: 0, unterMindest: false },
+    { ...ZEILEN[2], id: "eins", name: "Ein Stueck", bestand: 1 },
+  ];
+
+  it("blendet genau die Zeilen mit 0 aus — 1 bleibt stehen", async () => {
+    await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
+    expect(zeilenIds()).toEqual(["eins", "leer"]);
+
+    await clickElement(checkboxMitText("Bestand 0 ausblenden"));
+    expect(zeilenIds()).toEqual(["eins"]);
+    expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 2");
+  });
+
+  it("loescht nichts: erneutes Abwaehlen bringt die Zeile zurueck", async () => {
+    // Das zweite Akzeptanzkriterium aus DRK-295 woertlich — „Ausgeblendete
+    // Artikel werden nicht geloescht und koennen wieder angezeigt werden".
+    await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(checkboxMitText("Bestand 0 ausblenden"));
+    await clickElement(checkboxMitText("Bestand 0 ausblenden"));
+    expect(zeilenIds()).toEqual(["eins", "leer"]);
+  });
+
+  it("ist beim Aufschlagen AUS", async () => {
+    await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
+    expect(zeilenIds()).toEqual(["eins", "leer"]);
+    expect(exists(`.${s.filtertreffer}`)).toBe(false);
+    expect(queryAll("button").some((k) => k.textContent?.includes("Zurücksetzen"))).toBe(false);
+  });
+
+  it("kuerzt die Excel-Liste mit, nicht nur die Tabelle", async () => {
+    await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
+    expect(exportIds()).toEqual(["eins", "leer"]);
+
+    await clickElement(checkboxMitText("Bestand 0 ausblenden"));
+    expect(exportIds()).toEqual(["eins"]);
   });
 });
 

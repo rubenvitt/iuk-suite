@@ -217,6 +217,24 @@ braucht einen Seed, und ein Quelltext-Scan verbietet die Namen `seedLokal`/`seed
 `bootstrap.ts` und `instrumentation.ts` — er fängt die naheliegende Verdrahtung, nicht jede
 denkbare (ein umbenanntes Re-Export käme durch).
 
+## Ticket-Board — ClickUp wird während der Arbeit nachgezogen, nicht danach
+
+Die Aufgaben stehen als `DRK-<n>` auf dem Board **„I&K Suite" (`901524923921`)**. Der Stand dort wird
+in **drei** Momenten nachgezogen, nicht in einem: `in progress` **beim Start** (mit dem Branchnamen),
+ein Kommentar **bei jeder Entscheidung**, die das Ticket unter „Offene Fragen" offen gelassen hat, und
+`review` → `Closed` **beim Abschluss** — `Closed` erst nach dem Merge, denn der Stand auf `main` ist
+der Beweis, ein grüner Branch eine Behauptung. Ein Board, das erst beim Schließen erfährt, was
+passiert ist, ist für jeden außer dem Schreibenden wertlos; eine still getroffene Annahme zu einer
+offenen Frage fällt erst bei der Abnahme auf, wenn sie am teuersten ist.
+
+Die Ticketnummer steht im **Commit-Body**, nicht in der Kopfzeile — die trägt den Typ, und der ist
+die Versionsnummer (s. u.). Einen Fund, der nicht zum Auftrag gehört, trägt ein **neues Ticket** in
+derselben Liste, kein `TODO` im Quelltext und keine stille Ausweitung des laufenden PRs.
+
+Das Kleingedruckte — Statusnamen in ihrer gemischten Schreibweise, `include: ["description"]` beim
+Lesen (sonst fehlen Akzeptanzkriterien und offene Fragen), die abgekündigten Werkzeugnamen — steht im
+Skill `.claude/skills/clickup/SKILL.md`.
+
 ## Release Notes — für Anwender, nur im Portal
 
 **Die meisten Änderungen bekommen keine Notiz.** Das ist die erste Regel, nicht die letzte:
