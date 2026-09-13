@@ -17,9 +17,9 @@ const notiz: Releasenotiz = {
         "prüfst du mit einem Klick, wohin ein Code führt, bevor du ihn laminierst oder aushängst.",
     ),
     absatz(
-      "Der Einstieg zählt wie ein Scan: „Zuletzt benutzt“ springt auf den aktuellen Zeitpunkt. " +
-        "Gesperrte Codes haben keinen Knopf, weil sie ohnehin nicht hineinlassen. Die Verwaltung " +
-        "bleibt im ursprünglichen Tab offen.",
+      "Der Einstieg zählt wie ein Scan, also auch für „Zuletzt benutzt“. Gesperrte Codes haben " +
+        "keinen Knopf, weil sie ohnehin nicht hineinlassen. Die Verwaltung bleibt im " +
+        "ursprünglichen Tab offen.",
     ),
   ],
 };

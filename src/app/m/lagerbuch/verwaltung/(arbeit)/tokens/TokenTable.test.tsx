@@ -25,7 +25,6 @@ import {
   query,
   queryAll,
   queryPortal,
-  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import {
@@ -427,117 +426,6 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(fahrzeug?.getAttribute("rel")).toBe("noopener noreferrer");
     expect(einstiege("t3").map((anker) => anker.getAttribute("href"))).toEqual(["/t/333-333"]);
     expect(einstiege("t2"), "gesperrt: am Gate wäre es ein Fehlversuch").toEqual([]);
-  });
-
-  it("frischt nach „Einsteigen“ auf, bis die Zeile neu ist — auch ohne weiteren Tabwechsel", async () => {
-    await mount(<TokenTable zeilen={ZEILEN} />);
-    let sichtbar = true;
-    Object.defineProperty(document, "visibilityState", {
-      configurable: true,
-      get: () => (sichtbar ? "visible" : "hidden"),
-    });
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    try {
-      const vergeht = async (sekunden: number) => {
-        await act(async () => { vi.advanceTimersByTime(sekunden * 1000); });
-      };
-      const weg = async (sekunden: number) => {
-        sichtbar = false;
-        await vergeht(sekunden);
-      };
-      const zurueck = async () => {
-        sichtbar = true;
-        await act(async () => {
-          window.dispatchEvent(new Event("focus"));
-          document.dispatchEvent(new Event("visibilitychange"));
-        });
-      };
-      const einsteigen = async () => {
-        const anker = Array.from(
-          query("tr[data-row-key='t1']").querySelectorAll<HTMLAnchorElement>("a"),
-        ).find((element) => (element.textContent ?? "").includes("Einsteigen"));
-        if (!anker) throw new Error("Einsteigen fehlt");
-        anker.addEventListener("click", (ereignis) => ereignis.preventDefault());
-        await clickElement(anker);
-      };
-
-      await zurueck();
-      expect(mocks.refresh, "Rückkehr ohne Einstieg").not.toHaveBeenCalled();
-
-      await einsteigen();
-      await weg(1);
-      await zurueck();
-      expect(mocks.refresh, "focus + visibilitychange = ein Refresh").toHaveBeenCalledTimes(1);
-
-      // Zu früh zurück und im Tab geblieben: ohne weiteres Ereignis fasst die Tabelle nach.
-      await vergeht(2);
-      expect(mocks.refresh, "Nachfassen nach 2 s").toHaveBeenCalledTimes(2);
-
-      // Im Hintergrund fasst sie nicht nach; die nächste Rückkehr schon.
-      await weg(60);
-      expect(mocks.refresh).toHaveBeenCalledTimes(2);
-      await zurueck();
-      expect(mocks.refresh).toHaveBeenCalledTimes(3);
-
-      // Die Einlösung ist angekommen: kein Nachfassen, keine Rückkehr lädt mehr neu.
-      await rerender(
-        <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:40:00" }, ARTIKEL, LISTE]} />,
-      );
-      await vergeht(30);
-      await weg(5);
-      await zurueck();
-      expect(mocks.refresh).toHaveBeenCalledTimes(3);
-
-      // Lange im Ziel geblieben: die erste Rückkehr frischt trotzdem auf — das
-      // Fenster zählt erst ab ihr, nicht ab dem Klick.
-      await einsteigen();
-      await weg(300);
-      await zurueck();
-      expect(mocks.refresh, "Rückkehr nach 5 min").toHaveBeenCalledTimes(4);
-
-      // Wird die Zeile nie neu, endet das Nachfassen mit dem Fenster.
-      await vergeht(200);
-      const nachFenster = mocks.refresh.mock.calls.length;
-      expect(nachFenster).toBeGreaterThan(4);
-      await vergeht(200);
-      await weg(5);
-      await zurueck();
-      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster);
-
-      // Tab im Hintergrund geöffnet (Mittelklick): diese Seite bleibt sichtbar und
-      // bekommt nie ein Rückkehr-Ereignis — der Klick selbst stößt den Zyklus an.
-      const anker = Array.from(
-        query("tr[data-row-key='t1']").querySelectorAll<HTMLAnchorElement>("a"),
-      ).find((element) => (element.textContent ?? "").includes("Einsteigen"));
-      if (!anker) throw new Error("Einsteigen fehlt");
-      await act(async () => {
-        anker.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
-      });
-      await vergeht(2);
-      expect(mocks.refresh, "Hintergrund-Tab: Anstoß nach 2 s").toHaveBeenCalledTimes(nachFenster + 1);
-      await vergeht(4);
-      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 2);
-      await rerender(
-        <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:45:00" }, ARTIKEL, LISTE]} />,
-      );
-      await vergeht(60);
-      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 2);
-
-      // Kontextmenü → „Link in neuem Tab öffnen": weder click noch Mittelklick.
-      await act(async () => {
-        anker.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, button: 2 }));
-      });
-      await vergeht(2);
-      expect(mocks.refresh, "Kontextmenü: Anstoß nach 2 s").toHaveBeenCalledTimes(nachFenster + 3);
-      await rerender(
-        <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:50:00" }, ARTIKEL, LISTE]} />,
-      );
-      await vergeht(60);
-      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 3);
-    } finally {
-      vi.useRealTimers();
-      delete (document as unknown as Record<string, unknown>).visibilityState;
-    }
   });
 
   it("kennt in der Quelle weder den Löschknopf noch die generische Löschaction", () => {

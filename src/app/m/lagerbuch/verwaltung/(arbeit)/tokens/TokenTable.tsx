@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Checkbox, Flex, Table } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { setTokenAktiv } from "../../../_actions/tokens";
@@ -14,19 +13,6 @@ import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
-const EINSTIEG_FENSTER_MS = 2 * 60_000;
-const REFRESH_ABSTAND_MS = 1_000;
-const NACHFASS_START_MS = 2_000;
-const NACHFASS_MAX_MS = 16_000;
-
-/** `bis` bleibt `null`, bis der Tab das erste Mal zurueckkehrt. */
-type OffenerEinstieg = {
-  id: string;
-  vorher: string;
-  bis: number | null;
-  zuletzt: number;
-  versuche: number;
-};
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -74,61 +60,6 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const [ziele, setZiele] = useState<ReadonlySet<ZielFilter>>(new Set());
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
-  const router = useRouter();
-
-  // Die Einloesung im neuen Tab schreibt `lastUsedAt`, diese Zeilen kennen das
-  // nicht. Nach einem „Einsteigen" frischt JEDE Rueckkehr des Tabs auf — bis die
-  // angeklickte Zeile tatsaechlich einen neuen Wert traegt. Ein Verbrauch beim
-  // ersten Fokus reichte nicht: kehrt man zurueck, bevor `/t/<code>` fertig ist,
-  // liest dieser eine Refresh noch die alte Zeile. Ohne Einstieg laedt ein
-  // Fensterwechsel nichts neu.
-  //
-  // Das Ende (etwa wenn das Gate die Einloesung abgewiesen hat und die Zeile nie
-  // neu wird) zaehlt ab der ERSTEN Rueckkehr, nicht ab dem Klick: wer laenger im
-  // Fahrzeug-Check bleibt, war nur abwesend. Und jede Rueckkehr frischt ZUERST
-  // auf und laesst die Vormerkung erst danach fallen — sonst verfiele genau der
-  // Refresh, fuer den sie da ist.
-  const einstieg = useRef<OffenerEinstieg | null>(null);
-  const anstossen = useRef<() => void>(() => {});
-  useEffect(() => {
-    const offen = einstieg.current;
-    const zeile = offen ? zeilen.find((z) => z.id === offen.id) : undefined;
-    if (zeile && zeile.lastUsedText !== offen?.vorher) einstieg.current = null;
-  }, [zeilen]);
-  useEffect(() => {
-    let nachfass: ReturnType<typeof setTimeout> | undefined;
-    const zurueck = () => {
-      const offen = einstieg.current;
-      if (!offen || document.visibilityState === "hidden") return;
-      const jetzt = Date.now();
-      // `focus` und `visibilitychange` feuern bei derselben Rueckkehr beide.
-      if (jetzt - offen.zuletzt < REFRESH_ABSTAND_MS) return;
-      offen.zuletzt = jetzt;
-      offen.bis ??= jetzt + EINSTIEG_FENSTER_MS;
-      if (jetzt > offen.bis) einstieg.current = null;
-      router.refresh();
-      // Bleibt man im Tab, waehrend `/t/<code>` noch schreibt, holt kein weiteres
-      // Ereignis den Refresh zurueck — also selbst nachfassen: 2, 4, 8, dann alle
-      // 16 Sekunden, nur solange sichtbar und nur bis zum Ende des Fensters.
-      if (einstieg.current) {
-        offen.versuche += 1;
-        clearTimeout(nachfass);
-        nachfass = setTimeout(zurueck, Math.min(NACHFASS_MAX_MS, 1000 * 2 ** offen.versuche));
-      }
-    };
-    anstossen.current = () => {
-      clearTimeout(nachfass);
-      nachfass = setTimeout(zurueck, NACHFASS_START_MS);
-    };
-    window.addEventListener("focus", zurueck);
-    document.addEventListener("visibilitychange", zurueck);
-    return () => {
-      anstossen.current = () => {};
-      clearTimeout(nachfass);
-      window.removeEventListener("focus", zurueck);
-      document.removeEventListener("visibilitychange", zurueck);
-    };
-  }, [router]);
 
   const gefiltert = useMemo(() => zeilen.filter((zeile) => {
     if (nurGesperrt && zeile.aktiv) return false;
@@ -140,21 +71,6 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const zielUmschalten = (ziel: ZielFilter) => () => {
     setZiele((bisher) => toggleInSet(bisher, ziel));
   };
-
-  function einstiegVormerken(zeile: TokenAnzeigeZeile): void {
-    einstieg.current = {
-      id: zeile.id,
-      vorher: zeile.lastUsedText,
-      bis: null,
-      zuletzt: 0,
-      versuche: 0,
-    };
-    // Oeffnet der Browser den Tab im HINTERGRUND (Strg-/Cmd-/Mittelklick),
-    // verliert diese Seite nie den Fokus, und keine Rueckkehr stoesst den
-    // Refresh an. Der Zyklus startet deshalb schon hier; liegt die Seite zu dem
-    // Zeitpunkt selbst im Hintergrund, verpufft der Anstoss folgenlos.
-    anstossen.current();
-  }
 
   function statusAendern(zeile: TokenAnzeigeZeile): void {
     setFehler(null);
@@ -282,14 +198,6 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                     href={`/t/${encodeURIComponent(zeile.code)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => einstiegVormerken(zeile)}
-                    onAuxClick={(ereignis) => {
-                      if (ereignis.button === 1) einstiegVormerken(zeile);
-                    }}
-                    // „Link in neuem Tab öffnen" aus dem Kontextmenue feuert
-                    // weder `click` noch einen Mittelklick — das Menue selbst
-                    // (Rechtsklick wie Menue-Taste) ist der letzte Weg zum Link.
-                    onContextMenu={() => einstiegVormerken(zeile)}
                     icon={<Ikone name="pfeil-rechts" groesse={16} />}
                   >
                     Einsteigen
