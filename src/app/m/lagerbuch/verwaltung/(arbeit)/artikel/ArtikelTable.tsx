@@ -172,7 +172,8 @@ export function ArtikelTable({
   const hatFilter = filter.suche.trim() !== ""
     || filter.nurUnterMindest
     || filter.nurChargeKritisch
-    || filter.ohneInaktive;
+    || filter.ohneInaktive
+    || filter.ohneBestandNull;
 
   function zuruecksetzen(): void {
     setFilter(LEERER_FILTER);
@@ -212,6 +213,24 @@ export function ArtikelTable({
           }))}
         >
           inaktive ausblenden
+        </Checkbox>
+        <Checkbox
+          checked={filter.ohneBestandNull}
+          onChange={(ereignis) => setFilter((vorher) => ({
+            ...vorher,
+            ohneBestandNull: ereignis.target.checked,
+          }))}
+          // Die Spalte daneben heisst schlicht „Bestand", und gemeint ist auf
+          // dieser ganzen Seite der HANDLAGER (§5.2.1) — die Beschriftung sagt
+          // deshalb dasselbe Wort. Was der Titel traegt, ist die Folge, die man
+          // der Zeile nicht ansieht: ein Artikel, der komplett auf einem
+          // Fahrzeug liegt, hat hier 0 und verschwindet mit.
+          title={
+            "Blendet Artikel aus, deren Bestand im Handlager 0 ist — "
+            + "auch wenn sie auf einem Fahrzeug liegen"
+          }
+        >
+          Bestand 0 ausblenden
         </Checkbox>
         <Select<ArtikelSortierung>
           value={sortierung}

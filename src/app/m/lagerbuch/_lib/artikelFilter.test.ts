@@ -3,7 +3,7 @@ import { artikelTrifft, artikelFiltern, LEERER_FILTER,
          type ArtikelFilterZeile } from "./artikelFilter";
 
 const z = (p: Partial<ArtikelFilterZeile> = {}): ArtikelFilterZeile => ({
-  name: "Verbandpäckchen", fach: "A1", aktiv: true, unterMindest: false,
+  name: "Verbandpäckchen", fach: "A1", aktiv: true, bestand: 7, unterMindest: false,
   naechsteCharge: { chargenNr: "CH-4711", verfall: "2027-01" }, chargeKritisch: false, ...p,
 });
 
@@ -36,7 +36,7 @@ describe("artikelTrifft — der Freitext sucht ueber DREI Felder", () => {
   });
 });
 
-describe("artikelTrifft — die drei Chips", () => {
+describe("artikelTrifft — die vier Chips", () => {
   it('„unter Mindestbestand"', () => {
     expect(artikelTrifft(z(), { ...LEERER_FILTER, nurUnterMindest: true })).toBe(false);
     expect(artikelTrifft(z({ unterMindest: true }), { ...LEERER_FILTER, nurUnterMindest: true }))
@@ -51,14 +51,39 @@ describe("artikelTrifft — die drei Chips", () => {
     expect(artikelTrifft(z({ aktiv: false }), { ...LEERER_FILTER, ohneInaktive: true })).toBe(false);
     expect(artikelTrifft(z({ aktiv: false }), LEERER_FILTER)).toBe(true);
   });
-  it("verknuepft alle vier Bedingungen UND", () => {
-    const zeile = z({ unterMindest: true, chargeKritisch: true, aktiv: true });
-    expect(artikelTrifft(zeile, {
-      suche: "verband", nurUnterMindest: true, nurChargeKritisch: true, ohneInaktive: true,
-    })).toBe(true);
-    expect(artikelTrifft(zeile, {
-      suche: "pflaster", nurUnterMindest: true, nurChargeKritisch: true, ohneInaktive: true,
-    })).toBe(false);
+  /**
+   * DRK-295. Die Schwelle ist GENAU 0 und nicht „wenig" — „unter
+   * Mindestbestand" ist der andere Filter und bleibt es.
+   */
+  it('„Bestand 0 ausblenden"', () => {
+    expect(artikelTrifft(z({ bestand: 0 }), { ...LEERER_FILTER, ohneBestandNull: true }))
+      .toBe(false);
+    expect(artikelTrifft(z({ bestand: 1 }), { ...LEERER_FILTER, ohneBestandNull: true }))
+      .toBe(true);
+    expect(artikelTrifft(z({ bestand: 0 }), LEERER_FILTER)).toBe(true);
+  });
+
+  /**
+   * Ein negativer Bestand kann heute nicht entstehen (Invariante I2,
+   * `schreibpfade/abbuchung.ts:20`) — waere er doch da, ist er ein
+   * Buchungsfehler. Der Filter soll Rauschen wegnehmen, nicht ausgerechnet die
+   * Zeile, die jemanden braucht. Dieser Test ist der Grund, warum im Praedikat
+   * `=== 0` steht und nicht `<= 0`; er faellt, sobald jemand das lockert.
+   */
+  it("laesst einen NEGATIVEN Bestand stehen — er ist ein Fehler, kein Nullbestand", () => {
+    expect(artikelTrifft(z({ bestand: -3 }), { ...LEERER_FILTER, ohneBestandNull: true }))
+      .toBe(true);
+  });
+
+  it("verknuepft alle fuenf Bedingungen UND", () => {
+    const zeile = z({ unterMindest: true, chargeKritisch: true, aktiv: true, bestand: 7 });
+    const alle = {
+      nurUnterMindest: true, nurChargeKritisch: true, ohneInaktive: true, ohneBestandNull: true,
+    };
+    expect(artikelTrifft(zeile, { ...alle, suche: "verband" })).toBe(true);
+    expect(artikelTrifft(zeile, { ...alle, suche: "pflaster" })).toBe(false);
+    // Dieselbe Zeile, nur ohne Bestand: der fuenfte Riegel allein reicht.
+    expect(artikelTrifft({ ...zeile, bestand: 0 }, { ...alle, suche: "verband" })).toBe(false);
   });
 });
 

@@ -19,6 +19,14 @@ export type ArtikelFilterZeile = {
   name: string;
   fach: string;
   aktiv: boolean;
+  /**
+   * DER HANDLAGER-BESTAND, nicht die Summe ueber alle Lagerorte — es gibt in
+   * diesem Modul keine (`lesepfade/artikel.ts:90`, §5.2.1). Die Zeile fuehrt
+   * die Zahl selbst und keinen vorgerechneten Merker: sie steht ohnehin schon
+   * auf jeder Zeile, und ein `bestandNull: boolean` waere ein zweiter Ort, an
+   * dem dieselbe Schwelle steht.
+   */
+  bestand: number;
   /** vorgerechnet im Lesepfad — `braucht(bestand, mindestbestand)` */
   unterMindest: boolean;
   naechsteCharge: { chargenNr: string; verfall: string } | null;
@@ -31,14 +39,19 @@ export type ArtikelFilterZustand = {
   nurUnterMindest: boolean;
   nurChargeKritisch: boolean;
   ohneInaktive: boolean;
+  ohneBestandNull: boolean;
 };
 
 export const LEERER_FILTER: ArtikelFilterZustand = {
   suche: "", nurUnterMindest: false, nurChargeKritisch: false, ohneInaktive: false,
+  // AUS. Ein vorgewaehltes Ausblenden zeigte beim ersten Aufschlagen eine
+  // verkuerzte Liste, ohne dass jemand danach gefragt haette — ein fehlender
+  // Artikel sieht dann aus wie ein geloeschter (DRK-295, offene Frage 2).
+  ohneBestandNull: false,
 };
 
 /**
- * Alle vier Bedingungen sind UND-verknuepft. Leere Suche laesst alles durch.
+ * Alle fuenf Bedingungen sind UND-verknuepft. Leere Suche laesst alles durch.
  *
  * Die Faltung laeuft ueber `falte()` aus `_lib/suche.ts` — DIE EINE Faltung des
  * Moduls (§5.13.2) — und wird hier NICHT nachgebaut. `falte()` faltet Umlaute
@@ -49,6 +62,12 @@ export const LEERER_FILTER: ArtikelFilterZustand = {
  */
 export function artikelTrifft(z: ArtikelFilterZeile, f: ArtikelFilterZustand): boolean {
   if (f.ohneInaktive && !z.aktiv) return false;
+  // `=== 0`, NICHT `<= 0`. Ein negativer Handlagerbestand kann heute nicht
+  // entstehen (Invariante I2, `schreibpfade/abbuchung.ts:20`) — waere er doch
+  // da, ist er ein Buchungsfehler und muss SICHTBAR bleiben. Ein Filter, der
+  // Rauschen wegnehmen soll, darf nicht ausgerechnet die eine Zeile schlucken,
+  // die jemanden braucht.
+  if (f.ohneBestandNull && z.bestand === 0) return false;
   if (f.nurUnterMindest && !z.unterMindest) return false;
   if (f.nurChargeKritisch && !z.chargeKritisch) return false;
   const q = falte(f.suche.trim());
