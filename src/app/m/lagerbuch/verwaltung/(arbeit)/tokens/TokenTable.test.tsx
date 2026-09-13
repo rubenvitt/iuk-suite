@@ -468,11 +468,18 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       await rueckkehr(5);
       expect(mocks.refresh).toHaveBeenCalledTimes(2);
 
-      // Das Fenster schließt, auch wenn die Zeile nie neu wird.
+      // Lange im Ziel geblieben: die erste Rückkehr frischt trotzdem auf — das
+      // Fenster zählt erst ab ihr, nicht ab dem Klick.
       await einsteigen();
+      await rueckkehr(300);
+      expect(mocks.refresh, "Rückkehr nach 5 min").toHaveBeenCalledTimes(3);
+
+      // Wird die Zeile nie neu, frischt die letzte Rückkehr im abgelaufenen
+      // Fenster noch einmal auf; danach ist Schluss.
       await rueckkehr(121);
+      expect(mocks.refresh).toHaveBeenCalledTimes(4);
       await rueckkehr(5);
-      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+      expect(mocks.refresh).toHaveBeenCalledTimes(4);
     } finally {
       uhr.mockRestore();
     }

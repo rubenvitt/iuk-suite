@@ -17,7 +17,8 @@ const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
 const EINSTIEG_FENSTER_MS = 2 * 60_000;
 const REFRESH_ABSTAND_MS = 1_000;
 
-type OffenerEinstieg = { id: string; vorher: string; bis: number; zuletzt: number };
+/** `bis` bleibt `null`, bis der Tab das erste Mal zurueckkehrt. */
+type OffenerEinstieg = { id: string; vorher: string; bis: number | null; zuletzt: number };
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -72,8 +73,13 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   // angeklickte Zeile tatsaechlich einen neuen Wert traegt. Ein Verbrauch beim
   // ersten Fokus reichte nicht: kehrt man zurueck, bevor `/t/<code>` fertig ist,
   // liest dieser eine Refresh noch die alte Zeile. Ohne Einstieg laedt ein
-  // Fensterwechsel nichts neu; das Fenster schliesst spaetestens nach zwei
-  // Minuten (etwa wenn das Gate die Einloesung abgewiesen hat).
+  // Fensterwechsel nichts neu.
+  //
+  // Das Ende (etwa wenn das Gate die Einloesung abgewiesen hat und die Zeile nie
+  // neu wird) zaehlt ab der ERSTEN Rueckkehr, nicht ab dem Klick: wer laenger im
+  // Fahrzeug-Check bleibt, war nur abwesend. Und jede Rueckkehr frischt ZUERST
+  // auf und laesst die Vormerkung erst danach fallen — sonst verfiele genau der
+  // Refresh, fuer den sie da ist.
   const einstieg = useRef<OffenerEinstieg | null>(null);
   useEffect(() => {
     const offen = einstieg.current;
@@ -85,13 +91,11 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       const offen = einstieg.current;
       if (!offen || document.visibilityState === "hidden") return;
       const jetzt = Date.now();
-      if (jetzt > offen.bis) {
-        einstieg.current = null;
-        return;
-      }
       // `focus` und `visibilitychange` feuern bei derselben Rueckkehr beide.
       if (jetzt - offen.zuletzt < REFRESH_ABSTAND_MS) return;
       offen.zuletzt = jetzt;
+      offen.bis ??= jetzt + EINSTIEG_FENSTER_MS;
+      if (jetzt > offen.bis) einstieg.current = null;
       router.refresh();
     };
     window.addEventListener("focus", zurueck);
@@ -243,7 +247,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                       einstieg.current = {
                         id: zeile.id,
                         vorher: zeile.lastUsedText,
-                        bis: Date.now() + EINSTIEG_FENSTER_MS,
+                        bis: null,
                         zuletzt: 0,
                       };
                     }}
