@@ -21,6 +21,7 @@ import {
   Switch,
   Table,
 } from "antd";
+import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
 import { bucheEntnahme, bucheZugang } from "../_actions/buchung";
 import {
@@ -370,7 +371,29 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
       open
       onClose={onSchliessen}
       title={detail?.artikel.name ?? "Artikeldetails"}
-      size={520}
+      /*
+       * 880 STATT 520 — und die Zahl kommt aus einer Messung, nicht aus dem
+       * Gefuehl (13.09.2026, echter Chromium, `e2e/flyin-breite.spec.ts`).
+       *
+       * Bei 520 px war der Inhalt dieser Schublade 1862 px hoch. Auf einem
+       * 1280x720-Schirm sind davon 663 px zu sehen — ein Drittel. Wer eine
+       * Entnahme buchen wollte, scrollte an Stammdaten und Zugang vorbei,
+       * waehrend links 760 px abgedunkelter Hintergrund brachlagen. Genau das
+       * meint die Gespraechsnotiz mit „nicht weit genug bei geringer
+       * Aufloesung": nicht abgeschnitten, sondern zu schmal fuer den Platz,
+       * der da ist.
+       *
+       * Breiter allein haette wenig geholfen — eine breitere Spalte ist
+       * immer noch EINE Spalte. Die Zahl wirkt erst zusammen mit dem
+       * `buchungsspalten`-Raster weiter unten, das die beiden Buchungs-
+       * formulare ab genug Breite nebeneinander legt. Zusammen: 1862 px auf
+       * 1409 px bei gleicher Fensterhoehe.
+       *
+       * ⛔ KEIN `size="large"` (das waeren antds 736) und keine nackte Zahl:
+       * `flyinBreite` deckelt auf 92 vw, sonst waechst die Schublade aus dem
+       * Bild — bei 520 tat sie das unter 520 px Fensterbreite schon.
+       */
+      size={flyinBreite(880)}
       rootClassName={styles.modul}
       destroyOnHidden
     >
@@ -457,133 +480,135 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
             </div>
           </Abschnitt>
 
-          <Abschnitt titel="Zugang buchen">
-            <Form<ZugangWerte>
-              form={zugangForm}
-              layout="vertical"
-              disabled={busy}
-              initialValues={{ menge: 1, chargeId: NEUE_CHARGE }}
-              onFinish={(werte) => { void zugangBuchen(werte); }}
-              data-rolle="zugang-form"
-            >
-              <Form.Item
-                name="menge"
-                label="Menge"
-                rules={[{ required: true }, { type: "number", min: 1 }]}
+          <div className={styles.buchungsspalten}>
+            <Abschnitt titel="Zugang buchen">
+              <Form<ZugangWerte>
+                form={zugangForm}
+                layout="vertical"
+                disabled={busy}
+                initialValues={{ menge: 1, chargeId: NEUE_CHARGE }}
+                onFinish={(werte) => { void zugangBuchen(werte); }}
+                data-rolle="zugang-form"
               >
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  aria-label="Zugangsmenge"
-                  style={{ width: "100%" }}
-                />
-              </Form.Item>
-              <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
-                <Select
-                  aria-label="Charge"
-                  showSearch
-                  filterOption={zielFilter}
-                  options={chargeOptionen}
-                  virtual={false}
-                />
-              </Form.Item>
-              {ausgewaehlteCharge === NEUE_CHARGE ? (
-                <>
-                  <Form.Item
-                    name="chargenNr"
-                    label="Chargennummer"
-                    rules={[{ required: true, whitespace: true }]}
-                  >
-                    <Input aria-label="Chargennummer" autoComplete="off" />
-                  </Form.Item>
-                  <Form.Item label="Verfallsmonat">
-                    <div data-rolle="verfallsmonat">
-                      <Form.Item
-                        name="verfall"
-                        noStyle
-                        rules={[{ required: true, message: "Bitte Verfallsmonat auswählen." }]}
-                      >
-                        <DatePicker
-                          picker="month"
-                          format="YYYY-MM"
-                          aria-label="Verfallsmonat"
-                          style={{ width: "100%" }}
-                        />
-                      </Form.Item>
-                    </div>
-                  </Form.Item>
-                </>
-              ) : null}
-              {meldung?.quelle === "zugang" ? (
-                <Alert
-                  type="warning"
-                  showIcon={false}
-                  title={meldung.text}
-                  style={{ marginBlockEnd: 12 }}
-                />
-              ) : null}
-              <Button type="primary" htmlType="submit" loading={busy}>
-                Zugang buchen
-              </Button>
-            </Form>
-          </Abschnitt>
+                <Form.Item
+                  name="menge"
+                  label="Menge"
+                  rules={[{ required: true }, { type: "number", min: 1 }]}
+                >
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    aria-label="Zugangsmenge"
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+                <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
+                  <Select
+                    aria-label="Charge"
+                    showSearch
+                    filterOption={zielFilter}
+                    options={chargeOptionen}
+                    virtual={false}
+                  />
+                </Form.Item>
+                {ausgewaehlteCharge === NEUE_CHARGE ? (
+                  <>
+                    <Form.Item
+                      name="chargenNr"
+                      label="Chargennummer"
+                      rules={[{ required: true, whitespace: true }]}
+                    >
+                      <Input aria-label="Chargennummer" autoComplete="off" />
+                    </Form.Item>
+                    <Form.Item label="Verfallsmonat">
+                      <div data-rolle="verfallsmonat">
+                        <Form.Item
+                          name="verfall"
+                          noStyle
+                          rules={[{ required: true, message: "Bitte Verfallsmonat auswählen." }]}
+                        >
+                          <DatePicker
+                            picker="month"
+                            format="YYYY-MM"
+                            aria-label="Verfallsmonat"
+                            style={{ width: "100%" }}
+                          />
+                        </Form.Item>
+                      </div>
+                    </Form.Item>
+                  </>
+                ) : null}
+                {meldung?.quelle === "zugang" ? (
+                  <Alert
+                    type="warning"
+                    showIcon={false}
+                    title={meldung.text}
+                    style={{ marginBlockEnd: 12 }}
+                  />
+                ) : null}
+                <Button type="primary" htmlType="submit" loading={busy}>
+                  Zugang buchen
+                </Button>
+              </Form>
+            </Abschnitt>
 
-          <Abschnitt titel="Entnahme buchen">
-            <Form<EntnahmeWerte>
-              form={entnahmeForm}
-              layout="vertical"
-              disabled={busy}
-              initialValues={{ menge: 1 }}
-              onFinish={(werte) => { void entnahmeBuchen(werte); }}
-              data-rolle="entnahme-form"
-            >
-              <Form.Item
-                name="menge"
-                label="Menge"
-                rules={[{ required: true }, { type: "number", min: 1 }]}
+            <Abschnitt titel="Entnahme buchen">
+              <Form<EntnahmeWerte>
+                form={entnahmeForm}
+                layout="vertical"
+                disabled={busy}
+                initialValues={{ menge: 1 }}
+                onFinish={(werte) => { void entnahmeBuchen(werte); }}
+                data-rolle="entnahme-form"
               >
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  aria-label="Entnahmemenge"
-                  style={{ width: "100%" }}
-                />
-              </Form.Item>
-              <Form.Item name="zielLagerortId" label="Ziel-Fahrzeug">
-                <Select
-                  aria-label="Ziel-Fahrzeug"
-                  placeholder="Handlager (Verbrauch)"
-                  allowClear
-                  showSearch
-                  filterOption={zielFilter}
-                  options={fahrzeugOptionen}
-                  virtual={false}
-                />
-              </Form.Item>
-              <Form.Item name="kommentar" label="Kommentar">
-                <Input.TextArea
-                  aria-label="Entnahmekommentar"
-                  autoSize={{ minRows: 2, maxRows: 4 }}
-                />
-              </Form.Item>
-              {meldung?.quelle === "entnahme" ? (
-                <Alert
-                  type="warning"
-                  showIcon={false}
-                  title={meldung.text}
-                  style={{ marginBlockEnd: 12 }}
-                />
-              ) : null}
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={busy}
-                disabled={detail.artikel.bestand === 0}
-              >
-                Entnahme buchen
-              </Button>
-            </Form>
-          </Abschnitt>
+                <Form.Item
+                  name="menge"
+                  label="Menge"
+                  rules={[{ required: true }, { type: "number", min: 1 }]}
+                >
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    aria-label="Entnahmemenge"
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+                <Form.Item name="zielLagerortId" label="Ziel-Fahrzeug">
+                  <Select
+                    aria-label="Ziel-Fahrzeug"
+                    placeholder="Handlager (Verbrauch)"
+                    allowClear
+                    showSearch
+                    filterOption={zielFilter}
+                    options={fahrzeugOptionen}
+                    virtual={false}
+                  />
+                </Form.Item>
+                <Form.Item name="kommentar" label="Kommentar">
+                  <Input.TextArea
+                    aria-label="Entnahmekommentar"
+                    autoSize={{ minRows: 2, maxRows: 4 }}
+                  />
+                </Form.Item>
+                {meldung?.quelle === "entnahme" ? (
+                  <Alert
+                    type="warning"
+                    showIcon={false}
+                    title={meldung.text}
+                    style={{ marginBlockEnd: 12 }}
+                  />
+                ) : null}
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={busy}
+                  disabled={detail.artikel.bestand === 0}
+                >
+                  Entnahme buchen
+                </Button>
+              </Form>
+            </Abschnitt>
+          </div>
 
           <ChargenTabelle
             chargen={detail.chargen}
