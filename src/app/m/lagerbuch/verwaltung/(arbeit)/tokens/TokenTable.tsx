@@ -16,6 +16,7 @@ import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
 const EINSTIEG_FENSTER_MS = 2 * 60_000;
 const REFRESH_ABSTAND_MS = 1_000;
+const NACHFASS_START_MS = 2_000;
 const NACHFASS_MAX_MS = 16_000;
 
 /** `bis` bleibt `null`, bis der Tab das erste Mal zurueckkehrt. */
@@ -88,6 +89,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   // auf und laesst die Vormerkung erst danach fallen — sonst verfiele genau der
   // Refresh, fuer den sie da ist.
   const einstieg = useRef<OffenerEinstieg | null>(null);
+  const anstossen = useRef<() => void>(() => {});
   useEffect(() => {
     const offen = einstieg.current;
     const zeile = offen ? zeilen.find((z) => z.id === offen.id) : undefined;
@@ -114,9 +116,14 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
         nachfass = setTimeout(zurueck, Math.min(NACHFASS_MAX_MS, 1000 * 2 ** offen.versuche));
       }
     };
+    anstossen.current = () => {
+      clearTimeout(nachfass);
+      nachfass = setTimeout(zurueck, NACHFASS_START_MS);
+    };
     window.addEventListener("focus", zurueck);
     document.addEventListener("visibilitychange", zurueck);
     return () => {
+      anstossen.current = () => {};
       clearTimeout(nachfass);
       window.removeEventListener("focus", zurueck);
       document.removeEventListener("visibilitychange", zurueck);
@@ -133,6 +140,21 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const zielUmschalten = (ziel: ZielFilter) => () => {
     setZiele((bisher) => toggleInSet(bisher, ziel));
   };
+
+  function einstiegVormerken(zeile: TokenAnzeigeZeile): void {
+    einstieg.current = {
+      id: zeile.id,
+      vorher: zeile.lastUsedText,
+      bis: null,
+      zuletzt: 0,
+      versuche: 0,
+    };
+    // Oeffnet der Browser den Tab im HINTERGRUND (Strg-/Cmd-/Mittelklick),
+    // verliert diese Seite nie den Fokus, und keine Rueckkehr stoesst den
+    // Refresh an. Der Zyklus startet deshalb schon hier; liegt die Seite zu dem
+    // Zeitpunkt selbst im Hintergrund, verpufft der Anstoss folgenlos.
+    anstossen.current();
+  }
 
   function statusAendern(zeile: TokenAnzeigeZeile): void {
     setFehler(null);
@@ -260,14 +282,9 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                     href={`/t/${encodeURIComponent(zeile.code)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => {
-                      einstieg.current = {
-                        id: zeile.id,
-                        vorher: zeile.lastUsedText,
-                        bis: null,
-                        zuletzt: 0,
-                        versuche: 0,
-                      };
+                    onClick={() => einstiegVormerken(zeile)}
+                    onAuxClick={(ereignis) => {
+                      if (ereignis.button === 1) einstiegVormerken(zeile);
                     }}
                     icon={<Ikone name="pfeil-rechts" groesse={16} />}
                   >

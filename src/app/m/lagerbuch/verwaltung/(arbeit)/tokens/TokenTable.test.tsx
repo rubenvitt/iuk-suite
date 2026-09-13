@@ -503,6 +503,25 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
       await weg(5);
       await zurueck();
       expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster);
+
+      // Tab im Hintergrund geöffnet (Mittelklick): diese Seite bleibt sichtbar und
+      // bekommt nie ein Rückkehr-Ereignis — der Klick selbst stößt den Zyklus an.
+      const anker = Array.from(
+        query("tr[data-row-key='t1']").querySelectorAll<HTMLAnchorElement>("a"),
+      ).find((element) => (element.textContent ?? "").includes("Einsteigen"));
+      if (!anker) throw new Error("Einsteigen fehlt");
+      await act(async () => {
+        anker.dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+      });
+      await vergeht(2);
+      expect(mocks.refresh, "Hintergrund-Tab: Anstoß nach 2 s").toHaveBeenCalledTimes(nachFenster + 1);
+      await vergeht(4);
+      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 2);
+      await rerender(
+        <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:45:00" }, ARTIKEL, LISTE]} />,
+      );
+      await vergeht(60);
+      expect(mocks.refresh).toHaveBeenCalledTimes(nachFenster + 2);
     } finally {
       vi.useRealTimers();
       delete (document as unknown as Record<string, unknown>).visibilityState;
