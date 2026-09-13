@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, Button, Checkbox, Flex, Table } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { setTokenAktiv } from "../../../_actions/tokens";
@@ -60,6 +61,25 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const [ziele, setZiele] = useState<ReadonlySet<ZielFilter>>(new Set());
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
+  const router = useRouter();
+
+  // Die Einloesung im neuen Tab schreibt `lastUsedAt`, diese Zeilen kennen das
+  // nicht. Kehrt der Tab nach einem „Einsteigen" zurueck, genau EIN Refresh —
+  // nicht bei jedem Fokus, sonst laede jeder Fensterwechsel die Seite neu.
+  const einstiegOffen = useRef(false);
+  useEffect(() => {
+    const zurueck = () => {
+      if (!einstiegOffen.current || document.visibilityState === "hidden") return;
+      einstiegOffen.current = false;
+      router.refresh();
+    };
+    window.addEventListener("focus", zurueck);
+    document.addEventListener("visibilitychange", zurueck);
+    return () => {
+      window.removeEventListener("focus", zurueck);
+      document.removeEventListener("visibilitychange", zurueck);
+    };
+  }, [router]);
 
   const gefiltert = useMemo(() => zeilen.filter((zeile) => {
     if (nurGesperrt && zeile.aktiv) return false;
@@ -198,6 +218,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                     href={`/t/${encodeURIComponent(zeile.code)}`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => { einstiegOffen.current = true; }}
                     icon={<Ikone name="pfeil-rechts" groesse={16} />}
                   >
                     Einsteigen

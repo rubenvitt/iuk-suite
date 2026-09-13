@@ -428,6 +428,26 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(einstiege("t2"), "gesperrt: am Gate wäre es ein Fehlversuch").toEqual([]);
   });
 
+  it("lädt nach „Einsteigen“ genau einmal neu, wenn der Tab zurückkommt — sonst nie", async () => {
+    await mount(<TokenTable zeilen={ZEILEN} />);
+    const fokus = async () => {
+      await act(async () => { window.dispatchEvent(new Event("focus")); });
+    };
+
+    await fokus();
+    expect(mocks.refresh, "Fokus ohne Einstieg").not.toHaveBeenCalled();
+
+    const anker = Array.from(query("tr[data-row-key='t1']").querySelectorAll<HTMLAnchorElement>("a"))
+      .find((element) => (element.textContent ?? "").includes("Einsteigen"));
+    if (!anker) throw new Error("Einsteigen fehlt");
+    anker.addEventListener("click", (ereignis) => ereignis.preventDefault());
+    await clickElement(anker);
+    await fokus();
+    await fokus();
+
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("kennt in der Quelle weder den Löschknopf noch die generische Löschaction", () => {
     // K-4: über ohneKommentare(), nicht über den Rohtext — der Kopfkommentar
     // der Komponente nennt alle drei gesuchten Namen in seiner Begründung.
