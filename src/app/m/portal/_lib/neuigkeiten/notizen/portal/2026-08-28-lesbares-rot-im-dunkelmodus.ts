@@ -5,20 +5,13 @@ const notiz: Releasenotiz = {
   modul: "portal",
   slug: "lesbares-rot-im-dunkelmodus",
   datum: "2026-08-28",
-  titel: "Rote Schrift ist im Dunkelmodus wieder lesbar",
+  titel: "Rote Schrift im Dunkelmodus",
   inhalt: [
     absatz(
-      "Links, Fehlermeldungen unter Formularfeldern und rote Knöpfe wie „Löschen“ stehen im " +
-        "Dunkelmodus jetzt in einem helleren Rot. Bisher war es dasselbe dunkle Rot wie auf " +
-        "weißem Grund, und auf einer schwarzen Fläche war es kaum vom Hintergrund zu " +
-        "unterscheiden — am deutlichsten in der Geräteliste der Funkverwaltung.",
+      "Links, Fehlermeldungen und rote Knöpfe wie „Löschen“ stehen im Dunkelmodus jetzt in " +
+        "einem helleren Rot und heben sich wieder vom Hintergrund ab. Im hellen Modus ändert " +
+        "sich nichts.",
     ),
-    absatz(
-      "Das gilt in allen Apps zugleich, weil die Farbe an einer Stelle festgelegt ist. Gefüllte " +
-        "rote Knöpfe mit weißer Schrift bleiben, wie sie sind: dort ist das dunklere Rot der " +
-        "Grund, auf dem die weiße Schrift lesbar bleibt.",
-    ),
-    absatz("Im hellen Modus ändert sich nichts."),
   ],
 };
 

@@ -1,9 +1,22 @@
-import { absatz, type Releasenotiz } from "../../typen";
-export default {
- modul:"portal", datum:"2026-09-06", slug:"ereignisse-nachvollziehen", titel:"Änderungen und Abrufe nachvollziehen",
- inhalt:[
-  absatz("Als Suite-Admin findest du unter Verwaltung → Audit-Log die Änderungen, Anmeldungen und Abrufe aus der gesamten Suite. So kannst du nachsehen, wann ein Vorgang stattfindet und welchem Zugang er zugeordnet ist."),
-  absatz("Du grenzt die Einträge nach Zeitraum, Modul, Person, Aktion und Ergebnis ein. Mit Nur dieses Objekt begrenzt du die Ansicht auf dessen Modul und Objekttyp. In den Details siehst du die Herkunft; Exporte aus QR-Codes und dem Zeichenbaukasten tragen den Hinweis Vom Browser gemeldet."),
-  absatz("Du siehst Ereignisse ab der Aktivierung. Frühere Vorgänge werden nicht nachträglich ergänzt. Deine bisherigen Arbeitswege und die anonymen Rückmeldungen bleiben erhalten."),
- ],
-} satisfies Releasenotiz;
+// Stilregeln für Notizen: CLAUDE.md, Abschnitt „Release Notes".
+import { absatz, type Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
+
+const notiz: Releasenotiz = {
+  modul: "portal",
+  slug: "ereignisse-nachvollziehen",
+  datum: "2026-09-06",
+  titel: "Änderungen und Abrufe nachvollziehen",
+  inhalt: [
+    absatz(
+      "Als Suite-Admin findest du unter Verwaltung → Audit-Log die Änderungen, Anmeldungen und " +
+        "Abrufe aus der gesamten Suite, eingrenzbar nach Zeitraum, Modul, Person, Aktion und " +
+        "Ergebnis.",
+    ),
+    absatz(
+      "Aufgezeichnet wird ab der Aktivierung; frühere Vorgänge werden nicht nachgetragen. Die " +
+        "anonymen Rückmeldungen bleiben anonym.",
+    ),
+  ],
+};
+
+export default notiz;

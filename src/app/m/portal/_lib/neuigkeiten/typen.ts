@@ -26,9 +26,24 @@
  * dieselbe Änderung, und die zweite altert still. Der ERSTE Absatz IST die
  * Zusammenfassung — wer die Notiz schreibt, muss sie also im ersten Satz
  * erledigen.
+ *
+ * KÜRZE IST HIER EINE ZAHL, KEIN GESCHMACK (`NOTIZ_GRENZEN` unten). Der
+ * Normalfall ist EIN Absatz mit ein bis drei Sätzen; drei Blöcke sind die harte
+ * Obergrenze und kein Ziel. Der Grund ist nicht Sparsamkeit: eine Liste, in der
+ * jeder Eintrag fünf Absätze lang ist, wird nicht gelesen, und was nicht gelesen
+ * wird, informiert niemanden. Die Grenze zwingt zur Auswahl — und die Auswahl
+ * ist die eigentliche Arbeit an einer Notiz. Was hier nicht hineinpasst, ist
+ * fast immer Begründung, Vorher-Geschichte oder Beruhigung, und alle drei kann
+ * der Leser entbehren.
  */
 
-/** Ein Baustein im Fließtext einer Notiz. Erweitern nur, wenn eine Notiz es wirklich braucht. */
+/**
+ * Ein Baustein im Fließtext einer Notiz. Erweitern nur, wenn eine Notiz es
+ * wirklich braucht.
+ *
+ * `liste` zählt als voller Block und ist unter `NOTIZ_GRENZEN` fast nie die
+ * richtige Wahl: drei Aufzählungspunkte sind meistens ein Satz mit Kommas.
+ */
 export type Notizblock =
   | { art: "absatz"; text: string }
   | { art: "liste"; punkte: readonly string[] }
@@ -80,6 +95,26 @@ export function liste(...punkte: string[]): Notizblock {
 export function hinweis(text: string): Notizblock {
   return { art: "hinweis", text };
 }
+
+/**
+ * DIE OBERGRENZEN EINER NOTIZ — als Zahlen, damit `register.test.ts` sie PRÜFEN
+ * kann, statt sie zu erbitten. Eine Stilregel, die nur in `CLAUDE.md` steht,
+ * hält genau so lange, wie jemand sie liest; diese hier ist ein rotes Tor.
+ *
+ * Die Zahlen sind großzügig gewählt: sie sollen die AUSREISSER fangen, nicht die
+ * Feinarbeit ersetzen. Wer an eine Grenze stößt, hat fast nie eine zu lange
+ * Notiz, sondern ZWEI Änderungen in einer Datei — dann sind es zwei Notizen.
+ */
+export const NOTIZ_GRENZEN = {
+  /** Blöcke je Notiz (Absätze, Listen, der eine Hinweis). Normalfall: EINER. */
+  bloecke: 3,
+  /** Zeichen je Block — etwa drei Sätze. */
+  zeichenJeBlock: 320,
+  /** Zeichen über alle Blöcke zusammen. */
+  zeichenGesamt: 640,
+  /** Zeichen im Titel — eine Aussage, keine Zusammenfassung. */
+  zeichenImTitel: 60,
+} as const;
 
 /**
  * `YYYY-MM-DD`, streng. Geteilt zwischen Datumsformat und Prüfung, damit die

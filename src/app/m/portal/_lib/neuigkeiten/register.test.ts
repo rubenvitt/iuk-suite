@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { MODULES } from "@/core/registry";
 import { ALLE_NOTIZEN, sortiereNotizen } from "@/app/m/portal/_lib/neuigkeiten/register";
-import { ISO_DATUM, type Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
+import { ISO_DATUM, NOTIZ_GRENZEN, type Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 import { formatiereDatum } from "@/app/m/portal/_lib/neuigkeiten/datum";
 
 /**
@@ -114,6 +114,61 @@ describe("Release Notes — Felder", () => {
     // Änderungen sind — dann sind es zwei Notizen. Das ist die Stilregel aus
     // `CLAUDE.md` als Zusicherung, nicht als Bitte.
     expect(notiz.inhalt.filter((b) => b.art === "hinweis").length).toBeLessThanOrEqual(1);
+  });
+
+  /*
+   * DIE KÜRZE IST EIN TOR, KEINE BITTE.
+   *
+   * Der Stilteil von `CLAUDE.md` lässt sich lesen oder überlesen, und überlesen
+   * wird er von jedem, der eine Notiz aus einem Changelog zusammenschiebt. Die
+   * Notizen sind aber das einzige, was die Suite von sich aus an ihre Anwender
+   * schreibt — eine Liste aus fünfabsätzigen Einträgen wird nicht gelesen, und
+   * was nicht gelesen wird, informiert niemanden. Deshalb steht die Grenze hier
+   * als Zusicherung.
+   *
+   * Die Zahlen fangen den AUSREISSER, nicht die Feinarbeit: wer an sie stößt,
+   * hat fast immer zwei Änderungen in einer Datei, und dann sind es zwei
+   * Notizen. Sie stehen in `typen.ts` neben den Feldern, die sie begrenzen —
+   * nicht hier, damit die Regel dort steht, wo eine neue Notiz geschrieben wird.
+   */
+  function laengeVon(block: Releasenotiz["inhalt"][number]): number {
+    return block.art === "liste"
+      ? block.punkte.join(" ").length
+      : block.text.length;
+  }
+
+  it.each(notizen)("%s: höchstens drei Blöcke", (_pfad, notiz) => {
+    expect(notiz.inhalt.length).toBeLessThanOrEqual(NOTIZ_GRENZEN.bloecke);
+  });
+
+  it.each(notizen)("%s: kein Block länger als erlaubt", (_pfad, notiz) => {
+    for (const block of notiz.inhalt) {
+      expect(laengeVon(block)).toBeLessThanOrEqual(NOTIZ_GRENZEN.zeichenJeBlock);
+    }
+  });
+
+  it.each(notizen)("%s: die ganze Notiz bleibt unter der Gesamtgrenze", (_pfad, notiz) => {
+    const gesamt = notiz.inhalt.reduce((summe, block) => summe + laengeVon(block), 0);
+    expect(gesamt).toBeLessThanOrEqual(NOTIZ_GRENZEN.zeichenGesamt);
+  });
+
+  it.each(notizen)("%s: der Titel ist eine Aussage, keine Zusammenfassung", (_pfad, notiz) => {
+    expect(notiz.titel.length).toBeLessThanOrEqual(NOTIZ_GRENZEN.zeichenImTitel);
+  });
+
+  it.each(notizen)("%s: kein Werbewort", (_pfad, notiz) => {
+    /*
+     * Die Liste ist kurz und absichtlich nicht vollständig — sie fängt die
+     * Wörter, die beim Abschreiben aus einem Marketingtext mitkommen. Ein
+     * Ausrufezeichen steht dabei: es ist in einer Auskunft nie nötig und
+     * verrät denselben Ton.
+     */
+    const VERBOTEN =
+      /\b(nahtlos|intuitiv|leistungsstark|ab sofort|wir freuen uns|in diesem Release)\b|!/i;
+    const texte = notiz.inhalt.flatMap((b) => (b.art === "liste" ? [...b.punkte] : [b.text]));
+    for (const text of [notiz.titel, ...texte]) {
+      expect(text).not.toMatch(VERBOTEN);
+    }
   });
 
   it.each(notizen)("%s: kein Markdown im Text", (_pfad, notiz) => {

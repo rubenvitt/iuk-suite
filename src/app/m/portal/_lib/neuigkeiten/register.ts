@@ -1,12 +1,10 @@
 import ereignisseNachvollziehen from "./notizen/portal/2026-09-06-ereignisse-nachvollziehen";
 import zeichenVoruebergehendPausiert from "./notizen/portal/2026-09-07-zeichen-voruebergehend-pausiert";
 import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-im-profil";
-import zugriffOhneAnmeldung from "./notizen/portal/2026-09-12-zugriff-ohne-anmeldung";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
 import verteilenZweiAnsichten from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-verteilen-zwei-ansichten";
-import lesbareDateigroesse from "@/app/m/portal/_lib/neuigkeiten/notizen/files/2026-09-05-lesbare-dateigroesse";
 import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-08-16-checkliste-als-pdf";
 import mitCodeEinsteigen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-mit-code-einsteigen";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
@@ -15,12 +13,10 @@ import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09
 import vonAllenGeraetenAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-14-von-allen-geraeten-abmelden";
 import alteQrCodesGeltenWeiter from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-alte-qr-codes-gelten-weiter";
 import funkInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-funk-in-der-suite";
-import bilderInDenUebungsaufgaben from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-bilder-in-den-uebungsaufgaben";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
 import trainingsansichtOhneSuiteLeiste from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-trainingsansicht-ohne-suite-leiste";
-import verwaltungAufDemTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-verwaltung-auf-dem-telefon";
 import eigeneZeichenBauen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-eigene-zeichen-bauen";
 import zeichenNachschlagen from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-02-taktische-zeichen-nachschlagen";
 import zeichenUeben from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/2026-09-03-zeichen-ueben";
@@ -48,7 +44,6 @@ import zeichenOhneNetz from "@/app/m/portal/_lib/neuigkeiten/notizen/zeichen/202
 const NOTIZEN: readonly Releasenotiz[] = [
   anleitungJeAnsicht,
   verteilenZweiAnsichten,
-  lesbareDateigroesse,
   checklisteAlsPdf,
   mitCodeEinsteigen,
   neuerNameSammelhaus,
@@ -58,15 +53,12 @@ const NOTIZEN: readonly Releasenotiz[] = [
   ereignisseNachvollziehen,
   zeichenVoruebergehendPausiert,
   versionsnummerImProfil,
-  zugriffOhneAnmeldung,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,
-  bilderInDenUebungsaufgaben,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,
   fortschrittZaehltDurchfuehrungen,
-  verwaltungAufDemTelefon,
   zeichenNachschlagen,
   eigeneZeichenBauen,
   zeichenUeben,
