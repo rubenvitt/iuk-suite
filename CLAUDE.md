@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **zwölf Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **dreizehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -112,6 +112,36 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
     Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes
     misst, als sein Name sagt**.
+
+13. **Der `100vw`-Deckel einer `Drawer` ist nicht die sichtbare Breite** (gemessen im Modul
+    `lagerbuch`, DRK-296, echter Chromium — nicht vermutet). antds `size` landet über
+    `rc-drawer` (`DrawerPopup.js:159`) als nacktes `width` auf einem Rahmen, der an `right: 0`
+    hängt; gekappt wird er allein durch antds eigenes `max-width: 100vw`. **Das reicht weiter,
+    als man denkt, und trotzdem nicht weit genug:** läuft die Seite waagerecht über, ist `100vw`
+    *breiter* als das Fenster, und die Schublade wächst über die **linke** Kante hinaus — dort
+    sitzt der Schließen-Knopf. `size={520}` bei 480px Fensterbreite: `100vw` = 506px, linke Kante
+    −26px, Knopf −2px, bei gesperrtem Seiten-Scroll also unerreichbar. ⚠️ **Die Zahl ist nicht
+    der Unterschied, die Seite dahinter ist es** — dieselbe Messung zeigte `size={480}` (uav) und
+    `width={360}` (radio) bis hinunter zu 320px sauber im Bild. Wer nur die eigene Schublade
+    misst, schließt daraus fälschlich, es gebe nichts zu decken.
+    **Kein Tor sieht das:** `typecheck` prüft eine gültige Zahl, `build` serialisiert sie klaglos, und **Vitest kann es strukturell nicht sehen** — jsdom rechnet
+    keine Layoutboxen (`getBoundingClientRect()` liefert überall Nullen) und wertet weder `min()`
+    noch `vw` aus. Dieselbe Klasse wie Falle 8: die Zahl kennt nur ein echter Browser.
+    **Die zweite Hälfte ist stiller als die erste:** eine feste Breite ist auf einem niedrigen
+    Schirm nicht zu schmal für das *Fenster*, sondern für den *Inhalt*. Dieselbe Schublade trug
+    1862px Inhalt auf 663px Sichtfläche (1280×720), während links 760px abgedunkelter Hintergrund
+    brachlagen — nichts war abgeschnitten, und trotzdem lag die zweite Buchungsaktion rund 1000px
+    unter der Kante. Das meldet niemand als Fehler; es meldet sich als „geht nicht weit genug".
+    **Abhilfe:** `flyinBreite(grund)` aus `core/theme/flyin.ts` — ein CSS-`min()`, das der
+    Browser bei **jeder** Größenänderung neu auswertet (eine in `useEffect` gemessene Zahl wäre
+    beim Öffnen richtig und danach still falsch). Damit die gewonnene Breite auch etwas trägt,
+    gehört das Raster im Inhalt auf `auto-fit`/`minmax` — das misst den **Kasten**; eine
+    `@media`-Abfrage misst das **Fenster** und legt Spalten auch dann nebeneinander, wenn der
+    Deckel die Schublade längst schmal gemacht hat. `src/core/theme/flyin.test.ts` hält die Form
+    der Zeichenkette fest (antd und rc-drawer lesen sie als **Zahl**, sobald sie wie eine
+    aussieht — der Deckel verschwände still), `e2e/flyin-breite.spec.ts` misst die Wirkung.
+    ⚠️ `width`/`height` sind in antd 6 nur noch abgekündigte Aliase auf `size`
+    (`antd/es/drawer/Drawer.js:155`); die Warnung steht in der Konsole, nicht in einem Tor.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

@@ -66,3 +66,32 @@
 .infobox { border-inline-start: 3px solid var(--lb-ampel-gelb-text); border-radius: 4px; padding: 10px 12px; color: var(--lb-ampel-gelb-text); background: var(--lb-ampel-gelb-flaeche); font-size: 14px; }
 .gefahr { border: 1px solid var(--lb-rot); border-radius: 6px; margin-block-start: 24px; padding: 16px; }
 .gtitle { color: var(--lb-rot); margin-block-end: 8px; font-size: 12px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+
+/*
+ * DIE BEIDEN BUCHUNGSFORMULARE NEBENEINANDER, SOBALD PLATZ IST.
+ *
+ * ⚠️ `auto-fit` UND KEINE `@media`-ABFRAGE, und der Unterschied ist hier
+ * tragend: eine Schublade ist ein Kasten IM Fenster, kein Fenster. Eine
+ * `@media (min-width: …)`-Regel misst das FENSTER und legt die Spalten
+ * deshalb auch dann nebeneinander, wenn die Schublade selbst schmal
+ * geworden ist — `flyinBreite` deckelt sie auf 92 vw, und auf einem breiten,
+ * aber niedrigen Schirm greift dieselbe Deckelung ueber `size`. `auto-fit`
+ * mit `minmax` misst dagegen den KASTEN und faellt von allein auf eine
+ * Spalte zurueck.
+ *
+ * 320px als Untergrenze: darunter wird aus dem Formular eine Kolonne aus
+ * Einzeilern. Gemessen bei 880 px Schubladenbreite ergeben sich zwei
+ * Spalten zu je 386 px.
+ *
+ * ⛔ KEIN `gap: 20px` als Literal, obwohl der Elternteil dieselbe Zahl
+ * traegt: das Raster steht INNERHALB des `display: grid; gap: 20` aus
+ * ArtikelDrawer.tsx, und beide Werte beschreiben denselben Abstand
+ * zwischen zwei Abschnitten. Sie hier ein zweites Mal hinzuschreiben,
+ * heisst, sie beim naechsten Mal an einer Stelle zu aendern.
+ */
+.buchungsspalten {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: inherit;
+  align-items: start;
+}

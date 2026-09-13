@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button, Drawer, Table, Tag } from "antd";
+import { flyinBreite } from "@/core/theme/flyin";
 import { aufgabenSortierenAction } from "../../_actions/katalog";
 import type { TaskDTO, Teil } from "../../_lib/typen";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
@@ -143,7 +144,28 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
         ]}
       />
 
-      <Drawer open={neuOffen} onClose={() => setNeuOffen(false)} title="Neue Aufgabe" size={480} destroyOnHidden>
+      {/*
+        480 BLEIBT DIE WUNSCHBREITE. Dieses Formular braucht nicht mehr —
+        gemessen (13.09.2026) sind es 835 px Inhalt, die auf jedem
+        Desktop-Schirm in eine kurze Rolle passen. Neu ist allein der Deckel.
+
+        ⚠️ UND ER BEHEBT HIER KEINEN GEMESSENEN AUSFALL — dieselbe Messung
+        zeigte die Schublade bis hinunter zu 320 px Fensterbreite sauber im
+        Bild (Schliessen-Knopf bei +24 px), weil antd bei `100vw` kappt. Er
+        steht trotzdem, weil diese Kappung GEMESSENES Fremdverhalten ist und
+        kein Vertrag, und weil sie an einer Seite mit waagerechtem Ueberlauf
+        nachweislich zu spaet greift: im Modul `lagerbuch` war `100vw`
+        506 px breit bei 480 px Fenster, und der Schliessen-Knopf stand
+        ausserhalb. Welche Seite eines Tages ueberlaeuft, weiss die
+        Schublade nicht. Begruendung in `core/theme/flyin.ts`.
+      */}
+      <Drawer
+        open={neuOffen}
+        onClose={() => setNeuOffen(false)}
+        title="Neue Aufgabe"
+        size={flyinBreite(480)}
+        destroyOnHidden
+      >
         <AufgabeFormular onGespeichert={angelegt} onAbbrechen={() => setNeuOffen(false)} />
       </Drawer>
 
@@ -151,7 +173,7 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
         open={bearbeiten != null}
         onClose={() => setBearbeiten(null)}
         title={bearbeiten ? `Aufgabe ${bearbeiten.nummer} bearbeiten` : undefined}
-        size={480}
+        size={flyinBreite(480)}
         destroyOnHidden
       >
         {bearbeiten ? (
