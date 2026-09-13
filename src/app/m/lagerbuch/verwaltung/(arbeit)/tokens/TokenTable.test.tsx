@@ -25,6 +25,7 @@ import {
   query,
   queryAll,
   queryPortal,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import {
@@ -428,24 +429,53 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(einstiege("t2"), "gesperrt: am Gate wäre es ein Fehlversuch").toEqual([]);
   });
 
-  it("lädt nach „Einsteigen“ genau einmal neu, wenn der Tab zurückkommt — sonst nie", async () => {
-    await mount(<TokenTable zeilen={ZEILEN} />);
-    const fokus = async () => {
-      await act(async () => { window.dispatchEvent(new Event("focus")); });
-    };
+  it("frischt nach „Einsteigen“ bei jeder Rückkehr auf, bis die Zeile neu ist — sonst nie", async () => {
+    let jetzt = 1_000_000;
+    const uhr = vi.spyOn(Date, "now").mockImplementation(() => jetzt);
+    try {
+      await mount(<TokenTable zeilen={ZEILEN} />);
+      const rueckkehr = async (sekunden: number) => {
+        jetzt += sekunden * 1000;
+        await act(async () => {
+          window.dispatchEvent(new Event("focus"));
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+      };
+      const einsteigen = async () => {
+        const anker = Array.from(
+          query("tr[data-row-key='t1']").querySelectorAll<HTMLAnchorElement>("a"),
+        ).find((element) => (element.textContent ?? "").includes("Einsteigen"));
+        if (!anker) throw new Error("Einsteigen fehlt");
+        anker.addEventListener("click", (ereignis) => ereignis.preventDefault());
+        await clickElement(anker);
+      };
 
-    await fokus();
-    expect(mocks.refresh, "Fokus ohne Einstieg").not.toHaveBeenCalled();
+      await rueckkehr(5);
+      expect(mocks.refresh, "Rückkehr ohne Einstieg").not.toHaveBeenCalled();
 
-    const anker = Array.from(query("tr[data-row-key='t1']").querySelectorAll<HTMLAnchorElement>("a"))
-      .find((element) => (element.textContent ?? "").includes("Einsteigen"));
-    if (!anker) throw new Error("Einsteigen fehlt");
-    anker.addEventListener("click", (ereignis) => ereignis.preventDefault());
-    await clickElement(anker);
-    await fokus();
-    await fokus();
+      await einsteigen();
+      await rueckkehr(1);
+      expect(mocks.refresh, "focus + visibilitychange = ein Refresh").toHaveBeenCalledTimes(1);
 
-    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+      // Zu früh zurück: die Zeile ist noch alt, die nächste Rückkehr frischt erneut auf.
+      await rueckkehr(5);
+      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+
+      // Die Einlösung ist angekommen: danach lädt keine Rückkehr mehr neu.
+      await rerender(
+        <TokenTable zeilen={[{ ...FAHRZEUG, lastUsedText: "13.09.2026, 12:40:00" }, ARTIKEL, LISTE]} />,
+      );
+      await rueckkehr(5);
+      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+
+      // Das Fenster schließt, auch wenn die Zeile nie neu wird.
+      await einsteigen();
+      await rueckkehr(121);
+      await rueckkehr(5);
+      expect(mocks.refresh).toHaveBeenCalledTimes(2);
+    } finally {
+      uhr.mockRestore();
+    }
   });
 
   it("kennt in der Quelle weder den Löschknopf noch die generische Löschaction", () => {

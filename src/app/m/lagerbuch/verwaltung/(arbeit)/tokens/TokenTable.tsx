@@ -14,6 +14,10 @@ import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
+const EINSTIEG_FENSTER_MS = 2 * 60_000;
+const REFRESH_ABSTAND_MS = 1_000;
+
+type OffenerEinstieg = { id: string; vorher: string; bis: number; zuletzt: number };
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
@@ -64,13 +68,30 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const router = useRouter();
 
   // Die Einloesung im neuen Tab schreibt `lastUsedAt`, diese Zeilen kennen das
-  // nicht. Kehrt der Tab nach einem „Einsteigen" zurueck, genau EIN Refresh —
-  // nicht bei jedem Fokus, sonst laede jeder Fensterwechsel die Seite neu.
-  const einstiegOffen = useRef(false);
+  // nicht. Nach einem „Einsteigen" frischt JEDE Rueckkehr des Tabs auf — bis die
+  // angeklickte Zeile tatsaechlich einen neuen Wert traegt. Ein Verbrauch beim
+  // ersten Fokus reichte nicht: kehrt man zurueck, bevor `/t/<code>` fertig ist,
+  // liest dieser eine Refresh noch die alte Zeile. Ohne Einstieg laedt ein
+  // Fensterwechsel nichts neu; das Fenster schliesst spaetestens nach zwei
+  // Minuten (etwa wenn das Gate die Einloesung abgewiesen hat).
+  const einstieg = useRef<OffenerEinstieg | null>(null);
+  useEffect(() => {
+    const offen = einstieg.current;
+    const zeile = offen ? zeilen.find((z) => z.id === offen.id) : undefined;
+    if (zeile && zeile.lastUsedText !== offen?.vorher) einstieg.current = null;
+  }, [zeilen]);
   useEffect(() => {
     const zurueck = () => {
-      if (!einstiegOffen.current || document.visibilityState === "hidden") return;
-      einstiegOffen.current = false;
+      const offen = einstieg.current;
+      if (!offen || document.visibilityState === "hidden") return;
+      const jetzt = Date.now();
+      if (jetzt > offen.bis) {
+        einstieg.current = null;
+        return;
+      }
+      // `focus` und `visibilitychange` feuern bei derselben Rueckkehr beide.
+      if (jetzt - offen.zuletzt < REFRESH_ABSTAND_MS) return;
+      offen.zuletzt = jetzt;
       router.refresh();
     };
     window.addEventListener("focus", zurueck);
@@ -218,7 +239,14 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
                     href={`/t/${encodeURIComponent(zeile.code)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => { einstiegOffen.current = true; }}
+                    onClick={() => {
+                      einstieg.current = {
+                        id: zeile.id,
+                        vorher: zeile.lastUsedText,
+                        bis: Date.now() + EINSTIEG_FENSTER_MS,
+                        zuletzt: 0,
+                      };
+                    }}
                     icon={<Ikone name="pfeil-rechts" groesse={16} />}
                   >
                     Einsteigen
