@@ -5,21 +5,12 @@ const notiz: Releasenotiz = {
   modul: "lagerbuch",
   slug: "mit-code-einsteigen",
   datum: "2026-09-13",
-  titel: "Mit einem Zugangs-Code direkt aus der Verwaltung einsteigen",
+  titel: "Zugangs-Codes vorab ausprobieren",
   inhalt: [
     absatz(
-      "Unter Verwaltung → Zugangs-Codes steht neben jedem aktiven Code jetzt „Einsteigen“. Der " +
-        "Knopf öffnet in einem neuen Tab genau die Ansicht, die eine Helferin nach dem Scannen " +
-        "des Kärtchens sieht: das Fahrzeug, den Artikel oder die Artikel-Liste.",
-    ),
-    absatz(
-      "Bisher musstest du dafür das Kärtchen scannen oder den Code am Einstieg abtippen. Jetzt " +
-        "prüfst du mit einem Klick, wohin ein Code führt, bevor du ihn laminierst oder aushängst.",
-    ),
-    absatz(
-      "Der Einstieg zählt wie ein Scan, also auch für „Zuletzt benutzt“. Gesperrte Codes haben " +
-        "keinen Knopf, weil sie ohnehin nicht hineinlassen. Die Verwaltung bleibt im " +
-        "ursprünglichen Tab offen.",
+      "Unter Verwaltung → Zugangs-Codes öffnet „Einsteigen“ in einem neuen Tab die Ansicht, die " +
+        "eine Helferin nach dem Scannen des Kärtchens sieht. So prüfst du mit einem Klick, wohin " +
+        "ein Code führt, bevor du ihn laminierst. Gesperrte Codes haben keinen Knopf.",
     ),
   ],
 };

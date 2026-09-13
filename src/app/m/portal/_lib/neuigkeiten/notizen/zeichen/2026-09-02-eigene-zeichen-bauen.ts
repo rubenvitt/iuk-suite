@@ -7,29 +7,16 @@ const notiz: Releasenotiz = {
   modul: "zeichen",
   slug: "eigene-zeichen-bauen",
   datum: "2026-09-02",
-  titel: "Eigene Zeichen zusammenstellen und herunterladen",
+  titel: "Eigene Zeichen zusammenstellen",
   inhalt: [
     absatz(
-      "Unter „Baukasten“ stellst du jetzt ein taktisches Zeichen selbst zusammen: Grundzeichenart, " +
-        "Zugehörigkeit, Kopfzone, Funktion, Körperform, Fähigkeit, Körpermarken und Beschriftung. " +
-        "Die Vorschau zeichnet bei jeder Auswahl mit.",
+      "Unter „Baukasten“ stellst du ein taktisches Zeichen selbst zusammen, und die Vorschau " +
+        "zeichnet bei jeder Auswahl mit. Was in einer Zusammenstellung nicht vorkommt, steht " +
+        "grau in der Liste, mit dem Grund daneben.",
     ),
     absatz(
-      "Was in einer Zusammenstellung nicht vorkommt, lässt sich gar nicht erst auswählen — es steht " +
-        "grau in der Liste, und daneben steht, warum. Eine Stärke gibt es zum Beispiel nur an " +
-        "Formationen und Personen, und über dem Körper ist nur für eines von dreien Platz.",
-    ),
-    absatz(
-      "Fertige Zeichen lädst du als SVG oder als PNG herunter, oder du speicherst sie unter „Meine " +
-        "Zeichen“. Speicherst du zweimal denselben Namen, fragt die App nach, statt zu " +
-        "überschreiben. Hast du dieselbe Zusammenstellung schon einmal gesichert, sagt sie dir, " +
-        "unter welchem Namen.",
-    ),
-    absatz(
-      "Zum Üben gibt es im Baukasten den Knopf „Übungsaufgabe ziehen“: du bekommst die Bedeutung " +
-        "eines Zeichens und baust es nach. Beim Prüfen steht da, was schon stimmt und was noch " +
-        "fehlt. Diese Übung zählt nicht zum Lernstand — der Katalog und deine Merkliste bleiben " +
-        "unverändert.",
+      "Fertige Zeichen lädst du als SVG oder PNG herunter oder speicherst sie unter „Meine " +
+        "Zeichen“.",
     ),
   ],
 };
