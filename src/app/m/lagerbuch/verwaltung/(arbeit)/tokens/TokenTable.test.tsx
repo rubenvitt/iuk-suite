@@ -413,6 +413,21 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(document.body.textContent).not.toContain("Löschen");
   });
 
+  it("bietet für aktive Codes „Einsteigen“ über den QR-Weg im neuen Tab an, für gesperrte nicht", async () => {
+    await mount(<TokenTable zeilen={ZEILEN} />);
+
+    const einstiege = (id: string) => Array.from(
+      query(`tr[data-row-key='${id}']`).querySelectorAll<HTMLAnchorElement>("a"),
+    ).filter((anker) => (anker.textContent ?? "").includes("Einsteigen"));
+
+    const [fahrzeug] = einstiege("t1");
+    expect(fahrzeug?.getAttribute("href")).toBe("/t/111-111");
+    expect(fahrzeug?.getAttribute("target")).toBe("_blank");
+    expect(fahrzeug?.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(einstiege("t3").map((anker) => anker.getAttribute("href"))).toEqual(["/t/333-333"]);
+    expect(einstiege("t2"), "gesperrt: am Gate wäre es ein Fehlversuch").toEqual([]);
+  });
+
   it("kennt in der Quelle weder den Löschknopf noch die generische Löschaction", () => {
     // K-4: über ohneKommentare(), nicht über den Rohtext — der Kopfkommentar
     // der Komponente nennt alle drei gesuchten Namen in seiner Begründung.
