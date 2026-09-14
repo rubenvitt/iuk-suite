@@ -7,7 +7,8 @@ import {
 } from "../../../_lib/lesepfade/journal";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { JournalFilter } from "./JournalFilter";
-import { JournalTable, journalZeileDTO, type JournalAbrufFilter } from "./JournalTable";
+import { journalZeileDTO } from "../../../_lib/journalDTO";
+import { JournalTable, type JournalAbrufFilter } from "./JournalTable";
 import {
   deckelText,
   journalParameterAus,

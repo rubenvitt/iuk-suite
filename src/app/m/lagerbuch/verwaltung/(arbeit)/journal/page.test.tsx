@@ -8,7 +8,8 @@ import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { JournalFilter } from "./JournalFilter";
-import { JournalTable, type JournalZeileDTO } from "./JournalTable";
+import { JournalTable } from "./JournalTable";
+import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 import JournalSeite, {
   dynamic,
   journalDaten,

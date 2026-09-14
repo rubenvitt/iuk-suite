@@ -6,10 +6,7 @@ import { JOURNAL_GRENZE } from "../_lib/grenzen";
 import { journalEintraege } from "../_lib/lesepfade/journal";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { TYPEN } from "../verwaltung/(arbeit)/journal/journalFilterLogik";
-import {
-  journalZeileDTO,
-  type JournalZeileDTO,
-} from "../verwaltung/(arbeit)/journal/JournalTable";
+import { journalZeileDTO, type JournalZeileDTO } from "../_lib/journalDTO";
 
 /**
  * DIE NAECHSTE JOURNALSEITE (DRK-331).

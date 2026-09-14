@@ -9,10 +9,12 @@ import {
   mount,
   query,
   queryAll,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import s from "../../../_ui/verwaltung.module.css";
-import { JournalTable, type JournalZeileDTO } from "./JournalTable";
+import { JournalTable } from "./JournalTable";
+import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 
 const mocks = vi.hoisted(() => ({ naechsteJournalSeite: vi.fn() }));
 vi.mock("../../../_actions/journal", () => ({
@@ -51,6 +53,12 @@ const ZEILEN: JournalZeileDTO[] = [
 ];
 
 const KEIN_FILTER = {};
+
+/** Die Kennungen der gerenderten Zeilen, in ihrer Reihenfolge. */
+function zeilenIds(): Array<string | null> {
+  return queryAll("tbody tr[data-row-key]")
+    .map((zeile) => zeile.getAttribute("data-row-key"));
+}
 
 /**
  * ⚠️ JSDOM KENNT KEINEN `IntersectionObserver`, und ein blosser Stummel meldete
@@ -360,5 +368,160 @@ describe("JournalTable", () => {
       />,
     );
     expect(document.body.textContent).not.toContain("Keine weiteren Buchungen.");
+  });
+
+  /**
+   * ⚠️ DIESE DREI FAELLE STEHEN HIER, WEIL EIN REVIEW SIE GEFUNDEN HAT UND KEIN
+   * LAUF. Alle drei Fehler waren in einem gruenen Baum vorhanden.
+   */
+
+  it("verwirft eine Antwort, die unter einem ANDEREN Filter losgeschickt wurde", async () => {
+    /**
+     * Das Rennen: jemand wechselt den Filter, waehrend ein Nachschlag unterwegs
+     * ist. Der Abgleich in der Renderphase laeuft zuerst — und die eintreffende
+     * Antwort haengte danach die Zeilen des ALTEN Filters an den neuen Stand.
+     * Die Liste zeigte Buchungen, die der gewaehlte Filter ausschliesst.
+     */
+    const { ausloesen } = beobachterStellen();
+    mocks.naechsteJournalSeite.mockReset();
+
+    let antworten!: (wert: unknown) => void;
+    mocks.naechsteJournalSeite.mockReturnValue(new Promise((fertig) => { antworten = fertig; }));
+
+    await mount(
+      <JournalTable
+        ersteZeilen={ZEILEN}
+        ersterCursor={{ ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" }}
+        abrufFilter={{ typ: "zugang" }}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    await act(async () => { ausloesen(); });
+
+    // Filterwechsel, WAEHREND der Abruf laeuft: neue erste Seite vom Server.
+    await rerender(
+      <JournalTable
+        ersteZeilen={[ZEILEN[1]!]}
+        ersterCursor={null}
+        abrufFilter={{ typ: "entnahme" }}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    expect(zeilenIds()).toEqual(["journal-positiv"]);
+
+    // Jetzt erst antwortet der alte Abruf.
+    await act(async () => {
+      antworten({
+        ok: true,
+        cursor: { ts: "2026-08-07T10:00:00.000Z", id: "alt" },
+        zeilen: [{
+          id: "journal-aus-altem-filter",
+          ts: "2026-08-07T09:00:00.000Z",
+          artikelName: "Darf nicht erscheinen",
+          typ: "zugang",
+          menge: 1,
+          quelleId: "system",
+          quelleName: "System",
+          kommentar: null,
+          referenz: null,
+        }],
+      });
+    });
+    await warte();
+
+    // Die alte Zeile ist NICHT angehaengt, und der alte Cursor hat den neuen
+    // Stand nicht uebernommen ("Keine weiteren Buchungen." steht weiter da).
+    expect(zeilenIds()).toEqual(["journal-positiv"]);
+    expect(document.body.textContent).not.toContain("Darf nicht erscheinen");
+    expect(document.body.textContent).toContain("Keine weiteren Buchungen.");
+  });
+
+  it("setzt zurueck, wenn sich NUR der Filter aendert — bei gleicher erster Seite", async () => {
+    /**
+     * Der Schluessel bestand urspruenglich nur aus erster Zeile und
+     * Schluesselposition. Laesst ein Filterwechsel die NEUESTE Seite
+     * unveraendert — die neuesten Buchungen sind ohnehin alle Zugaenge, jemand
+     * filtert auf „Zugang" —, blieb der Schluessel gleich, und die zuvor
+     * nachgeladenen AELTEREN Zeilen standen weiter da, obwohl sie den neuen
+     * Filter verletzen.
+     */
+    const { ausloesen } = beobachterStellen();
+    mocks.naechsteJournalSeite.mockReset();
+    mocks.naechsteJournalSeite.mockResolvedValue({
+      ok: true,
+      cursor: null,
+      zeilen: [{
+        id: "journal-alt-entnahme",
+        ts: "2026-08-07T09:00:00.000Z",
+        artikelName: "Alte Entnahme",
+        typ: "entnahme",
+        menge: -1,
+        quelleId: "system",
+        quelleName: "System",
+        kommentar: null,
+        referenz: null,
+      }],
+    });
+
+    const ersteSeite = ZEILEN;
+    const cursor = { ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" };
+
+    await mount(
+      <JournalTable
+        ersteZeilen={ersteSeite}
+        ersterCursor={cursor}
+        abrufFilter={{}}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    await act(async () => { ausloesen(); });
+    await warte();
+    expect(zeilenIds()).toContain("journal-alt-entnahme");
+
+    // IDENTISCHE erste Seite, IDENTISCHE Schluesselposition — nur der Filter
+    // ist neu. Ohne den Filter im Schluessel bliebe die alte Entnahme stehen.
+    await rerender(
+      <JournalTable
+        ersteZeilen={ersteSeite}
+        ersterCursor={cursor}
+        abrufFilter={{ typ: "zugang" }}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    expect(zeilenIds()).not.toContain("journal-alt-entnahme");
+  });
+});
+
+/**
+ * DIE RSC-GRENZE DES JOURNALS (Falle 6).
+ *
+ * ⚠️ DIESER TEST HAT EIN SUBJEKT, DAS ES FAST NICHT GAEBE. `journalZeileDTO`
+ * stand kurzzeitig in dieser Client-Insel und wurde von `journal/page.tsx`
+ * (Server Component) UND `_actions/journal.ts` gerufen — ein WERT aus einem
+ * `"use client"`-Modul, HTTP 500 fuer die ganze Seite. `typecheck`, `lint`,
+ * `build` und 10 000 Vitests blieben dabei gruen; in Vitest ist `"use client"`
+ * eine wirkungslose Zeichenkette, die Funktion laeuft im selben Prozess und tut
+ * genau das Richtige.
+ *
+ * Ein VERHALTENSTEST kann das strukturell nicht sehen. Dieser Scan kann es.
+ */
+describe("Journal — die Serverleser holen den Umwandler aus einem Modul OHNE Direktive", () => {
+  const DTO_DATEI = "src/app/m/lagerbuch/_lib/journalDTO.ts";
+
+  it("journalDTO.ts traegt KEINE use-client-Direktive", () => {
+    const quelle = readFileSync(DTO_DATEI, "utf8");
+    expect(ersteDirektive(quelle)).not.toBe("use client");
+  });
+
+  it.each([
+    ["src/app/m/lagerbuch/verwaltung/(arbeit)/journal/page.tsx", "Server Component"],
+    ["src/app/m/lagerbuch/_actions/journal.ts", "Server Action"],
+  ])("%s (%s) importiert ihn aus _lib, nicht aus der Client-Insel", (datei) => {
+    const quelle = readFileSync(datei, "utf8");
+    expect(quelle).toMatch(/journalZeileDTO[\s\S]*?from "[^"]*_lib\/journalDTO"/);
+    // Und ausdruecklich NICHT aus `JournalTable`: ein `import type` von dort
+    // waere unbedenklich, ein Wert nicht — der Scan trennt das nicht, also
+    // verbietet er die Herkunft ganz.
+    expect(quelle).not.toMatch(/journalZeileDTO[^;]*from "[^"]*JournalTable"/);
   });
 });

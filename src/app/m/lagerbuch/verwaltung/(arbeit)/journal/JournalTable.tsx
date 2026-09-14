@@ -6,7 +6,8 @@ import { SPACE } from "@/core/theme/tokens";
 import { Datentabelle, nachDatum, nachText, nachZahl } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
-import type { BuchungTyp, JournalZeileRoh } from "../../../_lib/lesepfade/journal";
+import type { BuchungTyp } from "../../../_lib/lesepfade/journal";
+import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 
 import { SCHRIFT } from "../../../_lib/schrift";
 import { fmtTs } from "../../../_lib/zeit";
@@ -29,24 +30,6 @@ export type JournalAnzeigeZeile = {
   /** Der rohe Code/die rohe Kennung, NUR fuer den `title` des Chips (Ruling A15). */
   quelleId: string;
 };
-
-/**
- * Die Rohzeile, wie sie ueber die Client-Grenze reist.
- *
- * ⚠️ `ts` IST EINE ISO-ZEICHENKETTE, KEIN `Date` — und das ist kein Umweg.
- * `page.test.tsx` haelt fuer diese Grenze fest, dass alles, was hinuebergeht,
- * REKURSIV PRIMITIV ist. React serialisiert ein `Date` zwar von sich aus, aber
- * die Zusage gilt fuer beide Wege gleich: die erste Seite kommt aus einer
- * Server Component, jede weitere aus einer Server Action. Eine Zeichenkette
- * verhaelt sich auf beiden identisch, ein `Date` traegt auf dem zweiten Weg
- * eine zusaetzliche Annahme.
- */
-export type JournalZeileDTO = Omit<JournalZeileRoh, "ts"> & { ts: string };
-
-/** Aus einer gelesenen Zeile die Form, die ueber die Grenze darf. */
-export function journalZeileDTO(zeile: JournalZeileRoh): JournalZeileDTO {
-  return { ...zeile, ts: zeile.ts.toISOString() };
-}
 
 /** Die Cursor-Form, wie sie ueber die Server Action reist. */
 export type JournalCursor = { ts: string; id: string };
@@ -194,10 +177,23 @@ export function JournalTable({
    * Der Schluessel ist die Kennung der ersten Zeile plus die Schluesselposition
    * — nicht die Liste selbst: die ist bei jedem Rendern ein neues Feld.
    */
+  /**
+   * ⚠️ DER FILTER GEHOERT IN DEN SCHLUESSEL, nicht nur die erste Zeile. Ein
+   * Filterwechsel, der die NEUESTE Seite unveraendert laesst, ergaebe sonst
+   * denselben Schluessel — und die zuvor nachgeladenen AELTEREN Zeilen blieben
+   * stehen, obwohl sie den neuen Filter verletzen. Beispiel: die neuesten 100
+   * Buchungen sind ohnehin alle Zugaenge, und jemand filtert auf „Zugang";
+   * erste Zeile und Schluesselposition sind identisch, die alten Entnahmen
+   * darunter nicht.
+   */
   const schluessel = [
     ersteZeilen[0]?.id ?? "",
     ersterCursor?.ts ?? "",
     ersterCursor?.id ?? "",
+    abrufFilter.q ?? "",
+    abrufFilter.typ ?? "",
+    abrufFilter.von ?? "",
+    abrufFilter.bis ?? "",
   ].join("|");
 
   const [stand, setStand] = useState(() => ({
@@ -220,18 +216,37 @@ export function JournalTable({
 
   const mehrLaden = useCallback(async () => {
     if (!cursor || laedt) return;
+    /**
+     * ⚠️ DIE ANTWORT WIRD GEGEN DEN SCHLUESSEL GEPRUEFT, UNTER DEM SIE LOSGESCHICKT
+     * WURDE. Wechselt jemand den Filter, waehrend ein Nachschlag unterwegs ist,
+     * laeuft der Abgleich in der Renderphase zuerst — und die eintreffende
+     * Antwort haengte danach die Zeilen des ALTEN Filters an den neuen Stand.
+     * Die Liste zeigte dann Buchungen, die der gewaehlte Filter ausschliesst,
+     * und blaetterte mit dem alten Cursor weiter durch die alte Treffermenge.
+     *
+     * Jede Zustandsaenderung prueft deshalb `vorher.schluessel`: gehoert die
+     * Antwort zu einer anderen Generation, faellt sie still weg. Ein `ref`
+     * waere hier falsch — er kennt den Stand NACH dem Rendern, dieser Vergleich
+     * braucht den Stand, auf den geschrieben wird.
+     */
+    const generation = schluessel;
     setLaedt(true);
-    setStand((vorher) => ({ ...vorher, fehler: null }));
+    setStand((vorher) => (
+      vorher.schluessel === generation ? { ...vorher, fehler: null } : vorher
+    ));
     try {
       const antwort = await naechsteJournalSeite({ ...abrufFilter, cursor });
       if (!antwort.ok) {
-        setStand((vorher) => ({ ...vorher, fehler: antwort.fehler }));
+        setStand((vorher) => (
+          vorher.schluessel === generation ? { ...vorher, fehler: antwort.fehler } : vorher
+        ));
         return;
       }
       // ⚠️ ANHAENGEN, NICHT ERSETZEN — und doppelte Kennungen abfangen. Der
       // Cursor ist stabil, aber ein doppelter `rowKey` waere in React ein
       // stiller Renderfehler, und er kostet nur einen Set-Aufbau.
       setStand((vorher) => {
+        if (vorher.schluessel !== generation) return vorher;
         const bekannt = new Set(vorher.zeilen.map((z) => z.id));
         const neue = antwort.zeilen.filter((z) => !bekannt.has(z.id)).map(anzeigeZeile);
         return {
@@ -241,11 +256,13 @@ export function JournalTable({
         };
       });
     } catch {
-      setStand((vorher) => ({ ...vorher, fehler: NACHLADE_FEHLER }));
+      setStand((vorher) => (
+        vorher.schluessel === generation ? { ...vorher, fehler: NACHLADE_FEHLER } : vorher
+      ));
     } finally {
       setLaedt(false);
     }
-  }, [cursor, laedt, abrufFilter]);
+  }, [cursor, laedt, abrufFilter, schluessel]);
 
   /**
    * Der Beobachter am Fussende. Er ist absichtlich KEIN Scroll-Zuhoerer: ein
