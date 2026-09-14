@@ -313,6 +313,22 @@ describe("InventurForm — Zeile und Filter", () => {
     expect(query(".ant-alert-warning").textContent).toContain(INVENTUR_TEXTE.chargeUnpassend);
   });
 
+  it("zählt aufgeklappt je Charge und schickt die Chargenposition", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await click("button[aria-label='Chargen Mullbinde anzeigen']");
+    await fill("input[aria-label='Ist Charge L1']", "9");
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").disabled).toBe(true);
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").value).toBe("9");
+    expect(query("tr[data-row-key='a1']").textContent).toContain("je Charge");
+    await fill("input[aria-label='Kommentar']", "Charge");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Charge", umfang: null,
+      positionen: [{ artikelId: "a1", chargen: [{ chargeId: "c1", ist: 9 }], neu: [] }],
+    });
+  });
+
   it("verlinkt nach dem Abschluss den gespeicherten Lauf", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");

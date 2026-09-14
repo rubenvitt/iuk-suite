@@ -20,6 +20,7 @@ import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import s from "../../../_ui/verwaltung.module.css";
+import { ChargenZaehlung } from "./ChargenZaehlung";
 import {
   abweichungenIn,
   artikelSetzen,
@@ -132,6 +133,28 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
         scroll={{ x: "max-content" }}
         aria-label="Inventur"
         dataSource={sichtbar}
+        // Spec §B: JEDE Zeile ist aufklappbar — auch ohne Charge, dort bleibt die
+        // Ergaenzen-Zeile. Deshalb kein `rowExpandable`.
+        expandable={{
+          expandedRowRender: (zeile) => (
+            <ChargenZaehlung
+              zeile={zeile}
+              zaehlung={stand[zeile.id]}
+              gesperrt={laeuft}
+              onAendern={(umbau) => { setStand(umbau); setFehler(null); setMeldung(null); }}
+            />
+          ),
+          // antds Standard-Aufklappknopf misst ~17px und unterschreitet die
+          // Arbeitsdichte (Falle 4). Ein `Button` OHNE `size` traegt die 44px.
+          expandIcon: ({ expanded, onExpand, record }) => (
+            <Button
+              aria-label={expanded ? `Chargen ${record.name} ausblenden` : `Chargen ${record.name} anzeigen`}
+              aria-expanded={expanded}
+              onClick={(e) => onExpand(record, e)}
+              icon={<Ikone name={expanded ? "zuklappen" : "aufklappen"} groesse={14} />}
+            />
+          ),
+        }}
         // Punkt 5 der Pruefliste: der Leertext nennt den naechsten Schritt.
         locale={{
           emptyText: zeilen.length === 0
@@ -211,6 +234,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
                 // misst das heute nur auf /verwaltung/bestellung -- diese Seite
                 // ist (noch) nicht im Testpfad, die Regel gilt trotzdem.
                 <Flex gap={SPACE.xs} align="center" justify="flex-end">
+                  {nurSumme ? <Chip ton="grau">je Charge</Chip> : null}
                   <Button
                     disabled={laeuft || nurSumme || aktuell <= 0}
                     aria-label={`Ist-Bestand ${zeile.name} verringern`}

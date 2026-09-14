@@ -33,7 +33,7 @@ import type { IconType } from "react-icons/lib";
 import {
   PiArchive, PiArrowCounterClockwise, PiArrowLeft, PiArrowRight,
   PiArrowsClockwise, PiBarcode, PiBatteryCharging, PiCalendarX,
-  PiCaretLeft, PiCaretRight, PiCaretUpDown, PiCheck, PiCopy,
+  PiCaretDown, PiCaretLeft, PiCaretRight, PiCaretUp, PiCaretUpDown, PiCheck, PiCopy,
   PiDownloadSimple, PiFlashlight, PiHandGrabbing, PiHeartbeat, PiInfo,
   PiKey, PiLink, PiLinkBreak, PiList, PiMagnifyingGlass, PiMinus,
   PiMinusBold, PiPackage, PiPencilSimple, PiPlus, PiPlusBold, PiPrinter,
@@ -41,14 +41,16 @@ import {
   PiWind, PiX,
 } from "react-icons/pi";
 
-/** 28 reine UI-Zeichen und 8 Fachzeichen. Reihenfolge wie Spec 6.5.2. */
+/** 30 reine UI-Zeichen und 8 Fachzeichen. Reihenfolge wie Spec 6.5.2, dahinter Nachtraege. */
 export type IkonName =
-  // ── 28 reine UI-Zeichen ──────────────────────────────────────────────────
+  // ── 30 reine UI-Zeichen ──────────────────────────────────────────────────
   | "pfeil-links" | "pfeil-rechts" | "chevron-rechts" | "chevron-links"
   | "plus" | "minus" | "kreuz" | "haken" | "stift" | "papierkorb" | "archiv"
   | "kopieren" | "herunterladen" | "hochladen" | "drucken" | "lupe" | "info"
   | "erneut" | "zuruecksetzen" | "verketten" | "entketten" | "tabelle" | "liste"
   | "scannen" | "qr" | "schluessel" | "taschenlampe" | "auf-ab"
+  // DRK-299: Aufklappknopf der Inventurzeile.
+  | "aufklappen" | "zuklappen"
   // ── 8 Fachzeichen (Spec 6.5.4) ───────────────────────────────────────────
   | "warnung" | "medizin" | "objekt" | "sauerstoff" | "akku" | "verfall"
   | "handlager-griff" | "fahrzeug";
@@ -84,6 +86,8 @@ export const ZEICHEN: Record<IkonName, IconType> = {
   schluessel: PiKey,
   taschenlampe: PiFlashlight,
   "auf-ab": PiCaretUpDown,
+  aufklappen: PiCaretDown,
+  zuklappen: PiCaretUp,
   // ── Fachzeichen (Spec 6.5.4) ─────────────────────────────────────────────
   warnung: PiWarning,
   medizin: PiHeartbeat,
@@ -131,7 +135,7 @@ const ZEICHEN_KRAEFTIG: Partial<Record<IkonName, IconType>> = {
  * `ZEICHEN_KRAEFTIG` eine fuehrt.
  *
  * Die Tabelle fuehrt bewusst nur die zwei Zeichen, die den Regler heute
- * brauchen — nicht alle 36. Ein Name ohne Eintrag faellt auf sein
+ * brauchen — nicht alle 38. Ein Name ohne Eintrag faellt auf sein
  * Normalgewicht zurueck: sichtbar unveraendert, nie ein Absturz.
  */
 export function Ikone({
