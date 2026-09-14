@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   grenzen, ZAHL_NAMEN, GrenzenUngueltig, helferSitzungGeheimnis,
   grenzenFehler, JOURNAL_GRENZE, CHECK_GRENZE, BZ_LOGBUCH_GRENZE,
-  ARTIKEL_VERLAUF_GRENZE,
+  ARTIKEL_VERLAUF_GRENZE, INVENTUR_VERLAUF_GRENZE,
 } from "./grenzen";
 
 /** Der Quelltext von `grenzen.ts` — die Ebene, auf der die
@@ -258,6 +258,8 @@ const DECKEL = [
   { name: "CHECK_GRENZE", wert: CHECK_GRENZE, erwartet: 50 },
   { name: "BZ_LOGBUCH_GRENZE", wert: BZ_LOGBUCH_GRENZE, erwartet: 100 },
   { name: "ARTIKEL_VERLAUF_GRENZE", wert: ARTIKEL_VERLAUF_GRENZE, erwartet: 8 },
+  // DRK-299 — der Inventur-Verlauf (Spec 2026-09-14, §C „Seiten").
+  { name: "INVENTUR_VERLAUF_GRENZE", wert: INVENTUR_VERLAUF_GRENZE, erwartet: 100 },
 ] as const;
 
 /** Eine Umgebung, unter der das Modul ERREICHBAR ist — sonst ist die Fehlerliste
