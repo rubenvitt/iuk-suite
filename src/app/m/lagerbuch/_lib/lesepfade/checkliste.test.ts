@@ -92,7 +92,7 @@ afterEach(() => t.schliessen());
 describe("nachFaechern — Gruppierung ohne Umsortierung", () => {
   const pos = (fachLabel: string, artikelName: string) => ({
     fachLabel, artikelId: artikelName, artikelName, einheit: "Stk.",
-    handlagerFach: "A", soll: 1, verfallText: null, verfallAuffaellig: false,
+    handlagerFach: "A", soll: 1,
   });
 
   it("behaelt die Reihenfolge der Eingabe — Faecher UND Positionen", () => {
@@ -151,28 +151,21 @@ describe("checklisteFuerFahrzeug", () => {
     });
   });
 
-  it("zeichnet einen auffaelligen Verfall aus und einen fernen nicht", () => {
+  /**
+   * ⚠️ DER GEMELDETE VERFALL KOMMT NICHT AUFS BLATT. `beforeEach` legt fuer
+   * fz-a zwei Meldungen an, eine davon im Warnbereich — trotzdem traegt keine
+   * Position einen Verfall. Ein vorgedruckter Monat wird am Fahrzeug abgehakt
+   * statt abgelesen (Kopf von `checkliste.ts`). Geprueft wird die VOLLE
+   * Schluesselmenge, nicht die Abwesenheit eines Namens: ein zurueckkehrendes
+   * Feld hiesse vermutlich anders als das entfernte.
+   */
+  it("traegt keinen gemeldeten Verfall in die Positionen", () => {
     const blatt = checklisteFuerFahrzeug(t.db, "fz-a", NOW)!;
-    const fach2 = blatt.faecher[1]!.positionen;
-    const verband = fach2.find((p) => p.artikelName === "Verband")!;
-    const nacl = fach2.find((p) => p.artikelName === "NaCl")!;
-    expect(verband.verfallAuffaellig).toBe(true);
-    expect(verband.verfallText).toBeTruthy();
-    expect(nacl.verfallAuffaellig).toBe(false);
-    expect(nacl.verfallText).toBeTruthy();
-  });
-
-  it("laesst `verfallText` null, wo nichts gemeldet ist", () => {
-    // fz-b hat keine Verfallsmeldung — und keine Soll-Position; der Fall wird
-    // deshalb ueber ein Fahrzeug mit Soll, aber ohne Meldung geprueft.
-    t.db.insert(sollPositionen).values(
-      { id: "sp-b", fahrzeugId: "fz-b", fachLabel: "Fach 1", sort: 0,
-        artikelId: "a1", soll: 1, templatePositionId: null,
-        ueberschrieben: false, entfernt: false }).run();
-    const blatt = checklisteFuerFahrzeug(t.db, "fz-b", NOW)!;
-    expect(blatt.faecher[0]!.positionen[0]).toMatchObject({
-      verfallText: null, verfallAuffaellig: false,
-    });
+    for (const position of blatt.faecher.flatMap((f) => f.positionen)) {
+      expect(Object.keys(position).sort()).toEqual(
+        ["artikelId", "artikelName", "einheit", "handlagerFach", "soll"],
+      );
+    }
   });
 
   it("nimmt nur AKTIVE Geraete und traegt ihre Frist mit", () => {

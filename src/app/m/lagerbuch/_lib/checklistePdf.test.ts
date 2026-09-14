@@ -94,8 +94,6 @@ const position = (i: number) => ({
   einheit: "Stk.",
   handlagerFach: `B-${String(i).padStart(2, "0")}`,
   soll: 4,
-  verfallText: null,
-  verfallAuffaellig: false,
 });
 
 const RTW: ChecklisteBlatt = {
@@ -110,12 +108,10 @@ const RTW: ChecklisteBlatt = {
       {
         artikelId: "a1", artikelName: "Verband", einheit: "Stk.",
         handlagerFach: "B-04", soll: 4,
-        verfallText: "läuft 07/26 ab", verfallAuffaellig: true,
       },
       {
         artikelId: "a2", artikelName: "NaCl", einheit: "Fl.",
         handlagerFach: "C-01", soll: 3,
-        verfallText: null, verfallAuffaellig: false,
       },
     ],
   }],
@@ -212,10 +208,14 @@ describe("die Bestueckung", () => {
     expect(text).toContain("4 Stk.");
   });
 
-  /** Papier ist einfarbig: die Auszeichnung ist ein vorangestelltes Rufzeichen
-   *  (und Fettschrift), nie Rot. */
-  it("zeichnet einen auffaelligen Verfall mit Rufzeichen aus", async () => {
-    expect(flach(await checklistenPdf([RTW], OPTIONEN))).toContain("! läuft 07/26 ab");
+  /**
+   * ⚠️ DIE SPALTE BLEIBT, NUR DER VORDRUCK FAELLT WEG — dieselbe Zusage wie im
+   * HTML-Blatt: ein vorgedruckter Monat wird am Fahrzeug abgehakt statt
+   * abgelesen (Kopf von `lesepfade/checkliste.ts`). Dass kein Wert mehr
+   * ankommt, haelt die Schluesselmenge in `lesepfade/checkliste.test.ts`.
+   */
+  it("fuehrt Verfall weiter als beschriftete Spalte", async () => {
+    expect(flach(await checklistenPdf([RTW], OPTIONEN))).toContain("VERFALL");
   });
 });
 
@@ -366,8 +366,6 @@ describe("der Zeichenvorrat der Standardschriften", () => {
           ...position(1),
           artikelName: "Kompressen 10×10 ✓ ≥25 Stück — „steril​😀",
           einheit: "Pck.",
-          verfallText: "läuft 07/26 ab ⚠",
-          verfallAuffaellig: true,
         }],
       }],
       geraete: [{ id: "g", name: "Gerät ✂", typ: "objekt", fristText: "⌛ 04/27", fristAuffaellig: false }],

@@ -22,12 +22,10 @@ const RTW: ChecklisteBlatt = {
       {
         artikelId: "a1", artikelName: "Verband", einheit: "Stk.",
         handlagerFach: "B-04", soll: 4,
-        verfallText: "läuft 07/26 ab", verfallAuffaellig: true,
       },
       {
         artikelId: "a2", artikelName: "NaCl", einheit: "Fl.",
         handlagerFach: "C-01", soll: 3,
-        verfallText: null, verfallAuffaellig: false,
       },
     ],
   }],
@@ -147,33 +145,29 @@ describe("die Bestueckung", () => {
 
   it("laesst jedes Schreibfeld leer — hier wird geschrieben, nicht bestaetigt", async () => {
     await mount(bogen());
-    // BEIDE Schreibklassen: `lb-cl-sIst` (Zahl, 22mm) und `lb-cl-sBemerkung`
-    // (Handschrift, 45mm). Sie teilen sich die Toenung und trennen nur die
-    // Breite — ein Scan ueber nur eine von beiden liesse die andere frei.
-    const felder = queryAll(".lb-cl-sIst, .lb-cl-sBemerkung");
-    expect(felder.length, "keine Schreibfelder gefunden").toBeGreaterThan(0);
-    for (const zelle of felder) {
+    // ALLE DREI Schreibklassen: `lb-cl-sIst` (Zahl, 22mm), `lb-cl-sVerfall`
+    // (Monat, 30mm) und `lb-cl-sBemerkung` (Handschrift, 45mm). Sie teilen sich
+    // die Toenung und trennen nur die Breite — ein Scan ueber nur einen Teil
+    // liesse den Rest frei.
+    for (const klasse of ["lb-cl-sIst", "lb-cl-sVerfall", "lb-cl-sBemerkung"]) {
+      const koerper = queryAll(`.lb-cl-tabelle tbody .${klasse}`);
+      expect(koerper.length, `keine Schreibfelder .${klasse} gefunden`).toBeGreaterThan(0);
       // Die Kopfzeile traegt die Beschriftung; jede Koerperzelle ist leer.
-      if (zelle.tagName === "TH") continue;
-      expect(zelle.textContent).toBe("");
+      for (const zelle of koerper) expect(zelle.textContent).toBe("");
     }
   });
 
-  it("zeichnet einen auffaelligen Verfall mit Rufzeichen aus, nicht mit Farbe", async () => {
+  /**
+   * ⚠️ DIE SPALTE BLEIBT, NUR DER VORDRUCK FAELLT WEG. Ein vorgedruckter Monat
+   * wird am Fahrzeug abgehakt statt abgelesen (Kopf von
+   * `lesepfade/checkliste.ts`); gestrichen ist damit der Wert, nicht der Ort,
+   * an dem man ihn eintraegt. Dass die Koerperzellen leer sind, haelt der Fall
+   * darueber; dass kein Wert mehr ankommt, die Schluesselmenge in
+   * `lesepfade/checkliste.test.ts`.
+   */
+  it("fuehrt Verfall weiter als beschriftete Spalte", async () => {
     await mount(bogen());
-    const warnung = query(".lb-cl-warnung");
-    expect(warnung.textContent).toContain("!");
-    expect(warnung.textContent).toContain("läuft 07/26 ab");
-    // Papier ist einfarbig (Falle 3): die Auszeichnung darf nirgends an einer
-    // Farbe haengen, auch nicht per Inline-Style.
-    expect(warnung.getAttribute("style")).toBeNull();
-  });
-
-  it("schreibt nichts in die Verfallsspalte, wo nichts gemeldet ist", async () => {
-    await mount(bogen());
-    const zeilen = queryAll(".lb-cl-tabelle tbody tr");
-    const nacl = zeilen.find((z) => z.textContent?.includes("NaCl"))!;
-    expect(nacl.querySelector(".lb-cl-sVerfall")!.textContent).toBe("");
+    expect(query(".lb-cl-tabelle thead .lb-cl-sVerfall").textContent).toBe("Verfall");
   });
 });
 
