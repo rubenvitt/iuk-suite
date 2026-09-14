@@ -173,5 +173,6 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     // 8) Die Liste der Laeufe (HTTP 200) traegt den Kommentar DIESES Versuchs.
     const liste = await page.goto(lagerbuchUrl("/verwaltung/inventur/verlauf"));
     expect(liste?.status()).toBe(200);
-    await expect(page.getByLabel("Inventur-Verlauf", { exact: true })).toContainText(kommentar);  });
+    await expect(page.getByLabel("Inventur-Verlauf", { exact: true })).toContainText(kommentar);
+  });
 });

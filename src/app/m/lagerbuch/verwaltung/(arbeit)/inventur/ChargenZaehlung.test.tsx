@@ -45,6 +45,7 @@ describe("ChargenZaehlung", () => {
     await mount(<ChargenZaehlung zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
     const knopf = query<HTMLButtonElement>("button[aria-label='Charge ergänzen']");
     expect(knopf.disabled).toBe(true);
+    expect(query<HTMLInputElement>("input[aria-label='MHD der neuen Charge']").placeholder).toBe("JJJJ-MM");
     await fill("input[aria-label='MHD der neuen Charge']", "2027-03");
     await fill("input[aria-label='Menge der neuen Charge']", "2");
     expect(knopf.disabled).toBe(false);

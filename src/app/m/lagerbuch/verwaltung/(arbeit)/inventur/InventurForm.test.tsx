@@ -329,6 +329,16 @@ describe("InventurForm — Zeile und Filter", () => {
     });
   });
 
+  it("zeigt eine Chargensumme über 9999 ohne die Fehlerfarbe (Falle 3, docs/design/README.md)", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await click("button[aria-label='Chargen Mullbinde anzeigen']");
+    await fill("input[aria-label='Ist Charge L1']", "12000");
+    const summenFeld = query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']");
+    expect(summenFeld.value).toBe("12000");
+    expect(summenFeld.closest(".ant-input-number")?.classList.contains("ant-input-number-out-of-range"))
+      .toBe(false);
+  });
+
   it("verlinkt nach dem Abschluss den gespeicherten Lauf", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");

@@ -11,7 +11,7 @@ const notiz: Releasenotiz = {
       "In der Inventur klappst du einen Artikel auf und zählst je Charge. Eine Charge, die im Regal liegt, " +
         "aber fehlt, ergänzt du dort mit ihrem MHD. Über Kategorie und Fach begrenzt du die Liste.",
     ),
-    absatz("Unter Verwaltung → Inventur → Verlauf findest du jede abgeschlossene Inventur mit allen gezählten Positionen."),
+    absatz("Unter Verwaltung → Inventur → Verlauf findest du jede ab jetzt abgeschlossene Inventur mit allen gezählten Positionen."),
   ],
 };
 

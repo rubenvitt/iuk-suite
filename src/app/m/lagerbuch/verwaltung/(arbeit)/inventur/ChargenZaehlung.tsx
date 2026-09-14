@@ -185,6 +185,7 @@ export function ChargenZaehlung({
             type="month"
             inputMode="numeric"
             pattern="\d{4}-\d{2}"
+            placeholder="JJJJ-MM"
             aria-label="MHD der neuen Charge"
             className={s.monatsfeld}
             disabled={gesperrt}

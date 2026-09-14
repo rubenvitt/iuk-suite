@@ -121,6 +121,10 @@ describe("Inventur-Verlauf als RSC", () => {
     expect(QUELLE).not.toMatch(/["']use client["']/);
     expect(QUELLE).not.toMatch(/@ant-design\/icons/);
     expect(QUELLE).not.toMatch(/from "antd"/);
-    expect(QUELLE.indexOf("await requireLagerbuchAdmin()")).toBeLessThan(QUELLE.indexOf("getDb())"));
+    const adminIndex = QUELLE.indexOf("await requireLagerbuchAdmin()");
+    const dbIndex = QUELLE.indexOf("getDb())");
+    expect(adminIndex).toBeGreaterThan(-1);
+    expect(dbIndex).toBeGreaterThan(-1);
+    expect(adminIndex).toBeLessThan(dbIndex);
   });
 });

@@ -243,7 +243,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
                   />
                   <InputNumber<number>
                     min={0}
-                    max={9999}
+                    max={nurSumme ? 99_999 : 9999}
                     disabled={laeuft || nurSumme}
                     aria-label={`Ist-Bestand ${zeile.name}`}
                     value={aktuell}
