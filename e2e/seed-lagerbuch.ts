@@ -37,8 +37,8 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath } from "@/core/db";
 import { getDb } from "@/app/m/lagerbuch/_db/client";
 import {
-  artikel, buchungen, chargen, checks, geraete, lagerorte, o2Flaschen, sollPositionen, tokens,
-  newId,
+  artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte, o2Flaschen,
+  sollPositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
@@ -299,10 +299,28 @@ function bestellFixtures(): void {
   }).onConflictDoNothing().run();
 }
 
+/**
+ * Ein eigenes Fahrzeug fuer `lagerbuch-vorlagenfeld.spec.ts` (DRK-310), das der
+ * Spec verknuepft und wieder loest. INAKTIV und ohne Soll, damit es weder auf
+ * den Checklisten- noch auf den Etikettenboegen erscheint — `e2e-fahrzeug`
+ * bleibt so unberuehrt von einer Vorlagenverknuepfung.
+ */
+function vorlagenFixtures(): void {
+  const db = getDb();
+  db.insert(fahrzeugTemplates).values({
+    id: "e2e-vorlagenfeld-tpl", name: "E2E Vorlagenfeld", aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  db.insert(lagerorte).values({
+    id: "e2e-vorlagen-fahrzeug", name: "E2E Vorlagen-KTW", typ: "fahrzeug",
+    kennung: "MS-E2E-3", aktiv: false, templateId: null,
+  }).onConflictDoNothing().run();
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
 checkFixtures();
 geraeteFixtures();
 bestellFixtures();
+vorlagenFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

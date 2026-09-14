@@ -50,7 +50,14 @@ export function TemplateVerknuepfung({
   vorlagen: { id: string; name: string }[];
   hatPositionen: boolean;
 }) {
-  const [auswahl, setAuswahl] = useState<string>();
+  // Das Feld zeigt die verknuepfte Vorlage (DRK-310); eine abweichende Wahl ist
+  // ein Entwurf gegen genau diese Verknuepfung. Kommt eine andere Verknuepfung
+  // als Prop an — Verknuepfen, Loesen, „aus Fahrzeug erstellen" —, ist der
+  // Entwurf hinfaellig. Kein `key` an der Insel: der bricht die
+  // JSON-Sicherheitspruefung der Inselprops in page.test.tsx.
+  const aktuelleId = aktuelleVorlage?.id ?? null;
+  const [entwurf, setEntwurf] = useState<{ gegen: string | null; wert: string } | null>(null);
+  const auswahl = entwurf?.gegen === aktuelleId ? entwurf.wert : aktuelleVorlage?.id;
   const [fehler, setFehler] = useState<string | null>(null);
   const [modalFehler, setModalFehler] = useState<string | null>(null);
   const [offen, setOffen] = useState(false);
@@ -58,12 +65,16 @@ export function TemplateVerknuepfung({
   const laufendRef = useRef(false);
   const [form] = Form.useForm<NeueVorlageWerte>();
 
-  const optionen = useMemo<TemplateOption[]>(() => vorlagen
-    .filter((vorlage) => vorlage.id !== aktuelleVorlage?.id)
-    .map((vorlage) => ({ value: vorlage.id, label: vorlage.name })), [
-    aktuelleVorlage?.id,
-    vorlagen,
-  ]);
+  // Die aktuelle Vorlage muss Option sein, sonst zeigt der Select ihre rohe
+  // ID statt des Namens. Eine inaktive fehlt in `vorlagen` und kommt nach vorn.
+  const optionen = useMemo<TemplateOption[]>(() => {
+    const liste = vorlagen.map((vorlage) => ({ value: vorlage.id, label: vorlage.name }));
+    if (aktuelleVorlage && !vorlagen.some((vorlage) => vorlage.id === aktuelleVorlage.id)) {
+      liste.unshift({ value: aktuelleVorlage.id, label: aktuelleVorlage.name });
+    }
+    return liste;
+  }, [aktuelleVorlage, vorlagen]);
+  const auswahlGeaendert = auswahl !== undefined && auswahl !== aktuelleVorlage?.id;
 
   async function actionAusfuehren(
     aktion: () => Promise<{ ok: boolean }>,
@@ -79,6 +90,10 @@ export function TemplateVerknuepfung({
         return false;
       }
       setFehler(null);
+      // Nach jeder gelungenen Aktion gilt wieder der gespeicherte Stand. Der
+      // `gegen`-Vergleich allein reicht nicht: ein Entwurf gegen „keine" kaeme
+      // nach Verknuepfen und anschliessendem Loesen wieder zum Vorschein.
+      setEntwurf(null);
       beiErfolg?.();
       return true;
     } catch {
@@ -125,6 +140,7 @@ export function TemplateVerknuepfung({
         }
         setModalFehler(null);
         setFehler(null);
+        setEntwurf(null);
         setOffen(false);
         form.resetFields();
       } catch {
@@ -151,22 +167,21 @@ export function TemplateVerknuepfung({
           showSearch
           filterOption={templateFilter}
           value={auswahl}
-          onChange={setAuswahl}
+          onChange={(wert) => setEntwurf({ gegen: aktuelleId, wert })}
           options={optionen}
           aria-label="Vorlage"
-          placeholder="Vorlage wählen"
+          placeholder="Keine Vorlage verknüpft"
           style={{ minWidth: 240 }}
           disabled={laeuft}
         />
         <Button
           type="primary"
           icon={<Ikone name="verketten" groesse={16} />}
-          disabled={!auswahl || laeuft}
+          disabled={!auswahlGeaendert || laeuft}
           loading={laeuft}
           onClick={() => starten(
             () => fahrzeugTemplateZuweisen({ fahrzeugId, templateId: auswahl! }),
             ZUWEISEN_FEHLER,
-            () => setAuswahl(undefined),
           )}
         >
           Verknüpfen
