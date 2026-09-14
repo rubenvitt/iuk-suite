@@ -19,6 +19,7 @@ import {
 } from "vitest";
 import {
   click,
+  clickElement,
   fill,
   mount,
   query,
@@ -27,11 +28,9 @@ import {
 } from "@/app/m/qr/_lib/test-dom";
 import { artikel } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
-import {
-  InventurForm,
-  positionenAus,
-  type InventurZeile,
-} from "./InventurForm";
+import { INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
+import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
+import { InventurForm } from "./InventurForm";
 
 const mocks = vi.hoisted(() => ({
   inventurKorrektur: vi.fn(),
@@ -42,8 +41,9 @@ vi.mock("../../../_actions/inventur", () => ({
 }));
 
 const ZEILEN: InventurZeile[] = [
-  { id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", bestand: 12 },
-  { id: "a2", name: "Pflaster", einheit: "Pkg", fach: "B2", bestand: 4 },
+  { id: "a1", name: "Mullbinde", einheit: "Stk", fach: "A1", kategorie: "Hygiene", mindestbestand: 5, bestand: 12,
+    chargen: [{ id: "c1", chargenNr: "L1", verfall: "2026-10", rest: 12, ampel: "gelb" }] },
+  { id: "a2", name: "Pflaster", einheit: "Pkg", fach: "B2", kategorie: null, mindestbestand: 0, bestand: 4, chargen: [] },
 ];
 
 const QUELLE = readFileSync(
@@ -62,7 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.inventurKorrektur.mockResolvedValue({
     ok: true,
-    wert: { korrigiert: 1 },
+    wert: { korrigiert: 1, inventurId: "lauf-1" },
   });
 });
 
@@ -109,28 +109,33 @@ function istRekursivJsonSicher(wert: unknown): boolean {
   return Object.values(wert).every(istRekursivJsonSicher);
 }
 
-describe("positionenAus — Lost-Update-Riegel", () => {
-  it("schickt ausschließlich berührte IDs", () => {
-    expect(positionenAus({ a1: 11 })).toEqual([{ artikelId: "a1", ist: 11 }]);
-    expect(positionenAus({})).toEqual([]);
+/**
+ * Oeffnet einen Filter-Select wie ArtikelTable.test.tsx (DRK-294) und waehlt die
+ * Option mit genau diesem Text — echte Bedienung, kein vorgetaeuschter Zustand.
+ */
+async function filterWaehlen(ariaLabel: string, text: string): Promise<void> {
+  const input = query<HTMLInputElement>(`[aria-label='${ariaLabel}']`);
+  await act(async () => {
+    input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   });
-
-  it("behält berührt-und-unverändert sowie die Randwerte 0 und 9999", () => {
-    expect(positionenAus({ a1: 12, a2: 0, a3: 9999 })).toEqual([
-      { artikelId: "a1", ist: 12 },
-      { artikelId: "a2", ist: 0 },
-      { artikelId: "a3", ist: 9999 },
-    ]);
-  });
-});
+  await warte();
+  const option = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
+    .find((element) => (element.textContent ?? "") === text);
+  if (!option) throw new Error(`Option nicht gefunden: ${text}`);
+  await clickElement(option);
+  await warte();
+}
 
 describe("InventurForm — Tabelle und Eingabe", () => {
-  it("rendert exakt fünf Spalten, stabile IDs und die verbindlichen Tabellenprops", async () => {
+  it("rendert exakt sieben Spalten, stabile IDs und die verbindlichen Tabellenprops", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
 
-    expect(queryAll("thead th").map((zelle) => zelle.textContent)).toEqual([
+    // Leere Koepfe (antd-Aufklappspalte, Task 6) zaehlen nicht als Spalte.
+    expect(queryAll("thead th").map((zelle) => zelle.textContent).filter((t) => t)).toEqual([
       "Artikel",
       "Fach",
+      "MHD",
+      "Min.",
       "Bestand",
       "Abweichung",
       "Ist",
@@ -183,6 +188,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
+      umfang: null,
       positionen: [
         { artikelId: "a1", ist: 12 },
         { artikelId: "a2", ist: 0 },
@@ -193,7 +199,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
 
 describe("InventurForm — asynchroner Abschluss", () => {
   it("behält Werte bis zum Resolve, sperrt Doppelklicks und leert erst bei Erfolg", async () => {
-    let fertig!: (wert: { ok: true; wert: { korrigiert: number } }) => void;
+    let fertig!: (wert: { ok: true; wert: { korrigiert: number; inventurId: string } }) => void;
     mocks.inventurKorrektur.mockReturnValueOnce(new Promise((resolve) => { fertig = resolve; }));
     await mount(<InventurForm zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
@@ -214,7 +220,7 @@ describe("InventurForm — asynchroner Abschluss", () => {
     expect(istFeld.value).toBe("11");
     expect(kommentarFeld.value).toBe("Zählung bleibt");
 
-    await act(async () => { fertig({ ok: true, wert: { korrigiert: 1 } }); });
+    await act(async () => { fertig({ ok: true, wert: { korrigiert: 1, inventurId: "lauf-1" } }); });
     await warteAuf(() => queryAll(".ant-alert-success").length === 1, "Erfolgsmeldung");
     expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").value)
       .toBe("12");
@@ -244,6 +250,105 @@ describe("InventurForm — asynchroner Abschluss", () => {
   });
 });
 
+describe("InventurForm — Zeile und Filter", () => {
+  it("zeigt das nächste MHD und den Mindestbestand", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    const zeile = query("tr[data-row-key='a1']");
+    expect(zeile.textContent).toContain("10/26");
+    expect(zeile.textContent).toContain("5");
+  });
+
+  it("behält einen gezählten Wert, wenn der Filter die Zeile ausblendet, und bucht ihn mit", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Pflaster']", "3");
+    await filterWaehlen("Nach Fach filtern", "A1");
+    expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
+    expect(query("[data-rolle='ausgeblendet-hinweis']").textContent).toContain("1 gezählte Position ist ausgeblendet");
+    await fill("input[aria-label='Kommentar']", "Teil");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Teil",
+      umfang: { kategorien: [], faecher: ["A1"] },
+      positionen: [{ artikelId: "a2", ist: 3 }],
+    });
+  });
+
+  /*
+   * Der Verlauf ist append-only: ein versehentlich geschriebener Schluessel
+   * („hygiene") stuende dort fuer immer. Der Umfang traegt deshalb das LABEL.
+   */
+  it("legt einen Kategorienfilter als Label, nicht als gefalteten Schlüssel, in den Umfang", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await filterWaehlen("Nach Kategorie filtern", "Hygiene");
+    expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    await fill("input[aria-label='Kommentar']", "Hygiene");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Hygiene",
+      umfang: { kategorien: ["Hygiene"], faecher: [] },
+      positionen: [{ artikelId: "a1", ist: 11 }],
+    });
+  });
+
+  it("zeigt einen eigenen Leertext, wenn nur der Filter nichts trifft", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    // Jede Option trifft fuer sich eine Zeile; erst beide zusammen treffen keine.
+    await filterWaehlen("Nach Kategorie filtern", "Hygiene");
+    await filterWaehlen("Nach Fach filtern", "B2");
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
+    expect(document.body.textContent).toContain("Kein Artikel passt zum Filter.");
+    expect(document.body.textContent).not.toContain("Keine Artikel vorhanden.");
+  });
+
+  it("zeigt eine fachliche Abweisung im Wortlaut, alles andere nicht", async () => {
+    mocks.inventurKorrektur.mockResolvedValueOnce({ ok: false, fehler: INVENTUR_TEXTE.chargeUnpassend });
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    await fill("input[aria-label='Kommentar']", "X");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => queryAll(".ant-alert-warning").length === 1, "Warnung");
+    expect(query(".ant-alert-warning").textContent).toContain(INVENTUR_TEXTE.chargeUnpassend);
+  });
+
+  it("zählt aufgeklappt je Charge und schickt die Chargenposition", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await click("button[aria-label='Chargen Mullbinde anzeigen']");
+    await fill("input[aria-label='Ist Charge L1']", "9");
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").disabled).toBe(true);
+    expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").value).toBe("9");
+    expect(query("tr[data-row-key='a1']").textContent).toContain("je Charge");
+    await fill("input[aria-label='Kommentar']", "Charge");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Charge", umfang: null,
+      positionen: [{ artikelId: "a1", chargen: [{ chargeId: "c1", ist: 9 }], neu: [] }],
+    });
+  });
+
+  it("zeigt eine Chargensumme über 9999 ohne die Fehlerfarbe (Falle 3, docs/design/README.md)", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await click("button[aria-label='Chargen Mullbinde anzeigen']");
+    await fill("input[aria-label='Ist Charge L1']", "12000");
+    const summenFeld = query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']");
+    expect(summenFeld.value).toBe("12000");
+    expect(summenFeld.closest(".ant-input-number")?.classList.contains("ant-input-number-out-of-range"))
+      .toBe(false);
+  });
+
+  it("verlinkt nach dem Abschluss den gespeicherten Lauf", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
+    await fill("input[aria-label='Kommentar']", "X");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => queryAll(".ant-alert-success").length === 1, "Erfolg");
+    expect(query(".ant-alert-success a").getAttribute("href")).toBe("/verwaltung/inventur/verlauf/lauf-1");
+  });
+});
+
 const PLUS = '[aria-label="Ist-Bestand Mullbinde erhöhen"]';
 const MINUS = '[aria-label="Ist-Bestand Mullbinde verringern"]';
 
@@ -268,7 +373,7 @@ describe("±-Knöpfe", () => {
    * Wer hier "unveraenderte Zeilen herausfiltert", entfernt den Schutz.
    */
   it("lässt eine berührte Zeile eingereicht, auch wenn + und − sich aufheben", async () => {
-    mocks.inventurKorrektur.mockResolvedValue({ ok: true, wert: { korrigiert: 0 } });
+    mocks.inventurKorrektur.mockResolvedValue({ ok: true, wert: { korrigiert: 0, inventurId: "lauf-0" } });
     await mount(<InventurForm zeilen={ZEILEN} />);
     await click(PLUS);
     await click(MINUS);
@@ -277,6 +382,7 @@ describe("±-Knöpfe", () => {
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
+      umfang: null,
       positionen: [{ artikelId: "a1", ist: 12 }],
     });
   });
@@ -313,15 +419,10 @@ describe("Inventurseite als RSC", () => {
 
       const inhalt = inventurSeitenInhalt(testDb.db);
       const [form] = elementeVomTyp(inhalt, InventurForm);
-      expect(form.props).toEqual({
-        zeilen: [{
-          id: "inventur-rsc",
-          name: "RSC Mullbinde",
-          einheit: "Stk",
-          fach: "R1",
-          bestand: 0,
-        }],
-      });
+      expect(form.props).toEqual({ zeilen: [{
+        id: "inventur-rsc", name: "RSC Mullbinde", einheit: "Stk", fach: "R1",
+        kategorie: null, mindestbestand: 3, bestand: 0, chargen: [],
+      }] });
       expect(istRekursivJsonSicher(form.props)).toBe(true);
       expect(dynamic).toBe("force-dynamic");
     } finally {

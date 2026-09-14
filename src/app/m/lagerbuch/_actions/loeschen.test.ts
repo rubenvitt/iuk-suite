@@ -11,6 +11,8 @@ import {
   checks,
   fahrzeugTemplates,
   geraete,
+  inventuren,
+  inventurPositionen,
   lagerorte,
   lagerortVerfall,
   newId,
@@ -155,6 +157,27 @@ function sollPositionAnlegen(artikelId: string, fahrzeugId: string): void {
     ueberschrieben: false,
     entfernt: false,
   }).run();
+}
+
+function inventurPositionAnlegen(artikelId: string, id = newId()): string {
+  const inventurId = newId();
+  t.db.insert(inventuren).values({
+    id: inventurId,
+    ts: JETZT,
+    quelleTyp: "oidc",
+    quelleId: "u-admin",
+    kommentar: "Test-Inventur",
+    umfang: null,
+  }).run();
+  t.db.insert(inventurPositionen).values({
+    id,
+    inventurId,
+    artikelId,
+    chargeId: null,
+    erwartet: 0,
+    gezaehlt: 0,
+  }).run();
+  return id;
 }
 
 function templatePositionAnlegen(artikelId: string): void {
@@ -372,6 +395,11 @@ describe("pruefeLoeschbar — Artikel", () => {
       name: "Vorlagen-Position",
       grund: "1 Vorlagen-Position",
       anlegen: (artikelId: string) => { templatePositionAnlegen(artikelId); },
+    },
+    {
+      name: "Inventurposition",
+      grund: "1 Inventurposition",
+      anlegen: (artikelId: string) => { inventurPositionAnlegen(artikelId); },
     },
     {
       name: "passender Zugangs-Code",
@@ -649,6 +677,26 @@ describe("loescheElement — fuenf hart loeschbare Arten und eine Revalidierungs
     expect(t.db.select().from(artikel).where(eq(artikel.id, artikelId)).get()).toBeDefined();
     expect(t.db.select().from(lagerortVerfall)
       .where(eq(lagerortVerfall.id, "verfall-trigger")).get()).toBeDefined();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * DRK-299, Fix Runde 1: `inventurZeilen` zeigt jeden aktiven Artikel, auch
+   * Bestand 0 ohne Chargen. Eine Zaehlung mit 0 schreibt seit T? eine
+   * `inventur_positionen`-Zeile mit FK auf `artikel` — auch ohne Abweichung.
+   * Ohne benannten Grund in `pruefeArtikel` faellt `tx.delete(artikel)` auf
+   * den FK und liefert den unbenannten `FESTER_LOESCHFEHLER` statt eines
+   * Grundes, den die Person versteht.
+   */
+  it("nennt die Inventurposition als Grund statt des unbenannten FK-Fehlers", async () => {
+    const artikelId = artikelAnlegen();
+    inventurPositionAnlegen(artikelId);
+
+    const ergebnis = await loescheElement("artikel", artikelId, t.db);
+
+    expect(fehlerVon(ergebnis).fehler).toContain("Inventurposition");
+    expect(fehlerVon(ergebnis).fehler).not.toBe(FESTER_LOESCHFEHLER);
+    expect(t.db.select().from(artikel).where(eq(artikel.id, artikelId)).get()).toBeDefined();
     expect(revalidiert).toEqual([]);
   });
 

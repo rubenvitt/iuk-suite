@@ -333,6 +333,49 @@ function kategorieFixtures(): void {
 }
 
 /**
+ * DRK-299 — EIGENE aktive Artikel fuer `lagerbuch-inventur.spec.ts`.
+ *
+ * EIGENE, weil der Spec BUCHT: ein geteilter Artikel veraenderte den Bestand,
+ * den andere Specs zusichern (I-14, siehe `artikelMitBestand`). Mindestbestand 0
+ * (nicht in Bestellliste und „Kritische Artikel"), keine Soll-Position (nicht
+ * auf Fahrzeugblatt und Checkliste), Kategorie NICHT `E2E Technik` (die zaehlt
+ * `lagerbuch-kategorien.spec.ts`), Namen kuerzer als der laengste Etikettentitel
+ * (`lagerbuch-mobil.spec.ts`) und ohne „Pflaster" (`lagerbuch-bestand-export`).
+ *
+ * ⚠️ VERFALL IM FERNEN BAND, nicht „2031-01" wie im Brief: `E2E_VERFALL_FERN`
+ * schreibt aus, warum ein naher Monat eine Zeitbombe fuer die Verfallsliste ist.
+ *
+ * Der ZWEITE Artikel (ohne Charge, Fach `INV-2`) ist die gezaehlte Zeile, die
+ * der Fachfilter ausblendet — der Spec zaehlt ihn per +/- auf seinen eigenen
+ * Stand, damit nichts korrigiert wird und der Hinweis trotzdem erscheint.
+ */
+function inventurFixtures(): void {
+  const db = getDb();
+  for (const [id, name, fach] of [
+    ["e2e-inventur-artikel", "E2E Inventur Kompressen", "INV-1"],
+    ["e2e-inventur-zweit", "E2E Inventur Binden", "INV-2"],
+  ] as const) {
+    db.insert(artikel).values({
+      id, name, einheit: "Stk.", fach,
+      mindestbestand: 0, aktiv: true, kategorie: "E2E Inventur", createdAt: JETZT,
+    }).onConflictDoNothing().run();
+  }
+  for (const [id, chargenNr, verfall, menge] of [
+    ["e2e-inventur-charge-a", "E2E-INV-A", "2090-01", 5],
+    ["e2e-inventur-charge-b", "E2E-INV-B", "2090-06", 3],
+  ] as const) {
+    db.insert(chargen).values({ id, artikelId: "e2e-inventur-artikel", chargenNr, verfall, createdAt: JETZT })
+      .onConflictDoNothing().run();
+    if (!db.select().from(buchungen).where(eq(buchungen.chargeId, id)).get()) {
+      db.insert(buchungen).values({
+        id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-inventur-artikel", chargeId: id,
+        lagerortId: HANDLAGER_ID, menge, quelleTyp: "system", quelleId: "e2e", referenz: null, kommentar: null,
+      }).run();
+    }
+  }
+}
+
+/**
  * DRK-293 — zwei Artikel allein fuer `lagerbuch-sammelbearbeitung.spec.ts`.
  *
  * INAKTIV, aus demselben Grund wie `kategorieFixtures`: nur die Artikelliste
@@ -361,5 +404,6 @@ geraeteFixtures();
 bestellFixtures();
 vorlagenFixtures();
 kategorieFixtures();
+inventurFixtures();
 sammelFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

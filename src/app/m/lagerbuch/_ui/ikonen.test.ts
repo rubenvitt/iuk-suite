@@ -405,8 +405,8 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
 });
 
 describe("Ikonen: die Union ist die Autoritaet", () => {
-  it("fuehrt genau 36 Namen", () => {
-    expect(Object.keys(ZEICHEN)).toHaveLength(36);
+  it("fuehrt genau 38 Namen", () => {
+    expect(Object.keys(ZEICHEN)).toHaveLength(38);
   });
 
   it("fuehrt die acht Fachzeichen namentlich", () => {

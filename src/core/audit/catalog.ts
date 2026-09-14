@@ -150,6 +150,18 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "inventur_positionen": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
+    "inventuren": {
+      "mode": "audited",
+      "primaryKey": [
+        "id"
+      ]
+    },
     "lagerort_verfall": {
       "mode": "audited",
       "primaryKey": [

@@ -143,6 +143,10 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
+  "src/app/m/lagerbuch/verwaltung/(arbeit)/inventur/verlauf/[id]/page.tsx#notFound:!lauf:1": {
+    "kind": "excluded",
+    "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
+  },
   "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/page.tsx#notFound:!fahrzeug || fahrzeug.typ !== \"fahrzeug\":1": {
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
