@@ -14,6 +14,7 @@ import type { SollZeile } from "../../../../_lib/lesepfade/fahrzeuge";
 import s from "../../../../_ui/verwaltung.module.css";
 import {
   fachFilter,
+  faecherJeArtikelZaehlen,
   sollGruppieren,
   SollEditor,
 } from "./SollEditor";
@@ -172,11 +173,11 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
     ]);
   });
 
-  it("rendert die fuenf Spalten und gruppiert Fachzellen im DOM", async () => {
+  it("rendert die sechs Spalten und gruppiert Fachzellen im DOM", async () => {
     await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
 
     expect(queryAll("thead th").map((th) => th.textContent))
-      .toEqual(["Fach", "Artikel", "Soll", "Herkunft", ""]);
+      .toEqual(["Fach", "Artikel", "Ist", "Soll", "Herkunft", ""]);
     expect(query("table").getAttribute("aria-label")).toBe("Soll-Bestückung");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
@@ -190,6 +191,56 @@ describe("SollEditor — Tabelle und Fachgruppen", () => {
     // tragen die volle 44px-Bedienhoehe, keine `-sm`-Modifikatorklasse.
     expect(queryAll("tbody .ant-input-number")).toHaveLength(4);
     expect(queryAll("tbody .ant-input-number-sm")).toHaveLength(0);
+  });
+
+  /**
+   * DRK-315. Die Groesse selbst sieht jsdom nicht (kein Layout) — hier steht
+   * nur, dass der Ist in eigener Zelle mit der Zahlrolle steht und nicht mehr
+   * im Nebentext. Die gerenderte Groesse misst `e2e/lagerbuch-ist-bestand.spec.ts`.
+   */
+  it("setzt den Ist als grosse Zahl in eigene Spalte, getrennt vom Handlager", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+
+    const ist = queryAll("[data-rolle='ist']");
+    expect(ist.map((zelle) => zelle.textContent)).toEqual([
+      "2 Rol",
+      "0 Pck",
+      "1 Stk",
+      "2 Stk",
+    ]);
+    const zahl = ist[0].querySelector("span span") as HTMLElement;
+    expect(zahl.style.fontSize).toBe("24px");
+    expect(zahl.style.fontVariantNumeric).toBe("tabular-nums");
+    // Der Grabstein zeigt den echten Bestand, aber gedaempft.
+    expect(ist[1].getAttribute("style")).toContain("opacity: 0.6");
+    expect(ist[0].getAttribute("style")).not.toContain("opacity");
+
+    const artikelZeile = queryAll("tbody tr[data-row-key]")[0];
+    expect(artikelZeile.textContent).toContain("Handlager 9 Rol");
+    expect(artikelZeile.textContent).not.toContain("Fahrzeug 2");
+  });
+
+  it("sagt dazu, wenn derselbe Bestand fuer mehrere Faecher gilt", async () => {
+    const geteilt: SollZeile[] = [
+      { ...POSITIONEN[3], id: "p-x1", fachLabel: "Fach A" },
+      { ...POSITIONEN[3], id: "p-x2", fachLabel: "Fach B" },
+      { ...POSITIONEN[3], id: "p-x3", fachLabel: "Fach C", entfernt: true },
+      { ...POSITIONEN[0] },
+    ];
+    expect(faecherJeArtikelZaehlen(geteilt)).toEqual(new Map([
+      ["a-a1", 2],
+      ["a-b1", 1],
+    ]));
+
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={geteilt} artikel={ARTIKEL} />);
+    // Reihenfolge nach `sollGruppieren`: Fach A · Fach B (p-b1 vor p-x2) · Fach C.
+    // Auch der Grabstein in Fach C traegt den Hinweis — er zeigt denselben Bestand.
+    expect(queryAll("[data-rolle='ist']").map((zelle) => zelle.textContent)).toEqual([
+      "2 Rolgesamt für 2 Fächer",
+      "1 Stk",
+      "2 Rolgesamt für 2 Fächer",
+      "2 Rolgesamt für 2 Fächer",
+    ]);
   });
 
   it("zeigt Grabsteine durchgestrichen mit Chip und Restore-Weg", async () => {
