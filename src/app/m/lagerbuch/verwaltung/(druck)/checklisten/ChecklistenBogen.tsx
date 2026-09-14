@@ -104,16 +104,10 @@ function Fach({ fach, blind }: { fach: ChecklisteFach; blind: boolean }) {
                   bewusst nirgends im Markup: die Zaehlung soll die Zahl
                   eintragen, nicht bestaetigen. */}
               <td className="lb-cl-sIst" />
-              <td className="lb-cl-sVerfall">
-                {position.verfallText === null ? (
-                  ""
-                ) : (
-                  <span className={position.verfallAuffaellig ? "lb-cl-warnung" : undefined}>
-                    {position.verfallAuffaellig ? "! " : ""}
-                    {position.verfallText}
-                  </span>
-                )}
-              </td>
+              {/* EBENSO LEER: der Verfall wird am Fahrzeug abgelesen, nicht
+                  ein vorgedruckter Monat abgehakt (Kopf von
+                  `lesepfade/checkliste.ts`). */}
+              <td className="lb-cl-sVerfall" />
             </tr>
           ))}
         </tbody>

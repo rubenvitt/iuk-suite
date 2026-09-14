@@ -333,7 +333,6 @@
 
 .lb-cl-sVerfall {
   width: 30mm;
-  font-size: 8pt;
 }
 
 .lb-cl-sBar {
@@ -356,6 +355,7 @@
  * verschiedene Elemente — die Zellenflaeche deckt die Zeilenflaeche ab, ohne
  * dass eine Reihenfolge oder ein Selektorgewicht darueber entscheiden muesste. */
 .lb-cl-tabelle .lb-cl-sIst,
+.lb-cl-tabelle .lb-cl-sVerfall,
 .lb-cl-tabelle .lb-cl-sBemerkung {
   background: #e8ecef;
   border-left: 1px solid #ccd2d7;

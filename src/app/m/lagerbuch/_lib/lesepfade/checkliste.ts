@@ -4,15 +4,26 @@
  * Icon-Import.
  *
  * ⚠️ DIESE DATEI ERFINDET KEINE FACHLICHKEIT. Sie beantwortet genau eine Frage
- * — „was steht auf dem Blatt?" — und beantwortet sie aus DENSELBEN vier
+ * — „was steht auf dem Blatt?" — und beantwortet sie aus DENSELBEN
  * Lesepfaden, die `helfer/check/page.tsx` fuer den Bildschirm-Check benutzt:
- * `sollFuerFahrzeug`, `geraeteFuerLagerort`, `o2FlaschenFuerLagerort`,
- * `verfallFuerLagerort`. Das ist die tragende Zusage des ganzen Vorhabens:
+ * `sollFuerFahrzeug`, `geraeteFuerLagerort`, `o2FlaschenFuerLagerort`. Das ist
+ * die tragende Zusage des ganzen Vorhabens:
  * WER DAS PAPIER ABARBEITET UND WER DIE MASKE ABARBEITET, PRUEFT DIESELBE
  * LISTE. Eine eigene Abfrage hier — und sei sie nur ein zweites
  * `db.select().from(sollPositionen)` — waere die Doppelrechnung aus §5.8.3 in
  * neuer Kleidung, diesmal mit dem besonders undankbaren Ausgang, dass die
  * Abweichung erst auf ausgedrucktem Papier vor dem Fahrzeug auffaellt.
+ *
+ * ⚠️ DER VERFALL WIRD HIER BEWUSST NICHT GELESEN — `verfallFuerLagerort` ist
+ * der vierte Lesepfad des Bildschirm-Checks und fehlt hier mit Absicht. Das
+ * Blatt trug den zuletzt gemeldeten Monat einmal in der Verfall-Spalte vor;
+ * die Gespraechsnotiz dazu lautet „Verfall vorausgefuellt weg bei Papier".
+ * Ein vorgedruckter Monat wird am Fahrzeug abgehakt statt abgelesen, und genau
+ * so ueberlebt eine laengst getauschte Packung jede Kontrolle. Die Spalte ist
+ * deshalb ein Schreibfeld wie „Ist". Wer den Verfall „zur Vollstaendigkeit"
+ * wieder mitnimmt, druckt ihn auch wieder vor — die Position hat dafuer
+ * absichtlich kein Feld. Der Bildschirm-Check belegt weiter vor; das ist ein
+ * anderer Anwendungsfall mit einem Eingabefeld, das man sieht.
  *
  * ⚠️ GRABSTEINE (`entfernt = true`) SIND KEIN SOLL. Die Regel steht im Kopf von
  * `./fahrzeuge.ts` und verlangt ausdruecklich, dass JEDE neue Ansicht sie
@@ -27,14 +38,13 @@
  */
 import { eq } from "drizzle-orm";
 import { fahrzeugTemplates, lagerorte } from "../../_db/schema";
-import { ampelTon } from "../format";
 import { heuteIso } from "../zeit";
 import type { Leser } from "./bestand";
 import { sollFuerFahrzeug } from "./fahrzeuge";
 import { geraeteFuerLagerort } from "./geraete";
 import { o2FlaschenFuerLagerort } from "./o2";
-import { verfallFuerLagerort } from "./verfall";
 
+/** ⚠️ KEIN VERFALL-FELD — Begruendung im Kopf dieser Datei. */
 export type ChecklistePosition = {
   artikelId: string;
   artikelName: string;
@@ -42,17 +52,6 @@ export type ChecklistePosition = {
   /** Fach im HANDLAGER — wo das Nachfuellgut liegt, nicht wo es hingehoert. */
   handlagerFach: string;
   soll: number;
-  /** Der zuletzt gemeldete Verfall als Chip-Text, oder `null` = nichts gepflegt. */
-  verfallText: string | null;
-  /**
-   * ⚠️ EIN BOOLEAN, KEIN TON- ODER AMPELNAME. Papier ist einfarbig: die
-   * Auszeichnung auf dem Blatt ist fett plus ein vorangestelltes Rufzeichen,
-   * nicht Rot. Ein durchgereichter `AmpelTon` verfuehrte die Druckansicht dazu,
-   * `--lb-ampel-*` zu benutzen — die Variablen haengen an `.modul`, taugen aber
-   * fuer den Bildschirm und nicht fuer einen Graustufendrucker, und Falle 3
-   * verbietet Rot auf einer Datenflaeche ohnehin.
-   */
-  verfallAuffaellig: boolean;
 };
 
 export type ChecklisteFach = {
@@ -134,25 +133,17 @@ export function checklisteFuerFahrzeug(
     .where(eq(lagerorte.id, fahrzeugId)).get();
   if (!fahrzeug || fahrzeug.typ !== "fahrzeug") return null;
 
-  const verfall = verfallFuerLagerort(db, fahrzeugId, now);
   const positionen = sollFuerFahrzeug(db, fahrzeugId)
     // GRABSTEINE RAUS — die Regel aus `./fahrzeuge.ts`, hier selbst angewandt.
     .filter((position) => !position.entfernt)
-    .map((position) => {
-      const gemeldet = verfall.get(position.artikelId);
-      return {
-        fachLabel: position.fachLabel,
-        artikelId: position.artikelId,
-        artikelName: position.artikelName,
-        einheit: position.einheit,
-        handlagerFach: position.handlagerFach,
-        soll: position.soll,
-        verfallText: gemeldet?.text ?? null,
-        // `ampelTon` bildet `null` auf "grau" ab; hier gibt es nie `null`, weil
-        // der Zweig ohne Eintrag schon oben `null` als Text liefert.
-        verfallAuffaellig: gemeldet ? ampelTon(gemeldet.ampel) !== "ok" : false,
-      };
-    });
+    .map((position) => ({
+      fachLabel: position.fachLabel,
+      artikelId: position.artikelId,
+      artikelName: position.artikelName,
+      einheit: position.einheit,
+      handlagerFach: position.handlagerFach,
+      soll: position.soll,
+    }));
 
   const vorlage = fahrzeug.templateId
     ? (db.select().from(fahrzeugTemplates)
