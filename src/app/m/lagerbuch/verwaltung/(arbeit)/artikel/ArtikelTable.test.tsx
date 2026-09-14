@@ -234,6 +234,27 @@ async function suchen(begriff: string): Promise<void> {
   await warteAufSuche();
 }
 
+/**
+ * Das OFFENE Filtermenue — und die Einschraenkung ist der ganze Punkt.
+ *
+ * ⚠️ antd LAESST EIN EINMAL GEOEFFNETES MENUE IM DOM STEHEN und blendet es nur
+ * aus (`.ant-dropdown-hidden`). Ein `body`-weites
+ * `.ant-table-filter-dropdown` trifft dann das Menue der ZULETZT geoeffneten
+ * Spalte, nicht der gemeinten — und der Test liest die Eintraege der falschen
+ * Spalte oder klickt deren „OK". Beides ist still: er wird gruen oder rot aus
+ * einem Grund, der nichts mit der geprueften Spalte zu tun hat.
+ */
+function offenesFiltermenue(titel: string): HTMLElement {
+  const sichtbar = Array.from(
+    document.body.querySelectorAll<HTMLElement>(".ant-dropdown:not(.ant-dropdown-hidden)"),
+  );
+  const menue = sichtbar
+    .map((huelle) => huelle.querySelector<HTMLElement>(".ant-table-filter-dropdown"))
+    .find((element): element is HTMLElement => element !== null);
+  if (!menue) throw new Error(`Filtermenue nicht geoeffnet: ${titel}`);
+  return menue;
+}
+
 function spaltenKopf(titel: string): HTMLElement {
   const kopf = queryAll<HTMLElement>("thead th")
     .find((th) => (th.textContent ?? "").includes(titel));
@@ -268,8 +289,7 @@ async function spalteFiltern(titel: string, texte: string[]): Promise<void> {
   await clickElement(ausloeser);
   await warte();
 
-  const menue = document.body.querySelector(".ant-table-filter-dropdown");
-  if (!menue) throw new Error(`Filtermenue nicht geoeffnet: ${titel}`);
+  const menue = offenesFiltermenue(titel);
   for (const text of texte) {
     const eintrag = Array.from(menue.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item"))
       .find((li) => (li.textContent ?? "").trim() === text);
@@ -293,10 +313,16 @@ async function filterEintraege(titel: string): Promise<string[]> {
   if (!ausloeser) throw new Error(`Spalte hat keinen Filter: ${titel}`);
   await clickElement(ausloeser);
   await warte();
-  const menue = document.body.querySelector(".ant-table-filter-dropdown");
-  if (!menue) throw new Error(`Filtermenue nicht geoeffnet: ${titel}`);
-  return Array.from(menue.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item"))
-    .map((li) => (li.textContent ?? "").trim());
+  const eintraege = Array.from(
+    offenesFiltermenue(titel).querySelectorAll<HTMLElement>(".ant-dropdown-menu-item"),
+  ).map((li) => (li.textContent ?? "").trim());
+
+  // ⚠️ WIEDER ZUMACHEN, sonst sind beim naechsten Aufruf ZWEI Menues sichtbar
+  // und „das offene" ist nicht mehr eindeutig. Ein Test, der nacheinander
+  // mehrere Spalten befragt, laese sonst zweimal dieselbe Liste.
+  await clickElement(ausloeser);
+  await warte();
+  return eintraege;
 }
 
 function knopfMitText(text: string): HTMLElement {
@@ -459,22 +485,51 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
   it("filtert über die Status-Spalte und verodert mehrere Zustände", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
-    expect(await filterEintraege("Status")).toEqual([
-      "unter Mindestbestand", "Charge kritisch", "inaktiv", "Bestand 0",
+    /**
+     * ⚠️ DIE ZUSTAENDE LIEGEN AUF DEN SPALTEN, UM DIE ES GEHT — nicht alle auf
+     * „Status". antd verodert mehrere Werte EINER Spalte und verundet ZWISCHEN
+     * Spalten; laegen alle hier, waere „aktiv UND unter Mindestbestand" nicht
+     * mehr moeglich, was die alte Knopfleiste konnte.
+     */
+    expect(await filterEintraege("Status")).toEqual(["aktiv", "inaktiv"]);
+    expect(await filterEintraege("Min.")).toEqual([
+      "unter Mindestbestand", "Mindestbestand erfüllt",
     ]);
+    expect(await filterEintraege("Bestand")).toEqual(["Bestand vorhanden", "Bestand 0"]);
 
-    await spalteFiltern("Status", ["unter Mindestbestand"]);
+    await spalteFiltern("Min.", ["unter Mindestbestand"]);
+    expect(zeilenIds()).toEqual(["alpha", "delta"]);
+  });
+
+  /**
+   * ⚠️ JEDER ZUSTAND HAT EIN GEGENSTUECK, und das ist der Punkt. Die alten
+   * Haken waren AUSSCHLUESSE, ein Spaltenfilter ist ein EINSCHLUSS — ohne
+   * Gegenstueck waere „inaktive ausblenden" gar nicht mehr ausdrueckbar
+   * gewesen, und wer den scheinbaren Ersatz ankreuzt, bekaeme das Gegenteil.
+   */
+  it("macht das alte „inaktive ausblenden“ über „aktiv“ wieder möglich", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    expect(zeilenIds()).toContain("delta");
+
+    await spalteFiltern("Status", ["aktiv"]);
+    expect(zeilenIds()).not.toContain("delta");
+  });
+
+  it("verundet ZWISCHEN Spalten — aktiv UND unter Mindestbestand", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+
+    await spalteFiltern("Min.", ["unter Mindestbestand"]);
     expect(zeilenIds()).toEqual(["alpha", "delta"]);
 
-    // Zweiter Zustand dazu: die Menge waechst, sie schrumpft nicht.
-    await spalteFiltern("Status", ["inaktiv"]);
-    expect(zeilenIds()).toEqual(["alpha", "delta"]);
+    // „delta" ist inaktiv und faellt durch die zweite Spalte heraus.
+    await spalteFiltern("Status", ["aktiv"]);
+    expect(zeilenIds()).toEqual(["alpha"]);
   });
 
   it("verknüpft Spaltenfilter UND Suche", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
-    await spalteFiltern("Status", ["unter Mindestbestand"]);
+    await spalteFiltern("Min.", ["unter Mindestbestand"]);
     expect(zeilenIds()).toEqual(["alpha", "delta"]);
 
     await suchen("alpha");
@@ -545,17 +600,18 @@ describe("ArtikelTable: „Bestand 0“ als Spaltenfilter (DRK-295)", () => {
     await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
     expect(zeilenIds()).toEqual(["eins", "leer"]);
 
-    await spalteFiltern("Status", ["Bestand 0"]);
-    expect(zeilenIds()).toEqual(["leer"]);
+    // Das GEGENSTUECK ist der Ersatz fuer das alte „Bestand 0 ausblenden".
+    await spalteFiltern("Bestand", ["Bestand vorhanden"]);
+    expect(zeilenIds()).toEqual(["eins"]);
   });
 
   it("loescht nichts: erneutes Abwaehlen bringt die Zeile zurueck", async () => {
     // Das zweite Akzeptanzkriterium aus DRK-295 woertlich — „Ausgeblendete
     // Artikel werden nicht geloescht und koennen wieder angezeigt werden".
     await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
-    await spalteFiltern("Status", ["Bestand 0"]);
-    expect(zeilenIds()).toEqual(["leer"]);
-    await spalteFiltern("Status", ["Bestand 0"]);
+    await spalteFiltern("Bestand", ["Bestand vorhanden"]);
+    expect(zeilenIds()).toEqual(["eins"]);
+    await spalteFiltern("Bestand", ["Bestand vorhanden"]);
     expect(zeilenIds()).toEqual(["eins", "leer"]);
   });
 
@@ -572,8 +628,8 @@ describe("ArtikelTable: „Bestand 0“ als Spaltenfilter (DRK-295)", () => {
     await mount(<ArtikelTable zeilen={MIT_NULL} fahrzeuge={FAHRZEUGE} />);
     expect(exportIds()).toEqual(["eins", "leer"]);
 
-    await spalteFiltern("Status", ["Bestand 0"]);
-    expect(exportIds()).toEqual(["leer"]);
+    await spalteFiltern("Bestand", ["Bestand vorhanden"]);
+    expect(exportIds()).toEqual(["eins"]);
   });
 });
 
@@ -751,7 +807,7 @@ describe("ArtikelTable: Sortierung in den Spaltenköpfen und eine Exportquelle",
 
   it("reicht Filter UND Sortierung gemeinsam an den Export weiter", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
-    await spalteFiltern("Status", ["unter Mindestbestand"]);
+    await spalteFiltern("Min.", ["unter Mindestbestand"]);
     expect(zeilenIds()).toEqual(["alpha", "delta"]);
     expect(exportIds()).toEqual(["alpha", "delta"]);
 

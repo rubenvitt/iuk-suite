@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { artikelTrifft, artikelFiltern, ARTIKEL_ZUSTAENDE, LEERER_FILTER,
-         type ArtikelFilterZeile } from "./artikelFilter";
+import {
+  artikelTrifft, artikelFiltern, LEERER_FILTER,
+  ARTIKEL_BESTAND_ZUSTAENDE, ARTIKEL_CHARGEN_ZUSTAENDE, ARTIKEL_MINDEST_ZUSTAENDE,
+  ARTIKEL_STATUS_ZUSTAENDE, ARTIKEL_ZUSTAND_GRUPPEN,
+  type ArtikelFilterZeile, type ArtikelZustand,
+} from "./artikelFilter";
 import { kategorieSchluessel } from "./kategorie";
 
 const z = (p: Partial<ArtikelFilterZeile> = {}): ArtikelFilterZeile => ({
@@ -42,30 +46,26 @@ describe("artikelTrifft — der Freitext sucht ueber DREI Felder", () => {
   });
 });
 
-describe("ARTIKEL_ZUSTAENDE — die vier Haken, jetzt als Spaltenfilter", () => {
-  /**
-   * ⚠️ DIESE VIER PRAEDIKATE LAGEN BIS DRK-331 IN `artikelTrifft` und waren die
-   * Knopfleiste ueber der Tabelle. Sie sind jetzt der Filter der Status-Spalte
-   * (`zustandsFilter` aus `@/core/tabelle`) — dieselbe Bedeutung, anderer Ort.
-   * Geprueft wird weiter hier, ohne etwas zu rendern.
-   */
+describe("Die Spaltenfilter der Artikelliste", () => {
+  const ALLE: ArtikelZustand[] = ARTIKEL_ZUSTAND_GRUPPEN.flatMap((g) => [...g]);
+
   function trifft(wert: string, zeile: ReturnType<typeof z>): boolean {
-    const zustand = ARTIKEL_ZUSTAENDE.find((x) => x.wert === wert);
+    const zustand = ALLE.find((x) => x.wert === wert);
     if (!zustand) throw new Error(`Zustand nicht gefunden: ${wert}`);
     return zustand.trifft(zeile);
   }
 
-  it('„unter Mindestbestand"', () => {
+  it("unter Mindestbestand", () => {
     expect(trifft("unter-mindest", z())).toBe(false);
     expect(trifft("unter-mindest", z({ unterMindest: true }))).toBe(true);
   });
 
-  it('„Charge kritisch"', () => {
+  it("Charge kritisch", () => {
     expect(trifft("charge-kritisch", z())).toBe(false);
     expect(trifft("charge-kritisch", z({ chargeKritisch: true }))).toBe(true);
   });
 
-  it('„inaktiv"', () => {
+  it("inaktiv", () => {
     expect(trifft("inaktiv", z({ aktiv: false }))).toBe(true);
     expect(trifft("inaktiv", z({ aktiv: true }))).toBe(false);
   });
@@ -74,40 +74,74 @@ describe("ARTIKEL_ZUSTAENDE — die vier Haken, jetzt als Spaltenfilter", () => 
    * DRK-295. Die Schwelle ist GENAU 0 und nicht „wenig" — „unter
    * Mindestbestand" ist der andere Zustand und bleibt es.
    */
-  it('„Bestand 0"', () => {
+  it("Bestand 0", () => {
     expect(trifft("bestand-null", z({ bestand: 0 }))).toBe(true);
     expect(trifft("bestand-null", z({ bestand: 1 }))).toBe(false);
   });
 
   /**
-   * Ein negativer Bestand kann heute nicht entstehen (Invariante I2,
-   * `schreibpfade/abbuchung.ts`) — waere er doch da, ist er ein Buchungsfehler.
-   * Ein Filter soll Rauschen wegnehmen, nicht ausgerechnet die Zeile, die
-   * jemanden braucht. Dieser Test ist der Grund, warum im Praedikat `=== 0`
-   * steht und nicht `<= 0`; er faellt, sobald jemand das lockert.
+   * ⚠️ DER TEST, DER DEN ZURUECKGEDREHTEN AUSSCHLUSS FAENGT.
+   *
+   * Die alten Haken waren AUSSCHLUESSE („inaktive ausblenden", „Bestand 0
+   * ausblenden"), ein Spaltenfilter ist ein EINSCHLUSS. Ohne Gegenstueck waere
+   * der alte Vorgang — die inaktiven loswerden — gar nicht mehr ausdrueckbar,
+   * und wer den scheinbaren Ersatz ankreuzt, bekaeme das GEGENTEIL. Jede Gruppe
+   * schuldet deshalb eine vollstaendige Zerlegung: jede Zeile trifft genau
+   * einen Zustand je Gruppe.
    */
-  it("zaehlt einen NEGATIVEN Bestand NICHT als Nullbestand", () => {
-    expect(trifft("bestand-null", z({ bestand: -3 }))).toBe(false);
+  it.each([
+    ["Bestand", ARTIKEL_BESTAND_ZUSTAENDE],
+    ["Min.", ARTIKEL_MINDEST_ZUSTAENDE],
+    ["Verfall", ARTIKEL_CHARGEN_ZUSTAENDE],
+    ["Status", ARTIKEL_STATUS_ZUSTAENDE],
+  ])("die Gruppe %s zerlegt jede Zeile vollstaendig und ueberschneidungsfrei", (_name, gruppe) => {
+    const proben = [
+      z(), z({ bestand: 0 }), z({ bestand: -3 }), z({ aktiv: false }),
+      z({ unterMindest: true }), z({ chargeKritisch: true }),
+      z({ naechsteCharge: null }), z({ naechsteCharge: null, bestand: 0 }),
+    ];
+    for (const probe of proben) {
+      expect((gruppe as readonly ArtikelZustand[]).filter((x) => x.trifft(probe))).toHaveLength(1);
+    }
+  });
+
+  it("macht das alte Ausblenden der inaktiven wieder ausdrueckbar", () => {
+    const zeilen = [z({ aktiv: true }), z({ aktiv: false }), z({ aktiv: true })];
+    expect(zeilen.filter((x) => trifft("aktiv", x))).toHaveLength(2);
+  });
+
+  it("macht das alte Ausblenden von Bestand 0 wieder ausdrueckbar", () => {
+    const zeilen = [z({ bestand: 0 }), z({ bestand: 5 }), z({ bestand: -3 })];
+    // ⚠️ Der NEGATIVE Bestand zaehlt als vorhanden und bleibt damit sichtbar:
+    // er ist ein Buchungsfehler, und genau den darf ein Aufraeumfilter nicht
+    // schlucken.
+    expect(zeilen.filter((x) => trifft("bestand-vorhanden", x))).toHaveLength(2);
   });
 
   /**
-   * ⚠️ MEHRERE ANGEKREUZTE ZUSTAENDE SIND EINE VEREINIGUNG, KEIN SCHNITT. antd
-   * ruft `onFilter` je angekreuztem Wert auf und verodert das Ergebnis
-   * (`useFilter/index.js`, `realKeys.some(...)`) — genau so verhielt sich auch
-   * die abgeloeste Knopfleiste. Wer hier auf UND umstellt, aendert still, was
-   * zwei gesetzte Haken bedeuten.
+   * ⚠️ MEHRERE ANGEKREUZTE ZUSTAENDE EINER SPALTE SIND EINE VEREINIGUNG, KEIN
+   * SCHNITT. antd ruft `onFilter` je angekreuztem Wert auf und verodert das
+   * Ergebnis (`useFilter/index.js`, `realKeys.some(...)`). Deshalb liegen die
+   * Gruppen auf VERSCHIEDENEN Spalten — zwischen Spalten verundet antd, und nur
+   * so bleibt „aktiv UND unter Mindestbestand" moeglich, was die alte Leiste
+   * mit ihren unabhaengigen Haken konnte.
    */
-  it("verodert mehrere Zustaende", () => {
-    const nurInaktiv = z({ aktiv: false, bestand: 5 });
-    const angekreuzt = ["inaktiv", "bestand-null"];
-    expect(angekreuzt.some((w) => trifft(w, nurInaktiv))).toBe(true);
-    expect(angekreuzt.every((w) => trifft(w, nurInaktiv))).toBe(false);
+  it("verodert innerhalb einer Gruppe und verundet zwischen Gruppen", () => {
+    const aktivUnterMindest = z({ aktiv: true, unterMindest: true });
+    const inaktivOhneMangel = z({ aktiv: false, unterMindest: false });
+
+    const beide = ["aktiv", "inaktiv"];
+    expect([aktivUnterMindest, inaktivOhneMangel]
+      .filter((x) => beide.some((w) => trifft(w, x)))).toHaveLength(2);
+
+    expect([aktivUnterMindest, inaktivOhneMangel]
+      .filter((x) => trifft("aktiv", x) && trifft("unter-mindest", x))).toHaveLength(1);
   });
 
   it("nennt jeden Zustand genau einmal und mit einem Text", () => {
-    const werte = ARTIKEL_ZUSTAENDE.map((x) => x.wert);
+    const werte = ALLE.map((x) => x.wert);
     expect(new Set(werte).size).toBe(werte.length);
-    for (const zustand of ARTIKEL_ZUSTAENDE) expect(zustand.text.trim()).not.toBe("");
+    for (const zustand of ALLE) expect(zustand.text.trim()).not.toBe("");
   });
 });
 

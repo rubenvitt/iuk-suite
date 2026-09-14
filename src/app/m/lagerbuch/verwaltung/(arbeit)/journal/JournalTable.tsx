@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Spin, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
-import { Datentabelle, nachDatum, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
 import type { BuchungTyp } from "../../../_lib/lesepfade/journal";
@@ -42,13 +42,6 @@ export type JournalAbrufFilter = {
   bis?: string;
 };
 
-const TYP_TEXT: Record<BuchungTyp, string> = {
-  zugang: "Zugang",
-  entnahme: "Entnahme",
-  korrektur: "Korrektur",
-  umlagerung: "Umlagerung",
-};
-
 /**
  * ⚠️ DIE AUFBEREITUNG LIEGT HIER, NICHT IN DER SEITE — und das ist der Punkt,
  * an dem sonst zwei Wahrheiten entstuenden. Die erste Seite kommt aus einer
@@ -75,50 +68,54 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
   };
 }
 
+/**
+ * ⚠️ DIESE TABELLE SORTIERT UND FILTERT NICHT IN DEN SPALTENKOEPFEN — als
+ * einzige des Moduls, und das ist eine Korrektur, keine Auslassung.
+ *
+ * Das Journal ist SERVERSEITIG GEBLAETTERT: geladen sind zunaechst die neuesten
+ * 100 Zeilen, weitere kommen beim Scrollen ueber die Schluesselposition nach.
+ * Ein clientseitiger Vergleicher sieht deshalb nur das GELADENE PRAEFIX. Wer
+ * „Zeit aufsteigend" waehlte, bekaeme nicht die aelteste Buchung, sondern die
+ * aelteste UNTER DEN NEUESTEN HUNDERT — eine Aussage ueber den ganzen Bestand,
+ * die nur ueber einen Ausschnitt gilt. Dasselbe gilt fuer jede andere Spalte.
+ *
+ * ⚠️ EIN CLIENTSEITIGER FILTER WAERE HIER SOGAR GEFAEHRLICH. Bleiben nach dem
+ * Filtern wenige oder keine Zeilen stehen, steht die Wache am Fussende weiter im
+ * Bild; der Beobachter laedt die naechste Seite, die ebenfalls herausfaellt,
+ * und wieder eine — bis das ganze Journal in 100er-Schritten durch ist. Jede
+ * dieser Anfragen belegt den SYNCHRONEN SQLite-Pfad und blockiert damit die
+ * ganze Suite. Genau die Grenze, gegen die der Deckel gebaut ist, waere damit
+ * aufgehoben.
+ *
+ * GEFILTERT WIRD DESHALB UEBER DIE ABFRAGE, nicht ueber die geladenen Zeilen:
+ * `JournalFilter` ueber der Tabelle schreibt Suche, Vorgang und Zeitraum in die
+ * URL, die Seite laedt neu, und jeder Nachschlag faehrt denselben Filter mit.
+ * Das trifft die GESAMTE Historie — ein Spaltenfilter koennte das nie.
+ *
+ * Die Ordnung ist damit fest: neueste zuerst (`ts DESC, id DESC`), dieselbe, in
+ * der der Cursor blaettert.
+ */
 const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
   {
     title: "Zeit",
     dataIndex: "zeitText",
     key: "zeit",
-    // ⚠️ UEBER DAS ISO-FELD, nie ueber `zeitText`: „02.10. 08:00" sortierte als
-    // Zeichenkette vor „14.09. 08:00".
-    sorter: nachDatum<JournalAnzeigeZeile>((zeile) => zeile.zeitIso),
-    defaultSortOrder: "descend",
     render: (zeitText: string) => <span className={s.jts}>{zeitText}</span>,
   },
   {
     title: "Artikel",
     dataIndex: "artikelName",
     key: "artikel",
-    sorter: nachText<JournalAnzeigeZeile>((zeile) => zeile.artikelName),
     render: (artikelName: string) => (
       <span style={{ fontWeight: 600 }}>{artikelName}</span>
     ),
   },
-  {
-    title: "Vorgang",
-    dataIndex: "vorgangText",
-    key: "vorgang",
-    /**
-     * ⚠️ GEFILTERT WIRD UEBER `typ`, NICHT UEBER DEN TEXT. `vorgangText` traegt
-     * den Kommentar mit („Entnahme · Nachgezaehlt") — eine Filterliste daraus
-     * haette so viele Eintraege wie es Kommentare gibt.
-     *
-     * ⚠️ DIE LISTE IST FEST UND NICHT AUS DEN DATEN GEZOGEN. Beim Nachladen
-     * waechst die Zeilenmenge; eine abgeleitete Liste bekaeme dann waehrend des
-     * Scrollens neue Eintraege, und ein gesetzter Filter zeigte ploetzlich mehr.
-     * Die vier Buchungsarten sind ohnehin abschliessend.
-     */
-    filters: (Object.keys(TYP_TEXT) as BuchungTyp[])
-      .map((typ) => ({ text: TYP_TEXT[typ], value: typ })),
-    onFilter: (wert, zeile) => zeile.typ === wert,
-  },
+  { title: "Vorgang", dataIndex: "vorgangText", key: "vorgang" },
   {
     title: "Δ",
     dataIndex: "deltaText",
     key: "delta",
     align: "right",
-    sorter: nachZahl<JournalAnzeigeZeile>((zeile) => zeile.deltaZahl),
     render: (deltaText: string, zeile) => (
       <span
         className={`${s.jdelta} ${
@@ -133,7 +130,6 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
     title: "Quelle",
     dataIndex: "quelleName",
     key: "quelle",
-    sorter: nachText<JournalAnzeigeZeile>((zeile) => zeile.quelleName),
     render: (quelleName: string, zeile) => (
       <Chip ton="grau" title={zeile.quelleId}>
         {quelleName}

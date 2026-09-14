@@ -98,42 +98,73 @@ export function artikelFiltern<T extends ArtikelFilterZeile>(
 
 /**
  * Die Zustaende, die bis DRK-331 die vier Haken ueber der Tabelle waren — jetzt
- * der Filter der Status-Spalte.
+ * Spaltenfilter, verteilt auf die Spalten, um die es jeweils geht.
  *
- * ⚠️ SIE STEHEN HIER UND NICHT IN DER KOMPONENTE, damit dieselbe Bedeutung auch
- * dem Export-Lesepfad zur Verfuegung steht und pruefbar bleibt, ohne etwas zu
- * rendern. Die Reihenfolge ist die der alten Leiste.
+ * ⚠️ JEDER ZUSTAND HAT EIN GEGENSTUECK, und das ist die eigentliche Arbeit an
+ * dieser Liste. Die alten Haken waren AUSSCHLUESSE („inaktive ausblenden",
+ * „Bestand 0 ausblenden"), ein Spaltenfilter ist ein EINSCHLUSS. Wer nur
+ * „inaktiv" anbietet, hat die Bedeutung umgedreht: angekreuzt zeigt er
+ * ausschliesslich die inaktiven, und der alte Vorgang — die inaktiven
+ * loswerden — laesst sich gar nicht mehr ausdruecken. Mit dem Gegenstueck
+ * „aktiv" ist er wieder da, nur anders herum angeklickt.
+ *
+ * ⚠️ SIE STEHEN AUF VERSCHIEDENEN SPALTEN, nicht alle auf einer — und auch das
+ * folgt aus der Bedeutung: antd verodert MEHRERE WERTE EINER Spalte und
+ * verundet ZWISCHEN Spalten. Laegen alle sechs auf „Status", waere „aktiv UND
+ * unter Mindestbestand" nicht mehr moeglich; genau diese Kombination war mit
+ * den alten, unabhaengigen Haken aber der Normalfall. Verteilt auf Bestand,
+ * Min., Verfall und Status ergibt das Und wieder das, was die Leiste konnte.
  *
  * ⚠️ `bestand === 0`, NICHT `<= 0`. Ein negativer Handlagerbestand kann heute
  * nicht entstehen (Invariante I2, `schreibpfade/abbuchung.ts`) — waere er doch
- * da, ist er ein Buchungsfehler und muss SICHTBAR bleiben. Ein Filter, der
- * Rauschen wegnehmen soll, darf nicht ausgerechnet die eine Zeile schlucken,
- * die jemanden braucht.
+ * da, ist er ein Buchungsfehler und muss SICHTBAR bleiben. Er zaehlt deshalb zu
+ * „Bestand vorhanden": ein Filter, der Rauschen wegnehmen soll, darf nicht
+ * ausgerechnet die eine Zeile schlucken, die jemanden braucht.
  *
  * ⚠️ KEINER IST VORGEWAEHLT (DRK-295, offene Frage 2). Ein vorgewaehltes
  * Ausblenden zeigte beim ersten Aufschlagen eine verkuerzte Liste, ohne dass
  * jemand danach gefragt haette — ein fehlender Artikel sieht dann aus wie ein
  * geloeschter.
  */
-export const ARTIKEL_ZUSTAENDE = [
+export type ArtikelZustand = {
+  readonly wert: string;
+  readonly text: string;
+  readonly trifft: (zeile: ArtikelFilterZeile) => boolean;
+};
+
+/** Spalte „Bestand". Loest „Bestand 0 ausblenden" ab — ueber das Gegenstueck. */
+export const ARTIKEL_BESTAND_ZUSTAENDE: readonly ArtikelZustand[] = [
+  { wert: "bestand-vorhanden", text: "Bestand vorhanden", trifft: (z) => z.bestand !== 0 },
+  { wert: "bestand-null", text: "Bestand 0", trifft: (z) => z.bestand === 0 },
+];
+
+/** Spalte „Min.". Loest „unter Mindestbestand" ab. */
+export const ARTIKEL_MINDEST_ZUSTAENDE: readonly ArtikelZustand[] = [
+  { wert: "unter-mindest", text: "unter Mindestbestand", trifft: (z) => z.unterMindest },
+  { wert: "mindest-erfuellt", text: "Mindestbestand erfüllt", trifft: (z) => !z.unterMindest },
+];
+
+/** Spalte „Naechster Verfall". Loest „Charge kritisch" ab. */
+export const ARTIKEL_CHARGEN_ZUSTAENDE: readonly ArtikelZustand[] = [
+  { wert: "charge-kritisch", text: "Charge kritisch", trifft: (z) => z.chargeKritisch },
   {
-    wert: "unter-mindest",
-    text: "unter Mindestbestand",
-    trifft: (z: ArtikelFilterZeile) => z.unterMindest,
+    wert: "charge-ruhig",
+    text: "Charge unkritisch",
+    trifft: (z) => z.naechsteCharge !== null && !z.chargeKritisch,
   },
-  {
-    wert: "charge-kritisch",
-    text: "Charge kritisch",
-    trifft: (z: ArtikelFilterZeile) => z.chargeKritisch,
-  },
-  {
-    wert: "inaktiv",
-    text: "inaktiv",
-    trifft: (z: ArtikelFilterZeile) => !z.aktiv,
-  },
-  {
-    wert: "bestand-null",
-    text: "Bestand 0",
-    trifft: (z: ArtikelFilterZeile) => z.bestand === 0,
-  },
-] as const;
+  { wert: "ohne-charge", text: "ohne Charge", trifft: (z) => z.naechsteCharge === null },
+];
+
+/** Spalte „Status". Loest „inaktive ausblenden" ab — ueber das Gegenstueck. */
+export const ARTIKEL_STATUS_ZUSTAENDE: readonly ArtikelZustand[] = [
+  { wert: "aktiv", text: "aktiv", trifft: (z) => z.aktiv },
+  { wert: "inaktiv", text: "inaktiv", trifft: (z) => !z.aktiv },
+];
+
+/** Alle vier Gruppen — fuer Pruefungen, die ueber die ganze Menge gehen. */
+export const ARTIKEL_ZUSTAND_GRUPPEN: readonly (readonly ArtikelZustand[])[] = [
+  ARTIKEL_BESTAND_ZUSTAENDE,
+  ARTIKEL_MINDEST_ZUSTAENDE,
+  ARTIKEL_CHARGEN_ZUSTAENDE,
+  ARTIKEL_STATUS_ZUSTAENDE,
+];

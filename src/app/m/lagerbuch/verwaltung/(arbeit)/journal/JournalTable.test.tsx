@@ -28,17 +28,10 @@ vi.mock("../../../_actions/journal", () => ({
  * Anzeigezeilen hineinreicht, pruefte diese Abbildung nicht mehr mit.
  */
 const ZEILEN: JournalZeileDTO[] = [
-  {
-    id: "journal-negativ",
-    ts: "2026-08-07T12:00:00.000Z",
-    artikelName: "Verbandpäckchen",
-    typ: "entnahme",
-    menge: -1,
-    quelleId: "system",
-    quelleName: "System",
-    kommentar: "Verbraucht",
-    referenz: null,
-  },
+  // ⚠️ NEUESTE ZUERST — so und nicht anders liefert der Lesepfad
+  // (`ts DESC, id DESC`, dieselbe Ordnung, in der der Cursor blaettert). Die
+  // Tabelle sortiert NICHT mehr selbst; eine Testliste in anderer Reihenfolge
+  // behauptete also etwas, das der Server nie schickt.
   {
     id: "journal-positiv",
     ts: "2026-08-07T13:00:00.000Z",
@@ -48,6 +41,17 @@ const ZEILEN: JournalZeileDTO[] = [
     quelleId: "111-111",
     quelleName: "Helfer",
     kommentar: null,
+    referenz: null,
+  },
+  {
+    id: "journal-negativ",
+    ts: "2026-08-07T12:00:00.000Z",
+    artikelName: "Verbandpäckchen",
+    typ: "entnahme",
+    menge: -1,
+    quelleId: "system",
+    quelleName: "System",
+    kommentar: "Verbraucht",
     referenz: null,
   },
 ];
@@ -159,14 +163,21 @@ describe("JournalTable", () => {
       "Quelle",
     ]);
     expect(query("table").getAttribute("aria-label")).toBe("Buchungsjournal");
-    // ⚠️ NEUESTE ZUERST. Die Zeitspalte traegt `defaultSortOrder: "descend"`;
-    // die 13:00-Zeile steht deshalb ueber der 12:00-Zeile, obwohl sie im Feld
-    // dahinter steht. Genau das soll ein Journal tun.
+    /**
+     * ⚠️ DIE REIHENFOLGE IST DIE DES SERVERS, UNVERAENDERT. Die Tabelle traegt
+     * keinen Vergleicher mehr: das Journal ist serverseitig geblaettert, und
+     * ein clientseitiger Sortierer ordnete nur das geladene Praefix — „Zeit
+     * aufsteigend" zeigte dann die aelteste unter den neuesten Hundert, nicht
+     * die aelteste Buchung.
+     */
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
       zeile.getAttribute("data-row-key"))).toEqual([
       "journal-positiv",
       "journal-negativ",
     ]);
+    // Und kein Spaltenkopf bietet Sortierung oder Filter an.
+    expect(queryAll(".ant-table-column-sorter")).toHaveLength(0);
+    expect(queryAll(".ant-table-filter-trigger")).toHaveLength(0);
 
     const negativ = query("tr[data-row-key='journal-negativ']");
     // Die Zeit entsteht in der Insel aus dem Rohzeitstempel — nicht aus einem
@@ -260,8 +271,7 @@ describe("JournalTable", () => {
     expect(ids).toHaveLength(3);
     expect(ids).toContain("journal-nachgeladen");
     expect(query("tr[data-row-key='journal-nachgeladen']").textContent).toContain("Dreiecktuch");
-    // Die aelteste Zeile steht unten — die Sortierung gilt fuer die ganze Liste,
-    // nicht nur fuer die erste Seite.
+    // Angehaengt heisst: hinten. Die Reihenfolge bleibt die des Servers.
     expect(ids.at(-1)).toBe("journal-nachgeladen");
   });
 
@@ -407,7 +417,8 @@ describe("JournalTable", () => {
         leertext="Noch keine Buchung."
       />,
     );
-    expect(zeilenIds()).toEqual(["journal-positiv"]);
+    // ZEILEN[1] ist die Entnahme — passend zum neuen Filter `typ: "entnahme"`.
+    expect(zeilenIds()).toEqual(["journal-negativ"]);
 
     // Jetzt erst antwortet der alte Abruf.
     await act(async () => {
@@ -431,7 +442,7 @@ describe("JournalTable", () => {
 
     // Die alte Zeile ist NICHT angehaengt, und der alte Cursor hat den neuen
     // Stand nicht uebernommen ("Keine weiteren Buchungen." steht weiter da).
-    expect(zeilenIds()).toEqual(["journal-positiv"]);
+    expect(zeilenIds()).toEqual(["journal-negativ"]);
     expect(document.body.textContent).not.toContain("Darf nicht erscheinen");
     expect(document.body.textContent).toContain("Keine weiteren Buchungen.");
   });

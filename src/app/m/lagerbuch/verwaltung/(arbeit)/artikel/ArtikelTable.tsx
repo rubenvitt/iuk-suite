@@ -22,7 +22,10 @@ import { setzeAusgeblendeteKategorien } from "../../../_actions/kategorien";
 import {
   artikelFiltern,
   artikelTrifft,
-  ARTIKEL_ZUSTAENDE,
+  ARTIKEL_BESTAND_ZUSTAENDE,
+  ARTIKEL_CHARGEN_ZUSTAENDE,
+  ARTIKEL_MINDEST_ZUSTAENDE,
+  ARTIKEL_STATUS_ZUSTAENDE,
   LEERER_FILTER,
   type ArtikelFilterZeile,
   type ArtikelFilterZustand,
@@ -351,6 +354,8 @@ export function ArtikelTable({
       align: "right",
       sorter: nachZahl<ArtikelAnzeigeZeile>((zeile) => zeile.bestand),
       sortOrder: sortierung.spalte === "bestand" ? sortierung.richtung : null,
+      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_BESTAND_ZUSTAENDE),
+      filteredValue: spaltenFilter.bestand ?? null,
       render: (wert: number, zeile) => (
         <span style={{ fontVariantNumeric: "tabular-nums" }}>
           {wert} <span style={SCHRIFT.neben}>{zeile.einheit}</span>
@@ -364,6 +369,8 @@ export function ArtikelTable({
       align: "right",
       sorter: nachZahl<ArtikelAnzeigeZeile>((zeile) => zeile.mindestbestand),
       sortOrder: sortierung.spalte === "mindestbestand" ? sortierung.richtung : null,
+      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_MINDEST_ZUSTAENDE),
+      filteredValue: spaltenFilter.mindestbestand ?? null,
       render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
     },
     {
@@ -377,6 +384,8 @@ export function ArtikelTable({
        */
       sorter: nachDatum<ArtikelAnzeigeZeile>((zeile) => zeile.naechsteCharge?.verfall),
       sortOrder: sortierung.spalte === "naechsteCharge" ? sortierung.richtung : null,
+      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_CHARGEN_ZUSTAENDE),
+      filteredValue: spaltenFilter.naechsteCharge ?? null,
       render: (_wert: unknown, zeile) => (
         zeile.naechsteCharge && zeile.naechsteAmpel && zeile.naechsteAblaufText
           ? (
@@ -399,13 +408,16 @@ export function ArtikelTable({
       dataIndex: "aktiv",
       width: BREITE.status,
       /**
-       * ⚠️ HIER LAG BIS DRK-331 DIE KNOPFLEISTE ueber der Tabelle. Jeder Haken
-       * dort war ein Praedikat ueber der Zeile — und ein Praedikat ueber der
-       * Zeile ist ein Spaltenfilter. Zwei angekreuzte Zustaende zeigen die
-       * VEREINIGUNG (antd verodert, `useFilter/index.js`), genau wie die
-       * Leiste es tat.
+       * ⚠️ HIER STEHT NUR NOCH DER LEBENSZUSTAND — aktiv oder inaktiv. Die
+       * uebrigen Praedikate der alten Knopfleiste liegen auf DEN SPALTEN, um
+       * die es jeweils geht (Bestand, Min., Verfall), und das ist kein
+       * Ordnungssinn: antd verodert mehrere Werte EINER Spalte und verundet
+       * ZWISCHEN Spalten. Laegen alle sechs hier, waere „aktiv UND unter
+       * Mindestbestand" nicht mehr moeglich — mit den alten, unabhaengigen
+       * Haken war genau das der Normalfall. Begruendung vollstaendig in
+       * `_lib/artikelFilter.ts`.
        */
-      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_ZUSTAENDE),
+      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_STATUS_ZUSTAENDE),
       filteredValue: spaltenFilter.aktiv ?? null,
       sortOrder: sortierung.spalte === "aktiv" ? sortierung.richtung : null,
       // Rot zuerst: der Fall, der Aufmerksamkeit verlangt, gehoert nach oben.

@@ -13,9 +13,9 @@ const notiz: Releasenotiz = {
         "neben der Überschrift.",
     ),
     absatz(
-      "Die Knopfleisten über den Tabellen entfallen dafür. Was dort „inaktive ausblenden“ oder " +
-        "„unter Mindestbestand“ hieß, steht jetzt im Filter der Spalte „Status“. Die Freitextsuche " +
-        "bleibt, wo sie war.",
+      "Die Knopfleisten über den Tabellen entfallen dafür. Jeder Filter sitzt jetzt in der Spalte, " +
+        "um die es geht: „inaktive ausblenden“ wählst du unter „Status“ als „aktiv“, " +
+        "„Bestand 0 ausblenden“ unter „Bestand“ als „Bestand vorhanden“.",
     ),
   ],
 };
