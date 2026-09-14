@@ -103,9 +103,8 @@ rückgängig. Wer eine Charge nicht im Regal findet, setzt sie **ausdrücklich**
 
 ```ts
 positionen: Array<
-  | { art: "artikel"; artikelId: string; ist: number }
+  | { artikelId: string; ist: number }                      // Artikelposition, unverändert
   | {
-      art: "chargen";
       artikelId: string;
       chargen: { chargeId: string; ist: number }[];         // nur angefasste
       neu: { verfall: string; chargenNr?: string; ist: number }[];
@@ -113,10 +112,14 @@ positionen: Array<
 >
 ```
 
+Unterschieden wird **an der Form** (`ist` gegen `chargen`), nicht an einem `art`-Feld: die
+Artikelposition bleibt damit wörtlich `{ artikelId, ist }`, und die bestehenden Tests der
+Artikelzählung — sie tragen die 1:1-Pflichten — bleiben unverändert stehen.
+
 Schema-Regeln (zod, `_actions/inventur.ts`):
 
 * `ist`: ganzzahlig, 0 … 99 999 (wie heute); bei `neu` 1 … 99 999.
-* `art: "chargen"` braucht mindestens eine Charge **oder** eine Ergänzung.
+* Eine Chargenposition braucht mindestens eine Charge **oder** eine Ergänzung.
 * `artikelId` höchstens einmal über alle Positionen; `chargeId` höchstens einmal je Position;
   zwei `neu`-Einträge mit gleichem Schlüssel (s. u.) in einer Position werden abgewiesen.
 * `chargenNr`: getrimmt, leer → `CHARGE_INVENTUR`; Längengrenze wie im Wareneingang.
