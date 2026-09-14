@@ -69,6 +69,18 @@ export function sollGruppieren(positionen: SollZeile[]): SollAnzeigeZeile[] {
   });
 }
 
+/** Verschiedene aktive Faecher je Artikel; Grabsteine zaehlen nicht mit. */
+export function faecherJeArtikelZaehlen(positionen: SollZeile[]): Map<string, number> {
+  const faecher = new Map<string, Set<string>>();
+  for (const position of positionen) {
+    if (position.entfernt) continue;
+    const menge = faecher.get(position.artikelId) ?? new Set<string>();
+    menge.add(position.fachLabel);
+    faecher.set(position.artikelId, menge);
+  }
+  return new Map(Array.from(faecher, ([artikelId, menge]) => [artikelId, menge.size]));
+}
+
 const HERKUNFT_TON = {
   manuell: "grau",
   vorlage: "grau",
@@ -99,6 +111,7 @@ export function SollEditor({
   }>>({});
 
   const zeilen = useMemo(() => sollGruppieren(positionen), [positionen]);
+  const faecherJeArtikel = useMemo(() => faecherJeArtikelZaehlen(positionen), [positionen]);
   const optionen = useMemo<ArtikelOption[]>(() => artikel.map((eintrag) => ({
     value: eintrag.id,
     label: eintrag.name,
@@ -211,11 +224,52 @@ export function SollEditor({
             {position.entfernt ? <Chip ton="grau">entfernt</Chip> : null}
           </span>
           <span style={SCHRIFT.neben}>
-            Fahrzeug {position.fahrzeugBestand} {position.einheit}
-            {" · "}Handlager {position.handlagerBestand} {position.einheit}
+            Handlager {position.handlagerBestand} {position.einheit}
           </span>
         </div>
       ),
+    },
+    {
+      // DER IST STEHT IN EIGENER SPALTE, NICHT IM NEBENTEXT (DRK-315). Dort
+      // war er 12px grau und von der Handlager-Zahl daneben nur am Wort zu
+      // unterscheiden. Gross gesetzt und neben dem Soll-Feld lesen sich beide
+      // als Paar: IST ist Zahl, SOLL ist Eingabe. Keine Farbe fuer die
+      // Abweichung — Rot gehoert nicht auf eine Datenflaeche (Falle 3).
+      // KEIN `width`: sonst stimmt `scroll.x = "max-content"` nicht mehr.
+      title: <span style={SCHRIFT.feldname}>Ist</span>,
+      dataIndex: "fahrzeugBestand",
+      key: "ist",
+      align: "right",
+      render: (bestand: number, position) => {
+        const faecherGesamt = faecherJeArtikel.get(position.artikelId) ?? 0;
+        return (
+          // `gap: 2` wie in der Artikelzelle, s. dort.
+          <div
+            data-rolle="ist"
+            style={{
+              display: "grid",
+              gap: 2,
+              justifyItems: "end",
+              opacity: position.entfernt ? 0.6 : undefined,
+            }}
+          >
+            <span style={{ whiteSpace: "nowrap" }}>
+              <span style={SCHRIFT.zahl}>{bestand}</span>{" "}
+              <span style={SCHRIFT.neben}>{position.einheit}</span>
+            </span>
+            {/*
+              Der Bestand gehoert dem ARTIKEL im Fahrzeug, nicht dem Fach.
+              Steht der Artikel in mehreren Faechern, stuende sonst dieselbe
+              grosse Zahl mehrfach da und laese sich als Ist je Fach.
+            */}
+            {faecherGesamt > 1 ? (
+              <span style={{ ...SCHRIFT.neben, whiteSpace: "nowrap" }}>
+                gesamt für {faecherGesamt} Fächer
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       title: <span style={SCHRIFT.feldname}>Soll</span>,
@@ -299,7 +353,11 @@ export function SollEditor({
   ];
 
   return (
-    <div style={{ display: "grid", gap: SPACE.md }}>
+    // `minmax(0, 1fr)` STATT DER IMPLIZITEN `auto`-SPALTE: die waechst auf die
+    // Mindestbreite der Tabelle, und `scroll.x` kommt nie zum Zug — gemessen
+    // (DRK-315) lief das Fahrzeugblatt bei 390px um 372px waagerecht ueber,
+    // statt die Tabelle in sich scrollen zu lassen.
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Table<SollAnzeigeZeile>
         rowKey="id"
