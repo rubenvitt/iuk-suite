@@ -57,7 +57,7 @@ test.describe("lagerbuch — Kategorien ausblenden (DRK-294)", () => {
     await expect(zeile()).toHaveCount(1);
 
     await speichernUndPruefen(page, async () => {
-      await klickeWennRuhig(page.getByRole("combobox", { name: "Kategorien ausblenden" }));
+      await klickeWennRuhig(page.getByRole("combobox", { name: "Kategorien dauerhaft ausblenden" }));
       await page.locator(".ant-select-item-option", { hasText: KATEGORIE }).click();
     });
     await expect(zeile()).toHaveCount(0);

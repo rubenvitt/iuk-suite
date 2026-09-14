@@ -83,6 +83,72 @@ async function warteAuf(pruefen: () => boolean, beschreibung: string): Promise<v
   throw new Error(`Nicht rechtzeitig sichtbar: ${beschreibung}`);
 }
 
+function zeilenIds(): Array<string | null> {
+  return queryAll("tbody tr[data-row-key]")
+    .map((zeile) => zeile.getAttribute("data-row-key"));
+}
+
+/**
+ * Die Freitextsuche laeuft ueber `useEntprellt` — das FELD steht sofort, die
+ * ABLEITUNG erst nach der Entprellzeit. Ohne dieses Warten misst der Test den
+ * Zustand VOR dem Filtern und meldet das als „Filter wirkt nicht".
+ */
+async function suchen(wert: string): Promise<void> {
+  await fill("input[type='search']", wert);
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 250));
+  });
+}
+
+/**
+ * Einen Spaltenfilter setzen — den Weg, den auch eine Person nimmt: Trichter im
+ * Spaltenkopf, Eintraege ankreuzen, „OK". Ohne Eintraege wird zurueckgesetzt.
+ *
+ * ⚠️ DIE EINTRAEGE WERDEN UMGESCHALTET, NICHT GESETZT: das Menue behaelt seine
+ * bisherige Auswahl, ein erneut genannter Eintrag faellt also wieder heraus.
+ */
+async function spaltenFilter(spalte: string, ...eintraege: string[]): Promise<void> {
+  const kopf = queryAll<HTMLElement>("thead th")
+    .find((th) => (th.textContent ?? "").includes(spalte));
+  const trichter = kopf?.querySelector<HTMLElement>(".ant-table-filter-trigger");
+  if (!trichter) throw new Error(`Kein Spaltenfilter an: ${spalte}`);
+  await clickElement(trichter);
+
+  // ⚠️ NUR DAS OFFENE MENUE. antd laesst ein einmal geoeffnetes Filtermenue im
+  // DOM stehen und blendet es nur aus; ohne diese Einschraenkung traefe „OK"
+  // den Knopf eines FRUEHER geoeffneten Menues, und der Filter dieser Spalte
+  // bliebe still unangewandt.
+  const offen = () =>
+    document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+  const menue = () => Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? []);
+  await warteAuf(() => menue().length > 0, `Filtermenü zu ${spalte}`);
+
+  for (const text of eintraege) {
+    const eintrag = menue().find((li) => (li.textContent ?? "").includes(text));
+    if (!eintrag) throw new Error(`Filtereintrag nicht gefunden: ${text}`);
+    await clickElement(eintrag);
+  }
+
+  // Ohne `ConfigProvider`-Locale beschriftet antd die beiden Knoepfe englisch
+  // („Reset"/„OK"); beide Schreibweisen werden akzeptiert.
+  const knopf = (muster: RegExp) => Array.from(
+    offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+  ).find((element) => muster.test(element.textContent ?? ""));
+
+  // „Zuruecksetzen" leert nur die Auswahl; uebernommen wird sie erst mit „OK".
+  if (eintraege.length === 0) {
+    const leeren = knopf(/Zurücksetzen|Reset/);
+    if (!leeren) throw new Error("Kein Zurücksetzen-Knopf im Filtermenü");
+    await clickElement(leeren);
+  }
+  const uebernehmen = knopf(/^OK$/);
+  if (!uebernehmen) throw new Error("Kein OK-Knopf im Filtermenü");
+  await clickElement(uebernehmen);
+  await warte();
+}
+
 function knopfMitText(text: string, wurzel: ParentNode = document.body): HTMLElement {
   const knopf = Array.from(wurzel.querySelectorAll<HTMLElement>("button"))
     .find((element) => (element.textContent ?? "").includes(text));
@@ -184,27 +250,43 @@ describe("SauerstoffListe", () => {
     expect(sucheTrifft(ZEILEN[0], "Lager Beta")).toBe(false);
   });
 
-  it("kombiniert Suche, niedrigen Druck und ausgeblendete Inaktive", async () => {
+  /**
+   * Die Haken „nur niedriger Druck" und „inaktive ausblenden" standen bis zur
+   * Umstellung ueber der Tabelle. Beide sind Spaltenfilter geworden — dieselben
+   * Praedikate, nur dort, wo ihre Wirkung sichtbar ist.
+   */
+  it("schneidet Füllstands-, Status- und Freitextfilter miteinander", async () => {
     await mount(<SauerstoffListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
-    const checkboxen = queryAll<HTMLElement>(".ant-checkbox-wrapper");
-    const niedrig = checkboxen.find((x) => x.textContent?.includes("nur niedriger Druck"));
-    const inaktive = checkboxen.find((x) => x.textContent?.includes("inaktive ausblenden"));
-    if (!niedrig || !inaktive) throw new Error("Filtercheckboxen fehlen");
+    expect(exists(".ant-checkbox-wrapper")).toBe(false);
 
-    await clickElement(niedrig);
-    expect(queryAll("tbody tr[data-row-key]").map((x) => x.getAttribute("data-row-key")))
-      .toEqual(["o1", "o4"]);
-    expect(query(`.${s.filtertreffer}`).textContent).toBe("2 von 4");
+    await spaltenFilter("Füllstand", "niedriger Druck");
+    expect(zeilenIds()).toEqual(["o1", "o4"]);
 
-    await clickElement(inaktive);
-    expect(queryAll("tbody tr[data-row-key]").map((x) => x.getAttribute("data-row-key")))
-      .toEqual(["o1"]);
-    expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 4");
+    await spaltenFilter("Status", "aktiv");
+    expect(zeilenIds()).toEqual(["o1"]);
 
-    await fill("input[type='search']", "unbekannt");
+    await suchen("unbekannt");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
     expect(document.body.textContent).toContain("Keine Sauerstoffflasche passt zu den Filtern.");
+    // Die Trefferanzeige zaehlt die Freitextsuche; die Spaltenfilter zeigen
+    // ihre Wirkung im Spaltenkopf.
     expect(query(`.${s.filtertreffer}`).textContent).toBe("0 von 4");
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS DER DRUCK NICHT UEBER DEN ANZEIGETEXT SORTIERT.
+   * „240 bar" stuende als Zeichenkette vor „40 bar" und „70 bar"; nur ueber die
+   * nackte Zahl steht 40 vorn. Die Flasche ohne Messung traegt `null` und steht
+   * aufsteigend hinten.
+   */
+  it("sortiert den Druck über die Zahl, nicht über den Anzeigetext", async () => {
+    await mount(<SauerstoffListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Druck"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(zeilenIds()).toEqual(["o4", "o1", "o2", "o3"]);
   });
 
   it("setzt die tragenden Table-Props und keine Ampelfarbe am Progress", async () => {
@@ -216,8 +298,11 @@ describe("SauerstoffListe", () => {
       "utf8",
     );
     expect(quelle).toMatch(/rowKey=["']id["']/);
-    expect(quelle).toMatch(/pagination=\{false\}/);
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM — die
+    // Pagination oben, die Tabellenbreite hier.
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
     expect(quelle).not.toMatch(/strokeColor/);
   });
 });

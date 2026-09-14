@@ -107,12 +107,19 @@ export function zuZeile(roh: UebersichtZeile, jetzt: Date): ShareZeile {
     anzahlDateien: roh.anzahlDateien,
     anzahlUnvollstaendig: roh.anzahlUnvollstaendig,
     groesseText: byteTextBinaer(roh.gesamtGroesse),
+    /* Die Rohwerte NEBEN dem Anzeigetext, allein fuer die Sortierung der
+       Spaltenkoepfe: „476,8 MiB" und „31.07.2026, 14:00" ordneten als
+       Zeichenkette falsch, und zwar still. */
+    groesseBytes: roh.gesamtGroesse,
     ablaufText: zeitpunktBerlin(roh.ablaufAt),
+    ablaufIso: roh.ablaufAt.toISOString(),
     abgelaufen: roh.ablaufAt.getTime() <= jetzt.getTime(),
     /* `null` = UNBEGRENZT, nicht 0 und nicht −1 (§4.2) — deshalb `??` und
        niemals `||`: die Alt-Zeile `maxDownloads || null` machte aus „0
        Downloads" still einen unbegrenzten Share. */
     downloadsText: `${roh.downloadCount} / ${roh.maxDownloads ?? "∞"}`,
+    // dito: der Bruch sortierte als Zeichenkette „10 / 20" vor „3 / 5".
+    downloadsZahl: roh.downloadCount,
     hatPasswort: roh.hatPasswort,
     avSammelwert: roh.avSammelwert,
     /* `created_by` ist reine Anzeige — es gibt KEINE Ownership-Pruefung zwischen

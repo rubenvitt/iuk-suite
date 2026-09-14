@@ -608,6 +608,27 @@ describe("ArtikelDrawer: Chargen und begrenzte Historie", () => {
     expect(queryPortal("table[aria-label='Chargen'] svg[role='img']")).toBeTruthy();
   });
 
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE REST-SPALTE UEBER DIE ZAHL SORTIERT.
+   * Gezeigt wird „4 Stk"; als Zeichenkette stuende „3 Stk" vor „4 Stk" — hier
+   * zufaellig richtig, bei zweistelligen Mengen nicht mehr. Ohne Klick bleibt
+   * die FEFO-Reihenfolge des Servers stehen.
+   */
+  it("hält FEFO und sortiert den Rest auf Klick über die Zahl", async () => {
+    await drawerMounten();
+    const chargen = queryPortal("table[aria-label='Chargen']");
+    const schluessel = () => Array.from(
+      chargen.querySelectorAll("tbody tr[data-row-key]"),
+      (zeile) => zeile.getAttribute("data-row-key"),
+    );
+    expect(schluessel()).toEqual(["c-fefo-1", "c-fefo-2"]);
+
+    const kopf = Array.from(chargen.querySelectorAll<HTMLElement>("thead th"))
+      .find((th) => (th.textContent ?? "").includes("Rest"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+    expect(schluessel()).toEqual(["c-fefo-2", "c-fefo-1"]);
+  });
+
   it("zeigt den festen Begrenzungshinweis nur wenn mehrVorhanden wahr ist", async () => {
     await drawerMounten();
     expect(queryPortal("table[aria-label='Buchungshistorie des Artikels']"))

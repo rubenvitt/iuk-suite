@@ -1,19 +1,13 @@
 import type { ReactNode } from "react";
 import { getDb, type DB } from "../../../_db/client";
 import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
-import { journalZeile } from "../../../_lib/journalZeile";
 import {
   journalEintraege,
   type JournalErgebnis,
-  type JournalZeileRoh,
 } from "../../../_lib/lesepfade/journal";
-import { fmtTs } from "../../../_lib/zeit";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { JournalFilter } from "./JournalFilter";
-import {
-  JournalTable,
-  type JournalAnzeigeZeile,
-} from "./JournalTable";
+import { JournalTable, journalZeileDTO, type JournalAbrufFilter } from "./JournalTable";
 import {
   deckelText,
   journalParameterAus,
@@ -28,6 +22,12 @@ export type JournalSeitenDaten = JournalParameterErgebnis & JournalErgebnis;
 /**
  * Regime B: Die URL wird vor dem Reader normalisiert, dann greifen alle
  * WHERE-Bedingungen auf die gesamte Historie und erst danach der 100er-Deckel.
+ *
+ * ⚠️ DER DECKEL IST SEIT DRK-331 EINE PORTIONSGROESSE, KEINE GRENZE. Diese
+ * Funktion liefert weiter genau eine Portion; die weiteren holt die Client-Insel
+ * ueber `naechsteJournalSeite` mit der Schluesselposition nach. Die Begruendung
+ * fuer den Deckel selbst bleibt unveraendert (`_lib/grenzen.ts`):
+ * `better-sqlite3` ist SYNCHRON, ein Vollladen blockiert die GANZE Suite.
  */
 export function journalDaten(
   db: DB,
@@ -41,31 +41,31 @@ export function journalDaten(
   return { ...normalisiert, ...ergebnis };
 }
 
-function journalAnzeigeZeilen(
-  zeilen: JournalZeileRoh[],
-): JournalAnzeigeZeile[] {
-  return zeilen.map((zeile) => {
-    const darstellung = journalZeile(zeile);
-
-    return {
-      id: zeile.id,
-      zeitText: fmtTs(zeile.ts),
-      artikelName: zeile.artikelName,
-      vorgangText: darstellung.typText
-        + (zeile.kommentar ? ` · ${zeile.kommentar}` : ""),
-      deltaText: darstellung.mengeText,
-      deltaTon: darstellung.zustand === "negativ" ? "negativ" : "positiv",
-      quelleName: zeile.quelleName,
-      // Roher Code/rohe Kennung NUR fuer den `title` des Chips (Ruling A15,
-      // 1:1 aus der Alt-Anwendung).
-      quelleId: zeile.quelleId,
-    };
-  });
+/**
+ * Der Filter, mit dem die Client-Insel ihre Nachschlaege fahren muss.
+ *
+ * ⚠️ ER WIRD AUS DEN NORMALISIERTEN WERTEN GEBAUT, nicht aus den rohen
+ * URL-Parametern: sonst faehrt der erste Abruf gegen einen geprueften Filter und
+ * jeder weitere gegen einen ungeprueften — und ein ungueltiger Tag in der URL
+ * lieferte ab Seite zwei andere Zeilen als auf Seite eins.
+ */
+function abrufFilterAus(daten: JournalSeitenDaten): JournalAbrufFilter {
+  // ⚠️ NICHT GESETZTE SCHLUESSEL FEHLEN, sie stehen nicht auf `undefined`.
+  // `page.test.tsx` prueft diese Grenze strenger als JSON: erlaubt sind nur
+  // Zeichenkette, Zahl, Wahrheitswert, `null`, Feld und schlichtes Objekt — ein
+  // `undefined` faellt durch. Das ist keine Schikane: `JSON.stringify` wirft
+  // solche Schluessel ohnehin weg, ein Vertrag, der sie nennt, behauptet also
+  // etwas, das auf der anderen Seite nicht ankommt.
+  const filter: JournalAbrufFilter = {};
+  if (daten.filter.q) filter.q = daten.filter.q;
+  if (daten.filter.typ) filter.typ = daten.filter.typ;
+  if (daten.filter.von) filter.von = daten.filter.von.toISOString();
+  if (daten.filter.bis) filter.bis = daten.filter.bis.toISOString();
+  return filter;
 }
 
 export function journalInhalt(daten: JournalSeitenDaten): ReactNode {
-  const zeilen = journalAnzeigeZeilen(daten.zeilen);
-  const beschreibung = deckelText(zeilen.length, daten.mehrVorhanden);
+  const beschreibung = deckelText(daten.zeilen.length, daten.mehrVorhanden);
 
   return (
     <>
@@ -84,7 +84,11 @@ export function journalInhalt(daten: JournalSeitenDaten): ReactNode {
         hinweise={daten.hinweise}
       />
       <JournalTable
-        zeilen={zeilen}
+        ersteZeilen={daten.zeilen.map(journalZeileDTO)}
+        ersterCursor={daten.naechsterCursor
+          ? { ts: daten.naechsterCursor.ts.toISOString(), id: daten.naechsterCursor.id }
+          : null}
+        abrufFilter={abrufFilterAus(daten)}
         leertext={daten.hatFilter
           ? "Keine Buchung passt zu Suche, Vorgang und Zeitraum."
           : "Noch keine Buchung."}

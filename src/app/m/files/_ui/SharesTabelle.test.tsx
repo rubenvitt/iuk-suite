@@ -46,6 +46,8 @@ vi.mock("../(verwaltung)/actions", () => ({
   bearbeitenAction: bearbeitenMock,
 }));
 
+import { act } from "react";
+
 import { SharesTabelle, SharesTabelleSkelett, type ShareZeile } from "./SharesTabelle";
 import {
   click,
@@ -55,6 +57,7 @@ import {
   mount,
   query,
   queryAll,
+  queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 
@@ -107,9 +110,14 @@ function zeile(ueberschreibung: Partial<ShareZeile> = {}): ShareZeile {
     anzahlDateien: 2,
     anzahlUnvollstaendig: 0,
     groesseText: "476,8 MiB",
+    /* Die ROHWERTE neben dem Anzeigetext — sie tragen die Sortierung der
+       Spaltenkoepfe. Ohne sie ordnete „476,8 MiB" neben „11 KiB" falsch. */
+    groesseBytes: 500_000_000,
     ablaufText: "31.07.2026, 14:00",
+    ablaufIso: "2026-07-31T12:00:00.000Z",
     abgelaufen: false,
     downloadsText: "3 / 10",
+    downloadsZahl: 3,
     hatPasswort: true,
     avSammelwert: "freigegeben",
     erstelltVonText: "sub-1",
@@ -201,12 +209,24 @@ describe("Punkt 3 — `scroll={{ x: \"max-content\" }}` und kein fixes Tabellenl
     expect(stil).toContain("width:max-content");
   });
 
-  it("setzt `scroll.x` und keine der drei Umschalt-Eigenschaften", () => {
+  /**
+   * `scroll={{ x: "max-content" }}` steht seit der Umstellung nicht mehr in
+   * dieser Datei — es ist die VORGABE der `Datentabelle`
+   * (`core/tabelle/masse.ts`). Ein Quelltext-Scan darauf pruefte nur noch, ob
+   * jemand die Vorgabe ueberfluessig wiederholt; die WIRKUNG misst der Test
+   * darueber am gerenderten `<table>`. Was ein Scan weiterhin besitzt, sind die
+   * drei Umschalt-Eigenschaften: Aussagen ueber ABWESENHEIT kann ein DOM-Test
+   * strukturell nicht treffen.
+   */
+  it("setzt keine der drei Umschalt-Eigenschaften und blaettert nicht", async () => {
     const quelle = quelltext(QUELLE_TABELLE);
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*"max-content"\s*\}\}/);
     expect(quelle).not.toMatch(/\bfixed:\s*["']/);
     expect(quelle).not.toMatch(/\bellipsis\b/);
     expect(quelle).not.toMatch(/scroll=\{\{[^}]*\by:/);
+    // „Nicht blaettern" ist ebenfalls Vorgabe der `Datentabelle` — also am DOM
+    // gemessen statt am Quelltext.
+    await zeige();
+    expect(exists(".ant-pagination")).toBe(false);
   });
 });
 
@@ -238,7 +258,13 @@ describe("Punkt 4 — die Zeile zeigt Zustand, Menge und Datum", () => {
   it("traegt an der Spalte „Titel“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
     await zeige();
     const kopf = queryAll("thead.ant-table-thead th")[0];
-    const span = kopf?.querySelector("span");
+    /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
+       Titel einer SORTIERBAREN Spalte noch einmal ein
+       (`.ant-table-column-sorters` > `.ant-table-column-title`), und die Huelle
+       traegt keinen Stil. */
+    const span = Array.from(kopf?.querySelectorAll("span") ?? []).find(
+      (kandidat) => kandidat.style.fontWeight === "600",
+    );
     expect(span?.textContent).toBe("Titel");
     expect(span?.style.fontWeight).toBe("600");
     expect(span?.style.textTransform).toBe("uppercase");
@@ -512,5 +538,80 @@ describe("Querschnittsregeln", () => {
     for (const pfad of [QUELLE_TABELLE, QUELLE_DIALOG]) {
       expect(quelltext(pfad), pfad).not.toMatch(/from\s+["']\.\.?\/.*_lib\/(zip|av|storage)["']/);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sortierung und Filter im Spaltenkopf
+// ---------------------------------------------------------------------------
+
+/**
+ * ⚠️ SORTIERT WIRD NIE UEBER DEN ANZEIGETEXT — und dieser Test ist der Grund,
+ * warum die Zeile ueberhaupt `groesseBytes` traegt. „476,8 MiB" stuende als
+ * Zeichenkette VOR „11 KiB", und niemand saehe es: eine falsch sortierte
+ * Tabelle sieht aus wie eine richtig sortierte.
+ */
+describe("Sortierung und Filter stehen im Spaltenkopf", () => {
+  /**
+   * DIE ZEIGERFOLGE, ausgeschrieben statt versteckt. rc-trigger oeffnet das
+   * Filter-Dropdown erst, wenn es `mousedown`/`mouseup`/`click` gesehen hat —
+   * mit einem einzelnen `click` bleibt das Portal LEER, und der Test misst
+   * dann, dass nichts passiert ist, statt dass der Filter nicht greift.
+   */
+  async function zeigerfolge(element: HTMLElement): Promise<void> {
+    await act(async () => {
+      element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+  }
+
+  function kopf(ueberschrift: string): HTMLElement {
+    const treffer = queryAll("thead.ant-table-thead th").find((th) =>
+      (th.textContent ?? "").includes(ueberschrift),
+    );
+    expect(treffer, `keine Spalte „${ueberschrift}“`).not.toBeUndefined();
+    return treffer as HTMLElement;
+  }
+
+  function titel(): string[] {
+    return queryAll("tbody.ant-table-tbody tr.ant-table-row td:first-child").map((td) =>
+      (td.textContent ?? "").trim(),
+    );
+  }
+
+  const KLEIN = zeile({ id: "sh-klein", titel: "Klein", groesseText: "11 KiB", groesseBytes: 11_264 });
+  const GROSS = zeile({ id: "sh-gross", titel: "Groß", groesseText: "476,8 MiB", groesseBytes: 500_000_000 });
+
+  it("ordnet die Größe nach BYTES, nicht nach dem Anzeigetext", async () => {
+    await zeige([GROSS, KLEIN]);
+    // Ein Klick auf den Kopf sortiert aufsteigend. Ueber den Text sortiert
+    // stuende „11 KiB" hinter „476,8 MiB" — „1" vor „4" ist als Zeichenkette
+    // richtig und als Groesze falsch.
+    await zeigerfolge(kopf("Größe"));
+    expect(titel()).toEqual(["Klein", "Groß"]);
+  });
+
+  it("filtert den Typ über den Spaltenkopf, mit den vorkommenden Werten", async () => {
+    await zeige([
+      zeile({ id: "sh-ordner", titel: "Ordner-Freigabe", typText: "Ordner" }),
+      zeile({ id: "sh-datei", titel: "Datei-Freigabe", typText: "Datei" }),
+    ]);
+
+    const ausloeser = kopf("Typ").querySelector(".ant-table-filter-trigger");
+    expect(ausloeser, "kein Filter-Ausloeser an der Typ-Spalte").not.toBeNull();
+    await zeigerfolge(ausloeser as HTMLElement);
+
+    const eintraege = Array.from(
+      queryPortal(".ant-table-filter-dropdown").querySelectorAll(".ant-dropdown-menu-item"),
+    );
+    // AUS DEN ZEILEN, deutsch sortiert — keine gepflegte Liste, also auch keine
+    // Option, die keine Zeile trifft.
+    expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual(["Datei", "Ordner"]);
+
+    await zeigerfolge(eintraege[1] as HTMLElement);
+    await zeigerfolge(queryPortal(".ant-table-filter-dropdown-btns .ant-btn-primary"));
+
+    expect(titel()).toEqual(["Ordner-Freigabe"]);
   });
 });

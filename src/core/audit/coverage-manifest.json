@@ -335,6 +335,10 @@
     "kind": "context",
     "via": "setzeAusgeblendeteKategorien"
   },
+  "src/app/m/lagerbuch/_actions/journal.ts#naechsteJournalSeite": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
   "src/app/m/lagerbuch/_actions/aussondern.ts#aussondern": {
     "kind": "context",
     "via": "aussondern"

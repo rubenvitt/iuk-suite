@@ -113,3 +113,30 @@ it.each([["to","Bis einschließlich (UTC)","2026-02-30"],["to","Bis einschließl
  expect(document.activeElement?.getAttribute("aria-describedby")).toBe("audit-filter-error");
  expect(document.getElementById("audit-filter-error")?.textContent).toContain(label);
 });
+
+/**
+ * ⚠️ SORTIERT WIRD UEBER `occurredAt`, NIE UEBER `auditTime(...)`. Die drei
+ * Zeitpunkte unten sind so gewaehlt, dass der ANZEIGETEXT gegen den Rohwert
+ * spricht: „01.10." steht als Zeichenkette vor „14.09." und „25.07.", die
+ * Zeitachse stellt sie aber genau umgekehrt. Ueber den Text sortiert waere
+ * diese Tabelle gruen und trotzdem falsch — und niemand saehe es.
+ *
+ * `descend` ist die Vorgabe der Spalte, weil die Statuszeile ueber der Tabelle
+ * „Neueste zuerst" sagt: die Startordnung darf ihr nicht widersprechen. Geprueft
+ * wird deshalb OHNE Klick — die Vorgabe wirkt beim ersten Rendern.
+ */
+it("stellt das Protokoll nach Zeit absteigend, ueber den Rohwert statt den Anzeigetext",async()=>{
+ const zeit=(iso:string)=>Date.parse(iso);
+ const events:AuditEvent[]=[
+  {...event,id:"00000000-0000-0000-0000-00000000000a",occurredAt:zeit("2026-07-25T12:00:00Z")},
+  {...event,id:"00000000-0000-0000-0000-00000000000b",occurredAt:zeit("2026-10-01T08:00:00Z")},
+  {...event,id:"00000000-0000-0000-0000-00000000000c",occurredAt:zeit("2026-09-14T23:00:00Z")},
+ ];
+ await mount(<AuditLog view={{...ready,page:{events}}} search={{}}/>);
+ const reihen=Array.from(document.querySelectorAll("tbody tr[data-row-key]")).map(tr=>tr.getAttribute("data-row-key"));
+ expect(reihen).toEqual([
+  "00000000-0000-0000-0000-00000000000b",
+  "00000000-0000-0000-0000-00000000000c",
+  "00000000-0000-0000-0000-00000000000a",
+ ]);
+});

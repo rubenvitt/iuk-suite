@@ -11,9 +11,11 @@ import bestandNullAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lager
 import checklisteVerfallLeer from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-checkliste-verfall-leer";
 import kategorienAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-kategorien-ausblenden";
 import mehrereArtikelBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-mehrere-artikel-bearbeiten";
+import journalNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-journal-nachladen";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
+import tabellenSortierenFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-14-tabellen-sortieren-filtern";
 import vonAllenGeraetenAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-14-von-allen-geraeten-abmelden";
 import alteQrCodesGeltenWeiter from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-alte-qr-codes-gelten-weiter";
 import funkInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-funk-in-der-suite";
@@ -54,6 +56,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   checklisteVerfallLeer,
   kategorienAusblenden,
   mehrereArtikelBearbeiten,
+  journalNachladen,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,
@@ -61,6 +64,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   ereignisseNachvollziehen,
   zeichenVoruebergehendPausiert,
   versionsnummerImProfil,
+  tabellenSortierenFiltern,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,

@@ -267,6 +267,7 @@ import {
   click,
   clickElement,
   clickPortal,
+  exists,
   fill,
   mount,
   query,
@@ -292,8 +293,34 @@ function zeile(teil: Partial<CodeZeile> = {}): CodeZeile {
     gesperrtVonText: "",
     gesperrtVonSub: "",
     zuletztText: "20.06.2026, 18:45",
+    // ⛔ DAS ROHFELD GEHOERT IN JEDE TESTZEILE. Ohne es sortierte die Spalte „Zuletzt benutzt"
+    // ueber den Anzeigetext — genau die Klasse, die `zuletztIso` ausschliesst.
+    zuletztIso: "2026-06-20T16:45:00.000Z",
     ...teil,
   };
+}
+
+/**
+ * Einen sortierbaren Spaltenkopf anfassen — ⛔ UEBER SEINE BESCHRIFTUNG UND NICHT UEBER SEINE
+ * POSITION. Ein Fall, der `queryAll("th")[0]` schreibt, misst nach dem Einschieben einer
+ * Spalte still eine andere und bleibt gruen.
+ *
+ * ⚠️ DIE BESCHRIFTUNG LIEGT IN EINEM `<span>` DES KICKERS (`src/core/tabelle/Datentabelle.tsx`);
+ * `textContent` liest durch ihn hindurch.
+ */
+async function klickeSpaltenkopf(beschriftung: string): Promise<void> {
+  const kopf = queryAll("th.ant-table-column-has-sorters").find(
+    (th) => (th.textContent ?? "").trim() === beschriftung,
+  );
+  if (kopf === undefined) throw new Error(`Kein sortierbarer Spaltenkopf „${beschriftung}"`);
+  await clickElement(kopf);
+}
+
+/** Die Bezeichnungen in der Reihenfolge, in der sie auf dem Bildschirm stehen. */
+function bezeichnungen(): string[] {
+  return queryAll('[data-rolle="radio-code-bezeichnung"]').map((el) =>
+    (el.textContent ?? "").trim(),
+  );
 }
 
 /** Eine gesperrte Zeile mit BEIDEN Angaben — der Bestand, den `_db/schema.ts:184-187` meint. */
@@ -904,16 +931,29 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
         `${datei}: ein size-Attribut an einem antd-Bedienelement (Falle 4)`,
       ).not.toMatch(/\bsize=\{?["']?(?:small|large)/);
     }
-    const tabelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
-    expect(tabelle, "ohne scroll bricht die Tabelle auf 390 px").toMatch(
-      /scroll=\{\{ x: "max-content" \}\}/,
-    );
+  });
+
+  it("die Zugangsliste blaettert nicht", async () => {
     /*
-     * ⛔ KEINE BLAETTERUNG. Die Tabelle liegt in der Groessenordnung „Zahl der Aufsteller"
-     * (`_db/schema.ts:193-195`), und eine Blaetterung schnitte die Liste, aus der V21 das
-     * Druckblatt setzt, in Seiten.
+     * ⛔ **DIE MESSUNG LIEGT SEIT DER UMSTELLUNG AUF `@/core/tabelle` AM DOM UND NICHT MEHR AM
+     * QUELLTEXT.** Vorher stand hier ein Scan auf `pagination={false}` und
+     * `scroll={{ x: "max-content" }}` — beides steht jetzt als VORGABE in
+     * `src/core/tabelle/Datentabelle.tsx` und in dieser Datei folgerichtig nirgends mehr; der
+     * Scan wuerde ueber korrektem Bestand rot und waere damit gegenstandslos.
+     *
+     * ⛔ DIE ZUSAGE SELBST BLEIBT UNVERAENDERT und wird jetzt schaerfer gemessen: die Tabelle
+     * liegt in der Groessenordnung „Zahl der Aufsteller" (`_db/schema.ts:193-195`), und eine
+     * Blaetterung schnitte die Liste, aus der V21 das Druckblatt setzt, in Seiten. ⚠️ Das
+     * gerenderte DOM sagt das, was der Quelltext nur behaupten konnte — ein
+     * `blaettern={{ … }}`, das jemand hier ergaenzte, faerbte diesen Fall rot, ein
+     * Quelltext-Scan auf ein NICHT mehr vorhandenes Literal nicht.
+     *
+     * ⚠️ `scroll` BEKOMMT KEINEN ZWEITEN FALL: jsdom rechnet keine Layoutboxen (Falle 13,
+     * `CLAUDE.md`), die Wirkung ist hier strukturell nicht messbar. Sie gehoert der
+     * `Datentabelle` und wird dort geprueft.
      */
-    expect(tabelle, "die Zugangsliste blaettert").toMatch(/pagination=\{false\}/);
+    await mount(<CodeTabelle zeilen={[zeile(), zeile({ id: "zc-2" })]} />);
+    expect(exists(".ant-pagination"), "die Zugangsliste blaettert").toBe(false);
   });
 
   it("kein roter Ton auf der Datenflaeche — Rot gehoert den zerstoerenden Knoepfen", () => {
@@ -1085,5 +1125,100 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
       roh,
       "die Leerstelle mit dem Nachfolgernamen V21 steht noch da, obwohl V21 gebaut ist",
     ).not.toMatch(/⬜[\s\S]{0,600}V21/);
+  });
+});
+
+describe("radio-Zugaenge: Sortierung und Filter im Spaltenkopf", () => {
+  it("ohne Griff bleibt die Ordnung die des Lesepfads", async () => {
+    /*
+     * ⛔ **DIE ERSTE HAELFTE DER SORTIERZUSAGE, UND DIE WICHTIGERE.** Keine Spalte traegt ein
+     * `defaultSortOrder`; die Flaeche zeigt beim Oeffnen, was `codesListe` liefert
+     * (`desc(createdAt)`, `_lib/lesepfade/codes.ts`) — der neueste Zugang oben, weil er der
+     * ist, den jemand gerade ausgestellt hat und sucht. Ein versehentliches
+     * `defaultSortOrder` waere eine stille Umordnung der ganzen Flaeche.
+     */
+    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    expect(bezeichnungen()).toEqual(["Aufsteller Funkraum", "Aufsteller Fahrzeughalle"]);
+  });
+
+  it("ein Klick auf den Spaltenkopf Bezeichnung ordnet die Zeilen um", async () => {
+    /*
+     * ⛔ DIE WIRKUNG, NICHT DIE ANWESENHEIT: ein Fall, der nur den Sortierpfeil zaehlt, bliebe
+     * gruen, wenn der `sorter` ein `true` waere und niemand sortierte.
+     * ⛔ UND ZURUECK: der zweite Klick dreht die Richtung um. Ohne die Gegenprobe bestuende der
+     * Fall auch ueber einem Vergleicher, der IMMER dieselbe Ordnung liefert.
+     */
+    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+
+    await klickeSpaltenkopf("Bezeichnung");
+    expect(bezeichnungen()).toEqual(["Aufsteller Fahrzeughalle", "Aufsteller Funkraum"]);
+
+    await klickeSpaltenkopf("Bezeichnung");
+    expect(bezeichnungen()).toEqual(["Aufsteller Funkraum", "Aufsteller Fahrzeughalle"]);
+  });
+
+  it("Zuletzt benutzt ordnet ueber das Rohfeld, nicht ueber den Anzeigetext", async () => {
+    /*
+     * ⛔ **DER FALL, DER DIE GEFAEHRLICHSTE HAELFTE MISST.** `zuletztText` ist
+     * „02.10.2026, 08:00" ODER das Wort „nie eingelöst"; als ZEICHENKETTE verglichen steht
+     * „14.09…" VOR „02.10…" (die 1 vor der 0), und das Wort landete zwischen den Daten. Die
+     * Spalte saehe sortiert aus und waere es nicht.
+     *
+     * ⛔ DIE NIE EINGELOESTE ZEILE TRAEGT DIE LEERE ZEICHENKETTE und steht aufsteigend HINTEN
+     * (`nachDatum`, `LEER_ZULETZT`) — ⛔ nicht 1970 ganz vorn, was ein `?? new Date(0)`
+     * ergaebe (der vernarbte Praezedenzfall V-L6).
+     */
+    await mount(
+      <CodeTabelle
+        zeilen={[
+          zeile({ id: "zc-a", bezeichnung: "A", zuletztText: "nie eingelöst", zuletztIso: "" }),
+          zeile({
+            id: "zc-b",
+            bezeichnung: "B",
+            zuletztText: "14.09.2026, 08:00",
+            zuletztIso: "2026-09-14T06:00:00.000Z",
+          }),
+          zeile({
+            id: "zc-c",
+            bezeichnung: "C",
+            zuletztText: "02.10.2026, 08:00",
+            zuletztIso: "2026-10-02T06:00:00.000Z",
+          }),
+        ]}
+      />,
+    );
+
+    await klickeSpaltenkopf("Zuletzt benutzt");
+    expect(bezeichnungen(), "der September steht nicht vor dem Oktober").toEqual(["B", "C", "A"]);
+  });
+
+  it("der Zustandsfilter zeigt nur die gesperrten Zugaenge", async () => {
+    /*
+     * ⛔ **DER FILTER LIEGT IM SPALTENKOPF, NICHT IN EINER LEISTE DARUEBER** — und er filtert
+     * nur die ANSICHT. ⚠️ DAS LOESCHVERBOT BLEIBT DAVON UNBERUEHRT: die gesperrte Zeile ist
+     * weiterhin in den Daten (der Fall „ein gesperrter Code bleibt in der Liste" misst das),
+     * sie ist nur gerade nicht gezeigt. Wer den Haken wieder entfernt, sieht beide.
+     *
+     * ⚠️ antd rendert das Aufklappmenue und seine Knoepfe in ein PORTAL an `document.body`
+     * (`qr/_lib/test-dom.tsx`); gegriffen wird deshalb dort.
+     */
+    await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
+    expect(bezeichnungen().length).toBe(2);
+
+    await clickElement(query("th .ant-table-filter-trigger"));
+    const eintraege = Array.from(
+      document.body.querySelectorAll(".ant-dropdown .ant-dropdown-menu-title-content"),
+    );
+    expect(
+      eintraege.map((el) => (el.textContent ?? "").trim()),
+      "die Zustandsliste steht nicht auf den zwei Zustaenden",
+    ).toEqual(["aktiv", "gesperrt"]);
+
+    await clickElement(eintraege[1] as HTMLElement);
+    await clickPortal(".ant-table-filter-dropdown-btns .ant-btn-primary");
+
+    expect(bezeichnungen(), "der Filter zeigt nicht allein die gesperrte Zeile").toEqual([
+      "Aufsteller Fahrzeughalle",
+    ]);
   });
 });

@@ -468,4 +468,34 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
   });
+  /**
+   * ⚠️ DIE FACHSPALTE BEKOMMT EINEN FILTER, ABER KEINE SORTIERUNG.
+   *
+   * Die Zusammenfassung der Fachzellen (`onCell: { rowSpan }`) rechnet
+   * `sollGruppieren` EINMAL auf der nach `fachLabel` sortierten Kopie; eine
+   * Umsortierung durch antd zerrisse die Gruppen. Ein Filter entfernt dagegen
+   * ganze Gruppen und laesst die Reihenfolge in Ruhe.
+   */
+  it("filtert nach Fach und trägt an keiner Spalte einen Sortierer", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    expect(queryAll(".ant-table-column-sorters")).toHaveLength(0);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "Fach A");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["p-a1", "p-a2"]);
+  });
 });

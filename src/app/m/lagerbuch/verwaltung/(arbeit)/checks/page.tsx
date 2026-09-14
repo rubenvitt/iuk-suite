@@ -87,6 +87,13 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
     abgeschlossenText: zeile.completedAt?.toLocaleString("de-DE", {
       timeZone: "Europe/Berlin",
     }) ?? "—",
+    /**
+     * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
+     * `abgeschlossenText` ist „14.9.2026, 08:12:00" und ordnete als Zeichenkette
+     * den 2. Oktober vor den 14. September. Leer bleibt leer: eine Zeile ohne
+     * Abschluss traegt `null` und landet aufsteigend hinten.
+     */
+    abgeschlossenIso: zeile.completedAt?.toISOString() ?? null,
     ergebnisChips: ergebnisChips(zeile),
     /**
      * §11.5:10332 wörtlich: „die **Zeile** wird als ‚Ergebnis unlesbar'

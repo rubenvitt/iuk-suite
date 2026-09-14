@@ -77,13 +77,35 @@ export function artikelListe(
   // DREI Abfragen statt 3·N: Artikel, Bestand je Artikel, Rest je Charge.
   const bestand = bestandJeArtikel(db, HANDLAGER_ID);
   const rest = restJeCharge(db, HANDLAGER_ID);
-  const alleChargen = db.select().from(chargen).all();
+
+  /**
+   * ⚠️ DIE CHARGEN WERDEN EINMAL NACH ARTIKEL GRUPPIERT, nicht je Artikel neu
+   * durchsucht. Vorher stand hier ein `alleChargen.filter(...)` INNERHALB der
+   * `map` — also O(N_Artikel · N_Chargen), genau die Klasse, gegen die
+   * `lesepfade/bestand.ts` geschrieben ist und die dort fuer `buchungen` schon
+   * beseitigt wurde. Fuer `chargen` war sie stehen geblieben: bei 800 Artikeln
+   * und 4000 Chargen sind das 3,2 Mio. Durchlaeufe JE SEITENAUFRUF, und
+   * `better-sqlite3` ist SYNCHRON — die Artikelseite blockiert dabei die GANZE
+   * Suite, nicht nur dieses Modul (§5.2.3 b).
+   *
+   * Nur Chargen MIT REST kommen in die Gruppe: `naechste` fragt ohnehin nur nach
+   * ihnen, und eine leergebuchte Charge traegt sonst Speicher und Sortierzeit
+   * ohne je gewaehlt zu werden.
+   */
+  const alleChargenZeilen = db.select().from(chargen).all();
+  const chargenJeArtikel = new Map<string, typeof alleChargenZeilen>();
+  for (const c of alleChargenZeilen) {
+    if ((rest.get(c.id) ?? 0) <= 0) continue;
+    const gruppe = chargenJeArtikel.get(c.artikelId);
+    if (gruppe) gruppe.push(c);
+    else chargenJeArtikel.set(c.artikelId, [c]);
+  }
 
   return arts.map((a) => {
     const b = bestand.get(a.id) ?? 0;
-    const naechste = alleChargen
-      .filter((c) => c.artikelId === a.id && (rest.get(c.id) ?? 0) > 0)
-      .sort(vergleicheFefoCharge)[0] ?? null;
+    // `sort` mutiert — die Gruppe gehoert dieser Funktion allein, also
+    // unbedenklich, und sie wird je Artikel genau einmal sortiert.
+    const naechste = chargenJeArtikel.get(a.id)?.sort(vergleicheFefoCharge)[0] ?? null;
     const s = naechste ? verfallStatus(naechste.verfall, schwellen, now) : null;
     return {
       id: a.id, name: a.name, einheit: a.einheit, fach: a.fach,

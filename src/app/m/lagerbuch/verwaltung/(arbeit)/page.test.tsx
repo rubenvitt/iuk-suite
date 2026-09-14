@@ -362,12 +362,21 @@ describe("Verwaltungsübersicht", () => {
       "journal-mittel",
       "journal-alt",
     ]);
+    /**
+     * ⚠️ `zeitIso` UND `deltaZahl` STEHEN NEBEN DEM ANZEIGETEXT, seit die
+     * Spaltenkoepfe sortieren (DRK-331). Sie werden nie gezeigt — sortiert wird
+     * ueber sie, weil `zeitText` („07.08. 17:00") als Zeichenkette den 2.
+     * Oktober vor den 14. September stellte und „+3" neben „+30" falsch ordnet.
+     * Beide sind primitiv, die Zusage dieser Grenze bleibt also unberuehrt.
+     */
     expect(props.zeilen[0]).toEqual({
       id: "journal-neu",
       zeitText: "07.08. 17:00",
+      zeitIso: "2026-08-07T15:00:00.000Z",
       artikelName: "Verbandpäckchen",
       vorgangText: "Korrektur · Nachgezählt",
       deltaText: "+3",
+      deltaZahl: 3,
       deltaTon: "positiv",
     });
     expect(props.zeilen[2].deltaText).toBe("0");

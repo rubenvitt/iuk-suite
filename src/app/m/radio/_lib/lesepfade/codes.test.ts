@@ -172,6 +172,13 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
 
     const [zeile] = codesListe(db);
     expect(zeile?.zuletztText).toBe(NIE_EINGELOEST);
+    /*
+     * ⛔ UND DAS SORTIERFELD BLEIBT LEER — ⛔ KEIN ERFUNDENER ZEITPUNKT. Ein `new Date(0)`
+     * hier stellte den nie eingeloesten Zugang aufsteigend GANZ NACH VORN, als waere er 1970
+     * benutzt worden (der vernarbte Praezedenzfall V-L6). Leer heisst bei `nachDatum`:
+     * aufsteigend hinten.
+     */
+    expect(zeile?.zuletztIso, "ein erfundener Zeitpunkt im Sortierfeld").toBe("");
     expect(zeile?.aktiv, "ein nie eingeloester Zugang ist trotzdem gueltig").toBe(true);
   });
 
@@ -188,6 +195,12 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
       .run();
 
     expect(codesListe(db)[0]?.zuletztText).toBe(BENUTZT_TEXT);
+    /*
+     * ⛔ DAS SORTIERFELD TRAEGT DENSELBEN ZEITPUNKT ALS ISO-ZEICHENKETTE — die Spalte sortiert
+     * ueber IHN und nie ueber den Anzeigetext („02.10…" stuende sonst vor „14.09…"). Bleibt er
+     * leer, sortiert die Spalte still gar nicht mehr, und die Tabelle sieht richtig aus.
+     */
+    expect(codesListe(db)[0]?.zuletztIso).toBe(BENUTZT_AM.toISOString());
   });
 
   it("ein gesperrter Zugang liefert BEIDE Angaben: wann und von wem", () => {

@@ -31,7 +31,7 @@
  * ziehen will, muss `quelleAufloeser` in Teil 1 anfassen — das ist eine
  * Entscheidung, kein Cast.
  */
-import { and, desc, eq, gte, inArray, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { artikel, buchungen } from "../../_db/schema";
 import { quelleAufloeser } from "../../_db/quelle";
 import { falte } from "../suche";
@@ -48,11 +48,26 @@ export type JournalFilter = {
   von?: Date;
   /** inklusive obere Zeitgrenze (der Aufrufer setzt das Tagesende, §5.14.2) */
   bis?: Date;
-  /** Vorgabe `JOURNAL_GRENZE`. Kein Produktionsaufrufer setzt sie; sie existiert
-   *  allein fuer Tests. ⚠️ NICHT fuer die Artikel-Detail-Historie: die faehrt
-   *  ihre eigene Abfrage in `lesepfade/artikel.ts` mit
+  /** Vorgabe `JOURNAL_GRENZE`. ⚠️ NICHT fuer die Artikel-Detail-Historie: die
+   *  faehrt ihre eigene Abfrage in `lesepfade/artikel.ts` mit
    *  `ARTIKEL_VERLAUF_GRENZE` und ruft `journalEintraege` gar nicht. */
   grenze?: number;
+  /**
+   * DIE SCHLUESSELPOSITION, AB DER WEITERGELESEN WIRD (DRK-331).
+   *
+   * ⚠️ KEIN OFFSET. `LIMIT 100 OFFSET 400` liesse SQLite die ersten 400 Zeilen
+   * erneut durchlaufen — die fuenfte Seite kostet dann fuenfmal so viel wie die
+   * erste, und `better-sqlite3` ist SYNCHRON: die Suite steht waehrenddessen.
+   * Ein Offset ist ausserdem NICHT STABIL: kommt waehrend des Blaetterns eine
+   * Buchung dazu (und das ist hier der Normalfall, das Journal ist
+   * append-only), rutscht die ganze Liste um eins und eine Zeile erscheint
+   * doppelt oder gar nicht.
+   *
+   * Der Schluessel ist deshalb die Position selbst — `(ts, id)` der zuletzt
+   * gelieferten Zeile. Er trifft den Index `idx_buchungen_ts_id` (§4.14) und
+   * bleibt richtig, egal was inzwischen geschrieben wurde.
+   */
+  cursor?: { ts: Date; id: string };
 };
 
 export type JournalZeileRoh = {
@@ -72,6 +87,12 @@ export type JournalZeileRoh = {
 
 export type JournalErgebnis = {
   zeilen: JournalZeileRoh[];
+  /**
+   * Die Position hinter der letzten gelieferten Zeile — oder `null`, wenn es
+   * nichts mehr zu holen gibt. Der naechste Abruf reicht sie als `cursor`
+   * zurueck.
+   */
+  naechsterCursor: { ts: Date; id: string } | null;
   /** ⚠️ Der Beschreibungstext ist BEDINGT: bei `true` „Neueste 100 von mehr
    *  Treffern — Zeitraum eingrenzen", sonst „N Treffer" (§5.14.3, Auflage an
    *  Teil 5). Heute gibt es im Modul keinen Weg herauszufinden, ob eine Grenze
@@ -88,6 +109,20 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
   if (f.typ) conds.push(eq(buchungen.typ, f.typ));
   if (f.von) conds.push(gte(buchungen.ts, f.von));
   if (f.bis) conds.push(lte(buchungen.ts, f.bis));
+
+  /**
+   * Die Schluesselbedingung, und sie MUSS zur Sortierung passen: sortiert wird
+   * `ts DESC, id DESC`, also ist „hinter dem Cursor" hier das KLEINERE Paar.
+   * Ein `<=` auf `ts` allein liefe in eine Endlosschleife, sobald mehrere
+   * Buchungen dieselbe Sekunde tragen — und genau das tun sie, ein
+   * Check-Abschluss schreibt mehrere Zeilen in derselben Sekunde (§5.14.4).
+   */
+  if (f.cursor) {
+    conds.push(or(
+      lt(buchungen.ts, f.cursor.ts),
+      and(eq(buchungen.ts, f.cursor.ts), lt(buchungen.id, f.cursor.id)),
+    )!);
+  }
 
   const term = f.q?.trim();
   if (term) {
@@ -115,10 +150,15 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
     .all();
 
   const mehrVorhanden = rows.length > grenze;
+  const geliefert = rows.slice(0, grenze);
+  const letzte = geliefert.at(-1);
   const wer = quelleAufloeser(db);
   return {
     mehrVorhanden,
-    zeilen: rows.slice(0, grenze).map((b) => ({
+    // Nur wenn es WIRKLICH weitergeht. Ein Cursor auf der letzten Seite liesse
+    // den Aufrufer noch einen leeren Abruf fahren.
+    naechsterCursor: mehrVorhanden && letzte ? { ts: letzte.ts, id: letzte.id } : null,
+    zeilen: geliefert.map((b) => ({
       id: b.id,
       ts: b.ts,
       artikelName: namen.get(b.artikelId) ?? "–",

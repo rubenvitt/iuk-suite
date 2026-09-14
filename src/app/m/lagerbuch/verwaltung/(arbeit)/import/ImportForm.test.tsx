@@ -13,6 +13,7 @@ import {
   vi,
 } from "vitest";
 import {
+  clickElement,
   exists,
   mount,
   query,
@@ -426,5 +427,45 @@ describe("Routengrenze", () => {
     expect(quelle.trimStart().startsWith('"use client";')).toBe(true);
     expect(quelle).not.toMatch(/\bmessage\s*=/);
     expect(quelle).not.toMatch(/\bsuppressHydrationWarning\b|\bssr\s*:\s*false/);
+  });
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE ZAHLENSPALTEN UEBER DIE ZAHL SORTIEREN.
+   * Als Zeichenkette stuende „20" vor „7"; nur ueber den Rohwert steht 7 vorn.
+   * Ohne Klick bleibt die DATEIREIHENFOLGE stehen — sie ist die einzige, in der
+   * sich eine uebersprungene Zeile aus dem Fehlerbericht wiederfinden laesst.
+   */
+  it("hält die Dateireihenfolge und sortiert den Mindestbestand über die Zahl", async () => {
+    await mount(<VorschauTabelle rows={vorschauAus(CSV_MIT_FEHLER).rows} />);
+
+    const schluessel = () => queryAll("tbody tr[data-row-key]")
+      .map((zeile) => zeile.getAttribute("data-row-key"));
+    expect(schluessel()).toEqual(["3", "4"]);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Mindestbestand"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+    expect(schluessel()).toEqual(["4", "3"]);
+  });
+
+  it("filtert die Vorschau nach Fach über den Spaltenkopf", async () => {
+    await mount(<VorschauTabelle rows={vorschauAus(CSV_MIT_FEHLER).rows} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "B2");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["4"]);
   });
 });

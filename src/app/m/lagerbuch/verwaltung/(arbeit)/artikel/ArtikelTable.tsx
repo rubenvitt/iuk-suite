@@ -1,13 +1,28 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Checkbox, Flex, Select, Table } from "antd";
+import { Alert, Button, Flex, Select, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
+import {
+  angezeigteZeilen,
+  Datentabelle,
+  nachDatum,
+  nachText,
+  nachZahl,
+  trifftWert,
+  useEntprellt,
+  useVerfuegbareHoehe,
+  werteAlsFilter,
+  zustandsFilter,
+  type FilterZustand,
+  type SortZustand,
+} from "@/core/tabelle";
 import { setzeAusgeblendeteKategorien } from "../../../_actions/kategorien";
 import {
   artikelFiltern,
   artikelTrifft,
+  ARTIKEL_ZUSTAENDE,
   LEERER_FILTER,
   type ArtikelFilterZeile,
   type ArtikelFilterZustand,
@@ -48,67 +63,44 @@ type FahrzeugOption = {
   kennung: string | null;
 };
 
-export const SORTIERUNGEN = [
-  { wert: "name-asc", label: "Name A–Z" },
-  { wert: "name-desc", label: "Name Z–A" },
-  { wert: "fach", label: "Fach" },
-  { wert: "bestand-asc", label: "Bestand aufsteigend" },
-  { wert: "bestand-desc", label: "Bestand absteigend" },
-  { wert: "verfall", label: "Nächster Verfall" },
-] as const;
-
-export type ArtikelSortierung = (typeof SORTIERUNGEN)[number]["wert"];
-
 /** Fester Satz statt `e.message` — derselbe Grund wie `EXCEL_FEHLERTEXT`. */
 const KATEGORIEN_SPEICHERFEHLER =
   "Die Auswahl konnte nicht gespeichert werden – bitte erneut versuchen.";
 
-function nameVergleichen(a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile): number {
-  return a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id);
-}
-
-function artikelVergleichen(sortierung: ArtikelSortierung) {
-  switch (sortierung) {
-    case "name-desc":
-      return (a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile) => (
-        b.name.localeCompare(a.name, "de") || a.id.localeCompare(b.id)
-      );
-    case "fach":
-      return (a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile) => (
-        a.fach.localeCompare(b.fach, "de") || nameVergleichen(a, b)
-      );
-    case "bestand-asc":
-      return (a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile) => (
-        a.bestand - b.bestand || nameVergleichen(a, b)
-      );
-    case "bestand-desc":
-      return (a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile) => (
-        b.bestand - a.bestand || nameVergleichen(a, b)
-      );
-    case "verfall":
-      return (a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile) => {
-        const av = a.naechsteCharge?.verfall;
-        const bv = b.naechsteCharge?.verfall;
-        if (av === undefined && bv === undefined) return nameVergleichen(a, b);
-        if (av === undefined) return 1;
-        if (bv === undefined) return -1;
-        return av.localeCompare(bv) || nameVergleichen(a, b);
-      };
-    default:
-      return nameVergleichen;
-  }
-}
-
 /**
- * Eine totale, nicht mutierende Ordnung. Teil 6 bindet seinen Export an genau
- * das Ergebnis, das die Tabelle bereits verwendet.
+ * ⚠️ JEDE SPALTE TRAEGT EINE ZAHL, UND ZWAR WEIL DIE TABELLE VIRTUELL SCROLLT.
+ * `@rc-component/table` prueft `scroll.x` einer virtuellen Tabelle auf
+ * `typeof === "number"` und setzt sie sonst STILL auf 1 — die Tabelle fiele auf
+ * ein Pixel Breite zusammen. `core/tabelle/masse.ts` rechnet die Summe aus
+ * diesen Zahlen und schaltet die Virtualisierung lieber ab, als das zu liefern;
+ * `core/tabelle/masse.test.ts` haelt die Regel fest.
+ *
+ * ⚠️ DIE SUMME IST EINE ENTSCHEIDUNG UEBER DAS DESKTOP-BILD, nicht nur eine
+ * Voraussetzung der Virtualisierung. Sobald `scroll.y` gesetzt ist, schaltet
+ * rc-table auf `table-layout: fixed` (`docs/design/README.md`) — die Spalten
+ * stehen dann GENAU so breit, wie es hier steht, und nicht mehr so breit wie
+ * ihr Inhalt. Die Zahlen sind deshalb am Inhalt entlang gewaehlt und die Summe
+ * bewusst klein gehalten: 1110 + 32 fuer die Auswahlspalte = 1142.
+ *
+ * ⚠️ SIE GELTEN ERST AB `VIRTUELL_AB_ZEILEN` (150). Darunter bleibt die Tabelle
+ * gewoehnlich und misst wie bisher nach Inhalt — eine kleine Installation sieht
+ * von dieser Aenderung also gar nichts.
  */
-export function artikelSortieren(
-  zeilen: ArtikelAnzeigeZeile[],
-  sortierung: ArtikelSortierung,
-): ArtikelAnzeigeZeile[] {
-  return [...zeilen].sort(artikelVergleichen(sortierung));
-}
+const BREITE = {
+  artikel: 230,
+  fach: 90,
+  kategorie: 150,
+  bestand: 110,
+  mindest: 80,
+  verfall: 210,
+  status: 240,
+} as const;
+
+/** Die fachliche Ordnung der Ampel — rot zuerst, nicht alphabetisch. */
+const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
+
+/** Nur fuer die Vorschau der Sammelaenderung, die alphabetisch bleibt. */
+const NACH_NAMEN = nachText<ArtikelAnzeigeZeile>((zeile) => zeile.name);
 
 export function ArtikelTable({
   zeilen,
@@ -121,15 +113,16 @@ export function ArtikelTable({
   ausgeblendeteKategorien?: string[];
 }) {
   const [filter, setFilter] = useState<ArtikelFilterZustand>(LEERER_FILTER);
-  const [sortierung, setSortierung] = useState<ArtikelSortierung>("name-asc");
   const [offenerArtikel, setOffenerArtikel] = useState<string | null>(null);
   const [exportLaeuft, startExport] = useTransition();
   const [exportFehler, setExportFehler] = useState<string | null>(null);
   /**
    * DIE AUSGEBLENDETEN KATEGORIEN SIND EIN EIGENER ZUSTAND, nicht Teil von
-   * `filter` (DRK-294). Sie sind je Konto gespeichert, die Chips gelten nur fuer
-   * den Moment — und `zuruecksetzen()` setzt `LEERER_FILTER`. Laegen sie darin,
-   * loeschte „Zuruecksetzen" still eine gespeicherte Einstellung.
+   * `filter` (DRK-294). Sie sind je Konto GESPEICHERT, ein Spaltenfilter gilt
+   * nur fuer den Moment — das sind zwei verschiedene Dinge, und deshalb bleiben
+   * es zwei Bedienelemente. Die Kategorie-Spalte hat daneben ihren eigenen,
+   * momentanen Filter; die Beschriftung „dauerhaft ausblenden" sagt, welches
+   * von beiden bleibt.
    *
    * Der Zustand haelt die Wahrheit fuer diese Sitzung; die Prop ist nur der
    * Startwert. Die Server Action ersetzt die gespeicherte Liste als Ganzes, und
@@ -151,6 +144,20 @@ export function ArtikelTable({
   const [sammelOffen, setSammelOffen] = useState(false);
   const [sammelHinweis, setSammelHinweis] = useState<string | null>(null);
   const router = useRouter();
+  const tabellenRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * ⚠️ DIE SUCHE WIRD ENTPRELLT, DAS FELD NICHT. Ohne das filterte, sortierte
+   * und rendere die Tabelle bei JEDEM Tastendruck neu — bei rund acht
+   * antd-Komponenten je Zeile wurde das Tippen umso langsamer, je mehr Artikel
+   * es gab. Entprellt wird deshalb die ABLEITUNG; der Wert im `<input>` bleibt
+   * sofort, sonst verschluckt das Feld Zeichen.
+   */
+  const gesuchteWorte = useEntprellt(filter.suche);
+  const wirksamerFilter = useMemo<ArtikelFilterZustand>(
+    () => ({ suche: gesuchteWorte }),
+    [gesuchteWorte],
+  );
 
   const kategorien = useMemo(
     () => kategorieOptionen(zeilen.map((zeile) => zeile.kategorie)),
@@ -158,15 +165,36 @@ export function ArtikelTable({
   );
   const ausgeblendetMenge = useMemo(() => new Set(ausgeblendet), [ausgeblendet]);
 
-  // Genau diese eine abgeleitete Liste ist Tabellenquelle und Übergabepunkt
-  // für den in Teil 6 freigeschalteten Export — die Kategorien laufen durch
-  // DASSELBE Praedikat, nie als zweites `.filter()` daneben (§9.4).
+  /**
+   * Die Vorfilterung: Freitextsuche und die gespeicherten Kategorien. Alles
+   * Weitere (Fach, Kategorie, Status) macht antd in den Spaltenkoepfen.
+   */
   const gefiltert = useMemo(
-    () => artikelSortieren(artikelFiltern(zeilen, filter, ausgeblendetMenge), sortierung),
-    [zeilen, filter, ausgeblendetMenge, sortierung],
+    () => artikelFiltern(zeilen, wirksamerFilter, ausgeblendetMenge),
+    [zeilen, wirksamerFilter, ausgeblendetMenge],
   );
 
-  /** Wie viele Artikel allein die Kategorien wegnehmen — ohne Suche und Chips. */
+  /**
+   * ⚠️ DER ZUSTAND DER SPALTENKOEPFE IST HIER GEMERKT, DIE LISTE NICHT.
+   *
+   * Der naheliegende Weg waere `onChange(…, extra.currentDataSource)` — antd
+   * reicht die angezeigte Liste dort fertig heraus. Der Weg ist falsch, und
+   * zwar still: `onChange` feuert nur bei Bedienung DER TABELLE. Tippt jemand
+   * daneben in die Suche, filtert antd zwar neu, meldet es aber nicht — die
+   * gemerkte Liste ist dann veraltet, und der Export exportierte eine Menge,
+   * die so nie auf dem Schirm stand. Gemessen: Statusfilter setzen, dann
+   * suchen → die Trefferanzeige blieb bei der Zahl von vor der Suche.
+   *
+   * Deshalb wird nur der ZUSTAND gemerkt und die Liste daraus ABGELEITET.
+   * Begruendung und Rechnung stehen in `core/tabelle/angezeigt.ts`.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
+  const [sortierung, setSortierung] = useState<SortZustand>({
+    spalte: "name",
+    richtung: "ascend",
+  });
+
+  /** Wie viele Artikel allein die Kategorien wegnehmen — ohne Suche. */
   const durchKategorienAusgeblendet = useMemo(
     () => zeilen.filter((zeile) => !artikelTrifft(zeile, LEERER_FILTER, ausgeblendetMenge)).length,
     [zeilen, ausgeblendetMenge],
@@ -174,13 +202,14 @@ export function ArtikelTable({
 
   /**
    * Die ausgewaehlten Artikel als Zeilen — gegen `zeilen` aufgeloest, nie gegen
-   * `gefiltert`: eine Auswahl ueberlebt den Filter, und eine Kennung, die es
-   * nicht mehr gibt (die Liste ist neu geladen worden), faellt hier still weg
-   * statt in der Vorschau als Geisterzeile zu stehen.
+   * die angezeigte Menge: eine Auswahl ueberlebt den Filter, und eine Kennung,
+   * die es nicht mehr gibt (die Liste ist neu geladen worden), faellt hier still
+   * weg statt in der Vorschau als Geisterzeile zu stehen.
    */
   const ausgewaehlt = useMemo<SammelZeile[]>(() => {
     const menge = new Set(auswahl);
-    return artikelSortieren(zeilen.filter((zeile) => menge.has(zeile.id)), "name-asc")
+    return [...zeilen.filter((zeile) => menge.has(zeile.id))]
+      .sort(NACH_NAMEN)
       .map((zeile) => ({
         id: zeile.id,
         name: zeile.name,
@@ -215,29 +244,20 @@ export function ArtikelTable({
   /**
    * EXCEL-LISTE DES BESTANDS (Spec §9.4, Entscheidung 9-E).
    *
-   * Exportiert GENAU das, was gerade in der Tabelle steht — `gefiltert`, also
-   * dieselbe abgeleitete Liste, die auch in `dataSource` geht. Das ist keine
-   * Bequemlichkeit: der Knopftitel sagt es zu, und sobald die Liste serverseitig
-   * paginiert wird, aenderte sich STILL, was „Excel-Liste" bedeutet — aus
-   * „alles, was ich gerade sehe" wuerde „die erste Seite" (9-H). Pagination der
-   * Artikeltabelle ist damit eine Aenderung an einem Ausgabeformat, kein
-   * Oberflaechendetail.
-   *
-   * Die Bibliothek wird ERST BEIM KLICK nachgeladen, damit sie nicht im
-   * Seiten-Bundle landet. Ein rein serverseitiger Export waere ein anderes
-   * Produkt: er koennte den Dateinamen aus Serverzeit bilden und kennte den
-   * Filterzustand nicht.
+   * Exportiert GENAU das, was gerade in der Tabelle steht — siehe `angezeigt`.
    *
    * DER DATEINAME ENTSTEHT AUS BROWSERZEIT (`new Date()`), also aus der Zone des
-   * Arbeitsplatzes. Das ist heutiges Verhalten und bleibt es; die TZ-Frage
-   * beruehrt dieses Format nicht (§9.4).
+   * Arbeitsplatzes. Das ist heutiges Verhalten und bleibt es.
+   *
+   * Die Bibliothek wird ERST BEIM KLICK nachgeladen, damit sie nicht im
+   * Seiten-Bundle landet.
    */
   const exportieren = () => {
     setExportFehler(null);
     startExport(async () => {
       try {
         const { default: writeXlsxFile } = await import("write-excel-file/browser");
-        const zeilenExport = bestandExportZeilen(gefiltert);
+        const zeilenExport = bestandExportZeilen(angezeigt);
         await writeXlsxFile(zeilenExport, {
           columns: EXCEL_SPALTEN.map((sp) => ({
             header: { value: sp.header, fontWeight: "bold" as const },
@@ -254,22 +274,184 @@ export function ArtikelTable({
         }).toFile(bestandExportDateiname(new Date()));
       } catch {
         // Der deutsche Satz als ZUSTAND, nie `e.message`: der waere in
-        // Produktion der englische Satz ueber eine „server-side exception"
-        // (Falle 66, §11.2 d).
+        // Produktion der englische Satz ueber eine „server-side exception".
         setExportFehler(EXCEL_FEHLERTEXT);
       }
     });
   };
 
-  const hatFilter = filter.suche.trim() !== ""
-    || filter.nurUnterMindest
-    || filter.nurChargeKritisch
-    || filter.ohneInaktive
-    || filter.ohneBestandNull;
+  const hatFilter = filter.suche.trim() !== "";
 
   function zuruecksetzen(): void {
     setFilter(LEERER_FILTER);
   }
+
+  /**
+   * Die verfuegbare Hoehe wird bei JEDER Groessenaenderung neu gemessen. Eine
+   * einmal gemessene Zahl waere beim Oeffnen richtig und danach still falsch
+   * (Falle 13); auch die eingeblendete Sammelleiste verschiebt den oberen Rand.
+   */
+  const tabellenHoehe = useVerfuegbareHoehe(tabellenRef, { mindestens: 360 });
+
+  // ⚠️ NICHT-OPTIONALER TYP, und das ist kein Stil: mit dem optionalen
+  // `TableProps[...]["columns"]` brauchte die Ableitung unten ein `?? []`, und
+  // ein frisch erzeugtes Feld IM Memo-Rumpf macht die Memoisierung wertlos —
+  // der React-Compiler lehnt sie dann ganz ab („Existing memoization could not
+  // be preserved"). Diese Liste ist immer ein Feld.
+  const spalten = useMemo<NonNullable<TableProps<ArtikelAnzeigeZeile>["columns"]>>(() => [
+    {
+      title: "Artikel",
+      dataIndex: "name",
+      width: BREITE.artikel,
+      sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.name),
+      sortOrder: sortierung.spalte === "name" ? sortierung.richtung : null,
+      render: (wert: string, zeile) => (
+        <Button
+          type="link"
+          style={{ padding: 0, fontWeight: 600 }}
+          onClick={() => setOffenerArtikel(zeile.id)}
+        >
+          {wert}
+        </Button>
+      ),
+    },
+    {
+      title: "Fach",
+      dataIndex: "fach",
+      width: BREITE.fach,
+      // `nachText` sortiert Ziffernfolgen numerisch — „Fach 2" vor „Fach 10".
+      sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.fach),
+      sortOrder: sortierung.spalte === "fach" ? sortierung.richtung : null,
+      filteredValue: spaltenFilter.fach ?? null,
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.fach),
+      filterSearch: true,
+      onFilter: trifftWert<ArtikelAnzeigeZeile>((zeile) => zeile.fach),
+      render: (wert: string) => <span className={s.fach}>{wert}</span>,
+    },
+    {
+      title: "Kategorie",
+      dataIndex: "kategorie",
+      width: BREITE.kategorie,
+      sorter: nachText<ArtikelAnzeigeZeile>((zeile) => zeile.kategorie),
+      sortOrder: sortierung.spalte === "kategorie" ? sortierung.richtung : null,
+      filteredValue: spaltenFilter.kategorie ?? null,
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.kategorie, {
+        ohneWertLabel: "ohne Kategorie",
+      }),
+      filterSearch: true,
+      onFilter: trifftWert<ArtikelAnzeigeZeile>((zeile) => zeile.kategorie),
+      render: (wert: string | null) => (
+        wert ?? <span style={SCHRIFT.neben}>–</span>
+      ),
+    },
+    {
+      title: "Bestand",
+      dataIndex: "bestand",
+      width: BREITE.bestand,
+      align: "right",
+      sorter: nachZahl<ArtikelAnzeigeZeile>((zeile) => zeile.bestand),
+      sortOrder: sortierung.spalte === "bestand" ? sortierung.richtung : null,
+      render: (wert: number, zeile) => (
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>
+          {wert} <span style={SCHRIFT.neben}>{zeile.einheit}</span>
+        </span>
+      ),
+    },
+    {
+      title: "Min.",
+      dataIndex: "mindestbestand",
+      width: BREITE.mindest,
+      align: "right",
+      sorter: nachZahl<ArtikelAnzeigeZeile>((zeile) => zeile.mindestbestand),
+      sortOrder: sortierung.spalte === "mindestbestand" ? sortierung.richtung : null,
+      render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
+    },
+    {
+      title: "Nächster Verfall",
+      dataIndex: "naechsteCharge",
+      width: BREITE.verfall,
+      /**
+       * ⚠️ SORTIERT WIRD UEBER DAS ISO-DATUM DER CHARGE, nie ueber
+       * `naechsteAblaufText` („in 12 Tagen") — der sortierte als Zeichenkette
+       * „in 3 Tagen" hinter „in 12 Tagen".
+       */
+      sorter: nachDatum<ArtikelAnzeigeZeile>((zeile) => zeile.naechsteCharge?.verfall),
+      sortOrder: sortierung.spalte === "naechsteCharge" ? sortierung.richtung : null,
+      render: (_wert: unknown, zeile) => (
+        zeile.naechsteCharge && zeile.naechsteAmpel && zeile.naechsteAblaufText
+          ? (
+            // 7 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und hat keine
+            // Geschwisterzeile in diesem Zuschnitt; bleibt Literal.
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+              <Plakette
+                verfall={zeile.naechsteCharge.verfall}
+                ampel={zeile.naechsteAmpel}
+                statusText={zeile.naechsteAblaufText}
+              />
+              <span style={SCHRIFT.mono}>{zeile.naechsteCharge.chargenNr}</span>
+            </span>
+          )
+          : <Chip ton="grau">leer</Chip>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "aktiv",
+      width: BREITE.status,
+      /**
+       * ⚠️ HIER LAG BIS DRK-331 DIE KNOPFLEISTE ueber der Tabelle. Jeder Haken
+       * dort war ein Praedikat ueber der Zeile — und ein Praedikat ueber der
+       * Zeile ist ein Spaltenfilter. Zwei angekreuzte Zustaende zeigen die
+       * VEREINIGUNG (antd verodert, `useFilter/index.js`), genau wie die
+       * Leiste es tat.
+       */
+      ...zustandsFilter<ArtikelAnzeigeZeile>(ARTIKEL_ZUSTAENDE),
+      filteredValue: spaltenFilter.aktiv ?? null,
+      sortOrder: sortierung.spalte === "aktiv" ? sortierung.richtung : null,
+      // Rot zuerst: der Fall, der Aufmerksamkeit verlangt, gehoert nach oben.
+      sorter: (a, b) => {
+        const rang = (zeile: ArtikelAnzeigeZeile) => {
+          if (zeile.unterMindest) return 0;
+          if (zeile.naechsteAmpel) return 1 + AMPEL_RANG.indexOf(zeile.naechsteAmpel);
+          return AMPEL_RANG.length + 1;
+        };
+        return rang(a) - rang(b);
+      },
+      render: (_wert: boolean, zeile) => (
+        // 6 liegt nicht auf der SPACE-Skala; bleibt Literal.
+        <Flex gap={6} wrap>
+          {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
+          {zeile.aktiv && !zeile.unterMindest && !zeile.naechsteAblaufText
+            ? <Chip ton="ok">ok</Chip>
+            : null}
+          {zeile.unterMindest
+            ? <Chip ton="rot" zeichen="warnung">unter Mindestbestand</Chip>
+            : null}
+          {zeile.naechsteAblaufText && zeile.naechsteAmpel
+            ? (
+              <Chip ton={ampelTon(zeile.naechsteAmpel)}>
+                Charge {zeile.naechsteAblaufText}
+              </Chip>
+            )
+            : null}
+        </Flex>
+      ),
+    },
+  ], [zeilen, spaltenFilter, sortierung]);
+
+  /**
+   * Die Liste, die WIRKLICH auf dem Schirm steht — abgeleitet, nicht gemerkt.
+   * Sie speist den Export und die Trefferanzeige. antd wendet dieselben
+   * Praedikate danach noch einmal an; beide Schritte sind idempotent, und
+   * `filteredValue`/`sortOrder` halten die Spaltenkoepfe im selben Zustand.
+   */
+  // ⚠️ OHNE `useMemo`, und zwar absichtlich. Der React-Compiler memoisiert diese
+  // Ableitung von sich aus; ein handgeschriebenes `useMemo` daneben konnte er
+  // nicht erhalten und stellte daraufhin die Optimierung der GANZEN Komponente
+  // ein („Compilation Skipped: Existing memoization could not be preserved").
+  // Eine Handmemoisierung, die den Compiler abschaltet, kostet mehr, als sie
+  // spart.
+  const angezeigt = angezeigteZeilen(gefiltert, spalten, spaltenFilter, sortierung);
 
   return (
     <>
@@ -279,51 +461,6 @@ export function ArtikelTable({
           onWert={(suche) => setFilter((vorher) => ({ ...vorher, suche }))}
           platzhalter="Artikel, Fach oder Charge suchen…"
         />
-        <Checkbox
-          checked={filter.nurUnterMindest}
-          onChange={(ereignis) => setFilter((vorher) => ({
-            ...vorher,
-            nurUnterMindest: ereignis.target.checked,
-          }))}
-        >
-          unter Mindestbestand
-        </Checkbox>
-        <Checkbox
-          checked={filter.nurChargeKritisch}
-          onChange={(ereignis) => setFilter((vorher) => ({
-            ...vorher,
-            nurChargeKritisch: ereignis.target.checked,
-          }))}
-        >
-          Charge kritisch
-        </Checkbox>
-        <Checkbox
-          checked={filter.ohneInaktive}
-          onChange={(ereignis) => setFilter((vorher) => ({
-            ...vorher,
-            ohneInaktive: ereignis.target.checked,
-          }))}
-        >
-          inaktive ausblenden
-        </Checkbox>
-        <Checkbox
-          checked={filter.ohneBestandNull}
-          onChange={(ereignis) => setFilter((vorher) => ({
-            ...vorher,
-            ohneBestandNull: ereignis.target.checked,
-          }))}
-          // Die Spalte daneben heisst schlicht „Bestand", und gemeint ist auf
-          // dieser ganzen Seite der HANDLAGER (§5.2.1) — die Beschriftung sagt
-          // deshalb dasselbe Wort. Was der Titel traegt, ist die Folge, die man
-          // der Zeile nicht ansieht: ein Artikel, der komplett auf einem
-          // Fahrzeug liegt, hat hier 0 und verschwindet mit.
-          title={
-            "Blendet Artikel aus, deren Bestand im Handlager 0 ist — "
-            + "auch wenn sie auf einem Fahrzeug liegen"
-          }
-        >
-          Bestand 0 ausblenden
-        </Checkbox>
         {/* DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene
             Kategorie waere das Feld eine leere Liste. */}
         {kategorien.length > 0 ? (
@@ -335,23 +472,18 @@ export function ArtikelTable({
               value: option.schluessel,
               label: option.label,
             }))}
-            placeholder="Kategorien ausblenden"
-            aria-label="Kategorien ausblenden"
+            placeholder="Kategorien dauerhaft ausblenden"
+            aria-label="Kategorien dauerhaft ausblenden"
+            // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
+            // dieser hier bleibt, jener gilt nur fuer den Moment.
+            title={
+              "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
+              + "nächsten Aufschlagen ausgeblendet"
+            }
             virtual={false}
             style={{ minWidth: 240 }}
           />
         ) : null}
-        <Select<ArtikelSortierung>
-          value={sortierung}
-          onChange={setSortierung}
-          options={SORTIERUNGEN.map((option) => ({
-            value: option.wert,
-            label: option.label,
-          }))}
-          aria-label="Sortierung"
-          virtual={false}
-          style={{ minWidth: 200 }}
-        />
         {hatFilter ? (
           <Button
             icon={<Ikone name="zuruecksetzen" groesse={16} />}
@@ -360,22 +492,23 @@ export function ArtikelTable({
             Zurücksetzen
           </Button>
         ) : null}
-        <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <Button
           data-testid="lb-excel"
           icon={<Ikone name="tabelle" groesse={16} />}
-          // ABSICHTLICH `zeilen.length`, NICHT `gefiltert.length` (Brief-Prosa
-          // §9.4 Schritt 4: "rows.length === 0" — die Vollmenge dieses Moduls
-          // heisst `zeilen`). Ein Suchfilter ohne Treffer deaktiviert den Knopf
-          // also NICHT: der Klick erzeugt dann eine Datei mit nur der
-          // Kopfzeile, was zum Titel "mit der aktuell angezeigten Liste" passt
-          // — die Liste ist eben leer, und genau das wird exportiert. Erst
-          // wenn im MODUL ueberhaupt kein Artikel existiert, gibt es nichts,
-          // was ein Export je zeigen koennte.
+          // ABSICHTLICH `zeilen.length`, NICHT die angezeigte Menge: ein
+          // Suchfilter ohne Treffer deaktiviert den Knopf also NICHT, der Klick
+          // erzeugt dann eine Datei mit nur der Kopfzeile. Erst wenn im MODUL
+          // ueberhaupt kein Artikel existiert, gibt es nichts zu exportieren.
           disabled={exportLaeuft || zeilen.length === 0}
           onClick={exportieren}
           title="Erzeugt eine Excel-Datei (.xlsx) mit der aktuell angezeigten Liste"
-          data-export-zeilen={gefiltert.map((zeile) => zeile.id).join(",")}
+          // ⚠️ E2E-VERTRAG (`e2e/lagerbuch-bestand-export.spec.ts`): die exakte
+          // Exportmenge, auch der leere Fall. Ohne ihn lief dort eine
+          // Zusicherung ins Leere. Er ist billig geblieben, weil `angezeigt`
+          // sich nur aendert, wenn sich die Anzeige aendert — die entprellte
+          // Suche schlaegt hier also nicht je Tastendruck durch.
+          data-export-zeilen={angezeigt.map((zeile) => zeile.id).join(",")}
         >
           {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
         </Button>
@@ -430,10 +563,9 @@ export function ArtikelTable({
         </Flex>
       ) : null}
       {exportFehler ? (
-        // Gleiches Muster wie NeuArtikel.tsx:134 und die vier Stellen in
-        // ArtikelDrawer.tsx — kein Fließtext in Nebentext-Groesze fuer einen
-        // Fehler, und `type="warning"` statt `type="error"`: Rot ist in diesem
-        // Modul fachlich belegt (CLAUDE.md, Falle 3).
+        // Kein Fliesztext in Nebentext-Groesze fuer einen Fehler, und
+        // `type="warning"` statt `type="error"`: Rot ist in diesem Modul
+        // fachlich belegt (CLAUDE.md, Falle 3).
         <Alert
           type="warning"
           showIcon={false}
@@ -450,133 +582,56 @@ export function ArtikelTable({
         />
       ) : null}
 
-      <Table<ArtikelAnzeigeZeile>
-        rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
-        aria-label="Artikel und Bestand"
-        dataSource={gefiltert}
-        locale={{
-          emptyText: hatFilter || durchKategorienAusgeblendet > 0
-            ? "Kein Artikel passt zu Suche und Filter."
-            : "Noch keine Artikel. Lege oben den ersten an.",
-        }}
-        rowSelection={{
-          selectedRowKeys: auswahl,
-          onChange: (schluessel) => {
-            setAuswahl(schluessel.map(String));
-            // „5 Artikel geaendert." neben einer frisch begonnenen Auswahl liest
-            // sich wie eine Meldung ueber DIESE Auswahl.
-            setSammelHinweis(null);
-          },
-          preserveSelectedRowKeys: true,
-        }}
-        onRow={(zeile) => ({
-          onClick: (ereignis) => {
-            // ⚠️ DER KLICK AUF DAS KREUZCHEN DARF DIE SCHUBLADE NICHT OEFFNEN.
-            // antds Auswahlspalte liegt in DERSELBEN `<tr>`, ihr Klick blubbert
-            // also hierher; ohne diese Zeile beantwortet jedes Ankreuzen sich
-            // selbst mit den Artikeldetails. Geprueft wird auf `<label>` und
-            // nicht auf `.ant-table-selection-column`: antds `Checkbox` rendert
-            // sein Wurzelelement als `<label>` (`antd/es/checkbox/Checkbox.js`),
-            // und keine andere Zelle dieser Tabelle traegt eines — eine
-            // Klassenname-Probe haengt dagegen an einem Detail, das ein
-            // antd-Sprung still aendern kann.
-            if ((ereignis.target as HTMLElement).closest("label")) return;
-            setOffenerArtikel(zeile.id);
-          },
-        })}
-        // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS
-        // gegen `.ant-table-thead` (docs/design/README.md).
-        columns={[
-          {
-            title: <span style={SCHRIFT.feldname}>Artikel</span>,
-            dataIndex: "name",
-            render: (wert: string, zeile) => (
-              <Button
-                type="link"
-                style={{ padding: 0, fontWeight: 600 }}
-                onClick={() => setOffenerArtikel(zeile.id)}
-              >
-                {wert}
-              </Button>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Fach</span>,
-            dataIndex: "fach",
-            render: (wert: string) => <span className={s.fach}>{wert}</span>,
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Kategorie</span>,
-            dataIndex: "kategorie",
-            render: (wert: string | null) => (
-              wert ?? <span style={SCHRIFT.neben}>–</span>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Bestand</span>,
-            dataIndex: "bestand",
-            align: "right",
-            render: (wert: number, zeile) => (
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                {wert} <span style={SCHRIFT.neben}>{zeile.einheit}</span>
-              </span>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Min.</span>,
-            dataIndex: "mindestbestand",
-            align: "right",
-            render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Nächster Verfall</span>,
-            dataIndex: "naechsteCharge",
-            render: (_wert: unknown, zeile) => (
-              zeile.naechsteCharge && zeile.naechsteAmpel && zeile.naechsteAblaufText
-                ? (
-                  // 7 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) und
-                  // hat keine Geschwisterzeile in diesem Zuschnitt; bleibt
-                  // Literal, siehe Bericht.
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                    <Plakette
-                      verfall={zeile.naechsteCharge.verfall}
-                      ampel={zeile.naechsteAmpel}
-                      statusText={zeile.naechsteAblaufText}
-                    />
-                    <span style={SCHRIFT.mono}>{zeile.naechsteCharge.chargenNr}</span>
-                  </span>
-                )
-                : <Chip ton="grau">leer</Chip>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Status</span>,
-            dataIndex: "aktiv",
-            render: (_wert: boolean, zeile) => (
-              // 6 liegt nicht auf der SPACE-Skala; bleibt Literal (wie an den
-              // uebrigen Chip-Zeilen dieses Zuschnitts).
-              <Flex gap={6} wrap>
-                {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
-                {zeile.aktiv && !zeile.unterMindest && !zeile.naechsteAblaufText
-                  ? <Chip ton="ok">ok</Chip>
-                  : null}
-                {zeile.unterMindest
-                  ? <Chip ton="rot" zeichen="warnung">unter Mindestbestand</Chip>
-                  : null}
-                {zeile.naechsteAblaufText && zeile.naechsteAmpel
-                  ? (
-                    <Chip ton={ampelTon(zeile.naechsteAmpel)}>
-                      Charge {zeile.naechsteAblaufText}
-                    </Chip>
-                  )
-                  : null}
-              </Flex>
-            ),
-          },
-        ]}
-      />
+      <div ref={tabellenRef}>
+        <Datentabelle<ArtikelAnzeigeZeile>
+          rowKey="id"
+          virtuell={tabellenHoehe}
+          aria-label="Artikel und Bestand"
+          dataSource={gefiltert}
+          columns={spalten}
+          // NUR der Zustand wird gemerkt, nie die Liste — Begruendung oben
+          // bei `spaltenFilter`.
+          onChange={(_blaettern, neueFilter, neueSortierung) => {
+            setSpaltenFilter(neueFilter as FilterZustand);
+            const eine = Array.isArray(neueSortierung) ? neueSortierung[0] : neueSortierung;
+            setSortierung({
+              spalte: eine?.columnKey ?? (eine?.field as string | undefined),
+              richtung: eine?.order ?? null,
+            });
+          }}
+          locale={{
+            emptyText: hatFilter || durchKategorienAusgeblendet > 0
+              ? "Kein Artikel passt zu Suche und Filter."
+              : "Noch keine Artikel. Lege oben den ersten an.",
+          }}
+          rowSelection={{
+            selectedRowKeys: auswahl,
+            columnWidth: 32,
+            onChange: (schluessel) => {
+              setAuswahl(schluessel.map(String));
+              // „5 Artikel geaendert." neben einer frisch begonnenen Auswahl
+              // liest sich wie eine Meldung ueber DIESE Auswahl.
+              setSammelHinweis(null);
+            },
+            preserveSelectedRowKeys: true,
+          }}
+          onRow={(zeile) => ({
+            onClick: (ereignis) => {
+              // ⚠️ DER KLICK AUF DAS KREUZCHEN DARF DIE SCHUBLADE NICHT OEFFNEN.
+              // antds Auswahlspalte liegt in DERSELBEN `<tr>`, ihr Klick
+              // blubbert also hierher; ohne diese Zeile beantwortet jedes
+              // Ankreuzen sich selbst mit den Artikeldetails. Geprueft wird auf
+              // `<label>` und nicht auf `.ant-table-selection-column`: antds
+              // `Checkbox` rendert sein Wurzelelement als `<label>`
+              // (`antd/es/checkbox/Checkbox.js`), und keine andere Zelle dieser
+              // Tabelle traegt eines — eine Klassenname-Probe haengt dagegen an
+              // einem Detail, das ein antd-Sprung still aendern kann.
+              if ((ereignis.target as HTMLElement).closest("label")) return;
+              setOffenerArtikel(zeile.id);
+            },
+          })}
+        />
+      </div>
 
       {sammelOffen ? (
         <SammelDrawer

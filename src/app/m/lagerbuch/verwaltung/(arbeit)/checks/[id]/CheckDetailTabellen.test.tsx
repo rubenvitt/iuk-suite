@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clickElement,
   exists,
   mount,
   query,
@@ -24,6 +25,13 @@ const GEFUELLT: CheckDetailTabellenProps = {
     istText: "22",
     korrekturText: "33",
     nachgefuelltText: "44",
+    // Die Rohzahlen fahren mit, weil die Spalten danach sortieren — die
+    // `…Text`-Felder sind `String(…)` und ordneten „10" vor „2".
+    sollZahl: 11,
+    istZahl: 22,
+    korrekturZahl: 33,
+    nachgefuelltZahl: 44,
+    offenZahl: 5,
     offenChip: { text: "fehlt 5", ton: "rot", zeichen: "warnung" },
   }],
   nachfuellZeilen: [{
@@ -33,6 +41,9 @@ const GEFUELLT: CheckDetailTabellenProps = {
     einheitText: "Stk.",
     sollText: "55",
     istText: "66",
+    sollZahl: 55,
+    istZahl: 66,
+    lueckeZahl: 3,
     lueckeChip: { text: "3 fehlten", ton: "rot", zeichen: "warnung" },
   }],
   geraeteZeilen: [{
@@ -46,11 +57,13 @@ const GEFUELLT: CheckDetailTabellenProps = {
     id: "flasche-1",
     name: "O2 klein",
     druck: { darstellung: "mono", text: "150 bar", ton: null },
+    druckZahl: 150,
     fuellstandChip: { text: "50 %", ton: "ok", zeichen: null },
   }, {
     id: "flasche-ohne-druck",
     name: "O2 ungemessen",
     druck: { darstellung: "chip", text: "nicht gemessen", ton: "grau" },
+    druckZahl: null,
     fuellstandChip: { text: "nicht gemessen", ton: "grau", zeichen: null },
   }],
   verfallZeilen: [{
@@ -171,9 +184,12 @@ describe("CheckDetailTabellen", () => {
     expect(hatUseClientAlsErsteDirektive('"use strict";\n"use client";'))
       .toBe(false);
     expect(quelle.match(/rowKey=["']id["']/g)).toHaveLength(5);
-    expect(quelle.match(/pagination=\{false\}/g)).toHaveLength(5);
-    expect(quelle.match(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/g))
-      .toHaveLength(5);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` fuenfmal im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM — die
+    // Pagination oben, die Breite aller fuenf Tabellen hier.
+    expect(queryAll<HTMLTableElement>("table").map((tabelle) => tabelle.style.width))
+      .toEqual(["max-content", "max-content", "max-content", "max-content", "max-content"]);
   });
 
   it("behält alle fünf Leertexte einschließlich Altformat-Erklärung bei", async () => {
@@ -224,5 +240,70 @@ describe("CheckDetailTabellen", () => {
     expect(document.body.textContent).not.toContain("Keine Geräte in diesem Check.");
     expect(document.body.textContent).not.toContain("Keine Flaschen in diesem Check.");
     expect(document.body.textContent).not.toContain("Keine Verfallsangabe in diesem Check.");
+  });
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE ZAHLENSPALTEN UEBER DEN ROHWERT SORTIEREN.
+   * `sollText` ist `String(…)`; als Zeichenkette stuende „11" vor „9". Nur
+   * ueber `sollZahl` steht 9 vorn.
+   */
+  it("sortiert die Soll-Spalte des Abgleichs über die Zahl, nicht über den Text", async () => {
+    const neun: CheckDetailTabellenProps["abgleichZeilen"][number] = {
+      ...GEFUELLT.abgleichZeilen[0]!,
+      id: "artikel-neun",
+      artikel: "Neun",
+      sollText: "9",
+      sollZahl: 9,
+    };
+    await mount(
+      <CheckDetailTabellen {...GEFUELLT} abgleichZeilen={[GEFUELLT.abgleichZeilen[0]!, neun]} />,
+    );
+
+    const abgleich = queryAll<HTMLElement>("table")[0]!;
+    const kopf = Array.from(abgleich.querySelectorAll<HTMLElement>("thead th"))
+      .find((th) => (th.textContent ?? "").includes("Soll"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(Array.from(
+      abgleich.querySelectorAll("tbody tr[data-row-key]"),
+      (zeile) => zeile.getAttribute("data-row-key"),
+    )).toEqual(["artikel-neun", "artikel-1"]);
+  });
+
+  /** Der Offen-Filter loest die Frage „was fehlt noch?" am Spaltenkopf. */
+  it("filtert den Abgleich auf die vollständigen Zeilen", async () => {
+    const vollstaendig: CheckDetailTabellenProps["abgleichZeilen"][number] = {
+      ...GEFUELLT.abgleichZeilen[0]!,
+      id: "artikel-voll",
+      artikel: "Vollständig",
+      offenZahl: 0,
+      offenChip: { text: "vollständig", ton: "ok", zeichen: null },
+    };
+    await mount(
+      <CheckDetailTabellen
+        {...GEFUELLT}
+        abgleichZeilen={[GEFUELLT.abgleichZeilen[0]!, vollstaendig]}
+      />,
+    );
+
+    const abgleich = queryAll<HTMLElement>("table")[0]!;
+    const kopf = Array.from(abgleich.querySelectorAll<HTMLElement>("thead th"))
+      .find((th) => (th.textContent ?? "").includes("Offen"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "vollständig");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(Array.from(
+      abgleich.querySelectorAll("tbody tr[data-row-key]"),
+      (zeile) => zeile.getAttribute("data-row-key"),
+    )).toEqual(["artikel-voll"]);
   });
 });

@@ -1,16 +1,19 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { Button, Card, Table } from "antd";
+import { Button, Card } from "antd";
 
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { SCHRIFT } from "@/core/theme/schrift";
-import { avWiederholenAction } from "../../actions";
 import { ladeAuditLog, ladeShareDetail, type ShareDatei } from "../../../_db/queries";
 import type { AvStatus } from "../../../_lib/av";
 import { oeffentlicheUrl } from "../../../_lib/hostRolle";
 import { entschaerfeTitel } from "../../../_lib/zip";
 import { zeitpunktBerlin, zeitpunktGenauBerlin } from "../../../_lib/zeit";
 import { AuditLog, type AuditLogZeile } from "../../../_ui/AuditLog";
+import {
+  ShareDateienTabelle,
+  type ShareDateiZeile,
+  type SymbolName,
+} from "../../../_ui/ShareDateienTabelle";
 import { ShareDetailAktionen } from "../../../_ui/ShareDetailAktionen";
 
 /**
@@ -30,23 +33,21 @@ import { ShareDetailAktionen } from "../../../_ui/ShareDetailAktionen";
  *    `Descriptions`, und die Überschrift über `Seitenkopf`
  *    (`@/core/shell/Seitenkopf`, seit Aufgabe 12 — davor ein nacktes `<h1>` an
  *    derselben Stelle, aus demselben Grund: auch `Seitenkopf` selbst rendert
- *    nur ein nacktes `<h1>`, kein `Typography.Title`). `Card`, `Table` und
- *    `Button` sind sicher.
- * 2. **Eine `render`-Funktion in `columns`** reicht eine FUNKTION über die
- *    RSC-Grenze an `Table`. Die Spalten unten tragen deshalb nur `dataIndex`;
- *    was eine Zelle zeigt, entsteht **vorher** in `zuAnzeige()`. React-Elemente
- *    (das Zustandssymbol) sind dagegen serialisierbar — Funktionen sind es nicht.
+ *    nur ein nacktes `<h1>`, kein `Typography.Title`). `Card` und `Button`
+ *    sind sicher.
+ * 2. **Eine Funktion in `columns` überquert die RSC-Grenze nicht** — weder ein
+ *    `render` noch ein `sorter` oder ein `onFilter` (`CLAUDE.md`, Falle 9).
+ *    Die Dateiliste trägt seit der Umstellung auf `@/core/tabelle` alle drei
+ *    und liegt deshalb in der Client-Insel `_ui/ShareDateienTabelle.tsx`; diese
+ *    Seite reicht ihr nur FERTIGE, serialisierbare Zeilen (`zuAnzeige()`).
  * 3. **`@ant-design/icons` darf eine Server Component NICHT importieren.** Das
  *    Paket trägt kein `"use client"` (der Kommentar in `core/shell/icons.ts`
  *    hält das fest), also evaluiert Next das Modul in der RSC-Umgebung — und
  *    dort ruft es `createContext` auf Modulebene. Ergebnis: `TypeError: (0 ,
- *    _react.createContext) is not a function`, **HTTP 500 für die ganze Seite**.
- *    Gemessen am 2026-08-01 beim ersten echten Abruf dieser Route; `pnpm build`,
- *    `pnpm typecheck` und Vitest waren dabei alle grün — unter Vitest gibt es
- *    die RSC-Bedingung nicht, dort ist `createContext` schlicht vorhanden. Die
- *    Zustandssymbole unten sind deshalb **eigenes Inline-SVG**. In einer
- *    Client-Insel (`_ui/SharesTabelle.tsx`, `_ui/ShareDetailAktionen.tsx`) sind
- *    die antd-Icons unverändert richtig — die Regel gilt nur hier.
+ *    _react.createContext) is not a function`, **HTTP 500 für die ganze Seite**,
+ *    gemessen am 2026-08-01 beim ersten echten Abruf dieser Route. Diese Seite
+ *    importiert deshalb kein Symbol — die Zustandssymbole sind eigenes
+ *    Inline-SVG und stehen mit der Tabelle in der Client-Insel.
  *
  * KEIN ZWEITER RIEGEL HIER. Host-Rolle und Zugriff stehen in
  * `(verwaltung)/layout.tsx` (`requireRolle("verwaltung", …)` und
@@ -150,58 +151,15 @@ const AV_TEXT: Record<AvStatus, string> = {
 };
 
 /**
- * DIE ZUSTANDSSYMBOLE ALS EIGENES INLINE-SVG — siehe Falle 3 im Kopfkommentar:
- * `@ant-design/icons` ruft beim Auswerten `createContext`, und in der
- * RSC-Umgebung gibt es das nicht. Ein Import hier ergibt HTTP 500 für die ganze
- * Seite, und zwar erst beim ECHTEN Abruf.
+ * DIE SYMBOLNAMEN, nicht die Symbole. Gezeichnet werden sie in der Client-Insel
+ * (`_ui/ShareDateienTabelle.tsx`) — sie ist es, die die Zelle rendert. Hierher
+ * gehört nur die ZUORDNUNG Zustand → Name, weil sie neben `AV_TEXT` steht und
+ * mit ihm zusammen gelesen wird.
  *
- * Jedes Symbol ist ein Kreis plus eine Innenform, alle in derselben
- * 16er-Zeichenfläche und in `currentColor`, damit sie mit dem Text der Zelle
- * hell/dunkel mitgehen (kein `--ant-*` in eigenem Markup — antd deklariert
- * seine Variablen auf seiner eigenen Scope-Klasse, `docs/design/README.md`,
- * Falle 2).
- *
- * DAS SYMBOL IST DIE VERZICHTBARE SCHICHT. Bedeutung nie allein über Farbe oder
- * Form (`docs/design/README.md:133-137`) — der TEXT daneben trägt die Aussage,
- * deshalb steht das SVG auf `aria-hidden`.
+ * `SymbolName` ist ein TYP-Import aus einem `"use client"`-Modul und damit
+ * unbedenklich: ein WERT von dort käme hier als Client-Referenz an, HTTP 500 für
+ * die ganze Seite (`CLAUDE.md`, Falle 6). Ein Typ ist nach dem Übersetzen weg.
  */
-const SYMBOL_INNEN = {
-  /** Haken. */
-  haken: "M5 8.2 l2.2 2.2 L11.2 5.8",
-  /** Uhrzeiger. */
-  uhr: "M8 4.8 V8.2 L10.4 9.6",
-  /** Querbalken — „gesperrt". */
-  balken: "M4.8 8 H11.2",
-  /** Ausrufezeichen: Strich plus Punkt (zwei Teilpfade). */
-  ruf: "M8 4.6 V8.8 M8 10.8 v0.01",
-  /** Schrägstrich — „nicht da". */
-  strich: "M5.2 10.8 L10.8 5.2",
-  /** Drei Punkte — „noch in Arbeit". */
-  punkte: "M5.4 8 h0.01 M8 8 h0.01 M10.6 8 h0.01",
-} as const;
-
-type SymbolName = keyof typeof SYMBOL_INNEN;
-
-function Zustandssymbol({ name }: { name: SymbolName }) {
-  return (
-    <svg
-      aria-hidden
-      focusable="false"
-      viewBox="0 0 16 16"
-      width="1em"
-      height="1em"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.4}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="8" cy="8" r="6.6" />
-      <path d={SYMBOL_INNEN[name]} />
-    </svg>
-  );
-}
-
 const AV_SYMBOL: Record<AvStatus, SymbolName> = {
   clean: "haken",
   scanning: "uhr",
@@ -237,136 +195,33 @@ function zustand(datei: ShareDatei): { text: string; symbol: SymbolName } {
 }
 
 /**
- * DIE WIEDERHOLUNG DER AV-PRÜFUNG (§6.2, §10.2; Plan T45) — ein natives
- * `<form>` mit der Server Action, kein `onClick`.
+ * DIE ZEILE ENTSTEHT SERVERSEITIG UND VOLLSTÄNDIG — Text, Symbolname und die
+ * Rohzahl. Die Insel bekommt nichts zu rechnen: `groesseText` und `groesseBytes`
+ * stammen aus DERSELBEN Spalte, aus der auch die Summe entsteht; zwei Quellen
+ * ergäben zwei Zahlen (§7.3).
  *
- * DAS IST DER GRUND, WARUM DIESE SEITE EINE SERVER COMPONENT BLEIBEN KANN. Ein
- * Handler bräuchte eine Client-Insel; `<form action={…}>` reicht die
- * Aktionsreferenz und funktioniert zusätzlich **ohne JavaScript**. Dieselbe
- * Bauform wie `portal/admin/service-table.tsx:66` und `qr/admin/page.tsx:100`.
- * Ein React-Element ist über die RSC-Grenze serialisierbar — eine
- * `render`-Funktion in `columns` wäre es nicht (Kopfkommentar, Punkt 2), also
- * entsteht auch dieser Knopf **vorher** in `zuAnzeige()`.
+ * ⚠️ `groesseBytes` IST DER SORTIERWERT UND NUR DAS. „2,4 MiB" sortierte als
+ * Zeichenkette neben „11 KiB" falsch, und zwar still. Wo der Text ein „—" ist,
+ * steht `null` — `nachZahl` stellt fehlende Werte aufsteigend ans Ende, statt
+ * eine 0 zu behaupten, die niemand ausliefern kann.
  *
- * ER STEHT AN JEDER ZEILE MIT `av_status = 'error'` UND AN KEINER ANDEREN, und
- * das Prädikat ist wörtlich das `WHERE` der Action: aus `clean` und `infected`
- * führt kein Weg heraus, `scanning` läuft schon, und `unscanned → scanning`
- * gehört ausschließlich dem Nachscan-Lauf aus Spec 2. Gelesen wird der STATUS,
- * nicht der Anzeigetext: eine Zeile ohne vollständige Bytes zeigt „nicht
- * vollständig übertragen", trägt den AV-Zustand aber weiterhin.
- *
- * KEIN `size="small"` MEHR (korrigiert Aufgabe 12, nach Aufgabe 8): die alte
- * Ausnahme „size in einer Tabellenzeile" galt der 56px-`controlHeight` — eine
- * 44px-Zeilenaktion (`ARBEITSDICHTE`) sprengt keine Zeile mehr, während
- * `size="small"` auf 24px fällt und die Mindesttapfläche unterbietet
- * (`docs/design/README.md`, Falle 4).
+ * `pruefungWiederholbar` liest den STATUS, nicht den Anzeigetext: eine Zeile
+ * ohne vollständige Bytes zeigt „nicht vollständig übertragen", trägt den
+ * AV-Zustand aber weiterhin. Das Prädikat ist wörtlich das `WHERE` der Action
+ * (§6.2, §10.2) — aus `clean` und `infected` führt kein Weg heraus, `scanning`
+ * läuft schon, und `unscanned → scanning` gehört dem Nachscan-Lauf aus Spec 2.
  */
-function AvWiederholen({ fileId }: { fileId: string }) {
-  return (
-    <form action={avWiederholenAction}>
-      {/* `share`, nicht `share_files`: die Action spricht die Sprache von
-          `BlobZiel` (`_lib/storage.ts`), damit niemand unterwegs übersetzt. */}
-      <input type="hidden" name="art" value="share" />
-      <input type="hidden" name="id" value={fileId} />
-      {/* `htmlType="submit"` ausgeschrieben: antds Vorgabe ist `"button"`, und
-          ohne die Angabe schickte der Knopf still nichts ab. */}
-      <Button htmlType="submit" data-testid={`files-detail-av-wiederholen-${fileId}`}>
-        Prüfung wiederholen
-      </Button>
-    </form>
-  );
-}
-
-type DateiZeile = {
-  id: string;
-  dateiname: string;
-  /** `—`, wo es nichts zu zeigen gibt: ohne Bytes und ohne Blob wäre eine Zahl
-   *  eine Behauptung über Bytes, die niemand ausliefern kann. */
-  groesseText: string;
-  zustandInhalt: React.ReactNode;
-  /** `null` an jeder Zeile, die nicht in `error` steht — siehe `AvWiederholen`. */
-  aktionInhalt: React.ReactNode;
-};
-
-/**
- * SPALTENBREITEN IN PIXELN — die Einheit steht im Namen (§9.1). Die Summe wird
- * gerechnet, nicht getippt: tragen die Spalten `width`, ist sie die einzige
- * ehrliche `scroll.x`-Angabe (`docs/design/README.md:176-182`).
- *
- * `SPALTE_AKTION_PX` 200 → 240 (Aufgabe 12): die Zeilenaktion `AvWiederholen`
- * verlor `size="small"` (siehe dort) und ist damit etwas breiter — `default`
- * trägt ein größeres `paddingInline` als `small`. Kein Wert ist hier
- * GEMESSEN (kein Browser-Lauf in dieser Aufgabe); die Spalte ist deshalb nicht
- * knapp berechnet, sondern bewusst großzügig verbreitert, dieselbe
- * Vorsichtsregel wie Aufgabe 6 an `Verlauf.tsx` (dort 130→150, nicht auf die
- * knappste passende Zahl). `table-layout` bleibt `auto` (keine Spalte trägt
- * `fixed`/`ellipsis`, `scroll.y` ist nicht gesetzt), die Verbreiterung nimmt
- * also keiner Nachbarspalte etwas weg — sie vergrößert nur die Summe.
- */
-const SPALTE_NAME_PX = 340;
-const SPALTE_GROESSE_PX = 160;
-const SPALTE_ZUSTAND_PX = 280;
-const SPALTE_AKTION_PX = 240;
-const DATEI_TABELLE_BREITE_PX =
-  SPALTE_NAME_PX + SPALTE_GROESSE_PX + SPALTE_ZUSTAND_PX + SPALTE_AKTION_PX;
-
-/** Nur `dataIndex`, keine `render`-Funktion — Begründung im Kopfkommentar. Und
- *  keine Spalte trägt `fixed` oder `ellipsis`, `scroll.y` bleibt ungesetzt:
- *  sonst schaltet rc-table auf `table-layout: fixed` (`lib/Table.js:426-442`).
- *
- *  SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
- *  in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): ein
- *  `<span style={SCHRIFT.kicker}>` je Kopf statt eines nackten Strings, nie
- *  CSS gegen `.ant-table-thead`. `SCHRIFT` kommt direkt aus `@/core/theme`,
- *  nicht über einen modul-eigenen Adapter — `files` hat keinen (anders als
- *  `lagerbuch/_lib/schrift.ts` oder `feedback/_ui/typo.ts`), also entfällt der
- *  Umweg. RSC-sicher: ein bloßes Objekt mit `CSSProperties`, kein Hook, kein
- *  antd-Compound-Zugriff. */
-const DATEI_SPALTEN = [
-  {
-    key: "name",
-    title: <span style={SCHRIFT.kicker}>Datei</span>,
-    dataIndex: "dateiname",
-    width: SPALTE_NAME_PX,
-  },
-  {
-    key: "groesse",
-    title: <span style={SCHRIFT.kicker}>Größe</span>,
-    dataIndex: "groesseText",
-    width: SPALTE_GROESSE_PX,
-  },
-  {
-    key: "zustand",
-    title: <span style={SCHRIFT.kicker}>Zustand</span>,
-    dataIndex: "zustandInhalt",
-    width: SPALTE_ZUSTAND_PX,
-  },
-  /* Die Aktion steht in einer EIGENEN Spalte, nicht in der Zustandszelle: der
-     Zustand ist ein Wert, der Knopf eine Handlung — dieselbe Trennung wie in
-     `_ui/PosteingangTabelle.tsx`. Die Zelle bleibt leer, wo es nichts zu tun
-     gibt; ein „—" behauptete einen Wert, den es hier nicht gibt. */
-  {
-    key: "aktion",
-    title: <span style={SCHRIFT.kicker}>Aktion</span>,
-    dataIndex: "aktionInhalt",
-    width: SPALTE_AKTION_PX,
-  },
-];
-
-function zuAnzeige(datei: ShareDatei): DateiZeile {
+function zuAnzeige(datei: ShareDatei): ShareDateiZeile {
   const { text, symbol } = zustand(datei);
+  const messbar = datei.vollstaendig && !datei.blobFehlt;
   return {
     id: datei.id,
     dateiname: datei.dateiname,
-    aktionInhalt: datei.avStatus === "error" ? <AvWiederholen fileId={datei.id} /> : null,
-    // Die Bytezahl AUS DER ZEILE, nie die gemessene Länge: dieselbe Spalte, aus
-    // der auch die Summe entsteht. Zwei Quellen ergäben zwei Zahlen (§7.3).
-    groesseText: datei.vollstaendig && !datei.blobFehlt ? byteTextBinaer(datei.groesse) : "—",
-    zustandInhalt: (
-      <span>
-        <Zustandssymbol name={symbol} /> {text}
-      </span>
-    ),
+    groesseText: messbar ? byteTextBinaer(datei.groesse) : "—",
+    groesseBytes: messbar ? datei.groesse : null,
+    zustandText: text,
+    zustandSymbol: symbol,
+    pruefungWiederholbar: datei.avStatus === "error",
   };
 }
 
@@ -409,6 +264,9 @@ export default async function ShareDetailSeite({
   const protokoll: AuditLogZeile[] = logZeilen.map((zeile) => ({
     id: zeile.id,
     zeitText: zeitpunktGenauBerlin(zeile.zeit),
+    // Der Rohwert NEBEN dem Anzeigetext: „25.07.2026, 12:00:03" sortierte als
+    // Zeichenkette den 2. eines Monats vor den 14. des vorigen.
+    zeitIso: zeile.zeit.toISOString(),
     dateiId: zeile.dateiId,
     dateiname: zeile.dateiId === null ? null : (nameJeDatei.get(zeile.dateiId) ?? null),
     ipText: zeile.clientIpUnbestaetigt ?? "—",
@@ -533,15 +391,7 @@ export default async function ShareDetailSeite({
             </Button>
           </>
         ) : (
-          <Table<DateiZeile>
-            rowKey="id"
-            dataSource={dateiZeilen}
-            columns={DATEI_SPALTEN}
-            pagination={false}
-            /* Die Summe der Spaltenbreiten: eine Tabelle scrollt auf schmalen
-               Geräten, sie bricht nicht um (`docs/design/README.md:174`). */
-            scroll={{ x: DATEI_TABELLE_BREITE_PX }}
-          />
+          <ShareDateienTabelle zeilen={dateiZeilen} />
         )}
       </Card>
 

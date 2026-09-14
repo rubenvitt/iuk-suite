@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clickElement,
   exists,
   mount,
   query,
@@ -35,7 +36,11 @@ const DOM_ZEILEN: TemplateAnzeigeZeile[] = [
     detailHref: "/verwaltung/vorlagen/template-standard",
     inaktiv: false,
     bestueckungText: "2 Positionen · 2 Fächer",
+    // Die Rohzahlen fahren mit, weil die Spalten danach sortieren — der
+    // Anzeigetext beginnt mit der Zahl und ordnete „12" vor „2".
+    positionenZahl: 2,
     fahrzeugeText: "1 Fahrzeug",
+    fahrzeugeZahl: 1,
   },
   {
     id: "template-alt",
@@ -43,7 +48,9 @@ const DOM_ZEILEN: TemplateAnzeigeZeile[] = [
     detailHref: "/verwaltung/vorlagen/template-alt",
     inaktiv: true,
     bestueckungText: "1 Position · 1 Fach",
+    positionenZahl: 1,
     fahrzeugeText: "2 Fahrzeuge",
+    fahrzeugeZahl: 2,
   },
 ];
 
@@ -330,7 +337,11 @@ describe("TemplateTable", () => {
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual(["Vorlage", "Bestückung", "Fahrzeuge"]);
     expect(query("table").getAttribute("aria-label")).toBe("Vorlagen");
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` sind seit der
+    // Umstellung auf `@/core/tabelle` Vorgabe der `Datentabelle` und stehen in
+    // `TemplateTable.tsx` nicht mehr — geprueft wird die WIRKUNG am DOM.
     expect(exists(".ant-pagination")).toBe(false);
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
     expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
       .toEqual(["template-standard", "template-alt"]);
 
@@ -365,5 +376,60 @@ describe("TemplateTable", () => {
     expect(document.body.textContent).toContain(
       "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einem gepackten Fahrzeug.",
     );
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE BESTUECKUNG UEBER DIE ZAHL SORTIERT.
+   * „12 Positionen · 1 Fach" stuende als Zeichenkette VOR „2 Positionen · 2
+   * Fächer"; nur ueber `positionenZahl` steht 2 vorn.
+   */
+  it("sortiert die Bestückung über die Zahl, nicht über den Anzeigetext", async () => {
+    const zwoelf: TemplateAnzeigeZeile = {
+      ...DOM_ZEILEN[0]!,
+      id: "template-zwoelf",
+      name: "Zwölf",
+      bestueckungText: "12 Positionen · 1 Fach",
+      positionenZahl: 12,
+    };
+    const zwei: TemplateAnzeigeZeile = {
+      ...DOM_ZEILEN[0]!,
+      id: "template-zwei",
+      name: "Zwei",
+      bestueckungText: "2 Positionen · 2 Fächer",
+      positionenZahl: 2,
+    };
+
+    await mount(<TemplateTable zeilen={[zwoelf, zwei]} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Bestückung"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["template-zwei", "template-zwoelf"]);
+  });
+
+  /** Der Status steckt im Chip der Namensspalte, nicht in einer eigenen Spalte. */
+  it("filtert inaktive Vorlagen über den Kopf der Vorlagenspalte", async () => {
+    await mount(<TemplateTable zeilen={DOM_ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Vorlage"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "inaktiv");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in
+    // beiden Sprachen.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["template-alt"]);
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Alert, Button, Checkbox, Drawer, Flex, Input, Select, Space, Table } from "antd";
+import { Alert, Button, Checkbox, Drawer, Flex, Input, Select, Space } from "antd";
+import { Datentabelle, nachText, zustandsFilter } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { SPACE } from "@/core/theme/tokens";
 import { sammelAendereArtikel } from "../_actions/artikel";
@@ -19,6 +20,17 @@ import { SCHRIFT } from "../_lib/schrift";
 import { Chip } from "./Chip";
 import { KategorieEingabe } from "./KategorieEingabe";
 import styles from "./verwaltung.module.css";
+
+/**
+ * Die Vorschau traegt dieselbe Aussage zweimal: als Chipliste in der Zeile und
+ * als Filter im Spaltenkopf. Bei Hunderten ausgewaehlten Artikeln ist „zeig mir
+ * nur die, die sich aendern" die Frage, die die Vorschau ueberhaupt
+ * beantworten soll.
+ */
+const AENDERT_SICH_FILTER = zustandsFilter<SammelVorschauZeile>([
+  { wert: "aendert", text: "ändert sich", trifft: (zeile) => zeile.felder.length > 0 },
+  { wert: "unveraendert", text: "unverändert", trifft: (zeile) => zeile.felder.length === 0 },
+]);
 
 /** Fester Satz statt `e.message` — in Produktion waere das Framework-Englisch. */
 const SPEICHERFEHLER =
@@ -201,25 +213,27 @@ export function SammelDrawer({
         <section>
           <h3 style={{ ...SCHRIFT.abschnitt, marginBlock: "0 12px" }}>Vorschau</h3>
           <Zusammenfassung vorschau={vorschau} aenderung={aenderung} />
-          <Table<SammelVorschauZeile>
+          <Datentabelle<SammelVorschauZeile>
             aria-label="Artikel dieser Sammeländerung"
             rowKey="id"
             dataSource={[...vorschau.zeilen]}
-            pagination={false}
             // Eigene Hoehe: eine lange Auswahl schiebt sonst alles unter die
             // Kante, und im `footer` stehende Knoepfe helfen nur der Aktion,
-            // nicht dem Lesen.
+            // nicht dem Lesen. Abweichend von der Vorgabe, deshalb ausdruecklich.
             scroll={{ y: 320, x: "max-content" }}
             style={{ marginBlockStart: SPACE.md }}
             locale={{ emptyText: "Kein Artikel ausgewählt." }}
             columns={[
               {
-                title: <span style={SCHRIFT.feldname}>Artikel</span>,
+                title: "Artikel",
                 dataIndex: "name",
+                sorter: nachText<SammelVorschauZeile>((zeile) => zeile.name),
               },
               {
-                title: <span style={SCHRIFT.feldname}>Ändert sich</span>,
+                title: "Ändert sich",
                 key: "felder",
+                filters: AENDERT_SICH_FILTER.filters,
+                onFilter: AENDERT_SICH_FILTER.onFilter,
                 render: (_wert: unknown, zeile) => (
                   zeile.felder.length === 0
                     ? <span style={SCHRIFT.neben}>unverändert</span>

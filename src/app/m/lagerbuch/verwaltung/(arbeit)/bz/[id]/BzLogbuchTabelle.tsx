@@ -1,6 +1,13 @@
 "use client";
 
-import { Table, type TableProps } from "antd";
+import type { TableProps } from "antd";
+import {
+  Datentabelle,
+  nachDatum,
+  nachText,
+  nachZahl,
+  type Filterwert,
+} from "@/core/tabelle";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
@@ -10,6 +17,8 @@ import s from "../../../../_ui/verwaltung.module.css";
 export type BzLogbuchAnzeigeZeile = {
   id: string;
   zeitpunktText: string;
+  /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
+  zeitpunktIso: string;
   ergebnisText: string;
   ergebnisTon: "ok" | "rot";
   level1Wert: number | null;
@@ -54,23 +63,41 @@ function levelZelle({
   );
 }
 
+/**
+ * ⚠️ SORTIERT WIRD UEBER `zeitpunktIso`, NIE UEBER `zeitpunktText` — die
+ * Begruendung steht an der Zeilenquelle (`bz/[id]/page.tsx`). Dasselbe gilt fuer
+ * die beiden Level-Spalten: gerendert wird ein Chip mit Klammerzusatz, sortiert
+ * wird ueber die nackte Zahl.
+ *
+ * Die Vorsortierung der Abfrage ist „juengste zuerst"
+ * (`orderBy(desc(ts), desc(id))`); `defaultSortOrder` schreibt sie nur auf.
+ */
 const LOGBUCH_SPALTEN = [
   {
-    title: <span style={SCHRIFT.feldname}>Zeitpunkt</span>,
+    title: "Zeitpunkt",
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
+    sorter: nachDatum<BzLogbuchAnzeigeZeile>((zeile) => zeile.zeitpunktIso),
+    defaultSortOrder: "descend" as const,
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Ergebnis</span>,
+    title: "Ergebnis",
     dataIndex: "ergebnisText",
     key: "ergebnis",
+    filters: [
+      { text: "bestanden", value: "bestanden" },
+      { text: "nicht bestanden", value: "nicht bestanden" },
+    ],
+    onFilter: (wert: Filterwert, zeile: BzLogbuchAnzeigeZeile) =>
+      zeile.ergebnisText === wert,
     render: (text: string, zeile) => <Chip ton={zeile.ergebnisTon}>{text}</Chip>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Level 1</span>,
+    title: "Level 1",
     dataIndex: "level1Wert",
     key: "level1",
+    sorter: nachZahl<BzLogbuchAnzeigeZeile>((zeile) => zeile.level1Wert),
     render: (_wert: number | null, zeile) => levelZelle({
       bezeichnung: "L1",
       wert: zeile.level1Wert,
@@ -80,9 +107,10 @@ const LOGBUCH_SPALTEN = [
     }),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Level 2</span>,
+    title: "Level 2",
     dataIndex: "level2Wert",
     key: "level2",
+    sorter: nachZahl<BzLogbuchAnzeigeZeile>((zeile) => zeile.level2Wert),
     render: (_wert: number | null, zeile) => levelZelle({
       bezeichnung: "L2",
       wert: zeile.level2Wert,
@@ -92,13 +120,13 @@ const LOGBUCH_SPALTEN = [
     }),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Verbrauch</span>,
+    title: "Verbrauch",
     dataIndex: "verbrauchText",
     key: "verbrauch",
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Akku</span>,
+    title: "Akku",
     dataIndex: "akkuText",
     key: "akku",
     render: (text: BzLogbuchAnzeigeZeile["akkuText"], zeile) => (
@@ -108,13 +136,14 @@ const LOGBUCH_SPALTEN = [
     ),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Wer</span>,
+    title: "Wer",
     dataIndex: "werText",
     key: "wer",
+    sorter: nachText<BzLogbuchAnzeigeZeile>((zeile) => zeile.werText),
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Kommentar</span>,
+    title: "Kommentar",
     dataIndex: "kommentarText",
     key: "kommentar",
     render: (text: string | null) => text ?? <span style={SCHRIFT.neben}>—</span>,
@@ -123,10 +152,8 @@ const LOGBUCH_SPALTEN = [
 
 export function BzLogbuchTabelle({ zeilen }: { zeilen: BzLogbuchAnzeigeZeile[] }) {
   return (
-    <Table<BzLogbuchAnzeigeZeile>
+    <Datentabelle<BzLogbuchAnzeigeZeile>
       rowKey="id"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Logbuch der Kontrollen"
       locale={{ emptyText: "Für dieses Gerät wurde noch keine Kontrolle erfasst." }}
       dataSource={zeilen}

@@ -1,8 +1,8 @@
 "use client";
 
-import { Table, type TableProps } from "antd";
+import type { TableProps } from "antd";
 import Link from "next/link";
-import { SCHRIFT } from "../../../../_lib/schrift";
+import { Datentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import { Chip } from "../../../../_ui/Chip";
 
 export type VerknuepftesFahrzeugDto = {
@@ -12,11 +12,17 @@ export type VerknuepftesFahrzeugDto = {
   aktiv: boolean;
 };
 
+const STATUS_FILTER = zustandsFilter<VerknuepftesFahrzeugDto>([
+  { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
+  { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
+]);
+
 const SPALTEN: TableProps<VerknuepftesFahrzeugDto>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Fahrzeug</span>,
+    title: "Fahrzeug",
     dataIndex: "name",
     key: "fahrzeug",
+    sorter: nachText<VerknuepftesFahrzeugDto>((zeile) => zeile.name),
     render: (name: string, fahrzeug) => (
       <Link href={`/verwaltung/fahrzeuge/${fahrzeug.id}`}>
         {name}{fahrzeug.kennung ? ` (${fahrzeug.kennung})` : ""}
@@ -24,9 +30,14 @@ const SPALTEN: TableProps<VerknuepftesFahrzeugDto>["columns"] = [
     ),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Status</span>,
+    title: "Status",
     dataIndex: "aktiv",
     key: "status",
+    // Die Zelle ist leer, solange das Fahrzeug aktiv ist — sortiert und
+    // gefiltert wird deshalb ueber das Feld, nicht ueber das Gerenderte.
+    sorter: nachJaNein<VerknuepftesFahrzeugDto>((zeile) => zeile.aktiv),
+    filters: STATUS_FILTER.filters,
+    onFilter: STATUS_FILTER.onFilter,
     render: (aktiv: boolean) => aktiv ? null : <Chip ton="grau">inaktiv</Chip>,
   },
 ];
@@ -37,10 +48,8 @@ export function VerknuepfteFahrzeugeTable({
   zeilen: VerknuepftesFahrzeugDto[];
 }) {
   return (
-    <Table<VerknuepftesFahrzeugDto>
+    <Datentabelle<VerknuepftesFahrzeugDto>
       rowKey="id"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Verknüpfte Fahrzeuge"
       dataSource={zeilen}
       locale={{ emptyText: "Kein Fahrzeug nutzt diese Vorlage." }}

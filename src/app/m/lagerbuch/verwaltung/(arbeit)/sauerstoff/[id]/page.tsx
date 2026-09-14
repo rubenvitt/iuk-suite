@@ -23,6 +23,10 @@ export function verlaufAnzeigeZeilen(
   return verlauf.map((messung) => ({
     id: messung.id,
     zeitpunktText: fmtTs(messung.ts),
+    // ⚠️ `zeitpunktText` ist „TT.MM. HH:MM" und ordnete als Zeichenkette den
+    // 2. Oktober vor den 14. September. Die Spalte sortiert deshalb ueber den
+    // ISO-Stempel; angezeigt wird weiterhin nur der kurze Text.
+    zeitpunktIso: messung.ts.toISOString(),
     druckBar: messung.druckBar,
     herkunft: messung.ausCheck ? "check" : "manuell",
     werText: messung.wer,

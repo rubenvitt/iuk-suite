@@ -136,6 +136,19 @@ const LEER = "—";
 export type EreignisZeile = {
   /** Vorformatiert (`_lib/anzeige.ts:75`), in der festgenagelten Zone der Flaeche. */
   zeitText: string;
+  /**
+   * ⛔ DERSELBE ZEITPUNKT ALS ISO-ZEICHENKETTE — ⛔ ALLEIN ZUM SORTIEREN, NIE ANGEZEIGT.
+   *
+   * `zeitText` ist „16.07.2026, 03:30"; als Zeichenkette sortiert stuende der 2. Oktober vor
+   * dem 14. September, und ein Sortierpfeil, der die falsche Ordnung herstellt, ist
+   * schlimmer als keiner — er sieht richtig aus. Die Zeile traegt deshalb beide Werte: einen
+   * zum Lesen und einen zum Ordnen (Vorbild `zeitIso` in
+   * `lagerbuch/verwaltung/(arbeit)/LetzteBuchungenTable.tsx`).
+   *
+   * ⛔ ER BRICHT DIE ZULAESSIGKEITSTAFEL NR. 7 NICHT: eine ISO-Zeichenkette ist skalar und
+   * serialisierbar — verboten ist das `Date` ueber die Props-Grenze, nicht der Zeitpunkt.
+   */
+  zeitIso: string;
   /** Aus `FELD_ETIKETTEN`; Rueckfall = roher Feldname, damit die Spalte nie leer bleibt. */
   feldEtikett: string;
   /** Leere Werte bereits als Gedankenstrich. */
@@ -231,6 +244,9 @@ export function ereignisseFuerGeraet(
 
   return roh.map((e) => ({
     zeitText: datumMitUhrzeit(e.changedAt),
+    // ⛔ UTC UND NICHT DIE ANZEIGEZONE: `toISOString()` ordnet dieselbe Folge wie die
+    // Zeitstempel selbst, und die Sortierung darf nicht an einer Zonenumstellung haengen.
+    zeitIso: e.changedAt.toISOString(),
     // Rueckfall = roher Feldname: ein neu erfasstes Feld erzeugt so keine leere Spalte.
     feldEtikett: FELD_ETIKETTEN[e.field] ?? e.field,
     alt: wertText(e.oldValue),

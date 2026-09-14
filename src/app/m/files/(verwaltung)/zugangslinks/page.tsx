@@ -41,6 +41,14 @@ import { ZugangslinksListe, type ZugangslinkZeile } from "../../_ui/Zugangslinks
  */
 const MILLISEKUNDEN_PRO_STUNDE = 60 * 60 * 1000;
 
+/** Die Laufzeit als ganze Stunden — EINMAL gerechnet, zweimal gebraucht: als
+ *  Text in der Zelle und als Zahl fuer die Sortierung des Spaltenkopfs. Zwei
+ *  Rechnungen ueber denselben Zeitraum koennten an der Rundungsgrenze
+ *  auseinanderlaufen, und die Zeile stuende dann anders, als sie sich liest. */
+function laufzeitStunden(erstellt: Date, laeuftAb: Date): number {
+  return Math.round((laeuftAb.getTime() - erstellt.getTime()) / MILLISEKUNDEN_PRO_STUNDE);
+}
+
 /**
  * BINAERE Praefixe, und das Wort dazu. Die Budget-Vorbelegung ist
  * `2 * 1024 * 1024 * 1024` (`_lib/grenzen.ts`) — eine Beschriftung „2,1 GB"
@@ -97,9 +105,11 @@ export default async function FilesZugangslinksSeite() {
     id: roh.id,
     name: roh.name,
     tokenStart: roh.tokenStart,
-    laufzeitText: `${Math.round(
-      (roh.expiresAt.getTime() - roh.createdAt.getTime()) / MILLISEKUNDEN_PRO_STUNDE,
-    )} h`,
+    laufzeitText: `${laufzeitStunden(roh.createdAt, roh.expiresAt)} h`,
+    // Der Rohwert NEBEN dem Anzeigetext, allein fuer die Sortierung der
+    // Spaltenkoepfe: ueber „24 h" zu sortieren geht bei dreistelligen Stunden
+    // still schief.
+    laufzeitStunden: laufzeitStunden(roh.createdAt, roh.expiresAt),
     /* Die Zeitzone steht im NAMEN und nur EINMAL, in `_lib/zeit.ts`. Ohne feste
        Zone formatierte `Intl` in der Zone des Serverprozesses — im Container
        UTC, also zwei Stunden vor der Berliner Wanduhr. Die Laufzeit darueber

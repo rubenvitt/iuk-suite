@@ -69,10 +69,15 @@ function journalAnzeigeZeilen(
     return {
       id: zeile.id,
       zeitText: fmtTs(zeile.ts),
+      // Der Rohwert NEBEN dem Anzeigetext: `zeitText` ist „14.09. 08:12" und
+      // sortierte als Zeichenkette den 2. Oktober vor den 14. September.
+      zeitIso: zeile.ts.toISOString(),
       artikelName: zeile.artikelName,
       vorgangText: darstellung.typText
         + (zeile.kommentar ? ` · ${zeile.kommentar}` : ""),
       deltaText: darstellung.mengeText,
+      // dito: „−3 Stk" sortierte neben „−30 Stk" falsch.
+      deltaZahl: zeile.menge,
       deltaTon: darstellung.zustand,
     };
   });

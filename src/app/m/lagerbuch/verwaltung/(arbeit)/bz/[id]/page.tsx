@@ -46,6 +46,10 @@ export function bzLogbuchAnzeigeZeilen(
   return logbuch.map((kontrolle) => ({
     id: kontrolle.id,
     zeitpunktText: fmtTs(kontrolle.ts),
+    // ⚠️ `zeitpunktText` ist „TT.MM. HH:MM" und ordnete als Zeichenkette den
+    // 2. Oktober vor den 14. September. Die Spalte sortiert deshalb ueber den
+    // ISO-Stempel; angezeigt wird weiterhin nur der kurze Text.
+    zeitpunktIso: kontrolle.ts.toISOString(),
     ergebnisText: kontrolle.bestanden ? "bestanden" : "nicht bestanden",
     ergebnisTon: kontrolle.bestanden ? "ok" : "rot",
     level1Wert: kontrolle.level1Wert,

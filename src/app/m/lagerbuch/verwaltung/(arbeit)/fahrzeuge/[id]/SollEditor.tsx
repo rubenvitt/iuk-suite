@@ -9,9 +9,9 @@ import {
   InputNumber,
   Popconfirm,
   Select,
-  Table,
   type TableProps,
 } from "antd";
+import { Datentabelle, trifftWert, werteAlsFilter } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import {
   sollPositionEntfernen,
@@ -197,16 +197,29 @@ export function SollEditor({
     ausstehend.sofort();
   }
 
+  /**
+   * ⚠️ DIESE TABELLE BEKOMMT KEINE SORTIERUNG, und das ist kein Versehen.
+   *
+   * Die Fachspalte ist ueber `onCell: { rowSpan }` zusammengefasst; die
+   * Zusammenfassung rechnet `sollGruppieren` EINMAL auf der nach `fachLabel`
+   * sortierten Kopie. Sortiert antd die Zeilen danach um, stehen die Zellen mit
+   * `rowSpan > 0` nicht mehr am Anfang ihrer Gruppe — die Tabelle verschluckt
+   * dann Zeilen oder zeigt das Fach an der falschen Stelle, ohne dass ein Tor
+   * das saehe. Ein Fachfilter ist dagegen unbedenklich: er entfernt ganze
+   * Gruppen, statt sie zu durchmischen.
+   */
   const spalten: TableProps<SollAnzeigeZeile>["columns"] = [
     {
-      title: <span style={SCHRIFT.feldname}>Fach</span>,
+      title: "Fach",
       dataIndex: "fachLabel",
       key: "fach",
       onCell: (position) => ({ rowSpan: position.rowSpan }),
+      filters: werteAlsFilter(zeilen, (position) => position.fachLabel),
+      onFilter: trifftWert<SollAnzeigeZeile>((position) => position.fachLabel),
       render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
     },
     {
-      title: <span style={SCHRIFT.feldname}>Artikel</span>,
+      title: "Artikel",
       dataIndex: "artikelName",
       key: "artikel",
       render: (artikelName: string, position) => (
@@ -236,7 +249,7 @@ export function SollEditor({
       // als Paar: IST ist Zahl, SOLL ist Eingabe. Keine Farbe fuer die
       // Abweichung — Rot gehoert nicht auf eine Datenflaeche (Falle 3).
       // KEIN `width`: sonst stimmt `scroll.x = "max-content"` nicht mehr.
-      title: <span style={SCHRIFT.feldname}>Ist</span>,
+      title: "Ist",
       dataIndex: "fahrzeugBestand",
       key: "ist",
       align: "right",
@@ -272,7 +285,7 @@ export function SollEditor({
       },
     },
     {
-      title: <span style={SCHRIFT.feldname}>Soll</span>,
+      title: "Soll",
       dataIndex: "soll",
       key: "soll",
       align: "right",
@@ -294,9 +307,15 @@ export function SollEditor({
       ),
     },
     {
-      title: <span style={SCHRIFT.feldname}>Herkunft</span>,
+      title: "Herkunft",
       dataIndex: "herkunft",
       key: "herkunft",
+      filters: [
+        { text: "manuell", value: "manuell" },
+        { text: "vorlage", value: "vorlage" },
+        { text: "ueberschrieben", value: "ueberschrieben" },
+      ],
+      onFilter: (wert, position) => position.herkunft === wert,
       render: (herkunft: SollZeile["herkunft"]) => (
         <Chip ton={HERKUNFT_TON[herkunft]}>{herkunft}</Chip>
       ),
@@ -359,10 +378,8 @@ export function SollEditor({
     // statt die Tabelle in sich scrollen zu lassen.
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Table<SollAnzeigeZeile>
+      <Datentabelle<SollAnzeigeZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Soll-Bestückung"
         dataSource={zeilen}
         locale={{ emptyText: "Noch keine Soll-Position. Lege unten die erste an." }}

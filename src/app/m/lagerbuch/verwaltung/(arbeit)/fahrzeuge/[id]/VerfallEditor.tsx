@@ -1,16 +1,26 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Alert, DatePicker, Table, type TableProps } from "antd";
+import { Alert, DatePicker, type TableProps } from "antd";
+import {
+  Datentabelle,
+  nachDatum,
+  nachRang,
+  nachText,
+  trifftWert,
+  werteAlsFilter,
+} from "@/core/tabelle";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
 import { verfallSetzen } from "../../../../_actions/lagerortVerfall";
 import type { AmpelTon } from "../../../../_lib/format";
-import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
 
 const VERFALL_FEHLER = "Verfall konnte nicht gespeichert werden.";
+
+/** Rot vor gelb vor ok: was Aufmerksamkeit verlangt, gehoert nach oben. */
+const AMPEL_RANG = ["rot", "gelb", "grau", "ok"] as const;
 
 export type VerfallAnzeigeZeile = {
   artikelId: string;
@@ -70,16 +80,30 @@ export function VerfallEditor({
 
   const spalten: TableProps<VerfallAnzeigeZeile>["columns"] = [
     {
-      title: <span style={SCHRIFT.feldname}>Artikel</span>,
+      title: "Artikel",
       dataIndex: "artikelName",
       key: "artikel",
+      sorter: nachText<VerfallAnzeigeZeile>((eintrag) => eintrag.artikelName),
       render: (name: string) => <strong>{name}</strong>,
     },
-    { title: <span style={SCHRIFT.feldname}>Fach</span>, dataIndex: "fachText", key: "fach" },
     {
-      title: <span style={SCHRIFT.feldname}>Verfall</span>,
+      title: "Fach",
+      dataIndex: "fachText",
+      key: "fach",
+      sorter: nachText<VerfallAnzeigeZeile>((eintrag) => eintrag.fachText),
+      filters: werteAlsFilter(eintraege, (eintrag) => eintrag.fachText),
+      onFilter: trifftWert<VerfallAnzeigeZeile>((eintrag) => eintrag.fachText),
+    },
+    {
+      title: "Verfall",
       dataIndex: "verfall",
       key: "verfall",
+      // ⚠️ SORTIERT WIRD UEBER DAS FELD, NICHT UEBER DEN MONATSWAEHLER.
+      // `verfall` ist „YYYY-MM" und ordnet als Zeichenkette bereits richtig;
+      // der `DatePicker` in der Zelle traegt gar keinen vergleichbaren Wert.
+      // Der Spiegel bleibt aussen vor: sortiert wird der gespeicherte Stand,
+      // sonst sprang die Zeile waehrend des Tippens weg.
+      sorter: nachDatum<VerfallAnzeigeZeile>((eintrag) => eintrag.verfall),
       render: (_verfall: string | null, eintrag) => {
         const monat = monatFuer(eintrag);
         return (
@@ -100,9 +124,20 @@ export function VerfallEditor({
       },
     },
     {
-      title: <span style={SCHRIFT.feldname}>Status</span>,
+      title: "Status",
       dataIndex: "statusText",
       key: "status",
+      sorter: nachRang<VerfallAnzeigeZeile, AmpelTon>(
+        (eintrag) => eintrag.statusTon ?? "grau",
+        AMPEL_RANG,
+      ),
+      filters: werteAlsFilter(
+        eintraege,
+        (eintrag) => eintrag.statusText ?? "nicht erfasst",
+      ),
+      onFilter: trifftWert<VerfallAnzeigeZeile>(
+        (eintrag) => eintrag.statusText ?? "nicht erfasst",
+      ),
       render: (statusText: string | null, eintrag) => statusText && eintrag.statusTon ? (
         <Chip ton={eintrag.statusTon}>{statusText}</Chip>
       ) : (
@@ -114,10 +149,8 @@ export function VerfallEditor({
   return (
     <div style={{ display: "grid", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Table<VerfallAnzeigeZeile>
+      <Datentabelle<VerfallAnzeigeZeile>
         rowKey="artikelId"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Verfall im Fahrzeug"
         dataSource={eintraege}
         locale={{

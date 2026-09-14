@@ -2,11 +2,22 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Button, Checkbox, Flex, Table } from "antd";
+import { Button, Flex } from "antd";
+import type { TableProps } from "antd";
+import {
+  Datentabelle,
+  nachJaNein,
+  nachRang,
+  nachText,
+  trifftWert,
+  useEntprellt,
+  werteAlsFilter,
+  zustandsFilter,
+  type Filterwert,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
 import type { GeraetTyp } from "../../../_lib/domain/geraet";
-import { toggleInSet } from "../../../_lib/mengen";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
@@ -39,6 +50,117 @@ export function sucheTrifft(zeile: GeraetAnzeigeZeile, begriff: string): boolean
   ).includes(suche);
 }
 
+const KLASSE_TEXT: Record<GeraetTyp, string> = {
+  medizin: "Medizin",
+  objekt: "Objekt",
+};
+
+/**
+ * DIE HAKENLEISTE VON FRUEHER IST IN DIE SPALTENKOEPFE GEWANDERT.
+ *
+ * Ueber der Tabelle standen eine `Checkbox.Group` fuer die Klasse sowie „nur
+ * faellige" und „inaktive ausblenden" — drei Praedikate ueber der Zeile, und
+ * ein Praedikat ueber der Zeile ist ein Spaltenfilter. Jedes sitzt jetzt im
+ * Kopf der Spalte, die es betrifft.
+ *
+ * ⚠️ MEHRERE HAKEN EINER SPALTE VERODERN SICH (antd-Verhalten, s.
+ * `zustandsFilter`); Filter VERSCHIEDENER Spalten schneiden sich weiterhin.
+ */
+const FAELLIG_FILTER = zustandsFilter<GeraetAnzeigeZeile>([
+  {
+    wert: "faellig",
+    text: "fällig/überfällig",
+    trifft: (zeile) => !zeile.keinDatum && zeile.faelligkeitAmpel !== "gruen",
+  },
+  { wert: "ohneDatum", text: "ohne Datum", trifft: (zeile) => zeile.keinDatum },
+]);
+
+const STATUS_FILTER = zustandsFilter<GeraetAnzeigeZeile>([
+  { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
+  { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
+]);
+
+/** Rot vor gelb vor gruen: was Aufmerksamkeit verlangt, gehoert nach oben. */
+const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
+
+function spalten(
+  zeilen: GeraetAnzeigeZeile[],
+): TableProps<GeraetAnzeigeZeile>["columns"] {
+  return [
+    {
+      title: "Gerät",
+      dataIndex: "name",
+      sorter: nachText<GeraetAnzeigeZeile>((zeile) => zeile.name),
+      render: (wert: string, zeile) => (
+        <span>
+          <Link
+            href={`/verwaltung/geraete/${zeile.id}`}
+            style={{ fontWeight: 600 }}
+          >
+            {wert}
+          </Link>
+          {zeile.barcode ? (
+            <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
+              {zeile.barcode}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      title: "Klasse",
+      dataIndex: "typ",
+      // Die Liste ist fachlich fest (zwei Klassen) und stammt deshalb
+      // ausnahmsweise nicht aus den Daten.
+      filters: [
+        { text: KLASSE_TEXT.medizin, value: "medizin" },
+        { text: KLASSE_TEXT.objekt, value: "objekt" },
+      ],
+      onFilter: (wert: Filterwert, zeile: GeraetAnzeigeZeile) => zeile.typ === wert,
+      render: (wert: GeraetTyp) => (
+        <Chip ton="grau" zeichen={wert === "medizin" ? "medizin" : "objekt"}>
+          {KLASSE_TEXT[wert]}
+        </Chip>
+      ),
+    },
+    {
+      title: "Standort",
+      dataIndex: "lagerortName",
+      sorter: nachText<GeraetAnzeigeZeile>((zeile) => zeile.lagerortName),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.lagerortName),
+      onFilter: trifftWert<GeraetAnzeigeZeile>((zeile) => zeile.lagerortName),
+    },
+    {
+      title: "Fälligkeit",
+      dataIndex: "chip",
+      // Sortiert wird ueber die Ampel, nicht ueber den Chiptext: „in 3 Tagen"
+      // und „seit 12 Tagen" ordneten als Zeichenketten beliebig.
+      sorter: nachRang<GeraetAnzeigeZeile, GeraetAnzeigeZeile["faelligkeitAmpel"]>(
+        (zeile) => zeile.faelligkeitAmpel,
+        AMPEL_RANG,
+      ),
+      filters: FAELLIG_FILTER.filters,
+      onFilter: FAELLIG_FILTER.onFilter,
+      render: (chip: GeraetAnzeigeZeile["chip"]) => chip === null ? null : (
+        <Chip
+          ton={chip.ton}
+          zeichen={chip.ton === "rot" ? "warnung" : undefined}
+        >
+          {chip.text}
+        </Chip>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "aktiv",
+      sorter: nachJaNein<GeraetAnzeigeZeile>((zeile) => zeile.aktiv),
+      filters: STATUS_FILTER.filters,
+      onFilter: STATUS_FILTER.onFilter,
+      render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
+    },
+  ];
+}
+
 export function GeraeteListe({
   zeilen,
   lagerorte,
@@ -47,32 +169,17 @@ export function GeraeteListe({
   lagerorte: { id: string; name: string; typ: "lager" | "fahrzeug" }[];
 }) {
   const [suche, setSuche] = useState("");
-  const [klassen, setKlassen] = useState<ReadonlySet<GeraetTyp>>(new Set());
-  const [nurFaellig, setNurFaellig] = useState(false);
-  const [ohneInaktive, setOhneInaktive] = useState(false);
+  // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
+  const sucheNachlauf = useEntprellt(suche);
+  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
 
-  const gefiltert = useMemo(() => zeilen.filter((zeile) => {
-    if (klassen.size > 0 && !klassen.has(zeile.typ)) return false;
-    if (nurFaellig && (zeile.keinDatum || zeile.faelligkeitAmpel === "gruen")) return false;
-    if (ohneInaktive && !zeile.aktiv) return false;
-    return sucheTrifft(zeile, suche);
-  }), [zeilen, suche, klassen, nurFaellig, ohneInaktive]);
+  const gefiltert = useMemo(
+    () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
+    [zeilen, sucheNachlauf],
+  );
 
-  const hatFilter = suche.trim() !== ""
-    || klassen.size > 0
-    || nurFaellig
-    || ohneInaktive;
-
-  const klasseUmschalten = (typ: GeraetTyp) => () => {
-    setKlassen((aktuell) => toggleInSet(aktuell, typ));
-  };
-
-  function zuruecksetzen(): void {
-    setSuche("");
-    setKlassen(new Set());
-    setNurFaellig(false);
-    setOhneInaktive(false);
-  }
+  const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
+  const hatFilter = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
 
   return (
     <>
@@ -82,45 +189,8 @@ export function GeraeteListe({
           onWert={setSuche}
           platzhalter="Gerät, Barcode oder Lagerort suchen…"
         />
-        <Checkbox.Group
-          value={[...klassen]}
-          options={[
-            {
-              value: "medizin",
-              onChange: klasseUmschalten("medizin"),
-              label: (
-                <span><Ikone name="medizin" groesse={12} /> Medizin</span>
-              ),
-            },
-            {
-              value: "objekt",
-              onChange: klasseUmschalten("objekt"),
-              label: (
-                <span><Ikone name="objekt" groesse={12} /> Objekt</span>
-              ),
-            },
-          ]}
-        />
-        <Checkbox
-          checked={nurFaellig}
-          onChange={(ereignis) => setNurFaellig(ereignis.target.checked)}
-        >
-          nur fällige
-        </Checkbox>
-        <Checkbox
-          checked={ohneInaktive}
-          onChange={(ereignis) => setOhneInaktive(ereignis.target.checked)}
-        >
-          inaktive ausblenden
-        </Checkbox>
-        {hatFilter ? (
-          <Button
-            icon={<Ikone name="zuruecksetzen" groesse={16} />}
-            onClick={zuruecksetzen}
-          >
-            Zurücksetzen
-          </Button>
-        ) : null}
+        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter — deren Wirkung
+            steht sichtbar im Spaltenkopf. */}
         <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
         <Button
           href="/verwaltung/geraete/scan"
@@ -131,65 +201,21 @@ export function GeraeteListe({
         <NeuGeraet lagerorte={lagerorte} />
       </Flex>
 
-      <Table<GeraetAnzeigeZeile>
+      <Datentabelle<GeraetAnzeigeZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Geräte"
         dataSource={gefiltert}
+        onChange={(_seite, filter) => {
+          setSpaltenFilterAktiv(
+            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
+          );
+        }}
         locale={{
           emptyText: hatFilter
             ? "Kein Gerät passt zu Suche und Filter."
             : "Noch keine Geräte. Lege oben das erste an.",
         }}
-        columns={[
-          {
-            title: <span style={SCHRIFT.feldname}>Gerät</span>,
-            dataIndex: "name",
-            render: (wert: string, zeile) => (
-              <span>
-                <Link
-                  href={`/verwaltung/geraete/${zeile.id}`}
-                  style={{ fontWeight: 600 }}
-                >
-                  {wert}
-                </Link>
-                {zeile.barcode ? (
-                  <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-                    {zeile.barcode}
-                  </span>
-                ) : null}
-              </span>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Klasse</span>,
-            dataIndex: "typ",
-            render: (wert: GeraetTyp) => (
-              <Chip ton="grau" zeichen={wert === "medizin" ? "medizin" : "objekt"}>
-                {wert === "medizin" ? "Medizin" : "Objekt"}
-              </Chip>
-            ),
-          },
-          { title: <span style={SCHRIFT.feldname}>Standort</span>, dataIndex: "lagerortName" },
-          {
-            title: <span style={SCHRIFT.feldname}>Fälligkeit</span>,
-            dataIndex: "chip",
-            render: (chip: GeraetAnzeigeZeile["chip"]) => chip === null ? null : (
-              <Chip
-                ton={chip.ton}
-                zeichen={chip.ton === "rot" ? "warnung" : undefined}
-              >
-                {chip.text}
-              </Chip>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Status</span>,
-            dataIndex: "aktiv",
-            render: (wert: boolean) => wert ? null : <Chip ton="grau">inaktiv</Chip>,
-          },
-        ]}
+        columns={spaltenliste}
       />
     </>
   );

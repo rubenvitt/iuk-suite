@@ -188,12 +188,23 @@ describe("Vergleich — Tabelle, Ordnung, Spalten", () => {
 
   it("nennt die Richtung im SPALTENKOPF (§3.4, wortgenau)", async () => {
     gruppeMitAbend("Bereitschaft", "bereitschaft", NUR_SCHULNOTE, [{ q1: 2 }]);
-    const kopf = [...(await zeichne()).querySelectorAll<HTMLElement>("thead th")].map(
-      (th) => th.textContent,
+    /*
+     * OHNE GROSZ/KLEIN-UNTERSCHEIDUNG, UND DAS IST KEINE AUFWEICHUNG. Die
+     * Versalien im Spaltenkopf kamen noch nie aus dem geschriebenen Text,
+     * sondern aus `textTransform: uppercase` der Kicker-Rolle — im DOM stand
+     * bisher „Ø NOTE (1 = BESTE)", weil der Quelltext es so schrieb, nicht weil
+     * es so gerendert wurde. Seit `@/core/tabelle` steht in `columns[].title`
+     * die natuerliche Schreibweise (den Kicker setzt die `Datentabelle`), das
+     * Bild auf dem Schirm ist unveraendert. Geprueft werden also weiterhin die
+     * WOERTER — sie sind die Aussage von §3.4 —, nur nicht mehr die Schreibung,
+     * die eine CSS-Regel besitzt und kein Test sehen kann.
+     */
+    const kopf = [...(await zeichne()).querySelectorAll<HTMLElement>("thead th")].map((th) =>
+      (th.textContent ?? "").toLowerCase(),
     );
-    expect(kopf.some((k) => (k ?? "").includes("Ø NOTE (1 = BESTE)"))).toBe(true);
-    expect(kopf.some((k) => (k ?? "").includes("ABENDE"))).toBe(true);
-    expect(kopf.some((k) => (k ?? "").includes("RÜCKLAUF Ø"))).toBe(true);
+    expect(kopf.some((k) => k.includes("ø note (1 = beste)"))).toBe(true);
+    expect(kopf.some((k) => k.includes("abende"))).toBe(true);
+    expect(kopf.some((k) => k.includes("rücklauf ø"))).toBe(true);
   });
 
   it("verlinkt die Gruppe auf ihr Cockpit", async () => {

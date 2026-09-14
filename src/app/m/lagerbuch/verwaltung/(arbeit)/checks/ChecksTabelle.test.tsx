@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clickElement,
   exists,
   mount,
   query,
@@ -18,6 +19,7 @@ const ZEILE: CheckAnzeigeZeile = {
   detailHref: "/verwaltung/checks/check-42",
   fahrzeugName: "RTW 1",
   abgeschlossenText: "7.8.2026, 12:00:00",
+  abgeschlossenIso: "2026-08-07T10:00:00.000Z",
   ergebnisChips: [
     {
       schluessel: "nachgefuellt",
@@ -110,8 +112,43 @@ describe("ChecksTabelle", () => {
     expect(hatUseClientAlsErsteDirektive('"use strict";\n"use client";'))
       .toBe(false);
     expect(quelle).toMatch(/rowKey=["']id["']/);
-    expect(quelle).toMatch(/pagination=\{false\}/);
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM — die
+    // Pagination oben, die Tabellenbreite hier.
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS NICHT UEBER DEN ANZEIGETEXT SORTIERT WIRD.
+   * „1.10.2026" steht als Zeichenkette VOR „7.8.2026"; nur ueber
+   * `abgeschlossenIso` ordnet der Oktober hinter den August. Die Vorgabe ist
+   * absteigend (so liefert es die Abfrage), ein Klick dreht auf aufsteigend.
+   */
+  it("sortiert den Abschluss über den ISO-Stempel, nicht über den Text", async () => {
+    const august: CheckAnzeigeZeile = {
+      ...ZEILE,
+      id: "check-august",
+      abgeschlossenText: "7.8.2026, 12:00:00",
+      abgeschlossenIso: "2026-08-07T10:00:00.000Z",
+    };
+    const oktober: CheckAnzeigeZeile = {
+      ...ZEILE,
+      id: "check-oktober",
+      abgeschlossenText: "1.10.2026, 12:00:00",
+      abgeschlossenIso: "2026-10-01T10:00:00.000Z",
+    };
+
+    await mount(<ChecksTabelle zeilen={[august, oktober]} leertext="leer" />);
+
+    const schluessel = () => queryAll("tbody tr[data-row-key]")
+      .map((tr) => tr.getAttribute("data-row-key"));
+    expect(schluessel()).toEqual(["check-oktober", "check-august"]);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Abgeschlossen"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+    expect(schluessel()).toEqual(["check-august", "check-oktober"]);
   });
 
   it("zeigt den serverseitig festgelegten Leertext unverändert", async () => {

@@ -1,7 +1,17 @@
 "use client";
 
 import { useRef } from "react";
-import { Button, Popconfirm, Table } from "antd";
+import { Button, Popconfirm } from "antd";
+import {
+  Datentabelle,
+  nachDatum,
+  nachJaNein,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { personBeendenAction } from "../actions";
 import type { PersonRow } from "../_db/schema";
 import { ROLLE_TEXT, fmtStunden } from "../_lib/anzeige";
@@ -24,6 +34,16 @@ import s from "./aufgaben.module.css";
  * ES GIBT KEINE LOESCHEN-AKTION, UND DAS IST ABSICHT (Brief, Spec §4) — s. `actions.ts`s
  * Kopfkommentar zu Aufgabe 14. Wer hier eine vermisst: nicht ergaenzen, das ist die Fachlichkeit.
  *
+ * `pagination={false}` UND `scroll={{ x: "max-content" }}` STEHEN SEIT DER UMSTELLUNG AUF
+ * `@/core/tabelle` NICHT MEHR HIER — beides ist die Vorgabe der `Datentabelle`, ebenso der
+ * Spaltenkopf-Kicker.
+ *
+ * ⚠️ SORTIERT WIRD UEBER DEN ROHWERT, NIE UEBER DEN ANZEIGETEXT. Die Soll-Zeit steht als
+ * „7,8 Std./Tag" auf dem Schirm — mit Dezimalkomma, als Zeichenkette also falsch geordnet;
+ * verglichen wird `sollMinutenTag`. Die beiden Datumsspalten zeigen `fmtTagKurz` („14.09."),
+ * verglichen wird `aktivVon`/`aktivBis` als ISO-Tag. Beide Rohwerte liegen bereits in `PersonRow`;
+ * ein zusaetzliches Feld war nicht noetig.
+ *
  * „BEENDEN" IST BESTAETIGUNGSPFLICHTIG (Spec §9.9 nennt „Person deaktivieren" ausdruecklich) —
  * Vorbild `files/_ui/ShareDetailAktionen.tsx`: `Popconfirm` plus ein `ref` aufs Formular, `onConfirm`
  * loest `requestSubmit()` aus, statt das Formular selbst zum Bestaetigungsdialog zu machen.
@@ -37,43 +57,67 @@ export interface PersonenZeile {
 
 export function PersonenTabelle({ zeilen }: { zeilen: PersonenZeile[] }) {
   return (
-    <Table<PersonenZeile>
+    <Datentabelle<PersonenZeile>
       rowKey={(zeile) => zeile.person.id}
       dataSource={zeilen}
-      pagination={false}
-      // OHNE `scroll`, BRICHT DIE TABELLE AUF 390PX (Spec §9.5).
-      scroll={{ x: "max-content" }}
       columns={[
         {
           title: "Name",
           key: "name",
+          sorter: nachText<PersonenZeile>((zeile) => zeile.person.name),
           render: (_: unknown, zeile: PersonenZeile) => zeile.person.name,
         },
         {
           title: "Rolle",
           key: "rolle",
+          /*
+           * Die Rolle ist der Musterfall fuer `werteAlsFilter`: wenige wiederkehrende Werte, und
+           * die Liste entsteht aus den GELADENEN Zeilen — im Filter steht damit nie eine Rolle,
+           * die keine Zeile traegt. Gefiltert und sortiert wird ueber DENSELBEN Anzeigetext
+           * (`ROLLE_TEXT`), den auch die Zelle zeigt: der Schluessel `auftrag`/`bufdi` stuende
+           * sonst im Filter, waehrend daneben „Auftraggeber"/„BuFDi" in der Tabelle steht.
+           */
+          sorter: nachText<PersonenZeile>((zeile) => ROLLE_TEXT[zeile.person.rolle]),
+          filters: werteAlsFilter(zeilen, (zeile) => ROLLE_TEXT[zeile.person.rolle]),
+          onFilter: trifftWert<PersonenZeile>((zeile) => ROLLE_TEXT[zeile.person.rolle]),
           render: (_: unknown, zeile: PersonenZeile) => ROLLE_TEXT[zeile.person.rolle],
         },
         {
           title: "Soll-Zeit",
           key: "soll",
+          sorter: nachZahl<PersonenZeile>((zeile) => zeile.person.sollMinutenTag),
           render: (_: unknown, zeile: PersonenZeile) =>
             `${fmtStunden(zeile.person.sollMinutenTag)} Std./Tag`,
         },
         {
           title: "Aktiv von",
           key: "aktivVon",
+          sorter: nachDatum<PersonenZeile>((zeile) => zeile.person.aktivVon),
           render: (_: unknown, zeile: PersonenZeile) => fmtTagKurz(zeile.person.aktivVon),
         },
         {
           title: "Aktiv bis",
           key: "aktivBis",
+          // `null` heisst „unbefristet" und steht aufsteigend hinten — dort, wo
+          // auch das spaeteste Datum steht. Genau die richtige Nachbarschaft.
+          sorter: nachDatum<PersonenZeile>((zeile) => zeile.person.aktivBis),
           render: (_: unknown, zeile: PersonenZeile) =>
             zeile.person.aktivBis === null ? "unbefristet" : fmtTagKurz(zeile.person.aktivBis),
         },
         {
           title: "Status",
           key: "status",
+          /*
+           * „Nur die Aktiven" ist ein Praedikat ueber der Zeile, also ein Spaltenfilter statt einer
+           * Knopfleiste darueber. `zustandsFilter` und nicht `werteAlsFilter`: `istAktivHeute` ist
+           * ein Wahrheitswert, den die Seite berechnet — die zwei Woerter stehen in keinem Feld.
+           * `nachJaNein` stellt `true` nach vorn: wer noch da ist, steht oben.
+           */
+          sorter: nachJaNein<PersonenZeile>((zeile) => zeile.istAktivHeute),
+          ...zustandsFilter<PersonenZeile>([
+            { wert: "aktiv", text: "Aktiv", trifft: (zeile) => zeile.istAktivHeute },
+            { wert: "ausgeschieden", text: "Ausgeschieden", trifft: (zeile) => !zeile.istAktivHeute },
+          ]),
           render: (_: unknown, zeile: PersonenZeile) => (
             <span
               className={`${s.chip} ${zeile.istAktivHeute ? s.tonOk : s.tonGrau}`}

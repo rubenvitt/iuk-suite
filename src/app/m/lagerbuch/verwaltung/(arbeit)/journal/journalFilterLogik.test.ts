@@ -114,13 +114,22 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     )).toEqual({ q: "", typ: "zugang", von: "", bis: "" });
   });
 
-  it("nennt den Deckel nur, wenn die Plus-eins-Zeile ihn belegt", () => {
-    expect(deckelText(100, true)).toBe(
-      "Neueste 100 von mehr Treffern — Zeitraum eingrenzen",
-    );
+  /**
+   * ⚠️ SEIT DRK-331 IST DER DECKEL EINE PORTIONSGROESSE, KEINE GRENZE. Der alte
+   * Text „Neueste 100 von mehr Treffern — Zeitraum eingrenzen" war eine
+   * AUFFORDERUNG, weil der Rest unerreichbar war. Er ist jetzt erreichbar, man
+   * scrollt weiter — die Aufforderung waere schlicht falsch geworden.
+   *
+   * Und die 100 kommt im Text gar nicht mehr vor: sie war nie eine Aussage ueber
+   * die Daten, sondern ueber die Abfrage. Dieser Test haelt beides fest.
+   */
+  it("sagt beim Nachladen, dass es weitergeht — ohne die Deckelzahl zu nennen", () => {
+    expect(deckelText(100, true)).toBe("100 Treffer geladen — weitere beim Scrollen");
+    expect(deckelText(100, true)).not.toContain("eingrenzen");
     expect(deckelText(100, false)).toBe("100 Treffer");
     expect(deckelText(3, false)).toBe("3 Treffer");
     expect(deckelText(1, false)).toBe("1 Treffer");
+    expect(deckelText(1, true)).toBe("1 Treffer geladen — weitere beim Scrollen");
   });
 
   it("bleibt ohne Server- oder Client-Directive von RSC und Insel importierbar", () => {

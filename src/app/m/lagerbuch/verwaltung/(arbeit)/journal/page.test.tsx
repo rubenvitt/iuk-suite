@@ -8,10 +8,7 @@ import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { JournalFilter } from "./JournalFilter";
-import {
-  JournalTable,
-  type JournalAnzeigeZeile,
-} from "./JournalTable";
+import { JournalTable, type JournalZeileDTO } from "./JournalTable";
 import JournalSeite, {
   dynamic,
   journalDaten,
@@ -161,7 +158,9 @@ describe("Journalseite — Regime B und Deckel", () => {
     );
     expect(kopf.props.beschreibung).toBe(
       "Append-only Buchungsjournal — der Bestand ist immer die Summe der Buchungen. "
-      + "Neueste 100 von mehr Treffern — Zeitraum eingrenzen.",
+      // Seit DRK-331 nennt der Text keine Deckelzahl mehr und fordert nichts:
+      // der Rest ist erreichbar, man scrollt weiter.
+      + "100 Treffer geladen — weitere beim Scrollen.",
     );
   });
 
@@ -246,32 +245,51 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
     const seite = journalInhalt(journalDaten(t.db, {}));
     const [tabelle] = elementeVomTyp(seite, JournalTable);
     const props = tabelle.props as {
-      zeilen: JournalAnzeigeZeile[];
+      ersteZeilen: JournalZeileDTO[];
+      ersterCursor: unknown;
+      abrufFilter: unknown;
       leertext: string;
     };
 
-    expect(props.zeilen).toEqual([
+    /**
+     * ⚠️ SEIT DRK-331 GEHEN ROHZEILEN UEBER DIE GRENZE, nicht mehr fertige
+     * Anzeigezeilen — die Aufbereitung liegt in der Insel, damit nachgeladene
+     * Zeilen dieselbe durchlaufen wie die ersten hundert.
+     *
+     * DIE ZUSAGE DIESES TESTS BLEIBT DIESELBE und ist sogar wichtiger geworden:
+     * alles, was hinuebergeht, ist REKURSIV PRIMITIV. `ts` ist deshalb eine
+     * ISO-Zeichenkette und kein `Date`. React serialisierte ein `Date` zwar von
+     * sich aus — aber die Grenze wird jetzt auf ZWEI Wegen ueberquert (Server
+     * Component und Server Action), und eine Zeichenkette verhaelt sich auf
+     * beiden gleich.
+     */
+    expect(props.ersteZeilen).toEqual([
       {
         id: "id-positiv",
-        zeitText: "07.08. 14:00",
+        ts: "2026-08-07T12:00:00.000Z",
         artikelName: "Verbandpäckchen",
-        vorgangText: "Wareneingang",
-        deltaText: "+2",
-        deltaTon: "positiv",
-        quelleName: "System",
+        typ: "zugang",
+        menge: 2,
         quelleId: "system",
+        quelleName: "System",
+        kommentar: null,
+        referenz: null,
       },
       {
         id: "id-negativ",
-        zeitText: "07.08. 14:00",
+        ts: "2026-08-07T12:00:00.000Z",
         artikelName: "Verbandpäckchen",
-        vorgangText: "Entnahme · Verbraucht",
-        deltaText: "-1",
-        deltaTon: "negativ",
-        quelleName: "System",
+        typ: "entnahme",
+        menge: -1,
         quelleId: "system",
+        quelleName: "System",
+        kommentar: "Verbraucht",
+        referenz: null,
       },
     ]);
+    // Ohne Filter ist das Objekt LEER, nicht voller `undefined` — siehe
+    // `abrufFilterAus`.
+    expect(props.abrufFilter).toEqual({});
     expect(istJsonSicher(props)).toBe(true);
   });
 

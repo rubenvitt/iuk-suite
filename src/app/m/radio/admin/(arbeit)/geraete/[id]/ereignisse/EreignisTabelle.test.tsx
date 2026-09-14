@@ -62,7 +62,7 @@ function inselDateien(): string[] {
 /** ⛔ Die Sollwerttafel steht NUR auf der rechten Seite — sie ist der Prueffling der Messung. */
 const INSEL_SOLL = ["EreignisTabelle.tsx"];
 
-import { queryAll, exists, mount, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, queryAll, exists, mount, unmount } from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../../../_lib/quelltextScan";
 import type { EreignisZeile } from "../../../../../_lib/lesepfade/ereignisse";
 import { EreignisTabelle, QUELLE_TON } from "./EreignisTabelle";
@@ -75,6 +75,9 @@ import { EreignisTabelle, QUELLE_TON } from "./EreignisTabelle";
 function zeile(teil: Partial<EreignisZeile> = {}): EreignisZeile {
   return {
     zeitText: "03.07.2026, 12:00",
+    // ⛔ DAS ROHFELD GEHOERT IN JEDE TESTZEILE. Ohne es sortierte die Zeitspalte ueber den
+    // Anzeigetext — genau die Klasse, die `zeitIso` ausschliesst (siehe `EreignisZeile`).
+    zeitIso: "2026-07-03T10:00:00.000Z",
     feldEtikett: "Lagerort",
     alt: "Lager A",
     neu: "Lager B",
@@ -84,6 +87,22 @@ function zeile(teil: Partial<EreignisZeile> = {}): EreignisZeile {
     quelleWort: "von Hand",
     ...teil,
   };
+}
+
+/**
+ * Einen sortierbaren Spaltenkopf anfassen — ⛔ UEBER SEINE BESCHRIFTUNG UND NICHT UEBER SEINE
+ * POSITION. Ein Fall, der `queryAll("th")[1]` schreibt, misst nach dem Einschieben einer
+ * Spalte still eine andere Spalte und bleibt gruen.
+ *
+ * ⚠️ DIE BESCHRIFTUNG LIEGT IN EINEM `<span>` DES KICKERS (`src/core/tabelle/Datentabelle.tsx`);
+ * `textContent` liest durch ihn hindurch, `th.title` gaebe es nicht.
+ */
+async function klickeSpaltenkopf(beschriftung: string): Promise<void> {
+  const kopf = queryAll("th.ant-table-column-has-sorters").find(
+    (th) => (th.textContent ?? "").trim() === beschriftung,
+  );
+  if (kopf === undefined) throw new Error(`Kein sortierbarer Spaltenkopf „${beschriftung}"`);
+  await clickElement(kopf);
 }
 
 /** Der Text einer Zelle, ohne Randleerraum — `textContent` traegt in antd keine Umbrueche. */
@@ -537,5 +556,87 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
     /* ⛔ OHNE DAS SCHLIESSENDE `/>`: ein Umbruch des Attributs waere sonst falsch-rot. */
     expect(quelle, "der Pfeil am Rueckweg fehlt").toMatch(/<VIkone name="pfeil-links"/);
     expect(quelle, "der Pfeil steht ohne seine Klasse").toMatch(/className=\{s\.zurueckLink\}/);
+  });
+});
+
+describe("radio-Ereignisse: Sortierung und Filter im Spaltenkopf", () => {
+  it("die Zeitspalte ordnet ueber das Rohfeld, nicht ueber den Anzeigetext", async () => {
+    /*
+     * ⛔ **DER FALL, DER DIE GEFAEHRLICHSTE HAELFTE DER SORTIERUNG MISST.** `zeitText` ist
+     * „02.10.2026, 08:00"; als ZEICHENKETTE verglichen steht „14.09…" DAVOR, weil die 1 vor
+     * der 0 kommt — der 14. September stuende absteigend vor dem 2. Oktober. Genau diese
+     * Verwechslung faellt nicht auf: die Spalte sieht sortiert aus.
+     *
+     * ⛔ DIE ZEILEN GEHEN IN DER FALSCHEN REIHENFOLGE HINEIN, sonst maesse der Fall nur, dass
+     * die Tabelle ihre Eingabe durchreicht. Die Vorgabe der Spalte ist `descend` (der Lesepfad
+     * liefert `desc(changedAt)`), das Ergebnis also „neueste zuerst".
+     */
+    await mount(
+      <EreignisTabelle
+        zeilen={[
+          zeile({ zeitText: "14.09.2026, 08:00", zeitIso: "2026-09-14T06:00:00.000Z" }),
+          zeile({ zeitText: "02.10.2026, 08:00", zeitIso: "2026-10-02T06:00:00.000Z" }),
+        ]}
+      />,
+    );
+
+    expect(texte("radio-ereignis-zeit")).toEqual([
+      "02.10.2026, 08:00",
+      "14.09.2026, 08:00",
+    ]);
+  });
+
+  it("ein Klick auf den Spaltenkopf Feld ordnet die Zeilen um", async () => {
+    /*
+     * ⛔ DIE WIRKUNG, NICHT DIE ANWESENHEIT: ein Fall, der nur `.ant-table-column-sorter`
+     * zaehlt, bliebe auch dann gruen, wenn der `sorter` ein `true` waere und niemand sortierte
+     * (so ist es in `geraete/GeraeteTabelle.tsx` mit Absicht — dort sortiert der Server).
+     */
+    await mount(
+      <EreignisTabelle
+        zeilen={[zeile({ feldEtikett: "Status" }), zeile({ feldEtikett: "Lagerort" })]}
+      />,
+    );
+    expect(texte("radio-ereignis-feld")).toEqual(["Status", "Lagerort"]);
+
+    await klickeSpaltenkopf("Feld");
+    expect(texte("radio-ereignis-feld")).toEqual(["Lagerort", "Status"]);
+
+    await klickeSpaltenkopf("Feld");
+    expect(texte("radio-ereignis-feld")).toEqual(["Status", "Lagerort"]);
+  });
+
+  it("die Filterliste fuehrt nur Werte, die auch vorkommen", async () => {
+    /*
+     * ⛔ DIE LISTE ENTSTEHT AUS DEN ZEILEN (`werteAlsFilter`), nicht aus `FELD_ETIKETTEN`:
+     * jene Zuordnung fuehrt zwanzig Felder, eine Akte hat typisch drei angefasst. Eine
+     * Filterliste mit siebzehn Optionen, die keine Zeile treffen, ist die haeufigste
+     * Enttaeuschung an einem Spaltenfilter — und sie faellt still aus, weil die Tabelle
+     * korrekt aussieht.
+     *
+     * ⚠️ antd rendert das Aufklappmenue in ein PORTAL an `document.body`, nicht in den
+     * Mount-Wirt (`qr/_lib/test-dom.tsx`); gelesen wird es deshalb dort.
+     */
+    await mount(
+      <EreignisTabelle
+        zeilen={[
+          zeile({ feldEtikett: "Status" }),
+          zeile({ feldEtikett: "Lagerort" }),
+          zeile({ feldEtikett: "Status" }),
+        ]}
+      />,
+    );
+
+    const ausloeser = queryAll("th .ant-table-filter-trigger");
+    expect(ausloeser.length, "die Spaltenfilter fehlen").toBe(2);
+    await clickElement(ausloeser[0]!);
+
+    const eintraege = Array.from(
+      document.body.querySelectorAll(".ant-dropdown .ant-dropdown-menu-title-content"),
+    ).map((el) => (el.textContent ?? "").trim());
+    expect(eintraege, "die Filterliste steht nicht auf den vorkommenden Werten").toEqual([
+      "Lagerort",
+      "Status",
+    ]);
   });
 });

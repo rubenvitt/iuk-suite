@@ -51,6 +51,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     faelligkeitTon: "rot",
     faelligkeitText: "noch nie geprüft",
     letzteKontrolleText: null,
+    letzteKontrolleIso: null,
     faellig: true,
   },
   {
@@ -62,6 +63,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     faelligkeitTon: "rot",
     faelligkeitText: "überfällig (seit 3 Tagen)",
     letzteKontrolleText: "07.08. 12:34",
+    letzteKontrolleIso: "2026-08-07T10:34:00.000Z",
     faellig: true,
   },
   {
@@ -73,6 +75,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     faelligkeitTon: "gelb",
     faelligkeitText: "heute fällig",
     letzteKontrolleText: "07.07. 10:00",
+    letzteKontrolleIso: "2026-07-07T08:00:00.000Z",
     faellig: true,
   },
   {
@@ -84,6 +87,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     faelligkeitTon: "ok",
     faelligkeitText: "fällig in 8 Tagen",
     letzteKontrolleText: "15.07. 10:00",
+    letzteKontrolleIso: "2026-07-15T08:00:00.000Z",
     faellig: false,
   },
 ];
@@ -129,11 +133,65 @@ function enthaeltDate(wert: unknown): boolean {
   return false;
 }
 
-function checkboxMitText(text: string): HTMLElement {
-  const checkbox = queryAll<HTMLElement>(".ant-checkbox-wrapper")
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!checkbox) throw new Error(`Checkbox nicht gefunden: ${text}`);
-  return checkbox;
+/**
+ * Die Freitextsuche laeuft ueber `useEntprellt` — das FELD steht sofort, die
+ * ABLEITUNG erst nach der Entprellzeit. Ohne dieses Warten misst der Test den
+ * Zustand VOR dem Filtern und meldet das als „Filter wirkt nicht".
+ */
+async function suchen(wert: string): Promise<void> {
+  await fill("input[type='search']", wert);
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 250));
+  });
+}
+
+/**
+ * Einen Spaltenfilter setzen — den Weg, den auch eine Person nimmt: Trichter im
+ * Spaltenkopf, Eintraege ankreuzen, „OK". Ohne Eintraege wird zurueckgesetzt.
+ *
+ * ⚠️ DIE EINTRAEGE WERDEN UMGESCHALTET, NICHT GESETZT: das Menue behaelt seine
+ * bisherige Auswahl, ein erneut genannter Eintrag faellt also wieder heraus.
+ */
+async function spaltenFilter(spalte: string, ...eintraege: string[]): Promise<void> {
+  const kopf = queryAll<HTMLElement>("thead th")
+    .find((th) => (th.textContent ?? "").includes(spalte));
+  const trichter = kopf?.querySelector<HTMLElement>(".ant-table-filter-trigger");
+  if (!trichter) throw new Error(`Kein Spaltenfilter an: ${spalte}`);
+  await clickElement(trichter);
+
+  // ⚠️ NUR DAS OFFENE MENUE. antd laesst ein einmal geoeffnetes Filtermenue im
+  // DOM stehen und blendet es nur aus; ohne diese Einschraenkung traefe „OK"
+  // den Knopf eines FRUEHER geoeffneten Menues, und der Filter dieser Spalte
+  // bliebe still unangewandt.
+  const offen = () =>
+    document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+  const menue = () => Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? []);
+  await warteAuf(() => menue().length > 0, `Filtermenü zu ${spalte}`);
+
+  for (const text of eintraege) {
+    const eintrag = menue().find((li) => (li.textContent ?? "").includes(text));
+    if (!eintrag) throw new Error(`Filtereintrag nicht gefunden: ${text}`);
+    await clickElement(eintrag);
+  }
+
+  // Ohne `ConfigProvider`-Locale beschriftet antd die beiden Knoepfe englisch
+  // („Reset"/„OK"); beide Schreibweisen werden akzeptiert.
+  const knopf = (muster: RegExp) => Array.from(
+    offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+  ).find((element) => muster.test(element.textContent ?? ""));
+
+  // „Zuruecksetzen" leert nur die Auswahl; uebernommen wird sie erst mit „OK".
+  if (eintraege.length === 0) {
+    const leeren = knopf(/Zurücksetzen|Reset/);
+    if (!leeren) throw new Error("Kein Zurücksetzen-Knopf im Filtermenü");
+    await clickElement(leeren);
+  }
+  const uebernehmen = knopf(/^OK$/);
+  if (!uebernehmen) throw new Error("Kein OK-Knopf im Filtermenü");
+  await clickElement(uebernehmen);
+  await warte();
 }
 
 function knopfMitText(text: string): HTMLElement {
@@ -228,61 +286,85 @@ describe("BzListe", () => {
     );
     expect(quelle.split(/\r?\n/, 1)[0]).toBe('"use client";');
     expect(quelle).toMatch(/rowKey=["']id["']/);
-    expect(quelle).toMatch(/pagination=\{false\}/);
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM — die
+    // Pagination oben, die Tabellenbreite hier.
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
     expect(quelle).not.toContain("@ant-design/icons");
   });
 
   it("sucht ausschließlich über Name, Barcode und Lagerort", async () => {
     await mount(<BzListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
 
-    await fill("input[type='search']", "accu");
+    await suchen("accu");
     expect(zeilenIds()).toEqual(["nie"]);
-    await fill("input[type='search']", "sn-nie-42");
+    await suchen("sn-nie-42");
     expect(zeilenIds()).toEqual(["nie"]);
-    await fill("input[type='search']", "rtw nord");
+    await suchen("rtw nord");
     expect(zeilenIds()).toEqual(["nie"]);
 
-    await fill("input[type='search']", "überfällig");
+    await suchen("überfällig");
     expect(zeilenIds()).toEqual([]);
-    await fill("input[type='search']", "inaktiv");
+    await suchen("inaktiv");
     expect(zeilenIds()).toEqual([]);
-    await fill("input[type='search']", "Lager Süd");
+    await suchen("Lager Süd");
     expect(zeilenIds()).toEqual(["ueberfaellig"]);
   });
 
-  it("kombiniert alle Filter und behält ein nie geprüftes Gerät im Fälligkeitsfilter", async () => {
+  /**
+   * Die Haken „fällig/überfällig" und „inaktive ausblenden" standen bis zur
+   * Umstellung ueber der Tabelle. Beide sind Spaltenfilter geworden — dieselben
+   * Praedikate, nur dort, wo ihre Wirkung sichtbar ist. Ein nie geprueftes
+   * Geraet bleibt im Faelligkeitsfilter, weil `faellig` es so sagt.
+   */
+  it("schneidet Fälligkeits-, Status- und Freitextfilter miteinander", async () => {
     await mount(<BzListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
+    expect(exists(".ant-checkbox-wrapper")).toBe(false);
 
-    await clickElement(checkboxMitText("fällig/überfällig"));
+    await spaltenFilter("Fälligkeit", "fällig/überfällig");
     expect(zeilenIds()).toEqual(["nie", "ueberfaellig", "heute"]);
-    expect(query(`.${s.filtertreffer}`).textContent).toBe("3 von 4");
 
-    await clickElement(checkboxMitText("inaktive ausblenden"));
+    await spaltenFilter("Status", "aktiv");
     expect(zeilenIds()).toEqual(["nie", "ueberfaellig"]);
-    expect(query(`.${s.filtertreffer}`).textContent).toBe("2 von 4");
 
-    await fill("input[type='search']", "contour");
+    await suchen("contour");
     expect(zeilenIds()).toEqual(["ueberfaellig"]);
+    // Die Trefferanzeige zaehlt die Freitextsuche; die Spaltenfilter zeigen
+    // ihre Wirkung im Spaltenkopf.
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 4");
   });
 
-  it("setzt Suche und beide Checkboxen gemeinsam zurück", async () => {
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE FAELLIGKEIT NICHT UEBER DEN TEXT SORTIERT.
+   * „fällig in 8 Tagen" stuende als Zeichenkette vor „noch nie geprüft" und
+   * „überfällig (seit 3 Tagen)"; nur ueber die Ampel steht Rot oben.
+   */
+  it("sortiert die Fälligkeit über die Ampel, nicht über den Chiptext", async () => {
     await mount(<BzListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
-    await fill("input[type='search']", "contour");
-    await clickElement(checkboxMitText("fällig/überfällig"));
-    await clickElement(checkboxMitText("inaktive ausblenden"));
-    expect(zeilenIds()).toEqual(["ueberfaellig"]);
 
-    await clickElement(knopfMitText("Zurücksetzen"));
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Fälligkeit"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
 
     expect(zeilenIds()).toEqual(["nie", "ueberfaellig", "heute", "spaeter"]);
-    expect(query<HTMLInputElement>("input[type='search']").value).toBe("");
-    expect(queryAll<HTMLInputElement>("input[type='checkbox']")
-      .map((checkbox) => checkbox.checked)).toEqual([false, false]);
-    expect(exists(`.${s.filtertreffer}`)).toBe(false);
-    expect(queryAll("button").some((knopf) => knopf.textContent?.includes("Zurücksetzen")))
-      .toBe(false);
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE LETZTE KONTROLLE NICHT UEBER DEN TEXT SORTIERT.
+   * „07.07." steht als Zeichenkette vor „07.08." und „15.07." — aufsteigend
+   * waere das 07.07., 07.08., 15.07. Nur ueber `letzteKontrolleIso` ordnet der
+   * 15. Juli vor den 7. August; das nie gepruefte Geraet traegt `null` und
+   * steht aufsteigend hinten.
+   */
+  it("sortiert die letzte Kontrolle über den ISO-Stempel, nicht über den Text", async () => {
+    await mount(<BzListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Letzte Kontrolle"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(zeilenIds()).toEqual(["heute", "spaeter", "ueberfaellig", "nie"]);
   });
 
   it("zeigt ohne Daten und ohne Filter den fachlichen Anfangstext", async () => {
@@ -293,14 +375,14 @@ describe("BzListe", () => {
 
   it("erkennt den alleinigen Fälligkeitsfilter für den gefilterten Leertext", async () => {
     await mount(<BzListe zeilen={[ZEILEN[3]]} lagerorte={LAGERORTE} />);
-    await clickElement(checkboxMitText("fällig/überfällig"));
+    await spaltenFilter("Fälligkeit", "fällig/überfällig");
     expect(zeilenIds()).toEqual([]);
     expect(document.body.textContent).toContain("Kein Gerät passt zu Suche und Filter.");
   });
 
-  it("erkennt das alleinige Ausblenden Inaktiver für den gefilterten Leertext", async () => {
+  it("erkennt den alleinigen Statusfilter für den gefilterten Leertext", async () => {
     await mount(<BzListe zeilen={[ZEILEN[2]]} lagerorte={LAGERORTE} />);
-    await clickElement(checkboxMitText("inaktive ausblenden"));
+    await spaltenFilter("Status", "aktiv");
     expect(zeilenIds()).toEqual([]);
     expect(document.body.textContent).toContain("Kein Gerät passt zu Suche und Filter.");
   });
@@ -540,6 +622,7 @@ describe("BZ-Übersichtsseite als Server Component", () => {
         faelligkeitTon: "rot",
         faelligkeitText: "noch nie geprüft",
         letzteKontrolleText: null,
+        letzteKontrolleIso: null,
         faellig: true,
       }]);
       expect(props.lagerorte).toEqual([

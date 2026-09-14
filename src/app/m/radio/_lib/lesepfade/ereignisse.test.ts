@@ -462,6 +462,13 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
       .run();
 
     expect(ereignisseFuerGeraet(db, "g1")[0]?.zeitText).toBe("16.07.2026, 03:30");
+    /*
+     * ⛔ UND DERSELBE ZEITPUNKT ALS ISO-ZEICHENKETTE FUER DIE SORTIERUNG — die Zeitspalte der
+     * Insel ordnet ueber IHN und nie ueber den Anzeigetext („02.10…" stuende sonst vor
+     * „14.09…"). ⛔ IN UTC, nicht in der Anzeigezone: die Ordnung darf nicht an einer
+     * Zonenumstellung haengen. Bleibt er leer, sortiert die Spalte still gar nicht mehr.
+     */
+    expect(ereignisseFuerGeraet(db, "g1")[0]?.zeitIso).toBe("2026-07-16T01:30:00.000Z");
   });
 
   it("ohne Ereignisse antwortet der Lesepfad mit einer leeren Liste und fragt keine Namen ab", () => {

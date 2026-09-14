@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Button, Checkbox, Flex, Table } from "antd";
+import { Flex } from "antd";
+import type { TableProps } from "antd";
+import {
+  Datentabelle,
+  nachDatum,
+  nachText,
+  nachZahl,
+  trifftWert,
+  useEntprellt,
+  werteAlsFilter,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
-import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import { NeuFahrzeug } from "./NeuFahrzeug";
@@ -27,6 +37,8 @@ export type FahrzeugAnzeigeZeile = {
   artikelUnterSoll: number;
   verfallAuffaellig: number;
   letzterCheckText: string | null;
+  /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
+  letzterCheckIso: string | null;
 };
 
 /** SUCHFELDMENGE 2 VON 6: Name und Kennung. */
@@ -39,27 +51,136 @@ export function sucheTrifft(
     || falte(`${zeile.name} ${zeile.kennung ?? ""}`).includes(suche);
 }
 
+/**
+ * DIE DREI HAKEN VON FRUEHER SIND SPALTENFILTER GEWORDEN.
+ *
+ * Ueber der Tabelle standen „unter Soll", „laeuft ab" und „inaktive
+ * ausblenden" — jeder davon ein Praedikat ueber der Zeile, und ein Praedikat
+ * ueber der Zeile ist ein Spaltenfilter. Sie sitzen jetzt dort, wo ihre Wirkung
+ * sichtbar wird: im Kopf der Statusspalte, in der auch die zugehoerigen Chips
+ * stehen.
+ *
+ * ⚠️ MEHRERE HAKEN VERODERN SICH, sie schneiden sich nicht — das ist antds
+ * Verhalten fuer `filters` und dasselbe, was `zustandsFilter` festhaelt.
+ */
+const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
+  { wert: "unterSoll", text: "unter Soll", trifft: (zeile) => zeile.artikelUnterSoll > 0 },
+  { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => zeile.verfallAuffaellig > 0 },
+  { wert: "aufSoll", text: "auf Soll", trifft: (zeile) => zeile.positionen > 0 && zeile.artikelUnterSoll === 0 },
+  { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
+]);
+
+function spalten(
+  zeilen: FahrzeugAnzeigeZeile[],
+): TableProps<FahrzeugAnzeigeZeile>["columns"] {
+  return [
+    {
+      title: "Fahrzeug",
+      dataIndex: "name",
+      sorter: nachText<FahrzeugAnzeigeZeile>((zeile) => zeile.name),
+      render: (wert: string, zeile) => (
+        <span>
+          <Link
+            href={`/verwaltung/fahrzeuge/${zeile.id}`}
+            style={{ fontWeight: 600 }}
+          >
+            {wert}
+          </Link>
+          {zeile.kennung ? (
+            <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
+              {zeile.kennung}
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      title: "Vorlage",
+      dataIndex: "templateName",
+      sorter: nachText<FahrzeugAnzeigeZeile>((zeile) => zeile.templateName),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.templateName, {
+        ohneWertLabel: "ohne Vorlage",
+      }),
+      onFilter: trifftWert<FahrzeugAnzeigeZeile>((zeile) => zeile.templateName),
+      render: (wert: string | null) => wert ? (
+        <Chip ton="grau">{wert}</Chip>
+      ) : (
+        <span style={SCHRIFT.neben}>—</span>
+      ),
+    },
+    {
+      title: "Bestückung",
+      dataIndex: "positionen",
+      // Gezeigt wird „12 Positionen · 3 Faecher", sortiert wird ueber die Zahl.
+      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.positionen),
+      render: (_wert: number, zeile) => (
+        <span style={SCHRIFT.neben}>
+          {zeile.positionen} {zeile.positionen === 1 ? "Position" : "Positionen"}
+          {" · "}
+          {zeile.faecher} {zeile.faecher === 1 ? "Fach" : "Fächer"}
+        </span>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "aktiv",
+      // Die Zahl der Artikel unter Soll ordnet die Spalte fachlich: absteigend
+      // steht oben, was Aufmerksamkeit verlangt.
+      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.artikelUnterSoll),
+      filters: STATUS_FILTER.filters,
+      onFilter: STATUS_FILTER.onFilter,
+      render: (_wert: boolean, zeile) => (
+        // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+        // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
+        // Literal statt auf einen sichtbar groeberen Wert gerundet.
+        <Flex gap={6} wrap>
+          {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
+          {zeile.artikelUnterSoll > 0 ? (
+            <Chip ton="rot" zeichen="warnung">
+              {zeile.artikelUnterSoll} unter Soll
+            </Chip>
+          ) : null}
+          {zeile.verfallAuffaellig > 0 ? (
+            <Chip ton="gelb" zeichen="verfall">
+              {zeile.verfallAuffaellig} läuft ab
+            </Chip>
+          ) : null}
+          {zeile.positionen > 0 && zeile.artikelUnterSoll === 0 ? (
+            <Chip ton="ok">auf Soll</Chip>
+          ) : null}
+        </Flex>
+      ),
+    },
+    {
+      title: "Zuletzt geprüft",
+      dataIndex: "letzterCheckText",
+      // ⚠️ Ueber `letzterCheckIso`, nie ueber den Anzeigetext — Begruendung an
+      // der Zeilenquelle (`fahrzeuge/page.tsx`).
+      sorter: nachDatum<FahrzeugAnzeigeZeile>((zeile) => zeile.letzterCheckIso),
+      render: (wert: string | null) => (
+        <span style={SCHRIFT.neben}>{wert ?? "noch nie geprüft"}</span>
+      ),
+    },
+  ];
+}
+
 export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
   const [suche, setSuche] = useState("");
-  const [unterSoll, setUnterSoll] = useState(false);
-  const [laeuftAb, setLaeuftAb] = useState(false);
-  const [ohneInaktive, setOhneInaktive] = useState(false);
+  // Das FELD bleibt unentprellt, entprellt wird die Ableitung: ohne das filtert
+  // und rendert jeder Tastendruck die ganze Liste neu.
+  const sucheNachlauf = useEntprellt(suche);
+  // Ein gesetzter Spaltenfilter ist von hier aus nur ueber `onChange` sichtbar —
+  // und nur er entscheidet, ob der Leertext „passt zu Suche und Filter" oder
+  // „noch keine Fahrzeuge" heissen muss.
+  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
 
-  const gefiltert = useMemo(() => zeilen.filter((zeile) => {
-    if (unterSoll && zeile.artikelUnterSoll === 0) return false;
-    if (laeuftAb && zeile.verfallAuffaellig === 0) return false;
-    if (ohneInaktive && !zeile.aktiv) return false;
-    return sucheTrifft(zeile, suche);
-  }), [zeilen, suche, unterSoll, laeuftAb, ohneInaktive]);
+  const gefiltert = useMemo(
+    () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
+    [zeilen, sucheNachlauf],
+  );
 
-  const hatFilter = suche.trim() !== "" || unterSoll || laeuftAb || ohneInaktive;
-
-  function zuruecksetzen(): void {
-    setSuche("");
-    setUnterSoll(false);
-    setLaeuftAb(false);
-    setOhneInaktive(false);
-  }
+  const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
+  const hatFilter = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
 
   return (
     <>
@@ -69,120 +190,27 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
           onWert={setSuche}
           platzhalter="Fahrzeug oder Kennung suchen…"
         />
-        <Checkbox
-          checked={unterSoll}
-          onChange={(ereignis) => setUnterSoll(ereignis.target.checked)}
-        >
-          unter Soll
-        </Checkbox>
-        <Checkbox
-          checked={laeuftAb}
-          onChange={(ereignis) => setLaeuftAb(ereignis.target.checked)}
-        >
-          läuft ab
-        </Checkbox>
-        <Checkbox
-          checked={ohneInaktive}
-          onChange={(ereignis) => setOhneInaktive(ereignis.target.checked)}
-        >
-          inaktive ausblenden
-        </Checkbox>
-        {hatFilter ? (
-          <Button
-            icon={<Ikone name="zuruecksetzen" groesse={16} />}
-            onClick={zuruecksetzen}
-          >
-            Zurücksetzen
-          </Button>
-        ) : null}
+        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter — deren Wirkung
+            steht sichtbar im Spaltenkopf. */}
         <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
         <NeuFahrzeug />
       </Flex>
 
-      <Table<FahrzeugAnzeigeZeile>
+      <Datentabelle<FahrzeugAnzeigeZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Fahrzeuge"
         dataSource={gefiltert}
+        onChange={(_seite, filter) => {
+          setSpaltenFilterAktiv(
+            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
+          );
+        }}
         locale={{
           emptyText: hatFilter
             ? "Kein Fahrzeug passt zu Suche und Filter."
             : "Noch keine Fahrzeuge. Lege oben das erste an.",
         }}
-        columns={[
-          {
-            title: <span style={SCHRIFT.feldname}>Fahrzeug</span>,
-            dataIndex: "name",
-            render: (wert: string, zeile) => (
-              <span>
-                <Link
-                  href={`/verwaltung/fahrzeuge/${zeile.id}`}
-                  style={{ fontWeight: 600 }}
-                >
-                  {wert}
-                </Link>
-                {zeile.kennung ? (
-                  <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-                    {zeile.kennung}
-                  </span>
-                ) : null}
-              </span>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Vorlage</span>,
-            dataIndex: "templateName",
-            render: (wert: string | null) => wert ? (
-              <Chip ton="grau">{wert}</Chip>
-            ) : (
-              <span style={SCHRIFT.neben}>—</span>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Bestückung</span>,
-            dataIndex: "positionen",
-            render: (_wert: number, zeile) => (
-              <span style={SCHRIFT.neben}>
-                {zeile.positionen} {zeile.positionen === 1 ? "Position" : "Positionen"}
-                {" · "}
-                {zeile.faecher} {zeile.faecher === 1 ? "Fach" : "Fächer"}
-              </span>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Status</span>,
-            dataIndex: "aktiv",
-            render: (_wert: boolean, zeile) => (
-              // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-              // Chip-Zeilenabstand, wie in ArtikelTable.tsx (Aufgabe 8), bleibt
-              // Literal statt auf einen sichtbar groeberen Wert gerundet.
-              <Flex gap={6} wrap>
-                {!zeile.aktiv ? <Chip ton="grau">inaktiv</Chip> : null}
-                {zeile.artikelUnterSoll > 0 ? (
-                  <Chip ton="rot" zeichen="warnung">
-                    {zeile.artikelUnterSoll} unter Soll
-                  </Chip>
-                ) : null}
-                {zeile.verfallAuffaellig > 0 ? (
-                  <Chip ton="gelb" zeichen="verfall">
-                    {zeile.verfallAuffaellig} läuft ab
-                  </Chip>
-                ) : null}
-                {zeile.positionen > 0 && zeile.artikelUnterSoll === 0 ? (
-                  <Chip ton="ok">auf Soll</Chip>
-                ) : null}
-              </Flex>
-            ),
-          },
-          {
-            title: <span style={SCHRIFT.feldname}>Zuletzt geprüft</span>,
-            dataIndex: "letzterCheckText",
-            render: (wert: string | null) => (
-              <span style={SCHRIFT.neben}>{wert ?? "noch nie geprüft"}</span>
-            ),
-          },
-        ]}
+        columns={spaltenliste}
       />
     </>
   );

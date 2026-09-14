@@ -1,7 +1,7 @@
 "use client";
 
-import { Button, Table } from "antd";
-import { SCHRIFT } from "@/core/theme/schrift";
+import { Button } from "antd";
+import { Datentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 
 export interface ServiceRow {
   id: string;
@@ -10,6 +10,17 @@ export interface ServiceRow {
   url: string;
   isPublic: boolean;
 }
+
+/**
+ * „Öffentlich" ist ein WAHRHEITSWERT und deshalb kein `werteAlsFilter`: dessen
+ * Liste entsteht aus Textfeldern. Zwei benannte Zustaende sind hier die ganze
+ * Wahrheit — und sie heiszen in der Liste genauso wie in der Zelle („ja"/„nein"),
+ * sonst stuenden zwei Woerter fuer denselben Zustand.
+ */
+const OEFFENTLICH_FILTER = zustandsFilter<ServiceRow>([
+  { wert: "ja", text: "ja", trifft: (zeile) => zeile.isPublic },
+  { wert: "nein", text: "nein", trifft: (zeile) => !zeile.isPublic },
+]);
 
 export function ServiceTable({
   services,
@@ -23,46 +34,39 @@ export function ServiceTable({
   // verschwindendes Testid wäre erst im nächsten Testlauf aufgefallen.
   return (
     <div data-testid="service-table">
-    <Table<ServiceRow>
+    <Datentabelle<ServiceRow>
       rowKey="id"
       dataSource={services}
-      pagination={false}
       size="small"
-      /*
-       * SCROLLEN STATT DIE SEITE MITNEHMEN (docs/design/README.md, „Mobil").
-       * Ohne diese Prop setzt rc-table keinen Overflow-Container; die Tabelle
-       * lief bei 390px mit 483px Breite in einem 358px-Kasten ueber und das
-       * ganze Dokument scrollte seitwaerts (gemessen: scrollWidth 499). Beide
-       * „Loeschen"-Knoepfe standen auszerhalb des Sichtfelds, und wegen der
-       * suiteweiten Zoom-Sperre konnte man sie auch nicht heranholen.
-       *
-       * `max-content` und keine Zahl, weil KEINE Spalte ein `width` traegt.
-       * Auf dem Desktop aendert sich dadurch nichts Grundsaetzliches: rc-table
-       * bleibt auf `table-layout: auto` (keine Spalte mit `fixed`, kein
-       * `scroll.y`, kein `ellipsis`), und `min-width: 100%` haelt die Tabelle
-       * so breit wie ihren Container. Gemessen (1280x800, vorher/nachher, s.
-       * Task-2-Bericht) traegt `scroll.x` aber eine zusaetzliche, unsichtbare
-       * `MeasureRow` in tbody ein (rc-table schaltet damit auf
-       * `measureColumnWidth`), die bei `auto`-Layout selbst mitmisst und die
-       * Spaltenbreiten um 1-4px verschiebt: `[233,229,380,200,207]` wurde zu
-       * `[232,228,378,204,207]`. Summe und grobe Verteilung bleiben gleich,
-       * der Modus bleibt `auto` — aber "nichts aendert sich" gilt nicht
-       * pixelgenau. Belegt in `e2e/mobil-admin.spec.ts` bei 1280x800.
-       */
-      scroll={{ x: "max-content" }}
       // Kein Diagramm, keine Karte darunter — der Leerzustand nennt den
       // naechsten Schritt direkt (Formular steht im selben Abschnitt darunter).
       locale={{ emptyText: "Noch keine Dienste angelegt. Lege unten den ersten an." }}
       onRow={() => ({ "data-testid": "service-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
-        // Spaltenkoepfe ueber `columns[].title`, nicht ueber CSS gegen
-        // `.ant-table-thead` (docs/design/README.md).
-        { title: <span style={SCHRIFT.kicker}>Name</span>, dataIndex: "name" },
-        { title: <span style={SCHRIFT.kicker}>Slug</span>, dataIndex: "slug" },
-        { title: <span style={SCHRIFT.kicker}>URL</span>, dataIndex: "url" },
+        // Spaltenkoepfe sind nackte Zeichenketten — die Kicker-Rolle setzt
+        // `Datentabelle` selbst (`docs/design/README.md`).
         {
-          title: <span style={SCHRIFT.kicker}>Öffentlich</span>,
+          title: "Name",
+          dataIndex: "name",
+          sorter: nachText<ServiceRow>((zeile) => zeile.name),
+        },
+        {
+          title: "Slug",
+          dataIndex: "slug",
+          sorter: nachText<ServiceRow>((zeile) => zeile.slug),
+        },
+        {
+          // Nach Adresse zu sortieren gruppiert die Dienste nach Host — das ist
+          // die Frage, die man an eine URL-Spalte stellt („was laeuft auf X?").
+          title: "URL",
+          dataIndex: "url",
+          sorter: nachText<ServiceRow>((zeile) => zeile.url),
+        },
+        {
+          title: "Öffentlich",
           dataIndex: "isPublic",
+          sorter: nachJaNein<ServiceRow>((zeile) => zeile.isPublic),
+          ...OEFFENTLICH_FILTER,
           render: (v: boolean) => (v ? "ja" : "nein"),
         },
         {

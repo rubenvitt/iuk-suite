@@ -1,17 +1,28 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
 
 import { AuditLog, type AuditLogZeile } from "./AuditLog";
+import { AuditLogTabelle } from "./AuditLogTabelle";
+import { mount, queryAll, queryPortal, unmount } from "@/app/m/qr/_lib/test-dom";
 
 /**
  * DAS AUDIT-LOG DER SHARE-DETAILSEITE (Spec §7.8; Plan T41, Punkt 4).
  *
- * SERVERSEITIG GERENDERT UND NICHT GEMOUNTET: diese Komponente traegt keinen
+ * SERVERSEITIG GERENDERT, SOWEIT ES GEHT: `AuditLog` selbst traegt keinen
  * Zustand — „mehr laden" ist ein LINK auf `?logs=<n>`, ein Suchparameter der
- * Server Component. Ein `mount` wuerde hier nichts pruefen, was das Serverbild
- * nicht schon zeigt, und die Bauform als Server Component gerade verdecken.
+ * Server Component. Fuer alles, was das Serverbild schon zeigt (Ueberschriften,
+ * Breiten, Leerzustand, Nachladeweg UND die VORGABESORTIERUNG, die antd
+ * waehrend des Renderns anwendet), waere ein `mount` blosze Zeremonie und
+ * verdeckte die Bauform.
+ *
+ * GEMOUNTET WIRD NUR, WO ES ZUSTAND GIBT: der Spaltenfilter der Tabelle
+ * (`_ui/AuditLogTabelle.tsx`, seit der Umstellung auf `@/core/tabelle` eine
+ * Client-Insel) oeffnet ein Dropdown und merkt sich eine Auswahl. Das kann ein
+ * Serverbild strukturell nicht zeigen. Harness: `qr/_lib/test-dom.tsx`, kein
+ * zweites erfunden.
  *
  * WAS DIESE DATEI BESITZT: die Spaltenueberschriften (insbesondere den Wortlaut
  * „IP (unbestätigt, gekürzt)"), die Abbildung der Spalte „Was", die
@@ -28,6 +39,7 @@ function zeile(ueberschreibung: Partial<AuditLogZeile> = {}): AuditLogZeile {
   return {
     id: 1,
     zeitText: "25.07.2026, 12:00:03",
+    zeitIso: "2026-07-25T10:00:03.000Z",
     dateiId: "fi-aaaaaa1",
     dateiname: "bericht.pdf",
     ipText: "192.168.178.0",
@@ -109,6 +121,21 @@ const ZELLENRAND_PX = 16;
 const VOLLE_IPV6_ZEICHEN = 39;
 const VOLLE_IPV6_BREITE_PX = VOLLE_IPV6_ZEICHEN * PX_JE_ZEICHEN + ZELLENRAND_PX;
 
+
+/**
+ * DER GESTYLTE SPALTENKOPF, gesucht statt gezaehlt. Seit der Umstellung auf
+ * `Datentabelle` wickelt antd den Titel einer SORTIERBAREN Spalte noch einmal
+ * ein (`.ant-table-column-sorters` > `.ant-table-column-title`); ein
+ * `th.querySelector("span")` traefe diese Huelle und faende dort keinen Stil.
+ * Gesucht wird deshalb der Span, der die ROLLE traegt — genau das ist die
+ * Zusicherung.
+ */
+function kickerSpan(kopf: Element | undefined): HTMLElement | undefined {
+  return Array.from(kopf?.querySelectorAll("span") ?? []).find(
+    (span) => (span as HTMLElement).style.fontWeight === "600",
+  ) as HTMLElement | undefined;
+}
+
 // ---------------------------------------------------------------------------
 
 describe("die Spaltenüberschriften sagen, was in der Spalte steht", () => {
@@ -133,8 +160,7 @@ describe("die Spaltenüberschriften sagen, was in der Spalte steht", () => {
    * aus, die Rolle steckt ausschlieszlich im Stil.
    */
   it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600, versal)", () => {
-    const kopf = zeige().querySelectorAll("th")[0];
-    const span = kopf?.querySelector("span");
+    const span = kickerSpan(zeige().querySelectorAll("th")[0]);
     expect(span?.textContent).toBe("Zeit");
     expect(span?.style.fontWeight).toBe("600");
     expect(span?.style.textTransform).toBe("uppercase");
@@ -261,10 +287,130 @@ describe("die beiden Ausgänge des Nachladewegs", () => {
   });
 });
 
+/**
+ * ⚠️ SORTIERT WIRD UEBER `zeitIso`, NIE UEBER `zeitText`. Diese beiden Tests
+ * sind der Grund, warum die Zeile ueberhaupt zwei Zeitfelder traegt: der
+ * Anzeigetext „02.10.2026, …" stuende als Zeichenkette VOR „25.07.2026, …",
+ * und niemand saehe es — ein Protokoll, dessen Reihenfolge nicht stimmt, sieht
+ * genauso aus wie eines, dessen Reihenfolge stimmt.
+ */
+describe("die Sortierung des Protokolls", () => {
+  function zeitenInDerTabelle(wirt: HTMLElement): string[] {
+    return Array.from(wirt.querySelectorAll("tbody tr[data-row-key] td:first-child")).map(
+      (td) => (td.textContent ?? "").trim(),
+    );
+  }
+
+  it("stellt die NEUESTE Zeile nach oben, unabhaengig von der Eingabereihenfolge", () => {
+    const wirt = zeige([
+      zeile({ id: 1, zeitText: "25.07.2026, 12:00:03", zeitIso: "2026-07-25T10:00:03.000Z" }),
+      zeile({ id: 2, zeitText: "02.10.2026, 08:00:00", zeitIso: "2026-10-02T06:00:00.000Z" }),
+      zeile({ id: 3, zeitText: "14.09.2026, 23:59:59", zeitIso: "2026-09-14T21:59:59.000Z" }),
+    ]);
+    expect(zeitenInDerTabelle(wirt)).toEqual([
+      "02.10.2026, 08:00:00",
+      "14.09.2026, 23:59:59",
+      "25.07.2026, 12:00:03",
+    ]);
+  });
+
+  /**
+   * DIE GEGENPROBE, und sie ist die eigentliche Zusicherung: waere `zeitIso`
+   * durch `zeitText` ersetzt, ordnete diese Eingabe „02.10." VOR „25.07." —
+   * dieselbe Liste wie oben, aber aus dem falschen Grund. Hier stehen die
+   * ROHWERTE gegenlaeufig zum Text, der Test kann also nur mit dem Rohwert
+   * gruen sein.
+   */
+  it("ordnet nach dem Rohwert, auch wenn der Anzeigetext das Gegenteil nahelegt", () => {
+    const wirt = zeige([
+      zeile({ id: 1, zeitText: "02.10.2025, 08:00:00", zeitIso: "2025-10-02T06:00:00.000Z" }),
+      zeile({ id: 2, zeitText: "25.07.2026, 12:00:03", zeitIso: "2026-07-25T10:00:03.000Z" }),
+    ]);
+    expect(zeitenInDerTabelle(wirt)).toEqual(["25.07.2026, 12:00:03", "02.10.2025, 08:00:00"]);
+  });
+});
+
 describe("der Leerzustand", () => {
   it("nennt den Zustand, statt eine leere Tabelle zu zeigen", () => {
     const wirt = zeige([]);
     expect(wirt.querySelector("[data-testid='files-auditlog-leer']")).not.toBeNull();
     expect(wirt.querySelector("table")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Der Spaltenfilter — das einzige Stueck mit Zustand, also das einzige, das
+// gemountet wird
+// ---------------------------------------------------------------------------
+
+describe("der Spaltenfilter der Adressspalte", () => {
+  afterEach(unmount);
+
+  /**
+   * DIE DREI SCHRITTE EINES antd-FILTERS, ausgeschrieben statt versteckt:
+   * Ausloeser oeffnen, Wert ankreuzen, mit „OK" uebernehmen.
+   *
+   * `mousedown`/`mouseup`/`click` und nicht nur `click`: rc-trigger oeffnet das
+   * Dropdown erst, wenn es die volle Zeigerfolge gesehen hat — mit einem
+   * einzelnen `click` bleibt das Portal LEER, und der Test misst dann, dass
+   * nichts passiert ist, statt dass der Filter nicht greift. (Gemessen: ohne
+   * `mousedown` steht `ant-table-filter-dropdown` nirgends im Dokument.)
+   *
+   * Das Dropdown haengt in einem PORTAL an `document.body` und ist kein
+   * Nachfahre des Mount-Wirts — deshalb `queryPortal`.
+   */
+  async function zeigerfolge(element: HTMLElement): Promise<void> {
+    await act(async () => {
+      element.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      element.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+  }
+
+  function adressen(): string[] {
+    return queryAll("tbody tr[data-row-key] td:nth-child(3)").map((td) =>
+      (td.textContent ?? "").trim(),
+    );
+  }
+
+  /**
+   * DIE FILTERLISTE ENTSTEHT AUS DEN ZEILEN, nicht aus einer Pflegetabelle: es
+   * stehen genau die zwei vorkommenden Adressen darin, jede EINMAL. Eine
+   * Option, die keine Zeile trifft, waere die haeufigste Enttaeuschung an
+   * Spaltenfiltern — und eine dritte Zeile mit derselben Adresse darf keinen
+   * zweiten Eintrag erzeugen.
+   */
+  it("bietet jede vorkommende Adresse genau einmal an und filtert danach", async () => {
+    await mount(
+      <AuditLogTabelle
+        zeilen={[
+          zeile({ id: 1, ipText: "10.0.0.0", zeitIso: "2026-07-01T10:00:00.000Z" }),
+          zeile({ id: 2, ipText: "192.168.178.0", zeitIso: "2026-07-02T10:00:00.000Z" }),
+          zeile({ id: 3, ipText: "10.0.0.0", zeitIso: "2026-07-03T10:00:00.000Z" }),
+        ]}
+      />,
+    );
+    expect(adressen()).toHaveLength(3);
+
+    const ausloeser = queryAll(".ant-table-filter-trigger").find((knopf) =>
+      (knopf.closest("th")?.textContent ?? "").includes("IP"),
+    );
+    expect(ausloeser, "kein Filter-Ausloeser an der Adressspalte").not.toBeUndefined();
+    await zeigerfolge(ausloeser as HTMLElement);
+
+    const eintraege = Array.from(
+      queryPortal(".ant-table-filter-dropdown").querySelectorAll(".ant-dropdown-menu-item"),
+    );
+    expect(eintraege.map((li) => (li.textContent ?? "").trim())).toEqual([
+      "10.0.0.0",
+      "192.168.178.0",
+    ]);
+
+    await zeigerfolge(eintraege[0] as HTMLElement);
+    await zeigerfolge(
+      queryPortal(".ant-table-filter-dropdown-btns .ant-btn-primary") as HTMLElement,
+    );
+
+    expect(adressen()).toEqual(["10.0.0.0", "10.0.0.0"]);
   });
 });

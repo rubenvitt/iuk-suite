@@ -19,8 +19,8 @@ import {
   Select,
   Space,
   Switch,
-  Table,
 } from "antd";
+import { Datentabelle, nachDatum, nachRang, nachText, nachZahl } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
 import { bucheEntnahme, bucheZugang } from "../_actions/buchung";
@@ -49,6 +49,9 @@ import styles from "./verwaltung.module.css";
 
 export const NEUE_CHARGE = "__neu__";
 const MINDEST_DEBOUNCE_MS = 400;
+
+/** Rot vor gelb vor gruen: was Aufmerksamkeit verlangt, gehoert nach oben. */
+const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
 
 type SuchOption = {
   label?: ReactNode;
@@ -747,17 +750,22 @@ function ChargenTabelle({
 }) {
   return (
     <Abschnitt titel="Chargen · älteste zuerst (FEFO)">
-      <Table<ArtikelDetailCharge>
+      <Datentabelle<ArtikelDetailCharge>
         aria-label="Chargen"
         rowKey="id"
         dataSource={chargen}
-        pagination={false}
-        scroll={{ x: "max-content" }}
         locale={{ emptyText: "Keine Chargen im Bestand." }}
         columns={[
           {
             title: "Verfall",
             key: "verfall",
+            // FEFO ist die Vorsortierung der Abfrage; sortiert wird ueber die
+            // Ampel, nicht ueber `charge.text` („in 2 Monaten", „abgelaufen") —
+            // der ordnete als Zeichenkette beliebig.
+            sorter: nachRang<ArtikelDetailCharge, ArtikelDetailCharge["ampel"]>(
+              (charge) => charge.ampel,
+              AMPEL_RANG,
+            ),
             render: (_, charge) => (
               <Space>
                 <Plakette
@@ -769,12 +777,19 @@ function ChargenTabelle({
               </Space>
             ),
           },
-          { title: "Charge", dataIndex: "chargenNr", key: "chargenNr" },
+          {
+            title: "Charge",
+            dataIndex: "chargenNr",
+            key: "chargenNr",
+            sorter: nachText<ArtikelDetailCharge>((charge) => charge.chargenNr),
+          },
           {
             title: "Rest",
             dataIndex: "rest",
             key: "rest",
             align: "right",
+            // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
+            sorter: nachZahl<ArtikelDetailCharge>((charge) => charge.rest),
             render: (rest: number) => `${rest} ${einheit}`,
           },
         ]}
@@ -792,18 +807,22 @@ function HistorieTabelle({
 }) {
   return (
     <Abschnitt titel="Letzte Buchungen">
-      <Table<ArtikelDetailBuchung>
+      <Datentabelle<ArtikelDetailBuchung>
         aria-label="Buchungshistorie des Artikels"
         rowKey="id"
         dataSource={historie}
-        pagination={false}
-        scroll={{ x: "max-content" }}
         locale={{ emptyText: "Noch keine Buchungen." }}
         columns={[
           {
             title: "Zeit",
             dataIndex: "ts",
             key: "ts",
+            // ⚠️ UEBER DAS `Date`, NIE UEBER `fmtTs(ts)`: „14.09. 08:12"
+            // ordnete als Zeichenkette den 2. Oktober vor den 14. September.
+            // Die Zeile traegt hier bereits den Rohwert — sie kommt aus einer
+            // Server Action, nicht ueber die RSC-Grenze.
+            sorter: nachDatum<ArtikelDetailBuchung>((buchung) => buchung.ts),
+            defaultSortOrder: "descend",
             render: (ts: Date) => <span className={styles.jts}>{fmtTs(ts)}</span>,
           },
           {
@@ -816,7 +835,12 @@ function HistorieTabelle({
                 : zeile.typText;
             },
           },
-          { title: "Quelle", dataIndex: "quelleName", key: "quelleName" },
+          {
+            title: "Quelle",
+            dataIndex: "quelleName",
+            key: "quelleName",
+            sorter: nachText<ArtikelDetailBuchung>((buchung) => buchung.quelleName),
+          },
           {
             title: "Menge",
             key: "menge",

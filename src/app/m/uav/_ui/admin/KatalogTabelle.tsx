@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Drawer, Table, Tag } from "antd";
+import { Button, Drawer, Tag } from "antd";
+import { Datentabelle } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { aufgabenSortierenAction } from "../../_actions/katalog";
 import type { TaskDTO, Teil } from "../../_lib/typen";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { AufgabeFormular } from "./AufgabeFormular";
 
@@ -46,6 +46,23 @@ const TEIL_TITEL: Record<Teil, string> = { 1: "Teil 1", 2: "Teil 2", 3: "Teil 3"
  *    Scroll-Container der Tabelle kam nie zum Zug, weil ihm niemand eine schmalere
  *    Spur gab. `gridTemplateColumns: "minmax(0, 1fr)"` ist die Spur, die schrumpfen
  *    darf. Kein Gate sieht das: die Zahl kennt nur ein echter Browser.
+ *    ⚠️ `scroll={{ x: "max-content" }}` steht seit der Umstellung auf `@/core/tabelle`
+ *    nicht mehr in dieser Datei — es ist dort die Vorgabe, zusammen mit
+ *    `pagination={false}` und dem Spaltenkopf-Kicker. Die Spur darüber bleibt trotzdem
+ *    nötig; sie ist die Hälfte, die `Datentabelle` nicht kennt.
+ *
+ * ══ ⛔ KEIN `sorter` UND KEIN `filters` AN IRGENDEINER SPALTE — als einzige der
+ *    umgestellten Tabellen, und das ist fachlich, nicht vergessen. Die Reihenfolge der
+ *    Zeilen IST hier der Inhalt: sie bestimmt, in welcher Folge die Teilnehmer ihre
+ *    Aufgaben sehen, und sie wird mit den ↑/↓-Knöpfen der vorletzten Spalte bearbeitet.
+ *    Diese Knöpfe hängen am `index`, den antd in `render` durchreicht — und das ist der
+ *    Index der ANGEZEIGTEN Liste, nicht der von `aufgaben`. Sortierte jemand nach
+ *    „Titel" oder filterte nach „Teil", verschöbe `verschieben(index, …)` die falsche
+ *    Zeile, und `aufgabenSortierenAction` schriebe das Ergebnis fest. Ein Spaltenkopf,
+ *    der die Bearbeitung darunter still falsch macht, ist kein Komfort. Wer hier
+ *    Sortierung nachrüsten will, muss `verschieben` vorher auf `a.id` umstellen — und
+ *    danach beantworten, was „nach oben" in einer nach etwas anderem sortierten Liste
+ *    überhaupt heißen soll.
  */
 export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDTO[] }) {
   const [aufgaben, setAufgaben] = useState<TaskDTO[]>(anfangsAufgaben);
@@ -91,24 +108,23 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
         }
       />
 
-      <Table<TaskDTO>
+      <Datentabelle<TaskDTO>
         rowKey="id"
         dataSource={aufgaben}
-        pagination={false}
-        scroll={{ x: "max-content" }}
         locale={{ emptyText: "Noch keine Aufgaben im Katalog." }}
         columns={[
-          { title: <span style={SCHRIFT.kicker}>Teil</span>, key: "teil", render: (_: unknown, a: TaskDTO) => TEIL_TITEL[a.teil] },
-          { title: <span style={SCHRIFT.kicker}>Nummer</span>, key: "nummer", render: (_: unknown, a: TaskDTO) => a.nummer },
-          { title: <span style={SCHRIFT.kicker}>Titel</span>, key: "titel", render: (_: unknown, a: TaskDTO) => a.titel },
-          { title: <span style={SCHRIFT.kicker}>Ziel</span>, key: "ziel", render: (_: unknown, a: TaskDTO) => a.zielanzahlDefault },
+          // Den Kicker setzt `Datentabelle`; `title` ist deshalb eine nackte Zeichenkette.
+          { title: "Teil", key: "teil", render: (_: unknown, a: TaskDTO) => TEIL_TITEL[a.teil] },
+          { title: "Nummer", key: "nummer", render: (_: unknown, a: TaskDTO) => a.nummer },
+          { title: "Titel", key: "titel", render: (_: unknown, a: TaskDTO) => a.titel },
+          { title: "Ziel", key: "ziel", render: (_: unknown, a: TaskDTO) => a.zielanzahlDefault },
           {
-            title: <span style={SCHRIFT.kicker}>Aktiv</span>,
+            title: "Aktiv",
             key: "aktiv",
             render: (_: unknown, a: TaskDTO) => <Tag color={a.aktiv ? "green" : "default"}>{a.aktiv ? "aktiv" : "inaktiv"}</Tag>,
           },
           {
-            title: <span style={SCHRIFT.kicker}>Bild</span>,
+            title: "Bild",
             key: "bild",
             render: (_: unknown, a: TaskDTO) =>
               a.bildUrl ? (
@@ -119,7 +135,7 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
               ),
           },
           {
-            title: <span style={SCHRIFT.kicker}>Reihenfolge</span>,
+            title: "Reihenfolge",
             key: "reihenfolge",
             render: (_: unknown, a: TaskDTO, index: number) => (
               <div style={{ display: "flex", gap: SPACE.xs }}>
@@ -137,7 +153,7 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
             ),
           },
           {
-            title: <span style={SCHRIFT.kicker}>Aktionen</span>,
+            title: "Aktionen",
             key: "aktionen",
             render: (_: unknown, a: TaskDTO) => <Button onClick={() => setBearbeiten(a)}>Bearbeiten</Button>,
           },

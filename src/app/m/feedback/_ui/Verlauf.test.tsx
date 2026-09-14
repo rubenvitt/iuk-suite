@@ -448,9 +448,24 @@ describe("Verlauf — Quelltext-Zusagen, die im Markup nicht sichtbar sind", () 
     expect(wirt.querySelectorAll(".fb-verlauf-schmal")).toHaveLength(1);
   });
 
-  it("laesst das `Table` nicht horizontal scrollen (§2.5)", () => {
-    // `scroll={{ x: … }}` waere genau die Loesung, die der Entwurf ausschliesst.
-    expect(CODE).not.toMatch(/scroll=\{\{\s*x/);
+  it("laesst die Tabelle nicht horizontal scrollen (§2.5) — gemessen am DOM", () => {
+    /*
+     * FRUEHER STAND HIER EIN QUELLTEXT-SCAN (`not.toMatch(/scroll=\{\{\s*x/)`),
+     * und der ist mit `@/core/tabelle` GEGENSTANDSLOS GEWORDEN: `Datentabelle`
+     * gibt `{ x: "max-content" }` von sich aus vor, eine fehlende Prop ist also
+     * kein Beleg mehr fuer „scrollt nicht" — sie waere im Gegenteil der Beweis
+     * des Gegenteils. Gemessen wird deshalb die WIRKUNG: rc-table haengt
+     * `.ant-table-scroll-horizontal` genau dann an die Huelle, wenn
+     * `horizonScroll` gilt (Table.js:597), und nur dann bekommt der Rumpf
+     * seinen eigenen `overflow-x`-Container. Die Aussage des Entwurfs bleibt
+     * damit dieselbe, ihr Beleg ist nur naeher an dem, was der Nutzer sieht.
+     *
+     * Die Gegenprobe steht daneben: die Zone rendert ueberhaupt eine Tabelle —
+     * ohne sie waere die Zusicherung oben trivial erfuellt.
+     */
+    const wirt = zeichne([zeile({}), zeile({ eveningId: 2, datum: "2026-07-15" })]);
+    expect(wirt.querySelectorAll(".fb-verlauf-breit .ant-table")).toHaveLength(1);
+    expect(wirt.querySelectorAll(".fb-verlauf-breit .ant-table-scroll-horizontal")).toHaveLength(0);
   });
 
   it("schaltet die beiden Darstellungen in `feedback.css` bei 768px", () => {
@@ -645,5 +660,93 @@ describe("Verlauf — Abend loeschen (§4.6)", () => {
 
     expect(deleteEveningActionMock).toHaveBeenCalledTimes(1);
     expect((deleteEveningActionMock.mock.calls[0][0] as FormData).get("id")).toBe("42");
+  });
+});
+
+/*
+ * DIE SPALTENKOEPFE DER BREITEN DARSTELLUNG (`@/core/tabelle`).
+ *
+ * ⚠️ SIE NEHMEN DER KOMPONENTE DIE ORDNUNG NICHT AB — sie machen sie sichtbar. Die
+ * Spalte „Datum" traegt `defaultSortOrder: "descend"`, die Zusage aus Entscheidung 1 ist
+ * also der Anfangszustand; die Tests oben („die Ordnung gehoert der Komponente") pruefen
+ * genau das weiterhin ueber die statisch gerenderte Fassung.
+ *
+ * Geprueft wird hier, was SICH aendern kann, wenn jemand einen Kopf anfasst — und zwar an
+ * den zwei Spalten, an denen eine Sortierung ueber den Anzeigetext unbemerkt durchginge:
+ * die Note (Markup, kein Text) und der Ruecklauf („14 / 18" ist kein Bruch, sondern Text).
+ */
+describe("Verlauf — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Leiste", () => {
+  function spaltenkopf(beschriftung: string): HTMLElement {
+    const th = [...document.querySelectorAll<HTMLElement>(".fb-verlauf-breit thead th")].find(
+      (t) => (t.textContent ?? "").includes(beschriftung),
+    );
+    if (!th) throw new Error(`Kein Spaltenkopf „${beschriftung}“`);
+    return th;
+  }
+
+  const reihenfolge = () =>
+    [...document.querySelectorAll<HTMLElement>(".fb-verlauf-breit tbody tr[data-row-key]")].map(
+      (tr) => tr.getAttribute("data-row-key"),
+    );
+
+  async function filterWaehlen(spalte: string, eintrag: string): Promise<void> {
+    const ausloeser = spaltenkopf(spalte).querySelector<HTMLElement>(".ant-table-filter-trigger");
+    if (!ausloeser) throw new Error(`Spalte „${spalte}“ hat keinen Filter`);
+    await clickElement(ausloeser);
+    const punkt = [...document.body.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+      (i) => i.textContent === eintrag,
+    );
+    if (!punkt) throw new Error(`Kein Filtereintrag „${eintrag}“`);
+    await clickElement(punkt);
+    const ok = [
+      ...document.body.querySelectorAll<HTMLElement>(".ant-table-filter-dropdown-btns button"),
+    ].find((b) => b.textContent === "OK");
+    if (!ok) throw new Error("Kein OK im Filtermenue");
+    await clickElement(ok);
+  }
+
+  it("sortiert die Note aufsteigend — 1 ist die beste, und die Pille ist Markup", async () => {
+    await mount(
+      zone([
+        zeile({ eveningId: 1, datum: "2026-07-01", avgSchulnote: 4.6 }),
+        zeile({ eveningId: 2, datum: "2026-07-08", avgSchulnote: 1.4 }),
+      ]),
+    );
+    // Anfangszustand: juengster zuerst (Datum, absteigend).
+    expect(reihenfolge()).toEqual(["2", "1"]);
+
+    await clickElement(spaltenkopf("Ø Note"));
+    expect(reihenfolge()).toEqual(["2", "1"]);
+    await clickElement(spaltenkopf("Ø Note"));
+    expect(reihenfolge()).toEqual(["1", "2"]);
+  });
+
+  it("sortiert den Ruecklauf ueber den ANTEIL, nicht ueber „14 / 18“", async () => {
+    await mount(
+      zone([
+        // 9 von 10 (90 %) steht als Text mit „9 / 10" hinter „14 / 18" (14 < 9 ist
+        // falsch, 9 > 14 als Text auch) — der Anteil ist der einzige ehrliche Vergleich.
+        zeile({ eveningId: 1, datum: "2026-07-01", rueckmeldungen: 9, teilnehmer: 10 }),
+        zeile({ eveningId: 2, datum: "2026-07-08", rueckmeldungen: 14, teilnehmer: 40 }),
+        // Ohne Teilnehmerzahl gibt es keinen Anteil (§2.3) — die Zeile steht aufsteigend
+        // hinten und NICHT als „0 %" ganz vorn.
+        zeile({ eveningId: 3, datum: "2026-07-15", rueckmeldungen: 30, teilnehmer: null }),
+      ]),
+    );
+    await clickElement(spaltenkopf("Rücklauf"));
+    expect(reihenfolge()).toEqual(["2", "1", "3"]);
+  });
+
+  it("filtert im Spaltenkopf „Zustand“ auf die Altbestands-Entwuerfe", async () => {
+    await mount(
+      zone([
+        zeile({ eveningId: 1, datum: "2026-07-01", entwurf: false }),
+        zeile({ eveningId: 2, datum: "2026-07-08", entwurf: true, surveyId: null }),
+      ]),
+    );
+    expect(reihenfolge()).toHaveLength(2);
+
+    await filterWaehlen("Zustand", "Entwurf (Altbestand)");
+    expect(reihenfolge()).toEqual(["2"]);
   });
 });

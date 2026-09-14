@@ -65,7 +65,16 @@ function inselDateien(): string[] {
 const INSEL_SOLL = ["ImportAssistent.tsx"];
 
 import { act } from "react";
-import { click, exists, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import {
+  click,
+  clickElement,
+  clickPortal,
+  exists,
+  mount,
+  query,
+  queryAll,
+  unmount,
+} from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../_lib/quelltextScan";
 import { IMPORTIERBARE_FELDER } from "../../../_lib/csv/kopfzeilen";
 import { IMPORTKLASSEN } from "../../../_lib/csv/klassifizieren";
@@ -246,6 +255,29 @@ async function bisZurVorschau(bilanz: {
   await mount(<ImportAssistent />);
   await legeDateiAb();
   await click('[data-rolle="radio-import-weiter"]');
+}
+
+/**
+ * Einen sortierbaren Spaltenkopf der Vorschau anfassen — ⛔ UEBER SEINE BESCHRIFTUNG UND NICHT
+ * UEBER SEINE POSITION. Ein Fall, der `queryAll("th")[0]` schreibt, misst nach dem Einschieben
+ * einer Spalte still eine andere und bleibt gruen.
+ *
+ * ⚠️ DIE BESCHRIFTUNG LIEGT IN EINEM `<span>` DES KICKERS (`src/core/tabelle/Datentabelle.tsx`);
+ * `textContent` liest durch ihn hindurch.
+ */
+async function klickeSpaltenkopf(beschriftung: string): Promise<void> {
+  const kopf = queryAll("th.ant-table-column-has-sorters").find(
+    (th) => (th.textContent ?? "").trim() === beschriftung,
+  );
+  if (kopf === undefined) throw new Error(`Kein sortierbarer Spaltenkopf „${beschriftung}"`);
+  await clickElement(kopf);
+}
+
+/** Die Klassenmarken in der Reihenfolge, in der sie auf dem Bildschirm stehen. */
+function klassen(): string[] {
+  return queryAll('[data-rolle="radio-import-klasse"]').map((el) =>
+    (el.textContent ?? "").trim(),
+  );
 }
 
 describe("radio-Import: die vier Schritte", () => {
@@ -776,5 +808,90 @@ describe("radio-Import: die Bauform der Insel und ihrer Seite", () => {
     expect(queryAll('[data-rolle^="radio-import-wahl-"]').length).toBe(
       IMPORTIERBARE_FELDER.length,
     );
+  });
+});
+
+describe("radio-Import: Sortierung und Filter in der Vorschau", () => {
+  it("ohne Griff steht die Vorschau in Dateireihenfolge", async () => {
+    /*
+     * ⛔ KEINE SPALTE TRAEGT EIN `defaultSortOrder`, und das ist die Zusage: die Vorschau
+     * steht in der Reihenfolge der DATEI — der Ordnung, in der jemand sie danach korrigiert.
+     * Ein versehentliches `defaultSortOrder` waere eine stille Umordnung, nach der die
+     * Zeilennummern auf dem Bildschirm springen.
+     */
+    await bisZurVorschau({
+      zusammenfassung: leereBilanz(),
+      zeilen: [
+        zeile({ zeilenNummer: 0, issi: "1000003", klasse: "error", fehler: "Duplikat in Datei" }),
+        zeile({ zeilenNummer: 1, issi: "1000001", klasse: "created" }),
+      ],
+    });
+
+    expect(klassen()).toEqual(["Fehler", "Neu"]);
+  });
+
+  it("ein Klick auf den Spaltenkopf ISSI ordnet die Vorschau um", async () => {
+    /*
+     * ⛔ DIE WIRKUNG, NICHT DIE ANWESENHEIT: ein Fall, der nur den Sortierpfeil zaehlt, bliebe
+     * gruen, wenn der `sorter` ein `true` waere und niemand sortierte.
+     * ⛔ UND SORTIERT WIRD UEBER ALLE ZEILEN, NICHT NUR UEBER DIE SICHTBARE SEITE: die
+     * Blaetterung ist hier rein clientseitig (`blaettern={{ pageSize: 10 }}`), die Zeilen
+     * liegen vollstaendig in der Insel.
+     */
+    await bisZurVorschau({
+      zusammenfassung: leereBilanz(),
+      zeilen: [
+        zeile({ zeilenNummer: 0, issi: "1000003", klasse: "error", fehler: "Duplikat in Datei" }),
+        zeile({ zeilenNummer: 1, issi: "1000001", klasse: "created" }),
+      ],
+    });
+
+    await klickeSpaltenkopf("ISSI");
+    expect(klassen(), "nach ISSI aufsteigend steht die angelegte Zeile oben").toEqual([
+      "Neu",
+      "Fehler",
+    ]);
+
+    await klickeSpaltenkopf("ISSI");
+    expect(klassen()).toEqual(["Fehler", "Neu"]);
+  });
+
+  it("der Klassenfilter zeigt allein die Fehlerzeilen", async () => {
+    /*
+     * ⛔ **DAS IST DIE FRAGE, DIE MAN AN EINE IMPORTVORSCHAU STELLT** — „zeig mir die
+     * Fehler". Vorher hiess das, sich durch zehnzeilige Seiten zu blaettern.
+     *
+     * ⛔ IM AUFKLAPPMENUE STEHT DAS DEUTSCHE WORT UND NICHT DER ROHE SCHLUESSEL: ein
+     * „skipped-no-permission" dort waere der Wert aus `classify-import-row.ts`, den auf dieser
+     * Flaeche sonst niemand zu sehen bekommt.
+     * ⛔ UND ES STEHEN NUR DIE VORKOMMENDEN KLASSEN DA (`werteAlsFilter`) — eine Option
+     * „Übersprungen" ueber einer Datei ohne uebersprungene Zeile traefe nie etwas.
+     *
+     * ⚠️ antd rendert das Menue und seine Knoepfe in ein PORTAL an `document.body`
+     * (`qr/_lib/test-dom.tsx`); gegriffen wird deshalb dort.
+     */
+    await bisZurVorschau({
+      zusammenfassung: leereBilanz(),
+      zeilen: [
+        zeile({ zeilenNummer: 0, issi: "1000001", klasse: "created" }),
+        zeile({ zeilenNummer: 1, issi: "1000002", klasse: "error", fehler: "Duplikat in Datei" }),
+        zeile({ zeilenNummer: 2, issi: "1000003", klasse: "created" }),
+      ],
+    });
+    expect(klassen().length).toBe(3);
+
+    await clickElement(query("th .ant-table-filter-trigger"));
+    const eintraege = Array.from(
+      document.body.querySelectorAll(".ant-dropdown .ant-dropdown-menu-title-content"),
+    );
+    expect(
+      eintraege.map((el) => (el.textContent ?? "").trim()),
+      "die Klassenliste steht nicht auf den vorkommenden Klassen",
+    ).toEqual(["Fehler", "Neu"]);
+
+    await clickElement(eintraege[0] as HTMLElement);
+    await clickPortal(".ant-table-filter-dropdown-btns .ant-btn-primary");
+
+    expect(klassen(), "der Filter zeigt nicht allein die Fehlerzeile").toEqual(["Fehler"]);
   });
 });

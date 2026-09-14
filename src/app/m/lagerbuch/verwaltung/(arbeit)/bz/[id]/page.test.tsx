@@ -315,12 +315,15 @@ describe("BZ-Geräteblatt als Server Component", () => {
       "k-alt",
       "k-kaputt",
     ]);
+    // `zeitpunktIso` ist der Rohwert, ueber den die Zeitspalte sortiert — eine
+    // JSON-sichere Zeichenkette, kein `Date`; „TT.MM. HH:MM" ordnete als
+    // Zeichenkette den 2. Oktober vor den 14. September.
     expect(props.zeilen.every((zeile) => (
       Object.keys(zeile).sort().join(",")
       === "akkuText,akkuTon,ergebnisText,ergebnisTon,id,kommentarText,"
       + "level1MaxDamals,level1MinDamals,level1Ton,level1Wert,"
       + "level2MaxDamals,level2MinDamals,level2Ton,level2Wert,"
-      + "verbrauchText,werText,zeitpunktText"
+      + "verbrauchText,werText,zeitpunktIso,zeitpunktText"
     ))).toBe(true);
     expect(istRekursivJsonSicher(props.zeilen)).toBe(true);
     expect(enthaeltDate(props.zeilen)).toBe(false);

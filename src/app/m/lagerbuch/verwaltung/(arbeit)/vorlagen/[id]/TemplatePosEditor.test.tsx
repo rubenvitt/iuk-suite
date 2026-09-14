@@ -346,4 +346,45 @@ describe("TemplatePosEditor — Hinzufügen und Entfernen", () => {
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE SOLL-SPALTE UEBER DEN GESPEICHERTEN WERT SORTIERT.
+   * Nicht ueber den Spiegel und nicht ueber das Eingabefeld — sonst sortierte
+   * sich die Zeile waehrend des Tippens unter dem Finger weg.
+   */
+  it("sortiert die Soll-Spalte über den gespeicherten Wert", async () => {
+    await editorMounten();
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Soll"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    const aufsteigend = queryAll("tbody tr[data-row-key]")
+      .map((zeile) => zeile.getAttribute("data-row-key"));
+    const erwartet = [...POSITIONEN]
+      .sort((a, b) => a.soll - b.soll)
+      .map((position) => position.id);
+    expect(aufsteigend).toEqual(erwartet);
+  });
+
+  it("filtert nach Fach über den Spaltenkopf", async () => {
+    await editorMounten();
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "Fach B");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["pos-b"]);
+  });
 });

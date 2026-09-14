@@ -1,7 +1,14 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Alert, Button, Flex, Input, InputNumber, Table } from "antd";
+import { Alert, Button, Flex, Input, InputNumber } from "antd";
+import {
+  Datentabelle,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { inventurKorrektur } from "../../../_actions/inventur";
 import { SCHRIFT } from "../../../_lib/schrift";
@@ -87,37 +94,45 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
 
   return (
     <>
-      <Table<InventurZeile>
+      <Datentabelle<InventurZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Inventur"
         dataSource={zeilen}
         // Punkt 5 der Pruefliste: der Leertext nennt den naechsten Schritt.
         locale={{ emptyText: "Keine Artikel vorhanden. Lege sie zuerst unter Artikel & Bestand an." }}
-        // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS
-        // gegen `.ant-table-thead` (docs/design/README.md).
+        // Den Spaltenkopf-Kicker setzt `Datentabelle` selbst, sobald `title`
+        // eine Zeichenkette ist.
+        //
+        // KEINE SORTIERUNG AUF „Abweichung" UND „Ist": beide lesen `beruehrt`,
+        // also den Zaehlstand DIESER Sitzung. Eine Spalte, die sich waehrend
+        // des Zaehlens selbst umsortiert, verliert die Zeile unter dem Finger.
         columns={[
           {
-            title: <span style={SCHRIFT.feldname}>Artikel</span>,
+            title: "Artikel",
             dataIndex: "name",
+            sorter: nachText<InventurZeile>((zeile) => zeile.name),
             render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
           },
           {
-            title: <span style={SCHRIFT.feldname}>Fach</span>,
+            title: "Fach",
             dataIndex: "fach",
+            sorter: nachText<InventurZeile>((zeile) => zeile.fach),
+            filters: werteAlsFilter(zeilen, (zeile) => zeile.fach),
+            onFilter: trifftWert<InventurZeile>((zeile) => zeile.fach),
             render: (wert: string) => <span className={s.fach}>{wert}</span>,
           },
           {
-            title: <span style={SCHRIFT.feldname}>Bestand</span>,
+            title: "Bestand",
             dataIndex: "bestand",
             align: "right",
+            // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
+            sorter: nachZahl<InventurZeile>((zeile) => zeile.bestand),
             render: (wert: number, zeile) => (
               <span style={SCHRIFT.mono}>{wert} {zeile.einheit}</span>
             ),
           },
           {
-            title: <span style={SCHRIFT.feldname}>Abweichung</span>,
+            title: "Abweichung",
             dataIndex: "id",
             render: (_wert: string, zeile) => {
               if (!(zeile.id in beruehrt)) return null;
@@ -131,7 +146,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             },
           },
           {
-            title: <span style={SCHRIFT.feldname}>Ist</span>,
+            title: "Ist",
             dataIndex: "id",
             align: "right",
             render: (_wert: string, zeile) => {

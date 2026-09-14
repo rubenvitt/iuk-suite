@@ -36,6 +36,16 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
     istText: String(artikel.istSumme),
     korrekturText: String(artikel.korrektur),
     nachgefuelltText: String(artikel.nachfuellGebucht),
+    /**
+     * ⚠️ DIE ROHZAHLEN REISEN MIT, WEIL DIE SPALTEN DANACH SORTIEREN. Die
+     * Texte oben sind `String(…)`; als Zeichenkette sortiert stuende „10" vor
+     * „2" und „-3" neben „-30". Angezeigt wird weiterhin nur der Text.
+     */
+    sollZahl: artikel.sollSumme,
+    istZahl: artikel.istSumme,
+    korrekturZahl: artikel.korrektur,
+    nachgefuelltZahl: artikel.nachfuellGebucht,
+    offenZahl: artikel.offen,
     offenChip: artikel.offen > 0
       ? chip(`fehlt ${artikel.offen}`, "rot", "warnung")
       : chip("vollständig", "ok"),
@@ -49,6 +59,10 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
       einheitText: position.einheit,
       sollText: String(position.soll),
       istText: String(position.ist),
+      // Rohzahlen fuer die Sortierung, s. `abgleichZeilen`.
+      sollZahl: position.soll,
+      istZahl: position.ist,
+      lueckeZahl: luecke,
       lueckeChip: luecke > 0
         ? chip(`${luecke} fehlten`, "rot", "warnung")
         : chip("vollständig", "ok"),
@@ -89,6 +103,8 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
       druck: nichtGemessen
         ? { darstellung: "chip", text: "nicht gemessen", ton: "grau" }
         : { darstellung: "mono", text: `${flasche.druckBar} bar`, ton: null },
+      // Der Druck als Zahl — „120 bar" sortierte als Zeichenkette vor „80 bar".
+      druckZahl: flasche.druckBar,
       fuellstandChip,
     };
   });

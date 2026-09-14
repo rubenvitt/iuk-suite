@@ -2,6 +2,8 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  click,
+  clickElement,
   exists,
   mount,
   query,
@@ -18,6 +20,7 @@ import s from "../../../../_ui/verwaltung.module.css";
 const ZEILE = {
   id: "kontrolle-1",
   zeitpunktText: "06.08. 14:00",
+  zeitpunktIso: "2026-08-06T12:00:00.000Z",
   ergebnisText: "nicht bestanden",
   ergebnisTon: "rot",
   level1Wert: 50,
@@ -168,5 +171,70 @@ describe("BzLogbuchTabelle", () => {
     for (const index of [2, 3, 5, 7]) {
       expect(nebenText(daten[index]!, "—").style.fontSize).toBe("12px");
     }
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS NICHT UEBER DEN ANZEIGETEXT SORTIERT WIRD.
+   * „02.10." steht als Zeichenkette VOR „14.09."; nur ueber `zeitpunktIso`
+   * ordnet der Oktober hinter den September. Die Vorgabe ist absteigend (so
+   * liefert es die Abfrage), ein Klick dreht auf aufsteigend.
+   */
+  it("sortiert die Zeitspalte über den ISO-Stempel, nicht über den Text", async () => {
+    const september = {
+      ...ZEILE,
+      id: "kontrolle-september",
+      zeitpunktText: "14.09. 08:00",
+      zeitpunktIso: "2026-09-14T06:00:00.000Z",
+    } satisfies BzLogbuchAnzeigeZeile;
+    const oktober = {
+      ...ZEILE,
+      id: "kontrolle-oktober",
+      zeitpunktText: "02.10. 08:00",
+      zeitpunktIso: "2026-10-02T06:00:00.000Z",
+    } satisfies BzLogbuchAnzeigeZeile;
+
+    await mount(<BzLogbuchTabelle zeilen={[september, oktober]} />);
+
+    const schluessel = () => queryAll("tbody tr[data-row-key]")
+      .map((tr) => tr.getAttribute("data-row-key"));
+    expect(schluessel()).toEqual(["kontrolle-oktober", "kontrolle-september"]);
+
+    await click(".ant-table-column-sorters");
+    expect(schluessel()).toEqual(["kontrolle-september", "kontrolle-oktober"]);
+  });
+
+  /**
+   * Der Ergebnisfilter sitzt im Spaltenkopf — die Tabelle hatte vorher gar
+   * keinen, und „nur die nicht bestandenen" ist die Frage, mit der man ein
+   * Logbuch aufschlaegt.
+   */
+  it("filtert das Ergebnis über den Spaltenkopf", async () => {
+    const bestanden = {
+      ...ZEILE,
+      id: "kontrolle-bestanden",
+      ergebnisText: "bestanden",
+      ergebnisTon: "ok",
+    } satisfies BzLogbuchAnzeigeZeile;
+
+    await mount(<BzLogbuchTabelle zeilen={[ZEILE, bestanden]} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Ergebnis"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "bestanden");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in
+    // beiden Sprachen.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["kontrolle-bestanden"]);
   });
 });

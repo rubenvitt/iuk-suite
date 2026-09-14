@@ -217,6 +217,9 @@ describe("Checks-Seite", () => {
       detailHref: "/verwaltung/checks/check-hydration",
       fahrzeugName: "RTW 1",
       abgeschlossenText: "7.8.2026, 12:00:00",
+      // Der Rohwert fuer die Sortierung der Abschlussspalte — er faehrt als
+      // JSON-sichere Zeichenkette mit, nicht als `Date`.
+      abgeschlossenIso: "2026-08-07T10:00:00.000Z",
       ergebnisChips: [{
         schluessel: "vollstaendig",
         text: "vollständig",

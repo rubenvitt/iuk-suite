@@ -2,7 +2,8 @@
 
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.tsx
 import { useCallback, useState, useSyncExternalStore } from "react";
-import { Button, Card, Grid, List, Table, Tag, type TableProps } from "antd";
+import { Button, Card, Grid, List, Tag, type TableProps } from "antd";
+import { Datentabelle } from "@/core/tabelle";
 import { usePathname, useRouter } from "next/navigation";
 import type { GeraetZeile, Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../../_lib/updateStand";
@@ -47,9 +48,24 @@ import type { SpaltenOption } from "./SpaltenWahl";
  * `render`-Funktion ist dort ein gewoehnlicher Wert. Der Waechter dagegen ist der
  * Playwright-Fall aus `Spec:4878` — Eigentuemer Aufgabe V23.
  *
- * ⛔ REGIME B: Blaetterung, Sortierung und die zehn Filter laufen ueber die URL. Die Tabelle
- * traegt deshalb `pagination={false}`; die Blaetterung ist eine eigene, URL-schreibende
- * Komponente. Vorbild `lagerbuch/verwaltung/(arbeit)/journal/{page,JournalFilter,JournalTable}.tsx`.
+ * ⛔ REGIME B: Blaetterung, Sortierung und die zehn Filter laufen ueber die URL — die
+ * Blaetterung ist eine eigene, URL-schreibende Komponente. Vorbild
+ * `lagerbuch/verwaltung/(arbeit)/journal/{page,JournalFilter,JournalTable}.tsx`.
+ *
+ * ⛔ **DIE SECHS `sorter` BLEIBEN `true` UND WERDEN KEINE VERGLEICHSFUNKTIONEN AUS
+ * `@/core/tabelle`.** `sorter: true` heisst bei antd „diese Spalte ist sortierbar, ICH sortiere
+ * nicht" — das Ereignis geht an `onChange` und von dort in die Adresszeile, gesortiert wird in
+ * SQL ueber den ganzen Bestand. Ein `nachText(…)` an derselben Stelle ordnete zusaetzlich die
+ * gerade sichtbaren zwanzig Zeilen um: zwei Ordnungen auf einer Tabelle, und die sichtbare
+ * waere die falsche. ⛔ AUS DEMSELBEN GRUND KEIN `filters` IM SPALTENKOPF — die zehn Filter
+ * liegen in der `FilterSchublade` und treffen die ABFRAGE; ein Spaltenfilter durchsuchte nur
+ * die geladene Seite (die Grenze steht ausgeschrieben an `werteAlsFilter`,
+ * `src/core/tabelle/spaltenfilter.ts`).
+ *
+ * ⛔ DIE TABELLE IST SEIT DER UMSTELLUNG AUF `@/core/tabelle` EINE `Datentabelle` — derselbe
+ * antd-`Table` mit den Vorgaben der Suite. `pagination={false}` und
+ * `scroll={{ x: "max-content" }}` stehen dort und nicht mehr hier; der Spaltenkopf-Kicker
+ * (`docs/design/README.md`) kommt von ihr, die `title` bleiben blanke Zeichenketten.
  *
  * ⛔ ALLE ADRESSEN IN DER AEUSSEREN FORM `/admin/...`, nie `/m/radio/admin/...`. Der Grund
  * steht gemessen in `_lib/nav.test.ts:135-150`: ein innerer Pfad fuehrte auf dem
@@ -472,20 +488,19 @@ export function GeraeteTabelle({
       />
 
       {breit ? (
-        <Table<GeraetZeile>
+        /*
+          ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der
+          `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Die Begruendung gilt
+          unveraendert: die Blaetterung laeuft ueber die URL (Regime B, antd-Zuordnung
+          `.superpowers/sdd/planteil4/briefs/KOPF.md:1053`), und eine zweite, rein
+          clientseitige Blaetterung ueber den bereits geschnittenen zwanzig Zeilen waere
+          schlicht falsch. ⚠️ Sie faellt in Vitest NICHT auf — dort rendert diese Insel den
+          MOBILEN Zweig; der Waechter ist der Playwright-Fall (V23).
+        */
+        <Datentabelle<GeraetZeile>
           rowKey="id"
           columns={sichtbareSpalten}
           dataSource={zeilen}
-          /*
-            ⛔ `pagination={false}` — die Blaetterung laeuft ueber die URL (Regime B,
-            antd-Zuordnung `.superpowers/sdd/planteil4/briefs/KOPF.md:1053`). ⚠️ Ein
-            versehentlich eingeschaltetes `pagination` faellt in Vitest NICHT auf: jsdom
-            zeigte dann eine zweite, rein clientseitige Blaetterung ueber den bereits
-            geschnittenen zwanzig Zeilen. Der Waechter ist der Playwright-Fall (V23).
-          */
-          pagination={false}
-          /* Ohne `scroll` bricht eine antd-Tabelle auf 390 px (`aufgaben/_ui/RoutinenTabelle.tsx:33-34`). */
-          scroll={{ x: "max-content" }}
           aria-label="Geräteliste"
           locale={{ emptyText: "Kein Gerät gefunden" }}
           onChange={(_blaetterung, _filter, sortierer) => {
