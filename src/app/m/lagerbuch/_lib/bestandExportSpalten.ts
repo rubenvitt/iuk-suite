@@ -1,7 +1,7 @@
 import type { BestandExportZeile } from "./bestandExport";
 
 /**
- * DIE NEUN SPALTEN DES EXCEL-EXPORTS — kein "use client", und das ist der ganze
+ * DIE ZEHN SPALTEN DES EXCEL-EXPORTS — kein "use client", und das ist der ganze
  * Zweck dieser Datei (Spec §9.4).
  *
  * FALLE 6 MIT VOLLER WUCHT: EXCEL_SPALTEN ist ein WERT und lebt heute in einem
@@ -11,6 +11,10 @@ import type { BestandExportZeile } from "./bestandExport";
  * bekommt eine Server Component eine Client-Referenz statt des Wertes: HTTP 500
  * fuer die ganze Seite, `typecheck` und `build` gruen, und Vitest kann es
  * strukturell nicht finden (CLAUDE.md:24-27).
+ *
+ * DIE ZEHNTE SPALTE, „Kategorie", ist KEINE 1:1-Pflicht, sondern DRK-294 — das
+ * Alt-Format hatte sie nicht. Sie steht direkt hinter „Fach", weil beide
+ * beschreiben, WAS und WO; die Zahlen dahinter behalten ihre Nachbarschaft.
  *
  * FALLE 7 TRIFFT DIESEN EXPORT NICHT — und der Grund gehoert aufgeschrieben,
  * damit ihn niemand spaeter „aufraeumt": ArtikelTable traegt "use client" in
@@ -37,6 +41,7 @@ export type ExcelSpalte = {
 export const EXCEL_SPALTEN: readonly ExcelSpalte[] = [
   { header: "Artikel",        width: 34, wert: (z) => z.artikel },
   { header: "Fach",           width: 12, wert: (z) => z.fach },
+  { header: "Kategorie",      width: 20, wert: (z) => z.kategorie },
   { header: "Bestand",        width: 10, wert: (z) => z.bestand, zahl: true },
   { header: "Einheit",        width: 10, wert: (z) => z.einheit },
   { header: "Mindestbestand", width: 16, wert: (z) => z.mindestbestand, zahl: true },

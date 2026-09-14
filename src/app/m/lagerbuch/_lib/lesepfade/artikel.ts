@@ -38,6 +38,8 @@ function vergleicheFefoCharge(a: FefoSortierbareCharge, b: FefoSortierbareCharge
 export type ArtikelZeile = {
   id: string; name: string; einheit: string; fach: string; mindestbestand: number;
   bestand: number; aktiv: boolean;
+  /** DRK-294 — Schreibweise am Artikel, `null` heisst „ohne Kategorie". */
+  kategorie: string | null;
   /** VORGERECHNET fuer `_lib/artikelFilter.ts` — eine Client-Insel darf keine
    *  Ampel rechnen (§5.1, Falle 6). */
   unterMindest: boolean;
@@ -85,7 +87,7 @@ export function artikelListe(
     const s = naechste ? verfallStatus(naechste.verfall, schwellen, now) : null;
     return {
       id: a.id, name: a.name, einheit: a.einheit, fach: a.fach,
-      mindestbestand: a.mindestbestand, aktiv: a.aktiv,
+      mindestbestand: a.mindestbestand, aktiv: a.aktiv, kategorie: a.kategorie,
       // HANDLAGER, nicht die Summe ueber alle Lagerorte (§5.2.1).
       bestand: b,
       unterMindest: braucht(b, a.mindestbestand),

@@ -37,6 +37,7 @@ export async function importArtikelCsv(
             einheit: row.einheit,
             fach: row.fach,
             mindestbestand: row.mindestbestand,
+            kategorie: row.kategorie ?? null,
             aktiv: true,
             createdAt: new Date(),
           }).run();

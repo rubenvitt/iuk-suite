@@ -328,7 +328,10 @@ describe("ArtikelDrawer: zwei suchbare Auswahlfelder", () => {
   it("rendert genau Fahrzeug- und Charge-Select und filtert jeweils label plus keywords", async () => {
     await drawerMounten();
 
-    expect(queryPortal(".ant-drawer-body").querySelectorAll(".ant-select")).toHaveLength(2);
+    // Das Kategoriefeld (DRK-294) ist ein `AutoComplete` und damit technisch
+    // ebenfalls ein `.ant-select` — gezaehlt werden hier die AUSWAHLfelder.
+    expect(queryPortal(".ant-drawer-body")
+      .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(2);
     expect(zielFilter("UE-RK", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(true);
     expect(zielFilter("ZZZ", { label: "Charge 12/26", keywords: "ZZZ-ALT" })).toBe(true);
     expect(zielFilter("MTW", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
@@ -361,6 +364,49 @@ describe("ArtikelDrawer: zwei suchbare Auswahlfelder", () => {
     await warte();
     expect(existsPortal("[aria-label='Chargennummer']")).toBe(false);
     expect(existsPortal("[aria-label='Verfallsmonat']")).toBe(false);
+  });
+});
+
+/**
+ * DRK-294. Die Kategorie speichert wie Fach und Einheit beim Verlassen des
+ * Feldes — mit einem Unterschied, an dem der Filter haengt: sie DARF leer
+ * werden, und leer heisst `null`, nie ein Leerstring.
+ */
+describe("ArtikelDrawer: Kategorie", () => {
+  async function kategorieVerlassen(): Promise<void> {
+    const input = queryPortal<HTMLInputElement>("[aria-label='Kategorie']");
+    await act(async () => {
+      input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    await warte();
+  }
+
+  it("zeigt die gespeicherte Kategorie, speichert eine getrimmte Aenderung und leert auf null", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true, wert: { ...DETAIL, artikel: { ...DETAIL.artikel, kategorie: "Hygiene" } },
+    });
+    await mount(
+      <ArtikelDrawer
+        id="a1" onSchliessen={() => {}} fahrzeuge={FAHRZEUGE} kategorien={["Hygiene", "Technik"]}
+      />,
+    );
+    await warteAuf(
+      () => queryPortal<HTMLInputElement>("[aria-label='Kategorie']").value === "Hygiene",
+      "gespeicherte Kategorie",
+    );
+
+    await kategorieVerlassen();
+    expect(mocks.updateArtikel, "unveraendert → kein Schreibvorgang").not.toHaveBeenCalled();
+
+    await fillPortal("[aria-label='Kategorie']", "  Technik ");
+    await kategorieVerlassen();
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 1, "gespeicherte Aenderung");
+    expect(mocks.updateArtikel).toHaveBeenCalledWith("a1", { kategorie: "Technik" });
+
+    await fillPortal("[aria-label='Kategorie']", "   ");
+    await kategorieVerlassen();
+    await warteAuf(() => mocks.updateArtikel.mock.calls.length === 2, "geleerte Kategorie");
+    expect(mocks.updateArtikel).toHaveBeenLastCalledWith("a1", { kategorie: null });
   });
 });
 

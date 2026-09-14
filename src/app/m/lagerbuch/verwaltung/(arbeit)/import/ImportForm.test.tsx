@@ -131,7 +131,7 @@ describe("vorschauAus", () => {
         },
       ],
       fehler: [
-        "Zeile 5: erwartet 5 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand), gefunden 2.",
+        "Zeile 5: erwartet 5 oder 6 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand, optional Kategorie), gefunden 2.",
       ],
     });
   });
@@ -160,22 +160,24 @@ describe("vorschauAus", () => {
 });
 
 describe("VorschauTabelle", () => {
-  it("rendert genau die fuenf Fachspalten und physische Zeilen als stabile Schluessel", async () => {
+  it("rendert genau die sechs Fachspalten und physische Zeilen als stabile Schluessel", async () => {
     await mount(<VorschauTabelle rows={vorschauAus(CSV_MIT_FEHLER).rows} />);
 
     expect(queryAll("thead th").map((th) => th.textContent)).toEqual([
       "Artikel",
       "Fach",
+      "Kategorie",
       "Einheit",
       "Mindestbestand",
       "Startbestand",
     ]);
     expect(vorschauZeilen().map((zeile) => zeile.dataset.rowKey)).toEqual(["3", "4"]);
+    // „–" ist die leere Kategoriezelle einer fuenfspaltigen Zeile (DRK-294).
     expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual([
-      "MullbindeA1Stk205",
-      "MullbindeB2Pkg73",
+      "MullbindeA1–Stk205",
+      "MullbindeB2–Pkg73",
     ]);
-    expect(queryAll("tbody tr[data-row-key] td")).toHaveLength(10);
+    expect(queryAll("tbody tr[data-row-key] td")).toHaveLength(12);
   });
 
   it("traegt Leertext, Aria-Name, Zahlenrollen und horizontalen Scrollvertrag", async () => {
@@ -186,10 +188,12 @@ describe("VorschauTabelle", () => {
     expect(query<HTMLElement>(".ant-table-content").style.overflowX).toBe("auto");
     expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
     expect(query<HTMLTableElement>("table").style.minWidth).toBe("100%");
+    // Die Zahlenspalten stehen seit DRK-294 eine Stelle weiter rechts —
+    // „Kategorie" sitzt zwischen Fach und Einheit.
     const zellen = queryAll<HTMLTableCellElement>("tbody tr[data-row-key='3'] td");
-    expect(zellen[3]?.style.textAlign).toBe("right");
     expect(zellen[4]?.style.textAlign).toBe("right");
-    expect(zellen[3]?.querySelector("span")?.style.fontVariantNumeric).toBe("tabular-nums");
+    expect(zellen[5]?.style.textAlign).toBe("right");
+    expect(zellen[4]?.querySelector("span")?.style.fontVariantNumeric).toBe("tabular-nums");
 
     await unmount();
     await mount(<VorschauTabelle rows={[]} />);
@@ -244,7 +248,7 @@ describe("ImportForm", () => {
     await dateiWaehlen(CSV_MIT_FEHLER);
 
     expect(vorschauZeilen().map((zeile) => zeile.dataset.rowKey)).toEqual(["3", "4"]);
-    expect(document.body.textContent).toContain("Zeile 5: erwartet 5 Spalten");
+    expect(document.body.textContent).toContain("Zeile 5: erwartet 5 oder 6 Spalten");
     expect(exists(".ant-alert-warning")).toBe(true);
     expect(query<HTMLButtonElement>("button[data-rolle='import']").disabled).toBe(false);
   });
@@ -268,8 +272,8 @@ describe("ImportForm", () => {
     expect(importArtikelCsvMock).toHaveBeenCalledWith(CSV_MIT_FEHLER);
     expect(document.body.textContent).toContain("1 Artikel angelegt.");
     expect(document.body.textContent).toContain("Zeile 4: „Mullbinde“ konnte nicht angelegt werden.");
-    expect(document.body.textContent).toContain("Zeile 5: erwartet 5 Spalten");
-    expect((document.body.textContent?.match(/Zeile 5: erwartet 5 Spalten/g) ?? []))
+    expect(document.body.textContent).toContain("Zeile 5: erwartet 5 oder 6 Spalten");
+    expect((document.body.textContent?.match(/Zeile 5: erwartet 5 oder 6 Spalten/g) ?? []))
       .toHaveLength(1);
     expect(vorschauZeilen().map((zeile) => zeile.dataset.rowKey)).toEqual(["3", "4"]);
     expect(query<HTMLButtonElement>("button[data-rolle='import']").disabled).toBe(true);
@@ -312,7 +316,7 @@ describe("ImportForm", () => {
       );
       await neu.promise;
     });
-    expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual(["NeuN1Stk21"]);
+    expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual(["NeuN1–Stk21"]);
 
     await act(async () => {
       alt.aufloesen(
@@ -320,7 +324,7 @@ describe("ImportForm", () => {
       );
       await alt.promise;
     });
-    expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual(["NeuN1Stk21"]);
+    expect(vorschauZeilen().map((zeile) => zeile.textContent)).toEqual(["NeuN1–Stk21"]);
   });
 
   it("leert nach einem Lesefehler das native Feld fuer die erneute gleiche Auswahl", async () => {

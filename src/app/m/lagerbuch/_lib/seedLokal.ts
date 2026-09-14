@@ -252,27 +252,33 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   const artDa = vorhandeneIds(db.select({ id: artikel.id }).from(artikel).all());
   const artikelListe: {
     id: string; name: string; einheit: string; fach: string;
-    mindestbestand: number; bestelltAt?: Date;
+    mindestbestand: number; bestelltAt?: Date; kategorie?: string;
   }[] = [
-    { id: A.kompresse, name: "Kompressen 10×10 cm, steril", einheit: "Pkg.", fach: "Verbandmaterial", mindestbestand: 20 },
-    { id: A.mullbinde, name: "Mullbinde 6 cm", einheit: "Stk.", fach: "Verbandmaterial", mindestbestand: 30 },
-    { id: A.verbandpaeckchen, name: "Verbandpäckchen mittel", einheit: "Stk.", fach: "Verbandmaterial", mindestbestand: 25 },
-    { id: A.dreiecktuch, name: "Dreiecktuch", einheit: "Stk.", fach: "Verbandmaterial", mindestbestand: 20 },
-    { id: A.nacl, name: "NaCl 0,9 % 500 ml", einheit: "Btl.", fach: "Infusion", mindestbestand: 10 },
-    { id: A.ringer, name: "Ringer-Lactat 500 ml", einheit: "Btl.", fach: "Infusion", mindestbestand: 8 },
-    { id: A.handschuh, name: "Einmalhandschuhe Gr. M", einheit: "Pkg.", fach: "Hygiene", mindestbestand: 15 },
-    { id: A.desinfektion, name: "Händedesinfektion 250 ml", einheit: "Fl.", fach: "Hygiene", mindestbestand: 12 },
+    // `kategorie` (DRK-294) ist hier die Gruppe, `fach` bleibt, was die Alt-Daten
+    // tragen. Die Rettungsdecke hat BEWUSST keine Kategorie: sie zeigt lokal,
+    // dass ein Artikel ohne Kategorie durch keinen Kategorienfilter verschwindet.
+    // Nur neue Zeilen bekommen sie — der Seed ist rein additiv und ueberschreibt
+    // keinen vorhandenen Artikel.
+    { id: A.kompresse, name: "Kompressen 10×10 cm, steril", einheit: "Pkg.", fach: "Verbandmaterial", mindestbestand: 20, kategorie: "Verbandmaterial" },
+    { id: A.mullbinde, name: "Mullbinde 6 cm", einheit: "Stk.", fach: "Verbandmaterial", mindestbestand: 30, kategorie: "Verbandmaterial" },
+    { id: A.verbandpaeckchen, name: "Verbandpäckchen mittel", einheit: "Stk.", fach: "Verbandmaterial", mindestbestand: 25, kategorie: "Verbandmaterial" },
+    { id: A.dreiecktuch, name: "Dreiecktuch", einheit: "Stk.", fach: "Verbandmaterial", mindestbestand: 20, kategorie: "Verbandmaterial" },
+    { id: A.nacl, name: "NaCl 0,9 % 500 ml", einheit: "Btl.", fach: "Infusion", mindestbestand: 10, kategorie: "Infusion" },
+    { id: A.ringer, name: "Ringer-Lactat 500 ml", einheit: "Btl.", fach: "Infusion", mindestbestand: 8, kategorie: "Infusion" },
+    { id: A.handschuh, name: "Einmalhandschuhe Gr. M", einheit: "Pkg.", fach: "Hygiene", mindestbestand: 15, kategorie: "Hygiene" },
+    { id: A.desinfektion, name: "Händedesinfektion 250 ml", einheit: "Fl.", fach: "Hygiene", mindestbestand: 12, kategorie: "Hygiene" },
     { id: A.rettungsdecke, name: "Rettungsdecke gold/silber", einheit: "Stk.", fach: "Sonstiges", mindestbestand: 20 },
-    { id: A.o2maske, name: "Sauerstoffmaske mit Reservoir", einheit: "Stk.", fach: "Sauerstoff", mindestbestand: 10 },
+    { id: A.o2maske, name: "Sauerstoffmaske mit Reservoir", einheit: "Stk.", fach: "Sauerstoff", mindestbestand: 10, kategorie: "Sauerstoff" },
     // Bleibt unter Mindestbestand und NICHT bestellt → „unter Mindestbestand,
     // noch nicht bestellt" auf der Uebersicht und in der Bestellliste.
-    { id: A.bzstreifen, name: "BZ-Teststreifen", einheit: "Dose", fach: "Diagnostik", mindestbestand: 5 },
+    { id: A.bzstreifen, name: "BZ-Teststreifen", einheit: "Dose", fach: "Diagnostik", mindestbestand: 5, kategorie: "Diagnostik" },
     // Unter Mindestbestand, aber BESTELLT — der zweite Zustand der Bestellliste.
-    { id: A.pflaster, name: "Pflasterset sortiert", einheit: "Pkg.", fach: "Verbandmaterial", mindestbestand: 10, bestelltAt: vor(jetzt, 5) },
+    { id: A.pflaster, name: "Pflasterset sortiert", einheit: "Pkg.", fach: "Verbandmaterial", mindestbestand: 10, bestelltAt: vor(jetzt, 5), kategorie: "Verbandmaterial" },
   ].filter((a) => !artDa.has(a.id));
   for (const a of artikelListe) {
     db.insert(artikel).values({
-      ...a, aktiv: true, bestelltAt: a.bestelltAt ?? null, createdAt: vor(jetzt, 200),
+      ...a, aktiv: true, bestelltAt: a.bestelltAt ?? null, kategorie: a.kategorie ?? null,
+      createdAt: vor(jetzt, 200),
     }).run();
   }
 

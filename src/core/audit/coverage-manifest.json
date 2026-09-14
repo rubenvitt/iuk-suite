@@ -327,6 +327,10 @@
     "kind": "context",
     "via": "setArtikelAktiv"
   },
+  "src/app/m/lagerbuch/_actions/kategorien.ts#setzeAusgeblendeteKategorien": {
+    "kind": "context",
+    "via": "setzeAusgeblendeteKategorien"
+  },
   "src/app/m/lagerbuch/_actions/aussondern.ts#aussondern": {
     "kind": "context",
     "via": "aussondern"

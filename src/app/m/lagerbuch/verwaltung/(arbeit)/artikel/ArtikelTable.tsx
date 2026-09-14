@@ -3,8 +3,10 @@
 import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Checkbox, Flex, Select, Table } from "antd";
 import { SPACE } from "@/core/theme/tokens";
+import { setzeAusgeblendeteKategorien } from "../../../_actions/kategorien";
 import {
   artikelFiltern,
+  artikelTrifft,
   LEERER_FILTER,
   type ArtikelFilterZeile,
   type ArtikelFilterZustand,
@@ -17,6 +19,7 @@ import {
 } from "../../../_lib/bestandExportSpalten";
 import type { Ampel } from "../../../_lib/domain/verfall";
 import { ampelTon } from "../../../_lib/format";
+import { kategorieOptionen } from "../../../_lib/kategorie";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { ArtikelDrawer } from "../../../_ui/ArtikelDrawer";
 import { Chip } from "../../../_ui/Chip";
@@ -52,6 +55,10 @@ export const SORTIERUNGEN = [
 ] as const;
 
 export type ArtikelSortierung = (typeof SORTIERUNGEN)[number]["wert"];
+
+/** Fester Satz statt `e.message` — derselbe Grund wie `EXCEL_FEHLERTEXT`. */
+const KATEGORIEN_SPEICHERFEHLER =
+  "Die Auswahl konnte nicht gespeichert werden – bitte erneut versuchen.";
 
 function nameVergleichen(a: ArtikelAnzeigeZeile, b: ArtikelAnzeigeZeile): number {
   return a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id);
@@ -103,22 +110,73 @@ export function artikelSortieren(
 export function ArtikelTable({
   zeilen,
   fahrzeuge,
+  ausgeblendeteKategorien = [],
 }: {
   zeilen: ArtikelAnzeigeZeile[];
   fahrzeuge: FahrzeugOption[];
+  /** DRK-294 — gefaltete Schluessel, gelesen fuer das Konto aus der Sitzung. */
+  ausgeblendeteKategorien?: string[];
 }) {
   const [filter, setFilter] = useState<ArtikelFilterZustand>(LEERER_FILTER);
   const [sortierung, setSortierung] = useState<ArtikelSortierung>("name-asc");
   const [offenerArtikel, setOffenerArtikel] = useState<string | null>(null);
   const [exportLaeuft, startExport] = useTransition();
   const [exportFehler, setExportFehler] = useState<string | null>(null);
+  /**
+   * DIE AUSGEBLENDETEN KATEGORIEN SIND EIN EIGENER ZUSTAND, nicht Teil von
+   * `filter` (DRK-294). Sie sind je Konto gespeichert, die Chips gelten nur fuer
+   * den Moment — und `zuruecksetzen()` setzt `LEERER_FILTER`. Laegen sie darin,
+   * loeschte „Zuruecksetzen" still eine gespeicherte Einstellung.
+   *
+   * Der Zustand haelt die Wahrheit fuer diese Sitzung; die Prop ist nur der
+   * Startwert. Die Server Action ersetzt die gespeicherte Liste als Ganzes, und
+   * Next reiht Server Actions eines Clients hintereinander ein — zwei schnelle
+   * Aenderungen enden also beim zuletzt gezeigten Stand.
+   */
+  const [ausgeblendet, setAusgeblendet] = useState<string[]>(ausgeblendeteKategorien);
+  const [kategorieFehler, setKategorieFehler] = useState<string | null>(null);
+
+  const kategorien = useMemo(
+    () => kategorieOptionen(zeilen.map((zeile) => zeile.kategorie)),
+    [zeilen],
+  );
+  const ausgeblendetMenge = useMemo(() => new Set(ausgeblendet), [ausgeblendet]);
 
   // Genau diese eine abgeleitete Liste ist Tabellenquelle und Übergabepunkt
-  // für den in Teil 6 freigeschalteten Export.
+  // für den in Teil 6 freigeschalteten Export — die Kategorien laufen durch
+  // DASSELBE Praedikat, nie als zweites `.filter()` daneben (§9.4).
   const gefiltert = useMemo(
-    () => artikelSortieren(artikelFiltern(zeilen, filter), sortierung),
-    [zeilen, filter, sortierung],
+    () => artikelSortieren(artikelFiltern(zeilen, filter, ausgeblendetMenge), sortierung),
+    [zeilen, filter, ausgeblendetMenge, sortierung],
   );
+
+  /** Wie viele Artikel allein die Kategorien wegnehmen — ohne Suche und Chips. */
+  const durchKategorienAusgeblendet = useMemo(
+    () => zeilen.filter((zeile) => !artikelTrifft(zeile, LEERER_FILTER, ausgeblendetMenge)).length,
+    [zeilen, ausgeblendetMenge],
+  );
+
+  /**
+   * Eine gespeicherte Kategorie, zu der kein Artikel mehr passt, erscheint
+   * nicht als Marke ohne Beschriftung. Sie blendet nichts aus und faellt beim
+   * naechsten Speichern aus der Liste.
+   */
+  const sichtbareAuswahl = ausgeblendet.filter((schluessel) => (
+    kategorien.some((option) => option.schluessel === schluessel)
+  ));
+
+  function kategorienAendern(neu: string[]): void {
+    setAusgeblendet(neu);
+    setKategorieFehler(null);
+    void (async () => {
+      try {
+        const ergebnis = await setzeAusgeblendeteKategorien({ kategorien: neu });
+        if (!ergebnis.ok) setKategorieFehler(ergebnis.fehler);
+      } catch {
+        setKategorieFehler(KATEGORIEN_SPEICHERFEHLER);
+      }
+    })();
+  }
 
   /**
    * EXCEL-LISTE DES BESTANDS (Spec §9.4, Entscheidung 9-E).
@@ -232,6 +290,23 @@ export function ArtikelTable({
         >
           Bestand 0 ausblenden
         </Checkbox>
+        {/* DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene
+            Kategorie waere das Feld eine leere Liste. */}
+        {kategorien.length > 0 ? (
+          <Select<string[]>
+            mode="multiple"
+            value={sichtbareAuswahl}
+            onChange={kategorienAendern}
+            options={kategorien.map((option) => ({
+              value: option.schluessel,
+              label: option.label,
+            }))}
+            placeholder="Kategorien ausblenden"
+            aria-label="Kategorien ausblenden"
+            virtual={false}
+            style={{ minWidth: 240 }}
+          />
+        ) : null}
         <Select<ArtikelSortierung>
           value={sortierung}
           onChange={setSortierung}
@@ -270,8 +345,27 @@ export function ArtikelTable({
         >
           {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
         </Button>
-        <NeuArtikel />
+        <NeuArtikel kategorien={kategorien.map((option) => option.label)} />
       </Flex>
+      {durchKategorienAusgeblendet > 0 ? (
+        // Ein fehlender Artikel soll nicht wie ein geloeschter aussehen: die
+        // gespeicherte Auswahl wirkt schon beim Aufschlagen, ohne dass in
+        // dieser Sitzung jemand etwas gewaehlt haette.
+        <Flex
+          gap={SPACE.sm}
+          align="center"
+          wrap
+          data-testid="kategorien-hinweis"
+          style={{ marginBlockEnd: SPACE.md }}
+        >
+          <span style={SCHRIFT.neben}>
+            {durchKategorienAusgeblendet} Artikel in ausgeblendeten Kategorien
+          </span>
+          <Button type="link" style={{ padding: 0 }} onClick={() => kategorienAendern([])}>
+            alle zeigen
+          </Button>
+        </Flex>
+      ) : null}
       {exportFehler ? (
         // Gleiches Muster wie NeuArtikel.tsx:134 und die vier Stellen in
         // ArtikelDrawer.tsx — kein Fließtext in Nebentext-Groesze fuer einen
@@ -284,6 +378,14 @@ export function ArtikelTable({
           style={{ marginBlockEnd: SPACE.md }}
         />
       ) : null}
+      {kategorieFehler ? (
+        <Alert
+          type="warning"
+          showIcon={false}
+          title={kategorieFehler}
+          style={{ marginBlockEnd: SPACE.md }}
+        />
+      ) : null}
 
       <Table<ArtikelAnzeigeZeile>
         rowKey="id"
@@ -292,7 +394,7 @@ export function ArtikelTable({
         aria-label="Artikel und Bestand"
         dataSource={gefiltert}
         locale={{
-          emptyText: hatFilter
+          emptyText: hatFilter || durchKategorienAusgeblendet > 0
             ? "Kein Artikel passt zu Suche und Filter."
             : "Noch keine Artikel. Lege oben den ersten an.",
         }}
@@ -317,6 +419,13 @@ export function ArtikelTable({
             title: <span style={SCHRIFT.feldname}>Fach</span>,
             dataIndex: "fach",
             render: (wert: string) => <span className={s.fach}>{wert}</span>,
+          },
+          {
+            title: <span style={SCHRIFT.feldname}>Kategorie</span>,
+            dataIndex: "kategorie",
+            render: (wert: string | null) => (
+              wert ?? <span style={SCHRIFT.neben}>–</span>
+            ),
           },
           {
             title: <span style={SCHRIFT.feldname}>Bestand</span>,
@@ -387,6 +496,7 @@ export function ArtikelTable({
           key={offenerArtikel}
           id={offenerArtikel}
           fahrzeuge={fahrzeuge}
+          kategorien={kategorien.map((option) => option.label)}
           onSchliessen={() => setOffenerArtikel(null)}
         />
       ) : null}

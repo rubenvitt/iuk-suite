@@ -36,6 +36,13 @@
       "when": 1788681537840,
       "tag": "0004_audit_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789401600000,
+      "tag": "0005_artikel_kategorie",
+      "breakpoints": true
     }
   ]
 }

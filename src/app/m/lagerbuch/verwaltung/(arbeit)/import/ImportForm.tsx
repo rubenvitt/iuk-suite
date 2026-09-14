@@ -50,6 +50,14 @@ const VORSCHAU_SPALTEN = [
     render: (wert: string) => <span className={s.fach}>{wert}</span>,
   },
   {
+    // DRK-294 — die optionale sechste Spalte. Leer heisst „ohne Kategorie";
+    // der Strich zeigt, dass die Zelle gelesen wurde und nichts enthielt.
+    title: <span style={SCHRIFT.feldname}>Kategorie</span>,
+    dataIndex: "kategorie",
+    key: "kategorie",
+    render: (wert: string | undefined) => wert ?? "–",
+  },
+  {
     title: <span style={SCHRIFT.feldname}>Einheit</span>,
     dataIndex: "einheit",
     key: "einheit",

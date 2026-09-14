@@ -104,6 +104,10 @@ export const AUDIT_TABLES = {
         "id"
       ]
     },
+    "ausgeblendete_kategorien": {
+      "mode": "excluded",
+      "reason": "Persönliche Ansichtseinstellung der Artikelliste je Konto; keine Bestands- oder Stammdatenänderung."
+    },
     "buchungen": {
       "mode": "audited",
       "primaryKey": [
