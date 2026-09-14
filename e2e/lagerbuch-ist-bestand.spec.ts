@@ -12,8 +12,17 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  *
  * Drei Breiten wie `lagerbuch-mobil.spec.ts`. Der Anker ist die Zeile
  * `e2e-soll` mit ihrem Artikelnamen — eine 404-Seite hat keinen Ueberlauf und
- * bestuende jede Zusicherung hier still. Der Seed legt den Bestand dieses
- * Artikels ausschliesslich ins Handlager; der Ist im Fahrzeug ist also 0.
+ * bestuende jede Zusicherung hier still.
+ *
+ * ⚠️ DER IST-WERT SELBST WIRD HIER NICHT ZUGESICHERT, nur seine Form. Der Seed
+ * legt den Bestand zwar ausschliesslich ins Handlager (lokal, frische Datei:
+ * „0 Stk."), aber alle Specs laufen mit `workers: 1` gegen EINE SQLite-Datei,
+ * und ein abgeschlossener Check im selben Lauf fuellt `e2e-fahrzeug` auf sein
+ * Soll auf — in CI stand dort „3 Stk.", reproduzierbar in allen drei Versuchen.
+ * Genau diese Reihenfolgeabhaengigkeit beschreibt der Kopf von
+ * `artikelMitBestand` in `seed-lagerbuch.ts`. Dass der RICHTIGE Bestand ankommt,
+ * halten `SollEditor.test.tsx` und `page.test.tsx` fest; hier geht es um Groesse
+ * und Erreichbarkeit.
  */
 const BREITEN = [
   { name: "Telefon", width: 390, height: 844 },
@@ -43,7 +52,8 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
 
       const ist = zeile.locator("[data-rolle='ist']");
       const soll = zeile.getByRole("spinbutton", { name: /^Soll für / });
-      await expect(ist).toHaveText("0 Stk.");
+      // Form, nicht Wert — s. Kopfkommentar.
+      await expect(ist).toHaveText(/^\d+ Stk\.$/);
 
       await ist.scrollIntoViewIfNeeded();
       await expect(ist).toBeInViewport();
