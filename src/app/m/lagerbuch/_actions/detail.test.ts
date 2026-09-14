@@ -164,6 +164,7 @@ describe("getDetail", () => {
       mindestbestand: 20,
       aktiv: true,
       bestand: 12,
+      kategorie: null,
     });
     expect(detail.chargen).toEqual([
       { id: "c-rot", chargenNr: "ROT", verfall: "2026-06", rest: 2,

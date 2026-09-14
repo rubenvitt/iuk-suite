@@ -69,7 +69,9 @@ const indizes = (tabelle: string) =>
 
 const TABELLEN: Record<
   string,
-  { name: string; typ: string; notnull: 0 | 1; dflt: string | null; pk: 0 | 1 }[]
+  // `pk` ist die POSITION im Primaerschluessel, nicht ein Merker: ein
+  // zusammengesetzter Schluessel zaehlt 1, 2 (`ausgeblendete_kategorien`).
+  { name: string; typ: string; notnull: 0 | 1; dflt: string | null; pk: 0 | 1 | 2 }[]
 > = {
   lagerorte: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -102,6 +104,7 @@ const TABELLEN: Record<
     { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
     { name: "bestellt_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
     { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "kategorie", typ: "text", notnull: 0, dflt: null, pk: 0 },   // 0005, DRK-294
   ],
   chargen: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -234,10 +237,15 @@ const TABELLEN: Record<
     { name: "email", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "last_login_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
   ],
+  // 0005, DRK-294 — die siebzehnte, und die erste ohne Vorbild im Alt-Repo.
+  ausgeblendete_kategorien: [
+    { name: "user_id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "kategorie", typ: "text", notnull: 1, dflt: null, pk: 2 },
+  ],
 };
 
-describe("16 Tabellen, Spalte fuer Spalte", () => {
-  it("es sind genau 16 und keine mehr", () => {
+describe("17 Tabellen, Spalte fuer Spalte", () => {
+  it("es sind genau 17 und keine mehr", () => {
     const namen = (sqlite.prepare(
       `select name from sqlite_master where type='table'
          and name not like 'sqlite_%' and name not like '__drizzle%' and name != 'audit_outbox' order by name`,
@@ -248,7 +256,7 @@ describe("16 Tabellen, Spalte fuer Spalte", () => {
   it.each(Object.entries(TABELLEN))("%s", (tabelle, erwartet) => {
     const ist = spalten(tabelle).map((s) => ({
       name: s.name, typ: s.type.toLowerCase(), notnull: s.notnull as 0 | 1, dflt: s.dflt_value,
-      pk: s.pk as 0 | 1,
+      pk: s.pk as 0 | 1 | 2,
     }));
     expect(ist).toEqual(erwartet);
   });
@@ -278,6 +286,7 @@ const INDIZES: Record<string, string[]> = {
   geraete: ["geraete_barcode_unique", "idx_geraete_lagerort"],
   tokens: ["tokens_code_unique"],
   users: [],
+  ausgeblendete_kategorien: [],
 };
 
 describe("Indizes — alle bestehenden bleiben, vier kommen dazu", () => {
@@ -361,8 +370,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt fuenf Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4]);
+  it("fuehrt sechs Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -374,12 +383,15 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     for (let i = 1; i < w.length; i++) expect(w[i]).toBeGreaterThan(w[i - 1]);
   });
 
-  it("jeder `tag` hat eine Datei, und die drei handgeschriebenen heissen wie erwartet", () => {
+  it("jeder `tag` hat eine Datei, und die handgeschriebenen heissen wie erwartet", () => {
     for (const e of journal.entries) {
       expect(() => readFileSync(join(ORDNER, `${e.tag}.sql`), "utf8")).not.toThrow();
     }
     expect(journal.entries.map((e) => e.tag).slice(1))
-      .toEqual(["0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox"]);
+      .toEqual([
+        "0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox",
+        "0005_artikel_kategorie",
+      ]);
   });
 
   it("und die GEGENRICHTUNG: keine .sql ohne Journaleintrag", () => {

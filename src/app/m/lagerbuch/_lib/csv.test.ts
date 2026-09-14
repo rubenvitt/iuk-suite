@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseArtikelCsv } from "./csv";
 
+const SPALTENFEHLER = "erwartet 5 oder 6 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand, optional Kategorie)";
+
 describe("parseArtikelCsv", () => {
   it("liest Semikolon-Dokumente mit vollstaendiger Kopfzeile", () => {
     const ergebnis = parseArtikelCsv(
@@ -40,18 +42,40 @@ describe("parseArtikelCsv", () => {
       { name: "Mull, steril", einheit: "Stk", fach: "A1", mindestbestand: 20, startbestand: 5 },
     ]);
     expect(ergebnis.errors).toEqual([
-      "Zeile 3: erwartet 5 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand), gefunden 1.",
+      `Zeile 3: ${SPALTENFEHLER}, gefunden 1.`,
     ]);
   });
 
-  it("lehnt auch eine sechste Spalte mit Zeilennummer ab", () => {
+  /**
+   * DRK-294. Die sechste Spalte ist OPTIONAL — fuenfspaltige Dateien, wie es sie
+   * heute gibt, laufen unveraendert durch, und beide Formen duerfen im selben
+   * Dokument stehen. Erst eine siebte Spalte ist ein Fehler.
+   */
+  it("liest eine sechste Spalte als Kategorie, getrimmt, und leer als ohne Kategorie", () => {
     const ergebnis = parseArtikelCsv(
-      "Name;Einheit;Fach;Mindestbestand;Startbestand\nMull;Stk;A1;20;5;ignoriert",
+      "Name;Einheit;Fach;Mindestbestand;Startbestand;Kategorie\n"
+      + "Mull;Stk;A1;20;5; Verbandmaterial \n"
+      + "Handschuhe;Pkg;B1;10;0;\n"
+      + "Decke;Stk;C1;4;0\n",
+    );
+
+    expect(ergebnis.errors).toEqual([]);
+    expect(ergebnis.rows).toEqual([
+      { name: "Mull", einheit: "Stk", fach: "A1", mindestbestand: 20, startbestand: 5, kategorie: "Verbandmaterial" },
+      { name: "Handschuhe", einheit: "Pkg", fach: "B1", mindestbestand: 10, startbestand: 0 },
+      { name: "Decke", einheit: "Stk", fach: "C1", mindestbestand: 4, startbestand: 0 },
+    ]);
+    expect(ergebnis.rows[1]).not.toHaveProperty("kategorie", "");
+  });
+
+  it("lehnt eine siebte Spalte mit Zeilennummer ab", () => {
+    const ergebnis = parseArtikelCsv(
+      "Name;Einheit;Fach;Mindestbestand;Startbestand\nMull;Stk;A1;20;5;Hygiene;ignoriert",
     );
 
     expect(ergebnis.rows).toEqual([]);
     expect(ergebnis.errors).toEqual([
-      "Zeile 2: erwartet 5 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand), gefunden 6.",
+      `Zeile 2: ${SPALTENFEHLER}, gefunden 7.`,
     ]);
   });
 
@@ -66,6 +90,25 @@ describe("parseArtikelCsv", () => {
     expect(ergebnis.errors).toEqual([
       "Zeile 1: Mindestbestand „Minimum“ ist keine ganze Zahl ≥ 0.",
     ]);
+  });
+
+  it("erkennt die sechsspaltige Kopfzeile, aber nicht mit falschem sechsten Namen", () => {
+    expect(parseArtikelCsv("NAME;EINHEIT;FACH;MINDESTBESTAND;STARTBESTAND;KATEGORIE\nMull;Stk;A1;1;0;X"))
+      .toEqual({
+        rows: [{ name: "Mull", einheit: "Stk", fach: "A1", mindestbestand: 1, startbestand: 0, kategorie: "X" }],
+        errors: [],
+      });
+    // Ein fremder sechster Kopf ist KEINE Kopfzeile — sonst verschwaende eine
+    // Datenzeile, deren Mengen zufaellig „Mindestbestand;Startbestand" heissen,
+    // still. Die Zeile laeuft in die Mengenpruefung und meldet sich dort.
+    expect(parseArtikelCsv("Name;Einheit;Fach;Mindestbestand;Startbestand;Gruppe\nMull;Stk;A1;1;0;X").errors)
+      .toEqual(["Zeile 1: Mindestbestand „Mindestbestand“ ist keine ganze Zahl ≥ 0."]);
+  });
+
+  it("weist eine zu lange Kategorie an ihrer Zeile zurueck", () => {
+    const ergebnis = parseArtikelCsv(`Mull;Stk;A1;1;0;${"x".repeat(61)}`);
+    expect(ergebnis.rows).toEqual([]);
+    expect(ergebnis.errors).toEqual(["Zeile 1: Kategorie darf höchstens 60 Zeichen haben."]);
   });
 
   it("findet die Kopfzeile als erste nichtleere Zeile und verarbeitet BOM und CRLF", () => {
@@ -114,7 +157,7 @@ describe("parseArtikelCsv", () => {
       { name: "A", einheit: "B", fach: "C", mindestbestand: 1, startbestand: 0 },
     ]);
     expect(ergebnis.errors).toEqual([
-      "Zeile 3: erwartet 5 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand), gefunden 2.",
+      `Zeile 3: ${SPALTENFEHLER}, gefunden 2.`,
     ]);
   });
 

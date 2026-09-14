@@ -1166,10 +1166,15 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // existierende Datei ist nicht bloss Ballast: er wuerde einer kuenftigen
     // Datei desselben Namens den antd-Import STILL durchwinken. Die Liste
     // zaehlt damit elf Namen.
+    //
+    // NACHTRAG 14.09.2026 (DRK-294): `KategorieEingabe.tsx` kommt dazu — das
+    // Kategoriefeld, das der Dialog „Neuer Artikel" und die Stammdaten der
+    // Schublade teilen. Beide Nutzer sind Verwaltung; zwoelf Namen.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
+      "KategorieEingabe.tsx",
     ]);
     const WURZEL = join(MODUL, "page.tsx");
     const dateien = [

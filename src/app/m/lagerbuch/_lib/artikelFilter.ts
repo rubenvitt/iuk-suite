@@ -13,12 +13,15 @@
  * §6.9.4 und damit Teil 5 — hier steht nur das FILTER-Praedikat. Wer beides
  * zusammenlegt, macht aus einer reinen Funktion einen Anzeige-Entwurf.
  */
+import { kategorieNormalisieren, kategorieSchluessel } from "./kategorie";
 import { falte } from "./suche";
 
 export type ArtikelFilterZeile = {
   name: string;
   fach: string;
   aktiv: boolean;
+  /** DRK-294 — die Schreibweise am Artikel; `null` heisst „ohne Kategorie". */
+  kategorie: string | null;
   /**
    * DER HANDLAGER-BESTAND, nicht die Summe ueber alle Lagerorte — es gibt in
    * diesem Modul keine (`lesepfade/artikel.ts:90`, §5.2.1). Die Zeile fuehrt
@@ -50,8 +53,10 @@ export const LEERER_FILTER: ArtikelFilterZustand = {
   ohneBestandNull: false,
 };
 
+const KEINE_KATEGORIEN: ReadonlySet<string> = new Set();
+
 /**
- * Alle fuenf Bedingungen sind UND-verknuepft. Leere Suche laesst alles durch.
+ * Alle Bedingungen sind UND-verknuepft. Leere Suche laesst alles durch.
  *
  * Die Faltung laeuft ueber `falte()` aus `_lib/suche.ts` — DIE EINE Faltung des
  * Moduls (§5.13.2) — und wird hier NICHT nachgebaut. `falte()` faltet Umlaute
@@ -59,8 +64,23 @@ export const LEERER_FILTER: ArtikelFilterZustand = {
  * traefe bei den heutigen Zeichen zufaellig dieselbe Entscheidung, liefe der
  * SQL-Haelfte (`lb_falte`, registriert in `_db/client.ts`) aber auseinander,
  * sobald sich die Faltung je aendert.
+ *
+ * `ausgeblendeteKategorien` (DRK-294) traegt GEFALTETE Schluessel und steht
+ * bewusst NICHT in `ArtikelFilterZustand`: die Auswahl ist je Konto gespeichert,
+ * die Chips gelten nur fuer den Moment, und „Zuruecksetzen" setzt
+ * `LEERER_FILTER` — laege die Auswahl darin, loeschte der Knopf still eine
+ * gespeicherte Einstellung. Ein Artikel OHNE Kategorie bleibt immer stehen: ein
+ * frisch angelegter Artikel darf nicht aus der Liste verschwinden.
  */
-export function artikelTrifft(z: ArtikelFilterZeile, f: ArtikelFilterZustand): boolean {
+export function artikelTrifft(
+  z: ArtikelFilterZeile,
+  f: ArtikelFilterZustand,
+  ausgeblendeteKategorien: ReadonlySet<string> = KEINE_KATEGORIEN,
+): boolean {
+  const kategorie = kategorieNormalisieren(z.kategorie);
+  if (kategorie !== null && ausgeblendeteKategorien.has(kategorieSchluessel(kategorie))) {
+    return false;
+  }
   if (f.ohneInaktive && !z.aktiv) return false;
   // `=== 0`, NICHT `<= 0`. Ein negativer Handlagerbestand kann heute nicht
   // entstehen (Invariante I2, `schreibpfade/abbuchung.ts:20`) — waere er doch
@@ -86,6 +106,7 @@ export function artikelTrifft(z: ArtikelFilterZeile, f: ArtikelFilterZustand): b
  */
 export function artikelFiltern<T extends ArtikelFilterZeile>(
   zeilen: T[], f: ArtikelFilterZustand,
+  ausgeblendeteKategorien: ReadonlySet<string> = KEINE_KATEGORIEN,
 ): T[] {
-  return zeilen.filter((z) => artikelTrifft(z, f));
+  return zeilen.filter((z) => artikelTrifft(z, f, ausgeblendeteKategorien));
 }

@@ -4,6 +4,7 @@ import { verfallStatus, verfallSchwellen } from "../../../_lib/domain/verfall";
 import { chargeText } from "../../../_lib/format";
 import { artikelListe } from "../../../_lib/lesepfade/artikel";
 import { fahrzeugListe } from "../../../_lib/lesepfade/fahrzeuge";
+import { ausgeblendeteKategorienVon } from "../../../_lib/lesepfade/kategorien";
 import { requireLagerbuchAdmin } from "../../../_lib/zugang";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ArtikelTable, type ArtikelAnzeigeZeile } from "./ArtikelTable";
@@ -26,7 +27,11 @@ function artikelAnzeigeZeilen(db: DB, jetzt: Date): ArtikelAnzeigeZeile[] {
   });
 }
 
-export function artikelSeitenInhalt(db: DB, jetzt: Date): ReactNode {
+/**
+ * `userId` ist `viewer.sub` aus der Sitzung (DRK-294) — die ausgeblendeten
+ * Kategorien gehoeren dem Konto, das die Seite aufruft, und keinem anderen.
+ */
+export function artikelSeitenInhalt(db: DB, jetzt: Date, userId: string): ReactNode {
   const fahrzeuge = fahrzeugListe(db)
     .filter((fahrzeug) => fahrzeug.aktiv)
     .map((fahrzeug) => ({
@@ -41,12 +46,16 @@ export function artikelSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         titel="Artikel & Bestand"
         beschreibung="Handlager · Klick auf eine Zeile öffnet Chargen, Buchung und Stammdaten."
       />
-      <ArtikelTable zeilen={artikelAnzeigeZeilen(db, jetzt)} fahrzeuge={fahrzeuge} />
+      <ArtikelTable
+        zeilen={artikelAnzeigeZeilen(db, jetzt)}
+        fahrzeuge={fahrzeuge}
+        ausgeblendeteKategorien={ausgeblendeteKategorienVon(db, userId)}
+      />
     </>
   );
 }
 
 export default async function ArtikelSeite() {
-  await requireLagerbuchAdmin();
-  return artikelSeitenInhalt(getDb(), new Date());
+  const viewer = await requireLagerbuchAdmin();
+  return artikelSeitenInhalt(getDb(), new Date(), viewer.sub);
 }

@@ -9,7 +9,7 @@ import { artikelFiltern, LEERER_FILTER } from "./artikelFilter";
 
 function eingabe(p: Partial<BestandExportEingabe> = {}): BestandExportEingabe {
   return {
-    name: "Mullbinde 8cm", fach: "A2", bestand: 12, einheit: "Stk.",
+    name: "Mullbinde 8cm", fach: "A2", kategorie: "Verbandmaterial", bestand: 12, einheit: "Stk.",
     mindestbestand: 20, aktiv: true, unterMindest: true,
     naechsteCharge: { chargenNr: "L-42", verfall: "2026-08" },
     naechsteAblaufText: "faellig 08/26",
@@ -32,12 +32,16 @@ describe("bestandStatus", () => {
 });
 
 describe("bestandExportZeilen", () => {
-  it("bildet die neun Felder flach ab", () => {
+  it("bildet die zehn Felder flach ab", () => {
     expect(bestandExportZeilen([eingabe()])[0]).toEqual({
-      artikel: "Mullbinde 8cm", fach: "A2", bestand: 12, einheit: "Stk.",
+      artikel: "Mullbinde 8cm", fach: "A2", kategorie: "Verbandmaterial", bestand: 12, einheit: "Stk.",
       mindestbestand: 20, status: "unter Mindestbestand",
       charge: "L-42", verfall: "2026-08", hinweis: "faellig 08/26",
     });
+  });
+
+  it("setzt „ohne Kategorie“ auf Leerstring, wie Charge und Verfall", () => {
+    expect(bestandExportZeilen([eingabe({ kategorie: null })])[0]?.kategorie).toBe("");
   });
 
   /**

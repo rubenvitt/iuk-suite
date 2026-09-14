@@ -179,6 +179,64 @@ describe("updateArtikel", () => {
   });
 });
 
+/**
+ * DRK-294. Die Kategorie ist optional und Freitext — die zwei Zusagen, an denen
+ * der Filter haengt: ein Leerstring kommt nie in die Datenbank (sonst gaebe es
+ * eine unsichtbare Kategorie „", die man ausblenden koennte), und ein Update OHNE
+ * das Feld laesst sie stehen (die Schublade speichert Feld fuer Feld).
+ */
+describe("Kategorie (DRK-294)", () => {
+  const GRUND = { name: "Kompressen", einheit: "Stk", fach: "A1", mindestbestand: 1 };
+
+  it("createArtikel speichert eine getrimmte Kategorie und ohne Angabe null", async () => {
+    await createArtikel({ ...GRUND, kategorie: "  Verbandmaterial " }, t.db);
+    await createArtikel({ ...GRUND, name: "Ohne" }, t.db);
+
+    const zeilen = t.db.select().from(artikel).all();
+    expect(zeilen.find((z) => z.name === "Kompressen")?.kategorie).toBe("Verbandmaterial");
+    expect(zeilen.find((z) => z.name === "Ohne")?.kategorie).toBeNull();
+  });
+
+  it.each([[""], ["   "], [null]])("createArtikel macht aus %j „ohne Kategorie“", async (kategorie) => {
+    const erg = await createArtikel({ ...GRUND, kategorie }, t.db);
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(artikel).all()[0]?.kategorie).toBeNull();
+  });
+
+  it("updateArtikel setzt, aendert und leert die Kategorie", async () => {
+    artikelAnlegen();
+
+    expect(await updateArtikel("art-1", { kategorie: " Hygiene " }, t.db)).toEqual({ ok: true });
+    expect(artikelMitId("art-1")?.kategorie).toBe("Hygiene");
+
+    expect(await updateArtikel("art-1", { kategorie: "Technik" }, t.db)).toEqual({ ok: true });
+    expect(artikelMitId("art-1")?.kategorie).toBe("Technik");
+
+    expect(await updateArtikel("art-1", { kategorie: "  " }, t.db)).toEqual({ ok: true });
+    expect(artikelMitId("art-1")?.kategorie).toBeNull();
+    expect(revalidiert).toEqual([ARTIKEL_PFAD, ARTIKEL_PFAD, ARTIKEL_PFAD]);
+  });
+
+  it("updateArtikel ohne das Feld laesst die Kategorie stehen", async () => {
+    artikelAnlegen({ kategorie: "Hygiene" });
+    await updateArtikel("art-1", { fach: "B2" }, t.db);
+    expect(artikelMitId("art-1")?.kategorie).toBe("Hygiene");
+  });
+
+  it("weist eine zu lange Kategorie am Feld zurueck, ohne zu schreiben", async () => {
+    artikelAnlegen({ kategorie: "Hygiene" });
+    const lang = "x".repeat(61);
+
+    const anlegen = alsFehler(await createArtikel({ ...GRUND, kategorie: lang }, t.db));
+    expect(anlegen.feldFehler).toHaveProperty("kategorie");
+
+    const aendern = alsFehler(await updateArtikel("art-1", { kategorie: lang }, t.db));
+    expect(aendern.feldFehler).toHaveProperty("kategorie");
+    expect(artikelMitId("art-1")?.kategorie).toBe("Hygiene");
+    expect(t.db.select().from(artikel).all()).toHaveLength(1);
+  });
+});
+
 describe("setArtikelAktiv", () => {
   it("ändert nur den Zielartikel und revalidiert zusätzlich die Übersicht", async () => {
     artikelAnlegen();

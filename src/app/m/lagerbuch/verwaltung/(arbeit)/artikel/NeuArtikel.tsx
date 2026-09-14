@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal } from "antd";
 import { createArtikel } from "../../../_actions/artikel";
 import { Ikone } from "../../../_ui/ikonen";
+import { KategorieEingabe } from "../../../_ui/KategorieEingabe";
 
 type ArtikelWerte = {
   name: string;
   fach: string;
   einheit: string;
   mindestbestand: number;
+  kategorie?: string;
 };
 
 const FORM_FELDER = new Set<keyof ArtikelWerte>([
@@ -18,13 +20,14 @@ const FORM_FELDER = new Set<keyof ArtikelWerte>([
   "fach",
   "einheit",
   "mindestbestand",
+  "kategorie",
 ]);
 
 function istFormFeld(name: string): name is keyof ArtikelWerte {
   return FORM_FELDER.has(name as keyof ArtikelWerte);
 }
 
-export function NeuArtikel() {
+export function NeuArtikel({ kategorien = [] }: { kategorien?: readonly string[] }) {
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
@@ -113,6 +116,11 @@ export function NeuArtikel() {
             rules={[{ required: true, whitespace: true, message: "Fach angeben" }]}
           >
             <Input aria-label="Fach" autoComplete="off" />
+          </Form.Item>
+          {/* DRK-294. Optional — ohne Kategorie bleibt der Artikel in jedem
+              Kategorienfilter sichtbar. */}
+          <Form.Item name="kategorie" label="Kategorie">
+            <KategorieEingabe kategorien={kategorien} aria-label="Kategorie" />
           </Form.Item>
           <Form.Item
             name="einheit"

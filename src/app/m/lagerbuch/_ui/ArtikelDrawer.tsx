@@ -37,9 +37,11 @@ import {
 } from "../_actions/loeschen";
 import { ampelTon, fmtVerfall } from "../_lib/format";
 import { journalZeile } from "../_lib/journalZeile";
+import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
 import { fmtTs } from "../_lib/zeit";
 import { Chip } from "./Chip";
+import { KategorieEingabe } from "./KategorieEingabe";
 import { LoeschButton } from "./LoeschButton";
 import { monatAusPicker } from "./monat";
 import { Plakette } from "./Plakette";
@@ -71,6 +73,8 @@ type ArtikelDrawerProps = {
   id: string;
   onSchliessen: () => void;
   fahrzeuge: Fahrzeug[];
+  /** DRK-294 — Vorschlaege fuer das Kategoriefeld, je eine Schreibweise. */
+  kategorien?: readonly string[];
 };
 
 type ZugangWerte = {
@@ -90,9 +94,13 @@ type ArtikelPatch = Partial<{
   mindestbestand: number;
   fach: string;
   einheit: string;
+  /** `null` heisst „ohne Kategorie" (DRK-294). */
+  kategorie: string | null;
 }>;
 
-export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProps) {
+export function ArtikelDrawer({
+  id, onSchliessen, fahrzeuge, kategorien = [],
+}: ArtikelDrawerProps) {
   const [detail, setDetail] = useState<ArtikelDetailResult>();
   /**
    * Die Meldung traegt ihre HERKUNFT, weil der Drawer lang ist.
@@ -118,6 +126,7 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
   const [mindestbestand, setMindestbestand] = useState<number | null>(null);
   const [fach, setFach] = useState("");
   const [einheit, setEinheit] = useState("");
+  const [kategorie, setKategorie] = useState("");
   const [loeschDialogGeneration, setLoeschDialogGeneration] = useState(0);
   const mindestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ladeGeneration = useRef(0);
@@ -164,6 +173,7 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
         setMindestbestand(ergebnis.wert.artikel.mindestbestand);
         setFach(ergebnis.wert.artikel.fach);
         setEinheit(ergebnis.wert.artikel.einheit);
+        setKategorie(ergebnis.wert.artikel.kategorie ?? "");
         setFehler(null);
       },
       () => {
@@ -256,6 +266,19 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
     if (wert && wert !== detail?.artikel.einheit) {
       setEinheit(wert);
       void artikelFeldSpeichern({ einheit: wert });
+    }
+  }
+
+  /**
+   * DRK-294. Anders als Fach und Einheit DARF die Kategorie leer werden — ein
+   * geleertes Feld heisst „ohne Kategorie" und wird als `null` gespeichert.
+   * Kein Grossschreiben wie beim Fach: das ist ein Kuerzel, die Kategorie ein Wort.
+   */
+  function kategorieSpeichern(): void {
+    const wert = kategorieNormalisieren(kategorie);
+    if (wert !== (detail?.artikel.kategorie ?? null)) {
+      setKategorie(wert ?? "");
+      void artikelFeldSpeichern({ kategorie: wert });
     }
   }
 
@@ -457,6 +480,16 @@ export function ArtikelDrawer({ id, onSchliessen, fahrzeuge }: ArtikelDrawerProp
                   onChange={(ereignis) => setFach(ereignis.target.value.toUpperCase())}
                   onBlur={fachSpeichern}
                   aria-label="Fach im Handlager"
+                />
+              </div>
+              <div>
+                <div style={SCHRIFT.feldname}>Kategorie</div>
+                <KategorieEingabe
+                  kategorien={kategorien}
+                  value={kategorie}
+                  onChange={setKategorie}
+                  onBlur={kategorieSpeichern}
+                  aria-label="Kategorie"
                 />
               </div>
               <div>

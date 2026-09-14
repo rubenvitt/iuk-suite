@@ -1,5 +1,5 @@
 export { auditOutbox } from "@/core/audit/_db/schema";
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, index, primaryKey, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
 /**
@@ -78,6 +78,11 @@ export const artikel = sqliteTable("artikel", {
   // Wert ist danach unwiederbringlich weg und NICHT rekonstruierbar (§5.5).
   bestelltAt: integer("bestellt_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  // DRK-294. Freitext, `null` heisst „ohne Kategorie" — nie ein Leerstring
+  // (`_lib/kategorie.ts`). Ein Artikel ohne Kategorie ist durch keinen
+  // Kategorienfilter ausblendbar. Nicht mit `fach` verwechseln: das ist der
+  // Lagerplatz im Handlager.
+  kategorie: text("kategorie"),
 });
 
 export const chargen = sqliteTable(
@@ -440,3 +445,24 @@ export const users = sqliteTable("users", {
   email: text("email"),
   lastLoginAt: integer("last_login_at", { mode: "timestamp" }),
 });
+
+/**
+ * DRK-294 — die Kategorien, die eine Person in „Artikel & Bestand" ausgeblendet hat.
+ *
+ * `kategorie` ist der GEFALTETE Schluessel (`kategorieSchluessel`), nicht die
+ * Schreibweise am Artikel. Eine Zeile, zu der kein Artikel mehr passt, ist
+ * harmlos: sie blendet nichts aus und erscheint nirgends.
+ *
+ * `userId` kommt IMMER aus der Sitzung (`requireLagerbuchAdmin().sub`), nie aus
+ * einer Eingabe — sonst liest und schreibt jeder die Auswahl eines anderen. Der
+ * Fremdschluessel haelt, weil `requireLagerbuchAdmin` die `users`-Zeile vorher
+ * anlegt (`merkeNutzer`, §4.13).
+ */
+export const ausgeblendeteKategorien = sqliteTable(
+  "ausgeblendete_kategorien",
+  {
+    userId: text("user_id").notNull().references(() => users.id),
+    kategorie: text("kategorie").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kategorie] })],
+);

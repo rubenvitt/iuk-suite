@@ -36,6 +36,7 @@ export type ArtikelDetailResult = {
     mindestbestand: number;
     aktiv: boolean;
     bestand: number;
+    kategorie: string | null;
   };
   chargen: ArtikelDetailCharge[];
   historie: ArtikelDetailBuchung[];
@@ -80,6 +81,7 @@ export async function getDetail(
         mindestbestand: detail.artikel.mindestbestand,
         aktiv: detail.artikel.aktiv,
         bestand: detail.bestand,
+        kategorie: detail.artikel.kategorie,
       },
       chargen: chargenErgebnis,
       historie: detail.buchungen.map((buchung) => ({

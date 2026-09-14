@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { artikelTrifft, artikelFiltern, LEERER_FILTER,
          type ArtikelFilterZeile } from "./artikelFilter";
+import { kategorieSchluessel } from "./kategorie";
 
 const z = (p: Partial<ArtikelFilterZeile> = {}): ArtikelFilterZeile => ({
   name: "Verbandpäckchen", fach: "A1", aktiv: true, bestand: 7, unterMindest: false,
-  naechsteCharge: { chargenNr: "CH-4711", verfall: "2027-01" }, chargeKritisch: false, ...p,
+  naechsteCharge: { chargenNr: "CH-4711", verfall: "2027-01" }, chargeKritisch: false,
+  kategorie: null, ...p,
 });
 
 describe("artikelTrifft — der Freitext sucht ueber DREI Felder", () => {
@@ -20,6 +22,10 @@ describe("artikelTrifft — der Freitext sucht ueber DREI Felder", () => {
   });
   it("findet nicht, was in keinem der drei Felder steht", () => {
     expect(artikelTrifft(z(), { ...LEERER_FILTER, suche: "pflaster" })).toBe(false);
+  });
+  it("sucht NICHT ueber die Kategorie — dafuer gibt es den Kategorienfilter", () => {
+    expect(artikelTrifft(z({ kategorie: "Hygiene" }), { ...LEERER_FILTER, suche: "hygiene" }))
+      .toBe(false);
   });
   it("ist gross-/kleinschreibungsunabhaengig und trimmt", () => {
     expect(artikelTrifft(z(), { ...LEERER_FILTER, suche: "  VERBAND  " })).toBe(true);
@@ -88,6 +94,49 @@ describe("artikelTrifft — die vier Chips", () => {
 });
 
 /**
+ * DRK-294. Die ausgeblendeten Kategorien sind ein EIGENES Argument und nicht Teil
+ * von `ArtikelFilterZustand`: sie sind je Konto gespeichert, die Chips gelten nur
+ * fuer den Moment — und „Zuruecksetzen" setzt `LEERER_FILTER`. Laegen die
+ * Kategorien darin, loeschte der Knopf still eine gespeicherte Einstellung.
+ */
+describe("artikelTrifft — ausgeblendete Kategorien (DRK-294)", () => {
+  const ohneHygiene = new Set([kategorieSchluessel("Hygiene")]);
+
+  it("blendet einen Artikel der ausgeblendeten Kategorie aus", () => {
+    expect(artikelTrifft(z({ kategorie: "Hygiene" }), LEERER_FILTER, ohneHygiene)).toBe(false);
+    expect(artikelTrifft(z({ kategorie: "Technik" }), LEERER_FILTER, ohneHygiene)).toBe(true);
+  });
+
+  it("vergleicht gefaltet: eine andere Schreibweise ist dieselbe Kategorie", () => {
+    expect(artikelTrifft(z({ kategorie: "HYGIENE" }), LEERER_FILTER, ohneHygiene)).toBe(false);
+    expect(artikelTrifft(
+      z({ kategorie: "Sanitätsmaterial" }), LEERER_FILTER,
+      new Set([kategorieSchluessel("SANITÄTSMATERIAL")]),
+    )).toBe(false);
+  });
+
+  it("laesst einen Artikel OHNE Kategorie immer stehen", () => {
+    expect(artikelTrifft(z({ kategorie: null }), LEERER_FILTER, ohneHygiene)).toBe(true);
+    // Auch ein Leerschluessel in der Auswahl blendet ihn nicht aus.
+    expect(artikelTrifft(z({ kategorie: null }), LEERER_FILTER, new Set([""]))).toBe(true);
+  });
+
+  it("laesst ohne Auswahl alles durch — auch ohne drittes Argument", () => {
+    expect(artikelTrifft(z({ kategorie: "Hygiene" }), LEERER_FILTER)).toBe(true);
+    expect(artikelTrifft(z({ kategorie: "Hygiene" }), LEERER_FILTER, new Set())).toBe(true);
+  });
+
+  it("verknuepft UND mit Suche und Chips", () => {
+    const zeile = z({ kategorie: "Technik", unterMindest: true });
+    const auswahl = new Set([kategorieSchluessel("Hygiene")]);
+    expect(artikelTrifft(zeile, { ...LEERER_FILTER, nurUnterMindest: true, suche: "verband" }, auswahl))
+      .toBe(true);
+    expect(artikelTrifft(zeile, { ...LEERER_FILTER, nurUnterMindest: true, suche: "pflaster" }, auswahl))
+      .toBe(false);
+  });
+});
+
+/**
  * ⚠️ Reine ASCII-Begriffe ("verband", "pflaster") beweisen nichts ueber die
  * Faltung — sie verhalten sich unter jeder Kleinschreibung identisch. Diese
  * Faelle nageln das FALTUNGS-VERHALTEN fest, das `falte()` heute hat: Umlaute
@@ -135,6 +184,16 @@ describe("artikelFiltern — DIESELBE abgeleitete Liste fuer Tabelle und Export"
       .toEqual(["1", "3"]);
     expect(artikelFiltern(zeilen, { ...LEERER_FILTER, ohneInaktive: true }).map((r) => r.id))
       .toEqual(["1", "3"]);
+  });
+
+  it("reicht die ausgeblendeten Kategorien an das Praedikat durch", () => {
+    const zeilen = [
+      { ...z({ kategorie: "Hygiene" }), id: "1" },
+      { ...z({ kategorie: null }), id: "2" },
+      { ...z({ kategorie: "Technik" }), id: "3" },
+    ];
+    expect(artikelFiltern(zeilen, LEERER_FILTER, new Set([kategorieSchluessel("Hygiene")]))
+      .map((r) => r.id)).toEqual(["2", "3"]);
   });
 
   it("veraendert die Eingabeliste NICHT", () => {

@@ -103,7 +103,7 @@ describe("importArtikelCsv", () => {
       wert: {
         angelegt: 1,
         fehler: [
-          "Zeile 2: erwartet 5 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand), gefunden 2.",
+          "Zeile 2: erwartet 5 oder 6 Spalten (Name, Einheit, Fach, Mindestbestand, Startbestand, optional Kategorie), gefunden 2.",
         ],
       },
     });

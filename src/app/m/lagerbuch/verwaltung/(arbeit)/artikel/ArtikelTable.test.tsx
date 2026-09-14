@@ -14,7 +14,9 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import s from "../../../_ui/verwaltung.module.css";
-import { artikel, buchungen, chargen, lagerorte } from "../../../_db/schema";
+import {
+  artikel, ausgeblendeteKategorien, buchungen, chargen, lagerorte, users,
+} from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { EXCEL_FEHLERTEXT } from "../../../_lib/bestandExportSpalten";
@@ -23,11 +25,16 @@ import { ArtikelTable } from "./ArtikelTable";
 
 const mocks = vi.hoisted(() => ({
   createArtikel: vi.fn(),
+  setzeAusgeblendeteKategorien: vi.fn(),
   refresh: vi.fn(),
 }));
 
 vi.mock("../../../_actions/artikel", () => ({
   createArtikel: (...args: unknown[]) => mocks.createArtikel(...args),
+}));
+
+vi.mock("../../../_actions/kategorien", () => ({
+  setzeAusgeblendeteKategorien: (...args: unknown[]) => mocks.setzeAusgeblendeteKategorien(...args),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -46,6 +53,7 @@ const ZEILEN = [
     name: "Alpha-Päckchen",
     einheit: "Stk",
     fach: "B2",
+    kategorie: "Verbandmaterial",
     mindestbestand: 20,
     bestand: 10,
     aktiv: true,
@@ -60,6 +68,7 @@ const ZEILEN = [
     name: "Zulu",
     einheit: "Stk",
     fach: "B2",
+    kategorie: "Hygiene",
     mindestbestand: 5,
     bestand: 10,
     aktiv: true,
@@ -74,6 +83,7 @@ const ZEILEN = [
     name: "Beta",
     einheit: "Rol",
     fach: "A1",
+    kategorie: null,
     mindestbestand: 0,
     bestand: 5,
     aktiv: true,
@@ -88,6 +98,8 @@ const ZEILEN = [
     name: "Gamma",
     einheit: "Stk",
     fach: "C3",
+    // Kleingeschrieben mit Absicht: dieselbe Kategorie wie „Hygiene" bei Zulu.
+    kategorie: "hygiene",
     mindestbestand: 10,
     bestand: 20,
     aktiv: true,
@@ -102,6 +114,7 @@ const ZEILEN = [
     name: "Delta",
     einheit: "Stk",
     fach: "C3",
+    kategorie: "Technik",
     mindestbestand: 30,
     bestand: 20,
     aktiv: false,
@@ -270,11 +283,11 @@ afterEach(async () => {
 });
 
 describe("ArtikelTable: Struktur und Bedienanker", () => {
-  it("zeigt sechs Spalten in Fachreihenfolge und öffnet den Drawer über einen echten Knopf", async () => {
+  it("zeigt sieben Spalten in Fachreihenfolge und öffnet den Drawer über einen echten Knopf", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Artikel", "Fach", "Bestand", "Min.", "Nächster Verfall", "Status"]);
+      .toEqual(["Artikel", "Fach", "Kategorie", "Bestand", "Min.", "Nächster Verfall", "Status"]);
     expect(query("table").getAttribute("aria-label")).toBe("Artikel und Bestand");
     expect(exists(".ant-pagination")).toBe(false);
     expect(exists(".ant-table-column-sorter")).toBe(false);
@@ -450,6 +463,136 @@ describe("ArtikelTable: „Bestand 0 ausblenden“ (DRK-295)", () => {
   });
 });
 
+/**
+ * DRK-294 — ausgeblendete Kategorien.
+ *
+ * Die Auswahl kommt als gespeicherter Startwert vom Server (gefaltete
+ * Schluessel) und laeuft durch DASSELBE Praedikat wie Suche und Chips — deshalb
+ * haengt auch hier jede Zusicherung zugleich an Tabelle UND Export. Die drei
+ * Zusagen, die kein Unit-Test des Praedikats sehen kann: der Hinweis beim
+ * Aufschlagen, das Speichern der ganzen Liste, und dass „Zuruecksetzen" die
+ * gespeicherte Auswahl stehen laesst.
+ */
+describe("ArtikelTable: ausgeblendete Kategorien (DRK-294)", () => {
+  beforeEach(() => {
+    mocks.setzeAusgeblendeteKategorien.mockResolvedValue({ ok: true });
+  });
+
+  async function kategorienOeffnen(): Promise<HTMLElement[]> {
+    const input = query<HTMLInputElement>("[aria-label='Kategorien ausblenden']");
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await warte();
+    return Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"));
+  }
+
+  async function kategorieWaehlen(label: string): Promise<void> {
+    const option = (await kategorienOeffnen())
+      .find((element) => (element.textContent ?? "").toLowerCase() === label.toLowerCase());
+    if (!option) throw new Error(`Kategorie nicht gefunden: ${label}`);
+    await clickElement(option);
+    await warte();
+  }
+
+  it("zeigt die Kategorie je Zeile und bietet jede Kategorie genau einmal an", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+
+    expect(query("tr[data-row-key='zulu']").textContent).toContain("Hygiene");
+    expect(query("tr[data-row-key='beta']").textContent).toContain("–");
+    // „Hygiene" (Zulu) und „hygiene" (Gamma) sind EINE Option.
+    const optionen = (await kategorienOeffnen()).map((element) => element.textContent?.toLowerCase());
+    expect(optionen).toEqual(["hygiene", "technik", "verbandmaterial"]);
+  });
+
+  it("blendet die gespeicherte Auswahl schon beim Aufschlagen aus und sagt es", async () => {
+    await mount(
+      <ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} ausgeblendeteKategorien={["hygiene"]} />,
+    );
+
+    // Beta hat KEINE Kategorie und bleibt stehen.
+    expect(zeilenIds()).toEqual(["alpha", "beta", "delta"]);
+    expect(exportIds()).toEqual(["alpha", "beta", "delta"]);
+    expect(query("[data-testid='kategorien-hinweis']").textContent)
+      .toContain("2 Artikel in ausgeblendeten Kategorien");
+    expect(mocks.setzeAusgeblendeteKategorien).not.toHaveBeenCalled();
+  });
+
+  it("speichert beim Waehlen die ganze Liste und blendet sofort aus", async () => {
+    await mount(
+      <ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} ausgeblendeteKategorien={["hygiene"]} />,
+    );
+    await kategorieWaehlen("Technik");
+
+    expect(mocks.setzeAusgeblendeteKategorien).toHaveBeenCalledWith({ kategorien: ["hygiene", "technik"] });
+    expect(zeilenIds()).toEqual(["alpha", "beta"]);
+    expect(exportIds()).toEqual(["alpha", "beta"]);
+  });
+
+  it("„alle zeigen“ leert die gespeicherte Auswahl", async () => {
+    await mount(
+      <ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} ausgeblendeteKategorien={["hygiene"]} />,
+    );
+    await clickElement(knopfMitText("alle zeigen"));
+    await warte();
+
+    expect(mocks.setzeAusgeblendeteKategorien).toHaveBeenCalledWith({ kategorien: [] });
+    expect(zeilenIds()).toEqual(["alpha", "beta", "delta", "gamma", "zulu"]);
+    expect(exists("[data-testid='kategorien-hinweis']")).toBe(false);
+  });
+
+  it("„Zurücksetzen“ laesst die gespeicherte Auswahl stehen", async () => {
+    await mount(
+      <ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} ausgeblendeteKategorien={["hygiene"]} />,
+    );
+    await clickElement(checkboxMitText("inaktive ausblenden"));
+    expect(zeilenIds()).toEqual(["alpha", "beta"]);
+
+    await clickElement(knopfMitText("Zurücksetzen"));
+
+    expect(zeilenIds()).toEqual(["alpha", "beta", "delta"]);
+    expect(mocks.setzeAusgeblendeteKategorien).not.toHaveBeenCalled();
+  });
+
+  it("nennt einen abgelehnten und einen abgebrochenen Speicherversuch mit festem Satz", async () => {
+    mocks.setzeAusgeblendeteKategorien
+      .mockResolvedValueOnce({ ok: false, fehler: "Die Auswahl konnte nicht gespeichert werden." })
+      .mockRejectedValueOnce(new Error("internes Framework-Geheimnis"));
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+
+    await kategorieWaehlen("Technik");
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("Die Auswahl konnte nicht gespeichert werden."),
+      "abgelehnte Speicherung",
+    );
+
+    await kategorieWaehlen("Verbandmaterial");
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("bitte erneut versuchen"),
+      "abgebrochene Speicherung",
+    );
+    expect(document.body.textContent).not.toContain("internes Framework-Geheimnis");
+  });
+
+  it("zeigt ohne vergebene Kategorie kein Auswahlfeld", async () => {
+    await mount(
+      <ArtikelTable
+        zeilen={ZEILEN.map((zeile) => ({ ...zeile, kategorie: null }))}
+        fahrzeuge={FAHRZEUGE}
+      />,
+    );
+    expect(exists("[aria-label='Kategorien ausblenden']")).toBe(false);
+  });
+
+  it("zeigt den gefilterten Leertext, wenn allein die Kategorien alles ausblenden", async () => {
+    await mount(
+      <ArtikelTable zeilen={[ZEILEN[1]]} fahrzeuge={FAHRZEUGE} ausgeblendeteKategorien={["hygiene"]} />,
+    );
+    expect(zeilenIds()).toEqual([]);
+    expect(document.body.textContent).toContain("Kein Artikel passt zu Suche und Filter.");
+  });
+});
+
 describe("ArtikelTable: sechs totale Sortierungen und eine Exportquelle", () => {
   it.each([
     ["Name A–Z", ["alpha", "beta", "delta", "gamma", "zulu"]],
@@ -613,7 +756,15 @@ describe("Artikelseite als Server Component", () => {
         kommentar: null,
       }).run();
 
-      const inhalt = artikelSeitenInhalt(testDb.db, jetzt);
+      // DRK-294: die Auswahl zweier Konten — die Seite darf nur die des
+      // aufrufenden lesen.
+      testDb.db.insert(users).values([{ id: "u-anna" }, { id: "u-bert" }]).run();
+      testDb.db.insert(ausgeblendeteKategorien).values([
+        { userId: "u-anna", kategorie: "hygiene" },
+        { userId: "u-bert", kategorie: "technik" },
+      ]).run();
+
+      const inhalt = artikelSeitenInhalt(testDb.db, jetzt, "u-anna");
       const kopf = elementeVomTyp(inhalt, SeitenKopf)[0];
       expect((kopf.props as { titel: string }).titel).toBe("Artikel & Bestand");
 
@@ -621,6 +772,7 @@ describe("Artikelseite als Server Component", () => {
       const props = tabelle.props as {
         zeilen: typeof ZEILEN;
         fahrzeuge: typeof FAHRZEUGE;
+        ausgeblendeteKategorien: string[];
       };
       expect(props.zeilen).toEqual([
         {
@@ -628,6 +780,7 @@ describe("Artikelseite als Server Component", () => {
           name: "Kompressen",
           einheit: "Stk",
           fach: "A1",
+          kategorie: null,
           mindestbestand: 20,
           bestand: 7,
           aktiv: true,
@@ -642,6 +795,7 @@ describe("Artikelseite als Server Component", () => {
           name: "Altbestand",
           einheit: "Stk",
           fach: "Z9",
+          kategorie: null,
           mindestbestand: 0,
           bestand: 0,
           aktiv: false,
@@ -655,6 +809,7 @@ describe("Artikelseite als Server Component", () => {
       expect(props.fahrzeuge).toEqual([
         { id: "rtw-aktiv", name: "RTW Aktiv", kennung: "UE-RK 129" },
       ]);
+      expect(props.ausgeblendeteKategorien).toEqual(["hygiene"]);
       expect(istJsonSicher(props)).toBe(true);
     } finally {
       testDb.schliessen();
@@ -739,7 +894,7 @@ describe("Excel-Export (§9.4)", () => {
     expect(zeilen).toHaveLength(ZEILEN.length);
     expect(optionen.sheet).toBe("Bestand Handlager");
     expect(optionen.stickyRowsCount).toBe(1);
-    expect(optionen.columns).toHaveLength(9);
+    expect(optionen.columns).toHaveLength(10);
     expect(optionen.columns[0].header).toMatchObject({ value: "Artikel", fontWeight: "bold" });
     // `bestandExportDateiname(expect.any(Date))` liesse sich nicht direkt
     // aufrufen (kein echtes Date-Objekt) — die Form allein zeigt, dass der

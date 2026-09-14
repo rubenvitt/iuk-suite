@@ -5,7 +5,7 @@ import { EXCEL_SPALTEN, EXCEL_BLATTNAME, EXCEL_FEHLERTEXT } from "./bestandExpor
 import type { BestandExportZeile } from "./bestandExport";
 
 const ZEILE: BestandExportZeile = {
-  artikel: "Mullbinde 8cm", fach: "A2", bestand: 12, einheit: "Stk.",
+  artikel: "Mullbinde 8cm", fach: "A2", kategorie: "Verbandmaterial", bestand: 12, einheit: "Stk.",
   mindestbestand: 20, status: "unter Mindestbestand",
   charge: "L-42", verfall: "2026-08", hinweis: "faellig 08/26",
 };
@@ -42,20 +42,21 @@ function ohneKommentare(quelle: string): string {
 
 describe("EXCEL_SPALTEN", () => {
   /** 1:1 aus ArtikelTable.tsx:89-99, Reihenfolge inbegriffen. */
-  it("traegt neun Ueberschriften in dieser Reihenfolge", () => {
+  /** 1:1 aus ArtikelTable.tsx:89-99, plus „Kategorie" hinter „Fach" (DRK-294). */
+  it("traegt zehn Ueberschriften in dieser Reihenfolge", () => {
     expect(EXCEL_SPALTEN.map((s) => s.header)).toEqual([
-      "Artikel", "Fach", "Bestand", "Einheit", "Mindestbestand",
+      "Artikel", "Fach", "Kategorie", "Bestand", "Einheit", "Mindestbestand",
       "Status", "Nächste Charge", "Verfall", "Hinweis",
     ]);
   });
 
-  it("traegt die Breiten aus dem Bestand", () => {
-    expect(EXCEL_SPALTEN.map((s) => s.width)).toEqual([34, 12, 10, 10, 16, 22, 18, 11, 20]);
+  it("traegt die Breiten aus dem Bestand, plus 20 fuer die Kategorie", () => {
+    expect(EXCEL_SPALTEN.map((s) => s.width)).toEqual([34, 12, 20, 10, 10, 16, 22, 18, 11, 20]);
   });
 
   /**
    * Zahlen bleiben Zahlen (Excel darf damit rechnen und sortieren), alles andere
-   * ist Text. Genau die Spalten 3 und 5 — `Bestand` und `Mindestbestand`.
+   * ist Text. Genau `Bestand` und `Mindestbestand` — die Kategorie ist Text.
    */
   it("markiert genau Bestand und Mindestbestand als Zahl", () => {
     expect(EXCEL_SPALTEN.filter((s) => s.zahl).map((s) => s.header))
@@ -64,7 +65,7 @@ describe("EXCEL_SPALTEN", () => {
 
   it("liest jede Spalte aus dem passenden Feld", () => {
     expect(EXCEL_SPALTEN.map((s) => s.wert(ZEILE))).toEqual([
-      "Mullbinde 8cm", "A2", 12, "Stk.", 20,
+      "Mullbinde 8cm", "A2", "Verbandmaterial", 12, "Stk.", 20,
       "unter Mindestbestand", "L-42", "2026-08", "faellig 08/26",
     ]);
   });

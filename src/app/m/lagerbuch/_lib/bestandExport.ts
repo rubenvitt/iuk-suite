@@ -13,6 +13,7 @@
 export type BestandExportEingabe = {
   name: string;
   fach: string;
+  kategorie: string | null;
   bestand: number;
   einheit: string;
   mindestbestand: number;
@@ -25,6 +26,7 @@ export type BestandExportEingabe = {
 export type BestandExportZeile = {
   artikel: string;
   fach: string;
+  kategorie: string;
   bestand: number;
   einheit: string;
   mindestbestand: number;
@@ -50,6 +52,8 @@ export function bestandExportZeilen(rows: BestandExportEingabe[]): BestandExport
   return rows.map((r) => ({
     artikel: r.name,
     fach: r.fach,
+    // Leerstring statt „ohne Kategorie": dieselbe Regel wie Charge und Verfall.
+    kategorie: r.kategorie ?? "",
     bestand: r.bestand,
     einheit: r.einheit,
     mindestbestand: r.mindestbestand,

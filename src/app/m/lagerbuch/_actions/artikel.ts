@@ -7,9 +7,25 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { artikel, newId } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
+import { KATEGORIE_MAX_LAENGE, kategorieNormalisieren } from "../_lib/kategorie";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const ARTIKEL_PFAD = "/m/lagerbuch/verwaltung/artikel";
+
+/**
+ * DRK-294. `undefined` heisst „nicht gesendet" und laesst die Kategorie stehen;
+ * ein Leerstring, nur Leerzeichen oder `null` heissen „ohne Kategorie" und werden
+ * zu `null`. Ein Leerstring kommt nie in die Datenbank — er waere eine
+ * unsichtbare Kategorie, die man trotzdem ausblenden koennte.
+ */
+const KategorieFeld = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((wert) => (wert === undefined ? undefined : kategorieNormalisieren(wert)))
+  .refine(
+    (wert) => wert == null || wert.length <= KATEGORIE_MAX_LAENGE,
+    `Kategorie darf höchstens ${KATEGORIE_MAX_LAENGE} Zeichen haben`,
+  );
 
 const CreateSchema = z.object({
   name: z.string().trim().min(1, "Name darf nicht leer sein"),
@@ -19,6 +35,7 @@ const CreateSchema = z.object({
     .number()
     .int()
     .min(0, "Mindestbestand darf nicht negativ sein"),
+  kategorie: KategorieFeld,
 });
 
 const UpdateSchema = z.object({
@@ -29,6 +46,7 @@ const UpdateSchema = z.object({
     .optional(),
   fach: z.string().trim().min(1, "Fach darf nicht leer sein").optional(),
   einheit: z.string().trim().min(1, "Einheit darf nicht leer sein").optional(),
+  kategorie: KategorieFeld,
 });
 
 const AktivSchema = z.object({
@@ -68,6 +86,7 @@ export async function createArtikel(
       einheit: v.einheit,
       fach: v.fach,
       mindestbestand: v.mindestbestand,
+      kategorie: v.kategorie ?? null,
       aktiv: true,
       createdAt: new Date(),
     }).run();
@@ -98,6 +117,7 @@ export async function updateArtikel(
     }
     if (v.fach !== undefined) aenderung.fach = v.fach;
     if (v.einheit !== undefined) aenderung.einheit = v.einheit;
+    if (v.kategorie !== undefined) aenderung.kategorie = v.kategorie;
 
     if (Object.keys(aenderung).length === 0) return { ok: true };
 

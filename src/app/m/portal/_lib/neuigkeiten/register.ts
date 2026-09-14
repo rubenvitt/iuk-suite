@@ -9,6 +9,7 @@ import checklisteAlsPdf from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/
 import mitCodeEinsteigen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-mit-code-einsteigen";
 import bestandNullAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-13-bestand-null-ausblenden";
 import checklisteVerfallLeer from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-checkliste-verfall-leer";
+import kategorienAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-kategorien-ausblenden";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -50,6 +51,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   mitCodeEinsteigen,
   bestandNullAusblenden,
   checklisteVerfallLeer,
+  kategorienAusblenden,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,

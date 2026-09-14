@@ -316,6 +316,22 @@ function vorlagenFixtures(): void {
   }).onConflictDoNothing().run();
 }
 
+/**
+ * Ein Artikel MIT Kategorie fuer `lagerbuch-kategorien.spec.ts` (DRK-294).
+ *
+ * INAKTIV und ohne Charge, und beides mit Absicht: die Artikelliste zeigt
+ * inaktive Artikel (`inklInaktiv: true`), Etiketten, Bestellliste, Kennzahlen und
+ * Helfer-Ansicht lesen dagegen nur aktive — so zaehlt kein anderer Spec eine
+ * Zeile mehr. Die Kategorie traegt ein `E2E`-Praefix, damit sie mit keiner
+ * echten Kategorie zusammenfaellt.
+ */
+function kategorieFixtures(): void {
+  getDb().insert(artikel).values({
+    id: "e2e-kategorie-artikel", name: "E2E Kategorie Funkkabel", einheit: "Stk.", fach: "K1",
+    mindestbestand: 0, aktiv: false, kategorie: "E2E Technik", createdAt: JETZT,
+  }).onConflictDoNothing().run();
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
@@ -323,4 +339,5 @@ checkFixtures();
 geraeteFixtures();
 bestellFixtures();
 vorlagenFixtures();
+kategorieFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);
