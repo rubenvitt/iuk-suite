@@ -76,8 +76,22 @@ export function sucheTrifft(
  */
 const BESTUECKUNG_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
   { wert: "unterSoll", text: "unter Soll", trifft: (zeile) => zeile.artikelUnterSoll > 0 },
-  { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => zeile.verfallAuffaellig > 0 },
   { wert: "aufSoll", text: "auf Soll", trifft: (zeile) => zeile.positionen > 0 && zeile.artikelUnterSoll === 0 },
+]);
+
+/**
+ * ⚠️ „laeuft ab" HAT EINE EIGENE SPALTE, UND DAS IST DER GANZE GRUND FUER SIE.
+ *
+ * Die drei alten Haken waren UNABHAENGIG und wirkten nacheinander — sie
+ * SCHNITTEN sich also: „unter Soll" UND „laeuft ab" zeigte Fahrzeuge, auf die
+ * beides zutrifft. Auf EINER Spalte verodert antd sie, und genau dieser Vorgang
+ * waere nicht mehr ausdrueckbar (DRK-331, sechste Reviewrunde). Drei
+ * unabhaengige Bedingungen brauchen drei Spalten; die Verfallszahl hatte bis
+ * dahin keine und teilte sich den Statuschip mit allem anderen.
+ */
+const VERFALL_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
+  { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => zeile.verfallAuffaellig > 0 },
+  { wert: "verfallRuhig", text: "nichts läuft ab", trifft: (zeile) => zeile.verfallAuffaellig === 0 },
 ]);
 
 const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
@@ -139,6 +153,21 @@ function spalten(
       ),
     },
     {
+      title: "Verfall",
+      dataIndex: "verfallAuffaellig",
+      key: "verfall",
+      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.verfallAuffaellig),
+      filters: VERFALL_FILTER.filters,
+      onFilter: VERFALL_FILTER.onFilter,
+      render: (_wert: number, zeile) => zeile.verfallAuffaellig > 0 ? (
+        <Chip ton="gelb" zeichen="verfall">
+          {zeile.verfallAuffaellig} läuft ab
+        </Chip>
+      ) : (
+        <span style={SCHRIFT.neben}>—</span>
+      ),
+    },
+    {
       title: "Status",
       dataIndex: "aktiv",
       // Die Zahl der Artikel unter Soll ordnet die Spalte fachlich: absteigend
@@ -155,11 +184,6 @@ function spalten(
           {zeile.artikelUnterSoll > 0 ? (
             <Chip ton="rot" zeichen="warnung">
               {zeile.artikelUnterSoll} unter Soll
-            </Chip>
-          ) : null}
-          {zeile.verfallAuffaellig > 0 ? (
-            <Chip ton="gelb" zeichen="verfall">
-              {zeile.verfallAuffaellig} läuft ab
             </Chip>
           ) : null}
           {zeile.positionen > 0 && zeile.artikelUnterSoll === 0 ? (

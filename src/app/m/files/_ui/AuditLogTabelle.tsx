@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Datentabelle, nachDatum, nachText, werteAlsFilter, trifftWert, zustandsFilter } from "@/core/tabelle";
+import { Datentabelle, werteAlsFilter, trifftWert, zustandsFilter } from "@/core/tabelle";
 import type { AuditLogZeile } from "./AuditLog";
 
 /**
@@ -81,14 +81,18 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
   );
 
   /**
-   * ⚠️ SORTIERT WIRD ÜBER `zeitIso`, NIE ÜBER `zeitText`. Der Anzeigetext ist
-   * „25.07.2026, 12:00:03" und sortierte als Zeichenkette den 2. eines Monats
-   * vor den 14. des vorigen. Deshalb trägt die Zeile beide Werte: einen zum
-   * Lesen und einen zum Ordnen.
+   * ⛔ KEIN SORTIERER IN DIESER TABELLE — SIE HÄLT EINEN AUSSCHNITT.
    *
-   * `descend` als Vorgabe: die Frage an ein Zugriffsprotokoll ist „was ist
-   * zuletzt passiert?", und `ladeAuditLog` liefert schon in dieser Ordnung —
-   * eine andere Startordnung wären zwei Aussagen über dieselbe Liste.
+   * Das Protokoll kommt gedeckelt über `?logs=<n>`, und „Ältere Einträge laden"
+   * verschiebt den Deckel. Ein Vergleicher im Spaltenkopf verspräche ein
+   * EXTREM — „Zeit aufsteigend" heißt „der erste Zugriff auf diese Freigabe
+   * steht oben" —, das eine gedeckelte Liste nicht halten kann. Schlimmer als
+   * anderswo ist hier die zweite Hälfte: die Antwort ÄNDERTE SICH nach dem
+   * Nachladen, ohne dass jemand die Sortierung angefasst hätte.
+   *
+   * Geordnet wird über die Abfrage — `ladeAuditLog` liefert neueste zuerst, und
+   * das ist die Frage an ein Zugriffsprotokoll. Volle Begründung:
+   * `core/tabelle/sortierer.ts` (DRK-331, sechste Reviewrunde).
    *
    * Die Kicker-Rolle der Spaltenköpfe setzt `Datentabelle` selbst; `title` ist
    * hier eine gewöhnliche Zeichenkette (`docs/design/README.md`).
@@ -100,7 +104,6 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
         title: "Zeit",
         dataIndex: "zeitText",
         width: SPALTE_ZEIT_PX,
-        sorter: nachDatum<AnzeigeZeile>((zeile) => zeile.zeitIso),
         defaultSortOrder: "descend" as const,
       },
       {
@@ -108,7 +111,6 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
         title: "Was",
         dataIndex: "wasText",
         width: SPALTE_WAS_PX,
-        sorter: nachText<AnzeigeZeile>((zeile) => zeile.wasText),
         ...ART_FILTER,
       },
       {
@@ -126,7 +128,6 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
         title: "IP (unbestätigt, gekürzt)",
         dataIndex: "ipText",
         width: SPALTE_IP_GEKUERZT_PX,
-        sorter: nachText<AnzeigeZeile>((zeile) => zeile.ipText),
         filters: werteAlsFilter(anzeige, (zeile) => zeile.ipText),
         onFilter: trifftWert<AnzeigeZeile>((zeile) => zeile.ipText),
       },
@@ -139,7 +140,6 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
         title: "Browser/Gerät",
         dataIndex: "agentText",
         width: SPALTE_AGENT_PX,
-        sorter: nachText<AnzeigeZeile>((zeile) => zeile.agentText),
       },
     ],
     [anzeige],

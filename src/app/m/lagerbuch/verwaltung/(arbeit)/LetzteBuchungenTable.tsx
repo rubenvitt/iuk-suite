@@ -1,7 +1,7 @@
 "use client";
 
 import { Empty, type TableProps } from "antd";
-import { Datentabelle, nachDatum, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle } from "@/core/tabelle";
 import s from "../../_ui/verwaltung.module.css";
 
 export type UebersichtJournalZeile = {
@@ -25,34 +25,38 @@ export type UebersichtJournalZeile = {
  *
  * Der Spaltenkopf-Kicker kommt von `Datentabelle` — `title` ist hier eine
  * gewoehnliche Zeichenkette (`docs/design/README.md`).
+ *
+ * ⛔ KEIN SORTIERER — DIESE TABELLE ZEIGT FUENF ZEILEN VON VIELEN.
+ *
+ * Die Uebersicht ruft `journalEintraege(db, { grenze: 5 })`. Ein Vergleicher im
+ * Spaltenkopf ordnete also die neuesten FUENF Buchungen und verspraeche dabei
+ * ein Extrem ueber das ganze Journal — „Δ absteigend" hiesse „die groesste
+ * Buchung steht oben", und sie steht fast sicher nicht darunter. Die Vorschau
+ * bleibt in der Ordnung ihrer Abfrage; wer sortieren will, geht ins Journal.
+ * Volle Begruendung: `core/tabelle/sortierer.ts` (DRK-331, sechste Runde).
  */
 const SPALTEN: TableProps<UebersichtJournalZeile>["columns"] = [
   {
     title: "Zeit",
     dataIndex: "zeitText",
     key: "zeit",
-    sorter: nachDatum<UebersichtJournalZeile>((zeile) => zeile.zeitIso),
-    defaultSortOrder: "descend",
     render: (zeitText: string) => <span className={s.jts}>{zeitText}</span>,
   },
   {
     title: "Artikel",
     dataIndex: "artikelName",
     key: "artikel",
-    sorter: nachText<UebersichtJournalZeile>((zeile) => zeile.artikelName),
   },
   {
     title: "Vorgang",
     dataIndex: "vorgangText",
     key: "vorgang",
-    sorter: nachText<UebersichtJournalZeile>((zeile) => zeile.vorgangText),
   },
   {
     title: "Δ",
     dataIndex: "deltaText",
     key: "menge",
     align: "right",
-    sorter: nachZahl<UebersichtJournalZeile>((zeile) => zeile.deltaZahl),
     render: (deltaText: string, zeile) => {
       const zustandKlasse = zeile.deltaTon === "negativ"
         ? s.jminus

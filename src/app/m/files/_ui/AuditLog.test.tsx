@@ -288,45 +288,50 @@ describe("die beiden Ausgänge des Nachladewegs", () => {
 });
 
 /**
- * ⚠️ SORTIERT WIRD UEBER `zeitIso`, NIE UEBER `zeitText`. Diese beiden Tests
- * sind der Grund, warum die Zeile ueberhaupt zwei Zeitfelder traegt: der
- * Anzeigetext „02.10.2026, …" stuende als Zeichenkette VOR „25.07.2026, …",
- * und niemand saehe es — ein Protokoll, dessen Reihenfolge nicht stimmt, sieht
- * genauso aus wie eines, dessen Reihenfolge stimmt.
+ * ⛔ DIESE BEIDEN TESTS STANDEN VORHER AUF DEM KOPF.
+ *
+ * Bis DRK-331 (sechste Reviewrunde) massen sie, dass die Tabelle ueber
+ * `zeitIso` sortiert. Der Vergleicher ist entfernt, und der Grund steht ueber
+ * der Spaltenliste: das Protokoll kommt gedeckelt ueber `?logs=<n>`, „Aeltere
+ * Eintraege laden" verschiebt den Deckel. „Zeit aufsteigend" haette also nicht
+ * den ersten Zugriff auf die Freigabe gezeigt, sondern den ersten unter den
+ * geladenen — und nach dem Nachladen eine ANDERE Antwort, ohne dass jemand die
+ * Sortierung angefasst haette.
+ *
+ * Geordnet wird in der Abfrage (`ladeAuditLog`, neueste zuerst). Geprueft wird
+ * hier das Gegenstueck: die Tabelle reicht durch, was sie bekommt.
  */
-describe("die Sortierung des Protokolls", () => {
+describe("die Ordnung des Protokolls", () => {
   function zeitenInDerTabelle(wirt: HTMLElement): string[] {
     return Array.from(wirt.querySelectorAll("tbody tr[data-row-key] td:first-child")).map(
       (td) => (td.textContent ?? "").trim(),
     );
   }
 
-  it("stellt die NEUESTE Zeile nach oben, unabhaengig von der Eingabereihenfolge", () => {
+  /**
+   * ⚠️ DIE EINGABE IST ABSICHTLICH UNGEORDNET. Jede versehentlich wieder
+   * eingebaute Sortierung — ueber den Rohwert wie ueber den Anzeigetext —
+   * ergaebe eine ANDERE Reihenfolge als diese Eingabe und faellt damit auf.
+   */
+  it("reicht die Reihenfolge der Abfrage unveraendert durch", () => {
     const wirt = zeige([
       zeile({ id: 1, zeitText: "25.07.2026, 12:00:03", zeitIso: "2026-07-25T10:00:03.000Z" }),
       zeile({ id: 2, zeitText: "02.10.2026, 08:00:00", zeitIso: "2026-10-02T06:00:00.000Z" }),
       zeile({ id: 3, zeitText: "14.09.2026, 23:59:59", zeitIso: "2026-09-14T21:59:59.000Z" }),
     ]);
     expect(zeitenInDerTabelle(wirt)).toEqual([
+      "25.07.2026, 12:00:03",
       "02.10.2026, 08:00:00",
       "14.09.2026, 23:59:59",
-      "25.07.2026, 12:00:03",
     ]);
   });
 
-  /**
-   * DIE GEGENPROBE, und sie ist die eigentliche Zusicherung: waere `zeitIso`
-   * durch `zeitText` ersetzt, ordnete diese Eingabe „02.10." VOR „25.07." —
-   * dieselbe Liste wie oben, aber aus dem falschen Grund. Hier stehen die
-   * ROHWERTE gegenlaeufig zum Text, der Test kann also nur mit dem Rohwert
-   * gruen sein.
-   */
-  it("ordnet nach dem Rohwert, auch wenn der Anzeigetext das Gegenteil nahelegt", () => {
+  it("bietet an keiner Spalte einen Sortierer an", () => {
     const wirt = zeige([
       zeile({ id: 1, zeitText: "02.10.2025, 08:00:00", zeitIso: "2025-10-02T06:00:00.000Z" }),
       zeile({ id: 2, zeitText: "25.07.2026, 12:00:03", zeitIso: "2026-07-25T10:00:03.000Z" }),
     ]);
-    expect(zeitenInDerTabelle(wirt)).toEqual(["25.07.2026, 12:00:03", "02.10.2025, 08:00:00"]);
+    expect(wirt.querySelectorAll(".ant-table-column-sorter")).toHaveLength(0);
   });
 });
 

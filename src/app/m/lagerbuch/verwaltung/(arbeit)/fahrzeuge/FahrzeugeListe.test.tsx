@@ -260,13 +260,20 @@ function istRekursivJsonSicher(wert: unknown): boolean {
 }
 
 describe("FahrzeugeListe — Spalten und Status", () => {
-  it("trägt die fünf abgelesenen Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
+  it("trägt die sechs Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
+    /**
+     * ⚠️ „Verfall" IST SEIT DRK-331 (sechste Reviewrunde) EINE EIGENE SPALTE.
+     * Der Chip stand vorher im Status, und damit lagen drei UNABHAENGIGE
+     * Bedingungen auf zwei Spalten — „unter Soll" UND „laeuft ab" war nicht
+     * mehr ausdrueckbar, weil antd innerhalb einer Spalte verodert.
+     */
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
       "Fahrzeug",
       "Vorlage",
       "Bestückung",
+      "Verfall",
       "Status",
       "Zuletzt geprüft",
     ]);
@@ -284,7 +291,10 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     expect(query(`tr[data-row-key='f1'] .${s.rot}`).textContent).toContain("2 unter Soll");
     expect(query(`tr[data-row-key='f2'] .${s.gelb}`).textContent).toContain("1 läuft ab");
     expect(query(`tr[data-row-key='f2'] .${s.ok}`).textContent).toContain("auf Soll");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(4) .${s.grau}`).textContent)
+    // Der Verfallschip sitzt in Spalte 4, der Statuschip in Spalte 5.
+    expect(query(`tr[data-row-key='f2'] td:nth-child(4) .${s.gelb}`).textContent)
+      .toContain("1 läuft ab");
+    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.grau}`).textContent)
       .toContain("inaktiv");
     expect(query("tr[data-row-key='f4']").textContent).toContain("noch nie geprüft");
   });
@@ -325,9 +335,11 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual(["f1", "f3"]);
 
-    // „läuft ab" kommt HINZU — der Haken von eben steht noch.
-    await spaltenFilter("Bestückung", "läuft ab");
-    expect(zeilenIds()).toEqual(["f1", "f2", "f3"]);
+    // „auf Soll" kommt HINZU — der Haken von eben steht noch, und INNERHALB
+    // einer Spalte verodert antd. Zwischen Spalten schneidet es; dafuer steht
+    // der Test „schneidet „unter Soll" und „laeuft ab"" weiter unten.
+    await spaltenFilter("Bestückung", "auf Soll");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
 
     await spaltenFilter("Bestückung");
     expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
@@ -351,11 +363,11 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
   });
 
   /**
-   * ⚠️ DER GRUND FUER ZWEI SPALTEN STATT EINER. antd VERODERT innerhalb einer
+   * ⚠️ DER GRUND FUER DREI SPALTEN STATT EINER. antd VERODERT innerhalb einer
    * Spalte und VERUNDET zwischen Spalten. Lagen „aktiv" und „unter Soll" auf
    * derselben Spalte, ergaebe diese Auswahl f1, f2, f3 UND f4 — mit den alten,
-   * unabhaengigen Haken war es f1. Der Test faellt, sobald jemand die beiden
-   * Gruppen „der Einheitlichkeit halber" wieder zusammenlegt.
+   * unabhaengigen Haken war es f1. Der Test faellt, sobald jemand die Gruppen
+   * „der Einheitlichkeit halber" wieder zusammenlegt.
    */
   it("verundet Status und Bestückung über die Spaltengrenze", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
@@ -363,6 +375,28 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     await spaltenFilter("Status", "aktiv");
     await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual(["f1"]);
+  });
+
+  /**
+   * ⚠️ DIE DRITTE DIMENSION, UND SIE HAT DEN TEST ERST NOETIG GEMACHT.
+   *
+   * Die alten Haken „unter Soll" und „laeuft ab" wirkten NACHEINANDER, schnitten
+   * sich also: angekreuzt zeigten sie Fahrzeuge, auf die BEIDES zutrifft. Auf
+   * einer gemeinsamen Spalte verodert antd sie, und dieser Vorgang war nicht
+   * mehr ausdrueckbar (DRK-331, sechste Reviewrunde). „laeuft ab" hat deshalb
+   * eine eigene Spalte bekommen.
+   *
+   * f3 ist der Beleg: es trifft beides. f1 nur „unter Soll", f2 nur „laeuft ab"
+   * — mit einer VERODERUNG stuenden alle drei da.
+   */
+  it("schneidet „unter Soll“ und „läuft ab“, statt sie zu verodern", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Bestückung", "unter Soll");
+    expect(zeilenIds()).toEqual(["f1", "f3"]);
+
+    await spaltenFilter("Verfall", "läuft ab");
+    expect(zeilenIds()).toEqual(["f3"]);
   });
 
   it("nennt bei leerem Spaltenfilter den Filter-Leertext, nicht den Anlegehinweis", async () => {
