@@ -1,13 +1,7 @@
 "use client";
 
 import type { TableProps } from "antd";
-import {
-  Datentabelle,
-  nachDatum,
-  nachText,
-  nachZahl,
-  type Filterwert,
-} from "@/core/tabelle";
+import { Datentabelle, type Filterwert } from "@/core/tabelle";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
@@ -64,20 +58,24 @@ function levelZelle({
 }
 
 /**
- * ⚠️ SORTIERT WIRD UEBER `zeitpunktIso`, NIE UEBER `zeitpunktText` — die
- * Begruendung steht an der Zeilenquelle (`bz/[id]/page.tsx`). Dasselbe gilt fuer
- * die beiden Level-Spalten: gerendert wird ein Chip mit Klammerzusatz, sortiert
- * wird ueber die nackte Zahl.
+ * ⛔ KEIN SORTIERER IN DIESER TABELLE — SIE HAELT EINEN AUSSCHNITT.
  *
- * Die Vorsortierung der Abfrage ist „juengste zuerst"
- * (`orderBy(desc(ts), desc(id))`); `defaultSortOrder` schreibt sie nur auf.
+ * Der Lesepfad deckelt auf `BZ_LOGBUCH_GRENZE` (`lesepfade/bz.ts`) und liefert
+ * die juengsten Eintraege zuerst (`orderBy(desc(ts), desc(id))`). Ein
+ * Vergleicher im Spaltenkopf verspricht dagegen ein EXTREM — „Level 1
+ * aufsteigend" heisst „der niedrigste gemessene Wert steht oben" —, und das
+ * kann eine gedeckelte Liste genau dann nicht halten, wenn der Deckel greift:
+ * der wirklich niedrigste Wert liegt dann ausserhalb. Bei einem Messwert ist
+ * das keine Kleinigkeit, man sucht solche Ausreisser ja gerade.
+ *
+ * Volle Begruendung: `core/tabelle/sortierer.ts` (DRK-331, fuenfte
+ * Reviewrunde). Die Ordnung ist damit fest die der Abfrage.
  */
 const LOGBUCH_SPALTEN = [
   {
     title: "Zeitpunkt",
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
-    sorter: nachDatum<BzLogbuchAnzeigeZeile>((zeile) => zeile.zeitpunktIso),
     defaultSortOrder: "descend" as const,
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
@@ -97,7 +95,6 @@ const LOGBUCH_SPALTEN = [
     title: "Level 1",
     dataIndex: "level1Wert",
     key: "level1",
-    sorter: nachZahl<BzLogbuchAnzeigeZeile>((zeile) => zeile.level1Wert),
     render: (_wert: number | null, zeile) => levelZelle({
       bezeichnung: "L1",
       wert: zeile.level1Wert,
@@ -110,7 +107,6 @@ const LOGBUCH_SPALTEN = [
     title: "Level 2",
     dataIndex: "level2Wert",
     key: "level2",
-    sorter: nachZahl<BzLogbuchAnzeigeZeile>((zeile) => zeile.level2Wert),
     render: (_wert: number | null, zeile) => levelZelle({
       bezeichnung: "L2",
       wert: zeile.level2Wert,
@@ -139,7 +135,6 @@ const LOGBUCH_SPALTEN = [
     title: "Wer",
     dataIndex: "werText",
     key: "wer",
-    sorter: nachText<BzLogbuchAnzeigeZeile>((zeile) => zeile.werText),
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {

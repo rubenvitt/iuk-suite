@@ -4,8 +4,6 @@
 import { Tag, type TableProps } from "antd";
 import {
   Datentabelle,
-  nachDatum,
-  nachText,
   trifftWert,
   werteAlsFilter,
 } from "@/core/tabelle";
@@ -142,6 +140,19 @@ type Reihe = EreignisZeile & { schluessel: string };
  * damit im Aufklappmenue nie eine Option steht, die keine Zeile trifft. Eine Konstante auf
  * Modulebene koennte das nicht — sie kennt die Daten nicht.
  */
+/**
+ * ⛔ KEIN SORTIERER IN DIESER TABELLE — SIE HAELT EINEN AUSSCHNITT.
+ *
+ * Die Historie kommt ohne Blaetterung und ist im Lesepfad auf
+ * `EREIGNIS_GRENZE` (200) gedeckelt. Ein Vergleicher im Spaltenkopf verspraeche
+ * ein EXTREM („Zeit aufsteigend" = das erste Ereignis dieses Geraets), das
+ * genau dann falsch ist, wenn der Deckel greift.
+ *
+ * Fuer die SPALTENFILTER steht dieselbe Einschraenkung schon weiter unten
+ * ausgeschrieben („gefiltert wird, was geladen ist") — sie gilt fuer einen
+ * Sortierer staerker, weil er nicht eingrenzt, sondern behauptet. Volle
+ * Begruendung: `core/tabelle/sortierer.ts` (DRK-331, fuenfte Reviewrunde).
+ */
 function spalten(reihen: readonly Reihe[]): NonNullable<TableProps<Reihe>["columns"]> {
   return [
     {
@@ -157,8 +168,6 @@ function spalten(reihen: readonly Reihe[]): NonNullable<TableProps<Reihe>["colum
        * Tabelle zeigt beim Oeffnen dieselbe Ordnung wie bisher, der Pfeil sagt sie jetzt nur
        * an. Eine andere Vorgabe waere eine stille Aenderung der Flaeche.
        */
-      sorter: nachDatum<Reihe>((z) => z.zeitIso),
-      defaultSortOrder: "descend",
       // Vorformatiert in der festgenagelten Zone der Flaeche (`_lib/anzeige.ts:75`).
       render: (_: unknown, z: Reihe) => <span data-rolle="radio-ereignis-zeit">{z.zeitText}</span>,
     },
@@ -169,7 +178,6 @@ function spalten(reihen: readonly Reihe[]): NonNullable<TableProps<Reihe>["colum
        * Das deutsche Etikett, nicht der Spaltenname (`Spec:4770-4771`). Die Zuordnung — und
        * ihr Rueckfall auf den rohen Feldnamen — liegt im Lesepfad; die Insel rendert nur.
        */
-      sorter: nachText<Reihe>((z) => z.feldEtikett),
       /*
        * ⛔ DIE FILTERLISTE ENTSTEHT AUS DEN GELADENEN ZEILEN und nicht aus `FELD_ETIKETTEN`:
        * die Zuordnung fuehrt zwanzig Felder, eine Geraeteakte hat typisch drei bis vier
@@ -205,7 +213,6 @@ function spalten(reihen: readonly Reihe[]): NonNullable<TableProps<Reihe>["colum
        * stellt, lautet „was kam aus dem CSV-Import?". Nach Personen zu filtern kauft
        * dagegen wenig: jede importierte Zeile traegt gar keinen Urheber.
        */
-      sorter: nachText<Reihe>((z) => z.werText),
       filters: werteAlsFilter(reihen, (z) => z.quelleWort),
       onFilter: trifftWert<Reihe>((z) => z.quelleWort),
       /*

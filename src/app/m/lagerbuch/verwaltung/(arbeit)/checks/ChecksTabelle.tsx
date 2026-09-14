@@ -6,8 +6,6 @@ import type { TableProps } from "antd";
 import Link from "next/link";
 import {
   Datentabelle,
-  nachDatum,
-  nachText,
   trifftWert,
   werteAlsFilter,
 } from "@/core/tabelle";
@@ -41,13 +39,24 @@ export type ChecksTabelleProps = {
 };
 
 /**
- * ⚠️ SORTIERT WIRD UEBER `abgeschlossenIso`, NIE UEBER `abgeschlossenText` — die
- * Begruendung steht an der Zeilenquelle (`checks/page.tsx`).
+ * ⛔ KEIN SORTIERER IN DIESER TABELLE — SIE HAELT EINEN AUSSCHNITT.
  *
- * Die Fahrzeugliste im Spaltenfilter entsteht aus den GELADENEN Zeilen. Der
+ * Die Abfrage ist auf `CHECK_GRENZE` begrenzt (`checks/page.tsx`) und liefert
+ * die juengsten Checks zuerst. Ein Vergleicher im Spaltenkopf verspricht
+ * dagegen ein EXTREM — „Abgeschlossen aufsteigend" heisst „der aelteste Check
+ * steht oben" —, und das kann eine gedeckelte Liste genau dann nicht halten,
+ * wenn der Deckel greift: oben stuende der aelteste UNTER DEN NEUESTEN
+ * FUENFZIG. Niemand meldet das; die Zeile sieht richtig aus.
+ *
+ * Dass darueber „Neueste 50 von mehr Treffern" steht, hilft nicht — der Satz
+ * erklaert die MENGE, der Spaltenkopf behauptet etwas ueber die ORDNUNG, und
+ * beides liest niemand zusammen. Volle Begruendung: `core/tabelle/sortierer.ts`
+ * (DRK-331, fuenfte Reviewrunde).
+ *
+ * Die Fahrzeugliste im SPALTENFILTER entsteht aus den GELADENEN Zeilen. Der
  * Fahrzeugfilter ueber der Tabelle (`ChecksFilter`) bleibt daneben stehen und
- * ist nicht dasselbe: er greift VOR der auf `CHECK_GRENZE` begrenzten Abfrage
- * und findet damit auch Checks, die hier gar nicht liegen.
+ * ist nicht dasselbe: er greift VOR dem Deckel und findet damit auch Checks,
+ * die hier gar nicht liegen.
  */
 function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["columns"] {
   return [
@@ -55,7 +64,6 @@ function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["co
       title: "Fahrzeug",
       dataIndex: "fahrzeugName",
       key: "fahrzeug",
-      sorter: nachText<CheckAnzeigeZeile>((zeile) => zeile.fahrzeugName),
       filters: werteAlsFilter(zeilen, (zeile) => zeile.fahrzeugName),
       onFilter: trifftWert<CheckAnzeigeZeile>((zeile) => zeile.fahrzeugName),
       render: (name: string, zeile: CheckAnzeigeZeile) => (
@@ -68,9 +76,7 @@ function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["co
       title: "Abgeschlossen",
       dataIndex: "abgeschlossenText",
       key: "abgeschlossen",
-      sorter: nachDatum<CheckAnzeigeZeile>((zeile) => zeile.abgeschlossenIso),
       // Die Abfrage liefert „juengste zuerst" (`orderBy(desc(completedAt))`).
-      defaultSortOrder: "descend",
       render: (text: string) => <span className={s.jts}>{text}</span>,
     },
     {

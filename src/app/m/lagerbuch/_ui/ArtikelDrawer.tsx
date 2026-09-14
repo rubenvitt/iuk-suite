@@ -20,7 +20,7 @@ import {
   Space,
   Switch,
 } from "antd";
-import { Datentabelle, nachDatum, nachRang, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle, nachRang, nachText, nachZahl } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
 import { bucheEntnahme, bucheZugang } from "../_actions/buchung";
@@ -798,6 +798,18 @@ function ChargenTabelle({
   );
 }
 
+/**
+ * ⛔ KEIN SORTIERER IN DIESER TABELLE — SIE HAELT EINEN AUSSCHNITT, und das
+ * sagt ihr eigenes Prop: `mehrVorhanden`.
+ *
+ * Gezeigt werden die LETZTEN Buchungen, nicht alle. Ein Vergleicher im
+ * Spaltenkopf verspraeche ein EXTREM („Zeit aufsteigend" = die erste Buchung
+ * dieses Artikels), das genau dann falsch ist, wenn der Deckel greift. Volle
+ * Begruendung: `core/tabelle/sortierer.ts` (DRK-331, fuenfte Reviewrunde).
+ *
+ * ⚠️ NICHT AUF `ChargenTabelle` UEBERTRAGEN: die haelt ALLE Chargen des
+ * Artikels (`chargenMitRest`, ohne Deckel) und darf deshalb sortieren.
+ */
 function HistorieTabelle({
   historie,
   mehrVorhanden,
@@ -821,8 +833,6 @@ function HistorieTabelle({
             // ordnete als Zeichenkette den 2. Oktober vor den 14. September.
             // Die Zeile traegt hier bereits den Rohwert — sie kommt aus einer
             // Server Action, nicht ueber die RSC-Grenze.
-            sorter: nachDatum<ArtikelDetailBuchung>((buchung) => buchung.ts),
-            defaultSortOrder: "descend",
             render: (ts: Date) => <span className={styles.jts}>{fmtTs(ts)}</span>,
           },
           {
@@ -839,7 +849,6 @@ function HistorieTabelle({
             title: "Quelle",
             dataIndex: "quelleName",
             key: "quelleName",
-            sorter: nachText<ArtikelDetailBuchung>((buchung) => buchung.quelleName),
           },
           {
             title: "Menge",

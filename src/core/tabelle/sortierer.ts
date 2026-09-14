@@ -14,6 +14,32 @@
  * gebaut und wiederverwendet ist dieselbe Ordnung um ein Vielfaches billiger.
  * `numeric: true` sortiert außerdem „Fach 2" vor „Fach 10" — in einem Lager mit
  * durchnummerierten Fächern ist die rein lexikalische Ordnung schlicht falsch.
+ *
+ * ⛔ **KEIN SORTIERER ÜBER EINER UNVOLLSTÄNDIGEN LISTE.** Das ist die Regel, die
+ * dieser Änderung (DRK-331) dreimal um die Ohren geflogen ist — im Journal, im
+ * Audit-Protokoll des Portals und in vier gedeckelten Historien —, und sie ist
+ * eine Korrektheits-, keine Geschmacksfrage.
+ *
+ * **Ein Sortierer verspricht ein EXTREM.** „Zeit aufsteigend" heißt: oben steht
+ * der älteste Eintrag. „Menge absteigend": oben steht die größte Buchung. Hält
+ * die Tabelle nur einen AUSSCHNITT — die neuesten hundert, die neuesten
+ * fünfzig, die erste Cursor-Seite —, ist dieses Versprechen genau dann falsch,
+ * wenn der Deckel greift. Und dann sagt es niemand: die Zeile steht oben, sie
+ * sieht richtig aus, und der gesuchte Datensatz liegt außerhalb.
+ *
+ * Es hilft NICHT, dass über der Tabelle „Neueste 50 von mehr Treffern" steht.
+ * Der Satz erklärt die MENGE; der Spaltenkopf behauptet etwas über die
+ * ORDNUNG, und beide Aussagen liest niemand zusammen.
+ *
+ * Erlaubt ist ein Vergleicher deshalb nur, wo die Tabelle ALLES hält, was der
+ * Filter trifft (Artikel, Fahrzeuge, Geräte …). Wo sie das nicht tut:
+ * - die Ordnung gehört in die ABFRAGE (`ORDER BY`), fest und dokumentiert, oder
+ * - `sorter: true` — antds Wort für „serverseitig sortiert, NICHT hier"
+ *   (Vorbild: `radio/GeraeteTabelle`).
+ *
+ * Für Spaltenfilter gilt dasselbe in schwächerer Form: sie grenzen den
+ * Ausschnitt ein, statt eine Aussage über den Bestand zu machen — und können
+ * bei automatischem Nachladen einen Leerlauf erzeugen (Journal, DRK-331).
  */
 const SAMMLER = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
 

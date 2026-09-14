@@ -186,15 +186,37 @@ export function JournalTable({
    * erste Zeile und Schluesselposition sind identisch, die alten Entnahmen
    * darunter nicht.
    */
-  const schluessel = [
-    ersteZeilen[0]?.id ?? "",
-    ersterCursor?.ts ?? "",
-    ersterCursor?.id ?? "",
-    abrufFilter.q ?? "",
-    abrufFilter.typ ?? "",
-    abrufFilter.von ?? "",
-    abrufFilter.bis ?? "",
-  ].join("|");
+  /**
+   * `JSON.stringify` STATT `join("|")` — VORSORGLICH, nicht als Fehlerbehebung.
+   *
+   * ⚠️ DIE EHRLICHE FASSUNG (DRK-331, fuenfte Reviewrunde): ein Review meldete
+   * hier eine Trennzeichen-Kollision, weil `q` FREITEXT AUS DER URL ist und
+   * jedes Zeichen enthalten darf. Nachgerechnet ist der genannte Fall NICHT
+   * erreichbar — die Feldzahl ist fest, also disambiguieren die nachfolgenden
+   * leeren Felder:
+   *
+   *   q="foo|zugang"          → "…|foo|zugang|||"   (drei Trenner am Ende)
+   *   q="foo", typ="zugang"   → "…|foo|zugang||"    (zwei)
+   *
+   * Ein eingeschleuster Trenner ERHOEHT die Zahl der Abschnitte, und die
+   * Gegenseite kann das nicht ausgleichen, solange `typ` ein Aufzaehlungswert
+   * und `von`/`bis` ISO-Stempel sind.
+   *
+   * Die Kodierung bleibt trotzdem — sie kostet nichts und haengt nicht mehr an
+   * dieser Argumentationskette. Wer hier ein Feld ERGAENZT oder eines auf
+   * Freitext umstellt, muesste die Rechnung sonst neu fuehren und wuerde es
+   * vergessen; kein Tor faende den Fehler, denn er sieht wie ein ausgebliebenes
+   * Ruecksetzen aus.
+   */
+  const schluessel = JSON.stringify([
+    ersteZeilen[0]?.id ?? null,
+    ersterCursor?.ts ?? null,
+    ersterCursor?.id ?? null,
+    abrufFilter.q ?? null,
+    abrufFilter.typ ?? null,
+    abrufFilter.von ?? null,
+    abrufFilter.bis ?? null,
+  ]);
 
   const [stand, setStand] = useState(() => ({
     schluessel,

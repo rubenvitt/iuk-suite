@@ -89,22 +89,6 @@ function zeile(teil: Partial<EreignisZeile> = {}): EreignisZeile {
   };
 }
 
-/**
- * Einen sortierbaren Spaltenkopf anfassen — ⛔ UEBER SEINE BESCHRIFTUNG UND NICHT UEBER SEINE
- * POSITION. Ein Fall, der `queryAll("th")[1]` schreibt, misst nach dem Einschieben einer
- * Spalte still eine andere Spalte und bleibt gruen.
- *
- * ⚠️ DIE BESCHRIFTUNG LIEGT IN EINEM `<span>` DES KICKERS (`src/core/tabelle/Datentabelle.tsx`);
- * `textContent` liest durch ihn hindurch, `th.title` gaebe es nicht.
- */
-async function klickeSpaltenkopf(beschriftung: string): Promise<void> {
-  const kopf = queryAll("th.ant-table-column-has-sorters").find(
-    (th) => (th.textContent ?? "").trim() === beschriftung,
-  );
-  if (kopf === undefined) throw new Error(`Kein sortierbarer Spaltenkopf „${beschriftung}"`);
-  await clickElement(kopf);
-}
-
 /** Der Text einer Zelle, ohne Randleerraum — `textContent` traegt in antd keine Umbrueche. */
 function texte(rolle: string): string[] {
   return queryAll(`[data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
@@ -560,16 +544,17 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
 });
 
 describe("radio-Ereignisse: Sortierung und Filter im Spaltenkopf", () => {
-  it("die Zeitspalte ordnet ueber das Rohfeld, nicht ueber den Anzeigetext", async () => {
+  it("reicht die Reihenfolge des Lesepfads durch und ordnet nicht selbst", async () => {
     /*
-     * ⛔ **DER FALL, DER DIE GEFAEHRLICHSTE HAELFTE DER SORTIERUNG MISST.** `zeitText` ist
-     * „02.10.2026, 08:00"; als ZEICHENKETTE verglichen steht „14.09…" DAVOR, weil die 1 vor
-     * der 0 kommt — der 14. September stuende absteigend vor dem 2. Oktober. Genau diese
-     * Verwechslung faellt nicht auf: die Spalte sieht sortiert aus.
+     * ⛔ **DIESER FALL STAND VORHER AUF DEM KOPF.** Bis DRK-331 (fuenfte Reviewrunde) mass er,
+     * dass die Zeitspalte ueber `zeitIso` sortiert. Der Vergleicher ist entfernt: die Historie
+     * ist auf `EREIGNIS_GRENZE` (200) gedeckelt, und ein Sortierer verspraeche „das erste
+     * Ereignis dieses Geraets steht oben", waehrend es nur das erste unter den geladenen
+     * zweihundert waere. Die Ordnung liegt im Lesepfad (`desc(changedAt)`).
      *
-     * ⛔ DIE ZEILEN GEHEN IN DER FALSCHEN REIHENFOLGE HINEIN, sonst maesse der Fall nur, dass
-     * die Tabelle ihre Eingabe durchreicht. Die Vorgabe der Spalte ist `descend` (der Lesepfad
-     * liefert `desc(changedAt)`), das Ergebnis also „neueste zuerst".
+     * ⛔ DIE ZEILEN GEHEN WEITER IN DER „FALSCHEN" REIHENFOLGE HINEIN — jetzt gerade deshalb:
+     * jede versehentlich wieder eingebaute Ordnung, ueber den Rohwert wie ueber den
+     * Anzeigetext, ergaebe eine ANDERE Reihenfolge als die Eingabe und faellt auf.
      */
     await mount(
       <EreignisTabelle
@@ -581,16 +566,18 @@ describe("radio-Ereignisse: Sortierung und Filter im Spaltenkopf", () => {
     );
 
     expect(texte("radio-ereignis-zeit")).toEqual([
-      "02.10.2026, 08:00",
       "14.09.2026, 08:00",
+      "02.10.2026, 08:00",
     ]);
   });
 
-  it("ein Klick auf den Spaltenkopf Feld ordnet die Zeilen um", async () => {
+  it("bietet an keiner Spalte einen Sortierer an", async () => {
     /*
-     * ⛔ DIE WIRKUNG, NICHT DIE ANWESENHEIT: ein Fall, der nur `.ant-table-column-sorter`
-     * zaehlt, bliebe auch dann gruen, wenn der `sorter` ein `true` waere und niemand sortierte
-     * (so ist es in `geraete/GeraeteTabelle.tsx` mit Absicht — dort sortiert der Server).
+     * ⛔ HIER ZAEHLT AUSNAHMSWEISE DIE ABWESENHEIT. Eine Wirkung gibt es nicht mehr zu messen,
+     * und ein Fall, der bloss die Reihenfolge prueft, bliebe gruen, wenn jemand einen
+     * Sortierer ergaenzt und niemand ihn anklickt. Der Trichter des SPALTENFILTERS bleibt
+     * daneben erlaubt: er grenzt den Ausschnitt ein, statt eine Aussage ueber den Bestand zu
+     * machen.
      */
     await mount(
       <EreignisTabelle
@@ -598,12 +585,7 @@ describe("radio-Ereignisse: Sortierung und Filter im Spaltenkopf", () => {
       />,
     );
     expect(texte("radio-ereignis-feld")).toEqual(["Status", "Lagerort"]);
-
-    await klickeSpaltenkopf("Feld");
-    expect(texte("radio-ereignis-feld")).toEqual(["Lagerort", "Status"]);
-
-    await klickeSpaltenkopf("Feld");
-    expect(texte("radio-ereignis-feld")).toEqual(["Status", "Lagerort"]);
+    expect(document.querySelectorAll(".ant-table-column-sorter")).toHaveLength(0);
   });
 
   it("die Filterliste fuehrt nur Werte, die auch vorkommen", async () => {

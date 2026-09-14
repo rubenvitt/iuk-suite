@@ -2,7 +2,6 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-  click,
   clickElement,
   exists,
   mount,
@@ -174,12 +173,18 @@ describe("BzLogbuchTabelle", () => {
   });
 
   /**
-   * ⚠️ DER BEWEIS, DASS NICHT UEBER DEN ANZEIGETEXT SORTIERT WIRD.
-   * „02.10." steht als Zeichenkette VOR „14.09."; nur ueber `zeitpunktIso`
-   * ordnet der Oktober hinter den September. Die Vorgabe ist absteigend (so
-   * liefert es die Abfrage), ein Klick dreht auf aufsteigend.
+   * ⛔ KEIN SORTIERER — UND DIESER TEST STAND VORHER AUF DEM KOPF.
+   *
+   * Er prueft heute das Gegenteil dessen, was er bis DRK-331 (fuenfte
+   * Reviewrunde) pruefte. Der Grund steht ueber der Spaltenliste: der Lesepfad
+   * deckelt auf `BZ_LOGBUCH_GRENZE`, und ein Vergleicher verspraeche ein
+   * Extrem, das eine gedeckelte Liste nicht halten kann.
+   *
+   * Die beiden Zeitpunkte sind so gewaehlt, dass eine versehentlich wieder
+   * eingebaute Ordnung — ueber den Rohwert wie ueber den Anzeigetext — eine
+   * andere Reihenfolge ergaebe als die Eingabe.
    */
-  it("sortiert die Zeitspalte über den ISO-Stempel, nicht über den Text", async () => {
+  it("ordnet nicht selbst und bietet an keiner Spalte einen Sortierer", async () => {
     const september = {
       ...ZEILE,
       id: "kontrolle-september",
@@ -197,10 +202,8 @@ describe("BzLogbuchTabelle", () => {
 
     const schluessel = () => queryAll("tbody tr[data-row-key]")
       .map((tr) => tr.getAttribute("data-row-key"));
-    expect(schluessel()).toEqual(["kontrolle-oktober", "kontrolle-september"]);
-
-    await click(".ant-table-column-sorters");
     expect(schluessel()).toEqual(["kontrolle-september", "kontrolle-oktober"]);
+    expect(queryAll(".ant-table-column-sorter")).toHaveLength(0);
   });
 
   /**

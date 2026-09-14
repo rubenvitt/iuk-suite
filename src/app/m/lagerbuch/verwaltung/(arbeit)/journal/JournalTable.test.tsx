@@ -551,6 +551,7 @@ describe("JournalTable", () => {
     );
     expect(zeilenIds()).not.toContain("journal-alt-entnahme");
   });
+
 });
 
 /**

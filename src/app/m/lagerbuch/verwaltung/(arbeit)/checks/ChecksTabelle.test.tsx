@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  clickElement,
   exists,
   mount,
   query,
@@ -120,12 +119,20 @@ describe("ChecksTabelle", () => {
   });
 
   /**
-   * ⚠️ DER BEWEIS, DASS NICHT UEBER DEN ANZEIGETEXT SORTIERT WIRD.
-   * „1.10.2026" steht als Zeichenkette VOR „7.8.2026"; nur ueber
-   * `abgeschlossenIso` ordnet der Oktober hinter den August. Die Vorgabe ist
-   * absteigend (so liefert es die Abfrage), ein Klick dreht auf aufsteigend.
+   * ⛔ KEIN SORTIERER — UND DIESER TEST STAND VORHER AUF DEM KOPF.
+   *
+   * Er prueft heute das Gegenteil dessen, was er bis DRK-331 (fuenfte
+   * Reviewrunde) pruefte: dass die Tabelle NICHT sortierbar ist. Der Grund
+   * steht ueber der Spaltenliste — die Abfrage deckelt auf `CHECK_GRENZE`, und
+   * ein Vergleicher verspraeche „der aelteste Check steht oben", waehrend es
+   * nur der aelteste unter den neuesten fuenfzig waere.
+   *
+   * Die Zeilen bleiben deshalb in der Reihenfolge, in der der Server sie
+   * liefert. Die beiden Zeitpunkte sind so gewaehlt, dass eine versehentlich
+   * wieder eingebaute Ordnung — ueber den Rohwert wie ueber den Anzeigetext —
+   * eine andere Reihenfolge ergaebe als die Eingabe.
    */
-  it("sortiert den Abschluss über den ISO-Stempel, nicht über den Text", async () => {
+  it("ordnet nicht selbst und bietet an keiner Spalte einen Sortierer", async () => {
     const august: CheckAnzeigeZeile = {
       ...ZEILE,
       id: "check-august",
@@ -143,12 +150,8 @@ describe("ChecksTabelle", () => {
 
     const schluessel = () => queryAll("tbody tr[data-row-key]")
       .map((tr) => tr.getAttribute("data-row-key"));
-    expect(schluessel()).toEqual(["check-oktober", "check-august"]);
-
-    const kopf = queryAll<HTMLElement>("thead th")
-      .find((th) => (th.textContent ?? "").includes("Abgeschlossen"));
-    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
     expect(schluessel()).toEqual(["check-august", "check-oktober"]);
+    expect(queryAll(".ant-table-column-sorter")).toHaveLength(0);
   });
 
   it("zeigt den serverseitig festgelegten Leertext unverändert", async () => {
