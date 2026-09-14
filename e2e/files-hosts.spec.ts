@@ -9,7 +9,7 @@ import { nanoid } from "nanoid";
 
 import { inboxFiles, shareFiles, shares, zugangslinks } from "@/app/m/files/_db/schema";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 import { decodeQrPng } from "./helpers/decode-qr";
 
@@ -467,7 +467,21 @@ test("8 — T44 Punkt 2: ein auf dem Verwaltungs-Host erzeugter Abgabelink traeg
   await expect(page.getByTestId("files-zugangslinks")).toBeVisible();
 
   const bezeichnung = `T44 Hostwechsel ${Date.now()}`;
-  await page.getByTestId("files-zugangslink-anlegen").click();
+  /*
+   * ⚠️ `klickeWennRuhig`, NICHT `.click()` — Falle 12 aus `CLAUDE.md`, gemessen
+   * in CI-Lauf 34906907125 (`e2e (2)`, dreimal rot). Playwright meldete den
+   * Klick als gelungen, und das Formular ging trotzdem nicht auf: `fill()` lief
+   * in sein Zeitbudget, weil `input[name="name"]` nie entstand. Die Huelle
+   * bricht in den ~200 ms zwischen `mousedown` und `mouseup` um — die Sitzung
+   * kommt nach, die Liste darunter rendert, der Knopf rutscht, und `mouseup`
+   * trifft den gemeinsamen Vorfahren.
+   *
+   * ⚠️ NICHT MIT EINEM GROESSEREN ZEITBUDGET ODER EINER WIEDERHOLUNG ZU HEILEN:
+   * der Klick wurde nie ausgeloest, und die Lage haelt ueber alle drei Versuche
+   * an. `klickeWennRuhig` klickt erst, wenn der Kasten des Knopfes dreimal in
+   * Folge stillsteht.
+   */
+  await klickeWennRuhig(page.getByTestId("files-zugangslink-anlegen"));
   await page.locator('input[name="name"]').fill(bezeichnung);
   await page.locator('input[name="laufzeitStunden"]').fill("24");
   await page.getByTestId("files-zugangslink-absenden").click();

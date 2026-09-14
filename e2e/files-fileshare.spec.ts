@@ -5,7 +5,7 @@ import { inflateRawSync } from "node:zlib";
 // LESER auf die E2E-Datenbank, kein zweiter Schreibweg neben dem Server.
 import DatenbankLeser from "better-sqlite3";
 
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 
 /**
@@ -1067,7 +1067,11 @@ async function legeAbgabelinkAn(page: Page, name: string): Promise<string> {
   await page.goto(`${V}/zugangslinks`);
   await expect(page.getByTestId("files-zugangslinks")).toBeVisible({ timeout: 120_000 });
   // Das Formular haengt an einem Umschalter — es steht nicht dauerhaft offen.
-  await page.getByTestId("files-zugangslink-anlegen").click();
+  // ⚠️ `klickeWennRuhig` aus demselben Grund wie in `files-hosts.spec.ts`
+  // (Falle 12): derselbe Knopf auf derselben Seite, derselbe Umbruch der
+  // Huelle. Dass dieser Aufruf bisher durchkam, ist eine Frage der
+  // Shard-Nachbarschaft, keine Zusicherung.
+  await klickeWennRuhig(page.getByTestId("files-zugangslink-anlegen"));
   await page.locator('input[name="name"]').fill(name);
   await page.getByTestId("files-zugangslink-absenden").click();
 
