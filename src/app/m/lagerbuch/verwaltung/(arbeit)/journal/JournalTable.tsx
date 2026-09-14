@@ -8,7 +8,11 @@ import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
 import type { BuchungTyp } from "../../../_lib/lesepfade/journal";
 import type { JournalZeileDTO } from "../../../_lib/journalDTO";
-
+// ⚠️ Aus `journalFilterLogik`, NICHT aus `JournalFilter` — letzteres ist eine
+// Client-Komponente, die den Wert nur re-exportiert. Der Umweg ginge hier zwar
+// (beide Seiten sind Client), aber `page.tsx` liest denselben Modulpfad als
+// Server Component, und zwei Wege zu einem Wert laden zu Falle 6 ein.
+import { deckelText } from "./journalFilterLogik";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { fmtTs } from "../../../_lib/zeit";
 import { Chip } from "../../../_ui/Chip";
@@ -284,6 +288,19 @@ export function JournalTable({
 
   return (
     <>
+      {/*
+        ⚠️ DIE ZAHL GEHOERT HIERHER, NICHT IN DEN SEITENKOPF (DRK-331, vierte
+        Reviewrunde). Dort entstand sie serverseitig aus der ERSTEN Seite und
+        blieb danach stehen: „100 Treffer geladen — weitere beim Scrollen" bei
+        300 sichtbaren Zeilen, und derselbe Satz noch, wenn der Cursor laengst
+        leer war. Hier liegt der Stand, also auch die Aussage darueber. Dass
+        `mehrVorhanden` am Cursor haengt, ist kein Zufall: genau der entscheidet
+        auch, ob die Wache unten noch etwas nachlaedt.
+      */}
+      <div style={{ ...SCHRIFT.neben, marginBlockEnd: SPACE.sm }} data-testid="journal-treffer">
+        {deckelText(zeilen.length, cursor !== null)}
+      </div>
+
       <Datentabelle<JournalAnzeigeZeile>
         rowKey="id"
         aria-label="Buchungsjournal"

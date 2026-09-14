@@ -157,12 +157,17 @@ describe("Journalseite — Regime B und Deckel", () => {
       journalInhalt(hundertVonHundertundeins),
       SeitenKopf,
     );
+    /**
+     * ⚠️ IM KOPF STEHT KEINE ZAHL MEHR. Sie entstuende hier SERVERSEITIG und
+     * EINMAL, aus der ersten Seite — und bliebe stehen, waehrend die Insel
+     * nachlaedt (DRK-331, vierte Reviewrunde). Die lebende Zahl fuehrt
+     * `JournalTable`; `JournalTable.test.tsx` prueft sie dort ueber mehrere
+     * Seiten hinweg.
+     */
     expect(kopf.props.beschreibung).toBe(
-      "Append-only Buchungsjournal — der Bestand ist immer die Summe der Buchungen. "
-      // Seit DRK-331 nennt der Text keine Deckelzahl mehr und fordert nichts:
-      // der Rest ist erreichbar, man scrollt weiter.
-      + "100 Treffer geladen — weitere beim Scrollen.",
+      "Append-only Buchungsjournal — der Bestand ist immer die Summe der Buchungen.",
     );
+    expect(kopf.props.beschreibung).not.toMatch(/Treffer/);
   });
 
   it("normalisiert Typ und Datum vor SQL und reicht nur skalare Werte zur Insel", () => {
@@ -300,7 +305,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
     expect((leereTabelle.props as { leertext: string }).leertext)
       .toBe("Noch keine Buchung.");
     const [leererKopf] = elementeVomTyp(journalInhalt(ohneFilter), SeitenKopf);
-    expect(leererKopf.props.beschreibung).toContain("0 Treffer.");
+    expect(leererKopf.props.beschreibung).not.toMatch(/Treffer/);
 
     const mitFilter = journalDaten(t.db, { q: "ohne-treffer" });
     const [gefilterteTabelle] = elementeVomTyp(journalInhalt(mitFilter), JournalTable);

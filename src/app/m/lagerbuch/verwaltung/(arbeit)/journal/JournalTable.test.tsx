@@ -275,6 +275,56 @@ describe("JournalTable", () => {
     expect(ids.at(-1)).toBe("journal-nachgeladen");
   });
 
+  /**
+   * ⚠️ DIE TREFFERZAHL WAECHST MIT, UND DER NACHSATZ VERSCHWINDET.
+   *
+   * Bis DRK-331 (vierte Reviewrunde) stand sie im SEITENKOPF und entstand dort
+   * serverseitig aus der ersten Seite. Sie blieb danach stehen: „2 Treffer
+   * geladen — weitere beim Scrollen" auch dann noch, wenn drei Zeilen auf dem
+   * Schirm standen und der Cursor leer war. Beide Haelften des Satzes waren
+   * falsch, die Zahl und die Ankuendigung.
+   *
+   * Der Test prueft deshalb den Uebergang, nicht den Endzustand: vor dem
+   * Nachladen zwei Treffer MIT Ankuendigung, danach drei OHNE — dieselbe
+   * Bedingung, nach der auch die Wache unten aufhoert.
+   */
+  it("fuehrt die Trefferzahl mit der nachgeladenen Seite nach", async () => {
+    const { ausloesen } = beobachterStellen();
+    mocks.naechsteJournalSeite.mockReset();
+    mocks.naechsteJournalSeite.mockResolvedValue({
+      ok: true,
+      cursor: null,
+      zeilen: [{
+        id: "journal-nachgeladen",
+        ts: "2026-08-07T11:00:00.000Z",
+        artikelName: "Dreiecktuch",
+        typ: "zugang",
+        menge: 5,
+        quelleId: "system",
+        quelleName: "System",
+        kommentar: null,
+        referenz: null,
+      }],
+    });
+
+    await mount(
+      <JournalTable
+        ersteZeilen={ZEILEN}
+        ersterCursor={{ ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" }}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    expect(query("[data-testid='journal-treffer']").textContent)
+      .toBe("2 Treffer geladen — weitere beim Scrollen");
+
+    await act(async () => { ausloesen(); });
+    await warte();
+
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);
+    expect(query("[data-testid='journal-treffer']").textContent).toBe("3 Treffer");
+  });
+
   it("reicht Filter UND Schluesselposition an den Nachschlag weiter", async () => {
     const { ausloesen } = beobachterStellen();
     mocks.naechsteJournalSeite.mockReset();

@@ -10,7 +10,6 @@ import { JournalFilter } from "./JournalFilter";
 import { journalZeileDTO } from "../../../_lib/journalDTO";
 import { JournalTable, type JournalAbrufFilter } from "./JournalTable";
 import {
-  deckelText,
   journalParameterAus,
   type JournalParameterErgebnis,
   type JournalRohParameter,
@@ -66,15 +65,23 @@ function abrufFilterAus(daten: JournalSeitenDaten): JournalAbrufFilter {
 }
 
 export function journalInhalt(daten: JournalSeitenDaten): ReactNode {
-  const beschreibung = deckelText(daten.zeilen.length, daten.mehrVorhanden);
-
   return (
     <>
+      {/*
+        ⚠️ HIER STEHT KEINE ZAHL MEHR, und das ist der Punkt (DRK-331, vierte
+        Reviewrunde). Die Beschreibung entsteht SERVERSEITIG, EINMAL, aus der
+        ersten Seite — `JournalTable` laedt danach beim Scrollen nach. Der Satz
+        „100 Treffer geladen — weitere beim Scrollen" stand also weiter da,
+        waehrend 300 Zeilen auf dem Schirm waren, und auch noch, wenn es gar
+        keine weiteren mehr gab. Eine Zahl neben einer Tabelle ist eine Aussage
+        UEBER DIESE TABELLE; wer nachlaedt, muss sie dort fuehren, wo der Stand
+        liegt. `deckelText` wird deshalb jetzt in der Insel gerufen.
+      */}
       <SeitenKopf
         titel="Journal"
         beschreibung={
           "Append-only Buchungsjournal — der Bestand ist immer die Summe "
-          + `der Buchungen. ${beschreibung}.`
+          + "der Buchungen."
         }
       />
       <JournalFilter
