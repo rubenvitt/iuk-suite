@@ -466,3 +466,40 @@ export const ausgeblendeteKategorien = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.kategorie] })],
 );
+
+/**
+ * DRK-299 — ein Inventurlauf. APPEND-ONLY (0006). Die `id` steht als
+ * `inventur:<id>` in `buchungen.referenz`; das Praefix bleibt Vertrag
+ * (1:1-Pflicht 12), nur hat die ID jetzt einen Datensatz.
+ *
+ * `umfang` ist der Filter ZUM ZEITPUNKT DES ABSCHLUSSES, als JSON
+ * `{ kategorien: string[]; faecher: string[] }`, `null` = vollstaendig. Er ist
+ * BESCHREIBEND: gebucht werden alle angefassten Positionen, auch ausgeblendete.
+ */
+export const inventuren = sqliteTable("inventuren", {
+  id: text("id").primaryKey(),
+  ts: integer("ts", { mode: "timestamp" }).notNull(),
+  quelleTyp: text("quelle_typ", { enum: ["token", "oidc", "system"] }).notNull(),
+  quelleId: text("quelle_id").notNull(),
+  kommentar: text("kommentar").notNull(),
+  umfang: text("umfang"),
+});
+
+/**
+ * DRK-299 — jede ANGEFASSTE Position eines Laufs, auch ohne Abweichung.
+ * `chargeId === null` heisst „je Artikel gezaehlt". `erwartet` ist der
+ * LIVE-Bestand in der Transaktion (Artikel: Handlager-Bestand; Charge: deren
+ * Handlager-Rest), nicht der Seitenstand. Die Differenz wird abgeleitet.
+ */
+export const inventurPositionen = sqliteTable(
+  "inventur_positionen",
+  {
+    id: text("id").primaryKey(),
+    inventurId: text("inventur_id").notNull().references(() => inventuren.id),
+    artikelId: text("artikel_id").notNull().references(() => artikel.id),
+    chargeId: text("charge_id").references(() => chargen.id),
+    erwartet: integer("erwartet").notNull(),
+    gezaehlt: integer("gezaehlt").notNull(),
+  },
+  (t) => [index("idx_inventur_positionen_lauf").on(t.inventurId)],
+);

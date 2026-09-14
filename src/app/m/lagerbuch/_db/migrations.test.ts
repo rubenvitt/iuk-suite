@@ -242,10 +242,28 @@ const TABELLEN: Record<
     { name: "user_id", typ: "text", notnull: 1, dflt: null, pk: 1 },
     { name: "kategorie", typ: "text", notnull: 1, dflt: null, pk: 2 },
   ],
+  // 0006, DRK-299 — Inventurlaeufe.
+  inventuren: [
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "ts", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "kommentar", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "umfang", typ: "text", notnull: 0, dflt: null, pk: 0 },
+  ],
+  // 0006, DRK-299 — Positionen eines Inventurlaufs.
+  inventur_positionen: [
+    { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
+    { name: "inventur_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "artikel_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    { name: "charge_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "erwartet", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    { name: "gezaehlt", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+  ],
 };
 
-describe("17 Tabellen, Spalte fuer Spalte", () => {
-  it("es sind genau 17 und keine mehr", () => {
+describe("19 Tabellen, Spalte fuer Spalte", () => {
+  it("es sind genau 19 und keine mehr", () => {
     const namen = (sqlite.prepare(
       `select name from sqlite_master where type='table'
          and name not like 'sqlite_%' and name not like '__drizzle%' and name != 'audit_outbox' order by name`,
@@ -287,6 +305,8 @@ const INDIZES: Record<string, string[]> = {
   tokens: ["tokens_code_unique"],
   users: [],
   ausgeblendete_kategorien: [],
+  inventuren: [],
+  inventur_positionen: ["idx_inventur_positionen_lauf"],
 };
 
 describe("Indizes — alle bestehenden bleiben, vier kommen dazu", () => {
@@ -370,8 +390,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt sechs Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5]);
+  it("fuehrt sieben Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -390,7 +410,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     expect(journal.entries.map((e) => e.tag).slice(1))
       .toEqual([
         "0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox",
-        "0005_artikel_kategorie",
+        "0005_artikel_kategorie", "0006_inventuren",
       ]);
   });
 
