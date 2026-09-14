@@ -65,9 +65,21 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
           sollPx: parseFloat(getComputedStyle(sollFeld).fontSize),
           ist: kasten(zahl),
           soll: kasten(sollFeld),
-          tabelleRechts: Math.round(
-            tr.closest(".ant-table-wrapper")!.getBoundingClientRect().right,
-          ),
+          scroller: (() => {
+            // Der erste Vorfahr der Tabelle, der waagerecht scrollt — nicht der
+            // Rahmen: der kann schmal sein, waehrend die Tabelle darin
+            // unerreichbar abgeschnitten ist.
+            let el: HTMLElement | null = tr.closest("table")!.parentElement;
+            while (el && !["auto", "scroll"].includes(getComputedStyle(el).overflowX)) {
+              el = el.parentElement;
+            }
+            if (!el || el === document.documentElement || el === document.body) return null;
+            return {
+              rechts: Math.round(el.getBoundingClientRect().right),
+              scrollWidth: el.scrollWidth,
+              clientWidth: el.clientWidth,
+            };
+          })(),
           fenster: window.innerWidth,
         };
       });
@@ -86,10 +98,20 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
       // Verfallstabelle weiter unten auf derselben Seite laeuft unabhaengig
       // davon ueber (bei 390px um 357px, auch ohne DRK-315) — eigener Fund,
       // DRK-322. Ist der behoben, gehoert die Seitenpruefung hierher zurueck.
-      expect(mass.tabelleRechts).toBeLessThanOrEqual(mass.fenster);
+      expect(mass.scroller).not.toBeNull();
+      expect(mass.scroller!.rechts).toBeLessThanOrEqual(mass.fenster);
+      if (breite.width < 1280) {
+        // Schmal: die Tabelle ist breiter als ihr Kasten und scrollt IN SICH.
+        expect(mass.scroller!.scrollWidth).toBeGreaterThan(mass.scroller!.clientWidth);
+      }
 
+      // Das Soll-Feld ist ueber den Tabellen-Scroll erreichbar, ohne dass die
+      // SEITE waagerecht mitscrollt — sonst bewiese `toBeInViewport` nur den
+      // Seitenueberlauf aus DRK-322.
+      await page.evaluate(() => window.scrollTo(0, window.scrollY));
       await soll.scrollIntoViewIfNeeded();
       await expect(soll).toBeInViewport();
+      expect(await page.evaluate(() => window.scrollX)).toBe(0);
     });
   }
 });
