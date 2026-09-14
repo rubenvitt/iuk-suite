@@ -20,7 +20,9 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf übergibt t.db"); },
 }));
 
-import { createArtikel, setArtikelAktiv, updateArtikel } from "./artikel";
+import {
+  createArtikel, sammelAendereArtikel, setArtikelAktiv, updateArtikel,
+} from "./artikel";
 
 const VIEWER = {
   sub: "u-admin",
@@ -284,5 +286,157 @@ describe("Riegel vor Validierung", () => {
     expect(adminRiegel).toHaveBeenCalledTimes(3);
     expect(t.db.select().from(artikel).all()).toEqual([]);
     expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * DRK-293 — mehrere Artikel gemeinsam bearbeiten.
+ *
+ * Die Auswahl der Felder ist die Entscheidung des Tickets, und die zwei Faelle,
+ * die kein Typ abfaengt, stehen hier: ein Feld, das NICHT gemeinsam aenderbar
+ * sein soll, darf auch dann nicht durchrutschen, wenn jemand es mitschickt —
+ * und nicht ausgewaehlte Artikel bleiben unberuehrt.
+ */
+describe("sammelAendereArtikel (DRK-293)", () => {
+  function drei(): void {
+    artikelAnlegen({ id: "a", name: "Alpha", fach: "A-01", kategorie: "Hygiene" });
+    artikelAnlegen({ id: "b", name: "Bravo", fach: "B-02", kategorie: null });
+    artikelAnlegen({ id: "c", name: "Charlie", fach: "C-03", kategorie: "Hygiene" });
+  }
+
+  it("legt ein Feld auf die ausgewählten Artikel und lässt die übrigen in Ruhe", async () => {
+    drei();
+
+    const erg = await sammelAendereArtikel(
+      { ids: ["a", "b"], aenderung: { kategorie: "Verbandmaterial" } },
+      t.db,
+    );
+
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 2 } });
+    expect(artikelMitId("a")?.kategorie).toBe("Verbandmaterial");
+    expect(artikelMitId("b")?.kategorie).toBe("Verbandmaterial");
+    expect(artikelMitId("c")?.kategorie).toBe("Hygiene");
+    expect(revalidiert).toEqual([ARTIKEL_PFAD, "/m/lagerbuch/verwaltung"]);
+  });
+
+  it("ändert mehrere Felder in einem Aufruf und rührt kein anderes an", async () => {
+    drei();
+
+    await sammelAendereArtikel(
+      { ids: ["a"], aenderung: { kategorie: null, fach: "Z-99", aktiv: false } },
+      t.db,
+    );
+
+    expect(artikelMitId("a")).toMatchObject({
+      name: "Alpha",
+      einheit: "Stk",
+      mindestbestand: 7,
+      kategorie: null,
+      fach: "Z-99",
+      aktiv: false,
+    });
+  });
+
+  it.each([
+    ["einheit", { einheit: "Pkg" }, (z: { einheit: string }) => z.einheit, "Stk"],
+    ["mindestbestand", { mindestbestand: 99 }, (z: { mindestbestand: number }) => z.mindestbestand, 7],
+    ["name", { name: "Manipuliert" }, (z: { name: string }) => z.name, "Alpha"],
+  ])("ignoriert ein mitgeschicktes %s — es ist nicht gemeinsam änderbar", async (
+    _feld, zusatz, lesen, erwartet,
+  ) => {
+    drei();
+
+    const erg = await sammelAendereArtikel(
+      { ids: ["a"], aenderung: { fach: "Z-99", ...zusatz } },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    const zeile = artikelMitId("a")!;
+    expect(lesen(zeile)).toBe(erwartet);
+    expect(zeile.fach).toBe("Z-99");
+  });
+
+  it("weist eine Änderung ohne ein einziges Feld zurück, ohne zu schreiben", async () => {
+    drei();
+    const vorher = artikelMitId("a");
+
+    const erg = alsFehler(await sammelAendereArtikel({ ids: ["a"], aenderung: {} }, t.db));
+
+    expect(erg.fehler).toBe("Bitte mindestens ein Feld zum Ändern auswählen.");
+    expect(artikelMitId("a")).toEqual(vorher);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist eine leere Auswahl zurück", async () => {
+    drei();
+
+    const erg = alsFehler(
+      await sammelAendereArtikel({ ids: [], aenderung: { fach: "Z-99" } }, t.db),
+    );
+
+    expect(erg.feldFehler).toHaveProperty("ids");
+    expect(artikelMitId("a")?.fach).toBe("A-01");
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist ein leeres Fach zurück, ohne einen Artikel anzufassen", async () => {
+    drei();
+
+    const erg = alsFehler(
+      await sammelAendereArtikel({ ids: ["a", "b"], aenderung: { fach: "   " } }, t.db),
+    );
+
+    expect(erg.feldFehler).toHaveProperty("aenderung.fach");
+    expect(artikelMitId("a")?.fach).toBe("A-01");
+    expect(artikelMitId("b")?.fach).toBe("B-02");
+  });
+
+  it("zählt unbekannte Kennungen nicht mit und bricht an ihnen nicht ab", async () => {
+    // Eine Auswahl kann älter sein als die Liste — ein inzwischen gelöschter
+    // Artikel darf die übrigen nicht mitnehmen.
+    drei();
+
+    const erg = await sammelAendereArtikel(
+      { ids: ["a", "gibt-es-nicht"], aenderung: { fach: "Z-99" } },
+      t.db,
+    );
+
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 1 } });
+    expect(artikelMitId("a")?.fach).toBe("Z-99");
+  });
+
+  it("zählt eine doppelt geschickte Kennung einmal", async () => {
+    drei();
+
+    const erg = await sammelAendereArtikel(
+      { ids: ["a", "a", "b"], aenderung: { aktiv: false } },
+      t.db,
+    );
+
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 2 } });
+  });
+
+  it("trägt eine Auswahl über mehr als einen Block", async () => {
+    // Die IDs laufen in Blöcken von 400 ins `IN (…)`; 401 belegt, dass der
+    // zweite Block dieselbe Änderung trägt und in derselben Transaktion liegt.
+    const ids = Array.from({ length: 401 }, (_, i) => `m-${i}`);
+    for (const id of ids) artikelAnlegen({ id, name: id, fach: "A-01" });
+
+    const erg = await sammelAendereArtikel({ ids, aenderung: { fach: "Z-99" }, }, t.db);
+
+    expect(erg).toEqual({ ok: true, wert: { betroffen: 401 } });
+    expect(artikelMitId("m-0")?.fach).toBe("Z-99");
+    expect(artikelMitId("m-400")?.fach).toBe("Z-99");
+  });
+
+  it("verlangt den Admin-Riegel, bevor irgendetwas geprüft wird", async () => {
+    drei();
+    adminRiegel.mockRejectedValueOnce(new Error("kein Zugang"));
+
+    await expect(
+      sammelAendereArtikel({ ids: ["a"], aenderung: { fach: "Z-99" } }, t.db),
+    ).rejects.toThrow("kein Zugang");
+    expect(artikelMitId("a")?.fach).toBe("A-01");
   });
 });

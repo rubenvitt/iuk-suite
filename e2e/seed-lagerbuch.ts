@@ -375,6 +375,27 @@ function inventurFixtures(): void {
   }
 }
 
+/**
+ * DRK-293 — zwei Artikel allein fuer `lagerbuch-sammelbearbeitung.spec.ts`.
+ *
+ * INAKTIV, aus demselben Grund wie `kategorieFixtures`: nur die Artikelliste
+ * liest `inklInaktiv: true`, also zaehlt kein anderer Spec dadurch eine Zeile
+ * mehr. Die Kategorie traegt ein `E2E`-Praefix und faellt mit keiner echten
+ * zusammen — der Spec schiebt sie zwischen zwei solchen Werten hin und her,
+ * damit ein zweiter Anlauf (`retries`) dieselbe Zusage pruefen kann.
+ */
+function sammelFixtures(): void {
+  for (const [id, name] of [
+    ["e2e-sammel-eins", "E2E Sammel Kompresse"],
+    ["e2e-sammel-zwei", "E2E Sammel Dreiecktuch"],
+  ] as const) {
+    getDb().insert(artikel).values({
+      id, name, einheit: "Stk.", fach: "S1",
+      mindestbestand: 0, aktiv: false, kategorie: "E2E Sammel Eins", createdAt: JETZT,
+    }).onConflictDoNothing().run();
+  }
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
@@ -384,4 +405,5 @@ bestellFixtures();
 vorlagenFixtures();
 kategorieFixtures();
 inventurFixtures();
+sammelFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

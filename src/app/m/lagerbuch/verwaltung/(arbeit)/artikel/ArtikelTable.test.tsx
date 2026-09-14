@@ -47,6 +47,14 @@ vi.mock("../../../_ui/ArtikelDrawer", () => ({
   ),
 }));
 
+// DRK-293. Die Schublade hat ihre eigenen Zusagen (`_ui/SammelDrawer.test.tsx`);
+// hier interessiert nur, WAS sie bekommt.
+vi.mock("../../../_ui/SammelDrawer", () => ({
+  SammelDrawer: ({ zeilen }: { zeilen: readonly { id: string }[] }) => (
+    <div data-rolle="sammel-drawer" data-ids={zeilen.map((zeile) => zeile.id).join(",")} />
+  ),
+}));
+
 const ZEILEN = [
   {
     id: "alpha",
@@ -212,6 +220,19 @@ function checkboxMitText(text: string): HTMLElement {
   return checkbox;
 }
 
+/**
+ * Die Kreuzchen DER FILTERLEISTE — ausdruecklich ohne die der Auswahlspalte.
+ *
+ * Bis DRK-293 war `alle Checkboxen der Seite` dasselbe wie `die vier Filter`,
+ * und drei Zusagen zaehlten deshalb seitenweit. Seit die Tabelle Zeilen
+ * auswaehlbar macht, waere jede dieser Zahlen eine Zahl ueber zwei Dinge —
+ * gezaehlt wird jetzt, was gemeint ist.
+ */
+function filterCheckboxen(): HTMLInputElement[] {
+  return queryAll<HTMLInputElement>("input[type='checkbox']")
+    .filter((feld) => feld.closest("table") === null);
+}
+
 function knopfMitText(text: string): HTMLElement {
   const knopf = queryAll<HTMLElement>("button")
     .find((element) => (element.textContent ?? "").includes(text));
@@ -286,8 +307,12 @@ describe("ArtikelTable: Struktur und Bedienanker", () => {
   it("zeigt sieben Spalten in Fachreihenfolge und öffnet den Drawer über einen echten Knopf", async () => {
     await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
 
+    // Die leere erste Spalte ist die Auswahlspalte (DRK-293); sie traegt das
+    // „alle auswaehlen"-Kreuzchen und keinen Text.
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Artikel", "Fach", "Kategorie", "Bestand", "Min.", "Nächster Verfall", "Status"]);
+      .toEqual([
+        "", "Artikel", "Fach", "Kategorie", "Bestand", "Min.", "Nächster Verfall", "Status",
+      ]);
     expect(query("table").getAttribute("aria-label")).toBe("Artikel und Bestand");
     expect(exists(".ant-pagination")).toBe(false);
     expect(exists(".ant-table-column-sorter")).toBe(false);
@@ -364,7 +389,7 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     await fill("input[type='search']", "alpha");
     expect(zeilenIds()).toEqual(["alpha"]);
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 5");
-    expect(queryAll(".ant-checkbox-input")).toHaveLength(4);
+    expect(filterCheckboxen()).toHaveLength(4);
     expect(exists(".ant-radio-group")).toBe(false);
     expect(exists(".ant-segmented")).toBe(false);
   });
@@ -380,7 +405,7 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     await clickElement(knopfMitText("Zurücksetzen"));
 
     expect(query<HTMLInputElement>("input[type='search']").value).toBe("");
-    expect(queryAll<HTMLInputElement>("input[type='checkbox']").map((feld) => feld.checked))
+    expect(filterCheckboxen().map((feld) => feld.checked))
       .toEqual([false, false, false, false]);
     expect(zeilenIds()).toEqual(["alpha", "beta", "delta", "gamma", "zulu"]);
     expect(exists(`.${s.filtertreffer}`)).toBe(false);
@@ -985,5 +1010,99 @@ describe("Excel-Export (§9.4)", () => {
     });
     await warteAuf(() => knopf().textContent === "Excel-Liste", "zurueckgefallene Beschriftung");
     expect(knopf().hasAttribute("disabled")).toBe(false);
+  });
+});
+
+/**
+ * DRK-293 — mehrere Artikel gemeinsam bearbeiten.
+ *
+ * Geprueft wird die NAHT, nicht die Schublade: die steht mit ihren eigenen
+ * Zusagen in `_ui/SammelDrawer.test.tsx` und ist hier ein Platzhalter. Was nur
+ * hier zu sehen ist: das Kreuzchen liegt in derselben `<tr>` wie der
+ * Zeilenklick, und die Auswahl ueberlebt einen Filterwechsel.
+ */
+describe("ArtikelTable: Auswahl mehrerer Artikel (DRK-293)", () => {
+  function auswahlKreuzchen(id: string): HTMLInputElement {
+    return query<HTMLInputElement>(`tr[data-row-key='${id}'] input[type='checkbox']`);
+  }
+
+  const LEISTE = "[data-testid='sammel-leiste']";
+
+  function leisteText(): string | null {
+    return exists(LEISTE) ? query(LEISTE).textContent : null;
+  }
+
+  it("zeigt die Leiste erst mit der ersten Auswahl und zählt mit", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    expect(leisteText()).toBeNull();
+
+    await clickElement(auswahlKreuzchen("alpha"));
+    expect(leisteText()).toContain("1 ausgewählt");
+
+    await clickElement(auswahlKreuzchen("zulu"));
+    expect(leisteText()).toContain("2 ausgewählt");
+  });
+
+  it("öffnet beim Ankreuzen NICHT die Artikelschublade", async () => {
+    // Die Auswahlspalte liegt in derselben `<tr>` wie der Zeilenklick; ohne den
+    // Riegel in `onRow` beantwortet jedes Ankreuzen sich selbst mit den
+    // Artikeldetails.
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+
+    await clickElement(auswahlKreuzchen("alpha"));
+
+    expect(exists("[data-rolle='artikel-drawer']")).toBe(false);
+    expect(leisteText()).toContain("1 ausgewählt");
+  });
+
+  it("öffnet bei einem Klick auf die Zeile weiterhin die Artikelschublade", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+
+    await clickElement(query<HTMLElement>("tr[data-row-key='alpha'] td:nth-child(3)"));
+
+    expect(query("[data-rolle='artikel-drawer']").getAttribute("data-artikel-id"))
+      .toBe("alpha");
+  });
+
+  it("hebt die Auswahl auf Wunsch wieder auf", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(auswahlKreuzchen("alpha"));
+
+    await clickElement(knopfMitText("Auswahl aufheben"));
+
+    expect(leisteText()).toBeNull();
+    expect(auswahlKreuzchen("alpha").checked).toBe(false);
+  });
+
+  it("hält die Auswahl über einen Filterwechsel hinweg", async () => {
+    // Der Vorgang, um den es geht: erst die einen suchen und ankreuzen, dann
+    // die anderen. Eine Auswahl, die beim Tippen verschwindet, kann das nicht.
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(auswahlKreuzchen("alpha"));
+
+    await fill("input[type='search']", "zulu");
+    expect(zeilenIds()).toEqual(["zulu"]);
+    expect(leisteText()).toContain("1 ausgewählt");
+
+    await clickElement(auswahlKreuzchen("zulu"));
+    expect(leisteText()).toContain("2 ausgewählt");
+
+    await fill("input[type='search']", "");
+    expect(auswahlKreuzchen("alpha").checked).toBe(true);
+    expect(auswahlKreuzchen("zulu").checked).toBe(true);
+  });
+
+  it("reicht genau die ausgewählten Artikel an die Sammelschublade", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+    await clickElement(auswahlKreuzchen("zulu"));
+    await clickElement(auswahlKreuzchen("alpha"));
+
+    await clickElement(knopfMitText("Auswahl bearbeiten"));
+
+    const drawer = query("[data-rolle='sammel-drawer']");
+    // Nach Namen sortiert („Alpha-Päckchen" vor „Zulu"), nicht in Klickfolge:
+    // die Vorschau soll lesbar sein, nicht die Reihenfolge der Mausklicks
+    // nacherzählen.
+    expect(drawer.getAttribute("data-ids")).toBe("alpha,zulu");
   });
 });
