@@ -6,14 +6,17 @@ import { Button, Flex } from "antd";
 import type { TableProps } from "antd";
 import {
   Datentabelle,
+  filterAktiv,
+  type Filterwert,
+  type FilterZustand,
   nachJaNein,
   nachRang,
   nachText,
   trifftWert,
   useEntprellt,
+  wendeFilterAn,
   werteAlsFilter,
   zustandsFilter,
-  type Filterwert,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
@@ -85,7 +88,7 @@ const AMPEL_RANG = ["rot", "gelb", "gruen"] as const;
 
 function spalten(
   zeilen: GeraetAnzeigeZeile[],
-): TableProps<GeraetAnzeigeZeile>["columns"] {
+): NonNullable<TableProps<GeraetAnzeigeZeile>["columns"]> {
   return [
     {
       title: "Gerät",
@@ -171,7 +174,13 @@ export function GeraeteListe({
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
   const sucheNachlauf = useEntprellt(suche);
-  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
+  /**
+   * ⚠️ DER ZUSTAND WIRD GEMERKT, NICHT DIE LISTE (Falle 15). `onChange` feuert
+   * nur bei Bedienung DER TABELLE — tippt jemand daneben in die Suche, filtert
+   * antd zwar neu, meldet es aber nicht. Die angezeigte Menge folgt deshalb aus
+   * dem Zustand, bei jeder Aenderung neu.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
 
   const gefiltert = useMemo(
     () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
@@ -179,7 +188,10 @@ export function GeraeteListe({
   );
 
   const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
-  const hatFilter = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
+  // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet
+  // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
+  const angezeigt = wendeFilterAn(gefiltert, spaltenliste, spaltenFilter);
+  const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
 
   return (
     <>
@@ -189,9 +201,7 @@ export function GeraeteListe({
           onWert={setSuche}
           platzhalter="Gerät, Barcode oder Lagerort suchen…"
         />
-        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter — deren Wirkung
-            steht sichtbar im Spaltenkopf. */}
-        <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <Button
           href="/verwaltung/geraete/scan"
           icon={<Ikone name="scannen" groesse={16} />}
@@ -205,11 +215,7 @@ export function GeraeteListe({
         rowKey="id"
         aria-label="Geräte"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => {
-          setSpaltenFilterAktiv(
-            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
-          );
-        }}
+        onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
           emptyText: hatFilter
             ? "Kein Gerät passt zu Suche und Filter."

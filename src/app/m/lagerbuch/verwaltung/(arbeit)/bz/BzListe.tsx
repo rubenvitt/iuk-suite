@@ -6,12 +6,15 @@ import { Button, Flex } from "antd";
 import type { TableProps } from "antd";
 import {
   Datentabelle,
+  filterAktiv,
+  type FilterZustand,
   nachDatum,
   nachJaNein,
   nachRang,
   nachText,
   trifftWert,
   useEntprellt,
+  wendeFilterAn,
   werteAlsFilter,
   zustandsFilter,
 } from "@/core/tabelle";
@@ -54,7 +57,7 @@ const STATUS_FILTER = zustandsFilter<BzAnzeigeZeile>([
 /** Rot vor gelb vor ok: was Aufmerksamkeit verlangt, gehoert nach oben. */
 const AMPEL_RANG = ["rot", "gelb", "grau", "ok"] as const;
 
-function spalten(zeilen: BzAnzeigeZeile[]): TableProps<BzAnzeigeZeile>["columns"] {
+function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeile>["columns"]> {
   return [
     {
       title: "Gerät",
@@ -135,7 +138,13 @@ export function BzListe({
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
   const sucheNachlauf = useEntprellt(suche);
-  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
+  /**
+   * ⚠️ DER ZUSTAND WIRD GEMERKT, NICHT DIE LISTE (Falle 15). `onChange` feuert
+   * nur bei Bedienung DER TABELLE — tippt jemand daneben in die Suche, filtert
+   * antd zwar neu, meldet es aber nicht. Die angezeigte Menge folgt deshalb aus
+   * dem Zustand, bei jeder Aenderung neu.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
 
   const gefiltert = useMemo(
     () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
@@ -143,7 +152,10 @@ export function BzListe({
   );
 
   const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
-  const hatFilter = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
+  // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet
+  // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
+  const angezeigt = wendeFilterAn(gefiltert, spaltenliste, spaltenFilter);
+  const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
 
   return (
     <>
@@ -153,8 +165,7 @@ export function BzListe({
           onWert={setSuche}
           platzhalter="Gerät, Barcode oder Lagerort suchen…"
         />
-        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter. */}
-        <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <Button href="/verwaltung/bz/scan" icon={<Ikone name="scannen" groesse={16} />}>
           Scannen
         </Button>
@@ -165,11 +176,7 @@ export function BzListe({
         rowKey="id"
         aria-label="BZ-Geräte"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => {
-          setSpaltenFilterAktiv(
-            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
-          );
-        }}
+        onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
           emptyText: hatFilter
             ? "Kein Gerät passt zu Suche und Filter."

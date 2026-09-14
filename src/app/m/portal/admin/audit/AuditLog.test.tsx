@@ -115,17 +115,24 @@ it.each([["to","Bis einschließlich (UTC)","2026-02-30"],["to","Bis einschließl
 });
 
 /**
- * ⚠️ SORTIERT WIRD UEBER `occurredAt`, NIE UEBER `auditTime(...)`. Die drei
- * Zeitpunkte unten sind so gewaehlt, dass der ANZEIGETEXT gegen den Rohwert
- * spricht: „01.10." steht als Zeichenkette vor „14.09." und „25.07.", die
- * Zeitachse stellt sie aber genau umgekehrt. Ueber den Text sortiert waere
- * diese Tabelle gruen und trotzdem falsch — und niemand saehe es.
+ * ⚠️ DIE TABELLE ORDNET NICHT — SIE ZEIGT DIE ORDNUNG DER ABFRAGE.
  *
- * `descend` ist die Vorgabe der Spalte, weil die Statuszeile ueber der Tabelle
- * „Neueste zuerst" sagt: die Startordnung darf ihr nicht widersprechen. Geprueft
- * wird deshalb OHNE Klick — die Vorgabe wirkt beim ersten Rendern.
+ * Bis DRK-331 (dritte Reviewrunde) trug die Zeitspalte einen clientseitigen
+ * Vergleicher mit `defaultSortOrder: "descend"`. Der war falsch, und zwar
+ * still: das Protokoll ist CURSOR-GEBLAETTERT („Aeltere Eintraege"), ein
+ * Vergleicher im Spaltenkopf sieht also nur die GELADENE SEITE. „Zeit
+ * aufsteigend" zeigte damit nicht den aeltesten Eintrag, sondern den aeltesten
+ * unter den geladenen fuenfzig — eine Aussage ueber den ganzen Bestand, die nur
+ * ueber einen Ausschnitt galt. Dieselbe Klasse wie im Journal des Lagerbuchs.
+ *
+ * Die Zusicherung „Neueste zuerst" aus der Statuszeile liegt deshalb in der
+ * ABFRAGE (`core/audit/storage.ts`: `ORDER BY occurred_at DESC, id DESC`, dort
+ * geprueft). Hier wird das Gegenstueck festgehalten: die Tabelle reicht
+ * durch, was sie bekommt, UNVERAENDERT. Die drei Zeitpunkte sind so gewaehlt,
+ * dass jede versehentlich wieder eingebaute Ordnung — ueber den Rohwert wie
+ * ueber den Anzeigetext — eine ANDERE Reihenfolge ergaebe als die Eingabe.
  */
-it("stellt das Protokoll nach Zeit absteigend, ueber den Rohwert statt den Anzeigetext",async()=>{
+it("reicht die Reihenfolge der Abfrage unveraendert durch und ordnet nicht selbst",async()=>{
  const zeit=(iso:string)=>Date.parse(iso);
  const events:AuditEvent[]=[
   {...event,id:"00000000-0000-0000-0000-00000000000a",occurredAt:zeit("2026-07-25T12:00:00Z")},
@@ -134,9 +141,8 @@ it("stellt das Protokoll nach Zeit absteigend, ueber den Rohwert statt den Anzei
  ];
  await mount(<AuditLog view={{...ready,page:{events}}} search={{}}/>);
  const reihen=Array.from(document.querySelectorAll("tbody tr[data-row-key]")).map(tr=>tr.getAttribute("data-row-key"));
- expect(reihen).toEqual([
-  "00000000-0000-0000-0000-00000000000b",
-  "00000000-0000-0000-0000-00000000000c",
-  "00000000-0000-0000-0000-00000000000a",
- ]);
+ expect(reihen).toEqual(events.map(e=>e.id));
+
+ // Und kein Spaltenkopf bietet ueberhaupt an, daran zu drehen.
+ expect(document.querySelectorAll(".ant-table-column-sorter")).toHaveLength(0);
 });

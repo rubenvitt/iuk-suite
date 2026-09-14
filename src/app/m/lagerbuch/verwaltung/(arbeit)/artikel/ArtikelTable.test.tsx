@@ -569,6 +569,30 @@ describe("ArtikelTable: eine echte Filterquelle", () => {
     expect(document.body.textContent).toContain("Noch keine Artikel. Lege oben den ersten an.");
   });
 
+  /**
+   * ⚠️ „NOCH KEINE ARTIKEL" IST EINE AUSSAGE UEBER DIE DATEN, NICHT UEBER DIE
+   * ANSICHT. Zaehlte der Leertext nur die Suche, stuende er auch dann da, wenn
+   * bloss zwei Spaltenfilter ohne Schnittmenge gesetzt sind — und forderte zum
+   * Anlegen eines Artikels auf, den es laengst gibt. Der zweite Teil gehoert
+   * dazu: der Knopf „Zuruecksetzen" muss dann sichtbar sein UND wirken, sonst
+   * fuehrt der Leertext in eine Ansicht ohne Ausweg.
+   */
+  it("nennt bei leerem Spaltenfilter den Filter-Leertext und einen Weg zurück", async () => {
+    await mount(<ArtikelTable zeilen={ZEILEN} fahrzeuge={FAHRZEUGE} />);
+
+    // Delta ist der einzige inaktive Artikel — und er hat Bestand. Der Schnitt
+    // beider Spalten ist damit leer, ohne dass ein Artikel fehlte.
+    await spalteFiltern("Status", ["inaktiv"]);
+    await spalteFiltern("Bestand", ["Bestand 0"]);
+    expect(zeilenIds()).toEqual([]);
+    expect(query("tr.ant-table-placeholder").textContent)
+      .toBe("Kein Artikel passt zu Suche und Filter.");
+
+    await clickElement(knopfMitText("Zurücksetzen"));
+    await warteAufSuche();
+    expect(zeilenIds()).toEqual(["alpha", "beta", "delta", "gamma", "zulu"]);
+  });
+
   it("erkennt die Suche für den gefilterten Leertext", async () => {
     await mount(<ArtikelTable zeilen={[{ ...ZEILEN[2] }]} fahrzeuge={FAHRZEUGE} />);
     await suchen("nicht-da");

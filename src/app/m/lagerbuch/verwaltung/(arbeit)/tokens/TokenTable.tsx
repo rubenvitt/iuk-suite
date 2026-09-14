@@ -5,12 +5,15 @@ import { Alert, Button, Flex } from "antd";
 import type { TableProps } from "antd";
 import {
   Datentabelle,
+  filterAktiv,
+  type Filterwert,
+  type FilterZustand,
   nachDatum,
   nachJaNein,
   nachText,
   useEntprellt,
+  wendeFilterAn,
   zustandsFilter,
-  type Filterwert,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { setTokenAktiv } from "../../../_actions/tokens";
@@ -86,7 +89,13 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
   const sucheNachlauf = useEntprellt(suche);
-  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
+  /**
+   * ⚠️ DER ZUSTAND WIRD GEMERKT, NICHT DIE LISTE (Falle 15). `onChange` feuert
+   * nur bei Bedienung DER TABELLE — tippt jemand daneben in die Suche, filtert
+   * antd zwar neu, meldet es aber nicht. Die angezeigte Menge folgt deshalb aus
+   * dem Zustand, bei jeder Aenderung neu.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
 
@@ -95,7 +104,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     [sucheNachlauf, zeilen],
   );
 
-  const hatFilter = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
+  const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
 
   function statusAendern(zeile: TokenAnzeigeZeile): void {
     setFehler(null);
@@ -109,7 +118,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     });
   }
 
-  const spalten: TableProps<TokenAnzeigeZeile>["columns"] = [
+  const spalten: NonNullable<TableProps<TokenAnzeigeZeile>["columns"]> = [
     {
       title: "Code",
       dataIndex: "code",
@@ -202,6 +211,10 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     },
   ];
 
+  // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet
+  // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
+  const angezeigt = wendeFilterAn(gefiltert, spalten, spaltenFilter);
+
   return (
     <>
       <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
@@ -210,8 +223,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
           onWert={setSuche}
           platzhalter="Code, Bezeichnung oder Ziel suchen…"
         />
-        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter. */}
-        <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
       </Flex>
 
       {fehler ? (
@@ -227,11 +239,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
         rowKey="id"
         aria-label="Zugangs-Codes"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => {
-          setSpaltenFilterAktiv(
-            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
-          );
-        }}
+        onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
           emptyText: hatFilter
             ? "Kein Code passt zu Suche und Filter."

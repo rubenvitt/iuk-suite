@@ -31,6 +31,7 @@ export { useVerfuegbareHoehe } from "./useVerfuegbareHoehe";
 export { VIRTUELL_AB_ZEILEN } from "./masse";
 export {
   angezeigteZeilen,
+  filterAktiv,
   spaltenSchluessel,
   wendeFilterAn,
   wendeSortierungAn,

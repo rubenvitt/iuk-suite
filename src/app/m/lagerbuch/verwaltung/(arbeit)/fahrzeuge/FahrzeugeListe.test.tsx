@@ -314,28 +314,61 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
   /**
    * Die drei Haken „unter Soll", „läuft ab" und „inaktive ausblenden" standen
    * bis zur Umstellung als Checkbox-Leiste ueber der Tabelle. Sie sind
-   * Spaltenfilter der Statusspalte geworden — dieselben Praedikate, nur dort,
-   * wo ihre Wirkung sichtbar ist.
+   * Spaltenfilter geworden — dieselben Praedikate, nur dort, wo ihre Wirkung
+   * sichtbar ist. Die Bestueckungszustaende an der Bestueckungsspalte,
+   * aktiv/inaktiv an der Statusspalte; warum getrennt, sagt der Test darunter.
    */
-  it("filtert den Status über den Spaltenkopf, mehrere Haken verodern sich", async () => {
+  it("filtert die Bestückung über den Spaltenkopf, mehrere Haken verodern sich", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
     expect(exists(".ant-checkbox-wrapper")).toBe(false);
 
-    await spaltenFilter("Status", "unter Soll");
+    await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual(["f1", "f3"]);
 
     // „läuft ab" kommt HINZU — der Haken von eben steht noch.
-    await spaltenFilter("Status", "läuft ab");
+    await spaltenFilter("Bestückung", "läuft ab");
     expect(zeilenIds()).toEqual(["f1", "f2", "f3"]);
 
-    await spaltenFilter("Status");
+    await spaltenFilter("Bestückung");
     expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
+  });
+
+  /**
+   * ⚠️ DER ALTE HAKEN WAR EIN AUSSCHLUSS, EIN SPALTENFILTER IST EIN EINSCHLUSS.
+   * „inaktive ausblenden" heisst als Filter „aktiv", nicht „inaktiv" — ohne das
+   * Gegenstueck waere der alte Vorgang gar nicht mehr anklickbar. Genau diese
+   * Umkehrung hatte die Artikeltabelle (DRK-331, zweite Reviewrunde); hier
+   * stand sie noch.
+   */
+  it("macht „inaktive ausblenden“ wieder ausdrückbar", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Status", "aktiv");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f4"]);
+
+    await spaltenFilter("Status", "inaktiv");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
+  });
+
+  /**
+   * ⚠️ DER GRUND FUER ZWEI SPALTEN STATT EINER. antd VERODERT innerhalb einer
+   * Spalte und VERUNDET zwischen Spalten. Lagen „aktiv" und „unter Soll" auf
+   * derselben Spalte, ergaebe diese Auswahl f1, f2, f3 UND f4 — mit den alten,
+   * unabhaengigen Haken war es f1. Der Test faellt, sobald jemand die beiden
+   * Gruppen „der Einheitlichkeit halber" wieder zusammenlegt.
+   */
+  it("verundet Status und Bestückung über die Spaltengrenze", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Status", "aktiv");
+    await spaltenFilter("Bestückung", "unter Soll");
+    expect(zeilenIds()).toEqual(["f1"]);
   });
 
   it("nennt bei leerem Spaltenfilter den Filter-Leertext, nicht den Anlegehinweis", async () => {
     await mount(<FahrzeugeListe zeilen={[ZEILEN[3]]} />);
 
-    await spaltenFilter("Status", "unter Soll");
+    await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual([]);
     expect(query("tr.ant-table-placeholder").textContent)
       .toBe("Kein Fahrzeug passt zu Suche und Filter.");
@@ -366,6 +399,26 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     expect(query(`.${s.filtertreffer}`).textContent).toBe("0 von 4");
     expect(query("tr.ant-table-placeholder").textContent)
       .toBe("Kein Fahrzeug passt zu Suche und Filter.");
+  });
+
+  /**
+   * ⚠️ DIE TREFFERANZEIGE ZAEHLT DIE SPALTENFILTER MIT. Zaehlte sie nur die
+   * Suche, stuende neben einer Tabelle mit zwei Zeilen „4 von 4" — eine Zahl,
+   * die zu keinem Bild auf dem Schirm gehoert. Der zweite Teil ist der
+   * eigentliche Beweis: nach der Suche feuert antds `onChange` NICHT (Falle
+   * 15), die Zahl muss trotzdem stimmen — sie ist aus dem Zustand ABGELEITET,
+   * nicht aus `extra.currentDataSource` gemerkt.
+   */
+  it("zählt Spaltenfilter mit, auch wenn sich danach nur die Suche ändert", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Bestückung", "unter Soll");
+    expect(zeilenIds()).toEqual(["f1", "f3"]);
+    expect(query(`.${s.filtertreffer}`).textContent).toBe("2 von 4");
+
+    await suchen("RTW");
+    expect(zeilenIds()).toEqual(["f1"]);
+    expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 4");
   });
 
   it("zeigt ohne Daten den ungefilterten Anlegehinweis", async () => {

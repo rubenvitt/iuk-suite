@@ -86,6 +86,37 @@ describe("transactional audit", () => {
     expect(queryAuditEvents({module:"qr",objectRef:"secret-url"}).events).toHaveLength(5);
     expect(queryAuditEvents({objectRef:"different"}).events).toHaveLength(0);
   });
+  /**
+   * ⚠️ HIER LIEGT DIE ZUSICHERUNG „NEUESTE ZUERST", NICHT IN DER TABELLE.
+   *
+   * Die Oberflaeche blaettert ueber einen Cursor; ein Vergleicher im
+   * Spaltenkopf saehe nur die geladene Seite und ordnete sie um, waehrend die
+   * Statuszeile weiter „Neueste zuerst" behauptet (DRK-331, dritte
+   * Reviewrunde — die Sortierer in `AuditLog.tsx` sind deshalb entfernt). Bis
+   * dahin war diese Ordnung nur MITTELBAR geprueft, ueber die Blaetterung.
+   *
+   * Gleiche Zeitstempel entscheidet `id DESC` — dieselbe Ordnung, die der
+   * Cursor voraussetzt (`occurred_at < ? OR (occurred_at = ? AND id < ?)`).
+   * Faellt das auseinander, ueberspringt oder wiederholt die Blaetterung
+   * Zeilen.
+   */
+  it("gibt Ereignisse neueste zuerst zurueck, bei Gleichstand nach id absteigend",()=>{
+    const {central}=fixture();
+    for(let i=0;i<4;i++) recordAuditEvent({module:"qr",action:"export",objectType:"preset",result:"success",origin:"server"});
+    // Zwei Paare mit je gleichem Zeitstempel: das aeltere Paar zuerst anlegen
+    // waere nicht verlaesslich, die Zeit wird deshalb direkt gesetzt.
+    const ids=central.prepare("SELECT id FROM audit_events ORDER BY id").all() as {id:string}[];
+    const jetzt=Date.now();
+    central.prepare("UPDATE audit_events SET occurred_at = ? WHERE id IN (?,?)").run(jetzt,ids[0].id,ids[1].id);
+    central.prepare("UPDATE audit_events SET occurred_at = ? WHERE id IN (?,?)").run(jetzt-1000,ids[2].id,ids[3].id);
+
+    const gelesen=queryAuditEvents({module:"qr"}).events;
+    const sortiert=[...ids.map(z=>z.id)];
+    const neu=[sortiert[0],sortiert[1]].sort().reverse();
+    const alt=[sortiert[2],sortiert[3]].sort().reverse();
+    expect(gelesen.map(e=>e.id)).toEqual([...neu,...alt]);
+  });
+
   it("applies retention to reads, transfer and physical purge",()=>{
     const {source,central}=fixture();change(source);
     source.exec("UPDATE audit_outbox SET occurred_at = 1");

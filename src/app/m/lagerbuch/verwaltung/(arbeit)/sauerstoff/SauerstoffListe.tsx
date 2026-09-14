@@ -6,12 +6,15 @@ import { Flex, Progress } from "antd";
 import type { TableProps } from "antd";
 import {
   Datentabelle,
+  filterAktiv,
+  type Filterwert,
+  type FilterZustand,
   nachJaNein,
   nachText,
   nachZahl,
   useEntprellt,
+  wendeFilterAn,
   zustandsFilter,
-  type Filterwert,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { ampelTon } from "../../../_lib/format";
@@ -62,7 +65,7 @@ const STATUS_FILTER = zustandsFilter<SauerstoffAnzeigeZeile>([
   { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
 ]);
 
-const SPALTEN: TableProps<SauerstoffAnzeigeZeile>["columns"] = [
+const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
   {
     title: "Flasche",
     dataIndex: "name",
@@ -161,14 +164,23 @@ export function SauerstoffListe({
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
   const sucheNachlauf = useEntprellt(suche);
-  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
+  /**
+   * ⚠️ DER ZUSTAND WIRD GEMERKT, NICHT DIE LISTE (Falle 15). `onChange` feuert
+   * nur bei Bedienung DER TABELLE — tippt jemand daneben in die Suche, filtert
+   * antd zwar neu, meldet es aber nicht. Die angezeigte Menge folgt deshalb aus
+   * dem Zustand, bei jeder Aenderung neu.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
 
   const gefiltert = useMemo(
     () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
     [zeilen, sucheNachlauf],
   );
 
-  const filterAktiv = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
+  // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet
+  // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
+  const angezeigt = wendeFilterAn(gefiltert, SPALTEN, spaltenFilter);
+  const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
 
   return (
     <>
@@ -178,8 +190,7 @@ export function SauerstoffListe({
           onWert={setSuche}
           platzhalter="Flasche oder Lagerort suchen…"
         />
-        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter. */}
-        <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <NeuFlasche lagerorte={lagerorte} />
       </Flex>
 
@@ -187,13 +198,9 @@ export function SauerstoffListe({
         rowKey="id"
         aria-label="Sauerstoffflaschen"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => {
-          setSpaltenFilterAktiv(
-            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
-          );
-        }}
+        onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
-          emptyText: filterAktiv
+          emptyText: hatFilter
             ? "Keine Sauerstoffflasche passt zu den Filtern."
             : "Noch keine Sauerstoffflaschen vorhanden. Lege oben die erste an.",
         }}

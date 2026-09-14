@@ -6,11 +6,14 @@ import { Flex } from "antd";
 import type { TableProps } from "antd";
 import {
   Datentabelle,
+  filterAktiv,
+  type FilterZustand,
   nachDatum,
   nachText,
   nachZahl,
   trifftWert,
   useEntprellt,
+  wendeFilterAn,
   werteAlsFilter,
   zustandsFilter,
 } from "@/core/tabelle";
@@ -52,27 +55,39 @@ export function sucheTrifft(
 }
 
 /**
- * DIE DREI HAKEN VON FRUEHER SIND SPALTENFILTER GEWORDEN.
+ * DIE DREI HAKEN VON FRUEHER SIND SPALTENFILTER GEWORDEN — AUF ZWEI SPALTEN.
  *
  * Ueber der Tabelle standen „unter Soll", „laeuft ab" und „inaktive
  * ausblenden" — jeder davon ein Praedikat ueber der Zeile, und ein Praedikat
- * ueber der Zeile ist ein Spaltenfilter. Sie sitzen jetzt dort, wo ihre Wirkung
- * sichtbar wird: im Kopf der Statusspalte, in der auch die zugehoerigen Chips
- * stehen.
+ * ueber der Zeile ist ein Spaltenfilter.
  *
- * ⚠️ MEHRERE HAKEN VERODERN SICH, sie schneiden sich nicht — das ist antds
- * Verhalten fuer `filters` und dasselbe, was `zustandsFilter` festhaelt.
+ * ⚠️ DASS ES ZWEI GRUPPEN SIND, IST DER GANZE PUNKT. antd VERODERT mehrere
+ * Werte EINER Spalte und VERUNDET zwischen Spalten (`zustandsFilter` haelt das
+ * fest). Lagen alle vier Zustaende auf der Statusspalte, war „aktiv UND unter
+ * Soll" NICHT AUSDRUECKBAR — obwohl genau das mit den alten, unabhaengigen
+ * Haken der Normalfall war. Die Bestueckungszustaende gehoeren deshalb an die
+ * Bestueckungsspalte, aktiv/inaktiv an die Statusspalte.
+ *
+ * ⚠️ UND JEDER ZUSTAND BRAUCHT SEIN GEGENSTUECK. Der alte Haken war ein
+ * AUSSCHLUSS („inaktive ausblenden"), ein Spaltenfilter ist ein EINSCHLUSS:
+ * ohne „aktiv" liesse sich der alte Vorgang gar nicht mehr anklicken. Dieselbe
+ * Umkehrung hatte die Artikeltabelle (DRK-331, zweite Reviewrunde); die
+ * Geschwisterlisten `geraete`, `bz` und `sauerstoff` fuehren das Paar laengst.
  */
-const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
+const BESTUECKUNG_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
   { wert: "unterSoll", text: "unter Soll", trifft: (zeile) => zeile.artikelUnterSoll > 0 },
   { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => zeile.verfallAuffaellig > 0 },
   { wert: "aufSoll", text: "auf Soll", trifft: (zeile) => zeile.positionen > 0 && zeile.artikelUnterSoll === 0 },
+]);
+
+const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
+  { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
   { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
 ]);
 
 function spalten(
   zeilen: FahrzeugAnzeigeZeile[],
-): TableProps<FahrzeugAnzeigeZeile>["columns"] {
+): NonNullable<TableProps<FahrzeugAnzeigeZeile>["columns"]> {
   return [
     {
       title: "Fahrzeug",
@@ -113,6 +128,8 @@ function spalten(
       dataIndex: "positionen",
       // Gezeigt wird „12 Positionen · 3 Faecher", sortiert wird ueber die Zahl.
       sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.positionen),
+      filters: BESTUECKUNG_FILTER.filters,
+      onFilter: BESTUECKUNG_FILTER.onFilter,
       render: (_wert: number, zeile) => (
         <span style={SCHRIFT.neben}>
           {zeile.positionen} {zeile.positionen === 1 ? "Position" : "Positionen"}
@@ -169,10 +186,14 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung: ohne das filtert
   // und rendert jeder Tastendruck die ganze Liste neu.
   const sucheNachlauf = useEntprellt(suche);
-  // Ein gesetzter Spaltenfilter ist von hier aus nur ueber `onChange` sichtbar —
-  // und nur er entscheidet, ob der Leertext „passt zu Suche und Filter" oder
-  // „noch keine Fahrzeuge" heissen muss.
-  const [spaltenFilterAktiv, setSpaltenFilterAktiv] = useState(false);
+  /**
+   * ⚠️ DER ZUSTAND WIRD GEMERKT, NICHT DIE LISTE (Falle 15). `onChange` feuert
+   * nur bei Bedienung DER TABELLE — tippt jemand daneben in die Suche, filtert
+   * antd zwar neu, meldet es aber nicht. Aus dem Zustand folgt die angezeigte
+   * Menge bei JEDER Aenderung neu, egal woher sie kommt; ein gemerktes
+   * `extra.currentDataSource` waere nach der naechsten Suche still veraltet.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
 
   const gefiltert = useMemo(
     () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
@@ -180,7 +201,10 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
   );
 
   const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
-  const hatFilter = sucheNachlauf.trim() !== "" || spaltenFilterAktiv;
+  // Was WIRKLICH in der Tabelle steht: Suche UND Spaltenfilter. antd wendet
+  // dieselben Praedikate danach noch einmal an — beide Schritte sind idempotent.
+  const angezeigt = wendeFilterAn(gefiltert, spaltenliste, spaltenFilter);
+  const hatFilter = sucheNachlauf.trim() !== "" || filterAktiv(spaltenFilter);
 
   return (
     <>
@@ -190,9 +214,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
           onWert={setSuche}
           platzhalter="Fahrzeug oder Kennung suchen…"
         />
-        {/* Zaehlt die Freitextsuche, nicht die Spaltenfilter — deren Wirkung
-            steht sichtbar im Spaltenkopf. */}
-        <Trefferanzeige gezeigt={gefiltert.length} gesamt={zeilen.length} />
+        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <NeuFahrzeug />
       </Flex>
 
@@ -200,11 +222,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
         rowKey="id"
         aria-label="Fahrzeuge"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => {
-          setSpaltenFilterAktiv(
-            Object.values(filter).some((werte) => (werte?.length ?? 0) > 0),
-          );
-        }}
+        onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
           emptyText: hatFilter
             ? "Kein Fahrzeug passt zu Suche und Filter."

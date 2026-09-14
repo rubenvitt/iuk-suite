@@ -198,15 +198,31 @@ export function SollEditor({
   }
 
   /**
-   * ⚠️ DIESE TABELLE BEKOMMT KEINE SORTIERUNG, und das ist kein Versehen.
+   * ⚠️ DIESE TABELLE BEKOMMT KEINE SORTIERUNG — UND NUR EINEN FILTER, DEN AUF
+   * DAS FACH. Beides ist kein Versehen, und beides hat DIESELBE Ursache.
    *
    * Die Fachspalte ist ueber `onCell: { rowSpan }` zusammengefasst; die
    * Zusammenfassung rechnet `sollGruppieren` EINMAL auf der nach `fachLabel`
-   * sortierten Kopie. Sortiert antd die Zeilen danach um, stehen die Zellen mit
-   * `rowSpan > 0` nicht mehr am Anfang ihrer Gruppe — die Tabelle verschluckt
-   * dann Zeilen oder zeigt das Fach an der falschen Stelle, ohne dass ein Tor
-   * das saehe. Ein Fachfilter ist dagegen unbedenklich: er entfernt ganze
-   * Gruppen, statt sie zu durchmischen.
+   * sortierten Kopie — also auf der VOLLEN Liste, bevor antd irgendetwas
+   * anfasst. Jeder Eingriff danach, der die Gruppen DURCHMISCHT ODER
+   * ANSCHNEIDET, macht die gemerkten Spannweiten falsch:
+   *
+   * - SORTIEREN mischt sie durch: die Zelle mit `rowSpan > 0` steht nicht mehr
+   *   am Anfang ihrer Gruppe, die Tabelle verschluckt Zeilen oder zeigt das
+   *   Fach an der falschen Stelle.
+   * - EIN FILTER AUF EINE ANDERE SPALTE schneidet sie an. Genau das tat bis
+   *   DRK-331 (dritte Reviewrunde) der Filter auf `herkunft`: ein Fach kann
+   *   Positionen verschiedener Herkunft enthalten. Faellt die ERSTE Zeile einer
+   *   Gruppe heraus, bleibt die ueberlebende auf `rowSpan: 0` und ihre
+   *   Fachzelle verschwindet; ueberlebt die erste, reicht ihre alte Spannweite
+   *   ins NAECHSTE Fach hinein. Die Eingabefelder stehen dann unter dem
+   *   falschen Fach — eine schreibende Flaeche an der falschen Zeile.
+   *
+   * Der FACHFILTER ist als einziger unbedenklich: sein Praedikat liest genau
+   * das Merkmal, nach dem gruppiert wurde, und entfernt deshalb immer GANZE
+   * Gruppen. Wer hier eine weitere Spalte filterbar macht, muss die
+   * Spannweiten aus den GEFILTERTEN Zeilen neu rechnen — kein Tor faende den
+   * Fehler, und Vitest sieht `rowSpan` nur als Zahl, nicht als Bild.
    */
   const spalten: TableProps<SollAnzeigeZeile>["columns"] = [
     {
@@ -310,12 +326,9 @@ export function SollEditor({
       title: "Herkunft",
       dataIndex: "herkunft",
       key: "herkunft",
-      filters: [
-        { text: "manuell", value: "manuell" },
-        { text: "vorlage", value: "vorlage" },
-        { text: "ueberschrieben", value: "ueberschrieben" },
-      ],
-      onFilter: (wert, position) => position.herkunft === wert,
+      // ⚠️ KEIN `filters` HIER — Begruendung im Block ueber der Spaltenliste:
+      // eine Herkunft schneidet Fachgruppen an, und die Spannweiten sind schon
+      // gerechnet.
       render: (herkunft: SollZeile["herkunft"]) => (
         <Chip ton={HERKUNFT_TON[herkunft]}>{herkunft}</Chip>
       ),

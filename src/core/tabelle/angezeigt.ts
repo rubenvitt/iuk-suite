@@ -132,3 +132,16 @@ export function angezeigteZeilen<T>(
 ): T[] {
   return wendeSortierungAn(wendeFilterAn(zeilen, spalten, filter), spalten, sortierung);
 }
+
+/**
+ * Ist überhaupt ein Spaltenfilter gesetzt?
+ *
+ * Steht hier und nicht fünfmal abgeschrieben in den Listen, weil die Antwort
+ * über den LEERTEXT einer Tabelle entscheidet: „nichts angelegt" und „nichts
+ * passt" sind zwei verschiedene Sätze, und der falsche davon lädt zum Anlegen
+ * eines Datensatzes ein, den es längst gibt. antd meldet eine geleerte Spalte
+ * als `null` und eine nie berührte gar nicht — beides heißt „kein Filter".
+ */
+export function filterAktiv(zustand: FilterZustand): boolean {
+  return Object.values(zustand).some((werte) => (werte?.length ?? 0) > 0);
+}

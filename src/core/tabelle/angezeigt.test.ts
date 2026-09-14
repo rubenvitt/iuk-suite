@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   angezeigteZeilen,
+  filterAktiv,
   spaltenSchluessel,
   wendeFilterAn,
   wendeSortierungAn,
@@ -166,5 +167,36 @@ describe("angezeigteZeilen", () => {
     const weniger = ZEILEN.filter((z) => z.name.startsWith("P"));
     expect(angezeigteZeilen(weniger, SPALTEN, zustand, sortierung).map((z) => z.id))
       .toEqual(["3"]);
+  });
+});
+
+/**
+ * ⚠️ WORUEBER DIESE FRAGE ENTSCHEIDET: den LEERTEXT einer Tabelle. „Noch keine
+ * Artikel. Lege oben den ersten an." ist falsch, sobald bloss Spaltenfilter
+ * ohne Schnittmenge gesetzt sind — es gibt Artikel, sie passen nur nicht.
+ */
+describe("filterAktiv", () => {
+  it("ist ohne jeden Filter falsch", () => {
+    expect(filterAktiv({})).toBe(false);
+  });
+
+  it("wertet eine geleerte Spalte wie eine nie beruehrte", () => {
+    // antd meldet eine zurueckgesetzte Spalte als `null`, eine nie geoeffnete
+    // gar nicht — beides heisst „kein Filter", und `[]` ebenso.
+    expect(filterAktiv({ fach: null })).toBe(false);
+    expect(filterAktiv({ fach: [] })).toBe(false);
+    expect(filterAktiv({ fach: null, aktiv: [] })).toBe(false);
+  });
+
+  it("genuegt EIN gesetzter Wert in EINER Spalte", () => {
+    expect(filterAktiv({ fach: ["A1"] })).toBe(true);
+    expect(filterAktiv({ fach: null, aktiv: [false] })).toBe(true);
+  });
+
+  it("zaehlt auch `false` als gesetzten Wert", () => {
+    // `false` ist ein gueltiger Filterwert (antds `React.Key | boolean`); eine
+    // Pruefung ueber die Wahrheit der Werte statt ueber ihre ANZAHL laege hier
+    // falsch und liesse „nur inaktive" als ungefiltert durchgehen.
+    expect(filterAktiv({ aktiv: [false] })).toBe(true);
   });
 });

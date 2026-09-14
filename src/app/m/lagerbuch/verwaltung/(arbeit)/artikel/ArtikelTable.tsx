@@ -7,6 +7,7 @@ import { SPACE } from "@/core/theme/tokens";
 import {
   angezeigteZeilen,
   Datentabelle,
+  filterAktiv,
   nachDatum,
   nachText,
   nachZahl,
@@ -283,10 +284,19 @@ export function ArtikelTable({
     });
   };
 
-  const hatFilter = filter.suche.trim() !== "";
+  /**
+   * ⚠️ DIE SPALTENFILTER ZAEHLEN MIT, und daran haengt mehr als ein Knopf: der
+   * LEERTEXT. „Noch keine Artikel. Lege oben den ersten an." ist falsch, sobald
+   * bloss zwei Spaltenfilter ohne Schnittmenge gesetzt sind — es gibt Artikel,
+   * sie passen nur nicht. Der Satz forderte dann zum Anlegen eines Datensatzes
+   * auf, den es laengst gibt.
+   */
+  const hatFilter = filter.suche.trim() !== "" || filterAktiv(spaltenFilter);
 
+  /** Raeumt BEIDE Wege ab — sonst bliebe der Knopf sichtbar und wirkungslos. */
   function zuruecksetzen(): void {
     setFilter(LEERER_FILTER);
+    setSpaltenFilter({});
   }
 
   /**

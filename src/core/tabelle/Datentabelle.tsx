@@ -77,7 +77,19 @@ function mitKicker<T>(spalten: TableProps<T>["columns"]): TableProps<T>["columns
   if (!spalten) return spalten;
   return spalten.map((spalte) => {
     if (typeof spalte.title !== "string") return spalte;
-    return { ...spalte, title: <span style={SCHRIFT.kicker}>{spalte.title}</span> };
+    return {
+      ...spalte,
+      // `data-rolle` ist der GRIFF FUER PLAYWRIGHT. Ohne ihn muss ein Test die
+      // Kicker-Rolle ueber `columnheader → span` suchen, und das ist mehrdeutig,
+      // sobald die Spalte einen Sortierer oder Filter traegt: antd legt dann
+      // `.ant-table-column-title` und die Pfeil-Spans daneben, und der Test
+      // reisst mit „strict mode violation" an einer Stelle, die mit dem
+      // geprueften Stil nichts zu tun hat (gemessen in CI-Lauf 34896110367,
+      // `e2e/suite-audit.spec.ts`).
+      title: (
+        <span data-rolle="spaltenkopf" style={SCHRIFT.kicker}>{spalte.title}</span>
+      ),
+    };
   });
 }
 
@@ -123,7 +135,6 @@ export function Datentabelle<T extends object>({
   // um den Preis einer weißen Seite.
   useEffect(() => {
     if (masse.hinweis && process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
       console.warn(`[Datentabelle] ${masse.hinweis}`);
     }
   }, [masse.hinweis]);

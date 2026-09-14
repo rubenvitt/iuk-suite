@@ -380,10 +380,17 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     await suchen("rtw");
     expect(sichtbareIds()).toEqual([]);
     expect(document.body.textContent).toContain("Kein Code passt zu Suche und Filter.");
-    // ⚠️ „1 von 3", nicht „0 von 3": die Trefferanzeige zaehlt allein die
-    // Freitextsuche — „rtw" trifft ein Kaertchen. Dass die Spaltenfilter die
-    // Tabelle danach leer lassen, steht im Spaltenkopf, nicht hier.
-    expect(document.querySelector("[data-testid='trefferanzeige']")?.textContent).toBe("1 von 3");
+    /**
+     * ⚠️ „0 von 3", UND DIESER TEST HAT BIS DRK-331 (dritte Reviewrunde) „1 von
+     * 3" VERLANGT — also eine Zahl, die zu keinem Bild auf dem Schirm gehoerte.
+     * Die Tabelle ist an dieser Stelle LEER, und darueber stand „1 von 3", weil
+     * die Anzeige allein die Freitextsuche zaehlte. Die alte Begruendung („die
+     * Wirkung der Spaltenfilter steht im Spaltenkopf") erklaert, warum man auf
+     * einen Zaehler verzichten KOENNTE — nicht, warum ein falscher richtig
+     * waere. Ein Zaehler neben einer Tabelle ist eine Aussage UEBER DIESE
+     * TABELLE.
+     */
+    expect(document.querySelector("[data-testid='trefferanzeige']")?.textContent).toBe("0 von 3");
   });
 
   /**
