@@ -2,6 +2,7 @@
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
 import { readFileSync } from "node:fs";
+import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clickElement,
@@ -383,6 +384,16 @@ describe("Fahrzeugblatt als Server Component", () => {
       vorlagen: [{ id: "tpl-aktiv", name: "Aktive Alternative" }],
       hatPositionen: true,
     });
+  });
+
+  it("laesst eine aktive aktuelle Vorlage in der Liste, damit das Feld sie zeigen kann", () => {
+    t.db.update(lagerorte).set({ templateId: "tpl-aktiv" }).where(eq(lagerorte.id, "fz-1")).run();
+    const [template] = elementeVomTyp(
+      fahrzeugInhalt(t.db, "fz-1", JETZT),
+      TemplateVerknuepfung,
+    );
+    expect(template.props.aktuelleVorlage).toEqual({ id: "tpl-aktiv", name: "Aktive Alternative" });
+    expect(template.props.vorlagen).toEqual([{ id: "tpl-aktiv", name: "Aktive Alternative" }]);
   });
 
   it("ordnet Vorlage, Soll und Verfall und sendet nur JSON-sichere Inselprops", () => {

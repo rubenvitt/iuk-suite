@@ -85,8 +85,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
   const aktuelleVorlage = aktuelleVorlageDetail
     ? { id: aktuelleVorlageDetail.id, name: aktuelleVorlageDetail.name }
     : null;
-  const vorlagen = templateListeAktiv(db)
-    .filter((vorlage) => vorlage.id !== aktuelleVorlage?.id);
+  const vorlagen = templateListeAktiv(db);
   const faecher = new Set(aktivePositionen.map((position) => position.fachLabel)).size;
   const verfallAuffaellig = verfall.filter(
     (eintrag) => eintrag.statusTon !== null && eintrag.statusTon !== "ok",

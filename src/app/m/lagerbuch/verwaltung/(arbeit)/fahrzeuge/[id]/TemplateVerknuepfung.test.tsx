@@ -9,6 +9,7 @@ import {
   query,
   queryAll,
   queryPortal,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import {
@@ -112,15 +113,30 @@ async function modalAbsenden(): Promise<void> {
   await warte();
 }
 
-async function mounten(hatPositionen = true): Promise<void> {
+async function mounten(
+  hatPositionen = true,
+  aktuelleVorlage: { id: string; name: string } | null = { id: "tpl-alt", name: "Aktuelle Altvorlage" },
+  vorlagen = VORLAGEN,
+): Promise<void> {
   await mount(
     <TemplateVerknuepfung
       fahrzeugId="fz-1"
-      aktuelleVorlage={{ id: "tpl-alt", name: "Aktuelle Altvorlage" }}
-      vorlagen={VORLAGEN}
+      aktuelleVorlage={aktuelleVorlage}
+      vorlagen={vorlagen}
       hatPositionen={hatPositionen}
     />,
   );
+}
+
+async function offeneOptionen(): Promise<(string | null)[]> {
+  await act(async () => {
+    query("[aria-label='Vorlage']")
+      .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  });
+  await warte();
+  return Array.from(document.body.querySelectorAll<HTMLElement>(
+    ".ant-select-item-option",
+  )).map((option) => option.textContent);
 }
 
 beforeEach(() => {
@@ -139,20 +155,31 @@ afterEach(async () => {
 });
 
 describe("TemplateVerknuepfung — vier Actions und fuenf Bedienelemente", () => {
-  it("zeigt auch eine inaktive aktuelle Vorlage benannt und entfernt sie aus den Alternativen", async () => {
+  it("zeigt die verknuepfte Vorlage im Feld und fuehrt sie als Option", async () => {
     await mounten();
 
     expect(query("[data-rolle='aktuelle-vorlage']").textContent)
       .toContain("Aktuelle Altvorlage");
-    await act(async () => {
-      query("[aria-label='Vorlage']")
-        .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    });
-    await warte();
-    const optionen = Array.from(document.body.querySelectorAll<HTMLElement>(
-      ".ant-select-item-option",
-    )).map((option) => option.textContent);
-    expect(optionen).toEqual(["Vorlage Neu"]);
+    expect(query(".ant-select").textContent).toContain("Aktuelle Altvorlage");
+    expect(await offeneOptionen()).toEqual(["Aktuelle Altvorlage", "Vorlage Neu"]);
+  });
+
+  it("zeigt eine inaktive verknuepfte Vorlage mit Namen statt ID und stellt sie voran", async () => {
+    await mounten(true, { id: "tpl-inaktiv", name: "Alte RTW-Vorlage" });
+
+    const feld = query(".ant-select").textContent ?? "";
+    expect(feld).toContain("Alte RTW-Vorlage");
+    expect(feld).not.toContain("tpl-inaktiv");
+    expect(await offeneOptionen())
+      .toEqual(["Alte RTW-Vorlage", "Aktuelle Altvorlage", "Vorlage Neu"]);
+  });
+
+  it("zeigt ohne Verknuepfung einen eindeutigen Leerzustand", async () => {
+    await mounten(true, null);
+
+    expect(query(".ant-select").textContent).toContain("Keine Vorlage verknüpft");
+    expect(knopf("Verknüpfen").disabled).toBe(true);
+    expect(knopf("Erneut übertragen").disabled).toBe(true);
   });
 
   it("rendert Select plus genau vier fachliche Action-Ausgaenge", async () => {
@@ -185,7 +212,79 @@ describe("TemplateVerknuepfung — vier Actions und fuenf Bedienelemente", () =>
 });
 
 describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
-  it("weist die gewaehlte Vorlage zu und leert die Auswahl nur bei Erfolg", async () => {
+  it("gibt Verknuepfen erst frei, wenn eine andere als die verknuepfte Vorlage gewaehlt ist", async () => {
+    await mounten();
+    expect(knopf("Verknüpfen").disabled).toBe(true);
+
+    await waehleVorlage("Vorlage Neu");
+    expect(knopf("Verknüpfen").disabled).toBe(false);
+
+    await waehleVorlage("Aktuelle Altvorlage");
+    expect(knopf("Verknüpfen").disabled).toBe(true);
+  });
+
+  it("folgt einer geaenderten Verknuepfung und verwirft den alten Entwurf", async () => {
+    await mounten();
+    await waehleVorlage("Vorlage Neu");
+    expect(query(".ant-select").textContent).toContain("Vorlage Neu");
+
+    // Loesen: der Server liefert keine Verknuepfung mehr.
+    await rerender(
+      <TemplateVerknuepfung
+        fahrzeugId="fz-1"
+        aktuelleVorlage={null}
+        vorlagen={VORLAGEN}
+        hatPositionen
+      />,
+    );
+    expect(query(".ant-select").textContent).toContain("Keine Vorlage verknüpft");
+    expect(knopf("Verknüpfen").disabled).toBe(true);
+
+    // Verknuepfen bzw. „aus Fahrzeug erstellen": neue Verknuepfung.
+    await rerender(
+      <TemplateVerknuepfung
+        fahrzeugId="fz-1"
+        aktuelleVorlage={{ id: "tpl-neu", name: "Vorlage Neu" }}
+        vorlagen={VORLAGEN}
+        hatPositionen
+      />,
+    );
+    expect(query(".ant-select").textContent).toContain("Vorlage Neu");
+    expect(knopf("Verknüpfen").disabled).toBe(true);
+  });
+
+  // Im Browser gefunden (e2e/lagerbuch-vorlagenfeld.spec.ts): ohne Verwerfen
+  // nach Erfolg kam der Entwurf gegen „keine" nach dem Loesen zurueck.
+  it("zeigt nach Verknuepfen und Loesen wieder den Leerzustand statt des alten Entwurfs", async () => {
+    await mounten(true, null);
+    await waehleVorlage("Vorlage Neu");
+    await clickElement(knopf("Verknüpfen"));
+    await warte();
+    expect(mocks.zuweisen).toHaveBeenCalledWith({ fahrzeugId: "fz-1", templateId: "tpl-neu" });
+
+    await rerender(
+      <TemplateVerknuepfung
+        fahrzeugId="fz-1"
+        aktuelleVorlage={{ id: "tpl-neu", name: "Vorlage Neu" }}
+        vorlagen={VORLAGEN}
+        hatPositionen
+      />,
+    );
+    await loesenBestaetigen();
+    await rerender(
+      <TemplateVerknuepfung
+        fahrzeugId="fz-1"
+        aktuelleVorlage={null}
+        vorlagen={VORLAGEN}
+        hatPositionen
+      />,
+    );
+
+    expect(query(".ant-select").textContent).toContain("Keine Vorlage verknüpft");
+    expect(query(".ant-select").textContent).not.toContain("Vorlage Neu");
+  });
+
+  it("weist die gewaehlte Vorlage zu", async () => {
     await mounten();
     await waehleVorlage("Vorlage Neu");
     await clickElement(knopf("Verknüpfen"));
@@ -195,7 +294,6 @@ describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
       fahrzeugId: "fz-1",
       templateId: "tpl-neu",
     });
-    expect(query(".ant-select").textContent).not.toContain("Vorlage Neu");
   });
 
   it.each([
