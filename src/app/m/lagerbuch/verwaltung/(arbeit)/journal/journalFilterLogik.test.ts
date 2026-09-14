@@ -7,8 +7,44 @@ import {
   mitGetipptem,
   normalisiereJournalTag,
 } from "./journalFilterLogik";
+import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
 
 describe("journalFilterLogik — server-sicherer Vertrag", () => {
+  /**
+   * ⚠️ DER ERSTE AUFSCHLAG UND JEDER NACHSCHLAG MUESSEN DIESELBE GRENZE SEHEN
+   * (DRK-331, neunte Reviewrunde).
+   *
+   * Die Seite rendert die erste Journalseite SERVERSEITIG ueber diese Funktion;
+   * nachgeladen wird ueber die Server Action, und die prueft ihre Eingabe auf
+   * `JOURNAL_SUCHE_MAX` — sie ist von aussen aufrufbar, das ist nicht
+   * verhandelbar. Kappte nur EINE der beiden Seiten, ergaebe ein laengerer
+   * Begriff eine Seite, die aussieht wie jede andere, und ein Nachladen, das
+   * bei JEDEM Versuch scheitert: die Tabelle bliebe auf den ersten hundert
+   * Treffern stehen und meldete dauerhaft einen Fehler.
+   *
+   * Der Fall ist ueber eine getippte URL zu erreichen, also nicht theoretisch.
+   */
+  it("kappt den Suchbegriff auf dieselbe Grenze, die der Nachschlag prueft", () => {
+    const zuLang = "x".repeat(JOURNAL_SUCHE_MAX + 50);
+    const ergebnis = journalParameterAus({ q: zuLang });
+
+    expect(ergebnis.filter.q).toHaveLength(JOURNAL_SUCHE_MAX);
+    // Was gilt, steht auch im Feld — die Oberflaeche zeigt nicht mehr, als
+    // gesucht wird.
+    expect(ergebnis.werte.q).toBe(ergebnis.filter.q);
+    /**
+     * ⚠️ DIE GEGENSEITE WIRD GELESEN, NICHT AUFGERUFEN. `_actions/journal.ts`
+     * traegt `"use server"`, und ein solches Modul darf ausser asynchronen
+     * Funktionen NICHTS exportieren — sein `AnfrageSchema` ist hier also nicht
+     * greifbar. Geprueft wird deshalb, dass es DIESELBE Konstante liest statt
+     * einer abgeschriebenen Zahl; eine zweite Zahl waere genau der Zustand, den
+     * dieser Test verhindern soll.
+     */
+    const action = readFileSync("src/app/m/lagerbuch/_actions/journal.ts", "utf8");
+    expect(action).toContain("z.string().max(JOURNAL_SUCHE_MAX)");
+    expect(action).not.toMatch(/z\.string\(\)\.max\(\d/);
+  });
+
   it("laesst genau die vier Journaltypen bis zum SQL-Filter durch", () => {
     expect([...TYPEN]).toEqual([
       "zugang",

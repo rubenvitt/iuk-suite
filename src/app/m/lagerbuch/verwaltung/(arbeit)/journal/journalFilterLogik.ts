@@ -1,4 +1,5 @@
 import { zeitraumAus } from "../../../_lib/format";
+import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
 import type {
   BuchungTyp,
   JournalFilter as JournalLeseFilter,
@@ -46,7 +47,11 @@ export function normalisiereJournalTag(roh: string | undefined): string {
 export function journalParameterAus(
   parameter: JournalRohParameter,
 ): JournalParameterErgebnis {
-  const q = parameter.q?.trim() ?? "";
+  // ⚠️ GEKAPPT, NICHT NUR GETRIMMT — dieselbe Grenze, die `_actions/journal.ts`
+  // prueft. Ohne das Kappen nimmt der erste Aufschlag einen laengeren Begriff an
+  // und jeder Nachschlag weist ihn ab; die Tabelle stuende dann auf den ersten
+  // hundert Treffern und meldete beim Weiterblaettern dauerhaft einen Fehler.
+  const q = (parameter.q?.trim() ?? "").slice(0, JOURNAL_SUCHE_MAX);
   const typ = istBuchungTyp(parameter.typ) ? parameter.typ : undefined;
   const zeitraum = zeitraumAus(parameter.von, parameter.bis);
   const von = zeitraum.von ? parameter.von?.trim() ?? "" : "";

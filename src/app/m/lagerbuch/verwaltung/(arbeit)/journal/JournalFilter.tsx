@@ -5,6 +5,7 @@ import { Button, DatePicker, Flex, Input, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
 import { typLabel } from "../../../_lib/format";
+import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
@@ -108,6 +109,10 @@ export function JournalFilter({
           allowClear
           placeholder="Artikel oder Kommentar suchen…"
           value={suche}
+          // Der Deckel auch am Feld, nicht nur hinter ihm: so entsteht der Fall
+          // ueber die Oberflaeche gar nicht erst. Gekappt wird trotzdem im
+          // Lesepfad — eine getippte URL geht an diesem Feld vorbei.
+          maxLength={JOURNAL_SUCHE_MAX}
           onChange={(ereignis) => setSuche(ereignis.target.value)}
           style={{ width: 260 }}
         />

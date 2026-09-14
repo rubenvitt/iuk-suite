@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { getDb } from "../_db/client";
-import { JOURNAL_GRENZE } from "../_lib/grenzen";
+import { JOURNAL_GRENZE, JOURNAL_SUCHE_MAX } from "../_lib/grenzen";
 import { journalEintraege } from "../_lib/lesepfade/journal";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { TYPEN } from "../verwaltung/(arbeit)/journal/journalFilterLogik";
@@ -32,7 +32,7 @@ const CursorSchema = z.object({
 });
 
 const AnfrageSchema = z.object({
-  q: z.string().max(200).optional(),
+  q: z.string().max(JOURNAL_SUCHE_MAX).optional(),
   typ: z.enum(TYPEN).optional(),
   von: z.string().datetime().optional(),
   bis: z.string().datetime().optional(),
