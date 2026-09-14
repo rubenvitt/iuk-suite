@@ -14,6 +14,7 @@ import {
   chargen,
   checks,
   geraete,
+  inventurPositionen,
   lagerorte,
   o2Flaschen,
   o2Messungen,
@@ -64,12 +65,13 @@ function pruefeArtikel(db: Leser, id: string): Loeschbarkeit {
   const chg = anzahl(db, chargen, eq(chargen.artikelId, id));
   const soll = anzahl(db, sollPositionen, eq(sollPositionen.artikelId, id));
   const vorlage = anzahl(db, templatePositionen, eq(templatePositionen.artikelId, id));
+  const inventur = anzahl(db, inventurPositionen, eq(inventurPositionen.artikelId, id));
   const codes = anzahl(db, tokens, and(
     eq(tokens.zielTyp, "artikel"),
     eq(tokens.zielId, id),
   )!);
 
-  if (buch + chg + soll + vorlage + codes === 0) return { loeschbar: true };
+  if (buch + chg + soll + vorlage + inventur + codes === 0) return { loeschbar: true };
 
   const teile: string[] = [];
   if (buch) teile.push(plural(buch, "Buchung", "Buchungen"));
@@ -77,6 +79,9 @@ function pruefeArtikel(db: Leser, id: string): Loeschbarkeit {
   if (soll) teile.push(plural(soll, "Soll-Position", "Soll-Positionen"));
   if (vorlage) {
     teile.push(plural(vorlage, "Vorlagen-Position", "Vorlagen-Positionen"));
+  }
+  if (inventur) {
+    teile.push(plural(inventur, "Inventurposition", "Inventurpositionen"));
   }
   if (codes) teile.push(plural(codes, "Zugangs-Code", "Zugangs-Codes"));
   return {

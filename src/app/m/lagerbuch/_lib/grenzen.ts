@@ -239,6 +239,13 @@ export const BZ_LOGBUCH_GRENZE = 100;
  * und ein Artikel mit langer Historie faehrt das bei jedem Seitenaufruf.
  */
 export const ARTIKEL_VERLAUF_GRENZE = 8;
+/**
+ * Der FUENFTE Deckel (DRK-299) — der Inventur-Verlauf. Dieselbe Regel wie
+ * `JOURNAL_GRENZE`: `better-sqlite3` ist SYNCHRON, eine ungedeckelte Liste
+ * blockierte mit wachsender Historie die GANZE Suite, und der Seitentext nennt
+ * dieselbe Zahl, die die Abfrage begrenzt.
+ */
+export const INVENTUR_VERLAUF_GRENZE = 100;
 
 /* ──────────────────────────────────────────────────────────────────────────
  * DIE BOOT-LISTE (§10.5, Pruefungen 1 bis 4).

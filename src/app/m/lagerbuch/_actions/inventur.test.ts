@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
-import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
+import { artikel, buchungen, chargen, inventuren, inventurPositionen, lagerorte } from "../_db/schema";
+import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import {
   CHARGE_INVENTUR,
   CHARGE_KORREKTUR,
@@ -55,6 +56,7 @@ const VIEWER = {
 const JETZT = new Date("2026-07-15T10:00:00Z");
 const ERFOLGS_PFADE = [
   "/m/lagerbuch/verwaltung/inventur",
+  "/m/lagerbuch/verwaltung/inventur/verlauf",
   "/m/lagerbuch/verwaltung/artikel",
   "/m/lagerbuch/verwaltung",
 ];
@@ -228,7 +230,7 @@ describe("inventurKorrektur — LIVE-Handlagerbestand", () => {
       positionen: [{ artikelId: "art-live", ist: 6 }],
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { korrigiert: 0 } });
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 0, inventurId: expect.any(String) } });
     expect(handlagerBestand("art-live")).toBe(6);
     expect(t.db.select().from(buchungen).all()).toHaveLength(zeilenVorher);
     expect(inventurBuchungen()).toEqual([]);
@@ -246,7 +248,7 @@ describe("inventurKorrektur — LIVE-Handlagerbestand", () => {
       positionen: [{ artikelId: "art-ort", ist: 4 }],
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { korrigiert: 0 } });
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 0, inventurId: expect.any(String) } });
     expect(handlagerBestand("art-ort")).toBe(4);
     expect(inventurBuchungen()).toEqual([]);
   });
@@ -265,7 +267,7 @@ describe("inventurKorrektur — diff < 0", () => {
       positionen: [{ artikelId: "art-fefo", ist: 5 }],
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { korrigiert: 1 } });
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 1, inventurId: expect.any(String) } });
     expect(handlagerBestand("art-fefo")).toBe(5);
     const korrekturen = inventurBuchungen();
     expect(korrekturen).toHaveLength(2);
@@ -368,7 +370,7 @@ describe("inventurKorrektur — diff > 0 waehlt die juengste Charge", () => {
       positionen: [{ artikelId: "art-ohne-charge", ist: 4 }],
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { korrigiert: 1 } });
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 1, inventurId: expect.any(String) } });
     const neueChargen = t.db.select().from(chargen).all()
       .filter((c) => c.artikelId === "art-ohne-charge");
     expect(neueChargen).toHaveLength(1);
@@ -406,7 +408,7 @@ describe("inventurKorrektur — ein Lauf", () => {
       ],
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { korrigiert: 2 } });
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 2, inventurId: expect.any(String) } });
     const korrekturen = inventurBuchungen();
     expect(korrekturen).toHaveLength(2);
     expect(new Set(korrekturen.map((b) => b.referenz)).size).toBe(1);
@@ -414,5 +416,177 @@ describe("inventurKorrektur — ein Lauf", () => {
     expect(korrekturen.map((b) => b.artikelId).sort()).toEqual(["art-minus", "art-plus"]);
     expect(korrekturen.every((b) => b.kommentar === "Gemeinsamer Lauf")).toBe(true);
     expect(revalidiert).toEqual(ERFOLGS_PFADE);
+  });
+});
+
+function laeufe() { return t.db.select().from(inventuren).all(); }
+function positionen() { return t.db.select().from(inventurPositionen).all(); }
+function chargenBestand(chargeId: string): number {
+  return t.db.select().from(buchungen).all()
+    .filter((b) => b.chargeId === chargeId && b.lagerortId === HANDLAGER_ID)
+    .reduce((s, b) => s + b.menge, 0);
+}
+
+describe("inventurKorrektur — der Lauf wird gespeichert", () => {
+  it("speichert Kopf und JEDE angefasste Artikelposition, auch ohne Abweichung", async () => {
+    legeArtikelAn("art-gleich"); legeChargeAn({ id: "c-gleich", artikelId: "art-gleich", verfall: "2028-01" });
+    legeArtikelAn("art-minus"); legeChargeAn({ id: "c-minus", artikelId: "art-minus", verfall: "2028-01" });
+    buche({ artikelId: "art-gleich", chargeId: "c-gleich", menge: 5 });
+    buche({ artikelId: "art-minus", chargeId: "c-minus", menge: 5 });
+
+    const erg = await inventurKorrektur({
+      kommentar: " Quartal ",
+      umfang: { kategorien: ["Hygiene"], faecher: ["A1"] },
+      positionen: [{ artikelId: "art-gleich", ist: 5 }, { artikelId: "art-minus", ist: 3 }],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 1, inventurId: expect.any(String) } });
+    const inventurId = (erg as { ok: true; wert: { inventurId: string } }).wert.inventurId;
+    expect(laeufe()).toEqual([expect.objectContaining({
+      id: inventurId, quelleTyp: "oidc", quelleId: "u-admin", kommentar: "Quartal",
+      umfang: JSON.stringify({ kategorien: ["Hygiene"], faecher: ["A1"] }),
+    })]);
+    expect(positionen().map((p) => [p.artikelId, p.chargeId, p.erwartet, p.gezaehlt]).sort())
+      .toEqual([["art-gleich", null, 5, 5], ["art-minus", null, 5, 3]]);
+    expect(inventurBuchungen().every((b) => b.referenz === `inventur:${inventurId}`)).toBe(true);
+  });
+
+  it("speichert umfang null, wenn kein Filter mitkommt", async () => {
+    legeArtikelAn("art-a");
+    await inventurKorrektur({ kommentar: "Voll", positionen: [{ artikelId: "art-a", ist: 0 }] }, t.db);
+    expect(laeufe()[0]!.umfang).toBeNull();
+  });
+});
+
+describe("inventurKorrektur — Zaehlung je Charge", () => {
+  beforeEach(() => {
+    legeArtikelAn("art-c");
+    legeChargeAn({ id: "c-frueh", artikelId: "art-c", verfall: "2026-10" });
+    legeChargeAn({ id: "c-spaet", artikelId: "art-c", verfall: "2029-01" });
+    buche({ artikelId: "art-c", chargeId: "c-frueh", menge: 4 });
+    buche({ artikelId: "art-c", chargeId: "c-spaet", menge: 6 });
+  });
+
+  it("laesst eine NICHT angefasste Charge unveraendert — nie implizit 0", async () => {
+    const erg = await inventurKorrektur({
+      kommentar: "Charge",
+      positionen: [{ artikelId: "art-c", chargen: [{ chargeId: "c-spaet", ist: 6 }], neu: [] }],
+    }, t.db);
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 0 } });
+    expect(chargenBestand("c-frueh")).toBe(4);
+    expect(inventurBuchungen()).toEqual([]);
+    expect(positionen().map((p) => [p.chargeId, p.erwartet, p.gezaehlt])).toEqual([["c-spaet", 6, 6]]);
+  });
+
+  it("bucht Minus und Plus auf GENAU die gezaehlte Charge, nicht per FEFO", async () => {
+    const erg = await inventurKorrektur({
+      kommentar: "Charge",
+      positionen: [{ artikelId: "art-c", chargen: [
+        { chargeId: "c-spaet", ist: 1 },
+        { chargeId: "c-frueh", ist: 7 },
+      ], neu: [] }],
+    }, t.db);
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 2 } });
+    expect(chargenBestand("c-spaet")).toBe(1);
+    expect(chargenBestand("c-frueh")).toBe(7);
+    expect(inventurBuchungen().map((b) => [b.chargeId, b.menge, b.typ]).sort())
+      .toEqual([["c-frueh", 3, "korrektur"], ["c-spaet", -5, "korrektur"]]);
+  });
+
+  it("rechnet erwartet gegen den LIVE-Rest der Charge", async () => {
+    buche({ artikelId: "art-c", chargeId: "c-frueh", menge: -3, typ: "entnahme" });
+    await inventurKorrektur({
+      kommentar: "Live",
+      positionen: [{ artikelId: "art-c", chargen: [{ chargeId: "c-frueh", ist: 1 }], neu: [] }],
+    }, t.db);
+    expect(positionen()[0]).toMatchObject({ chargeId: "c-frueh", erwartet: 1, gezaehlt: 1 });
+    expect(inventurBuchungen()).toEqual([]);
+  });
+
+  it.each([
+    ["eine fremde Charge", "c-fremd"],
+    ["eine unbekannte Charge", "gibt-es-nicht"],
+  ])("weist %s ab und schreibt NICHTS, auch keinen Lauf", async (_fall, chargeId) => {
+    legeArtikelAn("art-fremd");
+    legeChargeAn({ id: "c-fremd", artikelId: "art-fremd", verfall: "2028-01" });
+    const vorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await inventurKorrektur({
+      kommentar: "Fremd",
+      positionen: [
+        { artikelId: "art-c", chargen: [{ chargeId: "c-spaet", ist: 0 }], neu: [] },
+        { artikelId: "art-c-zwei", chargen: [{ chargeId, ist: 1 }], neu: [] },
+      ],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: INVENTUR_TEXTE.chargeUnpassend });
+    expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
+    expect(laeufe()).toEqual([]);
+    expect(positionen()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("legt eine ergaenzte Charge mit ECHTEM MHD an; leere Nummer wird Inventur", async () => {
+    const erg = await inventurKorrektur({
+      kommentar: "Fund",
+      positionen: [{ artikelId: "art-c", chargen: [], neu: [{ verfall: "2027-03", chargenNr: "  ", ist: 2 }] }],
+    }, t.db);
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    const neu = t.db.select().from(chargen).all().filter((c) => c.verfall === "2027-03");
+    expect(neu).toHaveLength(1);
+    expect(neu[0]).toMatchObject({ artikelId: "art-c", chargenNr: CHARGE_INVENTUR });
+    expect(neu[0]!.verfall).not.toBe(PSEUDO_VERFALL);
+    expect(chargenBestand(neu[0]!.id)).toBe(2);
+    expect(positionen()[0]).toMatchObject({ chargeId: neu[0]!.id, erwartet: 0, gezaehlt: 2 });
+  });
+
+  it("verwendet bei gleichem Schluessel die juengste vorhandene Charge wieder", async () => {
+    legeChargeAn({ id: "c-alt-leer", artikelId: "art-c", verfall: "2027-05", chargenNr: "L-1", createdAt: new Date("2025-01-01T00:00:00Z") });
+    legeChargeAn({ id: "c-neu-leer", artikelId: "art-c", verfall: "2027-05", chargenNr: "L-1", createdAt: new Date("2026-01-01T00:00:00Z") });
+    const vorher = t.db.select().from(chargen).all().length;
+
+    await inventurKorrektur({
+      kommentar: "Fund",
+      positionen: [{ artikelId: "art-c", chargen: [], neu: [{ verfall: "2027-05", chargenNr: "L-1", ist: 3 }] }],
+    }, t.db);
+
+    expect(t.db.select().from(chargen).all()).toHaveLength(vorher);
+    expect(chargenBestand("c-neu-leer")).toBe(3);
+    expect(chargenBestand("c-alt-leer")).toBe(0);
+  });
+
+  it("weist eine Ergaenzung ab, die eine gleichzeitig gezaehlte Charge trifft", async () => {
+    legeChargeAn({ id: "c-nr", artikelId: "art-c", verfall: "2027-07", chargenNr: "X-9" });
+    const erg = await inventurKorrektur({
+      kommentar: "Doppelt",
+      positionen: [{ artikelId: "art-c",
+        chargen: [{ chargeId: "c-nr", ist: 1 }],
+        neu: [{ verfall: "2027-07", chargenNr: "X-9", ist: 1 }] }],
+    }, t.db);
+    expect(erg).toEqual({ ok: false, fehler: INVENTUR_TEXTE.chargeDoppelt });
+    expect(laeufe()).toEqual([]);
+  });
+});
+
+describe("inventurKorrektur — Schema der Chargenposition", () => {
+  it.each([
+    ["ohne Charge und ohne Ergaenzung", { artikelId: "a", chargen: [], neu: [] }],
+    ["mit ist UND chargen", { artikelId: "a", ist: 1, chargen: [{ chargeId: "c", ist: 1 }], neu: [] }],
+    ["mit doppelter chargeId", { artikelId: "a", chargen: [{ chargeId: "c", ist: 1 }, { chargeId: "c", ist: 2 }], neu: [] }],
+    ["mit Ergaenzung ist 0", { artikelId: "a", chargen: [], neu: [{ verfall: "2027-01", ist: 0 }] }],
+    ["mit ungueltigem Monat", { artikelId: "a", chargen: [], neu: [{ verfall: "2027-13", ist: 1 }] }],
+    ["mit zwei gleichen Ergaenzungen", { artikelId: "a", chargen: [], neu: [{ verfall: "2027-01", ist: 1 }, { verfall: "2027-01", chargenNr: "", ist: 2 }] }],
+  ])("weist eine Position %s ab", async (_fall, position) => {
+    const erg = await inventurKorrektur({ kommentar: "Schema", positionen: [position] }, t.db);
+    expect(erg).toMatchObject({ ok: false, fehler: "Bitte die markierten Felder prüfen." });
+    expect(laeufe()).toEqual([]);
+  });
+
+  it("weist denselben Artikel in zwei Positionen ab", async () => {
+    const erg = await inventurKorrektur({
+      kommentar: "Schema",
+      positionen: [{ artikelId: "a", ist: 1 }, { artikelId: "a", chargen: [{ chargeId: "c", ist: 1 }], neu: [] }],
+    }, t.db);
+    expect(erg).toMatchObject({ ok: false, fehler: "Bitte die markierten Felder prüfen." });
   });
 });

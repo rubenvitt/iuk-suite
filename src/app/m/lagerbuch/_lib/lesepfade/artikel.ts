@@ -22,14 +22,14 @@ import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
 
-type FefoSortierbareCharge = {
+export type FefoSortierbareCharge = {
   id: string;
   verfall: string;
   createdAt: Date;
 };
 
 /** Dieselbe totale Ordnung wie `_lib/domain/fefo.ts`: Verfall, Alter, ID. */
-function vergleicheFefoCharge(a: FefoSortierbareCharge, b: FefoSortierbareCharge): number {
+export function vergleicheFefoCharge(a: FefoSortierbareCharge, b: FefoSortierbareCharge): number {
   return a.verfall.localeCompare(b.verfall)
     || a.createdAt.getTime() - b.createdAt.getTime()
     || a.id.localeCompare(b.id);

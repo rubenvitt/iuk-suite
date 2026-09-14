@@ -43,6 +43,13 @@
       "when": 1789401600000,
       "tag": "0005_artikel_kategorie",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789466400000,
+      "tag": "0006_inventuren",
+      "breakpoints": true
     }
   ]
 }
