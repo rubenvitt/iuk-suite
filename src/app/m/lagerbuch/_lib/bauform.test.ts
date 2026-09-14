@@ -1170,11 +1170,17 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // NACHTRAG 14.09.2026 (DRK-294): `KategorieEingabe.tsx` kommt dazu — das
     // Kategoriefeld, das der Dialog „Neuer Artikel" und die Stammdaten der
     // Schublade teilen. Beide Nutzer sind Verwaltung; zwoelf Namen.
+    //
+    // NACHTRAG 14.09.2026 (DRK-293): `SammelDrawer.tsx` kommt dazu — die
+    // Schublade, die mehrere Artikel gemeinsam bearbeitet. Sie haengt allein an
+    // `verwaltung/(arbeit)/artikel/ArtikelTable.tsx` und liegt nur deshalb
+    // neben `ArtikelDrawer.tsx`, weil die beiden dieselben Bausteine teilen.
+    // Dreizehn Namen.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
-      "KategorieEingabe.tsx",
+      "KategorieEingabe.tsx", "SammelDrawer.tsx",
     ]);
     const WURZEL = join(MODUL, "page.tsx");
     const dateien = [
@@ -1185,12 +1191,12 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // genau das passiert bei jeder Aenderung, die die Astliste von der Platte
     // entkoppelt (Umbenennung von `_ui/` oder `helfer/`, ein zusaetzlicher
     // Ausschluss in `quellDateien()`, eine Verschiebung von `a/[artikelId]`).
-    // Elf der zwoelf `_ui/*.tsx` tragen einen EIGENEN antd-Scan; SIEBEN der
-    // achtzehn Dateien haben keinen (`_ui/Restzeit.tsx`, `page.tsx`,
+    // Zwoelf der dreizehn `_ui/*.tsx` tragen einen EIGENEN antd-Scan; SIEBEN der
+    // neunzehn Dateien haben keinen (`_ui/Restzeit.tsx`, `page.tsx`,
     // `helfer/page.tsx`, `helfer/layout.tsx` — gar keine eigene Testdatei —,
     // `helfer/check/page.tsx`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts`).
     // Fuer die faellt ein leerer Modulscan nicht auf.
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(18);
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(19);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;

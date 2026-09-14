@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, Button, Checkbox, Flex, Select, Table } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { setzeAusgeblendeteKategorien } from "../../../_actions/kategorien";
@@ -20,11 +21,13 @@ import {
 import type { Ampel } from "../../../_lib/domain/verfall";
 import { ampelTon } from "../../../_lib/format";
 import { kategorieOptionen } from "../../../_lib/kategorie";
+import type { SammelZeile } from "../../../_lib/sammelAenderung";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { ArtikelDrawer } from "../../../_ui/ArtikelDrawer";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { Plakette } from "../../../_ui/Plakette";
+import { SammelDrawer } from "../../../_ui/SammelDrawer";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import s from "../../../_ui/verwaltung.module.css";
@@ -135,6 +138,19 @@ export function ArtikelTable({
    */
   const [ausgeblendet, setAusgeblendet] = useState<string[]>(ausgeblendeteKategorien);
   const [kategorieFehler, setKategorieFehler] = useState<string | null>(null);
+  /**
+   * DRK-293 — die angekreuzten Artikel, als Kennungen und NICHT als Zeilen.
+   *
+   * ⚠️ `preserveSelectedRowKeys` HAELT DIE AUSWAHL UEBER EINEN FILTERWECHSEL
+   * HINWEG, und das ist die Absicht: „drei Mullbinden suchen und ankreuzen, dann
+   * zwei Pflaster" ist der Vorgang, um den es geht. Der Preis waere eine
+   * unsichtbare Auswahl — deshalb zaehlt die Leiste sie, und die Schublade
+   * NENNT JEDEN Artikel beim Namen, bevor gespeichert wird.
+   */
+  const [auswahl, setAuswahl] = useState<string[]>([]);
+  const [sammelOffen, setSammelOffen] = useState(false);
+  const [sammelHinweis, setSammelHinweis] = useState<string | null>(null);
+  const router = useRouter();
 
   const kategorien = useMemo(
     () => kategorieOptionen(zeilen.map((zeile) => zeile.kategorie)),
@@ -155,6 +171,24 @@ export function ArtikelTable({
     () => zeilen.filter((zeile) => !artikelTrifft(zeile, LEERER_FILTER, ausgeblendetMenge)).length,
     [zeilen, ausgeblendetMenge],
   );
+
+  /**
+   * Die ausgewaehlten Artikel als Zeilen — gegen `zeilen` aufgeloest, nie gegen
+   * `gefiltert`: eine Auswahl ueberlebt den Filter, und eine Kennung, die es
+   * nicht mehr gibt (die Liste ist neu geladen worden), faellt hier still weg
+   * statt in der Vorschau als Geisterzeile zu stehen.
+   */
+  const ausgewaehlt = useMemo<SammelZeile[]>(() => {
+    const menge = new Set(auswahl);
+    return artikelSortieren(zeilen.filter((zeile) => menge.has(zeile.id)), "name-asc")
+      .map((zeile) => ({
+        id: zeile.id,
+        name: zeile.name,
+        kategorie: zeile.kategorie,
+        fach: zeile.fach,
+        aktiv: zeile.aktiv,
+      }));
+  }, [zeilen, auswahl]);
 
   /**
    * Eine gespeicherte Kategorie, zu der kein Artikel mehr passt, erscheint
@@ -347,6 +381,35 @@ export function ArtikelTable({
         </Button>
         <NeuArtikel kategorien={kategorien.map((option) => option.label)} />
       </Flex>
+      {ausgewaehlt.length > 0 ? (
+        <Flex
+          gap={SPACE.md}
+          align="center"
+          wrap
+          data-testid="sammel-leiste"
+          style={{ marginBlockEnd: SPACE.md }}
+        >
+          <span style={SCHRIFT.feldname}>
+            {ausgewaehlt.length} ausgewählt
+          </span>
+          <Button type="primary" onClick={() => setSammelOffen(true)}>
+            Auswahl bearbeiten
+          </Button>
+          <Button type="link" style={{ padding: 0 }} onClick={() => setAuswahl([])}>
+            Auswahl aufheben
+          </Button>
+        </Flex>
+      ) : null}
+      {sammelHinweis ? (
+        <Alert
+          type="success"
+          showIcon={false}
+          title={sammelHinweis}
+          closable
+          onClose={() => setSammelHinweis(null)}
+          style={{ marginBlockEnd: SPACE.md }}
+        />
+      ) : null}
       {durchKategorienAusgeblendet > 0 ? (
         // Ein fehlender Artikel soll nicht wie ein geloeschter aussehen: die
         // gespeicherte Auswahl wirkt schon beim Aufschlagen, ohne dass in
@@ -398,7 +461,31 @@ export function ArtikelTable({
             ? "Kein Artikel passt zu Suche und Filter."
             : "Noch keine Artikel. Lege oben den ersten an.",
         }}
-        onRow={(zeile) => ({ onClick: () => setOffenerArtikel(zeile.id) })}
+        rowSelection={{
+          selectedRowKeys: auswahl,
+          onChange: (schluessel) => {
+            setAuswahl(schluessel.map(String));
+            // „5 Artikel geaendert." neben einer frisch begonnenen Auswahl liest
+            // sich wie eine Meldung ueber DIESE Auswahl.
+            setSammelHinweis(null);
+          },
+          preserveSelectedRowKeys: true,
+        }}
+        onRow={(zeile) => ({
+          onClick: (ereignis) => {
+            // ⚠️ DER KLICK AUF DAS KREUZCHEN DARF DIE SCHUBLADE NICHT OEFFNEN.
+            // antds Auswahlspalte liegt in DERSELBEN `<tr>`, ihr Klick blubbert
+            // also hierher; ohne diese Zeile beantwortet jedes Ankreuzen sich
+            // selbst mit den Artikeldetails. Geprueft wird auf `<label>` und
+            // nicht auf `.ant-table-selection-column`: antds `Checkbox` rendert
+            // sein Wurzelelement als `<label>` (`antd/es/checkbox/Checkbox.js`),
+            // und keine andere Zelle dieser Tabelle traegt eines — eine
+            // Klassenname-Probe haengt dagegen an einem Detail, das ein
+            // antd-Sprung still aendern kann.
+            if ((ereignis.target as HTMLElement).closest("label")) return;
+            setOffenerArtikel(zeile.id);
+          },
+        })}
         // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS
         // gegen `.ant-table-thead` (docs/design/README.md).
         columns={[
@@ -490,6 +577,26 @@ export function ArtikelTable({
           },
         ]}
       />
+
+      {sammelOffen ? (
+        <SammelDrawer
+          zeilen={ausgewaehlt}
+          kategorien={kategorien.map((option) => option.label)}
+          onSchliessen={() => setSammelOffen(false)}
+          onFertig={(betroffen) => {
+            setSammelOffen(false);
+            setAuswahl([]);
+            setSammelHinweis(
+              betroffen === 1 ? "1 Artikel geändert." : `${betroffen} Artikel geändert.`,
+            );
+            // Wie `NeuArtikel`: die Action revalidiert den Pfad, und `refresh()`
+            // holt den neuen Serverstand in diese schon stehende Insel. Ohne das
+            // zeigte die Tabelle die alten Werte — und die naechste Vorschau
+            // rechnete gegen sie.
+            router.refresh();
+          }}
+        />
+      ) : null}
 
       {offenerArtikel ? (
         <ArtikelDrawer

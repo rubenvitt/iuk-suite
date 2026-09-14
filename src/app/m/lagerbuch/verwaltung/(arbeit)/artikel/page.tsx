@@ -44,7 +44,10 @@ export function artikelSeitenInhalt(db: DB, jetzt: Date, userId: string): ReactN
     <>
       <SeitenKopf
         titel="Artikel & Bestand"
-        beschreibung="Handlager · Klick auf eine Zeile öffnet Chargen, Buchung und Stammdaten."
+        beschreibung={
+          "Handlager · Klick auf eine Zeile öffnet Chargen, Buchung und Stammdaten. "
+          + "Kreuze mehrere an, um sie gemeinsam zu bearbeiten."
+        }
       />
       <ArtikelTable
         zeilen={artikelAnzeigeZeilen(db, jetzt)}
