@@ -729,7 +729,9 @@ function bestueckung(lage: Lage, blind: boolean): void {
         // Ueberschrift sagt das, statt eine leere „Soll"-Spalte zu zeigen.
         { kopf: blind ? "Einheit" : "Soll", mm: 20, aus: "rechts" },
         { kopf: "Ist", mm: 22, aus: "rechts", schreibfeld: true },
-        { kopf: "Verfall", mm: 26 },
+        // Ein Schreibfeld wie „Ist": der Verfall wird abgelesen, nicht ein
+        // vorgedruckter Monat abgehakt (Kopf von `lesepfade/checkliste.ts`).
+        { kopf: "Verfall", mm: 26, schreibfeld: true },
       ],
       fach.positionen.map((position): Zelle[] => [
         { art: "kasten" },
@@ -745,16 +747,7 @@ function bestueckung(lage: Lage, blind: boolean): void {
           laeufe: [{ text: blind ? position.einheit : `${position.soll} ${position.einheit}` }],
         },
         { art: "leer" },
-        {
-          art: "text",
-          laeufe: position.verfallText === null ? [] : [{
-            text: (position.verfallAuffaellig ? "! " : "") + position.verfallText,
-            klein: true,
-            // Papier ist einfarbig: die Auszeichnung ist fett plus Rufzeichen,
-            // nie Rot.
-            fett: position.verfallAuffaellig,
-          }],
-        },
+        { art: "leer" },
       ]),
     );
   }
