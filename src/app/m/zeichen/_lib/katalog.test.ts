@@ -17,6 +17,64 @@ import {
 
 const GENERAT = "src/app/m/zeichen/_lib/katalog.generiert.json";
 
+/** Der lokale tsx — siehe die Messung unten, warum nicht ueber `pnpm exec`. */
+const TSX = "node_modules/.bin/tsx";
+
+/*
+ * WARUM DIESE ZWEI FAELLE EIN EIGENES ZEITBUDGET BRAUCHEN (DRK-330, Fund aus DRK-299).
+ *
+ * Sie sind die einzigen der Datei, die einen KINDPROZESS starten — alle uebrigen 17
+ * rechnen auf dem schon geladenen Generat und liegen bei 0 bis 13 ms. Ihre Kosten sind
+ * deshalb nicht die 541 KB, die geschrieben werden, sondern der Start eines zweiten
+ * Node-Prozesses samt Modulgraph des Katalogpakets.
+ *
+ * GEMESSEN (15.09.2026, Container mit 4 Kernen, Node 22.22.2, Vitest 4.1.11):
+ *   – beide Faelle einzeln, noch ueber `pnpm exec`: 1491 ms und 1487 ms
+ *   – dieselben Faelle unter der VOLLEN Suitenlast (647 Dateien, 10 932 Faelle,
+ *     399 s Gesamtdauer): 1551 ms und 1562 ms — die Last allein traegt also nur ~4 %.
+ *     Die Kosten sind der Prozessvorlauf, nicht die Gleichzeitigkeit.
+ *   – der Generatorlauf nackt auf der Kommandozeile: 610 ms direkt gegen 1490 ms ueber
+ *     `pnpm exec`. Diese ~880 ms sind reiner pnpm-Vorlauf, zweimal je Lauf; deshalb
+ *     ruft der Test unten `node_modules/.bin/tsx` direkt auf. Die Ausgabe beider Wege
+ *     wurde byteweise verglichen — identisch. Der dokumentierte Weg fuer Menschen
+ *     bleibt `pnpm exec tsx scripts/zeichen-generat.ts`.
+ *   – nach dieser Umstellung IN VITEST: 658 ms und 646 ms, die ganze Datei 2,03 s
+ *     statt 3,69 s. Das ist der Wert, gegen den die Grenze unten zu lesen ist.
+ *
+ * WARUM 20 000 MS UND NICHT DIE 5 S DER VORGABE: DRK-299 hat die Vorgabe zweimal
+ * reissen sehen — Vitest parallel zu Playwright unter Volllast. Isoliert ist die Datei
+ * dort gruen geblieben, was genau die Falle ist: der Ausfall haengt an der Maschine,
+ * nicht an der Aenderung, die ihn ausloest. Die CI verstaerkt rechen- und
+ * dateilastige Dateien dieses Repos um Faktor 1,5 bis 7 (nicht um 30 bis 125 wie
+ * commit-lastige SQLite-Dateien; die Messreihe steht in `files/_lib/seedLokal.test.ts`
+ * und `lagerbuch/_lib/seedLokal.test.ts`). Auf den Lastwert VOR der Umstellung
+ * angewandt sind das 1562 ms × 7 = 10,9 s — ueber der Vorgabe und unter dieser Zahl.
+ * Absichtlich der alte Wert: die 5 s wurden mit ihm gerissen, und eine Grenze, die nur
+ * mit der Beschleunigung haelt, waere beim naechsten langsameren Kindprozess wieder
+ * faellig. 20 000 ms sind damit rund das Dreissigfache des heute gemessenen
+ * Lastwertes und rund das Doppelte der schlechtesten Projektion. Es ist ABSICHTLICH
+ * dieselbe Zahl wie in den beiden anderen Ausnahmen des Repos: eine dritte, eigene
+ * Konstante waere schwerer zu pruefen als eine wiederholte.
+ *
+ * ⚠️ EINE BEOBACHTUNG, DIE DIE ZAHL NICHT TRAEGT, aber ein spaeterer Leser kennen
+ * sollte: der allererste Generatorlauf in diesem frisch bereitgestellten Container
+ * dauerte 21 648 ms — das Vierzehnfache aller spaeteren. Der Seitencache ist NICHT die
+ * Ursache (nach `drop_caches` lief derselbe Aufruf in 1700 ms), und nach dem ersten Mal
+ * liess sich der Wert im selben Container nicht wieder herstellen. Wahrscheinlich holt
+ * das Wurzeldateisystem dieser Sandbox Bloecke beim ersten Zugriff nach. Eine
+ * unaufgeklaerte Einzelbeobachtung aus einer Sandbox ist kein Fundament fuer eine
+ * Grenze — sonst waere die Zahl genau der Zufallswert, den dieses Ticket verhindern
+ * will. Wer sie in der echten CI wiedersieht, hat hier den Anknuepfungspunkt.
+ *
+ * ⛔ Die Zahl gilt NUR fuer diese zwei Faelle, nicht fuer die describe-Ebene und nicht
+ * global. Die uebrigen 17 Faelle dieser Datei bleiben bei 5 s, und der globale
+ * `testTimeout` bleibt es auch; ihn heraufzusetzen wuerde jeden kuenftigen Fall
+ * derselben Art verdecken. Nachgeprueft statt angenommen: mit `timeout: 1` faellt
+ * genau dieses Paar mit „Test timed out in 1ms", die anderen 17 bleiben gruen — die
+ * Zahl kommt also dort an, wo sie hingehoert, und nirgends sonst.
+ */
+const KINDPROZESS_BUDGET = { timeout: 20_000 };
+
 /** Das Generat ohne den einzigen nichtdeterministischen Wert. */
 const ohneDatum = (roh: string) => {
   const o = JSON.parse(roh) as { stand: Record<string, unknown> };
@@ -39,13 +97,11 @@ describe("Katalog-Generat", () => {
    * (`erzeugtAm` wechselt taeglich) und kein paralleler Worker liest eine halb
    * geschriebene 541-KB-Datei.
    */
-  it("entspricht dem installierten Paket", () => {
+  it("entspricht dem installierten Paket", KINDPROZESS_BUDGET, () => {
     const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
     try {
       const probe = join(ordner, "katalog.probe.json");
-      execFileSync("pnpm", ["exec", "tsx", "scripts/zeichen-generat.ts", probe], {
-        stdio: "pipe",
-      });
+      execFileSync(TSX, ["scripts/zeichen-generat.ts", probe], { stdio: "pipe" });
       expect(ohneDatum(readFileSync(probe, "utf8"))).toBe(
         ohneDatum(readFileSync(GENERAT, "utf8")),
       );
@@ -59,15 +115,13 @@ describe("Katalog-Generat", () => {
    * hinterliesse jeder Testlauf einen schmutzigen Arbeitsbaum — und der Waechter oben
    * pruefte am Ende nur noch sich selbst.
    */
-  it("laesst das eingecheckte Generat unangetastet", () => {
+  it("laesst das eingecheckte Generat unangetastet", KINDPROZESS_BUDGET, () => {
     const vorher = readFileSync(GENERAT, "utf8");
     const ordner = mkdtempSync(join(tmpdir(), "zeichen-generat-"));
     try {
-      execFileSync(
-        "pnpm",
-        ["exec", "tsx", "scripts/zeichen-generat.ts", join(ordner, "wegwerf.json")],
-        { stdio: "pipe" },
-      );
+      execFileSync(TSX, ["scripts/zeichen-generat.ts", join(ordner, "wegwerf.json")], {
+        stdio: "pipe",
+      });
       expect(readFileSync(GENERAT, "utf8")).toBe(vorher);
     } finally {
       rmSync(ordner, { recursive: true, force: true });
