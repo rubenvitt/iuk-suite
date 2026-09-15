@@ -17,7 +17,7 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  *    dieser Datei deckt das ab.
  *  - Nav-Icons ueber core/shell — die tatsaechliche Zeichenzahl in der
  *    gerenderten Navigation ist nur per echtem DOM zu zaehlen, nicht durch
- *    eine Quelltext-Analyse der 15 nav.ts-Eintraege.
+ *    eine Quelltext-Analyse der 16 nav.ts-Eintraege.
  *  - Die fuenf Kennzahlleisten (bz, geraete, geraete/[id], sauerstoff,
  *    vorlagen/[id]) — Original und Portierung teilen sich diesen Code, aber
  *    ob die BZ-Uebersicht ihn tatsaechlich rendert, ist erst am
