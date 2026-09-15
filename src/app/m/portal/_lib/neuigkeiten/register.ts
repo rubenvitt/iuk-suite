@@ -15,6 +15,7 @@ import mehrereArtikelBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/la
 import journalNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-journal-nachladen";
 import abgelaufenesJeFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-abgelaufenes-je-fahrzeug";
 import checkNurFuerDeinFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-nur-fuer-dein-fahrzeug";
+import entnahmeAufsFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-entnahme-aufs-fahrzeug";
 import mengenSelbstZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-mengen-selbst-zaehlen";
 import aussonderungUndInventurImJournal from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-aussonderung-und-inventur-im-journal";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
@@ -65,6 +66,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   journalNachladen,
   abgelaufenesJeFahrzeug,
   checkNurFuerDeinFahrzeug,
+  entnahmeAufsFahrzeug,
   mengenSelbstZaehlen,
   aussonderungUndInventurImJournal,
   neuerNameSammelhaus,

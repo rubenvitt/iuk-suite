@@ -28,6 +28,29 @@ import { HANDLAGER_ID } from "../konstanten";
 import { bestandJeArtikelUndLagerort, type Leser } from "./bestand";
 import { lagerortVerfallListe } from "./verfall";
 
+/**
+ * DIE EINE FRAGE „taugt dieser Lagerort als Buchungsziel?" — DRK-300.
+ *
+ * Beide Entnahmewege und die Zielwahl stellen sie, und alle drei brauchen
+ * dieselbe Antwort. Ohne sie entschiede der Fremdschlüssel, und der meldet
+ * „FOREIGN KEY constraint failed" — ein Satz, der der Verwaltenden nichts sagt
+ * und der Helferin am Regal noch weniger.
+ *
+ * ⚠️ DREI ZUSTÄNDE FALLEN DURCH, NICHT EINER: ein unbekannter Lagerort, ein
+ * STILLGELEGTES Fahrzeug und ein zweites LAGER. Die beiden letzten existieren
+ * — eine Prüfung, die nur auf „unbekannt" testet, lässt sie durch, und dann
+ * wandert Material vom Handlager ins Handlager.
+ *
+ * ⚠️ SIE WIRFT NICHT. Der Verwaltungsweg macht aus dem `false` seinen Wurf (sein
+ * `catch` verwandelt ihn in einen Rückgabewert), der Helfer-Weg ein `return` —
+ * der hat bewusst KEIN try/catch (Global Constraint 12), und ein Wurf landete
+ * dort als englischer Satz mit `digest` auf der Fehlerseite.
+ */
+export function istAktivesFahrzeug(db: Leser, id: string): boolean {
+  const ziel = db.select().from(lagerorte).where(eq(lagerorte.id, id)).get();
+  return Boolean(ziel && ziel.typ === "fahrzeug" && ziel.aktiv);
+}
+
 export function fahrzeugListe(db: Leser) {
   return db.select().from(lagerorte).where(eq(lagerorte.typ, "fahrzeug")).all()
     .map((f) => ({ id: f.id, name: f.name, kennung: f.kennung,
