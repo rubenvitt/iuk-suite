@@ -147,7 +147,7 @@ export async function aussondernVomLagerort(
             return "Artikel steht an diesem Fahrzeug nicht im Soll.";
           }
 
-          const rest = restJeChargeFuerArtikel(tx, v.artikelId, v.lagerortId);
+          const rest = restJeChargeFuerArtikel(tx, v.artikelId, [v.lagerortId]);
           // Der Bestand des ARTIKELS am Ort — Bezugsgröße der Verfallsfrage
           // unten, und beim Chargenabgang ausdrücklich NICHT die Charge allein.
           let gesamt = 0;
@@ -182,7 +182,7 @@ export async function aussondernVomLagerort(
             fefoAbbuchung(tx, {
               artikelId: v.artikelId,
               menge: v.menge,
-              lagerortId: v.lagerortId,
+              orte: [v.lagerortId],
               quelle,
               kommentar: v.kommentar,
               referenz: `${AUSSONDERN_PRAEFIX}${v.lagerortId}`,

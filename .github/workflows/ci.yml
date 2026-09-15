@@ -170,8 +170,10 @@ jobs:
   # Migrations-Dreieck.
   #
   # Die Wanduhr leidet nicht: der kritische Pfad ist die groesste Gruppe, nicht
-  # die Summe — die Gruppen laufen parallel. Gemessen mit `--list` (449 Faelle
-  # in 47 Dateien, die zwei `testIgnore`-Dateien nicht mitgezaehlt):
+  # die Summe — die Gruppen laufen parallel. Momentaufnahme vom 2026-09-15,
+  # gemessen mit `--list` (449 Faelle in 47 Dateien, die zwei
+  # `testIgnore`-Dateien nicht mitgezaehlt) — eine Auskunft, KEINE Zusage:
+  # die Zahlen wandern mit jedem neuen Fall, und nichts prueft sie nach.
   #
   #   lagerbuch 134 · aufgaben 93 · suite-huelle 60 · files-feedback 54
   #   radio 42 · suite-verwaltung 42 · uav-zeichen 24

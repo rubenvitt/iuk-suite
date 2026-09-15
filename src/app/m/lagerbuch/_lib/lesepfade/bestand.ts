@@ -30,12 +30,12 @@
  * ⚠️ DIE REINEN FUNKTIONEN IN `_lib/domain/bestand.ts` BLEIBEN DIE SPEZIFIKATION.
  * Jedes Aggregat hier schuldet einen Differenztest gegen sie (§5.2.4, Punkt 2).
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { artikel, buchungen, chargen } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { verfallStatus, verfallSchwellen } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
+import { handlagerOrte, ortStamm } from "./orte";
 
 /**
  * Alles, was `select()` kann — die echte Verbindung ODER eine offene Transaktion.
@@ -49,28 +49,34 @@ import { braucht } from "../domain/vorschlag";
 export type Leser = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 /**
- * Bestand je Artikel AN EINEM Lagerort. Ersetzt jede `allBu.filter()`-Schleife.
- * Index: `idx_buchungen_lagerort_artikel` (§4.14).
+ * Bestand je Artikel über einen BEREICH von Orten (DRK-297: Handlager plus
+ * Schränke, oder ein einzelnes Fahrzeug als einelementige Liste).
+ * Index: `idx_buchungen_lagerort_artikel`.
+ *
+ * ⚠️ EINE LEERE LISTE ERGIBT `WHERE false` und damit überall 0 — still.
+ * `handlagerOrte` liefert deshalb immer mindestens die Wurzel
+ * (`_lib/lesepfade/orte.ts`).
  */
-export function bestandJeArtikel(db: Leser, lagerortId: string): Map<string, number> {
+export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ artikelId: buchungen.artikelId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
-    .where(eq(buchungen.lagerortId, lagerortId))
+    .where(inArray(buchungen.lagerortId, [...orte]))
     .groupBy(buchungen.artikelId)
     .all();
   return new Map(rows.map((r) => [r.artikelId, r.summe]));
 }
 
 /**
- * Rest je Charge AN EINEM Lagerort. Ersetzt `bestandProLagerortUndCharge` ueber
- * die Vollladung. Index: `idx_buchungen_lagerort_artikel`.
+ * Rest je Charge über einen BEREICH von Orten. Ersetzt
+ * `bestandProLagerortUndCharge` ueber die Vollladung.
+ * Index: `idx_buchungen_lagerort_artikel`.
  */
-export function restJeCharge(db: Leser, lagerortId: string): Map<string, number> {
+export function restJeCharge(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ chargeId: buchungen.chargeId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
-    .where(eq(buchungen.lagerortId, lagerortId))
+    .where(inArray(buchungen.lagerortId, [...orte]))
     .groupBy(buchungen.chargeId)
     .all();
   return new Map(rows.map((r) => [r.chargeId, r.summe]));
@@ -118,15 +124,100 @@ export function bestandJeArtikelUndLagerort(db: Leser): Map<string, Map<string, 
  * WHERE-Klausel taugt.
  */
 export function restJeChargeFuerArtikel(
-  db: Leser, artikelId: string, lagerortId: string,
+  db: Leser, artikelId: string, orte: readonly string[],
 ): Map<string, number> {
   const rows = db
     .select({ chargeId: buchungen.chargeId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
-    .where(and(eq(buchungen.artikelId, artikelId), eq(buchungen.lagerortId, lagerortId)))
+    .where(and(eq(buchungen.artikelId, artikelId), inArray(buchungen.lagerortId, [...orte])))
     .groupBy(buchungen.chargeId)
     .all();
   return new Map(rows.map((r) => [r.chargeId, r.summe]));
+}
+
+/**
+ * DRK-297 — Rest je (Charge, Ort) für EINEN Artikel, über ALLE Orte. Eine
+ * Abfrage, `GROUP BY charge_id, lagerort_id`.
+ *
+ * ⚠️ KEIN ORTS-PRÄDIKAT, und das ist der Punkt: die Anzeige soll „Schrank 1: 5
+ * · RTW 1: 7" zeigen können. Genau dieser fehlende Filter behebt den Befund,
+ * dass eine Charge, die vollständig im Fahrzeug liegt, aus dem Artikeldetail
+ * verschwindet.
+ *
+ * ⚠️ DIE SCHACHTELUNG IST VERTRAG: AUSSEN die Charge, INNEN der Ort. Die
+ * Anzeige iteriert Chargen und schlägt darin die Orte nach.
+ */
+export function restJeChargeUndOrt(
+  db: Leser, artikelId: string,
+): Map<string, Map<string, number>> {
+  const rows = db
+    .select({
+      chargeId: buchungen.chargeId,
+      lagerortId: buchungen.lagerortId,
+      summe: sql<number>`sum(${buchungen.menge})`,
+    })
+    .from(buchungen)
+    .where(eq(buchungen.artikelId, artikelId))
+    .groupBy(buchungen.chargeId, buchungen.lagerortId)
+    .all();
+  const m = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    // Ein Ort mit Rest 0 (alles wieder herausgebucht) ist kein Liegeplatz.
+    if (r.summe <= 0) continue;
+    let innen = m.get(r.chargeId);
+    if (!innen) { innen = new Map(); m.set(r.chargeId, innen); }
+    innen.set(r.lagerortId, r.summe);
+  }
+  return m;
+}
+
+export type OrtVerteilungEintrag = {
+  id: string; name: string; menge: number; zugangshinweis: string | null;
+};
+
+/**
+ * DRK-297, Fixrunde 1 zu Aufgabe 12 — GEMEINSAMER KERN der Ortsverteilung fuer
+ * `_actions/detail.ts` (Verwaltung, Aufgabe 11) UND `_lib/lesepfade/artikel.ts`
+ * (`artikelDetailHelfer`, Aufgabe 12). Beide Seiten brauchten bislang eine
+ * WORTGLEICHE Kopie dieser rund dreissig Zeilen samt der `rang`-Sonderregel —
+ * genau die Kopie, vor der der eigene Auftrag warnt ("zwei Ansichten laufen
+ * sonst garantiert auseinander"), und die Regel ist nicht trivial genug, um sie
+ * zweimal richtig zu halten.
+ *
+ * Liefert je Charge die Verteilung UND ihre Summe, sortiert Handlager-Bereich
+ * ZUERST, Fahrzeuge DAHINTER, dann `sortierung`, dann Name.
+ *
+ * ⚠️ `sortierung` ALLEIN REICHT NICHT: ein Fahrzeug traegt den Default 0 und
+ * stuende damit VOR „Schrank 1" (10) — der Rang (Handlager-Bereich vor
+ * Fahrzeugen) entscheidet ZUERST.
+ */
+export function verteilungJeCharge(
+  db: Leser, artikelId: string,
+): Map<string, { orte: OrtVerteilungEintrag[]; restGesamt: number }> {
+  const verteilung = restJeChargeUndOrt(db, artikelId);
+  const stamm = ortStamm(db);
+  const imHandlager = new Set(handlagerOrte(db));
+
+  const ergebnis = new Map<string, { orte: OrtVerteilungEintrag[]; restGesamt: number }>();
+  for (const [chargeId, proOrt] of verteilung) {
+    const orte = [...proOrt.entries()]
+      .map(([ortId, menge]) => {
+        const o = stamm.get(ortId);
+        return {
+          id: ortId,
+          name: o?.name ?? ortId,
+          menge,
+          zugangshinweis: o?.zugangshinweis ?? null,
+          sortierung: o?.sortierung ?? 0,
+          rang: imHandlager.has(ortId) ? 0 : 1,
+        };
+      })
+      .sort((a, b) =>
+        a.rang - b.rang || a.sortierung - b.sortierung || a.name.localeCompare(b.name))
+      .map(({ sortierung: _s, rang: _r, ...rest }) => rest);
+    ergebnis.set(chargeId, { orte, restGesamt: orte.reduce((sum, o) => sum + o.menge, 0) });
+  }
+  return ergebnis;
 }
 
 export type Kennzahlen = {
@@ -165,8 +256,9 @@ export type Kennzahlen = {
 export function kennzahlen(db: Leser, now: Date = new Date()): Kennzahlen {
   const schwellen = verfallSchwellen();
   const arts = db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
-  const bestand = bestandJeArtikel(db, HANDLAGER_ID);
-  const restProCharge = restJeCharge(db, HANDLAGER_ID);
+  const orte = handlagerOrte(db);
+  const bestand = bestandJeArtikel(db, orte);
+  const restProCharge = restJeCharge(db, orte);
 
   let unterMindest = 0;
   let nichtBestellt = 0;

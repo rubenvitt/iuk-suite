@@ -23,7 +23,9 @@ export function umlagerung(
   args: {
     artikelId: string;
     menge: number;
-    vonLagerortId: string;
+    /** DRK-297 — die QUELLE ist ein Bereich (Handlager plus Schränke) oder ein
+     *  einzelnes Fahrzeug als einelementige Liste. */
+    vonOrten: readonly string[];
     nachLagerortId: string;
     quelle: Quelle;
     kommentar: string | null;
@@ -33,10 +35,10 @@ export function umlagerung(
     referenz: string;
   },
 ): { umgelagert: number; teile: Teil[] } {
-  const { artikelId, menge, vonLagerortId, nachLagerortId, quelle, kommentar, referenz } = args;
+  const { artikelId, menge, vonOrten, nachLagerortId, quelle, kommentar, referenz } = args;
 
   const { gebucht, teile } = fefoAbbuchung(tx, {
-    artikelId, menge, lagerortId: vonLagerortId, quelle, kommentar, referenz,
+    artikelId, menge, orte: vonOrten, quelle, kommentar, referenz,
     typ: "umlagerung",
   });
 

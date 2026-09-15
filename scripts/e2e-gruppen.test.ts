@@ -197,12 +197,18 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // BEIDEN Mengen — sie steht in keiner Gruppe, fehlt aber auch in der
     // Sollmenge, und der Test bleibt gruen, waehrend die CI sie nie faehrt.
     // `e2e/helpers/` gibt es schon; es fehlt nur die erste Datei darin.
+    //
+    // ⛔ HIER STAND EINE FESTE ZAHL (`toHaveLength(47)`), UND DAS WAR FALSCH.
+    // Sie sollte den Verlust einer Datei zu einer benannten Groesse machen,
+    // riss aber bei JEDEM PR, der eine Spec ERGAENZT — zuerst bei DRK-297, wo
+    // die Gruppierung nachweislich stimmte und nur die Zahl nicht mehr passte.
+    // Ein Tor, das bei richtiger Arbeit rot wird, erzieht zum Hochzaehlen ohne
+    // Hinsehen — und genau dieser Griff laesst die echte Abweichung durch.
+    // Was wirklich traegt, ist die Mengengleichheit oben; die braucht keine
+    // zweite Zahl daneben.
     const flach = readdirSync(E2E).filter((d) => SPEC_MUSTER.test(String(d)));
+    expect(alleSpecs()).toEqual(expect.arrayContaining(flach));
     expect(alleSpecs().length).toBeGreaterThanOrEqual(flach.length);
-    // Die Zusicherung, die wirklich traegt: was Playwright faehrt, ist genau
-    // das, was der Waechter gegen die Gruppen haelt. Gezaehlt gegen die
-    // Auswahl, die `--list` im vollen Lauf ergibt (449 Faelle in 47 Dateien).
-    expect(alleSpecs().filter((d) => !wirdAusgelassen(d))).toHaveLength(47);
   });
 
   it("`testIgnore` wird auf den GANZEN Pfad angewandt, nicht auf den Basisnamen", () => {

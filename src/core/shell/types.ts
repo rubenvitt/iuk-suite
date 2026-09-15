@@ -33,7 +33,12 @@ export type NavIkonName =
   // `vorlagen` (lagerbuch) meinen Pruefungen und Fahrzeugvorlagen, nicht Uebung und Lernset.
   // `zeichensuche` und nicht `suche`: gesucht wird hier ein taktisches Zeichen, und ein
   // allgemeiner Name laedt das naechste Modul ein, ihn fuer etwas anderes zu nehmen.
-  | "zeichensuche" | "merkliste" | "baukasten" | "ueben" | "lernsets";
+  | "zeichensuche" | "merkliste" | "baukasten" | "ueben" | "lernsets"
+  // DRK-297: die Schraenke des Handlagers. KEIN geliehener Name — `artikel`
+  // (PiPackage) meint das Material, nicht den Ort, an dem es liegt, und
+  // `fahrzeuge` ist der andere Lagerorttyp. Dieselbe Begruendung wie bei den
+  // Zeichen, die `radio`, `uav` und `zeichen` mitgebracht haben.
+  | "lagerorte";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

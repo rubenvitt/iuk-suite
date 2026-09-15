@@ -10,6 +10,7 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { ArtikelDrawer, zielFilter } from "./ArtikelDrawer";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
@@ -62,6 +63,10 @@ const DETAIL = {
       chargenNr: "ZZZ-ALT",
       verfall: "2026-12",
       rest: 4,
+      // DRK-297, Aufgabe 11: `restGesamt` und `orte` liegen ausschliesslich
+      // im Handlager-Bereich — dieselbe Zahl wie `rest`.
+      restGesamt: 4,
+      orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 4, zugangshinweis: null }],
       ampel: "gelb" as const,
       text: "fällig 12/26",
     },
@@ -70,6 +75,8 @@ const DETAIL = {
       chargenNr: "AAA-NEU",
       verfall: "2027-03",
       rest: 3,
+      restGesamt: 3,
+      orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 3, zugangshinweis: null }],
       ampel: "gruen" as const,
       text: "bis 03/27",
     },
@@ -85,13 +92,24 @@ const DETAIL = {
     },
   ],
   mehrVorhanden: true,
+  // DRK-297 — nur die Wurzel: die Zugangsform bekommt hier ihr Ziel
+  // vorbelegt (`detail.zielOrte.length === 1`), sonst muesste jeder Test in
+  // dieser Datei erst einen Schrank waehlen.
+  zielOrte: [
+    { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+  ],
 };
 
 const DETAIL_NACH_ZUGANG = {
   ...DETAIL,
   artikel: { ...DETAIL.artikel, bestand: 12 },
   chargen: [
-    { ...DETAIL.chargen[0], rest: 9 },
+    {
+      ...DETAIL.chargen[0],
+      rest: 9,
+      restGesamt: 9,
+      orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 9, zugangshinweis: null }],
+    },
     DETAIL.chargen[1],
   ],
 };
@@ -324,14 +342,15 @@ describe("ArtikelDrawer: Dialog und lokale Stammdaten-Spiegel", () => {
   });
 });
 
-describe("ArtikelDrawer: zwei suchbare Auswahlfelder", () => {
-  it("rendert genau Fahrzeug- und Charge-Select und filtert jeweils label plus keywords", async () => {
+describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
+  it("rendert genau Fahrzeug-, Charge- und Zielort-Select und filtert jeweils label plus keywords", async () => {
     await drawerMounten();
 
     // Das Kategoriefeld (DRK-294) ist ein `AutoComplete` und damit technisch
     // ebenfalls ein `.ant-select` — gezaehlt werden hier die AUSWAHLfelder.
+    // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Fahrzeug).
     expect(queryPortal(".ant-drawer-body")
-      .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(2);
+      .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(3);
     expect(zielFilter("UE-RK", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(true);
     expect(zielFilter("ZZZ", { label: "Charge 12/26", keywords: "ZZZ-ALT" })).toBe(true);
     expect(zielFilter("MTW", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
@@ -353,8 +372,8 @@ describe("ArtikelDrawer: zwei suchbare Auswahlfelder", () => {
       .map((element) => element.textContent ?? "");
     expect(optionen).toEqual([
       "+ Neue Charge",
-      "ZZZ-ALT · 12/26 · Rest 4",
-      "AAA-NEU · 03/27 · Rest 3",
+      "ZZZ-ALT · 12/26 · Rest gesamt 4",
+      "AAA-NEU · 03/27 · Rest gesamt 3",
     ]);
 
     const bestand = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
@@ -460,6 +479,8 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       artikelId: "a1",
       menge: 5,
       chargeId: "c-fefo-1",
+      // Einzige Auswahl (nur die Wurzel) -> vorbelegt, s. DETAIL.zielOrte oben.
+      zielLagerortId: HANDLAGER_ID,
     });
   });
 
@@ -478,6 +499,40 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       artikelId: "a1",
       menge: 4,
       neueCharge: { chargenNr: "NEU-42", verfall: "2027-03" },
+      zielLagerortId: HANDLAGER_ID,
+    });
+  });
+
+  /**
+   * DRK-297 — sobald es einen Schrank gibt, ist die Wurzel keine geratene
+   * Vorbelegung mehr: das Feld bleibt LEER, bis jemand waehlt.
+   */
+  it("bietet bei mehreren Zielen keine Vorbelegung und sendet den gewaehlten Schrank", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+          { id: "schrank-1", name: "Schrank 1", zugangshinweis: null },
+        ],
+      },
+    });
+    await drawerMounten();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Wohin']").value).toBe("");
+
+    await selectOption("Charge", "ZZZ-ALT");
+    await selectOption("Wohin", "Schrank 1");
+    await fillPortal("[aria-label='Zugangsmenge']", "3");
+
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warte();
+
+    expect(mocks.bucheZugang).toHaveBeenCalledWith({
+      artikelId: "a1",
+      menge: 3,
+      chargeId: "c-fefo-1",
+      zielLagerortId: "schrank-1",
     });
   });
 
@@ -644,6 +699,46 @@ describe("ArtikelDrawer: Chargen und begrenzte Historie", () => {
     await drawerMounten();
     expect(queryPortal(".ant-drawer-body").textContent)
       .not.toContain("Es werden nur die neuesten Buchungen angezeigt.");
+  });
+});
+
+/**
+ * DRK-297, Aufgabe 11, Schritt 6 — `detail.chargen` enthaelt ab jetzt auch
+ * Chargen, die NUR im Fahrzeug liegen. Die Ablauf-Plakette am Artikel bleibt
+ * trotzdem auf den Handlager-Bereich gescopet: der Mindestbestand, die
+ * Verfallsliste und die Kacheln beziehen sich auf ihn, und Fahrzeug-Chargen
+ * werden ueber den naechsten Fahrzeug-Check bereinigt (§5.2.1).
+ */
+describe("ArtikelDrawer: Ablauf-Plakette am Artikel (DRK-297, Aufgabe 11)", () => {
+  it("zeigt die Plakette weiterhin fuer eine faellige Charge mit Handlager-Rest", async () => {
+    await drawerMounten();
+    expect(queryPortal(".ant-drawer-body").textContent).toContain("Charge fällig 12/26");
+  });
+
+  it("die Ablauf-Plakette springt nicht auf reinen Fahrzeugbestand an", async () => {
+    // CHARGE_NUR_RTW ist abgelaufen und liegt ausschliesslich im RTW.
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [
+          {
+            id: "c-nur-rtw",
+            chargenNr: "NUR-RTW",
+            verfall: "2026-01",
+            rest: 0,
+            restGesamt: 5,
+            orte: [{ id: "f1", name: "RTW 1", menge: 5, zugangshinweis: null }],
+            ampel: "rot" as const,
+            text: "abgelaufen",
+          },
+        ],
+      },
+    });
+
+    await drawerMounten();
+
+    expect(queryPortal(".ant-drawer-body").textContent).not.toContain("Charge abgelaufen");
   });
 });
 
