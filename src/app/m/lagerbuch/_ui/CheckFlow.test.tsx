@@ -123,6 +123,19 @@ const ZURUECK = "[data-rolle='zurueck-zaehlen']";
  */
 const minus = (n: number) =>
   clickElement(queryAll("button[aria-label$='verringern']")[n]);
+const plus = (n: number) => clickElement(queryAll("button[aria-label$='erhöhen']")[n]);
+
+/**
+ * Bestaetigt JEDE Zeile der Zaehlliste mit einem „−" und loest damit den Riegel
+ * aus DRK-304 (unberuehrte Position sperrt „Weiter"). Der Wert bleibt 0 — das
+ * ist fuer jeden Test gedacht, dem die gezaehlte MENGE gleichgueltig ist und der
+ * nur an den Schritt dahinter will.
+ */
+const alleBestaetigen = async () => {
+  for (const el of queryAll("[data-rolle='zaehlliste'] button[aria-label$='verringern']")) {
+    await clickElement(el);
+  }
+};
 
 const WERT_NULL = {
   checkId: "c1",
@@ -260,11 +273,16 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
 });
 
 describe("CheckFlow — der Zaehlschritt", () => {
-  it("jede Position ist auf SOLL vorbelegt — nicht auf 0 und nicht auf dem Fahrzeugbestand", async () => {
-    // „voll annehmen, Gezaehltes runterkorrigieren" (:97) — der Regelfall ist
-    // „alles da". Der RECORDED Fahrzeugbestand ist ausdruecklich KEIN
-    // Per-Position-Default (:94-96): er ist pro Artikel, nicht pro Fach.
-    // Deshalb sind Soll (7) und Fahrzeugbestand (5) hier verschieden.
+  it("jede Position startet bei 0 — weder auf Soll noch auf dem Fahrzeugbestand (DRK-304)", async () => {
+    /*
+     * DIE UMKEHR VON „voll annehmen, Gezaehltes runterkorrigieren" (DRK-304).
+     * Die alte Vorbelegung WAR die Aktion „Alles auf Soll": wer durchklickte,
+     * bezeugte einen vollen Wagen, ohne ein Fach gesehen zu haben.
+     *
+     * Soll (7) und Fahrzeugbestand (5) sind hier VERSCHIEDEN und beide nicht 0
+     * — sonst bliebe die Zeile auch dann gruen, wenn eine der beiden alten
+     * Vorbelegungen zurueckkaeme.
+     */
     await mount(
       <CheckFlow
         fahrzeug={FZ}
@@ -276,7 +294,144 @@ describe("CheckFlow — der Zaehlschritt", () => {
         gebunden={false}
       />,
     );
-    expect(query("[data-rolle='stepanzeige']").textContent).toBe("7");
+    expect(query("[data-rolle='stepanzeige']").textContent).toBe("0");
+  });
+
+  it("eine unberuehrte Position sperrt „Weiter\" — und zaehlt sich im Text mit", async () => {
+    /*
+     * DER RIEGEL, OHNE DEN DRK-304 EIN DATENVERLUSTPFAD WAERE. Mit 0 als
+     * Startwert ist „durchklicken" nicht mehr harmlos: `check.ts` rechnet aus
+     * der Summe der gezaehlten Ist je Artikel eine Korrekturbuchung auf den
+     * Fahrzeugbestand — in ein Journal ohne UPDATE und ohne DELETE. Das Ticket
+     * verbietet genau das („keine automatische Deutung von 0 als bestaetigter
+     * Leerbestand").
+     *
+     * Zwei Positionen, damit die Zahl im Text etwas aussagt: mit einer einzigen
+     * bliebe „1 von 1" auch dann gruen, wenn gar nicht gezaehlt wuerde.
+     */
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
+        gebunden={false}
+      />,
+    );
+    const weiter = () => query<HTMLButtonElement>(WEITER);
+    expect(weiter().disabled).toBe(true);
+    expect(query("[data-rolle='zaehl-summe']").textContent).toContain("2 von 2");
+
+    // Die ERSTE Position hochgezaehlt — der Riegel haelt weiter, die Zahl faellt.
+    await plus(0);
+    expect(weiter().disabled).toBe(true);
+    expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 von 2");
+
+    /*
+     * Die ZWEITE mit „−" bestaetigt. Das ist der Weg fuer ein WIRKLICH leeres
+     * Fach: der Stepper ruft `setWert` auch dann, wenn er bei `min` schon
+     * steht (`Stepper.tsx`) — die 0 wird dadurch eine Aussage statt einer
+     * Vorbelegung. Ohne diesen Weg gaebe es fuer ein leeres Fach keinen
+     * Ausgang aus dem Riegel.
+     */
+    await minus(1);
+    expect(query("[data-rolle='stepanzeige']").textContent).toBe("1");
+    expect(queryAll("[data-rolle='stepanzeige']")[1].textContent).toBe("0");
+    expect(weiter().disabled).toBe(false);
+  });
+
+  it("der Riegel steht in `zurNachfuellung` SELBST, nicht nur am Knopf (DRK-304)", () => {
+    /*
+     * Das `disabled` sichert genau EINEN Pfad. Ein zweiter — eine Enter-Taste,
+     * ein Kuerzel, ein spaeter angehaengter „ueberspringen"-Weg — umginge ihn,
+     * ohne dass ein Tor etwas meldet: `zurNachfuellung` rechnet mit `istWert(p)`
+     * und saehe jede unberuehrte Position als volle Luecke. Der Wechsel in den
+     * Nachfuellschritt muss deshalb an der FUNKTION scheitern, nicht am Knopf.
+     *
+     * ⚠️ WARUM EIN QUELLTEXT-SCAN UND KEIN DOM-TEST. Der naheliegende Weg waere,
+     * das Attribut im Test zu entfernen und dann zu klicken. DAS MISST NICHTS,
+     * und zwar gemessen, nicht vermutet: React filtert Maus-Ereignisse anhand
+     * seiner EIGENEN Props, nicht anhand des DOM
+     * (`react-dom-client.development.js:3292`, `props.disabled` in der
+     * `onClick`-Verzweigung). Nach `el.disabled = false` steht das Attribut auf
+     * `null`, der Klick wird zugestellt — und der Handler laeuft trotzdem nicht.
+     * Ein so gebauter Test ist gruen, OB DER WAECHTER DA IST ODER NICHT
+     * (nachgestellt: mit entferntem `if` blieben alle 52 Tests gruen).
+     *
+     * Der Scan prueft die ERSTE Anweisung der Funktion — ein Waechter weiter
+     * unten liesse die greedy Rechnung schon laufen.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(quelle).toMatch(/const zurNachfuellung = \(\) => \{\s*if \(ungezaehlt > 0\) return;/);
+  });
+
+  it("eine noch nicht gezaehlte Zeile sagt das — statt „nachfuellen N\" zu behaupten", async () => {
+    /*
+     * Die Luecke einer unberuehrten Position ist UNBEKANNT, nicht „voll".
+     * Ohne diese Unterscheidung stuende an jeder Zeile beim Betreten des
+     * Schritts ein roter „nachfuellen 5"-Chip — eine Zahl, die niemand
+     * gezaehlt hat, und der Riegel daneben waere nicht mehr erklaerbar.
+     */
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS({ soll: 5 })]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nicht gezählt");
+    expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nachfüllen");
+
+    // Erst die Zaehlung macht die Luecke zu einer Aussage.
+    await minus(0);
+    expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nicht gezählt");
+    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 5");
+  });
+
+  it("der Weiter-Knopf des Zaehlschritts SCHWEBT NICHT mehr (DRK-304)", async () => {
+    /*
+     * ⚠️ DIE REGEL WIRD GELESEN, NICHT DAS AUSSEHEN — jsdom rechnet keine
+     * Layoutboxen (Fallen 13/14/16), ein `position: sticky` ist dort von
+     * `static` nicht zu unterscheiden. Derselbe Griff wie beim Knappheitssatz
+     * weiter unten: das gerenderte Klassenpaar UND die Deklaration aus dem
+     * Stylesheet.
+     *
+     * `.abschluss.abschlussRuhend` und nicht zwei einzelne Klassen: bei
+     * Gleichstand entschiede die Reihenfolge im Stylesheet, und die ist keine
+     * Zusage (Falle 5).
+     */
+    expect(regeln(".abschluss").get("position")).toBe("sticky");
+    expect(regeln(".abschluss.abschlussRuhend").get("position")).toBe("static");
+
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[GERAET]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    // Der Zaehlschritt: die Leiste steht am Listenende.
+    expect(query(WEITER).closest("[data-rolle='abschlussleiste']")!.className).toMatch(
+      /abschlussRuhend/,
+    );
+
+    // Die uebrigen Schritte behalten ihre schwebende Leiste — das Ticket
+    // nennt nur den Zaehlschritt (Rueckfrage im Board gestellt).
+    await plus(0);
+    await click(WEITER); // → Nachfuellen
+    expect(query(WEITER).closest("[data-rolle='abschlussleiste']")!.className).not.toMatch(
+      /abschlussRuhend/,
+    );
   });
 
   it("der Stepper hat KEIN Zahlenfeld (`noText`)", async () => {
@@ -344,9 +499,20 @@ describe("CheckFlow — der Zaehlschritt", () => {
     const chips = queryAll("[data-rolle='zaehlliste'] [data-rolle='helfer-chip']").map(
       (e) => e.textContent ?? "",
     );
-    expect(chips.length).toBe(2);
-    expect(chips[0]).toContain("09/26");
-    expect(chips[1]).toBe(chips[0]);
+    /*
+     * ZWEI Chips je Zeile seit DRK-304: der Zaehlstand und der Verfall. Die
+     * Zusicherung dieses Tests ist unveraendert — der Verfallschip steht in
+     * JEDER Zeile desselben Artikels, und nur deshalb darf die Hinweiszeile
+     * bei Wiederholzeilen fehlen.
+     *
+     * ⚠️ GEZAEHLT WIRD NACH INHALT, NICHT NACH INDEX. Ein `chips[1]` haengt an
+     * der Reihenfolge der JSX-Zweige: wer den Zaehlstand hinter den Verfall
+     * schoebe, liesse den Test gruen auf dem falschen Chip laufen — und damit
+     * genau die Aussage ungeprueft, um die es hier geht.
+     */
+    expect(chips).toHaveLength(4);
+    expect(chips.filter((c) => c.includes("09/26"))).toHaveLength(2);
+    expect(chips.filter((c) => c.includes("nicht gezählt"))).toHaveLength(2);
   });
 
   it("die Live-Vorschau zaehlt ablaufende Artikel mit", async () => {
@@ -379,7 +545,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         gebunden={false}
       />,
     );
-    for (let i = 0; i < 2; i++) await minus(0);
+    for (let i = 0; i < 3; i++) await plus(0); // 0 → 3, Luecke 2
     expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 2");
   });
 });
@@ -399,6 +565,8 @@ describe("CheckFlow — Nachfuellen", () => {
         gebunden={false}
       />,
     );
+    // Schon das ERSTE „−" macht die 0 zu einer Aussage (DRK-304) und loest
+    // den Riegel; die weiteren klemmen bei `min` und aendern nichts.
     for (let i = 0; i < 5; i++) await minus(0); // Ist = 0
     await click(WEITER);
     expect(query("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").textContent).toBe("2");
@@ -418,7 +586,7 @@ describe("CheckFlow — Nachfuellen", () => {
         gebunden={false}
       />,
     );
-    for (let i = 0; i < 2; i++) await minus(0); // Ist = 3, Luecke = 2
+    for (let i = 0; i < 3; i++) await plus(0); // Ist = 3, Luecke = 2
     await click(WEITER);
     const anzeige = () => query("[data-rolle='nf-liste'] [data-rolle='stepanzeige']").textContent;
     expect(anzeige()).toBe("2");
@@ -553,7 +721,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         gebunden={false}
       />,
     );
-    for (let i = 0; i < 2; i++) await minus(0); // Ist = 3
+    for (let i = 0; i < 3; i++) await plus(0); // Ist = 3
     // Angetippt und wieder auf den Ausgangswert gestellt: NUR Geaendertes wird
     // gesendet (:152-155) — hier also NICHTS.
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
@@ -590,6 +758,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
       />,
     );
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
+    await alleBestaetigen();
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
@@ -615,6 +784,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
       />,
     );
     await fill("[data-rolle='zaehlliste'] input[type='month']", "");
+    await alleBestaetigen();
     await click(WEITER);
     await click(ABSCHLIESSEN);
     expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
@@ -862,6 +1032,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         gebunden={false}
       />,
     );
+    await alleBestaetigen();
     await click(WEITER);
     await click(WEITER);
     await click(ABSCHLIESSEN);
@@ -1047,7 +1218,7 @@ const VOLLES_FAHRZEUG = (
 
 async function alleSechsSetzen(): Promise<void> {
   await mount(VOLLES_FAHRZEUG);
-  for (let i = 0; i < 2; i++) await minus(0); // 1 `ist` = 3
+  for (let i = 0; i < 3; i++) await plus(0); // 1 `ist` = 3
   await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03"); // 2 `verfallState`
   await click(WEITER); // 3 `nachfuell` = 2 (greedy)
   await click(WEITER);
@@ -1098,6 +1269,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         gebunden={false}
       />,
     );
+    await alleBestaetigen();
     await click(WEITER);
     await click(ABSCHLIESSEN);
     const t = query(HINWEIS).textContent ?? "";
@@ -1120,6 +1292,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         gebunden={false}
       />,
     );
+    await alleBestaetigen();
     await click(WEITER);
     await click(ABSCHLIESSEN);
     // „Der Hinweis allein loest keine Bestandsbuchung aus": er traegt nichts
@@ -1151,6 +1324,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
       />,
     );
     expect(exists(HINWEIS)).toBe(false); // zaehlen
+    await alleBestaetigen();
     await click(WEITER);
     expect(exists(HINWEIS)).toBe(false); // nachfuellen
     await click(WEITER);
