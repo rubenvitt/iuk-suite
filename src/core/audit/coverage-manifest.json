@@ -343,6 +343,10 @@
     "kind": "context",
     "via": "aussondern"
   },
+  "src/app/m/lagerbuch/_actions/aussondernLagerort.ts#aussondernVomLagerort": {
+    "kind": "context",
+    "via": "aussondernVomLagerort"
+  },
   "src/app/m/lagerbuch/_actions/bestellung.ts#markiereBestellt": {
     "kind": "context",
     "via": "markiereBestellt"

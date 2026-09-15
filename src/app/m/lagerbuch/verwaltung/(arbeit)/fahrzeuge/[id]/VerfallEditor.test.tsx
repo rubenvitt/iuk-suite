@@ -16,10 +16,14 @@ import {
 } from "./VerfallEditor";
 import s from "../../../../_ui/verwaltung.module.css";
 
-const mocks = vi.hoisted(() => ({ setzen: vi.fn() }));
+const mocks = vi.hoisted(() => ({ setzen: vi.fn(), aussondern: vi.fn() }));
 
 vi.mock("../../../../_actions/lagerortVerfall", () => ({
   verfallSetzen: (...args: unknown[]) => mocks.setzen(...args),
+}));
+
+vi.mock("../../../../_actions/aussondernLagerort", () => ({
+  aussondernVomLagerort: (...args: unknown[]) => mocks.aussondern(...args),
 }));
 
 const ZEILEN: VerfallAnzeigeZeile[] = [
@@ -30,6 +34,9 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     verfall: "2027-03",
     statusTon: "gelb",
     statusText: "läuft bald ab",
+    bestand: 5,
+    einheit: "Stk.",
+    chargen: [{ id: "c1", chargenNr: "CH-1", verfall: "2027-03", rest: 5 }],
   },
   {
     artikelId: "a2",
@@ -38,6 +45,9 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     verfall: null,
     statusTon: null,
     statusText: null,
+    bestand: 0,
+    einheit: "Stk.",
+    chargen: [],
   },
   {
     artikelId: "a3",
@@ -46,6 +56,9 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     verfall: "2029-08",
     statusTon: "ok",
     statusText: "bis 08/29",
+    bestand: 3,
+    einheit: "Stk.",
+    chargen: [],
   },
 ];
 
@@ -94,7 +107,8 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Artikel", "Fach", "Verfall", "Status"]);
+      // DRK-303: „Aktion" traegt das Aussondern je Zeile.
+      .toEqual(["Artikel", "Fach", "Verfall", "Status", "Aktion"]);
     expect(query("table").getAttribute("aria-label")).toBe("Verfall im Fahrzeug");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);
     const mull = query("tr[data-row-key='a1']");
@@ -234,5 +248,259 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
 
     expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
       .toEqual(["a2"]);
+  });
+});
+
+describe("Aussondern je Zeile", () => {
+  it("bietet das Aussondern an, wo Bestand im Fahrzeug liegt", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const knopf = query("tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']");
+    expect(knopf.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("sperrt den Knopf, wo nichts liegt", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const knopf = query("tr[data-row-key='a2'] button[aria-label='Kompressen aussondern']");
+    expect(knopf.hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("Aussondern und der Monatsspiegel", () => {
+  /**
+   * ⚠️ DIE ZWEITE SCHREIBSTELLE AUF DEMSELBEN WERT.
+   *
+   * `spiegel` wird EINMAL beim Einhaengen aus den Props gefuellt — fuer JEDEN
+   * Artikel, weshalb `monatFuer` danach IMMER den Spiegel nimmt und nie wieder
+   * die Prop. Solange nur der Monatswaehler schrieb, stimmte das. Der
+   * Aussondern-Dialog aendert denselben Wert, und `revalidatePath` frischt zwar
+   * die Server-Props auf, haengt die Insel aber nicht neu ein: der Waehler
+   * zeigte danach still den ALTEN Monat, waehrend Status und naechster Dialog
+   * schon den neuen fuehren.
+   */
+  it("uebernimmt den im Dialog gesetzten Monat in den Waehler", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: "2027-09" } });
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
+      .toBe("2027-03");
+
+    await clickElement(query(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    ));
+    await warte();
+    const dialog = document.body.querySelector("[role='dialog']");
+    if (!dialog) throw new Error("Dialog nicht offen");
+
+    const setzeFeld = async (selector: string, wert: string) => {
+      const feld = dialog.querySelector<HTMLInputElement>(selector);
+      if (!feld) throw new Error(`Feld fehlt: ${selector}`);
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(feld), "value")?.set;
+      await act(async () => {
+        setter!.call(feld, wert);
+        feld.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    await setzeFeld("input[aria-label='Menge']", "1");
+    await setzeFeld("input[aria-label='Kommentar']", "MHD");
+    // Der Monat wird GEWAEHLT, nicht getippt: ein roher `input` auf dem Feld
+    // laesst den Picker ohne bestaetigten Wert zurueck, und das Formular traegt
+    // dann gar keinen Monat. Gleiches Jahr wie der Ausgangswert, damit die
+    // Zelle ohne Jahreswechsel im Feld steht.
+    await clickElement(dialog.querySelector<HTMLElement>("input[aria-label='Verfall']")!);
+    await warte();
+    const zelle = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-picker-cell"))
+      .find((element) => element.getAttribute("title") === "2027-09");
+    if (!zelle) throw new Error("Monatszelle 2027-09 nicht gefunden");
+    await clickElement(zelle);
+    await warte();
+    await act(async () => {
+      dialog.querySelector<HTMLFormElement>("[data-rolle='aussondern']")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+    await warte();
+
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
+      .toBe("2027-09");
+  });
+
+  it("leert den Waehler, wenn der ganze Bestand rausgeht", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    await clickElement(query(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    ));
+    await warte();
+    const dialog = document.body.querySelector("[role='dialog']");
+    if (!dialog) throw new Error("Dialog nicht offen");
+    const setzeFeld = async (selector: string, wert: string) => {
+      const feld = dialog.querySelector<HTMLInputElement>(selector);
+      if (!feld) throw new Error(`Feld fehlt: ${selector}`);
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(feld), "value")?.set;
+      await act(async () => {
+        setter!.call(feld, wert);
+        feld.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    // ZEILEN[0] traegt Bestand 5 — die volle Menge.
+    await setzeFeld("input[aria-label='Menge']", "5");
+    await setzeFeld("input[aria-label='Kommentar']", "alles raus");
+    await act(async () => {
+      dialog.querySelector<HTMLFormElement>("[data-rolle='aussondern']")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+    await warte();
+
+    // Kein Bestand, keine Verfallsangabe — die Aktion loescht die Zeile, und der
+    // Waehler darf den Monat nicht weiter behaupten.
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value).toBe("");
+  });
+});
+
+describe("Der Dialog liest denselben Monat wie der Waehler", () => {
+  /**
+   * ⚠️ DER SPIEGEL IST WAEHREND DES SPEICHERNS DER NEUERE STAND. `monatSetzen`
+   * traegt den gewaehlten Monat SOFORT in den Spiegel und schickt ihn erst
+   * danach zum Server; bis die Auffrischung zurueck ist, hat die Prop noch den
+   * alten Wert. Bekaeme der Dialog die Prop, stuende in seinem Feld der alte
+   * Monat — und eine Teilaussonderung schriebe ihn ueber den gerade
+   * gespeicherten zurueck.
+   */
+  it("uebernimmt den frisch gewaehlten Monat in den Dialog", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await monatWaehlen("Verfall Mullbinde", "2027-09");
+    // Die Prop bleibt im Test bei 2027-03 — genau der Zustand vor der
+    // Auffrischung, den der Dialog nicht uebernehmen darf.
+    expect(ZEILEN[0].verfall).toBe("2027-03");
+
+    await clickElement(query(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    ));
+    await warte();
+    const dialog = document.body.querySelector("[role='dialog']");
+    if (!dialog) throw new Error("Dialog nicht offen");
+
+    expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
+      .toBe("2027-09");
+  });
+});
+
+describe("Der Spiegel folgt der Antwort, nicht der Eingabe", () => {
+  /**
+   * ⚠️ DER FALL, DEN NUR DIE ANTWORT KENNT. Hat jemand anders zwischendurch
+   * gebucht, leert die hier gesendete Teilmenge den Bestand — die Transaktion
+   * schreibt dann `null`, obwohl im Feld ein Datum stand. Spiegelte die Tabelle
+   * ihre eigene EINGABE, zeigte der Waehler danach ein Datum, das in der
+   * Datenbank nicht steht.
+   */
+  it("leert den Waehler, wenn die Aktion null meldet — trotz Datum im Feld", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    await clickElement(query(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    ));
+    await warte();
+    const dialog = document.body.querySelector("[role='dialog']");
+    if (!dialog) throw new Error("Dialog nicht offen");
+    const setzeFeld = async (selector: string, wert: string) => {
+      const feld = dialog.querySelector<HTMLInputElement>(selector);
+      if (!feld) throw new Error(`Feld fehlt: ${selector}`);
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(feld), "value")?.set;
+      await act(async () => {
+        setter!.call(feld, wert);
+        feld.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    // Teilmenge (Bestand 5) UND ein Datum steht im Feld — aus Sicht des Dialogs
+    // bleibt also etwas liegen.
+    await setzeFeld("input[aria-label='Menge']", "2");
+    await setzeFeld("input[aria-label='Kommentar']", "MHD");
+    await act(async () => {
+      dialog.querySelector<HTMLFormElement>("[data-rolle='aussondern']")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+    await warte();
+
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value).toBe("");
+  });
+});
+
+describe("Der Dialog beim ZWEITEN Öffnen", () => {
+  /**
+   * ⚠️ DER ERSTE TEST DECKT DAS NICHT AB. Er aendert den Monat, BEVOR der Dialog
+   * je offen war — dann traegt der erste Aufbau die neuen `initialValues`. Hier
+   * geht es um den Fall danach: antd gleicht `initialValues` nach der
+   * Erstinitialisierung NICHT mehr ab, und die Form-Instanz gehoert der
+   * Dialogkomponente, ueberlebt `destroyOnHidden` also. Zeigt der Waehler dann
+   * den alten Monat, schreibt ein Absenden den neueren zurueck.
+   */
+  it("zeigt nach dem Schliessen den inzwischen geaenderten Monat", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const oeffne = async () => {
+      await clickElement(query(
+        "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+      ));
+      await warte();
+      const dialog = document.body.querySelector("[role='dialog']");
+      if (!dialog) throw new Error("Dialog nicht offen");
+      return dialog;
+    };
+
+    // 1. Runde: oeffnen und wieder abbrechen — damit ist die Form initialisiert.
+    let dialog = await oeffne();
+    const abbrechen = Array.from(dialog.querySelectorAll<HTMLElement>("button"))
+      .find((knopf) => (knopf.textContent ?? "").includes("Abbrechen"));
+    if (!abbrechen) throw new Error("Abbrechen-Knopf fehlt");
+    await clickElement(abbrechen);
+    await warte();
+
+    // Danach erst den Monat aendern.
+    await monatWaehlen("Verfall Mullbinde", "2027-09");
+
+    dialog = await oeffne();
+    expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
+      .toBe("2027-09");
+  });
+});
+
+describe("Die beiden Schreibwege schliessen einander aus", () => {
+  /**
+   * ⚠️ EIN WETTLAUF, KEIN ANZEIGEFEHLER. Solange `verfallSetzen` unterwegs ist
+   * und jemand in derselben Zeile den GANZEN Bestand aussondert, kann die
+   * Antwort NACH dem Loeschen eintreffen: `verfallSetzen` prueft nur die
+   * Soll-Zugehoerigkeit und schreibt den Monat dann bedingungslos zurueck. Am
+   * Ende stuende eine Verfallszeile fuer einen Artikel ohne Bestand.
+   *
+   * Der Monatswaehler daneben ist aus demselben Grund schon `disabled={laeuft}`;
+   * der Aussondern-Knopf war die letzte offene Tuer.
+   */
+  it("sperrt das Aussondern, solange der Monat noch gespeichert wird", async () => {
+    let freigeben: (() => void) | null = null;
+    mocks.setzen.mockReturnValue(new Promise((fertig) => {
+      freigeben = () => fertig({ ok: true, wert: { gesetzt: true } });
+    }));
+
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    const knopf = () => query<HTMLButtonElement>(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    );
+    expect(knopf().disabled).toBe(false);
+
+    await monatWaehlen("Verfall Mullbinde", "2027-09");
+    expect(knopf().disabled).toBe(true);
+
+    await act(async () => { freigeben!(); });
+    await warte();
+    expect(knopf().disabled).toBe(false);
   });
 });
