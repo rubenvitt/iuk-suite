@@ -38,7 +38,7 @@ export type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 export type Quelle = { quelleTyp: "oidc" | "token" | "system"; quelleId: string };
 
-export type Teil = { chargeId: string; menge: number };
+export type Teil = { chargeId: string; menge: number; vonLagerortId: string };
 
 /**
  * Verteilt `menge` FEFO ueber die Chargen des Artikels AN EINEM LAGERORT
@@ -76,6 +76,9 @@ export function fefoAbbuchung(
   const rest = restJeChargeFuerArtikel(tx, artikelId, [lagerortId]);
   const chargenRest: ChargeRest[] = chs.map((c) => ({
     chargeId: c.id, verfall: c.verfall, rest: rest.get(c.id) ?? 0, createdAt: c.createdAt,
+    // BRÜCKE (DRK-297, Aufgabe 5→6): heute bucht der Kern gegen genau einen Ort,
+    // also ist der Ort jedes Teils dieser eine. Aufgabe 6 macht daraus den Bereich.
+    lagerortId, ortSortierung: 0,
   }));
 
   const teile = fefoVerteilung(chargenRest, menge);

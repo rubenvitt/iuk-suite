@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { fefoVerteilung, type ChargeRest } from "./fefo";
+import { HANDLAGER_ID } from "../konstanten";
 
 const T0 = new Date("2026-01-01T00:00:00Z");
 const tage = (n: number) => new Date(T0.getTime() + n * 86_400_000);
@@ -7,12 +8,12 @@ const tage = (n: number) => new Date(T0.getTime() + n * 86_400_000);
 describe("fefoVerteilung — aufsteigender Verfall", () => {
   it("raeumt die frueher ablaufende Charge zuerst ab", () => {
     const chargen: ChargeRest[] = [
-      { chargeId: "spaet", verfall: "2027-06", rest: 10, createdAt: T0 },
-      { chargeId: "frueh", verfall: "2026-03", rest: 4, createdAt: T0 },
+      { chargeId: "spaet", verfall: "2027-06", rest: 10, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "frueh", verfall: "2026-03", rest: 4, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
     expect(fefoVerteilung(chargen, 6)).toEqual([
-      { chargeId: "frueh", menge: 4 },
-      { chargeId: "spaet", menge: 2 },
+      { chargeId: "frueh", menge: 4, vonLagerortId: HANDLAGER_ID },
+      { chargeId: "spaet", menge: 2, vonLagerortId: HANDLAGER_ID },
     ]);
   });
 
@@ -25,22 +26,22 @@ describe("fefoVerteilung — aufsteigender Verfall", () => {
      * eine echte verfall-Sortierung besteht diesen Test.
      */
     const chargen: ChargeRest[] = [
-      { chargeId: "zzz", verfall: "2026-03", rest: 4, createdAt: T0 },
-      { chargeId: "aaa", verfall: "2027-06", rest: 10, createdAt: T0 },
+      { chargeId: "zzz", verfall: "2026-03", rest: 4, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "aaa", verfall: "2027-06", rest: 10, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
     expect(fefoVerteilung(chargen, 6)).toEqual([
-      { chargeId: "zzz", menge: 4 },
-      { chargeId: "aaa", menge: 2 },
+      { chargeId: "zzz", menge: 4, vonLagerortId: HANDLAGER_ID },
+      { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID },
     ]);
   });
 
   it("ueberspringt Chargen mit rest <= 0", () => {
     const chargen: ChargeRest[] = [
-      { chargeId: "leer", verfall: "2026-01", rest: 0, createdAt: T0 },
-      { chargeId: "negativ", verfall: "2026-02", rest: -3, createdAt: T0 },
-      { chargeId: "voll", verfall: "2026-03", rest: 5, createdAt: T0 },
+      { chargeId: "leer", verfall: "2026-01", rest: 0, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "negativ", verfall: "2026-02", rest: -3, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "voll", verfall: "2026-03", rest: 5, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
-    expect(fefoVerteilung(chargen, 2)).toEqual([{ chargeId: "voll", menge: 2 }]);
+    expect(fefoVerteilung(chargen, 2)).toEqual([{ chargeId: "voll", menge: 2, vonLagerortId: HANDLAGER_ID }]);
   });
 });
 
@@ -49,14 +50,14 @@ describe("fefoVerteilung — die Kappung ist Invariante I2", () => {
     // Der Aufrufer meldet die tatsaechlich gebuchte Menge (`buchung.ts:74`, `:92`).
     // Ohne die Kappung entstuende eine Buchung, die den Lagerortbestand unter 0
     // drueckt — und `buchungen` kennt kein UPDATE und kein DELETE (I1).
-    const chargen: ChargeRest[] = [{ chargeId: "a", verfall: "2026-03", rest: 3, createdAt: T0 }];
+    const chargen: ChargeRest[] = [{ chargeId: "a", verfall: "2026-03", rest: 3, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 }];
     const teile = fefoVerteilung(chargen, 10);
-    expect(teile).toEqual([{ chargeId: "a", menge: 3 }]);
+    expect(teile).toEqual([{ chargeId: "a", menge: 3, vonLagerortId: HANDLAGER_ID }]);
     expect(teile.reduce((s, t) => s + t.menge, 0)).toBe(3);
   });
 
   it("klemmt eine negative Menge auf 0 und liefert eine LEERE Verteilung", () => {
-    const chargen: ChargeRest[] = [{ chargeId: "a", verfall: "2026-03", rest: 5, createdAt: T0 }];
+    const chargen: ChargeRest[] = [{ chargeId: "a", verfall: "2026-03", rest: 5, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 }];
     expect(fefoVerteilung(chargen, -7)).toEqual([]);
     expect(fefoVerteilung(chargen, 0)).toEqual([]);
   });
@@ -69,12 +70,12 @@ describe("fefoVerteilung — die Kappung ist Invariante I2", () => {
 describe("fefoVerteilung — DETERMINISMUS (§5.3.1, die neue Zusage)", () => {
   it("gleicher Verfall -> AELTERE createdAt zuerst", () => {
     const chargen: ChargeRest[] = [
-      { chargeId: "neu", verfall: "2026-03", rest: 5, createdAt: tage(10) },
-      { chargeId: "alt", verfall: "2026-03", rest: 5, createdAt: tage(1) },
+      { chargeId: "neu", verfall: "2026-03", rest: 5, createdAt: tage(10), lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "alt", verfall: "2026-03", rest: 5, createdAt: tage(1), lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
     expect(fefoVerteilung(chargen, 7)).toEqual([
-      { chargeId: "alt", menge: 5 },
-      { chargeId: "neu", menge: 2 },
+      { chargeId: "alt", menge: 5, vonLagerortId: HANDLAGER_ID },
+      { chargeId: "neu", menge: 2, vonLagerortId: HANDLAGER_ID },
     ]);
   });
 
@@ -88,12 +89,12 @@ describe("fefoVerteilung — DETERMINISMUS (§5.3.1, die neue Zusage)", () => {
      * createdAt-Sortierung besteht diesen Test.
      */
     const chargen: ChargeRest[] = [
-      { chargeId: "zzz", verfall: "2026-03", rest: 5, createdAt: tage(1) },
-      { chargeId: "aaa", verfall: "2026-03", rest: 5, createdAt: tage(10) },
+      { chargeId: "zzz", verfall: "2026-03", rest: 5, createdAt: tage(1), lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "aaa", verfall: "2026-03", rest: 5, createdAt: tage(10), lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
     expect(fefoVerteilung(chargen, 7)).toEqual([
-      { chargeId: "zzz", menge: 5 },
-      { chargeId: "aaa", menge: 2 },
+      { chargeId: "zzz", menge: 5, vonLagerortId: HANDLAGER_ID },
+      { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID },
     ]);
   });
 
@@ -105,12 +106,12 @@ describe("fefoVerteilung — DETERMINISMUS (§5.3.1, die neue Zusage)", () => {
      * Journalsortierung ohne id-Tiebreaker (§5.14.4).
      */
     const chargen: ChargeRest[] = [
-      { chargeId: "bbb", verfall: "2026-03", rest: 2, createdAt: T0 },
-      { chargeId: "aaa", verfall: "2026-03", rest: 2, createdAt: T0 },
+      { chargeId: "bbb", verfall: "2026-03", rest: 2, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "aaa", verfall: "2026-03", rest: 2, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
     expect(fefoVerteilung(chargen, 3)).toEqual([
-      { chargeId: "aaa", menge: 2 },
-      { chargeId: "bbb", menge: 1 },
+      { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID },
+      { chargeId: "bbb", menge: 1, vonLagerortId: HANDLAGER_ID },
     ]);
   });
 
@@ -118,10 +119,53 @@ describe("fefoVerteilung — DETERMINISMUS (§5.3.1, die neue Zusage)", () => {
     // `[...chargen]` statt `chargen.sort()`. Der Aufrufer haelt dieselbe Liste
     // fuer die Chargen-Anzeige; ein In-Place-Sort aenderte sie unter ihm weg.
     const chargen: ChargeRest[] = [
-      { chargeId: "b", verfall: "2027-01", rest: 1, createdAt: T0 },
-      { chargeId: "a", verfall: "2026-01", rest: 1, createdAt: T0 },
+      { chargeId: "b", verfall: "2027-01", rest: 1, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
+      { chargeId: "a", verfall: "2026-01", rest: 1, createdAt: T0, lagerortId: HANDLAGER_ID, ortSortierung: 0 },
     ];
     fefoVerteilung(chargen, 2);
     expect(chargen.map((c) => c.chargeId)).toEqual(["b", "a"]);
+  });
+});
+
+describe("DRK-297 — der vierte Sortierrang", () => {
+  const basis = { chargeId: "c1", verfall: "2027-01", createdAt: new Date("2026-01-01T00:00:00Z") };
+
+  it("bei gleichem Verfall greift der Ort mit kleinerer Reihenfolge zuerst", () => {
+    const teile = fefoVerteilung([
+      { ...basis, rest: 5, lagerortId: "schrank-gf", ortSortierung: 90 },
+      { ...basis, rest: 5, lagerortId: "schrank-1", ortSortierung: 10 },
+    ], 3);
+    expect(teile).toEqual([{ chargeId: "c1", menge: 3, vonLagerortId: "schrank-1" }]);
+  });
+
+  it("reicht der bequeme Ort nicht, wird der naechste angebrochen", () => {
+    const teile = fefoVerteilung([
+      { ...basis, rest: 2, lagerortId: "schrank-1", ortSortierung: 10 },
+      { ...basis, rest: 5, lagerortId: "schrank-gf", ortSortierung: 90 },
+    ], 6);
+    expect(teile).toEqual([
+      { chargeId: "c1", menge: 2, vonLagerortId: "schrank-1" },
+      { chargeId: "c1", menge: 4, vonLagerortId: "schrank-gf" },
+    ]);
+  });
+
+  /** ⚠️ DAS VERFALLSDATUM BLEIBT DAS ERSTE KRITERIUM. Ein Ort, der bequemer
+   *  liegt, darf eine frueher ablaufende Charge NICHT ueberholen. */
+  it("der Ort ueberholt den Verfall nicht", () => {
+    const teile = fefoVerteilung([
+      { chargeId: "spaet", verfall: "2028-01", rest: 9, createdAt: new Date("2026-01-01T00:00:00Z"),
+        lagerortId: "schrank-1", ortSortierung: 10 },
+      { chargeId: "frueh", verfall: "2026-10", rest: 9, createdAt: new Date("2026-01-01T00:00:00Z"),
+        lagerortId: "schrank-gf", ortSortierung: 90 },
+    ], 4);
+    expect(teile).toEqual([{ chargeId: "frueh", menge: 4, vonLagerortId: "schrank-gf" }]);
+  });
+
+  it("bei gleicher Reihenfolge entscheidet die Ort-ID, nicht die Eingabereihenfolge", () => {
+    const teile = fefoVerteilung([
+      { ...basis, rest: 1, lagerortId: "b", ortSortierung: 0 },
+      { ...basis, rest: 1, lagerortId: "a", ortSortierung: 0 },
+    ], 1);
+    expect(teile[0]?.vonLagerortId).toBe("a");
   });
 });

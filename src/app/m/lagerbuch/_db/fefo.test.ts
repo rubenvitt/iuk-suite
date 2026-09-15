@@ -59,7 +59,7 @@ describe("verschiedener Verfall — die frueher ablaufende Charge zuerst", () =>
     const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 7, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
-    expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5 }, { chargeId: "aaa", menge: 2 }]);
+    expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5, vonLagerortId: HANDLAGER_ID }, { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID }]);
   });
 });
 
@@ -86,7 +86,7 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
     const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 7, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
-    expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5 }, { chargeId: "aaa", menge: 2 }]);
+    expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5, vonLagerortId: HANDLAGER_ID }, { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID }]);
   });
 
   it("entscheidet bei gleicher createdAt ueber die chargeId", () => {
@@ -99,7 +99,7 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
     const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 3, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
-    expect(r.teile).toEqual([{ chargeId: "aaa", menge: 2 }, { chargeId: "zzz", menge: 1 }]);
+    expect(r.teile).toEqual([{ chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID }, { chargeId: "zzz", menge: 1, vonLagerortId: HANDLAGER_ID }]);
   });
 
   it("liefert bei ZWEI identischen Laeufen dieselbe Verteilung", () => {

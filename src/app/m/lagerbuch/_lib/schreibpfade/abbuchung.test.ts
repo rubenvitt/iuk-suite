@@ -42,7 +42,7 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
     const r = inTx((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 5, quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r.gebucht).toBe(5);
-    expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3 }, { chargeId: "c-spaet", menge: 2 }]);
+    expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3, vonLagerortId: HANDLAGER_ID }, { chargeId: "c-spaet", menge: 2, vonLagerortId: HANDLAGER_ID }]);
   });
 
   it("sieht den FAHRZEUG-Bestand derselben Charge NICHT", () => {
@@ -56,7 +56,7 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
      */
     const r = inTx((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 4, quelle: QUELLE, kommentar: null, referenz: null }));
-    expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3 }, { chargeId: "c-spaet", menge: 1 }]);
+    expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3, vonLagerortId: HANDLAGER_ID }, { chargeId: "c-spaet", menge: 1, vonLagerortId: HANDLAGER_ID }]);
     const roh = t.db.select().from(buchungen).all()
       .map((x) => ({ lagerortId: x.lagerortId, menge: x.menge }));
     expect(bestandProLagerort(roh, HANDLAGER_ID)).toBe(9);
@@ -67,7 +67,7 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
     const r = inTx((tx) => fefoAbbuchung(tx, {
       artikelId: "a1", menge: 99, lagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: null }));
-    expect(r).toEqual({ gebucht: 5, teile: [{ chargeId: "c-frueh", menge: 5 }] });
+    expect(r).toEqual({ gebucht: 5, teile: [{ chargeId: "c-frueh", menge: 5, vonLagerortId: "rtw-1" }] });
   });
 });
 
