@@ -1,9 +1,11 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "../../_lib/host";
 import { viewerOderNull, istLagerbuchAdmin } from "../../_lib/zugang";
 import { helferZugangOderNull } from "../../_lib/helferZugang";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
+import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
+import { ZIEL_COOKIE } from "../../_lib/entnahmeZiel";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { Entnahme } from "../../_ui/Entnahme";
@@ -96,13 +98,22 @@ export default async function ArtikelDeepLink({
   const etikett = `Zugang: Token ${zugang.code} · ${zugang.label}`;
   const detail = artikelDetailHelfer(db, artikelId);
 
+  /*
+   * DAS GEMERKTE ZIEL — DRK-300. Es wird bei JEDEM Aufruf neu gegen die
+   * Datenbank aufgelöst, nicht nur beim Wählen: das Cookie hält für den ganzen
+   * Kärtchen-Zugang, und die Verwaltung kann in derselben Zeit ein Fahrzeug
+   * stilllegen. `gemerktesZiel` macht daraus wieder „noch nichts gewählt" —
+   * NICHT „Verbrauch" —, und die Insel sperrt dann den Buchen-Knopf.
+   */
+  const ziel = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value);
+
   return (
     <HelferRahmen aktiv="entnahme" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       {detail ? (
         // Die Action kommt als PROP in die Insel — `_ui/Entnahme.tsx` importiert
         // sie NICHT selbst (T78). Dies ist die EINE Stelle, die die
         // Reihenfolge zu Teil 5 kennt.
-        <Entnahme detail={detail} buchen={bucheEntnahmeHelfer} />
+        <Entnahme detail={detail} ziel={ziel} buchen={bucheEntnahmeHelfer} />
       ) : (
         /*
          * KEIN wortloser `redirect("/helfer")` wie im Bestand

@@ -12,8 +12,10 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
+import { ZIEL_UNGUELTIG_TEXT, type EntnahmeZiel } from "../_lib/entnahmeZiel";
 
 /**
  * DIE DREI BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
@@ -143,6 +145,17 @@ export async function bucheZugang(
   });
 }
 
+/**
+ * DRK-300 — das Ziel als DREI Zustände, hier als die zwei WÄHLBAREN.
+ * Der dritte („noch nichts gewählt") ist die ABWESENHEIT des Feldes und
+ * scheitert deshalb schon am `safeParse`: ein fehlendes Ziel ist kein
+ * Verbrauch, sondern eine offene Entscheidung, und die bucht nicht.
+ */
+const ZielSchema = z.discriminatedUnion("art", [
+  z.object({ art: z.literal("fahrzeug"), lagerortId: z.string().min(1) }),
+  z.object({ art: z.literal("verbrauch") }),
+]);
+
 const EntnahmeSchema = z.object({
   artikelId: z.string().min(1),
   menge: z.coerce.number().int().positive("Menge muss größer als 0 sein"),
@@ -187,8 +200,7 @@ export async function bucheEntnahme(
            * was der Verwaltenden nichts sagt. Ein INAKTIVES Fahrzeug und ein
            * zweites LAGER kaemen ueberdies ganz durch: beide existieren.
            */
-          const ziel = tx.select().from(lagerorte).where(eq(lagerorte.id, zielFahrzeug)).get();
-          if (!ziel || ziel.typ !== "fahrzeug" || !ziel.aktiv) {
+          if (!istAktivesFahrzeug(tx, zielFahrzeug)) {
             throw new Error("Ziel ist kein gültiges, aktives Fahrzeug");
           }
           gebucht = umlagerung(tx, {
@@ -226,6 +238,8 @@ export async function bucheEntnahme(
 const HelferEntnahmeSchema = z.object({
   artikelId: z.string().min(1),
   menge: z.coerce.number().int().positive(),
+  /** PFLICHT seit DRK-300 — siehe `ZielSchema`. */
+  ziel: ZielSchema,
 });
 
 /**
@@ -288,15 +302,46 @@ export async function bucheEntnahmeHelfer(
      * sondern ein Defekt; `checkAbschluss` (T75) laesst ihn aus demselben Grund
      * durchschlagen.
      */
+    /*
+     * DAS ZIEL WIRD VOR DER TRANSAKTION GEPRÜFT, und die Antwort ist ein
+     * RÜCKGABEWERT — kein Wurf (siehe `istAktivesFahrzeug`). Ein Fahrzeug, das
+     * seit der Anzeige stillgelegt oder gelöscht wurde, ist eine ERWARTBARE
+     * Lage: die Wahl gilt für den ganzen Kärtchen-Zugang und überlebt damit
+     * jede Änderung in der Verwaltung.
+     */
+    const ziel: EntnahmeZiel = v.ziel;
+    if (ziel.art === "fahrzeug" && !istAktivesFahrzeug(db, ziel.lagerortId)) {
+      return { ok: false, grund: "eingabe", text: ZIEL_UNGUELTIG_TEXT };
+    }
+
     let gebucht = 0;
     db.transaction((tx) => {
-      gebucht = fefoAbbuchung(tx, {
-        artikelId: v.artikelId,
-        menge: v.menge,
-        quelle: { quelleTyp: "token", quelleId: riegel.zugang.code },
-        kommentar: null,
-        referenz: null,
-      }).gebucht;
+      const quelle = { quelleTyp: "token" as const, quelleId: riegel.zugang.code };
+      gebucht =
+        ziel.art === "fahrzeug"
+          ? /*
+             * Der Verbrauch bleibt am FAHRZEUG und sinkt erst beim nächsten
+             * Check. Beide Legs tragen `umlagerung`, damit Reporting und
+             * Bestellvorschlag eine interne Verschiebung nicht als Verbrauch
+             * missdeuten; die Charge wandert mit, damit das Fahrzeug die
+             * Verfall-Herkunft behält.
+             */
+            umlagerung(tx, {
+              artikelId: v.artikelId,
+              menge: v.menge,
+              vonLagerortId: HANDLAGER_ID,
+              nachLagerortId: ziel.lagerortId,
+              quelle,
+              kommentar: null,
+              referenz: `entnahme-ziel:${ziel.lagerortId}`,
+            }).umgelagert
+          : fefoAbbuchung(tx, {
+              artikelId: v.artikelId,
+              menge: v.menge,
+              quelle,
+              kommentar: null,
+              referenz: null,
+            }).gebucht;
     });
 
     /**

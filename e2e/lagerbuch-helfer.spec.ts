@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
 import {
+  E2E_FAHRZEUG_NAME,
   E2E_TOKEN_HELFER,
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -106,6 +107,27 @@ function zaehleBuchungen(artikelId: string, quelleTyp: string, quelleId: string)
   }
 }
 
+/**
+ * Der Bestand EINES Artikels AN EINEM Lagerort — DRK-300.
+ *
+ * ⚠️ NICHT die Zahl der Zeilen, sondern ihre SUMME: eine Umlagerung schreibt
+ * zwei Zeilen, und „es sind zwei mehr geworden" wäre auch dann grün, wenn beide
+ * im Handlager lägen. Gefragt ist, ob im FAHRZEUG etwas angekommen ist.
+ */
+function bestandAn(artikelId: string, lagerortId: string): number {
+  const db = new Database(DB_PFAD, { readonly: true });
+  try {
+    const zeile = db
+      .prepare(
+        "select coalesce(sum(menge), 0) as n from buchungen where artikel_id = ? and lagerort_id = ?",
+      )
+      .get(artikelId, lagerortId) as { n: number };
+    return zeile.n;
+  } finally {
+    db.close();
+  }
+}
+
 /** Der juengste Check-Datensatz eines Fahrzeugs, oder `undefined`, wenn es
  *  noch keinen gibt — Tiebreaker `id`, weil `completed_at` sekundengranular
  *  ist (§4.9). */
@@ -151,6 +173,21 @@ test.describe("Der Weg am Stueck", () => {
 
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
     await page.waitForURL(/\/a\/e2e-artikel/);
+
+    /*
+     * DRK-300 — OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist gesperrt, bis die
+     * Wahl getroffen ist; „Kein Fahrzeug — Verbrauch" ist eine ausdrückliche
+     * Wahl und kein Leerlassen. Diese drei Zeilen sind zugleich der einzige
+     * Ort, an dem die GESPERRTE Form im echten Browser nachgewiesen wird —
+     * jsdom rechnet keine Bedienbarkeit, und der Vitest-Fall prüft das
+     * `disabled`-Attribut, nicht den Klick.
+     */
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await page.getByRole("button", { name: /Kein Fahrzeug/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
     await page.getByRole("button", { name: "Entnahme buchen" }).click();
     await expect(page.getByText(/gebucht/i)).toBeVisible();
 
@@ -187,6 +224,53 @@ test.describe("Der Weg am Stueck", () => {
     await expect(zeilen.locator(`[title="${E2E_TOKEN_HELFER}"]`)).toHaveCount(nachher);
 
     await ctx.close();
+  });
+
+  /**
+   * DRK-300 — DIE ENTNAHME AUF EIN FAHRZEUG.
+   *
+   * ⚠️ NUR HIER IST SIE GANZ ZU SEHEN. Vitest prüft die Hälften einzeln: die
+   * Action bucht zwei Legs, die Insel reicht das Ziel durch, die Seite löst das
+   * Cookie auf. Dass ein COOKIE aus der Wahlseite den nächsten Seitenaufruf
+   * überlebt und dort zu einer Umlagerung führt, kann nur ein echter Browser
+   * zeigen — jsdom hat keinen Cookie-Speicher über Anfragen hinweg, und ein
+   * Unit-Test hätte keine zweite Anfrage.
+   */
+  test("das gewählte Fahrzeug überlebt den nächsten Artikel und bucht dorthin", async ({ page }) => {
+    const vorherFahrzeug = bestandAn("e2e-artikel", "e2e-fahrzeug");
+    const vorherHandlager = bestandAn("e2e-artikel", "handlager");
+
+    await page.goto(lagerbuchUrl("/"));
+    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.waitForURL(/\/helfer$/);
+
+    await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await page.getByRole("button", { name: new RegExp(E2E_FAHRZEUG_NAME) }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    // Die Wahl steht über dem Knopf — sonst lenkte sie still Bestand um.
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    await page.getByRole("button", { name: "Entnahme buchen" }).click();
+    await expect(page.getByText(/gebucht/i)).toBeVisible();
+
+    /*
+     * ⚠️ DIE WAHL ÜBERLEBT DEN SEITENWECHSEL — das ist der Punkt, für den es
+     * ein Cookie und keinen Suchparameter gibt. Ein frischer Aufruf derselben
+     * Seite ist dafür der ehrlichste Nachweis: kein Zustand im Speicher, keine
+     * URL, die die Antwort schon enthält.
+     */
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    // NETTO NULL: was im Fahrzeug ankommt, fehlt im Handlager.
+    const zugewachsen = bestandAn("e2e-artikel", "e2e-fahrzeug") - vorherFahrzeug;
+    expect(zugewachsen, "im Fahrzeug muss Bestand angekommen sein").toBeGreaterThan(0);
+    expect(bestandAn("e2e-artikel", "handlager")).toBe(vorherHandlager - zugewachsen);
   });
 });
 
@@ -274,6 +358,17 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
     await page.waitForURL(/\/helfer$/);
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    /*
+     * Ziel wählen, SOLANGE das Kärtchen noch gilt — seit DRK-300 ist der
+     * Buchen-Knopf ohne Ziel gesperrt, und eine Zielwahl nach dem Sperren käme
+     * gar nicht mehr durch. Das entspricht auch dem Hergang, den dieser Test
+     * beschreibt: die Sperre trifft jemanden MITTEN in der Arbeit.
+     */
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await page.getByRole("button", { name: /Kein Fahrzeug/ }).click();
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     // Mitten in der Schicht gesperrt.
