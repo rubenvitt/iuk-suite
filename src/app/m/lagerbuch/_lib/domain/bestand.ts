@@ -26,8 +26,8 @@ export function bestand(rows: { menge: number }[]): number {
 
 /**
  * Rest je `chargeId` — OHNE Lagerortbezug. Einziger Aufrufer im Bestand ist
- * `chargenMitRest` (`queries.ts:31`), und der filtert VORHER selbst auf einen
- * Lagerort. Wer diese Funktion ohne Vorfilter benutzt, bekommt Phantombestand.
+ * `chargenMitRest` (`queries.ts:31`), und der filtert VORHER selbst auf eine
+ * Ortsmenge. Wer diese Funktion ohne Vorfilter benutzt, bekommt Phantombestand.
  */
 export function bestandProCharge(
   rows: { chargeId: string; menge: number }[],

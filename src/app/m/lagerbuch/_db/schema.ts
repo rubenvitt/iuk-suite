@@ -234,10 +234,10 @@ export const buchungen = sqliteTable(
     // S3, neu: deterministische Journalsortierung ORDER BY ts DESC, id DESC. Macht
     // ein spaeteres Keyset-Nachladen zur Query-Aenderung statt zur Migration.
     index("idx_buchungen_ts_id").on(t.ts, t.id),
-    // S3, neu: traegt bestandJeArtikel(db, lagerortId) und restJeCharge (§5.2.4) —
-    // ein Lagerort, alle Artikel. Ohne ihn ist das ein Full-Scan.
+    // S3, neu: traegt bestandJeArtikel(db, orte) und restJeCharge (§5.2.4) —
+    // eine Ortsmenge, alle Artikel. Ohne ihn ist das ein Full-Scan.
     index("idx_buchungen_lagerort_artikel").on(t.lagerortId, t.artikelId),
-    // S3, neu: deckend fuer restJeChargeFuerArtikel(db, artikelId, lagerortId) —
+    // S3, neu: deckend fuer restJeChargeFuerArtikel(db, artikelId, orte) —
     // die Schreibseite (FEFO, Korrektur), die mit artikel_id FUEHREND filtert.
     // ⚠️ NICHT redundant zum vorigen: sie unterscheiden sich in der fuehrenden
     // Spalte, und genau daran entscheidet SQLite, ob ein Index fuer eine

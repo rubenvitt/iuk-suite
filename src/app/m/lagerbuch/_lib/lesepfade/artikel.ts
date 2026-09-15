@@ -48,7 +48,8 @@ export type ArtikelZeile = {
 };
 
 /**
- * Chargen EINES Artikels mit Rest AN EINEM Lagerort (Vorgabe Handlager).
+ * Chargen EINES Artikels mit Rest AN EINER ORTSMENGE (Vorgabe: Handlager-Bereich,
+ * also die Wurzel und ihre Schraenke — `handlagerOrte`).
  *
  * ⚠️ AUFGEBRAUCHTE CHARGEN BLEIBEN IN DER LISTE, mit `rest: 0`. Das Artikel-Detail
  * zeigt sie (die Chargennummer ist ein Fundstueck), und `?? 0` macht aus der
