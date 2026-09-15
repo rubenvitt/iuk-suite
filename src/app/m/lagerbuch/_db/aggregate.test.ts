@@ -3,12 +3,15 @@ import { migrierteTestDb, type TestDb } from "./testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "./schema";
 import {
   bestandJeArtikel, restJeCharge, bestandJeArtikelUndLagerort,
-  restJeChargeFuerArtikel, kennzahlen,
+  restJeChargeFuerArtikel, restJeChargeUndOrt, kennzahlen,
 } from "../_lib/lesepfade/bestand";
 import {
-  bestandProLagerort, bestandProLagerortUndCharge,
+  bestandProLagerort, bestandProLagerortUndCharge, bestandProOrte,
+  restProOrtenUndCharge,
 } from "../_lib/domain/bestand";
 import { HANDLAGER_ID } from "../_lib/konstanten";
+
+const CHARGE_GETEILT = "charge-geteilt";
 
 /**
  * DER DIFFERENZTEST AUS §5.2.4.
@@ -63,6 +66,11 @@ beforeEach(() => {
     { id: RTW2, name: "RTW 2", typ: "fahrzeug", kennung: "MS-DRK-2", aktiv: true },
   ]).run();
 
+  t.db.insert(lagerorte).values([
+    { id: "schrank-1", name: "Schrank 1", typ: "lager", aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 },
+    { id: "schrank-2", name: "Schrank 2", typ: "lager", aktiv: true, parentId: HANDLAGER_ID, sortierung: 20 },
+  ]).run();
+
   t.db.insert(artikel).values([
     { id: "a1", name: "Verbandpäckchen", einheit: "Stk.", fach: "A1",
       mindestbestand: 20, aktiv: true, createdAt: jetzt },
@@ -96,6 +104,11 @@ beforeEach(() => {
     { id: "c5", artikelId: "a5", chargenNr: "CH-5", verfall: "2028-01", createdAt: jetzt },
   ]).run();
 
+  t.db.insert(chargen).values({
+    id: CHARGE_GETEILT, artikelId: "a1", chargenNr: "GETEILT",
+    verfall: "2027-03", createdAt: jetzt,
+  }).run();
+
   const b = (artikelId: string, chargeId: string, lagerortId: string, menge: number) => ({
     id: newId(), ts: jetzt, typ: "zugang" as const, artikelId, chargeId, lagerortId, menge,
     quelleTyp: "system" as const, quelleId: "test", referenz: null, kommentar: null,
@@ -115,6 +128,13 @@ beforeEach(() => {
     b("a5", "c5", HANDLAGER_ID, 2),
     b("a5", "c5", RTW1, 6),
   ]).run();
+
+  t.db.insert(buchungen).values([
+    { id: newId(), ts: jetzt, typ: "zugang", artikelId: "a1", chargeId: CHARGE_GETEILT,
+      lagerortId: "schrank-1", menge: 5, quelleTyp: "system", quelleId: "seed" },
+    { id: newId(), ts: jetzt, typ: "zugang", artikelId: "a1", chargeId: CHARGE_GETEILT,
+      lagerortId: RTW1, menge: 7, quelleTyp: "system", quelleId: "seed" },
+  ]).run();
 });
 
 afterEach(() => {
@@ -131,7 +151,7 @@ function alleZeilen() {
 
 describe("bestandJeArtikel — dieselbe Zahl wie bestandProLagerort", () => {
   it("Handlager: 12 fuer a1, 0 fuer a2", () => {
-    const m = bestandJeArtikel(t.db, HANDLAGER_ID);
+    const m = bestandJeArtikel(t.db, [HANDLAGER_ID]);
     const roh = alleZeilen();
     for (const id of ["a1", "a2", "a3", "a5"]) {
       expect(m.get(id) ?? 0, `Artikel ${id}`)
@@ -141,9 +161,10 @@ describe("bestandJeArtikel — dieselbe Zahl wie bestandProLagerort", () => {
   });
 
   it("Fahrzeug: nur die Fahrzeugzeilen", () => {
-    expect(bestandJeArtikel(t.db, RTW1).get("a1")).toBe(4);
-    expect(bestandJeArtikel(t.db, RTW1).get("a2")).toBe(2);
-    expect(bestandJeArtikel(t.db, RTW2).get("a1")).toBe(1);
+    // 4 + 7 (die geteilte Charge aus DRK-297 liegt AUCH im RTW1).
+    expect(bestandJeArtikel(t.db, [RTW1]).get("a1")).toBe(11);
+    expect(bestandJeArtikel(t.db, [RTW1]).get("a2")).toBe(2);
+    expect(bestandJeArtikel(t.db, [RTW2]).get("a1")).toBe(1);
   });
 
   it("ein Artikel OHNE Buchung fehlt in der Map — `?? 0` ist Pflicht", () => {
@@ -152,13 +173,13 @@ describe("bestandJeArtikel — dieselbe Zahl wie bestandProLagerort", () => {
      * bei leerer Gruppe KEINE ZEILE, nicht 0. Heute liefert `bestandProLagerort`
      * fuer einen Artikel ohne Buchungen 0, morgen fehlt der Schluessel.
      */
-    const m = bestandJeArtikel(t.db, HANDLAGER_ID);
+    const m = bestandJeArtikel(t.db, [HANDLAGER_ID]);
     expect(m.has("a3")).toBe(false);
     expect(m.get("a3") ?? 0).toBe(0);
   });
 
   it("ein unbekannter Lagerort liefert eine LEERE Map", () => {
-    expect(bestandJeArtikel(t.db, "gibtsnicht").size).toBe(0);
+    expect(bestandJeArtikel(t.db, ["gibtsnicht"]).size).toBe(0);
   });
 });
 
@@ -166,14 +187,14 @@ describe("restJeCharge — dieselbe Zahl wie bestandProLagerortUndCharge", () =>
   it("fuehrt DIESELBE chargeId an drei Lagerorten getrennt", () => {
     const roh = alleZeilen();
     for (const ort of [HANDLAGER_ID, RTW1, RTW2]) {
-      const sql = restJeCharge(t.db, ort);
+      const sql = restJeCharge(t.db, [ort]);
       const rein = bestandProLagerortUndCharge(roh, ort);
       expect([...rein.keys()].sort(), `Lagerort ${ort}`).toEqual([...sql.keys()].sort());
       for (const [k, v] of rein) expect(sql.get(k), `${ort}/${k}`).toBe(v);
     }
-    expect(restJeCharge(t.db, HANDLAGER_ID).get("c1")).toBe(7);   // 10 − 3
-    expect(restJeCharge(t.db, RTW1).get("c1")).toBe(4);
-    expect(restJeCharge(t.db, RTW2).get("c1")).toBe(1);
+    expect(restJeCharge(t.db, [HANDLAGER_ID]).get("c1")).toBe(7);   // 10 − 3
+    expect(restJeCharge(t.db, [RTW1]).get("c1")).toBe(4);
+    expect(restJeCharge(t.db, [RTW2]).get("c1")).toBe(1);
   });
 });
 
@@ -184,7 +205,8 @@ describe("bestandJeArtikelUndLagerort — EINE Abfrage fuer die Fahrzeugliste", 
     // Schleife ueber alle Artikel.
     const m = bestandJeArtikelUndLagerort(t.db);
     expect(m.get(HANDLAGER_ID)?.get("a1")).toBe(12);
-    expect(m.get(RTW1)?.get("a1")).toBe(4);
+    // 4 + 7 (die geteilte Charge aus DRK-297 liegt AUCH im RTW1).
+    expect(m.get(RTW1)?.get("a1")).toBe(11);
     expect(m.get(RTW1)?.get("a2")).toBe(2);
     expect(m.get(RTW2)?.get("a1")).toBe(1);
     expect(m.get(RTW2)?.has("a2")).toBe(false);
@@ -204,7 +226,7 @@ describe("bestandJeArtikelUndLagerort — EINE Abfrage fuer die Fahrzeugliste", 
 
 describe("restJeChargeFuerArtikel — der Lesepfad des Schreibwegs", () => {
   it("liefert nur die Chargen DIESES Artikels an DIESEM Lagerort", () => {
-    const m = restJeChargeFuerArtikel(t.db, "a1", HANDLAGER_ID);
+    const m = restJeChargeFuerArtikel(t.db, "a1", [HANDLAGER_ID]);
     expect([...m.keys()].sort()).toEqual(["c1", "c2"]);
     expect(m.get("c1")).toBe(7);
     expect(m.get("c2")).toBe(5);
@@ -219,14 +241,14 @@ describe("restJeChargeFuerArtikel — der Lesepfad des Schreibwegs", () => {
      */
     const roh = alleZeilen().filter((r) => r.artikelId === "a1");
     const rein = bestandProLagerortUndCharge(roh, HANDLAGER_ID);
-    const sql = restJeChargeFuerArtikel(t.db, "a1", HANDLAGER_ID);
+    const sql = restJeChargeFuerArtikel(t.db, "a1", [HANDLAGER_ID]);
     expect([...sql.keys()].sort()).toEqual([...rein.keys()].sort());
     for (const [k, v] of rein) expect(sql.get(k)).toBe(v);
   });
 
   it("liefert eine LEERE Map fuer einen Artikel ohne Buchung an diesem Ort", () => {
-    expect(restJeChargeFuerArtikel(t.db, "a2", HANDLAGER_ID).size).toBe(0);
-    expect(restJeChargeFuerArtikel(t.db, "a3", HANDLAGER_ID).size).toBe(0);
+    expect(restJeChargeFuerArtikel(t.db, "a2", [HANDLAGER_ID]).size).toBe(0);
+    expect(restJeChargeFuerArtikel(t.db, "a3", [HANDLAGER_ID]).size).toBe(0);
   });
 });
 
@@ -283,7 +305,8 @@ describe("kennzahlen", () => {
   });
 
   it("zaehlt ALLE Buchungszeilen, lagerort-uebergreifend", () => {
-    expect(kennzahlen(t.db, NOW).buchungenGesamt).toBe(8);
+    // 8 + 2 (die geteilte Charge aus DRK-297: schrank-1 und RTW1).
+    expect(kennzahlen(t.db, NOW).buchungenGesamt).toBe(10);
   });
 
   it("zaehlt einen DEAKTIVIERTEN Artikel nicht mit", () => {
@@ -335,8 +358,94 @@ describe("Leser — die vier Aggregate laufen auch INNERHALB einer Transaktion (
      * darin zur Laufzeit funktionieren.
      */
     t.db.transaction((tx) => {
-      expect(restJeChargeFuerArtikel(tx, "a1", HANDLAGER_ID).get("c1")).toBe(7);
-      expect(bestandJeArtikel(tx, HANDLAGER_ID).get("a1")).toBe(12);
+      expect(restJeChargeFuerArtikel(tx, "a1", [HANDLAGER_ID]).get("c1")).toBe(7);
+      expect(bestandJeArtikel(tx, [HANDLAGER_ID]).get("a1")).toBe(12);
     });
+  });
+});
+
+describe("DRK-297 — Bestand ueber einen Bereich", () => {
+  /** Der Differenztest: SQL gegen die reine Funktion, identischer Zeilenbestand. */
+  it("bestandJeArtikel ueber zwei Schraenke stimmt mit bestandProOrte ueberein", () => {
+    const orte = [HANDLAGER_ID, "schrank-1", "schrank-2"];
+    const perSql = bestandJeArtikel(t.db, orte).get("a1") ?? 0;
+    const alle = t.db
+      .select({ lagerortId: buchungen.lagerortId, menge: buchungen.menge, artikelId: buchungen.artikelId })
+      .from(buchungen).all()
+      .filter((r) => r.artikelId === "a1");
+    expect(perSql).toBe(bestandProOrte(alle, orte));
+  });
+
+  /** ⚠️ OHNE DIESEN TEST BLIEBE EIN ZU WEITER BEREICH GRUEN: das Fahrzeug
+   *  darf nicht in den Handlager-Bereich rutschen. */
+  it("der Bereich schliesst das Fahrzeug NICHT ein", () => {
+    const mitFahrzeug = bestandJeArtikel(t.db, [HANDLAGER_ID, "schrank-1", RTW1]).get("a1") ?? 0;
+    const ohneFahrzeug = bestandJeArtikel(t.db, [HANDLAGER_ID, "schrank-1"]).get("a1") ?? 0;
+    expect(mitFahrzeug).toBeGreaterThan(ohneFahrzeug);
+  });
+
+  it("restJeChargeUndOrt zeigt dieselbe Charge an zwei Orten mit je eigener Menge", () => {
+    const verteilung = restJeChargeUndOrt(t.db, "a1").get(CHARGE_GETEILT);
+    expect(verteilung?.get("schrank-1")).toBe(5);
+    expect(verteilung?.get(RTW1)).toBe(7);
+  });
+
+  /** Leere Gruppen liefern KEINE Zeile — `?? 0` auf beiden Seiten. */
+  it("ein Ort ohne Buchung der Charge fehlt in der Verteilung ganz", () => {
+    expect(restJeChargeUndOrt(t.db, "a1").get(CHARGE_GETEILT)?.get("schrank-2")).toBeUndefined();
+  });
+
+  /**
+   * Der Differenztest fuer `restJeCharge` UEBER EINE MEHRELEMENTIGE Ortsmenge —
+   * bisher lief `restJeCharge` in dieser Datei nur einelementig. SQL-Seite:
+   * `sum()` + `inArray` (die produktive Abfrage). Reine Seite: die Vollladung
+   * OHNE jedes Ortsprädikat, gefiltert erst in JS ueber `restProOrtenUndCharge`
+   * — zwei verschiedene Wege, nicht dieselbe Formel zweimal.
+   *
+   * ⚠️ Die geteilte Charge liegt in `schrank-1` UND in `RTW1` — der Bereich OHNE
+   * das Fahrzeug muss deshalb eine ANDERE Zahl liefern als der Bereich MIT ihm.
+   * Nur so faellt ein zu weit gefasster Bereich ueberhaupt auf.
+   */
+  it("restJeCharge ueber eine mehrelementige Ortsmenge stimmt mit restProOrtenUndCharge ueberein", () => {
+    const roh = alleZeilen();
+    const ohneFahrzeug = [HANDLAGER_ID, "schrank-1", "schrank-2"];
+    const mitFahrzeug = [...ohneFahrzeug, RTW1];
+
+    const sqlOhne = restJeCharge(t.db, ohneFahrzeug);
+    expect(sqlOhne.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, ohneFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    const sqlMit = restJeCharge(t.db, mitFahrzeug);
+    expect(sqlMit.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, mitFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    // Der Bereich OHNE Fahrzeug liefert eine ANDERE Zahl als MIT ihm.
+    expect(sqlOhne.get(CHARGE_GETEILT)).toBe(5);    // NUR schrank-1
+    expect(sqlMit.get(CHARGE_GETEILT)).toBe(12);    // schrank-1 (5) + RTW1 (7)
+  });
+
+  /**
+   * Derselbe Differenztest fuer `restJeChargeFuerArtikel` — auch dieses Aggregat
+   * lief bisher nur einelementig (`_actions/inventur.ts:139` ruft es produktiv
+   * ueber einen echten Bereich). Verschiedenwegig wie oben: SQL-Seite `sum()` +
+   * `inArray` (plus `artikelId`-Praedikat), reine Seite die Vollladung EINES
+   * Artikels ohne Ortsprädikat.
+   */
+  it("restJeChargeFuerArtikel ueber eine mehrelementige Ortsmenge stimmt mit restProOrtenUndCharge ueberein", () => {
+    const roh = alleZeilen().filter((r) => r.artikelId === "a1");
+    const ohneFahrzeug = [HANDLAGER_ID, "schrank-1", "schrank-2"];
+    const mitFahrzeug = [...ohneFahrzeug, RTW1];
+
+    const sqlOhne = restJeChargeFuerArtikel(t.db, "a1", ohneFahrzeug);
+    expect(sqlOhne.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, ohneFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    const sqlMit = restJeChargeFuerArtikel(t.db, "a1", mitFahrzeug);
+    expect(sqlMit.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, mitFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    // Der Bereich OHNE Fahrzeug liefert eine ANDERE Zahl als MIT ihm.
+    expect(sqlOhne.get(CHARGE_GETEILT)).toBe(5);    // NUR schrank-1
+    expect(sqlMit.get(CHARGE_GETEILT)).toBe(12);    // schrank-1 (5) + RTW1 (7)
   });
 });

@@ -17,7 +17,7 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  *    dieser Datei deckt das ab.
  *  - Nav-Icons ueber core/shell — die tatsaechliche Zeichenzahl in der
  *    gerenderten Navigation ist nur per echtem DOM zu zaehlen, nicht durch
- *    eine Quelltext-Analyse der 15 nav.ts-Eintraege.
+ *    eine Quelltext-Analyse der 16 nav.ts-Eintraege.
  *  - Die fuenf Kennzahlleisten (bz, geraete, geraete/[id], sauerstoff,
  *    vorlagen/[id]) — Original und Portierung teilen sich diesen Code, aber
  *    ob die BZ-Uebersicht ihn tatsaechlich rendert, ist erst am
@@ -113,7 +113,7 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
    * in dieser Datei und traegt deshalb die einzige `status()`-Zusicherung.
    *
    * Die Zeichenzahl selbst ist eine zweite, unabhaengige Zusicherung:
-   * `LAGERBUCH_NAV` fuehrt exakt 15 Eintraege, jeder mit genau einem
+   * `LAGERBUCH_NAV` fuehrt exakt 16 Eintraege, jeder mit genau einem
    * Zeichen, und nur echtes DOM zaehlt sie richtig.
    *
    * GEFILTERT, UND DER GRUND HAT SICH GEAENDERT: hier stand
@@ -125,14 +125,14 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
    * anderen Grund: die Kopfzeile traegt Zeichen (Chevron, Menue, Theme), und
    * ein ungefiltertes `page.locator("svg")` zaehlte sie mit.
    *
-   * `modulleiste` statt `modulnav`, weil das Lagerbuch seine fuenfzehn Ziele
+   * `modulleiste` statt `modulnav`, weil das Lagerbuch seine sechzehn Ziele
    * seit den Abschnitten als Seitenleiste fuehrt und nicht mehr als zweite
    * Kopfzeile. Die Zusage ist dieselbe geblieben, nur ihre Gestalt nicht.
    */
   test("Navigation traegt Zeichen und die Seite antwortet", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung"));
     expect(antwort?.status()).toBe(200);
-    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(15, {
+    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(16, {
       timeout: 10_000,
     });
   });
