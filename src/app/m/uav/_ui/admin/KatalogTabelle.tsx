@@ -167,9 +167,19 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
         dataSource={aufgaben}
         onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
-          // „Noch nichts angelegt" und „nichts passt" sind zwei verschiedene
-          // Sätze; der falsche lädt zum Anlegen einer Aufgabe ein, die es gibt.
-          emptyText: filterAktiv(spaltenFilter)
+          /*
+           * „Noch nichts angelegt" und „nichts passt" sind zwei verschiedene
+           * Sätze; der falsche lädt zum Anlegen einer Aufgabe ein, die es gibt.
+           *
+           * ⚠️ DIE LEERE LISTE WIRD ZUERST GEFRAGT, und das ist kein Stil. Der
+           * Filter bleibt stehen, wenn die letzte Aufgabe darunter GELÖSCHT wird
+           * (`geloescht` leert `aufgaben`, rührt `spaltenFilter` aber nicht an) —
+           * und dann behauptet „nichts passt zum Filter" einen Bestand, den es
+           * nicht mehr gibt, genau vor der Person, die jetzt die erste neue
+           * Aufgabe anlegen soll. Dieselbe Reihenfolge wie in
+           * `lagerbuch/…/inventur/InventurForm.tsx`.
+           */
+          emptyText: aufgaben.length > 0 && filterAktiv(spaltenFilter)
             ? "Keine Aufgabe passt zum Filter."
             : "Noch keine Aufgaben im Katalog.",
         }}

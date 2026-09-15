@@ -22,8 +22,18 @@ import type { TaskDTO } from "../../_lib/typen";
  * Der Modulersatz für die Action ist Pflicht: `_actions/katalog.ts` zieht sonst
  * `better-sqlite3`, `drizzle-orm` und `next/cache` in den jsdom-Lauf.
  */
-const { sortierenMock } = vi.hoisted(() => ({ sortierenMock: vi.fn() }));
-vi.mock("../../_actions/katalog", () => ({ aufgabenSortierenAction: sortierenMock }));
+const { sortierenMock, loeschenMock } = vi.hoisted(() => ({
+  sortierenMock: vi.fn(),
+  loeschenMock: vi.fn(),
+}));
+vi.mock("../../_actions/katalog", () => ({
+  aufgabenSortierenAction: sortierenMock,
+  // `AufgabeFormular` im Drawer importiert aus demselben Modul; ohne die drei
+  // waeren sie hier `undefined` und der Drawer risse beim Oeffnen.
+  aufgabeLoeschenAction: loeschenMock,
+  aufgabeAendernAction: vi.fn(),
+  aufgabeAnlegenAction: vi.fn(),
+}));
 
 const { KatalogTabelle } = await import("./KatalogTabelle");
 
@@ -59,7 +69,9 @@ const ZEILEN: TaskDTO[] = [
 
 beforeEach(() => {
   sortierenMock.mockReset();
+  loeschenMock.mockReset();
   sortierenMock.mockResolvedValue(undefined);
+  loeschenMock.mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -171,6 +183,38 @@ describe("KatalogTabelle — die Filter im Spaltenkopf", () => {
     // beide Knöpfe müssen offen sein und auf die Nachbarn greifen.
     await clickElement(query("button[aria-label='1.2 nach unten']"));
     expect(sortierenMock.mock.calls[0]![0]).toEqual(["a1", "a3", "a2"]);
+  });
+
+  /**
+   * ⚠️ DER FALL, DEN EIN `filterAktiv`-ZUERST NICHT SIEHT (Codex-Fund am PR #153).
+   * Der Filter bleibt stehen, wenn die letzte Aufgabe darunter GELÖSCHT wird —
+   * `geloescht` leert `aufgaben`, ruehrt `spaltenFilter` aber nicht an. „Nichts
+   * passt zum Filter" behauptete dann einen Bestand, den es nicht mehr gibt,
+   * genau vor der Person, die jetzt die erste neue Aufgabe anlegen soll.
+   */
+  it("sagt „noch nichts angelegt“, wenn die letzte Aufgabe unter einem stehenden Filter gelöscht wird", async () => {
+    await mount(<KatalogTabelle aufgaben={[ZEILEN[1]!]} />);
+    await filterOeffnen("Teil");
+    await filterWaehlen("Teil 2");
+    expect(zeilenSchluessel()).toEqual(["a2"]);
+
+    await clickElement(
+      queryAll<HTMLElement>("button").find((k) => k.textContent === "Bearbeiten")!,
+    );
+    await clickElement(
+      [...document.body.querySelectorAll<HTMLElement>("button")]
+        .find((k) => k.textContent === "Löschen")!,
+    );
+    await clickElement(
+      [...document.body.querySelectorAll<HTMLElement>(".ant-popconfirm button")]
+        .find((k) => k.textContent === "Löschen")!,
+    );
+
+    expect(loeschenMock).toHaveBeenCalledWith("a2");
+    expect(zeilenSchluessel()).toHaveLength(0);
+    expect(document.body.textContent, "der Filter steht noch, der Katalog ist trotzdem leer")
+      .toContain("Noch keine Aufgaben im Katalog.");
+    expect(document.body.textContent).not.toContain("Keine Aufgabe passt zum Filter.");
   });
 
   it("unterscheidet „noch nichts angelegt“ von „nichts passt zum Filter“", async () => {
