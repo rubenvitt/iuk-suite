@@ -25,6 +25,7 @@ import { useEffect, useMemo } from "react";
 import { Table, type TableProps } from "antd";
 import { SCHRIFT } from "../theme/schrift";
 import { scrollMasse, type MassSpalte, type Scrollmass } from "./masse";
+import { RollenAnbieter, mitRollen, mitZeilenindex } from "./rollen";
 
 export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" | "scroll"> & {
   /**
@@ -60,6 +61,18 @@ export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" 
    * Aufgabe das Abschneiden ist, wächst stattdessen mit ihrem längsten Wert.
    */
   scroll?: Scrollmass | false;
+  /**
+   * Der Name der Tabelle für Hilfstechnik.
+   *
+   * ⚠️ ER STEHT HIER AUSDRÜCKLICH IM TYP, obwohl antds `TableProps` ihn nicht
+   * kennt — und beides zusammen ist der Grund: TypeScript prüft ein
+   * JSX-Attribut MIT BINDESTRICH überhaupt nicht gegen den Props-Typ, es kam
+   * also bisher ungeprüft durch. Die `Datentabelle` entscheidet inzwischen, an
+   * welchem Knoten er landet (s. unten), und eine Entscheidung über einen Wert,
+   * den der Typ nicht kennt, ist eine, die beim nächsten Umbau still verloren
+   * geht.
+   */
+  "aria-label"?: string;
 };
 
 /**
@@ -99,6 +112,9 @@ export function Datentabelle<T extends object>({
   blaettern = false,
   columns,
   scroll,
+  components,
+  onRow,
+  "aria-label": beschriftung,
   ...rest
 }: DatentabelleProps<T>) {
   const spalten = useMemo(() => mitKicker(columns), [columns]);
@@ -139,13 +155,45 @@ export function Datentabelle<T extends object>({
     }
   }, [masse.hinweis]);
 
+  /**
+   * DIE TABELLEN-SEMANTIK, DIE DIE VIRTUALISIERUNG KOSTET — nachgerüstet
+   * (DRK-336). Begründung und Grenzen stehen in `rollen.tsx`; hier steht nur,
+   * dass beides an DERSELBEN Bedingung hängt wie die Virtualisierung selbst.
+   */
+  const bauteile = useMemo(
+    () => mitRollen<T>(components, masse.virtuellAktiv),
+    [components, masse.virtuellAktiv],
+  );
+  const zeilenProps = useMemo(
+    () => mitZeilenindex<T>(onRow, masse.virtuellAktiv),
+    [onRow, masse.virtuellAktiv],
+  );
+  const rollenwerte = useMemo(
+    () => ({ beschriftung, zeilen: zeilenAnzahl }),
+    [beschriftung, zeilenAnzahl],
+  );
+
   return (
-    <Table<T>
-      {...rest}
-      columns={spalten}
-      pagination={blaettern}
-      scroll={masse.scroll}
-      virtual={masse.virtuellAktiv}
-    />
+    <RollenAnbieter value={rollenwerte}>
+      <Table<T>
+        {...rest}
+        /**
+         * ⚠️ DIE BESCHRIFTUNG WANDERT MIT DER VIRTUALISIERUNG AN EINEN ANDEREN
+         * KNOTEN, und sie darf nicht an beiden stehen. antd hängt `aria-*` an
+         * die Tabelle des KOPFES (`InternalTable.js:41`, `HeaderTable`) — bei
+         * fixem Kopf also an das Element mit den Spaltenköpfen und ohne eine
+         * einzige Datenzeile. Virtuell trägt den Namen der Körper, weil dort
+         * die Zeilen stehen; bliebe er zusätzlich am Kopf, träfe eine
+         * Vorleseanwendung ZWEI gleich benannte Tabellen nebeneinander.
+         */
+        aria-label={masse.virtuellAktiv ? undefined : beschriftung}
+        components={bauteile}
+        onRow={zeilenProps}
+        columns={spalten}
+        pagination={blaettern}
+        scroll={masse.scroll}
+        virtual={masse.virtuellAktiv}
+      />
+    </RollenAnbieter>
   );
 }

@@ -168,14 +168,36 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
     **Und eine dritte Folge, die auch im Browser gilt: eine virtualisierte Tabelle hat kein
     `tbody` und keine `tr`.** rc-table rendert Zeilen und Zellen als `div`s
-    (`VirtualTable/BodyLine.js:40-41`), und die tragen kein `role="row"`. Ein Playwright-Greifer
-    über `tbody tr` oder `getByRole("row")` findet ab der Schwelle schlicht nichts mehr — und
-    zwar erst dann, was ihn im kleinen Seed grün lässt. `[data-row-key]` setzt rc-table in
-    **beiden** Betriebsarten; das ist der Greifer, der trägt. ⚠️ Dasselbe gilt für das
-    `aria-label` der Tabelle: `Table.js:476` sammelt die aria-Props ein und hängt sie im
-    virtuellen Zweig (`:481`) an **kein** Element mehr — `getByLabel(…)` löst dann auf gar
-    nichts auf. Was der Verlust der Tabellen-Semantik für Hilfstechnik bedeutet, ist eine
-    fachliche Frage und steht als DRK-336 auf dem Board.
+    (`VirtualTable/BodyLine.js:40-41`). Ein Playwright-Greifer über `tbody tr` findet ab der
+    Schwelle schlicht nichts mehr — und zwar erst dann, was ihn im kleinen Seed grün lässt.
+    `[data-row-key]` setzt rc-table in **beiden** Betriebsarten; das ist der Greifer, der trägt.
+
+    ⚠️ **Die ROLLEN sind seit DRK-336 nachgerüstet, die ELEMENTE nicht.** `core/tabelle/rollen.tsx`
+    hängt über `components.body.wrapper/row/cell` wieder `role="table"`/`"row"`/`"cell"` ein, dazu
+    `aria-rowcount` am Körper und `aria-rowindex` an jeder Zeile (ohne beide sagt eine
+    Vorleseanwendung „20 Zeilen", wo 800 stehen). `getByRole("row")` trägt damit wieder — aber
+    **nur über `Datentabelle`**: eine nackte antd-`Table` mit `virtual` hat weiterhin keine
+    einzige Rolle im Körper. Bewusst `table`/`cell` und **nicht** `grid`/`gridcell`: `grid` ist
+    eine Zusage über die Bedienung (Pfeiltastennavigation, ein Tabstopp), die diese Tabellen nicht
+    einlösen. Das Ziel ist Gleichstand mit derselben Tabelle unterhalb der Schwelle, nicht mehr.
+    ⚠️ Nur `components` reicht dafür nicht: die Rollen müssen **an derselben Bedingung hängen wie
+    die Virtualisierung selbst** — in der gewöhnlichen Tabelle sind dieselben drei Steckplätze
+    `tbody`/`tr`/`td`, und wer sie dort durch `div`s ersetzt, zerstört die Tabelle samt
+    Spaltenbreiten (ein `colgroup` wirkt nur auf eine echte `<table>`).
+
+    ⚠️ **Zum `aria-label` steht in älteren Notizen das Gegenteil, und das ist seit antd 6.6.2
+    überholt:** rc-table hängt die aria-Props nur an die Tabelle, die es im virtuellen Zweig gar
+    nicht rendert (`Table.js:481`) — antd fängt das aber ab und setzt sie über `HeaderTable`
+    (`InternalTable.js:41`) an die Tabelle des **Kopfes**. Bei fixem Kopf landet der Name damit an
+    einem Element **ohne eine einzige Datenzeile**. `Datentabelle` nimmt ihn dort weg und setzt ihn
+    an den Körper, sobald virtualisiert wird; stünde er an beiden, träfe eine Vorleseanwendung zwei
+    gleich benannte Tabellen nebeneinander.
+
+    ⚠️ **Was die Nachrüstung NICHT zurückholt, und das ist kein Versäumnis dieser Falle:** die
+    Zuordnung Spaltenkopf → Zelle. Sobald eine Tabelle `scroll.y` setzt — und `virtuell` setzt es
+    immer —, teilt rc-table sie in **zwei** `<table>`-Elemente (`Table.js:485` Kopf, `:507`
+    Körper); der Kopf trägt nur `thead`, der Körper nur `tbody`. Das gilt für **jede** Tabelle der
+    Suite mit fixem Kopf, virtuell oder nicht, und steht als DRK-362 auf dem Board.
 
 15. **`Table`s `onChange` feuert nur bei Bedienung DER TABELLE — nicht, wenn sich `dataSource`
     daneben ändert** (gemessen im Modul `lagerbuch`, DRK-331). Der naheliegende Weg, „was steht
