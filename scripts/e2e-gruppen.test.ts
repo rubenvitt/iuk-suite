@@ -60,19 +60,31 @@ const gruppen = JSON.parse(
 ) as Gruppe[];
 
 /**
- * Die Dateien, die `playwright.config.ts` per `testIgnore` ohnehin auslaesst.
- * Sie duerfen in KEINER Gruppe stehen — ein Job, der sie nennt, liefe gegen
- * eine leere Auswahl und meldete das nicht.
+ * Das `testIgnore`-Muster aus `playwright.config.ts`, WOERTLICH uebernommen.
+ *
+ * Dateien, die es trifft, laesst Playwright ohnehin aus; sie duerfen in KEINER
+ * Gruppe stehen — ein Job, der sie nennt, liefe gegen eine leere Auswahl und
+ * meldete das nicht.
  *
  * Die Quelle ist die Konfiguration selbst, nicht eine zweite Liste hier:
  * sonst laufen die beiden auseinander, sobald jemand dort etwas ergaenzt.
  */
-const ausgelassen = (() => {
+const ausgelassenRx = (() => {
   const cfg = readFileSync(join(WURZEL, "playwright.config.ts"), "utf8");
-  const zeile = /testIgnore:\s*\/\((.*?)\)\\\.spec\\\.ts\//.exec(cfg);
+  const zeile = /testIgnore:\s*\/((?:[^/\\]|\\.)+)\/([gimsuy]*)/.exec(cfg);
   if (!zeile) throw new Error("testIgnore in playwright.config.ts nicht gefunden");
-  return zeile[1].split("|").map((n) => `${n}.spec.ts`);
+  return new RegExp(zeile[1], zeile[2]);
 })();
+
+/**
+ * ⚠️ GEPRUEFT WIRD DER GANZE PFAD, nicht der blosse Dateiname. Das
+ * `testIgnore`-Muster ist UNVERANKERT und trifft damit auch
+ * `legacy/pwa-spike.spec.ts`. Wer es auf Basisnamen herunterrechnet, dreht die
+ * Wirkung um: Playwright liesse die verschachtelte Datei aus, der Waechter
+ * verlangte sie aber in einer Gruppe — und sobald jemand sie dort eintraegt,
+ * ist der Waechter gruen, waehrend der Job sie nie faehrt.
+ */
+const wirdAusgelassen = (datei: string) => ausgelassenRx.test(datei);
 
 /**
  * `foo-*.spec.ts` -> ein Regex, das genau diese Namen trifft.
@@ -139,7 +151,7 @@ function loese(muster: string, vorhanden: string[]): string[] {
 
 describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt", () => {
   const alle = alleSpecs();
-  const erwartet = alle.filter((d) => !ausgelassen.includes(d));
+  const erwartet = alle.filter((d) => !wirdAusgelassen(d));
   const aufgeloest = gruppen.flatMap((g) => loese(g.specs, alle));
 
   it("kennt ueberhaupt Gruppen, und jede hat einen Namen und ein Muster", () => {
@@ -190,7 +202,21 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // Die Zusicherung, die wirklich traegt: was Playwright faehrt, ist genau
     // das, was der Waechter gegen die Gruppen haelt. Gezaehlt gegen die
     // Auswahl, die `--list` im vollen Lauf ergibt (449 Faelle in 47 Dateien).
-    expect(alleSpecs().filter((d) => !ausgelassen.includes(d))).toHaveLength(47);
+    expect(alleSpecs().filter((d) => !wirdAusgelassen(d))).toHaveLength(47);
+  });
+
+  it("`testIgnore` wird auf den GANZEN Pfad angewandt, nicht auf den Basisnamen", () => {
+    // Das Muster in `playwright.config.ts` ist unverankert und trifft deshalb
+    // auch eine verschachtelte Datei. Wer es auf Basisnamen herunterrechnet,
+    // dreht die Wirkung um: Playwright liesse `legacy/pwa-spike.spec.ts` aus,
+    // der Waechter verlangte sie aber in einer Gruppe — und sobald jemand sie
+    // dort eintraegt, ist der Waechter gruen, waehrend der Job sie nie faehrt.
+    expect(wirdAusgelassen("pwa-spike.spec.ts")).toBe(true);
+    expect(wirdAusgelassen("legacy/pwa-spike.spec.ts")).toBe(true);
+    expect(wirdAusgelassen("zeichen-pwa.spec.ts")).toBe(true);
+    expect(wirdAusgelassen("tief/verschachtelt/zeichen-pwa.spec.ts")).toBe(true);
+    expect(wirdAusgelassen("lagerbuch-mobil.spec.ts")).toBe(false);
+    expect(wirdAusgelassen("radio-kiosk.spec.ts")).toBe(false);
   });
 
   it("die Sollmenge folgt Playwrights `testMatch`, nicht nur `.spec.ts`", () => {
@@ -222,7 +248,7 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
   it("keine Gruppe nennt eine Datei, die `testIgnore` ohnehin auslaesst", () => {
     for (const g of gruppen) {
       for (const d of loese(g.specs, alle)) {
-        expect(ausgelassen, `${g.name} nennt die ausgelassene ${d}`).not.toContain(d);
+        expect(wirdAusgelassen(d), `${g.name} nennt die ausgelassene ${d}`).toBe(false);
       }
     }
   });
