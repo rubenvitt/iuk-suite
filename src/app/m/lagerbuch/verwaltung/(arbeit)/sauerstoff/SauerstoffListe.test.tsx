@@ -39,26 +39,38 @@ vi.mock("next/navigation", () => ({
 const ZEILEN: SauerstoffAnzeigeZeile[] = [
   {
     id: "o1", name: "O2 klein", lagerortName: "RTW 1", aktiv: true,
-    groesseLiter: 2, nennfuelldruckBar: 200, letzterDruck: 70,
+    groesseLiter: 2, nennfuelldruckBar: 200, letzterDruck: 70, wechselAbProzent: 40,
     letzteMessungText: "07.08. 12:34", herkunft: "check",
-    status: { prozent: 35, ampel: "rot", niedrig: true },
+    // 70 von 200 bar = 35 %, und die Flasche steht auf 40 % — sie ist faellig,
+    // obwohl sie es bei der Vorgabe 25 % nicht waere. Genau die Konfiguration,
+    // die DRK-308 moeglich macht.
+    status: {
+      prozent: 35, ampel: "rot", niedrig: true, wechseln: true,
+      wechselAbProzent: 40, wechselAbBar: 80,
+    },
   },
   {
     id: "o2", name: "O2 Reserve", lagerortName: "Lager Beta", aktiv: true,
-    groesseLiter: 10, nennfuelldruckBar: 300, letzterDruck: 240,
+    groesseLiter: 10, nennfuelldruckBar: 300, letzterDruck: 240, wechselAbProzent: 25,
     letzteMessungText: "07.08. 11:30", herkunft: "manuell",
-    status: { prozent: 80, ampel: "gruen", niedrig: false },
+    status: {
+      prozent: 80, ampel: "gruen", niedrig: false, wechseln: false,
+      wechselAbProzent: 25, wechselAbBar: 75,
+    },
   },
   {
     id: "o3", name: "O2 ohne", lagerortName: "Handlager", aktiv: true,
-    groesseLiter: null, nennfuelldruckBar: 200, letzterDruck: null,
+    groesseLiter: null, nennfuelldruckBar: 200, letzterDruck: null, wechselAbProzent: 25,
     letzteMessungText: null, herkunft: null, status: null,
   },
   {
     id: "o4", name: "O2 alt", lagerortName: "Altbestand", aktiv: false,
-    groesseLiter: 2, nennfuelldruckBar: 200, letzterDruck: 40,
+    groesseLiter: 2, nennfuelldruckBar: 200, letzterDruck: 40, wechselAbProzent: 25,
     letzteMessungText: "06.08. 09:00", herkunft: "manuell",
-    status: { prozent: 20, ampel: "rot", niedrig: true },
+    status: {
+      prozent: 20, ampel: "rot", niedrig: true, wechseln: true,
+      wechselAbProzent: 25, wechselAbBar: 50,
+    },
   },
 ];
 
@@ -229,7 +241,11 @@ describe("SauerstoffListe", () => {
     const zeile = query("tr[data-row-key='o1']");
     expect(zeile.textContent).toContain("70 bar");
     expect(zeile.textContent).toContain("35 %");
-    expect(zeile.textContent).toContain("niedriger Druck");
+    // ⚠️ DER HINWEIS NENNT SEINEN GRENZWERT (DRK-308). Diese Flasche steht auf
+    // 40 % von 200 bar = 80 bar; bei der Vorgabe 25 % waere sie noch gelb. Ein
+    // nacktes „niedriger Druck" liesse offen, welche der beiden Vorgaben gilt.
+    expect(zeile.textContent).toContain("Wechsel fällig – ab 80 bar");
+    expect(zeile.textContent).toContain("Wechsel ab 40 %");
     expect(zeile.querySelector(`.${s.rot}`)).not.toBeNull();
   });
 
@@ -259,7 +275,7 @@ describe("SauerstoffListe", () => {
     await mount(<SauerstoffListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
     expect(exists(".ant-checkbox-wrapper")).toBe(false);
 
-    await spaltenFilter("Füllstand", "niedriger Druck");
+    await spaltenFilter("Füllstand", "Wechsel fällig");
     expect(zeilenIds()).toEqual(["o1", "o4"]);
 
     await spaltenFilter("Status", "aktiv");
@@ -381,7 +397,8 @@ describe("NeuFlasche", () => {
       ts.forEachChild(node, besuche);
     }
     besuche(source);
-    expect(felder).toEqual(["name", "lagerortId", "groesseLiter", "nennfuelldruckBar"]);
+    expect(felder)
+      .toEqual(["name", "lagerortId", "groesseLiter", "nennfuelldruckBar", "wechselAbProzent"]);
     expect(quelle).toMatch(/<Select[\s\S]*?filterOption=\{lagerortFilter\}/);
     expect(quelle).toMatch(/<Select<string,\s*LagerortOption>/);
     expect(lagerortFilter("rtw", { label: "RTW 1", value: "rtw-1" })).toBe(true);
@@ -407,8 +424,14 @@ describe("NeuFlasche", () => {
     await submitPortalForm();
     await warteAuf(() => mocks.flascheSpeichern.mock.calls.length === 1, "Action-Aufruf");
 
+    // ⚠️ `wechselAbProzent` REIST MIT, OBWOHL NIEMAND ES ANGEFASST HAT (DRK-308)
+    // — und das ist der Unterschied zu `groesseLiter`: der Grenzwert ist ein
+    // Pflichtfeld MIT Vorbelegung, kein optionales Feld. Eine Flasche ohne
+    // Grenzwert gaebe es nicht; die 25 stehen sichtbar im Formular, bevor
+    // jemand speichert.
     expect(mocks.flascheSpeichern).toHaveBeenCalledWith({
       name: "O2 neu", lagerortId: "rtw-1", groesseLiter: 10, nennfuelldruckBar: 300,
+      wechselAbProzent: 25,
     });
     await warteAuf(
       () => document.body.querySelector("[role='dialog']") === null,
@@ -418,6 +441,11 @@ describe("NeuFlasche", () => {
 
     await oeffneDialog();
     expect(queryPortal<HTMLInputElement>("[aria-label='Nennfülldruck in bar']").value).toBe("");
+    // Der Grenzwert steht nach dem Leeren wieder auf seiner Vorbelegung — ein
+    // leeres Pflichtfeld waere hier die schlechtere Antwort.
+    expect(
+      queryPortal<HTMLInputElement>("[aria-label='Wechselhinweis ab Prozent vom Nennfülldruck']").value,
+    ).toBe("25");
   });
 
   it("zeigt Feldfehler am Feld und den allgemeinen Action-Fehler", async () => {

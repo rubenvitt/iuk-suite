@@ -236,11 +236,20 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
       const m = t.sqlite.prepare(
         "select druck_bar as d from o2_messungen where flasche_id = ? order by ts desc limit 1",
       ).get(f.id) as { d: number } | undefined;
-      return m ? o2Status(m.d, f.nennfuelldruckBar).ampel : null;
+      // Der Grenzwert der ZEILE, nicht die Vorbelegung: seit DRK-308 traegt ihn
+      // jede Flasche selbst, und der Seed setzt ihn bewusst nicht ueberall gleich.
+      return m ? o2Status(m.d, f.nennfuelldruckBar, f.wechselAbProzent).ampel : null;
     });
     expect(o2Ampeln).toContain("rot");
     expect(o2Ampeln).toContain("gelb");
     expect(o2Ampeln).toContain("gruen");
+
+    // ⚠️ MINDESTENS EINE FLASCHE WEICHT AB (DRK-308). Ohne diese Behauptung
+    // stuende der Seed irgendwann wieder auf viermal derselben Vorgabe, und dass
+    // die Zahl einstellbar ist, waere lokal an keiner Zeile mehr zu sehen —
+    // still, weil alles andere gruen bliebe.
+    const grenzen = new Set(flaschen.map((f) => f.wechselAbProzent));
+    expect(grenzen.size).toBeGreaterThan(1);
   });
 
   it("stellt die Bestell-Kennzahlen beidseitig dar", async () => {

@@ -739,17 +739,48 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   }
 
   /* 16 ── Sauerstoff. Nennfuelldruck 200 bar; die Messungen unten treffen
-   *        gruen (90 %), gelb (35 %) und rot (20 %). */
+   *        gruen (90 %), gelb (35 %) und rot (20 %).
+   *
+   *        DIE FUENFTE FLASCHE TRAEGT DEN FACHLICHEN STREITFALL AUS DRK-308: sie
+   *        haelt 300 bar statt 200, und ihr Wechselwert steht auf 17 % — die
+   *        ABSOLUTE Lesart der Gespraechsnotiz („50 bar"), so nah an dieser
+   *        Flasche, wie ganze Prozent sie treffen. Daneben zeigen die vier
+   *        200-bar-Flaschen die relative Lesart mit denselben 25 %, die dort
+   *        50 bar ERGEBEN. Wer beide Zeilen nebeneinander sieht, sieht den
+   *        Unterschied, um den es geht.
+   *
+   *        ⚠️ 17 % SIND 51 BAR, NICHT 50 (`floor(300 * 17 / 100)`). 50/300 sind
+   *        16,67 %, und ganze Prozent treffen das nicht: 16 % waeren 48 bar. Die
+   *        absolute Lesart ist auf dieser Flasche also NICHT exakt darstellbar —
+   *        eine Ungenauigkeit von einem bar, aber sie gehoert benannt, weil die
+   *        Oberflaeche die bar-Zahl als die massgebliche zeigt. Faellt die
+   *        Abstimmung auf „absolut", ist die Antwort nicht eine Nachkommastelle,
+   *        sondern der Wert in BAR statt in Prozent (Frage steht in DRK-308).
+   *
+   *        ⚠️ SIE IST EINE EIGENE ID, KEIN GEAENDERTER BESTANDSWERT. Dieser Seed
+   *        ist rein additiv (`filter(!flDa.has(id))`): eine Zeile, die es schon
+   *        gibt, wird NICHT aktualisiert. Haengte der abweichende Wert an einer
+   *        bestehenden Flasche, erschiene er nur in frischen Datenbanken und in
+   *        keiner gewachsenen — still, weil alles andere gruen bleibt.
+   *
+   *        Ihre Messung ist bewusst gruen: die drei Ampelfarben oben bleiben so
+   *        erhalten. */
   const flDa = vorhandeneIds(db.select({ id: o2Flaschen.id }).from(o2Flaschen).all());
   const flaschenListe = [
     { id: "o2-rtw1-a", name: "O₂ 2 l (RTW 1, Tragetasche)", lagerortId: RTW, groesseLiter: 2 },
     { id: "o2-rtw1-b", name: "O₂ 10 l (RTW 1, Halterung)", lagerortId: RTW, groesseLiter: 10 },
     { id: "o2-ktw1-a", name: "O₂ 2 l (KTW 1)", lagerortId: KTW, groesseLiter: 2 },
     { id: "o2-lager-01", name: "O₂ 10 l (Reserve Keller)", lagerortId: LAGER_KELLER, groesseLiter: 10 },
+    {
+      id: "o2-lager-02", name: "O₂ 10 l (Reserve Keller, 300 bar)", lagerortId: LAGER_KELLER,
+      groesseLiter: 10, nennfuelldruckBar: 300, wechselAbProzent: 17,
+    },
   ].filter((f) => !flDa.has(f.id));
   for (const f of flaschenListe) {
     db.insert(o2Flaschen).values({
-      ...f, nennfuelldruckBar: 200, aktiv: true, createdAt: vor(jetzt, 190),
+      // `wechselAbProzent` nur, wo die Zeile ihn nennt — sonst greift die
+      // Vorbelegung aus dem Schema, und genau das ist der Regelfall.
+      nennfuelldruckBar: 200, aktiv: true, createdAt: vor(jetzt, 190), ...f,
     }).run();
   }
 
@@ -760,6 +791,9 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: "o2m-rtw1-b-01", flascheId: "o2-rtw1-b", ts: checkAbgeschlossenAm, druckBar: 40, kommentar: `Fahrzeug-Check ${REF_CHECK_RTW}` },
     { id: "o2m-ktw1-a-01", flascheId: "o2-ktw1-a", ts: vor(jetzt, 5), druckBar: 190, kommentar: null },
     { id: "o2m-lager-01-01", flascheId: "o2-lager-01", ts: vor(jetzt, 30), druckBar: 200, kommentar: "Neu gefüllt" },
+    // 200 von 300 bar = 67 % — gruen. Ihr Wechselwert (17 % = 51 bar) liegt weit
+    // darunter; die Zeile zeigt den abweichenden Wert, ohne eine Ampel zu kippen.
+    { id: "o2m-lager-02-01", flascheId: "o2-lager-02", ts: vor(jetzt, 28), druckBar: 200, kommentar: "Neu gefüllt" },
   ].filter((x) => !msDa.has(x.id));
   for (const x of messungenListe) {
     db.insert(o2Messungen).values({ ...x, quelleTyp: "oidc", quelleId: SEED_SUB }).run();

@@ -63,7 +63,11 @@ function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
   if (zeile.flaschenAuffaellig > 0) {
     chips.push({
       schluessel: "flaschen",
-      text: `${zeile.flaschenAuffaellig} Flasche(n) niedrig`,
+      // „wechseln", nicht „niedrig" (DRK-308): dieselbe Bedingung heisst seit
+      // dem konfigurierbaren Grenzwert ueberall gleich — Flaschenliste, Kachel,
+      // Check und Druckbogen. Zwei Woerter fuer eine Lage laesst offen, ob es
+      // zwei Lagen sind.
+      text: `${zeile.flaschenAuffaellig} Flasche(n) wechseln`,
       ton: "rot",
       zeichen: "sauerstoff",
     });

@@ -50,8 +50,8 @@ export function sucheTrifft(z: SauerstoffAnzeigeZeile, begriff: string): boolean
 const FUELLSTAND_FILTER = zustandsFilter<SauerstoffAnzeigeZeile>([
   {
     wert: "niedrig",
-    text: "niedriger Druck",
-    trifft: (zeile) => zeile.status?.niedrig === true,
+    text: "Wechsel fällig",
+    trifft: (zeile) => zeile.status?.wechseln === true,
   },
   {
     wert: "ohneMessung",
@@ -112,8 +112,14 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
         <Chip ton={ampelTon(zeile.status.ampel)}>
           {zeile.status.prozent} %
         </Chip>
-        {zeile.status.niedrig ? (
-          <Chip ton="rot" zeichen="warnung">niedriger Druck</Chip>
+        {/* ⚠️ DER HINWEIS NENNT SEINEN GRENZWERT (DRK-308). Er ist je Flasche
+            einstellbar; ohne die Zahl daneben liesse ein roter Chip offen, ab
+            wann er gilt, und man muesste die Stammdaten aufschlagen, um ihn zu
+            verstehen. */}
+        {zeile.status.wechseln ? (
+          <Chip ton="rot" zeichen="warnung">
+            Wechsel fällig – ab {zeile.status.wechselAbBar} bar
+          </Chip>
         ) : null}
       </span>
     ),
@@ -140,7 +146,7 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
     render: (wert: number | null, zeile) => (
       <span style={SCHRIFT.neben}>
         {wert === null ? "" : `${wert} l · `}
-        Nenndruck {zeile.nennfuelldruckBar} bar
+        Nenndruck {zeile.nennfuelldruckBar} bar · Wechsel ab {zeile.wechselAbProzent} %
       </span>
     ),
   },
