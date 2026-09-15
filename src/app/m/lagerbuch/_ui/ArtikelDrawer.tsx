@@ -810,7 +810,22 @@ export function ArtikelDrawer({
                         value: ort.id,
                         label: `${ort.name} · ${ort.menge} ${detail.artikel.einheit}`,
                       }))}
-                      onChange={() => umlagerForm.setFieldsValue({ menge: 1 })}
+                      /*
+                       * ⚠️ DAS ZIEL MUSS MIT — EIN FELD AUS DER AUSWAHL ZU
+                       * NEHMEN LOESCHT SEINEN WERT NICHT (Review-Befund Codex
+                       * P2 zu PR #161). „Nach" filtert den gewaehlten Quellort
+                       * heraus; wer aber ZUERST das Ziel waehlt und danach
+                       * denselben Ort als Quelle, behaelt ihn als Formularwert.
+                       * Die Auswahl zeigt dann die nackte Kennung an, und das
+                       * Absenden laeuft in „Quelle und Ziel muessen verschieden
+                       * sein" — an einer Bedienfolge, die nichts Falsches tut.
+                       */
+                      onChange={(wert: string) => umlagerForm.setFieldsValue({
+                        menge: 1,
+                        ...(umlagerForm.getFieldValue("nachLagerortId") === wert
+                          ? { nachLagerortId: undefined }
+                          : {}),
+                      })}
                     />
                   </Form.Item>
                   <Form.Item

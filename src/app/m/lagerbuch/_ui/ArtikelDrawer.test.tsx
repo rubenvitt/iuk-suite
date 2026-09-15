@@ -857,6 +857,25 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
       .map((element) => element.textContent ?? "");
   }
 
+  /**
+   * Was in einem Auswahlfeld GEWAEHLT dasteht — leer, wenn nichts gewaehlt ist.
+   *
+   * ⚠️ Es gibt keinen Weg an die Form-Instanz der Insel; geprueft wird also
+   * das, was auch die Bedienende sieht. Das ist hier sogar die schaerfere
+   * Probe: ein stehengebliebener Wert ohne passende Option zeigt antd als
+   * NACKTE KENNUNG an, und genau das soll nicht passieren.
+   */
+  function auswahlText(ariaLabel: string): string {
+    const feld = queryPortal<HTMLInputElement>(`[aria-label='${ariaLabel}']`).closest(".ant-select");
+    // ⚠️ `.ant-select-content-has-value` UND NICHT `.ant-select-selection-item`.
+    // antd 6 rendert die gewaehlte Beschriftung in `.ant-select-content` und
+    // setzt die zweite Klasse nur, wenn wirklich etwas gewaehlt ist; der aus
+    // aelteren Fassungen bekannte Greifer findet HIER GAR NICHTS — und ein
+    // Test, der auf „leer" zusichert, waere damit gruen, ohne je etwas
+    // gemessen zu haben. Gemessen am offenen Drawer, nicht vermutet.
+    return feld?.querySelector(".ant-select-content-has-value")?.textContent ?? "";
+  }
+
   /** Wie `selectOption`, aber auf die sichtbare Liste eingegrenzt. */
   async function waehle(ariaLabel: string, text: string): Promise<void> {
     await oeffne(ariaLabel);
@@ -930,6 +949,42 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
     // stehen, waere sie eine Quelle, die der Server ablehnen MUSS.
     expect(queryPortal<HTMLInputElement>("[aria-label='Von']")
       .closest(".ant-select")?.textContent).not.toContain("Schrank 1");
+  });
+
+  /**
+   * ⚠️ EIN FELD AUS DER AUSWAHL ZU NEHMEN LOESCHT SEINEN WERT NICHT
+   * (Review-Befund Codex P2 zu PR #161). „Nach" filtert den gewaehlten
+   * Quellort heraus — das hilft aber nur, wenn die Quelle ZUERST gewaehlt
+   * wird. Wer umgekehrt erst das Ziel waehlt und dann denselben Ort als
+   * Quelle, behaelt ihn als Formularwert: die Auswahl zeigt die nackte
+   * Kennung, und das Absenden laeuft in „Quelle und Ziel muessen verschieden
+   * sein" — an einer Bedienfolge, die nichts Falsches tut.
+   */
+  it("leert das Ziel, wenn es zur neu gewaehlten Quelle wird", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    // ZIEL ZUERST — in dieser Reihenfolge steht „GF-Schrank" noch zur Wahl.
+    await waehle("Nach", "GF-Schrank");
+    await waehle("Von", "GF-Schrank");
+
+    expect(auswahlText("Nach"), "das Ziel muss leer sein").toBe("");
+
+    // Und das Absenden laeuft in die FELDpruefung, nicht in die Action: ein
+    // stehengebliebenes Ziel haette `bucheUmlagerung` mit von === nach
+    // gerufen.
+    await submitPortalForm("[data-rolle='umlager-form']");
+    await act(async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); });
+    expect(mocks.bucheUmlagerung).not.toHaveBeenCalled();
+  });
+
+  /** Die Gegenprobe: ein Ziel, das NICHT die neue Quelle ist, bleibt stehen. */
+  it("laesst ein Ziel stehen, das nicht die neue Quelle ist", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    await waehle("Nach", "Handlager (ohne Schrank)");
+    await waehle("Von", "GF-Schrank");
+
+    expect(auswahlText("Nach")).toBe("Handlager (ohne Schrank)");
   });
 
   it("zeigt den Fehlersatz der Action AM Umlagerungsformular", async () => {
