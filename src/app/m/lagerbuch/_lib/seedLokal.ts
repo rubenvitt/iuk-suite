@@ -122,6 +122,11 @@ const RTW = "fz-rtw-1";
 const KTW = "fz-ktw-1";
 const MTW = "fz-mtw-1";
 
+/** DRK-297 — Schränke unterhalb des Handlagers. */
+const SCHRANK_1 = "schrank-1";
+const SCHRANK_2 = "schrank-2";
+const SCHRANK_GF = "schrank-gf";
+
 const TPL_RTW = "tpl-rtw";
 const TPL_KTW = "tpl-ktw";
 
@@ -283,7 +288,9 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     }).run();
   }
 
-  /* 4 ── Lagerorte. `handlager` kommt aus Migration 0003 und wird NUR benutzt. */
+  /* 4 ── Lagerorte. `handlager` kommt aus Migration 0003 und wird NUR benutzt —
+   *      die Schränke unten verweisen per `parentId` darauf, die Wurzel muss
+   *      also nicht extra eingefügt werden, nur schon existieren. */
   const ortDa = vorhandeneIds(db.select({ id: lagerorte.id }).from(lagerorte).all());
   const orteListe = [
     { id: LAGER_KELLER, name: "Lager Keller", typ: "lager" as const, kennung: null, templateId: null },
@@ -291,6 +298,15 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: KTW, name: "KTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1201", templateId: TPL_KTW },
     // Ohne Vorlage: individuell gepacktes Fahrzeug, Soll von Hand gepflegt.
     { id: MTW, name: "MTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1401", templateId: null },
+    { id: SCHRANK_1, name: "Schrank 1 (Helfer)", typ: "lager" as const,
+      parentId: HANDLAGER_ID, sortierung: 10, zugangshinweis: null },
+    { id: SCHRANK_2, name: "Schrank 2 (Helfer)", typ: "lager" as const,
+      parentId: HANDLAGER_ID, sortierung: 20, zugangshinweis: null },
+    // Der Fall, um den es in DRK-297 geht: ein Ort, an den man nicht einfach
+    // herangeht.
+    { id: SCHRANK_GF, name: "GF-Schrank", typ: "lager" as const,
+      parentId: HANDLAGER_ID, sortierung: 90,
+      zugangshinweis: "Zugang nur über die GF — LvD anrufen" },
   ].filter((o) => !ortDa.has(o.id));
   for (const o of orteListe) db.insert(lagerorte).values({ ...o, aktiv: true }).run();
 
@@ -356,6 +372,24 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: "ch-o2maske-ohne", artikelId: A.o2maske, chargenNr: CHARGE_OHNE_VERFALL, verfall: PSEUDO_VERFALL },
     { id: "ch-bzstreifen-bald", artikelId: A.bzstreifen, chargenNr: "BZ-2025-018", verfall: m.rot },
     { id: "ch-pflaster-gut", artikelId: A.pflaster, chargenNr: "P-2026-233", verfall: m.gruen },
+    // DRK-297 — der Kernfall: eine Charge, die an ZWEI Orten liegt (Schrank 1
+    // UND MTW, s. Block 12b). Ringer-Lactat ist an keinem Schreibpfad sonst
+    // beteiligt, der aus dem Handlager-Bereich zieht — die Verteilung bleibt
+    // damit ausschliesslich das Ergebnis DIESER Umlagerung, nachvollziehbar.
+    //
+    // ⚠️ VERFALL BEWUSST NIEDRIGER ALS `ch-ringer-gut` (nicht derselbe Wert):
+    // Block 10 (RTW-Check) laesst `korrekturAufLagerort` bei `diff > 0` die
+    // JUENGSTE Charge des Artikels waehlen — OHNE Lagerortbezug (§5.3.3). Bei
+    // gleichem Verfall UND gleicher `createdAt` entscheidet der Tie-Break auf
+    // `id`, und "ch-ringer-schrank1" > "ch-ringer-gut" haette dort gewonnen —
+    // gemessen: der RTW bekaeme dann zusaetzlich 2 Stück dieser Charge, ein
+    // DRITTER, ungewollter Ort. Ein klar niedrigerer Verfall haelt
+    // "ch-ringer-gut" eindeutig vorn.
+    { id: "ch-ringer-schrank1", artikelId: A.ringer, chargenNr: "R-2026-190", verfall: m.rot },
+    // DRK-297 — der zweite Kernfall: eine Charge AUSSCHLIESSLICH im
+    // GF-Schrank, also an einem Ort mit Zugangshinweis. Sauerstoffmasken sind
+    // ebenfalls an keinem Schreibpfad beteiligt, der aus dem Bereich zieht.
+    { id: "ch-o2maske-gf", artikelId: A.o2maske, chargenNr: "O2M-2026-777", verfall: m.gruen },
   ].filter((c) => !chDa.has(c.id));
   for (const c of chargenListe) {
     db.insert(chargen).values({ ...c, createdAt: vor(jetzt, 150) }).run();
@@ -363,8 +397,17 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
 
   /* 8 ── Wareneingang. DIREKT und mit FESTEN Buchungs-IDs — die einzige
    *      Buchungsart, die ihren Bestand selbst erzeugt, und die einzige
-   *      Gelegenheit, das Journal ueber mehrere Monate zu strecken. */
-  const zugaenge: { id: string; chargeId: string; artikelId: string; menge: number; vorTagen: number }[] = [
+   *      Gelegenheit, das Journal ueber mehrere Monate zu strecken.
+   *
+   *      `lagerortId` ist OPTIONAL und faellt auf den Handlager zurueck — die
+   *      beiden DRK-297-Zeilen (Ringer nach Schrank 1, Sauerstoffmaske nach
+   *      GF-Schrank) buchen bewusst direkt IN einen Schrank, nicht in den
+   *      Handlager mit anschliessender Umlagerung: es ist Erstbestand, kein
+   *      Transfer aus dem Handlager. */
+  const zugaenge: {
+    id: string; chargeId: string; artikelId: string; menge: number; vorTagen: number;
+    lagerortId?: string;
+  }[] = [
     { id: "bu-zg-kompresse-alt", chargeId: "ch-kompresse-alt", artikelId: A.kompresse, menge: 45, vorTagen: 140 },
     { id: "bu-zg-kompresse-bald", chargeId: "ch-kompresse-bald", artikelId: A.kompresse, menge: 40, vorTagen: 90 },
     { id: "bu-zg-kompresse-gut", chargeId: "ch-kompresse-gut", artikelId: A.kompresse, menge: 60, vorTagen: 25 },
@@ -381,12 +424,19 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: "bu-zg-o2maske", chargeId: "ch-o2maske-ohne", artikelId: A.o2maske, menge: 25, vorTagen: 55 },
     { id: "bu-zg-bzstreifen", chargeId: "ch-bzstreifen-bald", artikelId: A.bzstreifen, menge: 3, vorTagen: 95 },
     { id: "bu-zg-pflaster", chargeId: "ch-pflaster-gut", artikelId: A.pflaster, menge: 4, vorTagen: 12 },
+    // DRK-297 — Erstbestand direkt in Schrank 1; ein Teil davon wandert unten
+    // (Block 12b) per `umlagerung` weiter in den MTW. Die Charge liegt danach
+    // an ZWEI Orten.
+    { id: "bu-zg-ringer-schrank1", chargeId: "ch-ringer-schrank1", artikelId: A.ringer, menge: 16, vorTagen: 15, lagerortId: SCHRANK_1 },
+    // DRK-297 — Erstbestand AUSSCHLIESSLICH im GF-Schrank. Es gibt bewusst
+    // keine weitere Buchung fuer diese Charge.
+    { id: "bu-zg-o2maske-gf", chargeId: "ch-o2maske-gf", artikelId: A.o2maske, menge: 8, vorTagen: 10, lagerortId: SCHRANK_GF },
   ];
   const buDa = vorhandeneIds(db.select({ id: buchungen.id }).from(buchungen).all());
   for (const z of zugaenge.filter((z) => !buDa.has(z.id))) {
     db.insert(buchungen).values({
       id: z.id, ts: vor(jetzt, z.vorTagen), typ: "zugang",
-      artikelId: z.artikelId, chargeId: z.chargeId, lagerortId: HANDLAGER_ID,
+      artikelId: z.artikelId, chargeId: z.chargeId, lagerortId: z.lagerortId ?? HANDLAGER_ID,
       menge: z.menge, quelleTyp: "oidc", quelleId: SEED_SUB,
       referenz: null, kommentar: "Wareneingang (Demodaten)",
     }).run();
@@ -554,6 +604,22 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     });
   }
 
+  /* 12b ── DRK-297: eine Charge an ZWEI Orten. Ein Teil des Ringer-Bestands aus
+   *        Schrank 1 (Block 8) wandert per `umlagerung` in den MTW — danach
+   *        liegt „ch-ringer-schrank1" sowohl in Schrank 1 als auch im MTW.
+   *        `vonOrten: [SCHRANK_1]` ist bewusst EINELEMENTIG, nicht
+   *        `handlagerOrte(tx)`: es geht um GENAU diesen Schrank, nicht den
+   *        ganzen Bereich. */
+  const REF_RINGER_SCHRANK = "seed:umlagerung-ringer-schrank1-mtw";
+  if (!journalGebucht(db, REF_RINGER_SCHRANK)) {
+    db.transaction((tx) => {
+      umlagerung(tx, {
+        artikelId: A.ringer, menge: 6, vonOrten: [SCHRANK_1], nachLagerortId: MTW,
+        quelle: QUELLE_OIDC, kommentar: "Ergänzung MTW aus Schrank 1", referenz: REF_RINGER_SCHRANK,
+      });
+    });
+  }
+
   /* 13 ── Geraete: je eine Zeile fuer rot (ueberfaellig), gelb (im Warnfenster),
    *        gruen und GRAU (kein Datum gepflegt → `keinDatum`, kein Fehlalarm). */
   const gerDa = vorhandeneIds(db.select({ id: geraete.id }).from(geraete).all());
@@ -692,6 +758,12 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  Gerät grau  Handfunkgerät MTW 1 (kein Datum gepflegt)`,
     "  O₂ rot/gelb/grün  10 l RTW 1 (20 %), 2 l RTW 1 (35 %), 2 l KTW 1 (95 %)",
     "",
+    "Schränke (DRK-297):",
+    "  Schrank 1   Ringer-Lactat, Charge R-2026-190: 10 Stk. hier UND 6 Stk. im MTW 1 " +
+      "— dieselbe Charge liegt an zwei Orten.",
+    "  GF-Schrank  Sauerstoffmaske, Charge O2M-2026-777: 8 Stk. AUSSCHLIESSLICH hier " +
+      '("Zugang nur über die GF — LvD anrufen").',
+    "",
     `Feste Zugangs-Codes (Gate-Eingabe UND QR-Nutzlast):`,
     `  ${CODE_HELFER}  Helfer allgemein → Artikel-Liste`,
     `  ${CODE_RTW}  RTW 1 → Fahrzeug-Check, vorausgewählt`,
@@ -708,6 +780,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/verwaltung/artikel`,
     `  ${BASIS_URL}/verwaltung/verfall`,
     `  ${BASIS_URL}/verwaltung/fahrzeuge`,
+    `  ${BASIS_URL}/verwaltung/lagerorte        Schränke samt Verteilung und Zugangshinweis`,
     `  ${BASIS_URL}/verwaltung/vorlagen`,
     `  ${BASIS_URL}/verwaltung/checks     ein abgeschlossener, ein offener Check`,
     `  ${BASIS_URL}/verwaltung/bz`,
