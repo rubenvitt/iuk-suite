@@ -69,6 +69,35 @@ export const lagerorte = sqliteTable(
      * hinten, damit niemand ohne Not anrufen muss.
      */
     sortierung: integer("sortierung").notNull().default(0),
+    /**
+     * DRK-309 — IST DIESE EINHEIT EIN FAHRZEUG ODER EINE TASCHE?
+     *
+     * `typ` beantwortet das NICHT und soll es auch nicht: `typ` trennt den
+     * Bestandsort (`lager`) vom beweglichen Bestandstraeger (`fahrzeug`), und
+     * an dieser Trennung haengt jeder Schreibpfad des Moduls. Eine Tasche ist
+     * fachlich dasselbe wie ein Fahrzeug — sie faehrt mit, sie hat ein Soll,
+     * sie wird gecheckt —, nur eben keins. Deshalb eine ZWEITE Spalte neben
+     * `typ`, nicht ein dritter Wert IN `typ`: ein `typ = "tasche"` haette jede
+     * der 21 Stellen, die heute `typ === "fahrzeug"` fragen, still auf „nein"
+     * gestellt, und das Ergebnis waere eine Tasche gewesen, die man anlegen,
+     * aber nicht bestuecken, nicht checken und nicht bebuchen kann.
+     *
+     * ⚠️ `null` HEISST „NOCH NICHT ZUGEORDNET", NICHT „KEINS VON BEIDEN".
+     * Migration 0009 macht KEINEN Backfill — niemand ausser der Betreiberin
+     * weiss, welche der bestehenden Zeilen in Wahrheit eine Tasche ist, und
+     * ein geratener Wert waere nicht als Rateergebnis erkennbar. Der
+     * Zwischenstand ist damit ausdruecklich erlaubt und wird in der Liste als
+     * „nicht zugeordnet" gezeigt. NEUE Einheiten tragen die Angabe IMMER:
+     * `createFahrzeug` verlangt sie (`_actions/fahrzeuge.ts`), und das ist die
+     * einzige Stelle, an der das Modul eine anlegt.
+     *
+     * ⚠️ SIE GILT NUR FUER `typ = "fahrzeug"`. Ein Lagerort und ein Schrank
+     * tragen dauerhaft `null`, und dort heisst es weder „Tasche" noch „offen"
+     * — es heisst „die Frage stellt sich nicht". Jeder Lesepfad, der die Art
+     * anzeigt, filtert vorher auf `typ`; wer das vergisst, zeigt dem
+     * Handlager einen Chip „nicht zugeordnet".
+     */
+    einheitenart: text("einheitenart", { enum: ["fahrzeug", "tasche"] }),
   },
   (t) => [index("idx_lagerorte_parent").on(t.parentId)],
 );

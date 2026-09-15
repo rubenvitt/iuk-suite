@@ -18,9 +18,12 @@ import {
 } from "../../../../_lib/lesepfade/fahrzeuge";
 import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { SCHRIFT } from "../../../../_lib/schrift";
+import { einheitenartLabel } from "../../../../_lib/konstanten";
+import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "../ChecklisteKnopf";
+import { EinheitenartWahl } from "./EinheitenartWahl";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
@@ -218,10 +221,24 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     <>
       <SeitenKopf
         titel={fahrzeug.name}
-        beschreibung={fahrzeug.kennung ? (
-          <span style={SCHRIFT.mono}>{fahrzeug.kennung}</span>
-        ) : undefined}
-        zurueck={{ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" }}
+        /*
+         * ⚠️ DIE ART STEHT IM KOPF, NICHT ERST BEI IHRER WAHL WEITER UNTEN
+         * (DRK-309). Wer das Blatt aufschlägt, muss wissen, wovon er liest,
+         * bevor er eine Zahl darunter deutet — eine Kennung allein sagt es
+         * nicht mehr, seit eine Tasche gar keine haben muss. Die Wahl weiter
+         * unten ändert die Angabe; hier steht sie.
+         */
+        beschreibung={(
+          <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm }}>
+            <Chip ton="grau" zeichen={fahrzeug.einheitenart ?? undefined}>
+              {einheitenartLabel(fahrzeug.einheitenart)}
+            </Chip>
+            {fahrzeug.kennung ? (
+              <span style={SCHRIFT.mono}>{fahrzeug.kennung}</span>
+            ) : null}
+          </span>
+        )}
+        zurueck={{ titel: "Fahrzeuge und Taschen", href: "/verwaltung/fahrzeuge" }}
         aktionen={(
           <>
             {/*
@@ -294,6 +311,16 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       </Row>
 
       <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: 0, marginBlockEnd: SPACE.sm }}>
+        Art
+      </h2>
+      <Card>
+        <EinheitenartWahl
+          id={fahrzeug.id}
+          einheitenart={fahrzeug.einheitenart}
+        />
+      </Card>
+
+      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
         Vorlage
       </h2>
       <Card>
@@ -311,7 +338,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />
 
       <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        Verfall im Fahrzeug
+        Verfall in dieser Einheit
       </h2>
       <Card>
         <VerfallEditor lagerortId={fahrzeug.id} eintraege={verfall} />

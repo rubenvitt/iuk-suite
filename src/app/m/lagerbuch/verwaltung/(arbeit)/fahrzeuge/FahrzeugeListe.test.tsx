@@ -54,6 +54,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     name: "RTW Nord",
     kennung: "UE-RK 1234",
     aktiv: true,
+    einheitenart: "fahrzeug",
     templateName: "Standard-RTW",
     positionen: 12,
     faecher: 3,
@@ -70,6 +71,10 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     name: "RTW Süd",
     kennung: "UE-RK 5678",
     aktiv: true,
+    /* DRK-309: der Zwischenstand aus Migration 0009 steht MITTEN in der
+     * Fixture, nicht am Ende — jede Zusicherung ueber die Liste laeuft damit
+     * ueber eine nicht zugeordnete Zeile, ohne sie eigens zu suchen. */
+    einheitenart: null,
     templateName: null,
     positionen: 4,
     faecher: 2,
@@ -86,6 +91,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     name: "Reserve MTW",
     kennung: null,
     aktiv: false,
+    einheitenart: "fahrzeug",
     templateName: "Reserve",
     positionen: 2,
     faecher: 1,
@@ -102,6 +108,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     name: "ELW",
     kennung: "UE-RK 9999",
     aktiv: true,
+    einheitenart: "tasche",
     templateName: null,
     positionen: 1,
     faecher: 1,
@@ -223,11 +230,20 @@ function zeilenIds(): Array<string | null> {
 }
 
 async function modalOeffnen(): Promise<void> {
-  await clickElement(knopfMitText("Neues Fahrzeug"));
+  await clickElement(knopfMitText("Neue Einheit"));
   await warteAuf(
     () => document.body.querySelector("[role='dialog']") !== null,
-    "Fahrzeug-Modal",
+    "Einheiten-Modal",
   );
+}
+
+/** Klickt eine der beiden Art-Schaltflaechen im Anlegen-Dialog (DRK-309). */
+async function portalArtWaehlen(beschriftung: string): Promise<void> {
+  const knopf = Array.from(
+    document.body.querySelectorAll<HTMLElement>(".ant-modal label.ant-radio-button-wrapper"),
+  ).find((element) => element.textContent?.trim() === beschriftung);
+  if (!knopf) throw new Error(`Art nicht gefunden: ${beschriftung}`);
+  await clickElement(knopf.querySelector<HTMLInputElement>("input") ?? knopf);
 }
 
 async function portalFuellen(ariaLabel: string, wert: string): Promise<void> {
@@ -272,7 +288,7 @@ function istRekursivJsonSicher(wert: unknown): boolean {
 }
 
 describe("FahrzeugeListe — Spalten und Status", () => {
-  it("trägt die sechs Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
+  it("trägt die sieben Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
     /**
@@ -282,14 +298,22 @@ describe("FahrzeugeListe — Spalten und Status", () => {
      * mehr ausdrueckbar, weil antd innerhalb einer Spalte verodert.
      */
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
-      "Fahrzeug",
+      /*
+       * ⚠️ „Einheit" UND „Art" SIND DRK-309. Die Liste fuehrt seither
+       * Fahrzeuge UND Taschen; „Fahrzeug" als Spaltenkopf ueber einer Zeile,
+       * die „Sanitätstasche 1" heisst, waere die Behauptung, es gaebe nur
+       * eine Art. Die Art steht DIREKT daneben, weil sie „was ist das hier?"
+       * beantwortet — die Frage vor „wie voll ist es?".
+       */
+      "Einheit",
+      "Art",
       "Vorlage",
       "Bestückung",
       "Verfall",
       "Status",
       "Zuletzt geprüft",
     ]);
-    expect(query("table").getAttribute("aria-label")).toBe("Fahrzeuge");
+    expect(query("table").getAttribute("aria-label")).toBe("Fahrzeuge und Taschen");
     expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
     expect(query("tbody a").getAttribute("href")).toBe("/verwaltung/fahrzeuge/f1");
   });
@@ -304,9 +328,9 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     expect(query(`tr[data-row-key='f2'] .${s.gelb}`).textContent).toContain("1 läuft ab");
     expect(query(`tr[data-row-key='f2'] .${s.ok}`).textContent).toContain("auf Soll");
     // Der Verfallschip sitzt in Spalte 4, der Statuschip in Spalte 5.
-    expect(query(`tr[data-row-key='f2'] td:nth-child(4) .${s.gelb}`).textContent)
+    expect(query(`tr[data-row-key='f2'] td:nth-child(5) .${s.gelb}`).textContent)
       .toContain("1 läuft ab");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.grau}`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(6) .${s.grau}`).textContent)
       .toContain("inaktiv");
     expect(query("tr[data-row-key='f4']").textContent).toContain("noch nie geprüft");
   });
@@ -328,25 +352,25 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
     const verfallSpalte = (id: string) =>
-      query(`tr[data-row-key='${id}'] td:nth-child(4)`);
+      query(`tr[data-row-key='${id}'] td:nth-child(5)`);
 
     // f3 traegt BEIDES — und dann beide Chips, jeder in seinem eigenen Ton.
     // Ein einziger Chip muesste sich fuer einen Ton entscheiden und wuerde die
     // andere Haelfte verschweigen.
-    expect(query(`tr[data-row-key='f3'] td:nth-child(4) .${s.rot}`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.rot}`).textContent)
       .toContain("2 abgelaufen");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(4) .${s.gelb}`).textContent)
+    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.gelb}`).textContent)
       .toContain("1 läuft ab");
 
     // f2 nur warnend — KEIN roter Chip.
     expect(verfallSpalte("f2").querySelector(`.${s.rot}`)).toBeNull();
-    expect(query(`tr[data-row-key='f2'] td:nth-child(4) .${s.gelb}`).textContent)
+    expect(query(`tr[data-row-key='f2'] td:nth-child(5) .${s.gelb}`).textContent)
       .toContain("1 läuft ab");
 
     // f1 gepflegt und unauffaellig, f4 ueberhaupt nicht gepflegt.
-    expect(query(`tr[data-row-key='f1'] td:nth-child(4) .${s.ok}`).textContent)
+    expect(query(`tr[data-row-key='f1'] td:nth-child(5) .${s.ok}`).textContent)
       .toContain("im grünen Bereich");
-    expect(query(`tr[data-row-key='f4'] td:nth-child(4) .${s.grau}`).textContent)
+    expect(query(`tr[data-row-key='f4'] td:nth-child(5) .${s.grau}`).textContent)
       .toContain("0 von 1 erfasst");
   });
 
@@ -377,14 +401,14 @@ describe("FahrzeugeListe — Spalten und Status", () => {
       />,
     );
 
-    expect(query(`tr[data-row-key='halb'] td:nth-child(4) .${s.grau}`).textContent)
+    expect(query(`tr[data-row-key='halb'] td:nth-child(5) .${s.grau}`).textContent)
       .toContain("1 von 8 erfasst");
-    expect(query(`tr[data-row-key='halb'] td:nth-child(4)`).querySelector(`.${s.ok}`))
+    expect(query(`tr[data-row-key='halb'] td:nth-child(5)`).querySelector(`.${s.ok}`))
       .toBeNull();
-    expect(query(`tr[data-row-key='ganz'] td:nth-child(4) .${s.ok}`).textContent)
+    expect(query(`tr[data-row-key='ganz'] td:nth-child(5) .${s.ok}`).textContent)
       .toContain("im grünen Bereich");
     // Ohne Soll: kein Chip, nur der Gedankenstrich.
-    expect(query("tr[data-row-key='ohneSoll'] td:nth-child(4)").textContent).toBe("—");
+    expect(query("tr[data-row-key='ohneSoll'] td:nth-child(5)").textContent).toBe("—");
   });
 
   /**
@@ -410,7 +434,7 @@ describe("FahrzeugeListe — Spalten und Status", () => {
       />,
     );
 
-    const spalte = query("tr[data-row-key='luecke'] td:nth-child(4)");
+    const spalte = query("tr[data-row-key='luecke'] td:nth-child(5)");
     expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
     expect(spalte.querySelector(`.${s.grau}`)!.textContent).toContain("1 von 8 erfasst");
   });
@@ -427,7 +451,7 @@ describe("FahrzeugeListe — Spalten und Status", () => {
       />,
     );
 
-    const spalte = query("tr[data-row-key='ganz'] td:nth-child(4)");
+    const spalte = query("tr[data-row-key='ganz'] td:nth-child(5)");
     expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
     expect(spalte.querySelector(`.${s.grau}`)).toBeNull();
   });
@@ -573,6 +597,58 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
    * liegen (`zustandsFilter`). Das ist hier richtig: f3 traegt beides und darf
    * nicht dadurch verschwinden, dass man beide Haken setzt.
    */
+  /**
+   * DRK-309 — die Art ist sichtbar, filterbar und suchbar, und der
+   * Zwischenstand ist alle drei ebenfalls.
+   *
+   * ⚠️ „nicht zugeordnet" IST DER EIGENTLICHE FALL. Fahrzeug und Tasche findet
+   * man auch ueber die Suche; die ueber die ganze Liste verstreuten Einheiten
+   * OHNE Zuordnung findet man sonst gar nicht — und genau die braucht, wer den
+   * Zwischenstand aus Migration 0009 abarbeitet.
+   */
+  it("zeigt die Art als Chip und macht auch den Zwischenstand anwählbar", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    const artSpalte = (id: string) => query(`tr[data-row-key='${id}'] td:nth-child(2)`);
+    expect(artSpalte("f1").textContent).toBe("Fahrzeug");
+    expect(artSpalte("f4").textContent).toBe("Tasche");
+    expect(artSpalte("f2").textContent).toBe("nicht zugeordnet");
+
+    await spaltenFilter("Art", "Tasche");
+    expect(zeilenIds()).toEqual(["f4"]);
+
+    await spaltenFilter("Art");
+    await spaltenFilter("Art", "nicht zugeordnet");
+    expect(zeilenIds()).toEqual(["f2"]);
+
+    await spaltenFilter("Art");
+    // Veroderung INNERHALB der Spalte, wie ueberall sonst auch.
+    await spaltenFilter("Art", "Fahrzeug", "Tasche");
+    expect(zeilenIds()).toEqual(["f1", "f3", "f4"]);
+  });
+
+  /**
+   * ⚠️ DER GRAUE CHIP DES ZWISCHENSTANDS TRAEGT KEIN ZEICHEN, und das ist
+   * Absicht: es gibt kein Bild fuer „weiss ich noch nicht". Ein geliehenes
+   * (etwa ein Fragezeichen oder das Warnzeichen) laese sich als Fehler, nicht
+   * als offene Angabe — und Gelb daneben in der Verfallsspalte traegt in
+   * diesem Modul fachliche Bedeutung (Falle 3).
+   */
+  it("faerbt den Zwischenstand grau und nicht warnend", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    const offen = query("tr[data-row-key='f2'] td:nth-child(2)");
+    expect(offen.querySelector(`.${s.grau}`)).not.toBeNull();
+    expect(offen.querySelector(`.${s.gelb}`)).toBeNull();
+    expect(offen.querySelector(`.${s.rot}`)).toBeNull();
+    expect(offen.querySelector("[data-zeichen]")).toBeNull();
+
+    expect(query("tr[data-row-key='f4'] td:nth-child(2) [data-zeichen]")
+      .getAttribute("data-zeichen")).toBe("tasche");
+    expect(query("tr[data-row-key='f1'] td:nth-child(2) [data-zeichen]")
+      .getAttribute("data-zeichen")).toBe("fahrzeug");
+  });
+
   it("macht alle vier Verfallslagen einzeln anwählbar", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
@@ -607,7 +683,7 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual([]);
     expect(query("tr.ant-table-placeholder").textContent)
-      .toBe("Kein Fahrzeug passt zu Suche und Filter.");
+      .toBe("Keine Einheit passt zu Suche und Filter.");
   });
 
   /**
@@ -634,7 +710,7 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     expect(zeilenIds()).toEqual([]);
     expect(query(`.${s.filtertreffer}`).textContent).toBe("0 von 4");
     expect(query("tr.ant-table-placeholder").textContent)
-      .toBe("Kein Fahrzeug passt zu Suche und Filter.");
+      .toBe("Keine Einheit passt zu Suche und Filter.");
   });
 
   /**
@@ -660,7 +736,7 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
   it("zeigt ohne Daten den ungefilterten Anlegehinweis", async () => {
     await mount(<FahrzeugeListe zeilen={[]} />);
     expect(query("tr.ant-table-placeholder").textContent)
-      .toBe("Noch keine Fahrzeuge. Lege oben das erste an.");
+      .toBe("Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.");
   });
 });
 
@@ -672,13 +748,17 @@ describe("NeuFahrzeug", () => {
       .toBeTruthy();
     expect(queryPortal(".ant-form-item-control-input-content > input[aria-label='Kennung']"))
       .toBeTruthy();
+    await portalArtWaehlen("Fahrzeug");
     await portalFuellen("Name", " RTW Neu ");
     await portalFuellen("Kennung", " UE-RK 130 ");
     await portalAbsenden();
 
+    // ⚠️ DIE ART REIST MIT, UNGETRIMMT WIE DIE ANDEREN FELDER — die Action
+    // trimmt, nicht der Dialog (DRK-309).
     expect(mocks.createFahrzeug).toHaveBeenCalledWith({
       name: " RTW Neu ",
       kennung: " UE-RK 130 ",
+      einheitenart: "fahrzeug",
     });
     await warteAuf(
       () => document.body.querySelector("[role='dialog']") === null,
@@ -698,6 +778,7 @@ describe("NeuFahrzeug", () => {
     });
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
     await modalOeffnen();
+    await portalArtWaehlen("Tasche");
     await portalFuellen("Name", " X ");
     await portalFuellen("Kennung", " ALT ");
     await portalAbsenden();
@@ -718,22 +799,23 @@ describe("NeuFahrzeug", () => {
   });
 
   it.each([
-    ["ok:false", async () => ({ ok: false as const, fehler: "Fahrzeug fachlich abgelehnt." })],
+    ["ok:false", async () => ({ ok: false as const, fehler: "Einheit fachlich abgelehnt." })],
     ["Reject", async () => { throw new Error("SQLITE intern und geheim"); }],
   ])("bleibt bei %s offen und zeigt einen festen Warning-Text", async (_fall, antwort) => {
     mocks.createFahrzeug.mockImplementationOnce(antwort);
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
     await modalOeffnen();
+    await portalArtWaehlen("Fahrzeug");
     await portalFuellen("Name", "Bleibt");
     await portalAbsenden();
 
     await warteAuf(
       () => document.body.querySelector(".ant-modal .ant-alert-warning") !== null,
-      "allgemeine Fahrzeugwarnung",
+      "allgemeine Einheitenwarnung",
     );
     const text = queryPortal(".ant-modal .ant-alert-warning").textContent ?? "";
     expect(text).toContain(
-      _fall === "ok:false" ? "Fahrzeug fachlich abgelehnt." : "Fahrzeug konnte nicht angelegt werden.",
+      _fall === "ok:false" ? "Einheit fachlich abgelehnt." : "Einheit konnte nicht angelegt werden.",
     );
     expect(text).not.toContain("SQLITE intern und geheim");
     expect(queryPortal<HTMLInputElement>(".ant-modal input[aria-label='Name']").value)
@@ -741,11 +823,38 @@ describe("NeuFahrzeug", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
+  /**
+   * DRK-309 — „neue Objekte muessen kategorisiert werden", im Dialog.
+   *
+   * ⚠️ DIE HARTE ZUSICHERUNG STEHT AN DER ACTION (`_actions/fahrzeuge.test.ts`),
+   * nicht hier: die Spalte ist nullable, der Riegel ist der Eingangsvalidator.
+   * Diese Zusicherung ist die zweite Haelfte und beantwortet eine andere Frage
+   * — kommt die Ablehnung AM FELD an, bevor jemand auf eine Serverantwort
+   * wartet? Ohne sie waere „Pflichtfeld" eine Aussage ueber eine Fehlermeldung
+   * statt ueber ein Formular.
+   */
+  it("sendet OHNE gewaehlte Art gar nicht erst ab", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+    await modalOeffnen();
+    await portalFuellen("Name", "Ohne Art");
+    await portalAbsenden();
+
+    await warteAuf(
+      () => document.body.querySelector(".ant-form-item-explain-error") !== null,
+      "Feldfehler an der Art",
+    );
+    expect(queryPortal(".ant-form-item-explain-error").textContent)
+      .toBe("Fahrzeug oder Tasche wählen");
+    expect(mocks.createFahrzeug).not.toHaveBeenCalled();
+    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
+  });
+
   it("verriegelt zwei Absendeereignisse synchron bis zur Antwort", async () => {
     let fertig!: (wert: { ok: true; wert: { id: string } }) => void;
     mocks.createFahrzeug.mockReturnValueOnce(new Promise((resolve) => { fertig = resolve; }));
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
     await modalOeffnen();
+    await portalArtWaehlen("Fahrzeug");
     await portalFuellen("Name", "Einmal");
     const form = queryPortal<HTMLFormElement>(".ant-modal form");
     await act(async () => {
@@ -760,6 +869,27 @@ describe("NeuFahrzeug", () => {
   });
 });
 
+describe("sucheTrifft — DRK-309: die Art ist mitdurchsuchbar", () => {
+  /**
+   * ⚠️ WEIL DIE ART IM NAMEN FEHLEN DARF. Solange jede Einheit ein Fahrzeug
+   * war, trug der Name sie mit („RTW 1", „MTW 1") und „tasche" zu tippen war
+   * sinnlos. Eine „Sanitätstasche 1" heisst so, ein „Rucksack Betreuung"
+   * nicht — und wer „tasche" sucht, meint die Art, nicht die Schreibweise.
+   */
+  const zeile = (art: "fahrzeug" | "tasche" | null): FahrzeugAnzeigeZeile =>
+    ({ ...ZEILEN[0], name: "Rucksack Betreuung", kennung: null, einheitenart: art });
+
+  it("findet eine Tasche ueber ihre Art, auch ohne das Wort im Namen", () => {
+    expect(sucheTrifft(zeile("tasche"), "tasche")).toBe(true);
+    expect(sucheTrifft(zeile("fahrzeug"), "tasche")).toBe(false);
+  });
+
+  it("findet den Zwischenstand ueber sein Wort", () => {
+    expect(sucheTrifft(zeile(null), "nicht zugeordnet")).toBe(true);
+    expect(sucheTrifft(zeile("tasche"), "nicht zugeordnet")).toBe(false);
+  });
+});
+
 describe("Fahrzeugseite als RSC", () => {
   it("formatiert den letzten Check in Europe/Berlin und gibt kein Date an die Insel", async () => {
     const { fahrzeugAnzeigeZeile } = await import("./page");
@@ -768,6 +898,7 @@ describe("Fahrzeugseite als RSC", () => {
       name: "Zeitzonen-RTW",
       kennung: null,
       aktiv: true,
+      einheitenart: "fahrzeug",
       templateName: null,
       positionen: 0,
       faecher: 0,

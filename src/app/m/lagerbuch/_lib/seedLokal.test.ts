@@ -322,14 +322,41 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     }
   });
 
-  it("bestueckt jedes Fahrzeug mit echtem Bestand", async () => {
+  it("bestueckt jede zugeordnete Einheit mit echtem Bestand — die Tasche auch", async () => {
     await seedLokalLagerbuch(t.db);
 
-    for (const fz of t.db.select().from(lagerorte).all().filter((l) => l.typ === "fahrzeug")) {
-      const summe = t.sqlite.prepare(
-        "select coalesce(sum(menge), 0) as s from buchungen where lagerort_id = ?",
-      ).get(fz.id) as { s: number };
-      expect(summe.s, fz.id).toBeGreaterThan(0);
+    /**
+     * ⚠️ DIE TASCHE IST HIER NICHT MITGEZAEHLT, SIE IST DER PUNKT (DRK-309).
+     * Das Akzeptanzkriterium lautet „die Bestandsablaeufe sind auch fuer
+     * Taschen nutzbar" — belegt ist das nicht dadurch, dass eine Tasche
+     * ANLEGBAR ist, sondern dadurch, dass ein Schreibpfad sie als Ziel nimmt.
+     * Die Schleife laeuft ueber `typ === "fahrzeug"` und faende eine Tasche
+     * ohne Bestand genauso rot wie ein leeres Fahrzeug; das ist richtig so.
+     */
+    const einheiten = t.db.select().from(lagerorte).all()
+      .filter((l) => l.typ === "fahrzeug");
+    const bestandVon = (id: string) => (t.sqlite.prepare(
+      "select coalesce(sum(menge), 0) as s from buchungen where lagerort_id = ?",
+    ).get(id) as { s: number }).s;
+
+    /**
+     * ⚠️ DIE EINE AUSNAHME IST DIE NICHT ZUGEORDNETE EINHEIT, und sie ist
+     * ABSICHT, kein Loch im Seed. Sie bildet den Zwischenstand aus Migration
+     * 0009 nach: eine Einheit, die es vor der Art gab, die niemand
+     * zugeordnet hat und an der seither nichts passiert ist. Wer ihr Bestand
+     * gibt, damit diese Zusicherung ohne Ausnahme auskommt, nimmt der lokalen
+     * Umgebung den einzigen Fall, an dem sich der Nachtrag ausprobieren
+     * laesst.
+     */
+    const offen = einheiten.filter((l) => l.einheitenart === null);
+    expect(offen.map((l) => l.id), "genau eine Einheit bleibt nicht zugeordnet")
+      .toEqual(["ta-rucksack-1"]);
+    expect(bestandVon("ta-rucksack-1")).toBe(0);
+
+    expect(einheiten.filter((l) => l.einheitenart === "tasche").length)
+      .toBeGreaterThan(0);
+    for (const fz of einheiten.filter((l) => l.einheitenart !== null)) {
+      expect(bestandVon(fz.id), fz.id).toBeGreaterThan(0);
     }
   });
 

@@ -122,6 +122,17 @@ const LAGER_KELLER = "lo-lager-keller";
 const RTW = "fz-rtw-1";
 const KTW = "fz-ktw-1";
 const MTW = "fz-mtw-1";
+/** DRK-309 — eine Tasche, damit die zweite Einheitenart lokal sichtbar ist. */
+const TASCHE_SAN = "ta-san-1";
+/**
+ * DRK-309 — die Einheit OHNE zugeordnete Art. Sie steht hier, weil der
+ * Zwischenstand aus Migration 0009 sonst lokal gar nicht vorkäme: eine frisch
+ * geseedete Datenbank bekäme überall eine Art, und die Spalte „nicht
+ * zugeordnet", ihr Filter und der Nachtrag am Einheitenblatt wären an keiner
+ * lokalen Fläche zu sehen. Genau der Zustand, in dem jede bestehende Anlage
+ * nach dem Rollout startet.
+ */
+const RUCKSACK_OFFEN = "ta-rucksack-1";
 
 /** DRK-297 — Schränke unterhalb des Handlagers. */
 const SCHRANK_1 = "schrank-1";
@@ -295,10 +306,34 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   const ortDa = vorhandeneIds(db.select({ id: lagerorte.id }).from(lagerorte).all());
   const orteListe = [
     { id: LAGER_KELLER, name: "Lager Keller", typ: "lager" as const, kennung: null, templateId: null },
-    { id: RTW, name: "RTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1101", templateId: TPL_RTW },
-    { id: KTW, name: "KTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1201", templateId: TPL_KTW },
+    { id: RTW, name: "RTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1101",
+      templateId: TPL_RTW, einheitenart: "fahrzeug" as const },
+    { id: KTW, name: "KTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1201",
+      templateId: TPL_KTW, einheitenart: "fahrzeug" as const },
     // Ohne Vorlage: individuell gepacktes Fahrzeug, Soll von Hand gepflegt.
-    { id: MTW, name: "MTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1401", templateId: null },
+    { id: MTW, name: "MTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1401",
+      templateId: null, einheitenart: "fahrzeug" as const },
+    /*
+     * DRK-309 — DIE TASCHE IST EIN `typ: "fahrzeug"`, UND DAS IST KEIN
+     * Tippfehler. `typ` trennt den Ort vom beweglichen Bestandsträger, die
+     * Art trennt Träger von Träger; die Begründung steht an der Spalte
+     * (`_db/schema.ts`). Ohne den `typ` bekäme die Tasche kein Soll, keinen
+     * Check und keine Buchung.
+     *
+     * ⚠️ OHNE KENNUNG, und das ist der fachliche Punkt der Zeile: eine
+     * Tasche trägt kein Kennzeichen. Wer die Liste nur mit Fahrzeugen
+     * geseedet sieht, hält `kennung` für die zweite Überschrift jeder Zeile.
+     */
+    { id: TASCHE_SAN, name: "Sanitätstasche 1", typ: "fahrzeug" as const,
+      kennung: null, templateId: null, einheitenart: "tasche" as const },
+    /*
+     * ⚠️ DIESE ZEILE HAT ABSICHTLICH KEINE `einheitenart`. Sie ist der
+     * Zwischenstand aus Migration 0009 in Reinform — siehe die Begründung an
+     * `RUCKSACK_OFFEN`. Wer sie „vervollständigt", nimmt der lokalen Umgebung
+     * den einzigen Fall, an dem sich der Nachtrag ausprobieren lässt.
+     */
+    { id: RUCKSACK_OFFEN, name: "Rucksack Betreuung", typ: "fahrzeug" as const,
+      kennung: null, templateId: null, einheitenart: null },
     { id: SCHRANK_1, name: "Schrank 1 (Helfer)", typ: "lager" as const,
       parentId: HANDLAGER_ID, sortierung: 10, zugangshinweis: null },
     { id: SCHRANK_2, name: "Schrank 2 (Helfer)", typ: "lager" as const,
@@ -346,6 +381,23 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   const spListe = [
     { id: "sp-mtw-01", fahrzeugId: MTW, fachLabel: "Materialkiste", sort: 10, artikelId: A.rettungsdecke, soll: 10 },
     { id: "sp-mtw-02", fahrzeugId: MTW, fachLabel: "Materialkiste", sort: 20, artikelId: A.handschuh, soll: 2 },
+    /*
+     * DRK-309 — DIE TASCHE BEKOMMT EIN SOLL, sonst belegt der Seed nur, dass
+     * sie sich ANLEGEN laesst. Das Akzeptanzkriterium des Tickets ist aber,
+     * dass die Bestands- und Checklistenablaeufe fuer sie NUTZBAR sind: ohne
+     * Soll druckt ihre Checkliste ein leeres Blatt, und die Liste zeigt
+     * „0 Positionen" — beides sieht aus wie eine Einheit, an der noch nichts
+     * geht. Ihre Faecher heissen nach Taschenfaechern, nicht nach Fahrzeug-
+     * faechern; die Beschriftung ist frei und genau dafuer da.
+     */
+    { id: "sp-tasche-01", fahrzeugId: TASCHE_SAN, fachLabel: "Außentasche",
+      sort: 10, artikelId: A.handschuh, soll: 4 },
+    { id: "sp-tasche-02", fahrzeugId: TASCHE_SAN, fachLabel: "Außentasche",
+      sort: 20, artikelId: A.desinfektion, soll: 1 },
+    { id: "sp-tasche-03", fahrzeugId: TASCHE_SAN, fachLabel: "Hauptfach",
+      sort: 10, artikelId: A.kompresse, soll: 6 },
+    { id: "sp-tasche-04", fahrzeugId: TASCHE_SAN, fachLabel: "Hauptfach",
+      sort: 20, artikelId: A.dreiecktuch, soll: 2 },
   ].filter((p) => !spDa.has(p.id));
   for (const p of spListe) {
     db.insert(sollPositionen).values({
@@ -618,6 +670,31 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         quelle: QUELLE_OIDC, kommentar: "Bestandsaufnahme MTW", referenz: REF_MTW,
       });
       setzeVerfall(tx, { lagerortId: MTW, artikelId: A.rettungsdecke, verfall: m.gruen, quelle: QUELLE_OIDC, jetzt });
+    });
+  }
+
+  /* 12a ── DRK-309: DIE TASCHE BEKOMMT BESTAND — ueber DENSELBEN Schreibpfad
+   *         wie der MTW, und genau das ist die Aussage. Das Akzeptanzkriterium
+   *         lautet „die Bestands- und Checklistenablaeufe sind auch fuer
+   *         Taschen nutzbar"; belegt ist das nicht dadurch, dass eine Tasche
+   *         ANLEGBAR ist, sondern dadurch, dass `umlagerung` sie als Ziel
+   *         nimmt — sie ist fuer jeden Schreibpfad ein `typ: "fahrzeug"`.
+   *
+   *         ⚠️ `umlagerung` STATT `korrekturAufLagerort`: die Tasche wird aus
+   *         dem Handlager GEPACKT, nicht gezaehlt. Damit haengt ihr Bestand an
+   *         echten Chargen aus dem Handlager statt an der geratenen juengsten
+   *         (§5.3.3) — der Fall, den der MTW daneben schon zeigt. */
+  const REF_TASCHE = "seed:umlagerung-tasche-san1";
+  if (!journalGebucht(db, REF_TASCHE)) {
+    db.transaction((tx) => {
+      for (const [artikelId, menge] of [
+        [A.handschuh, 4], [A.desinfektion, 1], [A.kompresse, 6], [A.dreiecktuch, 2],
+      ] as const) {
+        umlagerung(tx, {
+          artikelId, menge, vonOrten: handlagerOrte(tx), nachLagerortId: TASCHE_SAN,
+          quelle: QUELLE_OIDC, kommentar: "Sanitätstasche gepackt", referenz: REF_TASCHE,
+        });
+      }
     });
   }
 

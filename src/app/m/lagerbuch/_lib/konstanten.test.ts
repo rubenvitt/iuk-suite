@@ -8,6 +8,7 @@ import {
   ZUSTAENDE, ZUSTAND_DEFEKT,
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
+  EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
 } from "./konstanten";
 import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
 
@@ -82,6 +83,31 @@ describe("Enum-Listen", () => {
     expect([...GERAETE_TYPEN].sort()).toEqual(["medizin", "objekt"]);
     expect([...TOKEN_ZIEL_TYPEN].sort()).toEqual(["artikel", "fahrzeug"]);
   });
+
+  /**
+   * DRK-309. ⚠️ ZWEI WERTE, UND KEIN DRITTER FUER DEN ZWISCHENSTAND. Der ist
+   * die ABWESENHEIT eines Wertes (`null` in der Spalte); ein Literal
+   * „unbekannt" waere ueber den Eingangsvalidator anlegbar, und damit liesse
+   * sich eine Einheit anlegen, die sich absichtlich nicht zuordnet.
+   */
+  it("EINHEITENARTEN traegt genau Fahrzeug und Tasche", () => {
+    expect([...EINHEITENARTEN].sort()).toEqual(["fahrzeug", "tasche"]);
+    expect(EINHEITENARTEN).not.toContain("unbekannt");
+  });
+
+  it("jede Art hat eine Beschriftung, und der Zwischenstand hat seine eigene", () => {
+    // EINE Quelle fuer Liste, Filter, Anlegen-Dialog und Einheitenblatt: zwei
+    // Schreibweisen fuer denselben Zustand lassen den Leser einen dritten
+    // vermuten.
+    for (const art of EINHEITENARTEN) {
+      expect(EINHEITENART_LABEL[art], art).toBeTruthy();
+      expect(einheitenartLabel(art)).toBe(EINHEITENART_LABEL[art]);
+    }
+    // „nicht zugeordnet" und NICHT „unbekannt": unbekannt klaenge nach einem
+    // Datenfehler, zugeordnet wird es aber schlicht noch.
+    expect(EINHEITENART_OFFEN_LABEL).toBe("nicht zugeordnet");
+    expect(einheitenartLabel(null)).toBe(EINHEITENART_OFFEN_LABEL);
+  });
 });
 
 describe("_lib und _db tragen weder 'use client' noch einen Icon-Import", () => {
@@ -141,5 +167,9 @@ describe("Enum-Listen: Zod-Seite und Drizzle-Seite sind mengengleich", () => {
   });
   it("TOKEN_ZIEL_TYPEN", () => {
     expect(enumWerte(getTableColumns(tokens).zielTyp)).toEqual([...TOKEN_ZIEL_TYPEN].sort());
+  });
+  it("EINHEITENARTEN — DRK-309", () => {
+    expect(enumWerte(getTableColumns(lagerorte).einheitenart))
+      .toEqual([...EINHEITENARTEN].sort());
   });
 });

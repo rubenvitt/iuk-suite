@@ -83,6 +83,11 @@ const TABELLEN: Record<
     { name: "parent_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "zugangshinweis", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "sortierung", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
+    /* DRK-309. NULLABLE OHNE DEFAULT, und beides ist die Aussage: `null` heisst
+     * „noch nicht zugeordnet" (Migration 0009 backfillt bewusst nicht), ein
+     * Default machte aus jeder Altzeile eine Behauptung. Die PFLICHT fuer neue
+     * Einheiten steht im Eingangsvalidator, nicht hier. */
+    { name: "einheitenart", typ: "text", notnull: 0, dflt: null, pk: 0 },
   ],
   fahrzeug_templates: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -398,8 +403,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt neun Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  it("fuehrt zehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -419,7 +424,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
       .toEqual([
         "0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox",
         "0005_artikel_kategorie", "0006_inventuren", "0007_o2_wechsel_grenze",
-        "0008_lagerorte_hierarchie",
+        "0008_lagerorte_hierarchie", "0009_einheitenart",
       ]);
   });
 
