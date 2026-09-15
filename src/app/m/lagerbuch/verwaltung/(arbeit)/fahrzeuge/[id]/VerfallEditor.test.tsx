@@ -432,3 +432,43 @@ describe("Der Spiegel folgt der Antwort, nicht der Eingabe", () => {
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value).toBe("");
   });
 });
+
+describe("Der Dialog beim ZWEITEN Öffnen", () => {
+  /**
+   * ⚠️ DER ERSTE TEST DECKT DAS NICHT AB. Er aendert den Monat, BEVOR der Dialog
+   * je offen war — dann traegt der erste Aufbau die neuen `initialValues`. Hier
+   * geht es um den Fall danach: antd gleicht `initialValues` nach der
+   * Erstinitialisierung NICHT mehr ab, und die Form-Instanz gehoert der
+   * Dialogkomponente, ueberlebt `destroyOnHidden` also. Zeigt der Waehler dann
+   * den alten Monat, schreibt ein Absenden den neueren zurueck.
+   */
+  it("zeigt nach dem Schliessen den inzwischen geaenderten Monat", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const oeffne = async () => {
+      await clickElement(query(
+        "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+      ));
+      await warte();
+      const dialog = document.body.querySelector("[role='dialog']");
+      if (!dialog) throw new Error("Dialog nicht offen");
+      return dialog;
+    };
+
+    // 1. Runde: oeffnen und wieder abbrechen — damit ist die Form initialisiert.
+    let dialog = await oeffne();
+    const abbrechen = Array.from(dialog.querySelectorAll<HTMLElement>("button"))
+      .find((knopf) => (knopf.textContent ?? "").includes("Abbrechen"));
+    if (!abbrechen) throw new Error("Abbrechen-Knopf fehlt");
+    await clickElement(abbrechen);
+    await warte();
+
+    // Danach erst den Monat aendern.
+    await monatWaehlen("Verfall Mullbinde", "2027-09");
+
+    dialog = await oeffne();
+    expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
+      .toBe("2027-09");
+  });
+});

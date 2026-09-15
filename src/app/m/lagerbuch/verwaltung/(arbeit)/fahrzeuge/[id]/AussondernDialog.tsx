@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Alert, Button, DatePicker, Form, Input, InputNumber, Modal, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
@@ -71,6 +71,27 @@ export function AussondernDialog({
   // Verfallsfeldes hängt an der AKTUELLEN Menge, nicht an der anfänglichen.
   const menge = Form.useWatch("menge", form) ?? 1;
   const allesRaus = menge >= bestand;
+
+  /**
+   * ⚠️ DIE FELDER WERDEN BEIM OEFFNEN GESETZT, NICHT NUR UEBER `initialValues`.
+   * antd gleicht `initialValues` nach der ERSTinitialisierung nicht mehr ab, und
+   * die Form-Instanz gehoert dieser Komponente — sie ueberlebt `destroyOnHidden`
+   * samt Feldspeicher. Nach einmal Oeffnen stuende beim naechsten Mal wieder der
+   * Monat von damals im Feld, auch wenn der Waehler daneben laengst einen
+   * anderen traegt; ein Absenden schriebe den neueren zurueck.
+   *
+   * Im Effekt und nicht in `oeffnen`, weil das Formular dort noch gar nicht
+   * haengt: `destroyOnHidden` baut es erst mit dem Oeffnen auf.
+   */
+  useEffect(() => {
+    if (!offen) return;
+    form.setFieldsValue({
+      menge: 1,
+      chargeId: undefined,
+      verfall: verfall ? dayjs(`${verfall}-01`) : null,
+      kommentar: "",
+    });
+  }, [offen, verfall, form]);
 
   function oeffnen() {
     setFehler(null);
@@ -164,6 +185,8 @@ export function AussondernDialog({
           form={form}
           layout="vertical"
           disabled={laeuft}
+          // Nur der erste Anstrich; massgeblich ist der Effekt oben, der bei
+          // JEDEM Oeffnen setzt.
           initialValues={{
             menge: 1,
             verfall: verfall ? dayjs(`${verfall}-01`) : null,
