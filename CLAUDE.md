@@ -171,7 +171,11 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     (`VirtualTable/BodyLine.js:40-41`), und die tragen kein `role="row"`. Ein Playwright-Greifer
     über `tbody tr` oder `getByRole("row")` findet ab der Schwelle schlicht nichts mehr — und
     zwar erst dann, was ihn im kleinen Seed grün lässt. `[data-row-key]` setzt rc-table in
-    **beiden** Betriebsarten; das ist der Greifer, der trägt.
+    **beiden** Betriebsarten; das ist der Greifer, der trägt. ⚠️ Dasselbe gilt für das
+    `aria-label` der Tabelle: `Table.js:476` sammelt die aria-Props ein und hängt sie im
+    virtuellen Zweig (`:481`) an **kein** Element mehr — `getByLabel(…)` löst dann auf gar
+    nichts auf. Was der Verlust der Tabellen-Semantik für Hilfstechnik bedeutet, ist eine
+    fachliche Frage und steht als DRK-336 auf dem Board.
 
 15. **`Table`s `onChange` feuert nur bei Bedienung DER TABELLE — nicht, wenn sich `dataSource`
     daneben ändert** (gemessen im Modul `lagerbuch`, DRK-331). Der naheliegende Weg, „was steht
