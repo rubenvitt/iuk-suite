@@ -107,7 +107,7 @@ export function wendeFilterAn<T>(
     const werte = zustand[schluessel];
     if (!werte || werte.length === 0) continue;
     const trifft = spalte.onFilter;
-    liste = liste.filter((zeile) => werte.some((wert) => trifft(wert, zeile)));
+    liste = liste.filter((zeile) => werte.some((wert: Key | boolean) => trifft(wert, zeile)));
   }
   return liste;
 }
@@ -193,27 +193,6 @@ function kannUngesteuertFiltern<T>(spalte: AnzeigeSpalte<T>): boolean {
 }
 
 /**
- * Den Filterstand aus den SPALTEN selbst lesen, statt ihn übergeben zu lassen.
- *
- * ⚠️ WOZU, WENN ES `angezeigteZeilen` SCHON GIBT: dessen Aufrufer ist die
- * Liste, die den Zustand ohnehin hält. `core/tabelle` selbst hält ihn nicht —
- * es bekommt nur `columns` und `dataSource` und muss trotzdem wissen, wie viele
- * Zeilen die Tabelle zeigt (für `aria-rowcount`). In `filteredValue` steht
- * genau dieser Stand, und zwar derselbe, aus dem antd gleich selbst filtert.
- *
- * ⚠️ `unbekannt` IST DER EIGENTLICHE RÜCKGABEWERT. Eine filterbare Spalte ohne
- * `filteredValue` filtert UNGESTEUERT: antd führt den Stand intern, und von
- * außen ist er nicht zu sehen. Ihn als „kein Filter" zu lesen ergäbe eine zu
- * große Zahl — und zwar still, genau dann, wenn jemand filtert. Wer das nicht
- * unterscheidet, baut die Falle nach, die er schließen wollte.
- *
- * ⚠️ „OHNE `filteredValue`" HEISST `!("filteredValue" in spalte)`, NICHT
- * `=== undefined`, und auch das ist antds eigene Unterscheidung
- * (`'filteredValue' in column`): eine Spalte, die das Feld ausdrücklich auf
- * `undefined` setzt, gilt als GESTEUERT mit leerem Stand — sie filtert dann
- * nicht, und die Zahl ist bekannt.
- */
-/**
  * Die BLÄTTER einer Spaltenliste — ein gruppierter Spaltenkopf ist keine Spalte,
  * sondern eine Klammer um welche.
  *
@@ -238,50 +217,60 @@ export function blattSpalten<T>(
   return blaetter;
 }
 
-export function filterAusSpalten<T>(
-  spalten: readonly AnzeigeSpalte<T>[] | undefined,
-): { zustand: FilterZustand; unbekannt: boolean } {
-  const zustand: FilterZustand = {};
-  let unbekannt = false;
-  for (const spalte of blattSpalten(spalten)) {
-    if (!istFilterbar(spalte)) continue;
-    const schluessel = spaltenSchluessel(spalte);
-    if (!schluessel) continue;
-    if (!("filteredValue" in spalte)) {
-      // Ungesteuert — aber nur dann wirklich unbekannt, wenn es überhaupt einen
-      // Weg gibt, einen Filter zu setzen (s. `kannUngesteuertFiltern`).
-      if (kannUngesteuertFiltern(spalte)) unbekannt = true;
-      continue;
-    }
-    zustand[schluessel] = spalte.filteredValue ?? null;
-  }
-  return { zustand, unbekannt };
-}
-
 /**
  * Wie viele Zeilen die Tabelle zeigt — `null`, wenn es nicht zu wissen ist.
  *
- * ⚠️ SORTIERUNG WIRD NICHT ANGEWENDET, und das ist kein Vergessen: sie ändert
- * die Reihenfolge, nie die Anzahl. Der Filterlauf ist damit alles, was diese
- * Zahl kostet.
+ * ⚠️ HIER WIRD OHNE SPALTENSCHLÜSSEL GERECHNET, und das ist die Lehre aus einem
+ * Fehlversuch. Naheliegend wäre, erst einen Filterzustand `{ schlüssel: werte }`
+ * zu bauen und ihn durch `wendeFilterAn` zu schicken — denselben Weg, den
+ * `angezeigteZeilen` geht. Der braucht den Schlüssel aber nur, WEIL sein
+ * Aufrufer den Zustand getrennt von den Spalten hält. Hier steht beides
+ * beieinander, und der Umweg über den Schlüssel bringt nichts als eine
+ * zusätzliche Fehlerquelle: antds `getColumnKey` fällt auf eine POSITION zurück
+ * (`util.js:9`), wenn eine Spalte weder `key` noch ein skalares `dataIndex`
+ * trägt — eine Spalte, die nur rendert, oder eine mit verschachteltem
+ * `dataIndex`. antd filtert damit weiter, eine schlüsselbasierte Rechnung
+ * daneben verlöre den Filter still und meldete die ungefilterte Zahl.
  *
- * ⚠️ `null` HEISST „NICHT ZU WISSEN" UND IST KEIN FEHLERFALL. Der Aufrufer
- * macht daraus die Angabe, die ARIA dafür vorsieht (`aria-rowcount={-1}`) —
- * „unbekannt viele" ist eine ehrliche Auskunft, eine zu große Zahl ist es
- * nicht.
+ * ⚠️ SORTIERUNG WIRD NICHT ANGEWANDT, und das ist kein Vergessen: sie ändert
+ * die Reihenfolge, nie die Anzahl. Der Filterlauf ist alles, was diese Zahl
+ * kostet.
+ *
+ * ⚠️ `null` HEISST „NICHT ZU WISSEN" UND IST KEIN FEHLERFALL. Eine filterbare
+ * Spalte ohne `filteredValue` filtert UNGESTEUERT: antd führt den Stand intern,
+ * und von außen ist er nicht zu sehen. Ihn als „kein Filter" zu lesen ergäbe
+ * eine zu große Zahl — still, und genau dann, wenn jemand filtert. Der Aufrufer
+ * macht aus `null` die Angabe, die ARIA dafür vorsieht (`aria-rowcount={-1}`);
+ * „unbekannt viele" ist eine ehrliche Auskunft, eine zu große Zahl nicht.
+ *
+ * ⚠️ „OHNE `filteredValue`" HEISST `!("filteredValue" in spalte)`, NICHT
+ * `=== undefined` — antds eigene Unterscheidung (`'filteredValue' in column`,
+ * `useFilter/index.js`): eine Spalte, die das Feld ausdrücklich auf `undefined`
+ * setzt, gilt als GESTEUERT mit leerem Stand und filtert dann nicht.
  */
 export function angezeigteAnzahl<T>(
   zeilen: readonly T[] | undefined,
   spalten: readonly AnzeigeSpalte<T>[] | undefined,
 ): number | null {
   if (!zeilen) return 0;
-  // ⚠️ BEIDE SCHRITTE BRAUCHEN DIE BLÄTTER. Den Zustand aus den Blättern zu
-  // lesen und ihn dann gegen die GRUPPEN zu filtern, fände dort kein
-  // `onFilter` — die Zahl bliebe die ungefilterte, und der Fehler sähe aus wie
-  // „der Filter greift nicht", statt wie einer in dieser Rechnung.
-  const blaetter = blattSpalten(spalten);
-  const { zustand, unbekannt } = filterAusSpalten(blaetter);
-  if (unbekannt) return null;
-  if (!filterAktiv(zustand)) return zeilen.length;
-  return wendeFilterAn(zeilen, blaetter, zustand).length;
+  let liste: readonly T[] = zeilen;
+  // Die BLÄTTER, nicht die oberste Ebene: ein gruppierter Spaltenkopf ist keine
+  // Spalte, sondern eine Klammer um welche (s. `blattSpalten`).
+  for (const spalte of blattSpalten(spalten)) {
+    if (!istFilterbar(spalte)) continue;
+    if (!("filteredValue" in spalte)) {
+      if (kannUngesteuertFiltern(spalte)) return null;
+      continue;
+    }
+    const werte = spalte.filteredValue;
+    // Kein Wert gewählt, oder nichts zum Prüfen — antd filtert dann auch nicht
+    // (`getFilterData`: `onFilter && filteredKeys && filteredKeys.length`).
+    if (!werte || werte.length === 0 || !spalte.onFilter) continue;
+    const trifft = spalte.onFilter;
+    // Innerhalb einer Spalte ODER — antds `realKeys.some(...)`; die Spalten
+    // nacheinander ergeben das UND. Wer das anders verknüpft, zählt eine andere
+    // Menge als die Tabelle daneben zeigt.
+    liste = liste.filter((zeile) => werte.some((wert: Key | boolean) => trifft(wert, zeile)));
+  }
+  return liste.length;
 }

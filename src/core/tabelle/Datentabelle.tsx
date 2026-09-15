@@ -190,6 +190,21 @@ export function Datentabelle<T extends object>({
     ),
     [rest.dataSource, columns],
   );
+  /**
+   * ⚠️ EINGEHÄNGT IST NICHT GERENDERT, und die Lücke dazwischen ist genau ein
+   * Fall: die LEERE Tabelle. Zieht ein Spaltenfilter eine noch virtualisierte
+   * Quelle auf null Zeilen zusammen, baut rc-table sein virtuelles Raster gar
+   * nicht erst (`VirtualTable/index.js`: `body: data?.length ? renderBody :
+   * undefined`) — es gibt dann kein Element, das `role="table"` und den Namen
+   * tragen könnte. `einbau.gesetzt` sagt nur, dass die Bauteile KONFIGURIERT
+   * sind; ob eines davon je gerendert wird, entscheidet die Zeilenzahl.
+   *
+   * ⚠️ `null` ZÄHLT HIER NICHT ALS „MEHR ALS NULL". Ist die Zahl unbekannt,
+   * könnte sie null sein — dann bliebe der Name nirgends. Er bleibt deshalb, wo
+   * antd ihn hinhängt: am Kopf. Das ist derselbe Zustand wie an jeder nicht
+   * virtualisierten Tabelle mit fixem Kopf, also Gleichstand statt Verlust.
+   */
+  const rollenTragen = einbau.gesetzt && typeof angezeigt === "number" && angezeigt > 0;
   const rollenwerte = useMemo(
     () => ({ beschriftung, zeilen: angezeigt ?? -1 }),
     [beschriftung, angezeigt],
@@ -208,14 +223,13 @@ export function Datentabelle<T extends object>({
          * die Zeilen stehen; bliebe er zusätzlich am Kopf, träfe eine
          * Vorleseanwendung ZWEI gleich benannte Tabellen nebeneinander.
          *
-         * ⚠️ DIE BEDINGUNG IST `einbau.gesetzt`, NICHT `virtuellAktiv`, und der
-         * Unterschied ist der Fall, in dem der Name sonst GANZ verschwände:
-         * baut der Aufrufer den Körper über `components.body` als Funktion
-         * selbst, hängt `mitRollen` nichts ein — dann gibt es kein Element, das
-         * den Namen auffangen könnte, und er muss dort bleiben, wo antd ihn
-         * hinhängt.
+         * ⚠️ DIE BEDINGUNG IST `rollenTragen`, NICHT `virtuellAktiv` — die
+         * Begründung steht oben bei seiner Berechnung. Kurz: der Name darf nur
+         * dort weg, wo ein anderes Element ihn auffängt. Das schließt zwei
+         * Fälle ein: einen Körper, den der Aufrufer selbst baut, und eine
+         * Tabelle, die gerade keine Zeile zeigt.
          */
-        aria-label={einbau.gesetzt ? undefined : beschriftung}
+        aria-label={rollenTragen ? undefined : beschriftung}
         components={einbau.bauteile}
         onRow={zeilenProps}
         columns={spalten}

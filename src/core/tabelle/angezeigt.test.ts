@@ -5,7 +5,6 @@ import {
   angezeigteZeilen,
   blattSpalten,
   filterAktiv,
-  filterAusSpalten,
   spaltenSchluessel,
   wendeFilterAn,
   wendeSortierungAn,
@@ -211,33 +210,36 @@ describe("filterAktiv", () => {
  * hängt daran: eine zu große Zahl lässt eine Vorleseanwendung „Zeile 3 von 800"
  * an einer Tabelle mit zwanzig Zeilen ansagen.
  */
-describe("filterAusSpalten", () => {
-  const spalte = (key: string, extra: Record<string, unknown> = {}) => ({
-    key,
-    onFilter: (wert: Key | boolean, zeile: { a?: unknown; b?: unknown }) =>
-      zeile[key as "a" | "b"] === wert,
-    ...extra,
+describe("angezeigteAnzahl ohne Spaltenschluessel", () => {
+  // ⚠️ DER FALL, DER EINE SCHLUESSELBASIERTE RECHNUNG STILL VERLIEREN WUERDE:
+  // antds `getColumnKey` faellt auf eine POSITION zurueck, wenn eine Spalte
+  // weder `key` noch ein skalares `dataIndex` traegt (`util.js:9`). antd
+  // filtert damit weiter — wer den Filter ueber einen selbst abgeleiteten
+  // Schluessel sucht, findet ihn nicht und meldet die ungefilterte Zahl.
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+  const trifft = (wert: Key | boolean, zeile: Z) => zeile.a === wert;
+
+  it("filtert eine Spalte OHNE `key` und ohne `dataIndex`", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { filters: [], filteredValue: [1], onFilter: trifft },
+    ])).toBe(2);
   });
 
-  it("uebergeht eine Spalte ohne `filters` — sie filtert gar nicht", () => {
-    expect(filterAusSpalten([spalte("a")])).toEqual({ zustand: {}, unbekannt: false });
+  it("filtert eine Spalte mit VERSCHACHTELTEM `dataIndex`", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { dataIndex: ["tief", "a"], filters: [], filteredValue: [1], onFilter: trifft },
+    ])).toBe(2);
   });
 
-  it("liest den gesteuerten Stand aus `filteredValue`", () => {
-    const ergebnis = filterAusSpalten([
-      spalte("a", { filters: [{ text: "x", value: 1 }], filteredValue: [1] }),
-      spalte("b", { filters: [{ text: "y", value: 2 }], filteredValue: null }),
-    ]);
-    expect(ergebnis).toEqual({ zustand: { a: [1], b: null }, unbekannt: false });
+  it("uebergeht eine Spalte ohne `filters`, `filterDropdown` und `onFilter`", () => {
+    expect(angezeigteAnzahl(zeilen, [{ key: "a" }])).toBe(4);
   });
 
-  it("meldet `unbekannt`, wenn eine Spalte UNGESTEUERT filtert", () => {
-    // `filters` ohne `filteredValue`: antd fuehrt den Stand intern, von auszen
-    // ist er nicht zu sehen. Ihn als „kein Filter" zu lesen ergaebe eine zu
-    // grosze Zahl — still, und genau dann, wenn jemand filtert.
-    const ergebnis = filterAusSpalten([spalte("a", { filters: [{ text: "x", value: 1 }] })]);
-    expect(ergebnis.unbekannt).toBe(true);
-    expect(ergebnis.zustand).toEqual({});
+  it("uebergeht eine filterbare Spalte OHNE `onFilter` — antd filtert dann auch nicht", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filterDropdown: () => null, filteredValue: [1] },
+    ])).toBe(4);
   });
 });
 

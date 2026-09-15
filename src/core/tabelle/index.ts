@@ -35,7 +35,6 @@ export {
   angezeigteZeilen,
   blattSpalten,
   filterAktiv,
-  filterAusSpalten,
   spaltenSchluessel,
   wendeFilterAn,
   wendeSortierungAn,

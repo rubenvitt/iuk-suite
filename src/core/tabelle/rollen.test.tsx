@@ -313,3 +313,38 @@ describe("die Beschriftung, wenn der Aufrufer den Koerper selbst baut", () => {
     expect(queryAll('[aria-label="Bestand"]').length).toBeGreaterThan(0);
   });
 });
+
+describe("die Beschriftung, wenn kein Filter mehr passt", () => {
+  type Zeile = { id: string; aktiv: boolean };
+  const zeilen: Zeile[] = Array.from(
+    { length: 200 },
+    (_, i) => ({ id: `a${i}`, aktiv: false }),
+  );
+
+  it("bleibt am Kopf, wenn der Spaltenfilter NICHTS uebrig laesst", async () => {
+    // ⚠️ EINGEHAENGT IST NICHT GERENDERT: die Quelle traegt 200 Zeilen, ist also
+    // weiter virtualisiert — aber der Filter laesst keine uebrig, und rc-table
+    // baut sein virtuelles Raster dann gar nicht erst. Naehme `Datentabelle`
+    // antd trotzdem den Namen weg, traege die leere Tabelle GAR KEINEN.
+    await mount(
+      <Datentabelle<Zeile>
+        rowKey="id"
+        virtuell={400}
+        aria-label="Bestand"
+        dataSource={zeilen}
+        columns={[
+          { title: "Id", dataIndex: "id", key: "id", width: 200 },
+          {
+            title: "Aktiv", dataIndex: "aktiv", key: "aktiv", width: 120,
+            filters: [{ text: "ja", value: true }],
+            filteredValue: [true],
+            onFilter: (wert: React.Key | boolean, zeile: Zeile) => zeile.aktiv === wert,
+          },
+        ]}
+      />,
+    );
+    expect(queryAll("[data-row-key]")).toHaveLength(0);
+    expect(queryAll('[role="table"]')).toHaveLength(0);
+    expect(queryAll('[aria-label="Bestand"]').length).toBeGreaterThan(0);
+  });
+});
