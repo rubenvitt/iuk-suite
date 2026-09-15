@@ -4,7 +4,7 @@ import { getDb, type DB } from "../../../../../_db/client";
 import { quelleAufloeser } from "../../../../../_db/quelle";
 import { fmtVerfall } from "../../../../../_lib/format";
 import { inventurLauf, umfangText } from "../../../../../_lib/lesepfade/inventurVerlauf";
-import { fmtTs } from "../../../../../_lib/zeit";
+import { fmtTsJahr } from "../../../../../_lib/zeit";
 import { requireLagerbuchAdmin } from "../../../../../_lib/zugang";
 import { SeitenKopf } from "../../../../../_ui/SeitenKopf";
 import { LaufTabelle, type LaufZeile } from "./LaufTabelle";
@@ -44,7 +44,7 @@ export function laufDetailInhalt(db: DB, id: string): ReactNode {
   return (
     <>
       <SeitenKopf
-        titel={`Inventur vom ${fmtTs(kopf.ts)}`}
+        titel={`Inventur vom ${fmtTsJahr(kopf.ts)}`}
         zurueck={{ titel: "Verlauf", href: "/verwaltung/inventur/verlauf" }}
         beschreibung={`${person} · ${kopf.kommentar} · Umfang: ${umfangText(kopf.umfang)}`}
       />

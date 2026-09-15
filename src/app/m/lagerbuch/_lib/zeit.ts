@@ -136,3 +136,16 @@ export function uhrzeit(d: Date): string {
   const t = zonenTeile(d);
   return `${zz(t.std)}:${zz(t.min)}`;
 }
+
+/**
+ * "TT.MM.JJJJ HH:MM" in ZEITZONE — das Format des Inventur-Verlaufs (DRK-328).
+ *
+ * Eigene Funktion statt eines Schalters an `fmtTs`: Inventuren laufen quartals-
+ * oder jahresweise, ihr Verlauf reicht also über Jahre; das Journal zeigt junge
+ * Buchungen und behält sein kürzeres Format. Der abschließende Punkt hinter dem
+ * Monat fällt weg — er steht im Deutschen für das ausgelassene Jahr.
+ */
+export function fmtTsJahr(d: Date): string {
+  const t = zonenTeile(d);
+  return `${zz(t.tag)}.${zz(t.monat)}.${t.jahr} ${zz(t.std)}:${zz(t.min)}`;
+}

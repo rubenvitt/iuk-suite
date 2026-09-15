@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, heuteIso, uhrzeit }
+import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, fmtTsJahr, heuteIso, uhrzeit }
   from "./zeit";
 
 /**
@@ -39,6 +39,13 @@ describe.each(ZONEN)("unter Prozess-TZ %s", (tz) => {
     // Unter UTC stuende hier "02.08. 23:30" — jede Buchung zwischen 00:00 und
     // 02:00 Ortszeit landete auf dem Vortag (Analyse-Falle 2).
     expect(fmtTs(new Date("2026-08-02T23:30:00Z"))).toBe("03.08. 01:30");
+  });
+
+  it("fmtTsJahr trägt das Jahr der ZONE, nicht das der Prozess-TZ", () => {
+    // Silvester 23:30 Berlin ist unter UTC noch der 31.12. des Vorjahres — genau
+    // die Verwechslung, gegen die das Jahr im Verlauf überhaupt steht (DRK-328).
+    expect(fmtTsJahr(new Date("2026-12-31T22:30:00Z"))).toBe("31.12.2026 23:30");
+    expect(fmtTsJahr(new Date("2026-12-31T23:30:00Z"))).toBe("01.01.2027 00:30");
   });
 
   it("uhrzeit liefert HH:MM in der Zone", () => {

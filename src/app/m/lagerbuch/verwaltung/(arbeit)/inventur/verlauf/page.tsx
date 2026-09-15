@@ -3,7 +3,7 @@ import { getDb, type DB } from "../../../../_db/client";
 import { quelleAufloeser } from "../../../../_db/quelle";
 import { INVENTUR_VERLAUF_GRENZE } from "../../../../_lib/grenzen";
 import { inventurLaeufe, umfangText } from "../../../../_lib/lesepfade/inventurVerlauf";
-import { fmtTs } from "../../../../_lib/zeit";
+import { fmtTsJahr } from "../../../../_lib/zeit";
 import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { VerlaufTabelle, type VerlaufZeile } from "./VerlaufTabelle";
@@ -22,7 +22,7 @@ export function verlaufSeitenInhalt(db: DB): ReactNode {
   const person = quelleAufloeser(db);
   const zeilen: VerlaufZeile[] = laeufe.map((l) => ({
     id: l.id,
-    zeitText: fmtTs(l.ts),
+    zeitText: fmtTsJahr(l.ts),
     person: person(l.quelleTyp, l.quelleId),
     kommentar: l.kommentar,
     umfangText: umfangText(l.umfang),
