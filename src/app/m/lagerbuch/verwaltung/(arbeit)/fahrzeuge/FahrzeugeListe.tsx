@@ -101,7 +101,13 @@ const VERFALL_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
     trifft: (zeile) => zeile.verfallAbgelaufen > 0 },
   { wert: "laeuftAb", text: "läuft ab",
     trifft: (zeile) => zeile.verfallWarnend > 0 },
-  { wert: "verfallRuhig", text: "nichts fällig",
+  /**
+   * ⚠️ DER FILTERTEXT IST DERSELBE WIE DER CHIPTEXT, und das ist keine
+   * Kosmetik: wer „im gruenen Bereich" ankreuzt, muss in der Spalte darunter
+   * dasselbe Wort wiederfinden. Zwei Namen fuer einen Zustand lassen den Leser
+   * einen dritten vermuten.
+   */
+  { wert: "verfallRuhig", text: "im grünen Bereich",
     trifft: (zeile) => zeile.verfallGepflegt
       && zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0 },
   { wert: "verfallLeer", text: "nichts erfasst",

@@ -503,8 +503,10 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     expect(zeilenIds()).toEqual(["f4"]);
 
     await spaltenFilter("Verfall");
-    await spaltenFilter("Verfall", "nichts fällig");
-    // NUR f1 — f4 ist NICHT „nichts fällig", sondern unbekannt. Faellt dieser
+    // Derselbe Text wie im Chip der Spalte — zwei Namen fuer einen Zustand
+    // lassen den Leser einen dritten vermuten.
+    await spaltenFilter("Verfall", "im grünen Bereich");
+    // NUR f1 — f4 ist NICHT „im grünen Bereich", sondern unbekannt. Faellt dieser
     // Test, hat jemand die beiden Leerfaelle wieder zusammengelegt und die
     // Ansicht behauptet Entwarnung fuer ein nie gepflegtes Fahrzeug.
     expect(zeilenIds()).toEqual(["f1"]);
