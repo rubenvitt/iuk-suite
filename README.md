@@ -167,9 +167,11 @@ und kosten je einen halben Tag, wenn man sie nicht kennt. Vor Oberflächenarbeit
 
 ## Ein neues Modul anlegen
 
-Jedes Modul braucht einen Eintrag in `MODULES` (`src/core/registry.ts`) und sein Icon in
-`src/core/shell/icons.ts`, sonst fällt es still auf das Portal-Icon zurück. Ein zustandsloses
-Modul wie `alpha` oder `kioskdemo` ist damit fertig.
+Jedes Modul braucht einen Eintrag in `MODULES` (`src/core/registry.ts`), sein Icon in
+`src/core/shell/icons.ts` (sonst fällt es still auf das Portal-Icon zurück) und unter
+`src/app/m/<key>/` mindestens ein `layout.tsx` mit der Shell-Variante aus der Registry und eine
+`page.tsx`, denn der Proxy schreibt den Host auf `/m/<key>` um, und ohne Seite antwortet das
+Ziel mit 404. Ein zustandsloses Modul wie `alpha` oder `kioskdemo` ist damit fertig.
 
 Ein Modul **mit eigener Datenbank** braucht zusätzlich das Dreieck, sonst schlägt der Start fehl:
 
@@ -179,6 +181,10 @@ Ein Modul **mit eigener Datenbank** braucht zusätzlich das Dreieck, sonst schl�
 
 Dazu `_lib/seedLokal.ts` für `pnpm seed:lokal` und eine Playwright-Spec in einer E2E-Gruppe.
 `src/core/bootstrap.test.ts` und `scripts/seed-lokal.test.ts` prüfen, dass alle Teile zusammenpassen.
+
+Ein Modul, das Anwender sehen, ist ein neues Feature und bekommt im selben Commit eine Notiz unter
+`src/app/m/portal/_lib/neuigkeiten/` plus die Zeile in `register.ts`; die Regeln dafür stehen in
+`CLAUDE.md`.
 
 ## Dokumentation
 
