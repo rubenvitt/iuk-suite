@@ -1,0 +1,125 @@
+// @vitest-environment jsdom
+
+import { act } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clickElement, existsPortal, mount, queryPortal, unmount,
+} from "@/app/m/qr/_lib/test-dom";
+
+const mocks = vi.hoisted(() => ({ aussondern: vi.fn() }));
+
+vi.mock("../../../../_actions/aussondernLagerort", () => ({
+  aussondernVomLagerort: (...args: unknown[]) => mocks.aussondern(...args),
+}));
+
+import { AussondernDialog } from "./AussondernDialog";
+
+const CHARGEN = [
+  { id: "ch-alt", chargenNr: "CH-ALT", verfall: "2020-01", rest: 4 },
+  { id: "ch-neu", chargenNr: "CH-NEU", verfall: "2030-01", rest: 6 },
+];
+
+beforeEach(() => {
+  mocks.aussondern.mockReset();
+  mocks.aussondern.mockResolvedValue({ ok: true });
+});
+
+afterEach(async () => { await unmount(); });
+
+async function warte(): Promise<void> {
+  await act(async () => { await new Promise((fertig) => setTimeout(fertig, 0)); });
+}
+
+async function warteAuf(pruefen: () => boolean, was: string): Promise<void> {
+  for (let versuch = 0; versuch < 30; versuch++) {
+    if (pruefen()) return;
+    await warte();
+  }
+  throw new Error(`Nicht rechtzeitig sichtbar: ${was}`);
+}
+
+function knopfMitText(text: string, wurzel: ParentNode = document.body): HTMLElement {
+  const knopf = Array.from(wurzel.querySelectorAll<HTMLElement>("button"))
+    .find((element) => (element.textContent ?? "").includes(text));
+  if (!knopf) throw new Error(`Knopf nicht gefunden: ${text}`);
+  return knopf;
+}
+
+async function fuellPortal(selector: string, wert: string): Promise<void> {
+  const feld = queryPortal<HTMLInputElement>(selector);
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(feld), "value")?.set;
+  if (!setter) throw new Error(`Kein value-Setter fuer ${selector}`);
+  await act(async () => {
+    setter.call(feld, wert);
+    feld.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function oeffne(): Promise<void> {
+  await clickElement(knopfMitText("aussondern"));
+  await warteAuf(
+    () => document.body.querySelector("[role='dialog']") !== null,
+    "Aussondern-Dialog",
+  );
+}
+
+function zeige(bestand = 10) {
+  return mount(
+    <AussondernDialog
+      lagerortId="fz-1"
+      artikelId="art-1"
+      artikelName="Kompresse"
+      einheit="Stk."
+      bestand={bestand}
+      chargen={CHARGEN}
+      verfall="2020-01"
+    />,
+  );
+}
+
+describe("AussondernDialog", () => {
+  it("uebergibt Menge, Kommentar und Lagerort an die Aktion", async () => {
+    await zeige();
+    await oeffne();
+
+    await fuellPortal("input[aria-label='Menge']", "3");
+    await fuellPortal("input[aria-label='Kommentar']", "MHD ueberschritten");
+    await act(async () => {
+      queryPortal<HTMLFormElement>("[data-rolle='aussondern']")
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+
+    expect(mocks.aussondern).toHaveBeenCalledTimes(1);
+    expect(mocks.aussondern.mock.calls[0][0]).toMatchObject({
+      lagerortId: "fz-1",
+      artikelId: "art-1",
+      menge: 3,
+      kommentar: "MHD ueberschritten",
+    });
+  });
+
+  it("bietet den Knopf nicht an, wenn am Lagerort nichts liegt", async () => {
+    await zeige(0);
+
+    // Was nicht da liegt, kann nicht ausgesondert werden — der Knopf ist gesperrt.
+    expect(knopfMitText("aussondern").hasAttribute("disabled")).toBe(true);
+  });
+
+  it("zeigt den Fehlersatz der Aktion an, statt ihn zu verschlucken", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: false, fehler: "Hier liegen nur 2 Stück." });
+    await zeige();
+    await oeffne();
+
+    await fuellPortal("input[aria-label='Menge']", "3");
+    await fuellPortal("input[aria-label='Kommentar']", "MHD");
+    await act(async () => {
+      queryPortal<HTMLFormElement>("[data-rolle='aussondern']")
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+
+    expect(existsPortal("[role='dialog']")).toBe(true);
+    expect(document.body.textContent).toContain("Hier liegen nur 2 Stück.");
+  });
+});

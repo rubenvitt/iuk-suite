@@ -22,6 +22,10 @@ vi.mock("../../../../_actions/lagerortVerfall", () => ({
   verfallSetzen: (...args: unknown[]) => mocks.setzen(...args),
 }));
 
+vi.mock("../../../../_actions/aussondernLagerort", () => ({
+  aussondernVomLagerort: vi.fn(),
+}));
+
 const ZEILEN: VerfallAnzeigeZeile[] = [
   {
     artikelId: "a1",
@@ -30,6 +34,9 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     verfall: "2027-03",
     statusTon: "gelb",
     statusText: "läuft bald ab",
+    bestand: 5,
+    einheit: "Stk.",
+    chargen: [{ id: "c1", chargenNr: "CH-1", verfall: "2027-03", rest: 5 }],
   },
   {
     artikelId: "a2",
@@ -38,6 +45,9 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     verfall: null,
     statusTon: null,
     statusText: null,
+    bestand: 0,
+    einheit: "Stk.",
+    chargen: [],
   },
   {
     artikelId: "a3",
@@ -46,6 +56,9 @@ const ZEILEN: VerfallAnzeigeZeile[] = [
     verfall: "2029-08",
     statusTon: "ok",
     statusText: "bis 08/29",
+    bestand: 3,
+    einheit: "Stk.",
+    chargen: [],
   },
 ];
 
@@ -94,7 +107,8 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Artikel", "Fach", "Verfall", "Status"]);
+      // DRK-303: „Aktion" traegt das Aussondern je Zeile.
+      .toEqual(["Artikel", "Fach", "Verfall", "Status", "Aktion"]);
     expect(query("table").getAttribute("aria-label")).toBe("Verfall im Fahrzeug");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(3);
     const mull = query("tr[data-row-key='a1']");
@@ -234,5 +248,21 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
 
     expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
       .toEqual(["a2"]);
+  });
+});
+
+describe("Aussondern je Zeile", () => {
+  it("bietet das Aussondern an, wo Bestand im Fahrzeug liegt", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const knopf = query("tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']");
+    expect(knopf.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("sperrt den Knopf, wo nichts liegt", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const knopf = query("tr[data-row-key='a2'] button[aria-label='Kompressen aussondern']");
+    expect(knopf.hasAttribute("disabled")).toBe(true);
   });
 });

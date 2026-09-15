@@ -1,0 +1,187 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { migrierteTestDb, type TestDb } from "../_db/testdb";
+import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
+
+const { adminRiegel, revalidiert } = vi.hoisted(() => ({
+  adminRiegel: vi.fn<() => Promise<unknown>>(),
+  revalidiert: [] as string[],
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
+}));
+
+vi.mock("../_lib/zugang", () => ({
+  requireLagerbuchAdmin: () => adminRiegel(),
+}));
+
+vi.mock("../_db/client", () => ({
+  getDb: () => { throw new Error("getDb() im Test - jeder Aufruf uebergibt t.db"); },
+}));
+
+import { aussondernVomLagerort } from "./aussondernLagerort";
+
+const JETZT = new Date("2026-08-07T10:00:00Z");
+const VIEWER = { sub: "u-admin", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
+
+let t: TestDb;
+
+beforeEach(() => {
+  revalidiert.length = 0;
+  adminRiegel.mockResolvedValue(VIEWER);
+  t = migrierteTestDb("lagerbuch-actions-aussondern-ort-");
+
+  t.db.insert(lagerorte).values({ id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true }).run();
+  t.db.insert(artikel).values({
+    id: "art-1", name: "Kompresse", einheit: "Stk", fach: "A-01",
+    mindestbestand: 1, aktiv: true, createdAt: JETZT, kategorie: null, bestelltAt: null,
+  }).run();
+});
+
+function charge(id: string, verfall: string) {
+  t.db.insert(chargen).values({
+    id, artikelId: "art-1", chargenNr: id, verfall, createdAt: JETZT,
+  }).run();
+}
+
+function buchen(id: string, chargeId: string, menge: number) {
+  t.db.insert(buchungen).values({
+    id, ts: JETZT, typ: "zugang", artikelId: "art-1", chargeId,
+    lagerortId: "fz-1", menge, quelleTyp: "system", quelleId: "seed",
+    referenz: null, kommentar: null,
+  }).run();
+}
+
+/** Bestand des Artikels am Fahrzeug, je Charge. */
+function restJeCharge() {
+  const karte = new Map<string, number>();
+  for (const b of t.db.select().from(buchungen).all()) {
+    if (b.lagerortId !== "fz-1") continue;
+    karte.set(b.chargeId, (karte.get(b.chargeId) ?? 0) + b.menge);
+  }
+  return karte;
+}
+
+describe("aussondernVomLagerort", () => {
+  it("bucht die gezaehlte Menge FEFO-verteilt vom Fahrzeug aus", async () => {
+    charge("ch-alt", "2020-01");
+    charge("ch-neu", "2030-01");
+    buchen("seed-alt", "ch-alt", 4);
+    buchen("seed-neu", "ch-neu", 6);
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 5,
+        kommentar: "MHD ueberschritten",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    // FEFO: die frueher ablaufende Charge zuerst leeren, Rest aus der juengeren.
+    expect(restJeCharge().get("ch-alt")).toBe(0);
+    expect(restJeCharge().get("ch-neu")).toBe(5);
+  });
+
+  it("loescht die Verfallsangabe des Fahrzeugs, wenn kein Datum uebergeben wird", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+    t.db.insert(lagerortVerfall).values({
+      id: "lv-1", lagerortId: "fz-1", artikelId: "art-1", verfall: "2020-01",
+      erfasstAt: JETZT, quelleTyp: "system", quelleId: "seed",
+    }).run();
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 4, kommentar: "alles raus" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+  });
+
+  it("lehnt ab, wenn am Lagerort weniger liegt als ausgesondert werden soll", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 3);
+    const vorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 5, kommentar: "MHD" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    // Keine Teilaussonderung im Stillen: der Bestand bleibt unberuehrt.
+    expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
+    expect(restJeCharge().get("ch-alt")).toBe(3);
+  });
+
+  it("bucht bei angegebener Charge genau diese ab, nicht die FEFO-naechste", async () => {
+    charge("ch-alt", "2020-01");
+    charge("ch-neu", "2030-01");
+    buchen("seed-alt", "ch-alt", 4);
+    buchen("seed-neu", "ch-neu", 6);
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 2,
+        chargeId: "ch-neu", kommentar: "Packung beschaedigt",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(restJeCharge().get("ch-alt")).toBe(4);
+    expect(restJeCharge().get("ch-neu")).toBe(4);
+  });
+
+  it("meldet ein ungueltiges Verfallsdatum als Fehler und bucht nichts", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+    const vorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 2,
+        verfall: "2026-13", kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    // Die Abbuchung stand VOR dem Verfallsschreiben — sie darf nicht stehenbleiben.
+    expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
+    expect(restJeCharge().get("ch-alt")).toBe(4);
+  });
+
+  it("kennzeichnet die Buchung als Aussonderung", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+
+    await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 2, kommentar: "MHD ueberschritten" },
+      t.db,
+    );
+
+    const neue = t.db.select().from(buchungen).all().filter((b) => b.id !== "seed-alt");
+    expect(neue).toHaveLength(1);
+    // Das Praefix macht die Aussonderung im Journal von einem Zaehl-Abgleich
+    // unterscheidbar — der ganze Grund dieses Weges.
+    expect(neue[0].referenz).toBe("aussondern:fz-1");
+    expect(neue[0].kommentar).toBe("MHD ueberschritten");
+  });
+
+  it("frischt die Detailseite des Lagerorts mit auf", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+
+    await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 2, kommentar: "MHD" },
+      t.db,
+    );
+
+    // Ohne den Detailpfad stuende nach dem Schliessen des Dialogs der alte Bestand.
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge");
+  });
+});

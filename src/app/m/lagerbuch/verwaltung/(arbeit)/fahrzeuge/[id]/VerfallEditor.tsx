@@ -14,6 +14,8 @@ import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
 import { verfallSetzen } from "../../../../_actions/lagerortVerfall";
 import type { AmpelTon } from "../../../../_lib/format";
+import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
+import { AussondernDialog } from "./AussondernDialog";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
 
@@ -29,6 +31,12 @@ export type VerfallAnzeigeZeile = {
   verfall: string | null;
   statusTon: AmpelTon | null;
   statusText: string | null;
+  /** Bestand des Artikels AN DIESEM Lagerort — die Obergrenze des Aussonderns. */
+  bestand: number;
+  einheit: string;
+  /** Chargen mit Rest AN DIESEM Lagerort, FEFO sortiert. Leer ist zulässig:
+   *  am Fahrzeug ist die Charge oft geraten (§5.3.3), die Auswahl daher optional. */
+  chargen: ChargeZeile[];
 };
 
 export function VerfallEditor({
@@ -142,6 +150,27 @@ export function VerfallEditor({
         <Chip ton={eintrag.statusTon}>{statusText}</Chip>
       ) : (
         <Chip ton="grau">nicht erfasst</Chip>
+      ),
+    },
+    {
+      // ⚠️ DIE FUENFTE SPALTE TRIFFT EINE TABELLE, DIE SCHON UEBERLAEUFT —
+      // DRK-322 haelt den waagerechten Ueberlauf des Fahrzeugblatts auf schmalen
+      // Schirmen fest. Sie steht trotzdem hier und nicht anderswo: „das ist
+      // abgelaufen" und „das kommt raus" sind derselbe Handgriff, und eine
+      // Aktion zwei Flaechen entfernt vom Befund wird nicht benutzt. Die Breite
+      // ist dort zu loesen, nicht durch Weglassen der Aktion.
+      title: "Aktion",
+      key: "aussondern",
+      render: (_wert: unknown, eintrag) => (
+        <AussondernDialog
+          lagerortId={lagerortId}
+          artikelId={eintrag.artikelId}
+          artikelName={eintrag.artikelName}
+          einheit={eintrag.einheit}
+          bestand={eintrag.bestand}
+          chargen={eintrag.chargen}
+          verfall={eintrag.verfall}
+        />
       ),
     },
   ];

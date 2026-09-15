@@ -6,7 +6,11 @@ import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerorte } from "../../../../_db/schema";
 import { ampelTon } from "../../../../_lib/format";
-import { artikelListe } from "../../../../_lib/lesepfade/artikel";
+import {
+  artikelListe,
+  chargenJeArtikelAmLagerort,
+  type ChargeZeile,
+} from "../../../../_lib/lesepfade/artikel";
 import {
   sollFuerFahrzeug,
   templateDetail,
@@ -27,11 +31,16 @@ export const dynamic = "force-dynamic";
 function verfallZeilen(
   soll: ReturnType<typeof sollFuerFahrzeug>,
   verfall: ReturnType<typeof verfallFuerLagerort>,
+  chargen: Map<string, ChargeZeile[]>,
 ): VerfallAnzeigeZeile[] {
   const jeArtikel = new Map<string, {
     artikelId: string;
     artikelName: string;
     faecher: string[];
+    /* Je Artikel derselbe Wert an ALLEN seinen Soll-Positionen — der Bestand
+     * haengt am (Lagerort, Artikel), nicht am Fach. */
+    bestand: number;
+    einheit: string;
   }>();
 
   for (const position of soll) {
@@ -47,6 +56,8 @@ function verfallZeilen(
       artikelId: position.artikelId,
       artikelName: position.artikelName,
       faecher: [position.fachLabel],
+      bestand: position.fahrzeugBestand,
+      einheit: position.einheit,
     });
   }
 
@@ -59,6 +70,9 @@ function verfallZeilen(
       verfall: eintrag?.verfall ?? null,
       statusTon: eintrag ? ampelTon(eintrag.ampel) : null,
       statusText: eintrag?.text ?? null,
+      bestand: artikel.bestand,
+      einheit: artikel.einheit,
+      chargen: chargen.get(artikel.artikelId) ?? [],
     };
   });
 }
@@ -73,7 +87,13 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
   const soll = sollFuerFahrzeug(db, id);
   const aktivePositionen = soll.filter((position) => !position.entfernt);
-  const verfall = verfallZeilen(soll, verfallFuerLagerort(db, id, jetzt));
+  const verfall = verfallZeilen(
+    soll,
+    verfallFuerLagerort(db, id, jetzt),
+    // EINE Aggregation fuer das ganze Blatt — `chargenMitRest` je Artikel waere
+    // bei 60 Soll-Positionen 60 Vollaggregationen (§5.2.3).
+    chargenJeArtikelAmLagerort(db, id),
+  );
   const artikel = artikelListe(db).map((eintrag) => ({
     id: eintrag.id,
     name: eintrag.name,
