@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "e2e:pwa": "playwright test --config=playwright.pwa.config.ts"
+    "e2e:pwa": "playwright test --config=playwright.pwa.config.ts",
+    "e2e:umfragen": "playwright test --config=playwright.umfragen.config.ts"
   },
   "dependencies": {
     "@ant-design/cssinjs": "^2.1.2",
