@@ -267,8 +267,15 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
  * Ein Aufruf von dort holte die Lage der ganzen Organisation zurueck, um EINE
  * Zahl anzuzeigen.
  *
- * ⚠️ `completedAt IS NOT NULL` — ein offener Check (§4.4) ist kein Stand, auf
- * dem jemand aufbauen kann.
+ * ⚠️ `completedAt IS NOT NULL` MACHT §4.4 IM AUSDRUCK SICHTBAR — ES IST ABER
+ * KEIN TOR, UND DAS STEHT HIER, DAMIT ES NIEMAND DAFUER HAELT. Gemessen: nimmt
+ * man den Riegel heraus, bleibt `checks.test.ts` VOLLSTAENDIG GRUEN. Zwei
+ * Gruende, die sich ueberlagern — SQLite sortiert NULLs bei `DESC` nach HINTEN,
+ * und selbst wenn eine offene Zeile gewaenne, faengt das `?? null` unten sie zum
+ * selben Ergebnis ab. Wer den Riegel „aufraeumt", aendert heute also nichts;
+ * wer ihn stehen laesst, haelt die Absicht fest, falls die Rueckgabe einmal
+ * mehr als diesen einen Wert traegt. Eine Begruendung, die hier einen Mutanten
+ * behauptet, waere schlimmer als keine.
  *
  * ⚠️ DER `id`-TIEBREAKER IST NICHT KOSMETIK, sondern dieselbe Zusage wie in
  * `checkHistorie` und im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).

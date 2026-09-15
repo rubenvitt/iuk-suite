@@ -427,9 +427,14 @@ describe("letzterCheckZeitpunkt — DRK-306", () => {
 
   it("uebergeht einen OFFENEN Check (`completedAt IS NULL`), auch wenn er neuer ist", () => {
     // §4.4: ein offener Check ist kein Stand, auf dem jemand aufbauen kann.
-    // Ohne den `isNotNull`-Riegel liefert `desc(completedAt)` in SQLite den
-    // NULL-Datensatz je nach Sortierrichtung ganz vorn — die Anzeige zeigte dann
-    // „noch kein Check", obwohl einer abgeschlossen ist.
+    //
+    // ⚠️ DIESER FALL IST HEUTE UEBERBESTIMMT, und das gehoert hingeschrieben:
+    // er bleibt gruen, auch wenn man `isNotNull` aus der Abfrage nimmt (gemessen).
+    // SQLite sortiert NULLs bei `DESC` nach hinten, und das `?? null` im
+    // Lesepfad faengt eine offene Zeile ohnehin zum selben Ergebnis ab. Der Test
+    // haelt damit die ZUSAGE fest („ein offener Check zaehlt nicht"), nicht den
+    // Riegel — wer hier eine Mutantenprobe fuer `isNotNull` sucht, sucht
+    // vergeblich, weil es keinen beobachtbaren Unterschied gibt.
     t.db.insert(checks).values(
       { id: "chk-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "222-222",
         startedAt: new Date("2026-06-20T10:00:00Z"), completedAt: null, ergebnis: null }).run();
