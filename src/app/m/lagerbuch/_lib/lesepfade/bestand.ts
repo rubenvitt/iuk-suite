@@ -55,7 +55,7 @@ export type Leser = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
  *
  * ⚠️ EINE LEERE LISTE ERGIBT `WHERE false` und damit überall 0 — still.
  * `handlagerOrte` liefert deshalb immer mindestens die Wurzel
- * (`_lib/domain/orte.ts`).
+ * (`_lib/lesepfade/orte.ts`).
  */
 export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
@@ -67,6 +67,11 @@ export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string
   return new Map(rows.map((r) => [r.artikelId, r.summe]));
 }
 
+/**
+ * Rest je Charge über einen BEREICH von Orten. Ersetzt
+ * `bestandProLagerortUndCharge` ueber die Vollladung.
+ * Index: `idx_buchungen_lagerort_artikel`.
+ */
 export function restJeCharge(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ chargeId: buchungen.chargeId, summe: sql<number>`sum(${buchungen.menge})` })

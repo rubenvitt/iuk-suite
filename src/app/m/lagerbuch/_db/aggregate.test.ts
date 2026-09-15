@@ -7,6 +7,7 @@ import {
 } from "../_lib/lesepfade/bestand";
 import {
   bestandProLagerort, bestandProLagerortUndCharge, bestandProOrte,
+  restProOrtenUndCharge,
 } from "../_lib/domain/bestand";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
@@ -392,5 +393,59 @@ describe("DRK-297 — Bestand ueber einen Bereich", () => {
   /** Leere Gruppen liefern KEINE Zeile — `?? 0` auf beiden Seiten. */
   it("ein Ort ohne Buchung der Charge fehlt in der Verteilung ganz", () => {
     expect(restJeChargeUndOrt(t.db, "a1").get(CHARGE_GETEILT)?.get("schrank-2")).toBeUndefined();
+  });
+
+  /**
+   * Der Differenztest fuer `restJeCharge` UEBER EINE MEHRELEMENTIGE Ortsmenge —
+   * bisher lief `restJeCharge` in dieser Datei nur einelementig. SQL-Seite:
+   * `sum()` + `inArray` (die produktive Abfrage). Reine Seite: die Vollladung
+   * OHNE jedes Ortsprädikat, gefiltert erst in JS ueber `restProOrtenUndCharge`
+   * — zwei verschiedene Wege, nicht dieselbe Formel zweimal.
+   *
+   * ⚠️ Die geteilte Charge liegt in `schrank-1` UND in `RTW1` — der Bereich OHNE
+   * das Fahrzeug muss deshalb eine ANDERE Zahl liefern als der Bereich MIT ihm.
+   * Nur so faellt ein zu weit gefasster Bereich ueberhaupt auf.
+   */
+  it("restJeCharge ueber eine mehrelementige Ortsmenge stimmt mit restProOrtenUndCharge ueberein", () => {
+    const roh = alleZeilen();
+    const ohneFahrzeug = [HANDLAGER_ID, "schrank-1", "schrank-2"];
+    const mitFahrzeug = [...ohneFahrzeug, RTW1];
+
+    const sqlOhne = restJeCharge(t.db, ohneFahrzeug);
+    expect(sqlOhne.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, ohneFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    const sqlMit = restJeCharge(t.db, mitFahrzeug);
+    expect(sqlMit.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, mitFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    // Der Bereich OHNE Fahrzeug liefert eine ANDERE Zahl als MIT ihm.
+    expect(sqlOhne.get(CHARGE_GETEILT)).toBe(5);    // NUR schrank-1
+    expect(sqlMit.get(CHARGE_GETEILT)).toBe(12);    // schrank-1 (5) + RTW1 (7)
+  });
+
+  /**
+   * Derselbe Differenztest fuer `restJeChargeFuerArtikel` — auch dieses Aggregat
+   * lief bisher nur einelementig (`_actions/inventur.ts:139` ruft es produktiv
+   * ueber einen echten Bereich). Verschiedenwegig wie oben: SQL-Seite `sum()` +
+   * `inArray` (plus `artikelId`-Praedikat), reine Seite die Vollladung EINES
+   * Artikels ohne Ortsprädikat.
+   */
+  it("restJeChargeFuerArtikel ueber eine mehrelementige Ortsmenge stimmt mit restProOrtenUndCharge ueberein", () => {
+    const roh = alleZeilen().filter((r) => r.artikelId === "a1");
+    const ohneFahrzeug = [HANDLAGER_ID, "schrank-1", "schrank-2"];
+    const mitFahrzeug = [...ohneFahrzeug, RTW1];
+
+    const sqlOhne = restJeChargeFuerArtikel(t.db, "a1", ohneFahrzeug);
+    expect(sqlOhne.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, ohneFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    const sqlMit = restJeChargeFuerArtikel(t.db, "a1", mitFahrzeug);
+    expect(sqlMit.get(CHARGE_GETEILT) ?? 0)
+      .toBe(restProOrtenUndCharge(roh, mitFahrzeug).get(CHARGE_GETEILT) ?? 0);
+
+    // Der Bereich OHNE Fahrzeug liefert eine ANDERE Zahl als MIT ihm.
+    expect(sqlOhne.get(CHARGE_GETEILT)).toBe(5);    // NUR schrank-1
+    expect(sqlMit.get(CHARGE_GETEILT)).toBe(12);    // schrank-1 (5) + RTW1 (7)
   });
 });

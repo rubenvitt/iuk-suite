@@ -3,8 +3,8 @@
  *
  * `bestand` ist IMMER der HANDLAGER-Bestand (`queries.ts:519`, §5.2.1): der
  * Mindestbestand ist eine Nachschubschwelle fuers Zentrallager, kein Fahrzeugsoll.
- * Das ist auch der Grund, warum `bestandJeArtikel` mit `HANDLAGER_ID` und nicht
- * lagerort-uebergreifend gerufen wird.
+ * Das ist auch der Grund, warum `bestandJeArtikel` mit `handlagerOrte(db)` und
+ * nicht lagerort-uebergreifend gerufen wird.
  *
  * ⚠️ `artikel.bestelltAt` TRAEGT GENAU EINE WAHRE AUSSAGE (§5.5): „seit wann steht
  * die aktuelle Markierung". Weder das Setzen noch das Nullen beim naechsten Zugang
