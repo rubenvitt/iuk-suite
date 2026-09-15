@@ -80,6 +80,9 @@ const TABELLEN: Record<
     { name: "kennung", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
     { name: "template_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "parent_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "zugangshinweis", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "sortierung", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
   ],
   fahrzeug_templates: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -196,6 +199,11 @@ const TABELLEN: Record<
     { name: "nennfuelldruck_bar", typ: "integer", notnull: 1, dflt: "200", pk: 0 },
     { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
     { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
+    // DRK-308, per ALTER TABLE angehaengt — deshalb steht die Spalte HINTER
+    // `created_at` und nicht dort, wo `schema.ts` sie fuehrt. Die Vorbelegung 25
+    // ist das Verhalten vor DRK-308; ohne sie waere jede Altzeile NULL und die
+    // Ampel fiele fuer den gesamten Bestand aus.
+    { name: "wechsel_ab_prozent", typ: "integer", notnull: 1, dflt: "25", pk: 0 },
   ],
   o2_messungen: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -281,7 +289,7 @@ describe("19 Tabellen, Spalte fuer Spalte", () => {
 });
 
 const INDIZES: Record<string, string[]> = {
-  lagerorte: [],
+  lagerorte: ["idx_lagerorte_parent"],
   fahrzeug_templates: [],
   template_positionen: ["idx_template_pos_template"],
   artikel: [],
@@ -390,8 +398,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt sieben Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  it("fuehrt neun Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -410,7 +418,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     expect(journal.entries.map((e) => e.tag).slice(1))
       .toEqual([
         "0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox",
-        "0005_artikel_kategorie", "0006_inventuren",
+        "0005_artikel_kategorie", "0006_inventuren", "0007_o2_wechsel_grenze",
+        "0008_lagerorte_hierarchie",
       ]);
   });
 

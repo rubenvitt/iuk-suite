@@ -18,6 +18,7 @@ import {
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
   PiMagnifyingGlass, PiBookmarkSimple, PiPuzzlePiece, PiGraduationCap, PiCardsThree,
+  PiLockers,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -60,6 +61,7 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   baukasten: PiPuzzlePiece,
   ueben: PiGraduationCap,
   lernsets: PiCardsThree,
+  lagerorte: PiLockers,
 };
 
 /**

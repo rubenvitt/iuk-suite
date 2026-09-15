@@ -156,6 +156,10 @@ export default async function CheckSeite({
   // `CheckFlow.tsx:826` loest den Null-Fall als „noch nicht gemessen" auf.
   const flaschen = o2FlaschenFuerLagerort(db, gewaehlt.id).map((f) => ({
     id: f.id, name: f.name, nennfuelldruckBar: f.nennfuelldruckBar, letzterDruck: f.letzterDruck,
+    // DRK-308: der Wechselwert DIESER Flasche. Er reist als Zahl mit, weil der
+    // Flow eine Client-Insel ist und einen Import aus einem Servermodul nicht
+    // als Wert saehe (Falle 6).
+    wechselAbProzent: f.wechselAbProzent,
   }));
   const verfall = Object.fromEntries(
     [...verfallFuerLagerort(db, gewaehlt.id)].map(([artikelId, e]) => [artikelId, e.verfall]),

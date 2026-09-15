@@ -50,6 +50,8 @@ import type { Leser } from "./bestand";
 export type O2FlascheZeile = {
   id: string; name: string; lagerortName: string; aktiv: boolean;
   groesseLiter: number | null; nennfuelldruckBar: number;
+  /** % vom Nennfuelldruck, ab dem gewechselt werden soll (DRK-308). */
+  wechselAbProzent: number;
   letzterDruck: number | null; letzteMessung: Date | null;
   /** Herkunft DERSELBEN juengsten Messung wie Druck und Zeitpunkt. */
   herkunft: "check" | "manuell" | null;
@@ -80,6 +82,18 @@ function letzteJeFlasche(db: Leser): Map<string, {
   return m;
 }
 
+/**
+ * Der Wechselwert je Flasche, EINMAL gelesen — fuer Auswerter, die viele Checks
+ * durchgehen und den Stamm sonst je Zeile neu abfragten (`checkHistorie`).
+ *
+ * Eine Flasche, die es nicht mehr gibt, liefert `undefined`: dann gilt die
+ * Vorbelegung, weil es fuer sie keine geltende Vorgabe mehr gibt.
+ */
+export function wechselGrenzeNachschlag(db: Leser): (flascheId: string) => number | undefined {
+  const m = new Map(db.select().from(o2Flaschen).all().map((f) => [f.id, f.wechselAbProzent]));
+  return (id) => m.get(id);
+}
+
 export function o2FlaschenUebersicht(db: Leser): O2FlascheZeile[] {
   const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
   const letzte = letzteJeFlasche(db);
@@ -94,12 +108,15 @@ export function o2FlaschenUebersicht(db: Leser): O2FlascheZeile[] {
         id: f.id, name: f.name, lagerortName: namen.get(f.lagerortId) ?? "–",
         aktiv: f.aktiv, groesseLiter: f.groesseLiter,
         nennfuelldruckBar: f.nennfuelldruckBar,
+        wechselAbProzent: f.wechselAbProzent,
         letzterDruck, letzteMessung: l ? l.ts : null,
         // Token = Fahrzeug-Check; jeder andere vorhandene Quelltyp ist manuell.
         // Ohne Messung gibt es keine Herkunft, die geraten werden duerfte.
         herkunft,
         // GUARD: ohne Messung KEIN o2Status-Aufruf (§5.12, Eigenschaft 4).
-        status: letzterDruck !== null ? o2Status(letzterDruck, f.nennfuelldruckBar) : null,
+        status: letzterDruck !== null
+          ? o2Status(letzterDruck, f.nennfuelldruckBar, f.wechselAbProzent)
+          : null,
       };
     })
     .sort((a, b) => Number(b.aktiv) - Number(a.aktiv) || a.name.localeCompare(b.name));
@@ -138,13 +155,20 @@ export function o2FlascheDetail(db: DB, id: string): O2FlascheDetail | null {
   const letzterDruck = verlauf.length > 0 ? verlauf[0].druckBar : null;
   return {
     flasche: f, lagerortName: lo?.name ?? "–",
-    status: letzterDruck !== null ? o2Status(letzterDruck, f.nennfuelldruckBar) : null,
+    status: letzterDruck !== null
+      ? o2Status(letzterDruck, f.nennfuelldruckBar, f.wechselAbProzent)
+      : null,
     verlauf,
   };
 }
 
 export type O2FlascheCheckZeile = {
   id: string; name: string; nennfuelldruckBar: number; letzterDruck: number | null;
+  /** DRK-308 — der Wechselhinweis der Maske rechnet gegen DIESEN Wert, nicht
+   *  gegen eine Konstante. Er muss ueber die RSC→Client-Grenze mitkommen; als
+   *  Import aus einem Servermodul kaeme in der Client-Insel eine Referenz statt
+   *  der Zahl an (Falle 6). */
+  wechselAbProzent: number;
 };
 
 /** Aktive Flaschen an einem Standort — fuer den Fahrzeug-Check und die
@@ -157,6 +181,7 @@ export function o2FlaschenFuerLagerort(db: Leser, lagerortId: string): O2Flasche
     .filter((f) => f.aktiv)
     .map((f) => ({
       id: f.id, name: f.name, nennfuelldruckBar: f.nennfuelldruckBar,
+      wechselAbProzent: f.wechselAbProzent,
       letzterDruck: letzte.get(f.id)?.druckBar ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));

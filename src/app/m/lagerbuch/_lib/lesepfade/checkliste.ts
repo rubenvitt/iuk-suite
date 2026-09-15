@@ -38,6 +38,7 @@
  */
 import { eq } from "drizzle-orm";
 import { fahrzeugTemplates, lagerorte } from "../../_db/schema";
+import { wechselGrenzeBar } from "../domain/o2";
 import { heuteIso } from "../zeit";
 import type { Leser } from "./bestand";
 import { sollFuerFahrzeug } from "./fahrzeuge";
@@ -72,6 +73,15 @@ export type ChecklisteFlasche = {
   id: string;
   name: string;
   nennfuelldruckBar: number;
+  /**
+   * Der Wechselwert DIESER Flasche in bar (DRK-308) — bereits ausgerechnet.
+   *
+   * ⚠️ IN BAR, NICHT IN PROZENT, und das ist der ganze Zweck: auf dem
+   * ausgedruckten Bogen steht jemand am Manometer und liest bar ab. „Wechsel ab
+   * 25 %" liesse sich dort ohne Kopfrechnen nicht gegen die abgelesene Zahl
+   * halten — und ein Bogen, auf dem man rechnen muss, wird nicht benutzt.
+   */
+  wechselAbBar: number;
   /** ⚠️ `null` = NIE gemessen. Nicht 0 bar — der Fehlalarm aus §5.12. */
   letzterDruck: number | null;
 };
@@ -170,6 +180,7 @@ export function checklisteFuerFahrzeug(
       id: flasche.id,
       name: flasche.name,
       nennfuelldruckBar: flasche.nennfuelldruckBar,
+      wechselAbBar: wechselGrenzeBar(flasche.nennfuelldruckBar, flasche.wechselAbProzent),
       // ⚠️ UNVERAENDERT WEITER, `null` EINGESCHLOSSEN. Ein `?? 0` stellte den
       // Fehlalarm aus §5.12 wieder her: „nie gemessen" laese sich als leere
       // Flasche, und jemand traegt eine volle Flasche aus dem Fahrzeug.
