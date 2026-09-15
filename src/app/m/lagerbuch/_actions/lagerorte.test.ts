@@ -171,11 +171,19 @@ describe("createSchrank", () => {
     // Ticket bleibt derselbe.
     expect(fehlerVon(await createSchrank({ name: "  schrank 1  " }, t.db)).fehler)
       .toBe("Dieser Name ist bereits vergeben.");
-    // ⚠️ MIT UMLAUT, weil SQLites `lower()` ASCII-only ist: diese Zeile faellt
-    // zurueck auf die Probe in der Action, nicht auf den Index.
-    await createSchrank({ name: "Schränkchen" }, t.db);
-    expect(fehlerVon(await createSchrank({ name: "SCHRÄNKCHEN" }, t.db)).fehler)
-      .toBe("Dieser Name ist bereits vergeben.");
+  });
+
+  /**
+   * ⚠️ DIE GRENZE DER FALTUNG, UND SIE IST GEWOLLT: die Probe muss zeichengenau
+   * dieselbe sein wie der Ausdruck im Index, und SQLites `lower()` kann nur
+   * ASCII. Waere die Action hier strenger, gaebe es Altdaten, die sie fuer
+   * gleich haelt, waehrend die Datenbank sie nebeneinander stehen laesst —
+   * niemand koennte die Mehrdeutigkeit dann noch aufloesen (Befund von Codex zu
+   * PR #166). Auf dem Schirm sind die beiden ohnehin zu unterscheiden.
+   */
+  it("haelt zwei Namen auseinander, die sich nur in der Groesse eines Umlauts unterscheiden", async () => {
+    expect((await createSchrank({ name: "Schränkchen" }, t.db)).ok).toBe(true);
+    expect((await createSchrank({ name: "SCHRÄNKCHEN" }, t.db)).ok).toBe(true);
   });
 
   it("laesst einen Namen zu, den nur ein FAHRZEUG traegt", async () => {

@@ -82,8 +82,13 @@ export const lagerorte = sqliteTable(
      *
      * `lower(trim(...))`, weil „Schrank 1" und „schrank 1 " in einer
      * Auswahlliste genauso wenig zu unterscheiden sind wie zwei gleiche.
-     * SQLites `lower()` ist ASCII-only; die strengere Probe steht in
-     * `_lib/schrankName.ts` und laeuft vor jedem Schreibzugriff.
+     *
+     * ⚠️ DERSELBE AUSDRUCK STEHT IN `_lib/schrankName.ts` ALS JS, und er muss
+     * zeichengenau derselbe bleiben: SQLites `lower()` ist ASCII-only, also
+     * faltet die Probe dort ebenfalls nur ASCII. Eine strengere Probe liesse
+     * Altdaten stehen, die sie danach fuer gleich haelt — und kein Rettungsname
+     * kaeme mehr durch. `_lib/schrankName.test.ts` misst die Gleichheit gegen
+     * echtes SQLite, statt sie zu behaupten.
      */
     uniqueIndex("idx_lagerorte_name_je_parent")
       .on(t.parentId, sql`lower(trim(${t.name}))`)

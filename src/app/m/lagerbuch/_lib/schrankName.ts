@@ -21,16 +21,32 @@ import type { Leser } from "./lesepfade/bestand";
 export const NAME_VERGEBEN = "Dieser Name ist bereits vergeben.";
 
 /**
- * Die Form, in der zwei Namen als „derselbe" gelten.
+ * Die Form, in der zwei Namen als „derselbe" gelten: Leerraum an den Raendern
+ * faellt weg, ASCII-Grossbuchstaben werden klein.
  *
- * ⚠️ STRENGER ALS DER INDEX, und das ist Absicht. SQLites `lower()` ist
- * ASCII-only — „Ä" bleibt dort „Ä" —, `toLocaleLowerCase("de")` nicht. Die
- * Richtung stimmt: was diese Probe ablehnt, erreicht den Index nie; der Index
- * faengt nur den Rest. Andersherum waere der Index die strengere Regel, und die
- * Ablehnung kaeme als SQLite-Ausnahme statt als Satz am Feld.
+ * ⚠️ NUR ASCII, UND DAS IST DIE ABSICHT — `toLocaleLowerCase` waere hier die
+ * naheliegende und die falsche Wahl. Diese Funktion muss ZEICHENGENAU dasselbe
+ * liefern wie `lower(trim(name))` in SQLite, denn genau dieser Ausdruck traegt
+ * den Eindeutigkeitsindex UND die Entdoppelung der Altdaten in
+ * `0009_lagerorte_name_eindeutig.sql`. SQLites `lower()` laesst „Ä" stehen.
+ *
+ * Waere die Probe hier STRENGER, blieben Altdaten stehen, die sie danach fuer
+ * gleich haelt — „Schränkchen" neben „SCHRÄNKCHEN" —, und niemand koennte die
+ * Mehrdeutigkeit mehr aufloesen: jeder Rettungsname in einer der beiden
+ * Schreibweisen kaeme als „bereits vergeben" zurueck (Befund von Codex zu
+ * PR #166). Waere sie LOCKERER, kaeme die Ablehnung als SQLite-Ausnahme statt
+ * als Satz am Feld.
+ *
+ * Der Preis ist benannt und klein: zwei Namen, die sich allein in der
+ * Gross-/Kleinschreibung eines Umlauts unterscheiden, gelten als verschieden.
+ * Auf dem Bildschirm sind sie das auch — und der Auftrag lautet, zwei Eintraege
+ * zu verhindern, die niemand auseinanderhalten kann.
+ *
+ * `_lib/schrankName.test.ts` vergleicht beide Fassungen gegen echtes SQLite,
+ * damit die Gleichheit nicht beim naechsten Umbau still auseinanderlaeuft.
  */
 export function normalisiereSchrankName(name: string): string {
-  return name.trim().toLocaleLowerCase("de");
+  return name.trim().replace(/[A-Z]/g, (zeichen) => zeichen.toLowerCase());
 }
 
 /**
@@ -41,7 +57,7 @@ export function normalisiereSchrankName(name: string): string {
  * selbst.
  *
  * Liest alle Geschwister und vergleicht in JS, wie `_lib/lesepfade/orte.ts`:
- * `lagerorte` ist winzig, und die Faltung oben gibt es in SQLite nicht.
+ * `lagerorte` ist winzig.
  */
 export function schrankNameVergeben(
   db: Leser,

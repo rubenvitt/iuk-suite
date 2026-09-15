@@ -116,10 +116,60 @@ describe("0009 — bestehende Dubletten blockieren den Start nicht", () => {
 
     spiele0009(sqlite);
 
+    // ⚠️ DIE BASIS IST DER NAME, DER BLEIBT, nicht die eigene Schreibweise der
+    // Dublette: sonst stuenden „schrank 1  (Dublette 2)" und „SCHRANK 1
+    // (Dublette 3)" untereinander und saehen aus wie drei verschiedene Faelle.
     expect(namen(sqlite).filter((o) => "abc".includes(o.id))).toEqual([
       { id: "a", name: "Schrank 1" },
-      { id: "b", name: "schrank 1  (Dublette 2)" },
-      { id: "c", name: "SCHRANK 1 (Dublette 3)" },
+      { id: "b", name: "Schrank 1 (Dublette 2)" },
+      { id: "c", name: "Schrank 1 (Dublette 3)" },
+    ]);
+  });
+
+  /**
+   * DER FALL, DER DEN START GEKOSTET HAETTE (Befund von Codex zu PR #166).
+   * Zwei „Schrank 1" neben einem eigenstaendigen „Schrank 1 (Dublette 2)" sind
+   * erlaubte Altdaten. Eine aus dem Rang GERECHNETE Nummer haette der zweiten
+   * Zeile genau den Namen der dritten gegeben, der `CREATE UNIQUE INDEX`
+   * darunter waere abgebrochen — und mit ihm der Modulstart. Die Nummer wird
+   * deshalb gesucht.
+   */
+  it("ueberspringt eine Nummer, die ein Geschwister schon traegt", () => {
+    const sqlite = standVor0009();
+    legeOrt(sqlite, { id: "a", name: "Schrank 1", sortierung: 10 });
+    legeOrt(sqlite, { id: "b", name: "Schrank 1", sortierung: 20 });
+    legeOrt(sqlite, { id: "c", name: "Schrank 1 (Dublette 2)", sortierung: 30 });
+    legeOrt(sqlite, { id: "d", name: "Schrank 1", sortierung: 40 });
+
+    // Bricht diese Zeile, ist es der `CREATE UNIQUE INDEX` — also genau der
+    // Ausfall, den der Schritt verhindern soll.
+    spiele0009(sqlite);
+
+    expect(namen(sqlite).filter((o) => "abcd".includes(o.id))).toEqual([
+      { id: "a", name: "Schrank 1" },
+      { id: "b", name: "Schrank 1 (Dublette 3)" },
+      { id: "c", name: "Schrank 1 (Dublette 2)" },
+      { id: "d", name: "Schrank 1 (Dublette 4)" },
+    ]);
+  });
+
+  /**
+   * Die Gegenprobe zur ASCII-Faltung: „Schränkchen" und „SCHRÄNKCHEN" sind fuer
+   * SQLites `lower()` VERSCHIEDEN, bleiben also stehen — und `normalisiere-
+   * SchrankName` sieht das genauso (`_lib/schrankName.test.ts` misst die
+   * Gleichheit). Waere die Action strenger, stuenden hier Altdaten, die sie
+   * danach fuer gleich haelt, und kein Rettungsname kaeme mehr durch.
+   */
+  it("laesst Namen stehen, die sich nur in der Groesse eines Umlauts unterscheiden", () => {
+    const sqlite = standVor0009();
+    legeOrt(sqlite, { id: "a", name: "Schränkchen", sortierung: 1 });
+    legeOrt(sqlite, { id: "b", name: "SCHRÄNKCHEN", sortierung: 2 });
+
+    spiele0009(sqlite);
+
+    expect(namen(sqlite).filter((o) => o.id === "a" || o.id === "b")).toEqual([
+      { id: "a", name: "Schränkchen" },
+      { id: "b", name: "SCHRÄNKCHEN" },
     ]);
   });
 
