@@ -12,6 +12,7 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
 
@@ -194,7 +195,7 @@ export async function bucheEntnahme(
           gebucht = umlagerung(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
-            vonLagerortId: HANDLAGER_ID,
+            vonOrten: handlagerOrte(tx),
             nachLagerortId: zielFahrzeug,
             quelle,
             kommentar: v.kommentar ?? null,

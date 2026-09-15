@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { and, eq, lt } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
 import { fefoAbbuchung, type Quelle } from "./abbuchung";
+import { handlagerOrte } from "../lesepfade/orte";
 import { bestandProLagerort } from "../domain/bestand";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -65,9 +67,52 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
 
   it("bucht auf Wunsch von einem ANDEREN Lagerort ab", () => {
     const r = inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a1", menge: 99, lagerortId: "rtw-1",
+      artikelId: "a1", menge: 99, orte: ["rtw-1"],
       quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r).toEqual({ gebucht: 5, teile: [{ chargeId: "c-frueh", menge: 5, vonLagerortId: "rtw-1" }] });
+  });
+});
+
+describe("DRK-297 — Abbuchung ueber den Handlager-Bereich", () => {
+  // EIGENER Artikel: `a1` traegt bereits c-frueh/c-spaet am Handlager und
+  // wuerde die FEFO-Reihenfolge dieses Blocks verfaelschen (c-frueh liegt VOR
+  // c-schrank und haette an der Wurzel selbst Bestand).
+  beforeEach(() => {
+    t.db.insert(artikel).values(
+      { id: "a-schrank", name: "Schrank-Artikel", einheit: "Stk.", fach: "S1",
+        mindestbestand: 0, aktiv: true, createdAt: NOW }).run();
+    // Ein Schrank UNTERHALB der Handlager-Wurzel — der Bereich, den
+    // `handlagerOrte` liefert. Bestand liegt hier AUSSCHLIESSLICH im Schrank.
+    t.db.insert(lagerorte).values(
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 }).run();
+    t.db.insert(chargen).values(
+      { id: "c-schrank", artikelId: "a-schrank", chargenNr: "SCH", verfall: "2027-06", createdAt: NOW }).run();
+    t.db.insert(buchungen).values({
+      id: newId(), ts: NOW, typ: "zugang", artikelId: "a-schrank", chargeId: "c-schrank",
+      lagerortId: "schrank-1", menge: 12, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: null,
+    }).run();
+  });
+
+  /** DER BEFUND AUS DEM TICKET: 12 Stueck im Schrank, Entnahme ueber den
+   *  Handlager. Vor dieser Aenderung: `gebucht: 0`, ohne Fehler — die Abfrage
+   *  suchte ausschliesslich an der Wurzel. */
+  it("nimmt Bestand aus einem Schrank, nicht nur von der Wurzel", () => {
+    const ergebnis = inTx((tx) => fefoAbbuchung(tx, {
+      artikelId: "a-schrank", menge: 3, orte: handlagerOrte(tx),
+      quelle: QUELLE, kommentar: null, referenz: null }));
+    expect(ergebnis.gebucht).toBe(3);
+    expect(ergebnis.teile[0]?.vonLagerortId).toBe("schrank-1");
+  });
+
+  it("die Buchung traegt den Schrank, nicht die Wurzel", () => {
+    inTx((tx) => fefoAbbuchung(tx, {
+      artikelId: "a-schrank", menge: 3, orte: handlagerOrte(tx),
+      quelle: QUELLE, kommentar: null, referenz: null }));
+    const abgang = t.db.select().from(buchungen)
+      .where(and(eq(buchungen.artikelId, "a-schrank"), lt(buchungen.menge, 0))).all();
+    expect(abgang.map((b) => b.lagerortId)).toEqual(["schrank-1"]);
   });
 });
 
@@ -84,7 +129,7 @@ describe("fefoAbbuchung — I2: der Bestand wird nie negativ", () => {
   it("bucht bei leerem Lagerort GAR NICHTS", () => {
     const vorher = t.db.select().from(buchungen).all().length;
     const r = inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a1", menge: 5, lagerortId: "gibtsnicht",
+      artikelId: "a1", menge: 5, orte: ["gibtsnicht"],
       quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r).toEqual({ gebucht: 0, teile: [] });
     expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);

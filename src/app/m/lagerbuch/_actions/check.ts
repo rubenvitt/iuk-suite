@@ -9,9 +9,10 @@ import {
   checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, newId,
 } from "../_db/schema";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
-import { HANDLAGER_ID, MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT } from "../_lib/konstanten";
+import { MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { o2Status } from "../_lib/domain/o2";
@@ -219,7 +220,7 @@ export async function checkAbschluss(
         const nachfuellGebucht = g.nachfuellGewuenscht > 0
           ? umlagerung(tx, {
               artikelId: g.artikelId, menge: g.nachfuellGewuenscht,
-              vonLagerortId: HANDLAGER_ID, nachLagerortId: v.fahrzeugId,
+              vonOrten: handlagerOrte(tx), nachLagerortId: v.fahrzeugId,
               quelle, kommentar: "Fahrzeug-Check Nachfüllung", referenz,
             }).umgelagert
           : 0;

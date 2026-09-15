@@ -23,6 +23,7 @@ import { heuteIso } from "./zeit";
 import { fefoAbbuchung, type Quelle } from "./schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "./schreibpfade/korrektur";
 import { umlagerung } from "./schreibpfade/umlagerung";
+import { handlagerOrte } from "./lesepfade/orte";
 import { setzeVerfall } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 
@@ -457,7 +458,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         const gebucht = gewuenscht > 0
           ? umlagerung(tx, {
               artikelId: s.artikelId, menge: gewuenscht,
-              vonLagerortId: HANDLAGER_ID, nachLagerortId: RTW,
+              vonOrten: handlagerOrte(tx), nachLagerortId: RTW,
               quelle, kommentar: "Fahrzeug-Check Nachfüllung", referenz: REF_CHECK_RTW,
             }).umgelagert
           : 0;
@@ -518,7 +519,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         [A.handschuh, 3], [A.desinfektion, 1], [A.rettungsdecke, 4],
       ] as const) {
         umlagerung(tx, {
-          artikelId, menge, vonLagerortId: HANDLAGER_ID, nachLagerortId: KTW,
+          artikelId, menge, vonOrten: handlagerOrte(tx), nachLagerortId: KTW,
           quelle: QUELLE_OIDC, kommentar: "Erstbestückung KTW 1", referenz: REF_KTW,
         });
       }
