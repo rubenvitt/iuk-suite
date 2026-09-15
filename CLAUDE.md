@@ -109,6 +109,40 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
     dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
 
+    ⚠️ **Die Hülle bricht ein ZWEITES Mal um, und dieser Umbruch trifft nicht den Klick,
+    sondern jede MESSUNG** (gemessen im Modul `lagerbuch`, DRK-322, bei 834px — gegen antds
+    Quelle gelesen, nicht vermutet). `Layout` legt seine Kinder nur dann nebeneinander, wenn es
+    die Klasse `ant-layout-has-sider` trägt. Die steht **nicht im Server-HTML**: dort kommt
+    `class="ant-layout iuk"` an, und `.ant-layout` ist `flex-direction: column` — die
+    Seitenleiste steht also zunächst **über** dem Inhalt, und der nimmt die volle Fensterbreite.
+    Erst bei der Hydration meldet sich `Sider` per `useEffect` bei `Layout` an
+    (`antd/es/layout/Sider.js:122-125`), und das Raster kippt:
+
+    ```
+    t=0ms     class="ant-layout iuk"                       flex-direction: column   Inhalt 834px
+    t=500ms   class="ant-layout ant-layout-has-sider iuk"  flex-direction: row      Inhalt 594px
+    ```
+
+    ⚠️ **Es ist die KLASSE, die fehlt, nicht die Regel** — und der Unterschied schickt die
+    Fehlersuche sonst ins falsche Stilsystem. Die cssinjs-Regel `.ant-layout-has-sider
+    { flex-direction: row }` steht im selben Server-HTML bereits drin (nachgemessen), und
+    `shell.module.css` deckelt ohnehin nur die Leiste selbst, nie `Layout` oder `Content`.
+    `useHasSider` hat zwar einen synchronen Rückfall über die Kinder
+    (`childNodes.some(node => node.type === Sider)`) — der greift hier nicht, weil `SuiteRahmen`
+    eine **Server Component** ist und `<Sider>` die RSC-Grenze als Client-Referenz überquert.
+
+    Für einen Test heißt das: bis dahin ist nichts zu eng, eine Tabelle scrollt nicht in sich,
+    und eine Zusicherung darauf fällt, **obwohl die Seite richtig ist** (gemessen: Tabellenkasten
+    802px statt 562px, die 746px-Tabelle passt hinein). `expect`s eigene Wiederholung rettet das
+    nicht — wer einmal per `evaluate` misst und danach nur noch rechnet, hat genau einen Versuch.
+    Abhilfe ist nicht „länger warten", sondern die Invariante des fertigen Rasters abzufragen:
+    der Inhalt beginnt dort, wo die Leiste endet (`warteAufSpaltenaufteilung` in
+    `e2e/lagerbuch-ist-bestand.spec.ts`). ⚠️ Die Richtung ist **umgekehrt zu der oben**: dort
+    fliegt die CI mit kaltem `.next` auf, hier die warme Maschine, auf der die Zusicherung sofort
+    greift — und weil die Ursache die Hydration ist, gilt sie **nicht nur unter `next dev`**.
+    Dass die Hülle den Sprung überhaupt macht, statt `hasSider` fest zu setzen, steht als DRK-363
+    auf dem Board.
+
     **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
     Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes
     misst, als sein Name sagt**.
