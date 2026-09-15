@@ -328,10 +328,16 @@ function vorlagenFixtures(): void {
  * gruen, wenn der Filter gar nichts taete. (Gemessen: die Trefferanzeige blendet
  * sich bei 1 von 1 korrekt aus und war ueberhaupt nicht im DOM.)
  *
- * ⚠️ DAS DRITTE IST KEIN FUELLSEL. „nichts faellig" und „nie gepflegt" sehen in
+ * ⚠️ DAS DRITTE IST KEIN FUELLSEL. „nichts faellig" und „nie angesehen" sehen in
  * der Fahrzeugliste verschieden aus, und genau diese Unterscheidung ist der
  * Zweck des Tickets; ohne ein Fahrzeug ohne jede Meldung liesse sie sich im
  * Browser nicht zeigen.
+ *
+ * ⚠️ AUCH DAS DRITTE BRAUCHT EIN SOLL. Die Erfassung wird gegen das aktive Soll
+ * gemessen (Reviewbefund zu DRK-298); ein Fahrzeug ohne Sollposition hat
+ * NICHTS ZU ERFASSEN und zeigt folgerichtig „—" statt einer Quote. Ohne die
+ * Sollposition pruefte die Spec die Wissensluecke also gar nicht, sondern den
+ * Fall „hier gibt es nichts zu sagen".
  *
  * ⚠️ BEIDE INAKTIV. `ChecklisteKnopf` ohne `fahrzeugId` meint ALLE AKTIVEN
  * Fahrzeuge — ein drittes aktives Fahrzeug haenge sonst an jedem Checklistenlauf
@@ -360,6 +366,9 @@ function fahrzeugVerfallFixtures(): void {
       sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
       ueberschrieben: false, entfernt: false },
     { id: "e2e-verfall-soll-2", fahrzeugId: "e2e-verfall-fahrzeug-2", fachLabel: "Fach E2E",
+      sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "e2e-ungepflegt-soll", fahrzeugId: "e2e-ungepflegt-fahrzeug", fachLabel: "Fach E2E",
       sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
       ueberschrieben: false, entfernt: false },
   ]).onConflictDoNothing().run();

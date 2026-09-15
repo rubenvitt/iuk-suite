@@ -44,8 +44,13 @@ export type FahrzeugAnzeigeZeile = {
    */
   verfallAbgelaufen: number;
   verfallWarnend: number;
-  /** Ob ueberhaupt ein Verfall gepflegt ist — GRUENE eingeschlossen. */
-  verfallGepflegt: boolean;
+  /**
+   * Wie viele Artikel des aktiven Solls eine Verfallsangabe tragen — und wie
+   * viele es insgesamt sind. Begruendung, warum das kein `boolean` ist, steht
+   * an der Quelle in `lesepfade/fahrzeuge.ts`.
+   */
+  verfallErfasst: number;
+  verfallSollArtikel: number;
   letzterCheckText: string | null;
   /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
   letzterCheckIso: string | null;
@@ -106,13 +111,36 @@ const VERFALL_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
    * Kosmetik: wer „im gruenen Bereich" ankreuzt, muss in der Spalte darunter
    * dasselbe Wort wiederfinden. Zwei Namen fuer einen Zustand lassen den Leser
    * einen dritten vermuten.
+   *
+   * ⚠️ UND ER VERLANGT VOLLSTAENDIGKEIT. „Keine auffaellige Meldung" ist noch
+   * keine Entwarnung, solange die Haelfte des Solls nie angesehen wurde
+   * (Reviewbefund zu DRK-298) — die Begruendung steht an `verfallErfasst`.
    */
   { wert: "verfallRuhig", text: "im grünen Bereich",
-    trifft: (zeile) => zeile.verfallGepflegt
+    trifft: (zeile) => vollstaendig(zeile)
       && zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0 },
-  { wert: "verfallLeer", text: "nichts erfasst",
-    trifft: (zeile) => !zeile.verfallGepflegt },
+  /**
+   * ⚠️ „NICHT VOLLSTAENDIG", NICHT „NICHTS": der haeufigere und stillere Fall
+   * ist das halb gepflegte Fahrzeug, nicht das gar nicht gepflegte. Ein Filter
+   * nur auf „nichts erfasst" fande genau die Fahrzeuge NICHT, bei denen der
+   * Irrtum am teuersten ist.
+   */
+  { wert: "verfallLuecke", text: "nicht vollständig erfasst",
+    trifft: (zeile) => zeile.verfallSollArtikel > 0
+      && zeile.verfallErfasst < zeile.verfallSollArtikel },
 ]);
+
+/**
+ * Traegt JEDER Artikel des aktiven Solls eine Angabe?
+ *
+ * ⚠️ `verfallSollArtikel === 0` IST NICHT VOLLSTAENDIG. Ein Fahrzeug ohne Soll
+ * hat nichts zu erfassen und verdient keine Entwarnung — „null von null" waere
+ * rechnerisch vollstaendig und fachlich eine Aussage ueber nichts.
+ */
+function vollstaendig(zeile: FahrzeugAnzeigeZeile): boolean {
+  return zeile.verfallSollArtikel > 0
+    && zeile.verfallErfasst === zeile.verfallSollArtikel;
+}
 
 /**
  * Wie dringend ist dieses Fahrzeug? EIN Rang, damit die Spalte ihn sortieren
@@ -201,16 +229,26 @@ function spalten(
        * drei Monaten etwas faellig wird. Rot traegt in diesem Modul fachliche
        * Bedeutung, und genau hier fehlte sie.
        *
-       * ⚠️ UND DIE BEIDEN LEERFAELLE SIND NICHT DERSELBE. „gepflegt, nichts
-       * faellig" ist eine Entwarnung, „nichts erfasst" ist eine Wissensluecke —
-       * beides als „—" zu zeigen behauptet Entwarnung fuer ein Fahrzeug, das
-       * nie jemand angesehen hat.
+       * ⚠️ UND DIE LEERFAELLE SIND NICHT DERSELBE. „Jeder Soll-Artikel
+       * angesehen, nichts faellig" ist eine Entwarnung; „3 von 8 erfasst" ist
+       * eine Wissensluecke. Beides als „—" zu zeigen behauptet Entwarnung fuer
+       * ein Fahrzeug, von dem niemand weiss, was drin liegt — und das halb
+       * gepflegte ist der haeufigere Fall, weil der Check das Verfallsdatum
+       * freiwillig abfragt (Reviewbefund zu DRK-298).
        */
       render: (_wert: number, zeile) => {
         if (zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0) {
-          return zeile.verfallGepflegt
+          // Ohne Soll gibt es nichts zu erfassen — und nichts zu behaupten.
+          if (zeile.verfallSollArtikel === 0) {
+            return <span style={SCHRIFT.neben}>—</span>;
+          }
+          return vollstaendig(zeile)
             ? <Chip ton="ok">im grünen Bereich</Chip>
-            : <Chip ton="grau">nichts erfasst</Chip>;
+            : (
+              <Chip ton="grau">
+                {zeile.verfallErfasst} von {zeile.verfallSollArtikel} erfasst
+              </Chip>
+            );
         }
         return (
           // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger

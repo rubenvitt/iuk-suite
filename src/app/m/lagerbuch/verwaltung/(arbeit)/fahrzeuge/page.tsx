@@ -36,7 +36,8 @@ export function fahrzeugAnzeigeZeile(
     artikelUnterSoll: zeile.artikelUnterSoll,
     verfallAbgelaufen: zeile.verfallAbgelaufen,
     verfallWarnend: zeile.verfallWarnend,
-    verfallGepflegt: zeile.verfallGepflegt,
+    verfallErfasst: zeile.verfallErfasst,
+    verfallSollArtikel: zeile.verfallSollArtikel,
     letzterCheckText: zeile.letzterCheck === null
       ? null
       : CHECK_FORMAT.format(zeile.letzterCheck),
