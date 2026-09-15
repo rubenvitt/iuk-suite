@@ -830,7 +830,14 @@ pnpm typecheck; echo "exit=$status"
 
 Betroffen sind: `_lib/lesepfade/artikel.ts` (`chargenMitRest`, `artikelListe`, `artikelDetail`),
 `_lib/lesepfade/inventur.ts`, `_lib/lesepfade/verfall.ts`, `_lib/lesepfade/bestellung.ts`,
-`_actions/inventur.ts`, `_lib/schreibpfade/korrektur.ts`.
+`_actions/inventur.ts`, `_lib/schreibpfade/korrektur.ts` **und
+`_lib/schreibpfade/abbuchung.ts:70`**.
+
+⚠️ **`abbuchung.ts` bekommt hier nur eine Brücke, keine Fachänderung:** aus
+`restJeChargeFuerArtikel(tx, artikelId, lagerortId)` wird
+`restJeChargeFuerArtikel(tx, artikelId, [lagerortId])` — verhaltensgleich, eine Zeile. Aufgabe 6
+ersetzt den Aufruf ohnehin durch die gruppierte Abfrage. Ohne diese Zeile kann Schritt 6 dieser
+Aufgabe (`typecheck exit=0`) gar nicht grün werden.
 
 In `chargenMitRest` wird aus dem Vorgabewert eine Ortsmenge:
 
@@ -1007,15 +1014,35 @@ export function fefoVerteilung(chargen: ChargeRest[], menge: number): FefoTeil[]
 }
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [ ] **Schritt 4: Die Brücke in `abbuchung.ts` setzen**
 
-```bash
-pnpm vitest run src/app/m/lagerbuch/_db/fefo.test.ts
+`fefoAbbuchung` baut die `ChargeRest`-Objekte und kennt die zwei neuen Felder noch nicht — der
+Baum übersetzt sonst nach dieser Aufgabe nicht. Eine verhaltensgleiche Zeile, die Aufgabe 6
+wieder ersetzt:
+
+```ts
+  const chargenRest: ChargeRest[] = chs.map((c) => ({
+    chargeId: c.id, verfall: c.verfall, rest: rest.get(c.id) ?? 0, createdAt: c.createdAt,
+    // BRÜCKE (DRK-297, Aufgabe 5→6): heute bucht der Kern gegen genau einen Ort,
+    // also ist der Ort jedes Teils dieser eine. Aufgabe 6 macht daraus den Bereich.
+    lagerortId, ortSortierung: 0,
+  }));
 ```
 
-Erwartet: PASS.
+Die `teile`-Verwendung in `umlagerung.ts` bleibt in dieser Aufgabe unangetastet: sie liest nur
+`chargeId` und `menge`.
 
-- [ ] **Schritt 5: Committen**
+- [ ] **Schritt 5: Tests und Tore laufen lassen**
+
+```bash
+pnpm vitest run src/app/m/lagerbuch/ && pnpm typecheck; echo "exit=$status"
+```
+
+Erwartet: PASS und `exit=0`. **Das Verhalten ist nach dieser Aufgabe unverändert** — der vierte
+Sortierrang ist vorhanden und greift noch nirgends, weil alle Teile denselben Ort tragen. Genau
+das macht die Aufgabe für sich abnehmbar.
+
+- [ ] **Schritt 6: Committen**
 
 ```bash
 git add src/app/m/lagerbuch/_lib/domain/fefo.ts src/app/m/lagerbuch/_db/fefo.test.ts
@@ -1729,8 +1756,8 @@ der Server Component (Falle 9). Die Spalten:
 ```tsx
 import { getDb, type DB } from "../../../_db/client";
 import { handlagerSchraenke } from "../../../_lib/lesepfade/orte";
-import { restJeChargeUndOrt } from "../../../_lib/lesepfade/bestand";
-import { chargen } from "../../../_db/schema";
+import { sql } from "drizzle-orm";
+import { buchungen } from "../../../_db/schema";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { LagerorteListe, type LagerortZeile } from "./LagerorteListe";
 
@@ -1738,13 +1765,28 @@ export const dynamic = "force-dynamic";
 
 export function lagerorteSeitenInhalt(db: DB) {
   const schraenke = handlagerSchraenke(db);
-  // Ein Posten = eine Charge mit Rest > 0 an diesem Ort. Die Zahl beantwortet
-  // die einzige Frage, die beim Stilllegen zaehlt: „liegt da noch etwas?"
+  /*
+   * Ein Posten = eine Charge mit Rest > 0 an diesem Ort. Die Zahl beantwortet
+   * die einzige Frage, die beim Stilllegen zaehlt: „liegt da noch etwas?"
+   *
+   * ⚠️ EINE ABFRAGE, NICHT EINE JE CHARGE. `better-sqlite3` ist SYNCHRON — eine
+   * Schleife mit einer Abfrage je Charge blockierte bei ein paar tausend Chargen
+   * die GANZE Suite, nicht nur dieses Modul. Dieselbe Form wie
+   * `bestandJeArtikelUndLagerort`.
+   */
   const posten = new Map<string, number>();
-  for (const c of db.select().from(chargen).all()) {
-    for (const [ortId, menge] of restJeChargeUndOrt(db, c.artikelId).get(c.id) ?? []) {
-      if (menge > 0) posten.set(ortId, (posten.get(ortId) ?? 0) + 1);
-    }
+  const salden = db
+    .select({
+      lagerortId: buchungen.lagerortId,
+      chargeId: buchungen.chargeId,
+      summe: sql<number>`sum(${buchungen.menge})`,
+    })
+    .from(buchungen)
+    .groupBy(buchungen.lagerortId, buchungen.chargeId)
+    .all();
+  for (const zeile of salden) {
+    if (zeile.summe <= 0) continue;
+    posten.set(zeile.lagerortId, (posten.get(zeile.lagerortId) ?? 0) + 1);
   }
 
   const zeilen: LagerortZeile[] = schraenke.map((o) => ({
@@ -1767,11 +1809,6 @@ export default function LagerorteSeite() {
   return lagerorteSeitenInhalt(getDb());
 }
 ```
-
-⚠️ Die Schleife oben ruft `restJeChargeUndOrt` je Charge — bei vielen Chargen ist das N Abfragen.
-**Vor dem Commit durch EINE Abfrage ersetzen**, die über alle Artikel gruppiert; die Form steht in
-`bestandJeArtikelUndLagerort`. Falls das den Rahmen sprengt: die Spalte „Posten" weglassen, statt
-eine N+1-Schleife einzubauen — `better-sqlite3` ist synchron und blockiert die ganze Suite.
 
 - [ ] **Schritt 6: Tests und Tore laufen lassen**
 
@@ -1808,8 +1845,12 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **Schnittstellen:**
 - `ZugangSchema` bekommt `zielLagerortId: z.string().min(1).optional()`.
 - `ArtikelDetailResult` bekommt
-  `orte: { id: string; name: string; zugangshinweis: string | null }[]` — die aktiven
+  `zielOrte: { id: string; name: string; zugangshinweis: string | null }[]` — die aktiven
   Handlager-Orte, Wurzel zuerst.
+
+⚠️ **Das Feld heißt `zielOrte`, nicht `orte`.** Aufgabe 11 legt an derselben Antwort ein Feld
+`orte` an — die VERTEILUNG einer Charge. Zwei Felder namens `orte` mit verschiedener Bedeutung in
+einem Objektbaum sind der zuverlässigste Weg, dass jemand ins falsche greift.
 
 - [ ] **Schritt 1: Die fehlschlagenden Tests schreiben**
 
@@ -1887,7 +1928,7 @@ In `_actions/detail.ts` dem Rückgabewert ein Feld hinzufügen:
 ```ts
       // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber
       // kein Ziel mehr. Die Wurzel steht ausdrücklich darin.
-      orte: [
+      zielOrte: [
         { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
         ...handlagerSchraenke(db, true).map((o) => ({
           id: o.id, name: o.name, zugangshinweis: o.zugangshinweis,
@@ -1910,18 +1951,18 @@ In `_ui/ArtikelDrawer.tsx` im Zugang-Formular hinter dem Chargenfeld:
                     aria-label="Wohin"
                     showSearch
                     optionFilterProp="label"
-                    options={detail.orte.map((o) => ({ value: o.id, label: o.name }))}
+                    options={detail.zielOrte.map((o) => ({ value: o.id, label: o.name }))}
                   />
                 </Form.Item>
 ```
 
 ⚠️ **Keine Vorbelegung, sobald es Schränke gibt** — ein geratener Ort ist schlechter als eine
-Frage. Solange `detail.orte.length === 1` (nur die Wurzel), das Feld mit der Wurzel vorbelegen,
-damit niemand ein Feld ohne Wahl ausfüllen muss:
+Frage. Solange `detail.zielOrte.length === 1` (nur die Wurzel), das Feld mit der Wurzel
+vorbelegen, damit niemand ein Feld ohne Wahl ausfüllen muss:
 
 ```ts
 initialValues={{ menge: 1, chargeId: NEUE_CHARGE,
-  ...(detail && detail.orte.length === 1 ? { zielLagerortId: detail.orte[0]!.id } : {}) }}
+  ...(detail && detail.zielOrte.length === 1 ? { zielLagerortId: detail.zielOrte[0]!.id } : {}) }}
 ```
 
 - [ ] **Schritt 6: Tests und Tore laufen lassen**
@@ -2074,13 +2115,59 @@ In `ChargenTabelle` die Spalte „Rest" umbenennen und eine Spalte davor einsetz
 ⚠️ **Eine Zeile je Charge, nicht je (Charge, Ort)** — `rowKey="id"` kollidierte sonst und antd
 verhielte sich still falsch.
 
-- [ ] **Schritt 6: Tests und Tore laufen lassen**
+- [ ] **Schritt 6: Die zwei Stellen entscheiden, die sonst still mitkippen**
+
+Beide hängen daran, dass `detail.chargen` ab jetzt auch Chargen enthält, die **nur im Fahrzeug**
+liegen.
+
+**`ArtikelDrawer.tsx:721`, die Ablauf-Plakette am Artikel.**
+
+```ts
+const faelligeCharge = detail.chargen.find((charge) => charge.ampel !== "gruen");
+```
+
+Unverändert übernommen würde der Chip „Charge läuft ab" erstmals für **Fahrzeugbestand** feuern.
+Das ist nicht gewollt: der Mindestbestand, die Verfallsliste und die Kacheln beziehen sich auf den
+Handlager-Bereich, und Fahrzeug-Chargen werden über den nächsten Fahrzeug-Check bereinigt
+(§5.2.1). Der Chip bleibt deshalb auf den Handlager-Bereich gescopet:
+
+```ts
+// ⚠️ `rest` ist der Handlager-Bereich, `restGesamt` schliesst Fahrzeuge ein. Der
+// Chip meint die Nachschub-Sicht des Handlagers und darf NICHT auf Fahrzeug-
+// bestand anspringen — dafuer ist der Fahrzeug-Check zustaendig (§5.2.1).
+const faelligeCharge = detail.chargen.find((charge) => charge.ampel !== "gruen" && charge.rest > 0);
+```
+
+Dazu ein Test:
+
+```ts
+it("die Ablauf-Plakette springt nicht auf reinen Fahrzeugbestand an", async () => {
+  // CHARGE_NUR_RTW ist abgelaufen und liegt ausschliesslich im RTW.
+  const { container } = mount(<ArtikelDrawer … />);
+  expect(container.textContent).not.toContain("Charge abgelaufen");
+});
+```
+
+**`ArtikelDrawer.tsx:383`, die Beschriftung der Chargenauswahl.**
+
+```ts
+label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)} · Rest ${charge.rest}`,
+```
+
+Sie zeigt den Handlager-Rest, während die Tabelle zwei Zentimeter darunter „Rest gesamt" nennt —
+zwei Zahlen unter einem Wort. Die Auswahl bekommt dieselbe Zahl wie die Tabelle:
+
+```ts
+label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)} · Rest gesamt ${charge.restGesamt}`,
+```
+
+- [ ] **Schritt 7: Tests und Tore laufen lassen**
 
 ```bash
 pnpm vitest run src/app/m/lagerbuch/ && pnpm typecheck; echo "exit=$status"
 ```
 
-- [ ] **Schritt 7: Committen**
+- [ ] **Schritt 8: Committen**
 
 ```bash
 git add src/app/m/lagerbuch/
@@ -2378,5 +2465,14 @@ Behauptung.
 **Namensgleichheit über die Aufgaben:** `teilbaum`, `OrtZeile`, `handlagerOrte`, `ortStamm`,
 `OrtStammZeile`, `handlagerSchraenke`, `bestandProOrte`, `restProOrtenUndCharge`,
 `restJeChargeUndOrt`, `ChargeRest.lagerortId`, `ChargeRest.ortSortierung`,
-`FefoTeil.vonLagerortId`, `umlagerung.vonOrten`, `ArtikelDetailCharge.orte`,
-`ArtikelDetailCharge.restGesamt` — in jeder Aufgabe gleich geschrieben.
+`FefoTeil.vonLagerortId`, `umlagerung.vonOrten`, `ArtikelDetailResult.zielOrte` (die wählbaren
+Ziele), `ArtikelDetailCharge.orte` (die Verteilung), `ArtikelDetailCharge.restGesamt` — in jeder
+Aufgabe gleich geschrieben. ⚠️ `zielOrte` und `orte` sind mit Absicht verschieden benannt: zwei
+Felder namens `orte` mit verschiedener Bedeutung in einem Objektbaum sind der zuverlässigste Weg,
+dass jemand ins falsche greift.
+
+**Zwei Verhaltensänderungen an bestehenden Flächen**, beide ausdrücklich entschieden statt
+durchlaufen gelassen: die Verfallsliste zeigt ab jetzt auch abgelaufene Chargen aus dem GF-Schrank
+(Aufgabe 4, gewollt), und die Ablauf-Plakette im Artikeldetail bleibt auf den Handlager-Bereich
+gescopet, springt also **nicht** auf reinen Fahrzeugbestand an (Aufgabe 11, ausdrücklich so
+belassen).
