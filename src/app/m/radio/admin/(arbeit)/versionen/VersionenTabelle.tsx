@@ -1,9 +1,9 @@
 "use client";
 
 // src/app/m/radio/admin/(arbeit)/versionen/VersionenTabelle.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Popconfirm, Space, Tag, Tooltip, type TableColumnType } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
 import type { VersionZeile } from "../../../_lib/lesepfade/versionen";
 import {
   versionLoeschenAction,
@@ -150,13 +150,34 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
   const [loescht, setLoescht] = useState(false);
 
   /**
+   * DER PLATZ JE ID IN DER GESPEICHERTEN REIHENFOLGE — `zeilen` kommt aus
+   * `versionenMitGeraetezahl` (`desc(sortOrder)`, dann `desc(createdAt)`) und ist
+   * damit die Anzeigeordnung, die die Knoepfe SCHREIBEN. Die eine Quelle, aus der
+   * `verschieben` und die zwei Raender ihren Rang lesen.
+   */
+  const platzJeId = useMemo(
+    () => new Map(zeilen.map((z, platz) => [z.id, platz])),
+    [zeilen],
+  );
+
+  /**
    * ⛔ VERSCHIEBEN TAUSCHT MIT DEM NACHBARN UND SCHREIBT DIE GANZE REIHENFOLGE — 1:1
    * `SoftwareVersionsPage.tsx:68-82`, samt des Bereichsschutzes (`:70`). ⛔ DAS IST KEINE
    * FORMSACHE: `versionenSortierenAction` vergibt `ids.length - index` (`admin/actions.ts`,
    * 1:1 `softwareVersionRepo.ts:131`) — bekaeme sie nur die eine verschobene Id, setzte sie
    * deren `sortOrder` auf 1 und liesse alle anderen stehen.
+   *
+   * ⛔ DIE ZEILE KOMMT ALS `id`, NICHT ALS POSITION (DRK-333) — und das ist die EINE
+   * benannte Abweichung vom Bestand an dieser Funktion (`:68`, dort `index`). Der Grund
+   * ist Korrektheit, nicht Form: antd reicht an `render` den Index der ANGEZEIGTEN Liste;
+   * seit die zwei Wertspalten einen `sorter` tragen, ist das nicht mehr der Index von
+   * `zeilen`. Ein Griff mit dem Anzeigeindex tauschte unter jeder Sortierung zwei ganz
+   * andere Versionen, und die Flaeche quittierte es als Erfolg. ⚠️ Kein Tor saehe das —
+   * es ist ein Laufzeitversatz zwischen zwei Listen, kein Typfehler.
    */
-  const verschieben = async (index: number, richtung: -1 | 1) => {
+  const verschieben = async (id: string, richtung: -1 | 1) => {
+    const index = platzJeId.get(id);
+    if (index === undefined) return;
     const ziel = index + richtung;
     if (ziel < 0 || ziel >= zeilen.length) return;
     const ids = zeilen.map((z) => z.id);
@@ -196,22 +217,35 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
    * DUERFEN NICHT NACH `_lib/` (Bauform-Zulaessigkeitstafel Nr. 2, `Spec:4512-4521`) — dort
    * waeren sie Falle 6 UND Falle 9 zugleich.
    *
-   * ⛔ **KEINE TRAEGT EINEN `sorter`, UND DAS BLEIBT AUCH NACH DER UMSTELLUNG AUF
-   * `@/core/tabelle` SO.** Zwei Gruende, und der zweite ist harte Korrektheit:
-   *   1. Die Reihenfolge IST die Anzeigeordnung (`desc(sortOrder)`, dann `desc(createdAt)`,
-   *      `_lib/lesepfade/versionen.ts`), und sie wird ueber die zwei Knoepfe GESCHRIEBEN —
-   *      ein antd-internes Sortieren daneben zeigte eine andere Ordnung als die gespeicherte.
-   *   2. ⛔ `verschieben(index, …)` GREIFT MIT DEM `index` DER GERENDERTEN ZEILE IN `zeilen`
-   *      (`ids[index]`). antd reicht an `render` den Index der SORTIERTEN Liste; sortiert
-   *      jemand nach „Geräte", tauschte „Nach oben" zwei ganz andere Versionen, und die
-   *      Flaeche quittierte es als Erfolg. ⚠️ Kein Tor sieht das — es ist ein Laufzeitversatz
-   *      zwischen zwei Listen, kein Typfehler. Wer hier je einen `sorter` ergaenzt, haengt
-   *      die Knoepfe vorher an `z.id` statt an den Index.
+   * ⛔ **ZWEI SPALTEN TRAGEN SEIT DRK-333 EINEN `sorter` — UND DAS WAR VORHER EIN
+   * KORREKTHEITSPROBLEM, KEIN GESCHMACK.** Hier stand: „keine traegt einen", mit zwei
+   * Gruenden. Der zweite war der teure — `verschieben(index, …)` griff mit dem Index der
+   * GERENDERTEN Zeile in `zeilen` (`ids[index]`), und antd reicht an `render` den Index der
+   * angezeigten Liste. Er ist behoben: `verschieben` bekommt die `id` und loest ihren Platz
+   * ueber `platzJeId` in `zeilen` auf.
+   *
+   * ⚠️ DER ERSTE GRUND GILT WEITER UND IST DIE HAELFTE, DIE MAN SEHEN KOENNEN MUSS: die
+   * Reihenfolge IST die Anzeigeordnung (`desc(sortOrder)`, dann `desc(createdAt)`,
+   * `_lib/lesepfade/versionen.ts`), und sie wird ueber die zwei Knoepfe GESCHRIEBEN.
+   * Sortiert jemand nach „Geräte", zeigt die Tabelle eine ANDERE Ordnung als die
+   * gespeicherte, und die Zeile bewegt sich beim Druck auf „Nach oben" nicht. Deshalb
+   * traegt die Reihenfolgespalte jetzt die PLATZZIFFER: sie zaehlt hoch oder runter, auch
+   * wenn die Zeile stehen bleibt. „Nach oben" heisst dabei IMMER „einen Platz nach vorn in
+   * der gespeicherten Reihenfolge"; die Anzeigeordnung ist nur die Brille, durch die man
+   * die Zeile sucht.
+   *
+   * ⛔ „Angelegt" BEKOMMT KEINEN SORTIERER, und das ist kein Vergessen: `angelegtText` ist
+   * eine fertige Zeichenkette („14.06.2026, 09:12", Bauform-Zulaessigkeitstafel Nr. 7).
+   * Als Text geordnet stuende der 2. JULI vor dem 14. JUNI. Ein Sortierer braeuchte den
+   * Rohzeitstempel im Vertrag der Zeile — den `VersionZeile` bewusst nicht fuehrt.
    */
   const spalten: TableColumnType<VersionZeile>[] = [
     {
       title: VERSIONEN_TEXTE.spalteVersion,
       key: "wert",
+      /* Der geteilte `Intl.Collator` sortiert mit `numeric: true` — „FW 9.1" steht damit
+         vor „FW 12.3" statt dahinter (`core/tabelle/sortierer.ts`). */
+      sorter: nachText<VersionZeile>((z) => z.wert),
       /* ⛔ FETT, WENN ZIEL — 1:1 `:91` (`<Typography.Text strong={item.isTarget}>`). Das
          antd-Bauteil weicht einem schlichten `<strong>`, wie ueberall in diesem Modul. */
       render: (_: unknown, z: VersionZeile) => (
@@ -236,6 +270,7 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
     {
       title: VERSIONEN_TEXTE.spalteGeraete,
       key: "deviceCount",
+      sorter: nachZahl<VersionZeile>((z) => z.deviceCount),
       /* ⛔ RECHTSBUENDIG — 1:1 `:104`. Zahlen einer Spalte vergleicht man an der Einerstelle. */
       align: "right",
       render: (_: unknown, z: VersionZeile) => (
@@ -258,27 +293,48 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
        * (`index === rows.length - 1`), jeweils UND `reorder.isPending`. Ohne die Sperre faellt
        * ein Griff auf „Nach oben" in der ersten Zeile still am Bereichsschutz heraus, die
        * Flaeche quittiert nichts, und der Bedienende haelt die Reihenfolge fuer gespeichert.
+       *
+       * ⛔ DER RAND IST DER DER GESPEICHERTEN REIHENFOLGE, NICHT DER DER ANZEIGE (DRK-333).
+       * antds dritter `render`-Parameter waere der Index der sortierten Liste und sperrte
+       * unter „Geräte" die falsche Zeile — genau die Kopplung, die dieses Ticket geloest hat.
+       * Deshalb steht hier `platzJeId`, und der `index`-Parameter wird nicht mehr genommen.
        */
-      render: (_: unknown, _z: VersionZeile, index: number) => (
-        <Space.Compact>
-          <Button
-            disabled={index === 0 || sortiert}
-            onClick={() => verschieben(index, -1)}
-            icon={<VIkone name="pfeil-oben" />}
-            data-rolle="radio-version-hoch"
-          >
-            {VERSIONEN_TEXTE.nachOben}
-          </Button>
-          <Button
-            disabled={index === zeilen.length - 1 || sortiert}
-            onClick={() => verschieben(index, 1)}
-            icon={<VIkone name="pfeil-unten" />}
-            data-rolle="radio-version-runter"
-          >
-            {VERSIONEN_TEXTE.nachUnten}
-          </Button>
-        </Space.Compact>
-      ),
+      render: (_: unknown, z: VersionZeile) => {
+        const platz = platzJeId.get(z.id) ?? 0;
+        return (
+          <Space>
+            {/*
+              DIE PLATZZIFFER — die sichtbare Wirkung des Knopfes, wenn die Tabelle nach
+              etwas anderem sortiert ist und die Zeile stehen bleibt.
+
+              ⚠️ KEIN `aria-label` AN DIESEM `span`. Ein `aria-label` an einem Element
+              ohne Rolle (`role="generic"`) wird von Vorlesesoftware nicht ausgewertet —
+              es waere ein Name, den niemand hoert, und der naechste Leser hielte die
+              Zugaenglichkeit fuer erledigt. Den Sinn traegt der Spaltenkopf
+              („Reihenfolge"), in dessen Zelle die Zahl steht.
+            */}
+            <span data-rolle="radio-version-platz">{platz + 1}</span>
+            <Space.Compact>
+              <Button
+                disabled={platz === 0 || sortiert}
+                onClick={() => verschieben(z.id, -1)}
+                icon={<VIkone name="pfeil-oben" />}
+                data-rolle="radio-version-hoch"
+              >
+                {VERSIONEN_TEXTE.nachOben}
+              </Button>
+              <Button
+                disabled={platz === zeilen.length - 1 || sortiert}
+                onClick={() => verschieben(z.id, 1)}
+                icon={<VIkone name="pfeil-unten" />}
+                data-rolle="radio-version-runter"
+              >
+                {VERSIONEN_TEXTE.nachUnten}
+              </Button>
+            </Space.Compact>
+          </Space>
+        );
+      },
     },
     {
       title: VERSIONEN_TEXTE.spalteAktionen,
