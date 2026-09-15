@@ -168,4 +168,19 @@ describe("DRK-297 — der vierte Sortierrang", () => {
     ], 1);
     expect(teile[0]?.vonLagerortId).toBe("a");
   });
+
+  /** ⚠️ DIE SCHÄRFUNG DES VIERTEN RANKS. Die bisherigen Tests laufen zufällig
+   *  parallel: `ortSortierung` und `lagerortId` sortieren in die gleiche Richtung.
+   *  Dieser Test widerspricht sie: alphabetisch vorn, aber fachlich hinten gegen
+   *  alphabetisch hinten, aber fachlich vorn. Nur die GEPFLEGTE REIHENFOLGE
+   *  (`ortSortierung`) darf gewinnen — nicht die alphabetische. Wird der
+   *  `ortSortierung`-Vergleich aus dem Komparator gestrichen, schlägt dieser Test
+   *  fehl (und alle vier bisherigen bestehen immer noch). */
+  it("ortSortierung ueberholt die lagerortId-Ordnung nicht", () => {
+    const teile = fefoVerteilung([
+      { ...basis, rest: 3, lagerortId: "z", ortSortierung: 10 },  // alphabetisch hinten, fachlich vorn
+      { ...basis, rest: 3, lagerortId: "a", ortSortierung: 90 },  // alphabetisch vorn, fachlich hinten
+    ], 2);
+    expect(teile).toEqual([{ chargeId: "c1", menge: 2, vonLagerortId: "z" }]);
+  });
 });
