@@ -15,7 +15,10 @@ import { umlagerung } from "../_lib/schreibpfade/umlagerung";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
-import { ZIEL_UNGUELTIG_TEXT, type EntnahmeZiel } from "../_lib/entnahmeZiel";
+import {
+  ZIEL_COOKIE, ZIEL_UNGUELTIG_TEXT, ZIEL_VERALTET_TEXT, zielAusWert, type EntnahmeZiel,
+} from "../_lib/entnahmeZiel";
+import { cookies } from "next/headers";
 
 /**
  * DIE DREI BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
@@ -143,6 +146,17 @@ export async function bucheZugang(
     revalidatePath("/m/lagerbuch/verwaltung");
     return { ok: true };
   });
+}
+
+/**
+ * Zwei Ziele sind dasselbe, wenn ihre Art übereinstimmt — und bei einem
+ * Fahrzeug zusätzlich der Lagerort. Ausgeschrieben statt als Vergleich der
+ * kodierten Form: eine Änderung an der Kodierung darf diese Prüfung nicht
+ * still aushebeln.
+ */
+function gleichesZiel(a: EntnahmeZiel, b: EntnahmeZiel): boolean {
+  if (a.art !== b.art) return false;
+  return a.art === "verbrauch" || a.lagerortId === (b as { lagerortId: string }).lagerortId;
 }
 
 /**
@@ -303,13 +317,39 @@ export async function bucheEntnahmeHelfer(
      * durchschlagen.
      */
     /*
+     * ⚠️ DAS COOKIE IST DIE WAHRHEIT, DIE NUTZLAST IST DIE BEHAUPTUNG
+     * (Review-Befund P1 zu PR #140, zweite Runde).
+     *
+     * Das Ziel kommt aus der Insel — also vom Client. Eine offene Artikelseite
+     * überlebt einen Kärtchenwechsel in einem zweiten Tab: ihre Buchung träfe
+     * dann mit dem NEUEN Sitzungscookie ein und trüge das ALTE Fahrzeug. Sie
+     * wäre dem neuen Kärtchen zugeschrieben und ginge an das Ziel der vorigen
+     * Schicht — still, und im Bestand nicht mehr aufzulösen.
+     *
+     * Die Bindung des Cookies an die Kärtchen-Kennung allein reicht dagegen
+     * NICHT: dieser Pfad läse das Cookie sonst überhaupt nicht. Gebucht wird
+     * deshalb nur, wenn beide Seiten dasselbe sagen.
+     *
+     * Und weil `zielAusWert` ein fremdes oder fehlendes Cookie zu `null` macht,
+     * fällt derselbe Vergleich auch auf „gar nichts gemerkt" — der Zustand, in
+     * dem die Insel ihren Knopf ohnehin sperrt.
+     */
+    const ziel: EntnahmeZiel = v.ziel;
+    const gemerkt = zielAusWert(
+      (await cookies()).get(ZIEL_COOKIE)?.value,
+      riegel.zugang.tokenId,
+    );
+    if (!gemerkt || !gleichesZiel(gemerkt, ziel)) {
+      return { ok: false, grund: "eingabe", text: ZIEL_VERALTET_TEXT };
+    }
+
+    /*
      * DAS ZIEL WIRD VOR DER TRANSAKTION GEPRÜFT, und die Antwort ist ein
      * RÜCKGABEWERT — kein Wurf (siehe `istAktivesFahrzeug`). Ein Fahrzeug, das
      * seit der Anzeige stillgelegt oder gelöscht wurde, ist eine ERWARTBARE
      * Lage: die Wahl gilt für den ganzen Kärtchen-Zugang und überlebt damit
      * jede Änderung in der Verwaltung.
      */
-    const ziel: EntnahmeZiel = v.ziel;
     if (ziel.art === "fahrzeug" && !istAktivesFahrzeug(db, ziel.lagerortId)) {
       return { ok: false, grund: "eingabe", text: ZIEL_UNGUELTIG_TEXT };
     }

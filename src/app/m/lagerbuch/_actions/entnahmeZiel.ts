@@ -7,6 +7,7 @@ import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { helferCookieOptionen, helferGueltigkeitSekunden } from "../_lib/helferSitzung";
 import { ZIEL_COOKIE, wahlAusWert, zielWert } from "../_lib/entnahmeZiel";
 import { sanitizeReturnTo } from "../_lib/returnTo";
+import { gateGrundFuerSperre } from "../_lib/gateTexte";
 
 /**
  * DIE ZIELWAHL AM REGAL — DRK-300.
@@ -34,15 +35,19 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
 
   /*
    * Zurück aufs Gate, nicht auf die Artikelseite: dort käme die Person mit
-   * einer abgelaufenen oder gesperrten Sitzung nicht weiter und wüsste nicht,
-   * warum.
+   * einer abgelaufenen oder gesperrten Sitzung nicht weiter.
    *
-   * ⚠️ MIT `returnTo` (Review-Befund P2 zu PR #140). Ohne es landet die Person
-   * nach dem erneuten Einlösen dort, wohin ihr KÄRTCHEN zeigt — und steht mit
-   * dem gescannten Etikett in der Hand vor der Artikelliste. Der Weg ist bereits
-   * gesäubert; `encodeURIComponent` hält ihn als EINEN Parameter zusammen.
+   * ⚠️ MIT `returnTo` UND MIT `grund` (Review-Befunde P2 zu PR #140). Ohne den
+   * Rückweg landet die Person nach dem erneuten Einlösen dort, wohin ihr
+   * KÄRTCHEN zeigt — und steht mit dem gescannten Etikett in der Hand vor der
+   * Artikelliste. Ohne den Grund sieht sie eine gewöhnliche Code-Eingabe ohne
+   * jede Erklärung: das Gate zeigt seinen Satz NUR, wenn `grund` gesetzt ist
+   * (`_lib/gateTexte.ts`, `page.tsx`). Beides zusammen macht den Satz oben wahr.
    */
-  if (!riegel.ok) redirect(`/?returnTo=${encodeURIComponent(zurueck)}`);
+  if (!riegel.ok) {
+    const grund = gateGrundFuerSperre(riegel.grund);
+    redirect(`/?grund=${grund}&returnTo=${encodeURIComponent(zurueck)}`);
+  }
 
   // Das FORMULAR trägt die nackte Wahl; die Bindung ans Kärtchen entsteht erst
   // beim Schreiben des Cookies — sie ist eine Aussage des Servers, nicht des

@@ -126,3 +126,13 @@ export function zielWert(ziel: EntnahmeZiel, tokenId: string): string {
  */
 export const ZIEL_UNGUELTIG_TEXT =
   "Dieses Fahrzeug steht nicht mehr zur Auswahl. Bitte das Ziel neu wählen — die Buchung wurde nicht gespeichert.";
+
+/**
+ * Der Satz für ein Ziel, das nicht (mehr) zu dieser Sitzung gehört — eine
+ * Artikelseite, die noch offen war, als das Kärtchen gewechselt wurde.
+ *
+ * Er nennt den nächsten Handgriff, nicht die Ursache: „lade die Seite neu und
+ * wähle das Ziel" hilft am Regal weiter, „Sitzungsbindung verletzt" nicht.
+ */
+export const ZIEL_VERALTET_TEXT =
+  "Dieses Fenster ist nicht mehr aktuell. Bitte die Seite neu laden und das Ziel erneut wählen — die Buchung wurde nicht gespeichert.";

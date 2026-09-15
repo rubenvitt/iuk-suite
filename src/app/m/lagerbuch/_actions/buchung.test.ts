@@ -55,6 +55,14 @@ vi.mock("next/cache", () => ({
   revalidatePath: (p: string) => { revalidiert.push(p); },
 }));
 
+/*
+ * Das ZIELCOOKIE — die Buchung am Regal liest es, weil das Ziel aus der Insel
+ * eine Behauptung des Clients ist und das Cookie die Erinnerung des Servers.
+ */
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (name === "helfer_ziel" && zielCookie !== undefined ? { name, value: zielCookie } : undefined) }),
+}));
+
 vi.mock("../_lib/helferZugang", () => ({
   requireHelferSchreibend: (db: unknown) => riegel(db),
 }));
@@ -97,10 +105,17 @@ const ZUGANG_OK = {
  */
 const VERBRAUCH = { art: "verbrauch" } as const;
 
+/**
+ * Der rohe Cookie-Wert der Anfrage. Er trägt die Kärtchen-Kennung `tk1` —
+ * dieselbe, die `ZUGANG_OK` führt.
+ */
+let zielCookie: string | undefined;
+
 const JETZT = new Date("2026-06-15T10:00:00Z");
 
 beforeEach(() => {
   revalidiert.length = 0;
+  zielCookie = "tk1|verbrauch";
   riegel.mockResolvedValue(ZUGANG_OK);
   adminRiegel.mockResolvedValue(VIEWER);
   t = migrierteTestDb("lagerbuch-actions-buchung-");
@@ -481,6 +496,7 @@ describe("bucheEntnahmeHelfer", () => {
   });
 
   it("mit ZIEL-FAHRZEUG wird daraus eine Umlagerung — BEIDE Legs, netto null", async () => {
+    zielCookie = "tk1|fz:fz-1";
     const erg = await bucheEntnahmeHelfer(
       { artikelId: "art-1", menge: 4, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
 
@@ -506,6 +522,7 @@ describe("bucheEntnahmeHelfer", () => {
   });
 
   it("kappt am Handlagerbestand und hält die Netto-Null auch dann", async () => {
+    zielCookie = "tk1|fz:fz-1";
     // 10 liegen da, 12 werden verlangt. Ein Ziel-Leg aus der VERLANGTEN Menge
     // erzeugte Bestand aus dem Nichts (I3) — und das fiele niemandem auf.
     const erg = await bucheEntnahmeHelfer(
@@ -544,6 +561,7 @@ describe("bucheEntnahmeHelfer", () => {
      * legte Material vom Handlager ins Handlager.
      */
     for (const lagerortId of ["fz-alt", "lager-2", "gibtsnicht", HANDLAGER_ID]) {
+      zielCookie = `tk1|fz:${lagerortId}`;
       const erg = await bucheEntnahmeHelfer(
         { artikelId: "art-1", menge: 1, ziel: { art: "fahrzeug", lagerortId } }, t.db);
       expect(erg.ok).toBe(false);
@@ -557,6 +575,7 @@ describe("bucheEntnahmeHelfer", () => {
   });
 
   it("leeres Handlager bleibt auch MIT Ziel-Fahrzeug ein Fehler, kein Erfolg auf 0", async () => {
+    zielCookie = "tk1|fz:fz-1";
     // Der `leer`-Zweig hing bisher allein am Verbrauchspfad. Läge er dort, wäre
     // eine Umlagerung von null Stück ein grüner Haken — und die Helferin ginge
     // mit leeren Händen und einer Erfolgsmeldung zum Fahrzeug.
@@ -568,6 +587,56 @@ describe("bucheEntnahmeHelfer", () => {
     expect(helferFehler(erg).text).toBe(leerText("Wärmedecke"));
     expect(geschrieben()).toEqual([]);
     expect(revalidiert).toEqual([]);
+  });
+
+  /*
+   * ⚠️ REVIEW-BEFUND P1 ZU PR #140, ZWEITE RUNDE — das eingereichte Ziel muss
+   * ZUR LAUFENDEN SITZUNG GEHÖREN, nicht nur zu einem aktiven Fahrzeug.
+   *
+   * Die Bindung im Cookie allein reicht NICHT: die Insel schickt ihr Ziel als
+   * Nutzlast, und eine offene Artikelseite überlebt einen Kärtchenwechsel in
+   * einem zweiten Tab. Ihre Buchung träfe dann mit dem NEUEN Sitzungscookie
+   * ein und trüge das ALTE Fahrzeug — dem neuen Kärtchen zugeschrieben, auf
+   * das Ziel der vorigen Schicht gebucht. Der Bestand wäre still falsch.
+   *
+   * Deshalb ist das Cookie hier die Wahrheit und die Nutzlast die Behauptung:
+   * gebucht wird nur, wenn beide übereinstimmen.
+   */
+  it("lehnt ein Ziel ab, das nicht dem GEMERKTEN dieser Sitzung entspricht", async () => {
+    zielCookie = "tk1|verbrauch";   // gemerkt ist Verbrauch …
+
+    const erg = await bucheEntnahmeHelfer(
+      // … die veraltete Seite schickt aber ein Fahrzeug.
+      { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("lehnt ein Ziel ab, das dem Kärtchen einer ANDEREN Schicht gehört", async () => {
+    // Dasselbe Fahrzeug, aber gemerkt hat es eine andere Sitzung — auf dem
+    // geteilten Telefon der häufigere Hergang.
+    zielCookie = "tk-vorige|fz:fz-1";
+
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("lehnt ab, wenn GAR NICHTS gemerkt ist — auch bei tadelloser Nutzlast", async () => {
+    zielCookie = undefined;
+
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
   });
 
   it("fragt den ADMIN-Riegel NICHT — der Helfer-Weg bucht auch ohne ihn", async () => {

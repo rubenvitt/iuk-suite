@@ -203,12 +203,25 @@ describe("waehleEntnahmeZiel", () => {
    * dem erneuten Einlösen dort, wohin ihr KÄRTCHEN zeigt — und steht mit dem
    * gescannten Etikett in der Hand vor der Artikelliste.
    */
-  it("nimmt den Rückweg mit aufs Gate, wenn die Sitzung abgelaufen ist", async () => {
+  it("nimmt Rückweg UND Grund mit aufs Gate, wenn die Sitzung abgelaufen ist", async () => {
     riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
 
-    expect(stand.umleitungen).toEqual(["/?returnTo=%2Fa%2Fart-1"]);
+    // ⚠️ OHNE `grund` zeigt das Gate eine gewöhnliche Code-Eingabe ohne jede
+    // Erklärung — es kennt seinen Satz nur aus diesem Parameter. „sitzung"
+    // heißt dort „abgelaufen"; die Übersetzung steht in `_lib/gateTexte.ts`.
+    expect(stand.umleitungen).toEqual(["/?grund=abgelaufen&returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("nennt am Gate den ANDEREN Grund, wenn das Kärtchen gesperrt ist", async () => {
+    // Der zweite Grund steht eigens hier: nur er belegt, dass er DURCHgereicht
+    // und nicht fest verdrahtet wird.
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=gesperrt&returnTo=%2Fa%2Fart-1"]);
   });
 
   it("nimmt auch aufs Gate KEIN fremdes `returnTo` mit", async () => {
@@ -216,7 +229,7 @@ describe("waehleEntnahmeZiel", () => {
 
     await waehle({ ziel: "fz:fz-1", returnTo: "//boese.example" });
 
-    expect(stand.umleitungen).toEqual(["/?returnTo=%2Fhelfer"]);
+    expect(stand.umleitungen).toEqual(["/?grund=abgelaufen&returnTo=%2Fhelfer"]);
   });
 
   it("weist ein fremdes `returnTo` ab und landet auf der Artikelliste", async () => {
