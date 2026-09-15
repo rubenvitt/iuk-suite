@@ -42,6 +42,12 @@ import {
  * Ein Fahrzeugname als Suchmuster. Die Namen stehen in `helpers/lagerbuch.ts`
  * und tragen mit „E2E Geräte RTW" absichtlich einen, der den anderen NICHT
  * enthaelt — sonst waere jede `toHaveCount(0)`-Gegenprobe unten wertlos.
+ *
+ * ⚠️ UND DAS KAERTCHEN-LABEL TRAEGT KEINEN FAHRZEUGNAMEN (Seed: „E2E
+ * Fahrzeugkärtchen"). Das Label steht im Sitzungsetikett des Helfer-Rahmens,
+ * also auf JEDER Seite dieses Zweigs; truege es „E2E RTW", faende jede
+ * Zusicherung unten ihren Treffer schon dort — und bliebe gruen, wenn die
+ * Ueberschrift ueber dem Check-Schritt ganz fehlte.
  */
 const alsText = (name: string) => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 
@@ -74,7 +80,7 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.waitForURL(
       (u) => u.pathname.endsWith("/helfer/check") && u.searchParams.get("fz") === E2E_FAHRZEUG_ID,
     );
-    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME)).first()).toBeVisible();
+    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
   });
 
   test("ohne `?fz=` bleibt es bei SEINEM Fahrzeug — keine Wahl", async ({ page }) => {
@@ -88,7 +94,7 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
     await page.goto(lagerbuchUrl("/helfer/check"));
 
-    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME)).first()).toBeVisible();
+    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
     await expect(page.getByText("Fahrzeug wählen")).toHaveCount(0);
     await expect(
       page.getByRole("link", { name: alsText(E2E_FAHRZEUG_ANDERES_NAME) }),
@@ -112,7 +118,7 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
     await page.goto(lagerbuchUrl(`/helfer/check?fz=${E2E_FAHRZEUG_ANDERES_ID}`));
 
-    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME)).first()).toBeVisible();
+    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
     await expect(page.getByText(alsText(E2E_FAHRZEUG_ANDERES_NAME))).toHaveCount(0);
   });
 
@@ -129,6 +135,6 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl(`/helfer/check?fz=${E2E_FAHRZEUG_ANDERES_ID}`));
 
     // Ein `?fz=` OHNE Bindung wirkt unveraendert als Vorauswahl.
-    await expect(page.getByText(alsText(E2E_FAHRZEUG_ANDERES_NAME)).first()).toBeVisible();
+    await expect(page.getByText(alsText(E2E_FAHRZEUG_ANDERES_NAME))).toBeVisible();
   });
 });
