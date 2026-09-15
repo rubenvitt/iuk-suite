@@ -41,16 +41,37 @@ export const LAGERBUCH_ADMIN_GRUPPE = "lagerbuch_nutzer";
 export const LAGERBUCH_PORT = 3100;
 
 /**
- * DREI aktive Token-Codes, nicht einer.
+ * VIER aktive Token-Codes, nicht einer.
  *
  * ⚠️ `lagerbuch/e2e/migrate-db.ts:84-88` schreibt aus, warum ein zweiter noetig
  * war: sonst bucht der Check ins Journal des Helfer-Flows hinein — Playwright
  * faehrt alle Spec-Dateien in EINEM Worker gegen EINE SQLite-Datei. Der dritte
  * trennt den Geraete-Check vom Artikel-Check.
+ *
+ * ⚠️ DER VIERTE IST DER EINZIGE MIT EINER FAHRZEUGBINDUNG (DRK-302), und er
+ * musste ein eigener sein: die drei anderen tragen `ziel_typ = null`, und genau
+ * darauf beruht, dass sie in `/helfer/check` weiter die volle Fahrzeugwahl
+ * sehen. Haette einer von ihnen die Bindung bekommen, waere die Zusage „ein
+ * ungebundenes Kaertchen waehlt weiter frei" in derselben Zeile verschwunden,
+ * die sie beweisen soll.
  */
 export const E2E_TOKEN_HELFER = "111-111";
 export const E2E_TOKEN_CHECK = "222-222";
 export const E2E_TOKEN_GERAETE = "333-333";
+export const E2E_TOKEN_FAHRZEUG = "444-444";
+
+/**
+ * Das Fahrzeug, an dem `E2E_TOKEN_FAHRZEUG` haengt — dasselbe, das
+ * `checkFixtures()` ohnehin anlegt. Name und Id stehen HIER und nicht als
+ * Literal im Spec: liefen Seed und Zusicherung auseinander, suchte der Test
+ * eine Ueberschrift, die es nicht gibt, und die Ursache staende in der falschen
+ * Datei.
+ */
+export const E2E_FAHRZEUG_ID = "e2e-fahrzeug";
+export const E2E_FAHRZEUG_NAME = "E2E RTW";
+/** Ein ZWEITES aktives Fahrzeug — ohne es waere „keine Wahl" trivial wahr. */
+export const E2E_FAHRZEUG_ANDERES_NAME = "E2E Geräte RTW";
+export const E2E_FAHRZEUG_ANDERES_ID = "e2e-geraete-fahrzeug";
 
 /**
  * Die neun Lagerbuch-Zeilen fuer `webServer.env` (§10.3, „Werte fuer Dev und

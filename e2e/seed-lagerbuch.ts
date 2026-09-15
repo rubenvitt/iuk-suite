@@ -42,7 +42,8 @@ import {
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
-  E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE,
+  E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
+  E2E_FAHRZEUG_ID,
   E2E_LAST_ANZAHL, E2E_LAST_PRAEFIX,
 } from "./helpers/lagerbuch";
 
@@ -430,11 +431,36 @@ function lastFixtures(): void {
   }
 }
 
+/**
+ * DAS GEBUNDENE FAHRZEUG-KAERTCHEN — `e2e/lagerbuch-fahrzeug-kaertchen.spec.ts`
+ * (DRK-302).
+ *
+ * Es zeigt auf DAS Fahrzeug, das `checkFixtures()` ohnehin anlegt, und braucht
+ * deshalb kein eigenes: der Spec liest nur, er bucht nichts. Was er
+ * hinterlaesst, ist `tokens.last_used_at` dieses einen Codes — und den liest
+ * keine andere Spec.
+ *
+ * ⚠️ ER LAEUFT NACH `checkFixtures()`, nicht davor: `tokens.ziel_id` traegt
+ * bewusst KEINEN Fremdschluessel (`_db/schema.ts`), eine verdrehte Reihenfolge
+ * braeche also nicht — sie hinterliesse ein Kaertchen, das ins Leere zeigt, und
+ * die Check-Seite faellt fuer genau diesen Fall auf die volle Wahl zurueck. Der
+ * Spec waere dann gruen fuer den Test „ungebunden waehlt frei" und rot fuer
+ * jeden anderen, und die Ursache staende nicht in der Fehlermeldung.
+ */
+function fahrzeugKaertchenFixtures(): void {
+  getDb().insert(tokens).values({
+    id: "e2e-fahrzeug-token", code: E2E_TOKEN_FAHRZEUG, label: "E2E RTW Kärtchen",
+    aktiv: true, createdAt: JETZT, createdBy: "e2e", scopeLagerortId: null,
+    zielTyp: "fahrzeug", zielId: E2E_FAHRZEUG_ID, lastUsedAt: null,
+  }).onConflictDoNothing().run();
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
 checkFixtures();
 geraeteFixtures();
+fahrzeugKaertchenFixtures();
 bestellFixtures();
 vorlagenFixtures();
 kategorieFixtures();

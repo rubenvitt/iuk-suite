@@ -19,10 +19,20 @@ import {
  * ⚠️ TOKEN-HERKUNFT: `E2E_TOKEN_HELFER`, NIE `select ... limit 1`. Ruling A9
  * reserviert ihn namentlich fuer den echten Einloese-Lauf dieser Datei
  * (`lagerbuch-hosts.spec.ts:192-194` schreibt das ausdruecklich aus). Alle
- * Tests hier benutzen ausschliesslich diesen Code — `/helfer/check` prueft
- * `tokens.scope_lagerort_id` heute nicht (Ansatzpunkt 1, `helfer/check/page.tsx:64-71`),
- * die HELFER-Sitzung erreicht also auch das Check-Fahrzeug `E2E RTW` aus
- * `E2E_TOKEN_CHECK`s eigenen Fixtures, ohne dessen Code zu benutzen.
+ * Tests hier benutzen ausschliesslich diesen Code, und er traegt `ziel_typ =
+ * null` — er ist also UNGEBUNDEN. Genau deshalb erreicht die HELFER-Sitzung auch
+ * das Check-Fahrzeug `E2E RTW` aus `E2E_TOKEN_CHECK`s eigenen Fixtures, ohne
+ * dessen Code zu benutzen.
+ *
+ * ⚠️ SEIT DRK-302 IST DAS EINE VORBEDINGUNG, KEINE NEBENSACHE: ein Kaertchen MIT
+ * Fahrzeugbindung sieht in `/helfer/check` nur noch sein eigenes Fahrzeug. Wer
+ * `E2E_TOKEN_HELFER` im Seed ein `ziel_typ`/`ziel_id` gibt, macht die halbe
+ * Datei rot — und zwar an Stellen, die nichts mit Bindung zu tun haben. Das
+ * gebundene Kaertchen ist deshalb ein VIERTER Code
+ * (`E2E_TOKEN_FAHRZEUG`, `e2e/lagerbuch-fahrzeug-kaertchen.spec.ts`).
+ * `tokens.scope_lagerort_id` prueft weiterhin NICHTS — die Spalte ist tot, und
+ * die Durchsetzung eines Scopes als RIEGEL bleibt die offene Betreiberfrage 5
+ * (Ansatzpunkt 2, `_actions/check.ts`).
  *
  * ⚠️ SELEKTOREN SIND NACH DER SPEC BENANNT, NICHT ABGELESEN, UND WURDEN GEGEN
  * DAS GEBAUTE BAUTEIL GEPRUEFT: der Brief nennt „Mullbinde" und `spinbutton` —
