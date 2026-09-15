@@ -136,3 +136,30 @@ export function uhrzeit(d: Date): string {
   const t = zonenTeile(d);
   return `${zz(t.std)}:${zz(t.min)}`;
 }
+
+/**
+ * "TT.MM.JJJJ, HH:MM" in ZEITZONE — der Zeitpunkt eines Fahrzeug-Checks.
+ *
+ * Das VOLLE Datum, nicht das kurze Journalformat aus `fmtTs`: ein Check, der
+ * „14.09., 08:12" trug, waere von einem Check vor dreizehn Monaten nicht zu
+ * unterscheiden — und genau das ist die Frage, die vor einem neuen Check
+ * beantwortet werden muss.
+ *
+ * ⚠️ EINE Stelle fuer dieses Format, obwohl zwei Seiten es zeigen (die
+ * Fahrzeugliste der Verwaltung und der Helfer-Check, DRK-306). Zwei
+ * `Intl.DateTimeFormat`-Literale wuerden auseinanderlaufen, sobald eines
+ * Sekunden oder eine andere Zone bekommt, und keine der beiden Seiten saehe die
+ * andere.
+ */
+const DATUM_ZEIT = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export function fmtDatumZeit(d: Date): string {
+  return DATUM_ZEIT.format(d);
+}

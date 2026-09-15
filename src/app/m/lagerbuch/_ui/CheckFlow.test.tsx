@@ -155,6 +155,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(queryAll("[data-rolle='schritt']").map((e) => e.textContent?.trim())).toEqual([
@@ -175,6 +176,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(queryAll("[data-rolle='schritt']").map((e) => e.textContent?.trim())).toEqual([
@@ -194,6 +196,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(queryAll("[data-rolle='schritt']").map((e) => e.textContent?.trim())).toEqual([
@@ -207,6 +210,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
       <CheckFlow
         fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(exists("[data-rolle='leer-titel']")).toBe(true);
@@ -227,6 +231,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
       <CheckFlow
         fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
         gebunden
+        letzterCheckText={null}
       />,
     );
     expect(query<HTMLAnchorElement>("[data-rolle='leer-weg']").getAttribute("href")).toBe(
@@ -247,6 +252,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     // Geraete ist hier NICHT der letzte Schritt.
@@ -274,6 +280,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(query("[data-rolle='stepanzeige']").textContent).toBe("7");
@@ -297,6 +304,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     const felder = queryAll<HTMLInputElement>("[data-rolle='zaehlliste'] input");
@@ -316,6 +324,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         warn={WARN}
         soll={[POS({ id: "sp-1", fachLabel: "Fach 1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     // Beide Zeilen sind da …
@@ -338,6 +347,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         warn={WARN}
         soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("Verfall bei");
@@ -362,6 +372,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{ "art-1": "2020-01" }}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 laufen ab");
@@ -377,6 +388,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     for (let i = 0; i < 2; i++) await minus(0);
@@ -397,6 +409,7 @@ describe("CheckFlow — Nachfuellen", () => {
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 2 })]}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     for (let i = 0; i < 5; i++) await minus(0); // Ist = 0
@@ -416,6 +429,7 @@ describe("CheckFlow — Nachfuellen", () => {
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 20 })]}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     for (let i = 0; i < 2; i++) await minus(0); // Ist = 3, Luecke = 2
@@ -443,6 +457,7 @@ describe("CheckFlow — Nachfuellen", () => {
           POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
         ]}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     for (const el of queryAll("button[aria-label$='verringern']")) {
@@ -500,6 +515,7 @@ describe("CheckFlow — Nachfuellen", () => {
           POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
         ]}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     for (const el of queryAll("button[aria-label$='verringern']")) {
@@ -551,6 +567,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     for (let i = 0; i < 2; i++) await minus(0); // Ist = 3
@@ -587,6 +604,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
@@ -612,6 +630,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await fill("[data-rolle='zaehlliste'] input[type='month']", "");
@@ -638,6 +657,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     const gedrueckt = (rolle: string) =>
@@ -694,6 +714,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     await mount(
       <CheckFlow fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     const knoepfe = queryAll(
@@ -742,6 +763,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
@@ -776,6 +798,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
@@ -806,6 +829,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
@@ -826,6 +850,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(query<HTMLInputElement>("input[aria-label='Druck O2 klein']").value).toBe("200");
@@ -860,6 +885,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(WEITER);
@@ -887,6 +913,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -921,6 +948,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -943,6 +971,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -962,6 +991,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -993,6 +1023,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1016,6 +1047,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1042,6 +1074,7 @@ const VOLLES_FAHRZEUG = (
     verfall={{}}
     warn={WARN}
     gebunden={false}
+    letzterCheckText={null}
   />
 );
 
@@ -1096,6 +1129,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(WEITER);
@@ -1118,6 +1152,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(WEITER);
@@ -1148,6 +1183,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     expect(exists(HINWEIS)).toBe(false); // zaehlen
@@ -1174,6 +1210,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1212,6 +1249,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1239,6 +1277,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1258,6 +1297,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1284,6 +1324,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1305,6 +1346,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1330,6 +1372,7 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
         verfall={{}}
         warn={WARN}
         gebunden={false}
+        letzterCheckText={null}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1385,5 +1428,252 @@ describe("CheckFlow — Bauform", () => {
     // Eine nicht aufloesbare CSS-Variable ist gueltiges CSS und faellt still auf
     // `transparent` zurueck — deshalb auch im ROHtext keine Ausnahme.
     expect(roh).not.toContain("--ant-");
+  });
+});
+
+describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
+  const ZEILE = "[data-rolle='letzter-check']";
+
+  it("nennt den Zeitpunkt des letzten Checks im Zaehlschritt", async () => {
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText="14.09.2026, 08:12"
+      />,
+    );
+    expect(query(ZEILE).textContent).toContain("14.09.2026, 08:12");
+  });
+
+  it("unterscheidet „noch nie geprueft\" von einem alten Zeitpunkt", async () => {
+    // `null` ist eine eigene Aussage und darf nicht als leere Zeile enden: eine
+    // Zeile ohne Text saehe aus wie ein Ladefehler, und ein Fahrzeug ohne
+    // Historie ist der haeufigste Ersteinsatz.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    const text = query(ZEILE).textContent ?? "";
+    expect(text).toContain("Noch kein Check");
+    expect(text).not.toContain("Letzter Check:");
+  });
+
+  it("steht AUCH auf einem Fahrzeug OHNE Soll-Artikel, das bei „Geraete\" anfaengt", async () => {
+    // Welcher Schritt der erste ist, haengt an `schrittFolge`. Eine Zeile, die
+    // nur im Zaehlschritt steht, waere hier ersatzlos weg — „sichtbar" waere
+    // dann eine Aussage ueber die Bestueckung, nicht ueber die Oberflaeche.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[GERAET]}
+        flaschen={[FLASCHE]}
+        warn={WARN}
+        verfall={{}}
+        gebunden={false}
+        letzterCheckText="14.09.2026, 08:12"
+      />,
+    );
+    expect(query(ZEILE).textContent).toContain("14.09.2026, 08:12");
+  });
+
+  it("verschwindet auf dem FERTIG-Schirm — dort waere er der VORLETZTE Check", async () => {
+    // Nach dem Abschluss ist der letzte Check DIESER hier. Die vorgeladene Zahl
+    // stimmt dann zwar noch, behauptet aber das Falsche: „zuletzt geprueft am
+    // 14.09." direkt unter „Check abgeschlossen".
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText="14.09.2026, 08:12"
+      />,
+    );
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    expect(exists("[data-rolle='check-ergebnis']")).toBe(true);
+    expect(exists(ZEILE)).toBe(false);
+  });
+});
+
+describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
+  const LEEREN = "[data-rolle='verfall-leeren']";
+  const FELD = "[data-rolle='zaehlliste'] input[type='month']";
+
+  it("bietet den Knopf NUR an, wenn eine Angabe dasteht", async () => {
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    expect(exists(LEEREN)).toBe(false);
+    await fill(FELD, "2027-03");
+    expect(exists(LEEREN)).toBe(true);
+  });
+
+  it("raeumt das Feld — und der VORBELEGTE Wert kommt NICHT zurueck", async () => {
+    /*
+     * ⚠️ DER TEUERSTE FEHLER DIESER AENDERUNG, und er ist still: `verfallWert`
+     * loest ueber `verfallState[a] ?? verfall[a] ?? ""` auf. Ein `delete` oder
+     * ein `undefined` im Zustand faellt durch die ??-Kette auf die VORBELEGUNG
+     * zurueck — der alte Monat stuende sofort wieder im Feld, und weder
+     * `typecheck` noch `build` saehen etwas. Ohne eine Vorbelegung im Prop
+     * waere dieser Test gruen, egal welche der beiden Fassungen dasteht.
+     */
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2026-09" }}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    expect(query<HTMLInputElement>(FELD).value).toBe("2026-09");
+    await click(LEEREN);
+    expect(query<HTMLInputElement>(FELD).value).toBe("");
+    expect(exists(LEEREN)).toBe(false);
+  });
+
+  it("sendet daraufhin `null` — die Angabe wird geloescht, nicht „unangetastet\" gelassen", async () => {
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2026-09" }}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    await click(LEEREN);
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([
+      { artikelId: "art-1", verfall: null },
+    ]);
+  });
+
+  it("sendet NICHTS, wenn gar keine Angabe dastand", async () => {
+    // Ohne Vorbelegung ist „geleert" derselbe Zustand wie „nie angefasst" — der
+    // Filter in `zaehlung()` vergleicht gegen den Vorwert. Ein gesendeter
+    // Eintrag loeste hier ein `loescheVerfallEintrag` auf einer Zeile aus, die
+    // es nie gab.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    await fill(FELD, "2027-03");
+    await click(LEEREN);
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    expect(abschluss.mock.calls[0][0].verfaelle).toStrictEqual([]);
+  });
+
+  it("nimmt die Live-Vorschau „{n} laufen ab\" mit zurueck", async () => {
+    // Die Zahl im Fuss rechnet aus DEMSELBEN Zustand. Bliebe sie nach dem
+    // Leeren stehen, zaehlte die Oberflaeche eine Angabe, die sie gerade
+    // zurueckgenommen hat.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2020-01" }}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 laufen ab");
+    await click(LEEREN);
+    expect(query("[data-rolle='zaehl-summe']").textContent).not.toContain("laufen ab");
+  });
+
+  it("teilt den aria-Praefix des FELDES nicht — sonst greift jeder Selektor zwei Elemente", async () => {
+    /*
+     * Gemessen in `e2e/lagerbuch-helfer.spec.ts`: das Feld heisst
+     * `Verfall <Artikel>`, und ein Knopf mit demselben Anfang liess ein
+     * bestehendes `getByLabel(/^Verfall …/)` mit „strict mode violation"
+     * brechen. Der Fund ist heimtueckisch, weil er nur mit VORBELEGUNG
+     * auftritt — ohne sie erscheint der Knopf gar nicht, und der fremde Test
+     * bleibt gruen.
+     */
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2026-09" }}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    const feldLabel = query(FELD).getAttribute("aria-label") ?? "";
+    const knopfLabel = query(LEEREN).getAttribute("aria-label") ?? "";
+    expect(feldLabel).toBe("Verfall Kompresse");
+    expect(knopfLabel.startsWith(feldLabel)).toBe(false);
+  });
+
+  it("traegt ein eigenes aria-label je Artikel — der Knopf steht je Zeile", async () => {
+    // Zwei Artikel, zwei Knoepfe: „entfernen" allein waere fuer eine
+    // Bildschirmleserin zweimal derselbe Text an zwei verschiedenen Angaben.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS(), POS({ id: "sp-2", artikelId: "art-2", artikelName: "Mullbinde" })]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{ "art-1": "2026-09", "art-2": "2026-10" }}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    const labels = queryAll(LEEREN).map((b) => b.getAttribute("aria-label"));
+    expect(labels).toStrictEqual([
+      "Kompresse: Verfall entfernen",
+      "Mullbinde: Verfall entfernen",
+    ]);
   });
 });

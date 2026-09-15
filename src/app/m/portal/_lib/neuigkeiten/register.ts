@@ -15,6 +15,7 @@ import mehrereArtikelBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/la
 import journalNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-journal-nachladen";
 import abgelaufenesJeFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-abgelaufenes-je-fahrzeug";
 import checkNurFuerDeinFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-nur-fuer-dein-fahrzeug";
+import letzterCheckUndVerfallLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-letzter-check-und-verfall-loeschen";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -63,6 +64,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   journalNachladen,
   abgelaufenesJeFahrzeug,
   checkNurFuerDeinFahrzeug,
+  letzterCheckUndVerfallLoeschen,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,

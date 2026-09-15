@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
-import { checkHistorie, checkDetail } from "./checks";
+import { checkHistorie, checkDetail, letzterCheckZeitpunkt } from "./checks";
 import { CHECK_GRENZE } from "../grenzen";
 import { summiereCheckErgebnis } from "../domain/check";
 
@@ -408,5 +408,57 @@ describe("checkDetail — ein UNLESBARES ergebnis (§11.5, 27)", () => {
 
   it("meldet NICHT unlesbar fuer einen gefuellten Check", () => {
     expect(checkDetail(t.db, "chk-1", NOW)!.unlesbar).toBe(false);
+  });
+});
+
+describe("letzterCheckZeitpunkt — DRK-306", () => {
+  it("liefert den Zeitpunkt des einzigen abgeschlossenen Checks", () => {
+    expect(letzterCheckZeitpunkt(t.db, "rtw-1")?.toISOString()).toBe(NOW.toISOString());
+  });
+
+  it("liefert null fuer ein Fahrzeug OHNE Check — und das ist keine leere Zeichenkette", () => {
+    // `null` heisst „noch nie geprueft". Die Oberflaeche macht daraus einen
+    // anderen Satz als aus einem alten Zeitpunkt; faellt der Fall auf einen
+    // Leerstring zusammen, sind die beiden Aussagen nicht mehr trennbar.
+    t.db.insert(lagerorte).values(
+      { id: "rtw-2", name: "RTW 2", typ: "fahrzeug", kennung: "MS-2", aktiv: true }).run();
+    expect(letzterCheckZeitpunkt(t.db, "rtw-2")).toBeNull();
+  });
+
+  it("uebergeht einen OFFENEN Check (`completedAt IS NULL`), auch wenn er neuer ist", () => {
+    // §4.4: ein offener Check ist kein Stand, auf dem jemand aufbauen kann.
+    // Ohne den `isNotNull`-Riegel liefert `desc(completedAt)` in SQLite den
+    // NULL-Datensatz je nach Sortierrichtung ganz vorn — die Anzeige zeigte dann
+    // „noch kein Check", obwohl einer abgeschlossen ist.
+    t.db.insert(checks).values(
+      { id: "chk-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "222-222",
+        startedAt: new Date("2026-06-20T10:00:00Z"), completedAt: null, ergebnis: null }).run();
+    expect(letzterCheckZeitpunkt(t.db, "rtw-1")?.toISOString()).toBe(NOW.toISOString());
+  });
+
+  it("nimmt den JUENGSTEN von mehreren und bleibt bei Gleichstand stabil", () => {
+    // `completedAt` sind UNIX-SEKUNDEN (§5.14.4): zwei Checks in derselben
+    // Sekunde sind ohne den `id`-Tiebreaker in beliebiger Reihenfolge, und die
+    // Anzeige koennte zwischen zwei Aufrufen springen.
+    const spaeter = new Date("2026-06-20T08:30:00Z");
+    t.db.insert(checks).values(
+      { id: "chk-2", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "222-222",
+        startedAt: spaeter, completedAt: spaeter, ergebnis: JSON.stringify(V2) }).run();
+    t.db.insert(checks).values(
+      { id: "chk-3", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "333-333",
+        startedAt: spaeter, completedAt: spaeter, ergebnis: JSON.stringify(V2) }).run();
+    expect(letzterCheckZeitpunkt(t.db, "rtw-1")?.toISOString()).toBe(spaeter.toISOString());
+    expect(letzterCheckZeitpunkt(t.db, "rtw-1")?.toISOString())
+      .toBe(letzterCheckZeitpunkt(t.db, "rtw-1")?.toISOString());
+  });
+
+  it("sieht den Check eines ANDEREN Fahrzeugs nicht", () => {
+    t.db.insert(lagerorte).values(
+      { id: "rtw-2", name: "RTW 2", typ: "fahrzeug", kennung: "MS-2", aktiv: true }).run();
+    t.db.insert(checks).values(
+      { id: "chk-fremd", fahrzeugId: "rtw-2", quelleTyp: "token", quelleId: "444-444",
+        startedAt: new Date("2026-06-25T10:00:00Z"),
+        completedAt: new Date("2026-06-25T10:00:00Z"), ergebnis: JSON.stringify(V2) }).run();
+    expect(letzterCheckZeitpunkt(t.db, "rtw-1")?.toISOString()).toBe(NOW.toISOString());
   });
 });

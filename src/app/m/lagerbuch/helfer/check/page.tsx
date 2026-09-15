@@ -3,6 +3,8 @@ import { fahrzeugListe, sollFuerFahrzeug } from "../../_lib/lesepfade/fahrzeuge"
 import { geraeteFuerLagerort } from "../../_lib/lesepfade/geraete";
 import { o2FlaschenFuerLagerort } from "../../_lib/lesepfade/o2";
 import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
+import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
+import { fmtDatumZeit } from "../../_lib/zeit";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
@@ -159,6 +161,22 @@ export default async function CheckSeite({
     [...verfallFuerLagerort(db, gewaehlt.id)].map(([artikelId, e]) => [artikelId, e.verfall]),
   );
 
+  /*
+   * DER LETZTE CHECK — DRK-306, und er wird HIER formatiert, nicht in der Insel.
+   *
+   * ⚠️ EIN `Date` UEBER DIE RSC-GRENZE SERIALISIERT KLAGLOS und formatiert dann
+   * in der Zone des GERAETS. Auf einem privaten Telefon im Urlaub stuende der
+   * Zeitpunkt damit um Stunden daneben, ohne dass irgendein Tor etwas meldete —
+   * dieselbe Zusage, die `verwaltung/fahrzeuge` seit DRK-298 woertlich traegt
+   * („gibt kein Date an die Insel", `FahrzeugeListe.test.tsx`). `fmtDatumZeit`
+   * ist zonenexplizit (`_lib/zeit.ts`, Entscheidung 26 b).
+   *
+   * ⚠️ `null` BLEIBT `null` UND WIRD NICHT ZU EINEM TEXT GEMACHT. „Noch nie
+   * geprueft" ist eine andere Aussage als „vor langer Zeit"; welchen Satz die
+   * Helferin dafuer liest, entscheidet die Insel an EINER Stelle.
+   */
+  const letzterCheck = letzterCheckZeitpunkt(db, gewaehlt.id);
+
   return (
     <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       <CheckFlow
@@ -171,6 +189,7 @@ export default async function CheckSeite({
         geraete={geraete}
         flaschen={flaschen}
         verfall={verfall}
+        letzterCheckText={letzterCheck === null ? null : fmtDatumZeit(letzterCheck)}
         // Die Schwellen kommen vom SERVER; die Ampel im Zaehlschritt rechnet
         // der Client damit ueber `verfallStatus`, und das ist seit
         // Entscheidung 26 (b) zonenexplizit — Chip und Abschlusszahl koennen
