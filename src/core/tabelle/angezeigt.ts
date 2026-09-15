@@ -57,6 +57,14 @@ export type AnzeigeSpalte<T> = {
    */
   onFilter?: (wert: Key | boolean, zeile: T) => boolean;
   sorter?: unknown;
+  /** Die angebotenen Filterwerte. Vorhanden heißt: diese Spalte filtert. */
+  filters?: unknown;
+  /**
+   * Der GESTEUERTE Filterstand der Spalte. `undefined` heißt nicht „kein
+   * Filter", sondern „antd führt den Stand selbst" — der Unterschied ist der
+   * ganze Grund für `filterAusSpalten`.
+   */
+  filteredValue?: (Key | boolean)[] | null;
 };
 
 /**
@@ -144,4 +152,61 @@ export function angezeigteZeilen<T>(
  */
 export function filterAktiv(zustand: FilterZustand): boolean {
   return Object.values(zustand).some((werte) => (werte?.length ?? 0) > 0);
+}
+
+/**
+ * Den Filterstand aus den SPALTEN selbst lesen, statt ihn übergeben zu lassen.
+ *
+ * ⚠️ WOZU, WENN ES `angezeigteZeilen` SCHON GIBT: dessen Aufrufer ist die
+ * Liste, die den Zustand ohnehin hält. `core/tabelle` selbst hält ihn nicht —
+ * es bekommt nur `columns` und `dataSource` und muss trotzdem wissen, wie viele
+ * Zeilen die Tabelle zeigt (für `aria-rowcount`). In `filteredValue` steht
+ * genau dieser Stand, und zwar derselbe, aus dem antd gleich selbst filtert.
+ *
+ * ⚠️ `unbekannt` IST DER EIGENTLICHE RÜCKGABEWERT. Eine Spalte, die `filters`
+ * anbietet, aber kein `filteredValue` trägt, filtert UNGESTEUERT: antd führt
+ * den Stand intern, und von außen ist er nicht zu sehen. Ihn als „kein Filter"
+ * zu lesen ergäbe eine zu große Zahl — und zwar still, genau dann, wenn jemand
+ * filtert. Wer das nicht unterscheidet, baut die Falle nach, die er schließen
+ * wollte.
+ */
+export function filterAusSpalten<T>(
+  spalten: readonly AnzeigeSpalte<T>[] | undefined,
+): { zustand: FilterZustand; unbekannt: boolean } {
+  const zustand: FilterZustand = {};
+  let unbekannt = false;
+  for (const spalte of spalten ?? []) {
+    if (spalte.filters === undefined) continue;
+    const schluessel = spaltenSchluessel(spalte);
+    if (!schluessel) continue;
+    if (spalte.filteredValue === undefined) {
+      unbekannt = true;
+      continue;
+    }
+    zustand[schluessel] = spalte.filteredValue;
+  }
+  return { zustand, unbekannt };
+}
+
+/**
+ * Wie viele Zeilen die Tabelle zeigt — `null`, wenn es nicht zu wissen ist.
+ *
+ * ⚠️ SORTIERUNG WIRD NICHT ANGEWENDET, und das ist kein Vergessen: sie ändert
+ * die Reihenfolge, nie die Anzahl. Der Filterlauf ist damit alles, was diese
+ * Zahl kostet.
+ *
+ * ⚠️ `null` HEISST „NICHT ZU WISSEN" UND IST KEIN FEHLERFALL. Der Aufrufer
+ * macht daraus die Angabe, die ARIA dafür vorsieht (`aria-rowcount={-1}`) —
+ * „unbekannt viele" ist eine ehrliche Auskunft, eine zu große Zahl ist es
+ * nicht.
+ */
+export function angezeigteAnzahl<T>(
+  zeilen: readonly T[] | undefined,
+  spalten: readonly AnzeigeSpalte<T>[] | undefined,
+): number | null {
+  if (!zeilen) return 0;
+  const { zustand, unbekannt } = filterAusSpalten(spalten);
+  if (unbekannt) return null;
+  if (!filterAktiv(zustand)) return zeilen.length;
+  return wendeFilterAn(zeilen, spalten ?? [], zustand).length;
 }

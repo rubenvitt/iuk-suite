@@ -25,6 +25,7 @@ import { useEffect, useMemo } from "react";
 import { Table, type TableProps } from "antd";
 import { SCHRIFT } from "../theme/schrift";
 import { scrollMasse, type MassSpalte, type Scrollmass } from "./masse";
+import { angezeigteAnzahl, type AnzeigeSpalte } from "./angezeigt";
 import { RollenAnbieter, mitRollen, mitZeilenindex } from "./rollen";
 
 export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" | "scroll"> & {
@@ -168,9 +169,30 @@ export function Datentabelle<T extends object>({
     () => mitZeilenindex<T>(onRow, masse.virtuellAktiv),
     [onRow, masse.virtuellAktiv],
   );
+  /**
+   * ⚠️ `aria-rowcount` IST NICHT `dataSource.length`, UND DER UNTERSCHIED IST
+   * GENAU DIE ZAHL, DIE JEMAND HÖRT. antd filtert die Datenquelle NACH uns noch
+   * einmal — über `filteredValue`/`onFilter` der Spalten. Eine Liste von 800
+   * Artikeln, die ein Spaltenfilter auf 20 zusammenzieht, käme hier als 800
+   * an, während `aria-rowindex` nur bis 20 zählt: eine Vorleseanwendung meldete
+   * „Zeile 3 von 800" an einer Tabelle mit zwanzig Zeilen, und ein leerer
+   * Filter behauptete hunderte Zeilen, wo keine steht.
+   *
+   * ⚠️ `null` HEISST „NICHT ZU WISSEN", nicht „null Zeilen" — dann filtert eine
+   * Spalte UNGESTEUERT und antd führt den Stand allein. `-1` ist die Angabe,
+   * die ARIA dafür vorsieht; „unbekannt viele" ist eine ehrliche Auskunft, eine
+   * zu große Zahl ist es nicht.
+   */
+  const angezeigt = useMemo(
+    () => angezeigteAnzahl(
+      rest.dataSource as readonly T[] | undefined,
+      columns as readonly AnzeigeSpalte<T>[] | undefined,
+    ),
+    [rest.dataSource, columns],
+  );
   const rollenwerte = useMemo(
-    () => ({ beschriftung, zeilen: zeilenAnzahl }),
-    [beschriftung, zeilenAnzahl],
+    () => ({ beschriftung, zeilen: angezeigt ?? -1 }),
+    [beschriftung, angezeigt],
   );
 
   return (

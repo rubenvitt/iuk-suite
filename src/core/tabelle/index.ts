@@ -31,8 +31,10 @@ export { TabellenVollhoehe, type TabellenVollhoeheProps } from "./TabellenVollho
 export { vollhoehe, type VollhoeheEingabe, type VollhoeheErgebnis } from "./vollhoehe";
 export { VIRTUELL_AB_ZEILEN } from "./masse";
 export {
+  angezeigteAnzahl,
   angezeigteZeilen,
   filterAktiv,
+  filterAusSpalten,
   spaltenSchluessel,
   wendeFilterAn,
   wendeSortierungAn,

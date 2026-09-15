@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { Key } from "react";
 import {
+  angezeigteAnzahl,
   angezeigteZeilen,
   filterAktiv,
+  filterAusSpalten,
   spaltenSchluessel,
   wendeFilterAn,
   wendeSortierungAn,
@@ -198,5 +201,78 @@ describe("filterAktiv", () => {
     // Pruefung ueber die Wahrheit der Werte statt ueber ihre ANZAHL laege hier
     // falsch und liesse „nur inaktive" als ungefiltert durchgehen.
     expect(filterAktiv({ aktiv: [false] })).toBe(true);
+  });
+});
+
+/**
+ * ⚠️ DIESE ZAHL WIRD NICHT GELESEN, SIE WIRD GERECHNET — und damit ist sie die
+ * Stelle, an der sie falsch sein kann, ohne dass ein Tor es meldet. `aria-rowcount`
+ * hängt daran: eine zu große Zahl lässt eine Vorleseanwendung „Zeile 3 von 800"
+ * an einer Tabelle mit zwanzig Zeilen ansagen.
+ */
+describe("filterAusSpalten", () => {
+  const spalte = (key: string, extra: Record<string, unknown> = {}) => ({
+    key,
+    onFilter: (wert: Key | boolean, zeile: { a?: unknown; b?: unknown }) =>
+      zeile[key as "a" | "b"] === wert,
+    ...extra,
+  });
+
+  it("uebergeht eine Spalte ohne `filters` — sie filtert gar nicht", () => {
+    expect(filterAusSpalten([spalte("a")])).toEqual({ zustand: {}, unbekannt: false });
+  });
+
+  it("liest den gesteuerten Stand aus `filteredValue`", () => {
+    const ergebnis = filterAusSpalten([
+      spalte("a", { filters: [{ text: "x", value: 1 }], filteredValue: [1] }),
+      spalte("b", { filters: [{ text: "y", value: 2 }], filteredValue: null }),
+    ]);
+    expect(ergebnis).toEqual({ zustand: { a: [1], b: null }, unbekannt: false });
+  });
+
+  it("meldet `unbekannt`, wenn eine Spalte UNGESTEUERT filtert", () => {
+    // `filters` ohne `filteredValue`: antd fuehrt den Stand intern, von auszen
+    // ist er nicht zu sehen. Ihn als „kein Filter" zu lesen ergaebe eine zu
+    // grosze Zahl — still, und genau dann, wenn jemand filtert.
+    const ergebnis = filterAusSpalten([spalte("a", { filters: [{ text: "x", value: 1 }] })]);
+    expect(ergebnis.unbekannt).toBe(true);
+    expect(ergebnis.zustand).toEqual({});
+  });
+});
+
+describe("angezeigteAnzahl", () => {
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+  const spalte = (extra: Record<string, unknown>) => ({
+    key: "a",
+    onFilter: (wert: Key | boolean, zeile: Z) => zeile.a === wert,
+    ...extra,
+  });
+
+  it("ist die ganze Liste, solange kein Filter greift", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: null })])).toBe(4);
+    expect(angezeigteAnzahl(zeilen, undefined)).toBe(4);
+  });
+
+  it("zaehlt NACH dem Spaltenfilter", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: [1] })])).toBe(2);
+  });
+
+  it("zaehlt mehrere Werte EINER Spalte als Vereinigung", () => {
+    // Dieselbe Bedeutung wie antds `realKeys.some(...)` — wer hier schneidet
+    // statt zu vereinigen, zeigt eine andere Zahl als die Tabelle daneben.
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: [1, 3] })])).toBe(3);
+  });
+
+  it("kann 0 sein, und das ist eine Zahl — kein „unbekannt\"", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: [99] })])).toBe(0);
+  });
+
+  it("liefert null, sobald eine Spalte ungesteuert filtert", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [{ text: "x", value: 1 }] })])).toBeNull();
+  });
+
+  it("liefert 0 ohne Datenquelle", () => {
+    expect(angezeigteAnzahl(undefined, undefined)).toBe(0);
   });
 });

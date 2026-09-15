@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { mount, unmount, query, queryAll } from "@/app/m/qr/_lib/test-dom";
 import { RollenAnbieter, mitRollen, mitZeilenindex } from "./rollen";
+import { Datentabelle } from "./Datentabelle";
 
 /**
  * ⚠️ WAS DIESER TEST NICHT KANN, UND WARUM ER TROTZDEM ETWAS WERT IST.
@@ -129,5 +130,104 @@ describe("die Rollen-Bauteile selbst", () => {
       </RollenAnbieter>,
     );
     expect(query('[role="table"]').hasAttribute("aria-label")).toBe(false);
+  });
+});
+
+/**
+ * DIE ZAHL AN DER ECHTEN TABELLE — und damit die Naht, an der die Rechnung aus
+ * `angezeigt.ts` und die Rolle aus `rollen.tsx` zusammenkommen.
+ *
+ * ⚠️ WARUM DAS HIER GEHT, OBWOHL FALLE 14 DAS GEGENTEIL SAGT: zeilenlos ist in
+ * jsdom der KÖRPER, nicht der HALTER. rc-virtual-list legt seinen
+ * Scrollcontainer immer an — und genau der trägt die Rolle und die Zahl. Die
+ * Zeilen darin fehlen weiterhin, sobald die Liste lang ist; der zweite Fall
+ * unten hält beides nebeneinander fest, damit niemand aus dem ersten
+ * schließt, jsdom könne virtuelle Zeilen sehen.
+ */
+describe("aria-rowcount an der Datentabelle", () => {
+  type Zeile = { id: string; aktiv: boolean };
+  const zeilen: Zeile[] = Array.from(
+    { length: 200 },
+    (_, i) => ({ id: `a${i}`, aktiv: i < 5 }),
+  );
+
+  const idSpalte = { title: "Id", dataIndex: "id", key: "id", width: 200 } as const;
+
+  function aktivSpalte(filteredValue?: (string | number | boolean)[] | null) {
+    return {
+      title: "Aktiv",
+      dataIndex: "aktiv",
+      key: "aktiv",
+      width: 120,
+      filters: [{ text: "ja", value: true }],
+      ...(filteredValue === undefined ? {} : { filteredValue }),
+      onFilter: (wert: React.Key | boolean, zeile: Zeile) => zeile.aktiv === wert,
+    };
+  }
+
+  it("zaehlt die GANZE Liste, solange kein Spaltenfilter greift", async () => {
+    await mount(
+      <Datentabelle<Zeile>
+        rowKey="id"
+        virtuell={400}
+        aria-label="Bestand"
+        dataSource={zeilen}
+        columns={[idSpalte, aktivSpalte(null)]}
+      />,
+    );
+    const halter = query('[role="table"]');
+    expect(halter.getAttribute("aria-rowcount")).toBe("200");
+    expect(halter.getAttribute("aria-label")).toBe("Bestand");
+    // Und hier steht der Grund fuer `aria-rowcount` leibhaftig daneben: im Baum
+    // steht nur ein Bruchteil der Liste.
+    //
+    // ⚠️ WIE GROSZ DIESER BRUCHTEIL IST, WIRD HIER NICHT ZUGESICHERT. Falle 14
+    // haelt „gar keine Zeile" fest, gemessen an der Artikeltabelle; dieselbe
+    // Messung ergibt hier neun. Die Zahl haengt daran, was rc-virtual-list aus
+    // Hoehen errechnet, die jsdom alle mit 0 beantwortet — sie ist ein Artefakt
+    // der Umgebung und keine Aussage ueber die Tabelle. Belastbar ist allein
+    // das Verhaeltnis.
+    expect(queryAll("[data-row-key]").length).toBeLessThan(zeilen.length);
+  });
+
+  it("zaehlt NACH dem Spaltenfilter, den antd selbst noch anwendet", async () => {
+    // ⚠️ DER FALL, DER DIE ZAHL FRUEHER LUEGEN LIESZ: `dataSource` traegt 200
+    // Zeilen, `filteredValue` zieht sie auf 5 zusammen — und antd filtert erst
+    // NACH uns. Aus `dataSource.length` gelesen stuende hier 200, waehrend
+    // `aria-rowindex` nur bis 5 zaehlt: „Zeile 3 von 200" an einer Tabelle mit
+    // fuenf Zeilen.
+    await mount(
+      <Datentabelle<Zeile>
+        rowKey="id"
+        virtuell={400}
+        aria-label="Bestand"
+        dataSource={zeilen}
+        columns={[idSpalte, aktivSpalte([true])]}
+      />,
+    );
+    expect(query('[role="table"]').getAttribute("aria-rowcount")).toBe("5");
+
+    // Fuenf Zeilen passen in die Sichtflaeche, also rendert rc-virtual-list sie
+    // auch in jsdom — die Gegenprobe zur Zahl steht damit daneben.
+    const gerendert = queryAll("[data-row-key]");
+    expect(gerendert).toHaveLength(5);
+    expect(gerendert.map((z) => z.getAttribute("aria-rowindex")))
+      .toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("sagt -1, wenn eine Spalte UNGESTEUERT filtert", async () => {
+    // Ohne `filteredValue` fuehrt antd den Stand allein; von auszen ist er
+    // nicht zu sehen. `-1` ist ARIAs Angabe fuer „unbekannt viele" — eine zu
+    // grosze Zahl waere eine Behauptung.
+    await mount(
+      <Datentabelle<Zeile>
+        rowKey="id"
+        virtuell={400}
+        aria-label="Bestand"
+        dataSource={zeilen}
+        columns={[idSpalte, aktivSpalte()]}
+      />,
+    );
+    expect(query('[role="table"]').getAttribute("aria-rowcount")).toBe("-1");
   });
 });

@@ -161,7 +161,11 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     KEINE ZEILE.** `rc-virtual-list` kommt ohne Layoutboxen auf null sichtbare Einträge,
     `tr[data-row-key=…]` findet nichts mehr — und ein DOM-Test dagegen wird **lautlos blind**, er
     reißt nicht, er misst nur nichts mehr. Gemessen: an der Artikeltabelle fielen dadurch 35 von
-    35 Tests gleichzeitig aus. Deshalb virtualisiert `core/tabelle` erst **ab
+    35 Tests gleichzeitig aus. ⚠️ **„Keine" ist dabei die gemessene Zahl jenes Falls, keine
+    Konstante:** wie viele Zeilen übrig bleiben, rechnet rc-virtual-list aus Höhen, die jsdom alle
+    mit 0 beantwortet — dieselbe Messung ergab an einer schmaleren Tabelle neun. Wer hier auf eine
+    Zahl zusichert, prüft die Umgebung statt der Tabelle; belastbar ist allein „weniger als die
+    Liste". Deshalb virtualisiert `core/tabelle` erst **ab
     `VIRTUELL_AB_ZEILEN`** (heute 150) — das ist zugleich die fachlich richtige Schwelle, weil sich
     der Aufwand darunter ohnehin nicht lohnt. Tests mit einer Handvoll Zeilen prüfen damit weiter
     echtes Markup; die Wirkung der Virtualisierung selbst kann **nur Playwright** sehen.
@@ -192,6 +196,15 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     einem Element **ohne eine einzige Datenzeile**. `Datentabelle` nimmt ihn dort weg und setzt ihn
     an den Körper, sobald virtualisiert wird; stünde er an beiden, träfe eine Vorleseanwendung zwei
     gleich benannte Tabellen nebeneinander.
+
+    ⚠️ **`aria-rowcount` ist NICHT `dataSource.length`**, und der Unterschied ist genau die Zahl,
+    die jemand hört: antd filtert die Datenquelle **nach** `core/tabelle` noch einmal, über
+    `filteredValue`/`onFilter` der Spalten. Eine Liste von 800 Artikeln, die ein Spaltenfilter auf
+    20 zusammenzieht, ergäbe „Zeile 3 von 800" an einer Tabelle mit zwanzig Zeilen. `Datentabelle`
+    rechnet die angezeigte Menge deshalb selbst aus (`angezeigteAnzahl` in `angezeigt.ts`, dieselbe
+    Vereinigungs-/Schnitt-Bedeutung wie Falle 15). ⚠️ Filtert eine Spalte **ungesteuert** (`filters`
+    ohne `filteredValue`), führt antd den Stand allein und von außen ist er nicht zu sehen — dann
+    steht dort `-1`, ARIAs Angabe für „unbekannt viele". Eine zu große Zahl wäre eine Behauptung.
 
     ⚠️ **Was die Nachrüstung NICHT zurückholt, und das ist kein Versäumnis dieser Falle:** die
     Zuordnung Spaltenkopf → Zelle. Sobald eine Tabelle `scroll.y` setzt — und `virtuell` setzt es
