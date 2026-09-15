@@ -564,6 +564,25 @@ form + form > .zeileKnopf { border-top: 1px solid var(--lb-linie) }
   font-weight: 700; font-size: 14px; white-space: nowrap; display: flex; gap: 6px;
   align-items: center; min-height: 56px;
 }
+/*
+ * DER GESPERRTE ABSCHLUSSKNOPF MUSS GESPERRT AUSSEHEN — DRK-304.
+ *
+ * `.knopf[disabled]` (weiter unten) erreicht diese Klasse NICHT: `.abschlussGo`
+ * ist ein eigener Knopf, kein `.knopf`. Ohne diese Regel trug ein gesperrter
+ * Knopf weiter das volle Rot der Primaeraktion, und `:where(.rahmen) button`
+ * gab ihm zusaetzlich `cursor: pointer` — er sah aus wie eine Aktion, nahm den
+ * Tipp entgegen und tat nichts. Das trifft seit DRK-304 JEDEN frisch
+ * geoeffneten Check (der Zaehlriegel), und es traf auch vorher schon das
+ * `disabled={laeuft}` der drei Abschlussknoepfe waehrend der Buchung.
+ *
+ * Dieselben Werte wie `.knopf[disabled]`: eine zweite Sprache fuer denselben
+ * Zustand waere schlechter als eine, die man schon kennt.
+ *
+ * Spezifitaet (0,2,0) gegen `.abschlussGo` (0,1,0) und gegen den
+ * Button-Reset (0,0,1) — die Regel gewinnt unabhaengig von ihrer Stelle im
+ * Stylesheet (Falle 5).
+ */
+.abschlussGo[disabled] { opacity: .45; cursor: default }
 .warnkasten { display: inline-flex; align-items: center; gap: 5px }
 
 /* ——— Scanner (§7.6). Diese Regeln greifen NUR auf --lb-* zu: die Komponente
