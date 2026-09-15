@@ -2047,6 +2047,9 @@ pnpm vitest run src/app/m/lagerbuch/_actions/detail.test.ts
 ```ts
   const verteilung = restJeChargeUndOrt(db, id);
   const stamm = ortStamm(db);
+  // Der Handlager-Bereich zuerst, Fahrzeuge dahinter. ⚠️ `sortierung` ALLEIN
+  // REICHT NICHT: ein Fahrzeug traegt 0 und stuende damit VOR „Schrank 1" (10).
+  const imHandlager = new Set(handlagerOrte(db));
 
   const chargenErgebnis = detail.chargen
     .map((charge): ArtikelDetailCharge => {
@@ -2060,11 +2063,12 @@ pnpm vitest run src/app/m/lagerbuch/_actions/detail.test.ts
             menge,
             zugangshinweis: o?.zugangshinweis ?? null,
             sortierung: o?.sortierung ?? 0,
+            rang: imHandlager.has(ortId) ? 0 : 1,
           };
         })
-        // Wurzel und Schränke in gepflegter Reihenfolge, Fahrzeuge dahinter.
-        .sort((a, b) => a.sortierung - b.sortierung || a.name.localeCompare(b.name))
-        .map(({ sortierung: _weg, ...rest }) => rest);
+        .sort((a, b) =>
+          a.rang - b.rang || a.sortierung - b.sortierung || a.name.localeCompare(b.name))
+        .map(({ sortierung: _s, rang: _r, ...rest }) => rest);
       const status = verfallStatus(charge.verfall, schwellen, jetzt);
       return {
         ...charge,
