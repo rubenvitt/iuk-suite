@@ -85,6 +85,7 @@ type ZugangWerte = {
   chargeId: string;
   chargenNr?: string;
   verfall?: Dayjs | null;
+  zielLagerortId?: string;
 };
 
 type EntnahmeWerte = {
@@ -303,11 +304,12 @@ export function ArtikelDrawer({
 
   async function zugangBuchen(werte: ZugangWerte): Promise<void> {
     let eingabe:
-      | { artikelId: string; menge: number; chargeId: string }
+      | { artikelId: string; menge: number; chargeId: string; zielLagerortId?: string }
       | {
         artikelId: string;
         menge: number;
         neueCharge: { chargenNr: string; verfall: string };
+        zielLagerortId?: string;
       };
 
     if (werte.chargeId === NEUE_CHARGE) {
@@ -323,12 +325,14 @@ export function ArtikelDrawer({
           chargenNr: werte.chargenNr?.trim() ?? "",
           verfall,
         },
+        ...(werte.zielLagerortId ? { zielLagerortId: werte.zielLagerortId } : {}),
       };
     } else {
       eingabe = {
         artikelId: id,
         menge: werte.menge,
         chargeId: werte.chargeId,
+        ...(werte.zielLagerortId ? { zielLagerortId: werte.zielLagerortId } : {}),
       };
     }
 
@@ -385,6 +389,11 @@ export function ArtikelDrawer({
       })),
     ]
     : [];
+
+  const zielOrtOptionen = (detail?.zielOrte ?? []).map((ort) => ({
+    value: ort.id,
+    label: ort.name,
+  }));
 
   const fahrzeugOptionen = fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
@@ -522,7 +531,13 @@ export function ArtikelDrawer({
                 form={zugangForm}
                 layout="vertical"
                 disabled={busy}
-                initialValues={{ menge: 1, chargeId: NEUE_CHARGE }}
+                initialValues={{
+                  menge: 1,
+                  chargeId: NEUE_CHARGE,
+                  ...(detail && detail.zielOrte.length === 1
+                    ? { zielLagerortId: detail.zielOrte[0]!.id }
+                    : {}),
+                }}
                 onFinish={(werte) => { void zugangBuchen(werte); }}
                 data-rolle="zugang-form"
               >
@@ -545,6 +560,19 @@ export function ArtikelDrawer({
                     filterOption={zielFilter}
                     options={chargeOptionen}
                     virtual={false}
+                  />
+                </Form.Item>
+                <Form.Item
+                  name="zielLagerortId"
+                  label="Wohin"
+                  rules={[{ required: true, message: "Bitte einen Ort wählen" }]}
+                  extra="„Handlager (ohne Schrank)“ heißt: noch nicht einsortiert."
+                >
+                  <Select
+                    aria-label="Wohin"
+                    showSearch
+                    optionFilterProp="label"
+                    options={zielOrtOptionen}
                   />
                 </Form.Item>
                 {ausgewaehlteCharge === NEUE_CHARGE ? (

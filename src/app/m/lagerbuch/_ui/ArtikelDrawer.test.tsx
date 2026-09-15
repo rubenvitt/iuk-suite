@@ -10,6 +10,7 @@ import {
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { ArtikelDrawer, zielFilter } from "./ArtikelDrawer";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
@@ -85,6 +86,12 @@ const DETAIL = {
     },
   ],
   mehrVorhanden: true,
+  // DRK-297 — nur die Wurzel: die Zugangsform bekommt hier ihr Ziel
+  // vorbelegt (`detail.zielOrte.length === 1`), sonst muesste jeder Test in
+  // dieser Datei erst einen Schrank waehlen.
+  zielOrte: [
+    { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+  ],
 };
 
 const DETAIL_NACH_ZUGANG = {
@@ -324,14 +331,15 @@ describe("ArtikelDrawer: Dialog und lokale Stammdaten-Spiegel", () => {
   });
 });
 
-describe("ArtikelDrawer: zwei suchbare Auswahlfelder", () => {
-  it("rendert genau Fahrzeug- und Charge-Select und filtert jeweils label plus keywords", async () => {
+describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
+  it("rendert genau Fahrzeug-, Charge- und Zielort-Select und filtert jeweils label plus keywords", async () => {
     await drawerMounten();
 
     // Das Kategoriefeld (DRK-294) ist ein `AutoComplete` und damit technisch
     // ebenfalls ein `.ant-select` — gezaehlt werden hier die AUSWAHLfelder.
+    // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Fahrzeug).
     expect(queryPortal(".ant-drawer-body")
-      .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(2);
+      .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(3);
     expect(zielFilter("UE-RK", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(true);
     expect(zielFilter("ZZZ", { label: "Charge 12/26", keywords: "ZZZ-ALT" })).toBe(true);
     expect(zielFilter("MTW", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
@@ -460,6 +468,8 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       artikelId: "a1",
       menge: 5,
       chargeId: "c-fefo-1",
+      // Einzige Auswahl (nur die Wurzel) -> vorbelegt, s. DETAIL.zielOrte oben.
+      zielLagerortId: HANDLAGER_ID,
     });
   });
 
@@ -478,6 +488,40 @@ describe("ArtikelDrawer: Zugang mit exklusiver Charge", () => {
       artikelId: "a1",
       menge: 4,
       neueCharge: { chargenNr: "NEU-42", verfall: "2027-03" },
+      zielLagerortId: HANDLAGER_ID,
+    });
+  });
+
+  /**
+   * DRK-297 — sobald es einen Schrank gibt, ist die Wurzel keine geratene
+   * Vorbelegung mehr: das Feld bleibt LEER, bis jemand waehlt.
+   */
+  it("bietet bei mehreren Zielen keine Vorbelegung und sendet den gewaehlten Schrank", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+          { id: "schrank-1", name: "Schrank 1", zugangshinweis: null },
+        ],
+      },
+    });
+    await drawerMounten();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Wohin']").value).toBe("");
+
+    await selectOption("Charge", "ZZZ-ALT");
+    await selectOption("Wohin", "Schrank 1");
+    await fillPortal("[aria-label='Zugangsmenge']", "3");
+
+    await submitPortalForm("[data-rolle='zugang-form']");
+    await warte();
+
+    expect(mocks.bucheZugang).toHaveBeenCalledWith({
+      artikelId: "a1",
+      menge: 3,
+      chargeId: "c-fefo-1",
+      zielLagerortId: "schrank-1",
     });
   });
 

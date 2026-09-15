@@ -48,6 +48,12 @@ const ZugangSchema = z
         verfall: z.string().regex(MONAT_REGEX, "Verfall muss YYYY-MM sein"),
       })
       .optional(),
+    /**
+     * DRK-297 — der Schrank, in den die Ware kommt. Fehlt er, landet der Zugang
+     * auf der Handlager-Wurzel; das heisst „Schrank noch nicht zugeordnet" und
+     * ist genau das, was jede Altbuchung bedeutet.
+     */
+    zielLagerortId: z.string().min(1).optional(),
   })
   .refine((v) => Boolean(v.chargeId) !== Boolean(v.neueCharge), {
     message: "Genau eine Charge angeben",
@@ -109,6 +115,16 @@ export async function bucheZugang(
             throw new Error("Charge gehört nicht zu diesem Artikel");
           }
         }
+        const ziel = v.zielLagerortId ?? HANDLAGER_ID;
+        if (ziel !== HANDLAGER_ID) {
+          // DREI BEDINGUNGEN, EIN SATZ: existiert der Ort, haengt er am
+          // Handlager, ist er aktiv? Ohne diese Pruefung entschiede der
+          // Fremdschluessel — und der meldet „FOREIGN KEY constraint failed".
+          const ort = tx.select().from(lagerorte).where(eq(lagerorte.id, ziel)).get();
+          if (!ort || ort.parentId !== HANDLAGER_ID || !ort.aktiv) {
+            throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
+          }
+        }
         tx.insert(buchungen)
           .values({
             id: newId(),
@@ -116,7 +132,7 @@ export async function bucheZugang(
             typ: "zugang",
             artikelId: v.artikelId,
             chargeId,
-            lagerortId: HANDLAGER_ID,
+            lagerortId: ziel,
             menge: v.menge,
             quelleTyp: "oidc",
             quelleId: viewer.sub,

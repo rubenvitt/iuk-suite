@@ -5,7 +5,9 @@ import { quelleAufloeser } from "../_db/quelle";
 import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verfall";
 import { chargeText } from "../_lib/format";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
+import { handlagerSchraenke } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /** Typ-Exporte verschwinden beim Kompilieren und sind keine Server Actions. */
@@ -41,6 +43,14 @@ export type ArtikelDetailResult = {
   chargen: ArtikelDetailCharge[];
   historie: ArtikelDetailBuchung[];
   mehrVorhanden: boolean;
+  /**
+   * DRK-297 — die waehlbaren ZIELE fuer einen Zugang: die Wurzel und die
+   * AKTIVEN Handlager-Schraenke. Nicht zu verwechseln mit `orte` (Aufgabe 11,
+   * die VERTEILUNG einer Charge) — zwei Felder namens `orte` mit
+   * verschiedener Bedeutung waeren der zuverlaessigste Weg, ins falsche zu
+   * greifen.
+   */
+  zielOrte: { id: string; name: string; zugangshinweis: string | null }[];
 };
 
 /**
@@ -93,6 +103,14 @@ export async function getDetail(
         quelleName: quelleName(buchung.quelleTyp, buchung.quelleId),
       })),
       mehrVorhanden: detail.mehrVorhanden,
+      // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber
+      // kein Ziel mehr. Die Wurzel steht ausdrücklich darin.
+      zielOrte: [
+        { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ...handlagerSchraenke(db, true).map((o) => ({
+          id: o.id, name: o.name, zugangshinweis: o.zugangshinweis,
+        })),
+      ],
     },
   };
 }
