@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
@@ -30,6 +30,47 @@ const BREITEN = [
   { name: "Desktop", width: 1280, height: 720 },
 ] as const;
 
+/**
+ * WARTET, BIS DIE HUELLE IHRE SPALTEN AUFGETEILT HAT — und das ist kein
+ * vorsorgliches Warten, sondern die Abhilfe zu einem GEMESSENEN Ausfall.
+ *
+ * ⚠️ DAS SYMPTOM SIEHT AUS WIE „die Tabelle scrollt nicht in sich".
+ * Gemessen am 2026-09-15 bei 834px, dreimal in Folge gleich:
+ *
+ *     sofort nach `toContainText`   main 834px — Scroll-Container 802/802
+ *     nach `networkidle`            main 594px — Scroll-Container 562/746
+ *
+ * Die Seitenleiste steht in BEIDEN Zustaenden mit 240px da (`display: block`) —
+ * sie ist nicht die Ursache. Der Inhalt liegt anfangs bloss noch UNTER ihr statt
+ * neben ihr: `next dev` (Turbopack) spritzt die Stylesheets der CSS-Module per
+ * JS nach, und bis das geschehen ist, nimmt `Layout.Content` die volle
+ * Fensterbreite. Mit 802px Platz fuer 746px Tabelle ist dann nichts zu eng, der
+ * Eigenscroll entfaellt — und eine Zusicherung darauf faellt.
+ *
+ * ⚠️ NICHT MIT EINEM GROESSEREN ZEITBUDGET ZU HEILEN: `expect`s eigene
+ * Wiederholung greift nur an EINER Zusicherung, gemessen wird hier aber EINMAL
+ * in einem `evaluate` und danach nur noch gerechnet. Die erste Messung ist die
+ * einzige, und sie faellt in das Fenster.
+ *
+ * Die Probe ist die Invariante des fertigen Rasters: der Inhalt beginnt dort,
+ * wo die Leiste endet. Unterhalb von 768px steht die Leiste auf `display: none`
+ * (`core/shell/shell.module.css`), ihr Kasten ist dann durchweg 0 — die Probe
+ * ist dort wahr, ohne etwas zu behaupten, und das ist richtig so: ohne Leiste
+ * gibt es nichts, worauf der Inhalt warten muesste.
+ */
+async function warteAufSpaltenaufteilung(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(() => {
+    const inhalt = document.querySelector(".ant-layout-content");
+    const leiste = document.querySelector(".ant-layout-sider");
+    if (!inhalt) return false;
+    const links = inhalt.getBoundingClientRect().left;
+    const rechts = leiste ? leiste.getBoundingClientRect().right : 0;
+    return links >= rechts - 1;
+  }), {
+    message: "Der Inhalt liegt noch unter der Seitenleiste statt neben ihr",
+  }).toBe(true);
+}
+
 test.describe("Ist-Bestand im Fahrzeugblatt", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
@@ -49,6 +90,7 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
         .getByRole("table", { name: "Soll-Bestückung" })
         .locator("tbody tr[data-row-key='e2e-soll']");
       await expect(zeile).toContainText("E2E Check Kompressen");
+      await warteAufSpaltenaufteilung(page);
 
       const ist = zeile.locator("[data-rolle='ist']");
       const soll = zeile.getByRole("spinbutton", { name: /^Soll für / });
@@ -91,6 +133,10 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
             };
           })(),
           fenster: window.innerWidth,
+          dokument: {
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+          },
         };
       });
       console.log(`DRK-315 ${breite.name} ${breite.width}px`, JSON.stringify(mass));
@@ -104,10 +150,7 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
       // Ist links vom Soll, ohne Ueberlappung.
       expect(mass.ist.rechts).toBeLessThanOrEqual(mass.soll.links);
       // Die Tabelle scrollt in sich (docs/design/README.md), statt die Seite
-      // zu verbreitern. ⚠️ NICHT `documentElement.scrollWidth`: die
-      // Verfallstabelle weiter unten auf derselben Seite laeuft unabhaengig
-      // davon ueber (bei 390px um 357px, auch ohne DRK-315) — eigener Fund,
-      // DRK-322. Ist der behoben, gehoert die Seitenpruefung hierher zurueck.
+      // zu verbreitern.
       expect(mass.scroller).not.toBeNull();
       expect(mass.scroller!.rechts).toBeLessThanOrEqual(mass.fenster);
       if (breite.width < 1280) {
@@ -115,9 +158,37 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
         expect(mass.scroller!.scrollWidth).toBeGreaterThan(mass.scroller!.clientWidth);
       }
 
+      // UND DIE SEITE SELBST LAEUFT NICHT WAAGERECHT UEBER (DRK-322).
+      //
+      // ⚠️ DIESE ZEILE STAND HIER SCHON EINMAL UND MUSSTE WIEDER RAUS. Als
+      // DRK-315 gebaut wurde, lief das Blatt auch ohne die Soll-Tabelle ueber:
+      // die Verfallstabelle weiter unten hing in einer impliziten `auto`-Spalte
+      // und verbreiterte die Seite um 357px bei 390px Fensterbreite. Die
+      // Zusicherung war damit nicht zu halten, ohne einen fremden Fehler
+      // mitzubeheben — also wurde sie als DRK-322 herausgetrennt und die Spec
+      // mass nur noch ihren eigenen Scroll-Container. DRK-343 hat die
+      // Verfallstabelle auf `minmax(0, 1fr)` gestellt; seither ist der
+      // Seitenueberlauf weg, und die Zusicherung gehoert zurueck.
+      //
+      // ⚠️ WARUM SIE HIER GEBRAUCHT WIRD UND NICHT NUR IN
+      // `lagerbuch-fahrzeugblatt-mobil.spec.ts`: jene Spec deckt die
+      // Verfallstabelle an ihrem eigenen Fahrzeug ab. Diese hier ist die
+      // einzige, die das Blatt mit einer BESTUECKTEN Soll-Tabelle daneben
+      // misst — und die Soll-Tabelle ist die breitere von beiden. Faellt eine
+      // der beiden Abhilfen wieder heraus, ist es diese Zeile, die es merkt.
+      //
+      // Gemessen am 2026-09-15 in echtem Chromium auf `e2e-fahrzeug`, alle drei
+      // Breiten mit 0px Ueberlauf; die Tabellen tragen dabei 746px (Soll) und
+      // 891px (Verfall) Inhalt in 358px bzw. 308px breiten Kaesten.
+      expect(
+        mass.dokument.scrollWidth - mass.dokument.clientWidth,
+        `Das Fahrzeugblatt ragt bei ${breite.width}px um `
+        + `${mass.dokument.scrollWidth - mass.dokument.clientWidth}px über die Sichtfläche`,
+      ).toBeLessThanOrEqual(0);
+
       // Das Soll-Feld ist ueber den Tabellen-Scroll erreichbar, ohne dass die
-      // SEITE waagerecht mitscrollt — sonst bewiese `toBeInViewport` nur den
-      // Seitenueberlauf aus DRK-322.
+      // SEITE waagerecht mitscrollt — sonst bewiese `toBeInViewport` nur einen
+      // Seitenueberlauf.
       await page.evaluate(() => window.scrollTo(0, window.scrollY));
       await soll.scrollIntoViewIfNeeded();
       await expect(soll).toBeInViewport();

@@ -109,6 +109,27 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
     dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
 
+    ⚠️ **Die Hülle bricht aus einem ZWEITEN, unabhängigen Grund um, und der trifft nicht den
+    Klick, sondern die MESSUNG** (gemessen im Modul `lagerbuch`, DRK-322, bei 834px dreimal in
+    Folge gleich). `next dev` (Turbopack) spritzt die Stylesheets der CSS-Module per JS nach;
+    bis das geschehen ist, nimmt `Layout.Content` die **volle Fensterbreite** und der Inhalt
+    liegt unter der Seitenleiste statt neben ihr. Die Leiste steht dabei längst mit ihren 240px
+    da — wer nur nach ihr sieht, schließt fälschlich, das Raster stehe:
+
+    ```
+    sofort nach dem ersten sichtbaren Treffer   main 834px — Tabellenkasten 802px, Inhalt 802px
+    nach `networkidle`                          main 594px — Tabellenkasten 562px, Inhalt 746px
+    ```
+
+    Im ersten Zustand ist nichts zu eng, also scrollt die Tabelle nicht in sich — und eine
+    Zusicherung darauf fällt, **obwohl die Seite richtig ist**. `expect`s eigene Wiederholung
+    rettet das nicht: wer einmal per `evaluate` misst und danach nur noch rechnet, hat genau
+    einen Versuch, und der fällt ins Fenster. Abhilfe ist nicht „länger warten", sondern eine
+    Invariante des fertigen Rasters abzufragen — der Inhalt beginnt dort, wo die Leiste endet
+    (`warteAufSpaltenaufteilung` in `e2e/lagerbuch-ist-bestand.spec.ts`). ⚠️ Die Richtung ist
+    **umgekehrt zu der oben**: dort ist es die CI mit kaltem `.next`, die auffliegt, hier die
+    warme lokale Maschine, auf der die Zusicherung sofort greift, bevor das CSS da ist.
+
     **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
     Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes
     misst, als sein Name sagt**.
