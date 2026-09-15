@@ -146,9 +146,13 @@ function bestandAn(artikelId: string, lagerortId: string): number {
  * Server Action postet auf die URL ihrer eigenen Seite.
  */
 async function waehleZiel(page: Page, name: RegExp): Promise<void> {
+  // Eine Radiogruppe, ein Absendeknopf (`docs/design/README.md`: echte
+  // Radiogruppen statt Knopfreihen). Der Greifer ist die ROLLE, nicht die
+  // Bauform — er überlebt damit einen weiteren Umbau der Zeile.
+  await page.getByRole("radio", { name }).check();
   const [antwort] = await Promise.all([
     page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/helfer/ziel")),
-    page.getByRole("button", { name }).click(),
+    page.getByRole("button", { name: "Ziel übernehmen" }).click(),
   ]);
   expect(
     antwort.status(),
@@ -211,7 +215,7 @@ test.describe("Der Weg am Stueck", () => {
      * `disabled`-Attribut, nicht den Klick.
      */
     await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
@@ -275,7 +279,7 @@ test.describe("Der Weg am Stueck", () => {
 
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
     await page.waitForURL(/\/a\/e2e-artikel/);
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
     await page.waitForURL(/\/a\/e2e-artikel/);
@@ -320,7 +324,7 @@ test.describe("Der Weg am Stueck", () => {
     await page.waitForURL(/\/helfer$/);
 
     await page.goto(lagerbuchUrl("/a/e2e-artikel"));
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
     await page.waitForURL(/\/a\/e2e-artikel/);
@@ -429,7 +433,7 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
      * gar nicht mehr durch. Das entspricht auch dem Hergang, den dieser Test
      * beschreibt: die Sperre trifft jemanden MITTEN in der Arbeit.
      */
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
