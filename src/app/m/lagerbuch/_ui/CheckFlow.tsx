@@ -113,6 +113,7 @@ export function CheckFlow({
   flaschen,
   verfall,
   warn,
+  gebunden,
 }: {
   fahrzeug: { id: string; name: string; kennung: string | null };
   soll: CheckPos[];
@@ -121,6 +122,17 @@ export function CheckFlow({
   /** Beim letzten Check gemeldeter Verfall je artikelId („YYYY-MM"), leer = keine Angabe. */
   verfall: Record<string, string>;
   warn: VerfallSchwellen;
+  /**
+   * Das gescannte Kaertchen haengt an DIESEM Fahrzeug (DRK-302) — dann gibt es
+   * kein „anderes Fahrzeug", und die beiden Auswege in die Wahl entfallen.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL. Ein `gebunden?: boolean` waere in jeder
+   * vergessenen Aufrufstelle still `undefined` und damit „ungebunden" — der
+   * Knopf in die volle Liste stuende wieder da, und kein Tor meldete es. Die
+   * Seite ist heute der einzige Aufrufer; ein zweiter muesste die Frage
+   * ausdruecklich beantworten.
+   */
+  gebunden: boolean;
 }) {
   // DIE SECHS CLIENT-ZUSTAENDE (1:1, `:62-71`). Sie bleiben bei JEDEM Fehler
   // stehen — das ist die tragende Zusage von §7.4.4 und §7.10.3.
@@ -264,7 +276,16 @@ export function CheckFlow({
             "Für dieses Fahrzeug ist weder ein Soll noch ein Gerät noch eine Sauerstoffflasche " +
             "hinterlegt. Die Verwaltung pflegt die Bestückung."
           }
-          weg={{ href: "/helfer/check", text: "Anderes Fahrzeug" }}
+          /*
+           * DER RUECKWEG HAENGT AM KAERTCHEN (DRK-302). Bei einem gebundenen
+           * Kaertchen gibt es kein anderes Fahrzeug — „Anderes Fahrzeug" fuehrte
+           * dann in eine Wahl, aus der die Seite unmittelbar wieder auf DIESES
+           * Fahrzeug zurueckspringt: ein Knopf, der nichts tut. `weg` ist
+           * Pflicht-Prop (§11.7), ein Weglassen ist also keine Option.
+           */
+          weg={gebunden
+            ? { href: "/helfer", text: "Zur Entnahme" }
+            : { href: "/helfer/check", text: "Anderes Fahrzeug" }}
         />
       </>
     );
@@ -368,9 +389,18 @@ export function CheckFlow({
         >
           Nochmal dieses Fahrzeug
         </Link>
-        <Link className={`${s.knopf} ${s.knopfGeist}`} href="/helfer/check" data-rolle="anderes">
-          Anderes Fahrzeug
-        </Link>
+        {/*
+          NUR BEI UNGEBUNDENEM KAERTCHEN (DRK-302). Nach dem Scan eines
+          Fahrzeug-Kaertchens gibt es kein anderes Fahrzeug; der Knopf fuehrte in
+          eine Wahl, die die Seite sofort wieder auf dieses Fahrzeug aufloest.
+          „Nochmal dieses Fahrzeug" bleibt in BEIDEN Lagen stehen — es ist der
+          Weg, mit dem die Helferin nach einer Buchung frische Bestaende sieht.
+        */}
+        {!gebunden && (
+          <Link className={`${s.knopf} ${s.knopfGeist}`} href="/helfer/check" data-rolle="anderes">
+            Anderes Fahrzeug
+          </Link>
+        )}
       </>
     );
   }

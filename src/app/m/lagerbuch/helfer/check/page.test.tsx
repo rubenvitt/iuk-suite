@@ -153,10 +153,12 @@ vi.mock("../../_ui/CheckFlow", () => ({
     flaschen: { letzterDruck: number | null }[];
     verfall: Record<string, string>;
     warn: unknown;
+    gebunden: boolean;
   }) => (
     <div
       data-rolle="flow"
       data-fz={p.fahrzeug.id}
+      data-gebunden={String(p.gebunden)}
       data-fz-felder={Object.keys(p.fahrzeug).sort().join(",")}
       data-soll-ids={p.soll.map((x) => String(x.id)).join(",")}
       data-soll-felder={Object.keys(p.soll[0] ?? {}).sort().join(",")}
@@ -207,6 +209,16 @@ function tokenAnlegen(aktiv = true): void {
     id: TOKEN_ID, code: "482-137", label: "RTW 1",
     aktiv, createdAt: new Date(), createdBy: "sub-1",
   }).run();
+}
+
+/**
+ * Macht aus dem angelegten Kaertchen ein FAHRZEUG-Kaertchen (DRK-302).
+ *
+ * Eine Aenderung an der bestehenden Zeile und kein zweites `insert`: `befund()`
+ * sucht ueber `tokens.id`, und zwei Zeilen mit derselben Id gaebe es nicht.
+ */
+function anFahrzeugBinden(fahrzeugId: string): void {
+  t.db.update(tokens).set({ zielTyp: "fahrzeug", zielId: fahrzeugId }).run();
 }
 
 /** Eine Zeile aus `fahrzeugListe` — alle fuenf Felder, die der Lesepfad fuehrt. */
@@ -526,41 +538,190 @@ describe("/helfer/check — der Rahmen", () => {
 });
 
 describe("Bauform", () => {
-  it("traegt den Ansatzpunkt-Kommentar AN der `gewaehlt`-Zeile (offene Frage 5)", () => {
+  it("traegt die Abgrenzung zur offenen Frage 5 AN der `gebunden`-Zeile", () => {
     /*
-     * ANSATZPUNKT 1 VON 2. Der zweite ist die erste Zeile von `checkAbschluss`
-     * (`_actions/check.ts`), und dort steht die Marke bereits.
+     * ANSATZPUNKT 1 VON 2 — seit DRK-302 mit anderer Aufgabe als zuvor.
      *
-     * Ein blosses `toMatch(/scope_lagerort_id/)` — so druckt der Plan es ab —
-     * bliebe gruen, wenn der Kommentar irgendwo sonst in der Datei staende. Der
-     * Brief sagt aber „die `gewaehlt`-Zeile traegt einen Kommentar, der GENAU
-     * DIE STELLE markiert". Also: den zusammenhaengenden `//`-Block UEBER der
-     * `gewaehlt`-Zeile ablesen und dort suchen.
+     * Bis DRK-302 markierte der Kommentar eine LEERE Stelle („hier stuende der
+     * Riegel"). Jetzt steht an der Stelle Code, und der Kommentar muss die
+     * teurere Frage beantworten: WARUM ist diese Begrenzung kein Riegel, und
+     * warum laeuft sie NICHT ueber `tokens.scope_lagerort_id`? Ohne beide
+     * Saetze ist der naechstliegende Handgriff, sie „nur konsequent" in
+     * `_actions/check.ts` nachzuziehen — und damit die offene Betreiberfrage 5
+     * im Vorbeigehen zu beantworten, obwohl sie an der physischen Verteilung
+     * der Etiketten haengt.
+     *
+     * Ein blosses `toMatch(/scope_lagerort_id/)` ueber die ganze Datei bliebe
+     * gruen, wenn der Satz irgendwo sonst staende. Also: den zusammenhaengenden
+     * Kommentarblock UEBER der `gebunden`-Zeile ablesen und dort suchen.
      *
      * ⚠️ Dieser Scan liest den ROHTEXT und darf es: er prueft die ANWESENHEIT
      * eines Kommentars. `ohneKommentare()` machte ihn strukturell unerfuellbar.
      */
     const zeilen = readFileSync(QUELLE, "utf8").split("\n");
-    const i = zeilen.findIndex((z) => /^\s*const gewaehlt\b/.test(z));
-    expect(i, "keine `const gewaehlt`-Zeile gefunden").toBeGreaterThan(0);
+    const i = zeilen.findIndex((z) => /^\s*const gebunden\b/.test(z));
+    expect(i, "keine `const gebunden`-Zeile gefunden").toBeGreaterThan(0);
     const block: string[] = [];
-    for (let j = i - 1; j >= 0 && zeilen[j].trimStart().startsWith("//"); j--) {
+    for (let j = i - 1; j >= 0 && /^(\/\/|\/\*|\*)/.test(zeilen[j].trimStart()); j--) {
       block.unshift(zeilen[j]);
     }
     expect(block.length).toBeGreaterThan(0);
-    expect(block.join("\n")).toMatch(/scope_lagerort_id/);
+    const text = block.join("\n");
+    // Die tote Spalte ist NICHT der Weg — und das muss dort stehen, wo jemand
+    // den Weg sucht.
+    expect(text, "nennt `scope_lagerort_id` nicht").toMatch(/scope_lagerort_id/);
+    // Und der zweite Ansatzpunkt bleibt ausdruecklich offen.
+    expect(text, "nennt den zweiten Ansatzpunkt nicht").toMatch(/check\.ts|checkAbschluss/);
   });
 
   it("benutzt KEIN `redirect` — auch nicht bei genau einem Fahrzeug", () => {
     // Der Verhaltensbeleg steht oben (`umleitungen` bleibt leer). Dieser Scan
     // haelt zusaetzlich fest, dass der Aufruf gar nicht erst im Rumpf steht —
     // und laeuft ueber `ohneKommentare()`, weil die Begruendung an der
-    // `gewaehlt`-Zeile das Wort selbst nennt (Regel 1, Befund 1).
+    // `gewaehlt`-Zeile das Wort selbst nennt (Regel 1, Befund 1). Seit
+    // DRK-302 gilt das doppelt: dort steht auch, warum ein `?fz=`, das gegen
+    // die Bindung verliert, NICHT geradegezogen wird.
     expect(ohneKommentare(readFileSync(QUELLE, "utf8"))).not.toMatch(/redirect\s*\(/);
   });
 
   it("ist `force-dynamic`", () => {
     // Der WERT des Exports, nicht seine Schreibweise im Dateitext.
     expect(seiteDynamic).toBe("force-dynamic");
+  });
+});
+
+describe("/helfer/check — der Einstieg nach dem Fahrzeug-Scan (DRK-302)", () => {
+  /*
+   * DIE FRAGE, DIE DIESER BLOCK BEANTWORTET: „nur die Checklisten des
+   * GESCANNTEN Fahrzeugs". Die Bindung kommt aus der Token-Zeile
+   * (`_lib/helferZugang.ts`), nicht aus `?fz=` — ein Suchparameter ist
+   * Nutzereingabe und waere als Beleg wertlos.
+   *
+   * ⚠️ ES IST EINE ANZEIGE-ENTSCHEIDUNG, KEIN RIEGEL (Ticket: „Fahrzeugfilterung
+   * ist nicht automatisch eine neue Berechtigungsregel"). Die Seite BIETET kein
+   * anderes Fahrzeug mehr an; `_actions/check.ts` bleibt unveraendert offen, und
+   * das ist Absicht — Ansatzpunkt 2, offene Betreiberfrage 5.
+   */
+
+  it("zeigt bei gebundenem Kaertchen NUR sein Fahrzeug — ohne Wahl", async () => {
+    // DER KERN DES TICKETS. Ohne die Bindung stuenden hier drei Fahrzeuge zur
+    // Wahl, und die Helferin muesste im Fahrzeug erst heraussuchen, in welchem
+    // sie gerade sitzt.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+    expect(exists("[data-rolle='wahl']")).toBe(false);
+    expect(sollFuer).toHaveBeenCalledWith(t.db, "fz-2");
+  });
+
+  it("verwirft ein `?fz=` auf ein ANDERES Fahrzeug", async () => {
+    /*
+     * Die zweite Haelfte derselben Zusage, und die teurere: nach dem Scan liegt
+     * `?fz=` in der URL, sie ist teilbar und bleibt im Verlauf stehen. Gaelte
+     * der Parameter staerker als das Kaertchen, genuegte ein Tippfehler oder ein
+     * alter Verlaufseintrag, um den Check am FALSCHEN Fahrzeug zu fuehren — und
+     * der URL sieht das niemand an.
+     */
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+    expect(sollFuer).toHaveBeenCalledTimes(1);
+    expect(sollFuer).toHaveBeenCalledWith(t.db, "fz-2");
+  });
+
+  it("sagt dem Flow, dass es kein anderes Fahrzeug gibt", async () => {
+    // `gebunden` steuert allein die zwei Auswege „Anderes Fahrzeug" im Flow
+    // (`_ui/CheckFlow.tsx`). Ohne das Prop zeigte die Seite zwar ein einziges
+    // Fahrzeug, boete am Ende aber einen Knopf in die volle Liste — der Einstieg
+    // waere genau eine Bedienung weit von seiner Begrenzung entfernt.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("true");
+  });
+
+  it("laesst ein UNGEBUNDENES Kaertchen unveraendert waehlen", async () => {
+    // Der Regelfall des Bestands, und er MUSS bleiben: das allgemeine
+    // Helfer-Kaertchen (`zielTyp: null`) und das Regaletikett fuehren weiter in
+    // die volle Wahl. DRK-305 fuehrt die uebergreifende Ansicht als eigenen
+    // Einstieg — hier wird sie nicht nebenbei abgeschafft.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='wahl']").getAttribute("data-anzahl")).toBe("2");
+    expect(exists("[data-rolle='flow']")).toBe(false);
+  });
+
+  it("meldet ein ungebundenes Kaertchen auch dem Flow als ungebunden", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("false");
+  });
+
+  it("bindet ein ARTIKEL-Kaertchen an kein Fahrzeug", async () => {
+    // Ein Regaletikett fuehrt nach `/a/<id>`; wer von dort auf den Tab
+    // „Fahrzeug-Check" wechselt, muss waehlen koennen. Eine Bindung ueber
+    // `zielId` OHNE Blick auf `zielTyp` haette hier die Artikel-Id fuer eine
+    // Fahrzeug-Id gehalten — und gar kein Fahrzeug mehr gefunden.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    t.db.update(tokens).set({ zielTyp: "artikel", zielId: "fz-1" }).run();
+    await mount(await CheckSeite(sp()));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
+    expect(exists("[data-rolle='flow']")).toBe(false);
+  });
+
+  it("faellt auf die WAHL zurueck, wenn das gebundene Fahrzeug stillgelegt ist", async () => {
+    /*
+     * Ein laminiertes Kaertchen ueberlebt die Stilllegung seines Fahrzeugs, und
+     * die Verwaltung raeumt es nicht zwingend nach. Eine Sackgasse waere hier
+     * der teuerste Ausgang: die Helferin steht im Fahrzeug und kaeme mit einem
+     * gueltigen Kaertchen nirgendwohin.
+     *
+     * ⚠️ Zulaessig ist der Rueckfall NUR, weil die Bindung eine Anzeige-
+     * Entscheidung ist und kein Riegel. Waere sie ein Riegel, oeffnete genau
+     * diese Zeile ihn wieder — dann gehoerte hier ein Leerzustand hin.
+     */
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-alt", false)]);
+    anFahrzeugBinden("fz-alt");
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-1");
+    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("false");
+  });
+
+  it("faellt auf die WAHL zurueck, wenn das gebundene Fahrzeug geloescht ist", async () => {
+    // Der zweite Zweig desselben Randfalls: `tokens.ziel_id` traegt keinen
+    // Fremdschluessel (`_db/schema.ts`, „bewusst polymorph, OHNE FK"), die Zeile
+    // kann also ins Leere zeigen.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("gibt-es-nicht");
+    await mount(await CheckSeite(sp()));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
+    expect(sollFuer).not.toHaveBeenCalled();
+  });
+
+  it("laedt fuer das gebundene Fahrzeug GENAU EINMAL, alle vier Lesepfade", async () => {
+    // Der Schnitt aus Falle 15 bleibt: es wandert nur EIN Fahrzeug in den
+    // RSC-Payload, nicht die Bestueckung der ganzen Organisation.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-3");
+    await mount(await CheckSeite(sp()));
+    for (const [name, spion] of [
+      ["sollFuerFahrzeug", sollFuer], ["geraeteFuerLagerort", geraeteFuer],
+      ["o2FlaschenFuerLagerort", flaschenFuer], ["verfallFuerLagerort", verfallFuer],
+    ] as const) {
+      expect(spion, name).toHaveBeenCalledTimes(1);
+      expect(spion, name).toHaveBeenCalledWith(t.db, "fz-3");
+    }
+  });
+
+  it("leitet NICHT um — auch nicht, um `?fz=` geradezuziehen", async () => {
+    // §7.11: ein `redirect()` waere eine zusaetzliche Anfrage und ein
+    // geschriebener Pfad mehr. Die Seite rendert das richtige Fahrzeug, die URL
+    // bleibt wie sie ist.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-1" })));
+    expect(umleitungen).toEqual([]);
   });
 });

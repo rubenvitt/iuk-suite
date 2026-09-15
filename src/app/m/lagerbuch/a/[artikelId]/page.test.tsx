@@ -148,6 +148,10 @@ const ZUGANG = {
   code: "482-137",
   label: "RTW 1",
   laeuftAb: new Date("2026-08-04T17:00:00.000Z"),
+  // Ein Regaletikett haengt an keinem Fahrzeug (DRK-302). Diese Weiche liest die
+  // Bindung nicht — sie steht hier, weil `HelferZugang` sie als Pflichtfeld
+  // fuehrt, und `null` ist der Fall, der zu einem Artikel-Kaertchen passt.
+  fahrzeugBindung: null,
 };
 const VIEWER = { sub: "u1", groups: ["lagerbuch"], name: null, email: null };
 const DETAIL = {

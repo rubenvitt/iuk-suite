@@ -154,6 +154,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     expect(queryAll("[data-rolle='schritt']").map((e) => e.textContent?.trim())).toEqual([
@@ -173,6 +174,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     expect(queryAll("[data-rolle='schritt']").map((e) => e.textContent?.trim())).toEqual([
@@ -191,6 +193,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     expect(queryAll("[data-rolle='schritt']").map((e) => e.textContent?.trim())).toEqual([
@@ -201,11 +204,33 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
 
   it("Fahrzeug OHNE ALLES zeigt den LeerZustand — mit benanntem Rueckweg", async () => {
     await mount(
-      <CheckFlow fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN} />,
+      <CheckFlow
+        fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
+        gebunden={false}
+      />,
     );
     expect(exists("[data-rolle='leer-titel']")).toBe(true);
     expect(query<HTMLAnchorElement>("[data-rolle='leer-weg']").getAttribute("href")).toBe(
       "/helfer/check",
+    );
+  });
+
+  it("Fahrzeug ohne alles, GEBUNDENES Kaertchen: der Rueckweg fuehrt zur Entnahme", async () => {
+    /*
+     * DRK-302. `weg` ist Pflicht-Prop (§11.7) — es gibt also keinen Ausgang
+     * „kein Weg". Bei einem gebundenen Kaertchen fuehrte „Anderes Fahrzeug" in
+     * eine Wahl, die die Check-Seite sofort wieder auf DIESES Fahrzeug
+     * aufloest: ein Knopf, der sichtbar nichts tut. Die Entnahme ist der
+     * einzige Ort, an dem es fuer diese Sitzung wirklich weitergeht.
+     */
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
+        gebunden
+      />,
+    );
+    expect(query<HTMLAnchorElement>("[data-rolle='leer-weg']").getAttribute("href")).toBe(
+      "/helfer",
     );
   });
 
@@ -221,6 +246,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     // Geraete ist hier NICHT der letzte Schritt.
@@ -247,6 +273,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     expect(query("[data-rolle='stepanzeige']").textContent).toBe("7");
@@ -269,6 +296,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     const felder = queryAll<HTMLInputElement>("[data-rolle='zaehlliste'] input");
@@ -287,6 +315,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ id: "sp-1", fachLabel: "Fach 1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
+        gebunden={false}
       />,
     );
     // Beide Zeilen sind da …
@@ -308,6 +337,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
         soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
+        gebunden={false}
       />,
     );
     expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("Verfall bei");
@@ -331,6 +361,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{ "art-1": "2020-01" }}
         warn={WARN}
+        gebunden={false}
       />,
     );
     expect(query("[data-rolle='zaehl-summe']").textContent).toContain("1 laufen ab");
@@ -345,6 +376,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     for (let i = 0; i < 2; i++) await minus(0);
@@ -364,6 +396,7 @@ describe("CheckFlow — Nachfuellen", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 2 })]}
+        gebunden={false}
       />,
     );
     for (let i = 0; i < 5; i++) await minus(0); // Ist = 0
@@ -382,6 +415,7 @@ describe("CheckFlow — Nachfuellen", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 20 })]}
+        gebunden={false}
       />,
     );
     for (let i = 0; i < 2; i++) await minus(0); // Ist = 3, Luecke = 2
@@ -408,6 +442,7 @@ describe("CheckFlow — Nachfuellen", () => {
           POS({ id: "sp-1", soll: 5, handlagerBestand: 2 }),
           POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
         ]}
+        gebunden={false}
       />,
     );
     for (const el of queryAll("button[aria-label$='verringern']")) {
@@ -464,6 +499,7 @@ describe("CheckFlow — Nachfuellen", () => {
           POS({ id: "sp-1", soll: 5, handlagerBestand: 2 }),
           POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
         ]}
+        gebunden={false}
       />,
     );
     for (const el of queryAll("button[aria-label$='verringern']")) {
@@ -514,6 +550,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         flaschen={[FLASCHE]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
+        gebunden={false}
       />,
     );
     for (let i = 0; i < 2; i++) await minus(0); // Ist = 3
@@ -549,6 +586,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03");
@@ -573,6 +611,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await fill("[data-rolle='zaehlliste'] input[type='month']", "");
@@ -598,6 +637,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     const gedrueckt = (rolle: string) =>
@@ -652,7 +692,9 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
    */
   it("die fuenf Auswahlknoepfe sind mit Handschuhen treffbar (Tippmass)", async () => {
     await mount(
-      <CheckFlow fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN} />,
+      <CheckFlow fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN}
+        gebunden={false}
+      />,
     );
     const knoepfe = queryAll(
       "[data-rolle='geraet-vorhanden'], [data-rolle='geraet-fehlt'], [data-rolle='geraet-zustand']",
@@ -699,6 +741,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         flaschen={[O2({ nennfuelldruckBar: 0 })]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
@@ -732,6 +775,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         flaschen={[O2({ nennfuelldruckBar: 200 })]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
@@ -761,6 +805,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         ]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     const t = query("[data-rolle='o2-liste']").textContent ?? "";
@@ -780,6 +825,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         flaschen={[O2({ nennfuelldruckBar: 200, letzterDruck: 190 })]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     expect(query<HTMLInputElement>("input[aria-label='Druck O2 klein']").value).toBe("200");
@@ -813,6 +859,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(WEITER);
@@ -839,6 +886,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -872,6 +920,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -893,6 +942,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -911,6 +961,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -920,6 +971,35 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     expect(query<HTMLAnchorElement>("[data-rolle='anderes']").getAttribute("href")).toBe(
       "/helfer/check",
     );
+  });
+
+  it("bei GEBUNDENEM Kaertchen bleibt nur EIN Link — „Nochmal dieses Fahrzeug\"", async () => {
+    /*
+     * DRK-302, die zweite Haelfte der Begrenzung. Ohne sie zeigte die Seite
+     * zwar nur ein Fahrzeug, staende am Abschluss aber ein Knopf in die volle
+     * Liste — der Einstieg waere genau eine Bedienung von seiner Begrenzung
+     * entfernt, und zwar an der Stelle, an der die Helferin ohnehin hinsieht.
+     *
+     * „Nochmal dieses Fahrzeug" BLEIBT: es ist der Weg, mit dem sie nach einer
+     * Buchung frische Bestaende sieht — ein Zustandsreset ueber sieben Setter
+     * ist es ausdruecklich nicht (§7.9.1).
+     */
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[GERAET]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden
+      />,
+    );
+    await click(ABSCHLIESSEN);
+    expect(query<HTMLAnchorElement>("[data-rolle='nochmal']").getAttribute("href")).toBe(
+      "/helfer/check?fz=fz-1",
+    );
+    expect(exists("[data-rolle='anderes']")).toBe(false);
   });
 
   it("kodiert die Fahrzeug-ID im „Nochmal\"-Link (Befund 31)", async () => {
@@ -935,6 +1015,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -960,6 +1041,7 @@ const VOLLES_FAHRZEUG = (
     flaschen={[FLASCHE]}
     verfall={{}}
     warn={WARN}
+    gebunden={false}
   />
 );
 
@@ -1030,6 +1112,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1056,6 +1139,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1074,6 +1158,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1099,6 +1184,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1119,6 +1205,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
@@ -1143,6 +1230,7 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
+        gebunden={false}
       />,
     );
     await click(ABSCHLIESSEN);
