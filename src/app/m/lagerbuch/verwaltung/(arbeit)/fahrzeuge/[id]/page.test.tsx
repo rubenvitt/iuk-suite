@@ -506,6 +506,15 @@ describe("Fahrzeugblatt als Server Component", () => {
         verfall: "2025-01",
         statusTon: "rot",
         statusText: expect.any(String),
+        // DRK-303: Obergrenze und Auswahl des Aussondern-Dialogs.
+        // ⚠️ `verfall` (2025-01) und der Verfall der CHARGE (2030-01) gehen hier
+        // auseinander — genau dafuer gibt es `lagerort_verfall`: am Fahrzeug ist
+        // die Charge oft geraten, massgeblich ist, was auf der Packung steht.
+        bestand: 2,
+        einheit: "Stk",
+        chargen: [
+          { id: "charge-a1", chargenNr: "LOT-1", verfall: "2030-01", rest: 2 },
+        ],
       },
       {
         artikelId: "a3",
@@ -514,6 +523,9 @@ describe("Fahrzeugblatt als Server Component", () => {
         verfall: "2028-12",
         statusTon: "ok",
         statusText: expect.any(String),
+        bestand: 0,
+        einheit: "Stk",
+        chargen: [],
       },
     ]);
     expect(props.eintraege.some((eintrag) => eintrag.artikelId === "a2")).toBe(false);
