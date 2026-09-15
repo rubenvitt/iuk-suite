@@ -96,7 +96,31 @@ export type CheckSummen = {
  * Altwert in `zustand` zaehlt NICHT als auffaellig. Streng ist nur das SCHREIBEN
  * (`z.enum(ZUSTAENDE)` ab Teil 4).
  */
-export function summiereCheckErgebnis(roh: string | null): CheckSummen {
+/**
+ * Der Wechselwert EINER Flasche, nachgeschlagen im heutigen Stamm — oder
+ * `undefined`, wenn die Flasche dort nicht mehr steht.
+ *
+ * ⚠️ DER GRENZWERT WIRD BEWUSST NICHT GESNAPSHOTTET (DRK-308), anders als der
+ * Nennfuelldruck. Der Nennfuelldruck macht die MESSUNG lesbar — 150 bar sind an
+ * einer 200er-Flasche etwas anderes als an einer 300er, und das aendert sich
+ * nachtraeglich nicht. Der Wechselwert ist dagegen eine REGEL, und die Frage, die
+ * eine Auswertung beantworten soll, lautet „welche Flaschen sind nach der HEUTE
+ * vereinbarten Vorgabe faellig?". Dieselbe Entscheidung traegt die Verfall-Ampel
+ * schon laenger (§5.6.3: gegen HEUTE gerechnet, nicht gegen damals) — die Folge
+ * ist dieselbe und gehoert ausgeschrieben: derselbe Check kann ueber die Zeit
+ * verschiedene Zahlen zeigen, wenn jemand die Vorgabe verschiebt.
+ */
+export type WechselGrenzeNachschlag = (flascheId: string) => number | undefined;
+
+/**
+ * @param wechselGrenze Nachschlag im heutigen Flaschenstamm. OHNE ihn gilt fuer
+ * jede Flasche die Vorbelegung — das ist genau die Bedeutung, die diese Funktion
+ * vor DRK-308 hatte, und der Grund, warum die Umstellung keine Altzahl bewegt.
+ */
+export function summiereCheckErgebnis(
+  roh: string | null,
+  wechselGrenze?: WechselGrenzeNachschlag,
+): CheckSummen {
   const e = parseCheckErgebnis(roh);
 
   if (e.version === 1) {
@@ -136,7 +160,7 @@ export function summiereCheckErgebnis(roh: string | null): CheckSummen {
       nichtBewertbar += 1;
       continue;
     }
-    if (o2Status(druck, nenn).niedrig) flaschenAuffaellig += 1;
+    if (o2Status(druck, nenn, wechselGrenze?.(f.flascheId)).niedrig) flaschenAuffaellig += 1;
   }
 
   return {
