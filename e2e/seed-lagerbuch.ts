@@ -389,6 +389,53 @@ function fahrzeugVerfallFixtures(): void {
 }
 
 /**
+ * Ein Fahrzeug MIT ECHTEM BESTAND fuer `lagerbuch-aussondern-fahrzeug.spec.ts`
+ * (DRK-303).
+ *
+ * ⚠️ EIN EIGENES FAHRZEUG UND NICHT `e2e-verfall-fahrzeug`: diese Spec SCHREIBT
+ * (sie bucht Bestand ab), und `lagerbuch-verfall-fahrzeug.spec.ts` sichert an
+ * jenem Fahrzeug feste Werte zu. Zwei Specs auf derselben Zeile sind genau die
+ * Reihenfolgeabhaengigkeit, die isoliert gruen ist und im Verbund rot.
+ *
+ * ⚠️ WIEDERVERWENDET WERDEN ARTIKEL UND CHARGE des Verfallsflusses, kein neuer
+ * Artikel: ein weiterer aktiver Artikel verschoebe die Zahlen, die fremde Specs
+ * an Artikelliste, Etiketten und Kennzahlen zusichern (I-14). Der Bestand liegt
+ * AM FAHRZEUG — der Handlager-Rest derselben Charge bleibt damit unberuehrt,
+ * und genau diese Trennung ist die Invariante des Moduls (§5.2.1).
+ *
+ * ⚠️ KEINE `lagerort_verfall`-Zeile: sonst erschiene das Fahrzeug in der
+ * Verfallsliste, die die Nachbarspec durchzaehlt. Die Zeile im Fahrzeugblatt
+ * steht auch ohne sie — sie kommt aus der SOLL-Position und meldet „nicht
+ * erfasst".
+ */
+function aussondernFahrzeugFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values({
+    id: "e2e-aussondern-fahrzeug", name: "E2E Aussondern-RTW", typ: "fahrzeug",
+    kennung: "MS-E2E-7", aktiv: false, templateId: null,
+  }).onConflictDoNothing().run();
+
+  db.insert(sollPositionen).values({
+    id: "e2e-aussondern-soll", fahrzeugId: "e2e-aussondern-fahrzeug",
+    fachLabel: "Fach E2E", sort: 0, artikelId: "e2e-verfall-artikel", soll: 4,
+    templatePositionId: null, ueberschrieben: false, entfernt: false,
+  }).onConflictDoNothing().run();
+
+  // Idempotent ueber die Referenz: ein zweiter Seed-Lauf darf den Bestand nicht
+  // verdoppeln, und `buchungen` traegt keinen eindeutigen Index dafuer.
+  const schon = db.select().from(buchungen)
+    .where(eq(buchungen.referenz, "e2e-aussondern-seed")).get();
+  if (!schon) {
+    db.insert(buchungen).values({
+      id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-verfall-artikel",
+      chargeId: "e2e-verfall-charge", lagerortId: "e2e-aussondern-fahrzeug",
+      menge: 4, quelleTyp: "system", quelleId: "e2e",
+      referenz: "e2e-aussondern-seed", kommentar: null,
+    }).run();
+  }
+}
+
+/**
  * Ein Artikel MIT Kategorie fuer `lagerbuch-kategorien.spec.ts` (DRK-294).
  *
  * INAKTIV und ohne Charge, und beides mit Absicht: die Artikelliste zeigt
@@ -615,6 +662,7 @@ fahrzeugKaertchenFixtures();
 bestellFixtures();
 vorlagenFixtures();
 fahrzeugVerfallFixtures();
+aussondernFahrzeugFixtures();
 kategorieFixtures();
 inventurFixtures();
 vorgangFixtures();
