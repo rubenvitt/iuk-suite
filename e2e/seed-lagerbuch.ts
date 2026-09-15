@@ -42,7 +42,8 @@ import {
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
-  E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE,
+  E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
+  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
   E2E_LAST_ANZAHL, E2E_LAST_PRAEFIX,
 } from "./helpers/lagerbuch";
 
@@ -168,7 +169,7 @@ function checkFixtures(): void {
   }).onConflictDoNothing().run();
 
   db.insert(lagerorte).values({
-    id: "e2e-fahrzeug", name: "E2E RTW", typ: "fahrzeug", kennung: "MS-E2E-1",
+    id: E2E_FAHRZEUG_ID, name: E2E_FAHRZEUG_NAME, typ: "fahrzeug", kennung: "MS-E2E-1",
     aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
@@ -269,7 +270,7 @@ function geraeteFixtures(): void {
   }).onConflictDoNothing().run();
 
   db.insert(lagerorte).values({
-    id: "e2e-geraete-fahrzeug", name: "E2E Geräte RTW", typ: "fahrzeug",
+    id: E2E_FAHRZEUG_ANDERES_ID, name: E2E_FAHRZEUG_ANDERES_NAME, typ: "fahrzeug",
     kennung: "MS-E2E-2", aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
@@ -499,11 +500,44 @@ function lastFixtures(): void {
   }
 }
 
+/**
+ * DAS GEBUNDENE FAHRZEUG-KAERTCHEN — `e2e/lagerbuch-fahrzeug-kaertchen.spec.ts`
+ * (DRK-302).
+ *
+ * Es zeigt auf DAS Fahrzeug, das `checkFixtures()` ohnehin anlegt, und braucht
+ * deshalb kein eigenes: der Spec liest nur, er bucht nichts. Was er
+ * hinterlaesst, ist `tokens.last_used_at` dieses einen Codes — und den liest
+ * keine andere Spec.
+ *
+ * ⚠️ DIE REIHENFOLGE GEGENUEBER `checkFixtures()` IST EGAL — `tokens.ziel_id`
+ * traegt bewusst KEINEN Fremdschluessel (`_db/schema.ts`), beim Einfuegen wird
+ * also nichts geprueft. WAS ZAEHLT, IST DIE ID: zeigt das Kaertchen auf etwas
+ * anderes als das Fahrzeug, das `checkFixtures()` anlegt, faellt die
+ * Check-Seite auf die volle Wahl zurueck (der Fall „gebundenes Fahrzeug
+ * geloescht"), und der Spec waere gruen fuer „ungebunden waehlt frei" und rot
+ * fuer jeden anderen Test — ohne dass die Fehlermeldung auf die Ursache zeigte.
+ * Genau deshalb lesen BEIDE Funktionen dieselbe Konstante `E2E_FAHRZEUG_ID` aus
+ * `helpers/lagerbuch.ts` und keine Literale.
+ */
+function fahrzeugKaertchenFixtures(): void {
+  getDb().insert(tokens).values({
+    // ⚠️ DAS LABEL TRAEGT DEN FAHRZEUGNAMEN BEWUSST NICHT. Es landet im
+    // Sitzungsetikett des Helfer-Rahmens („Zugang: Token … · <label>"), und ein
+    // „E2E RTW Kärtchen" machte jede Zusicherung auf den Fahrzeugnamen im Spec
+    // zahnlos: sie waere auch dann gruen, wenn die Ueberschrift ueber dem
+    // Check-Schritt ganz fehlte.
+    id: "e2e-fahrzeug-token", code: E2E_TOKEN_FAHRZEUG, label: "E2E Fahrzeugkärtchen",
+    aktiv: true, createdAt: JETZT, createdBy: "e2e", scopeLagerortId: null,
+    zielTyp: "fahrzeug", zielId: E2E_FAHRZEUG_ID, lastUsedAt: null,
+  }).onConflictDoNothing().run();
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
 checkFixtures();
 geraeteFixtures();
+fahrzeugKaertchenFixtures();
 bestellFixtures();
 vorlagenFixtures();
 fahrzeugVerfallFixtures();

@@ -6,6 +6,7 @@ import type { DB } from "../_db/client";
 import { tokens } from "../_db/schema";
 import { requireLagerbuchHost } from "./host";
 import { HELFER_COOKIE, verifyHelferSitzung } from "./helferSitzung";
+import { fahrzeugBindungAus } from "./tokenZiel";
 
 /**
  * DIE AUTORITATIVE HELFER-PRUEFUNG — Host, Cookie-Signatur, Ablauf UND
@@ -42,6 +43,21 @@ export type HelferZugang = {
    * Helfer-Rahmens (§3.4.3 Punkt 1, §7.8.2).
    */
   laeuftAb: Date;
+  /**
+   * DAS FAHRZEUG, AN DAS DAS GESCANNTE KAERTCHEN GEBUNDEN IST — `null`, wenn es
+   * an keines gebunden ist (DRK-302).
+   *
+   * Sie kommt aus DERSELBEN Token-Zeile wie `code` und `label`, kostet also
+   * keinen zusaetzlichen Zugriff: `befund()` liest die Zeile ohnehin vollstaendig.
+   * Und sie kommt aus der DATENBANK, nicht aus dem Cookie — dieselbe Begruendung
+   * wie bei `code`/`label` (§3.4.4): eine in der Verwaltung geaenderte Zuordnung
+   * wirkt sofort, statt zwoelf Stunden lang eingefroren zu bleiben.
+   *
+   * ⚠️ SIE IST EINE ANZEIGE-ENTSCHEIDUNG, KEIN RIEGEL — die Begruendung steht
+   * ausgeschrieben an `fahrzeugBindungAus` (`_lib/tokenZiel.ts`). Wer sie hier
+   * zum Riegel macht, beantwortet die offene Betreiberfrage 5 im Vorbeigehen.
+   */
+  fahrzeugBindung: string | null;
 };
 
 /**
@@ -92,6 +108,10 @@ async function befund(db: DB): Promise<Befund> {
       code: zeile.code,
       label: zeile.label,
       laeuftAb: sitzung.laeuftAb,
+      // ABGELEITET, NICHT NOCH EINMAL ENTSCHIEDEN: dieselbe Funktion, aus der
+      // `tokenZielPfad` seinen Fahrzeug-Zweig baut. Landung nach dem Scan und
+      // Begrenzung des Einstiegs koennen so konstruktiv nicht auseinanderfallen.
+      fahrzeugBindung: fahrzeugBindungAus(zeile.zielTyp, zeile.zielId),
     },
   };
 }
