@@ -27,10 +27,11 @@ type Werte = {
  * verbleibende früheste Datum deshalb nicht berechenbar; wer es errät, lässt eine
  * Angabe stehen, die nicht mehr zum Bestand passt, und kein Gate meldet das.
  *
- * ⚠️ WIRD DER GANZE BESTAND AUSGESONDERT, ENTFÄLLT DIE ANGABE. Das Feld wird dann
- * gesperrt und leer übergeben — die Aktion löscht die Zeile. Ohne diese Kopplung
- * bliebe ein Verfallsdatum an einem Artikel stehen, von dem nichts mehr da ist,
- * und die Verfallsliste des Fahrzeugs meldete ihn weiter als abgelaufen.
+ * ⚠️ WIRD DER GANZE BESTAND AUSGESONDERT, ENTFÄLLT DIE ANGABE — das Feld wird
+ * dann gesperrt und leer übergeben. Das hier ist aber nur der HINWEIS für die
+ * Bedienung: `bestand` ist der Stand beim Rendern, und bis zum Absenden kann
+ * jemand anders gebucht haben. DURCHGESETZT wird die Kopplung in der Aktion, die
+ * den verbleibenden Bestand in ihrer eigenen Transaktion nachrechnet.
  */
 export function AussondernDialog({
   lagerortId,

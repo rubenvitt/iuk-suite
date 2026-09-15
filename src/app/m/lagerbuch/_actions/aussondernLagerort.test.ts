@@ -236,3 +236,69 @@ describe("aussondernVomLagerort — Zugehoerigkeit", () => {
     expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
   });
 });
+
+describe("aussondernVomLagerort — Verfall haengt am VERBLEIBENDEN Bestand", () => {
+  /**
+   * ⚠️ DIE ENTSCHEIDUNG „ALLES RAUS" DARF NICHT VOM CLIENT KOMMEN. Der Dialog
+   * rechnet sie aus dem Bestand, den er beim RENDERN gesehen hat. Bucht jemand
+   * anders in der Zwischenzeit ab, sendet er eine Teilmenge samt Datum — und
+   * die Teilmenge leert den Bestand tatsaechlich. Die Zeile bliebe mit einem
+   * Datum stehen, zu dem nichts mehr im Fahrzeug liegt.
+   */
+  it("loescht die Angabe, wenn die Buchung den Bestand leert — auch mit Datum", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+    t.db.insert(lagerortVerfall).values({
+      id: "lv-1", lagerortId: "fz-1", artikelId: "art-1", verfall: "2020-01",
+      erfasstAt: JETZT, quelleTyp: "system", quelleId: "seed",
+    }).run();
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 4,
+        verfall: "2027-05", kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+  });
+
+  it("behaelt die Angabe, solange etwas liegen bleibt", async () => {
+    charge("ch-alt", "2020-01");
+    charge("ch-neu", "2030-01");
+    buchen("seed-alt", "ch-alt", 4);
+    buchen("seed-neu", "ch-neu", 6);
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 4,
+        verfall: "2027-05", kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(lagerortVerfall).all().map((z) => z.verfall)).toEqual(["2027-05"]);
+  });
+
+  it("zaehlt beim Chargenabgang den GANZEN Artikel, nicht nur die Charge", async () => {
+    charge("ch-alt", "2020-01");
+    charge("ch-neu", "2030-01");
+    buchen("seed-alt", "ch-alt", 4);
+    buchen("seed-neu", "ch-neu", 6);
+
+    // Die gewaehlte Charge wird vollstaendig geleert — der Artikel aber nicht.
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 4, chargeId: "ch-alt",
+        verfall: "2027-05", kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(lagerortVerfall).all().map((z) => z.verfall)).toEqual(["2027-05"]);
+  });
+});

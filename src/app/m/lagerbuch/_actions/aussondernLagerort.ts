@@ -118,6 +118,10 @@ export async function aussondernVomLagerort(
           }
 
           const rest = restJeChargeFuerArtikel(tx, v.artikelId, v.lagerortId);
+          // Der Bestand des ARTIKELS am Ort — Bezugsgröße der Verfallsfrage
+          // unten, und beim Chargenabgang ausdrücklich NICHT die Charge allein.
+          let gesamt = 0;
+          for (const r of rest.values()) gesamt += r;
 
           if (v.chargeId) {
             // Eine Charge, die dem Artikel nicht gehoert, steht gar nicht erst in der
@@ -142,10 +146,8 @@ export async function aussondernVomLagerort(
               })
               .run();
           } else {
-            let vorhanden = 0;
-            for (const r of rest.values()) vorhanden += r;
-            if (vorhanden < v.menge) {
-              return `Hier liegen nur ${vorhanden} Stück.`;
+            if (gesamt < v.menge) {
+              return `Hier liegen nur ${gesamt} Stück.`;
             }
             fefoAbbuchung(tx, {
               artikelId: v.artikelId,
@@ -158,10 +160,23 @@ export async function aussondernVomLagerort(
             });
           }
 
+          /*
+           * ⚠️ „ALLES RAUS" ENTSCHEIDET DIE TRANSAKTION, NICHT DER CLIENT. Der
+           * Dialog sperrt das Datumsfeld anhand des Bestands, den er beim
+           * RENDERN gesehen hat — das ist ein Hinweis für die Bedienung, keine
+           * Durchsetzung. Bucht jemand anders in der Zwischenzeit ab, schickt
+           * der Dialog eine Teilmenge samt Datum, und genau diese Teilmenge
+           * leert den Bestand. Die Zeile bliebe mit einem Datum stehen, zu dem
+           * nichts mehr im Fahrzeug liegt, und die Verfallsliste meldete den
+           * Artikel weiter als abgelaufen.
+           *
+           * Kein Bestand, keine Angabe: `setzeVerfall` löscht bei `null`.
+           */
+          const verbleibend = gesamt - v.menge;
           setzeVerfall(tx, {
             lagerortId: v.lagerortId,
             artikelId: v.artikelId,
-            verfall: v.verfall ? v.verfall : null,
+            verfall: verbleibend > 0 && v.verfall ? v.verfall : null,
             quelle,
           });
           return null;
