@@ -8,18 +8,12 @@ const notiz: Releasenotiz = {
   titel: "Schränke sind jetzt eigene Lagerorte",
   inhalt: [
     absatz(
-      "Schränke im Handlager sind jetzt eigene Lagerorte. Unter Verwaltung → Lagerorte legst du " +
-        "sie an, gibst ihnen eine Reihenfolge und einen Zugangshinweis; beim Zugang wählst du " +
-        "dann, in welchen Schrank die Ware kommt.",
+      "Unter Verwaltung → Lagerorte legst du die Schränke im Handlager mit Reihenfolge und " +
+        "Zugangshinweis an; beim Zugang wählst du den passenden Schrank. In den Artikeldetails " +
+        "und beim Scannen des Regaletiketts siehst du je Charge, wie viel wo liegt, samt " +
+        "Zugangshinweis — auch wenn sie komplett auf einem Fahrzeug liegt.",
     ),
-    absatz(
-      "In den Artikeldetails und nach dem Scannen des Regaletiketts siehst du bei jeder Charge, " +
-        "wo wie viel davon liegt, samt Zugangshinweis — auch eine Charge, die vollständig auf " +
-        "einem Fahrzeug liegt, war vorher gar nicht zu sehen.",
-    ),
-    hinweis(
-      "Lege eure Schränke unter Verwaltung → Lagerorte an, sonst ändert sich für niemanden etwas.",
-    ),
+    hinweis("Lege deine Schränke unter Verwaltung → Lagerorte an, sonst ändert sich für dich nichts."),
   ],
 };
 
