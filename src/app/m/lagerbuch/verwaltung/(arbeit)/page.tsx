@@ -145,7 +145,7 @@ export function verwaltungInhalt(db: DB, jetzt: Date) {
                   display: "flex",
                   alignItems: "center",
                   // 10 -> SPACE.md (12): dieselbe Zeilenform wie
-                  // VerfallItem.tsx und die "Im Fahrzeug gemeldet"-Liste
+                  // VerfallItem.tsx und die "An Fahrzeugen und Taschen"-Liste
                   // (verfall/page.tsx) — dort steht bereits SPACE.md.
                   gap: SPACE.md,
                   padding: `${SPACE.md}px 0`,

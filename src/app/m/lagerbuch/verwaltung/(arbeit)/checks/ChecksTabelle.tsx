@@ -118,7 +118,7 @@ export function ChecksTabelle({ zeilen, leertext }: ChecksTabelleProps) {
   return (
     <Datentabelle<CheckAnzeigeZeile>
       rowKey="id"
-      aria-label="Fahrzeug-Checks"
+      aria-label="Checks"
       dataSource={zeilen}
       locale={{ emptyText: leertext }}
       columns={spaltenliste}

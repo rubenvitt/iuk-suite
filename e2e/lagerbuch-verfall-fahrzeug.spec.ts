@@ -115,7 +115,9 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
     // `getByRole("radio", { name })` loest auf gar nichts auf. Gegriffen wird
     // deshalb, was auch eine Person anklickt.
     await klickeWennRuhig(
-      page.locator(".ant-segmented-item-label", { hasText: "nach Fahrzeug" }));
+      // DRK-309: Der Umschalter heisst „nach Einheit" — die Tabelle fuehrt
+      // Fahrzeuge UND Taschen.
+      page.locator(".ant-segmented-item-label", { hasText: "nach Einheit" }));
 
     // Die Fahrzeugzeile traegt Name, Kennung UND die Bilanz — zugeklappt ist sie
     // damit schon die Antwort.

@@ -255,6 +255,9 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
               id={fahrzeug.id}
               name={fahrzeug.name}
               aktiv={fahrzeug.aktiv}
+              // DRK-309: die Rückfrage vor dem Löschen nennt dieselbe Art wie
+              // der Chip in der Kopfzeile darüber.
+              einheitenart={fahrzeug.einheitenart}
             />
           </>
         )}
@@ -349,7 +352,11 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         Verfall {inDerEinheit(fahrzeug.einheitenart)}
       </h2>
       <Card>
-        <VerfallEditor lagerortId={fahrzeug.id} eintraege={verfall} />
+        <VerfallEditor
+          lagerortId={fahrzeug.id}
+          eintraege={verfall}
+          einheitenart={fahrzeug.einheitenart}
+        />
       </Card>
     </>
   );

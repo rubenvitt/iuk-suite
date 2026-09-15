@@ -874,10 +874,21 @@ export async function checklistenPdf(
   const normal = await doc.embedFont(StandardFonts.Helvetica);
   const fett = await doc.embedFont(StandardFonts.HelveticaBold);
 
+  /*
+   * ⚠️ DER DOKUMENTTITEL IST NICHT NUR METADATUM (DRK-309, Reviewrunde 3).
+   * PDF-Betrachter setzen ihn als Fenster- und Reitertitel; er ist damit das
+   * ERSTE, was jemand von einer heruntergeladenen Datei sieht — oft bevor er
+   * die Kopfzeile des Blattes liest. Ein Blatt, das sich „Taschen-Checkliste"
+   * ueberschreibt und „Fahrzeug-Checkliste …" heisst, widerspricht sich in
+   * derselben Ansicht.
+   *
+   * Ein Bogen mit MEHREREN Blaettern mischt Fahrzeuge und Taschen und heisst
+   * deshalb neutral; die Art steht dann je Blatt in dessen Kopfzeile.
+   */
   doc.setTitle(winAnsi(
     blaetter.length === 1
-      ? `Fahrzeug-Checkliste ${blaetter[0]!.name} (Stand ${stand})`
-      : `Fahrzeug-Checklisten (Stand ${stand})`,
+      ? `${checklisteTitel(blaetter[0]!.einheitenart)} ${blaetter[0]!.name} (Stand ${stand})`
+      : `Checklisten (Stand ${stand})`,
   ));
   // NEUTRAL: ein Bogen traegt mehrere Blaetter und kann Fahrzeuge UND Taschen
   // mischen — die Art steht je Blatt in seiner Kopfzeile.

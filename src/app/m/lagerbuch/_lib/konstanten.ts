@@ -136,6 +136,19 @@ export function einheitenartLabel(art: Einheitenart | null): string {
  * genau so entstehen „auf die Tasche" und „diese Fahrzeug".
  */
 
+/**
+ * Das blosse Nomen: „Fahrzeug" · „Tasche" · „Einheit".
+ *
+ * ⚠️ NICHT `einheitenartLabel`, und der Unterschied ist genau der Zwischenstand.
+ * Jenes liefert fuer `null` den CHIPTEXT „nicht zugeordnet" — richtig als
+ * Zustandsanzeige, als Nomen aber unbrauchbar: „nicht zugeordnet löschen" und
+ * „nicht zugeordnet aktiv" sind kein Deutsch. Wo das Wort in einem SATZ oder
+ * an einem BEDIENELEMENT steht, ist das Oberwort die richtige Rueckfallebene.
+ */
+export function einheitNomen(art: Einheitenart | null): string {
+  return art === null ? "Einheit" : EINHEITENART_LABEL[art];
+}
+
 /** „dieses Fahrzeug" · „diese Tasche" · „diese Einheit". */
 export function dieseEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "dieses Fahrzeug";

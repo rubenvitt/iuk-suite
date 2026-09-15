@@ -409,7 +409,7 @@ describe("Check-Detailseite", () => {
     const zurueck = (koepfe[0].props as {
       zurueck?: { titel: string; href: string };
     }).zurueck;
-    expect(zurueck).toEqual({ titel: "Fahrzeug-Checks", href: "/verwaltung/checks" });
+    expect(zurueck).toEqual({ titel: "Checks", href: "/verwaltung/checks" });
     // ⚠️ BEIDE AMPELN, seit der Wechselwert einstellbar ist (DRK-308): auch die
     // Sauerstoff-Zeile rechnet gegen die heutige Vorgabe. Ein Hinweis, der nur
     // eine der beiden nennt, behauptet Vollständigkeit.

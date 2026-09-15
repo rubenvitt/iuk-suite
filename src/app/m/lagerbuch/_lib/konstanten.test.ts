@@ -9,6 +9,7 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
   EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
+  einheitNomen, dieseEinheit, inDieEinheit, inDerEinheit, checklisteTitel, grossAmAnfang,
 } from "./konstanten";
 import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
 
@@ -107,6 +108,49 @@ describe("Enum-Listen", () => {
     // Datenfehler, zugeordnet wird es aber schlicht noch.
     expect(EINHEITENART_OFFEN_LABEL).toBe("nicht zugeordnet");
     expect(einheitenartLabel(null)).toBe(EINHEITENART_OFFEN_LABEL);
+  });
+
+  /**
+   * ⚠️ DIE SATZBAUSTEINE FALLEN AUF DAS OBERWORT ZURUECK, NIE AUF „Fahrzeug"
+   * UND NIE AUF DEN CHIPTEXT (DRK-309).
+   *
+   * Auf „Fahrzeug" zu raten machte aus einer offenen Frage still eine Antwort.
+   * Den Chiptext einzusetzen ergaebe „nicht zugeordnet löschen" — der
+   * Unterschied zwischen `einheitenartLabel` (Zustandsanzeige) und
+   * `einheitNomen` (Wort in einem Satz) ist genau dieser Fall.
+   */
+  it("die Satzbausteine tragen jede Art — und den Zwischenstand neutral", () => {
+    expect(einheitNomen("fahrzeug")).toBe("Fahrzeug");
+    expect(einheitNomen("tasche")).toBe("Tasche");
+    expect(einheitNomen(null)).toBe("Einheit");
+
+    expect(dieseEinheit("tasche")).toBe("diese Tasche");
+    expect(dieseEinheit(null)).toBe("diese Einheit");
+
+    // ⚠️ VERSCHIEDENE PRAEPOSITIONEN — der Grund fuer eigene Bausteine statt
+    // eines eingesetzten Nomens: „auf die Tasche" waere falsch.
+    expect(inDieEinheit("fahrzeug")).toBe("aufs Fahrzeug");
+    expect(inDieEinheit("tasche")).toBe("in die Tasche");
+    expect(inDieEinheit(null)).toBe("in die Einheit");
+
+    expect(inDerEinheit("fahrzeug")).toBe("im Fahrzeug");
+    expect(inDerEinheit("tasche")).toBe("in der Tasche");
+    expect(inDerEinheit(null)).toBe("in der Einheit");
+
+    // ⚠️ FUGEN-N: ein zusammengeklebtes `${label}-Checkliste` ergaebe
+    // „Tasche-Checkliste" — fuer „Fahrzeug" richtig und hier still falsch.
+    expect(checklisteTitel("fahrzeug")).toBe("Fahrzeug-Checkliste");
+    expect(checklisteTitel("tasche")).toBe("Taschen-Checkliste");
+    expect(checklisteTitel(null)).toBe("Checkliste");
+
+    expect(grossAmAnfang(inDieEinheit("tasche"))).toBe("In die Tasche");
+    for (const art of [...EINHEITENARTEN, null] as const) {
+      expect(dieseEinheit(art), String(art)).not.toBe("");
+      if (art !== "fahrzeug") {
+        expect(inDieEinheit(art), String(art)).not.toContain("Fahrzeug");
+        expect(checklisteTitel(art), String(art)).not.toContain("Fahrzeug");
+      }
+    }
   });
 });
 

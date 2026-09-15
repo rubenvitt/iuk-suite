@@ -153,7 +153,7 @@ export function checksInhalt(
   return (
     <>
       <SeitenKopf
-        titel="Fahrzeug-Checks"
+        titel="Checks an Fahrzeugen und Taschen"
         beschreibung={deckelText(zeilen.length, historie.mehrVorhanden)}
       />
       <ChecksFilter

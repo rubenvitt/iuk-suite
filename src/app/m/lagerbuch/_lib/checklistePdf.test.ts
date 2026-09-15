@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { inflateSync } from "node:zlib";
+import { PDFDocument } from "pdf-lib";
 import { checklistenPdf, pdfDateiname, winAnsi } from "./checklistePdf";
 import type { ChecklisteBlatt } from "./lesepfade/checkliste";
 
@@ -210,6 +211,36 @@ describe("das Dokument", () => {
       .toContain("Für diese Tasche ist weder eine Soll-Bestückung");
     expect(fliesstext(await checklistenPdf([OHNE_ART], OPTIONEN)))
       .toContain("Für diese Einheit ist weder eine Soll-Bestückung");
+  });
+
+  /**
+   * DRK-309 — DER DOKUMENTTITEL IST DAS, WAS DER BETRACHTER OBEN ANZEIGT.
+   *
+   * ⚠️ NICHT DASSELBE WIE DIE KOPFZEILE, und die Zusicherung daher auch nicht
+   * doppelt: `setTitle` landet in den Metadaten, nicht im Textlayer — er faellt
+   * durch jede Probe, die (wie alle anderen hier) den gesetzten Text liest.
+   * Genau deshalb ist er beim ersten Durchgang stehengeblieben, waehrend die
+   * Kopfzeile direkt darunter schon richtig war: ein Blatt, das sich
+   * „Taschen-Checkliste" ueberschreibt und „Fahrzeug-Checkliste …" heisst,
+   * widerspricht sich in derselben Ansicht.
+   */
+  it("benennt das Dokument nach der Art des Blattes", async () => {
+    const titel = async (blatt: ChecklisteBlatt) =>
+      (await PDFDocument.load(await checklistenPdf([blatt], OPTIONEN))).getTitle();
+
+    expect(await titel(NEF)).toBe("Fahrzeug-Checkliste NEF 1 (Stand 15.06.2026)");
+    expect(await titel(TASCHE))
+      .toBe("Taschen-Checkliste Sanitätstasche 1 (Stand 15.06.2026)");
+    // Der Zwischenstand behauptet keine Art, statt auf die haeufigere zu raten.
+    expect(await titel(OHNE_ART)).toBe("Checkliste Rucksack Betreuung (Stand 15.06.2026)");
+  });
+
+  it("nennt einen gemischten Bogen NEUTRAL — er traegt beide Arten", async () => {
+    // Die Art steht dann je Blatt in dessen Kopfzeile; ein Dokumenttitel gilt
+    // fuer alle Blaetter und darf sich nicht auf eines davon festlegen.
+    const doc = await PDFDocument.load(await checklistenPdf([NEF, TASCHE], OPTIONEN));
+    expect(doc.getTitle()).toBe("Checklisten (Stand 15.06.2026)");
+    expect(doc.getSubject()).toBe("Checkliste zum Abhaken");
   });
 
   it("nennt eine fehlende Vorlage ausdruecklich, statt die Zeile wegzulassen", async () => {

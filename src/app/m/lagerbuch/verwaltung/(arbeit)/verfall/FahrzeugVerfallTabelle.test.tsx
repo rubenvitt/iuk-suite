@@ -32,6 +32,7 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
     fahrzeugId: "f2",
     fahrzeugName: "RTW Süd",
     fahrzeugKennung: "UE-RK 5678",
+    fahrzeugEinheitenart: "fahrzeug" as const,
     artikelName: "NaCl",
     verfall: "2026-09",
     verfallText: "09/26",
@@ -45,6 +46,7 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
     fahrzeugId: "f1",
     fahrzeugName: "RTW Nord",
     fahrzeugKennung: "UE-RK 1234",
+    fahrzeugEinheitenart: "fahrzeug" as const,
     artikelName: "Verband",
     verfall: "2026-05",
     verfallText: "05/26",
@@ -58,6 +60,7 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
     fahrzeugId: "f1",
     fahrzeugName: "RTW Nord",
     fahrzeugKennung: "UE-RK 1234",
+    fahrzeugEinheitenart: "fahrzeug" as const,
     artikelName: "Rettungsdecke",
     verfall: "2026-08",
     verfallText: "08/26",
@@ -160,14 +163,15 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
 
     // Die drei Angaben aus Akzeptanzkriterium 2, plus Status und Meldedatum.
+    // DRK-309: „Einheit" statt „Fahrzeug" — die Tabelle führt beide Arten.
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
-      "Fahrzeug",
+      "Einheit",
       "Artikel",
       "Verfall",
       "Status",
       "Gemeldet",
     ]);
-    expect(query("table").getAttribute("aria-label")).toBe("Verfallsmeldungen aus Fahrzeugen");
+    expect(query("table").getAttribute("aria-label")).toBe("Verfallsmeldungen aus Einheiten");
 
     const zeile = query("[data-row-key='f1:a2']");
     expect(zeile.textContent).toContain("RTW Nord");
@@ -233,7 +237,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
     // nichts findet, und taugt deshalb nicht fuer eine Abwesenheitsprobe.
     expect(document.querySelector("[data-row-key='fzg:f1']")).toBeNull();
 
-    await umschalten("nach Fahrzeug");
+    await umschalten("nach Einheit");
     expect(query("[data-row-key='fzg:f1']")).toBeTruthy();
   });
 
@@ -245,7 +249,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
    */
   it("klappt die Meldungen von sich aus auf", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Fahrzeug");
+    await umschalten("nach Einheit");
 
     expect(document.querySelector("[data-row-key='f1:a2']")).toBeTruthy();
     expect(document.querySelector("[data-row-key='f1:a3']")).toBeTruthy();
@@ -253,7 +257,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
 
   it("trägt auf der Fahrzeugzeile Name, Kennung und Bilanz", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Fahrzeug");
+    await umschalten("nach Einheit");
 
     const kopf = query("[data-row-key='fzg:f1']");
     expect(kopf.textContent).toContain("RTW Nord");
@@ -270,7 +274,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
    */
   it("lässt ein leer gefiltertes Fahrzeug gar nicht erst entstehen", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Fahrzeug");
+    await umschalten("nach Einheit");
     expect(document.querySelector("[data-row-key='fzg:f2']")).toBeTruthy();
 
     await suchen("Nord");
@@ -281,7 +285,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
   /** Derselbe Beweis für den Spaltenfilter — er läuft über einen anderen Weg. */
   it("faltet erst nach dem Spaltenfilter", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Fahrzeug");
+    await umschalten("nach Einheit");
 
     await spaltenFilter("Status", "abgelaufen");
     // Nur f1 hat eine abgelaufene Meldung.
@@ -299,7 +303,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
   it("filtert über den Spaltenkopf auf ein Fahrzeug", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
 
-    await spaltenFilter("Fahrzeug", "RTW Nord");
+    await spaltenFilter("Einheit", "RTW Nord");
     expect(zeilenSchluessel()).toEqual(["f1:a2", "f1:a3"]);
   });
 
@@ -325,7 +329,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
       />,
     );
 
-    await spaltenFilter("Fahrzeug", "MTW · UE-RK 2");
+    await spaltenFilter("Einheit", "MTW · UE-RK 2");
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
@@ -353,7 +357,10 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
       />,
     );
 
-    await spaltenFilter("Fahrzeug", "MTW · mtw-b");
+    // DRK-309: Ohne Kennung traegt die Beschriftung die ART — zwei gleich
+    // benannte Einheiten sind damit erst dann noch gleich, wenn auch die Art
+    // uebereinstimmt, und erst DANN haengt die Liste die ID an.
+    await spaltenFilter("Einheit", "MTW · Fahrzeug · mtw-b");
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
@@ -361,7 +368,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
   it("hängt einem eindeutigen Fahrzeugnamen nichts an", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
 
-    await spaltenFilter("Fahrzeug", "RTW Süd · UE-RK 5678");
+    await spaltenFilter("Einheit", "RTW Süd · UE-RK 5678");
     expect(zeilenSchluessel()).toEqual(["f2:a1"]);
   });
 

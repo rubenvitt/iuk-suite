@@ -114,7 +114,9 @@ export async function setFahrzeugAktiv(
         .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
         .run();
     } catch {
-      return { ok: false, fehler: "Fahrzeugstatus konnte nicht geändert werden." };
+      // DRK-309: OHNE Nomen — dieselbe Einheit kann eine Tasche sein, und die
+      // Insel daneben sagt denselben Satz.
+      return { ok: false, fehler: "Der Status konnte nicht geändert werden." };
     }
 
     revalidatePath(FAHRZEUGE_PFAD);

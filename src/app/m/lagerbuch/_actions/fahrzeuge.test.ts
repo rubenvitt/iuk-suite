@@ -401,7 +401,7 @@ describe("setFahrzeugAktiv", () => {
 
     expect(ergebnis).toEqual({
       ok: false,
-      fehler: "Fahrzeugstatus konnte nicht geändert werden.",
+      fehler: "Der Status konnte nicht geändert werden.",
     });
     expect(fehlerVon(ergebnis).fehler).not.toContain("db-intern");
     expect(revalidiert).toEqual([]);

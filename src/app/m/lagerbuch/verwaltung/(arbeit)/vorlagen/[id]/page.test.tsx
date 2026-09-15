@@ -218,14 +218,15 @@ describe("Vorlagen-Detailseite als Server Component", () => {
     expect(kacheln.map((k) => (k.props as { beschriftung: ReactNode }).beschriftung)).toEqual([
       "Positionen",
       "Fächer",
-      "Fahrzeuge",
+      // DRK-309: Eine Vorlage kann auch an Taschen hängen.
+      "Einheiten",
     ]);
     expect(kacheln.map((k) => (k.props as { zahl: ReactNode }).zahl)).toEqual([1, 1, 2]);
 
     expect(elementeVomTyp(inhalt, Card).map((karte) =>
       (karte.props as { title: string }).title)).toEqual([
       "Positionen",
-      "Verknüpfte Fahrzeuge",
+      "Verknüpfte Einheiten",
       "Aktionen",
     ]);
   });
@@ -290,7 +291,7 @@ describe("VerknuepfteFahrzeugeTable", () => {
     });
 
     expect(queryAll("thead th").map((zelle) => zelle.textContent)).toEqual([
-      "Fahrzeug",
+      "Einheit",
       "Status",
     ]);
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
@@ -303,13 +304,13 @@ describe("VerknuepfteFahrzeugeTable", () => {
       ]);
     expect(queryAll(`tbody .${verwaltungStyles.chip}.${verwaltungStyles.grau}`)
       .map((chip) => chip.textContent)).toEqual(["inaktiv"]);
-    expect(queryAll("[aria-label='Verknüpfte Fahrzeuge']")).toHaveLength(1);
+    expect(queryAll("[aria-label='Verknüpfte Einheiten']")).toHaveLength(1);
     expect(queryAll(".ant-pagination")).toHaveLength(0);
   });
 
   it("zeigt einen festen Leertext und hält die Spalten statisch in der Client-Insel", async () => {
     await mount(<VerknuepfteFahrzeugeTable zeilen={[]} />);
-    expect(document.body.textContent).toContain("Kein Fahrzeug nutzt diese Vorlage.");
+    expect(document.body.textContent).toContain("Keine Einheit nutzt diese Vorlage.");
 
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/vorlagen/[id]/VerknuepfteFahrzeugeTable.tsx",

@@ -104,7 +104,7 @@ afterEach(async () => {
 
 describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
   it("zeigt Artikel, zusammengefuehrte Faecher und den fertigen Status", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       // DRK-303: „Aktion" traegt das Aussondern je Zeile.
@@ -120,7 +120,7 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
   });
 
   it("rendert pro Zeile einen MonthPicker in voller Arbeitsdichte ohne Form", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     expect(queryAll(".ant-picker")).toHaveLength(3);
     // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- volle 44px-Bedienhoehe,
@@ -145,7 +145,7 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
 
 describe("VerfallEditor — result-aware Auto-Commit", () => {
   it("setzt einen Monat sofort mit dem exakten Payload", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatWaehlen("Verfall Mullbinde", "2027-05");
 
     expect(mocks.setzen).toHaveBeenCalledTimes(1);
@@ -160,7 +160,7 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
 
   it("sendet Clear als leeren String statt undefined", async () => {
     mocks.setzen.mockResolvedValueOnce({ ok: true, wert: { gesetzt: false } });
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatLeeren("a1");
 
     expect(mocks.setzen).toHaveBeenCalledWith({
@@ -188,7 +188,7 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
       ok: false as const,
       fehler: "Artikel steht an diesem Lagerort nicht im Soll.",
     }));
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatWaehlen("Verfall Mullbinde", "2027-06");
 
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
@@ -201,7 +201,7 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
     mocks.setzen.mockImplementationOnce(async () => {
       throw new Error("Framework-Text");
     });
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatWaehlen("Verfall Mullbinde", "2027-06");
 
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
@@ -218,7 +218,7 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
    * Verfall traegt `null` und landet aufsteigend hinten.
    */
   it("sortiert die Verfallsspalte über den gespeicherten Monat", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     const kopf = queryAll<HTMLElement>("thead th")
       .find((zelle) => (zelle.textContent ?? "").includes("Verfall"));
@@ -229,7 +229,7 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
   });
 
   it("filtert nach Fach über den Spaltenkopf", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     const kopf = queryAll<HTMLElement>("thead th")
       .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
@@ -253,14 +253,14 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
 
 describe("Aussondern je Zeile", () => {
   it("bietet das Aussondern an, wo Bestand im Fahrzeug liegt", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     const knopf = query("tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']");
     expect(knopf.hasAttribute("disabled")).toBe(false);
   });
 
   it("sperrt den Knopf, wo nichts liegt", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     const knopf = query("tr[data-row-key='a2'] button[aria-label='Kompressen aussondern']");
     expect(knopf.hasAttribute("disabled")).toBe(true);
@@ -281,7 +281,7 @@ describe("Aussondern und der Monatsspiegel", () => {
    */
   it("uebernimmt den im Dialog gesetzten Monat in den Waehler", async () => {
     mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: "2027-09" } });
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
       .toBe("2027-03");
 
@@ -328,7 +328,7 @@ describe("Aussondern und der Monatsspiegel", () => {
 
   it("leert den Waehler, wenn der ganze Bestand rausgeht", async () => {
     mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     await clickElement(query(
       "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
@@ -372,7 +372,7 @@ describe("Der Dialog liest denselben Monat wie der Waehler", () => {
    * gespeicherten zurueck.
    */
   it("uebernimmt den frisch gewaehlten Monat in den Dialog", async () => {
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatWaehlen("Verfall Mullbinde", "2027-09");
     // Die Prop bleibt im Test bei 2027-03 — genau der Zustand vor der
     // Auffrischung, den der Dialog nicht uebernehmen darf.
@@ -400,7 +400,7 @@ describe("Der Spiegel folgt der Antwort, nicht der Eingabe", () => {
    */
   it("leert den Waehler, wenn die Aktion null meldet — trotz Datum im Feld", async () => {
     mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     await clickElement(query(
       "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
@@ -444,7 +444,7 @@ describe("Der Dialog beim ZWEITEN Öffnen", () => {
    */
   it("zeigt nach dem Schliessen den inzwischen geaenderten Monat", async () => {
     mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
     const oeffne = async () => {
       await clickElement(query(
@@ -490,7 +490,7 @@ describe("Die beiden Schreibwege schliessen einander aus", () => {
       freigeben = () => fertig({ ok: true, wert: { gesetzt: true } });
     }));
 
-    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     const knopf = () => query<HTMLButtonElement>(
       "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
     );

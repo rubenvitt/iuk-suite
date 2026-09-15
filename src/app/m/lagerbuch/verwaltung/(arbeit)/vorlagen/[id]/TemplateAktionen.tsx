@@ -161,7 +161,7 @@ export function TemplateAktionen({
           Fahrzeuge liegt als Prop bereits vor, sie gehoert VOR den Klick.
         */}
         <Popconfirm
-          title="Auf alle Fahrzeuge übertragen?"
+          title="Auf alle verknüpften Einheiten übertragen?"
           description={
             `Überschreibt die Soll-Bestückung von ${fahrzeuge} verknüpften Fahrzeug(en). ` +
             "Positionen, die nicht mehr in der Vorlage stehen, werden dort entfernt."

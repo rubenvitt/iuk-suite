@@ -63,6 +63,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     fahrzeugId: meldung.lagerortId,
     fahrzeugName: meldung.lagerortName,
     fahrzeugKennung: meldung.lagerortKennung,
+    fahrzeugEinheitenart: meldung.lagerortEinheitenart,
     artikelName: meldung.artikelName,
     verfall: meldung.verfall,
     verfallText: fmtVerfall(meldung.verfall),
@@ -76,7 +77,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     <>
       <SeitenKopf
         titel="Verfall"
-        beschreibung="Chargen im Handlager nach Verfallsampel — und die im Fahrzeug gemeldeten Angaben."
+        beschreibung="Chargen im Handlager nach Verfallsampel — und die an Fahrzeugen und Taschen gemeldeten Angaben."
       />
 
       <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.xl }}>
@@ -106,9 +107,10 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         )}
       </Card>
 
-      <Card title="Im Fahrzeug gemeldet">
+      {/* DRK-309: NEUTRAL — die Tabelle darunter führt Fahrzeuge UND Taschen. */}
+      <Card title="An Fahrzeugen und Taschen gemeldet">
         {verfallZeilen.length === 0 ? (
-          <Empty description="Keine auffällige Verfallsmeldung aus einem Fahrzeug." />
+          <Empty description="Keine auffällige Verfallsmeldung aus einer Einheit." />
         ) : (
           <FahrzeugVerfallTabelle zeilen={verfallZeilen} />
         )}

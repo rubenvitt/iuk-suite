@@ -84,7 +84,7 @@ describe("ChecksTabelle", () => {
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual(["Fahrzeug", "Abgeschlossen", "Ergebnis", "Positionen"]);
     const tabelle = query("table");
-    expect(tabelle.getAttribute("aria-label")).toBe("Fahrzeug-Checks");
+    expect(tabelle.getAttribute("aria-label")).toBe("Checks");
     const zeile = query("tr[data-row-key='check-42']");
     expect(zeile.textContent).toContain("RTW 1");
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/checks/check-42']").textContent)

@@ -39,7 +39,7 @@ const DOM_ZEILEN: TemplateAnzeigeZeile[] = [
     // Die Rohzahlen fahren mit, weil die Spalten danach sortieren — der
     // Anzeigetext beginnt mit der Zahl und ordnete „12" vor „2".
     positionenZahl: 2,
-    fahrzeugeText: "1 Fahrzeug",
+    fahrzeugeText: "1 Einheit",
     fahrzeugeZahl: 1,
   },
   {
@@ -49,7 +49,7 @@ const DOM_ZEILEN: TemplateAnzeigeZeile[] = [
     inaktiv: true,
     bestueckungText: "1 Position · 1 Fach",
     positionenZahl: 1,
-    fahrzeugeText: "2 Fahrzeuge",
+    fahrzeugeText: "2 Einheiten",
     fahrzeugeZahl: 2,
   },
 ];
@@ -335,7 +335,7 @@ describe("TemplateTable", () => {
     await mount(<TemplateTable zeilen={DOM_ZEILEN} />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Vorlage", "Bestückung", "Fahrzeuge"]);
+      .toEqual(["Vorlage", "Bestückung", "Einheiten"]);
     expect(query("table").getAttribute("aria-label")).toBe("Vorlagen");
     // `pagination={false}` und `scroll={{ x: "max-content" }}` sind seit der
     // Umstellung auf `@/core/tabelle` Vorgabe der `Datentabelle` und stehen in
@@ -352,7 +352,7 @@ describe("TemplateTable", () => {
     expect(standardLink?.textContent).toBe("RTW Standard");
     expect(standardLink?.style.fontWeight).toBe("600");
     expect(standard.textContent).toContain("2 Positionen · 2 Fächer");
-    expect(standard.textContent).toContain("1 Fahrzeug");
+    expect(standard.textContent).toContain("1 Einheit");
     expect(standard.textContent).not.toContain("inaktiv");
 
     const alt = query<HTMLElement>("tr[data-row-key='template-alt']");
@@ -360,7 +360,7 @@ describe("TemplateTable", () => {
       .toBe("/verwaltung/vorlagen/template-alt");
     expect(alt.textContent).toContain("inaktiv");
     expect(alt.textContent).toContain("1 Position · 1 Fach");
-    expect(alt.textContent).toContain("2 Fahrzeuge");
+    expect(alt.textContent).toContain("2 Einheiten");
     expect(alt.querySelectorAll(`.${s.chip}`)).toHaveLength(2);
     const fahrzeugChip = Array.from(alt.querySelectorAll<HTMLElement>(`.${s.chip}`))
       .find((chip) => chip.textContent?.includes("2 Fahrzeuge"));
@@ -374,7 +374,7 @@ describe("TemplateTable", () => {
 
     await mount(<TemplateTable zeilen={[]} />);
     expect(document.body.textContent).toContain(
-      "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einem gepackten Fahrzeug.",
+      "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
     );
   });
 

@@ -47,7 +47,7 @@ export default function TokensSeite() {
     <>
       <SeitenKopf
         titel="Zugangs-Codes"
-        beschreibung="Sechsstellige Codes für den Helfer-Weg. Ein Code zeigt entweder auf ein Fahrzeug, auf einen Artikel oder auf die Artikel-Liste."
+        beschreibung="Sechsstellige Codes für den Helfer-Weg. Ein Code zeigt entweder auf ein Fahrzeug oder eine Tasche, auf einen Artikel oder auf die Artikel-Liste."
         aktionen={<NeuToken ziele={ziele} />}
       />
       <TokenTable zeilen={zeilen} />

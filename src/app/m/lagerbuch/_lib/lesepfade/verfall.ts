@@ -23,6 +23,7 @@
 import { eq } from "drizzle-orm";
 import { artikel, chargen, lagerorte, lagerortVerfall } from "../../_db/schema";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
+import type { Einheitenart } from "../konstanten";
 import { chargeText } from "../format";
 import { restJeCharge, type Leser } from "./bestand";
 import { handlagerOrte } from "./orte";
@@ -65,6 +66,16 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
 
 export type LagerortVerfallZeile = {
   lagerortId: string; lagerortName: string; lagerortKennung: string | null;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
+   *
+   * ⚠️ EINE TASCHE TRAEGT KEINE KENNUNG, und `lagerortKennung` ist in dieser
+   * Liste die einzige Angabe neben dem Namen. Ohne die Art stand fuer sie in
+   * der Verfallsuebersicht also nur ein Name — zwischen zwei aehnlich
+   * benannten Einheiten nicht zu unterscheiden, und ueber „tasche" nicht zu
+   * finden.
+   */
+  lagerortEinheitenart: Einheitenart | null;
   artikelId: string; artikelName: string; einheit: string;
   verfall: string; erfasstAt: Date; ampel: Ampel; abgelaufen: boolean; text: string;
 };
@@ -98,6 +109,7 @@ export function lagerortVerfallListe(
     if (!ort || !a) continue;
     zeilen.push({
       lagerortId: ort.id, lagerortName: ort.name, lagerortKennung: ort.kennung,
+      lagerortEinheitenart: ort.einheitenart,
       artikelId: a.id, artikelName: a.name, einheit: a.einheit,
       verfall: r.verfall, erfasstAt: r.erfasstAt,
       ampel: s.ampel, abgelaufen: s.abgelaufen, text: chargeText(s, r.verfall),

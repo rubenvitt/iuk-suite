@@ -92,7 +92,7 @@ async function modalOeffnen(): Promise<void> {
   await clickElement(knopf("Vorlage aus diesem Fahrzeug erstellen"));
   await warte();
   expect(queryPortal(".ant-modal-title").textContent)
-    .toBe("Vorlage aus Fahrzeug erstellen");
+    .toBe("Vorlage aus dieser Einheit erstellen");
 }
 
 async function modalName(wert: string): Promise<void> {

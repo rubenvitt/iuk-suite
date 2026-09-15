@@ -110,11 +110,11 @@ describe("ChecksFilter", () => {
     await mount(
       <ChecksFilter fz="" von="" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
-    const auswahl = query<HTMLInputElement>("[aria-label='Fahrzeug']");
+    const auswahl = query<HTMLInputElement>("[aria-label='Einheit']");
     await act(async () => {
       auswahl.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     });
-    await fill("[aria-label='Fahrzeug']", "UE-RK");
+    await fill("[aria-label='Einheit']", "UE-RK");
     await warte();
 
     const optionen = () => Array.from(
@@ -132,7 +132,7 @@ describe("ChecksFilter", () => {
      * Namen noch eine Kennung; faellt der Aufbau zurueck, findet „tasche"
      * nichts.
      */
-    await fill("[aria-label='Fahrzeug']", "tasche");
+    await fill("[aria-label='Einheit']", "tasche");
     await warte();
     expect(optionen()).toEqual(["Rucksack Betreuung"]);
   });
@@ -177,7 +177,7 @@ describe("ChecksFilter", () => {
     await mount(
       <ChecksFilter fz="" von="2026-08-01" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
-    const auswahl = query<HTMLInputElement>("[aria-label='Fahrzeug']");
+    const auswahl = query<HTMLInputElement>("[aria-label='Einheit']");
     await act(async () => {
       auswahl.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     });

@@ -119,7 +119,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
     <>
       <SeitenKopf
         titel={check.fahrzeugName}
-        zurueck={{ titel: "Fahrzeug-Checks", href: "/verwaltung/checks" }}
+        zurueck={{ titel: "Checks", href: "/verwaltung/checks" }}
         beschreibung={(
           <>
             Abgeschlossen{" "}

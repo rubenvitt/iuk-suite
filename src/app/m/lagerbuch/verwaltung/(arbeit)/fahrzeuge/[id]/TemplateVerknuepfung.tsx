@@ -239,7 +239,7 @@ export function TemplateVerknuepfung({
 
       <Modal
         open={offen}
-        title="Vorlage aus Fahrzeug erstellen"
+        title="Vorlage aus dieser Einheit erstellen"
         footer={null}
         destroyOnHidden
         onCancel={modalSchliessen}

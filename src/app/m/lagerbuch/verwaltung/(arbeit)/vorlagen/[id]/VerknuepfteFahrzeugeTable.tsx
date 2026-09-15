@@ -19,7 +19,7 @@ const STATUS_FILTER = zustandsFilter<VerknuepftesFahrzeugDto>([
 
 const SPALTEN: TableProps<VerknuepftesFahrzeugDto>["columns"] = [
   {
-    title: "Fahrzeug",
+    title: "Einheit",
     dataIndex: "name",
     key: "fahrzeug",
     sorter: nachText<VerknuepftesFahrzeugDto>((zeile) => zeile.name),
@@ -50,9 +50,9 @@ export function VerknuepfteFahrzeugeTable({
   return (
     <Datentabelle<VerknuepftesFahrzeugDto>
       rowKey="id"
-      aria-label="Verknüpfte Fahrzeuge"
+      aria-label="Verknüpfte Einheiten"
       dataSource={zeilen}
-      locale={{ emptyText: "Kein Fahrzeug nutzt diese Vorlage." }}
+      locale={{ emptyText: "Keine Einheit nutzt diese Vorlage." }}
       columns={SPALTEN}
     />
   );
