@@ -279,6 +279,30 @@ describe("sollFuerFahrzeug — Grabsteine bleiben DRIN", () => {
     expect(z.handlagerBestand).toBe(30);
   });
 
+  it("K1: zaehlt handlagerBestand ueber den BEREICH (Wurzel + Schraenke), " +
+     "nicht nur ueber die Wurzel", () => {
+    // Bestand AUSSCHLIESSLICH in einem Schrank — die Wurzel (HANDLAGER_ID)
+    // traegt fuer a2 KEINEN Bestand. Gebucht wird laengst ueber den Bereich
+    // (`check.ts:223`, `vonOrten: handlagerOrte(tx)`); `handlagerBestand`
+    // muss dieselbe Ortsmenge summieren wie der Buchungspfad — sonst zeigt
+    // der Fahrzeug-Check "im Handlager 0", obwohl der Server denselben
+    // Bestand anstandslos aus dem Schrank gebucht haette.
+    t.db.insert(lagerorte).values(
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", aktiv: true,
+        parentId: HANDLAGER_ID, sortierung: 10 }).run();
+    t.db.insert(chargen).values(
+      { id: "c2", artikelId: "a2", chargenNr: "CH2", verfall: "2030-01",
+        createdAt: NOW }).run();
+    t.db.insert(buchungen).values({
+      id: newId(), ts: NOW, typ: "zugang", artikelId: "a2", chargeId: "c2",
+      lagerortId: "schrank-1", menge: 12, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: null,
+    }).run();
+    // sp3 (Grabstein) traegt artikelId "a2" — bleibt trotzdem in der Liste.
+    const z = sollFuerFahrzeug(t.db, "rtw-1").find((x) => x.id === "sp3")!;
+    expect(z.handlagerBestand).toBe(12);
+  });
+
   it("leitet die Herkunft aus templatePositionId und ueberschrieben ab", () => {
     const z = sollFuerFahrzeug(t.db, "rtw-1");
     expect(z.find((x) => x.id === "sp1")!.herkunft).toBe("vorlage");

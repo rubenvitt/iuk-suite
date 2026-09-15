@@ -1176,11 +1176,16 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `verwaltung/(arbeit)/artikel/ArtikelTable.tsx` und liegt nur deshalb
     // neben `ArtikelDrawer.tsx`, weil die beiden dieselben Bausteine teilen.
     // Dreizehn Namen.
+    //
+    // NACHTRAG 15.09.2026 (DRK-297, Aufgabe 11): `OrtVerteilung.tsx` kommt
+    // dazu — die Chip-Reihe „Liegt in" der Chargentabelle, ausgelagert in eine
+    // eigene Datei, weil sie antds `Tooltip` braucht. Ihr einziger Verwender
+    // ist `ArtikelDrawer.tsx`, also Verwaltung. Vierzehn Namen.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
-      "KategorieEingabe.tsx", "SammelDrawer.tsx",
+      "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx",
     ]);
     const WURZEL = join(MODUL, "page.tsx");
     const dateien = [

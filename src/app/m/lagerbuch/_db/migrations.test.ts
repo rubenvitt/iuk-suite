@@ -80,6 +80,9 @@ const TABELLEN: Record<
     { name: "kennung", typ: "text", notnull: 0, dflt: null, pk: 0 },
     { name: "aktiv", typ: "integer", notnull: 1, dflt: "true", pk: 0 },
     { name: "template_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "parent_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "zugangshinweis", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    { name: "sortierung", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
   ],
   fahrzeug_templates: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -286,7 +289,7 @@ describe("19 Tabellen, Spalte fuer Spalte", () => {
 });
 
 const INDIZES: Record<string, string[]> = {
-  lagerorte: [],
+  lagerorte: ["idx_lagerorte_parent"],
   fahrzeug_templates: [],
   template_positionen: ["idx_template_pos_template"],
   artikel: [],
@@ -395,8 +398,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt acht Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  it("fuehrt neun Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -416,6 +419,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
       .toEqual([
         "0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox",
         "0005_artikel_kategorie", "0006_inventuren", "0007_o2_wechsel_grenze",
+        "0008_lagerorte_hierarchie",
       ]);
   });
 

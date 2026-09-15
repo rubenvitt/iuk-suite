@@ -13,12 +13,12 @@
  */
 import { desc, eq, inArray } from "drizzle-orm";
 import { artikel, buchungen, chargen } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import { chargeText } from "../format";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
-import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
+import { bestandJeArtikel, restJeCharge, verteilungJeCharge, type Leser } from "./bestand";
+import { handlagerOrte } from "./orte";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
 
@@ -48,17 +48,18 @@ export type ArtikelZeile = {
 };
 
 /**
- * Chargen EINES Artikels mit Rest AN EINEM Lagerort (Vorgabe Handlager).
+ * Chargen EINES Artikels mit Rest AN EINER ORTSMENGE (Vorgabe: Handlager-Bereich,
+ * also die Wurzel und ihre Schraenke — `handlagerOrte`).
  *
  * ⚠️ AUFGEBRAUCHTE CHARGEN BLEIBEN IN DER LISTE, mit `rest: 0`. Das Artikel-Detail
  * zeigt sie (die Chargennummer ist ein Fundstueck), und `?? 0` macht aus der
  * fehlenden Aggregatzeile die 0.
  */
 export function chargenMitRest(
-  db: Leser, artikelId: string, lagerortId: string = HANDLAGER_ID,
+  db: Leser, artikelId: string, orte: readonly string[] = handlagerOrte(db),
 ): ChargeZeile[] {
   const chs = db.select().from(chargen).where(eq(chargen.artikelId, artikelId)).all();
-  const rest = restJeCharge(db, lagerortId);
+  const rest = restJeCharge(db, orte);
   // Vor der Projektion sortieren: `createdAt` entscheidet, bleibt aber intern.
   return chs
     .sort(vergleicheFefoCharge)
@@ -83,7 +84,7 @@ export function chargenMitRest(
 export function chargenJeArtikelAmLagerort(
   db: Leser, lagerortId: string,
 ): Map<string, ChargeZeile[]> {
-  const rest = restJeCharge(db, lagerortId);
+  const rest = restJeCharge(db, [lagerortId]);
   const ids = [...rest.entries()].filter(([, r]) => r > 0).map(([id]) => id);
   if (ids.length === 0) return new Map();
 
@@ -108,8 +109,9 @@ export function artikelListe(
     ? db.select().from(artikel).all()
     : db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
   // DREI Abfragen statt 3·N: Artikel, Bestand je Artikel, Rest je Charge.
-  const bestand = bestandJeArtikel(db, HANDLAGER_ID);
-  const rest = restJeCharge(db, HANDLAGER_ID);
+  const orte = handlagerOrte(db);
+  const bestand = bestandJeArtikel(db, orte);
+  const rest = restJeCharge(db, orte);
 
   /**
    * ⚠️ DIE CHARGEN WERDEN EINMAL NACH ARTIKEL GRUPPIERT, nicht je Artikel neu
@@ -175,7 +177,7 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
     .all();
   return {
     artikel: a,
-    bestand: bestandJeArtikel(db, HANDLAGER_ID).get(id) ?? 0,
+    bestand: bestandJeArtikel(db, handlagerOrte(db)).get(id) ?? 0,
     chargen: chargenMitRest(db, id),
     // LAGERORT-UEBERGREIFEND — siehe Kopfkommentar.
     buchungen: bu.slice(0, ARTIKEL_VERLAUF_GRENZE).map((b) => ({
@@ -194,18 +196,43 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
   };
 }
 
-/** Die Helfer-Ansicht eines Artikels (`/a/[artikelId]`): nur Chargen mit Rest,
- *  aufsteigend nach Verfall, jede mit Ampel UND Text (§5.17, Punkt 3). */
+/**
+ * Die Helfer-Ansicht eines Artikels (`/a/[artikelId]`): nur Chargen mit Rest,
+ * aufsteigend nach Verfall, jede mit Ampel UND Text (§5.17, Punkt 3).
+ *
+ * DRK-297, Aufgabe 12 (Fixrunde 1: `verteilungJeCharge` statt einer zweiten
+ * Kopie der Projektion — siehe `_lib/lesepfade/bestand.ts`) — DIESELBE
+ * PROJEKTION WIE `_actions/detail.ts` (Aufgabe 11): Filter auf
+ * `restGesamt > 0` statt auf den Handlager-Rest `rest`. Wer vor dem Regal
+ * steht und nicht findet, was er sucht, braucht auch die Charge, die
+ * VOLLSTAENDIG im Fahrzeug liegt — sonst zeigt der Artikel „kein Bestand",
+ * obwohl er im RTW liegt.
+ *
+ * Die FEFO-Sortierung bleibt unveraendert: `d.chargen` kommt bereits sortiert
+ * aus `artikelDetail` (`chargenMitRest`), der Ort aendert daran nichts.
+ */
 export function artikelDetailHelfer(db: Leser, id: string, now: Date = new Date()) {
   const d = artikelDetail(db, id, now);
   if (!d) return null;
   const schwellen = verfallSchwellen();
+  const verteilung = verteilungJeCharge(db, id);
+
   const cs = d.chargen
-    .filter((c) => c.rest > 0)
     .map((c) => {
+      const v = verteilung.get(c.id) ?? { orte: [], restGesamt: 0 };
       const s = verfallStatus(c.verfall, schwellen, now);
-      return { ...c, ampel: s.ampel as Ampel, text: chargeText(s, c.verfall) };
-    });
+      return {
+        ...c,
+        restGesamt: v.restGesamt,
+        orte: v.orte,
+        ampel: s.ampel as Ampel,
+        text: chargeText(s, c.verfall),
+      };
+    })
+    // ⚠️ DER FILTER GEHT AUF DIE SUMME UEBER ALLE ORTE, nicht auf den
+    // Handlager-Rest `rest` — sonst verschwindet genau die Charge, die
+    // vollstaendig im Fahrzeug liegt (derselbe Befund wie in Aufgabe 11).
+    .filter((c) => c.restGesamt > 0);
   return {
     id: d.artikel.id, name: d.artikel.name, einheit: d.artikel.einheit,
     fach: d.artikel.fach, bestand: d.bestand, chargen: cs,
