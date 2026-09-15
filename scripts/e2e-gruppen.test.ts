@@ -74,6 +74,24 @@ const ausgelassen = (() => {
   return zeile[1].split("|").map((n) => `${n}.spec.ts`);
 })();
 
+/**
+ * `foo-*.spec.ts` -> ein Regex, das genau diese Namen trifft.
+ *
+ * ⚠️ JEDES Sonderzeichen wird escaped, nicht nur der Punkt. Ein `.replace(/[.]/…)`
+ * allein liesse `\`, `+`, `(`, `[` … als Regex-Bedeutung stehen: aus einem
+ * Dateinamen wuerde ein Muster, das zu viel oder gar nichts trifft, und bei einer
+ * unpaarigen Klammer wirft `new RegExp` erst zur Laufzeit. CodeQL nennt das
+ * „Incomplete string escaping or encoding" (Alarm 7 auf diesem Zweig).
+ *
+ * Geteilt wird deshalb AM STERN, jedes Stueck einzeln escaped, dann mit `.*`
+ * zusammengesetzt — so kann kein escapetes Zeichen nachtraeglich wieder zur
+ * Bedeutung werden (was ein zweites `.replace` auf dem fertigen Muster taete).
+ */
+function globZuRegex(datei: string): RegExp {
+  const stuecke = datei.split("*").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`^${stuecke.join(".*")}$`);
+}
+
 /** `e2e/foo-*.spec.ts` -> die Dateinamen, die das Muster trifft. */
 function loese(muster: string, vorhanden: string[]): string[] {
   return muster
@@ -82,7 +100,7 @@ function loese(muster: string, vorhanden: string[]): string[] {
     .flatMap((m) => {
       const datei = m.replace(/^e2e\//, "");
       if (!datei.includes("*")) return [datei];
-      const rx = new RegExp(`^${datei.replace(/[.]/g, "\\.").replace(/\*/g, ".*")}$`);
+      const rx = globZuRegex(datei);
       return vorhanden.filter((d) => rx.test(d));
     });
 }
@@ -108,6 +126,23 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // Die eigentliche Zusicherung. Eine fehlende Datei laeuft in der CI nie und
     // ist trotzdem gruen; eine doppelte laeuft zweimal und kostet nur Zeit.
     expect([...aufgeloest].sort()).toEqual([...erwartet].sort());
+  });
+
+  it("das Sternchen-Muster nimmt jedes Sonderzeichen woertlich", () => {
+    // Die Gegenprobe zum CodeQL-Fund: nur den Punkt zu escapen liess `\`, `+`,
+    // `(` … ihre Regex-Bedeutung behalten. Heute gaebe es im Verzeichnis keinen
+    // solchen Namen — aber der Waechter soll nicht davon abhaengen, dass das so
+    // bleibt, und bei einer unpaarigen Klammer wuerfe `new RegExp` erst zur
+    // Laufzeit.
+    expect(globZuRegex("a+b.spec.ts").test("a+b.spec.ts")).toBe(true);
+    expect(globZuRegex("a+b.spec.ts").test("aab.spec.ts")).toBe(false);
+    expect(globZuRegex("a.b.spec.ts").test("axb.spec.ts")).toBe(false);
+    expect(globZuRegex("x(y).spec.ts").test("x(y).spec.ts")).toBe(true);
+    expect(() => globZuRegex("x(y.spec.ts")).not.toThrow();
+    expect(globZuRegex("a\\b.spec.ts").test("a\\b.spec.ts")).toBe(true);
+    // und der Stern tut weiter, wozu er da ist
+    expect(globZuRegex("lagerbuch-*.spec.ts").test("lagerbuch-mobil.spec.ts")).toBe(true);
+    expect(globZuRegex("lagerbuch-*.spec.ts").test("radio-mobil.spec.ts")).toBe(false);
   });
 
   it("kein Muster trifft ins Leere", () => {
