@@ -361,3 +361,31 @@ describe("Aussondern und der Monatsspiegel", () => {
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value).toBe("");
   });
 });
+
+describe("Der Dialog liest denselben Monat wie der Waehler", () => {
+  /**
+   * ⚠️ DER SPIEGEL IST WAEHREND DES SPEICHERNS DER NEUERE STAND. `monatSetzen`
+   * traegt den gewaehlten Monat SOFORT in den Spiegel und schickt ihn erst
+   * danach zum Server; bis die Auffrischung zurueck ist, hat die Prop noch den
+   * alten Wert. Bekaeme der Dialog die Prop, stuende in seinem Feld der alte
+   * Monat — und eine Teilaussonderung schriebe ihn ueber den gerade
+   * gespeicherten zurueck.
+   */
+  it("uebernimmt den frisch gewaehlten Monat in den Dialog", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    await monatWaehlen("Verfall Mullbinde", "2027-09");
+    // Die Prop bleibt im Test bei 2027-03 — genau der Zustand vor der
+    // Auffrischung, den der Dialog nicht uebernehmen darf.
+    expect(ZEILEN[0].verfall).toBe("2027-03");
+
+    await clickElement(query(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    ));
+    await warte();
+    const dialog = document.body.querySelector("[role='dialog']");
+    if (!dialog) throw new Error("Dialog nicht offen");
+
+    expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
+      .toBe("2027-09");
+  });
+});

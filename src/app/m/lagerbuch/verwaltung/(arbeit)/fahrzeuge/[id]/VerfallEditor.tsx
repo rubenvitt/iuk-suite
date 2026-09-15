@@ -169,7 +169,13 @@ export function VerfallEditor({
           einheit={eintrag.einheit}
           bestand={eintrag.bestand}
           chargen={eintrag.chargen}
-          verfall={eintrag.verfall}
+          // ⚠️ `monatFuer` UND NICHT `eintrag.verfall` — derselbe Zugriff, den
+          // der Waehler daneben nutzt. `monatSetzen` traegt einen gewaehlten
+          // Monat SOFORT in den Spiegel und schickt ihn erst danach zum Server;
+          // bis die Auffrischung zurueck ist, ist die Prop der AELTERE Stand.
+          // Mit ihr stuende im Dialog der alte Monat, und eine Teilaussonderung
+          // schriebe ihn ueber den gerade gespeicherten zurueck.
+          verfall={monatFuer(eintrag)}
           // Zweite Schreibstelle auf demselben Wert — der Spiegel muss ihr
           // folgen, sonst behauptet der Waehler weiter den alten Monat.
           onAusgesondert={(neuerVerfall) => {
