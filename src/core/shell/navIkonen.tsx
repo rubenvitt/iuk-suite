@@ -18,7 +18,7 @@ import {
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
   PiMagnifyingGlass, PiBookmarkSimple, PiPuzzlePiece, PiGraduationCap, PiCardsThree,
-  PiLockers,
+  PiLockers, PiHandArrowDown, PiNotePencil,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -62,6 +62,9 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   ueben: PiGraduationCap,
   lernsets: PiCardsThree,
   lagerorte: PiLockers,
+  // DRK-305 — Begruendung an der Union in `types.ts`.
+  entnahme: PiHandArrowDown,
+  pruefen: PiNotePencil,
 };
 
 /**

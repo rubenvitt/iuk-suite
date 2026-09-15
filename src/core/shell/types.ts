@@ -38,7 +38,19 @@ export type NavIkonName =
   // (PiPackage) meint das Material, nicht den Ort, an dem es liegt, und
   // `fahrzeuge` ist der andere Lagerorttyp. Dieselbe Begruendung wie bei den
   // Zeichen, die `radio`, `uav` und `zeichen` mitgebracht haben.
-  | "lagerorte";
+  | "lagerorte"
+  // DRK-305: der Weg in die Entnahmeflaeche des Helfer-Asts. KEIN geliehener
+  // Name — `artikel` (PiPackage) meint das Material, `lagerorte` (PiLockers) den
+  // Ort, an dem es liegt; keiner von beiden traegt die HANDLUNG, Material
+  // herauszunehmen. `ausleihen` (PiArrowsLeftRight) heisst in `radio` etwas
+  // anderes und gaebe dem naechsten Leser einen falschen Begriff.
+  //
+  // `pruefen` ist die HANDLUNG, `checks` (PiCheckSquare) die Historie der
+  // abgeschlossenen Pruefungen — zwei Nav-Eintraege im selben Abschnitt, und ein
+  // geteiltes Zeichen machte sie in der Seitenleiste ununterscheidbar. Die
+  // Bauform von `baukasten` (zwei Eintraege, ein Zeichen) traegt hier NICHT:
+  // dort stehen die beiden Eintraege in verschiedenen Abschnitten.
+  | "entnahme" | "pruefen";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

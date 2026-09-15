@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die sechzehn Ziele", () => {
-  it("führt genau die 16 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
+  it("führt genau die 18 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -13,11 +13,16 @@ describe("LAGERBUCH_NAV: die sechzehn Ziele", () => {
       { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung", abschnitt: "Bestand" },
       // DRK-297: die Schraenke des Handlagers.
       { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
+      // DRK-305: der erste von zwei Eintraegen, die NICHT nach /verwaltung fuehren.
+      { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
       { key: "fahrzeuge", title: "Fahrzeuge", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Fahrzeuge & Geräte" },
       { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Fahrzeuge & Geräte" },
       { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Fahrzeuge & Geräte" },
       { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Fahrzeuge & Geräte" },
       { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
+      // DRK-305: der zweite. `pruefen` ist die HANDLUNG, `checks` daneben die
+      // Historie — zwei Eintraege im selben Abschnitt, deshalb zwei Zeichen.
+      { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Prüfungen" },
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
       { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
       { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
@@ -30,16 +35,27 @@ describe("LAGERBUCH_NAV: die sechzehn Ziele", () => {
     expect(LAGERBUCH_NAV.some((e) => e.href === "/")).toBe(false);
   });
 
+  /*
+   * ⚠️ ZWEI PRAEFIXE SEIT DRK-305, NICHT MEHR EINES. „Entnahme" und „Check
+   * durchfuehren" fuehren in den HELFER-Ast: dieselben Flaechen, die eine
+   * Helferin nach dem Kaertchen-Scan sieht, nur ohne Kaertchen und ohne Bindung
+   * an ein einzelnes Fahrzeug. Eine zweite Fassung im Verwaltungsrahmen waere
+   * eine zweite Wahrheit darueber, wie gebucht und geprueft wird.
+   *
+   * Was UNVERAENDERT gilt und die eigentliche Zusage dieses Tests ist: die
+   * AEUSZERE Pfadform. Ein `/m/lagerbuch`-Praefix wuerde auf dem Modul-Host
+   * doppelt praefixiert (Falle 49).
+   */
   it("traegt AUSSCHLIESZLICH die aeuszere Pfadform", () => {
     for (const e of LAGERBUCH_NAV) {
-      expect(e.href, e.key).toMatch(/^\/verwaltung/);
+      expect(e.href, e.key).toMatch(/^\/(verwaltung|helfer)/);
       expect(e.href, e.key).not.toMatch(/^\/m\/lagerbuch/);
     }
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(16);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(16);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(18);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(18);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {

@@ -7,6 +7,7 @@ import {
 import { fmtDatumZeit } from "../../../_lib/zeit";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "./ChecklisteKnopf";
+import { CheckDurchfuehrenKnopf } from "./CheckDurchfuehrenKnopf";
 import {
   FahrzeugeListe,
   type FahrzeugAnzeigeZeile,
@@ -61,7 +62,18 @@ export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date): ReactNode {
       <SeitenKopf
         titel="Fahrzeuge"
         beschreibung="Flotte mit Soll-Abgleich und Verfallsmeldungen aus den Fahrzeug-Checks."
-        aktionen={<ChecklisteKnopf beschriftung="Checklisten drucken" />}
+        aktionen={(
+          <>
+            {/*
+              DER ÜBERGREIFENDE EINSTIEG — DRK-305. OHNE `fahrzeugId`: von hier
+              führt der Weg auf die Fahrzeugwahl, nicht auf ein einzelnes
+              Fahrzeug. Genau dafür ist das Ticket geschrieben — wer angemeldet
+              prüft, ist nicht auf das gescannte Fahrzeug beschränkt.
+            */}
+            <CheckDurchfuehrenKnopf beschriftung="Check durchführen" />
+            <ChecklisteKnopf beschriftung="Checklisten drucken" />
+          </>
+        )}
       />
       <FahrzeugeListe zeilen={zeilen} />
     </>
