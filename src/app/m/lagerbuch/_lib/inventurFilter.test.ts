@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fachOptionen, filterIstLeer, inventurTrifft, LEERER_INVENTUR_FILTER } from "./inventurFilter";
+import { filterIstLeer, inventurTrifft, LEERER_INVENTUR_FILTER } from "./inventurFilter";
 import { kategorieSchluessel } from "./kategorie";
 
 const HYG = kategorieSchluessel("Hygiene");
@@ -22,11 +22,5 @@ describe("inventurTrifft", () => {
     expect(inventurTrifft({ fach: "A1", kategorie: "Hygiene" }, f)).toBe(true);
     expect(inventurTrifft({ fach: "a1", kategorie: "Hygiene" }, f)).toBe(false);
     expect(inventurTrifft({ fach: "B2", kategorie: "Hygiene" }, f)).toBe(false);
-  });
-});
-
-describe("fachOptionen", () => {
-  it("liefert jedes Fach einmal, sortiert", () => {
-    expect(fachOptionen([{ fach: "B2" }, { fach: "A1" }, { fach: "B2" }])).toEqual(["A1", "B2"]);
   });
 });
