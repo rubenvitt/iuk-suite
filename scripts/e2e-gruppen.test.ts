@@ -96,19 +96,32 @@ function globZuRegex(datei: string): RegExp {
 }
 
 /**
- * Alle Spec-Dateien unter `e2e/`, REKURSIV und mit `/` als Trenner.
+ * Playwrights Vorgabe fuer `testMatch`, nachgebaut:
+ * `**\/*.@(spec|test).?(c|m)[jt]s?(x)`.
+ *
+ * ⚠️ NICHT `.endsWith(".spec.ts")`. `playwright.config.ts` setzt kein
+ * `testMatch`, es gilt also die Vorgabe — und die nimmt auch `foo.test.ts`,
+ * `foo.spec.js`, `foo.spec.tsx`, `foo.test.mjs`. Gemessen: eine
+ * `e2e/probe.test.ts` hebt den vollen Lauf von 47 auf 48 Dateien.
+ * Wer hier enger filtert als Playwright, baut genau die Luecke ein, die dieser
+ * Waechter schliessen soll.
+ */
+const SPEC_MUSTER = /\.(spec|test)\.[cm]?[jt]sx?$/;
+
+/**
+ * Alle Testdateien unter `e2e/`, REKURSIV und mit `/` als Trenner.
  *
  * ⚠️ `readdirSync` ohne `recursive` liest nur die direkten Kinder — Playwright
  * durchsucht `testDir` aber rekursiv. Die Luecke waere genau der Ausfall, den
- * dieser Waechter verhindern soll: eine Spec-Datei in einem Unterverzeichnis
+ * dieser Waechter verhindern soll: eine Datei in einem Unterverzeichnis
  * stuende in keiner Gruppe, faende sich aber auch nicht in der Sollmenge, und
- * der Test bliebe GRUEN, waehrend die CI den Test nie faehrt. `e2e/helpers/`
- * gibt es bereits, es fehlt also nur die erste Datei darin.
+ * der Test bliebe GRUEN, waehrend die CI sie nie faehrt. `e2e/helpers/`
+ * gibt es bereits, es fehlt also nur die erste Testdatei darin.
  */
 function alleSpecs(): string[] {
   return readdirSync(E2E, { recursive: true })
     .map((d) => String(d).split(sep).join("/"))
-    .filter((d) => d.endsWith(".spec.ts"));
+    .filter((d) => SPEC_MUSTER.test(d));
 }
 
 /** `e2e/foo-*.spec.ts` -> die Dateinamen, die das Muster trifft. */
@@ -172,12 +185,30 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // BEIDEN Mengen — sie steht in keiner Gruppe, fehlt aber auch in der
     // Sollmenge, und der Test bleibt gruen, waehrend die CI sie nie faehrt.
     // `e2e/helpers/` gibt es schon; es fehlt nur die erste Datei darin.
-    const flach = readdirSync(E2E).filter((d) => d.endsWith(".spec.ts"));
+    const flach = readdirSync(E2E).filter((d) => SPEC_MUSTER.test(String(d)));
     expect(alleSpecs().length).toBeGreaterThanOrEqual(flach.length);
     // Die Zusicherung, die wirklich traegt: was Playwright faehrt, ist genau
     // das, was der Waechter gegen die Gruppen haelt. Gezaehlt gegen die
     // Auswahl, die `--list` im vollen Lauf ergibt (449 Faelle in 47 Dateien).
     expect(alleSpecs().filter((d) => !ausgelassen.includes(d))).toHaveLength(47);
+  });
+
+  it("die Sollmenge folgt Playwrights `testMatch`, nicht nur `.spec.ts`", () => {
+    // `playwright.config.ts` setzt kein `testMatch`, es gilt die Vorgabe
+    // `**/*.@(spec|test).?(c|m)[jt]s?(x)`. Ein enger Filter hier hiesse: eine
+    // `foo.test.ts` liefe in der CI nie und fehlte zugleich in der Sollmenge —
+    // der Waechter bliebe gruen. Gemessen: eine `e2e/probe.test.ts` hebt den
+    // vollen Lauf von 47 auf 48 Dateien.
+    for (const d of [
+      "a.spec.ts", "a.test.ts", "a.spec.tsx", "a.test.tsx",
+      "a.spec.js", "a.test.js", "a.spec.mjs", "a.spec.cts",
+      "unter/b.test.ts",
+    ]) {
+      expect(SPEC_MUSTER.test(d), d).toBe(true);
+    }
+    for (const d of ["helpers/lagerbuch.ts", "gruppen.json", "a.spec.txt", "spec.ts", "fixtures.ts"]) {
+      expect(SPEC_MUSTER.test(d), d).toBe(false);
+    }
   });
 
   it("kein Muster trifft ins Leere", () => {
