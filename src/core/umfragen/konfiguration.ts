@@ -48,6 +48,25 @@ function istBrauchbareAdresse(wert: string): boolean {
 }
 
 /**
+ * ⚠️ HÖCHSTENS EINE WARNUNG JE PROZESS, und das ist kein Feinschliff.
+ *
+ * `umfragenKonfiguration()` läuft in `FullShell`, und `FullShell` rendert JE
+ * ANFRAGE. Ohne diese Sperre schriebe ein Tippfehler in der `.env` nicht „eine
+ * Warnung ins Serverlog", sondern eine Zeile pro Seitenaufruf jeder
+ * Arbeitsfläche — und ersäufte damit genau das Log, das er informieren soll.
+ *
+ * Dieselbe Bauform wie `eingerichtet` in `Umfragen.tsx`: modulweit, nicht je
+ * Aufruf. Der Zustand, auf den sie sich bezieht (die Umgebung des Prozesses),
+ * lebt genauso lange.
+ */
+let schonGewarnt = false;
+
+/** Nur für Tests: die Sperre zurücknehmen. */
+export function _warnsperreZuruecksetzen(): void {
+  schonGewarnt = false;
+}
+
+/**
  * ⚠️ EIN GESETZTER, ABER UNBRAUCHBARER WERT BRICHT DEN START NICHT AB — anders
  * als bei den Zugriffsgruppen (`validateGroupConfig`), und der Unterschied ist
  * die Tragweite: eine falsche Gruppe ist ein Sicherheitsfehler, eine falsche
@@ -66,6 +85,12 @@ export function umfragenKonfiguration(
   env: Record<string, string | undefined> = process.env,
   warnen: (meldung: string) => void = console.warn,
 ): UmfragenKonfiguration | null {
+  const einmalWarnen = (meldung: string) => {
+    if (schonGewarnt) return;
+    schonGewarnt = true;
+    warnen(meldung);
+  };
+
   const appUrl = (env[UMFRAGEN_APP_URL_ENV] ?? "").trim();
   const workspaceId = (env[UMFRAGEN_WORKSPACE_ENV] ?? "").trim();
 
@@ -73,7 +98,7 @@ export function umfragenKonfiguration(
   if (appUrl === "" && workspaceId === "") return null;
 
   if (appUrl === "" || workspaceId === "") {
-    warnen(
+    einmalWarnen(
       `Umfragen bleiben aus: ${UMFRAGEN_APP_URL_ENV} und ${UMFRAGEN_WORKSPACE_ENV} ` +
         `gehören zusammen, gesetzt ist nur ${appUrl === "" ? UMFRAGEN_WORKSPACE_ENV : UMFRAGEN_APP_URL_ENV}.`,
     );
@@ -81,7 +106,7 @@ export function umfragenKonfiguration(
   }
 
   if (!istBrauchbareAdresse(appUrl)) {
-    warnen(
+    einmalWarnen(
       `Umfragen bleiben aus: ${UMFRAGEN_APP_URL_ENV} ist keine http(s)-Adresse (${appUrl}).`,
     );
     return null;
