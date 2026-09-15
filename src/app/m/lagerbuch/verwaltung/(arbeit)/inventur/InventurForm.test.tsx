@@ -23,6 +23,7 @@ import {
   mount,
   query,
   queryAll,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import { artikel } from "../../../_db/schema";
@@ -104,30 +105,62 @@ function istRekursivJsonSicher(wert: unknown): boolean {
   return Object.values(wert).every(istRekursivJsonSicher);
 }
 
+function spaltenkopf(beschriftung: string): HTMLElement {
+  const kopf = queryAll("thead th").find((zelle) => (zelle.textContent ?? "").includes(beschriftung));
+  if (!kopf) throw new Error(`Kein Spaltenkopf: ${beschriftung}`);
+  return kopf;
+}
+
 /**
- * Oeffnet einen Filter-Select wie ArtikelTable.test.tsx (DRK-294) und waehlt die
- * Option mit genau diesem Text — echte Bedienung, kein vorgetaeuschter Zustand.
+ * Oeffnet den Filter IM SPALTENKOPF und kreuzt die Option mit genau diesem Text an —
+ * echte Bedienung, kein vorgetaeuschter Zustand.
+ *
+ * ⚠️ MIT DRK-333 IST DAS DER GANZE UNTERSCHIED ZU FRUEHER: bis dahin standen zwei
+ * `Select` UEBER der Tabelle, und dieselben Faelle bedienten sie ueber ihr
+ * `aria-label`. Die Zusicherungen darunter sind unveraendert geblieben — was
+ * gefiltert wird, was ausgeblendet trotzdem gebucht wird und was als Umfang in den
+ * append-only Verlauf geht.
  */
-async function filterWaehlen(ariaLabel: string, text: string): Promise<void> {
-  const input = query<HTMLInputElement>(`[aria-label='${ariaLabel}']`);
-  await act(async () => {
-    input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-  });
+async function filterWaehlen(spalte: string, text: string): Promise<void> {
+  const ausloeser = spaltenkopf(spalte).querySelector<HTMLElement>(".ant-table-filter-trigger");
+  if (!ausloeser) throw new Error(`Spalte ohne Filter: ${spalte}`);
+  await clickElement(ausloeser);
   await warte();
-  const option = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
+  /*
+   * ⚠️ NUR IM OFFENEN MENUE SUCHEN. antd laesst das Menue der zuvor bedienten Spalte
+   * als `.ant-dropdown-hidden` im Portal stehen; eine Suche ueber `document.body`
+   * fand dort gemessen das falsche „OK" und setzte den ERSTEN Filter zurueck —
+   * der Fall „beide Filter zusammen treffen nichts" zeigte dann eine Zeile.
+   */
+  const menue = Array.from(
+    document.body.querySelectorAll<HTMLElement>(".ant-table-filter-dropdown"),
+  ).find((element) => !element.closest(".ant-dropdown-hidden"));
+  if (!menue) throw new Error(`Filtermenue oeffnet nicht: ${spalte}`);
+  const punkt = Array.from(menue.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item"))
     .find((element) => (element.textContent ?? "") === text);
-  if (!option) throw new Error(`Option nicht gefunden: ${text}`);
-  await clickElement(option);
+  if (!punkt) throw new Error(`Option nicht gefunden: ${text}`);
+  await clickElement(punkt);
+  const ok = Array.from(
+    menue.querySelectorAll<HTMLElement>(".ant-table-filter-dropdown-btns button"),
+  ).find((knopf) => knopf.textContent === "OK");
+  if (!ok) throw new Error("Kein OK im Filtermenue");
+  await clickElement(ok);
   await warte();
 }
 
 describe("InventurForm — Tabelle und Eingabe", () => {
-  it("rendert exakt sieben Spalten, stabile IDs und die verbindlichen Tabellenprops", async () => {
+  it("rendert exakt acht Spalten, stabile IDs und die verbindlichen Tabellenprops", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
 
-    // Leere Koepfe (antd-Aufklappspalte, Task 6) zaehlen nicht als Spalte.
+    /*
+     * Leere Koepfe (antd-Aufklappspalte, Task 6) zaehlen nicht als Spalte.
+     * ⚠️ „Kategorie" ist mit DRK-333 dazugekommen: der Filter aus der Leiste ueber
+     * der Tabelle gehoert in den Kopf der Spalte, die er betrifft — und eine
+     * Kategorie, nach der man filtern kann, muss man auch lesen koennen.
+     */
     expect(queryAll("thead th").map((zelle) => zelle.textContent).filter((t) => t)).toEqual([
       "Artikel",
+      "Kategorie",
       "Fach",
       "MHD",
       "Min.",
@@ -277,7 +310,7 @@ describe("InventurForm — Zeile und Filter", () => {
   it("behält einen gezählten Wert, wenn der Filter die Zeile ausblendet, und bucht ihn mit", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Pflaster']", "3");
-    await filterWaehlen("Nach Fach filtern", "A1");
+    await filterWaehlen("Fach", "A1");
     expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
     expect(query("[data-rolle='ausgeblendet-hinweis']").textContent).toContain("1 gezählte Position ist ausgeblendet");
     await fill("input[aria-label='Kommentar']", "Teil");
@@ -296,7 +329,7 @@ describe("InventurForm — Zeile und Filter", () => {
    */
   it("legt einen Kategorienfilter als Label, nicht als gefalteten Schlüssel, in den Umfang", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
-    await filterWaehlen("Nach Kategorie filtern", "Hygiene");
+    await filterWaehlen("Kategorie", "Hygiene");
     expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Hygiene");
@@ -309,11 +342,46 @@ describe("InventurForm — Zeile und Filter", () => {
     });
   });
 
+  it("zeigt die Kategorie in ihrer eigenen Spalte und „—“, wo keine vergeben ist", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    expect(query("tr[data-row-key='a1']").textContent).toContain("Hygiene");
+    expect(query("tr[data-row-key='a2'] td:nth-child(3)").textContent).toBe("—");
+  });
+
+  /**
+   * ⚠️ DER ZAEHLER IST ABGELEITET, NICHT GEMERKT (Falle 15). Der naheliegende Weg
+   * waere `onChange(…, extra.currentDataSource)` — und der feuert NUR bei Bedienung
+   * der Tabelle. Laedt die Seite daneben einen neuen Serverstand, filtert antd zwar
+   * korrekt neu, meldet es aber nicht; die Zahl bliebe still auf dem alten Stand.
+   * Dieser Fall aendert deshalb die Datenquelle, OHNE die Tabelle anzufassen.
+   */
+  it("rechnet den Zähler nach, wenn sich die Zeilen ändern statt die Tabelle", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+    // Ungefiltert sagt die Trefferanzeige nichts — „2 von 2" waere Laerm.
+    expect(queryAll("[data-testid='trefferanzeige']")).toHaveLength(0);
+
+    await filterWaehlen("Fach", "A1");
+    expect(query("[data-testid='trefferanzeige']").textContent).toBe("1 von 2");
+
+    await rerender(
+      <InventurForm
+        zeilen={[
+          ...ZEILEN,
+          { id: "a3", name: "Kompresse", einheit: "Stk", fach: "A1", kategorie: "Hygiene",
+            mindestbestand: 1, bestand: 7, chargen: [] },
+        ]}
+      />,
+    );
+    await warte();
+    expect(query("[data-testid='trefferanzeige']").textContent, "gemerkt statt gerechnet")
+      .toBe("2 von 3");
+  });
+
   it("zeigt einen eigenen Leertext, wenn nur der Filter nichts trifft", async () => {
     await mount(<InventurForm zeilen={ZEILEN} />);
     // Jede Option trifft fuer sich eine Zeile; erst beide zusammen treffen keine.
-    await filterWaehlen("Nach Kategorie filtern", "Hygiene");
-    await filterWaehlen("Nach Fach filtern", "B2");
+    await filterWaehlen("Kategorie", "Hygiene");
+    await filterWaehlen("Fach", "B2");
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
     expect(document.body.textContent).toContain("Kein Artikel passt zum Filter.");
     expect(document.body.textContent).not.toContain("Keine Artikel vorhanden.");
