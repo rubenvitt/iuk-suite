@@ -113,6 +113,8 @@ export function CheckFlow({
   flaschen,
   verfall,
   warn,
+  gebunden,
+  letzterCheckText,
 }: {
   fahrzeug: { id: string; name: string; kennung: string | null };
   soll: CheckPos[];
@@ -121,6 +123,65 @@ export function CheckFlow({
   /** Beim letzten Check gemeldeter Verfall je artikelId („YYYY-MM"), leer = keine Angabe. */
   verfall: Record<string, string>;
   warn: VerfallSchwellen;
+  /**
+   * Das gescannte Kaertchen haengt an DIESEM Fahrzeug (DRK-302) — dann gibt es
+   * kein „anderes Fahrzeug", und die beiden Auswege in die Wahl entfallen.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL. Ein `gebunden?: boolean` waere in jeder
+   * vergessenen Aufrufstelle still `undefined` und damit „ungebunden" — der
+   * Knopf in die volle Liste stuende wieder da, und kein Tor meldete es. Die
+   * Seite ist heute der einzige Aufrufer; ein zweiter muesste die Frage
+   * ausdruecklich beantworten.
+   *
+   * ⚠️ DER WERT FRIERT BEI DER INLINE-ERNEUERUNG EIN, UND DAS BLEIBT SO.
+   * `erneuereSitzung` (§7.4.4) tauscht das Cookie OHNE Seitenaufbau; wer mit
+   * einem Kaertchen eines anderen Fahrzeugs erneuert, sieht die zwei Auswege
+   * danach weiter nach dem ALTEN Kaertchen. Drei Gruende, warum hier trotzdem
+   * nichts nachgezogen wird:
+   *
+   * 1. EINE NEUAUFLOESUNG VOR DEM ABSENDEN WAERE DER SCHADEN, NICHT DIE
+   *    HEILUNG. Sie hiesse Seitenaufbau, und der verwirft die eingetragenen
+   *    Mengen — genau der Datenverlust, gegen den das Inline-Feld ueberhaupt
+   *    gebaut ist (§7.4.4, `docs/design/README.md`: Fehler aus Server-Actions
+   *    kommen AM FELD an, nicht als Redirect). Zwanzig Minuten Zaehlarbeit
+   *    stehen an dieser Stelle auf dem Spiel.
+   * 2. `fahrzeug.id` FRIERT MIT EIN, und das ist RICHTIG: gezaehlt wurde
+   *    DIESES Fahrzeug, also gehoeren die Mengen dorthin. Ein Ziel, das unter
+   *    der Helferin wechselt, waere die Fehlbuchung.
+   * 3. KEINE SACKGASSE. `gebunden` steuert allein, ob „Anderes Fahrzeug"
+   *    dasteht — die Tab-Leiste des `HelferRahmen` liegt in JEDER Lage darunter
+   *    (der Flow ist ihr Kind, `helfer/check/page.tsx`), und ihr
+   *    „Fahrzeug-Check" fuehrt auf `/helfer/check`, wo die Bindung frisch
+   *    aufgeloest wird.
+   *
+   * WAS BLEIBT, ist die Frage, ob ein an Fahrzeug B haengendes Kaertchen einen
+   * Check auf A bezeugen darf. Das ist die BERECHTIGUNGSFRAGE, nicht die
+   * Anzeigefrage — offene Betreiberfrage 5, Ansatzpunkt 2 in
+   * `_actions/check.ts`, und sie gilt dort unveraendert AUCH OHNE Erneuerung.
+   */
+  gebunden: boolean;
+  /**
+   * DER LETZTE ABGESCHLOSSENE CHECK DIESES FAHRZEUGS — DRK-306, als FERTIGER
+   * TEXT; `null` heisst „noch nie abgeschlossen geprueft".
+   *
+   * ⚠️ TEXT UND KEIN `Date`, und das ist keine Bequemlichkeit: ein `Date` reist
+   * klaglos ueber die RSC-Grenze und wuerde hier in der Zone des GERAETS
+   * formatiert. Die Seite formatiert deshalb zonenexplizit vor
+   * (`helfer/check/page.tsx`, `fmtDatumZeit`) — dieselbe Zusage, die
+   * `verwaltung/fahrzeuge` woertlich traegt.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL — aus demselben Grund wie `gebunden` darueber.
+   * Ein `letzterCheckText?: string | null` waere in jeder vergessenen
+   * Aufrufstelle still `undefined` und damit vom „noch nie geprueft"-Fall NICHT
+   * zu unterscheiden: ein gestern geprueftes Fahrzeug bekaeme die Zeile „Noch
+   * kein Check erfasst" und saehe aus wie ein vergessenes. Ein fehlender Wert
+   * soll LAUT sein, nicht falsch.
+   *
+   * ⚠️ ER WIRD AUF DEM FERTIG-SCHIRM NICHT GEZEIGT. Nach dem Abschluss ist der
+   * letzte Check DIESER hier; die vorgeladene Zahl waere dort die
+   * VORLETZTE — ein Wert, der stimmt und trotzdem das Falsche behauptet.
+   */
+  letzterCheckText: string | null;
 }) {
   // DIE SECHS CLIENT-ZUSTAENDE (1:1, `:62-71`). Sie bleiben bei JEDEM Fehler
   // stehen — das ist die tragende Zusage von §7.4.4 und §7.10.3.
@@ -139,11 +200,42 @@ export function CheckFlow({
 
   const faecher = [...new Set(soll.map((p) => p.fachLabel))];
 
-  // Default = Soll („voll annehmen, Gezaehltes runterkorrigieren", `:97`). Der
-  // RECORDED Fahrzeugbestand wird bewusst NICHT als Per-Position-Default
-  // benutzt: er ist pro ARTIKEL, nicht pro Fach, und derselbe Artikel in
-  // mehreren Faechern wuerde sich vervielfachen (`:94-96`, §5.7.1).
-  const istWert = (p: CheckPos) => ist[p.id] ?? p.soll;
+  /*
+   * DEFAULT = 0, NICHT MEHR SOLL — DRK-304.
+   *
+   * Bis hierher galt „voll annehmen, Gezaehltes runterkorrigieren" (`:97`).
+   * Diese Vorbelegung WAR die Aktion „Alles auf Soll", die das Ticket
+   * entfernt: wer den Schritt durchklickte, bezeugte einen vollen Wagen, ohne
+   * ein Fach gesehen zu haben — und serverseitig ist „gezaehlt und stimmt" von
+   * „nicht gezaehlt" nicht unterscheidbar (`_lib/checkNutzlast.ts`, Kopf).
+   *
+   * ⚠️ DIE UMKEHR IST NICHT FOLGENLOS, UND DESHALB STEHT `gezaehlt` DANEBEN.
+   * `check.ts` rechnet aus der Summe der gezaehlten Ist JE ARTIKEL eine
+   * Korrekturbuchung auf den Fahrzeugbestand — in ein Journal ohne UPDATE und
+   * ohne DELETE. Eine 0, die niemand gezaehlt hat, waere damit eine
+   * unwiderrufliche Leerbuchung; das Ticket verbietet sie ausdruecklich
+   * („keine automatische Deutung von 0 als bestaetigter Leerbestand"). Der
+   * Riegel im Zaehlschritt ist die Antwort darauf — NICHT eine zweite
+   * Vorbelegung.
+   *
+   * Der RECORDED Fahrzeugbestand ist weiterhin kein Per-Position-Default: er
+   * ist pro ARTIKEL, nicht pro Fach, und derselbe Artikel in mehreren Faechern
+   * wuerde sich vervielfachen (`:94-96`, §5.7.1).
+   */
+  const istWert = (p: CheckPos) => ist[p.id] ?? 0;
+
+  /**
+   * Hat jemand diese Position ANGEFASST? `undefined` heisst „noch nicht
+   * gezaehlt" und ist von einer gezaehlten 0 zu unterscheiden — genau darauf
+   * steht und faellt DRK-304.
+   *
+   * ⚠️ DER AUSGANG FUER EIN WIRKLICH LEERES FACH IST DAS „−". `Stepper.tsx`
+   * ruft `setWert` auch dann, wenn der Wert bei `min` schon steht; der Klick
+   * schreibt also die 0 in `ist` und macht sie zur Aussage. Ohne diese
+   * Eigenschaft gaebe es aus dem Riegel keinen Weg, und sie darf beim naechsten
+   * Umbau des Steppers nicht stillschweigend verloren gehen.
+   */
+  const gezaehlt = (p: CheckPos) => ist[p.id] !== undefined;
   const nfWert = (p: CheckPos) => nachfuell[p.id] ?? 0;
 
   // Verfall haengt am ARTIKEL, nicht am Fach. Vorbelegt ist der beim letzten
@@ -264,7 +356,16 @@ export function CheckFlow({
             "Für dieses Fahrzeug ist weder ein Soll noch ein Gerät noch eine Sauerstoffflasche " +
             "hinterlegt. Die Verwaltung pflegt die Bestückung."
           }
-          weg={{ href: "/helfer/check", text: "Anderes Fahrzeug" }}
+          /*
+           * DER RUECKWEG HAENGT AM KAERTCHEN (DRK-302). Bei einem gebundenen
+           * Kaertchen gibt es kein anderes Fahrzeug — „Anderes Fahrzeug" fuehrte
+           * dann in eine Wahl, aus der die Seite unmittelbar wieder auf DIESES
+           * Fahrzeug zurueckspringt: ein Knopf, der nichts tut. `weg` ist
+           * Pflicht-Prop (§11.7), ein Weglassen ist also keine Option.
+           */
+          weg={gebunden
+            ? { href: "/helfer", text: "Zur Entnahme" }
+            : { href: "/helfer/check", text: "Anderes Fahrzeug" }}
         />
       </>
     );
@@ -348,6 +449,40 @@ export function CheckFlow({
               bitte tauschen oder der Verwaltung melden.
             </p>
           )}
+
+          {/*
+            DER AUFFUELLHINWEIS NACH DEM DIENST — DRK-301.
+
+            Er steht am ABSCHLUSS, nicht dauerhaft auf jedem Schritt: er
+            beschreibt eine Handlung NACH dem Check, und auf einem Schritt
+            konkurrierte er mit dessen eigener Anweisung (die Fussnoten dort
+            sind ohnehin dicht). Auf dem Fertig-Schirm ist er bei „Alles in
+            Ordnung" der einzige Satz und faellt genau dann auf, wenn nichts
+            anderes zu tun bleibt.
+
+            ⚠️ ER IST TEXT, KEIN WEG. Kein Link, kein Knopf: gemeint ist der
+            PHYSISCHE QR-Code am Handlager, und AK3 verlangt ausdruecklich, dass
+            der Hinweis allein keine Bestandsbuchung ausloest. Ein Link auf
+            `/helfer` waere zudem eine zweite, leisere Antwort auf dieselbe
+            Frage — und die faende niemand wieder, wenn DRK-312 das
+            Handlager-Etikett neu zuschneidet.
+
+            ⚠️ ER WIDERSPRICHT DEM NACHFUELLSCHRITT NICHT. Der bucht Handlager →
+            Fahrzeug INNERHALB dieses Checks; gemeint ist hier das Auffuellen
+            NACH dem Dienst, ausserhalb des Checks — der Weg, ohne den der
+            Handlagerbestand still auseinanderlaeuft.
+
+            ⚠️ NUR MIT SOLL-BESTUECKUNG, aus demselben Grund wie der Chip oben:
+            traegt das Fahrzeug nur Geraete und Flaschen, gibt es nichts
+            aufzufuellen, und der Satz spraeche von Arbeit, die es nicht gibt.
+          */}
+          {hatArtikel && (
+            <p className={s.fussnote} data-rolle="auffuell-hinweis">
+              <b>Nach dem Dienst auffüllen:</b> Was auf dem Fahrzeug fehlt, holst du aus dem
+              Handlager – scanne dafür den QR-Code am Handlager, damit die Entnahme dort gebucht
+              wird.
+            </p>
+          )}
         </div>
 
         {/*
@@ -368,12 +503,42 @@ export function CheckFlow({
         >
           Nochmal dieses Fahrzeug
         </Link>
-        <Link className={`${s.knopf} ${s.knopfGeist}`} href="/helfer/check" data-rolle="anderes">
-          Anderes Fahrzeug
-        </Link>
+        {/*
+          NUR BEI UNGEBUNDENEM KAERTCHEN (DRK-302). Nach dem Scan eines
+          Fahrzeug-Kaertchens gibt es kein anderes Fahrzeug; der Knopf fuehrte in
+          eine Wahl, die die Seite sofort wieder auf dieses Fahrzeug aufloest.
+          „Nochmal dieses Fahrzeug" bleibt in BEIDEN Lagen stehen — es ist der
+          Weg, mit dem die Helferin nach einer Buchung frische Bestaende sieht.
+        */}
+        {!gebunden && (
+          <Link className={`${s.knopf} ${s.knopfGeist}`} href="/helfer/check" data-rolle="anderes">
+            Anderes Fahrzeug
+          </Link>
+        )}
       </>
     );
   }
+
+  /**
+   * DIE HERKUNFTSZEILE DES SCHRITTS — DRK-306, AK1.
+   *
+   * Sie steht auf JEDEM Schritt und nicht nur auf dem ersten: welcher Schritt
+   * der erste ist, haengt an der Bestueckung (`schrittFolge`), und ein Fahrzeug
+   * ohne Soll-Artikel faengt bei „Geraete" an. Eine Zeile, die nur im
+   * Zaehlschritt steht, waere dort ersatzlos weg — „sichtbar" waere dann eine
+   * Aussage ueber die Bestueckung statt ueber die Oberflaeche.
+   *
+   * Sie macht zugleich den Satz der Einleitungskarte ueberpruefbar: dort steht
+   * „Das Verfallsdatum kommt aus dem letzten Check", und ohne Zeitpunkt kann
+   * niemand beurteilen, ob dieser Stand von gestern oder vom Vorjahr ist.
+   */
+  const letzterCheckZeile = (
+    <div className={s.letzterCheck} data-rolle="letzter-check">
+      {letzterCheckText === null
+        ? "Noch kein Check erfasst — das ist der erste für dieses Fahrzeug."
+        : `Letzter Check: ${letzterCheckText}`}
+    </div>
+  );
 
   /** Der Fehlerbereich am Abschluss — samt Inline-Erneuerung (§7.4.4). */
   const fehlerBereich = fehler && (
@@ -421,7 +586,8 @@ export function CheckFlow({
 
   // ——— Schritt: Zaehlen ———
   if (aktivePhase === "zaehlen") {
-    const unterSoll = soll.filter((p) => istWert(p) < p.soll).length;
+    const unterSoll = soll.filter((p) => gezaehlt(p) && istWert(p) < p.soll).length;
+    const ungezaehlt = soll.filter((p) => !gezaehlt(p)).length;
     const ablaufend = zaehleAblaufende(
       Object.fromEntries(soll.map((p) => [p.artikelId, verfallWert(p.artikelId) || null])),
       warn,
@@ -429,6 +595,17 @@ export function CheckFlow({
     );
 
     const zurNachfuellung = () => {
+      /*
+       * DER RIEGEL GEHOERT DER FUNKTION, NICHT DEM KNOPF (DRK-304). Das
+       * `disabled` unten sichert genau EINEN Pfad; ein zweiter — eine
+       * Enter-Taste, ein Kuerzel, ein spaeterer „ueberspringen"-Weg — haette
+       * ihn stillschweigend umgangen, und die Rechnung darunter arbeitet mit
+       * `istWert(p)` OHNE eigene Pruefung: der greedy Vorschlag laege bei jeder
+       * unberuehrten Position auf der vollen Luecke, und der Abschluss schriebe
+       * eine Leerbuchung, die niemand gezaehlt hat.
+       */
+      if (ungezaehlt > 0) return;
+
       // Greedy je Artikel: die Handlager-Verfuegbarkeit ueber die Positionen
       // (Anzeige-Reihenfolge) verteilen, damit der Vorschlag nicht mehr
       // verspricht, als der Handlager hergibt (1:1, `:222-238`).
@@ -454,14 +631,16 @@ export function CheckFlow({
           {fahrzeug.kennung ? ` · ${fahrzeug.kennung}` : ""}
         </div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>
             Wie viel liegt wirklich im Fahrzeug, und wie lange hält es?
           </div>
           <p className={s.fussnote}>
-            Jede Position ist auf Soll vorbelegt – mit <b>−</b> runterzählen, was fehlt. Das
-            Verfallsdatum kommt aus dem letzten Check und ist freiwillig: nur ändern, wenn auf der
-            Packung ein anderes (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“.
+            Jede Position startet bei 0 – mit <b>+</b> hochzählen, was du wirklich findest. Ist ein
+            Fach leer, tippe einmal auf <b>−</b>; damit ist die 0 gezählt. Das Verfallsdatum kommt
+            aus dem letzten Check und ist freiwillig: nur ändern, wenn auf der Packung ein anderes
+            (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“.
           </p>
         </div>
 
@@ -474,6 +653,7 @@ export function CheckFlow({
                   .filter((p) => p.fachLabel === fach)
                   .map((p) => {
                     const wert = istWert(p);
+                    const offen = !gezaehlt(p);
                     const luecke = Math.max(0, p.soll - wert);
                     const ueber = wert > p.soll;
                     const vw = verfallWert(p.artikelId);
@@ -481,8 +661,20 @@ export function CheckFlow({
                     const traegtFeld = ersteZeile.get(p.artikelId) === p.id;
                     return (
                       <div className={s.zeile} key={p.id} style={{ alignItems: "flex-start" }}>
+                        {/*
+                          DREIWERTIG SEIT DRK-304, und aus demselben Grund wie
+                          beim Sauerstoff weiter unten: der nackte
+                          `.pruefKreis` ist neutral, und „noch nicht gezaehlt"
+                          ist weder ein Fehl- noch ein Ok-Befund. Zweiwertig
+                          faerbte die unberuehrte Zeile ROT — jede Zeile beim
+                          Betreten des Schritts —, und der Marker, der beim
+                          Scrollen ohne Lesen wirkt, saegte damit genau die
+                          Aussage ab, die der Riegel daneben macht.
+                        */}
                         <div
-                          className={`${s.pruefKreis} ${luecke > 0 ? s.pruefKreisFehl : s.pruefKreisOk}`}
+                          className={`${s.pruefKreis} ${
+                            offen ? "" : luecke > 0 ? s.pruefKreisFehl : s.pruefKreisOk
+                          }`}
                         />
                         <div className={s.zeileHaupt}>
                           <div className={s.zeileName}>{p.artikelName}</div>
@@ -490,7 +682,29 @@ export function CheckFlow({
                             <span>
                               Soll {p.soll} {p.einheit}
                             </span>
-                            {luecke > 0 && <HelferChip ton="rot">nachfüllen {luecke}</HelferChip>}
+                            {/* ⚠️ Die Luecke einer unberuehrten Position ist
+                                UNBEKANNT, nicht „voll" (DRK-304). Ein
+                                „nachfuellen 5" an einer Zeile, die niemand
+                                gezaehlt hat, waere eine Zahl aus dem Nichts —
+                                und sie stuende beim Betreten des Schritts an
+                                JEDER Zeile.
+
+                                ⚠️ „nicht gezaehlt" UND NICHT „noch nicht
+                                gezaehlt", und das ist keine Stilfrage: neben
+                                dem 56er-Stepper bleiben dem Textblock am
+                                Telefon rund 110px (`helfer.module.css`,
+                                `.zeileHaupt`), und `.chip` traegt
+                                `white-space: nowrap` — die lange Fassung mass
+                                121px und liess die Zeile waagerecht
+                                ueberlaufen (CI-Lauf 34956458586,
+                                `lagerbuch-mobil.spec.ts` bei 390px: „DIV
+                                .zeileMeta 121>110"). Gemessen, nicht
+                                geschaetzt; wer den Text wieder verlaengert,
+                                bricht denselben Test. */}
+                            {offen && <HelferChip ton="grau">nicht gezählt</HelferChip>}
+                            {!offen && luecke > 0 && (
+                              <HelferChip ton="rot">nachfüllen {luecke}</HelferChip>
+                            )}
                             {ueber && (
                               <HelferChip ton="gelb">Überbestand {wert - p.soll}</HelferChip>
                             )}
@@ -541,6 +755,68 @@ export function CheckFlow({
                                 setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
                               }
                             />
+                            {/*
+                              DER WEG ZURUECK AUS EINER ANGABE — DRK-306, AK4.
+
+                              ⚠️ ER SCHREIBT `""`, NIEMALS `delete` ODER
+                              `undefined`. `verfallWert` loest ueber
+                              `verfallState[a] ?? verfall[a] ?? ""` auf: ein
+                              entfernter Schluessel faellt durch die ??-Kette
+                              auf den VORBELEGTEN Wert zurueck, und der alte
+                              Monat stuende sofort wieder im Feld. Weder
+                              `typecheck` noch `build` saehen das, und von Hand
+                              faellt es nur auf, wenn ueberhaupt ein Vorwert
+                              existiert.
+
+                              ⚠️ ER IST KEIN LOESCHKNOPF FUER DIE HISTORIE.
+                              `checkNutzlast` macht aus `""` ein `verfall: null`,
+                              der Server ruft damit `loescheVerfallEintrag` —
+                              also GENAU EINE Zeile in `lagerort_verfall`,
+                              dem AKTUELLEN Stand des Fahrzeugs. Die
+                              `ergebnis`-JSONs frueherer Checks sind eigene
+                              Momentaufnahmen und bleiben unberuehrt; der
+                              Nachweis DIESES Checks entsteht erst danach aus
+                              dem neuen Stand und fuehrt den Artikel dann nicht
+                              mehr.
+
+                              ⚠️ NUR BEI VORHANDENER ANGABE. Ein Knopf, der
+                              nichts zu loeschen hat, waere in jeder Zeile ein
+                              zweites Tippziel neben dem Feld — und weil das
+                              Leeren eines leeren Feldes ohnehin NICHTS sendet
+                              (der Filter in `zaehlung()` vergleicht gegen den
+                              Vorwert), auch folgenlos.
+
+                              ⚠️ NICHT ROT (Falle 3): Rot traegt auf dieser
+                              Flaeche die Ampelbedeutung „laeuft ab". Ein rotes
+                              Kreuz neben einem gruenen Verfallschip laese sich
+                              als Befund lesen statt als Bedienung.
+                            */}
+                            {vw !== "" && (
+                              <button
+                                type="button"
+                                className={s.verfallLeeren}
+                                data-rolle="verfall-leeren"
+                                /*
+                                  ⚠️ DER ARTIKELNAME STEHT VORN, NICHT „Verfall".
+                                  Das Feld daneben heisst `Verfall <Artikel>`;
+                                  traegt der Knopf denselben Anfang, loest jeder
+                                  Greifer ueber diesen Praefix auf ZWEI Elemente
+                                  auf — gemessen an `e2e/lagerbuch-helfer.spec.ts`,
+                                  wo ein bestehendes `getByLabel(/^Verfall …/)`
+                                  mit „strict mode violation" brach, sobald eine
+                                  Vorbelegung den Knopf ueberhaupt erscheinen
+                                  liess. Im Seed ohne Vorbelegung bleibt so ein
+                                  Test still gruen; kaputt geht er erst auf
+                                  echten Daten.
+                                */
+                                aria-label={`${p.artikelName}: Verfall entfernen`}
+                                onClick={() =>
+                                  setVerfallState((v) => ({ ...v, [p.artikelId]: "" }))
+                                }
+                              >
+                                <Ikone name="kreuz" groesse={20} />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -553,17 +829,58 @@ export function CheckFlow({
 
         {fehlerBereich}
 
-        <div className={s.abschluss}>
+        {/*
+          DIE LEISTE DES ZAEHLSCHRITTS SCHWEBT NICHT MEHR — DRK-304. Sie steht
+          am ENDE der Liste, und das ist der Punkt: ein „Weiter", das ueber der
+          Liste mitfaehrt, ist erreichbar, BEVOR die Liste gelesen wurde. Wer
+          gezaehlt hat, ist ohnehin unten angekommen.
+
+          ⚠️ DIE UEBRIGEN DREI SCHRITTE BEHALTEN IHRE SCHWEBENDE LEISTE. Das
+          Ticket nennt nur den Zaehlschritt, ihr Inhalt ist ein anderer, und ihr
+          Knopf heisst „Abschliessen" — die Konsistenzfrage ist im Board
+          gestellt und nicht einseitig entschieden.
+
+          ⚠️ `.abschluss.abschlussRuhend` statt zweier gleichrangiger Klassen:
+          bei Gleichstand entschiede die Reihenfolge im Stylesheet, und die ist
+          keine Zusage (Falle 5).
+        */}
+        <div
+          className={`${s.abschluss} ${s.abschlussRuhend}`}
+          data-rolle="abschlussleiste"
+        >
           <div className={s.abschlussInfo} data-rolle="zaehl-summe">
-            <b>{unterSoll === 0 ? "Alles auf Soll" : `${unterSoll} unter Soll`}</b>
+            {/*
+              SOLANGE ETWAS OFFEN IST, IST DIE OFFENE ZAHL DIE NACHRICHT — nicht
+              „Alles auf Soll". Eine Bilanz ueber Positionen, die niemand
+              gezaehlt hat, waere eine Behauptung; „2 von 2" sagt stattdessen,
+              warum der Knopf daneben nicht geht.
+            */}
+            <b>
+              {ungezaehlt > 0
+                ? `Noch ${ungezaehlt} von ${soll.length} zu zählen`
+                : unterSoll === 0
+                  ? "Alles auf Soll"
+                  : `${unterSoll} unter Soll`}
+            </b>
             <div>
               {ablaufend > 0 && `${ablaufend} laufen ab · `}
-              {unterSoll === 0 ? "Nichts nachzufüllen" : "Weiter zur Nachfüllung aus dem Handlager"}
+              {ungezaehlt > 0
+                ? "Leeres Fach? Einmal auf − tippen."
+                : unterSoll === 0
+                  ? "Nichts nachzufüllen"
+                  : "Weiter zur Nachfüllung aus dem Handlager"}
             </div>
           </div>
+          {/*
+            ⚠️ GESPERRT, NICHT NUR GEWARNT. Ein Hinweis liesse den Ein-Klick-Weg
+            in die Leerbuchung offen — und die ist im Journal nicht
+            zuruecknehmbar (`check.ts`, `korrekturAufLagerort`). Der Riegel ist
+            zugleich die Zusage der User Story: Mengen werden BEWUSST erfasst.
+          */}
           <button
             className={s.abschlussGo}
             type="button"
+            disabled={ungezaehlt > 0}
             onClick={zurNachfuellung}
             data-rolle="weiter"
           >
@@ -580,6 +897,7 @@ export function CheckFlow({
       <>
         <div className={s.schirmKopf}>{fahrzeug.name} · Geräte</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
         {idx > 0 && (
           <button
             className={`${s.knopf} ${s.knopfGeist}`}
@@ -661,7 +979,7 @@ export function CheckFlow({
 
         {fehlerBereich}
 
-        <div className={s.abschluss}>
+        <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
             <b>{geraete.length} Gerät(e)</b>
             <div>
@@ -702,6 +1020,7 @@ export function CheckFlow({
       <>
         <div className={s.schirmKopf}>{fahrzeug.name} · Sauerstoff</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
         {idx > 0 && (
           <button
             className={`${s.knopf} ${s.knopfGeist}`}
@@ -794,7 +1113,7 @@ export function CheckFlow({
 
         {fehlerBereich}
 
-        <div className={s.abschluss}>
+        <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
             <b>{niedrig === 0 ? `${flaschen.length} Flasche(n)` : `${niedrig} niedrig`}</b>
             <div>Bestätigen schließt den Check ab</div>
@@ -827,6 +1146,7 @@ export function CheckFlow({
     <>
       <div className={s.schirmKopf}>{fahrzeug.name}</div>
       <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+      {letzterCheckZeile}
       <button
         className={`${s.knopf} ${s.knopfGeist}`}
         type="button"
@@ -906,7 +1226,7 @@ export function CheckFlow({
 
       {fehlerBereich}
 
-      <div className={s.abschluss}>
+      <div className={s.abschluss} data-rolle="abschlussleiste">
         <div className={s.abschlussInfo}>
           <b>{summe} Teile aufs Fahrzeug</b>
           <div>

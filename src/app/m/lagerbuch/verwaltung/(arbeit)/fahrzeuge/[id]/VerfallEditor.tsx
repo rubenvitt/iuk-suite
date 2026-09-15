@@ -14,6 +14,8 @@ import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
 import { verfallSetzen } from "../../../../_actions/lagerortVerfall";
 import type { AmpelTon } from "../../../../_lib/format";
+import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
+import { AussondernDialog } from "./AussondernDialog";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
 
@@ -29,6 +31,12 @@ export type VerfallAnzeigeZeile = {
   verfall: string | null;
   statusTon: AmpelTon | null;
   statusText: string | null;
+  /** Bestand des Artikels AN DIESEM Lagerort — die Obergrenze des Aussonderns. */
+  bestand: number;
+  einheit: string;
+  /** Chargen mit Rest AN DIESEM Lagerort, FEFO sortiert. Leer ist zulässig:
+   *  am Fahrzeug ist die Charge oft geraten (§5.3.3), die Auswahl daher optional. */
+  chargen: ChargeZeile[];
 };
 
 export function VerfallEditor({
@@ -144,10 +152,64 @@ export function VerfallEditor({
         <Chip ton="grau">nicht erfasst</Chip>
       ),
     },
+    {
+      // ⚠️ DIE FUENFTE SPALTE TRIFFT EINE TABELLE, DIE SCHON UEBERLAEUFT —
+      // DRK-322 haelt den waagerechten Ueberlauf des Fahrzeugblatts auf schmalen
+      // Schirmen fest. Sie steht trotzdem hier und nicht anderswo: „das ist
+      // abgelaufen" und „das kommt raus" sind derselbe Handgriff, und eine
+      // Aktion zwei Flaechen entfernt vom Befund wird nicht benutzt. Die Breite
+      // ist dort zu loesen, nicht durch Weglassen der Aktion.
+      title: "Aktion",
+      key: "aussondern",
+      render: (_wert: unknown, eintrag) => (
+        <AussondernDialog
+          lagerortId={lagerortId}
+          artikelId={eintrag.artikelId}
+          artikelName={eintrag.artikelName}
+          einheit={eintrag.einheit}
+          bestand={eintrag.bestand}
+          chargen={eintrag.chargen}
+          // ⚠️ `monatFuer` UND NICHT `eintrag.verfall` — derselbe Zugriff, den
+          // der Waehler daneben nutzt. `monatSetzen` traegt einen gewaehlten
+          // Monat SOFORT in den Spiegel und schickt ihn erst danach zum Server;
+          // bis die Auffrischung zurueck ist, ist die Prop der AELTERE Stand.
+          // Mit ihr stuende im Dialog der alte Monat, und eine Teilaussonderung
+          // schriebe ihn ueber den gerade gespeicherten zurueck.
+          verfall={monatFuer(eintrag)}
+          // Dieselbe Sperre wie am Monatswähler oben: solange die Tabelle
+          // selbst schreibt, bleibt der zweite Schreibweg zu.
+          gesperrt={laeuft}
+          // Zweite Schreibstelle auf demselben Wert — der Spiegel muss ihr
+          // folgen, sonst behauptet der Waehler weiter den alten Monat.
+          onAusgesondert={(neuerVerfall) => {
+            setSpiegel((vorher) => ({ ...vorher, [eintrag.artikelId]: neuerVerfall }));
+          }}
+        />
+      ),
+    },
   ];
 
   return (
-    <div style={{ display: "grid", gap: SPACE.md }}>
+    /**
+     * ⚠️ `minmax(0, 1fr)` STATT DER IMPLIZITEN `auto`-SPALTE — dieselbe Falle,
+     * die `SollEditor` eine Tuer weiter schon kennt (DRK-315), hier nur nie
+     * behoben. Eine `auto`-Spalte waechst auf die MINDESTBREITE ihres Inhalts,
+     * und die ist bei einer Tabelle die Summe der Spalten-Mindestbreiten; das
+     * `scroll.x` der `Datentabelle` kommt dann gar nicht zum Zug, weil nichts
+     * zu eng wird. Gemessen auf dem Fahrzeugblatt: bei 375px lief das Dokument
+     * um 210px waagerecht ueber, bei 480px um 105px.
+     *
+     * ⚠️ KEIN GATE SIEHT DAS. `typecheck` prueft eine gueltige CSS-Zeichenkette,
+     * `build` serialisiert sie klaglos, und Vitest kann es strukturell nicht
+     * sehen — jsdom rechnet keine Layoutboxen (Falle 13). Nur ein echter
+     * Browser kennt die Zahl; `e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts` misst
+     * sie.
+     */
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr)",
+      gap: SPACE.md,
+    }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Datentabelle<VerfallAnzeigeZeile>
         rowKey="artikelId"

@@ -316,3 +316,71 @@ describe("der Sperrbefund ist DER Sofort-Widerruf des Moduls", () => {
       .rejects.toThrow("NEXT_REDIRECT:/abmelden?grund=gesperrt");
   });
 });
+
+describe("die Fahrzeugbindung des Kaertchens (DRK-302)", () => {
+  /**
+   * Sie kommt aus DERSELBEN Token-Zeile wie `code` und `label` und ist der
+   * einzige Weg, auf dem `/helfer/check` erfaehrt, WELCHES Kaertchen gescannt
+   * wurde: die Cookie-Nutzlast traegt nur `{tokenId}` (§3.4.3), und ein `?fz=`
+   * in der URL ist Nutzereingabe, kein Beleg.
+   */
+  async function zugangMit(args: {
+    zielTyp?: "fahrzeug" | "artikel" | null;
+    zielId?: string | null;
+  }) {
+    t.db.insert(tokens).values({
+      id: "tk1", code: "482-137", label: "RTW 1 Kaertchen", aktiv: true,
+      createdAt: new Date(), createdBy: "sub-1",
+      zielTyp: args.zielTyp ?? null, zielId: args.zielId ?? null,
+    }).run();
+    cookieWert = await createHelferSitzung({ tokenId: "tk1" });
+    return helferZugangOderNull(t.db);
+  }
+
+  it("traegt bei einem Fahrzeug-Kaertchen dessen Fahrzeug", async () => {
+    expect((await zugangMit({ zielTyp: "fahrzeug", zielId: "rtw-1" }))?.fahrzeugBindung)
+      .toBe("rtw-1");
+  });
+
+  it("bleibt bei einem Artikel- und einem zielllosen Kaertchen null", async () => {
+    // Ein Regaletikett und ein allgemeines Helfer-Kaertchen binden an kein
+    // Fahrzeug — sonst verschwaende nach ihrem Scan die Fahrzeugwahl.
+    expect((await zugangMit({ zielTyp: "artikel", zielId: "art-1" }))?.fahrzeugBindung)
+      .toBeNull();
+    t.db.delete(tokens).run();
+    expect((await zugangMit({}))?.fahrzeugBindung).toBeNull();
+  });
+
+  it("kommt aus der DATENBANK, nicht aus dem Cookie", async () => {
+    /*
+     * DIESELBE ZUSAGE WIE BEI `code`/`label` (§3.4.4), und sie ist hier teurer:
+     * wird ein Kaertchen in der Verwaltung auf ein anderes Fahrzeug umgewidmet,
+     * muss die naechste Seite das sehen. Kaeme der Wert aus dem Cookie, checkte
+     * die Helferin bis zu zwoelf Stunden lang weiter das ALTE Fahrzeug — und
+     * die Buchung haengt danach im Journal am falschen Lagerort.
+     */
+    const z1 = await zugangMit({ zielTyp: "fahrzeug", zielId: "rtw-1" });
+    expect(z1?.fahrzeugBindung).toBe("rtw-1");
+    t.db.update(tokens).set({ zielId: "rtw-2" }).run();
+    expect((await helferZugangOderNull(t.db))?.fahrzeugBindung).toBe("rtw-2");
+  });
+
+  it("steht in ALLEN DREI Riegeln, nicht nur im Praedikat", async () => {
+    // `requireHelferSitzung` traegt die Check-Seite, `requireHelferSchreibend`
+    // waere der Ansatzpunkt einer spaeteren Durchsetzung. Ein Feld, das nur an
+    // einem der drei Ausgaenge haengt, faellt genau dann auf, wenn jemand den
+    // zweiten benutzt.
+    await zugangMit({ zielTyp: "fahrzeug", zielId: "rtw-1" });
+    expect((await requireHelferSitzung(t.db)).fahrzeugBindung).toBe("rtw-1");
+    const schreibend = await requireHelferSchreibend(t.db);
+    expect(schreibend.ok && schreibend.zugang.fahrzeugBindung).toBe("rtw-1");
+  });
+
+  it("bindet eine HALBE Zeile an nichts", async () => {
+    // `zielTyp` und `zielId` sind je fuer sich nullbar; ein Alt-Import kann eine
+    // halbe Zeile tragen. Eine Bindung an "" faende kein Fahrzeug — die Helferin
+    // saehe mit einem gueltigen Kaertchen gar nichts mehr.
+    expect((await zugangMit({ zielTyp: "fahrzeug", zielId: null }))?.fahrzeugBindung)
+      .toBeNull();
+  });
+});

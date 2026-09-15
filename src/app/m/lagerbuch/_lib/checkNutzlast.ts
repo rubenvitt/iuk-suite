@@ -72,11 +72,24 @@ export function checkNutzlast(args: {
   const { fahrzeugId, positionen, geraete, flaschen, z } = args;
   return {
     fahrzeugId,
-    // `?? p.soll`, NICHT `|| p.soll`: eine gezaehlte 0 ist eine Aussage („Fach
-    // leer"), und `||` machte daraus wieder das Soll.
+    // `?? 0` seit DRK-304 (vorher `?? p.soll`) — DIE ANZEIGE UND DIE NUTZLAST
+    // DUERFEN NICHT AUSEINANDERFALLEN. Die Komponente zeigt eine unberuehrte
+    // Position als 0; ein Fallback auf das Soll schickte hier still etwas
+    // anderes, als auf dem Schirm stand, und niemand sieht die Differenz.
+    //
+    // ⚠️ DER FALL ENTSTEHT AUS DER OBERFLAECHE NICHT MEHR: `CheckFlow.tsx`
+    // sperrt „Weiter", solange eine Position unberuehrt ist, und sendet danach
+    // fuer jede einen Wert. Das ist der Riegel, der 0 zu einer GEZAEHLTEN
+    // Aussage macht — hier steht nur noch, was gilt, wenn er je umgangen wird.
+    // Die Unterscheidung „gezaehlt" / „nicht gezaehlt" auf die LEITUNG zu
+    // heben, ist Variante (c) im Kopf dieser Datei: Backlog, und sie soll eine
+    // Entscheidung bleiben statt als Nebenwirkung stattzufinden.
+    //
+    // `??` und NICHT `||`: eine gezaehlte 0 ist eine Aussage („Fach leer"), und
+    // `||` machte daraus wieder den Fallback.
     positionen: positionen.map((p) => ({
       sollPositionId: p.id,
-      ist: z.ist[p.id] ?? p.soll,
+      ist: z.ist[p.id] ?? 0,
       nachfuellMenge: z.nachfuell[p.id] ?? 0,
     })),
     geraete: geraete.map((g) => {

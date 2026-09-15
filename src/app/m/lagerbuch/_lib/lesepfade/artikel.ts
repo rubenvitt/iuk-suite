@@ -11,7 +11,7 @@
  * (`queries.ts:65-66`). Wer ihn „konsistent" auf den Handlager filtert, macht
  * jede Umlagerung unsichtbar.
  */
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { artikel, buchungen, chargen } from "../../_db/schema";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
@@ -66,6 +66,39 @@ export function chargenMitRest(
     .map((c) => ({
       id: c.id, chargenNr: c.chargenNr, verfall: c.verfall, rest: rest.get(c.id) ?? 0,
     }));
+}
+
+/**
+ * Chargen MIT REST an einem Lagerort, je Artikel — EINE Aggregation fuer die
+ * ganze Seite.
+ *
+ * ⚠️ NICHT DURCH `chargenMitRest` JE ARTIKEL ERSETZEN: das aggregiert bei JEDEM
+ * Aufruf den GESAMTEN Lagerort neu (`restJeCharge`), ein Fahrzeugblatt mit 60
+ * Soll-Artikeln faehrt damit 60 Vollaggregationen fuer eine Seite (§5.2.3).
+ *
+ * ⚠️ HIER STEHEN NUR CHARGEN MIT `rest > 0` — anders als bei `chargenMitRest`,
+ * wo die aufgebrauchte Charge als Fundstueck sichtbar bleibt. Der Aufrufer ist
+ * die Chargenauswahl im Aussondern-Dialog, und was nicht da liegt, kann nicht
+ * ausgesondert werden.
+ */
+export function chargenJeArtikelAmLagerort(
+  db: Leser, lagerortId: string,
+): Map<string, ChargeZeile[]> {
+  const rest = restJeCharge(db, [lagerortId]);
+  const ids = [...rest.entries()].filter(([, r]) => r > 0).map(([id]) => id);
+  if (ids.length === 0) return new Map();
+
+  const karte = new Map<string, ChargeZeile[]>();
+  // Vor der Projektion sortieren: `createdAt` entscheidet mit, bleibt aber intern.
+  for (const c of db.select().from(chargen).where(inArray(chargen.id, ids)).all()
+    .sort(vergleicheFefoCharge)) {
+    const liste = karte.get(c.artikelId) ?? [];
+    liste.push({
+      id: c.id, chargenNr: c.chargenNr, verfall: c.verfall, rest: rest.get(c.id) ?? 0,
+    });
+    karte.set(c.artikelId, liste);
+  }
+  return karte;
 }
 
 export function artikelListe(

@@ -8,6 +8,10 @@ import { Ikone } from "./ikonen";
 import { NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund } from "../_lib/actionTypen";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
+// NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
+// dieselbe Form liest die Server Component, die ihn befüllt.
+import type { ZielAnzeige } from "../_lib/entnahmeZiel";
+export type { ZielAnzeige };
 import s from "./helfer.module.css";
 
 /**
@@ -70,22 +74,49 @@ export type EntnahmeDetail = {
 export type BuchungsAktion = (eingabe: {
   artikelId: string;
   menge: number;
+  ziel: { art: "fahrzeug"; lagerortId: string } | { art: "verbrauch" };
 }) => Promise<HelferErgebnis<{ gebucht: number }>>;
 
 type Rueckmeldung = { art: "ok" | "fehler"; text: string; grund?: HelferGrund };
 
-export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: BuchungsAktion }) {
+export function Entnahme({
+  detail,
+  ziel,
+  buchen,
+}: {
+  detail: EntnahmeDetail;
+  /** `null` = noch nichts gewählt; dann wird NICHT gebucht (DRK-300). */
+  ziel: ZielAnzeige | null;
+  buchen: BuchungsAktion;
+}) {
   const [menge, setMenge] = useState(1);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
   const [laeuft, start] = useTransition();
 
+  /*
+   * DER WEG ZUR ZIELWAHL UND ZURÜCK. `returnTo` ist keine Bequemlichkeit: ohne
+   * ihn stünde die Person nach der Wahl auf der Artikelliste statt vor dem
+   * Regalfach, vor dem sie gerade steht.
+   */
+  const zielWahlWeg = `/helfer/ziel?returnTo=${encodeURIComponent(`/a/${detail.id}`)}`;
+  const zielName = ziel?.art === "fahrzeug" ? ziel.name : null;
+
   function absenden() {
+    // ⚠️ OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist dann bereits gesperrt;
+    // diese Zeile ist die zweite Hälfte derselben Zusage — ein Tastendruck auf
+    // einem noch nicht neu gerenderten Knopf käme sonst durch.
+    if (!ziel) return;
     const m = Math.min(menge, detail.bestand);
     if (m <= 0) return;
     setRueck(null);
     start(async () => {
       try {
-        const r = await buchen({ artikelId: detail.id, menge: m });
+        const r = await buchen({
+          artikelId: detail.id,
+          menge: m,
+          // Die KENNUNG wandert, nicht der Anzeigename — der Server kennt nur sie.
+          ziel: ziel.art === "fahrzeug" ? { art: "fahrzeug", lagerortId: ziel.lagerortId } : ziel,
+        });
         if (!r.ok) {
           // Der Server hat den Text; die Insel formuliert ihn NICHT neu (§7.3).
           // Das gilt auch fuer den fuenften Grund `"eingabe"`
@@ -96,13 +127,17 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
           return;
         }
         const gebucht = r.wert.gebucht;
+        // Das Ziel gehört IN DEN SATZ: ohne es ist eine Buchung aufs Fahrzeug
+        // von einem reinen Verbrauch nicht zu unterscheiden — und der Satz ist
+        // der einzige Beleg, den die Person am Regal zu sehen bekommt.
+        const wohin = zielName ? ` → ${zielName}` : "";
         setRueck(
           gebucht < m
             ? // §7.3, zweiter Zustand: heute ein GRUENER Chip mit der KLEINEREN
               // Zahl, ohne Hinweis — der Helfer legt fuenf Teile ins Fahrzeug
               // und das Journal kennt drei.
-              { art: "ok", text: `${gebucht} von ${m} gebucht; mehr lag nicht im Handlager.` }
-            : { art: "ok", text: `Entnahme gebucht: ${gebucht} × ${detail.name}` },
+              { art: "ok", text: `${gebucht} von ${m} gebucht; mehr lag nicht im Handlager.${wohin}` }
+            : { art: "ok", text: `Entnahme gebucht: ${gebucht} × ${detail.name}${wohin}` },
         );
         setMenge(1);
       } catch {
@@ -153,10 +188,33 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
             />
           </div>
 
+          {/*
+            DIE ZIELZEILE STEHT ÜBER DEM KNOPF, nicht darunter und nicht im
+            Seitenkopf: sie ist die letzte Zeile, die jemand liest, bevor er
+            tippt. Eine Wahl, die für den ganzen Kärtchen-Zugang gilt, muss an
+            jedem Artikel sichtbar sein — sonst lenkt eine vergessene Wahl
+            still Bestand um.
+          */}
+          <div className={s.zeile} style={{ borderTop: "none", padding: "0 0 11px" }} data-rolle="entnahme-ziel">
+            <div className={s.zeileHaupt}>
+              <div className={s.fussnote}>ZIEL</div>
+              <div className={s.zeileName}>
+                {ziel === null
+                  ? "Noch nichts gewählt"
+                  : ziel.art === "fahrzeug"
+                    ? ziel.name
+                    : "Kein Fahrzeug — Verbrauch"}
+              </div>
+            </div>
+            <Link className={s.rueckweg} href={zielWahlWeg}>
+              {ziel === null ? "Ziel wählen" : "Ändern"}
+            </Link>
+          </div>
+
           <button
             className={`${s.knopf} ${s.knopfRot}`}
             type="button"
-            disabled={detail.bestand === 0 || laeuft}
+            disabled={ziel === null || detail.bestand === 0 || laeuft}
             onClick={absenden}
             data-rolle="entnahme-buchen"
           >

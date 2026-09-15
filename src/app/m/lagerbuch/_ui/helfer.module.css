@@ -336,6 +336,24 @@
   padding: 12px 14px; border-top: 1px solid var(--lb-linie); color: inherit; text-decoration: none;
 }
 .zeile:first-child { border-top: none }
+/*
+ * EINE ZEILE, DIE EIN KNOPF IST — DRK-300 (Zielwahl).
+ *
+ * `.zeile` traegt bereits `width: 100%` und `text-align: left`; was einem
+ * `<button>` fehlt, ist das Zuruecknehmen der Browservorgaben. Ohne
+ * `font: inherit` rendert er in der UA-Schrift (13px Arial statt 15px/600) und
+ * faellt aus der Bedienflaeche heraus, ohne dass ein Tor etwas meldet.
+ *
+ * ⚠️ `min-height: 56px` IST DIE BEDIENDICHTE, nicht Geschmack: der Helfer-Weg
+ * rendert ohne Shell und liegt damit bei 56/72 (`core/theme/theme.ts`). Der
+ * Textblock allein misst rund 43px — die Zeile unterschritte das Mass sonst
+ * genau dort, wo mit Handschuhen getippt wird.
+ */
+.zeileKnopf {
+  background: none; border: none; font: inherit; cursor: pointer; min-height: 56px;
+}
+.zeileKnopf:first-child { border-top: none }
+form + form > .zeileKnopf { border-top: 1px solid var(--lb-linie) }
 .zeileHaupt { flex: 1; min-width: 0 }
 /*
  * `overflow-wrap: anywhere` IST HIER DER GLIMPFLICHERE AUSFALL, nicht Kosmetik.
@@ -360,6 +378,24 @@
 .schirmKopf {
   font-family: var(--lb-display); font-weight: 700; font-size: 17px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--lb-stahl); margin: 2px 2px 10px;
+}
+/*
+ * DIE HERKUNFTSZEILE DES SCHRITTS — DRK-306.
+ *
+ * Sie sitzt zwischen Schrittleiste und erster Karte und ist ausdruecklich
+ * LEISE: `--lb-stahl` auf dem Seitengrund, ohne Rahmen und ohne Flaeche. Sie
+ * beantwortet eine Frage, die man einmal stellt („auf welchem Stand baue ich
+ * auf?"), und konkurriert danach nicht mehr mit der Anweisung der Karte
+ * darunter. Eine eigene Karte haette denselben Rang wie die Zaehlanweisung
+ * bekommen.
+ *
+ * ⚠️ KEIN ROT UND KEINE AMPEL, auch nicht fuer einen lange zurueckliegenden
+ * Check. Ab wann ein Check „zu alt" ist, entscheidet der Betreiber und nicht
+ * diese Datei; eine Farbe hier waere eine Schwelle, die niemand beschlossen hat
+ * (Falle 3 — Rot traegt auf dieser Flaeche ohnehin die Verfallsbedeutung).
+ */
+.letzterCheck {
+  font-size: 13px; color: var(--lb-stahl); line-height: 1.4; margin: -6px 2px 12px;
 }
 .rueckweg {
   display: inline-flex; align-items: center; gap: 5px; margin-bottom: 12px;
@@ -511,6 +547,34 @@
   flex: 1; min-width: 0; border: 1.5px solid var(--lb-linie); border-radius: 10px; padding: 10px 12px;
   font-size: 18px; min-height: 56px; background: var(--lb-karte); color: var(--lb-tinte);
 }
+/*
+ * DER LEERKNOPF AM VERFALLSFELD — DRK-306, AK4.
+ *
+ * ⚠️ ER EXISTIERT, WEIL EIN NATIVES `<input type="month">` AUF DEM TELEFON
+ * KEINEN WEG ZURUECK HAT. Am Schreibtisch raeumt die Ruecktaste das Feld;
+ * Chrome und Safari auf Android/iOS oeffnen stattdessen einen Monatsradler, der
+ * IMMER einen Monat liefert — die Helferin kann eine einmal eingetragene Angabe
+ * dort nicht mehr zuruecknehmen. Der Zaehlschritt sagt ihr woertlich „Leeren
+ * heißt ‚keine Angabe'", und genau das ging nicht.
+ *
+ * `flex: none` und `min-width` — ohne beides schruempft der Knopf als
+ * Flex-Geschwister des Feldes (das auf `flex: 1` steht) unter sein Tippziel,
+ * sobald der Artikelname die Zeile fuellt.
+ *
+ * 56px, NICHT 44: der Helferweg laeuft in der 56/72-Dichte (`CLAUDE.md`,
+ * Falle 4) — dieselbe Zahl, die `.verfallZeile input` direkt daneben traegt.
+ * Eine 44er-Insel neben einem 56er-Feld saehe zudem wie ein Ausrutscher aus.
+ *
+ * ⚠️ KEINE AMPELFARBE (Falle 3): `colorError === colorPrimary` in dieser Suite,
+ * und Rot heisst auf DIESER Zeile „laeuft ab". Der Knopf traegt deshalb die
+ * Linien- und Stahlfarbe wie `.knopfGeist` — er ist eine Bedienung, kein Befund.
+ */
+.verfallLeeren {
+  flex: none; min-width: 56px; min-height: 56px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid var(--lb-linie); border-radius: 10px;
+  background: var(--lb-karte); color: var(--lb-stahl);
+}
 .nfZeile { display: flex; align-items: center; gap: 11px; padding: 12px 14px; border-top: 1px solid var(--lb-linie) }
 .nfZeile:first-child { border-top: none }
 .nfGeholt { text-align: center; flex: none }
@@ -520,6 +584,25 @@
   border-radius: 14px; padding: 12px 13px; display: flex; align-items: center; gap: 11px;
   box-shadow: 0 10px 26px rgba(12, 18, 24, .32);
 }
+/*
+ * DIE RUHENDE FASSUNG — DRK-304, heute allein der Zaehlschritt.
+ *
+ * ⚠️ ZWEI KLASSEN AM SELBEN SELEKTOR, NICHT ZWEI SELEKTOREN. `.abschlussRuhend`
+ * allein haette dieselbe Spezifitaet wie `.abschluss` (0,1,0) — dann entschiede
+ * die Reihenfolge im Stylesheet, und die ist keine Zusage, sondern eine
+ * Beobachtung (Falle 5, `docs/design/README.md`). `.abschluss.abschlussRuhend`
+ * ist (0,2,0) und gewinnt unabhaengig davon, wohin die Regel spaeter wandert.
+ * Dieselbe Bauform wie `.chip.warnhinweis` weiter unten.
+ *
+ * `box-shadow` muss mit: der Schlagschatten ist der Schwebeschatten. Er bleibt
+ * ohne `position: sticky` als Kante ohne Ursache stehen — dieselbe Zeile, die
+ * beim Scrollen die Leiste vom Inhalt abhob, saehe im Fluss wie ein Fehler aus.
+ *
+ * `bottom` wird NICHT zurueckgesetzt: es ist an einem statischen Kasten
+ * wirkungslos, und eine Zeile, die nichts tut, laedt den naechsten Leser zu der
+ * Frage ein, was sie soll.
+ */
+.abschluss.abschlussRuhend { position: static; box-shadow: none }
 .abschlussInfo { flex: 1; min-width: 0 }
 .abschlussInfo b { font-family: var(--lb-display); font-size: 16px; letter-spacing: .03em }
 .abschlussGo {
@@ -527,6 +610,25 @@
   font-weight: 700; font-size: 14px; white-space: nowrap; display: flex; gap: 6px;
   align-items: center; min-height: 56px;
 }
+/*
+ * DER GESPERRTE ABSCHLUSSKNOPF MUSS GESPERRT AUSSEHEN — DRK-304.
+ *
+ * `.knopf[disabled]` (weiter unten) erreicht diese Klasse NICHT: `.abschlussGo`
+ * ist ein eigener Knopf, kein `.knopf`. Ohne diese Regel trug ein gesperrter
+ * Knopf weiter das volle Rot der Primaeraktion, und `:where(.rahmen) button`
+ * gab ihm zusaetzlich `cursor: pointer` — er sah aus wie eine Aktion, nahm den
+ * Tipp entgegen und tat nichts. Das trifft seit DRK-304 JEDEN frisch
+ * geoeffneten Check (der Zaehlriegel), und es traf auch vorher schon das
+ * `disabled={laeuft}` der drei Abschlussknoepfe waehrend der Buchung.
+ *
+ * Dieselben Werte wie `.knopf[disabled]`: eine zweite Sprache fuer denselben
+ * Zustand waere schlechter als eine, die man schon kennt.
+ *
+ * Spezifitaet (0,2,0) gegen `.abschlussGo` (0,1,0) und gegen den
+ * Button-Reset (0,0,1) — die Regel gewinnt unabhaengig von ihrer Stelle im
+ * Stylesheet (Falle 5).
+ */
+.abschlussGo[disabled] { opacity: .45; cursor: default }
 .warnkasten { display: inline-flex; align-items: center; gap: 5px }
 
 /* ——— Scanner (§7.6). Diese Regeln greifen NUR auf --lb-* zu: die Komponente
