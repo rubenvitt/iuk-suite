@@ -25,7 +25,8 @@ import { join } from "node:path";
  *           bewacht". Sie prueft jede Datei, DIE DA IST.
  *   Teil 4 und Teil 5: fuellen den Ordner und fassen DIESE DATEI NICHT AN.
  *   Teil 6 (T172): die ZAEHLUNG — describe „Zaehlung (§2.1 a)" am Dateiende.
- *           47 Deklarationen = 44 bewachte + 3 Ausnahmen, in 18 Action-Dateien.
+ *           53 Deklarationen = 50 bewachte + 3 Ausnahmen, in 21 Action-Dateien
+ *           (Stand: siehe die NACHTRAEGE unten fuer die Herleitung).
  *           AB HIER IST EIN LEERES `_actions/` ROT, und das ist der Zweck: eine
  *           Action, die es gar nicht erst in den Ordner geschafft hat, ist fuer
  *           die Eigenschaft unsichtbar. Erst die Zahl macht das Fehlen sichtbar.
@@ -364,6 +365,12 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * ganze Journal fuer jeden lesbar, der ihre Kennung kennt. Die Zaehlung steht
  * damit auf 50 = 47 bewacht + 3 Ausnahmen, 47 = 45 + 2, in 20 Action-Dateien.
  *
+ * NACHTRAG DRK-297 (15.09.2026): `lagerorte.ts` kommt dazu — `createSchrank`,
+ * `updateSchrank` und `setSchrankAktiv`, die Schreibseite fuer Schraenke im
+ * Handlager. Alle drei bewacht von `requireLagerbuchAdmin`, keine Ausnahme.
+ * Die Zaehlung steht damit auf 53 = 50 bewacht + 3 Ausnahmen, 50 = 48 + 2, in
+ * 21 Action-Dateien.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -391,7 +398,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * prueft der Test den Code gegen sich selbst und bliebe auch bei einer
    * fehlenden Datei gruen.
    *
-   * ⚠️ Die Summen unten (47, 44, 3, 42, 2) stehen ABSICHTLICH als Literale da
+   * ⚠️ Die Summen unten (53, 50, 3, 48, 2) stehen ABSICHTLICH als Literale da
    * und werden NICHT aus dieser Tabelle gerechnet. Zwei unabhaengige Anker:
    * SOLL bindet je Datei, die Literale binden die Summe. Ein
    * `Object.values(SOLL).reduce(...)` waere immer gruen.
@@ -411,6 +418,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "inventur.ts": 1,
     "journal.ts": 1,
     "kategorien.ts": 1,   // DRK-294, nach Teil 6 dazugekommen
+    "lagerorte.ts": 3,   // DRK-297, nach Teil 6 dazugekommen
     "lagerortVerfall.ts": 1,
     "loeschen.ts": 3,
     "sauerstoff.ts": 3,
@@ -427,13 +435,13 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 20 Action-Dateien plus `guards.test.ts`", () => {
+  it("hat 21 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER)` zaehlen (Ruling A7): der Ordner fuehrt
     // auch die Testdateien. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
-    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 20 Dateien.").toHaveLength(20);
-    expect(dateien, "20 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
+    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 21 Dateien.").toHaveLength(21);
+    expect(dateien, "21 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
     expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 
@@ -454,10 +462,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 50 Deklarationen, obwohl es nur 47 verschiedene Namen gibt", () => {
+  it("zaehlt 53 Deklarationen, obwohl es nur 50 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "50 Deklarationen").toHaveLength(50);
-    expect(new Set(namen).size, "47 verschiedene Namen").toBe(47);
+    expect(namen, "53 Deklarationen").toHaveLength(53);
+    expect(new Set(namen).size, "50 verschiedene Namen").toBe(50);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -469,16 +477,16 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 47 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 50 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
     // Eintraege" oben: dort wird die KONSTANTE geprueft, hier, wie viele der
-    // 49 GEFUNDENEN Deklarationen auf ihr stehen. Ein vierter Eintrag mit dem
+    // 53 GEFUNDENEN Deklarationen auf ihr stehen. Ein vierter Eintrag mit dem
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "47 bewacht").toBe(47);
+    expect(funde.length - ausnahmen.length, "50 bewacht").toBe(50);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -545,7 +553,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 47 Riegel auf 45 requireLagerbuchAdmin und 2 requireHelferSchreibend", () => {
+  it("verteilt die 50 Riegel auf 48 requireLagerbuchAdmin und 2 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -556,6 +564,6 @@ describe("Zaehlung (§2.1 a)", () => {
       "buchung.ts#bucheEntnahmeHelfer",
       "check.ts#checkAbschluss",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(45);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(48);
   });
 });
