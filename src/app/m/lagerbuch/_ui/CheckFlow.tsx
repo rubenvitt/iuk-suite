@@ -642,8 +642,21 @@ export function CheckFlow({
                                 „nachfuellen 5" an einer Zeile, die niemand
                                 gezaehlt hat, waere eine Zahl aus dem Nichts —
                                 und sie stuende beim Betreten des Schritts an
-                                JEDER Zeile. */}
-                            {offen && <HelferChip ton="grau">noch nicht gezählt</HelferChip>}
+                                JEDER Zeile.
+
+                                ⚠️ „nicht gezaehlt" UND NICHT „noch nicht
+                                gezaehlt", und das ist keine Stilfrage: neben
+                                dem 56er-Stepper bleiben dem Textblock am
+                                Telefon rund 110px (`helfer.module.css`,
+                                `.zeileHaupt`), und `.chip` traegt
+                                `white-space: nowrap` — die lange Fassung mass
+                                121px und liess die Zeile waagerecht
+                                ueberlaufen (CI-Lauf 34956458586,
+                                `lagerbuch-mobil.spec.ts` bei 390px: „DIV
+                                .zeileMeta 121>110"). Gemessen, nicht
+                                geschaetzt; wer den Text wieder verlaengert,
+                                bricht denselben Test. */}
+                            {offen && <HelferChip ton="grau">nicht gezählt</HelferChip>}
                             {!offen && luecke > 0 && (
                               <HelferChip ton="rot">nachfüllen {luecke}</HelferChip>
                             )}

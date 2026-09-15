@@ -385,12 +385,12 @@ describe("CheckFlow — der Zaehlschritt", () => {
         gebunden={false}
       />,
     );
-    expect(query("[data-rolle='zaehlliste']").textContent).toContain("noch nicht gezählt");
+    expect(query("[data-rolle='zaehlliste']").textContent).toContain("nicht gezählt");
     expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nachfüllen");
 
     // Erst die Zaehlung macht die Luecke zu einer Aussage.
     await minus(0);
-    expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("noch nicht gezählt");
+    expect(query("[data-rolle='zaehlliste']").textContent).not.toContain("nicht gezählt");
     expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 5");
   });
 
@@ -512,7 +512,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
      */
     expect(chips).toHaveLength(4);
     expect(chips.filter((c) => c.includes("09/26"))).toHaveLength(2);
-    expect(chips.filter((c) => c.includes("noch nicht gezählt"))).toHaveLength(2);
+    expect(chips.filter((c) => c.includes("nicht gezählt"))).toHaveLength(2);
   });
 
   it("die Live-Vorschau zaehlt ablaufende Artikel mit", async () => {
