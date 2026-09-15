@@ -353,7 +353,61 @@
   background: none; border: none; font: inherit; cursor: pointer; min-height: 56px;
 }
 .zeileKnopf:first-child { border-top: none }
-form + form > .zeileKnopf { border-top: 1px solid var(--lb-linie) }
+
+/*
+ * EINE ZEILE DER ZIELWAHL — DRK-300.
+ *
+ * ⚠️ `min-height: 56px` IST DIE BEDIENDICHTE, nicht Geschmack: der Helfer-Weg
+ * rendert ohne Shell und liegt damit bei 56/72 (`core/theme/theme.ts`). Die
+ * GANZE Zeile ist die Beschriftung des Radioknopfs — am Telefon wird nicht der
+ * kleine Kreis getroffen, sondern die Flaeche daneben.
+ */
+.zeileWahl { min-height: 56px; cursor: pointer }
+/*
+ * Der Knopf selbst bleibt ein NATIVER Radioknopf: nur so tragen Pfeiltasten,
+ * Fokusring und Ansage der Hilfstechnik ohne eigenes Zutun. Vergroessert wird
+ * er, weil 13px am Regal mit Handschuhen nicht zu sehen sind.
+ */
+.wahlKnopf { width: 22px; height: 22px; flex: none; accent-color: var(--lb-rot) }
+
+/*
+ * DIE ZIELZEILE DER ENTNAHME — DRK-300.
+ *
+ * Sie SPIEGELT die Mengenzeile darüber: Beschriftung links, Wert rechts. Der
+ * erste Entwurf stapelte stattdessen ein Kürzel („ZIEL") über den Wert und
+ * setzte daneben `.rueckweg` als Knopf — mit dessen `margin-bottom: 12px`, und
+ * genau das zog den Knopf in einer `align-items: center`-Zeile sichtbar nach
+ * oben. Die Zeile sah gekippt aus, ohne dass eine Regel falsch gewesen wäre.
+ */
+.zielZeile { justify-content: space-between; gap: 12px }
+/*
+ * Der Wert trägt dieselbe Stärke wie ein Zeilenname und bricht wie er um — ein
+ * Fahrzeugname kann lang sein, und „Kein Fahrzeug — Verbrauch" ist es immer.
+ * Rechtsbündig, damit er mit dem Stepper darüber auf einer Kante steht.
+ */
+.zielWert { font-weight: 600; font-size: 15px; line-height: 1.25; text-align: right; overflow-wrap: anywhere }
+.zielOffen { color: var(--lb-stahl); font-weight: 500 }
+/*
+ * „Ändern" ist ein WEG, keine Handlung — deshalb Text und keine zweite Pille
+ * neben dem roten Knopf. Und deshalb in Tinte statt in Rot: die Handlungsfarbe
+ * gehört dem Knopf direkt darunter, zwei rote Flächen übereinander streiten um
+ * dieselbe Aufmerksamkeit. Die 44px sind die Trefferfläche (WCAG 2.5.5); das
+ * negative Randmaß hält den sichtbaren Text trotzdem an der Kante.
+ */
+.zielAendern {
+  display: inline-flex; align-items: center; min-height: 44px; margin: -10px 0;
+  font-size: 14px; font-weight: 600; color: var(--lb-tinte); text-decoration: underline;
+  text-underline-offset: 3px; white-space: nowrap;
+}
+/*
+ * ⚠️ `.knopf` IST `inline-flex` UND SCHRUMPFT AUF SEINEN TEXT, solange ihn kein
+ * Container streckt — im Gate tut das `.gateForm`/`.gateKarte` (siehe dort).
+ * In einer gewöhnlichen `.kartePad`-Fläche fehlt diese Streckung, und die
+ * Primäraktion stand als schmaler Fleck links unten. Das ist die Zeile, die
+ * das behebt, ohne `.knopf` selbst umzudefinieren — dort hinge der Check-Weg
+ * mit dran.
+ */
+.knopfBreit { width: 100% }
 .zeileHaupt { flex: 1; min-width: 0 }
 /*
  * `overflow-wrap: anywhere` IST HIER DER GLIMPFLICHERE AUSFALL, nicht Kosmetik.
@@ -465,8 +519,16 @@ form + form > .zeileKnopf { border-top: 1px solid var(--lb-linie) }
 .stepTaste { width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; color: var(--lb-tinte) }
 .stepTaste:first-child { border-right: 1px solid var(--lb-linie); border-radius: 10.5px 0 0 10.5px }
 .stepTaste:last-child { border-left: 1px solid var(--lb-linie); border-radius: 0 10.5px 10.5px 0 }
+/*
+ * ⚠️ `width`, NICHT NUR `min-width`: `.stepWert` ist ein `<input>`, und ein
+ * Eingabefeld bringt seine EIGENE Vorgabebreite mit (rund 180px, aus `size`).
+ * `min-width` setzt nur die Untergrenze und ließ das Feld dreimal so breit
+ * werden wie nötig — auf 390px blieb daneben so wenig übrig, dass „Menge" als
+ * „Meng" abgeschnitten dastand. Auf einem breiten Schirm fällt das nie auf.
+ * 64px tragen drei Ziffern in 20px-Displayschrift.
+ */
 .stepWert {
-  min-width: 56px; height: 56px; text-align: center; background: transparent; border: 0;
+  width: 64px; height: 56px; text-align: center; background: transparent; border: 0;
   font: 700 20px/1 var(--lb-display); font-variant-numeric: tabular-nums; padding: 0;
   color: var(--lb-tinte);
 }
@@ -975,4 +1037,20 @@ form + form > .zeileKnopf { border-top: 1px solid var(--lb-linie) }
    * statt heller, aber ebenso sichtbar).
    */
   .stepTaste:hover { background: var(--lb-papier) }
+}
+
+/*
+ * NUR FÜR DIE VORLESEHILFE — sichtbar für sie, unsichtbar auf dem Schirm.
+ *
+ * Gebraucht für die `legend` der Zielwahl: ein `fieldset` ohne `legend` ist
+ * eine Gruppe ohne Namen, aber der Schirmkopf darüber sagt dasselbe schon —
+ * zwei fette Überschriften übereinander sind eine zu viel.
+ *
+ * ⚠️ NICHT `display: none` und NICHT `visibility: hidden`: beide nehmen das
+ * Element auch der Vorlesehilfe weg, und dann ist die Gruppe wieder namenlos.
+ * Die Clip-Technik lässt es im Baum.
+ */
+.nurVorlesen {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
 }
