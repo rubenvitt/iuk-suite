@@ -106,12 +106,15 @@ export function wechselGrenzeBar(nennfuelldruckBar: number, wechselAbProzent: nu
 /**
  * Prozent + Ampel + Wechselhinweis.
  *
- * ⚠️ DER VERGLEICH LAEUFT GANZZAHLIG UEBER KREUZ, NICHT UEBER `prozent`
- * (DRK-308). `fuellstandProzent` RUNDET, und an der Kante entschiede damit die
- * Rundung ueber den Hinweis: 49,6 bar von 200 bar runden auf 25 % und saehen
- * aus wie genau der Grenzwert, obwohl sie darunter liegen. `druck * 100` gegen
+ * ⚠️ DER VERGLEICH AN DER ROTEN KANTE LAEUFT GANZZAHLIG UEBER KREUZ, NICHT
+ * UEBER `prozent` (DRK-308). `fuellstandProzent` RUNDET, und an der Kante
+ * entschiede damit die Rundung ueber den Hinweis: 52,5 bar von 210 bar runden
+ * auf 25 % und saehen aus wie genau der Grenzwert. `druck * 100` gegen
  * `grenze * nenn` ist dieselbe Ungleichung ohne Division, ohne Fliesskomma und
  * ohne Rundung.
+ *
+ * ⚠️ NUR AN DER ROTEN. Die gelbe Kante rundet weiter — sie ist Bestand und
+ * nicht Gegenstand dieses Auftrags; die Begruendung steht im Rumpf.
  *
  * ⚠️ „BEI ERREICHEN" HEISST `<=`, UND DAS IST EINE AENDERUNG (DRK-308). Bis
  * dahin galt `prozent < 25`: genau 25 % waren GELB. Das Akzeptanzkriterium sagt
@@ -139,10 +142,23 @@ export function o2Status(
     };
   }
 
-  const roh = druckBar * 100;
+  // ⚠️ DIE ZWEI KANTEN RECHNEN ABSICHTLICH VERSCHIEDEN, und das ist kein
+  // Versehen (DRK-308, vierte Reviewrunde).
+  //
+  // ROT ist die Kante, die dieses Ticket anfasst: sie ist konfigurierbar, ihre
+  // Zahl steht ausgeschrieben in der Oberflaeche und auf dem Druckbogen, und
+  // eine Rundung entschiede dort ueber den Hinweis. Sie rechnet exakt.
+  //
+  // GELB ist Bestand — nicht konfigurierbar, nicht Gegenstand des Auftrags. Sie
+  // rechnet weiter ueber die GERUNDETE Prozentzahl, weil die Umstellung sonst
+  // still Faelle verschoebe, die niemand geprueft hat: 104 bar von 210 sind
+  // 49,52 % und runden auf 50 — bisher gruen, exakt gerechnet gelb. Der Umbau
+  // dieses PRs ist fuer alles ausser der roten Kante ADDITIV, und das bleibt er.
+  // Dass die Rundung hier ueberhaupt entscheidet, ist ein eigener Befund und
+  // steht als eigenes Ticket auf dem Board.
   let ampel: Ampel;
-  if (roh <= wechselAbProzent * nennfuelldruckBar) ampel = "rot";
-  else if (roh < O2_AMPEL_GELB_PROZENT * nennfuelldruckBar) ampel = "gelb";
+  if (druckBar * 100 <= wechselAbProzent * nennfuelldruckBar) ampel = "rot";
+  else if (prozent < O2_AMPEL_GELB_PROZENT) ampel = "gelb";
   else ampel = "gruen";
 
   const rot = ampel === "rot";
