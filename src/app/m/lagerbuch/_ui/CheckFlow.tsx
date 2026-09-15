@@ -131,6 +131,32 @@ export function CheckFlow({
    * Knopf in die volle Liste stuende wieder da, und kein Tor meldete es. Die
    * Seite ist heute der einzige Aufrufer; ein zweiter muesste die Frage
    * ausdruecklich beantworten.
+   *
+   * ⚠️ DER WERT FRIERT BEI DER INLINE-ERNEUERUNG EIN, UND DAS BLEIBT SO.
+   * `erneuereSitzung` (§7.4.4) tauscht das Cookie OHNE Seitenaufbau; wer mit
+   * einem Kaertchen eines anderen Fahrzeugs erneuert, sieht die zwei Auswege
+   * danach weiter nach dem ALTEN Kaertchen. Drei Gruende, warum hier trotzdem
+   * nichts nachgezogen wird:
+   *
+   * 1. EINE NEUAUFLOESUNG VOR DEM ABSENDEN WAERE DER SCHADEN, NICHT DIE
+   *    HEILUNG. Sie hiesse Seitenaufbau, und der verwirft die eingetragenen
+   *    Mengen — genau der Datenverlust, gegen den das Inline-Feld ueberhaupt
+   *    gebaut ist (§7.4.4, `docs/design/README.md`: Fehler aus Server-Actions
+   *    kommen AM FELD an, nicht als Redirect). Zwanzig Minuten Zaehlarbeit
+   *    stehen an dieser Stelle auf dem Spiel.
+   * 2. `fahrzeug.id` FRIERT MIT EIN, und das ist RICHTIG: gezaehlt wurde
+   *    DIESES Fahrzeug, also gehoeren die Mengen dorthin. Ein Ziel, das unter
+   *    der Helferin wechselt, waere die Fehlbuchung.
+   * 3. KEINE SACKGASSE. `gebunden` steuert allein, ob „Anderes Fahrzeug"
+   *    dasteht — die Tab-Leiste des `HelferRahmen` liegt in JEDER Lage darunter
+   *    (der Flow ist ihr Kind, `helfer/check/page.tsx`), und ihr
+   *    „Fahrzeug-Check" fuehrt auf `/helfer/check`, wo die Bindung frisch
+   *    aufgeloest wird.
+   *
+   * WAS BLEIBT, ist die Frage, ob ein an Fahrzeug B haengendes Kaertchen einen
+   * Check auf A bezeugen darf. Das ist die BERECHTIGUNGSFRAGE, nicht die
+   * Anzeigefrage — offene Betreiberfrage 5, Ansatzpunkt 2 in
+   * `_actions/check.ts`, und sie gilt dort unveraendert AUCH OHNE Erneuerung.
    */
   gebunden: boolean;
 }) {
