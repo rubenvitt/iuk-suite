@@ -19,7 +19,7 @@ wurden umgeschwenkt.
 | `aufgaben` | Aufgabenverteilung und Zeitplanung für BuFDis mit Koordinationsrolle | Login + Gruppe |
 | `radio` | Funkgeräte: Ausleihe per QR-Code, Bestand, Softwarestände | anonym (Ausleihe), Gruppe (Verwaltung) |
 | `uav` | Drohnen-Trainingsbegleiter, Teilnehmer melden sich mit Dauer-Code an | Code, Gruppe (Verwaltung) |
-| `zeichen` | Taktische Zeichen nachschlagen, bauen und üben (auf `@einsatzzeichen/*`) | Login |
+| `zeichen` | Taktische Zeichen nachschlagen, bauen und üben (auf `@einsatzzeichen/*`). **Zurzeit pausiert** (`ZEICHEN_PAUSIERT` in `_lib/verfuegbarkeit.ts`): keine Kachel, jede Route antwortet 503 | Login (sobald wieder aktiv) |
 | `alpha`, `beta`, `gamma`, `kioskdemo` | Wegwerf-Module, die den Architektur-Keystone in den E2E-Tests beweisen | – |
 
 Die verbindliche Liste samt Shell-Variante, Gruppen und Host-Fallbacks steht in
@@ -63,7 +63,11 @@ Browser ── lagerbuch.iuk-ue.de ──▶ Traefik ──▶ suite (Next.js, e
   Fachlogik (`_lib/`) und Client-Inseln (`_ui/`). Modul-Interna sind kein API für andere Module.
 * **Konfiguration je Instanz** läuft über Umgebungsvariablen: `SUITE_HOST_<KEY>` (Domain),
   `SUITE_ACCESS_GROUP_<KEY>` (Zugang) und `SUITE_ADMIN_GROUP_<KEY>` (Verwaltung). Ein Cutover
-  oder Rollback ist damit eine Zeile in der `.env` plus `docker compose up -d`.
+  braucht keinen Commit und keinen CI-Lauf, aber **zwei** Zeilen in der Server-`.env`: den Host in
+  `SUITE_HOST_<KEY>` **und** in `SUITE_TRAEFIK_RULE`, sonst erreicht die Domain den Container gar
+  nicht erst. Dazu den Router der Alt-Anwendung abschalten, nie zwei Router gleichzeitig; das
+  Muster steht in `docs/runbooks/<modul>-cutover.md`. Der Rollback ist das Zurücksetzen derselben
+  Zeilen.
 * **Health:** `GET /api/health/<modul>` antwortet mit Status, Commit-Revision und Versionsnummer.
   Der automatische Rollout prüft darüber, dass wirklich der neue Stand läuft.
 
@@ -102,9 +106,17 @@ Fake aus `pnpm dev:av` lauscht dagegen auf `127.0.0.1`. Wer lokal hochladen will
 `.env.local`:
 
 ```bash
-FILES_AV_HOST=127.0.0.1
 AUFGABEN_AV_HOST=127.0.0.1
+# files braucht mehr: die zwei Hosts (Verwaltung/Shares und Inbox, Reihenfolge trägt die
+# Rolle) schalten das Modul ein, und mit ihnen werden die drei Grenzen zur Pflicht.
+SUITE_HOST_FILES=files.localtest.me,drop.localtest.me
+FILES_MAX_DATEI_BYTES=12582912
+FILES_AV_MAX_BYTES=12582912
+FILES_MAX_ABLAUF_TAGE=7
+FILES_AV_HOST=127.0.0.1
 ```
+
+Der vollständige `files`-Block mit allen Grenzen und ihrer Begründung steht in `.env.example`.
 
 ## Tests und Tore
 
