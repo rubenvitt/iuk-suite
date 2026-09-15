@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, heuteIso, uhrzeit }
+import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, fmtDatumZeit, heuteIso, uhrzeit }
   from "./zeit";
 
 /**
@@ -39,6 +39,21 @@ describe.each(ZONEN)("unter Prozess-TZ %s", (tz) => {
     // Unter UTC stuende hier "02.08. 23:30" — jede Buchung zwischen 00:00 und
     // 02:00 Ortszeit landete auf dem Vortag (Analyse-Falle 2).
     expect(fmtTs(new Date("2026-08-02T23:30:00Z"))).toBe("03.08. 01:30");
+  });
+
+  it("fmtDatumZeit traegt das JAHR — ein Check von vor 13 Monaten sieht sonst aus wie gestern", () => {
+    // Der Unterschied zu `fmtTs` daneben ist genau das Jahr, und er ist der
+    // ganze Zweck der zweiten Funktion (DRK-306): „14.09., 08:12" ist von
+    // „14.09. des Vorjahres" nicht zu unterscheiden — aber genau diese Frage
+    // stellt sich vor einem Fahrzeug-Check.
+    expect(fmtDatumZeit(new Date("2026-09-14T06:12:00Z"))).toBe("14.09.2026, 08:12");
+  });
+
+  it("fmtDatumZeit rechnet in ZEITZONE, nicht in der Prozesszone", () => {
+    // Dieselbe Zusage wie bei `fmtTs`: eine Buchung um 01:30 Ortszeit darf
+    // nicht als Vortag 23:30 erscheinen. Der Test laeuft unter beiden
+    // Prozesszonen und behauptet dasselbe Ergebnis.
+    expect(fmtDatumZeit(new Date("2026-08-02T23:30:00Z"))).toBe("03.08.2026, 01:30");
   });
 
   it("uhrzeit liefert HH:MM in der Zone", () => {

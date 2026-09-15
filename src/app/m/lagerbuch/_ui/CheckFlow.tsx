@@ -114,6 +114,7 @@ export function CheckFlow({
   verfall,
   warn,
   gebunden,
+  letzterCheckText,
 }: {
   fahrzeug: { id: string; name: string; kennung: string | null };
   soll: CheckPos[];
@@ -159,6 +160,28 @@ export function CheckFlow({
    * `_actions/check.ts`, und sie gilt dort unveraendert AUCH OHNE Erneuerung.
    */
   gebunden: boolean;
+  /**
+   * DER LETZTE ABGESCHLOSSENE CHECK DIESES FAHRZEUGS — DRK-306, als FERTIGER
+   * TEXT; `null` heisst „noch nie abgeschlossen geprueft".
+   *
+   * ⚠️ TEXT UND KEIN `Date`, und das ist keine Bequemlichkeit: ein `Date` reist
+   * klaglos ueber die RSC-Grenze und wuerde hier in der Zone des GERAETS
+   * formatiert. Die Seite formatiert deshalb zonenexplizit vor
+   * (`helfer/check/page.tsx`, `fmtDatumZeit`) — dieselbe Zusage, die
+   * `verwaltung/fahrzeuge` woertlich traegt.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL — aus demselben Grund wie `gebunden` darueber.
+   * Ein `letzterCheckText?: string | null` waere in jeder vergessenen
+   * Aufrufstelle still `undefined` und damit vom „noch nie geprueft"-Fall NICHT
+   * zu unterscheiden: ein gestern geprueftes Fahrzeug bekaeme die Zeile „Noch
+   * kein Check erfasst" und saehe aus wie ein vergessenes. Ein fehlender Wert
+   * soll LAUT sein, nicht falsch.
+   *
+   * ⚠️ ER WIRD AUF DEM FERTIG-SCHIRM NICHT GEZEIGT. Nach dem Abschluss ist der
+   * letzte Check DIESER hier; die vorgeladene Zahl waere dort die
+   * VORLETZTE — ein Wert, der stimmt und trotzdem das Falsche behauptet.
+   */
+  letzterCheckText: string | null;
 }) {
   // DIE SECHS CLIENT-ZUSTAENDE (1:1, `:62-71`). Sie bleiben bei JEDEM Fehler
   // stehen — das ist die tragende Zusage von §7.4.4 und §7.10.3.
@@ -496,6 +519,27 @@ export function CheckFlow({
     );
   }
 
+  /**
+   * DIE HERKUNFTSZEILE DES SCHRITTS — DRK-306, AK1.
+   *
+   * Sie steht auf JEDEM Schritt und nicht nur auf dem ersten: welcher Schritt
+   * der erste ist, haengt an der Bestueckung (`schrittFolge`), und ein Fahrzeug
+   * ohne Soll-Artikel faengt bei „Geraete" an. Eine Zeile, die nur im
+   * Zaehlschritt steht, waere dort ersatzlos weg — „sichtbar" waere dann eine
+   * Aussage ueber die Bestueckung statt ueber die Oberflaeche.
+   *
+   * Sie macht zugleich den Satz der Einleitungskarte ueberpruefbar: dort steht
+   * „Das Verfallsdatum kommt aus dem letzten Check", und ohne Zeitpunkt kann
+   * niemand beurteilen, ob dieser Stand von gestern oder vom Vorjahr ist.
+   */
+  const letzterCheckZeile = (
+    <div className={s.letzterCheck} data-rolle="letzter-check">
+      {letzterCheckText === null
+        ? "Noch kein Check erfasst — das ist der erste für dieses Fahrzeug."
+        : `Letzter Check: ${letzterCheckText}`}
+    </div>
+  );
+
   /** Der Fehlerbereich am Abschluss — samt Inline-Erneuerung (§7.4.4). */
   const fehlerBereich = fehler && (
     <div className={`${s.karte} ${s.kartePad}`}>
@@ -587,6 +631,7 @@ export function CheckFlow({
           {fahrzeug.kennung ? ` · ${fahrzeug.kennung}` : ""}
         </div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>
             Wie viel liegt wirklich im Fahrzeug, und wie lange hält es?
@@ -710,6 +755,68 @@ export function CheckFlow({
                                 setVerfallState((v) => ({ ...v, [p.artikelId]: e.target.value }))
                               }
                             />
+                            {/*
+                              DER WEG ZURUECK AUS EINER ANGABE — DRK-306, AK4.
+
+                              ⚠️ ER SCHREIBT `""`, NIEMALS `delete` ODER
+                              `undefined`. `verfallWert` loest ueber
+                              `verfallState[a] ?? verfall[a] ?? ""` auf: ein
+                              entfernter Schluessel faellt durch die ??-Kette
+                              auf den VORBELEGTEN Wert zurueck, und der alte
+                              Monat stuende sofort wieder im Feld. Weder
+                              `typecheck` noch `build` saehen das, und von Hand
+                              faellt es nur auf, wenn ueberhaupt ein Vorwert
+                              existiert.
+
+                              ⚠️ ER IST KEIN LOESCHKNOPF FUER DIE HISTORIE.
+                              `checkNutzlast` macht aus `""` ein `verfall: null`,
+                              der Server ruft damit `loescheVerfallEintrag` —
+                              also GENAU EINE Zeile in `lagerort_verfall`,
+                              dem AKTUELLEN Stand des Fahrzeugs. Die
+                              `ergebnis`-JSONs frueherer Checks sind eigene
+                              Momentaufnahmen und bleiben unberuehrt; der
+                              Nachweis DIESES Checks entsteht erst danach aus
+                              dem neuen Stand und fuehrt den Artikel dann nicht
+                              mehr.
+
+                              ⚠️ NUR BEI VORHANDENER ANGABE. Ein Knopf, der
+                              nichts zu loeschen hat, waere in jeder Zeile ein
+                              zweites Tippziel neben dem Feld — und weil das
+                              Leeren eines leeren Feldes ohnehin NICHTS sendet
+                              (der Filter in `zaehlung()` vergleicht gegen den
+                              Vorwert), auch folgenlos.
+
+                              ⚠️ NICHT ROT (Falle 3): Rot traegt auf dieser
+                              Flaeche die Ampelbedeutung „laeuft ab". Ein rotes
+                              Kreuz neben einem gruenen Verfallschip laese sich
+                              als Befund lesen statt als Bedienung.
+                            */}
+                            {vw !== "" && (
+                              <button
+                                type="button"
+                                className={s.verfallLeeren}
+                                data-rolle="verfall-leeren"
+                                /*
+                                  ⚠️ DER ARTIKELNAME STEHT VORN, NICHT „Verfall".
+                                  Das Feld daneben heisst `Verfall <Artikel>`;
+                                  traegt der Knopf denselben Anfang, loest jeder
+                                  Greifer ueber diesen Praefix auf ZWEI Elemente
+                                  auf — gemessen an `e2e/lagerbuch-helfer.spec.ts`,
+                                  wo ein bestehendes `getByLabel(/^Verfall …/)`
+                                  mit „strict mode violation" brach, sobald eine
+                                  Vorbelegung den Knopf ueberhaupt erscheinen
+                                  liess. Im Seed ohne Vorbelegung bleibt so ein
+                                  Test still gruen; kaputt geht er erst auf
+                                  echten Daten.
+                                */
+                                aria-label={`${p.artikelName}: Verfall entfernen`}
+                                onClick={() =>
+                                  setVerfallState((v) => ({ ...v, [p.artikelId]: "" }))
+                                }
+                              >
+                                <Ikone name="kreuz" groesse={20} />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -790,6 +897,7 @@ export function CheckFlow({
       <>
         <div className={s.schirmKopf}>{fahrzeug.name} · Geräte</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
         {idx > 0 && (
           <button
             className={`${s.knopf} ${s.knopfGeist}`}
@@ -912,6 +1020,7 @@ export function CheckFlow({
       <>
         <div className={s.schirmKopf}>{fahrzeug.name} · Sauerstoff</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+        {letzterCheckZeile}
         {idx > 0 && (
           <button
             className={`${s.knopf} ${s.knopfGeist}`}
@@ -1037,6 +1146,7 @@ export function CheckFlow({
     <>
       <div className={s.schirmKopf}>{fahrzeug.name}</div>
       <Schritte folge={schrittFolge} aktiv={aktivePhase} />
+      {letzterCheckZeile}
       <button
         className={`${s.knopf} ${s.knopfGeist}`}
         type="button"
