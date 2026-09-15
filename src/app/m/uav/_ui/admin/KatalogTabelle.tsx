@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Drawer, Tag } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import {
+  Datentabelle,
+  filterAktiv,
+  nachJaNein,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+  zustandsFilter,
+  type FilterZustand,
+} from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { aufgabenSortierenAction } from "../../_actions/katalog";
 import type { TaskDTO, Teil } from "../../_lib/typen";
@@ -11,6 +21,16 @@ import { SPACE } from "@/core/theme/tokens";
 import { AufgabeFormular } from "./AufgabeFormular";
 
 const TEIL_TITEL: Record<Teil, string> = { 1: "Teil 1", 2: "Teil 2", 3: "Teil 3" };
+
+/**
+ * „aktiv"/„inaktiv" ist ein Prädikat über der Zeile, kein Feldwert — deshalb
+ * `zustandsFilter` statt `werteAlsFilter` (`core/tabelle/spaltenfilter.ts`).
+ * Beide Haken zusammen verodern sich, zeigen also wieder alles.
+ */
+const AKTIV_FILTER = zustandsFilter<TaskDTO>([
+  { wert: "aktiv", text: "aktiv", trifft: (a) => a.aktiv },
+  { wert: "inaktiv", text: "inaktiv", trifft: (a) => !a.aktiv },
+]);
 
 /*
  * DER AUFGABENKATALOG ALS TABELLE (Aufgabe 17) — eigene `"use client"`-
@@ -51,24 +71,48 @@ const TEIL_TITEL: Record<Teil, string> = { 1: "Teil 1", 2: "Teil 2", 3: "Teil 3"
  *    `pagination={false}` und dem Spaltenkopf-Kicker. Die Spur darüber bleibt trotzdem
  *    nötig; sie ist die Hälfte, die `Datentabelle` nicht kennt.
  *
- * ══ ⛔ KEIN `sorter` UND KEIN `filters` AN IRGENDEINER SPALTE — als einzige der
- *    umgestellten Tabellen, und das ist fachlich, nicht vergessen. Die Reihenfolge der
- *    Zeilen IST hier der Inhalt: sie bestimmt, in welcher Folge die Teilnehmer ihre
- *    Aufgaben sehen, und sie wird mit den ↑/↓-Knöpfen der vorletzten Spalte bearbeitet.
- *    Diese Knöpfe hängen am `index`, den antd in `render` durchreicht — und das ist der
- *    Index der ANGEZEIGTEN Liste, nicht der von `aufgaben`. Sortierte jemand nach
- *    „Titel" oder filterte nach „Teil", verschöbe `verschieben(index, …)` die falsche
- *    Zeile, und `aufgabenSortierenAction` schriebe das Ergebnis fest. Ein Spaltenkopf,
- *    der die Bearbeitung darunter still falsch macht, ist kein Komfort. Wer hier
- *    Sortierung nachrüsten will, muss `verschieben` vorher auf `a.id` umstellen — und
- *    danach beantworten, was „nach oben" in einer nach etwas anderem sortierten Liste
- *    überhaupt heißen soll.
+ * ══ DER RANG KOMMT AUS DER ZEILE, NICHT AUS DEM ANZEIGE-INDEX (DRK-333). Bis dahin
+ *    las `verschieben` den `index`, den antd in `render` durchreicht — und das ist der
+ *    Index der ANGEZEIGTEN Liste. Solange die Anzeige die Speicherreihenfolge war,
+ *    stimmte das; genau deshalb trug diese Tabelle als einzige weder `sorter` noch
+ *    `filters`. Der Preis war kein Anzeigefehler, sondern ein SCHREIBENDER Vorgang auf
+ *    dem falschen Datensatz: hätte jemand nach „Titel" sortiert, verschöbe der Knopf
+ *    eine andere Zeile, und `aufgabenSortierenAction` schriebe das Ergebnis fest — ohne
+ *    jede Rückmeldung, dass etwas schiefging. ⚠️ Kein Tor sieht das; es ist ein
+ *    Laufzeitversatz zwischen zwei Listen, kein Typfehler.
+ *    `verschieben` bekommt deshalb die `id` und sucht ihren Platz in `aufgaben` — der
+ *    Liste in GESPEICHERTER Reihenfolge. Damit darf die Tabelle sortieren und filtern
+ *    wie jede andere.
+ *
+ * ══ UND DAMIT DIE ANTWORT AUF „WAS HEISST NACH OBEN, WENN ANDERS SORTIERT IST?":
+ *    IMMER „einen Platz nach vorn in der gespeicherten Reihenfolge" — in der Ordnung
+ *    also, die die Teilnehmer später sehen. Die Anzeigeordnung ist nur die Brille, durch
+ *    die man die Zeile sucht. ⚠️ Das hat eine Folge, die man sehen können muss: unter
+ *    einer fremden Sortierung bewegt sich die Zeile auf dem Schirm NICHT, obwohl der
+ *    Knopf gewirkt hat. Deshalb trägt die Spalte „Reihenfolge" die PLATZZIFFER neben den
+ *    Pfeilen — sie zählt hoch oder runter, auch wenn die Zeile stehen bleibt. Ein Knopf
+ *    ohne sichtbare Wirkung wird zweimal gedrückt.
  */
 export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDTO[] }) {
   const [aufgaben, setAufgaben] = useState<TaskDTO[]>(anfangsAufgaben);
   const [neuOffen, setNeuOffen] = useState(false);
   const [bearbeiten, setBearbeiten] = useState<TaskDTO | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * ⚠️ GEMERKT WIRD DER ZUSTAND, NICHT DIE LISTE (Falle 15). Gebraucht wird er
+   * für genau eine Frage: ob der Leertext „noch nichts angelegt" oder „nichts
+   * passt zum Filter" heißen muss.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
+
+  /**
+   * Der Platz JE ID in der gespeicherten Reihenfolge — die eine Quelle, aus der
+   * die Pfeile ihren Rang lesen. Aus `aufgaben`, nie aus dem Render-Index.
+   */
+  const platzJeId = useMemo(
+    () => new Map(aufgaben.map((aufgabe, platz) => [aufgabe.id, platz])),
+    [aufgaben],
+  );
 
   function angelegt(aufgabe: TaskDTO): void {
     setAufgaben((liste) => [...liste, aufgabe]);
@@ -85,11 +129,21 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
     setBearbeiten(null);
   }
 
-  function verschieben(index: number, richtung: -1 | 1): void {
+  /**
+   * ⛔ DIE ZEILE KOMMT ALS `id`, NICHT ALS POSITION. Der Platz wird hier aus
+   * `aufgaben` aufgelöst — der Liste in gespeicherter Reihenfolge —, damit eine
+   * Sortierung oder ein Filter in den Spaltenköpfen nicht die falsche Zeile
+   * verschiebt. Geschrieben wird weiter die GANZE Reihenfolge: `tasksNeuSortieren`
+   * vergibt `sortOrder` aus der Position in der Id-Liste.
+   */
+  function verschieben(id: string, richtung: -1 | 1): void {
+    const index = platzJeId.get(id);
+    if (index === undefined) return;
     const ziel = index + richtung;
     if (ziel < 0 || ziel >= aufgaben.length) return;
     const neu = [...aufgaben];
     const [bewegt] = neu.splice(index, 1);
+    if (!bewegt) return;
     neu.splice(ziel, 0, bewegt);
     setAufgaben(neu);
     setBusy(true);
@@ -111,16 +165,51 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
       <Datentabelle<TaskDTO>
         rowKey="id"
         dataSource={aufgaben}
-        locale={{ emptyText: "Noch keine Aufgaben im Katalog." }}
+        onChange={(_seite, filter) => setSpaltenFilter(filter)}
+        locale={{
+          // „Noch nichts angelegt" und „nichts passt" sind zwei verschiedene
+          // Sätze; der falsche lädt zum Anlegen einer Aufgabe ein, die es gibt.
+          emptyText: filterAktiv(spaltenFilter)
+            ? "Keine Aufgabe passt zum Filter."
+            : "Noch keine Aufgaben im Katalog.",
+        }}
         columns={[
           // Den Kicker setzt `Datentabelle`; `title` ist deshalb eine nackte Zeichenkette.
-          { title: "Teil", key: "teil", render: (_: unknown, a: TaskDTO) => TEIL_TITEL[a.teil] },
-          { title: "Nummer", key: "nummer", render: (_: unknown, a: TaskDTO) => a.nummer },
-          { title: "Titel", key: "titel", render: (_: unknown, a: TaskDTO) => a.titel },
-          { title: "Ziel", key: "ziel", render: (_: unknown, a: TaskDTO) => a.zielanzahlDefault },
+          //
+          // Sortierer sind hier erlaubt, weil die Tabelle ALLES hält, was es gibt
+          // (`alleTasks(db, true)`, inklusive der inaktiven) — die Regel dazu steht
+          // in `core/tabelle/sortierer.ts`.
+          {
+            title: "Teil",
+            key: "teil",
+            filters: werteAlsFilter(aufgaben, (a) => TEIL_TITEL[a.teil]),
+            onFilter: trifftWert<TaskDTO>((a) => TEIL_TITEL[a.teil]),
+            render: (_: unknown, a: TaskDTO) => TEIL_TITEL[a.teil],
+          },
+          {
+            title: "Nummer",
+            key: "nummer",
+            // `numeric: true` im Sammler ordnet „1.10" hinter „1.2" statt davor.
+            sorter: nachText<TaskDTO>((a) => a.nummer),
+            render: (_: unknown, a: TaskDTO) => a.nummer,
+          },
+          {
+            title: "Titel",
+            key: "titel",
+            sorter: nachText<TaskDTO>((a) => a.titel),
+            render: (_: unknown, a: TaskDTO) => a.titel,
+          },
+          {
+            title: "Ziel",
+            key: "ziel",
+            sorter: nachZahl<TaskDTO>((a) => a.zielanzahlDefault),
+            render: (_: unknown, a: TaskDTO) => a.zielanzahlDefault,
+          },
           {
             title: "Aktiv",
             key: "aktiv",
+            sorter: nachJaNein<TaskDTO>((a) => a.aktiv),
+            ...AKTIV_FILTER,
             render: (_: unknown, a: TaskDTO) => <Tag color={a.aktiv ? "green" : "default"}>{a.aktiv ? "aktiv" : "inaktiv"}</Tag>,
           },
           {
@@ -137,20 +226,34 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
           {
             title: "Reihenfolge",
             key: "reihenfolge",
-            render: (_: unknown, a: TaskDTO, index: number) => (
-              <div style={{ display: "flex", gap: SPACE.xs }}>
-                <Button onClick={() => verschieben(index, -1)} disabled={busy || index === 0} aria-label={`${a.nummer} nach oben`}>
-                  ↑
-                </Button>
-                <Button
-                  onClick={() => verschieben(index, 1)}
-                  disabled={busy || index === aufgaben.length - 1}
-                  aria-label={`${a.nummer} nach unten`}
-                >
-                  ↓
-                </Button>
-              </div>
-            ),
+            /*
+             * ⛔ KEIN `index` HIER. Die Platzziffer und beide Ränder kommen aus
+             * `platzJeId`, also aus der gespeicherten Reihenfolge — antds dritter
+             * `render`-Parameter wäre der Index der ANGEZEIGTEN Liste und machte
+             * unter jeder Sortierung die falsche Zeile zur ersten.
+             */
+            render: (_: unknown, a: TaskDTO) => {
+              const platz = platzJeId.get(a.id) ?? 0;
+              return (
+                <div style={{ display: "flex", gap: SPACE.xs, alignItems: "center" }}>
+                  <span data-rolle="uav-katalog-platz">{platz + 1}</span>
+                  <Button
+                    onClick={() => verschieben(a.id, -1)}
+                    disabled={busy || platz === 0}
+                    aria-label={`${a.nummer} nach oben`}
+                  >
+                    ↑
+                  </Button>
+                  <Button
+                    onClick={() => verschieben(a.id, 1)}
+                    disabled={busy || platz === aufgaben.length - 1}
+                    aria-label={`${a.nummer} nach unten`}
+                  >
+                    ↓
+                  </Button>
+                </div>
+              );
+            },
           },
           {
             title: "Aktionen",
