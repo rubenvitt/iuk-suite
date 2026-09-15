@@ -55,8 +55,22 @@ async function vorgaenge(page: Page): Promise<string[]> {
   return zeilen.locator("td:nth-child(3)").allInnerTexts();
 }
 
+/**
+ * ⚠️ DIE ANTWORT WIRD GEPRUEFT, NICHT NUR DIE SPAETERE ANZEIGE (CLAUDE.md,
+ * zweite Testregel aus Falle 10) — und hier ist das kein Formalismus, sondern
+ * der Kern dieses Specs.
+ *
+ * Er existiert, um den HTTP 500 zu fangen, den eine Direktive auf einem Modul
+ * ausloest, das beide React-Ebenen lesen (Falle 6). Genau dann liefert diese
+ * Seite eine Fehlerseite OHNE Tabelle — und ohne die Zusicherung hier liefe der
+ * Test in eine Greiferzusicherung, die „Element nicht gefunden" meldet. Das
+ * klingt nach einem Fehler in der Anzeige und schickt den naechsten Leser in
+ * die falsche Richtung; der Spec verfehlte seinen eigenen Zweck auf halber
+ * Strecke. Dasselbe gilt fuer jede 404 aus einem verrutschten Pfad.
+ */
 async function journal(page: Page, suche: string): Promise<void> {
-  await page.goto(lagerbuchUrl(`/verwaltung/journal?${suche}`));
+  const antwort = await page.goto(lagerbuchUrl(`/verwaltung/journal?${suche}`));
+  expect(antwort?.status(), `Journal ?${suche}: HTTP`).toBe(200);
   await page.waitForLoadState("networkidle");
 }
 
