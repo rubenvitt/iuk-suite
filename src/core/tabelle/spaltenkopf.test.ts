@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -50,21 +51,121 @@ import { describe, expect, it } from "vitest";
  * im Client. Nachgemessen auf `main`: die Kopfzelle traegt ihren Text schon im
  * Server-HTML, und beide `files`-Specs laufen ohne eine einzige
  * Hydrationsmeldung. Dieser Riegel haelt nur fest, dass es so bleibt.
+ *
+ * ⚠️ WARUM DER SCAN UEBER DEN AST LAEUFT UND NICHT UEBER EINE REGEX. Der erste
+ * Wurf tat das und war mit zwei Zeilen zu umgehen (im Review benannt):
+ *
+ *   const columns = [{ dataIndex: "a", title: <span>A</span> }];  // einzeilig
+ *   { dataIndex: "a", title: kurz ? <span>A</span> : "A" }        // im Ternaer
+ *
+ * Beide erzeugen denselben Defekt und blieben gruen, weil die Regex `title:`
+ * am Zeilenanfang erwartete und unmittelbar danach ein `<`. Ein Riegel, den
+ * der Formatter oder ein Fragezeichen aushebelt, ist keiner — und die
+ * Umgehungen faellt niemand absichtlich, sondern beim Umbrechen einer Zeile.
+ * Der AST kennt weder Zeilenanfaenge noch Schreibweisen: er sucht ein
+ * JSX-Element IRGENDWO im Wert der Eigenschaft.
  */
 
 const WURZEL = "src";
 
 /**
- * OHNE KOMMENTARE — sonst faellt der Scan ueber die eigene Begruendung: dieser
- * Kopf schreibt `title: <span …>` aus, und mehrere Kommentare im Baum tun es
- * ebenfalls.
+ * Geschwister-Schluessel, an denen ein Objekt als antd-SPALTE zu erkennen ist.
+ *
+ * ⚠️ DAS IST DIE EINGRENZUNG, UND SIE ERSETZT EINE SCHWAECHERE. Der erste Wurf
+ * fragte, ob die DATEI irgendwo `columns` schreibt — das trifft die Absicht nur
+ * ungefaehr (die Suite nennt ihre Spaltenlisten `spalten` und reicht sie als
+ * `columns={spalten}` weiter) und ist ebenso leicht zu umgehen. Ein `title:`
+ * neben `dataIndex`/`sorter`/`width` ist dagegen eine Spalte, und ein `title:`
+ * in einem `Modal.confirm` oder einer eigenen Abschnittsliste ist es nicht.
+ *
+ * `key` steht BEWUSST NICHT hier: es ist der generischste Schluessel im ganzen
+ * antd-Vorrat (`Steps`, `Tabs`, `Collapse` tragen ihn auch), und eine Spalte,
+ * die AUSSER `key` und `title` nichts hat, gibt es in dieser Suite nicht.
  */
-function ohneKommentare(quelle: string): string {
-  return quelle.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const SPALTEN_GESCHWISTER = new Set([
+  "dataIndex",
+  "render",
+  "sorter",
+  "width",
+  "filters",
+  "onFilter",
+  "ellipsis",
+  "fixed",
+  "align",
+  "colSpan",
+  "responsive",
+  "defaultSortOrder",
+  "sortDirections",
+  "onHeaderCell",
+  "onCell",
+]);
+
+function traegtClientDirektive(quelle: ts.SourceFile): boolean {
+  const erste = quelle.statements[0];
+  if (!erste || !ts.isExpressionStatement(erste)) return false;
+  return ts.isStringLiteral(erste.expression) && erste.expression.text === "use client";
 }
 
-function traegtClientDirektive(quelle: string): boolean {
-  return /^\s*["']use client["']/.test(ohneKommentare(quelle));
+function enthaeltJsx(knoten: ts.Node): boolean {
+  if (
+    ts.isJsxElement(knoten)
+    || ts.isJsxSelfClosingElement(knoten)
+    || ts.isJsxFragment(knoten)
+  ) {
+    return true;
+  }
+  return knoten.getChildren().some(enthaeltJsx);
+}
+
+function eigenschaftsName(eigenschaft: ts.ObjectLiteralElementLike): string | undefined {
+  const name = eigenschaft.name;
+  if (!name) return undefined;
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text;
+  return undefined;
+}
+
+function istSpaltenObjekt(objekt: ts.ObjectLiteralExpression): boolean {
+  return objekt.properties.some((eigenschaft) => {
+    const name = eigenschaftsName(eigenschaft);
+    return name !== undefined && SPALTEN_GESCHWISTER.has(name);
+  });
+}
+
+/**
+ * Die Zeilennummern aller `title`-Eigenschaften, deren Wert JSX enthaelt und
+ * die in einem Objekt stehen, das sich als Spalte zu erkennen gibt.
+ *
+ * ⚠️ WAS DIESER SCAN NICHT SEHEN KANN, und das gehoert ausgeschrieben statt
+ * verschwiegen: eine Kurzschreibweise (`{ title }`) und ein Titel, der als
+ * VARIABLE hereinkommt (`title: kopf`), tragen das JSX nicht an dieser Stelle.
+ * Das aufzuloesen hiesse, dem Wert durch die Datei zu folgen — dafuer braeuchte
+ * es den Typchecker, nicht den Parser, und der Gewinn stuende nicht dafuer.
+ * Was der Scan deckt, ist die Schreibweise, in der die Falle bisher entstanden
+ * ist: das Element steht direkt am `title`.
+ */
+function jsxSpaltentitel(quelle: ts.SourceFile): number[] {
+  const treffer: number[] = [];
+
+  const besuche = (knoten: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(knoten) && istSpaltenObjekt(knoten)) {
+      for (const eigenschaft of knoten.properties) {
+        if (!ts.isPropertyAssignment(eigenschaft)) continue;
+        if (eigenschaftsName(eigenschaft) !== "title") continue;
+        if (!enthaeltJsx(eigenschaft.initializer)) continue;
+        treffer.push(quelle.getLineAndCharacterOfPosition(eigenschaft.getStart()).line + 1);
+      }
+    }
+    ts.forEachChild(knoten, besuche);
+  };
+
+  besuche(quelle);
+  return treffer;
+}
+
+function lies(datei: string, text: string): ts.SourceFile {
+  // `setParentNodes: true` ist Pflicht — ohne die Elternzeiger wirft
+  // `getChildren()` in `enthaeltJsx` auf jedem Knoten ohne Quelltextbezug.
+  return ts.createSourceFile(datei, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 }
 
 function sammleQuellen(verzeichnis: string, treffer: string[] = []): string[] {
@@ -82,33 +183,17 @@ function sammleQuellen(verzeichnis: string, treffer: string[] = []): string[] {
   return treffer;
 }
 
-/**
- * Ein `title:` als Objektschluessel, dessen Wert mit JSX beginnt — `<` direkt
- * am Schluessel oder hinter der Klammer, die der Formatter setzt, sobald das
- * Element umbricht (`title: (\n  <span …`).
- *
- * ⚠️ DIE KLAMMER ALLEIN GENUEGT NICHT ALS TREFFER. `title: (a ? b : c)` ist
- * kein JSX; wer das meldet, meldet eine Stelle, ueber die diese Datei nichts
- * gemessen hat. Deshalb muss hinter der Klammer ein `<` stehen.
- *
- * ⚠️ NUR IN EINER DATEI, DIE AUCH `columns` KENNT. Ein `title:` gibt es auch
- * anderswo (`Modal.confirm`, eigene Abschnittslisten); die Messung oben gilt
- * aber allein der doppelt gerenderten Spaltenueberschrift. Ohne diese
- * Einschraenkung meldete der Riegel Stellen, ueber die er nichts weiss — und
- * ein Riegel, der auch falsch anschlaegt, wird abgeschaltet statt befolgt.
- */
-function jsxSpaltentitel(quelle: string): boolean {
-  const text = ohneKommentare(quelle);
-  if (!/\bcolumns\b/.test(text)) return false;
-  return /^\s*title:\s*(?:<|\(\s*<)/m.test(text);
-}
-
 describe("Spaltenueberschriften als JSX bleiben im Client", () => {
   it("jede Datei mit einem JSX-`columns[].title` traegt `use client`", () => {
-    const suender = sammleQuellen(WURZEL).filter((datei) => {
-      const quelle = readFileSync(datei, "utf8");
-      return jsxSpaltentitel(quelle) && !traegtClientDirektive(quelle);
-    });
+    const suender: string[] = [];
+
+    for (const datei of sammleQuellen(WURZEL)) {
+      const quelle = lies(datei, readFileSync(datei, "utf8"));
+      const zeilen = jsxSpaltentitel(quelle);
+      if (zeilen.length === 0) continue;
+      if (traegtClientDirektive(quelle)) continue;
+      suender.push(`${datei}:${zeilen.join(",")}`);
+    }
 
     expect(
       suender,
@@ -124,22 +209,37 @@ describe("Spaltenueberschriften als JSX bleiben im Client", () => {
 
   /**
    * DIE GEGENPROBE ZUM SCAN SELBST: er muss ueberhaupt etwas sehen koennen.
-   * Ohne sie bliebe der Riegel auch dann gruen, wenn die Regex ins Leere liefe
+   * Ohne sie bliebe der Riegel auch dann gruen, wenn die Suche ins Leere liefe
    * — und das faellt erst auf, wenn er gebraucht wird.
+   *
+   * DIE ERSTEN BEIDEN FAELLE SIND DIE, AN DENEN DER VORGAENGER SCHEITERTE (ein
+   * einzeiliges Spaltenobjekt und ein Titel im Ternaer). Sie stehen hier, damit
+   * niemand versehentlich auf eine zeilenbasierte Suche zurueckbaut.
    */
-  it("der Scan erkennt beide Schreibweisen und uebersieht, was keine ist", () => {
-    // Umgebrochen wie der Formatter es schreibt — ein einzeiliges Beispiel
-    // pruefte eine Form, die im Baum gar nicht vorkommt.
-    const einzeilig = ["const columns = [", "  {", "    title: <span>A</span>,", "  },", "];"].join("\n");
-    const geklammert = ["const columns = [", "  {", "    title: (", "      <span>A</span>", "    ),", "  },", "];"].join("\n");
-    const zeichenkette = ["const columns = [", "  {", "    title: \"A\",", "  },", "];"].join("\n");
-    const ternaer = ["const columns = [", "  {", "    title: (kurz ? \"A\" : \"B\"),", "  },", "];"].join("\n");
-    const ohneTabelle = ["const abschnitte = [", "  {", "    title: <span>A</span>,", "  },", "];"].join("\n");
+  it("der Scan erkennt jede Schreibweise und uebersieht, was keine ist", () => {
+    const pruefe = (text: string) => jsxSpaltentitel(lies("probe.tsx", text)).length;
 
-    expect(jsxSpaltentitel(einzeilig)).toBe(true);
-    expect(jsxSpaltentitel(geklammert)).toBe(true);
-    expect(jsxSpaltentitel(zeichenkette)).toBe(false);
-    expect(jsxSpaltentitel(ternaer)).toBe(false);
-    expect(jsxSpaltentitel(ohneTabelle)).toBe(false);
+    expect(pruefe('const columns = [{ dataIndex: "a", title: <span>A</span> }];')).toBe(1);
+    expect(pruefe('const columns = [{ dataIndex: "a", title: kurz ? <span>A</span> : "A" }];')).toBe(1);
+    expect(pruefe('const columns = [{ width: 10, title: (\n  <>\n    <span>A</span>\n  </>\n) }];')).toBe(1);
+    expect(pruefe('const spalten = [{ sorter: f, title: <Kopf /> }];')).toBe(1);
+
+    // Zeichenketten sind der richtige Weg — und bleiben stumm.
+    expect(pruefe('const columns = [{ dataIndex: "a", title: "A" }];')).toBe(0);
+    // Ein Ternaer OHNE JSX ist kein Treffer (die alte Regex haette hier
+    // beinahe falsch angeschlagen).
+    expect(pruefe('const columns = [{ dataIndex: "a", title: kurz ? "A" : "B" }];')).toBe(0);
+    // Kein Spaltenobjekt: `Modal.confirm`, Abschnittslisten, `Steps`.
+    expect(pruefe('const abschnitte = [{ title: <span>A</span>, inhalt: x }];')).toBe(0);
+    expect(pruefe('const schritte = [{ key: "a", title: <span>A</span> }];')).toBe(0);
+  });
+
+  it("erkennt die Client-Direktive nur, wenn sie wirklich die erste Anweisung ist", () => {
+    expect(traegtClientDirektive(lies("a.tsx", '"use client";\nexport const a = 1;'))).toBe(true);
+    // Ein Kopfkommentar davor ist erlaubt und aendert nichts.
+    expect(traegtClientDirektive(lies("b.tsx", '// Kopf\n"use client";\nexport const a = 1;'))).toBe(true);
+    // Eine Direktive HINTER einem Import ist keine — und waere still wirkungslos.
+    expect(traegtClientDirektive(lies("c.tsx", 'import "x";\n"use client";'))).toBe(false);
+    expect(traegtClientDirektive(lies("d.tsx", "export const a = 1;"))).toBe(false);
   });
 });
