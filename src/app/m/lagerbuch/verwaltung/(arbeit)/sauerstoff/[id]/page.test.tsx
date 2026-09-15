@@ -257,6 +257,7 @@ describe("Flaschenblatt als Server Component", () => {
       lagerortId: "rtw-1",
       groesseLiter: null,
       nennfuelldruckBar: 200,
+      wechselAbProzent: 25,
     });
     const toggle = elementeVomTyp(
       (kopf.props as { aktionen: ReactNode }).aktionen,
@@ -270,7 +271,11 @@ describe("Flaschenblatt als Server Component", () => {
 
     const warnung = elementeVomTyp(seite, "div")
       .find((element) => (element.props as { className?: string }).className === s.warnbox);
-    expect(textVon(warnung)).toContain("Niedriger Druck");
+    // Die Warnung NENNT ihren Grenzwert (DRK-308): er ist je Flasche
+    // einstellbar, und ohne die Zahl bliebe offen, ab wann sie erscheint.
+    expect(textVon(warnung)).toContain("Wechsel fällig");
+    expect(textVon(warnung)).toContain("50 bar");
+    expect(textVon(warnung)).toContain("25 %");
   });
 
   it("übergibt ausschließlich rekursiv JSON-sichere primitive Verlaufs-DTOs", () => {
@@ -340,6 +345,7 @@ describe("ReferenzFelder", () => {
         lagerortId="rtw-1"
         groesseLiter={groesseLiter}
         nennfuelldruckBar={200}
+        wechselAbProzent={25}
       />,
     );
   }
@@ -358,12 +364,19 @@ describe("ReferenzFelder", () => {
     await fill("input[aria-label='Name']", "  O2 Reserve  ");
     await blur("input[aria-label='Name']");
 
+    // ⚠️ `wechselAbProzent` IST TEIL JEDES PAYLOADS, auch wenn nur der Name
+    // geaendert wurde (DRK-308). `flascheSpeichern` schreibt die Stammzeile GANZ
+    // und belegt ein fehlendes Feld mit der Vorgabe vor — ohne diese Zeile
+    // setzte eine Namensaenderung den eingestellten Grenzwert still auf 25
+    // zurueck. Genau deshalb steht sie hier im ERWARTUNGSWERT und nicht nur im
+    // Quelltext.
     expect(mocks.speichern).toHaveBeenCalledWith({
       id: "flasche-1",
       name: "O2 Reserve",
       lagerortId: "rtw-1",
       groesseLiter: undefined,
       nennfuelldruckBar: 200,
+      wechselAbProzent: 25,
     });
   });
 
@@ -389,6 +402,7 @@ describe("ReferenzFelder", () => {
       lagerortId: "rtw-1",
       groesseLiter: 4,
       nennfuelldruckBar: 300,
+      wechselAbProzent: 25,
     });
   });
 

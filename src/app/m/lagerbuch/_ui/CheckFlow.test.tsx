@@ -110,6 +110,7 @@ const FLASCHE: CheckFlasche = {
   name: "O2 klein",
   nennfuelldruckBar: 200,
   letzterDruck: 190,
+  wechselAbProzent: 25,
 };
 
 const WEITER = "[data-rolle='weiter']";
@@ -1110,7 +1111,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     expect(t).toContain("3 aus Handlager geholt");
     expect(t).toContain("2 fehlt weiterhin");
     expect(t).toContain("1 Gerät(e) auffällig");
-    expect(t).toContain("1 Flasche(n) niedrig");
+    expect(t).toContain("1 Flasche(n) wechseln");
     expect(t).toContain("2 laufen ab");
     // Gegenprobe zum Satz unten: gebucht === bestaetigt sagt NICHTS.
     expect(t).not.toContain("konnten nur");

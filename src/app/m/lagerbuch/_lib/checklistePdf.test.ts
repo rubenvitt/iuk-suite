@@ -120,8 +120,8 @@ const RTW: ChecklisteBlatt = {
     fristText: "MTK in 16 T", fristAuffaellig: true,
   }],
   flaschen: [
-    { id: "o1", name: "Flasche A", nennfuelldruckBar: 200, letzterDruck: 180 },
-    { id: "o2", name: "Flasche B", nennfuelldruckBar: 300, letzterDruck: null },
+    { id: "o1", name: "Flasche A", nennfuelldruckBar: 200, wechselAbBar: 50, letzterDruck: 180 },
+    { id: "o2", name: "Flasche B", nennfuelldruckBar: 300, wechselAbBar: 75, letzterDruck: null },
   ],
 };
 
@@ -369,7 +369,7 @@ describe("der Zeichenvorrat der Standardschriften", () => {
         }],
       }],
       geraete: [{ id: "g", name: "Gerät ✂", typ: "objekt", fristText: "⌛ 04/27", fristAuffaellig: false }],
-      flaschen: [{ id: "o", name: "O₂ 2 l", nennfuelldruckBar: 200, letzterDruck: null }],
+      flaschen: [{ id: "o", name: "O₂ 2 l", nennfuelldruckBar: 200, wechselAbBar: 50, letzterDruck: null }],
     };
     const bytes = await checklistenPdf([wild], OPTIONEN);
     expect(Buffer.from(bytes.subarray(0, 5)).toString("latin1")).toBe("%PDF-");
