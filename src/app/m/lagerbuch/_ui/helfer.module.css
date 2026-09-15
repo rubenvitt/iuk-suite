@@ -353,7 +353,22 @@
   background: none; border: none; font: inherit; cursor: pointer; min-height: 56px;
 }
 .zeileKnopf:first-child { border-top: none }
-form + form > .zeileKnopf { border-top: 1px solid var(--lb-linie) }
+
+/*
+ * EINE ZEILE DER ZIELWAHL — DRK-300.
+ *
+ * ⚠️ `min-height: 56px` IST DIE BEDIENDICHTE, nicht Geschmack: der Helfer-Weg
+ * rendert ohne Shell und liegt damit bei 56/72 (`core/theme/theme.ts`). Die
+ * GANZE Zeile ist die Beschriftung des Radioknopfs — am Telefon wird nicht der
+ * kleine Kreis getroffen, sondern die Flaeche daneben.
+ */
+.zeileWahl { min-height: 56px; cursor: pointer }
+/*
+ * Der Knopf selbst bleibt ein NATIVER Radioknopf: nur so tragen Pfeiltasten,
+ * Fokusring und Ansage der Hilfstechnik ohne eigenes Zutun. Vergroessert wird
+ * er, weil 13px am Regal mit Handschuhen nicht zu sehen sind.
+ */
+.wahlKnopf { width: 22px; height: 22px; flex: none; accent-color: var(--lb-rot) }
 .zeileHaupt { flex: 1; min-width: 0 }
 /*
  * `overflow-wrap: anywhere` IST HIER DER GLIMPFLICHERE AUSFALL, nicht Kosmetik.

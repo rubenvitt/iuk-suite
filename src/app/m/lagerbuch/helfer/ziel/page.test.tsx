@@ -17,7 +17,12 @@ import { HANDLAGER_ID } from "../../_lib/konstanten";
  *     Weg mehr, etwas ohne Fahrzeug zu entnehmen.
  *   - STILLGELEGTE Fahrzeuge stehen nicht in der Liste. Sie anzubieten hieße,
  *     eine Wahl anzubieten, die die Buchung danach ablehnt.
- *   - `returnTo` wandert in JEDES Formular — sonst steht die Person nach der
+ *   - Die Wahlen sind EINE Radiogruppe, keine Knopfreihe. Das ist keine
+ *     Stilfrage: `docs/design/README.md` verlangt sie „ohne Ausnahme" — ein
+ *     Tabstop für die ganze Gruppe, Pfeiltasten wählen nativ. Als Knopfreihe
+ *     wäre jedes Fahrzeug ein eigener Tabstop, und dass die Wahlen einander
+ *     ausschließen, stünde nirgends.
+ *   - `returnTo` fährt im Formular mit — sonst steht die Person nach der
  *     Wahl auf der Artikelliste statt vor ihrem Regalfach.
  *   - Ein FREMDES `returnTo` wird nicht weitergereicht (Open-Redirect-Schutz);
  *     die Seite ist mit einem laminierten Kärtchen erreichbar.
@@ -81,14 +86,21 @@ let t: TestDb;
 
 const WAHL = "[data-rolle='ziel-wahl']";
 
-/** Eine Zeile je Wahl: der sichtbare Text und der mitgeschickte Wert. */
+/** Eine Zeile je Wahl: der sichtbare Text, der Wert und ob sie vorgewählt ist. */
 function wahlen() {
-  return queryAll(WAHL).map((el) => ({
-    text: el.textContent ?? "",
-    wert: el.querySelector<HTMLInputElement>("input[name='ziel']")?.value,
-    returnTo: el.querySelector<HTMLInputElement>("input[name='returnTo']")?.value,
-    aktuell: el.getAttribute("data-aktuell"),
-  }));
+  return queryAll(WAHL).map((el) => {
+    const knopf = el.querySelector<HTMLInputElement>("input[type='radio'][name='ziel']");
+    return {
+      text: el.textContent ?? "",
+      wert: knopf?.value,
+      aktuell: knopf?.defaultChecked ? "ja" : null,
+    };
+  });
+}
+
+/** Das eine Formular, in dem die ganze Gruppe steckt. */
+function formular() {
+  return query<HTMLFormElement>("[data-rolle='ziel-formular']");
 }
 
 beforeEach(() => {
@@ -132,22 +144,40 @@ describe("Die Zielwahl", () => {
     expect(w.some((z) => z.wert === `fz:${HANDLAGER_ID}`)).toBe(false);
   });
 
-  it("schickt jede Wahl abschickbar ab und nimmt den Rückweg mit", async () => {
+  it("ist EINE Radiogruppe in EINEM Formular, keine Knopfreihe", async () => {
     await zeige("/a/art-42");
 
-    for (const z of wahlen()) {
-      expect(z.returnTo, z.wert).toBe("/a/art-42");
-    }
-    // ⚠️ Jede Wahl ist ein FORMULAR mit einem Absendeknopf, kein Link: eine
-    // Server Component kann kein Cookie setzen, und ein Link auf einen
-    // GET-Handler wäre ein zustandsändernder GET, den jeder Prefetch auslöst.
+    /*
+     * ⚠️ DIE BINDENDE FASSUNG (`docs/design/README.md`, „ohne Ausnahme"): ein
+     * Tabstop für die Gruppe, Pfeiltasten wählen nativ. Eine Knopfreihe macht
+     * aus fünf Fahrzeugen fünf Tabstops und verschweigt, dass sie einander
+     * ausschließen — für Tastatur und Screenreader der Unterschied zwischen
+     * „eine Wahl" und „fünf unverbundene Schalter".
+     *
+     * Der GEMEINSAME NAME ist das, was die Gruppe ausmacht; ohne ihn wären es
+     * unabhängige Knöpfe, die nur wie eine Gruppe aussehen.
+     */
+    const knoepfe = queryAll<HTMLInputElement>("input[type='radio'][name='ziel']");
+    expect(knoepfe.length).toBe(wahlen().length);
+    expect(knoepfe.length).toBeGreaterThan(1);
+
+    // EIN Formular, EIN Absendeknopf, EIN Rückweg — nicht je Zeile.
+    const f = formular();
+    expect(f.querySelectorAll("input[name='returnTo']")).toHaveLength(1);
+    expect(f.querySelector<HTMLInputElement>("input[name='returnTo']")!.value).toBe("/a/art-42");
+    expect(f.querySelectorAll("button[type='submit']")).toHaveLength(1);
     // Dass das Formular an DIE Action gebunden ist, hält der Typecheck — React
     // rendert eine Action-Funktion nicht ins Markup.
-    const wahlElemente = queryAll(WAHL);
-    expect(wahlElemente.length).toBeGreaterThan(0);
-    for (const el of wahlElemente) {
-      expect(el.tagName).toBe("FORM");
-      expect(el.querySelector("button[type='submit']")).not.toBeNull();
+  });
+
+  it("gibt jeder Wahl eine eigene Beschriftung — sonst ist der Knopf namenlos", async () => {
+    await zeige();
+
+    // Ein Radioknopf ohne zugeordnete Beschriftung wird vom Screenreader als
+    // „Optionsfeld" ohne Inhalt angesagt; die Zeile daneben hilft nur dem Auge.
+    for (const el of queryAll(WAHL)) {
+      expect(el.tagName, "jede Wahl ist ein <label>").toBe("LABEL");
+      expect(el.querySelector("input[type='radio']"), el.textContent).not.toBeNull();
     }
   });
 
@@ -186,7 +216,8 @@ describe("Die Zielwahl", () => {
     // Ohne `sanitizeReturnTo` stünde das fremde Ziel im Formular und die Action
     // bekäme es als Umleitung vorgelegt.
     await zeige("//boese.example");
-    for (const z of wahlen()) expect(z.returnTo).toBe("/helfer");
+    expect(formular().querySelector<HTMLInputElement>("input[name='returnTo']")!.value)
+      .toBe("/helfer");
   });
 
   it("bleibt im Helfer-Rahmen, damit der Weg zurück erreichbar ist", async () => {

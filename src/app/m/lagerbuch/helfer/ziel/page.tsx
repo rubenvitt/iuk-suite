@@ -17,7 +17,15 @@ import s from "../../_ui/helfer.module.css";
  * Verbrauch wird GEWÄHLT. Ein Ablauf, in dem man das Ziel durch Nichtstun
  * überspringt, bucht bei jedem Vergessen am falschen Ort — und niemand merkt es.
  *
- * ⚠️ JEDE ZEILE IST EIN FORMULAR, kein Link. Eine Server Component kann kein
+ * ⚠️ EINE RADIOGRUPPE, KEINE KNOPFREIHE — `docs/design/README.md` verlangt sie
+ * „ohne Ausnahme": ein Tabstop für die ganze Gruppe, Pfeiltasten wählen nativ.
+ * Als Reihe von Absendeknöpfen wäre jedes Fahrzeug ein eigener Tabstop, und
+ * dass die Wahlen einander ausschließen, stünde nirgends — für Tastatur und
+ * Screenreader der Unterschied zwischen „eine Wahl" und „fünf unverbundene
+ * Schalter". Der Preis ist ein zweiter Handgriff (wählen, dann übernehmen);
+ * die Regel kennt dafür keine Ausnahme, und am Regal ist der Knopf groß.
+ *
+ * ⚠️ EIN FORMULAR MIT SERVER ACTION, kein Link. Eine Server Component kann kein
  * Cookie setzen (`cookies()` ist dort versiegelt); die Wahl muss also durch
  * eine Server Action. Ein Link auf einen GET-Handler täte es auch — und wäre
  * ein zustandsändernder GET, den jeder Prefetch auslöst.
@@ -78,26 +86,48 @@ export default async function ZielSeite({
         ändern.
       </p>
 
-      <div className={s.karte}>
-        {wahlen.map((w) => (
-          <form key={w.wert} action={waehleEntnahmeZiel} data-rolle="ziel-wahl"
-                data-aktuell={w.wert === aktuellerWert ? "ja" : undefined}>
-            <input type="hidden" name="ziel" value={w.wert} />
-            <input type="hidden" name="returnTo" value={zurueck} />
-            <button className={`${s.zeile} ${s.zeileKnopf}`} type="submit">
+      <form action={waehleEntnahmeZiel} data-rolle="ziel-formular">
+        <input type="hidden" name="returnTo" value={zurueck} />
+
+        {/*
+          `fieldset`/`legend` sind das, was die Gruppe für Hilfstechnik zur
+          Gruppe macht: die Legende wird zu jedem Knopf mit angesagt. Sie ist
+          hier sichtbar — der Schirmkopf oben sagt dasselbe, aber ein
+          `fieldset` ohne `legend` ist eine Gruppe ohne Namen.
+        */}
+        <fieldset className={s.karte} style={{ border: "1px solid var(--lb-linie)", padding: 0, margin: 0 }}>
+          <legend className={s.karteTitel} style={{ float: "left", width: "100%" }}>
+            Wohin geht das Material?
+          </legend>
+          {wahlen.map((w) => (
+            /*
+              Die ganze Zeile ist die Beschriftung — am Telefon wird nicht der
+              12px-Kreis getroffen, sondern die Fläche daneben. Ein Radioknopf
+              ohne zugeordnete Beschriftung wird überdies als „Optionsfeld"
+              ohne Inhalt angesagt.
+            */
+            <label key={w.wert} className={`${s.zeile} ${s.zeileWahl}`} data-rolle="ziel-wahl">
+              <input
+                type="radio"
+                name="ziel"
+                value={w.wert}
+                defaultChecked={w.wert === aktuellerWert}
+                className={s.wahlKnopf}
+              />
               <div className={s.zeileHaupt}>
                 <div className={s.zeileName}>{w.name}</div>
                 {/* Die Bedingung ist die Zusage: ein bedingungsloses Meta-Feld
                     wäre bei fehlender Kennung eine LEERE Zeile mit Abstand. */}
                 {w.meta && <div className={s.zeileMeta}>{w.meta}</div>}
               </div>
-              {/* Der Haken trägt seinen Sinn als TEXT, nie allein über Form
-                  oder Farbe — dieselbe Regel wie bei den Ampel-Chips. */}
-              {w.wert === aktuellerWert && <span className={s.mengenChip}>Gewählt</span>}
-            </button>
-          </form>
-        ))}
-      </div>
+            </label>
+          ))}
+        </fieldset>
+
+        <button className={`${s.knopf} ${s.knopfTinte}`} type="submit" style={{ marginTop: 10 }}>
+          Ziel übernehmen
+        </button>
+      </form>
     </HelferRahmen>
   );
 }

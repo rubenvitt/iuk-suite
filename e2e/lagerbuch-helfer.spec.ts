@@ -143,9 +143,13 @@ function bestandAn(artikelId: string, lagerortId: string): number {
  * Server Action postet auf die URL ihrer eigenen Seite.
  */
 async function waehleZiel(page: Page, name: RegExp): Promise<void> {
+  // Eine Radiogruppe, ein Absendeknopf (`docs/design/README.md`: echte
+  // Radiogruppen statt Knopfreihen). Der Greifer ist die ROLLE, nicht die
+  // Bauform — er überlebt damit einen weiteren Umbau der Zeile.
+  await page.getByRole("radio", { name }).check();
   const [antwort] = await Promise.all([
     page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/helfer/ziel")),
-    page.getByRole("button", { name }).click(),
+    page.getByRole("button", { name: "Ziel übernehmen" }).click(),
   ]);
   expect(
     antwort.status(),
