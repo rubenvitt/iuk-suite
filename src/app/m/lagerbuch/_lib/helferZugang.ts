@@ -6,6 +6,7 @@ import type { DB } from "../_db/client";
 import { tokens } from "../_db/schema";
 import { requireLagerbuchHost } from "./host";
 import { HELFER_COOKIE, verifyHelferSitzung } from "./helferSitzung";
+import { gateGrundFuerSperre } from "./gateTexte";
 import { fahrzeugBindungAus } from "./tokenZiel";
 
 /**
@@ -159,7 +160,7 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
   if (b.ok) return b.zugang;
   auditDenied("lagerbuch");
   if (!b.hatteCookie) redirect("/");
-  redirect(b.grund === "gesperrt" ? "/abmelden?grund=gesperrt" : "/abmelden?grund=abgelaufen");
+  redirect(`/abmelden?grund=${gateGrundFuerSperre(b.grund)}`);
 }
 
 /**
