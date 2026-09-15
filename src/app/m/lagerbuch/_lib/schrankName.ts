@@ -21,32 +21,47 @@ import type { Leser } from "./lesepfade/bestand";
 export const NAME_VERGEBEN = "Dieser Name ist bereits vergeben.";
 
 /**
- * Die Form, in der zwei Namen als „derselbe" gelten: Leerraum an den Raendern
- * faellt weg, ASCII-Grossbuchstaben werden klein.
+ * Die Form, in der zwei Namen als „derselbe" gelten: Leerzeichen an den Raendern
+ * fallen weg, ASCII-Grossbuchstaben werden klein.
  *
- * ⚠️ NUR ASCII, UND DAS IST DIE ABSICHT — `toLocaleLowerCase` waere hier die
- * naheliegende und die falsche Wahl. Diese Funktion muss ZEICHENGENAU dasselbe
- * liefern wie `lower(trim(name))` in SQLite, denn genau dieser Ausdruck traegt
- * den Eindeutigkeitsindex UND die Entdoppelung der Altdaten in
- * `0009_lagerorte_name_eindeutig.sql`. SQLites `lower()` laesst „Ä" stehen.
+ * ⚠️ DAS IST DIE HANDGESCHRIEBENE FASSUNG VON `lower(trim(name))` IN SQLITE,
+ * und sie muss ZEICHENGENAU dasselbe liefern: genau dieser Ausdruck traegt den
+ * Eindeutigkeitsindex UND die Entdoppelung der Altdaten in
+ * `0009_lagerorte_name_eindeutig.sql`. Beide naheliegenden JavaScript-Bausteine
+ * waeren hier die falsche Wahl, und beide Male, weil sie MEHR koennen als ihr
+ * SQL-Gegenstueck:
  *
- * Waere die Probe hier STRENGER, blieben Altdaten stehen, die sie danach fuer
- * gleich haelt — „Schränkchen" neben „SCHRÄNKCHEN" —, und niemand koennte die
- * Mehrdeutigkeit mehr aufloesen: jeder Rettungsname in einer der beiden
- * Schreibweisen kaeme als „bereits vergeben" zurueck (Befund von Codex zu
- * PR #166). Waere sie LOCKERER, kaeme die Ablehnung als SQLite-Ausnahme statt
- * als Satz am Feld.
+ *   * `toLocaleLowerCase()` faltet „Ä" zu „ä", SQLites `lower()` ist ASCII-only.
+ *   * `String.prototype.trim()` nimmt Tabulator, Zeilenumbruch, geschuetztes
+ *     Leerzeichen und ein Dutzend weiterer Unicode-Zeichen, SQLites `trim(X)`
+ *     nimmt ausschliesslich U+0020.
+ *
+ * Waere die Probe hier STRENGER als die Datenbank, blieben Altdaten stehen, die
+ * sie danach fuer gleich haelt — „Schränkchen" neben „SCHRÄNKCHEN" —, und
+ * niemand koennte die Mehrdeutigkeit mehr aufloesen: jeder Rettungsname in einer
+ * der beiden Schreibweisen kaeme als „bereits vergeben" zurueck (zwei Befunde
+ * von Codex zu PR #166). Waere sie LOCKERER, kaeme die Ablehnung als
+ * SQLite-Ausnahme statt als Satz am Feld.
  *
  * Der Preis ist benannt und klein: zwei Namen, die sich allein in der
  * Gross-/Kleinschreibung eines Umlauts unterscheiden, gelten als verschieden.
  * Auf dem Bildschirm sind sie das auch — und der Auftrag lautet, zwei Eintraege
  * zu verhindern, die niemand auseinanderhalten kann.
  *
+ * ⚠️ DER EXOTISCHE RANDLEERRAUM IST DAMIT NICHT ABGETAN, sondern anderswo
+ * erledigt: er koennte auf dem Schirm sehr wohl unsichtbar sein (HTML faltet
+ * fuehrenden Leerraum weg). Deshalb raeumt 0009 ihn in Schritt 0 einmalig aus
+ * den Bestandsdaten, und `SchrankSchema` zieht jede Eingabe vorher durch
+ * `.trim()` — nach beidem gibt es keinen gespeicherten Namen mehr, bei dem die
+ * beiden `trim`-Bedeutungen auseinandergehen.
+ *
  * `_lib/schrankName.test.ts` vergleicht beide Fassungen gegen echtes SQLite,
  * damit die Gleichheit nicht beim naechsten Umbau still auseinanderlaeuft.
  */
 export function normalisiereSchrankName(name: string): string {
-  return name.trim().replace(/[A-Z]/g, (zeichen) => zeichen.toLowerCase());
+  return name
+    .replace(/^ +| +$/g, "")
+    .replace(/[A-Z]/g, (zeichen) => zeichen.toLowerCase());
 }
 
 /**

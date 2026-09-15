@@ -9,9 +9,21 @@ import { normalisiereSchrankName } from "./schrankName";
  * sieht.
  */
 describe("normalisiereSchrankName", () => {
-  it("faltet Leerraum an den Raendern und Gross-/Kleinschreibung", () => {
+  it("faltet Leerzeichen an den Raendern und Gross-/Kleinschreibung", () => {
     expect(normalisiereSchrankName("  Schrank 1 ")).toBe("schrank 1");
     expect(normalisiereSchrankName("SCHRANK 1")).toBe("schrank 1");
+  });
+
+  /**
+   * ⚠️ NUR U+0020, NICHT `String.trim()`. Dasselbe Motiv wie beim Umlaut eine
+   * Zusicherung weiter unten: SQLites `trim(X)` nimmt ausschliesslich das
+   * Leerzeichen. Wer hier auf `.trim()` zurueckgeht, macht die Action wieder
+   * strenger als die Datenbank. Der exotische Randleerraum ist stattdessen in
+   * Schritt 0 von 0009 aus den Bestandsdaten geraeumt.
+   */
+  it("laesst Tabulator und geschuetztes Leerzeichen stehen, wie SQLites trim()", () => {
+    expect(normalisiereSchrankName("\tSchrank 1")).toBe("\tschrank 1");
+    expect(normalisiereSchrankName("Schrank 1\u00a0")).toBe("schrank 1\u00a0");
   });
 
   /** Leerraum INNEN bleibt: „Schrank 1" und „Schrank  1" sind auf dem Schirm
@@ -68,6 +80,17 @@ describe("normalisiereSchrankName === lower(trim(name)) in SQLite", () => {
     "",
     "   ",
     "ÿÜÖÄ ABC xyz 123 ·-_",
+    // Der zweite Codex-Befund: JavaScripts `trim()` raeumt all das weg, SQLites
+    // `trim()` nichts davon. Ohne diese Proben war die Gleichheit oben eine
+    // Behauptung ueber einen Zeichenvorrat, den der Korpus gar nicht enthielt.
+    "\tSchrank 1",
+    "Schrank 1\t",
+    "\nSchrank 1\n",
+    "\u00a0Schrank 1\u00a0",
+    "\u3000Schrank 1\u3000",
+    "\ufeffSchrank 1",
+    " \tSchrank 1\t ",
+    "Schrank\t1",
   ];
 
   it.each(PROBEN)("%j", (probe) => {

@@ -16,12 +16,16 @@
 -- eigenes Unterscheidungsmerkmal und sind nicht Gegenstand dieses Tickets.
 --
 -- ⚠️ `lower(trim(...))` IST DIE FALTUNG, UND SIE STEHT WORTGLEICH IN
--- `_lib/schrankName.ts`. SQLites `lower()` ist ASCII-only; die Action faltet
--- deshalb ebenfalls nur ASCII, statt `toLocaleLowerCase` zu nehmen. Waere die
--- Action strenger, blieben Altdaten stehen, die sie danach fuer gleich haelt —
--- eine Mehrdeutigkeit, die niemand mehr aufloesen kann, weil jeder Rettungsname
--- als „bereits vergeben" abgewiesen wuerde. `_lib/schrankName.test.ts` vergleicht
--- beide Fassungen Zeichenkette fuer Zeichenkette gegen echtes SQLite.
+-- `_lib/schrankName.ts`. BEIDE HAELFTEN DES AUSDRUCKS SIND ENGER, ALS MAN SIE
+-- IN JAVASCRIPT SCHREIBEN WUERDE, und beide Male ist das Absicht: SQLites
+-- `lower()` ist ASCII-only, sein `trim()` nimmt nur U+0020. Die Action faltet
+-- deshalb genauso, statt `toLocaleLowerCase()` und `String.trim()` zu nehmen.
+--
+-- Waere die Action strenger, blieben Altdaten stehen, die sie danach fuer gleich
+-- haelt — eine Mehrdeutigkeit, die niemand mehr aufloesen kann, weil jeder
+-- Rettungsname als „bereits vergeben" abgewiesen wuerde. `_lib/schrankName.test.ts`
+-- vergleicht beide Fassungen Zeichenkette fuer Zeichenkette gegen echtes SQLite,
+-- statt die Gleichheit zu behaupten.
 --
 -- ⚠️ ZWEI SCHRITTE, UND DIE REIHENFOLGE IST DER GANZE PUNKT: erst die Altdaten
 -- entdoppeln, dann den Index anlegen. Andersherum bricht `migrate()` auf jeder
@@ -29,6 +33,32 @@
 -- Migrationslauf ist kein Fehlerdialog, sondern ein Modul, das nicht startet
 -- (`core/bootstrap.ts`, `migrateAllModules()` laeuft vor dem ersten Request).
 
+-- SCHRITT 0 — RANDLEERRAUM VEREINHEITLICHEN, bevor irgendetwas verglichen wird.
+-- SQLites `trim(X)` nimmt AUSSCHLIESSLICH das Leerzeichen U+0020; JavaScripts
+-- `String.prototype.trim()` nimmt zusaetzlich Tabulator, Zeilenumbrueche,
+-- geschuetzte Leerzeichen und ein Dutzend weiterer Unicode-Zeichen. Ein
+-- importierter „	Schrank 1" neben „Schrank 1" ueberlebte beide Ebenen und saehe
+-- auf dem Schirm trotzdem gleich aus (HTML faltet fuehrenden Leerraum weg) —
+-- also genau der Fall, den dieses Ticket abstellt (Befund von Codex zu PR #166).
+--
+-- Die Zeichenliste ist die vollstaendige Leerraummenge von JavaScripts `trim()`,
+-- gemessen ueber die gesamte BMP, nicht aus einer Tabelle abgeschrieben. Sie
+-- steht GENAU EINMAL: der Index unten kommt danach mit dem einfachen `trim()`
+-- aus, weil nach diesem Schritt kein Name mehr Randleerraum traegt, den SQLite
+-- anders sieht als die Anwendung. Ueber das Formular kann so etwas ohnehin nicht
+-- entstehen — `SchrankSchema` zieht jede Eingabe vorher durch `.trim()`.
+--
+-- KEIN `WHERE name <> trim(...)`: das WHEN des Audit-Triggers vergleicht die
+-- Spalten selbst, eine Zeile ohne Aenderung erzeugt also keine Protokollzeile.
+-- Die Bedingung waere eine zweite Kopie der Zeichenliste, die auseinanderlaufen
+-- kann, fuer nichts.
+UPDATE lagerorte
+SET name = trim(name, char(
+  9,10,11,12,13,32,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,
+  8202,8232,8233,8239,8287,12288,65279
+))
+WHERE parent_id IS NOT NULL;
+--> statement-breakpoint
 -- Die Umbenennung geht ueber eine TEMPORAERE TABELLE und nicht ueber eine
 -- korrelierte Unterabfrage im SET: eine Unterabfrage auf `lagerorte` waehrend
 -- eines UPDATE auf `lagerorte` liest einen Zwischenstand, dessen Reihenfolge

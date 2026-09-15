@@ -127,6 +127,46 @@ describe("0009 — bestehende Dubletten blockieren den Start nicht", () => {
   });
 
   /**
+   * SCHRITT 0 — Randleerraum, den SQLite anders sieht als JavaScript.
+   * „\tSchrank 1" neben „Schrank 1" ueberlebte beide Ebenen und saehe auf dem
+   * Schirm trotzdem gleich aus, weil HTML fuehrenden Leerraum wegfaltet — genau
+   * die Mehrdeutigkeit, die das Ticket abstellt (Befund von Codex zu PR #166).
+   * Nach dem Ausraeumen ist es eine gewoehnliche Dublette.
+   */
+  it("raeumt exotischen Randleerraum aus und entdoppelt, was dadurch gleich wird", () => {
+    const sqlite = standVor0009();
+    legeOrt(sqlite, { id: "a", name: "Schrank 1", sortierung: 10 });
+    legeOrt(sqlite, { id: "b", name: "\tSchrank 1", sortierung: 20 });
+    legeOrt(sqlite, { id: "c", name: "GF-Schrank\u00a0", sortierung: 30 });
+    legeOrt(sqlite, { id: "d", name: "\u3000Regal\ufeff", sortierung: 40 });
+
+    spiele0009(sqlite);
+
+    expect(namen(sqlite).filter((o) => "abcd".includes(o.id))).toEqual([
+      { id: "a", name: "Schrank 1" },
+      { id: "b", name: "Schrank 1 (Dublette 2)" },
+      // Kein Partner, also nur geputzt — der Name bleibt sonst, wie er war.
+      { id: "c", name: "GF-Schrank" },
+      { id: "d", name: "Regal" },
+    ]);
+  });
+
+  /** Leerraum im INNEREN ist ein Zeichen wie jedes andere und bleibt. Wer ihn
+   *  mitraeumte, benennte Schraenke um, die niemand angefasst hat. */
+  it("laesst Leerraum im Inneren unberuehrt", () => {
+    const sqlite = standVor0009();
+    legeOrt(sqlite, { id: "a", name: "Schrank\t1" });
+    legeOrt(sqlite, { id: "b", name: "Schrank  2" });
+
+    spiele0009(sqlite);
+
+    expect(namen(sqlite).filter((o) => o.id === "a" || o.id === "b")).toEqual([
+      { id: "a", name: "Schrank\t1" },
+      { id: "b", name: "Schrank  2" },
+    ]);
+  });
+
+  /**
    * DER FALL, DER DEN START GEKOSTET HAETTE (Befund von Codex zu PR #166).
    * Zwei „Schrank 1" neben einem eigenstaendigen „Schrank 1 (Dublette 2)" sind
    * erlaubte Altdaten. Eine aus dem Rang GERECHNETE Nummer haette der zweiten
