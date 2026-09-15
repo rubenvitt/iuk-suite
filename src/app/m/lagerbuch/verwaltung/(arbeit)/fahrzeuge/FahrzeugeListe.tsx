@@ -38,7 +38,19 @@ export type FahrzeugAnzeigeZeile = {
   positionen: number;
   faecher: number;
   artikelUnterSoll: number;
-  verfallAuffaellig: number;
+  /**
+   * DIE BEIDEN ZAHLEN SIND UEBERSCHNEIDUNGSFREI und kommen so aus
+   * `fahrzeugUebersicht` — hier wird nicht nachgerechnet. Begruendung dort.
+   */
+  verfallAbgelaufen: number;
+  verfallWarnend: number;
+  /**
+   * Wie viele Artikel des aktiven Solls eine Verfallsangabe tragen — und wie
+   * viele es insgesamt sind. Begruendung, warum das kein `boolean` ist, steht
+   * an der Quelle in `lesepfade/fahrzeuge.ts`.
+   */
+  verfallErfasst: number;
+  verfallSollArtikel: number;
   letzterCheckText: string | null;
   /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
   letzterCheckIso: string | null;
@@ -90,9 +102,59 @@ const BESTUECKUNG_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
  * dahin keine und teilte sich den Statuschip mit allem anderen.
  */
 const VERFALL_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
-  { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => zeile.verfallAuffaellig > 0 },
-  { wert: "verfallRuhig", text: "nichts läuft ab", trifft: (zeile) => zeile.verfallAuffaellig === 0 },
+  { wert: "abgelaufen", text: "abgelaufen",
+    trifft: (zeile) => zeile.verfallAbgelaufen > 0 },
+  { wert: "laeuftAb", text: "läuft ab",
+    trifft: (zeile) => zeile.verfallWarnend > 0 },
+  /**
+   * ⚠️ DER FILTERTEXT IST DERSELBE WIE DER CHIPTEXT, und das ist keine
+   * Kosmetik: wer „im gruenen Bereich" ankreuzt, muss in der Spalte darunter
+   * dasselbe Wort wiederfinden. Zwei Namen fuer einen Zustand lassen den Leser
+   * einen dritten vermuten.
+   *
+   * ⚠️ UND ER VERLANGT VOLLSTAENDIGKEIT. „Keine auffaellige Meldung" ist noch
+   * keine Entwarnung, solange die Haelfte des Solls nie angesehen wurde
+   * (Reviewbefund zu DRK-298) — die Begruendung steht an `verfallErfasst`.
+   */
+  { wert: "verfallRuhig", text: "im grünen Bereich",
+    trifft: (zeile) => vollstaendig(zeile)
+      && zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0 },
+  /**
+   * ⚠️ „NICHT VOLLSTAENDIG", NICHT „NICHTS": der haeufigere und stillere Fall
+   * ist das halb gepflegte Fahrzeug, nicht das gar nicht gepflegte. Ein Filter
+   * nur auf „nichts erfasst" fande genau die Fahrzeuge NICHT, bei denen der
+   * Irrtum am teuersten ist.
+   */
+  { wert: "verfallLuecke", text: "nicht vollständig erfasst",
+    trifft: (zeile) => zeile.verfallSollArtikel > 0
+      && zeile.verfallErfasst < zeile.verfallSollArtikel },
 ]);
+
+/**
+ * Traegt JEDER Artikel des aktiven Solls eine Angabe?
+ *
+ * ⚠️ `verfallSollArtikel === 0` IST NICHT VOLLSTAENDIG. Ein Fahrzeug ohne Soll
+ * hat nichts zu erfassen und verdient keine Entwarnung — „null von null" waere
+ * rechnerisch vollstaendig und fachlich eine Aussage ueber nichts.
+ */
+function vollstaendig(zeile: FahrzeugAnzeigeZeile): boolean {
+  return zeile.verfallSollArtikel > 0
+    && zeile.verfallErfasst === zeile.verfallSollArtikel;
+}
+
+/**
+ * Wie dringend ist dieses Fahrzeug? EIN Rang, damit die Spalte ihn sortieren
+ * kann.
+ *
+ * ⚠️ NICHT DIE SUMME. `abgelaufen + warnend` stellte fuenf gelbe Meldungen vor
+ * eine abgelaufene — fuer jemanden, der eine Austauschtour plant, die falsche
+ * Reihenfolge. Abgelaufenes wiegt deshalb ueberhaupt erst einmal schwerer, und
+ * die Menge entscheidet nur INNERHALB derselben Dringlichkeit. Der Faktor ist
+ * gross genug, dass keine erreichbare Zahl warnender Meldungen ihn einholt.
+ */
+function verfallRang(zeile: FahrzeugAnzeigeZeile): number {
+  return zeile.verfallAbgelaufen * 1_000_000 + zeile.verfallWarnend;
+}
 
 const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
@@ -154,18 +216,67 @@ function spalten(
     },
     {
       title: "Verfall",
-      dataIndex: "verfallAuffaellig",
+      dataIndex: "verfallAbgelaufen",
       key: "verfall",
-      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.verfallAuffaellig),
+      sorter: nachZahl<FahrzeugAnzeigeZeile>(verfallRang),
       filters: VERFALL_FILTER.filters,
       onFilter: VERFALL_FILTER.onFilter,
-      render: (_wert: number, zeile) => zeile.verfallAuffaellig > 0 ? (
-        <Chip ton="gelb" zeichen="verfall">
-          {zeile.verfallAuffaellig} läuft ab
-        </Chip>
-      ) : (
-        <span style={SCHRIFT.neben}>—</span>
-      ),
+      /**
+       * ⚠️ ABGELAUFENES BEKOMMT EINEN EIGENEN, ROTEN CHIP (DRK-298).
+       *
+       * Vorher stand hier EINE Zahl aus rot und gelb in EINEM gelben Chip: ein
+       * Fahrzeug mit drei abgelaufenen Artikeln sah aus wie eins, bei dem in
+       * drei Monaten etwas faellig wird. Rot traegt in diesem Modul fachliche
+       * Bedeutung, und genau hier fehlte sie.
+       *
+       * ⚠️ UND DIE LEERFAELLE SIND NICHT DERSELBE. „Jeder Soll-Artikel
+       * angesehen, nichts faellig" ist eine Entwarnung; „3 von 8 erfasst" ist
+       * eine Wissensluecke. Beides als „—" zu zeigen behauptet Entwarnung fuer
+       * ein Fahrzeug, von dem niemand weiss, was drin liegt — und das halb
+       * gepflegte ist der haeufigere Fall, weil der Check das Verfallsdatum
+       * freiwillig abfragt (Reviewbefund zu DRK-298).
+       */
+      render: (_wert: number, zeile) => {
+        /**
+         * ⚠️ DIE ERFASSUNGSLUECKE STEHT NEBEN DER WARNUNG, NICHT STATT IHRER.
+         *
+         * Sie beantworten verschiedene Fragen — „was ist faellig?" und „wovon
+         * wissen wir es ueberhaupt?" —, und die eine darf die andere nicht
+         * verdecken. Ein Fahrzeug mit EINEM abgelaufenen und SIEBEN nie
+         * angesehenen Artikeln meldete sonst „1 abgelaufen" und sonst nichts:
+         * wer danach handelt, tauscht einen Artikel und haelt das Fahrzeug fuer
+         * erledigt. Derselbe stille Irrtum wie beim Boolean davor, nur eine
+         * Ebene tiefer.
+         */
+        const chips = [
+          zeile.verfallAbgelaufen > 0 ? (
+            <Chip key="abgelaufen" ton="rot" zeichen="warnung">
+              {zeile.verfallAbgelaufen} abgelaufen
+            </Chip>
+          ) : null,
+          zeile.verfallWarnend > 0 ? (
+            <Chip key="warnend" ton="gelb" zeichen="verfall">
+              {zeile.verfallWarnend} läuft ab
+            </Chip>
+          ) : null,
+          zeile.verfallSollArtikel > 0 && !vollstaendig(zeile) ? (
+            <Chip key="luecke" ton="grau">
+              {zeile.verfallErfasst} von {zeile.verfallSollArtikel} erfasst
+            </Chip>
+          ) : null,
+        ].filter(Boolean);
+
+        if (chips.length === 0) {
+          // Nichts faellig UND nichts offen. Ohne Soll gibt es dagegen nichts
+          // zu erfassen — und damit auch keine Entwarnung zu geben.
+          return zeile.verfallSollArtikel === 0
+            ? <span style={SCHRIFT.neben}>—</span>
+            : <Chip ton="ok">im grünen Bereich</Chip>;
+        }
+        // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+        // Chip-Zeilenabstand wie in der Statusspalte daneben.
+        return <Flex gap={6} wrap>{chips}</Flex>;
+      },
     },
     {
       title: "Status",

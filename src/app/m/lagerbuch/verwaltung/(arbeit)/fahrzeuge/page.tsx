@@ -4,6 +4,7 @@ import {
   fahrzeugUebersicht,
   type FahrzeugUebersichtZeile,
 } from "../../../_lib/lesepfade/fahrzeuge";
+import { fmtDatumZeit } from "../../../_lib/zeit";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "./ChecklisteKnopf";
 import {
@@ -12,15 +13,6 @@ import {
 } from "./FahrzeugeListe";
 
 export const dynamic = "force-dynamic";
-
-const CHECK_FORMAT = new Intl.DateTimeFormat("de-DE", {
-  timeZone: "Europe/Berlin",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export function fahrzeugAnzeigeZeile(
   zeile: FahrzeugUebersichtZeile,
@@ -34,10 +26,13 @@ export function fahrzeugAnzeigeZeile(
     positionen: zeile.positionen,
     faecher: zeile.faecher,
     artikelUnterSoll: zeile.artikelUnterSoll,
-    verfallAuffaellig: zeile.verfallAuffaellig,
+    verfallAbgelaufen: zeile.verfallAbgelaufen,
+    verfallWarnend: zeile.verfallWarnend,
+    verfallErfasst: zeile.verfallErfasst,
+    verfallSollArtikel: zeile.verfallSollArtikel,
     letzterCheckText: zeile.letzterCheck === null
       ? null
-      : CHECK_FORMAT.format(zeile.letzterCheck),
+      : fmtDatumZeit(zeile.letzterCheck),
     /**
      * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
      * `letzterCheckText` ist „14.09.2026, 08:12" und ordnete als Zeichenkette

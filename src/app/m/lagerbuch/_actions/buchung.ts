@@ -13,8 +13,13 @@ import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
+import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
+import {
+  ZIEL_COOKIE, ZIEL_UNGUELTIG_TEXT, ZIEL_VERALTET_TEXT, zielAusWert, type EntnahmeZiel,
+} from "../_lib/entnahmeZiel";
+import { cookies } from "next/headers";
 
 /**
  * DIE DREI BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
@@ -160,6 +165,28 @@ export async function bucheZugang(
   });
 }
 
+/**
+ * Zwei Ziele sind dasselbe, wenn ihre Art übereinstimmt — und bei einem
+ * Fahrzeug zusätzlich der Lagerort. Ausgeschrieben statt als Vergleich der
+ * kodierten Form: eine Änderung an der Kodierung darf diese Prüfung nicht
+ * still aushebeln.
+ */
+function gleichesZiel(a: EntnahmeZiel, b: EntnahmeZiel): boolean {
+  if (a.art !== b.art) return false;
+  return a.art === "verbrauch" || a.lagerortId === (b as { lagerortId: string }).lagerortId;
+}
+
+/**
+ * DRK-300 — das Ziel als DREI Zustände, hier als die zwei WÄHLBAREN.
+ * Der dritte („noch nichts gewählt") ist die ABWESENHEIT des Feldes und
+ * scheitert deshalb schon am `safeParse`: ein fehlendes Ziel ist kein
+ * Verbrauch, sondern eine offene Entscheidung, und die bucht nicht.
+ */
+const ZielSchema = z.discriminatedUnion("art", [
+  z.object({ art: z.literal("fahrzeug"), lagerortId: z.string().min(1) }),
+  z.object({ art: z.literal("verbrauch") }),
+]);
+
 const EntnahmeSchema = z.object({
   artikelId: z.string().min(1),
   menge: z.coerce.number().int().positive("Menge muss größer als 0 sein"),
@@ -204,8 +231,7 @@ export async function bucheEntnahme(
            * was der Verwaltenden nichts sagt. Ein INAKTIVES Fahrzeug und ein
            * zweites LAGER kaemen ueberdies ganz durch: beide existieren.
            */
-          const ziel = tx.select().from(lagerorte).where(eq(lagerorte.id, zielFahrzeug)).get();
-          if (!ziel || ziel.typ !== "fahrzeug" || !ziel.aktiv) {
+          if (!istAktivesFahrzeug(tx, zielFahrzeug)) {
             throw new Error("Ziel ist kein gültiges, aktives Fahrzeug");
           }
           gebucht = umlagerung(tx, {
@@ -243,6 +269,8 @@ export async function bucheEntnahme(
 const HelferEntnahmeSchema = z.object({
   artikelId: z.string().min(1),
   menge: z.coerce.number().int().positive(),
+  /** PFLICHT seit DRK-300 — siehe `ZielSchema`. */
+  ziel: ZielSchema,
 });
 
 /**
@@ -305,15 +333,72 @@ export async function bucheEntnahmeHelfer(
      * sondern ein Defekt; `checkAbschluss` (T75) laesst ihn aus demselben Grund
      * durchschlagen.
      */
+    /*
+     * ⚠️ DAS COOKIE IST DIE WAHRHEIT, DIE NUTZLAST IST DIE BEHAUPTUNG
+     * (Review-Befund P1 zu PR #140, zweite Runde).
+     *
+     * Das Ziel kommt aus der Insel — also vom Client. Eine offene Artikelseite
+     * überlebt einen Kärtchenwechsel in einem zweiten Tab: ihre Buchung träfe
+     * dann mit dem NEUEN Sitzungscookie ein und trüge das ALTE Fahrzeug. Sie
+     * wäre dem neuen Kärtchen zugeschrieben und ginge an das Ziel der vorigen
+     * Schicht — still, und im Bestand nicht mehr aufzulösen.
+     *
+     * Die Bindung des Cookies an die Kärtchen-Kennung allein reicht dagegen
+     * NICHT: dieser Pfad läse das Cookie sonst überhaupt nicht. Gebucht wird
+     * deshalb nur, wenn beide Seiten dasselbe sagen.
+     *
+     * Und weil `zielAusWert` ein fremdes oder fehlendes Cookie zu `null` macht,
+     * fällt derselbe Vergleich auch auf „gar nichts gemerkt" — der Zustand, in
+     * dem die Insel ihren Knopf ohnehin sperrt.
+     */
+    const ziel: EntnahmeZiel = v.ziel;
+    const gemerkt = zielAusWert(
+      (await cookies()).get(ZIEL_COOKIE)?.value,
+      riegel.zugang.tokenId,
+    );
+    if (!gemerkt || !gleichesZiel(gemerkt, ziel)) {
+      return { ok: false, grund: "eingabe", text: ZIEL_VERALTET_TEXT };
+    }
+
+    /*
+     * DAS ZIEL WIRD VOR DER TRANSAKTION GEPRÜFT, und die Antwort ist ein
+     * RÜCKGABEWERT — kein Wurf (siehe `istAktivesFahrzeug`). Ein Fahrzeug, das
+     * seit der Anzeige stillgelegt oder gelöscht wurde, ist eine ERWARTBARE
+     * Lage: die Wahl gilt für den ganzen Kärtchen-Zugang und überlebt damit
+     * jede Änderung in der Verwaltung.
+     */
+    if (ziel.art === "fahrzeug" && !istAktivesFahrzeug(db, ziel.lagerortId)) {
+      return { ok: false, grund: "eingabe", text: ZIEL_UNGUELTIG_TEXT };
+    }
+
     let gebucht = 0;
     db.transaction((tx) => {
-      gebucht = fefoAbbuchung(tx, {
-        artikelId: v.artikelId,
-        menge: v.menge,
-        quelle: { quelleTyp: "token", quelleId: riegel.zugang.code },
-        kommentar: null,
-        referenz: null,
-      }).gebucht;
+      const quelle = { quelleTyp: "token" as const, quelleId: riegel.zugang.code };
+      gebucht =
+        ziel.art === "fahrzeug"
+          ? /*
+             * Der Verbrauch bleibt am FAHRZEUG und sinkt erst beim nächsten
+             * Check. Beide Legs tragen `umlagerung`, damit Reporting und
+             * Bestellvorschlag eine interne Verschiebung nicht als Verbrauch
+             * missdeuten; die Charge wandert mit, damit das Fahrzeug die
+             * Verfall-Herkunft behält.
+             */
+            umlagerung(tx, {
+              artikelId: v.artikelId,
+              menge: v.menge,
+              vonLagerortId: HANDLAGER_ID,
+              nachLagerortId: ziel.lagerortId,
+              quelle,
+              kommentar: null,
+              referenz: `entnahme-ziel:${ziel.lagerortId}`,
+            }).umgelagert
+          : fefoAbbuchung(tx, {
+              artikelId: v.artikelId,
+              menge: v.menge,
+              quelle,
+              kommentar: null,
+              referenz: null,
+            }).gebucht;
     });
 
     /**

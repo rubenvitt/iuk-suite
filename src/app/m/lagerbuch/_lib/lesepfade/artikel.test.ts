@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
-import { artikelListe, artikelDetail, artikelDetailHelfer, chargenMitRest } from "./artikel";
+import {
+  artikelListe, artikelDetail, artikelDetailHelfer, chargenMitRest,
+  chargenJeArtikelAmLagerort,
+} from "./artikel";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -354,5 +357,31 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
       { id: RTW1, name: "RTW 1", menge: 6, zugangshinweis: null },
     ]);
     expect(charge.restGesamt).toBe(10);
+  });
+});
+
+describe("chargenJeArtikelAmLagerort", () => {
+  it("liefert je Artikel nur die Chargen mit Rest AN DIESEM Lagerort", () => {
+    const karte = chargenJeArtikelAmLagerort(t.db, "rtw");
+
+    // c-frueh liegt mit 4 im RTW; c-spaet und c-leer nur (bzw. gar nicht) im Handlager.
+    expect(karte.get("a1")?.map((c) => [c.id, c.rest])).toEqual([["c-frueh", 4]]);
+  });
+
+  it("nennt einen Lagerort ohne Bestand gar nicht", () => {
+    expect(chargenJeArtikelAmLagerort(t.db, "rtw").has("a2")).toBe(false);
+  });
+
+  it("sortiert die Chargen eines Artikels FEFO", () => {
+    const b = {
+      id: newId(), ts: NOW, typ: "zugang" as const, artikelId: "a1",
+      chargeId: "c-spaet", lagerortId: "rtw", menge: 3,
+      quelleTyp: "system" as const, quelleId: "test", referenz: null, kommentar: null,
+    };
+    t.db.insert(buchungen).values(b).run();
+
+    // 2026-07 vor 2028-01 — dieselbe Ordnung, die die Abbuchung daneben waehlt.
+    expect(chargenJeArtikelAmLagerort(t.db, "rtw").get("a1")?.map((c) => c.id))
+      .toEqual(["c-frueh", "c-spaet"]);
   });
 });

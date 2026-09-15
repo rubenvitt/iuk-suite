@@ -58,7 +58,10 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     positionen: 12,
     faecher: 3,
     artikelUnterSoll: 2,
-    verfallAuffaellig: 0,
+    verfallAbgelaufen: 0,
+    verfallWarnend: 0,
+    verfallErfasst: 3,
+    verfallSollArtikel: 3,
     letzterCheckText: "30.07.2026, 10:00",
     letzterCheckIso: "2026-07-30T08:00:00.000Z",
   },
@@ -71,7 +74,10 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     positionen: 4,
     faecher: 2,
     artikelUnterSoll: 0,
-    verfallAuffaellig: 1,
+    verfallAbgelaufen: 0,
+    verfallWarnend: 1,
+    verfallErfasst: 4,
+    verfallSollArtikel: 4,
     letzterCheckText: null,
     letzterCheckIso: null,
   },
@@ -84,7 +90,10 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     positionen: 2,
     faecher: 1,
     artikelUnterSoll: 1,
-    verfallAuffaellig: 2,
+    verfallAbgelaufen: 2,
+    verfallWarnend: 1,
+    verfallErfasst: 2,
+    verfallSollArtikel: 2,
     letzterCheckText: "01.08.2026, 09:15",
     letzterCheckIso: "2026-08-01T07:15:00.000Z",
   },
@@ -97,7 +106,10 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     positionen: 1,
     faecher: 1,
     artikelUnterSoll: 0,
-    verfallAuffaellig: 0,
+    verfallAbgelaufen: 0,
+    verfallWarnend: 0,
+    verfallErfasst: 0,
+    verfallSollArtikel: 1,
     letzterCheckText: null,
     letzterCheckIso: null,
   },
@@ -300,6 +312,156 @@ describe("FahrzeugeListe — Spalten und Status", () => {
   });
 
   /**
+   * ⚠️ VIER LAGEN, VIER TOENE — UND ZWEI DAVON SAHEN VORHER GLEICH AUS (DRK-298).
+   *
+   * Bis hierher trug die Spalte EINE Zahl (rot und gelb addiert) und IMMER
+   * einen gelben Chip. Ein Fahrzeug mit zwei abgelaufenen Artikeln war von
+   * einem, bei dem in drei Monaten etwas faellig wird, nicht zu unterscheiden —
+   * auf der Flaeche, auf die man zuerst schaut. Rot traegt in diesem Modul
+   * fachliche Bedeutung; hier fehlte sie.
+   *
+   * Der zweite, stillere Fall ist f4: ohne jede gepflegte Angabe stand dort
+   * dasselbe „—" wie bei f1, das geprueft und sauber ist. Die Ansicht
+   * behauptete Entwarnung, wo sie nur keine Daten hatte.
+   */
+  it("zeigt abgelaufen rot, warnend gelb, sauber grün und ungepflegt grau", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    const verfallSpalte = (id: string) =>
+      query(`tr[data-row-key='${id}'] td:nth-child(4)`);
+
+    // f3 traegt BEIDES — und dann beide Chips, jeder in seinem eigenen Ton.
+    // Ein einziger Chip muesste sich fuer einen Ton entscheiden und wuerde die
+    // andere Haelfte verschweigen.
+    expect(query(`tr[data-row-key='f3'] td:nth-child(4) .${s.rot}`).textContent)
+      .toContain("2 abgelaufen");
+    expect(query(`tr[data-row-key='f3'] td:nth-child(4) .${s.gelb}`).textContent)
+      .toContain("1 läuft ab");
+
+    // f2 nur warnend — KEIN roter Chip.
+    expect(verfallSpalte("f2").querySelector(`.${s.rot}`)).toBeNull();
+    expect(query(`tr[data-row-key='f2'] td:nth-child(4) .${s.gelb}`).textContent)
+      .toContain("1 läuft ab");
+
+    // f1 gepflegt und unauffaellig, f4 ueberhaupt nicht gepflegt.
+    expect(query(`tr[data-row-key='f1'] td:nth-child(4) .${s.ok}`).textContent)
+      .toContain("im grünen Bereich");
+    expect(query(`tr[data-row-key='f4'] td:nth-child(4) .${s.grau}`).textContent)
+      .toContain("0 von 1 erfasst");
+  });
+
+  /**
+   * ⚠️ DER REVIEWBEFUND ZU DRK-298, UND DER HAEUFIGSTE FALL VON ALLEN.
+   *
+   * Der Check gibt das Verfallsdatum AUSDRUECKLICH FREIWILLIG ab („nur aendern,
+   * wenn auf der Packung ein anderes Datum steht", `CheckFlow.tsx`) — ein halb
+   * gepflegtes Fahrzeug ist also der Normalfall. Wer aus EINER vorhandenen
+   * Angabe auf „gepflegt" schliesst, stellt einem Fahrzeug mit acht
+   * Soll-Artikeln und einer gruenen Angabe eine Entwarnung aus.
+   *
+   * Der dritte Fall darunter ist das Fahrzeug OHNE Soll: es hat nichts zu
+   * erfassen, und „null von null" waere rechnerisch vollstaendig und fachlich
+   * eine Aussage ueber nichts.
+   */
+  it("gibt keine Entwarnung, solange nicht jeder Soll-Artikel angesehen ist", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[0], id: "halb", name: "Halb gepflegt",
+            verfallErfasst: 1, verfallSollArtikel: 8 },
+          { ...ZEILEN[0], id: "ganz", name: "Ganz gepflegt",
+            verfallErfasst: 8, verfallSollArtikel: 8 },
+          { ...ZEILEN[0], id: "ohneSoll", name: "Ohne Soll",
+            verfallErfasst: 0, verfallSollArtikel: 0 },
+        ]}
+      />,
+    );
+
+    expect(query(`tr[data-row-key='halb'] td:nth-child(4) .${s.grau}`).textContent)
+      .toContain("1 von 8 erfasst");
+    expect(query(`tr[data-row-key='halb'] td:nth-child(4)`).querySelector(`.${s.ok}`))
+      .toBeNull();
+    expect(query(`tr[data-row-key='ganz'] td:nth-child(4) .${s.ok}`).textContent)
+      .toContain("im grünen Bereich");
+    // Ohne Soll: kein Chip, nur der Gedankenstrich.
+    expect(query("tr[data-row-key='ohneSoll'] td:nth-child(4)").textContent).toBe("—");
+  });
+
+  /**
+   * ⚠️ DIE QUOTE VERSCHWINDET NICHT, SOBALD ETWAS AUFFAELLIG IST (zweiter
+   * Reviewbefund zu DRK-298) — und das ist dieselbe stille Luecke wie die
+   * erste, nur eine Ebene tiefer.
+   *
+   * Ein Fahrzeug mit EINEM abgelaufenen und SIEBEN nie angesehenen Artikeln
+   * meldete „1 abgelaufen" und sonst nichts. Wer danach handelt, tauscht einen
+   * Artikel und haelt das Fahrzeug fuer erledigt — waehrend sieben weitere
+   * ungeprueft sind. Die auffaelligen Zahlen und die Erfassung beantworten
+   * verschiedene Fragen („was ist faellig?" und „wovon wissen wir es
+   * ueberhaupt?"); die eine darf die andere nicht verdecken.
+   */
+  it("zeigt die Erfassungslücke AUCH neben einer Warnung", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[0], id: "luecke", name: "Lücke trotz Fund",
+            verfallAbgelaufen: 1, verfallWarnend: 0,
+            verfallErfasst: 1, verfallSollArtikel: 8 },
+        ]}
+      />,
+    );
+
+    const spalte = query("tr[data-row-key='luecke'] td:nth-child(4)");
+    expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
+    expect(spalte.querySelector(`.${s.grau}`)!.textContent).toContain("1 von 8 erfasst");
+  });
+
+  /** Gegenprobe: vollstaendig erfasst heisst KEIN grauer Chip daneben. */
+  it("hängt keine Quote an ein vollständig erfasstes Fahrzeug", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[0], id: "ganz", name: "Ganz erfasst",
+            verfallAbgelaufen: 1, verfallWarnend: 0,
+            verfallErfasst: 8, verfallSollArtikel: 8 },
+        ]}
+      />,
+    );
+
+    const spalte = query("tr[data-row-key='ganz'] td:nth-child(4)");
+    expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
+    expect(spalte.querySelector(`.${s.grau}`)).toBeNull();
+  });
+
+  /**
+   * ⚠️ DIE SPALTE ORDNET NACH DRINGLICHKEIT, NICHT NACH SUMME.
+   *
+   * f3 hat 2 abgelaufene und 1 warnende Meldung, f2 nur 1 warnende. Sortiert
+   * man ueber die Summe, steht f3 vor f2 — hier zufaellig richtig. Der Beleg
+   * ist f2 gegen ein gedachtes Fahrzeug mit fuenf warnenden Meldungen: Summe
+   * hiesse „fuenf gelbe vor einer abgelaufenen", und genau das ist die falsche
+   * Reihenfolge fuer jemanden, der eine Austauschtour plant. Deshalb zaehlt
+   * erst `abgelaufen`, dann `warnend`.
+   */
+  it("sortiert Verfall nach Dringlichkeit: abgelaufen schlägt Menge", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[1], id: "viel", name: "Viel Gelb",
+            verfallAbgelaufen: 0, verfallWarnend: 5 },
+          { ...ZEILEN[1], id: "eins", name: "Eins Rot",
+            verfallAbgelaufen: 1, verfallWarnend: 0 },
+        ]}
+      />,
+    );
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Verfall"))!;
+    await clickElement(kopf.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+    // Aufsteigend: das unauffaelligere Fahrzeug zuerst.
+    expect(zeilenIds()).toEqual(["viel", "eins"]);
+  });
+
+  /**
    * Die Zusicherung stand bis zur Umstellung auf `@/core/tabelle` im
    * QUELLTEXT (`pagination={false}`, `scroll={{ x: "max-content" }}`). Beides
    * ist jetzt Vorgabe der `Datentabelle` und steht in dieser Datei gar nicht
@@ -397,6 +559,46 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
 
     await spaltenFilter("Verfall", "läuft ab");
     expect(zeilenIds()).toEqual(["f3"]);
+  });
+
+  /**
+   * ⚠️ VIER ZUSTAENDE, UND JEDER BRAUCHT SEIN GEGENSTUECK (DRK-298).
+   *
+   * Die Spalte kannte „läuft ab" und „nichts läuft ab". Beide Haelften
+   * zerfallen jetzt: „abgelaufen" ist nicht „läuft ab", und „nichts erfasst"
+   * ist nicht „nichts fällig". Ohne alle vier waere je ein Vorgang nicht mehr
+   * anklickbar — dieselbe Umkehrung, die „inaktive ausblenden" gebraucht hat.
+   *
+   * ⚠️ „abgelaufen" UND „läuft ab" VERODERN SICH, weil sie auf DERSELBEN Spalte
+   * liegen (`zustandsFilter`). Das ist hier richtig: f3 traegt beides und darf
+   * nicht dadurch verschwinden, dass man beide Haken setzt.
+   */
+  it("macht alle vier Verfallslagen einzeln anwählbar", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Verfall", "abgelaufen");
+    expect(zeilenIds()).toEqual(["f3"]);
+
+    // f2 kommt HINZU (Veroderung innerhalb der Spalte) — f3 bleibt, obwohl es
+    // beide Zustaende erfuellt.
+    await spaltenFilter("Verfall", "läuft ab");
+    expect(zeilenIds()).toEqual(["f2", "f3"]);
+
+    await spaltenFilter("Verfall");
+    // ⚠️ „nicht vollstaendig erfasst" UND NICHT „nichts erfasst": der stillere
+    // Fall ist das halb gepflegte Fahrzeug, und ein Filter nur auf den
+    // Nullfall fande genau die nicht.
+    await spaltenFilter("Verfall", "nicht vollständig erfasst");
+    expect(zeilenIds()).toEqual(["f4"]);
+
+    await spaltenFilter("Verfall");
+    // Derselbe Text wie im Chip der Spalte — zwei Namen fuer einen Zustand
+    // lassen den Leser einen dritten vermuten.
+    await spaltenFilter("Verfall", "im grünen Bereich");
+    // NUR f1 — f4 ist NICHT „im grünen Bereich", sondern unangesehen. Faellt dieser
+    // Test, hat jemand die beiden Leerfaelle wieder zusammengelegt und die
+    // Ansicht behauptet Entwarnung fuer ein nie gepflegtes Fahrzeug.
+    expect(zeilenIds()).toEqual(["f1"]);
   });
 
   it("nennt bei leerem Spaltenfilter den Filter-Leertext, nicht den Anlegehinweis", async () => {
@@ -570,7 +772,10 @@ describe("Fahrzeugseite als RSC", () => {
       positionen: 0,
       faecher: 0,
       artikelUnterSoll: 0,
-      verfallAuffaellig: 0,
+      verfallAbgelaufen: 0,
+      verfallWarnend: 0,
+      verfallErfasst: 1,
+      verfallSollArtikel: 1,
       letzterCheck: new Date("2026-07-30T23:30:00Z"),
     });
     expect(zeile.letzterCheckText).toBe("31.07.2026, 01:30");

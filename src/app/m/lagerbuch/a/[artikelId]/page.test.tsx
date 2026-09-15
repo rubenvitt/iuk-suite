@@ -71,15 +71,31 @@ const { DB, BUCHEN, gesehen } = vi.hoisted(() => ({
   DB: { marke: "db" },
   BUCHEN: async () => ({ ok: true as const, wert: { gebucht: 1 } }),
   gesehen: {
-    entnahme: null as { detailId: string; detailName: string; buchen: unknown } | null,
+    entnahme: null as
+      | { detailId: string; detailName: string; buchen: unknown; ziel: unknown }
+      | null,
     rahmen: null as { aktiv: string; etikett: string; laeuftAb: unknown } | null,
   },
 }));
 
 let kopfzeilen = new Headers({ host: HOST });
+/** DRK-300 — der rohe Cookie-Wert der Anfrage; `undefined` = kein Cookie. */
+let zielCookie: string | undefined;
 const umleitungen: string[] = [];
 
-vi.mock("next/headers", () => ({ headers: async () => kopfzeilen }));
+/*
+ * ⚠️ `cookies` GEHÖRT SEIT DRK-300 DAZU. Die Seite löst das gemerkte
+ * Entnahmeziel selbst auf; ein Mock nur mit `headers` lässt jeden Test dieser
+ * Datei mit „cookies is not a function" fallen — und zwar ALLE, auch die, die
+ * mit dem Ziel nichts zu tun haben.
+ */
+vi.mock("next/headers", () => ({
+  headers: async () => kopfzeilen,
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "helfer_ziel" && zielCookie !== undefined ? { name, value: zielCookie } : undefined,
+  }),
+}));
 vi.mock("next/navigation", () => ({
   redirect: (ziel: string) => {
     umleitungen.push(ziel);
@@ -102,6 +118,14 @@ vi.mock("../../_lib/helferZugang", () => ({ helferZugangOderNull: vi.fn() }));
 vi.mock("../../_lib/zugang", () => ({ viewerOderNull: vi.fn(), istLagerbuchAdmin: vi.fn() }));
 vi.mock("../../_lib/lesepfade/artikel", () => ({ artikelDetailHelfer: vi.fn() }));
 vi.mock("../../_db/client", () => ({ getDb: vi.fn(() => DB) }));
+/*
+ * ⚠️ `gemerktesZiel` IST EINE ATTRAPPE, weil `getDb()` hier eine ist: die echte
+ * Funktion liest `lagerorte` und bekäme `{ marke: "db" }` vorgesetzt. Was sie
+ * SELBST zusagt (ein untaugliches Fahrzeug wird „ungewählt", nicht „Verbrauch"),
+ * steht in `_lib/lesepfade/entnahmeZiel.test.ts` gegen eine echte Datenbank.
+ * Hier geht es nur um die Verdrahtung: Cookie rein, Insel-Prop raus.
+ */
+vi.mock("../../_lib/lesepfade/entnahmeZiel", () => ({ gemerktesZiel: vi.fn() }));
 vi.mock("../../_actions/buchung", () => ({ bucheEntnahmeHelfer: BUCHEN }));
 
 /*
@@ -115,8 +139,10 @@ vi.mock("../../_actions/buchung", () => ({ bucheEntnahmeHelfer: BUCHEN }));
  * Attrappen-Attribut gesetzt hat.
  */
 vi.mock("../../_ui/Entnahme", () => ({
-  Entnahme: (p: { detail: { id: string; name: string }; buchen: unknown }) => {
-    gesehen.entnahme = { detailId: p.detail.id, detailName: p.detail.name, buchen: p.buchen };
+  Entnahme: (p: { detail: { id: string; name: string }; ziel: unknown; buchen: unknown }) => {
+    gesehen.entnahme = {
+      detailId: p.detail.id, detailName: p.detail.name, buchen: p.buchen, ziel: p.ziel,
+    };
     return <div data-rolle="entnahme" data-id={p.detail.id} data-name={p.detail.name} />;
   },
 }));
@@ -140,6 +166,7 @@ import { helferZugangOderNull } from "../../_lib/helferZugang";
 import { viewerOderNull, istLagerbuchAdmin } from "../../_lib/zugang";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
 import { getDb } from "../../_db/client";
+import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
 import ArtikelDeepLink from "./page";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 
@@ -148,6 +175,10 @@ const ZUGANG = {
   code: "482-137",
   label: "RTW 1",
   laeuftAb: new Date("2026-08-04T17:00:00.000Z"),
+  // Ein Regaletikett haengt an keinem Fahrzeug (DRK-302). Diese Weiche liest die
+  // Bindung nicht — sie steht hier, weil `HelferZugang` sie als Pflichtfeld
+  // fuehrt, und `null` ist der Fall, der zu einem Artikel-Kaertchen passt.
+  fahrzeugBindung: null,
 };
 const VIEWER = { sub: "u1", groups: ["lagerbuch"], name: null, email: null };
 const DETAIL = {
@@ -161,6 +192,8 @@ const DETAIL = {
 
 beforeEach(() => {
   kopfzeilen = new Headers({ host: HOST });
+  zielCookie = undefined;
+  vi.mocked(gemerktesZiel).mockReturnValue(null);
   umleitungen.length = 0;
   gesehen.entnahme = null;
   gesehen.rahmen = null;
@@ -353,6 +386,30 @@ describe("/a/<id> — der Rahmen", () => {
      */
     await mount(await ArtikelDeepLink(params("art-9")));
     expect(gesehen.entnahme?.buchen).toBe(BUCHEN);
+  });
+
+  it("löst das gemerkte Ziel aus DEM Cookie auf und reicht es an die Insel", async () => {
+    // DRK-300. Zwei Hälften, und beide tragen: der Cookie-Wert der ANFRAGE geht
+    // in die Auflösung, und ihr Ergebnis geht unverändert in die Insel. Ohne
+    // die erste könnte die Seite ein festes Ziel anzeigen; ohne die zweite
+    // stünde auf dem Schirm etwas anderes, als gebucht wird.
+    zielCookie = "tk1|fz:fz-1";
+    const aufgeloest = { art: "fahrzeug" as const, lagerortId: "fz-1", name: "RTW 1" };
+    vi.mocked(gemerktesZiel).mockReturnValue(aufgeloest);
+
+    await mount(await ArtikelDeepLink(params("art-9")));
+
+    expect(vi.mocked(gemerktesZiel)).toHaveBeenCalledWith(DB, "tk1|fz:fz-1", ZUGANG.tokenId);
+    expect(gesehen.entnahme?.ziel).toBe(aufgeloest);
+  });
+
+  it("ohne Cookie bekommt die Insel `null` — und sperrt damit den Buchen-Knopf", async () => {
+    // ⚠️ `null` und NICHT `{ art: "verbrauch" }`: der Unterschied ist die ganze
+    // Zusage des Tickets, und er muss die Seitengrenze überleben.
+    await mount(await ArtikelDeepLink(params("art-9")));
+
+    expect(vi.mocked(gemerktesZiel)).toHaveBeenCalledWith(DB, undefined, ZUGANG.tokenId);
+    expect(gesehen.entnahme?.ziel).toBeNull();
   });
 
   it("die Insel haengt IM Rahmen — die Tab-Leiste bleibt erreichbar", async () => {

@@ -55,6 +55,14 @@ vi.mock("next/cache", () => ({
   revalidatePath: (p: string) => { revalidiert.push(p); },
 }));
 
+/*
+ * Das ZIELCOOKIE — die Buchung am Regal liest es, weil das Ziel aus der Insel
+ * eine Behauptung des Clients ist und das Cookie die Erinnerung des Servers.
+ */
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: (name: string) => (name === "helfer_ziel" && zielCookie !== undefined ? { name, value: zielCookie } : undefined) }),
+}));
+
 vi.mock("../_lib/helferZugang", () => ({
   requireHelferSchreibend: (db: unknown) => riegel(db),
 }));
@@ -89,10 +97,25 @@ const ZUGANG_OK = {
   },
 };
 
+/**
+ * DRK-300 — die AUSDRÜCKLICHE Verbrauchswahl. Sie steht in jedem Aufruf, der
+ * ohne Fahrzeug bucht, und das ist keine Umständlichkeit: seit DRK-300 ist ein
+ * FEHLENDES Ziel kein Verbrauch mehr, sondern „noch nichts gewählt" — und das
+ * bucht nicht.
+ */
+const VERBRAUCH = { art: "verbrauch" } as const;
+
+/**
+ * Der rohe Cookie-Wert der Anfrage. Er trägt die Kärtchen-Kennung `tk1` —
+ * dieselbe, die `ZUGANG_OK` führt.
+ */
+let zielCookie: string | undefined;
+
 const JETZT = new Date("2026-06-15T10:00:00Z");
 
 beforeEach(() => {
   revalidiert.length = 0;
+  zielCookie = "tk1|verbrauch";
   riegel.mockResolvedValue(ZUGANG_OK);
   adminRiegel.mockResolvedValue(VIEWER);
   t = migrierteTestDb("lagerbuch-actions-buchung-");
@@ -411,7 +434,8 @@ describe("bucheZugang mit Zielort (DRK-297)", () => {
 
 describe("bucheEntnahmeHelfer", () => {
   it("bucht mit quelleTyp token und dem CODE als quelleId", async () => {
-    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 2 }, t.db);
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
 
     expect(erg.ok).toBe(true);
     expect((erg as { ok: true; wert: { gebucht: number } }).wert.gebucht).toBe(2);
@@ -464,7 +488,8 @@ describe("bucheEntnahmeHelfer", () => {
      * macht daraus „Entnahme gebucht: 0 × Waermedecke" MIT HAEKCHEN, und die
      * Helferin geht mit leeren Haenden zum Fahrzeug.
      */
-    const erg = await bucheEntnahmeHelfer({ artikelId: "art-2", menge: 1 }, t.db);
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-2", menge: 1, ziel: VERBRAUCH }, t.db);
 
     expect(erg.ok).toBe(false);
     expect(helferFehler(erg).grund).toBe("leer");
@@ -501,6 +526,172 @@ describe("bucheEntnahmeHelfer", () => {
     expect(helferFehler(erg).grund).toBe("gesperrt");
   });
 
+  /*
+   * DRK-300 — DAS ZIEL AM REGAL. Die vier Tests darunter tragen zusammen die
+   * Zusage des Tickets; einzeln trägt keiner sie.
+   *
+   * ⚠️ DER ERSTE IST DER TEURE. „Kein Ziel" und „ausdrücklich kein Fahrzeug"
+   * sind zwei Zustände, nicht einer (Betreiberentscheidung, ClickUp DRK-300).
+   * Fiele die Unterscheidung weg, buchte jede vergessene Wahl still Verbrauch —
+   * der Bestand im Handlager sänke, das Material läge im Fahrzeug, und kein
+   * Gate würde rot. Deshalb steht hier NICHT nur `ok === false`, sondern auch
+   * „es wurde nichts geschrieben": ohne die zweite Zeile wäre der Test auch
+   * dann grün, wenn die Action bucht und danach meckert.
+   */
+  it("OHNE Ziel wird NICHT gebucht — ein fehlendes Ziel ist kein Verbrauch", async () => {
+    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 2 }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text.length).toBeGreaterThan(0);
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("mit ZIEL-FAHRZEUG wird daraus eine Umlagerung — BEIDE Legs, netto null", async () => {
+    zielCookie = "tk1|fz:fz-1";
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 4, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect((erg as { ok: true; wert: { gebucht: number } }).wert.gebucht).toBe(4);
+
+    const um = geschrieben().filter((b) => b.typ === "umlagerung");
+    // ⚠️ Die Summe ALLEIN trägt nichts: auf einer LEEREN Trefferliste ist sie
+    // ebenfalls 0. Erst die Länge macht daraus eine Zusage.
+    expect(um).toHaveLength(2);
+    expect(um.reduce((s, b) => s + b.menge, 0)).toBe(0);
+    expect(um.find((b) => b.lagerortId === HANDLAGER_ID)).toMatchObject({ menge: -4 });
+    // Die Charge wandert MIT — sonst verlöre das Fahrzeug die Verfall-Herkunft.
+    expect(um.find((b) => b.lagerortId === "fz-1")).toMatchObject({ menge: 4, chargeId: "ch-1" });
+    // Die einzige Klammer zwischen den beiden Legs (§5.14.4).
+    expect(um.every((b) => b.referenz === "entnahme-ziel:fz-1")).toBe(true);
+    // Der CODE bleibt die Quelle, auch auf dem Umlagerungsweg — sonst wäre die
+    // Buchung im Journal namenlos.
+    expect(um.every((b) => b.quelleTyp === "token" && b.quelleId === "482-137")).toBe(true);
+    // KEIN Verbrauch: sonst zählte das Reporting eine interne Verschiebung als
+    // Entnahme, und der Bestellvorschlag bestellte nach.
+    expect(geschrieben().some((b) => b.typ === "entnahme")).toBe(false);
+  });
+
+  it("kappt am Handlagerbestand und hält die Netto-Null auch dann", async () => {
+    zielCookie = "tk1|fz:fz-1";
+    // 10 liegen da, 12 werden verlangt. Ein Ziel-Leg aus der VERLANGTEN Menge
+    // erzeugte Bestand aus dem Nichts (I3) — und das fiele niemandem auf.
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 12, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect((erg as { ok: true; wert: { gebucht: number } }).wert.gebucht).toBe(10);
+    const um = geschrieben().filter((b) => b.typ === "umlagerung");
+    expect(um).toHaveLength(2);
+    expect(um.reduce((s, b) => s + b.menge, 0)).toBe(0);
+    expect(um.find((b) => b.lagerortId === "fz-1")).toMatchObject({ menge: 10 });
+  });
+
+  it("mit AUSDRÜCKLICHEM Verbrauch bucht es aus dem Handlager ab — ohne Referenz", async () => {
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({
+      typ: "entnahme", menge: -2, lagerortId: HANDLAGER_ID, referenz: null,
+    });
+  });
+
+  it("lehnt ein untaugliches Ziel ab, OHNE zu werfen — und bucht nichts", async () => {
+    /*
+     * ⚠️ „OHNE zu werfen" ist die eigentliche Zusage. Der Verwaltungsweg darf
+     * werfen — sein `catch` macht daraus einen Rückgabewert. `bucheEntnahmeHelfer`
+     * hat bewusst KEIN try/catch (Global Constraint 12); ein Wurf schlüge bis zur
+     * Fehlerseite durch, und dort steht in Produktion ein englischer Satz mit
+     * `digest`. Das Telefon der Helferin zeigte also nicht „Fahrzeug wählen",
+     * sondern eine Absturzseite.
+     *
+     * Das Handlager steht in der Liste, weil es EXISTIERT und AKTIV ist — eine
+     * Prüfung, die nur auf „unbekannt" testet, ließe es durch, und die Buchung
+     * legte Material vom Handlager ins Handlager.
+     */
+    for (const lagerortId of ["fz-alt", "lager-2", "gibtsnicht", HANDLAGER_ID]) {
+      zielCookie = `tk1|fz:${lagerortId}`;
+      const erg = await bucheEntnahmeHelfer(
+        { artikelId: "art-1", menge: 1, ziel: { art: "fahrzeug", lagerortId } }, t.db);
+      expect(erg.ok).toBe(false);
+      expect(helferFehler(erg).grund).toBe("eingabe");
+      // Der fachliche Satz, nicht der der Datenbank: ohne die Prüfung schlüge
+      // der Fremdschlüssel zu und meldete „FOREIGN KEY constraint failed".
+      expect(helferFehler(erg).text).toMatch(/Fahrzeug/);
+    }
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("leeres Handlager bleibt auch MIT Ziel-Fahrzeug ein Fehler, kein Erfolg auf 0", async () => {
+    zielCookie = "tk1|fz:fz-1";
+    // Der `leer`-Zweig hing bisher allein am Verbrauchspfad. Läge er dort, wäre
+    // eine Umlagerung von null Stück ein grüner Haken — und die Helferin ginge
+    // mit leeren Händen und einer Erfolgsmeldung zum Fahrzeug.
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-2", menge: 1, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("leer");
+    expect(helferFehler(erg).text).toBe(leerText("Wärmedecke"));
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /*
+   * ⚠️ REVIEW-BEFUND P1 ZU PR #140, ZWEITE RUNDE — das eingereichte Ziel muss
+   * ZUR LAUFENDEN SITZUNG GEHÖREN, nicht nur zu einem aktiven Fahrzeug.
+   *
+   * Die Bindung im Cookie allein reicht NICHT: die Insel schickt ihr Ziel als
+   * Nutzlast, und eine offene Artikelseite überlebt einen Kärtchenwechsel in
+   * einem zweiten Tab. Ihre Buchung träfe dann mit dem NEUEN Sitzungscookie
+   * ein und trüge das ALTE Fahrzeug — dem neuen Kärtchen zugeschrieben, auf
+   * das Ziel der vorigen Schicht gebucht. Der Bestand wäre still falsch.
+   *
+   * Deshalb ist das Cookie hier die Wahrheit und die Nutzlast die Behauptung:
+   * gebucht wird nur, wenn beide übereinstimmen.
+   */
+  it("lehnt ein Ziel ab, das nicht dem GEMERKTEN dieser Sitzung entspricht", async () => {
+    zielCookie = "tk1|verbrauch";   // gemerkt ist Verbrauch …
+
+    const erg = await bucheEntnahmeHelfer(
+      // … die veraltete Seite schickt aber ein Fahrzeug.
+      { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("lehnt ein Ziel ab, das dem Kärtchen einer ANDEREN Schicht gehört", async () => {
+    // Dasselbe Fahrzeug, aber gemerkt hat es eine andere Sitzung — auf dem
+    // geteilten Telefon der häufigere Hergang.
+    zielCookie = "tk-vorige|fz:fz-1";
+
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" } }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("lehnt ab, wenn GAR NICHTS gemerkt ist — auch bei tadelloser Nutzlast", async () => {
+    zielCookie = undefined;
+
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
   it("fragt den ADMIN-Riegel NICHT — der Helfer-Weg bucht auch ohne ihn", async () => {
     /*
      * VERHALTENStest statt Quelltext-Scan: ein Scan auf die Schreibweise
@@ -523,7 +714,8 @@ describe("bucheEntnahmeHelfer", () => {
       bucheEntnahme({ artikelId: "art-1", menge: 1 }, t.db),
     ).rejects.toThrow("kein Admin");
 
-    const erg = await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 1 }, t.db);
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db);
     expect(erg.ok).toBe(true);
     expect(adminRiegel).toHaveBeenCalledTimes(2); // nur die beiden Verwaltungswege oben
     expect(riegel).toHaveBeenCalledTimes(1);
@@ -532,7 +724,8 @@ describe("bucheEntnahmeHelfer", () => {
 
 it("audit attributes the real helper mutation to confirmed shared access without the code", async () => {
   t.sqlite.exec("DELETE FROM audit_outbox");
-  expect((await bucheEntnahmeHelfer({ artikelId: "art-1", menge: 2 }, t.db)).ok).toBe(true);
+  expect((await bucheEntnahmeHelfer(
+    { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db)).ok).toBe(true);
   const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox").all() as { actor: string }[];
   expect(rows.length).toBeGreaterThan(0);
   for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "access", id: "lagerbuch:token:tk1", name: "Gemeinsamer Zugangscode" });

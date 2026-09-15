@@ -33,11 +33,18 @@ beforeEach(() => {
       aktiv: false, templateId: "tpl-rtw" },
     { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1",
       aktiv: true, templateId: "tpl-rtw" },
+    // VIERTES Fahrzeug fuer die vollstaendig gepflegte, unauffaellige Lage.
+    // „AAA" sortiert vor „ELW" — unter den Inaktiven wird der Alphabet-
+    // Tiebreaker damit erst wirklich beweisbar.
+    { id: "rtw-4", name: "AAA Grünwagen", typ: "fahrzeug", kennung: "MS-4",
+      aktiv: false, templateId: null },
   ]).run();
   t.db.insert(artikel).values([
     { id: "a1", name: "Verband", einheit: "Stk.", fach: "A1",
       mindestbestand: 0, aktiv: true, createdAt: NOW },
     { id: "a2", name: "NaCl", einheit: "Fl.", fach: "B2",
+      mindestbestand: 0, aktiv: true, createdAt: NOW },
+    { id: "a3", name: "Rettungsdecke", einheit: "Stk.", fach: "C3",
       mindestbestand: 0, aktiv: true, createdAt: NOW },
   ]).run();
   t.db.insert(templatePositionen).values(
@@ -63,6 +70,27 @@ beforeEach(() => {
     { id: "sp2", fahrzeugId: "rtw-1", fachLabel: "Fach 2", sort: 1,
       artikelId: "a1", soll: 2, templatePositionId: null,
       ueberschrieben: false, entfernt: false },
+    /**
+     * ⚠️ DIE UEBRIGEN FAHRZEUGE BRAUCHEN EIN SOLL, SEIT DIE ERFASSUNG DAGEGEN
+     * GEMESSEN WIRD. Ohne Sollposition ist „wie viele Artikel sind gepflegt?"
+     * die Frage nach null von null — eine Lage ohne Aussage, und die drei
+     * unterscheidbaren Faelle waeren nicht mehr darstellbar.
+     */
+    { id: "sp-zwei-a1", fahrzeugId: "rtw-2", fachLabel: "Fach 1", sort: 0,
+      artikelId: "a1", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "sp-zwei-a2", fahrzeugId: "rtw-2", fachLabel: "Fach 1", sort: 1,
+      artikelId: "a2", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "sp-drei-a1", fahrzeugId: "rtw-3", fachLabel: "Fach 1", sort: 0,
+      artikelId: "a1", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "sp-drei-a2", fahrzeugId: "rtw-3", fachLabel: "Fach 1", sort: 1,
+      artikelId: "a2", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "sp-vier-a2", fahrzeugId: "rtw-4", fachLabel: "Fach 1", sort: 0,
+      artikelId: "a2", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
   ]).run();
   t.db.insert(chargen).values(
     { id: "c1", artikelId: "a1", chargenNr: "CH", verfall: "2030-01", createdAt: NOW }).run();
@@ -72,6 +100,28 @@ beforeEach(() => {
     referenz: null, kommentar: null,
   });
   t.db.insert(buchungen).values([b(HANDLAGER_ID, 30), b("rtw-1", 5)]).run();
+  /**
+   * DIE VIER LAGEN EINES FAHRZEUGS, ueber vier Fahrzeuge verteilt (DRK-298):
+   *
+   *   rtw-1  abgelaufen UND warnend      → Soll {a1},     erfasst 1 von 1
+   *   rtw-2  nie gepflegt                → Soll {a1,a2},  erfasst 0 von 2
+   *   rtw-3  TEILWEISE gepflegt          → Soll {a1,a2},  erfasst 1 von 2
+   *   rtw-4  vollstaendig und unauffaellig → Soll {a2},   erfasst 1 von 1
+   *
+   * ⚠️ rtw-3 IST DER REVIEWBEFUND ZU DIESEM TICKET, und er ist der haeufigste
+   * Fall von allen: der Check gibt das Verfallsdatum AUSDRUECKLICH FREIWILLIG
+   * ab („nur aendern, wenn auf der Packung ein anderes Datum steht",
+   * `CheckFlow.tsx`). Wer „gepflegt" als „es gibt irgendeine Zeile" liest,
+   * erklaert rtw-3 zum gruenen Bereich — obwohl die Haelfte des Solls nie
+   * angesehen wurde. rtw-4 ist die Gegenprobe: ohne es koennte die Rechnung
+   * „vollstaendig" nie erreichen und kein Test es merken.
+   *
+   * ⚠️ Zu a3 und zu a2 auf rtw-1 gibt es KEINE aktive Sollposition. Das ist
+   * Absicht und kein Versehen: die AUFFAELLIGEN Zahlen zaehlen JEDE Meldung des
+   * Fahrzeugs — dieselbe Menge, die die Verfallsseite zeigt —, die ERFASSUNG
+   * dagegen zaehlt nur das aktive Soll. Wuerde die Erfassung fremde Meldungen
+   * mitzaehlen, koennte ein Fahrzeug „3 von 2 erfasst" melden.
+   */
   t.db.insert(lagerortVerfall).values([
     { id: newId(), lagerortId: "rtw-1", artikelId: "a1", verfall: "2026-07",
       erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
@@ -79,6 +129,14 @@ beforeEach(() => {
     // `fahrzeugUebersicht` `nurWarnend` weglassen und der Zaehler bliebe
     // trotzdem bei 1.
     { id: newId(), lagerortId: "rtw-1", artikelId: "a2", verfall: "2029-01",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    // ABGELAUFEN: Monatsende 31.05.2026 liegt vor NOW (15.06.2026).
+    { id: newId(), lagerortId: "rtw-1", artikelId: "a3", verfall: "2026-05",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    // TEILWEISE: a2 gepflegt, a1 im selben Soll nie angesehen.
+    { id: newId(), lagerortId: "rtw-3", artikelId: "a2", verfall: "2029-01",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    { id: newId(), lagerortId: "rtw-4", artikelId: "a2", verfall: "2029-01",
       erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
   ]).run();
   // Checks ausser der Reihe eingefuegt (juengster ZUERST) — sonst faellt eine
@@ -118,23 +176,91 @@ describe("fahrzeugUebersicht — Soll je ARTIKEL summiert, dann verglichen", () 
     expect(z.letzterCheck?.toISOString()).toBe("2026-06-01T10:05:00.000Z");
   });
 
-  it("zaehlt NUR die WARNENDEN Verfallsmeldungen DES FAHRZEUGS", () => {
-    // Die gruene Meldung (a2, "2029-01") zaehlt nicht mit — sonst waere der
-    // Zaehler 2 statt 1. rtw-2 hat KEINE Meldungen — ein global statt je
-    // Fahrzeug gezaehlter Wert liesse hier ebenfalls 1 statt 0 stehen.
+  it("trennt ABGELAUFEN von BALD ABLAUFEND, je Fahrzeug", () => {
+    /**
+     * DRK-298. Vorher stand hier EINE Zahl fuer beides, und die Fahrzeugliste
+     * zeigte sie als gelben Chip — ein Fahrzeug mit drei abgelaufenen Artikeln
+     * sah aus wie eins, bei dem in drei Monaten etwas faellig wird.
+     *
+     * `abgelaufen` und `ampel === "rot"` sind NICHT dasselbe (`domain/verfall.ts`):
+     * a1 („2026-07") ist warnend, aber nicht abgelaufen; a3 („2026-05") ist
+     * abgelaufen. Wer `warnend` ueber `ampel !== "gruen"` rechnet, zaehlt a3
+     * DOPPELT — in beiden Zahlen.
+     */
     const l = fahrzeugUebersicht(t.db, NOW);
-    expect(l.find((x) => x.id === "rtw-1")!.verfallAuffaellig).toBe(1);
-    expect(l.find((x) => x.id === "rtw-2")!.verfallAuffaellig).toBe(0);
+    const eins = l.find((x) => x.id === "rtw-1")!;
+    expect(eins.verfallAbgelaufen).toBe(1);   // a3
+    expect(eins.verfallWarnend).toBe(1);      // a1 — NICHT 2, a3 zaehlt hier nicht
+  });
+
+  it("zaehlt je Fahrzeug, nicht global", () => {
+    // rtw-2 hat KEINE Meldung. Ein global statt je Fahrzeug gezaehlter Wert
+    // liesse hier die Zahlen von rtw-1 stehen.
+    const z = fahrzeugUebersicht(t.db, NOW).find((x) => x.id === "rtw-2")!;
+    expect(z.verfallAbgelaufen).toBe(0);
+    expect(z.verfallWarnend).toBe(0);
+  });
+
+  it("misst die Erfassung gegen das SOLL, nicht gegen die erste beste Zeile", () => {
+    /**
+     * ⚠️ EINE ZEILE BEWEIST KEINE VOLLSTAENDIGKEIT (Reviewbefund zu DRK-298).
+     *
+     * rtw-3 hat ZWEI Artikel im aktiven Soll und fuer EINEN davon eine (gruene)
+     * Angabe. Wer „gepflegt" als „es gibt irgendeine Zeile" liest, zeigt hier
+     * „im gruenen Bereich" — obwohl die Haelfte des Solls nie angesehen wurde.
+     * Der Check gibt das Verfallsdatum ausdruecklich freiwillig ab, dieser Fall
+     * ist also der Normalfall und nicht der Rand.
+     */
+    const drei = fahrzeugUebersicht(t.db, NOW).find((x) => x.id === "rtw-3")!;
+    expect(drei.verfallSollArtikel).toBe(2);
+    expect(drei.verfallErfasst).toBe(1);
+  });
+
+  it("zaehlt fuer die Erfassung NUR Artikel aus dem aktiven Soll", () => {
+    /**
+     * rtw-1 traegt DREI Meldungen (a1, a2, a3), hat aber nur EINEN Artikel im
+     * aktiven Soll (a1; a2 ist ein Grabstein, a3 steht gar nicht im Soll).
+     * Zaehlte die Erfassung die Meldungen statt das Soll, stuende hier
+     * „3 von 1 erfasst" — eine Quote ueber hundert Prozent.
+     */
+    const eins = fahrzeugUebersicht(t.db, NOW).find((x) => x.id === "rtw-1")!;
+    expect(eins.verfallSollArtikel).toBe(1);
+    expect(eins.verfallErfasst).toBe(1);
+  });
+
+  it("unterscheidet vollstaendig gepflegt von gar nicht gepflegt", () => {
+    /**
+     * DIE STILLE LUECKE, gegen die DRK-298 gebaut ist: beide Faelle liefern
+     * null auffaellige Meldungen, bedeuten aber Gegensaetzliches — einmal
+     * „geprueft, nichts faellig", einmal „hat nie jemand angesehen". Eine
+     * Ansicht, die daraus dasselbe „—" macht, behauptet Entwarnung, wo sie nur
+     * keine Daten hat.
+     *
+     * ⚠️ DIE ERFASSUNG ZAEHLT AUCH GRUENE ANGABEN. Wer sie aus
+     * `lagerortVerfallListe(db, { nurWarnend: true })` ableitet, bekommt fuer
+     * rtw-4 null — und die Luecke ist wieder da, obwohl das Feld das Gegenteil
+     * verspricht.
+     */
+    const l = fahrzeugUebersicht(t.db, NOW);
+    const vier = l.find((x) => x.id === "rtw-4")!;
+    expect(vier.verfallErfasst).toBe(vier.verfallSollArtikel);
+    expect(vier.verfallAbgelaufen).toBe(0);
+    expect(vier.verfallWarnend).toBe(0);
+
+    const zwei = l.find((x) => x.id === "rtw-2")!;
+    expect(zwei.verfallSollArtikel).toBe(2);
+    expect(zwei.verfallErfasst).toBe(0);
   });
 
   it("nennt den Vorlagennamen und sortiert aktive nach vorn", () => {
     const l = fahrzeugUebersicht(t.db, NOW);
-    // rtw-1 (aktiv) zuerst, dann rtw-2/rtw-3 (beide inaktiv) alphabetisch:
-    // "ELW" < "ZZZ Ersatzwagen".
-    expect(l.map((z) => z.id)).toEqual(["rtw-1", "rtw-2", "rtw-3"]);
+    // rtw-1 (aktiv) zuerst, dann die drei Inaktiven alphabetisch:
+    // "AAA Grünwagen" < "ELW" < "ZZZ Ersatzwagen".
+    expect(l.map((z) => z.id)).toEqual(["rtw-1", "rtw-4", "rtw-2", "rtw-3"]);
     expect(l[0].templateName).toBe("RTW-Vorlage");
     expect(l[1].templateName).toBeNull();
-    expect(l[2].templateName).toBe("RTW-Vorlage");
+    expect(l[2].templateName).toBeNull();
+    expect(l[3].templateName).toBe("RTW-Vorlage");
   });
 });
 
@@ -248,6 +374,7 @@ describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
 
 describe("fahrzeugListe", () => {
   it("liefert alle Lagerorte vom Typ fahrzeug, inklusive inaktiver", () => {
-    expect(fahrzeugListe(t.db).map((f) => f.id).sort()).toEqual(["rtw-1", "rtw-2", "rtw-3"]);
+    expect(fahrzeugListe(t.db).map((f) => f.id).sort())
+      .toEqual(["rtw-1", "rtw-2", "rtw-3", "rtw-4"]);
   });
 });

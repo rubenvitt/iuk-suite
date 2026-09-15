@@ -3,6 +3,8 @@ import { fahrzeugListe, sollFuerFahrzeug } from "../../_lib/lesepfade/fahrzeuge"
 import { geraeteFuerLagerort } from "../../_lib/lesepfade/geraete";
 import { o2FlaschenFuerLagerort } from "../../_lib/lesepfade/o2";
 import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
+import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
+import { fmtDatumZeit } from "../../_lib/zeit";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
@@ -61,27 +63,53 @@ export default async function CheckSeite({
 
   const fahrzeuge = fahrzeugListe(db).filter((f) => f.aktiv);
 
-  // ⚠️ ANSATZPUNKT 1 VON 2 fuer eine spaetere Durchsetzung von
-  // `tokens.scope_lagerort_id` als RIEGEL (offene Betreiberfrage 5, §7.9.1).
-  // Hier stuende:
-  //     const erlaubt = scope ? fahrzeuge.filter((f) => f.id === scope) : fahrzeuge;
-  // Heute ist die Spalte DEKORATION: ein Fahrzeug-Code kann JEDES Fahrzeug
-  // checken (Falle 14). Eine Verschaerfung muss zur PHYSISCHEN VERTEILUNG der
-  // Etiketten passen, und die ist unbeantwortet. Ansatzpunkt 2 ist die erste
-  // Zeile von `checkAbschluss` (_actions/check.ts). MEHR BRAUCHT ES DANN NICHT.
-  //
-  // ⚠️ NUR FUER DEN SCOPE. Die abgedruckte Zeile prueft weder `typ` noch
-  // `aktiv`; beides gehoert ZUSAETZLICH dazu. Auf dieser Seite haelt es der
-  // `.filter((f) => f.aktiv)` oben zusammen mit `fahrzeugListe`, serverseitig
-  // in der Action seit dem Abschluss-Fix von Teil 4 der Riegel 5 in
-  // `_actions/check.ts` (Art und Aktiv gegen `lagerorte`).
-  //
+  /*
+   * DER EINSTIEG NACH DEM FAHRZEUG-SCAN — DRK-302.
+   *
+   * Wurde ein Fahrzeug-Kaertchen eingeloest, ist DIESES Fahrzeug der Kontext:
+   * keine Wahl, und ein `?fz=` auf ein anderes Fahrzeug zaehlt nicht. Die
+   * Bindung kommt aus der TOKEN-ZEILE (`_lib/helferZugang.ts`), nicht aus dem
+   * Suchparameter — der ist Nutzereingabe und waere als Beleg wertlos.
+   *
+   * ⚠️ DAS IST EINE ANZEIGE-ENTSCHEIDUNG, KEIN RIEGEL, und der Unterschied ist
+   * die ganze Abgrenzung des Tickets: „Fahrzeugfilterung ist nicht automatisch
+   * eine neue Berechtigungsregel." Eine selbst gebaute Anfrage an
+   * `checkAbschluss` erreicht weiterhin jedes Fahrzeug — Ansatzpunkt 2 dort
+   * bleibt unangetastet, weil eine Durchsetzung zur PHYSISCHEN VERTEILUNG der
+   * Etiketten passen muss und die ist unbeantwortet (offene Betreiberfrage 5,
+   * §7.9.1). Wer hier „nur konsequent" den Riegel nachzieht, beantwortet sie im
+   * Vorbeigehen.
+   *
+   * ⚠️ NICHT ueber `tokens.scope_lagerort_id` — die Spalte ist tot
+   * (`_db/schema.ts`), kein Produktionspfad schreibt sie. Eine Begrenzung
+   * darueber waere fuer JEDES heutige Kaertchen leer und damit wirkungslos,
+   * ohne dass ein Tor etwas meldete. Gepflegt wird `zielTyp`/`zielId`, und
+   * genau daraus liest `fahrzeugBindungAus` (`_lib/tokenZiel.ts`) — dieselbe
+   * Funktion, aus der auch der Landepfad des Scans entsteht. Landung und
+   * Begrenzung koennen so konstruktiv nicht auseinanderfallen.
+   *
+   * ⚠️ DIE SUCHE LAEUFT UEBER `fahrzeuge`, also ueber die bereits auf `aktiv`
+   * gefilterte Liste (und `fahrzeugListe` haelt `typ`). Zeigt das Kaertchen auf
+   * ein stillgelegtes oder geloeschtes Fahrzeug — `tokens.ziel_id` traegt
+   * KEINEN Fremdschluessel —, bleibt `gebunden` undefined und die Seite faellt
+   * auf die Wahl zurueck. Eine Sackgasse waere hier der teuerste Ausgang: die
+   * Helferin steht im Fahrzeug und kaeme mit einem gueltigen Kaertchen
+   * nirgendwohin. Zulaessig ist der Rueckfall NUR, weil die Bindung kein Riegel
+   * ist.
+   */
+  const gebunden = zugang.fahrzeugBindung
+    ? fahrzeuge.find((f) => f.id === zugang.fahrzeugBindung)
+    : undefined;
+
   // Genau EIN aktives Fahrzeug → keine Wahl anbieten. KEIN `redirect()`: das
   // spart eine Anfrage und schreibt keinen Pfad, den jemand aeusser/innen
-  // verwechseln koennte (§2.1 g, §7.11). Ein `?fz=` auf eine unbekannte oder
-  // stillgelegte Zeile faellt hier still durch — sonst laedt eine geratene ID
-  // die Daten eines stillgelegten Fahrzeugs.
+  // verwechseln koennte (§2.1 g, §7.11) — das gilt auch fuer ein `?fz=`, das
+  // gegen die Bindung verliert: die Seite rendert das richtige Fahrzeug, die
+  // URL bleibt stehen. Ein `?fz=` auf eine unbekannte oder stillgelegte Zeile
+  // faellt hier still durch — sonst laedt eine geratene ID die Daten eines
+  // stillgelegten Fahrzeugs.
   const gewaehlt =
+    gebunden ??
     (fz ? fahrzeuge.find((f) => f.id === fz) : undefined) ??
     (fahrzeuge.length === 1 ? fahrzeuge[0] : null);
 
@@ -133,14 +161,35 @@ export default async function CheckSeite({
     [...verfallFuerLagerort(db, gewaehlt.id)].map(([artikelId, e]) => [artikelId, e.verfall]),
   );
 
+  /*
+   * DER LETZTE CHECK — DRK-306, und er wird HIER formatiert, nicht in der Insel.
+   *
+   * ⚠️ EIN `Date` UEBER DIE RSC-GRENZE SERIALISIERT KLAGLOS und formatiert dann
+   * in der Zone des GERAETS. Auf einem privaten Telefon im Urlaub stuende der
+   * Zeitpunkt damit um Stunden daneben, ohne dass irgendein Tor etwas meldete —
+   * dieselbe Zusage, die `verwaltung/fahrzeuge` seit DRK-298 woertlich traegt
+   * („gibt kein Date an die Insel", `FahrzeugeListe.test.tsx`). `fmtDatumZeit`
+   * ist zonenexplizit (`_lib/zeit.ts`, Entscheidung 26 b).
+   *
+   * ⚠️ `null` BLEIBT `null` UND WIRD NICHT ZU EINEM TEXT GEMACHT. „Noch nie
+   * geprueft" ist eine andere Aussage als „vor langer Zeit"; welchen Satz die
+   * Helferin dafuer liest, entscheidet die Insel an EINER Stelle.
+   */
+  const letzterCheck = letzterCheckZeitpunkt(db, gewaehlt.id);
+
   return (
     <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       <CheckFlow
         fahrzeug={{ id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung }}
+        // Ob der Flow „Anderes Fahrzeug" ueberhaupt anbietet. Ohne diese Angabe
+        // zeigte die Seite zwar ein einziges Fahrzeug, waere von der vollen
+        // Liste aber genau eine Bedienung entfernt (§7.9.1, DRK-302).
+        gebunden={gebunden !== undefined}
         soll={soll}
         geraete={geraete}
         flaschen={flaschen}
         verfall={verfall}
+        letzterCheckText={letzterCheck === null ? null : fmtDatumZeit(letzterCheck)}
         // Die Schwellen kommen vom SERVER; die Ampel im Zaehlschritt rechnet
         // der Client damit ueber `verfallStatus`, und das ist seit
         // Entscheidung 26 (b) zonenexplizit — Chip und Abschlusszahl koennen

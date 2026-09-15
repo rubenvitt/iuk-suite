@@ -37,12 +37,13 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath } from "@/core/db";
 import { getDb } from "@/app/m/lagerbuch/_db/client";
 import {
-  artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte, o2Flaschen,
-  sollPositionen, tokens, newId,
+  artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte,
+  lagerortVerfall, o2Flaschen, sollPositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
-  E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE,
+  E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
+  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
   E2E_LAST_ANZAHL, E2E_LAST_PRAEFIX,
 } from "./helpers/lagerbuch";
 
@@ -168,7 +169,7 @@ function checkFixtures(): void {
   }).onConflictDoNothing().run();
 
   db.insert(lagerorte).values({
-    id: "e2e-fahrzeug", name: "E2E RTW", typ: "fahrzeug", kennung: "MS-E2E-1",
+    id: E2E_FAHRZEUG_ID, name: E2E_FAHRZEUG_NAME, typ: "fahrzeug", kennung: "MS-E2E-1",
     aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
@@ -269,7 +270,7 @@ function geraeteFixtures(): void {
   }).onConflictDoNothing().run();
 
   db.insert(lagerorte).values({
-    id: "e2e-geraete-fahrzeug", name: "E2E Geräte RTW", typ: "fahrzeug",
+    id: E2E_FAHRZEUG_ANDERES_ID, name: E2E_FAHRZEUG_ANDERES_NAME, typ: "fahrzeug",
     kennung: "MS-E2E-2", aktiv: true, templateId: null,
   }).onConflictDoNothing().run();
 
@@ -315,6 +316,122 @@ function vorlagenFixtures(): void {
     id: "e2e-vorlagen-fahrzeug", name: "E2E Vorlagen-KTW", typ: "fahrzeug",
     kennung: "MS-E2E-3", aktiv: false, templateId: null,
   }).onConflictDoNothing().run();
+}
+
+/**
+ * DREI FAHRZEUGE FUER `lagerbuch-verfall-fahrzeug.spec.ts` (DRK-298) — ZWEI mit
+ * je einer ABGELAUFENEN Meldung, eins ganz OHNE.
+ *
+ * ⚠️ ZWEI GEMELDETE, NICHT EINS, UND DAS IST DER UNTERSCHIED ZWISCHEN EINEM
+ * TEST UND EINER LEEREN GESTE. „Nach Fahrzeug filtern" ist Akzeptanzkriterium 1
+ * — mit einer einzigen Meldung im Seed laesst eine Einschraenkung auf „dieses
+ * Fahrzeug" genau dieselbe Zeile stehen, und die Zusicherung waere auch dann
+ * gruen, wenn der Filter gar nichts taete. (Gemessen: die Trefferanzeige blendet
+ * sich bei 1 von 1 korrekt aus und war ueberhaupt nicht im DOM.)
+ *
+ * ⚠️ DAS DRITTE IST KEIN FUELLSEL. „nichts faellig" und „nie angesehen" sehen in
+ * der Fahrzeugliste verschieden aus, und genau diese Unterscheidung ist der
+ * Zweck des Tickets; ohne ein Fahrzeug ohne jede Meldung liesse sie sich im
+ * Browser nicht zeigen.
+ *
+ * ⚠️ AUCH DAS DRITTE BRAUCHT EIN SOLL. Die Erfassung wird gegen das aktive Soll
+ * gemessen (Reviewbefund zu DRK-298); ein Fahrzeug ohne Sollposition hat
+ * NICHTS ZU ERFASSEN und zeigt folgerichtig „—" statt einer Quote. Ohne die
+ * Sollposition pruefte die Spec die Wissensluecke also gar nicht, sondern den
+ * Fall „hier gibt es nichts zu sagen".
+ *
+ * ⚠️ BEIDE INAKTIV. `ChecklisteKnopf` ohne `fahrzeugId` meint ALLE AKTIVEN
+ * Fahrzeuge — ein drittes aktives Fahrzeug haenge sonst an jedem Checklistenlauf
+ * von `lagerbuch-checklisten.spec.ts` mit dran. Die Verwaltungsliste zeigt
+ * inaktive Fahrzeuge (Spaltenfilter „inaktiv"), die Spec findet sie also.
+ *
+ * ⚠️ WIEDERVERWENDET WIRD `e2e-verfall-artikel`, kein neuer. Er gehoert bereits
+ * dem Verfallsfluss, und ein weiterer aktiver Artikel verschoebe die Zahlen, die
+ * fremde Specs an Artikelliste, Etiketten und Kennzahlen zusichern (I-14). Die
+ * Soll-Position macht die Meldung erst plausibel: der SCHREIBweg
+ * (`_actions/lagerortVerfall.ts`) verlangt sie, der Lesepfad fragt sie nie.
+ */
+function fahrzeugVerfallFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values([
+    { id: "e2e-verfall-fahrzeug", name: "E2E Verfall-RTW", typ: "fahrzeug",
+      kennung: "MS-E2E-4", aktiv: false, templateId: null },
+    { id: "e2e-verfall-fahrzeug-2", name: "E2E Verfall-KTW", typ: "fahrzeug",
+      kennung: "MS-E2E-5", aktiv: false, templateId: null },
+    { id: "e2e-ungepflegt-fahrzeug", name: "E2E Ungepflegt-MTW", typ: "fahrzeug",
+      kennung: "MS-E2E-6", aktiv: false, templateId: null },
+  ]).onConflictDoNothing().run();
+
+  db.insert(sollPositionen).values([
+    { id: "e2e-verfall-soll", fahrzeugId: "e2e-verfall-fahrzeug", fachLabel: "Fach E2E",
+      sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "e2e-verfall-soll-2", fahrzeugId: "e2e-verfall-fahrzeug-2", fachLabel: "Fach E2E",
+      sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "e2e-ungepflegt-soll", fahrzeugId: "e2e-ungepflegt-fahrzeug", fachLabel: "Fach E2E",
+      sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+  ]).onConflictDoNothing().run();
+
+  // ABGELAUFEN, nicht bloss warnend — und ein FESTES Datum weit in der
+  // Vergangenheit, damit der Zustand nicht mit dem Kalendertag kippt. Derselbe
+  // Artikel an zwei Fahrzeugen ist zulaessig: eindeutig ist (Lagerort, Artikel).
+  db.insert(lagerortVerfall).values([
+    { id: "e2e-verfall-meldung", lagerortId: "e2e-verfall-fahrzeug",
+      artikelId: "e2e-verfall-artikel", verfall: "2020-01", erfasstAt: JETZT,
+      quelleTyp: "system", quelleId: "e2e" },
+    { id: "e2e-verfall-meldung-2", lagerortId: "e2e-verfall-fahrzeug-2",
+      artikelId: "e2e-verfall-artikel", verfall: "2020-02", erfasstAt: JETZT,
+      quelleTyp: "system", quelleId: "e2e" },
+  ]).onConflictDoNothing().run();
+}
+
+/**
+ * Ein Fahrzeug MIT ECHTEM BESTAND fuer `lagerbuch-aussondern-fahrzeug.spec.ts`
+ * (DRK-303).
+ *
+ * ⚠️ EIN EIGENES FAHRZEUG UND NICHT `e2e-verfall-fahrzeug`: diese Spec SCHREIBT
+ * (sie bucht Bestand ab), und `lagerbuch-verfall-fahrzeug.spec.ts` sichert an
+ * jenem Fahrzeug feste Werte zu. Zwei Specs auf derselben Zeile sind genau die
+ * Reihenfolgeabhaengigkeit, die isoliert gruen ist und im Verbund rot.
+ *
+ * ⚠️ WIEDERVERWENDET WERDEN ARTIKEL UND CHARGE des Verfallsflusses, kein neuer
+ * Artikel: ein weiterer aktiver Artikel verschoebe die Zahlen, die fremde Specs
+ * an Artikelliste, Etiketten und Kennzahlen zusichern (I-14). Der Bestand liegt
+ * AM FAHRZEUG — der Handlager-Rest derselben Charge bleibt damit unberuehrt,
+ * und genau diese Trennung ist die Invariante des Moduls (§5.2.1).
+ *
+ * ⚠️ KEINE `lagerort_verfall`-Zeile: sonst erschiene das Fahrzeug in der
+ * Verfallsliste, die die Nachbarspec durchzaehlt. Die Zeile im Fahrzeugblatt
+ * steht auch ohne sie — sie kommt aus der SOLL-Position und meldet „nicht
+ * erfasst".
+ */
+function aussondernFahrzeugFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values({
+    id: "e2e-aussondern-fahrzeug", name: "E2E Aussondern-RTW", typ: "fahrzeug",
+    kennung: "MS-E2E-7", aktiv: false, templateId: null,
+  }).onConflictDoNothing().run();
+
+  db.insert(sollPositionen).values({
+    id: "e2e-aussondern-soll", fahrzeugId: "e2e-aussondern-fahrzeug",
+    fachLabel: "Fach E2E", sort: 0, artikelId: "e2e-verfall-artikel", soll: 4,
+    templatePositionId: null, ueberschrieben: false, entfernt: false,
+  }).onConflictDoNothing().run();
+
+  // Idempotent ueber die Referenz: ein zweiter Seed-Lauf darf den Bestand nicht
+  // verdoppeln, und `buchungen` traegt keinen eindeutigen Index dafuer.
+  const schon = db.select().from(buchungen)
+    .where(eq(buchungen.referenz, "e2e-aussondern-seed")).get();
+  if (!schon) {
+    db.insert(buchungen).values({
+      id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-verfall-artikel",
+      chargeId: "e2e-verfall-charge", lagerortId: "e2e-aussondern-fahrzeug",
+      menge: 4, quelleTyp: "system", quelleId: "e2e",
+      referenz: "e2e-aussondern-seed", kommentar: null,
+    }).run();
+  }
 }
 
 /**
@@ -430,13 +547,48 @@ function lastFixtures(): void {
   }
 }
 
+/**
+ * DAS GEBUNDENE FAHRZEUG-KAERTCHEN — `e2e/lagerbuch-fahrzeug-kaertchen.spec.ts`
+ * (DRK-302).
+ *
+ * Es zeigt auf DAS Fahrzeug, das `checkFixtures()` ohnehin anlegt, und braucht
+ * deshalb kein eigenes: der Spec liest nur, er bucht nichts. Was er
+ * hinterlaesst, ist `tokens.last_used_at` dieses einen Codes — und den liest
+ * keine andere Spec.
+ *
+ * ⚠️ DIE REIHENFOLGE GEGENUEBER `checkFixtures()` IST EGAL — `tokens.ziel_id`
+ * traegt bewusst KEINEN Fremdschluessel (`_db/schema.ts`), beim Einfuegen wird
+ * also nichts geprueft. WAS ZAEHLT, IST DIE ID: zeigt das Kaertchen auf etwas
+ * anderes als das Fahrzeug, das `checkFixtures()` anlegt, faellt die
+ * Check-Seite auf die volle Wahl zurueck (der Fall „gebundenes Fahrzeug
+ * geloescht"), und der Spec waere gruen fuer „ungebunden waehlt frei" und rot
+ * fuer jeden anderen Test — ohne dass die Fehlermeldung auf die Ursache zeigte.
+ * Genau deshalb lesen BEIDE Funktionen dieselbe Konstante `E2E_FAHRZEUG_ID` aus
+ * `helpers/lagerbuch.ts` und keine Literale.
+ */
+function fahrzeugKaertchenFixtures(): void {
+  getDb().insert(tokens).values({
+    // ⚠️ DAS LABEL TRAEGT DEN FAHRZEUGNAMEN BEWUSST NICHT. Es landet im
+    // Sitzungsetikett des Helfer-Rahmens („Zugang: Token … · <label>"), und ein
+    // „E2E RTW Kärtchen" machte jede Zusicherung auf den Fahrzeugnamen im Spec
+    // zahnlos: sie waere auch dann gruen, wenn die Ueberschrift ueber dem
+    // Check-Schritt ganz fehlte.
+    id: "e2e-fahrzeug-token", code: E2E_TOKEN_FAHRZEUG, label: "E2E Fahrzeugkärtchen",
+    aktiv: true, createdAt: JETZT, createdBy: "e2e", scopeLagerortId: null,
+    zielTyp: "fahrzeug", zielId: E2E_FAHRZEUG_ID, lastUsedAt: null,
+  }).onConflictDoNothing().run();
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
 checkFixtures();
 geraeteFixtures();
+fahrzeugKaertchenFixtures();
 bestellFixtures();
 vorlagenFixtures();
+fahrzeugVerfallFixtures();
+aussondernFahrzeugFixtures();
 kategorieFixtures();
 inventurFixtures();
 sammelFixtures();

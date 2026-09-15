@@ -28,6 +28,29 @@ import { bestandJeArtikelUndLagerort, type Leser } from "./bestand";
 import { handlagerOrte } from "./orte";
 import { lagerortVerfallListe } from "./verfall";
 
+/**
+ * DIE EINE FRAGE „taugt dieser Lagerort als Buchungsziel?" — DRK-300.
+ *
+ * Beide Entnahmewege und die Zielwahl stellen sie, und alle drei brauchen
+ * dieselbe Antwort. Ohne sie entschiede der Fremdschlüssel, und der meldet
+ * „FOREIGN KEY constraint failed" — ein Satz, der der Verwaltenden nichts sagt
+ * und der Helferin am Regal noch weniger.
+ *
+ * ⚠️ DREI ZUSTÄNDE FALLEN DURCH, NICHT EINER: ein unbekannter Lagerort, ein
+ * STILLGELEGTES Fahrzeug und ein zweites LAGER. Die beiden letzten existieren
+ * — eine Prüfung, die nur auf „unbekannt" testet, lässt sie durch, und dann
+ * wandert Material vom Handlager ins Handlager.
+ *
+ * ⚠️ SIE WIRFT NICHT. Der Verwaltungsweg macht aus dem `false` seinen Wurf (sein
+ * `catch` verwandelt ihn in einen Rückgabewert), der Helfer-Weg ein `return` —
+ * der hat bewusst KEIN try/catch (Global Constraint 12), und ein Wurf landete
+ * dort als englischer Satz mit `digest` auf der Fehlerseite.
+ */
+export function istAktivesFahrzeug(db: Leser, id: string): boolean {
+  const ziel = db.select().from(lagerorte).where(eq(lagerorte.id, id)).get();
+  return Boolean(ziel && ziel.typ === "fahrzeug" && ziel.aktiv);
+}
+
 export function fahrzeugListe(db: Leser) {
   return db.select().from(lagerorte).where(eq(lagerorte.typ, "fahrzeug")).all()
     .map((f) => ({ id: f.id, name: f.name, kennung: f.kennung,
@@ -39,8 +62,53 @@ export type FahrzeugUebersichtZeile = {
   positionen: number; faecher: number;
   /** Artikel, deren Fahrzeugbestand die SOLL-SUMME unterschreitet. */
   artikelUnterSoll: number;
-  /** Gemeldete Verfaelle im Warnbereich oder bereits abgelaufen. */
-  verfallAuffaellig: number;
+  /**
+   * DREI ANGABEN, WO FRUEHER EINE ZAHL STAND (DRK-298).
+   *
+   * `verfallAuffaellig` warf rot und gelb zusammen, und die Fahrzeugliste
+   * zeigte die Summe als GELBEN Chip: ein Fahrzeug mit drei abgelaufenen
+   * Artikeln sah aus wie eins, bei dem in drei Monaten etwas faellig wird.
+   * Genau die Unterscheidung, nach der das Ticket heisst, fehlte damit auf der
+   * Flaeche, auf die man zuerst schaut.
+   *
+   * ⚠️ DIE BEIDEN ZAHLEN UEBERSCHNEIDEN SICH NICHT. `abgelaufen` und
+   * `ampel === "rot"` sind NICHT dasselbe (`domain/verfall.ts`) — eine
+   * abgelaufene Meldung ist immer rot, eine rote nicht immer abgelaufen. Wer
+   * `verfallWarnend` als `ampel !== "gruen"` rechnet, zaehlt jede abgelaufene
+   * Meldung in BEIDEN Zahlen, und ihre Summe ist stillschweigend zu gross.
+   *
+   * ⚠️ `verfallAuffaellig` GIBT ES HIER NICHT MEHR — die Summe steht in der
+   * Anzeige. Eine Summe NEBEN ihren Teilen ist eine zweite Wahrheit, die
+   * auseinanderlaufen kann. Die gleichnamige Zahl in der CHECK-Auswertung
+   * (`_actions/check.ts`, `lesepfade/checks.ts`) ist etwas anderes und bleibt.
+   */
+  verfallAbgelaufen: number;
+  /** Gemeldete Verfaelle im Warnbereich, die NOCH NICHT abgelaufen sind. */
+  verfallWarnend: number;
+  /**
+   * WIE WEIT IST DIESES FAHRZEUG UEBERHAUPT ANGESEHEN? — `verfallErfasst` von
+   * `verfallSollArtikel` Artikeln des AKTIVEN SOLLS tragen eine Angabe, GRUENE
+   * EINGESCHLOSSEN.
+   *
+   * ⚠️ EIN BOOLESCHES „ist gepflegt" WAERE HIER FALSCH, und der Reviewbefund zu
+   * DRK-298 sagt auch, warum: der Check gibt das Verfallsdatum AUSDRUECKLICH
+   * FREIWILLIG ab („nur aendern, wenn auf der Packung ein anderes Datum steht",
+   * `_ui/CheckFlow.tsx`), und ein nicht geaendertes Feld wird nicht
+   * uebermittelt. TEILWEISE gepflegte Fahrzeuge sind damit der NORMALFALL.
+   * Wer aus EINER vorhandenen Zeile auf „gepflegt" schliesst, erklaert ein
+   * Fahrzeug mit acht Soll-Artikeln und einer gruenen Angabe zum gruenen
+   * Bereich — genau die falsche Entwarnung, gegen die diese Felder gebaut sind.
+   *
+   * ⚠️ GEZAEHLT WIRD DAS AKTIVE SOLL, NICHT DIE MELDUNGEN. Eine Meldung zu
+   * einem Artikel, der nicht (mehr) im Soll steht, zaehlt NICHT mit — sonst
+   * koennte ein Fahrzeug „3 von 2 erfasst" melden. Grabsteine sind kein Soll.
+   *
+   * ⚠️ `verfallSollArtikel === 0` HEISST „nichts zu erfassen", nicht
+   * „vollstaendig": ein Fahrzeug ohne Soll hat keine Aussage, und die Anzeige
+   * darf ihm keine Entwarnung ausstellen.
+   */
+  verfallErfasst: number;
+  verfallSollArtikel: number;
   letzterCheck: Date | null;
   templateName: string | null;
 };
@@ -62,9 +130,27 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
   const templateNamen = new Map(
     db.select().from(fahrzeugTemplates).all().map((t) => [t.id, t.name]));
 
-  const verfallProFzg = new Map<string, number>();
-  for (const z of lagerortVerfallListe(db, { nurWarnend: true }, now)) {
-    verfallProFzg.set(z.lagerortId, (verfallProFzg.get(z.lagerortId) ?? 0) + 1);
+  /**
+   * ⚠️ OHNE `nurWarnend` GELESEN — und das ist der Grund, warum diese Schleife
+   * nicht kuerzer sein kann. `nurWarnend: true` wirft gruene Zeilen weg, und
+   * genau sie beantworten „ist hier ueberhaupt etwas gepflegt?". Mit dem Filter
+   * waere `verfallGepflegt` fuer ein sauber gepflegtes, unauffaelliges Fahrzeug
+   * `false` — die Luecke, gegen die das Feld gebaut ist, waere wieder da,
+   * obwohl der Name das Gegenteil behauptet.
+   */
+  const verfallProFzg = new Map<string,
+    { abgelaufen: number; warnend: number; artikel: Set<string> }>();
+  for (const z of lagerortVerfallListe(db, {}, now)) {
+    const stand = verfallProFzg.get(z.lagerortId)
+      ?? { abgelaufen: 0, warnend: 0, artikel: new Set<string>() };
+    // SICH AUSSCHLIESSEND: eine abgelaufene Meldung ist rot, zaehlt aber NUR
+    // links — sonst stuende sie in beiden Zahlen und ihre Summe waere zu gross.
+    if (z.abgelaufen) stand.abgelaufen += 1;
+    else if (z.ampel !== "gruen") stand.warnend += 1;
+    // Die Artikelmenge traegt AUCH die gruenen — sie beantwortet „angesehen?",
+    // nicht „auffaellig?".
+    stand.artikel.add(z.artikelId);
+    verfallProFzg.set(z.lagerortId, stand);
   }
 
   const letzterProFzg = new Map<string, Date>();
@@ -88,10 +174,20 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
       for (const [artikelId, sollSumme] of sollProArtikel) {
         if ((imFahrzeug?.get(artikelId) ?? 0) < sollSumme) artikelUnterSoll += 1;
       }
+      const verfall = verfallProFzg.get(f.id);
+      // ⚠️ UEBER `sollProArtikel` und nicht ueber die Meldungen — die Schleife
+      // laeuft damit ueber das SOLL und kann die Quote nicht ueberschreiten.
+      let verfallErfasst = 0;
+      for (const artikelId of sollProArtikel.keys()) {
+        if (verfall?.artikel.has(artikelId)) verfallErfasst += 1;
+      }
       return {
         id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
         positionen: soll.length, faecher: faecher.size, artikelUnterSoll,
-        verfallAuffaellig: verfallProFzg.get(f.id) ?? 0,
+        verfallAbgelaufen: verfall?.abgelaufen ?? 0,
+        verfallWarnend: verfall?.warnend ?? 0,
+        verfallErfasst,
+        verfallSollArtikel: sollProArtikel.size,
         letzterCheck: letzterProFzg.get(f.id) ?? null,
         templateName: f.templateId ? (templateNamen.get(f.templateId) ?? null) : null,
       };

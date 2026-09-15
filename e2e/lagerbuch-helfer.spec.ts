@@ -1,8 +1,10 @@
 import { registerAuditFunctions } from "@/core/audit/context";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
 import {
+  E2E_FAHRZEUG_NAME,
+  E2E_TOKEN_CHECK,
   E2E_TOKEN_HELFER,
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -19,10 +21,20 @@ import {
  * ⚠️ TOKEN-HERKUNFT: `E2E_TOKEN_HELFER`, NIE `select ... limit 1`. Ruling A9
  * reserviert ihn namentlich fuer den echten Einloese-Lauf dieser Datei
  * (`lagerbuch-hosts.spec.ts:192-194` schreibt das ausdruecklich aus). Alle
- * Tests hier benutzen ausschliesslich diesen Code — `/helfer/check` prueft
- * `tokens.scope_lagerort_id` heute nicht (Ansatzpunkt 1, `helfer/check/page.tsx:64-71`),
- * die HELFER-Sitzung erreicht also auch das Check-Fahrzeug `E2E RTW` aus
- * `E2E_TOKEN_CHECK`s eigenen Fixtures, ohne dessen Code zu benutzen.
+ * Tests hier benutzen ausschliesslich diesen Code, und er traegt `ziel_typ =
+ * null` — er ist also UNGEBUNDEN. Genau deshalb erreicht die HELFER-Sitzung auch
+ * das Check-Fahrzeug `E2E RTW` aus `E2E_TOKEN_CHECK`s eigenen Fixtures, ohne
+ * dessen Code zu benutzen.
+ *
+ * ⚠️ SEIT DRK-302 IST DAS EINE VORBEDINGUNG, KEINE NEBENSACHE: ein Kaertchen MIT
+ * Fahrzeugbindung sieht in `/helfer/check` nur noch sein eigenes Fahrzeug. Wer
+ * `E2E_TOKEN_HELFER` im Seed ein `ziel_typ`/`ziel_id` gibt, macht die halbe
+ * Datei rot — und zwar an Stellen, die nichts mit Bindung zu tun haben. Das
+ * gebundene Kaertchen ist deshalb ein VIERTER Code
+ * (`E2E_TOKEN_FAHRZEUG`, `e2e/lagerbuch-fahrzeug-kaertchen.spec.ts`).
+ * `tokens.scope_lagerort_id` prueft weiterhin NICHTS — die Spalte ist tot, und
+ * die Durchsetzung eines Scopes als RIEGEL bleibt die offene Betreiberfrage 5
+ * (Ansatzpunkt 2, `_actions/check.ts`).
  *
  * ⚠️ SELEKTOREN SIND NACH DER SPEC BENANNT, NICHT ABGELESEN, UND WURDEN GEGEN
  * DAS GEBAUTE BAUTEIL GEPRUEFT: der Brief nennt „Mullbinde" und `spinbutton` —
@@ -47,7 +59,10 @@ import {
  *     diese Tabelle nicht an. ⚠️ Der geschriebene Monat MUSS deshalb ausserhalb
  *     der Warnschwelle liegen (`2090-09`), sonst taucht der Artikel in
  *     `/verwaltung/verfall` auf und faerbt eine fremde Spec rot. Begruendung
- *     ausgeschrieben an der Fuellstelle.
+ *     ausgeschrieben an der Fuellstelle. Der DRK-306-Block unten schreibt in
+ *     dieselbe Zeile (`2090-07`) — als VORBEDINGUNG, nicht als Ergebnis: er
+ *     schliesst keinen Check ab und nimmt die Angabe auch nicht zurueck, das
+ *     Leeren bleibt dort im Bild.
  *
  * ⚠️ JEDER TEST STELLT SEINEN ZUSTAND SELBST HER (§12.3): `beforeEach`
  * reaktiviert den Code VOR jedem Test, nicht nur ein `afterEach` danach — sonst
@@ -96,6 +111,51 @@ function zaehleBuchungen(artikelId: string, quelleTyp: string, quelleId: string)
   }
 }
 
+/**
+ * Der Bestand EINES Artikels AN EINEM Lagerort — DRK-300.
+ *
+ * ⚠️ NICHT die Zahl der Zeilen, sondern ihre SUMME: eine Umlagerung schreibt
+ * zwei Zeilen, und „es sind zwei mehr geworden" wäre auch dann grün, wenn beide
+ * im Handlager lägen. Gefragt ist, ob im FAHRZEUG etwas angekommen ist.
+ */
+function bestandAn(artikelId: string, lagerortId: string): number {
+  const db = new Database(DB_PFAD, { readonly: true });
+  try {
+    const zeile = db
+      .prepare(
+        "select coalesce(sum(menge), 0) as n from buchungen where artikel_id = ? and lagerort_id = ?",
+      )
+      .get(artikelId, lagerortId) as { n: number };
+    return zeile.n;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * EIN ZIEL WÄHLEN — und dabei die ANTWORT prüfen, nicht nur die Landung.
+ *
+ * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`AGENTS.md`): ein e2e-Test, der eine
+ * Anfrage auslöst, prüft ihre Antwort. Die Zeile darunter wäre sonst blind
+ * gegen genau den Fall, für den es die Regel gibt — ein abgebrochener oder
+ * abgelehnter POST meldet sich nicht als Fehler, sondern als Zeitüberschreitung
+ * beim Warten auf eine Navigation, die nie angestoßen wurde. Die Meldung zeigte
+ * dann auf `waitForURL` und nicht auf die Server Action, die nicht durchkam.
+ *
+ * Der POST geht an die Wahlseite selbst — dort steht das Formular, und eine
+ * Server Action postet auf die URL ihrer eigenen Seite.
+ */
+async function waehleZiel(page: Page, name: RegExp): Promise<void> {
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/helfer/ziel")),
+    page.getByRole("button", { name }).click(),
+  ]);
+  expect(
+    antwort.status(),
+    `die Zielwahl muss serverseitig ankommen — Antwort war ${antwort.status()}`,
+  ).toBeLessThan(400);
+}
+
 /** Der juengste Check-Datensatz eines Fahrzeugs, oder `undefined`, wenn es
  *  noch keinen gibt — Tiebreaker `id`, weil `completed_at` sekundengranular
  *  ist (§4.9). */
@@ -141,6 +201,21 @@ test.describe("Der Weg am Stueck", () => {
 
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
     await page.waitForURL(/\/a\/e2e-artikel/);
+
+    /*
+     * DRK-300 — OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist gesperrt, bis die
+     * Wahl getroffen ist; „Kein Fahrzeug — Verbrauch" ist eine ausdrückliche
+     * Wahl und kein Leerlassen. Diese drei Zeilen sind zugleich der einzige
+     * Ort, an dem die GESPERRTE Form im echten Browser nachgewiesen wird —
+     * jsdom rechnet keine Bedienbarkeit, und der Vitest-Fall prüft das
+     * `disabled`-Attribut, nicht den Klick.
+     */
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, /Kein Fahrzeug/);
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
     await page.getByRole("button", { name: "Entnahme buchen" }).click();
     await expect(page.getByText(/gebucht/i)).toBeVisible();
 
@@ -177,6 +252,88 @@ test.describe("Der Weg am Stueck", () => {
     await expect(zeilen.locator(`[title="${E2E_TOKEN_HELFER}"]`)).toHaveCount(nachher);
 
     await ctx.close();
+  });
+
+  /**
+   * DRK-300 — DIE ENTNAHME AUF EIN FAHRZEUG.
+   *
+   * ⚠️ NUR HIER IST SIE GANZ ZU SEHEN. Vitest prüft die Hälften einzeln: die
+   * Action bucht zwei Legs, die Insel reicht das Ziel durch, die Seite löst das
+   * Cookie auf. Dass ein COOKIE aus der Wahlseite den nächsten Seitenaufruf
+   * überlebt und dort zu einer Umlagerung führt, kann nur ein echter Browser
+   * zeigen — jsdom hat keinen Cookie-Speicher über Anfragen hinweg, und ein
+   * Unit-Test hätte keine zweite Anfrage.
+   */
+  test("das gewählte Fahrzeug überlebt den nächsten Artikel und bucht dorthin", async ({ page }) => {
+    const vorherFahrzeug = bestandAn("e2e-artikel", "e2e-fahrzeug");
+    const vorherHandlager = bestandAn("e2e-artikel", "handlager");
+
+    await page.goto(lagerbuchUrl("/"));
+    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.waitForURL(/\/helfer$/);
+
+    await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    // Die Wahl steht über dem Knopf — sonst lenkte sie still Bestand um.
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    await page.getByRole("button", { name: "Entnahme buchen" }).click();
+    await expect(page.getByText(/gebucht/i)).toBeVisible();
+
+    /*
+     * ⚠️ DIE WAHL ÜBERLEBT DEN SEITENWECHSEL — das ist der Punkt, für den es
+     * ein Cookie und keinen Suchparameter gibt. Ein frischer Aufruf derselben
+     * Seite ist dafür der ehrlichste Nachweis: kein Zustand im Speicher, keine
+     * URL, die die Antwort schon enthält.
+     */
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    // NETTO NULL: was im Fahrzeug ankommt, fehlt im Handlager.
+    const zugewachsen = bestandAn("e2e-artikel", "e2e-fahrzeug") - vorherFahrzeug;
+    expect(zugewachsen, "im Fahrzeug muss Bestand angekommen sein").toBeGreaterThan(0);
+    expect(bestandAn("e2e-artikel", "handlager")).toBe(vorherHandlager - zugewachsen);
+  });
+
+  /**
+   * DIE WAHL GEHÖRT IHRER SCHICHT — Review-Befund P1 zu PR #140.
+   *
+   * ⚠️ NUR HIER IST DER FALL ECHT NACHSTELLBAR. Ein Unit-Test prüft, dass ein
+   * fremdes Kärtchen den gemerkten Wert verwirft; ob das Cookie den
+   * Sitzungswechsel im Browser ÜBERHAUPT überlebt — und damit, ob es die Frage
+   * je gibt —, zeigt nur ein echter Wechsel im selben Kontext. Genau so steht
+   * das Telefon im Gerätehaus: ein Gerät, wechselnde Kärtchen.
+   *
+   * Ohne die Bindung stünde nach dem zweiten Einlösen das Fahrzeug der ersten
+   * Schicht über dem Knopf, und der wäre sofort bedienbar.
+   */
+  test("nach einem Kärtchenwechsel gilt die Wahl der vorigen Schicht nicht weiter", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/"));
+    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.waitForURL(/\/helfer$/);
+
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    // Schichtwechsel auf DEMSELBEN Gerät: anderes Kärtchen einlösen.
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_CHECK}`));
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+
+    const ziel = page.locator("[data-rolle='entnahme-ziel']");
+    await expect(ziel).not.toContainText(E2E_FAHRZEUG_NAME);
+    await expect(ziel).toContainText("Noch nichts gewählt");
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
   });
 });
 
@@ -264,6 +421,17 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
     await page.waitForURL(/\/helfer$/);
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    /*
+     * Ziel wählen, SOLANGE das Kärtchen noch gilt — seit DRK-300 ist der
+     * Buchen-Knopf ohne Ziel gesperrt, und eine Zielwahl nach dem Sperren käme
+     * gar nicht mehr durch. Das entspricht auch dem Hergang, den dieser Test
+     * beschreibt: die Sperre trifft jemanden MITTEN in der Arbeit.
+     */
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     // Mitten in der Schicht gesperrt.
@@ -450,7 +618,28 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
      * Warnwirkung.
      */
     await page.getByLabel(/^Verfall E2E Check Kompressen/).fill("2090-09");
-    await page.getByRole("button", { name: "Weiter" }).click(); // Zaehlen → Nachfuellen
+
+    /*
+     * SEIT DRK-304 MUSS HIER GEZAEHLT WERDEN. Die Position startet bei 0, und
+     * „Weiter" bleibt gesperrt, solange sie niemand angefasst hat — eine 0, die
+     * niemand gezaehlt hat, waere sonst eine unwiderrufliche Leerbuchung auf den
+     * Fahrzeugbestand.
+     *
+     * Dreimal „+" bringt sie auf das Soll (3) und damit auf den Stand, den der
+     * Test vor DRK-304 durch die Vorbelegung geschenkt bekam: keine Luecke,
+     * keine Nachfuellung, dieselbe Zusicherung am Ende. `toBeEnabled()` steht
+     * dazwischen, weil ein Klick auf einen gesperrten Knopf in Playwright nicht
+     * scheitert, sondern in sein Zeitbudget laeuft und sich als etwas anderes
+     * meldet (Falle 10, zweite Testregel).
+     */
+    const weiter = page.getByRole("button", { name: "Weiter" });
+    await expect(weiter, "unberuehrte Positionen muessen „Weiter\" sperren").toBeDisabled();
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: /^E2E Check Kompressen.*erhöhen$/ }).click();
+    }
+    await expect(weiter).toBeEnabled();
+
+    await weiter.click(); // Zaehlen → Nachfuellen
     await page.getByRole("button", { name: "Weiter" }).click(); // Nachfuellen → Sauerstoff
     await page.getByRole("button", { name: "Abschließen" }).click();
 
@@ -521,5 +710,131 @@ test.describe("Task 2 (Typografie & Farbe, Teil A) — die Display-Familie im He
       gerendert.split(",")[0],
       `Barlow muss die erste Familie im Stapel sein, nicht nur enthalten: ${gerendert}`,
     ).toContain("Barlow");
+  });
+});
+
+/**
+ * DRK-306 — DER LETZTE CHECK UND DAS LEEREN DES VERFALLSFELDES.
+ *
+ * ⚠️ WARUM DAS NICHT IN VITEST ERLEDIGT IST, obwohl `_ui/CheckFlow.test.tsx`
+ * beide Zusagen bereits am DOM prueft: die eigentliche Aussage von AK4 ist eine
+ * BEDIENBARKEITSAUSSAGE AUF DEM TELEFON. Ein natives `<input type="month">`
+ * verhaelt sich am Schreibtisch und am Telefon verschieden — dort raeumt die
+ * Ruecktaste das Feld, hier oeffnet sich ein Monatsradler, der IMMER einen Monat
+ * liefert. jsdom kennt keine der beiden Bedienungen (es setzt `value` direkt)
+ * und kann den Unterschied strukturell nicht sehen; es kann nur zeigen, dass der
+ * Knopf das Richtige TUT, nicht dass es ihn im Bild ueberhaupt gibt.
+ *
+ * ⚠️ DIESER BLOCK SCHLIESST DEN CHECK NICHT AB und schreibt deshalb KEINE Zeile
+ * — weder nach `checks` noch nach `lagerort_verfall`. Das ist Absicht: die
+ * Datei fuehrt oben vollstaendig auf, was sie hinterlaesst, und ein geloeschter
+ * Verfallseintrag waere eine RUECKNAHME im gemeinsamen Datenbestand eines
+ * Workers. Was danach in der Datenbank steht, besitzt der Test in `§12.1
+ * Punkt 1` weiter oben; hier zaehlt allein, was im Bild passiert.
+ *
+ * ⚠️ DIE VORBELEGUNG WIRD SELBST GESCHRIEBEN, nicht von der Testreihenfolge
+ * geerbt. Der Verfallstest weiter oben legt fuer dasselbe Paar (Fahrzeug,
+ * Artikel) einen Eintrag an — sich darauf zu verlassen, machte diesen Test von
+ * einer fremden Deklarationsreihenfolge abhaengig und bei `--grep` still gruen,
+ * OHNE die ??-Kette je zu beruehren. Genau diese Kette ist aber der Fund:
+ * `verfallWert` loest ueber `verfallState[a] ?? verfall[a] ?? ""` auf, und ohne
+ * einen SERVERSEITIGEN Vorwert kann kein Ruecksturz stattfinden.
+ *
+ * ⚠️ DER WERT LIEGT IM FERNEN BAND (`2090-…`), aus dem Grund, den
+ * `e2e/seed-lagerbuch.ts` bei `E2E_VERFALL_FERN` ausschreibt: ein Datum
+ * innerhalb der Warnschwelle machte die Zeile in `/verwaltung/verfall` warnend
+ * und faerbte irgendwann eine fremde Spec rot, mit Ursache in dieser Datei.
+ */
+test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
+  // Telefonbreite: die Zusage von AK4 gilt fuer das Geraet, auf dem der Helfer
+  // wirklich steht. Auf Schreibtischbreite waere derselbe Knopf eine
+  // Bequemlichkeit, keine Behebung.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const VORBELEGT = "2090-07";
+
+  function verfallVorbelegen(): void {
+    const db = new Database(DB_PFAD);
+    // Dieselbe Bauform wie `sperre()` oben: die Audit-Trigger der Suite rufen
+    // `suite_audit_id()`, und eine rohe `better-sqlite3`-Verbindung kennt die
+    // Funktion nicht — ohne diese Zeile bricht schon das `prepare`.
+    registerAuditFunctions(db);
+    try {
+      db.prepare(
+        "insert into lagerort_verfall (id, lagerort_id, artikel_id, verfall, erfasst_at, quelle_typ, quelle_id)"
+          + " values (?, ?, ?, ?, ?, 'system', 'e2e')"
+          + " on conflict (lagerort_id, artikel_id) do update set verfall = excluded.verfall",
+      ).run(
+        "e2e-drk306-verfall", "e2e-fahrzeug", "e2e-check-artikel",
+        VORBELEGT, Math.floor(Date.now() / 1000),
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  test("der Zaehlschritt nennt den letzten Check — und das Verfallsfeld ist leerbar", async ({
+    page,
+  }) => {
+    verfallVorbelegen();
+
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.goto(lagerbuchUrl("/helfer/check"));
+    await page.getByRole("link", { name: /^E2E RTW/ }).click();
+    await page.waitForURL(/\/helfer\/check\?fz=/);
+
+    /*
+     * AK1. Der Seed legt fuer `e2e-fahrzeug` drei abgeschlossene Checks an
+     * (`seed-lagerbuch.ts`, zwei bis vier Stunden alt) — die Zeile MUSS also
+     * einen Zeitpunkt tragen und nicht den Erstcheck-Satz. Geprueft wird die
+     * FORM `TT.MM.JJJJ, HH:MM`, nicht der Wert: der haengt am Lauftag, und ein
+     * fester Wert waere morgen rot. Das Jahr ist der Teil, der zaehlt — ohne es
+     * ist ein Check von vor dreizehn Monaten von einem gestrigen nicht zu
+     * unterscheiden.
+     */
+    const herkunft = page.locator("[data-rolle='letzter-check']");
+    await expect(herkunft).toBeVisible();
+    await expect(herkunft).toHaveText(/Letzter Check: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
+
+    // AK2, im Browser: der Wert aus der Datenbank steht im Feld, ohne dass
+    // jemand etwas bestaetigt haette.
+    const feld = page.getByLabel(/^Verfall E2E Check Kompressen/);
+    await expect(feld).toHaveValue(VORBELEGT);
+
+    /*
+     * AK4. Der Knopf muss IM BILD und gross genug sein — das ist die Haelfte,
+     * die nur ein echter Browser kennt: jsdom rechnet keine Layoutboxen, und
+     * ein Knopf, den der 56er-Stepper daneben auf wenige Pixel zusammendrueckt,
+     * bestuende jeden DOM-Test und waere mit Handschuhen trotzdem nicht zu
+     * treffen.
+     *
+     * ⚠️ GEMESSEN WIRD 56, NICHT DIE WCAG-UNTERGRENZE 44 (Reviewbefund zu
+     * DRK-306). Der Helferweg gehoert der Bediendichte 56/72 (`CLAUDE.md`,
+     * Falle 4) — alles ohne Shell tut das. Eine 44er-Zusicherung liesse den
+     * Knopf still auf die `FullShell`-Dichte zurueckfallen und bliebe dabei
+     * gruen: der Test pruefte dann eine Grenze, die dieses Modul gar nicht
+     * hat, und die Regression saehe genauso aus wie der Sollzustand.
+     */
+    const leeren = page.locator("[data-rolle='verfall-leeren']");
+    await expect(leeren).toBeVisible();
+    const kasten = await leeren.boundingBox();
+    expect(kasten, "der Leerknopf muss eine Flaeche im Bild haben").not.toBeNull();
+    expect(kasten!.width, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
+    expect(kasten!.height, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
+
+    await leeren.click();
+
+    /*
+     * ⚠️ DIE ZWEITE ZUSICHERUNG IST DIE EIGENTLICHE. Dass das Feld unmittelbar
+     * nach dem Klick leer ist, saehe man auch bei einem `delete` im Zustand —
+     * React rendert danach ohnehin neu, und ERST dieser Neuaufbau holt ueber die
+     * ??-Kette den vorbelegten Monat zurueck. Playwright wartet auf den
+     * eingetroffenen Wert; ein Ruecksturz waere hier ein leeres Feld, das sich
+     * wieder fuellt.
+     */
+    await expect(feld).toHaveValue("");
+    await expect(leeren).toHaveCount(0);
+    await page.waitForTimeout(250);
+    await expect(feld).toHaveValue("");
   });
 });

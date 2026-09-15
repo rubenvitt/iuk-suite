@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tokenZielPfad } from "./tokenZiel";
+import { tokenZielPfad, fahrzeugBindungAus } from "./tokenZiel";
 import { sanitizeReturnTo } from "./returnTo";
 
 describe("tokenZielPfad — wohin ein eingeloester Code fuehrt", () => {
@@ -37,5 +37,55 @@ describe("tokenZielPfad — wohin ein eingeloester Code fuehrt", () => {
     for (const [typ, id] of [["artikel", "a"], ["fahrzeug", "f"], [null, null]] as const) {
       expect(sanitizeReturnTo(tokenZielPfad(typ, id))).toBe(tokenZielPfad(typ, id));
     }
+  });
+});
+
+describe("fahrzeugBindungAus — woran ein gescanntes Kaertchen haengt (DRK-302)", () => {
+  it("gibt die Fahrzeug-Id eines Fahrzeug-Kaertchens zurueck", () => {
+    expect(fahrzeugBindungAus("fahrzeug", "rtw-1")).toBe("rtw-1");
+  });
+
+  it("bindet ein Artikel-Kaertchen und ein zielloses an KEIN Fahrzeug", () => {
+    // Beide sind gueltige Kaertchen — sie fuehren nur nicht in ein Fahrzeug.
+    // Waeren sie gebunden, saehe die Helferin nach dem Regaletikett-Scan
+    // ploetzlich gar kein Fahrzeug mehr zur Auswahl.
+    expect(fahrzeugBindungAus("artikel", "art-1")).toBeNull();
+    expect(fahrzeugBindungAus(null, null)).toBeNull();
+    expect(fahrzeugBindungAus(undefined, undefined)).toBeNull();
+    expect(fahrzeugBindungAus("lagerort", "x")).toBeNull();
+  });
+
+  it("verlangt BEIDE Halbformen — eine halbe Zeile bindet nicht", () => {
+    // `zielTyp` und `zielId` sind je fuer sich nullbar (`_db/schema.ts`), und
+    // ein Alt-Import kann eine halbe Zeile tragen. Ohne diese Pruefung waere die
+    // Bindung die leere Zeichenkette: die Check-Seite faende dafuer kein
+    // Fahrzeug und zeigte einem gueltigen Kaertchen gar nichts mehr.
+    expect(fahrzeugBindungAus("fahrzeug", null)).toBeNull();
+    expect(fahrzeugBindungAus("fahrzeug", "")).toBeNull();
+    expect(fahrzeugBindungAus(null, "rtw-1")).toBeNull();
+  });
+
+  it("beantwortet DIESELBE Frage wie der Landepfad — fuer jede Halbform", () => {
+    /*
+     * DIE ZUSAGE, DIE DIE BEIDEN ANEINANDER BINDET (DRK-302). Landung nach dem
+     * Scan und Begrenzung des Einstiegs muessen dasselbe Fahrzeug meinen.
+     * Liefen sie auseinander, landete die Helferin per `?fz=` auf Fahrzeug A und
+     * die Seite zeigte ihr B — ein Check, der im Journal am falschen Fahrzeug
+     * haengt, und niemand sieht es der URL an.
+     */
+    const faelle = [
+      ["fahrzeug", "rtw-1"], ["fahrzeug", null], ["fahrzeug", ""],
+      ["artikel", "art-1"], [null, null], ["lagerort", "x"],
+    ] as const;
+    let geprueft = 0;
+    for (const [typ, id] of faelle) {
+      const bindung = fahrzeugBindungAus(typ, id);
+      const pfad = tokenZielPfad(typ, id);
+      expect(pfad.startsWith("/helfer/check?fz="), `${typ}/${id}`).toBe(bindung !== null);
+      if (bindung !== null) expect(pfad).toBe(`/helfer/check?fz=${bindung}`);
+      geprueft += 1;
+    }
+    // Regel 2: eine Schleife ohne Durchlauf fuehrt null Zusicherungen aus.
+    expect(geprueft).toBe(faelle.length);
   });
 });
