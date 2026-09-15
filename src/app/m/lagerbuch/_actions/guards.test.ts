@@ -372,6 +372,32 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Zaehlung steht damit auf 51 = 48 bewacht + 3 Ausnahmen, 48 = 46 + 2, in
  * 21 Action-Dateien.
  *
+ * NACHTRAG DRK-300 (15.09.2026): `entnahmeZiel.ts` mit `waehleEntnahmeZiel`
+ * kommt dazu — die Server Action, mit der am Regal das Ziel-Fahrzeug einer
+ * Entnahme gewaehlt wird. Bewacht von `requireHelferSchreibend`, und das ist die
+ * DRITTE Action mit diesem Riegel: wer nicht buchen darf, braucht auch kein Ziel
+ * zu setzen. Die Zaehlung steht damit auf 51 = 48 bewacht + 3 Ausnahmen,
+ * 48 = 45 + 3, in 21 Action-Dateien.
+ *
+ * ⚠️ Der Herleitungsblock ganz oben nennt weiterhin „2 requireHelferSchreibend".
+ * Das ist der ALT-REPO-STAND und bleibt als Herleitung stehen (wie die 44 und
+ * die 16 Dateien daneben); die gueltige Zahl ist die des juengsten Nachtrags —
+ * heute drei. Wer nur eine der beiden Stellen liest, haelt die andere fuer
+ * einen Fehler.
+ *
+ * NACHTRAG ZUSAMMENFUEHRUNG (15.09.2026): DRK-303 und DRK-300 sind am selben Tag
+ * gelandet, jeder mit EINER neuen Action — die eine admin-, die andere
+ * helfer-bewacht. Beide Nachtraege oben nennen darum „51 … in 21
+ * Action-Dateien"; das gilt jeweils FUER SICH ALLEIN. Gemeinsam steht die
+ * Zaehlung auf 52 = 49 bewacht + 3 Ausnahmen, 49 = 46 + 3, in 22
+ * Action-Dateien.
+ *
+ * ⚠️ DIESE ZEILE IST DER GRUND, WARUM DER MERGE NICHT STILL DURCHGEHT: git
+ * sieht auf beiden Seiten DIESELBE Aenderung von 50 auf 51 und uebernimmt sie
+ * ohne Konflikt — richtig waere 52. Wer nur die Konfliktmarker aufloest und die
+ * uebrigen Zahlen stehen laesst, bekommt eine Datei, die sich selbst
+ * widerspricht.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -414,6 +440,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "check.ts": 1,
     "csv.ts": 1,
     "detail.ts": 1,
+    "entnahmeZiel.ts": 1,   // DRK-300, nach Teil 6 dazugekommen
     "fahrzeuge.ts": 5,
     "gate.ts": 1,
     "geraete.ts": 3,
@@ -436,13 +463,13 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 21 Action-Dateien plus `guards.test.ts`", () => {
+  it("hat 22 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER)` zaehlen (Ruling A7): der Ordner fuehrt
     // auch die Testdateien. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
-    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 21 Dateien.").toHaveLength(21);
-    expect(dateien, "21 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
+    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 22 Dateien.").toHaveLength(22);
+    expect(dateien, "22 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
     expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 
@@ -463,10 +490,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 51 Deklarationen, obwohl es nur 48 verschiedene Namen gibt", () => {
+  it("zaehlt 52 Deklarationen, obwohl es nur 49 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "51 Deklarationen").toHaveLength(51);
-    expect(new Set(namen).size, "48 verschiedene Namen").toBe(48);
+    expect(namen, "52 Deklarationen").toHaveLength(52);
+    expect(new Set(namen).size, "49 verschiedene Namen").toBe(49);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -478,7 +505,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 48 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 49 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -487,7 +514,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "48 bewacht").toBe(48);
+    expect(funde.length - ausnahmen.length, "49 bewacht").toBe(49);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -554,7 +581,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 48 Riegel auf 46 requireLagerbuchAdmin und 2 requireHelferSchreibend", () => {
+  it("verteilt die 49 Riegel auf 46 requireLagerbuchAdmin und 3 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -564,6 +591,9 @@ describe("Zaehlung (§2.1 a)", () => {
     expect(helfer.map((f) => `${f.datei}#${f.name}`).sort(), "der schreibende Helfer-Weg").toEqual([
       "buchung.ts#bucheEntnahmeHelfer",
       "check.ts#checkAbschluss",
+      // DRK-300 — die Zielwahl am Regal. Sie bucht nichts, haengt aber am
+      // selben Kaertchen und ist von aussen genauso aufrufbar.
+      "entnahmeZiel.ts#waehleEntnahmeZiel",
     ]);
     expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(46);
   });
