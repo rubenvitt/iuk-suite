@@ -240,6 +240,10 @@ function Blatt({
                 </th>
                 <th scope="col">Flasche</th>
                 <th className="lb-cl-sBar" scope="col">Nennfülldruck</th>
+                {/* ⚠️ IN BAR, DIREKT NEBEN DEM SCHREIBFELD (DRK-308). Auf Papier
+                    gibt es keine Ampel; ohne diese Spalte trägt jemand eine Zahl
+                    ein und kann sie gegen nichts halten. */}
+                <th className="lb-cl-sBar" scope="col">Wechsel ab</th>
                 <th className="lb-cl-sBar" scope="col">zuletzt</th>
                 <th className="lb-cl-sIst" scope="col">gemessen (bar)</th>
               </tr>
@@ -250,6 +254,7 @@ function Blatt({
                   <td className="lb-cl-sHaken"><Kasten /></td>
                   <td className="lb-cl-artikel">{flasche.name}</td>
                   <td className="lb-cl-sBar">{flasche.nennfuelldruckBar} bar</td>
+                  <td className="lb-cl-sBar">{flasche.wechselAbBar} bar</td>
                   {/*
                     ⚠️ `null` IST „NIE GEMESSEN", NICHT 0 bar (§5.12). Ein
                     gedrucktes „0 bar" behauptete auf einem Nachweis eine leere

@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Input, InputNumber } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { flascheSpeichern } from "../../../../_actions/sauerstoff";
+import {
+  wechselGrenzeBar,
+  O2_WECHSEL_MAX_PROZENT,
+  O2_WECHSEL_MIN_PROZENT,
+} from "../../../../_lib/domain/o2";
 import { SCHRIFT } from "../../../../_lib/schrift";
 
 const ZAHL_DEBOUNCE_MS = 400;
@@ -15,6 +20,16 @@ type ReferenzWerte = {
   lagerortId: string;
   groesseLiter: number | null;
   nennfuelldruckBar: number;
+  /**
+   * % vom Nennfuelldruck, ab dem der Wechselhinweis erscheint (DRK-308).
+   *
+   * ⚠️ DIESES FELD MUSS MITREISEN, auch wenn niemand es anfasst. `flascheSpeichern`
+   * schreibt die Stammzeile GANZ, und das Zod-Schema belegt einen fehlenden Wert
+   * mit der Vorgabe 25 vor. Ohne die Zeile im `speichern`-Aufruf unten setzte
+   * also jede Namensaenderung den eingestellten Grenzwert still auf 25 zurueck —
+   * eine Datenaenderung, die niemand ausgeloest hat und die kein Tor sieht.
+   */
+  wechselAbProzent: number;
 };
 
 /**
@@ -78,6 +93,9 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
         lagerortId: snapshot.lagerortId,
         groesseLiter: snapshot.groesseLiter ?? undefined,
         nennfuelldruckBar: snapshot.nennfuelldruckBar,
+        // Siehe den Hinweis am Typ: fehlt diese Zeile, faellt der Grenzwert bei
+        // JEDEM Speichern still auf die Vorgabe zurueck.
+        wechselAbProzent: snapshot.wechselAbProzent,
       });
       if (generation === speicherGeneration.current) {
         // Der Satz aus der Action, nicht die Modulkonstante: nur er
@@ -107,7 +125,10 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
   }
 
   function zahlAendern(
-    aenderung: Pick<ReferenzWerte, "groesseLiter"> | Pick<ReferenzWerte, "nennfuelldruckBar">,
+    aenderung:
+      | Pick<ReferenzWerte, "groesseLiter">
+      | Pick<ReferenzWerte, "nennfuelldruckBar">
+      | Pick<ReferenzWerte, "wechselAbProzent">,
   ): void {
     spiegeln(aenderung);
     timerLoeschen();
@@ -167,7 +188,36 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
             style={{ width: "100%" }}
           />
         </Feld>
+        <Feld label="Wechselhinweis ab (%)">
+          <InputNumber<number>
+            min={O2_WECHSEL_MIN_PROZENT}
+            max={O2_WECHSEL_MAX_PROZENT}
+            precision={0}
+            value={werte.wechselAbProzent}
+            aria-label="Wechselhinweis ab Prozent vom Nennfülldruck"
+            // ⚠️ `suffix`, NICHT `addonAfter`: das ist in antd 6 abgekündigt
+            // (Doku: „please use Space.Compact instead"). Es geht durch den
+            // Typecheck und meldet sich nur in der Konsole — dieselbe Klasse wie
+            // `width` auf `Drawer` (Falle 13).
+            suffix="%"
+            onChange={(wert) => {
+              if (wert !== null) zahlAendern({ wechselAbProzent: wert });
+            }}
+            onBlur={zahlSpeichern}
+            style={{ width: "100%" }}
+          />
+        </Feld>
       </div>
+      {/* ⚠️ DIE BAR-ZAHL FOLGT BEIDEN FELDERN, nicht nur dem Prozentfeld: wer den
+          Nennfuelldruck aendert, aendert mit, was derselbe Prozentwert in bar
+          bedeutet. Und bar ist die Einheit, in der jemand spaeter am Manometer
+          abliest — der Prozentwert allein ist dort nicht pruefbar. */}
+      {werte.nennfuelldruckBar > 0 ? (
+        <span style={SCHRIFT.neben}>
+          Der Wechselhinweis erscheint ab{" "}
+          {wechselGrenzeBar(werte.nennfuelldruckBar, werte.wechselAbProzent)} bar und darunter.
+        </span>
+      ) : null}
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
     </div>
   );
