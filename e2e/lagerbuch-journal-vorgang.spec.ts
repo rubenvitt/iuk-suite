@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -31,13 +31,23 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  */
 const ARTIKEL = "E2E Vorgang Pflaster";
 
-/** Die Vorgangstexte der Zeilen dieses Artikels, in der Reihenfolge der Tabelle. */
+/**
+ * Die Vorgangstexte der Zeilen dieses Artikels, in der Reihenfolge der Tabelle.
+ *
+ * ⚠️ `td:nth-child(3)` UND NICHT `.locator("td").nth(2)`. Der zweite Griff
+ * sammelt erst ALLE Zellen ALLER Zeilen zu einer flachen Liste ein und nimmt
+ * daraus die dritte — also die dritte Zelle der ERSTEN Zeile, ein einziges
+ * Element. `allInnerTexts()` läge dann einen Eintrag lang richtig und der Test
+ * prüfte eine Zeile statt vier. `:nth-child` greift dagegen INNERHALB jeder
+ * Zeile.
+ *
+ * Dass die dritte Spalte „Vorgang" ist, sichert der Test unten eigens zu —
+ * sonst verschöbe ein Spaltentausch diesen Index still.
+ */
 async function vorgaenge(page: Page): Promise<string[]> {
   const zeilen = page.locator("[data-row-key^='e2e-vorgang-']");
-  await expect(zeilen.first()).toBeVisible();
-  // Spalte 3 ist „Vorgang" — die Kopfzeile wird unten mitgeprüft, damit ein
-  // Spaltentausch diesen Index nicht still verschiebt.
-  return zeilen.locator("td").nth(2).allInnerTexts();
+  await expect(zeilen).toHaveCount(4);
+  return zeilen.locator("td:nth-child(3)").allInnerTexts();
 }
 
 async function journal(page: Page, suche: string): Promise<void> {
@@ -61,9 +71,15 @@ test.describe("lagerbuch — Vorgangsart im Journal (DRK-344)", () => {
     await expect(page.locator("thead th").nth(2)).toHaveText("Vorgang");
 
     /*
-     * ⚠️ ALLE DREI KORREKTUREN AUF EINMAL, nicht je eine Zusicherung: der Fund
-     * war, dass sie UNUNTERSCHEIDBAR aussahen. Ein Test, der nur „Aussonderung
-     * kommt vor" prueft, bliebe gruen, wenn ploetzlich JEDE Korrektur so hiesse.
+     * ⚠️ ALLE VIER ZEILEN AUF EINMAL, nicht je eine Zusicherung: der Fund war,
+     * dass die drei Korrekturen UNUNTERSCHEIDBAR aussahen. Ein Test, der nur
+     * „Aussonderung kommt vor" prueft, bliebe gruen, wenn ploetzlich JEDE
+     * Korrektur so hiesse.
+     *
+     * ⚠️ DIE REIHENFOLGE KOMMT AUS DEN ZEITSTEMPELN, nicht aus den Namen. Der
+     * Seed gibt jeder Zeile eine eigene Minute; traegen sie denselben
+     * Zeitstempel, ordnet allein der id-Tiebreaker (`ts DESC, id DESC`), und der
+     * dreht sich beim naechsten Umbenennen lautlos.
      */
     expect(await vorgaenge(page)).toEqual([
       "Aussonderung · E2E abgelaufen entsorgt",
@@ -101,7 +117,10 @@ test.describe("lagerbuch — Vorgangsart im Journal (DRK-344)", () => {
   test("das Auswahlfeld bietet die Vorgangsart an und schreibt sie in die Adresse", async ({ page }) => {
     await journal(page, `q=${encodeURIComponent(ARTIKEL)}`);
 
-    await page.getByRole("combobox", { name: "Vorgang" }).click();
+    // ⚠️ `klickeWennRuhig` statt `.click()` (CLAUDE.md, Falle 12): die Huelle
+    // holt `/api/auth/session` nach und rutscht dabei um ~240 px; ein Klick
+    // zwischen `mousedown` und `mouseup` traefe dann den gemeinsamen Vorfahren.
+    await klickeWennRuhig(page.getByRole("combobox", { name: "Vorgang" }));
     await page.locator(".ant-select-item-option", { hasText: "Aussonderung" }).click();
 
     await expect(page).toHaveURL(/[?&]typ=aussondern(&|$)/);

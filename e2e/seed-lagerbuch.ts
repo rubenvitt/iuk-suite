@@ -41,6 +41,7 @@ import {
   lagerortVerfall, o2Flaschen, sollPositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
+import { AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX } from "@/app/m/lagerbuch/_lib/vorgang";
 import {
   E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
   E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
@@ -473,18 +474,41 @@ function vorgangFixtures(): void {
     verfall: E2E_VERFALL_FERN, createdAt: JETZT,
   }).onConflictDoNothing().run();
 
-  for (const [id, menge, referenz, kommentar] of [
-    ["e2e-vorgang-zugang", 30, null, null],
-    ["e2e-vorgang-aussonderung", -4, "aussondern:handlager", "E2E abgelaufen entsorgt"],
-    ["e2e-vorgang-inventur", -3, "inventur:e2e-vg-lauf", "E2E Jahresinventur"],
-    ["e2e-vorgang-handkorrektur", -2, null, "E2E verzählt"],
-  ] as const) {
-    if (db.select().from(buchungen).where(eq(buchungen.id, id)).get()) continue;
+  /*
+   * ⚠️ JEDE ZEILE EINE EIGENE MINUTE, und das ist keine Kosmetik. Das Journal
+   * sortiert `ts DESC, id DESC`; bei gleichem Zeitstempel entscheidet allein der
+   * id-Tiebreaker, und der ordnet diese vier alphabetisch RUECKWAERTS
+   * (zugang > inventur > handkorrektur > aussonderung) — eine Reihenfolge, die
+   * mit der fachlichen nichts zu tun hat und sich beim naechsten Umbenennen
+   * lautlos dreht. Der Spec sichert die Reihenfolge zu; also muss sie aus den
+   * Daten kommen, nicht aus den Namen.
+   *
+   * ⚠️ DIE PRAEFIXE KOMMEN AUS `_lib/vorgang.ts`, nicht abgeschrieben. Ein
+   * Tippfehler hier machte den Spec still wirkungslos: die Zeile stuende als
+   * „Korrektur" da, und die Zusicherung „Aussonderung" faende sie nicht — was
+   * wie ein Fehler in der Anzeige aussaehe statt wie einer im Seed.
+   */
+  const vorgangZeilen = [
+    { id: "e2e-vorgang-zugang", menge: 30, referenz: null, kommentar: null, vorMinuten: 3 },
+    { id: "e2e-vorgang-handkorrektur", menge: -2, referenz: null, kommentar: "E2E verzählt", vorMinuten: 2 },
+    {
+      id: "e2e-vorgang-inventur", menge: -3, kommentar: "E2E Jahresinventur",
+      referenz: `${INVENTUR_PRAEFIX}e2e-vg-lauf`, vorMinuten: 1,
+    },
+    {
+      id: "e2e-vorgang-aussonderung", menge: -4, kommentar: "E2E abgelaufen entsorgt",
+      referenz: `${AUSSONDERN_PRAEFIX}${HANDLAGER_ID}`, vorMinuten: 0,
+    },
+  ] as const;
+  for (const z of vorgangZeilen) {
+    if (db.select().from(buchungen).where(eq(buchungen.id, z.id)).get()) continue;
     db.insert(buchungen).values({
-      id, ts: JETZT, typ: id === "e2e-vorgang-zugang" ? "zugang" : "korrektur",
+      id: z.id,
+      ts: new Date(JETZT.getTime() - z.vorMinuten * 60_000),
+      typ: z.id === "e2e-vorgang-zugang" ? "zugang" : "korrektur",
       artikelId: "e2e-vorgang-artikel", chargeId: "e2e-vorgang-charge",
-      lagerortId: HANDLAGER_ID, menge,
-      quelleTyp: "system", quelleId: "e2e", referenz, kommentar,
+      lagerortId: HANDLAGER_ID, menge: z.menge,
+      quelleTyp: "system", quelleId: "e2e", referenz: z.referenz, kommentar: z.kommentar,
     }).run();
   }
 }
