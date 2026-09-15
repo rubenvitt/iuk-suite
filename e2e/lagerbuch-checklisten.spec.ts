@@ -53,7 +53,9 @@ test.describe("Fahrzeug-Checklisten", () => {
     expect(n, "der Seed muss mindestens zwei aktive Fahrzeuge liefern")
       .toBeGreaterThan(1);
     await expect(blaetter.nth(0)).toBeVisible();
-    await expect(page.getByTestId("lb-cl-zahl")).toContainText(`${n} Fahrzeuge`);
+    // DRK-309: NEUTRAL — ein Bogen mischt Fahrzeuge und Taschen; die Art
+    // steht je Blatt in dessen Kopfzeile.
+    await expect(page.getByTestId("lb-cl-zahl")).toContainText(`${n} Einheiten`);
   });
 
   test("schraenkt ueber ?fz= auf genau ein Fahrzeug ein", async ({ page }) => {
@@ -76,7 +78,7 @@ test.describe("Fahrzeug-Checklisten", () => {
   test("nennt eine ins Leere zeigende Auswahl beim Namen — mit Weg zurueck", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/checklisten?fz=gibtsnicht"));
     await expect(page.locator(".lb-cl-blatt")).toHaveCount(0);
-    await expect(page.getByText(/gelöschtes Fahrzeug/)).toBeVisible();
+    await expect(page.getByText(/gelöschte Einheit/)).toBeVisible();
     // §11.7: `DruckRahmen` traegt konstruktionsbedingt keine Navigation.
     await expect(page.locator("a[href='/verwaltung/fahrzeuge']")).toBeVisible();
   });

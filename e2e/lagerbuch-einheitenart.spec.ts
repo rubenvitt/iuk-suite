@@ -184,18 +184,36 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     // zugeordnet". Die Spec setzt deshalb die jeweils ANDERE Art und danach
     // wieder „Fahrzeug", damit der naechste Lauf denselben Weg findet.
     const ziel = vorher ? "Tasche" : "Fahrzeug";
+    /*
+     * ⚠️ DER GREIFER AUF DIE ANTWORT IST BREIT, UND DAS IST GEMESSEN, NICHT
+     * BEQUEM. `r.url().includes("e2e-ohne-art")` lief dreimal in das volle
+     * Zeitbudget, während derselbe Vorgang eine Zusicherung weiter oben mit
+     * `includes("/verwaltung/fahrzeuge")` durchlief — die Adresse, auf die
+     * eine Server Action POSTet, ist also nicht verlässlich die des
+     * Einheitenblatts. Ein zu enger Greifer wartet dann auf eine Antwort, die
+     * es gibt, und meldet sich als Zeitüberschreitung (dieselbe Klasse wie
+     * Falle 10: der Test misst etwas anderes, als sein Name sagt).
+     */
     const gespeichert = page.waitForResponse((r) =>
-      r.request().method() === "POST" && r.url().includes("e2e-ohne-art"));
+      r.request().method() === "POST" && r.url().includes("/verwaltung/fahrzeuge"));
     await artWaehlen(abschnitt, ziel);
     expect((await gespeichert).status()).toBe(200);
+    /*
+     * ⚠️ UND DIE SICHTBARE WIRKUNG DANEBEN. Die Insel übernimmt den Wert ERST
+     * nach einer erfolgreichen Antwort (`EinheitenartWahl`); dass der Knopf
+     * angehakt ist, belegt damit den Rundlauf und nicht nur den Klick — und
+     * eine abgelehnte Antwort fällt hier auf, statt still stehenzubleiben.
+     */
     await expect(artKnopf(abschnitt, ziel)).toHaveClass(/ant-radio-button-wrapper-checked/);
     await expect(abschnitt).not.toContainText("Noch nicht zugeordnet");
 
     // Der Kopf liest den Wert aus der Datenbank — also erst nach dem Neuladen.
     const zurueck = page.waitForResponse((r) =>
-      r.request().method() === "POST" && r.url().includes("e2e-ohne-art"));
+      r.request().method() === "POST" && r.url().includes("/verwaltung/fahrzeuge"));
     await artWaehlen(abschnitt, "Fahrzeug");
     expect((await zurueck).status()).toBe(200);
+    await expect(artKnopf(abschnitt, "Fahrzeug"))
+      .toHaveClass(/ant-radio-button-wrapper-checked/);
 
     const erneut = await page.goto(lagerbuchUrl(pfad));
     expect(erneut!.status()).toBe(200);
