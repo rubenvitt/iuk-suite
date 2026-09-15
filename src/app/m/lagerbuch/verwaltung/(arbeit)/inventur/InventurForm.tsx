@@ -2,14 +2,20 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { Alert, Button, Flex, Input, InputNumber, Select } from "antd";
-import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
+import { Alert, Button, Flex, Input, InputNumber } from "antd";
+import {
+  Datentabelle,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+  type Filterwert,
+  type FilterZustand,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { inventurKorrektur, type InventurNutzlast } from "../../../_actions/inventur";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
 import {
-  LEERER_INVENTUR_FILTER,
-  fachOptionen,
   filterIstLeer,
   inventurTrifft,
   type InventurFilter,
@@ -20,6 +26,7 @@ import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
+import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import s from "../../../_ui/verwaltung.module.css";
 import { ChargenZaehlung } from "./ChargenZaehlung";
 import {
@@ -31,9 +38,37 @@ import {
   type ZaehlStand,
 } from "./inventurZustand";
 
+/**
+ * KATEGORIE UND FACH FILTERN IM SPALTENKOPF, UND ZWAR MIT DERSELBEN FUNKTION, DIE
+ * ALLES ANDERE FRAGT (DRK-333).
+ *
+ * ⚠️ DAS IST DER PUNKT, AN DEM ZWEI PRAEDIKATE AUSEINANDERLAUFEN WUERDEN. antds
+ * `onFilter` entscheidet, was in der Tabelle steht; `inventurTrifft` entscheidet,
+ * was als „ausgeblendet, wird trotzdem gebucht" gezaehlt wird und was als Umfang
+ * in den append-only Verlauf geht. Schriebe man beides einzeln hin, zeigte die
+ * Tabelle eines Tages etwas anderes, als der Hinweis daneben behauptet — und der
+ * Verlauf traege einen Umfang, der nie auf dem Schirm stand. Deshalb delegieren
+ * die zwei `onFilter` hierher.
+ *
+ * ⚠️ UND DIE VERKNUEPFUNG STIMMT DAMIT AUCH: antd ruft `onFilter` je angekreuztem
+ * Wert EINER Spalte einzeln und verodert (`useFilter/index.js`, `realKeys.some`),
+ * verschiedene Spalten schneidet es — genau das tut `inventurTrifft` mit seinem
+ * `includes` je Merkmal und den zwei Pruefungen nacheinander.
+ */
+function trifftKategorie(zeile: InventurZeile, wert: Filterwert): boolean {
+  return inventurTrifft(zeile, { kategorien: [String(wert)], faecher: [] });
+}
+
 export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
   const [stand, setStand] = useState<ZaehlStand>({});
-  const [filter, setFilter] = useState<InventurFilter>(LEERER_INVENTUR_FILTER);
+  /**
+   * ⚠️ GEMERKT WIRD DER ZUSTAND DER SPALTENKOEPFE, NIE DIE LISTE DARAUS (Falle 15).
+   * `onChange` feuert nur bei Bedienung DER TABELLE; laedt die Seite daneben einen
+   * neuen Serverstand, filtert antd zwar korrekt neu, meldet es aber nicht. Der
+   * Hinweis „N Positionen sind ausgeblendet" und der Umfang im Verlauf haengen an
+   * dieser Zahl — ein gemerkter Stand waere dort still veraltet.
+   */
+  const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
   const [kommentar, setKommentar] = useState("");
   const [meldung, setMeldung] = useState<ReactNode>(null);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -41,7 +76,17 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
   const absendenLaeuft = useRef(false);
 
   const kategorien = useMemo(() => kategorieOptionen(zeilen.map((z) => z.kategorie)), [zeilen]);
-  const faecher = useMemo(() => fachOptionen(zeilen), [zeilen]);
+
+  /**
+   * Der fachliche Filter, ABGELEITET aus dem Spaltenzustand — eine Quelle, aus der
+   * der Ausgeblendet-Hinweis, die Trefferanzeige und der Umfang der Buchung folgen.
+   * Die Kategorien stehen als GEFALTETE Schluessel darin (so vergibt sie
+   * `kategorieOptionen`); das Label kommt erst beim Absenden dazu.
+   */
+  const filter = useMemo<InventurFilter>(() => ({
+    kategorien: (spaltenFilter.kategorie ?? []).map(String),
+    faecher: (spaltenFilter.fach ?? []).map(String),
+  }), [spaltenFilter]);
 
   const positionen = positionenAus(stand);
   const abweichungen = abweichungenIn(zeilen, stand);
@@ -107,40 +152,28 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
   return (
     <>
       {/*
-        ⚠️ DIESE BEIDEN AUSWAHLFELDER BLEIBEN UEBER DER TABELLE, obwohl DRK-331
-        genau solche Leisten sonst in die Spaltenkoepfe aufloest. Grund: sie sind
-        mit DRK-299 gerade erst entstanden, samt eigener Tests, und eine
-        Zusammenfuehrung ist der falsche Ort, um eine zwei Stunden alte Flaeche
-        umzubauen. Der Umzug in die Spaltenkoepfe gehoert in ein eigenes Ticket;
-        deshalb traegt die Fachspalte hier auch KEINEN zweiten Filter — zwei
-        Filter auf dasselbe Merkmal saehen aus wie zwei Fragen und waeren eine.
+        HIER STAND EINE LEISTE MIT ZWEI AUSWAHLFELDERN (Kategorie, Fach). Sie ist mit
+        DRK-333 in die Spaltenkoepfe gewandert — dieselbe Aufloesung, die DRK-331
+        ueberall sonst gemacht hat: ein Praedikat ueber der Zeile ist ein Spaltenfilter,
+        und es gehoert in den Kopf der Spalte, die es betrifft.
+
+        Was bleibt, ist der ZAEHLER: ohne die Leiste zeigt nur noch antds Trichter, dass
+        ueberhaupt gefiltert ist. ⚠️ Er ist ABGELEITET, nicht gemerkt (Falle 15) — die
+        Zahl folgt aus `filter`, also aus dem Spaltenzustand, nicht aus
+        `onChange(…, extra.currentDataSource)`.
       */}
-      <Flex gap={SPACE.sm} wrap style={{ marginBlockEnd: SPACE.md }}>
-        <Select<string[]>
-          mode="multiple"
-          allowClear
-          aria-label="Nach Kategorie filtern"
-          placeholder="Alle Kategorien"
-          style={{ minWidth: 220 }}
-          value={[...filter.kategorien]}
-          onChange={(werte) => setFilter((f) => ({ ...f, kategorien: werte }))}
-          options={kategorien.map((o) => ({ value: o.schluessel, label: o.label }))}
-        />
-        <Select<string[]>
-          mode="multiple"
-          allowClear
-          aria-label="Nach Fach filtern"
-          placeholder="Alle Fächer"
-          style={{ minWidth: 220 }}
-          value={[...filter.faecher]}
-          onChange={(werte) => setFilter((f) => ({ ...f, faecher: werte }))}
-          options={faecher.map((f) => ({ value: f, label: f }))}
-        />
-      </Flex>
+      {/* Die Huelle steht mit IHREM Inhalt oder gar nicht — ein leerer Kasten mit
+          Aussenabstand liesse ungefiltert eine Luecke ueber der Tabelle. */}
+      {sichtbar.length === zeilen.length ? null : (
+        <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
+          <Trefferanzeige gezeigt={sichtbar.length} gesamt={zeilen.length} />
+        </Flex>
+      )}
       <Datentabelle<InventurZeile>
         rowKey="id"
         aria-label="Inventur"
-        dataSource={sichtbar}
+        dataSource={zeilen}
+        onChange={(_seite, spalten) => setSpaltenFilter(spalten)}
         // Spec §B: JEDE Zeile ist aufklappbar — auch ohne Charge, dort bleibt die
         // Ergaenzen-Zeile. Deshalb kein `rowExpandable`.
         expandable={{
@@ -175,7 +208,9 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
         // ⚠️ KEINE SORTIERUNG AUF „Abweichung" UND „Ist": beide lesen
         // `beruehrt`, also den Zaehlstand DIESER Sitzung. Eine Spalte, die sich
         // waehrend des Zaehlens selbst umsortiert, verliert die Zeile unter dem
-        // Finger.
+        // Finger. ⛔ AUS DEMSELBEN GRUND HAT DIE NEUE KATEGORIE-SPALTE KEINEN
+        // SORTIERER BEKOMMEN, obwohl ihr Wert statisch waere: dieses Ticket
+        // (DRK-333) bringt hier einen FILTER, keine zweite Ordnung.
         columns={[
           {
             title: "Artikel",
@@ -184,9 +219,32 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
           },
           {
+            title: "Kategorie",
+            dataIndex: "kategorie",
+            /*
+             * DIE SPALTE IST MIT DEM FILTER GEKOMMEN (DRK-333) — ein Filter gehoert in
+             * den Kopf der Spalte, die er betrifft, und eine Kategorie, nach der man
+             * filtern kann, muss man auch lesen koennen.
+             *
+             * ⚠️ DIE WERTE SIND GEFALTETE SCHLUESSEL, DIE BESCHRIFTUNG IST DIE
+             * HAEUFIGSTE SCHREIBWEISE (`kategorieOptionen`, DRK-294) — nicht
+             * `werteAlsFilter`, das die Rohwerte nimmt und „Hygiene" von „hygiene"
+             * als zwei Optionen anboete. ⛔ UND KEIN „ohne Kategorie": ein Artikel
+             * ohne Kategorie erscheint nur OHNE Kategorienfilter, das ist die
+             * Entscheidung aus DRK-299 (`_lib/inventurFilter.ts`) und bleibt.
+             */
+            filters: kategorien.map((o) => ({ text: o.label, value: o.schluessel })),
+            onFilter: (wert: Filterwert, zeile: InventurZeile) => trifftKategorie(zeile, wert),
+            render: (wert: string | null) => wert ?? "—",
+          },
+          {
             title: "Fach",
             dataIndex: "fach",
             sorter: nachText<InventurZeile>((zeile) => zeile.fach),
+            // Der Fachfilter, der in DRK-331 kurz hier stand und beim Merge wieder
+            // weichen musste, weil die Leiste daneben dasselbe Merkmal traf.
+            filters: werteAlsFilter(zeilen, (zeile) => zeile.fach),
+            onFilter: trifftWert<InventurZeile>((zeile) => zeile.fach),
             render: (wert: string) => <span className={s.fach}>{wert}</span>,
           },
           {
