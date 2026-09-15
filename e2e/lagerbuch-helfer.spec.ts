@@ -1,5 +1,5 @@
 import { registerAuditFunctions } from "@/core/audit/context";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
 import {
@@ -129,6 +129,30 @@ function bestandAn(artikelId: string, lagerortId: string): number {
   }
 }
 
+/**
+ * EIN ZIEL WÄHLEN — und dabei die ANTWORT prüfen, nicht nur die Landung.
+ *
+ * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`AGENTS.md`): ein e2e-Test, der eine
+ * Anfrage auslöst, prüft ihre Antwort. Die Zeile darunter wäre sonst blind
+ * gegen genau den Fall, für den es die Regel gibt — ein abgebrochener oder
+ * abgelehnter POST meldet sich nicht als Fehler, sondern als Zeitüberschreitung
+ * beim Warten auf eine Navigation, die nie angestoßen wurde. Die Meldung zeigte
+ * dann auf `waitForURL` und nicht auf die Server Action, die nicht durchkam.
+ *
+ * Der POST geht an die Wahlseite selbst — dort steht das Formular, und eine
+ * Server Action postet auf die URL ihrer eigenen Seite.
+ */
+async function waehleZiel(page: Page, name: RegExp): Promise<void> {
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/helfer/ziel")),
+    page.getByRole("button", { name }).click(),
+  ]);
+  expect(
+    antwort.status(),
+    `die Zielwahl muss serverseitig ankommen — Antwort war ${antwort.status()}`,
+  ).toBeLessThan(400);
+}
+
 /** Der juengste Check-Datensatz eines Fahrzeugs, oder `undefined`, wenn es
  *  noch keinen gibt — Tiebreaker `id`, weil `completed_at` sekundengranular
  *  ist (§4.9). */
@@ -186,7 +210,7 @@ test.describe("Der Weg am Stueck", () => {
     await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
     await page.getByRole("link", { name: "Ziel wählen" }).click();
     await page.waitForURL(/\/helfer\/ziel/);
-    await page.getByRole("button", { name: /Kein Fahrzeug/ }).click();
+    await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     await page.getByRole("button", { name: "Entnahme buchen" }).click();
@@ -250,7 +274,7 @@ test.describe("Der Weg am Stueck", () => {
     await page.waitForURL(/\/a\/e2e-artikel/);
     await page.getByRole("link", { name: "Ziel wählen" }).click();
     await page.waitForURL(/\/helfer\/ziel/);
-    await page.getByRole("button", { name: new RegExp(E2E_FAHRZEUG_NAME) }).click();
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     // Die Wahl steht über dem Knopf — sonst lenkte sie still Bestand um.
@@ -295,7 +319,7 @@ test.describe("Der Weg am Stueck", () => {
     await page.goto(lagerbuchUrl("/a/e2e-artikel"));
     await page.getByRole("link", { name: "Ziel wählen" }).click();
     await page.waitForURL(/\/helfer\/ziel/);
-    await page.getByRole("button", { name: new RegExp(E2E_FAHRZEUG_NAME) }).click();
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
     await page.waitForURL(/\/a\/e2e-artikel/);
     await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
 
@@ -404,7 +428,7 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
      */
     await page.getByRole("link", { name: "Ziel wählen" }).click();
     await page.waitForURL(/\/helfer\/ziel/);
-    await page.getByRole("button", { name: /Kein Fahrzeug/ }).click();
+    await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     // Mitten in der Schicht gesperrt.
