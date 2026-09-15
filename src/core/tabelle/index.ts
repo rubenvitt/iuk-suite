@@ -27,7 +27,8 @@ export {
   zustandsFilter,
   type Filterwert,
 } from "./spaltenfilter";
-export { useVerfuegbareHoehe } from "./useVerfuegbareHoehe";
+export { TabellenVollhoehe, type TabellenVollhoeheProps } from "./TabellenVollhoehe";
+export { vollhoehe, type VollhoeheEingabe, type VollhoeheErgebnis } from "./vollhoehe";
 export { VIRTUELL_AB_ZEILEN } from "./masse";
 export {
   angezeigteZeilen,

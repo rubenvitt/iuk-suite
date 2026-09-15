@@ -93,7 +93,28 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(lagerbuchUrl("/verwaltung/artikel"));
   await page.waitForLoadState("networkidle");
-  await page.getByLabel("Artikel und Bestand").locator("tbody tr.ant-table-row").first().click();
+  /*
+   * ⚠️ EINE VIRTUALISIERTE TABELLE VERLIERT ZWEIERLEI, UND BEIDES TRAF DIESE
+   * ZEILE (DRK-334, gegen `@rc-component/table@1.11.1` gelesen).
+   *
+   * 1. IHRE ZEILEN SIND KEINE `tr` MEHR. Sie werden als `div`s gerendert
+   *    (`VirtualTable/BodyLine.js:40-41`) und tragen kein `role="row"` — ein
+   *    Greifer ueber `tbody tr` oder `getByRole("row")` findet nichts.
+   * 2. IHR `aria-label` VERSCHWINDET. `Table.js:476` sammelt die aria-Props,
+   *    und im virtuellen Zweig (`Table.js:481`, `customizeScrollBody` ist eine
+   *    Funktion) werden sie an KEIN Element mehr gehaengt — nur die beiden
+   *    anderen Zweige (`:514`, `:566`) setzen sie. `getByLabel("Artikel und
+   *    Bestand")` loest damit auf gar nichts auf, und der Klick lief in den
+   *    vollen 90-Sekunden-Timeout.
+   *
+   * Deshalb hier: die SEITE ueber ihren eigenen Anker belegen (`lb-excel` gibt
+   * es nur auf der Artikeltabelle), die Zeile dann ueber `data-row-key` —
+   * das setzt rc-table in beiden Betriebsarten. Was der Verlust der
+   * Tabellen-Semantik fuer Hilfstechnik bedeutet, steht als DRK-336 auf dem
+   * Board.
+   */
+  await expect(page.getByTestId("lb-excel")).toBeVisible();
+  await page.locator("[data-row-key]").first().click();
   await expect(page.locator(".ant-drawer-right .ant-drawer-content-wrapper")).toBeVisible();
 
   /*

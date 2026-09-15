@@ -43,6 +43,7 @@ import {
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
   E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE,
+  E2E_LAST_ANZAHL, E2E_LAST_PRAEFIX,
 } from "./helpers/lagerbuch";
 
 const JETZT = new Date();
@@ -396,6 +397,39 @@ function sammelFixtures(): void {
   }
 }
 
+/**
+ * DRK-334 — genug Artikel, dass die Artikeltabelle tatsaechlich virtualisiert.
+ *
+ * Ohne sie gaebe es den inneren Scrollcontainer gar nicht, und
+ * `lagerbuch-artikel-mobil.spec.ts` pruefte eine gewoehnliche Tabelle — gruen,
+ * und ohne die Aussage, um die es geht.
+ *
+ * INAKTIV und OHNE KATEGORIE: inaktiv, weil nur `/verwaltung/artikel`
+ * `inklInaktiv: true` liest (Begruendung bei `E2E_LAST_ANZAHL`); ohne
+ * Kategorie, weil `lagerbuch-kategorien.spec.ts` die Auswahlliste
+ * „Kategorien dauerhaft ausblenden" zaehlt. Mindestbestand 0 haelt sie aus
+ * „Kritische Artikel" und der Bestellliste heraus, auch wenn die je einmal
+ * inaktive Artikel lesen sollten.
+ *
+ * ⚠️ SIE MUESSEN GANZ UNTEN STEHEN, UND DAFUER ZAEHLT DER NAME — nicht die
+ * Einfuegereihenfolge. `artikelListe` hat zwar kein ORDER BY, aber die Tabelle
+ * sortiert von sich aus aufsteigend nach Namen (`ArtikelTable.tsx`,
+ * `sortierung` startet auf `name`/`ascend`). Deshalb traegt der Praefix ein
+ * „ZZZ": alles, was ein Spec gezielt sucht, bleibt so in den ersten Zeilen und
+ * damit im gerenderten Fenster der virtuellen Tabelle. Die volle Begruendung
+ * steht bei `E2E_LAST_PRAEFIX`.
+ */
+function lastFixtures(): void {
+  const db = getDb();
+  for (let i = 1; i <= E2E_LAST_ANZAHL; i += 1) {
+    const nr = String(i).padStart(3, "0");
+    db.insert(artikel).values({
+      id: `e2e-last-${nr}`, name: `${E2E_LAST_PRAEFIX} ${nr}`, einheit: "Stk.",
+      fach: "L9", mindestbestand: 0, aktiv: false, kategorie: null, createdAt: JETZT,
+    }).onConflictDoNothing().run();
+  }
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
@@ -406,4 +440,5 @@ vorlagenFixtures();
 kategorieFixtures();
 inventurFixtures();
 sammelFixtures();
+lastFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

@@ -95,10 +95,25 @@ test.describe("Excel-Export des Bestands", () => {
   test("exportiert nach einer Suche weniger Zeilen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
 
-    const vorher = await page.getByRole("row").count();
-    expect(vorher, "der Seed muss mehrere Artikel liefern").toBeGreaterThan(2);
+    /*
+     * ⚠️ `[data-row-key]` UND NICHT `getByRole("row")` (DRK-334). Eine
+     * virtualisierte rc-table hat kein `tbody` und keine `tr`: sie rendert ihre
+     * Zeilen als `div`s (`@rc-component/table@1.11.1`,
+     * `VirtualTable/BodyLine.js:40`), und die tragen kein `role="row"` —
+     * `getByRole("row")` fand nur noch die Kopfzeile und zaehlte 1. Seit der
+     * E2E-Seed 200 Lastartikel traegt, virtualisiert diese Tabelle
+     * tatsaechlich. `data-row-key` setzt rc-table in BEIDEN Betriebsarten.
+     *
+     * Die Zahl ist damit die der GERENDERTEN Zeilen, nicht die der Artikel —
+     * fuer diese Probe genuegt das, denn sie ist ausdruecklich nicht die
+     * tragende Zusicherung (siehe Kopfkommentar): die ist
+     * `data-export-zeilen` unten.
+     */
+    const zeilen = page.locator("[data-row-key]");
+    const vorher = await zeilen.count();
+    expect(vorher, "es muessen mehrere Zeilen auf dem Schirm stehen").toBeGreaterThan(2);
     await page.getByRole("searchbox").fill("Pflaster");
-    await expect.poll(() => page.getByRole("row").count()).toBeLessThan(vorher);
+    await expect.poll(() => zeilen.count()).toBeLessThan(vorher);
 
     const knopf = page.getByRole("button", { name: /Excel-Liste/ });
     // Die tragende Zusicherung: "Pflaster" trifft ueber Name/Fach/Chargennummer

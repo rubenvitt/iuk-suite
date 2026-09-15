@@ -23,6 +23,8 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * Die beiden Artikel gehoeren allein diesem Spec (`seed-lagerbuch.ts`,
  * `sammelFixtures`).
  */
+/** Holt genau die beiden Artikel dieses Specs nach oben — siehe `artikelseiteOeffnen`. */
+const SUCHE = "E2E Sammel";
 const ERSTER = "E2E Sammel Kompresse";
 const ZWEITER = "E2E Sammel Dreiecktuch";
 const EINS = "E2E Sammel Eins";
@@ -33,6 +35,19 @@ async function artikelseiteOeffnen(page: Page): Promise<void> {
   // Dieselbe Vorsicht wie `lagerbuch-kategorien.spec.ts`: ohne Hydration
   // traefe ein Klick ein Kreuzchen ohne Handler.
   await page.waitForLoadState("networkidle");
+
+  /*
+   * ⚠️ ERST SUCHEN, DANN ZEILEN SUCHEN (DRK-334). Die Artikeltabelle
+   * virtualisiert seit `core/tabelle` ab 150 Zeilen, und der E2E-Seed traegt
+   * dafuer 200 Lastartikel (`E2E_LAST_ANZAHL`). In einer virtuellen Tabelle
+   * steht nur das SICHTBARE Fenster im DOM — eine Zeile weiter unten findet
+   * `getByRole("row")` schlicht nicht mehr, und der Fehlschlag liest sich wie
+   * „die Zeile fehlt", nicht wie „sie ist nur nicht gerendert". Die Suche holt
+   * die gesuchten Artikel in die ersten Zeilen und macht den Spec unabhaengig
+   * von Fensterhoehe, Zeilenhoehe und Sortierung.
+   */
+  await page.getByRole("searchbox").fill(SUCHE);
+  await expect(page.getByRole("row").filter({ hasText: SUCHE })).toHaveCount(2);
 }
 
 test.describe("lagerbuch — mehrere Artikel gemeinsam bearbeiten (DRK-293)", () => {

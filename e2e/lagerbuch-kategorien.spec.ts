@@ -33,6 +33,25 @@ async function artikelseiteOeffnen(page: Page): Promise<void> {
   // Dieselbe Vorsicht wie `lagerbuch-bestand-export.spec.ts`: ohne Hydration
   // traefe die Auswahl ein Feld ohne Handler.
   await page.waitForLoadState("networkidle");
+
+  /*
+   * ⚠️ ERST SUCHEN, DANN ZEILEN SUCHEN (DRK-334). Die Artikeltabelle
+   * virtualisiert seit `core/tabelle` ab 150 Zeilen, und der E2E-Seed traegt
+   * dafuer 200 Lastartikel (`E2E_LAST_ANZAHL`). In einer virtuellen Tabelle
+   * steht nur das SICHTBARE Fenster im DOM — eine Zeile weiter unten findet
+   * `getByRole("row")` schlicht nicht mehr, und der Fehlschlag liest sich wie
+   * „die Zeile fehlt", nicht wie „sie ist nur nicht gerendert". Die Suche holt
+   * die gesuchten Artikel in die ersten Zeilen und macht den Spec unabhaengig
+   * von Fensterhoehe, Zeilenhoehe und Sortierung.
+   *
+   * ⚠️ HIER STEHT KEINE ZUSICHERUNG DANEBEN, anders als im Zwilling in
+   * `lagerbuch-sammelbearbeitung.spec.ts`: dieser Helfer wird auch DANN
+   * aufgerufen, wenn der Artikel gerade ausgeblendet ist und die Liste
+   * richtigerweise leer sein MUSS. Die Suche wird nur gesetzt; wie viele Zeilen
+   * danach stehen, sagt der Test an seiner jeweiligen Stelle — antds Suche ist
+   * entprellt, und Playwrights `expect` wartet darauf ohnehin.
+   */
+  await page.getByRole("searchbox").fill(ARTIKEL);
 }
 
 test.describe("lagerbuch — Kategorien ausblenden (DRK-294)", () => {

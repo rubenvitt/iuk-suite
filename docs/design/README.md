@@ -369,6 +369,17 @@ und nachher — `documentElement.scrollWidth` allein würde den Unterschied nich
 breite Tabelle steht unter 768px auf `display: none`. Sie ist das Vorbild, nicht der Mangel — und der
 Grund, warum „keine `scroll`-Prop" allein noch kein Befund ist.
 
+**Eine virtualisierte Tabelle ist unter 768px ein zweiter Scroller — und das Dokument ist der erste.**
+Auf einer Modulseite scrollt das Dokument (die ganze Vorfahrenkette steht auf `overflow: visible`, die
+Seitenleiste bekommt ihren eigenen Scroller erst ab 768px). Eine Tabelle mit `virtuell` bringt einen
+zweiten mit, und beide reagieren auf dieselbe Geste. `TabellenVollhoehe` aus `core/tabelle` löst das
+an einer Stelle: die Seite hört unter 768px auf zu scrollen, die Werkzeugleiste bleibt stehen, die
+Tabelle bekommt den Rest — und die Deckelung fällt weg, sobald für den Tabellenkörper zu wenig bliebe,
+denn ein abgeschnittener Knopf ist schlimmer als zwei Scrollbalken. Die Falle dahinter steht als
+Falle 16 in `CLAUDE.md`; sie ist nicht theoretisch, sondern die Ursache eines gemeldeten Defekts
+(DRK-334). **`virtuell` ist dabei die Höhe des KÖRPERS**, nicht der Tabelle — der Spaltenkopf kommt
+oben drauf, und wer ihn vergisst, baut genau die ~50px Scrollweg, die das Symptom erzeugen.
+
 **Handlungsknöpfe unter 768px sind volle Breite und stehen untereinander, nie nebeneinander.** Ein
 630px breiter Knopf liest sich als Fläche, nicht als Ziel.
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Flex, Select, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
@@ -11,9 +11,9 @@ import {
   nachDatum,
   nachText,
   nachZahl,
+  TabellenVollhoehe,
   trifftWert,
   useEntprellt,
-  useVerfuegbareHoehe,
   werteAlsFilter,
   zustandsFilter,
   type FilterZustand,
@@ -148,7 +148,6 @@ export function ArtikelTable({
   const [sammelOffen, setSammelOffen] = useState(false);
   const [sammelHinweis, setSammelHinweis] = useState<string | null>(null);
   const router = useRouter();
-  const tabellenRef = useRef<HTMLDivElement>(null);
 
   /**
    * ⚠️ DIE SUCHE WIRD ENTPRELLT, DAS FELD NICHT. Ohne das filterte, sortierte
@@ -298,13 +297,6 @@ export function ArtikelTable({
     setFilter(LEERER_FILTER);
     setSpaltenFilter({});
   }
-
-  /**
-   * Die verfuegbare Hoehe wird bei JEDER Groessenaenderung neu gemessen. Eine
-   * einmal gemessene Zahl waere beim Oeffnen richtig und danach still falsch
-   * (Falle 13); auch die eingeblendete Sammelleiste verschiebt den oberen Rand.
-   */
-  const tabellenHoehe = useVerfuegbareHoehe(tabellenRef, { mindestens: 360 });
 
   // ⚠️ NICHT-OPTIONALER TYP, und das ist kein Stil: mit dem optionalen
   // `TableProps[...]["columns"]` brauchte die Ableitung unten ein `?? []`, und
@@ -477,183 +469,190 @@ export function ArtikelTable({
 
   return (
     <>
-      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
-        <Suchfeld
-          wert={filter.suche}
-          onWert={(suche) => setFilter((vorher) => ({ ...vorher, suche }))}
-          platzhalter="Artikel, Fach oder Charge suchen…"
-        />
-        {/* DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene
-            Kategorie waere das Feld eine leere Liste. */}
-        {kategorien.length > 0 ? (
-          <Select<string[]>
-            mode="multiple"
-            value={sichtbareAuswahl}
-            onChange={kategorienAendern}
-            options={kategorien.map((option) => ({
-              value: option.schluessel,
-              label: option.label,
-            }))}
-            placeholder="Kategorien dauerhaft ausblenden"
-            aria-label="Kategorien dauerhaft ausblenden"
-            // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
-            // dieser hier bleibt, jener gilt nur fuer den Moment.
-            title={
-              "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
-              + "nächsten Aufschlagen ausgeblendet"
-            }
-            virtual={false}
-            style={{ minWidth: 240 }}
+      <TabellenVollhoehe
+        mindestens={360}
+        kopf={(
+          <>
+            <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
+              <Suchfeld
+                wert={filter.suche}
+                onWert={(suche) => setFilter((vorher) => ({ ...vorher, suche }))}
+                platzhalter="Artikel, Fach oder Charge suchen…"
+              />
+              {/* DRK-294. Nur, wenn es etwas zu waehlen gibt — ohne vergebene
+                  Kategorie waere das Feld eine leere Liste. */}
+              {kategorien.length > 0 ? (
+                <Select<string[]>
+                  mode="multiple"
+                  value={sichtbareAuswahl}
+                  onChange={kategorienAendern}
+                  options={kategorien.map((option) => ({
+                    value: option.schluessel,
+                    label: option.label,
+                  }))}
+                  placeholder="Kategorien dauerhaft ausblenden"
+                  aria-label="Kategorien dauerhaft ausblenden"
+                  // Der Unterschied zum Spaltenfilter derselben Spalte, in einem Satz:
+                  // dieser hier bleibt, jener gilt nur fuer den Moment.
+                  title={
+                    "Für dein Konto gespeichert — diese Kategorien bleiben auch beim "
+                    + "nächsten Aufschlagen ausgeblendet"
+                  }
+                  virtual={false}
+                  style={{ minWidth: 240 }}
+                />
+              ) : null}
+              {hatFilter ? (
+                <Button
+                  icon={<Ikone name="zuruecksetzen" groesse={16} />}
+                  onClick={zuruecksetzen}
+                >
+                  Zurücksetzen
+                </Button>
+              ) : null}
+              <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
+              <Button
+                data-testid="lb-excel"
+                icon={<Ikone name="tabelle" groesse={16} />}
+                // ABSICHTLICH `zeilen.length`, NICHT die angezeigte Menge: ein
+                // Suchfilter ohne Treffer deaktiviert den Knopf also NICHT, der Klick
+                // erzeugt dann eine Datei mit nur der Kopfzeile. Erst wenn im MODUL
+                // ueberhaupt kein Artikel existiert, gibt es nichts zu exportieren.
+                disabled={exportLaeuft || zeilen.length === 0}
+                onClick={exportieren}
+                title="Erzeugt eine Excel-Datei (.xlsx) mit der aktuell angezeigten Liste"
+                // ⚠️ E2E-VERTRAG (`e2e/lagerbuch-bestand-export.spec.ts`): die exakte
+                // Exportmenge, auch der leere Fall. Ohne ihn lief dort eine
+                // Zusicherung ins Leere. Er ist billig geblieben, weil `angezeigt`
+                // sich nur aendert, wenn sich die Anzeige aendert — die entprellte
+                // Suche schlaegt hier also nicht je Tastendruck durch.
+                data-export-zeilen={angezeigt.map((zeile) => zeile.id).join(",")}
+              >
+                {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
+              </Button>
+              <NeuArtikel kategorien={kategorien.map((option) => option.label)} />
+            </Flex>
+            {ausgewaehlt.length > 0 ? (
+              <Flex
+                gap={SPACE.md}
+                align="center"
+                wrap
+                data-testid="sammel-leiste"
+                style={{ marginBlockEnd: SPACE.md }}
+              >
+                <span style={SCHRIFT.feldname}>
+                  {ausgewaehlt.length} ausgewählt
+                </span>
+                <Button type="primary" onClick={() => setSammelOffen(true)}>
+                  Auswahl bearbeiten
+                </Button>
+                <Button type="link" style={{ padding: 0 }} onClick={() => setAuswahl([])}>
+                  Auswahl aufheben
+                </Button>
+              </Flex>
+            ) : null}
+            {sammelHinweis ? (
+              <Alert
+                type="success"
+                showIcon={false}
+                title={sammelHinweis}
+                closable
+                onClose={() => setSammelHinweis(null)}
+                style={{ marginBlockEnd: SPACE.md }}
+              />
+            ) : null}
+            {durchKategorienAusgeblendet > 0 ? (
+              // Ein fehlender Artikel soll nicht wie ein geloeschter aussehen: die
+              // gespeicherte Auswahl wirkt schon beim Aufschlagen, ohne dass in
+              // dieser Sitzung jemand etwas gewaehlt haette.
+              <Flex
+                gap={SPACE.sm}
+                align="center"
+                wrap
+                data-testid="kategorien-hinweis"
+                style={{ marginBlockEnd: SPACE.md }}
+              >
+                <span style={SCHRIFT.neben}>
+                  {durchKategorienAusgeblendet} Artikel in ausgeblendeten Kategorien
+                </span>
+                <Button type="link" style={{ padding: 0 }} onClick={() => kategorienAendern([])}>
+                  alle zeigen
+                </Button>
+              </Flex>
+            ) : null}
+            {exportFehler ? (
+              // Kein Fliesztext in Nebentext-Groesze fuer einen Fehler, und
+              // `type="warning"` statt `type="error"`: Rot ist in diesem Modul
+              // fachlich belegt (CLAUDE.md, Falle 3).
+              <Alert
+                type="warning"
+                showIcon={false}
+                title={exportFehler}
+                style={{ marginBlockEnd: SPACE.md }}
+              />
+            ) : null}
+            {kategorieFehler ? (
+              <Alert
+                type="warning"
+                showIcon={false}
+                title={kategorieFehler}
+                style={{ marginBlockEnd: SPACE.md }}
+              />
+            ) : null}
+          </>
+        )}
+      >
+        {(koerperHoehe) => (
+          <Datentabelle<ArtikelAnzeigeZeile>
+            rowKey="id"
+            virtuell={koerperHoehe}
+            aria-label="Artikel und Bestand"
+            dataSource={gefiltert}
+            columns={spalten}
+            // NUR der Zustand wird gemerkt, nie die Liste — Begruendung oben
+            // bei `spaltenFilter`.
+            onChange={(_blaettern, neueFilter, neueSortierung) => {
+              setSpaltenFilter(neueFilter as FilterZustand);
+              const eine = Array.isArray(neueSortierung) ? neueSortierung[0] : neueSortierung;
+              setSortierung({
+                spalte: eine?.columnKey ?? (eine?.field as string | undefined),
+                richtung: eine?.order ?? null,
+              });
+            }}
+            locale={{
+              emptyText: hatFilter || durchKategorienAusgeblendet > 0
+                ? "Kein Artikel passt zu Suche und Filter."
+                : "Noch keine Artikel. Lege oben den ersten an.",
+            }}
+            rowSelection={{
+              selectedRowKeys: auswahl,
+              columnWidth: 32,
+              onChange: (schluessel) => {
+                setAuswahl(schluessel.map(String));
+                // „5 Artikel geaendert." neben einer frisch begonnenen Auswahl
+                // liest sich wie eine Meldung ueber DIESE Auswahl.
+                setSammelHinweis(null);
+              },
+              preserveSelectedRowKeys: true,
+            }}
+            onRow={(zeile) => ({
+              onClick: (ereignis) => {
+                // ⚠️ DER KLICK AUF DAS KREUZCHEN DARF DIE SCHUBLADE NICHT OEFFNEN.
+                // antds Auswahlspalte liegt in DERSELBEN `<tr>`, ihr Klick
+                // blubbert also hierher; ohne diese Zeile beantwortet jedes
+                // Ankreuzen sich selbst mit den Artikeldetails. Geprueft wird auf
+                // `<label>` und nicht auf `.ant-table-selection-column`: antds
+                // `Checkbox` rendert sein Wurzelelement als `<label>`
+                // (`antd/es/checkbox/Checkbox.js`), und keine andere Zelle dieser
+                // Tabelle traegt eines — eine Klassenname-Probe haengt dagegen an
+                // einem Detail, das ein antd-Sprung still aendern kann.
+                if ((ereignis.target as HTMLElement).closest("label")) return;
+                setOffenerArtikel(zeile.id);
+              },
+            })}
           />
-        ) : null}
-        {hatFilter ? (
-          <Button
-            icon={<Ikone name="zuruecksetzen" groesse={16} />}
-            onClick={zuruecksetzen}
-          >
-            Zurücksetzen
-          </Button>
-        ) : null}
-        <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
-        <Button
-          data-testid="lb-excel"
-          icon={<Ikone name="tabelle" groesse={16} />}
-          // ABSICHTLICH `zeilen.length`, NICHT die angezeigte Menge: ein
-          // Suchfilter ohne Treffer deaktiviert den Knopf also NICHT, der Klick
-          // erzeugt dann eine Datei mit nur der Kopfzeile. Erst wenn im MODUL
-          // ueberhaupt kein Artikel existiert, gibt es nichts zu exportieren.
-          disabled={exportLaeuft || zeilen.length === 0}
-          onClick={exportieren}
-          title="Erzeugt eine Excel-Datei (.xlsx) mit der aktuell angezeigten Liste"
-          // ⚠️ E2E-VERTRAG (`e2e/lagerbuch-bestand-export.spec.ts`): die exakte
-          // Exportmenge, auch der leere Fall. Ohne ihn lief dort eine
-          // Zusicherung ins Leere. Er ist billig geblieben, weil `angezeigt`
-          // sich nur aendert, wenn sich die Anzeige aendert — die entprellte
-          // Suche schlaegt hier also nicht je Tastendruck durch.
-          data-export-zeilen={angezeigt.map((zeile) => zeile.id).join(",")}
-        >
-          {exportLaeuft ? "Erzeuge…" : "Excel-Liste"}
-        </Button>
-        <NeuArtikel kategorien={kategorien.map((option) => option.label)} />
-      </Flex>
-      {ausgewaehlt.length > 0 ? (
-        <Flex
-          gap={SPACE.md}
-          align="center"
-          wrap
-          data-testid="sammel-leiste"
-          style={{ marginBlockEnd: SPACE.md }}
-        >
-          <span style={SCHRIFT.feldname}>
-            {ausgewaehlt.length} ausgewählt
-          </span>
-          <Button type="primary" onClick={() => setSammelOffen(true)}>
-            Auswahl bearbeiten
-          </Button>
-          <Button type="link" style={{ padding: 0 }} onClick={() => setAuswahl([])}>
-            Auswahl aufheben
-          </Button>
-        </Flex>
-      ) : null}
-      {sammelHinweis ? (
-        <Alert
-          type="success"
-          showIcon={false}
-          title={sammelHinweis}
-          closable
-          onClose={() => setSammelHinweis(null)}
-          style={{ marginBlockEnd: SPACE.md }}
-        />
-      ) : null}
-      {durchKategorienAusgeblendet > 0 ? (
-        // Ein fehlender Artikel soll nicht wie ein geloeschter aussehen: die
-        // gespeicherte Auswahl wirkt schon beim Aufschlagen, ohne dass in
-        // dieser Sitzung jemand etwas gewaehlt haette.
-        <Flex
-          gap={SPACE.sm}
-          align="center"
-          wrap
-          data-testid="kategorien-hinweis"
-          style={{ marginBlockEnd: SPACE.md }}
-        >
-          <span style={SCHRIFT.neben}>
-            {durchKategorienAusgeblendet} Artikel in ausgeblendeten Kategorien
-          </span>
-          <Button type="link" style={{ padding: 0 }} onClick={() => kategorienAendern([])}>
-            alle zeigen
-          </Button>
-        </Flex>
-      ) : null}
-      {exportFehler ? (
-        // Kein Fliesztext in Nebentext-Groesze fuer einen Fehler, und
-        // `type="warning"` statt `type="error"`: Rot ist in diesem Modul
-        // fachlich belegt (CLAUDE.md, Falle 3).
-        <Alert
-          type="warning"
-          showIcon={false}
-          title={exportFehler}
-          style={{ marginBlockEnd: SPACE.md }}
-        />
-      ) : null}
-      {kategorieFehler ? (
-        <Alert
-          type="warning"
-          showIcon={false}
-          title={kategorieFehler}
-          style={{ marginBlockEnd: SPACE.md }}
-        />
-      ) : null}
-
-      <div ref={tabellenRef}>
-        <Datentabelle<ArtikelAnzeigeZeile>
-          rowKey="id"
-          virtuell={tabellenHoehe}
-          aria-label="Artikel und Bestand"
-          dataSource={gefiltert}
-          columns={spalten}
-          // NUR der Zustand wird gemerkt, nie die Liste — Begruendung oben
-          // bei `spaltenFilter`.
-          onChange={(_blaettern, neueFilter, neueSortierung) => {
-            setSpaltenFilter(neueFilter as FilterZustand);
-            const eine = Array.isArray(neueSortierung) ? neueSortierung[0] : neueSortierung;
-            setSortierung({
-              spalte: eine?.columnKey ?? (eine?.field as string | undefined),
-              richtung: eine?.order ?? null,
-            });
-          }}
-          locale={{
-            emptyText: hatFilter || durchKategorienAusgeblendet > 0
-              ? "Kein Artikel passt zu Suche und Filter."
-              : "Noch keine Artikel. Lege oben den ersten an.",
-          }}
-          rowSelection={{
-            selectedRowKeys: auswahl,
-            columnWidth: 32,
-            onChange: (schluessel) => {
-              setAuswahl(schluessel.map(String));
-              // „5 Artikel geaendert." neben einer frisch begonnenen Auswahl
-              // liest sich wie eine Meldung ueber DIESE Auswahl.
-              setSammelHinweis(null);
-            },
-            preserveSelectedRowKeys: true,
-          }}
-          onRow={(zeile) => ({
-            onClick: (ereignis) => {
-              // ⚠️ DER KLICK AUF DAS KREUZCHEN DARF DIE SCHUBLADE NICHT OEFFNEN.
-              // antds Auswahlspalte liegt in DERSELBEN `<tr>`, ihr Klick
-              // blubbert also hierher; ohne diese Zeile beantwortet jedes
-              // Ankreuzen sich selbst mit den Artikeldetails. Geprueft wird auf
-              // `<label>` und nicht auf `.ant-table-selection-column`: antds
-              // `Checkbox` rendert sein Wurzelelement als `<label>`
-              // (`antd/es/checkbox/Checkbox.js`), und keine andere Zelle dieser
-              // Tabelle traegt eines — eine Klassenname-Probe haengt dagegen an
-              // einem Detail, das ein antd-Sprung still aendern kann.
-              if ((ereignis.target as HTMLElement).closest("label")) return;
-              setOffenerArtikel(zeile.id);
-            },
-          })}
-        />
-      </div>
+        )}
+      </TabellenVollhoehe>
 
       {sammelOffen ? (
         <SammelDrawer

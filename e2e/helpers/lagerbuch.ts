@@ -94,3 +94,35 @@ export function lagerbuchUrl(pfad: string): string {
 export function fremdUrl(pfad: string): string {
   return `http://${FREMDER_HOST}:${LAGERBUCH_PORT}${pfad}`;
 }
+
+/**
+ * DIE LAST-ARTIKEL — die einzige Fixture, die es allein wegen einer ZAHL gibt
+ * (DRK-334).
+ *
+ * `core/tabelle` virtualisiert erst ab `VIRTUELL_AB_ZEILEN` (150). Genau dort
+ * entsteht der zweite Scrollcontainer, um den es geht — mit sechs Artikeln gibt
+ * es ihn nicht, und ein Test dagegen bewiese nichts. Die Menge steht deshalb
+ * hier und nicht als Literal im Spec: liefen Seed und Zusicherung auseinander,
+ * bliebe der Lauf gruen und pruefte nur eine gewoehnliche Tabelle.
+ *
+ * ⚠️ SIE SIND INAKTIV, und das ist derselbe Kniff wie bei `kategorieFixtures`
+ * und `sammelFixtures`: NUR `/verwaltung/artikel` liest `inklInaktiv: true`
+ * (`_lib/lesepfade/artikel.ts`). Inventur, Helfer, Etiketten, Bestellliste,
+ * Fahrzeug- und Vorlagenblatt sehen sie nicht — sonst zaehlte ein halbes Dutzend
+ * fremder Specs ploetzlich 200 Zeilen mehr.
+ *
+ * ⚠️ UND DER NAME BEGINNT MIT „ZZZ", DAMIT SIE GANZ UNTEN STEHEN. Das ist keine
+ * Kosmetik, sondern die zweite Haelfte derselben Abschirmung: die Artikeltabelle
+ * sortiert VON SICH AUS aufsteigend nach Namen (`ArtikelTable.tsx`, `sortierung`
+ * startet auf `name`/`ascend` und haengt als `sortOrder` an der Spalte) — die
+ * Einfuegereihenfolge im Seed spielt also ueberhaupt keine Rolle. Unter „E2E
+ * Last" waeren die 200 Zeilen zwischen „E2E Kategorie" und „E2E Sammel"
+ * gelandet, und alles dahinter (die beiden Sammel-Artikel,
+ * „E2E Verbandpaeckchen", „E2E Verfall NaCl") stuende in der virtuellen Tabelle
+ * NICHT MEHR IM DOM — `lagerbuch-sammelbearbeitung.spec.ts` sucht seine beiden
+ * Zeilen ohne vorher zu suchen oder zu scrollen. Hinter „ZZZ" sortiert nichts
+ * mehr, also bleiben alle gezielten Fixtures in den ersten Zeilen.
+ */
+export const E2E_LAST_PRAEFIX = "ZZZ E2E Last";
+/** Deutlich ueber 150, damit die Schwelle nicht knapp erreicht wird. */
+export const E2E_LAST_ANZAHL = 200;

@@ -1,0 +1,73 @@
+/*
+ * EINE SEITE, EIN SCROLLER — unter 768px (DRK-334).
+ *
+ * Die Begründung und die Messung stehen in `TabellenVollhoehe.tsx` und
+ * `vollhoehe.ts`; hier steht nur, was CSS davon ausführt.
+ *
+ * ⚠️ DIE HÖHE KOMMT ALS GEMESSENE ZAHL HEREIN, NICHT ALS RECHNUNG.
+ * `calc(100dvh - <Kopfzeile> - <Innenabstand>)` bräuchte zwei Zahlen, die
+ * diesem Modul nicht gehören: `--iuk-kopf` ist an `.sider` deklariert (nicht an
+ * `:root`, ein CSS-Modul kann das nicht scopen) und der Innenabstand steckt in
+ * `SuiteRahmen`. Beide hier abzuschreiben wäre genau der zweite Ort, den
+ * `shell-css.test.ts` für die Kopfhöhe ausdrücklich verriegelt. Und selbst mit
+ * beiden Zahlen bliebe die dritte unbekannt: wie hoch die Werkzeugleiste
+ * heute umbricht, weiß nur das Layout.
+ *
+ * ⚠️ DER BREAKPOINT STEHT IN CSS, NICHT IN JS. `--tab-vollhoehe` wird IMMER
+ * gesetzt; ob sie gilt, entscheidet allein die Media Query. Ein JS-Breakpoint
+ * zeigt beim ersten Render die falsche Variante — dieselbe Begründung wie am
+ * App-Umschalter in `shell.module.css`, und `Grid.useBreakpoint` ist in dieser
+ * Suite ohnehin verboten.
+ */
+/*
+ * ⚠️ 767.98px, NICHT 767 — die Schreibweise der Suite (docs/design/README.md,
+ * „Mobil — ein Breakpoint"). Bei exakt 768px gälten sonst beide Seiten, und
+ * zwischen 767 und 768 keine.
+ */
+@media (max-width: 767.98px) {
+  .vollhoehe {
+    block-size: var(--tab-vollhoehe);
+    display: flex;
+    flex-direction: column;
+    /*
+     * Ohne das hier wäre die Höhe nur eine Behauptung: ein Kind, das übersteht,
+     * wächst sonst aus dem Kasten heraus und das Dokument scrollt wieder. Es
+     * ist zugleich der Grund, warum `TabellenVollhoehe` die Klasse wieder
+     * abnimmt, sobald der Platz nicht reicht — sonst schnitte sie
+     * Bedienelemente ab.
+     */
+    overflow: hidden;
+  }
+
+  /*
+   * Die Tabelle nimmt den Rest. `min-block-size: 0` ist der Teil, den man
+   * vergisst: ein Flex-Kind hat als Vorgabe `min-height: auto` und schrumpft
+   * deshalb NICHT unter seinen Inhalt — die Tabelle bliebe so hoch wie ihre
+   * Zeilen und schöbe die Seite wieder auf.
+   */
+  .vollhoehe .tabelle {
+    flex: 1 1 auto;
+    min-block-size: 0;
+  }
+}
+
+/*
+ * ⚠️ AUSSERHALB DER MEDIA QUERY, und das ist Absicht: das Kettenscrollen gibt es
+ * auf jedem Gerät mit Zeigergesten, nicht nur unter 768px. Erreicht der Finger
+ * das Ende des Tabellenkörpers, setzt der Browser die Bewegung im nächsten
+ * Scrollcontainer fort — dem Dokument. `contain` hält sie im Körper.
+ *
+ * ⚠️ UND SIE HÄNGT AN `.tabelle`, NICHT AN `.vollhoehe`. Die Deckelung fällt
+ * weg, sobald für den Körper zu wenig Platz bliebe — genau dann gibt es den
+ * inneren Scroller aber weiterhin, und das Kettenscrollen mit ihm. Eine Regel
+ * unter `.vollhoehe` wäre in ebenjenem Fall still verschwunden.
+ *
+ * Der antd-Klassenname ist hier unvermeidlich: der Scrollcontainer entsteht in
+ * rc-table und trägt kein eigenes Merkmal, an das man greifen könnte. Die Regel
+ * ist bewusst zweiklassig (0,2,0) — sie tritt gegen keine antd-Deklaration an,
+ * `overscroll-behavior` setzt antd nirgends (Falle 5).
+ */
+.tabelle :global(.ant-table-body),
+.tabelle :global(.ant-table-tbody-virtual-holder) {
+  overscroll-behavior: contain;
+}
