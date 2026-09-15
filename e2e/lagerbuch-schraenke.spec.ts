@@ -275,11 +275,20 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     await expect(zeile, "der neue Schrank muss in der Liste stehen").toHaveCount(1);
 
     // ── Löschen ────────────────────────────────────────────────────────────
+    // ⚠️ AUCH DIESER KLICK LOEST EINE SERVER ACTION AUS, und darum haengt auch
+    // er an `page.waitForResponse` (Falle 10, zweite Testregel): der Dialog
+    // ruft beim Oeffnen `pruefeLoeschbar`. Ohne die Zusicherung liefe eine
+    // abgelehnte Vorpruefung (403, 500, abgebrochen) still in das Zeitbudget
+    // der Zeile darunter und meldete sich als „der leere Schrank muss
+    // löschbar sein" — eine Meldung, die auf die Loeschregeln zeigt, waehrend
+    // in Wahrheit die Anfrage nie ankam.
+    const pruefAntwort = serverActionAntwort(page);
     await klickeWennRuhig(zeile.getByRole("button", { name: "Löschen", exact: true }));
+    expect((await pruefAntwort).ok(), "Löschbarkeit prüfen: Server Action").toBe(true);
 
-    // Die Vorpruefung ist selbst eine Server Action; erst danach steht das
-    // Bestaetigungsfeld im Dialog. Auf das FELD zu warten ist die belastbare
-    // Probe — es erscheint nur im Zweig `loeschbar: true`.
+    // Erst danach steht das Bestaetigungsfeld im Dialog. Auf das FELD zu warten
+    // ist die fachliche Probe — es erscheint nur im Zweig `loeschbar: true`;
+    // die Zeile darueber deckt den technischen Teil ab.
     const loeschDialog = page.getByRole("dialog");
     const bestaetigung = loeschDialog.getByLabel("Namen zur Bestätigung eingeben");
     await expect(bestaetigung, "der leere Schrank muss löschbar sein").toBeVisible();
