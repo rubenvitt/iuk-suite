@@ -12,7 +12,7 @@
  * darf, entscheidet Entscheidung 30 (§6.6.2). Diese Datei liefert einen
  * ZUSTANDSNAMEN; wie er aussieht, entscheidet Teil 5.
  */
-import { typLabel } from "./format";
+import { vorgangText } from "./vorgang";
 
 export type JournalZustand = "negativ" | "positiv" | "neutral";
 
@@ -24,11 +24,27 @@ export type JournalDarstellung = {
   /** Haengt am VORZEICHEN, nicht am Typ: eine Korrektur geht in beide Richtungen,
    *  und eine Umlagerung erzeugt zwei Legs mit entgegengesetztem Vorzeichen (I3). */
   zustand: JournalZustand;
+  /**
+   * DIE VORGANGSART, NICHT NUR DER TYP (DRK-344). Unter `korrektur` liegen
+   * Aussonderung, Inventurdifferenz und Handkorrektur; welche davon es ist,
+   * steht in der `referenz`. Die Ableitung selbst samt Begruendung, WELCHES
+   * Praefix einen eigenen Text bekommt, steht in `_lib/vorgang.ts`.
+   */
   typText: string;
 };
 
-export function journalZeile(b: { typ: string; menge: number }): JournalDarstellung {
+/**
+ * ⚠️ `referenz` IST PFLICHT, NICHT OPTIONAL — und das ist der ganze Riegel
+ * (DRK-344). Diese Funktion hat DREI Aufrufer: die Uebersichtskachel, die
+ * Journaltabelle und den Artikel-Verlauf im Drawer. Waere das Feld optional,
+ * zeigte jeder Aufrufer, der es vergisst, weiter „Korrektur" — und zwar still,
+ * denn eine fehlende Aussonderung sieht aus wie eine, die es nicht gab. So
+ * nennt der Compiler jede Stelle beim Namen.
+ */
+export function journalZeile(
+  b: { typ: string; menge: number; referenz: string | null },
+): JournalDarstellung {
   const zustand: JournalZustand = b.menge < 0 ? "negativ" : b.menge > 0 ? "positiv" : "neutral";
   const mengeText = b.menge > 0 ? `+${b.menge}` : String(b.menge);
-  return { mengeText, zustand, typText: typLabel(b.typ) };
+  return { mengeText, zustand, typText: vorgangText(b) };
 }

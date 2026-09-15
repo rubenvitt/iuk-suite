@@ -181,6 +181,12 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
     buchungen: bu.slice(0, ARTIKEL_VERLAUF_GRENZE).map((b) => ({
       id: b.id, ts: b.ts, typ: b.typ, menge: b.menge, kommentar: b.kommentar,
       quelleTyp: b.quelleTyp, quelleId: b.quelleId,
+      // ⚠️ `referenz` GEHOERT IN DIE PROJEKTION (DRK-344). Der Drawer beschriftet
+      // die Zeile ueber `journalZeile`, und das unterscheidet Aussonderung,
+      // Inventurdifferenz und Handkorrektur allein an diesem Feld — alle drei
+      // tragen `typ: "korrektur"`. Ohne die Spalte stuende im Artikel-Verlauf
+      // weiter „Korrektur", waehrend das Journal daneben „Aussonderung" sagt.
+      referenz: b.referenz,
     })),
     /** ⚠️ UNBEDINGTE Texte („die neuesten 8") sind die Fehlaussage, gegen die
      *  §5.14.3 gebaut ist: der Hinweis erscheint NUR, wenn die Grenze griff. */

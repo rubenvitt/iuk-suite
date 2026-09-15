@@ -6,7 +6,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { Datentabelle } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
-import type { BuchungTyp } from "../../../_lib/lesepfade/journal";
+import type { Vorgangsart } from "../../../_lib/vorgang";
 import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 // ⚠️ Aus `journalFilterLogik`, NICHT aus `JournalFilter` — letzteres ist eine
 // Client-Komponente, die den Wert nur re-exportiert. Der Umweg ginge hier zwar
@@ -29,7 +29,7 @@ export type JournalAnzeigeZeile = {
   /** Die Menge als Zahl — allein fuer die Sortierung, angezeigt wird `deltaText`. */
   deltaZahl: number;
   deltaTon: "negativ" | "positiv";
-  typ: BuchungTyp;
+  typ: string;
   quelleName: string;
   /** Der rohe Code/die rohe Kennung, NUR fuer den `title` des Chips (Ruling A15). */
   quelleId: string;
@@ -41,7 +41,10 @@ export type JournalCursor = { ts: string; id: string };
 /** Was die Seite an die Action weiterreicht, damit Nachschlaege denselben Filter fahren. */
 export type JournalAbrufFilter = {
   q?: string;
-  typ?: BuchungTyp;
+  /** Die VORGANGSART (DRK-344) — vier Buchungstypen plus `aussondern` und
+   *  `inventur`, beide aus der `referenz` abgeleitet. In der Adresszeile heisst
+   *  derselbe Wert weiter `typ`; uebersetzt wird in `journalParameterAus`. */
+  vorgang?: Vorgangsart;
   von?: string;
   bis?: string;
 };
@@ -56,7 +59,15 @@ export type JournalAbrufFilter = {
  */
 export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
   const zeitpunkt = new Date(zeile.ts);
-  const darstellung = journalZeile({ typ: zeile.typ, menge: zeile.menge });
+  // ⚠️ `referenz` GEHOERT MIT HINEIN (DRK-344): unter `korrektur` liegen
+  // Aussonderung, Inventurdifferenz und Handkorrektur, und nur die Referenz
+  // sagt welche. Die Pflichtangabe im Typ ist der Riegel dagegen, sie hier zu
+  // vergessen — ohne sie stuende weiter „Korrektur", und zwar still.
+  const darstellung = journalZeile({
+    typ: zeile.typ,
+    menge: zeile.menge,
+    referenz: zeile.referenz,
+  });
   return {
     id: zeile.id,
     zeitText: fmtTs(zeitpunkt),
@@ -213,7 +224,7 @@ export function JournalTable({
     ersterCursor?.ts ?? null,
     ersterCursor?.id ?? null,
     abrufFilter.q ?? null,
-    abrufFilter.typ ?? null,
+    abrufFilter.vorgang ?? null,
     abrufFilter.von ?? null,
     abrufFilter.bis ?? null,
   ]);

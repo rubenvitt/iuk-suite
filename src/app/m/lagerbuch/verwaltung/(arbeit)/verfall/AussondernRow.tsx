@@ -46,7 +46,11 @@ export function AussondernRow({
     <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
       <Popconfirm
         title="Charge aussondern?"
-        description={`Bucht den Handlager-Rest von ${bezeichnung} als Korrektur aus.`}
+        // ⚠️ „Aussonderung", NICHT „Korrektur" (DRK-344). Die Buchung ist
+        // technisch weiter eine Korrektur, im Journal steht seither aber
+        // „Aussonderung" — und wer hier „Korrektur" liest und dort etwas
+        // anderes findet, sucht die eigene Buchung vergeblich.
+        description={`Bucht den Handlager-Rest von ${bezeichnung} als Aussonderung aus.`}
         okText="Aussondern"
         cancelText="Abbrechen"
         okButtonProps={{ loading: laeuft }}
