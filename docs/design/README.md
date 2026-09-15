@@ -320,14 +320,24 @@ Der naheliegende Griff wäre deshalb eine Regel gegen `.ant-table-thead th`, und
 Klassennamen, die ein Major still bricht.
 
 **Der richtige Weg braucht gar keine Regel.** antd rendert als Spaltenkopf, was in `columns[].title`
-steht — dort gehört die Rolle hin:
+steht — dort gehört die Rolle hin. Geschrieben wird sie aber **nicht mehr von Hand**: `Datentabelle`
+aus `core/tabelle` wickelt jeden Titel, der eine **Zeichenkette** ist, selbst in den Kicker-`<span>`
+(mit `data-rolle="spaltenkopf"` als Griff für Playwright). Der Aufrufer schreibt also nur noch:
 
 ```tsx
-{ title: <span style={SCHRIFT.kicker}>Artikel</span>, dataIndex: "name" }
+{ title: "Artikel", dataIndex: "name" }
 ```
 
 Gemessen am 2026-08-12: ohne diesen Griff rendern Spaltenköpfe in Geist 14/600, ohne Versalien —
 sie unterscheiden sich vom Zelleninhalt allein durch das Gewicht und lesen sich kaum als Kopf.
+
+⚠️ **Hier stand bis zum 2026-09-15 `{ title: <span style={SCHRIFT.kicker}>Artikel</span> }`, und
+genau das war die Ursache eines Defekts** (DRK-329, Falle 17 in `CLAUDE.md`): ein JSX-Element als
+`title`, das in einer **Server Component** entsteht, kommt im Server-HTML in der Kopfzelle gar nicht
+an — `@rc-component/table` rendert den Titel doppelt (Kopfzelle *und* verborgene Messzeile) und im
+RSC-Fall sah ihn nur die Messzeile. Die Tabelle stand ohne Spaltenüberschriften da, und die
+Konsole meldete einen Hydrationsfehler. Ein JSX-`title` ist deshalb **nur in einer Client-Insel**
+erlaubt; `src/core/tabelle/spaltenkopf.test.ts` riegelt es repo-weit ab.
 
 ## Mobil — ein Breakpoint
 
