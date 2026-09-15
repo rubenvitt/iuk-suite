@@ -176,6 +176,9 @@ export function VerfallEditor({
           // Mit ihr stuende im Dialog der alte Monat, und eine Teilaussonderung
           // schriebe ihn ueber den gerade gespeicherten zurueck.
           verfall={monatFuer(eintrag)}
+          // Dieselbe Sperre wie am Monatswähler oben: solange die Tabelle
+          // selbst schreibt, bleibt der zweite Schreibweg zu.
+          gesperrt={laeuft}
           // Zweite Schreibstelle auf demselben Wert — der Spiegel muss ihr
           // folgen, sonst behauptet der Waehler weiter den alten Monat.
           onAusgesondert={(neuerVerfall) => {

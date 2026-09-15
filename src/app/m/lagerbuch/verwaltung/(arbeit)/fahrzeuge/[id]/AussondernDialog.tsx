@@ -41,6 +41,7 @@ export function AussondernDialog({
   bestand,
   chargen,
   verfall,
+  gesperrt = false,
   onAusgesondert,
 }: {
   lagerortId: string;
@@ -50,6 +51,17 @@ export function AussondernDialog({
   bestand: number;
   chargen: ChargeZeile[];
   verfall: string | null;
+  /**
+   * Sperrt den Zugang, solange die Tabelle daneben selbst schreibt.
+   *
+   * ⚠️ EIN WETTLAUF, KEIN SCHOENHEITSFEHLER: läuft `verfallSetzen` noch und wird
+   * hier zugleich der ganze Bestand ausgesondert, kann dessen Antwort NACH dem
+   * Löschen eintreffen — es prüft nur die Soll-Zugehörigkeit und schreibt den
+   * Monat dann bedingungslos zurück. Übrig bliebe eine Verfallszeile für einen
+   * Artikel ohne Bestand. Der Monatswähler daneben ist aus demselben Grund
+   * bereits gesperrt; die beiden Schreibwege schließen einander damit aus.
+   */
+  gesperrt?: boolean;
   /**
    * Meldet den GESCHRIEBENEN Verfall an die Tabelle zurueck — `null`, wenn die
    * Angabe entfaellt.
@@ -159,7 +171,7 @@ export function AussondernDialog({
       {/* KEIN size="small": 44px ist die Arbeitsdichte, "small" unterbietet die
           Mindesttapfläche (Falle 4, WCAG 2.5.5). */}
       <Button
-        disabled={bestand <= 0}
+        disabled={gesperrt || bestand <= 0}
         icon={<Ikone name="kreuz" groesse={14} />}
         onClick={oeffnen}
         aria-label={`${artikelName} aussondern`}

@@ -472,3 +472,35 @@ describe("Der Dialog beim ZWEITEN Öffnen", () => {
       .toBe("2027-09");
   });
 });
+
+describe("Die beiden Schreibwege schliessen einander aus", () => {
+  /**
+   * ⚠️ EIN WETTLAUF, KEIN ANZEIGEFEHLER. Solange `verfallSetzen` unterwegs ist
+   * und jemand in derselben Zeile den GANZEN Bestand aussondert, kann die
+   * Antwort NACH dem Loeschen eintreffen: `verfallSetzen` prueft nur die
+   * Soll-Zugehoerigkeit und schreibt den Monat dann bedingungslos zurueck. Am
+   * Ende stuende eine Verfallszeile fuer einen Artikel ohne Bestand.
+   *
+   * Der Monatswaehler daneben ist aus demselben Grund schon `disabled={laeuft}`;
+   * der Aussondern-Knopf war die letzte offene Tuer.
+   */
+  it("sperrt das Aussondern, solange der Monat noch gespeichert wird", async () => {
+    let freigeben: (() => void) | null = null;
+    mocks.setzen.mockReturnValue(new Promise((fertig) => {
+      freigeben = () => fertig({ ok: true, wert: { gesetzt: true } });
+    }));
+
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+    const knopf = () => query<HTMLButtonElement>(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    );
+    expect(knopf().disabled).toBe(false);
+
+    await monatWaehlen("Verfall Mullbinde", "2027-09");
+    expect(knopf().disabled).toBe(true);
+
+    await act(async () => { freigeben!(); });
+    await warte();
+    expect(knopf().disabled).toBe(false);
+  });
+});
