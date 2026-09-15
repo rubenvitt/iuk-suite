@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import type { TestDb } from "../../_db/testdb";
 import { migrierteTestDb } from "../../_db/testdb";
-import { tokens } from "../../_db/schema";
+import { checks, lagerorte, tokens } from "../../_db/schema";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
 
 const QUELLE = "src/app/m/lagerbuch/helfer/check/page.tsx";
@@ -154,6 +154,7 @@ vi.mock("../../_ui/CheckFlow", () => ({
     verfall: Record<string, string>;
     warn: unknown;
     gebunden: boolean;
+    letzterCheckText: string | null;
   }) => (
     <div
       data-rolle="flow"
@@ -168,6 +169,12 @@ vi.mock("../../_ui/CheckFlow", () => ({
       data-druecke={p.flaschen.map((f) => String(f.letzterDruck)).join(",")}
       data-verfall={JSON.stringify(p.verfall)}
       data-warn={JSON.stringify(p.warn)}
+      /* DRK-306: `typeof` MIT, weil genau der Typ die Zusage ist — ein `Date`
+         reist klaglos ueber die RSC-Grenze und formatiert dann in der Zone des
+         Geraets. Ein `data-letzter-check="Mon Sep 14 2026 …"` waere in einem
+         `toContain`-Test unauffaellig. */
+      data-letzter-check={String(p.letzterCheckText)}
+      data-letzter-check-typ={typeof p.letzterCheckText}
     />
   ),
 }));
@@ -726,5 +733,64 @@ describe("/helfer/check — der Einstieg nach dem Fahrzeug-Scan (DRK-302)", () =
     anFahrzeugBinden("fz-2");
     await mount(await CheckSeite(sp({ fz: "fz-1" })));
     expect(umleitungen).toEqual([]);
+  });
+});
+
+describe("/helfer/check — der letzte Check (DRK-306, AK1)", () => {
+  /**
+   * `lesepfade/checks` ist BEWUSST KEINE ATTRAPPE — anders als die vier
+   * Fahrzeug-Lesepfade daneben. Der Punkt dieses Blocks ist nicht, dass die
+   * Seite irgendeine Funktion ruft, sondern dass aus einer ECHTEN Zeile in
+   * `checks` ein zonenrichtiger TEXT wird. Gegen eine Attrappe waere beides
+   * eine Zusicherung gegen die Attrappe.
+   *
+   * Die `lagerorte`-Zeile ist trotzdem noetig: `checks.fahrzeug_id` traegt
+   * einen Fremdschluessel, und die Fahrzeugliste daneben ist eine Attrappe.
+   */
+  function checkAnlegen(fahrzeugId: string, at: Date, id = "chk-1"): void {
+    t.db.insert(lagerorte).values(
+      { id: fahrzeugId, name: fahrzeugId.toUpperCase(), typ: "fahrzeug", kennung: null, aktiv: true })
+      .onConflictDoNothing().run();
+    t.db.insert(checks).values({
+      id, fahrzeugId, quelleTyp: "token", quelleId: "482-137",
+      startedAt: at, completedAt: at, ergebnis: null,
+    }).run();
+  }
+
+  it("reicht den Zeitpunkt als TEXT in Europe/Berlin — kein Date an die Insel", async () => {
+    /*
+     * ⚠️ DER TYP IST DIE ZUSAGE. Ein `Date` serialisiert klaglos ueber die
+     * RSC-Grenze und wird dann in der Zone des GERAETS formatiert — auf einem
+     * privaten Telefon im Ausland stuende der Zeitpunkt um Stunden daneben, und
+     * kein Tor meldete etwas. 06:12 UTC sind 08:12 Berliner Sommerzeit; ein
+     * durchgereichtes `Date` liefe hier unter der Prozesszone des Testlaufs.
+     */
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    checkAnlegen("fz-1", new Date("2026-09-14T06:12:00Z"));
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-letzter-check"))
+      .toBe("14.09.2026, 08:12");
+    expect(query("[data-rolle='flow']").getAttribute("data-letzter-check-typ"))
+      .toBe("string");
+  });
+
+  it("reicht `null` fuer ein Fahrzeug ohne Check — nicht einen leeren Text", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-letzter-check")).toBe("null");
+    expect(query("[data-rolle='flow']").getAttribute("data-letzter-check-typ"))
+      .toBe("object");
+  });
+
+  it("nimmt den Check DIESES Fahrzeugs, nicht den juengsten der Organisation", async () => {
+    // Ein Blick in die falsche Zeile faellt hier besonders spaet auf: die Zahl
+    // sieht plausibel aus, und sie ist bei nur einem Fahrzeug im Seed sogar
+    // richtig.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    checkAnlegen("fz-1", new Date("2026-09-14T06:12:00Z"), "chk-1");
+    checkAnlegen("fz-2", new Date("2026-09-20T06:12:00Z"), "chk-2");
+    await mount(await CheckSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='flow']").getAttribute("data-letzter-check"))
+      .toBe("14.09.2026, 08:12");
   });
 });

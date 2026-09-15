@@ -19,7 +19,7 @@
  * Summe. Das ist die eine Stelle, an der Uebersicht und Detail auseinandergehen
  * duerfen — und sie geht in die SICHERE Richtung: das Detail weiss mehr.
  */
-import { and, desc, eq, gte, lte, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
 import { parseCheckErgebnis } from "../checkErgebnis";
 import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
@@ -259,4 +259,45 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
       verfallAuffaellig: verfallD.filter((v) => v.ampel !== "gruen").length,
     },
   };
+}
+
+/**
+ * DER ZEITPUNKT DES LETZTEN ABGESCHLOSSENEN CHECKS EINES FAHRZEUGS — DRK-306.
+ *
+ * `null` heisst „noch nie abgeschlossen geprueft" und ist eine ANDERE Aussage
+ * als „vor langer Zeit": die Oberflaeche muss beide unterscheiden koennen, sonst
+ * liest jemand einen fehlenden Wert als frischen Stand.
+ *
+ * ⚠️ NICHT UEBER `fahrzeugUebersicht`, obwohl die Zeile dort `letzterCheck`
+ * schon fuehrt. Jene Funktion liest ALLE Fahrzeuge, ALLE Soll-Positionen und
+ * `bestandJeArtikelUndLagerort` — genau die Vollladung, gegen die
+ * `helfer/check/page.tsx` auf „ERST WAEHLEN, DANN LADEN" umgebaut wurde, weil
+ * der Helferweg auf einem PRIVATEN Telefon in einer Sitzung OHNE Konto laeuft.
+ * Ein Aufruf von dort holte die Lage der ganzen Organisation zurueck, um EINE
+ * Zahl anzuzeigen.
+ *
+ * ⚠️ `completedAt IS NOT NULL` MACHT §4.4 IM AUSDRUCK SICHTBAR — ES IST ABER
+ * KEIN TOR, UND DAS STEHT HIER, DAMIT ES NIEMAND DAFUER HAELT. Gemessen: nimmt
+ * man den Riegel heraus, bleibt `checks.test.ts` VOLLSTAENDIG GRUEN. Zwei
+ * Gruende, die sich ueberlagern — SQLite sortiert NULLs bei `DESC` nach HINTEN,
+ * und selbst wenn eine offene Zeile gewaenne, faengt das `?? null` unten sie zum
+ * selben Ergebnis ab. Wer den Riegel „aufraeumt", aendert heute also nichts;
+ * wer ihn stehen laesst, haelt die Absicht fest, falls die Rueckgabe einmal
+ * mehr als diesen einen Wert traegt. Eine Begruendung, die hier einen Mutanten
+ * behauptet, waere schlimmer als keine.
+ *
+ * ⚠️ DER `id`-TIEBREAKER IST NICHT KOSMETIK, sondern dieselbe Zusage wie in
+ * `checkHistorie` und im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).
+ * Zwei Checks in derselben Sekunde sind ohne ihn in beliebiger Reihenfolge, und
+ * die Anzeige koennte zwischen zwei Aufrufen springen.
+ */
+export function letzterCheckZeitpunkt(db: Leser, fahrzeugId: string): Date | null {
+  const c = db
+    .select({ completedAt: checks.completedAt })
+    .from(checks)
+    .where(and(eq(checks.fahrzeugId, fahrzeugId), isNotNull(checks.completedAt)))
+    .orderBy(desc(checks.completedAt), desc(checks.id))
+    .limit(1)
+    .get();
+  return c?.completedAt ?? null;
 }
