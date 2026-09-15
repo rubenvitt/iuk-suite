@@ -411,11 +411,13 @@ function sammelFixtures(): void {
  * „Kritische Artikel" und der Bestellliste heraus, auch wenn die je einmal
  * inaktive Artikel lesen sollten.
  *
- * ⚠️ SIE WERDEN ZULETZT EINGEFUEGT. Die Artikelliste hat kein ORDER BY
- * (`artikelListe`), die Reihenfolge ist also die Einfuegereihenfolge — so
- * bleiben die Fixtures der anderen Specs in den ersten Zeilen und damit im
- * gerenderten Fenster der virtuellen Tabelle. Stuenden sie hinter 200
- * Lastzeilen, waeren sie schlicht nicht mehr im DOM.
+ * ⚠️ SIE MUESSEN GANZ UNTEN STEHEN, UND DAFUER ZAEHLT DER NAME — nicht die
+ * Einfuegereihenfolge. `artikelListe` hat zwar kein ORDER BY, aber die Tabelle
+ * sortiert von sich aus aufsteigend nach Namen (`ArtikelTable.tsx`,
+ * `sortierung` startet auf `name`/`ascend`). Deshalb traegt der Praefix ein
+ * „ZZZ": alles, was ein Spec gezielt sucht, bleibt so in den ersten Zeilen und
+ * damit im gerenderten Fenster der virtuellen Tabelle. Die volle Begruendung
+ * steht bei `E2E_LAST_PRAEFIX`.
  */
 function lastFixtures(): void {
   const db = getDb();

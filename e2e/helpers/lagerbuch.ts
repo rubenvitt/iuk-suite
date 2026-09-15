@@ -110,7 +110,19 @@ export function fremdUrl(pfad: string): string {
  * (`_lib/lesepfade/artikel.ts`). Inventur, Helfer, Etiketten, Bestellliste,
  * Fahrzeug- und Vorlagenblatt sehen sie nicht — sonst zaehlte ein halbes Dutzend
  * fremder Specs ploetzlich 200 Zeilen mehr.
+ *
+ * ⚠️ UND DER NAME BEGINNT MIT „ZZZ", DAMIT SIE GANZ UNTEN STEHEN. Das ist keine
+ * Kosmetik, sondern die zweite Haelfte derselben Abschirmung: die Artikeltabelle
+ * sortiert VON SICH AUS aufsteigend nach Namen (`ArtikelTable.tsx`, `sortierung`
+ * startet auf `name`/`ascend` und haengt als `sortOrder` an der Spalte) — die
+ * Einfuegereihenfolge im Seed spielt also ueberhaupt keine Rolle. Unter „E2E
+ * Last" waeren die 200 Zeilen zwischen „E2E Kategorie" und „E2E Sammel"
+ * gelandet, und alles dahinter (die beiden Sammel-Artikel,
+ * „E2E Verbandpaeckchen", „E2E Verfall NaCl") stuende in der virtuellen Tabelle
+ * NICHT MEHR IM DOM — `lagerbuch-sammelbearbeitung.spec.ts` sucht seine beiden
+ * Zeilen ohne vorher zu suchen oder zu scrollen. Hinter „ZZZ" sortiert nichts
+ * mehr, also bleiben alle gezielten Fixtures in den ersten Zeilen.
  */
-export const E2E_LAST_PRAEFIX = "E2E Last";
+export const E2E_LAST_PRAEFIX = "ZZZ E2E Last";
 /** Deutlich ueber 150, damit die Schwelle nicht knapp erreicht wird. */
 export const E2E_LAST_ANZAHL = 200;
