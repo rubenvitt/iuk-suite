@@ -320,12 +320,17 @@ describe("Schrank stilllegen / wieder aufnehmen", () => {
     );
 
     expect(zeile.textContent).toContain("Schrankstatus konnte nicht geändert werden.");
-    // KEIN Reload auf einen abgelehnten Statuswechsel — sonst laed die Zeile
-    // unveraenderte Daten neu und quittiert damit einen Fehlschlag als Erfolg.
+    // ⚠️ DIE TRAGENDE ZUSICHERUNG: KEIN Reload auf einen abgelehnten
+    // Statuswechsel. Ohne den Fix riefe `statusUmschalten` `router.refresh()`
+    // unbedingt auf und quittierte den Fehlschlag damit als Erfolg — genau
+    // das faengt diese Zeile, nicht die Beschriftung unten.
     expect(mocks.refresh).not.toHaveBeenCalled();
-    // Der Knopf zeigt weiterhin "Stilllegen": der Status ist serverseitig
-    // unveraendert, und ohne Reload zeigt die Zeile auch clientseitig weiter
-    // den alten Stand.
+    // Der Knopf zeigt weiterhin "Stilllegen" — aber das allein ist KEIN
+    // Regressionstest (Fallen 10-12: eine Zeile misst sonst etwas anderes,
+    // als sie behauptet): die Beschriftung liest `zeile.aktiv` direkt aus der
+    // Prop, die dieser Test nie aendert, und staende auch ohne den Fix hier.
+    // Sie steht trotzdem, weil sie dokumentiert, was die Person NACH dem
+    // Fehlschlag tatsaechlich sieht.
     expect(zeile.textContent).toContain("Stilllegen");
   });
 
