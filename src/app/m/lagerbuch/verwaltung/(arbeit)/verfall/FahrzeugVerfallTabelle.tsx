@@ -21,14 +21,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Flex } from "antd";
 import type { TableProps } from "antd";
+import type { ColumnFilterItem } from "antd/es/table/interface";
 import {
   Datentabelle,
   type FilterZustand,
   nachText,
-  trifftWert,
   useEntprellt,
   wendeFilterAn,
-  werteAlsFilter,
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
@@ -75,6 +74,41 @@ export function sucheTrifft(zeile: FahrzeugVerfallZeile, begriff: string): boole
  * heisst hier also „warnend, aber noch nicht abgelaufen". Ohne das Gegenstueck
  * liesse sich „zeig mir nur, was noch Zeit hat" gar nicht anklicken.
  */
+const SAMMLER = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+
+/**
+ * Die vorkommenden Fahrzeuge als Filterliste — ueber die ID, beschriftet mit
+ * Name und Kennung.
+ *
+ * ⚠️ NICHT `werteAlsFilter(… fahrzeugName)`, UND DAS IST KEIN STILWUNSCH
+ * (Reviewbefund zu DRK-298). `lagerorte.name` traegt KEINEN Unique-Index, und
+ * `createFahrzeug` prueft auf Eindeutigkeit nicht — zwei „MTW" sind erlaubt und
+ * kommen in einer gewachsenen Flotte vor. Filtert die Spalte ueber den NAMEN,
+ * laesst ein Klick auf „MTW" die Meldungen BEIDER Fahrzeuge stehen, und das
+ * gemeinte laesst sich ueber diese Spalte gar nicht isolieren — also genau das
+ * nicht, wofuer die Spalte da ist.
+ *
+ * Die Kennung steht in der Beschriftung, damit zwei gleichnamige Fahrzeuge im
+ * Menue unterscheidbar sind. Tragen beide auch keine Kennung, bleiben die
+ * Eintraege gleich beschriftet — sie filtern dann aber trotzdem richtig, jeder
+ * auf sein Fahrzeug.
+ */
+function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterItem[] {
+  const gesehen = new Map<string, string>();
+  for (const zeile of zeilen) {
+    if (gesehen.has(zeile.fahrzeugId)) continue;
+    gesehen.set(
+      zeile.fahrzeugId,
+      zeile.fahrzeugKennung
+        ? `${zeile.fahrzeugName} · ${zeile.fahrzeugKennung}`
+        : zeile.fahrzeugName,
+    );
+  }
+  return [...gesehen]
+    .map(([value, text]) => ({ text, value }))
+    .sort((a, b) => SAMMLER.compare(a.text as string, b.text as string));
+}
+
 const STATUS_FILTER = zustandsFilter<FahrzeugVerfallZeile>([
   { wert: "abgelaufen", text: "abgelaufen", trifft: (zeile) => zeile.abgelaufen },
   { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => !zeile.abgelaufen },
@@ -91,8 +125,8 @@ function spalten(
       sorter: nachText<FahrzeugVerfallZeile>((zeile) => zeile.fahrzeugName),
       // Die Filterliste entsteht aus den DATEN — es steht also nie ein
       // Fahrzeug im Menue, das keine Meldung hat.
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.fahrzeugName),
-      onFilter: trifftWert<FahrzeugVerfallZeile>((zeile) => zeile.fahrzeugName),
+      filters: fahrzeugFilter(zeilen),
+      onFilter: (wert, zeile) => zeile.fahrzeugId === wert,
       render: (name: string, zeile) => (
         <span>
           <Link

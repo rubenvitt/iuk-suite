@@ -60,7 +60,8 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 2,
     verfallAbgelaufen: 0,
     verfallWarnend: 0,
-    verfallGepflegt: true,
+    verfallErfasst: 3,
+    verfallSollArtikel: 3,
     letzterCheckText: "30.07.2026, 10:00",
     letzterCheckIso: "2026-07-30T08:00:00.000Z",
   },
@@ -75,7 +76,8 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 0,
     verfallAbgelaufen: 0,
     verfallWarnend: 1,
-    verfallGepflegt: true,
+    verfallErfasst: 4,
+    verfallSollArtikel: 4,
     letzterCheckText: null,
     letzterCheckIso: null,
   },
@@ -90,7 +92,8 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 1,
     verfallAbgelaufen: 2,
     verfallWarnend: 1,
-    verfallGepflegt: true,
+    verfallErfasst: 2,
+    verfallSollArtikel: 2,
     letzterCheckText: "01.08.2026, 09:15",
     letzterCheckIso: "2026-08-01T07:15:00.000Z",
   },
@@ -105,7 +108,8 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 0,
     verfallAbgelaufen: 0,
     verfallWarnend: 0,
-    verfallGepflegt: false,
+    verfallErfasst: 0,
+    verfallSollArtikel: 1,
     letzterCheckText: null,
     letzterCheckIso: null,
   },
@@ -343,7 +347,44 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     expect(query(`tr[data-row-key='f1'] td:nth-child(4) .${s.ok}`).textContent)
       .toContain("im grünen Bereich");
     expect(query(`tr[data-row-key='f4'] td:nth-child(4) .${s.grau}`).textContent)
-      .toContain("nichts erfasst");
+      .toContain("0 von 1 erfasst");
+  });
+
+  /**
+   * ⚠️ DER REVIEWBEFUND ZU DRK-298, UND DER HAEUFIGSTE FALL VON ALLEN.
+   *
+   * Der Check gibt das Verfallsdatum AUSDRUECKLICH FREIWILLIG ab („nur aendern,
+   * wenn auf der Packung ein anderes Datum steht", `CheckFlow.tsx`) — ein halb
+   * gepflegtes Fahrzeug ist also der Normalfall. Wer aus EINER vorhandenen
+   * Angabe auf „gepflegt" schliesst, stellt einem Fahrzeug mit acht
+   * Soll-Artikeln und einer gruenen Angabe eine Entwarnung aus.
+   *
+   * Der dritte Fall darunter ist das Fahrzeug OHNE Soll: es hat nichts zu
+   * erfassen, und „null von null" waere rechnerisch vollstaendig und fachlich
+   * eine Aussage ueber nichts.
+   */
+  it("gibt keine Entwarnung, solange nicht jeder Soll-Artikel angesehen ist", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[0], id: "halb", name: "Halb gepflegt",
+            verfallErfasst: 1, verfallSollArtikel: 8 },
+          { ...ZEILEN[0], id: "ganz", name: "Ganz gepflegt",
+            verfallErfasst: 8, verfallSollArtikel: 8 },
+          { ...ZEILEN[0], id: "ohneSoll", name: "Ohne Soll",
+            verfallErfasst: 0, verfallSollArtikel: 0 },
+        ]}
+      />,
+    );
+
+    expect(query(`tr[data-row-key='halb'] td:nth-child(4) .${s.grau}`).textContent)
+      .toContain("1 von 8 erfasst");
+    expect(query(`tr[data-row-key='halb'] td:nth-child(4)`).querySelector(`.${s.ok}`))
+      .toBeNull();
+    expect(query(`tr[data-row-key='ganz'] td:nth-child(4) .${s.ok}`).textContent)
+      .toContain("im grünen Bereich");
+    // Ohne Soll: kein Chip, nur der Gedankenstrich.
+    expect(query("tr[data-row-key='ohneSoll'] td:nth-child(4)").textContent).toBe("—");
   });
 
   /**
@@ -361,9 +402,9 @@ describe("FahrzeugeListe — Spalten und Status", () => {
       <FahrzeugeListe
         zeilen={[
           { ...ZEILEN[1], id: "viel", name: "Viel Gelb",
-            verfallAbgelaufen: 0, verfallWarnend: 5, verfallGepflegt: true },
+            verfallAbgelaufen: 0, verfallWarnend: 5 },
           { ...ZEILEN[1], id: "eins", name: "Eins Rot",
-            verfallAbgelaufen: 1, verfallWarnend: 0, verfallGepflegt: true },
+            verfallAbgelaufen: 1, verfallWarnend: 0 },
         ]}
       />,
     );
@@ -499,14 +540,17 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     expect(zeilenIds()).toEqual(["f2", "f3"]);
 
     await spaltenFilter("Verfall");
-    await spaltenFilter("Verfall", "nichts erfasst");
+    // ⚠️ „nicht vollstaendig erfasst" UND NICHT „nichts erfasst": der stillere
+    // Fall ist das halb gepflegte Fahrzeug, und ein Filter nur auf den
+    // Nullfall fande genau die nicht.
+    await spaltenFilter("Verfall", "nicht vollständig erfasst");
     expect(zeilenIds()).toEqual(["f4"]);
 
     await spaltenFilter("Verfall");
     // Derselbe Text wie im Chip der Spalte — zwei Namen fuer einen Zustand
     // lassen den Leser einen dritten vermuten.
     await spaltenFilter("Verfall", "im grünen Bereich");
-    // NUR f1 — f4 ist NICHT „im grünen Bereich", sondern unbekannt. Faellt dieser
+    // NUR f1 — f4 ist NICHT „im grünen Bereich", sondern unangesehen. Faellt dieser
     // Test, hat jemand die beiden Leerfaelle wieder zusammengelegt und die
     // Ansicht behauptet Entwarnung fuer ein nie gepflegtes Fahrzeug.
     expect(zeilenIds()).toEqual(["f1"]);
@@ -685,7 +729,8 @@ describe("Fahrzeugseite als RSC", () => {
       artikelUnterSoll: 0,
       verfallAbgelaufen: 0,
       verfallWarnend: 0,
-      verfallGepflegt: true,
+      verfallErfasst: 1,
+      verfallSollArtikel: 1,
       letzterCheck: new Date("2026-07-30T23:30:00Z"),
     });
     expect(zeile.letzterCheckText).toBe("31.07.2026, 01:30");

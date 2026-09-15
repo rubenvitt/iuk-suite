@@ -227,6 +227,32 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
     expect(zeilenSchluessel()).toEqual(["f1:a2", "f1:a3"]);
   });
 
+  /**
+   * ⚠️ GEFILTERT WIRD UEBER DIE IDENTITAET, NICHT UEBER DEN NAMEN
+   * (Reviewbefund zu DRK-298). `lagerorte.name` traegt keinen Unique-Index und
+   * `createFahrzeug` prueft nichts — zwei „MTW" sind erlaubt. Ueber den Namen
+   * gefiltert stuenden hier BEIDE Fahrzeuge, und das gemeinte liesse sich ueber
+   * diese Spalte gar nicht isolieren; sie verfehlte damit genau ihren Zweck.
+   *
+   * Die Kennung steht deshalb auch in der Beschriftung — sonst waeren die
+   * beiden Eintraege im Menue nicht auseinanderzuhalten.
+   */
+  it("trennt zwei gleichnamige Fahrzeuge", async () => {
+    await mount(
+      <FahrzeugVerfallTabelle
+        zeilen={[
+          { ...ZEILEN[1], schluessel: "mtw-a:a1", fahrzeugId: "mtw-a",
+            fahrzeugName: "MTW", fahrzeugKennung: "UE-RK 1" },
+          { ...ZEILEN[1], schluessel: "mtw-b:a1", fahrzeugId: "mtw-b",
+            fahrzeugName: "MTW", fahrzeugKennung: "UE-RK 2" },
+        ]}
+      />,
+    );
+
+    await spaltenFilter("Fahrzeug", "MTW · UE-RK 2");
+    expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
+  });
+
   it("trennt abgelaufen von bald ablaufend", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
 

@@ -14,8 +14,9 @@ const notiz: Releasenotiz = {
         "erst bald abläuft — vorher stand beides zusammen in einer Zahl.",
     ),
     absatz(
-      "Dieselbe Spalte zeigt auch, für welche Fahrzeuge überhaupt noch kein Verfall " +
-        "erfasst ist. Diese Fahrzeuge sahen bisher aus wie solche, bei denen nichts fällig ist.",
+      "Dieselbe Spalte sagt jetzt auch, für wie viele Artikel eines Fahrzeugs überhaupt " +
+        "schon ein Verfall erfasst ist — etwa „3 von 8 erfasst“. „Im grünen Bereich“ steht " +
+        "nur noch da, wo wirklich jeder Artikel angesehen wurde.",
     ),
   ],
 };
