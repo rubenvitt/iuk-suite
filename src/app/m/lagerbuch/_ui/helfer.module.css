@@ -520,6 +520,25 @@
   border-radius: 14px; padding: 12px 13px; display: flex; align-items: center; gap: 11px;
   box-shadow: 0 10px 26px rgba(12, 18, 24, .32);
 }
+/*
+ * DIE RUHENDE FASSUNG — DRK-304, heute allein der Zaehlschritt.
+ *
+ * ⚠️ ZWEI KLASSEN AM SELBEN SELEKTOR, NICHT ZWEI SELEKTOREN. `.abschlussRuhend`
+ * allein haette dieselbe Spezifitaet wie `.abschluss` (0,1,0) — dann entschiede
+ * die Reihenfolge im Stylesheet, und die ist keine Zusage, sondern eine
+ * Beobachtung (Falle 5, `docs/design/README.md`). `.abschluss.abschlussRuhend`
+ * ist (0,2,0) und gewinnt unabhaengig davon, wohin die Regel spaeter wandert.
+ * Dieselbe Bauform wie `.chip.warnhinweis` weiter unten.
+ *
+ * `box-shadow` muss mit: der Schlagschatten ist der Schwebeschatten. Er bleibt
+ * ohne `position: sticky` als Kante ohne Ursache stehen — dieselbe Zeile, die
+ * beim Scrollen die Leiste vom Inhalt abhob, saehe im Fluss wie ein Fehler aus.
+ *
+ * `bottom` wird NICHT zurueckgesetzt: es ist an einem statischen Kasten
+ * wirkungslos, und eine Zeile, die nichts tut, laedt den naechsten Leser zu der
+ * Frage ein, was sie soll.
+ */
+.abschluss.abschlussRuhend { position: static; box-shadow: none }
 .abschlussInfo { flex: 1; min-width: 0 }
 .abschlussInfo b { font-family: var(--lb-display); font-size: 16px; letter-spacing: .03em }
 .abschlussGo {

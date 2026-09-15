@@ -460,7 +460,28 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
      * Warnwirkung.
      */
     await page.getByLabel(/^Verfall E2E Check Kompressen/).fill("2090-09");
-    await page.getByRole("button", { name: "Weiter" }).click(); // Zaehlen → Nachfuellen
+
+    /*
+     * SEIT DRK-304 MUSS HIER GEZAEHLT WERDEN. Die Position startet bei 0, und
+     * „Weiter" bleibt gesperrt, solange sie niemand angefasst hat — eine 0, die
+     * niemand gezaehlt hat, waere sonst eine unwiderrufliche Leerbuchung auf den
+     * Fahrzeugbestand.
+     *
+     * Dreimal „+" bringt sie auf das Soll (3) und damit auf den Stand, den der
+     * Test vor DRK-304 durch die Vorbelegung geschenkt bekam: keine Luecke,
+     * keine Nachfuellung, dieselbe Zusicherung am Ende. `toBeEnabled()` steht
+     * dazwischen, weil ein Klick auf einen gesperrten Knopf in Playwright nicht
+     * scheitert, sondern in sein Zeitbudget laeuft und sich als etwas anderes
+     * meldet (Falle 10, zweite Testregel).
+     */
+    const weiter = page.getByRole("button", { name: "Weiter" });
+    await expect(weiter, "unberuehrte Positionen muessen „Weiter\" sperren").toBeDisabled();
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: /^E2E Check Kompressen.*erhöhen$/ }).click();
+    }
+    await expect(weiter).toBeEnabled();
+
+    await weiter.click(); // Zaehlen → Nachfuellen
     await page.getByRole("button", { name: "Weiter" }).click(); // Nachfuellen → Sauerstoff
     await page.getByRole("button", { name: "Abschließen" }).click();
 
