@@ -147,3 +147,32 @@ describe("Abbrechen", () => {
     expect(mocks.aussondern).not.toHaveBeenCalled();
   });
 });
+
+describe("Der Dialog ueberschreibt den Verfall nicht selbst", () => {
+  /**
+   * ⚠️ „ALLES RAUS" IST EINE VERMUTUNG UEBER EINEN VERALTETEN BESTAND. Hat eine
+   * Nachfuellung oder ein Check zwischendurch ERHOEHT, ist die hier gesendete
+   * Menge gar nicht der ganze Bestand. Schickt der Dialog dann ein leeres
+   * Datum, loescht er eine Angabe, waehrend im Fahrzeug noch Packungen liegen.
+   *
+   * Deshalb sendet er IMMER den Feldwert. Ob die Angabe entfaellt, entscheidet
+   * die Transaktion am verbleibenden Bestand — sie ist die einzige Stelle, die
+   * ihn kennt.
+   */
+  it("sendet den Monat auch dann, wenn er den ganzen Bestand auszubuchen glaubt", async () => {
+    await zeige(5);
+    await oeffne();
+
+    await fuellPortal("input[aria-label='Menge']", "5");
+    await fuellPortal("input[aria-label='Kommentar']", "alles raus");
+    await act(async () => {
+      queryPortal<HTMLFormElement>("[data-rolle='aussondern']")
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+
+    expect(mocks.aussondern).toHaveBeenCalledTimes(1);
+    // Vorbelegt ist "2020-01" — der Dialog reicht ihn durch, statt "" zu senden.
+    expect(mocks.aussondern.mock.calls[0][0]).toMatchObject({ verfall: "2020-01" });
+  });
+});

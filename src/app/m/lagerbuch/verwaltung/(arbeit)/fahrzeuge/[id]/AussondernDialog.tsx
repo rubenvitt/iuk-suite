@@ -135,8 +135,19 @@ export function AussondernDialog({
     setFehler(null);
     start(async () => {
       try {
-        // Voll ausgesondert ⇒ keine Angabe mehr, die Zeile fällt weg.
-        const geschrieben = allesRaus ? "" : (monatAusPicker(werte.verfall) ?? "");
+        /*
+         * ⚠️ IMMER DER FELDWERT — `allesRaus` ENTSCHEIDET HIER NICHTS. Es ist
+         * eine Vermutung über einen Bestand, der beim RENDERN galt. Hat eine
+         * Nachfüllung oder ein Check zwischendurch ERHÖHT, ist die gesendete
+         * Menge gar nicht der ganze Bestand; ein leeres Datum löschte dann eine
+         * Angabe, während im Fahrzeug noch Packungen liegen.
+         *
+         * Ob die Angabe entfällt, entscheidet die Transaktion am VERBLEIBENDEN
+         * Bestand — sie ist die einzige Stelle, die ihn kennt. Ein leeres Feld
+         * heißt hier deshalb genau eine Sache: die Person hat es bewusst
+         * geleert.
+         */
+        const geschrieben = monatAusPicker(werte.verfall) ?? "";
         const ergebnis = await aussondernVomLagerort({
           lagerortId,
           artikelId,

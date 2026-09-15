@@ -346,3 +346,29 @@ describe("aussondernVomLagerort — meldet den TATSAECHLICH geschriebenen Verfal
       .toBe("2027-05");
   });
 });
+
+describe("aussondernVomLagerort — ein leeres Datum heisst „bewusst geleert\"", () => {
+  /**
+   * Seit der Dialog immer den Feldwert schickt (und nicht mehr selbst auf ""
+   * umschaltet, wenn er den ganzen Bestand auszubuchen glaubt), hat ein leeres
+   * Datum genau EINE Bedeutung: die Person hat es geleert. Dann faellt die
+   * Angabe auch dann weg, wenn noch etwas liegen bleibt.
+   */
+  it("loescht die Angabe auf Wunsch, obwohl Bestand bleibt", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 10);
+    t.db.insert(lagerortVerfall).values({
+      id: "lv-1", lagerortId: "fz-1", artikelId: "art-1", verfall: "2020-01",
+      erfasstAt: JETZT, quelleTyp: "system", quelleId: "seed",
+    }).run();
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 2, verfall: "", kommentar: "MHD" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect((erg as { ok: true; wert: { verfall: string | null } }).wert.verfall).toBeNull();
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+  });
+});
