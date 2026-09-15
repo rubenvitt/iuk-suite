@@ -10,6 +10,7 @@ import { gateMeldung } from "./_lib/gateTexte";
 import { sanitizeReturnTo } from "./_lib/returnTo";
 import { OeffentlicherRahmen } from "./_ui/OeffentlicherRahmen";
 import { Gate } from "./_ui/Gate";
+import { lagerbuchOrganisation } from "./_lib/marke";
 
 /**
  * DAS GATE — §7.2.4. Die Reihenfolge im Rumpf ist BINDEND.
@@ -99,6 +100,13 @@ export default async function GatePage({
         meldung={meldung}
         returnTo={sauber ?? ""}
         verwaltungsLink={`/login?callbackUrl=${encodeURIComponent(callback)}`}
+        /*
+         * HIER gelesen und nicht im Gate: das Gate ist `"use client"`, und ein
+         * `process.env`-Zugriff dort kippt im Produktionsbuild NACH DER
+         * HYDRATION auf die Vorgabe — in der Entwicklung unauffaellig
+         * (gemessen, `_lib/marke.ts`).
+         */
+        organisation={lagerbuchOrganisation()}
       />
     </OeffentlicherRahmen>
   );
