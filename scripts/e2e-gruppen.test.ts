@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 /**
  * DIE E2E-GRUPPEN — und der Waechter, ohne den sie still verrutschen.
@@ -83,13 +83,32 @@ const ausgelassen = (() => {
  * unpaarigen Klammer wirft `new RegExp` erst zur Laufzeit. CodeQL nennt das
  * „Incomplete string escaping or encoding" (Alarm 7 auf diesem Zweig).
  *
- * Geteilt wird deshalb AM STERN, jedes Stueck einzeln escaped, dann mit `.*`
+ * Geteilt wird deshalb AM STERN, jedes Stueck einzeln escaped, dann wieder
  * zusammengesetzt — so kann kein escapetes Zeichen nachtraeglich wieder zur
  * Bedeutung werden (was ein zweites `.replace` auf dem fertigen Muster taete).
  */
 function globZuRegex(datei: string): RegExp {
   const stuecke = datei.split("*").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  return new RegExp(`^${stuecke.join(".*")}$`);
+  // `[^/]*` und nicht `.*`: ein Stern steht fuer einen Namensteil, nicht fuer
+  // einen Pfad. Sonst zoege `lagerbuch-*.spec.ts` eine Datei aus einem
+  // Unterverzeichnis mit ein, ohne dass jemand das so gemeint hat.
+  return new RegExp(`^${stuecke.join("[^/]*")}$`);
+}
+
+/**
+ * Alle Spec-Dateien unter `e2e/`, REKURSIV und mit `/` als Trenner.
+ *
+ * ⚠️ `readdirSync` ohne `recursive` liest nur die direkten Kinder — Playwright
+ * durchsucht `testDir` aber rekursiv. Die Luecke waere genau der Ausfall, den
+ * dieser Waechter verhindern soll: eine Spec-Datei in einem Unterverzeichnis
+ * stuende in keiner Gruppe, faende sich aber auch nicht in der Sollmenge, und
+ * der Test bliebe GRUEN, waehrend die CI den Test nie faehrt. `e2e/helpers/`
+ * gibt es bereits, es fehlt also nur die erste Datei darin.
+ */
+function alleSpecs(): string[] {
+  return readdirSync(E2E, { recursive: true })
+    .map((d) => String(d).split(sep).join("/"))
+    .filter((d) => d.endsWith(".spec.ts"));
 }
 
 /** `e2e/foo-*.spec.ts` -> die Dateinamen, die das Muster trifft. */
@@ -106,7 +125,7 @@ function loese(muster: string, vorhanden: string[]): string[] {
 }
 
 describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt", () => {
-  const alle = readdirSync(E2E).filter((d) => d.endsWith(".spec.ts"));
+  const alle = alleSpecs();
   const erwartet = alle.filter((d) => !ausgelassen.includes(d));
   const aufgeloest = gruppen.flatMap((g) => loese(g.specs, alle));
 
@@ -143,6 +162,22 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // und der Stern tut weiter, wozu er da ist
     expect(globZuRegex("lagerbuch-*.spec.ts").test("lagerbuch-mobil.spec.ts")).toBe(true);
     expect(globZuRegex("lagerbuch-*.spec.ts").test("radio-mobil.spec.ts")).toBe(false);
+    // aber er ueberschreitet KEINE Verzeichnisgrenze
+    expect(globZuRegex("lagerbuch-*.spec.ts").test("lagerbuch-a/b.spec.ts")).toBe(false);
+  });
+
+  it("die Sollmenge wird REKURSIV gelesen — wie Playwright `testDir` durchsucht", () => {
+    // Playwright durchsucht `testDir` rekursiv. Liest der Waechter nur die
+    // direkten Kinder, faellt eine Spec-Datei aus einem Unterverzeichnis aus
+    // BEIDEN Mengen — sie steht in keiner Gruppe, fehlt aber auch in der
+    // Sollmenge, und der Test bleibt gruen, waehrend die CI sie nie faehrt.
+    // `e2e/helpers/` gibt es schon; es fehlt nur die erste Datei darin.
+    const flach = readdirSync(E2E).filter((d) => d.endsWith(".spec.ts"));
+    expect(alleSpecs().length).toBeGreaterThanOrEqual(flach.length);
+    // Die Zusicherung, die wirklich traegt: was Playwright faehrt, ist genau
+    // das, was der Waechter gegen die Gruppen haelt. Gezaehlt gegen die
+    // Auswahl, die `--list` im vollen Lauf ergibt (449 Faelle in 47 Dateien).
+    expect(alleSpecs().filter((d) => !ausgelassen.includes(d))).toHaveLength(47);
   });
 
   it("kein Muster trifft ins Leere", () => {
