@@ -63,17 +63,29 @@ export type FahrzeugUebersichtZeile = {
   /** Gemeldete Verfaelle im Warnbereich, die NOCH NICHT abgelaufen sind. */
   verfallWarnend: number;
   /**
-   * Ob fuer dieses Fahrzeug UEBERHAUPT ein Verfall gepflegt ist — GRUENE
+   * WIE WEIT IST DIESES FAHRZEUG UEBERHAUPT ANGESEHEN? — `verfallErfasst` von
+   * `verfallSollArtikel` Artikeln des AKTIVEN SOLLS tragen eine Angabe, GRUENE
    * EINGESCHLOSSEN.
    *
-   * ⚠️ DAS IST DER GANZE ZWECK DES FELDES. Ohne es sind „geprueft, nichts
-   * faellig" und „hat nie jemand gepflegt" nicht zu trennen: beide liefern
-   * null auffaellige Meldungen, bedeuten aber Gegensaetzliches. Eine Ansicht,
-   * die daraus dasselbe „—" macht, behauptet Entwarnung, wo sie nur keine
-   * Daten hat — und das faellt erst auf, wenn jemand mit einer Austauschliste
-   * vor einem ungepflegten Fahrzeug steht.
+   * ⚠️ EIN BOOLESCHES „ist gepflegt" WAERE HIER FALSCH, und der Reviewbefund zu
+   * DRK-298 sagt auch, warum: der Check gibt das Verfallsdatum AUSDRUECKLICH
+   * FREIWILLIG ab („nur aendern, wenn auf der Packung ein anderes Datum steht",
+   * `_ui/CheckFlow.tsx`), und ein nicht geaendertes Feld wird nicht
+   * uebermittelt. TEILWEISE gepflegte Fahrzeuge sind damit der NORMALFALL.
+   * Wer aus EINER vorhandenen Zeile auf „gepflegt" schliesst, erklaert ein
+   * Fahrzeug mit acht Soll-Artikeln und einer gruenen Angabe zum gruenen
+   * Bereich — genau die falsche Entwarnung, gegen die diese Felder gebaut sind.
+   *
+   * ⚠️ GEZAEHLT WIRD DAS AKTIVE SOLL, NICHT DIE MELDUNGEN. Eine Meldung zu
+   * einem Artikel, der nicht (mehr) im Soll steht, zaehlt NICHT mit — sonst
+   * koennte ein Fahrzeug „3 von 2 erfasst" melden. Grabsteine sind kein Soll.
+   *
+   * ⚠️ `verfallSollArtikel === 0` HEISST „nichts zu erfassen", nicht
+   * „vollstaendig": ein Fahrzeug ohne Soll hat keine Aussage, und die Anzeige
+   * darf ihm keine Entwarnung ausstellen.
    */
-  verfallGepflegt: boolean;
+  verfallErfasst: number;
+  verfallSollArtikel: number;
   letzterCheck: Date | null;
   templateName: string | null;
 };
@@ -103,14 +115,18 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
    * `false` — die Luecke, gegen die das Feld gebaut ist, waere wieder da,
    * obwohl der Name das Gegenteil behauptet.
    */
-  const verfallProFzg = new Map<string, { abgelaufen: number; warnend: number }>();
+  const verfallProFzg = new Map<string,
+    { abgelaufen: number; warnend: number; artikel: Set<string> }>();
   for (const z of lagerortVerfallListe(db, {}, now)) {
     const stand = verfallProFzg.get(z.lagerortId)
-      ?? { abgelaufen: 0, warnend: 0 };
+      ?? { abgelaufen: 0, warnend: 0, artikel: new Set<string>() };
     // SICH AUSSCHLIESSEND: eine abgelaufene Meldung ist rot, zaehlt aber NUR
     // links — sonst stuende sie in beiden Zahlen und ihre Summe waere zu gross.
     if (z.abgelaufen) stand.abgelaufen += 1;
     else if (z.ampel !== "gruen") stand.warnend += 1;
+    // Die Artikelmenge traegt AUCH die gruenen — sie beantwortet „angesehen?",
+    // nicht „auffaellig?".
+    stand.artikel.add(z.artikelId);
     verfallProFzg.set(z.lagerortId, stand);
   }
 
@@ -136,14 +152,19 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
         if ((imFahrzeug?.get(artikelId) ?? 0) < sollSumme) artikelUnterSoll += 1;
       }
       const verfall = verfallProFzg.get(f.id);
+      // ⚠️ UEBER `sollProArtikel` und nicht ueber die Meldungen — die Schleife
+      // laeuft damit ueber das SOLL und kann die Quote nicht ueberschreiten.
+      let verfallErfasst = 0;
+      for (const artikelId of sollProArtikel.keys()) {
+        if (verfall?.artikel.has(artikelId)) verfallErfasst += 1;
+      }
       return {
         id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
         positionen: soll.length, faecher: faecher.size, artikelUnterSoll,
         verfallAbgelaufen: verfall?.abgelaufen ?? 0,
         verfallWarnend: verfall?.warnend ?? 0,
-        // KEIN Eintrag heisst „nie gepflegt". Ein Eintrag entsteht nur durch
-        // eine gemeldete Zeile — auch eine gruene.
-        verfallGepflegt: verfall !== undefined,
+        verfallErfasst,
+        verfallSollArtikel: sollProArtikel.size,
         letzterCheck: letzterProFzg.get(f.id) ?? null,
         templateName: f.templateId ? (templateNamen.get(f.templateId) ?? null) : null,
       };
