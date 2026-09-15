@@ -93,10 +93,15 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
   /**
    * ⚠️ DER TEIL, DEN DIE VERFALLSEITE NICHT BEANTWORTEN KANN. Sie zeigt nur
    * vorhandene Meldungen — ein Fahrzeug ohne Meldung fehlt dort einfach, und
-   * „nichts faellig" ist von „nie gepflegt" nicht zu unterscheiden. In der
+   * „nichts faellig" ist von „nie angesehen" nicht zu unterscheiden. In der
    * Fahrzeugliste hat jedes Fahrzeug eine Zeile, also steht die Antwort dort.
+   *
+   * ⚠️ „0 von 1 erfasst" UND NICHT „nichts erfasst": die Spalte misst gegen das
+   * aktive Soll, seit eine einzelne Angabe kein gepflegtes Fahrzeug mehr
+   * beweist (Reviewbefund zu DRK-298). Die Quote ist zugleich der Beleg, dass
+   * hier ueberhaupt etwas zu erfassen WAERE.
    */
-  test("die Fahrzeugliste trennt abgelaufen von nie gepflegt", async ({ page }) => {
+  test("die Fahrzeugliste trennt abgelaufen von nie angesehen", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge"));
     expect(antwort!.status()).toBe(200);
 
@@ -106,6 +111,6 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
     await expect(page.locator("[data-row-key='e2e-verfall-fahrzeug']"))
       .toContainText("1 abgelaufen");
     await expect(page.locator("[data-row-key='e2e-ungepflegt-fahrzeug']"))
-      .toContainText("nichts erfasst");
+      .toContainText("0 von 1 erfasst");
   });
 });
