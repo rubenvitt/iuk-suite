@@ -395,6 +395,40 @@ export function CheckFlow({
               bitte tauschen oder der Verwaltung melden.
             </p>
           )}
+
+          {/*
+            DER AUFFUELLHINWEIS NACH DEM DIENST — DRK-301.
+
+            Er steht am ABSCHLUSS, nicht dauerhaft auf jedem Schritt: er
+            beschreibt eine Handlung NACH dem Check, und auf einem Schritt
+            konkurrierte er mit dessen eigener Anweisung (die Fussnoten dort
+            sind ohnehin dicht). Auf dem Fertig-Schirm ist er bei „Alles in
+            Ordnung" der einzige Satz und faellt genau dann auf, wenn nichts
+            anderes zu tun bleibt.
+
+            ⚠️ ER IST TEXT, KEIN WEG. Kein Link, kein Knopf: gemeint ist der
+            PHYSISCHE QR-Code am Handlager, und AK3 verlangt ausdruecklich, dass
+            der Hinweis allein keine Bestandsbuchung ausloest. Ein Link auf
+            `/helfer` waere zudem eine zweite, leisere Antwort auf dieselbe
+            Frage — und die faende niemand wieder, wenn DRK-312 das
+            Handlager-Etikett neu zuschneidet.
+
+            ⚠️ ER WIDERSPRICHT DEM NACHFUELLSCHRITT NICHT. Der bucht Handlager →
+            Fahrzeug INNERHALB dieses Checks; gemeint ist hier das Auffuellen
+            NACH dem Dienst, ausserhalb des Checks — der Weg, ohne den der
+            Handlagerbestand still auseinanderlaeuft.
+
+            ⚠️ NUR MIT SOLL-BESTUECKUNG, aus demselben Grund wie der Chip oben:
+            traegt das Fahrzeug nur Geraete und Flaschen, gibt es nichts
+            aufzufuellen, und der Satz spraeche von Arbeit, die es nicht gibt.
+          */}
+          {hatArtikel && (
+            <p className={s.fussnote} data-rolle="auffuell-hinweis">
+              <b>Nach dem Dienst auffüllen:</b> Was auf dem Fahrzeug fehlt, holst du aus dem
+              Handlager – scanne dafür den QR-Code am Handlager, damit die Entnahme dort gebucht
+              wird.
+            </p>
+          )}
         </div>
 
         {/*
