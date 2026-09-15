@@ -386,7 +386,7 @@ export async function bucheEntnahmeHelfer(
             umlagerung(tx, {
               artikelId: v.artikelId,
               menge: v.menge,
-              vonLagerortId: HANDLAGER_ID,
+              vonOrten: handlagerOrte(tx),
               nachLagerortId: ziel.lagerortId,
               quelle,
               kommentar: null,

@@ -84,7 +84,7 @@ export function chargenMitRest(
 export function chargenJeArtikelAmLagerort(
   db: Leser, lagerortId: string,
 ): Map<string, ChargeZeile[]> {
-  const rest = restJeCharge(db, lagerortId);
+  const rest = restJeCharge(db, [lagerortId]);
   const ids = [...rest.entries()].filter(([, r]) => r > 0).map(([id]) => id);
   if (ids.length === 0) return new Map();
 

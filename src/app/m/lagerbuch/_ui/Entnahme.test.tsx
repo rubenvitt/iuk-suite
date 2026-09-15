@@ -227,7 +227,7 @@ describe("Entnahme — die Anzeige", () => {
     }
 
     it("zeigt je Charge, wo wie viel liegt", async () => {
-      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const orteZeileL2 = inZeile(zeilen[1], "[data-rolle='charge-orte']");
       expect(orteZeileL2.textContent).toContain("GF-Schrank: 5 Stk");
@@ -248,7 +248,7 @@ describe("Entnahme — die Anzeige", () => {
      * Hash-Form zu kennen.
      */
     it("nennt die Menge im HANDLAGER-BEREICH im Zahlenfeld — nicht die Gesamtmenge ueber alle Orte", async () => {
-      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const mengenfeld = inZeile(zeilen[1], "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("5");
@@ -275,7 +275,7 @@ describe("Entnahme — die Anzeige", () => {
           },
         ],
       };
-      await mount(<Entnahme detail={detailNurFahrzeug} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme ziel={VERBRAUCH} detail={detailNurFahrzeug} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeile = query("[data-rolle='charge-zeile']");
       const mengenfeld = inZeile(zeile, "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("0");
@@ -288,7 +288,7 @@ describe("Entnahme — die Anzeige", () => {
       // allein (das waere ein natives Tooltip-Aequivalent) und kein Element,
       // das erst eine Interaktion braucht — der Hinweis steht als GEWOEHNLICHER
       // Text sofort im DOM, ohne Klick oder Hover.
-      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const hinweis = query("[data-rolle='charge-zugangshinweis']");
       expect(hinweis.textContent).toContain("GF-Schrank");
       expect(hinweis.textContent).toContain("Zugang über LvD — anrufen");
@@ -299,7 +299,7 @@ describe("Entnahme — die Anzeige", () => {
     });
 
     it("nennt keinen Zugangshinweis fuer einen Ort ohne Hinweis (Handlager, RTW 1)", async () => {
-      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       // Genau EIN Hinweis fuer zwei Chargen mit zusammen drei Orten (Handlager,
       // GF-Schrank, RTW 1), von denen nur einer (GF-Schrank) einen
       // Zugangshinweis traegt.
