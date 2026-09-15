@@ -66,8 +66,9 @@ Browser ── lagerbuch.iuk-ue.de ──▶ Traefik ──▶ suite (Next.js, e
   braucht keinen Commit und keinen CI-Lauf, aber **zwei** Zeilen in der Server-`.env`: den Host in
   `SUITE_HOST_<KEY>` **und** in `SUITE_TRAEFIK_RULE`, sonst erreicht die Domain den Container gar
   nicht erst. Dazu den Router der Alt-Anwendung abschalten, nie zwei Router gleichzeitig; das
-  Muster steht in `docs/runbooks/<modul>-cutover.md`. Der Rollback ist das Zurücksetzen derselben
-  Zeilen.
+  Muster steht in `docs/runbooks/<modul>-cutover.md`. Der Rollback ist derselbe Weg rückwärts:
+  beide Zeilen zurücksetzen **und** den Alt-Router wieder einschalten, sonst bedient niemand
+  mehr die Domain.
 * **Health:** `GET /api/health/<modul>` antwortet mit Status, Commit-Revision und Versionsnummer.
   Der automatische Rollout prüft darüber, dass wirklich der neue Stand läuft.
 
@@ -78,11 +79,13 @@ Voraussetzungen: Node 22 oder neuer (die CI läuft auf 22, das Image auf 26), pn
 
 ```bash
 pnpm install
-echo 'AUTH_DEV_LOGIN=true' > .env.local
+printf 'AUTH_DEV_LOGIN=true\nAUTH_COOKIE_DOMAIN=.localtest.me\n' > .env.local
 ```
 
-Diese eine Zeile reicht für den Anfang. Der Dev-Login ersetzt Pocket ID durch ein Formular, in
-das man E-Mail und Gruppen frei einträgt; ein `AUTH_SECRET` ist dann optional. `.env.example`
+Diese zwei Zeilen reichen für den Anfang. Der Dev-Login ersetzt Pocket ID durch ein Formular, in
+das man E-Mail und Gruppen frei einträgt; ein `AUTH_SECRET` ist dann optional. Die Cookie-Domain
+`.localtest.me` lässt die Sitzung über alle Modul-Hosts gelten, sonst meldet man sich auf jedem
+Host neu an (Playwright setzt denselben Wert). `.env.example`
 ist die Vorlage für die **Produktions**-`.env` und trägt Werte wie `AUTH_COOKIE_DOMAIN=.iuk-ue.de`,
 mit denen der Browser auf `*.localtest.me` das Sitzungscookie verwirft. Also nicht blind kopieren,
 sondern nur die Zeilen übernehmen, die ein Modul lokal braucht (z. B. `SUITE_HOST_FILES` mit
@@ -93,8 +96,11 @@ Dann:
 ```bash
 pnpm seed:lokal      # Demodaten für alle Module, idempotent; nennt Links, Codes und Passwörter
 pnpm dev             # http://portal.localtest.me:3000, http://lagerbuch.localtest.me:3000, …
-pnpm dev:av          # Fake-clamd auf 127.0.0.1:3310, siehe unten
+pnpm dev:av          # in einem ZWEITEN Terminal: Fake-clamd auf 127.0.0.1:3310, siehe unten
 ```
+
+`pnpm dev` und `pnpm dev:av` laufen beide im Vordergrund; wer Uploads braucht, startet sie in
+zwei Terminals.
 
 `*.localtest.me` löst per Wildcard-DNS auf `127.0.0.1` auf. Alle Modul-Hosts laufen gegen
 denselben Dev-Server; `next.config.ts` erlaubt die Origins ausdrücklich.
