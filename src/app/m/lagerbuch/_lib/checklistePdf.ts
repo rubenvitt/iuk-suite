@@ -790,14 +790,21 @@ function sauerstoff(lage: Lage): void {
     [
       { ...HAKEN, kopf: "Geprüft" },
       { kopf: "Flasche", mm: null },
-      { kopf: "Nennfülldruck", mm: 30, aus: "rechts" },
-      { kopf: "zuletzt", mm: 24, aus: "rechts" },
+      { kopf: "Nennfülldruck", mm: 26, aus: "rechts" },
+      // ⚠️ IN BAR, DIREKT NEBEN DEM SCHREIBFELD (DRK-308). Auf Papier gibt es
+      // keine Ampel; ohne diese Spalte trägt jemand eine Zahl ein und kann sie
+      // gegen nichts halten. Sie steht bewusst LINKS vom Schreibfeld — die
+      // abgelesene Zahl landet unmittelbar daneben und ist ohne Kopfrechnen
+      // vergleichbar.
+      { kopf: "Wechsel ab", mm: 22, aus: "rechts" },
+      { kopf: "zuletzt", mm: 22, aus: "rechts" },
       { kopf: "gemessen (bar)", mm: 26, aus: "rechts", schreibfeld: true },
     ],
     lage.blatt.flaschen.map((flasche): Zelle[] => [
       { art: "kasten" },
       { art: "text", laeufe: [{ text: flasche.name, fett: true }] },
       { art: "text", laeufe: [{ text: `${flasche.nennfuelldruckBar} bar` }] },
+      { art: "text", laeufe: [{ text: `${flasche.wechselAbBar} bar` }] },
       {
         art: "text",
         // ⚠️ `null` IST „NIE GEMESSEN", NICHT 0 bar (§5.12). Ein gedrucktes

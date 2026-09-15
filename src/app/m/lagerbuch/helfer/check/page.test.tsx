@@ -477,7 +477,10 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
     await mount(await CheckSeite(sp()));
     expect(query("[data-rolle='flow']").getAttribute("data-druecke")).toBe("190,null");
     expect(query("[data-rolle='flow']").getAttribute("data-flaschen-felder"))
-      .toBe("id,letzterDruck,name,nennfuelldruckBar");
+      // `wechselAbProzent` seit DRK-308 — der Flow rechnet den Wechselhinweis
+      // gegen DIESEN Wert; als Import aus einem Servermodul kaeme in der
+      // Client-Insel eine Referenz statt der Zahl an (Falle 6).
+      .toBe("id,letzterDruck,name,nennfuelldruckBar,wechselAbProzent");
   });
 
   it("reduziert die Verfallslage auf die Monatszeichenkette je Artikel", async () => {

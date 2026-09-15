@@ -50,7 +50,7 @@ describe("Sauerstoff-Übersicht", () => {
   it("zeigt zwei Kennzahlen", () => {
     t = migrierteTestDb("lagerbuch-o2-kpi-");
     expect(beschriftungen(sauerstoffSeitenInhalt(t.db)))
-      .toEqual(["Aktive Flaschen", "Niedriger Druck"]);
+      .toEqual(["Aktive Flaschen", "Wechsel fällig"]);
   });
 
   /*

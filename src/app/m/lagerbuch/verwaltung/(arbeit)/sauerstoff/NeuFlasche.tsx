@@ -4,6 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
 import { flascheSpeichern } from "../../../_actions/sauerstoff";
+import {
+  wechselGrenzeBar,
+  O2_WECHSEL_MAX_PROZENT,
+  O2_WECHSEL_MIN_PROZENT,
+  O2_WECHSEL_VORGABE_PROZENT,
+} from "../../../_lib/domain/o2";
 import { Ikone } from "../../../_ui/ikonen";
 
 type Werte = {
@@ -11,10 +17,11 @@ type Werte = {
   lagerortId: string;
   groesseLiter?: number;
   nennfuelldruckBar: number;
+  wechselAbProzent: number;
 };
 
 const FORM_FELDER = new Set<keyof Werte>([
-  "name", "lagerortId", "groesseLiter", "nennfuelldruckBar",
+  "name", "lagerortId", "groesseLiter", "nennfuelldruckBar", "wechselAbProzent",
 ]);
 
 function istFormFeld(name: string): name is keyof Werte {
@@ -43,6 +50,15 @@ export function NeuFlasche({
   const [laeuft, start] = useTransition();
   const [form] = Form.useForm<Werte>();
   const router = useRouter();
+  /**
+   * ⚠️ DIE BAR-ZAHL WIRD BEI JEDER EINGABE NEU GERECHNET, nicht einmal beim
+   * Öffnen (DRK-308). Sie hängt an BEIDEN Feldern — wer den Nennfülldruck von
+   * 200 auf 300 stellt, ändert damit auch, was „25 %" in bar bedeutet. Ein
+   * einmal gerechneter Wert wäre beim Öffnen richtig und danach still falsch,
+   * und genau diese Zahl liest jemand später am Manometer ab.
+   */
+  const nenn = Form.useWatch("nennfuelldruckBar", form);
+  const prozent = Form.useWatch("wechselAbProzent", form);
 
   const oeffnen = () => {
     setFehler(null);
@@ -153,6 +169,34 @@ export function NeuFlasche({
               aria-label="Nennfülldruck in bar"
               min={1}
               precision={0}
+              style={{ width: "100%" }}
+            />
+          </Form.Item>
+          <Form.Item
+            name="wechselAbProzent"
+            label="Wechselhinweis ab (% vom Nennfülldruck)"
+            initialValue={O2_WECHSEL_VORGABE_PROZENT}
+            rules={[
+              { required: true, message: "Grenzwert angeben" },
+              {
+                type: "number",
+                min: O2_WECHSEL_MIN_PROZENT,
+                max: O2_WECHSEL_MAX_PROZENT,
+                message: `Zwischen ${O2_WECHSEL_MIN_PROZENT} und ${O2_WECHSEL_MAX_PROZENT} %`,
+              },
+            ]}
+            extra={
+              typeof nenn === "number" && nenn > 0 && typeof prozent === "number"
+                ? `Der Hinweis erscheint ab ${wechselGrenzeBar(nenn, prozent)} bar und darunter.`
+                : "Die Vorgabe sind 25 % — bei 200 bar Nennfülldruck sind das 50 bar."
+            }
+          >
+            <InputNumber
+              aria-label="Wechselhinweis ab Prozent vom Nennfülldruck"
+              min={O2_WECHSEL_MIN_PROZENT}
+              max={O2_WECHSEL_MAX_PROZENT}
+              precision={0}
+              addonAfter="%"
               style={{ width: "100%" }}
             />
           </Form.Item>

@@ -623,17 +623,28 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   }
 
   /* 16 ── Sauerstoff. Nennfuelldruck 200 bar; die Messungen unten treffen
-   *        gruen (90 %), gelb (35 %) und rot (20 %). */
+   *        gruen (90 %), gelb (35 %) und rot (20 %).
+   *
+   *        EINE Flasche traegt einen ABWEICHENDEN Wechselwert (DRK-308) — sonst
+   *        stuende in der Verwaltung viermal dieselbe Vorgabe, und dass die Zahl
+   *        einstellbar ist, waere lokal an keiner Zeile zu sehen. Gewaehlt ist
+   *        die Kellerreserve mit 100 % Fuellstand: der hoehere Wert VERSCHIEBT
+   *        ihre Ampel nicht, die drei Ampelfarben oben bleiben also erhalten. */
   const flDa = vorhandeneIds(db.select({ id: o2Flaschen.id }).from(o2Flaschen).all());
   const flaschenListe = [
     { id: "o2-rtw1-a", name: "O₂ 2 l (RTW 1, Tragetasche)", lagerortId: RTW, groesseLiter: 2 },
     { id: "o2-rtw1-b", name: "O₂ 10 l (RTW 1, Halterung)", lagerortId: RTW, groesseLiter: 10 },
     { id: "o2-ktw1-a", name: "O₂ 2 l (KTW 1)", lagerortId: KTW, groesseLiter: 2 },
-    { id: "o2-lager-01", name: "O₂ 10 l (Reserve Keller)", lagerortId: LAGER_KELLER, groesseLiter: 10 },
+    {
+      id: "o2-lager-01", name: "O₂ 10 l (Reserve Keller)", lagerortId: LAGER_KELLER,
+      groesseLiter: 10, wechselAbProzent: 50,
+    },
   ].filter((f) => !flDa.has(f.id));
   for (const f of flaschenListe) {
     db.insert(o2Flaschen).values({
-      ...f, nennfuelldruckBar: 200, aktiv: true, createdAt: vor(jetzt, 190),
+      // `wechselAbProzent` nur, wo die Zeile ihn nennt — sonst greift die
+      // Vorbelegung aus dem Schema, und genau das ist der Regelfall.
+      nennfuelldruckBar: 200, aktiv: true, createdAt: vor(jetzt, 190), ...f,
     }).run();
   }
 

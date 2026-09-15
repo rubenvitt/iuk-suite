@@ -110,6 +110,7 @@ const FLASCHE: CheckFlasche = {
   name: "O2 klein",
   nennfuelldruckBar: 200,
   letzterDruck: 190,
+  wechselAbProzent: 25,
 };
 
 const WEITER = "[data-rolle='weiter']";
