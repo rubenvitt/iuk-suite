@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, fmtTsJahr, heuteIso, uhrzeit }
+import { ZEITZONE, ausZivilzeit, monatsEnde, startDesTages, tagesGrenzen, fmtTs, fmtDatumZeit, heuteIso, uhrzeit }
   from "./zeit";
 
 /**
@@ -41,11 +41,27 @@ describe.each(ZONEN)("unter Prozess-TZ %s", (tz) => {
     expect(fmtTs(new Date("2026-08-02T23:30:00Z"))).toBe("03.08. 01:30");
   });
 
-  it("fmtTsJahr trägt das Jahr der ZONE, nicht das der Prozess-TZ", () => {
-    // Silvester 23:30 Berlin ist unter UTC noch der 31.12. des Vorjahres — genau
-    // die Verwechslung, gegen die das Jahr im Verlauf überhaupt steht (DRK-328).
-    expect(fmtTsJahr(new Date("2026-12-31T22:30:00Z"))).toBe("31.12.2026 23:30");
-    expect(fmtTsJahr(new Date("2026-12-31T23:30:00Z"))).toBe("01.01.2027 00:30");
+  it("fmtDatumZeit traegt das JAHR — ein Check von vor 13 Monaten sieht sonst aus wie gestern", () => {
+    // Der Unterschied zu `fmtTs` daneben ist genau das Jahr, und er ist der
+    // ganze Zweck der zweiten Funktion (DRK-306): „14.09., 08:12" ist von
+    // „14.09. des Vorjahres" nicht zu unterscheiden — aber genau diese Frage
+    // stellt sich vor einem Fahrzeug-Check.
+    expect(fmtDatumZeit(new Date("2026-09-14T06:12:00Z"))).toBe("14.09.2026, 08:12");
+  });
+
+  it("fmtDatumZeit rechnet in ZEITZONE, nicht in der Prozesszone", () => {
+    // Dieselbe Zusage wie bei `fmtTs`: eine Buchung um 01:30 Ortszeit darf
+    // nicht als Vortag 23:30 erscheinen. Der Test laeuft unter beiden
+    // Prozesszonen und behauptet dasselbe Ergebnis.
+    expect(fmtDatumZeit(new Date("2026-08-02T23:30:00Z"))).toBe("03.08.2026, 01:30");
+  });
+
+  it("fmtDatumZeit trägt das Jahr der ZONE, nicht das der Prozess-TZ", () => {
+    // Silvester 23:30 Berlin ist unter UTC noch der 31.12. des Vorjahres — der
+    // Jahreswechsel ist der eine Rand, an dem ein falsches Jahr auch bei
+    // richtigem Tag herauskäme.
+    expect(fmtDatumZeit(new Date("2026-12-31T22:30:00Z"))).toBe("31.12.2026, 23:30");
+    expect(fmtDatumZeit(new Date("2026-12-31T23:30:00Z"))).toBe("01.01.2027, 00:30");
   });
 
   it("uhrzeit liefert HH:MM in der Zone", () => {

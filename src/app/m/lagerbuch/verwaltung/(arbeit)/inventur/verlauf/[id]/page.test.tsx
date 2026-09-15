@@ -95,7 +95,7 @@ describe("Inventurlauf-Detail als RSC", () => {
   it("zeigt Zeit, Person, Kommentar und Umfang im Kopf mit Rückweg zum Verlauf", () => {
     const [kopf] = elementeVomTyp(laufDetailInhalt(t.db, "lauf-1"), SeitenKopf);
     expect(kopf!.props).toMatchObject({
-      titel: "Inventur vom 15.07.2026 12:00",
+      titel: "Inventur vom 15.07.2026, 12:00",
       zurueck: { titel: "Verlauf", href: "/verwaltung/inventur/verlauf" },
       beschreibung: "System · Monatsinventur · Umfang: Hygiene, Fach A1",
     });

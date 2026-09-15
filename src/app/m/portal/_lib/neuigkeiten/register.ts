@@ -17,6 +17,7 @@ import aussondernAmFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerb
 import abgelaufenesJeFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-abgelaufenes-je-fahrzeug";
 import checkNurFuerDeinFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-nur-fuer-dein-fahrzeug";
 import entnahmeAufsFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-entnahme-aufs-fahrzeug";
+import letzterCheckUndVerfallLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-letzter-check-und-verfall-loeschen";
 import mengenSelbstZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-mengen-selbst-zaehlen";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
@@ -68,6 +69,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   abgelaufenesJeFahrzeug,
   checkNurFuerDeinFahrzeug,
   entnahmeAufsFahrzeug,
+  letzterCheckUndVerfallLoeschen,
   mengenSelbstZaehlen,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,

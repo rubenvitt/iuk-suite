@@ -138,14 +138,28 @@ export function uhrzeit(d: Date): string {
 }
 
 /**
- * "TT.MM.JJJJ HH:MM" in ZEITZONE — das Format des Inventur-Verlaufs (DRK-328).
+ * "TT.MM.JJJJ, HH:MM" in ZEITZONE — der Zeitpunkt eines Fahrzeug-Checks.
  *
- * Eigene Funktion statt eines Schalters an `fmtTs`: Inventuren laufen quartals-
- * oder jahresweise, ihr Verlauf reicht also über Jahre; das Journal zeigt junge
- * Buchungen und behält sein kürzeres Format. Der abschließende Punkt hinter dem
- * Monat fällt weg — er steht im Deutschen für das ausgelassene Jahr.
+ * Das VOLLE Datum, nicht das kurze Journalformat aus `fmtTs`: ein Check, der
+ * „14.09., 08:12" trug, waere von einem Check vor dreizehn Monaten nicht zu
+ * unterscheiden — und genau das ist die Frage, die vor einem neuen Check
+ * beantwortet werden muss.
+ *
+ * ⚠️ EINE Stelle fuer dieses Format, obwohl zwei Seiten es zeigen (die
+ * Fahrzeugliste der Verwaltung und der Helfer-Check, DRK-306). Zwei
+ * `Intl.DateTimeFormat`-Literale wuerden auseinanderlaufen, sobald eines
+ * Sekunden oder eine andere Zone bekommt, und keine der beiden Seiten saehe die
+ * andere.
  */
-export function fmtTsJahr(d: Date): string {
-  const t = zonenTeile(d);
-  return `${zz(t.tag)}.${zz(t.monat)}.${t.jahr} ${zz(t.std)}:${zz(t.min)}`;
+const DATUM_ZEIT = new Intl.DateTimeFormat("de-DE", {
+  timeZone: ZEITZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export function fmtDatumZeit(d: Date): string {
+  return DATUM_ZEIT.format(d);
 }

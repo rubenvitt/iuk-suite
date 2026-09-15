@@ -165,7 +165,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     // DRK-328: der Kopf nennt den Zeitpunkt MIT Jahr. Geprüft wird die Form,
     // nicht der Tag — der Lauf entsteht gerade eben.
     await expect(page.getByRole("heading", { level: 1 }))
-      .toHaveText(/^Inventur vom \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/);
+      .toHaveText(/^Inventur vom \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/);
     const positionen = page.getByLabel("Gezählte Positionen", { exact: true });
     await expect(positionen).toContainText(`${CHARGE_A} · ${CHARGE_A_MHD}`);
     await expect(positionen).toContainText(`${neueNr} · ${NEU_MHD_TEXT}`);
@@ -180,6 +180,6 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     const tabelle = page.getByLabel("Inventur-Verlauf", { exact: true });
     await expect(tabelle).toContainText(kommentar);
     // DRK-328: auch in der Liste steht das Jahr.
-    await expect(tabelle).toContainText(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
+    await expect(tabelle).toContainText(/\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
   });
 });
