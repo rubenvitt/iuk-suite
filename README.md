@@ -49,8 +49,13 @@ Browser ── lagerbuch.iuk-ue.de ──▶ Traefik ──▶ suite (Next.js, e
 ```
 
 * **`src/proxy.ts`** ist in Next.js 16 die Middleware. Sie löst den Host zum Modul auf, schreibt
-  den Pfad auf `/m/<modul>/…` um und setzt `requiresAuth`/`requiredGroups` aus der Registry
-  durch. Lokal gilt die Konvention `<modul>.localtest.me`.
+  den Pfad auf `/m/<modul>/…` um und schickt bei `requiresAuth: true` Anonyme in den Login und
+  Personen ohne `requiredGroups` auf 403. Lokal gilt die Konvention `<modul>.localtest.me`.
+  **Module mit anonymem Teilpfad** (`feedback`, `files`, `lagerbuch`, `radio`, `uav`) stehen mit
+  `requiresAuth: false` in der Registry, und dann prüft der Proxy **gar nichts**: ihre
+  Verwaltung riegelt jedes dieser Module selbst ab, serverseitig in seinem `_lib/` (Vorbild
+  `requireFeedbackAccess` bzw. `zugang.ts`). Ein neues Modul mit anonymem Teilpfad braucht
+  denselben eigenen Riegel.
 * **`src/core/`** enthält nur, was mindestens zwei Module heute brauchen: Auth, Shell
   (Kopfzeile, App-Umschalter, Navigation), Theme, Tabellen-Bausteine, Health, Audit-Log,
   Bootstrap (Migrationen beim Start), Rate-Limit, Personenverzeichnis.
@@ -84,11 +89,22 @@ Dann:
 ```bash
 pnpm seed:lokal      # Demodaten für alle Module, idempotent; nennt Links, Codes und Passwörter
 pnpm dev             # http://portal.localtest.me:3000, http://lagerbuch.localtest.me:3000, …
-pnpm dev:av          # optional: Fake-clamd für das Modul files
+pnpm dev:av          # Fake-clamd auf 127.0.0.1:3310, siehe unten
 ```
 
 `*.localtest.me` löst per Wildcard-DNS auf `127.0.0.1` auf. Alle Modul-Hosts laufen gegen
 denselben Dev-Server; `next.config.ts` erlaubt die Origins ausdrücklich.
+
+**Uploads brauchen den Scanner.** `files` und `aufgaben` schicken jede hochgeladene Datei an
+ClamAV und sperren sie, solange kein Befund vorliegt (fail-closed). Beide erwarten den Scanner
+ohne weitere Konfiguration unter dem Hostnamen `clamav`, dem Sidecar aus `compose.yaml`; der
+Fake aus `pnpm dev:av` lauscht dagegen auf `127.0.0.1`. Wer lokal hochladen will, ergänzt in
+`.env.local`:
+
+```bash
+FILES_AV_HOST=127.0.0.1
+AUFGABEN_AV_HOST=127.0.0.1
+```
 
 ## Tests und Tore
 
@@ -119,8 +135,11 @@ und kosten je einen halben Tag, wenn man sie nicht kennt. Vor Oberflächenarbeit
   Abweichung ab, statt sie zu überschreiben.
 * **Datenbanken** liegen im Volume `/data`; Migrationen laufen beim Start des Containers nach
   vorn (`src/core/bootstrap.ts`). Ein Image-Rollback rollt Migrationen nicht zurück.
-* **Backup:** `scripts/backup.sh` sichert je Modul eine konsistente SQLite-Kopie und die
-  Datei-Blobs, rotiert lokal.
+* **Backup:** `scripts/backup.sh` sichert je Modul eine konsistente SQLite-Kopie und die Blobs
+  des Moduls `files` (`BLOB_DIR`), rotiert lokal. ⚠️ Die Bildnachweise des Moduls `aufgaben`
+  liegen im eigenen Volume `aufgaben_data` (`/data/aufgaben`) und werden vom Skript heute
+  **nicht** mitgesichert; ein Restore enthält dann `aufgaben.db` mit Verweisen auf Bilder, die
+  fehlen. Wer das Volume nutzt, sichert es daneben, bis das Skript nachgezogen ist.
 * **Runbooks** in `docs/runbooks/`: automatischer Rollout, Versionierung, Inbetriebnahme und
   Cutover je Modul, Sitzungswiderruf, WebFinger.
 
