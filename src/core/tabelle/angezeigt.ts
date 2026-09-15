@@ -59,6 +59,8 @@ export type AnzeigeSpalte<T> = {
   sorter?: unknown;
   /** Die angebotenen Filterwerte. Vorhanden heißt: diese Spalte filtert. */
   filters?: unknown;
+  /** Unterspalten eines gruppierten Spaltenkopfes. Nur die Blätter filtern. */
+  children?: readonly AnzeigeSpalte<T>[];
   /**
    * Der GESTEUERTE Filterstand der Spalte. `undefined` heißt nicht „kein
    * Filter", sondern „antd führt den Stand selbst" — der Unterschied ist der
@@ -170,12 +172,37 @@ export function filterAktiv(zustand: FilterZustand): boolean {
  * filtert. Wer das nicht unterscheidet, baut die Falle nach, die er schließen
  * wollte.
  */
+/**
+ * Die BLÄTTER einer Spaltenliste — ein gruppierter Spaltenkopf ist keine Spalte,
+ * sondern eine Klammer um welche.
+ *
+ * ⚠️ WER NUR DIE OBERSTE EBENE LIEST, ÜBERSIEHT JEDEN FILTER IN EINER GRUPPE,
+ * und zwar still: die Gruppe selbst trägt weder `filters` noch `onFilter`, also
+ * sieht es aus wie „diese Tabelle filtert nicht". antd sammelt die Filter
+ * rekursiv ein und wendet sie an — die Zahl wäre die ungefilterte, die Zeilen
+ * darunter die gefilterten. `breitenSumme` in `masse.ts` steigt aus demselben
+ * Grund über `children` ab.
+ */
+export function blattSpalten<T>(
+  spalten: readonly AnzeigeSpalte<T>[] | undefined,
+): AnzeigeSpalte<T>[] {
+  const blaetter: AnzeigeSpalte<T>[] = [];
+  for (const spalte of spalten ?? []) {
+    if (spalte.children && spalte.children.length > 0) {
+      blaetter.push(...blattSpalten(spalte.children));
+      continue;
+    }
+    blaetter.push(spalte);
+  }
+  return blaetter;
+}
+
 export function filterAusSpalten<T>(
   spalten: readonly AnzeigeSpalte<T>[] | undefined,
 ): { zustand: FilterZustand; unbekannt: boolean } {
   const zustand: FilterZustand = {};
   let unbekannt = false;
-  for (const spalte of spalten ?? []) {
+  for (const spalte of blattSpalten(spalten)) {
     if (spalte.filters === undefined) continue;
     const schluessel = spaltenSchluessel(spalte);
     if (!schluessel) continue;
@@ -205,8 +232,13 @@ export function angezeigteAnzahl<T>(
   spalten: readonly AnzeigeSpalte<T>[] | undefined,
 ): number | null {
   if (!zeilen) return 0;
-  const { zustand, unbekannt } = filterAusSpalten(spalten);
+  // ⚠️ BEIDE SCHRITTE BRAUCHEN DIE BLÄTTER. Den Zustand aus den Blättern zu
+  // lesen und ihn dann gegen die GRUPPEN zu filtern, fände dort kein
+  // `onFilter` — die Zahl bliebe die ungefilterte, und der Fehler sähe aus wie
+  // „der Filter greift nicht", statt wie einer in dieser Rechnung.
+  const blaetter = blattSpalten(spalten);
+  const { zustand, unbekannt } = filterAusSpalten(blaetter);
   if (unbekannt) return null;
   if (!filterAktiv(zustand)) return zeilen.length;
-  return wendeFilterAn(zeilen, spalten ?? [], zustand).length;
+  return wendeFilterAn(zeilen, blaetter, zustand).length;
 }

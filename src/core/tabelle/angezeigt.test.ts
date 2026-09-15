@@ -3,6 +3,7 @@ import type { Key } from "react";
 import {
   angezeigteAnzahl,
   angezeigteZeilen,
+  blattSpalten,
   filterAktiv,
   filterAusSpalten,
   spaltenSchluessel,
@@ -274,5 +275,56 @@ describe("angezeigteAnzahl", () => {
 
   it("liefert 0 ohne Datenquelle", () => {
     expect(angezeigteAnzahl(undefined, undefined)).toBe(0);
+  });
+});
+
+describe("blattSpalten", () => {
+  it("steigt in gruppierte Spaltenkoepfe ab", () => {
+    const kind = { key: "b" };
+    const blaetter = blattSpalten([
+      { key: "a" },
+      { key: "gruppe", children: [kind, { key: "c" }] },
+    ]);
+    expect(blaetter.map((s) => s.key)).toEqual(["a", "b", "c"]);
+    expect(blaetter[1]).toBe(kind);
+  });
+
+  it("behandelt eine leere `children`-Liste als Blatt", () => {
+    expect(blattSpalten([{ key: "a", children: [] }]).map((s) => s.key)).toEqual(["a"]);
+  });
+});
+
+describe("angezeigteAnzahl mit gruppierten Spaltenkoepfen", () => {
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+
+  it("findet einen Filter, der in einer GRUPPE steckt", () => {
+    // ⚠️ DER FALL WAR STILL: die Gruppe traegt weder `filters` noch `onFilter`,
+    // also saehe eine Rechnung auf der obersten Ebene „diese Tabelle filtert
+    // nicht" — und meldete 4 Zeilen, waehrend 2 auf dem Schirm stehen.
+    expect(angezeigteAnzahl(zeilen, [
+      {
+        key: "gruppe",
+        children: [{
+          key: "a",
+          filters: [],
+          filteredValue: [1],
+          onFilter: (wert: Key | boolean, zeile: Z) => zeile.a === wert,
+        }],
+      },
+    ])).toBe(2);
+  });
+
+  it("meldet auch aus einer GRUPPE heraus `unbekannt`", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      {
+        key: "gruppe",
+        children: [{
+          key: "a",
+          filters: [{ text: "x", value: 1 }],
+          onFilter: (wert: Key | boolean, zeile: Z) => zeile.a === wert,
+        }],
+      },
+    ])).toBeNull();
   });
 });

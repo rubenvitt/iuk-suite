@@ -161,13 +161,13 @@ export function Datentabelle<T extends object>({
    * (DRK-336). Begründung und Grenzen stehen in `rollen.tsx`; hier steht nur,
    * dass beides an DERSELBEN Bedingung hängt wie die Virtualisierung selbst.
    */
-  const bauteile = useMemo(
+  const einbau = useMemo(
     () => mitRollen<T>(components, masse.virtuellAktiv),
     [components, masse.virtuellAktiv],
   );
   const zeilenProps = useMemo(
-    () => mitZeilenindex<T>(onRow, masse.virtuellAktiv),
-    [onRow, masse.virtuellAktiv],
+    () => mitZeilenindex<T>(onRow, einbau.gesetzt),
+    [onRow, einbau.gesetzt],
   );
   /**
    * ⚠️ `aria-rowcount` IST NICHT `dataSource.length`, UND DER UNTERSCHIED IST
@@ -207,9 +207,16 @@ export function Datentabelle<T extends object>({
          * einzige Datenzeile. Virtuell trägt den Namen der Körper, weil dort
          * die Zeilen stehen; bliebe er zusätzlich am Kopf, träfe eine
          * Vorleseanwendung ZWEI gleich benannte Tabellen nebeneinander.
+         *
+         * ⚠️ DIE BEDINGUNG IST `einbau.gesetzt`, NICHT `virtuellAktiv`, und der
+         * Unterschied ist der Fall, in dem der Name sonst GANZ verschwände:
+         * baut der Aufrufer den Körper über `components.body` als Funktion
+         * selbst, hängt `mitRollen` nichts ein — dann gibt es kein Element, das
+         * den Namen auffangen könnte, und er muss dort bleiben, wo antd ihn
+         * hinhängt.
          */
-        aria-label={masse.virtuellAktiv ? undefined : beschriftung}
-        components={bauteile}
+        aria-label={einbau.gesetzt ? undefined : beschriftung}
+        components={einbau.bauteile}
         onRow={zeilenProps}
         columns={spalten}
         pagination={blaettern}

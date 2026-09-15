@@ -26,28 +26,34 @@ afterEach(async () => {
 });
 
 describe("mitRollen", () => {
+  const koerperVon = (einbau: { bauteile?: unknown }) =>
+    (einbau.bauteile as { body?: Record<string, unknown> } | undefined)?.body;
+
   it("haengt OHNE Virtualisierung nichts ein", () => {
-    expect(mitRollen(undefined, false)).toBeUndefined();
+    expect(mitRollen(undefined, false)).toEqual({ bauteile: undefined, gesetzt: false });
     const eigene = { body: { row: "tr" as unknown as never } };
-    expect(mitRollen(eigene, false)).toBe(eigene);
+    expect(mitRollen(eigene, false).bauteile).toBe(eigene);
   });
 
   it("belegt mit Virtualisierung genau die drei Steckplaetze des Koerpers", () => {
-    const bauteile = mitRollen(undefined, true);
-    expect(Object.keys(bauteile?.body ?? {}).sort()).toEqual(["cell", "row", "wrapper"]);
-    expect(bauteile?.header).toBeUndefined();
+    const einbau = mitRollen(undefined, true);
+    expect(einbau.gesetzt).toBe(true);
+    expect(Object.keys(koerperVon(einbau) ?? {}).sort()).toEqual(["cell", "row", "wrapper"]);
+    expect((einbau.bauteile as { header?: unknown } | undefined)?.header).toBeUndefined();
   });
 
   it("laesst die Kopfzeilen-Bauteile des Aufrufers unberuehrt", () => {
     const kopf = { cell: "th" as unknown as never };
-    expect(mitRollen({ header: kopf }, true)?.header).toBe(kopf);
+    expect((mitRollen({ header: kopf }, true).bauteile as { header?: unknown }).header).toBe(kopf);
   });
 
-  it("haelt sich aus einem `body` als Funktion heraus", () => {
+  it("haelt sich aus einem `body` als Funktion heraus UND sagt es", () => {
     // rc-tables eigener Ausweg („render props") kennt die drei Steckplaetze
-    // gar nicht — wer ihn nimmt, baut den Koerper selbst.
+    // gar nicht — wer ihn nimmt, baut den Koerper selbst. `gesetzt: false` ist
+    // hier die tragende Aussage: an ihr haengt, dass die Beschriftung bleibt,
+    // wo antd sie hinhaengt, statt ersatzlos zu verschwinden.
     const eigene = { body: (() => null) as unknown as never };
-    expect(mitRollen(eigene, true)).toBe(eigene);
+    expect(mitRollen(eigene, true)).toEqual({ bauteile: eigene, gesetzt: false });
   });
 
   it("liefert bei gleichen Eingaben denselben Komponententyp", () => {
@@ -55,18 +61,42 @@ describe("mitRollen", () => {
     // Komponenten je Aufruf neu, saehe React einen ANDEREN Typ und baute den
     // Tabellenkoerper ab und neu auf — Scrollstand weg, und zwar bei jedem
     // Tastendruck in der Suche darueber.
-    const a = mitRollen(undefined, true)?.body;
-    const b = mitRollen(undefined, true)?.body;
+    const a = koerperVon(mitRollen(undefined, true));
+    const b = koerperVon(mitRollen(undefined, true));
     expect(a).not.toBe(b);
-    const alsObjekt = (w: unknown) => w as Record<string, unknown>;
-    expect(alsObjekt(a).row).toBe(alsObjekt(b).row);
-    expect(alsObjekt(a).cell).toBe(alsObjekt(b).cell);
-    expect(alsObjekt(a).wrapper).toBe(alsObjekt(b).wrapper);
+    expect(a?.row).toBe(b?.row);
+    expect(a?.cell).toBe(b?.cell);
+    expect(a?.wrapper).toBe(b?.wrapper);
+  });
+
+  it("UMHUELLT ein eigenes Bauteil, statt es zu verwerfen", async () => {
+    // ⚠️ DER FALL, DER FRUEHER STILL AUSFIEL: wer `components.body.cell` setzt,
+    // tut das fuer sein eigenes Rendern — und verloere es erst ab 150 Zeilen,
+    // also lange nach dem Zeitpunkt, an dem er es geprueft hat.
+    const EigeneZelle = (props: Record<string, unknown>) => (
+      <div {...props} data-eigen="ja" />
+    );
+    const koerper = koerperVon(mitRollen({ body: { cell: EigeneZelle } }, true));
+    expect(koerper?.cell).not.toBe(EigeneZelle);
+
+    const Zelle = koerper?.cell as React.ComponentType<Record<string, unknown>>;
+    await mount(<Zelle className="eigen">Wert</Zelle>);
+    const gerendert = query('[role="cell"]');
+    expect(gerendert.getAttribute("data-eigen")).toBe("ja");
+    expect(gerendert.className).toBe("eigen");
+    expect(gerendert.textContent).toBe("Wert");
+  });
+
+  it("umhuellt auch einen ELEMENTNAMEN — antd laesst beides zu", async () => {
+    const koerper = koerperVon(mitRollen({ body: { row: "section" } }, true));
+    const Zeile2 = koerper?.row as React.ComponentType<Record<string, unknown>>;
+    await mount(<Zeile2 data-row-key="x" />);
+    expect(query('[role="row"]').tagName).toBe("SECTION");
   });
 });
 
 describe("mitZeilenindex", () => {
-  it("reicht OHNE Virtualisierung das eigene `onRow` unveraendert durch", () => {
+  it("reicht OHNE eingehaengte Rollen das eigene `onRow` unveraendert durch", () => {
     const eigenes = () => ({ className: "x" });
     expect(mitZeilenindex(eigenes, false)).toBe(eigenes);
     expect(mitZeilenindex(undefined, false)).toBeUndefined();
@@ -91,10 +121,9 @@ describe("mitZeilenindex", () => {
 describe("die Rollen-Bauteile selbst", () => {
   /** Holt die drei Komponenten so heraus, wie rc-table sie ueber `getComponent` faende. */
   function bauteile() {
-    const body = mitRollen(undefined, true)?.body as unknown as Record<
-      string,
-      React.ComponentType<Record<string, unknown>>
-    >;
+    const body = (mitRollen(undefined, true).bauteile as {
+      body: Record<string, React.ComponentType<Record<string, unknown>>>;
+    }).body;
     return { Koerper: body.wrapper, Zeile: body.row, Zelle: body.cell };
   }
 
@@ -229,5 +258,38 @@ describe("aria-rowcount an der Datentabelle", () => {
       />,
     );
     expect(query('[role="table"]').getAttribute("aria-rowcount")).toBe("-1");
+  });
+});
+
+describe("die Beschriftung, wenn der Aufrufer den Koerper selbst baut", () => {
+  type Zeile = { id: string };
+  const zeilen: Zeile[] = Array.from({ length: 200 }, (_, i) => ({ id: `a${i}` }));
+
+  it("bleibt am Kopf, statt ersatzlos zu verschwinden", async () => {
+    // ⚠️ DER FALL, DEN `gesetzt` ABFAENGT: bei `components.body` als FUNKTION
+    // haengt `mitRollen` nichts ein — es gibt also kein Element, das den Namen
+    // auffangen koennte. Naehme `Datentabelle` ihn antd trotzdem weg, traege
+    // die Tabelle am Ende GAR KEINEN Namen: schlechter als vorher.
+    await mount(
+      <Datentabelle<Zeile>
+        rowKey="id"
+        virtuell={400}
+        aria-label="Bestand"
+        dataSource={zeilen}
+        columns={[{ title: "Id", dataIndex: "id", key: "id", width: 200 }]}
+        components={{ body: () => <div data-eigener-koerper="ja" /> }}
+      />,
+    );
+    // ⚠️ GEMESSEN, UND NICHT DAS ERWARTETE: der eigene Koerper rendert hier
+    // GAR NICHT. rc-table ersetzt `components.body` im virtuellen Zweig durch
+    // sein eigenes Raster (`VirtualTable/index.js`: `body: data?.length ?
+    // renderBody : undefined`), und `getComponent(['body','wrapper'])` findet
+    // auf einer FUNKTION keinen Steckplatz. Die Funktionsform ist virtuell also
+    // wirkungslos — was den Ausstieg in `mitRollen` nicht ueberfluessig macht,
+    // sondern belegt, wie wenig dort zu holen ist: die Rollen fehlen so oder
+    // so, und der Name darf deshalb nicht auch noch verschwinden.
+    expect(queryAll('[data-eigener-koerper="ja"]')).toHaveLength(0);
+    expect(queryAll('[role="table"]')).toHaveLength(0);
+    expect(queryAll('[aria-label="Bestand"]').length).toBeGreaterThan(0);
   });
 });

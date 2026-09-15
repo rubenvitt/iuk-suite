@@ -33,6 +33,7 @@ export { VIRTUELL_AB_ZEILEN } from "./masse";
 export {
   angezeigteAnzahl,
   angezeigteZeilen,
+  blattSpalten,
   filterAktiv,
   filterAusSpalten,
   spaltenSchluessel,

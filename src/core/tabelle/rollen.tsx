@@ -29,7 +29,13 @@
  * Werkzeug für Aufrufer.
  */
 
-import { createContext, useContext, type ComponentPropsWithRef } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  type ComponentPropsWithRef,
+  type ComponentType,
+} from "react";
 import type { TableProps } from "antd";
 
 type KastenProps = ComponentPropsWithRef<"div">;
@@ -98,6 +104,57 @@ if (process.env.NODE_ENV !== "production") {
  */
 const KOERPERROLLEN = { wrapper: Koerper, row: Zeile, cell: Zelle };
 
+/** Was antd als Bauteil zulässt: eine Komponente ODER ein Elementname. */
+type Eigenbauteil = ComponentType<Record<string, unknown>> | string;
+
+/**
+ * Das Bauteil des Aufrufers UMHÜLLEN statt es zu ersetzen.
+ *
+ * ⚠️ DER UNTERSCHIED IST NICHT THEORETISCH. Wer `components.body.cell` setzt,
+ * tut das für sein eigenes Rendern, seine Ereignisse, sein `ref`. Überschriebe
+ * die Rollen-Nachrüstung das, fiele all das aus — und zwar erst ab 150 Zeilen,
+ * also lange nach dem Zeitpunkt, an dem jemand es geschrieben und geprüft hat.
+ *
+ * ⚠️ DASS DIE DURCHREICHUNG TRÄGT, IST KEIN GUTER GLAUBE: rc-table gibt jedem
+ * dieser Bauteile `className`, `style` und `ref` und verlässt sich darauf, dass
+ * sie ankommen — ein Bauteil, das seine Props verschluckt, zerlegt die Tabelle
+ * ohnehin. Die Rolle reist auf demselben Weg mit.
+ */
+function umhuellt(rolle: string, eigenes: Eigenbauteil): ComponentType<KastenProps> {
+  const Gehuellt = (props: KastenProps) =>
+    createElement(eigenes, { ...props, role: rolle } as Record<string, unknown>);
+  if (process.env.NODE_ENV !== "production") Gehuellt.displayName = `Tabellenrolle(${rolle})`;
+  return Gehuellt;
+}
+
+function koerperUm(eigenes: Eigenbauteil): ComponentType<KastenProps> {
+  const Gehuellt = (props: KastenProps) => {
+    const { beschriftung, zeilen } = useContext(RollenKontext);
+    return createElement(eigenes, {
+      ...props,
+      role: "table",
+      "aria-label": beschriftung,
+      "aria-rowcount": zeilen,
+    } as Record<string, unknown>);
+  };
+  if (process.env.NODE_ENV !== "production") Gehuellt.displayName = "Tabellenrolle(table)";
+  return Gehuellt;
+}
+
+/** Was `mitRollen` entschieden hat — beides wird gebraucht, nicht nur das erste. */
+export type Rolleneinbau<T> = {
+  bauteile: TableProps<T>["components"];
+  /**
+   * Ob die Rollen tatsächlich eingehängt sind.
+   *
+   * ⚠️ DIESES FELD IST KEIN BEIWERK. Am Einbau hängt, WO die Beschriftung
+   * stehen darf: nimmt `Datentabelle` sie antd weg, ohne dass ein Element sie
+   * auffängt, trägt die Tabelle am Ende GAR KEINEN Namen — schlechter als der
+   * Zustand, den dieser Umbau verbessern sollte.
+   */
+  gesetzt: boolean;
+};
+
 /**
  * Die Rollen in die `components` des Aufrufers einhängen — aber NUR, solange
  * tatsächlich virtualisiert wird.
@@ -111,12 +168,31 @@ const KOERPERROLLEN = { wrapper: Koerper, row: Zeile, cell: Zelle };
 export function mitRollen<T>(
   eigene: TableProps<T>["components"],
   virtuellAktiv: boolean,
-): TableProps<T>["components"] {
-  if (!virtuellAktiv) return eigene;
-  // Ein `body` als FUNKTION ist rc-tables eigener Ausweg („render props");
-  // dann gibt es die drei Steckplätze gar nicht, und wir halten uns heraus.
-  if (typeof eigene?.body === "function") return eigene;
-  return { ...eigene, body: { ...eigene?.body, ...KOERPERROLLEN } };
+): Rolleneinbau<T> {
+  if (!virtuellAktiv) return { bauteile: eigene, gesetzt: false };
+  // Ein `body` als FUNKTION ist rc-tables eigener Ausweg („render props"); dann
+  // gibt es die drei Steckplätze gar nicht. Wir halten uns heraus UND sagen es,
+  // damit die Beschriftung dort bleibt, wo antd sie hinhängt — sonst trüge die
+  // Tabelle am Ende GAR KEINEN Namen.
+  //
+  // ⚠️ GEMESSEN: virtuell läuft diese Funktion ohnehin nicht. rc-table ersetzt
+  // `components.body` im virtuellen Zweig durch sein eigenes Raster
+  // (`VirtualTable/index.js`: `body: data?.length ? renderBody : undefined`),
+  // und `getComponent(['body','wrapper'])` findet auf einer Funktion keinen
+  // Steckplatz. Wir könnten die Rollen hier also gefahrlos einhängen — und tun
+  // es trotzdem nicht: das wäre eine Wette auf ein Internum, das sich ändern
+  // darf, für einen Fall, den heute niemand baut.
+  if (typeof eigene?.body === "function") return { bauteile: eigene, gesetzt: false };
+
+  const koerper = eigene?.body;
+  const unveraendert = !koerper?.wrapper && !koerper?.row && !koerper?.cell;
+  // Der Normalfall bekommt die Konstanten — gleiche Typen, kein Neuaufbau.
+  const rollen = unveraendert ? KOERPERROLLEN : {
+    wrapper: koerper.wrapper ? koerperUm(koerper.wrapper as Eigenbauteil) : Koerper,
+    row: koerper.row ? umhuellt("row", koerper.row as Eigenbauteil) : Zeile,
+    cell: koerper.cell ? umhuellt("cell", koerper.cell as Eigenbauteil) : Zelle,
+  };
+  return { bauteile: { ...eigene, body: { ...koerper, ...rollen } }, gesetzt: true };
 }
 
 /**
@@ -137,9 +213,12 @@ export function mitRollen<T>(
  */
 export function mitZeilenindex<T>(
   eigenes: TableProps<T>["onRow"],
-  virtuellAktiv: boolean,
+  rollenGesetzt: boolean,
 ): TableProps<T>["onRow"] {
-  if (!virtuellAktiv) return eigenes;
+  // ⚠️ AN `gesetzt`, NICHT AN DER VIRTUALISIERUNG. Ohne `role="row"` an der
+  // Zeile ist `aria-rowindex` nichts weiter als ein Attribut, das niemand
+  // liest — und eine Zusicherung darauf wäre eine, die nichts bezeugt.
+  if (!rollenGesetzt) return eigenes;
   return (datensatz, index) => ({
     ...eigenes?.(datensatz, index),
     "aria-rowindex": (index ?? 0) + 1,
