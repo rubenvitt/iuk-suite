@@ -89,9 +89,15 @@ const SAMMLER = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
  * nicht, wofuer die Spalte da ist.
  *
  * Die Kennung steht in der Beschriftung, damit zwei gleichnamige Fahrzeuge im
- * Menue unterscheidbar sind. Tragen beide auch keine Kennung, bleiben die
- * Eintraege gleich beschriftet — sie filtern dann aber trotzdem richtig, jeder
- * auf sein Fahrzeug.
+ * Menue unterscheidbar sind.
+ *
+ * ⚠️ UND WO AUCH DIE KENNUNG NICHT TRENNT, TRENNT DIE ID. Gleicher Name UND
+ * keine (oder dieselbe) Kennung ist erlaubt — das Schema verlangt weder das
+ * eine noch das andere. Stuenden dann zwei identisch beschriftete Eintraege im
+ * Menue, filterte ein Klick zwar korrekt auf EIN Fahrzeug, aber der Benutzer
+ * erfaehrt nicht, auf welches: er liest die Meldungen des einen im Glauben,
+ * die des anderen zu sehen. Die ID ist haesslich und taucht nur in genau
+ * diesem Fall auf — ehrlicher als zwei gleiche Zeilen.
  */
 function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterItem[] {
   const gesehen = new Map<string, string>();
@@ -104,9 +110,18 @@ function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterIt
         : zeile.fahrzeugName,
     );
   }
+  // Erst zaehlen, dann entscheiden: nur die WIRKLICH doppelten Beschriftungen
+  // bekommen die ID angehaengt, nicht jede Zeile vorsorglich.
+  const haeufigkeit = new Map<string, number>();
+  for (const text of gesehen.values()) {
+    haeufigkeit.set(text, (haeufigkeit.get(text) ?? 0) + 1);
+  }
   return [...gesehen]
-    .map(([value, text]) => ({ text, value }))
-    .sort((a, b) => SAMMLER.compare(a.text as string, b.text as string));
+    .map(([value, text]) => ({
+      text: (haeufigkeit.get(text) ?? 0) > 1 ? `${text} · ${value}` : text,
+      value,
+    }))
+    .sort((a, b) => SAMMLER.compare(a.text, b.text));
 }
 
 const STATUS_FILTER = zustandsFilter<FahrzeugVerfallZeile>([

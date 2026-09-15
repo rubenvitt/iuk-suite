@@ -253,6 +253,42 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
+  /**
+   * ⚠️ AUCH OHNE KENNUNG MUESSEN DIE EINTRAEGE UNTERSCHEIDBAR BLEIBEN (zweiter
+   * Reviewbefund zu DRK-298). Gleicher Name UND keine Kennung ist erlaubt —
+   * das Schema verlangt weder das eine noch das andere. Stuenden dann zwei
+   * identisch beschriftete Eintraege im Menue, filterte ein Klick zwar korrekt
+   * auf EIN Fahrzeug, aber der Benutzer erfaehrt nicht, auf welches: er liest
+   * die Meldungen des einen in dem Glauben, die des anderen zu sehen.
+   *
+   * Die Kennung waere die schoenere Unterscheidung; wo es keine gibt, bleibt
+   * die ID. Haesslich, aber nur in genau diesem Fall — und ehrlicher als zwei
+   * gleiche Zeilen.
+   */
+  it("unterscheidet gleichnamige Fahrzeuge auch ohne Kennung", async () => {
+    await mount(
+      <FahrzeugVerfallTabelle
+        zeilen={[
+          { ...ZEILEN[1], schluessel: "mtw-a:a1", fahrzeugId: "mtw-a",
+            fahrzeugName: "MTW", fahrzeugKennung: null },
+          { ...ZEILEN[1], schluessel: "mtw-b:a1", fahrzeugId: "mtw-b",
+            fahrzeugName: "MTW", fahrzeugKennung: null },
+        ]}
+      />,
+    );
+
+    await spaltenFilter("Fahrzeug", "MTW · mtw-b");
+    expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
+  });
+
+  /** Gegenprobe: ein eindeutiger Name bleibt unverziert. */
+  it("hängt einem eindeutigen Fahrzeugnamen nichts an", async () => {
+    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+
+    await spaltenFilter("Fahrzeug", "RTW Süd · UE-RK 5678");
+    expect(zeilenSchluessel()).toEqual(["f2:a1"]);
+  });
+
   it("trennt abgelaufen von bald ablaufend", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
 
