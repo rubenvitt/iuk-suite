@@ -82,12 +82,12 @@ describe("Inventur-Verlauf als RSC", () => {
     const [tabelle] = elementeVomTyp(inhalt, VerlaufTabelle);
     expect(tabelle!.props).toEqual({ zeilen: [
       {
-        id: "lauf-neu", zeitText: "16.07. 10:30", person: "u-unbekannt", kommentar: "Nachzählung",
+        id: "lauf-neu", zeitText: "16.07.2026, 10:30", person: "u-unbekannt", kommentar: "Nachzählung",
         umfangText: "vollständig", positionen: 2, abweichungen: 1,
         detailHref: "/verwaltung/inventur/verlauf/lauf-neu",
       },
       {
-        id: "lauf-alt", zeitText: "15.07. 12:00", person: "System", kommentar: "Monatsinventur",
+        id: "lauf-alt", zeitText: "15.07.2026, 12:00", person: "System", kommentar: "Monatsinventur",
         umfangText: "Hygiene, Fach A1", positionen: 1, abweichungen: 0,
         detailHref: "/verwaltung/inventur/verlauf/lauf-alt",
       },
