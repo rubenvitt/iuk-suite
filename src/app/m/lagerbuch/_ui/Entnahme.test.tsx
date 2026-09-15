@@ -134,16 +134,24 @@ const DETAIL: EntnahmeDetail = {
       ampel: "gruen", text: "bis 03/27",
     },
     /**
-     * DRK-297, Aufgabe 12 — L2 liegt an ZWEI Orten: teils im Handlager, teils
-     * hinter dem GF-Schrank. `rest` (5, Handlager) und `restGesamt` (12, ueber
+     * DRK-297, Aufgabe 12 — L2 liegt an ZWEI Orten: 5 hinter dem GF-Schrank
+     * (der haengt am Handlager, Aufgabe 12/Fixrunde 1 — zaehlt also zum
+     * Handlager-Bereich) und 7 im RTW 1 (ein Fahrzeug, zaehlt NICHT dazu).
+     * `rest` (5, Handlager-Bereich = GF-Schrank) und `restGesamt` (12, ueber
      * beide Orte) sind bewusst VERSCHIEDEN, damit ein Test, der versehentlich
-     * `rest` statt `restGesamt` anzeigt, auffaellt.
+     * die GESAMTMENGE statt der Handlager-Menge anzeigt, auffaellt.
+     *
+     * ⚠️ Eine Fixture mit "Handlager" UND "GF-Schrank" als getrennten Orten
+     * (Stand vor Fixrunde 1) waere UNREALISTISCH: der GF-Schrank IST Teil des
+     * Handlager-Bereichs (`parentId: HANDLAGER_ID`, siehe
+     * `_lib/lesepfade/artikel.test.ts`) und zaehlt zu `rest` dazu — der
+     * einzige Ort, der NICHT dazuzaehlt, ist ein Fahrzeug.
      */
     {
       id: "ch-2", chargenNr: "L2", verfall: "2026-09", rest: 5, restGesamt: 12,
       orte: [
-        { id: "handlager", name: "Handlager", menge: 5, zugangshinweis: null },
-        { id: "schrank-gf", name: "GF-Schrank", menge: 7, zugangshinweis: "Zugang über LvD — anrufen" },
+        { id: "schrank-gf", name: "GF-Schrank", menge: 5, zugangshinweis: "Zugang über LvD — anrufen" },
+        { id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null },
       ],
       ampel: "gelb", text: "läuft bald ab",
     },
@@ -213,23 +221,57 @@ describe("Entnahme — die Anzeige", () => {
       await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const orteZeileL2 = inZeile(zeilen[1], "[data-rolle='charge-orte']");
-      expect(orteZeileL2.textContent).toContain("Handlager: 5 Stk");
-      expect(orteZeileL2.textContent).toContain("GF-Schrank: 7 Stk");
+      expect(orteZeileL2.textContent).toContain("GF-Schrank: 5 Stk");
+      expect(orteZeileL2.textContent).toContain("RTW 1: 7 Stk");
     });
 
-    it("nennt die MENGE GESAMT im Zahlenfeld — nicht nur den Handlager-Rest", async () => {
-      // ch-2 traegt `rest: 5` (Handlager) und `restGesamt: 12` (ueber beide
-      // Orte). Ein `c.rest` statt `c.restGesamt` an dieser Stelle liesse die
-      // Helferin glauben, es liege weniger da, als tatsaechlich verfuegbar ist.
-      //
-      // `[class*="mengenChip"]` statt eines CSS-Modul-Imports in dieser
-      // Testdatei: der Vitest-Klassenname traegt den Schluessel als Teilstring
-      // (`_mengenChip_<hex>`), das Attributmuster findet ihn ohne die exakte
-      // Hash-Form zu kennen.
+    /**
+     * DRK-297, Fixrunde 1 — DIE KORREKTUR. Kopfzahl ("BESTAND HANDLAGER"),
+     * Stepper-Obergrenze und Buchen-Sperre haengen alle an `detail.bestand`
+     * (Handlager-only). Zeigte das Zahlenfeld `restGesamt` (12), spraeche es
+     * fuer L2 eine ANDERE Sprache als die Kopfzahl — jemand liest „12 Stk."
+     * und kann davon nur 5 tatsaechlich aus dem Handlager nehmen. Die Zahl
+     * muss deshalb `rest` (der Handlager-Anteil, 5) sein.
+     *
+     * `[class*="mengenChip"]` statt eines CSS-Modul-Imports in dieser
+     * Testdatei: der Vitest-Klassenname traegt den Schluessel als Teilstring
+     * (`_mengenChip_<hex>`), das Attributmuster findet ihn ohne die exakte
+     * Hash-Form zu kennen.
+     */
+    it("nennt die Menge im HANDLAGER-BEREICH im Zahlenfeld — nicht die Gesamtmenge ueber alle Orte", async () => {
       await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const mengenfeld = inZeile(zeilen[1], "[class*='mengenChip']");
-      expect(mengenfeld.textContent).toContain("12");
+      expect(mengenfeld.textContent).toContain("5");
+      // ⚠️ DER REGRESSIONSTEST: faellt das Zahlenfeld auf `restGesamt` zurueck,
+      // steht hier "12" statt "5" — dieser Test faengt genau das.
+      expect(mengenfeld.textContent).not.toContain("12");
+    });
+
+    /**
+     * DRK-297, Fixrunde 1 — die eigentliche Sorge hinter Punkt 1 der Fixrunde:
+     * eine Charge, die VOLLSTAENDIG im Fahrzeug liegt, zeigt im Zahlenfeld
+     * eine „0". Das ist nicht raetselhaft, WEIL die Ortszeile direkt daneben
+     * erklaert, wohin die Menge gehoert — „hier nichts, aber auf dem RTW
+     * liegt welches" ist die praezisere Auskunft, nicht eine vermischte Zahl.
+     */
+    it("eine Charge komplett im Fahrzeug: die Zahl ist 0, die Ortszeile erklaert es", async () => {
+      const detailNurFahrzeug: EntnahmeDetail = {
+        ...DETAIL,
+        chargen: [
+          {
+            id: "ch-3", chargenNr: "R-9", verfall: "2027-01", rest: 0, restGesamt: 7,
+            orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null }],
+            ampel: "gruen", text: "bis 01/27",
+          },
+        ],
+      };
+      await mount(<Entnahme detail={detailNurFahrzeug} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      const zeile = query("[data-rolle='charge-zeile']");
+      const mengenfeld = inZeile(zeile, "[class*='mengenChip']");
+      expect(mengenfeld.textContent).toContain("0");
+      const orteZeile = inZeile(zeile, "[data-rolle='charge-orte']");
+      expect(orteZeile.textContent).toContain("RTW 1: 7 Stk");
     });
 
     it("nennt den Zugangshinweis VORN im Markup, nicht in einem Tooltip", async () => {
@@ -247,10 +289,11 @@ describe("Entnahme — die Anzeige", () => {
       expect(hinweis.tagName).not.toBe("BUTTON");
     });
 
-    it("nennt keinen Zugangshinweis fuer einen Ort ohne Hinweis (Handlager)", async () => {
+    it("nennt keinen Zugangshinweis fuer einen Ort ohne Hinweis (Handlager, RTW 1)", async () => {
       await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
-      // Genau EIN Hinweis fuer zwei Chargen mit zusammen drei Orten, von denen
-      // nur einer (GF-Schrank) einen Zugangshinweis traegt.
+      // Genau EIN Hinweis fuer zwei Chargen mit zusammen drei Orten (Handlager,
+      // GF-Schrank, RTW 1), von denen nur einer (GF-Schrank) einen
+      // Zugangshinweis traegt.
       expect(queryAll("[data-rolle='charge-zugangshinweis']").length).toBe(1);
     });
   });

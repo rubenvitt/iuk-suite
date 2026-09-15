@@ -36,13 +36,24 @@ export type EntnahmeDetail = {
     id: string;
     chargenNr: string;
     verfall: string;
-    /** Rest im HANDLAGER-BEREICH — wortgleich mit `ArtikelDetailCharge`
-     *  (`_actions/detail.ts`, Aufgabe 11). In dieser Ansicht ungenutzt: die
-     *  Menge, die die Helferin sieht, ist `restGesamt`. */
+    /**
+     * Rest im HANDLAGER-BEREICH — wortgleich mit `ArtikelDetailCharge`
+     * (`_actions/detail.ts`, Aufgabe 11). DAS ist die Zahl, die diese Ansicht
+     * im Mengenfeld zeigt (Fixrunde 1 zu Aufgabe 12): Kopfzahl
+     * ("BESTAND HANDLAGER"), Stepper-Obergrenze (`detail.bestand`) und diese
+     * Chargenzahl sprechen dieselbe Sprache — das, was HIER UND JETZT
+     * entnehmbar ist. `restGesamt` waere hier eine Zahl, die mehr verspricht,
+     * als man am Regal mitnehmen kann.
+     */
     rest: number;
-    /** DRK-297, Aufgabe 12 — Summe ueber ALLE Orte, Fahrzeuge eingeschlossen.
-     *  Dieselbe Bedeutung wie in der Verwaltung: eine Charge, die vollstaendig
-     *  im Fahrzeug liegt, hat `rest === 0` und `restGesamt > 0`. */
+    /**
+     * DRK-297, Aufgabe 12 — Summe ueber ALLE Orte, Fahrzeuge eingeschlossen.
+     * Wortgleich mit `ArtikelDetailCharge["restGesamt"]` (Aufgabe 11); dient
+     * hier NUR dem Aufbau der `orte`-Liste und der Datenform-Paritaet mit der
+     * Verwaltung — nicht der Anzeige. Eine Charge, die vollstaendig im
+     * Fahrzeug liegt, hat `rest === 0` und `restGesamt > 0`: die „0" bleibt
+     * nicht raetselhaft, weil direkt daneben die Ortszeile steht ("RTW 1: 7").
+     */
     restGesamt: number;
     /** Die VERTEILUNG dieser Charge: wo wie viel liegt, wortgleich mit
      *  `ArtikelDetailCharge["orte"]`. ⚠️ Der Zugangshinweis steht in DIESER
@@ -233,7 +244,17 @@ export function Entnahme({ detail, buchen }: { detail: EntnahmeDetail; buchen: B
                 ))}
             </div>
             <div className={s.mengenChip}>
-              {c.restGesamt}
+              {/*
+                ⚠️ FIXRUNDE 1 ZU AUFGABE 12: HIER STAND `c.restGesamt`. Kopfzahl
+                ("BESTAND HANDLAGER"), Stepper-Obergrenze und Buchen-Sperre
+                haengen alle an `detail.bestand` — Handlager-only. `restGesamt`
+                waere hier groesser als das, was tatsaechlich abbuchbar ist:
+                jemand liest „7 Pkg." und kann sie nicht nehmen. `c.rest` (der
+                Handlager-Anteil) spricht dieselbe Sprache wie die Kopfzahl;
+                eine „0" bei einer reinen Fahrzeug-Charge ist nicht raetselhaft,
+                weil die Ortszeile direkt darunter erklaert, wo der Rest liegt.
+              */}
+              {c.rest}
               <small>{detail.einheit}</small>
             </div>
           </div>

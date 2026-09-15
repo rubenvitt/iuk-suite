@@ -305,6 +305,11 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
     t.db.insert(chargen).values([
       { id: "c-gf1", artikelId: ARTIKEL_A, chargenNr: "GF-1", verfall: "2027-01", createdAt: NOW },
       { id: "c-r9", artikelId: ARTIKEL_A, chargenNr: "R-9", verfall: "2027-01", createdAt: NOW },
+      // Liegt in BEIDEN: dem GF-Schrank (sortierung 90) UND dem RTW (sortierung
+      // 0 als Fahrzeug-Default) — derselbe Fall wie "MIX" in
+      // `_actions/detail.test.ts` (Aufgabe 11). Ohne den Rang VOR der
+      // Sortierung stuende das Fahrzeug faelschlich zuerst.
+      { id: "c-mix", artikelId: ARTIKEL_A, chargenNr: "MIX", verfall: "2027-01", createdAt: NOW },
     ]).run();
     t.db.insert(buchungen).values([
       { id: "b-gf1", ts: NOW, typ: "zugang", artikelId: ARTIKEL_A, chargeId: "c-gf1",
@@ -312,6 +317,12 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
         referenz: null, kommentar: null },
       { id: "b-r9", ts: NOW, typ: "zugang", artikelId: ARTIKEL_A, chargeId: "c-r9",
         lagerortId: RTW1, menge: 7, quelleTyp: "system", quelleId: "import",
+        referenz: null, kommentar: null },
+      { id: "b-mix-gf", ts: NOW, typ: "zugang", artikelId: ARTIKEL_A, chargeId: "c-mix",
+        lagerortId: SCHRANK_GF, menge: 4, quelleTyp: "system", quelleId: "import",
+        referenz: null, kommentar: null },
+      { id: "b-mix-rtw", ts: NOW, typ: "zugang", artikelId: ARTIKEL_A, chargeId: "c-mix",
+        lagerortId: RTW1, menge: 6, quelleTyp: "system", quelleId: "import",
         referenz: null, kommentar: null },
     ]).run();
   });
@@ -327,5 +338,21 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
   it("zeigt auch Chargen, die nur im Fahrzeug liegen", () => {
     const d = artikelDetailHelfer(t.db, ARTIKEL_A, NOW)!;
     expect(d.chargen.map((c) => c.chargenNr)).toContain("R-9");
+  });
+
+  /**
+   * DRK-297, Fixrunde 1 — genau der Fall, fuer den die `rang`-Regel existiert:
+   * eine Charge liegt AN BEIDEN, einem Schrank (sortierung 90, Handlager-
+   * Bereich) UND einem Fahrzeug (sortierung 0 als Default). Ohne den Rang
+   * VOR der Sortierung stuende das Fahrzeug faelschlich zuerst.
+   */
+  it("stellt den Handlager-Bereich vor Fahrzeugen, auch wenn die Sortierung anders liefe", () => {
+    const d = artikelDetailHelfer(t.db, ARTIKEL_A, NOW)!;
+    const charge = d.chargen.find((c) => c.chargenNr === "MIX")!;
+    expect(charge.orte).toEqual([
+      { id: SCHRANK_GF, name: "GF-Schrank", menge: 4, zugangshinweis: "Zugang über LvD — anrufen" },
+      { id: RTW1, name: "RTW 1", menge: 6, zugangshinweis: null },
+    ]);
+    expect(charge.restGesamt).toBe(10);
   });
 });

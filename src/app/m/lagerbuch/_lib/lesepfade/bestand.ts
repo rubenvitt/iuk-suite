@@ -35,7 +35,7 @@ import type { DB } from "../../_db/client";
 import { artikel, buchungen, chargen } from "../../_db/schema";
 import { verfallStatus, verfallSchwellen } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
-import { handlagerOrte } from "./orte";
+import { handlagerOrte, ortStamm } from "./orte";
 
 /**
  * Alles, was `select()` kann — die echte Verbindung ODER eine offene Transaktion.
@@ -169,6 +169,55 @@ export function restJeChargeUndOrt(
     innen.set(r.lagerortId, r.summe);
   }
   return m;
+}
+
+export type OrtVerteilungEintrag = {
+  id: string; name: string; menge: number; zugangshinweis: string | null;
+};
+
+/**
+ * DRK-297, Fixrunde 1 zu Aufgabe 12 — GEMEINSAMER KERN der Ortsverteilung fuer
+ * `_actions/detail.ts` (Verwaltung, Aufgabe 11) UND `_lib/lesepfade/artikel.ts`
+ * (`artikelDetailHelfer`, Aufgabe 12). Beide Seiten brauchten bislang eine
+ * WORTGLEICHE Kopie dieser rund dreissig Zeilen samt der `rang`-Sonderregel —
+ * genau die Kopie, vor der der eigene Auftrag warnt ("zwei Ansichten laufen
+ * sonst garantiert auseinander"), und die Regel ist nicht trivial genug, um sie
+ * zweimal richtig zu halten.
+ *
+ * Liefert je Charge die Verteilung UND ihre Summe, sortiert Handlager-Bereich
+ * ZUERST, Fahrzeuge DAHINTER, dann `sortierung`, dann Name.
+ *
+ * ⚠️ `sortierung` ALLEIN REICHT NICHT: ein Fahrzeug traegt den Default 0 und
+ * stuende damit VOR „Schrank 1" (10) — der Rang (Handlager-Bereich vor
+ * Fahrzeugen) entscheidet ZUERST.
+ */
+export function verteilungJeCharge(
+  db: Leser, artikelId: string,
+): Map<string, { orte: OrtVerteilungEintrag[]; restGesamt: number }> {
+  const verteilung = restJeChargeUndOrt(db, artikelId);
+  const stamm = ortStamm(db);
+  const imHandlager = new Set(handlagerOrte(db));
+
+  const ergebnis = new Map<string, { orte: OrtVerteilungEintrag[]; restGesamt: number }>();
+  for (const [chargeId, proOrt] of verteilung) {
+    const orte = [...proOrt.entries()]
+      .map(([ortId, menge]) => {
+        const o = stamm.get(ortId);
+        return {
+          id: ortId,
+          name: o?.name ?? ortId,
+          menge,
+          zugangshinweis: o?.zugangshinweis ?? null,
+          sortierung: o?.sortierung ?? 0,
+          rang: imHandlager.has(ortId) ? 0 : 1,
+        };
+      })
+      .sort((a, b) =>
+        a.rang - b.rang || a.sortierung - b.sortierung || a.name.localeCompare(b.name))
+      .map(({ sortierung: _s, rang: _r, ...rest }) => rest);
+    ergebnis.set(chargeId, { orte, restGesamt: orte.reduce((sum, o) => sum + o.menge, 0) });
+  }
+  return ergebnis;
 }
 
 export type Kennzahlen = {

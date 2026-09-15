@@ -7,8 +7,8 @@ import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verf
 import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
-import { restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
-import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
+import { verteilungJeCharge } from "../_lib/lesepfade/bestand";
+import { handlagerSchraenke } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /** Typ-Exporte verschwinden beim Kompilieren und sind keine Server Actions. */
@@ -78,35 +78,20 @@ export async function getDetail(
   const schwellen = verfallSchwellen();
   const quelleName = quelleAufloeser(db);
 
-  const verteilung = restJeChargeUndOrt(db, id);
-  const stamm = ortStamm(db);
-  // Der Handlager-Bereich zuerst, Fahrzeuge dahinter. ⚠️ `sortierung` ALLEIN
-  // REICHT NICHT: ein Fahrzeug traegt 0 und stuende damit VOR „Schrank 1" (10).
-  const imHandlager = new Set(handlagerOrte(db));
+  // DRK-297, Fixrunde 1 zu Aufgabe 12 — die Ortsverteilung (Verteilung, Rang,
+  // Sortierung, Summe) ist jetzt der GEMEINSAME Kern aus
+  // `_lib/lesepfade/bestand.ts`, den auch `artikelDetailHelfer` benutzt. Zwei
+  // wortgleiche Kopien dieser Projektion liefen sonst garantiert auseinander.
+  const verteilung = verteilungJeCharge(db, id);
 
   const chargenErgebnis = detail.chargen
     .map((charge): ArtikelDetailCharge => {
-      const proOrt = verteilung.get(charge.id) ?? new Map<string, number>();
-      const orte = [...proOrt.entries()]
-        .map(([ortId, menge]) => {
-          const o = stamm.get(ortId);
-          return {
-            id: ortId,
-            name: o?.name ?? ortId,
-            menge,
-            zugangshinweis: o?.zugangshinweis ?? null,
-            sortierung: o?.sortierung ?? 0,
-            rang: imHandlager.has(ortId) ? 0 : 1,
-          };
-        })
-        .sort((a, b) =>
-          a.rang - b.rang || a.sortierung - b.sortierung || a.name.localeCompare(b.name))
-        .map(({ sortierung: _s, rang: _r, ...rest }) => rest);
+      const v = verteilung.get(charge.id) ?? { orte: [], restGesamt: 0 };
       const status = verfallStatus(charge.verfall, schwellen, jetzt);
       return {
         ...charge,
-        restGesamt: orte.reduce((s, o) => s + o.menge, 0),
-        orte,
+        restGesamt: v.restGesamt,
+        orte: v.orte,
         ampel: status.ampel,
         text: chargeText(status, charge.verfall),
       };
