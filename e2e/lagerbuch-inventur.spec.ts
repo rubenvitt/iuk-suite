@@ -162,6 +162,10 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     // … und ein echter Abruf derselben Adresse (HTTP 200, Fallen 1/7/9).
     const detail = await page.goto(lagerbuchUrl(href!));
     expect(detail?.status()).toBe(200);
+    // DRK-328: der Kopf nennt den Zeitpunkt MIT Jahr. Geprüft wird die Form,
+    // nicht der Tag — der Lauf entsteht gerade eben.
+    await expect(page.getByRole("heading", { level: 1 }))
+      .toHaveText(/^Inventur vom \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/);
     const positionen = page.getByLabel("Gezählte Positionen", { exact: true });
     await expect(positionen).toContainText(`${CHARGE_A} · ${CHARGE_A_MHD}`);
     await expect(positionen).toContainText(`${neueNr} · ${NEU_MHD_TEXT}`);
@@ -173,6 +177,9 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     // 8) Die Liste der Laeufe (HTTP 200) traegt den Kommentar DIESES Versuchs.
     const liste = await page.goto(lagerbuchUrl("/verwaltung/inventur/verlauf"));
     expect(liste?.status()).toBe(200);
-    await expect(page.getByLabel("Inventur-Verlauf", { exact: true })).toContainText(kommentar);
+    const tabelle = page.getByLabel("Inventur-Verlauf", { exact: true });
+    await expect(tabelle).toContainText(kommentar);
+    // DRK-328: auch in der Liste steht das Jahr.
+    await expect(tabelle).toContainText(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
   });
 });
