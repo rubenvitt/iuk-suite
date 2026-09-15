@@ -206,6 +206,10 @@ export default async function CheckSeite({
         // zeigte die Seite zwar ein einziges Fahrzeug, waere von der vollen
         // Liste aber genau eine Bedienung entfernt (§7.9.1, DRK-302).
         gebunden={gebunden !== undefined}
+        // DRK-305: faellt der Zugang mitten im Check aus, entscheidet diese
+        // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
+        // unterscheiden — diese Seite kennt sie.
+        kontoZugang={zugang.herkunft === "konto"}
         soll={soll}
         geraete={geraete}
         flaschen={flaschen}

@@ -150,7 +150,13 @@ export default async function ArtikelDeepLink({
         // Die Action kommt als PROP in die Insel — `_ui/Entnahme.tsx` importiert
         // sie NICHT selbst (T78). Dies ist die EINE Stelle, die die
         // Reihenfolge zu Teil 5 kennt.
-        <Entnahme detail={detail} ziel={ziel} buchen={bucheEntnahmeHelfer} />
+        <Entnahme
+          detail={detail}
+          ziel={ziel}
+          buchen={bucheEntnahmeHelfer}
+          // DRK-305 — entscheidet den Rueckweg, wenn der Zugang ausfaellt.
+          kontoZugang={zugang.herkunft === "konto"}
+        />
       ) : (
         /*
          * KEIN wortloser `redirect("/helfer")` wie im Bestand

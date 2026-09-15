@@ -73,6 +73,29 @@ export const RIEGEL_TEXTE: Readonly<Record<SperrGrund, string>> = {
 } as const;
 
 /**
+ * DER SATZ FUER DEN KONTO-WEG — DRK-305, und er steht NEBEN `RIEGEL_TEXTE`,
+ * nicht darin.
+ *
+ * ⚠️ `RIEGEL_TEXTE` ist `Record<SperrGrund, string>`, und der Server kennt den
+ * Unterschied gar nicht: fällt der Konto-Zweig aus, sieht `requireHelferSchreibend`
+ * nur noch „kein Kärtchen, kein Konto" und gibt den Kärtchen-Grund zurück. WER
+ * hier stand, weiß allein die SEITE — sie hat die Herkunft beim Rendern gekannt
+ * und reicht sie den Inseln als Prop. Ein dritter `SperrGrund` würde also einen
+ * Zustand benennen, den die Stelle, die ihn setzen müsste, nicht unterscheiden
+ * kann.
+ *
+ * ⚠️ „IN EINEM NEUEN TAB" IST DER KERN DES SATZES, nicht Höflichkeit: der
+ * gesamte Check-Zustand liegt im Client (`CheckFlow.tsx`, sechs `useState`).
+ * Wer zum Anmelden dieselbe Seite verlässt, verliert zwanzig Minuten
+ * Zählarbeit — genau der Datenverlust, gegen den §7.4.4 das Erneuerungsfeld
+ * gebaut hat. Das Feld selbst hilft hier nicht: es verlangt einen Code, und die
+ * angemeldete Person hat kein Kärtchen.
+ */
+export const ANMELDUNG_TEXT =
+  "Deine Anmeldung ist abgelaufen. Melde dich in einem neuen Tab an und tippe hier erneut — "
+  + "deine Eingaben bleiben stehen.";
+
+/**
  * `gebucht === 0` ist ausdruecklich ein FEHLER, kein Erfolg (§7.3). Heute gibt
  * `fefoAbbuchung` bei leerem Handlager `{gebucht: 0}` zurueck
  * (`db/abbuchung.ts:24-54` wirft nie), und `HelferEntnahme.tsx:26-27` macht
@@ -110,4 +133,18 @@ export const NETZ_TEXT_CHECK =
  */
 export function darfErneuern(grund: HelferGrund): boolean {
   return grund === "sitzung";
+}
+
+/**
+ * DARF DIESE SEITE EIN KAERTCHEN NACHFORDERN? — DRK-305.
+ *
+ * `darfErneuern` beantwortet „passt der GRUND zu einer Erneuerung"; diese
+ * Funktion beantwortet die zweite Hälfte: „gibt es überhaupt ein Kärtchen".
+ * Beide müssen ja sagen. Ohne die zweite bot die Oberfläche einer angemeldeten
+ * Person ein Code-Feld für ein Kärtchen an, das sie nie hatte — eine Sackgasse,
+ * und im Check eine, die zwanzig Minuten Zählarbeit kostet (Codex-Review zu
+ * PR #164).
+ */
+export function darfKaertchenErneuern(grund: HelferGrund, kontoZugang: boolean): boolean {
+  return !kontoZugang && darfErneuern(grund);
 }
