@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  TYPEN,
+  VORGANG_ARTEN,
   deckelText,
   journalParameterAus,
   mitGetipptem,
@@ -45,22 +45,45 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     expect(action).not.toMatch(/z\.string\(\)\.max\(\d/);
   });
 
-  it("laesst genau die vier Journaltypen bis zum SQL-Filter durch", () => {
-    expect([...TYPEN]).toEqual([
+  it("laesst genau die sechs Vorgangsarten bis zum SQL-Filter durch", () => {
+    // ⚠️ SECHS SEIT DRK-344: die vier Buchungstypen plus die beiden Arten, die
+    // ihre Bedeutung im Referenz-Praefix tragen. Die Reihenfolge ist zugleich
+    // die Reihenfolge im Auswahlfeld.
+    expect([...VORGANG_ARTEN]).toEqual([
       "zugang",
       "entnahme",
       "korrektur",
       "umlagerung",
+      "aussondern",
+      "inventur",
     ]);
 
     expect(journalParameterAus({ typ: "entnahme" })).toMatchObject({
       werte: { typ: "entnahme" },
-      filter: { typ: "entnahme" },
+      filter: { vorgang: "entnahme" },
     });
-    expect(journalParameterAus({ typ: "inventur" })).toMatchObject({
+    expect(journalParameterAus({ typ: "aussondern" })).toMatchObject({
+      werte: { typ: "aussondern" },
+      filter: { vorgang: "aussondern" },
+    });
+    expect(journalParameterAus({ typ: "was-neues" })).toMatchObject({
       werte: { typ: "" },
-      filter: { typ: undefined },
+      filter: { vorgang: undefined },
     });
+  });
+
+  /**
+   * ⚠️ DER URL-SCHLUESSEL HEISST WEITER `typ`, DER FILTER HEISST `vorgang`
+   * (DRK-344) — und diese Naht ist genau eine Zeile breit. Waere der Schluessel
+   * mitumbenannt worden, liefe jeder GESPEICHERTE Journal-Link still
+   * ungefiltert auf: die Adresszeile zeigte einen Vorgang, die Tabelle die
+   * ganze Historie. Dasselbe Fehlverhalten, gegen das `zeitraumAus` gebaut ist.
+   */
+  it("liest die Vorgangsart aus dem URL-Schluessel `typ` und gibt sie als `vorgang` weiter", () => {
+    const ergebnis = journalParameterAus({ typ: "korrektur" });
+    expect(ergebnis.filter.vorgang).toBe("korrektur");
+    // Der Weg zurueck in die Insel traegt weiter den URL-Namen.
+    expect(ergebnis.werte.typ).toBe("korrektur");
   });
 
   it("normalisiert Suchtext und gueltige Tage getrennt fuer Insel und SQL", () => {
@@ -79,7 +102,7 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     });
     expect(ergebnis.filter).toEqual({
       q: "Päckchen",
-      typ: "korrektur",
+      vorgang: "korrektur",
       von: new Date("2026-07-31T22:00:00.000Z"),
       bis: new Date("2026-08-31T21:59:59.999Z"),
     });
@@ -90,7 +113,10 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
   it("reicht ungueltige Rohdaten weder an SQL noch an die DatePicker weiter", () => {
     const ergebnis = journalParameterAus({
       q: "   ",
-      typ: "inventur",
+      // ⚠️ „inventur" STAND HIER BIS DRK-344 als Beispiel fuer einen
+      // ungueltigen Wert — seither ist es eine gueltige Vorgangsart. Der
+      // Platzhalter muss also einer sein, der es nie wird.
+      typ: "gibt-es-nicht",
       von: "2026-02-31",
       bis: "gestern",
     });
@@ -98,7 +124,7 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     expect(ergebnis.werte).toEqual({ q: "", typ: "", von: "", bis: "" });
     expect(ergebnis.filter).toEqual({
       q: undefined,
-      typ: undefined,
+      vorgang: undefined,
       von: undefined,
       bis: undefined,
     });

@@ -14,6 +14,7 @@ import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import { restJeChargeFuerArtikel, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
 import { handlagerOrte, ortStamm, type OrtStammZeile } from "../_lib/lesepfade/orte";
 import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
+import { INVENTUR_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -294,7 +295,7 @@ export async function inventurKorrektur(
     const inventurId = newId();
     const lauf: Lauf = {
       inventurId,
-      referenz: `inventur:${inventurId}`,
+      referenz: `${INVENTUR_PRAEFIX}${inventurId}`,
       quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
       kommentar: v.kommentar,
     };

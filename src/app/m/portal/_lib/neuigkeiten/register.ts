@@ -20,6 +20,7 @@ import checkNurFuerDeinFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/la
 import entnahmeAufsFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-entnahme-aufs-fahrzeug";
 import letzterCheckUndVerfallLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-letzter-check-und-verfall-loeschen";
 import mengenSelbstZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-mengen-selbst-zaehlen";
+import aussonderungUndInventurImJournal from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-aussonderung-und-inventur-im-journal";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -73,6 +74,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   entnahmeAufsFahrzeug,
   letzterCheckUndVerfallLoeschen,
   mengenSelbstZaehlen,
+  aussonderungUndInventurImJournal,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,

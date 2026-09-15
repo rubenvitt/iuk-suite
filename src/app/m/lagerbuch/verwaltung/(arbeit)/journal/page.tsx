@@ -58,7 +58,7 @@ function abrufFilterAus(daten: JournalSeitenDaten): JournalAbrufFilter {
   // etwas, das auf der anderen Seite nicht ankommt.
   const filter: JournalAbrufFilter = {};
   if (daten.filter.q) filter.q = daten.filter.q;
-  if (daten.filter.typ) filter.typ = daten.filter.typ;
+  if (daten.filter.vorgang) filter.vorgang = daten.filter.vorgang;
   if (daten.filter.von) filter.von = daten.filter.von.toISOString();
   if (daten.filter.bis) filter.bis = daten.filter.bis.toISOString();
   return filter;

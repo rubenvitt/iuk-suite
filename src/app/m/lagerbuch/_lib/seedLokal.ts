@@ -18,6 +18,7 @@ import {
   users,
 } from "../_db/schema";
 import { CHARGE_OHNE_VERFALL, HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
+import { AUSSONDERN_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { heuteIso } from "./zeit";
 import { fefoAbbuchung, type Quelle } from "./schreibpfade/abbuchung";
@@ -390,6 +391,21 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     // GF-Schrank, also an einem Ort mit Zugangshinweis. Sauerstoffmasken sind
     // ebenfalls an keinem Schreibpfad beteiligt, der aus dem Bereich zieht.
     { id: "ch-o2maske-gf", artikelId: A.o2maske, chargenNr: "O2M-2026-777", verfall: m.gruen },
+    // ⚠️ DIE ZWEITE ABGELAUFENE CHARGE, und sie wird unten VOLLSTAENDIG
+    //    ausgesondert (DRK-344). `ch-kompresse-alt` bleibt unangetastet — die
+    //    Verfallsliste braucht weiter einen Fall zum Anfassen; diese hier braucht
+    //    das Journal, damit die Vorgangsart „Aussonderung“ überhaupt auf dem
+    //    Schirm steht.
+    //
+    // ⚠️ DER ARTIKEL IST MIT BEDACHT GEWAEHLT: `pflaster` kommt in KEINEM
+    //    `fefoAbbuchung`-Block und in KEINER Fahrzeugvorlage vor. FEFO zieht die
+    //    am fruehesten ablaufende Charge zuerst — eine neue abgelaufene Charge an
+    //    einem entnommenen Artikel aenderte also still, WORAUS die Demo-Entnahmen
+    //    gebucht werden. Gemessen an `verbandpaeckchen`: der Bestand lief negativ,
+    //    und `seedLokal.test.ts` fing es. Am Fahrzeug waere es harmloser —
+    //    `korrekturAufLagerort` waehlt bei positivem Abgleich die JUENGSTE Charge —,
+    //    aber „harmloser" ist kein Grund, es darauf ankommen zu lassen.
+    { id: "ch-pflaster-alt", artikelId: A.pflaster, chargenNr: "P-2024-091", verfall: m.abgelaufen },
   ].filter((c) => !chDa.has(c.id));
   for (const c of chargenListe) {
     db.insert(chargen).values({ ...c, createdAt: vor(jetzt, 150) }).run();
@@ -431,6 +447,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     // DRK-297 — Erstbestand AUSSCHLIESSLICH im GF-Schrank. Es gibt bewusst
     // keine weitere Buchung fuer diese Charge.
     { id: "bu-zg-o2maske-gf", chargeId: "ch-o2maske-gf", artikelId: A.o2maske, menge: 8, vorTagen: 10, lagerortId: SCHRANK_GF },
+    { id: "bu-zg-pflaster-alt", chargeId: "ch-pflaster-alt", artikelId: A.pflaster, menge: 8, vorTagen: 150 },
   ];
   const buDa = vorhandeneIds(db.select({ id: buchungen.id }).from(buchungen).all());
   for (const z of zugaenge.filter((z) => !buDa.has(z.id))) {
@@ -620,6 +637,38 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     });
   }
 
+  /* 12c ── DIE AUSSONDERUNG. Acht abgelaufene Pflastersets gehen vollständig
+   *         aus dem Handlager — derselbe Vorgang, den `_actions/aussondern.ts`
+   *         schreibt, und in derselben Form: `typ: "korrektur"` plus das Praefix
+   *         `aussondern:` in der Referenz (DRK-344).
+   *
+   *         ⚠️ OHNE DIESE ZEILEN GAEBE ES LOKAL NICHTS ZU SEHEN. Die ganze
+   *         Anzeige haengt an einem Praefix, das im Seed bis hierher nirgends
+   *         vorkam — „Aussonderung“ stuende im Auswahlfeld und liefe auf eine
+   *         leere Tabelle. Dieselbe Luecke bliebe fuer jeden Playwright-Lauf.
+   *
+   *         ⚠️ DIREKTES INSERT, NICHT `fefoAbbuchung`: die Aktion trifft GENAU
+   *         die gewaehlte Charge und nicht die frueheste des Artikels. Eine
+   *         FEFO-Abbuchung naehme hier dieselbe (sie ist die aelteste), aber der
+   *         Seed soll den Vorgang abbilden, nicht einen, der zufaellig gleich
+   *         ausgeht. Feste Buchungs-Id, also ist `buDa` schon das Idempotenzgate.
+   *
+   *         Netto null auf dem Bestand: der Zugang oben bucht +8, diese Zeile −8.
+   *         Damit aendert der Block keine Zahl, die anderswo im Protokoll steht —
+   *         und die Charge faellt aus der Verfallsliste, weil ihr Rest 0 ist.
+   *         Genau so sieht eine erledigte Aussonderung aus. */
+  const BU_AUSSONDERUNG = "bu-aussondern-verbandpaeckchen";
+  if (!buDa.has(BU_AUSSONDERUNG)) {
+    db.insert(buchungen).values({
+      id: BU_AUSSONDERUNG, ts: vor(jetzt, 3), typ: "korrektur",
+      artikelId: A.pflaster, chargeId: "ch-pflaster-alt",
+      lagerortId: HANDLAGER_ID, menge: -8,
+      quelleTyp: "oidc", quelleId: SEED_SUB,
+      referenz: `${AUSSONDERN_PRAEFIX}${HANDLAGER_ID}`,
+      kommentar: "Verfallskontrolle, entsorgt",
+    }).run();
+  }
+
   /* 13 ── Geraete: je eine Zeile fuer rot (ueberfaellig), gelb (im Warnfenster),
    *        gruen und GRAU (kein Datum gepflegt → `keinDatum`, kein Fehlalarm). */
   const gerDa = vorhandeneIds(db.select({ id: geraete.id }).from(geraete).all());
@@ -753,6 +802,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         "25 Tage breit, zwei Monatsenden liegen 28–31 Tage auseinander) — " +
         "gelb zeigen stattdessen AED-MTK, BZ-Kontrolle und O₂-Flasche 2 l",
     `  grün        Chargen mit Verfall ${m.gruen}; „ohne Verfall" = ${PSEUDO_VERFALL}`,
+    `  ausgesondert Charge P-2024-091 (Pflasterset) — im Journal unter „Aussonderung“`,
     `  Gerät rot   Absaugpumpe RTW 1, MTK seit ${tagIso(jetzt, -12)} überfällig`,
     `  Gerät gelb  AED RTW 1, MTK am ${tagIso(jetzt, 18)}`,
     `  Gerät grau  Handfunkgerät MTW 1 (kein Datum gepflegt)`,
