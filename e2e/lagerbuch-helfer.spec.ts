@@ -1,8 +1,10 @@
 import { registerAuditFunctions } from "@/core/audit/context";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
 import {
+  E2E_FAHRZEUG_NAME,
+  E2E_TOKEN_CHECK,
   E2E_TOKEN_HELFER,
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -109,6 +111,51 @@ function zaehleBuchungen(artikelId: string, quelleTyp: string, quelleId: string)
   }
 }
 
+/**
+ * Der Bestand EINES Artikels AN EINEM Lagerort — DRK-300.
+ *
+ * ⚠️ NICHT die Zahl der Zeilen, sondern ihre SUMME: eine Umlagerung schreibt
+ * zwei Zeilen, und „es sind zwei mehr geworden" wäre auch dann grün, wenn beide
+ * im Handlager lägen. Gefragt ist, ob im FAHRZEUG etwas angekommen ist.
+ */
+function bestandAn(artikelId: string, lagerortId: string): number {
+  const db = new Database(DB_PFAD, { readonly: true });
+  try {
+    const zeile = db
+      .prepare(
+        "select coalesce(sum(menge), 0) as n from buchungen where artikel_id = ? and lagerort_id = ?",
+      )
+      .get(artikelId, lagerortId) as { n: number };
+    return zeile.n;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * EIN ZIEL WÄHLEN — und dabei die ANTWORT prüfen, nicht nur die Landung.
+ *
+ * ⚠️ DIE ZWEITE TESTREGEL AUS FALLE 10 (`AGENTS.md`): ein e2e-Test, der eine
+ * Anfrage auslöst, prüft ihre Antwort. Die Zeile darunter wäre sonst blind
+ * gegen genau den Fall, für den es die Regel gibt — ein abgebrochener oder
+ * abgelehnter POST meldet sich nicht als Fehler, sondern als Zeitüberschreitung
+ * beim Warten auf eine Navigation, die nie angestoßen wurde. Die Meldung zeigte
+ * dann auf `waitForURL` und nicht auf die Server Action, die nicht durchkam.
+ *
+ * Der POST geht an die Wahlseite selbst — dort steht das Formular, und eine
+ * Server Action postet auf die URL ihrer eigenen Seite.
+ */
+async function waehleZiel(page: Page, name: RegExp): Promise<void> {
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/helfer/ziel")),
+    page.getByRole("button", { name }).click(),
+  ]);
+  expect(
+    antwort.status(),
+    `die Zielwahl muss serverseitig ankommen — Antwort war ${antwort.status()}`,
+  ).toBeLessThan(400);
+}
+
 /** Der juengste Check-Datensatz eines Fahrzeugs, oder `undefined`, wenn es
  *  noch keinen gibt — Tiebreaker `id`, weil `completed_at` sekundengranular
  *  ist (§4.9). */
@@ -154,6 +201,21 @@ test.describe("Der Weg am Stueck", () => {
 
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
     await page.waitForURL(/\/a\/e2e-artikel/);
+
+    /*
+     * DRK-300 — OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist gesperrt, bis die
+     * Wahl getroffen ist; „Kein Fahrzeug — Verbrauch" ist eine ausdrückliche
+     * Wahl und kein Leerlassen. Diese drei Zeilen sind zugleich der einzige
+     * Ort, an dem die GESPERRTE Form im echten Browser nachgewiesen wird —
+     * jsdom rechnet keine Bedienbarkeit, und der Vitest-Fall prüft das
+     * `disabled`-Attribut, nicht den Klick.
+     */
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, /Kein Fahrzeug/);
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
     await page.getByRole("button", { name: "Entnahme buchen" }).click();
     await expect(page.getByText(/gebucht/i)).toBeVisible();
 
@@ -190,6 +252,88 @@ test.describe("Der Weg am Stueck", () => {
     await expect(zeilen.locator(`[title="${E2E_TOKEN_HELFER}"]`)).toHaveCount(nachher);
 
     await ctx.close();
+  });
+
+  /**
+   * DRK-300 — DIE ENTNAHME AUF EIN FAHRZEUG.
+   *
+   * ⚠️ NUR HIER IST SIE GANZ ZU SEHEN. Vitest prüft die Hälften einzeln: die
+   * Action bucht zwei Legs, die Insel reicht das Ziel durch, die Seite löst das
+   * Cookie auf. Dass ein COOKIE aus der Wahlseite den nächsten Seitenaufruf
+   * überlebt und dort zu einer Umlagerung führt, kann nur ein echter Browser
+   * zeigen — jsdom hat keinen Cookie-Speicher über Anfragen hinweg, und ein
+   * Unit-Test hätte keine zweite Anfrage.
+   */
+  test("das gewählte Fahrzeug überlebt den nächsten Artikel und bucht dorthin", async ({ page }) => {
+    const vorherFahrzeug = bestandAn("e2e-artikel", "e2e-fahrzeug");
+    const vorherHandlager = bestandAn("e2e-artikel", "handlager");
+
+    await page.goto(lagerbuchUrl("/"));
+    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.waitForURL(/\/helfer$/);
+
+    await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    // Die Wahl steht über dem Knopf — sonst lenkte sie still Bestand um.
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    await page.getByRole("button", { name: "Entnahme buchen" }).click();
+    await expect(page.getByText(/gebucht/i)).toBeVisible();
+
+    /*
+     * ⚠️ DIE WAHL ÜBERLEBT DEN SEITENWECHSEL — das ist der Punkt, für den es
+     * ein Cookie und keinen Suchparameter gibt. Ein frischer Aufruf derselben
+     * Seite ist dafür der ehrlichste Nachweis: kein Zustand im Speicher, keine
+     * URL, die die Antwort schon enthält.
+     */
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    // NETTO NULL: was im Fahrzeug ankommt, fehlt im Handlager.
+    const zugewachsen = bestandAn("e2e-artikel", "e2e-fahrzeug") - vorherFahrzeug;
+    expect(zugewachsen, "im Fahrzeug muss Bestand angekommen sein").toBeGreaterThan(0);
+    expect(bestandAn("e2e-artikel", "handlager")).toBe(vorherHandlager - zugewachsen);
+  });
+
+  /**
+   * DIE WAHL GEHÖRT IHRER SCHICHT — Review-Befund P1 zu PR #140.
+   *
+   * ⚠️ NUR HIER IST DER FALL ECHT NACHSTELLBAR. Ein Unit-Test prüft, dass ein
+   * fremdes Kärtchen den gemerkten Wert verwirft; ob das Cookie den
+   * Sitzungswechsel im Browser ÜBERHAUPT überlebt — und damit, ob es die Frage
+   * je gibt —, zeigt nur ein echter Wechsel im selben Kontext. Genau so steht
+   * das Telefon im Gerätehaus: ein Gerät, wechselnde Kärtchen.
+   *
+   * Ohne die Bindung stünde nach dem zweiten Einlösen das Fahrzeug der ersten
+   * Schicht über dem Knopf, und der wäre sofort bedienbar.
+   */
+  test("nach einem Kärtchenwechsel gilt die Wahl der vorigen Schicht nicht weiter", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/"));
+    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.waitForURL(/\/helfer$/);
+
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    // Schichtwechsel auf DEMSELBEN Gerät: anderes Kärtchen einlösen.
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_CHECK}`));
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+
+    const ziel = page.locator("[data-rolle='entnahme-ziel']");
+    await expect(ziel).not.toContainText(E2E_FAHRZEUG_NAME);
+    await expect(ziel).toContainText("Noch nichts gewählt");
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
   });
 });
 
@@ -277,6 +421,17 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
     await page.waitForURL(/\/helfer$/);
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    /*
+     * Ziel wählen, SOLANGE das Kärtchen noch gilt — seit DRK-300 ist der
+     * Buchen-Knopf ohne Ziel gesperrt, und eine Zielwahl nach dem Sperren käme
+     * gar nicht mehr durch. Das entspricht auch dem Hergang, den dieser Test
+     * beschreibt: die Sperre trifft jemanden MITTEN in der Arbeit.
+     */
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     // Mitten in der Schicht gesperrt.
@@ -463,7 +618,28 @@ test.describe("§12.1 Punkt 1 — der gemeldete Verfall ueberlebt bis in die Dat
      * Warnwirkung.
      */
     await page.getByLabel(/^Verfall E2E Check Kompressen/).fill("2090-09");
-    await page.getByRole("button", { name: "Weiter" }).click(); // Zaehlen → Nachfuellen
+
+    /*
+     * SEIT DRK-304 MUSS HIER GEZAEHLT WERDEN. Die Position startet bei 0, und
+     * „Weiter" bleibt gesperrt, solange sie niemand angefasst hat — eine 0, die
+     * niemand gezaehlt hat, waere sonst eine unwiderrufliche Leerbuchung auf den
+     * Fahrzeugbestand.
+     *
+     * Dreimal „+" bringt sie auf das Soll (3) und damit auf den Stand, den der
+     * Test vor DRK-304 durch die Vorbelegung geschenkt bekam: keine Luecke,
+     * keine Nachfuellung, dieselbe Zusicherung am Ende. `toBeEnabled()` steht
+     * dazwischen, weil ein Klick auf einen gesperrten Knopf in Playwright nicht
+     * scheitert, sondern in sein Zeitbudget laeuft und sich als etwas anderes
+     * meldet (Falle 10, zweite Testregel).
+     */
+    const weiter = page.getByRole("button", { name: "Weiter" });
+    await expect(weiter, "unberuehrte Positionen muessen „Weiter\" sperren").toBeDisabled();
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: /^E2E Check Kompressen.*erhöhen$/ }).click();
+    }
+    await expect(weiter).toBeEnabled();
+
+    await weiter.click(); // Zaehlen → Nachfuellen
     await page.getByRole("button", { name: "Weiter" }).click(); // Nachfuellen → Sauerstoff
     await page.getByRole("button", { name: "Abschließen" }).click();
 

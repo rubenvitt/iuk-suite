@@ -16,22 +16,31 @@ const BASIS = {
 };
 
 describe("checkNutzlast — die vier Vorbelegungen (§5.8.1)", () => {
-  it("Ist ist auf SOLL vorbelegt", () => {
-    // `ist[p.id] ?? p.soll` (CheckFlow.tsx:97). Konvention: „voll annehmen,
-    // Gezaehltes runterkorrigieren".
+  it("ein fehlender Ist-Wert ergibt 0 — NICHT mehr das Soll (DRK-304)", () => {
+    /*
+     * Die Vorbelegung auf das Soll war die Aktion „Alles auf Soll", die DRK-304
+     * entfernt. Hier steht, was die Nutzlast daraus macht: dasselbe, was die
+     * Oberflaeche anzeigt. Faellt die Zeile auf `?? p.soll` zurueck, schickte
+     * diese Funktion still etwas anderes, als auf dem Schirm stand — und die
+     * Soll-Werte sind deshalb je Position VERSCHIEDEN (4/2/1), damit die
+     * Zusicherung nicht zufaellig auch fuer einen einheitlichen Wert traegt.
+     */
     const n = checkNutzlast({ ...BASIS, z: LEER });
     expect(n.positionen).toEqual([
-      { sollPositionId: "sp1", ist: 4, nachfuellMenge: 0 },
-      { sollPositionId: "sp2", ist: 2, nachfuellMenge: 0 },
-      { sollPositionId: "sp3", ist: 1, nachfuellMenge: 0 },
+      { sollPositionId: "sp1", ist: 0, nachfuellMenge: 0 },
+      { sollPositionId: "sp2", ist: 0, nachfuellMenge: 0 },
+      { sollPositionId: "sp3", ist: 0, nachfuellMenge: 0 },
     ]);
   });
 
   it("ein gezaehlter Wert schlaegt die Vorbelegung — auch die 0", () => {
-    // `?? p.soll`, NICHT `|| p.soll`: eine gezaehlte 0 ist eine Aussage („Fach
-    // leer"), und `||` machte daraus wieder das Soll.
-    const n = checkNutzlast({ ...BASIS, z: { ...LEER, ist: { sp1: 0 } } });
+    // `??` und NICHT `||`: eine gezaehlte 0 ist eine Aussage („Fach leer"). Mit
+    // `||` faellt sie auf den Fallback zurueck — seit DRK-304 ebenfalls 0, was
+    // den Fehler UNSICHTBAR machte. Deshalb prueft die Zeile unten einen Wert,
+    // den `||` verfaelschen WUERDE: `sp1` auf 3 gezaehlt, Soll 4.
+    const n = checkNutzlast({ ...BASIS, z: { ...LEER, ist: { sp1: 0, sp2: 3 } } });
     expect(n.positionen[0]).toEqual({ sollPositionId: "sp1", ist: 0, nachfuellMenge: 0 });
+    expect(n.positionen[1]).toEqual({ sollPositionId: "sp2", ist: 3, nachfuellMenge: 0 });
   });
 
   it("es werden ALLE Positionen gesendet, auch unveraenderte", () => {

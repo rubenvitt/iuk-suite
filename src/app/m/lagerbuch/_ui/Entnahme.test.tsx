@@ -133,10 +133,19 @@ const DETAIL: EntnahmeDetail = {
   ],
 };
 
+/**
+ * DRK-300 — die AUSDRÜCKLICHE Verbrauchswahl. Sie steht in jeder Montierung,
+ * die buchen können soll: seit DRK-300 ist ein FEHLENDES Ziel („noch nichts
+ * gewählt") kein Verbrauch mehr, und der Knopf bleibt dann gesperrt.
+ */
+const VERBRAUCH = { art: "verbrauch" } as const;
+const RTW = { art: "fahrzeug", lagerortId: "fz-1", name: "RTW 1" } as const;
+
 const PLUS = "button[aria-label='Menge erhöhen']";
 const BUCHEN = "[data-rolle='entnahme-buchen']";
 const MENGE = "input[aria-label='Menge']";
 const ERGEBNIS = "[data-rolle='entnahme-ergebnis']";
+const ZIEL = "[data-rolle='entnahme-ziel']";
 
 afterEach(async () => {
   await unmount();
@@ -144,7 +153,7 @@ afterEach(async () => {
 
 describe("Entnahme — die Anzeige", () => {
   it("zeigt Name, Fach, Bestand und Einheit", async () => {
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
     expect(query("h1").textContent).toBe("Kompresse 10×10");
     expect(query("[data-rolle='fach']").textContent).toBe("A-01");
     expect(query("[data-rolle='bestand']").textContent).toContain("42");
@@ -152,7 +161,7 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("der Rueckweg behaelt sein stummes Zeichen neben sichtbarem Text", async () => {
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
     const link = query<HTMLAnchorElement>("a[href='/helfer']");
     const svg = query("a[href='/helfer'] svg");
     expect(svg.getAttribute("aria-hidden")).toBe("true");
@@ -161,7 +170,7 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("listet die Chargen mit Chip und Monatsangabe (FEFO)", async () => {
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
     const zeilen = queryAll("[data-rolle='charge-zeile']");
     expect(zeilen.length).toBe(2);
     expect(zeilen[1].textContent).toContain("L2");
@@ -178,7 +187,7 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("der Chip traegt den Ton aus `ampelTon` — eine im Stylesheet DEKLARIERTE Klasse (§5.17)", async () => {
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
     const chips = queryAll("[data-rolle='charge-zeile'] [data-rolle='helfer-chip']");
     // ⚠️ Befund 18b: ohne diese Zeile fuehrt die Pruefung bei leerem
     // Trefferarray NULL Zusicherungen aus — benennt jemand das `data-rolle` um,
@@ -193,6 +202,7 @@ describe("Entnahme — die Anzeige", () => {
   it("der Buchen-Knopf ist bei Bestand 0 deaktiviert", async () => {
     await mount(
       <Entnahme
+        ziel={VERBRAUCH}
         detail={{ ...DETAIL, bestand: 0, chargen: [] }}
         buchen={async () => ({ ok: true, wert: { gebucht: 0 } })}
       />,
@@ -203,7 +213,7 @@ describe("Entnahme — die Anzeige", () => {
 
 describe("Entnahme — der ERFOLG", () => {
   it("volle Menge: gruener Chip mit Menge und Namen", async () => {
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
     await click(BUCHEN);
     const r = query(ERGEBNIS);
     // ⚠️ NICHT `toMatch(/\bok\b/)` wie im Plan: die Vitest-Klasse heisst
@@ -217,7 +227,7 @@ describe("Entnahme — der ERFOLG", () => {
   it("TEILMENGE: sagt ‚3 von 5 gebucht' — heute steht dort nur die kleinere Zahl", async () => {
     // §7.3: heute ein gruener Chip mit der KLEINEREN Zahl, ohne Hinweis. Der
     // Helfer legt fuenf Teile ins Fahrzeug und das Journal kennt drei.
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 3 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 3 } })} />);
     for (let i = 0; i < 4; i++) await click(PLUS); // 1 → 5
     await click(BUCHEN);
     expect(query(ERGEBNIS).textContent).toBe("3 von 5 gebucht; mehr lag nicht im Handlager.");
@@ -226,7 +236,7 @@ describe("Entnahme — der ERFOLG", () => {
   });
 
   it("setzt die Menge nach einem Erfolg auf 1 zurueck", async () => {
-    await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 3 } })} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 3 } })} />);
     for (let i = 0; i < 2; i++) await click(PLUS);
     expect(query<HTMLInputElement>(MENGE).value).toBe("3");
     await click(BUCHEN);
@@ -241,6 +251,7 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // der teuerste Zustand der Tabelle.
     await mount(
       <Entnahme
+        ziel={VERBRAUCH}
         detail={DETAIL}
         buchen={async () => ({
           ok: false,
@@ -268,6 +279,7 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // anzubieten, der nicht helfen kann, ist schlimmer als keiner (§7.4.4).
     await mount(
       <Entnahme
+        ziel={VERBRAUCH}
         detail={DETAIL}
         buchen={async () => ({
           ok: false,
@@ -290,6 +302,7 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
   it("`sitzung` zeigt den Text und schickt zum Gate — ohne die Menge zu verwerfen", async () => {
     await mount(
       <Entnahme
+        ziel={VERBRAUCH}
         detail={DETAIL}
         buchen={async () => ({
           ok: false,
@@ -313,6 +326,7 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // erneuert. Die Insel formuliert nichts neu; der `text` traegt die Botschaft.
     await mount(
       <Entnahme
+        ziel={VERBRAUCH}
         detail={DETAIL}
         buchen={async () => ({
           ok: false,
@@ -333,7 +347,7 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // Falle 62: HelferEntnahme.tsx:22-30 hat KEIN catch — der Wurf schlaegt bis
     // zur Fehlerseite durch, und in Produktion steht dort ein ENGLISCHER Satz
     // (Falle 66).
-    await mount(<Entnahme detail={DETAIL} buchen={async () => { throw new Error("offline"); }} />);
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => { throw new Error("offline"); }} />);
     for (let i = 0; i < 4; i++) await click(PLUS);
     await click(BUCHEN);
     expect(query(ERGEBNIS).textContent).toBe("Keine Verbindung. Die Buchung wurde nicht gespeichert.");
@@ -377,6 +391,7 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
 
     await mount(
       <Entnahme
+        ziel={VERBRAUCH}
         detail={DETAIL}
         buchen={async () => ({
           ok: false,
@@ -408,6 +423,83 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
 });
 
 describe("Entnahme — Bauform", () => {
+  /*
+   * DRK-300 — DAS ZIEL ÜBER DEM KNOPF.
+   *
+   * ⚠️ DER ERSTE FALL IST DER TEURE und der Grund für die ganze Prop: „noch
+   * nichts gewählt" darf NICHT buchen. Fiele er weg, buchte jede vergessene
+   * Wahl still Verbrauch — das Material läge im Fahrzeug, der Bestand sänke im
+   * Handlager, und kein Gate würde rot.
+   */
+  it("OHNE Ziel ist der Buchen-Knopf gesperrt — trotz Bestand", async () => {
+    await mount(<Entnahme ziel={null} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+
+    // ⚠️ `DETAIL.bestand` ist 42. Ohne diese Zeile wäre der Test auch dann
+    // grün, wenn der Knopf nur wegen leeren Bestands gesperrt wäre.
+    expect(DETAIL.bestand).toBeGreaterThan(0);
+    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(true);
+    // Und die Person erfährt, was zu tun ist — ein stummer grauer Knopf wäre
+    // am Regal eine Sackgasse.
+    expect(query(ZIEL).textContent).toMatch(/wählen/i);
+  });
+
+  it("zeigt das gewählte Fahrzeug über dem Knopf und gibt es an die Buchung weiter", async () => {
+    const gesehen: unknown[] = [];
+    await mount(
+      <Entnahme
+        ziel={RTW}
+        detail={DETAIL}
+        buchen={async (e) => { gesehen.push(e); return { ok: true, wert: { gebucht: 1 } }; }}
+      />,
+    );
+
+    expect(query(ZIEL).textContent).toContain("RTW 1");
+    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(false);
+
+    await click(BUCHEN);
+    // ⚠️ Die Anzeige allein trägt nichts: sie wäre auch dann richtig, wenn die
+    // Buchung das Ziel gar nicht mitschickte. Erst der Aufruf macht daraus die
+    // Zusage „gebucht wird, was angezeigt war".
+    expect(gesehen).toHaveLength(1);
+    expect(gesehen[0]).toMatchObject({ artikelId: "art-1" });
+    // Die ID wandert, nicht der Anzeigename: der Server kennt nur sie.
+    expect((gesehen[0] as { ziel: unknown }).ziel).toEqual({ art: "fahrzeug", lagerortId: "fz-1" });
+  });
+
+  it("nennt das Fahrzeug in der Erfolgsmeldung", async () => {
+    await mount(
+      <Entnahme ziel={RTW} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 2 } })} />,
+    );
+    await click(BUCHEN);
+    // Der Beleg am Telefon: was ist wohin gegangen. Ohne das Fahrzeug im Satz
+    // ist die Meldung von einem reinen Verbrauch nicht zu unterscheiden.
+    expect(query(ERGEBNIS).textContent).toContain("RTW 1");
+  });
+
+  it("mit ausdrücklichem Verbrauch bucht es ohne Fahrzeug — und sagt das auch", async () => {
+    const gesehen: unknown[] = [];
+    await mount(
+      <Entnahme
+        ziel={VERBRAUCH}
+        detail={DETAIL}
+        buchen={async (e) => { gesehen.push(e); return { ok: true, wert: { gebucht: 1 } }; }}
+      />,
+    );
+    expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(false);
+    await click(BUCHEN);
+    expect(gesehen[0]).toMatchObject({ ziel: { art: "verbrauch" } });
+  });
+
+  it("der Weg zur Zielwahl kehrt zu DIESEM Artikel zurück", async () => {
+    await mount(<Entnahme ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+
+    const link = query<HTMLAnchorElement>(`${ZIEL} a`);
+    // ÄUSSERE Pfade (Falle 63): ein innerer würde auf dem Modul-Host doppelt
+    // präfixiert. Und ohne `returnTo` stünde die Person nach der Wahl auf der
+    // Artikelliste statt vor ihrem Regalfach.
+    expect(link.getAttribute("href")).toBe("/helfer/ziel?returnTo=%2Fa%2Fart-1");
+  });
+
   it("importiert die Action NICHT, sie kommt als Prop", () => {
     // `_actions/buchung.ts` gehoert Teil 5 (H7). Als Prop ist diese Insel
     // vollstaendig, testbar und gruen; der eine Import liegt in T83.

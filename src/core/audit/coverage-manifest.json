@@ -387,6 +387,10 @@
     "kind": "excluded",
     "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
   },
+  "src/app/m/lagerbuch/_actions/entnahmeZiel.ts#waehleEntnahmeZiel": {
+    "kind": "excluded",
+    "reason": "Per-session display preference only: it stores which destination the shelf withdrawal screen pre-selects. It writes no domain data; the booking it precedes is audited and carries the storage location itself."
+  },
   "src/app/m/lagerbuch/_actions/fahrzeuge.ts#createFahrzeug": {
     "kind": "context",
     "via": "createFahrzeug"
