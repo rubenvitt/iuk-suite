@@ -328,3 +328,49 @@ describe("angezeigteAnzahl mit gruppierten Spaltenkoepfen", () => {
     ])).toBeNull();
   });
 });
+
+describe("angezeigteAnzahl an antds ANDEREN Filterformen", () => {
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+  const trifft = (wert: Key | boolean, zeile: Z) => zeile.a === wert;
+
+  it("erkennt ein SELBST GEBAUTES Filtermenue ohne `filters`", () => {
+    // ⚠️ antds Muster fuer ein eigenes Menue (`filterDropdown` + `filteredValue`
+    // + `onFilter`, ganz ohne `filters`-Liste) filtert genauso. Eine Pruefung
+    // allein auf `filters` uebersaehe es — still, und die Zahl bliebe die
+    // ungefilterte, waehrend weniger Zeilen dastehen.
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filterDropdown: () => null, filteredValue: [1], onFilter: trifft },
+    ])).toBe(2);
+  });
+
+  it("meldet `unbekannt` bei einem ungesteuerten eigenen Filtermenue", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filterDropdown: () => null, onFilter: trifft },
+    ])).toBeNull();
+  });
+
+  it("meldet `unbekannt` bei einem `defaultFilteredValue`", () => {
+    // Der einzige Weg, ungesteuert MIT Startwert zu filtern — danach fuehrt
+    // antd den Stand allein.
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filters: [], defaultFilteredValue: [1], onFilter: trifft },
+    ])).toBeNull();
+  });
+
+  it("meldet NICHT `unbekannt` fuer ein `onFilter` ohne jede Bedienung", () => {
+    // ⚠️ `'onFilter' in column` macht fuer antd schon eine filterbare Spalte.
+    // Ohne `filters`, `filterDropdown` und `defaultFilteredValue` gibt es aber
+    // weder Menue noch Startwert — es wird nie gefiltert. Ein „unbekannt" hier
+    // waere schlechter als die richtige Zahl, die wir haben.
+    expect(angezeigteAnzahl(zeilen, [{ key: "a", onFilter: trifft }])).toBe(4);
+  });
+
+  it("liest ein ausdrueckliches `filteredValue: undefined` als GESTEUERT", () => {
+    // antd unterscheidet ueber `'filteredValue' in column`, nicht ueber den
+    // Wert — die Spalte gilt als gesteuert mit leerem Stand.
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filters: [], filteredValue: undefined, onFilter: trifft },
+    ])).toBe(4);
+  });
+});

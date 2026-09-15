@@ -120,25 +120,74 @@ type Eigenbauteil = ComponentType<Record<string, unknown>> | string;
  * sie ankommen — ein Bauteil, das seine Props verschluckt, zerlegt die Tabelle
  * ohnehin. Die Rolle reist auf demselben Weg mit.
  */
+/**
+ * ⚠️ DIE HÜLLE WIRD GEMERKT, UND ZWAR AM BAUTEIL SELBST — nicht am
+ * `components`-Objekt, in dem es steckt.
+ *
+ * Der Unterschied ist der Normalfall: `components={{ body: { cell: Zelle } }}`
+ * als Literal im JSX ist bei JEDEM Render ein anderes Objekt. Ein `useMemo` auf
+ * dieses Objekt liefe also jedes Mal neu, baute eine neue Hülle — und damit
+ * einen neuen KOMPONENTENTYP. React baut daraufhin ab und neu auf: Scrollstand
+ * des Halters weg, Fokus und Eingabestand einer bearbeitbaren Zelle weg, bei
+ * jedem unbeteiligten Render der Elternkomponente. Dieselbe Falle, die die
+ * Modulkonstanten für den Normalfall schon abwenden — hier nur eine Ebene
+ * tiefer.
+ *
+ * Eine `WeakMap` je Rolle für Komponenten (kein Festhalten, was der Aufrufer
+ * fallen lässt) und eine gewöhnliche `Map` für Elementnamen, von denen es eine
+ * Handvoll gibt.
+ */
+const HUELLEN = new Map<string, WeakMap<object, ComponentType<KastenProps>>>();
+const HUELLEN_TEXT = new Map<string, ComponentType<KastenProps>>();
+
+function gemerkt(
+  rolle: string,
+  eigenes: Eigenbauteil,
+  bauen: () => ComponentType<KastenProps>,
+): ComponentType<KastenProps> {
+  if (typeof eigenes === "string") {
+    const schluessel = `${rolle}:${eigenes}`;
+    const vorhanden = HUELLEN_TEXT.get(schluessel);
+    if (vorhanden) return vorhanden;
+    const gebaut = bauen();
+    HUELLEN_TEXT.set(schluessel, gebaut);
+    return gebaut;
+  }
+  let proRolle = HUELLEN.get(rolle);
+  if (!proRolle) {
+    proRolle = new WeakMap();
+    HUELLEN.set(rolle, proRolle);
+  }
+  const vorhanden = proRolle.get(eigenes);
+  if (vorhanden) return vorhanden;
+  const gebaut = bauen();
+  proRolle.set(eigenes, gebaut);
+  return gebaut;
+}
+
 function umhuellt(rolle: string, eigenes: Eigenbauteil): ComponentType<KastenProps> {
-  const Gehuellt = (props: KastenProps) =>
-    createElement(eigenes, { ...props, role: rolle } as Record<string, unknown>);
-  if (process.env.NODE_ENV !== "production") Gehuellt.displayName = `Tabellenrolle(${rolle})`;
-  return Gehuellt;
+  return gemerkt(rolle, eigenes, () => {
+    const Gehuellt = (props: KastenProps) =>
+      createElement(eigenes, { ...props, role: rolle } as Record<string, unknown>);
+    if (process.env.NODE_ENV !== "production") Gehuellt.displayName = `Tabellenrolle(${rolle})`;
+    return Gehuellt;
+  });
 }
 
 function koerperUm(eigenes: Eigenbauteil): ComponentType<KastenProps> {
-  const Gehuellt = (props: KastenProps) => {
-    const { beschriftung, zeilen } = useContext(RollenKontext);
-    return createElement(eigenes, {
-      ...props,
-      role: "table",
-      "aria-label": beschriftung,
-      "aria-rowcount": zeilen,
-    } as Record<string, unknown>);
-  };
-  if (process.env.NODE_ENV !== "production") Gehuellt.displayName = "Tabellenrolle(table)";
-  return Gehuellt;
+  return gemerkt("table", eigenes, () => {
+    const Gehuellt = (props: KastenProps) => {
+      const { beschriftung, zeilen } = useContext(RollenKontext);
+      return createElement(eigenes, {
+        ...props,
+        role: "table",
+        "aria-label": beschriftung,
+        "aria-rowcount": zeilen,
+      } as Record<string, unknown>);
+    };
+    if (process.env.NODE_ENV !== "production") Gehuellt.displayName = "Tabellenrolle(table)";
+    return Gehuellt;
+  });
 }
 
 /** Was `mitRollen` entschieden hat — beides wird gebraucht, nicht nur das erste. */

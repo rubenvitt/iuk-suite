@@ -87,6 +87,26 @@ describe("mitRollen", () => {
     expect(gerendert.textContent).toBe("Wert");
   });
 
+  it("merkt die Huelle am BAUTEIL, nicht am components-Objekt", async () => {
+    // ⚠️ DER NORMALFALL IST EIN LITERAL IM JSX: `components={{ body: { cell:
+    // Zelle } }}` ist bei jedem Render ein ANDERES Objekt. Waere die Huelle
+    // daran gemerkt, entstuende je Render ein neuer Komponententyp — React
+    // baute Halter, Zeilen und Zellen ab und neu auf, und Scrollstand wie
+    // Eingabefokus waeren bei jedem unbeteiligten Render der Elternkomponente
+    // weg.
+    const EigeneZelle = (props: Record<string, unknown>) => <div {...props} />;
+    const a = koerperVon(mitRollen({ body: { cell: EigeneZelle } }, true));
+    const b = koerperVon(mitRollen({ body: { cell: EigeneZelle } }, true));
+    expect(a).not.toBe(b);
+    expect(a?.cell).toBe(b?.cell);
+
+    // Ein anderes Bauteil bekommt eine andere Huelle — sonst traege die eine
+    // Zelle das Rendern der anderen.
+    const AndereZelle = (props: Record<string, unknown>) => <div {...props} />;
+    expect(koerperVon(mitRollen({ body: { cell: AndereZelle } }, true))?.cell)
+      .not.toBe(a?.cell);
+  });
+
   it("umhuellt auch einen ELEMENTNAMEN — antd laesst beides zu", async () => {
     const koerper = koerperVon(mitRollen({ body: { row: "section" } }, true));
     const Zeile2 = koerper?.row as React.ComponentType<Record<string, unknown>>;

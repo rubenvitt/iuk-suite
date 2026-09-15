@@ -57,8 +57,12 @@ export type AnzeigeSpalte<T> = {
    */
   onFilter?: (wert: Key | boolean, zeile: T) => boolean;
   sorter?: unknown;
-  /** Die angebotenen Filterwerte. Vorhanden heißt: diese Spalte filtert. */
+  /** Die angebotenen Filterwerte einer Spalte mit antds eigenem Filtermenü. */
   filters?: unknown;
+  /** Ein selbst gebautes Filtermenü. antd hält die Spalte auch dann für filterbar. */
+  filterDropdown?: unknown;
+  /** Der Startwert eines UNGESTEUERTEN Filters — danach führt antd den Stand allein. */
+  defaultFilteredValue?: unknown;
   /** Unterspalten eines gruppierten Spaltenkopfes. Nur die Blätter filtern. */
   children?: readonly AnzeigeSpalte<T>[];
   /**
@@ -157,6 +161,38 @@ export function filterAktiv(zustand: FilterZustand): boolean {
 }
 
 /**
+ * Wann antd eine Spalte für filterbar hält — WÖRTLICH nach seiner eigenen
+ * Bedingung (`hooks/useFilter/index.js`, `collectFilterStates`):
+ *
+ *     column.filters || column.filterDropdown !== undefined || 'onFilter' in column
+ *
+ * ⚠️ NUR AUF `filters` ZU PRÜFEN IST ZU ENG, und zwar still. antds Muster für
+ * ein SELBST GEBAUTES Filtermenü (`filterDropdown` mit `filteredValue` und
+ * `onFilter`, ganz ohne `filters`-Liste) filtert genauso — es fiele durch und
+ * die Zeilenzahl bliebe die ungefilterte, während weniger Zeilen dastehen.
+ */
+function istFilterbar<T>(spalte: AnzeigeSpalte<T>): boolean {
+  return Boolean(spalte.filters) || spalte.filterDropdown !== undefined || "onFilter" in spalte;
+}
+
+/**
+ * Kann eine UNGESTEUERTE Spalte überhaupt je einen Filter tragen?
+ *
+ * ⚠️ DIE FRAGE IST NICHT AKADEMISCH, SIE VERHINDERT EIN FALSCHES „UNBEKANNT".
+ * `'onFilter' in column` allein macht für antd schon eine filterbare Spalte —
+ * aber ohne `filters`, ohne `filterDropdown` und ohne `defaultFilteredValue`
+ * gibt es weder eine Bedienung noch einen Startwert, der Stand bleibt leer und
+ * es wird nie gefiltert. Würden wir solche Spalten als unbekannt zählen, stünde
+ * an halb so vielen Tabellen „unbekannt viele" — eine Auskunft, die schlechter
+ * ist als die richtige Zahl, die wir haben.
+ */
+function kannUngesteuertFiltern<T>(spalte: AnzeigeSpalte<T>): boolean {
+  return Boolean(spalte.filters)
+    || spalte.filterDropdown !== undefined
+    || spalte.defaultFilteredValue !== undefined;
+}
+
+/**
  * Den Filterstand aus den SPALTEN selbst lesen, statt ihn übergeben zu lassen.
  *
  * ⚠️ WOZU, WENN ES `angezeigteZeilen` SCHON GIBT: dessen Aufrufer ist die
@@ -165,12 +201,17 @@ export function filterAktiv(zustand: FilterZustand): boolean {
  * Zeilen die Tabelle zeigt (für `aria-rowcount`). In `filteredValue` steht
  * genau dieser Stand, und zwar derselbe, aus dem antd gleich selbst filtert.
  *
- * ⚠️ `unbekannt` IST DER EIGENTLICHE RÜCKGABEWERT. Eine Spalte, die `filters`
- * anbietet, aber kein `filteredValue` trägt, filtert UNGESTEUERT: antd führt
- * den Stand intern, und von außen ist er nicht zu sehen. Ihn als „kein Filter"
- * zu lesen ergäbe eine zu große Zahl — und zwar still, genau dann, wenn jemand
- * filtert. Wer das nicht unterscheidet, baut die Falle nach, die er schließen
- * wollte.
+ * ⚠️ `unbekannt` IST DER EIGENTLICHE RÜCKGABEWERT. Eine filterbare Spalte ohne
+ * `filteredValue` filtert UNGESTEUERT: antd führt den Stand intern, und von
+ * außen ist er nicht zu sehen. Ihn als „kein Filter" zu lesen ergäbe eine zu
+ * große Zahl — und zwar still, genau dann, wenn jemand filtert. Wer das nicht
+ * unterscheidet, baut die Falle nach, die er schließen wollte.
+ *
+ * ⚠️ „OHNE `filteredValue`" HEISST `!("filteredValue" in spalte)`, NICHT
+ * `=== undefined`, und auch das ist antds eigene Unterscheidung
+ * (`'filteredValue' in column`): eine Spalte, die das Feld ausdrücklich auf
+ * `undefined` setzt, gilt als GESTEUERT mit leerem Stand — sie filtert dann
+ * nicht, und die Zahl ist bekannt.
  */
 /**
  * Die BLÄTTER einer Spaltenliste — ein gruppierter Spaltenkopf ist keine Spalte,
@@ -203,14 +244,16 @@ export function filterAusSpalten<T>(
   const zustand: FilterZustand = {};
   let unbekannt = false;
   for (const spalte of blattSpalten(spalten)) {
-    if (spalte.filters === undefined) continue;
+    if (!istFilterbar(spalte)) continue;
     const schluessel = spaltenSchluessel(spalte);
     if (!schluessel) continue;
-    if (spalte.filteredValue === undefined) {
-      unbekannt = true;
+    if (!("filteredValue" in spalte)) {
+      // Ungesteuert — aber nur dann wirklich unbekannt, wenn es überhaupt einen
+      // Weg gibt, einen Filter zu setzen (s. `kannUngesteuertFiltern`).
+      if (kannUngesteuertFiltern(spalte)) unbekannt = true;
       continue;
     }
-    zustand[schluessel] = spalte.filteredValue;
+    zustand[schluessel] = spalte.filteredValue ?? null;
   }
   return { zustand, unbekannt };
 }
