@@ -24,6 +24,7 @@
 import { eq } from "drizzle-orm";
 import { artikel, checks, fahrzeugTemplates, lagerorte, sollPositionen,
          templatePositionen } from "../../_db/schema";
+import type { Einheitenart } from "../konstanten";
 import { bestandJeArtikelUndLagerort, type Leser } from "./bestand";
 import { handlagerOrte } from "./orte";
 import { lagerortVerfallListe } from "./verfall";
@@ -54,11 +55,23 @@ export function istAktivesFahrzeug(db: Leser, id: string): boolean {
 export function fahrzeugListe(db: Leser) {
   return db.select().from(lagerorte).where(eq(lagerorte.typ, "fahrzeug")).all()
     .map((f) => ({ id: f.id, name: f.name, kennung: f.kennung,
-                   aktiv: f.aktiv, templateId: f.templateId }));
+                   aktiv: f.aktiv, templateId: f.templateId,
+                   einheitenart: f.einheitenart }));
 }
 
 export type FahrzeugUebersichtZeile = {
   id: string; name: string; kennung: string | null; aktiv: boolean;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
+   *
+   * ⚠️ `null` IST KEIN FEHLER UND KEINE DRITTE ART. Es ist der ausdruecklich
+   * erlaubte Zwischenstand aus Migration 0009, die bewusst nicht backfillt;
+   * die Begruendung steht an der Spalte (`_db/schema.ts`). Wer ihn auf
+   * „Fahrzeug" abbildet, weil das der haeufigere Fall ist, macht aus einer
+   * offenen Frage still eine Antwort — und niemand sieht der Liste danach
+   * noch an, was zugeordnet wurde und was geraten ist.
+   */
+  einheitenart: Einheitenart | null;
   positionen: number; faecher: number;
   /** Artikel, deren Fahrzeugbestand die SOLL-SUMME unterschreitet. */
   artikelUnterSoll: number;
@@ -183,6 +196,7 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
       }
       return {
         id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
+        einheitenart: f.einheitenart,
         positionen: soll.length, faecher: faecher.size, artikelUnterSoll,
         verfallAbgelaufen: verfall?.abgelaufen ?? 0,
         verfallWarnend: verfall?.warnend ?? 0,

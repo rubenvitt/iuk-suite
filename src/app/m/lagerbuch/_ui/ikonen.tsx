@@ -32,7 +32,7 @@
 import type { IconType } from "react-icons/lib";
 import {
   PiArchive, PiArrowCounterClockwise, PiArrowLeft, PiArrowRight,
-  PiArrowsClockwise, PiBarcode, PiBatteryCharging, PiCalendarX,
+  PiArrowsClockwise, PiBagSimple, PiBarcode, PiBatteryCharging, PiCalendarX,
   PiCaretDown, PiCaretLeft, PiCaretRight, PiCaretUp, PiCaretUpDown, PiCheck, PiCopy,
   PiDownloadSimple, PiFlashlight, PiHandGrabbing, PiHeartbeat, PiInfo,
   PiKey, PiLink, PiLinkBreak, PiList, PiMagnifyingGlass, PiMinus,
@@ -41,7 +41,7 @@ import {
   PiWind, PiX,
 } from "react-icons/pi";
 
-/** 30 reine UI-Zeichen und 8 Fachzeichen. Reihenfolge wie Spec 6.5.2, dahinter Nachtraege. */
+/** 30 reine UI-Zeichen und 9 Fachzeichen. Reihenfolge wie Spec 6.5.2, dahinter Nachtraege. */
 export type IkonName =
   // ── 30 reine UI-Zeichen ──────────────────────────────────────────────────
   | "pfeil-links" | "pfeil-rechts" | "chevron-rechts" | "chevron-links"
@@ -51,9 +51,13 @@ export type IkonName =
   | "scannen" | "qr" | "schluessel" | "taschenlampe" | "auf-ab"
   // DRK-299: Aufklappknopf der Inventurzeile.
   | "aufklappen" | "zuklappen"
-  // ── 8 Fachzeichen (Spec 6.5.4) ───────────────────────────────────────────
+  // ── 9 Fachzeichen (Spec 6.5.4) ───────────────────────────────────────────
   | "warnung" | "medizin" | "objekt" | "sauerstoff" | "akku" | "verfall"
-  | "handlager-griff" | "fahrzeug";
+  | "handlager-griff" | "fahrzeug"
+  // DRK-309: die Tasche neben dem Fahrzeug — zwei Arten derselben Einheit,
+  // und in der Liste stehen sie in DERSELBEN Spalte untereinander. Ein
+  // Zeichen, das nur „irgendein Behaelter" meint, traegt dort nicht.
+  | "tasche";
 
 /** Ein Phosphor-Zeichen je Name. Loest `PFADE` ab. */
 export const ZEICHEN: Record<IkonName, IconType> = {
@@ -97,6 +101,7 @@ export const ZEICHEN: Record<IkonName, IconType> = {
   verfall: PiCalendarX,
   "handlager-griff": PiHandGrabbing,
   fahrzeug: PiTruck,
+  tasche: PiBagSimple,
 };
 
 /**

@@ -18,6 +18,7 @@ import {
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
+import { einheitenartLabel, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
@@ -34,6 +35,12 @@ export type FahrzeugAnzeigeZeile = {
   name: string;
   kennung: string | null;
   aktiv: boolean;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche. `null` heisst „noch nicht zugeordnet" und
+   * ist der ausdrueckliche Zwischenstand aus Migration 0009, kein Datenfehler;
+   * die Begruendung steht an der Zeilenquelle (`lesepfade/fahrzeuge.ts`).
+   */
+  einheitenart: Einheitenart | null;
   templateName: string | null;
   positionen: number;
   faecher: number;
@@ -56,14 +63,24 @@ export type FahrzeugAnzeigeZeile = {
   letzterCheckIso: string | null;
 };
 
-/** SUCHFELDMENGE 2 VON 6: Name und Kennung. */
+/**
+ * SUCHFELDMENGE 2 VON 6: Name, Kennung — UND die Art (DRK-309).
+ *
+ * ⚠️ DIE ART GEHOERT IN DIE SUCHE, WEIL SIE JETZT IM NAMEN FEHLEN DARF. Solange
+ * jede Einheit ein Fahrzeug war, trug der Name die Art mit („RTW 1", „MTW 1")
+ * und „tasche" zu tippen war sinnlos. Eine „Sanitätstasche 1" heisst so, eine
+ * „Rucksack Betreuung" nicht — und wer „tasche" sucht, meint die Art, nicht die
+ * Schreibweise. Der Zwischenstand ist ueber sein Wort („nicht zugeordnet")
+ * genauso auffindbar; dafuer gibt es daneben den Spaltenfilter.
+ */
 export function sucheTrifft(
   zeile: FahrzeugAnzeigeZeile,
   begriff: string,
 ): boolean {
   const suche = falte(begriff.trim());
   return suche === ""
-    || falte(`${zeile.name} ${zeile.kennung ?? ""}`).includes(suche);
+    || falte(`${zeile.name} ${zeile.kennung ?? ""} ${einheitenartLabel(zeile.einheitenart)}`)
+      .includes(suche);
 }
 
 /**
@@ -156,6 +173,28 @@ function verfallRang(zeile: FahrzeugAnzeigeZeile): number {
   return zeile.verfallAbgelaufen * 1_000_000 + zeile.verfallWarnend;
 }
 
+/**
+ * DRK-309 — die Art als Spaltenfilter, MIT dem Zwischenstand als drittem Wert.
+ *
+ * ⚠️ „nicht zugeordnet" IST DER EIGENTLICHE GRUND FUER DIESEN FILTER. Fahrzeug
+ * und Tasche findet man auch ueber die Suche; die Liste der Einheiten, an denen
+ * die Zuordnung noch fehlt, findet man sonst gar nicht — sie sind ueber die
+ * ganze Tabelle verstreut und tragen kein gemeinsames Wort im Namen. Genau die
+ * Liste braucht, wer den Zwischenstand aus Migration 0009 abarbeiten will.
+ *
+ * ⚠️ UND ER IST KEIN VIERTER WERT DER ART. Der Filter fragt nach der
+ * ABWESENHEIT eines Wertes; `EINHEITENARTEN` kennt ihn deshalb nicht
+ * (Begruendung dort).
+ */
+const ART_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
+  { wert: "fahrzeug", text: "Fahrzeug",
+    trifft: (zeile) => zeile.einheitenart === "fahrzeug" },
+  { wert: "tasche", text: "Tasche",
+    trifft: (zeile) => zeile.einheitenart === "tasche" },
+  { wert: "offen", text: "nicht zugeordnet",
+    trifft: (zeile) => zeile.einheitenart === null },
+]);
+
 const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
   { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
@@ -166,7 +205,7 @@ function spalten(
 ): NonNullable<TableProps<FahrzeugAnzeigeZeile>["columns"]> {
   return [
     {
-      title: "Fahrzeug",
+      title: "Einheit",
       dataIndex: "name",
       sorter: nachText<FahrzeugAnzeigeZeile>((zeile) => zeile.name),
       render: (wert: string, zeile) => (
@@ -183,6 +222,38 @@ function spalten(
             </span>
           ) : null}
         </span>
+      ),
+    },
+    {
+      /**
+       * ⚠️ DIE ART STEHT DIREKT NEBEN DEM NAMEN, nicht hinten bei den
+       * Kennzahlen. Sie beantwortet „was ist das hier ueberhaupt?" — die
+       * Frage, die man VOR „wie voll ist es?" stellt. Am rechten Rand gelesen
+       * kaeme die Antwort nach der Entscheidung.
+       *
+       * ⚠️ CHIP MIT TEXT, nicht nur ein Zeichen. Die Regel des Moduls steht in
+       * `_ui/Chip.tsx`: jeder Chip traegt Text, das Zeichen ist `aria-hidden`
+       * und Zugabe. Ein Taschen- neben einem Lastwagensymbol waere auf
+       * Zeilenhoehe zwei aehnlich grosse graue Flecken.
+       */
+      title: "Art",
+      dataIndex: "einheitenart",
+      key: "art",
+      sorter: nachText<FahrzeugAnzeigeZeile>(
+        (zeile) => einheitenartLabel(zeile.einheitenart)),
+      filters: ART_FILTER.filters,
+      onFilter: ART_FILTER.onFilter,
+      render: (wert: Einheitenart | null) => wert === null ? (
+        /*
+         * GRAU, NICHT GELB. Der Zwischenstand ist erlaubt (Migration 0009
+         * backfillt bewusst nicht) — ein Warnton auf jeder Altzeile mahnte
+         * jeden Tag zu etwas, das niemand versprochen hat, und entwertete das
+         * Gelb daneben in der Verfallsspalte, wo es fachlich etwas heisst
+         * (Falle 3, `docs/design/README.md`).
+         */
+        <Chip ton="grau">{einheitenartLabel(null)}</Chip>
+      ) : (
+        <Chip ton="grau" zeichen={wert}>{einheitenartLabel(wert)}</Chip>
       ),
     },
     {
@@ -347,7 +418,7 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
         <Suchfeld
           wert={suche}
           onWert={setSuche}
-          platzhalter="Fahrzeug oder Kennung suchen…"
+          platzhalter="Einheit, Kennung oder Art suchen…"
         />
         <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <NeuFahrzeug />
@@ -355,13 +426,13 @@ export function FahrzeugeListe({ zeilen }: { zeilen: FahrzeugAnzeigeZeile[] }) {
 
       <Datentabelle<FahrzeugAnzeigeZeile>
         rowKey="id"
-        aria-label="Fahrzeuge"
+        aria-label="Fahrzeuge und Taschen"
         dataSource={gefiltert}
         onChange={(_seite, filter) => setSpaltenFilter(filter)}
         locale={{
           emptyText: hatFilter
-            ? "Kein Fahrzeug passt zu Suche und Filter."
-            : "Noch keine Fahrzeuge. Lege oben das erste an.",
+            ? "Keine Einheit passt zu Suche und Filter."
+            : "Noch keine Fahrzeuge und Taschen. Lege oben die erste Einheit an.",
         }}
         columns={spaltenliste}
       />

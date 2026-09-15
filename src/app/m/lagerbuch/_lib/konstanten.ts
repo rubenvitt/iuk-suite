@@ -70,3 +70,43 @@ export const QUELLE_TYPEN = ["token", "oidc", "system"] as const;
 export const LAGERORT_TYPEN = ["lager", "fahrzeug"] as const;
 export const GERAETE_TYPEN = ["medizin", "objekt"] as const;
 export const TOKEN_ZIEL_TYPEN = ["fahrzeug", "artikel"] as const;
+
+/**
+ * DRK-309 — die Art einer verwalteten Einheit: Fahrzeug oder Tasche.
+ *
+ * ⚠️ SIE STEHT NEBEN `LAGERORT_TYPEN`, NICHT DARIN. `typ` trennt Ort von
+ * Traeger, diese Liste trennt Traeger von Traeger; die Begruendung, warum aus
+ * „Tasche" kein dritter `typ` wurde, steht an der Spalte (`_db/schema.ts`).
+ *
+ * ⚠️ DIE LISTE KENNT KEIN „unbekannt". Der Zwischenstand ist die ABWESENHEIT
+ * eines Wertes (`null` in der Spalte), kein Wert in dieser Liste — ein
+ * Literal „unbekannt" waere ueber den Eingangsvalidator anlegbar und damit
+ * eine Einheit, die sich absichtlich nicht zuordnet. Neu angelegt wird
+ * ausschliesslich mit einem dieser beiden Werte.
+ */
+export const EINHEITENARTEN = ["fahrzeug", "tasche"] as const;
+
+export type Einheitenart = (typeof EINHEITENARTEN)[number];
+
+/**
+ * Die Beschriftung je Art — EINE Quelle fuer Liste, Filter, Anlegen-Dialog und
+ * Einheitenblatt. Zwei Schreibweisen fuer denselben Zustand lassen den Leser
+ * einen dritten vermuten (dieselbe Festlegung wie zwischen Filter- und
+ * Chiptext in `FahrzeugeListe.tsx`).
+ */
+export const EINHEITENART_LABEL: Record<Einheitenart, string> = {
+  fahrzeug: "Fahrzeug",
+  tasche: "Tasche",
+};
+
+/**
+ * Wie der Zwischenstand heisst. „nicht zugeordnet" und NICHT „unbekannt":
+ * unbekannt klaenge nach einem Datenfehler, zugeordnet wird es aber schlicht
+ * noch — von einem Menschen, der es weiss.
+ */
+export const EINHEITENART_OFFEN_LABEL = "nicht zugeordnet";
+
+/** Die Beschriftung einer Einheit, deren Art feststeht oder eben nicht. */
+export function einheitenartLabel(art: Einheitenart | null): string {
+  return art === null ? EINHEITENART_OFFEN_LABEL : EINHEITENART_LABEL[art];
+}

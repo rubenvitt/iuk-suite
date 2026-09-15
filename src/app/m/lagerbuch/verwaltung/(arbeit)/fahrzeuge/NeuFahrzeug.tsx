@@ -2,16 +2,24 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Form, Input, Modal } from "antd";
+import { Alert, Button, Form, Input, Modal, Radio } from "antd";
 import { createFahrzeug } from "../../../_actions/fahrzeuge";
+import {
+  EINHEITENARTEN,
+  EINHEITENART_LABEL,
+  type Einheitenart,
+} from "../../../_lib/konstanten";
 import { Ikone } from "../../../_ui/ikonen";
 
 type FahrzeugWerte = {
   name: string;
   kennung?: string;
+  einheitenart: Einheitenart;
 };
 
-const FORM_FELDER = new Set<keyof FahrzeugWerte>(["name", "kennung"]);
+const FORM_FELDER = new Set<keyof FahrzeugWerte>([
+  "name", "kennung", "einheitenart",
+]);
 
 function istFormFeld(name: string): name is keyof FahrzeugWerte {
   return FORM_FELDER.has(name as keyof FahrzeugWerte);
@@ -63,7 +71,7 @@ export function NeuFahrzeug() {
         form.resetFields();
         router.refresh();
       } catch {
-        setFehler("Fahrzeug konnte nicht angelegt werden.");
+        setFehler("Einheit konnte nicht angelegt werden.");
       } finally {
         laeuftRef.current = false;
       }
@@ -77,11 +85,11 @@ export function NeuFahrzeug() {
         icon={<Ikone name="plus" groesse={16} />}
         onClick={oeffnen}
       >
-        Neues Fahrzeug
+        Neue Einheit
       </Button>
       <Modal
         open={offen}
-        title="Neues Fahrzeug"
+        title="Neue Einheit"
         okText="Anlegen"
         cancelText="Abbrechen"
         confirmLoading={laeuft}
@@ -99,6 +107,36 @@ export function NeuFahrzeug() {
           onFinish={speichern}
           data-rolle="neues-fahrzeug"
         >
+          {/*
+            ⚠️ OHNE VORBELEGUNG, UND DAS IST DIE ANFORDERUNG AUS DRK-309
+            („neue Objekte müssen kategorisiert werden").
+
+            „Fahrzeug" als Vorgabe wäre der bequemere Dialog und die
+            schlechtere Angabe: der häufigere Fall gewinnt dann jedes Mal,
+            wenn jemand das Feld übersieht — und eine Tasche, die als
+            Fahrzeug in der Liste steht, ist nicht als Irrtum erkennbar. Der
+            Zwischenstand aus der Migration heißt „noch nicht zugeordnet" und
+            ist sichtbar; eine falsche Zuordnung ist es nicht.
+
+            ⚠️ DAS FELD STEHT OBEN, nicht unten. Die Art entscheidet, was
+            „Kennung" darunter überhaupt bedeutet (ein Kennzeichen oder eine
+            aufgeklebte Nummer) — eine Pflichtangabe hinter den Feldern, die
+            von ihr abhängen, wird als Nachtrag gelesen.
+          */}
+          <Form.Item
+            name="einheitenart"
+            label="Art"
+            rules={[{ required: true, message: "Fahrzeug oder Tasche wählen" }]}
+          >
+            <Radio.Group
+              optionType="button"
+              buttonStyle="solid"
+              options={EINHEITENARTEN.map((art) => ({
+                value: art,
+                label: EINHEITENART_LABEL[art],
+              }))}
+            />
+          </Form.Item>
           <Form.Item
             name="name"
             label="Name"

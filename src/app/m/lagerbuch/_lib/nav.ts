@@ -27,7 +27,11 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung", abschnitt: "Bestand" },
   { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
 
-  { key: "fahrzeuge", title: "Fahrzeuge", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Fahrzeuge & Geräte" },
+    /* DRK-309: Die Beschriftung nennt beide Arten, der `href` bleibt — wer eine
+   * Tasche sucht, findet unter „Fahrzeuge" nichts und schliesst, es gebe den
+   * Ort nicht. `key` und Pfad sind dagegen Adressen (aktiver Eintrag,
+   * Zugangs-Codes, gedruckte Kärtchen) und bleiben unangetastet. */
+  { key: "fahrzeuge", title: "Fahrzeuge & Taschen", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Fahrzeuge & Geräte" },
   { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Fahrzeuge & Geräte" },
   { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Fahrzeuge & Geräte" },
   { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Fahrzeuge & Geräte" },

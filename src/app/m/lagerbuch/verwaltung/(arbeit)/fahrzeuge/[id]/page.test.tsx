@@ -326,7 +326,11 @@ describe("Fahrzeugblatt als Server Component", () => {
     const zurueck = (kopf.props as {
       zurueck?: { titel: string; href: string };
     }).zurueck;
-    expect(zurueck).toEqual({ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" });
+    // DRK-309: Die BESCHRIFTUNG nennt beide Arten, der `href` bleibt — er
+    // steht in Zugangs-Codes, auf gedruckten Kärtchen und in älteren Notizen.
+    expect(zurueck).toEqual({
+      titel: "Fahrzeuge und Taschen", href: "/verwaltung/fahrzeuge",
+    });
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/page.tsx",
       "utf8",
@@ -557,7 +561,7 @@ describe("Fahrzeugblatt als Server Component", () => {
   it("ordnet Vorlage, Soll und Verfall und sendet nur JSON-sichere Inselprops", () => {
     const seite = fahrzeugInhalt(t.db, "fz-1", JETZT);
     expect(elementeVomTyp(seite, "h2").map((ueberschrift) => textVon(ueberschrift)))
-      .toEqual(["Vorlage", "Soll-Bestückung", "Verfall im Fahrzeug"]);
+      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Verfall in dieser Einheit"]);
 
     for (const [typ, name] of [
       [SollEditor, "SollEditor"],
