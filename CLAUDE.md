@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **fünfzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sechzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -181,6 +181,31 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     **Vereinigung**, verschiedene Spalten ein **Schnitt** (`antd/es/table/hooks/useFilter/index.js`,
     `realKeys.some(...)`); wer das nachrechnet und anders verknüpft, zeigt eine andere Liste als die
     Tabelle daneben.
+
+16. **Eine virtualisierte Tabelle IST ein zweiter Scroller — und `virtuell` misst nur ihren KÖRPER**
+    (Modul `lagerbuch`, DRK-334, gegen `@rc-component/table@1.11.1` gelesen —
+    `Table.js:221` macht `scroll.y` zu `fixHeader`, `Table.js:534` legt den eigenen Kopf-Kasten
+    daneben). `virtuell` setzt
+    `scroll.y`, und `scroll.y` ist die Höhe des Tabellen**körpers**; der Spaltenkopf kommt oben
+    drauf. Wer „Fensterhöhe minus Oberkante" direkt durchreicht, baut eine Tabelle, die um genau
+    eine Kopfzeile höher ist als ihr Platz. ⚠️ **Das Symptom ist nicht „zu hoch", sondern „zwei
+    Scrollbalken":** auf einer Modulseite ist das **Dokument** schon ein Scroller (die ganze
+    Vorfahrenkette steht auf `overflow: visible`, die Seitenleiste bekommt ihren eigenen Scroller
+    erst ab 768px), der Tabellenkörper ist der zweite — und weil der äußere nur diese ~50px Weg
+    hat, reagiert mal der eine, mal der andere. Dazu kommt das **Kettenscrollen**: am Ende des
+    inneren läuft die Bewegung im äußeren weiter, solange `overscroll-behavior` fehlt.
+    **Kein Tor sieht das:** `typecheck` prüft eine gültige Zahl, `build` serialisiert sie klaglos,
+    und **Vitest kann es strukturell nicht sehen** — jsdom rechnet keine Layoutboxen und rendert
+    eine virtuelle Tabelle zeilenlos (Fallen 13/14). **Abhilfe:** `TabellenVollhoehe` aus
+    `core/tabelle` — misst Rahmen, Tabellenoberkante und Kopfhöhe, deckelt unter 768px die
+    Seitenhöhe (`overflow: hidden`) und gibt die Deckelung wieder auf, sobald für den Körper
+    weniger als `mindestens` bliebe; die Rechnung steht als reine Funktion in `vollhoehe.ts` und
+    ist in `vollhoehe.test.ts` geprüft, die Wirkung in `e2e/lagerbuch-artikel-mobil.spec.ts`.
+    ⚠️ **Zwei Kleinigkeiten, die je einen halben Tag kosten:** der Breakpoint gehört in die Media
+    Query (ein JS-Breakpoint zeigt beim ersten Render die falsche Variante, `Grid.useBreakpoint`
+    ist ohnehin verboten), und `min-height: 100vh` an der Hülle ist auf dem Telefon die GROSSE
+    Sichtfläche — solange die Adresszeile steht, scrollt das Dokument dadurch allein deshalb.
+    `100dvh` ist gemeint.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

@@ -47,7 +47,18 @@ export async function SuiteRahmen({
   children: React.ReactNode;
 }) {
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    /*
+     * ⚠️ `100dvh`, NICHT `100vh` — auf dem Telefon ist das der Unterschied
+     * zwischen „fuellt den Schirm" und „ist immer einen Tick zu hoch".
+     * `100vh` ist die GROSSE Sichtflaeche, also die Hoehe OHNE die
+     * eingeblendete Adresszeile des Browsers. Solange die Adresszeile steht,
+     * ist die Seite damit um deren Hoehe hoeher als das, was man sieht, und das
+     * Dokument bekommt einen Scrollweg, den sein Inhalt gar nicht braucht.
+     * Auf einer Seite mit eigenem Scroller daneben (`TabellenVollhoehe`) sind
+     * das genau die zwei Scrollbalken, von denen mal der eine, mal der andere
+     * reagiert. `100dvh` ist die Hoehe, die gerade tatsaechlich sichtbar ist.
+     */
+    <Layout style={{ minHeight: "100dvh" }}>
       <SuiteHeader moduleKey={moduleKey} nav={nav} />
       <Layout>
         {nav.length > 0 ? (

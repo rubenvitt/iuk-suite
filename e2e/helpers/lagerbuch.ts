@@ -94,3 +94,23 @@ export function lagerbuchUrl(pfad: string): string {
 export function fremdUrl(pfad: string): string {
   return `http://${FREMDER_HOST}:${LAGERBUCH_PORT}${pfad}`;
 }
+
+/**
+ * DIE LAST-ARTIKEL — die einzige Fixture, die es allein wegen einer ZAHL gibt
+ * (DRK-334).
+ *
+ * `core/tabelle` virtualisiert erst ab `VIRTUELL_AB_ZEILEN` (150). Genau dort
+ * entsteht der zweite Scrollcontainer, um den es geht — mit sechs Artikeln gibt
+ * es ihn nicht, und ein Test dagegen bewiese nichts. Die Menge steht deshalb
+ * hier und nicht als Literal im Spec: liefen Seed und Zusicherung auseinander,
+ * bliebe der Lauf gruen und pruefte nur eine gewoehnliche Tabelle.
+ *
+ * ⚠️ SIE SIND INAKTIV, und das ist derselbe Kniff wie bei `kategorieFixtures`
+ * und `sammelFixtures`: NUR `/verwaltung/artikel` liest `inklInaktiv: true`
+ * (`_lib/lesepfade/artikel.ts`). Inventur, Helfer, Etiketten, Bestellliste,
+ * Fahrzeug- und Vorlagenblatt sehen sie nicht — sonst zaehlte ein halbes Dutzend
+ * fremder Specs ploetzlich 200 Zeilen mehr.
+ */
+export const E2E_LAST_PRAEFIX = "E2E Last";
+/** Deutlich ueber 150, damit die Schwelle nicht knapp erreicht wird. */
+export const E2E_LAST_ANZAHL = 200;
