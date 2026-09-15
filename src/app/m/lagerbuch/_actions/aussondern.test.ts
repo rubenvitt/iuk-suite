@@ -1,3 +1,4 @@
+import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
@@ -276,5 +277,49 @@ describe("aussondern", () => {
     expect(fehlerVon(erg)).toBe("Aussondern fehlgeschlagen.");
     expect(fehlerVon(erg)).not.toContain("db-intern");
     erwarteKeineNebenwirkung(anzahlVorher);
+  });
+});
+
+/**
+ * DRK-297 — die letzte wurzelfeste Stelle: `aussondern` bucht bisher IMMER
+ * auf `HANDLAGER_ID`, unabhaengig davon, wo die Charge tatsaechlich liegt.
+ * Traegt ein Schrank Bestand, meldete die Aktion faelschlich „kein
+ * Restbestand" (die Wurzel selbst hat nichts), und eine einzige Buchung auf
+ * die Wurzel druekte deren (Ort, Charge)-Saldo ins Minus — in einem Journal
+ * ohne UPDATE und ohne DELETE.
+ */
+describe("aussondern — DRK-297: bucht je Ort, an dem die Charge liegt", () => {
+  const CHARGE_ABGELAUFEN = "ch-zwei-schraenke";
+
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 },
+      { id: "schrank-gf", name: "GF-Schrank", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 90 },
+    ]).run();
+    charge(CHARGE_ABGELAUFEN, "2020-01");
+    buchen({ id: "seed-schrank-1", chargeId: CHARGE_ABGELAUFEN, lagerortId: "schrank-1", menge: 4 });
+    buchen({ id: "seed-schrank-gf", chargeId: CHARGE_ABGELAUFEN, lagerortId: "schrank-gf", menge: 6 });
+  });
+
+  it("sondert eine Charge aus zwei Schraenken mit je einer Buchung aus", async () => {
+    const ergebnis = await aussondern({ chargeId: CHARGE_ABGELAUFEN, kommentar: "MHD" }, t.db);
+
+    expect(ergebnis.ok).toBe(true);
+    const korrekturen = t.db.select().from(buchungen)
+      .where(and(eq(buchungen.chargeId, CHARGE_ABGELAUFEN), eq(buchungen.typ, "korrektur"))).all();
+    expect(korrekturen.map((b) => [b.lagerortId, b.menge]).sort())
+      .toEqual([["schrank-1", -4], ["schrank-gf", -6]].sort());
+  });
+
+  /** ⚠️ EINE EINZIGE BUCHUNG AUF DIE WURZEL waere plausibel und still falsch:
+   *  die Wurzel selbst traegt gar keinen Bestand, ihr Saldo liefe ins Minus,
+   *  waehrend die Schraenke voll bleiben. */
+  it("bucht nichts auf die Wurzel, wenn dort nichts liegt", async () => {
+    await aussondern({ chargeId: CHARGE_ABGELAUFEN, kommentar: "MHD" }, t.db);
+    const anDerWurzel = t.db.select().from(buchungen)
+      .where(and(eq(buchungen.chargeId, CHARGE_ABGELAUFEN), eq(buchungen.lagerortId, HANDLAGER_ID))).all();
+    expect(anDerWurzel).toEqual([]);
   });
 });

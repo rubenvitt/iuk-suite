@@ -12,6 +12,7 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
@@ -52,6 +53,12 @@ const ZugangSchema = z
         verfall: z.string().regex(MONAT_REGEX, "Verfall muss YYYY-MM sein"),
       })
       .optional(),
+    /**
+     * DRK-297 — der Schrank, in den die Ware kommt. Fehlt er, landet der Zugang
+     * auf der Handlager-Wurzel; das heisst „Schrank noch nicht zugeordnet" und
+     * ist genau das, was jede Altbuchung bedeutet.
+     */
+    zielLagerortId: z.string().min(1).optional(),
   })
   .refine((v) => Boolean(v.chargeId) !== Boolean(v.neueCharge), {
     message: "Genau eine Charge angeben",
@@ -113,6 +120,16 @@ export async function bucheZugang(
             throw new Error("Charge gehört nicht zu diesem Artikel");
           }
         }
+        const ziel = v.zielLagerortId ?? HANDLAGER_ID;
+        if (ziel !== HANDLAGER_ID) {
+          // DREI BEDINGUNGEN, EIN SATZ: existiert der Ort, haengt er am
+          // Handlager, ist er aktiv? Ohne diese Pruefung entschiede der
+          // Fremdschluessel — und der meldet „FOREIGN KEY constraint failed".
+          const ort = tx.select().from(lagerorte).where(eq(lagerorte.id, ziel)).get();
+          if (!ort || ort.parentId !== HANDLAGER_ID || !ort.aktiv) {
+            throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
+          }
+        }
         tx.insert(buchungen)
           .values({
             id: newId(),
@@ -120,7 +137,7 @@ export async function bucheZugang(
             typ: "zugang",
             artikelId: v.artikelId,
             chargeId,
-            lagerortId: HANDLAGER_ID,
+            lagerortId: ziel,
             menge: v.menge,
             quelleTyp: "oidc",
             quelleId: viewer.sub,
@@ -220,7 +237,7 @@ export async function bucheEntnahme(
           gebucht = umlagerung(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
-            vonLagerortId: HANDLAGER_ID,
+            vonOrten: handlagerOrte(tx),
             nachLagerortId: zielFahrzeug,
             quelle,
             kommentar: v.kommentar ?? null,
@@ -369,7 +386,7 @@ export async function bucheEntnahmeHelfer(
             umlagerung(tx, {
               artikelId: v.artikelId,
               menge: v.menge,
-              vonLagerortId: HANDLAGER_ID,
+              vonOrten: handlagerOrte(tx),
               nachLagerortId: ziel.lagerortId,
               quelle,
               kommentar: null,

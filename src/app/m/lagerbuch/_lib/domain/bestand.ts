@@ -26,8 +26,8 @@ export function bestand(rows: { menge: number }[]): number {
 
 /**
  * Rest je `chargeId` — OHNE Lagerortbezug. Einziger Aufrufer im Bestand ist
- * `chargenMitRest` (`queries.ts:31`), und der filtert VORHER selbst auf einen
- * Lagerort. Wer diese Funktion ohne Vorfilter benutzt, bekommt Phantombestand.
+ * `chargenMitRest` (`queries.ts:31`), und der filtert VORHER selbst auf eine
+ * Ortsmenge. Wer diese Funktion ohne Vorfilter benutzt, bekommt Phantombestand.
  */
 export function bestandProCharge(
   rows: { chargeId: string; menge: number }[],
@@ -71,6 +71,43 @@ export function bestandProLagerortUndCharge(
   const m = new Map<string, number>();
   for (const r of rows) {
     if (r.lagerortId !== lagerortId) continue;
+    m.set(r.chargeId, (m.get(r.chargeId) ?? 0) + r.menge);
+  }
+  return m;
+}
+
+/**
+ * DRK-297 — Bestand über EINEN BEREICH von Orten (Handlager plus Schränke).
+ *
+ * Das Gegenstück zu `bestandProLagerort` für den Fall, dass „ein Ort" aus
+ * mehreren besteht. ⚠️ SIE ERSETZT JENE NICHT: ein Fahrzeug ist ein einzelner
+ * Ort, und wer den Handlager-Bereich versehentlich auf ein Fahrzeug anwendet,
+ * baut genau den Phantombestand, gegen den das Scoping geschrieben ist.
+ */
+export function bestandProOrte(
+  rows: { lagerortId: string; menge: number }[],
+  orte: readonly string[],
+): number {
+  const menge = new Set(orte);
+  return rows.reduce((sum, r) => (menge.has(r.lagerortId) ? sum + r.menge : sum), 0);
+}
+
+/**
+ * Rest je Charge über einen BEREICH — das Gegenstück zu
+ * `bestandProLagerortUndCharge`.
+ *
+ * ⚠️ Chargen ohne Buchung im Bereich fehlen in der Map GANZ; es gibt keinen
+ * 0-Eintrag. Das SQL-Aggregat verhält sich genauso, und beide Seiten gehen
+ * deshalb über `?? 0`.
+ */
+export function restProOrtenUndCharge(
+  rows: { lagerortId: string; chargeId: string; menge: number }[],
+  orte: readonly string[],
+): Map<string, number> {
+  const menge = new Set(orte);
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    if (!menge.has(r.lagerortId)) continue;
     m.set(r.chargeId, (m.get(r.chargeId) ?? 0) + r.menge);
   }
   return m;

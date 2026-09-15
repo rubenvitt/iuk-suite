@@ -3,14 +3,16 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die fuenfzehn Ziele", () => {
-  it("führt genau die 15 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die sechzehn Ziele", () => {
+  it("führt genau die 16 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
       { key: "verfall", title: "Verfall", href: "/verwaltung/verfall", ikon: "verfall", abschnitt: "Bestand" },
       { key: "inventur", title: "Inventur", href: "/verwaltung/inventur", ikon: "inventur", abschnitt: "Bestand" },
       { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung", abschnitt: "Bestand" },
+      // DRK-297: die Schraenke des Handlagers.
+      { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
       { key: "fahrzeuge", title: "Fahrzeuge", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Fahrzeuge & Geräte" },
       { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Fahrzeuge & Geräte" },
       { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Fahrzeuge & Geräte" },
@@ -36,8 +38,8 @@ describe("LAGERBUCH_NAV: die fuenfzehn Ziele", () => {
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(15);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(15);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(16);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(16);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {
