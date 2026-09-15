@@ -538,6 +538,114 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
   });
 });
 
+/**
+ * DRK-333 — DER RANG HAENGT AN DER ZEILE, NICHT AM ANZEIGE-INDEX.
+ *
+ * ⚠️ DIESE DREI FAELLE MESSEN EINE KOPPLUNG, KEINE ANZEIGE. Bis DRK-333 las
+ * `verschieben` den dritten `render`-Parameter von antd — den Index der ANGEZEIGTEN
+ * Liste — und griff damit in `zeilen` (`ids[index]`). Solange keine Spalte einen `sorter`
+ * trug, war beides derselbe Index, und genau deshalb durfte keine einen tragen. Jetzt
+ * tragen „Version" und „Geräte" einen, und die Kopplung waere ein SCHREIBENDER Vorgang auf
+ * dem falschen Datensatz: `versionenSortierenAction` vergibt `sortOrder` aus der Position
+ * in der Id-Liste und schriebe die Vertauschung fest — die Flaeche quittierte Erfolg.
+ *
+ * ⛔ DIE FAELLE SORTIEREN ERST UND DRUECKEN DANN. Ein Fall, der ohne Umsortieren drueckt,
+ * misst diese Kopplung NICHT — er ist in beiden Fassungen gruen. Der Fall
+ * „Verschieben schreibt die vollstaendige Reihenfolge" oben ist genau so einer; er bleibt
+ * stehen, weil er die ANDERE Zusicherung traegt (die ganze Liste statt einer Id).
+ */
+describe("radio-Versionen: die Reihenfolge nach dem Umsortieren", () => {
+  /**
+   * Gespeichert v-1 · v-2 · v-3, mit Geraetezahlen, deren Ordnung dagegenlaeuft:
+   * nach „Geräte" aufsteigend steht v-2 (0) · v-3 (3) · v-1 (9). Ohne diesen Versatz
+   * pruefte der Fall nur, DASS eine Liste ankommt, nicht WELCHE.
+   */
+  const DREI = [
+    zeile({ id: "v-1", wert: "FW 12.3", deviceCount: 9 }),
+    zeile({ id: "v-2", wert: "FW 12.0", deviceCount: 0 }),
+    zeile({ id: "v-3", wert: "FW 11.0", deviceCount: 3 }),
+  ];
+
+  const spaltenkopf = (beschriftung: string): HTMLElement => {
+    const kopf = queryAll("thead th").find((k) => (k.textContent ?? "").includes(beschriftung));
+    if (!kopf) throw new Error(`Kein Spaltenkopf ${beschriftung}`);
+    return kopf;
+  };
+
+  const zeilenSchluessel = () =>
+    queryAll("tbody tr[data-row-key]").map((r) => r.getAttribute("data-row-key"));
+
+  const plaetze = () =>
+    queryAll('[data-rolle="radio-version-platz"]').map((z) => z.textContent);
+
+  it("verschiebt nach dem Sortieren die Zeile am Knopf, nicht die an ihrer Anzeigeposition", async () => {
+    await mount(<VersionenTabelle zeilen={DREI} />);
+    expect(zeilenSchluessel()).toEqual(["v-1", "v-2", "v-3"]);
+
+    await clickElement(spaltenkopf("Geräte"));
+    expect(zeilenSchluessel(), "erst umsortieren, sonst misst der Fall nichts")
+      .toEqual(["v-2", "v-3", "v-1"]);
+
+    // v-3 steht jetzt an ZWEITER Anzeigeposition, gespeichert aber an dritter.
+    const hoch = queryAll<HTMLButtonElement>('[data-rolle="radio-version-hoch"]');
+    await act(async () => {
+      hoch[1]!.click();
+    });
+
+    expect(sortierenMock).toHaveBeenCalledTimes(1);
+    /*
+     * Gespeichert war v-1 · v-2 · v-3; v-3 rueckt einen Platz vor → v-1 · v-3 · v-2.
+     * ⚠️ Der index-gekoppelte Stand schickte ["v-2", "v-1", "v-3"]: er las die
+     * Anzeigeposition 1 und tauschte damit v-2 gegen v-1.
+     */
+    expect(sortierenMock.mock.calls[0]![0]).toEqual(["v-1", "v-3", "v-2"]);
+  });
+
+  it("sperrt die Raender der GESPEICHERTEN Reihenfolge, nicht die der Anzeige", async () => {
+    await mount(<VersionenTabelle zeilen={DREI} />);
+    await clickElement(spaltenkopf("Geräte"));
+
+    /*
+     * Auf dem Schirm steht v-2 · v-3 · v-1. Gesperrt gehoert der gespeicherte Rand:
+     * „Nach oben" an v-1 (Platz 1, unten auf dem Schirm) und „Nach unten" an v-3
+     * (Platz 3, in der Mitte). Der index-gekoppelte Stand sperrte die Anzeigeraender.
+     */
+    const hoch = queryAll<HTMLButtonElement>('[data-rolle="radio-version-hoch"]');
+    const runter = queryAll<HTMLButtonElement>('[data-rolle="radio-version-runter"]');
+    expect(hoch.map((k) => k.disabled), "der obere Rand haengt an der Anzeige")
+      .toEqual([false, false, true]);
+    expect(runter.map((k) => k.disabled), "der untere Rand haengt an der Anzeige")
+      .toEqual([false, true, false]);
+  });
+
+  it("zeigt den gespeicherten Platz als Ziffer, damit der Knopf auch bei fremder Sortierung sichtbar wirkt", async () => {
+    await mount(<VersionenTabelle zeilen={DREI} />);
+    expect(plaetze()).toEqual(["1", "2", "3"]);
+
+    await clickElement(spaltenkopf("Geräte"));
+    // Anzeige v-2 · v-3 · v-1 — die Ziffern sind deren gespeicherte Plaetze.
+    expect(plaetze()).toEqual(["2", "3", "1"]);
+  });
+
+  it("sortiert die Spalte Version ueber die Zahl im Namen, nicht als Zeichenkette", async () => {
+    /*
+     * ⚠️ DER FALL, DER DIESEN SORTIERER TRAEGT: als Zeichenkette steht „FW 12.0" VOR
+     * „FW 9.1". Der geteilte `Intl.Collator` mit `numeric: true` ordnet umgekehrt —
+     * und nur so heisst „aufsteigend" dasselbe wie „aeltere Version zuerst".
+     */
+    await mount(
+      <VersionenTabelle
+        zeilen={[
+          zeile({ id: "v-neu", wert: "FW 12.0" }),
+          zeile({ id: "v-alt", wert: "FW 9.1" }),
+        ]}
+      />,
+    );
+    await clickElement(spaltenkopf("Version"));
+    expect(zeilenSchluessel()).toEqual(["v-alt", "v-neu"]);
+  });
+});
+
 describe("radio-Versionen: das Anlegefeld", () => {
   it("ein leerer oder nur aus Leerraum bestehender Wert laeuft gar nicht los", async () => {
     /*

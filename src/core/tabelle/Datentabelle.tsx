@@ -25,6 +25,8 @@ import { useEffect, useMemo } from "react";
 import { Table, type TableProps } from "antd";
 import { SCHRIFT } from "../theme/schrift";
 import { scrollMasse, type MassSpalte, type Scrollmass } from "./masse";
+import { angezeigteAnzahl, type AnzeigeSpalte } from "./angezeigt";
+import { RollenAnbieter, mitRollen, mitZeilenindex } from "./rollen";
 
 export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" | "scroll"> & {
   /**
@@ -60,6 +62,18 @@ export type DatentabelleProps<T> = Omit<TableProps<T>, "pagination" | "virtual" 
    * Aufgabe das Abschneiden ist, wächst stattdessen mit ihrem längsten Wert.
    */
   scroll?: Scrollmass | false;
+  /**
+   * Der Name der Tabelle für Hilfstechnik.
+   *
+   * ⚠️ ER STEHT HIER AUSDRÜCKLICH IM TYP, obwohl antds `TableProps` ihn nicht
+   * kennt — und beides zusammen ist der Grund: TypeScript prüft ein
+   * JSX-Attribut MIT BINDESTRICH überhaupt nicht gegen den Props-Typ, es kam
+   * also bisher ungeprüft durch. Die `Datentabelle` entscheidet inzwischen, an
+   * welchem Knoten er landet (s. unten), und eine Entscheidung über einen Wert,
+   * den der Typ nicht kennt, ist eine, die beim nächsten Umbau still verloren
+   * geht.
+   */
+  "aria-label"?: string;
 };
 
 /**
@@ -99,6 +113,9 @@ export function Datentabelle<T extends object>({
   blaettern = false,
   columns,
   scroll,
+  components,
+  onRow,
+  "aria-label": beschriftung,
   ...rest
 }: DatentabelleProps<T>) {
   const spalten = useMemo(() => mitKicker(columns), [columns]);
@@ -139,13 +156,87 @@ export function Datentabelle<T extends object>({
     }
   }, [masse.hinweis]);
 
+  /**
+   * DIE TABELLEN-SEMANTIK, DIE DIE VIRTUALISIERUNG KOSTET — nachgerüstet
+   * (DRK-336). Begründung und Grenzen stehen in `rollen.tsx`; hier steht nur,
+   * dass beides an DERSELBEN Bedingung hängt wie die Virtualisierung selbst.
+   */
+  const einbau = useMemo(
+    () => mitRollen<T>(components, masse.virtuellAktiv),
+    [components, masse.virtuellAktiv],
+  );
+  const zeilenProps = useMemo(
+    () => mitZeilenindex<T>(onRow, einbau.gesetzt),
+    [onRow, einbau.gesetzt],
+  );
+  /**
+   * ⚠️ `aria-rowcount` IST NICHT `dataSource.length`, UND DER UNTERSCHIED IST
+   * GENAU DIE ZAHL, DIE JEMAND HÖRT. antd filtert die Datenquelle NACH uns noch
+   * einmal — über `filteredValue`/`onFilter` der Spalten. Eine Liste von 800
+   * Artikeln, die ein Spaltenfilter auf 20 zusammenzieht, käme hier als 800
+   * an, während `aria-rowindex` nur bis 20 zählt: eine Vorleseanwendung meldete
+   * „Zeile 3 von 800" an einer Tabelle mit zwanzig Zeilen, und ein leerer
+   * Filter behauptete hunderte Zeilen, wo keine steht.
+   *
+   * ⚠️ `null` HEISST „NICHT ZU WISSEN", nicht „null Zeilen" — dann filtert eine
+   * Spalte UNGESTEUERT und antd führt den Stand allein. `-1` ist die Angabe,
+   * die ARIA dafür vorsieht; „unbekannt viele" ist eine ehrliche Auskunft, eine
+   * zu große Zahl ist es nicht.
+   */
+  const angezeigt = useMemo(
+    () => angezeigteAnzahl(
+      rest.dataSource as readonly T[] | undefined,
+      columns as readonly AnzeigeSpalte<T>[] | undefined,
+    ),
+    [rest.dataSource, columns],
+  );
+  /**
+   * ⚠️ EINGEHÄNGT IST NICHT GERENDERT, und die Lücke dazwischen ist genau ein
+   * Fall: die LEERE Tabelle. Zieht ein Spaltenfilter eine noch virtualisierte
+   * Quelle auf null Zeilen zusammen, baut rc-table sein virtuelles Raster gar
+   * nicht erst (`VirtualTable/index.js`: `body: data?.length ? renderBody :
+   * undefined`) — es gibt dann kein Element, das `role="table"` und den Namen
+   * tragen könnte. `einbau.gesetzt` sagt nur, dass die Bauteile KONFIGURIERT
+   * sind; ob eines davon je gerendert wird, entscheidet die Zeilenzahl.
+   *
+   * ⚠️ `null` ZÄHLT HIER NICHT ALS „MEHR ALS NULL". Ist die Zahl unbekannt,
+   * könnte sie null sein — dann bliebe der Name nirgends. Er bleibt deshalb, wo
+   * antd ihn hinhängt: am Kopf. Das ist derselbe Zustand wie an jeder nicht
+   * virtualisierten Tabelle mit fixem Kopf, also Gleichstand statt Verlust.
+   */
+  const rollenTragen = einbau.gesetzt && typeof angezeigt === "number" && angezeigt > 0;
+  const rollenwerte = useMemo(
+    () => ({ beschriftung, zeilen: angezeigt ?? -1 }),
+    [beschriftung, angezeigt],
+  );
+
   return (
-    <Table<T>
-      {...rest}
-      columns={spalten}
-      pagination={blaettern}
-      scroll={masse.scroll}
-      virtual={masse.virtuellAktiv}
-    />
+    <RollenAnbieter value={rollenwerte}>
+      <Table<T>
+        {...rest}
+        /**
+         * ⚠️ DIE BESCHRIFTUNG WANDERT MIT DER VIRTUALISIERUNG AN EINEN ANDEREN
+         * KNOTEN, und sie darf nicht an beiden stehen. antd hängt `aria-*` an
+         * die Tabelle des KOPFES (`InternalTable.js:41`, `HeaderTable`) — bei
+         * fixem Kopf also an das Element mit den Spaltenköpfen und ohne eine
+         * einzige Datenzeile. Virtuell trägt den Namen der Körper, weil dort
+         * die Zeilen stehen; bliebe er zusätzlich am Kopf, träfe eine
+         * Vorleseanwendung ZWEI gleich benannte Tabellen nebeneinander.
+         *
+         * ⚠️ DIE BEDINGUNG IST `rollenTragen`, NICHT `virtuellAktiv` — die
+         * Begründung steht oben bei seiner Berechnung. Kurz: der Name darf nur
+         * dort weg, wo ein anderes Element ihn auffängt. Das schließt zwei
+         * Fälle ein: einen Körper, den der Aufrufer selbst baut, und eine
+         * Tabelle, die gerade keine Zeile zeigt.
+         */
+        aria-label={rollenTragen ? undefined : beschriftung}
+        components={einbau.bauteile}
+        onRow={zeilenProps}
+        columns={spalten}
+        pagination={blaettern}
+        scroll={masse.scroll}
+        virtual={masse.virtuellAktiv}
+      />
+    </RollenAnbieter>
   );
 }
