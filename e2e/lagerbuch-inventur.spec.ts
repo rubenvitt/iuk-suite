@@ -62,14 +62,19 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     await klickeWennRuhig(zweiteZeile.getByRole("button", { name: `Ist-Bestand ${ZWEITER} verringern`, exact: true }));
     await expect(zweitesFeld).toHaveValue(String(zweitVorher));
 
-    // 2) Filter „Fach INV-1" — dasselbe antd-Select-Muster wie
-    //    `lagerbuch-kategorien.spec.ts`. Die gezaehlte INV-2-Zeile verschwindet,
-    //    der Hinweis sagt, dass sie trotzdem mitgebucht wird.
-    await klickeWennRuhig(page.getByRole("combobox", { name: "Nach Fach filtern" }));
-    const option = page.locator(".ant-select-item-option", { hasText: "INV-1" });
-    await option.click();
-    await page.keyboard.press("Escape");
-    await expect(option).toBeHidden();
+    // 2) Filter „Fach INV-1" — seit DRK-333 im SPALTENKOPF statt in einer Leiste
+    //    darueber. Die gezaehlte INV-2-Zeile verschwindet, der Hinweis sagt, dass
+    //    sie trotzdem mitgebucht wird.
+    //    ⚠️ Das Menue wird auf das OFFENE Dropdown eingegrenzt: antd laesst zuvor
+    //    geoeffnete Filtermenues als `.ant-dropdown-hidden` im Portal stehen, und
+    //    ein ungeschuetzter Greifer trifft dann deren „OK" (gemessen in
+    //    `InventurForm.test.tsx`, wo genau das den ersten Filter zuruecksetzte).
+    const fachKopf = page.getByRole("columnheader", { name: "Fach" });
+    await klickeWennRuhig(fachKopf.locator(".ant-table-filter-trigger"));
+    const menue = page.locator(".ant-table-filter-dropdown").locator("visible=true");
+    await menue.locator(".ant-dropdown-menu-item", { hasText: "INV-1" }).click();
+    await menue.getByRole("button", { name: "OK", exact: true }).click();
+    await expect(menue).toBeHidden();
 
     const zeilen = page.locator("tbody tr[data-row-key]");
     await expect(zeilen).toHaveCount(1);
