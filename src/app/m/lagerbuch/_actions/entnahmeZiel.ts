@@ -5,7 +5,7 @@ import { getDb, type DB } from "../_db/client";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { helferCookieOptionen, helferGueltigkeitSekunden } from "../_lib/helferSitzung";
-import { ZIEL_COOKIE, zielAusWert, zielWert } from "../_lib/entnahmeZiel";
+import { ZIEL_COOKIE, wahlAusWert, zielWert } from "../_lib/entnahmeZiel";
 import { sanitizeReturnTo } from "../_lib/returnTo";
 
 /**
@@ -30,32 +30,61 @@ import { sanitizeReturnTo } from "../_lib/returnTo";
  */
 export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): Promise<void> {
   const riegel = await requireHelferSchreibend(db);
+  const zurueck = sanitizeReturnTo(zeichenkette(eingabe.get("returnTo"))) ?? "/helfer";
+
   /*
    * Zurück aufs Gate, nicht auf die Artikelseite: dort käme die Person mit
    * einer abgelaufenen oder gesperrten Sitzung nicht weiter und wüsste nicht,
-   * warum. `returnTo` nimmt den Weg wieder auf, sobald das Kärtchen gilt.
+   * warum.
+   *
+   * ⚠️ MIT `returnTo` (Review-Befund P2 zu PR #140). Ohne es landet die Person
+   * nach dem erneuten Einlösen dort, wohin ihr KÄRTCHEN zeigt — und steht mit
+   * dem gescannten Etikett in der Hand vor der Artikelliste. Der Weg ist bereits
+   * gesäubert; `encodeURIComponent` hält ihn als EINEN Parameter zusammen.
    */
-  if (!riegel.ok) redirect("/");
+  if (!riegel.ok) redirect(`/?returnTo=${encodeURIComponent(zurueck)}`);
 
-  const zurueck = sanitizeReturnTo(zeichenkette(eingabe.get("returnTo"))) ?? "/helfer";
-  const ziel = zielAusWert(zeichenkette(eingabe.get("ziel")));
+  // Das FORMULAR trägt die nackte Wahl; die Bindung ans Kärtchen entsteht erst
+  // beim Schreiben des Cookies — sie ist eine Aussage des Servers, nicht des
+  // Clients über sich selbst.
+  const ziel = wahlAusWert(zeichenkette(eingabe.get("ziel")));
 
   /*
-   * EIN UNTAUGLICHES ZIEL WIRD NICHT GEMERKT — es wird auch nicht gemeldet.
-   * Gemerkt würde es die folgenden Entnahmen in den Fehlerzweig der Buchung
-   * schicken, während die Seite das Ziel als gültig anzeigt; der Weg zurück
-   * zur Wahl ist die brauchbarere Antwort. Der Fall entsteht, wenn die
-   * Verwaltung ein Fahrzeug stilllegt, während jemand davor steht.
-   *
-   * Das Handlager wird hier MITGEPRÜFT, obwohl es existiert und aktiv ist:
-   * eine Prüfung, die nur auf „unbekannt" testet, ließe es durch, und die
-   * Buchung legte Material vom Handlager ins Handlager.
+   * Das Handlager wird hier MITGEPRÜFT, obwohl es existiert und aktiv ist: eine
+   * Prüfung, die nur auf „unbekannt" testet, ließe es durch, und die Buchung
+   * legte Material vom Handlager ins Handlager.
    */
-  if (ziel && (ziel.art === "verbrauch" || istAktivesFahrzeug(db, ziel.lagerortId))) {
-    const kekse = await cookies();
-    kekse.set(ZIEL_COOKIE, zielWert(ziel), helferCookieOptionen(helferGueltigkeitSekunden()));
+  const taugt = ziel !== null && (ziel.art === "verbrauch" || istAktivesFahrzeug(db, ziel.lagerortId));
+  const kekse = await cookies();
+
+  /*
+   * ⚠️ EIN UNTAUGLICHES ZIEL LÖSCHT DIE ALTE WAHL (Review-Befund P2 zu PR #140).
+   *
+   * Der Fall entsteht, wenn die Verwaltung ein Fahrzeug stilllegt, während
+   * jemand davor steht: die Person hatte A gewählt, tippt nun auf B, und B ist
+   * weg. Bliebe A einfach stehen, führte der Rückweg auf die Artikelseite mit
+   * BEDIENBAREM Knopf und dem Ziel A — während die letzte Handlung B war. Das
+   * ist die wahrscheinlichste Fehlbuchung, die dieser Ablauf erzeugen kann, und
+   * sie wäre still. „Nichts gewählt" ist der ehrliche Zustand, und der Weg führt
+   * zurück zur Wahl statt zum Artikel.
+   *
+   * ⚠️ GELÖSCHT WIRD MIT `helferCookieOptionen(0)`, NICHT mit `delete(name)` —
+   * dieselbe Begründung, die `_actions/sitzung.ts` für die Sitzung ausschreibt:
+   * Nexts `delete(name)` setzt ein leeres Cookie OHNE `path`, der Browser scopet
+   * es auf das aktuelle Verzeichnis, und das gesetzte Cookie mit `path: /`
+   * überlebt. Die Löschung wäre wirkungslos, und zwar still.
+   */
+  if (!taugt) {
+    kekse.set(ZIEL_COOKIE, "", helferCookieOptionen(0));
+    redirect(`/helfer/ziel?returnTo=${encodeURIComponent(zurueck)}`);
   }
 
+  // Die Kärtchen-Kennung wandert IN den Wert: die Wahl gehört ihrer Schicht.
+  kekse.set(
+    ZIEL_COOKIE,
+    zielWert(ziel!, riegel.zugang.tokenId),
+    helferCookieOptionen(helferGueltigkeitSekunden()),
+  );
   redirect(zurueck);
 }
 

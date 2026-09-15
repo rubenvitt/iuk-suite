@@ -393,13 +393,13 @@ describe("/a/<id> — der Rahmen", () => {
     // in die Auflösung, und ihr Ergebnis geht unverändert in die Insel. Ohne
     // die erste könnte die Seite ein festes Ziel anzeigen; ohne die zweite
     // stünde auf dem Schirm etwas anderes, als gebucht wird.
-    zielCookie = "fz:fz-1";
+    zielCookie = "tk1|fz:fz-1";
     const aufgeloest = { art: "fahrzeug" as const, lagerortId: "fz-1", name: "RTW 1" };
     vi.mocked(gemerktesZiel).mockReturnValue(aufgeloest);
 
     await mount(await ArtikelDeepLink(params("art-9")));
 
-    expect(vi.mocked(gemerktesZiel)).toHaveBeenCalledWith(DB, "fz:fz-1");
+    expect(vi.mocked(gemerktesZiel)).toHaveBeenCalledWith(DB, "tk1|fz:fz-1", ZUGANG.tokenId);
     expect(gesehen.entnahme?.ziel).toBe(aufgeloest);
   });
 
@@ -408,7 +408,7 @@ describe("/a/<id> — der Rahmen", () => {
     // Zusage des Tickets, und er muss die Seitengrenze überleben.
     await mount(await ArtikelDeepLink(params("art-9")));
 
-    expect(vi.mocked(gemerktesZiel)).toHaveBeenCalledWith(DB, undefined);
+    expect(vi.mocked(gemerktesZiel)).toHaveBeenCalledWith(DB, undefined, ZUGANG.tokenId);
     expect(gesehen.entnahme?.ziel).toBeNull();
   });
 

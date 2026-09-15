@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { devLogin } from "./fixtures";
 import {
   E2E_FAHRZEUG_NAME,
+  E2E_TOKEN_CHECK,
   E2E_TOKEN_HELFER,
   LAGERBUCH_ADMIN_GRUPPE,
   LAGERBUCH_HOST,
@@ -271,6 +272,41 @@ test.describe("Der Weg am Stueck", () => {
     const zugewachsen = bestandAn("e2e-artikel", "e2e-fahrzeug") - vorherFahrzeug;
     expect(zugewachsen, "im Fahrzeug muss Bestand angekommen sein").toBeGreaterThan(0);
     expect(bestandAn("e2e-artikel", "handlager")).toBe(vorherHandlager - zugewachsen);
+  });
+
+  /**
+   * DIE WAHL GEHÖRT IHRER SCHICHT — Review-Befund P1 zu PR #140.
+   *
+   * ⚠️ NUR HIER IST DER FALL ECHT NACHSTELLBAR. Ein Unit-Test prüft, dass ein
+   * fremdes Kärtchen den gemerkten Wert verwirft; ob das Cookie den
+   * Sitzungswechsel im Browser ÜBERHAUPT überlebt — und damit, ob es die Frage
+   * je gibt —, zeigt nur ein echter Wechsel im selben Kontext. Genau so steht
+   * das Telefon im Gerätehaus: ein Gerät, wechselnde Kärtchen.
+   *
+   * Ohne die Bindung stünde nach dem zweiten Einlösen das Fahrzeug der ersten
+   * Schicht über dem Knopf, und der wäre sofort bedienbar.
+   */
+  test("nach einem Kärtchenwechsel gilt die Wahl der vorigen Schicht nicht weiter", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/"));
+    await page.getByRole("textbox", { name: "Zugangs-Code" }).fill(E2E_TOKEN_HELFER);
+    await page.getByRole("button", { name: "Weiter" }).click();
+    await page.waitForURL(/\/helfer$/);
+
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.waitForURL(/\/helfer\/ziel/);
+    await page.getByRole("button", { name: new RegExp(E2E_FAHRZEUG_NAME) }).click();
+    await page.waitForURL(/\/a\/e2e-artikel/);
+    await expect(page.locator("[data-rolle='entnahme-ziel']")).toContainText(E2E_FAHRZEUG_NAME);
+
+    // Schichtwechsel auf DEMSELBEN Gerät: anderes Kärtchen einlösen.
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_CHECK}`));
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+
+    const ziel = page.locator("[data-rolle='entnahme-ziel']");
+    await expect(ziel).not.toContainText(E2E_FAHRZEUG_NAME);
+    await expect(ziel).toContainText("Noch nichts gewählt");
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
   });
 });
 

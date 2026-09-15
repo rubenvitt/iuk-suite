@@ -121,7 +121,8 @@ describe("waehleEntnahmeZiel", () => {
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
 
     expect(gesetzte()).toHaveLength(1);
-    expect(gesetzte()[0]).toMatchObject({ art: "set", wert: "fz:fz-1" });
+    // Die Kärtchen-Kennung steht IM Wert — die Wahl gehört ihrer Schicht.
+    expect(gesetzte()[0]).toMatchObject({ art: "set", wert: "tk1|fz:fz-1" });
     // ÄUSSERER Pfad (Falle 63): der Browser steht auf dem Modul-Host.
     expect(stand.umleitungen).toEqual(["/a/art-1"]);
   });
@@ -147,22 +148,42 @@ describe("waehleEntnahmeZiel", () => {
     await waehle({ ziel: "verbrauch", returnTo: "/a/art-1" });
 
     expect(gesetzte()).toHaveLength(1);
-    expect(gesetzte()[0]).toMatchObject({ art: "set", wert: "verbrauch" });
+    expect(gesetzte()[0]).toMatchObject({ art: "set", wert: "tk1|verbrauch" });
   });
 
-  it("merkt sich ein untaugliches Ziel NICHT", async () => {
+  /*
+   * ⚠️ REVIEW-BEFUND P2 ZU PR #140 — ein abgelehntes Ziel LÖSCHT die alte Wahl.
+   *
+   * Der Fall: jemand hat Fahrzeug A gewählt und wählt danach B, das inzwischen
+   * stillgelegt wurde. Bliebe A einfach stehen, führte der Rückweg auf die
+   * Artikelseite mit AKTIVEM Buchen-Knopf und dem Ziel A — während die letzte
+   * Handlung der Person B war. Das ist die wahrscheinlichste Fehlbuchung, die
+   * dieser Ablauf überhaupt erzeugen kann, und sie wäre still.
+   */
+  it("LÖSCHT die alte Wahl, wenn das neue Ziel untauglich ist — und führt zurück zur Wahl", async () => {
     // Das Handlager steht in der Liste, weil es EXISTIERT und AKTIV ist: eine
     // Prüfung, die nur „unbekannt" abweist, ließe es durch.
     for (const roh of ["fz:fz-alt", "fz:lager-2", "fz:gibtsnicht", `fz:${HANDLAGER_ID}`]) {
       stand.cookieOps.length = 0;
+      stand.umleitungen.length = 0;
       await waehle({ ziel: roh, returnTo: "/a/art-1" });
-      expect(gesetzte(), roh).toEqual([]);
+
+      // GELÖSCHT heißt hier: mit denselben Attributen überschrieben und auf
+      // Ablauf 0 gesetzt (Hausform aus `_actions/sitzung.ts`). Ein
+      // `delete(name)` verlöre den `path` und wäre still wirkungslos.
+      expect(gesetzte(), roh).toHaveLength(1);
+      expect(gesetzte()[0], roh).toMatchObject({ art: "set", wert: "" });
+      expect(gesetzte()[0]!.opt, roh).toMatchObject({ maxAge: 0, path: "/" });
+      // ZURÜCK ZUR WAHL, nicht zum Artikel: dort stünde ein bedienbarer Knopf
+      // und daneben „Noch nichts gewählt" — ohne jeden Hinweis, dass die
+      // gerade getroffene Wahl nicht angekommen ist.
+      expect(stand.umleitungen, roh).toEqual(["/helfer/ziel?returnTo=%2Fa%2Fart-1"]);
     }
   });
 
   it("merkt sich einen unlesbaren Wert NICHT", async () => {
     await waehle({ ziel: "kaputt", returnTo: "/a/art-1" });
-    expect(gesetzte()).toEqual([]);
+    expect(gesetzte().filter((o) => o.wert !== "")).toEqual([]);
   });
 
   it("ein GESPERRTES Kärtchen setzt kein Ziel", async () => {
@@ -171,9 +192,31 @@ describe("waehleEntnahmeZiel", () => {
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
 
     expect(gesetzte()).toEqual([]);
-    // Zurück aufs Gate, nicht auf die Artikelseite: dort käme die Person nicht
-    // weiter und wüsste nicht, warum.
-    expect(stand.umleitungen[0]).toMatch(/^\/\?|^\/$/);
+  });
+
+  /*
+   * ⚠️ REVIEW-BEFUND P2 ZU PR #140 — der Weg zum Artikel überlebt eine
+   * abgelaufene Sitzung.
+   *
+   * Läuft die Sitzung zwischen dem Öffnen der Wahlseite und dem Antippen einer
+   * Zeile ab, führt der Weg aufs Gate. Ohne `returnTo` landet die Person nach
+   * dem erneuten Einlösen dort, wohin ihr KÄRTCHEN zeigt — und steht mit dem
+   * gescannten Etikett in der Hand vor der Artikelliste.
+   */
+  it("nimmt den Rückweg mit aufs Gate, wenn die Sitzung abgelaufen ist", async () => {
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
+
+    expect(stand.umleitungen).toEqual(["/?returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("nimmt auch aufs Gate KEIN fremdes `returnTo` mit", async () => {
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "//boese.example" });
+
+    expect(stand.umleitungen).toEqual(["/?returnTo=%2Fhelfer"]);
   });
 
   it("weist ein fremdes `returnTo` ab und landet auf der Artikelliste", async () => {

@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { requireHelferSitzung } from "../../_lib/helferZugang";
 import { fahrzeugListe } from "../../_lib/lesepfade/fahrzeuge";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
-import { ZIEL_COOKIE } from "../../_lib/entnahmeZiel";
+import { ZIEL_COOKIE, wahlWert } from "../../_lib/entnahmeZiel";
 import { sanitizeReturnTo } from "../../_lib/returnTo";
 import { waehleEntnahmeZiel } from "../../_actions/entnahmeZiel";
 import { getDb } from "../../_db/client";
@@ -52,9 +52,10 @@ export default async function ZielSeite({
    */
   const zurueck = sanitizeReturnTo((await searchParams).returnTo) ?? "/helfer";
 
-  const aktuell = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value);
-  const aktuellerWert =
-    aktuell === null ? null : aktuell.art === "fahrzeug" ? `fz:${aktuell.lagerortId}` : "verbrauch";
+  const aktuell = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value, zugang.tokenId);
+  // Der Vergleichswert entsteht aus DERSELBEN Funktion, die die Knöpfe füllt —
+  // eine zweite Schreibweise hier markierte die aktuelle Wahl still nicht mehr.
+  const aktuellerWert = aktuell === null ? null : wahlWert(aktuell);
 
   // NUR AKTIVE: ein stillgelegtes Fahrzeug anzubieten hieße, eine Wahl
   // anzubieten, die die Buchung danach ablehnt.

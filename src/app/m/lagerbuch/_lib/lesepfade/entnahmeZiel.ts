@@ -23,9 +23,18 @@ import type { Leser } from "./bestand";
  * Die Verbrauchswahl fragt die Datenbank GAR NICHT: sie hat kein Gegenstück
  * dort, und ein Lookup „zur Sicherheit" wäre eine Abfrage, die nie etwas
  * findet und deren leeres Ergebnis irgendwann jemand als Fehler liest.
+ *
+ * ⚠️ `tokenId` IST PFLICHT, nicht Beiwerk: die Wahl gehört ihrem Kärtchen, und
+ * `zielAusWert` verwirft die einer fremden Schicht (Review-Befund P1 zu
+ * PR #140). Auf einem geteilten Telefon buchte die nächste Person sonst auf das
+ * Fahrzeug der vorigen, ohne je gewählt zu haben.
  */
-export function gemerktesZiel(db: Leser, cookieWert: string | undefined | null): ZielAnzeige | null {
-  const ziel = zielAusWert(cookieWert);
+export function gemerktesZiel(
+  db: Leser,
+  cookieWert: string | undefined | null,
+  tokenId: string,
+): ZielAnzeige | null {
+  const ziel = zielAusWert(cookieWert, tokenId);
   if (!ziel) return null;
   if (ziel.art === "verbrauch") return ziel;
   if (!istAktivesFahrzeug(db, ziel.lagerortId)) return null;

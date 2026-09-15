@@ -152,7 +152,7 @@ describe("Die Zielwahl", () => {
   });
 
   it("markiert die aktuelle Wahl — sonst wählt man blind neu", async () => {
-    zielCookie = "fz:fz-2";
+    zielCookie = "tk1|fz:fz-2";
     await zeige();
 
     const w = wahlen();
@@ -163,12 +163,21 @@ describe("Die Zielwahl", () => {
   it("markiert auch die ausdrückliche Verbrauchswahl", async () => {
     // ⚠️ Der Träger der Drei-Zustände-Zusage AUF DER SEITE: „Verbrauch" ist
     // eine getroffene Wahl und muss als getroffen zu sehen sein.
-    zielCookie = "verbrauch";
+    zielCookie = "tk1|verbrauch";
     await zeige();
     expect(wahlen().find((z) => z.wert === "verbrauch")!.aktuell).toBe("ja");
   });
 
   it("markiert NICHTS, solange nichts gewählt wurde", async () => {
+    await zeige();
+    expect(wahlen().filter((z) => z.aktuell === "ja")).toEqual([]);
+  });
+
+  it("markiert die Wahl eines ANDEREN Kärtchens nicht — geteiltes Telefon", async () => {
+    // Review-Befund P1 zu PR #140: die Wahl gehört ihrer Schicht. Stünde hier
+    // eine Markierung, hätte die neue Person den Eindruck, schon gewählt zu
+    // haben — und der Buchen-Knopf wäre auf dem Artikel bereits bedienbar.
+    zielCookie = "tk-vorige|fz:fz-2";
     await zeige();
     expect(wahlen().filter((z) => z.aktuell === "ja")).toEqual([]);
   });

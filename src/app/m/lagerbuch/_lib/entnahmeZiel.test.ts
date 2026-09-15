@@ -14,34 +14,76 @@ import { ZIEL_COOKIE, zielAusWert, zielWert } from "./entnahmeZiel";
  * Deshalb steht die Unterscheidung in einer eigenen, DB-freien Datei: sie ist
  * in einem Test ohne Datenbank, ohne Request und ohne Rendern prüfbar.
  */
+const TOKEN = "tk1";
+
 describe("zielAusWert", () => {
   it("liest ein Fahrzeug aus dem Cookie", () => {
-    expect(zielAusWert("fz:abc123")).toEqual({ art: "fahrzeug", lagerortId: "abc123" });
+    expect(zielAusWert(`${TOKEN}|fz:abc123`, TOKEN)).toEqual({
+      art: "fahrzeug",
+      lagerortId: "abc123",
+    });
   });
 
   it("liest die ausdrückliche Verbrauchswahl", () => {
-    expect(zielAusWert("verbrauch")).toEqual({ art: "verbrauch" });
+    expect(zielAusWert(`${TOKEN}|verbrauch`, TOKEN)).toEqual({ art: "verbrauch" });
   });
 
   it("meldet ein FEHLENDES Cookie als ungewählt — nicht als Verbrauch", () => {
     // ⚠️ DER TRAGENDE FALL. Gäbe diese Zeile `{ art: "verbrauch" }` zurück,
     // wäre die ganze Unterscheidung wirkungslos und der Bruch unsichtbar:
     // jede Entnahme vor der ersten Wahl buchte stillschweigend Verbrauch.
-    expect(zielAusWert(undefined)).toBeNull();
-    expect(zielAusWert("")).toBeNull();
+    expect(zielAusWert(undefined, TOKEN)).toBeNull();
+    expect(zielAusWert("", TOKEN)).toBeNull();
   });
 
   it("meldet einen unlesbaren Wert als ungewählt", () => {
     // Ein alter, ein fremder oder ein von Hand gesetzter Wert führt zur Wahl
     // zurück — er darf NIE als Fahrzeug durchgehen.
-    expect(zielAusWert("kaputt")).toBeNull();
-    expect(zielAusWert("fz:")).toBeNull();
+    expect(zielAusWert("kaputt", TOKEN)).toBeNull();
+    expect(zielAusWert(`${TOKEN}|fz:`, TOKEN)).toBeNull();
+    // Die alte, kärtchenlose Form aus der ersten Fassung dieser Datei: sie
+    // gehört zu KEINER Sitzung und darf deshalb nichts mehr vorbelegen.
+    expect(zielAusWert("fz:abc123", TOKEN)).toBeNull();
   });
 
   it("verwechselt ein Fahrzeug namens „verbrauch“ nicht mit der Verbrauchswahl", () => {
     // Das Präfix ist der Grund, warum die ID nicht roh im Cookie steht:
     // `lagerorte.id` trägt bei importiertem Altbestand beliebige Zeichenketten.
-    expect(zielAusWert("fz:verbrauch")).toEqual({ art: "fahrzeug", lagerortId: "verbrauch" });
+    expect(zielAusWert(`${TOKEN}|fz:verbrauch`, TOKEN)).toEqual({
+      art: "fahrzeug",
+      lagerortId: "verbrauch",
+    });
+  });
+
+  /*
+   * ⚠️ DER BEFUND AUS DEM REVIEW ZU PR #140 (P1) — und der Grund, warum im
+   * Cookie überhaupt eine Kärtchen-Kennung steht.
+   *
+   * Das Zielcookie lief zunächst so lange wie eine Sitzung, trug aber KEINE
+   * Sitzungsidentität. Auf einem geteilten Telefon heißt das: Schicht endet,
+   * nächste Person löst ihr Kärtchen ein — und bucht sofort auf das Fahrzeug
+   * der VORIGEN Schicht, ohne je gewählt zu haben. Genau die Zusage, für die
+   * es die drei Zustände gibt, wäre damit ausgehebelt.
+   *
+   * Die Bindung sitzt HIER und nicht in einer Liste von Abmeldewegen
+   * (`beenden`, `/abmelden`, erneutes Einlösen): eine Liste vergisst den
+   * nächsten Weg, und der Ausfall wäre still. Ein fremdes Kärtchen liest hier
+   * `null` — „noch nichts gewählt" —, und der Buchen-Knopf bleibt gesperrt.
+   */
+  it("gehört NUR zu seinem Kärtchen — ein anderes liest „ungewählt“", () => {
+    const gemerkt = zielWert({ art: "fahrzeug", lagerortId: "fz-1" }, TOKEN);
+
+    expect(zielAusWert(gemerkt, TOKEN)).toEqual({ art: "fahrzeug", lagerortId: "fz-1" });
+    expect(zielAusWert(gemerkt, "tk2")).toBeNull();
+    // Auch die Verbrauchswahl wandert nicht in die nächste Schicht.
+    expect(zielAusWert(zielWert({ art: "verbrauch" }, TOKEN), "tk2")).toBeNull();
+  });
+
+  it("lässt sich nicht durch ein Kärtchen mit passendem Präfix übernehmen", () => {
+    // Ohne den Trenner wäre `tk1` ein Präfix von `tk12` — und die Wahl der
+    // einen Schicht gälte in der anderen weiter.
+    const gemerkt = zielWert({ art: "fahrzeug", lagerortId: "fz-1" }, "tk1");
+    expect(zielAusWert(gemerkt, "tk12")).toBeNull();
   });
 });
 
@@ -51,7 +93,7 @@ describe("zielWert", () => {
       { art: "fahrzeug", lagerortId: "fz-1" },
       { art: "verbrauch" },
     ] as const) {
-      expect(zielAusWert(zielWert(ziel))).toEqual(ziel);
+      expect(zielAusWert(zielWert(ziel, TOKEN), TOKEN)).toEqual(ziel);
     }
   });
 });

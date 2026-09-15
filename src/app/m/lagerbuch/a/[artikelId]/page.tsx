@@ -104,8 +104,12 @@ export default async function ArtikelDeepLink({
    * Kärtchen-Zugang, und die Verwaltung kann in derselben Zeit ein Fahrzeug
    * stilllegen. `gemerktesZiel` macht daraus wieder „noch nichts gewählt" —
    * NICHT „Verbrauch" —, und die Insel sperrt dann den Buchen-Knopf.
+   *
+   * ⚠️ MIT `zugang.tokenId`: die Wahl gehört ihrem Kärtchen. Auf einem geteilten
+   * Telefon buchte die nächste Schicht sonst auf das Fahrzeug der vorigen, ohne
+   * je gewählt zu haben (Review-Befund P1 zu PR #140).
    */
-  const ziel = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value);
+  const ziel = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value, zugang.tokenId);
 
   return (
     <HelferRahmen aktiv="entnahme" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>

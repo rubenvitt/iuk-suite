@@ -49,16 +49,30 @@ const VERBRAUCH = "verbrauch";
 const FAHRZEUG_PRAEFIX = "fz:";
 
 /**
- * DIESELBE KODIERUNG TRÄGT COOKIE UND FORMULAR, und das ist keine Sparsamkeit:
- * die Wahlseite schickt den Wert, den das Cookie danach führt. Zwei Formate
- * wären zwei Parser für dieselbe Frage — und der zweite ist der, den beim
- * nächsten Umbau niemand mitzieht.
+ * Der Trenner zwischen Kärtchen-Kennung und Wahl.
  *
- * `null` heißt „noch nichts gewählt" — und zwar auch für einen unlesbaren,
- * alten oder von Hand gesetzten Wert. Ein unbekanntes Format führt zur Wahl
- * zurück; es darf unter keinen Umständen als Fahrzeug durchgehen.
+ * ⚠️ ER IST NICHT VERZIERUNG, SONDERN DIE BINDUNG SELBST: ohne ihn wäre `tk1`
+ * ein Präfix von `tk12`, und die Wahl der einen Schicht gälte in der anderen
+ * weiter. `|` kommt in einer nanoid nicht vor (`_db/schema.ts`: 64er-Alphabet
+ * aus Buchstaben, Ziffern, `-` und `_`).
  */
-export function zielAusWert(wert: string | undefined | null): EntnahmeZiel | null {
+const TRENNER = "|";
+
+/**
+ * DIE WAHL, WIE SIE DAS FORMULAR SCHICKT — ohne Kärtchen-Bindung.
+ *
+ * Cookie und Formular teilen sich die Kodierung der WAHL (`verbrauch`,
+ * `fz:<id>`) und damit einen Parser; zwei Formate wären zwei Parser für
+ * dieselbe Frage, und der zweite ist der, den beim nächsten Umbau niemand
+ * mitzieht.
+ *
+ * ⚠️ DIE BINDUNG ANS KÄRTCHEN TRÄGT NUR DAS COOKIE (`zielAusWert`). Das
+ * Formular kommt aus einer Seite, die der Riegel gerade erst geprüft hat — dort
+ * wäre die Kennung eine Angabe des Clients über sich selbst und damit wertlos.
+ * Im Cookie ist sie das, was sie sein soll: die Erinnerung des Servers daran,
+ * WESSEN Wahl das war.
+ */
+export function wahlAusWert(wert: string | undefined | null): EntnahmeZiel | null {
   if (!wert) return null;
   if (wert === VERBRAUCH) return { art: "verbrauch" };
   if (wert.startsWith(FAHRZEUG_PRAEFIX)) {
@@ -68,8 +82,38 @@ export function zielAusWert(wert: string | undefined | null): EntnahmeZiel | nul
   return null;
 }
 
-export function zielWert(ziel: EntnahmeZiel): string {
+/** Die Wahl in Formularform — ohne Bindung, für die Knöpfe der Wahlseite. */
+export function wahlWert(ziel: EntnahmeZiel): string {
   return ziel.art === "verbrauch" ? VERBRAUCH : `${FAHRZEUG_PRAEFIX}${ziel.lagerortId}`;
+}
+
+/**
+ * `null` heißt „noch nichts gewählt" — und zwar auch für einen unlesbaren,
+ * alten oder von Hand gesetzten Wert. Ein unbekanntes Format führt zur Wahl
+ * zurück; es darf unter keinen Umständen als Fahrzeug durchgehen.
+ *
+ * ⚠️ DIE WAHL GEHÖRT IHREM KÄRTCHEN (Review-Befund P1 zu PR #140). Das Cookie
+ * lief anfangs so lange wie eine Sitzung, trug aber keine Sitzungsidentität —
+ * auf einem geteilten Telefon buchte die nächste Schicht damit sofort auf das
+ * Fahrzeug der vorigen, ohne je gewählt zu haben. Die Bindung steht deshalb IM
+ * WERT und wird bei jedem Lesen geprüft: ein fremdes Kärtchen liest `null`.
+ *
+ * Sie steht hier und NICHT als Aufräumzeile in `beenden`, `/abmelden` und dem
+ * Einlöseweg — eine solche Liste vergisst den nächsten Weg, und der Ausfall
+ * wäre still. So ist die Zusage durch KONSTRUKTION wahr.
+ */
+export function zielAusWert(
+  wert: string | undefined | null,
+  tokenId: string,
+): EntnahmeZiel | null {
+  if (!wert) return null;
+  const trenner = wert.indexOf(TRENNER);
+  if (trenner === -1 || wert.slice(0, trenner) !== tokenId) return null;
+  return wahlAusWert(wert.slice(trenner + TRENNER.length));
+}
+
+export function zielWert(ziel: EntnahmeZiel, tokenId: string): string {
+  return `${tokenId}${TRENNER}${wahlWert(ziel)}`;
 }
 
 /**
