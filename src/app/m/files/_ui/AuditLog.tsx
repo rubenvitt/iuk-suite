@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Card, Table } from "antd";
-import { SCHRIFT } from "@/core/theme/schrift";
+import { Card } from "antd";
+import { AuditLogTabelle } from "./AuditLogTabelle";
 
 /**
  * DAS AUDIT-LOG DER SHARE-DETAILSEITE (Spec §7.8, §4.5; Plan T41 Punkt 4).
@@ -13,15 +13,17 @@ import { SCHRIFT } from "@/core/theme/schrift";
  *    Datei, die T41 nicht besitzt) und kein Route Handler. Ohne benannten Weg
  *    wäre die stille Alternative, **alle** Zeilen an den Client zu liefern und
  *    dort aufzuklappen — bei einem Protokoll genau das Falsche.
- *  - **Die Spalten tragen KEINE `render`-Funktion**, nur `dataIndex`. Eine
- *    Funktion in `columns` reicht eine Funktion über die RSC-Grenze an
- *    `Table` (eine Client-Komponente) und ergibt HTTP 500 — unsichtbar für
- *    `pnpm build`, `pnpm typecheck` und Vitest. Der Text jeder Zelle entsteht
- *    deshalb **vorher**, in `zeilen()` unten und in der Seite.
- *  - `Card` und `Table` sind in einer Server Component sicher;
- *    `Typography.Title`, `Card.Meta` und Geschwister sind es nicht
- *    (`docs/design/README.md`, Falle 1). Die Überschrift ist deshalb `title` der
- *    Karte, nicht `Typography.Title`.
+ *  - **Die TABELLE liegt in einer eigenen Client-Insel** (`AuditLogTabelle`).
+ *    Bis zur Umstellung auf `@/core/tabelle` stand sie hier, mit Spalten ohne
+ *    jede Funktion — genau deshalb ging das. Sortierung und Spaltenfilter SIND
+ *    Funktionen (`sorter`, `onFilter`), und eine Funktion über der RSC-Grenze
+ *    ergibt HTTP 500, unsichtbar für `pnpm build`, `pnpm typecheck` und Vitest
+ *    (`CLAUDE.md`, Falle 9). Diese Komponente reicht nur noch serialisierbare
+ *    Zeilen hinüber.
+ *  - `Card` ist in einer Server Component sicher; `Typography.Title`,
+ *    `Card.Meta` und Geschwister sind es nicht (`docs/design/README.md`,
+ *    Falle 1). Die Überschrift ist deshalb `title` der Karte, nicht
+ *    `Typography.Title`.
  *
  * WAS HIER NICHT ENTSCHIEDEN WIRD: **die Klemmung von `?logs=<n>`**. Sie gehört
  * der Seite, die den Suchparameter entgegennimmt — `_db/queries.ts:ladeAuditLog`
@@ -34,6 +36,12 @@ export type AuditLogZeile = {
   /** Fertiger deutscher Zeitpunkt MIT Sekunden — zwei Downloads derselben
    *  Minute sind sonst nicht auseinanderzuhalten. */
   zeitText: string;
+  /**
+   * DERSELBE Zeitpunkt als ISO-Zeichenkette — allein für die Sortierung, nie
+   * angezeigt. `zeitText` ist „25.07.2026, 12:00:03" und sortierte als
+   * Zeichenkette den 2. eines Monats vor den 14. des vorigen.
+   */
+  zeitIso: string;
   /** `null` = ZIP des GANZEN Shares, ein 1:1-pflichtiger Magic Value (§4.5). */
   dateiId: string | null;
   /** Der Name zur `dateiId`, oder `null`, wenn es die Zeile nicht mehr gibt.
@@ -57,80 +65,7 @@ export type AuditLogProps = {
   obergrenzeZeilen: number | null;
 };
 
-/**
- * SPALTENBREITEN IN PIXELN, und die Einheit steht im Namen (§9.1).
- *
- * Die Adressspalte **rechnet mit `0` am Ende** (§7.8): gespeichert ist das
- * letzte Oktett als `0` bzw. das IPv6-Präfix als `/48`, also `192.168.178.0`
- * oder `2001:db8:1234::/48` — nicht eine vollständige IPv6-Adresse mit 39
- * Zeichen. Wer hier für eine volle Adresse Platz reservierte, verschöbe die
- * Tabelle um über hundert Pixel für einen Wert, den es nicht gibt.
- */
-const SPALTE_ZEIT_PX = 190;
-const SPALTE_WAS_PX = 280;
-const SPALTE_IP_GEKUERZT_PX = 190;
-const SPALTE_AGENT_PX = 340;
-
-/** Die SUMME, gerechnet statt getippt: tragen die Spalten `width`, ist sie die
- *  einzige ehrliche `scroll.x`-Angabe (`docs/design/README.md:176-182`). Eine
- *  von Hand gepflegte Zahl liefe bei der ersten Breitenänderung auseinander. */
-const TABELLE_BREITE_PX =
-  SPALTE_ZEIT_PX + SPALTE_WAS_PX + SPALTE_IP_GEKUERZT_PX + SPALTE_AGENT_PX;
-
-type AnzeigeZeile = AuditLogZeile & { wasText: string };
-
-/**
- * KEINE `render`-Funktion, nur `dataIndex` — Begründung im Kopfkommentar. Und
- * keine Spalte trägt `fixed` oder `ellipsis`, `scroll.y` bleibt ungesetzt: sonst
- * schaltet rc-table auf `table-layout: fixed`, verteilt die Spalten gleichmäßig
- * und das Desktop-Bild ändert sich, ohne dass irgendwo etwas überläuft
- * (`lib/Table.js:426-442`).
- *
- * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
- * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): ein
- * `<span style={SCHRIFT.kicker}>` je Kopf, nie CSS gegen `.ant-table-thead`.
- * Ein React-Element in `title` ist serialisierbar (anders als eine Funktion in
- * `render`, siehe oben) — dieselbe Grenze, die diese Spalten schon für ihre
- * Zellinhalte einhalten, gilt hier unverändert.
- */
-const SPALTEN = [
-  { key: "zeit", title: <span style={SCHRIFT.kicker}>Zeit</span>, dataIndex: "zeitText", width: SPALTE_ZEIT_PX },
-  { key: "was", title: <span style={SCHRIFT.kicker}>Was</span>, dataIndex: "wasText", width: SPALTE_WAS_PX },
-  {
-    /*
-     * DER WORTLAUT IST DIE ZUSAGE (§7.8). `client_ip_unbestaetigt` kommt ohne
-     * Trusted-Proxy-Prüfung vom Client und ist gekürzt gespeichert; ohne beide
-     * Wörter liest die Spalte sich wie eine belastbare Adresse und trüge eine
-     * Aussage, die sie nicht hat.
-     */
-    key: "ip",
-    title: <span style={SCHRIFT.kicker}>IP (unbestätigt, gekürzt)</span>,
-    dataIndex: "ipText",
-    width: SPALTE_IP_GEKUERZT_PX,
-  },
-  {
-    key: "agent",
-    title: <span style={SCHRIFT.kicker}>Browser/Gerät</span>,
-    dataIndex: "agentText",
-    width: SPALTE_AGENT_PX,
-  },
-];
-
-/**
- * Die Spalte „Was" — drei Fälle, und der dritte ist der, den das Datenmodell
- * erzwingt: `download_logs` hat keinen Fremdschlüssel (§4.5), und ein Abbruch
- * über `DELETE /api/upload/<fileId>` entfernt eine einzelne `share_files`-Zeile.
- * Ohne benannten Rückfall stünde im Protokoll „Datei undefined".
- */
-function wasText(zeile: AuditLogZeile): string {
-  if (zeile.dateiId === null) return "ZIP";
-  if (zeile.dateiname === null) return "Datei (nicht mehr vorhanden)";
-  return `Datei ${zeile.dateiname}`;
-}
-
 export function AuditLog({ zeilen, mehrHref, obergrenzeZeilen }: AuditLogProps) {
-  const anzeige: AnzeigeZeile[] = zeilen.map((zeile) => ({ ...zeile, wasText: wasText(zeile) }));
-
   return (
     <Card title="Zugriffsprotokoll" data-testid="files-auditlog">
       {/*
@@ -145,24 +80,10 @@ export function AuditLog({ zeilen, mehrHref, obergrenzeZeilen }: AuditLogProps) 
         protokolliert.
       </p>
 
-      {anzeige.length === 0 ? (
+      {zeilen.length === 0 ? (
         <p data-testid="files-auditlog-leer">Noch kein Zugriff protokolliert.</p>
       ) : (
-        <Table<AnzeigeZeile>
-          rowKey="id"
-          dataSource={anzeige}
-          columns={SPALTEN}
-          pagination={false}
-          /* `size="small"` verdichtet die ZEILEN einer Tabelle und ist etwas
-             anderes als `size` auf einem Bedienelement (dort wäre `large` 72px
-             und `controlHeight` 56 schon richtig, `docs/design/README.md:59-62`).
-             Ein Protokoll mit hundert Zeilen liest sich verdichtet besser. */
-          size="small"
-          /* Die Summe der Spaltenbreiten — siehe `TABELLE_BREITE_PX`. Eine
-             Tabelle scrollt auf schmalen Geräten, sie bricht nicht um
-             (`docs/design/README.md:174`). */
-          scroll={{ x: TABELLE_BREITE_PX }}
-        />
+        <AuditLogTabelle zeilen={zeilen} />
       )}
 
       {mehrHref !== null && (

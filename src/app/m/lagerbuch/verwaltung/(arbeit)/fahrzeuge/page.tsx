@@ -38,6 +38,15 @@ export function fahrzeugAnzeigeZeile(
     letzterCheckText: zeile.letzterCheck === null
       ? null
       : CHECK_FORMAT.format(zeile.letzterCheck),
+    /**
+     * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
+     * `letzterCheckText` ist „14.09.2026, 08:12" und ordnete als Zeichenkette
+     * den 2. Oktober vor den 14. September. `null` heisst „noch nie geprueft"
+     * und landet aufsteigend hinten.
+     */
+    letzterCheckIso: zeile.letzterCheck === null
+      ? null
+      : zeile.letzterCheck.toISOString(),
   };
 }
 

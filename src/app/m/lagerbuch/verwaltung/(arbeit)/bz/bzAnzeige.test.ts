@@ -144,6 +144,9 @@ describe("BZ-Anzeigeprojektion", () => {
       "faelligkeitTon",
       "id",
       "lagerortName",
+      // Der Rohwert fuer die Sortierung der Kontrollspalte — eine JSON-sichere
+      // Zeichenkette, kein `Date`.
+      "letzteKontrolleIso",
       "letzteKontrolleText",
       "name",
     ]);

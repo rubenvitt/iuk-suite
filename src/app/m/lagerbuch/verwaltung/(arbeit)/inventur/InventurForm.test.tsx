@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 
-import { readFileSync } from "node:fs";
 import {
   act,
   isValidElement,
@@ -46,10 +45,6 @@ const ZEILEN: InventurZeile[] = [
   { id: "a2", name: "Pflaster", einheit: "Pkg", fach: "B2", kategorie: null, mindestbestand: 0, bestand: 4, chargen: [] },
 ];
 
-const QUELLE = readFileSync(
-  "src/app/m/lagerbuch/verwaltung/(arbeit)/inventur/InventurForm.tsx",
-  "utf8",
-);
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
 beforeAll(() => {
@@ -145,9 +140,30 @@ describe("InventurForm — Tabelle und Eingabe", () => {
       .map((zeile) => zeile.getAttribute("data-row-key"))
       .filter(Boolean))
       .toEqual(["a1", "a2"]);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM.
     expect(queryAll(".ant-pagination")).toHaveLength(0);
-    expect(QUELLE).toMatch(/pagination=\{false\}/);
-    expect(QUELLE).toMatch(/scroll=\{\{ x: "max-content" \}\}/);
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS DER BESTAND UEBER DIE ZAHL SORTIERT.
+   * Gezeigt wird „3 Stk"; als Zeichenkette stuende „12 Stk" vor „3 Stk".
+   */
+  it("sortiert den Bestand über die Zahl, nicht über den Anzeigetext", async () => {
+    await mount(<InventurForm zeilen={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Bestand"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    const sortiert = queryAll("tbody tr[data-row-key]")
+      .map((zeile) => zeile.getAttribute("data-row-key"));
+    const erwartet = [...ZEILEN]
+      .sort((a, b) => a.bestand - b.bestand)
+      .map((zeile) => zeile.id);
+    expect(sortiert).toEqual(erwartet);
   });
 
   it("zeigt einen fachlichen Leertext statt einer leeren Tabellenattrappe", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState, type ReactNode } from "react";
-import { Alert, Button, Card, Popconfirm, Skeleton, Table } from "antd";
+import { useActionState, useRef, useState } from "react";
+import { Alert, Button, Card, Popconfirm, Skeleton } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -10,6 +10,16 @@ import {
   QuestionCircleOutlined,
   StopOutlined,
 } from "@ant-design/icons";
+import {
+  Datentabelle,
+  nachDatum,
+  nachJaNein,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { SCHRIFT } from "@/core/theme/schrift";
 
 import { shareLoeschenAction, type ShareFormZustand } from "../(verwaltung)/actions";
@@ -69,11 +79,30 @@ export type ShareZeile = {
   anzahlUnvollstaendig: number;
   /** Summe AUS DEN ZEILEN, nie `shares.total_size` (§7.3). */
   groesseText: string;
+  /**
+   * ⚠️ DIESELBE SUMME ALS ZAHL — allein fuer die Sortierung, angezeigt wird
+   * `groesseText`. „476,8 MiB" sortierte als Zeichenkette neben „11 KiB"
+   * falsch, und zwar still.
+   */
+  groesseBytes: number;
   ablaufText: string;
+  /**
+   * ⚠️ DERSELBE Ablauf als ISO-Zeichenkette — allein fuer die Sortierung.
+   * „31.07.2026, 14:00" sortierte als Zeichenkette den 2. Oktober vor den
+   * 14. September.
+   */
+  ablaufIso: string;
   /** Serverseitig entschieden — siehe Kopfkommentar, Grund 2. */
   abgelaufen: boolean;
   /** `n / m` bzw. `n / ∞` (§7.3). */
   downloadsText: string;
+  /**
+   * ⚠️ DER ZAEHLER als Zahl — allein fuer die Sortierung. `downloadsText` ist
+   * ein Bruch und sortierte als Zeichenkette „10 / 20" vor „3 / 5". Sortiert
+   * wird ueber die GELADENE Menge, nicht ueber das Limit: die Frage an diese
+   * Spalte ist „was wird abgerufen?", nicht „wo steht eine hohe Grenze?".
+   */
+  downloadsZahl: number;
   hatPasswort: boolean;
   avSammelwert: AvSammelwert;
   /** Fertiger Text; der Platzhalter des Altbestands ist schon uebersetzt. */
@@ -132,49 +161,105 @@ function fehlerText(zustand: ShareFormZustand): string | null {
  * Quelle (siehe `SPALTEN_TITEL`). Zwei getippte Listen wuerden auseinanderlaufen,
  * und das Skelett waere dann das Skelett einer anderen Tabelle.
  *
- * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
- * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
- * Textkopf ein `<span style={SCHRIFT.kicker}>`, nie CSS gegen
- * `.ant-table-thead`. `aktionen` bleibt `title: ""` — kein Text, keine Rolle
- * mit Wirkung; die Aktionsspalte braucht keinen Kopf. Deshalb ist `SPALTEN_TITEL`
- * jetzt `ReactNode[]`, nicht mehr `string[]` — das Skelett rendert `{titel}`
- * ohnehin nur als Kind eines `<th>`, das nimmt beides.
+ * SPALTENKOEPFE SIND NACKTE ZEICHENKETTEN — die Kicker-Rolle setzt
+ * `Datentabelle` selbst (`docs/design/README.md`: ueber `columns[].title`, nie
+ * ueber CSS gegen `.ant-table-thead`). `aktionen` bleibt `title: ""`: kein Text,
+ * keine Rolle mit Wirkung; die Aktionsspalte braucht keinen Kopf.
+ *
+ * ⚠️ SORTIERT WIRD NIE UEBER DEN ANZEIGETEXT. Groesze, Ablauf und Downloads
+ * tragen dafuer je ein ROHFELD in der Zeile (`groesseBytes`, `ablaufIso`,
+ * `downloadsZahl`) — „476,8 MiB" neben „11 KiB" und „31.07.2026" neben
+ * „02.10.2026" ordneten als Zeichenkette falsch, und zwar still.
+ *
+ * DIE FILTER STEHEN, WO DIE WERTE WIEDERKEHREN: Typ, AV-Zustand und „Erstellt
+ * von" sind kurze Listen aus den geladenen Zeilen (`werteAlsFilter`), Ablauf und
+ * Passwort abgeleitete Zustaende (`zustandsFilter`). Keine Spalte bekommt eine
+ * gepflegte Liste — ein Filtereintrag, den keine Zeile trifft, ist die
+ * haeufigste Enttaeuschung an Spaltenfiltern.
  */
-function spalten(qrOeffnen: (zeile: ShareZeile) => void) {
+function spalten(zeilen: ShareZeile[], qrOeffnen: (zeile: ShareZeile) => void) {
   return [
-    { key: "titel", title: <span style={SCHRIFT.kicker}>Titel</span>, dataIndex: "titel" },
-    { key: "typ", title: <span style={SCHRIFT.kicker}>Typ</span>, dataIndex: "typText" },
+    {
+      key: "titel",
+      title: "Titel",
+      dataIndex: "titel",
+      sorter: nachText<ShareZeile>((zeile) => zeile.titel),
+    },
+    {
+      key: "typ",
+      title: "Typ",
+      dataIndex: "typText",
+      sorter: nachText<ShareZeile>((zeile) => zeile.typText),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.typText),
+      onFilter: trifftWert<ShareZeile>((zeile) => zeile.typText),
+    },
     {
       key: "dateien",
-      title: <span style={SCHRIFT.kicker}>Dateien</span>,
+      title: "Dateien",
+      // Sortiert wird ueber die VOLLSTAENDIGEN Dateien — die Zahl, die in der
+      // Zelle vorn steht. Die unvollstaendigen stehen daneben in Klammern und
+      // sind eine zweite Aussage, keine zweite Menge derselben Ordnung.
+      sorter: nachZahl<ShareZeile>((zeile) => zeile.anzahlDateien),
       render: (_: unknown, zeile: ShareZeile) => <Dateimenge zeile={zeile} />,
     },
-    { key: "groesse", title: <span style={SCHRIFT.kicker}>Größe</span>, dataIndex: "groesseText" },
+    {
+      key: "groesse",
+      title: "Größe",
+      dataIndex: "groesseText",
+      sorter: nachZahl<ShareZeile>((zeile) => zeile.groesseBytes),
+    },
     {
       key: "ablauf",
-      title: <span style={SCHRIFT.kicker}>Ablauf</span>,
+      title: "Ablauf",
+      sorter: nachDatum<ShareZeile>((zeile) => zeile.ablaufIso),
+      /* „abgelaufen" ist ein ABGELEITETER Zustand und kein Feldwert — und er
+         wird SERVERSEITIG entschieden (Kopfkommentar, Grund 2). Der Filter liest
+         die Entscheidung, er trifft sie nicht: eine Uhr im Browser stellte die
+         Zeile auf „gueltig", waehrend jeder Download 410 antwortet. */
+      ...zustandsFilter<ShareZeile>([
+        { wert: "gueltig", text: "gültig", trifft: (zeile) => !zeile.abgelaufen },
+        { wert: "abgelaufen", text: "abgelaufen", trifft: (zeile) => zeile.abgelaufen },
+      ]),
       render: (_: unknown, zeile: ShareZeile) => <Ablauf zeile={zeile} />,
     },
     {
       key: "downloads",
-      title: <span style={SCHRIFT.kicker}>Downloads</span>,
+      title: "Downloads",
       dataIndex: "downloadsText",
+      sorter: nachZahl<ShareZeile>((zeile) => zeile.downloadsZahl),
     },
     {
       key: "passwort",
-      title: <span style={SCHRIFT.kicker}>Passwort</span>,
+      title: "Passwort",
+      sorter: nachJaNein<ShareZeile>((zeile) => zeile.hatPasswort),
+      /* Die Filterbeschriftung ist WOERTLICH die der Zelle: zwei Woerter fuer
+         denselben Zustand waeren zwei Aussagen. */
+      ...zustandsFilter<ShareZeile>([
+        { wert: "ja", text: "Ja", trifft: (zeile) => zeile.hatPasswort },
+        { wert: "nein", text: "Nein", trifft: (zeile) => !zeile.hatPasswort },
+      ]),
       // Ja/Nein als WORT: ein Schloss-Symbol allein traegt die Aussage nicht.
       render: (_: unknown, zeile: ShareZeile) => <span>{zeile.hatPasswort ? "Ja" : "Nein"}</span>,
     },
     {
       key: "av",
-      title: <span style={SCHRIFT.kicker}>AV-Zustand</span>,
+      title: "AV-Zustand",
+      /* Sortiert und gefiltert wird ueber den SATZ aus `AV_TEXT`, nicht ueber
+         den Sammelwert: `wirdGeprueft` und `pruefungFehlt` sind interne Namen,
+         und eine Filterliste in dieser Schreibweise stuende neben einer Zelle,
+         die etwas anderes sagt. */
+      sorter: nachText<ShareZeile>((zeile) => AV_TEXT[zeile.avSammelwert]),
+      filters: werteAlsFilter(zeilen, (zeile) => AV_TEXT[zeile.avSammelwert]),
+      onFilter: trifftWert<ShareZeile>((zeile) => AV_TEXT[zeile.avSammelwert]),
       render: (_: unknown, zeile: ShareZeile) => <AvZustand wert={zeile.avSammelwert} />,
     },
     {
       key: "erstelltVon",
-      title: <span style={SCHRIFT.kicker}>Erstellt von</span>,
+      title: "Erstellt von",
       dataIndex: "erstelltVonText",
+      sorter: nachText<ShareZeile>((zeile) => zeile.erstelltVonText),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.erstelltVonText),
+      onFilter: trifftWert<ShareZeile>((zeile) => zeile.erstelltVonText),
     },
     {
       key: "aktionen",
@@ -186,8 +271,16 @@ function spalten(qrOeffnen: (zeile: ShareZeile) => void) {
   ];
 }
 
-/** Die Ueberschriften AUS den Spalten, nicht daneben getippt. */
-const SPALTEN_TITEL: ReactNode[] = spalten(() => undefined).map((spalte) => spalte.title);
+/**
+ * Die Ueberschriften AUS den Spalten, nicht daneben getippt.
+ *
+ * Seit der Umstellung auf `Datentabelle` sind es wieder ZEICHENKETTEN: die
+ * Kicker-Rolle setzt die Tabelle selbst. Das Skelett ist aber keine
+ * `Datentabelle`, sondern ein nacktes `<table>` — es wickelt den Titel deshalb
+ * unten selbst ein. Ohne das saehen die Kopfzeilen des Skeletts anders aus als
+ * die der Tabelle, die es ankuendigt.
+ */
+const SPALTEN_TITEL: string[] = spalten([], () => undefined).map((spalte) => spalte.title);
 
 function Dateimenge({ zeile }: { zeile: ShareZeile }) {
   return (
@@ -222,20 +315,20 @@ export function SharesTabelle({ zeilen }: { zeilen: ShareZeile[] }) {
   return (
     <div className="fi-liste" data-testid="files-shares-tabelle">
       <div className="nurDesktop" data-testid="files-shares-tabelle-desktop">
-        <Table<ShareZeile>
+        {/*
+          * KEIN `scroll` UND KEIN `pagination`: beides ist jetzt Vorgabe der
+          * `Datentabelle` — `{ x: "max-content" }` und „nicht blaettern".
+          * `max-content` bleibt die einzige ehrliche Angabe, weil die Spalten
+          * keine `width` tragen; und KEINE Spalte traegt `fixed`, keine kuerzt
+          * mit Auslassungspunkten, `scroll.y` ist nicht gesetzt — rc-table
+          * schaltet sonst auf `table-layout: fixed`, verteilt die Spalten
+          * gleichmaeszig und das DESKTOP-Bild aendert sich, ohne dass irgendwo
+          * etwas ueberlaeuft (`lib/Table.js:426-442`).
+          */}
+        <Datentabelle<ShareZeile>
           rowKey="id"
           dataSource={zeilen}
-          columns={spalten(setQrZeile)}
-          pagination={false}
-          /*
-           * `max-content` ist die einzige ehrliche Angabe, weil die Spalten keine
-           * `width` tragen — jede Pixelzahl waere erfunden. Und KEINE Spalte
-           * traegt `fixed`, keine kuerzt mit Auslassungspunkten, `scroll.y` ist
-           * nicht gesetzt: rc-table schaltet sonst auf `table-layout: fixed`,
-           * verteilt die Spalten gleichmaeszig und das DESKTOP-Bild aendert sich,
-           * ohne dass irgendwo etwas ueberlaeuft (`lib/Table.js:426-442`).
-           */
-          scroll={{ x: "max-content" }}
+          columns={spalten(zeilen, setQrZeile)}
         />
       </div>
 
@@ -289,7 +382,9 @@ export function SharesTabelleSkelett() {
         <thead>
           <tr>
             {SPALTEN_TITEL.map((titel, i) => (
-              <th key={i}>{titel}</th>
+              <th key={i}>
+                <span style={SCHRIFT.kicker}>{titel}</span>
+              </th>
             ))}
           </tr>
         </thead>

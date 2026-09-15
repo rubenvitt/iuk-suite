@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Alert, Button, Flex, Input, Modal, Table, type TableProps } from "antd";
+import { Alert, Button, Flex, Input, Modal, type TableProps } from "antd";
+import {
+  Datentabelle,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { markiereBestellt } from "../../../_actions/bestellung";
 import { baueBestellCsv, BESTELL_CSV_DATEINAME } from "../../../_lib/csvBestellung";
@@ -44,6 +52,21 @@ export function statusChip(
   }
   return { ton: "rot", text: "offen" };
 }
+
+/**
+ * Die drei Zustaende der Statusspalte sind genau die drei Faelle aus
+ * `statusChip` — der Filter fragt dieselbe Funktion, damit Chip und Filter
+ * nicht auseinanderlaufen koennen.
+ */
+const STATUS_FILTER = zustandsFilter<BestellAnzeigeZeile>([
+  { wert: "offen", text: "offen", trifft: (z) => statusChip(z).ton === "rot" },
+  { wert: "bestellt", text: "bestellt", trifft: (z) => statusChip(z).ton === "ok" },
+  {
+    wert: "eingetroffen",
+    text: "Ware offenbar eingetroffen",
+    trifft: (z) => statusChip(z).ton === "gelb",
+  },
+]);
 
 export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
   const [laeuft, start] = useTransition();
@@ -115,9 +138,9 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
     });
   }
 
-  // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS gegen
-  // `.ant-table-thead` (docs/design/README.md). Die Markierungsspalte bleibt
-  // ohne Titeltext -- ein Kicker haette hier nichts zu beschriften.
+  // Den Spaltenkopf-Kicker setzt `Datentabelle` selbst, sobald `title` eine
+  // Zeichenkette ist. Die Markierungsspalte bleibt ohne Titeltext -- ein Kicker
+  // haette hier nichts zu beschriften.
   const spalten: TableProps<BestellAnzeigeZeile>["columns"] = [
     {
       title: "",
@@ -143,9 +166,10 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       ),
     },
     {
-      title: <span style={SCHRIFT.feldname}>Artikel</span>,
+      title: "Artikel",
       dataIndex: "name",
       key: "name",
+      sorter: nachText<BestellAnzeigeZeile>((z) => z.name),
       render: (name: string, z) => (
         <span
           style={
@@ -159,15 +183,20 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       ),
     },
     {
-      title: <span style={SCHRIFT.feldname}>Fach</span>,
+      title: "Fach",
       dataIndex: "fach",
       key: "fach",
+      sorter: nachText<BestellAnzeigeZeile>((z) => z.fach),
+      filters: werteAlsFilter(zeilen, (z) => z.fach),
+      onFilter: trifftWert<BestellAnzeigeZeile>((z) => z.fach),
       render: (fach: string) => <span className={s.fach}>{fach}</span>,
     },
     {
-      title: <span style={SCHRIFT.feldname}>Bestand / Min.</span>,
+      title: "Bestand / Min.",
       dataIndex: "bestand",
       key: "bestand",
+      // Gezeigt wird „3 / min. 10", sortiert wird ueber die nackte Zahl.
+      sorter: nachZahl<BestellAnzeigeZeile>((z) => z.bestand),
       render: (bestand: number, z) => (
         <span style={SCHRIFT.neben}>
           {bestand} / min. {z.mindestbestand}
@@ -175,19 +204,22 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
       ),
     },
     {
-      title: <span style={SCHRIFT.feldname}>Status</span>,
+      title: "Status",
       dataIndex: "bestellt",
       key: "status",
+      filters: STATUS_FILTER.filters,
+      onFilter: STATUS_FILTER.onFilter,
       render: (_bestellt: boolean, z) => {
         const status = statusChip(z);
         return <Chip ton={status.ton}>{status.text}</Chip>;
       },
     },
     {
-      title: <span style={SCHRIFT.feldname}>Vorschlag</span>,
+      title: "Vorschlag",
       dataIndex: "vorschlag",
       key: "vorschlag",
       align: "right",
+      sorter: nachZahl<BestellAnzeigeZeile>((z) => z.vorschlag),
       render: (vorschlag: number, z) => (
         <span style={SCHRIFT.zahl}>
           {vorschlag}
@@ -235,10 +267,8 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
         </Button>
       </Flex>
 
-      <Table<BestellAnzeigeZeile>
+      <Datentabelle<BestellAnzeigeZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Bestellvorschlag"
         dataSource={zeilen}
         locale={{ emptyText: "Kein Unterbestand und keine offene Bestellmarkierung." }}

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, newId } from "../../_db/schema";
-import { journalEintraege } from "./journal";
+import { journalEintraege, type JournalErgebnis } from "./journal";
 import { JOURNAL_GRENZE } from "../grenzen";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -216,5 +216,79 @@ describe("journalEintraege — die aufgeloeste Quelle und der Artikelname", () =
   it("loest quelleTyp 'system' auf 'System' auf", () => {
     buche({ ts: T("2026-06-01T10:00:00Z") });
     expect(journalEintraege(t.db).zeilen[0].quelleName).toBe("System");
+  });
+});
+
+/**
+ * DIE SCHLUESSELPOSITION (DRK-331).
+ *
+ * ⚠️ WAS DIESE FAELLE BESITZEN, ist nicht „Blaettern geht", sondern die zwei
+ * Eigenschaften, die ein OFFSET nicht haette: Stabilitaet gegen nebenher
+ * geschriebene Zeilen, und Vollstaendigkeit bei mehreren Buchungen in
+ * DERSELBEN Sekunde. Das Journal ist append-only — beides ist hier der
+ * Normalfall, nicht der Grenzfall.
+ */
+describe("journalEintraege — Nachladen ueber die Schluesselposition", () => {
+  it("liefert hinter dem Cursor weiter und wiederholt keine Zeile", () => {
+    for (let i = 0; i < 5; i += 1) {
+      buche({ ts: T(`2026-08-0${i + 1}T10:00:00Z`), id: `id-${i}` });
+    }
+
+    const seite1 = journalEintraege(t.db, { grenze: 2 });
+    expect(seite1.zeilen.map((z) => z.id)).toEqual(["id-4", "id-3"]);
+    expect(seite1.naechsterCursor).not.toBeNull();
+
+    const seite2 = journalEintraege(t.db, { grenze: 2, cursor: seite1.naechsterCursor! });
+    expect(seite2.zeilen.map((z) => z.id)).toEqual(["id-2", "id-1"]);
+
+    const seite3 = journalEintraege(t.db, { grenze: 2, cursor: seite2.naechsterCursor! });
+    expect(seite3.zeilen.map((z) => z.id)).toEqual(["id-0"]);
+    // Auf der letzten Seite gibt es keinen Cursor mehr — sonst faehre der
+    // Aufrufer noch einen leeren Abruf.
+    expect(seite3.naechsterCursor).toBeNull();
+    expect(seite3.mehrVorhanden).toBe(false);
+  });
+
+  it("kommt ueber mehrere Buchungen in DERSELBEN Sekunde hinweg", () => {
+    /**
+     * ⚠️ DER FALL, DER EINE NAIVE FASSUNG HAENGEN LIESSE. Ein Check-Abschluss
+     * schreibt mehrere Zeilen mit demselben `ts` (§5.14.4). Ein Cursor, der nur
+     * `ts < cursor.ts` prueft, uebersprintt die uebrigen Zeilen derselben
+     * Sekunde; einer mit `ts <= cursor.ts` liefert ewig dieselbe Zeile. Erst das
+     * PAAR `(ts, id)` traegt.
+     */
+    const gleich = T("2026-08-07T10:00:00Z");
+    for (const id of ["aaa", "bbb", "ccc", "ddd"]) buche({ ts: gleich, id });
+
+    const gesehen: string[] = [];
+    let cursor: { ts: Date; id: string } | null = null;
+    for (let runde = 0; runde < 10; runde += 1) {
+      const seite: JournalErgebnis = journalEintraege(
+        t.db,
+        { grenze: 2, cursor: cursor ?? undefined },
+      );
+      gesehen.push(...seite.zeilen.map((z) => z.id));
+      cursor = seite.naechsterCursor;
+      if (!cursor) break;
+    }
+
+    // Jede Zeile genau einmal, keine Endlosschleife.
+    expect(gesehen.sort()).toEqual(["aaa", "bbb", "ccc", "ddd"]);
+  });
+
+  it("behaelt den Filter ueber die Seiten hinweg", () => {
+    buche({ ts: T("2026-08-01T10:00:00Z"), id: "e1", typ: "entnahme" });
+    buche({ ts: T("2026-08-02T10:00:00Z"), id: "z1", typ: "zugang" });
+    buche({ ts: T("2026-08-03T10:00:00Z"), id: "e2", typ: "entnahme" });
+    buche({ ts: T("2026-08-04T10:00:00Z"), id: "e3", typ: "entnahme" });
+
+    const seite1 = journalEintraege(t.db, { grenze: 2, typ: "entnahme" });
+    expect(seite1.zeilen.map((z) => z.id)).toEqual(["e3", "e2"]);
+
+    const seite2 = journalEintraege(t.db, {
+      grenze: 2, typ: "entnahme", cursor: seite1.naechsterCursor!,
+    });
+    // Der Zugang dazwischen taucht NICHT auf: der Filter greift auf jeder Seite.
+    expect(seite2.zeilen.map((z) => z.id)).toEqual(["e1"]);
   });
 });

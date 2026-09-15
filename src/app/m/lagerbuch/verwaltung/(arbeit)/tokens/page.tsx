@@ -24,6 +24,14 @@ export function tokenAnzeigeZeilen(zeilen: TokenZeile[]): TokenAnzeigeZeile[] {
     lastUsedText: zeile.lastUsedAt
       ? zeile.lastUsedAt.toLocaleString("de-DE", { timeZone: "Europe/Berlin" })
       : "nie benutzt",
+    /**
+     * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
+     * `lastUsedText` ist „14.9.2026, 08:12:00" beziehungsweise „nie benutzt" —
+     * als Zeichenkette sortiert stuende der 2. Oktober vor dem 14. September
+     * und „nie benutzt" mitten zwischen den Daten. `null` landet aufsteigend
+     * hinten.
+     */
+    lastUsedIso: zeile.lastUsedAt ? zeile.lastUsedAt.toISOString() : null,
     zielTyp: zeile.zielTyp,
     zielId: zeile.zielId,
     zielName: zeile.zielName,

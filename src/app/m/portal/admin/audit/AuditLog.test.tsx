@@ -113,3 +113,36 @@ it.each([["to","Bis einschließlich (UTC)","2026-02-30"],["to","Bis einschließl
  expect(document.activeElement?.getAttribute("aria-describedby")).toBe("audit-filter-error");
  expect(document.getElementById("audit-filter-error")?.textContent).toContain(label);
 });
+
+/**
+ * ⚠️ DIE TABELLE ORDNET NICHT — SIE ZEIGT DIE ORDNUNG DER ABFRAGE.
+ *
+ * Bis DRK-331 (dritte Reviewrunde) trug die Zeitspalte einen clientseitigen
+ * Vergleicher mit `defaultSortOrder: "descend"`. Der war falsch, und zwar
+ * still: das Protokoll ist CURSOR-GEBLAETTERT („Aeltere Eintraege"), ein
+ * Vergleicher im Spaltenkopf sieht also nur die GELADENE SEITE. „Zeit
+ * aufsteigend" zeigte damit nicht den aeltesten Eintrag, sondern den aeltesten
+ * unter den geladenen fuenfzig — eine Aussage ueber den ganzen Bestand, die nur
+ * ueber einen Ausschnitt galt. Dieselbe Klasse wie im Journal des Lagerbuchs.
+ *
+ * Die Zusicherung „Neueste zuerst" aus der Statuszeile liegt deshalb in der
+ * ABFRAGE (`core/audit/storage.ts`: `ORDER BY occurred_at DESC, id DESC`, dort
+ * geprueft). Hier wird das Gegenstueck festgehalten: die Tabelle reicht
+ * durch, was sie bekommt, UNVERAENDERT. Die drei Zeitpunkte sind so gewaehlt,
+ * dass jede versehentlich wieder eingebaute Ordnung — ueber den Rohwert wie
+ * ueber den Anzeigetext — eine ANDERE Reihenfolge ergaebe als die Eingabe.
+ */
+it("reicht die Reihenfolge der Abfrage unveraendert durch und ordnet nicht selbst",async()=>{
+ const zeit=(iso:string)=>Date.parse(iso);
+ const events:AuditEvent[]=[
+  {...event,id:"00000000-0000-0000-0000-00000000000a",occurredAt:zeit("2026-07-25T12:00:00Z")},
+  {...event,id:"00000000-0000-0000-0000-00000000000b",occurredAt:zeit("2026-10-01T08:00:00Z")},
+  {...event,id:"00000000-0000-0000-0000-00000000000c",occurredAt:zeit("2026-09-14T23:00:00Z")},
+ ];
+ await mount(<AuditLog view={{...ready,page:{events}}} search={{}}/>);
+ const reihen=Array.from(document.querySelectorAll("tbody tr[data-row-key]")).map(tr=>tr.getAttribute("data-row-key"));
+ expect(reihen).toEqual(events.map(e=>e.id));
+
+ // Und kein Spaltenkopf bietet ueberhaupt an, daran zu drehen.
+ expect(document.querySelectorAll(".ant-table-column-sorter")).toHaveLength(0);
+});

@@ -7,8 +7,44 @@ import {
   mitGetipptem,
   normalisiereJournalTag,
 } from "./journalFilterLogik";
+import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
 
 describe("journalFilterLogik — server-sicherer Vertrag", () => {
+  /**
+   * ⚠️ DER ERSTE AUFSCHLAG UND JEDER NACHSCHLAG MUESSEN DIESELBE GRENZE SEHEN
+   * (DRK-331, neunte Reviewrunde).
+   *
+   * Die Seite rendert die erste Journalseite SERVERSEITIG ueber diese Funktion;
+   * nachgeladen wird ueber die Server Action, und die prueft ihre Eingabe auf
+   * `JOURNAL_SUCHE_MAX` — sie ist von aussen aufrufbar, das ist nicht
+   * verhandelbar. Kappte nur EINE der beiden Seiten, ergaebe ein laengerer
+   * Begriff eine Seite, die aussieht wie jede andere, und ein Nachladen, das
+   * bei JEDEM Versuch scheitert: die Tabelle bliebe auf den ersten hundert
+   * Treffern stehen und meldete dauerhaft einen Fehler.
+   *
+   * Der Fall ist ueber eine getippte URL zu erreichen, also nicht theoretisch.
+   */
+  it("kappt den Suchbegriff auf dieselbe Grenze, die der Nachschlag prueft", () => {
+    const zuLang = "x".repeat(JOURNAL_SUCHE_MAX + 50);
+    const ergebnis = journalParameterAus({ q: zuLang });
+
+    expect(ergebnis.filter.q).toHaveLength(JOURNAL_SUCHE_MAX);
+    // Was gilt, steht auch im Feld — die Oberflaeche zeigt nicht mehr, als
+    // gesucht wird.
+    expect(ergebnis.werte.q).toBe(ergebnis.filter.q);
+    /**
+     * ⚠️ DIE GEGENSEITE WIRD GELESEN, NICHT AUFGERUFEN. `_actions/journal.ts`
+     * traegt `"use server"`, und ein solches Modul darf ausser asynchronen
+     * Funktionen NICHTS exportieren — sein `AnfrageSchema` ist hier also nicht
+     * greifbar. Geprueft wird deshalb, dass es DIESELBE Konstante liest statt
+     * einer abgeschriebenen Zahl; eine zweite Zahl waere genau der Zustand, den
+     * dieser Test verhindern soll.
+     */
+    const action = readFileSync("src/app/m/lagerbuch/_actions/journal.ts", "utf8");
+    expect(action).toContain("z.string().max(JOURNAL_SUCHE_MAX)");
+    expect(action).not.toMatch(/z\.string\(\)\.max\(\d/);
+  });
+
   it("laesst genau die vier Journaltypen bis zum SQL-Filter durch", () => {
     expect([...TYPEN]).toEqual([
       "zugang",
@@ -114,13 +150,22 @@ describe("journalFilterLogik — server-sicherer Vertrag", () => {
     )).toEqual({ q: "", typ: "zugang", von: "", bis: "" });
   });
 
-  it("nennt den Deckel nur, wenn die Plus-eins-Zeile ihn belegt", () => {
-    expect(deckelText(100, true)).toBe(
-      "Neueste 100 von mehr Treffern — Zeitraum eingrenzen",
-    );
+  /**
+   * ⚠️ SEIT DRK-331 IST DER DECKEL EINE PORTIONSGROESSE, KEINE GRENZE. Der alte
+   * Text „Neueste 100 von mehr Treffern — Zeitraum eingrenzen" war eine
+   * AUFFORDERUNG, weil der Rest unerreichbar war. Er ist jetzt erreichbar, man
+   * scrollt weiter — die Aufforderung waere schlicht falsch geworden.
+   *
+   * Und die 100 kommt im Text gar nicht mehr vor: sie war nie eine Aussage ueber
+   * die Daten, sondern ueber die Abfrage. Dieser Test haelt beides fest.
+   */
+  it("sagt beim Nachladen, dass es weitergeht — ohne die Deckelzahl zu nennen", () => {
+    expect(deckelText(100, true)).toBe("100 Treffer geladen — weitere beim Scrollen");
+    expect(deckelText(100, true)).not.toContain("eingrenzen");
     expect(deckelText(100, false)).toBe("100 Treffer");
     expect(deckelText(3, false)).toBe("3 Treffer");
     expect(deckelText(1, false)).toBe("1 Treffer");
+    expect(deckelText(1, true)).toBe("1 Treffer geladen — weitere beim Scrollen");
   });
 
   it("bleibt ohne Server- oder Client-Directive von RSC und Insel importierbar", () => {

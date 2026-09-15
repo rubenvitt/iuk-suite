@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import { Alert, Button, Card, Input, Popconfirm, Table } from "antd";
+import { Alert, Button, Card, Input, Popconfirm } from "antd";
 
 import {
   kontingentAufstockenAction,
@@ -11,7 +11,7 @@ import {
   type ZugangslinkFormState,
 } from "../(verwaltung)/zugangslinks/actions";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { SCHRIFT } from "@/core/theme/schrift";
+import { Datentabelle, nachRang, nachText, nachZahl, zustandsFilter } from "@/core/tabelle";
 import styles from "./zugangslinks.module.css";
 
 /**
@@ -55,6 +55,13 @@ export type ZugangslinkZeile = {
   /** Fertiger Text, z. B. „24 h". Gerechnet aus `expires_at - created_at`, und
    *  zwar SERVERSEITIG: die Spalten fuehren SEKUNDEN (`mode: "timestamp"`). */
   laufzeitText: string;
+  /**
+   * ⚠️ DIESELBE Laufzeit als Zahl — allein fuer die Sortierung, angezeigt wird
+   * `laufzeitText`. Ueber den Text zu sortieren waere hier besonders
+   * verfuehrerisch, weil „24 h" und „72 h" zufaellig richtig stuenden; bei
+   * dreistelligen Stunden kippt dieselbe Ordnung still.
+   */
+  laufzeitStunden: number;
   ablaufText: string;
   zustand: ZugangslinkZustand;
   budgetDateien: number;
@@ -209,23 +216,23 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
             </p>
           </Card>
         ) : (
-          <Table<ZugangslinkZeile>
+          /*
+           * KEIN `scroll` UND KEIN `pagination`: beides ist jetzt Vorgabe der
+           * `Datentabelle` — `{ x: "max-content" }` und „nicht blaettern".
+           * `max-content` bleibt die einzige ehrliche Angabe, weil die Spalten
+           * keine `width` tragen; und KEINE Spalte traegt `fixed` oder
+           * `ellipsis`, `scroll.y` ist nicht gesetzt: rc-table schaltet sonst
+           * auf `table-layout: fixed`, verteilt die Spalten gleichmaeszig und
+           * das DESKTOP-Bild aendert sich, ohne dass irgendwo etwas
+           * ueberlaeuft (`lib/Table.js:426-442`). Diese Ansicht hat KEINE
+           * Kartenliste — §8.6 nennt sie nur fuer `/posteingang` —, die
+           * Tabelle ist unter 768px also sichtbar und muss scrollen statt
+           * umzubrechen.
+           */
+          <Datentabelle<ZugangslinkZeile>
             rowKey="id"
             dataSource={zeilen}
             columns={spalten(inboxBasis)}
-            pagination={false}
-            /*
-             * `max-content` ist die einzige ehrliche Angabe, weil die Spalten
-             * keine `width` tragen — jede Pixelzahl waere erfunden. Und KEINE
-             * Spalte traegt `fixed` oder `ellipsis`, `scroll.y` ist nicht
-             * gesetzt: rc-table schaltet sonst auf `table-layout: fixed`,
-             * verteilt die Spalten gleichmaeszig und das DESKTOP-Bild aendert
-             * sich, ohne dass irgendwo etwas ueberlaeuft
-             * (`lib/Table.js:426-442`). Diese Ansicht hat KEINE Kartenliste —
-             * §8.6 nennt sie nur fuer `/posteingang` —, die Tabelle ist unter
-             * 768px also sichtbar und muss scrollen statt umzubrechen.
-             */
-            scroll={{ x: "max-content" }}
           />
         )}
       </div>
@@ -236,18 +243,29 @@ export function ZugangslinksListe({ zeilen, inboxBasis }: ZugangslinksListeProps
 // ---------------------------------------------------------------------------
 
 /**
- * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
- * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
- * Textkopf ein `<span style={SCHRIFT.kicker}>`, nie CSS gegen
- * `.ant-table-thead`. `aktionen` bleibt `title: ""` — kein Text, keine Rolle
- * mit Wirkung; die Aktionsspalte braucht keinen Kopf.
+ * SPALTENKOEPFE SIND NACKTE ZEICHENKETTEN — die Kicker-Rolle setzt
+ * `Datentabelle` selbst (`docs/design/README.md`: ueber `columns[].title`, nie
+ * ueber CSS gegen `.ant-table-thead`). `aktionen` bleibt `title: ""`: kein Text,
+ * keine Rolle mit Wirkung; die Aktionsspalte braucht keinen Kopf.
+ *
+ * ⚠️ SORTIERT WIRD NIE UEBER DEN ANZEIGETEXT. Die Laufzeit traegt dafuer ein
+ * ROHFELD in der Zeile (`laufzeitStunden`); Restbudget und Uploads sind schon
+ * Zahlen, und der Zustand hat eine fachliche Ordnung statt einer
+ * alphabetischen (`nachRang`).
  */
 function spalten(inboxBasis: string | null) {
   return [
-    { key: "name", title: <span style={SCHRIFT.kicker}>Bezeichnung</span>, dataIndex: "name" },
     {
+      key: "name",
+      title: "Bezeichnung",
+      dataIndex: "name",
+      sorter: nachText<ZugangslinkZeile>((zeile) => zeile.name),
+    },
+    {
+      /* Kein `sorter`: die sieben Zeichen sind ein zufaelliges Geheimnis. Eine
+         Ordnung darueber sortierte nach Zufall und saehe aus wie eine Aussage. */
       key: "token",
-      title: <span style={SCHRIFT.kicker}>Code</span>,
+      title: "Code",
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         // Mit Auslassungszeichen, damit niemand die sieben Zeichen fuer den
         // ganzen Code haelt und sie abzuschreiben versucht.
@@ -256,7 +274,9 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "laufzeit",
-      title: <span style={SCHRIFT.kicker}>Laufzeit</span>,
+      title: "Laufzeit",
+      // Ueber die STUNDEN, nicht ueber „24 h": siehe `laufzeitStunden`.
+      sorter: nachZahl<ZugangslinkZeile>((zeile) => zeile.laufzeitStunden),
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <div>
           <div className={styles.zahlen}>{zeile.laufzeitText}</div>
@@ -266,7 +286,13 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "restbudget",
-      title: <span style={SCHRIFT.kicker}>Restbudget</span>,
+      title: "Restbudget",
+      /* Ueber die RESTLICHEN DATEIEN: die Frage an diese Spalte ist „welcher
+         Link laeuft leer?", und das ist die Zahl, die als erste an ihre Grenze
+         stoeszt. Die Bytes stehen daneben — ein zweiter Sortierschluessel je
+         Spalte ist in antd nicht vorgesehen, und zwei Spalten daraus zu machen
+         waere eine Umgestaltung ohne Auftrag. */
+      sorter: nachZahl<ZugangslinkZeile>((zeile) => zeile.restDateien),
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <div className={styles.budgetZelle}>
           <span className={styles.zahlen}>
@@ -288,12 +314,33 @@ function spalten(inboxBasis: string | null) {
     },
     {
       key: "zustand",
-      title: <span style={SCHRIFT.kicker}>Zustand</span>,
+      title: "Zustand",
+      /*
+       * DIE ORDNUNG IST FACHLICH, NICHT ALPHABETISCH: „gueltig" zuerst, weil
+       * das die Zeilen sind, an denen es etwas zu tun gibt (aufstocken,
+       * widerrufen). Alphabetisch stuende „abgelaufen" oben — die Gruppe, mit
+       * der niemand mehr etwas anfaengt. Deshalb `nachRang` und nicht
+       * `nachText`.
+       */
+      sorter: nachRang<ZugangslinkZeile, ZugangslinkZustand>(
+        (zeile) => zeile.zustand,
+        ["gueltig", "abgelaufen", "widerrufen"],
+      ),
+      /* Die Filterbeschriftung kommt aus DEMSELBEN `ZUSTAND_TEXT` wie die Zelle
+         — zwei Woerter fuer denselben Zustand waeren zwei Aussagen. */
+      ...zustandsFilter<ZugangslinkZeile>(
+        (["gueltig", "abgelaufen", "widerrufen"] as const).map((wert) => ({
+          wert,
+          text: ZUSTAND_TEXT[wert],
+          trifft: (zeile: ZugangslinkZeile) => zeile.zustand === wert,
+        })),
+      ),
       render: (_: unknown, zeile: ZugangslinkZeile) => <span>{ZUSTAND_TEXT[zeile.zustand]}</span>,
     },
     {
       key: "uploads",
-      title: <span style={SCHRIFT.kicker}>Uploads</span>,
+      title: "Uploads",
+      sorter: nachZahl<ZugangslinkZeile>((zeile) => zeile.uploads),
       render: (_: unknown, zeile: ZugangslinkZeile) => (
         <span className={styles.zahlen}>{zeile.uploads}</span>
       ),

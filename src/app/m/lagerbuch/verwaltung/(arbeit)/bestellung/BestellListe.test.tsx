@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { act } from "react";
 import {
   afterAll,
@@ -87,11 +85,6 @@ const BESTELLT_OHNE_DATUM = {
 } satisfies BestellAnzeigeZeile;
 
 const ZEILEN = [OFFEN, BESTELLT, DA];
-const QUELLE = readFileSync(join(
-  process.cwd(),
-  "src/app/m/lagerbuch/verwaltung/(arbeit)/bestellung/BestellListe.tsx",
-), "utf8");
-
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
 beforeAll(() => {
@@ -306,9 +299,30 @@ describe("BestellListe", () => {
       name: `Artikel ${index}`,
     }));
     await mount(<BestellListe zeilen={elf} />);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM — elf
+    // Zeilen bleiben elf Zeilen, ohne Blätterwerk.
     expect(exists(".ant-pagination")).toBe(false);
-    expect(QUELLE).toContain("pagination={false}");
-    expect(QUELLE).toContain('scroll={{ x: "max-content" }}');
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(11);
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS DER VORSCHLAG UEBER DIE ZAHL SORTIERT.
+   * Als Zeichenkette stuende „10" vor „2"; nur ueber den Rohwert steht 2 vorn.
+   */
+  it("sortiert den Vorschlag über die Zahl, nicht über den Anzeigetext", async () => {
+    const wenig = { ...OFFEN, id: "wenig", name: "Wenig", vorschlag: 2 };
+    const viel = { ...OFFEN, id: "viel", name: "Viel", vorschlag: 10 };
+    await mount(<BestellListe zeilen={[viel, wenig]} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Vorschlag"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["wenig", "viel"]);
   });
 });
 

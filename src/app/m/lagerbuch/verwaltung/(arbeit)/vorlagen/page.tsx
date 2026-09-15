@@ -22,7 +22,11 @@ function templateAnzeigeZeilen(db: DB): TemplateAnzeigeZeile[] {
         ? ` · ${anzahlText(zeile.faecher, "Fach", "Fächer")}`
         : ""
     }`,
+    // Die Rohzahlen reisen mit, weil die Spalten danach sortieren: der
+    // Anzeigetext beginnt mit der Zahl und ordnete als Zeichenkette „12" vor „2".
+    positionenZahl: zeile.positionen,
     fahrzeugeText: anzahlText(zeile.fahrzeuge, "Fahrzeug", "Fahrzeuge"),
+    fahrzeugeZahl: zeile.fahrzeuge,
   }));
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState } from "react";
-import { Alert, Button, Card, Checkbox, Popconfirm, Radio, Table } from "antd";
+import { Alert, Button, Card, Checkbox, Popconfirm, Radio } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -47,7 +47,7 @@ import { SCHREIBBARE_KATEGORIEN, anzeigeKategorie } from "../_lib/kategorien";
  */
 import type { AvStatus } from "../_lib/av";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { SCHRIFT } from "@/core/theme/schrift";
+import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
 import styles from "./posteingang.module.css";
 
 /**
@@ -399,24 +399,23 @@ export function PosteingangTabelle({ zeilen, jetztSekunden }: PosteingangTabelle
 
       <div className="fi-liste" data-testid="files-posteingang">
         <div className="nurDesktop" data-testid="files-posteingang-tabelle">
-          <Table<PosteingangZeile>
+          {/*
+            * KEIN `scroll` UND KEIN `pagination`: beides ist jetzt Vorgabe der
+            * `Datentabelle` — `{ x: "max-content" }` und „nicht blaettern".
+            * `max-content` bleibt die einzige ehrliche Angabe, weil die Spalten
+            * keine `width` tragen; und KEINE Spalte traegt `fixed` oder
+            * `ellipsis`, `scroll.y` ist nicht gesetzt: rc-table schaltet sonst
+            * auf `table-layout: fixed`, verteilt die Spalten gleichmaeszig und
+            * das DESKTOP-Bild aendert sich, ohne dass irgendwo etwas
+            * ueberlaeuft (`lib/Table.js:426-442`).
+            */}
+          <Datentabelle<PosteingangZeile>
             rowKey="id"
             dataSource={gefiltert}
             columns={[
               auswahlSpalte(gefiltert, ausgewaehlt, umschalten, alleUmschalten),
               ...spalten(),
             ]}
-            pagination={false}
-            /*
-             * `max-content` ist die einzige ehrliche Angabe, weil die Spalten
-             * keine `width` tragen — jede Pixelzahl waere erfunden. Und KEINE
-             * Spalte traegt `fixed` oder `ellipsis`, `scroll.y` ist nicht
-             * gesetzt: rc-table schaltet sonst auf `table-layout: fixed`,
-             * verteilt die Spalten gleichmaeszig und das DESKTOP-Bild aendert
-             * sich, ohne dass irgendwo etwas ueberlaeuft
-             * (`lib/Table.js:426-442`).
-             */
-            scroll={{ x: "max-content" }}
           />
         </div>
 
@@ -530,18 +529,32 @@ function auswahlSpalte(
  * Zelle, weil ein Test sonst ueber Textinhalte raten muesste — und „Altbestand"
  * stuende dann irgendwo in der Zeile statt in DIESER Spalte.
  *
- * SPALTENKÖPFE ÜBER `SCHRIFT.kicker` (Punkt 4, zweiter Halbsatz, nachgezogen
- * in der Review-Runde zu Aufgabe 12 — beim ersten Durchgang übersehen): jeder
- * Kopf ein `<span style={SCHRIFT.kicker}>` statt eines nackten Strings, nie
- * CSS gegen `.ant-table-thead`. Die Auswahlspalte (`auswahlSpalte()` oben)
- * bleibt ausgenommen — ihr Kopf ist eine Checkbox, kein Text, die Rolle wäre
- * dort ohne Wirkung.
+ * SPALTENKOEPFE SIND NACKTE ZEICHENKETTEN — die Kicker-Rolle setzt
+ * `Datentabelle` selbst (`docs/design/README.md`: ueber `columns[].title`, nie
+ * ueber CSS gegen `.ant-table-thead`). Die Auswahlspalte (`auswahlSpalte()`
+ * oben) bleibt ausgenommen: ihr Kopf ist eine Checkbox, kein Text.
+ *
+ * ⚠️ SORTIERT WIRD NIE UEBER DEN ANZEIGETEXT. Zeit und Groesze tragen ihre
+ * Rohwerte ohnehin schon in der Zeile (`empfangenSekunden`, `groesseBytes`) —
+ * ueber „14.09. 08:12" und „2,4 MiB" zu sortieren ergaebe stille Unordnung.
+ *
+ * KEINE SPALTENFILTER, UND DAS IST EINE FESTLEGUNG. Kategorie, Pruefzustand,
+ * Zeitraum und Abgabelink haben ihre Filter in der Leiste UEBER der Tabelle, und
+ * die bleibt dort: sie filtert BEIDE Darstellungen — auch die Kartenliste, die
+ * unter 768px an die Stelle der Tabelle tritt und keine Spaltenkoepfe hat. Sie
+ * bestimmt auszerdem, was „sichtbar" fuer die Mehrfachauswahl heiszt (siehe
+ * `aktive` in der Komponente): ein Sammelloeschen ueber Zeilen, die ein
+ * Spaltenfilter gerade verbirgt, waere eine Loeschung ohne Rueckfrage. Ein
+ * Spaltenfilter daneben waere ein zweiter Ort fuer dieselbe Frage — mit
+ * anderer Reichweite. Die Sortierung teilt das Problem nicht: sie ordnet nur
+ * um, verbirgt nichts, und die Kartenliste behaelt ihre eigene Ordnung.
  */
 function spalten() {
   return [
     {
       key: "zeit",
-      title: <span style={SCHRIFT.kicker}>Zeit</span>,
+      title: "Zeit",
+      sorter: nachZahl<PosteingangZeile>((zeile) => zeile.empfangenSekunden),
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="zeit" className={styles.zahlen}>
           {zeile.empfangenText}
@@ -550,14 +563,16 @@ function spalten() {
     },
     {
       key: "dateiname",
-      title: <span style={SCHRIFT.kicker}>Dateiname</span>,
+      title: "Dateiname",
+      sorter: nachText<PosteingangZeile>((zeile) => zeile.dateiname),
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="dateiname">{zeile.dateiname}</span>
       ),
     },
     {
       key: "groesse",
-      title: <span style={SCHRIFT.kicker}>Größe</span>,
+      title: "Größe",
+      sorter: nachZahl<PosteingangZeile>((zeile) => zeile.groesseBytes),
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="groesse" className={styles.zahlen}>
           {byteText(zeile.groesseBytes)}
@@ -566,7 +581,11 @@ function spalten() {
     },
     {
       key: "kategorie",
-      title: <span style={SCHRIFT.kicker}>Kategorie</span>,
+      title: "Kategorie",
+      // Ueber den ANZEIGETEXT, nicht ueber den Rohwert: `anzeigeKategorie`
+      // uebersetzt, und zwei Zeilen mit demselben Wort stuenden sonst
+      // auseinander, weil ihre Rohwerte verschieden heiszen.
+      sorter: nachText<PosteingangZeile>((zeile) => anzeigeKategorie(zeile.kategorieRoh)),
       render: (_: unknown, zeile: PosteingangZeile) => (
         // ROH, auch wenn der Wert unbekannt ist: der Altbestand traegt, was
         // `sanitizeCategory` durchliess. Eine Zeile zu verwerfen, deren Datei
@@ -575,8 +594,11 @@ function spalten() {
       ),
     },
     {
+      /* Kein `sorter`: ein Hinweis ist Freitext einer fremden Person. Eine
+         alphabetische Ordnung darueber ordnet nach dem ersten Buchstaben eines
+         Satzes und beantwortet keine Frage, die jemand stellt. */
       key: "hinweis",
-      title: <span style={SCHRIFT.kicker}>Hinweis</span>,
+      title: "Hinweis",
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="hinweis" className={styles.hinweistext}>
           {zeile.hinweis ?? "—"}
@@ -585,7 +607,11 @@ function spalten() {
     },
     {
       key: "avstatus",
-      title: <span style={SCHRIFT.kicker}>AV-Status</span>,
+      title: "AV-Status",
+      /* Ueber den SATZ aus `AV_TEXT`, nicht ueber den Statusnamen: `unscanned`
+         und `scanning` stuenden alphabetisch nebeneinander, ihre Saetze sagen
+         aber Verschiedenes — sortiert wird, was in der Zelle steht. */
+      sorter: nachText<PosteingangZeile>((zeile) => AV_TEXT[zeile.avStatus]),
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="avstatus">
           <AvZustand status={zeile.avStatus} />
@@ -594,7 +620,10 @@ function spalten() {
     },
     {
       key: "abgabelink",
-      title: <span style={SCHRIFT.kicker}>Abgabelink</span>,
+      title: "Abgabelink",
+      // „Altbestand" ist ein benannter Wert und sortiert deshalb mit — eine
+      // leere Zeichenkette landete am Ende und saehe aus wie ein fehlender Wert.
+      sorter: nachText<PosteingangZeile>((zeile) => zeile.abgabelink?.name ?? "Altbestand"),
       render: (_: unknown, zeile: PosteingangZeile) => (
         <span data-spalte="abgabelink">
           <Abgabelink link={zeile.abgabelink} />
@@ -603,7 +632,7 @@ function spalten() {
     },
     {
       key: "aktionen",
-      title: <span style={SCHRIFT.kicker}>Aktionen</span>,
+      title: "Aktionen",
       render: (_: unknown, zeile: PosteingangZeile) => (
         <ZeilenAktionen zeile={zeile} kennung="tabelle" />
       ),

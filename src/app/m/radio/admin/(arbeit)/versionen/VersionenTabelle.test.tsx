@@ -231,6 +231,7 @@ import {
   click,
   clickElement,
   clickPortal,
+  exists,
   fill,
   mount,
   query,
@@ -932,7 +933,7 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
      * Bestand traegt `size="small"` an FUENF Stellen (`SoftwareVersionsPage.tsx:119`, `:126`,
      * `:145`, `:155`, `:167`); sie entfallen ersatzlos, weil die Verwaltung seit dem 2026-08-28
      * auf `SCHREIBTISCHDICHTE` mit `controlHeight: 32` laeuft (`core/theme/theme.ts`), auch auf
-     * dem Telefon. Platz schafft `scroll={{ x: "max-content" }}`.
+     * dem Telefon. Platz schafft das waagerechte Scrollen.
      *
      * ⚠️ ER IST NICHT DER EINZIGE WAECHTER, UND DAS IST ABSICHT: derselbe Scan laeuft modulweit
      * ueber JEDE `.tsx` (`_ui/AusleihRahmen.test.tsx:210-214`). Dieser hier steht an der
@@ -947,13 +948,27 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
         /\bsize=\{?["']?(?:small|large)/,
       );
     }
-    const tabelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
-    expect(tabelle, "ohne scroll bricht die Tabelle auf 390 px").toMatch(
-      /scroll=\{\{ x: "max-content" \}\}/,
-    );
-    expect(tabelle, "die Tabelle blaettert selbst — der Bestand tut es nicht (:206)").toMatch(
-      /pagination=\{false\}/,
-    );
+  });
+
+  it("die Versionsliste blaettert nicht", async () => {
+    /*
+     * ⛔ **DIE MESSUNG LIEGT SEIT DER UMSTELLUNG AUF `@/core/tabelle` AM DOM UND NICHT MEHR AM
+     * QUELLTEXT.** Vorher stand hier ein Scan auf `pagination={false}` und
+     * `scroll={{ x: "max-content" }}`; beides ist jetzt VORGABE in
+     * `src/core/tabelle/Datentabelle.tsx` und steht in dieser Datei folgerichtig nirgends mehr
+     * — der Scan faerbte ueber korrektem Bestand rot und waere gegenstandslos.
+     *
+     * ⛔ DIE ZUSAGE BLEIBT DIESELBE (1:1 `SoftwareVersionsPage.tsx:206`) und wird jetzt
+     * schaerfer gemessen: die Liste IST die Anzeigeordnung, und eine Blaetterung schnitte die
+     * Reihenfolge in Seiten, deren Nachbarn man nicht mehr tauschen kann. Ein
+     * `blaettern={{ … }}`, das jemand hier ergaenzte, faerbt diesen Fall rot — ein Scan auf ein
+     * nicht mehr vorhandenes Literal saehe es nicht.
+     *
+     * ⚠️ `scroll` BEKOMMT KEINEN ZWEITEN FALL: jsdom rechnet keine Layoutboxen (Falle 13,
+     * `CLAUDE.md`). Die Wirkung gehoert der `Datentabelle` und wird dort geprueft.
+     */
+    await mount(<VersionenTabelle zeilen={[zeile(), zeile({ id: "sv-2", wert: "01.02.03" })]} />);
+    expect(exists(".ant-pagination"), "die Versionsliste blaettert").toBe(false);
   });
 
   it("keine Datei der Insel zieht _db/ oder drizzle-orm in den Browser", () => {

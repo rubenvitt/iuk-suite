@@ -1,5 +1,5 @@
 import { zeitraumAus } from "../../../_lib/format";
-import { JOURNAL_GRENZE } from "../../../_lib/grenzen";
+import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
 import type {
   BuchungTyp,
   JournalFilter as JournalLeseFilter,
@@ -47,7 +47,11 @@ export function normalisiereJournalTag(roh: string | undefined): string {
 export function journalParameterAus(
   parameter: JournalRohParameter,
 ): JournalParameterErgebnis {
-  const q = parameter.q?.trim() ?? "";
+  // ⚠️ GEKAPPT, NICHT NUR GETRIMMT — dieselbe Grenze, die `_actions/journal.ts`
+  // prueft. Ohne das Kappen nimmt der erste Aufschlag einen laengeren Begriff an
+  // und jeder Nachschlag weist ihn ab; die Tabelle stuende dann auf den ersten
+  // hundert Treffern und meldete beim Weiterblaettern dauerhaft einen Fehler.
+  const q = (parameter.q?.trim() ?? "").slice(0, JOURNAL_SUCHE_MAX);
   const typ = istBuchungTyp(parameter.typ) ? parameter.typ : undefined;
   const zeitraum = zeitraumAus(parameter.von, parameter.bis);
   const von = zeitraum.von ? parameter.von?.trim() ?? "" : "";
@@ -77,8 +81,20 @@ export function mitGetipptem(
 }
 
 /** Der Deckeltext behauptet nur dann Unvollstaendigkeit, wenn +1 sie belegt. */
+/**
+ * Der Zaehltext unter der Ueberschrift.
+ *
+ * ⚠️ SEIT DRK-331 IST DER DECKEL KEINE GRENZE MEHR, SONDERN EINE PORTIONSGROESSE.
+ * Frueher stand hier „Neueste 100 von mehr Treffern — Zeitraum eingrenzen": eine
+ * Aufforderung, weil der Rest unerreichbar war. Er ist jetzt erreichbar, man
+ * scrollt einfach weiter — die Aufforderung waere schlicht falsch geworden, und
+ * eine falsche Aufforderung ist schlimmer als gar keine.
+ *
+ * `JOURNAL_GRENZE` kommt deshalb im Text nicht mehr vor. Die Zahl war nie eine
+ * Aussage ueber die Daten, sondern ueber die Abfrage; sie gehoert nicht auf den
+ * Schirm.
+ */
 export function deckelText(gezeigt: number, mehrVorhanden: boolean): string {
-  return mehrVorhanden
-    ? `Neueste ${JOURNAL_GRENZE} von mehr Treffern — Zeitraum eingrenzen`
-    : `${gezeigt} Treffer`;
+  const treffer = gezeigt === 1 ? "1 Treffer" : `${gezeigt} Treffer`;
+  return mehrVorhanden ? `${treffer} geladen — weitere beim Scrollen` : treffer;
 }

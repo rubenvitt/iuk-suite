@@ -5,9 +5,19 @@ import { readFileSync } from "node:fs";
  * ANTD-TABELLEN SCROLLEN AUF SCHMALEN GERAETEN, SIE BRECHEN NICHT UM
  * (docs/design/README.md, Abschnitt „Mobil").
  *
- * Warum Quelltext-Scan und nicht jsdom: die Regel IST eine Prop. Ein DOM-Test
- * saehe sie zwar auch, aber er koennte die Wirkung nicht pruefen — jsdom
- * berechnet kein Layout und wertet keine Media Queries aus. Das sichtbare
+ * ══ WAS SICH MIT `@/core/tabelle` GEAENDERT HAT — UND WAS NICHT.
+ *
+ * Die Zusage ist dieselbe geblieben, ihr TRAEGER hat gewechselt. Hier stand ein
+ * Scan auf `scroll={{ x: "max-content" }}` im Quelltext jeder Tabelle; seit der
+ * Umstellung IST `{ x: "max-content" }` die Vorgabe der `Datentabelle`
+ * (`core/tabelle/masse.ts`, `BREITE_NACH_INHALT`), und eine Tabelle, die die
+ * Prop noch selbst schriebe, waere die Abweichung. Der Scan prueft deshalb jetzt
+ * das, was die Zusage heute traegt: die Tabelle ist eine `Datentabelle` und
+ * setzt KEIN eigenes `scroll` daneben.
+ *
+ * Warum weiterhin Quelltext-Scan und nicht jsdom: die Regel IST eine Prop. Ein
+ * DOM-Test saehe sie zwar auch, aber er koennte die Wirkung nicht pruefen —
+ * jsdom berechnet kein Layout und wertet keine Media Queries aus. Das sichtbare
  * Ergebnis besitzt `e2e/mobil-admin.spec.ts` bei 390x844 (die Seite scrollt
  * nicht seitwaerts) und bei 1280x800 (`table-layout` bleibt `auto`, die grobe
  * Spaltenverteilung bleibt erhalten). NICHT pixelgenau unveraendert: `scroll.x`
@@ -28,10 +38,19 @@ const TABELLEN = [
 
 describe("Tabellen mit Scroll-Zusage", () => {
   for (const { datei, name } of TABELLEN) {
-    it(`${name} traegt scroll mit x`, () => {
+    it(`${name} bekommt die Scroll-Vorgabe der Datentabelle`, () => {
       const quelle = readFileSync(datei, "utf8");
-      expect(quelle, `${datei}: scroll-Prop fehlt`).toMatch(
-        /scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/,
+      expect(quelle, `${datei}: keine Datentabelle — woher kaeme das scroll?`).toMatch(
+        /<Datentabelle</,
+      );
+      /*
+       * KEIN EIGENES `scroll` DANEBEN. `Datentabelle` reicht ein uebergebenes
+       * `scroll` unveraendert durch und ersetzt die Vorgabe damit — genau das
+       * waere hier der stille Rueckschritt, und genau das faengt diese Zeile.
+       * (Die Ausnahme steht unten: `Verlauf.tsx` DARF, und muss sogar.)
+       */
+      expect(quelle, `${datei}: eigenes scroll ueberschreibt die Vorgabe`).not.toMatch(
+        /\bscroll=\{/,
       );
     });
 
@@ -58,17 +77,24 @@ describe("Tabellen mit Scroll-Zusage", () => {
     });
   }
 
-  it("Verlauf.tsx bekommt bewusst KEIN scroll", () => {
+  it("Verlauf.tsx schaltet die Vorgabe bewusst AB", () => {
     /*
      * Gegenprobe zum haeufigsten Missverstaendnis: die Tabelle in Verlauf.tsx
-     * hat kein `scroll` und braucht keins. Sie liegt in `.fb-verlauf-breit`,
-     * das unterhalb des Suite-Breakpoints `display: none` ist; bei 768px stehen
-     * ihr 736px zur Verfuegung und sie belegt gemessen 736. Ein `scroll` hier
-     * waere nicht falsch, aber es waere eine Prop ohne Anlass — und sie traegt
-     * ein `ellipsis` (Spalte „Thema"), was `table-layout: fixed` ausloesen und
-     * das Desktop-Bild veraendern wuerde.
+     * hat kein waagerechtes Scrollen und braucht keins. Sie liegt in
+     * `.fb-verlauf-breit`, das unterhalb des Suite-Breakpoints `display: none`
+     * ist; bei 768px stehen ihr 736px zur Verfuegung und sie belegt gemessen
+     * 736. Und sie traegt ein `ellipsis` (Spalte „Thema"), dessen ganze Aufgabe
+     * das Abschneiden ist — unter `max-content` wuechse die Spalte stattdessen.
+     *
+     * SEIT DER UMSTELLUNG IST DAS EINE AKTIVE ENTSCHEIDUNG, KEINE AUSLASSUNG:
+     * `Datentabelle` gibt `{ x: "max-content" }` vor, also muss die Datei die
+     * Vorgabe ausdruecklich abschalten. Hier steht deshalb das Gegenteil von
+     * frueher — das `scroll` MUSS da sein, und es muss `false` sein. Dass keine
+     * waagerechte Scroll-Huelle entsteht, misst `Verlauf.test.tsx` am DOM.
      */
     const quelle = readFileSync("src/app/m/feedback/_ui/Verlauf.tsx", "utf8");
+    expect(quelle).toMatch(/scroll=\{false\}/);
+    // Und kein zweites, echtes `scroll` daneben.
     expect(quelle).not.toMatch(/scroll=\{\{/);
   });
 });

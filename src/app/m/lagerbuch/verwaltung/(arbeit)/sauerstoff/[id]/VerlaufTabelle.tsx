@@ -1,6 +1,7 @@
 "use client";
 
-import { Table, type TableProps } from "antd";
+import type { TableProps } from "antd";
+import { Datentabelle, nachDatum, nachText, nachZahl } from "@/core/tabelle";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -8,56 +9,75 @@ import s from "../../../../_ui/verwaltung.module.css";
 export type VerlaufAnzeigeZeile = {
   id: string;
   zeitpunktText: string;
+  /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
+  zeitpunktIso: string;
   druckBar: number;
   herkunft: "check" | "manuell";
   werText: string;
   kommentarText: string | null;
 };
 
-const VERLAUF_SPALTEN = [
+const HERKUNFT_TEXT = { check: "aus Check", manuell: "manuell" } as const;
+
+/**
+ * ⚠️ SORTIERT WIRD UEBER DEN ROHWERT, NIE UEBER DEN ANZEIGETEXT — `zeitpunktIso`
+ * statt `zeitpunktText`; die Begruendung steht an der Zeilenquelle (`page.tsx`).
+ *
+ * Die Vorsortierung der Abfrage ist „juengste zuerst" (`o2FlascheDetail`,
+ * `orderBy(desc(ts), desc(id))`); `defaultSortOrder` schreibt sie nur auf,
+ * damit die Spalte beim ersten Klick nicht scheinbar nichts tut.
+ */
+const VERLAUF_SPALTEN: TableProps<VerlaufAnzeigeZeile>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Zeitpunkt</span>,
+    title: "Zeitpunkt",
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
+    sorter: nachDatum<VerlaufAnzeigeZeile>((zeile) => zeile.zeitpunktIso),
+    defaultSortOrder: "descend",
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Druck</span>,
+    title: "Druck",
     dataIndex: "druckBar",
     key: "druck",
     align: "right",
+    sorter: nachZahl<VerlaufAnzeigeZeile>((zeile) => zeile.druckBar),
     render: (wert: number) => <span style={SCHRIFT.mono}>{wert} bar</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Herkunft</span>,
+    title: "Herkunft",
     dataIndex: "herkunft",
     key: "herkunft",
+    filters: [
+      { text: HERKUNFT_TEXT.check, value: "check" },
+      { text: HERKUNFT_TEXT.manuell, value: "manuell" },
+    ],
+    onFilter: (wert, zeile) => zeile.herkunft === wert,
     render: (wert: VerlaufAnzeigeZeile["herkunft"]) => (
-      <Chip ton="grau">{wert === "check" ? "aus Check" : "manuell"}</Chip>
+      <Chip ton="grau">{HERKUNFT_TEXT[wert]}</Chip>
     ),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Wer</span>,
+    title: "Wer",
     dataIndex: "werText",
     key: "wer",
+    sorter: nachText<VerlaufAnzeigeZeile>((zeile) => zeile.werText),
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Kommentar</span>,
+    title: "Kommentar",
     dataIndex: "kommentarText",
     key: "kommentar",
     render: (text: string | null) => (
       text ?? <span style={SCHRIFT.neben}>—</span>
     ),
   },
-] satisfies TableProps<VerlaufAnzeigeZeile>["columns"];
+];
 
 export function VerlaufTabelle({ zeilen }: { zeilen: VerlaufAnzeigeZeile[] }) {
   return (
-    <Table<VerlaufAnzeigeZeile>
+    <Datentabelle<VerlaufAnzeigeZeile>
       rowKey="id"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Messungsverlauf"
       locale={{ emptyText: "Für diese Flasche wurde noch keine Messung erfasst." }}
       dataSource={zeilen}

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { Alert, Button, Flex, Input, InputNumber, Select, Table } from "antd";
+import { Alert, Button, Flex, Input, InputNumber, Select } from "antd";
+import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { inventurKorrektur, type InventurNutzlast } from "../../../_actions/inventur";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
@@ -105,6 +106,15 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
 
   return (
     <>
+      {/*
+        ⚠️ DIESE BEIDEN AUSWAHLFELDER BLEIBEN UEBER DER TABELLE, obwohl DRK-331
+        genau solche Leisten sonst in die Spaltenkoepfe aufloest. Grund: sie sind
+        mit DRK-299 gerade erst entstanden, samt eigener Tests, und eine
+        Zusammenfuehrung ist der falsche Ort, um eine zwei Stunden alte Flaeche
+        umzubauen. Der Umzug in die Spaltenkoepfe gehoert in ein eigenes Ticket;
+        deshalb traegt die Fachspalte hier auch KEINEN zweiten Filter — zwei
+        Filter auf dasselbe Merkmal saehen aus wie zwei Fragen und waeren eine.
+      */}
       <Flex gap={SPACE.sm} wrap style={{ marginBlockEnd: SPACE.md }}>
         <Select<string[]>
           mode="multiple"
@@ -127,10 +137,8 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
           options={faecher.map((f) => ({ value: f, label: f }))}
         />
       </Flex>
-      <Table<InventurZeile>
+      <Datentabelle<InventurZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Inventur"
         dataSource={sichtbar}
         // Spec §B: JEDE Zeile ist aufklappbar — auch ohne Charge, dort bleibt die
@@ -161,21 +169,28 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             ? "Keine Artikel vorhanden. Lege sie zuerst unter Artikel & Bestand an."
             : "Kein Artikel passt zum Filter.",
         }}
-        // Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS
-        // gegen `.ant-table-thead` (docs/design/README.md).
+        // Den Spaltenkopf-Kicker setzt `Datentabelle` selbst, sobald `title`
+        // eine Zeichenkette ist (docs/design/README.md).
+        //
+        // ⚠️ KEINE SORTIERUNG AUF „Abweichung" UND „Ist": beide lesen
+        // `beruehrt`, also den Zaehlstand DIESER Sitzung. Eine Spalte, die sich
+        // waehrend des Zaehlens selbst umsortiert, verliert die Zeile unter dem
+        // Finger.
         columns={[
           {
-            title: <span style={SCHRIFT.feldname}>Artikel</span>,
+            title: "Artikel",
             dataIndex: "name",
+            sorter: nachText<InventurZeile>((zeile) => zeile.name),
             render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
           },
           {
-            title: <span style={SCHRIFT.feldname}>Fach</span>,
+            title: "Fach",
             dataIndex: "fach",
+            sorter: nachText<InventurZeile>((zeile) => zeile.fach),
             render: (wert: string) => <span className={s.fach}>{wert}</span>,
           },
           {
-            title: <span style={SCHRIFT.feldname}>MHD</span>,
+            title: "MHD",
             dataIndex: "chargen",
             // `chargen[0]` ist FEFO-naechste Handlager-Charge. `2099-12` („ohne
             // Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall` — dort
@@ -188,21 +203,23 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             },
           },
           {
-            title: <span style={SCHRIFT.feldname}>Min.</span>,
+            title: "Min.",
             dataIndex: "mindestbestand",
             align: "right",
             render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
           },
           {
-            title: <span style={SCHRIFT.feldname}>Bestand</span>,
+            title: "Bestand",
             dataIndex: "bestand",
             align: "right",
+            // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
+            sorter: nachZahl<InventurZeile>((zeile) => zeile.bestand),
             render: (wert: number, zeile) => (
               <span style={SCHRIFT.mono}>{wert} {zeile.einheit}</span>
             ),
           },
           {
-            title: <span style={SCHRIFT.feldname}>Abweichung</span>,
+            title: "Abweichung",
             dataIndex: "id",
             render: (_wert: string, zeile) => {
               if (!(zeile.id in stand)) return null;
@@ -216,7 +233,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
             },
           },
           {
-            title: <span style={SCHRIFT.feldname}>Ist</span>,
+            title: "Ist",
             dataIndex: "id",
             align: "right",
             render: (_wert: string, zeile) => {

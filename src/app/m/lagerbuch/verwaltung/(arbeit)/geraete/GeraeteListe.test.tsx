@@ -132,19 +132,65 @@ function istRekursivJsonSicher(wert: unknown): boolean {
   return Object.values(wert).every(istRekursivJsonSicher);
 }
 
-function checkboxMitText(text: string, portal = false): HTMLElement {
-  const wurzel = portal ? document.body : query(".ant-checkbox-group").parentElement;
-  const checkbox = Array.from(wurzel?.querySelectorAll<HTMLElement>(".ant-checkbox-wrapper") ?? [])
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!checkbox) throw new Error(`Checkbox nicht gefunden: ${text}`);
-  return checkbox;
+/**
+ * Die Freitextsuche laeuft ueber `useEntprellt` — das FELD steht sofort, die
+ * ABLEITUNG erst nach der Entprellzeit. Ohne dieses Warten misst der Test den
+ * Zustand VOR dem Filtern und meldet das als „Filter wirkt nicht".
+ */
+async function suchen(wert: string): Promise<void> {
+  await fill("input[type='search']", wert);
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 250));
+  });
 }
 
-function klassenCheckbox(text: string): HTMLElement {
-  const checkbox = queryAll<HTMLElement>(".ant-checkbox-group .ant-checkbox-wrapper")
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!checkbox) throw new Error(`Klassencheckbox nicht gefunden: ${text}`);
-  return checkbox;
+/**
+ * Einen Spaltenfilter setzen — den Weg, den auch eine Person nimmt: Trichter im
+ * Spaltenkopf, Eintraege ankreuzen, „OK". Ohne Eintraege wird zurueckgesetzt.
+ *
+ * ⚠️ DIE EINTRAEGE WERDEN UMGESCHALTET, NICHT GESETZT: das Menue behaelt seine
+ * bisherige Auswahl, ein erneut genannter Eintrag faellt also wieder heraus.
+ */
+async function spaltenFilter(spalte: string, ...eintraege: string[]): Promise<void> {
+  const kopf = queryAll<HTMLElement>("thead th")
+    .find((th) => (th.textContent ?? "").includes(spalte));
+  const trichter = kopf?.querySelector<HTMLElement>(".ant-table-filter-trigger");
+  if (!trichter) throw new Error(`Kein Spaltenfilter an: ${spalte}`);
+  await clickElement(trichter);
+
+  // ⚠️ NUR DAS OFFENE MENUE. antd laesst ein einmal geoeffnetes Filtermenue im
+  // DOM stehen und blendet es nur aus; ohne diese Einschraenkung traefe „OK"
+  // den Knopf eines FRUEHER geoeffneten Menues, und der Filter dieser Spalte
+  // bliebe still unangewandt.
+  const offen = () =>
+    document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+  const menue = () => Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? []);
+  await warteAuf(() => menue().length > 0, `Filtermenü zu ${spalte}`);
+
+  for (const text of eintraege) {
+    const eintrag = menue().find((li) => (li.textContent ?? "").includes(text));
+    if (!eintrag) throw new Error(`Filtereintrag nicht gefunden: ${text}`);
+    await clickElement(eintrag);
+  }
+
+  // Ohne `ConfigProvider`-Locale beschriftet antd die beiden Knoepfe englisch
+  // („Reset"/„OK"); beide Schreibweisen werden akzeptiert.
+  const knopf = (muster: RegExp) => Array.from(
+    offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+  ).find((element) => muster.test(element.textContent ?? ""));
+
+  // „Zuruecksetzen" leert nur die Auswahl; uebernommen wird sie erst mit „OK".
+  if (eintraege.length === 0) {
+    const leeren = knopf(/Zurücksetzen|Reset/);
+    if (!leeren) throw new Error("Kein Zurücksetzen-Knopf im Filtermenü");
+    await clickElement(leeren);
+  }
+  const uebernehmen = knopf(/^OK$/);
+  if (!uebernehmen) throw new Error("Kein OK-Knopf im Filtermenü");
+  await clickElement(uebernehmen);
+  await warte();
 }
 
 function knopfMitText(text: string, wurzel: ParentNode = document.body): HTMLElement {
@@ -243,68 +289,58 @@ describe("GeraeteListe", () => {
     expect(sucheTrifft(ZEILEN[0], "RTW 1")).toBe(false);
   });
 
-  it("schaltet Medizin zuerst und danach beide Klassen ohne Doppeltoggle", async () => {
+  /**
+   * Die `Checkbox.Group` fuer die Klasse und die Haken „nur fällige" /
+   * „inaktive ausblenden" standen bis zur Umstellung ueber der Tabelle. Alle
+   * drei sind Spaltenfilter geworden — dieselben Praedikate, nur dort, wo ihre
+   * Wirkung sichtbar ist.
+   */
+  it("filtert die Klasse über den Spaltenkopf, beide Haken zeigen wieder alles", async () => {
     await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
-    expect(exists(".ant-checkbox-group")).toBe(true);
+    expect(exists(".ant-checkbox-group")).toBe(false);
     expect(exists(".ant-segmented")).toBe(false);
     expect(exists(".ant-tag-checkable")).toBe(false);
 
-    await clickElement(klassenCheckbox("Medizin"));
+    await spaltenFilter("Klasse", "Medizin");
     expect(zeilenIds()).toEqual(["med-faellig", "med-ohne-datum"]);
-    expect(query(`.${s.filtertreffer}`).textContent).toBe("2 von 4");
 
-    await clickElement(klassenCheckbox("Objekt"));
+    await spaltenFilter("Klasse", "Objekt");
     expect(zeilenIds()).toEqual([
       "med-faellig", "med-ohne-datum", "obj-faellig", "obj-ohne-datum",
     ]);
 
-    await clickElement(klassenCheckbox("Medizin"));
+    await spaltenFilter("Klasse", "Medizin");
     expect(zeilenIds()).toEqual(["obj-faellig", "obj-ohne-datum"]);
   });
 
-  it("schaltet Objekt zuerst und danach beide Klassen ohne Doppeltoggle", async () => {
+  it("schneidet Suche, Klasse, Fälligkeit und Status miteinander", async () => {
     await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
-    await clickElement(klassenCheckbox("Objekt"));
-    expect(zeilenIds()).toEqual(["obj-faellig", "obj-ohne-datum"]);
-
-    await clickElement(klassenCheckbox("Medizin"));
-    expect(zeilenIds()).toEqual([
-      "med-faellig", "med-ohne-datum", "obj-faellig", "obj-ohne-datum",
-    ]);
-
-    await clickElement(klassenCheckbox("Objekt"));
-    expect(zeilenIds()).toEqual(["med-faellig", "med-ohne-datum"]);
-  });
-
-  it("kombiniert Suche, Klasse, Fälligkeit und ausgeblendete Inaktive", async () => {
-    await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
-    await clickElement(klassenCheckbox("Objekt"));
-    await clickElement(checkboxMitText("nur fällige"));
-    await clickElement(checkboxMitText("inaktive ausblenden"));
-    await fill("input[type='search']", "rucksack");
+    await spaltenFilter("Klasse", "Objekt");
+    await spaltenFilter("Fälligkeit", "fällig/überfällig");
+    await spaltenFilter("Status", "aktiv");
+    await suchen("rucksack");
 
     expect(zeilenIds()).toEqual(["obj-faellig"]);
+    // Die Trefferanzeige zaehlt die Freitextsuche; die Spaltenfilter zeigen
+    // ihre Wirkung im Spaltenkopf.
     expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 4");
   });
 
-  it("setzt Suche, Klassen und beide Einzelschalter vollständig zurück", async () => {
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE FAELLIGKEIT NICHT UEBER DEN CHIPTEXT SORTIERT.
+   * „MTK in 3 T" stuende als Zeichenkette vor „abgelaufen (2 T)"; nur ueber die
+   * Ampel steht Rot oben.
+   */
+  it("sortiert die Fälligkeit über die Ampel, nicht über den Chiptext", async () => {
     await mount(<GeraeteListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
-    await fill("input[type='search']", "corpuls");
-    await clickElement(klassenCheckbox("Medizin"));
-    await clickElement(checkboxMitText("nur fällige"));
-    await clickElement(checkboxMitText("inaktive ausblenden"));
 
-    await clickElement(knopfMitText("Zurücksetzen", query(".ant-flex")));
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Fälligkeit"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
 
-    expect(query<HTMLInputElement>("input[type='search']").value).toBe("");
-    expect(queryAll<HTMLInputElement>("input[type='checkbox']")
-      .map((checkbox) => checkbox.checked)).toEqual([false, false, false, false]);
     expect(zeilenIds()).toEqual([
-      "med-faellig", "med-ohne-datum", "obj-faellig", "obj-ohne-datum",
+      "obj-faellig", "med-faellig", "med-ohne-datum", "obj-ohne-datum",
     ]);
-    expect(exists(`.${s.filtertreffer}`)).toBe(false);
-    expect(queryAll("button").some((knopf) => knopf.textContent?.includes("Zurücksetzen")))
-      .toBe(false);
   });
 
   it("unterscheidet ungefilterten und gefilterten Leertext samt X-von-Y", async () => {
@@ -314,9 +350,13 @@ describe("GeraeteListe", () => {
     await unmount();
 
     await mount(<GeraeteListe zeilen={[ZEILEN[3]]} lagerorte={LAGERORTE} />);
-    await clickElement(checkboxMitText("nur fällige"));
+    await spaltenFilter("Fälligkeit", "fällig/überfällig");
     expect(zeilenIds()).toEqual([]);
     expect(document.body.textContent).toContain("Kein Gerät passt zu Suche und Filter.");
+    await unmount();
+
+    await mount(<GeraeteListe zeilen={[ZEILEN[3]]} lagerorte={LAGERORTE} />);
+    await suchen("gibt es nicht");
     expect(query(`.${s.filtertreffer}`).textContent).toBe("0 von 1");
   });
 
@@ -331,12 +371,16 @@ describe("GeraeteListe", () => {
     );
     expect(quelle.split(/\r?\n/, 1)[0]).toBe('"use client";');
     expect(quelle).toMatch(/rowKey=["']id["']/);
-    expect(quelle).toMatch(/pagination=\{false\}/);
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM (oben und
+    // in der naechsten Zeile), nicht mehr die Schreibweise in dieser Datei.
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
     expect(quelle).not.toContain("/m/lagerbuch/verwaltung");
     expect(quelle).not.toContain("@ant-design/icons");
-    expect(quelle).toMatch(/options=\{\[/);
-    expect(quelle).not.toMatch(/<Checkbox\.Group[^>]*\bonChange=/);
+    // Die Klassen-`Checkbox.Group` ist ein Spaltenfilter geworden — sie steht
+    // hier gar nicht mehr, und damit auch kein `onChange` an ihr.
+    expect(quelle).not.toMatch(/<Checkbox\.Group/);
   });
 });
 

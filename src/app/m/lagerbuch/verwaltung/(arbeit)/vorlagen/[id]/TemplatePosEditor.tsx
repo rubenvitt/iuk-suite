@@ -9,9 +9,15 @@ import {
   InputNumber,
   Popconfirm,
   Select,
-  Table,
   type TableProps,
 } from "antd";
+import {
+  Datentabelle,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import {
   templatePositionEntfernen,
@@ -147,15 +153,20 @@ export function TemplatePosEditor({
 
   const spalten: TableProps<TemplatePositionZeile>["columns"] = [
     {
-      title: <span style={SCHRIFT.feldname}>Fach</span>,
+      title: "Fach",
       dataIndex: "fachLabel",
       key: "fach",
+      sorter: nachText<TemplatePositionZeile>((position) => position.fachLabel),
+      defaultSortOrder: "ascend",
+      filters: werteAlsFilter(positionen, (position) => position.fachLabel),
+      onFilter: trifftWert<TemplatePositionZeile>((position) => position.fachLabel),
       render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
     },
     {
-      title: <span style={SCHRIFT.feldname}>Artikel</span>,
+      title: "Artikel",
       dataIndex: "artikelName",
       key: "artikel",
+      sorter: nachText<TemplatePositionZeile>((position) => position.artikelName),
       render: (artikelName: string, position) => (
         // 2 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
         // Zweizeiler aus Artikelname und Bestandstext, keine Geschwisterzeile
@@ -169,10 +180,13 @@ export function TemplatePosEditor({
       ),
     },
     {
-      title: <span style={SCHRIFT.feldname}>Soll</span>,
+      title: "Soll",
       dataIndex: "soll",
       key: "soll",
       align: "right",
+      // ⚠️ UEBER DEN GESPEICHERTEN WERT, NICHT UEBER DEN SPIEGEL: sonst
+      // sortierte sich die Zeile waehrend des Tippens unter dem Finger weg.
+      sorter: nachZahl<TemplatePositionZeile>((position) => position.soll),
       render: (wert: number, position) => (
         // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
         // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
@@ -224,10 +238,8 @@ export function TemplatePosEditor({
   return (
     <div style={{ display: "grid", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Table<TemplatePositionZeile>
+      <Datentabelle<TemplatePositionZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Vorlagen-Positionen"
         dataSource={positionen}
         locale={{ emptyText: "Noch keine Position. Lege unten die erste an." }}

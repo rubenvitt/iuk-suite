@@ -2,7 +2,8 @@
 
 // src/app/m/radio/admin/(arbeit)/ausleihen/AusleihenTabelle.tsx
 import { useCallback } from "react";
-import { Button, Card, DatePicker, Grid, List, Select, Table, Tag, type TableColumnType } from "antd";
+import { Button, Card, DatePicker, Grid, List, Select, Tag, type TableColumnType } from "antd";
+import { Datentabelle } from "@/core/tabelle";
 import dayjs from "dayjs";
 import { usePathname, useRouter } from "next/navigation";
 import type { AusleihZeile, GeraetWahl } from "../../../_lib/lesepfade/ausleihen";
@@ -58,8 +59,13 @@ import s from "../../../_ui/verwaltung.module.css";
  * Groessenwechsler (`LoanList.tsx:8`, `:66`).
  *
  * ⛔ KEIN `size` (Falle 4): die Verwaltung laeuft seit dem 2026-08-28 auf `SCHREIBTISCHDICHTE`
- * mit `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon. Platz schafft
- * `scroll={{ x: "max-content" }}`.
+ * mit `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon. Platz schafft das
+ * waagerechte Scrollen.
+ *
+ * ⛔ DIE TABELLE IST SEIT DER UMSTELLUNG AUF `@/core/tabelle` EINE `Datentabelle` — derselbe
+ * antd-`Table` mit den Vorgaben der Suite. `pagination={false}` und
+ * `scroll={{ x: "max-content" }}` stehen dort und nicht mehr hier; der Spaltenkopf-Kicker
+ * (`docs/design/README.md`) kommt von ihr, `title` bleibt eine blanke Zeichenkette.
  */
 
 /** Der Gedankenstrich dieses Moduls — dieselbe Wahl wie `GeraeteTabelle.tsx:69`. */
@@ -105,10 +111,17 @@ function StatusMarke({ aktiv }: { aktiv: boolean }) {
 /**
  * DIE SIEBEN SPALTEN, 1:1 AUS `LoanList.tsx:15-47` — in dieser Reihenfolge.
  *
- * ⛔ KEINE TRAEGT EINEN `sorter`. `leihhistorie` sortiert IMMER `desc(borrowedAt)`, ohne
- * Parameter (1:1 `loanRepo.ts:153`); ein `sorter` ergaebe eine antd-INTERNE Sortierung ueber
- * der bereits geschnittenen Seite — die Reihenfolge auf dem Bildschirm waere eine andere als
- * die der Abfrage, und zwar nur auf der gerade sichtbaren Seite.
+ * ⛔ **KEINE TRAEGT EINEN `sorter` ODER EIN `filters`, UND DAS BLEIBT AUCH NACH DER
+ * UMSTELLUNG AUF `@/core/tabelle` SO** — der Grund ist die SERVERSEITIGE Blaetterung, nicht
+ * fehlende Lust. `leihhistorie` sortiert IMMER `desc(borrowedAt)`, ohne Parameter (1:1
+ * `loanRepo.ts:153`), und schneidet auf zwanzig Zeilen; ein `sorter` ordnete nur die gerade
+ * sichtbare SEITE um, ein Spaltenfilter durchsuchte nur sie. Beides sieht aus wie eine
+ * Aussage ueber den ganzen Bestand und ist eine ueber zwanzig Zeilen — genau die Grenze, die
+ * `werteAlsFilter` in `src/core/tabelle/spaltenfilter.ts` ausdruecklich nennt.
+ * ⛔ DESHALB BLEIBT AUCH DIE FILTERLEISTE UEBER DER TABELLE STEHEN: sie filtert die ABFRAGE
+ * (Geraet und Zeitraum ueber die Adresszeile), nicht die geladenen Zeilen. Sie in
+ * Spaltenfilter aufzuloesen hiesse, aus einer Aussage ueber den Bestand eine ueber die Seite
+ * zu machen.
  *
  * ⛔ EXPORTIERT, DAMIT DIE ZELLEN OHNE TABELLE PRUEFBAR SIND: in jsdom rendert diese Insel
  * den MOBILEN Zweig (`vitest.setup.ts` stubt `matchMedia` mit `matches: false`), der
@@ -341,21 +354,20 @@ export function AusleihenTabelle({
       />
 
       {breit ? (
-        <Table<AusleihZeile>
+        /*
+          ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der
+          `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Die Begruendung gilt
+          unveraendert: die Blaetterung laeuft ueber die URL (Regime B, antd-Zuordnung
+          `.superpowers/sdd/planteil4/briefs/KOPF.md:1053`), und eine zweite, rein
+          clientseitige Blaetterung ueber den bereits geschnittenen zwanzig Zeilen waere
+          schlicht falsch. ⚠️ Sie faellt in Vitest NICHT auf — dort rendert diese Insel den
+          MOBILEN Zweig; der Waechter ist der Quelltext-Scan in der Testdatei und der
+          Playwright-Fall (V23).
+        */
+        <Datentabelle<AusleihZeile>
           rowKey="id"
           columns={SPALTEN}
           dataSource={zeilen}
-          /*
-            ⛔ `pagination={false}` — die Blaetterung laeuft ueber die URL (Regime B,
-            antd-Zuordnung `.superpowers/sdd/planteil4/briefs/KOPF.md:1053`). ⚠️ Ein
-            versehentlich eingeschaltetes `pagination` faellt in Vitest NICHT auf: jsdom zeigte
-            dann eine zweite, rein clientseitige Blaetterung ueber den bereits geschnittenen
-            zwanzig Zeilen. Der Waechter ist der Quelltext-Scan in der Testdatei und der
-            Playwright-Fall (V23).
-          */
-          pagination={false}
-          /* Ohne `scroll` bricht eine antd-Tabelle auf 390 px (`aufgaben/_ui/RoutinenTabelle.tsx:33-34`). */
-          scroll={{ x: "max-content" }}
           aria-label="Ausleihen"
           locale={{ emptyText: "Keine Ausleihe gefunden" }}
         />

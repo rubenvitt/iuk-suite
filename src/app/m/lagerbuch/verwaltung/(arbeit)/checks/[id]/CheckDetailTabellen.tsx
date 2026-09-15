@@ -1,6 +1,17 @@
 "use client";
 
-import { Card, Table, type TableProps } from "antd";
+import { useMemo } from "react";
+import { Card, type TableProps } from "antd";
+import {
+  Datentabelle,
+  nachDatum,
+  nachRang,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
@@ -20,6 +31,16 @@ export type AbgleichAnzeigeZeile = {
   istText: string;
   korrekturText: string;
   nachgefuelltText: string;
+  /**
+   * Die vier Zahlen und die Offen-Menge als Zahl — allein fuer die Sortierung.
+   * ⚠️ Die `…Text`-Felder sind `String(…)` und ordneten als Zeichenkette „10"
+   * vor „2"; die Begruendung steht an der Zeilenquelle (`page.tsx`).
+   */
+  sollZahl: number;
+  istZahl: number;
+  korrekturZahl: number;
+  nachgefuelltZahl: number;
+  offenZahl: number;
   offenChip: DetailChipAnzeige;
 };
 
@@ -30,6 +51,10 @@ export type NachfuellAnzeigeZeile = {
   einheitText: string;
   sollText: string;
   istText: string;
+  /** Rohzahlen fuer die Sortierung, s. `AbgleichAnzeigeZeile`. */
+  sollZahl: number;
+  istZahl: number;
+  lueckeZahl: number;
   lueckeChip: DetailChipAnzeige;
 };
 
@@ -49,12 +74,15 @@ export type FlascheAnzeigeZeile = {
     text: string;
     ton: AmpelTon | null;
   };
+  /** Der Druck als Zahl — allein fuer die Sortierung, `null` heisst ungemessen. */
+  druckZahl: number | null;
   fuellstandChip: DetailChipAnzeige;
 };
 
 export type VerfallAnzeigeZeile = {
   id: string;
   artikel: string;
+  /** „YYYY-MM" — Anzeige UND Sortierschluessel zugleich, deshalb ohne Rohfeld. */
   verfallText: string;
   statusChip: DetailChipAnzeige;
 };
@@ -79,6 +107,12 @@ export type CheckDetailTabellenProps = {
   unlesbarLeertext?: string | null;
 };
 
+/**
+ * Die Ampel ist die fachliche Ordnung dieser Chips — weder alphabetisch noch
+ * numerisch. Rot zuerst: was Aufmerksamkeit verlangt, gehoert nach oben.
+ */
+const AMPEL_RANG = ["rot", "gelb", "grau", "ok"] as const;
+
 function AnzeigeChip({ chip }: { chip: DetailChipAnzeige }) {
   return (
     <Chip ton={chip.ton} zeichen={chip.zeichen ?? undefined}>
@@ -87,55 +121,79 @@ function AnzeigeChip({ chip }: { chip: DetailChipAnzeige }) {
   );
 }
 
-const ABGLEICH_SPALTEN = [
-  { title: <span style={SCHRIFT.feldname}>Artikel</span>, dataIndex: "artikel", key: "artikel" },
+const OFFEN_FILTER = zustandsFilter<AbgleichAnzeigeZeile>([
+  { wert: "offen", text: "fehlt weiterhin", trifft: (zeile) => zeile.offenZahl > 0 },
+  { wert: "vollstaendig", text: "vollständig", trifft: (zeile) => zeile.offenZahl === 0 },
+]);
+
+const LUECKE_FILTER = zustandsFilter<NachfuellAnzeigeZeile>([
+  { wert: "luecke", text: "Lücke", trifft: (zeile) => zeile.lueckeZahl > 0 },
+  { wert: "vollstaendig", text: "vollständig", trifft: (zeile) => zeile.lueckeZahl === 0 },
+]);
+
+const ABGLEICH_SPALTEN: TableProps<AbgleichAnzeigeZeile>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Soll</span>,
+    title: "Artikel",
+    dataIndex: "artikel",
+    key: "artikel",
+    sorter: nachText<AbgleichAnzeigeZeile>((zeile) => zeile.artikel),
+  },
+  {
+    title: "Soll",
     dataIndex: "sollText",
     key: "soll",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<AbgleichAnzeigeZeile>((zeile) => zeile.sollZahl),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Gezählt</span>,
+    title: "Gezählt",
     dataIndex: "istText",
     key: "ist",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<AbgleichAnzeigeZeile>((zeile) => zeile.istZahl),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Korrigiert</span>,
+    title: "Korrigiert",
     dataIndex: "korrekturText",
     key: "korrektur",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<AbgleichAnzeigeZeile>((zeile) => zeile.korrekturZahl),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Nachgefüllt</span>,
+    title: "Nachgefüllt",
     dataIndex: "nachgefuelltText",
     key: "nachgefuellt",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<AbgleichAnzeigeZeile>((zeile) => zeile.nachgefuelltZahl),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Offen</span>,
+    title: "Offen",
     dataIndex: "offenChip",
     key: "offen",
+    sorter: nachZahl<AbgleichAnzeigeZeile>((zeile) => zeile.offenZahl),
+    filters: OFFEN_FILTER.filters,
+    onFilter: OFFEN_FILTER.onFilter,
     render: (offenChip: DetailChipAnzeige) => <AnzeigeChip chip={offenChip} />,
   },
-] satisfies TableProps<AbgleichAnzeigeZeile>["columns"];
+];
 
-const NACHFUELL_SPALTEN = [
+const NACHFUELL_SPALTEN: TableProps<NachfuellAnzeigeZeile>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Fach</span>,
+    title: "Fach",
     dataIndex: "fachText",
     key: "fach",
+    sorter: nachText<NachfuellAnzeigeZeile>((zeile) => zeile.fachText),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Artikel</span>,
+    title: "Artikel",
     dataIndex: "artikelText",
     key: "artikel",
+    sorter: nachText<NachfuellAnzeigeZeile>((zeile) => zeile.artikelText),
     render: (text: string, zeile: NachfuellAnzeigeZeile) => (
       <>
         {text}{" "}
@@ -144,85 +202,140 @@ const NACHFUELL_SPALTEN = [
     ),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Soll</span>,
+    title: "Soll",
     dataIndex: "sollText",
     key: "soll",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<NachfuellAnzeigeZeile>((zeile) => zeile.sollZahl),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Gezählt</span>,
+    title: "Gezählt",
     dataIndex: "istText",
     key: "ist",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<NachfuellAnzeigeZeile>((zeile) => zeile.istZahl),
     render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Lücke im Fach</span>,
+    title: "Lücke im Fach",
     dataIndex: "lueckeChip",
     key: "luecke",
+    sorter: nachZahl<NachfuellAnzeigeZeile>((zeile) => zeile.lueckeZahl),
+    filters: LUECKE_FILTER.filters,
+    onFilter: LUECKE_FILTER.onFilter,
     render: (lueckeChip: DetailChipAnzeige) => <AnzeigeChip chip={lueckeChip} />,
   },
-] satisfies TableProps<NachfuellAnzeigeZeile>["columns"];
+];
 
-const GERAETE_SPALTEN = [
-  { title: <span style={SCHRIFT.feldname}>Gerät</span>, dataIndex: "name", key: "name" },
-  {
-    title: <span style={SCHRIFT.feldname}>Vorhanden</span>,
-    dataIndex: "vorhandenChip",
-    key: "vorhanden",
-    render: (vorhandenChip: DetailChipAnzeige) => <AnzeigeChip chip={vorhandenChip} />,
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Zustand</span>,
-    dataIndex: "zustandChip",
-    key: "zustand",
-    render: (zustandChip: DetailChipAnzeige) => <AnzeigeChip chip={zustandChip} />,
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Bemerkung</span>,
-    dataIndex: "bemerkungText",
-    key: "bemerkung",
-    render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
-  },
-] satisfies TableProps<GeraetAnzeigeZeile>["columns"];
+function geraeteSpalten(
+  zeilen: GeraetAnzeigeZeile[],
+): TableProps<GeraetAnzeigeZeile>["columns"] {
+  return [
+    {
+      title: "Gerät",
+      dataIndex: "name",
+      key: "name",
+      sorter: nachText<GeraetAnzeigeZeile>((zeile) => zeile.name),
+    },
+    {
+      title: "Vorhanden",
+      dataIndex: "vorhandenChip",
+      key: "vorhanden",
+      sorter: nachRang<GeraetAnzeigeZeile, AmpelTon>(
+        (zeile) => zeile.vorhandenChip.ton,
+        AMPEL_RANG,
+      ),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.vorhandenChip.text),
+      onFilter: trifftWert<GeraetAnzeigeZeile>((zeile) => zeile.vorhandenChip.text),
+      render: (vorhandenChip: DetailChipAnzeige) => <AnzeigeChip chip={vorhandenChip} />,
+    },
+    {
+      title: "Zustand",
+      dataIndex: "zustandChip",
+      key: "zustand",
+      sorter: nachRang<GeraetAnzeigeZeile, AmpelTon>(
+        (zeile) => zeile.zustandChip.ton,
+        AMPEL_RANG,
+      ),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.zustandChip.text),
+      onFilter: trifftWert<GeraetAnzeigeZeile>((zeile) => zeile.zustandChip.text),
+      render: (zustandChip: DetailChipAnzeige) => <AnzeigeChip chip={zustandChip} />,
+    },
+    {
+      title: "Bemerkung",
+      dataIndex: "bemerkungText",
+      key: "bemerkung",
+      render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
+    },
+  ];
+}
 
-const FLASCHEN_SPALTEN = [
-  { title: <span style={SCHRIFT.feldname}>Flasche</span>, dataIndex: "name", key: "name" },
+const FLASCHEN_SPALTEN: TableProps<FlascheAnzeigeZeile>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Druck</span>,
+    title: "Flasche",
+    dataIndex: "name",
+    key: "name",
+    sorter: nachText<FlascheAnzeigeZeile>((zeile) => zeile.name),
+  },
+  {
+    title: "Druck",
     dataIndex: "druck",
     key: "druck",
-    align: "right" as const,
+    align: "right",
+    sorter: nachZahl<FlascheAnzeigeZeile>((zeile) => zeile.druckZahl),
     render: (druck: FlascheAnzeigeZeile["druck"]) => druck.darstellung === "chip"
       ? <Chip ton={druck.ton ?? "grau"}>{druck.text}</Chip>
       : <span style={SCHRIFT.mono}>{druck.text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Füllstand</span>,
+    title: "Füllstand",
     dataIndex: "fuellstandChip",
     key: "fuellstand",
+    sorter: nachRang<FlascheAnzeigeZeile, AmpelTon>(
+      (zeile) => zeile.fuellstandChip.ton,
+      AMPEL_RANG,
+    ),
     render: (fuellstandChip: DetailChipAnzeige) => (
       <AnzeigeChip chip={fuellstandChip} />
     ),
   },
-] satisfies TableProps<FlascheAnzeigeZeile>["columns"];
+];
 
-const VERFALL_SPALTEN = [
-  { title: <span style={SCHRIFT.feldname}>Artikel</span>, dataIndex: "artikel", key: "artikel" },
-  {
-    title: <span style={SCHRIFT.feldname}>Verfall</span>,
-    dataIndex: "verfallText",
-    key: "verfall",
-    render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Status</span>,
-    dataIndex: "statusChip",
-    key: "status",
-    render: (statusChip: DetailChipAnzeige) => <AnzeigeChip chip={statusChip} />,
-  },
-] satisfies TableProps<VerfallAnzeigeZeile>["columns"];
+function verfallSpalten(
+  zeilen: VerfallAnzeigeZeile[],
+): TableProps<VerfallAnzeigeZeile>["columns"] {
+  return [
+    {
+      title: "Artikel",
+      dataIndex: "artikel",
+      key: "artikel",
+      sorter: nachText<VerfallAnzeigeZeile>((zeile) => zeile.artikel),
+    },
+    {
+      title: "Verfall",
+      dataIndex: "verfallText",
+      key: "verfall",
+      // „YYYY-MM" ordnet als Zeichenkette bereits richtig — deshalb hier
+      // ausnahmsweise dasselbe Feld fuer Anzeige und Sortierung.
+      sorter: nachDatum<VerfallAnzeigeZeile>((zeile) => zeile.verfallText),
+      defaultSortOrder: "ascend",
+      render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
+    },
+    {
+      title: "Status",
+      dataIndex: "statusChip",
+      key: "status",
+      sorter: nachRang<VerfallAnzeigeZeile, AmpelTon>(
+        (zeile) => zeile.statusChip.ton,
+        AMPEL_RANG,
+      ),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.statusChip.text),
+      onFilter: trifftWert<VerfallAnzeigeZeile>((zeile) => zeile.statusChip.text),
+      render: (statusChip: DetailChipAnzeige) => <AnzeigeChip chip={statusChip} />,
+    },
+  ];
+}
 
 export function CheckDetailTabellen({
   abgleichZeilen,
@@ -235,13 +348,16 @@ export function CheckDetailTabellen({
 }: CheckDetailTabellenProps) {
   // Ein unlesbares Ergebnis schlaegt JEDEN Vorgabetext — siehe `unlesbarLeertext`.
   const leertext = (vorgabe: string) => unlesbarLeertext ?? vorgabe;
+  // Zwei Spaltenlisten entstehen aus den Daten (die Filterwerte); ohne `useMemo`
+  // baute jedes Rendern eine neue und zwaenge die Tabelle zur Neuberechnung.
+  const geraeteListe = useMemo(() => geraeteSpalten(geraeteZeilen), [geraeteZeilen]);
+  const verfallListe = useMemo(() => verfallSpalten(verfallZeilen), [verfallZeilen]);
+
   return (
     <>
       <Card title="Abgleich" style={{ marginBlockEnd: SPACE.lg }}>
-        <Table<AbgleichAnzeigeZeile>
+        <Datentabelle<AbgleichAnzeigeZeile>
           rowKey="id"
-          pagination={false}
-          scroll={{ x: "max-content" }}
           aria-label="Abgleich"
           locale={{ emptyText: leertext("Keine Positionen erfasst.") }}
           dataSource={abgleichZeilen}
@@ -249,10 +365,8 @@ export function CheckDetailTabellen({
         />
       </Card>
       <Card title="Nachfüllung (je Fach)" style={{ marginBlockEnd: SPACE.lg }}>
-        <Table<NachfuellAnzeigeZeile>
+        <Datentabelle<NachfuellAnzeigeZeile>
           rowKey="id"
-          pagination={false}
-          scroll={{ x: "max-content" }}
           aria-label="Nachfüllung je Fach"
           locale={{ emptyText: leertext(nachfuellLeertext) }}
           dataSource={nachfuellZeilen}
@@ -260,21 +374,17 @@ export function CheckDetailTabellen({
         />
       </Card>
       <Card title="Geräte" style={{ marginBlockEnd: SPACE.lg }}>
-        <Table<GeraetAnzeigeZeile>
+        <Datentabelle<GeraetAnzeigeZeile>
           rowKey="id"
-          pagination={false}
-          scroll={{ x: "max-content" }}
           aria-label="Geräte im Check"
           locale={{ emptyText: leertext("Keine Geräte in diesem Check.") }}
           dataSource={geraeteZeilen}
-          columns={GERAETE_SPALTEN}
+          columns={geraeteListe}
         />
       </Card>
       <Card title="Sauerstoff" style={{ marginBlockEnd: SPACE.lg }}>
-        <Table<FlascheAnzeigeZeile>
+        <Datentabelle<FlascheAnzeigeZeile>
           rowKey="id"
-          pagination={false}
-          scroll={{ x: "max-content" }}
           aria-label="Sauerstoff im Check"
           locale={{ emptyText: leertext("Keine Flaschen in diesem Check.") }}
           dataSource={flaschenZeilen}
@@ -282,14 +392,12 @@ export function CheckDetailTabellen({
         />
       </Card>
       <Card title="Verfall (gegen heute gerechnet)">
-        <Table<VerfallAnzeigeZeile>
+        <Datentabelle<VerfallAnzeigeZeile>
           rowKey="id"
-          pagination={false}
-          scroll={{ x: "max-content" }}
           aria-label="Verfallsmeldungen des Checks"
           locale={{ emptyText: leertext("Keine Verfallsangabe in diesem Check.") }}
           dataSource={verfallZeilen}
-          columns={VERFALL_SPALTEN}
+          columns={verfallListe}
         />
       </Card>
     </>

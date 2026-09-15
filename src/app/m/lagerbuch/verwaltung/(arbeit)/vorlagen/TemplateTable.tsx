@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Table, type TableProps } from "antd";
+import type { TableProps } from "antd";
+import {
+  Datentabelle,
+  nachText,
+  nachZahl,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
@@ -12,13 +18,30 @@ export type TemplateAnzeigeZeile = {
   detailHref: string;
   inaktiv: boolean;
   bestueckungText: string;
+  /**
+   * Die Positionszahl als Zahl — allein fuer die Sortierung, angezeigt wird
+   * `bestueckungText`. ⚠️ Ueber „12 Positionen · 3 Faecher" zu sortieren, ordnete
+   * als Zeichenkette „12" vor „2"; die Spalte laege dann still falsch.
+   */
+  positionenZahl: number;
   fahrzeugeText: string;
+  /** Dieselbe Trennung wie `positionenZahl`, fuer „3 Fahrzeuge". */
+  fahrzeugeZahl: number;
 };
+
+/** Der Zustand steckt im Chip der Namensspalte, nicht in einem eigenen Feld. */
+const STATUS_FILTER = zustandsFilter<TemplateAnzeigeZeile>([
+  { wert: "aktiv", text: "aktiv", trifft: (zeile) => !zeile.inaktiv },
+  { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => zeile.inaktiv },
+]);
 
 const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Vorlage</span>,
+    title: "Vorlage",
     dataIndex: "name",
+    sorter: nachText<TemplateAnzeigeZeile>((zeile) => zeile.name),
+    filters: STATUS_FILTER.filters,
+    onFilter: STATUS_FILTER.onFilter,
     render: (name: string, zeile) => (
       <span>
         <Link href={zeile.detailHref} style={{ fontWeight: 600 }}>
@@ -33,13 +56,15 @@ const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
     ),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Bestückung</span>,
+    title: "Bestückung",
     dataIndex: "bestueckungText",
+    sorter: nachZahl<TemplateAnzeigeZeile>((zeile) => zeile.positionenZahl),
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Fahrzeuge</span>,
+    title: "Fahrzeuge",
     dataIndex: "fahrzeugeText",
+    sorter: nachZahl<TemplateAnzeigeZeile>((zeile) => zeile.fahrzeugeZahl),
     render: (text: string) => (
       <Chip ton="grau" zeichen="fahrzeug">{text}</Chip>
     ),
@@ -48,10 +73,8 @@ const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
 
 export function TemplateTable({ zeilen }: { zeilen: TemplateAnzeigeZeile[] }) {
   return (
-    <Table<TemplateAnzeigeZeile>
+    <Datentabelle<TemplateAnzeigeZeile>
       rowKey="id"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Vorlagen"
       dataSource={zeilen}
       locale={{

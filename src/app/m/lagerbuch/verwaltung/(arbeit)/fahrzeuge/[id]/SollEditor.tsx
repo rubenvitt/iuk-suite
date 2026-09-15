@@ -9,9 +9,9 @@ import {
   InputNumber,
   Popconfirm,
   Select,
-  Table,
   type TableProps,
 } from "antd";
+import { Datentabelle, trifftWert, werteAlsFilter } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import {
   sollPositionEntfernen,
@@ -197,16 +197,45 @@ export function SollEditor({
     ausstehend.sofort();
   }
 
+  /**
+   * ⚠️ DIESE TABELLE BEKOMMT KEINE SORTIERUNG — UND NUR EINEN FILTER, DEN AUF
+   * DAS FACH. Beides ist kein Versehen, und beides hat DIESELBE Ursache.
+   *
+   * Die Fachspalte ist ueber `onCell: { rowSpan }` zusammengefasst; die
+   * Zusammenfassung rechnet `sollGruppieren` EINMAL auf der nach `fachLabel`
+   * sortierten Kopie — also auf der VOLLEN Liste, bevor antd irgendetwas
+   * anfasst. Jeder Eingriff danach, der die Gruppen DURCHMISCHT ODER
+   * ANSCHNEIDET, macht die gemerkten Spannweiten falsch:
+   *
+   * - SORTIEREN mischt sie durch: die Zelle mit `rowSpan > 0` steht nicht mehr
+   *   am Anfang ihrer Gruppe, die Tabelle verschluckt Zeilen oder zeigt das
+   *   Fach an der falschen Stelle.
+   * - EIN FILTER AUF EINE ANDERE SPALTE schneidet sie an. Genau das tat bis
+   *   DRK-331 (dritte Reviewrunde) der Filter auf `herkunft`: ein Fach kann
+   *   Positionen verschiedener Herkunft enthalten. Faellt die ERSTE Zeile einer
+   *   Gruppe heraus, bleibt die ueberlebende auf `rowSpan: 0` und ihre
+   *   Fachzelle verschwindet; ueberlebt die erste, reicht ihre alte Spannweite
+   *   ins NAECHSTE Fach hinein. Die Eingabefelder stehen dann unter dem
+   *   falschen Fach — eine schreibende Flaeche an der falschen Zeile.
+   *
+   * Der FACHFILTER ist als einziger unbedenklich: sein Praedikat liest genau
+   * das Merkmal, nach dem gruppiert wurde, und entfernt deshalb immer GANZE
+   * Gruppen. Wer hier eine weitere Spalte filterbar macht, muss die
+   * Spannweiten aus den GEFILTERTEN Zeilen neu rechnen — kein Tor faende den
+   * Fehler, und Vitest sieht `rowSpan` nur als Zahl, nicht als Bild.
+   */
   const spalten: TableProps<SollAnzeigeZeile>["columns"] = [
     {
-      title: <span style={SCHRIFT.feldname}>Fach</span>,
+      title: "Fach",
       dataIndex: "fachLabel",
       key: "fach",
       onCell: (position) => ({ rowSpan: position.rowSpan }),
+      filters: werteAlsFilter(zeilen, (position) => position.fachLabel),
+      onFilter: trifftWert<SollAnzeigeZeile>((position) => position.fachLabel),
       render: (fachLabel: string) => <span className={s.fach}>{fachLabel}</span>,
     },
     {
-      title: <span style={SCHRIFT.feldname}>Artikel</span>,
+      title: "Artikel",
       dataIndex: "artikelName",
       key: "artikel",
       render: (artikelName: string, position) => (
@@ -236,7 +265,7 @@ export function SollEditor({
       // als Paar: IST ist Zahl, SOLL ist Eingabe. Keine Farbe fuer die
       // Abweichung — Rot gehoert nicht auf eine Datenflaeche (Falle 3).
       // KEIN `width`: sonst stimmt `scroll.x = "max-content"` nicht mehr.
-      title: <span style={SCHRIFT.feldname}>Ist</span>,
+      title: "Ist",
       dataIndex: "fahrzeugBestand",
       key: "ist",
       align: "right",
@@ -272,7 +301,7 @@ export function SollEditor({
       },
     },
     {
-      title: <span style={SCHRIFT.feldname}>Soll</span>,
+      title: "Soll",
       dataIndex: "soll",
       key: "soll",
       align: "right",
@@ -294,9 +323,12 @@ export function SollEditor({
       ),
     },
     {
-      title: <span style={SCHRIFT.feldname}>Herkunft</span>,
+      title: "Herkunft",
       dataIndex: "herkunft",
       key: "herkunft",
+      // ⚠️ KEIN `filters` HIER — Begruendung im Block ueber der Spaltenliste:
+      // eine Herkunft schneidet Fachgruppen an, und die Spannweiten sind schon
+      // gerechnet.
       render: (herkunft: SollZeile["herkunft"]) => (
         <Chip ton={HERKUNFT_TON[herkunft]}>{herkunft}</Chip>
       ),
@@ -359,10 +391,8 @@ export function SollEditor({
     // statt die Tabelle in sich scrollen zu lassen.
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Table<SollAnzeigeZeile>
+      <Datentabelle<SollAnzeigeZeile>
         rowKey="id"
-        pagination={false}
-        scroll={{ x: "max-content" }}
         aria-label="Soll-Bestückung"
         dataSource={zeilen}
         locale={{ emptyText: "Noch keine Soll-Position. Lege unten die erste an." }}

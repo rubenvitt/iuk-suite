@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **dreizehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **fünfzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -142,6 +142,45 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     aussieht — der Deckel verschwände still), `e2e/flyin-breite.spec.ts` misst die Wirkung.
     ⚠️ `width`/`height` sind in antd 6 nur noch abgekündigte Aliase auf `size`
     (`antd/es/drawer/Drawer.js:155`); die Warnung steht in der Konsole, nicht in einem Tor.
+
+14. **Eine virtualisierte `Table` verlangt ZAHLEN, und beide Rückfälle sind still** (gemessen im
+    Modul `lagerbuch`, DRK-331, gegen `@rc-component/table@1.11.1` gelesen — nicht vermutet).
+    `virtual` schickt die Tabelle durch `VirtualTable/index.js:38-50`, und das prüft **beide**
+    Scrollmaße auf `typeof … === "number"`: ist `scroll.x` keine Zahl, setzt es `scrollX = 1` —
+    die Tabelle fällt auf **ein Pixel** Breite zusammen; ist `scroll.y` keine Zahl, nimmt es 500.
+    Beide Male steht die Warnung allein in der Entwicklungskonsole. **Das trifft fast jede
+    bestehende Tabelle:** `scroll={{ x: "max-content" }}` ist die Vorgabe der Suite (Falle 5,
+    `docs/design/README.md`) — genau der Wert, der hier zu `1` wird. `typecheck` kennt
+    `"max-content"` als gültig, `build` serialisiert es klaglos, und **Vitest kann die Wirkung
+    strukturell nicht sehen**, weil jsdom keine Layoutboxen rechnet. Abhilfe: `core/tabelle`
+    rechnet `scroll.x` aus den Spaltenbreiten und **schaltet die Virtualisierung ab**, sobald eine
+    Spalte keine numerische `width` trägt; `core/tabelle/masse.test.ts` hält die Entscheidung fest,
+    ohne etwas zu rendern.
+
+    **Die zweite Hälfte ist die teurere: eine virtualisierte Tabelle rendert in jsdom ÜBERHAUPT
+    KEINE ZEILE.** `rc-virtual-list` kommt ohne Layoutboxen auf null sichtbare Einträge,
+    `tr[data-row-key=…]` findet nichts mehr — und ein DOM-Test dagegen wird **lautlos blind**, er
+    reißt nicht, er misst nur nichts mehr. Gemessen: an der Artikeltabelle fielen dadurch 35 von
+    35 Tests gleichzeitig aus. Deshalb virtualisiert `core/tabelle` erst **ab
+    `VIRTUELL_AB_ZEILEN`** (heute 150) — das ist zugleich die fachlich richtige Schwelle, weil sich
+    der Aufwand darunter ohnehin nicht lohnt. Tests mit einer Handvoll Zeilen prüfen damit weiter
+    echtes Markup; die Wirkung der Virtualisierung selbst kann **nur Playwright** sehen.
+
+15. **`Table`s `onChange` feuert nur bei Bedienung DER TABELLE — nicht, wenn sich `dataSource`
+    daneben ändert** (gemessen im Modul `lagerbuch`, DRK-331). Der naheliegende Weg, „was steht
+    gerade auf dem Schirm?" zu beantworten, ist `onChange(…, extra.currentDataSource)`: antd reicht
+    die gefilterte und sortierte Liste dort fertig heraus. Er ist **falsch**, sobald über der
+    Tabelle noch etwas anderes filtert — eine Freitextsuche, ein neu geladener Serverstand. antd
+    filtert dann korrekt neu, **meldet es aber nicht**; der gemerkte Stand ist still veraltet.
+    Gemessen: Statusfilter setzen, dann tippen → die Trefferanzeige blieb auf der Zahl von vor der
+    Suche stehen, und ein Export „mit der aktuell angezeigten Liste" hätte eine Menge geliefert,
+    die so nie auf dem Schirm stand. **Kein Tor sieht das**: die Typen stimmen, der Aufruf kommt an,
+    nur zu selten. Abhilfe: nicht die LISTE merken, sondern den ZUSTAND (welche Filter, welche
+    Sortierung) und die Liste daraus ableiten — `core/tabelle/angezeigt.ts`, geprüft in
+    `angezeigt.test.ts` ohne zu rendern. ⚠️ Mehrere angekreuzte Werte EINER Spalte sind eine
+    **Vereinigung**, verschiedene Spalten ein **Schnitt** (`antd/es/table/hooks/useFilter/index.js`,
+    `realKeys.some(...)`); wer das nachrechnet und anders verknüpft, zeigt eine andere Liste als die
+    Tabelle daneben.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

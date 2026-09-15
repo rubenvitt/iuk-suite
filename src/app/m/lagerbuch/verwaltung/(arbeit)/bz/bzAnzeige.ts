@@ -16,6 +16,12 @@ export type BzAnzeigeZeile = {
   faelligkeitTon: AmpelTon;
   faelligkeitText: string;
   letzteKontrolleText: string | null;
+  /**
+   * ⚠️ ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt.
+   * `letzteKontrolleText` ist „TT.MM. HH:MM" und ordnete als Zeichenkette den
+   * 2. Oktober vor den 14. September.
+   */
+  letzteKontrolleIso: string | null;
   faellig: boolean;
 };
 
@@ -40,6 +46,9 @@ export function bzAnzeigeZeilen(zeilen: BzGeraetZeile[]): BzAnzeigeZeile[] {
     letzteKontrolleText: zeile.letzteKontrolle === null
       ? null
       : fmtTs(zeile.letzteKontrolle),
+    letzteKontrolleIso: zeile.letzteKontrolle === null
+      ? null
+      : zeile.letzteKontrolle.toISOString(),
     faellig: zeile.faelligkeit.ampel !== "gruen",
   }));
 }

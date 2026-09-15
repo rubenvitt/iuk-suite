@@ -2,7 +2,8 @@
 
 // src/app/m/radio/admin/(arbeit)/versionen/VersionenTabelle.tsx
 import { useState } from "react";
-import { Button, Popconfirm, Space, Table, Tag, Tooltip, type TableColumnType } from "antd";
+import { Button, Popconfirm, Space, Tag, Tooltip, type TableColumnType } from "antd";
+import { Datentabelle } from "@/core/tabelle";
 import type { VersionZeile } from "../../../_lib/lesepfade/versionen";
 import {
   versionLoeschenAction,
@@ -195,10 +196,17 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
    * DUERFEN NICHT NACH `_lib/` (Bauform-Zulaessigkeitstafel Nr. 2, `Spec:4512-4521`) — dort
    * waeren sie Falle 6 UND Falle 9 zugleich.
    *
-   * ⛔ KEINE TRAEGT EINEN `sorter`. Die Reihenfolge IST die Anzeigeordnung
-   * (`desc(sortOrder)`, dann `desc(createdAt)`, `_lib/lesepfade/versionen.ts`), und sie wird
-   * ueber die zwei Knoepfe geschrieben — ein antd-internes Sortieren daneben zeigte eine
-   * andere Ordnung als die, die gespeichert ist.
+   * ⛔ **KEINE TRAEGT EINEN `sorter`, UND DAS BLEIBT AUCH NACH DER UMSTELLUNG AUF
+   * `@/core/tabelle` SO.** Zwei Gruende, und der zweite ist harte Korrektheit:
+   *   1. Die Reihenfolge IST die Anzeigeordnung (`desc(sortOrder)`, dann `desc(createdAt)`,
+   *      `_lib/lesepfade/versionen.ts`), und sie wird ueber die zwei Knoepfe GESCHRIEBEN —
+   *      ein antd-internes Sortieren daneben zeigte eine andere Ordnung als die gespeicherte.
+   *   2. ⛔ `verschieben(index, …)` GREIFT MIT DEM `index` DER GERENDERTEN ZEILE IN `zeilen`
+   *      (`ids[index]`). antd reicht an `render` den Index der SORTIERTEN Liste; sortiert
+   *      jemand nach „Geräte", tauschte „Nach oben" zwei ganz andere Versionen, und die
+   *      Flaeche quittierte es als Erfolg. ⚠️ Kein Tor sieht das — es ist ein Laufzeitversatz
+   *      zwischen zwei Listen, kein Typfehler. Wer hier je einen `sorter` ergaenzt, haengt
+   *      die Knoepfe vorher an `z.id` statt an den Index.
    */
   const spalten: TableColumnType<VersionZeile>[] = [
     {
@@ -357,20 +365,18 @@ export function VersionenTabelle({ zeilen }: VersionenTabelleProps) {
 
   return (
     <div data-rolle="radio-versionen-flaeche">
-      <Table<VersionZeile>
+      {/*
+        ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der `Datentabelle`
+        (`src/core/tabelle/Datentabelle.tsx`) und stuende hier nur ein zweites Mal. Die
+        Begruendungen gelten unveraendert: der Bestand blaettert hier nicht (1:1 `:206`), und
+        die Liste IST die Anzeigeordnung — eine Blaetterung schnitte die Reihenfolge in
+        Seiten, deren Nachbarn man nicht mehr tauschen kann. `x: "max-content"` ist dabei die
+        staerkere Form gegenueber `x: true` des Bestands (`:207`).
+      */}
+      <Datentabelle<VersionZeile>
         rowKey="id"
         columns={spalten}
         dataSource={zeilen}
-        /*
-          ⛔ `pagination={false}` — 1:1 `:206`. Der Bestand blaettert hier nicht, und die Liste
-          ist die Anzeigeordnung selbst: eine Blaetterung darueber schnitte die Reihenfolge in
-          Seiten, deren Nachbarn man nicht mehr tauschen kann.
-        */
-        pagination={false}
-        /* ⛔ `x: "max-content"` STATT `x: true` (`:207`) — die staerkere Form
-           (`aufgaben/_ui/RoutinenTabelle.tsx:34-35`); ohne `scroll` bricht eine antd-Tabelle
-           auf 390 px. */
-        scroll={{ x: "max-content" }}
         aria-label={VERSIONEN_TEXTE.tabelleName}
         locale={{ emptyText: VERSIONEN_TEXTE.leer }}
       />

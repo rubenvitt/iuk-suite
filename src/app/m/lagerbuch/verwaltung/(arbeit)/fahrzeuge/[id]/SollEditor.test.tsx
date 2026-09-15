@@ -468,4 +468,58 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
     expect(query(".ant-alert-warning").textContent).toContain(text);
     expect(queryAll("tbody tr[data-row-key]")).toHaveLength(4);
   });
+  /**
+   * ⚠️ DIE FACHSPALTE BEKOMMT EINEN FILTER, ABER KEINE SORTIERUNG.
+   *
+   * Die Zusammenfassung der Fachzellen (`onCell: { rowSpan }`) rechnet
+   * `sollGruppieren` EINMAL auf der nach `fachLabel` sortierten Kopie; eine
+   * Umsortierung durch antd zerrisse die Gruppen. Ein Filter entfernt dagegen
+   * ganze Gruppen und laesst die Reihenfolge in Ruhe.
+   */
+  it("filtert nach Fach und trägt an keiner Spalte einen Sortierer", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+    expect(queryAll(".ant-table-column-sorters")).toHaveLength(0);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "Fach A");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["p-a1", "p-a2"]);
+  });
+
+  /**
+   * ⚠️ NUR DAS FACH DARF FILTERN, UND DAS IST EINE KORREKTHEITSFRAGE.
+   *
+   * `sollGruppieren` rechnet die Spannweiten EINMAL auf der vollen Liste. Ein
+   * Filter auf eine ANDERE Spalte schneidet eine Fachgruppe an: faellt ihre
+   * erste Zeile heraus, bleibt die ueberlebende auf `rowSpan: 0` und verliert
+   * ihre Fachzelle; ueberlebt die erste, reicht ihre alte Spannweite ins
+   * naechste Fach. Die Eingabefelder stuenden dann unter dem falschen Fach.
+   *
+   * Bis DRK-331 (dritte Reviewrunde) trug die Spalte „Herkunft" genau so einen
+   * Filter — ein Fach kann Positionen verschiedener Herkunft enthalten. Dieser
+   * Test zaehlt die Trichter, statt eine Wirkung zu pruefen, weil das Bild in
+   * jsdom nicht entsteht: `rowSpan` ist dort eine Zahl, keine Zelle.
+   */
+  it("trägt außerhalb der Fachspalte keinen einzigen Filter", async () => {
+    await mount(<SollEditor fahrzeugId="fz-1" positionen={POSITIONEN} artikel={ARTIKEL} />);
+
+    const mitFilter = queryAll<HTMLElement>("thead th")
+      .filter((zelle) => zelle.querySelector(".ant-table-filter-trigger"))
+      .map((zelle) => (zelle.textContent ?? "").trim());
+
+    expect(mitFilter).toEqual(["Fach"]);
+  });
 });

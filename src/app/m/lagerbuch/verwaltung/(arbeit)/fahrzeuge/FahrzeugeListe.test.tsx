@@ -6,7 +6,6 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { readFileSync } from "node:fs";
 import {
   afterAll,
   afterEach,
@@ -19,6 +18,7 @@ import {
 } from "vitest";
 import {
   clickElement,
+  exists,
   fill,
   mount,
   query,
@@ -60,6 +60,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 2,
     verfallAuffaellig: 0,
     letzterCheckText: "30.07.2026, 10:00",
+    letzterCheckIso: "2026-07-30T08:00:00.000Z",
   },
   {
     id: "f2",
@@ -72,6 +73,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 0,
     verfallAuffaellig: 1,
     letzterCheckText: null,
+    letzterCheckIso: null,
   },
   {
     id: "f3",
@@ -84,6 +86,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 1,
     verfallAuffaellig: 2,
     letzterCheckText: "01.08.2026, 09:15",
+    letzterCheckIso: "2026-08-01T07:15:00.000Z",
   },
   {
     id: "f4",
@@ -96,6 +99,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     artikelUnterSoll: 0,
     verfallAuffaellig: 0,
     letzterCheckText: null,
+    letzterCheckIso: null,
   },
 ];
 
@@ -139,11 +143,67 @@ function knopfMitText(text: string): HTMLButtonElement {
   return treffer;
 }
 
-function checkboxMitText(text: string): HTMLElement {
-  const treffer = queryAll<HTMLElement>(".ant-checkbox-wrapper")
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!treffer) throw new Error(`Checkbox nicht gefunden: ${text}`);
-  return treffer;
+/**
+ * Die Freitextsuche laeuft ueber `useEntprellt` — das FELD steht sofort, die
+ * ABLEITUNG erst nach der Entprellzeit. Ohne dieses Warten misst der Test den
+ * Zustand VOR dem Filtern und meldet das als „Filter wirkt nicht".
+ */
+async function suchen(wert: string): Promise<void> {
+  await fill("input[type='search']", wert);
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 250));
+  });
+}
+
+/**
+ * Einen Spaltenfilter setzen — den Weg, den auch eine Person nimmt: Trichter im
+ * Spaltenkopf, Eintraege ankreuzen, „OK". Ohne Eintraege wird nur
+ * zurueckgesetzt.
+ *
+ * ⚠️ DIE EINTRAEGE WERDEN UMGESCHALTET, NICHT GESETZT: das Menue behaelt seine
+ * bisherige Auswahl, ein erneut genannter Eintrag faellt also wieder heraus.
+ */
+async function spaltenFilter(spalte: string, ...eintraege: string[]): Promise<void> {
+  const kopf = queryAll<HTMLElement>("thead th")
+    .find((th) => (th.textContent ?? "").includes(spalte));
+  const trichter = kopf?.querySelector<HTMLElement>(".ant-table-filter-trigger");
+  if (!trichter) throw new Error(`Kein Spaltenfilter an: ${spalte}`);
+  await clickElement(trichter);
+
+  // ⚠️ NUR DAS OFFENE MENUE. antd laesst ein einmal geoeffnetes Filtermenue im
+  // DOM stehen und blendet es nur aus; ohne diese Einschraenkung traefe „OK"
+  // den Knopf eines FRUEHER geoeffneten Menues, und der Filter dieser Spalte
+  // bliebe still unangewandt.
+  const offen = () =>
+    document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+  const menue = () => Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? []);
+  await warteAuf(() => menue().length > 0, `Filtermenü zu ${spalte}`);
+
+  for (const text of eintraege) {
+    const eintrag = menue().find((li) => (li.textContent ?? "").includes(text));
+    if (!eintrag) throw new Error(`Filtereintrag nicht gefunden: ${text}`);
+    await clickElement(eintrag);
+  }
+
+  // Ohne `ConfigProvider`-Locale beschriftet antd die beiden Knoepfe englisch
+  // („Reset"/„OK"); beide Schreibweisen werden akzeptiert, damit der Test nicht
+  // an einer Spracheinstellung haengt, die er gar nicht prueft.
+  const knopf = (muster: RegExp) => Array.from(
+    offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+  ).find((element) => muster.test(element.textContent ?? ""));
+
+  // „Zuruecksetzen" leert nur die Auswahl; uebernommen wird sie erst mit „OK".
+  if (eintraege.length === 0) {
+    const leeren = knopf(/Zurücksetzen|Reset/);
+    if (!leeren) throw new Error("Kein Zurücksetzen-Knopf im Filtermenü");
+    await clickElement(leeren);
+  }
+  const uebernehmen = knopf(/^OK$/);
+  if (!uebernehmen) throw new Error("Kein OK-Knopf im Filtermenü");
+  await clickElement(uebernehmen);
+  await warte();
 }
 
 function zeilenIds(): Array<string | null> {
@@ -200,13 +260,20 @@ function istRekursivJsonSicher(wert: unknown): boolean {
 }
 
 describe("FahrzeugeListe — Spalten und Status", () => {
-  it("trägt die fünf abgelesenen Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
+  it("trägt die sechs Spalten, stabile Zeilen und den äußeren Detail-Link", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
+    /**
+     * ⚠️ „Verfall" IST SEIT DRK-331 (sechste Reviewrunde) EINE EIGENE SPALTE.
+     * Der Chip stand vorher im Status, und damit lagen drei UNABHAENGIGE
+     * Bedingungen auf zwei Spalten — „unter Soll" UND „laeuft ab" war nicht
+     * mehr ausdrueckbar, weil antd innerhalb einer Spalte verodert.
+     */
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
       "Fahrzeug",
       "Vorlage",
       "Bestückung",
+      "Verfall",
       "Status",
       "Zuletzt geprüft",
     ]);
@@ -224,18 +291,25 @@ describe("FahrzeugeListe — Spalten und Status", () => {
     expect(query(`tr[data-row-key='f1'] .${s.rot}`).textContent).toContain("2 unter Soll");
     expect(query(`tr[data-row-key='f2'] .${s.gelb}`).textContent).toContain("1 läuft ab");
     expect(query(`tr[data-row-key='f2'] .${s.ok}`).textContent).toContain("auf Soll");
-    expect(query(`tr[data-row-key='f3'] td:nth-child(4) .${s.grau}`).textContent)
+    // Der Verfallschip sitzt in Spalte 4, der Statuschip in Spalte 5.
+    expect(query(`tr[data-row-key='f2'] td:nth-child(4) .${s.gelb}`).textContent)
+      .toContain("1 läuft ab");
+    expect(query(`tr[data-row-key='f3'] td:nth-child(5) .${s.grau}`).textContent)
       .toContain("inaktiv");
     expect(query("tr[data-row-key='f4']").textContent).toContain("noch nie geprüft");
   });
 
-  it("verriegelt Pagination und den horizontalen Scrollvertrag", () => {
-    const quelle = readFileSync(
-      "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/FahrzeugeListe.tsx",
-      "utf8",
-    );
-    expect(quelle).toContain("pagination={false}");
-    expect(quelle).toContain('scroll={{ x: "max-content" }}');
+  /**
+   * Die Zusicherung stand bis zur Umstellung auf `@/core/tabelle` im
+   * QUELLTEXT (`pagination={false}`, `scroll={{ x: "max-content" }}`). Beides
+   * ist jetzt Vorgabe der `Datentabelle` und steht in dieser Datei gar nicht
+   * mehr — geprueft wird deshalb die WIRKUNG am DOM, die dieselbe ist.
+   */
+  it("verriegelt Pagination und den horizontalen Scrollvertrag", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    expect(exists(".ant-pagination")).toBe(false);
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
   });
 });
 
@@ -247,34 +321,138 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
     expect(sucheTrifft(ZEILEN[2], "UE-RK")).toBe(false);
   });
 
-  it("wendet alle drei Checkboxen gemeinsam an und setzt wirklich alles zurück", async () => {
+  /**
+   * Die drei Haken „unter Soll", „läuft ab" und „inaktive ausblenden" standen
+   * bis zur Umstellung als Checkbox-Leiste ueber der Tabelle. Sie sind
+   * Spaltenfilter geworden — dieselben Praedikate, nur dort, wo ihre Wirkung
+   * sichtbar ist. Die Bestueckungszustaende an der Bestueckungsspalte,
+   * aktiv/inaktiv an der Statusspalte; warum getrennt, sagt der Test darunter.
+   */
+  it("filtert die Bestückung über den Spaltenkopf, mehrere Haken verodern sich", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+    expect(exists(".ant-checkbox-wrapper")).toBe(false);
+
+    await spaltenFilter("Bestückung", "unter Soll");
+    expect(zeilenIds()).toEqual(["f1", "f3"]);
+
+    // „auf Soll" kommt HINZU — der Haken von eben steht noch, und INNERHALB
+    // einer Spalte verodert antd. Zwischen Spalten schneidet es; dafuer steht
+    // der Test „schneidet „unter Soll" und „laeuft ab"" weiter unten.
+    await spaltenFilter("Bestückung", "auf Soll");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
+
+    await spaltenFilter("Bestückung");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
+  });
+
+  /**
+   * ⚠️ DER ALTE HAKEN WAR EIN AUSSCHLUSS, EIN SPALTENFILTER IST EIN EINSCHLUSS.
+   * „inaktive ausblenden" heisst als Filter „aktiv", nicht „inaktiv" — ohne das
+   * Gegenstueck waere der alte Vorgang gar nicht mehr anklickbar. Genau diese
+   * Umkehrung hatte die Artikeltabelle (DRK-331, zweite Reviewrunde); hier
+   * stand sie noch.
+   */
+  it("macht „inaktive ausblenden“ wieder ausdrückbar", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
 
-    await clickElement(checkboxMitText("unter Soll"));
+    await spaltenFilter("Status", "aktiv");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f4"]);
+
+    await spaltenFilter("Status", "inaktiv");
+    expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
+  });
+
+  /**
+   * ⚠️ DER GRUND FUER DREI SPALTEN STATT EINER. antd VERODERT innerhalb einer
+   * Spalte und VERUNDET zwischen Spalten. Lagen „aktiv" und „unter Soll" auf
+   * derselben Spalte, ergaebe diese Auswahl f1, f2, f3 UND f4 — mit den alten,
+   * unabhaengigen Haken war es f1. Der Test faellt, sobald jemand die Gruppen
+   * „der Einheitlichkeit halber" wieder zusammenlegt.
+   */
+  it("verundet Status und Bestückung über die Spaltengrenze", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Status", "aktiv");
+    await spaltenFilter("Bestückung", "unter Soll");
+    expect(zeilenIds()).toEqual(["f1"]);
+  });
+
+  /**
+   * ⚠️ DIE DRITTE DIMENSION, UND SIE HAT DEN TEST ERST NOETIG GEMACHT.
+   *
+   * Die alten Haken „unter Soll" und „laeuft ab" wirkten NACHEINANDER, schnitten
+   * sich also: angekreuzt zeigten sie Fahrzeuge, auf die BEIDES zutrifft. Auf
+   * einer gemeinsamen Spalte verodert antd sie, und dieser Vorgang war nicht
+   * mehr ausdrueckbar (DRK-331, sechste Reviewrunde). „laeuft ab" hat deshalb
+   * eine eigene Spalte bekommen.
+   *
+   * f3 ist der Beleg: es trifft beides. f1 nur „unter Soll", f2 nur „laeuft ab"
+   * — mit einer VERODERUNG stuenden alle drei da.
+   */
+  it("schneidet „unter Soll“ und „läuft ab“, statt sie zu verodern", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual(["f1", "f3"]);
-    await clickElement(checkboxMitText("läuft ab"));
+
+    await spaltenFilter("Verfall", "läuft ab");
     expect(zeilenIds()).toEqual(["f3"]);
-    await clickElement(checkboxMitText("inaktive ausblenden"));
+  });
+
+  it("nennt bei leerem Spaltenfilter den Filter-Leertext, nicht den Anlegehinweis", async () => {
+    await mount(<FahrzeugeListe zeilen={[ZEILEN[3]]} />);
+
+    await spaltenFilter("Bestückung", "unter Soll");
     expect(zeilenIds()).toEqual([]);
     expect(query("tr.ant-table-placeholder").textContent)
       .toBe("Kein Fahrzeug passt zu Suche und Filter.");
-    expect(query(`.${s.filtertreffer}`).textContent).toBe("0 von 4");
+  });
 
-    await clickElement(knopfMitText("Zurücksetzen"));
-    expect(zeilenIds()).toEqual(["f1", "f2", "f3", "f4"]);
-    expect(queryAll("button").some((button) => button.textContent?.includes("Zurücksetzen")))
-      .toBe(false);
+  /**
+   * ⚠️ DER BEWEIS, DASS NICHT UEBER DEN ANZEIGETEXT SORTIERT WIRD.
+   * „01.08.2026" steht als Zeichenkette VOR „30.07.2026"; nur ueber
+   * `letzterCheckIso` ordnet der 30. Juli vor den 1. August. Fahrzeuge ohne
+   * Check tragen `null` und stehen aufsteigend hinten.
+   */
+  it("sortiert die Spalte Zuletzt geprüft über den ISO-Stempel, nicht über den Text", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Zuletzt geprüft"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(zeilenIds()).toEqual(["f1", "f3", "f2", "f4"]);
   });
 
   it("zeigt die Trefferzahl und den gefilterten Leertext erst bei aktiver Suche", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);
     expect(queryAll(`.${s.filtertreffer}`)).toHaveLength(0);
 
-    await fill("input[type='search']", "keines");
+    await suchen("keines");
     expect(zeilenIds()).toEqual([]);
     expect(query(`.${s.filtertreffer}`).textContent).toBe("0 von 4");
     expect(query("tr.ant-table-placeholder").textContent)
       .toBe("Kein Fahrzeug passt zu Suche und Filter.");
+  });
+
+  /**
+   * ⚠️ DIE TREFFERANZEIGE ZAEHLT DIE SPALTENFILTER MIT. Zaehlte sie nur die
+   * Suche, stuende neben einer Tabelle mit zwei Zeilen „4 von 4" — eine Zahl,
+   * die zu keinem Bild auf dem Schirm gehoert. Der zweite Teil ist der
+   * eigentliche Beweis: nach der Suche feuert antds `onChange` NICHT (Falle
+   * 15), die Zahl muss trotzdem stimmen — sie ist aus dem Zustand ABGELEITET,
+   * nicht aus `extra.currentDataSource` gemerkt.
+   */
+  it("zählt Spaltenfilter mit, auch wenn sich danach nur die Suche ändert", async () => {
+    await mount(<FahrzeugeListe zeilen={ZEILEN} />);
+
+    await spaltenFilter("Bestückung", "unter Soll");
+    expect(zeilenIds()).toEqual(["f1", "f3"]);
+    expect(query(`.${s.filtertreffer}`).textContent).toBe("2 von 4");
+
+    await suchen("RTW");
+    expect(zeilenIds()).toEqual(["f1"]);
+    expect(query(`.${s.filtertreffer}`).textContent).toBe("1 von 4");
   });
 
   it("zeigt ohne Daten den ungefilterten Anlegehinweis", async () => {

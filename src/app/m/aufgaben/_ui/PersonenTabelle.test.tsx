@@ -126,3 +126,99 @@ describe("PersonenTabelle — Beenden ist bestaetigungspflichtig (Spec §9.9), m
     expect(formData.get("personId")).toBe("p2");
   });
 });
+
+/*
+ * SORTIERUNG UND FILTER LIEGEN IM SPALTENKOPF (`@/core/tabelle`).
+ *
+ * Geprueft werden die zwei Stellen, an denen eine falsche Umsetzung nicht auffiele:
+ *
+ * 1. DIE SOLL-ZEIT SORTIERT NUMERISCH, NICHT UEBER IHREN TEXT. `fmtStunden(468)` ist
+ *    „7,8", `fmtStunden(1200)` ist „20" — mit Dezimalkomma und ohne fuehrende Null steht
+ *    „20 Std./Tag" als Zeichenkette VOR „7,8 Std./Tag". Die beiden Werte sind deshalb so
+ *    gewaehlt, dass Text- und Zahlenordnung entgegengesetzt sind; mit zwei „normalen"
+ *    Zahlen waere der Test gruen, egal welchen Wert der Vergleicher liest.
+ * 2. IM ROLLENFILTER STEHT DER ANZEIGETEXT, NICHT DER SCHLUESSEL. `werteAlsFilter` liest
+ *    dasselbe `ROLLE_TEXT` wie die Zelle — stuende dort `bufdi` statt „BuFDi", waere der
+ *    Filter benutzbar und trotzdem falsch beschriftet.
+ */
+function spaltenkopf(beschriftung: string): HTMLElement {
+  const th = queryAll("thead th").find((t) => (t.textContent ?? "").includes(beschriftung));
+  if (!th) throw new Error(`Kein Spaltenkopf „${beschriftung}“`);
+  return th;
+}
+
+/** Den Filter EINER Spalte oeffnen — das Menue haengt danach im Portal an `document.body`. */
+async function filterOeffnen(beschriftung: string): Promise<void> {
+  const ausloeser = spaltenkopf(beschriftung).querySelector<HTMLElement>(
+    ".ant-table-filter-trigger",
+  );
+  if (!ausloeser) throw new Error(`Spalte „${beschriftung}“ hat keinen Filter`);
+  await clickElement(ausloeser);
+}
+
+const filtereintraege = () =>
+  [...document.body.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].map(
+    (i) => i.textContent ?? "",
+  );
+
+async function filterWaehlen(eintrag: string): Promise<void> {
+  const punkt = [...document.body.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+    (i) => i.textContent === eintrag,
+  );
+  if (!punkt) throw new Error(`Kein Filtereintrag „${eintrag}“`);
+  await clickElement(punkt);
+  const ok = [
+    ...document.body.querySelectorAll<HTMLElement>(".ant-table-filter-dropdown-btns button"),
+  ].find((b) => b.textContent === "OK");
+  if (!ok) throw new Error("Kein OK im Filtermenue");
+  await clickElement(ok);
+}
+
+const zeilenSchluessel = () =>
+  queryAll("tbody tr[data-row-key]").map((r) => r.getAttribute("data-row-key"));
+
+describe("PersonenTabelle — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Leiste", () => {
+  it("sortiert die Soll-Zeit NUMERISCH, nicht ueber „7,8“/„20“", async () => {
+    const zeilen: PersonenZeile[] = [
+      { person: person({ id: "p-viel", name: "Viel", sollMinutenTag: 1200 }), istAktivHeute: true },
+      { person: person({ id: "p-wenig", name: "Wenig", sollMinutenTag: 468 }), istAktivHeute: true },
+    ];
+    await mount(<PersonenTabelle zeilen={zeilen} />);
+    // Ohne Zutun bleibt die Ordnung die der Seite — keine Spalte traegt `defaultSortOrder`.
+    expect(zeilenSchluessel()).toEqual(["p-viel", "p-wenig"]);
+
+    await clickElement(spaltenkopf("Soll-Zeit"));
+    // 468 vor 1200. Ueber den Anzeigetext stuende „20 Std./Tag" vorn.
+    expect(zeilenSchluessel()).toEqual(["p-wenig", "p-viel"]);
+  });
+
+  it("filtert die Rolle im Spaltenkopf — und beschriftet sie wie die Zelle", async () => {
+    const zeilen: PersonenZeile[] = [
+      { person: person({ id: "p-auf", name: "Auftrag", rolle: "auftrag" }), istAktivHeute: true },
+      { person: person({ id: "p-buf", name: "Bufdi", rolle: "bufdi" }), istAktivHeute: true },
+    ];
+    await mount(<PersonenTabelle zeilen={zeilen} />);
+
+    await filterOeffnen("Rolle");
+    // Die Liste entsteht aus den GELADENEN Zeilen — und traegt den Anzeigetext.
+    expect(filtereintraege()).toEqual(["Auftraggeber", "BuFDi"]);
+
+    await filterWaehlen("BuFDi");
+    expect(zeilenSchluessel()).toEqual(["p-buf"]);
+  });
+
+  it("filtert den Status im Spaltenkopf auf die Ausgeschiedenen", async () => {
+    const zeilen: PersonenZeile[] = [
+      { person: person({ id: "p-aktiv", name: "Aktiv" }), istAktivHeute: true },
+      {
+        person: person({ id: "p-weg", name: "Weg", aktivBis: "2020-01-01" }),
+        istAktivHeute: false,
+      },
+    ];
+    await mount(<PersonenTabelle zeilen={zeilen} />);
+
+    await filterOeffnen("Status");
+    await filterWaehlen("Ausgeschieden");
+    expect(zeilenSchluessel()).toEqual(["p-weg"]);
+  });
+});

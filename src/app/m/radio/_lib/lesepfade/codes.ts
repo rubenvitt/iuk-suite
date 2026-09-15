@@ -114,6 +114,23 @@ export type CodeZeile = {
   gesperrtVonSub: string;
   /** Vorformatiert ODER `NIE_EINGELOEST` — ⛔ nie eine leere Zeichenkette. */
   zuletztText: string;
+  /**
+   * Derselbe Zeitpunkt als ISO-Zeichenkette, ⛔ ALLEIN ZUM SORTIEREN und nie angezeigt — und
+   * ⛔ LEER, wenn der Zugang nie eingeloest wurde.
+   *
+   * `zuletztText` ist „20.06.2026, 18:45" ODER das Wort „nie eingelöst"; als Zeichenkette
+   * sortiert stuende der 2. Oktober vor dem 14. September und das Wort mitten zwischen den
+   * Daten. Die Zeile traegt deshalb beide Werte: einen zum Lesen und einen zum Ordnen
+   * (Vorbild `zeitIso` in `lagerbuch/verwaltung/(arbeit)/LetzteBuchungenTable.tsx`).
+   *
+   * ⛔ DIE LEERE ZEICHENKETTE UND KEIN ERFUNDENER ZEITPUNKT — dieselbe Regel wie eine Zeile
+   * tiefer bei `gesperrtAmText`. `nachDatum` stellt leere Werte aufsteigend ans Ende; die nie
+   * eingeloesten Zugaenge stehen damit hinter allen eingeloesten statt 1970 vor ihnen.
+   *
+   * ⛔ ER BRICHT DIE ZULAESSIGKEITSTAFEL NR. 7 NICHT: eine ISO-Zeichenkette ist skalar und
+   * serialisierbar — verboten ist das `Date` ueber die Props-Grenze, nicht der Zeitpunkt.
+   */
+  zuletztIso: string;
 };
 
 /**
@@ -225,5 +242,8 @@ export function codesListe(db: DB): CodeZeile[] {
       z.gesperrtVon === null ? "" : (namen.get(z.gesperrtVon) ?? z.gesperrtVon),
     gesperrtVonSub: z.gesperrtVon ?? "",
     zuletztText: z.lastUsedAt === null ? NIE_EINGELOEST : datumMitUhrzeit(z.lastUsedAt),
+    // ⛔ UTC UND NICHT DIE ANZEIGEZONE: `toISOString()` ordnet dieselbe Folge wie die
+    // Zeitstempel selbst, und die Sortierung darf nicht an einer Zonenumstellung haengen.
+    zuletztIso: z.lastUsedAt === null ? "" : z.lastUsedAt.toISOString(),
   }));
 }

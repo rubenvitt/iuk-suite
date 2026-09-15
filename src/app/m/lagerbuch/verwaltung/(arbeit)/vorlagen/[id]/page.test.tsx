@@ -5,7 +5,13 @@ import { Card } from "antd";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import {
+  clickElement,
+  mount,
+  query,
+  queryAll,
+  unmount,
+} from "@/app/m/qr/_lib/test-dom";
 import {
   artikel,
   fahrzeugTemplates,
@@ -311,6 +317,30 @@ describe("VerknuepfteFahrzeugeTable", () => {
     );
     expect(quelle).toMatch(/^\s*["']use client["'];/);
     expect(quelle).toMatch(/const\s+SPALTEN[^=]*=/);
-    expect(quelle).toMatch(/rowKey="id"[\s\S]*pagination=\{false\}[\s\S]*scroll=\{\{ x: "max-content" \}\}/);
+    // `pagination={false}` und `scroll={{ x: "max-content" }}` standen bis zur
+    // Umstellung auf `@/core/tabelle` hier im Quelltext. Beides ist jetzt
+    // Vorgabe der `Datentabelle`; geprueft wird die WIRKUNG am DOM.
+    expect(quelle).toMatch(/rowKey="id"/);
+    await unmount();
+
+    await mount(<VerknuepfteFahrzeugeTable zeilen={ZEILEN} />);
+    expect(queryAll(".ant-pagination")).toHaveLength(0);
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS DIE STATUSSPALTE UEBER DAS FELD ORDNET, NICHT UEBER DIE
+   * ZELLE: fuer ein aktives Fahrzeug ist die Zelle LEER — ein Vergleich ueber
+   * den Zellinhalt haette hier gar nichts zu vergleichen.
+   */
+  it("sortiert den Status über das Feld, aktive Fahrzeuge zuerst", async () => {
+    await mount(<VerknuepfteFahrzeugeTable zeilen={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Status"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
+      zeile.getAttribute("data-row-key"))).toEqual(["rtw-aktiv", "rtw-inaktiv"]);
   });
 });

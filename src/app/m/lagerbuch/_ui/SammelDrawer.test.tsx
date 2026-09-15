@@ -232,4 +232,37 @@ describe("SammelDrawer (DRK-293)", () => {
     expect(existsPortal(".ant-drawer")).toBe(true);
     expect(onSchliessen).not.toHaveBeenCalled();
   });
+  /**
+   * Die Vorschau kann Hunderte Zeilen lang sein; „zeig mir nur die, die sich
+   * ändern" ist die Frage, die sie ueberhaupt beantworten soll. Der Filter
+   * sitzt deshalb im Kopf der Spalte, die die Antwort traegt.
+   */
+  it("filtert die Vorschau auf die Zeilen, die sich ändern", async () => {
+    await oeffnen();
+    // Nur der Kategorie-Haken: „Hygiene" tragen Alpha und Charlie bereits,
+    // Bravo aendert sich.
+    await clickElement(haken("Kategorie"));
+    await fuellePortal("[aria-label='Kategorie für alle ausgewählten Artikel']", "Hygiene");
+
+    const kopf = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-drawer thead th"),
+    ).find((th) => (th.textContent ?? "").includes("Ändert sich"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "ändert sich");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(Array.from(
+      document.body.querySelectorAll(".ant-drawer tbody tr[data-row-key]"),
+      (zeile) => zeile.getAttribute("data-row-key"),
+    )).toEqual(["b"]);
+  });
 });

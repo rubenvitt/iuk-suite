@@ -55,6 +55,8 @@ vi.mock("../(verwaltung)/zugangslinks/actions", () => ({
 /** Die Seite ruft `headers()`; ohne Request-Scope wirft das echte. */
 vi.mock("next/headers", () => ({ headers: vi.fn() }));
 
+import { act } from "react";
+
 import { headers } from "next/headers";
 import {
   ZugangslinksListe,
@@ -142,6 +144,10 @@ function zeile(ueberschreibung: Partial<ZugangslinkZeile> = {}): ZugangslinkZeil
     name: "Übung Nord 30.07.",
     tokenStart: "dz-2345",
     laufzeitText: "24 h",
+    /* Der Rohwert neben dem Anzeigetext — er traegt die Sortierung des
+       Spaltenkopfs. Ueber „24 h" zu sortieren geht bei dreistelligen Stunden
+       still schief. */
+    laufzeitStunden: 24,
     ablaufText: "31.07.2026, 14:00",
     zustand: "gueltig",
     budgetDateien: 100,
@@ -225,7 +231,13 @@ describe("Punkt 1 — die Zeile zeigt Zustand und Restbudget, nicht nur einen Na
   it("traegt an der Spalte „Bezeichnung“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
     await zeige({ zeilen: [zeile()] });
     const kopf = queryAll("thead.ant-table-thead th")[0];
-    const span = kopf?.querySelector("span");
+    /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
+       Titel einer SORTIERBAREN Spalte noch einmal ein
+       (`.ant-table-column-sorters` > `.ant-table-column-title`), und die Huelle
+       traegt keinen Stil. */
+    const span = Array.from(kopf?.querySelectorAll("span") ?? []).find(
+      (kandidat) => kandidat.style.fontWeight === "600",
+    );
     expect(span?.textContent).toBe("Bezeichnung");
     expect(span?.style.fontWeight).toBe("600");
     expect(span?.style.textTransform).toBe("uppercase");
@@ -245,22 +257,64 @@ describe("Punkt 1 — die Zeile zeigt Zustand und Restbudget, nicht nur einen Na
   });
 
   /**
-   * `scroll={{ x: "max-content" }}` ist die einzige ehrliche Angabe, solange die
-   * Spalten keine `width` tragen — und KEINE Spalte darf `fixed`/`ellipsis`
-   * tragen und `scroll.y` gesetzt sein: rc-table schaltet dann auf
-   * `table-layout: fixed` und das DESKTOP-Bild aendert sich, ohne dass irgendwo
+   * `scroll={{ x: "max-content" }}` steht seit der Umstellung nicht mehr in
+   * dieser Datei — es ist die VORGABE der `Datentabelle`
+   * (`core/tabelle/masse.ts`), und ein Quelltext-Scan darauf pruefte nur noch,
+   * ob jemand die Vorgabe ueberfluessig wiederholt. Gemessen wird deshalb die
+   * WIRKUNG am gerenderten `<table>`: es scrollt und bleibt auf
+   * `table-layout: auto` — rc-table schaltet sonst auf `fixed`, verteilt die
+   * Spalten gleichmaeszig und das DESKTOP-Bild aendert sich, ohne dass irgendwo
    * etwas ueberlaeuft (`lib/Table.js:426-442`). Diese Liste hat KEINE
    * Kartenliste (§8.6 nennt sie nur fuer `/posteingang`), die Tabelle ist unter
    * 768px also sichtbar und muss scrollen.
+   *
+   * Die drei Umschalt-Eigenschaften bleiben ein Quelltext-Scan: eine Aussage
+   * ueber ABWESENHEIT kann ein DOM-Test strukturell nicht treffen.
    */
   it("laesst die Tabelle scrollen statt umzubrechen", async () => {
     await zeige();
     expect(exists(".ant-table-content, .ant-table-body")).toBe(true);
+    const stil = (query("table").getAttribute("style") ?? "").replace(/\s+/g, "");
+    expect(stil).toContain("width:max-content");
+    expect(stil).not.toContain("table-layout:fixed");
+    // „Nicht blaettern" ist ebenfalls Vorgabe der `Datentabelle`.
+    expect(exists(".ant-pagination")).toBe(false);
+
     const quelle = ohneKommentare(readFileSync("src/app/m/files/_ui/ZugangslinksListe.tsx", "utf8"));
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*"max-content"\s*\}\}/);
     expect(quelle).not.toMatch(/\bfixed:\s*["']/);
     expect(quelle).not.toMatch(/\bellipsis\b/);
     expect(quelle).not.toMatch(/scroll=\{\{[^}]*\by:/);
+  });
+
+  /**
+   * ⚠️ DIE ORDNUNG DES ZUSTANDS IST FACHLICH, NICHT ALPHABETISCH: „gültig"
+   * zuerst, weil das die Zeilen sind, an denen es etwas zu tun gibt. Waere hier
+   * `nachText` statt `nachRang` eingesetzt, stuende „abgelaufen" oben — die
+   * Gruppe, mit der niemand mehr etwas anfaengt. Der Test kann also nur mit der
+   * fachlichen Reihenfolge gruen sein.
+   */
+  it("ordnet den Zustand fachlich: gültig zuerst, nicht alphabetisch", async () => {
+    await zeige({
+      zeilen: [
+        zeile({ id: "c", name: "Widerrufen", zustand: "widerrufen" }),
+        zeile({ id: "b", name: "Abgelaufen", zustand: "abgelaufen" }),
+        zeile({ id: "a", name: "Gültig", zustand: "gueltig" }),
+      ],
+    });
+    const kopf = queryAll("thead.ant-table-thead th").find((th) =>
+      (th.textContent ?? "").includes("Zustand"),
+    );
+    expect(kopf, "keine Spalte „Zustand“").not.toBeUndefined();
+    await act(async () => {
+      for (const art of ["mousedown", "mouseup", "click"]) {
+        (kopf as HTMLElement).dispatchEvent(new MouseEvent(art, { bubbles: true }));
+      }
+    });
+    // Der Name steht in der ersten Zelle und benennt hier den ZUSTAND der Zeile
+    // — die Reihenfolge ist damit ohne Rateschritt ablesbar.
+    for (const [index, name] of ["Gültig", "Abgelaufen", "Widerrufen"].entries()) {
+      expect(zeilentext(index), `Zeile ${index}`).toMatch(new RegExp(`^${name}`));
+    }
   });
 });
 

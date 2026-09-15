@@ -1,31 +1,59 @@
 "use client";
 
-import { Empty, Table, type TableProps } from "antd";
-import { SCHRIFT } from "../../_lib/schrift";
+import { Empty, type TableProps } from "antd";
+import { Datentabelle } from "@/core/tabelle";
 import s from "../../_ui/verwaltung.module.css";
 
 export type UebersichtJournalZeile = {
   id: string;
   zeitText: string;
+  /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
+  zeitIso: string;
   artikelName: string;
   vorgangText: string;
   deltaText: string;
+  /** Die Menge als Zahl — allein fuer die Sortierung, angezeigt wird `deltaText`. */
+  deltaZahl: number;
   deltaTon: "negativ" | "positiv" | "neutral";
 };
 
-// Spaltenkoepfe tragen die Kicker-Rolle ueber `title`, nie ueber CSS gegen
-// `.ant-table-thead` (docs/design/README.md, „Spaltenkoepfe einer antd-Table").
+/**
+ * ⚠️ SORTIERT WIRD UEBER DEN ROHWERT, NIE UEBER DEN ANZEIGETEXT. `zeitText` ist
+ * „14.09. 08:12" und `deltaText` „−3 Stk" — beide sortierten als Zeichenkette
+ * falsch (der 2. Oktober vor dem 14. September, „−3" neben „−30"). Deshalb
+ * traegt die Zeile beide Werte: einen zum Lesen und einen zum Ordnen.
+ *
+ * Der Spaltenkopf-Kicker kommt von `Datentabelle` — `title` ist hier eine
+ * gewoehnliche Zeichenkette (`docs/design/README.md`).
+ *
+ * ⛔ KEIN SORTIERER — DIESE TABELLE ZEIGT FUENF ZEILEN VON VIELEN.
+ *
+ * Die Uebersicht ruft `journalEintraege(db, { grenze: 5 })`. Ein Vergleicher im
+ * Spaltenkopf ordnete also die neuesten FUENF Buchungen und verspraeche dabei
+ * ein Extrem ueber das ganze Journal — „Δ absteigend" hiesse „die groesste
+ * Buchung steht oben", und sie steht fast sicher nicht darunter. Die Vorschau
+ * bleibt in der Ordnung ihrer Abfrage; wer sortieren will, geht ins Journal.
+ * Volle Begruendung: `core/tabelle/sortierer.ts` (DRK-331, sechste Runde).
+ */
 const SPALTEN: TableProps<UebersichtJournalZeile>["columns"] = [
   {
-    title: <span style={SCHRIFT.feldname}>Zeit</span>,
+    title: "Zeit",
     dataIndex: "zeitText",
     key: "zeit",
     render: (zeitText: string) => <span className={s.jts}>{zeitText}</span>,
   },
-  { title: <span style={SCHRIFT.feldname}>Artikel</span>, dataIndex: "artikelName", key: "artikel" },
-  { title: <span style={SCHRIFT.feldname}>Vorgang</span>, dataIndex: "vorgangText", key: "vorgang" },
   {
-    title: <span style={SCHRIFT.feldname}>Δ</span>,
+    title: "Artikel",
+    dataIndex: "artikelName",
+    key: "artikel",
+  },
+  {
+    title: "Vorgang",
+    dataIndex: "vorgangText",
+    key: "vorgang",
+  },
+  {
+    title: "Δ",
     dataIndex: "deltaText",
     key: "menge",
     align: "right",
@@ -58,10 +86,8 @@ export function LetzteBuchungenTable({ zeilen }: {
   }
 
   return (
-    <Table<UebersichtJournalZeile>
+    <Datentabelle<UebersichtJournalZeile>
       rowKey="id"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Letzte Buchungen"
       dataSource={zeilen}
       columns={SPALTEN}

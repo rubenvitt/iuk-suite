@@ -224,6 +224,25 @@ export function helferSitzungGeheimnis(env: EnvLike = process.env): string {
  * wenn die Grenze tatsaechlich griff.
  */
 export const JOURNAL_GRENZE = 100;
+
+/**
+ * DIE LAENGE DES SUCHBEGRIFFS IM JOURNAL — und sie steht hier, weil ZWEI Wege
+ * sie brauchen und sie sich sonst widersprechen (DRK-331, neunte Reviewrunde).
+ *
+ * ⚠️ DER ERSTE AUFSCHLAG RENDERT SERVERSEITIG, JEDER NACHSCHLAG LAEUFT UEBER
+ * EINE SERVER ACTION. Die Action prueft ihre Eingabe (sie ist von aussen
+ * aufrufbar, das ist nicht verhandelbar); der Lesepfad der Seite tat es nicht.
+ * Ein Begriff ueber der Grenze ergab damit eine Seite, die AUSSIEHT wie jede
+ * andere — und deren Nachladen dann bei jedem Versuch scheitert, mit einem
+ * festen Fehlersatz und ohne Weg zurueck. Der Deckel gehoert also VOR die
+ * Verzweigung, nicht in einen ihrer Aeste.
+ *
+ * Gekappt, nicht abgewiesen: abgewiesen waere eine leere Liste ohne Grund, und
+ * niemand tippt zweihundert Zeichen in ein Suchfeld, um danach eine
+ * Fehlermeldung zu lesen. Was wirklich gesucht wird, steht nach dem Kappen im
+ * Feld — die Oberflaeche zeigt also, was gilt.
+ */
+export const JOURNAL_SUCHE_MAX = 200;
 /** Dieselbe Regel — und der strengere Fall: die Checks-Seite nennt ihre 50 heute
  *  an KEINER Stelle (§5.14.3). */
 export const CHECK_GRENZE = 50;

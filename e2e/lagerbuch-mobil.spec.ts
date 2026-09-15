@@ -228,8 +228,11 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * es GEMESSEN — nicht angenommen — die Rueckseite einer bereits
    * dokumentierten Entscheidung ist, keine vergessene Stelle.
    *
-   * GEMESSEN auf `/verwaltung/artikel` (Sortierungs-Select,
-   * `ArtikelTable.tsx:215-225`): das Feld traegt
+   * GEMESSEN auf `/verwaltung/artikel`. ⚠️ Die Messung galt urspruenglich dem
+   * Sortierungs-Select; den gibt es seit DRK-331 nicht mehr (sortiert wird in
+   * den Spaltenkoepfen). Der Befund haengt aber nicht an DIESEM Feld, sondern
+   * an jedem antd-`Select` — auf derselben Seite traegt ihn jetzt „Kategorien
+   * dauerhaft ausblenden". Das Feld traegt
    * `<input class="ant-select-input" role="combobox" readonly value="">`,
    * `getComputedStyle(...).fontSize` 14px. Ein Tap auf die Auswahl fokussiert
    * dieses Feld tatsaechlich (`document.activeElement` danach:

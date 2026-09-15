@@ -365,7 +365,13 @@ describe("Aufgabe 12, Punkt 4 (Review) — Spaltenköpfe tragen SCHRIFT.kicker",
     await legeDatei({ id: DATEI_A, dateiname: "a.pdf", avStatus: "clean" });
     const wirt = await dom();
     const kopf = wirt.querySelectorAll("thead.ant-table-thead th")[0];
-    const span = kopf?.querySelector("span");
+    /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
+       Titel einer SORTIERBAREN Spalte noch einmal ein
+       (`.ant-table-column-sorters` > `.ant-table-column-title`), und die Huelle
+       traegt keinen Stil. */
+    const span = Array.from(kopf?.querySelectorAll("span") ?? []).find(
+      (kandidat) => (kandidat as HTMLElement).style.fontWeight === "600",
+    ) as HTMLElement | undefined;
     expect(span?.textContent).toBe("Datei");
     expect(span?.style.fontWeight).toBe("600");
     expect(span?.style.textTransform).toBe("uppercase");

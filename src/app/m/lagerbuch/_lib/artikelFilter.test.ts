@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { artikelTrifft, artikelFiltern, LEERER_FILTER,
-         type ArtikelFilterZeile } from "./artikelFilter";
+import {
+  artikelTrifft, artikelFiltern, LEERER_FILTER,
+  ARTIKEL_BESTAND_ZUSTAENDE, ARTIKEL_CHARGEN_ZUSTAENDE, ARTIKEL_MINDEST_ZUSTAENDE,
+  ARTIKEL_STATUS_ZUSTAENDE, ARTIKEL_ZUSTAND_GRUPPEN,
+  type ArtikelFilterZeile, type ArtikelZustand,
+} from "./artikelFilter";
 import { kategorieSchluessel } from "./kategorie";
 
 const z = (p: Partial<ArtikelFilterZeile> = {}): ArtikelFilterZeile => ({
@@ -42,63 +46,105 @@ describe("artikelTrifft — der Freitext sucht ueber DREI Felder", () => {
   });
 });
 
-describe("artikelTrifft — die vier Chips", () => {
-  it('„unter Mindestbestand"', () => {
-    expect(artikelTrifft(z(), { ...LEERER_FILTER, nurUnterMindest: true })).toBe(false);
-    expect(artikelTrifft(z({ unterMindest: true }), { ...LEERER_FILTER, nurUnterMindest: true }))
-      .toBe(true);
+describe("Die Spaltenfilter der Artikelliste", () => {
+  const ALLE: ArtikelZustand[] = ARTIKEL_ZUSTAND_GRUPPEN.flatMap((g) => [...g]);
+
+  function trifft(wert: string, zeile: ReturnType<typeof z>): boolean {
+    const zustand = ALLE.find((x) => x.wert === wert);
+    if (!zustand) throw new Error(`Zustand nicht gefunden: ${wert}`);
+    return zustand.trifft(zeile);
+  }
+
+  it("unter Mindestbestand", () => {
+    expect(trifft("unter-mindest", z())).toBe(false);
+    expect(trifft("unter-mindest", z({ unterMindest: true }))).toBe(true);
   });
-  it('„Charge kritisch"', () => {
-    expect(artikelTrifft(z(), { ...LEERER_FILTER, nurChargeKritisch: true })).toBe(false);
-    expect(artikelTrifft(z({ chargeKritisch: true }), { ...LEERER_FILTER, nurChargeKritisch: true }))
-      .toBe(true);
+
+  it("Charge kritisch", () => {
+    expect(trifft("charge-kritisch", z())).toBe(false);
+    expect(trifft("charge-kritisch", z({ chargeKritisch: true }))).toBe(true);
   });
-  it('„inaktive ausblenden"', () => {
-    expect(artikelTrifft(z({ aktiv: false }), { ...LEERER_FILTER, ohneInaktive: true })).toBe(false);
-    expect(artikelTrifft(z({ aktiv: false }), LEERER_FILTER)).toBe(true);
+
+  it("inaktiv", () => {
+    expect(trifft("inaktiv", z({ aktiv: false }))).toBe(true);
+    expect(trifft("inaktiv", z({ aktiv: true }))).toBe(false);
   });
+
   /**
    * DRK-295. Die Schwelle ist GENAU 0 und nicht „wenig" — „unter
-   * Mindestbestand" ist der andere Filter und bleibt es.
+   * Mindestbestand" ist der andere Zustand und bleibt es.
    */
-  it('„Bestand 0 ausblenden"', () => {
-    expect(artikelTrifft(z({ bestand: 0 }), { ...LEERER_FILTER, ohneBestandNull: true }))
-      .toBe(false);
-    expect(artikelTrifft(z({ bestand: 1 }), { ...LEERER_FILTER, ohneBestandNull: true }))
-      .toBe(true);
-    expect(artikelTrifft(z({ bestand: 0 }), LEERER_FILTER)).toBe(true);
+  it("Bestand 0", () => {
+    expect(trifft("bestand-null", z({ bestand: 0 }))).toBe(true);
+    expect(trifft("bestand-null", z({ bestand: 1 }))).toBe(false);
   });
 
   /**
-   * Ein negativer Bestand kann heute nicht entstehen (Invariante I2,
-   * `schreibpfade/abbuchung.ts:20`) — waere er doch da, ist er ein
-   * Buchungsfehler. Der Filter soll Rauschen wegnehmen, nicht ausgerechnet die
-   * Zeile, die jemanden braucht. Dieser Test ist der Grund, warum im Praedikat
-   * `=== 0` steht und nicht `<= 0`; er faellt, sobald jemand das lockert.
+   * ⚠️ DER TEST, DER DEN ZURUECKGEDREHTEN AUSSCHLUSS FAENGT.
+   *
+   * Die alten Haken waren AUSSCHLUESSE („inaktive ausblenden", „Bestand 0
+   * ausblenden"), ein Spaltenfilter ist ein EINSCHLUSS. Ohne Gegenstueck waere
+   * der alte Vorgang — die inaktiven loswerden — gar nicht mehr ausdrueckbar,
+   * und wer den scheinbaren Ersatz ankreuzt, bekaeme das GEGENTEIL. Jede Gruppe
+   * schuldet deshalb eine vollstaendige Zerlegung: jede Zeile trifft genau
+   * einen Zustand je Gruppe.
    */
-  it("laesst einen NEGATIVEN Bestand stehen — er ist ein Fehler, kein Nullbestand", () => {
-    expect(artikelTrifft(z({ bestand: -3 }), { ...LEERER_FILTER, ohneBestandNull: true }))
-      .toBe(true);
+  it.each([
+    ["Bestand", ARTIKEL_BESTAND_ZUSTAENDE],
+    ["Min.", ARTIKEL_MINDEST_ZUSTAENDE],
+    ["Verfall", ARTIKEL_CHARGEN_ZUSTAENDE],
+    ["Status", ARTIKEL_STATUS_ZUSTAENDE],
+  ])("die Gruppe %s zerlegt jede Zeile vollstaendig und ueberschneidungsfrei", (_name, gruppe) => {
+    const proben = [
+      z(), z({ bestand: 0 }), z({ bestand: -3 }), z({ aktiv: false }),
+      z({ unterMindest: true }), z({ chargeKritisch: true }),
+      z({ naechsteCharge: null }), z({ naechsteCharge: null, bestand: 0 }),
+    ];
+    for (const probe of proben) {
+      expect((gruppe as readonly ArtikelZustand[]).filter((x) => x.trifft(probe))).toHaveLength(1);
+    }
   });
 
-  it("verknuepft alle fuenf Bedingungen UND", () => {
-    const zeile = z({ unterMindest: true, chargeKritisch: true, aktiv: true, bestand: 7 });
-    const alle = {
-      nurUnterMindest: true, nurChargeKritisch: true, ohneInaktive: true, ohneBestandNull: true,
-    };
-    expect(artikelTrifft(zeile, { ...alle, suche: "verband" })).toBe(true);
-    expect(artikelTrifft(zeile, { ...alle, suche: "pflaster" })).toBe(false);
-    // Dieselbe Zeile, nur ohne Bestand: der fuenfte Riegel allein reicht.
-    expect(artikelTrifft({ ...zeile, bestand: 0 }, { ...alle, suche: "verband" })).toBe(false);
+  it("macht das alte Ausblenden der inaktiven wieder ausdrueckbar", () => {
+    const zeilen = [z({ aktiv: true }), z({ aktiv: false }), z({ aktiv: true })];
+    expect(zeilen.filter((x) => trifft("aktiv", x))).toHaveLength(2);
+  });
+
+  it("macht das alte Ausblenden von Bestand 0 wieder ausdrueckbar", () => {
+    const zeilen = [z({ bestand: 0 }), z({ bestand: 5 }), z({ bestand: -3 })];
+    // ⚠️ Der NEGATIVE Bestand zaehlt als vorhanden und bleibt damit sichtbar:
+    // er ist ein Buchungsfehler, und genau den darf ein Aufraeumfilter nicht
+    // schlucken.
+    expect(zeilen.filter((x) => trifft("bestand-vorhanden", x))).toHaveLength(2);
+  });
+
+  /**
+   * ⚠️ MEHRERE ANGEKREUZTE ZUSTAENDE EINER SPALTE SIND EINE VEREINIGUNG, KEIN
+   * SCHNITT. antd ruft `onFilter` je angekreuztem Wert auf und verodert das
+   * Ergebnis (`useFilter/index.js`, `realKeys.some(...)`). Deshalb liegen die
+   * Gruppen auf VERSCHIEDENEN Spalten — zwischen Spalten verundet antd, und nur
+   * so bleibt „aktiv UND unter Mindestbestand" moeglich, was die alte Leiste
+   * mit ihren unabhaengigen Haken konnte.
+   */
+  it("verodert innerhalb einer Gruppe und verundet zwischen Gruppen", () => {
+    const aktivUnterMindest = z({ aktiv: true, unterMindest: true });
+    const inaktivOhneMangel = z({ aktiv: false, unterMindest: false });
+
+    const beide = ["aktiv", "inaktiv"];
+    expect([aktivUnterMindest, inaktivOhneMangel]
+      .filter((x) => beide.some((w) => trifft(w, x)))).toHaveLength(2);
+
+    expect([aktivUnterMindest, inaktivOhneMangel]
+      .filter((x) => trifft("aktiv", x) && trifft("unter-mindest", x))).toHaveLength(1);
+  });
+
+  it("nennt jeden Zustand genau einmal und mit einem Text", () => {
+    const werte = ALLE.map((x) => x.wert);
+    expect(new Set(werte).size).toBe(werte.length);
+    for (const zustand of ALLE) expect(zustand.text.trim()).not.toBe("");
   });
 });
 
-/**
- * DRK-294. Die ausgeblendeten Kategorien sind ein EIGENES Argument und nicht Teil
- * von `ArtikelFilterZustand`: sie sind je Konto gespeichert, die Chips gelten nur
- * fuer den Moment — und „Zuruecksetzen" setzt `LEERER_FILTER`. Laegen die
- * Kategorien darin, loeschte der Knopf still eine gespeicherte Einstellung.
- */
 describe("artikelTrifft — ausgeblendete Kategorien (DRK-294)", () => {
   const ohneHygiene = new Set([kategorieSchluessel("Hygiene")]);
 
@@ -126,13 +172,15 @@ describe("artikelTrifft — ausgeblendete Kategorien (DRK-294)", () => {
     expect(artikelTrifft(z({ kategorie: "Hygiene" }), LEERER_FILTER, new Set())).toBe(true);
   });
 
-  it("verknuepft UND mit Suche und Chips", () => {
+  it("verknuepft UND mit der Suche", () => {
     const zeile = z({ kategorie: "Technik", unterMindest: true });
     const auswahl = new Set([kategorieSchluessel("Hygiene")]);
-    expect(artikelTrifft(zeile, { ...LEERER_FILTER, nurUnterMindest: true, suche: "verband" }, auswahl))
-      .toBe(true);
-    expect(artikelTrifft(zeile, { ...LEERER_FILTER, nurUnterMindest: true, suche: "pflaster" }, auswahl))
-      .toBe(false);
+    expect(artikelTrifft(zeile, { suche: "verband" }, auswahl)).toBe(true);
+    expect(artikelTrifft(zeile, { suche: "pflaster" }, auswahl)).toBe(false);
+    // Der Riegel greift auch bei passender Suche, wenn die Kategorie
+    // ausgeblendet ist — sonst holte ein Suchbegriff sie still zurueck.
+    const versteckt = z({ kategorie: "Hygiene" });
+    expect(artikelTrifft(versteckt, { suche: "verband" }, auswahl)).toBe(false);
   });
 });
 
@@ -170,10 +218,12 @@ describe("artikelFiltern — DIESELBE abgeleitete Liste fuer Tabelle und Export"
   it("behaelt die Reihenfolge und reicht Zusatzfelder durch", () => {
     /**
      * ⚠️ DIE KOPPLUNG, DIE DEN EXPORT STILL BRICHT (§5.13.3, Punkt 3, §9.4):
-     * `ArtikelTable.tsx:133` ruft `bestandExportZeilen(gefiltert)` — die Datei
-     * enthaelt „genau das, was gerade in der Tabelle steht". Wandert Filtern in
-     * antds Table-eigenen Zustand, MUSS der Export dieselbe abgeleitete Liste
-     * lesen, sonst exportiert der Knopf still wieder alles.
+     * der Export enthaelt „genau das, was gerade in der Tabelle steht".
+     * Seit DRK-331 ist Filtern zum Teil in antds Table-eigenen Zustand
+     * gewandert — genau der Fall, vor dem diese Auflage warnte. Die Tabelle
+     * liest die angezeigte Menge deshalb ueber
+     * `onChange(…, extra.currentDataSource)` und gibt SIE an den Export;
+     * dieses Praedikat ist nur noch die Vorfilterung davor.
      */
     const zeilen = [
       { ...z({ name: "Alpha" }), id: "1" },
@@ -182,8 +232,10 @@ describe("artikelFiltern — DIESELBE abgeleitete Liste fuer Tabelle und Export"
     ];
     expect(artikelFiltern(zeilen, { ...LEERER_FILTER, suche: "alpha" }).map((r) => r.id))
       .toEqual(["1", "3"]);
-    expect(artikelFiltern(zeilen, { ...LEERER_FILTER, ohneInaktive: true }).map((r) => r.id))
-      .toEqual(["1", "3"]);
+    // Ein inaktiver Artikel faellt hier NICHT mehr heraus: das entscheidet
+    // seit DRK-331 der Spaltenfilter der Status-Spalte, nicht dieses Praedikat.
+    expect(artikelFiltern(zeilen, LEERER_FILTER).map((r) => r.id))
+      .toEqual(["1", "2", "3"]);
   });
 
   it("reicht die ausgeblendeten Kategorien an das Praedikat durch", () => {

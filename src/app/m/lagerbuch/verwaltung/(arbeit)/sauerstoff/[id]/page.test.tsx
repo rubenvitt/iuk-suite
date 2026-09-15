@@ -282,6 +282,9 @@ describe("Flaschenblatt als Server Component", () => {
       {
         id: "messung-check",
         zeitpunktText: "07.08. 14:00",
+        // Der Rohwert fuer die Sortierung der Zeitspalte — eine JSON-sichere
+        // Zeichenkette, kein `Date`.
+        zeitpunktIso: "2026-08-07T12:00:00.000Z",
         druckBar: 20,
         herkunft: "check",
         werText: "token-rtw-1",
@@ -290,6 +293,7 @@ describe("Flaschenblatt als Server Component", () => {
       {
         id: "messung-alt",
         zeitpunktText: "06.08. 12:00",
+        zeitpunktIso: "2026-08-06T10:00:00.000Z",
         druckBar: 120,
         herkunft: "manuell",
         werText: "Anna Beispiel",

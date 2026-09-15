@@ -2,7 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Button, Dropdown, Input, Modal, Popconfirm, Table, Tag } from "antd";
+import { Button, Dropdown, Input, Modal, Popconfirm, Tag } from "antd";
+import {
+  Datentabelle,
+  nachDatum,
+  nachText,
+  nachZahl,
+  zustandsFilter,
+} from "@/core/tabelle";
 import { SPACE, TAP } from "@/core/theme/tokens";
 import { activateSurveyAction, createEveningAction, deleteEveningAction } from "../actions";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../_lib/noten";
@@ -31,8 +38,13 @@ import { T } from "./typo";
  *    `cockpitZustand` zusaetzlich sortiert: die Reihenfolge ist fachlich tragend
  *    und darf nicht an einer Abfrage haengen, die jemand spaeter um einen Filter
  *    erweitert. Sortiert wird auf einer KOPIE — die Liste gehoert der Seite.
- *    BEWUSST KEIN antd-`sorter`: der wuerde die Ordnung an antd abgeben, und die
- *    Zusage waere dann nur noch eine Vorgabe im Spaltenkopf.
+ *    ⚠️ DIESER EIGENE `sort` BLEIBT, AUCH MIT SPALTENSORTIERUNG: `mittel` und
+ *    `funkenNoten` lesen dieselbe Kopie, und sie brauchen „juengster zuerst"
+ *    unabhaengig davon, was jemand im Spaltenkopf angeklickt hat. Die Spalte
+ *    „Datum" traegt zusaetzlich `defaultSortOrder: "descend"` — die Zusage ist
+ *    damit der ANFANGSZUSTAND der Tabelle und nicht bloss eine Moeglichkeit im
+ *    Kopf (hier stand „bewusst kein antd-`sorter`"; der Einwand traf einen
+ *    `sorter` ohne diese Vorgabe).
  * 2. DIE ZAHLEN KOMMEN FERTIG AN. Aggregiert wird in der Seite (`abendStats` →
  *    `computeDAStats`, EINE Aggregationsstelle); hier steht keine Rechnung ausser
  *    dem Ruecklaufanteil des Balkens.
@@ -301,20 +313,39 @@ function Zeilenziel({
 /**
  * „Die Tabelle steht ohne Karte direkt auf dem Seitengrund" (§2.5): eine Tabelle
  * in einer Karte auf einer Seite ist der dritte Rahmen fuer dieselbe Aussage.
+ *
+ * ⚠️ SORTIERT WIRD NIE UEBER DEN ANZEIGETEXT. „Mo, 14. September" sortierte als
+ * Zeichenkette den 2. Oktober vor den 14. September, und „14 / 18" waere ein
+ * Bruch als Text. Verglichen wird deshalb ueber die Rohwerte der Zeile:
+ * `datum` (ein `Date`), `avgSchulnote`, und beim Ruecklauf ueber den ANTEIL,
+ * den auch der Balken zeigt — ohne Teilnehmerzahl gibt es keinen (§2.3), die
+ * Zeile bleibt dann ohne Wert und steht aufsteigend hinten.
  */
 function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZeile[] }) {
   return (
-    <Table<VerlaufZeile>
+    <Datentabelle<VerlaufZeile>
       rowKey="eveningId"
       dataSource={zeilen}
       size="middle"
-      pagination={{ pageSize: 12, hideOnSinglePage: true, size: "small" }}
+      blaettern={{ pageSize: 12, hideOnSinglePage: true, size: "small" }}
+      // ⚠️ KEIN `scroll` — und das ist eine Messung, keine Auslassung. Diese
+      // Tabelle steht unter 768px ohnehin auf `display: none`, und die Spalte
+      // „Thema" traegt ein `ellipsis`, dessen ganze Aufgabe das ABSCHNEIDEN
+      // ist: unter der Vorgabe `max-content` bekaeme die Tabelle einen eigenen
+      // Scrollcontainer, und die Spalte wuechse mit ihrem laengsten Thema
+      // statt zu kuerzen. `Verlauf.test.tsx` misst die Wirkung am DOM
+      // (`.ant-table-scroll-horizontal` darf nicht entstehen), nicht am
+      // Quelltext.
+      scroll={false}
       locale={{ emptyText: LEER_TEXT }}
       columns={[
         {
           title: "Datum",
           key: "datum",
           width: 140,
+          sorter: nachDatum<VerlaufZeile>((z) => z.datum),
+          // Die Zusage „juengster zuerst" (Entscheidung 1) als Anfangszustand.
+          defaultSortOrder: "descend",
           render: (_, z) => (
             <span style={{ display: "block" }}>
               <span style={{ ...T.body, fontWeight: 600 }}>{formatDatumLang(z.datum)}</span>
@@ -326,6 +357,7 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
           title: "Thema",
           key: "thema",
           ellipsis: true,
+          sorter: nachText<VerlaufZeile>((z) => z.thema),
           // Leer → „—" in `--fb-muted`, NIE „(ohne Thema)": die Klammerform
           // liest sich als Fehlermeldung ueber den Abend.
           render: (_, z) =>
@@ -340,6 +372,12 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
           key: "rueckmeldungen",
           width: 110,
           align: "right",
+          // Der ANTEIL, nicht die nackte Zahl: zwei Abende mit 14 Rueckmeldungen
+          // sind nicht gleich gut, wenn der eine 18 und der andere 40 Leute
+          // hatte. Ohne Nenner gibt es keinen Anteil (§2.3) — `null`, nicht 0.
+          sorter: nachZahl<VerlaufZeile>((z) =>
+            z.teilnehmer !== null && z.teilnehmer > 0 ? z.rueckmeldungen / z.teilnehmer : null,
+          ),
           render: (_, z) => <Ruecklauf zeile={z} />,
         },
         {
@@ -348,6 +386,9 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
           title: "Ø Note (1 = beste)",
           key: "note",
           width: 150,
+          // Aufsteigend heisst hier „beste zuerst": 1 ist die beste Note. Ueber
+          // die Notenpille — gerendertes Markup — waere gar nicht zu ordnen.
+          sorter: nachZahl<VerlaufZeile>((z) => z.avgSchulnote),
           render: (_, z) => (
             <span style={{ display: "flex", flexDirection: "column", gap: SPACE.xs }}>
               <Notenpille note={z.avgSchulnote} />
@@ -359,6 +400,18 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
           title: "Zustand",
           key: "zustand",
           width: 150,
+          /*
+           * „Zeig mir nur die Entwuerfe" ist ein Praedikat ueber der Zeile, und
+           * ein Praedikat ueber der Zeile ist ein Spaltenfilter. `zustandsFilter`
+           * und nicht `werteAlsFilter`: der Zustand steht als `boolean` in der
+           * Zeile, das Wort daneben ist Anzeige. Die Gegenoption heisst „Ohne
+           * Vermerk" und nicht „Abgeschlossen" — das Wort stuende sonst im
+           * Filter, waehrend die Zelle es bewusst nie zeigt.
+           */
+          ...zustandsFilter<VerlaufZeile>([
+            { wert: "entwurf", text: "Entwurf (Altbestand)", trifft: (z) => z.entwurf },
+            { wert: "ohne", text: "Ohne Vermerk", trifft: (z) => !z.entwurf },
+          ]),
           // Nur belegt, wenn es etwas zu sagen gibt: ein „abgeschlossen" in jeder
           // Zeile ist Rauschen, das den einen abweichenden Fall verdeckt.
           render: (_, z) =>

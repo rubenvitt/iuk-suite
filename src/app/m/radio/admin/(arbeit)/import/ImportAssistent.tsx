@@ -2,7 +2,8 @@
 
 // src/app/m/radio/admin/(arbeit)/import/ImportAssistent.tsx
 import { useState } from "react";
-import { Alert, Button, Card, Col, Result, Row, Select, Space, Statistic, Steps, Table, Tag, Tooltip, Typography, Upload } from "antd";
+import { Alert, Button, Card, Col, Result, Row, Select, Space, Statistic, Steps, Tag, Tooltip, Typography, Upload } from "antd";
+import { Datentabelle, nachRang, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
 import { importSchreibenAction } from "../../actions";
 import {
   IMPORTIERBARE_FELDER,
@@ -90,7 +91,12 @@ import type { HochladenAntwort } from "./hochladen/route";
  * der Dichte und nie aus einem `size` am Bauteil), modulweit durchgesetzt von
  * `_ui/AusleihRahmen.test.tsx:196-214`. Damit entfallen `Space size="large"`/`size="middle"`
  * (`ImportWizard.tsx:138`, `:169`, `:295`) und ⛔ das `size="small"` an der Vorschautabelle
- * (`:305`) — Platz schafft dort `scroll={{ x: "max-content" }}`.
+ * (`:305`) — Platz schafft dort das waagerechte Scrollen.
+ *
+ * ⛔ DIE VORSCHAUTABELLE IST SEIT DER UMSTELLUNG AUF `@/core/tabelle` EINE `Datentabelle` —
+ * derselbe antd-`Table` mit den Vorgaben der Suite. `scroll={{ x: "max-content" }}` steht dort
+ * und nicht mehr hier; die Blaetterung ist hier der begruendete AUSNAHMEFALL und geht deshalb
+ * als `blaettern` hinein (siehe am Bauteil selbst).
  *
  * ✅ DAS ZEICHEN AM ABLEGEFELD IST ZURUECK — 1:1 `ImportWizard.tsx:159-161` (`FiUpload` in
  * einem eigenen Absatz, dort `fontSize: 32`), Betreiberentscheidung vom 2026-08-28. Dazu
@@ -525,16 +531,20 @@ export function ImportAssistent() {
             ))}
           </Row>
           <div className={s.abstand}>
-            <Table<KlassifizierteZeile>
+            <Datentabelle<KlassifizierteZeile>
               rowKey="zeilenNummer"
-              columns={vorschauSpalten()}
+              columns={vorschauSpalten(vorschau.zeilen)}
               dataSource={vorschau.zeilen}
-              /* ⛔ 1:1 `ImportWizard.tsx:308`. Die Zeilen liegen VOLLSTAENDIG in dieser Insel —
-                 anders als bei den Server-geblaetterten Tabellen (Regime B) gibt es hier keine
-                 Adresse, ueber die geblaettert werden koennte. */
-              pagination={{ pageSize: 10 }}
-              /* Ohne `scroll` bricht eine antd-Tabelle auf 390 px (`aufgaben/_ui/RoutinenTabelle.tsx:33-34`). */
-              scroll={{ x: "max-content" }}
+              /*
+               * ⛔ `blaettern` UND NICHT DIE VORGABE — der begruendete Ausnahmefall, den
+               * `DatentabelleProps` benennt. 1:1 `ImportWizard.tsx:308`: eine CSV bringt
+               * Hunderte Zeilen mit, und die Vorschau ist eine Kontrolle vor dem Schreiben,
+               * keine Arbeitsliste. Die Zeilen liegen VOLLSTAENDIG in dieser Insel — anders
+               * als bei den Server-geblaetterten Tabellen (Regime B) gibt es hier keine
+               * Adresse, ueber die geblaettert werden koennte, und Sortierung wie Filter
+               * greifen deshalb ueber ALLE Zeilen und nicht nur ueber die sichtbare Seite.
+               */
+              blaettern={{ pageSize: 10 }}
             />
           </div>
           <Space>
@@ -603,15 +613,52 @@ export function ImportAssistent() {
  * Component: ein `columns[].render`, das jenseits der RSC-Grenze entsteht, ist eine
  * gewoehnliche Funktion, und React lehnt ab, sie ueber die Grenze zu reichen (Falle 9,
  * `CLAUDE.md`).
+ *
+ * ⛔ SIE BEKOMMT DIE ZEILEN, WEIL DIE FILTERLISTE AUS IHNEN ENTSTEHT (`werteAlsFilter`): im
+ * Aufklappmenue der Klassenspalte steht damit nur, was diese Datei wirklich enthaelt — eine
+ * Option „Übersprungen" ueber einer Datei ohne uebersprungene Zeile waere die haeufigste
+ * Enttaeuschung an einem Spaltenfilter. ⚠️ DAS IST DIE FRAGE, DIE MAN AN EINE IMPORTVORSCHAU
+ * STELLT: „zeig mir die Fehler" — vorher hiess das, sich durch zehnzeilige Seiten zu
+ * blaettern.
+ *
+ * ⛔ KEINE SPALTE TRAEGT EIN `defaultSortOrder`: die Vorschau steht in DATEIREIHENFOLGE, und
+ * die ist die Ordnung, in der jemand die Datei danach korrigiert.
  */
-function vorschauSpalten() {
+function vorschauSpalten(zeilen: readonly KlassifizierteZeile[]) {
   return [
-    { title: "Zeile", dataIndex: "zeilenNummer", key: "zeilenNummer", width: 80 },
-    { title: "ISSI", dataIndex: "issi", key: "issi" },
+    {
+      title: "Zeile",
+      dataIndex: "zeilenNummer",
+      key: "zeilenNummer",
+      width: 80,
+      /* ⛔ ALS ZAHL, NICHT ALS TEXT: „Zeile 10" gehoert hinter „Zeile 9", nicht davor. */
+      sorter: nachZahl<KlassifizierteZeile>((z) => z.zeilenNummer),
+    },
+    {
+      title: "ISSI",
+      dataIndex: "issi",
+      key: "issi",
+      sorter: nachText<KlassifizierteZeile>((z) => z.issi),
+    },
     {
       title: "Klasse",
       dataIndex: "klasse",
       key: "klasse",
+      /*
+       * ⛔ `nachRang` UEBER `IMPORTKLASSEN` UND NICHT `nachText` UEBER DEM WORT: die fachliche
+       * Ordnung der fuenf Klassen ist weder alphabetisch noch zufaellig — sie ist die, in der
+       * `IMPORTKLASSEN` sie fuehrt und in der die fuenf Kennzahlen darueber stehen. Ueber die
+       * Woerter sortiert stuende „Aktualisiert" vor „Fehler" vor „Neu", und die Kennzahlen
+       * daneben laesen sich in einer anderen Reihenfolge als die Tabelle darunter.
+       */
+      sorter: nachRang<KlassifizierteZeile, Importklasse>((z) => z.klasse, IMPORTKLASSEN),
+      /*
+       * ⛔ GEFILTERT WIRD UEBER DAS DEUTSCHE WORT UND NICHT UEBER DEN ROHEN SCHLUESSEL: im
+       * Aufklappmenue stuende sonst „skipped-no-permission" — der Rohwert aus
+       * `classify-import-row.ts`, den auf dieser Flaeche niemand sonst zu sehen bekommt.
+       */
+      filters: werteAlsFilter(zeilen, (z) => KLASSEN_WOERTER[z.klasse].wort),
+      onFilter: trifftWert<KlassifizierteZeile>((z) => KLASSEN_WOERTER[z.klasse].wort),
       render: (klasse: Importklasse) => {
         const marke = (
           <Tag color={KLASSEN_WOERTER[klasse].ton} data-rolle="radio-import-klasse">

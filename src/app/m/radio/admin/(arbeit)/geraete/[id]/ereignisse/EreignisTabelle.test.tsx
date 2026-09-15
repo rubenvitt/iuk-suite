@@ -62,7 +62,7 @@ function inselDateien(): string[] {
 /** ⛔ Die Sollwerttafel steht NUR auf der rechten Seite — sie ist der Prueffling der Messung. */
 const INSEL_SOLL = ["EreignisTabelle.tsx"];
 
-import { queryAll, exists, mount, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, queryAll, exists, mount, unmount } from "@/app/m/qr/_lib/test-dom";
 import { ohneKommentare } from "../../../../../_lib/quelltextScan";
 import type { EreignisZeile } from "../../../../../_lib/lesepfade/ereignisse";
 import { EreignisTabelle, QUELLE_TON } from "./EreignisTabelle";
@@ -75,6 +75,9 @@ import { EreignisTabelle, QUELLE_TON } from "./EreignisTabelle";
 function zeile(teil: Partial<EreignisZeile> = {}): EreignisZeile {
   return {
     zeitText: "03.07.2026, 12:00",
+    // ⛔ DAS ROHFELD GEHOERT IN JEDE TESTZEILE. Ohne es sortierte die Zeitspalte ueber den
+    // Anzeigetext — genau die Klasse, die `zeitIso` ausschliesst (siehe `EreignisZeile`).
+    zeitIso: "2026-07-03T10:00:00.000Z",
     feldEtikett: "Lagerort",
     alt: "Lager A",
     neu: "Lager B",
@@ -537,5 +540,85 @@ describe("radio-Ereignisse: die Bauform der Insel und ihrer Seite", () => {
     /* ⛔ OHNE DAS SCHLIESSENDE `/>`: ein Umbruch des Attributs waere sonst falsch-rot. */
     expect(quelle, "der Pfeil am Rueckweg fehlt").toMatch(/<VIkone name="pfeil-links"/);
     expect(quelle, "der Pfeil steht ohne seine Klasse").toMatch(/className=\{s\.zurueckLink\}/);
+  });
+});
+
+describe("radio-Ereignisse: Sortierung und Filter im Spaltenkopf", () => {
+  it("reicht die Reihenfolge des Lesepfads durch und ordnet nicht selbst", async () => {
+    /*
+     * ⛔ **DIESER FALL STAND VORHER AUF DEM KOPF.** Bis DRK-331 (fuenfte Reviewrunde) mass er,
+     * dass die Zeitspalte ueber `zeitIso` sortiert. Der Vergleicher ist entfernt: die Historie
+     * ist auf `EREIGNIS_GRENZE` (200) gedeckelt, und ein Sortierer verspraeche „das erste
+     * Ereignis dieses Geraets steht oben", waehrend es nur das erste unter den geladenen
+     * zweihundert waere. Die Ordnung liegt im Lesepfad (`desc(changedAt)`).
+     *
+     * ⛔ DIE ZEILEN GEHEN WEITER IN DER „FALSCHEN" REIHENFOLGE HINEIN — jetzt gerade deshalb:
+     * jede versehentlich wieder eingebaute Ordnung, ueber den Rohwert wie ueber den
+     * Anzeigetext, ergaebe eine ANDERE Reihenfolge als die Eingabe und faellt auf.
+     */
+    await mount(
+      <EreignisTabelle
+        zeilen={[
+          zeile({ zeitText: "14.09.2026, 08:00", zeitIso: "2026-09-14T06:00:00.000Z" }),
+          zeile({ zeitText: "02.10.2026, 08:00", zeitIso: "2026-10-02T06:00:00.000Z" }),
+        ]}
+      />,
+    );
+
+    expect(texte("radio-ereignis-zeit")).toEqual([
+      "14.09.2026, 08:00",
+      "02.10.2026, 08:00",
+    ]);
+  });
+
+  it("bietet an keiner Spalte einen Sortierer an", async () => {
+    /*
+     * ⛔ HIER ZAEHLT AUSNAHMSWEISE DIE ABWESENHEIT. Eine Wirkung gibt es nicht mehr zu messen,
+     * und ein Fall, der bloss die Reihenfolge prueft, bliebe gruen, wenn jemand einen
+     * Sortierer ergaenzt und niemand ihn anklickt. Der Trichter des SPALTENFILTERS bleibt
+     * daneben erlaubt: er grenzt den Ausschnitt ein, statt eine Aussage ueber den Bestand zu
+     * machen.
+     */
+    await mount(
+      <EreignisTabelle
+        zeilen={[zeile({ feldEtikett: "Status" }), zeile({ feldEtikett: "Lagerort" })]}
+      />,
+    );
+    expect(texte("radio-ereignis-feld")).toEqual(["Status", "Lagerort"]);
+    expect(document.querySelectorAll(".ant-table-column-sorter")).toHaveLength(0);
+  });
+
+  it("die Filterliste fuehrt nur Werte, die auch vorkommen", async () => {
+    /*
+     * ⛔ DIE LISTE ENTSTEHT AUS DEN ZEILEN (`werteAlsFilter`), nicht aus `FELD_ETIKETTEN`:
+     * jene Zuordnung fuehrt zwanzig Felder, eine Akte hat typisch drei angefasst. Eine
+     * Filterliste mit siebzehn Optionen, die keine Zeile treffen, ist die haeufigste
+     * Enttaeuschung an einem Spaltenfilter — und sie faellt still aus, weil die Tabelle
+     * korrekt aussieht.
+     *
+     * ⚠️ antd rendert das Aufklappmenue in ein PORTAL an `document.body`, nicht in den
+     * Mount-Wirt (`qr/_lib/test-dom.tsx`); gelesen wird es deshalb dort.
+     */
+    await mount(
+      <EreignisTabelle
+        zeilen={[
+          zeile({ feldEtikett: "Status" }),
+          zeile({ feldEtikett: "Lagerort" }),
+          zeile({ feldEtikett: "Status" }),
+        ]}
+      />,
+    );
+
+    const ausloeser = queryAll("th .ant-table-filter-trigger");
+    expect(ausloeser.length, "die Spaltenfilter fehlen").toBe(2);
+    await clickElement(ausloeser[0]!);
+
+    const eintraege = Array.from(
+      document.body.querySelectorAll(".ant-dropdown .ant-dropdown-menu-title-content"),
+    ).map((el) => (el.textContent ?? "").trim());
+    expect(eintraege, "die Filterliste steht nicht auf den vorkommenden Werten").toEqual([
+      "Lagerort",
+      "Status",
+    ]);
   });
 });

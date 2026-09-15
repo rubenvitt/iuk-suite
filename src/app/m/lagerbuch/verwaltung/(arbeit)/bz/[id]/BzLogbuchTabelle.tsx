@@ -1,6 +1,7 @@
 "use client";
 
-import { Table, type TableProps } from "antd";
+import type { TableProps } from "antd";
+import { Datentabelle, type Filterwert } from "@/core/tabelle";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
@@ -10,6 +11,8 @@ import s from "../../../../_ui/verwaltung.module.css";
 export type BzLogbuchAnzeigeZeile = {
   id: string;
   zeitpunktText: string;
+  /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
+  zeitpunktIso: string;
   ergebnisText: string;
   ergebnisTon: "ok" | "rot";
   level1Wert: number | null;
@@ -54,21 +57,42 @@ function levelZelle({
   );
 }
 
+/**
+ * ⛔ KEIN SORTIERER IN DIESER TABELLE — SIE HAELT EINEN AUSSCHNITT.
+ *
+ * Der Lesepfad deckelt auf `BZ_LOGBUCH_GRENZE` (`lesepfade/bz.ts`) und liefert
+ * die juengsten Eintraege zuerst (`orderBy(desc(ts), desc(id))`). Ein
+ * Vergleicher im Spaltenkopf verspricht dagegen ein EXTREM — „Level 1
+ * aufsteigend" heisst „der niedrigste gemessene Wert steht oben" —, und das
+ * kann eine gedeckelte Liste genau dann nicht halten, wenn der Deckel greift:
+ * der wirklich niedrigste Wert liegt dann ausserhalb. Bei einem Messwert ist
+ * das keine Kleinigkeit, man sucht solche Ausreisser ja gerade.
+ *
+ * Volle Begruendung: `core/tabelle/sortierer.ts` (DRK-331, fuenfte
+ * Reviewrunde). Die Ordnung ist damit fest die der Abfrage.
+ */
 const LOGBUCH_SPALTEN = [
   {
-    title: <span style={SCHRIFT.feldname}>Zeitpunkt</span>,
+    title: "Zeitpunkt",
     dataIndex: "zeitpunktText",
     key: "zeitpunkt",
+    defaultSortOrder: "descend" as const,
     render: (text: string) => <span className={s.jts}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Ergebnis</span>,
+    title: "Ergebnis",
     dataIndex: "ergebnisText",
     key: "ergebnis",
+    filters: [
+      { text: "bestanden", value: "bestanden" },
+      { text: "nicht bestanden", value: "nicht bestanden" },
+    ],
+    onFilter: (wert: Filterwert, zeile: BzLogbuchAnzeigeZeile) =>
+      zeile.ergebnisText === wert,
     render: (text: string, zeile) => <Chip ton={zeile.ergebnisTon}>{text}</Chip>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Level 1</span>,
+    title: "Level 1",
     dataIndex: "level1Wert",
     key: "level1",
     render: (_wert: number | null, zeile) => levelZelle({
@@ -80,7 +104,7 @@ const LOGBUCH_SPALTEN = [
     }),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Level 2</span>,
+    title: "Level 2",
     dataIndex: "level2Wert",
     key: "level2",
     render: (_wert: number | null, zeile) => levelZelle({
@@ -92,13 +116,13 @@ const LOGBUCH_SPALTEN = [
     }),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Verbrauch</span>,
+    title: "Verbrauch",
     dataIndex: "verbrauchText",
     key: "verbrauch",
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Akku</span>,
+    title: "Akku",
     dataIndex: "akkuText",
     key: "akku",
     render: (text: BzLogbuchAnzeigeZeile["akkuText"], zeile) => (
@@ -108,13 +132,13 @@ const LOGBUCH_SPALTEN = [
     ),
   },
   {
-    title: <span style={SCHRIFT.feldname}>Wer</span>,
+    title: "Wer",
     dataIndex: "werText",
     key: "wer",
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
-    title: <span style={SCHRIFT.feldname}>Kommentar</span>,
+    title: "Kommentar",
     dataIndex: "kommentarText",
     key: "kommentar",
     render: (text: string | null) => text ?? <span style={SCHRIFT.neben}>—</span>,
@@ -123,10 +147,8 @@ const LOGBUCH_SPALTEN = [
 
 export function BzLogbuchTabelle({ zeilen }: { zeilen: BzLogbuchAnzeigeZeile[] }) {
   return (
-    <Table<BzLogbuchAnzeigeZeile>
+    <Datentabelle<BzLogbuchAnzeigeZeile>
       rowKey="id"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Logbuch der Kontrollen"
       locale={{ emptyText: "Für dieses Gerät wurde noch keine Kontrolle erfasst." }}
       dataSource={zeilen}

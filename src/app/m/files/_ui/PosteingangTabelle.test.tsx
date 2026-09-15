@@ -264,6 +264,31 @@ describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
   });
 
   /**
+   * ⚠️ SORTIERT WIRD UEBER `groesseBytes`, NIE UEBER DEN ANZEIGETEXT — und die
+   * drei Zeilen sind so gewaehlt, dass beide Ordnungen AUSEINANDERGEHEN:
+   * „1,0 MiB" (lage), „2,0 KiB" (plan) und „3,0 MiB" (bericht) stuenden als
+   * Zeichenkette in dieser Reihenfolge, nach Bytes aber steht `plan` mit
+   * 2048 Byte vorn. Ohne diesen Gegensatz waere der Test auch mit einer
+   * Textsortierung gruen, und der Defekt bliebe still.
+   *
+   * Die Zeigerfolge ist ausgeschrieben, weil ein einzelner `click` auf den Kopf
+   * die Sortierung in jsdom nicht zuverlaessig ausloest.
+   */
+  it("ordnet die Größe nach BYTES, nicht nach dem Anzeigetext", async () => {
+    await zeige();
+    const kopf = queryAll("thead.ant-table-thead th").find((th) =>
+      (th.textContent ?? "").includes("Größe"),
+    );
+    expect(kopf, "keine Spalte „Größe“").not.toBeUndefined();
+    await act(async () => {
+      for (const art of ["mousedown", "mouseup", "click"]) {
+        (kopf as HTMLElement).dispatchEvent(new MouseEvent(art, { bubbles: true }));
+      }
+    });
+    expect(tabellenDateinamen()).toEqual(["plan.pdf", "lage.txt", "bericht.docx"]);
+  });
+
+  /**
    * PUNKT 4, ZWEITER HALBSATZ (Review-Runde zu Aufgabe 12): Spaltenkoepfe
    * tragen `SCHRIFT.kicker`, nicht nur ihren Text. Ohne diese Zusicherung
    * naehme eine spaetere Aufraeumrunde das `<span style={SCHRIFT.kicker}>`
@@ -273,7 +298,13 @@ describe("Punkt 1 — Spalten und Vorgabesortierung", () => {
   it("traegt an der Spalte „Zeit“ die Rolle SCHRIFT.kicker (600, versal)", async () => {
     await zeige();
     const kopf = queryAll("thead.ant-table-thead th")[1]; // Index 0 ist die Auswahlspalte.
-    const span = kopf?.querySelector("span");
+    /* Gesucht wird der Span mit der ROLLE, nicht der erste: antd wickelt den
+       Titel einer SORTIERBAREN Spalte noch einmal ein
+       (`.ant-table-column-sorters` > `.ant-table-column-title`), und die Huelle
+       traegt keinen Stil. */
+    const span = Array.from(kopf?.querySelectorAll("span") ?? []).find(
+      (kandidat) => kandidat.style.fontWeight === "600",
+    );
     expect(span?.textContent).toBe("Zeit");
     expect(span?.style.fontWeight).toBe("600");
     expect(span?.style.textTransform).toBe("uppercase");
@@ -611,18 +642,34 @@ describe("Punkt 7 — beide Darstellungen, Scroll und Knopfgroeszen", () => {
   });
 
   /**
-   * QUELLTEXT-SCAN, und er besitzt genau „die Prop steht da". Die Spalten tragen
-   * keine `width`, also ist `max-content` die einzige ehrliche Angabe — jede
-   * Pixelzahl waere erfunden. Und KEINE Spalte traegt `fixed` oder `ellipsis`,
-   * `scroll.y` ist nicht gesetzt: rc-table schaltet sonst auf
-   * `table-layout: fixed` und das DESKTOP-Bild aendert sich, ohne dass irgendwo
-   * etwas ueberlaeuft (`lib/Table.js:426-442`).
+   * AM GERENDERTEN MARKUP, nicht mehr am Quelltext. `scroll={{ x: "max-content" }}`
+   * steht seit der Umstellung nicht mehr in dieser Datei — es ist die VORGABE der
+   * `Datentabelle` (`core/tabelle/masse.ts`), und ein Quelltext-Scan darauf
+   * pruefte nur noch, ob jemand die Vorgabe ueberfluessig wiederholt. Was hier
+   * zaehlt, ist die WIRKUNG: die Tabelle scrollt und bleibt auf
+   * `table-layout: auto` — rc-table schaltet sonst auf `fixed`, verteilt die
+   * Spalten gleichmaeszig und das DESKTOP-Bild aendert sich, ohne dass irgendwo
+   * etwas ueberlaeuft (`lib/Table.js:426-442`). Die Abwesenheit von `fixed`
+   * und `ellipsis` in den Spalten bleibt ein Quelltext-Scan: eine Aussage ueber
+   * ABWESENHEIT kann ein DOM-Test strukturell nicht treffen.
    */
-  it("gibt der Tabelle `scroll={{ x: \"max-content\" }}` und keiner Spalte `fixed`/`ellipsis`", () => {
+  it("laesst die Tabelle scrollen statt umzubrechen, ohne festes Tabellenlayout", async () => {
+    await zeige();
+    const stil = (
+      query("[data-testid='files-posteingang-tabelle'] table").getAttribute("style") ?? ""
+    ).replace(/\s+/g, "");
+    expect(stil).toContain("width:max-content");
+    expect(stil).not.toContain("table-layout:fixed");
+  });
+
+  it("gibt keiner Spalte `fixed`/`ellipsis` und blaettert nicht", async () => {
     const quelle = ohneKommentare(readFileSync(KOMPONENTE_PFAD, "utf8"));
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*"max-content"\s*\}\}/);
     expect(quelle).not.toMatch(/\bfixed:\s*"(left|right)"/);
     expect(quelle).not.toMatch(/\bellipsis:\s*true/);
+    // Nicht blaettern ist jetzt Vorgabe der `Datentabelle` — gemessen am DOM,
+    // weil die Prop in dieser Datei gar nicht mehr steht.
+    await zeige();
+    expect(exists(".ant-pagination")).toBe(false);
   });
 
   /**

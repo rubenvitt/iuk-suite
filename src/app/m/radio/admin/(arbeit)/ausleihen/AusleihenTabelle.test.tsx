@@ -503,25 +503,34 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
 
   it("die Tabelle blaettert nicht selbst und bietet keinen Groessenwechsler", () => {
     /*
-     * ⛔ REGIME B (`KOPF.md`, antd-Zuordnung): `pagination={false}`, die Blaetterung laeuft
-     * ueber die URL. ⚠️ EIN VERSEHENTLICH EINGESCHALTETES `pagination` FAELLT IN VITEST NICHT
-     * AUF — jsdom zeigte dann eine zweite, rein clientseitige Blaetterung ueber den bereits
-     * geschnittenen zwanzig Zeilen (derselbe Satz steht in `GeraeteTabelle.tsx`). Deshalb ein
-     * Quelltext-Scan und nicht eine DOM-Zusicherung.
+     * ⛔ REGIME B (`KOPF.md`, antd-Zuordnung): keine tabelleneigene Blaetterung, die
+     * Blaetterung laeuft ueber die URL. ⚠️ EIN VERSEHENTLICH EINGESCHALTETES BLAETTERWERK
+     * FAELLT IN VITEST NICHT AUF — und hier aus einem zweiten, schaerferen Grund als sonst:
+     * jsdom stubt `matchMedia` mit `matches: false` (`vitest.setup.ts`), diese Insel rendert
+     * dort also den MOBILEN Zweig und die Tabelle entsteht nie. Eine DOM-Zusicherung auf
+     * `.ant-pagination` waere hier VAKUUM — sie waere gruen, auch wenn die Tabelle blaetterte.
+     * ⛔ DESHALB BLEIBT DAS EIN QUELLTEXT-SCAN; er hat nur seinen Gegenstand gewechselt.
+     *
+     * ⛔ **UND GENAU DESHALB IST ER UMGESCHRIEBEN STATT GELOESCHT.** Seit der Umstellung auf
+     * `@/core/tabelle` steht `pagination={false}` als VORGABE in
+     * `src/core/tabelle/Datentabelle.tsx`; ein Scan auf das Literal `pagination={false}`
+     * faerbte ueber korrektem Bestand rot. Der Weg, auf dem hier ein Blaetterwerk ENTSTEHEN
+     * kann, ist ein `blaettern={…}` am Bauteil — das ist jetzt der Prueffling. Dazu die
+     * Zusicherung, dass die Tabelle ueberhaupt die `Datentabelle` IST: nur so traegt sie die
+     * Vorgabe, die dieser Fall behauptet.
      *
      * ⛔ UND KEIN `size` — Falle 4: die Verwaltung traegt `SCHREIBTISCHDICHTE`,
-     * `controlHeight: 32` (`core/theme/theme.ts`). Platz schafft `scroll={{ x: "max-content" }}`.
+     * `controlHeight: 32` (`core/theme/theme.ts`). Platz schafft das waagerechte Scrollen, und
+     * auch das kommt aus der `Datentabelle`.
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_TABELLE, "utf8"));
-    expect(quelle, "die Tabelle blaettert selbst").toMatch(/pagination=\{false\}/);
+    expect(quelle, "die Tabelle ist nicht die Datentabelle der Suite").toMatch(/<Datentabelle</);
+    expect(quelle, "die Tabelle blaettert selbst").not.toMatch(/blaettern=/);
     expect(quelle, "ein Groessenwechsler — der Bestand hat keinen (LoanList.tsx:66)").not.toMatch(
       /showSizeChanger/,
     );
     expect(quelle, "ein size-Attribut an einem antd-Bedienelement (Falle 4)").not.toMatch(
       /\bsize=\{?["']?(?:small|large)/,
-    );
-    expect(quelle, "ohne scroll bricht die Tabelle auf 390 px").toMatch(
-      /scroll=\{\{ x: "max-content" \}\}/,
     );
   });
 

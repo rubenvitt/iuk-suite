@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
+import { clickElement, mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { RoutineRow } from "../_db/schema";
 import { RoutinenTabelle } from "./RoutinenTabelle";
 
@@ -67,5 +67,90 @@ describe("RoutinenTabelle — Zeilenaktionen tragen die EIGENE routine.id, nicht
     expect(rows).toHaveLength(2);
     expect(rows[0]!.textContent).toContain("Ruhen lassen");
     expect(rows[1]!.textContent).toContain("Wieder aktivieren");
+  });
+});
+
+/*
+ * SORTIERUNG UND FILTER LIEGEN IM SPALTENKOPF (`@/core/tabelle`) — UND DIESE ZWEI FAELLE SIND
+ * GENAU DIE, DIE EINE FALSCHE UMSETZUNG NICHT BEMERKT HAETTE.
+ *
+ * 1. Die Dauer ist die Spalte, an der sich „ueber den Rohwert" von „ueber den Anzeigetext"
+ *    UEBERHAUPT unterscheiden laesst: `fmtDauer(45)` ist „45 Min.", `fmtDauer(90)` ist
+ *    „1,5 Std." — als Zeichenkette stuende die laengere Routine VOR der kuerzeren, und das
+ *    saehe niemand, weil beide Ordnungen plausibel aussehen. Die Zahlen sind deshalb bewusst
+ *    so gewaehlt, dass Text- und Zahlenordnung ENTGEGENGESETZT sind.
+ * 2. Der Statusfilter ersetzt keine Knopfleiste, es gab nie eine — er ist der Ort, an den
+ *    „zeig mir nur die ruhenden" gehoert, statt in eine zweite Bedienzeile ueber der Tabelle.
+ */
+function spaltenkopf(beschriftung: string): HTMLElement {
+  const th = queryAll("thead th").find((t) => (t.textContent ?? "").includes(beschriftung));
+  if (!th) throw new Error(`Kein Spaltenkopf „${beschriftung}“`);
+  return th;
+}
+
+/** Den Filter EINER Spalte oeffnen — das Menue haengt danach im Portal an `document.body`. */
+async function filterOeffnen(beschriftung: string): Promise<void> {
+  const ausloeser = spaltenkopf(beschriftung).querySelector<HTMLElement>(
+    ".ant-table-filter-trigger",
+  );
+  if (!ausloeser) throw new Error(`Spalte „${beschriftung}“ hat keinen Filter`);
+  await clickElement(ausloeser);
+}
+
+async function filterWaehlen(eintrag: string): Promise<void> {
+  const punkt = [...document.body.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+    (i) => i.textContent === eintrag,
+  );
+  if (!punkt) throw new Error(`Kein Filtereintrag „${eintrag}“`);
+  await clickElement(punkt);
+  const ok = [
+    ...document.body.querySelectorAll<HTMLElement>(".ant-table-filter-dropdown-btns button"),
+  ].find((b) => b.textContent === "OK");
+  if (!ok) throw new Error("Kein OK im Filtermenue");
+  await clickElement(ok);
+}
+
+describe("RoutinenTabelle — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Leiste", () => {
+  it("sortiert die Dauer NUMERISCH, nicht ueber „45 Min.“/„1,5 Std.“", async () => {
+    await mount(
+      <RoutinenTabelle
+        routinen={[
+          routine({ id: "r-lang", titel: "Lang", dauerMinuten: 90 }),
+          routine({ id: "r-kurz", titel: "Kurz", dauerMinuten: 45 }),
+        ]}
+      />,
+    );
+    // Ohne Zutun bleibt die Ordnung die der Seite — kein `defaultSortOrder`.
+    expect(queryAll("tbody tr[data-row-key]").map((r) => r.getAttribute("data-row-key"))).toEqual([
+      "r-lang",
+      "r-kurz",
+    ]);
+
+    await clickElement(spaltenkopf("Dauer"));
+    expect(queryAll("tbody tr[data-row-key]").map((r) => r.getAttribute("data-row-key"))).toEqual([
+      // 45 vor 90. Ueber den Anzeigetext waere es die umgekehrte Reihenfolge,
+      // weil „1,5 Std." vor „45 Min." steht.
+      "r-kurz",
+      "r-lang",
+    ]);
+  });
+
+  it("filtert im Spaltenkopf auf „Ruht“ — die aktive Zeile verschwindet", async () => {
+    await mount(
+      <RoutinenTabelle
+        routinen={[
+          routine({ id: "r-aktiv", titel: "Laeuft", aktiv: true }),
+          routine({ id: "r-ruht", titel: "Schlaeft", aktiv: false }),
+        ]}
+      />,
+    );
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(2);
+
+    await filterOeffnen("Status");
+    await filterWaehlen("Ruht");
+
+    const uebrig = queryAll("tbody tr[data-row-key]");
+    expect(uebrig).toHaveLength(1);
+    expect(uebrig[0]!.getAttribute("data-row-key")).toBe("r-ruht");
   });
 });

@@ -196,4 +196,43 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
       .toContain("Verfall konnte nicht gespeichert werden.");
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
+  /**
+   * ⚠️ SORTIERT WIRD DER GESPEICHERTE MONAT, NICHT DER MONATSWAEHLER.
+   *
+   * „YYYY-MM" ordnet als Zeichenkette bereits richtig — deshalb steht hier
+   * ausnahmsweise dasselbe Feld fuer Anzeige und Sortierung. Ein Eintrag ohne
+   * Verfall traegt `null` und landet aufsteigend hinten.
+   */
+  it("sortiert die Verfallsspalte über den gespeicherten Monat", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Verfall"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["a1", "a3", "a2"]);
+  });
+
+  it("filtert nach Fach über den Spaltenkopf", async () => {
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((zelle) => (zelle.textContent ?? "").includes("Fach"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "Fach B");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in beiden.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) => zeile.getAttribute("data-row-key")))
+      .toEqual(["a2"]);
+  });
 });

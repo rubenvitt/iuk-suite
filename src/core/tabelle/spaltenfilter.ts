@@ -1,0 +1,103 @@
+/**
+ * Filter für `columns[].filters` — die Auswahl wandert damit in den
+ * Spaltenkopf, wo antd sie von sich aus anbietet.
+ *
+ * KEIN "use client", gleicher Grund wie in `sortierer.ts` (Falle 6).
+ *
+ * ⚠️ TYPEN AUS antd SIND HIER UNBEDENKLICH. `ColumnFilterItem` ist ein reiner
+ * Typ und nach dem Übersetzen verschwunden — es entsteht kein Laufzeit-Import
+ * von antd in ein Modul ohne "use client".
+ */
+import type { Key } from "react";
+import type { ColumnFilterItem } from "antd/es/table/interface";
+
+const SAMMLER = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
+
+/** Was antd als Filterwert durchreicht. */
+export type Filterwert = Key | boolean;
+
+/**
+ * Der Schlüssel, unter dem ein fehlender Wert filterbar wird.
+ *
+ * ⚠️ ER MUSS EIN WERT SEIN, KEIN `null`. antd reicht die angekreuzten
+ * Filterwerte als `React.Key[]` durch; ein `null` darin wäre kein gültiger
+ * Schlüssel, und die Zeilen ohne Wert ließen sich gar nicht anwählen — die
+ * Spalte hätte dann still einen Filter, der eine ganze Gruppe nie trifft.
+ * Die Zeichenkette ist absichtlich eine, die als echter Feldwert nicht vorkommt.
+ */
+/**
+ * ⚠️ DAS NUL-ZEICHEN STEHT HIER ALS ESCAPE, NICHT ALS BYTE. Ein echtes
+ * Nullbyte im Quelltext macht die Datei fuer git BINAER: `git diff --numstat`
+ * meldet `- -`, es gibt keine Zeilendifferenz mehr und keine Zusammenfuehrung,
+ * und ein Review sieht von einer Aenderung an dieser Datei NICHTS (gemessen,
+ * DRK-331, siebte Reviewrunde). Der Laufzeitwert ist derselbe.
+ */
+export const OHNE_WERT = "\u0000ohne";
+
+/**
+ * Die vorkommenden Werte einer Spalte als Filterliste — deutsch sortiert,
+ * doppelte zusammengefasst.
+ *
+ * ⚠️ DIE LISTE ENTSTEHT AUS DEN DATEN, NICHT AUS EINER PFLEGETABELLE. Damit
+ * steht im Filter nie eine Option, die keine Zeile trifft (das ist die
+ * häufigste Enttäuschung an Spaltenfiltern), und eine neue Kategorie taucht
+ * ohne Codeänderung auf. Der Preis ist ehrlich zu nennen: gefiltert werden kann
+ * nur, was in den GELADENEN Zeilen steht — bei einer nachladenden Tabelle also
+ * nicht der ganze Bestand.
+ */
+export function werteAlsFilter<T>(
+  zeilen: readonly T[],
+  feld: (zeile: T) => string | null | undefined,
+  opts: { ohneWertLabel?: string } = {},
+): ColumnFilterItem[] {
+  const gesehen = new Set<string>();
+  let hatLeere = false;
+  for (const zeile of zeilen) {
+    const wert = feld(zeile);
+    if (wert === null || wert === undefined || wert === "") hatLeere = true;
+    else gesehen.add(wert);
+  }
+  const eintraege: ColumnFilterItem[] = [...gesehen]
+    .sort(SAMMLER.compare)
+    .map((wert) => ({ text: wert, value: wert }));
+  if (hatLeere && opts.ohneWertLabel) {
+    eintraege.push({ text: opts.ohneWertLabel, value: OHNE_WERT });
+  }
+  return eintraege;
+}
+
+/**
+ * Das passende `onFilter` zu `werteAlsFilter` — inklusive des Falls „ohne Wert".
+ */
+export function trifftWert<T>(
+  feld: (zeile: T) => string | null | undefined,
+): (wert: Filterwert, zeile: T) => boolean {
+  return (wert, zeile) => {
+    const vorhanden = feld(zeile);
+    if (wert === OHNE_WERT) {
+      return vorhanden === null || vorhanden === undefined || vorhanden === "";
+    }
+    return vorhanden === wert;
+  };
+}
+
+/**
+ * Ein Filter über eine feste Liste von Zuständen, deren Zugehörigkeit die Zeile
+ * selbst beantwortet — für abgeleitete Spalten, die kein einzelnes Feld haben
+ * („unter Mindestbestand", „Charge kritisch", „inaktiv").
+ *
+ * Genau das löst die Knopfleisten ab: jeder Haken dort war ein Prädikat über
+ * der Zeile, und ein Prädikat über der Zeile ist ein Spaltenfilter.
+ */
+export function zustandsFilter<T>(
+  zustaende: readonly { wert: string; text: string; trifft: (zeile: T) => boolean }[],
+): { filters: ColumnFilterItem[]; onFilter: (wert: Filterwert, zeile: T) => boolean } {
+  const nachWert = new Map(zustaende.map((z) => [z.wert, z.trifft]));
+  return {
+    filters: zustaende.map((z) => ({ text: z.text, value: z.wert })),
+    // Mehrere angekreuzte Zustände ruft antd EINZELN auf und verodert das
+    // Ergebnis — „unter Mindestbestand" UND „inaktiv" zeigt also beides, nicht
+    // den Schnitt. Das ist dasselbe Verhalten wie die bisherige Knopfleiste.
+    onFilter: (wert, zeile) => nachWert.get(String(wert))?.(zeile) ?? false,
+  };
+}

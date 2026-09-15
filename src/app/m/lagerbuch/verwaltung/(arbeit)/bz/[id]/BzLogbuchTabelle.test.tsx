@@ -2,6 +2,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  clickElement,
   exists,
   mount,
   query,
@@ -18,6 +19,7 @@ import s from "../../../../_ui/verwaltung.module.css";
 const ZEILE = {
   id: "kontrolle-1",
   zeitpunktText: "06.08. 14:00",
+  zeitpunktIso: "2026-08-06T12:00:00.000Z",
   ergebnisText: "nicht bestanden",
   ergebnisTon: "rot",
   level1Wert: 50,
@@ -168,5 +170,74 @@ describe("BzLogbuchTabelle", () => {
     for (const index of [2, 3, 5, 7]) {
       expect(nebenText(daten[index]!, "—").style.fontSize).toBe("12px");
     }
+  });
+
+  /**
+   * ⛔ KEIN SORTIERER — UND DIESER TEST STAND VORHER AUF DEM KOPF.
+   *
+   * Er prueft heute das Gegenteil dessen, was er bis DRK-331 (fuenfte
+   * Reviewrunde) pruefte. Der Grund steht ueber der Spaltenliste: der Lesepfad
+   * deckelt auf `BZ_LOGBUCH_GRENZE`, und ein Vergleicher verspraeche ein
+   * Extrem, das eine gedeckelte Liste nicht halten kann.
+   *
+   * Die beiden Zeitpunkte sind so gewaehlt, dass eine versehentlich wieder
+   * eingebaute Ordnung — ueber den Rohwert wie ueber den Anzeigetext — eine
+   * andere Reihenfolge ergaebe als die Eingabe.
+   */
+  it("ordnet nicht selbst und bietet an keiner Spalte einen Sortierer", async () => {
+    const september = {
+      ...ZEILE,
+      id: "kontrolle-september",
+      zeitpunktText: "14.09. 08:00",
+      zeitpunktIso: "2026-09-14T06:00:00.000Z",
+    } satisfies BzLogbuchAnzeigeZeile;
+    const oktober = {
+      ...ZEILE,
+      id: "kontrolle-oktober",
+      zeitpunktText: "02.10. 08:00",
+      zeitpunktIso: "2026-10-02T06:00:00.000Z",
+    } satisfies BzLogbuchAnzeigeZeile;
+
+    await mount(<BzLogbuchTabelle zeilen={[september, oktober]} />);
+
+    const schluessel = () => queryAll("tbody tr[data-row-key]")
+      .map((tr) => tr.getAttribute("data-row-key"));
+    expect(schluessel()).toEqual(["kontrolle-september", "kontrolle-oktober"]);
+    expect(queryAll(".ant-table-column-sorter")).toHaveLength(0);
+  });
+
+  /**
+   * Der Ergebnisfilter sitzt im Spaltenkopf — die Tabelle hatte vorher gar
+   * keinen, und „nur die nicht bestandenen" ist die Frage, mit der man ein
+   * Logbuch aufschlaegt.
+   */
+  it("filtert das Ergebnis über den Spaltenkopf", async () => {
+    const bestanden = {
+      ...ZEILE,
+      id: "kontrolle-bestanden",
+      ergebnisText: "bestanden",
+      ergebnisTon: "ok",
+    } satisfies BzLogbuchAnzeigeZeile;
+
+    await mount(<BzLogbuchTabelle zeilen={[ZEILE, bestanden]} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Ergebnis"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-filter-trigger")!);
+
+    const offen = () => document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+    const eintrag = Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? [])
+      .find((li) => li.textContent === "bestanden");
+    await clickElement(eintrag!);
+    // Ohne `ConfigProvider`-Locale heisst der Knopf englisch; „OK" gilt in
+    // beiden Sprachen.
+    const ok = Array.from(offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [])
+      .find((knopf) => knopf.textContent === "OK");
+    await clickElement(ok!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((tr) => tr.getAttribute("data-row-key")))
+      .toEqual(["kontrolle-bestanden"]);
   });
 });

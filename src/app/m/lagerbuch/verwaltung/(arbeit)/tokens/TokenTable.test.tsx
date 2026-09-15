@@ -108,6 +108,7 @@ const FAHRZEUG = {
   label: "RTW 1 Kärtchen",
   aktiv: true,
   lastUsedText: "30.07.2026, 12:00:00",
+  lastUsedIso: "2026-07-30T10:00:00.000Z",
   zielTyp: "fahrzeug" as const,
   zielId: "rtw-1",
   zielName: "RTW 1",
@@ -119,6 +120,7 @@ const ARTIKEL = {
   label: "Verband direkt",
   aktiv: false,
   lastUsedText: "nie benutzt",
+  lastUsedIso: null,
   zielTyp: "artikel" as const,
   zielId: "a1",
   zielName: "Ärzte-Verband",
@@ -130,6 +132,7 @@ const LISTE = {
   label: "Regalrunde",
   aktiv: true,
   lastUsedText: "nie benutzt",
+  lastUsedIso: null,
   zielTyp: null,
   zielId: null,
   zielName: null,
@@ -169,11 +172,66 @@ afterEach(async () => {
 
 afterAll(() => vi.restoreAllMocks());
 
-function checkboxMitText(text: string): HTMLElement {
-  const checkbox = queryAll<HTMLElement>(".ant-checkbox-wrapper")
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!checkbox) throw new Error(`Checkbox fehlt: ${text}`);
-  return checkbox;
+/**
+ * Die Freitextsuche laeuft ueber `useEntprellt` — das FELD steht sofort, die
+ * ABLEITUNG erst nach der Entprellzeit. Ohne dieses Warten misst der Test den
+ * Zustand VOR dem Filtern und meldet das als „Filter wirkt nicht".
+ */
+async function suchen(wert: string): Promise<void> {
+  await fill("input[type='search']", wert);
+  await act(async () => {
+    await new Promise((fertig) => setTimeout(fertig, 250));
+  });
+}
+
+/**
+ * Einen Spaltenfilter setzen — den Weg, den auch eine Person nimmt: Trichter im
+ * Spaltenkopf, Eintraege ankreuzen, „OK". Ohne Eintraege wird zurueckgesetzt.
+ *
+ * ⚠️ DIE EINTRAEGE WERDEN UMGESCHALTET, NICHT GESETZT: das Menue behaelt seine
+ * bisherige Auswahl, ein erneut genannter Eintrag faellt also wieder heraus.
+ */
+async function spaltenFilter(spalte: string, ...eintraege: string[]): Promise<void> {
+  const kopf = queryAll<HTMLElement>("thead th")
+    .find((th) => (th.textContent ?? "").includes(spalte));
+  const trichter = kopf?.querySelector<HTMLElement>(".ant-table-filter-trigger");
+  if (!trichter) throw new Error(`Kein Spaltenfilter an: ${spalte}`);
+  await clickElement(trichter);
+
+  // ⚠️ NUR DAS OFFENE MENUE. antd laesst ein einmal geoeffnetes Filtermenue im
+  // DOM stehen und blendet es nur aus; ohne diese Einschraenkung traefe „OK"
+  // den Knopf eines FRUEHER geoeffneten Menues, und der Filter dieser Spalte
+  // bliebe still unangewandt.
+  const offen = () =>
+    document.body.querySelector<HTMLElement>(
+      ".ant-dropdown:not(.ant-dropdown-hidden) .ant-table-filter-dropdown",
+    );
+  const menue = () => Array.from(offen()?.querySelectorAll<HTMLElement>("li") ?? []);
+  for (let versuch = 0; versuch < 30 && menue().length === 0; versuch += 1) await warte();
+  if (menue().length === 0) throw new Error(`Filtermenü zu ${spalte} nicht sichtbar`);
+
+  for (const text of eintraege) {
+    const eintrag = menue().find((li) => (li.textContent ?? "").includes(text));
+    if (!eintrag) throw new Error(`Filtereintrag nicht gefunden: ${text}`);
+    await clickElement(eintrag);
+  }
+
+  // Ohne `ConfigProvider`-Locale beschriftet antd die beiden Knoepfe englisch
+  // („Reset"/„OK"); beide Schreibweisen werden akzeptiert.
+  const knopf = (muster: RegExp) => Array.from(
+    offen()?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+  ).find((element) => muster.test(element.textContent ?? ""));
+
+  // „Zuruecksetzen" leert nur die Auswahl; uebernommen wird sie erst mit „OK".
+  if (eintraege.length === 0) {
+    const leeren = knopf(/Zurücksetzen|Reset/);
+    if (!leeren) throw new Error("Kein Zurücksetzen-Knopf im Filtermenü");
+    await clickElement(leeren);
+  }
+  const uebernehmen = knopf(/^OK$/);
+  if (!uebernehmen) throw new Error("Kein OK-Knopf im Filtermenü");
+  await clickElement(uebernehmen);
+  await warte();
 }
 
 function sichtbareIds(): Array<string | null> {
@@ -297,24 +355,58 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     expect(query("tr[data-row-key='t3']").textContent).toContain("Artikel-Liste");
   });
 
+  /**
+   * Der Haken „gesperrt" und die Ziel-`Checkbox.Group` standen bis zur
+   * Umstellung ueber der Tabelle. Beide sind Spaltenfilter geworden — dieselben
+   * Praedikate, nur dort, wo ihre Wirkung sichtbar ist. Mehrere Haken EINER
+   * Spalte verodern sich, Filter VERSCHIEDENER Spalten schneiden sich.
+   */
   it("addiert Zielfilter, entfernt genau einen und kombiniert alle Filterregime", async () => {
     await mount(<TokenTable zeilen={ZEILEN} />);
-    await clickElement(checkboxMitText("Fahrzeug"));
-    expect(sichtbareIds()).toEqual(["t1"]);
-    expect(document.querySelector("[data-testid='trefferanzeige']")?.textContent).toBe("1 von 3");
+    expect(exists(".ant-checkbox-wrapper")).toBe(false);
 
-    await clickElement(checkboxMitText("Artikel"));
+    await spaltenFilter("Ziel", "Fahrzeug");
+    expect(sichtbareIds()).toEqual(["t1"]);
+
+    await spaltenFilter("Ziel", "Artikel");
     expect(sichtbareIds()).toEqual(["t1", "t2"]);
 
-    await clickElement(checkboxMitText("Fahrzeug"));
+    await spaltenFilter("Ziel", "Fahrzeug");
     expect(sichtbareIds()).toEqual(["t2"]);
 
-    await clickElement(checkboxMitText("gesperrt"));
+    await spaltenFilter("Status", "gesperrt");
     expect(sichtbareIds()).toEqual(["t2"]);
-    await fill("input[type='search']", "rtw");
+
+    await suchen("rtw");
     expect(sichtbareIds()).toEqual([]);
     expect(document.body.textContent).toContain("Kein Code passt zu Suche und Filter.");
+    /**
+     * ⚠️ „0 von 3", UND DIESER TEST HAT BIS DRK-331 (dritte Reviewrunde) „1 von
+     * 3" VERLANGT — also eine Zahl, die zu keinem Bild auf dem Schirm gehoerte.
+     * Die Tabelle ist an dieser Stelle LEER, und darueber stand „1 von 3", weil
+     * die Anzeige allein die Freitextsuche zaehlte. Die alte Begruendung („die
+     * Wirkung der Spaltenfilter steht im Spaltenkopf") erklaert, warum man auf
+     * einen Zaehler verzichten KOENNTE — nicht, warum ein falscher richtig
+     * waere. Ein Zaehler neben einer Tabelle ist eine Aussage UEBER DIESE
+     * TABELLE.
+     */
     expect(document.querySelector("[data-testid='trefferanzeige']")?.textContent).toBe("0 von 3");
+  });
+
+  /**
+   * ⚠️ DER BEWEIS, DASS „Zuletzt benutzt" NICHT UEBER DEN TEXT SORTIERT.
+   * „nie benutzt" stuende als Zeichenkette hinter „30.07.2026, 12:00:00" — und
+   * damit an derselben Stelle wie ein echtes Datum. Ueber `lastUsedIso` ist
+   * `null` dagegen „fehlt" und landet aufsteigend hinten.
+   */
+  it("sortiert Zuletzt benutzt über den ISO-Stempel, nicht über den Text", async () => {
+    await mount(<TokenTable zeilen={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Zuletzt benutzt"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(sichtbareIds()).toEqual(["t1", "t2", "t3"]);
   });
 
   it("unterscheidet leeren Bestand von einer leeren Filtermenge", async () => {
@@ -322,21 +414,29 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     expect(document.body.textContent).toContain("Noch keine Codes. Lege oben den ersten an.");
     await unmount();
     await mount(<TokenTable zeilen={ZEILEN} />);
-    await fill("input[type='search']", "ohne Treffer");
+    await suchen("ohne Treffer");
     expect(document.body.textContent).toContain("Kein Code passt zu Suche und Filter.");
     expect(document.body.textContent).not.toContain("Noch keine Codes");
   });
 
-  it("verdrahtet Checkbox.Group nur an den Optionen und hält die Tabellenprops fest", () => {
+  /**
+   * Die `Checkbox.Group` der Zielfilter ist ein Spaltenfilter geworden und
+   * steht hier gar nicht mehr; die alten Zusicherungen auf ihre Verdrahtung
+   * sind damit gegenstandslos. `pagination={false}` und
+   * `scroll={{ x: "max-content" }}` sind Vorgabe der `Datentabelle` —
+   * geprueft wird ihre WIRKUNG am DOM.
+   */
+  it("hält die Tabellenprops fest und trägt keine Checkbox-Leiste mehr", async () => {
+    await mount(<TokenTable zeilen={ZEILEN} />);
+    expect(exists(".ant-pagination")).toBe(false);
+    expect(query<HTMLTableElement>("table").style.width).toBe("max-content");
+
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/tokens/TokenTable.tsx",
       "utf8",
     );
-    expect(quelle).not.toMatch(/<Checkbox\.Group[^>]*\bonChange=/);
-    expect(quelle.match(/onChange:\s*zielUmschalten/g)).toHaveLength(3);
+    expect(quelle).not.toMatch(/<Checkbox\.Group/);
     expect(quelle).toMatch(/rowKey=["']id["']/);
-    expect(quelle).toMatch(/pagination=\{false\}/);
-    expect(quelle).toMatch(/scroll=\{\{\s*x:\s*["']max-content["']\s*\}\}/);
   });
 });
 
@@ -609,6 +709,7 @@ describe("TokensSeite", () => {
       label: "Nachtschicht",
       aktiv: true,
       lastUsedText: "2.1.2026, 00:30:00",
+      lastUsedIso: "2026-01-01T23:30:00.000Z",
       zielTyp: "fahrzeug",
       zielId: "rtw-1",
       zielName: "RTW Alpha",

@@ -3,7 +3,8 @@
 // src/app/m/radio/admin/(arbeit)/zugaenge/CodeTabelle.tsx
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Popconfirm, Space, Table, Tag, type TableColumnType } from "antd";
+import { Button, Input, Popconfirm, Space, Tag, type TableColumnType } from "antd";
+import { Datentabelle, nachDatum, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import type { CodeZeile } from "../../../_lib/lesepfade/codes";
 import { erstelleCode, setzeCodeAktiv } from "../../../_actions/codes";
 import { VIkone } from "../../../_ui/verwaltungIkonen";
@@ -251,14 +252,25 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
    * Vorgang ein. ⛔ UND SIE DUERFEN NICHT NACH `_lib/` (Bauform-Zulaessigkeitstafel Nr. 2,
    * `Spec:4512-4521`) — dort waeren sie Falle 6 UND Falle 9 zugleich.
    *
-   * ⛔ KEINE TRAEGT EINEN `sorter`. Die Reihenfolge IST die des Lesepfads (`desc(createdAt)`,
-   * `_lib/lesepfade/codes.ts`) — ein antd-internes Sortieren daneben zeigte eine andere
-   * Ordnung als die, aus der V21 das Druckblatt setzt.
+   * ⛔ **VIER VON FUENF TRAGEN EINEN `sorter`, UND KEINE EIN `defaultSortOrder`.** Die
+   * Anzeigeordnung bleibt damit die des Lesepfads (`desc(createdAt)`,
+   * `_lib/lesepfade/codes.ts`): der neueste Zugang steht oben, weil er der ist, den jemand
+   * gerade ausgestellt hat und sucht. Sortiert wird erst, wenn jemand einen Spaltenkopf
+   * anfasst — ⛔ und das aendert am DRUCKBLATT nichts: V21 liest `codesListe` selbst
+   * (`riegel.test.ts`, Klausel (h)) und sieht diese Flaeche nie.
+   *
+   * ⛔ DIE AKTIONSSPALTE TRAEGT KEINEN — sie enthaelt keinen Wert, nach dem sich ordnen liesse.
+   *
+   * ⚠️ DIE ZEILENAKTIONEN HAENGEN AN `z.id` UND NICHT AN EINEM INDEX. Nur deshalb ist
+   * Sortieren hier ueberhaupt gefahrlos: eine umsortierte Tabelle verschoebe jeden
+   * indexgebundenen Griff auf die falsche Zeile (der Grund, warum `versionen/` keinen
+   * `sorter` bekommt — dort tauschen die Reihenfolge-Knoepfe ueber `index`).
    */
   const spalten: TableColumnType<CodeZeile>[] = [
     {
       title: CODE_TEXTE.spalteBezeichnung,
       key: "bezeichnung",
+      sorter: nachText<CodeZeile>((z) => z.bezeichnung),
       render: (_: unknown, z: CodeZeile) => (
         <span data-rolle="radio-code-bezeichnung">{z.bezeichnung}</span>
       ),
@@ -266,6 +278,7 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
     {
       title: CODE_TEXTE.spalteCode,
       key: "code",
+      sorter: nachText<CodeZeile>((z) => z.code),
       /*
        * ⛔ DER KLARTEXT-CODE STEHT DA (`Spec:2180-2182`): er ist kein Einmalgeheimnis, sondern
        * ein Dauerausweis. Ohne ihn koennte niemand ein verlorenes Kaertchen der richtigen
@@ -279,6 +292,17 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
       title: CODE_TEXTE.spalteZustand,
       key: "zustand",
       /*
+       * ⛔ DER FILTER LIEGT IM SPALTENKOPF UND NICHT IN EINER LEISTE DARUEBER. „Zeig mir die
+       * gesperrten" ist ein Praedikat ueber der Zeile, und ein Praedikat ueber der Zeile ist
+       * ein Spaltenfilter — eine Knopfleiste daneben waere ein zweiter Bedienweg auf dieselbe
+       * Frage. ⛔ `zustandsFilter` UND NICHT `werteAlsFilter`: der Zustand ist ein
+       * Wahrheitswert, kein Textfeld, und seine zwei Woerter stehen in `CODE_TEXTE` — nicht
+       * in den Daten.
+       *
+       * ⛔ SORTIERT WIRD UEBER `aktiv`, NICHT UEBER DAS WORT: `nachJaNein` stellt `true` nach
+       * vorn, die gueltigen Zugaenge also zuerst. Ueber die Woerter sortiert stuende
+       * „gesperrt" alphabetisch vor „aktiv" — die Umkehrung, und niemand saehe es.
+       *
        * ⛔ DER ZUSTAND WANDERT ALS WORT, NICHT ALS FARBE (Falle 3,
        * `.superpowers/sdd/planteil4/briefs/KOPF.md:1379-1380`): `color="success"` fuer den
        * gueltigen Zugang, `default` fuer den gesperrten — ⛔ KEIN `error`, das waere derselbe
@@ -291,6 +315,22 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
        * steht im Ledger unter V-L6). Fehlt nur EINES, steht die bekannte Haelfte da: die
        * Begruendung und ihre Sonde stehen an `CODE_TEXTE.gesperrtSeit`.
        */
+      sorter: nachJaNein<CodeZeile>((z) => z.aktiv),
+      /*
+       * ⛔ `wert` UND `text` SIND HIER DERSELBE LISTENEINTRAG, und das ist kein Zufall: `wert`
+       * ist ein undurchsichtiger Filterschluessel, den nur antd sieht. Ein zweites Literal
+       * daneben („aktiv") waere eine Abschrift des Bildschirmtextes — und der Waechter „kein
+       * Wert der Textliste steht ein zweites Mal im Quelltext" faerbte zu Recht rot.
+       *
+       * ⚠️ UND DER TYP STEHT AM PARAMETER STATT ALS `zustandsFilter<CodeZeile>`: die spitze
+       * Klammer einer Typvariablen nach einem Pfeil (`=> z.aktiv`) ist fuer den Scan „ein
+       * JSX-Textkind ist blanker Text" ununterscheidbar von einem Textkind — gemessen, er
+       * faerbte rot. Die Ableitung aus `trifft` ist dieselbe, nur ohne die Klammer.
+       */
+      ...zustandsFilter([
+        { wert: CODE_TEXTE.aktiv, text: CODE_TEXTE.aktiv, trifft: (z: CodeZeile) => z.aktiv },
+        { wert: CODE_TEXTE.gesperrt, text: CODE_TEXTE.gesperrt, trifft: (z: CodeZeile) => !z.aktiv },
+      ]),
       render: (_: unknown, z: CodeZeile) => {
         const sperrText = sperrangabe(z);
         return (
@@ -317,6 +357,14 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
     {
       title: CODE_TEXTE.spalteZuletzt,
       key: "zuletzt",
+      /*
+       * ⛔ SORTIERT WIRD UEBER `zuletztIso`, NIE UEBER `zuletztText`. Der Anzeigetext ist
+       * „20.06.2026, 18:45" ODER das Wort „nie eingelöst"; als Zeichenkette sortiert stuende
+       * der 2. Oktober vor dem 14. September und das Wort mitten zwischen den Daten. ⛔ Die
+       * nie eingeloesten Zugaenge tragen die LEERE Zeichenkette und landen aufsteigend hinten
+       * (`nachDatum`, `LEER_ZULETZT`) — nicht 1970 ganz vorn.
+       */
+      sorter: nachDatum<CodeZeile>((z) => z.zuletztIso),
       /*
        * ⛔ VORFORMATIERT (Bauform-Zulaessigkeitstafel Nr. 7): kein `Date` ueber die Grenze, und
        * die Zone ist die des Servers (`_lib/anzeige.ts:87`). ⛔ „nie eingeloest" KOMMT AUS DEM
@@ -393,21 +441,18 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
           </Button>
         </Space.Compact>
       </div>
-      <Table<CodeZeile>
+      {/*
+        ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der `Datentabelle`
+        (`src/core/tabelle/Datentabelle.tsx`) und stuende hier nur ein zweites Mal. Die
+        Begruendungen gelten unveraendert: die Tabelle liegt in der Groessenordnung „Zahl der
+        Aufsteller" (`_db/schema.ts:193-195`), und eine Blaetterung schnitte die Liste in
+        Seiten; das waagerechte Scrollen ist das, was auf 390 px Platz schafft — nicht `size`
+        (Falle 4).
+      */}
+      <Datentabelle<CodeZeile>
         rowKey="id"
         columns={spalten}
         dataSource={zeilen}
-        /*
-          ⛔ `pagination={false}`: die Tabelle liegt in der Groessenordnung „Zahl der
-          Aufsteller" — das schreibt das Schema an derselben Stelle aus, an der es den Index
-          auf `aktiv` ablehnt (`_db/schema.ts:193-195`). Eine Blaetterung schnitte ausserdem
-          die Liste, aus der V21 das Druckblatt setzt, in Seiten.
-        */
-        pagination={false}
-        /* ⛔ `x: "max-content"` — ohne `scroll` bricht eine antd-Tabelle auf 390 px
-           (`aufgaben/_ui/RoutinenTabelle.tsx:34-35`); Platz schafft das, nicht `size`
-           (Falle 4). */
-        scroll={{ x: "max-content" }}
         aria-label={CODE_TEXTE.tabelleName}
         locale={{ emptyText: CODE_TEXTE.leer }}
       />

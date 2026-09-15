@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Alert, Button, Card, Checkbox, Input, Modal, Select, Space, Table, Tag } from "antd";
+import { Alert, Button, Card, Checkbox, Input, Modal, Select, Space, Tag } from "antd";
+import { Datentabelle } from "@/core/tabelle";
 import type { AuditCursor, AuditEvent } from "@/core/audit/types";
 import { SPACE } from "@/core/theme/tokens";
 import { SCHRIFT } from "@/core/theme/schrift";
@@ -65,13 +66,43 @@ export function AuditLog({ view, search }: { view: AuditView; search: AuditSearc
     {ready && ready.pending > 0 && <Alert type="info" showIcon title="Ereignisse werden noch übernommen" description={`${ready.pending} Ereignisse warten noch auf die Übernahme. Lade die Ansicht erneut.`} />}
     {ready && (ready.page.events.length ? <>
       <div className={css.desktop}>
-        <Table<AuditEvent> rowKey="id" dataSource={ready.page.events} pagination={false} scroll={{x:960}} columns={[
-          {title:<span style={SCHRIFT.kicker}>Zeit (UTC)</span>,key:"time",width:190,render:(_,event)=><time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>},
-          {title:<span style={SCHRIFT.kicker}>Modul</span>,width:130,dataIndex:"module",render:(module:string)=>MODULE_LABELS[module]},
-          {title:<span style={SCHRIFT.kicker}>Aktion / Objekt</span>,width:200,key:"action",render:(_,event)=><>{ACTION_LABELS[event.action]}<br/><span style={SCHRIFT.neben}>{objectLabel(event.objectType)}</span>{event.origin==="browser"&&<div><Tag>Vom Browser gemeldet</Tag></div>}</>},
-          {title:<span style={SCHRIFT.kicker}>Person / Zugang</span>,width:200,key:"actor",render:(_,event)=><span className={css.break}>{actorLabel(event)}</span>},
-          {title:<span style={SCHRIFT.kicker}>Ergebnis</span>,width:120,dataIndex:"result",render:(result:AuditEvent["result"])=><Tag>{RESULT_LABELS[result]}</Tag>},
-          {title:<span style={SCHRIFT.kicker}>Details</span>,width:120,key:"details",render:(_,event)=><Button onClick={()=>setDetails(event)} aria-label={`Details: ${objectLabel(event.objectType)}`}>Details</Button>},
+        {/*
+          * SORTIERT WIRD ÜBER `occurredAt`, NIE ÜBER `auditTime(...)`: der
+          * Anzeigetext ist ein formatierter Zeitpunkt und sortierte als
+          * Zeichenkette falsch. `descend` als Vorgabe, weil das Log neueste
+          * Einträge zuerst liefert und die Statuszeile darüber genau das sagt —
+          * eine andere Startordnung wären zwei Aussagen über dieselbe Liste.
+          *
+          * KEINE SPALTENFILTER HIER, und das ist eine Festlegung: Modul, Aktion,
+          * Person und Ergebnis haben ÜBER der Tabelle bereits einen Filter, und
+          * der grenzt die ABFRAGE ein — über alle Seiten hinweg. Ein
+          * Spaltenfilter träfe nur die geladene Seite; zwei gleichnamige Filter
+          * mit verschiedener Reichweite nebeneinander sind zwei Wahrheiten. Die
+          * Sortierung teilt diese Grenze (sie ordnet nur die Seite), ordnet aber
+          * bloß um, statt Zeilen zu verbergen.
+          */}
+        {/**
+          * ⚠️ KEIN SORTIERER IN DIESER TABELLE, und das ist eine
+          * Korrektheitsfrage, keine Geschmacksfrage. Das Protokoll ist
+          * SERVERSEITIG GEBLAETTERT (`nextCursor`, „Aeltere Eintraege"): ein
+          * Vergleicher im Spaltenkopf sieht nur die GELADENE SEITE. „Zeit
+          * aufsteigend" zeigte dann nicht den aeltesten Eintrag, sondern den
+          * aeltesten unter den geladenen fuenfzig — eine Aussage ueber den
+          * ganzen Bestand, die nur ueber einen Ausschnitt gilt.
+          *
+          * Geordnet wird ueber die ABFRAGE: der Cursor liefert neueste zuerst.
+          * Eingegrenzt wird ueber die Filterleiste darueber, die in die URL
+          * schreibt und damit das GANZE Protokoll trifft — was ein
+          * Spaltenfilter nie koennte. Dieselbe Regel gilt im Journal des
+          * Lagerbuchs (DRK-331); dort stand sie erst nach einem Review.
+          */}
+        <Datentabelle<AuditEvent> rowKey="id" dataSource={ready.page.events} scroll={{x:960}} columns={[
+          {title:"Zeit (UTC)",key:"time",width:190,render:(_,event)=><time dateTime={new Date(event.occurredAt).toISOString()} style={SCHRIFT.mono}>{auditTime(event.occurredAt)}</time>},
+          {title:"Modul",width:130,dataIndex:"module",render:(module:string)=>MODULE_LABELS[module]},
+          {title:"Aktion / Objekt",width:200,key:"action",render:(_,event)=><>{ACTION_LABELS[event.action]}<br/><span style={SCHRIFT.neben}>{objectLabel(event.objectType)}</span>{event.origin==="browser"&&<div><Tag>Vom Browser gemeldet</Tag></div>}</>},
+          {title:"Person / Zugang",width:200,key:"actor",render:(_,event)=><span className={css.break}>{actorLabel(event)}</span>},
+          {title:"Ergebnis",width:120,dataIndex:"result",render:(result:AuditEvent["result"])=><Tag>{RESULT_LABELS[result]}</Tag>},
+          {title:"Details",width:120,key:"details",render:(_,event)=><Button onClick={()=>setDetails(event)} aria-label={`Details: ${objectLabel(event.objectType)}`}>Details</Button>},
         ]} />
       </div>
       <div className={css.mobile} style={{gap:SPACE.md}}>{ready.page.events.map(event=><Card key={event.id}>

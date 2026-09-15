@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Alert, Button, Flex, Form, Table, type TableProps } from "antd";
+import { Alert, Button, Flex, Form, type TableProps } from "antd";
+import {
+  Datentabelle,
+  nachText,
+  nachZahl,
+  trifftWert,
+  werteAlsFilter,
+} from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { importArtikelCsv } from "../../../_actions/csv";
 import { parseArtikelCsv, type CsvZeile } from "../../../_lib/csv";
@@ -36,58 +43,79 @@ export function vorschauAus(
   };
 }
 
-const VORSCHAU_SPALTEN = [
-  {
-    title: <span style={SCHRIFT.feldname}>Artikel</span>,
-    dataIndex: "name",
-    key: "artikel",
-    render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Fach</span>,
-    dataIndex: "fach",
-    key: "fach",
-    render: (wert: string) => <span className={s.fach}>{wert}</span>,
-  },
-  {
-    // DRK-294 — die optionale sechste Spalte. Leer heisst „ohne Kategorie";
-    // der Strich zeigt, dass die Zelle gelesen wurde und nichts enthielt.
-    title: <span style={SCHRIFT.feldname}>Kategorie</span>,
-    dataIndex: "kategorie",
-    key: "kategorie",
-    render: (wert: string | undefined) => wert ?? "–",
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Einheit</span>,
-    dataIndex: "einheit",
-    key: "einheit",
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Mindestbestand</span>,
-    dataIndex: "mindestbestand",
-    key: "mindestbestand",
-    align: "right",
-    render: (wert: number) => <span style={SCHRIFT.zahl}>{wert}</span>,
-  },
-  {
-    title: <span style={SCHRIFT.feldname}>Startbestand</span>,
-    dataIndex: "startbestand",
-    key: "startbestand",
-    align: "right",
-    render: (wert: number) => <span style={SCHRIFT.zahl}>{wert}</span>,
-  },
-] satisfies TableProps<CsvVorschauZeile>["columns"];
+/**
+ * KEIN `defaultSortOrder`: die Vorschau steht in DATEIREIHENFOLGE, und die ist
+ * die einzige Ordnung, in der sich eine uebersprungene Zeile aus dem
+ * Fehlerbericht („Zeile 7 …") wiederfinden laesst. Sortieren bleibt moeglich,
+ * ist aber ein bewusster Griff.
+ */
+function vorschauSpalten(
+  rows: CsvVorschauZeile[],
+): TableProps<CsvVorschauZeile>["columns"] {
+  return [
+    {
+      title: "Artikel",
+      dataIndex: "name",
+      key: "artikel",
+      sorter: nachText<CsvVorschauZeile>((zeile) => zeile.name),
+      render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
+    },
+    {
+      title: "Fach",
+      dataIndex: "fach",
+      key: "fach",
+      sorter: nachText<CsvVorschauZeile>((zeile) => zeile.fach),
+      filters: werteAlsFilter(rows, (zeile) => zeile.fach),
+      onFilter: trifftWert<CsvVorschauZeile>((zeile) => zeile.fach),
+      render: (wert: string) => <span className={s.fach}>{wert}</span>,
+    },
+    {
+      // DRK-294 — die optionale sechste Spalte. Leer heisst „ohne Kategorie";
+      // der Strich zeigt, dass die Zelle gelesen wurde und nichts enthielt.
+      title: "Kategorie",
+      dataIndex: "kategorie",
+      key: "kategorie",
+      sorter: nachText<CsvVorschauZeile>((zeile) => zeile.kategorie),
+      filters: werteAlsFilter(rows, (zeile) => zeile.kategorie, {
+        ohneWertLabel: "ohne Kategorie",
+      }),
+      onFilter: trifftWert<CsvVorschauZeile>((zeile) => zeile.kategorie),
+      render: (wert: string | undefined) => wert ?? "–",
+    },
+    {
+      title: "Einheit",
+      dataIndex: "einheit",
+      key: "einheit",
+      filters: werteAlsFilter(rows, (zeile) => zeile.einheit),
+      onFilter: trifftWert<CsvVorschauZeile>((zeile) => zeile.einheit),
+    },
+    {
+      title: "Mindestbestand",
+      dataIndex: "mindestbestand",
+      key: "mindestbestand",
+      align: "right",
+      sorter: nachZahl<CsvVorschauZeile>((zeile) => zeile.mindestbestand),
+      render: (wert: number) => <span style={SCHRIFT.zahl}>{wert}</span>,
+    },
+    {
+      title: "Startbestand",
+      dataIndex: "startbestand",
+      key: "startbestand",
+      align: "right",
+      sorter: nachZahl<CsvVorschauZeile>((zeile) => zeile.startbestand),
+      render: (wert: number) => <span style={SCHRIFT.zahl}>{wert}</span>,
+    },
+  ];
+}
 
 export function VorschauTabelle({ rows }: { rows: CsvVorschauZeile[] }) {
   return (
-    <Table<CsvVorschauZeile>
+    <Datentabelle<CsvVorschauZeile>
       rowKey="zeile"
-      pagination={false}
-      scroll={{ x: "max-content" }}
       aria-label="Vorschau"
       locale={{ emptyText: "Keine gültige Zeile in der Datei." }}
       dataSource={rows}
-      columns={VORSCHAU_SPALTEN}
+      columns={vorschauSpalten(rows)}
     />
   );
 }

@@ -8,7 +8,8 @@ import {
   useTransition,
   type CSSProperties,
 } from "react";
-import { AutoComplete, Button, Input, Table } from "antd";
+import { AutoComplete, Button, Input } from "antd";
+import { Datentabelle, nachText } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { addGroupLeaderAction, removeGroupLeaderAction, suchePersonenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
@@ -170,10 +171,9 @@ export function Zuordnung({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
       <span style={T.kicker}>LEITUNG</span>
-      <Table<ZuordnungPerson>
+      <Datentabelle<ZuordnungPerson>
         size="middle"
         rowKey="userId"
-        pagination={false}
         dataSource={personen}
         /*
          * §4.3: leer ist ein Zustand, keine leere Tabelle.
@@ -204,6 +204,15 @@ export function Zuordnung({
           {
             title: "Person",
             key: "person",
+            /*
+             * Sortiert wird ueber den NAMEN, nicht ueber die gerenderte Zelle —
+             * die traegt Name, E-Mail und Kennung untereinander, und „was davon"
+             * waere bei einem Textvergleich reiner Zufall. Wer keinen Namen hat,
+             * steht aufsteigend hinten: `nachText` haelt leere Werte am Ende.
+             * KEIN Spaltenfilter: eine Leitungsliste hat keine wiederkehrenden
+             * Werte, nach denen sich gruppieren liesse.
+             */
+            sorter: nachText<ZuordnungPerson>((p) => p.name),
             render: (_: unknown, p: ZuordnungPerson) => <PersonZelle person={p} />,
           },
           {

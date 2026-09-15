@@ -117,9 +117,13 @@ describe("Kopplung Filter -> Export (§12.1 Punkt 2)", () => {
   ];
 
   it("exportiert nur, was der Filter uebrig laesst", () => {
+    // ⚠️ GEFILTERT WIRD UEBER DIE SUCHE, nicht mehr ueber einen der vier Haken:
+    // die sind seit DRK-331 Spaltenfilter und liegen in antds Tabellenzustand.
+    // Die Zusage dieses Tests ist unveraendert — was gefiltert ist, geht in die
+    // Datei; die Reihenfolge „erst filtern, dann exportieren" bleibt.
     const gefiltert = artikelFiltern(
       rohe.map((r) => ({ ...r, chargeKritisch: false })),
-      { ...LEERER_FILTER, nurUnterMindest: true },
+      { suche: "mullbinde" },
     );
     const zeilen = bestandExportZeilen(gefiltert);
     expect(zeilen).toHaveLength(1);

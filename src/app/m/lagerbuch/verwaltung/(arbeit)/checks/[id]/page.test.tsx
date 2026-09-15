@@ -201,10 +201,21 @@ describe("Check-Detailseite", () => {
       props.flaschenZeilen,
       props.verfallZeilen,
     ].map((zeilen) => Object.keys(zeilen[0]))).toEqual([
-      ["id", "artikel", "sollText", "istText", "korrekturText", "nachgefuelltText", "offenChip"],
-      ["id", "fachText", "artikelText", "einheitText", "sollText", "istText", "lueckeChip"],
+      // Die `…Zahl`-Felder sind die Rohwerte, ueber die die Spalten sortieren
+      // — die `…Text`-Felder daneben sind `String(…)` und ordneten „10" vor
+      // „2". Beide sind JSON-sichere Skalare und ueberschreiten die RSC-Grenze
+      // genauso wie vorher der Text allein.
+      [
+        "id", "artikel", "sollText", "istText", "korrekturText",
+        "nachgefuelltText", "sollZahl", "istZahl", "korrekturZahl",
+        "nachgefuelltZahl", "offenZahl", "offenChip",
+      ],
+      [
+        "id", "fachText", "artikelText", "einheitText", "sollText", "istText",
+        "sollZahl", "istZahl", "lueckeZahl", "lueckeChip",
+      ],
       ["id", "name", "vorhandenChip", "zustandChip", "bemerkungText"],
-      ["id", "name", "druck", "fuellstandChip"],
+      ["id", "name", "druck", "druckZahl", "fuellstandChip"],
       ["id", "artikel", "verfallText", "statusChip"],
     ]);
   });
@@ -270,6 +281,11 @@ describe("Check-Detailseite", () => {
       istText: "2",
       korrekturText: "1",
       nachgefuelltText: "1",
+      sollZahl: 4,
+      istZahl: 2,
+      korrekturZahl: 1,
+      nachgefuelltZahl: 1,
+      offenZahl: 1,
       offenChip: { ton: "rot", zeichen: "warnung", text: "fehlt 1" },
     }]);
     expect(props.nachfuellZeilen).toEqual([{
@@ -279,6 +295,9 @@ describe("Check-Detailseite", () => {
       einheitText: "Stk.",
       sollText: "4",
       istText: "2",
+      sollZahl: 4,
+      istZahl: 2,
+      lueckeZahl: 2,
       lueckeChip: { ton: "rot", zeichen: "warnung", text: "2 fehlten" },
     }]);
   });
@@ -352,12 +371,16 @@ describe("Check-Detailseite", () => {
         id: "f-ohne-druck",
         name: "O2 ungemessen",
         druck: { darstellung: "chip", text: "nicht gemessen", ton: "grau" },
+        // ⚠️ `null`, nicht 0: „nicht gemessen" ist FEHLEND, und `nachZahl`
+        // sortiert Fehlendes ans Ende statt an den Anfang der Skala.
+        druckZahl: null,
         fuellstandChip: { ton: "grau", zeichen: null, text: "nicht gemessen" },
       },
       {
         id: "f-ohne-nenn",
         name: "O2 ohne Nennwert",
         druck: { darstellung: "mono", text: "150 bar", ton: null },
+        druckZahl: 150,
         fuellstandChip: {
           ton: "grau", zeichen: null, text: "Nennfülldruck unbekannt",
         },
@@ -366,6 +389,7 @@ describe("Check-Detailseite", () => {
         id: "f-bewertet",
         name: "O2 bewertet",
         druck: { darstellung: "mono", text: "150 bar", ton: null },
+        druckZahl: 150,
         fuellstandChip: { ton: "ok", zeichen: null, text: "50 %" },
       },
     ]);
