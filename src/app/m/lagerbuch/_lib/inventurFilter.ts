@@ -25,7 +25,3 @@ export function inventurTrifft(z: { fach: string; kategorie: string | null }, f:
 export function filterIstLeer(f: InventurFilter): boolean {
   return f.kategorien.length === 0 && f.faecher.length === 0;
 }
-
-export function fachOptionen(zeilen: readonly { fach: string }[]): string[] {
-  return [...new Set(zeilen.map((z) => z.fach))].sort((a, b) => a.localeCompare(b, "de"));
-}
