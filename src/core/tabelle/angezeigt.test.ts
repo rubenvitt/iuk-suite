@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { Key } from "react";
 import {
+  angezeigteAnzahl,
   angezeigteZeilen,
+  blattSpalten,
   filterAktiv,
   spaltenSchluessel,
   wendeFilterAn,
@@ -198,5 +201,178 @@ describe("filterAktiv", () => {
     // Pruefung ueber die Wahrheit der Werte statt ueber ihre ANZAHL laege hier
     // falsch und liesse „nur inaktive" als ungefiltert durchgehen.
     expect(filterAktiv({ aktiv: [false] })).toBe(true);
+  });
+});
+
+/**
+ * ⚠️ DIESE ZAHL WIRD NICHT GELESEN, SIE WIRD GERECHNET — und damit ist sie die
+ * Stelle, an der sie falsch sein kann, ohne dass ein Tor es meldet. `aria-rowcount`
+ * hängt daran: eine zu große Zahl lässt eine Vorleseanwendung „Zeile 3 von 800"
+ * an einer Tabelle mit zwanzig Zeilen ansagen.
+ */
+describe("angezeigteAnzahl ohne Spaltenschluessel", () => {
+  // ⚠️ DER FALL, DER EINE SCHLUESSELBASIERTE RECHNUNG STILL VERLIEREN WUERDE:
+  // antds `getColumnKey` faellt auf eine POSITION zurueck, wenn eine Spalte
+  // weder `key` noch ein skalares `dataIndex` traegt (`util.js:9`). antd
+  // filtert damit weiter — wer den Filter ueber einen selbst abgeleiteten
+  // Schluessel sucht, findet ihn nicht und meldet die ungefilterte Zahl.
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+  const trifft = (wert: Key | boolean, zeile: Z) => zeile.a === wert;
+
+  it("filtert eine Spalte OHNE `key` und ohne `dataIndex`", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { filters: [], filteredValue: [1], onFilter: trifft },
+    ])).toBe(2);
+  });
+
+  it("filtert eine Spalte mit VERSCHACHTELTEM `dataIndex`", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { dataIndex: ["tief", "a"], filters: [], filteredValue: [1], onFilter: trifft },
+    ])).toBe(2);
+  });
+
+  it("uebergeht eine Spalte ohne `filters`, `filterDropdown` und `onFilter`", () => {
+    expect(angezeigteAnzahl(zeilen, [{ key: "a" }])).toBe(4);
+  });
+
+  it("uebergeht eine filterbare Spalte OHNE `onFilter` — antd filtert dann auch nicht", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filterDropdown: () => null, filteredValue: [1] },
+    ])).toBe(4);
+  });
+});
+
+describe("angezeigteAnzahl", () => {
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+  const spalte = (extra: Record<string, unknown>) => ({
+    key: "a",
+    onFilter: (wert: Key | boolean, zeile: Z) => zeile.a === wert,
+    ...extra,
+  });
+
+  it("ist die ganze Liste, solange kein Filter greift", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: null })])).toBe(4);
+    expect(angezeigteAnzahl(zeilen, undefined)).toBe(4);
+  });
+
+  it("zaehlt NACH dem Spaltenfilter", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: [1] })])).toBe(2);
+  });
+
+  it("zaehlt mehrere Werte EINER Spalte als Vereinigung", () => {
+    // Dieselbe Bedeutung wie antds `realKeys.some(...)` — wer hier schneidet
+    // statt zu vereinigen, zeigt eine andere Zahl als die Tabelle daneben.
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: [1, 3] })])).toBe(3);
+  });
+
+  it("kann 0 sein, und das ist eine Zahl — kein „unbekannt\"", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [], filteredValue: [99] })])).toBe(0);
+  });
+
+  it("liefert null, sobald eine Spalte ungesteuert filtert", () => {
+    expect(angezeigteAnzahl(zeilen, [spalte({ filters: [{ text: "x", value: 1 }] })])).toBeNull();
+  });
+
+  it("liefert 0 ohne Datenquelle", () => {
+    expect(angezeigteAnzahl(undefined, undefined)).toBe(0);
+  });
+});
+
+describe("blattSpalten", () => {
+  it("steigt in gruppierte Spaltenkoepfe ab", () => {
+    const kind = { key: "b" };
+    const blaetter = blattSpalten([
+      { key: "a" },
+      { key: "gruppe", children: [kind, { key: "c" }] },
+    ]);
+    expect(blaetter.map((s) => s.key)).toEqual(["a", "b", "c"]);
+    expect(blaetter[1]).toBe(kind);
+  });
+
+  it("behandelt eine leere `children`-Liste als Blatt", () => {
+    expect(blattSpalten([{ key: "a", children: [] }]).map((s) => s.key)).toEqual(["a"]);
+  });
+});
+
+describe("angezeigteAnzahl mit gruppierten Spaltenkoepfen", () => {
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+
+  it("findet einen Filter, der in einer GRUPPE steckt", () => {
+    // ⚠️ DER FALL WAR STILL: die Gruppe traegt weder `filters` noch `onFilter`,
+    // also saehe eine Rechnung auf der obersten Ebene „diese Tabelle filtert
+    // nicht" — und meldete 4 Zeilen, waehrend 2 auf dem Schirm stehen.
+    expect(angezeigteAnzahl(zeilen, [
+      {
+        key: "gruppe",
+        children: [{
+          key: "a",
+          filters: [],
+          filteredValue: [1],
+          onFilter: (wert: Key | boolean, zeile: Z) => zeile.a === wert,
+        }],
+      },
+    ])).toBe(2);
+  });
+
+  it("meldet auch aus einer GRUPPE heraus `unbekannt`", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      {
+        key: "gruppe",
+        children: [{
+          key: "a",
+          filters: [{ text: "x", value: 1 }],
+          onFilter: (wert: Key | boolean, zeile: Z) => zeile.a === wert,
+        }],
+      },
+    ])).toBeNull();
+  });
+});
+
+describe("angezeigteAnzahl an antds ANDEREN Filterformen", () => {
+  type Z = { a: number };
+  const zeilen: Z[] = [{ a: 1 }, { a: 1 }, { a: 2 }, { a: 3 }];
+  const trifft = (wert: Key | boolean, zeile: Z) => zeile.a === wert;
+
+  it("erkennt ein SELBST GEBAUTES Filtermenue ohne `filters`", () => {
+    // ⚠️ antds Muster fuer ein eigenes Menue (`filterDropdown` + `filteredValue`
+    // + `onFilter`, ganz ohne `filters`-Liste) filtert genauso. Eine Pruefung
+    // allein auf `filters` uebersaehe es — still, und die Zahl bliebe die
+    // ungefilterte, waehrend weniger Zeilen dastehen.
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filterDropdown: () => null, filteredValue: [1], onFilter: trifft },
+    ])).toBe(2);
+  });
+
+  it("meldet `unbekannt` bei einem ungesteuerten eigenen Filtermenue", () => {
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filterDropdown: () => null, onFilter: trifft },
+    ])).toBeNull();
+  });
+
+  it("meldet `unbekannt` bei einem `defaultFilteredValue`", () => {
+    // Der einzige Weg, ungesteuert MIT Startwert zu filtern — danach fuehrt
+    // antd den Stand allein.
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filters: [], defaultFilteredValue: [1], onFilter: trifft },
+    ])).toBeNull();
+  });
+
+  it("meldet NICHT `unbekannt` fuer ein `onFilter` ohne jede Bedienung", () => {
+    // ⚠️ `'onFilter' in column` macht fuer antd schon eine filterbare Spalte.
+    // Ohne `filters`, `filterDropdown` und `defaultFilteredValue` gibt es aber
+    // weder Menue noch Startwert — es wird nie gefiltert. Ein „unbekannt" hier
+    // waere schlechter als die richtige Zahl, die wir haben.
+    expect(angezeigteAnzahl(zeilen, [{ key: "a", onFilter: trifft }])).toBe(4);
+  });
+
+  it("liest ein ausdrueckliches `filteredValue: undefined` als GESTEUERT", () => {
+    // antd unterscheidet ueber `'filteredValue' in column`, nicht ueber den
+    // Wert — die Spalte gilt als gesteuert mit leerem Stand.
+    expect(angezeigteAnzahl(zeilen, [
+      { key: "a", filters: [], filteredValue: undefined, onFilter: trifft },
+    ])).toBe(4);
   });
 });
