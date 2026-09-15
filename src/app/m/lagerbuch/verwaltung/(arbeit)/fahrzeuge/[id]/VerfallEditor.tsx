@@ -153,12 +153,17 @@ export function VerfallEditor({
       ),
     },
     {
-      // ⚠️ DIE FUENFTE SPALTE TRIFFT EINE TABELLE, DIE SCHON UEBERLAEUFT —
-      // DRK-322 haelt den waagerechten Ueberlauf des Fahrzeugblatts auf schmalen
-      // Schirmen fest. Sie steht trotzdem hier und nicht anderswo: „das ist
-      // abgelaufen" und „das kommt raus" sind derselbe Handgriff, und eine
-      // Aktion zwei Flaechen entfernt vom Befund wird nicht benutzt. Die Breite
-      // ist dort zu loesen, nicht durch Weglassen der Aktion.
+      // ⚠️ DIE FUENFTE SPALTE MACHT DIE TABELLE BREITER ALS JEDEN TELEFONSCHIRM
+      // — gemessen 891px Inhalt in einem 308px breiten Kasten bei 390px
+      // Fensterbreite. Das ist in Ordnung und war es nicht immer: solange die
+      // Tabelle in einer impliziten `auto`-Spalte hing, verbreiterte diese Zahl
+      // die SEITE (DRK-322, 357px Ueberlauf bei 390px). Seit dem `minmax(0, 1fr)`
+      // unten scrollt sie in sich, und die Spalte kostet nichts mehr.
+      //
+      // Sie steht hier und nicht anderswo: „das ist abgelaufen" und „das kommt
+      // raus" sind derselbe Handgriff, und eine Aktion zwei Flaechen entfernt vom
+      // Befund wird nicht benutzt. Eine zu breite Tabelle ist an der Breite zu
+      // loesen, nicht durch Weglassen der Aktion.
       title: "Aktion",
       key: "aussondern",
       render: (_wert: unknown, eintrag) => (
