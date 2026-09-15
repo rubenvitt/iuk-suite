@@ -38,19 +38,39 @@ const BREITEN = [
  * Gemessen am 2026-09-15 bei 834px, dreimal in Folge gleich:
  *
  *     sofort nach `toContainText`   main 834px — Scroll-Container 802/802
- *     nach `networkidle`            main 594px — Scroll-Container 562/746
+ *     nach der Hydration            main 594px — Scroll-Container 562/746
  *
  * Die Seitenleiste steht in BEIDEN Zustaenden mit 240px da (`display: block`) —
  * sie ist nicht die Ursache. Der Inhalt liegt anfangs bloss noch UNTER ihr statt
- * neben ihr: `next dev` (Turbopack) spritzt die Stylesheets der CSS-Module per
- * JS nach, und bis das geschehen ist, nimmt `Layout.Content` die volle
- * Fensterbreite. Mit 802px Platz fuer 746px Tabelle ist dann nichts zu eng, der
- * Eigenscroll entfaellt — und eine Zusicherung darauf faellt.
+ * neben ihr, und zwar weil `Layout` seine Kinder nur mit der Klasse
+ * `ant-layout-has-sider` nebeneinander legt. Die steht NICHT im Server-HTML:
+ * dort kommt `class="ant-layout iuk"` an, und `.ant-layout` ist
+ * `flex-direction: column`. Erst bei der Hydration meldet sich `Sider` per
+ * `useEffect` bei `Layout` an (`antd/es/layout/Sider.js:122-125`):
+ *
+ *     t=0ms     class="ant-layout iuk"                       column   Inhalt 834px
+ *     t=500ms   class="ant-layout ant-layout-has-sider iuk"  row      Inhalt 594px
+ *
+ * ⚠️ ES IST DIE KLASSE, DIE FEHLT, NICHT DIE REGEL — der Unterschied schickt
+ * die Fehlersuche sonst ins falsche Stilsystem. Die cssinjs-Regel
+ * `.ant-layout-has-sider { flex-direction: row }` steht im selben Server-HTML
+ * bereits drin (nachgemessen), und `shell.module.css` deckelt nur die Leiste
+ * selbst, nie `Layout` oder `Content`. `useHasSider` hat zwar einen synchronen
+ * Rueckfall ueber die Kinder — der greift nicht, weil `SuiteRahmen` eine Server
+ * Component ist und `<Sider>` die RSC-Grenze als Client-Referenz ueberquert.
+ *
+ * Mit 802px Platz fuer 746px Tabelle ist bis dahin nichts zu eng, der Eigenscroll
+ * entfaellt — und eine Zusicherung darauf faellt, obwohl die Seite richtig ist.
  *
  * ⚠️ NICHT MIT EINEM GROESSEREN ZEITBUDGET ZU HEILEN: `expect`s eigene
  * Wiederholung greift nur an EINER Zusicherung, gemessen wird hier aber EINMAL
  * in einem `evaluate` und danach nur noch gerechnet. Die erste Messung ist die
  * einzige, und sie faellt in das Fenster.
+ *
+ * ⚠️ DAS IST KEINE EIGENHEIT VON `next dev`. Die Umstellung haengt an der
+ * Hydration, nicht an der Auslieferung des CSS — sie faellt auch in Produktion
+ * an, dort nur schneller. Dass die Huelle das ueberhaupt tut, statt `hasSider`
+ * fest zu setzen, steht als DRK-363 auf dem Board.
  *
  * Die Probe ist die Invariante des fertigen Rasters: der Inhalt beginnt dort,
  * wo die Leiste endet. Unterhalb von 768px steht die Leiste auf `display: none`
