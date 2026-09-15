@@ -1083,6 +1083,105 @@ async function pruefeAlleSechs(): Promise<void> {
   expect(chips.some((t) => t.includes("03/27"))).toBe(true);
 }
 
+describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
+  const HINWEIS = "[data-rolle='auffuell-hinweis']";
+
+  it("nennt am Abschluss den QR-Code am Handlager als Einstieg", async () => {
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    const t = query(HINWEIS).textContent ?? "";
+    // AK1 und AK2: der Zeitpunkt UND der Einstieg stehen woertlich da. Ohne den
+    // zweiten Teil bliebe ein Hinweis, der zum Auffuellen auffordert, ohne zu
+    // sagen, wo es anfaengt — und genau das war der Anlass des Tickets.
+    expect(t).toContain("Nach dem Dienst auffüllen");
+    expect(t).toContain("QR-Code am Handlager");
+  });
+
+  it("ist TEXT, kein Weg — kein Link, kein Knopf (AK3)", async () => {
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    // „Der Hinweis allein loest keine Bestandsbuchung aus": er traegt nichts
+    // Anklickbares. Ein `a` oder `button` darin waere eine zweite, leisere
+    // Antwort auf die Frage „wie fuelle ich auf?" — und die Zusage waere weg,
+    // ohne dass ein Tor etwas meldet.
+    //
+    // ⚠️ ERST DIE EXISTENZ. Ohne diese Zeile ist der Scan darunter auch dann
+    // gruen, wenn es den Hinweis GAR NICHT GIBT — ein Negativtest ueber einem
+    // fehlenden Element misst nichts (gemessen in der Gegenprobe: ohne den
+    // Absatz blieb er gruen).
+    expect(exists(HINWEIS)).toBe(true);
+    expect(queryAll(`${HINWEIS} a, ${HINWEIS} button`)).toHaveLength(0);
+  });
+
+  it("steht am ABSCHLUSS, nicht auf den Schritten davor", async () => {
+    // Die Entscheidung zur offenen Frage des Tickets („dauerhaft in der
+    // Checkliste oder beim Abschluss?"), hier festgehalten: auf einem Schritt
+    // konkurrierte der Satz mit dessen eigener Anweisung.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[GERAET]}
+        flaschen={[FLASCHE]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    expect(exists(HINWEIS)).toBe(false); // zaehlen
+    await click(WEITER);
+    expect(exists(HINWEIS)).toBe(false); // nachfuellen
+    await click(WEITER);
+    expect(exists(HINWEIS)).toBe(false); // geraete
+    await click(WEITER);
+    expect(exists(HINWEIS)).toBe(false); // sauerstoff
+    await click(ABSCHLIESSEN);
+    expect(exists(HINWEIS)).toBe(true);
+  });
+
+  it("entfaellt ohne Soll-Bestueckung", async () => {
+    // Dieselbe Begruendung wie beim Chip „aus Handlager geholt": traegt das
+    // Fahrzeug nur Geraete, gibt es nichts aufzufuellen, und der Satz spraeche
+    // von Arbeit, die es nicht gibt.
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[]}
+        geraete={[GERAET]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    await click(ABSCHLIESSEN);
+    expect(exists("[data-rolle='check-ergebnis']")).toBe(true);
+    expect(exists(HINWEIS)).toBe(false);
+  });
+});
+
 describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
   it("`grund:\"sitzung\"` zeigt das Feld UND haelt ALLE SECHS Zustaende", async () => {
     abschluss.mockResolvedValue({
