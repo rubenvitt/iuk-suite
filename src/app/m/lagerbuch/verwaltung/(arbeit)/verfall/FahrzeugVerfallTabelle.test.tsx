@@ -34,7 +34,7 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
     fahrzeugKennung: "UE-RK 5678",
     artikelName: "NaCl",
     verfall: "2026-09",
-    verfallText: "09/2026",
+    verfallText: "09/26",
     statusTon: "gelb",
     statusText: "läuft ab",
     abgelaufen: false,
@@ -47,7 +47,7 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
     fahrzeugKennung: "UE-RK 1234",
     artikelName: "Verband",
     verfall: "2026-05",
-    verfallText: "05/2026",
+    verfallText: "05/26",
     statusTon: "rot",
     statusText: "abgelaufen",
     abgelaufen: true,
@@ -60,7 +60,7 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
     fahrzeugKennung: "UE-RK 1234",
     artikelName: "Rettungsdecke",
     verfall: "2026-08",
-    verfallText: "08/2026",
+    verfallText: "08/26",
     statusTon: "gelb",
     statusText: "läuft ab",
     abgelaufen: false,
@@ -173,7 +173,7 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
     expect(zeile.textContent).toContain("RTW Nord");
     expect(zeile.textContent).toContain("UE-RK 1234");
     expect(zeile.textContent).toContain("Verband");
-    expect(zeile.textContent).toContain("05/2026");
+    expect(zeile.textContent).toContain("05/26");
     expect(zeile.textContent).toContain("02.06.2026");
   });
 
