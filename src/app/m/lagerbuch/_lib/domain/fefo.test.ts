@@ -176,7 +176,7 @@ describe("DRK-297 — der vierte Sortierrang", () => {
    *  (`ortSortierung`) darf gewinnen — nicht die alphabetische. Wird der
    *  `ortSortierung`-Vergleich aus dem Komparator gestrichen, schlägt dieser Test
    *  fehl (und alle vier bisherigen bestehen immer noch). */
-  it("ortSortierung ueberholt die lagerortId-Ordnung nicht", () => {
+  it("ortSortierung ueberholt die lagerortId-Ordnung", () => {
     const teile = fefoVerteilung([
       { ...basis, rest: 3, lagerortId: "z", ortSortierung: 10 },  // alphabetisch hinten, fachlich vorn
       { ...basis, rest: 3, lagerortId: "a", ortSortierung: 90 },  // alphabetisch vorn, fachlich hinten
