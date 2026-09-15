@@ -209,6 +209,11 @@ export async function checkAbschluss(
         posErgebnis.push({ sollPositionId: row.id, artikelId: row.artikelId, soll: row.soll, ist: p.ist });
       }
 
+      // DRK-297, Fixrunde 1 (Befund 3) — EINMAL vor der Gruppenschleife
+      // geladen, nicht einmal je Artikelgruppe: `handlagerOrte` haengt an
+      // keinem Artikel, ein Fahrzeug-Check mit vielen Positionen laedt sie
+      // sonst unnoetig oft neu.
+      const handlagerBereich = handlagerOrte(tx);
       const artikelErgebnis = [...gruppen.values()].map((g) => {
         // I4: nach `korrekturAufLagerort(…, istMenge)` gilt
         // `bestandProLagerort(…, fahrzeugId) === istMenge`.
@@ -220,7 +225,7 @@ export async function checkAbschluss(
         const nachfuellGebucht = g.nachfuellGewuenscht > 0
           ? umlagerung(tx, {
               artikelId: g.artikelId, menge: g.nachfuellGewuenscht,
-              vonOrten: handlagerOrte(tx), nachLagerortId: v.fahrzeugId,
+              vonOrten: handlagerBereich, nachLagerortId: v.fahrzeugId,
               quelle, kommentar: "Fahrzeug-Check Nachfüllung", referenz,
             }).umgelagert
           : 0;

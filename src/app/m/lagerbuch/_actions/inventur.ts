@@ -12,7 +12,7 @@ import { KATEGORIE_MAX_LAENGE, KATEGORIEN_AUSWAHL_MAX } from "../_lib/kategorie"
 import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import { restJeChargeFuerArtikel, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
-import { handlagerOrte } from "../_lib/lesepfade/orte";
+import { handlagerOrte, ortStamm, type OrtStammZeile } from "../_lib/lesepfade/orte";
 import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -95,13 +95,22 @@ function positionSpeichern(
 /**
  * Der ARTIKELWEG — unveraendert gegenueber vor DRK-299, plus die gespeicherte
  * Position. Liefert, ob die Position abwich.
+ *
+ * `orte`/`stamm` kommen FERTIG BERECHNET vom Aufrufer (`inventurKorrektur`) —
+ * beide haengen an keiner Charge und keinem Artikel, ein Neuladen je Position
+ * waere unnoetig (Fixrunde 1, Befund 3: `better-sqlite3` ist synchron, eine
+ * Inventur mit vielen Positionen blockierte sonst laenger als noetig die
+ * gesamte Suite, nicht nur dieses Modul).
  */
-function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolean {
+function artikelPosition(
+  tx: Tx, lauf: Lauf, orte: readonly string[], stamm: Map<string, OrtStammZeile>,
+  position: ArtikelPositionT,
+): boolean {
   // Der Bestand wird innerhalb derselben Transaktion frisch gelesen. Das
   // Lagerortfeld bleibt erhalten, damit Fahrzeugbestand nicht einfliesst.
   const zeilen = tx.select({ lagerortId: buchungen.lagerortId, menge: buchungen.menge })
     .from(buchungen).where(eq(buchungen.artikelId, position.artikelId)).all();
-  const liveBestand = bestandProOrte(zeilen, handlagerOrte(tx));
+  const liveBestand = bestandProOrte(zeilen, orte);
   const diff = position.ist - liveBestand;
   positionSpeichern(tx, lauf, position.artikelId, null, liveBestand, position.ist);
   if (diff === 0) return false;
@@ -111,7 +120,7 @@ function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolea
     // einem Schrank, fand die Wurzel dort nichts und kappte nach I2 auf zu
     // wenig, ohne den Fehlschlag zu melden.
     fefoAbbuchung(tx, {
-      artikelId: position.artikelId, menge: -diff, orte: handlagerOrte(tx),
+      artikelId: position.artikelId, menge: -diff, orte,
       quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
     });
     return true;
@@ -129,7 +138,8 @@ function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolea
       verfall: PSEUDO_VERFALL, createdAt: new Date(),
     }).run();
   }
-  bucheKorrektur(tx, lauf, position.artikelId, chargeId, diff);
+  const bestandJeOrt = restJeChargeUndOrt(tx, position.artikelId).get(chargeId);
+  bucheKorrektur(tx, lauf, orte, stamm, position.artikelId, chargeId, diff, bestandJeOrt);
   return true;
 }
 
@@ -137,9 +147,17 @@ function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolea
  * Der CHARGENWEG (DRK-299). Liefert die Zahl abweichender Positionen.
  * Keine geratene Charge, kein FEFO: gebucht wird auf GENAU die gezaehlte Charge.
  */
-function chargenPosition(tx: Tx, lauf: Lauf, position: ChargenPositionT): number {
+function chargenPosition(
+  tx: Tx, lauf: Lauf, orte: readonly string[], stamm: Map<string, OrtStammZeile>,
+  position: ChargenPositionT,
+): number {
   // Vor dem Anlegen neuer Chargen gelesen — eine neue Charge hat Rest 0.
-  const rest = restJeChargeFuerArtikel(tx, position.artikelId, handlagerOrte(tx));
+  const rest = restJeChargeFuerArtikel(tx, position.artikelId, orte);
+  // DRK-297, Fixrunde 1 (Befund 3) — EINMAL je Position geladen, nicht einmal
+  // je gezaehlter Charge: `restJeChargeUndOrt` aggregiert die GESAMTE
+  // Buchungshistorie des Artikels ohne Ortspraedikat und ist damit die
+  // teuerste Abfrage in dieser Funktion.
+  const bestandJeCharge = restJeChargeUndOrt(tx, position.artikelId);
   const zuZaehlen: { chargeId: string; ist: number }[] = [];
 
   for (const c of position.chargen) {
@@ -178,7 +196,9 @@ function chargenPosition(tx: Tx, lauf: Lauf, position: ChargenPositionT): number
     positionSpeichern(tx, lauf, position.artikelId, z.chargeId, erwartet, z.ist);
     if (diff === 0) continue;
     // Kein Kappen noetig: `ist >= 0`, der Rest dieser Charge danach ist `ist` (I2).
-    bucheKorrektur(tx, lauf, position.artikelId, z.chargeId, diff);
+    bucheKorrektur(
+      tx, lauf, orte, stamm, position.artikelId, z.chargeId, diff, bestandJeCharge.get(z.chargeId),
+    );
     abweichend++;
   }
   return abweichend;
@@ -195,37 +215,53 @@ function juengsteZuerst<T extends { id: string; verfall: string; createdAt: Date
 /**
  * DRK-297 (Nachtrag) — schreibt NICHT MEHR BLIND auf die Wurzel.
  *
- *   diff < 0  → ueber `fefoAbbuchung`, `chargeId`-gescoped, `orte:
- *               handlagerOrte(tx)`: die Menge verschwindet dort, wo sie
- *               liegt, und die I2-Kappung greift. `chargeId` haelt die
- *               FEFO-Verteilung auf GENAU diese eine Charge fest — sonst
- *               koennte eine ANDERE, frueher ablaufende Charge desselben
- *               Artikels die Korrektur abbekommen, und das Journal wiche von
- *               der gespeicherten Position (die genau diese `chargeId`
- *               traegt) ab.
+ *   diff < 0  → ueber `fefoAbbuchung`, `chargeId`-gescoped, `orte`: die Menge
+ *               verschwindet dort, wo sie liegt, und die I2-Kappung greift.
+ *               `chargeId` haelt die FEFO-Verteilung auf GENAU diese eine
+ *               Charge fest — sonst koennte eine ANDERE, frueher ablaufende
+ *               Charge desselben Artikels die Korrektur abbekommen, und das
+ *               Journal wiche von der gespeicherten Position (die genau
+ *               diese `chargeId` traegt) ab.
  *   diff > 0  → Gutschrift an den Ort, an dem die Charge SCHON Bestand hat:
- *               den ersten in FEFO-Ortsreihenfolge (`handlagerOrte` liefert
- *               Wurzel zuerst, dann Schraenke nach `sortierung`). Hat die
- *               Charge NIRGENDS Bestand, ist die Wurzel der ehrliche
+ *               unter den Orten mit Bestand > 0 der mit der kleinsten
+ *               `ortSortierung` (Gleichstand: kleinere `lagerortId`) — DIESELBE
+ *               Ordnung, die FEFOs Raenge 4/5 verwenden (`domain/fefo.ts`).
+ *               Hat die Charge NIRGENDS Bestand, ist die Wurzel der ehrliche
  *               Rueckfall — „noch nicht einsortiert" (Betreiberentscheidung
  *               des Hauptlaufs).
+ *
+ * ⚠️ FIXRUNDE 1, BEFUND 1 — `orte` (= `handlagerOrte(tx)`) liefert BAUMORDNUNG
+ * und stellt die Wurzel unbedingt voran (`domain/orte.ts`: `ergebnis.push(id)`
+ * VOR dem Abstieg in die Kinder), unabhaengig von deren `sortierung`. FEFOs
+ * Raenge 4/5 kennen dieses Wurzelprivileg NICHT. Heute deckungsgleich, weil
+ * die Migration der Wurzel `sortierung` 0 gibt und jeder Schrank einen
+ * positiven Wert — ein Schrank mit `sortierung <= 0` triebe beide Ordnungen
+ * auseinander, und ein negativer wie ein positiver Diff derselben Inventur
+ * waehlten dann VERSCHIEDENE Orte. Deshalb wird hier extra sortiert, statt
+ * `orte.find(...)` (Baumordnung) zu verwenden.
  *
  * Vorher schrieb diese Funktion die Rohmenge direkt auf `lagerortId:
  * HANDLAGER_ID`, ohne FEFO und ohne I2-Kappung: eine Charge, die vollstaendig
  * in einem Schrank liegt, konnte den (Wurzel, Charge)-Saldo ins Minus druecken
  * — in ein Journal, das kein UPDATE und kein DELETE kennt.
  */
-function bucheKorrektur(tx: Tx, lauf: Lauf, artikelId: string, chargeId: string, diff: number): void {
+function bucheKorrektur(
+  tx: Tx, lauf: Lauf, orte: readonly string[], stamm: Map<string, OrtStammZeile>,
+  artikelId: string, chargeId: string, diff: number, bestandJeOrt: Map<string, number> | undefined,
+): void {
   if (diff < 0) {
     fefoAbbuchung(tx, {
-      artikelId, chargeId, menge: -diff, orte: handlagerOrte(tx),
+      artikelId, chargeId, menge: -diff, orte,
       quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
     });
     return;
   }
 
-  const bestandJeOrt = restJeChargeUndOrt(tx, artikelId).get(chargeId) ?? new Map<string, number>();
-  const ziel = handlagerOrte(tx).find((ort) => (bestandJeOrt.get(ort) ?? 0) > 0) ?? HANDLAGER_ID;
+  const bestand = bestandJeOrt ?? new Map<string, number>();
+  const kandidaten = orte.filter((ort) => (bestand.get(ort) ?? 0) > 0);
+  kandidaten.sort((a, b) =>
+    (stamm.get(a)?.sortierung ?? 0) - (stamm.get(b)?.sortierung ?? 0) || a.localeCompare(b));
+  const ziel = kandidaten[0] ?? HANDLAGER_ID;
   tx.insert(buchungen).values({
     id: newId(), ts: new Date(), typ: "korrektur", artikelId, chargeId, lagerortId: ziel, menge: diff,
     quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
@@ -271,10 +307,16 @@ export async function inventurKorrektur(
           id: inventurId, ts: new Date(), quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
           kommentar: v.kommentar, umfang: v.umfang ? JSON.stringify(v.umfang) : null,
         }).run();
+        // DRK-297, Fixrunde 1 (Befund 3) — EINMAL fuer den ganzen Lauf geladen:
+        // beide haengen an keiner Position, ein Neuladen je Artikel oder je
+        // Charge waere unnoetig (`better-sqlite3` ist synchron, s. Kopf von
+        // `lesepfade/bestand.ts`).
+        const orte = handlagerOrte(tx);
+        const stamm = ortStamm(tx);
         for (const position of v.positionen) {
           korrigiert += "ist" in position
-            ? (artikelPosition(tx, lauf, position) ? 1 : 0)
-            : chargenPosition(tx, lauf, position);
+            ? (artikelPosition(tx, lauf, orte, stamm, position) ? 1 : 0)
+            : chargenPosition(tx, lauf, orte, stamm, position);
         }
       });
     } catch (e) {

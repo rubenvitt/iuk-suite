@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
-import { artikel, buchungen, chargen, newId } from "./schema";
+import { artikel, buchungen, chargen, lagerorte, newId } from "./schema";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
+import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
 /**
@@ -117,5 +118,48 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
     });
     expect(lauf()).toEqual(["a"]);
     expect(lauf()).toEqual(["a"]);
+  });
+});
+
+describe("DRK-297 — der vierte Sortierrang gegen eine ECHTE Verbindung", () => {
+  /**
+   * FIXRUNDE 1, BEFUND 2. Vor der Bereichs-Umstellung baute `abbuchung.ts`
+   * jede `ChargeRest` mit EINEM gemeinsamen Ort — dieselbe Charge konnte nie
+   * zweimal in der Liste stehen, `ortSortierung` und `lagerortId` (Raenge 4
+   * und 5) waren aus einer echten Verbindung heraus STRUKTURELL unerreichbar.
+   * Seit dieser Aufgabe liegt dieselbe Charge an mehreren Orten im Bereich —
+   * genau der Fall, den `_lib/domain/fefo.ts` schon als reine Funktion prueft
+   * (`_lib/domain/fefo.test.ts`, „der vierte Sortierrang"), hier aber zum
+   * ersten Mal ueber eine echte `fefoAbbuchung`-Abfrage.
+   *
+   * ⚠️ DIE ORTS-IDs SIND ABSICHTLICH GEGENLAEUFIG ZUR SORTIERUNG GEWAEHLT:
+   * "z-schrank" hat die KLEINERE `sortierung` (10, fachlich vorn), "a-schrank"
+   * die GROESSERE (90, hinten) — alphabetisch ist es umgekehrt. Verschwindet
+   * `ortSortierung` aus dem Komparator, entscheidet die dann fuehrende
+   * `lagerortId`-Stufe zugunsten von "a-schrank", und dieser Test schlaegt
+   * fehl (Muster: `_lib/domain/fefo.test.ts`, „ortSortierung ueberholt die
+   * lagerortId-Ordnung nicht").
+   */
+  it("nimmt vom Schrank mit der kleineren sortierung, auch wenn seine ID alphabetisch hinten steht", () => {
+    t.db.insert(lagerorte).values([
+      { id: "z-schrank", name: "Z-Schrank", typ: "lager", aktiv: true,
+        parentId: HANDLAGER_ID, sortierung: 10 },
+      { id: "a-schrank", name: "A-Schrank", typ: "lager", aktiv: true,
+        parentId: HANDLAGER_ID, sortierung: 90 },
+    ]).run();
+    t.db.insert(chargen).values(
+      { id: "c1", artikelId: "a1", chargenNr: "c1", verfall: "2027-01", createdAt: NOW }).run();
+    for (const [lagerortId, menge] of [["a-schrank", 5], ["z-schrank", 5]] as const) {
+      t.db.insert(buchungen).values({
+        id: newId(), ts: NOW, typ: "zugang", artikelId: "a1", chargeId: "c1",
+        lagerortId, menge, quelleTyp: "system", quelleId: "t", referenz: null, kommentar: null,
+      }).run();
+    }
+
+    const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
+      artikelId: "a1", menge: 3, orte: handlagerOrte(tx),
+      quelle: { quelleTyp: "system", quelleId: "t" }, kommentar: null, referenz: null }));
+
+    expect(r.teile).toEqual([{ chargeId: "c1", menge: 3, vonLagerortId: "z-schrank" }]);
   });
 });
