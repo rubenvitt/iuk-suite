@@ -113,6 +113,38 @@ test.describe("Artikeltabelle auf dem Telefon (DRK-334)", () => {
   });
 
   /**
+   * DIE DECKELUNG MUSS AUCH WIEDER WEICHEN, WENN DIE TABELLE AUFHOERT ZU
+   * VIRTUALISIEREN.
+   *
+   * `core/tabelle` virtualisiert erst ab 150 Zeilen. Filtert eine Suche die
+   * Liste darunter, verschwindet der innere Scroller — und ein Rahmen, der
+   * weiter `overflow: hidden` traegt, schnitte dann die unteren Zeilen einer
+   * gewoehnlichen Tabelle ab, an die danach niemand mehr herankommt.
+   *
+   * ⚠️ DIESER FALL IST FUER BEIDE `ResizeObserver` UNSICHTBAR: unter 768px
+   * steht die Rahmenhoehe fest und die Tabellenhoehe kommt aus dem Flexraum —
+   * keiner der beiden Kaesten aendert seine Groesse, wenn sich der INHALT
+   * aendert. Deshalb misst `TabellenVollhoehe` nach JEDEM Render neu, und
+   * deshalb steht diese Zusicherung hier: sie ist die einzige, die den
+   * Unterschied sehen kann.
+   */
+  test("gibt die Deckelung auf, sobald die Suche die Tabelle entvirtualisiert", async ({ page }) => {
+    await artikelseite(page);
+    const rahmen = page.locator("[data-rolle=tabellenrahmen]");
+    await expect(rahmen).toHaveCSS("overflow-y", "hidden");
+
+    // Ein Suchbegriff, der weit unter die Schwelle fuehrt.
+    await page.getByRole("searchbox").fill("Verbandpäckchen");
+    await expect(page.locator(KOERPER)).toHaveCount(0);
+    await expect(rahmen).toHaveCSS("overflow-y", "visible");
+
+    // Und zurueck: die Deckelung kommt wieder, wenn die Liste wieder gross ist.
+    await page.getByRole("searchbox").fill("");
+    await expect(page.locator(KOERPER)).toHaveCount(1);
+    await expect(rahmen).toHaveCSS("overflow-y", "hidden");
+  });
+
+  /**
    * DER RANDFALL, und er ist bewusst die andere Richtung.
    *
    * Auf einem sehr niedrigen Schirm bleibt für den Tabellenkörper nicht einmal

@@ -120,6 +120,37 @@ export function TabellenVollhoehe({
     });
   }, [mindestens, rand]);
 
+  /**
+   * ⚠️ NACH JEDEM RENDER NEU MESSEN — OHNE ABHAENGIGKEITSFELD, UND DAS IST DER
+   * TEIL, DEN DIE BEOBACHTER NICHT LEISTEN KOENNEN.
+   *
+   * Die Deckelung haengt daran, ob es einen virtuellen Koerper GIBT. Den gibt
+   * es aber nur oberhalb von `VIRTUELL_AB_ZEILEN`: filtert jemand die Liste
+   * darunter — eine Suche, eine ausgeblendete Kategorie —, schaltet
+   * `Datentabelle` die Virtualisierung ab, der Koerper verschwindet, und die
+   * Tabelle ist wieder eine gewoehnliche mit voller Hoehe.
+   *
+   * Beide `ResizeObserver` sind fuer genau diesen Moment BLIND, und zwar
+   * systematisch: unterhalb von 768px steht die Rahmenhoehe fest (`block-size:
+   * var(--tab-vollhoehe)`) und die Tabellenhoehe ergibt sich aus dem Flexraum
+   * daneben — keiner der beiden Kaesten aendert seine Groesse, wenn sich der
+   * INHALT aendert. Es feuert also nichts, `deckeln` bliebe stehen, und ein
+   * Rahmen mit `overflow: hidden` schnitte die unteren Zeilen einer Tabelle ab,
+   * die gar keinen eigenen Scroller mehr hat. Am Schreibtisch faellt das nicht
+   * auf: dort ist der Rahmen inhaltshoch, und der Beobachter feuert.
+   *
+   * Ein Render ist dagegen genau das Signal, das dabei immer kommt — die Liste
+   * aendert sich nur, weil der Aufrufer neu rendert. Der Preis ist ein
+   * Layout-Lesen je Render; `setMass` bricht bei gleichen Werten ab, es gibt
+   * also keine zweite Runde.
+   *
+   * ⚠️ `useEffect`, NICHT `useLayoutEffect`: die Komponente wird
+   * servergerendert, und `useLayoutEffect` warnt dort. Der Preis ist ein
+   * einzelnes Bild mit dem alten Zustand — unsichtbar, weil es um das
+   * Ein- und Ausschalten einer Deckelung geht, nicht um einen Sprung.
+   */
+  useEffect(messen);
+
   useEffect(() => {
     messen();
     window.addEventListener("resize", messen);
