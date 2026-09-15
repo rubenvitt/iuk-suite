@@ -7,11 +7,12 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { buchungen, chargen, inventuren, inventurPositionen, newId } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
-import { bestandProLagerort } from "../_lib/domain/bestand";
+import { bestandProOrte } from "../_lib/domain/bestand";
 import { KATEGORIE_MAX_LAENGE, KATEGORIEN_AUSWAHL_MAX } from "../_lib/kategorie";
 import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
+import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -100,7 +101,7 @@ function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolea
   // Lagerortfeld bleibt erhalten, damit Fahrzeugbestand nicht einfliesst.
   const zeilen = tx.select({ lagerortId: buchungen.lagerortId, menge: buchungen.menge })
     .from(buchungen).where(eq(buchungen.artikelId, position.artikelId)).all();
-  const liveBestand = bestandProLagerort(zeilen, HANDLAGER_ID);
+  const liveBestand = bestandProOrte(zeilen, handlagerOrte(tx));
   const diff = position.ist - liveBestand;
   positionSpeichern(tx, lauf, position.artikelId, null, liveBestand, position.ist);
   if (diff === 0) return false;
@@ -135,7 +136,7 @@ function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolea
  */
 function chargenPosition(tx: Tx, lauf: Lauf, position: ChargenPositionT): number {
   // Vor dem Anlegen neuer Chargen gelesen — eine neue Charge hat Rest 0.
-  const rest = restJeChargeFuerArtikel(tx, position.artikelId, HANDLAGER_ID);
+  const rest = restJeChargeFuerArtikel(tx, position.artikelId, handlagerOrte(tx));
   const zuZaehlen: { chargeId: string; ist: number }[] = [];
 
   for (const c of position.chargen) {

@@ -63,7 +63,7 @@ export function korrekturAufLagerort(
    * Wege gegen `bestandProLagerort` (T44).
    */
   let recorded = 0;
-  for (const rest of restJeChargeFuerArtikel(tx, artikelId, lagerortId).values()) {
+  for (const rest of restJeChargeFuerArtikel(tx, artikelId, [lagerortId]).values()) {
     recorded += rest;
   }
   const diff = istMenge - recorded;

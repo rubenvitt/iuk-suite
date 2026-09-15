@@ -13,12 +13,12 @@
  */
 import { desc, eq } from "drizzle-orm";
 import { artikel, buchungen, chargen } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import { chargeText } from "../format";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
 import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
+import { handlagerOrte } from "./orte";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
 
@@ -55,10 +55,10 @@ export type ArtikelZeile = {
  * fehlenden Aggregatzeile die 0.
  */
 export function chargenMitRest(
-  db: Leser, artikelId: string, lagerortId: string = HANDLAGER_ID,
+  db: Leser, artikelId: string, orte: readonly string[] = handlagerOrte(db),
 ): ChargeZeile[] {
   const chs = db.select().from(chargen).where(eq(chargen.artikelId, artikelId)).all();
-  const rest = restJeCharge(db, lagerortId);
+  const rest = restJeCharge(db, orte);
   // Vor der Projektion sortieren: `createdAt` entscheidet, bleibt aber intern.
   return chs
     .sort(vergleicheFefoCharge)
@@ -75,8 +75,9 @@ export function artikelListe(
     ? db.select().from(artikel).all()
     : db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
   // DREI Abfragen statt 3·N: Artikel, Bestand je Artikel, Rest je Charge.
-  const bestand = bestandJeArtikel(db, HANDLAGER_ID);
-  const rest = restJeCharge(db, HANDLAGER_ID);
+  const orte = handlagerOrte(db);
+  const bestand = bestandJeArtikel(db, orte);
+  const rest = restJeCharge(db, orte);
 
   /**
    * ⚠️ DIE CHARGEN WERDEN EINMAL NACH ARTIKEL GRUPPIERT, nicht je Artikel neu
@@ -142,7 +143,7 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
     .all();
   return {
     artikel: a,
-    bestand: bestandJeArtikel(db, HANDLAGER_ID).get(id) ?? 0,
+    bestand: bestandJeArtikel(db, handlagerOrte(db)).get(id) ?? 0,
     chargen: chargenMitRest(db, id),
     // LAGERORT-UEBERGREIFEND — siehe Kopfkommentar.
     buchungen: bu.slice(0, ARTIKEL_VERLAUF_GRENZE).map((b) => ({

@@ -23,9 +23,9 @@
  */
 import { eq } from "drizzle-orm";
 import { artikel } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { braucht, vorschlagsmenge } from "../domain/vorschlag";
 import { bestandJeArtikel, type Leser } from "./bestand";
+import { handlagerOrte } from "./orte";
 
 export type BestellZeile = {
   id: string; name: string; einheit: string; fach: string;
@@ -45,7 +45,7 @@ export type BestellZeile = {
 };
 
 export function bestellvorschlag(db: Leser): BestellZeile[] {
-  const bestand = bestandJeArtikel(db, HANDLAGER_ID);
+  const bestand = bestandJeArtikel(db, handlagerOrte(db));
   return db
     .select()
     .from(artikel)

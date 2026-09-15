@@ -96,7 +96,7 @@ describe("chargenMitRest — Handlager als Vorgabe", () => {
       new Map([["c-spaet", 5], ["c-frueh", 7], ["c-leer", 0]]));
   });
   it("liefert auf Wunsch den Rest an einem anderen Lagerort", () => {
-    expect(chargenMitRest(t.db, "a1", "rtw").find((c) => c.id === "c-frueh")?.rest).toBe(4);
+    expect(chargenMitRest(t.db, "a1", ["rtw"]).find((c) => c.id === "c-frueh")?.rest).toBe(4);
   });
   it("nennt jede Charge, auch die aufgebrauchte — mit rest 0, nicht fehlend", () => {
     expect(chargenMitRest(t.db, "a1")).toHaveLength(3);

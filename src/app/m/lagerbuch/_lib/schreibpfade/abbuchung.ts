@@ -73,7 +73,7 @@ export function fefoAbbuchung(
 
   const chs = tx.select().from(chargen).where(eq(chargen.artikelId, artikelId)).all();
   // EINE aggregierende Abfrage MIT Lagerort-Praedikat — statt der Vollladung.
-  const rest = restJeChargeFuerArtikel(tx, artikelId, lagerortId);
+  const rest = restJeChargeFuerArtikel(tx, artikelId, [lagerortId]);
   const chargenRest: ChargeRest[] = chs.map((c) => ({
     chargeId: c.id, verfall: c.verfall, rest: rest.get(c.id) ?? 0, createdAt: c.createdAt,
   }));
