@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
-import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
+import {
+  artikel, buchungen, chargen, lagerorte, lagerortVerfall, sollPositionen,
+} from "../_db/schema";
 
 const { adminRiegel, revalidiert } = vi.hoisted(() => ({
   adminRiegel: vi.fn<() => Promise<unknown>>(),
@@ -35,6 +37,11 @@ beforeEach(() => {
   t.db.insert(artikel).values({
     id: "art-1", name: "Kompresse", einheit: "Stk", fach: "A-01",
     mindestbestand: 1, aktiv: true, createdAt: JETZT, kategorie: null, bestelltAt: null,
+  }).run();
+  t.db.insert(sollPositionen).values({
+    id: "soll-1", fahrzeugId: "fz-1", fachLabel: "Fach A", sort: 0,
+    artikelId: "art-1", soll: 4, templatePositionId: null,
+    ueberschrieben: false, entfernt: false,
   }).run();
 });
 
@@ -183,5 +190,49 @@ describe("aussondernVomLagerort", () => {
     // Ohne den Detailpfad stuende nach dem Schliessen des Dialogs der alte Bestand.
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge");
+  });
+});
+
+describe("aussondernVomLagerort — Zugehoerigkeit", () => {
+  it("lehnt einen Lagerort ab, der kein Fahrzeug ist", async () => {
+    charge("ch-alt", "2020-01");
+    t.db.insert(buchungen).values({
+      id: "seed-handlager", ts: JETZT, typ: "zugang", artikelId: "art-1",
+      chargeId: "ch-alt", lagerortId: "handlager", menge: 9,
+      quelleTyp: "system", quelleId: "seed", referenz: null, kommentar: null,
+    }).run();
+    const vorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "handlager", artikelId: "art-1", menge: 2, kommentar: "MHD" },
+      t.db,
+    );
+
+    // Das Handlager hat seinen eigenen, chargengebundenen Weg, der eine
+    // ABGELAUFENE Charge verlangt. Dieser hier duerfte ihn sonst umgehen.
+    expect(erg.ok).toBe(false);
+    expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
+  });
+
+  it("lehnt ab, wenn der Artikel dort nicht mehr im aktiven Soll steht", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+    // Grabstein: die Position bleibt fuer den Vorlagen-Sync stehen, zaehlt aber
+    // nicht mehr als Zugehoerigkeit — genau der Stand, den eine offene Seite hat,
+    // waehrend jemand anders die Soll-Bestueckung aendert.
+    t.db.update(sollPositionen).set({ entfernt: true }).run();
+    const vorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 2, verfall: "2027-05", kommentar: "MHD" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
+    // ⚠️ UND KEINE VERWAISTE VERFALLSZEILE: ohne aktives Soll gibt es keine
+    // pflegbare Meldung, und `bereinigeVerfallOhneAktivesSoll` wuerde sie beim
+    // naechsten Soll-Umbau ohnehin wegfegen.
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
   });
 });

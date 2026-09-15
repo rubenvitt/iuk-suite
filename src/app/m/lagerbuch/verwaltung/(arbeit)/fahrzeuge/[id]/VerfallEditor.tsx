@@ -170,6 +170,11 @@ export function VerfallEditor({
           bestand={eintrag.bestand}
           chargen={eintrag.chargen}
           verfall={eintrag.verfall}
+          // Zweite Schreibstelle auf demselben Wert — der Spiegel muss ihr
+          // folgen, sonst behauptet der Waehler weiter den alten Monat.
+          onAusgesondert={(neuerVerfall) => {
+            setSpiegel((vorher) => ({ ...vorher, [eintrag.artikelId]: neuerVerfall }));
+          }}
         />
       ),
     },

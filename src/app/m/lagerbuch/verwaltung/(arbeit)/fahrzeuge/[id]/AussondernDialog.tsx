@@ -40,6 +40,7 @@ export function AussondernDialog({
   bestand,
   chargen,
   verfall,
+  onAusgesondert,
 }: {
   lagerortId: string;
   artikelId: string;
@@ -48,6 +49,16 @@ export function AussondernDialog({
   bestand: number;
   chargen: ChargeZeile[];
   verfall: string | null;
+  /**
+   * Meldet den GESCHRIEBENEN Verfall an die Tabelle zurueck — `null`, wenn die
+   * Angabe entfaellt.
+   *
+   * ⚠️ NICHT WEGLASSEN, AUCH WENN `revalidatePath` DIE SEITE AUFFRISCHT: die
+   * Tabelle haelt ihren eigenen Monatsspiegel, den sie EINMAL beim Einhaengen
+   * aus den Props fuellt. Eine Auffrischung haengt die Insel nicht neu ein, der
+   * Waehler zeigte danach still den alten Monat.
+   */
+  onAusgesondert?: (verfall: string | null) => void;
 }) {
   const [form] = Form.useForm<Werte>();
   const [offen, setOffen] = useState(false);
@@ -76,16 +87,18 @@ export function AussondernDialog({
     setFehler(null);
     start(async () => {
       try {
+        // Voll ausgesondert ⇒ keine Angabe mehr, die Zeile fällt weg.
+        const geschrieben = allesRaus ? "" : (monatAusPicker(werte.verfall) ?? "");
         const ergebnis = await aussondernVomLagerort({
           lagerortId,
           artikelId,
           menge: werte.menge,
           chargeId: werte.chargeId ?? null,
-          // Voll ausgesondert ⇒ keine Angabe mehr, die Zeile fällt weg.
-          verfall: allesRaus ? "" : (monatAusPicker(werte.verfall) ?? ""),
+          verfall: geschrieben,
           kommentar: werte.kommentar,
         });
         if (ergebnis.ok) {
+          onAusgesondert?.(geschrieben || null);
           setOffen(false);
           form.resetFields();
           return;

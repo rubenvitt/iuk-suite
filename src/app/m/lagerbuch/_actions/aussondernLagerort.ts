@@ -1,10 +1,11 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { buchungen, newId } from "../_db/schema";
+import { buchungen, lagerorte, newId, sollPositionen } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { MONAT_REGEX } from "../_lib/konstanten";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
@@ -78,6 +79,44 @@ export async function aussondernVomLagerort(
            * die stille Teilaussonderung: die Verwaltende gibt 5 ein, 3 werden gebucht,
            * und die Rueckmeldung sagt „erledigt".
            */
+          /*
+           * ZUGEHOERIGKEIT VOR BESTAND — dieselben zwei Pruefungen, die
+           * `verfallSetzen` an derselben Tabelle fuehrt, plus die Fahrzeugprobe
+           * aus `buchung.ts` (Entnahmeziel).
+           *
+           * ⚠️ DER ANLASS IST NICHT DER BOESWILLIGE AUFRUF, SONDERN DIE OFFENE
+           * SEITE. Die Zeile im Fahrzeugblatt existiert, weil beim RENDERN eine
+           * aktive Soll-Position da war; bis zum Absenden kann ein Vorlagen-Sync
+           * sie zum Grabstein gemacht haben. Ohne die Probe entstuende hier eine
+           * `lagerort_verfall`-Zeile ohne pflegbares Soll — genau der Zustand,
+           * den `bereinigeVerfallOhneAktivesSoll` verhindern soll.
+           *
+           * ⚠️ `aktiv` WIRD BEWUSST NICHT VERLANGT: ein stillgelegtes Fahrzeug
+           * ist genau das, das man ausraeumt. Das Fahrzeugblatt oeffnet dafuer
+           * ebenfalls (s. `ChecklisteKnopf` auf derselben Seite).
+           */
+          const ort = tx.select({ typ: lagerorte.typ })
+            .from(lagerorte).where(eq(lagerorte.id, v.lagerortId)).get();
+          if (!ort) return "Lagerort nicht gefunden.";
+          if (ort.typ !== "fahrzeug") {
+            // Das Handlager hat seinen eigenen Weg, und der verlangt eine
+            // ABGELAUFENE Charge (`_actions/aussondern.ts`). Dieser hier kennt
+            // die Bedingung nicht und waere sonst die weichere Tuer daneben.
+            return "Dieser Weg gilt nur für Fahrzeuge.";
+          }
+
+          const imSoll = tx.select({ id: sollPositionen.id })
+            .from(sollPositionen)
+            .where(and(
+              eq(sollPositionen.fahrzeugId, v.lagerortId),
+              eq(sollPositionen.artikelId, v.artikelId),
+              eq(sollPositionen.entfernt, false),
+            ))
+            .get();
+          if (!imSoll) {
+            return "Artikel steht an diesem Fahrzeug nicht im Soll.";
+          }
+
           const rest = restJeChargeFuerArtikel(tx, v.artikelId, v.lagerortId);
 
           if (v.chargeId) {
