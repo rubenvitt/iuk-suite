@@ -29,7 +29,12 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * Die vier Buchungen gehoeren allein diesem Spec (`seed-lagerbuch.ts`,
  * `vorgangFixtures`).
  */
-const ARTIKEL = "E2E Vorgang Pflaster";
+/**
+ * ⚠️ DER NAME TRAEGT KEIN WORT, NACH DEM EIN ANDERER SPEC SUCHT — die
+ * Begruendung steht am Seed (`vorgangFixtures`). Kurz: alle Specs teilen EINE
+ * Datenbank.
+ */
+const ARTIKEL = "E2E Vorgang Wundauflage";
 
 /**
  * Die Vorgangstexte der Zeilen dieses Artikels, in der Reihenfolge der Tabelle.

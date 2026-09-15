@@ -466,7 +466,14 @@ function inventurFixtures(): void {
 function vorgangFixtures(): void {
   const db = getDb();
   db.insert(artikel).values({
-    id: "e2e-vorgang-artikel", name: "E2E Vorgang Pflaster", einheit: "Stk.", fach: "VG-1",
+    /*
+     * ⚠️ DER NAME DARF KEIN WORT ENTHALTEN, NACH DEM EIN ANDERER SPEC SUCHT.
+     * Gemessen: als der Artikel „E2E Vorgang Pflaster" hiess, fiel
+     * `lagerbuch-bestand-export.spec.ts` — der sucht „Pflaster" und sichert zu,
+     * dass GENAU EIN Artikel uebrigbleibt. Playwright faehrt alle Specs in EINEM
+     * Worker gegen EINE Datei; ein Seed-Name ist damit geteilter Zustand.
+     */
+    id: "e2e-vorgang-artikel", name: "E2E Vorgang Wundauflage", einheit: "Stk.", fach: "VG-1",
     mindestbestand: 0, aktiv: true, createdAt: JETZT,
   }).onConflictDoNothing().run();
   db.insert(chargen).values({
