@@ -166,6 +166,13 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     der Aufwand darunter ohnehin nicht lohnt. Tests mit einer Handvoll Zeilen prüfen damit weiter
     echtes Markup; die Wirkung der Virtualisierung selbst kann **nur Playwright** sehen.
 
+    **Und eine dritte Folge, die auch im Browser gilt: eine virtualisierte Tabelle hat kein
+    `tbody` und keine `tr`.** rc-table rendert Zeilen und Zellen als `div`s
+    (`VirtualTable/BodyLine.js:40-41`), und die tragen kein `role="row"`. Ein Playwright-Greifer
+    über `tbody tr` oder `getByRole("row")` findet ab der Schwelle schlicht nichts mehr — und
+    zwar erst dann, was ihn im kleinen Seed grün lässt. `[data-row-key]` setzt rc-table in
+    **beiden** Betriebsarten; das ist der Greifer, der trägt.
+
 15. **`Table`s `onChange` feuert nur bei Bedienung DER TABELLE — nicht, wenn sich `dataSource`
     daneben ändert** (gemessen im Modul `lagerbuch`, DRK-331). Der naheliegende Weg, „was steht
     gerade auf dem Schirm?" zu beantworten, ist `onChange(…, extra.currentDataSource)`: antd reicht

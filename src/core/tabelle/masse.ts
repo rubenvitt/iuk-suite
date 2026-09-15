@@ -103,6 +103,15 @@ function ohneVirtuell(eigenes: Scrollmass | false | undefined): Scrollmass | und
  * virtualisiert, ist allein die große Liste im Browser. Wer die Wirkung der
  * Virtualisierung selbst prüfen will, braucht einen echten Browser
  * (Playwright) — Vitest kann sie strukturell nicht sehen.
+ *
+ * ⚠️ UND EINE DRITTE FOLGE, DIE AUCH IM BROWSER GILT: eine virtualisierte
+ * Tabelle hat KEIN `tbody` und KEINE `tr`. `@rc-component/table` rendert ihre
+ * Zeilen und Zellen als `div`s (`VirtualTable/BodyLine.js:40-41`,
+ * `getComponent(['body','row'], 'div')`), und die tragen kein `role="row"`.
+ * Für Greifer heißt das: `[data-row-key]` statt `tbody tr` oder
+ * `getByRole("row")` — das setzt rc-table in beiden Betriebsarten. Was das für
+ * Screenreader bedeutet, ist eine offene fachliche Frage und steht als
+ * eigenes Ticket (DRK-336), nicht hier.
  */
 export const VIRTUELL_AB_ZEILEN = 150;
 

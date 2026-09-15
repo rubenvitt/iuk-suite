@@ -93,7 +93,16 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto(lagerbuchUrl("/verwaltung/artikel"));
   await page.waitForLoadState("networkidle");
-  await page.getByLabel("Artikel und Bestand").locator("tbody tr.ant-table-row").first().click();
+  /*
+   * ⚠️ `[data-row-key]` UND NICHT `tbody tr` (DRK-334). Eine virtualisierte
+   * rc-table hat KEIN `tbody` und KEINE `tr`: sie rendert ihre Zeilen als
+   * `div`s (`@rc-component/table@1.11.1`, `VirtualTable/BodyLine.js:40` —
+   * `getComponent(['body','row'], 'div')`), und die tragen auch kein
+   * `role="row"`. Seit der E2E-Seed 200 Lastartikel traegt, virtualisiert die
+   * Artikeltabelle tatsaechlich, und ein `tbody tr`-Greifer findet schlicht
+   * nichts mehr. `data-row-key` setzt rc-table in BEIDEN Betriebsarten.
+   */
+  await page.getByLabel("Artikel und Bestand").locator("[data-row-key]").first().click();
   await expect(page.locator(".ant-drawer-right .ant-drawer-content-wrapper")).toBeVisible();
 
   /*
