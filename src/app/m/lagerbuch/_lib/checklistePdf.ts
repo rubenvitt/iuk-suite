@@ -504,10 +504,31 @@ function zeichneFach(lage: Lage, fach: ChecklisteFach): void {
 
 /* ── Tabelle ──────────────────────────────────────────────────────────────── */
 
-/** Spaltenbreiten in Punkten; genau eine Spalte (`mm: null`) nimmt den Rest. */
+/**
+ * Spaltenbreiten in Punkten; genau eine Spalte (`mm: null`) nimmt den Rest.
+ *
+ * ⚠️ DER REST WIRD GEPRUEFT, UND ZWAR LAUT (DRK-308). Wer eine Spalte ergaenzt
+ * oder verbreitert, nimmt den Platz der Restspalte — und ein PDF beschneidet
+ * nichts: es laeuft ueber, bricht an unsinnigen Stellen um oder rechnet bei
+ * einem negativen Rest Unfug, alles ohne Meldung. `typecheck` prueft gueltige
+ * Zahlen, `build` serialisiert sie klaglos, und ein Test, der Zellinhalte liest,
+ * sieht Breiten ueberhaupt nicht. Die Zusicherung steht deshalb hier, wo die
+ * Zahl entsteht, und faellt in jedem PDF-Test auf.
+ */
+const REST_MINDESTBREITE_MM = 40;
+
 function breiten(spalten: Spalte[]): number[] {
   const fest = spalten.reduce((s, sp) => s + (sp.mm ?? 0) * MM, 0);
-  return spalten.map((sp) => (sp.mm === null ? SATZBREITE - fest : sp.mm * MM));
+  const rest = SATZBREITE - fest;
+  if (spalten.some((sp) => sp.mm === null) && rest < REST_MINDESTBREITE_MM * MM) {
+    throw new Error(
+      `Die festen Spalten belegen ${Math.round(fest / MM)} mm von ${Math.round(SATZBREITE / MM)} mm; `
+        + `fuer die flexible Spalte bleiben ${Math.round(rest / MM)} mm, `
+        + `mindestens ${REST_MINDESTBREITE_MM} mm sind noetig. `
+        + `Spalten: ${spalten.map((sp) => `${sp.kopf}=${sp.mm ?? "Rest"}`).join(", ")}.`,
+    );
+  }
+  return spalten.map((sp) => (sp.mm === null ? rest : sp.mm * MM));
 }
 
 /**
@@ -790,14 +811,21 @@ function sauerstoff(lage: Lage): void {
     [
       { ...HAKEN, kopf: "Geprüft" },
       { kopf: "Flasche", mm: null },
-      { kopf: "Nennfülldruck", mm: 30, aus: "rechts" },
-      { kopf: "zuletzt", mm: 24, aus: "rechts" },
+      { kopf: "Nennfülldruck", mm: 26, aus: "rechts" },
+      // ⚠️ IN BAR, DIREKT NEBEN DEM SCHREIBFELD (DRK-308). Auf Papier gibt es
+      // keine Ampel; ohne diese Spalte trägt jemand eine Zahl ein und kann sie
+      // gegen nichts halten. Sie steht bewusst LINKS vom Schreibfeld — die
+      // abgelesene Zahl landet unmittelbar daneben und ist ohne Kopfrechnen
+      // vergleichbar.
+      { kopf: "Wechsel ab", mm: 22, aus: "rechts" },
+      { kopf: "zuletzt", mm: 22, aus: "rechts" },
       { kopf: "gemessen (bar)", mm: 26, aus: "rechts", schreibfeld: true },
     ],
     lage.blatt.flaschen.map((flasche): Zelle[] => [
       { art: "kasten" },
       { art: "text", laeufe: [{ text: flasche.name, fett: true }] },
       { art: "text", laeufe: [{ text: `${flasche.nennfuelldruckBar} bar` }] },
+      { art: "text", laeufe: [{ text: `${flasche.wechselAbBar} bar` }] },
       {
         art: "text",
         // ⚠️ `null` IST „NIE GEMESSEN", NICHT 0 bar (§5.12). Ein gedrucktes

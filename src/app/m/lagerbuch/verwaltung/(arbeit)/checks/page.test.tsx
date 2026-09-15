@@ -294,7 +294,8 @@ describe("Checks-Seite", () => {
     expect(tabelle.zeilen.some((zeile) => zeile.id === "check-000")).toBe(false);
     const [kopf] = elementeVomTyp(seite, SeitenKopf);
     expect(kopf.props.beschreibung)
-      .toBe("Neueste 50 von mehr Treffern — Zeitraum eingrenzen");
+      .toBe("Neueste 50 von mehr Treffern — Zeitraum eingrenzen · Verfall- und "
+        + "Sauerstoff-Ampel sind gegen die heute geltenden Vorgaben gerechnet.");
     expect(elementeVomTyp(seite, Trefferanzeige)).toHaveLength(0);
     expect(istRekursivJsonSicher(tabelle)).toBe(true);
   });
@@ -310,7 +311,8 @@ describe("Checks-Seite", () => {
       (_, index) => `check-${String(49 - index).padStart(3, "0")}`,
     ));
     const [kopf] = elementeVomTyp(seite, SeitenKopf);
-    expect(kopf.props.beschreibung).toBe("50 Treffer");
+    expect(kopf.props.beschreibung).toBe("50 Treffer · Verfall- und Sauerstoff-Ampel sind "
+      + "gegen die heute geltenden Vorgaben gerechnet.");
   });
 
   it("bereitet Link, Abschlusszeit, Ergebnis-Chips und Positionszahl serverseitig vor", () => {
@@ -366,7 +368,7 @@ describe("Checks-Seite", () => {
       },
       {
         schluessel: "flaschen", ton: "rot", zeichen: "sauerstoff",
-        text: "1 Flasche(n) niedrig",
+        text: "1 Flasche(n) wechseln",
       },
     ]);
     expect(zeile.ergebnisChips.map((eintrag) => eintrag.text))

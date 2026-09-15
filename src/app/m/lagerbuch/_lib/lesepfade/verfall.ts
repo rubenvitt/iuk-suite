@@ -22,10 +22,10 @@
  */
 import { eq } from "drizzle-orm";
 import { artikel, chargen, lagerorte, lagerortVerfall } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { chargeText } from "../format";
 import { restJeCharge, type Leser } from "./bestand";
+import { handlagerOrte } from "./orte";
 
 export type VerfallEintrag = {
   chargeId: string; chargenNr: string; verfall: string; rest: number;
@@ -37,14 +37,14 @@ export type VerfallEintrag = {
  * Chargen mit HANDLAGER-Rest > 0, deren Ampel nicht gruen ist.
  * DREI Raenge: abgelaufen (0), rot (1), gelb (2); Zweitkriterium `verfall`.
  *
- * ⚠️ Benutzt `restJeCharge(db, HANDLAGER_ID)` aus T44 — KEINE eigene Summierung.
- * Eine zweite Aufsummierung derselben Zahl liefe auseinander und beide Wege
- * saehen fuer sich plausibel aus.
+ * ⚠️ Benutzt `restJeCharge(db, handlagerOrte(db))` aus T44/DRK-297 — KEINE
+ * eigene Summierung. Eine zweite Aufsummierung derselben Zahl liefe auseinander
+ * und beide Wege saehen fuer sich plausibel aus.
  */
 export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[] {
   const schwellen = verfallSchwellen();
   const arts = new Map(db.select().from(artikel).all().map((a) => [a.id, a]));
-  const rest = restJeCharge(db, HANDLAGER_ID);
+  const rest = restJeCharge(db, handlagerOrte(db));
   const eintraege: VerfallEintrag[] = [];
   for (const c of db.select().from(chargen).all()) {
     const r = rest.get(c.id) ?? 0;

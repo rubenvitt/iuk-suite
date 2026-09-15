@@ -7,6 +7,11 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId, o2Flaschen, o2Messungen } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
+import {
+  O2_WECHSEL_MAX_PROZENT,
+  O2_WECHSEL_MIN_PROZENT,
+  O2_WECHSEL_VORGABE_PROZENT,
+} from "../_lib/domain/o2";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/sauerstoff";
@@ -47,6 +52,19 @@ const FlascheSchema = z.object({
     .int()
     .positive("Nennfülldruck muss größer als 0 sein")
     .default(200),
+  // DRK-308 — die Einheit ist PROZENT vom Nennfülldruck, nicht bar. Dieselbe
+  // Begründung wie im Schema: „25 % / 50 bar" ist ein Grenzwert in zwei
+  // Einheiten, und beide fallen nur bei Nennfülldruck 200 zusammen.
+  //
+  // ⚠️ Der Bereich ist 1..99 und nicht 0..100. Bei 0 warnt die Ampel nie, bei
+  // 100 immer — beides ist kein eingestellter Grenzwert, sondern ein
+  // ausgeschalteter, und ein ausgeschalteter Wechselhinweis gehört nicht in ein
+  // Zahlenfeld, in dem er wie eine Einstellung aussieht.
+  wechselAbProzent: z.coerce.number()
+    .int()
+    .min(O2_WECHSEL_MIN_PROZENT, `Mindestens ${O2_WECHSEL_MIN_PROZENT} %`)
+    .max(O2_WECHSEL_MAX_PROZENT, `Höchstens ${O2_WECHSEL_MAX_PROZENT} %`)
+    .default(O2_WECHSEL_VORGABE_PROZENT),
 });
 
 export async function flascheSpeichern(
@@ -75,6 +93,7 @@ export async function flascheSpeichern(
           lagerortId: v.lagerortId,
           groesseLiter: v.groesseLiter ?? null,
           nennfuelldruckBar: v.nennfuelldruckBar,
+          wechselAbProzent: v.wechselAbProzent,
         })
         .where(eq(o2Flaschen.id, v.id))
         .run();
@@ -86,6 +105,7 @@ export async function flascheSpeichern(
         lagerortId: v.lagerortId,
         groesseLiter: v.groesseLiter ?? null,
         nennfuelldruckBar: v.nennfuelldruckBar,
+        wechselAbProzent: v.wechselAbProzent,
         aktiv: true,
         createdAt: new Date(),
       }).run();

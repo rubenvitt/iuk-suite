@@ -50,6 +50,20 @@
       "when": 1789466400000,
       "tag": "0006_inventuren",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789552800000,
+      "tag": "0007_o2_wechsel_grenze",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789556400000,
+      "tag": "0008_lagerorte_hierarchie",
+      "breakpoints": true
     }
   ]
 }

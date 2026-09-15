@@ -439,6 +439,18 @@
     "kind": "context",
     "via": "verfallSetzen"
   },
+  "src/app/m/lagerbuch/_actions/lagerorte.ts#createSchrank": {
+    "kind": "context",
+    "via": "createSchrank"
+  },
+  "src/app/m/lagerbuch/_actions/lagerorte.ts#updateSchrank": {
+    "kind": "context",
+    "via": "updateSchrank"
+  },
+  "src/app/m/lagerbuch/_actions/lagerorte.ts#setSchrankAktiv": {
+    "kind": "context",
+    "via": "setSchrankAktiv"
+  },
   "src/app/m/lagerbuch/_actions/loeschen.ts#pruefeLoeschbar": {
     "kind": "excluded",
     "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
