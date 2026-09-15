@@ -51,10 +51,30 @@ export function zaehlOrtLabel(ortId: string | null, name: string | undefined): s
  * Handlager"; ein unbekannter Wert wird NICHT hier abgewiesen, sondern von
  * `zaehlBereich` (`lesepfade/orte.ts`), das als einziges weiss, welche Orte es
  * gibt.
+ *
+ * ⚠️ DER PARAMETER KANN EIN ARRAY SEIN, UND ZWAR UNABHAENGIG DAVON, WAS DIE
+ * SEITE ALS TYP HINSCHREIBT. Nexts `SearchParams` ist
+ * `string | string[] | undefined` (`next/dist/server/request/search-params`):
+ * bei `?ort=a&ort=b` kommt ein Array an, und ein `.trim()` darauf wirft — HTTP
+ * 500 fuer die ganze Inventurseite. Eine engere Signatur an der Seite aendert
+ * den Laufzeitwert nicht, `typecheck` und `build` bleiben gruen, und nur ein
+ * echter Abruf mit doppeltem Parameter zeigt es. Deshalb nimmt DIESE Funktion
+ * die ganze Form entgegen — sie ist die einzige Stelle, die den Rohwert liest.
+ *
+ * ⚠️ ZWEI VERSCHIEDENE ORTE SIND KEINE WAHL, SONDERN EIN WIDERSPRUCH. Ein Lauf
+ * zaehlt genau einen Ort; den ersten zu nehmen hiesse, sich still fuer eine von
+ * zwei Anweisungen zu entscheiden, und die Erwartungszahlen daneben gaeben
+ * keinen Hinweis darauf, welche. Deshalb faellt der Widerspruch auf die
+ * Vorgabe zurueck — wie ein unbekannter Ort. Derselbe Ort mehrfach ist dagegen
+ * eine Wahl und wird genommen.
  */
-export function zaehlOrtAus(roh: string | undefined): string | null {
-  const wert = roh?.trim();
-  return !wert || wert === ZAEHLORT_ALLE ? null : wert;
+export function zaehlOrtAus(roh: string | string[] | undefined): string | null {
+  const werte = [...new Set(
+    (Array.isArray(roh) ? roh : [roh])
+      .map((wert) => wert?.trim())
+      .filter((wert): wert is string => Boolean(wert) && wert !== ZAEHLORT_ALLE),
+  )];
+  return werte.length === 1 ? werte[0]! : null;
 }
 
 /** Der Ortsteil des Zaehlhinweises auf der Seite — „Gezählt wird …". */

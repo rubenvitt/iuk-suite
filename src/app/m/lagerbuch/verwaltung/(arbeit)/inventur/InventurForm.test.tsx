@@ -722,6 +722,20 @@ describe("Inventurseite als RSC", () => {
       expect((fremd.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(10);
       expect(fremd.key).toBe("alle");
 
+      /*
+       * ⚠️ EIN WIEDERHOLTER PARAMETER WIRFT NICHT (Codex-Befund zum PR).
+       * `?ort=a&ort=b` liefert ein ARRAY; die Seite fiel damit mit HTTP 500 aus,
+       * und weder `typecheck` noch `build` sahen es. Zwei verschiedene Orte sind
+       * kein Zustand, den diese Seite darstellen kann — sie faellt auf die
+       * Vorgabe zurueck. Die Form pruefen `inventurOrt.test.ts`, hier steht,
+       * dass die SEITE damit noch rendert.
+       */
+      const doppelt = () => inventurSeitenInhalt(
+        testDb.db, jetzt, { ort: ["schrank-1", "handlager"] },
+      );
+      expect(doppelt).not.toThrow();
+      expect(elementeVomTyp(doppelt(), InventurForm)[0]!.props).toMatchObject({ ortId: null });
+
       // Ein stillgelegter Schrank aus der URL bleibt waehlbar, damit die
       // Auswahl nicht einen Ort anzeigt, den sie nicht kennt.
       const [alt] = elementeVomTyp(

@@ -16,7 +16,14 @@ import { InventurForm } from "./InventurForm";
 
 export const dynamic = "force-dynamic";
 
-type InventurSuchparameter = { ort?: string };
+/**
+ * ⚠️ `string[]` STEHT HIER MIT ABSICHT (Codex-Befund zu DRK-337). Nexts
+ * `SearchParams` ist `string | string[] | undefined`; ein enger Typ an dieser
+ * Stelle waere eine Behauptung ueber die Laufzeit, die `?ort=a&ort=b` widerlegt
+ * — und zwar mit HTTP 500, ohne dass `typecheck` oder `build` etwas melden.
+ * Was daraus folgt, entscheidet `zaehlOrtAus`.
+ */
+type InventurSuchparameter = { ort?: string | string[] };
 
 export function inventurSeitenInhalt(
   db: DB, now: Date = new Date(), suchparameter: InventurSuchparameter = {},
