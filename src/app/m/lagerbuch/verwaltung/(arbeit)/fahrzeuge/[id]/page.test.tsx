@@ -75,6 +75,27 @@ function elementeVomTyp(
   return [...treffer, ...elementeVomTyp(kinder, typ)];
 }
 
+function kachelDaten(wert: ReactNode): {
+  zahl: unknown;
+  beschriftung: unknown;
+  ton: unknown;
+}[] {
+  return elementeVomTyp(wert, Kachel).map((kachel) => ({
+    zahl: kachel.props.zahl,
+    beschriftung: kachel.props.beschriftung,
+    ton: kachel.props.ton,
+  }));
+}
+
+/** Setzt den gemeldeten Verfall EINES Artikels auf fz-1 — ohne Schreibpfad,
+ *  damit der Test die Anzeige prüft und nicht die Action. */
+function verfallSetzenImTest(artikelId: string, monat: string): void {
+  t.db.update(lagerortVerfall)
+    .set({ verfall: monat })
+    .where(eq(lagerortVerfall.artikelId, artikelId))
+    .run();
+}
+
 function textVon(wert: ReactNode): string {
   if (wert === null || wert === undefined || typeof wert === "boolean") return "";
   if (typeof wert === "string" || typeof wert === "number") return String(wert);
@@ -313,18 +334,91 @@ describe("Fahrzeugblatt als Server Component", () => {
     expect(() => fahrzeugInhalt(t.db, HANDLAGER_ID, JETZT)).toThrow("NEXT_NOT_FOUND");
   });
 
-  it("zaehlt nur aktive Sollpositionen und ihre Faecher in den drei KPIs", () => {
-    const seite = fahrzeugInhalt(t.db, "fz-1", JETZT);
-    const kacheln = elementeVomTyp(seite, Kachel);
-    expect(kacheln).toHaveLength(3);
-    expect(kacheln.map((kachel) => ({
-      zahl: kachel.props.zahl,
-      beschriftung: kachel.props.beschriftung,
-      ton: kachel.props.ton,
-    }))).toEqual([
+  it("zählt nur aktive Sollpositionen und ihre Fächer in den vier KPIs", () => {
+    const kacheln = kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT));
+    expect(kacheln).toHaveLength(4);
+    expect(kacheln).toEqual([
       { zahl: 3, beschriftung: "Soll-Positionen", ton: undefined },
       { zahl: 3, beschriftung: "Fächer", ton: undefined },
-      { zahl: 1, beschriftung: "auffällige Verfallsmeldungen", ton: "rot" },
+      // a1 trägt 2025-01 und ist abgelaufen; a3 trägt 2028-12 und ist grün.
+      // Beide Soll-Artikel sind erfasst — deshalb darf die leere Kachel
+      // Entwarnung geben.
+      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
+      { zahl: 0, beschriftung: "läuft ab", ton: "ok" },
+    ]);
+  });
+
+  /**
+   * ⚠️ DER FALL, DER DEN SPLIT ERST PRÜFT (DRK-340): rot UND NOCH NICHT
+   * ABGELAUFEN. Eine Aufteilung über `statusTon` statt über `abgelaufen`
+   * besteht jeden anderen Test im Seed — a1 ist abgelaufen und damit ohnehin
+   * rot. Erst diese Meldung trennt die beiden Rechnungen: sie gehört nach
+   * rechts, ein Ton-Split zählte sie links und widerspräche der Fahrzeugliste.
+   */
+  it("zählt eine rote, noch nicht abgelaufene Meldung als „läuft ab“", () => {
+    // 2026-08 endet am 31.08. — 25 Tage nach JETZT, also innerhalb der 31
+    // roten Tage und trotzdem in der Zukunft.
+    verfallSetzenImTest("a1", "2026-08");
+    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT))).toEqual([
+      { zahl: 3, beschriftung: "Soll-Positionen", ton: undefined },
+      { zahl: 3, beschriftung: "Fächer", ton: undefined },
+      { zahl: 0, beschriftung: "abgelaufen", ton: "ok" },
+      { zahl: 1, beschriftung: "läuft ab", ton: "gelb" },
+    ]);
+  });
+
+  it("zählt eine gelbe Meldung ebenfalls als „läuft ab“", () => {
+    // 2026-09 endet am 30.09. — 54 Tage nach JETZT, zwischen rot (31) und
+    // gelb (56).
+    verfallSetzenImTest("a1", "2026-09");
+    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
+      { zahl: 0, beschriftung: "abgelaufen", ton: "ok" },
+      { zahl: 1, beschriftung: "läuft ab", ton: "gelb" },
+    ]);
+  });
+
+  it("zählt abgelaufen und bald ablaufend überschneidungsfrei", () => {
+    verfallSetzenImTest("a3", "2026-09");
+    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
+      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
+      { zahl: 1, beschriftung: "läuft ab", ton: "gelb" },
+    ]);
+  });
+
+  /**
+   * ⚠️ ZWEI NULLEN SIND NOCH KEINE ENTWARNUNG, solange nicht jeder Soll-Artikel
+   * angesehen wurde — dieselbe Zurückhaltung, mit der die Fahrzeugliste ihr
+   * „im grünen Bereich" gatet. Eine grüne Kante widerspräche der Liste
+   * daneben, die für dasselbe Fahrzeug „1 von 2 erfasst" zeigt.
+   */
+  it("gibt ohne vollständige Erfassung keine grüne Entwarnung", () => {
+    t.db.delete(lagerortVerfall).where(eq(lagerortVerfall.id, "verfall-a1")).run();
+    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
+      { zahl: 0, beschriftung: "abgelaufen", ton: undefined },
+      { zahl: 0, beschriftung: "läuft ab", ton: undefined },
+    ]);
+  });
+
+  it("gibt einem Fahrzeug ganz ohne Soll keine Entwarnung", () => {
+    t.db.delete(sollPositionen).where(eq(sollPositionen.fahrzeugId, "fz-1")).run();
+    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT))).toEqual([
+      { zahl: 0, beschriftung: "Soll-Positionen", ton: undefined },
+      { zahl: 0, beschriftung: "Fächer", ton: undefined },
+      { zahl: 0, beschriftung: "abgelaufen", ton: undefined },
+      { zahl: 0, beschriftung: "läuft ab", ton: undefined },
+    ]);
+  });
+
+  /**
+   * ⚠️ DIE KENNZAHL FOLGT DEM AKTIVEN SOLL, NICHT DEN MELDUNGEN. `verfall-
+   * grabstein` steht auf a2, und a2 hat auf fz-1 nur eine entfernte Position.
+   * Die Meldung ist abgelaufen — zählte die Kachel über die Meldungen, stünde
+   * hier eine 2.
+   */
+  it("lässt die Meldung zu einem Grabstein aus beiden Zahlen heraus", () => {
+    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
+      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
+      { zahl: 0, beschriftung: "läuft ab", ton: "ok" },
     ]);
   });
 

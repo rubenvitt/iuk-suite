@@ -63,6 +63,89 @@ function verfallZeilen(
   });
 }
 
+type VerfallKennzahlen = {
+  abgelaufen: number;
+  warnend: number;
+  erfasst: number;
+  sollArtikel: number;
+};
+
+/**
+ * DIE KOPFZEILE ZÄHLT ÜBER `abgelaufen`, NICHT ÜBER DEN TON (DRK-340).
+ *
+ * ⚠️ `abgelaufen` und `ampel === "rot"` SIND NICHT DASSELBE (`domain/verfall.ts`):
+ * eine abgelaufene Meldung ist immer rot, eine rote nicht immer abgelaufen. Wer
+ * die Kacheln über `statusTon` aus `verfallZeilen` teilt, schiebt jede rote,
+ * aber noch nicht abgelaufene Meldung in die linke Kachel — während die
+ * Fahrzeugliste eine Ebene darüber dieselbe Meldung rechts zählt
+ * (`lesepfade/fahrzeuge.ts`). Zwei Flächen, zwei Zahlen, und das Blatt
+ * widerspräche genau der Liste, mit der es übereinstimmen soll. Das DTO an den
+ * Editor trägt `abgelaufen` nicht — deshalb rechnet diese Funktion aus der
+ * QUELLE und nicht aus den Anzeigezeilen.
+ *
+ * ⚠️ DIE BEIDEN ZAHLEN ÜBERSCHNEIDEN SICH NICHT, und die Reihenfolge der
+ * Zweige stellt das sicher: eine abgelaufene Meldung zählt NUR links. Ein
+ * `ampel !== "gruen"` ohne den `else` zählte sie in beiden, und die Summe wäre
+ * stillschweigend zu groß.
+ *
+ * ⚠️ GEZÄHLT WIRD ÜBER DAS AKTIVE SOLL, nicht über die Meldungen — dieselbe
+ * Richtung wie `fahrzeugUebersicht`. Grabsteine sind kein Soll, und `erfasst`
+ * kann die Quote so nicht überschreiten.
+ */
+function verfallKennzahlen(
+  soll: ReturnType<typeof sollFuerFahrzeug>,
+  verfall: ReturnType<typeof verfallFuerLagerort>,
+): VerfallKennzahlen {
+  const imSoll = new Set(
+    soll.filter((position) => !position.entfernt).map((position) => position.artikelId),
+  );
+  let abgelaufen = 0;
+  let warnend = 0;
+  let erfasst = 0;
+  for (const artikelId of imSoll) {
+    const eintrag = verfall.get(artikelId);
+    if (!eintrag) continue;
+    // Die Erfassungsquote trägt AUCH die grünen — sie beantwortet
+    // „angesehen?", nicht „auffällig?".
+    erfasst += 1;
+    if (eintrag.abgelaufen) abgelaufen += 1;
+    else if (eintrag.ampel !== "gruen") warnend += 1;
+  }
+  return { abgelaufen, warnend, erfasst, sollArtikel: imSoll.size };
+}
+
+/**
+ * Trägt JEDER Artikel des aktiven Solls eine Angabe?
+ *
+ * ⚠️ NUR DANN GIBT DAS BLATT ENTWARNUNG. Zwei Nullen heißen „nichts
+ * Auffälliges GEMELDET", nicht „nichts fällig" — der Check gibt das
+ * Verfallsdatum ausdrücklich freiwillig ab, halb gepflegte Fahrzeuge sind der
+ * Normalfall (Reviewbefund zu DRK-298). Eine grüne Kante auf einem Fahrzeug,
+ * von dem niemand weiß, was drin liegt, ist genau die falsche Entwarnung,
+ * gegen die die Liste ihr „im grünen Bereich" gatet — und das Blatt sagte sonst
+ * Entwarnung, wo die Liste daneben schweigt.
+ *
+ * ⚠️ `sollArtikel === 0` IST NICHT VOLLSTÄNDIG. Ein Fahrzeug ohne Soll hat
+ * nichts zu erfassen und verdient keine Aussage; „null von null" wäre
+ * rechnerisch vollständig und fachlich eine Aussage über nichts.
+ */
+function vollstaendigErfasst(kennzahlen: VerfallKennzahlen): boolean {
+  return kennzahlen.sollArtikel > 0 && kennzahlen.erfasst === kennzahlen.sollArtikel;
+}
+
+/**
+ * Die Kante einer Verfallskachel: der eigene Warnton, sonst Entwarnung NUR bei
+ * vollständiger Erfassung — andernfalls bleibt sie ungefärbt.
+ */
+function kachelTon(
+  zahl: number,
+  warnton: "rot" | "gelb",
+  kennzahlen: VerfallKennzahlen,
+): "rot" | "gelb" | "ok" | undefined {
+  if (zahl > 0) return warnton;
+  return vollstaendigErfasst(kennzahlen) ? "ok" : undefined;
+}
+
 /**
  * Zweite Zugriffslinie neben dem Verwaltungs-Layout: Eine bekannte Lager-ID
  * ist noch kein Fahrzeugblatt. Alle Client-Inseln erhalten nur serielle DTOs.
@@ -73,7 +156,9 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
 
   const soll = sollFuerFahrzeug(db, id);
   const aktivePositionen = soll.filter((position) => !position.entfernt);
-  const verfall = verfallZeilen(soll, verfallFuerLagerort(db, id, jetzt));
+  const gemeldeterVerfall = verfallFuerLagerort(db, id, jetzt);
+  const verfall = verfallZeilen(soll, gemeldeterVerfall);
+  const kennzahlen = verfallKennzahlen(soll, gemeldeterVerfall);
   const artikel = artikelListe(db).map((eintrag) => ({
     id: eintrag.id,
     name: eintrag.name,
@@ -87,9 +172,6 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     : null;
   const vorlagen = templateListeAktiv(db);
   const faecher = new Set(aktivePositionen.map((position) => position.fachLabel)).size;
-  const verfallAuffaellig = verfall.filter(
-    (eintrag) => eintrag.statusTon !== null && eintrag.statusTon !== "ok",
-  );
 
   return (
     <>
@@ -120,18 +202,52 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         )}
       />
 
+      {/*
+        VIER KACHELN, UND DIE VIERTE IST DIE AUFGETEILTE DRITTE (DRK-340).
+
+        Hier stand EINE Zahl „auffällige Verfallsmeldungen" aus abgelaufen UND
+        bald ablaufend — dieselbe Vermischung, die DRK-298 eine Ebene darüber
+        aus der Fahrzeugliste genommen hat. Die Liste sagte danach „1
+        abgelaufen", das Blatt desselben Fahrzeugs „1 auffällige
+        Verfallsmeldung": beides richtig, und die schärfere Auskunft ging genau
+        dort verloren, wo man hinklickt, um zu handeln.
+
+        ⚠️ ZWEI KACHELN, NICHT EINE MIT ZWEI ZAHLEN — die offene Frage des
+        Tickets. Die Verwaltungsübersicht (`verwaltung/(arbeit)/page.tsx`)
+        führt dieselbe Trennung für die Chargen längst als ZWEI `Kachel`n
+        („Chargen bald fällig / kritisch" neben „abgelaufen — aussondern
+        nötig"). Eine Kachel mit zwei Zahlen wäre ein drittes Muster für
+        dieselbe Aussage im selben Modul.
+
+        ⚠️ DIE BESCHRIFTUNGEN SIND WÖRTLICH DIE CHIPTEXTE DER FAHRZEUGLISTE
+        („abgelaufen", „läuft ab"). Dieselbe Festlegung wie dort zwischen
+        Filter- und Chiptext: zwei Namen für einen Zustand lassen den Leser
+        einen dritten vermuten — und hier liegen die beiden Flächen einen Klick
+        auseinander.
+
+        ⚠️ `md={12}` STATT `md={8}`: vier Kacheln nebeneinander unterschreiten
+        ab dem md-Umbruch die 190px, die `Kachel` als Untergrenze nennt. Zwei
+        Reihen zu zweit ab 768px, vier nebeneinander erst ab xl.
+      */}
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={12} xl={6}>
           <Kachel zahl={aktivePositionen.length} beschriftung="Soll-Positionen" />
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={12} xl={6}>
           <Kachel zahl={faecher} beschriftung="Fächer" />
         </Col>
-        <Col xs={24} md={8}>
+        <Col xs={24} md={12} xl={6}>
           <Kachel
-            zahl={verfallAuffaellig.length}
-            beschriftung="auffällige Verfallsmeldungen"
-            ton={verfallAuffaellig.some((eintrag) => eintrag.statusTon === "rot") ? "rot" : "ok"}
+            zahl={kennzahlen.abgelaufen}
+            beschriftung="abgelaufen"
+            ton={kachelTon(kennzahlen.abgelaufen, "rot", kennzahlen)}
+          />
+        </Col>
+        <Col xs={24} md={12} xl={6}>
+          <Kachel
+            zahl={kennzahlen.warnend}
+            beschriftung="läuft ab"
+            ton={kachelTon(kennzahlen.warnend, "gelb", kennzahlen)}
           />
         </Col>
       </Row>
