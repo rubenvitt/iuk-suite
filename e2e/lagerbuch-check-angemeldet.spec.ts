@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { devLogin, klickeWennRuhig } from "./fixtures";
 import {
   E2E_FAHRZEUG_ANDERES_NAME,
@@ -30,7 +30,14 @@ import {
  *     Bildschirm identisch aus, wird von `getByRole("link")` gefunden und
  *     navigiert NIE. Der DOM-Test daneben prüft die Struktur; dass ein Klick
  *     ankommt, sagt nur ein echter Browser.
- *  3. DASS DIE BEIDEN WEGE GETRENNT BLEIBEN (Akzeptanzkriterium 4). Der
+ *  3. DASS DIE KETTE AM STÜCK TRÄGT. Das ist der Grund, aus dem hier ein
+ *     ganzer Entnahme-Durchlauf steht und nicht nur eine Seitenprüfung: die
+ *     Codex-Review zu diesem PR fand, dass `/helfer` zwar antwortete, jede
+ *     Artikelzeile aber auf `/a/<id>` verlinkt — und DIESE Seite eine
+ *     angemeldete Person in die Verwaltung umleitete. Beide Seiten antworteten
+ *     je für sich mit 200; kaputt war erst der zweite Klick. Ein Test, der nur
+ *     Seiten abruft, findet so etwas strukturell nie.
+ *  4. DASS DIE BEIDEN WEGE GETRENNT BLEIBEN (Akzeptanzkriterium 4). Der
  *     Kärtchen-Weg und der Konto-Weg laufen durch DIESELBE Seite; ob die
  *     Reihenfolge der beiden Riegel hält, zeigt erst ein Lauf, in dem beides
  *     gleichzeitig vorliegt — ein Kärtchen im Cookie UND eine Anmeldung.
@@ -51,6 +58,25 @@ import {
 
 /** Ein Fahrzeugname als Suchmuster — dieselbe Hilfe wie im Kärtchen-Lauf. */
 const alsText = (name: string) => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+/**
+ * Die Zielwahl — Bauform 1:1 aus `lagerbuch-helfer.spec.ts`.
+ *
+ * ⚠️ DIE ANTWORT WIRD GEPRÜFT, nicht nur die spätere Zustandsänderung (zweite
+ * Testregel aus Falle 10): sonst läuft eine abgelehnte Antwort still ins
+ * Zeitbudget und meldet sich als etwas ganz anderes.
+ */
+async function waehleZiel(page: Page, name: RegExp): Promise<void> {
+  await page.getByRole("radio", { name }).check();
+  const [antwort] = await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/helfer/ziel")),
+    page.getByRole("button", { name: "Ziel übernehmen" }).click(),
+  ]);
+  expect(
+    antwort.status(),
+    `die Zielwahl muss serverseitig ankommen — Antwort war ${antwort.status()}`,
+  ).toBeLessThan(400);
+}
 
 test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
   test.beforeEach(async ({ page }) => {
@@ -124,6 +150,40 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
     // Vorausgewählt — aber NICHT gebunden: der Weg zu einem anderen Fahrzeug
     // bleibt offen. Das ist der Unterschied zum gescannten Kärtchen (DRK-302).
     await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
+  });
+
+  test("die Entnahme ohne Code trägt bis zur Buchung — Schrank → Fahrzeug", async ({ page }) => {
+    /*
+     * ⚠️ DER LAUF, DEN DIE CODEX-REVIEW ERZWUNGEN HAT. Der Einstieg „Bestand →
+     * Entnahme“ verspricht eine Entnahme ohne Code; geprüft wird deshalb die
+     * ganze Kette und nicht der erste Schirm: Liste → Artikel → Zielwahl →
+     * Buchung. Die Umleitung, die es vorher an `/a/<id>` gab, wäre genau hier
+     * aufgefallen — und nur hier.
+     */
+    await page.goto(lagerbuchUrl("/helfer"));
+    await klickeWennRuhig(page.getByRole("link", { name: /E2E Verbandpäckchen/ }));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    // Kein Kärtchen im Spiel: der Kopf nennt die Person.
+    await expect(page.getByText(/^Angemeldet: /)).toBeVisible();
+
+    // DRK-300: ohne ausdrückliche Wahl wird nicht gebucht — auch angemeldet nicht.
+    await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
+    await klickeWennRuhig(page.locator("[data-rolle='entnahme-ziel'] a"));
+    await page.waitForURL(/\/helfer\/ziel/);
+    await waehleZiel(page, alsText(E2E_FAHRZEUG_NAME));
+    await page.waitForURL(/\/a\/e2e-artikel/);
+
+    await page.getByRole("button", { name: "Entnahme buchen" }).click();
+    await expect(page.getByText(/gebucht/i)).toBeVisible();
+  });
+
+  test("das Artikelblatt bleibt erreichbar — als Link statt als Umleitung", async ({ page }) => {
+    // Was die frühere Umleitung geleistet hat, leistet jetzt ein Link auf der
+    // Seite. Verloren geht dadurch nichts; es kostet einen Klick statt keinen.
+    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await klickeWennRuhig(page.getByRole("link", { name: "In der Verwaltung öffnen" }));
+    await page.waitForURL((u) => u.searchParams.get("a") === "e2e-artikel");
   });
 
   test("ein gescanntes Kärtchen gewinnt gegen die Anmeldung (DRK-302 bleibt)", async ({ page }) => {

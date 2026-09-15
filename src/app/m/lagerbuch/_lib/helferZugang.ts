@@ -196,8 +196,16 @@ export async function helferZugangOderNull(db: DB): Promise<TokenZugang | null> 
  * traegt, sonst `null`. Er wird nur erreicht, wenn vorher KEIN gueltiges
  * Kaertchen gefunden wurde.
  *
+ * ⚠️ EXPORTIERT FUER `a/[artikelId]/page.tsx`, und das ist kein Komfort,
+ * sondern die Vollstaendigkeit des Konto-Wegs: die Artikelliste unter `/helfer`
+ * verlinkt JEDE Zeile auf `/a/<id>`. Ohne diesen Zweig dort endet die
+ * angebotene Entnahme ohne Code nach einem Klick — die Seite leitete eine
+ * angemeldete Person in die Verwaltung um, und die Zielwahl (Schrank →
+ * Fahrzeug) waere von dort nicht erreichbar. Gefunden hat das die
+ * Codex-Review zu PR #164, nicht ein Tor.
+ *
  * ⚠️ ER PRUEFT DEN HOST NICHT SELBST, und das ist hier ausnahmsweise richtig:
- * beide Aufrufer haben `requireLagerbuchHost` als ERSTE Anweisung hinter sich,
+ * alle Aufrufer haben `requireLagerbuchHost` als ERSTE Anweisung hinter sich,
  * und `viewerOderNull` ist ausdruecklich host-blind (`_lib/zugang.ts` schreibt
  * das aus). Ein dritter Aufruf machte aus dem Praedikat wieder einen Wurf.
  *
@@ -208,7 +216,7 @@ export async function helferZugangOderNull(db: DB): Promise<TokenZugang | null> 
  * Wer diesen Weg spaeter auf einen reinen LESEpfad einschraenkt, darf die Zeile
  * trotzdem nicht streichen — der Rahmen zeigt den Namen ebenfalls.
  */
-async function kontoZugang(db: DB): Promise<KontoZugang | null> {
+export async function kontoZugangOderNull(db: DB): Promise<KontoZugang | null> {
   const viewer = await viewerOderNull();
   if (!istLagerbuchAdmin(viewer) || !viewer) return null;
   merkeNutzer(db, viewer);
@@ -256,7 +264,7 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
    * Cookie bleibt in diesem Fall liegen; es ist wirkungslos, weil `befund()` es
    * bei jedem Aufruf erneut gegen die Datenbank prueft.
    */
-  const konto = await kontoZugang(db);
+  const konto = await kontoZugangOderNull(db);
   if (konto) return konto;
 
   auditDenied("lagerbuch");
@@ -301,7 +309,7 @@ export async function requireHelferSchreibend(
   // DRK-305 — dieselbe Reihenfolge wie im lesenden Riegel. Eine Buchung aus
   // diesem Weg traegt `quelleTyp: "oidc"` und den Klarnamen der Person statt des
   // Kaertchen-Labels (`_lib/zugangHerkunft.ts`).
-  const konto = await kontoZugang(db);
+  const konto = await kontoZugangOderNull(db);
   if (konto) return { ok: true, zugang: konto };
 
   auditDenied("lagerbuch");
