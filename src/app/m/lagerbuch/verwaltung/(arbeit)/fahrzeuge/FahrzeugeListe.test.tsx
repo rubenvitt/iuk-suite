@@ -388,6 +388,51 @@ describe("FahrzeugeListe — Spalten und Status", () => {
   });
 
   /**
+   * ⚠️ DIE QUOTE VERSCHWINDET NICHT, SOBALD ETWAS AUFFAELLIG IST (zweiter
+   * Reviewbefund zu DRK-298) — und das ist dieselbe stille Luecke wie die
+   * erste, nur eine Ebene tiefer.
+   *
+   * Ein Fahrzeug mit EINEM abgelaufenen und SIEBEN nie angesehenen Artikeln
+   * meldete „1 abgelaufen" und sonst nichts. Wer danach handelt, tauscht einen
+   * Artikel und haelt das Fahrzeug fuer erledigt — waehrend sieben weitere
+   * ungeprueft sind. Die auffaelligen Zahlen und die Erfassung beantworten
+   * verschiedene Fragen („was ist faellig?" und „wovon wissen wir es
+   * ueberhaupt?"); die eine darf die andere nicht verdecken.
+   */
+  it("zeigt die Erfassungslücke AUCH neben einer Warnung", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[0], id: "luecke", name: "Lücke trotz Fund",
+            verfallAbgelaufen: 1, verfallWarnend: 0,
+            verfallErfasst: 1, verfallSollArtikel: 8 },
+        ]}
+      />,
+    );
+
+    const spalte = query("tr[data-row-key='luecke'] td:nth-child(4)");
+    expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
+    expect(spalte.querySelector(`.${s.grau}`)!.textContent).toContain("1 von 8 erfasst");
+  });
+
+  /** Gegenprobe: vollstaendig erfasst heisst KEIN grauer Chip daneben. */
+  it("hängt keine Quote an ein vollständig erfasstes Fahrzeug", async () => {
+    await mount(
+      <FahrzeugeListe
+        zeilen={[
+          { ...ZEILEN[0], id: "ganz", name: "Ganz erfasst",
+            verfallAbgelaufen: 1, verfallWarnend: 0,
+            verfallErfasst: 8, verfallSollArtikel: 8 },
+        ]}
+      />,
+    );
+
+    const spalte = query("tr[data-row-key='ganz'] td:nth-child(4)");
+    expect(spalte.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
+    expect(spalte.querySelector(`.${s.grau}`)).toBeNull();
+  });
+
+  /**
    * ⚠️ DIE SPALTE ORDNET NACH DRINGLICHKEIT, NICHT NACH SUMME.
    *
    * f3 hat 2 abgelaufene und 1 warnende Meldung, f2 nur 1 warnende. Sortiert
