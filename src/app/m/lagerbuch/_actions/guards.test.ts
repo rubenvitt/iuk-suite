@@ -405,18 +405,11 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * uebrigen Zahlen stehen laesst, bekommt eine Datei, die sich selbst
  * widerspricht.
  *
- * NACHTRAG ZUSAMMENFUEHRUNG DRK-297 (15.09.2026): DRK-297 (drei admin-bewachte
- * Actions in `lagerorte.ts`) ist mit DRK-303 und DRK-300 zusammengetroffen. Die
- * drei Nachtraege oben nennen ihre Zahlen JEWEILS FUER SICH ALLEIN. Gemeinsam
- * steht die Zaehlung auf 55 = 52 bewacht + 3 Ausnahmen, 52 = 49 + 3, in 23
- * Action-Dateien.
- *
- * ⚠️ DIE WARNUNG DARUEBER HAT SICH BEWAEHRT: git sieht auf beiden Seiten
- * dieselbe Zeile veraendert und meldet einen Konflikt — die richtige Zahl ist
- * aber KEINE der beiden angebotenen, sondern ihre Summe ueber den gemeinsamen
- * Vorfahren. Wer den Konflikt „zugunsten einer Seite" aufloest, bekommt eine
- * Datei, die sich selbst widerspricht, und einen gruenen Test, der die falsche
- * Menge bewacht.
+ * NACHTRAG ZUSAMMENFUEHRUNG DRK-297 (15.09.2026): DRK-297 ist nach DRK-303 und
+ * DRK-300 gelandet und bringt drei admin-bewachte Actions in `lagerorte.ts`.
+ * Sein eigener Nachtrag oben rechnet vom Stand 50 aus („53 … in 21
+ * Action-Dateien") und gilt FUER SICH ALLEIN. Gemeinsam steht die Zaehlung auf
+ * 55 = 52 bewacht + 3 Ausnahmen, 52 = 49 + 3, in 23 Action-Dateien.
  *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
