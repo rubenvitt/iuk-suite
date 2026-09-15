@@ -117,12 +117,22 @@ describe("o2Status — der konfigurierte Grenzwert", () => {
     expect(s.wechseln).toBe(true);
   });
 
-  it("rundet die bar-Anzeige AUF — sonst nennt sie eine noch gruene Zahl", () => {
-    // 25 % von 210 bar sind 52,5. Abgerundet nennte die Maske 52 bar, und bei
-    // 52 bar ist die Ampel rot: die Anzeige wuerde ihre eigene Regel verfehlen.
-    expect(wechselGrenzeBar(210, 25)).toBe(53);
-    expect(o2Status(53, 210).wechseln).toBe(false);
+  it("⚠️ die genannte bar-Zahl LOEST AUS — die Anzeige und die Regel fallen zusammen", () => {
+    // DIE EIGENSCHAFT, NICHT DIE RUNDUNG. Was hier zaehlt, ist das Verhaeltnis
+    // zweier Funktionen: die Zahl, die jede Maske ausschreibt, muss der Regel
+    // genuegen, gegen die sie ausgeschrieben wird. Ein Test auf `toBe(52)`
+    // allein bliebe gruen, wenn jemand spaeter `o2Status` auf `<` umstellt.
+    for (const [nenn, prozent] of [[210, 25], [200, 25], [300, 17], [150, 33], [200, 49]]) {
+      const grenze = wechselGrenzeBar(nenn, prozent);
+      expect(o2Status(grenze, nenn, prozent).wechseln).toBe(true);
+      expect(o2Status(grenze + 1, nenn, prozent).wechseln).toBe(false);
+    }
+    // Der Fall aus der ersten Reviewrunde, ausgeschrieben: 25 % von 210 bar sind
+    // 52,5. AUFgerundet nannte die Maske 53 bar — und bei 53 bar geschieht
+    // nichts. Auf Papier steht diese Zahl neben dem Messfeld.
+    expect(wechselGrenzeBar(210, 25)).toBe(52);
     expect(o2Status(52, 210).wechseln).toBe(true);
+    expect(o2Status(53, 210).wechseln).toBe(false);
   });
 
   it("liefert bei nenn <= 0 eine 0 als Grenzwert in bar", () => {

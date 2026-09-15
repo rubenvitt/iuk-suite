@@ -126,9 +126,15 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
             {check.completedAt?.toLocaleString("de-DE", {
               timeZone: "Europe/Berlin",
             }) ?? "—"}{" · "}
+            {/* ⚠️ DER SATZ NENNT BEIDE AMPELN, seit der Wechselwert einstellbar
+                ist (DRK-308). Vorher stand hier nur die Verfall-Ampel — und
+                genau dadurch las sich die Sauerstoff-Zeile wie der Stand bei
+                Abschluss, obwohl auch sie gegen die heutige Vorgabe rechnet. Ein
+                Hinweis, der eine von zwei Ausnahmen aufzaehlt, ist irrefuehrender
+                als gar keiner: er behauptet Vollstaendigkeit. */}
             <strong>
-              Die Verfall-Ampel unten ist gegen heute gerechnet, nicht gegen den Zeitpunkt des
-              Checks.
+              Verfall- und Sauerstoff-Ampel unten sind gegen die heute geltenden Vorgaben
+              gerechnet, nicht gegen den Zeitpunkt des Checks.
             </strong>
           </>
         )}

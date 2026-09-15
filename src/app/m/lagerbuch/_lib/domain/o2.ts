@@ -71,14 +71,26 @@ export function fuellstandProzent(druckBar: number, nennfuelldruckBar: number): 
 }
 
 /**
- * Der Wechselwert einer Flasche in bar — dieselbe Rundung, die die Maske zeigt.
- * Aufgerundet: bei 25 % von 210 bar sind das 53 bar, und 52 bar loesen den
- * Hinweis bereits aus. Abgerundet nennte die Anzeige eine Zahl, bei der die
- * Ampel noch gruen ist.
+ * Der Wechselwert einer Flasche in bar — die Zahl, die jede Maske ausschreibt
+ * („Wechsel fällig – ab N bar").
+ *
+ * ⚠️ ABGERUNDET, UND DAS FOLGT AUS `o2Status`, NICHT AUS GESCHMACK. Der Hinweis
+ * gilt bei `druck <= nenn * prozent / 100`; die GROESSTE ganze Zahl, die das
+ * erfuellt, ist also die abgerundete. Bei 25 % von 210 bar sind das 52 — und
+ * `o2Status(52, 210)` loest aus, `o2Status(53, 210)` nicht.
+ *
+ * ⚠️ AUFGERUNDET WAERE DIE ANZEIGE EINE LUEGE, und sie war es bis zur ersten
+ * Reviewrunde zu DRK-308: sie nannte 53 bar, waehrend bei 53 bar nichts
+ * geschieht. Auf Papier steht diese Zahl neben dem Feld, in das der gemessene
+ * Druck eingetragen wird — wer 53 abliest, schluesse daraus auf „tauschen",
+ * obwohl die Anwendung die Flasche fuer in Ordnung haelt. Kein Tor sieht das:
+ * die Funktion ist fuer sich genommen widerspruchsfrei, der Widerspruch
+ * entsteht erst IM VERHAELTNIS zu `o2Status`. Der Test unten haelt genau dieses
+ * Verhaeltnis fest, nicht die Rundung fuer sich.
  */
 export function wechselGrenzeBar(nennfuelldruckBar: number, wechselAbProzent: number): number {
   if (nennfuelldruckBar <= 0) return 0;
-  return Math.ceil((nennfuelldruckBar * wechselAbProzent) / 100);
+  return Math.floor((nennfuelldruckBar * wechselAbProzent) / 100);
 }
 
 /**

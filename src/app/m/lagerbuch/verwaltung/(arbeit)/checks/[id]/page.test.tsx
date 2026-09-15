@@ -410,7 +410,12 @@ describe("Check-Detailseite", () => {
       zurueck?: { titel: string; href: string };
     }).zurueck;
     expect(zurueck).toEqual({ titel: "Fahrzeug-Checks", href: "/verwaltung/checks" });
-    expect(textVon(koepfe[0].props.beschreibung as ReactNode)).toMatch(/gegen heute gerechnet/i);
+    // ⚠️ BEIDE AMPELN, seit der Wechselwert einstellbar ist (DRK-308): auch die
+    // Sauerstoff-Zeile rechnet gegen die heutige Vorgabe. Ein Hinweis, der nur
+    // eine der beiden nennt, behauptet Vollständigkeit.
+    const beschreibung = textVon(koepfe[0].props.beschreibung as ReactNode);
+    expect(beschreibung).toMatch(/heute geltenden Vorgaben gerechnet/i);
+    expect(beschreibung).toMatch(/Sauerstoff-Ampel/i);
 
     const alerts = elementeVomTyp(seite, Alert);
     expect(alerts).toHaveLength(1);
