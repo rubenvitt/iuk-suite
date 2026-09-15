@@ -39,8 +39,41 @@ export type FahrzeugUebersichtZeile = {
   positionen: number; faecher: number;
   /** Artikel, deren Fahrzeugbestand die SOLL-SUMME unterschreitet. */
   artikelUnterSoll: number;
-  /** Gemeldete Verfaelle im Warnbereich oder bereits abgelaufen. */
-  verfallAuffaellig: number;
+  /**
+   * DREI ANGABEN, WO FRUEHER EINE ZAHL STAND (DRK-298).
+   *
+   * `verfallAuffaellig` warf rot und gelb zusammen, und die Fahrzeugliste
+   * zeigte die Summe als GELBEN Chip: ein Fahrzeug mit drei abgelaufenen
+   * Artikeln sah aus wie eins, bei dem in drei Monaten etwas faellig wird.
+   * Genau die Unterscheidung, nach der das Ticket heisst, fehlte damit auf der
+   * Flaeche, auf die man zuerst schaut.
+   *
+   * ⚠️ DIE BEIDEN ZAHLEN UEBERSCHNEIDEN SICH NICHT. `abgelaufen` und
+   * `ampel === "rot"` sind NICHT dasselbe (`domain/verfall.ts`) — eine
+   * abgelaufene Meldung ist immer rot, eine rote nicht immer abgelaufen. Wer
+   * `verfallWarnend` als `ampel !== "gruen"` rechnet, zaehlt jede abgelaufene
+   * Meldung in BEIDEN Zahlen, und ihre Summe ist stillschweigend zu gross.
+   *
+   * ⚠️ `verfallAuffaellig` GIBT ES HIER NICHT MEHR — die Summe steht in der
+   * Anzeige. Eine Summe NEBEN ihren Teilen ist eine zweite Wahrheit, die
+   * auseinanderlaufen kann. Die gleichnamige Zahl in der CHECK-Auswertung
+   * (`_actions/check.ts`, `lesepfade/checks.ts`) ist etwas anderes und bleibt.
+   */
+  verfallAbgelaufen: number;
+  /** Gemeldete Verfaelle im Warnbereich, die NOCH NICHT abgelaufen sind. */
+  verfallWarnend: number;
+  /**
+   * Ob fuer dieses Fahrzeug UEBERHAUPT ein Verfall gepflegt ist — GRUENE
+   * EINGESCHLOSSEN.
+   *
+   * ⚠️ DAS IST DER GANZE ZWECK DES FELDES. Ohne es sind „geprueft, nichts
+   * faellig" und „hat nie jemand gepflegt" nicht zu trennen: beide liefern
+   * null auffaellige Meldungen, bedeuten aber Gegensaetzliches. Eine Ansicht,
+   * die daraus dasselbe „—" macht, behauptet Entwarnung, wo sie nur keine
+   * Daten hat — und das faellt erst auf, wenn jemand mit einer Austauschliste
+   * vor einem ungepflegten Fahrzeug steht.
+   */
+  verfallGepflegt: boolean;
   letzterCheck: Date | null;
   templateName: string | null;
 };
@@ -62,9 +95,23 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
   const templateNamen = new Map(
     db.select().from(fahrzeugTemplates).all().map((t) => [t.id, t.name]));
 
-  const verfallProFzg = new Map<string, number>();
-  for (const z of lagerortVerfallListe(db, { nurWarnend: true }, now)) {
-    verfallProFzg.set(z.lagerortId, (verfallProFzg.get(z.lagerortId) ?? 0) + 1);
+  /**
+   * ⚠️ OHNE `nurWarnend` GELESEN — und das ist der Grund, warum diese Schleife
+   * nicht kuerzer sein kann. `nurWarnend: true` wirft gruene Zeilen weg, und
+   * genau sie beantworten „ist hier ueberhaupt etwas gepflegt?". Mit dem Filter
+   * waere `verfallGepflegt` fuer ein sauber gepflegtes, unauffaelliges Fahrzeug
+   * `false` — die Luecke, gegen die das Feld gebaut ist, waere wieder da,
+   * obwohl der Name das Gegenteil behauptet.
+   */
+  const verfallProFzg = new Map<string, { abgelaufen: number; warnend: number }>();
+  for (const z of lagerortVerfallListe(db, {}, now)) {
+    const stand = verfallProFzg.get(z.lagerortId)
+      ?? { abgelaufen: 0, warnend: 0 };
+    // SICH AUSSCHLIESSEND: eine abgelaufene Meldung ist rot, zaehlt aber NUR
+    // links — sonst stuende sie in beiden Zahlen und ihre Summe waere zu gross.
+    if (z.abgelaufen) stand.abgelaufen += 1;
+    else if (z.ampel !== "gruen") stand.warnend += 1;
+    verfallProFzg.set(z.lagerortId, stand);
   }
 
   const letzterProFzg = new Map<string, Date>();
@@ -88,10 +135,15 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
       for (const [artikelId, sollSumme] of sollProArtikel) {
         if ((imFahrzeug?.get(artikelId) ?? 0) < sollSumme) artikelUnterSoll += 1;
       }
+      const verfall = verfallProFzg.get(f.id);
       return {
         id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
         positionen: soll.length, faecher: faecher.size, artikelUnterSoll,
-        verfallAuffaellig: verfallProFzg.get(f.id) ?? 0,
+        verfallAbgelaufen: verfall?.abgelaufen ?? 0,
+        verfallWarnend: verfall?.warnend ?? 0,
+        // KEIN Eintrag heisst „nie gepflegt". Ein Eintrag entsteht nur durch
+        // eine gemeldete Zeile — auch eine gruene.
+        verfallGepflegt: verfall !== undefined,
         letzterCheck: letzterProFzg.get(f.id) ?? null,
         templateName: f.templateId ? (templateNamen.get(f.templateId) ?? null) : null,
       };

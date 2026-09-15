@@ -39,6 +39,8 @@ beforeEach(() => {
       mindestbestand: 0, aktiv: true, createdAt: NOW },
     { id: "a2", name: "NaCl", einheit: "Fl.", fach: "B2",
       mindestbestand: 0, aktiv: true, createdAt: NOW },
+    { id: "a3", name: "Rettungsdecke", einheit: "Stk.", fach: "C3",
+      mindestbestand: 0, aktiv: true, createdAt: NOW },
   ]).run();
   t.db.insert(templatePositionen).values(
     { id: "tp1", templateId: "tpl-rtw", fachLabel: "Fach 1", sort: 0,
@@ -72,6 +74,23 @@ beforeEach(() => {
     referenz: null, kommentar: null,
   });
   t.db.insert(buchungen).values([b(HANDLAGER_ID, 30), b("rtw-1", 5)]).run();
+  /**
+   * DIE VIER LAGEN EINES FAHRZEUGS, ueber drei Fahrzeuge verteilt (DRK-298):
+   *
+   *   rtw-1  abgelaufen UND warnend UND gruen  → abgelaufen 1, warnend 1
+   *   rtw-2  ueberhaupt keine Zeile            → nichts erfasst
+   *   rtw-3  ausschliesslich gruen             → gepflegt, nichts faellig
+   *
+   * ⚠️ rtw-3 IST DIE ZEILE, DIE DEN UNTERSCHIED BEWEIST. Ohne sie waere „alles
+   * gruen" von „nie gepflegt" nicht zu trennen, und `verfallGepflegt` koennte
+   * still `warnend + abgelaufen > 0` sein, ohne dass ein Test es merkt.
+   *
+   * ⚠️ Zu a3 und zu a2 auf rtw-1 gibt es KEINE aktive Sollposition. Das ist
+   * Absicht und kein Versehen: die Zugehoerigkeitspruefung sitzt im
+   * SCHREIBweg (`_actions/lagerortVerfall.ts`), der Lesepfad fragt das Soll
+   * nie — wer hier einen Join auf `sollPositionen` einzieht, laesst Meldungen
+   * verschwinden, statt sie zu zeigen.
+   */
   t.db.insert(lagerortVerfall).values([
     { id: newId(), lagerortId: "rtw-1", artikelId: "a1", verfall: "2026-07",
       erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
@@ -79,6 +98,11 @@ beforeEach(() => {
     // `fahrzeugUebersicht` `nurWarnend` weglassen und der Zaehler bliebe
     // trotzdem bei 1.
     { id: newId(), lagerortId: "rtw-1", artikelId: "a2", verfall: "2029-01",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    // ABGELAUFEN: Monatsende 31.05.2026 liegt vor NOW (15.06.2026).
+    { id: newId(), lagerortId: "rtw-1", artikelId: "a3", verfall: "2026-05",
+      erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
+    { id: newId(), lagerortId: "rtw-3", artikelId: "a2", verfall: "2029-01",
       erfasstAt: NOW, quelleTyp: "token", quelleId: "111-111" },
   ]).run();
   // Checks ausser der Reihe eingefuegt (juengster ZUERST) — sonst faellt eine
@@ -118,13 +142,50 @@ describe("fahrzeugUebersicht — Soll je ARTIKEL summiert, dann verglichen", () 
     expect(z.letzterCheck?.toISOString()).toBe("2026-06-01T10:05:00.000Z");
   });
 
-  it("zaehlt NUR die WARNENDEN Verfallsmeldungen DES FAHRZEUGS", () => {
-    // Die gruene Meldung (a2, "2029-01") zaehlt nicht mit — sonst waere der
-    // Zaehler 2 statt 1. rtw-2 hat KEINE Meldungen — ein global statt je
-    // Fahrzeug gezaehlter Wert liesse hier ebenfalls 1 statt 0 stehen.
+  it("trennt ABGELAUFEN von BALD ABLAUFEND, je Fahrzeug", () => {
+    /**
+     * DRK-298. Vorher stand hier EINE Zahl fuer beides, und die Fahrzeugliste
+     * zeigte sie als gelben Chip — ein Fahrzeug mit drei abgelaufenen Artikeln
+     * sah aus wie eins, bei dem in drei Monaten etwas faellig wird.
+     *
+     * `abgelaufen` und `ampel === "rot"` sind NICHT dasselbe (`domain/verfall.ts`):
+     * a1 („2026-07") ist warnend, aber nicht abgelaufen; a3 („2026-05") ist
+     * abgelaufen. Wer `warnend` ueber `ampel !== "gruen"` rechnet, zaehlt a3
+     * DOPPELT — in beiden Zahlen.
+     */
     const l = fahrzeugUebersicht(t.db, NOW);
-    expect(l.find((x) => x.id === "rtw-1")!.verfallAuffaellig).toBe(1);
-    expect(l.find((x) => x.id === "rtw-2")!.verfallAuffaellig).toBe(0);
+    const eins = l.find((x) => x.id === "rtw-1")!;
+    expect(eins.verfallAbgelaufen).toBe(1);   // a3
+    expect(eins.verfallWarnend).toBe(1);      // a1 — NICHT 2, a3 zaehlt hier nicht
+  });
+
+  it("zaehlt je Fahrzeug, nicht global", () => {
+    // rtw-2 hat KEINE Meldung. Ein global statt je Fahrzeug gezaehlter Wert
+    // liesse hier die Zahlen von rtw-1 stehen.
+    const z = fahrzeugUebersicht(t.db, NOW).find((x) => x.id === "rtw-2")!;
+    expect(z.verfallAbgelaufen).toBe(0);
+    expect(z.verfallWarnend).toBe(0);
+  });
+
+  it("unterscheidet „alles gruen\" von „nichts erfasst\"", () => {
+    /**
+     * DIE STILLE LUECKE, gegen die DRK-298 gebaut ist: beide Faelle liefern
+     * null auffaellige Meldungen, bedeuten aber Gegensaetzliches — einmal
+     * „geprueft, nichts faellig", einmal „hat nie jemand gepflegt". Eine
+     * Ansicht, die daraus dasselbe „—" macht, behauptet Entwarnung, wo sie nur
+     * keine Daten hat.
+     *
+     * ⚠️ `verfallGepflegt` zaehlt AUCH GRUENE Zeilen. Wer es aus
+     * `lagerortVerfallListe(db, { nurWarnend: true })` ableitet, bekommt fuer
+     * rtw-3 `false` — und die Luecke ist wieder da, obwohl der Name
+     * das Gegenteil sagt.
+     */
+    const l = fahrzeugUebersicht(t.db, NOW);
+    expect(l.find((x) => x.id === "rtw-3")!.verfallGepflegt).toBe(true);
+    expect(l.find((x) => x.id === "rtw-2")!.verfallGepflegt).toBe(false);
+    // Und rtw-3 ist trotz gepflegter Angabe unauffaellig.
+    expect(l.find((x) => x.id === "rtw-3")!.verfallAbgelaufen).toBe(0);
+    expect(l.find((x) => x.id === "rtw-3")!.verfallWarnend).toBe(0);
   });
 
   it("nennt den Vorlagennamen und sortiert aktive nach vorn", () => {

@@ -37,8 +37,8 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { openModuleDatabase, moduleDbPath } from "@/core/db";
 import { getDb } from "@/app/m/lagerbuch/_db/client";
 import {
-  artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte, o2Flaschen,
-  sollPositionen, tokens, newId,
+  artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte,
+  lagerortVerfall, o2Flaschen, sollPositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import {
@@ -318,6 +318,66 @@ function vorlagenFixtures(): void {
 }
 
 /**
+ * DREI FAHRZEUGE FUER `lagerbuch-verfall-fahrzeug.spec.ts` (DRK-298) — ZWEI mit
+ * je einer ABGELAUFENEN Meldung, eins ganz OHNE.
+ *
+ * ⚠️ ZWEI GEMELDETE, NICHT EINS, UND DAS IST DER UNTERSCHIED ZWISCHEN EINEM
+ * TEST UND EINER LEEREN GESTE. „Nach Fahrzeug filtern" ist Akzeptanzkriterium 1
+ * — mit einer einzigen Meldung im Seed laesst eine Einschraenkung auf „dieses
+ * Fahrzeug" genau dieselbe Zeile stehen, und die Zusicherung waere auch dann
+ * gruen, wenn der Filter gar nichts taete. (Gemessen: die Trefferanzeige blendet
+ * sich bei 1 von 1 korrekt aus und war ueberhaupt nicht im DOM.)
+ *
+ * ⚠️ DAS DRITTE IST KEIN FUELLSEL. „nichts faellig" und „nie gepflegt" sehen in
+ * der Fahrzeugliste verschieden aus, und genau diese Unterscheidung ist der
+ * Zweck des Tickets; ohne ein Fahrzeug ohne jede Meldung liesse sie sich im
+ * Browser nicht zeigen.
+ *
+ * ⚠️ BEIDE INAKTIV. `ChecklisteKnopf` ohne `fahrzeugId` meint ALLE AKTIVEN
+ * Fahrzeuge — ein drittes aktives Fahrzeug haenge sonst an jedem Checklistenlauf
+ * von `lagerbuch-checklisten.spec.ts` mit dran. Die Verwaltungsliste zeigt
+ * inaktive Fahrzeuge (Spaltenfilter „inaktiv"), die Spec findet sie also.
+ *
+ * ⚠️ WIEDERVERWENDET WIRD `e2e-verfall-artikel`, kein neuer. Er gehoert bereits
+ * dem Verfallsfluss, und ein weiterer aktiver Artikel verschoebe die Zahlen, die
+ * fremde Specs an Artikelliste, Etiketten und Kennzahlen zusichern (I-14). Die
+ * Soll-Position macht die Meldung erst plausibel: der SCHREIBweg
+ * (`_actions/lagerortVerfall.ts`) verlangt sie, der Lesepfad fragt sie nie.
+ */
+function fahrzeugVerfallFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values([
+    { id: "e2e-verfall-fahrzeug", name: "E2E Verfall-RTW", typ: "fahrzeug",
+      kennung: "MS-E2E-4", aktiv: false, templateId: null },
+    { id: "e2e-verfall-fahrzeug-2", name: "E2E Verfall-KTW", typ: "fahrzeug",
+      kennung: "MS-E2E-5", aktiv: false, templateId: null },
+    { id: "e2e-ungepflegt-fahrzeug", name: "E2E Ungepflegt-MTW", typ: "fahrzeug",
+      kennung: "MS-E2E-6", aktiv: false, templateId: null },
+  ]).onConflictDoNothing().run();
+
+  db.insert(sollPositionen).values([
+    { id: "e2e-verfall-soll", fahrzeugId: "e2e-verfall-fahrzeug", fachLabel: "Fach E2E",
+      sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+    { id: "e2e-verfall-soll-2", fahrzeugId: "e2e-verfall-fahrzeug-2", fachLabel: "Fach E2E",
+      sort: 0, artikelId: "e2e-verfall-artikel", soll: 1, templatePositionId: null,
+      ueberschrieben: false, entfernt: false },
+  ]).onConflictDoNothing().run();
+
+  // ABGELAUFEN, nicht bloss warnend — und ein FESTES Datum weit in der
+  // Vergangenheit, damit der Zustand nicht mit dem Kalendertag kippt. Derselbe
+  // Artikel an zwei Fahrzeugen ist zulaessig: eindeutig ist (Lagerort, Artikel).
+  db.insert(lagerortVerfall).values([
+    { id: "e2e-verfall-meldung", lagerortId: "e2e-verfall-fahrzeug",
+      artikelId: "e2e-verfall-artikel", verfall: "2020-01", erfasstAt: JETZT,
+      quelleTyp: "system", quelleId: "e2e" },
+    { id: "e2e-verfall-meldung-2", lagerortId: "e2e-verfall-fahrzeug-2",
+      artikelId: "e2e-verfall-artikel", verfall: "2020-02", erfasstAt: JETZT,
+      quelleTyp: "system", quelleId: "e2e" },
+  ]).onConflictDoNothing().run();
+}
+
+/**
  * Ein Artikel MIT Kategorie fuer `lagerbuch-kategorien.spec.ts` (DRK-294).
  *
  * INAKTIV und ohne Charge, und beides mit Absicht: die Artikelliste zeigt
@@ -437,6 +497,7 @@ checkFixtures();
 geraeteFixtures();
 bestellFixtures();
 vorlagenFixtures();
+fahrzeugVerfallFixtures();
 kategorieFixtures();
 inventurFixtures();
 sammelFixtures();
