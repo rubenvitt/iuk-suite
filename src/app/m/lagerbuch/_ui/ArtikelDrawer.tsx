@@ -36,6 +36,7 @@ import {
   pruefeLoeschbar,
 } from "../_actions/loeschen";
 import { ampelTon, fmtVerfall } from "../_lib/format";
+import { einheitenartLabel, type Einheitenart } from "../_lib/konstanten";
 import { journalZeile } from "../_lib/journalZeile";
 import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
@@ -71,6 +72,15 @@ type Fahrzeug = {
   id: string;
   name: string;
   kennung: string | null;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
+   *
+   * ⚠️ PFLICHTFELD, KEIN OPTIONAL. Ein `einheitenart?` waere in jeder
+   * vergessenen Aufrufstelle still `undefined`, und die Suche nach „tasche"
+   * fande dort nichts — ohne dass ein Tor es meldete. Dieselbe Begruendung wie
+   * bei `gebunden` in `CheckFlow.tsx`.
+   */
+  einheitenart: Einheitenart | null;
 };
 
 type ArtikelDrawerProps = {
@@ -396,10 +406,23 @@ export function ArtikelDrawer({
     label: ort.name,
   }));
 
+  /**
+   * ⚠️ DIE ART STEHT IN DEN SUCHWORTEN, NICHT IM SICHTBAREN LABEL (DRK-309).
+   *
+   * Beides waere vertretbar; die Abwaegung ist, was die Liste LEISTEN muss.
+   * Sie ist eine Auswahl unter Namen, und „Rucksack Betreuung · nicht
+   * zugeordnet" macht jede Zeile laenger, ohne die Wahl zu erleichtern — der
+   * Name unterscheidet die Eintraege bereits. Was ohne die Art NICHT ginge,
+   * ist das Finden: wer „tasche" tippt, meint die Art und nicht die
+   * Schreibweise, und eine „Sanitätstasche 1" heisst zufaellig so, ein
+   * „Rucksack Betreuung" nicht. Die Beschriftung des Feldes darueber sagt
+   * ohnehin „Ziel-Einheit" und behauptet kein Fahrzeug mehr.
+   */
   const fahrzeugOptionen = fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
     label: fahrzeug.name,
-    keywords: `${fahrzeug.name} ${fahrzeug.kennung ?? ""}`,
+    keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
+      .filter(Boolean).join(" "),
   }));
 
   return (
@@ -638,9 +661,14 @@ export function ArtikelDrawer({
                     style={{ width: "100%" }}
                   />
                 </Form.Item>
-                <Form.Item name="zielLagerortId" label="Ziel-Fahrzeug">
+                {/*
+                  DRK-309: „Ziel-Einheit", weil die Liste darunter Fahrzeuge
+                  UND Taschen führt. Welche Art eine einzelne Option hat, sagt
+                  die Option (`fahrzeugOptionen`).
+                */}
+                <Form.Item name="zielLagerortId" label="Ziel-Einheit">
                   <Select
-                    aria-label="Ziel-Fahrzeug"
+                    aria-label="Ziel-Einheit"
                     placeholder="Handlager (Verbrauch)"
                     allowClear
                     showSearch

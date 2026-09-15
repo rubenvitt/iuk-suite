@@ -70,7 +70,7 @@ export default async function ZielSeite({
   const fahrzeuge = fahrzeugListe(db).filter((f) => f.aktiv);
 
   const wahlen: { wert: string; name: string; meta: string | null }[] = [
-    { wert: "verbrauch", name: "Kein Fahrzeug — Verbrauch", meta: "Das Material wird verbraucht, nicht eingeräumt" },
+    { wert: "verbrauch", name: "Keine Einheit — Verbrauch", meta: "Das Material wird verbraucht, nicht eingeräumt" },
     ...fahrzeuge.map((f) => ({ wert: `fz:${f.id}`, name: f.name, meta: f.kennung })),
   ];
 

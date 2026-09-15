@@ -125,7 +125,7 @@ export function zielWert(ziel: EntnahmeZiel, tokenId: string): string {
  * Ziel neu" weiter, „Lagerort ist kein aktives Fahrzeug" nicht.
  */
 export const ZIEL_UNGUELTIG_TEXT =
-  "Dieses Fahrzeug steht nicht mehr zur Auswahl. Bitte das Ziel neu wählen — die Buchung wurde nicht gespeichert.";
+  "Diese Einheit steht nicht mehr zur Auswahl. Bitte das Ziel neu wählen — die Buchung wurde nicht gespeichert.";
 
 /**
  * Der Satz für ein Ziel, das nicht (mehr) zu dieser Sitzung gehört — eine

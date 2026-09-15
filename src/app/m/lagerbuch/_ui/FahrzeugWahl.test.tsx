@@ -8,8 +8,18 @@ const QUELLE = "src/app/m/lagerbuch/_ui/FahrzeugWahl.tsx";
 const STYLESHEET = "src/app/m/lagerbuch/_ui/helfer.module.css";
 
 const FZ = [
-  { id: "fz-1", name: "RTW 1", kennung: "HH-DR 1234" },
-  { id: "fz-2", name: "MTW", kennung: null },
+  { id: "fz-1", name: "RTW 1", kennung: "HH-DR 1234", einheitenart: "fahrzeug" as const },
+  { id: "fz-2", name: "MTW", kennung: null, einheitenart: "fahrzeug" as const },
+];
+
+/**
+ * DRK-309 — die Liste, um die es geht: ein Fahrzeug MIT Kennung, eine Tasche
+ * OHNE, und eine Einheit, deren Art noch nicht zugeordnet ist.
+ */
+const GEMISCHT = [
+  { id: "fz-1", name: "RTW 1", kennung: "HH-DR 1234", einheitenart: "fahrzeug" as const },
+  { id: "ta-1", name: "Sanitätstasche 1", kennung: null, einheitenart: "tasche" as const },
+  { id: "ohne-1", name: "Rucksack Betreuung", kennung: null, einheitenart: null },
 ];
 
 /**
@@ -92,7 +102,8 @@ describe("FahrzeugWahl — die Wahl ist eine NAVIGATION (§7.9.1, E5)", () => {
     }
     // Der Schirmkopf sagt, worum es geht, und steht AUSSERHALB der Karte.
     const kopf = query("[class*='schirmKopf']");
-    expect(kopf.textContent).toBe("Fahrzeug wählen");
+    // DRK-309: NEUTRAL, weil die Liste darunter Fahrzeuge UND Taschen führt.
+    expect(kopf.textContent).toBe("Einheit wählen");
     expect(kopf.contains(zeilen[0]!)).toBe(false);
   });
 
@@ -107,26 +118,39 @@ describe("FahrzeugWahl — die Wahl ist eine NAVIGATION (§7.9.1, E5)", () => {
     ]);
   });
 
-  it("zeigt die Kennung, wenn es eine gibt — und rendert sonst KEIN leeres Meta-Feld", async () => {
-    // ⚠️ `textContent === "MTW"` allein traegt die Regel NICHT: React rendert
-    // `{null}` als nichts, ein bedingungsloses
-    // `<div className={s.zeileMeta}>{f.kennung}</div>` bliebe also textgleich —
-    // und waere trotzdem eine LEERE Metazeile mit `margin-top: 5px` unter jedem
-    // Fahrzeug ohne Kennung. Zusicherbar ist das Element, nicht der Text.
-    await mount(<FahrzeugWahl fahrzeuge={FZ} />);
+  it("nennt in jeder Zeile die Art — und die Kennung nur, wenn es eine gibt", async () => {
+    /**
+     * ⚠️ DIE METAZEILE STEHT JETZT IMMER, UND DAS IST DIE AENDERUNG (DRK-309).
+     *
+     * Vorher trug sie allein die Kennung und entfiel ohne sie — begruendet mit
+     * der leeren Zeile samt `margin-top: 5px`, die ein bedingungsloses Feld
+     * hinterlassen haette. Der Grund war richtig und ist weg: die Zeile ist nie
+     * mehr leer, weil die Art immer darin steht.
+     *
+     * ⚠️ UND GENAU DIE TASCHE BRAUCHT SIE. Ein Fahrzeug trug seine Art im
+     * Namen mit („RTW 1", „MTW"); eine Tasche hat kein Kennzeichen, und
+     * „Rucksack Betreuung" sagt von sich aus nichts. Ohne diese Zeile stuende
+     * fuer sie in der Wahl nur ein Name.
+     */
+    await mount(<FahrzeugWahl fahrzeuge={GEMISCHT} />);
     const zeilen = queryAll("a");
-    expect(zeilen.length).toBe(2);
-    expect(zeilen[0]!.textContent).toContain("HH-DR 1234");
-    expect(zeilen[0]!.querySelector("[class*='zeileMeta']")!.textContent).toBe("HH-DR 1234");
-    expect(zeilen[1]!.textContent).toBe("MTW");
-    expect(zeilen[1]!.querySelector("[class*='zeileMeta']")).toBe(null);
+    expect(zeilen.length).toBe(3);
+    const meta = (i: number) =>
+      zeilen[i]!.querySelector("[class*='zeileMeta']")!.textContent;
+
+    expect(meta(0)).toBe("Fahrzeug · HH-DR 1234");
+    // Ohne Kennung bleibt die Art allein stehen — kein hängender Trenner.
+    expect(meta(1)).toBe("Tasche");
+    // Der Zwischenstand aus Migration 0009 sagt, was er ist, statt zu schweigen.
+    expect(meta(2)).toBe("nicht zugeordnet");
   });
 
   it("kodiert eine ID mit Sonderzeichen", async () => {
     // nanoid nutzt `-` und `_`; beides ist URL-sicher. Ein importierter
     // Alt-Bestand kann aber andere IDs tragen, und ein rohes `?fz=a b` erzeugt
     // eine kaputte URL. (Befund 31: T79 baut dieselbe URL und passt sich an.)
-    await mount(<FahrzeugWahl fahrzeuge={[{ id: "a b&c", name: "X", kennung: null }]} />);
+    await mount(<FahrzeugWahl
+      fahrzeuge={[{ id: "a b&c", name: "X", kennung: null, einheitenart: "fahrzeug" }]} />);
     expect(query<HTMLAnchorElement>("a").getAttribute("href")).toBe("/helfer/check?fz=a%20b%26c");
   });
 

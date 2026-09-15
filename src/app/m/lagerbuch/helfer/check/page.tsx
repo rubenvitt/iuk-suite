@@ -117,9 +117,11 @@ export default async function CheckSeite({
     return (
       <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
-          titel="Kein Fahrzeug angelegt"
-          text={"Die Verwaltung muss zuerst ein Fahrzeug mit Soll-Bestückung pflegen. "
-              + "Bis dahin gibt es hier nichts zu prüfen."}
+          // DRK-309: NEUTRAL, weil hier ueber ALLE Einheiten gesprochen wird
+          // und es keine gibt — es gibt also auch keine Art zu nennen.
+          titel="Keine Einheit angelegt"
+          text={"Die Verwaltung muss zuerst ein Fahrzeug oder eine Tasche mit "
+              + "Soll-Bestückung pflegen. Bis dahin gibt es hier nichts zu prüfen."}
           weg={{ href: "/helfer", text: "Zur Entnahme" }}
         />
       </HelferRahmen>
@@ -130,7 +132,12 @@ export default async function CheckSeite({
     return (
       <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <FahrzeugWahl
-          fahrzeuge={fahrzeuge.map((f) => ({ id: f.id, name: f.name, kennung: f.kennung }))}
+          fahrzeuge={fahrzeuge.map((f) => ({
+            id: f.id, name: f.name, kennung: f.kennung,
+            // DRK-309: Die Zeile nennt die Art — eine Tasche traegt keine
+            // Kennung, und ohne sie stuende in ihrer Meta-Zeile sonst nichts.
+            einheitenart: f.einheitenart,
+          }))}
         />
       </HelferRahmen>
     );
@@ -184,9 +191,14 @@ export default async function CheckSeite({
   return (
     <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       <CheckFlow
-        fahrzeug={{ id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung }}
-        // Ob der Flow „Anderes Fahrzeug" ueberhaupt anbietet. Ohne diese Angabe
-        // zeigte die Seite zwar ein einziges Fahrzeug, waere von der vollen
+        fahrzeug={{
+          id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung,
+          // DRK-309: Die Strecke spricht danach von „der Tasche" statt vom
+          // „Fahrzeug". `fahrzeugListe` reicht die Art mit heraus.
+          einheitenart: gewaehlt.einheitenart,
+        }}
+        // Ob der Flow „Andere Einheit" ueberhaupt anbietet. Ohne diese Angabe
+        // zeigte die Seite zwar eine einzige Einheit, waere von der vollen
         // Liste aber genau eine Bedienung entfernt (§7.9.1, DRK-302).
         gebunden={gebunden !== undefined}
         soll={soll}

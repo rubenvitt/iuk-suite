@@ -115,8 +115,12 @@ const DETAIL_NACH_ZUGANG = {
 };
 
 const FAHRZEUGE = [
-  { id: "f1", name: "RTW 1", kennung: "UE-RK 1234" },
-  { id: "f2", name: "MTW Bereitschaft", kennung: null },
+  { id: "f1", name: "RTW 1", kennung: "UE-RK 1234", einheitenart: "fahrzeug" as const },
+  { id: "f2", name: "MTW Bereitschaft", kennung: null, einheitenart: "fahrzeug" as const },
+  // DRK-309: eine TASCHE, deren Name das Wort „Tasche" NICHT enthaelt — sonst
+  // waere die Suche nach der Art nicht von der Suche nach dem Namen zu
+  // unterscheiden.
+  { id: "t1", name: "Rucksack Betreuung", kennung: null, einheitenart: "tasche" as const },
 ];
 
 async function warte(): Promise<void> {
@@ -348,7 +352,7 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
 
     // Das Kategoriefeld (DRK-294) ist ein `AutoComplete` und damit technisch
     // ebenfalls ein `.ant-select` — gezaehlt werden hier die AUSWAHLfelder.
-    // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Fahrzeug).
+    // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Einheit).
     expect(queryPortal(".ant-drawer-body")
       .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(3);
     expect(zielFilter("UE-RK", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(true);
@@ -568,7 +572,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
 
     expect(queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").disabled)
       .toBe(true);
-    expect(queryPortal<HTMLInputElement>("[aria-label='Ziel-Fahrzeug']").disabled)
+    expect(queryPortal<HTMLInputElement>("[aria-label='Ziel-Einheit']").disabled)
       .toBe(true);
     expect(queryPortal<HTMLTextAreaElement>("[aria-label='Entnahmekommentar']").disabled)
       .toBe(true);
@@ -588,7 +592,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
 
   it("sendet das ausgewaehlte Fahrzeug mit Menge und Kommentar", async () => {
     await drawerMounten();
-    await selectOption("Ziel-Fahrzeug", "RTW 1");
+    await selectOption("Ziel-Einheit", "RTW 1");
     await fillPortal("[aria-label='Entnahmemenge']", "2");
     await fillPortal("[aria-label='Entnahmekommentar']", "Nachfüllung RTW");
 

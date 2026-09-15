@@ -40,6 +40,7 @@ import {
 import type { Ampel } from "../../../_lib/domain/verfall";
 import { ampelTon } from "../../../_lib/format";
 import { kategorieOptionen } from "../../../_lib/kategorie";
+import type { Einheitenart } from "../../../_lib/konstanten";
 import type { SammelZeile } from "../../../_lib/sammelAenderung";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { ArtikelDrawer } from "../../../_ui/ArtikelDrawer";
@@ -65,6 +66,8 @@ type FahrzeugOption = {
   id: string;
   name: string;
   kennung: string | null;
+  /** DRK-309 — macht die Zielwahl in der Schublade nach „tasche" durchsuchbar. */
+  einheitenart: Einheitenart | null;
 };
 
 /** Fester Satz statt `e.message` — derselbe Grund wie `EXCEL_FEHLERTEXT`. */

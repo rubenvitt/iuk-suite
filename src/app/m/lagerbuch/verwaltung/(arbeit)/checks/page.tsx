@@ -131,6 +131,8 @@ export function checksInhalt(
       id: fahrzeug.id,
       name: fahrzeug.name,
       kennung: fahrzeug.kennung,
+      // DRK-309: macht die Zielwahl nach „tasche" durchsuchbar.
+      einheitenart: fahrzeug.einheitenart,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
   const fz = fahrzeuge.some((fahrzeug) => fahrzeug.id === suchparameter.fz)

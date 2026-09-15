@@ -206,7 +206,7 @@ export function Entnahme({
                 ? "Noch nichts gewählt"
                 : ziel.art === "fahrzeug"
                   ? ziel.name
-                  : "Kein Fahrzeug — Verbrauch"}
+                  : "Keine Einheit — Verbrauch"}
             </span>
             <Link className={s.zielAendern} href={zielWahlWeg}>
               {ziel === null ? "Wählen" : "Ändern"}

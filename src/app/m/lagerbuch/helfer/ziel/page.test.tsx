@@ -11,7 +11,7 @@ import { HANDLAGER_ID } from "../../_lib/konstanten";
  *
  * Was hier steht und nirgends sonst:
  *
- *   - „Kein Fahrzeug — Verbrauch" ist eine EIGENE Zeile in derselben Liste.
+ *   - „Keine Einheit — Verbrauch" ist eine EIGENE Zeile in derselben Liste.
  *     Das ist die Betreiberentscheidung des Tickets: Verbrauch wird GEWÄHLT,
  *     nicht durch Nichtstun erreicht. Fehlte die Zeile, gäbe es am Regal keinen
  *     Weg mehr, etwas ohne Fahrzeug zu entnehmen.
@@ -133,7 +133,8 @@ describe("Die Zielwahl", () => {
     const w = wahlen();
     expect(w.map((z) => z.wert)).toEqual(["verbrauch", "fz:fz-1", "fz:fz-2"]);
     // Der Verbrauch steht OBEN und heißt nach dem, was er bewirkt.
-    expect(w[0]!.text).toContain("Kein Fahrzeug");
+    // DRK-309: NEUTRAL — die Liste darunter fuehrt Fahrzeuge UND Taschen.
+    expect(w[0]!.text).toContain("Keine Einheit");
     expect(w[1]!.text).toContain("RTW 1");
     // Die Kennung hilft beim Unterscheiden zweier gleich benannter Wagen.
     expect(w[1]!.text).toContain("HH-DRK 1");

@@ -110,3 +110,76 @@ export const EINHEITENART_OFFEN_LABEL = "nicht zugeordnet";
 export function einheitenartLabel(art: Einheitenart | null): string {
   return art === null ? EINHEITENART_OFFEN_LABEL : EINHEITENART_LABEL[art];
 }
+
+/**
+ * DREI SATZBAUSTEINE FUER DIE HELFER- UND DRUCKFLAECHEN (DRK-309, Reviewrunde 1).
+ *
+ * ⚠️ SIE SIND DER EIGENTLICHE TEIL DER AUFGABE, NICHT IHR ANHANG. Das
+ * Akzeptanzkriterium lautet „Bezeichnung und Darstellung machen erkennbar, ob
+ * eine Einheit ein Fahrzeug oder eine Tasche ist" — und die Flaechen, auf denen
+ * das am meisten zaehlt, sind nicht die Verwaltungsliste, sondern die, die eine
+ * Helferin mit dem Gegenstand in der Hand vor sich hat: die Checkstrecke und
+ * das gedruckte Blatt. Eine Sanitaetstasche, deren Checkliste „Fahrzeug-
+ * Checkliste" ueberschreibt und die zum „Fahrzeug waehlen" auffordert, ist
+ * genau die Einheit, die das Ticket sichtbar machen wollte.
+ *
+ * ⚠️ WARUM NICHT UEBERALL NUR „Einheit". Weil „Einheit" nirgends steht, wo die
+ * Art BEKANNT ist: wer eine Tasche in der Hand haelt, liest „diese Tasche" und
+ * nicht ein Oberwort, das er erst uebersetzen muss. Neutral wird es nur dort,
+ * wo ein Text ueber MEHRERE Einheiten spricht (eine Auswahlliste, ein
+ * Leerzustand) oder wo die Art noch nicht zugeordnet ist.
+ *
+ * ⚠️ UND WARUM DREI STATT EINER. Deutsch laesst sich nicht aus einem Nomen
+ * zusammensetzen: „auf das Fahrzeug" und „in die Tasche" haben verschiedene
+ * Praepositionen UND verschiedene Genera. Eine einzige Funktion, die nur das
+ * Nomen liefert, zwingt jede Aufrufstelle zu ihrer eigenen Grammatik — und
+ * genau so entstehen „auf die Tasche" und „diese Fahrzeug".
+ */
+
+/** „dieses Fahrzeug" · „diese Tasche" · „diese Einheit". */
+export function dieseEinheit(art: Einheitenart | null): string {
+  if (art === "fahrzeug") return "dieses Fahrzeug";
+  if (art === "tasche") return "diese Tasche";
+  return "diese Einheit";
+}
+
+/** Ortsangabe: „im Fahrzeug" · „in der Tasche" · „in der Einheit". */
+export function inDerEinheit(art: Einheitenart | null): string {
+  if (art === "fahrzeug") return "im Fahrzeug";
+  if (art === "tasche") return "in der Tasche";
+  return "in der Einheit";
+}
+
+/**
+ * Satzanfang: „aufs Fahrzeug" → „Aufs Fahrzeug".
+ *
+ * ⚠️ MIT `toLocaleUpperCase("de")`, nicht mit `toUpperCase()`. Der Unterschied
+ * traegt heute nichts (kein Baustein beginnt mit „i"), aber die Vorgabe des
+ * Moduls ist ueberall die zonen- und sprachexplizite Form — und eine Stelle,
+ * die es anders macht, ist die, an der es spaeter still schiefgeht.
+ */
+export function grossAmAnfang(text: string): string {
+  return text.charAt(0).toLocaleUpperCase("de") + text.slice(1);
+}
+
+/** Richtungsangabe: „aufs Fahrzeug" · „in die Tasche" · „in die Einheit". */
+export function inDieEinheit(art: Einheitenart | null): string {
+  if (art === "fahrzeug") return "aufs Fahrzeug";
+  if (art === "tasche") return "in die Tasche";
+  return "in die Einheit";
+}
+
+/**
+ * Die Ueberschrift des Checklistenblatts: „Fahrzeug-Checkliste" ·
+ * „Taschen-Checkliste" · „Checkliste".
+ *
+ * ⚠️ „Taschen-Checkliste" MIT FUGEN-N, nicht „Tasche-Checkliste" — und deshalb
+ * steht die Zeichenkette hier ganz und wird nicht aus `EINHEITENART_LABEL`
+ * zusammengeklebt. Ein `${label}-Checkliste` waere fuer „Fahrzeug" richtig und
+ * fuer „Tasche" still falsch.
+ */
+export function checklisteTitel(art: Einheitenart | null): string {
+  if (art === "fahrzeug") return "Fahrzeug-Checkliste";
+  if (art === "tasche") return "Taschen-Checkliste";
+  return "Checkliste";
+}

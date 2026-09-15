@@ -321,9 +321,9 @@ describe("/helfer/check — der Riegel dieser SEITE (N-11)", () => {
 });
 
 describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
-  it("kein Fahrzeug angelegt: LeerZustand mit Rueckweg, KEIN CheckFlow", async () => {
+  it("keine Einheit angelegt: LeerZustand mit Rueckweg, KEIN CheckFlow", async () => {
     await mount(await CheckSeite(sp()));
-    expect(query("[data-rolle='leer-titel']").textContent).toBe("Kein Fahrzeug angelegt");
+    expect(query("[data-rolle='leer-titel']").textContent).toBe("Keine Einheit angelegt");
     expect(exists("[data-rolle='flow']")).toBe(false);
     expect(exists("[data-rolle='wahl']")).toBe(false);
     // AEUSSERER Pfad (§2.1 g) — ein innerer wuerde auf dem Modul-Host doppelt
@@ -348,13 +348,21 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
     expect(verfallFuer).not.toHaveBeenCalled();
   });
 
-  it("reicht in die Wahl NUR id, name und kennung", async () => {
+  it("reicht in die Wahl NUR id, name, kennung und die Art", async () => {
     // `fahrzeugListe` traegt zusaetzlich `aktiv` und `templateId`. Beides ist
     // Verwaltungswissen und hat auf einem privaten Telefon nichts zu suchen.
+    //
+    // ⚠️ `einheitenart` IST DIE AUSNAHME, UND SIE IST BEGRUENDET (DRK-309):
+    // sie ist kein Verwaltungswissen, sondern das, was auf dem Schirm STEHT.
+    // Eine Tasche traegt keine Kennung — ohne die Art stuende in ihrer
+    // Meta-Zeile gar nichts, und die Liste boete „Sanitätstasche 1" unter der
+    // Ueberschrift „Fahrzeug wählen" an. Die Zusicherung bleibt eine
+    // AUFZAEHLUNG und keine Obergrenze: `aktiv` und `templateId` fallen
+    // weiterhin durch, und jedes weitere Feld muss hier begruendet werden.
     fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
     await mount(await CheckSeite(sp()));
     expect(query("[data-rolle='wahl']").getAttribute("data-felder"))
-      .toBe("id,kennung,name");
+      .toBe("einheitenart,id,kennung,name");
     expect(query("[data-rolle='wahl']").getAttribute("data-ids")).toBe("fz-1,fz-2");
   });
 
@@ -371,11 +379,14 @@ describe("/helfer/check — der Schnitt aufs Fahrzeug (Falle 15)", () => {
     }
   });
 
-  it("reicht in den Flow NUR id, name und kennung des Fahrzeugs", async () => {
+  it("reicht in den Flow NUR id, name, kennung und die Art", async () => {
+    // Dieselbe Abwaegung wie eine Zusicherung darueber: die Art ist Anzeige,
+    // nicht Verwaltungswissen — der Flow sagt danach „in die Tasche legen"
+    // statt „aufs Fahrzeug legen" (DRK-309).
     fahrzeuge.mockReturnValue([FZ("fz-1")]);
     await mount(await CheckSeite(sp()));
     expect(query("[data-rolle='flow']").getAttribute("data-fz-felder"))
-      .toBe("id,kennung,name");
+      .toBe("einheitenart,id,kennung,name");
   });
 
   it("genau EIN aktives Fahrzeug: kein Waehlen, und KEIN redirect", async () => {

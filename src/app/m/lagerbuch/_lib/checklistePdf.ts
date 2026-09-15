@@ -31,7 +31,7 @@
  * `winAnsi()`: die Standardschriften koennen nur WinAnsi kodieren.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
-import { ZUSTAENDE } from "./konstanten";
+import { checklisteTitel, dieseEinheit, ZUSTAENDE } from "./konstanten";
 import type { ChecklisteBlatt, ChecklisteFach } from "./lesepfade/checkliste";
 
 /* ── Masse ────────────────────────────────────────────────────────────────── */
@@ -416,7 +416,8 @@ function zeichneKopf(lage: Lage): void {
   }
 
   const rechts = [
-    "Fahrzeug-Checkliste",
+    // DRK-309: „Fahrzeug-Checkliste" · „Taschen-Checkliste" · „Checkliste".
+    checklisteTitel(blatt.einheitenart),
     blatt.vorlage ? `Vorlage: ${blatt.vorlage}` : "ohne Vorlage",
     `${blatt.positionen} ${blatt.positionen === 1 ? "Position" : "Positionen"} · Stand ${stand}`,
   ];
@@ -878,7 +879,9 @@ export async function checklistenPdf(
       ? `Fahrzeug-Checkliste ${blaetter[0]!.name} (Stand ${stand})`
       : `Fahrzeug-Checklisten (Stand ${stand})`,
   ));
-  doc.setSubject("Fahrzeug-Checkliste zum Abhaken");
+  // NEUTRAL: ein Bogen traegt mehrere Blaetter und kann Fahrzeuge UND Taschen
+  // mischen — die Art steht je Blatt in seiner Kopfzeile.
+  doc.setSubject("Checkliste zum Abhaken");
   doc.setCreator("iuk-suite · Lagerbuch");
   doc.setProducer("iuk-suite · Lagerbuch");
   doc.setCreationDate(erstellt);
@@ -905,7 +908,7 @@ export async function checklistenPdf(
       // Der leere Fall wird BENANNT, statt ein leeres Blatt auszugeben — sonst
       // sieht ein Fahrzeug ohne gepflegtes Soll wie ein Datenverlust aus.
       setze(lage, umbrich(lage, [{
-        text: "Für dieses Fahrzeug ist weder eine Soll-Bestückung noch ein Gerät oder eine "
+        text: `Für ${dieseEinheit(blatt.einheitenart)} ist weder eine Soll-Bestückung noch ein Gerät oder eine `
           + "Sauerstoffflasche hinterlegt. Es gibt nichts abzuhaken.",
         ton: "notiz",
       }], SATZBREITE), RAND.links, lage.y, SATZBREITE, "links");

@@ -100,6 +100,7 @@ const RTW: ChecklisteBlatt = {
   id: "fz-a",
   name: "RTW 1",
   kennung: "MS-1",
+  einheitenart: "fahrzeug",
   vorlage: "RTW-Vorlage",
   positionen: 2,
   faecher: [{
@@ -126,8 +127,20 @@ const RTW: ChecklisteBlatt = {
 };
 
 const NEF: ChecklisteBlatt = {
-  id: "fz-b", name: "NEF 1", kennung: null, vorlage: null,
+  id: "fz-b", name: "NEF 1", kennung: null, einheitenart: "fahrzeug", vorlage: null,
   positionen: 0, faecher: [], geraete: [], flaschen: [],
+};
+
+/** DRK-309: dasselbe leere Blatt, nur fuer eine TASCHE. */
+const TASCHE: ChecklisteBlatt = {
+  id: "ta-a", name: "Sanitätstasche 1", kennung: null, einheitenart: "tasche",
+  vorlage: null, positionen: 0, faecher: [], geraete: [], flaschen: [],
+};
+
+/** DRK-309: und eine, deren Art noch nicht zugeordnet ist. */
+const OHNE_ART: ChecklisteBlatt = {
+  id: "offen-a", name: "Rucksack Betreuung", kennung: null, einheitenart: null,
+  vorlage: null, positionen: 0, faecher: [], geraete: [], flaschen: [],
 };
 
 const OPTIONEN = { stand: "15.06.2026", erstellt: new Date("2026-06-15T08:00:00Z") };
@@ -162,6 +175,41 @@ describe("das Dokument", () => {
     expect(text).toContain("MS-1");
     expect(text).toContain("Vorlage: RTW-Vorlage");
     expect(text).toContain("2 Positionen · Stand 15.06.2026");
+  });
+
+  /**
+   * DRK-309 — DAS BLATT SAGT, WAS ES BESCHREIBT.
+   *
+   * ⚠️ DAS IST DIE FLAECHE, AUF DER DIE ART AM MEISTEN ZAEHLT. Sie ist
+   * ausgedruckt, liegt auf dem Tisch und laesst sich nicht nachschlagen: wer
+   * eine Sanitaetstasche vor sich hat und „Fahrzeug-Checkliste" liest, greift
+   * zum falschen Blatt oder zweifelt an seinem. Die Verwaltungsliste kann man
+   * dagegen jederzeit neu laden.
+   */
+  it("ueberschreibt jedes Blatt nach seiner Art — Fahrzeug, Tasche oder neutral", async () => {
+    expect(flach(await checklistenPdf([NEF], OPTIONEN))).toContain("Fahrzeug-Checkliste");
+
+    // ⚠️ „Taschen-Checkliste" MIT FUGEN-N. Ein aus dem Label
+    // zusammengeklebtes `${art}-Checkliste` ergaebe „Tasche-Checkliste" — fuer
+    // „Fahrzeug" richtig und hier still falsch (Begruendung an
+    // `checklisteTitel`).
+    const tasche = flach(await checklistenPdf([TASCHE], OPTIONEN));
+    expect(tasche).toContain("Taschen-Checkliste");
+    expect(tasche).not.toContain("Fahrzeug-Checkliste");
+
+    // Der Zwischenstand aus Migration 0009 behauptet keine Art, statt auf die
+    // haeufigere zu raten.
+    const offen = flach(await checklistenPdf([OHNE_ART], OPTIONEN));
+    expect(offen).toContain("Checkliste");
+    expect(offen).not.toContain("Fahrzeug-Checkliste");
+    expect(offen).not.toContain("Taschen-Checkliste");
+  });
+
+  it("nennt auch im Leerfall die Art der Einheit statt pauschal Fahrzeug", async () => {
+    expect(fliesstext(await checklistenPdf([TASCHE], OPTIONEN)))
+      .toContain("Für diese Tasche ist weder eine Soll-Bestückung");
+    expect(fliesstext(await checklistenPdf([OHNE_ART], OPTIONEN)))
+      .toContain("Für diese Einheit ist weder eine Soll-Bestückung");
   });
 
   it("nennt eine fehlende Vorlage ausdruecklich, statt die Zeile wegzulassen", async () => {

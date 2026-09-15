@@ -18,7 +18,10 @@ import {
 import { verfallStatus, type VerfallSchwellen } from "../_lib/domain/verfall";
 import { o2Status } from "../_lib/domain/o2";
 import { chargeText, ampelTon } from "../_lib/format";
-import { ZUSTAENDE, type Zustand } from "../_lib/konstanten";
+import {
+  dieseEinheit, grossAmAnfang, inDerEinheit, inDieEinheit, ZUSTAENDE,
+  type Einheitenart, type Zustand,
+} from "../_lib/konstanten";
 import { NETZ_TEXT_CHECK, darfErneuern, type HelferGrund } from "../_lib/actionTypen";
 import s from "./helfer.module.css";
 
@@ -126,7 +129,18 @@ export function CheckFlow({
   gebunden,
   letzterCheckText,
 }: {
-  fahrzeug: { id: string; name: string; kennung: string | null };
+  /**
+   * ⚠️ `einheitenart` GEHOERT HIER HER UND NICHT NUR IN DIE VERWALTUNG
+   * (DRK-309). Diese Strecke ist die Flaeche, auf der jemand den Gegenstand in
+   * der Hand haelt — eine Sanitaetstasche, die zum „Fahrzeug waehlen" auffordert
+   * und „aufs Fahrzeug legen" sagt, ist genau die Einheit, die das Ticket
+   * sichtbar machen wollte. `null` heisst „noch nicht zugeordnet" und faellt auf
+   * das neutrale Wort zurueck, nie auf „Fahrzeug".
+   */
+  fahrzeug: {
+    id: string; name: string; kennung: string | null;
+    einheitenart: Einheitenart | null;
+  };
   soll: CheckPos[];
   geraete: CheckGeraet[];
   flaschen: CheckFlasche[];
@@ -363,7 +377,7 @@ export function CheckFlow({
         <LeerZustand
           titel="Nichts zu prüfen"
           text={
-            "Für dieses Fahrzeug ist weder ein Soll noch ein Gerät noch eine Sauerstoffflasche " +
+            `Für ${dieseEinheit(fahrzeug.einheitenart)} ist weder ein Soll noch ein Gerät noch eine Sauerstoffflasche ` +
             "hinterlegt. Die Verwaltung pflegt die Bestückung."
           }
           /*
@@ -375,7 +389,7 @@ export function CheckFlow({
            */
           weg={gebunden
             ? { href: "/helfer", text: "Zur Entnahme" }
-            : { href: "/helfer/check", text: "Anderes Fahrzeug" }}
+            : { href: "/helfer/check", text: "Andere Einheit" }}
         />
       </>
     );
@@ -435,8 +449,8 @@ export function CheckFlow({
           )}
           {ergebnis.offen > 0 && (
             <p className={s.fussnote}>
-              Das Handlager hatte nicht genug. {ergebnis.offen} Teile fehlen weiterhin auf dem
-              Fahrzeug – bitte der Verwaltung melden.
+              Das Handlager hatte nicht genug. {ergebnis.offen} Teile fehlen weiterhin{" "}
+              {inDerEinheit(fahrzeug.einheitenart)} – bitte der Verwaltung melden.
             </p>
           )}
           {ergebnis.geraeteAuffaellig > 0 && (
@@ -455,8 +469,8 @@ export function CheckFlow({
           )}
           {ergebnis.verfallAuffaellig > 0 && (
             <p className={s.fussnote}>
-              {ergebnis.verfallAuffaellig} Artikel im Fahrzeug laufen bald ab oder sind abgelaufen –
-              bitte tauschen oder der Verwaltung melden.
+              {ergebnis.verfallAuffaellig} Artikel {inDerEinheit(fahrzeug.einheitenart)} laufen
+              bald ab oder sind abgelaufen – bitte tauschen oder der Verwaltung melden.
             </p>
           )}
 
@@ -488,7 +502,7 @@ export function CheckFlow({
           */}
           {hatArtikel && (
             <p className={s.fussnote} data-rolle="auffuell-hinweis">
-              <b>Nach dem Dienst auffüllen:</b> Was auf dem Fahrzeug fehlt, holst du aus dem
+              <b>Nach dem Dienst auffüllen:</b> Was in {dieseEinheit(fahrzeug.einheitenart)} fehlt, holst du aus dem
               Handlager – scanne dafür den QR-Code am Handlager, damit die Entnahme dort gebucht
               wird.
             </p>
@@ -511,7 +525,7 @@ export function CheckFlow({
           href={`/helfer/check?fz=${encodeURIComponent(fahrzeug.id)}`}
           data-rolle="nochmal"
         >
-          Nochmal dieses Fahrzeug
+          Nochmal {dieseEinheit(fahrzeug.einheitenart)}
         </Link>
         {/*
           NUR BEI UNGEBUNDENEM KAERTCHEN (DRK-302). Nach dem Scan eines
@@ -522,7 +536,7 @@ export function CheckFlow({
         */}
         {!gebunden && (
           <Link className={`${s.knopf} ${s.knopfGeist}`} href="/helfer/check" data-rolle="anderes">
-            Anderes Fahrzeug
+            Andere Einheit
           </Link>
         )}
       </>
@@ -545,7 +559,7 @@ export function CheckFlow({
   const letzterCheckZeile = (
     <div className={s.letzterCheck} data-rolle="letzter-check">
       {letzterCheckText === null
-        ? "Noch kein Check erfasst — das ist der erste für dieses Fahrzeug."
+        ? `Noch kein Check erfasst — das ist der erste für ${dieseEinheit(fahrzeug.einheitenart)}.`
         : `Letzter Check: ${letzterCheckText}`}
     </div>
   );
@@ -644,7 +658,8 @@ export function CheckFlow({
         {letzterCheckZeile}
         <div className={`${s.karte} ${s.kartePad}`}>
           <div className={s.zeileName}>
-            Wie viel liegt wirklich im Fahrzeug, und wie lange hält es?
+            Wie viel liegt wirklich {inDerEinheit(fahrzeug.einheitenart)}, und wie lange
+            hält es?
           </div>
           <p className={s.fussnote}>
             Jede Position startet bei 0 – mit <b>+</b> hochzählen, was du wirklich findest. Ist ein
@@ -1193,7 +1208,9 @@ export function CheckFlow({
       ) : (
         <>
           <div className={`${s.karte} ${s.kartePad}`}>
-            <div className={s.zeileName}>Aus dem Handlager aufs Fahrzeug legen</div>
+            <div className={s.zeileName}>
+              Aus dem Handlager {inDieEinheit(fahrzeug.einheitenart)} legen
+            </div>
             <p className={s.fussnote}>
               Hol die Teile aus dem angegebenen Handlager-Fach und stell mit <b>+/−</b> ein, wie
               viele du <b>wirklich</b> geholt hast.
@@ -1257,7 +1274,7 @@ export function CheckFlow({
 
       <div className={s.abschluss} data-rolle="abschlussleiste">
         <div className={s.abschlussInfo}>
-          <b>{summe} Teile aufs Fahrzeug</b>
+          <b>{summe} Teile {inDieEinheit(fahrzeug.einheitenart)}</b>
           <div>
             {istLetzter
               ? `Bestätigen bucht Handlager → ${fahrzeug.name}`
@@ -1278,7 +1295,7 @@ export function CheckFlow({
                 Handlager aufs Fahrzeug legen") — er sagt das jetzt in denselben
                 Worten. Dass damit der Check endet, steht im Text daneben
                 („Bestätigen bucht Handlager → …"). */}
-            Aufs Fahrzeug gelegt
+            {grossAmAnfang(inDieEinheit(fahrzeug.einheitenart))} gelegt
           </button>
         ) : (
           <button

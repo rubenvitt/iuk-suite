@@ -100,6 +100,30 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     await expect(neue).toContainText("Tasche");
   });
 
+  /**
+   * ⚠️ DAS GEDRUCKTE BLATT IST DIE FLAECHE, AUF DER DIE ART AM MEISTEN ZAEHLT
+   * (Reviewbefund zu DRK-309). Es liegt auf dem Tisch und laesst sich nicht
+   * nachschlagen: wer eine Sanitaetstasche vor sich hat und „Fahrzeug-
+   * Checkliste" liest, greift zum falschen Blatt oder zweifelt an seinem.
+   *
+   * ⚠️ UND NUR EIN ECHTER ABRUF ZEIGT ES. Die Druckseite liegt in der
+   * Routengruppe `(druck)` ohne `FullShell`; dass sie mit einer Tasche in der
+   * Auswahl ueberhaupt HTTP 200 liefert, ist keine Aussage, die Vitest treffen
+   * kann (Fallen 1/6/7 aus `CLAUDE.md`).
+   */
+  test("ueberschreibt das Checklistenblatt einer Tasche nach ihrer Art", async ({ page }) => {
+    const antwort = await page.goto(
+      lagerbuchUrl("/verwaltung/checklisten?fz=e2e-tasche"));
+    expect(antwort!.status()).toBe(200);
+
+    const blatt = page.locator("[data-testid='lb-cl-blatt']");
+    await expect(blatt).toHaveCount(1);
+    await expect(blatt.locator(".lb-cl-meta")).toContainText("Taschen-Checkliste");
+    await expect(blatt.locator(".lb-cl-meta")).not.toContainText("Fahrzeug-Checkliste");
+    // Die Seite zaehlt neutral — ein Bogen mischt Fahrzeuge und Taschen.
+    await expect(page.getByTestId("lb-cl-zahl")).toContainText("1 Einheit, ein Blatt");
+  });
+
   test("traegt die Art am Einheitenblatt nach und zeigt sie danach im Kopf", async ({ page }) => {
     const pfad = "/verwaltung/fahrzeuge/e2e-ohne-art";
     const antwort = await page.goto(lagerbuchUrl(pfad));
