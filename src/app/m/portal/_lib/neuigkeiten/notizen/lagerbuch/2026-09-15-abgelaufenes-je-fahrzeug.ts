@@ -8,10 +8,13 @@ const notiz: Releasenotiz = {
   titel: "Abgelaufenes Material je Fahrzeug",
   inhalt: [
     absatz(
-      "Unter „Verfall“ kannst du die Meldungen aus den Fahrzeugen jetzt nach Fahrzeug " +
-        "filtern und nach Artikel, Ablaufmonat oder Status sortieren. Unter „Fahrzeuge“ " +
-        "unterscheidet die Spalte „Verfall“ außerdem, was bereits abgelaufen ist und was " +
-        "erst bald abläuft — vorher stand beides zusammen in einer Zahl.",
+      "Unter „Verfall“ kannst du die Meldungen aus den Fahrzeugen nach Fahrzeug filtern " +
+        "oder mit „nach Fahrzeug“ gruppiert anzeigen: je Fahrzeug eine aufklappbare " +
+        "Zeile mit Kennung und Bilanz.",
+    ),
+    absatz(
+      "Unter „Fahrzeuge“ unterscheidet die Spalte „Verfall“ jetzt, was bereits " +
+        "abgelaufen ist und was erst bald abläuft.",
     ),
     absatz(
       "Dieselbe Spalte sagt jetzt auch, für wie viele Artikel eines Fahrzeugs überhaupt " +

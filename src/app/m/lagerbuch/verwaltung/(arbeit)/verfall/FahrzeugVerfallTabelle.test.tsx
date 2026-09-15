@@ -214,6 +214,82 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
   });
 });
 
+describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
+  async function umschalten(auf: string): Promise<void> {
+    const knopf = queryAll<HTMLElement>(".ant-segmented-item")
+      .find((element) => (element.textContent ?? "").includes(auf));
+    if (!knopf) throw new Error(`Kein Umschalter-Eintrag: ${auf}`);
+    await clickElement(knopf);
+  }
+
+  /**
+   * ⚠️ DER VORGABEZUSTAND IST DIE FLACHE LISTE. Fuer alle, die nichts
+   * anklicken, aendert sich dadurch nichts — und genau darauf beruht die
+   * Entscheidung, den Umschalter NICHT in der URL zu fuehren.
+   */
+  it("startet flach und zeigt erst auf Wunsch die Fahrzeugzeilen", async () => {
+    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    // ⚠️ `document.querySelector` und NICHT `query` — der Helfer WIRFT, wenn er
+    // nichts findet, und taugt deshalb nicht fuer eine Abwesenheitsprobe.
+    expect(document.querySelector("[data-row-key='fzg:f1']")).toBeNull();
+
+    await umschalten("nach Fahrzeug");
+    expect(query("[data-row-key='fzg:f1']")).toBeTruthy();
+  });
+
+  /**
+   * ⚠️ DIE KINDZEILEN MUESSEN WIRKLICH DA SEIN. `defaultExpandAllRows` sah aus,
+   * als taete es das, und wird nur beim ERSTEN Rendern ausgewertet — im echten
+   * Abruf stand die Fahrzeugzeile da und ihre Meldung fehlte im DOM. Ohne
+   * diese Probe war die Gruppierung eine Liste von Ueberschriften.
+   */
+  it("klappt die Meldungen von sich aus auf", async () => {
+    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Fahrzeug");
+
+    expect(document.querySelector("[data-row-key='f1:a2']")).toBeTruthy();
+    expect(document.querySelector("[data-row-key='f1:a3']")).toBeTruthy();
+  });
+
+  it("trägt auf der Fahrzeugzeile Name, Kennung und Bilanz", async () => {
+    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Fahrzeug");
+
+    const kopf = query("[data-row-key='fzg:f1']");
+    expect(kopf.textContent).toContain("RTW Nord");
+    expect(kopf.textContent).toContain("UE-RK 1234");
+    expect(kopf.querySelector(`.${s.rot}`)!.textContent).toContain("1 abgelaufen");
+    expect(kopf.querySelector(`.${s.gelb}`)!.textContent).toContain("1 läuft ab");
+  });
+
+  /**
+   * ⚠️ DIE SUCHE WIRKT IN BEIDEN DARSTELLUNGEN GLEICH, weil gefaltet wird,
+   * NACHDEM gefiltert wurde. Ein Fahrzeug, dessen Meldungen alle weggefiltert
+   * sind, entsteht gar nicht erst — es bleibt nicht als leere Elternzeile
+   * stehen, die behauptet, es gaebe dort etwas.
+   */
+  it("lässt ein leer gefiltertes Fahrzeug gar nicht erst entstehen", async () => {
+    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Fahrzeug");
+    expect(document.querySelector("[data-row-key='fzg:f2']")).toBeTruthy();
+
+    await suchen("Nord");
+    expect(document.querySelector("[data-row-key='fzg:f2']")).toBeNull();
+    expect(document.querySelector("[data-row-key='fzg:f1']")).toBeTruthy();
+  });
+
+  /** Derselbe Beweis für den Spaltenfilter — er läuft über einen anderen Weg. */
+  it("faltet erst nach dem Spaltenfilter", async () => {
+    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Fahrzeug");
+
+    await spaltenFilter("Status", "abgelaufen");
+    // Nur f1 hat eine abgelaufene Meldung.
+    expect(document.querySelector("[data-row-key='fzg:f2']")).toBeNull();
+    expect(query("[data-row-key='fzg:f1']").querySelector(`.${s.gelb}`)).toBeNull();
+  });
+});
+
 describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
   /**
    * AKZEPTANZKRITERIUM 1. Vorher war das gar nicht moeglich: die Karte zeigte

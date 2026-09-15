@@ -19,7 +19,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Flex } from "antd";
+import { Flex, Segmented } from "antd";
 import type { TableProps } from "antd";
 import type { ColumnFilterItem } from "antd/es/table/interface";
 import {
@@ -37,6 +37,7 @@ import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
+import { gruppiereNachFahrzeug, type FahrzeugGruppe } from "./gruppierung";
 
 export type FahrzeugVerfallZeile = {
   /** `${lagerortId}:${artikelId}` — je Paar gibt es hoechstens eine Meldung. */
@@ -129,6 +130,22 @@ const STATUS_FILTER = zustandsFilter<FahrzeugVerfallZeile>([
   { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => !zeile.abgelaufen },
 ]);
 
+/**
+ * Was in der Tabelle stehen kann: eine Meldung — oder, im Gruppenmodus, eine
+ * Fahrzeugzeile mit ihren Meldungen als `children`.
+ */
+export type Baumzeile = FahrzeugVerfallZeile | FahrzeugGruppe;
+
+/**
+ * ⚠️ UEBER `children` UND NICHT UEBER EIN FELD WIE `istGruppe`. Das Feld traegt
+ * rc-table ohnehin (es macht daraus die Baumzeilen), ein zweites Kennzeichen
+ * daneben koennte davon abweichen — und die Zelle zeigte dann das Falsche,
+ * waehrend der Baum richtig aufklappt.
+ */
+function istGruppe(zeile: Baumzeile): zeile is FahrzeugGruppe {
+  return "children" in zeile;
+}
+
 function spalten(
   zeilen: FahrzeugVerfallZeile[],
 ): NonNullable<TableProps<FahrzeugVerfallZeile>["columns"]> {
@@ -194,6 +211,69 @@ function spalten(
   ];
 }
 
+/**
+ * Die Spalten des Gruppenmodus.
+ *
+ * ⚠️ DIE PRAEDIKATE SIND HIER ABGESCHALTET (`onFilter: () => true`), UND DAS IST
+ * KEIN VERSEHEN. Gefiltert wird VOR dem Falten, ueber die flachen Zeilen —
+ * antd duerfte sonst ein zweites Mal filtern, diesmal ueber die ELTERNzeilen,
+ * und deren Felder bedeuten etwas anderes: `abgelaufen` ist auf einer Meldung
+ * ein `boolean`, auf einer Fahrzeugzeile eine ANZAHL. Der Statusfilter
+ * verwuerfe damit jede Gruppe. Die Menues bleiben bedienbar, weil `filters` und
+ * `onChange` stehen bleiben — nur das Filtern selbst macht diese Komponente.
+ */
+function gruppenSpalten(
+  zeilen: FahrzeugVerfallZeile[],
+): NonNullable<TableProps<Baumzeile>["columns"]> {
+  const flach = spalten(zeilen) as NonNullable<TableProps<Baumzeile>["columns"]>;
+  return flach.map((spalte, i) => {
+    const ohneFilter = { ...spalte, onFilter: () => true };
+    if (i !== 0) return ohneFilter;
+    return {
+      ...ohneFilter,
+      title: "Fahrzeug / Artikel",
+      // ⛔ KEIN SORTIERER AUF DER ERSTEN SPALTE IM GRUPPENMODUS. Die Reihenfolge
+      // der Fahrzeuge traegt hier eine AUSSAGE — Abgelaufenes zuerst
+      // (`gruppierung.ts`) —, und zugeklappt ist sie das Einzige, was man sieht.
+      // Ein Vergleicher im Spaltenkopf verspraeche stattdessen das Alphabet und
+      // stellte das dringendste Fahrzeug irgendwohin.
+      sorter: undefined,
+      render: (_wert: unknown, zeile: Baumzeile) => {
+        if (!istGruppe(zeile)) {
+          return <span>{zeile.artikelName}</span>;
+        }
+        return (
+          <Flex gap={6} wrap align="center">
+            <span style={{ fontWeight: 600 }}>{zeile.fahrzeugName}</span>
+            {zeile.fahrzeugKennung ? (
+              <span style={SCHRIFT.mono}>{zeile.fahrzeugKennung}</span>
+            ) : null}
+            {zeile.abgelaufen > 0 ? (
+              <Chip ton="rot" zeichen="warnung">{zeile.abgelaufen} abgelaufen</Chip>
+            ) : null}
+            {zeile.warnend > 0 ? (
+              <Chip ton="gelb" zeichen="verfall">{zeile.warnend} läuft ab</Chip>
+            ) : null}
+          </Flex>
+        );
+      },
+    };
+  });
+}
+
+/**
+ * ⚠️ DIE GRUPPENZEILE TRAEGT KEINEN LINK AUFS FAHRZEUGBLATT, obwohl die flache
+ * Ansicht einen hat. Ein Anker in der Zeile, die auch das Auf- und Zuklappen
+ * ausloest, ist eine Falle: ein Klick daneben navigiert weg, statt zu oeffnen.
+ * Der Weg zum Fahrzeug steht in den Kindzeilen — und in der Fahrzeugliste.
+ */
+const ANSICHTEN = [
+  { value: "liste", label: "Liste" },
+  { value: "gruppiert", label: "nach Fahrzeug" },
+] as const;
+
+type Ansicht = (typeof ANSICHTEN)[number]["value"];
+
 export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeile[] }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
@@ -205,6 +285,27 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
    * auf der Zahl von vorhin.
    */
   const [spaltenFilter, setSpaltenFilter] = useState<FilterZustand>({});
+  /**
+   * ⚠️ DIE ANSICHT LEBT IN DER INSEL, NICHT IN DER URL — wie Suche und Filter
+   * daneben auch. Ein URL-Parameter waere der einzige im Modul und muesste
+   * ueberall mitgetragen werden, wo auf diese Seite verlinkt wird. Der Preis
+   * ist bekannt und abgestimmt: beim naechsten Aufruf steht wieder „Liste".
+   */
+  const [ansicht, setAnsicht] = useState<Ansicht>("liste");
+  /**
+   * ⚠️ GEMERKT WIRD, WAS ZUGEKLAPPT IST — nicht, was offen ist.
+   *
+   * `expandable.defaultExpandAllRows` sieht danach aus, als taete es dasselbe,
+   * und tut es nicht: es wird beim ERSTEN Rendern ausgewertet. Eine Gruppe, die
+   * erst nach einer Sucheingabe entsteht, kaeme danach ZUGEKLAPPT auf den
+   * Schirm — man sucht etwas und bekommt eine Zeile, die verschweigt, was man
+   * gesucht hat. (Gemessen: im echten Abruf stand die Fahrzeugzeile da, ihre
+   * Meldung fehlte im DOM.)
+   *
+   * Aus der Negativliste folgt beides richtig: neue Gruppen sind offen, und
+   * was jemand zuklappt, bleibt zu.
+   */
+  const [zugeklappt, setZugeklappt] = useState<ReadonlySet<string>>(new Set());
 
   const gefiltert = useMemo(
     () => zeilen.filter((zeile) => sucheTrifft(zeile, sucheNachlauf)),
@@ -212,6 +313,22 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
   );
   const spaltenliste = useMemo(() => spalten(zeilen), [zeilen]);
   const angezeigt = wendeFilterAn(gefiltert, spaltenliste, spaltenFilter);
+
+  const gruppiert = ansicht === "gruppiert";
+  /**
+   * ⚠️ GEFALTET WIRD `angezeigt`, NICHT `gefiltert`. Die Faltung kommt NACH
+   * Suche UND Spaltenfilter — ein Fahrzeug, dessen Meldungen alle weggefiltert
+   * sind, entsteht dadurch gar nicht erst, statt als leere Elternzeile stehen
+   * zu bleiben, die behauptet, es gaebe dort etwas.
+   */
+  const gruppen = useMemo(
+    () => (gruppiert ? gruppiereNachFahrzeug(angezeigt) : []),
+    // `angezeigt` entsteht bei jedem Rendern neu; die Faltung haengt an seinem
+    // INHALT, und der folgt aus diesen dreien.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [gruppiert, gefiltert, spaltenFilter],
+  );
+  const gruppenSpaltenliste = useMemo(() => gruppenSpalten(zeilen), [zeilen]);
 
   return (
     <>
@@ -221,17 +338,45 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
           onWert={setSuche}
           platzhalter="Fahrzeug, Kennung oder Artikel suchen…"
         />
+        <Segmented<Ansicht>
+          options={[...ANSICHTEN]}
+          value={ansicht}
+          onChange={setAnsicht}
+          aria-label="Darstellung"
+        />
         <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
       </Flex>
 
-      <Datentabelle<FahrzeugVerfallZeile>
-        rowKey="schluessel"
-        aria-label="Verfallsmeldungen aus Fahrzeugen"
-        dataSource={gefiltert}
-        onChange={(_seite, filter) => setSpaltenFilter(filter)}
-        locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
-        columns={spaltenliste}
-      />
+      {gruppiert ? (
+        <Datentabelle<Baumzeile>
+          rowKey="schluessel"
+          aria-label="Verfallsmeldungen nach Fahrzeug"
+          dataSource={gruppen}
+          onChange={(_seite, filter) => setSpaltenFilter(filter)}
+          locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
+          columns={gruppenSpaltenliste}
+          expandable={{
+            expandedRowKeys: gruppen
+              .map((gruppe) => gruppe.schluessel)
+              .filter((schluessel) => !zugeklappt.has(schluessel)),
+            onExpand: (offen, zeile) => setZugeklappt((bisher) => {
+              const naechste = new Set(bisher);
+              if (offen) naechste.delete(zeile.schluessel);
+              else naechste.add(zeile.schluessel);
+              return naechste;
+            }),
+          }}
+        />
+      ) : (
+        <Datentabelle<FahrzeugVerfallZeile>
+          rowKey="schluessel"
+          aria-label="Verfallsmeldungen aus Fahrzeugen"
+          dataSource={gefiltert}
+          onChange={(_seite, filter) => setSpaltenFilter(filter)}
+          locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
+          columns={spaltenliste}
+        />
+      )}
     </>
   );
 }

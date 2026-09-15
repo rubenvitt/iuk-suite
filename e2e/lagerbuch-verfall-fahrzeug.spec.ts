@@ -91,6 +91,42 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
   });
 
   /**
+   * ⚠️ DIE BAUMDARSTELLUNG KANN NUR EIN BROWSER PRUEFEN (DRK-343). jsdom rechnet
+   * keine Einrueckung und klappt nichts auf; dass rc-table aus `children`
+   * tatsaechlich Kindzeilen macht und der Umschalter sie erscheinen laesst,
+   * steht erst hier fest.
+   *
+   * ⚠️ `[data-row-key]` und NICHT `tbody tr` (Falle 14) — auch im Baum der
+   * einzige Greifer, der beide Betriebsarten ueberlebt.
+   */
+  test("gruppiert die Meldungen auf Wunsch nach Fahrzeug", async ({ page }) => {
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/verfall"));
+    expect(antwort!.status()).toBe(200);
+
+    const gruppe = page.locator("[data-row-key='fzg:e2e-verfall-fahrzeug']");
+    const meldung = page.locator("[data-row-key='e2e-verfall-fahrzeug:e2e-verfall-artikel']");
+
+    // Vorgabe ist die flache Liste: die Meldung steht da, die Fahrzeugzeile nicht.
+    await expect(meldung).toBeVisible();
+    await expect(gruppe).toHaveCount(0);
+
+    // ⚠️ DAS ETIKETT, NICHT DIE ROLLE. antds `Segmented` versteckt echte
+    // `input[type=radio]`, gibt ihnen aber KEINEN zugaenglichen Namen —
+    // `getByRole("radio", { name })` loest auf gar nichts auf. Gegriffen wird
+    // deshalb, was auch eine Person anklickt.
+    await klickeWennRuhig(
+      page.locator(".ant-segmented-item-label", { hasText: "nach Fahrzeug" }));
+
+    // Die Fahrzeugzeile traegt Name, Kennung UND die Bilanz — zugeklappt ist sie
+    // damit schon die Antwort.
+    await expect(gruppe).toContainText("E2E Verfall-RTW");
+    await expect(gruppe).toContainText("MS-E2E-4");
+    await expect(gruppe).toContainText("1 abgelaufen");
+    // Und ihr Kind steht darunter (aufgeklappt per Vorgabe).
+    await expect(meldung).toBeVisible();
+  });
+
+  /**
    * ⚠️ DER TEIL, DEN DIE VERFALLSEITE NICHT BEANTWORTEN KANN. Sie zeigt nur
    * vorhandene Meldungen — ein Fahrzeug ohne Meldung fehlt dort einfach, und
    * „nichts faellig" ist von „nie angesehen" nicht zu unterscheiden. In der
