@@ -159,10 +159,10 @@ describe("journalEintraege — die Sortierung ist TOTAL (§5.14.4)", () => {
 });
 
 describe("journalEintraege — die Filter greifen VOR dem Limit", () => {
-  it("filtert nach Typ", () => {
+  it("filtert nach Vorgangsart", () => {
     buche({ ts: T("2026-06-01T10:00:00Z"), typ: "zugang" });
     buche({ ts: T("2026-06-01T11:00:00Z"), typ: "entnahme", menge: -1 });
-    expect(journalEintraege(t.db, { typ: "entnahme" }).zeilen).toHaveLength(1);
+    expect(journalEintraege(t.db, { vorgang: "entnahme" }).zeilen).toHaveLength(1);
   });
 
   it("filtert INKLUSIV nach von/bis und liefert die NEUESTEN zuerst", () => {
@@ -282,13 +282,100 @@ describe("journalEintraege — Nachladen ueber die Schluesselposition", () => {
     buche({ ts: T("2026-08-03T10:00:00Z"), id: "e2", typ: "entnahme" });
     buche({ ts: T("2026-08-04T10:00:00Z"), id: "e3", typ: "entnahme" });
 
-    const seite1 = journalEintraege(t.db, { grenze: 2, typ: "entnahme" });
+    const seite1 = journalEintraege(t.db, { grenze: 2, vorgang: "entnahme" });
     expect(seite1.zeilen.map((z) => z.id)).toEqual(["e3", "e2"]);
 
     const seite2 = journalEintraege(t.db, {
-      grenze: 2, typ: "entnahme", cursor: seite1.naechsterCursor!,
+      grenze: 2, vorgang: "entnahme", cursor: seite1.naechsterCursor!,
     });
     // Der Zugang dazwischen taucht NICHT auf: der Filter greift auf jeder Seite.
     expect(seite2.zeilen.map((z) => z.id)).toEqual(["e1"]);
+  });
+});
+
+/**
+ * DIE VORGANGSART IM FILTER (DRK-344).
+ *
+ * Gefiltert wird nach dem, was in der Spalte STEHT: „Korrektur" meint die
+ * Korrektur OHNE verfeinerndes Praefix, „Aussonderung" die mit `aussondern:`.
+ * Waere es anders, zeigte die Tabelle unter einem Filter Zeilen mit einer
+ * anderen Beschriftung als der gewaehlten.
+ */
+describe("journalEintraege — der Filter kennt die Vorgangsart", () => {
+  function vierKorrekturen() {
+    buche({ ts: T("2026-07-01T10:00:00Z"), id: "k-frei", typ: "korrektur", referenz: null });
+    buche({ ts: T("2026-07-01T11:00:00Z"), id: "k-aus", typ: "korrektur",
+            referenz: "aussondern:handlager" });
+    buche({ ts: T("2026-07-01T12:00:00Z"), id: "k-inv", typ: "korrektur",
+            referenz: "inventur:iv-1" });
+    buche({ ts: T("2026-07-01T13:00:00Z"), id: "k-check", typ: "korrektur",
+            referenz: "check:c-1" });
+  }
+
+  it("`aussondern` trifft genau die Zeilen mit dem Praefix", () => {
+    vierKorrekturen();
+    expect(journalEintraege(t.db, { vorgang: "aussondern" }).zeilen.map((z) => z.id))
+      .toEqual(["k-aus"]);
+  });
+
+  it("`inventur` trifft genau die Zeilen mit dem Praefix", () => {
+    vierKorrekturen();
+    expect(journalEintraege(t.db, { vorgang: "inventur" }).zeilen.map((z) => z.id))
+      .toEqual(["k-inv"]);
+  });
+
+  it("`korrektur` laesst die verfeinerten Arten WEG, behaelt aber `check:` und die referenzlose", () => {
+    /**
+     * ⚠️ DIE MUTATION, DIE DAS FAENGT: den `IS NULL`-Zweig aus
+     * `vorgangBedingung` streichen. `referenz NOT LIKE '…'` ist fuer
+     * `referenz IS NULL` NICHT wahr, sondern NULL — und NULL ist in einem WHERE
+     * falsch. Ohne ihn verschwaende ausgerechnet die haeufigste Zeile
+     * ("k-frei"), und zwar STILL: die Tabelle zeigte nur weniger.
+     *
+     * `check:` bleibt drin, weil es KEINEN eigenen Vorgangstext bekommt — die
+     * Zeile steht in der Spalte als „Korrektur" und muss deshalb unter
+     * „Korrektur" auffindbar sein (Entscheidungstabelle in `_lib/vorgang.ts`).
+     */
+    vierKorrekturen();
+    expect(journalEintraege(t.db, { vorgang: "korrektur" }).zeilen.map((z) => z.id).sort())
+      .toEqual(["k-check", "k-frei"]);
+  });
+
+  it("ein Praefix schlaegt den Typ auch quer: `aussondern` sucht NICHT nach `korrektur`", () => {
+    // Die Bedingung haengt allein am Praefix. Traegt eine Zeile es unter einem
+    // anderen Typ, gehoert sie trotzdem dorthin — sonst waere die Trefferliste
+    // eine andere als die Spaltenbeschriftung.
+    buche({ ts: T("2026-07-02T10:00:00Z"), id: "u-aus", typ: "umlagerung",
+            referenz: "aussondern:fz-1" });
+    expect(journalEintraege(t.db, { vorgang: "aussondern" }).zeilen.map((z) => z.id))
+      .toEqual(["u-aus"]);
+  });
+
+  it("`umlagerung` behaelt `entnahme-ziel:` und `check:` — beide heissen weiter Umlagerung", () => {
+    buche({ ts: T("2026-07-03T10:00:00Z"), id: "u-ziel", typ: "umlagerung",
+            referenz: "entnahme-ziel:fz-1" });
+    buche({ ts: T("2026-07-03T11:00:00Z"), id: "u-check", typ: "umlagerung",
+            referenz: "check:c-1" });
+    expect(journalEintraege(t.db, { vorgang: "umlagerung" }).zeilen.map((z) => z.id).sort())
+      .toEqual(["u-check", "u-ziel"]);
+  });
+
+  it("die Vorgangsart greift VOR dem Limit und ueber die ganze Historie", () => {
+    inEinemCommit(() => {
+      for (let i = 0; i < JOURNAL_GRENZE; i++) {
+        buche({ ts: T("2026-07-04T10:00:00Z"), typ: "zugang" });
+      }
+    });
+    // Die Aussonderung ist die AELTESTE Zeile und faellt damit aus dem
+    // 100er-Fenster — der Filter muss sie trotzdem finden.
+    buche({ ts: T("2026-01-01T10:00:00Z"), id: "alt-aus", typ: "korrektur",
+            referenz: "aussondern:handlager" });
+    expect(journalEintraege(t.db, { vorgang: "aussondern" }).zeilen.map((z) => z.id))
+      .toEqual(["alt-aus"]);
+  });
+
+  it("ohne Vorgangsart bleibt alles stehen", () => {
+    vierKorrekturen();
+    expect(journalEintraege(t.db, {}).zeilen).toHaveLength(4);
   });
 });

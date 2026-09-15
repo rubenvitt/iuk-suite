@@ -22,7 +22,7 @@ vi.mock("next/navigation", () => ({
 
 import {
   JournalFilter,
-  TYPEN,
+  VORGANG_ARTEN,
   deckelText,
   mitGetipptem,
 } from "./JournalFilter";
@@ -80,11 +80,13 @@ afterEach(async () => {
 
 describe("JournalFilter", () => {
   it("exportiert den planweiten Helfervertrag aus dem directive-freien Modul", () => {
-    expect([...TYPEN]).toEqual([
+    expect([...VORGANG_ARTEN]).toEqual([
       "zugang",
       "entnahme",
       "korrektur",
       "umlagerung",
+      "aussondern",
+      "inventur",
     ]);
     expect(deckelText(3, false)).toBe("3 Treffer");
     expect(mitGetipptem(
@@ -232,5 +234,56 @@ describe("JournalFilter", () => {
         ".ant-picker-cell-in-view:not(.ant-picker-cell-disabled)",
       ).length,
     ).toBeGreaterThan(0);
+  });
+
+  /**
+   * DIE VORGANGSART IM AUSWAHLFELD (DRK-344, AK3).
+   *
+   * ⚠️ DER TEST KLICKT, ER LIEST NICHT NUR DIE KONSTANTE. Dass `VORGANG_ARTEN`
+   * sechs Werte hat, steht schon in `journalFilterLogik.test.ts`; hier geht es
+   * darum, dass sie auch in der Liste ANKOMMEN und dass ein Klick den richtigen
+   * Wert in die Adresszeile schreibt. Beides liesse sich einzeln kaputtmachen,
+   * ohne die Konstante anzufassen.
+   */
+  it("bietet alle sechs Vorgangsarten an und schreibt die gewaehlte in die URL", async () => {
+    await mount(<JournalFilter q="" typ="" von="" bis="" hinweise={[]} />);
+    // antds `Select` oeffnet auf `mousedown`, nicht auf `click` — derselbe
+    // Griff wie in `waehleVorgang`.
+    const input = query<HTMLInputElement>("[aria-label='Vorgang']");
+    await act(async () => {
+      input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+
+    expect(
+      Array.from(document.body.querySelectorAll(".ant-select-item-option"))
+        .map((option) => option.textContent),
+    ).toEqual([
+      "Wareneingang",
+      "Entnahme",
+      "Korrektur",
+      "Umlagerung",
+      "Aussonderung",
+      "Inventur",
+    ]);
+
+    await waehleVorgang("Aussonderung");
+    // ⚠️ DER URL-SCHLUESSEL HEISST WEITER `typ`: gespeicherte Journal-Links
+    // tragen ihn, und ein umbenannter Parameter liesse sie still ungefiltert
+    // auflaufen. Der Wert dagegen ist die neue Vorgangsart.
+    expect(letzterPfad().searchParams.get("typ")).toBe("aussondern");
+  });
+
+  it("nimmt eine Vorgangsart aus der URL als gewaehlten Wert an", async () => {
+    await mount(<JournalFilter q="" typ="inventur" von="" bis="" hinweise={[]} />);
+    expect(query<HTMLInputElement>("[aria-label='Vorgang']")
+      .closest(".ant-select")?.textContent).toContain("Inventur");
+  });
+
+  it("verwirft einen Wert, den es nicht gibt, statt ihn anzuzeigen", async () => {
+    // Derselbe Riegel wie bei den Datumsgrenzen: was der Server nicht filtert,
+    // darf die Adresszeile auch nicht behaupten.
+    await mount(<JournalFilter q="" typ="gibt-es-nicht" von="" bis="" hinweise={[]} />);
+    expect(query<HTMLInputElement>("[aria-label='Vorgang']")
+      .closest(".ant-select")?.textContent).toContain("Alle Vorgänge");
   });
 });
