@@ -13,8 +13,9 @@ const notiz: Releasenotiz = {
         "„Korrektur“, und woran du warst, stand allenfalls im Kommentar daneben.",
     ),
     absatz(
-      "Über dem Journal kannst du auch danach filtern. „Korrektur“ zeigt dort jetzt nur noch die " +
-        "Korrekturen von Hand. Buchungen von vor dieser Änderung behalten ihre alte Bezeichnung.",
+      "Über dem Journal kannst du auch danach filtern. Unter „Korrektur“ stehen Aussonderungen " +
+        "und Inventuren deshalb nicht mehr — du findest sie unter ihrem eigenen Namen. " +
+        "Aussonderungen von vor dieser Änderung bleiben „Korrektur“.",
     ),
   ],
 };
