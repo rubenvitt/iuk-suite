@@ -841,13 +841,30 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
     return listen[0]!;
   }
 
+  /**
+   * ⚠️ AUF DIE LISTE WIRD GEWARTET, nicht auf einen festen Takt. antd baut das
+   * Aufklappfenster beim ERSTEN Oeffnen und laesst es danach stehen; der erste
+   * Griff braucht deshalb einen Durchlauf mehr als jeder spaetere. Ein fester
+   * `warte()` ist mal genug und mal nicht — und der Ausfall traefe immer den
+   * Test, der als erster ein Feld anfasst.
+   */
   async function oeffne(ariaLabel: string): Promise<void> {
     const input = queryPortal<HTMLInputElement>(`[aria-label='${ariaLabel}']`);
     if (input.disabled) throw new Error(`Auswahlfeld ist gesperrt: ${ariaLabel}`);
-    await act(async () => {
-      input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    });
-    await warte();
+    // ⚠️ EIN ZWEITES `mousedown` SCHLIESST WIEDER. `optionenVon` und `waehle`
+    // oeffnen beide; nacheinander auf DEMSELBEN Feld gerufen klappte das
+    // zweite die Liste zu, und der Test wartete danach auf etwas, das er
+    // gerade selbst weggeklickt hat. `aria-expanded` sagt, ob schon offen ist.
+    if (input.getAttribute("aria-expanded") !== "true") {
+      await act(async () => {
+        input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      });
+    }
+    await warteAuf(
+      () => document.body
+        .querySelectorAll(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").length === 1,
+      `offene Auswahlliste an ${ariaLabel}`,
+    );
   }
 
   /** Die Beschriftungen der Optionen GENAU dieses Auswahlfelds. */
@@ -890,7 +907,73 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
   it("sagt bei nur einem Ort im Handlager, warum es nichts zu tun gibt", async () => {
     await drawerMounten();
     expect(existsPortal("[data-rolle='umlager-form']")).toBe(false);
-    expect(queryPortal(".ant-drawer-body").textContent).toContain("nur einen Ort im Handlager");
+    expect(queryPortal(".ant-drawer-body").textContent)
+      .toContain("keinen zweiten aktiven Ort");
+  });
+
+  /**
+   * ⚠️ DIE QUELLEN SCHLIESSEN STILLGELEGTE SCHRAENKE EIN, DIE ZIELE NICHT — und
+   * dazwischen liegt ein Formular, das sich oeffnen laesst und nicht absenden
+   * (Review-Befund Codex P2 zu PR #161).
+   *
+   * Sind alle Schraenke stillgelegt und die Charge liegt nur an der Wurzel, ist
+   * die Wurzel der einzige Quellort UND der einzige Zielort. „Nach" filtert den
+   * gewaehlten Quellort heraus und steht danach leer da.
+   *
+   * ⚠️ „Mindestens zwei Orte im Bereich" ist NICHT die Probe: hier sind es zwei
+   * (Wurzel plus stillgelegter Schrank), und trotzdem geht nichts.
+   */
+  it("bietet keine Charge an, fuer die es keinen zweiten aktiven Ort gibt", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [{
+          ...DETAIL.chargen[0],
+          orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 4, zugangshinweis: null }],
+        }],
+        // Nur die Wurzel ist aktiv — der Schrank ist stillgelegt.
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ],
+        handlagerOrtIds: [HANDLAGER_ID, "schrank-alt"],
+      },
+    });
+    await drawerMounten();
+
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(false);
+    expect(queryPortal(".ant-drawer-body").textContent)
+      .toContain("keinen zweiten aktiven Ort");
+  });
+
+  /**
+   * DIE GEGENPROBE, und sie ist der Grund, warum die Probe je Charge laeuft:
+   * dieselbe Lage, nur liegt die Charge im STILLGELEGTEN Schrank. Genau dafuer
+   * legt man einen Schrank still — sie muss an die Wurzel zurueck koennen.
+   */
+  it("bietet eine Charge an, die aus einem stillgelegten Schrank heraus kann", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [{
+          ...DETAIL.chargen[0],
+          orte: [{ id: "schrank-alt", name: "Schrank alt", menge: 4, zugangshinweis: null }],
+        }],
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ],
+        handlagerOrtIds: [HANDLAGER_ID, "schrank-alt"],
+      },
+    });
+    await drawerMounten();
+
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(true);
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    expect(await optionenVon("Von")).toEqual(["Schrank alt · 4 Stk"]);
+    await waehle("Von", "Schrank alt");
+    // ⚠️ DER PUNKT DER GEGENPROBE: „Nach" steht NICHT leer da.
+    expect(await optionenVon("Nach")).toEqual(["Handlager (ohne Schrank)"]);
   });
 
   it("bietet als Quelle nur die Handlager-Orte DIESER Charge — kein Fahrzeug", async () => {

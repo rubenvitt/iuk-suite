@@ -444,9 +444,33 @@ export function ArtikelDrawer({
   ).filter((ort) => handlagerOrtSet.has(ort.id));
   const umlagerQuelle = umlagerQuellen.find((ort) => ort.id === umlagerVon);
 
+  /** Die Orte des Handlager-Bereichs, an denen EINE Charge liegt. */
+  const quellenVon = (charge: ArtikelDetailCharge) =>
+    charge.orte.filter((ort) => handlagerOrtSet.has(ort.id));
+
   /** Chargen, von denen im Handlager ueberhaupt etwas liegt. */
-  const umlagerChargen = (detail?.chargen ?? []).filter((charge) =>
-    charge.orte.some((ort) => handlagerOrtSet.has(ort.id)));
+  const chargenImHandlager = (detail?.chargen ?? [])
+    .filter((charge) => quellenVon(charge).length > 0);
+
+  /**
+   * ⚠️ UND DAVON DIE, FUER DIE ES WIRKLICH EINEN WEG GIBT (Review-Befund Codex
+   * P2 zu PR #161).
+   *
+   * „Liegt im Handlager" allein reicht nicht: die QUELLEN schliessen
+   * stillgelegte Schraenke ein (genau dafuer gibt es sie), die ZIELE nicht.
+   * Sind alle Schraenke stillgelegt und die Charge liegt nur an der Wurzel,
+   * bleibt nach der Wahl von „Von" fuer „Nach" NICHTS uebrig — ein Formular,
+   * das sich oeffnen laesst und nicht absenden. Die Probe ist deshalb: gibt es
+   * einen Quellort, zu dem ein ANDERER aktiver Zielort gehoert?
+   *
+   * ⚠️ Nicht mit „mindestens zwei Orte im Bereich" abkuerzen: das waere fuer
+   * genau den Fall wahr, der hier scheitert (Wurzel plus stillgelegter
+   * Schrank), und fuer den Fall falsch, der tragen MUSS — eine Charge in einem
+   * stillgelegten Schrank, die an die Wurzel zurueck soll.
+   */
+  const umlagerChargen = chargenImHandlager.filter((charge) =>
+    quellenVon(charge).some((quelle) =>
+      (detail?.zielOrte ?? []).some((ziel) => ziel.id !== quelle.id)));
 
   const chargeOptionen = detail
     ? [
@@ -752,17 +776,18 @@ export function ArtikelDrawer({
           */}
           <Abschnitt titel="Umlagern im Handlager">
             {/*
-              ⚠️ GEZAEHLT WIRD DER BEREICH, NICHT DIE ZIELLISTE. `zielOrte`
-              fuehrt nur die AKTIVEN Orte; sind alle Schraenke stillgelegt,
-              stuende dort allein die Wurzel — und das Formular verschwaende
-              ausgerechnet dann, wenn es gebraucht wird: einen stillgelegten
-              Schrank legt man still, um ihn auszuraeumen.
+              ⚠️ ZWEI VERSCHIEDENE LEEREN, ZWEI VERSCHIEDENE SAETZE. „Es liegt
+              nichts da" und „es gibt keinen zweiten Ort" verlangen
+              unterschiedliche Handgriffe; ein gemeinsamer Satz schickte die
+              Haelfte der Leser an die falsche Stelle.
             */}
-            {umlagerChargen.length === 0 || detail.handlagerOrtIds.length < 2 ? (
+            {umlagerChargen.length === 0 ? (
               <div style={SCHRIFT.neben}>
-                {umlagerChargen.length === 0
+                {chargenImHandlager.length === 0
                   ? "Von diesem Artikel liegt im Handlager nichts, das sich umlagern ließe."
-                  : "Es gibt nur einen Ort im Handlager — lege unter „Lagerorte“ einen Schrank an."}
+                  : "Es gibt im Handlager keinen zweiten aktiven Ort, in den dieses Material "
+                    + "wandern könnte. Lege unter „Lagerorte“ einen Schrank an oder nimm einen "
+                    + "stillgelegten wieder in Betrieb."}
               </div>
             ) : (
               <Form<UmlagerWerte>
