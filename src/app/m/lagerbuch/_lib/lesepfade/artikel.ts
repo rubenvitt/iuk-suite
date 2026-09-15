@@ -17,8 +17,8 @@ import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import { chargeText } from "../format";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
-import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
-import { handlagerOrte } from "./orte";
+import { bestandJeArtikel, restJeCharge, restJeChargeUndOrt, type Leser } from "./bestand";
+import { handlagerOrte, ortStamm } from "./orte";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
 
@@ -156,18 +156,62 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
   };
 }
 
-/** Die Helfer-Ansicht eines Artikels (`/a/[artikelId]`): nur Chargen mit Rest,
- *  aufsteigend nach Verfall, jede mit Ampel UND Text (§5.17, Punkt 3). */
+/**
+ * Die Helfer-Ansicht eines Artikels (`/a/[artikelId]`): nur Chargen mit Rest,
+ * aufsteigend nach Verfall, jede mit Ampel UND Text (§5.17, Punkt 3).
+ *
+ * DRK-297, Aufgabe 12 — DIESELBE PROJEKTION WIE `_actions/detail.ts`
+ * (Aufgabe 11): `restJeChargeUndOrt` plus `ortStamm`, Filter auf
+ * `restGesamt > 0` statt auf den Handlager-Rest `rest`. Wer vor dem Regal
+ * steht und nicht findet, was er sucht, braucht auch die Charge, die
+ * VOLLSTAENDIG im Fahrzeug liegt — sonst zeigt der Artikel „kein Bestand",
+ * obwohl er im RTW liegt.
+ *
+ * Die FEFO-Sortierung bleibt unveraendert: `d.chargen` kommt bereits sortiert
+ * aus `artikelDetail` (`chargenMitRest`), der Ort aendert daran nichts.
+ */
 export function artikelDetailHelfer(db: Leser, id: string, now: Date = new Date()) {
   const d = artikelDetail(db, id, now);
   if (!d) return null;
   const schwellen = verfallSchwellen();
+  const verteilung = restJeChargeUndOrt(db, id);
+  const stamm = ortStamm(db);
+  // Der Handlager-Bereich zuerst, Fahrzeuge dahinter — dieselbe Regel wie in
+  // `_actions/detail.ts`. ⚠️ `sortierung` ALLEIN REICHT NICHT: ein Fahrzeug
+  // traegt 0 und stuende damit VOR „Schrank 1" (10).
+  const imHandlager = new Set(handlagerOrte(db));
+
   const cs = d.chargen
-    .filter((c) => c.rest > 0)
     .map((c) => {
+      const proOrt = verteilung.get(c.id) ?? new Map<string, number>();
+      const orte = [...proOrt.entries()]
+        .map(([ortId, menge]) => {
+          const o = stamm.get(ortId);
+          return {
+            id: ortId,
+            name: o?.name ?? ortId,
+            menge,
+            zugangshinweis: o?.zugangshinweis ?? null,
+            sortierung: o?.sortierung ?? 0,
+            rang: imHandlager.has(ortId) ? 0 : 1,
+          };
+        })
+        .sort((a, b) =>
+          a.rang - b.rang || a.sortierung - b.sortierung || a.name.localeCompare(b.name))
+        .map(({ sortierung: _s, rang: _r, ...rest }) => rest);
       const s = verfallStatus(c.verfall, schwellen, now);
-      return { ...c, ampel: s.ampel as Ampel, text: chargeText(s, c.verfall) };
-    });
+      return {
+        ...c,
+        restGesamt: orte.reduce((sum, o) => sum + o.menge, 0),
+        orte,
+        ampel: s.ampel as Ampel,
+        text: chargeText(s, c.verfall),
+      };
+    })
+    // ⚠️ DER FILTER GEHT AUF DIE SUMME UEBER ALLE ORTE, nicht auf den
+    // Handlager-Rest `rest` — sonst verschwindet genau die Charge, die
+    // vollstaendig im Fahrzeug liegt (derselbe Befund wie in Aufgabe 11).
+    .filter((c) => c.restGesamt > 0);
   return {
     id: d.artikel.id, name: d.artikel.name, einheit: d.artikel.einheit,
     fach: d.artikel.fach, bestand: d.bestand, chargen: cs,

@@ -278,3 +278,54 @@ describe("artikelDetailHelfer", () => {
     expect(helfer.chargen[0]).not.toHaveProperty("createdAt");
   });
 });
+
+describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgabe 12)", () => {
+  /**
+   * Eigene Artikel/Ort-Fixtures, additiv zu "a1" oben — dieselbe Form wie
+   * `_actions/detail.test.ts` (Aufgabe 11): ein Schrank mit Zugangshinweis
+   * und ein Fahrzeug, damit dieselbe Charge an zwei Orten bzw. NUR im
+   * Fahrzeug liegen kann.
+   */
+  const ARTIKEL_A = "art-a";
+  const RTW1 = "rtw-1";
+  const SCHRANK_GF = "schrank-gf";
+
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: RTW1, name: "RTW 1", typ: "fahrzeug", kennung: "MS-DRK-1", aktiv: true },
+      {
+        id: SCHRANK_GF, name: "GF-Schrank", typ: "lager", parentId: HANDLAGER_ID,
+        zugangshinweis: "Zugang über LvD — anrufen", sortierung: 90, aktiv: true,
+      },
+    ]).run();
+    t.db.insert(artikel).values({
+      id: ARTIKEL_A, name: "Verbandmull", einheit: "Pkg.", fach: "B-2",
+      mindestbestand: 3, aktiv: true, createdAt: NOW,
+    }).run();
+    t.db.insert(chargen).values([
+      { id: "c-gf1", artikelId: ARTIKEL_A, chargenNr: "GF-1", verfall: "2027-01", createdAt: NOW },
+      { id: "c-r9", artikelId: ARTIKEL_A, chargenNr: "R-9", verfall: "2027-01", createdAt: NOW },
+    ]).run();
+    t.db.insert(buchungen).values([
+      { id: "b-gf1", ts: NOW, typ: "zugang", artikelId: ARTIKEL_A, chargeId: "c-gf1",
+        lagerortId: SCHRANK_GF, menge: 3, quelleTyp: "system", quelleId: "import",
+        referenz: null, kommentar: null },
+      { id: "b-r9", ts: NOW, typ: "zugang", artikelId: ARTIKEL_A, chargeId: "c-r9",
+        lagerortId: RTW1, menge: 7, quelleTyp: "system", quelleId: "import",
+        referenz: null, kommentar: null },
+    ]).run();
+  });
+
+  it("nennt der Helferin den Schrank und den Zugangshinweis", () => {
+    const d = artikelDetailHelfer(t.db, ARTIKEL_A, NOW)!;
+    const charge = d.chargen.find((c) => c.chargenNr === "GF-1")!;
+    expect(charge.orte[0]?.name).toBe("GF-Schrank");
+    expect(charge.orte[0]?.zugangshinweis).toBe("Zugang über LvD — anrufen");
+  });
+
+  /** Wer vor dem Regal steht, soll auch sehen, was im Fahrzeug liegt. */
+  it("zeigt auch Chargen, die nur im Fahrzeug liegen", () => {
+    const d = artikelDetailHelfer(t.db, ARTIKEL_A, NOW)!;
+    expect(d.chargen.map((c) => c.chargenNr)).toContain("R-9");
+  });
+});

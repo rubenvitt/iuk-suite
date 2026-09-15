@@ -128,8 +128,25 @@ const DETAIL: EntnahmeDetail = {
   fach: "A-01",
   bestand: 42,
   chargen: [
-    { id: "ch-1", chargenNr: "L1", verfall: "2027-03", rest: 30, ampel: "gruen", text: "bis 03/27" },
-    { id: "ch-2", chargenNr: "L2", verfall: "2026-09", rest: 12, ampel: "gelb", text: "läuft bald ab" },
+    {
+      id: "ch-1", chargenNr: "L1", verfall: "2027-03", rest: 30, restGesamt: 30,
+      orte: [{ id: "handlager", name: "Handlager", menge: 30, zugangshinweis: null }],
+      ampel: "gruen", text: "bis 03/27",
+    },
+    /**
+     * DRK-297, Aufgabe 12 — L2 liegt an ZWEI Orten: teils im Handlager, teils
+     * hinter dem GF-Schrank. `rest` (5, Handlager) und `restGesamt` (12, ueber
+     * beide Orte) sind bewusst VERSCHIEDEN, damit ein Test, der versehentlich
+     * `rest` statt `restGesamt` anzeigt, auffaellt.
+     */
+    {
+      id: "ch-2", chargenNr: "L2", verfall: "2026-09", rest: 5, restGesamt: 12,
+      orte: [
+        { id: "handlager", name: "Handlager", menge: 5, zugangshinweis: null },
+        { id: "schrank-gf", name: "GF-Schrank", menge: 7, zugangshinweis: "Zugang über LvD — anrufen" },
+      ],
+      ampel: "gelb", text: "läuft bald ab",
+    },
   ],
 };
 
@@ -175,6 +192,67 @@ describe("Entnahme — die Anzeige", () => {
     expect(zeilen[1].textContent).not.toContain("2026-09");
     expect(zeilen[0].textContent).toContain("03/27");
     expect(zeilen[0].textContent).not.toContain("2027-03");
+  });
+
+  describe("DRK-297, Aufgabe 12 — Schrank und Zugangshinweis", () => {
+    /**
+     * ⚠️ ABWEICHUNG VOM API-KONFORMEN HARNESS: `query()`/`queryAll()` aus
+     * `test-dom.tsx` nehmen genau EIN Argument (den Selektor) und suchen immer
+     * im ganzen Mount-Wirt — sie kennen kein zweites "Wurzel"-Argument. Eine
+     * Scope-Suche INNERHALB einer bereits gefundenen Zeile geht deshalb ueber
+     * das native `Element.querySelector` auf dem Zeilen-Element selbst,
+     * inhaltsgleich zur Absicht ("suche innerhalb dieser Charge-Zeile").
+     */
+    function inZeile(zeile: HTMLElement, selector: string): HTMLElement {
+      const el = zeile.querySelector<HTMLElement>(selector);
+      if (!el) throw new Error(`Element nicht gefunden: ${selector}`);
+      return el;
+    }
+
+    it("zeigt je Charge, wo wie viel liegt", async () => {
+      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      const zeilen = queryAll("[data-rolle='charge-zeile']");
+      const orteZeileL2 = inZeile(zeilen[1], "[data-rolle='charge-orte']");
+      expect(orteZeileL2.textContent).toContain("Handlager: 5 Stk");
+      expect(orteZeileL2.textContent).toContain("GF-Schrank: 7 Stk");
+    });
+
+    it("nennt die MENGE GESAMT im Zahlenfeld — nicht nur den Handlager-Rest", async () => {
+      // ch-2 traegt `rest: 5` (Handlager) und `restGesamt: 12` (ueber beide
+      // Orte). Ein `c.rest` statt `c.restGesamt` an dieser Stelle liesse die
+      // Helferin glauben, es liege weniger da, als tatsaechlich verfuegbar ist.
+      //
+      // `[class*="mengenChip"]` statt eines CSS-Modul-Imports in dieser
+      // Testdatei: der Vitest-Klassenname traegt den Schluessel als Teilstring
+      // (`_mengenChip_<hex>`), das Attributmuster findet ihn ohne die exakte
+      // Hash-Form zu kennen.
+      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      const zeilen = queryAll("[data-rolle='charge-zeile']");
+      const mengenfeld = inZeile(zeilen[1], "[class*='mengenChip']");
+      expect(mengenfeld.textContent).toContain("12");
+    });
+
+    it("nennt den Zugangshinweis VORN im Markup, nicht in einem Tooltip", async () => {
+      // ⚠️ Der Nachtrag des Hauptlaufs ist bindend: kein `title`-Attribut
+      // allein (das waere ein natives Tooltip-Aequivalent) und kein Element,
+      // das erst eine Interaktion braucht — der Hinweis steht als GEWOEHNLICHER
+      // Text sofort im DOM, ohne Klick oder Hover.
+      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      const hinweis = query("[data-rolle='charge-zugangshinweis']");
+      expect(hinweis.textContent).toContain("GF-Schrank");
+      expect(hinweis.textContent).toContain("Zugang über LvD — anrufen");
+      // Der Text steht als sichtbarer Inhalt, nicht nur als `title`-Attribut
+      // (das waere per Definition ein Tooltip, kein „vorn").
+      expect(hinweis.getAttribute("title")).toBeNull();
+      expect(hinweis.tagName).not.toBe("BUTTON");
+    });
+
+    it("nennt keinen Zugangshinweis fuer einen Ort ohne Hinweis (Handlager)", async () => {
+      await mount(<Entnahme detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      // Genau EIN Hinweis fuer zwei Chargen mit zusammen drei Orten, von denen
+      // nur einer (GF-Schrank) einen Zugangshinweis traegt.
+      expect(queryAll("[data-rolle='charge-zugangshinweis']").length).toBe(1);
+    });
   });
 
   it("der Chip traegt den Ton aus `ampelTon` — eine im Stylesheet DEKLARIERTE Klasse (§5.17)", async () => {
