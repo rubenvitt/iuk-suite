@@ -144,6 +144,7 @@ function SchrankBearbeiten({
  *  Statuswechsel. */
 function SchrankAktionen({ zeile }: { zeile: LagerortZeile }) {
   const [bearbeitenOffen, setBearbeitenOffen] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
   const laeuftRef = useRef(false);
   const router = useRouter();
@@ -151,10 +152,17 @@ function SchrankAktionen({ zeile }: { zeile: LagerortZeile }) {
   function statusUmschalten(): void {
     if (laeuftRef.current) return;
     laeuftRef.current = true;
+    setFehler(null);
     start(async () => {
       try {
-        await setSchrankAktiv({ id: zeile.id, aktiv: !zeile.aktiv });
+        const ergebnis = await setSchrankAktiv({ id: zeile.id, aktiv: !zeile.aktiv });
+        if (!ergebnis.ok) {
+          setFehler(ergebnis.fehler);
+          return;
+        }
         router.refresh();
+      } catch {
+        setFehler("Status konnte nicht geändert werden.");
       } finally {
         laeuftRef.current = false;
       }
@@ -179,6 +187,20 @@ function SchrankAktionen({ zeile }: { zeile: LagerortZeile }) {
           {zeile.aktiv ? "Stilllegen" : "Wieder aufnehmen"}
         </Button>
       </Flex>
+      {/*
+       * DIE MELDUNG STEHT IN DER ZEILE, NICHT IN EINEM DIALOG: der Statusknopf
+       * hat keinen — ein Fehler nach dem Klick braucht trotzdem eine Stelle, an
+       * der die verwaltende Person ihn tatsaechlich sieht, und das ist direkt
+       * unter dem Knopf, den sie gerade gedrueckt hat, nicht irgendwo global
+       * ausserhalb der Tabelle. Denselben Aufbau (kein `type="error"`, Falle 3:
+       * `colorError === colorPrimary`) nutzt `SchrankBearbeiten` oben in
+       * dieser Datei.
+       */}
+      {fehler ? (
+        <div style={{ marginBlockStart: SPACE.sm }}>
+          <Alert type="warning" showIcon={false} title={fehler} />
+        </div>
+      ) : null}
       {bearbeitenOffen ? (
         <SchrankBearbeiten zeile={zeile} onSchliessen={() => setBearbeitenOffen(false)} />
       ) : null}

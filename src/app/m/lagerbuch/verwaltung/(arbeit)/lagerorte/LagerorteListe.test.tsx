@@ -294,6 +294,57 @@ describe("Schrank stilllegen / wieder aufnehmen", () => {
 
     expect(mocks.setSchrankAktiv).toHaveBeenCalledWith({ id: "schrank-alt", aktiv: true });
   });
+
+  /**
+   * PR-BEFUND: `statusUmschalten` verwarf `{ ok: false }` bisher stillschweigend
+   * und rief `router.refresh()` unbedingt auf — die Zeile laed unveraenderte
+   * Daten neu, ohne dass die verwaltende Person je erfaehrt, dass ihr
+   * Statuswechsel nicht stattfand. Die Meldung steht ABSICHTLICH IN DER ZEILE
+   * (nicht in einem Dialog, den es fuer den Statusknopf nicht gibt) — direkt
+   * unter dem Knopf, den die Person gerade gedrueckt hat.
+   */
+  it("zeigt bei einem abgelehnten Umschalten eine Meldung IN DER ZEILE und behält den Status", async () => {
+    mocks.setSchrankAktiv.mockResolvedValueOnce({
+      ok: false,
+      fehler: "Schrankstatus konnte nicht geändert werden.",
+    });
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    const zeile = query('[data-row-key="schrank-1"]');
+    await clickElement(
+      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
+        .find((b) => (b.textContent ?? "").includes("Stilllegen"))!,
+    );
+    await warteAuf(
+      () => zeile.querySelector(".ant-alert-warning") !== null,
+      "Fehlermeldung an der Zeile",
+    );
+
+    expect(zeile.textContent).toContain("Schrankstatus konnte nicht geändert werden.");
+    // KEIN Reload auf einen abgelehnten Statuswechsel — sonst laed die Zeile
+    // unveraenderte Daten neu und quittiert damit einen Fehlschlag als Erfolg.
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    // Der Knopf zeigt weiterhin "Stilllegen": der Status ist serverseitig
+    // unveraendert, und ohne Reload zeigt die Zeile auch clientseitig weiter
+    // den alten Stand.
+    expect(zeile.textContent).toContain("Stilllegen");
+  });
+
+  it("faengt eine abgelehnte Anfrage (try ohne catch war die Luecke) und zeigt eine Meldung", async () => {
+    mocks.setSchrankAktiv.mockRejectedValueOnce(new Error("offline"));
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    const zeile = query('[data-row-key="schrank-1"]');
+    await clickElement(
+      Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
+        .find((b) => (b.textContent ?? "").includes("Stilllegen"))!,
+    );
+    await warteAuf(
+      () => zeile.querySelector(".ant-alert-warning") !== null,
+      "Fehlermeldung an der Zeile nach abgelehnter Anfrage",
+    );
+
+    expect(zeile.textContent).toContain("Status konnte nicht geändert werden.");
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
 });
 
 describe("Lagerorteseite als RSC", () => {
