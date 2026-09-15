@@ -59,10 +59,13 @@ Browser ── lagerbuch.iuk-ue.de ──▶ Traefik ──▶ suite (Next.js, e
 * **`src/core/`** enthält nur, was mindestens zwei Module heute brauchen: Auth, Shell
   (Kopfzeile, App-Umschalter, Navigation), Theme, Tabellen-Bausteine, Health, Audit-Log,
   Bootstrap (Migrationen beim Start), Rate-Limit, Personenverzeichnis.
-* **Jedes Modul** liegt unter `src/app/m/<modul>/` mit eigenem Schema und Migrationen (`_db/`),
-  Fachlogik (`_lib/`) und Client-Inseln (`_ui/`). Modul-Interna sind kein API für andere Module.
+* **Jedes Modul** liegt unter `src/app/m/<modul>/` mit Fachlogik (`_lib/`) und Client-Inseln
+  (`_ui/`); ein Modul mit eigener Datenbank trägt dazu Schema und Migrationen in `_db/`.
+  Modul-Interna sind kein API für andere Module.
 * **Konfiguration je Instanz** läuft über Umgebungsvariablen: `SUITE_HOST_<KEY>` (Domain),
-  `SUITE_ACCESS_GROUP_<KEY>` (Zugang) und `SUITE_ADMIN_GROUP_<KEY>` (Verwaltung). Ein Cutover
+  `SUITE_ADMIN_GROUP_<KEY>` (Verwaltung) und, nur bei Modulen mit `requiresAuth: true`,
+  `SUITE_ACCESS_GROUP_<KEY>` (Zugang). Bei `lagerbuch` und `radio` wäre die Access-Variable
+  wirkungslos, und ihr Boot bricht deshalb ab, wenn sie gesetzt ist. Ein Cutover
   braucht keinen Commit und keinen CI-Lauf, aber **zwei** Zeilen in der Server-`.env`: den Host in
   `SUITE_HOST_<KEY>` **und** in `SUITE_TRAEFIK_RULE`, sonst erreicht die Domain den Container gar
   nicht erst. Dazu den Router der Alt-Anwendung abschalten, nie zwei Router gleichzeitig; das
@@ -79,13 +82,14 @@ Voraussetzungen: Node 22 oder neuer (die CI läuft auf 22, das Image auf 26), pn
 
 ```bash
 pnpm install
-printf 'AUTH_DEV_LOGIN=true\nAUTH_COOKIE_DOMAIN=.localtest.me\n' > .env.local
+printf 'AUTH_DEV_LOGIN=true\nAUTH_COOKIE_DOMAIN=.localtest.me\nAUTH_SECRET=nur-lokal\n' > .env.local
 ```
 
-Diese zwei Zeilen reichen für den Anfang. Der Dev-Login ersetzt Pocket ID durch ein Formular, in
-das man E-Mail und Gruppen frei einträgt; ein `AUTH_SECRET` ist dann optional. Die Cookie-Domain
-`.localtest.me` lässt die Sitzung über alle Modul-Hosts gelten, sonst meldet man sich auf jedem
-Host neu an (Playwright setzt denselben Wert). `.env.example`
+Diese drei Zeilen reichen für den Anfang. Der Dev-Login ersetzt Pocket ID durch ein Formular, in
+das man E-Mail und Gruppen frei einträgt. Die Cookie-Domain `.localtest.me` lässt die Sitzung über
+alle Modul-Hosts gelten, sonst meldet man sich auf jedem Host neu an (Playwright setzt denselben
+Wert). Das `AUTH_SECRET` braucht der Dev-Login selbst nicht, wohl aber `files` beim Entsperren
+eines passwortgeschützten Links, und genau so einen legt der Seed unten an. `.env.example`
 ist die Vorlage für die **Produktions**-`.env` und trägt Werte wie `AUTH_COOKIE_DOMAIN=.iuk-ue.de`,
 mit denen der Browser auf `*.localtest.me` das Sitzungscookie verwirft. Also nicht blind kopieren,
 sondern nur die Zeilen übernehmen, die ein Modul lokal braucht (z. B. `SUITE_HOST_FILES` mit
