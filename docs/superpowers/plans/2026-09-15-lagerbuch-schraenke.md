@@ -2456,7 +2456,8 @@ Behauptung.
 | A — sichtbare Nebenwirkung Verfallsliste | 4 (Umstellung), 7 (Buchung je Ort) |
 | B — FEFO-Kern, vierter Rang, Umlagerungsfalle | 5, 6 |
 | C — Verwaltung → Lagerorte | 8, 9 |
-| C — Riegel im Löschpfad, stillgelegter Schrank mit Bestand | 8 |
+| C — stillgelegter Schrank mit Bestand | 8 |
+| C — Riegel im Löschpfad (Schrank löschbar, solange leer) | **nicht umgesetzt → DRK-349** |
 | D — Zugang mit Schrankauswahl | 10 |
 | E — Chargentabelle, „Rest gesamt", Filter auf die Gesamtsumme | 11 |
 | E — Helferansicht, Hinweis vorn | 12 |
@@ -2465,6 +2466,13 @@ Behauptung.
 
 **Nicht abgedeckt, absichtlich:** Inventur je Schrank (DRK-337), Umlagerung Schrank → Schrank
 (DRK-338), Aussondern gezielt je Schrank (DRK-339).
+
+⚠️ **Nicht abgedeckt, UNABSICHTLICH — nachgetragen am 15.09.2026 aus der Gesamtprüfung:** der
+Löschpfad für Schränke. Der Entwurf verlangt ihn unter C („ein Schrank ist stilllegbar und,
+solange leer, löschbar"), diese Tabelle hakte ihn unter Aufgabe 8 ab, und der Auftragstext von
+Aufgabe 8 schreibt ihn nirgends aus. Die Zusage stand damit als erfüllt im Plan, ohne gebaut zu
+sein — und genau das, nicht der fehlende Knopf, ist der Befund: eine so protokollierte Lücke geht
+durch die Abnahme, ohne dass jemand nachfragt. Liegt als DRK-349 im Board.
 
 **Namensgleichheit über die Aufgaben:** `teilbaum`, `OrtZeile`, `handlagerOrte`, `ortStamm`,
 `OrtStammZeile`, `handlagerSchraenke`, `bestandProOrte`, `restProOrtenUndCharge`,
