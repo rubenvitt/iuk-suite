@@ -1070,6 +1070,49 @@ describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
     expect(auswahlText("Nach")).toBe("Handlager (ohne Schrank)");
   });
 
+  /**
+   * ⚠️ DIE REGEL MUSS AUCH DIE QUELLENLISTE TREFFEN, nicht nur die Chargenwahl
+   * (Review-Befund Codex P2 zu PR #161, vierter — der Nachschlag zum zweiten).
+   *
+   * Liegt dieselbe Charge an der Wurzel UND in einem stillgelegten Schrank,
+   * waehrend kein Schrank aktiv ist, taugt der SCHRANK als Quelle (Ziel: die
+   * Wurzel) — die Wurzel aber nicht, denn ein zweites aktives Ziel gibt es
+   * nicht. Die Charge wird also angeboten, und genau deshalb darf ihre
+   * Quellenliste die Wurzel NICHT fuehren: wer sie waehlte, staende vor einem
+   * leeren „Nach".
+   */
+  it("bietet nur Quellorte an, von denen aus es weitergeht", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [{
+          ...DETAIL.chargen[0],
+          orte: [
+            { id: HANDLAGER_ID, name: "Handlager", menge: 4, zugangshinweis: null },
+            { id: "schrank-alt", name: "Schrank alt", menge: 2, zugangshinweis: null },
+          ],
+        }],
+        // Nur die Wurzel ist aktiv.
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ],
+        handlagerOrtIds: [HANDLAGER_ID, "schrank-alt"],
+      },
+    });
+    await drawerMounten();
+
+    // Die Charge KANN wandern — aus dem stillgelegten Schrank an die Wurzel.
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(true);
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+
+    // ⚠️ ABER NUR VON DORT. Die Wurzel als Quelle liefe ins Leere.
+    expect(await optionenVon("Von")).toEqual(["Schrank alt · 2 Stk"]);
+
+    await waehle("Von", "Schrank alt");
+    expect(await optionenVon("Nach")).toEqual(["Handlager (ohne Schrank)"]);
+  });
+
   it("zeigt den Fehlersatz der Action AM Umlagerungsformular", async () => {
     mocks.bucheUmlagerung.mockResolvedValue({
       ok: false,

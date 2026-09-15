@@ -426,51 +426,53 @@ export function ArtikelDrawer({
   }
 
   /**
-   * DRK-338 — DIE ORTE, AN DENEN DIESE CHARGE IM HANDLAGER WIRKLICH LIEGT.
+   * DRK-338 — DIE BRAUCHBAREN QUELLORTE EINER CHARGE, und das ist EINE Regel
+   * fuer ZWEI Listen: welche Chargen angeboten werden und welche Quellorte.
    *
-   * ⚠️ NICHT `zielOrte`, und der Unterschied ist der ganze Sinn des Feldes: aus
-   * einem Schrank, in dem nichts von dieser Charge liegt, kann nichts wandern.
-   * Eine Auswahl aller Schraenke liesse jemanden eine Quelle waehlen, die der
-   * Server danach ablehnen MUSS — der Fehler gehoert ins Formular, nicht in
-   * eine Meldung nach dem Absenden.
+   * ⚠️ DASS ES EINE EINZIGE REGEL IST, IST DER EIGENTLICHE FIX (Review-Befunde
+   * Codex P2 zu PR #161, zweiter und vierter). Erst hing sie nur an der
+   * Charge — dann bot eine Charge, die ueber EINEN Ort wandern kann, ihre
+   * uebrigen Orte trotzdem an: liegt sie an der Wurzel UND in einem
+   * stillgelegten Schrank, waehrend kein Schrank aktiv ist, taugt der Schrank
+   * als Quelle (Ziel: die Wurzel) und die Wurzel nicht (es gibt kein zweites
+   * aktives Ziel). Zwei Listen mit zwei Regeln liefen genau hier auseinander.
    *
-   * ⚠️ FAHRZEUGE FALLEN HERAUS. `charge.orte` fuehrt sie mit (die Verteilung
-   * zeigt „Schrank 1: 5 · RTW 1: 7"); umgelagert wird hier aber ausschliesslich
-   * INNERHALB des Handlagers, damit dessen Summe sich nicht aendert.
+   * Drei Bedingungen, alle drei fachlich:
+   *
+   * 1. Der Ort gehoert zum HANDLAGER-BEREICH. `charge.orte` fuehrt auch
+   *    Fahrzeuge mit („Schrank 1: 5 · RTW 1: 7"); umgelagert wird hier aber
+   *    ausschliesslich innerhalb des Handlagers, damit dessen Summe gleich
+   *    bleibt.
+   * 2. An dem Ort liegt etwas VON DIESER Charge — aus einem Schrank, in dem
+   *    nichts davon liegt, kann nichts wandern. Das ist `charge.orte` selbst.
+   * 3. Es gibt ein ANDERES aktives Ziel. Sonst filtert „Nach" den gewaehlten
+   *    Quellort heraus und steht leer da: ein Formular, das sich oeffnen laesst
+   *    und nicht absenden.
+   *
+   * ⚠️ Bedingung 3 ist NICHT „mindestens zwei Orte im Bereich": die Quellen
+   * schliessen stillgelegte Schraenke ein (genau dafuer gibt es sie), die Ziele
+   * nicht. Die Abkuerzung waere wahr fuer den Fall, der scheitert, und falsch
+   * fuer den, der tragen muss.
    */
   const handlagerOrtSet = new Set(detail?.handlagerOrtIds ?? []);
-  const umlagerQuellen = (
-    detail?.chargen.find((charge) => charge.id === umlagerCharge)?.orte ?? []
-  ).filter((ort) => handlagerOrtSet.has(ort.id));
+  const quellenVon = (charge: ArtikelDetailCharge | undefined) =>
+    (charge?.orte ?? []).filter((ort) =>
+      handlagerOrtSet.has(ort.id)
+      && (detail?.zielOrte ?? []).some((ziel) => ziel.id !== ort.id));
+
+  const umlagerQuellen = quellenVon(
+    detail?.chargen.find((charge) => charge.id === umlagerCharge),
+  );
   const umlagerQuelle = umlagerQuellen.find((ort) => ort.id === umlagerVon);
 
-  /** Die Orte des Handlager-Bereichs, an denen EINE Charge liegt. */
-  const quellenVon = (charge: ArtikelDetailCharge) =>
-    charge.orte.filter((ort) => handlagerOrtSet.has(ort.id));
-
-  /** Chargen, von denen im Handlager ueberhaupt etwas liegt. */
+  /** Chargen, von denen im Handlager ueberhaupt etwas liegt — ohne Ruecksicht
+   *  darauf, ob es von dort aus weitergeht. Traegt allein den Leer-Satz. */
   const chargenImHandlager = (detail?.chargen ?? [])
-    .filter((charge) => quellenVon(charge).length > 0);
+    .filter((charge) => charge.orte.some((ort) => handlagerOrtSet.has(ort.id)));
 
-  /**
-   * ⚠️ UND DAVON DIE, FUER DIE ES WIRKLICH EINEN WEG GIBT (Review-Befund Codex
-   * P2 zu PR #161).
-   *
-   * „Liegt im Handlager" allein reicht nicht: die QUELLEN schliessen
-   * stillgelegte Schraenke ein (genau dafuer gibt es sie), die ZIELE nicht.
-   * Sind alle Schraenke stillgelegt und die Charge liegt nur an der Wurzel,
-   * bleibt nach der Wahl von „Von" fuer „Nach" NICHTS uebrig — ein Formular,
-   * das sich oeffnen laesst und nicht absenden. Die Probe ist deshalb: gibt es
-   * einen Quellort, zu dem ein ANDERER aktiver Zielort gehoert?
-   *
-   * ⚠️ Nicht mit „mindestens zwei Orte im Bereich" abkuerzen: das waere fuer
-   * genau den Fall wahr, der hier scheitert (Wurzel plus stillgelegter
-   * Schrank), und fuer den Fall falsch, der tragen MUSS — eine Charge in einem
-   * stillgelegten Schrank, die an die Wurzel zurueck soll.
-   */
-  const umlagerChargen = chargenImHandlager.filter((charge) =>
-    quellenVon(charge).some((quelle) =>
-      (detail?.zielOrte ?? []).some((ziel) => ziel.id !== quelle.id)));
+  /** Und die, fuer die es wirklich einen Weg gibt — dieselbe Regel wie oben. */
+  const umlagerChargen = (detail?.chargen ?? [])
+    .filter((charge) => quellenVon(charge).length > 0);
 
   const chargeOptionen = detail
     ? [
