@@ -10,6 +10,7 @@ import {
 } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { MONAT_REGEX } from "../_lib/konstanten";
+import { AUSSONDERN_PRAEFIX } from "../_lib/vorgang";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
@@ -66,11 +67,16 @@ const AussondernLagerortSchema = z.object({
  * wird am Fahrzeug tatsächlich gearbeitet: man nimmt heraus, was abgelaufen ist,
  * und zählt es.
  *
- * ⚠️ DAS PRÄFIX `aussondern:` STEHT HEUTE NUR IN DEN DATEN. Die Journaltabelle
- * baut ihren Vorgangstext aus `typ` und `kommentar` (`JournalTable.tsx:65`) und
- * liest `referenz` NICHT — auf dem Schirm steht also weiter „Korrektur", und
- * unterscheidbar ist die Aussonderung dort nur am eingegebenen Grund. Für
- * Auswertung und Export trägt das Präfix bereits; die Anzeige ist offen.
+ * ⚠️ DAS PRÄFIX KOMMT AUS `_lib/vorgang.ts` UND WIRD NICHT ABGESCHRIEBEN
+ * (DRK-344). Dort liegt seine einzige Quelle, weil es an DREI Stellen gebraucht
+ * wird: beim Schreiben (hier), beim Ableiten des Vorgangstextes und in der
+ * SQL-Bedingung des Journalfilters. Ein Tippfehler in einer davon liefe still
+ * auseinander — die Buchung entsünde mit einem Präfix, das niemand liest, und
+ * im Journal stünde weiter „Korrektur". `vorgang.test.ts` scannt dafür den
+ * Quelltext; kein anderes Tor sieht es.
+ *
+ * Die Anzeige ist seit DRK-344 NICHT mehr offen: das Journal beschriftet diese
+ * Zeilen als „Aussonderung" und lässt sich danach filtern.
  */
 export async function aussondernVomLagerort(
   eingabe: unknown,
@@ -165,7 +171,7 @@ export async function aussondernVomLagerort(
                 menge: -v.menge, // VORZEICHENBEHAFTET: ein Abgang ist negativ.
                 quelleTyp: quelle.quelleTyp,
                 quelleId: quelle.quelleId,
-                referenz: `aussondern:${v.lagerortId}`,
+                referenz: `${AUSSONDERN_PRAEFIX}${v.lagerortId}`,
                 kommentar: v.kommentar,
               })
               .run();
@@ -179,7 +185,7 @@ export async function aussondernVomLagerort(
               lagerortId: v.lagerortId,
               quelle,
               kommentar: v.kommentar,
-              referenz: `aussondern:${v.lagerortId}`,
+              referenz: `${AUSSONDERN_PRAEFIX}${v.lagerortId}`,
               typ: "korrektur",
             });
           }
