@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bestand, bestandProCharge, bestandProLagerort, bestandProLagerortUndCharge,
+  bestandProOrte, restProOrtenUndCharge,
 } from "./bestand";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -82,5 +83,37 @@ describe("bestandProLagerortUndCharge — der Kern-Fix gegen Phantombestand", ()
 
   it("liefert fuer einen unbekannten Lagerort eine LEERE Map", () => {
     expect(bestandProLagerortUndCharge(ZEILEN, "gibtsnicht").size).toBe(0);
+  });
+});
+
+describe("bestandProOrte — Bestand ueber einen BEREICH von Orten (DRK-297)", () => {
+  it("summiert ueber mehrere Orte; ein Ort AUSSERHALB der Menge zaehlt nicht mit", () => {
+    // Handlager + rtw-1: 10 − 3 + 4 + 5 = 16. Die 2 aus rtw-2 (c2) bleiben aussen vor,
+    // weil rtw-2 nicht Teil des Bereichs ist.
+    expect(bestandProOrte(ZEILEN, [HANDLAGER_ID, "rtw-1"])).toBe(16);
+  });
+
+  it("liefert fuer eine leere Zeilenmenge 0, nicht undefined", () => {
+    expect(bestandProOrte([], [HANDLAGER_ID])).toBe(0);
+  });
+});
+
+describe("restProOrtenUndCharge — Rest je Charge ueber einen BEREICH (DRK-297)", () => {
+  it("summiert DIESELBE chargeId ueber mehrere Orte im Bereich; ein Ort AUSSERHALB zaehlt nicht mit", () => {
+    const imBereich = restProOrtenUndCharge(ZEILEN, [HANDLAGER_ID, "rtw-1"]);
+    expect(imBereich.get("c1")).toBe(11);   // 10 − 3 + 4, Handlager UND rtw-1 sind im Bereich
+    expect(imBereich.get("c2")).toBe(5);    // NUR der Handlager-Anteil — rtw-2 liegt aussen vor
+  });
+
+  it("laesst Chargen ohne Buchung im Bereich GANZ weg (kein 0-Eintrag)", () => {
+    // Dieselbe Bruchstelle wie bei `bestandProLagerortUndCharge`: das SQL-Aggregat
+    // verhaelt sich genauso (keine Zeile statt 0), beide Seiten gehen ueber `?? 0`.
+    const nurRtw2 = restProOrtenUndCharge(ZEILEN, ["rtw-2"]);
+    expect([...nurRtw2.keys()]).toEqual(["c2"]);
+    expect(nurRtw2.has("c1")).toBe(false);
+  });
+
+  it("liefert fuer einen unbekannten Bereich eine LEERE Map", () => {
+    expect(restProOrtenUndCharge(ZEILEN, ["gibtsnicht"]).size).toBe(0);
   });
 });

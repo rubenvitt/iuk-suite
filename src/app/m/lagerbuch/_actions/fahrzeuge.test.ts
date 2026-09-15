@@ -186,6 +186,9 @@ describe("createFahrzeug", () => {
       kennung: "UE-RK 3000",
       aktiv: true,
       templateId: null,
+      parentId: null,
+      zugangshinweis: null,
+      sortierung: 0,
     });
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD]);
   });

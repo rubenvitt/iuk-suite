@@ -63,15 +63,19 @@ export function korrekturAufLagerort(
    * Wege gegen `bestandProLagerort` (T44).
    */
   let recorded = 0;
-  for (const rest of restJeChargeFuerArtikel(tx, artikelId, lagerortId).values()) {
+  for (const rest of restJeChargeFuerArtikel(tx, artikelId, [lagerortId]).values()) {
     recorded += rest;
   }
   const diff = istMenge - recorded;
   if (diff === 0) return { diff: 0, chargeId: null };
 
   if (diff < 0) {
+    // DRK-297 — `orte: [lagerortId]`, EIN einzelner Ort (heute immer ein
+    // Fahrzeug, s.o.): `korrekturAufLagerort` bleibt Einzelort-gescoped, der
+    // Bereich ist NICHT gemeint — sonst zaehlte Handlagerbestand in den
+    // Fahrzeugabgleich hinein.
     const { teile } = fefoAbbuchung(tx, {
-      artikelId, menge: -diff, lagerortId, quelle, kommentar, referenz, typ: "korrektur",
+      artikelId, menge: -diff, orte: [lagerortId], quelle, kommentar, referenz, typ: "korrektur",
     });
     return { diff, chargeId: teile[0]?.chargeId ?? null };
   }
