@@ -1,4 +1,5 @@
 export { auditOutbox } from "@/core/audit/_db/schema";
+import { sql } from "drizzle-orm";
 import {
   sqliteTable, text, integer, index, primaryKey, uniqueIndex,
   type AnySQLiteColumn,
@@ -70,7 +71,24 @@ export const lagerorte = sqliteTable(
      */
     sortierung: integer("sortierung").notNull().default(0),
   },
-  (t) => [index("idx_lagerorte_parent").on(t.parentId)],
+  (t) => [
+    index("idx_lagerorte_parent").on(t.parentId),
+    /**
+     * DRK-367 — zwei Schraenke duerfen nicht gleich heissen.
+     *
+     * ⚠️ NUR KINDER. Die Bedingung `parent_id IS NOT NULL` ist nicht Zierde:
+     * die Wurzel und jedes Fahrzeug tragen `parent_id IS NULL`, ein Index ohne
+     * sie waere eine Zusage ueber Fahrzeugnamen, die niemand getroffen hat.
+     *
+     * `lower(trim(...))`, weil „Schrank 1" und „schrank 1 " in einer
+     * Auswahlliste genauso wenig zu unterscheiden sind wie zwei gleiche.
+     * SQLites `lower()` ist ASCII-only; die strengere Probe steht in
+     * `_lib/schrankName.ts` und laeuft vor jedem Schreibzugriff.
+     */
+    uniqueIndex("idx_lagerorte_name_je_parent")
+      .on(t.parentId, sql`lower(trim(${t.name}))`)
+      .where(sql`${t.parentId} is not null`),
+  ],
 );
 
 export const fahrzeugTemplates = sqliteTable("fahrzeug_templates", {
