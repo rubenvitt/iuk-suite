@@ -806,16 +806,21 @@ test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
      * die nur ein echter Browser kennt: jsdom rechnet keine Layoutboxen, und
      * ein Knopf, den der 56er-Stepper daneben auf wenige Pixel zusammendrueckt,
      * bestuende jeden DOM-Test und waere mit Handschuhen trotzdem nicht zu
-     * treffen. 44px ist die WCAG-Untergrenze, auf die hier niemand zurueckfaellt
-     * (der Helferweg laeuft in 56/72) — sie steht hier als die Grenze, unter der
-     * die Zusage gebrochen WAERE.
+     * treffen.
+     *
+     * ⚠️ GEMESSEN WIRD 56, NICHT DIE WCAG-UNTERGRENZE 44 (Reviewbefund zu
+     * DRK-306). Der Helferweg gehoert der Bediendichte 56/72 (`CLAUDE.md`,
+     * Falle 4) — alles ohne Shell tut das. Eine 44er-Zusicherung liesse den
+     * Knopf still auf die `FullShell`-Dichte zurueckfallen und bliebe dabei
+     * gruen: der Test pruefte dann eine Grenze, die dieses Modul gar nicht
+     * hat, und die Regression saehe genauso aus wie der Sollzustand.
      */
     const leeren = page.locator("[data-rolle='verfall-leeren']");
     await expect(leeren).toBeVisible();
     const kasten = await leeren.boundingBox();
     expect(kasten, "der Leerknopf muss eine Flaeche im Bild haben").not.toBeNull();
-    expect(kasten!.width).toBeGreaterThanOrEqual(44);
-    expect(kasten!.height).toBeGreaterThanOrEqual(44);
+    expect(kasten!.width, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
+    expect(kasten!.height, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
 
     await leeren.click();
 
