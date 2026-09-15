@@ -1,5 +1,8 @@
 export { auditOutbox } from "@/core/audit/_db/schema";
-import { sqliteTable, text, integer, index, primaryKey, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable, text, integer, index, primaryKey, uniqueIndex,
+  type AnySQLiteColumn,
+} from "drizzle-orm/sqlite-core";
 import { nanoid } from "nanoid";
 
 /**
@@ -30,18 +33,45 @@ import { nanoid } from "nanoid";
  *  stilles 404. Der Kollisionsschutz ist der Primaerschluessel selbst. */
 export const newId = () => nanoid();
 
-export const lagerorte = sqliteTable("lagerorte", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  typ: text("typ", { enum: ["lager", "fahrzeug"] }).notNull(),
-  kennung: text("kennung"),
-  aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
-  // Optionale Vorlage, an der ein Fahrzeug haengt. null = individuell gepackt.
-  // DER FREMDSCHLUESSEL ZEIGT „RUECKWAERTS" — lagerorte ist die aeltere und
-  // zentralere Tabelle. Kein Fehler, aber er bestimmt die Einfuegereihenfolge des
-  // Imports (§4.14): fahrzeug_templates VOR lagerorte.
-  templateId: text("template_id").references(() => fahrzeugTemplates.id),
-});
+export const lagerorte = sqliteTable(
+  "lagerorte",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    typ: text("typ", { enum: ["lager", "fahrzeug"] }).notNull(),
+    kennung: text("kennung"),
+    aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
+    // Optionale Vorlage, an der ein Fahrzeug haengt. null = individuell gepackt.
+    // DER FREMDSCHLUESSEL ZEIGT „RUECKWAERTS" — lagerorte ist die aeltere und
+    // zentralere Tabelle. Kein Fehler, aber er bestimmt die Einfuegereihenfolge des
+    // Imports (§4.14): fahrzeug_templates VOR lagerorte.
+    templateId: text("template_id").references(() => fahrzeugTemplates.id),
+    /**
+     * DRK-297 — der Elternort. `null` heisst „eigenstaendig": der Handlager und
+     * jedes Fahrzeug. Gesetzt heisst „Schrank innerhalb dieses Orts".
+     *
+     * ⚠️ DIE RUECKGABEANNOTATION `: AnySQLiteColumn` IST PFLICHT, nicht Zierde:
+     * ohne sie laeuft TypeScript bei der Selbstreferenz in eine zirkulaere
+     * Inferenz und bricht mit „implicitly has type 'any'" ab.
+     *
+     * ⚠️ EIN IMPORT MUSS ELTERN VOR KINDERN SCHREIBEN. `lagerorte` trug bisher
+     * nur den Rueckwaerts-FK auf `fahrzeug_templates`; jetzt auch einen auf sich
+     * selbst.
+     */
+    parentId: text("parent_id").references((): AnySQLiteColumn => lagerorte.id),
+    /** Freitext am ORT, nicht an Charge oder Artikel („Zugang ueber LvD — anrufen").
+     *  `null` heisst „kein Hinweis" — nie ein Leerstring. */
+    zugangshinweis: text("zugangshinweis"),
+    /**
+     * Reihenfolge innerhalb des Elternorts. SIE IST FACHLICH, NICHT KOSMETISCH:
+     * bei gleichem Verfall entscheidet sie, welchen Ort eine Entnahme zuerst
+     * anfasst (`_lib/domain/fefo.ts`, vierter Sortierrang). Der GF-Schrank steht
+     * hinten, damit niemand ohne Not anrufen muss.
+     */
+    sortierung: integer("sortierung").notNull().default(0),
+  },
+  (t) => [index("idx_lagerorte_parent").on(t.parentId)],
+);
 
 export const fahrzeugTemplates = sqliteTable("fahrzeug_templates", {
   id: text("id").primaryKey(),
@@ -204,10 +234,10 @@ export const buchungen = sqliteTable(
     // S3, neu: deterministische Journalsortierung ORDER BY ts DESC, id DESC. Macht
     // ein spaeteres Keyset-Nachladen zur Query-Aenderung statt zur Migration.
     index("idx_buchungen_ts_id").on(t.ts, t.id),
-    // S3, neu: traegt bestandJeArtikel(db, lagerortId) und restJeCharge (§5.2.4) —
-    // ein Lagerort, alle Artikel. Ohne ihn ist das ein Full-Scan.
+    // S3, neu: traegt bestandJeArtikel(db, orte) und restJeCharge (§5.2.4) —
+    // eine Ortsmenge, alle Artikel. Ohne ihn ist das ein Full-Scan.
     index("idx_buchungen_lagerort_artikel").on(t.lagerortId, t.artikelId),
-    // S3, neu: deckend fuer restJeChargeFuerArtikel(db, artikelId, lagerortId) —
+    // S3, neu: deckend fuer restJeChargeFuerArtikel(db, artikelId, orte) —
     // die Schreibseite (FEFO, Korrektur), die mit artikel_id FUEHREND filtert.
     // ⚠️ NICHT redundant zum vorigen: sie unterscheiden sich in der fuehrenden
     // Spalte, und genau daran entscheidet SQLite, ob ein Index fuer eine

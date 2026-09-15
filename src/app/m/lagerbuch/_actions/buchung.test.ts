@@ -379,6 +379,59 @@ describe("bucheEntnahme", () => {
   });
 });
 
+/**
+ * DRK-297 — der Zugang bekommt einen Zielort. `ARTIKEL_A`/`CHARGE_A`/`RTW1`
+ * aus dem Aufgabenbrief heissen in dieser Datei `art-1`/`ch-1`/`fz-1` (die
+ * bestehenden Fixture-Namen aus dem `beforeEach` oben, `fz-1` ist dort schon
+ * ein AKTIVES Fahrzeug) — inhaltsgleich, an die vorhandene Vorrichtung
+ * angepasst statt eine zweite parallele anzulegen.
+ */
+describe("bucheZugang mit Zielort (DRK-297)", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID, aktiv: true },
+      { id: "schrank-alt", name: "Schrank alt", typ: "lager", parentId: HANDLAGER_ID, aktiv: false },
+    ]).run();
+  });
+
+  it("bucht in den gewaehlten Schrank", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 5, chargeId: "ch-1", zielLagerortId: "schrank-1" },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({ typ: "zugang", lagerortId: "schrank-1" });
+  });
+
+  it("ohne Zielort landet der Zugang auf der Wurzel", async () => {
+    const erg = await bucheZugang({ artikelId: "art-1", menge: 5, chargeId: "ch-1" }, t.db);
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()[0]).toMatchObject({ typ: "zugang", lagerortId: HANDLAGER_ID });
+  });
+
+  /** DREI BEDINGUNGEN, EIN SATZ — dieselbe Form wie bei `bucheEntnahme`:
+   *  ohne die Pruefung entschiede der Fremdschluessel und meldete
+   *  „FOREIGN KEY constraint failed", was der Verwaltenden nichts sagt. */
+  it("weist ein Fahrzeug als Zugangsziel ab", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 5, chargeId: "ch-1", zielLagerortId: "fz-1" },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: false });
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("weist einen stillgelegten Schrank ab", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-1", menge: 5, chargeId: "ch-1", zielLagerortId: "schrank-alt" },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: false });
+    expect(geschrieben()).toEqual([]);
+  });
+});
+
 describe("bucheEntnahmeHelfer", () => {
   it("bucht mit quelleTyp token und dem CODE als quelleId", async () => {
     const erg = await bucheEntnahmeHelfer(
