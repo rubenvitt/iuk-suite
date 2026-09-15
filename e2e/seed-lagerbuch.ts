@@ -41,6 +41,7 @@ import {
   lagerortVerfall, o2Flaschen, sollPositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
+import { AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX } from "@/app/m/lagerbuch/_lib/vorgang";
 import {
   E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
   E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
@@ -494,6 +495,79 @@ function inventurFixtures(): void {
 }
 
 /**
+ * DRK-344 — drei Korrekturen auf EINEM eigenen Artikel, die sich NUR durch ihre
+ * `referenz` unterscheiden.
+ *
+ * ⚠️ DAS PRAEFIX IST DER GANZE FALL. Alle drei tragen `typ: "korrektur"`; was
+ * das Journal in der Spalte „Vorgang" schreibt, entscheidet allein `referenz`.
+ * Ohne diese Zeilen liefe der Spec gegen eine Tabelle, in der die neuen
+ * Vorgangsarten gar nicht vorkommen — er waere gruen, ohne etwas zu messen.
+ *
+ * ⚠️ EIGENER ARTIKEL, wie bei `checkFixtures`: Playwright faehrt alle Specs in
+ * EINEM Worker gegen EINE Datei. Drei Korrekturen auf einem geteilten Artikel
+ * verschoeben Bestandszusagen anderer Specs.
+ *
+ * Die Mengen sind absichtlich verschieden, damit eine Zeile nicht versehentlich
+ * ueber eine andere zugesichert wird.
+ */
+function vorgangFixtures(): void {
+  const db = getDb();
+  db.insert(artikel).values({
+    /*
+     * ⚠️ DER NAME DARF KEIN WORT ENTHALTEN, NACH DEM EIN ANDERER SPEC SUCHT.
+     * Gemessen: als der Artikel „E2E Vorgang Pflaster" hiess, fiel
+     * `lagerbuch-bestand-export.spec.ts` — der sucht „Pflaster" und sichert zu,
+     * dass GENAU EIN Artikel uebrigbleibt. Playwright faehrt alle Specs in EINEM
+     * Worker gegen EINE Datei; ein Seed-Name ist damit geteilter Zustand.
+     */
+    id: "e2e-vorgang-artikel", name: "E2E Vorgang Wundauflage", einheit: "Stk.", fach: "VG-1",
+    mindestbestand: 0, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  db.insert(chargen).values({
+    id: "e2e-vorgang-charge", artikelId: "e2e-vorgang-artikel", chargenNr: "E2E-VG",
+    verfall: E2E_VERFALL_FERN, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  /*
+   * ⚠️ JEDE ZEILE EINE EIGENE MINUTE, und das ist keine Kosmetik. Das Journal
+   * sortiert `ts DESC, id DESC`; bei gleichem Zeitstempel entscheidet allein der
+   * id-Tiebreaker, und der ordnet diese vier alphabetisch RUECKWAERTS
+   * (zugang > inventur > handkorrektur > aussonderung) — eine Reihenfolge, die
+   * mit der fachlichen nichts zu tun hat und sich beim naechsten Umbenennen
+   * lautlos dreht. Der Spec sichert die Reihenfolge zu; also muss sie aus den
+   * Daten kommen, nicht aus den Namen.
+   *
+   * ⚠️ DIE PRAEFIXE KOMMEN AUS `_lib/vorgang.ts`, nicht abgeschrieben. Ein
+   * Tippfehler hier machte den Spec still wirkungslos: die Zeile stuende als
+   * „Korrektur" da, und die Zusicherung „Aussonderung" faende sie nicht — was
+   * wie ein Fehler in der Anzeige aussaehe statt wie einer im Seed.
+   */
+  const vorgangZeilen = [
+    { id: "e2e-vorgang-zugang", menge: 30, referenz: null, kommentar: null, vorMinuten: 3 },
+    { id: "e2e-vorgang-handkorrektur", menge: -2, referenz: null, kommentar: "E2E verzählt", vorMinuten: 2 },
+    {
+      id: "e2e-vorgang-inventur", menge: -3, kommentar: "E2E Jahresinventur",
+      referenz: `${INVENTUR_PRAEFIX}e2e-vg-lauf`, vorMinuten: 1,
+    },
+    {
+      id: "e2e-vorgang-aussonderung", menge: -4, kommentar: "E2E abgelaufen entsorgt",
+      referenz: `${AUSSONDERN_PRAEFIX}${HANDLAGER_ID}`, vorMinuten: 0,
+    },
+  ] as const;
+  for (const z of vorgangZeilen) {
+    if (db.select().from(buchungen).where(eq(buchungen.id, z.id)).get()) continue;
+    db.insert(buchungen).values({
+      id: z.id,
+      ts: new Date(JETZT.getTime() - z.vorMinuten * 60_000),
+      typ: z.id === "e2e-vorgang-zugang" ? "zugang" : "korrektur",
+      artikelId: "e2e-vorgang-artikel", chargeId: "e2e-vorgang-charge",
+      lagerortId: HANDLAGER_ID, menge: z.menge,
+      quelleTyp: "system", quelleId: "e2e", referenz: z.referenz, kommentar: z.kommentar,
+    }).run();
+  }
+}
+
+/**
  * DRK-293 — zwei Artikel allein fuer `lagerbuch-sammelbearbeitung.spec.ts`.
  *
  * INAKTIV, aus demselben Grund wie `kategorieFixtures`: nur die Artikelliste
@@ -591,6 +665,7 @@ fahrzeugVerfallFixtures();
 aussondernFahrzeugFixtures();
 kategorieFixtures();
 inventurFixtures();
+vorgangFixtures();
 sammelFixtures();
 lastFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

@@ -24,6 +24,12 @@ export type ArtikelDetailBuchung = {
   typ: string;
   menge: number;
   kommentar: string | null;
+  /** ⚠️ MUSS MIT UEBER DIE GRENZE (DRK-344). Der Drawer beschriftet die Zeile
+   *  ueber `journalZeile`, und unter `typ: "korrektur"` liegen Aussonderung,
+   *  Inventurdifferenz und Handkorrektur — unterschieden allein durch dieses
+   *  Praefix. Fehlte das Feld, stuende im Artikel-Verlauf weiter „Korrektur",
+   *  waehrend das Journal daneben „Aussonderung" sagt. */
+  referenz: string | null;
   quelleName: string;
 };
 
@@ -90,6 +96,7 @@ export async function getDetail(
         typ: buchung.typ,
         menge: buchung.menge,
         kommentar: buchung.kommentar,
+        referenz: buchung.referenz,
         quelleName: quelleName(buchung.quelleTyp, buchung.quelleId),
       })),
       mehrVorhanden: detail.mehrVorhanden,

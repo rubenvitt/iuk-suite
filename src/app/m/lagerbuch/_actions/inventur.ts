@@ -13,6 +13,7 @@ import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
 import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
+import { INVENTUR_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -221,7 +222,7 @@ export async function inventurKorrektur(
     const inventurId = newId();
     const lauf: Lauf = {
       inventurId,
-      referenz: `inventur:${inventurId}`,
+      referenz: `${INVENTUR_PRAEFIX}${inventurId}`,
       quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
       kommentar: v.kommentar,
     };

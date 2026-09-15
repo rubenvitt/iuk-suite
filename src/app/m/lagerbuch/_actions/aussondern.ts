@@ -10,6 +10,7 @@ import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { bestandProLagerortUndCharge } from "../_lib/domain/bestand";
 import { verfallSchwellen, verfallStatus } from "../_lib/domain/verfall";
 import { HANDLAGER_ID } from "../_lib/konstanten";
+import { AUSSONDERN_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const AussondernSchema = z.object({
@@ -20,6 +21,16 @@ const AussondernSchema = z.object({
 /**
  * Bucht den positiven Rest einer abgelaufenen Charge im Handlager vollständig
  * als Korrektur aus. Bestand derselben Charge in Fahrzeugen bleibt unberührt.
+ *
+ * ⚠️ DIE REFERENZ IST DIE KENNZEICHNUNG, NICHT DER KOMMENTAR (DRK-344). Der
+ * Kommentar ist Freitext — der Grund, den jemand eingetippt hat; er trägt die
+ * Begründung, nicht die Einordnung. Erst das Präfix `aussondern:` macht die
+ * Entsorgung abgelaufenen Materials von einer Zählkorrektur unterscheidbar,
+ * und genau das ist der Vorgang, den man im Nachhinein belegen können muss.
+ *
+ * ⚠️ VORHER GESCHRIEBENE ZEILEN TRAGEN `referenz: null` und bleiben im Journal
+ * „Korrektur". Das Journal ist append-only; sie nachträglich zu kennzeichnen
+ * hieße, es umzuschreiben.
  */
 export async function aussondern(
   eingabe: unknown,
@@ -78,7 +89,7 @@ export async function aussondern(
             menge: -rest,
             quelleTyp: "oidc",
             quelleId: viewer.sub,
-            referenz: null,
+            referenz: `${AUSSONDERN_PRAEFIX}${HANDLAGER_ID}`,
             kommentar: v.kommentar,
           })
           .run();

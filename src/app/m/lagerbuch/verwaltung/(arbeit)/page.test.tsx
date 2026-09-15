@@ -79,12 +79,14 @@ function journalBuchung({
   ts,
   menge,
   kommentar = null,
+  referenz = null,
 }: {
   id: string;
   artikelId: string;
   ts: string;
   menge: number;
   kommentar?: string | null;
+  referenz?: string | null;
 }) {
   t.db.insert(buchungen).values({
     id,
@@ -96,7 +98,7 @@ function journalBuchung({
     menge,
     quelleTyp: "system",
     quelleId: "test",
-    referenz: null,
+    referenz,
     kommentar,
   }).run();
 }
@@ -382,6 +384,53 @@ describe("Verwaltungsübersicht", () => {
     expect(props.zeilen[2].deltaText).toBe("0");
     expect(props.zeilen[2].deltaTon).toBe("neutral");
     expect(istJsonSicher(props)).toBe(true);
+  });
+
+  /**
+   * AK4 AUS DRK-344: DIE KACHEL BLEIBT KONSISTENT ZUR JOURNALSPALTE.
+   *
+   * ⚠️ SIE IST EIN ZWEITER AUFRUFER DERSELBEN ABBILDUNG, und genau deshalb
+   * steht der Test hier. `journalZeile` verlangt die `referenz` seit DRK-344
+   * als PFLICHTFELD — dieser Test haelt fest, dass die Uebersicht sie auch
+   * wirklich durchreicht. Ohne ihn waere der einzige Riegel der Compiler, und
+   * der schwiege, sobald jemand das Feld auf `undefined` optional macht.
+   *
+   * Die Folge waere still: die Kachel zeigte „Korrektur", das Journal daneben
+   * „Aussonderung" — zwei Wahrheiten ueber dieselbe Buchung, auf zwei Seiten
+   * derselben Anwendung.
+   */
+  it("beschriftet eine Aussonderung genau wie die Journalspalte", () => {
+    artikelMit({
+      id: "artikel-aussondern",
+      name: "Kompressen",
+      bestand: 10,
+      mindestbestand: 1,
+      verfall: "2099-12",
+    });
+    journalBuchung({
+      id: "journal-aussonderung",
+      artikelId: "artikel-aussondern",
+      ts: "2026-08-07T15:00:00Z",
+      menge: -6,
+      kommentar: "Verfallskontrolle",
+      referenz: `aussondern:${HANDLAGER_ID}`,
+    });
+    journalBuchung({
+      id: "journal-handkorrektur",
+      artikelId: "artikel-aussondern",
+      ts: "2026-08-07T14:00:00Z",
+      menge: -1,
+      kommentar: "verzählt",
+    });
+
+    const seite = verwaltungInhalt(t.db, new Date("2026-08-07T16:00:00Z"));
+    const [tabelle] = elementeVomTyp(seite, LetzteBuchungenTable);
+    const props = tabelle.props as { zeilen: UebersichtJournalZeile[] };
+    const texte = new Map(props.zeilen.map((zeile) => [zeile.id, zeile.vorgangText]));
+
+    // Beide tragen `typ: "korrektur"` — unterschieden allein durch die Referenz.
+    expect(texte.get("journal-aussonderung")).toBe("Aussonderung · Verfallskontrolle");
+    expect(texte.get("journal-handkorrektur")).toBe("Korrektur · verzählt");
   });
 
   it("erkennt benannte, Alias-, Namespace- und Default-Importe als Negativproben", () => {

@@ -334,7 +334,7 @@ describe("JournalTable", () => {
       <JournalTable
         ersteZeilen={ZEILEN}
         ersterCursor={{ ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" }}
-        abrufFilter={{ typ: "entnahme", q: "binde" }}
+        abrufFilter={{ vorgang: "entnahme", q: "binde" }}
         leertext="Noch keine Buchung."
       />,
     );
@@ -344,7 +344,7 @@ describe("JournalTable", () => {
     // Ohne den Filter lieferte Seite zwei andere Zeilen als Seite eins — der
     // Nachschlag sieht sonst die ganze Historie.
     expect(mocks.naechsteJournalSeite).toHaveBeenCalledWith({
-      typ: "entnahme",
+      vorgang: "entnahme",
       q: "binde",
       cursor: { ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" },
     });
@@ -452,7 +452,7 @@ describe("JournalTable", () => {
       <JournalTable
         ersteZeilen={ZEILEN}
         ersterCursor={{ ts: "2026-08-07T12:00:00.000Z", id: "journal-negativ" }}
-        abrufFilter={{ typ: "zugang" }}
+        abrufFilter={{ vorgang: "zugang" }}
         leertext="Noch keine Buchung."
       />,
     );
@@ -463,11 +463,11 @@ describe("JournalTable", () => {
       <JournalTable
         ersteZeilen={[ZEILEN[1]!]}
         ersterCursor={null}
-        abrufFilter={{ typ: "entnahme" }}
+        abrufFilter={{ vorgang: "entnahme" }}
         leertext="Noch keine Buchung."
       />,
     );
-    // ZEILEN[1] ist die Entnahme — passend zum neuen Filter `typ: "entnahme"`.
+    // ZEILEN[1] ist die Entnahme — passend zum neuen Filter `vorgang: "entnahme"`.
     expect(zeilenIds()).toEqual(["journal-negativ"]);
 
     // Jetzt erst antwortet der alte Abruf.
@@ -545,7 +545,7 @@ describe("JournalTable", () => {
       <JournalTable
         ersteZeilen={ersteSeite}
         ersterCursor={cursor}
-        abrufFilter={{ typ: "zugang" }}
+        abrufFilter={{ vorgang: "zugang" }}
         leertext="Noch keine Buchung."
       />,
     );
@@ -587,3 +587,120 @@ describe("Journal — die Serverleser holen den Umwandler aus einem Modul OHNE D
     expect(quelle).not.toMatch(/journalZeileDTO[^;]*from "[^"]*JournalTable"/);
   });
 });
+
+/**
+ * DIE AUSSONDERUNG IST OHNE DEN KOMMENTAR ERKENNBAR (DRK-344).
+ *
+ * ⚠️ DIESER TEST GEHOERT HIERHER UND NICHT NUR ZU `journalZeile`. Die reine
+ * Funktion ist dort geprueft; hier steht die VERDRAHTUNG — dass `anzeigeZeile`
+ * die `referenz` ueberhaupt weiterreicht. Genau die war der Fund: das Feld lag
+ * in der Zeile, wurde aber nicht gelesen.
+ */
+describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
+  const MIT_REFERENZ: JournalZeileDTO[] = [
+    {
+      id: "journal-aussonderung",
+      ts: "2026-08-07T14:00:00.000Z",
+      artikelName: "Kompressen",
+      typ: "korrektur",
+      menge: -6,
+      quelleId: "111-111",
+      quelleName: "Helfer",
+      kommentar: "Verfallskontrolle",
+      referenz: "aussondern:handlager",
+    },
+    {
+      id: "journal-inventur",
+      ts: "2026-08-07T13:30:00.000Z",
+      artikelName: "NaCl",
+      typ: "korrektur",
+      menge: 2,
+      quelleId: "111-111",
+      quelleName: "Helfer",
+      kommentar: "Jahresinventur",
+      referenz: "inventur:iv-1",
+    },
+    {
+      id: "journal-handkorrektur",
+      ts: "2026-08-07T13:00:00.000Z",
+      artikelName: "Pflaster",
+      typ: "korrektur",
+      menge: -1,
+      quelleId: "111-111",
+      quelleName: "Helfer",
+      kommentar: "verzählt",
+      referenz: null,
+    },
+  ];
+
+  it("nennt Aussonderung, Inventur und Korrektur beim Namen", async () => {
+    await mount(
+      <JournalTable
+        ersteZeilen={MIT_REFERENZ}
+        ersterCursor={null}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+
+    // Alle drei tragen `typ: "korrektur"` — unterschieden werden sie allein
+    // durch die Referenz. Ohne sie stuende dreimal dasselbe da.
+    expect(query("tr[data-row-key='journal-aussonderung']").textContent)
+      .toContain("Aussonderung · Verfallskontrolle");
+    expect(query("tr[data-row-key='journal-inventur']").textContent)
+      .toContain("Inventur · Jahresinventur");
+    expect(query("tr[data-row-key='journal-handkorrektur']").textContent)
+      .toContain("Korrektur · verzählt");
+  });
+
+  it("die Aussonderung steht auch OHNE Kommentar in der Spalte", async () => {
+    /**
+     * ⚠️ DAS IST DAS AKZEPTANZKRITERIUM, WOERTLICH: „im Journal ist eine
+     * Aussonderung OHNE LESEN DES KOMMENTARS als solche erkennbar". Vorher war
+     * der eingetippte Grund das einzige Kennzeichen — und der ist Freitext, in
+     * einem Fall also auch leer oder nichtssagend.
+     */
+    await mount(
+      <JournalTable
+        ersteZeilen={[{ ...MIT_REFERENZ[0]!, kommentar: null }]}
+        ersterCursor={null}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    const zelle = query("tr[data-row-key='journal-aussonderung']").querySelectorAll("td")[2];
+    expect(zelle?.textContent).toBe("Aussonderung");
+  });
+
+  it("eine nachgeladene Zeile laeuft durch DIESELBE Abbildung", async () => {
+    /**
+     * ⚠️ DIE ZWEITE HAELFTE DER VERDRAHTUNG. Die erste Seite kommt aus einer
+     * Server Component, jede weitere aus einer Server Action. Liesse der
+     * Nachladepfad die `referenz` fallen, unterschieden sich Zeile 101 und
+     * Zeile 1 in genau der Kleinigkeit, die niemand sucht — und zwar erst nach
+     * dem ersten Scrollen.
+     */
+    const { ausloesen } = beobachterStellen();
+    mocks.naechsteJournalSeite.mockReset();
+    mocks.naechsteJournalSeite.mockResolvedValue({
+      ok: true,
+      cursor: null,
+      zeilen: [MIT_REFERENZ[0]],
+    });
+
+    await mount(
+      <JournalTable
+        ersteZeilen={[MIT_REFERENZ[2]!]}
+        ersterCursor={{ ts: "2026-08-07T13:00:00.000Z", id: "journal-handkorrektur" }}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    await act(async () => { ausloesen(); });
+    await warte();
+
+    expect(query("tr[data-row-key='journal-aussonderung']").textContent)
+      .toContain("Aussonderung");
+  });
+});
+

@@ -163,9 +163,20 @@ describe("aussondern", () => {
       lagerortId: HANDLAGER_ID,
       quelleTyp: "oidc",
       quelleId: "u-admin",
-      referenz: null,
       kommentar: "Verfallskontrolle 08/2026",
     });
+    /**
+     * ⚠️ DIE REFERENZ IST DIE KENNZEICHNUNG, NICHT DER KOMMENTAR (DRK-344).
+     * Ohne das Praefix stuende die Entsorgung abgelaufenen Materials im Journal
+     * als „Korrektur" — nicht zu unterscheiden von einer Zaehlkorrektur, und
+     * erkennbar nur an dem Grund, den jemand eingetippt hat. Der Kommentar ist
+     * Freitext und traegt die Begruendung, nicht die Einordnung.
+     *
+     * Die MUTATION, die das faengt: `referenz` wieder auf `null` setzen. Sie
+     * waere still — die Buchung entstuende richtig, nur die Anzeige verloere
+     * ihre Aussage.
+     */
+    expect(geschrieben[0]?.referenz).toBe(`aussondern:${HANDLAGER_ID}`);
     expect(revalidiert).toEqual([
       "/m/lagerbuch/verwaltung/verfall",
       "/m/lagerbuch/verwaltung/artikel",
