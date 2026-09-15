@@ -302,3 +302,47 @@ describe("aussondernVomLagerort — Verfall haengt am VERBLEIBENDEN Bestand", ()
     expect(t.db.select().from(lagerortVerfall).all().map((z) => z.verfall)).toEqual(["2027-05"]);
   });
 });
+
+describe("aussondernVomLagerort — meldet den TATSAECHLICH geschriebenen Verfall", () => {
+  /**
+   * ⚠️ DIE OBERFLAECHE DARF NICHT IHREN EIGENEN EINGABEWERT SPIEGELN. Seit die
+   * Transaktion ueber „alles raus" entscheidet, koennen Eingabe und Ergebnis
+   * auseinandergehen: der Dialog schickt ein Datum, die Buchung leert den
+   * Bestand, und geschrieben wird `null`. Spiegelt die Tabelle den EINGABEwert,
+   * zeigt ihr Waehler danach ein Datum, das in der Datenbank nicht steht.
+   */
+  it("meldet null, wenn die Buchung den Bestand leert", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 4,
+        verfall: "2027-05", kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect((erg as { ok: true; wert: { verfall: string | null } }).wert.verfall).toBeNull();
+  });
+
+  it("meldet den Monat, solange etwas liegen bleibt", async () => {
+    charge("ch-alt", "2020-01");
+    charge("ch-neu", "2030-01");
+    buchen("seed-alt", "ch-alt", 4);
+    buchen("seed-neu", "ch-neu", 6);
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 4,
+        verfall: "2027-05", kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect((erg as { ok: true; wert: { verfall: string | null } }).wert.verfall)
+      .toBe("2027-05");
+  });
+});

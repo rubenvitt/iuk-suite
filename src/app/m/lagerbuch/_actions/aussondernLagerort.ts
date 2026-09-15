@@ -13,6 +13,17 @@ import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
+/**
+ * Der TATSAECHLICH geschriebene Verfall.
+ *
+ * ⚠️ DIE OBERFLAECHE DARF NICHT IHREN EIGENEN EINGABEWERT SPIEGELN: seit die
+ * Transaktion ueber „alles raus" entscheidet, koennen Eingabe und Ergebnis
+ * auseinandergehen — der Dialog schickt ein Datum, die Buchung leert den
+ * Bestand, geschrieben wird `null`. Ohne diesen Rueckgabewert zeigte der
+ * Monatswaehler danach ein Datum, das in der Datenbank nicht steht.
+ */
+export type AussondernWert = { verfall: string | null };
+
 const AussondernLagerortSchema = z.object({
   lagerortId: z.string().min(1),
   artikelId: z.string().min(1),
@@ -52,11 +63,11 @@ const AussondernLagerortSchema = z.object({
 export async function aussondernVomLagerort(
   eingabe: unknown,
   db: DB = getDb(),
-): Promise<ActionErgebnis> {
+): Promise<ActionErgebnis<AussondernWert>> {
   const viewer = await requireLagerbuchAdmin();
   return withAuditContext(
     { actor: auditActor(viewer) },
-    async (): Promise<ActionErgebnis> => {
+    async (): Promise<ActionErgebnis<AussondernWert>> => {
       const geparst = AussondernLagerortSchema.safeParse(eingabe);
       if (!geparst.success) {
         const feldFehler = zodFehler(geparst.error);
@@ -69,6 +80,7 @@ export async function aussondernVomLagerort(
       const v = geparst.data;
       const quelle = { quelleTyp: "oidc" as const, quelleId: viewer.sub };
 
+      let geschriebenerVerfall: string | null = null;
       let fachFehler: string | null;
       try {
         fachFehler = db.transaction((tx): string | null => {
@@ -173,10 +185,11 @@ export async function aussondernVomLagerort(
            * Kein Bestand, keine Angabe: `setzeVerfall` löscht bei `null`.
            */
           const verbleibend = gesamt - v.menge;
+          geschriebenerVerfall = verbleibend > 0 && v.verfall ? v.verfall : null;
           setzeVerfall(tx, {
             lagerortId: v.lagerortId,
             artikelId: v.artikelId,
-            verfall: verbleibend > 0 && v.verfall ? v.verfall : null,
+            verfall: geschriebenerVerfall,
             quelle,
           });
           return null;
@@ -190,7 +203,7 @@ export async function aussondernVomLagerort(
       revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.lagerortId}`);
       revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
       revalidatePath("/m/lagerbuch/verwaltung/verfall");
-      return { ok: true };
+      return { ok: true, wert: { verfall: geschriebenerVerfall } };
     },
   );
 }

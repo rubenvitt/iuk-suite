@@ -21,7 +21,7 @@ const CHARGEN = [
 
 beforeEach(() => {
   mocks.aussondern.mockReset();
-  mocks.aussondern.mockResolvedValue({ ok: true });
+  mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
 });
 
 afterEach(async () => { await unmount(); });

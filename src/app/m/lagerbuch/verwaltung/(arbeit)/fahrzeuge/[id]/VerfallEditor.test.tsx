@@ -280,7 +280,7 @@ describe("Aussondern und der Monatsspiegel", () => {
    * schon den neuen fuehren.
    */
   it("uebernimmt den im Dialog gesetzten Monat in den Waehler", async () => {
-    mocks.aussondern.mockResolvedValue({ ok: true });
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: "2027-09" } });
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
       .toBe("2027-03");
@@ -327,7 +327,7 @@ describe("Aussondern und der Monatsspiegel", () => {
   });
 
   it("leert den Waehler, wenn der ganze Bestand rausgeht", async () => {
-    mocks.aussondern.mockResolvedValue({ ok: true });
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
     await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
 
     await clickElement(query(
@@ -387,5 +387,48 @@ describe("Der Dialog liest denselben Monat wie der Waehler", () => {
 
     expect(dialog.querySelector<HTMLInputElement>("input[aria-label='Verfall']")!.value)
       .toBe("2027-09");
+  });
+});
+
+describe("Der Spiegel folgt der Antwort, nicht der Eingabe", () => {
+  /**
+   * ⚠️ DER FALL, DEN NUR DIE ANTWORT KENNT. Hat jemand anders zwischendurch
+   * gebucht, leert die hier gesendete Teilmenge den Bestand — die Transaktion
+   * schreibt dann `null`, obwohl im Feld ein Datum stand. Spiegelte die Tabelle
+   * ihre eigene EINGABE, zeigte der Waehler danach ein Datum, das in der
+   * Datenbank nicht steht.
+   */
+  it("leert den Waehler, wenn die Aktion null meldet — trotz Datum im Feld", async () => {
+    mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
+    await mount(<VerfallEditor lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    await clickElement(query(
+      "tr[data-row-key='a1'] button[aria-label='Mullbinde aussondern']",
+    ));
+    await warte();
+    const dialog = document.body.querySelector("[role='dialog']");
+    if (!dialog) throw new Error("Dialog nicht offen");
+    const setzeFeld = async (selector: string, wert: string) => {
+      const feld = dialog.querySelector<HTMLInputElement>(selector);
+      if (!feld) throw new Error(`Feld fehlt: ${selector}`);
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(feld), "value")?.set;
+      await act(async () => {
+        setter!.call(feld, wert);
+        feld.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    // Teilmenge (Bestand 5) UND ein Datum steht im Feld — aus Sicht des Dialogs
+    // bleibt also etwas liegen.
+    await setzeFeld("input[aria-label='Menge']", "2");
+    await setzeFeld("input[aria-label='Kommentar']", "MHD");
+    await act(async () => {
+      dialog.querySelector<HTMLFormElement>("[data-rolle='aussondern']")!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+    await warte();
+
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value).toBe("");
   });
 });

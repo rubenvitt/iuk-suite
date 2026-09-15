@@ -113,7 +113,10 @@ export function AussondernDialog({
           kommentar: werte.kommentar,
         });
         if (ergebnis.ok) {
-          onAusgesondert?.(geschrieben || null);
+          // ⚠️ DER WERT AUS DER ANTWORT, NICHT `geschrieben`: die Transaktion
+          // entscheidet über „alles raus" und kann `null` geschrieben haben,
+          // obwohl hier ein Datum eingegeben wurde.
+          onAusgesondert?.(ergebnis.wert.verfall);
           // Gleiche Reihenfolge wie in `schliessen`: erst leeren, dann zu.
           form.resetFields();
           setOffen(false);
