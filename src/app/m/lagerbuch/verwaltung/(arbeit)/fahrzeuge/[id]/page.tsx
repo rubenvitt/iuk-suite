@@ -88,28 +88,47 @@ type VerfallKennzahlen = {
  * `ampel !== "gruen"` ohne den `else` zählte sie in beiden, und die Summe wäre
  * stillschweigend zu groß.
  *
- * ⚠️ GEZÄHLT WIRD ÜBER DAS AKTIVE SOLL, nicht über die Meldungen — dieselbe
- * Richtung wie `fahrzeugUebersicht`. Grabsteine sind kein Soll, und `erfasst`
- * kann die Quote so nicht überschreiten.
+ * ⚠️⚠️ DIE ZWEI RECHNUNGEN LAUFEN ÜBER VERSCHIEDENE MENGEN, und das ist der
+ * Kern der Sache — nicht eine Ungenauigkeit, die sich vereinheitlichen ließe:
+ *
+ *   die WARNZAHLEN über JEDE Meldung des Fahrzeugs,
+ *   die ERFASSUNG nur über das AKTIVE SOLL.
+ *
+ * Eine Meldung darf einen Artikel betreffen, der nicht (mehr) im aktiven Soll
+ * steht — ein Grabstein oder ein Artikel, der nie eine Sollposition hatte.
+ * `fahrzeugUebersicht` rechnet genau so, und ihr Fixture schreibt es als
+ * Absicht aus (`lesepfade/fahrzeuge.test.ts`: auf `rtw-1` kommt die einzige
+ * abgelaufene Zahl von `a3`, das GAR KEINE Sollposition hat). Filtert man die
+ * Warnzahlen auf das Soll, sagt die Liste „1 abgelaufen" und das Blatt
+ * desselben Fahrzeugs „0" — der Widerspruch, gegen den dieses Ticket gebaut
+ * ist, nur andersherum als vorher, und mit der Entwarnungskante darunter sogar
+ * GRÜN. Umgekehrt darf die Erfassung die fremden Meldungen NICHT mitzählen,
+ * sonst meldete ein Fahrzeug „3 von 2 erfasst".
+ *
+ * Wer das je vereinheitlichen will, bricht eine der beiden Aussagen; der
+ * Paritätstest in `page.test.tsx` hält sie gegen `fahrzeugUebersicht`.
  */
-function verfallKennzahlen(
+export function verfallKennzahlen(
   soll: ReturnType<typeof sollFuerFahrzeug>,
   verfall: ReturnType<typeof verfallFuerLagerort>,
 ): VerfallKennzahlen {
+  // ÜBER JEDE MELDUNG DES FAHRZEUGS — dieselbe Menge, die die Verfallsseite
+  // zeigt und die Fahrzeugliste zählt.
+  let abgelaufen = 0;
+  let warnend = 0;
+  for (const eintrag of verfall.values()) {
+    if (eintrag.abgelaufen) abgelaufen += 1;
+    else if (eintrag.ampel !== "gruen") warnend += 1;
+  }
+  // ÜBER DAS AKTIVE SOLL — Grabsteine sind kein Soll, und so kann die Quote
+  // ihren Nenner nicht überschreiten. Die Erfassung trägt AUCH die grünen
+  // Angaben: sie beantwortet „angesehen?", nicht „auffällig?".
   const imSoll = new Set(
     soll.filter((position) => !position.entfernt).map((position) => position.artikelId),
   );
-  let abgelaufen = 0;
-  let warnend = 0;
   let erfasst = 0;
   for (const artikelId of imSoll) {
-    const eintrag = verfall.get(artikelId);
-    if (!eintrag) continue;
-    // Die Erfassungsquote trägt AUCH die grünen — sie beantwortet
-    // „angesehen?", nicht „auffällig?".
-    erfasst += 1;
-    if (eintrag.abgelaufen) abgelaufen += 1;
-    else if (eintrag.ampel !== "gruen") warnend += 1;
+    if (verfall.has(artikelId)) erfasst += 1;
   }
   return { abgelaufen, warnend, erfasst, sollArtikel: imSoll.size };
 }

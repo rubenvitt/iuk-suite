@@ -2,7 +2,7 @@
 
 import { act, isValidElement, type ReactElement, type ReactNode } from "react";
 import { readFileSync } from "node:fs";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clickElement,
@@ -22,13 +22,18 @@ import {
 } from "../../../../_db/schema";
 import { migrierteTestDb, type TestDb } from "../../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../../_lib/konstanten";
+import {
+  fahrzeugUebersicht,
+  sollFuerFahrzeug,
+} from "../../../../_lib/lesepfade/fahrzeuge";
+import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
 import { VerfallEditor } from "./VerfallEditor";
-import FahrzeugBlatt, { dynamic, fahrzeugInhalt } from "./page";
+import FahrzeugBlatt, { dynamic, fahrzeugInhalt, verfallKennzahlen } from "./page";
 
 const mocks = vi.hoisted(() => ({
   setAktiv: vi.fn(),
@@ -340,10 +345,12 @@ describe("Fahrzeugblatt als Server Component", () => {
     expect(kacheln).toEqual([
       { zahl: 3, beschriftung: "Soll-Positionen", ton: undefined },
       { zahl: 3, beschriftung: "Fächer", ton: undefined },
-      // a1 trägt 2025-01 und ist abgelaufen; a3 trägt 2028-12 und ist grün.
-      // Beide Soll-Artikel sind erfasst — deshalb darf die leere Kachel
-      // Entwarnung geben.
-      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
+      // a1 (2025-01) und a2 (2024-01) sind abgelaufen, a3 (2028-12) ist grün.
+      // ⚠️ a2 steht auf fz-1 nur als Grabstein — seine Meldung zählt in der
+      // WARNZAHL trotzdem mit, weil die Fahrzeugliste sie ebenfalls zählt.
+      // Beide Soll-Artikel (a1, a3) tragen eine Angabe, die Erfassung ist also
+      // vollständig — deshalb darf die leere Kachel Entwarnung geben.
+      { zahl: 2, beschriftung: "abgelaufen", ton: "rot" },
       { zahl: 0, beschriftung: "läuft ab", ton: "ok" },
     ]);
   });
@@ -362,7 +369,9 @@ describe("Fahrzeugblatt als Server Component", () => {
     expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT))).toEqual([
       { zahl: 3, beschriftung: "Soll-Positionen", ton: undefined },
       { zahl: 3, beschriftung: "Fächer", ton: undefined },
-      { zahl: 0, beschriftung: "abgelaufen", ton: "ok" },
+      // Die 1 links ist a2 (Grabstein, 2024-01) — a1 ist nach links NICHT
+      // gewandert, obwohl es rot ist.
+      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
       { zahl: 1, beschriftung: "läuft ab", ton: "gelb" },
     ]);
   });
@@ -372,7 +381,7 @@ describe("Fahrzeugblatt als Server Component", () => {
     // gelb (56).
     verfallSetzenImTest("a1", "2026-09");
     expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
-      { zahl: 0, beschriftung: "abgelaufen", ton: "ok" },
+      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
       { zahl: 1, beschriftung: "läuft ab", ton: "gelb" },
     ]);
   });
@@ -380,7 +389,8 @@ describe("Fahrzeugblatt als Server Component", () => {
   it("zählt abgelaufen und bald ablaufend überschneidungsfrei", () => {
     verfallSetzenImTest("a3", "2026-09");
     expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
-      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
+      // a1 und a2 abgelaufen, a3 gelb.
+      { zahl: 2, beschriftung: "abgelaufen", ton: "rot" },
       { zahl: 1, beschriftung: "läuft ab", ton: "gelb" },
     ]);
   });
@@ -392,7 +402,11 @@ describe("Fahrzeugblatt als Server Component", () => {
    * daneben, die für dasselbe Fahrzeug „1 von 2 erfasst" zeigt.
    */
   it("gibt ohne vollständige Erfassung keine grüne Entwarnung", () => {
-    t.db.delete(lagerortVerfall).where(eq(lagerortVerfall.id, "verfall-a1")).run();
+    // BEIDE abgelaufenen Meldungen weg — sonst stünde links eine 1 und der
+    // Fall prüfte nicht mehr, was sein Name sagt. Übrig bleibt a3 (grün):
+    // erfasst 1 von 2, also unvollständig.
+    t.db.delete(lagerortVerfall)
+      .where(inArray(lagerortVerfall.id, ["verfall-a1", "verfall-grabstein"])).run();
     expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
       { zahl: 0, beschriftung: "abgelaufen", ton: undefined },
       { zahl: 0, beschriftung: "läuft ab", ton: undefined },
@@ -404,22 +418,60 @@ describe("Fahrzeugblatt als Server Component", () => {
     expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT))).toEqual([
       { zahl: 0, beschriftung: "Soll-Positionen", ton: undefined },
       { zahl: 0, beschriftung: "Fächer", ton: undefined },
-      { zahl: 0, beschriftung: "abgelaufen", ton: undefined },
+      // ⚠️ DIE MELDUNGEN BLEIBEN GEZÄHLT, auch ohne Soll — die Liste zählt sie
+      // ebenfalls, und die Verfallsseite zeigt sie. Nur die ENTWARNUNG entfällt:
+      // „null von null" wäre eine Aussage über nichts.
+      { zahl: 2, beschriftung: "abgelaufen", ton: "rot" },
       { zahl: 0, beschriftung: "läuft ab", ton: undefined },
     ]);
   });
 
   /**
-   * ⚠️ DIE KENNZAHL FOLGT DEM AKTIVEN SOLL, NICHT DEN MELDUNGEN. `verfall-
-   * grabstein` steht auf a2, und a2 hat auf fz-1 nur eine entfernte Position.
-   * Die Meldung ist abgelaufen — zählte die Kachel über die Meldungen, stünde
-   * hier eine 2.
+   * ⚠️ DIE WARNZAHLEN FOLGEN DEN MELDUNGEN, DIE ERFASSUNG DEM SOLL — und
+   * `verfall-grabstein` ist genau der Fall, der beides trennt. Die Meldung sitzt
+   * auf a2, und a2 hat auf fz-1 nur eine ENTFERNTE Position. Sie zählt trotzdem
+   * links mit, weil die Fahrzeugliste sie zählt; in der Erfassung taucht sie
+   * NICHT auf, sonst meldete das Fahrzeug „3 von 2 erfasst".
    */
-  it("lässt die Meldung zu einem Grabstein aus beiden Zahlen heraus", () => {
-    expect(kachelDaten(fahrzeugInhalt(t.db, "fz-1", JETZT)).slice(2)).toEqual([
-      { zahl: 1, beschriftung: "abgelaufen", ton: "rot" },
-      { zahl: 0, beschriftung: "läuft ab", ton: "ok" },
-    ]);
+  it("zählt die Meldung zu einem Grabstein in der Warnzahl, nicht in der Erfassung", () => {
+    const kennzahlen = verfallKennzahlen(
+      sollFuerFahrzeug(t.db, "fz-1"),
+      verfallFuerLagerort(t.db, "fz-1", JETZT),
+    );
+    expect(kennzahlen).toEqual({
+      abgelaufen: 2, warnend: 0, erfasst: 2, sollArtikel: 2,
+    });
+  });
+
+  /**
+   * ⚠️ DER PARITÄTSTEST — AKZEPTANZKRITERIUM 2 ALS AUSFÜHRBARE PRÜFUNG.
+   *
+   * „Die Aussage widerspricht der Fahrzeugliste nicht" ist bis hierher ein Satz
+   * in einem Kommentar; hier ist er eine Rechnung. Beide Flächen lesen dieselbe
+   * Datenbank, also MÜSSEN alle vier Zahlen übereinstimmen — und zwar auf einem
+   * Fahrzeug, dessen Meldungen NICHT deckungsgleich mit seinem Soll sind, sonst
+   * beweist der Vergleich nichts.
+   *
+   * Dieser Test hätte den ersten Anlauf gefangen: der filterte die Warnzahlen
+   * aufs aktive Soll und hätte hier 1 gegen 2 gestellt.
+   */
+  it("nennt dieselben vier Zahlen wie die Fahrzeugliste eine Ebene darüber", () => {
+    const zeile = fahrzeugUebersicht(t.db, JETZT).find((z) => z.id === "fz-1")!;
+    const kennzahlen = verfallKennzahlen(
+      sollFuerFahrzeug(t.db, "fz-1"),
+      verfallFuerLagerort(t.db, "fz-1", JETZT),
+    );
+    expect(kennzahlen).toEqual({
+      abgelaufen: zeile.verfallAbgelaufen,
+      warnend: zeile.verfallWarnend,
+      erfasst: zeile.verfallErfasst,
+      sollArtikel: zeile.verfallSollArtikel,
+    });
+    // Die Gegenprobe zum Vergleich selbst: stimmten beide Seiten nur deshalb
+    // überein, weil Meldungen und Soll dieselbe Menge sind, wäre er wertlos.
+    expect(kennzahlen.abgelaufen).toBeGreaterThan(kennzahlen.sollArtikel - 1);
+    expect(verfallFuerLagerort(t.db, "fz-1", JETZT).size)
+      .toBeGreaterThan(kennzahlen.sollArtikel);
   });
 
   it("reicht die echte SollZeile samt geteiltem Fahrzeugbestand an den Editor", () => {
