@@ -220,7 +220,7 @@ describe("g/[code] — der eine gerenderte Zustand (§11.3, 8-C2)", () => {
   it("reicht LAGERBUCH_NAV unveraendert an den Rahmen weiter", async () => {
     await mount(await GeraetDeepLink({ params: params("4012345678901") }));
     expect(rahmenAufrufe.nav.at(-1)).toBe(LAGERBUCH_NAV);
-    expect(LAGERBUCH_NAV).toHaveLength(16);
+    expect(LAGERBUCH_NAV).toHaveLength(18);   // DRK-305: plus Entnahme und Check durchfuehren
   });
 });
 

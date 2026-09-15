@@ -90,10 +90,20 @@ const VIEWER = { sub: "u-admin", groups: ["lagerbuch"], name: "A. Verwaltung", e
 const ZUGANG_OK = {
   ok: true,
   zugang: {
+    /*
+     * DRK-305: `herkunft` ist der Diskriminator, aus dem `journalQuelle`,
+     * `zugangsKennung` und `zugangsAkteur` ihre Antwort ziehen
+     * (`_lib/zugangHerkunft.ts`). Eine Attrappe OHNE das Feld schreibt still
+     * `quelleTyp: "oidc"` mit `quelleId: undefined` — die Action liefe durch,
+     * und die gepruefte Journalzeile truege eine Quelle, die auf nichts
+     * aufloest.
+     */
+    herkunft: "token" as const,
     tokenId: "tk1",
     code: "482-137",
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
+    fahrzeugBindung: null,
   },
 };
 
@@ -730,4 +740,75 @@ it("audit attributes the real helper mutation to confirmed shared access without
   expect(rows.length).toBeGreaterThan(0);
   for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "access", id: "lagerbuch:token:tk1", name: "Gemeinsamer Zugangscode" });
   expect(JSON.stringify(rows)).not.toContain(ZUGANG_OK.zugang.code);
+});
+
+/**
+ * DRK-305 — DIESELBE ACTION, ZWEITE HERKUNFT.
+ *
+ * Die Attrappe des Riegels liefert jetzt ein angemeldetes Konto. Geprüft wird,
+ * was in die append-only-Zeile und ins Zugriffsprotokoll wandert — die beiden
+ * Stellen, die eine vergessene Fallunterscheidung dauerhaft falsch machte.
+ */
+describe("DRK-305 — der angemeldete Weg bucht als PERSON", () => {
+  const KONTO = {
+    ok: true,
+    zugang: {
+      herkunft: "konto" as const,
+      sub: "sub-42",
+      name: "A. Verwaltung",
+      laeuftAb: null,
+      fahrzeugBindung: null,
+    },
+  };
+
+  beforeEach(() => {
+    riegel.mockResolvedValue(KONTO);
+    // Die Bindung des Ziel-Cookies trägt beim Konto den `sub` statt der
+    // Kärtchen-Kennung (`zugangsKennung`).
+    zielCookie = "sub-42|verbrauch";
+  });
+
+  it("schreibt quelleTyp oidc mit dem SUB — nicht token mit undefined", async () => {
+    /*
+     * ⚠️ DER FEHLERFALL, GEGEN DEN DIESER TEST STEHT, IST STILL. Ein fest
+     * verdrahtetes `quelleTyp: "token"` schriebe eine OIDC-Kennung in die
+     * Token-Spalte; `quelleAufloeser` suchte sie unter `tokens.code`, fände
+     * nichts und zeigte die ROHE Kennung. Die Buchung gelänge, das Journal wäre
+     * dauerhaft unlesbar — die Tabelle ist append-only.
+     */
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+
+    expect(erg.ok).toBe(true);
+    const b = geschrieben();
+    expect(b).toHaveLength(1);
+    expect(b[0]).toMatchObject({
+      typ: "entnahme", menge: -2, quelleTyp: "oidc", quelleId: "sub-42",
+    });
+  });
+
+  it("das Zugriffsprotokoll nennt die PERSON, nicht einen gemeinsamen Code", async () => {
+    // `auditAccessActor` trägt den Namen „Gemeinsamer Zugangscode" und meint
+    // ausdrücklich einen Zugang. Für eine namentlich angemeldete Person wäre
+    // das schlicht falsch.
+    t.sqlite.exec("DELETE FROM audit_outbox");
+    expect((await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db)).ok).toBe(true);
+    const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox").all() as { actor: string }[];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(JSON.parse(row.actor)).toEqual({ kind: "user", id: "sub-42", name: "A. Verwaltung" });
+    }
+  });
+
+  it("die Ziel-Bindung gilt PRO PERSON — ein fremdes Cookie bucht nicht", async () => {
+    // Dieselbe Zusage wie beim Kärtchen: die Wahl gehört ihrer Sitzung. Auf
+    // einem geteilten Telefon buchte sonst die nächste Person auf das Ziel der
+    // vorigen, ohne je gewählt zu haben.
+    zielCookie = "tk1|verbrauch";
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db);
+    expect(erg.ok).toBe(false);
+    expect(geschrieben()).toEqual([]);
+  });
 });

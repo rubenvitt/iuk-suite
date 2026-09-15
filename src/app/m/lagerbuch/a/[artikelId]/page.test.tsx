@@ -171,6 +171,12 @@ import ArtikelDeepLink from "./page";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 
 const ZUGANG = {
+  // DRK-305: `herkunft` unterscheidet Kaertchen und angemeldetes Konto. Diese
+  // Weiche sieht NUR Kaertchen — `helferZugangOderNull` ist seit DRK-305
+  // ausdruecklich auf `TokenZugang` verengt, damit ein Regaletikett eine
+  // angemeldete Person weiterhin in die Verwaltung fuehrt und nicht in die
+  // Helfer-Ansicht (Ausgang 2 unten).
+  herkunft: "token" as const,
   tokenId: "tk1",
   code: "482-137",
   label: "RTW 1",

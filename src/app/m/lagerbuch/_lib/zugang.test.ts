@@ -464,19 +464,31 @@ describe("adminLandingPfad — 1:1 aus dem Bestand, minus einem Zweig", () => {
     expect(adminLandingPfad("/a")).toBe("/a");
   });
 
-  it("SPERRT /helfer — sonst ist es eine Endlosschleife", () => {
+  it("LAESST /helfer DURCH — seit DRK-305 keine Endlosschleife mehr", () => {
     /**
-     * `helfer/layout.tsx` ruft `requireHelferSitzung`, das eine verwaltende
-     * Person OHNE Helfer-Sitzung sofort wieder aufs Gate schickt (§3.4.4) — mit
-     * /helfer als returnTo waere das eine Endlosschleife.
+     * ⚠️ DIESER TEST HAT SICH UMGEDREHT, UND DAS IST DIE GANZE AUSSAGE VON
+     * DRK-305 AN DIESER STELLE.
      *
-     * ⚠️ Der Kommentar im Bestand begruendet das mit „siehe helferGateDecision".
-     * Die Funktion ENTFAELLT (§3.1); der Verweis ist beim Port auf
-     * `requireHelferSitzung` umzuhaengen — und zwar im portierten Kommentar,
-     * nicht nur in der Spec.
+     * Bis dahin galt: `helfer/layout.tsx` ruft `requireHelferSitzung`, und das
+     * schickte eine verwaltende Person OHNE Kaertchen-Sitzung sofort wieder aufs
+     * Gate (§3.4.4) — mit /helfer als returnTo waere das eine Endlosschleife
+     * gewesen.
+     *
+     * Seit DRK-305 nimmt derselbe Riegel auch ein angemeldetes Lagerbuch-Konto
+     * an. Wer hier ankommt, IST angemeldet und IST in der Gruppe — beides hat
+     * die Weiche am Gate gerade geprueft. Die Schleife kann konstruktiv nicht
+     * mehr entstehen, und das Ziel fuehrt dorthin, wo die Person hinwollte.
+     *
+     * ⚠️ WER `requireHelferSitzung` WIEDER AUF KAERTCHEN VERENGT, MUSS DIESEN
+     * ZWEIG MIT ZURUECKDREHEN. Sonst steht die Endlosschleife wieder da — und
+     * zwar still: `pnpm build` sieht sie nicht, und ein Redirect-Zyklus meldet
+     * sich im Browser als „zu viele Weiterleitungen", nicht als Fehler in dieser
+     * Datei.
      */
-    expect(adminLandingPfad("/helfer")).toBe("/verwaltung");
-    expect(adminLandingPfad("/helfer/check?fz=rtw-1")).toBe("/verwaltung");
+    expect(adminLandingPfad("/helfer")).toBe("/helfer");
+    expect(adminLandingPfad("/helfer/check?fz=rtw-1")).toBe("/helfer/check?fz=rtw-1");
+    // Die Allowlist bleibt eine Allowlist: ein Praefix-Treffer reicht NICHT.
+    expect(adminLandingPfad("/helferlein")).toBe("/verwaltung");
   });
 
   it("weist jedes fremde Ziel auf /verwaltung", () => {

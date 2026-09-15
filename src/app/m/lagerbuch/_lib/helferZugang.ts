@@ -8,6 +8,8 @@ import { requireLagerbuchHost } from "./host";
 import { HELFER_COOKIE, verifyHelferSitzung } from "./helferSitzung";
 import { gateGrundFuerSperre } from "./gateTexte";
 import { fahrzeugBindungAus } from "./tokenZiel";
+import { istLagerbuchAdmin, viewerOderNull } from "./zugang";
+import { merkeNutzer } from "./konto";
 
 /**
  * DIE AUTORITATIVE HELFER-PRUEFUNG — Host, Cookie-Signatur, Ablauf UND
@@ -30,8 +32,27 @@ import { fahrzeugBindungAus } from "./tokenZiel";
  * `code` und `label` kommen aus DIESER Zeile, nicht mehr aus der JWT-Nutzlast
  * (§3.4.3) — das ist der Grund, warum das Klartext-Secret aus dem Cookie
  * verschwinden konnte.
+ *
+ * ⚠️ SEIT DRK-305 GIBT ES ZWEI HERKUENFTE, NICHT EINE. Neben dem Kaertchen
+ * traegt auch ein ANGEMELDETES Lagerbuch-Konto in den Helfer-Ast. Die beiden
+ * werfenden Riegel unten probieren in dieser Reihenfolge: erst das Kaertchen,
+ * dann das Konto. Die Reihenfolge ist NICHT beliebig — wer ein
+ * Fahrzeug-Kaertchen gescannt hat, behaelt dessen Bindung (DRK-302), auch
+ * wenn er nebenbei angemeldet ist.
+ *
+ * ⚠️ `helferZugangOderNull` BLEIBT DAVON UNBERUEHRT und rein kaertchenbasiert.
+ * Es ist das Praedikat der beiden Rollen-Weichen, und dort lautet die Frage
+ * „hat diese Person ein Kaertchen eingeloest?“ — nicht „darf diese Person
+ * etwas?“. Wer das Konto auch dort einzieht, dreht `a/[artikelId]` still um:
+ * ein Regaletikett fuehrte eine angemeldete Person dann in die Helfer-Ansicht
+ * statt in die Verwaltung, und die drei Ausgaenge im Kopf jener Datei stimmten
+ * nicht mehr.
  */
-export type HelferZugang = {
+/**
+ * EIN KAERTCHEN-ZUGANG — der Regelfall: eingelöster Code, Cookie, Ablauf.
+ */
+export type TokenZugang = {
+  herkunft: "token";
   tokenId: string;
   code: string;
   label: string;
@@ -62,6 +83,38 @@ export type HelferZugang = {
 };
 
 /**
+ * DER ZWEITE WEG IN DEN HELFER-AST — DRK-305: ein angemeldetes Lagerbuch-Konto.
+ *
+ * Er entsteht NICHT aus einem Kaertchen und traegt deshalb weder Code noch
+ * Label noch Ablauf. Die beiden `null`-Felder sind kein Platzhalter, sondern die
+ * Aussage:
+ *
+ *  * `laeuftAb: null` — eine Kontositzung laeuft nicht in zwoelf Stunden ab. Der
+ *    Rahmen zeigt darum keine Restzeit und keinen „Beenden"-Knopf, sondern den
+ *    Weg zurueck in die Verwaltung (`_ui/HelferRahmen.tsx`).
+ *  * `fahrzeugBindung: null` — DAS IST DER GANZE PUNKT DES TICKETS. DRK-302
+ *    begrenzt den Einstieg nach dem SCAN auf das Fahrzeug des Kaertchens; wer
+ *    angemeldet kommt, hat kein Kaertchen gescannt und waehlt aus allen aktiven
+ *    Fahrzeugen. Die beiden Wege bleiben dadurch getrennt nutzbar.
+ *
+ * ⚠️ ER IST KEINE ZWEITE RECHTEQUELLE. Das Praedikat ist `istLagerbuchAdmin` —
+ * dieselbe EINE Stufe, die auch `/verwaltung` gatet (`_lib/zugang.ts`). Wer hier
+ * eine eigene Gruppe einzieht, legt ein zweites Rollenkonzept an, das niemand
+ * pflegt; die Frage „bekommt GF eine eigene Rolle?" ist auf dem Board offen und
+ * wird hier ausdruecklich NICHT im Vorbeigehen beantwortet.
+ */
+export type KontoZugang = {
+  herkunft: "konto";
+  /** Der OIDC-`sub`. Er ist die Journal-Quelle (`quelleTyp: "oidc"`). */
+  sub: string;
+  name: string | null;
+  laeuftAb: null;
+  fahrzeugBindung: null;
+};
+
+export type HelferZugang = TokenZugang | KontoZugang;
+
+/**
  * Die zwei Gruende, mit denen eine schreibende Helfer-Action abgewiesen wird.
  *
  * ⚠️ SIE SIND DIE GETEILTE HAELFTE VON `HelferGrund` (§7.3, Teil 4). Verbindlich
@@ -86,7 +139,7 @@ export type SperrGrund = "sitzung" | "gesperrt";
  * nimmt — fehlt das Cookie ganz, gibt es nichts zu raeumen (§3.4.4).
  */
 type Befund =
-  | { ok: true; zugang: HelferZugang }
+  | { ok: true; zugang: TokenZugang }
   | { ok: false; grund: SperrGrund; hatteCookie: boolean };
 
 async function befund(db: DB): Promise<Befund> {
@@ -105,6 +158,7 @@ async function befund(db: DB): Promise<Befund> {
   return {
     ok: true,
     zugang: {
+      herkunft: "token",
       tokenId: zeile.id,
       code: zeile.code,
       label: zeile.label,
@@ -129,10 +183,42 @@ async function befund(db: DB): Promise<Befund> {
  *
  * LEITET NICHT UM UND LOESCHT NICHTS.
  */
-export async function helferZugangOderNull(db: DB): Promise<HelferZugang | null> {
+export async function helferZugangOderNull(db: DB): Promise<TokenZugang | null> {
   requireLagerbuchHost(await headers());
   const b = await befund(db);
   return b.ok ? b.zugang : null;
+}
+
+/**
+ * DER KONTO-ZWEIG — DRK-305.
+ *
+ * Liefert einen Zugang, wenn eine ANGEMELDETE Person die Lagerbuch-Gruppe
+ * traegt, sonst `null`. Er wird nur erreicht, wenn vorher KEIN gueltiges
+ * Kaertchen gefunden wurde.
+ *
+ * ⚠️ ER PRUEFT DEN HOST NICHT SELBST, und das ist hier ausnahmsweise richtig:
+ * beide Aufrufer haben `requireLagerbuchHost` als ERSTE Anweisung hinter sich,
+ * und `viewerOderNull` ist ausdruecklich host-blind (`_lib/zugang.ts` schreibt
+ * das aus). Ein dritter Aufruf machte aus dem Praedikat wieder einen Wurf.
+ *
+ * ⚠️ `merkeNutzer` LAEUFT HIER, NACH dem Praedikat — dieselbe Reihenfolge wie in
+ * `requireLagerbuchAdmin` (§4.13). Ohne die `users`-Zeile zeigte das Journal fuer
+ * jede Buchung aus diesem Weg die ROHE OIDC-Kennung statt des Klarnamens
+ * (`_db/quelle.ts`), und zwar still: die Buchung gelaenge, nur laese sie niemand.
+ * Wer diesen Weg spaeter auf einen reinen LESEpfad einschraenkt, darf die Zeile
+ * trotzdem nicht streichen — der Rahmen zeigt den Namen ebenfalls.
+ */
+async function kontoZugang(db: DB): Promise<KontoZugang | null> {
+  const viewer = await viewerOderNull();
+  if (!istLagerbuchAdmin(viewer) || !viewer) return null;
+  merkeNutzer(db, viewer);
+  return {
+    herkunft: "konto",
+    sub: viewer.sub,
+    name: viewer.name,
+    laeuftAb: null,
+    fahrzeugBindung: null,
+  };
 }
 
 /**
@@ -158,6 +244,21 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
   requireLagerbuchHost(await headers());
   const b = await befund(db);
   if (b.ok) return b.zugang;
+
+  /*
+   * DRK-305 — ERST DAS KAERTCHEN, DANN DAS KONTO, und beides VOR jeder
+   * Umleitung.
+   *
+   * ⚠️ DER KONTO-ZWEIG LIEGT AUCH HINTER `grund: "gesperrt"`, nicht nur hinter
+   * `"sitzung"`. Wer sich anmeldet und ausserdem ein totes Kaertchen-Cookie im
+   * Browser hat — gesperrter Code, geloeschte Token-Zeile —, laendete sonst auf
+   * `/abmelden` und kaeme mit seinem eigenen, gueltigen Zugang nirgendwohin. Das
+   * Cookie bleibt in diesem Fall liegen; es ist wirkungslos, weil `befund()` es
+   * bei jedem Aufruf erneut gegen die Datenbank prueft.
+   */
+  const konto = await kontoZugang(db);
+  if (konto) return konto;
+
   auditDenied("lagerbuch");
   if (!b.hatteCookie) redirect("/");
   redirect(`/abmelden?grund=${gateGrundFuerSperre(b.grund)}`);
@@ -195,6 +296,14 @@ export async function requireHelferSchreibend(
 ): Promise<{ ok: true; zugang: HelferZugang } | { ok: false; grund: SperrGrund }> {
   requireLagerbuchHost(await headers());
   const b = await befund(db);
-  if (!b.ok) auditDenied("lagerbuch");
-  return b.ok ? { ok: true, zugang: b.zugang } : { ok: false, grund: b.grund };
+  if (b.ok) return { ok: true, zugang: b.zugang };
+
+  // DRK-305 — dieselbe Reihenfolge wie im lesenden Riegel. Eine Buchung aus
+  // diesem Weg traegt `quelleTyp: "oidc"` und den Klarnamen der Person statt des
+  // Kaertchen-Labels (`_lib/zugangHerkunft.ts`).
+  const konto = await kontoZugang(db);
+  if (konto) return { ok: true, zugang: konto };
+
+  auditDenied("lagerbuch");
+  return { ok: false, grund: b.grund };
 }
