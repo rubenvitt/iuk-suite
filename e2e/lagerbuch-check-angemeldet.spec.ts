@@ -56,6 +56,22 @@ import {
  * NULL (beide vergleichen differenziell).
  */
 
+/**
+ * DER KNOPF IM SEITENKOPF, NICHT DER EINTRAG IN DER SEITENLEISTE.
+ *
+ * ⚠️ BEIDE HEISSEN „Check durchführen“, und das ist Absicht — dieselbe Sache
+ * soll gleich heißen, egal von wo man kommt. Ein ungefilterter
+ * `getByRole("link", { name: "Check durchführen" })` findet dadurch ZWEI
+ * Treffer und scheitert an Playwrights Strict Mode. Gemessen im CI-Lauf zu
+ * PR #164: „strict mode violation“ auf beiden Knöpfen, während lokal gar kein
+ * angemeldeter Lauf zustande kam.
+ *
+ * `seitenkopf-aktionen` ist der Behälter, den `core/shell/Seitenkopf.tsx` um
+ * die Aktionsleiste legt — ein benannter Vertrag, kein abgelesener Selektor.
+ */
+const kopfKnopf = (page: Page, name: string) =>
+  page.getByTestId("seitenkopf-aktionen").getByRole("link", { name });
+
 /** Ein Fahrzeugname als Suchmuster — dieselbe Hilfe wie im Kärtchen-Lauf. */
 const alsText = (name: string) => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 
@@ -136,14 +152,14 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge"));
     expect(antwort!.status()).toBe(200);
 
-    await klickeWennRuhig(page.getByRole("link", { name: "Check durchführen" }));
+    await klickeWennRuhig(kopfKnopf(page, "Check durchführen"));
     await page.waitForURL((u) => u.pathname.endsWith("/helfer/check"));
     await expect(page.getByText("Fahrzeug wählen")).toBeVisible();
   });
 
   test("„Check durchführen“ am Fahrzeugblatt wählt DIESES Fahrzeug vor", async ({ page }) => {
     await page.goto(lagerbuchUrl(`/verwaltung/fahrzeuge/${E2E_FAHRZEUG_ID}`));
-    await klickeWennRuhig(page.getByRole("link", { name: "Check durchführen" }));
+    await klickeWennRuhig(kopfKnopf(page, "Check durchführen"));
     await page.waitForURL(
       (u) => u.pathname.endsWith("/helfer/check") && u.searchParams.get("fz") === E2E_FAHRZEUG_ID,
     );
