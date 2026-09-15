@@ -28,6 +28,23 @@
 export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele";
 
 /**
+ * Der Anlass einer Sperre (`_lib/helferZugang.ts`) in den Anlass einer Landung
+ * AM GATE übersetzt — die beiden Wertesätze überschneiden sich in genau einem
+ * Wort, und „sitzung" heißt am Gate „abgelaufen".
+ *
+ * ⚠️ SIE STEHT HIER, WEIL ES ZWEI AUFRUFER GIBT: `requireHelferSitzung` und die
+ * Zielwahl (DRK-300). Zwei ausgeschriebene Bedingungen wären zwei Wahrheiten
+ * über dieselbe Frage — und die zweite ist die, die beim nächsten Wert niemand
+ * mitzieht.
+ *
+ * Der Parametertyp ist die Literal-Union statt eines Imports von `SperrGrund`:
+ * diese Datei ist ein Blatt ohne eigene Importe, und das bleibt sie.
+ */
+export function gateGrundFuerSperre(grund: "sitzung" | "gesperrt"): GateGrund {
+  return grund === "gesperrt" ? "gesperrt" : "abgelaufen";
+}
+
+/**
  * Der geschlossene Satz, als Wert. Er ist exportiert, damit der Test ihn
  * durchlaufen kann — waechst er um einen Wert, ohne dass `TEXTE` ihn kennt, ist
  * das rot statt still `null`.

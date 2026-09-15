@@ -395,6 +395,46 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 5");
   });
 
+  it("der gesperrte Weiter-Knopf SIEHT gesperrt aus (DRK-304)", async () => {
+    /*
+     * Ein Riegel, den man nicht sieht, ist keiner: `.knopf[disabled]` erreicht
+     * `.abschlussGo` nicht (andere Klasse), und der Button-Reset gibt ihr
+     * `cursor: pointer`. Ohne eigene Regel trug der gesperrte Knopf das volle
+     * Rot der Primaeraktion, nahm den Tipp entgegen und tat nichts — bei JEDEM
+     * frisch geoeffneten Check.
+     *
+     * ⚠️ DIE REGEL WIRD GELESEN, NICHT DAS AUSSEHEN (jsdom rechnet kein CSS),
+     * und BEIDE Haelften muessen stehen: das gerenderte `disabled` am richtigen
+     * Knopf UND die Deklaration, die daran haengt. Je allein waere gruen,
+     * waehrend die andere fehlt.
+     */
+    const gesperrt = regeln(".abschlussGo[disabled]");
+    expect(gesperrt.get("opacity")).toBe(".45");
+    expect(gesperrt.get("cursor")).toBe("default");
+    // Dieselbe Sprache wie beim etablierten Knopf — nicht zufaellig dieselbe Zahl.
+    expect(gesperrt).toEqual(regeln(".knopf[disabled]"));
+
+    await mount(
+      <CheckFlow
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+      />,
+    );
+    const weiter = query<HTMLButtonElement>(WEITER);
+    expect(weiter.disabled).toBe(true);
+    expect(weiter.className).toMatch(/abschlussGo/);
+
+    // Und wieder frei, sobald gezaehlt ist — sonst bewiese der Test nur, dass
+    // der Knopf IMMER gesperrt ist.
+    await minus(0);
+    expect(query<HTMLButtonElement>(WEITER).disabled).toBe(false);
+  });
+
   it("der Weiter-Knopf des Zaehlschritts SCHWEBT NICHT mehr (DRK-304)", async () => {
     /*
      * ⚠️ DIE REGEL WIRD GELESEN, NICHT DAS AUSSEHEN — jsdom rechnet keine
