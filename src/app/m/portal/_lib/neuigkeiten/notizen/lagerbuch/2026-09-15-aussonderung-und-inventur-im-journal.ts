@@ -15,7 +15,7 @@ const notiz: Releasenotiz = {
     absatz(
       "Über dem Journal kannst du auch danach filtern. Unter „Korrektur“ stehen Aussonderungen " +
         "und Inventuren deshalb nicht mehr — du findest sie unter ihrem eigenen Namen. " +
-        "Aussonderungen von vor dieser Änderung bleiben „Korrektur“.",
+        "Ältere Aussonderungen aus dem Handlager bleiben „Korrektur“.",
     ),
   ],
 };
