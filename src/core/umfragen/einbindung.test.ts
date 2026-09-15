@@ -84,6 +84,45 @@ describe("Die Server-/Client-Grenze", () => {
     const quelle = lies("src/core/umfragen/konfiguration.ts");
     expect(quelle).not.toContain("NEXT_PUBLIC");
   });
+
+  /**
+   * ⚠️ FALLE 7, UND SIE IST HIER BESONDERS VERLOCKEND. Das Farb-Stylesheet
+   * (DRK-357) braucht antds aufgelöste Tokens. Die Rechnung dafür steht bewusst
+   * in der Client-Insel: `import { theme } from "antd"` löst in der RSC-Ebene
+   * über `exports["."].node.import` auf CJS auf, das `createContext` auf
+   * Modulebene ruft — HTTP 500 für jede Arbeitsfläche, schon beim IMPORT und
+   * nicht erst beim Rendern. `typecheck` und `build` bleiben grün, und **Vitest
+   * kann es strukturell nicht sehen** (dort lädt `react` über die
+   * `default`-Bedingung, der Import geht klaglos durch). Nur ein echter Abruf
+   * zeigt den 500 — deshalb diese Quelltext-Zusicherung.
+   *
+   * Der naheliegende Umbau, gegen den sie steht: das `<style>` aus `FullShell`
+   * zu rendern statt aus der Insel. Das sieht sauberer aus (der Server kennt
+   * den Modus schon) und ist es nicht.
+   */
+  it("hält `aussehen.ts` frei von einem LAUFZEIT-Import aus antd (Falle 7)", () => {
+    const quelle = lies("src/core/umfragen/aussehen.ts");
+    const importe = [...quelle.matchAll(/^\s*import\s+([\s\S]*?)from\s+"antd"/gm)];
+    expect(importe.length, "ein antd-Import").toBe(1);
+    expect(importe[0][1], "muss `import type` sein").toMatch(/^type\s/);
+  });
+
+  it("rechnet die Tokens in der Insel, nicht in FullShell (Falle 7)", () => {
+    expect(lies("src/core/shell/FullShell.tsx")).not.toContain("aussehen");
+    const insel = lies("src/core/umfragen/Umfragen.tsx");
+    expect(insel).toContain("umfragenFarbCss");
+    expect(insel).toContain("getDesignToken");
+  });
+
+  /**
+   * Die Reichweite des Stylesheets ist die der Insel — nicht mehr. Eine Regel
+   * auf `#fbjs` trifft ohne Widget nichts, läge aber sonst auf jeder Kiosk- und
+   * Druckseite, und die Grenze wäre nicht mehr an einer Stelle ablesbar.
+   */
+  it("trägt die Farben mit der Insel, nicht über globales CSS", () => {
+    expect(lies("src/core/umfragen/Umfragen.tsx")).toContain("<style");
+    expect(lies("src/app/globals.css")).not.toContain("#fbjs");
+  });
 });
 
 describe("Abschaltung in E2E", () => {
