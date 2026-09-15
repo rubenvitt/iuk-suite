@@ -626,11 +626,20 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *        gruen (90 %), gelb (35 %) und rot (20 %).
    *
    *        DIE FUENFTE FLASCHE TRAEGT DEN FACHLICHEN STREITFALL AUS DRK-308: sie
-   *        haelt 300 bar statt 200, und ihr Wechselwert steht auf 17 % — das ist
-   *        die ABSOLUTE Lesart der Gespraechsnotiz („50 bar"), auf diese Flasche
-   *        umgerechnet. Daneben zeigen die vier 200-bar-Flaschen die relative
-   *        Lesart mit denselben 25 %, die dort 50 bar ERGEBEN. Wer beide Zeilen
-   *        nebeneinander sieht, sieht den Unterschied, um den es geht.
+   *        haelt 300 bar statt 200, und ihr Wechselwert steht auf 17 % — die
+   *        ABSOLUTE Lesart der Gespraechsnotiz („50 bar"), so nah an dieser
+   *        Flasche, wie ganze Prozent sie treffen. Daneben zeigen die vier
+   *        200-bar-Flaschen die relative Lesart mit denselben 25 %, die dort
+   *        50 bar ERGEBEN. Wer beide Zeilen nebeneinander sieht, sieht den
+   *        Unterschied, um den es geht.
+   *
+   *        ⚠️ 17 % SIND 51 BAR, NICHT 50 (`floor(300 * 17 / 100)`). 50/300 sind
+   *        16,67 %, und ganze Prozent treffen das nicht: 16 % waeren 48 bar. Die
+   *        absolute Lesart ist auf dieser Flasche also NICHT exakt darstellbar —
+   *        eine Ungenauigkeit von einem bar, aber sie gehoert benannt, weil die
+   *        Oberflaeche die bar-Zahl als die massgebliche zeigt. Faellt die
+   *        Abstimmung auf „absolut", ist die Antwort nicht eine Nachkommastelle,
+   *        sondern der Wert in BAR statt in Prozent (Frage steht in DRK-308).
    *
    *        ⚠️ SIE IST EINE EIGENE ID, KEIN GEAENDERTER BESTANDSWERT. Dieser Seed
    *        ist rein additiv (`filter(!flDa.has(id))`): eine Zeile, die es schon

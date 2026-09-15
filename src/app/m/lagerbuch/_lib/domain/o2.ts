@@ -12,6 +12,16 @@ import type { Ampel } from "./verfall";
  * DRK-308 fest verdrahtet trug. Damit ist die Umstellung additiv: eine Flasche,
  * an der niemand etwas einstellt, wird genau so bewertet wie vorher.
  *
+ * ⚠️ DIE GANZZAHL IST EINE BEWUSSTE GRENZE, UND SIE KOSTET GENAUIGKEIT. Ein
+ * gewuenschter bar-Wert ist nur darstellbar, wenn er ein ganzes Prozent des
+ * Nennfuelldrucks trifft: an einer 300-bar-Flasche liegen 16 % bei 48 bar und
+ * 17 % bei 51 bar — 50 bar liegen dazwischen und sind nicht einstellbar. Das
+ * ist hingenommen, solange die Vorgabe RELATIV gemeint ist (dort ist „25 %" die
+ * Zahl, die jemand nennt, und die bar-Zahl die Ableitung). Faellt die noch
+ * offene Abstimmung aus DRK-308 auf die ABSOLUTE Lesart, ist die Antwort nicht
+ * eine Nachkommastelle, sondern ein Wechselwert in BAR — dann traegt die
+ * Prozentzahl die Ableitung und nicht umgekehrt.
+ *
  * ⚠️ „25 % / 50 bar" AUS DER GESPRAECHSNOTIZ IST EIN GRENZWERT IN ZWEI
  * EINHEITEN, NICHT ZWEI GRENZWERTE. 25 % von 200 bar SIND 50 bar — die beiden
  * Zahlen fallen nur bei Nennfuelldruck 200 zusammen. Bei einer 300-bar-Flasche

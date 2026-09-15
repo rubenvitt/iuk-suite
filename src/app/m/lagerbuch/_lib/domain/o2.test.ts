@@ -135,6 +135,26 @@ describe("o2Status — der konfigurierte Grenzwert", () => {
     expect(o2Status(53, 210).wechseln).toBe(false);
   });
 
+  it("⚠️ ganze Prozent treffen nicht jeden bar-Wert — die Grenze ist benannt", () => {
+    // KEINE REGRESSION, SONDERN EINE EIGENSCHAFT DER HEUTIGEN DARSTELLUNG, und
+    // sie steht hier, damit sie nicht erst in einer Abnahme auffaellt: an einer
+    // 300-bar-Flasche sind 50 bar (die absolute Lesart der Gespraechsnotiz)
+    // nicht einstellbar — 16 % liegen bei 48 bar, 17 % bei 51.
+    expect(wechselGrenzeBar(300, 16)).toBe(48);
+    expect(wechselGrenzeBar(300, 17)).toBe(51);
+    // Die gesuchten 50 bar liegen dazwischen: KEIN ganzer Prozentwert trifft sie.
+    const treffer = Array.from({ length: 99 }, (_, i) => i + 1)
+      .filter((prozent) => wechselGrenzeBar(300, prozent) === 50);
+    expect(treffer).toEqual([]);
+    // Bei 200 bar geht dieselbe Zahl glatt auf — deshalb faellt es dort nicht auf.
+    expect(wechselGrenzeBar(200, 25)).toBe(50);
+    //
+    // Faellt die Abstimmung aus DRK-308 auf die absolute Lesart, ist die Antwort
+    // NICHT eine Nachkommastelle, sondern ein Wechselwert in bar. Dieser Test
+    // wird dann angepasst — und genau das ist sein Zweck: die Umstellung soll
+    // auffallen, nicht durchrutschen.
+  });
+
   it("liefert bei nenn <= 0 eine 0 als Grenzwert in bar", () => {
     expect(wechselGrenzeBar(0, 25)).toBe(0);
     expect(wechselGrenzeBar(-10, 25)).toBe(0);
