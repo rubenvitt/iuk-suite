@@ -237,35 +237,45 @@ function spalten(
        * freiwillig abfragt (Reviewbefund zu DRK-298).
        */
       render: (_wert: number, zeile) => {
-        if (zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0) {
-          // Ohne Soll gibt es nichts zu erfassen — und nichts zu behaupten.
-          if (zeile.verfallSollArtikel === 0) {
-            return <span style={SCHRIFT.neben}>—</span>;
-          }
-          return vollstaendig(zeile)
-            ? <Chip ton="ok">im grünen Bereich</Chip>
-            : (
-              <Chip ton="grau">
-                {zeile.verfallErfasst} von {zeile.verfallSollArtikel} erfasst
-              </Chip>
-            );
+        /**
+         * ⚠️ DIE ERFASSUNGSLUECKE STEHT NEBEN DER WARNUNG, NICHT STATT IHRER.
+         *
+         * Sie beantworten verschiedene Fragen — „was ist faellig?" und „wovon
+         * wissen wir es ueberhaupt?" —, und die eine darf die andere nicht
+         * verdecken. Ein Fahrzeug mit EINEM abgelaufenen und SIEBEN nie
+         * angesehenen Artikeln meldete sonst „1 abgelaufen" und sonst nichts:
+         * wer danach handelt, tauscht einen Artikel und haelt das Fahrzeug fuer
+         * erledigt. Derselbe stille Irrtum wie beim Boolean davor, nur eine
+         * Ebene tiefer.
+         */
+        const chips = [
+          zeile.verfallAbgelaufen > 0 ? (
+            <Chip key="abgelaufen" ton="rot" zeichen="warnung">
+              {zeile.verfallAbgelaufen} abgelaufen
+            </Chip>
+          ) : null,
+          zeile.verfallWarnend > 0 ? (
+            <Chip key="warnend" ton="gelb" zeichen="verfall">
+              {zeile.verfallWarnend} läuft ab
+            </Chip>
+          ) : null,
+          zeile.verfallSollArtikel > 0 && !vollstaendig(zeile) ? (
+            <Chip key="luecke" ton="grau">
+              {zeile.verfallErfasst} von {zeile.verfallSollArtikel} erfasst
+            </Chip>
+          ) : null,
+        ].filter(Boolean);
+
+        if (chips.length === 0) {
+          // Nichts faellig UND nichts offen. Ohne Soll gibt es dagegen nichts
+          // zu erfassen — und damit auch keine Entwarnung zu geben.
+          return zeile.verfallSollArtikel === 0
+            ? <span style={SCHRIFT.neben}>—</span>
+            : <Chip ton="ok">im grünen Bereich</Chip>;
         }
-        return (
-          // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
-          // Chip-Zeilenabstand wie in der Statusspalte daneben.
-          <Flex gap={6} wrap>
-            {zeile.verfallAbgelaufen > 0 ? (
-              <Chip ton="rot" zeichen="warnung">
-                {zeile.verfallAbgelaufen} abgelaufen
-              </Chip>
-            ) : null}
-            {zeile.verfallWarnend > 0 ? (
-              <Chip ton="gelb" zeichen="verfall">
-                {zeile.verfallWarnend} läuft ab
-              </Chip>
-            ) : null}
-          </Flex>
-        );
+        // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+        // Chip-Zeilenabstand wie in der Statusspalte daneben.
+        return <Flex gap={6} wrap>{chips}</Flex>;
       },
     },
     {

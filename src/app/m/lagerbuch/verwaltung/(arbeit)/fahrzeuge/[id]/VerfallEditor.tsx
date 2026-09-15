@@ -147,7 +147,26 @@ export function VerfallEditor({
   ];
 
   return (
-    <div style={{ display: "grid", gap: SPACE.md }}>
+    /**
+     * ⚠️ `minmax(0, 1fr)` STATT DER IMPLIZITEN `auto`-SPALTE — dieselbe Falle,
+     * die `SollEditor` eine Tuer weiter schon kennt (DRK-315), hier nur nie
+     * behoben. Eine `auto`-Spalte waechst auf die MINDESTBREITE ihres Inhalts,
+     * und die ist bei einer Tabelle die Summe der Spalten-Mindestbreiten; das
+     * `scroll.x` der `Datentabelle` kommt dann gar nicht zum Zug, weil nichts
+     * zu eng wird. Gemessen auf dem Fahrzeugblatt: bei 375px lief das Dokument
+     * um 210px waagerecht ueber, bei 480px um 105px.
+     *
+     * ⚠️ KEIN GATE SIEHT DAS. `typecheck` prueft eine gueltige CSS-Zeichenkette,
+     * `build` serialisiert sie klaglos, und Vitest kann es strukturell nicht
+     * sehen — jsdom rechnet keine Layoutboxen (Falle 13). Nur ein echter
+     * Browser kennt die Zahl; `e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts` misst
+     * sie.
+     */
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr)",
+      gap: SPACE.md,
+    }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Datentabelle<VerfallAnzeigeZeile>
         rowKey="artikelId"
