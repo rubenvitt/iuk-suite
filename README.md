@@ -19,7 +19,7 @@ wurden umgeschwenkt.
 | `aufgaben` | Aufgabenverteilung und Zeitplanung für BuFDis mit Koordinationsrolle | Login + Gruppe |
 | `radio` | Funkgeräte: Ausleihe per QR-Code, Bestand, Softwarestände | anonym (Ausleihe), Gruppe (Verwaltung) |
 | `uav` | Drohnen-Trainingsbegleiter, Teilnehmer melden sich mit Dauer-Code an | Code, Gruppe (Verwaltung) |
-| `zeichen` | Taktische Zeichen nachschlagen, bauen und üben (auf `@einsatzzeichen/*`). **Zurzeit pausiert** (`ZEICHEN_PAUSIERT` in `_lib/verfuegbarkeit.ts`): keine Kachel, jede Route antwortet 503 | Login (sobald wieder aktiv) |
+| `zeichen` | Taktische Zeichen nachschlagen, bauen und üben (auf `@einsatzzeichen/*`). **Zurzeit pausiert** (`ZEICHEN_PAUSIERT` in `_lib/verfuegbarkeit.ts`): keine Kachel, jede Route antwortet 503; einzig `/sw.js` bleibt offen und liefert den Aufräum-Worker, damit installierte PWAs sich austragen | Login (sobald wieder aktiv) |
 | `alpha`, `beta`, `gamma`, `kioskdemo` | Wegwerf-Module, die den Architektur-Keystone in den E2E-Tests beweisen | – |
 
 Die verbindliche Liste samt Shell-Variante, Gruppen und Host-Fallbacks steht in
@@ -84,6 +84,7 @@ Voraussetzungen: Node 22 oder neuer (die CI läuft auf 22, das Image auf 26), pn
 
 ```bash
 pnpm install
+pnpm exec playwright install --with-deps chromium   # einmalig, für pnpm e2e; die CI tut dasselbe
 printf 'AUTH_DEV_LOGIN=true\nAUTH_COOKIE_DOMAIN=.localtest.me\nAUTH_SECRET=nur-lokal\n' > .env.local
 ```
 
@@ -141,8 +142,10 @@ pnpm e2e             # Playwright, startet eigenen Dev-Server auf Port 3100 mit 
 pnpm e2e:pwa         # PWA-Tests mit eigener Konfiguration
 ```
 
-Die E2E-Suite läuft in der CI in Gruppen je Modul (`e2e/gruppen.json`); jede Spec muss dort
-genau einer Gruppe zugeordnet sein, sonst schlägt `scripts/e2e-gruppen.test.ts` fehl.
+Die E2E-Suite läuft in der CI in Gruppen je Modul (`e2e/gruppen.json`); jede Spec, die
+`playwright.config.ts` einschließt, muss dort genau einer Gruppe zugeordnet sein, und keine Spec,
+die dessen `testIgnore` ausschließt (heute die zwei PWA-Specs, die nur über `pnpm e2e:pwa`
+laufen), darf in einer Gruppe stehen. Beides prüft `scripts/e2e-gruppen.test.ts`.
 
 Eine Reihe von Fehlern findet **kein** Tor, weil sie erst in einem echten Browser oder bei einem
 echten Request sichtbar werden. Sie sind in `CLAUDE.md` und `docs/design/README.md` aufgelistet
