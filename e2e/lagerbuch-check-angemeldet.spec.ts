@@ -45,16 +45,34 @@ import {
  * Host, Gruppe, Codes und Fahrzeugnamen kommen ausschließlich aus
  * `e2e/helpers/lagerbuch.ts` (Festlegung H9, Ruling A9) — kein Literal.
  *
- * ⚠️ DIESE DATEI SCHLIESST KEINEN CHECK AB und schreibt deshalb weder eine
- * `checks`- noch eine `buchungen`-Zeile. Sie prüft den EINSTIEG; was der
+ * ⚠️ WAS DIESE DATEI AN DATEN HINTERLÄSST — vollständig, weil ein Worker und
+ * eine SQLite-Datei jede Spec danach erben:
+ *   - `buchungen`: zwei Zeilen je Lauf des Entnahme-Durchlaufs (Umlagerung hat
+ *     zwei Legs), auf `e2e-konto-artikel` — einem Artikel, der AUSSCHLIESSLICH
+ *     dieser Datei gehört (`e2e/seed-lagerbuch.ts`, `angemeldetFixtures`). Er
+ *     liegt mit 50 Stück im Handlager und wird nicht wieder aufgefüllt; der
+ *     Lauf entnimmt 1. Auf `e2e-artikel` zu buchen wäre falsch gewesen: der
+ *     Artikel gehört `lagerbuch-helfer.spec.ts`, und dessen Zusicherungen
+ *     hängen an seinem Bestand.
+ *   - `helfer_ziel`-Cookie: die Zielwahl gilt pro Browserkontext, nicht pro
+ *     Datenbank — sie überlebt den Lauf nicht.
+ *   - `tokens.last_used_at` von `E2E_TOKEN_FAHRZEUG` wandert beim Einlösen;
+ *     keine Spec prüft ihn gegen NULL (alle vergleichen differenziell).
+ *
+ * KEIN Check wird abgeschlossen — es entsteht also keine `checks`-Zeile. Was der
  * Abschluss in die append-only-Tabellen schreibt, hält `_actions/check.test.ts`
  * ohne Browser fest.
- *
- * ⚠️ `E2E_TOKEN_FAHRZEUG` ist der gebundene Code aus
- * `lagerbuch-fahrzeug-kaertchen.spec.ts`; er wird hier nur eingelöst, nicht
- * verändert. `tokens.last_used_at` wandert dabei — keine Spec prüft ihn gegen
- * NULL (beide vergleichen differenziell).
  */
+
+/**
+ * DER ARTIKEL, DER NUR DIESER DATEI GEHÖRT (`angemeldetFixtures` im Seed).
+ *
+ * ⚠️ NICHT `e2e-artikel`: der gehört `lagerbuch-helfer.spec.ts`, und dessen
+ * Zusicherungen hängen an seinem Handlager-Bestand. Eine Buchung von hier aus
+ * senkte ihn bei jedem Lauf und bei jedem Retry — und machte jene Spec still
+ * reihenfolge- und wiederholungsabhängig.
+ */
+const KONTO_ARTIKEL = "e2e-konto-artikel";
 
 /**
  * DER KNOPF IM SEITENKOPF, NICHT DER EINTRAG IN DER SEITENLEISTE.
@@ -177,8 +195,8 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
      * aufgefallen — und nur hier.
      */
     await page.goto(lagerbuchUrl("/helfer"));
-    await klickeWennRuhig(page.getByRole("link", { name: /E2E Verbandpäckchen/ }));
-    await page.waitForURL(/\/a\/e2e-artikel/);
+    await klickeWennRuhig(page.getByRole("link", { name: /E2E Konto Kompresse/ }));
+    await page.waitForURL(new RegExp(`/a/${KONTO_ARTIKEL}`));
 
     // Kein Kärtchen im Spiel: der Kopf nennt die Person.
     await expect(page.getByText(/^Angemeldet: /)).toBeVisible();
@@ -188,18 +206,33 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
     await klickeWennRuhig(page.locator("[data-rolle='entnahme-ziel'] a"));
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, alsText(E2E_FAHRZEUG_NAME));
-    await page.waitForURL(/\/a\/e2e-artikel/);
+    await page.waitForURL(new RegExp(`/a/${KONTO_ARTIKEL}`));
 
-    await page.getByRole("button", { name: "Entnahme buchen" }).click();
+    /*
+     * ⚠️ DIE ANTWORT WIRD GEPRÜFT, nicht nur der Satz danach — zweite Testregel
+     * aus Falle 10 (`CLAUDE.md`, `AGENTS.md`). Ohne sie läuft eine abgelehnte
+     * oder abgebrochene Server-Action still ins Zeitbudget und meldet sich als
+     * „gebucht“ wurde nicht sichtbar — also als etwas ganz anderes als der
+     * tatsächliche HTTP-Fehler.
+     */
+    const [antwort] = await Promise.all([
+      page.waitForResponse((r) =>
+        r.request().method() === "POST" && r.url().includes(`/a/${KONTO_ARTIKEL}`)),
+      page.getByRole("button", { name: "Entnahme buchen" }).click(),
+    ]);
+    expect(
+      antwort.status(),
+      `die Buchung muss serverseitig ankommen — Antwort war ${antwort.status()}`,
+    ).toBeLessThan(400);
     await expect(page.getByText(/gebucht/i)).toBeVisible();
   });
 
   test("das Artikelblatt bleibt erreichbar — als Link statt als Umleitung", async ({ page }) => {
     // Was die frühere Umleitung geleistet hat, leistet jetzt ein Link auf der
     // Seite. Verloren geht dadurch nichts; es kostet einen Klick statt keinen.
-    await page.goto(lagerbuchUrl("/a/e2e-artikel"));
+    await page.goto(lagerbuchUrl(`/a/${KONTO_ARTIKEL}`));
     await klickeWennRuhig(page.getByRole("link", { name: "In der Verwaltung öffnen" }));
-    await page.waitForURL((u) => u.searchParams.get("a") === "e2e-artikel");
+    await page.waitForURL((u) => u.searchParams.get("a") === KONTO_ARTIKEL);
   });
 
   test("ein gescanntes Kärtchen gewinnt gegen die Anmeldung (DRK-302 bleibt)", async ({ page }) => {
