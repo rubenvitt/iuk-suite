@@ -551,6 +551,17 @@ export function CheckFlow({
     );
 
     const zurNachfuellung = () => {
+      /*
+       * DER RIEGEL GEHOERT DER FUNKTION, NICHT DEM KNOPF (DRK-304). Das
+       * `disabled` unten sichert genau EINEN Pfad; ein zweiter — eine
+       * Enter-Taste, ein Kuerzel, ein spaeterer „ueberspringen"-Weg — haette
+       * ihn stillschweigend umgangen, und die Rechnung darunter arbeitet mit
+       * `istWert(p)` OHNE eigene Pruefung: der greedy Vorschlag laege bei jeder
+       * unberuehrten Position auf der vollen Luecke, und der Abschluss schriebe
+       * eine Leerbuchung, die niemand gezaehlt hat.
+       */
+      if (ungezaehlt > 0) return;
+
       // Greedy je Artikel: die Handlager-Verfuegbarkeit ueber die Positionen
       // (Anzeige-Reihenfolge) verteilen, damit der Vorschlag nicht mehr
       // verspricht, als der Handlager hergibt (1:1, `:222-238`).

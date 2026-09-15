@@ -342,6 +342,31 @@ describe("CheckFlow — der Zaehlschritt", () => {
     expect(weiter().disabled).toBe(false);
   });
 
+  it("der Riegel steht in `zurNachfuellung` SELBST, nicht nur am Knopf (DRK-304)", () => {
+    /*
+     * Das `disabled` sichert genau EINEN Pfad. Ein zweiter — eine Enter-Taste,
+     * ein Kuerzel, ein spaeter angehaengter „ueberspringen"-Weg — umginge ihn,
+     * ohne dass ein Tor etwas meldet: `zurNachfuellung` rechnet mit `istWert(p)`
+     * und saehe jede unberuehrte Position als volle Luecke. Der Wechsel in den
+     * Nachfuellschritt muss deshalb an der FUNKTION scheitern, nicht am Knopf.
+     *
+     * ⚠️ WARUM EIN QUELLTEXT-SCAN UND KEIN DOM-TEST. Der naheliegende Weg waere,
+     * das Attribut im Test zu entfernen und dann zu klicken. DAS MISST NICHTS,
+     * und zwar gemessen, nicht vermutet: React filtert Maus-Ereignisse anhand
+     * seiner EIGENEN Props, nicht anhand des DOM
+     * (`react-dom-client.development.js:3292`, `props.disabled` in der
+     * `onClick`-Verzweigung). Nach `el.disabled = false` steht das Attribut auf
+     * `null`, der Klick wird zugestellt — und der Handler laeuft trotzdem nicht.
+     * Ein so gebauter Test ist gruen, OB DER WAECHTER DA IST ODER NICHT
+     * (nachgestellt: mit entferntem `if` blieben alle 52 Tests gruen).
+     *
+     * Der Scan prueft die ERSTE Anweisung der Funktion — ein Waechter weiter
+     * unten liesse die greedy Rechnung schon laufen.
+     */
+    const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(quelle).toMatch(/const zurNachfuellung = \(\) => \{\s*if \(ungezaehlt > 0\) return;/);
+  });
+
   it("eine noch nicht gezaehlte Zeile sagt das — statt „nachfuellen N\" zu behaupten", async () => {
     /*
      * Die Luecke einer unberuehrten Position ist UNBEKANNT, nicht „voll".
@@ -478,13 +503,16 @@ describe("CheckFlow — der Zaehlschritt", () => {
      * ZWEI Chips je Zeile seit DRK-304: der Zaehlstand und der Verfall. Die
      * Zusicherung dieses Tests ist unveraendert — der Verfallschip steht in
      * JEDER Zeile desselben Artikels, und nur deshalb darf die Hinweiszeile
-     * bei Wiederholzeilen fehlen. Der Vergleich laeuft deshalb ueber das
-     * ganze PAAR und nicht ueber einen Index.
+     * bei Wiederholzeilen fehlen.
+     *
+     * ⚠️ GEZAEHLT WIRD NACH INHALT, NICHT NACH INDEX. Ein `chips[1]` haengt an
+     * der Reihenfolge der JSX-Zweige: wer den Zaehlstand hinter den Verfall
+     * schoebe, liesse den Test gruen auf dem falschen Chip laufen — und damit
+     * genau die Aussage ungeprueft, um die es hier geht.
      */
     expect(chips).toHaveLength(4);
-    expect(chips[0]).toContain("noch nicht gezählt");
-    expect(chips[1]).toContain("09/26");
-    expect(chips.slice(2)).toEqual(chips.slice(0, 2));
+    expect(chips.filter((c) => c.includes("09/26"))).toHaveLength(2);
+    expect(chips.filter((c) => c.includes("noch nicht gezählt"))).toHaveLength(2);
   });
 
   it("die Live-Vorschau zaehlt ablaufende Artikel mit", async () => {
