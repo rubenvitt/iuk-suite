@@ -13,9 +13,9 @@ const notiz: Releasenotiz = {
         "dann, in welchen Schrank die Ware kommt.",
     ),
     absatz(
-      "Im Artikeldetail und in der Helferansicht siehst du bei jeder Charge, wo wie viel davon " +
-        "liegt, samt Zugangshinweis — auch eine Charge, die vollständig auf einem Fahrzeug " +
-        "liegt, war vorher gar nicht zu sehen.",
+      "In den Artikeldetails und nach dem Scannen des Regaletiketts siehst du bei jeder Charge, " +
+        "wo wie viel davon liegt, samt Zugangshinweis — auch eine Charge, die vollständig auf " +
+        "einem Fahrzeug liegt, war vorher gar nicht zu sehen.",
     ),
     hinweis(
       "Lege eure Schränke unter Verwaltung → Lagerorte an, sonst ändert sich für niemanden etwas.",
