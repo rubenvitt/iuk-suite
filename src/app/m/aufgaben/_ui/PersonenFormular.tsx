@@ -150,7 +150,7 @@ export function PersonenFormular({
         treffer?.userId ?? "",
         feldWert(state, "name", ""),
         feldWert(state, "initialen", ""),
-      ].join(" ")
+      ].join("\0")
     : undefined;
 
   const nameFehler = feldFehler(state, "name");
