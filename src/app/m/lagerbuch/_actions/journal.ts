@@ -5,7 +5,7 @@ import { getDb } from "../_db/client";
 import { JOURNAL_GRENZE, JOURNAL_SUCHE_MAX } from "../_lib/grenzen";
 import { journalEintraege } from "../_lib/lesepfade/journal";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
-import { TYPEN } from "../verwaltung/(arbeit)/journal/journalFilterLogik";
+import { VORGANG_ARTEN } from "../_lib/vorgang";
 import { journalZeileDTO, type JournalZeileDTO } from "../_lib/journalDTO";
 
 /**
@@ -33,7 +33,11 @@ const CursorSchema = z.object({
 
 const AnfrageSchema = z.object({
   q: z.string().max(JOURNAL_SUCHE_MAX).optional(),
-  typ: z.enum(TYPEN).optional(),
+  /** Die VORGANGSART, dieselbe Aufzaehlung wie im Auswahlfeld (DRK-344).
+   *  ⚠️ Der Nachschlag MUSS denselben Filter fahren wie die erste Seite —
+   *  faellt hier ein Wert durch, blaettert die Tabelle ab Seite zwei durch eine
+   *  ANDERE Treffermenge. */
+  vorgang: z.enum(VORGANG_ARTEN).optional(),
   von: z.string().datetime().optional(),
   bis: z.string().datetime().optional(),
   cursor: CursorSchema.nullable().optional(),
@@ -59,12 +63,12 @@ export async function naechsteJournalSeite(
 
   const gelesen = AnfrageSchema.safeParse(anfrage);
   if (!gelesen.success) return { ok: false, fehler: ABRUF_FEHLER };
-  const { q, typ, von, bis, cursor } = gelesen.data;
+  const { q, vorgang, von, bis, cursor } = gelesen.data;
 
   try {
     const ergebnis = journalEintraege(getDb(), {
       q: q || undefined,
-      typ,
+      vorgang,
       von: von ? new Date(von) : undefined,
       bis: bis ? new Date(bis) : undefined,
       grenze: JOURNAL_GRENZE,

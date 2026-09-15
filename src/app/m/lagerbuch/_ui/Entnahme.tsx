@@ -171,24 +171,26 @@ export function Entnahme({
             jedem Artikel sichtbar sein — sonst lenkt eine vergessene Wahl
             still Bestand um.
           */}
-          <div className={s.zeile} style={{ borderTop: "none", padding: "0 0 11px" }} data-rolle="entnahme-ziel">
-            <div className={s.zeileHaupt}>
-              <div className={s.fussnote}>ZIEL</div>
-              <div className={s.zeileName}>
-                {ziel === null
-                  ? "Noch nichts gewählt"
-                  : ziel.art === "fahrzeug"
-                    ? ziel.name
-                    : "Kein Fahrzeug — Verbrauch"}
-              </div>
-            </div>
-            <Link className={s.rueckweg} href={zielWahlWeg}>
-              {ziel === null ? "Ziel wählen" : "Ändern"}
+          <div
+            className={`${s.zeile} ${s.zielZeile}`}
+            style={{ borderTop: "none", padding: "11px 0" }}
+            data-rolle="entnahme-ziel"
+          >
+            <span className={s.zeileHaupt}>Ziel</span>
+            <span className={`${s.zielWert} ${ziel === null ? s.zielOffen : ""}`}>
+              {ziel === null
+                ? "Noch nichts gewählt"
+                : ziel.art === "fahrzeug"
+                  ? ziel.name
+                  : "Kein Fahrzeug — Verbrauch"}
+            </span>
+            <Link className={s.zielAendern} href={zielWahlWeg}>
+              {ziel === null ? "Wählen" : "Ändern"}
             </Link>
           </div>
 
           <button
-            className={`${s.knopf} ${s.knopfRot}`}
+            className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}
             type="button"
             disabled={ziel === null || detail.bestand === 0 || laeuft}
             onClick={absenden}

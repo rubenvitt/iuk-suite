@@ -4,19 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { Button, DatePicker, Flex, Input, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
-import { typLabel } from "../../../_lib/format";
 import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
+import { vorgangLabel } from "../../../_lib/vorgang";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
 import {
-  TYPEN,
+  VORGANG_ARTEN,
   mitGetipptem,
   normalisiereJournalTag,
   type JournalFilterWerte,
 } from "./journalFilterLogik";
 
-export { TYPEN, deckelText, mitGetipptem } from "./journalFilterLogik";
+export { VORGANG_ARTEN, deckelText, mitGetipptem } from "./journalFilterLogik";
 
 type JournalFilterProps = JournalFilterWerte & { hinweise: string[] };
 
@@ -38,7 +38,7 @@ export function JournalFilter({
   const committedQ = useRef(q);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const sichererTyp = (TYPEN as readonly string[]).includes(typ) ? typ : "";
+  const sichererTyp = (VORGANG_ARTEN as readonly string[]).includes(typ) ? typ : "";
   const sicherVon = normalisiereJournalTag(von);
   const sicherBis = normalisiereJournalTag(bis);
 
@@ -123,9 +123,16 @@ export function JournalFilter({
           style={{ minWidth: 180 }}
           value={sichererTyp || undefined}
           onChange={(wert) => setParam({ typ: wert ?? "" })}
-          options={TYPEN.map((wert) => ({
+          /*
+            ⚠️ SECHS EINTRAEGE, NICHT VIER (DRK-344) — und „Korrektur" meint
+            hier die Korrektur OHNE verfeinerndes Praefix. Gefiltert wird nach
+            dem, was in der Spalte STEHT: wer „Aussonderung" waehlt, bekommt
+            die Zeilen, die „Aussonderung" heissen. Begruendung an
+            `vorgangBedingung` im Lesepfad.
+          */
+          options={VORGANG_ARTEN.map((wert) => ({
             value: wert,
-            label: typLabel(wert),
+            label: vorgangLabel(wert),
           }))}
         />
         <DatePicker

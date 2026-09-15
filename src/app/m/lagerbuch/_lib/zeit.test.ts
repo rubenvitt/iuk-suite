@@ -56,6 +56,14 @@ describe.each(ZONEN)("unter Prozess-TZ %s", (tz) => {
     expect(fmtDatumZeit(new Date("2026-08-02T23:30:00Z"))).toBe("03.08.2026, 01:30");
   });
 
+  it("fmtDatumZeit trägt das Jahr der ZONE, nicht das der Prozess-TZ", () => {
+    // Silvester 23:30 Berlin ist unter UTC noch der 31.12. des Vorjahres — der
+    // Jahreswechsel ist der eine Rand, an dem ein falsches Jahr auch bei
+    // richtigem Tag herauskäme.
+    expect(fmtDatumZeit(new Date("2026-12-31T22:30:00Z"))).toBe("31.12.2026, 23:30");
+    expect(fmtDatumZeit(new Date("2026-12-31T23:30:00Z"))).toBe("01.01.2027, 00:30");
+  });
+
   it("uhrzeit liefert HH:MM in der Zone", () => {
     expect(uhrzeit(new Date("2026-08-02T23:30:00Z"))).toBe("01:30");
   });

@@ -1,19 +1,21 @@
 import { zeitraumAus } from "../../../_lib/format";
 import { JOURNAL_SUCHE_MAX } from "../../../_lib/grenzen";
-import type {
-  BuchungTyp,
-  JournalFilter as JournalLeseFilter,
-} from "../../../_lib/lesepfade/journal";
+import type { JournalFilter as JournalLeseFilter } from "../../../_lib/lesepfade/journal";
+import { VORGANG_ARTEN, type Vorgangsart } from "../../../_lib/vorgang";
 
-export const TYPEN = [
-  "zugang",
-  "entnahme",
-  "korrektur",
-  "umlagerung",
-] as const;
+export { VORGANG_ARTEN };
 
 export type JournalFilterWerte = {
   q: string;
+  /**
+   * ⚠️ DER SCHLUESSEL HEISST WEITER `typ`, DER WERT IST ABER EINE VORGANGSART
+   * (DRK-344). Das ist kein Versehen: dieser Name steht in der ADRESSZEILE, und
+   * das Journal wird ausdruecklich als gespeicherter Zeitraumbericht verlinkt
+   * (`zeitraumAus`). Eine Umbenennung liesse jeden bestehenden Link still
+   * ungefiltert auflaufen — die Adresszeile zeigte einen Filter, die Tabelle
+   * die ganze Historie. Der neue Name gilt ab dem Lesepfad (`filter.vorgang`);
+   * uebersetzt wird genau hier, an der einen Naht.
+   */
   typ: string;
   von: string;
   bis: string;
@@ -23,13 +25,13 @@ export type JournalRohParameter = Partial<JournalFilterWerte>;
 
 export type JournalParameterErgebnis = {
   werte: JournalFilterWerte;
-  filter: Pick<JournalLeseFilter, "q" | "typ" | "von" | "bis">;
+  filter: Pick<JournalLeseFilter, "q" | "vorgang" | "von" | "bis">;
   hinweise: string[];
   hatFilter: boolean;
 };
 
-function istBuchungTyp(wert: string | undefined): wert is BuchungTyp {
-  return (TYPEN as readonly string[]).includes(wert ?? "");
+function istVorgangsart(wert: string | undefined): wert is Vorgangsart {
+  return (VORGANG_ARTEN as readonly string[]).includes(wert ?? "");
 }
 
 /** Nur ein echter Kalendertag darf spaeter an dayjs/DatePicker gelangen. */
@@ -52,17 +54,17 @@ export function journalParameterAus(
   // und jeder Nachschlag weist ihn ab; die Tabelle stuende dann auf den ersten
   // hundert Treffern und meldete beim Weiterblaettern dauerhaft einen Fehler.
   const q = (parameter.q?.trim() ?? "").slice(0, JOURNAL_SUCHE_MAX);
-  const typ = istBuchungTyp(parameter.typ) ? parameter.typ : undefined;
+  const vorgang = istVorgangsart(parameter.typ) ? parameter.typ : undefined;
   const zeitraum = zeitraumAus(parameter.von, parameter.bis);
   const von = zeitraum.von ? parameter.von?.trim() ?? "" : "";
   const bis = zeitraum.bis ? parameter.bis?.trim() ?? "" : "";
-  const werte = { q, typ: typ ?? "", von, bis };
+  const werte = { q, typ: vorgang ?? "", von, bis };
 
   return {
     werte,
     filter: {
       q: q || undefined,
-      typ,
+      vorgang,
       von: zeitraum.von,
       bis: zeitraum.bis,
     },

@@ -190,9 +190,18 @@ describe("checklisteFuerFahrzeug", () => {
     // leere Flasche; auf einem gedruckten Blatt schickt das jemanden los, um
     // eine VOLLE Flasche zu tauschen.
     const blatt = checklisteFuerFahrzeug(t.db, "fz-a", NOW)!;
+    // `wechselAbBar` seit DRK-308, und zwar FERTIG GERECHNET in bar: auf dem
+    // Blatt steht jemand am Manometer, und 25 % von 300 bar sind dort keine
+    // Kopfrechenaufgabe wert.
     expect(blatt.flaschen).toEqual([
-      { id: "o2-gemessen", name: "Flasche A", nennfuelldruckBar: 200, letzterDruck: 180 },
-      { id: "o2-nie", name: "Flasche B", nennfuelldruckBar: 300, letzterDruck: null },
+      {
+        id: "o2-gemessen", name: "Flasche A", nennfuelldruckBar: 200,
+        letzterDruck: 180, wechselAbBar: 50,
+      },
+      {
+        id: "o2-nie", name: "Flasche B", nennfuelldruckBar: 300,
+        letzterDruck: null, wechselAbBar: 75,
+      },
     ]);
   });
 

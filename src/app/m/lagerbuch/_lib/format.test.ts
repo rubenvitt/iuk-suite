@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fmtVerfall, chargeText, ampelTon, geraetFaelligChip, typLabel, zeitraumAus } from "./format";
+import { fmtVerfall, chargeText, ampelTon, geraetFaelligChip, zeitraumAus } from "./format";
 import type { DatumFaelligkeit } from "./domain/geraet";
 import { ZEITZONE } from "./zeit";
 
@@ -98,18 +98,6 @@ describe("geraetFaelligChip — bei objekt OHNE Datum gibt es KEINEN Chip", () =
       .toEqual({ ton: "gelb", text: "MTK in 12 T" });
     expect(geraetFaelligChip("objekt", f({ tageBisFaellig: 90, ampel: "gruen" })))
       .toEqual({ ton: "ok", text: "läuft in 90 T ab" });
-  });
-});
-
-describe("typLabel", () => {
-  it("uebersetzt die vier Buchungstypen", () => {
-    expect(typLabel("zugang")).toBe("Wareneingang");
-    expect(typLabel("entnahme")).toBe("Entnahme");
-    expect(typLabel("korrektur")).toBe("Korrektur");
-    expect(typLabel("umlagerung")).toBe("Umlagerung");
-  });
-  it("faellt bei einem unbekannten Typ auf den Rohwert zurueck", () => {
-    expect(typLabel("was-neues")).toBe("was-neues");
   });
 });
 

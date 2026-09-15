@@ -64,6 +64,16 @@ export type CheckFlasche = {
   name: string;
   nennfuelldruckBar: number;
   /**
+   * % vom Nennfuelldruck, ab dem der Wechselhinweis erscheint (DRK-308).
+   *
+   * ⚠️ EIN PROP, KEIN IMPORT. Diese Datei ist eine Client-Insel; ein Wert aus
+   * einem Servermodul kaeme hier als Client-Referenz an statt als Zahl
+   * (Falle 6, `CLAUDE.md`). Die Zahl kommt aus `o2FlaschenFuerLagerort` und
+   * damit aus der Stammzeile DIESER Flasche — eine Konstante an dieser Stelle
+   * zeigte etwas anderes an, als der Abschluss danach zaehlt.
+   */
+  wechselAbProzent: number;
+  /**
    * Der zuletzt gemessene Druck, oder `null`, wenn NIE gemessen wurde.
    *
    * ⚠️ Seit Teil 3 nullbar, und der Grund ist ein Fehlalarm: eine fehlende
@@ -398,7 +408,7 @@ export function CheckFlow({
               <HelferChip ton="rot">{ergebnis.geraeteAuffaellig} Gerät(e) auffällig</HelferChip>
             )}
             {ergebnis.flaschenAuffaellig > 0 && (
-              <HelferChip ton="rot">{ergebnis.flaschenAuffaellig} Flasche(n) niedrig</HelferChip>
+              <HelferChip ton="rot">{ergebnis.flaschenAuffaellig} Flasche(n) wechseln</HelferChip>
             )}
             {ergebnis.flaschenNichtBewertbar > 0 && (
               <HelferChip ton="grau">
@@ -434,7 +444,7 @@ export function CheckFlow({
           )}
           {ergebnis.flaschenAuffaellig > 0 && (
             <p className={s.fussnote}>
-              Flaschen mit niedrigem Druck bitte tauschen oder der Verwaltung melden.
+              Flaschen mit erreichtem Wechselwert bitte tauschen oder der Verwaltung melden.
             </p>
           )}
           {ergebnis.flaschenNichtBewertbar > 0 && (
@@ -1013,8 +1023,12 @@ export function CheckFlow({
 
   // ——— Schritt: Sauerstoff ———
   if (aktivePhase === "sauerstoff") {
-    const niedrig = flaschen.filter(
-      (f) => f.nennfuelldruckBar > 0 && o2Status(druckWert(f), f.nennfuelldruckBar).niedrig,
+    // ⚠️ `f.wechselAbProzent` KOMMT ALS PROP HEREIN, nicht aus einem Import
+    // (DRK-308). Diese Datei ist eine Client-Insel; ein Wert aus einem
+    // Servermodul kaeme hier als Client-Referenz an, nicht als Zahl (Falle 6).
+    const zuWechseln = flaschen.filter(
+      (f) => f.nennfuelldruckBar > 0
+        && o2Status(druckWert(f), f.nennfuelldruckBar, f.wechselAbProzent).wechseln,
     ).length;
     return (
       <>
@@ -1044,7 +1058,9 @@ export function CheckFlow({
             // Ohne bekannten Nennfuelldruck ist der Fuellstand NICHT BEWERTBAR
             // (§5.12) — `o2Status` gaebe hier „rot / niedrig" zurueck, und die
             // Helferin liefe los, um eine VOLLE Flasche zu tauschen.
-            const st = f.nennfuelldruckBar > 0 ? o2Status(wert, f.nennfuelldruckBar) : null;
+            const st = f.nennfuelldruckBar > 0
+              ? o2Status(wert, f.nennfuelldruckBar, f.wechselAbProzent)
+              : null;
             return (
               <div className={s.zeile} key={f.id}>
                 {/*
@@ -1069,7 +1085,7 @@ export function CheckFlow({
                 */}
                 <div
                   className={`${s.pruefKreis} ${
-                    st === null ? "" : st.niedrig ? s.pruefKreisFehl : s.pruefKreisOk
+                    st === null ? "" : st.wechseln ? s.pruefKreisFehl : s.pruefKreisOk
                   }`}
                 />
                 <div className={s.zeileHaupt}>
@@ -1094,7 +1110,16 @@ export function CheckFlow({
                     ) : (
                       <HelferChip ton="grau">nicht bewertbar</HelferChip>
                     )}
-                    {st?.niedrig && <HelferChip ton="rot">niedrig</HelferChip>}
+                    {/* ⚠️ DER HINWEIS NENNT SEINEN GRENZWERT (DRK-308). Ein
+                        nacktes „niedrig" liess offen, ab wann es gilt — und die
+                        Schwelle ist ab jetzt je Flasche einstellbar, also nicht
+                        mehr aus dem Kopf bekannt. Die bar-Zahl steht dabei VOR
+                        der Prozentzahl: am Manometer wird bar abgelesen. */}
+                    {st?.wechseln && (
+                      <HelferChip ton="rot">
+                        wechseln – ab {st.wechselAbBar} bar ({st.wechselAbProzent} %)
+                      </HelferChip>
+                    )}
                   </div>
                 </div>
                 {/* max grosszuegig ueber Nennfuelldruck: eine ueberfuellte
@@ -1115,7 +1140,11 @@ export function CheckFlow({
 
         <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
-            <b>{niedrig === 0 ? `${flaschen.length} Flasche(n)` : `${niedrig} niedrig`}</b>
+            <b>
+              {zuWechseln === 0
+                ? `${flaschen.length} Flasche(n)`
+                : `${zuWechseln} wechseln`}
+            </b>
             <div>Bestätigen schließt den Check ab</div>
           </div>
           <button
