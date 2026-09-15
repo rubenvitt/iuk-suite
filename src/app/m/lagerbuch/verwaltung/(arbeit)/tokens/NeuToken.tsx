@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Alert, Button, Form, Input, Modal, Radio, Select } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { createToken } from "../../../_actions/tokens";
+import { einheitenartLabel, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Ikone } from "../../../_ui/ikonen";
 
@@ -41,7 +42,10 @@ export function NeuToken({
   ziele,
 }: {
   ziele: {
-    fahrzeuge: { id: string; name: string; kennung: string | null }[];
+    fahrzeuge: {
+      id: string; name: string; kennung: string | null;
+      einheitenart: Einheitenart | null;
+    }[];
     artikel: { id: string; name: string; fach: string }[];
   };
 }) {
@@ -95,7 +99,10 @@ export function NeuToken({
   const fahrzeugOptionen: ZielOption[] = ziele.fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
     label: fahrzeug.name,
-    keywords: `${fahrzeug.name} ${fahrzeug.kennung ?? ""}`,
+    // DRK-309: „tasche" findet jede Tasche, auch ohne das Wort im Namen und
+    // ohne Kennung — dieselbe Regel wie in der Zielwahl der Artikelschublade.
+    keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
+      .filter(Boolean).join(" "),
   }));
   const artikelOptionen: ZielOption[] = ziele.artikel.map((artikel) => ({
     value: artikel.id,
@@ -151,7 +158,14 @@ export function NeuToken({
           <Form.Item name="zielArt" label="Zielart">
             <Radio.Group
               options={[
-                { value: "fahrzeug", label: "Fahrzeug" },
+                /*
+                 * ⚠️ DER WERT BLEIBT "fahrzeug", DIE BESCHRIFTUNG NICHT
+                 * (DRK-309). `tokens.ziel_typ` ist ein Enum in der Datenbank
+                 * und steht in bestehenden Zeilen; die Beschriftung ist das,
+                 * was jemand liest — und ein Kärtchen für eine Sanitätstasche
+                 * wird hier angelegt, nicht unter „Artikel".
+                 */
+                { value: "fahrzeug", label: "Fahrzeug oder Tasche" },
                 { value: "artikel", label: "Artikel" },
                 { value: "liste", label: "Artikel-Liste" },
               ]}

@@ -51,8 +51,16 @@ export function sucheTrifft(z: TokenAnzeigeZeile, begriff: string): boolean {
   return !nadel || falte(`${z.code} ${z.label} ${z.zielName ?? ""}`).includes(nadel);
 }
 
+/**
+ * ⚠️ DIE SCHLUESSEL SIND DATENBANKWERTE, DIE TEXTE NICHT (DRK-309).
+ * `tokens.ziel_typ` kennt nur „fahrzeug" und „artikel"; ein Kärtchen an einer
+ * Tasche traegt deshalb „fahrzeug" — und wuerde in dieser Spalte als
+ * „Fahrzeug" ausgewiesen, obwohl es an einer Tasche klebt. Die Spalte nennt
+ * daneben ohnehin den NAMEN des Ziels; hier steht die Gruppe, und die heisst
+ * nach beidem.
+ */
 const ZIEL_TEXT: Record<ZielFilter, string> = {
-  fahrzeug: "Fahrzeug",
+  fahrzeug: "Fahrzeug oder Tasche",
   artikel: "Artikel",
   liste: "Artikel-Liste",
 };

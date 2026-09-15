@@ -141,8 +141,13 @@ const LISTE = {
 const ZEILEN = [FAHRZEUG, ARTIKEL, LISTE];
 const ZIELE = {
   fahrzeuge: [
-    { id: "rtw-1", name: "RTW Alpha", kennung: "UE-RK 1234" },
-    { id: "rtw-2", name: "RTW Beta", kennung: null },
+    { id: "rtw-1", name: "RTW Alpha", kennung: "UE-RK 1234",
+      einheitenart: "fahrzeug" as const },
+    { id: "rtw-2", name: "RTW Beta", kennung: null, einheitenart: "fahrzeug" as const },
+    // DRK-309: eine Tasche ohne Kennung und ohne das Wort im Namen — sonst
+    // waere „tasche" nicht von einer Namenssuche zu unterscheiden.
+    { id: "ta-1", name: "Rucksack Betreuung", kennung: null,
+      einheitenart: "tasche" as const },
   ],
   artikel: [
     { id: "a1", name: "Mullbinde", fach: "A1" },
@@ -569,6 +574,49 @@ describe("NeuToken", () => {
       label: "Kompresse",
       keywords: "Kompresse Notfallfach",
     })).toBe(false);
+  });
+
+  /**
+   * DRK-309 — DIE ZIELWAHL FINDET EINE TASCHE UEBER IHRE ART.
+   *
+   * ⚠️ UEBER DAS ECHTE FELD, nicht ueber selbstgebaute `keywords`. Dass
+   * `zielFilter` Suchworte beachtet, sagt der Fall darueber; dass `NeuToken`
+   * die Art auch WIRKLICH hineinschreibt, sagt er nicht — und genau diese
+   * Luecke war ein Reviewbefund an der Geschwisterstelle. Ein Kaertchen klebt
+   * hinterher laminiert am gewaehlten Traeger.
+   */
+  it("findet eine Tasche ueber ihre ART und nennt die Gruppe nach beiden Arten", async () => {
+    await mount(<NeuToken ziele={ZIELE} />);
+    await oeffneNeuToken();
+
+    // Die Gruppe heisst nach beidem — der DB-Wert bleibt „fahrzeug".
+    expect(document.body.textContent).toContain("Fahrzeug oder Tasche");
+
+    // Die Zielwahl erscheint erst, wenn die Zielart nicht „Artikel-Liste" ist.
+    const gruppe = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-modal label.ant-radio-wrapper"),
+    ).find((element) => element.textContent?.trim() === "Fahrzeug oder Tasche");
+    if (!gruppe) throw new Error("Zielart 'Fahrzeug oder Tasche' nicht gefunden");
+    await clickElement(gruppe.querySelector<HTMLInputElement>("input") ?? gruppe);
+    await warte();
+
+    const ziel = queryPortal<HTMLInputElement>("[aria-label='Ziel auswählen']");
+    await act(async () => {
+      ziel.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await warte();
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(ziel), "value")?.set;
+    if (!setter) throw new Error("Kein value-Setter am Zielfeld");
+    await act(async () => {
+      setter.call(ziel, "tasche");
+      ziel.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await warte();
+
+    expect(Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).map((option) => option.textContent)).toEqual(["Rucksack Betreuung"]);
   });
 
   it("sendet die Artikel-Liste ohne erfundene Zielart und zeigt den Code im offenen Modal", async () => {

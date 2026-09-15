@@ -602,8 +602,11 @@ describe("tokenZiele", () => {
 
     expect(tokenZiele(t.db)).toEqual({
       fahrzeuge: [
-        { id: "fz-alpha", name: "Alpha", kennung: "UE-RK 1" },
-        { id: "fz-zulu", name: "Zulu", kennung: "UE-RK 2" },
+        // DRK-309: `einheitenart` reist als Suchfeld mit — „tasche" findet
+        // sonst keine Tasche, die das Wort nicht im Namen traegt. `null` ist
+        // hier der Zwischenstand aus Migration 0009, den die Fixture nicht setzt.
+        { id: "fz-alpha", name: "Alpha", kennung: "UE-RK 1", einheitenart: null },
+        { id: "fz-zulu", name: "Zulu", kennung: "UE-RK 2", einheitenart: null },
       ],
       artikel: [
         { id: "art-alpha", name: "Absaugkatheter", fach: "A1" },

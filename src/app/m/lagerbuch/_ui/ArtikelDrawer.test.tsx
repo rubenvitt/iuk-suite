@@ -360,6 +360,41 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
     expect(zielFilter("MTW", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
   });
 
+  /**
+   * DRK-309 — DIE ART STEHT IN DEN SUCHWORTEN DER ZIELWAHL.
+   *
+   * ⚠️ UEBER DAS ECHTE FELD, nicht ueber selbstgebaute `keywords`. Dass
+   * `zielFilter` Suchworte beachtet, sagt der Fall darueber; dass die
+   * Schublade die Art auch WIRKLICH hineinschreibt, sagt er nicht — und genau
+   * diese Luecke war ein Reviewbefund an der Geschwisterstelle
+   * (`checks/ChecksFilter.tsx`): ein Kommentar versprach die Suche, waehrend
+   * `keywords` allein aus `kennung` entstand. Die Tasche der Fixture traegt
+   * weder das Wort im Namen noch eine Kennung.
+   */
+  it("findet eine Tasche ueber ihre ART, nicht nur ueber Name und Kennung", async () => {
+    await drawerMounten();
+
+    const ziel = queryPortal<HTMLInputElement>("[aria-label='Ziel-Einheit']");
+    await act(async () => {
+      ziel.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await warte();
+
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(ziel), "value")?.set;
+    if (!setter) throw new Error("Kein value-Setter am Zielfeld");
+    await act(async () => {
+      setter.call(ziel, "tasche");
+      ziel.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await warte();
+
+    const optionen = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).map((option) => option.textContent);
+    expect(optionen).toEqual(["Rucksack Betreuung"]);
+  });
+
   it("bewahrt NEUE_CHARGE plus die serverseitige FEFO-Reihenfolge und blendet Neufelder bei Bestandscharge aus", async () => {
     await drawerMounten();
     expect(existsPortal("[aria-label='Chargennummer']")).toBe(true);

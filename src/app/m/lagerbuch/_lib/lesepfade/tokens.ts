@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { artikel, lagerorte, tokens } from "../../_db/schema";
+import type { Einheitenart } from "../konstanten";
 
 /**
  * Der Lesepfad entsteht in T126. T126 hat hier eine Erweiterung durch T160
@@ -66,11 +67,19 @@ export function tokenListe(db: DB): TokenZeile[] {
 }
 
 /**
- * Nur aktive Ziele sind fuer neue laminierte Codes waehlbar. `kennung` und
- * `fach` werden fuer die spaetere Suche im Select mitgegeben.
+ * Nur aktive Ziele sind fuer neue laminierte Codes waehlbar. `kennung`, `fach`
+ * und die ART werden fuer die spaetere Suche im Select mitgegeben.
+ *
+ * ⚠️ DIE ART GEHOERT DAZU (DRK-309). Eine Tasche traegt kein Kennzeichen, und
+ * ohne sie hatte sie in der Zielwahl fuer ein neues Kaertchen ueberhaupt kein
+ * Suchwort ausser ihrem Namen. Ein Kaertchen zeigt danach auf einen Traeger,
+ * und ein falsch gewaehltes klebt laminiert am falschen.
  */
 export function tokenZiele(db: DB): {
-  fahrzeuge: { id: string; name: string; kennung: string | null }[];
+  fahrzeuge: {
+    id: string; name: string; kennung: string | null;
+    einheitenart: Einheitenart | null;
+  }[];
   artikel: { id: string; name: string; fach: string }[];
 } {
   return {
@@ -79,6 +88,7 @@ export function tokenZiele(db: DB): {
         id: lagerorte.id,
         name: lagerorte.name,
         kennung: lagerorte.kennung,
+        einheitenart: lagerorte.einheitenart,
       })
       .from(lagerorte)
       .where(and(

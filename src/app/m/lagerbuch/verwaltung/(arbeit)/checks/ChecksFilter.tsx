@@ -3,6 +3,7 @@
 import { Button, DatePicker, Flex, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
+import { einheitenartLabel, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
@@ -13,7 +14,11 @@ export type FahrzeugOption = {
   keywords: string;
 };
 
-/** Das Auswahlfeld findet Fahrzeuge über den Namen und das Kennzeichen. */
+/**
+ * Das Auswahlfeld findet Einheiten über Namen, Kennzeichen — und die ART
+ * (DRK-309): „tasche" findet jede Tasche, auch wenn ihr Name das Wort nicht
+ * trägt.
+ */
 export function fahrzeugFilter(
   eingabe: string,
   option?: FahrzeugOption,
@@ -33,7 +38,15 @@ export function ChecksFilter({
   fz: string;
   von: string;
   bis: string;
-  fahrzeuge: { id: string; name: string; kennung: string | null }[];
+  fahrzeuge: {
+    id: string; name: string; kennung: string | null;
+    /**
+     * DRK-309 — Pflichtfeld, kein Optional: ein `einheitenart?` waere in einer
+     * vergessenen Aufrufstelle still `undefined`, und die Suche nach „tasche"
+     * fande dort nichts, ohne dass ein Tor es meldete.
+     */
+    einheitenart: Einheitenart | null;
+  }[];
   hinweise: string[];
 }) {
   const setzen = useUrlFilter();
@@ -57,7 +70,17 @@ export function ChecksFilter({
           options={fahrzeuge.map((fahrzeug) => ({
             value: fahrzeug.id,
             label: fahrzeug.name,
-            keywords: fahrzeug.kennung ?? "",
+            /*
+             * ⚠️ DIE ART GEHOERT IN DIE SUCHWORTE (DRK-309, Reviewrunde 2).
+             * Ohne sie fand „tasche" nur Einheiten, die das Wort zufaellig im
+             * Namen tragen — eine „Sanitätstasche 1" schon, ein „Rucksack
+             * Betreuung" nicht. Sichtbar steht sie NICHT: eine Select-Option
+             * ist eine Zeile, und der Name unterscheidet die Eintraege bereits.
+             * Wo eine Liste eine eigene Meta-Zeile HAT (`FahrzeugWahl`,
+             * `helfer/ziel`), steht die Art dort sichtbar.
+             */
+            keywords: [fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
+              .filter(Boolean).join(" "),
           }))}
           virtual={false}
         />

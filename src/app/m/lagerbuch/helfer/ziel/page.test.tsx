@@ -111,9 +111,19 @@ beforeEach(() => {
     createdAt: new Date(), createdBy: "u-1",
   }).run();
   t.db.insert(lagerorte).values([
-    { id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true, kennung: "HH-DRK 1" },
-    { id: "fz-2", name: "MTW", typ: "fahrzeug", aktiv: true },
-    { id: "fz-alt", name: "RTW alt", typ: "fahrzeug", aktiv: false },
+    { id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true, kennung: "HH-DRK 1",
+      einheitenart: "fahrzeug" },
+    { id: "fz-2", name: "MTW", typ: "fahrzeug", aktiv: true, einheitenart: "fahrzeug" },
+    { id: "fz-alt", name: "RTW alt", typ: "fahrzeug", aktiv: false,
+      einheitenart: "fahrzeug" },
+    /*
+     * DRK-309 — eine TASCHE ohne Kennung und eine Einheit ohne zugeordnete
+     * Art. Beide sind AKTIV: sie stehen in derselben Wahl wie die Fahrzeuge,
+     * und genau dort entschied sich, ob sie unterscheidbar sind.
+     */
+    { id: "ta-1", name: "Rucksack Betreuung", typ: "fahrzeug", aktiv: true,
+      einheitenart: "tasche" },
+    { id: "offen-1", name: "Kiste 3", typ: "fahrzeug", aktiv: true },
   ]).run();
 });
 
@@ -131,13 +141,26 @@ describe("Die Zielwahl", () => {
     await zeige();
 
     const w = wahlen();
-    expect(w.map((z) => z.wert)).toEqual(["verbrauch", "fz:fz-1", "fz:fz-2"]);
+    expect(w.map((z) => z.wert))
+      .toEqual(["verbrauch", "fz:fz-1", "fz:fz-2", "fz:ta-1", "fz:offen-1"]);
     // Der Verbrauch steht OBEN und heißt nach dem, was er bewirkt.
     // DRK-309: NEUTRAL — die Liste darunter fuehrt Fahrzeuge UND Taschen.
     expect(w[0]!.text).toContain("Keine Einheit");
     expect(w[1]!.text).toContain("RTW 1");
     // Die Kennung hilft beim Unterscheiden zweier gleich benannter Wagen.
     expect(w[1]!.text).toContain("HH-DRK 1");
+    /*
+     * ⚠️ UND DIE ART TUT DASSELBE, WO ES KEINE KENNUNG GIBT (DRK-309,
+     * Reviewrunde 2). Eine Tasche traegt kein Kennzeichen — mit der Kennung
+     * allein stand in ihrer Meta-Zeile gar nichts, und „Rucksack Betreuung"
+     * war von einem gleich benannten Fahrzeug nicht zu unterscheiden. Das
+     * wiegt hier schwerer als anderswo: die Wahl gilt fuer ALLE weiteren
+     * Entnahmen mit diesem Kaertchen.
+     */
+    expect(w[1]!.text).toContain("Fahrzeug · HH-DRK 1");
+    expect(w.find((z) => z.wert === "fz:ta-1")!.text).toContain("Tasche");
+    // Der Zwischenstand sagt, was er ist, statt zu schweigen.
+    expect(w.find((z) => z.wert === "fz:offen-1")!.text).toContain("nicht zugeordnet");
     // ⚠️ Ein stillgelegtes Fahrzeug anzubieten hieße, eine Wahl anzubieten,
     // die die Buchung danach ablehnt.
     expect(w.some((z) => z.text.includes("RTW alt"))).toBe(false);

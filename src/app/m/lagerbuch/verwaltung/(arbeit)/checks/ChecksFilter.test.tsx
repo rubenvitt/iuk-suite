@@ -24,8 +24,16 @@ vi.mock("next/navigation", () => ({
 import { ChecksFilter, fahrzeugFilter } from "./ChecksFilter";
 
 const FAHRZEUGE = [
-  { id: "rtw-1", name: "RTW 1", kennung: "UE-RK 1234" },
-  { id: "mtw-1", name: "MTW 1", kennung: "UE-MT 9" },
+  { id: "rtw-1", name: "RTW 1", kennung: "UE-RK 1234", einheitenart: "fahrzeug" as const },
+  { id: "mtw-1", name: "MTW 1", kennung: "UE-MT 9", einheitenart: "fahrzeug" as const },
+  /*
+   * DRK-309 — eine TASCHE, deren Name das Wort „Tasche" NICHT enthaelt und
+   * die keine Kennung traegt. Beides ist Absicht: nur so unterscheidet der
+   * Test die Suche nach der ART von der Suche nach dem NAMEN, und nur so
+   * faellt auf, dass `keywords` aus `kennung` allein fuer eine Tasche leer
+   * waere.
+   */
+  { id: "ta-1", name: "Rucksack Betreuung", kennung: null, einheitenart: "tasche" as const },
 ];
 
 async function warte(): Promise<void> {
@@ -86,6 +94,19 @@ describe("ChecksFilter", () => {
       value: "rtw-1", label: "RTW 1", keywords: "UE-RK 1234",
     })).toBe(false);
 
+    /*
+     * ⚠️ „tasche" MUSS EINE TASCHE FINDEN, DEREN NAME DAS WORT NICHT TRAEGT
+     * (DRK-309, Reviewrunde 2). Sonst ist die Suche nach der Art nicht von der
+     * Suche nach dem Namen zu unterscheiden — und eine Tasche ohne Kennung
+     * hatte vorher UEBERHAUPT keine Suchworte.
+     */
+    expect(fahrzeugFilter("tasche", {
+      value: "ta-1", label: "Rucksack Betreuung", keywords: "Tasche",
+    })).toBe(true);
+    expect(fahrzeugFilter("tasche", {
+      value: "rtw-1", label: "RTW 1", keywords: "UE-RK 1234 Fahrzeug",
+    })).toBe(false);
+
     await mount(
       <ChecksFilter fz="" von="" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
@@ -96,10 +117,24 @@ describe("ChecksFilter", () => {
     await fill("[aria-label='Fahrzeug']", "UE-RK");
     await warte();
 
-    const optionen = Array.from(
+    const optionen = () => Array.from(
       document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
     ).map((option) => option.textContent);
-    expect(optionen).toEqual(["RTW 1"]);
+    expect(optionen()).toEqual(["RTW 1"]);
+
+    /*
+     * ⚠️ UND JETZT UEBER DAS ECHTE FELD, NICHT UEBER SELBSTGEBAUTE
+     * `keywords` (DRK-309, Reviewrunde 2). Die Zusicherungen oben pruefen den
+     * FILTER; dass die Komponente die Art auch WIRKLICH in die Suchworte
+     * schreibt, sagen sie nicht — und genau diese Luecke war der Befund: ein
+     * Kommentar an der Aufrufstelle versprach die Suche, waehrend `keywords`
+     * allein aus `kennung` entstand. Die Tasche traegt hier weder das Wort im
+     * Namen noch eine Kennung; faellt der Aufbau zurueck, findet „tasche"
+     * nichts.
+     */
+    await fill("[aria-label='Fahrzeug']", "tasche");
+    await warte();
+    expect(optionen()).toEqual(["Rucksack Betreuung"]);
   });
 
   it("zeigt verworfene Datumsgrenzen als gekanteten Text und nicht als Fehler-Alert", async () => {
