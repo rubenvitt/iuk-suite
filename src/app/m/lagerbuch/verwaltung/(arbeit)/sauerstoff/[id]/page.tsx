@@ -94,9 +94,10 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
         </Col>
       </Row>
 
-      {status?.niedrig ? (
+      {status?.wechseln ? (
         <div className={s.warnbox} style={{ ...SCHRIFT.text, marginBlockEnd: SPACE.xl }}>
-          Niedriger Druck — die Flasche gehört getauscht.
+          Wechsel fällig — der Füllstand liegt auf oder unter{" "}
+          {status.wechselAbBar} bar ({status.wechselAbProzent} % vom Nennfülldruck).
         </div>
       ) : null}
 
@@ -107,6 +108,7 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
           lagerortId={flasche.lagerortId}
           groesseLiter={flasche.groesseLiter}
           nennfuelldruckBar={flasche.nennfuelldruckBar}
+          wechselAbProzent={flasche.wechselAbProzent}
         />
       </Card>
 
