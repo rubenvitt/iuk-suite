@@ -59,7 +59,10 @@ import {
  *     diese Tabelle nicht an. ⚠️ Der geschriebene Monat MUSS deshalb ausserhalb
  *     der Warnschwelle liegen (`2090-09`), sonst taucht der Artikel in
  *     `/verwaltung/verfall` auf und faerbt eine fremde Spec rot. Begruendung
- *     ausgeschrieben an der Fuellstelle.
+ *     ausgeschrieben an der Fuellstelle. Der DRK-306-Block unten schreibt in
+ *     dieselbe Zeile (`2090-07`) — als VORBEDINGUNG, nicht als Ergebnis: er
+ *     schliesst keinen Check ab und nimmt die Angabe auch nicht zurueck, das
+ *     Leeren bleibt dort im Bild.
  *
  * ⚠️ JEDER TEST STELLT SEINEN ZUSTAND SELBST HER (§12.3): `beforeEach`
  * reaktiviert den Code VOR jedem Test, nicht nur ein `afterEach` danach — sonst
@@ -711,5 +714,131 @@ test.describe("Task 2 (Typografie & Farbe, Teil A) — die Display-Familie im He
       gerendert.split(",")[0],
       `Barlow muss die erste Familie im Stapel sein, nicht nur enthalten: ${gerendert}`,
     ).toContain("Barlow");
+  });
+});
+
+/**
+ * DRK-306 — DER LETZTE CHECK UND DAS LEEREN DES VERFALLSFELDES.
+ *
+ * ⚠️ WARUM DAS NICHT IN VITEST ERLEDIGT IST, obwohl `_ui/CheckFlow.test.tsx`
+ * beide Zusagen bereits am DOM prueft: die eigentliche Aussage von AK4 ist eine
+ * BEDIENBARKEITSAUSSAGE AUF DEM TELEFON. Ein natives `<input type="month">`
+ * verhaelt sich am Schreibtisch und am Telefon verschieden — dort raeumt die
+ * Ruecktaste das Feld, hier oeffnet sich ein Monatsradler, der IMMER einen Monat
+ * liefert. jsdom kennt keine der beiden Bedienungen (es setzt `value` direkt)
+ * und kann den Unterschied strukturell nicht sehen; es kann nur zeigen, dass der
+ * Knopf das Richtige TUT, nicht dass es ihn im Bild ueberhaupt gibt.
+ *
+ * ⚠️ DIESER BLOCK SCHLIESST DEN CHECK NICHT AB und schreibt deshalb KEINE Zeile
+ * — weder nach `checks` noch nach `lagerort_verfall`. Das ist Absicht: die
+ * Datei fuehrt oben vollstaendig auf, was sie hinterlaesst, und ein geloeschter
+ * Verfallseintrag waere eine RUECKNAHME im gemeinsamen Datenbestand eines
+ * Workers. Was danach in der Datenbank steht, besitzt der Test in `§12.1
+ * Punkt 1` weiter oben; hier zaehlt allein, was im Bild passiert.
+ *
+ * ⚠️ DIE VORBELEGUNG WIRD SELBST GESCHRIEBEN, nicht von der Testreihenfolge
+ * geerbt. Der Verfallstest weiter oben legt fuer dasselbe Paar (Fahrzeug,
+ * Artikel) einen Eintrag an — sich darauf zu verlassen, machte diesen Test von
+ * einer fremden Deklarationsreihenfolge abhaengig und bei `--grep` still gruen,
+ * OHNE die ??-Kette je zu beruehren. Genau diese Kette ist aber der Fund:
+ * `verfallWert` loest ueber `verfallState[a] ?? verfall[a] ?? ""` auf, und ohne
+ * einen SERVERSEITIGEN Vorwert kann kein Ruecksturz stattfinden.
+ *
+ * ⚠️ DER WERT LIEGT IM FERNEN BAND (`2090-…`), aus dem Grund, den
+ * `e2e/seed-lagerbuch.ts` bei `E2E_VERFALL_FERN` ausschreibt: ein Datum
+ * innerhalb der Warnschwelle machte die Zeile in `/verwaltung/verfall` warnend
+ * und faerbte irgendwann eine fremde Spec rot, mit Ursache in dieser Datei.
+ */
+test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
+  // Telefonbreite: die Zusage von AK4 gilt fuer das Geraet, auf dem der Helfer
+  // wirklich steht. Auf Schreibtischbreite waere derselbe Knopf eine
+  // Bequemlichkeit, keine Behebung.
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const VORBELEGT = "2090-07";
+
+  function verfallVorbelegen(): void {
+    const db = new Database(DB_PFAD);
+    // Dieselbe Bauform wie `sperre()` oben: die Audit-Trigger der Suite rufen
+    // `suite_audit_id()`, und eine rohe `better-sqlite3`-Verbindung kennt die
+    // Funktion nicht — ohne diese Zeile bricht schon das `prepare`.
+    registerAuditFunctions(db);
+    try {
+      db.prepare(
+        "insert into lagerort_verfall (id, lagerort_id, artikel_id, verfall, erfasst_at, quelle_typ, quelle_id)"
+          + " values (?, ?, ?, ?, ?, 'system', 'e2e')"
+          + " on conflict (lagerort_id, artikel_id) do update set verfall = excluded.verfall",
+      ).run(
+        "e2e-drk306-verfall", "e2e-fahrzeug", "e2e-check-artikel",
+        VORBELEGT, Math.floor(Date.now() / 1000),
+      );
+    } finally {
+      db.close();
+    }
+  }
+
+  test("der Zaehlschritt nennt den letzten Check — und das Verfallsfeld ist leerbar", async ({
+    page,
+  }) => {
+    verfallVorbelegen();
+
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.goto(lagerbuchUrl("/helfer/check"));
+    await page.getByRole("link", { name: /^E2E RTW/ }).click();
+    await page.waitForURL(/\/helfer\/check\?fz=/);
+
+    /*
+     * AK1. Der Seed legt fuer `e2e-fahrzeug` drei abgeschlossene Checks an
+     * (`seed-lagerbuch.ts`, zwei bis vier Stunden alt) — die Zeile MUSS also
+     * einen Zeitpunkt tragen und nicht den Erstcheck-Satz. Geprueft wird die
+     * FORM `TT.MM.JJJJ, HH:MM`, nicht der Wert: der haengt am Lauftag, und ein
+     * fester Wert waere morgen rot. Das Jahr ist der Teil, der zaehlt — ohne es
+     * ist ein Check von vor dreizehn Monaten von einem gestrigen nicht zu
+     * unterscheiden.
+     */
+    const herkunft = page.locator("[data-rolle='letzter-check']");
+    await expect(herkunft).toBeVisible();
+    await expect(herkunft).toHaveText(/Letzter Check: \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
+
+    // AK2, im Browser: der Wert aus der Datenbank steht im Feld, ohne dass
+    // jemand etwas bestaetigt haette.
+    const feld = page.getByLabel(/^Verfall E2E Check Kompressen/);
+    await expect(feld).toHaveValue(VORBELEGT);
+
+    /*
+     * AK4. Der Knopf muss IM BILD und gross genug sein — das ist die Haelfte,
+     * die nur ein echter Browser kennt: jsdom rechnet keine Layoutboxen, und
+     * ein Knopf, den der 56er-Stepper daneben auf wenige Pixel zusammendrueckt,
+     * bestuende jeden DOM-Test und waere mit Handschuhen trotzdem nicht zu
+     * treffen.
+     *
+     * ⚠️ GEMESSEN WIRD 56, NICHT DIE WCAG-UNTERGRENZE 44 (Reviewbefund zu
+     * DRK-306). Der Helferweg gehoert der Bediendichte 56/72 (`CLAUDE.md`,
+     * Falle 4) — alles ohne Shell tut das. Eine 44er-Zusicherung liesse den
+     * Knopf still auf die `FullShell`-Dichte zurueckfallen und bliebe dabei
+     * gruen: der Test pruefte dann eine Grenze, die dieses Modul gar nicht
+     * hat, und die Regression saehe genauso aus wie der Sollzustand.
+     */
+    const leeren = page.locator("[data-rolle='verfall-leeren']");
+    await expect(leeren).toBeVisible();
+    const kasten = await leeren.boundingBox();
+    expect(kasten, "der Leerknopf muss eine Flaeche im Bild haben").not.toBeNull();
+    expect(kasten!.width, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
+    expect(kasten!.height, "Bediendichte des Helferwegs: 56, nicht 44").toBeGreaterThanOrEqual(56);
+
+    await leeren.click();
+
+    /*
+     * ⚠️ DIE ZWEITE ZUSICHERUNG IST DIE EIGENTLICHE. Dass das Feld unmittelbar
+     * nach dem Klick leer ist, saehe man auch bei einem `delete` im Zustand —
+     * React rendert danach ohnehin neu, und ERST dieser Neuaufbau holt ueber die
+     * ??-Kette den vorbelegten Monat zurueck. Playwright wartet auf den
+     * eingetroffenen Wert; ein Ruecksturz waere hier ein leeres Feld, das sich
+     * wieder fuellt.
+     */
+    await expect(feld).toHaveValue("");
+    await expect(leeren).toHaveCount(0);
+    await page.waitForTimeout(250);
+    await expect(feld).toHaveValue("");
   });
 });
