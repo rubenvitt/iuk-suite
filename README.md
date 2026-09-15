@@ -69,15 +69,15 @@ Voraussetzungen: Node 22 oder neuer (die CI läuft auf 22, das Image auf 26), pn
 
 ```bash
 pnpm install
-cp .env.example .env.local
+echo 'AUTH_DEV_LOGIN=true' > .env.local
 ```
 
-In `.env.local` reicht für den Anfang eine Zeile. Der Dev-Login ersetzt Pocket ID durch ein
-Formular, in das man E-Mail und Gruppen frei einträgt; ein `AUTH_SECRET` ist dann optional:
-
-```bash
-AUTH_DEV_LOGIN=true
-```
+Diese eine Zeile reicht für den Anfang. Der Dev-Login ersetzt Pocket ID durch ein Formular, in
+das man E-Mail und Gruppen frei einträgt; ein `AUTH_SECRET` ist dann optional. `.env.example`
+ist die Vorlage für die **Produktions**-`.env` und trägt Werte wie `AUTH_COOKIE_DOMAIN=.iuk-ue.de`,
+mit denen der Browser auf `*.localtest.me` das Sitzungscookie verwirft. Also nicht blind kopieren,
+sondern nur die Zeilen übernehmen, die ein Modul lokal braucht (z. B. `SUITE_HOST_FILES` mit
+`localtest.me`-Hosts; die Kommentare dort sagen, welche).
 
 Dann:
 
@@ -126,12 +126,17 @@ und kosten je einen halben Tag, wenn man sie nicht kennt. Vor Oberflächenarbeit
 
 ## Ein neues Modul anlegen
 
-1. Verzeichnis `src/app/m/<key>/` mit `_db/schema.ts` und `_db/migrations/`
-2. Eintrag in `MODULES` (`src/core/registry.ts`) und in `MODULE_MIGRATIONS` (`src/core/bootstrap.ts`)
-3. `COPY`-Zeile für das Migrationsverzeichnis im `Dockerfile`
-4. Icon in `src/core/shell/icons.ts` eintragen, sonst fällt es still auf das Portal-Icon zurück
-5. `_lib/seedLokal.ts` für `pnpm seed:lokal`, Health-Check, Playwright-Spec in einer E2E-Gruppe
+Jedes Modul braucht einen Eintrag in `MODULES` (`src/core/registry.ts`) und sein Icon in
+`src/core/shell/icons.ts`, sonst fällt es still auf das Portal-Icon zurück. Ein zustandsloses
+Modul wie `alpha` oder `kioskdemo` ist damit fertig.
 
+Ein Modul **mit eigener Datenbank** braucht zusätzlich das Dreieck, sonst schlägt der Start fehl:
+
+1. Verzeichnis `src/app/m/<key>/_db/` mit `schema.ts` und `migrations/`
+2. Eintrag in `MODULE_MIGRATIONS` (`src/core/bootstrap.ts`)
+3. `COPY`-Zeile für das Migrationsverzeichnis im `Dockerfile`, sonst läuft es lokal und bricht im Container
+
+Dazu `_lib/seedLokal.ts` für `pnpm seed:lokal` und eine Playwright-Spec in einer E2E-Gruppe.
 `src/core/bootstrap.test.ts` und `scripts/seed-lokal.test.ts` prüfen, dass alle Teile zusammenpassen.
 
 ## Dokumentation
