@@ -270,7 +270,13 @@ export async function checkAbschluss(
         // Die MESSUNG wird trotzdem geschrieben: sie ist Rohdatum und bleibt
         // richtig, auch wenn die Bewertung fehlt.
         if (f.nennfuelldruckBar <= 0) flaschenNichtBewertbar++;
-        else if (o2Status(e.druckBar, f.nennfuelldruckBar).niedrig) flaschenAuffaellig++;
+        // Der Grenzwert kommt aus DIESER Flasche (DRK-308) — `flaschenHier` ist
+        // die Stammzeile, nicht der Snapshot. Fehlte er hier, zaehlte der Check
+        // gegen die Vorbelegung, waehrend die Uebersicht daneben gegen die
+        // eingestellte Vorgabe zaehlt: zwei Zahlen fuer dieselbe Frage.
+        else if (o2Status(e.druckBar, f.nennfuelldruckBar, f.wechselAbProzent).niedrig) {
+          flaschenAuffaellig++;
+        }
 
         // Nennfuelldruck als Snapshot mitschreiben, damit der Fuellstand spaeter
         // auch dann rekonstruierbar ist, wenn die Flasche umkonfiguriert oder
