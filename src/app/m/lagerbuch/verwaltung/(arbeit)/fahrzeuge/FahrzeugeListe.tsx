@@ -38,7 +38,14 @@ export type FahrzeugAnzeigeZeile = {
   positionen: number;
   faecher: number;
   artikelUnterSoll: number;
-  verfallAuffaellig: number;
+  /**
+   * DIE BEIDEN ZAHLEN SIND UEBERSCHNEIDUNGSFREI und kommen so aus
+   * `fahrzeugUebersicht` — hier wird nicht nachgerechnet. Begruendung dort.
+   */
+  verfallAbgelaufen: number;
+  verfallWarnend: number;
+  /** Ob ueberhaupt ein Verfall gepflegt ist — GRUENE eingeschlossen. */
+  verfallGepflegt: boolean;
   letzterCheckText: string | null;
   /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
   letzterCheckIso: string | null;
@@ -90,9 +97,30 @@ const BESTUECKUNG_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
  * dahin keine und teilte sich den Statuschip mit allem anderen.
  */
 const VERFALL_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
-  { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => zeile.verfallAuffaellig > 0 },
-  { wert: "verfallRuhig", text: "nichts läuft ab", trifft: (zeile) => zeile.verfallAuffaellig === 0 },
+  { wert: "abgelaufen", text: "abgelaufen",
+    trifft: (zeile) => zeile.verfallAbgelaufen > 0 },
+  { wert: "laeuftAb", text: "läuft ab",
+    trifft: (zeile) => zeile.verfallWarnend > 0 },
+  { wert: "verfallRuhig", text: "nichts fällig",
+    trifft: (zeile) => zeile.verfallGepflegt
+      && zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0 },
+  { wert: "verfallLeer", text: "nichts erfasst",
+    trifft: (zeile) => !zeile.verfallGepflegt },
 ]);
+
+/**
+ * Wie dringend ist dieses Fahrzeug? EIN Rang, damit die Spalte ihn sortieren
+ * kann.
+ *
+ * ⚠️ NICHT DIE SUMME. `abgelaufen + warnend` stellte fuenf gelbe Meldungen vor
+ * eine abgelaufene — fuer jemanden, der eine Austauschtour plant, die falsche
+ * Reihenfolge. Abgelaufenes wiegt deshalb ueberhaupt erst einmal schwerer, und
+ * die Menge entscheidet nur INNERHALB derselben Dringlichkeit. Der Faktor ist
+ * gross genug, dass keine erreichbare Zahl warnender Meldungen ihn einholt.
+ */
+function verfallRang(zeile: FahrzeugAnzeigeZeile): number {
+  return zeile.verfallAbgelaufen * 1_000_000 + zeile.verfallWarnend;
+}
 
 const STATUS_FILTER = zustandsFilter<FahrzeugAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
@@ -154,18 +182,47 @@ function spalten(
     },
     {
       title: "Verfall",
-      dataIndex: "verfallAuffaellig",
+      dataIndex: "verfallAbgelaufen",
       key: "verfall",
-      sorter: nachZahl<FahrzeugAnzeigeZeile>((zeile) => zeile.verfallAuffaellig),
+      sorter: nachZahl<FahrzeugAnzeigeZeile>(verfallRang),
       filters: VERFALL_FILTER.filters,
       onFilter: VERFALL_FILTER.onFilter,
-      render: (_wert: number, zeile) => zeile.verfallAuffaellig > 0 ? (
-        <Chip ton="gelb" zeichen="verfall">
-          {zeile.verfallAuffaellig} läuft ab
-        </Chip>
-      ) : (
-        <span style={SCHRIFT.neben}>—</span>
-      ),
+      /**
+       * ⚠️ ABGELAUFENES BEKOMMT EINEN EIGENEN, ROTEN CHIP (DRK-298).
+       *
+       * Vorher stand hier EINE Zahl aus rot und gelb in EINEM gelben Chip: ein
+       * Fahrzeug mit drei abgelaufenen Artikeln sah aus wie eins, bei dem in
+       * drei Monaten etwas faellig wird. Rot traegt in diesem Modul fachliche
+       * Bedeutung, und genau hier fehlte sie.
+       *
+       * ⚠️ UND DIE BEIDEN LEERFAELLE SIND NICHT DERSELBE. „gepflegt, nichts
+       * faellig" ist eine Entwarnung, „nichts erfasst" ist eine Wissensluecke —
+       * beides als „—" zu zeigen behauptet Entwarnung fuer ein Fahrzeug, das
+       * nie jemand angesehen hat.
+       */
+      render: (_wert: number, zeile) => {
+        if (zeile.verfallAbgelaufen === 0 && zeile.verfallWarnend === 0) {
+          return zeile.verfallGepflegt
+            ? <Chip ton="ok">im grünen Bereich</Chip>
+            : <Chip ton="grau">nichts erfasst</Chip>;
+        }
+        return (
+          // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — enger
+          // Chip-Zeilenabstand wie in der Statusspalte daneben.
+          <Flex gap={6} wrap>
+            {zeile.verfallAbgelaufen > 0 ? (
+              <Chip ton="rot" zeichen="warnung">
+                {zeile.verfallAbgelaufen} abgelaufen
+              </Chip>
+            ) : null}
+            {zeile.verfallWarnend > 0 ? (
+              <Chip ton="gelb" zeichen="verfall">
+                {zeile.verfallWarnend} läuft ab
+              </Chip>
+            ) : null}
+          </Flex>
+        );
+      },
     },
     {
       title: "Status",

@@ -270,14 +270,27 @@ describe("Verfallsseite als Server Component", () => {
         "Chargen im Handlager",
         "Im Fahrzeug gemeldet",
       ]);
-      expect(queryAll("[role='list'] > [role='listitem']")).toHaveLength(3);
+      /**
+       * ⚠️ ZWEI `li`, NICHT DREI — und das ist seit DRK-298 die Aussage dieses
+       * Tests: die Kartenliste traegt nur noch die HANDLAGER-Chargen. Die
+       * Fahrzeugmeldungen darunter sind eine Tabelle geworden, weil dort nichts
+       * zu buchen ist und stattdessen nach Fahrzeug gefiltert werden muss.
+       * Begruendung im Kopf von `page.tsx`.
+       */
+      expect(queryAll("[role='list'] > [role='listitem']")).toHaveLength(2);
       expect(document.body.textContent).toContain("ALT-42");
       expect(document.body.textContent).toContain("WARN-42");
       expect(document.body.textContent).not.toContain("GRUEN-42");
       expect(document.body.textContent).toContain("RTW Warnend");
       expect(document.body.textContent).not.toContain("RTW Grün");
-      expect(document.body.textContent).toContain("gemeldet 15.6.2026");
+      expect(document.body.textContent).toContain("15.06.2026");
       expect(queryAll("button[aria-label$='aussondern']")).toHaveLength(1);
+      /**
+       * ⚠️ DER AUSSONDERN-KNOPF HAENGT AN DER HANDLAGER-HAELFTE UND NUR DORT.
+       * `aussondern` bucht ausschliesslich den Handlager-Rest; ein Knopf an
+       * einer Fahrzeugmeldung schluege reproduzierbar fehl
+       * (`lesepfade/verfall.ts`). Genau EINER — an der abgelaufenen Charge.
+       */
       expect(query<HTMLAnchorElement>("a[href='/verwaltung/fahrzeuge/rtw-warn']").textContent)
         .toContain("RTW Warnend");
     } finally {
@@ -285,16 +298,40 @@ describe("Verfallsseite als Server Component", () => {
     }
   });
 
-  it("bleibt eine eigene ul/li-Kartenliste ohne Table oder List.Item", () => {
-    const quelle = readFileSync(join(
-      process.cwd(),
-      "src/app/m/lagerbuch/verwaltung/(arbeit)/verfall/page.tsx",
-    ), "utf8");
+  /**
+   * DIE SERVER COMPONENT RENDERT SELBST KEINE TABELLE — und das ist der Punkt,
+   * den kein anderes Tor sieht.
+   *
+   * `<Table>` ist bei antd selbst eine Client-Komponente. Ein `columns[].render`,
+   * das in einer Server Component entstuende, ist eine gewoehnliche Funktion,
+   * und React lehnt es ab, sie ueber die RSC-Grenze zu reichen: HTTP 500 fuer
+   * die ganze Seite. `typecheck` und `build` bleiben gruen, und ein `mount()`
+   * in jsdom ist ein einziger JS-Prozess OHNE RSC-Grenze — der Test darueber
+   * kann es also strukturell nicht sehen (Falle 9, `CLAUDE.md`). Bleibt der
+   * Quelltext-Scan.
+   *
+   * ⚠️ SEIT DRK-298 STEHT AUF DIESER SEITE EINE TABELLE — in einer eigenen
+   * Client-Insel. Der Scan prueft deshalb BEIDE Haelften des Vertrags: die
+   * Server Component darf `<Table` und `List.Item` (Falle 1) weiterhin nicht
+   * enthalten, und die Insel, an die sie es abgibt, MUSS die Direktive tragen.
+   * Ohne die zweite Haelfte waere der Scan ab jetzt gruen zu bekommen, indem
+   * man die Direktive vergisst — und genau das ist der Fehler, den er fangen
+   * soll.
+   */
+  it("gibt die Tabelle an eine Client-Insel ab, statt sie selbst zu rendern", () => {
+    const ordner = "src/app/m/lagerbuch/verwaltung/(arbeit)/verfall";
+    const quelle = readFileSync(join(process.cwd(), ordner, "page.tsx"), "utf8");
     expect(dynamic).toBe("force-dynamic");
+    // Die Handlager-Haelfte bleibt die Kartenliste, die sie ist.
     expect(quelle).toContain("<ul");
-    expect(quelle).toContain("<li");
     expect(quelle).not.toContain("<Table");
     expect(quelle).not.toContain("List.Item");
     expect(quelle).toContain("lagerortVerfallListe(db, { nurWarnend: true }, jetzt)");
+
+    const insel = readFileSync(
+      join(process.cwd(), ordner, "FahrzeugVerfallTabelle.tsx"),
+      "utf8",
+    );
+    expect(insel.startsWith('"use client";')).toBe(true);
   });
 });

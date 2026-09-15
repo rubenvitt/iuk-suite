@@ -13,6 +13,7 @@ import kategorienAusblenden from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerb
 import inventurJeCharge from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-inventur-je-charge";
 import mehrereArtikelBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-mehrere-artikel-bearbeiten";
 import journalNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-journal-nachladen";
+import abgelaufenesJeFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-abgelaufenes-je-fahrzeug";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -59,6 +60,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   inventurJeCharge,
   mehrereArtikelBearbeiten,
   journalNachladen,
+  abgelaufenesJeFahrzeug,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,
