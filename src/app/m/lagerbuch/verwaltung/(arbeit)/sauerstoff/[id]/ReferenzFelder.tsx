@@ -195,7 +195,11 @@ function ReferenzFelderInhalt({ start }: { start: ReferenzWerte }) {
             precision={0}
             value={werte.wechselAbProzent}
             aria-label="Wechselhinweis ab Prozent vom Nennfülldruck"
-            addonAfter="%"
+            // ⚠️ `suffix`, NICHT `addonAfter`: das ist in antd 6 abgekündigt
+            // (Doku: „please use Space.Compact instead"). Es geht durch den
+            // Typecheck und meldet sich nur in der Konsole — dieselbe Klasse wie
+            // `width` auf `Drawer` (Falle 13).
+            suffix="%"
             onChange={(wert) => {
               if (wert !== null) zahlAendern({ wechselAbProzent: wert });
             }}

@@ -366,7 +366,7 @@ describe("Checks-Seite", () => {
       },
       {
         schluessel: "flaschen", ton: "rot", zeichen: "sauerstoff",
-        text: "1 Flasche(n) niedrig",
+        text: "1 Flasche(n) wechseln",
       },
     ]);
     expect(zeile.ergebnisChips.map((eintrag) => eintrag.text))

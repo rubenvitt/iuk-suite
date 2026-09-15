@@ -196,7 +196,11 @@ export function NeuFlasche({
               min={O2_WECHSEL_MIN_PROZENT}
               max={O2_WECHSEL_MAX_PROZENT}
               precision={0}
-              addonAfter="%"
+              // ⚠️ `suffix`, NICHT `addonAfter`: das ist in antd 6 abgekündigt
+              // (Doku: „please use Space.Compact instead"). Es geht durch den
+              // Typecheck und meldet sich nur in der Konsole — dieselbe Klasse wie
+              // `width` auf `Drawer` (Falle 13).
+              suffix="%"
               style={{ width: "100%" }}
             />
           </Form.Item>

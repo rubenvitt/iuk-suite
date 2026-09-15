@@ -385,7 +385,7 @@ export function CheckFlow({
               <HelferChip ton="rot">{ergebnis.geraeteAuffaellig} Gerät(e) auffällig</HelferChip>
             )}
             {ergebnis.flaschenAuffaellig > 0 && (
-              <HelferChip ton="rot">{ergebnis.flaschenAuffaellig} Flasche(n) niedrig</HelferChip>
+              <HelferChip ton="rot">{ergebnis.flaschenAuffaellig} Flasche(n) wechseln</HelferChip>
             )}
             {ergebnis.flaschenNichtBewertbar > 0 && (
               <HelferChip ton="grau">
@@ -421,7 +421,7 @@ export function CheckFlow({
           )}
           {ergebnis.flaschenAuffaellig > 0 && (
             <p className={s.fussnote}>
-              Flaschen mit niedrigem Druck bitte tauschen oder der Verwaltung melden.
+              Flaschen mit erreichtem Wechselwert bitte tauschen oder der Verwaltung melden.
             </p>
           )}
           {ergebnis.flaschenNichtBewertbar > 0 && (

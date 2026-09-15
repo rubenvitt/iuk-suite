@@ -75,7 +75,7 @@ describe("Sauerstoff-Übersicht", () => {
     t = migrierteTestDb("lagerbuch-o2-niedrig-");
     lagerortAnlegen();
     flascheAnlegen("f-1");
-    // 20 von 200 bar = 10 % — unter O2_AMPEL_ROT_PROZENT.
+    // 20 von 200 bar = 10 % — unter O2_WECHSEL_VORGABE_PROZENT.
     messungAnlegen("m-1", "f-1", 20);
 
     const kacheln = elementeVomTyp(sauerstoffSeitenInhalt(t.db), Kachel);
