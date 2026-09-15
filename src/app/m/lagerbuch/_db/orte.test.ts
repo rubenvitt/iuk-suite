@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
 import { lagerorte } from "./schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
-import { handlagerOrte, ortStamm, handlagerSchraenke } from "../_lib/lesepfade/orte";
+import { handlagerOrte, ortStamm, handlagerSchraenke, zaehlBereich } from "../_lib/lesepfade/orte";
 
 let t: TestDb;
 
@@ -53,5 +53,37 @@ describe("ortStamm", () => {
     expect(stamm.get("schrank-gf")?.zugangshinweis).toBe("Zugang über LvD — anrufen");
     expect(stamm.get("schrank-1")?.zugangshinweis).toBeNull();
     expect(stamm.get("rtw-1")?.typ).toBe("fahrzeug");
+  });
+});
+
+/** DRK-337 — der Bereich EINER Zaehlung. */
+describe("zaehlBereich", () => {
+  it("liefert ohne Ort den ganzen Handlager — das Verhalten vor DRK-337", () => {
+    expect(zaehlBereich(t.db, null)).toEqual(handlagerOrte(t.db));
+  });
+
+  /**
+   * ⚠️ DER GANZE PUNKT DES TICKETS. Die Wurzel als Ort heisst „noch keinem
+   * Schrank zugeordnet" — waere sie hier der ganze Handlager, erwartete eine
+   * Zaehlung der Wurzel still auch den Schrankbestand, und jede Korrektur
+   * buchte gegen eine Summe ueber Orte.
+   */
+  it("meint mit der Wurzel NUR die Wurzel, nicht den Teilbaum", () => {
+    expect(zaehlBereich(t.db, HANDLAGER_ID)).toEqual([HANDLAGER_ID]);
+  });
+
+  it("liefert fuer einen Schrank genau diesen Schrank — auch fuer einen stillgelegten", () => {
+    expect(zaehlBereich(t.db, "schrank-1")).toEqual(["schrank-1"]);
+    expect(zaehlBereich(t.db, "schrank-alt")).toEqual(["schrank-alt"]);
+  });
+
+  /**
+   * ⚠️ `null`, NICHT `[]`. Eine leere Liste ginge in `inArray` und machte daraus
+   * `WHERE false` — jeder Bestand fiele still auf 0, und eine Zaehlung buchte
+   * den gesamten Bestand des Artikels als Ueberhang.
+   */
+  it("liefert null statt einer leeren Liste fuer einen Ort ausserhalb des Handlagers", () => {
+    expect(zaehlBereich(t.db, "rtw-1")).toBeNull();
+    expect(zaehlBereich(t.db, "gibt-es-nicht")).toBeNull();
   });
 });

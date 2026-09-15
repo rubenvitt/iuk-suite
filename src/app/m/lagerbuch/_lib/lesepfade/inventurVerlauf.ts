@@ -8,7 +8,16 @@ import { artikel, chargen, inventuren, inventurPositionen } from "../../_db/sche
 import { INVENTUR_VERLAUF_GRENZE } from "../grenzen";
 import type { Leser } from "./bestand";
 
-export type Umfang = { kategorien: string[]; faecher: string[] } | null;
+/**
+ * DRK-337 — `ort` ist das LABEL des gezaehlten Orts („Schrank 1",
+ * „Nicht zugeordnet") oder `null` fuer den ganzen Handlager.
+ *
+ * ⚠️ LAEUFE VOR DRK-337 HABEN DAS FELD NICHT, und das ist kein Mangel: sie
+ * zaehlten den ganzen Handlager, `null` ist also die wahre Antwort. Der
+ * Verlauf ist append-only — es gibt keinen Weg, das nachzutragen, und es
+ * braucht auch keinen.
+ */
+export type Umfang = { kategorien: string[]; faecher: string[]; ort: string | null } | null;
 export type LaufKurz = {
   id: string; ts: Date; quelleTyp: string; quelleId: string; kommentar: string;
   umfang: Umfang; positionen: number; abweichungen: number;
@@ -22,10 +31,14 @@ export type LaufPosition = {
 export function umfangAus(roh: string | null): Umfang {
   if (!roh) return null;
   try {
-    const wert = JSON.parse(roh) as { kategorien?: unknown; faecher?: unknown } | null;
+    const wert = JSON.parse(roh) as { kategorien?: unknown; faecher?: unknown; ort?: unknown } | null;
     if (!wert || typeof wert !== "object") return null;
     const liste = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : []);
-    return { kategorien: liste(wert.kategorien), faecher: liste(wert.faecher) };
+    return {
+      kategorien: liste(wert.kategorien),
+      faecher: liste(wert.faecher),
+      ort: typeof wert.ort === "string" && wert.ort !== "" ? wert.ort : null,
+    };
   } catch {
     return null;
   }
@@ -38,7 +51,13 @@ export function umfangAus(roh: string | null): Umfang {
  */
 export function umfangText(umfang: Umfang): string {
   if (!umfang) return "vollständig";
-  const teile = [...umfang.kategorien, ...umfang.faecher.map((f) => `Fach ${f}`)];
+  // Der Ort ZUERST: er begrenzt, was ueberhaupt erwartet wurde, waehrend
+  // Kategorie und Fach nur auswaehlen, welche Zeilen auf dem Schirm standen.
+  const teile = [
+    ...(umfang.ort ? [`Ort ${umfang.ort}`] : []),
+    ...umfang.kategorien,
+    ...umfang.faecher.map((f) => `Fach ${f}`),
+  ];
   return teile.length > 0 ? teile.join(", ") : "vollständig";
 }
 

@@ -492,6 +492,47 @@ function inventurFixtures(): void {
       }).run();
     }
   }
+  ortsFixtures();
+}
+
+/**
+ * DRK-337 — EIN EIGENER SCHRANK MIT EINEM EIGENEN ARTIKEL.
+ *
+ * ⚠️ NICHT die Schraenke aus `lagerbuch-schraenke.spec.ts` mitbenutzen:
+ * Playwright faehrt alle Specs in EINEM Worker gegen EINE Datei, und dieser
+ * Spec BUCHT. Eine Korrektur in einem geteilten Schrank verschoebe die
+ * Bestandszusagen des anderen Specs — derselbe Grund, aus dem
+ * `inventurFixtures` schon heute eigene Artikel anlegt.
+ *
+ * Die Verteilung ist der ganze Fall: 4 auf der Wurzel („noch keinem Schrank
+ * zugeordnet"), 6 im Schrank. Wer vor dem Schrank steht, muss 6 lesen — nicht
+ * die Summe 10. Beide Zahlen sind verschieden und keine ist das Doppelte der
+ * anderen, damit ein Test nicht versehentlich richtig liegt.
+ */
+function ortsFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values({
+    id: "e2e-inventur-schrank", name: "E2E Inventurschrank", typ: "lager",
+    kennung: null, aktiv: true, templateId: null,
+    parentId: HANDLAGER_ID, sortierung: 70, zugangshinweis: null,
+  }).onConflictDoNothing().run();
+  db.insert(artikel).values({
+    id: "e2e-inventur-ort", name: "E2E Inventur Ortszählung", einheit: "Stk.", fach: "INV-3",
+    mindestbestand: 0, aktiv: true, kategorie: "E2E Inventur", createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  db.insert(chargen).values({
+    id: "e2e-inventur-charge-ort", artikelId: "e2e-inventur-ort",
+    chargenNr: "E2E-INV-ORT", verfall: "2090-09", createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  if (!db.select().from(buchungen).where(eq(buchungen.chargeId, "e2e-inventur-charge-ort")).get()) {
+    for (const [lagerortId, menge] of [[HANDLAGER_ID, 4], ["e2e-inventur-schrank", 6]] as const) {
+      db.insert(buchungen).values({
+        id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-inventur-ort",
+        chargeId: "e2e-inventur-charge-ort", lagerortId, menge,
+        quelleTyp: "system", quelleId: "e2e", referenz: null, kommentar: null,
+      }).run();
+    }
+  }
 }
 
 /**

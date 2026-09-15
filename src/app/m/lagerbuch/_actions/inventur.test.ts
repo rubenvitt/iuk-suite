@@ -672,3 +672,208 @@ describe("inventurKorrektur — DRK-297 (Nachtrag): die Korrektur landet dort, w
     });
   });
 });
+
+/**
+ * DRK-337 — DIE ZAEHLUNG JE SCHRANK.
+ *
+ * Bis hierher zaehlt jeder Lauf den GANZEN Handlager; die Korrektur landet
+ * seit DRK-297 am richtigen Ort, die ERWARTUNGSZAHL ist aber eine Summe ueber
+ * alle Orte. Wer mit der Liste vor einem einzelnen Schrank steht, liest damit
+ * eine Zahl, die er dort nie zaehlen kann.
+ *
+ * ⚠️ DREI DINGE HAENGEN AM ORT, UND ALLE DREI STEHEN HIER: wogegen gerechnet
+ * wird, wohin ein Fehlbestand abgebucht wird und — der stillste Fall — wohin
+ * ein UEBERHANG geht, den es an diesem Ort noch gar nicht gibt.
+ */
+describe("inventurKorrektur — DRK-337: ein Lauf zaehlt genau einen Ort", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 },
+      { id: "schrank-2", name: "Schrank 2", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 20 },
+    ]).run();
+  });
+
+  function bestandAn(artikelId: string, lagerortId: string): number {
+    return t.db.select().from(buchungen).all()
+      .filter((b) => b.artikelId === artikelId && b.lagerortId === lagerortId)
+      .reduce((s, b) => s + b.menge, 0);
+  }
+
+  function umfangVon(inventurId: string): string | null {
+    return t.db.select().from(inventuren).all().find((i) => i.id === inventurId)?.umfang ?? null;
+  }
+
+  /** Verteilt EINEN Artikel ueber Wurzel, Schrank 1 und Schrank 2. */
+  function verteilterArtikel(id: string): void {
+    legeArtikelAn(id);
+    legeChargeAn({ id: `c-${id}`, artikelId: id, verfall: "2027-05" });
+    buche({ artikelId: id, chargeId: `c-${id}`, lagerortId: HANDLAGER_ID, menge: 4 });
+    buche({ artikelId: id, chargeId: `c-${id}`, lagerortId: "schrank-1", menge: 6 });
+    buche({ artikelId: id, chargeId: `c-${id}`, lagerortId: "schrank-2", menge: 2 });
+  }
+
+  it("rechnet gegen den Bestand IM SCHRANK, nicht gegen die Summe ueber alle Orte", async () => {
+    verteilterArtikel("art-ort");
+
+    // 6 liegen in Schrank 1, 12 im ganzen Handlager. Wer 6 zaehlt, hat recht —
+    // vor DRK-337 waere daraus eine Abbuchung von 6 geworden.
+    const erg = await inventurKorrektur({
+      kommentar: "Schrank 1", ortId: "schrank-1",
+      positionen: [{ artikelId: "art-ort", ist: 6 }],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 0, inventurId: expect.any(String) } });
+    expect(inventurBuchungen()).toEqual([]);
+    const id = (erg as { ok: true; wert: { inventurId: string } }).wert.inventurId;
+    // Die gespeicherte Position traegt die ORTSZAHL — sie ist der Beleg im Verlauf.
+    expect(t.db.select().from(inventurPositionen).all()
+      .filter((p) => p.inventurId === id)
+      .map((p) => [p.erwartet, p.gezaehlt]))
+      .toEqual([[6, 6]]);
+  });
+
+  it("bucht einen Fehlbestand im gezaehlten Schrank ab und laesst Wurzel und Nachbarschrank unberuehrt", async () => {
+    verteilterArtikel("art-minus");
+
+    const erg = await inventurKorrektur({
+      kommentar: "Schrank 1", ortId: "schrank-1",
+      positionen: [{ artikelId: "art-minus", ist: 4 }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    expect(inventurBuchungen().map((b) => ({ lagerortId: b.lagerortId, menge: b.menge })))
+      .toEqual([{ lagerortId: "schrank-1", menge: -2 }]);
+    expect(bestandAn("art-minus", "schrank-1")).toBe(4);
+    expect(bestandAn("art-minus", HANDLAGER_ID)).toBe(4);
+    expect(bestandAn("art-minus", "schrank-2")).toBe(2);
+  });
+
+  /**
+   * ⚠️ DER STILLSTE FALL, UND DER GRUND FUER `lauf.rueckfallOrt`. Die Charge
+   * hat im gezaehlten Schrank KEINEN Bestand — es gibt also keinen Kandidaten,
+   * an dem sie schon liegt, und vor DRK-337 fiel die Gutschrift damit auf die
+   * WURZEL. Das Material lag danach buchhalterisch an einem Ort, vor dem
+   * niemand gestanden hatte (Akzeptanzkriterium 3).
+   */
+  it("bucht einen Ueberhang auf den gezaehlten Schrank, nicht auf die Wurzel", async () => {
+    legeArtikelAn("art-fund");
+    legeChargeAn({ id: "c-fund", artikelId: "art-fund", verfall: "2027-05" });
+    buche({ artikelId: "art-fund", chargeId: "c-fund", lagerortId: HANDLAGER_ID, menge: 9 });
+
+    const erg = await inventurKorrektur({
+      kommentar: "Fund in Schrank 2", ortId: "schrank-2",
+      positionen: [{ artikelId: "art-fund", ist: 3 }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    expect(inventurBuchungen().map((b) => ({ lagerortId: b.lagerortId, menge: b.menge })))
+      .toEqual([{ lagerortId: "schrank-2", menge: 3 }]);
+    expect(bestandAn("art-fund", HANDLAGER_ID)).toBe(9);
+    expect(bestandAn("art-fund", "schrank-2")).toBe(3);
+  });
+
+  it("bucht denselben Ueberhang ohne Ortswahl weiterhin auf die Wurzel", async () => {
+    legeArtikelAn("art-fund-alt");
+    legeChargeAn({ id: "c-fund-alt", artikelId: "art-fund-alt", verfall: "2027-05" });
+
+    const erg = await inventurKorrektur({
+      kommentar: "Ohne Ort",
+      positionen: [{ artikelId: "art-fund-alt", ist: 3 }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    expect(inventurBuchungen().map((b) => b.lagerortId)).toEqual([HANDLAGER_ID]);
+  });
+
+  /**
+   * Die Wurzel IST ein waehlbarer Ort: „im Handlager, Schrank noch nicht
+   * zugeordnet" (Migration 0008). Sie meint dabei NUR sich selbst — waere sie
+   * der ganze Teilbaum, erwartete diese Zaehlung still 12 statt 4.
+   */
+  it("zaehlt mit der Wurzel nur den nicht zugeordneten Bestand", async () => {
+    verteilterArtikel("art-wurzel");
+
+    const erg = await inventurKorrektur({
+      kommentar: "Nicht zugeordnet", ortId: HANDLAGER_ID,
+      positionen: [{ artikelId: "art-wurzel", ist: 4 }],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: true, wert: { korrigiert: 0, inventurId: expect.any(String) } });
+    expect(inventurBuchungen()).toEqual([]);
+  });
+
+  it("rechnet auch den Chargenweg gegen den Ort und bucht auf ihn", async () => {
+    verteilterArtikel("art-charge-ort");
+
+    const erg = await inventurKorrektur({
+      kommentar: "Chargen in Schrank 1", ortId: "schrank-1",
+      positionen: [{
+        artikelId: "art-charge-ort",
+        chargen: [{ chargeId: "c-art-charge-ort", ist: 5 }],
+        neu: [],
+      }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    const id = (erg as { ok: true; wert: { inventurId: string } }).wert.inventurId;
+    expect(t.db.select().from(inventurPositionen).all()
+      .filter((p) => p.inventurId === id)
+      .map((p) => [p.erwartet, p.gezaehlt]))
+      .toEqual([[6, 5]]);
+    expect(inventurBuchungen().map((b) => ({ lagerortId: b.lagerortId, menge: b.menge })))
+      .toEqual([{ lagerortId: "schrank-1", menge: -1 }]);
+  });
+
+  /**
+   * ⚠️ DIE ACTION IST STRENGER ALS DIE SEITE. Die Seite faellt bei einem
+   * unbekannten Ort auf den ganzen Handlager zurueck (dort ist es nur eine
+   * Anzeige); hier wuerde derselbe Rueckfall gegen einen ANDEREN Bestand
+   * buchen als den, der gezaehlt wurde.
+   */
+  it("weist einen Ort ausserhalb des Handlagers ab, ohne etwas zu schreiben", async () => {
+    legeArtikelAn("art-fremd");
+    const zeilenVorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await inventurKorrektur({
+      kommentar: "Fahrzeug", ortId: "rtw-1",
+      positionen: [{ artikelId: "art-fremd", ist: 3 }],
+    }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: INVENTUR_TEXTE.ortUnbekannt });
+    expect(t.db.select().from(inventuren).all()).toHaveLength(0);
+    expect(t.db.select().from(buchungen).all()).toHaveLength(zeilenVorher);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * Der Ortsname im Umfang kommt AUS DER DATENBANK, nicht aus der Nutzlast:
+   * der Verlauf ist append-only, eine ungeprueefte Behauptung ueber den Ort
+   * stuende dort unkorrigierbar.
+   */
+  it("schreibt den Ortsnamen in den Umfang — und laesst ihn ohne Ortswahl weg", async () => {
+    legeArtikelAn("art-umfang");
+
+    const mitOrt = await inventurKorrektur({
+      kommentar: "Schrank 1", ortId: "schrank-1",
+      positionen: [{ artikelId: "art-umfang", ist: 0 }],
+    }, t.db);
+    const wurzel = await inventurKorrektur({
+      kommentar: "Nicht zugeordnet", ortId: HANDLAGER_ID,
+      positionen: [{ artikelId: "art-umfang", ist: 0 }],
+    }, t.db);
+    const ohneOrt = await inventurKorrektur({
+      kommentar: "Alles",
+      positionen: [{ artikelId: "art-umfang", ist: 0 }],
+    }, t.db);
+
+    const id = (erg: unknown) => (erg as { ok: true; wert: { inventurId: string } }).wert.inventurId;
+    expect(JSON.parse(umfangVon(id(mitOrt))!)).toEqual({ kategorien: [], faecher: [], ort: "Schrank 1" });
+    // ⚠️ NICHT der Name des Lagerorts („Handlager") — der stuende fuer denselben
+    // Bereich wie „ganzer Handlager", und im Verlauf waere beides nicht mehr
+    // auseinanderzuhalten.
+    expect(JSON.parse(umfangVon(id(wurzel))!)).toEqual({ kategorien: [], faecher: [], ort: "Nicht zugeordnet" });
+    expect(umfangVon(id(ohneOrt))).toBeNull();
+  });
+});

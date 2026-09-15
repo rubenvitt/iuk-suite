@@ -4,7 +4,8 @@
  * Client-Insel (Falle 6, Falle 9).
  *
  * DREI ABFRAGEN STATT 3·N — dasselbe Muster wie `artikelListe`: Artikel,
- * Bestand je Artikel, Rest je Charge (beide HANDLAGER-gescoped) plus alle Chargen.
+ * Bestand je Artikel, Rest je Charge (beide auf den BEREICH gescoped, DRK-337)
+ * plus alle Chargen.
  *
  * Die Ampel wird HIER berechnet, damit das Formular weder Uhr noch Schwellen kennt.
  */
@@ -20,14 +21,28 @@ export type InventurCharge = { id: string; chargenNr: string; verfall: string; r
 export type InventurZeile = {
   id: string; name: string; einheit: string; fach: string;
   kategorie: string | null; mindestbestand: number; bestand: number;
-  /** Nur Rest > 0 AM HANDLAGER, FEFO-sortiert — `chargen[0]` ist das naechste MHD. */
+  /** Nur Rest > 0 IM BEREICH, FEFO-sortiert — `chargen[0]` ist das naechste MHD. */
   chargen: InventurCharge[];
 };
 
-export function inventurZeilen(db: Leser, now: Date = new Date()): InventurZeile[] {
+/**
+ * DRK-337 — `bereich` ist der Ortsbereich der Zaehlung (`zaehlBereich`), ohne
+ * Angabe der ganze Handlager wie vor DRK-337. `bestand` und jeder Chargenrest
+ * beziehen sich DARAUF: wer vor Schrank 3 steht, liest die Zahl, die dort
+ * liegen soll, nicht die Summe ueber alle Orte.
+ *
+ * ⚠️ DIE ARTIKELLISTE BLEIBT VOLLSTAENDIG, auch wenn ein Artikel an diesem Ort
+ * Bestand 0 hat. Eine Liste, die nur zeigt, was hier erwartet wird, koennte
+ * ueberraschend Gefundenes nicht aufnehmen — und genau das ist der haeufigste
+ * Grund, ueberhaupt zu zaehlen. Wer die Liste kuerzen will, filtert ueber
+ * Kategorie und Fach im Spaltenkopf.
+ */
+export function inventurZeilen(
+  db: Leser, now: Date = new Date(), bereich?: readonly string[],
+): InventurZeile[] {
   const schwellen = verfallSchwellen();
   const arts = db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
-  const orte = handlagerOrte(db);
+  const orte = bereich ?? handlagerOrte(db);
   const bestand = bestandJeArtikel(db, orte);
   const rest = restJeCharge(db, orte);
   const alleChargen = db.select().from(chargen).all();

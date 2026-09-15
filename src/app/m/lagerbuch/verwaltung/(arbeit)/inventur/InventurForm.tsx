@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { Alert, Button, Flex, Input, InputNumber } from "antd";
+import { Alert, Button, Flex, Input, InputNumber, Select } from "antd";
 import {
   Datentabelle,
   nachText,
@@ -20,6 +20,7 @@ import {
   inventurTrifft,
   type InventurFilter,
 } from "../../../_lib/inventurFilter";
+import { ZAEHLORT_ALLE, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { INVENTUR_ABWEISUNGEN, INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import { kategorieOptionen } from "../../../_lib/kategorie";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
@@ -27,6 +28,7 @@ import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
+import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
 import { ChargenZaehlung } from "./ChargenZaehlung";
 import {
@@ -59,7 +61,12 @@ function trifftKategorie(zeile: InventurZeile, wert: Filterwert): boolean {
   return inventurTrifft(zeile, { kategorien: [String(wert)], faecher: [] });
 }
 
-export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
+export function InventurForm({ zeilen, ortId, orte }: {
+  zeilen: InventurZeile[];
+  /** `null` = ganzer Handlager. Kommt aus der URL, nicht aus dieser Insel. */
+  ortId: string | null;
+  orte: ZaehlOrt[];
+}) {
   const [stand, setStand] = useState<ZaehlStand>({});
   /**
    * ⚠️ GEMERKT WIRD DER ZUSTAND DER SPALTENKOEPFE, NIE DIE LISTE DARAUS (Falle 15).
@@ -74,6 +81,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, startTransition] = useTransition();
   const absendenLaeuft = useRef(false);
+  const setzeUrl = useUrlFilter();
 
   const kategorien = useMemo(() => kategorieOptionen(zeilen.map((z) => z.kategorie)), [zeilen]);
 
@@ -113,6 +121,9 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
     const labelJeSchluessel = new Map(kategorien.map((o) => [o.schluessel, o.label]));
     const nutzlast: InventurNutzlast = {
       kommentar: kommentar.trim(),
+      // DRK-337 — die KENNUNG, nicht der Name: den Namen fuer den Verlauf holt
+      // die Action aus der Datenbank (`umfangJson`).
+      ortId,
       umfang: filterIstLeer(filter)
         ? null
         : {
@@ -162,13 +173,50 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
         Zahl folgt aus `filter`, also aus dem Spaltenzustand, nicht aus
         `onChange(…, extra.currentDataSource)`.
       */}
-      {/* Die Huelle steht mit IHREM Inhalt oder gar nicht — ein leerer Kasten mit
-          Aussenabstand liesse ungefiltert eine Luecke ueber der Tabelle. */}
-      {sichtbar.length === zeilen.length ? null : (
-        <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
+      {/*
+        DRK-337 — DIE ORTSAUSWAHL, und sie steht bewusst NICHT im Spaltenkopf wie
+        Kategorie und Fach (DRK-333). Der Unterschied ist fachlich: jene beiden
+        BLENDEN Zeilen aus, die gezaehlten Werte bleiben und werden mitgebucht.
+        Der Ort dagegen bestimmt, WOGEGEN gerechnet wird — jede Erwartungszahl und
+        jede Korrektur haengt daran. Ein Filter, der die Bedeutung der Zahlen
+        daneben aendert, gehoert ueber die Tabelle, nicht in ihren Kopf.
+      */}
+      <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
+        <Select<string>
+          value={ortId ?? ZAEHLORT_ALLE}
+          aria-label="Zählort"
+          // ⚠️ GESPERRT, SOBALD ETWAS GEZAEHLT IST. Der Wechsel steigt die Insel
+          // neu ein (`key` in `page.tsx`) und verwirft damit den Zaehlstand —
+          // das darf nicht unter der Hand passieren, waehrend jemand vor einem
+          // Schrank steht. Der Knopf daneben ist der ausdrueckliche Weg.
+          disabled={laeuft || positionen.length > 0}
+          onChange={(wert) => setzeUrl({ ort: wert === ZAEHLORT_ALLE ? "" : wert })}
+          style={{ minWidth: 240 }}
+          options={orte.map((o) => ({ value: o.id, label: o.label }))}
+          virtual={false}
+        />
+        {positionen.length > 0 ? (
+          <>
+            <span data-rolle="ort-gesperrt">
+              {`${positionen.length} ${positionen.length === 1 ? "Position ist" : "Positionen sind"} gezählt — der Zählort ist bis zum Abschluss festgelegt.`}
+            </span>
+            <Button
+              disabled={laeuft}
+              data-rolle="zaehlung-verwerfen"
+              onClick={() => { setStand({}); setFehler(null); setMeldung(null); }}
+            >
+              Zählung verwerfen
+            </Button>
+          </>
+        ) : null}
+        {/* ⚠️ DER ZAEHLER STEHT IN DERSELBEN LEISTE, nicht in einer zweiten
+            darunter: seit DRK-337 steht hier IMMER etwas, und zwei Leisten
+            uebereinander trugen ihren Aussenabstand zweimal. Er erscheint
+            weiterhin nur, wenn wirklich gefiltert ist — „2 von 2" waere Laerm. */}
+        {sichtbar.length === zeilen.length ? null : (
           <Trefferanzeige gezeigt={sichtbar.length} gesamt={zeilen.length} />
-        </Flex>
-      )}
+        )}
+      </Flex>
       <Datentabelle<InventurZeile>
         rowKey="id"
         aria-label="Inventur"
@@ -182,6 +230,7 @@ export function InventurForm({ zeilen }: { zeilen: InventurZeile[] }) {
               zeile={zeile}
               zaehlung={stand[zeile.id]}
               gesperrt={laeuft}
+              ortText={ortId === null ? "im Handlager" : "an diesem Zählort"}
               onAendern={(umbau) => { setStand(umbau); setFehler(null); setMeldung(null); }}
             />
           ),

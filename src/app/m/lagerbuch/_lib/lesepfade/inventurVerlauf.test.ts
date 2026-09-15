@@ -31,7 +31,7 @@ vi.mock("../../_db/client", () => ({
 }));
 
 import { inventurKorrektur } from "../../_actions/inventur";
-import { inventurLauf, inventurLaeufe, umfangAus } from "./inventurVerlauf";
+import { inventurLauf, inventurLaeufe, umfangAus, umfangText } from "./inventurVerlauf";
 
 const VIEWER = { sub: "u-admin", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
 const JETZT = new Date("2026-07-15T10:00:00Z");
@@ -110,7 +110,7 @@ describe("inventurLaeufe", () => {
       ["Zweiter", 2, 1],
       ["Erster", 1, 0],
     ]);
-    expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [] });
+    expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [], ort: null });
     expect(laeufe[1]!.umfang).toBeNull();
     expect(laeufe[0]!.quelleTyp).toBe("oidc");
     expect(laeufe[0]!.quelleId).toBe("u-admin");
@@ -173,5 +173,30 @@ describe("inventurLauf", () => {
   it("macht aus kaputtem umfang null statt eines Wurfs", () => {
     expect(umfangAus("{kaputt")).toBeNull();
     expect(umfangAus(null)).toBeNull();
+  });
+
+  /**
+   * DRK-337 — der Ort im Umfang. ⚠️ EIN LAUF VOR DRK-337 HAT DAS FELD NICHT,
+   * und der Verlauf ist append-only: `ort: null` ist dort die WAHRE Antwort
+   * („ganzer Handlager"), kein fehlender Wert. Ein `undefined` an dieser Stelle
+   * liesse `umfangText` „Ort undefined" schreiben.
+   */
+  it("liest den Ort aus dem Umfang und laesst Altlaeufe ohne Ort gelten", () => {
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"Schrank 1"}'))
+      .toEqual({ kategorien: [], faecher: [], ort: "Schrank 1" });
+    expect(umfangAus('{"kategorien":["Hygiene"],"faecher":["A1"]}'))
+      .toEqual({ kategorien: ["Hygiene"], faecher: ["A1"], ort: null });
+    // Ein leerer Ortsname ist kein Ort — sonst stuende „Ort " im Verlauf.
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":""}')?.ort).toBeNull();
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":42}')?.ort).toBeNull();
+  });
+
+  it("nennt den Ort zuerst und faellt ohne jede Angabe auf vollstaendig zurueck", () => {
+    expect(umfangText({ kategorien: ["Hygiene"], faecher: ["A1"], ort: "Schrank 1" }))
+      .toBe("Ort Schrank 1, Hygiene, Fach A1");
+    expect(umfangText({ kategorien: [], faecher: [], ort: "Nicht zugeordnet" }))
+      .toBe("Ort Nicht zugeordnet");
+    expect(umfangText({ kategorien: [], faecher: [], ort: null })).toBe("vollständig");
+    expect(umfangText(null)).toBe("vollständig");
   });
 });

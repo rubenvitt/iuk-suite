@@ -70,11 +70,18 @@ export function ChargenZaehlung({
   zeile,
   zaehlung,
   gesperrt,
+  ortText,
   onAendern,
 }: {
   zeile: InventurZeile;
   zaehlung: Zaehlung | undefined;
   gesperrt: boolean;
+  /**
+   * DRK-337 — der Ortsteil des Leertexts („im Handlager" / „an diesem
+   * Zählort"). Fertig formuliert statt als Kennung: die Zeile ist ein Satz, und
+   * eine zweite Fallunterscheidung hier liefe der in `InventurForm` davon.
+   */
+  ortText: string;
   onAendern: (umbau: (stand: ZaehlStand) => ZaehlStand) => void;
 }) {
   const [verfall, setVerfall] = useState("");
@@ -115,7 +122,7 @@ export function ChargenZaehlung({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
       {zeile.chargen.length === 0 ? (
-        <p style={{ margin: 0 }}>Keine Charge mit Bestand im Handlager.</p>
+        <p style={{ margin: 0 }}>{`Keine Charge mit Bestand ${ortText}.`}</p>
       ) : (
         <ul style={LISTE_STIL} aria-label={`Chargen ${zeile.name}`}>
           {zeile.chargen.map((c) => {

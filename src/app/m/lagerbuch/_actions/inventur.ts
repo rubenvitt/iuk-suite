@@ -11,8 +11,9 @@ import { bestandProOrte } from "../_lib/domain/bestand";
 import { KATEGORIE_MAX_LAENGE, KATEGORIEN_AUSWAHL_MAX } from "../_lib/kategorie";
 import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
+import { zaehlOrtLabel } from "../_lib/inventurOrt";
 import { restJeChargeFuerArtikel, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
-import { handlagerOrte, ortStamm, type OrtStammZeile } from "../_lib/lesepfade/orte";
+import { ortStamm, zaehlBereich, type OrtStammZeile } from "../_lib/lesepfade/orte";
 import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
 import { INVENTUR_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -24,6 +25,12 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
  */
 export type InventurNutzlast = {
   kommentar: string;
+  /**
+   * DRK-337 — der GEZAEHLTE ORT. `null` oder fehlend heisst „ganzer Handlager"
+   * (Verhalten vor DRK-337), `HANDLAGER_ID` heisst „nur die Wurzel, also noch
+   * keinem Schrank zugeordnet", sonst ein Schrank.
+   */
+  ortId?: string | null;
   /** LABELS, nicht Schluessel — beschreibend fuer den Verlauf. */
   umfang?: { kategorien: string[]; faecher: string[] } | null;
   positionen: Array<
@@ -67,6 +74,13 @@ const ChargenPosition = z.object({
 
 const InventurSchema = z.object({
   kommentar: z.string().trim().min(1, "Kommentar erforderlich"),
+  /*
+   * DRK-337 — NICHT beschreibend, sondern WIRKSAM: der Ort entscheidet, gegen
+   * welchen Bestand gerechnet und auf welchen Ort korrigiert wird. Ob es ihn
+   * gibt, prueft `zaehlBereich` in der Transaktion — nur dort ist die Liste der
+   * Orte bekannt, und nur dort ist sie zum Zeitpunkt des Schreibens aktuell.
+   */
+  ortId: z.string().min(1).nullable().optional(),
   // BESCHREIBEND: der Filter beim Abschluss, als LABELS fuer den Verlauf.
   umfang: z.object({
     kategorien: z.array(z.string().max(KATEGORIE_MAX_LAENGE)).max(KATEGORIEN_AUSWAHL_MAX),
@@ -80,7 +94,17 @@ const InventurSchema = z.object({
 
 type ArtikelPositionT = z.infer<typeof ArtikelPosition>;
 type ChargenPositionT = z.infer<typeof ChargenPosition>;
-type Lauf = { inventurId: string; referenz: string; quelle: Quelle; kommentar: string };
+type Lauf = {
+  inventurId: string; referenz: string; quelle: Quelle; kommentar: string;
+  /**
+   * DRK-337 — WOHIN EIN UEBERHANG GEHT, DER NIRGENDS SCHON LIEGT. Beim ganzen
+   * Handlager ist das die Wurzel („noch nicht einsortiert", Betreiberentscheidung
+   * DRK-297); bei einer Zaehlung VOR EINEM SCHRANK ist es dieser Schrank — sonst
+   * fiele Material, das jemand gerade dort in der Hand hatte, auf einen Ort, an
+   * dem es nicht liegt (Akzeptanzkriterium 3).
+   */
+  rueckfallOrt: string;
+};
 
 /** Fachliche Abweisung INNERHALB der Transaktion — sie rollt alles zurueck. */
 class InventurAbgewiesen extends Error {}
@@ -227,9 +251,15 @@ function juengsteZuerst<T extends { id: string; verfall: string; createdAt: Date
  *               unter den Orten mit Bestand > 0 der mit der kleinsten
  *               `ortSortierung` (Gleichstand: kleinere `lagerortId`) — DIESELBE
  *               Ordnung, die FEFOs Raenge 4/5 verwenden (`domain/fefo.ts`).
- *               Hat die Charge NIRGENDS Bestand, ist die Wurzel der ehrliche
- *               Rueckfall — „noch nicht einsortiert" (Betreiberentscheidung
- *               des Hauptlaufs).
+ *               Hat die Charge NIRGENDS Bestand, traegt `lauf.rueckfallOrt`:
+ *               beim ganzen Handlager die Wurzel — „noch nicht einsortiert"
+ *               (Betreiberentscheidung des Hauptlaufs) —, bei einer Zaehlung
+ *               vor einem Schrank DIESER Schrank (DRK-337). ⚠️ Der Rueckfall
+ *               ist bei einer Ortszaehlung der REGELFALL, nicht die Ausnahme:
+ *               `orte` ist dann einelementig, und was dort noch nicht liegt,
+ *               hat auch keinen Kandidaten. Bliebe hier die Wurzel stehen,
+ *               buchte jede Ortszaehlung ihren Ueberhang an den Ort, vor dem
+ *               gerade NIEMAND stand.
  *
  * ⚠️ FIXRUNDE 1, BEFUND 1 — `orte` (= `handlagerOrte(tx)`) liefert BAUMORDNUNG
  * und stellt die Wurzel unbedingt voran (`domain/orte.ts`: `ergebnis.push(id)`
@@ -262,7 +292,7 @@ function bucheKorrektur(
   const kandidaten = orte.filter((ort) => (bestand.get(ort) ?? 0) > 0);
   kandidaten.sort((a, b) =>
     (stamm.get(a)?.sortierung ?? 0) - (stamm.get(b)?.sortierung ?? 0) || a.localeCompare(b));
-  const ziel = kandidaten[0] ?? HANDLAGER_ID;
+  const ziel = kandidaten[0] ?? lauf.rueckfallOrt;
   tx.insert(buchungen).values({
     id: newId(), ts: new Date(), typ: "korrektur", artikelId, chargeId, lagerortId: ziel, menge: diff,
     quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
@@ -271,10 +301,40 @@ function bucheKorrektur(
 }
 
 /**
+ * DRK-337 — der Umfang als eine Zeichenkette fuer den append-only Verlauf.
+ *
+ * ⚠️ DER ORTSNAME KOMMT AUS DER DATENBANK, NICHT AUS DER NUTZLAST. Kategorien
+ * und Faecher sind Labels, die das Formular schickt — dort sind sie auch der
+ * Wert selbst. Beim Ort schickt das Formular eine KENNUNG; der Name daneben
+ * waere eine zweite, ungepruefte Behauptung ueber denselben Ort, und im
+ * Verlauf stuende sie unkorrigierbar (append-only).
+ *
+ * `null` heisst weiterhin „vollstaendig, kein Filter": ein Lauf ueber den
+ * ganzen Handlager ohne Spaltenfilter sieht im Verlauf aus wie vor DRK-337.
+ */
+function umfangJson(
+  filter: { kategorien: string[]; faecher: string[] } | null,
+  ortId: string | null,
+  ortLabel: string,
+): string | null {
+  if (!filter && ortId === null) return null;
+  return JSON.stringify({
+    kategorien: filter?.kategorien ?? [],
+    faecher: filter?.faecher ?? [],
+    // ⚠️ OHNE ORTSWAHL FEHLT DAS FELD GANZ, statt `null` zu tragen: ein Lauf
+    // ueber den ganzen Handlager schreibt damit BUCHSTABENGLEICH dieselbe
+    // Zeichenkette wie vor DRK-337. `umfangAus` liest ein fehlendes Feld
+    // ohnehin als `null` — Altlaeufe und neue Laeufe bleiben eine Sorte.
+    ...(ortId === null ? {} : { ort: ortLabel }),
+  });
+}
+
+/**
  * Gleicht ausschliesslich die tatsaechlich gezaehlten Positionen gegen den
- * LIVE-Bestand im Handlager ab und speichert den Lauf mit JEDER angefassten
- * Position (DRK-299). Lauf, Positionen und Buchungen entstehen atomar; die
- * Lauf-ID ist die ID in `inventur:<id>`.
+ * LIVE-Bestand AM GEZAEHLTEN ORT ab (DRK-337: ganzer Handlager ohne Angabe,
+ * sonst die Wurzel allein oder ein Schrank) und speichert den Lauf mit JEDER
+ * angefassten Position (DRK-299). Lauf, Positionen und Buchungen entstehen
+ * atomar; die Lauf-ID ist die ID in `inventur:<id>`.
  *
  * Dieser Pfad ist bewusst von `korrekturAufLagerort` getrennt: Inventurzugang
  * ohne vorhandene Charge braucht den Herkunftshinweis `Inventur`, waehrend der
@@ -292,28 +352,37 @@ export async function inventurKorrektur(
       return { ok: false, fehler: "Bitte die markierten Felder prüfen.", ...(feldFehler ? { feldFehler } : {}) };
     }
     const v = geparst.data;
+    const ortId = v.ortId ?? null;
     const inventurId = newId();
     const lauf: Lauf = {
       inventurId,
       referenz: `${INVENTUR_PRAEFIX}${inventurId}`,
       quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
       kommentar: v.kommentar,
+      rueckfallOrt: ortId ?? HANDLAGER_ID,
     };
     let korrigiert = 0;
 
     try {
       db.transaction((tx) => {
-        // ZUERST der Kopf: die Positionen tragen einen Fremdschluessel auf ihn.
-        tx.insert(inventuren).values({
-          id: inventurId, ts: new Date(), quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
-          kommentar: v.kommentar, umfang: v.umfang ? JSON.stringify(v.umfang) : null,
-        }).run();
         // DRK-297, Fixrunde 1 (Befund 3) — EINMAL fuer den ganzen Lauf geladen:
         // beide haengen an keiner Position, ein Neuladen je Artikel oder je
         // Charge waere unnoetig (`better-sqlite3` ist synchron, s. Kopf von
         // `lesepfade/bestand.ts`).
-        const orte = handlagerOrte(tx);
+        //
+        // ⚠️ DRK-337 — DIESE DREI ZEILEN STEHEN JETZT VOR DEM KOPF, nicht mehr
+        // dahinter: der Kopf traegt den Ortsnamen, und der kommt aus `stamm`.
+        // Die alte Reihenfolge („zuerst der Kopf, die Positionen tragen einen
+        // Fremdschluessel auf ihn") bleibt gewahrt — Positionen entstehen erst
+        // in der Schleife darunter.
+        const orte = zaehlBereich(tx, ortId);
+        if (!orte) throw new InventurAbgewiesen(INVENTUR_TEXTE.ortUnbekannt);
         const stamm = ortStamm(tx);
+        tx.insert(inventuren).values({
+          id: inventurId, ts: new Date(), quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
+          kommentar: v.kommentar,
+          umfang: umfangJson(v.umfang ?? null, ortId, zaehlOrtLabel(ortId, stamm.get(ortId ?? "")?.name)),
+        }).run();
         for (const position of v.positionen) {
           korrigiert += "ist" in position
             ? (artikelPosition(tx, lauf, orte, stamm, position) ? 1 : 0)

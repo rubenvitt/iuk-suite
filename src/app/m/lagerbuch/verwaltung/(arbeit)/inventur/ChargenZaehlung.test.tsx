@@ -26,7 +26,8 @@ afterEach(async () => { await unmount(); });
 describe("ChargenZaehlung", () => {
   it("zeigt je Charge Nummer, MHD und erwartete Menge", async () => {
     const h = harness();
-    await mount(<ChargenZaehlung zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
     expect(queryAll("[data-rolle='charge']")).toHaveLength(2);
     expect(query("[data-charge-id='c1']").textContent).toContain("L1");
     expect(query("[data-charge-id='c1']").textContent).toContain("10/26");
@@ -35,14 +36,16 @@ describe("ChargenZaehlung", () => {
 
   it("sendet nur die angefasste Charge", async () => {
     const h = harness();
-    await mount(<ChargenZaehlung zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
     await fill("input[aria-label='Ist Charge L2']", "5");
     expect(positionenAus(h.stand())).toEqual([{ artikelId: "a1", chargen: [{ chargeId: "c2", ist: 5 }], neu: [] }]);
   });
 
   it("ergänzt eine Charge erst mit gültigem MHD und leert danach die Felder", async () => {
     const h = harness();
-    await mount(<ChargenZaehlung zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
     const knopf = query<HTMLButtonElement>("button[aria-label='Charge ergänzen']");
     expect(knopf.disabled).toBe(true);
     expect(query<HTMLInputElement>("input[aria-label='MHD der neuen Charge']").placeholder).toBe("JJJJ-MM");
@@ -58,7 +61,8 @@ describe("ChargenZaehlung", () => {
 
   it("sperrt das Ergänzen einer Charge, die schon in der Liste steht", async () => {
     const h = harness();
-    await mount(<ChargenZaehlung zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={undefined} gesperrt={false} onAendern={h.onAendern} />);
     await fill("input[aria-label='MHD der neuen Charge']", "2026-10");
     await fill("input[aria-label='Chargennummer der neuen Charge']", "L1");
     expect(query<HTMLButtonElement>("button[aria-label='Charge ergänzen']").disabled).toBe(true);
@@ -68,7 +72,8 @@ describe("ChargenZaehlung", () => {
   it("verwirft die Chargenzählung", async () => {
     const h = harness();
     h.onAendern((s) => ({ ...s, a1: { art: "chargen", chargen: { c1: 1 }, neu: [] } }));
-    await mount(<ChargenZaehlung zeile={ZEILE} zaehlung={h.stand().a1} gesperrt={false} onAendern={h.onAendern} />);
+    await mount(<ChargenZaehlung
+        ortText="im Handlager" zeile={ZEILE} zaehlung={h.stand().a1} gesperrt={false} onAendern={h.onAendern} />);
     // Text-Knopf ohne aria-label — ueber seinen Text finden, nicht ueber einen Platzhalter-Selektor.
     const verwerfen = queryAll<HTMLButtonElement>("button")
       .find((b) => b.textContent?.includes("Chargenzählung verwerfen"));

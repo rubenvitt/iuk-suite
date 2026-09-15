@@ -30,14 +30,49 @@ import { artikel } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
+import { ZAEHLORT_ALLE, type ZaehlOrt } from "../../../_lib/inventurOrt";
+import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { InventurForm } from "./InventurForm";
+
+const ORTE: ZaehlOrt[] = [
+  { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+  { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
+  { id: "schrank-1", label: "Schrank 1" },
+];
+
+/**
+ * DRK-337 — die Faelle unten pruefen den ZAEHLSTAND, nicht die Ortsauswahl, und
+ * bekommen deshalb die Vorgabe „ganzer Handlager". Ein Wrapper statt zweier
+ * Vorgabewerte AM BAUTEIL: Vorgaben dort naehmen `page.tsx` die Pflicht ab, den
+ * Ort zu uebergeben — und ein vergessener Ort waere dann eine Zaehlung gegen den
+ * falschen Bestand, die kein Tor mehr meldet.
+ */
+function Formular({ zeilen, ortId = null, orte = ORTE }: {
+  zeilen: InventurZeile[];
+  ortId?: string | null;
+  orte?: ZaehlOrt[];
+}) {
+  return <InventurForm zeilen={zeilen} ortId={ortId} orte={orte} />;
+}
 
 const mocks = vi.hoisted(() => ({
   inventurKorrektur: vi.fn(),
+  setzeUrl: vi.fn(),
 }));
 
 vi.mock("../../../_actions/inventur", () => ({
   inventurKorrektur: (...args: unknown[]) => mocks.inventurKorrektur(...args),
+}));
+
+/**
+ * DRK-337 — die Ortsauswahl schreibt den URL-Parameter. Gemockt wird
+ * `useUrlFilter`, NICHT `next/navigation`: das Formular rendert daneben ein
+ * `next/link`, und ein Ersatz fuer das ganze Navigationsmodul naehme ihm
+ * Bausteine weg, die es selbst braucht. Was hier geprueft wird, ist ohnehin die
+ * Wirkung — welcher Parameter geschrieben wird —, nicht der Router darunter.
+ */
+vi.mock("../../../_ui/useUrlFilter", () => ({
+  useUrlFilter: () => mocks.setzeUrl,
 }));
 
 const ZEILEN: InventurZeile[] = [
@@ -105,6 +140,27 @@ function istRekursivJsonSicher(wert: unknown): boolean {
   return Object.values(wert).every(istRekursivJsonSicher);
 }
 
+/**
+ * Waehlt im antd-`Select` mit diesem `aria-label` die Option mit diesem Text.
+ *
+ * ⚠️ `mousedown`, NICHT `click`: rc-select oeffnet die Liste am `mousedown` des
+ * Feldes — ein blosser Klick laesst sie zu, und die Option gibt es dann gar
+ * nicht. Dieselbe Naht wie in `ArtikelDrawer.test.tsx` und
+ * `TemplateVerknuepfung.test.tsx`.
+ */
+async function ortWaehlen(text: string): Promise<void> {
+  const feld = query<HTMLInputElement>("[aria-label='Zählort']");
+  await act(async () => {
+    feld.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  });
+  await warte();
+  const option = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
+    .find((element) => (element.textContent ?? "") === text);
+  if (!option) throw new Error(`Option nicht gefunden: ${text}`);
+  await clickElement(option);
+  await warte();
+}
+
 function spaltenkopf(beschriftung: string): HTMLElement {
   const kopf = queryAll("thead th").find((zelle) => (zelle.textContent ?? "").includes(beschriftung));
   if (!kopf) throw new Error(`Kein Spaltenkopf: ${beschriftung}`);
@@ -150,7 +206,7 @@ async function filterWaehlen(spalte: string, text: string): Promise<void> {
 
 describe("InventurForm — Tabelle und Eingabe", () => {
   it("rendert exakt acht Spalten, stabile IDs und die verbindlichen Tabellenprops", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
 
     /*
      * Leere Koepfe (antd-Aufklappspalte, Task 6) zaehlen nicht als Spalte.
@@ -185,7 +241,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
    * Gezeigt wird „3 Stk"; als Zeichenkette stuende „12 Stk" vor „3 Stk".
    */
   it("sortiert den Bestand über die Zahl, nicht über den Anzeigetext", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
 
     const kopf = queryAll<HTMLElement>("thead th")
       .find((zelle) => (zelle.textContent ?? "").includes("Bestand"));
@@ -200,12 +256,12 @@ describe("InventurForm — Tabelle und Eingabe", () => {
   });
 
   it("zeigt einen fachlichen Leertext statt einer leeren Tabellenattrappe", async () => {
-    await mount(<InventurForm zeilen={[]} />);
+    await mount(<Formular zeilen={[]} />);
     expect(document.body.textContent).toContain("Keine Artikel vorhanden.");
   });
 
   it("erlaubt 0 bis 9999 und zeigt Abweichungen mit ASCII-Vorzeichen im Text", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     const feld = query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']");
     expect(feld.getAttribute("aria-valuemin")).toBe("0");
     expect(feld.getAttribute("aria-valuemax")).toBe("9999");
@@ -217,7 +273,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
   });
 
   it("sperrt ohne Kommentar oder ohne berührte Position", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     const knopf = query<HTMLButtonElement>("button[data-rolle='abschluss']");
     expect(knopf.disabled).toBe(true);
     await fill("input[aria-label='Kommentar']", "Quartalsinventur");
@@ -227,7 +283,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
   });
 
   it("sendet auch 0 und eine berührt-unveränderte Position, aber nie unberührte IDs", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "12");
     await fill("input[aria-label='Ist-Bestand Pflaster']", "0");
@@ -237,6 +293,7 @@ describe("InventurForm — Tabelle und Eingabe", () => {
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
+      ortId: null,
       umfang: null,
       positionen: [
         { artikelId: "a1", ist: 12 },
@@ -250,7 +307,7 @@ describe("InventurForm — asynchroner Abschluss", () => {
   it("behält Werte bis zum Resolve, sperrt Doppelklicks und leert erst bei Erfolg", async () => {
     let fertig!: (wert: { ok: true; wert: { korrigiert: number; inventurId: string } }) => void;
     mocks.inventurKorrektur.mockReturnValueOnce(new Promise((resolve) => { fertig = resolve; }));
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Zählung bleibt");
     const knopf = query<HTMLButtonElement>("button[data-rolle='abschluss']");
@@ -282,7 +339,7 @@ describe("InventurForm — asynchroner Abschluss", () => {
     ["Reject", async () => { throw new Error("SQLITE geheim"); }],
   ])("behält bei %s Position und Kommentar und zeigt nur den festen Warning-Text", async (_fall, antwort) => {
     mocks.inventurKorrektur.mockImplementationOnce(antwort);
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "Fehlerretention");
     await click("button[data-rolle='abschluss']");
@@ -301,14 +358,14 @@ describe("InventurForm — asynchroner Abschluss", () => {
 
 describe("InventurForm — Zeile und Filter", () => {
   it("zeigt das nächste MHD und den Mindestbestand", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     const zeile = query("tr[data-row-key='a1']");
     expect(zeile.textContent).toContain("10/26");
     expect(zeile.textContent).toContain("5");
   });
 
   it("behält einen gezählten Wert, wenn der Filter die Zeile ausblendet, und bucht ihn mit", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Pflaster']", "3");
     await filterWaehlen("Fach", "A1");
     expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
@@ -318,6 +375,7 @@ describe("InventurForm — Zeile und Filter", () => {
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Teil",
+      ortId: null,
       umfang: { kategorien: [], faecher: ["A1"] },
       positionen: [{ artikelId: "a2", ist: 3 }],
     });
@@ -328,7 +386,7 @@ describe("InventurForm — Zeile und Filter", () => {
    * („hygiene") stuende dort fuer immer. Der Umfang traegt deshalb das LABEL.
    */
   it("legt einen Kategorienfilter als Label, nicht als gefalteten Schlüssel, in den Umfang", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await filterWaehlen("Kategorie", "Hygiene");
     expect(queryAll("tr[data-row-key='a2']")).toHaveLength(0);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
@@ -337,13 +395,14 @@ describe("InventurForm — Zeile und Filter", () => {
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Hygiene",
+      ortId: null,
       umfang: { kategorien: ["Hygiene"], faecher: [] },
       positionen: [{ artikelId: "a1", ist: 11 }],
     });
   });
 
   it("zeigt die Kategorie in ihrer eigenen Spalte und „—“, wo keine vergeben ist", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     expect(query("tr[data-row-key='a1']").textContent).toContain("Hygiene");
     expect(query("tr[data-row-key='a2'] td:nth-child(3)").textContent).toBe("—");
   });
@@ -356,7 +415,7 @@ describe("InventurForm — Zeile und Filter", () => {
    * Dieser Fall aendert deshalb die Datenquelle, OHNE die Tabelle anzufassen.
    */
   it("rechnet den Zähler nach, wenn sich die Zeilen ändern statt die Tabelle", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     // Ungefiltert sagt die Trefferanzeige nichts — „2 von 2" waere Laerm.
     expect(queryAll("[data-testid='trefferanzeige']")).toHaveLength(0);
 
@@ -364,7 +423,7 @@ describe("InventurForm — Zeile und Filter", () => {
     expect(query("[data-testid='trefferanzeige']").textContent).toBe("1 von 2");
 
     await rerender(
-      <InventurForm
+      <Formular
         zeilen={[
           ...ZEILEN,
           { id: "a3", name: "Kompresse", einheit: "Stk", fach: "A1", kategorie: "Hygiene",
@@ -378,7 +437,7 @@ describe("InventurForm — Zeile und Filter", () => {
   });
 
   it("zeigt einen eigenen Leertext, wenn nur der Filter nichts trifft", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     // Jede Option trifft fuer sich eine Zeile; erst beide zusammen treffen keine.
     await filterWaehlen("Kategorie", "Hygiene");
     await filterWaehlen("Fach", "B2");
@@ -389,7 +448,7 @@ describe("InventurForm — Zeile und Filter", () => {
 
   it("zeigt eine fachliche Abweisung im Wortlaut, alles andere nicht", async () => {
     mocks.inventurKorrektur.mockResolvedValueOnce({ ok: false, fehler: INVENTUR_TEXTE.chargeUnpassend });
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "X");
     await click("button[data-rolle='abschluss']");
@@ -398,7 +457,7 @@ describe("InventurForm — Zeile und Filter", () => {
   });
 
   it("zählt aufgeklappt je Charge und schickt die Chargenposition", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await click("button[aria-label='Chargen Mullbinde anzeigen']");
     await fill("input[aria-label='Ist Charge L1']", "9");
     expect(query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']").disabled).toBe(true);
@@ -408,13 +467,13 @@ describe("InventurForm — Zeile und Filter", () => {
     await click("button[data-rolle='abschluss']");
     await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
-      kommentar: "Charge", umfang: null,
+      kommentar: "Charge", ortId: null, umfang: null,
       positionen: [{ artikelId: "a1", chargen: [{ chargeId: "c1", ist: 9 }], neu: [] }],
     });
   });
 
   it("zeigt eine Chargensumme über 9999 ohne die Fehlerfarbe (Falle 3, docs/design/README.md)", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await click("button[aria-label='Chargen Mullbinde anzeigen']");
     await fill("input[aria-label='Ist Charge L1']", "12000");
     const summenFeld = query<HTMLInputElement>("input[aria-label='Ist-Bestand Mullbinde']");
@@ -424,7 +483,7 @@ describe("InventurForm — Zeile und Filter", () => {
   });
 
   it("verlinkt nach dem Abschluss den gespeicherten Lauf", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await fill("input[aria-label='Ist-Bestand Mullbinde']", "11");
     await fill("input[aria-label='Kommentar']", "X");
     await click("button[data-rolle='abschluss']");
@@ -438,7 +497,7 @@ const MINUS = '[aria-label="Ist-Bestand Mullbinde verringern"]';
 
 describe("±-Knöpfe", () => {
   it("erhöht und verringert den Ist-Wert über wertSetzen", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     const feld = query<HTMLInputElement>('[aria-label="Ist-Bestand Mullbinde"]');
 
     expect(feld.value).toBe("12");
@@ -458,7 +517,7 @@ describe("±-Knöpfe", () => {
    */
   it("lässt eine berührte Zeile eingereicht, auch wenn + und − sich aufheben", async () => {
     mocks.inventurKorrektur.mockResolvedValue({ ok: true, wert: { korrigiert: 0, inventurId: "lauf-0" } });
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await click(PLUS);
     await click(MINUS);
     await fill('[aria-label="Kommentar"]', "Quartalsinventur");
@@ -466,13 +525,14 @@ describe("±-Knöpfe", () => {
 
     expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
       kommentar: "Quartalsinventur",
+      ortId: null,
       umfang: null,
       positionen: [{ artikelId: "a1", ist: 12 }],
     });
   });
 
   it("zählt eine aufgehobene Änderung nicht als Abweichung", async () => {
-    await mount(<InventurForm zeilen={ZEILEN} />);
+    await mount(<Formular zeilen={ZEILEN} />);
     await click(PLUS);
     await click(MINUS);
     expect(query('[data-rolle="abschluss"]').textContent)
@@ -480,9 +540,84 @@ describe("±-Knöpfe", () => {
   });
 
   it("sperrt − bei 0 und + bei 9999", async () => {
-    await mount(<InventurForm zeilen={[{ ...ZEILEN[0]!, bestand: 0 }]} />);
+    await mount(<Formular zeilen={[{ ...ZEILEN[0]!, bestand: 0 }]} />);
     expect(query(MINUS).hasAttribute("disabled")).toBe(true);
     expect(query(PLUS).hasAttribute("disabled")).toBe(false);
+  });
+});
+
+/**
+ * DRK-337 — DIE ORTSAUSWAHL.
+ *
+ * ⚠️ WAS JSDOM HIER NICHT SIEHT und deshalb `e2e/lagerbuch-inventur.spec.ts`
+ * misst: dass der Wechsel die Insel ueber `key` neu einsteigen laesst. Dieser
+ * Riegel sitzt in `page.tsx`, nicht im Formular — hier laesst sich nur pruefen,
+ * dass das Formular ihn ueberhaupt ausloest (der URL-Schreibvorgang) und dass
+ * es einen laufenden Zaehlstand nicht unter der Hand verwirft.
+ */
+describe("InventurForm — Zählort (DRK-337)", () => {
+  it("zeigt ohne Ortswahl „Ganzer Handlager“ und schreibt den gewählten Schrank in die URL", async () => {
+    await mount(<Formular zeilen={ZEILEN} />);
+    expect(query("[aria-label='Zählort']").closest(".ant-select")?.textContent)
+      .toContain("Ganzer Handlager");
+
+    await ortWaehlen("Schrank 1");
+    expect(mocks.setzeUrl).toHaveBeenCalledWith({ ort: "schrank-1" });
+  });
+
+  /**
+   * `alle` ist die Vorgabe: ein LEERER Wert loescht den Parameter
+   * (`useUrlFilter`). Stuende `?ort=alle` in der Adresse, traege ein geteilter
+   * Link eine Angabe, die nichts aendert — und beim naechsten Ticket haette
+   * jemand zwei Schreibweisen fuer denselben Zustand zu beruecksichtigen.
+   */
+  it("nimmt die Vorgabe wieder aus der URL heraus", async () => {
+    await mount(<Formular zeilen={ZEILEN} ortId="schrank-1" />);
+    await ortWaehlen("Ganzer Handlager");
+    expect(mocks.setzeUrl).toHaveBeenCalledWith({ ort: "" });
+  });
+
+  /**
+   * ⚠️ DER RIEGEL. Der Wechsel steigt die Insel neu ein und verwirft damit den
+   * Zaehlstand. Passierte das unter der Hand, waeren die Zahlen weg, die jemand
+   * gerade vor einem Schrank erfasst hat — und das faellt erst auf, wenn die
+   * Liste schon zu ist.
+   */
+  it("sperrt die Auswahl, sobald gezählt ist, und gibt sie nach dem Verwerfen frei", async () => {
+    await mount(<Formular zeilen={ZEILEN} ortId="schrank-1" />);
+    expect(query("[aria-label='Zählort']").hasAttribute("disabled")).toBe(false);
+
+    await fill("input[aria-label='Ist-Bestand Pflaster']", "6");
+    expect(query("[aria-label='Zählort']").hasAttribute("disabled")).toBe(true);
+    expect(query("[data-rolle='ort-gesperrt']").textContent)
+      .toBe("1 Position ist gezählt — der Zählort ist bis zum Abschluss festgelegt.");
+
+    await click("[data-rolle='zaehlung-verwerfen']");
+    expect(query("[aria-label='Zählort']").hasAttribute("disabled")).toBe(false);
+    expect(queryAll("[data-rolle='ort-gesperrt']")).toHaveLength(0);
+    expect(query('[data-rolle="abschluss"]').hasAttribute("disabled")).toBe(true);
+  });
+
+  it("sendet den gewählten Ort als Kennung mit, nicht als Namen", async () => {
+    await mount(<Formular zeilen={ZEILEN} ortId="schrank-1" />);
+    await fill("input[aria-label='Ist-Bestand Pflaster']", "6");
+    await fill("input[aria-label='Kommentar']", "Schrank 1");
+    await click("button[data-rolle='abschluss']");
+    await warteAuf(() => mocks.inventurKorrektur.mock.calls.length === 1, "Inventur-Action");
+
+    expect(mocks.inventurKorrektur).toHaveBeenCalledWith({
+      kommentar: "Schrank 1",
+      ortId: "schrank-1",
+      umfang: null,
+      positionen: [{ artikelId: "a2", ist: 6 }],
+    });
+  });
+
+  it("nennt den Ort im Leertext einer Zeile ohne Charge", async () => {
+    await mount(<Formular zeilen={ZEILEN} ortId="schrank-1" />);
+    await clickElement(query("button[aria-label='Chargen Pflaster anzeigen']"));
+    await warte();
+    expect(document.body.textContent).toContain("Keine Charge mit Bestand an diesem Zählort.");
   });
 });
 
@@ -503,12 +638,97 @@ describe("Inventurseite als RSC", () => {
 
       const inhalt = inventurSeitenInhalt(testDb.db);
       const [form] = elementeVomTyp(inhalt, InventurForm);
-      expect(form.props).toEqual({ zeilen: [{
-        id: "inventur-rsc", name: "RSC Mullbinde", einheit: "Stk", fach: "R1",
-        kategorie: null, mindestbestand: 3, bestand: 0, chargen: [],
-      }] });
+      expect(form.props).toEqual({
+        zeilen: [{
+          id: "inventur-rsc", name: "RSC Mullbinde", einheit: "Stk", fach: "R1",
+          kategorie: null, mindestbestand: 3, bestand: 0, chargen: [],
+        }],
+        // DRK-337: ohne Suchparameter der ganze Handlager — das Verhalten vor
+        // diesem Ticket. Die Auswahl kennt ausserdem die Wurzel als eigenen Ort.
+        ortId: null,
+        orte: [
+          { id: "alle", label: "Ganzer Handlager" },
+          { id: "handlager", label: "Nicht zugeordnet" },
+        ],
+      });
       expect(istRekursivJsonSicher(form.props)).toBe(true);
       expect(dynamic).toBe("force-dynamic");
+    } finally {
+      testDb.schliessen();
+    }
+  });
+
+  /**
+   * DRK-337 — DER ORT KOMMT AUS DER URL, und die Seite rechnet die
+   * Erwartungszahlen dafuer aus. Der `key` ist dabei kein Schoenheitsfehler,
+   * sondern der Riegel: ohne ihn behielte die Insel ihren Zaehlstand ueber den
+   * Ortswechsel hinweg und buchte in Schrank 1 gezaehlte Werte gegen Schrank 2.
+   */
+  it("grenzt Zeilen, Auswahl und Insel-key auf den Ort aus den Suchparametern ein", async () => {
+    const { inventurSeitenInhalt } = await import("./page");
+    const { buchungen, chargen, lagerorte } = await import("../../../_db/schema");
+    const testDb = migrierteTestDb("lagerbuch-inventur-seite-ort-");
+    try {
+      testDb.db.insert(lagerorte).values([
+        { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null, aktiv: true,
+          templateId: null, parentId: "handlager", sortierung: 10 },
+        { id: "schrank-alt", name: "Altschrank", typ: "lager", kennung: null, aktiv: false,
+          templateId: null, parentId: "handlager", sortierung: 20 },
+      ]).run();
+      testDb.db.insert(artikel).values({
+        id: "a-ort", name: "Ortsartikel", einheit: "Stk", fach: "R1",
+        mindestbestand: 0, aktiv: true, createdAt: new Date("2026-08-07T10:00:00Z"),
+      }).run();
+      testDb.db.insert(chargen).values({
+        id: "c-ort", artikelId: "a-ort", chargenNr: "L1", verfall: "2029-01",
+        createdAt: new Date("2026-08-07T10:00:00Z"),
+      }).run();
+      for (const [ort, menge] of [["handlager", 4], ["schrank-1", 6]] as const) {
+        testDb.db.insert(buchungen).values({
+          id: `b-${ort}`, ts: new Date("2026-08-07T10:00:00Z"), typ: "zugang",
+          artikelId: "a-ort", chargeId: "c-ort", lagerortId: ort, menge,
+          quelleTyp: "system", quelleId: "test", referenz: null, kommentar: null,
+        }).run();
+      }
+
+      const jetzt = new Date("2026-09-14T10:00:00Z");
+      const [schrank] = elementeVomTyp(
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "schrank-1" }), InventurForm,
+      );
+      expect(schrank.props).toMatchObject({ ortId: "schrank-1" });
+      expect((schrank.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(6);
+      expect(schrank.key).toBe("schrank-1");
+      // Ein stillgelegter Schrank steht NICHT zur Wahl — er haelt aber weiter
+      // Bestand und bleibt ueber die URL erreichbar.
+      expect((schrank.props as { orte: ZaehlOrt[] }).orte.map((o) => o.id))
+        .toEqual(["alle", "handlager", "schrank-1"]);
+
+      // Die Wurzel meint NUR die Wurzel: „noch keinem Schrank zugeordnet".
+      const [wurzel] = elementeVomTyp(
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "handlager" }), InventurForm,
+      );
+      expect((wurzel.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(4);
+
+      /*
+       * ⚠️ EIN UNBEKANNTER ORT IST HIER KEIN FEHLER, sondern faellt auf den
+       * ganzen Handlager zurueck (wie `checks/page.tsx` mit einem unbekannten
+       * Fahrzeug). Die Action ist an derselben Stelle STRENGER — dort wuerde
+       * derselbe Rueckfall gegen einen anderen Bestand buchen als gezaehlt.
+       */
+      const [fremd] = elementeVomTyp(
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "rtw-1" }), InventurForm,
+      );
+      expect(fremd.props).toMatchObject({ ortId: null });
+      expect((fremd.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(10);
+      expect(fremd.key).toBe("alle");
+
+      // Ein stillgelegter Schrank aus der URL bleibt waehlbar, damit die
+      // Auswahl nicht einen Ort anzeigt, den sie nicht kennt.
+      const [alt] = elementeVomTyp(
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "schrank-alt" }), InventurForm,
+      );
+      expect((alt.props as { orte: ZaehlOrt[] }).orte.map((o) => o.id))
+        .toEqual(["alle", "handlager", "schrank-1", "schrank-alt"]);
     } finally {
       testDb.schliessen();
     }
