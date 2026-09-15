@@ -76,8 +76,22 @@ export function AussondernDialog({
     setOffen(true);
   }
 
+  /**
+   * ⚠️ DER RESET IST PFLICHT, NICHT KOSMETIK. `destroyOnHidden` raeumt das
+   * Markup auf, nicht den Feldspeicher: die Form-Instanz haengt an DIESER
+   * Komponente, nicht am Modal, und antd bewahrt ihre Werte (`preserve` ist an).
+   * Ohne ihn stuende beim naechsten Oeffnen die abgebrochene Menge wieder da —
+   * bei einer Aktion, die Bestand ABBUCHT, ist das die gefaehrliche Richtung.
+   *
+   * ⚠️ VOR `setOffen(false)`, solange das Formular noch haengt: danach ist es
+   * abgeraeumt, und `resetFields` liefe gegen eine Instanz ohne Element.
+   *
+   * Deckt alle drei Auswege ab — antds `onCancel` traegt Knopf, Escape und
+   * Maskenklick gemeinsam.
+   */
   function schliessen() {
     if (laeuft) return;
+    form.resetFields();
     setOffen(false);
   }
 
@@ -99,8 +113,9 @@ export function AussondernDialog({
         });
         if (ergebnis.ok) {
           onAusgesondert?.(geschrieben || null);
-          setOffen(false);
+          // Gleiche Reihenfolge wie in `schliessen`: erst leeren, dann zu.
           form.resetFields();
+          setOffen(false);
           return;
         }
         // Der Satz aus der Action, nicht die Modulkonstante: nur er nennt die

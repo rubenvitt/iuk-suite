@@ -123,3 +123,27 @@ describe("AussondernDialog", () => {
     expect(document.body.textContent).toContain("Hier liegen nur 2 Stück.");
   });
 });
+
+describe("Abbrechen", () => {
+  /**
+   * ⚠️ `destroyOnHidden` RAEUMT DAS MARKUP AUF, NICHT DEN FELDSPEICHER. Die
+   * Form-Instanz haengt an DIESER Komponente, nicht am Modal, und antd bewahrt
+   * ihre Werte (`preserve` ist an). Ohne ausdruecklichen Reset steht beim
+   * naechsten Oeffnen die abgebrochene Menge wieder da — bei einer Aktion, die
+   * Bestand ABBUCHT, ist das die gefaehrliche Richtung.
+   */
+  it("vergisst abgebrochene Eingaben beim naechsten Oeffnen", async () => {
+    await zeige();
+    await oeffne();
+    await fuellPortal("input[aria-label='Menge']", "7");
+    await fuellPortal("input[aria-label='Kommentar']", "doch nicht");
+
+    await clickElement(knopfMitText("Abbrechen"));
+    await warte();
+    await oeffne();
+
+    expect(queryPortal<HTMLInputElement>("input[aria-label='Menge']").value).toBe("1");
+    expect(queryPortal<HTMLInputElement>("input[aria-label='Kommentar']").value).toBe("");
+    expect(mocks.aussondern).not.toHaveBeenCalled();
+  });
+});
