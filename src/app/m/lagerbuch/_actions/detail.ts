@@ -5,7 +5,10 @@ import { quelleAufloeser } from "../_db/quelle";
 import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verfall";
 import { chargeText } from "../_lib/format";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
+import { verteilungJeCharge } from "../_lib/lesepfade/bestand";
+import { handlagerSchraenke } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /** Typ-Exporte verschwinden beim Kompilieren und sind keine Server Actions. */
@@ -13,7 +16,14 @@ export type ArtikelDetailCharge = {
   id: string;
   chargenNr: string;
   verfall: string;
+  /** Rest im HANDLAGER-BEREICH — unveraendert die Grundlage von Mindestbestand,
+   *  Verfallsliste und Kacheln (§5.2.1). */
   rest: number;
+  /** DRK-297, Aufgabe 11 — Summe ueber ALLE Orte, Fahrzeuge eingeschlossen. */
+  restGesamt: number;
+  /** Die VERTEILUNG dieser Charge: wo wie viel liegt. Nicht zu verwechseln mit
+   *  `zielOrte` (die waehlbaren ZIELE eines Zugangs). */
+  orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
   ampel: Ampel;
   text: string;
 };
@@ -47,6 +57,14 @@ export type ArtikelDetailResult = {
   chargen: ArtikelDetailCharge[];
   historie: ArtikelDetailBuchung[];
   mehrVorhanden: boolean;
+  /**
+   * DRK-297 — die waehlbaren ZIELE fuer einen Zugang: die Wurzel und die
+   * AKTIVEN Handlager-Schraenke. Nicht zu verwechseln mit `orte` (Aufgabe 11,
+   * die VERTEILUNG einer Charge) — zwei Felder namens `orte` mit
+   * verschiedener Bedeutung waeren der zuverlaessigste Weg, ins falsche zu
+   * greifen.
+   */
+  zielOrte: { id: string; name: string; zugangshinweis: string | null }[];
 };
 
 /**
@@ -65,16 +83,32 @@ export async function getDetail(
   const jetzt = new Date();
   const schwellen = verfallSchwellen();
   const quelleName = quelleAufloeser(db);
+
+  // DRK-297, Fixrunde 1 zu Aufgabe 12 — die Ortsverteilung (Verteilung, Rang,
+  // Sortierung, Summe) ist jetzt der GEMEINSAME Kern aus
+  // `_lib/lesepfade/bestand.ts`, den auch `artikelDetailHelfer` benutzt. Zwei
+  // wortgleiche Kopien dieser Projektion liefen sonst garantiert auseinander.
+  const verteilung = verteilungJeCharge(db, id);
+
   const chargenErgebnis = detail.chargen
-    .filter((charge) => charge.rest > 0)
     .map((charge): ArtikelDetailCharge => {
+      const v = verteilung.get(charge.id) ?? { orte: [], restGesamt: 0 };
       const status = verfallStatus(charge.verfall, schwellen, jetzt);
       return {
         ...charge,
+        restGesamt: v.restGesamt,
+        orte: v.orte,
         ampel: status.ampel,
         text: chargeText(status, charge.verfall),
       };
-    });
+    })
+    /**
+     * ⚠️ DER FILTER GEHT AUF DIE SUMME ÜBER ALLE ORTE, nicht auf den
+     * Handlager-Rest. Genau hier verschwand bisher jede Charge, die
+     * vollständig im Fahrzeug lag: gemessen 7 Pkg., die in der Oberfläche
+     * nicht vorkamen, während der Artikel „Bestand 5" zeigte.
+     */
+    .filter((charge) => charge.restGesamt > 0);
 
   return {
     ok: true,
@@ -100,6 +134,14 @@ export async function getDetail(
         quelleName: quelleName(buchung.quelleTyp, buchung.quelleId),
       })),
       mehrVorhanden: detail.mehrVorhanden,
+      // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber
+      // kein Ziel mehr. Die Wurzel steht ausdrücklich darin.
+      zielOrte: [
+        { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ...handlagerSchraenke(db, true).map((o) => ({
+          id: o.id, name: o.name, zugangshinweis: o.zugangshinweis,
+        })),
+      ],
     },
   };
 }

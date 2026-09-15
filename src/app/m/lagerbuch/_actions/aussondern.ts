@@ -1,15 +1,14 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { buchungen, chargen, newId } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
-import { bestandProLagerortUndCharge } from "../_lib/domain/bestand";
+import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { verfallSchwellen, verfallStatus } from "../_lib/domain/verfall";
-import { HANDLAGER_ID } from "../_lib/konstanten";
 import { AUSSONDERN_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -62,37 +61,37 @@ export async function aussondern(
           return "Nur abgelaufene Chargen können ausgesondert werden.";
         }
 
-        const chargeBuchungen = tx
-          .select()
-          .from(buchungen)
-          .where(eq(buchungen.chargeId, charge.id))
-          .all();
-        const rest =
-          bestandProLagerortUndCharge(
-            chargeBuchungen.map((buchung) => ({
-              lagerortId: buchung.lagerortId,
-              chargeId: buchung.chargeId,
-              menge: buchung.menge,
-            })),
-            HANDLAGER_ID,
-          ).get(charge.id) ?? 0;
-        if (rest <= 0) return "Charge hat keinen Restbestand im Handlager.";
-
-        tx.insert(buchungen)
-          .values({
-            id: newId(),
-            ts: jetzt,
-            typ: "korrektur",
-            artikelId: charge.artikelId,
-            chargeId: charge.id,
-            lagerortId: HANDLAGER_ID,
-            menge: -rest,
-            quelleTyp: "oidc",
-            quelleId: viewer.sub,
-            referenz: `${AUSSONDERN_PRAEFIX}${HANDLAGER_ID}`,
-            kommentar: v.kommentar,
+        // DRK-297 — der Rest je ORT, nicht als eine Summe über den Bereich.
+        // EINE Abfrage, `GROUP BY lagerort_id`, mit Bereichs-Prädikat.
+        const orte = handlagerOrte(tx);
+        const jeOrt = tx
+          .select({
+            lagerortId: buchungen.lagerortId,
+            summe: sql<number>`sum(${buchungen.menge})`,
           })
-          .run();
+          .from(buchungen)
+          .where(and(
+            eq(buchungen.chargeId, charge.id),
+            inArray(buchungen.lagerortId, [...orte]),
+          ))
+          .groupBy(buchungen.lagerortId)
+          .all();
+
+        const gesamt = jeOrt.reduce((s, z) => s + z.summe, 0);
+        if (gesamt <= 0) return "Charge hat keinen Restbestand im Handlager.";
+
+        for (const zeile of jeOrt) {
+          // ⚠️ EIN ORT MIT REST 0 ODER WENIGER BEKOMMT KEINE ZEILE. Eine
+          // Buchung über 0 stünde im Journal und sagte nichts; eine über eine
+          // negative Zahl drehte das Vorzeichen um und schriebe Bestand ZU.
+          if (zeile.summe <= 0) continue;
+          tx.insert(buchungen).values({
+            id: newId(), ts: jetzt, typ: "korrektur", artikelId: charge.artikelId,
+            chargeId: charge.id, lagerortId: zeile.lagerortId, menge: -zeile.summe,
+            quelleTyp: "oidc", quelleId: viewer.sub,
+            referenz: `${AUSSONDERN_PRAEFIX}${zeile.lagerortId}`, kommentar: v.kommentar,
+          }).run();
+        }
         return null;
       });
     } catch {

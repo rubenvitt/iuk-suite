@@ -44,6 +44,7 @@ import { Chip } from "./Chip";
 import { KategorieEingabe } from "./KategorieEingabe";
 import { LoeschButton } from "./LoeschButton";
 import { monatAusPicker } from "./monat";
+import { OrtVerteilung } from "./OrtVerteilung";
 import { Plakette } from "./Plakette";
 import styles from "./verwaltung.module.css";
 
@@ -85,6 +86,7 @@ type ZugangWerte = {
   chargeId: string;
   chargenNr?: string;
   verfall?: Dayjs | null;
+  zielLagerortId?: string;
 };
 
 type EntnahmeWerte = {
@@ -303,11 +305,12 @@ export function ArtikelDrawer({
 
   async function zugangBuchen(werte: ZugangWerte): Promise<void> {
     let eingabe:
-      | { artikelId: string; menge: number; chargeId: string }
+      | { artikelId: string; menge: number; chargeId: string; zielLagerortId?: string }
       | {
         artikelId: string;
         menge: number;
         neueCharge: { chargenNr: string; verfall: string };
+        zielLagerortId?: string;
       };
 
     if (werte.chargeId === NEUE_CHARGE) {
@@ -323,12 +326,14 @@ export function ArtikelDrawer({
           chargenNr: werte.chargenNr?.trim() ?? "",
           verfall,
         },
+        ...(werte.zielLagerortId ? { zielLagerortId: werte.zielLagerortId } : {}),
       };
     } else {
       eingabe = {
         artikelId: id,
         menge: werte.menge,
         chargeId: werte.chargeId,
+        ...(werte.zielLagerortId ? { zielLagerortId: werte.zielLagerortId } : {}),
       };
     }
 
@@ -380,11 +385,16 @@ export function ArtikelDrawer({
       { value: NEUE_CHARGE, label: "+ Neue Charge", keywords: "neue Charge" },
       ...detail.chargen.map((charge) => ({
         value: charge.id,
-        label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)} · Rest ${charge.rest}`,
+        label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)} · Rest gesamt ${charge.restGesamt}`,
         keywords: charge.chargenNr,
       })),
     ]
     : [];
+
+  const zielOrtOptionen = (detail?.zielOrte ?? []).map((ort) => ({
+    value: ort.id,
+    label: ort.name,
+  }));
 
   const fahrzeugOptionen = fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
@@ -522,7 +532,13 @@ export function ArtikelDrawer({
                 form={zugangForm}
                 layout="vertical"
                 disabled={busy}
-                initialValues={{ menge: 1, chargeId: NEUE_CHARGE }}
+                initialValues={{
+                  menge: 1,
+                  chargeId: NEUE_CHARGE,
+                  ...(detail && detail.zielOrte.length === 1
+                    ? { zielLagerortId: detail.zielOrte[0]!.id }
+                    : {}),
+                }}
                 onFinish={(werte) => { void zugangBuchen(werte); }}
                 data-rolle="zugang-form"
               >
@@ -545,6 +561,19 @@ export function ArtikelDrawer({
                     filterOption={zielFilter}
                     options={chargeOptionen}
                     virtual={false}
+                  />
+                </Form.Item>
+                <Form.Item
+                  name="zielLagerortId"
+                  label="Wohin"
+                  rules={[{ required: true, message: "Bitte einen Ort wählen" }]}
+                  extra="„Handlager (ohne Schrank)“ heißt: noch nicht einsortiert."
+                >
+                  <Select
+                    aria-label="Wohin"
+                    showSearch
+                    optionFilterProp="label"
+                    options={zielOrtOptionen}
                   />
                 </Form.Item>
                 {ausgewaehlteCharge === NEUE_CHARGE ? (
@@ -718,7 +747,10 @@ function ArtikelKopf({
   mindestbestand: number;
 }) {
   const unterMindest = detail.artikel.bestand < mindestbestand;
-  const faelligeCharge = detail.chargen.find((charge) => charge.ampel !== "gruen");
+  // ⚠️ `rest` ist der Handlager-Bereich, `restGesamt` schliesst Fahrzeuge ein. Der
+  // Chip meint die Nachschub-Sicht des Handlagers und darf NICHT auf Fahrzeug-
+  // bestand anspringen — dafuer ist der Fahrzeug-Check zustaendig (§5.2.1).
+  const faelligeCharge = detail.chargen.find((charge) => charge.ampel !== "gruen" && charge.rest > 0);
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
@@ -784,12 +816,19 @@ function ChargenTabelle({
             sorter: nachText<ArtikelDetailCharge>((charge) => charge.chargenNr),
           },
           {
-            title: "Rest",
-            dataIndex: "rest",
-            key: "rest",
+            title: "Liegt in",
+            key: "orte",
+            render: (_, charge) => <OrtVerteilung orte={charge.orte} einheit={einheit} />,
+          },
+          {
+            // Hieß „Rest" und zeigte den Handlager — das las sich als
+            // Gesamtbestand. Der Name sagt jetzt, was die Zahl ist.
+            title: "Rest gesamt",
+            dataIndex: "restGesamt",
+            key: "restGesamt",
             align: "right",
             // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
-            sorter: nachZahl<ArtikelDetailCharge>((charge) => charge.rest),
+            sorter: nachZahl<ArtikelDetailCharge>((charge) => charge.restGesamt),
             render: (rest: number) => `${rest} ${einheit}`,
           },
         ]}

@@ -137,14 +137,14 @@ test.describe("lagerbuch — Modulnavigation", () => {
     );
   });
 
-  test("fünfzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
+  test("sechzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     const leiste = page.getByTestId("modulleiste");
     await expect(leiste).toBeVisible();
-    await expect(leiste.locator("a")).toHaveCount(15);
+    await expect(leiste.locator("a")).toHaveCount(16);
 
     const masse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -162,14 +162,19 @@ test.describe("lagerbuch — Modulnavigation", () => {
      * senkrecht ab (`.sider` in `shell.module.css`: `block-size:
      * calc(100vh - 64px)`, `overflow-y: auto`).
      *
-     * GEMESSEN, nicht angenommen: zwanzig Zeilen (fünfzehn 56px-Links plus
-     * fünf Überschriften, siehe `nav.ts`) ergeben eine Inhaltshöhe von
+     * GEMESSEN, nicht angenommen (Fix-Runde 1, vor Aufgabe 9s sechzehntem
+     * Eintrag „Lagerorte"): zwanzig Zeilen (damals fünfzehn 56px-Links plus
+     * fünf Überschriften, siehe `nav.ts`) ergaben eine Inhaltshöhe von
      * 1116px (`aside.scrollHeight`, in einem Wegwerf-Testlauf gemessen).
-     * Das überschreitet `100vh - 64px` schon bei 800px Viewporthöhe
-     * (736px Innenraum) — der Überlauf steht bei jeder realistischen
-     * Desktop-Höhe, nicht erst ab einer knappen Grenze. 900px Breite bleibt
-     * trotzdem der richtige zweite Messpunkt: dieselbe Breite wie im alten
-     * Test, als Gegenprobe gegen eine breitenabhängige Regression.
+     * Das überschritt `100vh - 64px` schon bei 800px Viewporthöhe
+     * (736px Innenraum) — der Überlauf stand bei jeder realistischen
+     * Desktop-Höhe, nicht erst ab einer knappen Grenze. Mit dem sechzehnten
+     * Eintrag sind es einundzwanzig Zeilen, also NUR MEHR Inhaltshöhe als
+     * die gemessenen 1116px — die Marge wächst, sie schrumpft nicht, und
+     * der Nachweis unten (`scrollHeight > clientHeight`) prüft den Überlauf
+     * ohnehin am tatsächlichen DOM, nicht an dieser Zahl. 900px Breite
+     * bleibt trotzdem der richtige zweite Messpunkt: dieselbe Breite wie im
+     * alten Test, als Gegenprobe gegen eine breitenabhängige Regression.
      */
     await page.setViewportSize({ width: 900, height: 720 });
     await expect(leiste).toBeVisible();

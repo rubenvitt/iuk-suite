@@ -40,7 +40,31 @@ export type EntnahmeDetail = {
     id: string;
     chargenNr: string;
     verfall: string;
+    /**
+     * Rest im HANDLAGER-BEREICH — wortgleich mit `ArtikelDetailCharge`
+     * (`_actions/detail.ts`, Aufgabe 11). DAS ist die Zahl, die diese Ansicht
+     * im Mengenfeld zeigt (Fixrunde 1 zu Aufgabe 12): Kopfzahl
+     * ("BESTAND HANDLAGER"), Stepper-Obergrenze (`detail.bestand`) und diese
+     * Chargenzahl sprechen dieselbe Sprache — das, was HIER UND JETZT
+     * entnehmbar ist. `restGesamt` waere hier eine Zahl, die mehr verspricht,
+     * als man am Regal mitnehmen kann.
+     */
     rest: number;
+    /**
+     * DRK-297, Aufgabe 12 — Summe ueber ALLE Orte, Fahrzeuge eingeschlossen.
+     * Wortgleich mit `ArtikelDetailCharge["restGesamt"]` (Aufgabe 11); dient
+     * hier NUR dem Aufbau der `orte`-Liste und der Datenform-Paritaet mit der
+     * Verwaltung — nicht der Anzeige. Eine Charge, die vollstaendig im
+     * Fahrzeug liegt, hat `rest === 0` und `restGesamt > 0`: die „0" bleibt
+     * nicht raetselhaft, weil direkt daneben die Ortszeile steht ("RTW 1: 7").
+     */
+    restGesamt: number;
+    /** Die VERTEILUNG dieser Charge: wo wie viel liegt, wortgleich mit
+     *  `ArtikelDetailCharge["orte"]`. ⚠️ Der Zugangshinweis steht in DIESER
+     *  Ansicht VORN im Markup, nicht in einem Tooltip (Nachtrag zu Aufgabe
+     *  12) — `OrtVerteilung.tsx` (Aufgabe 11, Verwaltung) ist deshalb bewusst
+     *  NICHT wiederverwendet, siehe `_lib/bauform.test.ts`. */
+    orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
     ampel: Ampel;
     text: string;
   }[];
@@ -244,8 +268,52 @@ export function Entnahme({
                 <HelferChip ton={ampelTon(c.ampel)}>{c.text}</HelferChip>
                 <span>{fmtVerfall(c.verfall)}</span>
               </div>
+              {/*
+                DRK-297, Aufgabe 12 — WO die Charge liegt. Eine eigene Zeile
+                pro Ort ("Ort: Menge Einheit"), dieselbe `.zeileMeta`-Form wie
+                die Chip-Zeile darueber.
+              */}
+              <div className={s.zeileMeta} data-rolle="charge-orte">
+                {c.orte.map((ort) => (
+                  <span key={ort.id} data-rolle="charge-ort">
+                    {ort.name}: {ort.menge} {detail.einheit}
+                  </span>
+                ))}
+              </div>
+              {/*
+                ⚠️ NACHTRAG DES HAUPTLAUFS ZU AUFGABE 12: der Zugangshinweis
+                steht HIER, direkt unter der Verteilung, und NICHT in einem
+                Tooltip. Das ist die Ansicht fuer jemanden mit dem Telefon in
+                der Hand, der das Material am Regal nicht findet — ein
+                Hinweis, den man erst aufdecken muss, hilft dort niemandem.
+                `.chip.warnhinweis` traegt bereits die umbruchfaehige,
+                mehrzeilige Form (siehe `CheckFlow.tsx`); der Ton bleibt
+                NEUTRAL (`grau`), weil hier nichts falsch gelaufen ist, nur
+                ein Weg zu nennen ist.
+              */}
+              {c.orte
+                .filter((ort) => ort.zugangshinweis)
+                .map((ort) => (
+                  <span
+                    key={ort.id}
+                    className={`${s.chip} ${s.grau} ${s.warnhinweis}`}
+                    data-rolle="charge-zugangshinweis"
+                  >
+                    {ort.name}: {ort.zugangshinweis}
+                  </span>
+                ))}
             </div>
             <div className={s.mengenChip}>
+              {/*
+                ⚠️ FIXRUNDE 1 ZU AUFGABE 12: HIER STAND `c.restGesamt`. Kopfzahl
+                ("BESTAND HANDLAGER"), Stepper-Obergrenze und Buchen-Sperre
+                haengen alle an `detail.bestand` — Handlager-only. `restGesamt`
+                waere hier groesser als das, was tatsaechlich abbuchbar ist:
+                jemand liest „7 Pkg." und kann sie nicht nehmen. `c.rest` (der
+                Handlager-Anteil) spricht dieselbe Sprache wie die Kopfzahl;
+                eine „0" bei einer reinen Fahrzeug-Charge ist nicht raetselhaft,
+                weil die Ortszeile direkt darunter erklaert, wo der Rest liegt.
+              */}
               {c.rest}
               <small>{detail.einheit}</small>
             </div>
