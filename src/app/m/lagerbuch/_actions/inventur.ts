@@ -11,7 +11,7 @@ import { bestandProOrte } from "../_lib/domain/bestand";
 import { KATEGORIE_MAX_LAENGE, KATEGORIEN_AUSWAHL_MAX } from "../_lib/kategorie";
 import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
-import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
+import { restJeChargeFuerArtikel, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -107,8 +107,11 @@ function artikelPosition(tx: Tx, lauf: Lauf, position: ArtikelPositionT): boolea
   if (diff === 0) return false;
 
   if (diff < 0) {
+    // DRK-297 (Nachtrag) — der Bereich, nicht die Wurzel: liegt der Bestand in
+    // einem Schrank, fand die Wurzel dort nichts und kappte nach I2 auf zu
+    // wenig, ohne den Fehlschlag zu melden.
     fefoAbbuchung(tx, {
-      artikelId: position.artikelId, menge: -diff, lagerortId: HANDLAGER_ID,
+      artikelId: position.artikelId, menge: -diff, orte: handlagerOrte(tx),
       quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
     });
     return true;
@@ -189,9 +192,42 @@ function juengsteZuerst<T extends { id: string; verfall: string; createdAt: Date
     || b.id.localeCompare(a.id));
 }
 
-function bucheKorrektur(tx: Tx, lauf: Lauf, artikelId: string, chargeId: string, menge: number): void {
+/**
+ * DRK-297 (Nachtrag) — schreibt NICHT MEHR BLIND auf die Wurzel.
+ *
+ *   diff < 0  → ueber `fefoAbbuchung`, `chargeId`-gescoped, `orte:
+ *               handlagerOrte(tx)`: die Menge verschwindet dort, wo sie
+ *               liegt, und die I2-Kappung greift. `chargeId` haelt die
+ *               FEFO-Verteilung auf GENAU diese eine Charge fest — sonst
+ *               koennte eine ANDERE, frueher ablaufende Charge desselben
+ *               Artikels die Korrektur abbekommen, und das Journal wiche von
+ *               der gespeicherten Position (die genau diese `chargeId`
+ *               traegt) ab.
+ *   diff > 0  → Gutschrift an den Ort, an dem die Charge SCHON Bestand hat:
+ *               den ersten in FEFO-Ortsreihenfolge (`handlagerOrte` liefert
+ *               Wurzel zuerst, dann Schraenke nach `sortierung`). Hat die
+ *               Charge NIRGENDS Bestand, ist die Wurzel der ehrliche
+ *               Rueckfall — „noch nicht einsortiert" (Betreiberentscheidung
+ *               des Hauptlaufs).
+ *
+ * Vorher schrieb diese Funktion die Rohmenge direkt auf `lagerortId:
+ * HANDLAGER_ID`, ohne FEFO und ohne I2-Kappung: eine Charge, die vollstaendig
+ * in einem Schrank liegt, konnte den (Wurzel, Charge)-Saldo ins Minus druecken
+ * — in ein Journal, das kein UPDATE und kein DELETE kennt.
+ */
+function bucheKorrektur(tx: Tx, lauf: Lauf, artikelId: string, chargeId: string, diff: number): void {
+  if (diff < 0) {
+    fefoAbbuchung(tx, {
+      artikelId, chargeId, menge: -diff, orte: handlagerOrte(tx),
+      quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
+    });
+    return;
+  }
+
+  const bestandJeOrt = restJeChargeUndOrt(tx, artikelId).get(chargeId) ?? new Map<string, number>();
+  const ziel = handlagerOrte(tx).find((ort) => (bestandJeOrt.get(ort) ?? 0) > 0) ?? HANDLAGER_ID;
   tx.insert(buchungen).values({
-    id: newId(), ts: new Date(), typ: "korrektur", artikelId, chargeId, lagerortId: HANDLAGER_ID, menge,
+    id: newId(), ts: new Date(), typ: "korrektur", artikelId, chargeId, lagerortId: ziel, menge: diff,
     quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
     referenz: lauf.referenz, kommentar: lauf.kommentar,
   }).run();

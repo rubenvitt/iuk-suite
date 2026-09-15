@@ -590,3 +590,85 @@ describe("inventurKorrektur — Schema der Chargenposition", () => {
     expect(erg).toMatchObject({ ok: false, fehler: "Bitte die markierten Felder prüfen." });
   });
 });
+
+/**
+ * DRK-297, NACHTRAG ZU AUFGABE 6 — `bucheKorrektur` schreibt nicht mehr blind
+ * auf die Wurzel: liegt eine Charge (teilweise oder ganz) in einem Schrank,
+ * geht die Korrektur DORTHIN. Vorher drueckte ein negativer Diff auf eine
+ * Charge, die vollstaendig im Schrank lag, den (Wurzel, Charge)-Saldo ins
+ * Minus — in ein Journal ohne UPDATE und ohne DELETE.
+ */
+describe("inventurKorrektur — DRK-297 (Nachtrag): die Korrektur landet dort, wo die Charge liegt", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values(
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 }).run();
+  });
+
+  function bestandAn(chargeId: string, lagerortId: string): number {
+    return t.db.select().from(buchungen).all()
+      .filter((b) => b.chargeId === chargeId && b.lagerortId === lagerortId)
+      .reduce((s, b) => s + b.menge, 0);
+  }
+
+  it("zaehlt WENIGER als eine Charge, die ausschliesslich im Schrank liegt — die Korrektur traegt den Schrank", async () => {
+    legeArtikelAn("art-schrank-minus");
+    legeChargeAn({ id: "c-schrank-minus", artikelId: "art-schrank-minus", verfall: "2027-06" });
+    buche({ artikelId: "art-schrank-minus", chargeId: "c-schrank-minus", lagerortId: "schrank-1", menge: 12 });
+
+    const erg = await inventurKorrektur({
+      kommentar: "Schrank",
+      positionen: [{ artikelId: "art-schrank-minus", chargen: [{ chargeId: "c-schrank-minus", ist: 9 }], neu: [] }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    const korrekturen = inventurBuchungen();
+    expect(korrekturen).toHaveLength(1);
+    expect(korrekturen[0]).toMatchObject({
+      chargeId: "c-schrank-minus", lagerortId: "schrank-1", menge: -3, typ: "korrektur",
+    });
+    // Der Bereichsbestand stimmt mit der gezaehlten Zahl ueberein, und KEIN
+    // Ort faellt unter 0 — insbesondere nicht die Wurzel, die von dieser
+    // Charge nie etwas hatte.
+    expect(bestandAn("c-schrank-minus", "schrank-1")).toBe(9);
+    expect(bestandAn("c-schrank-minus", HANDLAGER_ID)).toBe(0);
+  });
+
+  it("zaehlt MEHR als eine Charge, die ausschliesslich im Schrank liegt — die Gutschrift landet am Schrank", async () => {
+    legeArtikelAn("art-schrank-plus");
+    legeChargeAn({ id: "c-schrank-plus", artikelId: "art-schrank-plus", verfall: "2027-06" });
+    buche({ artikelId: "art-schrank-plus", chargeId: "c-schrank-plus", lagerortId: "schrank-1", menge: 12 });
+
+    const erg = await inventurKorrektur({
+      kommentar: "Schrank",
+      positionen: [{ artikelId: "art-schrank-plus", chargen: [{ chargeId: "c-schrank-plus", ist: 15 }], neu: [] }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    const korrekturen = inventurBuchungen();
+    expect(korrekturen).toHaveLength(1);
+    expect(korrekturen[0]).toMatchObject({
+      chargeId: "c-schrank-plus", lagerortId: "schrank-1", menge: 3, typ: "korrektur",
+    });
+    expect(bestandAn("c-schrank-plus", "schrank-1")).toBe(15);
+    expect(bestandAn("c-schrank-plus", HANDLAGER_ID)).toBe(0);
+  });
+
+  it("eine Charge OHNE jeden Bestand zaehlt mehr — die Gutschrift landet auf der Wurzel", async () => {
+    legeArtikelAn("art-ohne-bestand");
+    // Eine angelegte, aber noch nie gebuchte Charge — Rest ueberall 0.
+    legeChargeAn({ id: "c-ohne-bestand", artikelId: "art-ohne-bestand", verfall: "2027-06" });
+
+    const erg = await inventurKorrektur({
+      kommentar: "Fund",
+      positionen: [{ artikelId: "art-ohne-bestand", chargen: [{ chargeId: "c-ohne-bestand", ist: 5 }], neu: [] }],
+    }, t.db);
+
+    expect(erg).toMatchObject({ ok: true, wert: { korrigiert: 1 } });
+    const korrekturen = inventurBuchungen();
+    expect(korrekturen).toHaveLength(1);
+    expect(korrekturen[0]).toMatchObject({
+      chargeId: "c-ohne-bestand", lagerortId: HANDLAGER_ID, menge: 5, typ: "korrektur",
+    });
+  });
+});
