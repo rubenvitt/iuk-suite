@@ -154,6 +154,9 @@ export function AussondernDialog({
           menge: werte.menge,
           chargeId: werte.chargeId ?? null,
           verfall: geschrieben,
+          // Was beim Öffnen im Feld stand — daran erkennt die Aktion, ob der
+          // Monat überhaupt gemeint war.
+          verfallVorher: verfall ?? "",
           kommentar: werte.kommentar,
         });
         if (ergebnis.ok) {

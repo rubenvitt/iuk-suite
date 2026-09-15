@@ -349,10 +349,10 @@ describe("aussondernVomLagerort — meldet den TATSAECHLICH geschriebenen Verfal
 
 describe("aussondernVomLagerort — ein leeres Datum heisst „bewusst geleert\"", () => {
   /**
-   * Seit der Dialog immer den Feldwert schickt (und nicht mehr selbst auf ""
-   * umschaltet, wenn er den ganzen Bestand auszubuchen glaubt), hat ein leeres
-   * Datum genau EINE Bedeutung: die Person hat es geleert. Dann faellt die
-   * Angabe auch dann weg, wenn noch etwas liegen bleibt.
+   * Ein leeres Feld heisst „geleert" nur IM VERGLEICH zu dem, was beim Oeffnen
+   * darin stand. Ohne diesen Bezug waere es von „nie etwas eingetragen" nicht zu
+   * unterscheiden — und die Aktion ruehrte einen fremden Stand an, den sie gar
+   * nicht gemeint hat.
    */
   it("loescht die Angabe auf Wunsch, obwohl Bestand bleibt", async () => {
     charge("ch-alt", "2020-01");
@@ -363,12 +363,91 @@ describe("aussondernVomLagerort — ein leeres Datum heisst „bewusst geleert\"
     }).run();
 
     const erg = await aussondernVomLagerort(
-      { lagerortId: "fz-1", artikelId: "art-1", menge: 2, verfall: "", kommentar: "MHD" },
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 2,
+        // Angezeigt war 2020-01, abgeschickt wird leer: eine Aussage.
+        verfallVorher: "2020-01", verfall: "", kommentar: "MHD",
+      },
       t.db,
     );
 
     expect(erg.ok).toBe(true);
     expect((erg as { ok: true; wert: { verfall: string | null } }).wert.verfall).toBeNull();
+    expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+  });
+});
+
+describe("aussondernVomLagerort — ruehrt einen Verfall nicht an, den niemand geaendert hat", () => {
+  function meldung(verfall: string) {
+    t.db.insert(lagerortVerfall).values({
+      id: "lv-1", lagerortId: "fz-1", artikelId: "art-1", verfall,
+      erfasstAt: JETZT, quelleTyp: "system", quelleId: "seed",
+    }).run();
+  }
+
+  /**
+   * ⚠️ DER VERLORENE FREMDSCHREIBVORGANG. Der Dialog belegt sein Feld beim
+   * Oeffnen vor und schickt den Wert beim Absenden mit — auch wenn niemand ihn
+   * angefasst hat. Aendert inzwischen JEMAND ANDERES den Monat, schriebe diese
+   * Aussonderung den alten Stand darueber, obwohl sie mit dem Datum gar nichts
+   * wollte. Ein Dialog hat nichts zu schreiben, worum er nicht gebeten wurde.
+   */
+  it("laesst den inzwischen geaenderten Monat einer anderen Sitzung stehen", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 10);
+    meldung("2029-01");   // jemand anderes war schneller
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 2,
+        // Was der Dialog beim Oeffnen SAH — und unveraendert zurueckschickt.
+        verfallVorher: "2027-03", verfall: "2027-03",
+        kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(lagerortVerfall).all().map((z) => z.verfall)).toEqual(["2029-01"]);
+    // Und die Oberflaeche erfaehrt den WAHREN Stand, nicht ihre eigene Eingabe.
+    expect((erg as { ok: true; wert: { verfall: string | null } }).wert.verfall)
+      .toBe("2029-01");
+  });
+
+  it("schreibt sehr wohl, wenn die Person den Monat geaendert hat", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 10);
+    meldung("2029-01");
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 2,
+        verfallVorher: "2027-03", verfall: "2028-06",
+        kommentar: "MHD",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(t.db.select().from(lagerortVerfall).all().map((z) => z.verfall)).toEqual(["2028-06"]);
+  });
+
+  it("loescht trotzdem, wenn der Bestand auf null geht", async () => {
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+    meldung("2029-01");
+
+    const erg = await aussondernVomLagerort(
+      {
+        lagerortId: "fz-1", artikelId: "art-1", menge: 4,
+        verfallVorher: "2027-03", verfall: "2027-03",
+        kommentar: "alles raus",
+      },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    // Kein Bestand, keine Angabe — das schlaegt „nicht anruehren".
     expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
   });
 });

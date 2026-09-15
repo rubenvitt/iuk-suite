@@ -5,7 +5,9 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { buchungen, lagerorte, newId, sollPositionen } from "../_db/schema";
+import {
+  buchungen, lagerorte, lagerortVerfall, newId, sollPositionen,
+} from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { MONAT_REGEX } from "../_lib/konstanten";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
@@ -43,6 +45,16 @@ const AussondernLagerortSchema = z.object({
       (w) => !w || MONAT_REGEX.test(w),
       "Verfall im Format JJJJ-MM angeben (Monat 01–12).",
     ),
+  /**
+   * Was der Dialog beim Öffnen ANGEZEIGT hat.
+   *
+   * ⚠️ OHNE DIESEN WERT SCHREIBT DER DIALOG ETWAS, WORUM NIEMAND IHN GEBETEN
+   * HAT: er belegt sein Feld vor und schickt es beim Absenden mit, auch wenn
+   * niemand es angefasst hat. Ändert inzwischen eine ANDERE Sitzung den Monat,
+   * schriebe die Aussonderung den alten Stand darüber. Stimmen Eingabe und
+   * Anzeige überein, bleibt der gespeicherte Wert deshalb unangetastet.
+   */
+  verfallVorher: z.string().trim().nullish(),
   kommentar: z.string().trim().min(1, "Kommentar erforderlich"),
 });
 
@@ -185,13 +197,43 @@ export async function aussondernVomLagerort(
            * Kein Bestand, keine Angabe: `setzeVerfall` löscht bei `null`.
            */
           const verbleibend = gesamt - v.menge;
-          geschriebenerVerfall = verbleibend > 0 && v.verfall ? v.verfall : null;
-          setzeVerfall(tx, {
-            lagerortId: v.lagerortId,
-            artikelId: v.artikelId,
-            verfall: geschriebenerVerfall,
-            quelle,
-          });
+          const gemeint = v.verfall ? v.verfall : null;
+          const gesehen = v.verfallVorher ? v.verfallVorher : null;
+
+          if (verbleibend === 0) {
+            // Kein Bestand, keine Angabe. Das schlägt „nicht anrühren": eine
+            // Meldung ohne Bestand behauptet einen Verfall, den es nicht gibt.
+            geschriebenerVerfall = null;
+            setzeVerfall(tx, {
+              lagerortId: v.lagerortId, artikelId: v.artikelId,
+              verfall: null, quelle,
+            });
+          } else if (gemeint !== gesehen) {
+            // Die Person hat den Monat angefasst — das ist eine Aussage.
+            geschriebenerVerfall = gemeint;
+            setzeVerfall(tx, {
+              lagerortId: v.lagerortId, artikelId: v.artikelId,
+              verfall: gemeint, quelle,
+            });
+          } else {
+            /*
+             * UNVERAENDERT ⇒ NICHTS SCHREIBEN. Der Dialog wollte Bestand
+             * ausbuchen, nicht das Datum pflegen. Hat eine andere Sitzung es
+             * inzwischen geändert, bliebe es sonst unter der Vorbelegung
+             * begraben — ein verlorener Fremdschreibvorgang, den kein Tor sieht.
+             *
+             * Gemeldet wird der STAND AUS DER DATENBANK, damit die Tabelle
+             * daneben die Wahrheit spiegelt und nicht die eigene Eingabe.
+             */
+            const zeile = tx.select({ verfall: lagerortVerfall.verfall })
+              .from(lagerortVerfall)
+              .where(and(
+                eq(lagerortVerfall.lagerortId, v.lagerortId),
+                eq(lagerortVerfall.artikelId, v.artikelId),
+              ))
+              .get();
+            geschriebenerVerfall = zeile?.verfall ?? null;
+          }
           return null;
         });
       } catch {
