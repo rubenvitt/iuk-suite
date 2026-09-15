@@ -5,18 +5,7 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal } from "antd";
 import { createSchrank } from "../../../_actions/lagerorte";
 import { Ikone } from "../../../_ui/ikonen";
-
-type SchrankWerte = {
-  name: string;
-  zugangshinweis?: string;
-  sortierung?: number;
-};
-
-const FORM_FELDER = new Set<keyof SchrankWerte>(["name", "zugangshinweis", "sortierung"]);
-
-function istFormFeld(name: string): name is keyof SchrankWerte {
-  return FORM_FELDER.has(name as keyof SchrankWerte);
-}
+import { istFormFeld, leereFormFehler, type SchrankWerte } from "./schrankWerte";
 
 /**
  * Anlegen-Formular fuer einen Schrank — 1:1 nach dem Muster von
@@ -47,7 +36,7 @@ export function NeuSchrank() {
     if (laeuftRef.current) return;
     laeuftRef.current = true;
     setFehler(null);
-    form.setFields(Array.from(FORM_FELDER, (name) => ({ name, errors: [] })));
+    form.setFields(leereFormFehler());
 
     start(async () => {
       try {

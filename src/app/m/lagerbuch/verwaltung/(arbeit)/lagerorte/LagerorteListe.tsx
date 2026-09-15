@@ -23,6 +23,7 @@ import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { NeuSchrank } from "./NeuSchrank";
+import { istFormFeld, leereFormFehler, type SchrankWerte } from "./schrankWerte";
 
 /**
  * Die Client-Insel erhaelt ausschliesslich JSON-sichere Skalare — keine
@@ -36,18 +37,6 @@ export type LagerortZeile = {
   aktiv: boolean;
   bestandsposten: number;
 };
-
-type SchrankWerte = {
-  name: string;
-  zugangshinweis?: string;
-  sortierung?: number;
-};
-
-const FORM_FELDER = new Set<keyof SchrankWerte>(["name", "zugangshinweis", "sortierung"]);
-
-function istFormFeld(name: string): name is keyof SchrankWerte {
-  return FORM_FELDER.has(name as keyof SchrankWerte);
-}
 
 /**
  * Das Bearbeiten-Formular — eigenes Modal statt Wiederverwendung von
@@ -77,7 +66,7 @@ function SchrankBearbeiten({
     if (laeuftRef.current) return;
     laeuftRef.current = true;
     setFehler(null);
-    form.setFields(Array.from(FORM_FELDER, (name) => ({ name, errors: [] })));
+    form.setFields(leereFormFehler());
 
     start(async () => {
       try {
@@ -252,7 +241,10 @@ function spalten(): NonNullable<TableProps<LagerortZeile>["columns"]> {
     {
       title: "Aktionen",
       key: "aktionen",
-      render: (_wert: undefined, zeile: LagerortZeile) => <SchrankAktionen zeile={zeile} />,
+      // Ohne `dataIndex` ist der ERSTE Parameter der ganze Datensatz, nicht
+      // `undefined` — `zeile` traegt also den kompletten `LagerortZeile`, und
+      // ein zweiter Parameter waere nur eine Kopie desselben Werts.
+      render: (zeile: LagerortZeile) => <SchrankAktionen zeile={zeile} />,
     },
   ];
 }

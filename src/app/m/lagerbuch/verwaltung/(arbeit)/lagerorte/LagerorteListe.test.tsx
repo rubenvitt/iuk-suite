@@ -40,10 +40,22 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: mocks.refresh }),
 }));
 
+/**
+ * ⚠️ `schrank-alt` TRAEGT ABSICHTLICH BESTAND (`bestandsposten: 3`), OBWOHL ER
+ * STILLGELEGT IST. Genau diese Kombination — `aktiv: false` UND
+ * `bestandsposten > 0` — ist laut Plan der NORMALFALL beim Umraeumen und der
+ * Grund, warum Stilllegen keinen Bestand wegnimmt (`_actions/lagerorte.ts`).
+ * Eine Fixture mit `bestandsposten: 0` liesse die Renderlogik ungeprueft: sie
+ * ist unbedingt (die Postenspalte blendet fuer inaktive Zeilen nichts aus),
+ * aber „vermutlich richtig" ist kein Test. Wer diese beiden Felder je fuer
+ * sich testet, kann trotzdem eine Umsetzung durchwinken, die die Postenspalte
+ * bei `!aktiv` unterdrueckt — und genau das nimmt jemandem beim Umraeumen die
+ * Information, dass dort noch etwas liegt.
+ */
 const ZEILEN: LagerortZeile[] = [
   { id: "schrank-1", name: "Schrank 1", zugangshinweis: null, sortierung: 10, aktiv: true, bestandsposten: 4 },
   { id: "schrank-gf", name: "GF-Schrank", zugangshinweis: "Zugang über LvD — anrufen", sortierung: 90, aktiv: true, bestandsposten: 2 },
-  { id: "schrank-alt", name: "Altschrank", zugangshinweis: null, sortierung: 50, aktiv: false, bestandsposten: 0 },
+  { id: "schrank-alt", name: "Altschrank", zugangshinweis: null, sortierung: 50, aktiv: false, bestandsposten: 3 },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -158,11 +170,21 @@ describe("LagerorteListe", () => {
     expect(document.body.textContent).toContain("Zugang über LvD — anrufen");
   });
 
-  /** Ein stillgelegter Schrank mit Bestand ist der Normalfall beim Umraeumen —
-   *  die Seite muss sagen, dass dort noch etwas liegt. */
-  it("kennzeichnet stillgelegte Schraenke", async () => {
+  /**
+   * ⚠️ DIE INTERESSANTE KOMBINATION: `aktiv: false` UND `bestandsposten > 0`
+   * ZUSAMMEN, nicht je einzeln. Stilllegen nimmt keinen Bestand weg — ein
+   * stillgelegter Schrank MIT Bestand ist deshalb der Normalfall beim
+   * Umraeumen, und die Seite muss beides gleichzeitig zeigen: die
+   * Kennzeichnung „Stillgelegt" UND die Postenzahl. Ein Test, der nur die
+   * Kennzeichnung oder nur die Zahl prueft, liesse eine Umsetzung durchgehen,
+   * die die Postenspalte fuer inaktive Zeilen ausblendet — und naehme damit
+   * genau die Information weg, die beim Umraeumen zaehlt.
+   */
+  it("kennzeichnet stillgelegte Schraenke UND zeigt ihre Postenzahl", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
-    expect(query('[data-row-key="schrank-alt"]').textContent).toContain("Stillgelegt");
+    const zeile = query('[data-row-key="schrank-alt"]').textContent;
+    expect(zeile).toContain("Stillgelegt");
+    expect(zeile).toContain("3");
   });
 
   it("zeigt einen gedämpften Strich statt eines leeren Hinweises", async () => {
@@ -173,7 +195,7 @@ describe("LagerorteListe", () => {
   it("zeigt die Postenzahl je Schrank", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     expect(query('[data-row-key="schrank-1"]').textContent).toContain("4");
-    expect(query('[data-row-key="schrank-alt"]').textContent).toContain("0");
+    expect(query('[data-row-key="schrank-gf"]').textContent).toContain("2");
   });
 
   it("trägt je Zeile Bearbeiten- und Statusknopf", async () => {
