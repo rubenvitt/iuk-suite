@@ -177,11 +177,42 @@ export function CheckFlow({
 
   const faecher = [...new Set(soll.map((p) => p.fachLabel))];
 
-  // Default = Soll („voll annehmen, Gezaehltes runterkorrigieren", `:97`). Der
-  // RECORDED Fahrzeugbestand wird bewusst NICHT als Per-Position-Default
-  // benutzt: er ist pro ARTIKEL, nicht pro Fach, und derselbe Artikel in
-  // mehreren Faechern wuerde sich vervielfachen (`:94-96`, §5.7.1).
-  const istWert = (p: CheckPos) => ist[p.id] ?? p.soll;
+  /*
+   * DEFAULT = 0, NICHT MEHR SOLL — DRK-304.
+   *
+   * Bis hierher galt „voll annehmen, Gezaehltes runterkorrigieren" (`:97`).
+   * Diese Vorbelegung WAR die Aktion „Alles auf Soll", die das Ticket
+   * entfernt: wer den Schritt durchklickte, bezeugte einen vollen Wagen, ohne
+   * ein Fach gesehen zu haben — und serverseitig ist „gezaehlt und stimmt" von
+   * „nicht gezaehlt" nicht unterscheidbar (`_lib/checkNutzlast.ts`, Kopf).
+   *
+   * ⚠️ DIE UMKEHR IST NICHT FOLGENLOS, UND DESHALB STEHT `gezaehlt` DANEBEN.
+   * `check.ts` rechnet aus der Summe der gezaehlten Ist JE ARTIKEL eine
+   * Korrekturbuchung auf den Fahrzeugbestand — in ein Journal ohne UPDATE und
+   * ohne DELETE. Eine 0, die niemand gezaehlt hat, waere damit eine
+   * unwiderrufliche Leerbuchung; das Ticket verbietet sie ausdruecklich
+   * („keine automatische Deutung von 0 als bestaetigter Leerbestand"). Der
+   * Riegel im Zaehlschritt ist die Antwort darauf — NICHT eine zweite
+   * Vorbelegung.
+   *
+   * Der RECORDED Fahrzeugbestand ist weiterhin kein Per-Position-Default: er
+   * ist pro ARTIKEL, nicht pro Fach, und derselbe Artikel in mehreren Faechern
+   * wuerde sich vervielfachen (`:94-96`, §5.7.1).
+   */
+  const istWert = (p: CheckPos) => ist[p.id] ?? 0;
+
+  /**
+   * Hat jemand diese Position ANGEFASST? `undefined` heisst „noch nicht
+   * gezaehlt" und ist von einer gezaehlten 0 zu unterscheiden — genau darauf
+   * steht und faellt DRK-304.
+   *
+   * ⚠️ DER AUSGANG FUER EIN WIRKLICH LEERES FACH IST DAS „−". `Stepper.tsx`
+   * ruft `setWert` auch dann, wenn der Wert bei `min` schon steht; der Klick
+   * schreibt also die 0 in `ist` und macht sie zur Aussage. Ohne diese
+   * Eigenschaft gaebe es aus dem Riegel keinen Weg, und sie darf beim naechsten
+   * Umbau des Steppers nicht stillschweigend verloren gehen.
+   */
+  const gezaehlt = (p: CheckPos) => ist[p.id] !== undefined;
   const nfWert = (p: CheckPos) => nachfuell[p.id] ?? 0;
 
   // Verfall haengt am ARTIKEL, nicht am Fach. Vorbelegt ist der beim letzten
@@ -511,7 +542,8 @@ export function CheckFlow({
 
   // ——— Schritt: Zaehlen ———
   if (aktivePhase === "zaehlen") {
-    const unterSoll = soll.filter((p) => istWert(p) < p.soll).length;
+    const unterSoll = soll.filter((p) => gezaehlt(p) && istWert(p) < p.soll).length;
+    const ungezaehlt = soll.filter((p) => !gezaehlt(p)).length;
     const ablaufend = zaehleAblaufende(
       Object.fromEntries(soll.map((p) => [p.artikelId, verfallWert(p.artikelId) || null])),
       warn,
@@ -549,9 +581,10 @@ export function CheckFlow({
             Wie viel liegt wirklich im Fahrzeug, und wie lange hält es?
           </div>
           <p className={s.fussnote}>
-            Jede Position ist auf Soll vorbelegt – mit <b>−</b> runterzählen, was fehlt. Das
-            Verfallsdatum kommt aus dem letzten Check und ist freiwillig: nur ändern, wenn auf der
-            Packung ein anderes (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“.
+            Jede Position startet bei 0 – mit <b>+</b> hochzählen, was du wirklich findest. Ist ein
+            Fach leer, tippe einmal auf <b>−</b>; damit ist die 0 gezählt. Das Verfallsdatum kommt
+            aus dem letzten Check und ist freiwillig: nur ändern, wenn auf der Packung ein anderes
+            (das <b>früheste</b>) Datum steht. Leeren heißt „keine Angabe“.
           </p>
         </div>
 
@@ -564,6 +597,7 @@ export function CheckFlow({
                   .filter((p) => p.fachLabel === fach)
                   .map((p) => {
                     const wert = istWert(p);
+                    const offen = !gezaehlt(p);
                     const luecke = Math.max(0, p.soll - wert);
                     const ueber = wert > p.soll;
                     const vw = verfallWert(p.artikelId);
@@ -571,8 +605,20 @@ export function CheckFlow({
                     const traegtFeld = ersteZeile.get(p.artikelId) === p.id;
                     return (
                       <div className={s.zeile} key={p.id} style={{ alignItems: "flex-start" }}>
+                        {/*
+                          DREIWERTIG SEIT DRK-304, und aus demselben Grund wie
+                          beim Sauerstoff weiter unten: der nackte
+                          `.pruefKreis` ist neutral, und „noch nicht gezaehlt"
+                          ist weder ein Fehl- noch ein Ok-Befund. Zweiwertig
+                          faerbte die unberuehrte Zeile ROT — jede Zeile beim
+                          Betreten des Schritts —, und der Marker, der beim
+                          Scrollen ohne Lesen wirkt, saegte damit genau die
+                          Aussage ab, die der Riegel daneben macht.
+                        */}
                         <div
-                          className={`${s.pruefKreis} ${luecke > 0 ? s.pruefKreisFehl : s.pruefKreisOk}`}
+                          className={`${s.pruefKreis} ${
+                            offen ? "" : luecke > 0 ? s.pruefKreisFehl : s.pruefKreisOk
+                          }`}
                         />
                         <div className={s.zeileHaupt}>
                           <div className={s.zeileName}>{p.artikelName}</div>
@@ -580,7 +626,16 @@ export function CheckFlow({
                             <span>
                               Soll {p.soll} {p.einheit}
                             </span>
-                            {luecke > 0 && <HelferChip ton="rot">nachfüllen {luecke}</HelferChip>}
+                            {/* ⚠️ Die Luecke einer unberuehrten Position ist
+                                UNBEKANNT, nicht „voll" (DRK-304). Ein
+                                „nachfuellen 5" an einer Zeile, die niemand
+                                gezaehlt hat, waere eine Zahl aus dem Nichts —
+                                und sie stuende beim Betreten des Schritts an
+                                JEDER Zeile. */}
+                            {offen && <HelferChip ton="grau">noch nicht gezählt</HelferChip>}
+                            {!offen && luecke > 0 && (
+                              <HelferChip ton="rot">nachfüllen {luecke}</HelferChip>
+                            )}
                             {ueber && (
                               <HelferChip ton="gelb">Überbestand {wert - p.soll}</HelferChip>
                             )}
@@ -643,17 +698,58 @@ export function CheckFlow({
 
         {fehlerBereich}
 
-        <div className={s.abschluss}>
+        {/*
+          DIE LEISTE DES ZAEHLSCHRITTS SCHWEBT NICHT MEHR — DRK-304. Sie steht
+          am ENDE der Liste, und das ist der Punkt: ein „Weiter", das ueber der
+          Liste mitfaehrt, ist erreichbar, BEVOR die Liste gelesen wurde. Wer
+          gezaehlt hat, ist ohnehin unten angekommen.
+
+          ⚠️ DIE UEBRIGEN DREI SCHRITTE BEHALTEN IHRE SCHWEBENDE LEISTE. Das
+          Ticket nennt nur den Zaehlschritt, ihr Inhalt ist ein anderer, und ihr
+          Knopf heisst „Abschliessen" — die Konsistenzfrage ist im Board
+          gestellt und nicht einseitig entschieden.
+
+          ⚠️ `.abschluss.abschlussRuhend` statt zweier gleichrangiger Klassen:
+          bei Gleichstand entschiede die Reihenfolge im Stylesheet, und die ist
+          keine Zusage (Falle 5).
+        */}
+        <div
+          className={`${s.abschluss} ${s.abschlussRuhend}`}
+          data-rolle="abschlussleiste"
+        >
           <div className={s.abschlussInfo} data-rolle="zaehl-summe">
-            <b>{unterSoll === 0 ? "Alles auf Soll" : `${unterSoll} unter Soll`}</b>
+            {/*
+              SOLANGE ETWAS OFFEN IST, IST DIE OFFENE ZAHL DIE NACHRICHT — nicht
+              „Alles auf Soll". Eine Bilanz ueber Positionen, die niemand
+              gezaehlt hat, waere eine Behauptung; „2 von 2" sagt stattdessen,
+              warum der Knopf daneben nicht geht.
+            */}
+            <b>
+              {ungezaehlt > 0
+                ? `Noch ${ungezaehlt} von ${soll.length} zu zählen`
+                : unterSoll === 0
+                  ? "Alles auf Soll"
+                  : `${unterSoll} unter Soll`}
+            </b>
             <div>
               {ablaufend > 0 && `${ablaufend} laufen ab · `}
-              {unterSoll === 0 ? "Nichts nachzufüllen" : "Weiter zur Nachfüllung aus dem Handlager"}
+              {ungezaehlt > 0
+                ? "Leeres Fach? Einmal auf − tippen."
+                : unterSoll === 0
+                  ? "Nichts nachzufüllen"
+                  : "Weiter zur Nachfüllung aus dem Handlager"}
             </div>
           </div>
+          {/*
+            ⚠️ GESPERRT, NICHT NUR GEWARNT. Ein Hinweis liesse den Ein-Klick-Weg
+            in die Leerbuchung offen — und die ist im Journal nicht
+            zuruecknehmbar (`check.ts`, `korrekturAufLagerort`). Der Riegel ist
+            zugleich die Zusage der User Story: Mengen werden BEWUSST erfasst.
+          */}
           <button
             className={s.abschlussGo}
             type="button"
+            disabled={ungezaehlt > 0}
             onClick={zurNachfuellung}
             data-rolle="weiter"
           >
@@ -751,7 +847,7 @@ export function CheckFlow({
 
         {fehlerBereich}
 
-        <div className={s.abschluss}>
+        <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
             <b>{geraete.length} Gerät(e)</b>
             <div>
@@ -884,7 +980,7 @@ export function CheckFlow({
 
         {fehlerBereich}
 
-        <div className={s.abschluss}>
+        <div className={s.abschluss} data-rolle="abschlussleiste">
           <div className={s.abschlussInfo}>
             <b>{niedrig === 0 ? `${flaschen.length} Flasche(n)` : `${niedrig} niedrig`}</b>
             <div>Bestätigen schließt den Check ab</div>
@@ -996,7 +1092,7 @@ export function CheckFlow({
 
       {fehlerBereich}
 
-      <div className={s.abschluss}>
+      <div className={s.abschluss} data-rolle="abschlussleiste">
         <div className={s.abschlussInfo}>
           <b>{summe} Teile aufs Fahrzeug</b>
           <div>
