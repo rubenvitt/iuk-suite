@@ -34,8 +34,8 @@ const RTW: ChecklisteBlatt = {
     fristText: "MTK in 16 T", fristAuffaellig: true,
   }],
   flaschen: [
-    { id: "o1", name: "Flasche A", nennfuelldruckBar: 200, letzterDruck: 180 },
-    { id: "o2", name: "Flasche B", nennfuelldruckBar: 300, letzterDruck: null },
+    { id: "o1", name: "Flasche A", nennfuelldruckBar: 200, wechselAbBar: 50, letzterDruck: 180 },
+    { id: "o2", name: "Flasche B", nennfuelldruckBar: 300, wechselAbBar: 75, letzterDruck: null },
   ],
 };
 
@@ -231,14 +231,17 @@ describe("Geraete und Sauerstoff", () => {
     const gemessen = zeilen.find((z) => z.textContent?.includes("Flasche A"))!;
     const nie = zeilen.find((z) => z.textContent?.includes("Flasche B"))!;
 
-    // Spalte 4 ist „zuletzt". Zellenweise geprueft und NICHT ueber den
-    // Blatttext: „0 bar" ist Teilzeichenkette von „200 bar" und „300 bar", ein
+    // Spalte 5 ist „zuletzt" — seit DRK-308 schiebt „Wechsel ab" (Spalte 4) sie
+    // um eins nach rechts. Zellenweise geprueft und NICHT ueber den Blatttext:
+    // „0 bar" ist Teilzeichenkette von „200 bar" und „300 bar", ein
     // `not.toContain("0 bar")` auf dem ganzen Text waere immer rot und
     // beweisfrei.
-    expect(gemessen.querySelectorAll("td")[3]!.textContent).toBe("180 bar");
-    expect(nie.querySelectorAll("td")[3]!.textContent).toBe("nie gemessen");
-    // Der Nennfuelldruck steht daneben und bleibt unangetastet.
+    expect(gemessen.querySelectorAll("td")[4]!.textContent).toBe("180 bar");
+    expect(nie.querySelectorAll("td")[4]!.textContent).toBe("nie gemessen");
+    // Der Nennfuelldruck steht daneben und bleibt unangetastet …
     expect(nie.querySelectorAll("td")[2]!.textContent).toBe("300 bar");
+    // … und der Wechselwert steht in BAR zwischen beiden: 25 % von 300 = 75.
+    expect(nie.querySelectorAll("td")[3]!.textContent).toBe("75 bar");
   });
 });
 

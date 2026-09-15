@@ -24,6 +24,7 @@ import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from 
 import { parseCheckErgebnis } from "../checkErgebnis";
 import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
 import { o2Status } from "../domain/o2";
+import { wechselGrenzeNachschlag } from "./o2";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { chargeText } from "../format";
 import { CHECK_GRENZE } from "../grenzen";
@@ -40,6 +41,9 @@ export type CheckHistorie = { zeilen: CheckHistorieZeile[]; mehrVorhanden: boole
 export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
   const grenze = f.grenze ?? CHECK_GRENZE;
   const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
+  // EIN Abruf des Flaschenstamms fuer ALLE Zeilen — der Nachschlag steckt in der
+  // Summenfunktion, die je Zeile laeuft; ein Abruf dort waere einer je Check.
+  const wechselGrenze = wechselGrenzeNachschlag(db);
   const conds: SQL[] = [];
   if (f.fahrzeugId) conds.push(eq(checks.fahrzeugId, f.fahrzeugId));
   if (f.von) conds.push(gte(checks.completedAt, f.von));
@@ -60,7 +64,7 @@ export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
       id: c.id, fahrzeugId: c.fahrzeugId,
       fahrzeugName: namen.get(c.fahrzeugId) ?? "–",
       completedAt: c.completedAt,
-      ...summiereCheckErgebnis(c.ergebnis),
+      ...summiereCheckErgebnis(c.ergebnis, wechselGrenze),
     })),
   };
 }
@@ -128,7 +132,8 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
   const schwellen = verfallSchwellen();
 
   const e = parseCheckErgebnis(c.ergebnis);
-  const summe = summiereCheckErgebnis(c.ergebnis);
+  // Derselbe Stamm, der unten die Flaschendetails traegt — kein zweiter Abruf.
+  const summe = summiereCheckErgebnis(c.ergebnis, (id) => flStamm.get(id)?.wechselAbProzent);
 
   // Das ALTE Format traegt keine Positionsdetails — leere Listen sind die
   // richtige Antwort, und `altFormat: true` macht sie lesbar.
@@ -197,7 +202,11 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
         nennfuelldruckBar: nenn, prozent: null, ampel: null, niedrig: false,
       };
     }
-    const s = o2Status(druckBar, nenn);
+    // ⚠️ DER GRENZWERT KOMMT AUS DEM HEUTIGEN STAMM, nicht aus dem Check. Er ist
+    // bewusst NICHT gesnapshottet (Begruendung an `WechselGrenzeNachschlag` in
+    // `domain/check.ts`); eine geloeschte Flasche faellt auf die Vorbelegung
+    // zurueck, weil es fuer sie keine geltende Vorgabe mehr gibt.
+    const s = o2Status(druckBar, nenn, f?.wechselAbProzent);
     if (s.niedrig) flaschenAuffaellig += 1;
     return {
       flascheId: x.flascheId, name: f?.name ?? "(gelöschte Flasche)", druckBar,

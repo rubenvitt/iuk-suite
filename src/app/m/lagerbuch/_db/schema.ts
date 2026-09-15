@@ -346,6 +346,13 @@ export const o2Flaschen = sqliteTable(
     // umkonfiguriert oder geloescht wird. Fehlt der Snapshot in einem Altcheck, wird
     // der Wert NICHT geraten (§5.12 ersetzt den heutigen ?? 200-Rueckfall).
     nennfuelldruckBar: integer("nennfuelldruck_bar").notNull().default(200),
+    // % vom Nennfuelldruck, ab dem der Wechselhinweis erscheint (DRK-308). Die
+    // Einheit steht im Namen (§10.1) und ist PROZENT, nicht bar: „25 % / 50 bar"
+    // aus der Gespraechsnotiz ist EIN Grenzwert in zwei Einheiten, und die zwei
+    // Zahlen fallen nur bei Nennfuelldruck 200 zusammen. Als Prozentwert skaliert
+    // die Regel ueber `nennfuelldruck_bar` je Flasche mit; als bar-Wert taete sie
+    // es nicht. Vorbelegung 25 = das Verhalten vor DRK-308.
+    wechselAbProzent: integer("wechsel_ab_prozent").notNull().default(25),
     aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },

@@ -41,14 +41,14 @@ export function sauerstoffSeitenInhalt(db: Leser): ReactNode {
 
   const aktive = flaschen.filter((f) => f.aktiv);
   /* `?.` ist hier tragend: status === null heisst KEINE Messung, nicht 0 %.
-   * Eine ungemessene Flasche zaehlt nicht als niedriger Druck. */
-  const niedrig = aktive.filter((f) => f.status?.niedrig).length;
+   * Eine ungemessene Flasche zaehlt nicht als wechselbeduerftig. */
+  const zuWechseln = aktive.filter((f) => f.status?.wechseln).length;
 
   return (
     <>
       <SeitenKopf
         titel="Sauerstoff"
-        beschreibung="Flaschen mit Füllstand, Herkunft der jüngsten Messung und Standort."
+        beschreibung="Flaschen mit Füllstand, Herkunft der jüngsten Messung und Standort. Ab wann eine Flasche gewechselt werden soll, steht je Flasche in ihren Stammdaten."
       />
 
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
@@ -57,9 +57,9 @@ export function sauerstoffSeitenInhalt(db: Leser): ReactNode {
         </Col>
         <Col xs={24} md={12} xl={6}>
           <Kachel
-            zahl={niedrig}
-            beschriftung="Niedriger Druck"
-            ton={niedrig ? "rot" : "ok"}
+            zahl={zuWechseln}
+            beschriftung="Wechsel fällig"
+            ton={zuWechseln ? "rot" : "ok"}
           />
         </Col>
       </Row>
