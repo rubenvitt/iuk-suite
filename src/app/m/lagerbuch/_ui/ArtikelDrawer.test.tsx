@@ -63,6 +63,10 @@ const DETAIL = {
       chargenNr: "ZZZ-ALT",
       verfall: "2026-12",
       rest: 4,
+      // DRK-297, Aufgabe 11: `restGesamt` und `orte` liegen ausschliesslich
+      // im Handlager-Bereich — dieselbe Zahl wie `rest`.
+      restGesamt: 4,
+      orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 4, zugangshinweis: null }],
       ampel: "gelb" as const,
       text: "fällig 12/26",
     },
@@ -71,6 +75,8 @@ const DETAIL = {
       chargenNr: "AAA-NEU",
       verfall: "2027-03",
       rest: 3,
+      restGesamt: 3,
+      orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 3, zugangshinweis: null }],
       ampel: "gruen" as const,
       text: "bis 03/27",
     },
@@ -98,7 +104,12 @@ const DETAIL_NACH_ZUGANG = {
   ...DETAIL,
   artikel: { ...DETAIL.artikel, bestand: 12 },
   chargen: [
-    { ...DETAIL.chargen[0], rest: 9 },
+    {
+      ...DETAIL.chargen[0],
+      rest: 9,
+      restGesamt: 9,
+      orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 9, zugangshinweis: null }],
+    },
     DETAIL.chargen[1],
   ],
 };
@@ -361,8 +372,8 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
       .map((element) => element.textContent ?? "");
     expect(optionen).toEqual([
       "+ Neue Charge",
-      "ZZZ-ALT · 12/26 · Rest 4",
-      "AAA-NEU · 03/27 · Rest 3",
+      "ZZZ-ALT · 12/26 · Rest gesamt 4",
+      "AAA-NEU · 03/27 · Rest gesamt 3",
     ]);
 
     const bestand = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
@@ -688,6 +699,46 @@ describe("ArtikelDrawer: Chargen und begrenzte Historie", () => {
     await drawerMounten();
     expect(queryPortal(".ant-drawer-body").textContent)
       .not.toContain("Es werden nur die neuesten Buchungen angezeigt.");
+  });
+});
+
+/**
+ * DRK-297, Aufgabe 11, Schritt 6 — `detail.chargen` enthaelt ab jetzt auch
+ * Chargen, die NUR im Fahrzeug liegen. Die Ablauf-Plakette am Artikel bleibt
+ * trotzdem auf den Handlager-Bereich gescopet: der Mindestbestand, die
+ * Verfallsliste und die Kacheln beziehen sich auf ihn, und Fahrzeug-Chargen
+ * werden ueber den naechsten Fahrzeug-Check bereinigt (§5.2.1).
+ */
+describe("ArtikelDrawer: Ablauf-Plakette am Artikel (DRK-297, Aufgabe 11)", () => {
+  it("zeigt die Plakette weiterhin fuer eine faellige Charge mit Handlager-Rest", async () => {
+    await drawerMounten();
+    expect(queryPortal(".ant-drawer-body").textContent).toContain("Charge fällig 12/26");
+  });
+
+  it("die Ablauf-Plakette springt nicht auf reinen Fahrzeugbestand an", async () => {
+    // CHARGE_NUR_RTW ist abgelaufen und liegt ausschliesslich im RTW.
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [
+          {
+            id: "c-nur-rtw",
+            chargenNr: "NUR-RTW",
+            verfall: "2026-01",
+            rest: 0,
+            restGesamt: 5,
+            orte: [{ id: "f1", name: "RTW 1", menge: 5, zugangshinweis: null }],
+            ampel: "rot" as const,
+            text: "abgelaufen",
+          },
+        ],
+      },
+    });
+
+    await drawerMounten();
+
+    expect(queryPortal(".ant-drawer-body").textContent).not.toContain("Charge abgelaufen");
   });
 });
 

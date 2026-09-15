@@ -7,7 +7,8 @@ import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verf
 import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
-import { handlagerSchraenke } from "../_lib/lesepfade/orte";
+import { restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
+import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /** Typ-Exporte verschwinden beim Kompilieren und sind keine Server Actions. */
@@ -15,7 +16,14 @@ export type ArtikelDetailCharge = {
   id: string;
   chargenNr: string;
   verfall: string;
+  /** Rest im HANDLAGER-BEREICH — unveraendert die Grundlage von Mindestbestand,
+   *  Verfallsliste und Kacheln (§5.2.1). */
   rest: number;
+  /** DRK-297, Aufgabe 11 — Summe ueber ALLE Orte, Fahrzeuge eingeschlossen. */
+  restGesamt: number;
+  /** Die VERTEILUNG dieser Charge: wo wie viel liegt. Nicht zu verwechseln mit
+   *  `zielOrte` (die waehlbaren ZIELE eines Zugangs). */
+  orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
   ampel: Ampel;
   text: string;
 };
@@ -69,16 +77,47 @@ export async function getDetail(
   const jetzt = new Date();
   const schwellen = verfallSchwellen();
   const quelleName = quelleAufloeser(db);
+
+  const verteilung = restJeChargeUndOrt(db, id);
+  const stamm = ortStamm(db);
+  // Der Handlager-Bereich zuerst, Fahrzeuge dahinter. ⚠️ `sortierung` ALLEIN
+  // REICHT NICHT: ein Fahrzeug traegt 0 und stuende damit VOR „Schrank 1" (10).
+  const imHandlager = new Set(handlagerOrte(db));
+
   const chargenErgebnis = detail.chargen
-    .filter((charge) => charge.rest > 0)
     .map((charge): ArtikelDetailCharge => {
+      const proOrt = verteilung.get(charge.id) ?? new Map<string, number>();
+      const orte = [...proOrt.entries()]
+        .map(([ortId, menge]) => {
+          const o = stamm.get(ortId);
+          return {
+            id: ortId,
+            name: o?.name ?? ortId,
+            menge,
+            zugangshinweis: o?.zugangshinweis ?? null,
+            sortierung: o?.sortierung ?? 0,
+            rang: imHandlager.has(ortId) ? 0 : 1,
+          };
+        })
+        .sort((a, b) =>
+          a.rang - b.rang || a.sortierung - b.sortierung || a.name.localeCompare(b.name))
+        .map(({ sortierung: _s, rang: _r, ...rest }) => rest);
       const status = verfallStatus(charge.verfall, schwellen, jetzt);
       return {
         ...charge,
+        restGesamt: orte.reduce((s, o) => s + o.menge, 0),
+        orte,
         ampel: status.ampel,
         text: chargeText(status, charge.verfall),
       };
-    });
+    })
+    /**
+     * ⚠️ DER FILTER GEHT AUF DIE SUMME ÜBER ALLE ORTE, nicht auf den
+     * Handlager-Rest. Genau hier verschwand bisher jede Charge, die
+     * vollständig im Fahrzeug lag: gemessen 7 Pkg., die in der Oberfläche
+     * nicht vorkamen, während der Artikel „Bestand 5" zeigte.
+     */
+    .filter((charge) => charge.restGesamt > 0);
 
   return {
     ok: true,
