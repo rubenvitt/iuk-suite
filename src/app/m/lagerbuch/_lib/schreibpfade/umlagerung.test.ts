@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { and, eq, gt } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
 import { umlagerung } from "./umlagerung";
@@ -42,14 +43,14 @@ describe("umlagerung — I3: netto null", () => {
   it("die Summe ALLER Buchungen des Artikels ist vorher und nachher gleich", () => {
     const vorher = summe();
     inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonLagerortId: HANDLAGER_ID, nachLagerortId: "rtw-1",
+      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(summe()).toBe(vorher);
   });
 
   it("verschiebt den Bestand vollstaendig zwischen den Lagerorten", () => {
     inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonLagerortId: HANDLAGER_ID, nachLagerortId: "rtw-1",
+      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     const roh = alleZeilen().map((b) => ({ lagerortId: b.lagerortId, menge: b.menge }));
     expect(bestandProLagerort(roh, HANDLAGER_ID)).toBe(2);
@@ -67,7 +68,7 @@ describe("umlagerung — das Ziel-Leg kommt STRIKT aus teile[]", () => {
      */
     const vorher = summe();
     const r = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 100, vonLagerortId: HANDLAGER_ID, nachLagerortId: "rtw-1",
+      artikelId: "a1", menge: 100, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(r.umgelagert).toBe(7);
     expect(summe()).toBe(vorher);
@@ -79,7 +80,7 @@ describe("umlagerung — das Ziel-Leg kommt STRIKT aus teile[]", () => {
   it("schreibt bei LEERER Quelle GAR KEINE Zeile", () => {
     const vorher = alleZeilen().length;
     const r = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonLagerortId: "rtw-1", nachLagerortId: HANDLAGER_ID,
+      artikelId: "a1", menge: 5, vonOrten: ["rtw-1"], nachLagerortId: HANDLAGER_ID,
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(r).toEqual({ umgelagert: 0, teile: [] });
     expect(alleZeilen()).toHaveLength(vorher);
@@ -89,7 +90,7 @@ describe("umlagerung — das Ziel-Leg kommt STRIKT aus teile[]", () => {
 describe("umlagerung — die chargeId und der Typ", () => {
   it("erhaelt die chargeId je Teil — die Verfall-Provenienz wandert mit", () => {
     inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonLagerortId: HANDLAGER_ID, nachLagerortId: "rtw-1",
+      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     const zielLegs = alleZeilen().filter((b) => b.lagerortId === "rtw-1");
     expect(zielLegs.map((b) => [b.chargeId, b.menge]).sort())
@@ -104,7 +105,7 @@ describe("umlagerung — die chargeId und der Typ", () => {
      * ein `zugang` tut das, und das bleibt 1:1.
      */
     inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonLagerortId: HANDLAGER_ID, nachLagerortId: "rtw-1",
+      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     const neu = alleZeilen().filter((b) => b.referenz === "check:abc");
     expect(neu).toHaveLength(4);
@@ -113,12 +114,49 @@ describe("umlagerung — die chargeId und der Typ", () => {
 
   it("traegt Referenz, Kommentar und Quelle auf BEIDEN Legs", () => {
     inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 3, vonLagerortId: HANDLAGER_ID, nachLagerortId: "rtw-1",
+      artikelId: "a1", menge: 3, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: "Nachfüllung", referenz: "check:xyz" }));
     for (const b of alleZeilen().filter((x) => x.referenz === "check:xyz")) {
       expect(b.kommentar).toBe("Nachfüllung");
       expect(b.quelleTyp).toBe("token");
       expect(b.quelleId).toBe("111-111");
     }
+  });
+});
+
+describe("DRK-297 — die Quelle ist ein Bereich, das Ziel bleibt EIN Ort", () => {
+  // EIGENER Artikel: `a1` traegt schon c-frueh/c-spaet am Handlager und wuerde
+  // die FEFO-Reihenfolge dieses Blocks verfaelschen.
+  beforeEach(() => {
+    t.db.insert(artikel).values(
+      { id: "a2", name: "Schrank-Artikel", einheit: "Stk.", fach: "S1",
+        mindestbestand: 0, aktiv: true, createdAt: NOW }).run();
+    t.db.insert(lagerorte).values(
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 }).run();
+    t.db.insert(chargen).values(
+      { id: "c-schrank", artikelId: "a2", chargenNr: "SCH", verfall: "2027-06", createdAt: NOW }).run();
+    t.db.insert(buchungen).values({
+      id: newId(), ts: NOW, typ: "zugang", artikelId: "a2", chargeId: "c-schrank",
+      lagerortId: "schrank-1", menge: 12, quelleTyp: "system", quelleId: "t",
+      referenz: null, kommentar: null,
+    }).run();
+  });
+
+  /** ⚠️ DIE GEFAEHRLICHSTE ZEILE DES UMBAUS: das Ziel-Leg darf NIE den
+   *  Quellort nehmen. Sonst ist die Umlagerung netto null, wirft nicht — und
+   *  das Fahrzeug bleibt leer. */
+  it("die Umlagerung schreibt die Gutschrift ans Ziel, nicht in den Quellschrank", () => {
+    const ergebnis = inTx((tx) => umlagerung(tx, {
+      artikelId: "a2", menge: 4, vonOrten: [HANDLAGER_ID, "schrank-1"], nachLagerortId: "rtw-1",
+      quelle: QUELLE, kommentar: null, referenz: "check:schrank" }));
+    expect(ergebnis.umgelagert).toBe(4);
+    const amZiel = t.db.select().from(buchungen)
+      .where(and(eq(buchungen.lagerortId, "rtw-1"), gt(buchungen.menge, 0))).all();
+    expect(amZiel.reduce((s, b) => s + b.menge, 0)).toBe(4);
+    const imSchrank = t.db.select().from(buchungen)
+      .where(eq(buchungen.lagerortId, "schrank-1")).all()
+      .reduce((s, b) => s + b.menge, 0);
+    expect(imSchrank).toBe(8); // 12 − 4
   });
 });

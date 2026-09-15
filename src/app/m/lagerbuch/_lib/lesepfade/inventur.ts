@@ -10,10 +10,10 @@
  */
 import { eq } from "drizzle-orm";
 import { artikel, chargen } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { verfallSchwellen, verfallStatus, type Ampel } from "../domain/verfall";
 import { vergleicheFefoCharge } from "./artikel";
 import { bestandJeArtikel, restJeCharge, type Leser } from "./bestand";
+import { handlagerOrte } from "./orte";
 
 export type InventurCharge = { id: string; chargenNr: string; verfall: string; rest: number; ampel: Ampel };
 
@@ -27,8 +27,9 @@ export type InventurZeile = {
 export function inventurZeilen(db: Leser, now: Date = new Date()): InventurZeile[] {
   const schwellen = verfallSchwellen();
   const arts = db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
-  const bestand = bestandJeArtikel(db, HANDLAGER_ID);
-  const rest = restJeCharge(db, HANDLAGER_ID);
+  const orte = handlagerOrte(db);
+  const bestand = bestandJeArtikel(db, orte);
+  const rest = restJeCharge(db, orte);
   const alleChargen = db.select().from(chargen).all();
 
   return arts.map((a) => ({

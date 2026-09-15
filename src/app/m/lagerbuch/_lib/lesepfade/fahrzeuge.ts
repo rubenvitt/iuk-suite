@@ -24,8 +24,8 @@
 import { eq } from "drizzle-orm";
 import { artikel, checks, fahrzeugTemplates, lagerorte, sollPositionen,
          templatePositionen } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
 import { bestandJeArtikelUndLagerort, type Leser } from "./bestand";
+import { handlagerOrte } from "./orte";
 import { lagerortVerfallListe } from "./verfall";
 
 /**
@@ -213,7 +213,27 @@ export function sollFuerFahrzeug(db: Leser, fahrzeugId: string): SollZeile[] {
   const arts = new Map(db.select().from(artikel).all().map((a) => [a.id, a]));
   const bestand = bestandJeArtikelUndLagerort(db);
   const imFahrzeug = bestand.get(fahrzeugId);
-  const imHandlager = bestand.get(HANDLAGER_ID);
+  // K1 (DRK-297, Gesamtpruefung): `handlagerBestand` muss ueber DENSELBEN
+  // Bereich summieren, ueber den `check.ts:223` bucht (`vonOrten:
+  // handlagerOrte(tx)`) — die Wurzel UND ihre Schraenke. Ein Griff auf
+  // `bestand.get(HANDLAGER_ID)` allein sah nur die Wurzel: sobald Bestand in
+  // einem Schrank lag und die Wurzel leer war, zeigte der Fahrzeug-Check "im
+  // Handlager 0", obwohl der Server denselben Bestand anstandslos aus dem
+  // Schrank gebucht haette (greedy Vorschlag, Knappheitswarnung und Anzeige
+  // haengen alle an dieser einen Zahl).
+  //
+  // ⚠️ NICHT mit `imFahrzeug` verwechseln: ein Fahrzeug ist ein einzelner
+  // Ort, kein Bereich — dort bleibt `bestand.get(fahrzeugId)` richtig.
+  const handlagerBereich = handlagerOrte(db);
+  const handlagerBestandJeArtikel = new Map<string, number>();
+  for (const ortId of handlagerBereich) {
+    const imOrt = bestand.get(ortId);
+    if (!imOrt) continue;
+    for (const [artikelId, menge] of imOrt) {
+      handlagerBestandJeArtikel.set(
+        artikelId, (handlagerBestandJeArtikel.get(artikelId) ?? 0) + menge);
+    }
+  }
   return db.select().from(sollPositionen)
     .where(eq(sollPositionen.fahrzeugId, fahrzeugId)).all()
     .map((p) => {
@@ -229,7 +249,7 @@ export function sollFuerFahrzeug(db: Leser, fahrzeugId: string): SollZeile[] {
         artikelName: a?.name ?? "–", einheit: a?.einheit ?? "",
         handlagerFach: a?.fach ?? "", soll: p.soll,
         fahrzeugBestand: imFahrzeug?.get(p.artikelId) ?? 0,
-        handlagerBestand: imHandlager?.get(p.artikelId) ?? 0,
+        handlagerBestand: handlagerBestandJeArtikel.get(p.artikelId) ?? 0,
         herkunft, entfernt: p.entfernt,
       };
     })
