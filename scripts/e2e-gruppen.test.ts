@@ -201,8 +201,14 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     expect(alleSpecs().length).toBeGreaterThanOrEqual(flach.length);
     // Die Zusicherung, die wirklich traegt: was Playwright faehrt, ist genau
     // das, was der Waechter gegen die Gruppen haelt. Gezaehlt gegen die
-    // Auswahl, die `--list` im vollen Lauf ergibt (449 Faelle in 47 Dateien).
-    expect(alleSpecs().filter((d) => !wirdAusgelassen(d))).toHaveLength(47);
+    // Auswahl, die `--list` im vollen Lauf ergibt (451 Faelle in 48 Dateien).
+    //
+    // ⚠️ DIESE ZAHL WAECHST MIT JEDER NEUEN SPEC-DATEI, und das ist Absicht:
+    // sie zwingt dazu, bei einer neuen Datei einmal nachzusehen, ob eine Gruppe
+    // sie ueberhaupt einsammelt. Wer sie nur hochzaehlt, ohne `e2e/gruppen.json`
+    // anzusehen, hat den Zweck des Waechters umgangen — die Datei liefe dann in
+    // KEINER Gruppe, und der CI-Lauf waere gruen, ohne sie je anzufassen.
+    expect(alleSpecs().filter((d) => !wirdAusgelassen(d))).toHaveLength(48);
   });
 
   it("`testIgnore` wird auf den GANZEN Pfad angewandt, nicht auf den Basisnamen", () => {
