@@ -36,14 +36,67 @@ import { artikel, buchungen } from "../../_db/schema";
 import { quelleAufloeser } from "../../_db/quelle";
 import { falte } from "../suche";
 import { JOURNAL_GRENZE } from "../grenzen";
+import {
+  AUSSONDERN_PRAEFIX,
+  INVENTUR_PRAEFIX,
+  istPraefixArt,
+  praefixVon,
+  type BuchungTyp,
+  type Vorgangsart,
+} from "../vorgang";
 import type { DB } from "../../_db/client";
 
-export type BuchungTyp = "zugang" | "entnahme" | "korrektur" | "umlagerung";
+/**
+ * DIE BEDINGUNG HINTER EINER VORGANGSART (DRK-344).
+ *
+ * Eine verfeinerte Art (`aussondern`, `inventur`) trifft ihr Praefix. Ein
+ * BUCHUNGSTYP dagegen meint hier den Typ OHNE verfeinerndes Praefix — und das
+ * ist eine Entscheidung, keine Nebenwirkung: gefiltert wird nach dem, was in
+ * der Spalte STEHT. Wer „Korrektur" waehlt, bekommt genau die Zeilen, die als
+ * „Korrektur" angezeigt werden; die Aussonderungen stehen unter
+ * „Aussonderung". Waere es anders, zeigte die Tabelle unter einem Filter
+ * Zeilen mit einer anderen Beschriftung als der gewaehlten.
+ *
+ * ⚠️ `referenz NOT LIKE '…'` IST FUER `referenz IS NULL` NICHT WAHR, SONDERN
+ * NULL — und NULL ist in einem WHERE falsch. Ohne den ausgeschriebenen
+ * `IS NULL`-Zweig verschwaende also ausgerechnet die haeufigste Zeile: die
+ * freihaendige Korrektur ohne jede Referenz. Der Fehler waere still, die
+ * Tabelle zeigte nur weniger.
+ *
+ * ⚠️ `LIKE` IST IN SQLITE FUER ASCII OHNE ACHT AUF GROSS- UND KLEINSCHREIBUNG.
+ * Das geht hier gut, weil die Praefixe im Quelltext kleingeschrieben entstehen
+ * (`_lib/vorgang.ts` ist ihre einzige Quelle) — ein `Aussondern:` kann gar
+ * nicht in die Daten gelangen.
+ */
+function vorgangBedingung(art: Vorgangsart): SQL {
+  if (istPraefixArt(art)) {
+    return sql`${buchungen.referenz} LIKE ${`${praefixVon(art)}%`} ESCAPE '\\'`;
+  }
+  return and(
+    eq(buchungen.typ, art),
+    sql`(${buchungen.referenz} IS NULL OR (
+      ${buchungen.referenz} NOT LIKE ${`${AUSSONDERN_PRAEFIX}%`} ESCAPE '\\'
+      AND ${buchungen.referenz} NOT LIKE ${`${INVENTUR_PRAEFIX}%`} ESCAPE '\\'
+    ))`,
+  )!;
+}
 
 export type JournalFilter = {
   /** Freitext ueber Artikelname UND Kommentar. */
   q?: string;
-  typ?: BuchungTyp;
+  /**
+   * DIE VORGANGSART, NICHT DER BUCHUNGSTYP (DRK-344). Neben den vier Typen
+   * sind `aussondern` und `inventur` zulaessig; beide sind aus der `referenz`
+   * abgeleitet und stehen NICHT im Spalten-Enum. Ein Buchungstyp meint hier
+   * den Typ OHNE verfeinerndes Praefix — die Begruendung steht an
+   * `vorgangBedingung`.
+   *
+   * ⚠️ IN DER ADRESSZEILE HEISST DIESER PARAMETER WEITER `typ`. Gespeicherte
+   * Journal-Links tragen ihn, und ein Zeitraumbericht, der nach einer
+   * Umbenennung ungefiltert auflaeuft, ist die stille Fehlaussage, gegen die
+   * `zeitraumAus` gebaut ist. Uebersetzt wird in `journalParameterAus`.
+   */
+  vorgang?: Vorgangsart;
   /** inklusive untere Zeitgrenze */
   von?: Date;
   /** inklusive obere Zeitgrenze (der Aufrufer setzt das Tagesende, §5.14.2) */
@@ -106,7 +159,7 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
   const namen = new Map(alleArtikel.map((a) => [a.id, a.name]));
 
   const conds: SQL[] = [];
-  if (f.typ) conds.push(eq(buchungen.typ, f.typ));
+  if (f.vorgang) conds.push(vorgangBedingung(f.vorgang));
   if (f.von) conds.push(gte(buchungen.ts, f.von));
   if (f.bis) conds.push(lte(buchungen.ts, f.bis));
 

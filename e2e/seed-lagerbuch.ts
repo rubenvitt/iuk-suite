@@ -447,6 +447,49 @@ function inventurFixtures(): void {
 }
 
 /**
+ * DRK-344 — drei Korrekturen auf EINEM eigenen Artikel, die sich NUR durch ihre
+ * `referenz` unterscheiden.
+ *
+ * ⚠️ DAS PRAEFIX IST DER GANZE FALL. Alle drei tragen `typ: "korrektur"`; was
+ * das Journal in der Spalte „Vorgang" schreibt, entscheidet allein `referenz`.
+ * Ohne diese Zeilen liefe der Spec gegen eine Tabelle, in der die neuen
+ * Vorgangsarten gar nicht vorkommen — er waere gruen, ohne etwas zu messen.
+ *
+ * ⚠️ EIGENER ARTIKEL, wie bei `checkFixtures`: Playwright faehrt alle Specs in
+ * EINEM Worker gegen EINE Datei. Drei Korrekturen auf einem geteilten Artikel
+ * verschoeben Bestandszusagen anderer Specs.
+ *
+ * Die Mengen sind absichtlich verschieden, damit eine Zeile nicht versehentlich
+ * ueber eine andere zugesichert wird.
+ */
+function vorgangFixtures(): void {
+  const db = getDb();
+  db.insert(artikel).values({
+    id: "e2e-vorgang-artikel", name: "E2E Vorgang Pflaster", einheit: "Stk.", fach: "VG-1",
+    mindestbestand: 0, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  db.insert(chargen).values({
+    id: "e2e-vorgang-charge", artikelId: "e2e-vorgang-artikel", chargenNr: "E2E-VG",
+    verfall: E2E_VERFALL_FERN, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  for (const [id, menge, referenz, kommentar] of [
+    ["e2e-vorgang-zugang", 30, null, null],
+    ["e2e-vorgang-aussonderung", -4, "aussondern:handlager", "E2E abgelaufen entsorgt"],
+    ["e2e-vorgang-inventur", -3, "inventur:e2e-vg-lauf", "E2E Jahresinventur"],
+    ["e2e-vorgang-handkorrektur", -2, null, "E2E verzählt"],
+  ] as const) {
+    if (db.select().from(buchungen).where(eq(buchungen.id, id)).get()) continue;
+    db.insert(buchungen).values({
+      id, ts: JETZT, typ: id === "e2e-vorgang-zugang" ? "zugang" : "korrektur",
+      artikelId: "e2e-vorgang-artikel", chargeId: "e2e-vorgang-charge",
+      lagerortId: HANDLAGER_ID, menge,
+      quelleTyp: "system", quelleId: "e2e", referenz, kommentar,
+    }).run();
+  }
+}
+
+/**
  * DRK-293 — zwei Artikel allein fuer `lagerbuch-sammelbearbeitung.spec.ts`.
  *
  * INAKTIV, aus demselben Grund wie `kategorieFixtures`: nur die Artikelliste
@@ -543,6 +586,7 @@ vorlagenFixtures();
 fahrzeugVerfallFixtures();
 kategorieFixtures();
 inventurFixtures();
+vorgangFixtures();
 sammelFixtures();
 lastFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

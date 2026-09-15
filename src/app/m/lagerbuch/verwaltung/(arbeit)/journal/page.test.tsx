@@ -170,12 +170,14 @@ describe("Journalseite — Regime B und Deckel", () => {
     expect(kopf.props.beschreibung).not.toMatch(/Treffer/);
   });
 
-  it("normalisiert Typ und Datum vor SQL und reicht nur skalare Werte zur Insel", () => {
+  it("normalisiert Vorgang und Datum vor SQL und reicht nur skalare Werte zur Insel", () => {
     buche({ id: "zugang", typ: "zugang" });
     buche({ id: "entnahme", typ: "entnahme", menge: -1 });
 
     const ungueltig = journalDaten(t.db, {
-      typ: "inventur",
+      // ⚠️ „inventur" STAND HIER BIS DRK-344 — seither ist es eine gueltige
+      // Vorgangsart und filterte die beiden Zeilen unten weg.
+      typ: "gibt-es-nicht",
       von: "2026-02-31",
       bis: "gestern",
     });
@@ -186,7 +188,7 @@ describe("Journalseite — Regime B und Deckel", () => {
     expect(ungueltig.werte).toEqual({ q: "", typ: "", von: "", bis: "" });
     expect(ungueltig.filter).toEqual({
       q: undefined,
-      typ: undefined,
+      vorgang: undefined,
       von: undefined,
       bis: undefined,
     });

@@ -89,18 +89,15 @@ export function geraetFaelligChip(typ: GeraetTyp, f: DatumFaelligkeit): FaelligC
   return { ton: ampelTon(f.ampel), text: `läuft in ${f.tageBisFaellig} T ab` };
 }
 
-const TYP_LABEL: Record<string, string> = {
-  zugang: "Wareneingang",
-  entnahme: "Entnahme",
-  korrektur: "Korrektur",
-  umlagerung: "Umlagerung",
-};
-
-/** Deutsche Beschriftung eines Buchungstyps. Unbekanntes faellt auf den Rohwert
- *  zurueck — ein historischer Wert soll lesbar bleiben, nicht verschwinden. */
-export function typLabel(typ: string): string {
-  return TYP_LABEL[typ] ?? typ;
-}
+/**
+ * ⚠️ `typLabel` IST NACH `_lib/vorgang.ts` UMGEZOGEN und heisst dort
+ * `vorgangLabel` (DRK-344). Der Grund ist nicht Ordnung, sondern Richtigkeit:
+ * die Beschriftung haengt seither nicht mehr am Buchungstyp allein, sondern an
+ * Typ UND Referenz-Praefix — unter `korrektur` liegen Aussonderung,
+ * Inventurdifferenz und Handkorrektur. Eine Funktion, die nur `typ` bekommt,
+ * KANN die Frage nicht beantworten; sie hier stehen zu lassen hiesse, den
+ * falschen Weg offen zu halten.
+ */
 
 /**
  * Ein geprueftes Zeitfenster aus zwei rohen `searchParams`-Werten.
