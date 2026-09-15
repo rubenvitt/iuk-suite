@@ -62,7 +62,8 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
     await page.goto(lagerbuchUrl("/helfer/check"));
 
-    await expect(page.getByText("Fahrzeug wählen")).toBeVisible();
+    // DRK-309: NEUTRAL — die Liste darunter fuehrt Fahrzeuge UND Taschen.
+    await expect(page.getByText("Einheit wählen")).toBeVisible();
     await expect(page.getByRole("link", { name: alsText(E2E_FAHRZEUG_NAME) })).toBeVisible();
     await expect(
       page.getByRole("link", { name: alsText(E2E_FAHRZEUG_ANDERES_NAME) }),
@@ -95,7 +96,13 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl("/helfer/check"));
 
     await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
-    await expect(page.getByText("Fahrzeug wählen")).toHaveCount(0);
+    /*
+     * ⚠️ DER TEXT MUSS DER HEUTIGE SEIN (DRK-309). „Fahrzeug wählen" gibt es
+     * nicht mehr, und `toHaveCount(0)` darauf waere ab sofort trivial gruen —
+     * die Zusicherung „das Kaertchen ueberspringt die Wahl" haette aufgehoert,
+     * irgendetwas zu behaupten, ohne rot zu werden.
+     */
+    await expect(page.getByText("Einheit wählen")).toHaveCount(0);
     await expect(
       page.getByRole("link", { name: alsText(E2E_FAHRZEUG_ANDERES_NAME) }),
     ).toHaveCount(0);

@@ -561,7 +561,10 @@ describe("Fahrzeugblatt als Server Component", () => {
   it("ordnet Vorlage, Soll und Verfall und sendet nur JSON-sichere Inselprops", () => {
     const seite = fahrzeugInhalt(t.db, "fz-1", JETZT);
     expect(elementeVomTyp(seite, "h2").map((ueberschrift) => textVon(ueberschrift)))
-      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Verfall in dieser Einheit"]);
+      // DRK-309: Die letzte Überschrift ist ART-BEWUSST. Die Fixture trägt
+      // keine Art (der Zwischenstand aus Migration 0009), also das neutrale
+      // Wort; bei einem Fahrzeug heißt sie unverändert „Verfall im Fahrzeug".
+      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Verfall in der Einheit"]);
 
     for (const [typ, name] of [
       [SollEditor, "SollEditor"],

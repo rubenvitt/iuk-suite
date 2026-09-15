@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { devLogin, klickeWennRuhig } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
@@ -28,6 +28,36 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * eine zugeordnete Einheit vor und prueft denselben WECHSEL statt des
  * Erstnachtrags.
  */
+/**
+ * ⚠️ DIE ART WIRD UEBER DAS LABEL GEWAEHLT, NICHT UEBER DAS `input` — und das
+ * ist kein Stilfrage, sondern der Grund, aus dem der erste CI-Lauf rot war.
+ *
+ * antds `Radio.Group` mit `optionType="button"` rendert das eigentliche
+ * `input[type=radio]` VISUELL VERSTECKT (`.ant-radio-button-input`, Fläche
+ * 0×0 unter dem Label). `getByRole("radio").check()` loest es zwar auf,
+ * wartet dann aber 90 Sekunden darauf, dass es sichtbar wird:
+ *
+ *     locator resolved to <input type="radio" value="tasche" …/>
+ *     165 × waiting for element to be visible, enabled and stable
+ *
+ * Die Meldung nennt das Element, das sie GEFUNDEN hat, und klingt damit nach
+ * einem Zeitproblem — sie ist aber ein Bauformproblem und durch kein groesseres
+ * Zeitbudget zu heilen. Bedienbar ist das umschliessende
+ * `label.ant-radio-button-wrapper`; dort klickt ein Mensch auch hin.
+ *
+ * ⚠️ UND GEPRUEFT WIRD AM LABEL, nicht am `input`: `ant-radio-button-wrapper-checked`
+ * ist der Zustand, den man SIEHT. Dieselbe Bauform wie im jsdom-Test
+ * (`EinheitenartWahl.test.tsx`), damit beide Ebenen dasselbe meinen.
+ */
+function artKnopf(bereich: Locator, beschriftung: string): Locator {
+  return bereich.locator("label.ant-radio-button-wrapper")
+    .filter({ hasText: new RegExp(`^${beschriftung}$`) });
+}
+
+async function artWaehlen(bereich: Locator, beschriftung: string): Promise<void> {
+  await artKnopf(bereich, beschriftung).click();
+}
+
 test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
@@ -91,12 +121,25 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
      * abgebrochene Anfrage still ins Zeitbudget und meldet sich als „Zeile
      * nicht gefunden".
      */
-    await dialog.getByRole("radio", { name: "Tasche" }).check();
-    const gespeichert = page.waitForResponse((r) => r.request().method() === "POST");
+    await artWaehlen(dialog, "Tasche");
+    // ⚠️ AUF DIE ADRESSE EINGESCHRAENKT: eine Server Action POSTet auf die
+    // aktuelle Seite. Ein blosses `method() === "POST"` faenge auch jede
+    // andere Anfrage, die zufaellig daneben laeuft — und der Fall haenge dann
+    // an etwas, das er gar nicht ausgeloest hat.
+    const gespeichert = page.waitForResponse((r) =>
+      r.request().method() === "POST" && r.url().includes("/verwaltung/fahrzeuge"));
     await dialog.getByRole("button", { name: "Anlegen" }).click();
     expect((await gespeichert).status()).toBe(200);
 
-    const neue = page.locator("[data-row-key]", { hasText: "E2E Tasche neu" });
+    /*
+     * ⚠️ `.first()` IST HIER PFLICHT, NICHT BEQUEMLICHKEIT. Dieser Fall LEGT
+     * eine Einheit AN; ein Wiederholungslauf (Playwright faehrt bis zu zwei)
+     * legt gegen denselben laufenden Server eine zweite mit demselben Namen an,
+     * und ein Greifer ueber beide risse im strict mode — mit einer Meldung
+     * ueber zwei Treffer, die wie ein Seedfehler aussieht statt wie ein
+     * zweiter Durchgang.
+     */
+    const neue = page.locator("[data-row-key]", { hasText: "E2E Tasche neu" }).first();
     await expect(neue).toContainText("Tasche");
   });
 
@@ -134,21 +177,24 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     const kopf = page.getByRole("heading", { name: "E2E Rucksack ohne Art" })
       .locator("xpath=..");
 
-    const vorher = await abschnitt.getByRole("radio", { name: "Fahrzeug" }).isChecked();
+    const vorher = await artKnopf(abschnitt, "Fahrzeug")
+      .evaluate((el) => el.classList.contains("ant-radio-button-wrapper-checked"));
 
     // Der Wechsel gilt in beide Richtungen — nur nicht zurueck nach „nicht
     // zugeordnet". Die Spec setzt deshalb die jeweils ANDERE Art und danach
     // wieder „Fahrzeug", damit der naechste Lauf denselben Weg findet.
     const ziel = vorher ? "Tasche" : "Fahrzeug";
-    const gespeichert = page.waitForResponse((r) => r.request().method() === "POST");
-    await abschnitt.getByRole("radio", { name: ziel }).check();
+    const gespeichert = page.waitForResponse((r) =>
+      r.request().method() === "POST" && r.url().includes("e2e-ohne-art"));
+    await artWaehlen(abschnitt, ziel);
     expect((await gespeichert).status()).toBe(200);
-    await expect(abschnitt.getByRole("radio", { name: ziel })).toBeChecked();
+    await expect(artKnopf(abschnitt, ziel)).toHaveClass(/ant-radio-button-wrapper-checked/);
     await expect(abschnitt).not.toContainText("Noch nicht zugeordnet");
 
     // Der Kopf liest den Wert aus der Datenbank — also erst nach dem Neuladen.
-    const zurueck = page.waitForResponse((r) => r.request().method() === "POST");
-    await abschnitt.getByRole("radio", { name: "Fahrzeug" }).check();
+    const zurueck = page.waitForResponse((r) =>
+      r.request().method() === "POST" && r.url().includes("e2e-ohne-art"));
+    await artWaehlen(abschnitt, "Fahrzeug");
     expect((await zurueck).status()).toBe(200);
 
     const erneut = await page.goto(lagerbuchUrl(pfad));

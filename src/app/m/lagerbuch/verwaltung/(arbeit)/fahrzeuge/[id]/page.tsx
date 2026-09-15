@@ -18,7 +18,7 @@ import {
 } from "../../../../_lib/lesepfade/fahrzeuge";
 import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { SCHRIFT } from "../../../../_lib/schrift";
-import { einheitenartLabel } from "../../../../_lib/konstanten";
+import { einheitenartLabel, inDerEinheit } from "../../../../_lib/konstanten";
 import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -338,7 +338,15 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />
 
       <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        Verfall in dieser Einheit
+        {/*
+          ⚠️ ART-BEWUSST, NICHT NEUTRAL (DRK-309, nach dem ersten CI-Lauf).
+          Hier steht die Art FEST — es ist das Blatt genau dieser Einheit —,
+          und die Regel dieses Tickets lautet: wo sie bekannt ist, steht sie
+          auch da. Ein neutrales „Verfall in dieser Einheit" war die Ausnahme
+          von der eigenen Regel; für ein Fahrzeug liest sich der Satz jetzt
+          wieder wie vorher, für eine Tasche richtig.
+        */}
+        Verfall {inDerEinheit(fahrzeug.einheitenart)}
       </h2>
       <Card>
         <VerfallEditor lagerortId={fahrzeug.id} eintraege={verfall} />
