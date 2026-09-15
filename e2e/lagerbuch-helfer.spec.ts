@@ -212,7 +212,7 @@ test.describe("Der Weg am Stueck", () => {
      * `disabled`-Attribut, nicht den Klick.
      */
     await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);
@@ -276,7 +276,7 @@ test.describe("Der Weg am Stueck", () => {
 
     await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
     await page.waitForURL(/\/a\/e2e-artikel/);
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
     await page.waitForURL(/\/a\/e2e-artikel/);
@@ -321,7 +321,7 @@ test.describe("Der Weg am Stueck", () => {
     await page.waitForURL(/\/helfer$/);
 
     await page.goto(lagerbuchUrl("/a/e2e-artikel"));
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, new RegExp(E2E_FAHRZEUG_NAME));
     await page.waitForURL(/\/a\/e2e-artikel/);
@@ -430,7 +430,7 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
      * gar nicht mehr durch. Das entspricht auch dem Hergang, den dieser Test
      * beschreibt: die Sperre trifft jemanden MITTEN in der Arbeit.
      */
-    await page.getByRole("link", { name: "Ziel wählen" }).click();
+    await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
     await waehleZiel(page, /Kein Fahrzeug/);
     await page.waitForURL(/\/a\/e2e-artikel/);

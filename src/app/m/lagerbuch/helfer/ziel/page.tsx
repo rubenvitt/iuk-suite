@@ -96,9 +96,9 @@ export default async function ZielSeite({
           `fieldset` ohne `legend` ist eine Gruppe ohne Namen.
         */}
         <fieldset className={s.karte} style={{ border: "1px solid var(--lb-linie)", padding: 0, margin: 0 }}>
-          <legend className={s.karteTitel} style={{ float: "left", width: "100%" }}>
-            Wohin geht das Material?
-          </legend>
+          {/* Sichtbar steht die Frage schon im Schirmkopf; für die Vorlesehilfe
+              braucht die Gruppe trotzdem einen eigenen Namen. */}
+          <legend className={s.nurVorlesen}>Wohin geht das Material?</legend>
           {wahlen.map((w) => (
             /*
               Die ganze Zeile ist die Beschriftung — am Telefon wird nicht der
@@ -124,7 +124,11 @@ export default async function ZielSeite({
           ))}
         </fieldset>
 
-        <button className={`${s.knopf} ${s.knopfTinte}`} type="submit" style={{ marginTop: 10 }}>
+        <button
+          className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
+          type="submit"
+          style={{ marginTop: 10 }}
+        >
           Ziel übernehmen
         </button>
       </form>
