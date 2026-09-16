@@ -113,7 +113,7 @@ hatte genau eine bewusste Kopplung an einen antd-Klassennamen — `:root .ant-se
 `globals.css` —, und sie ist gestorben, ohne dass etwas rot wurde: antd 6 rendert die Klasse nicht
 mehr, die Auswahlfelder standen dadurch auf 14px neben einem 16px-`Input`. Ein Test bewachte die
 Regel und prüfte dabei ihre **Anwesenheit**, nicht ihre **Wirkung**. Ein Klassenname ist antds
-Innenleben, ein Token seine Schnittstelle (DRK-190, Falle 19 in `CLAUDE.md`).
+Innenleben, ein Token seine Schnittstelle (DRK-190, Falle 20 in `CLAUDE.md`).
 
 **6. Ein WERT aus einem `"use client"`-Modul kommt in einer Server Component nicht an.**
 Falle 1 verbietet den Compound-Zugriff. Das hier ist ihre Schwester und sieht harmloser aus: eine

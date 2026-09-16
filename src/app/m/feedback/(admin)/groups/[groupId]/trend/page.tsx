@@ -87,7 +87,7 @@ export default async function TrendPage({
           beschreibung={`Ø Note (1 = beste) je Monat, letzte ${monate} Monate.`}
           zurueck={{ titel: group.name, href: `/m/feedback/groups/${group.id}` }}
           // `fb-knopfzeile` bleibt als eigener Container erhalten: die Klasse
-          // stapelt Zeitfenster und CSV unter 768px auf volle Breite
+          // stapelt Zeitfenster und Excel-Knopf unter 768px auf volle Breite
           // (`feedback.css`) — der reine `flexWrap` von `Seitenkopf`s `aktionen`
           // leistet das nicht, er lässt beide nur zeilenweise umbrechen.
           aktionen={
@@ -95,10 +95,10 @@ export default async function TrendPage({
               <MonatsSegment monate={monate} />
               <Button
                 type="text"
-                href={`/m/feedback/groups/${group.id}/export.csv`}
+                href={`/m/feedback/groups/${group.id}/export.xlsx`}
                 className="fb-block-mobil"
               >
-                CSV
+                Excel
               </Button>
             </span>
           }

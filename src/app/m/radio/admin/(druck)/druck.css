@@ -27,7 +27,7 @@
  * gehe sie an genau EINER Stelle bewusst ein (`globals.css`, `:root .ant-select-selector`,
  * „der Bruch waere still"). GENAU DAS IST EINGETRETEN — antd 6 rendert die Klasse nicht mehr,
  * die Regel lief ins Leere. Sie ist fort; die Suite hat heute keine solche Kopplung mehr
- * (DRK-190, Falle 19 in CLAUDE.md). ⛔ Auf diesem Bogen gibt es ohnehin kein antd — er ist ohne Insel gebaut
+ * (DRK-190, Falle 20 in CLAUDE.md). ⛔ Auf diesem Bogen gibt es ohnehin kein antd — er ist ohne Insel gebaut
  * (`blatt/page.tsx`, Kopf).
  *
  * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS. Alle Farben sind LITERALE, kein `var(--ant-*)`
