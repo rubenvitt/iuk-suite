@@ -804,8 +804,8 @@ export async function raeumeAusEntnahmebox(
            * Anzeige ist der kleinere Fehler, ein verlorenes Verfallsdatum ist
            * weder sichtbar noch korrigierbar"). Was mit einer solchen Meldung
            * beim Einraeumen RICHTIG geschehen soll, ist eine Betreiberfrage und
-           * liegt als eigenes Ticket auf dem Board — hier steht bewusst der
-           * sichere Ausgang, nicht der endgueltige.
+           * liegt als DRK-404 auf dem Board — hier steht bewusst der sichere
+           * Ausgang, nicht der endgueltige.
            *
            * ⚠️ `istOhneVerfall` UND KEIN VERGLEICH AUF DIE KONSTANTE: dieselbe
            * Probe deckt die Pseudo-Charge des Checks UND eine Charge, deren
