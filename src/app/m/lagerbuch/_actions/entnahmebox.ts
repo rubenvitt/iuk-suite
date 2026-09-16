@@ -1,7 +1,7 @@
 "use server";
 import { withAuditContext } from "@/core/audit/server";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
@@ -11,6 +11,7 @@ import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
+  istOhneVerfall,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
@@ -280,28 +281,66 @@ export async function bucheInEntnahmebox(
             throw new Error("Deckung und Buchung sind uneins");
           }
           /*
-           * ⚠️ IST DIE EINHEIT DAMIT LEER, MUSS DIE VERFALLSANGABE WEG
-           * (Codex-Review zu PR #175). `lagerort_verfall` ist die
-           * Kompensationszeile fuer Artikel, deren Verfall an der EINHEIT
-           * gepflegt wird — und `verfallFuerLagerort` liest sie OHNE
-           * Bestandsprobe. Bliebe sie stehen, meldete das Einheitenblatt und
-           * die Verfallsliste den Artikel weiter als ablaufend, obwohl er nur
-           * noch in der Kiste liegt. Der Satz dafuer steht ausgeschrieben in
-           * `aussondernVomLagerort`: eine Meldung ohne Bestand behauptet einen
-           * Verfall, den es nicht gibt.
+           * ⚠️ IST DIE EINHEIT DAMIT LEER, MUSS DIE VERFALLSANGABE WEG —
+           * ABER NUR, WENN DABEI NICHTS VERLOREN GEHT (Codex-Review zu
+           * PR #175, zwei Runden am selben Ort).
+           *
+           * `lagerort_verfall` ist die Kompensationszeile fuer Artikel, deren
+           * Verfall an der EINHEIT gepflegt wird, und `verfallFuerLagerort`
+           * liest sie OHNE Bestandsprobe. Bliebe sie nach dem letzten Stueck
+           * stehen, meldeten Einheitenblatt und Verfallsliste den Artikel
+           * weiter als ablaufend, obwohl er nur noch in der Kiste liegt —
+           * derselbe Nullfall, den `aussondernVomLagerort` ausschreibt: eine
+           * Meldung ohne Bestand behauptet einen Verfall, den es nicht gibt.
+           *
+           * ⚠️ DIE ZWEITE RUNDE FAND, DASS DAS LOESCHEN SELBST ETWAS ZERSTOERT,
+           * und zwar genau dort, wo die Kompensationszeile ueberhaupt gebraucht
+           * wird: ein Check, der Bestand keiner echten Charge zuordnen kann,
+           * legt ihn auf eine PSEUDO-Charge (`PSEUDO_VERFALL`, 2099-12) und
+           * schreibt den wirklich gemeldeten Verfall in `lagerort_verfall`.
+           * Wandert dieser Bestand in die Box, wandert die Pseudo-Charge mit —
+           * und `postenAmOrt` liest den Verfall AUSSCHLIESSLICH aus
+           * `chargen.verfall`. Die Kiste zeigte „bis 12/99", und das Loeschen
+           * naehme die einzige Zeile weg, die „10/26" wusste. Aus einer
+           * stillen Falschanzeige wuerde stiller Datenverlust.
+           *
+           * ⚠️ DIE ANGABE MITWANDERN ZU LASSEN — der naheliegende Ausweg —
+           * GEHT NICHT: `lagerort_verfall` setzt eine aktive Sollposition
+           * voraus (`bereinigeVerfallOhneAktivesSoll`: „ohne mindestens eine
+           * aktive Sollposition gibt es keinen pflegbaren Verfall"), und die
+           * Box hat ausdruecklich KEIN Soll (`_lib/konstanten.ts`). Eine Zeile
+           * fuer die Box waere gegen genau diese Invariante geschrieben.
+           *
+           * Deshalb die engere Regel: geloescht wird nur, wenn der Bestand
+           * seinen Verfall SELBST mitnimmt — also mindestens eine bewegte
+           * Charge ein echtes Datum traegt. Sonst bleibt die Zeile stehen. Eine
+           * veraltete Anzeige ist sichtbar und korrigierbar, ein verlorenes
+           * Verfallsdatum ist weder das eine noch das andere.
            *
            * ⚠️ `gesamt` UND NICHT DIE CHARGE: wird eine von drei Chargen
            * weggeraeumt, liegt der Artikel weiter an der Einheit, und die
-           * Angabe gilt weiter. Erst die letzte Einheit loescht.
+           * Angabe gilt ohnehin weiter. Erst das letzte Stueck stellt die Frage.
            *
-           * `setzeVerfall(…, verfall: null)` loescht — kein zweiter Weg
-           * daneben, damit die Quelle der Aenderung mitgeschrieben bleibt.
+           * Die Luecke dahinter — die Box kann einen gemeldeten Verfall gar
+           * nicht fuehren — liegt als DRK-377 auf dem Board.
            */
           if (gesamt - ergebnis.umgelagert === 0) {
-            setzeVerfall(tx, {
-              lagerortId: v.fahrzeugId, artikelId: v.artikelId,
-              verfall: null, quelle,
-            });
+            const bewegteChargen = tx
+              .select({ id: chargen.id, verfall: chargen.verfall })
+              .from(chargen)
+              .where(inArray(chargen.id, ergebnis.teile.map((t) => t.chargeId)))
+              .all();
+            const traegtEigenenVerfall = bewegteChargen
+              .some((c) => !istOhneVerfall(c.verfall));
+
+            if (traegtEigenenVerfall) {
+              // `setzeVerfall(…, verfall: null)` loescht — kein zweiter Weg
+              // daneben, damit die Quelle der Aenderung mitgeschrieben bleibt.
+              setzeVerfall(tx, {
+                lagerortId: v.fahrzeugId, artikelId: v.artikelId,
+                verfall: null, quelle,
+              });
+            }
           }
 
           gebucht = ergebnis.umgelagert;

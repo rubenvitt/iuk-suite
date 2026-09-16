@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
-import { ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR } from "../_lib/konstanten";
+import { ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 
@@ -501,6 +501,35 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
 
     expect(verfallZeilen()).toEqual([]);
+  });
+
+  it("laesst sie stehen, wenn der Bestand auf einer PSEUDO-Charge liegt", async () => {
+    /*
+     * ⚠️ DER TEUERSTE FALL, UND MEIN EIGENER FIX HAT IHN ERST GESCHAFFEN
+     * (Codex-Review zu PR #175, zweite Runde am selben Ort). Ein Check, der
+     * Bestand keiner echten Charge zuordnen kann, legt ihn auf eine
+     * Pseudo-Charge (`PSEUDO_VERFALL`) und schreibt den wirklich gemeldeten
+     * Verfall in `lagerort_verfall`. Wandert dieser Bestand in die Box, wandert
+     * die Pseudo-Charge mit — und `postenAmOrt` liest den Verfall
+     * AUSSCHLIESSLICH aus `chargen.verfall`. Die Kiste zeigt „bis 12/99".
+     *
+     * Wer die Zeile hier loescht, nimmt die EINZIGE Stelle weg, die „10/26"
+     * wusste: aus einer stillen Falschanzeige wird stiller Datenverlust. Die
+     * Angabe mitwandern zu lassen geht nicht — die Box hat kein Soll, und
+     * `lagerort_verfall` setzt eine aktive Sollposition voraus (DRK-377).
+     */
+    charge("ch-pseudo", PSEUDO_VERFALL);
+    buchen("seed-1", "ch-pseudo", 5);
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    // ALLES raus — die Einheit ist danach leer.
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
+
+    expect(verfallZeilen().map((z) => z.verfall), "die einzige Stelle mit 10/26")
+      .toEqual(["2026-10"]);
   });
 
   it("laesst sie stehen, solange noch etwas an der Einheit liegt", async () => {
