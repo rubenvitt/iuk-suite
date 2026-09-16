@@ -127,9 +127,9 @@ const NICHT_GELESEN =
  *
  * ⚠️ HIER STEHT ABSICHTLICH KEINE ENDUNGSLISTE MEHR. Die erste Fassung
  * verlangte `\.(ts|tsx|css|…)` am Ende und uebersah damit still jedes Ziel
- * ohne passende Endung (Codex-Review zu PR #183): `Dockerfile:38-39` in
- * `src/proxy.ts` und `.env.example:107-110` in mehreren radio-Dateien wurden
- * NIE zu einem Anker. Der Filter ist jetzt `aufloesen` — was sich nicht gegen
+ * ohne passende Endung (Codex-Review zu PR #183): der Anker auf Zeile 38-39
+ * des `Dockerfile` in `src/proxy.ts` und der auf `.env.example` in mehreren
+ * radio-Dateien wurden NIE zu einem Anker. Der Filter ist jetzt `aufloesen` — was sich nicht gegen
  * eine Datei dieses Repos aufloesen laesst, faellt dort heraus. Das ist die
  * belastbarere Reihenfolge: die Regex darf grosszuegig sein, die VERSIONIERTE
  * Dateiliste entscheidet. Gemessen: 18 zusaetzlich erfasste Anker, kein
@@ -502,32 +502,74 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
    * Und die Gegenprobe zur Regex. Die Faelle stehen in der Reihenfolge, in der
    * sie schiefgingen: Route-Gruppe und Ternaer-Prosa im ersten Wurf, Ziele ohne
    * passende Endung in der zweiten Runde (Codex-Review zu PR #183).
+   *
+   * ⚠️ JEDES BEISPIEL NENNT EINEN ERFUNDENEN PFAD (`probe…`), und das ist kein
+   * Geschmack: der Scan liest AUCH DIESE DATEI. Standen hier echte Namen mit
+   * erfundenen Zeilennummern — der Etikettenbogen war so einer —, dann faerbte
+   * jedes Kuerzen jener Datei den Riegel rot, obwohl das Beispiel ueber ihren
+   * Inhalt nichts behauptet. Dieselbe Falle hat in diesem PR schon dreimal
+   * zugeschlagen, jedes Mal an einer Begruendung im Kommentar. Geprueft wird die
+   * FORM des Ankers, nicht sein Ziel; ein erfundener Pfad taugt dafuer genauso.
+   *
+   * Die Faelle in `aufloesen` nebenan nennen absichtlich ECHTE Pfade — dort ist
+   * die Aufloesung der Gegenstand —, aber ohne Zeilennummer, und damit sind sie
+   * fuer den Scan kein Anker.
    */
   it("die Regex liest Route-Gruppen mit und faellt nicht auf Prosa herein", () => {
     const ziele = (text: string) => ankerAusText(text).map((a) => `${a.ziel}:${a.bis}`);
 
-    expect(ziele("(`lagerbuch/verwaltung/(druck)/druck.css:480-497`)"))
-      .toEqual(["lagerbuch/verwaltung/(druck)/druck.css:497"]);
-    expect(ziele("siehe (druck.css:12) nebenan")).toEqual(["druck.css:12"]);
-    expect(ziele("`a/[artikelId]/page.tsx:26`")).toEqual(["a/[artikelId]/page.tsx:26"]);
-    expect(ziele("`core/theme/theme.ts:32-33`")).toEqual(["core/theme/theme.ts:33"]);
+    expect(ziele("(`probe/verwaltung/(druck)/probeDruck.css:480-497`)"))
+      .toEqual(["probe/verwaltung/(druck)/probeDruck.css:497"]);
+    expect(ziele("siehe (probeDruck.css:12) nebenan")).toEqual(["probeDruck.css:12"]);
+    expect(ziele("`probe/[artikelId]/probeSeite.tsx:26`"))
+      .toEqual(["probe/[artikelId]/probeSeite.tsx:26"]);
+    expect(ziele("`probe/theme/probeTheme.ts:32-33`"))
+      .toEqual(["probe/theme/probeTheme.ts:33"]);
 
     // Ohne Endung und mit unbekannter Endung — beide kamen frueher gar nicht an.
-    expect(ziele("`Dockerfile:38-39`")).toEqual(["Dockerfile:39"]);
-    expect(ziele("`.env.example:107-110`")).toEqual([".env.example:110"]);
+    expect(ziele("`Probedatei:38-39`")).toEqual(["Probedatei:39"]);
+    expect(ziele("`.probe.example:107-110`")).toEqual([".probe.example:110"]);
 
     // Fortsetzungen zaehlen als eigene Anker — sonst bliebe die letzte Zahl
     // ungeprueft, und die steht am ehesten allein da.
-    expect(ziele("`portal.ts:48-49 und :51`"))
-      .toEqual(["portal.ts:49", "portal.ts:51"]);
-    expect(ziele("`globals.css:265,266`"))
-      .toEqual(["globals.css:265", "globals.css:266"]);
-    expect(ziele("`bauform.test.ts:181, :201-203`"))
-      .toEqual(["bauform.test.ts:181", "bauform.test.ts:203"]);
+    expect(ziele("`probePortal.ts:48-49 und :51`"))
+      .toEqual(["probePortal.ts:49", "probePortal.ts:51"]);
+    expect(ziele("`probeGlobals.css:265,266`"))
+      .toEqual(["probeGlobals.css:265", "probeGlobals.css:266"]);
+    expect(ziele("`probeBauform.test.ts:181, :201-203`"))
+      .toEqual(["probeBauform.test.ts:181", "probeBauform.test.ts:203"]);
 
     // Kein Anker: eine Datei ohne Zeile, und eine Zeit (nur Ziffern vor dem
     // Doppelpunkt — die eine Einschraenkung, die die Regex noch selbst trifft).
-    expect(ziele("`core/theme/theme.ts` traegt die Dichten")).toEqual([]);
+    expect(ziele("`probe/theme/probeTheme.ts` traegt die Dichten")).toEqual([]);
     expect(ziele("um 12:30 gemessen")).toEqual([]);
+  });
+
+  /**
+   * UND DER RIEGEL DAGEGEN, dass jemand die Beispiele wieder auf echte Namen
+   * umschreibt: kein Ziel aus dieser Datei darf sich aufloesen lassen. Die drei
+   * absichtlichen echten Pfade in den `aufloesen`-Faellen tragen keine
+   * Zeilennummer und sind damit gar keine Anker.
+   *
+   * ⚠️ DER FALL HAT SICH BEIM EINBAU SOFORT BEZAHLT GEMACHT: er fand zwei
+   * weitere Stellen derselben Art, beide in einem BEGRUENDUNGSTEXT weiter oben.
+   */
+  it("kein Beispiel in dieser Datei zeigt auf eine echte Datei", () => {
+    const eigen = "src/core/kommentaranker.test.ts";
+    const treffer = readFileSync(eigen, "utf8")
+      .split("\n")
+      .flatMap((zeile, i) =>
+        ankerAusText(zeile)
+          .filter((a) => aufloesen(eigen, a.ziel) !== null)
+          .map((a) => `${eigen}:${i + 1} → ${a.ziel}:${a.bis}`));
+
+    expect(
+      treffer,
+      "Ein Beispiel in dieser Datei nennt einen ECHTEN Pfad mit einer erfundenen "
+        + "Zeilennummer. Der Scan liest diese Datei mit — sobald jenes Ziel "
+        + "kuerzer wird, faerbt das Beispiel den Riegel rot, ohne ueber den "
+        + "Inhalt der Datei etwas zu behaupten. Erfundene Pfade nehmen "
+        + "(`probe…`), siehe den Fall darueber.",
+    ).toEqual([]);
   });
 });
