@@ -33,7 +33,10 @@ test.describe("Lagerbuch — LAGERBUCH_ORGANISATION", () => {
     await page.goto(lagerbuchUrl("/"));
 
     // Die Unterzeile des Gates: „<Organisation> · <Unterzeile>".
-    await expect(page.getByText(`${LAGERBUCH_ORGANISATION_E2E} · Bestand, Fahrzeuge, Geräte`))
+    // DRK-309: „Taschen" steht in der Zeile — sie zaehlt auf, was das Modul
+    // fuehrt, und ein Kaertchen an einer Tasche ist seit dieser Aenderung
+    // genauso ein Einstieg wie eins am Fahrzeug.
+    await expect(page.getByText(`${LAGERBUCH_ORGANISATION_E2E} · Bestand, Fahrzeuge, Taschen, Geräte`))
       .toBeVisible();
     await expect(page.getByText("DRK Bereitschaft Musterstadt")).toHaveCount(0);
   });

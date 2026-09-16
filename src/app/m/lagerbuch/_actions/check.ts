@@ -13,6 +13,7 @@ import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 import {
   CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
   MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT,
+  dieseEinheit, grossAmAnfang,
 } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
@@ -160,10 +161,27 @@ export async function checkAbschluss(
     // Sitzung erneuert.
     const fz = db.select().from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
     if (!fz || fz.typ !== "fahrzeug" || !fz.aktiv) {
+      /*
+       * ⚠️ ART-BEWUSST, UND DIE INSEL GIBT DEN TEXT WOERTLICH WEITER (DRK-309,
+       * Reviewrunde 10). `CheckFlow` formuliert eine Servermeldung
+       * grundsaetzlich nicht neu (§7.3) — was hier steht, liest die Helferin
+       * genau so. Ein festes „Dieses Fahrzeug" waere damit die EINZIGE Stelle
+       * der ganzen Checkstrecke, an der eine Tasche wieder zum Fahrzeug wird,
+       * und zwar auf einem Weg, den der Quelltext daneben als erwartet
+       * beschreibt: die Verwaltung legt still, waehrend jemand zaehlt.
+       *
+       * ⚠️ DER RUECKFALL IST NEUTRAL, NICHT „Fahrzeug". Dieser Zweig faengt
+       * DREI Faelle: die Zeile fehlt ganz, sie ist kein Traeger, oder sie ist
+       * stillgelegt. In den ersten beiden gibt es keine Art — dann ist
+       * „Diese Einheit" das Ehrlichste, was dort stehen kann.
+       */
+      const wer = fz
+        ? grossAmAnfang(dieseEinheit(fz.einheitenart))
+        : "Diese Einheit";
       return {
         ok: false,
         grund: "eingabe",
-        text: "Dieses Fahrzeug ist nicht mehr aktiv. Bitte die Seite neu laden.",
+        text: `${wer} ist nicht mehr aktiv. Bitte die Seite neu laden.`,
       };
     }
 

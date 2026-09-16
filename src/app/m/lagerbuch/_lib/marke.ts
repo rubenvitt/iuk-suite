@@ -63,8 +63,20 @@ type EnvLike = Record<string, string | undefined>;
 /** Alt: APP_NAME. Erscheint in der Kopfzeile des Gates und im PWA-Manifest. */
 export const LAGERBUCH_MARKE = "Lagerbuch";
 
-/** Alt: APP_TAGLINE. Die Unterzeile am Gate und die `description` des Manifests. */
-export const LAGERBUCH_ZEILE = "Bestand, Fahrzeuge, Geräte";
+/**
+ * Alt: APP_TAGLINE. Die Unterzeile am Gate und die `description` des Manifests.
+ *
+ * ⚠️ „Taschen" STEHT MIT DRIN (DRK-309). Die Zeile ist die Aufzaehlung dessen,
+ * was das Modul fuehrt, und sie steht an der Stelle, die jemand OHNE Konto als
+ * erste sieht. Wer mit dem Kaertchen einer Tasche ankommt, liest sonst eine
+ * Aufzaehlung, in der seine Tasche nicht vorkommt, und schliesst daraus, er
+ * sei falsch — bevor er den Code ueberhaupt eingibt.
+ *
+ * ⚠️ NICHT „Einheiten": das Wort ist innerhalb der Verwaltung eingefuehrt, am
+ * Gate aber Fachjargon. Hier zaehlt die Zeile Dinge auf, die jemand in der
+ * Hand haelt.
+ */
+export const LAGERBUCH_ZEILE = "Bestand, Fahrzeuge, Taschen, Geräte";
 
 /**
  * Der Wert, mit dem das Modul ohne gesetzte Variable arbeitet. Er ist die

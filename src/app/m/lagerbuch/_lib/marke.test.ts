@@ -29,7 +29,9 @@ const VORGABE_ORGANISATION = "DRK Bereitschaft Musterstadt";
 describe("marke — zwei Konstanten und ein Regler", () => {
   it("traegt Marke und Unterzeile aus §10.2 als Konstanten", () => {
     expect(LAGERBUCH_MARKE).toBe("Lagerbuch");
-    expect(LAGERBUCH_ZEILE).toBe("Bestand, Fahrzeuge, Geräte");
+    // DRK-309: „Taschen" steht mit drin — die Zeile ist das Erste, was jemand
+    // ohne Konto liest, und sie zaehlt auf, was das Modul fuehrt.
+    expect(LAGERBUCH_ZEILE).toBe("Bestand, Fahrzeuge, Taschen, Geräte");
   });
 
   it("nimmt LAGERBUCH_ORGANISATION aus der Umgebung", () => {

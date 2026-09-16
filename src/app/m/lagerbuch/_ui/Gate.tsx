@@ -168,7 +168,8 @@ export function Gate({
         <div className={s.gateKarte}>
           <h2>Im Dienst</h2>
           <p className={s.fussnote}>
-            Gib den Code vom Etikett am Regal oder im Fahrzeug ein. Kein Konto, kein Passwort. Damit
+            Gib den Code vom Etikett am Regal, im Fahrzeug oder an der Tasche ein. Kein Konto,
+            kein Passwort. Damit
             kannst du Material entnehmen, aber nichts verwalten.
           </p>
           {/*
@@ -224,7 +225,8 @@ export function Gate({
           <h2>Verwaltung</h2>
           <p className={s.fussnote}>
             Hier verwaltest du das ganze {LAGERBUCH_MARKE}: Artikel und Chargen, die
-            Soll-Bestückung der Fahrzeuge, Bestellvorschläge, das Journal und die Zugangs-Codes.
+            Soll-Bestückung der Fahrzeuge und Taschen, Bestellvorschläge, das Journal und die
+            Zugangs-Codes.
           </p>
           <div style={{ flex: 1 }} />
           {/*
