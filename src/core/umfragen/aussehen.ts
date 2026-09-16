@@ -83,9 +83,34 @@ export const FARBROLLEN = {
   "border-color-highlight": "colorLink",
   /** Der „Zurück"-Knopf ohne Fläche trägt die Marke als SCHRIFT auf der Karte. */
   "back-button-color": "colorLink",
-  "border-color": "colorBorder",
-  "input-border-color": "colorBorder",
-  "option-border-color": "colorBorder",
+  /**
+   * ⚠️ `colorTextTertiary` UND NICHT `colorBorder`, OBWOHL DAS DER
+   * KONTUR-TOKEN IST. Der Grund liegt in einer Zuordnung zwei Blöcke tiefer:
+   * Eingabefelder und Antwortzeilen bekommen `colorBgElevated`, also GENAU die
+   * Fläche der Karte (gelesen in `OpenTextQuestion.tsx:96` und
+   * `MultipleChoiceSingleQuestion.tsx:111` — dort steht `bg-survey-bg` neben
+   * `border-border`). Damit ist die Kontur das EINZIGE, was das Bedienelement
+   * überhaupt erkennbar macht, und für die verlangt WCAG 1.4.11 3:1.
+   * `colorBorder` trägt gegen die Karte 1,41:1 (hell) und 1,64:1 (dunkel);
+   * in der Kontur-Familie erreicht kein Token die Schwelle
+   * (`colorBorderSecondary` 1,14 / 1,25, `colorFill` 1,41 / 1,78), in der
+   * Schrift-Familie erst `colorTextTertiary` (3,35:1 / 4,40:1).
+   *
+   * Der Preis ist ausgeschrieben: die Umfrage trägt damit eine kräftigere
+   * ruhende Kontur als ein Formular der Suite daneben. Dass antds `colorBorder`
+   * suiteweit unter 3:1 liegt, ist derselbe Mangel an jeder anderen Fläche —
+   * er gehört aber nicht in dieses Ticket, sondern auf das Board. Hier zählt,
+   * dass die Umfrage ein Überlagerungsfenster ist: sie liegt über abgedunkeltem
+   * Grund, nicht neben dem Formular, mit dem man sie vergleichen könnte.
+   */
+  "border-color": "colorTextTertiary",
+  "input-border-color": "colorTextTertiary",
+  "option-border-color": "colorTextTertiary",
+  /**
+   * Die AUSSENKANTE der Karte, kein Bedienelement — sie muss nichts erkennbar
+   * machen, das die Karte nicht schon über Fläche und Schatten sagt. Bleibt
+   * deshalb bei der zurückhaltenden Kontur.
+   */
   "survey-border-color": "colorBorderSecondary",
 
   // ── Flächen ───────────────────────────────────────────────────────────────
@@ -168,6 +193,41 @@ export const FARBROLLEN = {
 } as const;
 
 /**
+ * ⚠️ DIE EINE VARIABLE, DIE NICHT `--fb-` HEISST — UND OHNE SIE BLEIBT DIE
+ * HÄUFIGSTE FRAGEFORM IM FALSCHEN MODUS.
+ *
+ * Formbricks setzt in seinem eigenen Stylesheet eine Auffangregel für jedes
+ * Element unter `#fbjs` (`packages/surveys/src/styles/global.css`, `@layer
+ * base`):
+ *
+ * ```css
+ * #fbjs *, #fbjs ::after, … { border-color: var(--color-gray-200, currentcolor); }
+ * ```
+ *
+ * Das ist TAILWINDS Variable, nicht Formbricks' eigene. Und sie ist nicht die
+ * Ausnahme, sondern der Normalfall: die Antwortzeilen der Einfach- und
+ * Mehrfachauswahl, die Zahlenleiter der NPS-Frage und die Kacheln der
+ * Bewertungsfrage tragen alle ein NACKTES `border` ohne `border-*`-Klasse
+ * (gelesen in `MultipleChoiceSingleQuestion.tsx:111`, `NPSQuestion.tsx:73`,
+ * `RatingQuestion.tsx:120`). Ihre Kontur kommt also aus dieser Regel und läuft
+ * an jeder `--fb-`-Variable vorbei.
+ *
+ * Gemessen ist das kein Feinschliff: `#e5e7eb` trägt auf der dunklen Karte
+ * **13,31:1** — ein grell heller Rahmen um jede Antwortzeile, also genau das,
+ * was dieses Ticket abstellen soll. Auf der hellen Karte ist es der
+ * umgekehrte Fehler (1,24:1, praktisch unsichtbar).
+ *
+ * Eine Deklaration am `#fbjs`-Wirt erreicht sie, weil CSS-Variablen erben —
+ * hier entscheidet nicht die Spezifität gegen `:root`, sondern die Nähe am
+ * Element. Betroffen ist im ausgelieferten Widget ausschliesslich diese
+ * Auffangregel: eine `gray-200`-Utility benutzt keine Komponente (geprüft am
+ * Quelltext des Pakets; `bg-gray-700/800` sind andere Variablen).
+ */
+export const PREFLIGHT_ROLLEN = {
+  "color-gray-200": "colorTextTertiary",
+} as const;
+
+/**
  * WAS BEWUSST OFFEN BLEIBT — ausgeschrieben, damit die Auslassung nicht als
  * Versehen gelesen wird. `aussehen.test.ts` verlangt, dass diese Liste und
  * `FARBROLLEN` zusammen die volle Bestandsaufnahme ergeben; eine neue Rolle kann
@@ -201,8 +261,13 @@ export const OHNE_MODUSFARBE = {
 /** Name einer Formbricks-Variable, die eine Modusfarbe bekommt. */
 export type Farbvariable = keyof typeof FARBROLLEN;
 
+/** Name einer Variable ausserhalb der `--fb-`-Familie (siehe oben). */
+export type Preflightvariable = keyof typeof PREFLIGHT_ROLLEN;
+
 /** Rolle im Suite-Theme, an der eine solche Variable hängt. */
-export type Farbtoken = (typeof FARBROLLEN)[Farbvariable];
+export type Farbtoken =
+  | (typeof FARBROLLEN)[Farbvariable]
+  | (typeof PREFLIGHT_ROLLEN)[Preflightvariable];
 
 /** Der Ausschnitt aus antds Tokens, den diese Datei braucht. */
 export type Farbquelle = Pick<GlobalToken, Farbtoken>;
@@ -210,13 +275,25 @@ export type Farbquelle = Pick<GlobalToken, Farbtoken>;
 /** Die Zuordnung als Paarliste — einmal getypt, damit sie es überall ist. */
 export const FARBPAARE = Object.entries(FARBROLLEN) as Array<[Farbvariable, Farbtoken]>;
 
+/** Dasselbe für die Variablen ohne `--fb-`-Präfix. */
+export const PREFLIGHT_PAARE = Object.entries(PREFLIGHT_ROLLEN) as Array<
+  [Preflightvariable, Farbtoken]
+>;
+
 /**
  * Der Block für einen Modus. Eigene Funktion, weil die Zeile
  * `html[data-theme="…"] #fbjs` die tragende Zusicherung dieser Datei ist und
  * nur an EINER Stelle stehen soll.
+ *
+ * Die Präfixe stehen an der Zuordnung, nicht am Namen: `--fb-` ist Formbricks'
+ * eigene Familie, `--` allein die eine Tailwind-Variable, die dessen
+ * Auffangregel liest (Begründung an `PREFLIGHT_ROLLEN`).
  */
 function block(mode: ThemeMode, token: Farbquelle): string {
-  const zeilen = FARBPAARE.map(([name, rolle]) => `  --fb-${name}: ${token[rolle]};`);
+  const zeilen = [
+    ...FARBPAARE.map(([name, rolle]) => `  --fb-${name}: ${token[rolle]};`),
+    ...PREFLIGHT_PAARE.map(([name, rolle]) => `  --${name}: ${token[rolle]};`),
+  ];
   return `html[data-theme="${mode}"] #fbjs {\n${zeilen.join("\n")}\n}`;
 }
 

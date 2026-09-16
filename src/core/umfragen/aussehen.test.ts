@@ -8,6 +8,7 @@ import {
   FARBPAARE,
   FARBROLLEN,
   OHNE_MODUSFARBE,
+  PREFLIGHT_PAARE,
   umfragenFarbCss,
   type Farbquelle,
 } from "@/core/umfragen/aussehen";
@@ -181,6 +182,23 @@ describe("Die Bestandsaufnahme", () => {
     }
   });
 
+  /**
+   * Die Auffangregel des Widgets liest TAILWINDS Variable, nicht Formbricks'
+   * eigene (Begründung an `PREFLIGHT_ROLLEN`). Sie gehört deshalb nicht in die
+   * Bestandsaufnahme oben — aber gesetzt werden muss sie, und zwar OHNE
+   * `--fb-`-Präfix. Ein versehentliches `--fb-color-gray-200` wäre eine
+   * Variable, die niemand liest, und die Antwortzeilen behielten ihren hellen
+   * Rahmen auf der dunklen Karte.
+   */
+  it.each(MODES)("setzt die Auffangvariable ohne `--fb-`-Präfix, Modus %s", (mode) => {
+    const block = blockVon(mode);
+    expect(PREFLIGHT_PAARE.length).toBeGreaterThan(0);
+    for (const [name, rolle] of PREFLIGHT_PAARE) {
+      expect(block, name).toContain(`\n  --${name}: ${TOKEN[mode][rolle]};`);
+      expect(block, `${name} darf kein --fb- tragen`).not.toContain(`--fb-${name}`);
+    }
+  });
+
   it.each(MODES)("setzt im Modus %s keine ausgelassene Variable", (mode) => {
     const block = blockVon(mode);
     for (const name of Object.keys(OHNE_MODUSFARBE)) {
@@ -338,16 +356,32 @@ describe("Lesbar, nicht nur invertiert", () => {
     "close-btn-hover-color",
   ] as const;
 
-  it("teilt jede Schrift-/Zeichenrolle genau einer Schwelle zu", () => {
-    // Welche Rollen das sind, entscheidet der TOKEN, nicht der Name: alles, was
-    // an einer `colorText*`-Rolle hängt, wird gelesen und braucht eine Zahl.
-    const geprueft = [...SCHRIFT_AUF_KARTE, ...ZEICHEN_AUF_KARTE].sort();
-    const VOLLSTAENDIGKEIT = FARBPAARE.filter(([, rolle]) => rolle.startsWith("colorText"))
-      .map(([name]) => name)
+  /**
+   * ⚠️ DIESER WÄCHTER HAT SEINE ARBEIT SCHON GETAN, UND ZWAR AN MIR: als die
+   * Konturen von `colorBorder` auf `colorTextTertiary` wechselten, wurde er rot
+   * — die drei Rollen hingen plötzlich an einer Schriftfarbe und standen in
+   * keiner seiner Listen. Genau dafür ist er da.
+   *
+   * Entscheidend ist der TOKEN, nicht der Name: alles, was an einer
+   * `colorText*`-Rolle hängt, ist gelesene Farbe und braucht eine Zahl. In
+   * welcher der drei Listen sie steht, entscheidet die SACHE (Schrift 4,5:1,
+   * Zeichen und Kontur 3:1) — dass sie in einer steht, entscheidet nicht mehr
+   * die Aufmerksamkeit des Schreibenden.
+   */
+  it("teilt jede Rolle mit einer Schriftfarbe genau einer Schwelle zu", () => {
+    const istSchriftfarbe = (rolle: string) =>
+      rolle.startsWith("colorText") &&
       // `colorTextLightSolid` ist die Schrift auf der MARKENFLÄCHE, nicht auf
       // der Karte — sie hat ihre eigene Zusicherung darunter.
-      .filter((name) => FARBROLLEN[name] !== "colorTextLightSolid")
+      rolle !== "colorTextLightSolid";
+
+    const geprueft = [...SCHRIFT_AUF_KARTE, ...ZEICHEN_AUF_KARTE, ...KONTUREN]
+      .filter((name) => istSchriftfarbe(FARBROLLEN[name]))
       .sort();
+    const VOLLSTAENDIGKEIT = FARBPAARE.filter(([, rolle]) => istSchriftfarbe(rolle))
+      .map(([name]) => name)
+      .sort();
+    // Ein Name in ZWEI Listen fällt hier mit auf: `geprueft` trüge ihn doppelt.
     expect(geprueft).toEqual(VOLLSTAENDIGKEIT);
   });
 
@@ -397,21 +431,39 @@ describe("Lesbar, nicht nur invertiert", () => {
    * angehobenen Rot. Ohne diese Zeilen wäre eine Rückkehr zu `colorPrimary` ein
    * grüner Diff mit einem unsichtbaren Fokusring.
    */
-  it.each(MODES)("hält Fokusring und Hervorhebung auf 3:1 gegen die Karte, Modus %s", (mode) => {
-    /*
-     * ⚠️ `--fb-border-color` STEHT HIER ABSICHTLICH NICHT, und die erste
-     * Fassung dieser Zusicherung hatte es drin — sie wurde rot mit 1,41:1
-     * (hell) und 1,64:1 (dunkel). Das ist kein Mangel, sondern die falsche
-     * Schwelle: 1.4.11 verlangt 3:1 für das, was ein Bedienelement
-     * ERKENNBAR macht — den Fokusring und die Hervorhebung —, nicht für jede
-     * ruhende Kontur. Die ruhende Kontur ist `colorBorder`, also exakt der
-     * Wert, den jedes Eingabefeld der Suite trägt. Sie hier anzuheben machte
-     * die Umfrage zur einzigen Fläche mit einer dunkleren Kontur als ihre
-     * Umgebung.
-     */
-    for (const name of ["focus-color", "border-color-highlight"] as const) {
+  /**
+   * ⚠️ DIESE LISTE HAT SCHON EINMAL DAS FALSCHE GEMESSEN, UND ZWAR MIT EINER
+   * AUSGESCHRIEBENEN BEGRÜNDUNG. Eine frühere Fassung nahm `--fb-border-color`
+   * heraus, weil 1.4.11 „nur" das fordere, was ein Bedienelement erkennbar
+   * macht — Fokusring und Hervorhebung —, und die ruhende Kontur derselbe Wert
+   * sei, den jedes Feld der Suite trägt. Der zweite Halbsatz stimmte, der erste
+   * war der Fehler: in dieser Umfrage IST die ruhende Kontur das, was das
+   * Bedienelement erkennbar macht. Fläche des Feldes und Fläche der Karte sind
+   * derselbe Token, es gibt also keine zweite Grenze, die einspringen könnte.
+   *
+   * Lehre daraus, und sie ist dieselbe wie eine Zusicherung höher: eine
+   * Auslassung mit Begründung ist keine sichere Auslassung. Deshalb steht hier
+   * jetzt JEDE Kontur- und Ringrolle.
+   */
+  const KONTUREN = [
+    "focus-color",
+    "border-color-highlight",
+    "border-color",
+    "input-border-color",
+    "option-border-color",
+  ] as const;
+
+  it.each(MODES)("hält jede Kontur eines Bedienelements auf 3:1, Modus %s", (mode) => {
+    for (const name of KONTUREN) {
       const farbe = TOKEN[mode][FARBROLLEN[name]];
       expect(kontrast(farbe, karte(mode)), `--fb-${name} ${farbe} auf ${karte(mode)}`)
+        .toBeGreaterThanOrEqual(3);
+    }
+    // Und die Auffangregel: sie traegt die Kontur der Antwortzeilen, der
+    // NPS-Leiter und der Bewertungskacheln — der haeufigsten Fragetypen.
+    for (const [name, rolle] of PREFLIGHT_PAARE) {
+      const farbe = TOKEN[mode][rolle];
+      expect(kontrast(farbe, karte(mode)), `--${name} ${farbe} auf ${karte(mode)}`)
         .toBeGreaterThanOrEqual(3);
     }
   });
