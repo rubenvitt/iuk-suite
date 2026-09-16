@@ -61,7 +61,16 @@ export function HelferRahmen({
   laeuftAb,
   children,
 }: {
-  aktiv: "entnahme" | "check";
+  /**
+   * DRK-314: DREI Reiter, nicht mehr zwei. Der dritte ist die Gegenrichtung zur
+   * Entnahme — „in die Box legen" statt „aus dem Regal nehmen".
+   *
+   * ⚠️ DREI IST DIE GRENZE, NICHT DER ANFANG. `.tab` teilt die Leiste per
+   * `flex: 1` gleichmaessig auf; bei 320px Fensterbreite bleiben je Reiter rund
+   * 106px, und die Beschriftung „Entnahme" misst darin schon 62px. Ein vierter
+   * Reiter braucht ein anderes Muster, keinen weiteren Wert hier.
+   */
+  aktiv: "entnahme" | "check" | "box";
   sitzungsetikett: string;
   /** `null` = angemeldetes Konto statt Kärtchen-Sitzung (DRK-305). */
   laeuftAb: Date | null;
@@ -161,6 +170,20 @@ export function HelferRahmen({
         >
           <Ikone name="tabelle" groesse={20} />
           <span>Entnahme</span>
+        </Link>
+        <Link
+          href="/helfer/box"
+          className={s.tab}
+          aria-current={aktiv === "box" ? "page" : undefined}
+        >
+          <Ikone name="box" groesse={20} />
+          {/*
+            DRK-314: „Box" und nicht „Entnahmebox". Der Reiter steht neben zwei
+            einwortigen Beschriftungen und teilt sich die Breite mit ihnen; das
+            volle Wort umbraeche auf einem 320px-Schirm. Wohin er fuehrt, sagt
+            der Schirm dahinter in ganzen Saetzen.
+          */}
+          <span>Box</span>
         </Link>
         <Link
           href="/helfer/check"

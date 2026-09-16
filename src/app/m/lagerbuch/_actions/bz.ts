@@ -14,7 +14,7 @@ import {
 } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { normalisiereBarcode } from "../_lib/barcode";
-import { MONAT_REGEX } from "../_lib/konstanten";
+import { istEntnahmebox, MONAT_REGEX } from "../_lib/konstanten";
 import { BEACHTUNG_HINWEIS_MAX } from "../_lib/grenzen";
 import { beachtungsFelder, bewerteKontrolle, bzBeachtung } from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
@@ -223,6 +223,22 @@ export async function geraetSpeichern(
       if (v.id && !bzGeraetExistiert(db, v.id)) {
         return festerFehler(BZ_GERAET_FEHLER);
       }
+
+      /*
+       * ⚠️ DIE ENTNAHMEBOX IST KEIN STANDORT (DRK-314, Codex-Review zu PR #175).
+       * Sie ist ein aktiver Lagerort und käme durch die `aktiv`-Probe darunter
+       * klaglos durch — die Auswahl im Formular bietet sie zwar nicht an, aber
+       * eine Server Action ist ein EIGENER Einstiegspunkt, und eine selbst
+       * gebaute Anfrage erreicht sie unabhängig davon, welche Seite sie eingebaut
+       * hat. Der Fehlgriff wäre STILL: das Gerät stünde dauerhaft an einem Ort,
+       * den kein Check besucht, und verschwände damit aus dem Fahrzeugcheck,
+       * ohne dass irgendwo etwas rot wird.
+       *
+       * Die Box ist ein ZWISCHENZUSTAND für Verbrauchsmaterial, das gleich
+       * wieder eingeräumt wird (`_lib/konstanten.ts`) — kein Platz für einen
+       * Gegenstand, der geprüft werden muss.
+       */
+      if (istEntnahmebox(v.lagerortId)) return festerFehler(LAGERORT_FEHLER);
 
       const lagerort = db.select({ id: lagerorte.id }).from(lagerorte)
         .where(and(

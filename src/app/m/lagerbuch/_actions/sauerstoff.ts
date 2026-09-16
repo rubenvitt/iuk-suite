@@ -12,6 +12,7 @@ import {
   O2_WECHSEL_MIN_PROZENT,
   O2_WECHSEL_VORGABE_PROZENT,
 } from "../_lib/domain/o2";
+import { istEntnahmebox } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/sauerstoff";
@@ -27,7 +28,21 @@ function fehlerhaft(fehler: unknown): ActionErgebnis<never> {
   };
 }
 
+/**
+ * ⚠️ DIE ENTNAHMEBOX FÄLLT HIER MIT DURCH (DRK-314, Codex-Review zu PR #175).
+ * Sie ist ein AKTIVER Lagerort und käme durch die `aktiv`-Probe klaglos durch —
+ * die Auswahl im Formular bietet sie zwar nicht an, aber eine Server Action ist
+ * ein EIGENER Einstiegspunkt, und eine selbst gebaute Anfrage erreicht sie
+ * unabhängig davon, welche Seite sie eingebaut hat. Der Fehlgriff wäre STILL:
+ * die Flasche stünde dauerhaft an einem Ort, den kein Check besucht, und
+ * verschwände damit aus dem Fahrzeugcheck, ohne dass irgendwo etwas rot wird.
+ *
+ * ⚠️ IM PRÄDIKAT UND NICHT AN DER AUFRUFSTELLE, anders als in `geraete.ts` und
+ * `bz.ts`: hier GIBT es ein Prädikat, und damit bekommt jeder künftige Aufrufer
+ * die Bedingung mit — statt nur der, den man gerade ansieht.
+ */
 function istAktiverLagerort(db: DB, id: string): boolean {
+  if (istEntnahmebox(id)) return false;
   return Boolean(db.select({ id: lagerorte.id })
     .from(lagerorte)
     .where(and(eq(lagerorte.id, id), eq(lagerorte.aktiv, true)))

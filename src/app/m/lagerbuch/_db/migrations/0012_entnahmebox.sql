@@ -1,0 +1,47 @@
+-- DRK-314: die Entnahmebox — die Kiste in der Halle, in die Helfende legen, was
+-- sie von einer Einheit HERUNTERgenommen haben.
+--
+-- EINE MIGRATIONSZEILE, KEIN SEED — dieselbe Entscheidung und dieselbe
+-- Begruendung wie bei 'handlager' (0003_handlager.sql): mit `foreign_keys = ON`
+-- ist eine fehlende Zeile kein Schoenheitsfehler, sondern ein FK-Fehler bei der
+-- ersten Buchung. Als Boot-Schritt liefe sie ausserhalb der Versionierung; als
+-- Boot-Assert machte eine fehlende Zeile aus einem Datenproblem einen
+-- Totalausfall der ganzen Suite, weil `migrateAllModules()` alle Module in
+-- einer Schleife faehrt.
+--
+-- ⚠️ `parent_id = NULL`, ALSO NEBEN DEM HANDLAGER UND NICHT DARUNTER. Das ist
+-- die tragende Entscheidung des Tickets, und sie ist hier am billigsten zu
+-- lesen: `handlagerOrte()` (`_lib/lesepfade/orte.ts`) ist der Bereich JEDER
+-- handlager-gescopten Abfrage und steigt ueber `parent_id` beliebig tief ab.
+-- Eine Box unter der Wurzel zaehlte damit ab dem ersten Tag als
+-- Handlagerbestand — im Bestellvorschlag, in der Verfallsliste, in der
+-- FEFO-Verteilung jeder Entnahme am Regal. Genau das soll sie NICHT: was in
+-- der Box liegt, ist weder auf der Einheit noch im Handlager, sondern wartet
+-- darauf, dass jemand es einsortiert.
+--
+-- ⚠️ `typ = 'lager'` UND NICHT `'fahrzeug'`. `typ` trennt den Bestandsort vom
+-- beweglichen Traeger, und an dieser Trennung haengt jeder Schreibpfad des
+-- Moduls. Eine Box mit `typ = 'fahrzeug'` bekaeme ein Soll, stuende in der
+-- Einheitenliste, liesse sich checken und tauchte in der Zielwahl jeder
+-- Entnahme auf — vier Folgen, von denen keine gewollt ist.
+--
+-- ⚠️ `einheitenart = NULL` HEISST HIER NICHT „noch nicht zugeordnet", sondern
+-- „die Frage stellt sich nicht" (`_db/schema.ts`, Spaltenkommentar): die Art
+-- gilt allein fuer `typ = 'fahrzeug'`. `standortMeta` liest deshalb zuerst
+-- `typ` und laesst eine Lagerzeile „Lager" sagen statt „nicht zugeordnet".
+--
+-- `INSERT OR IGNORE` ist idempotent — dieselbe Form wie 0003. Traegt eine
+-- bestehende Datenbank bereits eine Zeile mit dieser ID (etwa, weil jemand sie
+-- von Hand angelegt hat), bleibt sie unberuehrt; die Migration ueberschreibt
+-- keinen gepflegten Namen.
+--
+-- ⚠️ DIESE ZEILE LOEST EINEN AUDIT-EINTRAG AUS, und das ist richtig so:
+-- `audit_lagerorte_create` steht seit 0004 (0003 lief davor, die
+-- Handlager-Zeile hat deshalb keinen). Der Akteur ist `{"kind":"system"}` —
+-- `currentAuditContext()` faellt ausserhalb eines `withAuditContext` genau
+-- darauf zurueck (`core/audit/context.ts`). Ein Eintrag mit dem System-Akteur
+-- ist die ehrliche Auskunft: diese Zeile hat kein Mensch angelegt.
+INSERT OR IGNORE INTO lagerorte
+  (id, name, typ, kennung, aktiv, template_id, parent_id, zugangshinweis, sortierung, einheitenart)
+VALUES
+  ('entnahmebox', 'Entnahmebox', 'lager', NULL, 1, NULL, NULL, NULL, 0, NULL);

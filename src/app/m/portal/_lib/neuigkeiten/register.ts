@@ -25,6 +25,7 @@ import mengenSelbstZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbu
 import aussonderungUndInventurImJournal from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-aussonderung-und-inventur-im-journal";
 import sauerstoffWechselhinweis from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-sauerstoff-wechselhinweis";
 import umlagernImHandlager from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-umlagern-im-handlager";
+import entnahmebox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-entnahmebox";
 import schranknameEindeutig from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schrankname-eindeutig";
 import checkUndEntnahmeAngemeldet from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-und-entnahme-angemeldet";
 import taschenNebenFahrzeugen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-taschen-neben-fahrzeugen";
@@ -90,6 +91,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   aussonderungUndInventurImJournal,
   sauerstoffWechselhinweis,
   umlagernImHandlager,
+  entnahmebox,
   schranknameEindeutig,
   checkUndEntnahmeAngemeldet,
   taschenNebenFahrzeugen,

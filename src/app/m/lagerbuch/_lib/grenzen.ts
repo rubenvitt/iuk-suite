@@ -287,6 +287,22 @@ export const INVENTUR_VERLAUF_GRENZE = 100;
  */
 export const BEACHTUNG_HINWEIS_MAX = 500;
 
+/**
+ * Die groesste Menge, die EIN Formular in EINEM Zug bucht (DRK-314).
+ *
+ * ⚠️ SIE STEHT HIER, WEIL SIE AN ZWEI STELLEN GELTEN MUSS: im Schema der
+ * Server Action und am Bedienelement daneben (Codex-Review zu PR #175). Lagen
+ * sie auseinander, naehme das Feld eine Zahl an, die der Server danach
+ * abweist — und zwar mit „Die Eingabe war unvollständig", einem Satz, der auf
+ * ein ausgefuelltes Formular nicht passt. Dieselbe Klasse wie das fehlende
+ * `precision={0}`: nicht falsch gerechnet, sondern zwei Wahrheiten.
+ *
+ * Die Zahl selbst ist keine fachliche Aussage, sondern ein Riegel gegen den
+ * Vertipper („60000" statt „6"): ein Posten dieser Groesse kommt in einer
+ * Bereitschaft nicht vor, und eine Umlagerung darueber waere mit Sicherheit
+ * ein Fehlgriff. Sie ist derselbe Deckel, den die Inventur schon fuehrt.
+ */
+export const BUCHUNG_MENGE_MAX = 99_999;
 /* ──────────────────────────────────────────────────────────────────────────
  * DIE BOOT-LISTE (§10.5, Pruefungen 1 bis 4).
  * ────────────────────────────────────────────────────────────────────────── */

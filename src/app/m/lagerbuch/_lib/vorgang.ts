@@ -31,7 +31,7 @@
  *
  * ── WELCHES PRAEFIX EINEN EIGENEN VORGANGSTEXT BEKOMMT ────────────────────
  *
- * Fuenf Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
+ * Sechs Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
  * Praefix?", sondern: *steht auf dem Schirm schon, was passiert ist?*
  *
  * | Praefix            | Typ                | eigener Text? | warum |
@@ -41,6 +41,15 @@
  * | `check:`           | korrektur, umlagerung | nein       | der Kommentar ist im Quelltext FESTGENAGELT („Check Abgleich" / „Check Nachfuellung", `CHECK_ABGLEICH`/`CHECK_NACHFUELLUNG` in `konstanten.ts`) und steht damit bereits in der Spalte. Ein zweites Etikett ergaebe „Check · Check Abgleich". Die Freitextsuche findet die Zeilen ueber genau diesen Kommentar. |
  * | `entnahme-ziel:`   | umlagerung         | nein          | „Umlagerung" ist bereits wahr und vollstaendig: Bestand wandert vom Handlager an ein Fahrzeug. Das Praefix nennt das ZIEL, nicht eine andere Art von Vorgang — und das Ziel gehoert in eine Spalte, nicht in ein Etikett. |
  * | `umlagerung:`      | umlagerung         | nein          | DRK-338, das Handumlagern zwischen zwei Orten des Handlagers. Dieselbe Antwort und derselbe Grund wie eine Zeile hoeher: das Praefix nennt das ZIEL. Seit DRK-338 fuehrt das Journal dafuer eine Spalte „Ort" — die Quelle steht in der Zeile mit dem Minus, das Ziel in der mit dem Plus. |
+ * | `entnahmebox:`     | umlagerung         | nein          | DRK-314, das Ablegen in der Kiste in der Halle. Dieselbe Antwort und derselbe Grund wie die zwei Zeilen darueber: „Umlagerung" ist bereits wahr und vollstaendig, und WOHIN steht in der Spalte „Ort" — dort liest sich die Zeile mit dem Plus als „Entnahmebox". Der Kommentar ist zusaetzlich im Quelltext festgenagelt (`ENTNAHMEBOX_KOMMENTAR`, `konstanten.ts`) und steht damit wie bei `check:` bereits in der Spalte daneben. |
+ *
+ * ⚠️ `entnahmebox:` NENNT ALS EINZIGES DIESER DREI DIE QUELLE, NICHT DAS ZIEL,
+ * und das ist kein Versehen: das Ziel ist hier eine KONSTANTE (es gibt genau
+ * eine Box), ein `entnahmebox:entnahmebox` traege also null Bit. Informativ ist
+ * die Einheit, aus der das Material kam — dieselbe Lesart wie bei
+ * `aussondern:<lagerortId>`, das ebenfalls den ORT DES VORGANGS nennt. Die
+ * tragende Eigenschaft bleibt in beiden Lesarten dieselbe: BEIDE Legs einer
+ * Buchung teilen den Wert, und nur das macht sie im Journal als Paar lesbar.
  *
  * Wer hier ein Praefix ERGAENZT, beantwortet dieselbe Frage neu — und traegt
  * es in `VORGANG_ARTEN` ein, sonst faellt es still unter seinen Buchungstyp.
@@ -78,6 +87,26 @@ export type BuchungTyp = (typeof BUCHUNG_TYPEN)[number];
  */
 export const AUSSONDERN_PRAEFIX = "aussondern:";
 export const INVENTUR_PRAEFIX = "inventur:";
+
+/**
+ * DRK-314 — die Umlagerung aus einer Einheit in die Entnahmebox.
+ *
+ * ⚠️ SIE STEHT HIER, OBWOHL SIE KEINEN EIGENEN VORGANGSTEXT BEKOMMT (Tabelle
+ * oben) — und genau deshalb: die Regel dieser Datei ist „die Praefixe haben
+ * GENAU EINE Quelle", nicht „nur die mit Etikett stehen hier". Gebraucht wird
+ * der Wert an ZWEI Stellen, und das reicht fuer die Regel: beim SCHREIBEN
+ * (`_actions/entnahmebox.ts`) und beim LESEN der Herkunft eines Postens
+ * (`_lib/lesepfade/entnahmebox.ts` loest daraus die Einheit auf, aus der das
+ * Material kam). Zwei Literale liefen still auseinander: die Buchung entstuende
+ * mit einem Praefix, das der Leser nicht kennt, und die Herkunftsspalte bliebe
+ * dauerhaft leer, ohne dass ein Tor rot wird.
+ *
+ * ⚠️ NICHT IN `VORGANG_ARTEN`, und das ist die Kehrseite derselben Tabelle: ein
+ * Eintrag dort erzeugt einen Filterwert und ein Etikett „Entnahmebox" neben dem
+ * Wort „Umlagerung". Die Buchung IST eine Umlagerung; ein zweites Etikett
+ * beschriebe denselben Vorgang zweimal.
+ */
+export const ENTNAHMEBOX_PRAEFIX = "entnahmebox:";
 
 /**
  * Die Reihenfolge ist die Reihenfolge im Auswahlfeld: erst die vier

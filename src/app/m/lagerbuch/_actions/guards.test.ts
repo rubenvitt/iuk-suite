@@ -422,6 +422,16 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Zaehlung steht damit auf 56 = 53 bewacht + 3 Ausnahmen, 53 = 50 + 3, in
  * weiterhin 23 Action-Dateien.
  *
+ * NACHTRAG DRK-314 (16.09.2026): `entnahmebox.ts` mit `bucheInEntnahmebox`
+ * kommt dazu — die Umlagerung aus einer Einheit in die Kiste in der Halle.
+ * Bewacht von `requireHelferSchreibend`, und das ist die VIERTE Action mit
+ * diesem Riegel und zugleich die erste, die ihn braucht, OBWOHL eine
+ * VERWALTUNGSseite sie ruft: der Riegel traegt beide Herkuenfte (Kaertchen und
+ * angemeldetes Konto), und zwei Actions fuer denselben Vorgang waeren zwei
+ * Wahrheiten darueber, wie gebucht wird (die Begruendung steht ausgeschrieben
+ * im Kopf der Datei). Die Zaehlung steht damit auf 58 = 55 bewacht + 3
+ * Ausnahmen, 55 = 51 + 4, in 24 Action-Dateien.
+ *
  * NACHTRAG ZUSAMMENFUEHRUNG DRK-309/DRK-338 (16.09.2026): und schon wieder
  * derselbe Fall wie oben bei DRK-303/DRK-300 — zwei Aenderungen am selben Tag,
  * jede mit EINER neuen admin-bewachten Action, jede ihren Nachtrag vom Stand 55
@@ -443,6 +453,19 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * ist append-only, ein dort abgelegter Hinweis waere nie wieder aufzuheben.
  * Keine neue Datei, keine neue Ausnahme. Die Zaehlung steht damit auf
  * 58 = 55 bewacht + 3 Ausnahmen, 55 = 52 + 3, in weiterhin 23 Action-Dateien.
+ *
+ * NACHTRAG ZUSAMMENFUEHRUNG DRK-311/DRK-314 (16.09.2026): UND ZUM DRITTEN MAL
+ * DERSELBE FALL — die Warnung oben hat ihn wieder gefangen. Beide Aenderungen
+ * rechneten ihren Nachtrag vom Stand 57 aus und kamen jede fuer sich auf 58;
+ * git sah auf beiden Seiten DIESELBE Aenderung von 57 auf 58 und uebernahm sie
+ * ohne Konflikt. Konfliktbehaftet war allein `bz.ts` (die Importzeile), nicht
+ * dieser Block und nicht der Testkoerper.
+ *
+ * Die beiden addieren sich aber: DRK-311 bringt `beachtungSetzen` in die
+ * BESTEHENDE `bz.ts` (admin-bewacht), DRK-314 die NEUE `entnahmebox.ts` mit
+ * `bucheInEntnahmebox` (`requireHelferSchreibend`). Gemeinsam steht die
+ * Zaehlung damit auf 59 = 56 bewacht + 3 Ausnahmen, 56 = 52 + 4, in 24
+ * Action-Dateien.
  *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
@@ -486,6 +509,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "check.ts": 1,
     "csv.ts": 1,
     "detail.ts": 1,
+    "entnahmebox.ts": 1,   // DRK-314, die Umlagerung in die Kiste in der Halle
     "entnahmeZiel.ts": 1,   // DRK-300, nach Teil 6 dazugekommen
     "fahrzeuge.ts": 6,
     "gate.ts": 1,
@@ -510,13 +534,13 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 23 Action-Dateien plus `guards.test.ts`", () => {
+  it("hat 24 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER)` zaehlen (Ruling A7): der Ordner fuehrt
     // auch die Testdateien. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
-    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 23 Dateien.").toHaveLength(23);
-    expect(dateien, "23 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
+    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 24 Dateien.").toHaveLength(24);
+    expect(dateien, "24 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
     expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 
@@ -537,10 +561,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 58 Deklarationen, obwohl es nur 55 verschiedene Namen gibt", () => {
+  it("zaehlt 59 Deklarationen, obwohl es nur 56 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "58 Deklarationen").toHaveLength(58);
-    expect(new Set(namen).size, "55 verschiedene Namen").toBe(55);
+    expect(namen, "59 Deklarationen").toHaveLength(59);
+    expect(new Set(namen).size, "56 verschiedene Namen").toBe(56);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -552,7 +576,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 55 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 56 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -561,7 +585,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "55 bewacht").toBe(55);
+    expect(funde.length - ausnahmen.length, "56 bewacht").toBe(56);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -628,7 +652,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 54 Riegel auf 51 requireLagerbuchAdmin und 3 requireHelferSchreibend", () => {
+  it("verteilt die 55 Riegel auf 51 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -641,6 +665,15 @@ describe("Zaehlung (§2.1 a)", () => {
       // DRK-300 — die Zielwahl am Regal. Sie bucht nichts, haengt aber am
       // selben Kaertchen und ist von aussen genauso aufrufbar.
       "entnahmeZiel.ts#waehleEntnahmeZiel",
+      // DRK-314 — die Abgabe in die Entnahmebox. Sie wird von BEIDEN Flaechen
+      // gerufen (Helferschirm und Verwaltung); der Riegel traegt beide
+      // Herkuenfte, eine zweite admin-bewachte Action daneben waere eine zweite
+      // Wahrheit ueber denselben Vorgang.
+      //
+      // ⚠️ DIE REIHENFOLGE IST DIE VON `sort()`, nicht die der Sollliste:
+      // `entnahmeZiel` sortiert VOR `entnahmebox`, weil Grossbuchstaben in
+      // einem `String`-Vergleich kleiner sind als Kleinbuchstaben ("Z" < "b").
+      "entnahmebox.ts#bucheInEntnahmebox",
     ]);
     expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(52);
   });

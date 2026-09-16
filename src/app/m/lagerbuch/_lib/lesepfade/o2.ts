@@ -42,7 +42,7 @@
  */
 import { desc, eq } from "drizzle-orm";
 import { lagerorte, o2Flaschen, o2Messungen } from "../../_db/schema";
-import type { Einheitenart, StandortAngabe } from "../konstanten";
+import { istEntnahmebox, type Einheitenart, type StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { o2Status, type O2Status } from "../domain/o2";
 import type { DB } from "../../_db/client";
@@ -225,6 +225,11 @@ export function lagerorteFuerFlaschen(db: Leser): {
   kennung: string | null; einheitenart: Einheitenart | null;
 }[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
+    // DRK-314 — dieselbe Ausnahme und dieselbe Begruendung wie bei
+    // `lagerortOptionen` (`lesepfade/bz.ts`): die Entnahmebox ist ein
+    // Zwischenzustand fuer Verbrauchsmaterial, kein Standort fuer einen
+    // Gegenstand, der gecheckt wird.
+    .filter((l) => !istEntnahmebox(l.id))
     .map((l) => ({
       id: l.id, name: l.name, typ: l.typ,
       kennung: l.kennung, einheitenart: l.einheitenart,

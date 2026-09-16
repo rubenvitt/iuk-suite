@@ -211,3 +211,66 @@ describe("umlagerung — DRK-338: die gewaehlte Charge", () => {
     expect(ergebnis.teile.map((t2) => t2.chargeId)).toEqual(["c-frueh"]);
   });
 });
+
+describe("umlagerung — EIN Zeitstempel je Vorgang", () => {
+  /*
+   * ⚠️ DIE UHR TICKT IM TEST, UND DAS IST DER GANZE TEST (Codex-Review zu
+   * PR #175). `new Date()` IN der Einfuegeschleife las sie je Charge neu — eine
+   * FEFO-Umlagerung ueber zwei Chargen, die eine Sekundengrenze ueberquert,
+   * bekam zwei verschiedene `ts`. Wer die Legs eines Vorgangs anhand von
+   * Referenz UND Zeitpunkt zusammenfasst, saehe dann zwei Vorgaenge, wo einer
+   * war (`lesepfade/entnahmebox.ts`).
+   *
+   * ⚠️ OHNE DIESE ATTRAPPE WAERE DER TEST WERTLOS — und zwar gruen: zwei
+   * `new Date()` hintereinander liefern in derselben Millisekunde dieselbe
+   * Zahl, und der Fehler haengt genau daran, WO die Uhr steht. Eine Zusicherung,
+   * die nur bei ungluecklichem Timing faellt, ist keine.
+   */
+  let echtesDatum: DateConstructor;
+
+  beforeEach(() => {
+    echtesDatum = globalThis.Date;
+    let schritt = 0;
+    class TickendesDatum extends echtesDatum {
+      constructor(...args: unknown[]) {
+        if (args.length === 0) {
+          super(NOW.getTime() + schritt++ * 1000);
+          return;
+        }
+        // @ts-expect-error Die Ueberladungen von `Date` lassen sich nicht
+        // typseitig weiterreichen; jeder Aufruf MIT Argumenten (Drizzle liest
+        // so die gespeicherten Zeitpunkte zurueck) geht unveraendert durch.
+        super(...args);
+      }
+    }
+    globalThis.Date = TickendesDatum as unknown as DateConstructor;
+  });
+
+  afterEach(() => { globalThis.Date = echtesDatum; });
+
+  it("schreibt alle Zugangs-Legs einer FEFO-Umlagerung mit DEMSELBEN ts", () => {
+    // 5 Stueck ueber zwei Chargen: 3 aus `c-frueh`, 2 aus `c-spaet`.
+    const ergebnis = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
+      quelle: QUELLE, kommentar: null, referenz: "entnahmebox:rtw-1" }));
+    expect(ergebnis.teile, "Vorbedingung: der Vorgang geht ueber ZWEI Chargen")
+      .toHaveLength(2);
+
+    const zugaenge = t.db.select().from(buchungen)
+      .where(and(eq(buchungen.lagerortId, "rtw-1"), gt(buchungen.menge, 0))).all();
+    expect(zugaenge).toHaveLength(2);
+    expect(new Set(zugaenge.map((b) => b.ts.getTime())).size).toBe(1);
+  });
+
+  it("schreibt auch die Abgangs-Legs mit DEMSELBEN ts", () => {
+    // Dieselbe Falle eine Ebene tiefer, in `fefoAbbuchungImBereich` — und derselbe Fix.
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
+      quelle: QUELLE, kommentar: null, referenz: "entnahmebox:rtw-1" }));
+
+    const abgaenge = alleZeilen()
+      .filter((b) => b.referenz === "entnahmebox:rtw-1" && b.menge < 0);
+    expect(abgaenge).toHaveLength(2);
+    expect(new Set(abgaenge.map((b) => b.ts.getTime())).size).toBe(1);
+  });
+});
