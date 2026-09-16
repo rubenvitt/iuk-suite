@@ -39,7 +39,14 @@ const liste = vi.fn<(...args: unknown[]) => unknown[]>(() => []);
 const detail = vi.fn<(...args: unknown[]) => unknown>(() => null);
 vi.mock("../_lib/lesepfade/artikel", () => ({
   artikelListe: (...args: unknown[]) => liste(...args),
-  artikelDetailHelfer: (...args: unknown[]) => detail(...args),
+  /*
+   * ⚠️ `artikelDetailAuffuellen`, NICHT `artikelDetailHelfer` (Codex-Befund P1
+   * zu PR #174). Der Helfer-Lesepfad filtert Chargen ohne Bestand heraus —
+   * richtig fuers Entnehmen, falsch fuers Annehmen. Diese Attrappe ist die
+   * Stelle, an der ein Rueckfall auf den falschen Lesepfad auffaellt: sie
+   * traegt den anderen Namen, der Import liefe sonst ins Leere.
+   */
+  artikelDetailAuffuellen: (...args: unknown[]) => detail(...args),
 }));
 
 const ziele = vi.fn(() => [{ id: "handlager", name: "Handlager (ohne Schrank)", zugangshinweis: null }]);

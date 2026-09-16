@@ -1,7 +1,7 @@
 import { requireLagerbuchAdmin } from "../../_lib/zugang";
 import { kontoZugangAus } from "../../_lib/helferZugang";
 import { sitzungsEtikett } from "../../_lib/zugangHerkunft";
-import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
+import { artikelDetailAuffuellen } from "../../_lib/lesepfade/artikel";
 import { zugangsZiele } from "../../_lib/lesepfade/orte";
 import { getDb } from "../../_db/client";
 import { AuffuellRahmen } from "../../_ui/AuffuellRahmen";
@@ -21,10 +21,18 @@ import { bucheAuffuellung } from "../../_actions/buchung";
  * die beiden anderen Lagen selbst — ohne Sitzung `/login`, mit Sitzung ohne
  * Gruppe `notFound()`.
  *
- * ⚠️ DIE CHARGENLISTE KOMMT AUS `artikelDetailHelfer`, ALSO AUS DEMSELBEN
- * LESEPFAD WIE DIE ENTNAHME. Zwei Lesepfade fuer dieselbe Liste ergaeben zwei
- * FEFO-Reihenfolgen auf zwei Schirmen, und die Person, die zwischen ihnen
- * wechselt, laese das als Fehler — zu Recht.
+ * ⚠️ DIE CHARGENLISTE KOMMT AUS `artikelDetailAuffuellen` UND NICHT AUS
+ * `artikelDetailHelfer` (Codex-Befund P1 zu PR #174). Der Unterschied ist EIN
+ * Filter, und er entscheidet ueber einen stillen Datenfehler: der Helfer-Weg
+ * laesst nur Chargen mit Bestand stehen — richtig fuers Entnehmen, falsch
+ * fuers Annehmen. Kommt Nachschub aus einem Los, dessen Vorgaenger ueberall
+ * aufgebraucht ist, stuende die vorhandene Charge sonst gar nicht zur Wahl,
+ * und die einzige Ausweichform waere „Neue Charge" mit derselben Nummer —
+ * also genau die zweite, in FEFO nicht unterscheidbare Zeile, gegen die das
+ * Umschalten nach der Buchung gebaut ist.
+ *
+ * Die FEFO-Reihenfolge ist DIESELBE wie auf dem Entnahmeschirm: beide Listen
+ * kommen aus `chargenMitRest`, nur eine davon wird danach gefiltert.
  *
  * ⚠️ DIE VERTEILUNG (`orte`, `restGesamt`) WIRD NICHT DURCHGEREICHT. Sie
  * beantwortet die Frage „wo liegt das Material?", und das ist die Frage der
@@ -43,7 +51,7 @@ export default async function AuffuellenArtikelSeite({
   const { artikelId } = await params;
   const db = getDb();
 
-  const detail = artikelDetailHelfer(db, artikelId);
+  const detail = artikelDetailAuffuellen(db, artikelId);
   const etikett = sitzungsEtikett(kontoZugangAus(viewer));
 
   return (
