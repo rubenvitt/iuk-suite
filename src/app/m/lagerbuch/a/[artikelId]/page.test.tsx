@@ -114,8 +114,10 @@ vi.mock("next/navigation", () => ({
  * verdrahtetes `istLagerbuchAdmin(null)` bliebe gruen. Dasselbe gilt fuer
  * `artikelDetailHelfer` und den Datenbank-Griff.
  */
-vi.mock("../../_lib/helferZugang", () => ({ helferZugangOderNull: vi.fn() }));
-vi.mock("../../_lib/zugang", () => ({ viewerOderNull: vi.fn(), istLagerbuchAdmin: vi.fn() }));
+vi.mock("../../_lib/helferZugang", () => ({
+  helferZugangOderNull: vi.fn(),
+  kontoZugangOderNull: vi.fn(),
+}));
 vi.mock("../../_lib/lesepfade/artikel", () => ({ artikelDetailHelfer: vi.fn() }));
 vi.mock("../../_db/client", () => ({ getDb: vi.fn(() => DB) }));
 /*
@@ -162,8 +164,7 @@ vi.mock("../../_ui/HelferRahmen", () => ({
   },
 }));
 
-import { helferZugangOderNull } from "../../_lib/helferZugang";
-import { viewerOderNull, istLagerbuchAdmin } from "../../_lib/zugang";
+import { helferZugangOderNull, kontoZugangOderNull } from "../../_lib/helferZugang";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
 import { getDb } from "../../_db/client";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
@@ -171,6 +172,12 @@ import ArtikelDeepLink from "./page";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 
 const ZUGANG = {
+  // DRK-305: `herkunft` unterscheidet Kaertchen und angemeldetes Konto. Diese
+  // Weiche sieht NUR Kaertchen — `helferZugangOderNull` ist seit DRK-305
+  // ausdruecklich auf `TokenZugang` verengt, damit ein Regaletikett eine
+  // angemeldete Person weiterhin in die Verwaltung fuehrt und nicht in die
+  // Helfer-Ansicht (Ausgang 2 unten).
+  herkunft: "token" as const,
   tokenId: "tk1",
   code: "482-137",
   label: "RTW 1",
@@ -180,7 +187,18 @@ const ZUGANG = {
   // fuehrt, und `null` ist der Fall, der zu einem Artikel-Kaertchen passt.
   fahrzeugBindung: null,
 };
-const VIEWER = { sub: "u1", groups: ["lagerbuch"], name: null, email: null };
+/**
+ * DRK-305 — der Konto-Zugang, wie ihn `kontoZugangOderNull` liefert.
+ * `laeuftAb: null` und `fahrzeugBindung: null` stehen im Typ, nicht hier:
+ * eine Kontositzung laeuft nicht ab und ist an kein Fahrzeug gebunden.
+ */
+const KONTO = {
+  herkunft: "konto" as const,
+  sub: "u1",
+  name: "A. Verwaltung",
+  laeuftAb: null,
+  fahrzeugBindung: null,
+};
 const DETAIL = {
   id: "art-9",
   name: "Kompresse",
@@ -198,8 +216,7 @@ beforeEach(() => {
   gesehen.entnahme = null;
   gesehen.rahmen = null;
   vi.mocked(helferZugangOderNull).mockResolvedValue(null);
-  vi.mocked(viewerOderNull).mockResolvedValue(null);
-  vi.mocked(istLagerbuchAdmin).mockReturnValue(false);
+  vi.mocked(kontoZugangOderNull).mockResolvedValue(null);
   /*
    * Die Attrappe ECHOT die uebergebene ID zurueck, statt eine feste Fixture zu
    * liefern. Waeren beide zufaellig `"art-9"`, bliebe eine Seite gruen, die
@@ -227,7 +244,7 @@ describe("/a/<id> — die Rollen-Weiche, drei Ausgaenge", () => {
      */
     expect(helferZugangOderNull).not.toHaveBeenCalled();
     expect(artikelDetailHelfer).not.toHaveBeenCalled();
-    expect(viewerOderNull).not.toHaveBeenCalled();
+    expect(kontoZugangOderNull).not.toHaveBeenCalled();
     expect(umleitungen).toEqual([]);
   });
 
@@ -236,38 +253,66 @@ describe("/a/<id> — die Rollen-Weiche, drei Ausgaenge", () => {
     // Helfer-Sitzung gewinnt, sonst muesste ein Admin am Regal das Kaertchen
     // beiseitelegen.
     vi.mocked(helferZugangOderNull).mockResolvedValue(ZUGANG);
-    vi.mocked(istLagerbuchAdmin).mockReturnValue(true);
+    vi.mocked(kontoZugangOderNull).mockResolvedValue(KONTO);
     await mount(await ArtikelDeepLink(params("art-77")));
     expect(umleitungen).toEqual([]);
     // Die ID kommt aus `params`, nicht aus der Fixture: die Attrappe echot sie.
     expect(query("[data-rolle='entnahme']").getAttribute("data-id")).toBe("art-77");
-    // Und die Weiche fragt die Admin-Rolle GAR NICHT MEHR: die Kurzschluss-Form
-    // `hasHelfer || isAdmin` kostet in diesem Fall keinen Sitzungs-Lookup.
-    expect(viewerOderNull).not.toHaveBeenCalled();
-    expect(istLagerbuchAdmin).not.toHaveBeenCalled();
+    // Und die Weiche fragt den Konto-Zweig GAR NICHT: das Kaertchen
+    // kurzschliesst, sonst muesste ein Admin am Regal das Kaertchen
+    // beiseitelegen — und die Bindung aus DRK-302 waere hin.
+    expect(kontoZugangOderNull).not.toHaveBeenCalled();
+    // Der Kopf zeigt das KAERTCHEN, nicht das Konto.
+    expect(gesehen.rahmen?.etikett).toBe("Zugang: Token 482-137 · RTW 1");
   });
 
-  it("Ausgang 2 — OHNE Helfer-Sitzung, ABER Admin: leitet in die Verwaltung, er rendert NICHT", async () => {
-    vi.mocked(viewerOderNull).mockResolvedValue(VIEWER);
-    vi.mocked(istLagerbuchAdmin).mockReturnValue(true);
-    await expect(ArtikelDeepLink(params("art-9"))).rejects.toThrow("NEXT_REDIRECT");
-    expect(umleitungen).toEqual(["/verwaltung/artikel?a=art-9"]);
-    // Das Praedikat bekommt den Viewer aus `viewerOderNull` — nicht `undefined`
-    // und nicht `null`. Ein hart verdrahtetes `istLagerbuchAdmin(null)` waere
-    // hier gruen, wenn die Attrappe ihre Argumente verschluckte.
-    expect(istLagerbuchAdmin).toHaveBeenCalledWith(VIEWER);
-    // ER RENDERT NICHT — nur deshalb duerfen `sitzungsetikett` und `laeuftAb`
-    // am `HelferRahmen` Pflicht-Props sein (§7.8.2).
-    expect(artikelDetailHelfer).not.toHaveBeenCalled();
-    expect(gesehen.rahmen).toBe(null);
+  it("Ausgang 2 — OHNE Kaertchen, ABER angemeldet: RENDERT die Entnahme (DRK-305)", async () => {
+    /*
+     * ⚠️ DIESER TEST HAT SICH UMGEDREHT, UND ER IST DER GRUND, AUS DEM DER
+     * EINSTIEG „Bestand → Entnahme“ UEBERHAUPT TRAEGT.
+     *
+     * Bis DRK-305 leitete dieser Ausgang nach `/verwaltung/artikel?a=<id>` um.
+     * Das war richtig, solange eine angemeldete Person im Helfer-Ast nichts zu
+     * suchen hatte. Seit DRK-305 hat sie dort etwas zu suchen — und die
+     * Artikelliste unter `/helfer` verlinkt JEDE Zeile hierher. Mit der
+     * Umleitung endete die beworbene Entnahme ohne Code nach genau einem Klick,
+     * und zwar still: beide Seiten antworteten je fuer sich mit 200.
+     */
+    vi.mocked(kontoZugangOderNull).mockResolvedValue(KONTO);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(umleitungen).toEqual([]);
+    expect(query("[data-rolle='entnahme']").getAttribute("data-id")).toBe("art-9");
+    expect(gesehen.rahmen?.etikett).toBe("Angemeldet: A. Verwaltung");
+    // Kein Ablauf — der Rahmen zeigt darum keine Restzeit und keinen
+    // Beenden-Knopf (`_ui/HelferRahmen.tsx`).
+    expect(gesehen.rahmen?.laeuftAb).toBe(null);
+  });
+
+  it("Ausgang 2 — der Weg ins Artikelblatt bleibt, als LINK statt als Umleitung", async () => {
+    // Verloren geht durch die Umkehrung nichts: wer das Artikelblatt will, ist
+    // einen Klick entfernt statt null. `encodeURIComponent` ist kein Schmuck —
+    // ohne sie haenge eine ID mit `&` einen zweiten Suchparameter an.
+    vi.mocked(kontoZugangOderNull).mockResolvedValue(KONTO);
+    await mount(await ArtikelDeepLink(params("a&b")));
+    const weg = queryAll("a").find((a) => a.getAttribute("href")?.startsWith("/verwaltung/artikel"));
+    expect(weg?.getAttribute("href")).toBe("/verwaltung/artikel?a=a%26b");
+    expect(weg?.textContent).toContain("In der Verwaltung");
+  });
+
+  it("Ausgang 2 — MIT Kaertchen gibt es diesen Weg NICHT", async () => {
+    // Wer mit einem Kaertchen hier steht, hat in der Verwaltung keinen Zutritt
+    // und saehe einen Link, der ihn auf eine 404 fuehrt.
+    vi.mocked(helferZugangOderNull).mockResolvedValue(ZUGANG);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(queryAll("a").some((a) => a.getAttribute("href")?.startsWith("/verwaltung"))).toBe(false);
   });
 
   it("Ausgang 3 — weder noch: Gate MIT returnTo, so ueberlebt das Etikett den Umweg ueber Pocket ID", async () => {
     await expect(ArtikelDeepLink(params("art-9"))).rejects.toThrow("NEXT_REDIRECT");
     expect(umleitungen).toEqual(["/?returnTo=%2Fa%2Fart-9"]);
-    // Die Admin-Frage wurde GESTELLT und mit Nein beantwortet — ohne sie waere
-    // dieser Ausgang auch fuer einen Admin der genommene.
-    expect(istLagerbuchAdmin).toHaveBeenCalledTimes(1);
+    // Die Konto-Frage wurde GESTELLT und mit Nein beantwortet — ohne sie waere
+    // dieser Ausgang auch fuer eine angemeldete Person der genommene.
+    expect(kontoZugangOderNull).toHaveBeenCalledTimes(1);
     expect(artikelDetailHelfer).not.toHaveBeenCalled();
   });
 
@@ -284,24 +329,6 @@ describe("/a/<id> — die Rollen-Weiche, drei Ausgaenge", () => {
     expect(umleitungen).toEqual(["/?returnTo=%2Fa%2Fa%20b%26c"]);
   });
 
-  it("kodiert eine ID mit Sonderzeichen AUCH in der ADMIN-Umleitung", async () => {
-    /*
-     * ⚠️ DER TEST, DEN BEFUND 36 NACHTRAEGT. Der Plan hat EINEN Testkoerper mit
-     * dem Namen „in beiden Umleitungen", laesst `istAdmin` aber im `beforeEach`
-     * auf `false` — der Admin-Zweig wird nie betreten, und `umleitungen`
-     * enthaelt nur den Gate-Redirect. Entfernte man `encodeURIComponent` in der
-     * Admin-Umleitung, bliebe der Test gruen. Der Erwartungswert selbst war
-     * korrekt; es fehlte der zweite Fall.
-     *
-     * Ohne Kodierung stuende `?a=a b&c` da — und `&c` waere ein ZWEITER
-     * Suchparameter, den die Verwaltungsseite als Artikel-ID nie zu sehen
-     * bekaeme.
-     */
-    vi.mocked(viewerOderNull).mockResolvedValue(VIEWER);
-    vi.mocked(istLagerbuchAdmin).mockReturnValue(true);
-    await expect(ArtikelDeepLink(params("a b&c"))).rejects.toThrow("NEXT_REDIRECT");
-    expect(umleitungen).toEqual(["/verwaltung/artikel?a=a%20b%26c"]);
-  });
 });
 
 describe("/a/<id> — die Seite loest ihren Zugang SELBST auf (N-11)", () => {
@@ -476,11 +503,19 @@ describe("Bauform", () => {
    */
   const quelle = () => ohneKommentare(readFileSync(QUELLE, "utf8"));
 
-  it("benutzt `istLagerbuchAdmin`, NICHT `requireLagerbuchAdmin`", () => {
-    // Der dritte Fall ist „keine Sitzung → Gate mit returnTo"; ein Riegel
-    // schickte ihn nach /login (§3.2.1, §11.5 Zustand 18). T87 fuehrt genau
-    // diesen Scan als Abnahme ueber beide Weichen-Dateien.
-    expect(quelle()).toMatch(/istLagerbuchAdmin/);
+  it("benutzt ein PRAEDIKAT, NICHT `requireLagerbuchAdmin`", () => {
+    /*
+     * Der dritte Fall ist „keine Sitzung → Gate mit returnTo“; ein Riegel
+     * schickte ihn nach /login (§3.2.1, §11.5 Zustand 18). T87 fuehrt genau
+     * diesen Scan als Abnahme ueber beide Weichen-Dateien.
+     *
+     * ⚠️ DAS PRAEDIKAT HEISST SEIT DRK-305 `kontoZugangOderNull` und nicht mehr
+     * `istLagerbuchAdmin`: die Gruppenpruefung ist dorthin gewandert
+     * (`_lib/helferZugang.ts`), weil diese Seite jetzt einen ZUGANG braucht und
+     * nicht nur eine Ja/Nein-Antwort. Die Zusage ist unveraendert — kein
+     * werfender Riegel in dieser Datei.
+     */
+    expect(quelle()).toMatch(/kontoZugangOderNull/);
     expect(quelle()).not.toMatch(/requireLagerbuchAdmin|moduleAdminPageOrNotFound|isModuleAdmin/);
   });
 
@@ -491,10 +526,11 @@ describe("Bauform", () => {
   it("ruft `requireLagerbuchHost` ausdruecklich — T87 verlangt genau das", () => {
     // ⚠️ ABWEICHUNG VON §2.24 IST HIER KEINE: Punkt 24 nennt namentlich nur
     // `requireHelferSitzung` und `requireHelferSchreibend`. `helferZugangOderNull`
-    // riegelt zwar ebenfalls intern (`_lib/helferZugang.ts:111`), aber die
+    // riegelt zwar ebenfalls intern (`_lib/helferZugang.ts`), aber die
     // Abnahme in T87 (`task-87-brief.md:53-55`) verlangt den Ausdruck in dieser
     // Datei — und ohne ihn gaebe es keinen Punkt, an dem der Riegel VOR
-    // `viewerOderNull` und `artikelDetailHelfer` stuende.
+    // `kontoZugangOderNull` und `artikelDetailHelfer` stuende. DRK-305:
+    // `kontoZugangOderNull` prueft den Host ABSICHTLICH nicht selbst.
     expect(quelle()).toMatch(/requireLagerbuchHost\(/);
   });
 

@@ -1,4 +1,5 @@
 import { requireHelferSitzung } from "../../_lib/helferZugang";
+import { sitzungsEtikett } from "../../_lib/zugangHerkunft";
 import { fahrzeugListe, sollFuerFahrzeug } from "../../_lib/lesepfade/fahrzeuge";
 import { geraeteFuerLagerort } from "../../_lib/lesepfade/geraete";
 import { o2FlaschenFuerLagerort } from "../../_lib/lesepfade/o2";
@@ -59,7 +60,7 @@ export default async function CheckSeite({
   const { fz } = await searchParams;
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
-  const etikett = `Zugang: Token ${zugang.code} · ${zugang.label}`;
+  const etikett = sitzungsEtikett(zugang);
 
   const fahrzeuge = fahrzeugListe(db).filter((f) => f.aktiv);
 
@@ -96,6 +97,22 @@ export default async function CheckSeite({
    * Helferin steht im Fahrzeug und kaeme mit einem gueltigen Kaertchen
    * nirgendwohin. Zulaessig ist der Rueckfall NUR, weil die Bindung kein Riegel
    * ist.
+   */
+  /*
+   * DER GEGENPOL — DRK-305: WER ANGEMELDET KOMMT, IST AN NICHTS GEBUNDEN.
+   *
+   * `fahrzeugBindung` ist beim Konto-Zugang durch den TYP `null`
+   * (`_lib/helferZugang.ts`), nicht durch eine Abfrage hier. Der Unterschied ist
+   * die Zusage des Tickets: die fahrzeugbezogene Ansicht nach dem Scan bleibt
+   * unverändert (DRK-302), und daneben steht ein zweiter Einstieg, der die volle
+   * Fahrzeugliste anbietet. Beide Wege laufen durch DIESELBE Seite — eine
+   * zweite Check-Fläche in `/verwaltung` wäre eine zweite Wahrheit darüber, wie
+   * ein Fahrzeug geprüft wird, und die erste Änderung, die nur eine von beiden
+   * mitnimmt, fällt niemandem auf.
+   *
+   * ⚠️ `?fz=` GILT FÜR DAS KONTO GENAUSO WENIG WIE FÜR DAS KÄRTCHEN: die Zeile
+   * darunter sucht in `fahrzeuge`, also in der bereits auf `aktiv` gefilterten
+   * Liste. Eine geratene oder stillgelegte Id fällt still durch auf die Wahl.
    */
   const gebunden = zugang.fahrzeugBindung
     ? fahrzeuge.find((f) => f.id === zugang.fahrzeugBindung)
@@ -189,6 +206,10 @@ export default async function CheckSeite({
         // zeigte die Seite zwar ein einziges Fahrzeug, waere von der vollen
         // Liste aber genau eine Bedienung entfernt (§7.9.1, DRK-302).
         gebunden={gebunden !== undefined}
+        // DRK-305: faellt der Zugang mitten im Check aus, entscheidet diese
+        // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
+        // unterscheiden — diese Seite kennt sie.
+        kontoZugang={zugang.herkunft === "konto"}
         soll={soll}
         geraete={geraete}
         flaschen={flaschen}

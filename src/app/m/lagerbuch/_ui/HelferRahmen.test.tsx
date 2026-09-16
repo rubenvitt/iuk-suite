@@ -217,6 +217,51 @@ describe("HelferRahmen — der Kopf", () => {
     expect(beendenMock).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * DRK-305 — DER KONTO-KOPF. `laeuftAb: null` ist der einzige Unterscheider;
+   * die Begruendung steht am Kopf der Quelldatei.
+   */
+  it("laeuftAb=null: KEINE Restzeit — eine Kontositzung laeuft nicht ab", async () => {
+    await mount(
+      <HelferRahmen aktiv="check" sitzungsetikett="Angemeldet: A. Verwaltung" laeuftAb={null}>
+        <p />
+      </HelferRahmen>,
+    );
+    expect(exists("[data-rolle='restzeit']")).toBe(false);
+    // Die Gegenprobe steht oben: mit einem Datum IST die Insel da. Ohne sie
+    // waere diese Zeile auch dann gruen, wenn die Insel nie gerendert wuerde.
+    expect(query("header [class*='etikett']").textContent).toBe("Angemeldet: A. Verwaltung");
+  });
+
+  it("laeuftAb=null: ein LINK in die Verwaltung statt des Beenden-Formulars", async () => {
+    /*
+     * ⚠️ `beenden` loescht das Kaertchen-Cookie, und hier gibt es keins. Der
+     * Knopf saehe aus wie ein Knopf, liefe ins Leere und setzte die angemeldete
+     * Person wortlos aufs Gate — wo sie einen Code eingeben soll, den sie nicht
+     * hat. Genau deshalb wird hier auch geprueft, dass die Aktion NICHT haengt:
+     * ein `<form action={beenden}>` mit anderer Beschriftung waere in einer
+     * reinen Textpruefung unsichtbar.
+     */
+    await mount(
+      <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
+    );
+    expect(exists("header form")).toBe(false);
+    expect(beendenMock).not.toHaveBeenCalled();
+    const weg = query("header a");
+    expect(weg.getAttribute("href")).toBe("/verwaltung");
+    expect(weg.textContent).toContain("Zur Verwaltung");
+  });
+
+  it("die Tab-Leiste bleibt in BEIDEN Herkuenften dieselbe", async () => {
+    // Entnahme und Fahrzeug-Check sind fuer das Konto genauso erreichbar wie
+    // fuer das Kaertchen — „mehr Freiheiten, nicht weniger" (DRK-305).
+    await mount(
+      <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
+    );
+    expect(queryAll("nav[data-testid='lb-tableiste'] a").map((a) => a.getAttribute("href")))
+      .toEqual(["/helfer", "/helfer/check"]);
+  });
+
   it("rendert die Kinder im `<main>`", async () => {
     await mount(
       <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}>

@@ -110,6 +110,19 @@ vi.mock("next/navigation", () => ({
 vi.mock("../../_db/client", () => ({ getDb: () => t.db }));
 
 /*
+ * DRK-305 — der zweite Weg in den Helfer-Ast, als Attrappe. `viewerOderNull`
+ * ruft `auth()` und braucht dafuer Sitzung, Konfiguration und Request;
+ * `merkeNutzer` schreibt in `users`. Die Attrappe ist standardmaessig LEER,
+ * damit jeder Kaertchen-Test dieser Datei weiterhin ueber das Kaertchen laeuft.
+ */
+let angemeldet: { sub: string; groups: string[]; name: string | null; email: null } | null = null;
+vi.mock("../../_lib/zugang", () => ({
+  viewerOderNull: async () => angemeldet,
+  istLagerbuchAdmin: (v: { groups: string[] } | null) => !!v?.groups.includes("lagerbuch"),
+}));
+vi.mock("../../_lib/konto", () => ({ merkeNutzer: () => {} }));
+
+/*
  * ⚠️ DER LESEPFAD HEISST `_lib/lesepfade/o2.ts`, NICHT `sauerstoff.ts` (Regel 1,
  * mechanischer Defekt): der Brief nennt beide Namen, im Baum existiert nur `o2`.
  */
@@ -189,12 +202,16 @@ vi.mock("../../_ui/FahrzeugWahl", () => ({
   ),
 }));
 vi.mock("../../_ui/HelferRahmen", () => ({
-  HelferRahmen: (p: { aktiv: string; sitzungsetikett: string; laeuftAb: Date; children: ReactNode }) => (
+  HelferRahmen: (p: {
+    aktiv: string; sitzungsetikett: string; laeuftAb: Date | null; children: ReactNode;
+  }) => (
     <div
       data-rolle="rahmen"
       data-aktiv={p.aktiv}
       data-etikett={p.sitzungsetikett}
-      data-laeuftab={p.laeuftAb.toISOString()}
+      // DRK-305: `null` heisst „angemeldetes Konto" — keine Restzeit, kein
+      // Ablauf. Die Attrappe schreibt dafuer `kein-ablauf` statt zu werfen.
+      data-laeuftab={p.laeuftAb === null ? "kein-ablauf" : p.laeuftAb.toISOString()}
     >
       {p.children}
     </div>
@@ -267,6 +284,7 @@ beforeEach(() => {
   verfallFuer.mockReturnValue(new Map());
   tokenAnlegen();
   cookieWert = GUELTIGES_COOKIE;
+  angemeldet = null;
 });
 afterEach(async () => {
   await unmount();
@@ -792,5 +810,84 @@ describe("/helfer/check — der letzte Check (DRK-306, AK1)", () => {
     await mount(await CheckSeite(sp({ fz: "fz-1" })));
     expect(query("[data-rolle='flow']").getAttribute("data-letzter-check"))
       .toBe("14.09.2026, 08:12");
+  });
+});
+
+/**
+ * DRK-305 — DIESELBE SEITE, ZWEITER EINSTIEG.
+ *
+ * Das Kärtchen wird hier abgeräumt (`cookieWert = undefined`), nicht ergänzt:
+ * geprüft wird der Zustand „angemeldet, nichts gescannt" — der Weg über
+ * „Check durchführen" in der Verwaltungsnavigation.
+ */
+describe("DRK-305 — der angemeldete Einstieg", () => {
+  beforeEach(() => {
+    cookieWert = undefined;
+    angemeldet = { sub: "sub-42", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
+  });
+
+  it("bietet die VOLLE Fahrzeugwahl an — keine Bindung, kein Kärtchen", async () => {
+    // Der Satz aus der User Story, als Zusicherung: „damit ich nicht auf ein
+    // einzelnes gescanntes Fahrzeug beschränkt bin".
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='wahl']").getAttribute("data-anzahl")).toBe("3");
+  });
+
+  it("zeigt im Kopf den NAMEN statt eines Token-Codes", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp()));
+    const rahmen = query("[data-rolle='rahmen']");
+    const etikett = rahmen.getAttribute("data-etikett");
+    expect(etikett).toBe("Angemeldet: A. Verwaltung");
+    // Kein Ablauf: der Rahmen zeigt darum keine Restzeit und keinen
+    // Beenden-Knopf, sondern den Weg zurueck in die Verwaltung.
+    expect(rahmen.getAttribute("data-laeuftab")).toBe("kein-ablauf");
+    // Und ausdrücklich NICHT die Kennung: ein `sub` auf dem Schirm sagt
+    // niemandem etwas.
+    expect(etikett).not.toContain("sub-42");
+  });
+
+  it("`?fz=` wählt vor und meldet den Flow als UNGEBUNDEN", async () => {
+    /*
+     * Der Weg vom Fahrzeugblatt („Check durchführen" an einem einzelnen
+     * Fahrzeug). Die Vorauswahl greift — aber `gebunden` bleibt falsch, damit
+     * der Flow den Ausweg „Anderes Fahrzeug" weiterhin anbietet. Genau darin
+     * unterscheidet sich dieser Einstieg vom gescannten (DRK-302).
+     */
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: "fz-2" })));
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("false");
+  });
+
+  it("ein stillgelegtes `?fz=` fällt auf die Wahl zurück, nicht in eine Sackgasse", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: "fz-weg" })));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
+  });
+
+  it("OHNE die Gruppe bleibt es beim Gate — die Seite rendert NICHT", async () => {
+    // Die Anmeldung allein öffnet nichts. Das Prädikat ist dieselbe EINE Stufe,
+    // die auch `/verwaltung` gatet — kein zweites Rollenkonzept (DRK-305).
+    angemeldet = { sub: "sub-99", groups: ["andere"], name: "B. Fremd", email: null };
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    await expect(CheckSeite(sp())).rejects.toThrow("NEXT_REDIRECT");
+    expect(umleitungen).toEqual(["/"]);
+  });
+
+  it("ein GÜLTIGES Kärtchen gewinnt weiterhin gegen die Anmeldung", async () => {
+    /*
+     * Die Reihenfolge aus `_lib/helferZugang.ts`, hier an der Seite belegt: wer
+     * ein Fahrzeug-Kärtchen gescannt hat, steht vor genau diesem Fahrzeug —
+     * auch wenn er nebenbei angemeldet ist. Käme das Konto zuerst, verschwände
+     * die Bindung aus DRK-302 für jede angemeldete Person.
+     */
+    cookieWert = GUELTIGES_COOKIE;
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("true");
+    expect(query("[data-rolle='rahmen']").getAttribute("data-etikett")).toBe(ETIKETT);
   });
 });
