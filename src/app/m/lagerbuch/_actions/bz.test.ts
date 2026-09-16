@@ -731,8 +731,19 @@ describe("beachtungSetzen", () => {
 
     const erg = await beachtungSetzen({ geraetId: id, hinweis: "x".repeat(501) }, t.db);
 
-    expect(fehlerVon(erg).feldFehler?.hinweis).toBe("Hinweis ist zu lang");
+    expect(fehlerVon(erg).feldFehler?.hinweis)
+      .toBe("Hinweis ist zu lang (höchstens 500 Zeichen).");
     expect(geraetZeile(id).beachtungHinweis).toBeNull();
+  });
+
+  /** Die Gegenprobe zur Zeile darueber — genau auf der Grenze geht es durch. */
+  it("nimmt genau 500 Zeichen an", async () => {
+    const id = await geraetOhneBereiche();
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "x".repeat(500) }, t.db);
+
+    expect(wertVon<{ erforderlich: boolean }>(erg)).toEqual({ erforderlich: true });
+    expect(geraetZeile(id).beachtungHinweis).toHaveLength(500);
   });
 });
 
@@ -794,6 +805,49 @@ describe("kontrolleErfassen — Beachtung", () => {
     const zeile = geraetZeile(id);
     expect(zeile.beachtungHinweis).toBe("Display flackert");
     expect(zeile.beachtungSeit?.getTime()).toBe(seit?.getTime());
+  });
+
+  /**
+   * ⚠️ DIE LAENGENGRENZE GILT AUF BEIDEN WEGEN (Review zu DRK-311). Der
+   * Kommentar einer Kontrolle kennt als Nachweisfeld keine Grenze — wird er
+   * aber zum Beachtungshinweis, gilt dieselbe Zahl wie in `beachtungSetzen`.
+   * Ohne diesen Riegel entstuende ein Hinweis, den das Geraeteblatt nicht mehr
+   * speichern kann, ohne ihn vorher zu kuerzen.
+   */
+  it("weist einen zu langen Kommentar ab, wenn er zum Hinweis werden soll", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    const erg = await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "x".repeat(501), beachtung: true },
+      t.db,
+    );
+
+    expect(fehlerVon(erg).feldFehler?.kommentar)
+      .toBe("Hinweis ist zu lang (höchstens 500 Zeichen).");
+    // ⚠️ Die Kontrolle wird GAR NICHT erst geschrieben — `bz_kontrollen` ist
+    // append-only, ein halber Vorgang bliebe fuer immer stehen.
+    expect(kontrollZeilen()).toEqual([]);
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ UND DIE GEGENPROBE: OHNE Beachtung bleibt der Kommentar ungedeckelt. Er
+   * ist ein Nachweisfeld; was jemand ueber ein Medizinprodukt aufschreibt, wird
+   * nicht an einer Anzeigegrenze abgeschnitten.
+   */
+  it("laesst einen langen Kommentar ohne Beachtung unangetastet durch", async () => {
+    const id = await geraetOhneBereiche();
+
+    const erg = await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "x".repeat(501) },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(kontrollZeilen()[0].kommentar).toHaveLength(501);
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
   });
 
   /**

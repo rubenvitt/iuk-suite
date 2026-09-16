@@ -266,6 +266,27 @@ export const ARTIKEL_VERLAUF_GRENZE = 8;
  */
 export const INVENTUR_VERLAUF_GRENZE = 100;
 
+/**
+ * DIE LAENGE DES AUFMERKSAMKEITSHINWEISES AM BZ-GERAET (DRK-311) — und sie steht
+ * hier aus demselben Grund wie `JOURNAL_SUCHE_MAX`: ZWEI Wege schreiben den Wert,
+ * und ohne eine gemeinsame Zahl widersprechen sie sich.
+ *
+ * ⚠️ DER ZWEITE WEG IST DER STILLE. Auf dem Geraeteblatt prueft `beachtungSetzen`
+ * die Laenge; beim Erfassen einer Kontrolle wird der KOMMENTAR zum Hinweis, und
+ * der kennt als Nachweisfeld keine Grenze. Ohne dieselbe Pruefung dort landet ein
+ * beliebig langer Text in `beachtung_hinweis` — die Liste traegt danach einen
+ * Chip ueber mehrere Zeilen, und das Geraeteblatt kann ihn nicht mehr speichern,
+ * ohne ihn vorher zu kuerzen. Ein Wert, den das eine Formular schreibt und das
+ * andere nicht mehr annimmt (gemeldet im Review zu DRK-311).
+ *
+ * ⚠️ GEPRUEFT, NICHT GEKAPPT — anders als `JOURNAL_SUCHE_MAX`. Dort ist das
+ * Kappen richtig, weil niemand zweihundert Zeichen tippt, um eine Fehlermeldung
+ * zu lesen; hier waere ein stilles Kuerzen die Halbierung einer Aussage, die
+ * jemand ueber ein Medizinprodukt gemacht hat. Der KOMMENTAR der Kontrolle
+ * bleibt dabei ungedeckelt: begrenzt ist der daraus abgeleitete Hinweis.
+ */
+export const BEACHTUNG_HINWEIS_MAX = 500;
+
 /* ──────────────────────────────────────────────────────────────────────────
  * DIE BOOT-LISTE (§10.5, Pruefungen 1 bis 4).
  * ────────────────────────────────────────────────────────────────────────── */

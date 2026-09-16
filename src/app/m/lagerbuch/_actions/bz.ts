@@ -15,6 +15,7 @@ import {
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { normalisiereBarcode } from "../_lib/barcode";
 import { MONAT_REGEX } from "../_lib/konstanten";
+import { BEACHTUNG_HINWEIS_MAX } from "../_lib/grenzen";
 import { beachtungsFelder, bewerteKontrolle } from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -65,17 +66,32 @@ const KontrolleSchema = z.object({
 });
 
 /**
+ * ⚠️ DIESELBE GRENZE AUF BEIDEN WEGEN. Der Kommentar einer Kontrolle ist ein
+ * Nachweisfeld und bleibt ungedeckelt — sobald er aber als Beachtungshinweis
+ * ans Geraet wandert, gilt fuer ihn, was auch `beachtungSetzen` verlangt.
+ * Sonst schreibt der eine Weg einen Wert, den der andere nicht mehr annimmt.
+ *
+ * ⚠️ SIE STEHT VOR `BeachtungSchema`, und das ist keine Stilfrage: das Schema
+ * liest die Meldung beim IMPORT des Moduls. Eine Zeile weiter unten laege sie
+ * in der temporalen Totzone, und jeder Aufruf dieser Datei — alle fuenf Actions
+ * — endete in einem ReferenceError.
+ */
+const HINWEIS_ZU_LANG =
+  `Hinweis ist zu lang (höchstens ${BEACHTUNG_HINWEIS_MAX} Zeichen).`;
+
+/**
  * ⚠️ EIN LEERER HINWEIS IST DAS AUFHEBEN, nicht ein Fehler. Das ist der ganze
  * Weg zurueck: die Spalte traegt Zustand UND Begruendung in einem Feld
  * (`_db/schema.ts`), also heisst „kein Text" genau „keine Beachtung mehr".
  */
 const BeachtungSchema = z.object({
   geraetId: z.string().min(1),
-  hinweis: z.string().trim().max(500, "Hinweis ist zu lang").optional(),
+  hinweis: z.string().trim().max(BEACHTUNG_HINWEIS_MAX, HINWEIS_ZU_LANG).optional(),
 });
 
 const BEACHTUNG_OHNE_TEXT =
   "Bitte kurz aufschreiben, was zu beachten ist — ohne Hinweis ist der gelbe Status nicht zu verstehen.";
+
 
 type FehlerErgebnis = Extract<ActionErgebnis, { ok: false }>;
 
@@ -298,6 +314,25 @@ export async function kontrolleErfassen(
           ok: false,
           fehler: BEACHTUNG_OHNE_TEXT,
           feldFehler: { kommentar: BEACHTUNG_OHNE_TEXT },
+        };
+      }
+      /**
+       * ⚠️ UND DIE LAENGE, AUS DEMSELBEN GRUND. `KontrolleSchema.kommentar`
+       * deckelt nicht — als Nachweisfeld soll es das auch nicht. Hier wird der
+       * Kommentar aber zum Geraetezustand, und `beachtungSetzen` nimmt oberhalb
+       * dieser Grenze nichts mehr an: ohne diese Zeile entstuende ein Hinweis,
+       * den das Geraeteblatt nicht mehr speichern kann, ohne ihn zu kuerzen.
+       *
+       * ⚠️ DIE KONTROLLE WIRD GAR NICHT ERST GESCHRIEBEN. `bz_kontrollen` ist
+       * append-only — eine Zeile, deren Beachtung scheitert, bliebe fuer immer
+       * als halber Vorgang stehen.
+       */
+      if (v.beachtung && beachtungsHinweis !== null
+          && beachtungsHinweis.length > BEACHTUNG_HINWEIS_MAX) {
+        return {
+          ok: false,
+          fehler: HINWEIS_ZU_LANG,
+          feldFehler: { kommentar: HINWEIS_ZU_LANG },
         };
       }
 

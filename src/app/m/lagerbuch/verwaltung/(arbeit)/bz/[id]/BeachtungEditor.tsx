@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Alert, Button, Card, Input, Space } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { beachtungSetzen } from "../../../../_actions/bz";
+import { BEACHTUNG_HINWEIS_MAX } from "../../../../_lib/grenzen";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 
@@ -102,7 +103,7 @@ function BeachtungEditorInhalt({ geraetId, hinweis, seitText }: BeachtungWerte) 
           <Input
             aria-label="Hinweis zur Beachtung"
             autoComplete="off"
-            maxLength={500}
+            maxLength={BEACHTUNG_HINWEIS_MAX}
             value={entwurf}
             disabled={laeuft}
             placeholder="z. B. Display flackert beim Einschalten"
