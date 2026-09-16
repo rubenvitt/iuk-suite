@@ -74,9 +74,17 @@ export const E2E_FAHRZEUG_ANDERES_NAME = "E2E Geräte RTW";
 export const E2E_FAHRZEUG_ANDERES_ID = "e2e-geraete-fahrzeug";
 
 /**
- * Die neun Lagerbuch-Zeilen fuer `webServer.env` (§10.3, „Werte fuer Dev und
- * E2E"). „Klein" ist hier KEIN zulaessiger Eintrag: die Kopplungen aus §10.5
- * greifen sonst, bevor ein Test laeuft.
+ * Der Organisationsname im E2E-Server — die einzige Zeile der Wortmarke, die
+ * ueber die Umgebung kommt (`_lib/marke.ts`; Marke und Unterzeile daneben sind
+ * Konstanten).
+ */
+export const LAGERBUCH_ORGANISATION_E2E = "DRK Bereitschaft E2E";
+
+/**
+ * Die ZEHN Lagerbuch-Zeilen fuer `webServer.env` (§10.3, „Werte fuer Dev und
+ * E2E") — neun aus §10.3 plus `LAGERBUCH_ORGANISATION`. „Klein" ist hier KEIN
+ * zulaessiger Eintrag: die Kopplungen aus §10.5 greifen sonst, bevor ein Test
+ * laeuft.
  *
  * ⚠️ `SUITE_ACCESS_GROUP_LAGERBUCH` steht bewusst NICHT darunter — ein gesetzter
  * Wert bricht den Boot ab (§2.5, §10.5 Pruefung 6).
@@ -87,6 +95,9 @@ export const LAGERBUCH_ENV: Record<string, string> = {
   // darstellbar.
   SUITE_HOST_LAGERBUCH: LAGERBUCH_HOST,
   SUITE_ADMIN_GROUP_LAGERBUCH: LAGERBUCH_ADMIN_GRUPPE,
+  // ⚠️ ABSICHTLICH NICHT DIE VORGABE aus `_lib/marke.ts`: die stuende auch ohne
+  // jede Variable da, und `lagerbuch-organisation.spec.ts` belegte damit nichts.
+  LAGERBUCH_ORGANISATION: LAGERBUCH_ORGANISATION_E2E,
   // ≠ leer, ≠ Alt-Default, ≠ AUTH_SECRET der E2E-Konfiguration ("test-secret"),
   // ≥ 32 Zeichen — alle vier Bedingungen aus Boot-Pruefung 4.
   LAGERBUCH_HELFER_SITZUNG_SECRET: "e2e-helfer-secret-nicht-produktiv-32z",

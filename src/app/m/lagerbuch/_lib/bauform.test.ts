@@ -291,13 +291,38 @@ describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKA
    * `it.runIf(existsSync(...))` — sie war GRUEN, solange die Datei fehlte. Ab
    * T173 ist sie PFLICHT, ohne `runIf`, wie die anderen beiden.
    */
-  const PFLICHT = [
-    "page.tsx",                  // das Gate (§7.2.4, T81)
-    "a/[artikelId]/page.tsx",    // Regaletikett-Weiche (§7.4.3, T83)
-    "g/[code]/page.tsx",         // Barcode-Deep-Link (§8.1, T164; Pflicht seit T173)
+  /**
+   * ⚠️ JE WEICHE IHR PRAEDIKAT — seit DRK-305 sind es nicht mehr ueberall
+   * dieselben zwei Namen.
+   *
+   * Die ZUSAGE ist unveraendert und steht unten im negativen Halb: eine Weiche
+   * fragt, sie riegelt nicht. Der POSITIVE Halb muss den Namen nennen, unter dem
+   * gefragt wird, sonst ist er von einer Importzeile erfuellt (siehe die
+   * Begruendung am Testkoerper) — und dieser Name ist seit DRK-305 je Datei
+   * verschieden:
+   *
+   *   * Gate und Barcode-Deep-Link fragen weiter `istLagerbuchAdmin`: sie
+   *     brauchen eine Ja/Nein-Antwort, um umzuleiten.
+   *   * Die Regaletikett-Weiche braucht einen ZUGANG, keine Antwort — sie
+   *     RENDERT fuer ein angemeldetes Konto (DRK-305). Die Gruppenpruefung liegt
+   *     deshalb in `kontoZugangOderNull` (`_lib/helferZugang.ts`), und ein
+   *     `istLagerbuchAdmin` daneben waere eine zweite Wahrheit ueber dieselbe
+   *     Frage.
+   *
+   * Wer hier eine Datei ergaenzt, traegt ihr Praedikat mit ein; ein
+   * gemeinsames Muster fuer alle drei waere entweder zu schwach (Alternation:
+   * jede Datei bestuende mit dem Namen der anderen) oder falsch.
+   */
+  const PFLICHT: { rel: string; praedikat: RegExp }[] = [
+    // das Gate (§7.2.4, T81)
+    { rel: "page.tsx", praedikat: /\bistLagerbuchAdmin\s*\(/ },
+    // Regaletikett-Weiche (§7.4.3, T83; Praedikat seit DRK-305)
+    { rel: "a/[artikelId]/page.tsx", praedikat: /\bkontoZugangOderNull\s*\(/ },
+    // Barcode-Deep-Link (§8.1, T164; Pflicht seit T173)
+    { rel: "g/[code]/page.tsx", praedikat: /\bistLagerbuchAdmin\s*\(/ },
   ];
 
-  for (const rel of PFLICHT) {
+  for (const { rel, praedikat } of PFLICHT) {
     const pfad = join(MODUL, rel);
 
     it(`${rel} existiert`, () => {
@@ -324,11 +349,14 @@ describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKA
        * `requireLagerbuchAdmin()` wuerfe jede Person OHNE Sitzung nach /login —
        * also genau die Helferin, fuer die beide Seiten gebaut sind (§3.2.1).
        *
-       * ⚠️ DER POSITIVE HALB HAENGT AM `(`, NICHT AM NAMEN. Beide Dateien
-       * IMPORTIEREN `istLagerbuchAdmin` namentlich; ein Muster ohne Klammer
+       * ⚠️ DER POSITIVE HALB HAENGT AM `(`, NICHT AM NAMEN. Die Dateien
+       * IMPORTIEREN ihr Praedikat namentlich; ein Muster ohne Klammer
        * waere schon von der Importzeile erfuellt, und die Mutation „Aufruf
        * entfernen, Import stehen lassen" bliebe gruen. Gemessen: mit
        * `/istLagerbuchAdmin/` gruen, mit `/istLagerbuchAdmin\s*\(/` rot.
+       *
+       * ⚠️ WELCHES Praedikat je Datei gilt, steht an der `PFLICHT`-Liste oben
+       * — seit DRK-305 ist es nicht mehr ueberall dasselbe.
        *
        * ⚠️ GELESEN WIRD OHNE KOMMENTARE (Befund 45): beide Dateien tragen
        * `requireLagerbuchAdmin()` woertlich in ihrem Begruendungskommentar, weil
@@ -347,9 +375,10 @@ describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKA
        */
       expect(ohneKommentareUndZeichenketten(readFileSync(pfad, "utf8")),
              `${rel} fragt das Praedikat nicht — ein blosser Import genuegt nicht`)
-        .toMatch(/\bistLagerbuchAdmin\s*\(/);
+        .toMatch(praedikat);
       expect(trefferAuf(/\b(?:requireLagerbuchAdmin|requireHelferSitzung)\b/, [pfad]),
-        "Weichen tragen viewerOderNull + istLagerbuchAdmin bzw. helferZugangOderNull (§3.2.1)")
+        "Weichen tragen ein Praedikat (viewerOderNull + istLagerbuchAdmin, "
+        + "helferZugangOderNull, kontoZugangOderNull) — nie einen werfenden Riegel (§3.2.1)")
         .toEqual([]);
     });
   }

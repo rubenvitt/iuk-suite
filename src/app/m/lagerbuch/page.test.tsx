@@ -107,12 +107,15 @@ vi.mock("./_lib/gateSchranke", () => ({
  * haengt, dem Traeger aller `--lb-*`-Variablen.
  */
 vi.mock("./_ui/Gate", () => ({
-  Gate: (p: { meldung: string | null; returnTo: string; verwaltungsLink: string }) => (
+  Gate: (p: {
+    meldung: string | null; returnTo: string; verwaltungsLink: string; organisation: string;
+  }) => (
     <div
       data-rolle="gate"
       data-meldung={p.meldung ?? ""}
       data-returnto={p.returnTo}
       data-verwaltung={p.verwaltungsLink}
+      data-organisation={p.organisation}
     />
   ),
 }));
@@ -364,10 +367,48 @@ describe("Bauform", () => {
     expect(quelle()).not.toMatch(/export const viewport/);
   });
 
-  it("liest KEINE Env-Variable — der Host kommt aus `verwaltungsZiel(kopf)`", () => {
-    // Ein `process.env.POCKET_ID_ISSUER` oder ein geratener Host waere eine
-    // ZWEITE Antwort auf eine Frage, die `verwaltungsZiel()` (Teil 2, T23) und
-    // die Suite-Anmeldeseite schon beantworten.
+  it("greift NICHT selbst auf die Prozessumgebung zu — der Host kommt aus `verwaltungsZiel(kopf)`", () => {
+    /**
+     * Ein `process.env.POCKET_ID_ISSUER` oder ein geratener Host waere eine
+     * ZWEITE Antwort auf eine Frage, die `verwaltungsZiel()` (Teil 2, T23) und
+     * die Suite-Anmeldeseite schon beantworten.
+     *
+     * ⚠️ „KEINE ENV-VARIABLE" WAERE SEIT DER UMSTELLUNG FALSCH GEZAEHLT: die
+     * Seite liest `LAGERBUCH_ORGANISATION` — aber ueber
+     * `lagerbuchOrganisation()` und damit an EINER Stelle, mit Vorgabe und
+     * Leerbehandlung (`_lib/marke.ts`). Der Scan bewacht den DIREKTEN Zugriff,
+     * denn der waere die zweite Auswertung derselben Variable.
+     */
     expect(quelle()).not.toMatch(/process\.env/);
+  });
+});
+
+describe("Gate-Seite — der Organisationsname kommt von HIER, nicht aus der Insel", () => {
+  /**
+   * Das Gate ist `"use client"`; `process.env.LAGERBUCH_ORGANISATION` waere im
+   * Browser-Bundle `undefined` und faellt dort STILL auf die Vorgabe zurueck
+   * (nur `NEXT_PUBLIC_*` wird inlined). Diese Seite ist deshalb der Leser, und
+   * der Weg ueber die RSC-Grenze ist eine Prop. Vitest kann die Falle selbst
+   * nicht sehen — `marke.test.ts` riegelt sie per Quelltext-Scan ab; hier wird
+   * geprueft, dass die Prop ueberhaupt und mit dem GELTENDEN Wert ankommt.
+   */
+  const VORHER = process.env.LAGERBUCH_ORGANISATION;
+  afterEach(() => {
+    if (VORHER === undefined) delete process.env.LAGERBUCH_ORGANISATION;
+    else process.env.LAGERBUCH_ORGANISATION = VORHER;
+  });
+
+  it("reicht den gesetzten Wert an die Insel durch", async () => {
+    process.env.LAGERBUCH_ORGANISATION = "DRK Bereitschaft Entenhausen";
+    await rendere();
+    expect(query('[data-rolle="gate"]')?.getAttribute("data-organisation"))
+      .toBe("DRK Bereitschaft Entenhausen");
+  });
+
+  it("reicht ohne gesetzten Wert die Vorgabe durch — nie eine leere Prop", async () => {
+    delete process.env.LAGERBUCH_ORGANISATION;
+    await rendere();
+    expect(query('[data-rolle="gate"]')?.getAttribute("data-organisation"))
+      .toBe("DRK Bereitschaft Musterstadt");
   });
 });
