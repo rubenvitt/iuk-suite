@@ -12,7 +12,7 @@
  *  1. **I5 — die Charge gehoert zu diesem Artikel.** Ohne die Pruefung steigt
  *     der Bestand des FALSCHEN Artikels, und FEFO findet die Charge nie wieder
  *     („phantom, un-withdrawable Bestand"). Das Journal ist append-only.
- *  2. **Das Ziel ist ein gueltiger, AKTIVER Ort des Handlagers.** Ohne sie
+ *  2. **Das Ziel liegt im HANDLAGER-BEREICH und ist AKTIV.** Ohne sie
  *     entschiede der Fremdschluessel — und der laesst ein FAHRZEUG klaglos
  *     durch, weil es eine gueltige `lagerorte.id` ist. Aus einem Wareneingang
  *     wuerde still eine Fahrzeugbuchung.
@@ -27,8 +27,9 @@
  * auch eine manipulierte Nutzlast haelt, nicht die erste.
  */
 import { eq } from "drizzle-orm";
-import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
+import { artikel, buchungen, chargen, newId } from "../../_db/schema";
 import { HANDLAGER_ID } from "../konstanten";
+import { handlagerOrte, ortStamm } from "../lesepfade/orte";
 import type { Quelle, Tx } from "./abbuchung";
 
 /**
@@ -83,14 +84,37 @@ export function zugangBuchen(
     }
   }
 
-  if (lagerortId !== HANDLAGER_ID) {
-    // DREI BEDINGUNGEN, EIN SATZ: existiert der Ort, haengt er am Handlager,
-    // ist er aktiv? Ohne diese Pruefung entschiede der Fremdschluessel — und
-    // der meldet „FOREIGN KEY constraint failed".
-    const ort = tx.select().from(lagerorte).where(eq(lagerorte.id, lagerortId)).get();
-    if (!ort || ort.parentId !== HANDLAGER_ID || !ort.aktiv) {
-      throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
-    }
+  /*
+   * DER BEREICH, NICHT DER DIREKTE ELTERNTEIL — Codex-Befund P2 zu PR #174.
+   *
+   * ⚠️ HIER STAND `ort.parentId !== HANDLAGER_ID`, UND DAS WAR MIT DER AUSWAHL
+   * NICHT MEHR EINIG. `handlagerSchraenke` (und damit `zugangsZiele`, die die
+   * Wahl fuellt) steigt ueber `teilbaum` BELIEBIG TIEF ab; ein Ort unterhalb
+   * eines Schranks stand also zur Wahl und wurde hier unten trotzdem
+   * abgewiesen — eine angebotene Buchung, die immer scheitert.
+   *
+   * ⚠️ HEUTE UNERREICHBAR, ABER NICHT HARMLOS: `createSchrank` verdrahtet
+   * `parentId: HANDLAGER_ID`, tiefere Orte koennen also nur aus einem Import
+   * kommen. Genau darauf ist `teilbaum` aber gebaut — `zaehlBereich`
+   * (`_lib/lesepfade/orte.ts`) schreibt es aus: „Schraenke haben heute keine
+   * Kinder, aber ein spaeter eingehaengter Ort fiele sonst still aus der
+   * Zaehlung." Diese Pruefung war die einzige Stelle, die das anders sah.
+   *
+   * Die Bauform ist die von `bucheUmlagerung`, die dieselbe Frage schon so
+   * stellt: Mengenlehre ueber `handlagerOrte`, kein Elternteil-Vergleich.
+   */
+  const bereich = new Set(handlagerOrte(tx));
+  if (!bereich.has(lagerortId)) {
+    throw new Error("Ziel ist kein Ort im Handlager");
+  }
+  /*
+   * ⚠️ DIE WURZEL BLEIBT VON DER AKTIV-PROBE AUSGENOMMEN, wie bisher: sie ist
+   * kein Schrank, den man stilllegt, sondern das „noch nicht zugeordnet" des
+   * Handlagers. Waere sie einbezogen, haenge der Altbestands-Weg an einem Feld,
+   * das keine Oberflaeche setzt.
+   */
+  if (lagerortId !== HANDLAGER_ID && !ortStamm(tx).get(lagerortId)?.aktiv) {
+    throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
   }
 
   tx.insert(buchungen)

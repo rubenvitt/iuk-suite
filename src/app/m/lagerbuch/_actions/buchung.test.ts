@@ -1280,6 +1280,49 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(geschrieben()).toEqual([]);
   });
 
+  /**
+   * ⚠️ WAS DIE AUSWAHL ANBIETET, MUSS DIE BUCHUNG ANNEHMEN (Codex-Befund P2 zu
+   * PR #174). `zugangsZiele` steigt ueber `teilbaum` beliebig tief ab; ein Ort
+   * unterhalb eines Schranks stand also zur Wahl und wurde vom Schreibpfad
+   * trotzdem abgewiesen, weil der auf den DIREKTEN Elternteil prueft. Eine
+   * angebotene Buchung, die immer scheitert.
+   *
+   * Heute nur per Import erreichbar (`createSchrank` verdrahtet
+   * `parentId: HANDLAGER_ID`), aber genau darauf ist `teilbaum` gebaut.
+   */
+  it("nimmt einen Ort UNTERHALB eines Schranks an — die Auswahl bietet ihn an", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "fach-1", name: "Fach 1", typ: "lager", parentId: "schrank-1", aktiv: true },
+    ]).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: "fach-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg, "der tiefere Ort steht in `zugangsZiele` und muss buchbar sein")
+      .toMatchObject({ ok: true });
+    expect(geschrieben()[0]).toMatchObject({ typ: "zugang", lagerortId: "fach-1", menge: 2 });
+  });
+
+  it("weist einen stillgelegten Ort auch UNTERHALB eines Schranks ab", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "fach-alt", name: "Fach alt", typ: "lager", parentId: "schrank-1", aktiv: false },
+    ]).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "fach-alt",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
   it("weist ein Fahrzeug als Ziel ab — die Richtung ist die Gegenrichtung", async () => {
     const erg = await bucheAuffuellung(
       {
