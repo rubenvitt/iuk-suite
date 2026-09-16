@@ -71,7 +71,7 @@ const ZEILEN: FahrzeugAnzeigeZeile[] = [
     name: "RTW Süd",
     kennung: "UE-RK 5678",
     aktiv: true,
-    /* DRK-309: der Zwischenstand aus Migration 0009 steht MITTEN in der
+    /* DRK-309: der Zwischenstand aus Migration 0010 steht MITTEN in der
      * Fixture, nicht am Ende — jede Zusicherung ueber die Liste laeuft damit
      * ueber eine nicht zugeordnete Zeile, ohne sie eigens zu suchen. */
     einheitenart: null,
@@ -604,7 +604,7 @@ describe("FahrzeugeListe — Suche, Filter und Reset", () => {
    * ⚠️ „nicht zugeordnet" IST DER EIGENTLICHE FALL. Fahrzeug und Tasche findet
    * man auch ueber die Suche; die ueber die ganze Liste verstreuten Einheiten
    * OHNE Zuordnung findet man sonst gar nicht — und genau die braucht, wer den
-   * Zwischenstand aus Migration 0009 abarbeitet.
+   * Zwischenstand aus Migration 0010 abarbeitet.
    */
   it("zeigt die Art als Chip und macht auch den Zwischenstand anwählbar", async () => {
     await mount(<FahrzeugeListe zeilen={ZEILEN} />);

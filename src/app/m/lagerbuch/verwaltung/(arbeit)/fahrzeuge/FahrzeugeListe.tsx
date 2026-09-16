@@ -37,7 +37,7 @@ export type FahrzeugAnzeigeZeile = {
   aktiv: boolean;
   /**
    * DRK-309 — Fahrzeug oder Tasche. `null` heisst „noch nicht zugeordnet" und
-   * ist der ausdrueckliche Zwischenstand aus Migration 0009, kein Datenfehler;
+   * ist der ausdrueckliche Zwischenstand aus Migration 0010, kein Datenfehler;
    * die Begruendung steht an der Zeilenquelle (`lesepfade/fahrzeuge.ts`).
    */
   einheitenart: Einheitenart | null;
@@ -180,7 +180,7 @@ function verfallRang(zeile: FahrzeugAnzeigeZeile): number {
  * und Tasche findet man auch ueber die Suche; die Liste der Einheiten, an denen
  * die Zuordnung noch fehlt, findet man sonst gar nicht — sie sind ueber die
  * ganze Tabelle verstreut und tragen kein gemeinsames Wort im Namen. Genau die
- * Liste braucht, wer den Zwischenstand aus Migration 0009 abarbeiten will.
+ * Liste braucht, wer den Zwischenstand aus Migration 0010 abarbeiten will.
  *
  * ⚠️ UND ER IST KEIN VIERTER WERT DER ART. Der Filter fragt nach der
  * ABWESENHEIT eines Wertes; `EINHEITENARTEN` kennt ihn deshalb nicht
@@ -245,7 +245,7 @@ function spalten(
       onFilter: ART_FILTER.onFilter,
       render: (wert: Einheitenart | null) => wert === null ? (
         /*
-         * GRAU, NICHT GELB. Der Zwischenstand ist erlaubt (Migration 0009
+         * GRAU, NICHT GELB. Der Zwischenstand ist erlaubt (Migration 0010
          * backfillt bewusst nicht) — ein Warnton auf jeder Altzeile mahnte
          * jeden Tag zu etwas, das niemand versprochen hat, und entwertete das
          * Gelb daneben in der Verfallsspalte, wo es fachlich etwas heisst

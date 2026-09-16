@@ -324,7 +324,7 @@ function vorlagenFixtures(): void {
  * und EINE, DIE NOCH NICHT ZUGEORDNET IST.
  *
  * ⚠️ DIE NICHT ZUGEORDNETE IST DIE WICHTIGERE VON BEIDEN. Sie bildet den
- * Zwischenstand aus Migration 0009 nach, die bewusst nicht backfillt — der
+ * Zwischenstand aus Migration 0010 nach, die bewusst nicht backfillt — der
  * Zustand, in dem JEDE bestehende Anlage nach dem Rollout startet. Ein Seed,
  * der ueberall eine Art setzt, laesst die Spalte „nicht zugeordnet", ihren
  * Filter und den Nachtrag am Einheitenblatt an keiner Flaeche pruefbar.

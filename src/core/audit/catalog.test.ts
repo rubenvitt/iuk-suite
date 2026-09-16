@@ -25,10 +25,21 @@ describe("explicit audit coverage inventory", () => {
   for (const sourceKey of AUDIT_SOURCES) it(`${sourceKey}: every migrated and declared table has a deliberate decision`, async () => {
     const db = new Database(":memory:");
     try {
-      // Migration creation itself must remain usable by plain SQLite. SQL functions
-      // are deliberately registered only after every migration completed.
-      migrate(drizzle(db), { migrationsFolder: auditMigrationsFolder(sourceKey) });
+      // ⚠️ REGISTERED BEFORE migrate(), NOT AFTER (DRK-367). This used to read
+      // "migration creation itself must remain usable by plain SQLite" — true
+      // for DDL, and it stopped being true the moment a migration carried DML
+      // against an audited table: lagerbuch's 0009 renames duplicate cupboard
+      // names before it can add a unique index, and that UPDATE fires
+      // audit_lagerorte_update like any other write. No assertion here ever
+      // covered the plain-SQLite claim; it was setup, not a guard.
+      //
+      // Nothing in production applies migrations on a bare connection —
+      // migrateAllModules() goes through openModuleDatabase(), which registers
+      // these functions, and drizzle-kit is used for `generate` only, never
+      // `migrate`. A path that skipped it would fail loudly at boot, not
+      // silently.
       registerAuditFunctions(db);
+      migrate(drizzle(db), { migrationsFolder: auditMigrationsFolder(sourceKey) });
       const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as {name:string}[]).map(t=>t.name).filter(n=>!n.startsWith("sqlite_")&&!n.startsWith("__")&&n!=="audit_outbox");
       const decisions: Record<string, AuditTableDecision> = AUDIT_TABLES[sourceKey];
       expect(tables.sort()).toEqual(Object.keys(decisions).sort());

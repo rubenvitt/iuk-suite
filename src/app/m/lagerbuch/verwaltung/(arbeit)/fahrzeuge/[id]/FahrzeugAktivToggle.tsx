@@ -23,9 +23,11 @@ import { LoeschButton } from "../../../../_ui/LoeschButton";
  * bestätigen soll. Ein Widerspruch dort kostet entweder das Vertrauen in die
  * Angabe oder die falsche Einheit.
  *
- * ⚠️ `loescheElement("fahrzeug", …)` BLEIBT: das ist der Diskriminator des
- * Löschpfads über ALLE Modulobjekte (Artikel, Gerät, Fahrzeug …), kein
- * Anzeigetext. Eine Tasche ist dort dasselbe Objekt wie ein Fahrzeug.
+ * ⚠️ DER DISKRIMINATOR BLEIBT UNBERÜHRT — heute `loescheElement("lagerort",
+ * …)`, seit DRK-367 so benannt. Er wählt den Löschpfad über ALLE
+ * Modulobjekte (Artikel, Gerät, Lagerort …) und ist kein Anzeigetext; eine
+ * Tasche ist dort dasselbe Objekt wie ein Fahrzeug. Art-bewusst wird
+ * ausschließlich, was jemand LIEST.
  */
 const STATUS_FEHLER = "Der Status konnte nicht geändert werden.";
 const PRUEF_FEHLER = "Löschbarkeit konnte nicht geprüft werden.";
@@ -74,7 +76,7 @@ export function FahrzeugAktivToggle({
 
   async function loeschen(): Promise<void> {
     try {
-      const ergebnis = await loescheElement("fahrzeug", id);
+      const ergebnis = await loescheElement("lagerort", id);
       if (!ergebnis.ok) throw new Error(loeschFehler);
     } catch {
       throw new Error(loeschFehler);
@@ -84,7 +86,7 @@ export function FahrzeugAktivToggle({
 
   async function deaktivieren(): Promise<void> {
     try {
-      const ergebnis = await deaktiviereElement("fahrzeug", id);
+      const ergebnis = await deaktiviereElement("lagerort", id);
       if (!ergebnis.ok) throw new Error(deaktivierFehler);
     } catch {
       throw new Error(deaktivierFehler);
@@ -107,7 +109,7 @@ export function FahrzeugAktivToggle({
           typLabel={art}
           pruefen={async () => {
             try {
-              const ergebnis = await pruefeLoeschbar("fahrzeug", id);
+              const ergebnis = await pruefeLoeschbar("lagerort", id);
               if (ergebnis.ok) return ergebnis.wert;
             } catch {
               // Der feste, nicht loeschbare Zustand folgt direkt darunter.

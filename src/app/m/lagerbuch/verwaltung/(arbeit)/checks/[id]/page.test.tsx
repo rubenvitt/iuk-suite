@@ -436,7 +436,7 @@ describe("Check-Detailseite", () => {
      * Eindeutigkeitsschluessel: ein Fahrzeug und eine Tasche duerfen
      * „Betreuung" heissen, und ein Kopf aus blossem Namen laesst dann offen,
      * zu welcher von beiden dieser Check gehoert. Der Zwischenstand
-     * (`einheitenart === null`, Migration 0009) faellt auf das neutrale Wort
+     * (`einheitenart === null`, Migration 0010) faellt auf das neutrale Wort
      * zurueck und NIE auf „Fahrzeug" — sonst behauptet die Seite eine
      * Zuordnung, die niemand getroffen hat.
      */

@@ -69,7 +69,14 @@
       "idx": 9,
       "version": "6",
       "when": 1789560000000,
-      "tag": "0009_einheitenart",
+      "tag": "0009_lagerorte_name_eindeutig",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789563600000,
+      "tag": "0010_einheitenart",
       "breakpoints": true
     }
   ]

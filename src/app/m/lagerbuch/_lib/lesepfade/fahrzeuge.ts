@@ -65,7 +65,7 @@ export type FahrzeugUebersichtZeile = {
    * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
    *
    * ⚠️ `null` IST KEIN FEHLER UND KEINE DRITTE ART. Es ist der ausdruecklich
-   * erlaubte Zwischenstand aus Migration 0009, die bewusst nicht backfillt;
+   * erlaubte Zwischenstand aus Migration 0010, die bewusst nicht backfillt;
    * die Begruendung steht an der Spalte (`_db/schema.ts`). Wer ihn auf
    * „Fahrzeug" abbildet, weil das der haeufigere Fall ist, macht aus einer
    * offenen Frage still eine Antwort — und niemand sieht der Liste danach

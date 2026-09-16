@@ -141,7 +141,7 @@ describe("FahrzeugWahl — die Wahl ist eine NAVIGATION (§7.9.1, E5)", () => {
     expect(meta(0)).toBe("Fahrzeug · HH-DR 1234");
     // Ohne Kennung bleibt die Art allein stehen — kein hängender Trenner.
     expect(meta(1)).toBe("Tasche");
-    // Der Zwischenstand aus Migration 0009 sagt, was er ist, statt zu schweigen.
+    // Der Zwischenstand aus Migration 0010 sagt, was er ist, statt zu schweigen.
     expect(meta(2)).toBe("nicht zugeordnet");
   });
 

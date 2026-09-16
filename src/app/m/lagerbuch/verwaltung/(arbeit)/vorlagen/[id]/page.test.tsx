@@ -136,7 +136,7 @@ beforeEach(() => {
       kennung: null,
       aktiv: false,
       templateId: "tpl-rtw",
-      // DRK-309: der Zwischenstand aus Migration 0009 — die Seite muss ihn
+      // DRK-309: der Zwischenstand aus Migration 0010 — die Seite muss ihn
       // durchreichen und darf ihn nicht unterwegs zu „fahrzeug" machen.
       einheitenart: null,
     },
@@ -290,7 +290,7 @@ describe("VerknuepfteFahrzeugeTable", () => {
       einheitenart: "fahrzeug" },
     { id: "rtw-inaktiv", name: "Ersatzwagen", kennung: null, aktiv: false,
       einheitenart: "tasche" },
-    // DRK-309: der Zwischenstand aus Migration 0009 steht auch hier.
+    // DRK-309: der Zwischenstand aus Migration 0010 steht auch hier.
     { id: "ohne-art", name: "Altbestand", kennung: null, aktiv: true,
       einheitenart: null },
   ];
@@ -319,7 +319,7 @@ describe("VerknuepfteFahrzeugeTable", () => {
     /*
      * DRK-309 — die Artspalte, je Zeile ein grauer Chip VOR dem Statuschip.
      * Auch der Zwischenstand traegt Grau und nicht Gelb: er ist erlaubt,
-     * Migration 0009 backfillt bewusst nicht (Begruendung in `FahrzeugeListe`).
+     * Migration 0010 backfillt bewusst nicht (Begruendung in `FahrzeugeListe`).
      */
     expect(queryAll(`tbody .${verwaltungStyles.chip}.${verwaltungStyles.grau}`)
       .map((chip) => chip.textContent))

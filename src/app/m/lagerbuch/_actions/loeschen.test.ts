@@ -112,6 +112,23 @@ function fahrzeugAnlegen(id = "fz-1"): string {
   return id;
 }
 
+/**
+ * DRK-349 — ein SCHRANK, nicht ein Fahrzeug: `typ: "lager"` und ein gesetztes
+ * `parentId`. Genau diese Zeile war es, die der alte Loeschzweig mit seinem
+ * `WHERE typ = 'fahrzeug'` nie traf, waehrend die Aktion Erfolg meldete.
+ */
+function schrankAnlegen(id = "schrank-1", parentId: string = HANDLAGER_ID): string {
+  t.db.insert(lagerorte).values({
+    id,
+    name: `Schrank ${id}`,
+    typ: "lager",
+    kennung: null,
+    aktiv: true,
+    parentId,
+  }).run();
+  return id;
+}
+
 function chargeAnlegen(artikelId: string, id = newId()): string {
   t.db.insert(chargen).values({
     id,
@@ -285,7 +302,7 @@ function verfallAnlegen(artikelId: string, lagerortId: string, id = newId()): st
 function elementAnlegen(art: ElementArt): string {
   switch (art) {
     case "artikel": return artikelAnlegen("element-artikel");
-    case "fahrzeug": return fahrzeugAnlegen("element-fahrzeug");
+    case "lagerort": return fahrzeugAnlegen("element-fahrzeug");
     case "token": return tokenAnlegen({ id: "element-token", code: "222-222" });
     case "bzGeraet": return bzGeraetAnlegen(fahrzeugAnlegen("lager-bz"), "element-bz");
     case "o2Flasche": return o2FlascheAnlegen(fahrzeugAnlegen("lager-o2"), "element-o2");
@@ -296,7 +313,7 @@ function elementAnlegen(art: ElementArt): string {
 function elementVorhanden(art: ElementArt, id: string): boolean {
   switch (art) {
     case "artikel": return Boolean(t.db.select().from(artikel).where(eq(artikel.id, id)).get());
-    case "fahrzeug": return Boolean(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get());
+    case "lagerort": return Boolean(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get());
     case "token": return Boolean(t.db.select().from(tokens).where(eq(tokens.id, id)).get());
     case "bzGeraet": return Boolean(t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get());
     case "o2Flasche": return Boolean(t.db.select().from(o2Flaschen).where(eq(o2Flaschen.id, id)).get());
@@ -307,7 +324,7 @@ function elementVorhanden(art: ElementArt, id: string): boolean {
 function elementAktiv(art: ElementArt, id: string): boolean | undefined {
   switch (art) {
     case "artikel": return t.db.select().from(artikel).where(eq(artikel.id, id)).get()?.aktiv;
-    case "fahrzeug": return t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()?.aktiv;
+    case "lagerort": return t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()?.aktiv;
     case "token": return t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.aktiv;
     case "bzGeraet": return t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get()?.aktiv;
     case "o2Flasche": return t.db.select().from(o2Flaschen).where(eq(o2Flaschen.id, id)).get()?.aktiv;
@@ -335,7 +352,7 @@ describe("Action-Vertrag", () => {
     ]);
     expect([...ELEMENT_ARTEN]).toEqual([
       "artikel",
-      "fahrzeug",
+      "lagerort",
       "token",
       "bzGeraet",
       "o2Flasche",
@@ -474,14 +491,14 @@ describe("pruefeLoeschbar — Fahrzeug", () => {
     const id = fahrzeugAnlegen();
     anlegen(id);
 
-    erwarteBlockiert(await pruefeLoeschbar("fahrzeug", id, t.db), grund);
+    erwarteBlockiert(await pruefeLoeschbar("lagerort", id, t.db), grund);
   });
 
   it("zaehlt zielId nur zusammen mit zielTyp=fahrzeug", async () => {
     const id = fahrzeugAnlegen();
     tokenAnlegen({ zielTyp: "artikel", zielId: id });
 
-    expect(await pruefeLoeschbar("fahrzeug", id, t.db)).toEqual({
+    expect(await pruefeLoeschbar("lagerort", id, t.db)).toEqual({
       ok: true,
       wert: { loeschbar: true },
     });
@@ -492,10 +509,103 @@ describe("pruefeLoeschbar — Fahrzeug", () => {
     const id = fahrzeugAnlegen();
     tokenAnlegen({ scopeLagerortId: id });
 
-    expect(await pruefeLoeschbar("fahrzeug", id, t.db)).toEqual({
+    expect(await pruefeLoeschbar("lagerort", id, t.db)).toEqual({
       ok: true,
       wert: { loeschbar: true },
     });
+    expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * DRK-349 — DER SCHRANK, DEN DER LOESCHPFAD NICHT KANNTE.
+ *
+ * ⚠️ DIESE VIER FAELLE SIND NICHT DIE FAHRZEUGFAELLE NOCH EINMAL. Ein Schrank
+ * unterscheidet sich vom Fahrzeug in genau den zwei Spalten, an denen der alte
+ * Pfad scheiterte: `typ` ist `"lager"` (der Loeschzweig filterte darauf) und
+ * `parentId` ist gesetzt (den Kinderriegel gab es nicht). Ein Test, der nur
+ * `fahrzeugAnlegen` benutzt, kann beides strukturell nicht sehen.
+ */
+describe("DRK-349 — Schraenke im Loeschpfad", () => {
+  it("loescht einen leeren Schrank wirklich und revalidiert dessen vier Pfade", async () => {
+    const id = schrankAnlegen();
+
+    expect(await pruefeLoeschbar("lagerort", id, t.db)).toEqual({
+      ok: true,
+      wert: { loeschbar: true },
+    });
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()).toBeUndefined();
+    expect(revalidiert).toEqual([
+      "/m/lagerbuch/verwaltung/fahrzeuge",
+      "/m/lagerbuch/verwaltung/lagerorte",
+      "/m/lagerbuch/verwaltung/artikel",
+      "/m/lagerbuch/verwaltung",
+    ]);
+  });
+
+  /**
+   * ⚠️ DER TEST, DER DEN GEMELDETEN FEHLER BEZEUGT — und er prueft ZWEI Dinge,
+   * weil der alte Pfad nur an einem von beiden aufgefallen waere: die Zeile ist
+   * weg UND die Antwort war `{ ok: true }`. Frueher stimmte allein das zweite.
+   */
+  it("meldet nie Erfolg, ohne die Zeile entfernt zu haben", async () => {
+    const id = schrankAnlegen();
+
+    const ergebnis = await loescheElement("lagerort", id, t.db);
+
+    expect(ergebnis).toEqual({ ok: true });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()).toBeUndefined();
+  });
+
+  it("lehnt einen Schrank mit Buchungen ab und laesst das Stilllegen offen", async () => {
+    const id = schrankAnlegen();
+    buchungAnlegen({ artikelId: artikelAnlegen(), lagerortId: id });
+
+    erwarteBlockiert(await pruefeLoeschbar("lagerort", id, t.db), "1 Buchung");
+
+    const ergebnis = await loescheElement("lagerort", id, t.db);
+    expect(fehlerVon(ergebnis).fehler).toContain("1 Buchung");
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()).toBeDefined();
+    expect(revalidiert).toEqual([]);
+
+    expect(await deaktiviereElement("lagerort", id, t.db)).toEqual({ ok: true });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()?.aktiv).toBe(false);
+  });
+
+  it("lehnt einen Ort mit Kindern ab — mit einem Grund, der die Kinder nennt", async () => {
+    const fahrzeugId = fahrzeugAnlegen();
+    schrankAnlegen("schrank-im-fahrzeug", fahrzeugId);
+
+    const status = wert<Loeschbarkeit>(await pruefeLoeschbar("lagerort", fahrzeugId, t.db));
+    expect(status).toMatchObject({ loeschbar: false, kannDeaktivieren: true });
+    if (!status.loeschbar) expect(status.grund).toContain("1 Schrank");
+
+    expect((await loescheElement("lagerort", fahrzeugId, t.db)).ok).toBe(false);
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, fahrzeugId)).get()).toBeDefined();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * Der Kinderriegel deckt zugleich das Handlager mit Schraenken ab — aber der
+   * HANDLAGER-Riegel steht davor und nennt den staerkeren Grund: er ist auch
+   * LEER unloeschbar. Ohne diesen Test liesse sich der Handlager-Zweig
+   * entfernen, ohne dass ein Test rot wird, solange nur Schraenke darin haengen.
+   */
+  it("nennt beim Handlager den Handlager-Grund, nicht den Kinderriegel", async () => {
+    schrankAnlegen();
+
+    const status = wert<Loeschbarkeit>(await pruefeLoeschbar("lagerort", HANDLAGER_ID, t.db));
+    expect(status).toMatchObject({ loeschbar: false, kannDeaktivieren: false });
+    if (!status.loeschbar) expect(status.grund).toContain("Handlager");
+  });
+
+  it("verweigert eine unbekannte ID, statt Erfolg ohne Wirkung zu melden", async () => {
+    const status = wert<Loeschbarkeit>(await pruefeLoeschbar("lagerort", "gibt-es-nicht", t.db));
+    expect(status).toMatchObject({ loeschbar: false, kannDeaktivieren: false });
+
+    const ergebnis = await loescheElement("lagerort", "gibt-es-nicht", t.db);
+    expect(ergebnis.ok).toBe(false);
     expect(revalidiert).toEqual([]);
   });
 });
@@ -584,8 +694,15 @@ const REVALIDIERUNG: { art: ElementArt; pfade: string[] }[] = [
     pfade: ["/m/lagerbuch/verwaltung/artikel", "/m/lagerbuch/verwaltung"],
   },
   {
-    art: "fahrzeug",
-    pfade: ["/m/lagerbuch/verwaltung/fahrzeuge", "/m/lagerbuch/verwaltung"],
+    // DRK-349: `lagerort` traegt drei Flaechen (Fahrzeuge, Lagerorte, und die
+    // Zugangsauswahl auf Artikel), weil die Action nur die ID kennt.
+    art: "lagerort",
+    pfade: [
+      "/m/lagerbuch/verwaltung/fahrzeuge",
+      "/m/lagerbuch/verwaltung/lagerorte",
+      "/m/lagerbuch/verwaltung/artikel",
+      "/m/lagerbuch/verwaltung",
+    ],
   },
   { art: "token", pfade: ["/m/lagerbuch/verwaltung/tokens"] },
   { art: "bzGeraet", pfade: ["/m/lagerbuch/verwaltung/bz"] },
@@ -633,7 +750,7 @@ describe("loescheElement — fuenf hart loeschbare Arten und eine Revalidierungs
     const fahrzeugId = fahrzeugAnlegen();
     verfallAnlegen(artikelId, fahrzeugId, "verfall-fahrzeug");
 
-    expect(await loescheElement("fahrzeug", fahrzeugId, t.db)).toEqual({ ok: true });
+    expect(await loescheElement("lagerort", fahrzeugId, t.db)).toEqual({ ok: true });
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, fahrzeugId)).get()).toBeUndefined();
     expect(t.db.select().from(lagerortVerfall)
       .where(eq(lagerortVerfall.id, "verfall-fahrzeug")).get()).toBeUndefined();
@@ -704,7 +821,7 @@ describe("loescheElement — fuenf hart loeschbare Arten und eine Revalidierungs
     const fahrzeugId = fahrzeugAnlegen();
     tokenAnlegen({ scopeLagerortId: fahrzeugId });
 
-    const ergebnis = await loescheElement("fahrzeug", fahrzeugId, t.db);
+    const ergebnis = await loescheElement("lagerort", fahrzeugId, t.db);
 
     expect(ergebnis).toEqual({ ok: false, fehler: FESTER_LOESCHFEHLER });
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, fahrzeugId)).get()).toBeDefined();
@@ -713,11 +830,11 @@ describe("loescheElement — fuenf hart loeschbare Arten und eine Revalidierungs
 
   it("loescht das migrierte Handlager nie hart", async () => {
     const status = wert<Loeschbarkeit>(
-      await pruefeLoeschbar("fahrzeug", HANDLAGER_ID, t.db),
+      await pruefeLoeschbar("lagerort", HANDLAGER_ID, t.db),
     );
     expect(status).toMatchObject({ loeschbar: false, kannDeaktivieren: false });
 
-    const ergebnis = await loescheElement("fahrzeug", HANDLAGER_ID, t.db);
+    const ergebnis = await loescheElement("lagerort", HANDLAGER_ID, t.db);
 
     expect(ergebnis.ok).toBe(false);
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, HANDLAGER_ID)).get())
@@ -736,7 +853,7 @@ describe("deaktiviereElement — dieselbe Revalidierungstabelle", () => {
   });
 
   it("deaktiviert das migrierte Handlager nie", async () => {
-    const ergebnis = await deaktiviereElement("fahrzeug", HANDLAGER_ID, t.db);
+    const ergebnis = await deaktiviereElement("lagerort", HANDLAGER_ID, t.db);
 
     expect(ergebnis).toEqual({
       ok: false,
@@ -761,7 +878,7 @@ describe("Fehlpfade revalidieren nie", () => {
     },
     {
       name: "Fahrzeug-Blocker",
-      art: "fahrzeug" as const,
+      art: "lagerort" as const,
       anlegen: () => {
         const id = fahrzeugAnlegen();
         o2FlascheAnlegen(id);

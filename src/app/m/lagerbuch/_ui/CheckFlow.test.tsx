@@ -100,7 +100,7 @@ const TASCHE = {
   einheitenart: "tasche" as const,
 };
 
-/** DRK-309: der Zwischenstand aus Migration 0009 — Art noch nicht zugeordnet. */
+/** DRK-309: der Zwischenstand aus Migration 0010 — Art noch nicht zugeordnet. */
 const OHNE_ART = {
   id: "ohne-1", name: "Rucksack Betreuung", kennung: null,
   einheitenart: null,
@@ -683,7 +683,7 @@ describe("CheckFlow — die Art der Einheit (DRK-309)", () => {
   });
 
   it("faellt beim Zwischenstand auf das neutrale Wort zurueck, nie auf Fahrzeug", async () => {
-    // Migration 0009 backfillt bewusst nicht. Auf „Fahrzeug" zu raten, weil das
+    // Migration 0010 backfillt bewusst nicht. Auf „Fahrzeug" zu raten, weil das
     // der haeufigere Fall ist, machte aus einer offenen Frage still eine
     // Antwort — und zwar auf der Flaeche, auf der sie niemand pruefen kann.
     await nachfuellschritt(OHNE_ART);

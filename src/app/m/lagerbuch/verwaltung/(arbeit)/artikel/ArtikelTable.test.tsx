@@ -1018,7 +1018,7 @@ describe("Artikelseite als Server Component", () => {
       ]);
       // DRK-309: `einheitenart` reist mit — sie macht die Zielwahl in der
       // Schublade nach „tasche" durchsuchbar. `null` ist hier der
-      // Zwischenstand aus Migration 0009, den die Fixture nicht setzt.
+      // Zwischenstand aus Migration 0010, den die Fixture nicht setzt.
       expect(props.fahrzeuge).toEqual([
         { id: "rtw-aktiv", name: "RTW Aktiv", kennung: "UE-RK 129", einheitenart: null },
       ]);

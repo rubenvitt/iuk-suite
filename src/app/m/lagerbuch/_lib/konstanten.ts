@@ -198,6 +198,18 @@ export function einheitNomen(art: Einheitenart | null): string {
  * Der Zwischenstand sagt „nicht zugeordnet" statt zu schweigen: hier ist das
  * Wort eine ZUSTANDSANZEIGE und kein Nomen im Satz, also `einheitenartLabel`
  * und nicht `einheitNomen`.
+ *
+ * ⚠️ DIE PRAEMISSE HINTER ALL DEM — „zwei Einheiten duerfen gleich heissen" —
+ * GILT NACH DRK-367 WEITERHIN, und der Index dort sagt das selbst. Rund ein
+ * Dutzend Stellen begruenden ihre Beizeile mit „`lagerorte.name` traegt keinen
+ * Eindeutigkeitsschluessel"; seit Migration 0009 gibt es einen, und wer ihn
+ * greppt, haelt die Kommentare fuer veraltet. Er ist aber TEILWEISE:
+ * `idx_lagerorte_name_je_parent` steht unter `WHERE parent_id IS NOT NULL` und
+ * deckt damit nur die Schraenke unter dem Handlager. Eine Einheit — Fahrzeug
+ * wie Tasche — haengt an `parent_id IS NULL` und ist ausdruecklich nicht
+ * gedeckt („Fahrzeugnamen bleiben damit unberuehrt", Kopf der Migration).
+ * Zwei gleichnamige Taschen sind also weiter erlaubt, und diese Zeile bleibt
+ * das einzige, was sie im Bild auseinanderhaelt.
  */
 export function einheitMeta(
   einheit: { kennung: string | null; einheitenart: Einheitenart | null },

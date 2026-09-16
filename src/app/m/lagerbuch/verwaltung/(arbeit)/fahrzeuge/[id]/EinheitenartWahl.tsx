@@ -17,7 +17,7 @@ const FEHLER = "Art konnte nicht gespeichert werden.";
 /**
  * DER WEG AUS DEM ZWISCHENSTAND (DRK-309).
  *
- * Migration 0009 backfillt bewusst nicht: jede Einheit, die es vor ihr gab,
+ * Migration 0010 backfillt bewusst nicht: jede Einheit, die es vor ihr gab,
  * steht auf „nicht zugeordnet". Diese Insel ist die einzige Stelle, an der
  * jemand das nachträgt — und sie steht auf dem Einheitenblatt, nicht in der
  * Liste, weil die Antwort aus dem Gedächtnis kommt und nicht aus der Zeile.
@@ -27,7 +27,7 @@ const FEHLER = "Art konnte nicht gespeichert werden.";
  * Angabe über eine Sache, kein Vorgang an Beständen: nichts wird umgebucht,
  * nichts verfällt, kein Soll ändert sich. Ein Bestätigungsdialog davor
  * behauptete eine Tragweite, die es nicht gibt — und der Audit-Trigger aus
- * Migration 0009 protokolliert die Änderung ohnehin.
+ * Migration 0010 protokolliert die Änderung ohnehin.
  *
  * ⚠️ ES GIBT KEINEN KNOPF ZURÜCK NACH „nicht zugeordnet". Der Zustand ist der,
  * aus dem man kommt, nicht einer, den jemand herstellt; `setEinheitenart`
@@ -109,7 +109,7 @@ export function EinheitenartWahl({
         {wert === null ? (
           /*
            * ⚠️ DER HINWEIS STEHT NEBEN DER WAHL, NICHT ALS `Alert` DARÜBER.
-           * Der Zwischenstand ist erlaubt — Migration 0009 hat ihn erzeugt und
+           * Der Zwischenstand ist erlaubt — Migration 0010 hat ihn erzeugt und
            * niemandem ein Datum gesetzt, an dem er weg sein muss. Ein
            * Warnbanner auf jedem Altblatt mahnte täglich zu etwas, das niemand
            * versprochen hat; derselbe graue Chip wie in der Liste sagt genug.

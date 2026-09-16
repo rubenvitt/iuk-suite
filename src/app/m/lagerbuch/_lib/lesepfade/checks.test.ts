@@ -361,7 +361,7 @@ describe("checkDetail — das ALTE Format", () => {
      * sich ein Fahrzeug und eine gleichnamige Tasche teilen duerfen.
      *
      * ⚠️ Die BEIDEN Faelle stehen hier absichtlich zusammen: der Lagerort aus
-     * `beforeEach` traegt KEINE `einheitenart` (Migration 0009 fuellt nicht
+     * `beforeEach` traegt KEINE `einheitenart` (Migration 0010 fuellt nicht
      * nach), und `null` muss null bleiben. Ein Rueckfall auf „fahrzeug" waere
      * genau die Behauptung, die der Zwischenstand vermeiden soll.
      */

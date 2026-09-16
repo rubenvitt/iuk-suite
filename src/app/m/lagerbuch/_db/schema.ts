@@ -1,4 +1,5 @@
 export { auditOutbox } from "@/core/audit/_db/schema";
+import { sql } from "drizzle-orm";
 import {
   sqliteTable, text, integer, index, primaryKey, uniqueIndex,
   type AnySQLiteColumn,
@@ -83,7 +84,7 @@ export const lagerorte = sqliteTable(
      * aber nicht bestuecken, nicht checken und nicht bebuchen kann.
      *
      * ⚠️ `null` HEISST „NOCH NICHT ZUGEORDNET", NICHT „KEINS VON BEIDEN".
-     * Migration 0009 macht KEINEN Backfill — niemand ausser der Betreiberin
+     * Migration 0010 macht KEINEN Backfill — niemand ausser der Betreiberin
      * weiss, welche der bestehenden Zeilen in Wahrheit eine Tasche ist, und
      * ein geratener Wert waere nicht als Rateergebnis erkennbar. Der
      * Zwischenstand ist damit ausdruecklich erlaubt und wird in der Liste als
@@ -99,7 +100,29 @@ export const lagerorte = sqliteTable(
      */
     einheitenart: text("einheitenart", { enum: ["fahrzeug", "tasche"] }),
   },
-  (t) => [index("idx_lagerorte_parent").on(t.parentId)],
+  (t) => [
+    index("idx_lagerorte_parent").on(t.parentId),
+    /**
+     * DRK-367 — zwei Schraenke duerfen nicht gleich heissen.
+     *
+     * ⚠️ NUR KINDER. Die Bedingung `parent_id IS NOT NULL` ist nicht Zierde:
+     * die Wurzel und jedes Fahrzeug tragen `parent_id IS NULL`, ein Index ohne
+     * sie waere eine Zusage ueber Fahrzeugnamen, die niemand getroffen hat.
+     *
+     * `lower(trim(...))`, weil „Schrank 1" und „schrank 1 " in einer
+     * Auswahlliste genauso wenig zu unterscheiden sind wie zwei gleiche.
+     *
+     * ⚠️ DERSELBE AUSDRUCK STEHT IN `_lib/schrankName.ts` ALS JS, und er muss
+     * zeichengenau derselbe bleiben: SQLites `lower()` ist ASCII-only, also
+     * faltet die Probe dort ebenfalls nur ASCII. Eine strengere Probe liesse
+     * Altdaten stehen, die sie danach fuer gleich haelt — und kein Rettungsname
+     * kaeme mehr durch. `_lib/schrankName.test.ts` misst die Gleichheit gegen
+     * echtes SQLite, statt sie zu behaupten.
+     */
+    uniqueIndex("idx_lagerorte_name_je_parent")
+      .on(t.parentId, sql`lower(trim(${t.name}))`)
+      .where(sql`${t.parentId} is not null`),
+  ],
 );
 
 export const fahrzeugTemplates = sqliteTable("fahrzeug_templates", {

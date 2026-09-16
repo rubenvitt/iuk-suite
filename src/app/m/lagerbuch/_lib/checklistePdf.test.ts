@@ -198,7 +198,7 @@ describe("das Dokument", () => {
     expect(tasche).toContain("Taschen-Checkliste");
     expect(tasche).not.toContain("Fahrzeug-Checkliste");
 
-    // Der Zwischenstand aus Migration 0009 behauptet keine Art, statt auf die
+    // Der Zwischenstand aus Migration 0010 behauptet keine Art, statt auf die
     // haeufigere zu raten.
     const offen = flach(await checklistenPdf([OHNE_ART], OPTIONEN));
     expect(offen).toContain("Checkliste");

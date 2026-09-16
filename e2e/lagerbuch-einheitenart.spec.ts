@@ -24,7 +24,7 @@ import {
  *
  * Der Seed liefert zwei eigene, INAKTIVE Einheiten (`einheitenartFixtures`):
  * „E2E Sanitätstasche" ist eine Tasche, „E2E Rucksack ohne Art" traegt den
- * Zwischenstand aus Migration 0009. Der Nachtrag unten ist EINSEITIG — es gibt
+ * Zwischenstand aus Migration 0010. Der Nachtrag unten ist EINSEITIG — es gibt
  * bewusst keinen Weg zurueck nach „nicht zugeordnet" —, deshalb setzt die Spec
  * ihn am Ende auf „Fahrzeug" und laesst ihn dort: der zweite Lauf findet dann
  * eine zugeordnete Einheit vor und prueft denselben WECHSEL statt des

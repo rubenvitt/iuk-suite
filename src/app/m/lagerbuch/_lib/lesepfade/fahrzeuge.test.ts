@@ -29,7 +29,7 @@ beforeEach(() => {
   // Element gross, und dessen aktiv/alphabetisch-Sortierung waere unbeweisbar.
   t.db.insert(lagerorte).values([
     // DRK-309: DIESE ZEILE TRAEGT KEINE `einheitenart` — der Zwischenstand aus
-    // Migration 0009, die bewusst nicht backfillt. Er steht MITTEN in der
+    // Migration 0010, die bewusst nicht backfillt. Er steht MITTEN in der
     // Fixture und nicht am Ende, damit jede Zusicherung ueber die Uebersicht
     // ueber ihn laeuft, ohne ihn eigens zu suchen.
     { id: "rtw-2", name: "ELW", typ: "fahrzeug", kennung: "MS-2", aktiv: false },
