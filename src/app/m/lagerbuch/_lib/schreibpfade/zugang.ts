@@ -20,14 +20,23 @@
  *     die die Lieferung ueberlebt, fuehrt die Position dauerhaft als
  *     „bestellt" — und die Bestelliste schlaegt sie nie wieder vor.
  *
- * ⚠️ DIE DREI WUERFE SIND KEINE FEHLERTEXTE FUER DEN SCHIRM. Sie rollen die
- * Transaktion zurueck; wie die Lage der Person erklaert wird, entscheidet die
- * aufrufende Action — und beide pruefen dieselben Lagen VORHER noch einmal, mit
- * einem Satz statt eines Wurfs. Diese Pruefungen hier sind die letzte Bank, die
- * auch eine manipulierte Nutzlast haelt, nicht die erste.
+ * ⚠️ DIE DREI WUERFE SIND DIE LETZTE BANK, NICHT DIE ERSTE. Sie rollen die
+ * Transaktion zurueck und halten auch eine manipulierte Nutzlast;
+ * `bucheAuffuellung` beantwortet dieselben drei Lagen VORHER noch einmal mit
+ * einem eigenen, laengeren Satz, weil ihre Flaeche keinen Platz fuer ein
+ * Formularfeld hat.
+ *
+ * ⚠️ SIE SIND SEIT DRK-193 `BuchungAbgewiesen` UND NICHT `Error`, und das ist
+ * die Zusage, die ihre Texte auf den Schirm traegt: `bucheZugang` hat keine
+ * Vorabpruefung, ihr `catch` reicht genau diese Klasse durch und faengt alles
+ * andere — ein SQLite-Text nahm vorher denselben Weg. Wer hier einen Wurf
+ * ergaenzt und die Klasse vergisst, verliert den Satz still hinter dem
+ * Rueckfall „Zugang konnte nicht gebucht werden."; die Begruendung steht in
+ * `_lib/buchungAbgewiesen.ts`.
  */
 import { eq } from "drizzle-orm";
 import { artikel, buchungen, chargen, newId } from "../../_db/schema";
+import { BuchungAbgewiesen } from "../buchungAbgewiesen";
 import { HANDLAGER_ID } from "../konstanten";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
 import type { Quelle, Tx } from "./abbuchung";
@@ -80,7 +89,7 @@ export function zugangBuchen(
     chargeId = charge.chargeId;
     const zeile = tx.select().from(chargen).where(eq(chargen.id, chargeId)).get();
     if (!zeile || zeile.artikelId !== artikelId) {
-      throw new Error("Charge gehört nicht zu diesem Artikel");
+      throw new BuchungAbgewiesen("Charge gehört nicht zu diesem Artikel");
     }
   }
 
@@ -105,7 +114,7 @@ export function zugangBuchen(
    */
   const bereich = new Set(handlagerOrte(tx));
   if (!bereich.has(lagerortId)) {
-    throw new Error("Ziel ist kein Ort im Handlager");
+    throw new BuchungAbgewiesen("Ziel ist kein Ort im Handlager");
   }
   /*
    * ⚠️ DIE WURZEL BLEIBT VON DER AKTIV-PROBE AUSGENOMMEN, wie bisher: sie ist
@@ -114,7 +123,7 @@ export function zugangBuchen(
    * das keine Oberflaeche setzt.
    */
   if (lagerortId !== HANDLAGER_ID && !ortStamm(tx).get(lagerortId)?.aktiv) {
-    throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
+    throw new BuchungAbgewiesen("Ziel ist kein gültiger, aktiver Schrank im Handlager");
   }
 
   tx.insert(buchungen)
