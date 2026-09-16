@@ -76,11 +76,47 @@ file scripts/backup.sh scripts/backup-sidecar.sh
 | **Extern** | `rclone copy` nach `BACKUP_RCLONE_ZIEL`, dort `BACKUP_RCLONE_KEEP` Generationen (Vorgabe 30). |
 | **Meldung** | Healthcheck am Container **und** Ping an `BACKUP_PING_URL`. |
 | **Von Hand** | `docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh einmal` |
+| **Diagnose** | … `backup-sidecar.sh werkzeuge <befehl …>` — siehe den Kasten unten |
+| **Gleichzeitigkeit** | Eine Sperre im Volume; ein zweiter Lauf wartet, statt den ersten zu zerstoeren. |
 
 Das Basis-Image ist ein nacktes `alpine`; die Werkzeuge (`bash sqlite tar rsync rclone
 curl su-exec tzdata`) kommen beim Start per `apk add` dazu. Der Preis ist benannt: der
 Start braucht Netz. Ein schweigender Paketspiegel ist damit eine Neustartschleife — laut,
 und in `docker compose ps` sichtbar.
+
+> ⚠️ **JEDER Handgriff mit `rclone`, `sqlite3`, `rsync` oder `bash` laeuft ueber
+> `werkzeuge` — nicht direkt.** `docker compose run` ueberschreibt das `command` des
+> Dienstes und startet einen **frischen** Container aus dem nackten Image; der Vorlauf,
+> der die Pakete nachlaedt, kaeme dann nie dran. `docker compose run --rm backup rclone lsl …`
+> stirbt mit „executable file not found" — genau in dem Moment, in dem jemand zum ersten
+> Mal prueft, ob die Sicherung etwas taugt. Ohne `apk` bringt busybox nur `sh`, `ls`,
+> `tar`, `du` und `cat` mit.
+>
+> ⚠️ **Und die Variablen gehoeren in einfache Anfuehrungszeichen.** `"$BACKUP_RCLONE_ZIEL"`
+> in doppelten expandiert die Shell des **Hosts**, wo die Variable nicht gesetzt ist —
+> herauskaeme ein leerer Pfad, und `rclone` liste das falsche Verzeichnis. Deshalb steht
+> in allen Beispielen unten `sh -c '…'` mit einfachen Anfuehrungszeichen.
+
+### Gleichzeitigkeit
+
+Der Dienst und ein `… einmal` aus dem Rollout sind **getrennte Container am selben
+Volume**. `scripts/backup.sh` benennt Arbeitsverzeichnis und Archiv nur auf die Sekunde
+genau: starten beide gleichzeitig, schreiben sie dieselben Dateien, und das Aufraeumen des
+einen zieht dem `tar` des anderen den Boden weg. Eine Sperre im Volume
+(`<backup_data>/.lauf.sperre`) verhindert das — der zweite **wartet** bis zu
+`BACKUP_SPERRE_FRIST_MINUTEN` (Vorgabe 30) und gibt danach mit Exit 1 auf.
+
+Warten und nicht ueberspringen, und das ist Absicht: ein uebersprungener Lauf waere fuer
+`deploy.sh` ein gruener Exit-Code **ohne Sicherung**, und es rollte ohne aus. Ein zweites
+Tarball kurz nach dem ersten kostet dagegen nur Platz.
+
+Wird ein Container mitten im Lauf hart beendet (SIGKILL), bleibt die Sperre stehen. Sie
+gilt nach `BACKUP_SPERRE_ALTER_STUNDEN` (Vorgabe 6) als verwaist und wird mit einer
+Warnung im Protokoll uebernommen; von Hand entfernt man sie so:
+
+```bash
+docker compose run --rm backup rm -rf /backups/.lauf.sperre
+```
 
 ## 3. Die `.env` — hier steckt die Arbeit
 
@@ -195,7 +231,8 @@ Dann die drei Gegenproben — **jede einzeln, keine ersetzt eine andere**:
 docker compose run --rm backup ls -lh /backups
 
 # 2) Liegt es WIRKLICH am Ziel? (nicht: „rclone hat nicht gemeckert")
-docker compose run --rm backup rclone lsl "$BACKUP_RCLONE_ZIEL/"
+docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh werkzeuge \
+  sh -c 'rclone lsl "$BACKUP_RCLONE_ZIEL/"'
 
 # 3) Ist der Inhalt der, den man erwartet? — der Schritt, den man weglässt
 docker compose run --rm backup /bin/sh -c \
@@ -227,16 +264,16 @@ gegen das Produktivvolume:
 
 ```bash
 # Tarball holen — lokal oder vom Ziel
-docker compose run --rm backup rclone copy \
-  "$BACKUP_RCLONE_ZIEL/20260916T033000.tar.gz" /backups/probe/
+docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh werkzeuge \
+  sh -c 'rclone copy "$BACKUP_RCLONE_ZIEL/20260916T033000.tar.gz" /backups/probe/'
 
 # In ein WEGWERF-Verzeichnis auspacken
 docker compose run --rm backup /bin/sh -c \
   'mkdir -p /backups/probe/aus && tar -xzf /backups/probe/20260916T033000.tar.gz -C /backups/probe/aus'
 
 # Die Datenbanken einzeln auf Unversehrtheit prüfen — das ist der Kern
-docker compose run --rm backup /bin/sh -c \
-  'for db in /backups/probe/aus/*/*.db; do
+docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh werkzeuge \
+  sh -c 'for db in /backups/probe/aus/*/*.db; do
      printf "%-28s %s\n" "$(basename "$db")" "$(sqlite3 "$db" "pragma integrity_check;")"
    done'
 ```

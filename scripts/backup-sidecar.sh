@@ -13,14 +13,20 @@
 #   zustand   Liest die Zustandsdatei und faellt bei Fehlschlag ODER Ueberfaelligkeit
 #             mit Exit 1. Das ist der Healthcheck — er braucht keinen Vorlauf, weil er
 #             nur eine Datei liest.
+#   werkzeuge Vorlauf, dann der uebergebene Befehl. Fuer JEDEN Handgriff aus dem
+#             Runbook, der `sqlite3`, `rclone`, `rsync` oder `bash` braucht.
 #   schleife / lauf   Die Rueckseite von `dienst` bzw. `einmal`, nach dem Rechteabbau.
 #             Der Vorlauf ruft sie per su-exec; von Hand ruft man sie nicht.
 #
-# ⚠️ `einmal` BRAUCHT DEN VORLAUF GENAUSO WIE `dienst`, und das ist nicht offensichtlich:
-# der dokumentierte Weg ist `docker compose run --rm backup … einmal`, und `run` erzeugt
-# einen FRISCHEN Container aus dem nackten alpine-Image — dort gibt es kein `bash`, kein
-# `sqlite3` und kein `rclone`. (`run` und nicht `exec`, weil bei einem gescheiterten
-# Rollout der Dienst womoeglich gerade nicht laeuft und trotzdem gesichert werden muss.)
+# ⚠️ JEDER VON AUSSEN GERUFENE WEG BRAUCHT DEN VORLAUF, nicht nur `dienst`. Der
+# dokumentierte Weg ist `docker compose run --rm backup …`, und `run` erzeugt einen
+# FRISCHEN Container aus dem nackten alpine-Image — dort gibt es kein `bash`, kein
+# `sqlite3`, kein `rsync` und kein `rclone`. (`run` und nicht `exec`, weil bei einem
+# gescheiterten Rollout der Dienst womoeglich gerade nicht laeuft und trotzdem gesichert
+# werden muss.) Genau deshalb gibt es `werkzeuge`: ein Handgriff aus dem Runbook, der
+# `rclone lsl` oder `sqlite3 "pragma integrity_check"` ruft, stirbt sonst mit
+# „not found" — und zwar in dem Moment, in dem jemand zum ersten Mal PRUEFT, ob die
+# Sicherung ueberhaupt etwas taugt. Busybox deckt nur `sh`, `ls`, `tar`, `du` und `cat` ab.
 #
 # ─────────────────────────────────────────────────────────────────────────────────────
 # ⚠️ DIESE DATEI IST POSIX-sh, NICHT BASH — und das ist kein Stil, sondern Reihenfolge.
@@ -81,7 +87,13 @@ BACKUP_PING_URL="${BACKUP_PING_URL:-}"
 # einem taeglichen Takt zwei Stunden Luft, ohne einen ausgefallenen Tag zu verschlucken.
 BACKUP_FRIST_STUNDEN="${BACKUP_FRIST_STUNDEN:-26}"
 
+# Wie lange ein Lauf auf einen anderen wartet, bevor er aufgibt (Minuten).
+BACKUP_SPERRE_FRIST_MINUTEN="${BACKUP_SPERRE_FRIST_MINUTEN:-30}"
+# Ab wann eine Sperre als verwaist gilt und uebernommen werden darf (Stunden).
+BACKUP_SPERRE_ALTER_STUNDEN="${BACKUP_SPERRE_ALTER_STUNDEN:-6}"
+
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
+SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
 
 # Die Pakete, die der Vorlauf nachlaedt. `bash` fuer `backup.sh` (Arrays, `shopt`),
 # `sqlite` fuer `.backup`, `tar`+`rsync` fuer das Archiv und die Blobs, `rclone` fuer das
@@ -100,7 +112,9 @@ warne() { protokoll "WARNUNG: $*" >&2; }
 # also mitten in einem Rollout. Liest root zuerst, gehoeren sie danach root, und der
 # Suite-Prozess (uid 1001) bekommt beim naechsten Start SQLITE_CANTOPEN auf seine eigene
 # Datenbank. Ein Backup, das die Anwendung lahmlegt, ist kein Backup.
-# $1 = Betriebsart, die nach dem Rechteabbau laufen soll (`schleife` oder `lauf`).
+# "$@" = der Befehl, der nach dem Rechteabbau laufen soll. Er wird ge-`exec`t, nicht
+# gerufen: dieser Prozess hat danach nichts mehr zu tun, und so bleibt der Exit-Code der
+# des Befehls — daran haengt `SUITE_BACKUP_CMD` im Rollout.
 vorbereiten() {
   NUTZER="${SUITE_USER:-1001:1001}"
   # Ohne root gibt es weder `apk` noch einen Rechteabbau. Das ist kein Fehlerfall, den
@@ -108,8 +122,7 @@ vorbereiten() {
   # ist —, aber es gehoert gesagt: fehlt dann ein Werkzeug, liegt es daran.
   if [ "$(id -u)" -ne 0 ]; then
     protokoll "Kein root — Vorlauf uebersprungen, die Werkzeuge muessen vorhanden sein."
-    "$1"
-    return
+    exec "$@"
   fi
   protokoll "Vorlauf: Pakete nachladen ($PAKETE)"
   # Ohne `--no-cache` bleibt der Index im Container-Dateisystem liegen; er nuetzt beim
@@ -122,11 +135,8 @@ vorbereiten() {
   # anlegen. Dieselbe Falle, die im `Dockerfile` bei `/data/files` steht.
   mkdir -p "$BACKUP_DIR"
   chown "$NUTZER" "$BACKUP_DIR"
-  protokoll "Vorlauf fertig, weiter als $NUTZER ($1)"
-  # `/bin/sh "$0"` und nicht `"$0"`: su-exec fuehrt die Datei sonst direkt aus und
-  # braucht dafuer das Ausfuehrbar-Bit. Die Datei kommt aber per Bind-Mount aus dem
-  # Repo — ihr Modus ist der des Servers, nicht unserer.
-  exec su-exec "$NUTZER" /bin/sh "$0" "$1"
+  protokoll "Vorlauf fertig, weiter als $NUTZER: $*"
+  exec su-exec "$NUTZER" "$@"
 }
 
 # ══ Zustandsdatei ════════════════════════════════════════════════════════════════════
@@ -238,8 +248,94 @@ auslagern() {
   return 0
 }
 
+# ══ Sperre gegen ueberlappende Laeufe ════════════════════════════════════════════════
+# ⚠️ ZWEI LAEUFE SIND NICHT NUR VERSCHWENDUNG, SIE ZERSTOEREN EINANDER. Der Dienst und
+# ein `docker compose run … einmal` aus dem Rollout (`SUITE_BACKUP_CMD`) sind getrennte
+# Container am SELBEN Volume, und `scripts/backup.sh` benennt sein Arbeitsverzeichnis und
+# sein Archiv nur auf die SEKUNDE genau (`stamp="$(date +%Y%m%dT%H%M%S)"`). Starten beide
+# in derselben Sekunde, schreiben sie dieselben SQLite-Kopien in dasselbe Verzeichnis,
+# und das `rm -rf "$work"` des einen raeumt es unter dem `tar` des anderen weg. Heraus
+# kaeme ein halbes Tarball, das wie ein ganzes aussieht. Dazu raesen beide um `.zustand`.
+# Der Anlass ist real, wenn auch selten: ein Rollout, der in das Zeitfenster des
+# naechtlichen Laufs faellt.
+#
+# `mkdir` ist der Riegel, und zwar weil es auf POSIX-Dateisystemen ATOMAR ist: es gelingt
+# genau einem von beiden. `flock` waere die naheliegende Wahl und ist hier die schlechtere
+# — busybox hat es, dash-auf-Debian-Host nicht zwingend, und eine Sperre, die je nach
+# Umgebung fehlt, ist schlimmer als keine.
+#
+# ⚠️ EINE PID NUETZT HIER NICHTS. Die beiden Laeufe sitzen in VERSCHIEDENEN Containern,
+# also in verschiedenen PID-Namensraeumen — eine gespeicherte Nummer sagt dem anderen
+# nichts. Gegen die verwaiste Sperre (Container per SIGKILL beendet) hilft deshalb nur
+# ihr ALTER, und ohne diese Uebernahme stuende das Backup nach einem harten Abbruch
+# dauerhaft still.
+sperre_holen() {
+  if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
+    date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
+    return 0
+  fi
+  seit="$(cat "$SPERRVERZEICHNIS/seit" 2>/dev/null || echo 0)"
+  case "$seit" in ''|*[!0-9]*) seit=0 ;; esac
+  alter=$(( $(date +%s) - seit ))
+  if [ "$alter" -gt $((BACKUP_SPERRE_ALTER_STUNDEN * 3600)) ]; then
+    warne "Die Sperre ist $((alter / 3600))h alt — ein Lauf wurde offenbar hart beendet.
+  Sie wird uebernommen."
+    rm -rf "$SPERRVERZEICHNIS"
+    if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
+      date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Warten statt ueberspringen, und das ist die Entscheidung: fuer den Rollout waere ein
+# uebersprungener Lauf ein gruener Exit-Code ohne Sicherung — `deploy.sh` rollte dann
+# ohne aus. Ein zweites Tarball kurz nach dem ersten kostet dagegen nur Platz.
+sperre_erwarten() {
+  frist=$((BACKUP_SPERRE_FRIST_MINUTEN * 60))
+  gewartet=0
+  while ! sperre_holen; do
+    if [ "$gewartet" -ge "$frist" ]; then
+      warne "Seit ${BACKUP_SPERRE_FRIST_MINUTEN}min laeuft bereits eine Sicherung — aufgegeben."
+      return 1
+    fi
+    [ "$gewartet" -eq 0 ] && protokoll "Ein anderer Lauf haelt die Sperre — warte."
+    sleep 10 || true
+    gewartet=$((gewartet + 10))
+  done
+  [ "$gewartet" -eq 0 ] || protokoll "Sperre nach ${gewartet}s bekommen."
+  return 0
+}
+
+# Ein hart beendeter Prozess laesst die Sperre stehen; dagegen steht die Alterspruefung
+# oben. Diese Falle deckt den geordneten Fall ab (SIGTERM waehrend eines Laufs) — ohne
+# sie blockierte eine Sperre bis zu BACKUP_SPERRE_ALTER_STUNDEN, obwohl niemand mehr
+# arbeitet. ⚠️ `exec` in `vorbereiten` loest KEIN EXIT aus, der Vorlauf faellt also nicht
+# faelschlich hier hinein.
+haelt_sperre=0
+sperre_ablegen() {
+  if [ "$haelt_sperre" -eq 1 ]; then
+    haelt_sperre=0
+    rm -rf "$SPERRVERZEICHNIS"
+  fi
+}
+trap sperre_ablegen EXIT
+
 # ══ Ein Lauf ═════════════════════════════════════════════════════════════════════════
+# Die Huelle haelt die Sperre ueber genau einen Lauf. `if … then … else` und nicht
+# `lauf_ungesperrt; ergebnis=$?`: Letzteres risse unter `set -e` den ganzen Prozess ab,
+# sobald ein Lauf scheitert — und zwar VOR der Freigabe, sodass die naechste Sicherung
+# bis zur Altersgrenze ausgesperrt bliebe. Ein Fehlschlag darf keine Sperre hinterlassen.
 lauf() {
+  sperre_erwarten || return 1
+  haelt_sperre=1
+  if lauf_ungesperrt; then ergebnis=0; else ergebnis=$?; fi
+  sperre_ablegen
+  return "$ergebnis"
+}
+
+lauf_ungesperrt() {
   protokoll "──────── Lauf beginnt ────────"
   log="$(mktemp)"
   statusdatei="$(mktemp)"
@@ -442,15 +538,26 @@ zustand() {
 }
 
 # ══ Betriebsart ══════════════════════════════════════════════════════════════════════
+# `/bin/sh "$0"` und nicht `"$0"`: su-exec fuehrt die Datei sonst direkt aus und braucht
+# dafuer das Ausfuehrbar-Bit. Die Datei kommt aber per Bind-Mount aus dem Repo — ihr
+# Modus ist der des Servers, nicht unserer.
 case "${1:-dienst}" in
-  dienst) vorbereiten schleife ;;
-  einmal) vorbereiten lauf ;;
+  dienst) vorbereiten /bin/sh "$0" schleife ;;
+  einmal) vorbereiten /bin/sh "$0" lauf ;;
   zustand) zustand ;;
+  werkzeuge)
+    shift
+    if [ "$#" -eq 0 ]; then
+      echo "werkzeuge: es fehlt der Befehl, z. B. … werkzeuge sh -c 'rclone lsl \"\$BACKUP_RCLONE_ZIEL/\"'" >&2
+      exit 2
+    fi
+    vorbereiten "$@"
+    ;;
   # Rueckseiten — vom Vorlauf gerufen, nicht von Hand.
   schleife) schleife ;;
   lauf) lauf ;;
   *)
-    echo "Aufruf: $0 [dienst|einmal|zustand]" >&2
+    echo "Aufruf: $0 [dienst|einmal|zustand|werkzeuge <befehl …>]" >&2
     exit 2
     ;;
 esac

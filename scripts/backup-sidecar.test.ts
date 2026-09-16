@@ -247,7 +247,7 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     // Bliebe er root, legte er `*.db-shm` als root an und sperrte die Suite aus.
     const i = sidecar.split("\n").findIndex((z) => z.includes("su-exec"));
     expect(i, "der Vorlauf wechselt per su-exec den Nutzer").toBeGreaterThan(-1);
-    expect(sidecar).toContain('exec su-exec "$NUTZER" /bin/sh "$0" "$1"');
+    expect(sidecar).toContain('exec su-exec "$NUTZER" "$@"');
     // Und das frische Volume gehoert vorher uebereignet — sonst kann der gewechselte
     // Nutzer dort keine einzige Datei anlegen (leeres Volume erbt `root:root` vom
     // Mountpunkt des Images, und `/backups` gibt es in `alpine` nicht).
@@ -261,8 +261,60 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     // es dort kein `bash`, kein `sqlite3` und kein `rclone` — der Probelauf stuerbe mit
     // „bash: not found", und zwar genau in dem Moment, in dem jemand zum ersten Mal
     // prueft, ob die Sicherung ueberhaupt funktioniert.
-    expect(befehle).toMatch(/einmal\)\s+vorbereiten lauf/);
-    expect(befehle).toMatch(/dienst\)\s+vorbereiten schleife/);
+    expect(befehle).toMatch(/einmal\) vorbereiten \/bin\/sh "\$0" lauf/);
+    expect(befehle).toMatch(/dienst\) vorbereiten \/bin\/sh "\$0" schleife/);
+  });
+
+  it("`werkzeuge` fuehrt JEDEN Diagnosebefehl durch denselben Vorlauf", () => {
+    // ⚠️ DIESELBE URSACHE, EINE STELLE WEITER — und im Runbook zuerst uebersehen:
+    // `docker compose run --rm backup rclone lsl …` ueberschreibt das `command` des
+    // Dienstes und startet einen frischen Container aus dem nackten Image. Ohne Vorlauf
+    // gibt es dort kein `rclone` und kein `sqlite3`; busybox deckt nur `sh`, `ls`,
+    // `tar`, `du` und `cat` ab. Betroffen waren die Gegenprobe „liegt es wirklich am
+    // Ziel?" UND die ganze dokumentierte Wiederherstellung.
+    expect(befehle).toContain("werkzeuge)");
+    expect(befehle).toMatch(/shift\s+if \[ "\$#" -eq 0 \]/);
+    expect(befehle).toMatch(/vorbereiten "\$@"/);
+  });
+});
+
+describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", () => {
+  it("ein Lauf haelt eine Sperre, und sie entsteht per atomarem `mkdir`", () => {
+    // ⚠️ DER ANLASS IST REAL: der Dienst und ein `docker compose run … einmal` aus dem
+    // Rollout sind getrennte Container am SELBEN Volume, und `scripts/backup.sh` benennt
+    // Arbeitsverzeichnis und Archiv nur auf die SEKUNDE genau. Starten beide gleichzeitig,
+    // schreiben sie dieselben SQLite-Kopien in dasselbe Verzeichnis, und das `rm -rf` des
+    // einen raeumt es unter dem `tar` des anderen weg — heraus kaeme ein halbes Tarball,
+    // das wie ein ganzes aussieht.
+    //
+    // `mkdir` und NICHT `flock`: busybox hat flock, dash auf einem Debian-Host nicht
+    // zwingend — eine Sperre, die je nach Umgebung fehlt, ist schlimmer als keine.
+    expect(befehle).toMatch(/mkdir "\$SPERRVERZEICHNIS" 2>\/dev\/null/);
+    expect(befehle).toMatch(/lauf\(\) \{\s*\n\s*sperre_erwarten \|\| return 1/);
+  });
+
+  it("der zweite Lauf WARTET, statt zu ueberspringen", () => {
+    // Ein uebersprungener Lauf waere fuer `deploy.sh` ein gruener Exit-Code OHNE
+    // Sicherung — es rollte dann ohne aus. Ein zweites Tarball kostet nur Platz.
+    expect(befehle).toContain("BACKUP_SPERRE_FRIST_MINUTEN");
+    expect(befehle).toMatch(/while ! sperre_holen/);
+  });
+
+  it("eine verwaiste Sperre wird nach ihrem ALTER uebernommen, nicht nach einer PID", () => {
+    // ⚠️ EINE PID NUETZT HIER NICHTS: die beiden Laeufe sitzen in verschiedenen Containern,
+    // also in verschiedenen PID-Namensraeumen. Ohne die Uebernahme stuende das Backup nach
+    // einem SIGKILL dauerhaft still — und zwar still, bis der Healthcheck nach 26h anspringt.
+    expect(befehle).toContain("BACKUP_SPERRE_ALTER_STUNDEN");
+    expect(befehle).toMatch(/alter.*-gt.*BACKUP_SPERRE_ALTER_STUNDEN \* 3600/);
+  });
+
+  it("ein FEHLGESCHLAGENER Lauf gibt die Sperre trotzdem frei", () => {
+    // ⚠️ `lauf_ungesperrt; ergebnis=$?` waere hier die Falle: unter `set -e` risse das den
+    // ganzen Prozess ab, sobald ein Lauf scheitert — VOR der Freigabe. Die naechste
+    // Sicherung bliebe dann bis zur Altersgrenze ausgesperrt, wegen eines Fehlers, der
+    // schon behoben sein koennte. Das `if` setzt `set -e` fuer den Aufruf aus.
+    expect(befehle).toMatch(/if lauf_ungesperrt; then ergebnis=0; else ergebnis=\$\?; fi/);
+    expect(befehle).toMatch(/trap sperre_ablegen EXIT/);
   });
 });
 
@@ -332,6 +384,8 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
       "BACKUP_RCLONE_KEEP",
       "BACKUP_PING_URL",
       "BACKUP_FRIST_STUNDEN",
+      "BACKUP_SPERRE_FRIST_MINUTEN",
+      "BACKUP_SPERRE_ALTER_STUNDEN",
     ]) {
       expect(envBeispiel, `${name} steht in .env.example`).toContain(name);
     }
