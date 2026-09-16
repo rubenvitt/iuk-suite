@@ -258,8 +258,49 @@ export function aufloesen(quelle: string, ziel: string): string | null {
     if (!VERFOLGT.has(relative(wurzel, pfad))) continue;
     if (zeilen(pfad) !== null) return pfad;
   }
+
+  const eindeutig = EINDEUTIGES_SUFFIX.get(ziel);
+  if (eindeutig !== undefined) return resolve(wurzel, eindeutig);
   return null;
 }
+
+/**
+ * Pfade, die GENAU EINE verfolgte Datei als Suffix bezeichnen —
+ * `_lib/ausleihZugang.ts` → `src/app/m/radio/_lib/ausleihZugang.ts`.
+ *
+ * ⚠️ NUR MEHRSEGMENTIGE PFADE, und die Einschraenkung ist GEMESSEN, nicht
+ * vorsichtshalber (Codex-Review zu PR #183 schlug auch nackte Dateinamen vor).
+ * Ueber alle Suffixe, Dateinamen eingeschlossen, loesen 417 Anker zusaetzlich
+ * auf — und NEUN davon werden rot, von denen mindestens SIEBEN falsch sind.
+ * Fuenf davon sind ausgerechnet `globals.css:277`, also die ALT-ANWENDUNG, um
+ * die es in DRK-192 geht: der Riegel beginge damit genau den Fehlschluss, den
+ * er verhindern soll, und zwar gegen die Stellen, die ihn beschreiben. Zwei
+ * weitere binden `export.ts:69-78` aus `m/radio` an `m/uav/_lib/export.ts` —
+ * ein fremdes Modul, nur weil der Name dort einmalig ist.
+ *
+ * Mit der Einschraenkung auf Pfade (mindestens ein `/`) bleiben +98 Anker und
+ * **ein** roter — und der ist echt: `files/_lib/ip.ts` zeigte auf Zeile 414 der
+ * Freigabe-Detailseite, die seit `97860eb` auf 412 endet. Er stand hier vorher
+ * in `datei:zeile`-Form und faerbte den Riegel an seiner eigenen Begruendung
+ * rot; die Beispiele stehen deshalb ohne sie, siehe `zeilenzahlVon`.
+ *
+ * Das ist dieselbe Trennlinie wie Regel 2 in `CLAUDE.md`: ein PFAD nennt sein
+ * Repository mit, ein nackter DATEINAME ist zwischen Repos mehrdeutig.
+ */
+const EINDEUTIGES_SUFFIX = ((): Map<string, string> => {
+  const zaehler = new Map<string, string | null>();
+  for (const pfad of VERFOLGT) {
+    const teile = pfad.split("/");
+    // Bei `i = teile.length - 1` steht der nackte Dateiname — bewusst ausgelassen.
+    for (let i = 0; i < teile.length - 1; i++) {
+      const suffix = teile.slice(i).join("/");
+      zaehler.set(suffix, zaehler.has(suffix) ? null : pfad);
+    }
+  }
+  const eindeutig = new Map<string, string>();
+  for (const [suffix, pfad] of zaehler) if (pfad !== null) eindeutig.set(suffix, pfad);
+  return eindeutig;
+})();
 
 function sammleDateien(): string[] {
   return [...VERFOLGT].filter((p) => !NICHT_GELESENE_PFADE.some((r) => r.test(p)));
@@ -375,6 +416,31 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
     expect(aufloesen("src/core/kommentaranker.test.ts", fremd)).toBeNull();
     // Und die Gegenrichtung: eine versionierte Datei loest weiterhin auf.
     expect(aufloesen("src/core/kommentaranker.test.ts", "core/registry.ts")).not.toBeNull();
+  });
+
+  /**
+   * DER RUECKFALL UEBER EINDEUTIGE PFAD-SUFFIXE, und vor allem SEINE GRENZE.
+   * Die festen Basen erreichen nicht jedes Ziel: `e2e/files-hosts.spec.ts`
+   * schreibt `_lib/ausleihZugang.ts`, und das liegt unter `src/app/m/radio/`.
+   *
+   * ⚠️ EIN NACKTER DATEINAME BLEIBT AUSSEN VOR, auch wenn er im Repo einmalig
+   * ist — die Begruendung steht an `EINDEUTIGES_SUFFIX`, gemessen an
+   * `globals.css`: der Riegel wuerde sonst die ALT-ANWENDUNG mit der
+   * gleichnamigen Datei hier verwechseln, also genau den Fehlschluss begehen,
+   * gegen den es ihn gibt.
+   */
+  it("loest einen eindeutigen PFAD auf, einen nackten Dateinamen nicht", () => {
+    const von = "e2e/files-hosts.spec.ts";
+
+    expect(aufloesen(von, "_lib/ausleihZugang.ts"))
+      .toMatch(/src\/app\/m\/radio\/_lib\/ausleihZugang\.ts$/);
+
+    // `globals.css` gibt es im Repo genau einmal — und bleibt trotzdem stumm.
+    expect(VERFOLGT.has("src/app/globals.css")).toBe(true);
+    expect(aufloesen(von, "globals.css")).toBeNull();
+
+    // Mehrdeutig heisst ebenfalls stumm: `_db/schema.ts` gibt es in jedem Modul.
+    expect(aufloesen(von, "_db/schema.ts")).toBeNull();
   });
 
   /**
