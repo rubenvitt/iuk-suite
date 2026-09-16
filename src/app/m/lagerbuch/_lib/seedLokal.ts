@@ -28,6 +28,7 @@ import { heuteIso } from "./zeit";
 import { fefoAbbuchungImBereich, type Quelle } from "./schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "./schreibpfade/korrektur";
 import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerung";
+import { bestandJeArtikelAnOrt } from "./lesepfade/bestand";
 import { handlagerOrte } from "./lesepfade/orte";
 import { setzeVerfall, verfallFolgtDemMaterial } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
@@ -865,20 +866,35 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * Luecken nachtragen. Jede bestehende Demo-Datenbank haette die Meldung sonst
    * dauerhaft nicht.
    *
-   * ⚠️ ER DARF DAS AUCH: `uebernimmVerfall` schreibt denselben Wert erneut oder
-   * gar nicht (das fruehere Datum gewinnt), und das Abraeumen greift nur an
-   * einem Ort ohne Bestand — der RTW behaelt Kompressen. Zweimal laufen heisst
-   * hier dasselbe wie einmal laufen.
+   * ⚠️ ABER NUR, SOLANGE WIRKLICH ETWAS IN DER KISTE LIEGT (Codex zu PR #194,
+   * P2 — der Folgebefund zum Herausziehen aus dem Riegel). „Ausserhalb des
+   * Riegels" heisst sonst „bei JEDEM Lauf", und der RTW behaelt seine Meldung
+   * ja. Wer die geseedete Box einraeumt und danach erneut seedet, bekaeme also
+   * eine Meldung fuer eine LEERE Kiste zurueck — der Seed erfaende einen
+   * Zustand, statt einen nachzutragen. „Rein additiv" heisst nicht „egal, was
+   * inzwischen passiert ist".
+   *
+   * ⚠️ DIE PROBE IST DER BESTAND, NICHT DIE BUCHUNG. `journalGebucht` sagt nur,
+   * dass der Vorgang EINMAL stattgefunden hat — genau die Auskunft, die hier
+   * nicht reicht.
+   *
+   * ⚠️ IM UEBRIGEN DARF DER SCHRITT WIEDERHOLT LAUFEN: `uebernimmVerfall`
+   * schreibt denselben Wert erneut oder gar nicht (das fruehere Datum gewinnt),
+   * und das Abraeumen greift nur an einem Ort ohne Bestand — der RTW behaelt
+   * Kompressen.
    *
    * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
    * derselbe Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei
    * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
    * naechsten Griff an diesem Schreibpfad auseinander. */
-  db.transaction((tx) => {
-    verfallFolgtDemMaterial(tx, {
-      vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
+  const inDerBox = bestandJeArtikelAnOrt(db, ENTNAHMEBOX_ID).get(A.kompresse) ?? 0;
+  if (inDerBox > 0) {
+    db.transaction((tx) => {
+      verfallFolgtDemMaterial(tx, {
+        vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
+      });
     });
-  });
+  }
 
   /* 13 ── Geraete: je eine Zeile fuer rot (ueberfaellig), gelb (im Warnfenster),
    *        gruen und GRAU (kein Datum gepflegt → `keinDatum`, kein Fehlalarm). */

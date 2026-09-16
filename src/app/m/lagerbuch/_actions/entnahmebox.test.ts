@@ -869,9 +869,15 @@ describe("raeumeAusEntnahmebox — die gemeldete Verfallsangabe der Box (DRK-377
    * FUER IMMER stehen, weil die Box keinen Verfall-Editor hat. Sie meldete
    * dauerhaft einen Verfall fuer Material, das laengst im Schrank liegt.
    */
+  /*
+   * ⚠️ DIE CHARGE TRAEGT HIER DAS GEMELDETE DATUM. Das ist der einzige Fall, in
+   * dem das Material seinen Verfall wirklich mitnimmt — und damit der einzige,
+   * in dem die Meldung fallen darf. Die Faelle, in denen sie es NICHT tut,
+   * stehen einzeln darunter.
+   */
   beforeEach(() => {
     schrank("sch-1", "Schrank 1");
-    charge("ch-1", "2030-01");
+    charge("ch-1", "2026-10");
     inDerBox("seed-1", "ch-1", 10);
     setzeVerfall(t.db, {
       lagerortId: ENTNAHMEBOX_ID, artikelId: "art-1", verfall: "2026-10",
@@ -895,6 +901,36 @@ describe("raeumeAusEntnahmebox — die gemeldete Verfallsangabe der Box (DRK-377
     );
 
     expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall)).toEqual(["2026-10"]);
+  });
+
+  it("BEHAELT sie, wenn die Charge ein ECHTES, aber ANDERES Datum traegt", async () => {
+    /*
+     * ⚠️ DER FALL, DEN „hat die Charge ueberhaupt ein Datum?" DURCHGELASSEN
+     * HAETTE (Codex zu PR #194, zweiter P1). `korrekturAufLagerort` waehlt beim
+     * Plus-Abgleich IRGENDEINE Charge des Artikels — ohne Ortsfilter,
+     * absteigend nach `verfall`. Die kann 12/30 sagen, waehrend der Check 10/26
+     * gemeldet hat. Ein echtes Datum an der Charge beweist also nichts ueber
+     * DIESES Material, und wer die Meldung darauf hin loescht, laesst das
+     * Handlager bis 12/30 unbedenklich aussehen.
+     *
+     * Die Begruendung steht seit jeher im Modul — an Fassung 3 der
+     * Gegenrichtung. Mein erster Riegel stuetzte sich trotzdem auf genau die
+     * Eigenschaft, die sie als wertlos bezeichnet.
+     */
+    charge("ch-geraten", "2030-12", "art-2");
+    inDerBox("seed-2", "ch-geraten", 5, "art-2");
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-geraten", menge: 5, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    const fuerArt2 = verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2");
+    expect(fuerArt2.map((z) => z.verfall), "10/26 bleibt erhalten").toEqual(["2026-10"]);
   });
 
   it("BEHAELT sie, wenn die bewegte Charge gar kein Datum traegt", async () => {

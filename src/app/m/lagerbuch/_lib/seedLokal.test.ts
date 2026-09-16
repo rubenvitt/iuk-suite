@@ -470,6 +470,35 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     ).toBeGreaterThan(0);
   });
 
+  it("erfindet KEINE Meldung fuer eine leergeraeumte Box", async () => {
+    /*
+     * ⚠️ DIE KEHRSEITE DES NACHTRAGS (Codex zu PR #194, Folgebefund zum P2).
+     * „Ausserhalb des Buchungsriegels" heisst „bei JEDEM Lauf" — und der RTW
+     * behaelt seine Meldung ja. Wer die geseedete Box einraeumt und danach
+     * erneut seedet, bekaeme sonst eine Meldung fuer eine LEERE Kiste zurueck:
+     * der Seed erfaende einen Zustand, statt einen nachzutragen. „Rein additiv"
+     * heisst nicht „egal, was inzwischen passiert ist".
+     */
+    await seedLokalLagerbuch(t.db);
+    // Die Kiste leerraeumen — wie es die Einraeumflaeche tut.
+    for (const b of t.db.select().from(buchungen).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID)) {
+      t.db.insert(buchungen).values({
+        ...b, id: `${b.id}-raus`, menge: -b.menge, referenz: null,
+      }).run();
+    }
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
+      "kein Bestand, keine Meldung",
+    ).toEqual([]);
+  });
+
   it("vergibt feste Codes — einen davon gesperrt", async () => {
     const protokoll = await seedLokalLagerbuch(t.db);
 

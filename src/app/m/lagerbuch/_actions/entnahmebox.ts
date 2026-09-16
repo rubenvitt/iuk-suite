@@ -13,10 +13,11 @@ import {
 } from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR,
-  ENTNAHMEBOX_NAME, ausDieserEinheit, istOhneVerfall,
+  ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
+import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { revalidiereHandlagerBestand } from "../_lib/revalidierung";
 import {
   raeumeVerfallAmLeerenOrt, verfallFolgtDemMaterial,
@@ -779,23 +780,35 @@ export async function raeumeAusEntnahmebox(
            * kuemmern, denn die Box hat KEINEN Verfall-Editor: was hier stehen
            * bleibt, bekommt niemand mehr weg.
            *
-           * ⚠️ ABGERAEUMT WIRD NUR, WENN DAS MATERIAL SEINEN VERFALL SELBST
-           * MITNIMMT — also wenn die bewegte Charge ein ECHTES Datum traegt.
-           * Dann sagt im Handlager die Charge, was zu sagen ist
-           * (`verfallListe` rechnet dort je Charge), und eine
-           * `lagerort_verfall`-Zeile am Schrank waere ein zweiter,
-           * widersprechender Melder fuer dieselbe Packung.
+           * ⚠️ ABGERAEUMT WIRD NUR, WENN DIE BEWEGTE CHARGE GENAU DAS
+           * GEMELDETE DATUM TRAEGT. Dann — und nur dann — nimmt das Material
+           * seinen Verfall wirklich mit: im Handlager sagt die Charge dasselbe,
+           * was die Meldung gesagt hat (`verfallListe` rechnet dort je Charge),
+           * und eine `lagerort_verfall`-Zeile am Schrank waere ein zweiter,
+           * gleichlautender Melder fuer dieselbe Packung.
            *
-           * ⚠️ TRAEGT SIE KEINES, BLEIBT DIE MELDUNG STEHEN (Codex zu PR #194,
-           * P1 — und der Befund deckte eine Luecke in meiner eigenen
-           * Begruendung auf). Genau der Fall, um den dieses Ticket gebaut ist:
-           * kann ein Check den gezaehlten Bestand keiner echten Charge
-           * zuordnen, legt er ihn auf eine Pseudo-Charge mit `PSEUDO_VERFALL`
-           * — die sagt „bis 12/99", also gar nichts. Das einzige echte Datum
-           * steht dann in `lagerort_verfall`. Wer es hier loescht, macht aus
-           * der stillen Falschanzeige einen stillen DATENVERLUST, und zwar am
-           * gefaehrlichsten Ort: im Handlager sieht das Material danach bis
-           * 2099 unbedenklich aus.
+           * ⚠️ „TRAEGT DIE CHARGE UEBERHAUPT EIN DATUM?" REICHT ALS PROBE
+           * NICHT, und diese Fassung hat das erst im zweiten Anlauf richtig
+           * gemacht (Codex zu PR #194, zwei P1 hintereinander). Die
+           * Gegenbegruendung steht seit jeher ein paar hundert Zeilen weiter
+           * oben, an Fassung 3 der Gegenrichtung: `korrekturAufLagerort` waehlt
+           * beim Plus-Abgleich IRGENDEINE Charge des Artikels, ohne Ortsfilter
+           * und absteigend nach `verfall` — die kann 12/30 sagen, waehrend der
+           * Check 10/26 gemeldet hat. Ein echtes Datum an der Charge beweist
+           * also nichts ueber DIESES Material; mein erster Riegel stuetzte sich
+           * auf genau die Eigenschaft, die derselbe Kommentar als wertlos
+           * bezeichnet.
+           *
+           * ⚠️ DER GLEICHHEITSTEST DECKT BEIDE FAELLE ZUGLEICH: eine
+           * Pseudo-Charge (`PSEUDO_VERFALL`) ist nie gleich einem gemeldeten
+           * Monat, und eine geratene echte Charge auch nicht. Wer ihn gegen
+           * „hat ein Datum" zurueckbaut, macht aus der stillen Falschanzeige
+           * einen stillen DATENVERLUST, und zwar am gefaehrlichsten Ort: im
+           * Handlager sieht das Material danach bis zum geratenen Datum
+           * unbedenklich aus.
+           *
+           * ⚠️ OHNE MELDUNG IST NICHTS ZU TUN — der Vergleich ist dann `false`,
+           * und `raeumeVerfallAmLeerenOrt` waere ohnehin ein No-Op.
            *
            * ⚠️ DER PREIS IST BENANNT UND IST DER KLEINERE: die Kiste behaelt
            * eine Meldung, obwohl nichts mehr darin liegt — sichtbar in der
@@ -806,13 +819,9 @@ export async function raeumeAusEntnahmebox(
            * beim Einraeumen RICHTIG geschehen soll, ist eine Betreiberfrage und
            * liegt als DRK-404 auf dem Board — hier steht bewusst der sichere
            * Ausgang, nicht der endgueltige.
-           *
-           * ⚠️ `istOhneVerfall` UND KEIN VERGLEICH AUF DIE KONSTANTE: dieselbe
-           * Probe deckt die Pseudo-Charge des Checks UND eine Charge, deren
-           * Artikel gar kein Verfallsdatum hat. Beide sagen dasselbe — „diese
-           * Charge kann fuer das Material nicht sprechen".
            */
-          if (!istOhneVerfall(charge.verfall)) {
+          const gemeldet = verfallFuerLagerort(tx, ENTNAHMEBOX_ID).get(v.artikelId);
+          if (gemeldet?.verfall === charge.verfall) {
             raeumeVerfallAmLeerenOrt(tx, ENTNAHMEBOX_ID, v.artikelId);
           }
 
