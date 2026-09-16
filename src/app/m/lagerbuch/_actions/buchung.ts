@@ -122,17 +122,35 @@ export async function bucheZugang(
       };
     }
 
-    // INNERE Pfade (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
-    // dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
-    // wirft dabei nicht.
+    /*
+     * INNERE Pfade (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
+     * dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
+     * wirft dabei nicht.
+     *
+     * ⚠️ DIE VIER SIND DIESELBEN, DIE `aussondern` AUSRAEUMT, plus der
+     * Bestellvorschlag. Das ist kein Zufall und keine Vorsicht: die beiden
+     * Actions aendern DIESELBEN zwei Dinge — den Rest je Charge im Handlager
+     * und, nur beim Zugang, die Bestellt-Markierung. Wer hier eine Zeile
+     * streicht, macht aus einer Regel eine Liste, die die naechste Action
+     * vergisst.
+     *
+     * ⚠️ `verfall` GEHOERT DAZU (Codex-Befund P2 zu PR #174). `verfallListe`
+     * ueberspringt jede Charge mit `rest <= 0` (`_lib/lesepfade/verfall.ts`)
+     * und liest den Rest ueber den Handlager-Bereich. Ein Zugang aendert genau
+     * das: eine aufgebrauchte, ablaufende Charge taucht wieder auf, und eine
+     * NEU angelegte mit nahem oder vergangenem Verfall ist eine ganz neue
+     * Zeile. Ohne diese Zeile arbeitet jemand eine zwischengespeicherte
+     * Verfallsliste ab, in der der frische Bestand fehlt.
+     *
+     * ⚠️ `bestellung` GEHOERT DAZU, WEIL EIN ZUGANG `bestelltAt` NULLT.
+     * Andernfalls fuehrt eine zwischengespeicherte Liste den gerade
+     * gelieferten Artikel weiter als „bestellt" — und solange sie das tut,
+     * schlaegt sie ihn nie wieder vor. `markiereBestellt` raeumt denselben
+     * Pfad aus demselben Grund; zwei Schreiber DERSELBEN Spalte duerfen sich
+     * darin nicht unterscheiden.
+     */
+    revalidatePath("/m/lagerbuch/verwaltung/verfall");
     revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    // ⚠️ DER BESTELLVORSCHLAG GEHOERT DAZU, WEIL EIN ZUGANG `bestelltAt` NULLT
-    // (Codex-Befund P2 zu PR #174). Ohne diese Zeile faellt der Client auf eine
-    // zwischengespeicherte Liste zurueck, die den gerade gelieferten Artikel
-    // weiter als „bestellt" fuehrt — und solange er das tut, schlaegt ihn die
-    // Bestellliste nie wieder vor. `markiereBestellt` raeumt denselben Pfad aus
-    // demselben Grund; die beiden Schreiber DERSELBEN Spalte duerfen sich darin
-    // nicht unterscheiden.
     revalidatePath("/m/lagerbuch/verwaltung/bestellung");
     revalidatePath("/m/lagerbuch/verwaltung");
     return { ok: true };
@@ -707,10 +725,12 @@ export async function bucheAuffuellung(
       revalidatePath("/m/lagerbuch/auffuellen");
       revalidatePath(`/m/lagerbuch/a/${v.artikelId}`);
       revalidatePath("/m/lagerbuch/helfer");
+      // ⚠️ DIESELBEN VIER WIE IN `bucheZugang`, und die Begruendung je Pfad
+      // steht dort ausgeschrieben: es ist derselbe Vorgang, nur eine andere
+      // Flaeche davor. Zwei verschiedene Listen fuer eine Buchung liessen die
+      // eine Flaeche Daten zeigen, die die andere gerade geraeumt hat.
+      revalidatePath("/m/lagerbuch/verwaltung/verfall");
       revalidatePath("/m/lagerbuch/verwaltung/artikel");
-      // ⚠️ SIEHE `bucheZugang`: ein Zugang nullt `bestelltAt`, und eine
-      // zwischengespeicherte Bestellliste fuehrte den gelieferten Artikel sonst
-      // weiter als „bestellt".
       revalidatePath("/m/lagerbuch/verwaltung/bestellung");
       revalidatePath("/m/lagerbuch/verwaltung");
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er

@@ -211,6 +211,7 @@ describe("bucheZugang", () => {
      * darin nicht unterscheiden.
      */
     expect(revalidiert).toEqual([
+      "/m/lagerbuch/verwaltung/verfall",
       "/m/lagerbuch/verwaltung/artikel",
       "/m/lagerbuch/verwaltung/bestellung",
       "/m/lagerbuch/verwaltung",
@@ -1216,10 +1217,15 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt).toBeNull();
   });
 
-  /** ⚠️ DIESELBE ZUSAGE WIE BEI `bucheZugang`: beide nullen `bestelltAt`, also
-   *  muessen beide den Bestellvorschlag ausraeumen. Ohne sie faende jemand den
-   *  gerade gelieferten Artikel dort weiter als „bestellt" vor. */
-  it("revalidiert auch den Bestellvorschlag", async () => {
+  /**
+   * ⚠️ DIESELBEN PFADE WIE BEI `bucheZugang` — es ist derselbe Vorgang, nur
+   * eine andere Flaeche davor. Zwei verschiedene Listen fuer eine Buchung
+   * liessen die eine Flaeche Daten zeigen, die die andere gerade geraeumt hat.
+   *
+   * `verfall`: `verfallListe` ueberspringt jede Charge mit `rest <= 0`, und ein
+   * Zugang aendert genau das. `bestellung`: ein Zugang nullt `bestelltAt`.
+   */
+  it("raeumt dieselben Pfade aus wie der Zugang aus der Verwaltung", async () => {
     await bucheAuffuellung(
       {
         artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
@@ -1227,7 +1233,16 @@ describe("bucheAuffuellung (DRK-313)", () => {
       },
       t.db,
     );
-    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/bestellung");
+    expect(revalidiert).toEqual(
+      expect.arrayContaining([
+        "/m/lagerbuch/verwaltung/verfall",
+        "/m/lagerbuch/verwaltung/artikel",
+        "/m/lagerbuch/verwaltung/bestellung",
+        "/m/lagerbuch/verwaltung",
+      ]),
+    );
+    // Und die eigene Flaeche, die sich selbst neu zeichnet.
+    expect(revalidiert).toContain("/m/lagerbuch/auffuellen/art-1");
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
