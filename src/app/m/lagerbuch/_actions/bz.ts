@@ -16,7 +16,7 @@ import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { normalisiereBarcode } from "../_lib/barcode";
 import { MONAT_REGEX } from "../_lib/konstanten";
 import { BEACHTUNG_HINWEIS_MAX } from "../_lib/grenzen";
-import { beachtungsFelder, bewerteKontrolle } from "../_lib/domain/bz";
+import { beachtungsFelder, bewerteKontrolle, bzBeachtung } from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -166,11 +166,29 @@ function revalidate(id: string) {
  * ⚠️ DER HINWEISTEXT STEHT NICHT IM EREIGNIS. Das Protokoll fuehrt Objekte,
  * keine Inhalte — und der Text kann ein Geraet beschreiben, das gerade jemand
  * bemaengelt hat.
+ *
+ * ⚠️ NUR WENN SICH ETWAS AENDERT, und das ist keine Sparsamkeit, sondern
+ * Richtigkeit (Reviewrunde 4). Zwei Personen sehen dasselbe Geraeteblatt; eine
+ * hebt die Beachtung auf, die andere drueckt auf ihrem VERALTETEN Stand
+ * ebenfalls „Aufheben". Ohne diese Zeile schriebe der zweite Klick — der `NULL`
+ * ueber `NULL` legt — ein zweites `delete`, und das Protokoll nennt als
+ * Urheberin die Person, die gar nichts mehr aufgehoben hat. Die Antwort auf
+ * „wer war das?" waere dann falsch, und zwar genau in dem Feld, wegen dessen
+ * dieses Ereignis ueberhaupt existiert.
+ *
+ * Der Datenbank-Trigger macht es fuer seine Zeile schon richtig: sein `WHEN`
+ * vergleicht jede Spalte einzeln, ein UPDATE ohne Wertaenderung feuert ihn
+ * nicht. Das ausdrueckliche Ereignis muss dieselbe Regel selbst mitbringen.
  */
-function protokolliereBeachtung(geraetId: string, gesetzt: boolean): void {
+function protokolliereBeachtung(
+  geraetId: string,
+  vorher: string | null,
+  nachher: string | null,
+): void {
+  if (vorher === nachher) return;
   auditEvent({
     module: "lagerbuch",
-    action: gesetzt ? "update" : "delete",
+    action: nachher === null ? "delete" : "update",
     objectType: "bz_beachtung",
     objectRef: geraetId,
     result: "success",
@@ -440,7 +458,11 @@ export async function kontrolleErfassen(
        * ein Rollback nahm das Protokoll mit, und ein Protokoll, das mit der
        * Sache verschwindet, die es bezeugen soll, ist keins.
        */
-      if (v.beachtung) protokolliereBeachtung(geraet.id, true);
+      // ⚠️ AUCH HIER NUR BEI EINER ECHTEN AENDERUNG: wer „ja" waehlt und
+      // denselben Satz noch einmal schreibt, hat nichts geaendert.
+      if (v.beachtung) {
+        protokolliereBeachtung(geraet.id, bzBeachtung(geraet).hinweis, beachtungsHinweis);
+      }
     } catch {
       return festerFehler("Kontrolle konnte nicht gespeichert werden.");
     }
@@ -485,7 +507,10 @@ export async function beachtungSetzen(
         .set(beachtungsFelder(geraet, hinweis, new Date()))
         .where(eq(bzGeraete.id, geraet.id))
         .run();
-      protokolliereBeachtung(geraet.id, hinweis !== null);
+      // ⚠️ DER STAND VOR DEM SCHREIBEN, getrimmt wie der neue Wert — sonst
+      // verglichen sich „Display flackert" und " Display flackert " als
+      // verschieden und ergaeben ein Ereignis ohne Aenderung.
+      protokolliereBeachtung(geraet.id, bzBeachtung(geraet).hinweis, hinweis);
     } catch {
       return festerFehler("Beachtung konnte nicht gespeichert werden.");
     }

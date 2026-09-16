@@ -767,6 +767,40 @@ describe("beachtungSetzen", () => {
     ]);
   });
 
+  /**
+   * ⚠️ ZWEI PERSONEN AUF DEMSELBEN GERAETEBLATT — Reviewrunde 4. Eine hebt die
+   * Beachtung auf, die andere drueckt auf ihrem VERALTETEN Stand ebenfalls
+   * „Aufheben". Der zweite Klick legt `NULL` ueber `NULL`; schriebe er ein
+   * zweites `delete`, naennte das Protokoll als Urheberin die Person, die gar
+   * nichts mehr aufgehoben hat — falsch genau in dem Feld, wegen dessen dieses
+   * Ereignis existiert.
+   */
+  it("protokolliert ein folgenloses Aufheben NICHT", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    await beachtungSetzen({ geraetId: id, hinweis: "" }, t.db);
+    protokoll.length = 0;
+
+    await beachtungSetzen({ geraetId: id, hinweis: "" }, t.db);
+
+    expect(protokoll).toEqual([]);
+  });
+
+  /** Dieselbe Regel fuer den unveraenderten Text: wer denselben Satz noch
+   *  einmal speichert, hat nichts geaendert. */
+  it("protokolliert ein unveraendertes Umformulieren NICHT", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    protokoll.length = 0;
+
+    // Mit anderen Leerzeichen ringsum — `bzBeachtung` trimmt, es ist derselbe
+    // Hinweis.
+    await beachtungSetzen({ geraetId: id, hinweis: "  Display flackert  " }, t.db);
+
+    expect(protokoll).toEqual([]);
+    expect(geraetZeile(id).beachtungHinweis).toBe("Display flackert");
+  });
+
   it("meldet ein unbekanntes Geraet, ohne etwas zu schreiben", async () => {
     revalidiert.length = 0;
     const vorher = sqliteAenderungen();
@@ -923,6 +957,23 @@ describe("kontrolleErfassen — Beachtung", () => {
    * ⚠️ DIE GEGENPROBE ZUR GESPRAECHSNOTIZ („Nicht jede Bemerkung automatisch
    * als Warnung interpretieren"): ein Kommentar allein loest nichts aus.
    */
+  /** ⚠️ Dieselbe Regel auf dem Kontrollweg (Reviewrunde 4). */
+  it("protokolliert „ja“ mit unveraendertem Hinweis NICHT", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    protokoll.length = 0;
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
+      t.db,
+    );
+
+    expect(protokoll).toEqual([]);
+    // Die Kontrolle selbst ist trotzdem geschrieben — nur das Protokoll zur
+    // Beachtung schweigt, weil sich an ihr nichts geaendert hat.
+    expect(kontrollZeilen()).toHaveLength(1);
+  });
+
   it("macht aus einem blossen Kommentar keine Beachtung", async () => {
     const id = await geraetOhneBereiche();
 
