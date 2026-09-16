@@ -77,7 +77,7 @@ export function umfangText(umfang: Umfang, aufloesung?: ReadonlyMap<string, stri
 
 /**
  * DRK-337 — DIE KENNUNG WIRD GEZEIGT, WENN DER NAME NICHT MEHR AUF DIESEN ORT
- * ZEIGT (vierter und fuenfter Codex-Befund).
+ * ZEIGT (vierter bis siebter Codex-Befund).
  *
  * ⚠️ DIE PRUEFUNG IST NICHT „gibt es den Namen doppelt?", SONDERN „loest er
  * heute auf GENAU DIESEN Ort auf?" — und der Unterschied ist ein ganzer Fall:
@@ -98,8 +98,36 @@ function ortText(
 ): string {
   const zeigeKennung = umfang.ortId !== null && umfang.ort !== null
     && aufloesung !== undefined && aufloesung.get(umfang.ort) !== umfang.ortId;
-  return zeigeKennung ? `${umfang.ort} (${umfang.ortId})` : `${umfang.ort}`;
+  return zeigeKennung
+    ? freieBeschriftung(`${umfang.ort}`, umfang.ortId!, aufloesung!)
+    : `${umfang.ort}`;
 }
+
+/**
+ * DRK-337, SIEBTER CODEX-BEFUND — EINE ERZEUGTE BESCHRIFTUNG DARF NICHT WIE
+ * EIN ECHTER ORTSNAME AUSSEHEN.
+ *
+ * ⚠️ DER FALL, DEN ZWEI SCHRAENKE UND EIN DRITTER ERZEUGEN: heissen `a` und `b`
+ * beide „X" und heisst `c` woertlich „X (a)", dann erzeugt der Lauf von `a`
+ * genau „X (a)" — und der Lauf von `c` traegt denselben Text ROH, weil sein
+ * Name eindeutig auf ihn aufloest. Zwei verschiedene Orte, ein Text.
+ *
+ * ⚠️ HIER WIRD NICHT NACHGEBESSERT, BIS ES PASST, SONDERN BEWIESEN. Angehaengt
+ * wird so lange, bis die Zeichenkette KEIN heutiger Ortsname mehr ist. Das
+ * terminiert (endlich viele Namen, jeder Schritt verlaengert) und ist damit von
+ * JEDER rohen Anzeige verschieden — denn roh zeigt nur, wessen Name heute
+ * eindeutig auf ihn aufloest, und der steht als Schluessel in der Karte.
+ * Verschiedene Laeufe bleiben ebenfalls verschieden: der ERSTE angehaengte Teil
+ * ist die eigene Kennung, und die gibt es nur einmal.
+ */
+function freieBeschriftung(
+  name: string, ortId: string, aufloesung: ReadonlyMap<string, string | null>,
+): string {
+  let kandidat = `${name} (${ortId})`;
+  while (aufloesung.has(kandidat)) kandidat = `${kandidat} (${ortId})`;
+  return kandidat;
+}
+
 function zaehlungen(db: Leser, ids: string[]): Map<string, { positionen: number; abweichungen: number }> {
   if (ids.length === 0) return new Map();
   const rows = db.select({

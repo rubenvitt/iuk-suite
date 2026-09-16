@@ -236,6 +236,42 @@ describe("inventurLauf", () => {
   });
 
   /**
+   * DRK-337, siebter Codex-Befund — EINE ERZEUGTE BESCHRIFTUNG DARF NICHT WIE
+   * EIN ECHTER ORTSNAME AUSSEHEN. Heissen `a` und `b` beide „X" und heisst `c`
+   * woertlich „X (a)", dann erzeugt der Lauf von `a` genau „X (a)" — und der
+   * Lauf von `c` traegt denselben Text ROH, weil sein Name eindeutig auf ihn
+   * zeigt. Zwei verschiedene Orte, ein Text.
+   */
+  it("weicht aus, wenn die erzeugte Beschriftung ein echter Ortsname ist", () => {
+    const aufloesung = new Map([["X", null], ["X (a)", "c"]]);
+    const laufVonA = umfangText({ kategorien: [], faecher: [], ort: "X", ortId: "a" }, aufloesung);
+    const laufVonC = umfangText({ kategorien: [], faecher: [], ort: "X (a)", ortId: "c" }, aufloesung);
+    expect(laufVonC).toBe("Ort X (a)");
+    expect(laufVonA).not.toBe(laufVonC);
+    expect(laufVonA).toBe("Ort X (a) (a)");
+  });
+
+  /**
+   * Die Zusicherung, die fuer JEDE Lage gilt: zwei Laeufe an VERSCHIEDENEN
+   * Orten lesen sich nie gleich. Geprueft an boesartigen Aufloesungen, nicht an
+   * einer Beispielausgabe.
+   */
+  it.each([
+    [new Map([["X", null], ["X (a)", "c"]])],
+    [new Map([["X", null], ["X (a)", "c"], ["X (a) (a)", "d"]])],
+    [new Map([["X", "b"]])],
+    [new Map<string, string | null>()],
+  ])("haelt Laeufe verschiedener Orte fuer %# auseinander", (aufloesung) => {
+    const laeufe = [
+      { kategorien: [], faecher: [], ort: "X", ortId: "a" },
+      { kategorien: [], faecher: [], ort: "X", ortId: "b" },
+      { kategorien: [], faecher: [], ort: "X (a)", ortId: "c" },
+    ];
+    const texte = laeufe.map((u) => umfangText(u, aufloesung));
+    expect(new Set(texte).size).toBe(laeufe.length);
+  });
+
+  /**
    * ⚠️ EIN LAUF VON VOR DIESEM TICKET HAT KEINE KENNUNG. Auch wenn sein Name
    * heute mehrdeutig ist, bleibt es beim Namen — die Identitaet stand damals
    * nicht dabei, und der Verlauf kennt kein UPDATE. Eine erfundene Kennung
