@@ -1,5 +1,5 @@
 "use server";
-import { withAuditContext, auditAccessActor } from "@/core/audit/server";
+import { withAuditContext } from "@/core/audit/server";
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
@@ -9,6 +9,7 @@ import {
   checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, newId,
 } from "../_db/schema";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
+import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 import { MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
@@ -93,7 +94,7 @@ export async function checkAbschluss(
   // nicht durch eine Liste, die die naechste Action vergisst.
   const riegel = await requireHelferSchreibend(db);
   if (!riegel.ok) return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
-  return withAuditContext({ actor: auditAccessActor("lagerbuch", riegel.zugang.tokenId) }, async (): Promise<HelferErgebnis<CheckAbschlussWert>> => {
+  return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<CheckAbschlussWert>> => {
 
     // ⚠️ ANSATZPUNKT 2 VON 2 fuer eine spaetere Durchsetzung von
     // `tokens.scope_lagerort_id` als RIEGEL (offene Betreiberfrage 5, §7.9.1).
@@ -163,8 +164,18 @@ export async function checkAbschluss(
       };
     }
 
-    const code = riegel.zugang.code;   // der CODE, nicht die Token-Kennung: das
-                                       // Journal zeigt ihn als Klarnamen (_db/quelle.ts)
+    /*
+     * DIE QUELLE JEDER BUCHUNG DIESES CHECKS — DRK-305.
+     *
+     * Beim Kärtchen ist das der CODE, nicht die Token-Kennung: das Journal
+     * zeigt ihn als Klarnamen an (`_db/quelle.ts`). Beim angemeldeten Konto ist
+     * es der OIDC-`sub` mit `quelleTyp: "oidc"` — dieselbe Form, die die
+     * Verwaltungs-Actions seit jeher schreiben. Die Fallunterscheidung steht
+     * EINMAL in `_lib/zugangHerkunft.ts`; ein zweites `"token" as const` hier
+     * schriebe eine OIDC-Kennung in die Token-Spalte, und die Zeile ist
+     * append-only.
+     */
+    const quelle = journalQuelle(riegel.zugang);
     const checkId = newId();
     let nachgefuellt = 0;              // TATSAECHLICH umgelagert, nach Handlager-Kappung
     let nachfuellBestaetigt = 0;       // was der Helfer bestaetigt hat (§7.9.4, NEU)
@@ -181,7 +192,6 @@ export async function checkAbschluss(
         .where(eq(sollPositionen.fahrzeugId, v.fahrzeugId)).all()
         .filter((s) => !s.entfernt);
       const byId = new Map(sollRows.map((s) => [s.id, s]));
-      const quelle = { quelleTyp: "token" as const, quelleId: code };
       const referenz = `check:${checkId}`;
 
       type Gruppe = {
@@ -263,7 +273,7 @@ export async function checkAbschluss(
         if (!f) throw new Error("Flasche gehört nicht zu diesem Fahrzeug");   // WURF 3
         tx.insert(o2Messungen).values({
           id: newId(), flascheId: e.flascheId, ts: new Date(), druckBar: e.druckBar,
-          quelleTyp: "token", quelleId: code, kommentar: `Fahrzeug-Check ${referenz}`,
+          ...quelle, kommentar: `Fahrzeug-Check ${referenz}`,
         }).run();
 
         // §5.12, §7.9.4 (NEU): eine Flasche OHNE bekannten Nennfuelldruck ist
@@ -324,7 +334,7 @@ export async function checkAbschluss(
       verfallAuffaellig = verfallErgebnis.filter((e) => e.ampel !== "gruen").length;
 
       tx.insert(checks).values({
-        id: checkId, fahrzeugId: v.fahrzeugId, quelleTyp: "token", quelleId: code,
+        id: checkId, fahrzeugId: v.fahrzeugId, ...quelle,
         startedAt: new Date(), completedAt: new Date(),
         // ⚠️ `version: 2` wird ab jetzt AUSGESCHRIEBEN. Der Bestand schreibt das
         // Objekt ohne Diskriminator; `parseCheckErgebnis` (Teil 3, T37) erkennt

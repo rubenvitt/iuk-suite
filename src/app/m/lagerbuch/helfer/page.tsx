@@ -1,4 +1,5 @@
 import { requireHelferSitzung } from "../_lib/helferZugang";
+import { sitzungsEtikett } from "../_lib/zugangHerkunft";
 import { artikelListe } from "../_lib/lesepfade/artikel";
 import { getDb } from "../_db/client";
 import { HelferRahmen } from "../_ui/HelferRahmen";
@@ -50,7 +51,7 @@ export default async function HelferSeite() {
   return (
     <HelferRahmen
       aktiv="entnahme"
-      sitzungsetikett={`Zugang: Token ${zugang.code} · ${zugang.label}`}
+      sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
     >
       <div className={s.schirmKopf}>Artikel wählen</div>

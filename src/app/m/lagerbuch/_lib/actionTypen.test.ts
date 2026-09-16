@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   RIEGEL_TEXTE, leerText, NETZ_TEXT_BUCHUNG, NETZ_TEXT_CHECK, darfErneuern,
+  ANMELDUNG_TEXT, darfKaertchenErneuern,
   type HelferErgebnis, type HelferGrund,
 } from "./actionTypen";
 
@@ -151,5 +152,41 @@ describe("Bauform", () => {
     // dotAll-Flag ("s") braucht ES2018+ und liesse `pnpm typecheck` rot
     // zurueck (TS1501) — semantisch identisch, ueber Zeilenumbrueche hinweg.
     expect(readFileSync(QUELLE, "utf8")).toMatch(/netz[\s\S]*nie serverseitig|nie serverseitig[\s\S]*netz/i);
+  });
+});
+
+describe("darfKaertchenErneuern — DRK-305", () => {
+  it("Kärtchen + `sitzung` → ja; alles andere → nein", () => {
+    expect(darfKaertchenErneuern("sitzung", false)).toBe(true);
+    expect(darfKaertchenErneuern("gesperrt", false)).toBe(false);
+    expect(darfKaertchenErneuern("eingabe", false)).toBe(false);
+    expect(darfKaertchenErneuern("netz", false)).toBe(false);
+    expect(darfKaertchenErneuern("leer", false)).toBe(false);
+  });
+
+  it("KONTO schließt die Erneuerung für JEDEN Grund aus", () => {
+    /*
+     * ⚠️ Auch für `sitzung`, und das ist der ganze Punkt: dort und nur dort
+     * wäre `darfErneuern` allein `true` — und böte ein Code-Feld für ein
+     * Kärtchen an, das eine angemeldete Person nie hatte.
+     */
+    for (const g of ["sitzung", "gesperrt", "eingabe", "netz", "leer"] as const) {
+      expect(darfKaertchenErneuern(g, true), g).toBe(false);
+    }
+  });
+
+  it("lässt `darfErneuern` unverändert — es beantwortet weiter nur den GRUND", () => {
+    // Die zweite Hälfte („gibt es überhaupt ein Kärtchen") ist bewusst eine
+    // eigene Funktion: `darfErneuern` steht auch dort, wo keine Herkunft
+    // vorliegt.
+    expect(darfErneuern("sitzung")).toBe(true);
+    expect(darfErneuern("gesperrt")).toBe(false);
+  });
+
+  it("der Anmelde-Satz nennt kein Kärtchen und verlangt einen NEUEN Tab", () => {
+    expect(ANMELDUNG_TEXT).not.toContain("Kärtchen");
+    expect(ANMELDUNG_TEXT).toContain("neuen Tab");
+    // Gegenprobe: der Kärtchen-Satz tut genau das Gegenteil.
+    expect(RIEGEL_TEXTE.sitzung).toContain("Kärtchen");
   });
 });

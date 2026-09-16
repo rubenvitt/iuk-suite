@@ -1,5 +1,4 @@
 "use server";
-import { auditAccessActor } from "@/core/audit/server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { z } from "zod";
@@ -10,9 +9,10 @@ import { artikel, buchungen, chargen, lagerorte, newId } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
+import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerkunft";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
-import { handlagerOrte } from "../_lib/lesepfade/orte";
+import { handlagerOrte, ortStamm } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
@@ -22,16 +22,16 @@ import {
 import { cookies } from "next/headers";
 
 /**
- * DIE DREI BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
+ * DIE VIER BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
  *
- * `bucheZugang` und `bucheEntnahme` bedienen den `ArtikelDrawer` (Teil 5),
- * `bucheEntnahmeHelfer` bedient `/a/[artikelId]` (Teil 4). Sie teilen sich
- * `fefoAbbuchung` und dieselbe Zod-Basis; zwei Dateien fuer einen
- * Buchungsvorgang waeren zwei Orte fuer dieselbe Invariante. TEIL 4 LEGT KEINE
- * ZWEITE DATEI AN.
+ * `bucheZugang`, `bucheEntnahme` und `bucheUmlagerung` (DRK-338) bedienen den
+ * `ArtikelDrawer` (Teil 5), `bucheEntnahmeHelfer` bedient `/a/[artikelId]`
+ * (Teil 4). Sie teilen sich `fefoAbbuchung` und dieselbe Zod-Basis; zwei
+ * Dateien fuer einen Buchungsvorgang waeren zwei Orte fuer dieselbe
+ * Invariante. TEIL 4 LEGT KEINE ZWEITE DATEI AN.
  *
- * Der Riegel ist NICHT ueberall derselbe: die ersten beiden rufen
- * `requireLagerbuchAdmin()`, die dritte `requireHelferSchreibend(db)`. Beide
+ * Der Riegel ist NICHT ueberall derselbe: die ersten drei rufen
+ * `requireLagerbuchAdmin()`, die vierte `requireHelferSchreibend(db)`. Beide
  * stehen als erste Anweisung; `_actions/guards.test.ts` (Teil 2) akzeptiert
  * genau diese zwei Formen.
  *
@@ -266,6 +266,164 @@ export async function bucheEntnahme(
   });
 }
 
+/**
+ * DRK-338 — DIE UMLAGERUNG ZWISCHEN ZWEI ORTEN DES HANDLAGERS.
+ *
+ * ⚠️ DIE CHARGE IST PFLICHT, UND DAS IST DER KERN DES TICKETS. FEFO ist eine
+ * ENTNAHME-Regel; beim Umraeumen gilt sie nicht. Wer eine Charge aus Schrank 1
+ * in den GF-Schrank traegt, traegt DIESE — nicht die aelteste. Liesse man FEFO
+ * waehlen, stuende im Journal eine andere Charge als die physisch gewanderte,
+ * und zwar STILL: Netto bleibt null, der Handlager-Bestand stimmt, nur die
+ * Ortsangabe je Charge ist falsch. Das Journal ist append-only; heilbar waere
+ * das nicht mehr.
+ *
+ * ⚠️ BEIDE ENDEN LIEGEN IM HANDLAGER-BEREICH (Wurzel plus Schraenke) — die
+ * Zusage „die Summe ueber den Handlager aendert sich nicht" ist damit durch
+ * KONSTRUKTION wahr und nicht durch eine Pruefung, die der naechste Umbau
+ * vergisst. Ein Fahrzeug ist hier weder Quelle noch Ziel: Material ans
+ * Fahrzeug geht ueber `bucheEntnahme` mit Ziel-Fahrzeug, zurueck kommt es
+ * heute ueber den Fahrzeug-Check. Fahrzeug -> Schrank ist eine eigene
+ * fachliche Entscheidung und steht als DRK-366 auf dem Board.
+ *
+ * ⚠️ DIE QUELLE DARF STILLGELEGT SEIN, DAS ZIEL NICHT. Genau deshalb legt man
+ * einen Schrank still: um ihn auszuraeumen. Ein stillgelegter Ort als ZIEL
+ * waere dagegen ein Widerspruch zur Zugangsauswahl, die ihn nicht mehr
+ * anbietet.
+ */
+const UmlagerungSchema = z
+  .object({
+    artikelId: z.string().min(1),
+    chargeId: z.string().min(1),
+    vonLagerortId: z.string().min(1),
+    nachLagerortId: z.string().min(1),
+    menge: z.coerce.number().int().positive("Menge muss größer als 0 sein"),
+    kommentar: z.string().trim().optional(),
+  })
+  .refine((v) => v.vonLagerortId !== v.nachLagerortId, {
+    message: "Quelle und Ziel müssen verschieden sein",
+    path: ["nachLagerortId"],
+  });
+
+/**
+ * Das Praefix der manuellen Umlagerung. Es nennt das ZIEL — wie
+ * `entnahme-ziel:` und aus demselben Grund: die Klammer zwischen den beiden
+ * Legs braucht einen gemeinsamen Wert, und das Ziel ist der, der die beiden
+ * Zeilen im Journal zusammenliest.
+ *
+ * ⚠️ ES BEKOMMT KEINEN EIGENEN VORGANGSTEXT (`_lib/vorgang.ts`, Tabelle):
+ * „Umlagerung" ist bereits wahr und vollstaendig. Wo das Material herkommt und
+ * hingeht, steht seit DRK-338 in der Spalte „Ort" — und ein Ort gehoert in eine
+ * Spalte, nicht in ein Etikett.
+ *
+ * ⚠️ NICHT EXPORTIERT, und das ist kein Versehen: diese Datei traegt
+ * `"use server"`, dort ist JEDER Export eine Action. Eine exportierte Konstante
+ * ist ein Fehler, den erst die Laufzeit meldet — `guards.test.ts` faengt ihn
+ * vorher ab. `entnahme-ziel:` steht aus demselben Grund als Literal daneben.
+ */
+const UMLAGERUNG_PRAEFIX = "umlagerung:";
+
+export async function bucheUmlagerung(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ umgelagert: number }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ umgelagert: number }>> => {
+
+    const geparst = UmlagerungSchema.safeParse(eingabe);
+    if (!geparst.success) {
+      const feldFehler = zodFehler(geparst.error);
+      return {
+        ok: false,
+        fehler: "Bitte die markierten Felder prüfen.",
+        ...(feldFehler ? { feldFehler } : {}),
+      };
+    }
+    const v = geparst.data;
+
+    const quelle = { quelleTyp: "oidc" as const, quelleId: viewer.sub };
+    let umgelagert = 0;
+
+    try {
+      db.transaction((tx) => {
+        /*
+         * I5 — DIE CHARGE MUSS ZU DIESEM ARTIKEL GEHOEREN. Dieselbe Pruefung
+         * wie in `bucheZugang`, aus demselben Grund: eine manipulierte Anfrage
+         * buchte sonst gegen den Bestand eines anderen Artikels.
+         */
+        const charge = tx.select().from(chargen).where(eq(chargen.id, v.chargeId)).get();
+        if (!charge || charge.artikelId !== v.artikelId) {
+          throw new Error("Charge gehört nicht zu diesem Artikel");
+        }
+
+        /*
+         * BEIDE ENDEN IM HANDLAGER-BEREICH. Ohne diese Pruefung entschiede der
+         * Fremdschluessel — und der laesst ein FAHRZEUG klaglos durch, weil es
+         * eine gueltige `lagerorte.id` ist. Aus einer Umlagerung im Handlager
+         * wuerde dann still eine Fahrzeugbuchung, und die Handlager-Summe
+         * aenderte sich doch.
+         */
+        const bereich = new Set(handlagerOrte(tx));
+        if (!bereich.has(v.vonLagerortId) || !bereich.has(v.nachLagerortId)) {
+          throw new Error("Umlagern geht nur zwischen Orten des Handlagers");
+        }
+        const stamm = ortStamm(tx);
+        if (!stamm.get(v.nachLagerortId)?.aktiv) {
+          throw new Error("Das Ziel ist stillgelegt und nimmt kein Material mehr auf");
+        }
+
+        umgelagert = umlagerung(tx, {
+          artikelId: v.artikelId,
+          menge: v.menge,
+          // EINELEMENTIG: genau dieser Ort, nicht sein Teilbaum. Ein Bereich
+          // holte sich die fehlende Menge still aus dem Nachbarschrank.
+          vonOrten: [v.vonLagerortId],
+          nachLagerortId: v.nachLagerortId,
+          chargeId: v.chargeId,
+          quelle,
+          kommentar: v.kommentar ?? null,
+          referenz: `${UMLAGERUNG_PRAEFIX}${v.nachLagerortId}`,
+        }).umgelagert;
+
+        /*
+         * ⚠️ EINE TEILWEISE UMLAGERUNG WIRD ZURUECKGEROLLT, und das ist der
+         * Unterschied zur Entnahme. Eine Entnahme darf kappen — was nicht da
+         * ist, kann nicht entnommen werden, und der Rest ist eben null. Eine
+         * Umlagerung, die kappt, behauptet dagegen etwas ueber die WIRKLICHKEIT:
+         * die Person hat 5 Stueck getragen, gebucht waeren 3, und die
+         * verbleibenden 2 stuenden weiter im alten Schrank. Der Buchstand waere
+         * danach an BEIDEN Orten falsch, und niemand bekaeme es gesagt.
+         *
+         * `umgelagert` ist in diesem Fall genau der vorhandene Rest — eine
+         * zweite Abfrage dafuer braucht es nicht.
+         */
+        if (umgelagert < v.menge) {
+          const ortName = stamm.get(v.vonLagerortId)?.name ?? "diesem Ort";
+          // Die EINHEIT des Artikels, nicht ein festes „Stück": das Modul
+          // fuehrt sie als freien Text („Stk.", „Pkg.", „Paar"), und ein
+          // erfundenes Wort in einer Fehlermeldung ist genau die Stelle, an
+          // der jemand zu zaehlen anfaengt.
+          const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
+            .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
+          throw new Error(
+            `In „${ortName}“ liegen nur ${umgelagert} ${einheit}`.trimEnd()
+            + " dieser Charge. Es wurde nichts gebucht — bitte die Menge prüfen "
+            + "oder eine Inventur erfassen.",
+          );
+        }
+      });
+    } catch (e) {
+      return {
+        ok: false,
+        fehler: e instanceof Error ? e.message : "Umlagerung konnte nicht gebucht werden.",
+      };
+    }
+
+    revalidatePath("/m/lagerbuch/verwaltung/artikel");
+    revalidatePath("/m/lagerbuch/verwaltung");
+    return { ok: true, wert: { umgelagert } };
+  });
+}
+
 const HelferEntnahmeSchema = z.object({
   artikelId: z.string().min(1),
   menge: z.coerce.number().int().positive(),
@@ -303,7 +461,7 @@ export async function bucheEntnahmeHelfer(
     // (`darfErneuern`, _lib/actionTypen.ts).
     return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
   }
-  return withAuditContext({ actor: auditAccessActor("lagerbuch", riegel.zugang.tokenId) }, async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
+  return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
 
     const geparst = HelferEntnahmeSchema.safeParse(eingabe);
     if (!geparst.success) {
@@ -354,7 +512,7 @@ export async function bucheEntnahmeHelfer(
     const ziel: EntnahmeZiel = v.ziel;
     const gemerkt = zielAusWert(
       (await cookies()).get(ZIEL_COOKIE)?.value,
-      riegel.zugang.tokenId,
+      zugangsKennung(riegel.zugang),
     );
     if (!gemerkt || !gleichesZiel(gemerkt, ziel)) {
       return { ok: false, grund: "eingabe", text: ZIEL_VERALTET_TEXT };
@@ -373,7 +531,7 @@ export async function bucheEntnahmeHelfer(
 
     let gebucht = 0;
     db.transaction((tx) => {
-      const quelle = { quelleTyp: "token" as const, quelleId: riegel.zugang.code };
+      const quelle = journalQuelle(riegel.zugang);
       gebucht =
         ziel.art === "fahrzeug"
           ? /*

@@ -105,10 +105,20 @@ let t: TestDb;
 const ZUGANG_OK = {
   ok: true,
   zugang: {
+    /*
+     * DRK-305: `herkunft` ist der Diskriminator, aus dem `journalQuelle`,
+     * `zugangsKennung` und `zugangsAkteur` ihre Antwort ziehen
+     * (`_lib/zugangHerkunft.ts`). Eine Attrappe OHNE das Feld schreibt still
+     * `quelleTyp: "oidc"` mit `quelleId: undefined` — die Action liefe durch,
+     * und die gepruefte Journalzeile truege eine Quelle, die auf nichts
+     * aufloest.
+     */
+    herkunft: "token" as const,
     tokenId: "tk1",
     code: "482-137",
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
+    fahrzeugBindung: null,
   },
 };
 
@@ -760,3 +770,83 @@ describe("Bauform", () => {
     expect(readFileSync(QUELLE, "utf8")).toMatch(/scope_lagerort_id/);
   });
 });
+
+/**
+ * DRK-305 — DER FAHRZEUG-CHECK AUS EINEM ANGEMELDETEN KONTO.
+ *
+ * Die fachliche Rechnung ist dieselbe und wird oben geprüft. Hier geht es
+ * ausschließlich um die HERKUNFT: drei Schreibstellen (`checks`, `buchungen`,
+ * `o2_messungen`) und das Zugriffsprotokoll. Jede vergessene
+ * Fallunterscheidung schriebe eine append-only-Zeile, die dauerhaft auf nichts
+ * auflöst — und keine davon meldet sich.
+ */
+describe("DRK-305 — der angemeldete Check schreibt als PERSON", () => {
+  beforeEach(() => {
+    riegel.mockResolvedValue({
+      ok: true,
+      zugang: {
+        herkunft: "konto" as const,
+        sub: "sub-42",
+        name: "A. Verwaltung",
+        laeuftAb: null,
+        fahrzeugBindung: null,
+      },
+    });
+  });
+
+  it("die checks-Zeile trägt quelleTyp oidc mit dem SUB", async () => {
+    const r = await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
+    expect(r.ok).toBe(true);
+    const zeilen = t.db.select().from(checks).all();
+    expect(zeilen).toHaveLength(1);
+    expect(zeilen[0].quelleTyp).toBe("oidc");
+    expect(zeilen[0].quelleId).toBe("sub-42");
+  });
+
+  it("die BUCHUNGEN des Abgleichs tragen dieselbe Quelle", async () => {
+    // Nicht nur die Kopfzeile: Korrektur und Nachfüllung schreiben eigene
+    // Zeilen, und die Quelle wird ihnen als Objekt durchgereicht.
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1",
+      ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 2, nachfuellMenge: 3 }],
+    }, t.db);
+    expect(r.ok).toBe(true);
+    const gebucht = t.db.select().from(buchungen).all().filter((b) => b.quelleId !== "seed");
+    expect(gebucht.length).toBeGreaterThan(0);
+    for (const b of gebucht) {
+      expect(b.quelleTyp).toBe("oidc");
+      expect(b.quelleId).toBe("sub-42");
+    }
+  });
+
+  it("die O2-Messung trägt dieselbe Quelle", async () => {
+    await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer, flaschen: [{ flascheId: "o-1", druckBar: 180 }],
+    }, t.db);
+    const m = t.db.select().from(o2Messungen).all();
+    expect(m).toHaveLength(1);
+    expect(m[0].quelleTyp).toBe("oidc");
+    expect(m[0].quelleId).toBe("sub-42");
+  });
+
+  it("das Zugriffsprotokoll nennt die PERSON, nicht einen gemeinsamen Code", async () => {
+    t.sqlite.exec("DELETE FROM audit_outbox");
+    expect((await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db)).ok).toBe(true);
+    const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox").all() as { actor: string }[];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(JSON.parse(row.actor)).toEqual({ kind: "user", id: "sub-42", name: "A. Verwaltung" });
+    }
+  });
+
+  it("ein stillgelegtes Fahrzeug bleibt auch angemeldet gesperrt", async () => {
+    // Riegel 5 hängt am FAHRZEUG, nicht an der Herkunft. „Mehr Freiheiten"
+    // heißt freie Fahrzeugwahl, nicht ein zweiter Weg an den Prüfungen vorbei.
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    const r = await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
+    expect(r.ok).toBe(false);
+    expect(t.db.select().from(checks).all()).toEqual([]);
+  });
+});
+
