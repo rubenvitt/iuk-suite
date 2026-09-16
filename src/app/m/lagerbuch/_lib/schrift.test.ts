@@ -169,7 +169,7 @@ function schriftgroesze(deklaration: CssDeclaration): string | undefined {
  * ⚠️ HIER STAND AUCH `.ant-select-selector`, UND DAS WAR EIN TOTER ZWEIG
  * (DRK-190): antd 6 rendert die Klasse nicht mehr, der Scan konnte sie also nie
  * treffen. Es kommt KEINE antd-Klasse an ihre Stelle — die Auswahl haengt
- * suiteweit an Tokens (`Select.fontSize`/`fontHeight`, `core/theme/theme.ts`),
+ * suiteweit an Tokens (`Select.fontSize`/`lineHeight`, `core/theme/theme.ts`),
  * und dass in eigenem CSS keine Schriftgroesze auf einer antd-Auswahlklasse
  * landet, haelt `core/theme/feldschrift.test.ts` fuer das ganze Repo fest.
  * Zwei Scans auf dieselbe Sache waeren einer zu viel, und der hier ist der

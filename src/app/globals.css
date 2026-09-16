@@ -228,7 +228,7 @@ select {
  * ueber Monate auf 14px, waehrend das Eingabefeld daneben auf 16px stand.
  *
  * Nichts ersetzt sie an dieser Stelle: die Auswahl laeuft seit DRK-190 ueber
- * `Select.fontSize`/`fontHeight` in `core/theme/theme.ts`, wie alles andere aus
+ * `Select.fontSize`/`lineHeight` in `core/theme/theme.ts`, wie alles andere aus
  * antd auch (`inputFontSize`). Ein Token ist hier nicht nur der sauberere Weg,
  * sondern der einzige, der nicht still brechen kann: ein Klassenname ist antds
  * Innenleben, ein Token ist seine Schnittstelle. `core/theme/feldschrift.test.ts`

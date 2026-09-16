@@ -31,7 +31,7 @@ import { buildTheme } from "./theme";
  * NICHT IHRE WIRKUNG — und hielt damit jeden davon ab, sie zu hinterfragen.
  * Gemessen im echten Chromium: das geschlossene Auswahlfeld stand auf 14px,
  * das `Input` daneben auf 16px. Die Auswahl laeuft seither ueber Tokens
- * (`Select.fontSize`/`fontHeight`, siehe theme.ts), weil ein Klassenname antds
+ * (`Select.fontSize`/`lineHeight`, siehe theme.ts), weil ein Klassenname antds
  * Innenleben ist und ein Token seine Schnittstelle.
  */
 
