@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
-import { bestandJeArtikel } from "../_lib/lesepfade/bestand";
+import { bestandJeArtikelImBereich } from "../_lib/lesepfade/bestand";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
@@ -262,7 +262,7 @@ describe("setSchrankAktiv", () => {
     await setSchrankAktiv({ id: "schrank-1", aktiv: false }, t.db);
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, "schrank-1")).get()?.aktiv)
       .toBe(false);
-    expect(bestandJeArtikel(t.db, handlagerOrte(t.db)).get(ARTIKEL_A)).toBe(12);
+    expect(bestandJeArtikelImBereich(t.db, handlagerOrte(t.db)).get(ARTIKEL_A)).toBe(12);
     expect(revalidiert).toEqual([LAGERORTE_PFAD, ARTIKEL_PFAD]);
   });
 

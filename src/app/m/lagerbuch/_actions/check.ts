@@ -16,7 +16,7 @@ import {
   dieseEinheit, grossAmAnfang,
 } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
-import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { umlagerungAusBereich } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
@@ -43,7 +43,7 @@ const CheckSchema = z.object({
     sollPositionId: z.string().min(1),
     ist: z.coerce.number().int().min(0),
     // Vom Helfer im Nachfuell-Schritt bestaetigte Menge. Serverseitig pro
-    // Position auf max(0, Soll − Ist) geklemmt und ueber `umlagerung()` an der
+    // Position auf max(0, Soll − Ist) geklemmt und ueber die Umlagerung an der
     // Handlager-Verfuegbarkeit gekappt.
     nachfuellMenge: z.coerce.number().int().min(0),
   })).default([]),
@@ -69,7 +69,7 @@ const CheckSchema = z.object({
 
 export type CheckAbschlussWert = {
   checkId: string;
-  /** TATSAECHLICH umgelagert — nach der stillen Kappung in `umlagerung()`. */
+  /** TATSAECHLICH umgelagert — nach der stillen Kappung in der Umlagerung. */
   nachgefuellt: number;
   /** Was der Helfer bestaetigt hat und in der Hand haelt (§7.9.4, NEU). */
   nachfuellBestaetigt: number;
@@ -254,9 +254,9 @@ export async function checkAbschluss(
         });
         const recordedVorher = g.istSumme - korrektur;
         const nachfuellGebucht = g.nachfuellGewuenscht > 0
-          ? umlagerung(tx, {
+          ? umlagerungAusBereich(tx, {
               artikelId: g.artikelId, menge: g.nachfuellGewuenscht,
-              vonOrten: handlagerBereich, nachLagerortId: v.fahrzeugId,
+              vonBereich: handlagerBereich, nachLagerortId: v.fahrzeugId,
               quelle, kommentar: CHECK_NACHFUELLUNG, referenz,
             }).umgelagert
           : 0;
