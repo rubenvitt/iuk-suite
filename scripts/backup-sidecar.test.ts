@@ -361,6 +361,32 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(rumpfU).toMatch(/rm -rf "\$UEBERNAHMEVERZEICHNIS"\s*\n\s*return "\$ergebnis"/);
   });
 
+  it("der Zeitstempel der Sperre entsteht MIT ihr, nicht in einem zweiten Schritt", () => {
+    // ⚠️ GEMESSEN, ALS ER IN EINER DATEI IM SPERRVERZEICHNIS STAND: zwischen `mkdir` und
+    // dem Schreiben liegt ein Fenster. Ein zweiter Prozess sieht dort eine Sperre OHNE
+    // Zeitstempel, liest ihn als 0, haelt die brandneue Sperre fuer uralt und uebernimmt
+    // sie — beide laufen los. Das braucht nicht einmal eine verwaiste Sperre: es trifft
+    // die GEWOEHNLICHE erste Belegung, also genau den Fall, fuer den es die Sperre gibt
+    // (Zeitgeber und Rollout starten im Zweifel gleichzeitig). Nachgestellt mit einem
+    // leeren `.lauf.sperre`: der Lauf startete.
+    //
+    // `mkdir` setzt die mtime in derselben Operation, mit der es das Verzeichnis anlegt.
+    // Es gibt also kein Fenster, das man verkleinern muesste — es gibt keines.
+    const rumpfH = funktionsrumpf(befehle, "sperre_holen");
+    expect(rumpfH).toMatch(/mkdir "\$SPERRVERZEICHNIS" 2>\/dev\/null && return 0/);
+    // Kein zweiter Schritt, der etwas im Sperrverzeichnis ablegt.
+    expect(rumpfH).not.toMatch(/>"?\$SPERRVERZEICHNIS\//);
+    expect(befehle).toMatch(/stat -c %Y "\$1"/);
+  });
+
+  it("das Sperrverzeichnis bleibt LEER — sonst altert es nie", () => {
+    // ⚠️ Die Kehrseite der mtime: wer dort etwas ablegt, setzt sie neu und laesst die
+    // Sperre ewig jung aussehen. Die Uebernahme einer wirklich verwaisten Sperre griffe
+    // dann nie mehr, und das Backup staende nach einem SIGKILL dauerhaft still.
+    // Gemessen: ein `touch` im Verzeichnis hebt die mtime sofort an.
+    expect(befehle).not.toMatch(/\$SPERRVERZEICHNIS\/[a-z]/);
+  });
+
   it("eine verwaiste Sperre wird nach ihrem ALTER uebernommen, nicht nach einer PID", () => {
     // ⚠️ EINE PID NUETZT HIER NICHTS: die beiden Laeufe sitzen in verschiedenen Containern,
     // also in verschiedenen PID-Namensraeumen. Ohne die Uebernahme stuende das Backup nach

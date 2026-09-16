@@ -314,19 +314,40 @@ auslagern() {
 # nichts. Gegen die verwaiste Sperre (Container per SIGKILL beendet) hilft deshalb nur
 # ihr ALTER, und ohne diese Uebernahme stuende das Backup nach einem harten Abbruch
 # dauerhaft still.
-sperre_alter() {
-  seit="$(cat "$SPERRVERZEICHNIS/seit" 2>/dev/null || echo 0)"
-  case "$seit" in '' | *[!0-9]*) seit=0 ;; esac
-  echo $(( $(date +%s) - seit ))
+# Alter einer Sperre in Sekunden, -1 wenn es sie gar nicht gibt.
+#
+# ⚠️ DER ZEITSTEMPEL IST DIE mtime DES VERZEICHNISSES SELBST, UND DAS IST DER GANZE
+# WITZ — nicht eine Datei darin. Eine Datei waere ein ZWEITER Schritt, und zwischen
+# `mkdir` und ihr liegt ein Fenster: ein zweiter Prozess sieht dann eine Sperre OHNE
+# Zeitstempel, liest ihn als 0, haelt die brandneue Sperre fuer uralt und uebernimmt sie.
+# GEMESSEN, als es so war — und es braucht dafuer nicht einmal eine verwaiste Sperre,
+# der Fall trifft die GEWOEHNLICHE erste Belegung. Genau die beiden Laeufe, die hier
+# aufeinandertreffen koennen (Zeitgeber und Rollout), starten im Zweifel gleichzeitig.
+#
+# `mkdir` setzt die mtime in derselben Operation, mit der es das Verzeichnis anlegt. Es
+# gibt also kein Fenster, das man verkleinern muesste — es gibt keines.
+#
+# ⚠️ DESHALB BLEIBT DAS SPERRVERZEICHNIS LEER. Wer dort etwas ablegt, setzt die mtime neu
+# und laesst die Sperre ewig jung aussehen; die Uebernahme einer wirklich verwaisten
+# Sperre griffe dann nie mehr. Gemessen: ein `touch` darin hebt die mtime sofort an.
+verzeichnis_alter() {
+  m="$(stat -c %Y "$1" 2>/dev/null || echo '')"
+  case "$m" in '' | *[!0-9]*) echo -1; return 0 ;; esac
+  echo $(( $(date +%s) - m ))
 }
 
+sperre_alter() { verzeichnis_alter "$SPERRVERZEICHNIS"; }
+
+# Ein Verzeichnis, das es nicht gibt (-1), ist NICHT verwaist — dann haette `mkdir` oben
+# ohnehin gegriffen.
 sperre_ist_verwaist() {
-  [ "$(sperre_alter)" -gt $((BACKUP_SPERRE_ALTER_STUNDEN * 3600)) ]
+  alter="$(sperre_alter)"
+  [ "$alter" -ge 0 ] && [ "$alter" -gt $((BACKUP_SPERRE_ALTER_STUNDEN * 3600)) ]
 }
 
 # ⚠️ DIE UEBERNAHME MUSS SICH SELBST SERIALISIEREN, SONST HEBT SIE DIE SPERRE AUF — und
 # das ist GEMESSEN, nicht hergeleitet. Der naheliegende Weg ist, die Verwaistheit zu
-# pruefen und dann wegzuraeumen und neu anzulegen. Zwei Wartende treffen dann dasselbe
+# pruefen und dann wegzuraeumen und neu anzulegen. Zwei Wartende faellen dann dasselbe
 # Urteil, BEVOR einer von ihnen handelt: A raeumt weg und legt neu an, B raeumt A's
 # FRISCHE Sperre weg und legt wieder neu an — und danach halten sich beide fuer den
 # Eigentuemer. Mit acht gleichzeitigen Wartenden gegen eine 8h alte Sperre gemessen:
@@ -341,19 +362,14 @@ sperre_uebernehmen() {
   # Minute steht, gehoert also keinem lebenden Prozess mehr — anders als bei der
   # Hauptsperre, die ein Lauf voellig zu Recht viele Minuten haelt, ist diese
   # Altersgrenze hier eindeutig.
-  if [ -d "$UEBERNAHMEVERZEICHNIS" ]; then
-    seit_u="$(cat "$UEBERNAHMEVERZEICHNIS/seit" 2>/dev/null || echo 0)"
-    case "$seit_u" in '' | *[!0-9]*) seit_u=0 ;; esac
-    [ $(( $(date +%s) - seit_u )) -gt 60 ] && rm -rf "$UEBERNAHMEVERZEICHNIS"
-  fi
+  alter_u="$(verzeichnis_alter "$UEBERNAHMEVERZEICHNIS")"
+  [ "$alter_u" -gt 60 ] && rm -rf "$UEBERNAHMEVERZEICHNIS"
   mkdir "$UEBERNAHMEVERZEICHNIS" 2>/dev/null || return 1
-  date +%s >"$UEBERNAHMEVERZEICHNIS/seit" 2>/dev/null || true
 
   # Ab hier exklusiv — und genau deshalb zaehlt erst diese Pruefung.
   if sperre_ist_verwaist; then
     rm -rf "$SPERRVERZEICHNIS"
     if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
-      date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
       ergebnis=0
     else
       ergebnis=1
@@ -366,10 +382,9 @@ sperre_uebernehmen() {
 }
 
 sperre_holen() {
-  if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
-    date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
-    return 0
-  fi
+  # Ein Schritt, kein zweiter danach: `mkdir` legt die Sperre an UND veroeffentlicht
+  # ihren Zeitstempel (siehe `verzeichnis_alter`).
+  mkdir "$SPERRVERZEICHNIS" 2>/dev/null && return 0
   if sperre_ist_verwaist; then
     warne "Die Sperre ist $(( $(sperre_alter) / 3600 ))h alt — ein Lauf wurde offenbar hart
   beendet. Es wird versucht, sie zu uebernehmen."
