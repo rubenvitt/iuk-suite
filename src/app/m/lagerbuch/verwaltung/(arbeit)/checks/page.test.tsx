@@ -216,6 +216,12 @@ describe("Checks-Seite", () => {
     expect(props.zeilen[0]).toEqual({
       id: "check-hydration",
       detailHref: "/verwaltung/checks/check-hydration",
+      // ⚠️ DIE ID REIST MIT (DRK-309, Reviewrunde 16), und sie ist kein
+      // Ueberschuss: der Spaltenfilter gruppiert ueber SIE statt ueber den
+      // Namen. Zwei Taschen duerfen gleich heissen und beide ohne Kennung
+      // sein — ueber den Namen gruppiert faellt dann die eine mit der anderen
+      // in EINEN Filterwert, und die gemeinte ist nicht mehr zu isolieren.
+      fahrzeugId: "rtw-1",
       fahrzeugName: "RTW 1",
       // DRK-309: Art und Kennung reisen mit — die Spalte zeigt beide, und der
       // Spaltenfilter gruppiert ueber dieselbe Zeichenkette.

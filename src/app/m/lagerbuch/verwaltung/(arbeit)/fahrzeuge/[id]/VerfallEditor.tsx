@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Alert, DatePicker, type TableProps } from "antd";
 import {
   Datentabelle,
@@ -19,6 +19,7 @@ import { inDerEinheit, type Einheitenart } from "../../../../_lib/konstanten";
 import { AussondernDialog } from "./AussondernDialog";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
+import { useVerfallStand } from "./useVerfallStand";
 
 const VERFALL_FEHLER = "Verfall konnte nicht gespeichert werden.";
 
@@ -55,44 +56,46 @@ export function VerfallEditor({
    */
   einheitenart: Einheitenart | null;
 }) {
-  const [spiegel, setSpiegel] = useState<Record<string, string | null>>(() =>
-    Object.fromEntries(eintraege.map((eintrag) => [eintrag.artikelId, eintrag.verfall])));
+  /**
+   * ⚠️ DER EINE STAND (DRK-345). Beide Schreibwege dieser Tabelle laufen durch
+   * `schreibe`, und nur dort faellt ein Wert in den Stand — naemlich der, den
+   * die Antwort meldet. Die Entscheidung dahinter steht in
+   * `_lib/verfallStand.ts`, die Mechanik in `useVerfallStand.ts`; hier gibt es
+   * bewusst keinen Setzer mehr, den eine zweite Stelle bedienen koennte.
+   */
+  const { verfallVon, schreibe, laeuft } = useVerfallStand();
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, startTransition] = useTransition();
 
-  function monatFuer(eintrag: VerfallAnzeigeZeile): string | null {
-    return Object.prototype.hasOwnProperty.call(spiegel, eintrag.artikelId)
-      ? spiegel[eintrag.artikelId]
-      : eintrag.verfall;
-  }
-
-  function monatSetzen(eintrag: VerfallAnzeigeZeile, wert: Parameters<typeof monatAusPicker>[0]) {
+  async function monatSetzen(
+    eintrag: VerfallAnzeigeZeile,
+    wert: Parameters<typeof monatAusPicker>[0],
+  ) {
     const monat = monatAusPicker(wert) ?? "";
-    setSpiegel((vorher) => ({
-      ...vorher,
-      [eintrag.artikelId]: monat || null,
-    }));
-    startTransition(async () => {
-      // DER GEWAEHLTE MONAT BLEIBT AUCH IM FEHLERFALL STEHEN — absichtlich, und
-      // `VerfallEditor.test.tsx` haelt es fest. Die Eingabe einer Person zu
-      // verwerfen, weil das Speichern scheiterte, ist schlimmer als die
-      // Statusspalte, die bis zum naechsten Laden den alten Stand nennt. Den
-      // Widerspruch aufloest der Fehlersatz, nicht das Zuruecksetzen.
-      try {
-        const ergebnis = await verfallSetzen({
+    // DER GEWAEHLTE MONAT BLEIBT AUCH IM FEHLERFALL STEHEN — absichtlich, und
+    // `VerfallEditor.test.tsx` haelt es fest. Die Eingabe einer Person zu
+    // verwerfen, weil das Speichern scheiterte, ist schlimmer als die
+    // Statusspalte, die bis zum naechsten Laden den alten Stand nennt. Den
+    // Widerspruch aufloest der Fehlersatz, nicht das Zuruecksetzen. Getragen
+    // wird die Zusage von `standNachAntwort`, das nur bei `ok` schreibt.
+    try {
+      const ergebnis = await schreibe(
+        eintrag.artikelId,
+        // Die Vorwegnahme — ohne sie spraenge das Feld bis zur Antwort zurueck.
+        monat || null,
+        () => verfallSetzen({
           lagerortId,
           artikelId: eintrag.artikelId,
           verfall: monat,
-        });
-        // Der Satz aus der Action statt der Modulkonstante: nur er
-        // unterscheidet „Artikel steht an diesem Lagerort nicht im Soll." von
-        // einem Schreibfehler. Im `catch` bleibt die Konstante — dort ist
-        // `e.message` in Produktion Framework-Englisch.
-        setFehler(ergebnis.ok ? null : ergebnis.fehler);
-      } catch {
-        setFehler(VERFALL_FEHLER);
-      }
-    });
+        }),
+      );
+      // Der Satz aus der Action statt der Modulkonstante: nur er
+      // unterscheidet „Artikel steht an diesem Lagerort nicht im Soll." von
+      // einem Schreibfehler. Im `catch` bleibt die Konstante — dort ist
+      // `e.message` in Produktion Framework-Englisch.
+      setFehler(ergebnis.ok ? null : ergebnis.fehler);
+    } catch {
+      setFehler(VERFALL_FEHLER);
+    }
   }
 
   const spalten: TableProps<VerfallAnzeigeZeile>["columns"] = [
@@ -122,7 +125,7 @@ export function VerfallEditor({
       // sonst sprang die Zeile waehrend des Tippens weg.
       sorter: nachDatum<VerfallAnzeigeZeile>((eintrag) => eintrag.verfall),
       render: (_verfall: string | null, eintrag) => {
-        const monat = monatFuer(eintrag);
+        const monat = verfallVon(eintrag);
         return (
           // KEIN size="small": die alte Zeilenaktions-Ausnahme (Falle 4,
           // docs/design/README.md) ist mit der Arbeitsdichte gefallen -- 44px
@@ -183,25 +186,28 @@ export function VerfallEditor({
           einheit={eintrag.einheit}
           bestand={eintrag.bestand}
           chargen={eintrag.chargen}
-          // ⚠️ `monatFuer` UND NICHT `eintrag.verfall` — derselbe Zugriff, den
-          // der Waehler daneben nutzt. `monatSetzen` traegt einen gewaehlten
-          // Monat SOFORT in den Spiegel und schickt ihn erst danach zum Server;
-          // bis die Auffrischung zurueck ist, ist die Prop der AELTERE Stand.
-          // Mit ihr stuende im Dialog der alte Monat, und eine Teilaussonderung
-          // schriebe ihn ueber den gerade gespeicherten zurueck.
-          verfall={monatFuer(eintrag)}
+          // ⚠️ `verfallVon` UND NICHT `eintrag.verfall` — derselbe Zugriff, den
+          // der Waehler daneben nutzt, aus derselben Funktion. `monatSetzen`
+          // traegt einen gewaehlten Monat SOFORT in den Stand und schickt ihn
+          // erst danach zum Server; bis die Auffrischung zurueck ist, ist die
+          // Prop der AELTERE Stand. Mit ihr stuende im Dialog der alte Monat,
+          // und eine Teilaussonderung schriebe ihn ueber den gerade
+          // gespeicherten zurueck.
+          verfall={verfallVon(eintrag)}
           // DRK-309: dieselbe Art wie die Kopfzeile und die Überschrift
           // darüber — der Hinweis im Dialog sagt, wo die verbleibenden
           // Packungen liegen.
           einheitenart={einheitenart}
-          // Dieselbe Sperre wie am Monatswähler oben: solange die Tabelle
-          // selbst schreibt, bleibt der zweite Schreibweg zu.
+          // Dieselbe Sperre wie am Monatswähler oben, und jetzt aus derselben
+          // Quelle: `laeuft` ist wahr, solange EINER der beiden Wege schreibt.
           gesperrt={laeuft}
-          // Zweite Schreibstelle auf demselben Wert — der Spiegel muss ihr
-          // folgen, sonst behauptet der Waehler weiter den alten Monat.
-          onAusgesondert={(neuerVerfall) => {
-            setSpiegel((vorher) => ({ ...vorher, [eintrag.artikelId]: neuerVerfall }));
-          }}
+          /*
+           * Der zweite Schreibweg auf demselben Wert — und er bekommt keinen
+           * eigenen Rueckkanal, sondern denselben Trichter. KEINE Vorwegnahme
+           * (`undefined`): der Dialog kennt sein Ergebnis nicht, ob die Angabe
+           * entfaellt, entscheidet die Transaktion am verbleibenden Bestand.
+           */
+          schreibe={(aktion) => schreibe(eintrag.artikelId, undefined, aktion)}
         />
       ),
     },

@@ -12,7 +12,9 @@ vi.mock("../../../../_actions/aussondernLagerort", () => ({
   aussondernVomLagerort: (...args: unknown[]) => mocks.aussondern(...args),
 }));
 
+import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
 import type { Einheitenart } from "../../../../_lib/konstanten";
+import type { VerfallWert } from "../../../../_lib/verfallStand";
 import { AussondernDialog } from "./AussondernDialog";
 
 const CHARGEN = [
@@ -20,9 +22,20 @@ const CHARGEN = [
   { id: "ch-neu", chargenNr: "CH-NEU", verfall: "2030-01", rest: 6 },
 ];
 
+/**
+ * DER TRICHTER DER TABELLE, hier als Attrappe (DRK-345). Er tut genau das, was
+ * `useVerfallStand.schreibe` tut, soweit der Dialog es sehen kann: die Aktion
+ * ausfuehren und ihre Antwort zurueckgeben. Dass der geschriebene Wert danach
+ * in den EINEN Stand faellt, prueft `VerfallEditor.test.tsx` am echten Trichter.
+ */
+const trichter = vi.fn(
+  (aktion: () => Promise<ActionErgebnis<VerfallWert>>) => aktion(),
+);
+
 beforeEach(() => {
   mocks.aussondern.mockReset();
   mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
+  trichter.mockClear();
 });
 
 afterEach(async () => { await unmount(); });
@@ -75,6 +88,7 @@ function zeige(bestand = 10, einheitenart: Einheitenart | null = "fahrzeug") {
       chargen={CHARGEN}
       verfall="2020-01"
       einheitenart={einheitenart}
+      schreibe={trichter}
     />,
   );
 }
@@ -199,5 +213,38 @@ describe("Der Dialog ueberschreibt den Verfall nicht selbst", () => {
     expect(mocks.aussondern).toHaveBeenCalledTimes(1);
     // Vorbelegt ist "2020-01" — der Dialog reicht ihn durch, statt "" zu senden.
     expect(mocks.aussondern.mock.calls[0][0]).toMatchObject({ verfall: "2020-01" });
+  });
+});
+
+describe("Der Dialog haelt die Antwort nicht selbst in der Hand", () => {
+  /**
+   * ⚠️ DIE EIGENTLICHE ZUSAGE VON DRK-345, und sie ist strukturell, nicht
+   * inhaltlich: der Dialog fuehrt die Aktion NICHT aus, er reicht sie in den
+   * Trichter. Drei Reviewrunden lang meldete er den falschen Wert an die
+   * Tabelle zurueck — erst gar keinen, dann die Server-Prop, dann seine eigene
+   * Eingabe. Wer die Antwort nie in der Hand haelt, kann sie auch nicht falsch
+   * weiterreichen.
+   *
+   * Dass er ueberhaupt keinen Rueckkanal mehr hat, haelt der Typ fest: es gibt
+   * kein `onAusgesondert` mehr. Was ein Test dazu beitragen kann, ist der
+   * Nachweis, dass der Weg durch den Trichter fuehrt.
+   */
+  it("reicht die Aktion in den Trichter, statt sie selbst auszufuehren", async () => {
+    await zeige(5);
+    await oeffne();
+
+    await fuellPortal("input[aria-label='Menge']", "2");
+    await fuellPortal("input[aria-label='Kommentar']", "MHD");
+    await act(async () => {
+      queryPortal<HTMLFormElement>("[data-rolle='aussondern']")
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await warte();
+
+    expect(trichter).toHaveBeenCalledTimes(1);
+    expect(mocks.aussondern).toHaveBeenCalledTimes(1);
+    // Der Dialog ruft die Aktion nur INNERHALB des Trichters — die Attrappe
+    // bekommt sie als Funktion, nicht als bereits laufendes Versprechen.
+    expect(typeof trichter.mock.calls[0][0]).toBe("function");
   });
 });
