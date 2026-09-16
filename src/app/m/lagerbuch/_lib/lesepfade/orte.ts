@@ -8,6 +8,7 @@
  */
 import { lagerorte } from "../../_db/schema";
 import { teilbaum, type OrtZeile } from "../domain/orte";
+import { zaehlOrtLabel } from "../inventurOrt";
 import { HANDLAGER_ID } from "../konstanten";
 import type { Leser } from "./bestand";
 
@@ -87,4 +88,35 @@ export function zaehlBereich(db: Leser, ortId: string | null): string[] | null {
   if (ortId === null) return handlager;
   if (!handlager.includes(ortId)) return null;
   return ortId === HANDLAGER_ID ? [HANDLAGER_ID] : teilbaum(zeilen, ortId);
+}
+
+/**
+ * DRK-337 — DIE ORTSNAMEN, DIE HEUTE NICHT EINDEUTIG SIND (vierter Codex-Befund).
+ *
+ * Der Verlauf zeigt den NAMEN eines gezaehlten Orts; solange zwei Schraenke
+ * gleich heissen duerfen, lesen sich zwei Laeufe an verschiedenen Orten
+ * gleich. Die Kennung steht seitdem im Umfang — aber gespeichert ist nicht
+ * gezeigt, und aus dem Sessel des Lesers hatte sich damit nichts geaendert.
+ *
+ * ⚠️ GEPRUEFT WIRD DIE HEUTIGE LAGE, NICHT DIE VON DAMALS, und das ist Absicht:
+ * die Frage lautet „kann ich die beiden gerade auseinanderhalten?". Verschwindet
+ * ein Doppel (weil jemand umbenennt oder DRK-367 Namen eindeutig macht),
+ * verschwindet die Kennung aus der Anzeige — sie war nie Selbstzweck.
+ *
+ * ⚠️ DIESELBE MENGE WIE IN DER AUSWAHL, also Wurzel UND Schraenke ueber
+ * `zaehlOrtLabel`: ein Schrank namens „Nicht zugeordnet" kollidiert mit der
+ * Wurzel, und diese Richtung faellt sonst durch.
+ */
+export function mehrdeutigeOrtsnamen(db: Leser): Set<string> {
+  const labels = [
+    zaehlOrtLabel(HANDLAGER_ID, undefined),
+    ...handlagerSchraenke(db).map((o) => zaehlOrtLabel(o.id, o.name)),
+  ];
+  const gesehen = new Set<string>();
+  const doppelt = new Set<string>();
+  for (const label of labels) {
+    if (gesehen.has(label)) doppelt.add(label);
+    gesehen.add(label);
+  }
+  return doppelt;
 }

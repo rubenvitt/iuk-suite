@@ -63,16 +63,36 @@ export function umfangAus(roh: string | null): Umfang {
  * und nicht in einer der beiden Seiten, weil Liste UND Detail ihn brauchen und
  * eine Seite keine Werte aus der anderen importieren soll.
  */
-export function umfangText(umfang: Umfang): string {
+export function umfangText(umfang: Umfang, mehrdeutig?: ReadonlySet<string>): string {
   if (!umfang) return "vollständig";
   // Der Ort ZUERST: er begrenzt, was ueberhaupt erwartet wurde, waehrend
   // Kategorie und Fach nur auswaehlen, welche Zeilen auf dem Schirm standen.
   const teile = [
-    ...(umfang.ort ? [`Ort ${umfang.ort}`] : []),
+    ...(umfang.ort ? [`Ort ${ortText(umfang, mehrdeutig)}`] : []),
     ...umfang.kategorien,
     ...umfang.faecher.map((f) => `Fach ${f}`),
   ];
   return teile.length > 0 ? teile.join(", ") : "vollständig";
+}
+
+/**
+ * DRK-337, vierter Codex-Befund — DIE KENNUNG WIRD GEZEIGT, WENN DER NAME
+ * HEUTE NICHT TRAEGT.
+ *
+ * ⚠️ NUR DANN, und zwar aus demselben Grund wie in der Auswahl: eine Kennung an
+ * jeder Zeile machte den Normalfall haesslich, um den Ausnahmefall zu heilen.
+ * `mehrdeutig` kommt von der Seite, die als einzige weiss, welche Orte es gibt
+ * (`mehrdeutigeOrtsnamen`); ohne Angabe bleibt es beim Namen — so lesen die
+ * bestehenden Aufrufer und Tests unveraendert.
+ *
+ * ⚠️ EIN LAUF OHNE GESPEICHERTE KENNUNG (von vor diesem Ticket) BEHAELT NUR DEN
+ * NAMEN, auch wenn er heute mehrdeutig ist. Das ist ehrlich: die Identitaet
+ * stand damals nicht dabei, und der Verlauf kennt kein UPDATE. Eine erfundene
+ * Kennung waere schlimmer als eine fehlende.
+ */
+function ortText(umfang: NonNullable<Umfang>, mehrdeutig?: ReadonlySet<string>): string {
+  const zeigeKennung = umfang.ortId !== null && umfang.ort !== null && mehrdeutig?.has(umfang.ort);
+  return zeigeKennung ? `${umfang.ort} (${umfang.ortId})` : `${umfang.ort}`;
 }
 
 function zaehlungen(db: Leser, ids: string[]): Map<string, { positionen: number; abweichungen: number }> {

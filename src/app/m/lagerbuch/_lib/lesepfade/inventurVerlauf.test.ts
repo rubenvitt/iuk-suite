@@ -207,4 +207,30 @@ describe("inventurLauf", () => {
     expect(umfangText({ kategorien: [], faecher: [], ort: null, ortId: null })).toBe("vollständig");
     expect(umfangText(null)).toBe("vollständig");
   });
+
+  /**
+   * DRK-337, vierter Codex-Befund: die Kennung zu SPEICHERN reicht nicht, wenn
+   * keine Anzeige sie nutzt — aus dem Sessel des Lesers aendert sich dann
+   * nichts, und zwei Laeufe an verschiedenen Orten lesen sich weiter gleich.
+   */
+  it("zeigt die Kennung, wenn der Ortsname heute mehrdeutig ist", () => {
+    const umfang = { kategorien: [], faecher: [], ort: "Schrank 1", ortId: "schrank-a" };
+    expect(umfangText(umfang, new Set(["Schrank 1"]))).toBe("Ort Schrank 1 (schrank-a)");
+    // ⚠️ NUR DANN: eine Kennung an jeder Zeile machte den Normalfall haesslich.
+    expect(umfangText(umfang, new Set(["GF-Schrank"]))).toBe("Ort Schrank 1");
+    expect(umfangText(umfang)).toBe("Ort Schrank 1");
+  });
+
+  /**
+   * ⚠️ EIN LAUF VON VOR DIESEM TICKET HAT KEINE KENNUNG. Auch wenn sein Name
+   * heute mehrdeutig ist, bleibt es beim Namen — die Identitaet stand damals
+   * nicht dabei, und der Verlauf kennt kein UPDATE. Eine erfundene Kennung
+   * waere schlimmer als eine fehlende.
+   */
+  it("erfindet fuer einen Altlauf ohne Kennung nichts", () => {
+    expect(umfangText(
+      { kategorien: [], faecher: [], ort: "Schrank 1", ortId: null },
+      new Set(["Schrank 1"]),
+    )).toBe("Ort Schrank 1");
+  });
 });

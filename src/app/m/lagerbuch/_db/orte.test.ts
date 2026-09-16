@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
 import { lagerorte } from "./schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
-import { handlagerOrte, ortStamm, handlagerSchraenke, zaehlBereich } from "../_lib/lesepfade/orte";
+import {
+  handlagerOrte, ortStamm, handlagerSchraenke, mehrdeutigeOrtsnamen, zaehlBereich,
+} from "../_lib/lesepfade/orte";
 
 let t: TestDb;
 
@@ -85,5 +87,42 @@ describe("zaehlBereich", () => {
   it("liefert null statt einer leeren Liste fuer einen Ort ausserhalb des Handlagers", () => {
     expect(zaehlBereich(t.db, "rtw-1")).toBeNull();
     expect(zaehlBereich(t.db, "gibt-es-nicht")).toBeNull();
+  });
+});
+
+/** DRK-337, vierter Codex-Befund — welche Ortsnamen heute nicht tragen. */
+describe("mehrdeutigeOrtsnamen", () => {
+  it("meldet nichts, solange jeder Name einmal vorkommt", () => {
+    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual([]);
+  });
+
+  it("meldet einen doppelt vergebenen Schranknamen", () => {
+    t.db.insert(lagerorte).values({
+      id: "schrank-2", name: "Schrank 1", typ: "lager", aktiv: true,
+      parentId: HANDLAGER_ID, sortierung: 20,
+    }).run();
+    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual(["Schrank 1"]);
+  });
+
+  /**
+   * ⚠️ DIE RICHTUNG, DIE SONST DURCHFAELLT: die Wurzel heisst in der Auswahl
+   * „Nicht zugeordnet"; ein so benannter Schrank kollidiert mit ihr, nicht mit
+   * einem anderen Schrank.
+   */
+  it("meldet auch eine Kollision mit der Wurzel", () => {
+    t.db.insert(lagerorte).values({
+      id: "schrank-frech", name: "Nicht zugeordnet", typ: "lager", aktiv: true,
+      parentId: HANDLAGER_ID, sortierung: 30,
+    }).run();
+    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual(["Nicht zugeordnet"]);
+  });
+
+  /** Ein stillgelegter Schrank zaehlt mit: sein Bestand und seine Laeufe bleiben. */
+  it("nimmt stillgelegte Schraenke mit", () => {
+    t.db.insert(lagerorte).values({
+      id: "schrank-alt-2", name: "Altschrank", typ: "lager", aktiv: false,
+      parentId: HANDLAGER_ID, sortierung: 60,
+    }).run();
+    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual(["Altschrank"]);
   });
 });
