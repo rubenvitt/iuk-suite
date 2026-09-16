@@ -153,13 +153,24 @@ const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
  * nur direkt an den Anker angehaengte Fortsetzungen zaehlen. Als Trenner zaehlt
  * auch der SCHRAEGSTRICH — `files-hosts.spec.ts:413/423/437` ist die Form, die
  * `e2e/lagerbuch-hosts.spec.ts` schreibt (Codex-Review zu PR #183); ohne ihn
- * blieben dort zwei von drei Zeilen ungeprueft. Ein `:266`, das
+ * blieben dort zwei von drei Zeilen ungeprueft.
+ *
+ * ⚠️ UND DIE BACKTICKS DAZWISCHEN duerfen stehen: die Suite setzt jede
+ * Fortsetzung gern in eigene Anfuehrungszeichen. Das ist keine Formalie — genau
+ * diese Form deckte den bisher letzten echten Fund auf: eine radio-Zusage
+ * zitierte zwei Bereiche einer 85-zeiligen Datei, und der zweite reichte bis
+ * Zeile 86. Ohne die Backticks im Muster blieb er ungeprueft. Ein `:266`, das
  * ZEILEN SPAETER im selben Kommentar auf denselben Anker zurueckverweist,
  * bleibt ungeprueft — das zu binden hiesse, einen Kommentarblock zustandsbehaftet
  * zu lesen, und ein nacktes `: 51` steht auch in jedem Ternaer. Als eigener
  * Posten notiert statt still gelassen.
  */
-const FORTSETZUNG = "(?:\\s*(?:,|;|und|\\/)\\s*:?\\d+(?:\\s*[-–]\\s*\\d+)?)";
+const ZAHL = "\\d+(?:\\s*[-–]\\s*\\d+)?";
+const FORTSETZUNG =
+  // entweder ein TRENNER (dann darf der Doppelpunkt fehlen: `:265,266`)
+  `(?:\`?\\s*(?:,|;|und|\\/)\\s*\`?:?${ZAHL}`
+  // oder KEIN Trenner, dann traegt der Doppelpunkt die Last: `…:18-20` `:82-86`
+  + `|\`?\\s*\`?:${ZAHL})`;
 
 const ZIEL = new RegExp(
   `(${SEGMENT}(?:\\/${SEGMENT})*):(\\d+)(?:\\s*[-–]\\s*(\\d+))?(${FORTSETZUNG}+)?`,
@@ -185,7 +196,9 @@ export function ankerAusText(text: string): Anker[] {
   for (const [, ziel, von, bis, schwanz] of text.matchAll(ZIEL)) {
     if (/^\d+$/.test(ziel)) continue;
     anker.push({ ziel, von: Number(von), bis: Number(bis ?? von) });
-    for (const [, v, b] of (schwanz ?? "").matchAll(/[:/]?(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
+    // Im Schwanz stehen nur noch Trenner, Backticks, Doppelpunkte und Zahlen —
+    // ein schlichter Zahlen-Scan reicht und kann nichts anderes aufgreifen.
+    for (const [, v, b] of (schwanz ?? "").matchAll(/(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
       anker.push({ ziel, von: Number(v), bis: Number(b ?? v) });
     }
   }
@@ -568,6 +581,13 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
       .toEqual(["probeGlobals.css:265", "probeGlobals.css:266"]);
     expect(ziele("`probeBauform.test.ts:181, :201-203`"))
       .toEqual(["probeBauform.test.ts:181", "probeBauform.test.ts:203"]);
+    // Backticks zwischen den Fortsetzungen — die Form, die den letzten echten
+    // Fund aufdeckte (eine 85-zeilige Datei, zitiert bis Zeile 86).
+    expect(ziele("(`probeNotiz.ts:18-20`, `:82-86`)"))
+      .toEqual(["probeNotiz.ts:20", "probeNotiz.ts:86"]);
+    expect(ziele("`probeBootstrap.ts:103` und `:138`"))
+      .toEqual(["probeBootstrap.ts:103", "probeBootstrap.ts:138"]);
+
     // Der Schraegstrich zaehlt ebenfalls als Trenner — `:413/423/437`.
     expect(ziele("`probeHosts.spec.ts:413/423/437`"))
       .toEqual(["probeHosts.spec.ts:413", "probeHosts.spec.ts:423", "probeHosts.spec.ts:437"]);
