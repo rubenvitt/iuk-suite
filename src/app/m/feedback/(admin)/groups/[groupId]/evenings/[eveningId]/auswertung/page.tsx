@@ -109,7 +109,7 @@ export default async function AuswertungPage({
           rawAnswers: shuffleStable(answers, (a) => JSON.stringify(a)),
         });
 
-  const csv = `/m/feedback/groups/${group.id}/evenings/${id}/export.csv`;
+  const mappe = `/m/feedback/groups/${group.id}/evenings/${id}/export.xlsx`;
   const teilnehmer = evening.participantCount;
   const nenner = teilnehmer !== null && teilnehmer > 0 ? teilnehmer : null;
   const quote = nenner === null ? null : Math.round((stats.responseCount / nenner) * 100);
@@ -141,8 +141,8 @@ export default async function AuswertungPage({
           zurueck={{ titel: group.name, href: `/m/feedback/groups/${group.id}` }}
           aktionen={
             <>
-              <Button type="text" href={csv}>
-                CSV
+              <Button type="text" href={mappe}>
+                Excel
               </Button>
               <Button type="text" href={`/m/feedback/groups/${group.id}/trend`}>
                 Trend
@@ -161,7 +161,7 @@ export default async function AuswertungPage({
         }}
       >
       {stats.responseCount === 0 ? (
-        /* §4.3: der Satz statt leerer Spuren — der CSV-Link bleibt in der Kopfzone. */
+        /* §4.3: der Satz statt leerer Spuren — der Excel-Link bleibt in der Kopfzone. */
         <Result status="info" title="Zu diesem Abend ist keine Rückmeldung eingegangen." />
       ) : (
         <>
