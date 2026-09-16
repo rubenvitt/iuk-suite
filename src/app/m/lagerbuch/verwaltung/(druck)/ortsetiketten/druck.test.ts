@@ -3,7 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   A7_BREITE_MM, A7_HOEHE_MM, A7_SEITENNAME, ORT_SEITENRAND_MM,
-  ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM, ORT_QR_MM, NAME_STUFEN, mm,
+  ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM, ORT_QR_MM, ORT_FUSS_ZEILEN,
+  NAME_STUFEN, mm,
 } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
 
 /**
@@ -223,6 +224,29 @@ describe("die Millimeter stehen zeichengleich in beiden Welten", () => {
     expect(regel, "keine Regel auf .lb-ortkarteNameText").not.toBeNull();
     expect(regel![1]).toMatch(/display:\s*-webkit-box/);
     expect(regel![1]).toMatch(/-webkit-box-orient:\s*vertical/);
+    expect(regel![1]).toMatch(/overflow:\s*hidden/);
+  });
+
+  /**
+   * ⚠️ DIE FUSSZEILE HAT EINE FESTE HOEHE, UND DARAN HAENGT DIE GANZE
+   * STUFENTABELLE (Codex P2, zweite Runde). Ohne sie waechst die Adresse mit
+   * `SUITE_HOST_LAGERBUCH`, der Namenskasten schrumpft — und die
+   * Zeilenklammern des Namens, die fest sind, schneiden dann VOR ihrer letzten
+   * Zeile und VOR den Auslassungspunkten. Der stille Schnitt waere zurueck,
+   * abhaengig von einer Umgebungsvariablen.
+   *
+   * ⚠️ `height`, NICHT `min-height`: reserviert wird auch bei kurzem Host.
+   * Eine gelegentlich leere Zeile ist der Preis dafuer, dass die Messreihe
+   * ueberhaupt gilt.
+   */
+  it("reserviert der Adresse eine feste Hoehe und klammert sie", () => {
+    const regel = /\.lb-ortkarteUrl\s*\{([^}]*)\}/.exec(bildschirmblock());
+    expect(regel, "keine Regel auf .lb-ortkarteUrl").not.toBeNull();
+    // 3 Zeilen bei `line-height: 1.25` — `em` ist die eigene Schriftgroesse.
+    expect(regel![1]).toContain(`height: ${ORT_FUSS_ZEILEN * 1.25}em`);
+    expect(regel![1]).not.toMatch(/min-height/);
+    expect(regel![1]).toContain(`-webkit-line-clamp: ${ORT_FUSS_ZEILEN}`);
+    expect(regel![1]).toMatch(/display:\s*-webkit-box/);
     expect(regel![1]).toMatch(/overflow:\s*hidden/);
   });
 

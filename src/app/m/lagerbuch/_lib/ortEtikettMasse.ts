@@ -85,6 +85,22 @@ export const ORT_KARTE_HOEHE_MM = A7_HOEHE_MM - 2 * ORT_SEITENRAND_MM;    // 95
 export const ORT_QR_MM = 46;
 
 /**
+ * DIE ZEILEN, DIE DIE FUSSZEILE FEST BELEGT — und der Grund, warum die
+ * Stufentabelle unten ueberhaupt gilt.
+ *
+ * ⚠️ FEST RESERVIERT, NICHT „so viele, wie gebraucht werden". Die Laenge der
+ * Adresse haengt an `SUITE_HOST_LAGERBUCH`, also an der Konfiguration; waechst
+ * sie um eine Zeile, schrumpfte der Namenskasten und jede gemessene Zahl unten
+ * waere daneben. Gemessen: der Namensplatz ist mit der Reservierung bei
+ * Adressen von 35 bis 184 Zeichen konstant 89px.
+ *
+ * Drei Zeilen tragen gemessen rund 130 Zeichen — `https://` plus einen 100
+ * Zeichen langen Host plus `/o/` und die 21-stellige Id. Wird es laenger,
+ * endet die ADRESSE sichtbar auf „…" und nicht der Name.
+ */
+export const ORT_FUSS_ZEILEN = 3;
+
+/**
  * DIE SCHRIFTSTUFEN DES ORTSNAMENS — Codex-Befund P2 zu PR #177.
  *
  * ⚠️ DIE KARTE SCHNITT DEN NAMEN AB 24 ZEICHEN AB, UND ZWAR STILL. Gemessen an
@@ -111,10 +127,22 @@ export const ORT_QR_MM = 46;
  * ⚠️ JEDE ZAHL HIER IST GEMESSEN, KEINE GERECHNET. Ermittelt wurde je Schriftgrad
  * die groesste Zeichenzahl, bei der WEDER das Namensfeld NOCH die Karte
  * ueberlaeuft — und zwar gegen den schlechteren von zwei Faellen: einen Text mit
- * Worttrennstellen und ein einzelnes Wort ohne jede. Grundlage ist die Basis
- * `lagerbuch.iuk-ue.de`; ein deutlich laengerer Host nimmt der Fusszeile eine
- * weitere Zeile und damit dem Namen Hoehe. Genau dagegen steht die
- * Auslassungspunkt-Zeile unten.
+ * Worttrennstellen und ein einzelnes Wort ohne jede.
+ *
+ * ⚠️ DIE MESSREIHE GILT NUR, WEIL DER NAMENSPLATZ KONSTANT IST — und das ist er
+ * erst, seit die Fusszeile eine FESTE Hoehe hat (`.lb-ortkarteUrl` in
+ * `druck.css`, Codex P2 zweite Runde). Vorher hing er an der Laenge von
+ * `SUITE_HOST_LAGERBUCH`: gemessen 99px bei `http://lagerbuch.iuk-ue.de`, 89px
+ * bei einem 45 Zeichen langen Host. Eine Tabelle, die an einer
+ * Umgebungsvariablen haengt, ist keine Tabelle.
+ *
+ * ⚠️ UND DIE KLAMMER RETTET DAS NICHT, auch wenn ein frueherer Kommentar an
+ * dieser Stelle genau das behauptet hat — die Aussage war falsch: schrumpft der
+ * Kasten, bleibt die Klammer bei ihrer festen Zeilenzahl, und `overflow:
+ * hidden` schneidet VOR der letzten Zeile und damit VOR den
+ * Auslassungspunkten. Der stille Schnitt waere zurueck. Die Klammer faengt, was
+ * auch bei konstantem Platz nicht passt; die feste Fusshoehe haelt den Platz
+ * konstant. Es braucht beides.
  */
 export type NameStufe = {
   /** Die Modifikatorklasse in `druck.css`. */
@@ -140,9 +168,9 @@ export type NameStufe = {
 
 export const NAME_STUFEN: readonly NameStufe[] = [
   { klasse: "lb-ortkarteNameXl", pt: 20, bisZeichen: 21, bisWort: 11, zeilen: 3 },
-  { klasse: "lb-ortkarteNameL", pt: 16, bisZeichen: 36, bisWort: 14, zeilen: 4 },
-  { klasse: "lb-ortkarteNameM", pt: 13, bisZeichen: 60, bisWort: 17, zeilen: 5 },
-  { klasse: "lb-ortkarteNameS", pt: 11, bisZeichen: 84, bisWort: 20, zeilen: 6 },
+  { klasse: "lb-ortkarteNameL", pt: 16, bisZeichen: 27, bisWort: 14, zeilen: 3 },
+  { klasse: "lb-ortkarteNameM", pt: 13, bisZeichen: 48, bisWort: 17, zeilen: 4 },
+  { klasse: "lb-ortkarteNameS", pt: 11, bisZeichen: 70, bisWort: 20, zeilen: 5 },
   /**
    * ⚠️ DIE LETZTE STUFE IST NICHT „unendlich viel passt", sondern „hier hoert
    * das Verkleinern auf". Gemessen traegt sie 119 Zeichen; darueber greift die

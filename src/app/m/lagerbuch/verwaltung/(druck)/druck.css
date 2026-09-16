@@ -294,11 +294,14 @@
  * „…" endet statt einfach aufzuhoeren. Auf einem laminierten Kaertchen sieht
  * sonst niemand, dass da noch etwas stand — und genau das war der Befund.
  *
- * ⚠️ SIE FAENGT AUCH EINE DRIFT, DIE HEUTE NOCH NICHT DA IST: die Messung haengt
- * an der Hoehe der Fusszeile, also an der Laenge der Basis-URL. Ein deutlich
- * laengerer Host nimmt dem Namen eine Zeile, und die Stufen waeren um eins
- * daneben. Mit der Klammer wird daraus ein sichtbares „…" statt eines stillen
- * Schnitts.
+ * ⚠️ SIE FAENGT NICHT ALLES, UND EIN FRUEHERER KOMMENTAR AN DIESER STELLE HAT
+ * GENAU DAS BEHAUPTET — die Aussage war falsch. Er stand hier: die Klammer
+ * fange die Drift ab, wenn ein laengerer Host die Fusszeile wachsen laesst.
+ * Das Gegenteil ist der Fall: schrumpft der Namenskasten, bleibt die Klammer
+ * bei ihrer festen Zeilenzahl, und `overflow: hidden` schneidet VOR der letzten
+ * Zeile und damit VOR den Auslassungspunkten — der stille Schnitt waere zurueck.
+ * Dagegen hilft nur die FESTE Hoehe der Fusszeile weiter unten; die Klammer
+ * faengt, was auch bei konstantem Platz nicht passt. Es braucht beides.
  *
  * `-webkit-line-clamp` ist trotz des Praefixes die kanonische Schreibweise —
  * jeder Browser, der die Eigenschaft kennt, kennt sie unter diesem Namen. Der
@@ -323,7 +326,7 @@
 }
 
 .lb-ortkarteNameL .lb-ortkarteNameText {
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
 }
 
 .lb-ortkarteNameM {
@@ -331,7 +334,7 @@
 }
 
 .lb-ortkarteNameM .lb-ortkarteNameText {
-  -webkit-line-clamp: 5;
+  -webkit-line-clamp: 4;
 }
 
 .lb-ortkarteNameS {
@@ -339,7 +342,7 @@
 }
 
 .lb-ortkarteNameS .lb-ortkarteNameText {
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: 5;
 }
 
 .lb-ortkarteNameXs {
@@ -353,10 +356,42 @@
 /* DIE ADRESSE — klein, aber vollstaendig. Sie ist die einzige Angabe auf der
  * Karte, die auch dann eindeutig ist, wenn zwei Taschen gleich heissen
  * (`lagerorte.name` traegt fuer Einheiten keinen Eindeutigkeitsschluessel).
- * Sie DARF zweizeilig werden; `anywhere` bricht auch innerhalb der Id, die
- * keine Trennstellen hat. */
+ * `anywhere` bricht auch innerhalb der Id, die keine Trennstellen hat.
+ *
+ * ⚠️ IHRE HOEHE IST FEST, UND DAS IST DER GANZE PUNKT DIESER REGEL — sie
+ * repariert einen Befund, den die Stufen daneben NICHT abfangen konnten
+ * (Codex P2 zu PR #177, zweite Runde).
+ *
+ * Die Laenge dieser Zeile haengt an `SUITE_HOST_LAGERBUCH`, also an der
+ * Konfiguration. Waechst sie um eine Zeile, schrumpft der Namenskasten
+ * darueber — die Zeilenklammer des Namens bleibt aber bei ihrer festen Zahl,
+ * und dann schneidet `overflow: hidden` den geklammerten Kasten VOR seiner
+ * letzten Zeile und VOR den Auslassungspunkten ab. Der stille Schnitt waere
+ * also zurueck, und zwar abhaengig von einer Umgebungsvariablen.
+ *
+ * Gemessen an echtem Chromium: mit `http://lagerbuch.iuk-ue.de` ist der Fuss
+ * 20px hoch und der Namensplatz 99px; mit einem 45 Zeichen langen Host 30px
+ * bzw. 89px — und die kleinste Stufe klammert 88px. Ein Pixel Reserve ist
+ * keine Auslegung, es ist ein Zufall.
+ *
+ * ⚠️ DESHALB `height` UND NICHT `min-height`: reserviert wird die Hoehe auch
+ * dann, wenn der Host kurz ist. Eine gelegentlich leere Zeile ist der Preis
+ * dafuer, dass die Messreihe der Stufen ueberhaupt gilt — sonst haengt sie an
+ * einer Variablen, die niemand beim Bearbeiten dieser Datei im Blick hat.
+ *
+ * ⚠️ UND WENN DIE ADRESSE NICHT IN DREI ZEILEN PASST, ENDET SIE SICHTBAR AUF
+ * „…" — dieselbe Wahl wie beim Namen. Drei Zeilen tragen gemessen rund 130
+ * Zeichen, also `https://` plus einen 100 Zeichen langen Host plus `/o/` und
+ * die 21-stellige Id. Wird es dennoch knapp, verliert die ADRESSE ihr Ende und
+ * nicht der Name: den Namen liest ein Mensch, die Adresse liest im Regelfall
+ * die Kamera. */
 .lb-ortkarteUrl {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  /* 3 Zeilen bei `line-height: 1.25` — `em` ist hier die eigene Schriftgroesse. */
+  height: 3.75em;
   font: 400 6pt var(--font-mono);
   line-height: 1.25;
   color: #4a545d;

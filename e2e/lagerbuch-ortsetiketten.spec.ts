@@ -351,6 +351,52 @@ test.describe("Ortsetiketten (A7)", () => {
   });
 
   /**
+   * ⚠️ EIN LANGER HOST DARF DEN NAMEN NICHT SCHRUMPFEN — Codex P2, zweite
+   * Runde, und der Befund saß genau an einer Stelle, an der ein Kommentar von
+   * mir das Gegenteil behauptete.
+   *
+   * Die Adresse im Fuß wächst mit `SUITE_HOST_LAGERBUCH`. Wuchs sie um eine
+   * Zeile, schrumpfte der Namenskasten (gemessen 99px → 89px), während die
+   * Zeilenklammer des Namens bei ihrer festen Zahl blieb — `overflow: hidden`
+   * schnitt dann VOR der letzten Zeile und damit VOR den Auslassungspunkten.
+   * Der stille Schnitt wäre zurück gewesen, abhängig von einer
+   * Umgebungsvariablen.
+   *
+   * ⚠️ DER TEST ÄNDERT DEN HOST NICHT — er kann es nicht: `SUITE_HOST_LAGERBUCH`
+   * steht im `webServer` und gilt für den ganzen Lauf. Er tauscht stattdessen
+   * den TEXT der Fußzeile gegen Adressen verschiedener Länge und misst, ob der
+   * Namensplatz konstant bleibt. Das ist genau die Größe, an der die gemessene
+   * Stufentabelle hängt.
+   */
+  test("laesst den Namensplatz nicht von der Laenge der Adresse abhaengen", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    await page.emulateMedia({ media: "print" });
+
+    const plaetze = await page.evaluate((adressen) => {
+      const karte = document.querySelector(".lb-ortkarte")!;
+      const huelle = karte.querySelector(".lb-ortkarteName") as HTMLElement;
+      const fuss = karte.querySelector(".lb-ortkarteUrl") as HTMLElement;
+      return adressen.map((a) => {
+        fuss.textContent = a;
+        return {
+          laenge: a.length,
+          platz: huelle.clientHeight,
+          karteUeberlauf: karte.scrollHeight > karte.clientHeight,
+        };
+      });
+    }, [
+      "http://a.de/o/x",
+      "http://lagerbuch.iuk-ue.de/o/V1StGXR8_Z5jdHi6B-myT",
+      "https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/o/V1StGXR8_Z5jdHi6B-myT",
+      `https://${"x".repeat(140)}.example.org/o/V1StGXR8_Z5jdHi6B-myT`,
+    ]);
+
+    const werte = [...new Set(plaetze.map((p) => p.platz))];
+    expect(werte, `Namensplatz schwankt: ${JSON.stringify(plaetze)}`).toHaveLength(1);
+    for (const p of plaetze) expect(p.karteUeberlauf, `${p.laenge} Zeichen`).toBe(false);
+  });
+
+  /**
    * ⚠️ UND DIE KARTEN, DIE WIRKLICH AUF DEM BOGEN STEHEN, WERDEN AUCH NICHT
    * GEKUERZT. Die Tests darueber tauschen Text aus; dieser hier fasst nichts an
    * und misst, was der Seed tatsaechlich druckt — sonst bliebe die Zusage an

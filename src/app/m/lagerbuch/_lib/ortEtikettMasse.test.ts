@@ -84,8 +84,9 @@ describe("nameStufe", () => {
 
   it("steigt mit der Laenge Stufe fuer Stufe ab", () => {
     expect(nameStufe("A".repeat(10))).toBe(klasse(0));
-    expect(nameStufe("Rucksack Betreuung Einsatzeinheit 3")).toBe(klasse(1));
-    expect(nameStufe("Mannschaftstransportwagen der Bereitschaft Nord Reserve 2")).toBe(klasse(2));
+    expect(nameStufe("Rucksack Betreuung EE 3")).toBe(klasse(1));
+    expect(nameStufe("Rucksack Betreuung Einsatzeinheit 3")).toBe(klasse(2));
+    expect(nameStufe("Rucksack Betreuung Einsatzeinheit 3 Reserve Nord Sued")).toBe(klasse(3));
   });
 
   /**
@@ -100,7 +101,9 @@ describe("nameStufe", () => {
     const name = "Mannschaftstransportwagen der Bereitschaft Nord Reserve 2";
     expect(Math.max(...name.split(" ").map((w) => w.length)))
       .toBeGreaterThan(NAME_STUFEN[NAME_STUFEN.length - 1]!.bisWort);
-    expect(nameStufe(name)).toBe(klasse(2));
+    // 57 Zeichen — die Hoehe erlaubt Stufe 3 (11pt, bis 70 Zeichen), obwohl
+    // das laengste Wort auf KEINER Stufe auf eine Zeile passt.
+    expect(nameStufe(name)).toBe(klasse(3));
   });
 
   it("faellt fuer einen sehr langen Namen auf die kleinste Stufe", () => {
