@@ -269,6 +269,36 @@ export function standortZeile(ort: StandortAngabe): string {
   return `${ort.name} · ${standortMeta(ort)}`;
 }
 
+/**
+ * Dieselbe Angabe fuer einen INLINE-CHIP: „Schrank 1: 5 Stk" ·
+ * „RTW 1 · Fahrzeug: 7 Stk".
+ *
+ * ⚠️ HIER SCHWEIGT EIN LAGER, UND DAS IST EINE ABWEICHUNG MIT GRUND
+ * (DRK-309, Reviewrunde 15) — `standortZeile` laesst es „Lager" sagen.
+ * Der Unterschied ist die Bauform der Flaeche, nicht die Regel:
+ *
+ *  * In einer SPALTE „Standort" muss jede Zelle etwas tragen; eine leere
+ *    Beizeile neben gefuellten laese sich als fehlende Angabe. Dort ist
+ *    „Lager" die richtige Auskunft.
+ *  * In einem CHIP steht der Ort mit seiner Menge in einem Fluss —
+ *    „Schrank 1 · Lager: 5 Stk" haengt eine Auskunft an, die niemand
+ *    braucht: dass ein Schrank ein Lager ist, sieht man am Namen. Die
+ *    Zeile wird laenger, ohne dass sie mehr beantwortet.
+ *
+ * ⚠️ UNTERSCHEIDBAR BLEIBT ES TROTZDEM, und das ist die Bedingung, unter
+ * der die Abweichung ueberhaupt zulaessig ist: nur die LAGER-Zeile bleibt
+ * nackt. Ein gleichnamiges Fahrzeug traegt „· Fahrzeug", eine gleichnamige
+ * Tasche „· Tasche" — die drei koennen nie dieselbe Zeichenkette ergeben.
+ *
+ * ⚠️ UND ES IST EIN VERTRAG, NICHT NUR GESCHMACK: `e2e/lagerbuch-schraenke`
+ * und `e2e/lagerbuch-umlagern` sichern die Chipform `Name: Menge Einheit`
+ * seit DRK-297/338 zu. Ein „· Lager" darin ist eine Produktaenderung, die
+ * dieses Ticket nicht beauftragt hat.
+ */
+export function verteilungOrtZeile(ort: StandortAngabe): string {
+  return ort.typ === "lager" ? ort.name : standortZeile(ort);
+}
+
 /** „dieses Fahrzeug" · „diese Tasche" · „diese Einheit". */
 export function dieseEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "dieses Fahrzeug";

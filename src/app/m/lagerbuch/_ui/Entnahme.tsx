@@ -8,7 +8,7 @@ import { Ikone } from "./ikonen";
 import {
   ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund,
 } from "../_lib/actionTypen";
-import { einheitMeta, standortZeile, type Einheitenart } from "../_lib/konstanten";
+import { einheitMeta, verteilungOrtZeile, type Einheitenart } from "../_lib/konstanten";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
@@ -329,7 +329,7 @@ export function Entnahme({
               <div className={s.zeileMeta} data-rolle="charge-orte">
                 {c.orte.map((ort) => (
                   <span key={ort.id} data-rolle="charge-ort">
-                    {standortZeile(ort)}: {ort.menge} {detail.einheit}
+                    {verteilungOrtZeile(ort)}: {ort.menge} {detail.einheit}
                   </span>
                 ))}
               </div>
@@ -352,7 +352,7 @@ export function Entnahme({
                     className={`${s.chip} ${s.grau} ${s.warnhinweis}`}
                     data-rolle="charge-zugangshinweis"
                   >
-                    {standortZeile(ort)}: {ort.zugangshinweis}
+                    {verteilungOrtZeile(ort)}: {ort.zugangshinweis}
                   </span>
                 ))}
             </div>
