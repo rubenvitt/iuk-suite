@@ -88,6 +88,8 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
     id: zeile.id,
     detailHref: `/verwaltung/checks/${zeile.id}`,
     fahrzeugName: zeile.fahrzeugName,
+    fahrzeugKennung: zeile.fahrzeugKennung,
+    fahrzeugEinheitenart: zeile.fahrzeugEinheitenart,
     abgeschlossenText: zeile.completedAt?.toLocaleString("de-DE", {
       timeZone: "Europe/Berlin",
     }) ?? "—",

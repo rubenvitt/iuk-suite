@@ -127,7 +127,13 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
     expect(antwort!.status(), "HTTP 500 = Client-Wert oder Zeichen in der Server Component")
       .toBe(200);
 
-    await expect(page.getByText("Fahrzeug wählen")).toBeVisible();
+    /*
+     * ⚠️ „EINHEIT WAEHLEN“, NICHT MEHR „FAHRZEUG WAEHLEN“ (DRK-309). Die Liste
+     * dahinter fuehrt Fahrzeuge UND Taschen; eine Ueberschrift, die nur eine
+     * der beiden Arten nennt, waere hier nicht Geschmack, sondern falsch —
+     * wer eine Tasche pruefen will, schloesse daraus, er sei am falschen Ort.
+     */
+    await expect(page.getByText("Einheit wählen")).toBeVisible();
     // Beide Fahrzeuge des Seeds: „nicht auf ein einzelnes beschränkt“ ist die
     // User Story, und zwei Einträge sind ihr kleinstmöglicher Beleg.
     await expect(page.getByRole("link", { name: alsText(E2E_FAHRZEUG_NAME) })).toBeVisible();
@@ -172,7 +178,7 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
 
     await klickeWennRuhig(kopfKnopf(page, "Check durchführen"));
     await page.waitForURL((u) => u.pathname.endsWith("/helfer/check"));
-    await expect(page.getByText("Fahrzeug wählen")).toBeVisible();
+    await expect(page.getByText("Einheit wählen")).toBeVisible();
   });
 
   test("„Check durchführen“ am Fahrzeugblatt wählt DIESES Fahrzeug vor", async ({ page }) => {
@@ -245,7 +251,10 @@ test.describe("DRK-305 — angemeldet prüfen, ohne Code", () => {
     await page.goto(lagerbuchUrl("/helfer/check"));
 
     await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
-    await expect(page.getByText("Fahrzeug wählen")).toHaveCount(0);
+    // ⚠️ DIE NEGATIVE ZUSICHERUNG MUSS DEN HEUTIGEN TEXT NENNEN: „Fahrzeug
+    // wählen“ gibt es seit DRK-309 nirgends mehr, sie waere also trivial gruen
+    // und hoerte auf, die Bindung aus DRK-302 zu behaupten.
+    await expect(page.getByText("Einheit wählen")).toHaveCount(0);
     // Und der Kopf zeigt wieder das Kärtchen, nicht das Konto.
     await expect(page.getByText(/^Zugang: Token/)).toBeVisible();
   });

@@ -32,7 +32,9 @@ import {
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
-import { einheitenartLabel, type Einheitenart } from "../../../_lib/konstanten";
+import {
+  einheitenartLabel, einheitMeta, type Einheitenart,
+} from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
@@ -122,10 +124,21 @@ function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterIt
     if (gesehen.has(zeile.fahrzeugId)) continue;
     gesehen.set(
       zeile.fahrzeugId,
-      // DRK-309: Die Art steht in der Beschriftung, damit zwei gleich
-      // benannte Einheiten auch ohne Kennung unterscheidbar bleiben.
-      [zeile.fahrzeugName, zeile.fahrzeugKennung
-        ?? einheitenartLabel(zeile.fahrzeugEinheitenart)].join(" · "),
+      /*
+       * DRK-309: Die Art steht in der Beschriftung, damit zwei gleich benannte
+       * Einheiten unterscheidbar bleiben.
+       *
+       * ⚠️ ART UND KENNUNG, NICHT ART ODER KENNUNG (Reviewrunde 7). Hier stand
+       * `kennung ?? art` — die Kennung als RUECKFALLEBENE fuer die Art. Das
+       * setzt voraus, dass nur Fahrzeuge eine Kennung tragen, und genau das
+       * sagt `createFahrzeug` nicht zu: eine Tasche darf eine haben. Sie war
+       * dann als Tasche nicht mehr zu erkennen — der Fehler versteckte sich
+       * ausgerechnet in der Zeile, die ihn beheben sollte.
+       */
+      [zeile.fahrzeugName, einheitMeta({
+        kennung: zeile.fahrzeugKennung,
+        einheitenart: zeile.fahrzeugEinheitenart,
+      })].join(" · "),
     );
   }
   // Erst zaehlen, dann entscheiden: nur die WIRKLICH doppelten Beschriftungen
@@ -185,14 +198,16 @@ function spalten(
             {name}
           </Link>
           {/*
-            DRK-309: Kennung, wo es eine gibt — sonst die Art. Eine Tasche
-            traegt kein Kennzeichen, und eine Zeile, die nur einen Namen
-            zeigt, laesst offen, wovon sie spricht.
+            DRK-309: Art UND Kennung — nicht die eine als Rueckfall fuer die
+            andere. Begruendung an der Gruppenbeschriftung oben.
           */}
           <span style={{ ...SCHRIFT.neben, marginInlineStart: SPACE.sm }}>
-            {zeile.fahrzeugKennung
-              ? <span style={SCHRIFT.mono}>{zeile.fahrzeugKennung}</span>
-              : einheitenartLabel(zeile.fahrzeugEinheitenart)}
+            {einheitenartLabel(zeile.fahrzeugEinheitenart)}
+            {zeile.fahrzeugKennung ? (
+              <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
+                {zeile.fahrzeugKennung}
+              </span>
+            ) : null}
           </span>
         </span>
       ),
@@ -267,11 +282,12 @@ function gruppenSpalten(
         return (
           <Flex gap={6} wrap align="center">
             <span style={{ fontWeight: 600 }}>{zeile.fahrzeugName}</span>
+            <span style={SCHRIFT.neben}>
+              {einheitenartLabel(zeile.fahrzeugEinheitenart)}
+            </span>
             {zeile.fahrzeugKennung
               ? <span style={SCHRIFT.mono}>{zeile.fahrzeugKennung}</span>
-              : <span style={SCHRIFT.neben}>
-                  {einheitenartLabel(zeile.fahrzeugEinheitenart)}
-                </span>}
+              : null}
             {zeile.abgelaufen > 0 ? (
               <Chip ton="rot" zeichen="warnung">{zeile.abgelaufen} abgelaufen</Chip>
             ) : null}

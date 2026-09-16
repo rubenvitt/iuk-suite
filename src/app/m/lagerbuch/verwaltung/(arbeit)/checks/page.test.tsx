@@ -21,6 +21,7 @@ beforeEach(() => {
     typ: "fahrzeug",
     kennung: "UE-RK 1234",
     aktiv: true,
+    einheitenart: "fahrzeug",
   }).run();
 });
 
@@ -216,6 +217,10 @@ describe("Checks-Seite", () => {
       id: "check-hydration",
       detailHref: "/verwaltung/checks/check-hydration",
       fahrzeugName: "RTW 1",
+      // DRK-309: Art und Kennung reisen mit — die Spalte zeigt beide, und der
+      // Spaltenfilter gruppiert ueber dieselbe Zeichenkette.
+      fahrzeugKennung: "UE-RK 1234",
+      fahrzeugEinheitenart: "fahrzeug",
       abgeschlossenText: "7.8.2026, 12:00:00",
       // Der Rohwert fuer die Sortierung der Abschlussspalte — er faehrt als
       // JSON-sichere Zeichenkette mit, nicht als `Date`.

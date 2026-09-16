@@ -54,8 +54,26 @@ function artKnopf(bereich: Locator, beschriftung: string): Locator {
     .filter({ hasText: new RegExp(`^${beschriftung}$`) });
 }
 
+/**
+ * ⚠️ `klickeWennRuhig` UND NICHT `.click()` — Falle 12, und sie ist hier
+ * GEMESSEN eingetreten, nicht vorsorglich behandelt: im CI-Lauf auf `9e55645`
+ * lief der erste Klick einmal in das volle Zeitbudget und kam beim
+ * Wiederholungslauf durch („1 flaky"). Das Muster ist das der Falle: es fliegt
+ * KEINE Anfrage, die Antwort bleibt also nicht aus, sondern wird nie
+ * angestossen. Der Ausloeser sitzt in der Huelle — `SessionProvider` holt
+ * `/api/auth/session` nach, und mit der Sitzung wechselt die Navigation von
+ * der schmalen Platzhalter- auf die volle Spalte; der Inhalt rutscht hoch,
+ * waehrend Playwright zwischen `mousedown` und `mouseup` auf den vorher
+ * berechneten Punkt zielt. Das `click`-Ereignis feuert dann am gemeinsamen
+ * Vorfahren, und ein `<div>` waehlt nichts aus.
+ *
+ * ⚠️ EIN GROESSERES ZEITBUDGET HAETTE NICHTS GEHOLFEN, und eine Wiederholung
+ * heilt es nur zufaellig: gewartet wird auf einen Rundlauf, den niemand
+ * begonnen hat. `klickeWennRuhig` klickt erst, wenn der Kasten dreimal in
+ * Folge stillsteht.
+ */
 async function artWaehlen(bereich: Locator, beschriftung: string): Promise<void> {
-  await artKnopf(bereich, beschriftung).click();
+  await klickeWennRuhig(artKnopf(bereich, beschriftung));
 }
 
 test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {

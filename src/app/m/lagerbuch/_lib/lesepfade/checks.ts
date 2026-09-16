@@ -21,6 +21,7 @@
  */
 import { and, desc, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
+import type { Einheitenart } from "../konstanten";
 import { parseCheckErgebnis } from "../checkErgebnis";
 import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
 import { o2Status } from "../domain/o2";
@@ -34,13 +35,22 @@ export type CheckFilter = { fahrzeugId?: string; von?: Date; bis?: Date; grenze?
 
 export type CheckHistorieZeile = CheckSummen & {
   id: string; fahrzeugId: string; fahrzeugName: string; completedAt: Date | null;
+  /**
+   * ⚠️ DER NAME ALLEIN TRAEGT DIE ZEILE NICHT MEHR (DRK-309, Reviewrunde 7).
+   * `lagerorte.name` traegt keinen Eindeutigkeitsschluessel; ein Fahrzeug und
+   * eine Tasche duerfen gleich heissen, und dann sind ihre Checks in der
+   * Historie weder auseinanderzuhalten noch getrennt zu filtern — der
+   * Spaltenfilter gruppiert ueber genau diesen Namen und faengt beide.
+   */
+  fahrzeugKennung: string | null;
+  fahrzeugEinheitenart: Einheitenart | null;
 };
 
 export type CheckHistorie = { zeilen: CheckHistorieZeile[]; mehrVorhanden: boolean };
 
 export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
   const grenze = f.grenze ?? CHECK_GRENZE;
-  const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
+  const einheiten = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l]));
   // EIN Abruf des Flaschenstamms fuer ALLE Zeilen — der Nachschlag steckt in der
   // Summenfunktion, die je Zeile laeuft; ein Abruf dort waere einer je Check.
   const wechselGrenze = wechselGrenzeNachschlag(db);
@@ -62,7 +72,9 @@ export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
     mehrVorhanden: rows.length > grenze,
     zeilen: rows.slice(0, grenze).map((c) => ({
       id: c.id, fahrzeugId: c.fahrzeugId,
-      fahrzeugName: namen.get(c.fahrzeugId) ?? "–",
+      fahrzeugName: einheiten.get(c.fahrzeugId)?.name ?? "–",
+      fahrzeugKennung: einheiten.get(c.fahrzeugId)?.kennung ?? null,
+      fahrzeugEinheitenart: einheiten.get(c.fahrzeugId)?.einheitenart ?? null,
       completedAt: c.completedAt,
       ...summiereCheckErgebnis(c.ergebnis, wechselGrenze),
     })),

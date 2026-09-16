@@ -316,6 +316,13 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
    *
    * Die Kennung steht deshalb auch in der Beschriftung — sonst waeren die
    * beiden Eintraege im Menue nicht auseinanderzuhalten.
+   *
+   * ⚠️ UND SEIT DRK-309 (Reviewrunde 7) STEHT DIE ART DANEBEN, NICHT STATT
+   * IHRER. Vorher hiess die Regel „Kennung, sonst Art"; das setzte voraus, dass
+   * nur Fahrzeuge eine Kennung tragen, und `createFahrzeug` sagt das nicht zu.
+   * Eine Tasche MIT Kennung war damit von einem Fahrzeug nicht zu
+   * unterscheiden — der Fehler sass ausgerechnet in der Zeile, die ihn beheben
+   * sollte.
    */
   it("trennt zwei gleichnamige Fahrzeuge", async () => {
     await mount(
@@ -329,7 +336,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
       />,
     );
 
-    await spaltenFilter("Einheit", "MTW · UE-RK 2");
+    await spaltenFilter("Einheit", "MTW · Fahrzeug · UE-RK 2");
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
@@ -364,11 +371,38 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
-  /** Gegenprobe: ein eindeutiger Name bleibt unverziert. */
-  it("hängt einem eindeutigen Fahrzeugnamen nichts an", async () => {
+  /**
+   * DRK-309, Reviewrunde 7 — EINE TASCHE MIT KENNUNG.
+   *
+   * ⚠️ DER FALL, DEN DIE ALTE REGEL VERSCHLUCKT HAT. „Kennung, sonst Art"
+   * zeigte fuer diese Zeile nur Name und Kennung — also genau das, was auch
+   * ein Fahrzeug zeigt. Dass `createFahrzeug` einer Tasche eine Kennung
+   * erlaubt, macht den Fall nicht exotisch: eine Sanitaetstasche traegt oft
+   * eine Inventarnummer.
+   */
+  it("nennt bei einer Tasche MIT Kennung beides — Art und Kennung", async () => {
+    await mount(
+      <FahrzeugVerfallTabelle
+        zeilen={[
+          { ...ZEILEN[1], schluessel: "tasche:a1", fahrzeugId: "tasche-1",
+            fahrzeugName: "Rucksack Betreuung", fahrzeugKennung: "INV-77",
+            fahrzeugEinheitenart: "tasche" as const },
+        ]}
+      />,
+    );
+
+    const zeile = query("tbody tr[data-row-key]");
+    expect(zeile.textContent).toContain("Tasche");
+    expect(zeile.textContent).toContain("INV-77");
+    // Und sie wird NICHT als Fahrzeug gefuehrt — das war der Befund.
+    expect(zeile.textContent).not.toContain("Fahrzeug");
+  });
+
+  /** Gegenprobe: ein eindeutiger Name bekommt keine ID angehaengt. */
+  it("hängt einem eindeutigen Fahrzeugnamen keine ID an", async () => {
     await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
 
-    await spaltenFilter("Einheit", "RTW Süd · UE-RK 5678");
+    await spaltenFilter("Einheit", "RTW Süd · Fahrzeug · UE-RK 5678");
     expect(zeilenSchluessel()).toEqual(["f2:a1"]);
   });
 
