@@ -438,13 +438,13 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // genau einmal, bei der Belegung — danach hebt sie allein der Herzschlag. Kaeme
     // laufend etwas dazu, saehe die Sperre ewig jung aus, und die Uebernahme einer
     // wirklich verwaisten griffe nie mehr. Gemessen: ein `touch` darin hebt die mtime an.
-    expect(befehle).toMatch(/mkdir "\$SPERRVERZEICHNIS\/eigner\.\$\$\.\$\(date \+%s\)"/);
+    expect(befehle).toMatch(/meine_marke="eigner\.\$\$\.\$\(date \+%s\)"/);
     const hineingeschrieben = befehle
       .split("\n")
       .filter((z) => z.includes("$SPERRVERZEICHNIS/"))
       .filter((z) => !z.includes("rmdir"));
     expect(hineingeschrieben.map((z) => z.trim())).toEqual([
-      'sperre_marke_setzen() { mkdir "$SPERRVERZEICHNIS/eigner.$$.$(date +%s)" 2>/dev/null || true; }',
+      'mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null || meine_marke=""',
     ]);
   });
 
@@ -560,6 +560,40 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(befehle).toMatch(/case "\$name" in\s*\n\s*\$TARBALL_MUSTER\)/);
     // Und es bleibt nicht still: ein fremder Name gehoert jemand anderem.
     expect(befehle).toMatch(/sieht nicht wie eine Sicherung dieses Stacks aus/);
+  });
+
+  it("eine 0 oder ein Unsinnswert loescht NICHT alles, sondern gar nichts", () => {
+    // ⚠️ GEMESSEN: `tail -n +$((KEEP + 1))` wird bei 0 zu `tail -n +1` und gibt die GANZE
+    // Liste aus — jedes Archiv am Ziel wandert in die Loeschliste, auch das gerade
+    // hochgeladene. Danach kehrt `auslagern` mit 0 zurueck, der Zustand steht auf `ok`
+    // und der Ping meldet Erfolg: null Generationen am Ziel bei gruenem Lauf. Wer
+    // abschalten will, schreibt `aus`; eine Null ist ein Tippfehler, und ein Tippfehler
+    // darf keine Sicherungen kosten.
+    const rumpfA = funktionsrumpf(befehle, "auslagern");
+    expect(rumpfA).toMatch(/case "\$BACKUP_RCLONE_KEEP" in\s*\n\s*'' \| \*\[!0-9\]\*\)/);
+    expect(rumpfA).toMatch(/\[ "\$BACKUP_RCLONE_KEEP" -lt 1 \]/);
+    // Beide Wege gehen mit `return 0` heraus — geloescht wird nichts, der Upload selbst
+    // war ja erfolgreich.
+    const pruefung = rumpfA.indexOf('case "$BACKUP_RCLONE_KEEP" in');
+    const rotation = rumpfA.indexOf("tail -n +$((BACKUP_RCLONE_KEEP + 1))");
+    expect(pruefung).toBeGreaterThan(-1);
+    expect(rotation).toBeGreaterThan(pruefung);
+  });
+
+  it("die Freigabe prueft den BESITZ, statt blind zu loeschen", () => {
+    // ⚠️ `haelt_sperre` sagt nur, dass wir die Sperre EINMAL hatten — nicht, dass wir sie
+    // noch haben. Verliert ein Lauf seine Pacht (Herzschlag tot, Container nach einer
+    // Pause jenseits der Altersgrenze wieder da), uebernimmt ein anderer ordnungsgemaess
+    // und setzt SEINE Marke; ein `rm -rf` von uns riss sie danach weg, und ein dritter
+    // Lauf konnte neben dem zweiten starten. GEMESSEN: fremde Marke gesetzt, erster Lauf
+    // beendet — die fremde Sperre war weg.
+    const rumpfF = funktionsrumpf(befehle, "sperre_ablegen");
+    expect(rumpfF).not.toMatch(/rm -rf/);
+    expect(rumpfF).toMatch(/rmdir "\$SPERRVERZEICHNIS\/\$meine_marke" 2>\/dev\/null/);
+    // Und das Verzeichnis selbst nur, wenn es danach leer ist.
+    expect(rumpfF).toMatch(/rmdir "\$SPERRVERZEICHNIS" 2>\/dev\/null/);
+    // Die Marke muss bei JEDER Belegung festgehalten werden, sonst gibt es nichts zu pruefen.
+    expect(befehle).toMatch(/meine_marke="eigner\.\$\$\.\$\(date \+%s\)"/);
   });
 
   it("`aus` schaltet die Rotation am Ziel ab, statt sie auf 0 zu setzen", () => {

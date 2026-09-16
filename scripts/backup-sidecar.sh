@@ -257,6 +257,25 @@ auslagern() {
     protokoll "Rotation am Ziel: aus (BACKUP_RCLONE_KEEP=aus) — das Ziel waechst unbegrenzt."
     return 0
   fi
+  # ⚠️ EINE NULL LOESCHT ALLES UND MELDET ERFOLG — GEMESSEN, nicht hergeleitet. Die
+  # Rotation unten laeuft ueber `tail -n +$((KEEP + 1))`, und `tail -n +1` gibt die GANZE
+  # Liste aus: jedes Archiv am Ziel wandert in die Loeschliste, auch das gerade
+  # hochgeladene. Danach kehrt `auslagern` mit 0 zurueck, der Zustand steht auf `ok` und
+  # der Ping meldet Erfolg — gemessen blieben null Generationen am Ziel bei gruenem Lauf.
+  # Wer die Rotation abschalten will, schreibt `aus`; eine Null ist ein Tippfehler, und
+  # ein Tippfehler darf keine Sicherungen kosten. Nicht geloescht und laut gesagt.
+  case "$BACKUP_RCLONE_KEEP" in
+    '' | *[!0-9]*)
+      warne "BACKUP_RCLONE_KEEP=\"$BACKUP_RCLONE_KEEP\" ist keine Zahl — am Ziel wird NICHTS
+  geloescht. Gemeint war vermutlich eine Zahl oder `aus`."
+      return 0
+      ;;
+  esac
+  if [ "$BACKUP_RCLONE_KEEP" -lt 1 ]; then
+    warne "BACKUP_RCLONE_KEEP=$BACKUP_RCLONE_KEEP wuerde JEDE Generation am Ziel loeschen,
+  auch die gerade hochgeladene — es wird NICHTS geloescht. Zum Abschalten `aus` setzen."
+    return 0
+  fi
 
   # ⚠️ DIESER BLOCK LOESCHT AN EINEM FREMDEN ZIEL. Wie er sich davor schuetzt, steht am
   # `case` weiter unten — dessen Reihenfolge ist tragend, nicht bloss seine Existenz.
@@ -382,7 +401,13 @@ sperre_alter() { verzeichnis_alter "$SPERRVERZEICHNIS"; }
 # auf diesem Weg also nicht versehentlich mitgerissen werden.
 sperre_marke() { ls "$SPERRVERZEICHNIS" 2>/dev/null | head -1; }
 
-sperre_marke_setzen() { mkdir "$SPERRVERZEICHNIS/eigner.$$.$(date +%s)" 2>/dev/null || true; }
+# Der Name der Marke, die DIESER Prozess gesetzt hat — sein Besitznachweis. Die Freigabe
+# braucht ihn (siehe `sperre_ablegen`).
+meine_marke=""
+sperre_marke_setzen() {
+  meine_marke="eigner.$$.$(date +%s)"
+  mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null || meine_marke=""
+}
 
 # ⚠️ DIE GRENZE HAT EINEN BODEN, UND DER IST KEINE VORSICHT. Eine Grenze unterhalb des
 # Herzschlags ist selbstwiderspruechlich: der Lauf meldet sich alle
@@ -524,12 +549,27 @@ herzschlag_beenden() {
 }
 
 haelt_sperre=0
+# ⚠️ DIE FREIGABE PRUEFT DEN BESITZ, SONST LOESCHT SIE EINE FREMDE SPERRE. `haelt_sperre`
+# allein sagt nur, dass wir sie EINMAL hatten — nicht, dass wir sie noch haben. Verliert
+# ein Lauf seine Pacht (Herzschlag tot, Container nach einer Pause jenseits der
+# Altersgrenze wieder da), uebernimmt ein anderer ordnungsgemaess und setzt SEINE Marke;
+# ein `rm -rf` von uns riss sie danach weg, und ein dritter Lauf konnte neben dem zweiten
+# starten. GEMESSEN: fremde Marke gesetzt, erster Lauf beendet — die fremde Sperre war weg.
+#
+# `rmdir` auf die EIGENE Marke ist der Nachweis: es gelingt nur, wenn sie noch da ist.
+# Danach raeumt `rmdir` das Verzeichnis selbst weg — und auch das nur, wenn es leer ist.
 sperre_ablegen() {
   herzschlag_beenden
-  if [ "$haelt_sperre" -eq 1 ]; then
-    haelt_sperre=0
-    rm -rf "$SPERRVERZEICHNIS"
+  [ "$haelt_sperre" -eq 1 ] || return 0
+  haelt_sperre=0
+  if [ -n "$meine_marke" ] && ! rmdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then
+    warne "Die Sperre traegt nicht mehr unsere Marke — sie wird NICHT freigegeben.
+  Ein anderer Lauf hat sie uebernommen, waehrend dieser noch arbeitete."
+    meine_marke=""
+    return 0
   fi
+  meine_marke=""
+  rmdir "$SPERRVERZEICHNIS" 2>/dev/null || true
 }
 trap sperre_ablegen EXIT
 
