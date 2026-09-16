@@ -877,7 +877,25 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     },
   ].filter((b) => !bzDa.has(b.id));
   for (const b of bzListe) {
-    db.insert(bzGeraete).values({ ...b, aktiv: true, createdAt: vor(jetzt, 180) }).run();
+    db.insert(bzGeraete).values({
+      ...b, aktiv: true, createdAt: vor(jetzt, 180),
+      /*
+       * DRK-311: das RTW-Geraet traegt einen Aufmerksamkeitshinweis, das
+       * KTW-Geraet nicht — nebeneinander ist der gelbe Status in der Liste zu
+       * sehen UND die Gegenprobe, dass er nicht ueberall steht.
+       *
+       * ⚠️ Der HINWEIS haengt am RTW-Geraet, die BEMERKUNG steht an dessen
+       * letzter Kontrolle („Level 2 außerhalb …") — zwei verschiedene Texte an
+       * derselben Zeile. Genau daran sieht man lokal, dass es zwei Spalten und
+       * nicht eine ist: eine Bemerkung ist keine Warnung.
+       */
+      ...(b.id === "bz-rtw1"
+        ? {
+          beachtungHinweis: "Gehäuse hat einen Riss — beim nächsten Einsatz prüfen.",
+          beachtungSeit: vor(jetzt, 12),
+        }
+        : {}),
+    }).run();
   }
 
   /* 15 ── BZ-Kontrollen. APPEND-ONLY: Trigger sperren UPDATE und DELETE, also

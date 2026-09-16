@@ -372,6 +372,37 @@ export const bzGeraete = sqliteTable(
     level2Max: integer("level2_max"),
     aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    /**
+     * DRK-311 — DER AUFMERKSAMKEITSHINWEIS. ⚠️ DER TEXT *IST* DER ZUSTAND:
+     * `null` heisst „keine Beachtung noetig", ein Text heisst „gelber Status,
+     * und zwar mit DIESEM Satz". Es gibt bewusst kein zweites Boolean daneben —
+     * zwei Felder koennten sich widersprechen (`beachtung = true` ohne Text
+     * ergaebe genau den Zustand, den das Ticket ausschliesst: eine gelbe Farbe
+     * ohne verstaendlichen Hinweis), und niemand kaeme dahinter, welches der
+     * beiden recht hat.
+     *
+     * ⚠️ KEINE ABLEITUNG AUS `bz_kontrollen.kommentar` (Gespraechsnotiz DRK-311:
+     * „Nicht jede Bemerkung automatisch als Warnung interpretieren"). Der
+     * Hinweis steht nur da, wenn ein Mensch ihn gesetzt hat — die Bemerkung
+     * einer Kontrolle bleibt eine Bemerkung.
+     *
+     * ⚠️ AM GERAET, NICHT AN DER KONTROLLE, und das ist die Entscheidung dieser
+     * Spalte. `bz_kontrollen` ist append-only (0002): dort waere der Hinweis
+     * nicht mehr aufzuheben, ohne eine Kontrolle zu erfinden, die niemand
+     * durchgefuehrt hat. Beachtung ist Ist-Zustand des Geraets, kein Nachweis.
+     *
+     * ⚠️ WER SIE WANN GESETZT HAT, BEANTWORTET NICHT DER UPDATE-TRIGGER
+     * (Reviewrunde 3). Der schreibt `action: "update"`, `objectType:
+     * "bz_geraete"` — ununterscheidbar von einer Namensaenderung, und das
+     * Ereignisschema traegt keine Spaltenliste. Die Frage beantwortet ein
+     * AUSDRUECKLICHES Ereignis `bz_beachtung`, das `_actions/bz.ts` schreibt.
+     * Ohne das waere die Entscheidung oben nicht zu halten gewesen.
+     */
+    beachtungHinweis: text("beachtung_hinweis"),
+    /** Seit wann der Hinweis steht. Bleibt beim BEARBEITEN des Textes stehen —
+     *  die Aufmerksamkeit begann, als sie gesetzt wurde, nicht als jemand den
+     *  Satz umformuliert hat (`_actions/bz.ts#beachtungSetzen`). */
+    beachtungSeit: integer("beachtung_seit", { mode: "timestamp" }),
   },
   (t) => [index("idx_bz_geraete_lagerort").on(t.lagerortId)],
 );

@@ -17,7 +17,7 @@ import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
  * behauptete sie, statt sie zu messen.
  *
  * ⚠️ UND MIT DER MIGRATION, nicht mit einer von Hand angelegten Box-Zeile. Dass
- * `0011_entnahmebox.sql` ueberhaupt laeuft und die Zeile mit `typ = 'lager'` und
+ * `0012_entnahmebox.sql` ueberhaupt laeuft und die Zeile mit `typ = 'lager'` und
  * `parent_id IS NULL` anlegt, ist selbst Teil der Zusage: haengt sie eines Tages
  * unter dem Handlager, zaehlt ihr Inhalt still als Handlagerbestand.
  */

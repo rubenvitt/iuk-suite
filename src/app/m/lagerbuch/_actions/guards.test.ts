@@ -447,6 +447,26 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * einzige Hinweis waere ein roter Test mit der Meldung „expected 57 to be 56"
  * gewesen — die wie ein Zaehlfehler aussieht und keine Ursache nennt.
  *
+ * NACHTRAG DRK-311 (16.09.2026): `beachtungSetzen` kommt in `bz.ts` dazu — der
+ * Aufmerksamkeitshinweis am BZ-Geraet, admin-bewacht wie die vier Actions
+ * daneben. Sie steht ABSICHTLICH nicht in `kontrolleErfassen`: `bz_kontrollen`
+ * ist append-only, ein dort abgelegter Hinweis waere nie wieder aufzuheben.
+ * Keine neue Datei, keine neue Ausnahme. Die Zaehlung steht damit auf
+ * 58 = 55 bewacht + 3 Ausnahmen, 55 = 52 + 3, in weiterhin 23 Action-Dateien.
+ *
+ * NACHTRAG ZUSAMMENFUEHRUNG DRK-311/DRK-314 (16.09.2026): UND ZUM DRITTEN MAL
+ * DERSELBE FALL — die Warnung oben hat ihn wieder gefangen. Beide Aenderungen
+ * rechneten ihren Nachtrag vom Stand 57 aus und kamen jede fuer sich auf 58;
+ * git sah auf beiden Seiten DIESELBE Aenderung von 57 auf 58 und uebernahm sie
+ * ohne Konflikt. Konfliktbehaftet war allein `bz.ts` (die Importzeile), nicht
+ * dieser Block und nicht der Testkoerper.
+ *
+ * Die beiden addieren sich aber: DRK-311 bringt `beachtungSetzen` in die
+ * BESTEHENDE `bz.ts` (admin-bewacht), DRK-314 die NEUE `entnahmebox.ts` mit
+ * `bucheInEntnahmebox` (`requireHelferSchreibend`). Gemeinsam steht die
+ * Zaehlung damit auf 59 = 56 bewacht + 3 Ausnahmen, 56 = 52 + 4, in 24
+ * Action-Dateien.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -474,7 +494,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * prueft der Test den Code gegen sich selbst und bliebe auch bei einer
    * fehlenden Datei gruen.
    *
-   * ⚠️ Die Summen unten (53, 50, 3, 48, 2) stehen ABSICHTLICH als Literale da
+   * ⚠️ Die Summen unten (55, 52, 3, 52, 3) stehen ABSICHTLICH als Literale da
    * und werden NICHT aus dieser Tabelle gerechnet. Zwei unabhaengige Anker:
    * SOLL bindet je Datei, die Literale binden die Summe. Ein
    * `Object.values(SOLL).reduce(...)` waere immer gruen.
@@ -485,7 +505,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "aussondernLagerort.ts": 1,   // DRK-303, Aussondern je Lagerort
     "bestellung.ts": 1,
     "buchung.ts": 4,   // DRK-338: bucheUmlagerung kam dazu
-    "bz.ts": 4,
+    "bz.ts": 5,
     "check.ts": 1,
     "csv.ts": 1,
     "detail.ts": 1,
@@ -541,10 +561,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 58 Deklarationen, obwohl es nur 55 verschiedene Namen gibt", () => {
+  it("zaehlt 59 Deklarationen, obwohl es nur 56 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "58 Deklarationen").toHaveLength(58);
-    expect(new Set(namen).size, "55 verschiedene Namen").toBe(55);
+    expect(namen, "59 Deklarationen").toHaveLength(59);
+    expect(new Set(namen).size, "56 verschiedene Namen").toBe(56);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -556,7 +576,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 55 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 56 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -565,7 +585,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "55 bewacht").toBe(55);
+    expect(funde.length - ausnahmen.length, "56 bewacht").toBe(56);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -655,6 +675,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // einem `String`-Vergleich kleiner sind als Kleinbuchstaben ("Z" < "b").
       "entnahmebox.ts#bucheInEntnahmebox",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(51);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(52);
   });
 });

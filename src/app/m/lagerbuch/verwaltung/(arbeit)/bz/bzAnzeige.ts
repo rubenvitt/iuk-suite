@@ -25,6 +25,22 @@ export type BzAnzeigeZeile = {
    */
   letzteKontrolleIso: string | null;
   faellig: boolean;
+  /**
+   * DRK-311 — der Kommentar der LETZTEN Kontrolle, `null` wenn es keinen gab.
+   * Die Herkunft (und warum es nicht „die letzte nicht-leere Bemerkung" ist)
+   * steht an `BzGeraetZeile.letzteBemerkung`.
+   */
+  letzteBemerkungText: string | null;
+  /**
+   * DRK-311 — der Aufmerksamkeitshinweis, `null` wenn keine Beachtung noetig
+   * ist. ⚠️ ZWEI FELDER, NICHT EINS: eine Bemerkung ist keine Warnung, und der
+   * gelbe Status entsteht ausschliesslich daraus, dass ein Mensch ihn gesetzt
+   * hat (`domain/bz.ts#bzBeachtung`).
+   */
+  beachtungHinweis: string | null;
+  /** „seit 12.08. 09:15", sonst `null`. Die Standzeit ist die Zahl, an der
+   *  auffaellt, dass sich um einen Hinweis niemand kuemmert. */
+  beachtungSeitText: string | null;
 };
 
 export function faelligText(faelligkeit: FaelligkeitTextWerte): string {
@@ -52,5 +68,10 @@ export function bzAnzeigeZeilen(zeilen: BzGeraetZeile[]): BzAnzeigeZeile[] {
       ? null
       : zeile.letzteKontrolle.toISOString(),
     faellig: zeile.faelligkeit.ampel !== "gruen",
+    letzteBemerkungText: zeile.letzteBemerkung,
+    beachtungHinweis: zeile.beachtung.hinweis,
+    beachtungSeitText: zeile.beachtung.seit === null
+      ? null
+      : `seit ${fmtTs(zeile.beachtung.seit)}`,
   }));
 }

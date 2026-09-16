@@ -379,6 +379,10 @@
     "kind": "context",
     "via": "setGeraetAktiv"
   },
+  "src/app/m/lagerbuch/_actions/bz.ts#beachtungSetzen": {
+    "kind": "context",
+    "via": "beachtungSetzen"
+  },
   "src/app/m/lagerbuch/_actions/bz.ts#geraetZuBarcode": {
     "kind": "context",
     "via": "geraetZuBarcode"

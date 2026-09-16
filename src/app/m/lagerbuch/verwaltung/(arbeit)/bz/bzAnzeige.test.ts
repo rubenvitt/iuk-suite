@@ -11,6 +11,7 @@ function zeile(
   id: string,
   faelligkeit: BzGeraetZeile["faelligkeit"],
   letzteKontrolle: Date | null,
+  zusatz: Partial<Pick<BzGeraetZeile, "letzteBemerkung" | "beachtung">> = {},
 ): BzGeraetZeile {
   return {
     id,
@@ -25,6 +26,9 @@ function zeile(
     letzteKontrolle,
     letztesBestanden: letzteKontrolle === null ? null : true,
     faelligkeit,
+    letzteBemerkung: null,
+    beachtung: { erforderlich: false, hinweis: null, seit: null },
+    ...zusatz,
   };
 }
 
@@ -143,18 +147,29 @@ describe("BZ-Anzeigeprojektion", () => {
     expect(Object.keys(anzeige[0]).sort()).toEqual([
       "aktiv",
       "barcode",
+      // DRK-311: ZWEI getrennte Felder. `beachtungHinweis` ist der gelbe
+      // Status, `letzteBemerkungText` die Auskunft der letzten Kontrolle —
+      // eine Bemerkung ist keine Warnung.
+      "beachtungHinweis",
+      // Der fertige Text, kein `Date`: die Zeitangabe wird serverseitig
+      // formatiert, wie `letzteKontrolleText` daneben.
+      "beachtungSeitText",
       "faellig",
       "faelligkeitText",
       "faelligkeitTon",
       "id",
       // Der Rohwert fuer die Sortierung der Kontrollspalte — eine JSON-sichere
       // Zeichenkette, kein `Date`.
+      "letzteBemerkungText",
       "letzteKontrolleIso",
       "letzteKontrolleText",
       "name",
       "standortText",
     ]);
     expect(anzeige[0]).not.toHaveProperty("letzteKontrolle");
+    // ⚠️ Auch das Beachtungs-DTO traegt kein `Date` — `beachtung.seit` bleibt
+    // im Lesepfad und kommt hier ausschliesslich als Text an.
+    expect(anzeige[0]).not.toHaveProperty("beachtung");
     expect(anzeige[0]).not.toHaveProperty("faelligkeit");
     expect(anzeige[0]).not.toHaveProperty("faelligAm");
     expect(enthaeltDate(anzeige)).toBe(false);

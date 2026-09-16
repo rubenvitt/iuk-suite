@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
-import { getDb } from "../../../_db/client";
+import { getDb, type DB } from "../../../_db/client";
 import { zeitraumAus } from "../../../_lib/format";
 import { CHECK_GRENZE } from "../../../_lib/grenzen";
-import type { Leser } from "../../../_lib/lesepfade/bestand";
 import {
   checkHistorie,
   type CheckHistorieZeile,
@@ -101,6 +100,13 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
      * Abschluss traegt `null` und landet aufsteigend hinten.
      */
     abgeschlossenIso: zeile.completedAt?.toISOString() ?? null,
+    /**
+     * DRK-311 — WER DEN CHECK ERFASST HAT. Die Aufloesung von Kennung zu Name
+     * faellt im Lesepfad (`lesepfade/checks.ts`); ueber die RSC-Naht geht nur
+     * der fertige Text. Ein leerer Wert ist unmoeglich — der Aufloeser faellt
+     * im schlechtesten Fall auf die rohe Kennung zurueck.
+     */
+    werText: zeile.wer,
     ergebnisChips: ergebnisChips(zeile),
     /**
      * §11.5:10332 wörtlich: „die **Zeile** wird als ‚Ergebnis unlesbar'
@@ -126,7 +132,7 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
  * Die Client-Insel erhält ausschließlich rekursiv JSON-sichere Anzeige-DTOs.
  */
 export function checksInhalt(
-  db: Leser,
+  db: DB,
   suchparameter: CheckSuchparameter,
 ): ReactNode {
   const fahrzeuge = fahrzeugListe(db)
