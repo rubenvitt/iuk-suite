@@ -8,8 +8,9 @@ import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
-import { requireHelferSchreibend } from "../_lib/helferZugang";
-import { istLagerbuchAdmin, viewerOderNull } from "../_lib/zugang";
+import {
+  kontoZugangOderNull, requireHelferSchreibend, type HelferZugang,
+} from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
@@ -51,10 +52,16 @@ import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
  * nimmt, ist die Helferin, und sie hat kein Konto.
  *
  * ⚠️ DIE HERKUNFT ENTSCHEIDET DIE JOURNALQUELLE, nicht die aufrufende Seite:
- * `journalQuelle(riegel.zugang)` schreibt beim Kaertchen den CODE mit
+ * `journalQuelle(zugang)` schreibt beim Kaertchen den CODE mit
  * `quelleTyp: "token"`, beim Konto den OIDC-`sub` mit `"oidc"`. Ein festes
  * `"oidc" as const` hier schriebe eine Kaertchen-Buchung unter einer Kennung,
  * die es in `users` nicht gibt — und die Zeile ist append-only.
+ *
+ * ⚠️ `zugang` IST NICHT IMMER `riegel.zugang`, und das ist die eine Stelle, an
+ * der diese Action mehr weiss als ihr Riegel: raeumt sie eine STILLGELEGTE
+ * Einheit aus, traegt allein die Verwaltungserlaubnis den Vorgang — dann steht
+ * auch die Verwaltung in der Zeile, nicht das Kaertchen, mit dem der Riegel
+ * zufaellig aufgegangen ist. Die Herleitung steht am Vorabblick unten.
  */
 
 const BoxSchema = z.object({
@@ -90,29 +97,60 @@ export async function bucheInEntnahmebox(
   if (!riegel.ok) {
     return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
   }
-  return withAuditContext(
-    { actor: zugangsAkteur(riegel.zugang) },
-    async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
-      const geparst = BoxSchema.safeParse(eingabe);
-      if (!geparst.success) {
-        // ⚠️ `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
-        // Verbindung STEHT, sie hat gerade eine unbrauchbare Nutzlast geliefert.
-        // `"netz"` entsteht ausschliesslich im `catch` des Clients.
-        return {
-          ok: false,
-          grund: "eingabe",
-          text: "Die Eingabe war unvollständig. Bitte die Seite neu laden und die Menge erneut eingeben.",
-        };
-      }
-      const v = geparst.data;
-      const quelle = journalQuelle(riegel.zugang);
+  const geparst = BoxSchema.safeParse(eingabe);
+  if (!geparst.success) {
+    // ⚠️ `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
+    // Verbindung STEHT, sie hat gerade eine unbrauchbare Nutzlast geliefert.
+    // `"netz"` entsteht ausschliesslich im `catch` des Clients.
+    return {
+      ok: false,
+      grund: "eingabe",
+      text: "Die Eingabe war unvollständig. Bitte die Seite neu laden und die Menge erneut eingeben.",
+    };
+  }
+  const v = geparst.data;
 
-      /*
-       * ⚠️ VOR der Transaktion, und das ist keine Stilfrage: `viewerOderNull`
-       * ist `async`, `db.transaction` laeuft SYNCHRON (better-sqlite3). Ein
-       * `await` im Transaktionsrumpf gibt es nicht.
-       */
-      const darfStillgelegteRaeumen = istLagerbuchAdmin(await viewerOderNull());
+  /*
+   * ── DER VORABBLICK AUF DIE QUELLE ─────────────────────────────────────────
+   *
+   * Eine stillgelegte Einheit darf nur die Verwaltung ausraeumen (die
+   * Begruendung steht an Riegel 1 unten). Die Erlaubnis dafuer kann NICHT am
+   * `riegel` haengen: `requireHelferSchreibend` prueft das KAERTCHEN ZUERST und
+   * steigt mit `herkunft: "token"` aus, sobald ein gueltiges Kaertchen-Cookie
+   * da ist — auch bei einer Verwalterin, die daneben angemeldet ist.
+   *
+   * ⚠️ UND WER DIE ERLAUBNIS MITBRINGT, STEHT AUCH IN DER ZEILE (Codex-Review
+   * zu PR #178, P1). Das ist der Grund fuer den zusaetzlichen Lesezugriff hier
+   * oben statt einer Abfrage in der Transaktion: `withAuditContext` und
+   * `journalQuelle` legen die Kennung VOR dem ersten Schreibvorgang fest. Ein
+   * Ausraeumen, das allein die Verwaltungserlaubnis traegt, waere sonst im
+   * Protokoll und im append-only-Journal auf den GEMEINSAMEN Zugangscode
+   * gebucht — `zugangsAkteur` schreibt fuer das Kaertchen ausdruecklich
+   * `auditAccessActor` („Gemeinsamer Zugangscode", identifiziert einen Zugang,
+   * nie eine Person). Die Zeile bliebe fuer immer falsch, und zwar still.
+   *
+   * `kontoZugangOderNull` UND NICHT `istLagerbuchAdmin(await viewerOderNull())`
+   * — es beantwortet dieselbe Frage, liefert aber den Zugang GLEICH MIT und
+   * legt dabei die `users`-Zeile an (`merkeNutzer`). Ohne die zeigte das
+   * Journal die rohe OIDC-Kennung statt des Klarnamens (`_db/quelle.ts`).
+   *
+   * ⚠️ NUR BEI STILLGELEGTER QUELLE, nicht immer. Eine gewoehnliche Buchung mit
+   * Kaertchen bleibt beim Kaertchen — auch die einer angemeldeten Person. Wer
+   * die Kennung IMMER auf das Konto zoege, traegt den Klarnamen jeder
+   * Verwaltenden in jede Buchung, die sie am Fahrzeug mit der Karte macht,
+   * waehrend die Buchung einer Kollegin ohne Konto daneben anonym bleibt. Die
+   * Kennung wechselt genau dort, wo die zusaetzliche Erlaubnis greift.
+   */
+  const quellAktiv = db
+    .select({ aktiv: lagerorte.aktiv })
+    .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get()?.aktiv;
+  const verwaltung = quellAktiv === false ? await kontoZugangOderNull(db) : null;
+  const zugang: HelferZugang = verwaltung ?? riegel.zugang;
+
+  return withAuditContext(
+    { actor: zugangsAkteur(zugang) },
+    async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
+      const quelle = journalQuelle(zugang);
 
       let gebucht = 0;
       let fachFehler: string | null;
@@ -154,10 +192,25 @@ export async function bucheInEntnahmebox(
            * dort zum Ausraeumen stehen — und der Satz „Das Ausraeumen laeuft
            * ueber die Verwaltung" stand ihr entgegen, waehrend sie darin sass.
            *
+           * ⚠️ GEFRAGT WIRD `verwaltung`, NICHT EIN ZWEITES MAL DAS KONTO, und
+           * das ist die ganze Zusage aus dem P1 der Review zu PR #178: die
+           * Erlaubnis und die Kennung, unter der gebucht wird, stammen aus
+           * DERSELBEN Entscheidung dort oben. Eine zweite Abfrage hier koennte
+           * ja sagen, waehrend `zugangsAkteur` und `journalQuelle` laengst auf
+           * das Kaertchen festgelegt sind — und genau diese Zeile bliebe dann
+           * fuer immer falsch.
+           *
+           * ⚠️ DIE VORABPROBE UND DIESE SIND ZWEI LESEZUGRIFFE, und zwischen
+           * ihnen kann jemand die Einheit stilllegen. Dann steht hier
+           * `verwaltung === null` bei inaktiver Quelle, und die Buchung wird
+           * ABGEWIESEN — auch einer Verwalterin gegenueber. Das ist die
+           * richtige Richtung: sie laedt neu und bucht erneut, waehrend die
+           * Gegenrichtung eine append-only-Zeile mit falscher Kennung hinterliesse.
+           *
            * ⚠️ UND DIE PROBE IST DABEI SCHAERFER GEWORDEN, nicht nur anders:
-           * sie fragt jetzt nach der Lagerbuch-Gruppe statt nach „irgendein
-           * Konto". Die erste Fassung liess eine angemeldete Person OHNE die
-           * Gruppe durch; das war als Grenze benannt und ist mit diesem Schritt
+           * sie fragt nach der Lagerbuch-Gruppe statt nach „irgendein Konto".
+           * Die erste Fassung liess eine angemeldete Person OHNE die Gruppe
+           * durch; das war als Grenze benannt und ist mit diesem Schritt
            * erledigt. Der Riegel der Action bleibt unberuehrt — hier wird
            * NICHTS aufgesperrt, was er zugelassen hat, sondern nur eine
            * zusaetzliche Erlaubnis richtig zugeordnet.
@@ -176,7 +229,7 @@ export async function bucheInEntnahmebox(
             })
             .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
           if (!von) return "Diese Einheit gibt es nicht mehr. Bitte die Seite neu laden.";
-          if (!von.aktiv && !darfStillgelegteRaeumen) {
+          if (!von.aktiv && !verwaltung) {
             // Der Satz nennt den WEG, nicht die Ursache: dass die Zeile
             // `aktiv = 0` traegt, hilft am Fahrzeug niemandem weiter.
             return "Diese Einheit ist außer Dienst. Das Ausräumen läuft über die Verwaltung.";

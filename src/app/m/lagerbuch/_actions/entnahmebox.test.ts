@@ -26,7 +26,7 @@ const { helferRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
   helferRiegel: vi.fn<() => Promise<unknown>>(),
   revalidiert: [] as string[],
   /**
-   * DIE ANGEMELDETE PERSON — getrennt vom Riegel, und genau darum geht es.
+   * DIE ANGEMELDETE VERWALTUNG — getrennt vom Riegel, und genau darum geht es.
    *
    * ⚠️ DER RIEGEL SAGT NICHT, OB JEMAND ANGEMELDET IST.
    * `requireHelferSchreibend` prueft das KAERTCHEN ZUERST
@@ -36,28 +36,28 @@ const { helferRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
    * saehe diese Person als Helferin. Deshalb steht hier eine ZWEITE, davon
    * unabhaengige Grosse.
    */
-  sitzung: { viewer: null as { groups: string[] } | null },
+  sitzung: { konto: null as unknown },
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
 }));
 
+/*
+ * ⚠️ ZWEI EINSTIEGE AUS DEMSELBEN MODUL, und sie sind absichtlich getrennt
+ * steuerbar: `requireHelferSchreibend` beantwortet „darf hier ueberhaupt jemand
+ * buchen?", `kontoZugangOderNull` „bringt eine angemeldete Verwaltung die
+ * zusaetzliche Erlaubnis mit?". Die echte Fassung des zweiten haengt an
+ * `SUITE_ADMIN_GROUP_LAGERBUCH` und an `merkeNutzer`; ein Test, der sie ruft,
+ * pruefte die Umgebung statt die Action.
+ */
 vi.mock("../_lib/helferZugang", () => ({
   requireHelferSchreibend: () => helferRiegel(),
+  kontoZugangOderNull: async () => sitzung.konto,
 }));
 
 vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
-}));
-
-// `istLagerbuchAdmin` NICHT nachgebaut, sondern in seiner Bedeutung gespiegelt:
-// die Gruppenliste kommt aus `adminGroupsFor(getModule("lagerbuch"))` und
-// haengt an der Umgebung (`SUITE_ADMIN_GROUP_LAGERBUCH`) — ein Test, der das
-// echte Praedikat ruft, pruefte die Umgebung statt die Action.
-vi.mock("../_lib/zugang", () => ({
-  viewerOderNull: async () => sitzung.viewer,
-  istLagerbuchAdmin: (v: { groups: string[] } | null) => !!v?.groups.includes("lagerbuch"),
 }));
 
 import { bucheInEntnahmebox } from "./entnahmebox";
@@ -91,16 +91,17 @@ const KONTO = {
 
 /**
  * Die Sitzung der Verwalterin — UNABHAENGIG davon, was der Riegel zurueckgibt.
- * `groups` ist alles, was `istLagerbuchAdmin` liest.
+ * Dieselbe Form wie `KONTO.zugang`: sie geht als `HelferZugang` in
+ * `journalQuelle` und `zugangsAkteur`.
  */
-const VERWALTUNG = { groups: ["lagerbuch"] };
+const VERWALTUNG = KONTO.zugang;
 
 let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
   helferRiegel.mockResolvedValue(KAERTCHEN);
-  sitzung.viewer = null;
+  sitzung.konto = null;
   t = migrierteTestDb("lagerbuch-actions-entnahmebox-");
 
   t.db.insert(lagerorte).values({
@@ -407,7 +408,7 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
      * genau die, die man leerraeumt.
      */
     helferRiegel.mockResolvedValue(KONTO);
-    sitzung.viewer = VERWALTUNG;
+    sitzung.konto = VERWALTUNG;
     t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -464,7 +465,7 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
      * Lagerbuch-Gruppe in der Sitzung.
      */
     helferRiegel.mockResolvedValue(KAERTCHEN);
-    sitzung.viewer = VERWALTUNG;
+    sitzung.konto = VERWALTUNG;
     t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -476,19 +477,38 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
 
     expect(erg.ok).toBe(true);
     expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(5);
+
+    /*
+     * ⚠️ UND SIE STEHT AUCH IN DER ZEILE (Codex-Review zu PR #178, P1). Die
+     * Erlaubnis kam aus der Verwaltung, der Riegel aber aus dem Kaertchen —
+     * wuerde die Kennung dem Riegel folgen, waere ein Vorgang, den NUR die
+     * Verwaltung ausloesen darf, auf den GEMEINSAMEN Zugangscode gebucht.
+     * `quelleTyp: "token"` traegt den Code im Klartext und loest ueber
+     * `tokens.code` auf; das Journal ist append-only, die Zeile bliebe fuer
+     * immer falsch, und zwar still.
+     *
+     * Geprueft werden BEIDE Legs: Abgang und Zugang sind derselbe Vorgang, und
+     * eine halbe Zuschreibung waere die teuerste Auskunft von allen.
+     */
+    const legs = neueZeilen();
+    expect(legs.length, "Abgang und Zugang").toBe(2);
+    for (const leg of legs) {
+      expect(leg.quelleTyp, "die Verwaltung bucht, nicht das Kaertchen").toBe("oidc");
+      expect(leg.quelleId).toBe(KONTO.zugang.sub);
+    }
   });
 
-  it("weist eine ANGEMELDETE PERSON OHNE Lagerbuch-Gruppe ab", async () => {
+  it("bucht eine GEWOEHNLICHE Abgabe weiter auf das Kaertchen", async () => {
     /*
-     * ⚠️ DIE GEGENPROBE ZUR SCHAERFE: gefragt ist die Lagerbuch-Gruppe, nicht
-     * „irgendeine Sitzung". Waere die Probe ein blosses „ist angemeldet",
-     * raeumte jede Person mit Suite-Konto und einem Helfer-Kaertchen eine
-     * ausserdienstliche Einheit aus — der Riegel der Action laesst sie ja
-     * durch, er fragt nach dem Kaertchen.
+     * ⚠️ DIE GEGENRICHTUNG ZUR ZEILE DARUEBER, und sie ist der Grund, warum die
+     * Kennung nur bei STILLGELEGTER Quelle wechselt. Zoege man sie immer aufs
+     * Konto, sobald eines da ist, traegt der Klarname jeder Verwaltenden jede
+     * Buchung, die sie am Fahrzeug mit der Karte macht — waehrend die Buchung
+     * einer Kollegin ohne Konto daneben anonym bleibt. Die Kennung wechselt
+     * genau dort, wo die zusaetzliche Erlaubnis greift, und sonst nirgends.
      */
     helferRiegel.mockResolvedValue(KAERTCHEN);
-    sitzung.viewer = { groups: ["feedback"] };
-    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    sitzung.konto = VERWALTUNG;
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
 
@@ -497,9 +517,11 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
       t.db,
     );
 
-    expect(erg.ok).toBe(false);
-    expect((erg as { ok: false; text: string }).text).toContain("außer Dienst");
-    expect(bestand(ENTNAHMEBOX_ID, "ch-1"), "nichts gebucht").toBe(0);
+    expect(erg.ok).toBe(true);
+    for (const leg of neueZeilen()) {
+      expect(leg.quelleTyp).toBe("token");
+      expect(leg.quelleId).toBe(KAERTCHEN.zugang.code);
+    }
   });
 
   it("laesst eine AKTIVE Einheit beim Kaertchen unveraendert durch", async () => {
