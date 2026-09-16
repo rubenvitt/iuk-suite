@@ -526,7 +526,14 @@ export function CheckFlow({
           */}
           {hatArtikel && (
             <p className={s.fussnote} data-rolle="auffuell-hinweis">
-              <b>Nach dem Dienst auffüllen:</b> Was in {dieseEinheit(fahrzeug.einheitenart)} fehlt, holst du aus dem
+              {/*
+                ⚠️ `inDerEinheit`, NICHT `dieseEinheit` (Reviewrunde 8): „in"
+                mit einer ORTSANGABE verlangt den Dativ. `dieseEinheit` liefert
+                den Nominativ, und „Was in dieses Fahrzeug fehlt" ist falsches
+                Deutsch — der Baustein war da, ich hatte den falschen gegriffen.
+                Genau der Fehler, vor dem der Kopf von `konstanten.ts` warnt.
+              */}
+              <b>Nach dem Dienst auffüllen:</b> Was {inDerEinheit(fahrzeug.einheitenart)} fehlt, holst du aus dem
               Handlager – scanne dafür den QR-Code am Handlager, damit die Entnahme dort gebucht
               wird.
             </p>

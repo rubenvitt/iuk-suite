@@ -3,7 +3,7 @@
 import { Button, DatePicker, Flex, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
-import { einheitenartLabel, type Einheitenart } from "../../../_lib/konstanten";
+import { einheitenartLabel, einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
@@ -69,16 +69,26 @@ export function ChecksFilter({
           style={{ minWidth: 220 }}
           options={fahrzeuge.map((fahrzeug) => ({
             value: fahrzeug.id,
-            label: fahrzeug.name,
             /*
-             * ⚠️ DIE ART GEHOERT IN DIE SUCHWORTE (DRK-309, Reviewrunde 2).
-             * Ohne sie fand „tasche" nur Einheiten, die das Wort zufaellig im
-             * Namen tragen — eine „Sanitätstasche 1" schon, ein „Rucksack
-             * Betreuung" nicht. Sichtbar steht sie NICHT: eine Select-Option
-             * ist eine Zeile, und der Name unterscheidet die Eintraege bereits.
-             * Wo eine Liste eine eigene Meta-Zeile HAT (`FahrzeugWahl`,
-             * `helfer/ziel`), steht die Art dort sichtbar.
+             * ⚠️ DIE ART STEHT IM LABEL UND IN DEN SUCHWORTEN (DRK-309,
+             * Reviewrunde 8 — die Runden 2 und 4 haben je die Haelfte
+             * geliefert).
+             *
+             * Runde 2 trug sie in die Suchworte: ohne sie fand „tasche" nur
+             * Einheiten, die das Wort zufaellig im Namen tragen. Sichtbar stand
+             * sie damals bewusst NICHT, mit der Begruendung „der Name
+             * unterscheidet die Eintraege bereits" — und die faellt mit
+             * derselben Messung wie bei den uebrigen Zielwahlen:
+             * `lagerorte.name` traegt keinen Eindeutigkeitsschluessel. Zwei
+             * Einheiten duerfen „Bereitschaft 1" heissen, und dann waehlt man
+             * hier eine verborgene ID und sieht die Geschichte der anderen.
+             *
+             * ⚠️ DIESE STELLE IST DIE LETZTE, DIE NOCH FEHLTE — Artikelschublade,
+             * Zugangs-Codes und die fuenf Standortfelder tragen die Form schon.
+             * Dass sie uebrig blieb, lag an der Begruendung oben: sie las sich
+             * wie eine Entscheidung und war eine Annahme.
              */
+            label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
             keywords: [fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
               .filter(Boolean).join(" "),
           }))}

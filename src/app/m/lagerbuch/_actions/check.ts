@@ -10,7 +10,10 @@ import {
 } from "../_db/schema";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
-import { MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT } from "../_lib/konstanten";
+import {
+  CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
+  MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT,
+} from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
@@ -229,14 +232,14 @@ export async function checkAbschluss(
         // `bestandProLagerort(…, fahrzeugId) === istMenge`.
         const { diff: korrektur } = korrekturAufLagerort(tx, {
           artikelId: g.artikelId, lagerortId: v.fahrzeugId, istMenge: g.istSumme,
-          quelle, kommentar: "Fahrzeug-Check Abgleich", referenz,
+          quelle, kommentar: CHECK_ABGLEICH, referenz,
         });
         const recordedVorher = g.istSumme - korrektur;
         const nachfuellGebucht = g.nachfuellGewuenscht > 0
           ? umlagerung(tx, {
               artikelId: g.artikelId, menge: g.nachfuellGewuenscht,
               vonOrten: handlagerBereich, nachLagerortId: v.fahrzeugId,
-              quelle, kommentar: "Fahrzeug-Check Nachfüllung", referenz,
+              quelle, kommentar: CHECK_NACHFUELLUNG, referenz,
             }).umgelagert
           : 0;
         nachgefuellt += nachfuellGebucht;
@@ -273,7 +276,7 @@ export async function checkAbschluss(
         if (!f) throw new Error("Flasche gehört nicht zu diesem Fahrzeug");   // WURF 3
         tx.insert(o2Messungen).values({
           id: newId(), flascheId: e.flascheId, ts: new Date(), druckBar: e.druckBar,
-          ...quelle, kommentar: `Fahrzeug-Check ${referenz}`,
+          ...quelle, kommentar: `${CHECK_MESSUNG} ${referenz}`,
         }).run();
 
         // §5.12, §7.9.4 (NEU): eine Flasche OHNE bekannten Nennfuelldruck ist

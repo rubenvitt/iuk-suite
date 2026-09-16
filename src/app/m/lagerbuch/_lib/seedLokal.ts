@@ -17,7 +17,10 @@ import {
   tokens,
   users,
 } from "../_db/schema";
-import { CHARGE_OHNE_VERFALL, HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
+import {
+  CHARGE_OHNE_VERFALL, CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
+  HANDLAGER_ID, PSEUDO_VERFALL,
+} from "./konstanten";
 import { AUSSONDERN_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { heuteIso } from "./zeit";
@@ -571,14 +574,14 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         const ist = gezaehltRtw[s.artikelId] ?? 0;
         const { diff } = korrekturAufLagerort(tx, {
           artikelId: s.artikelId, lagerortId: RTW, istMenge: ist,
-          quelle, kommentar: "Fahrzeug-Check Abgleich", referenz: REF_CHECK_RTW,
+          quelle, kommentar: CHECK_ABGLEICH, referenz: REF_CHECK_RTW,
         });
         const gewuenscht = nachfuellRtw[s.artikelId] ?? 0;
         const gebucht = gewuenscht > 0
           ? umlagerung(tx, {
               artikelId: s.artikelId, menge: gewuenscht,
               vonOrten: handlagerOrte(tx), nachLagerortId: RTW,
-              quelle, kommentar: "Fahrzeug-Check Nachfüllung", referenz: REF_CHECK_RTW,
+              quelle, kommentar: CHECK_NACHFUELLUNG, referenz: REF_CHECK_RTW,
             }).umgelagert
           : 0;
         artikelErgebnis.push({
@@ -864,8 +867,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   const msDa = vorhandeneIds(db.select({ id: o2Messungen.id }).from(o2Messungen).all());
   const messungenListe = [
     { id: "o2m-rtw1-a-01", flascheId: "o2-rtw1-a", ts: vor(jetzt, 20), druckBar: 180, kommentar: "Routineprüfung" },
-    { id: "o2m-rtw1-a-02", flascheId: "o2-rtw1-a", ts: checkAbgeschlossenAm, druckBar: 70, kommentar: `Fahrzeug-Check ${REF_CHECK_RTW}` },
-    { id: "o2m-rtw1-b-01", flascheId: "o2-rtw1-b", ts: checkAbgeschlossenAm, druckBar: 40, kommentar: `Fahrzeug-Check ${REF_CHECK_RTW}` },
+    { id: "o2m-rtw1-a-02", flascheId: "o2-rtw1-a", ts: checkAbgeschlossenAm, druckBar: 70, kommentar: `${CHECK_MESSUNG} ${REF_CHECK_RTW}` },
+    { id: "o2m-rtw1-b-01", flascheId: "o2-rtw1-b", ts: checkAbgeschlossenAm, druckBar: 40, kommentar: `${CHECK_MESSUNG} ${REF_CHECK_RTW}` },
     { id: "o2m-ktw1-a-01", flascheId: "o2-ktw1-a", ts: vor(jetzt, 5), druckBar: 190, kommentar: null },
     { id: "o2m-lager-01-01", flascheId: "o2-lager-01", ts: vor(jetzt, 30), druckBar: 200, kommentar: "Neu gefüllt" },
     // 200 von 300 bar = 67 % — gruen. Ihr Wechselwert (17 % = 51 bar) liegt weit

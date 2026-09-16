@@ -6,7 +6,7 @@ import {
   lagerorte, artikel, chargen, buchungen, sollPositionen, geraete,
   o2Flaschen, o2Messungen, checks, lagerortVerfall,
 } from "../_db/schema";
-import { HANDLAGER_ID } from "../_lib/konstanten";
+import { CHECK_ABGLEICH, HANDLAGER_ID } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
 
 /**
@@ -375,6 +375,36 @@ describe("checkAbschluss — Abgleich und Nachfuellen, pro ARTIKEL", () => {
       .filter((b) => b.lagerortId === "fz-1")
       .reduce((s, b) => s + b.menge, 0);
     expect(amFahrzeug).toBe(2);
+  });
+
+  /**
+   * DRK-309, Reviewrunde 8 — DIE GESCHRIEBENEN KOMMENTARE SIND NEUTRAL.
+   *
+   * ⚠️ DAS IST DIE EINE STELLE, AN DER DIESES TICKET BEWUSST *NICHT*
+   * ART-BEWUSST WIRD, und der Grund ist die Lebensdauer: `setEinheitenart`
+   * erlaubt, die Art einer bestehenden Einheit zu korrigieren, und das Journal
+   * ist append-only. Ein „Fahrzeug-Check Abgleich" in einer Buchungszeile
+   * waere nach so einer Korrektur eine Behauptung, die die Einheit selbst
+   * widerlegt — und niemand schreibt sie um. Die ANZEIGE darf art-bewusst
+   * sein, weil sie die heutige Art liest; ein Eintrag im Buch kann das nicht.
+   *
+   * ⚠️ DIE ZUSICHERUNG HAENGT AN DER KONSTANTE, NICHT AN IHREM WERT — sonst
+   * pruefte sie sich selbst. Was sie festhaelt, ist das NEGATIVE: in keiner
+   * geschriebenen Zeile steht mehr „Fahrzeug".
+   */
+  it("schreibt neutrale Kommentare — das Wort Fahrzeug steht in keiner Zeile", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 2, nachfuellMenge: 1 }],
+    }, t.db);
+    expect(r.ok).toBe(true);
+
+    const kommentare = t.db.select().from(buchungen).all()
+      .map((b) => b.kommentar)
+      .filter((k): k is string => k !== null && k !== "");
+    expect(kommentare.length).toBeGreaterThan(0);
+    expect(kommentare).toContain(CHECK_ABGLEICH);
+    for (const k of kommentare) expect(k, k).not.toContain("Fahrzeug");
   });
 
   it("rechnet pro ARTIKEL, nicht pro Position — zwei Faecher teilen EINEN Bestand (§5.7.1)", async () => {

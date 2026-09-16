@@ -22,6 +22,39 @@ export const istOhneVerfall = (verfall: string): boolean => verfall === PSEUDO_V
 
 /** Herkunftshinweise in chargen.chargen_nr — NICHT Bedeutungstraeger. Die Bedeutung
  *  „ohne Verfall" haengt am Verfallswert (§5.3.2). */
+/**
+ * DIE KOMMENTARE, DIE EIN ABGESCHLOSSENER CHECK IN DIE BUECHER SCHREIBT —
+ * NEUTRAL, UND DAS IST EINE AUSNAHME VON DER REGEL DIESES TICKETS (DRK-309,
+ * Reviewrunde 8).
+ *
+ * Ueberall sonst gilt: wo die Art BEKANNT ist, steht sie auch da. Hier ist sie
+ * bekannt (`fz.einheitenart` liegt in derselben Transaktion vor), und trotzdem
+ * steht sie nicht im Text. Der Grund ist die LEBENSDAUER:
+ *
+ * ⚠️ EIN GESPEICHERTER TEXT DARF NICHTS BEHAUPTEN, WAS EINE SPAETERE KORREKTUR
+ * FALSCH MACHT. `setEinheitenart` erlaubt ausdruecklich, die Art einer
+ * bestehenden Einheit zu aendern — das ist der Weg aus dem Zwischenstand. Ein
+ * „Fahrzeug-Check Abgleich" in einer Journalzeile waere danach eine Behauptung
+ * ueber einen Vorgang, die die Einheit selbst laengst widerlegt hat, und das
+ * Journal ist APPEND-ONLY: niemand schreibt sie um. Die Anzeige darf
+ * art-bewusst sein, weil sie die HEUTIGE Art liest; ein Eintrag im Buch kann
+ * das nicht.
+ *
+ * ⚠️ DIE FREITEXTSUCHE UEBERLEBT DEN WECHSEL, und zwar ohne Zutun: die Suche
+ * des Moduls arbeitet auf Teilzeichenketten, und „Check Abgleich" steckt auch
+ * im alten „Fahrzeug-Check Abgleich". EIN Suchbegriff findet damit weiter
+ * Zeilen von vorher UND von nachher. Ein art-bewusster Text („Taschen-Check
+ * Abgleich") haette dieselbe Eigenschaft — aber eben auch die falsche
+ * Behauptung oben.
+ *
+ * ⚠️ ALTE ZEILEN BLEIBEN, WIE SIE SIND. Sie tragen weiter „Fahrzeug-Check …",
+ * und das ist richtig so: sie sind entstanden, als jede Einheit ein Fahrzeug
+ * war. `_lib/vorgang.ts` haelt denselben Gedanken fuer die Praefixe fest.
+ */
+export const CHECK_ABGLEICH = "Check Abgleich";
+export const CHECK_NACHFUELLUNG = "Check Nachfüllung";
+export const CHECK_MESSUNG = "Check";
+
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";

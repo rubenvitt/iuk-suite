@@ -120,7 +120,10 @@ describe("ChecksFilter", () => {
     const optionen = () => Array.from(
       document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
     ).map((option) => option.textContent);
-    expect(optionen()).toEqual(["RTW 1"]);
+    // DRK-309, Reviewrunde 8: Das Label nennt Art und Kennung — Namen sind in
+    // `lagerorte` nicht eindeutig, und eine Option aus blossem Namen liesse
+    // zwei Einheiten als dieselbe Zeile erscheinen.
+    expect(optionen()).toEqual(["RTW 1 · Fahrzeug · UE-RK 1234"]);
 
     /*
      * ⚠️ UND JETZT UEBER DAS ECHTE FELD, NICHT UEBER SELBSTGEBAUTE
@@ -134,7 +137,7 @@ describe("ChecksFilter", () => {
      */
     await fill("[aria-label='Einheit']", "tasche");
     await warte();
-    expect(optionen()).toEqual(["Rucksack Betreuung"]);
+    expect(optionen()).toEqual(["Rucksack Betreuung · Tasche"]);
   });
 
   it("zeigt verworfene Datumsgrenzen als gekanteten Text und nicht als Fehler-Alert", async () => {

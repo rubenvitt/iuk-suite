@@ -1506,6 +1506,35 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
     // sagen, wo es anfaengt — und genau das war der Anlass des Tickets.
     expect(t).toContain("Nach dem Dienst auffüllen");
     expect(t).toContain("QR-Code am Handlager");
+    /*
+     * ⚠️ UND DER SATZ STEHT IM DATIV (DRK-309, Reviewrunde 8). „in" mit einer
+     * ORTSANGABE verlangt ihn; `dieseEinheit` liefert den Nominativ, und „Was
+     * in dieses Fahrzeug fehlt" ist falsches Deutsch. Der richtige Baustein war
+     * die ganze Zeit da — ich hatte den falschen gegriffen, und kein Tor sieht
+     * einen Fall.
+     */
+    expect(t).toContain("Was im Fahrzeug fehlt");
+    expect(t).not.toContain("in dieses Fahrzeug");
+  });
+
+  it("setzt den Auffuellsatz fuer eine Tasche in den Dativ", async () => {
+    await mount(
+      <CheckFlow
+        kontoZugang={false}
+        fahrzeug={{ ...FZ, name: "Rucksack", kennung: null, einheitenart: "tasche" }}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    await alleBestaetigen();
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    expect(query(HINWEIS).textContent ?? "").toContain("Was in der Tasche fehlt");
   });
 
   it("ist TEXT, kein Weg — kein Link, kein Knopf (AK3)", async () => {
