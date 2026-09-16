@@ -29,11 +29,27 @@ import s from "./helfer.module.css";
  */
 export function FahrzeugWahl({
   fahrzeuge,
+  pfad = "/helfer/check",
 }: {
   fahrzeuge: {
     id: string; name: string; kennung: string | null;
     einheitenart: Einheitenart | null;
   }[];
+  /**
+   * DER SCHIRM, AUF DEN DIE WAHL FUEHRT — DRK-314.
+   *
+   * ⚠️ EIN PROP UND KEINE ZWEITE DATEI. Der Helfer-Ast hat seit DRK-314 zwei
+   * Flaechen, die mit derselben Frage anfangen („aus welcher Einheit?"), und
+   * die Zeile darunter ist in beiden dieselbe: Name, Art, Kennung, die ganze
+   * Zeile als Bedienflaeche (`einheitMeta`, DRK-309). Eine Kopie daneben liefe
+   * beim naechsten Griff an dieser Zeile auseinander — und zwar still, weil
+   * beide Flaechen weiter rendern.
+   *
+   * ⚠️ AEUSSERER PFAD, mit Vorgabewert: ein innerer (`/m/lagerbuch/helfer/…`)
+   * wuerde auf dem aeusseren Host doppelt praefixiert (Falle 63). Die Vorgabe
+   * haelt die bisherigen Aufrufer unveraendert.
+   */
+  pfad?: "/helfer/check" | "/helfer/box";
 }) {
   return (
     <>
@@ -52,7 +68,7 @@ export function FahrzeugWahl({
             // `encodeURIComponent`: nanoid benutzt `-` und `_` und waere
             // unkritisch, aber ein importierter Alt-Bestand kann andere IDs
             // tragen — und ein rohes `?fz=a b` erzeugt eine kaputte URL.
-            href={`/helfer/check?fz=${encodeURIComponent(f.id)}`}
+            href={`${pfad}?fz=${encodeURIComponent(f.id)}`}
           >
             <div className={s.zeileHaupt}>
               <div className={s.zeileName}>{f.name}</div>

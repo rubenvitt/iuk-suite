@@ -1,0 +1,274 @@
+"use server";
+import { withAuditContext } from "@/core/audit/server";
+
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { getDb, type DB } from "../_db/client";
+import { artikel, chargen, lagerorte } from "../_db/schema";
+import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
+import { requireHelferSchreibend } from "../_lib/helferZugang";
+import {
+  ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
+} from "../_lib/konstanten";
+import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
+import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
+
+/**
+ * VOM FAHRZEUG IN DIE ENTNAHMEBOX — DRK-314.
+ *
+ * Der Vorgang, den es bisher gar nicht gab: Material verlaesst eine Einheit,
+ * OHNE verbraucht oder entsorgt zu sein. Bis hierher kannte das Modul dafuer
+ * zwei Wege, und keiner passt:
+ *
+ *  * `aussondernVomLagerort` bucht eine `korrektur` mit negativer Menge — das
+ *    Material ist danach nirgends. Richtig fuer Abgelaufenes, falsch fuer fuenf
+ *    zu viel mitgenommene Kuehlkompressen, die in der Halle auf dem Tisch
+ *    liegen.
+ *  * Der Fahrzeug-Check gleicht den Bestand auf den gezaehlten Ist ab — auch
+ *    das eine `korrektur`, mit demselben Ergebnis, und zusaetzlich einer, der
+ *    viele Ursachen hat (verbraucht, verzaehlt, zu viel drauf). Deshalb ist
+ *    DIES hier ein eigener Handgriff und keine Erweiterung des Checks:
+ *    ein automatisches Umleiten des Ueberschusses buchte jeden EINSATZVERBRAUCH
+ *    als Boxzugang.
+ *
+ * ── DIE RIEGELFRAGE ────────────────────────────────────────────────────────
+ *
+ * ⚠️ `requireHelferSchreibend` UND NICHT `requireLagerbuchAdmin`, obwohl die
+ * Verwaltung dieselbe Action ruft. Der Riegel traegt BEIDE Herkuenfte
+ * (`_lib/helferZugang.ts`): das Kaertchen am Fahrzeug UND das angemeldete
+ * Lagerbuch-Konto, und er probiert in dieser Reihenfolge. Die Verwaltungsseite
+ * kommt damit ueber den Konto-Zweig durch — dieselbe EINE Rechtestufe, die auch
+ * `/verwaltung` gatet.
+ *
+ * Der umgekehrte Bau waere zwei Actions fuer denselben Vorgang, und die zweite
+ * bekommt die naechste fachliche Aenderung nicht mit. Die schaerfere Stufe
+ * anzulegen ginge ueberdies am Ticket vorbei: wer das Material aus dem Fahrzeug
+ * nimmt, ist die Helferin, und sie hat kein Konto.
+ *
+ * ⚠️ DIE HERKUNFT ENTSCHEIDET DIE JOURNALQUELLE, nicht die aufrufende Seite:
+ * `journalQuelle(riegel.zugang)` schreibt beim Kaertchen den CODE mit
+ * `quelleTyp: "token"`, beim Konto den OIDC-`sub` mit `"oidc"`. Ein festes
+ * `"oidc" as const` hier schriebe eine Kaertchen-Buchung unter einer Kennung,
+ * die es in `users` nicht gibt — und die Zeile ist append-only.
+ */
+
+const BoxSchema = z.object({
+  /** Die Einheit, AUS der genommen wird — Fahrzeug oder Tasche. */
+  fahrzeugId: z.string().min(1),
+  artikelId: z.string().min(1),
+  menge: z.coerce.number().int().positive("Menge muss größer als 0 sein").max(99_999),
+  /**
+   * GENAU DIESE Charge, oder `null` fuer FEFO ueber die Einheit.
+   *
+   * ⚠️ BEIDE FAELLE SIND FACHLICH RICHTIG, und das ist der Grund, warum das Feld
+   * optional ist statt Pflicht. Wer die Packung in der Hand haelt, liest ihr
+   * Verfallsdatum ab und waehlt DIESE Charge — beim UMRAEUMEN gilt FEFO nicht
+   * (die Begruendung steht ausgeschrieben an `umlagerung.ts`). Wer sie nicht
+   * unterscheiden kann, weil die Einheit nur eine fuehrt oder weil ihr
+   * Chargenbestand ohnehin aus einem Check-Abgleich geraten ist
+   * (`_lib/schreibpfade/korrektur.ts`), nimmt die aelteste. Eine Pflichtangabe
+   * verlangte hier eine Genauigkeit, die die Daten nicht hergeben.
+   */
+  chargeId: z.string().min(1).nullish(),
+});
+
+export async function bucheInEntnahmebox(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<HelferErgebnis<{ gebucht: number }>> {
+  // ERSTE ANWEISUNG, und der Rueckgabewert MUSS ausgewertet werden — dieselbe
+  // Form und derselbe Grund wie in `checkAbschluss` und `bucheEntnahmeHelfer`:
+  // ein `await requireHelferSchreibend(db)` ohne Pruefung ist typkorrekt,
+  // lint-sauber und oeffnet diese Action fuer jeden. `guards.test.ts` haelt
+  // fest, dass der Riegel hier steht.
+  const riegel = await requireHelferSchreibend(db);
+  if (!riegel.ok) {
+    return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
+  }
+  return withAuditContext(
+    { actor: zugangsAkteur(riegel.zugang) },
+    async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
+      const geparst = BoxSchema.safeParse(eingabe);
+      if (!geparst.success) {
+        // ⚠️ `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
+        // Verbindung STEHT, sie hat gerade eine unbrauchbare Nutzlast geliefert.
+        // `"netz"` entsteht ausschliesslich im `catch` des Clients.
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: "Die Eingabe war unvollständig. Bitte die Seite neu laden und die Menge erneut eingeben.",
+        };
+      }
+      const v = geparst.data;
+      const quelle = journalQuelle(riegel.zugang);
+
+      let gebucht = 0;
+      let fachFehler: string | null;
+      try {
+        fachFehler = db.transaction((tx): string | null => {
+          /*
+           * RIEGEL 1 — DIE QUELLE IST EINE EINHEIT.
+           *
+           * Ohne diese Probe entschiede der Fremdschluessel, und der laesst
+           * JEDEN Lagerort klaglos durch: eine selbst gebaute Anfrage buchte
+           * damit aus dem Handlager oder aus der Box selbst. Weder
+           * `_lib/schreibpfade/umlagerung.ts` noch `fefoAbbuchung` pruefen das
+           * nach — richtig so, sie erwarten einen validierten Aufrufer.
+           *
+           * ⚠️ `aktiv` WIRD BEWUSST NICHT VERLANGT — dieselbe Festlegung wie in
+           * `aussondernVomLagerort`: eine stillgelegte Einheit ist genau die,
+           * die man ausraeumt. Die Helferflaeche bietet nur aktive an; die
+           * Verwaltung darf auch die anderen leeren.
+           *
+           * ⚠️ `einheitenart` FAEHRT MIT, OBWOHL DER SCHREIBPFAD SIE NICHT
+           * BRAUCHT (dieselbe Lage wie in `aussondernVomLagerort`): sie traegt
+           * allein die Meldungen unten, und die gibt die Insel WOERTLICH weiter
+           * (§7.3). Stuende darin „Fahrzeug", widerspraeche der Satz dem Chip
+           * „Tasche" in derselben Ansicht.
+           */
+          const von = tx
+            .select({ typ: lagerorte.typ, einheitenart: lagerorte.einheitenart })
+            .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
+          if (!von) return "Diese Einheit gibt es nicht mehr. Bitte die Seite neu laden.";
+          if (von.typ !== "fahrzeug") {
+            // NEUTRAL, und zwar nicht aus Vorsicht: die Zeile, die hierher
+            // faellt, ist ein LAGER — sie hat gar keine Art. Der Satz spricht
+            // ueber die Menge der erlaubten Quellen, nicht ueber eine
+            // bestimmte Einheit.
+            return "In die Entnahmebox kommt nur, was aus einem Fahrzeug oder einer Tasche stammt.";
+          }
+
+          /*
+           * RIEGEL 2 — DIE BOX GIBT ES, UND SIE NIMMT AUF.
+           *
+           * Migration 0011 schreibt die Zeile, aber eine importierte
+           * Alt-Datenbank kann sie nicht haben und jemand kann sie stillgelegt
+           * haben. Ohne die Probe liefe die Buchung in einen Ort, den keine
+           * Oberflaeche zeigt — das Material waere im Buch verschwunden, und
+           * zwar still.
+           */
+          const box = tx
+            .select({ typ: lagerorte.typ, aktiv: lagerorte.aktiv })
+            .from(lagerorte).where(eq(lagerorte.id, ENTNAHMEBOX_ID)).get();
+          if (!box || box.typ !== "lager") {
+            return `Die ${ENTNAHMEBOX_NAME} ist nicht eingerichtet. Bitte der Verwaltung melden.`;
+          }
+          if (!box.aktiv) {
+            return `Die ${ENTNAHMEBOX_NAME} ist stillgelegt und nimmt nichts mehr auf.`;
+          }
+
+          /*
+           * RIEGEL 3 — DIE CHARGE GEHOERT ZU DIESEM ARTIKEL.
+           *
+           * Dieselbe Pruefung wie in `bucheZugang` und `bucheUmlagerung` (I5),
+           * aus demselben Grund: eine manipulierte Anfrage buchte sonst gegen
+           * den Bestand eines anderen Artikels. Die Deckungspruefung darunter
+           * faengt das NICHT zuverlaessig mit ab — sie fragt nur nach dem Rest
+           * DIESER Charge an DIESEM Ort.
+           */
+          if (v.chargeId) {
+            const charge = tx.select({ artikelId: chargen.artikelId })
+              .from(chargen).where(eq(chargen.id, v.chargeId)).get();
+            if (!charge || charge.artikelId !== v.artikelId) {
+              return "Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.";
+            }
+          }
+
+          /*
+           * ⚠️ DIE DECKUNGSPRUEFUNG STEHT VOR DER BUCHUNG, UND EINE TEILWEISE
+           * UMLAGERUNG WIRD ABGELEHNT — nicht gekappt.
+           *
+           * `fefoAbbuchung` kappt STILL an der Verfuegbarkeit und meldet die
+           * tatsaechlich gebuchte Menge nur im Rueckgabewert. Fuer eine ENTNAHME
+           * ist das richtig: was nicht da ist, kann nicht entnommen werden. Fuer
+           * diesen Vorgang ist es falsch, und zwar aus demselben Grund, den
+           * `bucheUmlagerung` ausschreibt: die Person hat fuenf Stueck in die
+           * Kiste gelegt, gebucht waeren drei, und die verbleibenden zwei
+           * stuenden weiter auf der Einheit. Der Buchstand waere danach an
+           * BEIDEN Orten falsch, und niemand bekaeme es gesagt.
+           *
+           * Der Rueckgabewert wird trotzdem unten noch einmal geprueft: die
+           * Deckung hier und die Buchung dort lesen denselben Stand in
+           * derselben Transaktion, aber ein Gleichlauf, der sich auf zwei
+           * Stellen verteilt, ist genau der, den ein spaeterer Umbau trennt.
+           */
+          const rest = restJeChargeFuerArtikel(tx, v.artikelId, [v.fahrzeugId]);
+          const vorhanden = v.chargeId
+            ? (rest.get(v.chargeId) ?? 0)
+            : [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
+          if (vorhanden < v.menge) {
+            const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
+              .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
+            // Die EINHEIT des Artikels, nicht ein erfundenes „Stück": das Modul
+            // fuehrt sie als freien Text („Stk.", „Pkg.", „Paar"), und ein
+            // erfundenes Wort in einer Fehlermeldung ist genau die Stelle, an
+            // der jemand zu zaehlen anfaengt.
+            const wo = v.chargeId ? "Von dieser Charge liegen" : "Es liegen";
+            return `${wo} ${ausDieserEinheit(von.einheitenart)} nur ${vorhanden} ${einheit}`.trimEnd()
+              + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
+          }
+
+          const ergebnis = umlagerung(tx, {
+            artikelId: v.artikelId,
+            menge: v.menge,
+            // EINELEMENTIG: genau diese Einheit, nicht ihr Teilbaum. Eine
+            // Einheit hat heute keine Kinder — ein Bereich holte sich die
+            // fehlende Menge morgen still von woanders.
+            vonOrten: [v.fahrzeugId],
+            nachLagerortId: ENTNAHMEBOX_ID,
+            ...(v.chargeId ? { chargeId: v.chargeId } : {}),
+            quelle,
+            kommentar: ENTNAHMEBOX_KOMMENTAR,
+            // ⚠️ DAS PRAEFIX KOMMT AUS `_lib/vorgang.ts` UND WIRD NICHT
+            // ABGESCHRIEBEN — es wird beim Schreiben (hier) und beim Lesen der
+            // Herkunft gebraucht, und zwei Literale liefen still auseinander.
+            // `vorgang.test.ts` scannt dafuer den Quelltext; kein anderes Tor
+            // sieht es.
+            referenz: `${ENTNAHMEBOX_PRAEFIX}${v.fahrzeugId}`,
+          });
+
+          if (ergebnis.umgelagert < v.menge) {
+            // Unerreichbar, solange die Deckungspruefung darueber steht — und
+            // genau deshalb ein WURF und keine Meldung: waere er erreichbar,
+            // stuende die Datenbank halb gebucht da, und der einzige richtige
+            // Ausgang ist das Zuruecknehmen der ganzen Transaktion.
+            throw new Error("Deckung und Buchung sind uneins");
+          }
+          gebucht = ergebnis.umgelagert;
+          return null;
+        });
+      } catch {
+        // ⚠️ EIN `catch` UM DIE TRANSAKTION, ANDERS ALS IN
+        // `bucheEntnahmeHelfer`. Dort ist das Fehlen begruendet („ein
+        // Datenbankfehler ist kein erwartbarer Betriebsfall"), und das gilt hier
+        // genauso — aber der Wurf oben ist KEIN Datenbankfehler, sondern die
+        // Notbremse eines Gleichlaufs. Ohne diesen Zweig schluege sie bis zur
+        // Fehlerseite durch, und in Produktion stuende dort ein englischer Satz
+        // mit `digest` (Falle 66) statt einer Zeile am Formular.
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: "Die Buchung wurde nicht gespeichert. Bitte die Seite neu laden und es erneut versuchen.",
+        };
+      }
+
+      if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
+
+      /*
+       * ⚠️ VIER PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DIESES
+       * TICKETS. Der dritte ist das Einheitenblatt (dessen Bestandszahlen sich
+       * gerade geaendert haben), der vierte die Verwaltungsuebersicht. Der
+       * Helferschirm traegt die Einheit in der URL und wird deshalb mit ihr
+       * genannt — ein Pfad ohne sie traefe die Seite nicht.
+       */
+      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
+      revalidatePath("/m/lagerbuch/helfer/box");
+      revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
+      revalidatePath("/m/lagerbuch/verwaltung");
+      return { ok: true, wert: { gebucht } };
+    },
+  );
+}

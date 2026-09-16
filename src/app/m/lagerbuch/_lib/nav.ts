@@ -35,6 +35,21 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   // → Fahrzeug und Schrank → Verbrauch, ohne Kärtchen. Siehe den Block bei
   // „Check durchführen".
   { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
+  /*
+   * DRK-314 — die Kiste in der Halle.
+   *
+   * ⚠️ SIE STEHT IM ABSCHNITT „Bestand" UND NICHT BEI „Einheiten & Geräte", und
+   * das ist eine Aussage: die Box ist ein LAGERORT, kein Träger. Wer sie unter
+   * die Einheiten stellte, legte nahe, dass sie ein Soll hat und gecheckt wird
+   * — genau die vier Folgen, die Migration 0011 mit `typ = 'lager'` ausschließt.
+   *
+   * ⚠️ UND SIE FÜHRT IN DIE VERWALTUNG, nicht in den Helfer-Ast — anders als
+   * „Entnahme" und „Check durchführen" eine Zeile darüber und darunter. Der
+   * Grund ist der Leser: wer in der Verwaltung ist, will wissen, WAS in der
+   * Kiste liegt und woher es kam; das Ablegen selbst passiert am Fahrzeug, auf
+   * `/helfer/box`, und die Seite verlinkt es.
+   */
+  { key: "entnahmebox", title: "Entnahmebox", href: "/verwaltung/entnahmebox", ikon: "entnahmebox", abschnitt: "Bestand" },
 
   /* DRK-309: Die Beschriftung nennt beide Arten, der `href` bleibt — wer eine
    * Tasche sucht, findet unter „Fahrzeuge" nichts und schliesst, es gebe den

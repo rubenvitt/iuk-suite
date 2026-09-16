@@ -419,8 +419,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt elf Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  it("fuehrt zwoelf Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -442,6 +442,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         "0005_artikel_kategorie", "0006_inventuren", "0007_o2_wechsel_grenze",
         "0008_lagerorte_hierarchie", "0009_lagerorte_name_eindeutig",
         "0010_einheitenart",
+        // DRK-314 — die Entnahmebox als Lagerort-Zeile neben dem Handlager.
+        "0011_entnahmebox",
       ]);
   });
 

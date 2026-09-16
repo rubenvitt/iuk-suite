@@ -18,7 +18,7 @@ import {
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
   PiMagnifyingGlass, PiBookmarkSimple, PiPuzzlePiece, PiGraduationCap, PiCardsThree,
-  PiLockers, PiHandArrowDown, PiNotePencil,
+  PiLockers, PiHandArrowDown, PiNotePencil, PiTrayArrowDown,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -65,6 +65,9 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   // DRK-305 — Begruendung an der Union in `types.ts`.
   entnahme: PiHandArrowDown,
   pruefen: PiNotePencil,
+  // DRK-314 — Begruendung an der Union in `types.ts`. Der Pfeil nach unten in
+  // die Schale ist die Bewegung, die die Box beschreibt: sie NIMMT AUF.
+  entnahmebox: PiTrayArrowDown,
 };
 
 /**

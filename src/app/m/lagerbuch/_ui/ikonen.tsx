@@ -37,11 +37,11 @@ import {
   PiDownloadSimple, PiFlashlight, PiHandGrabbing, PiHeartbeat, PiInfo,
   PiKey, PiLink, PiLinkBreak, PiList, PiMagnifyingGlass, PiMinus,
   PiMinusBold, PiPackage, PiPencilSimple, PiPlus, PiPlusBold, PiPrinter,
-  PiQrCode, PiTable, PiTrash, PiTruck, PiUploadSimple, PiWarning,
+  PiQrCode, PiTable, PiTrash, PiTrayArrowDown, PiTruck, PiUploadSimple, PiWarning,
   PiWind, PiX,
 } from "react-icons/pi";
 
-/** 30 reine UI-Zeichen und 9 Fachzeichen. Reihenfolge wie Spec 6.5.2, dahinter Nachtraege. */
+/** 30 reine UI-Zeichen und 10 Fachzeichen. Reihenfolge wie Spec 6.5.2, dahinter Nachtraege. */
 export type IkonName =
   // ── 30 reine UI-Zeichen ──────────────────────────────────────────────────
   | "pfeil-links" | "pfeil-rechts" | "chevron-rechts" | "chevron-links"
@@ -57,7 +57,13 @@ export type IkonName =
   // DRK-309: die Tasche neben dem Fahrzeug — zwei Arten derselben Einheit,
   // und in der Liste stehen sie in DERSELBEN Spalte untereinander. Ein
   // Zeichen, das nur „irgendein Behaelter" meint, traegt dort nicht.
-  | "tasche";
+  | "tasche"
+  // DRK-314: die Entnahmebox. KEIN geliehenes Zeichen — `archiv` (PiArchive)
+  // meint das Stilllegen, `handlager-griff` (PiHandGrabbing) das Herausnehmen
+  // AUS dem Regal, `tasche` (PiBagSimple) eine Einheit, die mitfaehrt. Die Box
+  // ist keins davon: sie NIMMT AUF, und der Pfeil nach unten in die Schale ist
+  // genau diese Bewegung.
+  | "box";
 
 /** Ein Phosphor-Zeichen je Name. Loest `PFADE` ab. */
 export const ZEICHEN: Record<IkonName, IconType> = {
@@ -100,6 +106,7 @@ export const ZEICHEN: Record<IkonName, IconType> = {
   akku: PiBatteryCharging,
   verfall: PiCalendarX,
   "handlager-griff": PiHandGrabbing,
+  box: PiTrayArrowDown,
   fahrzeug: PiTruck,
   tasche: PiBagSimple,
 };

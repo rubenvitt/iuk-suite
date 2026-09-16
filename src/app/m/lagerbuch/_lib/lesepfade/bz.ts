@@ -28,7 +28,7 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
-import type { Einheitenart, StandortAngabe } from "../konstanten";
+import { istEntnahmebox, type Einheitenart, type StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { akkuLebensdauer, bzFaelligkeit,
          type BzAkkuKennzahl, type BzFaelligkeit } from "../domain/bz";
@@ -95,8 +95,25 @@ export type LagerortOption = {
 };
 
 /** Aktive Lagerorte als Auswahl fuer Geraete-Formulare. */
+/**
+ * ⚠️ DIE ENTNAHMEBOX STEHT NICHT DARIN (DRK-314). Sie ist ein aktiver Lagerort
+ * `typ: "lager"` und faellt damit genau in diese Abfrage — sichtbar wurde das
+ * erst beim Bauen: die Kiste stand zwischen dem Handlager und den Einheiten in
+ * der Standortwahl jedes Geraets, jedes BZ-Geraets und jeder Sauerstoffflasche.
+ *
+ * Das ist kein Schoenheitsfehler. Die Box ist ein ZWISCHENZUSTAND fuer
+ * Verbrauchsmaterial, das jemand gleich wieder einraeumt; ein Geraet, dessen
+ * Standort sie waere, stuende dauerhaft an einem Ort, den kein Check besucht
+ * und keine Liste als Standort fuehrt. Der Fehlgriff waere still: das Geraet
+ * verschwaende aus dem Fahrzeugcheck, ohne dass irgendwo etwas rot wird.
+ *
+ * `istEntnahmebox` und kein `!== ENTNAHMEBOX_ID`: die Frage wird an drei
+ * Stellen gestellt, und ein Vergleich, den man je Datei abschreibt, ist der,
+ * den die vierte Datei vergisst.
+ */
 export function lagerortOptionen(db: Leser): LagerortOption[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
+    .filter((l) => !istEntnahmebox(l.id))
     .map((l) => ({
       id: l.id, name: l.name, typ: l.typ,
       kennung: l.kennung, einheitenart: l.einheitenart,

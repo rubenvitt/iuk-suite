@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
-  it("führt genau die 18 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
+  it("führt genau die 19 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -15,6 +15,10 @@ describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
       { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
       // DRK-305: der erste von zwei Eintraegen, die NICHT nach /verwaltung fuehren.
       { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
+      // DRK-314: die Kiste in der Halle. Sie steht bei „Bestand", weil sie ein
+      // LAGERORT ist und kein Traeger — und sie fuehrt in die VERWALTUNG, anders
+      // als die beiden Helfer-Eintraege daneben.
+      { key: "entnahmebox", title: "Entnahmebox", href: "/verwaltung/entnahmebox", ikon: "entnahmebox", abschnitt: "Bestand" },
       { key: "fahrzeuge", title: "Fahrzeuge & Taschen", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Einheiten & Geräte" },
       { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Einheiten & Geräte" },
       { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Einheiten & Geräte" },
@@ -54,8 +58,8 @@ describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(18);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(18);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(19);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(19);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {

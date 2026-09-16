@@ -405,17 +405,20 @@ describe("Ikonen-Riegel: AST statt Textregex", () => {
 });
 
 describe("Ikonen: die Union ist die Autoritaet", () => {
-  it("fuehrt genau 39 Namen", () => {
-    expect(Object.keys(ZEICHEN)).toHaveLength(39);
+  it("fuehrt genau 40 Namen", () => {
+    expect(Object.keys(ZEICHEN)).toHaveLength(40);
   });
 
-  it("fuehrt die neun Fachzeichen namentlich", () => {
+  it("fuehrt die zehn Fachzeichen namentlich", () => {
     const fach: IkonName[] = [
       "warnung", "medizin", "objekt", "sauerstoff",
       "akku", "verfall", "handlager-griff", "fahrzeug",
       // DRK-309: die Tasche steht in der Liste NEBEN dem Fahrzeug, in
       // derselben Spalte untereinander.
       "tasche",
+      // DRK-314: die Entnahmebox — der Reiter des dritten Helferschirms und
+      // das Zeichen der Verwaltungsseite daneben.
+      "box",
     ];
     for (const name of fach) expect(ZEICHEN[name], name).toBeTruthy();
   });

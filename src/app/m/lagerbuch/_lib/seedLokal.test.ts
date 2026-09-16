@@ -5,7 +5,8 @@ import {
   lagerortVerfall, o2Flaschen, sollPositionen, tokens,
 } from "../_db/schema";
 import { seedLokalLagerbuch } from "./seedLokal";
-import { HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
+import { ENTNAHMEBOX_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { mtkFaelligkeit } from "./domain/geraet";
 import { bzFaelligkeit } from "./domain/bz";
@@ -358,6 +359,35 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     for (const fz of einheiten.filter((l) => l.einheitenart !== null)) {
       expect(bestandVon(fz.id), fz.id).toBeGreaterThan(0);
     }
+  });
+
+  it("legt etwas in die Entnahmebox — sonst steht die Seite lokal leer", async () => {
+    /*
+     * ⚠️ DIE VERWALTUNGSSEITE, DIE HERKUNFTSSPALTE UND DER REITER „Box" HAENGEN
+     * ALLE AN BUCHUNGEN MIT DEM PRAEFIX `entnahmebox:` (DRK-314) — kaeme keine
+     * im Seed vor, stuende die Seite lokal leer, und dieselbe Luecke bliebe
+     * fuer jeden Playwright-Lauf. Dieselbe Begruendung wie bei der
+     * Aussonderung eine Zusicherung weiter oben.
+     */
+    await seedLokalLagerbuch(t.db);
+
+    const inBox = t.db.select().from(buchungen).all()
+      .filter((b) => b.lagerortId === ENTNAHMEBOX_ID);
+    expect(inBox.length, "die Box ist nicht leer").toBeGreaterThan(0);
+    expect(inBox.reduce((sum, b) => sum + b.menge, 0)).toBeGreaterThan(0);
+
+    // ⚠️ DIE HERKUNFT MUSS AUFLOESBAR BLEIBEN: die Referenz traegt die Id der
+    // Einheit und KEINEN Fremdschluessel. Zeigte sie auf eine Zeile, die der
+    // Seed gar nicht anlegt, stuende in der Spalte „Aus" dauerhaft „—".
+    const orte = new Set(t.db.select().from(lagerorte).all().map((l) => l.id));
+    for (const b of inBox) {
+      expect(b.referenz, "jede Boxbuchung traegt das Praefix")
+        .toMatch(new RegExp(`^${ENTNAHMEBOX_PRAEFIX}`));
+      expect(orte.has(b.referenz!.slice(ENTNAHMEBOX_PRAEFIX.length)), b.referenz!).toBe(true);
+    }
+
+    // Und die Box haengt NEBEN dem Handlager — ihr Inhalt zaehlt dort nicht mit.
+    expect(handlagerOrte(t.db)).not.toContain(ENTNAHMEBOX_ID);
   });
 
   it("vergibt feste Codes — einen davon gesperrt", async () => {

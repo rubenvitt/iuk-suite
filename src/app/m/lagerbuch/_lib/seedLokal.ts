@@ -19,10 +19,10 @@ import {
 } from "../_db/schema";
 import {
   CHARGE_OHNE_VERFALL, CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
-  HANDLAGER_ID, PSEUDO_VERFALL,
+  ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, HANDLAGER_ID, PSEUDO_VERFALL,
 } from "./konstanten";
 import { normalisiereSchrankName } from "./schrankName";
-import { AUSSONDERN_PRAEFIX } from "./vorgang";
+import { AUSSONDERN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { heuteIso } from "./zeit";
 import { fefoAbbuchung, type Quelle } from "./schreibpfade/abbuchung";
@@ -797,6 +797,34 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     }).run();
   }
 
+  /* 12d ── DIE ENTNAHMEBOX (DRK-314). Sechs Kuehlkompressen, die jemand zu viel
+   *         auf dem RTW gefunden und in die Kiste in der Halle gelegt hat.
+   *
+   *         ⚠️ OHNE DIESE ZEILEN GAEBE ES LOKAL NICHTS ZU SEHEN. Die
+   *         Verwaltungsseite, die Herkunftsspalte und der Reiter „Box" haengen
+   *         alle an Buchungen mit dem Praefix `entnahmebox:`, und das kam im
+   *         Seed bis hierher nirgends vor — die Seite stuende leer, und
+   *         dieselbe Luecke bliebe fuer jeden Playwright-Lauf.
+   *
+   *         ⚠️ UEBER `umlagerung()`, NICHT ueber zwei Inserts: die
+   *         Netto-Null-Eigenschaft und die mitwandernde Charge sind genau das,
+   *         was der Seed abbilden soll. Zwei von Hand geschriebene Zeilen
+   *         gingen beim naechsten Griff an diesem Schreibpfad auseinander.
+   *
+   *         DER BESTAND DES RTW SINKT DADURCH um diese sechs Stueck — das ist
+   *         der Punkt: die Kiste ist der Zwischenzustand zwischen Einheit und
+   *         Handlager, und beide Zahlen muessen ihn zeigen. */
+  const REF_BOX = `${ENTNAHMEBOX_PRAEFIX}${RTW}`;
+  if (!journalGebucht(db, REF_BOX)) {
+    db.transaction((tx) => {
+      umlagerung(tx, {
+        artikelId: A.kompresse, menge: 6, vonOrten: [RTW], nachLagerortId: ENTNAHMEBOX_ID,
+        quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
+        kommentar: ENTNAHMEBOX_KOMMENTAR, referenz: REF_BOX,
+      });
+    });
+  }
+
   /* 13 ── Geraete: je eine Zeile fuer rot (ueberfaellig), gelb (im Warnfenster),
    *        gruen und GRAU (kein Datum gepflegt → `keinDatum`, kein Fehlalarm). */
   const gerDa = vorhandeneIds(db.select({ id: geraete.id }).from(geraete).all());
@@ -965,6 +993,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         "gelb zeigen stattdessen AED-MTK, BZ-Kontrolle und O₂-Flasche 2 l",
     `  grün        Chargen mit Verfall ${m.gruen}; „ohne Verfall" = ${PSEUDO_VERFALL}`,
     `  ausgesondert Charge P-2024-091 (Pflasterset) — im Journal unter „Aussonderung“`,
+    `  Entnahmebox 6 Kühlkompressen aus RTW 1 — Verwaltung → Entnahmebox`,
     `  Gerät rot   Absaugpumpe RTW 1, MTK seit ${tagIso(jetzt, -12)} überfällig`,
     `  Gerät gelb  AED RTW 1, MTK am ${tagIso(jetzt, 18)}`,
     `  Gerät grau  Handfunkgerät MTW 1 (kein Datum gepflegt)`,

@@ -50,7 +50,16 @@ export type NavIkonName =
   // geteiltes Zeichen machte sie in der Seitenleiste ununterscheidbar. Die
   // Bauform von `baukasten` (zwei Eintraege, ein Zeichen) traegt hier NICHT:
   // dort stehen die beiden Eintraege in verschiedenen Abschnitten.
-  | "entnahme" | "pruefen";
+  | "entnahme" | "pruefen"
+  // DRK-314: die Entnahmebox — die Kiste, in die Helfende legen, was sie von
+  // einer Einheit heruntergenommen haben. KEIN geliehener Name: `lagerorte`
+  // (PiLockers) meint die Schraenke des Handlagers, und die Box haengt
+  // ausdruecklich NEBEN dem Handlager, nicht darin; `artikel` (PiPackage) meint
+  // das Material, nicht den Ort; `entnahme` (PiHandArrowDown) ist die
+  // Gegenrichtung — Material aus dem Regal nehmen. Die beiden stuenden
+  // ueberdies im selben Modul, und ein geteiltes Zeichen machte sie in der
+  // Seitenleiste ununterscheidbar.
+  | "entnahmebox";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

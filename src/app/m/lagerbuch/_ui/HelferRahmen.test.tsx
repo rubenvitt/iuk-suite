@@ -122,7 +122,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     expect(aktive[0]!.textContent).toContain("Check");
   });
 
-  it("die beiden `href` sind AEUSSERE Pfade", async () => {
+  it("die drei `href` sind AEUSSERE Pfade", async () => {
     // Innere (/m/lagerbuch/helfer/check) waeren die naheliegende und falsche
     // Vereinheitlichung mit Falle 49 — sie wuerden auf dem aeusseren Host
     // DOPPELT praefixiert.
@@ -130,7 +130,11 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
       <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["/helfer", "/helfer/check"]);
+    // DRK-314: der dritte Reiter ist die Entnahmebox, und er steht in der MITTE
+    // — die beiden Buchungsrichtungen (aus dem Regal nehmen, in die Kiste
+    // legen) nebeneinander, der Check als eigener Vorgang daneben.
+    expect(links.map((a) => a.getAttribute("href")))
+      .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
   });
 
   it("die CSS-Klasse folgt aus `aria-current`, nicht umgekehrt (§7.8.2 Punkt 4)", async () => {
@@ -145,11 +149,14 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
       <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
-    expect(links.length).toBe(2);
+    expect(links.length).toBe(3);   // DRK-314: Entnahme, Box, Check
     // Erst dass ueberhaupt eine Tab-Klasse dranhaengt — sonst waere die
-    // Gleichheit zweier LEERER Klassenlisten die ganze Zusage.
+    // Gleichheit LEERER Klassenlisten die ganze Zusage.
     for (const a of links) expect(a.className).toMatch(/tab/);
-    expect(links[0]!.className).toBe(links[1]!.className);
+    // ALLE DREI tragen dieselbe Klassenliste; der Unterschied liegt allein im
+    // ARIA-Attribut. Paarweise geprueft, damit ein dritter Reiter mit einer
+    // eigenen Klasse nicht durchrutscht.
+    for (const a of links) expect(a.className).toBe(links[0]!.className);
     // Und die Regel, aus der die Darstellung folgt, steht im Stylesheet.
     expect(readFileSync(STYLESHEET, "utf8")).toMatch(/\.tab\[aria-current="page"\]/);
   });
@@ -259,7 +266,7 @@ describe("HelferRahmen — der Kopf", () => {
       <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
     );
     expect(queryAll("nav[data-testid='lb-tableiste'] a").map((a) => a.getAttribute("href")))
-      .toEqual(["/helfer", "/helfer/check"]);
+      .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
   });
 
   it("rendert die Kinder im `<main>`", async () => {
@@ -422,7 +429,7 @@ describe("HelferRahmen — der Traeger und die Zeichen", () => {
     );
     const zeichen = queryAll("svg");
     // Ohne diese Zeile fuehrte ein leeres Trefferarray null Zusicherungen aus.
-    expect(zeichen.length).toBe(3); // Beenden + zwei Tabs
+    expect(zeichen.length).toBe(4); // Beenden + drei Tabs (DRK-314)
     for (const svg of zeichen) {
       expect(svg.getAttribute("aria-hidden")).toBe("true");
       expect(svg.getAttribute("focusable")).toBe("false");
