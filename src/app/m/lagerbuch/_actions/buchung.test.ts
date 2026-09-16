@@ -1086,6 +1086,51 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(neu).toMatchObject({ artikelId: "art-1", verfall: "2028-01" });
   });
 
+  /**
+   * ⚠️ OHNE DIESE KENNUNG ZERFAELLT EINE LIEFERUNG (Codex-Befund P1 zu PR #174).
+   * Wer auf mehrere Schraenke verteilt, bucht mehrfach; die Insel muss nach der
+   * ersten Buchung auf die ANGELEGTE Charge umschalten koennen, und die Kennung
+   * dafuer kennt nur der Server. Es gibt keinen Eindeutigkeitsindex auf
+   * `(artikel_id, chargen_nr)` — zwei gleiche Zeilen waeren moeglich und in
+   * FEFO nicht mehr zu unterscheiden.
+   */
+  it("gibt die Kennung der ANGELEGTEN Charge zurueck", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 4, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    const wert = (erg as { ok: true; wert: { chargeId: string } }).wert;
+    const zeile = t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).get();
+    expect(wert.chargeId).toBe(zeile?.id);
+
+    // Und mit genau dieser Kennung gebucht, entsteht KEINE zweite Zeile.
+    await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: wert.chargeId },
+      },
+      t.db,
+    );
+    expect(
+      t.db.select().from(chargen).all().filter((c) => c.chargenNr === "L-NEU"),
+      "eine physische Charge bleibt EINE Zeile",
+    ).toHaveLength(1);
+  });
+
+  it("gibt bei einer VORHANDENEN Charge deren Kennung unveraendert zurueck", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { chargeId: "ch-1" } });
+  });
+
   it("bucht auf eine VORHANDENE Charge, ohne eine zweite anzulegen", async () => {
     const erg = await bucheAuffuellung(
       {

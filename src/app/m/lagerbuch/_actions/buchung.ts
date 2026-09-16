@@ -610,11 +610,11 @@ const AuffuellSchema = z.object({
 export async function bucheAuffuellung(
   eingabe: unknown,
   db: DB = getDb(),
-): Promise<HelferErgebnis<{ gebucht: number; ziel: string }>> {
+): Promise<HelferErgebnis<{ gebucht: number; ziel: string; chargeId: string }>> {
   const viewer = await requireLagerbuchAdmin();
   return withAuditContext(
     { actor: auditActor(viewer) },
-    async (): Promise<HelferErgebnis<{ gebucht: number; ziel: string }>> => {
+    async (): Promise<HelferErgebnis<{ gebucht: number; ziel: string; chargeId: string }>> => {
       const geparst = AuffuellSchema.safeParse(eingabe);
       if (!geparst.success) {
         return {
@@ -669,8 +669,20 @@ export async function bucheAuffuellung(
        * ein Datenbankfehler ist kein erwartbarer Betriebsfall, sondern ein
        * Defekt. Er darf durchschlagen.
        */
+      /*
+        * ⚠️ DIE CHARGE FAEHRT ZURUECK, UND DAS IST KEINE BEQUEMLICHKEIT
+        * (Codex-Befund P1 zu PR #174). Eine Lieferung wird ueblicherweise auf
+        * MEHRERE Schraenke verteilt, also mehrfach nacheinander gebucht. Bliebe
+        * die Insel danach auf „Neue Charge" stehen, legte der zweite Griff eine
+        * ZWEITE `chargen`-Zeile mit derselben Nummer und demselben Verfall an:
+        * es gibt keinen Eindeutigkeitsindex auf `(artikel_id, chargen_nr)`
+        * (nachgesehen in `_db/migrations/`, nicht vermutet). Eine physische
+        * Charge zerfiele damit in mehrere, in FEFO nicht unterscheidbare
+        * Toepfe — still, denn jede Buchung fuer sich gelingt.
+        */
+      let chargeId = v.charge.art === "vorhanden" ? v.charge.chargeId : "";
       db.transaction((tx) => {
-        zugangBuchen(tx, {
+        chargeId = zugangBuchen(tx, {
           artikelId: v.artikelId,
           menge: v.menge,
           lagerortId: v.zielLagerortId,
@@ -680,7 +692,7 @@ export async function bucheAuffuellung(
           quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
           kommentar: null,
           referenz: null,
-        });
+        }).chargeId;
       });
 
       revalidatePath(`/m/lagerbuch/auffuellen/${v.artikelId}`);
@@ -692,7 +704,7 @@ export async function bucheAuffuellung(
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.
-      return { ok: true, wert: { gebucht: v.menge, ziel: ziel.name } };
+      return { ok: true, wert: { gebucht: v.menge, ziel: ziel.name, chargeId } };
     },
   );
 }

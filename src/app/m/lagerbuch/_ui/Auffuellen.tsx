@@ -63,7 +63,7 @@ export type AuffuellAktion = (eingabe: {
   menge: number;
   zielLagerortId: string;
   charge: { art: "vorhanden"; chargeId: string } | { art: "neu"; chargenNr: string; verfall: string };
-}) => Promise<HelferErgebnis<{ gebucht: number; ziel: string }>>;
+}) => Promise<HelferErgebnis<{ gebucht: number; ziel: string; chargeId: string }>>;
 
 /**
  * Der Wert, mit dem die Chargenwahl „eine neue Charge" meint.
@@ -92,6 +92,20 @@ export function Auffuellen({
   const [chargenNr, setChargenNr] = useState("");
   const [verfall, setVerfall] = useState("");
   const [menge, setMenge] = useState(1);
+  /**
+   * DIE GERADE ANGELEGTE CHARGE — Codex-Befund P1 zu PR #174.
+   *
+   * ⚠️ SIE STEHT HIER, WEIL DIE LISTE SIE NOCH NICHT KENNEN MUSS. Die Buchung
+   * revalidiert die Seite, `detail.chargen` bekommt die neue Zeile also — nur
+   * eben nicht zwingend im selben Bild, in dem die Antwort ankommt. Zeigte die
+   * Insel in diesem Fenster gar keine Auswahl, waere der Knopf freigegeben und
+   * NICHTS angekreuzt: die naechste Buchung ginge auf eine Charge, die auf dem
+   * Schirm nicht zu sehen ist. Dieser Eintrag ueberbrueckt genau dieses
+   * Fenster und verschwindet, sobald die Liste ihn selbst fuehrt.
+   */
+  const [angelegt, setAngelegt] = useState<
+    { id: string; chargenNr: string; verfall: string } | null
+  >(null);
   /*
    * ⚠️ VORBELEGT NUR BEI GENAU EINER WAHL. Gibt es Schraenke, wird gewaehlt —
    * dieselbe Regel wie beim Entnahme-Ziel (DRK-300): eine Vorbelegung, die
@@ -105,6 +119,12 @@ export function Auffuellen({
   const [laeuft, start] = useTransition();
 
   const neu = chargeWahl === NEUE_CHARGE;
+  /*
+   * Die Uebergangszeile faellt weg, sobald `detail.chargen` die neue Charge
+   * fuehrt — sonst stuende sie nach der Revalidierung ZWEIMAL da, einmal
+   * provisorisch und einmal echt.
+   */
+  const uebergang = angelegt && !detail.chargen.some((c) => c.id === angelegt.id) ? angelegt : null;
   const chargeVollstaendig = neu ? chargenNr.trim() !== "" && verfall !== "" : true;
   const bereit = chargeVollstaendig && zielId !== "" && menge > 0 && !laeuft;
   const zielName = ziele.find((z) => z.id === zielId)?.name ?? null;
@@ -140,12 +160,35 @@ export function Auffuellen({
           text: `Aufgefüllt: ${r.wert.gebucht} × ${detail.name} → ${r.wert.ziel}`,
         });
         /*
-         * ⚠️ DIE CHARGE BLEIBT STEHEN, DIE MENGE FAELLT AUF 1 ZURUECK. Wer eine
-         * Lieferung auspackt, bucht dieselbe Charge oft mehrfach in
-         * verschiedene Schraenke; die Chargennummer noch einmal abzutippen ist
-         * die Arbeit, die diese Flaeche sparen soll. Die MENGE dagegen ist bei
-         * jeder Buchung eine neue Aussage — sie stehen zu lassen waere die
-         * Einladung, versehentlich doppelt zu buchen.
+         * ⚠️ NACH EINER NEUEN CHARGE WIRD AUF SIE UMGESCHALTET — und das ist
+         * die Abhilfe zu einem echten Fehler, nicht Bequemlichkeit
+         * (Codex-Befund P1 zu PR #174).
+         *
+         * Wer eine Lieferung auspackt, verteilt sie auf MEHRERE Schraenke und
+         * bucht darum mehrfach nacheinander. Bliebe die Wahl auf „Neue
+         * Charge" stehen, legte der zweite Griff eine ZWEITE `chargen`-Zeile
+         * mit derselben Nummer und demselben Verfall an — es gibt keinen
+         * Eindeutigkeitsindex auf `(artikel_id, chargen_nr)`. Eine physische
+         * Charge zerfiele in mehrere, in FEFO nicht unterscheidbare Toepfe,
+         * und zwar STILL: jede Buchung fuer sich gelingt, und erst die
+         * Chargenliste zeigt spaeter zwei gleiche Zeilen, die niemand mehr
+         * zusammenfuehren kann (das Journal ist append-only).
+         *
+         * Die beiden Felder werden dabei GELEERT: sie haben ihren Zweck
+         * erfuellt, und ein stehengebliebener Text luede dazu ein, dieselbe
+         * Nummer beim naechsten Wechsel auf „Neue Charge" ein zweites Mal
+         * anzulegen — also genau zurueck in den Fehler.
+         */
+        if (neu) {
+          setAngelegt({ id: r.wert.chargeId, chargenNr: chargenNr.trim(), verfall });
+          setChargeWahl(r.wert.chargeId);
+          setChargenNr("");
+          setVerfall("");
+        }
+        /*
+         * ⚠️ DIE MENGE FAELLT AUF 1 ZURUECK. Sie ist bei jeder Buchung eine
+         * neue Aussage — sie stehen zu lassen waere die Einladung,
+         * versehentlich doppelt zu buchen.
          */
         setMenge(1);
       } catch {
@@ -246,6 +289,33 @@ export function Auffuellen({
               />
             </div>
           </div>
+        )}
+
+        {/*
+          DIE GERADE ANGELEGTE CHARGE — nur solange die Liste sie noch nicht
+          selbst fuehrt (siehe `angelegt`). Sie traegt KEINE Restmenge: was
+          insgesamt auf ihr liegt, weiss der Server, und eine hier
+          hochgerechnete Zahl waere eine Behauptung neben lauter gemessenen.
+        */}
+        {uebergang && (
+          <label className={`${s.zeile} ${s.zeileWahl}`} data-rolle="charge-zeile">
+            <input
+              type="radio"
+              name="charge"
+              className={s.wahlKnopf}
+              checked={chargeWahl === uebergang.id}
+              onChange={() => setChargeWahl(uebergang.id)}
+            />
+            <div className={s.zeileHaupt}>
+              <div className={s.zeileName} style={{ font: "600 13px var(--lb-mono)" }}>
+                Charge {uebergang.chargenNr}
+              </div>
+              <div className={s.zeileMeta}>
+                <span>gerade angelegt</span>
+                <span>{fmtVerfall(uebergang.verfall)}</span>
+              </div>
+            </div>
+          </label>
         )}
 
         {/*

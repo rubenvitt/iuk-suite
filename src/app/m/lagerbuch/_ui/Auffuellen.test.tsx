@@ -85,9 +85,14 @@ const ZIELE: AuffuellZiel[] = [
   { id: "schrank-gf", name: "GF-Schrank", zugangshinweis: "Zugang nur über die GF — LvD anrufen" },
 ];
 
-/** Der Erfolgsfall des Servers, mit dem Zielnamen, den ER kennt. */
-function ok(gebucht: number, ziel: string) {
-  return vi.fn(async () => ({ ok: true as const, wert: { gebucht, ziel } }));
+/**
+ * Der Erfolgsfall des Servers, mit dem Zielnamen UND der Charge, auf die er
+ * gebucht hat. Beide kommen aus der Antwort und nicht aus dem Zustand der
+ * Insel — bei einer NEU angelegten Charge kann die Insel die Kennung gar nicht
+ * kennen.
+ */
+function ok(gebucht: number, ziel: string, chargeId = "ch-neu") {
+  return vi.fn(async () => ({ ok: true as const, wert: { gebucht, ziel, chargeId } }));
 }
 
 afterEach(async () => {
@@ -187,6 +192,89 @@ describe("Auffuellen — die Charge", () => {
     expect(buchen).toHaveBeenCalledWith(
       expect.objectContaining({ charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" } }),
     );
+  });
+});
+
+describe("Auffuellen — dieselbe Lieferung in mehrere Schraenke", () => {
+  /**
+   * ⚠️ DER TEUERSTE STILLE AUSGANG DIESER FLAECHE (Codex-Befund P1 zu PR #174).
+   *
+   * Eine Lieferung wird auf mehrere Schraenke verteilt, also mehrfach
+   * nacheinander gebucht. Bliebe die Wahl danach auf „Neue Charge" stehen,
+   * legte der zweite Griff eine ZWEITE `chargen`-Zeile mit derselben Nummer und
+   * demselben Verfall an — es gibt keinen Eindeutigkeitsindex auf
+   * `(artikel_id, chargen_nr)`. Eine physische Charge zerfiele in mehrere, in
+   * FEFO nicht unterscheidbare Toepfe, und jede Buchung fuer sich gelingt.
+   */
+  it("bucht die ZWEITE Menge auf die gerade angelegte Charge, nicht auf eine neue", async () => {
+    const buchen = ok(3, "Handlager (ohne Schrank)", "ch-frisch");
+    await zeige([ZIELE[0]!], buchen);
+
+    await fill('[data-rolle="chargennummer"]', "L-NEU");
+    await fill('[data-rolle="verfallsmonat"]', "2028-01");
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" } }),
+    );
+
+    // Der zweite Griff — ohne dass jemand etwas umstellt.
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ charge: { art: "vorhanden", chargeId: "ch-frisch" } }),
+    );
+  });
+
+  it("zeigt die angelegte Charge als gewaehlte Zeile — kein freigegebener Knopf ohne Auswahl", async () => {
+    await zeige([ZIELE[0]!], ok(3, "Handlager (ohne Schrank)", "ch-frisch"));
+    await fill('[data-rolle="chargennummer"]', "L-NEU");
+    await fill('[data-rolle="verfallsmonat"]', "2028-01");
+    await click('[data-rolle="auffuellen-buchen"]');
+
+    // Die Felder sind leer: eine stehengebliebene Nummer lüde dazu ein,
+    // dieselbe Charge beim nächsten Wechsel ein zweites Mal anzulegen.
+    expect(exists('[data-rolle="neue-charge-felder"]')).toBe(false);
+
+    const gewaehlt = queryAll<HTMLInputElement>('[data-rolle="charge-wahl"] input')
+      .filter((e) => e.checked);
+    expect(gewaehlt, "genau eine Zeile ist angekreuzt").toHaveLength(1);
+    const zeilen = queryAll('[data-rolle="charge-zeile"]');
+    expect(zeilen[0]!.textContent, "die Uebergangszeile nennt die frische Charge")
+      .toContain("L-NEU");
+    expect(zeilen[0]!.textContent).toContain("gerade angelegt");
+  });
+
+  /**
+   * Die Buchung revalidiert die Seite; sobald `detail.chargen` die neue Zeile
+   * fuehrt, muss die provisorische verschwinden — sonst stuende dieselbe
+   * Charge zweimal in derselben Gruppe.
+   */
+  it("verschwindet die Uebergangszeile, sobald die Liste die Charge selbst fuehrt", async () => {
+    const mitFrischer: AuffuellDetail = {
+      ...DETAIL,
+      chargen: [
+        { id: "ch-frisch", chargenNr: "L-NEU", verfall: "2028-01", rest: 3,
+          ampel: "gruen", text: "ok" },
+        ...DETAIL.chargen,
+      ],
+    };
+    await mount(
+      <Auffuellen
+        detail={mitFrischer}
+        ziele={[ZIELE[0]!]}
+        buchen={ok(3, "Handlager (ohne Schrank)", "ch-frisch")}
+      />,
+    );
+    await fill('[data-rolle="chargennummer"]', "L-NEU-2");
+    await fill('[data-rolle="verfallsmonat"]', "2028-02");
+    await click('[data-rolle="auffuellen-buchen"]');
+
+    const treffer = queryAll('[data-rolle="charge-zeile"]')
+      .filter((z) => z.textContent?.includes("L-NEU"));
+    expect(treffer, "„L-NEU“ steht genau einmal, nicht provisorisch UND echt")
+      .toHaveLength(1);
+    expect(treffer[0]!.textContent).not.toContain("gerade angelegt");
   });
 });
 
