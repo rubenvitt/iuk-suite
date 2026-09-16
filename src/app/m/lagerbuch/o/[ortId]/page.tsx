@@ -46,6 +46,12 @@ import { getDb } from "../../_db/client";
  * und ein geratenes `/helfer/check?fz=<id>` fuer einen Lagerort ergaebe eine
  * Fahrzeugwahl, in der dieser Ort nicht vorkommt.
  *
+ * ⚠️ EIN GEBUNDENES KAERTCHEN SCHLAEGT DAS GESCANNTE ETIKETT. Die Begruendung
+ * steht an `ortZielPfad`; kurz: aus Serversicht ist ein gescanntes `/o/<id>`
+ * von einem getippten `?fz=` nicht zu unterscheiden, also darf der Scan die
+ * Begrenzung aus DRK-302 nicht aufheben — und die Adresse darf nicht etwas
+ * anderes behaupten als der Bildschirm.
+ *
  * ⚠️ EIN UNBEKANNTER ODER STILLGELEGTER ORT FUEHRT AUF `/helfer`, NICHT AUF
  * EINE 404. Der Fall ist real und gutartig: ein Fahrzeug wird ausgemustert, das
  * laminierte Kaertchen haengt noch dran. Eine 404 liesse die Person mit dem
@@ -88,6 +94,18 @@ export default async function OrtDeepLink({
     redirect(`/?returnTo=${encodeURIComponent(`/o/${ortId}`)}`);
   }
 
-  const ort = etikettOrt(db, ortId);
-  redirect(ort ? ortZielPfad(ort) : "/helfer");
+  /*
+   * ⚠️ DIE BINDUNG DES KAERTCHENS WANDERT MIT IN DIE ZIELWAHL, und ohne sie war
+   * dieser Ausgang STILL FALSCH (Codex-Befund P1 zu PR #177): die Check-Seite
+   * gibt `zugang.fahrzeugBindung` ausdruecklich den Vorrang vor `?fz=`
+   * (DRK-302). Wer mit einem auf A gebundenen Kaertchen das Etikett an B
+   * scannt, saehe sonst den Check von A, waehrend die Adresse B behauptet — und
+   * zaehlte den Inhalt von B in das Buch von A. Die Abwaegung, warum die
+   * Bindung gewinnt und nicht der Scan, steht an `ortZielPfad`.
+   *
+   * Beim Konto-Zugang ist `fahrzeugBindung` durch den TYP `null`
+   * (`_lib/helferZugang.ts`), nicht durch eine Abfrage hier — dieselbe Form wie
+   * auf der Check-Seite.
+   */
+  redirect(ortZielPfad(etikettOrt(db, ortId), zugang.fahrzeugBindung));
 }

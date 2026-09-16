@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { decodeQr } from "./helpers/decode-qr";
 import {
-  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME,
+  E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
+  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG,
   LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
 } from "./helpers/lagerbuch";
 import { A7_BREITE_MM, A7_HOEHE_MM } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
@@ -150,6 +151,64 @@ test.describe("Ortsetiketten (A7)", () => {
       url.searchParams.get("returnTo") === `/o/${E2E_FAHRZEUG_ID}`);
     expect(seite.url()).not.toContain("/login");
     await anonym.close();
+  });
+
+  /**
+   * ⚠️ DER TEUERSTE STILLE AUSGANG DIESES TICKETS, UND ER WAR EINMAL DA
+   * (Codex-Befund P1 zu PR #177). Die Check-Seite gibt der Bindung des
+   * Kaertchens ausdruecklich den Vorrang vor `?fz=` (DRK-302: der Parameter ist
+   * Nutzereingabe und als Beleg wertlos). Ein `/o/<B>`, das blind auf `?fz=B`
+   * zeigte, ergab damit: Adresse sagt B, Bildschirm zeigt A — und der Inhalt
+   * von B waere in das Buch von A gezaehlt worden.
+   *
+   * ⚠️ DER TEST BRAUCHT EINEN FRISCHEN KONTEXT. Mit den Admin-Cookies aus
+   * `beforeEach` griffe `helferZugangOderNull` zwar trotzdem zuerst, aber die
+   * Lage waere eine andere als die, die er beschreibt: eine Helferin am
+   * Fahrzeug hat kein Konto.
+   *
+   * ⚠️ UND ER PRUEFT DIE ADRESSE, NICHT NUR DIE UEBERSCHRIFT. Die Ueberschrift
+   * zeigte auch VOR der Reparatur schon das gebundene Fahrzeug — genau das war
+   * das Problem: sie widersprach der Adresse. Gruen wird dieser Test erst,
+   * wenn beide dasselbe sagen.
+   */
+  test("ein gebundenes Kaertchen schlaegt das gescannte Etikett", async ({ browser }) => {
+    const helfer = await browser.newContext();
+    const seite = await helfer.newPage();
+
+    // Das Kaertchen ist an E2E_FAHRZEUG_ID gebunden.
+    await seite.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
+    await seite.waitForURL((url) =>
+      url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+
+    // Gescannt wird das Etikett der ANDEREN Einheit.
+    await seite.goto(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ANDERES_ID}`));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer/check")
+      && url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+    expect(seite.url()).not.toContain(E2E_FAHRZEUG_ANDERES_ID);
+    await expect(seite.getByText(E2E_FAHRZEUG_NAME).first()).toBeVisible();
+    await expect(seite.getByText(E2E_FAHRZEUG_ANDERES_NAME)).toHaveCount(0);
+
+    await helfer.close();
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL BEWIESE: fuer ein
+   * LAGER gilt die Bindung nicht. `/helfer` ist die Artikelliste des Handlagers
+   * und an keine Einheit gebunden — zoege man die Bindung durch, landete
+   * jemand, der am REGAL steht und das Regal-Etikett scannt, im Fahrzeug-Check.
+   */
+  test("ein gebundenes Kaertchen landet am Handlager trotzdem in der Artikelliste", async ({ browser }) => {
+    const helfer = await browser.newContext();
+    const seite = await helfer.newPage();
+
+    await seite.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
+    await seite.waitForURL((url) => url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+
+    await seite.goto(lagerbuchUrl(`/o/${HANDLAGER_ID}`));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer"));
+    await expect(seite.getByText("Artikel wählen")).toBeVisible();
+
+    await helfer.close();
   });
 
   test("waehlt zu Beginn alles aus und schaltet ueber Keine ab", async ({ page }) => {
