@@ -10,18 +10,19 @@ import { OrtsetikettenChrome } from "./OrtsetikettenChrome";
 export const dynamic = "force-dynamic";
 
 /**
- * DIE A7-ORTSETIKETTEN → /verwaltung/ortsetiketten (DRK-312).
+ * DIE ORTSKARTEN → /verwaltung/ortsetiketten (DRK-312, Bogenformat DRK-388).
  *
- * Ein Etikett je Handlager bzw. Einheit, ein Blatt je Etikett. Der
+ * Eine Karte je Handlager bzw. Einheit, acht Karten je A4-Blatt. Der
  * Etikettenbogen nebenan (`/verwaltung/etiketten`) bleibt unveraendert: er
  * druckt weiter je Produkt auf gekauftes Klebematerial, und das Ticket sagt
  * ausdruecklich, dass die bestehenden Produktcodes ohne Migrationsentscheidung
  * nicht verschwinden.
  *
- * ZWEI FLAECHEN UND NICHT EINE, und der Grund ist das Papier: Chromium verwirft
- * die CSS-Seitengroesse VOLLSTAENDIG, sobald ein Dokument gemischte
- * Seitengroessen ergibt (gemessen — A7-Karte und A4-Bogen zusammen ergaben
- * Letter fuer beide). Ein dritter Abschnitt auf der bestehenden Seite haette den
+ * ZWEI FLAECHEN UND NICHT EINE, und der Grund ist das Papier: die Karten
+ * brauchen einen anderen Seitenrand als der Etikettenbogen (4mm statt 8mm),
+ * damit acht davon auf ein Blatt gehen — und Chromium verwirft die
+ * CSS-Seitenvorgabe VOLLSTAENDIG, sobald ein Dokument gemischte Seitengroessen
+ * ergibt (gemessen). Ein dritter Abschnitt auf der bestehenden Seite haette den
  * Etikettenbogen still mit umformatiert.
  *
  * ZWEITE LINIE DER RIEGEL. Das (druck)-Layout riegelt bereits; diese Seite tut

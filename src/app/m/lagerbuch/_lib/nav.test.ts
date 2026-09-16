@@ -30,7 +30,7 @@ describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
       { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
       { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
-      // DRK-312: das A7-Etikett je Handlager bzw. Einheit. EIGENES Zeichen —
+      // DRK-312: die QR-Karte je Handlager bzw. Einheit. EIGENES Zeichen —
       // „Etiketten" steht im selben Abschnitt, und zwei gleiche Zeichen waeren
       // dort nicht auseinanderzuhalten (Begruendung an `core/shell/types.ts`).
       { key: "ortsetiketten", title: "Ortsetiketten", href: "/verwaltung/ortsetiketten", ikon: "ortsetiketten", abschnitt: "Einrichtung" },

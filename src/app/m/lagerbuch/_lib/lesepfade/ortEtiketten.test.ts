@@ -5,7 +5,7 @@ import { HANDLAGER_ID } from "../konstanten";
 import { etikettOrte, etikettOrt } from "./ortEtiketten";
 
 /**
- * DRK-312 — welche Orte ein A7-Etikett bekommen.
+ * DRK-312 — welche Orte eine QR-Karte bekommen.
  *
  * Die Fixture stellt GENAU DIE FAELLE her, die die Menge sonst still falsch
  * machen: ein zweites Lager, ein Schrank unter dem Handlager, ein
