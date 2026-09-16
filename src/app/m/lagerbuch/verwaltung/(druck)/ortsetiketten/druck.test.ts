@@ -4,7 +4,7 @@ import { join } from "node:path";
 import {
   A7_BREITE_MM, A7_HOEHE_MM, A7_SEITENNAME, ORT_SEITENRAND_MM,
   ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM, ORT_QR_MM, ORT_FUSS_ZEILEN,
-  NAME_STUFEN, mm,
+  ORT_META_ZEILEN, NAME_STUFEN, mm,
 } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
 
 /**
@@ -225,6 +225,29 @@ describe("die Millimeter stehen zeichengleich in beiden Welten", () => {
     expect(regel![1]).toMatch(/display:\s*-webkit-box/);
     expect(regel![1]).toMatch(/-webkit-box-orient:\s*vertical/);
     expect(regel![1]).toMatch(/overflow:\s*hidden/);
+  });
+
+  /**
+   * ⚠️ DIE BEIZEILE HAT EINE FESTE HOEHE, UND ZWAR AUS DEMSELBEN GRUND WIE DIE
+   * FUSSZEILE (Codex P2, dritte Runde): `lagerorte.kennung` ist unbegrenzt.
+   * Ohne die Reservierung wuchs sie mit der Kennung (gemessen 13 → 26 → 39px)
+   * und nahm dem Namen genau die Hoehe, gegen die seine Stufen gemessen sind.
+   *
+   * ⚠️ `nowrap` UND `text-overflow` GEHOEREN DAZU: ohne sie bricht die Zeile
+   * weiterhin um (und wird dann von `overflow: hidden` STILL gekappt), und eine
+   * Kennung ohne Trennstellen ragt seitlich aus der Karte. `align-self:
+   * stretch` gibt `text-overflow` ueberhaupt erst eine Kante — ein zentriertes
+   * Flex-Item ist sonst genau so breit wie sein Inhalt.
+   */
+  it("reserviert der Beizeile eine feste Hoehe und kuerzt sie sichtbar", () => {
+    const regel = /\.lb-ortkarteMeta\s*\{([^}]*)\}/.exec(bildschirmblock());
+    expect(regel, "keine Regel auf .lb-ortkarteMeta").not.toBeNull();
+    expect(regel![1]).toContain(`height: ${ORT_META_ZEILEN * 1.25}em`);
+    expect(regel![1]).not.toMatch(/min-height/);
+    expect(regel![1]).toMatch(/white-space:\s*nowrap/);
+    expect(regel![1]).toMatch(/text-overflow:\s*ellipsis/);
+    expect(regel![1]).toMatch(/overflow:\s*hidden/);
+    expect(regel![1]).toMatch(/align-self:\s*stretch/);
   });
 
   /**

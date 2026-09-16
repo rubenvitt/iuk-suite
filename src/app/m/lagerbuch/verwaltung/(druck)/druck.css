@@ -228,9 +228,46 @@
 
 /* Die Beizeile: „Lager" · „Fahrzeug · HN-DRK-1101" · „Tasche". Sie steht OBEN,
  * weil sie die Frage „was ist das hier?" beantwortet, bevor der Name die Frage
- * „welches?" beantwortet. */
+ * „welches?" beantwortet.
+ *
+ * ⚠️ GENAU EINE ZEILE, FEST — derselbe Grund wie bei der Fusszeile weiter unten
+ * (Codex P2, dritte Runde). `lagerorte.kennung` ist unbegrenzt
+ * (`_actions/fahrzeuge.ts`: `z.string().trim().optional()`), und ohne diese
+ * Regel kostete das die Karte zweimal, beides gemessen:
+ *
+ *   „Fahrzeug · HN-DRK-1101"                  13px hoch, Namensplatz 89px
+ *   „… -RESERVE-NORD-2026"                    26px hoch, Namensplatz 76px
+ *   „… -RESERVE-NORD-STANDORT-…-2026"         39px hoch, Namensplatz 63px
+ *   eine Kennung OHNE Trennstellen            ragt seitlich aus der Karte
+ *
+ * Der erste Fall ist der teure: die Stufentabelle des Namens ist gegen 89px
+ * gemessen, ihre Zeilenklammern sind fest — schrumpft der Platz, schneidet
+ * `overflow: hidden` VOR der letzten Zeile und damit VOR den
+ * Auslassungspunkten. Der stille Schnitt waere zurueck, diesmal ueber eine
+ * Kennung statt ueber einen Host.
+ *
+ * ⚠️ EINE ZEILE UND NICHT ZWEI, obwohl zwei mehr Kennung truegen: die zweite
+ * Zeile kostete JEDE Karte 13px Namenshoehe, dauerhaft, fuer einen Fall, den
+ * die Wirklichkeit selten stellt — ein Kennzeichen ist kurz („HN-DRK-1101"
+ * braucht 155 von 212px). Der Name ist der Zweck der Karte; die Beizeile
+ * ordnet nur ein.
+ *
+ * ⚠️ `nowrap` PLUS `text-overflow` STATT EINER KLAMMER: bei einer Zeile ist
+ * das die einfachere Form, und sie loest BEIDE Faelle auf einmal — auch eine
+ * Kennung ohne Trennstellen bricht nicht mehr seitlich aus, sie endet auf
+ * „…". Abgeschnitten wird dabei das ENDE der Kennung, nie die Art: die steht
+ * vorn. Eindeutig bleibt die Karte ueber die Adresse im Fuss. */
 .lb-ortkarteMeta {
   display: block;
+  /* Ohne `stretch` ist das Element ein zentriertes Flex-Item in Inhaltsbreite —
+   * `text-overflow` haette dann gar keine Kante, an der es greifen koennte. */
+  align-self: stretch;
+  /* 1 Zeile bei `line-height: 1.25` — `em` ist hier die eigene Schriftgroesse. */
+  height: 1.25em;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font: 600 8pt var(--font-mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;

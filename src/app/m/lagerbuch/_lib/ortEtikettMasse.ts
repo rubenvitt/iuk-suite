@@ -101,6 +101,25 @@ export const ORT_QR_MM = 46;
 export const ORT_FUSS_ZEILEN = 3;
 
 /**
+ * DIE ZEILEN DER BEIZEILE — die zweite feste Groesse, an der die Stufentabelle
+ * haengt.
+ *
+ * ⚠️ AUS DEMSELBEN GRUND FEST WIE DIE FUSSZEILE, und der Ausloeser ist eine
+ * andere unbegrenzte Angabe: `lagerorte.kennung` kennt keine Obergrenze
+ * (`_actions/fahrzeuge.ts`: `z.string().trim().optional()`). Gemessen ohne
+ * Reservierung: „Fahrzeug · HN-DRK-1101" ergab 13px Beizeile und 89px
+ * Namensplatz, eine laengere Kennung 26px/76px, eine sehr lange 39px/63px —
+ * und eine Kennung ohne Trennstellen ragte seitlich aus der Karte.
+ *
+ * ⚠️ EINE ZEILE UND NICHT ZWEI: die zweite kostete JEDE Karte 13px
+ * Namenshoehe, dauerhaft, fuer einen seltenen Fall. Ein Kennzeichen ist kurz —
+ * „Fahrzeug · HN-DRK-1101" braucht gemessen 155 von 212px. Was nicht passt,
+ * endet sichtbar auf „…", und abgeschnitten wird das Ende der Kennung, nie die
+ * Art: die steht vorn.
+ */
+export const ORT_META_ZEILEN = 1;
+
+/**
  * DIE SCHRIFTSTUFEN DES ORTSNAMENS — Codex-Befund P2 zu PR #177.
  *
  * ⚠️ DIE KARTE SCHNITT DEN NAMEN AB 24 ZEICHEN AB, UND ZWAR STILL. Gemessen an

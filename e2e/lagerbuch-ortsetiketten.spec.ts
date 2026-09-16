@@ -351,8 +351,14 @@ test.describe("Ortsetiketten (A7)", () => {
   });
 
   /**
-   * ⚠️ EIN LANGER HOST DARF DEN NAMEN NICHT SCHRUMPFEN — Codex P2, zweite
-   * Runde, und der Befund saß genau an einer Stelle, an der ein Kommentar von
+   * ⚠️ NICHTS UNBEGRENZTES DARF DEN NAMEN SCHRUMPFEN — Codex P2, zweite und
+   * dritte Runde. Zwei Angaben auf der Karte sind unbegrenzt: die Adresse im
+   * Fuß (sie hängt an `SUITE_HOST_LAGERBUCH`) und die Kennung in der Beizeile
+   * (`lagerorte.kennung` kennt keine Obergrenze). Beide standen zwischen dem
+   * Namen und dem Kartenrand, beide nahmen ihm Höhe — und die Stufentabelle
+   * des Namens ist gegen eine FESTE Höhe gemessen.
+   *
+   * Der zweite Befund saß dabei genau an einer Stelle, an der ein Kommentar von
    * mir das Gegenteil behauptete.
    *
    * Die Adresse im Fuß wächst mit `SUITE_HOST_LAGERBUCH`. Wuchs sie um eine
@@ -368,32 +374,48 @@ test.describe("Ortsetiketten (A7)", () => {
    * Namensplatz konstant bleibt. Das ist genau die Größe, an der die gemessene
    * Stufentabelle hängt.
    */
-  test("laesst den Namensplatz nicht von der Laenge der Adresse abhaengen", async ({ page }) => {
+  test("laesst den Namensplatz weder von der Adresse noch von der Kennung abhaengen", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
     await page.emulateMedia({ media: "print" });
 
-    const plaetze = await page.evaluate((adressen) => {
+    const befunde = await page.evaluate((faelle) => {
       const karte = document.querySelector(".lb-ortkarte")!;
       const huelle = karte.querySelector(".lb-ortkarteName") as HTMLElement;
+      const meta = karte.querySelector(".lb-ortkarteMeta") as HTMLElement;
       const fuss = karte.querySelector(".lb-ortkarteUrl") as HTMLElement;
-      return adressen.map((a) => {
-        fuss.textContent = a;
+      const kasten = karte.getBoundingClientRect();
+      return faelle.map(({ was, beizeile, adresse }) => {
+        meta.textContent = beizeile;
+        fuss.textContent = adresse;
+        const m = meta.getBoundingClientRect();
         return {
-          laenge: a.length,
+          was,
           platz: huelle.clientHeight,
           karteUeberlauf: karte.scrollHeight > karte.clientHeight,
+          ragtSeitlich: m.left < kasten.left - 0.5 || m.right > kasten.right + 0.5,
         };
       });
     }, [
-      "http://a.de/o/x",
-      "http://lagerbuch.iuk-ue.de/o/V1StGXR8_Z5jdHi6B-myT",
-      "https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/o/V1StGXR8_Z5jdHi6B-myT",
-      `https://${"x".repeat(140)}.example.org/o/V1StGXR8_Z5jdHi6B-myT`,
+      { was: "kurz/kurz", beizeile: "Lager", adresse: "http://a.de/o/x" },
+      { was: "Messgrundlage", beizeile: "Fahrzeug · HN-DRK-1101",
+        adresse: "http://lagerbuch.iuk-ue.de/o/V1StGXR8_Z5jdHi6B-myT" },
+      { was: "langer Host", beizeile: "Fahrzeug · HN-DRK-1101",
+        adresse: "https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/o/V1StGXR8_Z5jdHi6B-myT" },
+      { was: "lange Kennung", beizeile: "Fahrzeug · HN-DRK-1101-RESERVE-NORD-STANDORT-FEUERWACHE-2026",
+        adresse: "http://lagerbuch.iuk-ue.de/o/V1StGXR8_Z5jdHi6B-myT" },
+      // Ohne Trennstellen — der Fall, der seitlich aus der Karte ragte.
+      { was: "Kennung ohne Trennstellen", beizeile: `Fahrzeug · ${"K".repeat(120)}`,
+        adresse: "http://lagerbuch.iuk-ue.de/o/V1StGXR8_Z5jdHi6B-myT" },
+      { was: "beides lang", beizeile: `Fahrzeug · ${"K".repeat(60)}`,
+        adresse: `https://${"x".repeat(140)}.example.org/o/V1StGXR8_Z5jdHi6B-myT` },
     ]);
 
-    const werte = [...new Set(plaetze.map((p) => p.platz))];
-    expect(werte, `Namensplatz schwankt: ${JSON.stringify(plaetze)}`).toHaveLength(1);
-    for (const p of plaetze) expect(p.karteUeberlauf, `${p.laenge} Zeichen`).toBe(false);
+    const werte = [...new Set(befunde.map((b) => b.platz))];
+    expect(werte, `Namensplatz schwankt: ${JSON.stringify(befunde)}`).toHaveLength(1);
+    for (const b of befunde) {
+      expect(b.karteUeberlauf, `${b.was}: Karte laeuft ueber`).toBe(false);
+      expect(b.ragtSeitlich, `${b.was}: Beizeile ragt aus der Karte`).toBe(false);
+    }
   });
 
   /**
