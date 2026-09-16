@@ -14,6 +14,7 @@ import inventurJeCharge from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/
 import mehrereArtikelBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-mehrere-artikel-bearbeiten";
 import journalNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-journal-nachladen";
 import schraenke from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schraenke";
+import inventurJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-inventur-je-schrank";
 import schraenkeLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schraenke-loeschen";
 import aussondernAmFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-aussondern-am-fahrzeug";
 import abgelaufenesJeFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-abgelaufenes-je-fahrzeug";
@@ -74,6 +75,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   mehrereArtikelBearbeiten,
   journalNachladen,
   schraenke,
+  inventurJeSchrank,
   schraenkeLoeschen,
   aussondernAmFahrzeug,
   abgelaufenesJeFahrzeug,
