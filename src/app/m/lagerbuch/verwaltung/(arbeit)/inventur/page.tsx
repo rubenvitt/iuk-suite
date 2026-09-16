@@ -2,6 +2,7 @@ import { Button } from "antd";
 import type { ReactNode } from "react";
 import { getDb, type DB } from "../../../_db/client";
 import {
+  eindeutigeLabels,
   ZAEHLORT_ALLE,
   zaehlOrtAus,
   zaehlOrtBeschreibung,
@@ -56,11 +57,18 @@ export function inventurSeitenInhalt(
    * dann einen anderen Ort, als sie zaehlt.
    */
   const waehlbar = schraenke.filter((o) => o.aktiv || o.id === ortId);
-  const orte: ZaehlOrt[] = [
+  /*
+   * ⚠️ `eindeutigeLabels` IST KEIN SCHLIFF, SONDERN EIN RIEGEL (P1-Befund von
+   * Codex). Zwei Schraenke duerfen heute gleich heissen; zwei optisch gleiche
+   * Zeilen in dieser Auswahl fuehrten dazu, dass jemand den falschen Schrank
+   * zaehlt und die Korrektur dorthin bucht — ohne dass die Zahlen daneben es
+   * verraten. Die Begruendung steht bei der Funktion.
+   */
+  const orte: ZaehlOrt[] = eindeutigeLabels([
     { id: ZAEHLORT_ALLE, label: zaehlOrtLabel(null, undefined) },
     { id: HANDLAGER_ID, label: zaehlOrtLabel(HANDLAGER_ID, undefined) },
     ...waehlbar.map((o) => ({ id: o.id, label: zaehlOrtLabel(o.id, o.name) })),
-  ];
+  ]);
 
   return (
     <>

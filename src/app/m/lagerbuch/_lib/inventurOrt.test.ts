@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HANDLAGER_ID } from "./konstanten";
 import {
+  eindeutigeLabels,
   ZAEHLORT_ALLE,
   zaehlOrtAus,
   zaehlOrtBeschreibung,
@@ -73,5 +74,59 @@ describe("zaehlOrtBeschreibung", () => {
     expect(zaehlOrtBeschreibung(null, undefined)).toContain("gesamten Handlager");
     expect(zaehlOrtBeschreibung(HANDLAGER_ID, undefined)).toContain("noch keinem Schrank zugeordnet");
     expect(zaehlOrtBeschreibung("schrank-1", "Schrank 1")).toContain("in Schrank 1");
+  });
+});
+
+/**
+ * DRK-337, P1-Befund von Codex zum PR: zwei Schraenke duerfen heute gleich
+ * heissen (kein Index, keine Pruefung in `createSchrank` — nachgesehen).
+ */
+describe("eindeutigeLabels", () => {
+  it("laesst eine Liste ohne Dopplung unveraendert", () => {
+    const orte = [
+      { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
+      { id: "schrank-1", label: "Schrank 1" },
+    ];
+    expect(eindeutigeLabels(orte)).toEqual(orte);
+  });
+
+  /**
+   * ⚠️ NUR DIE BETROFFENEN ZEILEN BEKOMMEN DIE KENNUNG. Sie an jede zu haengen
+   * machte die haeufige Lage haesslich, um die seltene zu heilen.
+   */
+  it("haengt nur an doppelte Beschriftungen die Kennung", () => {
+    expect(eindeutigeLabels([
+      { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { id: "schrank-a", label: "Schrank 1" },
+      { id: "schrank-b", label: "Schrank 1" },
+      { id: "schrank-c", label: "GF-Schrank" },
+    ])).toEqual([
+      { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { id: "schrank-a", label: "Schrank 1 (schrank-a)" },
+      { id: "schrank-b", label: "Schrank 1 (schrank-b)" },
+      { id: "schrank-c", label: "GF-Schrank" },
+    ]);
+  });
+
+  /**
+   * ⚠️ DIE RICHTUNG, AN DIE DER BEFUND NICHT GEDACHT HAT: ein Schrank, den
+   * jemand „Nicht zugeordnet" nennt, kollidiert mit der Wurzel. Dieselbe
+   * Verwechslung, nur nicht zwischen zwei Schraenken.
+   */
+  it("schuetzt auch die Wurzel vor einem gleichnamigen Schrank", () => {
+    const [wurzel, schrank] = eindeutigeLabels([
+      { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
+      { id: "schrank-frech", label: "Nicht zugeordnet" },
+    ]);
+    expect(wurzel!.label).toBe(`Nicht zugeordnet (${HANDLAGER_ID})`);
+    expect(schrank!.label).toBe("Nicht zugeordnet (schrank-frech)");
+  });
+
+  it("liefert eine neue Liste, ohne die uebergebene anzufassen", () => {
+    const orte = [{ id: "a", label: "X" }, { id: "b", label: "X" }];
+    const ergebnis = eindeutigeLabels(orte);
+    expect(orte.map((o) => o.label)).toEqual(["X", "X"]);
+    expect(ergebnis.map((o) => o.label)).toEqual(["X (a)", "X (b)"]);
   });
 });

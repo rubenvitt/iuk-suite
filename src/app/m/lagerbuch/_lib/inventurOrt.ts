@@ -85,3 +85,32 @@ export function zaehlOrtBeschreibung(ortId: string | null, name: string | undefi
   }
   return `Gezählt wird der Bestand in ${name ?? ortId}. Erwartungszahlen und Korrekturen gelten nur für diesen Schrank.`;
 }
+
+/**
+ * DRK-337 — MACHT DIE BESCHRIFTUNGEN EINDEUTIG (P1-Befund von Codex zum PR).
+ *
+ * ⚠️ ZWEI SCHRAENKE DUERFEN HEUTE GLEICH HEISSEN: weder `createSchrank` noch
+ * die Datenbank verlangen einen eindeutigen Namen (nachgesehen, nicht
+ * vermutet — in `_db/migrations/` gibt es keinen Index darauf). In der Auswahl
+ * stuenden dann ZWEI OPTISCH IDENTISCHE Zeilen mit verschiedenen Kennungen,
+ * und die Erwartungszahlen daneben verraten nicht, welche gewaehlt ist. Wer
+ * danebengreift, zaehlt den falschen Schrank — und bucht die Korrektur dorthin.
+ * Das ist der teuerste stille Ausgang dieses Tickets.
+ *
+ * ⚠️ DIE KENNUNG IST HAESSLICH, UND SIE IST ES ABSICHTLICH. Sie erscheint NUR,
+ * wo ein Name doppelt vorkommt — also nur in genau der Lage, die selbst schon
+ * ein Fehler ist, und dort ist Unterscheidbarkeit mehr wert als Schoenheit.
+ * Sobald Schranknamen eindeutig sind (DRK-367 ist dafuer unterwegs), greift
+ * diese Funktion nie mehr und faellt nicht weiter auf.
+ *
+ * ⚠️ GEPRUEFT WIRD DIE GANZE LISTE, NICHT NUR DIE SCHRAENKE: ein Schrank, den
+ * jemand „Nicht zugeordnet" nennt, kollidiert mit der Wurzel — dieselbe
+ * Verwechslung aus einer Richtung, an die der Befund nicht gedacht hat.
+ */
+export function eindeutigeLabels(orte: readonly ZaehlOrt[]): ZaehlOrt[] {
+  const haeufigkeit = new Map<string, number>();
+  for (const o of orte) haeufigkeit.set(o.label, (haeufigkeit.get(o.label) ?? 0) + 1);
+  return orte.map((o) => (
+    (haeufigkeit.get(o.label) ?? 0) > 1 ? { ...o, label: `${o.label} (${o.id})` } : { ...o }
+  ));
+}
