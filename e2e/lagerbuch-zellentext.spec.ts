@@ -75,21 +75,40 @@ test.describe("lagerbuch — Freitext in der Tabelle ist gedeckelt (DRK-372)", (
      */
     const gemessen = await freitext.evaluate((knoten) => {
       const stil = getComputedStyle(knoten);
+      /*
+       * ⚠️ DIE LONGHANDS EINZELN, NICHT DIE `font`-KURZSCHRIFT: die ist leer,
+       * sobald `font-stretch`, `font-variant` oder `line-height` einen Wert
+       * tragen, den die Kurzschrift nicht ausdrücken kann — dann misst die
+       * Probe in der Vorgabeschrift des Browsers, und die Zahl gehört zu einer
+       * anderen Schrift als die Zelle daneben.
+       */
       const probe = document.createElement("span");
-      probe.style.font = stil.font;
+      probe.style.fontFamily = stil.fontFamily;
+      probe.style.fontSize = stil.fontSize;
+      probe.style.fontWeight = stil.fontWeight;
+      probe.style.fontStyle = stil.fontStyle;
       probe.style.letterSpacing = stil.letterSpacing;
+      probe.style.lineHeight = stil.lineHeight;
       probe.style.whiteSpace = "nowrap";
       probe.style.position = "absolute";
       probe.style.visibility = "hidden";
       probe.textContent = knoten.textContent;
       document.body.appendChild(probe);
-      const ohneUmbruch = probe.getBoundingClientRect().width;
+      const kasten = probe.getBoundingClientRect();
+      /*
+       * ⚠️ DIE EINZEILIGE HÖHE WIRD GEMESSEN, NICHT AUS `line-height`
+       * GERECHNET. Steht dort `normal` — und das tut es in dieser Suite an mehr
+       * Stellen als man denkt (CLAUDE.md, Falle 8) —, ergäbe `parseFloat` NaN,
+       * und JEDER Vergleich damit ist falsch. Der Test fiele dann mit einer
+       * Meldung über die Zellhöhe, während die Ursache eine Zeichenkette ist.
+       */
+      const einzeilig = { breite: kasten.width, hoehe: kasten.height };
       probe.remove();
       return {
         breite: knoten.getBoundingClientRect().width,
         hoehe: knoten.getBoundingClientRect().height,
-        ohneUmbruch,
-        zeilenhoehe: parseFloat(stil.lineHeight),
+        ohneUmbruch: einzeilig.breite,
+        zeilenhoehe: einzeilig.hoehe,
       };
     });
 
@@ -129,15 +148,29 @@ test.describe("lagerbuch — Freitext in der Tabelle ist gedeckelt (DRK-372)", (
      */
     const probe = await page.evaluate(() => {
       const bauen = (anzeige: string) => {
+        /*
+         * ⚠️ VERBORGEN WIRD DIE HÜLLE, NICHT DER SPAN. `position: absolute`
+         * BLOCKIFIZIERT sein Element (CSS Display 3, §2.7) — ein `display:
+         * inline` daran wird zu `block`, und `max-width` gilt dann sehr wohl.
+         * Die Probe maß damit zweimal dasselbe und wäre rot geworden, ohne
+         * dass an der Suite etwas falsch war. Gemessen in Chromium: mit
+         * `position: absolute` am Span beide Male 311px, mit der Hülle 4352px
+         * gegen 311px.
+         *
+         * `width: max-content` an der Hülle ist dieselbe Breitenfindung wie in
+         * einer Tabelle mit `scroll.x: "max-content"` — gemessen wird also der
+         * Beitrag des Spans zur Spaltenbreite, genau die Größe, um die es geht.
+         */
+        const huelle = document.createElement("div");
+        huelle.style.cssText = "position:absolute;visibility:hidden;width:max-content";
         const knoten = document.createElement("span");
         knoten.style.display = anzeige;
         knoten.style.maxWidth = "40ch";
-        knoten.style.position = "absolute";
-        knoten.style.visibility = "hidden";
         knoten.textContent = "x ".repeat(400);
-        document.body.appendChild(knoten);
-        const breite = knoten.getBoundingClientRect().width;
-        knoten.remove();
+        huelle.appendChild(knoten);
+        document.body.appendChild(huelle);
+        const breite = huelle.getBoundingClientRect().width;
+        huelle.remove();
         return breite;
       };
       return { inline: bauen("inline"), kasten: bauen("inline-block") };
