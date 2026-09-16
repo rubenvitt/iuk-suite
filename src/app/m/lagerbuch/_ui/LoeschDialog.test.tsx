@@ -668,7 +668,7 @@ describe("Client-/Server-Grenze und Action-Injektion", () => {
   it("exportiert genau die sechs Element-Arten ohne Client-Direktive", () => {
     expect(ELEMENT_ARTEN).toEqual([
       "artikel",
-      "fahrzeug",
+      "lagerort",
       "token",
       "bzGeraet",
       "o2Flasche",

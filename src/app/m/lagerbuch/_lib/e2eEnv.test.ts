@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { grenzen, grenzenFehler, ZAHL_NAMEN } from "./grenzen";
+import { lagerbuchOrganisation } from "./marke";
 import {
-  LAGERBUCH_ENV, LAGERBUCH_HOST, LAGERBUCH_ADMIN_GRUPPE,
+  LAGERBUCH_ENV, LAGERBUCH_HOST, LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_ORGANISATION_E2E,
 } from "../../../../../e2e/helpers/lagerbuch";
 
 /**
- * DIE NEUN ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT (I-16, H9).
+ * DIE ZEHN ENV-ZEILEN DES E2E-SERVERS, GEGEN DAS MODUL GEKOPPELT (I-16, H9).
  *
  * ⚠️ WARUM ES DIESE DATEI GIBT. `LAGERBUCH_ENV` ist ein
  * `Record<string, string>` — TypeScript prueft daran KEINEN einzigen Schluessel
@@ -40,7 +41,7 @@ import {
 /** Die Nicht-Zahl-Variablen mit `LAGERBUCH_`-Praefix. Sie stehen hier
  *  ausgeschrieben, damit eine NEUE `LAGERBUCH_*`-Zeile in `LAGERBUCH_ENV`
  *  auffaellt, statt stillschweigend durchzugehen. */
-const ERLAUBT_OHNE_ZAHL = ["LAGERBUCH_HELFER_SITZUNG_SECRET"];
+const ERLAUBT_OHNE_ZAHL = ["LAGERBUCH_HELFER_SITZUNG_SECRET", "LAGERBUCH_ORGANISATION"];
 
 describe("LAGERBUCH_ENV — die Namen (I-16, erste Haelfte)", () => {
   it("setzt JEDE Zahl-Variable des Moduls", () => {
@@ -62,6 +63,21 @@ describe("LAGERBUCH_ENV — die Namen (I-16, erste Haelfte)", () => {
   it("setzt Host und Admin-Gruppe aus DENSELBEN Konstanten wie die Specs (H9)", () => {
     expect(LAGERBUCH_ENV.SUITE_HOST_LAGERBUCH).toBe(LAGERBUCH_HOST);
     expect(LAGERBUCH_ENV.SUITE_ADMIN_GROUP_LAGERBUCH).toBe(LAGERBUCH_ADMIN_GRUPPE);
+  });
+
+  it("setzt LAGERBUCH_ORGANISATION aus derselben Konstante wie der Spec (H9)", () => {
+    expect(LAGERBUCH_ENV.LAGERBUCH_ORGANISATION).toBe(LAGERBUCH_ORGANISATION_E2E);
+  });
+
+  it("setzt LAGERBUCH_ORGANISATION ABWEICHEND von der Vorgabe des Moduls", () => {
+    /**
+     * ⚠️ DIE UMGEKEHRTE KOPPLUNG ALS BEI DEN ZAHLEN, und der Grund ist der
+     * Zweck des Tests: die Zahlen SOLLEN die Vorgaben sein (Fixtures rechnen
+     * dagegen), dieser Wert soll es ausdruecklich NICHT. Die Vorgabe steht auch
+     * ohne jede Variable da — `e2e/lagerbuch-organisation.spec.ts` belegte damit
+     * nichts und waere in genau dem Rueckfall gruen, den er ausschliesst.
+     */
+    expect(LAGERBUCH_ORGANISATION_E2E).not.toBe(lagerbuchOrganisation({}));
   });
 
   it("setzt SUITE_ACCESS_GROUP_LAGERBUCH ausdruecklich NICHT", () => {
