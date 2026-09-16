@@ -5,7 +5,11 @@ import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
-import { NETZ_TEXT_BUCHUNG, type HelferErgebnis } from "../_lib/actionTypen";
+import { NETZ_TEXT_BUCHUNG } from "../_lib/actionTypen";
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`): „Server
+// Actions duerfen als einzige ueber die Grenze — aber direkt importiert,
+// nicht als Prop durchgereicht."
+import { bucheAuffuellung } from "../_actions/buchung";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
 import s from "./helfer.module.css";
@@ -22,9 +26,17 @@ import s from "./helfer.module.css";
  * Breitknopf mit umgekehrter Wirkung waere der teuerste denkbare Gleichklang —
  * am Regal wird nach Farbe und Position getippt, nicht nach Beschriftung.
  *
- * ⚠️ DIE ACTION KOMMT ALS PROP, wie bei `Entnahme`: `_actions/buchung.ts`
- * haelt alle Buchungswege, und die EINE Stelle, die diesen Weg verdrahtet, ist
- * `auffuellen/[artikelId]/page.tsx`.
+ * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT — UND DAS IST DER UNTERSCHIED ZU
+ * `Entnahme.tsx` (Codex-Befund P1 zu PR #174, `AGENTS.md`/Falle 9). Die Regel
+ * dort lautet woertlich: „Server Actions duerfen als einzige ueber die Grenze —
+ * aber direkt importiert, nicht als Prop durchgereicht."
+ *
+ * `Entnahme.tsx` nimmt sie trotzdem als Prop, und seine Begruendung ist
+ * ausgeschrieben: `_actions/buchung.ts` gehoerte damals einem SPAETER laufenden
+ * Plan (Teil 5), ein Import haette die Insel von ihm abhaengig gemacht. Diese
+ * Begruendung ist ABGELAUFEN — die Datei existiert. Wer die beiden Inseln
+ * vergleicht und hier „vereinheitlicht", holt eine Ausnahme zurueck, die nur
+ * noch aus ihrer Vorgeschichte lebt.
  *
  * ⚠️ KEIN antd UND KEIN `@ant-design/icons` (Fallen 1 und 7) — wie der ganze
  * Helfer-Ast. Die Monatsauswahl ist ein natives `<input type="month">`, dieselbe
@@ -57,14 +69,6 @@ export type AuffuellDetail = {
  *  Regal, und ein Hinweis, den man aufdecken muss, hilft dort niemandem. */
 export type AuffuellZiel = { id: string; name: string; zugangshinweis: string | null };
 
-/** Genau die Signatur von `bucheAuffuellung`. */
-export type AuffuellAktion = (eingabe: {
-  artikelId: string;
-  menge: number;
-  zielLagerortId: string;
-  charge: { art: "vorhanden"; chargeId: string } | { art: "neu"; chargenNr: string; verfall: string };
-}) => Promise<HelferErgebnis<{ gebucht: number; ziel: string; chargeId: string }>>;
-
 /**
  * Der Wert, mit dem die Chargenwahl „eine neue Charge" meint.
  *
@@ -80,13 +84,11 @@ type Rueckmeldung = { art: "ok" | "fehler"; text: string };
 export function Auffuellen({
   detail,
   ziele,
-  buchen,
 }: {
   detail: AuffuellDetail;
   /** Die Wurzel („Handlager (ohne Schrank)") plus die AKTIVEN Schraenke. Nie leer:
    *  die Wurzel gibt es immer. */
   ziele: AuffuellZiel[];
-  buchen: AuffuellAktion;
 }) {
   const [chargeWahl, setChargeWahl] = useState(NEUE_CHARGE);
   const [chargenNr, setChargenNr] = useState("");
@@ -136,7 +138,7 @@ export function Auffuellen({
     setRueck(null);
     start(async () => {
       try {
-        const r = await buchen({
+        const r = await bucheAuffuellung({
           artikelId: detail.id,
           menge,
           zielLagerortId: zielId,

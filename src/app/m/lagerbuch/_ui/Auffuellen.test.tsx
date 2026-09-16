@@ -4,7 +4,27 @@ import { readFileSync } from "node:fs";
 import {
   mount, unmount, query, queryAll, exists, click, clickElement, fill,
 } from "@/app/m/qr/_lib/test-dom";
-import { Auffuellen, type AuffuellAktion, type AuffuellDetail, type AuffuellZiel } from "./Auffuellen";
+/*
+ * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (Codex-Befund P1 zu
+ * PR #174). Die Insel importiert `bucheAuffuellung` seit dem Befund DIREKT —
+ * `AGENTS.md`/Falle 9: „Server Actions duerfen als einzige ueber die Grenze,
+ * aber direkt importiert, nicht als Prop durchgereicht." Ein Prop waere der
+ * bequemere Test, und genau deshalb steht hier der Mock: der Test folgt der
+ * Bauform, nicht umgekehrt.
+ *
+ * ⚠️ `vi.hoisted`, weil `vi.mock` an den Dateikopf gehoben wird — ein
+ * gewoehnliches Modulebenen-`const` waere zu diesem Zeitpunkt noch in der
+ * temporalen Totzone (dieselbe Form wie in `_actions/buchung.test.ts`).
+ */
+const { buchenSpion } = vi.hoisted(() => ({
+  buchenSpion: vi.fn<(eingabe: unknown) => Promise<unknown>>(),
+}));
+
+vi.mock("../_actions/buchung", () => ({
+  bucheAuffuellung: (eingabe: unknown) => buchenSpion(eingabe),
+}));
+
+import { Auffuellen, type AuffuellDetail, type AuffuellZiel } from "./Auffuellen";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/Auffuellen.tsx";
 
@@ -92,7 +112,8 @@ const ZIELE: AuffuellZiel[] = [
  * kennen.
  */
 function ok(gebucht: number, ziel: string, chargeId = "ch-neu") {
-  return vi.fn(async () => ({ ok: true as const, wert: { gebucht, ziel, chargeId } }));
+  buchenSpion.mockResolvedValue({ ok: true as const, wert: { gebucht, ziel, chargeId } });
+  return buchenSpion;
 }
 
 afterEach(async () => {
@@ -100,8 +121,16 @@ afterEach(async () => {
   vi.clearAllMocks();
 });
 
-async function zeige(ziele: AuffuellZiel[] = ZIELE, buchen: AuffuellAktion = ok(1, "Schrank 1")) {
-  await mount(<Auffuellen detail={DETAIL} ziele={ziele} buchen={buchen} />);
+/**
+ * Rendert die Insel. `buchen` ist KEIN Prop mehr — der Parameter setzt nur die
+ * Antwort des gemockten Moduls und gibt den Spion zurueck, damit die
+ * Testkoerper unveraendert bleiben konnten.
+ */
+async function zeige(
+  ziele: AuffuellZiel[] = ZIELE,
+  buchen: ReturnType<typeof ok> = ok(1, "Schrank 1"),
+) {
+  await mount(<Auffuellen detail={DETAIL} ziele={ziele} />);
   return buchen;
 }
 
@@ -259,13 +288,8 @@ describe("Auffuellen — dieselbe Lieferung in mehrere Schraenke", () => {
         ...DETAIL.chargen,
       ],
     };
-    await mount(
-      <Auffuellen
-        detail={mitFrischer}
-        ziele={[ZIELE[0]!]}
-        buchen={ok(3, "Handlager (ohne Schrank)", "ch-frisch")}
-      />,
-    );
+    ok(3, "Handlager (ohne Schrank)", "ch-frisch");
+    await mount(<Auffuellen detail={mitFrischer} ziele={[ZIELE[0]!]} />);
     await fill('[data-rolle="chargennummer"]', "L-NEU-2");
     await fill('[data-rolle="verfallsmonat"]', "2028-02");
     await click('[data-rolle="auffuellen-buchen"]');
@@ -296,10 +320,10 @@ describe("Auffuellen — der Beleg (AK3)", () => {
   });
 
   it("zeigt den Fehlertext des Servers unveraendert — die Insel formuliert nicht neu", async () => {
-    const buchen = vi.fn(async () => ({
+    buchenSpion.mockResolvedValue({
       ok: false as const, grund: "eingabe" as const, text: "Dieser Schrank ist stillgelegt.",
-    }));
-    await zeige([ZIELE[0]!], buchen);
+    });
+    await mount(<Auffuellen detail={DETAIL} ziele={[ZIELE[0]!]} />);
     await fill('[data-rolle="chargennummer"]', "L-NEU");
     await fill('[data-rolle="verfallsmonat"]', "2028-01");
     await click('[data-rolle="auffuellen-buchen"]');
@@ -308,8 +332,8 @@ describe("Auffuellen — der Beleg (AK3)", () => {
   });
 
   it("ein Wurf wird zu „keine Verbindung“ — `netz` entsteht nur hier", async () => {
-    const buchen = vi.fn(async () => { throw new Error("offline"); });
-    await zeige([ZIELE[0]!], buchen as unknown as AuffuellAktion);
+    buchenSpion.mockRejectedValue(new Error("offline"));
+    await mount(<Auffuellen detail={DETAIL} ziele={[ZIELE[0]!]} />);
     await fill('[data-rolle="chargennummer"]', "L-NEU");
     await fill('[data-rolle="verfallsmonat"]', "2028-01");
     await click('[data-rolle="auffuellen-buchen"]');
@@ -337,6 +361,20 @@ describe("Auffuellen — der Zugangshinweis und die Bauform", () => {
     const quelle = readFileSync(QUELLE, "utf8");
     expect(quelle).toContain("s.knopfTinte");
     expect(quelle).not.toContain("s.knopfRot");
+  });
+
+  /**
+   * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT, NICHT ALS PROP GENOMMEN
+   * (`AGENTS.md`/Falle 9). Geprueft am QUELLTEXT und ohne Kommentare: der
+   * Kopfkommentar dieser Insel erklaert die Regel und nennt dabei beide
+   * Formen, ein Scan auf dem Rohtext waere also auf seiner eigenen Begruendung
+   * gruen. Ein `buchen`-Prop faellt hier auf — und zwar VOR dem echten Abruf,
+   * der als einziges die RSC-Grenze sieht.
+   */
+  it("importiert die Action direkt und nimmt sie NICHT als Prop", () => {
+    const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(quelle).toMatch(/import \{ bucheAuffuellung \} from "\.\.\/_actions\/buchung"/);
+    expect(quelle, "kein `buchen`-Prop mehr").not.toMatch(/\bbuchen[?]?:/);
   });
 
   /** KEIN antd und KEIN `@ant-design/icons` (Fallen 1 und 7) — wie der ganze

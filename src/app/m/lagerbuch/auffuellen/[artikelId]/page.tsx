@@ -7,9 +7,6 @@ import { getDb } from "../../_db/client";
 import { AuffuellRahmen } from "../../_ui/AuffuellRahmen";
 import { Auffuellen } from "../../_ui/Auffuellen";
 import { LeerZustand } from "../../_ui/LeerZustand";
-// Die EINE Stelle, die diesen Buchungsweg verdrahtet — die Insel importiert die
-// Action NICHT selbst, dieselbe Bauform wie bei `_ui/Entnahme.tsx`.
-import { bucheAuffuellung } from "../../_actions/buchung";
 
 /**
  * DIE AUFFUELLANSICHT EINES ARTIKELS — DRK-313.
@@ -80,7 +77,6 @@ export default async function AuffuellenArtikelSeite({
            * die Seite zeigt damit nichts an, was die Buchung danach verwirft.
            */
           ziele={zugangsZiele(db)}
-          buchen={bucheAuffuellung}
         />
       ) : (
         /*
