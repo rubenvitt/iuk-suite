@@ -33,6 +33,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { artikel, buchungen, chargen } from "../../_db/schema";
+import type { Lagerbereich } from "../domain/orte";
 import { verfallStatus, verfallSchwellen } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import type { Einheitenart } from "../konstanten";
@@ -49,16 +50,57 @@ import { handlagerOrte, ortStamm } from "./orte";
  */
 export type Leser = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * DRK-354 — DIE ZWEI EINSTIEGE, EINMAL ERKLAERT. Jedes ortsgebundene Aggregat
+ * dieser Datei gibt es doppelt, und der Unterschied ist NICHT kosmetisch:
+ *
+ *   `…ImBereich(db, bereich)` nimmt einen `Lagerbereich` — eine Wurzel samt
+ *      allem darunter, gebaut allein von `teilbaum` (`domain/orte.ts`). Eine
+ *      nackte Liste wie `[fahrzeugId]` wird hier ABGELEHNT.
+ *   `…AnOrt(db, lagerortId)` nimmt EINE ID. `handlagerOrte(db)` wird hier
+ *      ABGELEHNT, weil es kein `string` ist — genau die Verwechslung, die vor
+ *      DRK-354 nur ein Pruefer sah.
+ *
+ * ⚠️ DIE ABFRAGE IST IN BEIDEN FAELLEN DIESELBE, der Unterschied liegt
+ * ausschliesslich in der Absicht. Wer die zwei Einstiege spaeter „aufraeumt"
+ * und wieder zu einem zusammenlegt, nimmt genau den Schutz weg, fuer den sie da
+ * sind — die gemeinsame Abfrage steht deshalb schon jetzt nur einmal unten.
+ * ───────────────────────────────────────────────────────────────────────── */
+
 /**
  * Bestand je Artikel über einen BEREICH von Orten (DRK-297: Handlager plus
- * Schränke, oder ein einzelnes Fahrzeug als einelementige Liste).
- * Index: `idx_buchungen_lagerort_artikel`.
+ * Schränke). Index: `idx_buchungen_lagerort_artikel`.
  *
  * ⚠️ EINE LEERE LISTE ERGIBT `WHERE false` und damit überall 0 — still.
  * `handlagerOrte` liefert deshalb immer mindestens die Wurzel
  * (`_lib/lesepfade/orte.ts`).
+ *
+ * ⚠️ KEIN `…AnOrt`-GEGENSTUECK, und das ist kein Versehen: den Bestand JE ORT
+ * liefert `bestandJeArtikelUndLagerort` in EINER Abfrage fuer alle Orte, und
+ * die Fahrzeuguebersicht braucht genau die Form. Ein zweiter Einstieg hier
+ * haette heute keinen Aufrufer.
  */
-export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string, number> {
+export function bestandJeArtikelImBereich(
+  db: Leser, bereich: Lagerbereich,
+): Map<string, number> {
+  return bestandJeArtikelAn(db, bereich);
+}
+
+/**
+ * Rest je Charge über einen BEREICH von Orten. Ersetzt
+ * `bestandProLagerortUndCharge` ueber die Vollladung.
+ * Index: `idx_buchungen_lagerort_artikel`.
+ */
+export function restJeChargeImBereich(db: Leser, bereich: Lagerbereich): Map<string, number> {
+  return restJeChargeAn(db, bereich);
+}
+
+/** Rest je Charge AN GENAU EINEM Ort — ein Fahrzeug, ein einzelner Schrank. */
+export function restJeChargeAnOrt(db: Leser, lagerortId: string): Map<string, number> {
+  return restJeChargeAn(db, [lagerortId]);
+}
+
+function bestandJeArtikelAn(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ artikelId: buchungen.artikelId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
@@ -68,12 +110,7 @@ export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string
   return new Map(rows.map((r) => [r.artikelId, r.summe]));
 }
 
-/**
- * Rest je Charge über einen BEREICH von Orten. Ersetzt
- * `bestandProLagerortUndCharge` ueber die Vollladung.
- * Index: `idx_buchungen_lagerort_artikel`.
- */
-export function restJeCharge(db: Leser, orte: readonly string[]): Map<string, number> {
+function restJeChargeAn(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ chargeId: buchungen.chargeId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
@@ -124,7 +161,25 @@ export function bestandJeArtikelUndLagerort(db: Leser): Map<string, Map<string, 
  * `artikel_id` VORAN, und genau daran entscheidet SQLite, ob ein Index fuer eine
  * WHERE-Klausel taugt.
  */
-export function restJeChargeFuerArtikel(
+export function restJeChargeFuerArtikelImBereich(
+  db: Leser, artikelId: string, bereich: Lagerbereich,
+): Map<string, number> {
+  return restJeChargeFuerArtikelAn(db, artikelId, bereich);
+}
+
+/**
+ * Dasselbe AN GENAU EINEM Ort. Der Regelfall ist ein Fahrzeug: der
+ * Fahrzeug-Check, die Inventurkorrektur darauf und die Aussonderung fragen
+ * alle nach dem Bestand DORT — mit dem Handlager-Bereich stuende Handlagerware
+ * im Fahrzeugabgleich, und der Abgleich buchte eine viel zu grosse Korrektur.
+ */
+export function restJeChargeFuerArtikelAnOrt(
+  db: Leser, artikelId: string, lagerortId: string,
+): Map<string, number> {
+  return restJeChargeFuerArtikelAn(db, artikelId, [lagerortId]);
+}
+
+function restJeChargeFuerArtikelAn(
   db: Leser, artikelId: string, orte: readonly string[],
 ): Map<string, number> {
   const rows = db
@@ -273,9 +328,9 @@ export type Kennzahlen = {
 export function kennzahlen(db: Leser, now: Date = new Date()): Kennzahlen {
   const schwellen = verfallSchwellen();
   const arts = db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
-  const orte = handlagerOrte(db);
-  const bestand = bestandJeArtikel(db, orte);
-  const restProCharge = restJeCharge(db, orte);
+  const bereich = handlagerOrte(db);
+  const bestand = bestandJeArtikelImBereich(db, bereich);
+  const restProCharge = restJeChargeImBereich(db, bereich);
 
   let unterMindest = 0;
   let nichtBestellt = 0;

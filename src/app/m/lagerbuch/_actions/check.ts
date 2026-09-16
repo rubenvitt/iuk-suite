@@ -16,7 +16,7 @@ import {
   dieseEinheit, grossAmAnfang,
 } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
-import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { umlagerungAusBereich } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
@@ -254,9 +254,9 @@ export async function checkAbschluss(
         });
         const recordedVorher = g.istSumme - korrektur;
         const nachfuellGebucht = g.nachfuellGewuenscht > 0
-          ? umlagerung(tx, {
+          ? umlagerungAusBereich(tx, {
               artikelId: g.artikelId, menge: g.nachfuellGewuenscht,
-              vonOrten: handlagerBereich, nachLagerortId: v.fahrzeugId,
+              vonBereich: handlagerBereich, nachLagerortId: v.fahrzeugId,
               quelle, kommentar: CHECK_NACHFUELLUNG, referenz,
             }).umgelagert
           : 0;

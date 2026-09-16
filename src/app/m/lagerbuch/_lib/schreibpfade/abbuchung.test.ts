@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { and, eq, lt } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
-import { fefoAbbuchung, type Quelle } from "./abbuchung";
+import { fefoAbbuchungAnOrt, fefoAbbuchungImBereich, type Quelle } from "./abbuchung";
 import { handlagerOrte } from "../lesepfade/orte";
 import { bestandProLagerort } from "../domain/bestand";
 import { HANDLAGER_ID } from "../konstanten";
@@ -41,7 +41,7 @@ function inTx<T>(fn: (tx: Parameters<Parameters<typeof t.db.transaction>[0]>[0])
 
 describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
   it("raeumt die frueher ablaufende Charge zuerst ab", () => {
-    const r = inTx((tx) => fefoAbbuchung(tx, {
+    const r = inTx((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 5, quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r.gebucht).toBe(5);
     expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3, vonLagerortId: HANDLAGER_ID }, { chargeId: "c-spaet", menge: 2, vonLagerortId: HANDLAGER_ID }]);
@@ -56,7 +56,7 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
      * 3 auf `c-spaet` ueberzulaufen. Der Handlager-Bestand von `c-frueh` (real 3)
      * wuerde dabei auf -1 gedrueckt (I2 gebrochen).
      */
-    const r = inTx((tx) => fefoAbbuchung(tx, {
+    const r = inTx((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 4, quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r.teile).toEqual([{ chargeId: "c-frueh", menge: 3, vonLagerortId: HANDLAGER_ID }, { chargeId: "c-spaet", menge: 1, vonLagerortId: HANDLAGER_ID }]);
     const roh = t.db.select().from(buchungen).all()
@@ -65,9 +65,9 @@ describe("fefoAbbuchung — FEFO und die Lagerort-Bindung", () => {
     expect(bestandProLagerort(roh, "rtw-1")).toBe(5);
   });
 
-  it("bucht auf Wunsch von einem ANDEREN Lagerort ab", () => {
-    const r = inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a1", menge: 99, orte: ["rtw-1"],
+  it("bucht auf Wunsch von GENAU EINEM anderen Lagerort ab", () => {
+    const r = inTx((tx) => fefoAbbuchungAnOrt(tx, {
+      artikelId: "a1", menge: 99, ort: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r).toEqual({ gebucht: 5, teile: [{ chargeId: "c-frueh", menge: 5, vonLagerortId: "rtw-1" }] });
   });
@@ -99,16 +99,16 @@ describe("DRK-297 — Abbuchung ueber den Handlager-Bereich", () => {
    *  Handlager. Vor dieser Aenderung: `gebucht: 0`, ohne Fehler — die Abfrage
    *  suchte ausschliesslich an der Wurzel. */
   it("nimmt Bestand aus einem Schrank, nicht nur von der Wurzel", () => {
-    const ergebnis = inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a-schrank", menge: 3, orte: handlagerOrte(tx),
+    const ergebnis = inTx((tx) => fefoAbbuchungImBereich(tx, {
+      artikelId: "a-schrank", menge: 3, bereich: handlagerOrte(tx),
       quelle: QUELLE, kommentar: null, referenz: null }));
     expect(ergebnis.gebucht).toBe(3);
     expect(ergebnis.teile[0]?.vonLagerortId).toBe("schrank-1");
   });
 
   it("die Buchung traegt den Schrank, nicht die Wurzel", () => {
-    inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a-schrank", menge: 3, orte: handlagerOrte(tx),
+    inTx((tx) => fefoAbbuchungImBereich(tx, {
+      artikelId: "a-schrank", menge: 3, bereich: handlagerOrte(tx),
       quelle: QUELLE, kommentar: null, referenz: null }));
     const abgang = t.db.select().from(buchungen)
       .where(and(eq(buchungen.artikelId, "a-schrank"), lt(buchungen.menge, 0))).all();
@@ -118,7 +118,7 @@ describe("DRK-297 — Abbuchung ueber den Handlager-Bereich", () => {
 
 describe("fefoAbbuchung — I2: der Bestand wird nie negativ", () => {
   it("kappt an der Verfuegbarkeit AN DIESEM Lagerort", () => {
-    const r = inTx((tx) => fefoAbbuchung(tx, {
+    const r = inTx((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 1000, quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r.gebucht).toBe(13);
     const roh = t.db.select().from(buchungen).all()
@@ -128,8 +128,8 @@ describe("fefoAbbuchung — I2: der Bestand wird nie negativ", () => {
 
   it("bucht bei leerem Lagerort GAR NICHTS", () => {
     const vorher = t.db.select().from(buchungen).all().length;
-    const r = inTx((tx) => fefoAbbuchung(tx, {
-      artikelId: "a1", menge: 5, orte: ["gibtsnicht"],
+    const r = inTx((tx) => fefoAbbuchungAnOrt(tx, {
+      artikelId: "a1", menge: 5, ort: "gibtsnicht",
       quelle: QUELLE, kommentar: null, referenz: null }));
     expect(r).toEqual({ gebucht: 0, teile: [] });
     expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
@@ -138,7 +138,7 @@ describe("fefoAbbuchung — I2: der Bestand wird nie negativ", () => {
 
 describe("fefoAbbuchung — die geschriebenen Zeilen", () => {
   it("schreibt JE CHARGE eine Zeile mit NEGATIVER Menge und dem gewaehlten Typ", () => {
-    inTx((tx) => fefoAbbuchung(tx, {
+    inTx((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 5, quelle: QUELLE,
       kommentar: "Entnahme Bereitschaft", referenz: "check:abc", typ: "korrektur" }));
     const neu = t.db.select().from(buchungen).all().filter((b) => b.menge < 0);
@@ -154,7 +154,7 @@ describe("fefoAbbuchung — die geschriebenen Zeilen", () => {
   });
 
   it("hat den Vorgabetyp 'entnahme'", () => {
-    inTx((tx) => fefoAbbuchung(tx, {
+    inTx((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 1, quelle: QUELLE, kommentar: null, referenz: null }));
     expect(t.db.select().from(buchungen).all().find((b) => b.menge < 0)!.typ).toBe("entnahme");
   });
