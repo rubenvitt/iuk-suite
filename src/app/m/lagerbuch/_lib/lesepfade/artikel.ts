@@ -189,6 +189,12 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
       // tragen `typ: "korrektur"`. Ohne die Spalte stuende im Artikel-Verlauf
       // weiter „Korrektur", waehrend das Journal daneben „Aussonderung" sagt.
       referenz: b.referenz,
+      // ⚠️ DER LAGERORT GEHOERT AUS DEMSELBEN GRUND HINEIN (DRK-338): eine
+      // Umlagerung schreibt ZWEI Zeilen mit demselben Vorgangstext und
+      // entgegengesetztem Vorzeichen. Welche die Quelle ist und welche das
+      // Ziel, steht ausschliesslich hier — ohne die Spalte stuende im
+      // Artikel-Verlauf zweimal „Umlagerung", einmal −5 und einmal +5.
+      lagerortId: b.lagerortId,
     })),
     /** ⚠️ UNBEDINGTE Texte („die neuesten 8") sind die Fehlaussage, gegen die
      *  §5.14.3 gebaut ist: der Hinweis erscheint NUR, wenn die Grenze griff. */

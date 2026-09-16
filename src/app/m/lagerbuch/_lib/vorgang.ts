@@ -31,7 +31,7 @@
  *
  * ── WELCHES PRAEFIX EINEN EIGENEN VORGANGSTEXT BEKOMMT ────────────────────
  *
- * Vier Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
+ * Fuenf Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
  * Praefix?", sondern: *steht auf dem Schirm schon, was passiert ist?*
  *
  * | Praefix            | Typ                | eigener Text? | warum |
@@ -40,6 +40,7 @@
  * | `inventur:`        | korrektur          | **ja**        | dieselbe Lage: `InventurSchema` verlangt einen Kommentar, aber einen FREIEN. Eine Inventurdifferenz sah aus wie eine Handkorrektur. |
  * | `check:`           | korrektur, umlagerung | nein       | der Kommentar ist im Quelltext FESTGENAGELT („Fahrzeug-Check Abgleich" / „Fahrzeug-Check Nachfuellung") und steht damit bereits in der Spalte. Ein zweites Etikett ergaebe „Fahrzeug-Check · Fahrzeug-Check Abgleich". Die Freitextsuche findet die Zeilen ueber genau diesen Kommentar. |
  * | `entnahme-ziel:`   | umlagerung         | nein          | „Umlagerung" ist bereits wahr und vollstaendig: Bestand wandert vom Handlager an ein Fahrzeug. Das Praefix nennt das ZIEL, nicht eine andere Art von Vorgang — und das Ziel gehoert in eine Spalte, nicht in ein Etikett. |
+ * | `umlagerung:`      | umlagerung         | nein          | DRK-338, das Handumlagern zwischen zwei Orten des Handlagers. Dieselbe Antwort und derselbe Grund wie eine Zeile hoeher: das Praefix nennt das ZIEL. Seit DRK-338 fuehrt das Journal dafuer eine Spalte „Ort" — die Quelle steht in der Zeile mit dem Minus, das Ziel in der mit dem Plus. |
  *
  * Wer hier ein Praefix ERGAENZT, beantwortet dieselbe Frage neu — und traegt
  * es in `VORGANG_ARTEN` ein, sonst faellt es still unter seinen Buchungstyp.
