@@ -113,6 +113,19 @@ export function AussondernRow({
     ? ortWert(einzelnerOrt.id)
     : auswahl;
 
+  /**
+   * DER ORT, DEN DER BESTAETIGUNGSTEXT NENNT — abgeleitet aus dem, was
+   * GEBUCHT wird, nicht aus der Zahl der Liegeplätze (Codex-Befund zu PR #173).
+   *
+   * ⚠️ EINE ZERSTOERENDE BESTAETIGUNG DARF NICHT ZWEI REICHWEITEN ZEIGEN. Der
+   * Satz hing vorher an `einzelnerOrt`; wer bei mehreren Liegeplätzen einen
+   * Schrank ankreuzte, las weiter „Bucht den Handlager-Rest … aus", während
+   * daneben genau ein Schrank angekreuzt war und auch nur der gebucht wurde.
+   * Dieselbe Klasse wie der Befund am Absenden, nur andersherum: dort versprach
+   * der Text zu wenig, hier zu viel.
+   */
+  const gewaehlterOrt = orte.find((ort) => ortWert(ort.id) === gemeinterOrt);
+
   const bestaetigen = () => {
     if (aussondernLaeuft.current) return;
     aussondernLaeuft.current = true;
@@ -148,10 +161,11 @@ export function AussondernRow({
         description={
           <div style={{ display: "flex", flexDirection: "column", gap: SPACE.sm }}>
             <span>
-              {einzelnerOrt
-                ? `Bucht ${bezeichnung} aus ${einzelnerOrt.name} als Aussonderung aus`
-                  + ` (${einzelnerOrt.menge} ${einheit}).`
-                : `Bucht den Handlager-Rest von ${bezeichnung} als Aussonderung aus.`}
+              {gewaehlterOrt
+                ? `Bucht ${bezeichnung} aus ${gewaehlterOrt.name} als Aussonderung aus`
+                  + ` (${gewaehlterOrt.menge} ${einheit}).`
+                : `Bucht den Handlager-Rest von ${bezeichnung} als Aussonderung aus`
+                  + ` (${gesamt} ${einheit}).`}
             </span>
             {wahl ? (
               /* ⚠️ DIE KLASSE TRAEGT DIE TREFFERFLAECHE (44px, Arbeitsdichte) —

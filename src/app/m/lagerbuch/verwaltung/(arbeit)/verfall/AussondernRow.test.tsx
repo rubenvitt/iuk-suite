@@ -404,6 +404,38 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
     expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("lagerortId");
   });
 
+  /**
+   * DER BESTAETIGUNGSTEXT NENNT, WAS GEBUCHT WIRD (Codex-Befund zu PR #173).
+   *
+   * ⚠️ EINE ZERSTOERENDE BESTAETIGUNG DARF NICHT ZWEI REICHWEITEN ZEIGEN.
+   * Vorher hing der Satz an der ZAHL der Liegeplaetze statt an der Wahl: wer
+   * bei zweien einen Schrank ankreuzte, las weiter „Bucht den Handlager-Rest
+   * … aus", waehrend daneben genau ein Schrank angekreuzt war — und auch nur
+   * der gebucht wurde.
+   */
+  it("nennt nach der Wahl den gewaehlten Schrank, nicht den Handlager-Rest", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={ZWEI_ORTE}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    // Vor der Wahl steht „Alles" an — und der Text sagt genau das, mit Summe.
+    expect(queryPortal(".ant-popconfirm").textContent)
+      .toContain("Bucht den Handlager-Rest von L42 · Kompressen als Aussonderung aus (10 Stk.).");
+
+    await clickElement(radioMitText("nur GF-Schrank"));
+    await warte();
+
+    const text = queryPortal(".ant-popconfirm").textContent ?? "";
+    expect(text).toContain("aus GF-Schrank als Aussonderung aus (6 Stk.).");
+    expect(text).not.toContain("Handlager-Rest");
+  });
+
   it("schickt den gewaehlten Ort mit, und zwar OHNE Menge", async () => {
     await mount(
       <AussondernRow
