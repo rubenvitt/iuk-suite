@@ -5,7 +5,7 @@ const notiz: Releasenotiz = {
   modul: "lagerbuch",
   slug: "abgelaufenes-je-fahrzeug",
   datum: "2026-09-15",
-  titel: "Abgelaufenes Material je Fahrzeug",
+  titel: "Abgelaufenes Material je Einheit",
   inhalt: [
     absatz(
       "Unter „Verfall“ kannst du die Meldungen nach Einheit filtern oder mit " +
@@ -17,7 +17,7 @@ const notiz: Releasenotiz = {
         "abgelaufen ist und was erst bald abläuft.",
     ),
     absatz(
-      "Dieselbe Spalte sagt jetzt auch, für wie viele Artikel eines Fahrzeugs überhaupt " +
+      "Dieselbe Spalte sagt jetzt auch, für wie viele Artikel einer Einheit überhaupt " +
         "schon ein Verfall erfasst ist — etwa „3 von 8 erfasst“. „Im grünen Bereich“ steht " +
         "nur noch da, wo wirklich jeder Artikel angesehen wurde.",
     ),

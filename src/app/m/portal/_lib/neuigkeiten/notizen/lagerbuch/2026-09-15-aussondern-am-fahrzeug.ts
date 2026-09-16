@@ -5,13 +5,13 @@ const notiz: Releasenotiz = {
   modul: "lagerbuch",
   slug: "aussondern-am-fahrzeug",
   datum: "2026-09-15",
-  titel: "Abgelaufenes direkt am Fahrzeug aussondern",
+  titel: "Abgelaufenes einzeln aussondern",
   inhalt: [
     absatz(
-      "Im Fahrzeugblatt sonderst du abgelaufenes Material jetzt einzeln aus, ohne einen ganzen " +
-        "Check zu fahren. In der Verfallstabelle steht je Artikel „aussondern“: du gibst " +
-        "die Menge an, bei Bedarf die Charge, und trägst das Verfallsdatum ein, das danach noch " +
-        "im Fahrzeug auf einer Packung steht.",
+      "Auf dem Blatt einer Einheit sonderst du abgelaufenes Material jetzt einzeln aus, ohne " +
+        "einen ganzen Check zu fahren. In der Verfallstabelle steht je Artikel „aussondern“: " +
+        "du gibst die Menge an, bei Bedarf die Charge, und trägst das Verfallsdatum ein, das " +
+        "danach noch dort auf einer Packung steht.",
     ),
   ],
 };

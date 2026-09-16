@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Der Check zeigt, wann zuletzt geprüft wurde",
   inhalt: [
     absatz(
-      "Über der Liste steht jetzt, wann dieses Fahrzeug zuletzt geprüft wurde — oder dass es " +
+      "Über der Liste steht jetzt, wann diese Einheit zuletzt geprüft wurde — oder dass es " +
         "der erste Check ist. Ein eingetragenes Verfallsdatum kannst du im Schritt „Zählen“ " +
         "über das Kreuz neben dem Feld wieder entfernen; am Telefon ging das bisher nicht.",
     ),
