@@ -365,10 +365,13 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
     expect(neueZeilen()).toHaveLength(0);
   });
 
-  it("nimmt aus einer STILLGELEGTEN Einheit — genau die raeumt man aus", async () => {
-    // ⚠️ DIESELBE FESTLEGUNG WIE IN `aussondernVomLagerort`, und sie ist die
-    // Gegenrichtung zur Zeile darueber: das ZIEL muss aufnahmebereit sein, die
-    // QUELLE ausdruecklich nicht.
+  it("nimmt MIT KONTO aus einer stillgelegten Einheit — genau die raeumt man aus", async () => {
+    /*
+     * ⚠️ DAS ZIEL MUSS AUFNAHMEBEREIT SEIN, DIE QUELLE NICHT — die
+     * Gegenrichtung zur Zeile darueber. Eine ausserdienstliche Einheit ist
+     * genau die, die man leerraeumt.
+     */
+    helferRiegel.mockResolvedValue(KONTO);
     t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -380,6 +383,46 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
 
     expect(erg.ok).toBe(true);
     expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(5);
+  });
+
+  it("weist dieselbe Einheit beim KAERTCHEN ab — Ausraeumen ist Verwaltungssache", async () => {
+    /*
+     * ⚠️ DER UNTERSCHIED IST DIE HERKUNFT, NICHT DIE EINHEIT (Codex-Review zu
+     * PR #175). Die Helferflaeche bietet stillgelegte Einheiten gar nicht an —
+     * das stand bis hierher aber NUR in der Auswahlliste, und eine Server
+     * Action ist ein eigener Einstiegspunkt. Der Test baut genau die Anfrage,
+     * die keine Oberflaeche stellt.
+     *
+     * ⚠️ UND ES WIRD NICHTS GEBUCHT, nicht nur abgewiesen: eine halb
+     * ausgefuehrte Ablehnung waere der teuerste Ausgang, weil das Journal
+     * append-only ist.
+     */
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect((erg as { ok: false; text: string }).text).toContain("außer Dienst");
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1"), "nichts gebucht").toBe(0);
+    expect(bestand("fz-1", "ch-1"), "und die Einheit unveraendert").toBe(5);
+  });
+
+  it("laesst eine AKTIVE Einheit beim Kaertchen unveraendert durch", async () => {
+    // Die Gegenprobe: der neue Riegel darf den gewoehnlichen Weg nicht treffen.
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
   });
 
   it("weist eine Menge von 0 oder weniger am Eingangsvalidator ab", async () => {

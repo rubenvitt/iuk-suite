@@ -119,10 +119,29 @@ export async function bucheInEntnahmebox(
            * `_lib/schreibpfade/umlagerung.ts` noch `fefoAbbuchung` pruefen das
            * nach — richtig so, sie erwarten einen validierten Aufrufer.
            *
-           * ⚠️ `aktiv` WIRD BEWUSST NICHT VERLANGT — dieselbe Festlegung wie in
-           * `aussondernVomLagerort`: eine stillgelegte Einheit ist genau die,
-           * die man ausraeumt. Die Helferflaeche bietet nur aktive an; die
-           * Verwaltung darf auch die anderen leeren.
+           * ⚠️ `aktiv` WIRD NICHT VERLANGT — ABER NUR MIT KONTO (Codex-Review
+           * zu PR #175). Eine stillgelegte Einheit ist genau die, die man
+           * ausraeumt; das Ausraeumen ist aber Sache der Verwaltung, und die
+           * Helferflaeche bietet stillgelegte Einheiten deshalb gar nicht an.
+           *
+           * Bis hierher stand das NUR in der Auswahlliste, und eine Server
+           * Action ist ein eigener Einstiegspunkt: eine selbst gebaute Anfrage
+           * mit Kaertchen raeumte eine ausserdienstliche Einheit aus, ohne dass
+           * jemand aus der Verwaltung davon weiss.
+           *
+           * ⚠️ MEINE URSPRUENGLICHE BEGRUENDUNG TRUG NICHT: sie berief sich auf
+           * `aussondernVomLagerort`, und der laeuft hinter
+           * `requireLagerbuchAdmin` — dort ist „auch die stillgelegten" richtig,
+           * WEIL nur die Verwaltung ihn ueberhaupt erreicht. Diese Action teilen
+           * sich zwei Flaechen, also muss die Unterscheidung in die Action.
+           *
+           * ⚠️ `konto` IST NICHT DASSELBE WIE „VERWALTUNG", und das ist die
+           * ehrliche Grenze dieser Probe: auch eine angemeldete Person OHNE
+           * Lagerbuch-Gruppe kaeme durch. Schaerfer ginge nur mit einer zweiten
+           * Rechtepruefung IN der Action — und `guards.test.ts` haelt fest, dass
+           * die erste Anweisung der Riegel ist, damit es genau EINE gibt. Die
+           * Probe schliesst also die Kaertchen aus, nicht die Nicht-Admins;
+           * das ist der Unterschied, um den es hier geht.
            *
            * ⚠️ `einheitenart` FAEHRT MIT, OBWOHL DER SCHREIBPFAD SIE NICHT
            * BRAUCHT (dieselbe Lage wie in `aussondernVomLagerort`): sie traegt
@@ -131,9 +150,18 @@ export async function bucheInEntnahmebox(
            * „Tasche" in derselben Ansicht.
            */
           const von = tx
-            .select({ typ: lagerorte.typ, einheitenart: lagerorte.einheitenart })
+            .select({
+              typ: lagerorte.typ,
+              einheitenart: lagerorte.einheitenart,
+              aktiv: lagerorte.aktiv,
+            })
             .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
           if (!von) return "Diese Einheit gibt es nicht mehr. Bitte die Seite neu laden.";
+          if (!von.aktiv && riegel.zugang.herkunft !== "konto") {
+            // Der Satz nennt den WEG, nicht die Ursache: dass die Zeile
+            // `aktiv = 0` traegt, hilft am Fahrzeug niemandem weiter.
+            return "Diese Einheit ist außer Dienst. Das Ausräumen läuft über die Verwaltung.";
+          }
           if (von.typ !== "fahrzeug") {
             // NEUTRAL, und zwar nicht aus Vorsicht: die Zeile, die hierher
             // faellt, ist ein LAGER — sie hat gar keine Art. Der Satz spricht
