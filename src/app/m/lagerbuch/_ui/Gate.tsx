@@ -21,8 +21,8 @@ import s from "./helfer.module.css";
  *
  * ⚠️ ES GIBT GENAU EINEN FEHLERORT. Der Text aus `?grund=` und der
  * Rueckgabewert der Server Action erscheinen an DERSELBEN Stelle (`.gateFehler`,
- * heute `gateerr`, globals.css:126). Zwei Fehlerorte waeren zwei Zustaende, die
- * einander widersprechen koennen.
+ * heute `gateerr`, lagerbuch/src/app/globals.css:126). Zwei Fehlerorte waeren
+ * zwei Zustaende, die einander widersprechen koennen.
  *
  * ⚠️ DIE VERWALTUNGSKARTE RUFT NICHT `signIn()`. Sie ist ein LINK auf das
  * Suite-`/login` (§3.6.6, Entscheidung 15 a: „der Verwaltungs-Knopf fuehrt auf

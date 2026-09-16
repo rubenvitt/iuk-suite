@@ -1,7 +1,7 @@
 // src/app/m/radio/_db/client.ts
 // KEIN "use client" (Falle 6): diese Datei wird ausschliesslich serverseitig gelesen.
 //
-// KEIN EIGENER OPENER, anders als src/app/m/lagerbuch/_db/client.ts:1-45. Jener braucht
+// KEIN EIGENER OPENER, anders als src/app/m/lagerbuch/_db/client.ts. Jener braucht
 // einen, weil er die SQLite-Funktion `lb_falte` registrieren muss — lagerbuch faltet die
 // Suche in SQL. Die Suche des Kiosk faltet in JAVASCRIPT
 // (radio-inventar/apps/frontend/src/lib/device-filter.ts:24-31: NFD + Diakritika-Entfernung

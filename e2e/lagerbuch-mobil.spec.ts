@@ -240,8 +240,8 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * sichtbaren Text.
    *
    * ⚠️ REVIEW-FIX (Befund 3, 11.08.2026): der urspruengliche Kommentar zitierte
-   * `globals.css:59-69` (die Ausnahme fuer `.ant-select-selector`) als
-   * Erklaerung. Diese Klasse wird von antd 6.5.3 / `@rc-component/select@1.8.2`
+   * `lagerbuch/src/app/globals.css:59-69` (die Ausnahme fuer
+   * `.ant-select-selector`) als Erklaerung. Diese Klasse wird von antd 6.5.3 / `@rc-component/select@1.8.2`
    * gar nicht mehr gerendert — die Regel bewacht seit dem antd-Upgrade nichts
    * mehr (eigener ClickUp-Fund, s. u.). Die tatsaechliche Quelle der 14px ist
    * `antd/es/select/style/select-input.js:206-225`:
