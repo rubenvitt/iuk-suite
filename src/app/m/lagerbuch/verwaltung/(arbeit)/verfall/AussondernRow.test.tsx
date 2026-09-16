@@ -436,6 +436,50 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
     expect(text).not.toContain("Handlager-Rest");
   });
 
+  /**
+   * EIN ORT, DER WIEDERKOMMT, BELEBT DIE ALTE WAHL NICHT (Codex-Befund zu
+   * PR #173, zweite Runde).
+   *
+   * ⚠️ DAS IST DER UNTERSCHIED ZWISCHEN VERGESSEN UND UEBERLAGERN. Ein bloss
+   * ueberlagerter Zustand waere wieder gueltig, sobald der Ort zurueckkommt —
+   * die Auswahl spraenge von „Alles" auf den alten Schrank, und die naechste
+   * Bestaetigung traefe FRISCH EINGERAEUMTES Material, das niemand gewaehlt
+   * hat. Der Weg dorthin ist offen: eine andere Sitzung fuellt den Schrank
+   * nach, irgendeine Aktion laedt die Seite neu, und diese Zeile steht noch.
+   */
+  it("belebt eine zurueckgekehrte Wahl NICHT wieder", async () => {
+    const DREI: VerfallOrt[] = [
+      { id: "s-a", name: "Schrank A", menge: 2, zugangshinweis: null },
+      { id: "s-b", name: "Schrank B", menge: 3, zugangshinweis: null },
+      { id: "s-c", name: "Schrank C", menge: 4, zugangshinweis: null },
+    ];
+    const zeile = (orte: VerfallOrt[]) => (
+      <AussondernRow chargeId="c1" bezeichnung="L42" orte={orte} einheit="Stk." />
+    );
+
+    await mount(zeile(DREI));
+    await bestaetigungOeffnen();
+    await clickElement(radioMitText("nur Schrank B"));
+
+    // Schrank B wird geraeumt — die Zeile steht mit den beiden uebrigen.
+    await rerender(zeile(DREI.filter((o) => o.id !== "s-b")));
+    await warte();
+    expect(radioMitText("Alles").checked).toBe(true);
+
+    // Eine andere Sitzung raeumt Schrank B wieder ein.
+    await rerender(zeile(DREI));
+    await warte();
+
+    // „Alles" bleibt angekreuzt — die alte Wahl ist vergessen, nicht verdeckt.
+    expect(radioMitText("Alles").checked).toBe(true);
+    expect(radioMitText("nur Schrank B").checked).toBe(false);
+
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+
+    expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("lagerortId");
+  });
+
   it("schickt den gewaehlten Ort mit, und zwar OHNE Menge", async () => {
     await mount(
       <AussondernRow

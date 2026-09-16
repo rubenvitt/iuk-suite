@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { test, expect } from "@playwright/test";
 import { registerAuditFunctions } from "@/core/audit/context";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, messeWennRuhig } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
@@ -138,14 +138,23 @@ test.describe("Aussondern je Schrank", () => {
      * NICHT von `controlHeight` — `ARBEITSDICHTE` setzt mit `radioSize` nur
      * die Marke. Die Verwaltung rendert in `FullShell` und damit auch auf dem
      * Telefon; 44px ist dort die Arbeitsdichte (Falle 4, WCAG 2.5.5).
+     *
+     * ⚠️ `messeWennRuhig`, NICHT `boundingBox()` — und das ist gemessen, nicht
+     * vorsorglich. Der erste Lauf dieser Zusicherung las **35,2 px**, also
+     * exakt 44 × 0,8: `boundingBox()` liefert den TRANSFORMIERTEN Kasten, und
+     * 0,8 ist die Anfangsskalierung von antds Aufblend-Animation. Die
+     * Wiederholung las 39,9 — mittendrin. Das Symptom sieht aus wie „die
+     * CSS-Regel greift nicht" und schickt die Suche in die Spezifitaet, dabei
+     * ist der fertige Kasten 44 px hoch. Die Begruendung steht ausgeschrieben
+     * bei `messeWennRuhig` in `e2e/fixtures.ts`.
      */
     for (const beschriftung of [
       "Alles \\(10 Stk\\.\\)",
       "nur E2E Ortswahl Schrank A \\(4 Stk\\.\\)",
       "nur E2E Ortswahl Schrank B \\(6 Stk\\.\\)",
     ]) {
-      const kasten = await wahl(beschriftung).boundingBox();
-      expect(kasten!.height, beschriftung).toBeGreaterThanOrEqual(44);
+      const kasten = await messeWennRuhig(wahl(beschriftung));
+      expect(kasten.height, beschriftung).toBeGreaterThanOrEqual(44);
     }
 
     await wahl("nur E2E Ortswahl Schrank B \\(6 Stk\\.\\)").click();

@@ -76,20 +76,43 @@ export function AussondernRow({
   const einzelnerOrt = orte.length === 1 ? orte[0] : undefined;
 
   /**
-   * DIE WAHL, DIE DIE AUSWAHL ANZEIGT — nach einer Buchung neu abgeglichen
-   * (Codex-Befund zu PR #173).
+   * EINE WAHL, DIE ES NICHT MEHR GIBT, WIRD VERGESSEN — nicht bloß überlagert
+   * (Codex-Befund zu PR #173, zweite Runde).
    *
-   * ⚠️ EINE WAHL, DIE ES NICHT MEHR GIBT, DARF NICHT STEHEN BLEIBEN. Liegt
-   * eine Charge an DREI Orten und räumt jemand einen davon, bleibt die Zeile
-   * mit den beiden übrigen stehen — `ziel` trägt dann den leergeräumten. In
-   * der Auswahl wäre KEINE Zeile angekreuzt, und ein Bestätigen schickte den
-   * verschwundenen Ort: „An diesem Ort liegt nichts mehr", statt das zu tun,
-   * was auf dem Schirm steht.
+   * ⚠️ DER ERSTE ANLASS: liegt eine Charge an DREI Orten und räumt jemand
+   * einen davon, bleibt die Zeile mit den beiden übrigen stehen — `ziel` trägt
+   * dann den leergeräumten. In der Auswahl wäre KEINE Zeile angekreuzt, und
+   * ein Bestätigen schickte den verschwundenen Ort: „An diesem Ort liegt
+   * nichts mehr", statt das zu tun, was auf dem Schirm steht.
    *
-   * ⚠️ DER RÜCKFALL AUF „ALLES" IST HIER KEIN STILLES MEHR-BUCHEN, und das
-   * ist der Unterschied zu einem Rückfall beim ABSENDEN: die Auswahl zeigt
-   * danach sichtbar „Alles" angekreuzt. Gebucht wird, was angekreuzt ist —
-   * wer einen einzelnen Schrank will, sieht, dass er ihn neu wählen muss.
+   * ⚠️ DER ZWEITE, UND ER IST DER GRUND FÜR DAS VERGESSEN STATT EINES BLOSSEN
+   * RÜCKFALLS: der Ort kann WIEDERKOMMEN. Füllt eine andere Sitzung den
+   * geräumten Schrank nach und lädt irgendeine Aktion die Seite neu, während
+   * diese Zeile steht, wäre eine nur überlagerte Wahl plötzlich wieder gültig
+   * — die Auswahl spränge von „Alles" zurück auf den alten Schrank, und die
+   * nächste Bestätigung träfe FRISCH EINGERÄUMTES Material, das niemand
+   * ausgewählt hat. Ein gemerkter Zustand, der sich selbst wiederbelebt, ist
+   * schlimmer als gar keiner.
+   *
+   * ⚠️ `setZiel` WÄHREND DES RENDERNS ist hier richtig und kein Versehen: es
+   * ist Reacts eigenes Muster, um Zustand an geänderte Props anzupassen. Die
+   * Bedingung riegelt die Schleife ab — nach dem Zurücksetzen ist `ziel`
+   * `ALLE_ORTE` und trifft sie nicht mehr.
+   */
+  if (ziel !== ALLE_ORTE && !orte.some((ort) => ortWert(ort.id) === ziel)) {
+    setZiel(ALLE_ORTE);
+  }
+
+  /**
+   * ⚠️ DIE ABLEITUNG BLEIBT NEBEN DEM ZURÜCKSETZEN STEHEN, und das ist keine
+   * Doppelung: sie trägt DENSELBEN Render, in dem das Zurücksetzen erst
+   * angestoßen wird. Ohne sie zeigte genau ein Bild lang keine Zeile
+   * angekreuzt.
+   *
+   * ⚠️ DER RÜCKFALL AUF „ALLES" IST KEIN STILLES MEHR-BUCHEN, und das ist der
+   * Unterschied zu einem Rückfall beim ABSENDEN: die Auswahl zeigt sichtbar
+   * „Alles" angekreuzt. Gebucht wird, was angekreuzt ist — wer einen einzelnen
+   * Schrank will, sieht, dass er ihn neu wählen muss.
    */
   const auswahl = orte.some((ort) => ortWert(ort.id) === ziel) ? ziel : ALLE_ORTE;
 
