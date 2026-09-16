@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, extname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -63,7 +63,26 @@ import { describe, expect, it } from "vitest";
 /** Gelesen wird lebender Quelltext — `docs/` bewusst nicht, siehe Kopf, Punkt 3. */
 const WURZELN = ["src", "e2e", "scripts"];
 
-const ENDUNGEN = /\.(ts|tsx|css)$/;
+/**
+ * ⚠️ GELESEN WIRD JEDES TEXTFORMAT UNTER DEN WURZELN, nicht nur `ts|tsx|css`.
+ * Die erste Fassung las genau diese drei und uebersah damit still 40 `.sql`
+ * und zwei `.mjs` (Codex-Review zu PR #183). Das ist nicht hypothetisch:
+ * `scripts/import/fixtures/radio-quelle-ddl.sql` traegt heute einen Anker auf
+ * `_db/herkunft/README.md`, und die Datei endet auf Zeile 12 — schruempfte sie,
+ * bliebe ein „repo-weiter" Riegel gruen, weil er die SQL-Datei nie aufschlaegt.
+ *
+ * ⚠️ DIE SCHIEFLAGE WAR DIE EIGENTLICHE URSACHE, und sie kehrt ohne Not
+ * zurueck: `ZIEL` unten erlaubt `sql`, `mjs`, `md`, `json` … als ZIEL eines
+ * Ankers, `ENDUNGEN` liess dieselben Formate aber nicht als QUELLE zu. Deshalb
+ * steht daneben `NICHT_GELESEN` und ein Fall, der ROT wird, sobald unter den
+ * Wurzeln eine Endung auftaucht, die in keiner der beiden Listen steht. Eine
+ * Allowlist, die niemand nachfuehrt, ist genau der Defekt, den dieser Riegel
+ * bewacht.
+ */
+const ENDUNGEN = /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson)$/;
+
+/** Was kein Text ist und deshalb keinen Kommentar tragen kann. */
+const NICHT_GELESEN = /\.(ttf|woff2?|png|jpe?g|webp|gif|ico|pdf|xlsx|zip|db|sqlite3?)$/;
 
 /**
  * Ein Pfad, wie er in einem Kommentar steht, gefolgt von `:zeile` oder
@@ -154,17 +173,21 @@ function aufloesen(quelle: string, ziel: string): string | null {
   return null;
 }
 
-function sammleQuellen(verzeichnis: string, treffer: string[] = []): string[] {
+function sammleDateien(verzeichnis: string, treffer: string[] = []): string[] {
   for (const eintrag of readdirSync(verzeichnis)) {
     const pfad = join(verzeichnis, eintrag);
     if (statSync(pfad).isDirectory()) {
       if (eintrag === ".next" || eintrag === "node_modules") continue;
-      sammleQuellen(pfad, treffer);
+      sammleDateien(pfad, treffer);
       continue;
     }
-    if (ENDUNGEN.test(eintrag)) treffer.push(pfad);
+    treffer.push(pfad);
   }
   return treffer;
+}
+
+function sammleQuellen(verzeichnis: string): string[] {
+  return sammleDateien(verzeichnis).filter((p) => ENDUNGEN.test(p));
 }
 
 type Befund = { quelle: string; zeile: number; anker: string; ziel: string; hat: number };
@@ -227,6 +250,29 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
    */
   it("der Scan loest ueberhaupt Anker auf", () => {
     expect(gepruefte).toBeGreaterThan(500);
+  });
+
+  /**
+   * DIE LUECKE, DIE SICH SONST STILL WIEDER AUFTUT: eine neue Endung unter den
+   * Wurzeln, die niemand einsortiert. Der erste Wurf las `ts|tsx|css` und
+   * uebersah 40 `.sql` und zwei `.mjs` — ein „repo-weiter" Riegel mit einem
+   * blinden Fleck, den nur eine Gegenprobe sichtbar macht.
+   */
+  it("jede Endung unter den Wurzeln ist einsortiert — gelesen oder nicht", () => {
+    const unsortiert = new Set<string>();
+    for (const wurzel of WURZELN) {
+      for (const pfad of sammleDateien(wurzel)) {
+        if (ENDUNGEN.test(pfad) || NICHT_GELESEN.test(pfad)) continue;
+        unsortiert.add(extname(pfad) || pfad);
+      }
+    }
+    expect(
+      [...unsortiert].sort(),
+      "Diese Endungen stehen weder in `ENDUNGEN` noch in `NICHT_GELESEN`. "
+        + "Traegt das Format Kommentare, gehoert es in `ENDUNGEN` — sonst liest "
+        + "der Riegel es nie und bleibt gruen, waehrend dort ein veralteter "
+        + "Anker steht. Ist es binaer, gehoert es in `NICHT_GELESEN`.",
+    ).toEqual([]);
   });
 
   /**
