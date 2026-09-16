@@ -68,26 +68,34 @@ describe("bestandExportZeilen", () => {
 });
 
 describe("bestandExportDateiname", () => {
-  /** ../lagerbuch/src/lib/bestand-export.test.ts:44 prueft genau diesen String. */
-  it("liefert bestand-YYYY-MM-DD.xlsx aus LOKALER Zeit", () => {
-    // EIN Argument, offset-los: nach ECMAScript LOKAL geparst, keine Zonenrechnung
-    // wie bei `new Date(jahr, monat, tag, ...)`. KEIN "Z" — das waere UTC, hier
-    // ist lokal gemeint (anders als die rund zwei Dutzend `new Date("...Z")` in
-    // `_actions/*.test.ts`, die dort UTC-Zeitpunkte meinen).
-    expect(bestandExportDateiname(new Date("2026-07-05T13:37"))).toBe("bestand-2026-07-05.xlsx");
+  /**
+   * ⚠️ HIER STAND „aus LOKALER Zeit", UND DAS IST SEIT DRK-186 FALSCH — der
+   * Dateiname entsteht jetzt in `Europe/Berlin` (`core/export/dateiname.ts`),
+   * im Browser wie in einem Route Handler. Der alte Testtext wäre nicht nur
+   * irreführend, sondern ZUFÄLLIG grün gewesen: `new Date("2026-01-09T00:00")`
+   * ohne Zonenangabe wird LOKAL geparst, und auf einer Maschine östlich von
+   * Berlin (etwa `TZ=Pacific/Auckland`) ergäbe derselbe Ausdruck den VORTAG.
+   * Die Zeitpunkte stehen deshalb jetzt als UTC (`…Z`), also unabhängig davon,
+   * wo der Test läuft. Die Zonenrechnung selbst prüft
+   * `core/export/dateiname.test.ts`, inklusive verstellter `process.env.TZ`.
+   */
+  it("liefert bestand-YYYY-MM-DD.xlsx in Europe/Berlin", () => {
+    expect(bestandExportDateiname(new Date("2026-07-05T11:37:00Z"))).toBe("bestand-2026-07-05.xlsx");
   });
 
   it("fuellt Monat und Tag auf zwei Stellen", () => {
-    expect(bestandExportDateiname(new Date("2026-01-09T00:00"))).toBe("bestand-2026-01-09.xlsx");
+    expect(bestandExportDateiname(new Date("2026-01-09T12:00:00Z"))).toBe("bestand-2026-01-09.xlsx");
   });
 
-  /**
-   * Die E2E prueft nur die FORM (`/^bestand-\d{4}-\d{2}-\d{2}\.xlsx$/`,
-   * lagerbuch/e2e/bestand-export.spec.ts:18), nie den Wert. Diese Zeile ist die
-   * einzige, die den Wert festnagelt.
-   */
+  /** Der Tageswechsel liegt an der BERLINER Mitternacht: 22:00 UTC im Sommer
+   *  ist dort bereits der Folgetag. Genau diese Zeile war im alten Weg
+   *  (`getFullYear()/getMonth()/getDate()`) nicht zuzusichern. */
+  it("wechselt den Tag an der Berliner Mitternacht, nicht an der von UTC", () => {
+    expect(bestandExportDateiname(new Date("2026-07-05T22:30:00Z"))).toBe("bestand-2026-07-06.xlsx");
+  });
+
   it("passt zur Regex, die der E2E prueft", () => {
-    expect(bestandExportDateiname(new Date("2026-07-05T00:00")))
+    expect(bestandExportDateiname(new Date("2026-07-05T10:00:00Z")))
       .toMatch(/^bestand-\d{4}-\d{2}-\d{2}\.xlsx$/);
   });
 });
@@ -144,7 +152,7 @@ describe("Kopplung Filter -> Export (§12.1 Punkt 2)", () => {
  * (`bestandExportZeilen` u.a.), die T165s Client-Insel importiert; mit
  * "use client" bekaeme ein Server-Konsument eine Client-Referenz statt der
  * Funktion. Diese Zusicherung steht nicht im Brief-Testtext (Schritt 1), aber
- * in jeder der drei Nachbardateien desselben Plans (csvBestellung.test.ts:115-123,
+ * in jeder der drei Nachbardateien desselben Plans (bestellExport.test.ts,
  * bestellText.test.ts:57-60, etikettMasse.test.ts:53-56) — dasselbe Muster hier.
  *
  * K-4: ohneKommentare() statt Rohtext-Scan — `bestandExport.ts`s eigener
