@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **achtzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **neunzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -350,6 +350,28 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     `verwaltung/(druck)/ortsetiketten/druck.test.ts` hält die Form fest,
     `e2e/lagerbuch-ortsetiketten.spec.ts` misst die Wirkung — **die Zahl kennt nur ein echter
     Browser**, dieselbe Klasse wie die Fallen 8 und 13.
+
+19. **Eine eigene CSS-Regel auf eine antd-Klasse stirbt beim Major STILL — und ein Test, der ihre
+    ANWESENHEIT prüft, verlängert das Sterben** (Modul-übergreifend, DRK-190, gegen antd 6.6.2
+    gemessen — nicht vermutet). `globals.css` trug `:root .ant-select-selector { font-size: 16px }`,
+    die Ausnahme zur 16px-Zusage der Suite. antd 6 rendert diese Klasse nicht mehr: im DOM einer
+    `Select` stehen `.ant-select-content` / `-input` / `-placeholder`, und `-selector` kommt in
+    `antd/es/` nur noch in `color-picker/style/input.js` vor. Die Regel lief ins Leere, und die
+    Auswahlfelder standen auf **14px neben einem 16px-`Input`** — in allen fünf Modulen, über Monate.
+    ⚠️ **Der Test war das eigentliche Problem, nicht die Regel:** `feldschrift.test.ts` prüfte, dass
+    der Regelblock in der Datei **steht**, nie, dass er **wirkt** — grün, und damit ein Schild vor
+    jedem, der die Regel hinterfragt hätte. Wer eine Zusage absichert, prüft die Wirkung oder den
+    Token, nie die Anwesenheit einer Zeile.
+    **Kein Tor sieht es:** gültiges CSS, `typecheck` kennt keine Klassennamen, `build` serialisiert
+    die Datei klaglos, und **Vitest kann es strukturell nicht sehen** — jsdom rechnet keine
+    Layoutboxen. Nur ein echter Abruf zeigt die Zahl, dieselbe Klasse wie die Fallen 8 und 13.
+    ⚠️ **Die Abhilfe ist NICHT dieselbe Regel auf den heutigen Namen** (sie hätte dieselbe
+    Sollbruchstelle), sondern der Token: `Select.fontSize` in `core/theme/theme.ts`. Ein Klassenname
+    ist antds Innenleben, ein Token seine Schnittstelle. **Dabei gehört `fontHeight` mit** — antd
+    rechnet die Polsterung der Auswahl aus `calc((var(--height) - var(--font-height)) / 2 - border)`
+    und führt `--font-height` bei einem `fontSize`-Override **nicht** nach; allein gesetzt wächst die
+    Auswahl um 3,14px aus ihrer Bediendichte (gemessen 59,14 statt 56 und 47,14 statt 44).
+    `Input` braucht das Gegenstück nicht, dort rechnet antd selbst nach.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

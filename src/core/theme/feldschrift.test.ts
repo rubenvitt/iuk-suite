@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { theme as antdTheme } from "antd";
 import { buildTheme } from "./theme";
 
 /**
@@ -21,8 +22,17 @@ import { buildTheme } from "./theme";
  * schwaecher als jede einzelne Modul-Klasse (0,1,0). Eine fruehere Fassung
  * stand auf `:root input` (0,1,1) und ueberstimmte damit `.textfeld` im
  * Abendzettel, der bewusst auf 18px steht (zettel.module.css:628) — ein
- * Fix-Runde-1-Fund. Die einzige Ausnahme ist `.ant-select-selector`: antds
- * eigene Regel dafuer muss geschlagen werden, dafuer braucht sie `:root`.
+ * Fix-Runde-1-Fund.
+ *
+ * ⚠️ HIER STAND EINE AUSNAHME FUER `.ant-select-selector`, UND SIE WAR TOT
+ * (DRK-190). antd 6 rendert die Klasse nicht mehr; die Regel in `globals.css`
+ * lief ins Leere, und der Fall darunter bewachte sie. Das ist die Lehre, die
+ * ueber diesen einen Fall hinausgeht: ER PRUEFTE DIE ANWESENHEIT DER REGEL,
+ * NICHT IHRE WIRKUNG — und hielt damit jeden davon ab, sie zu hinterfragen.
+ * Gemessen im echten Chromium: das geschlossene Auswahlfeld stand auf 14px,
+ * das `Input` daneben auf 16px. Die Auswahl laeuft seither ueber Tokens
+ * (`Select.fontSize`/`fontHeight`, siehe theme.ts), weil ein Klassenname antds
+ * Innenleben ist und ein Token seine Schnittstelle.
  */
 
 const CSS_GLOBAL = readFileSync("src/app/globals.css", "utf8");
@@ -48,21 +58,75 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
     expect(block![2]).toMatch(/font-size:\s*16px/);
   });
 
-  it("hebt .ant-select-selector ueber :root auf 16px — die einzige Stelle, die das braucht", () => {
-    const css = CSS_GLOBAL.replace(/\/\*[\s\S]*?\*\//g, "");
-    // Hier IST :root richtig: antds eigene `.ant-select-selector`-Regel
-    // (0,1,0) muss geschlagen werden, und es gibt kein Modul-Gegenstueck, das
-    // absichtlich darunter liegen wollte.
-    const block = /:root\s+\.ant-select-selector\s*\{([\s\S]*?)\}/.exec(css);
-    expect(block, "Regel `:root .ant-select-selector` fehlt in globals.css").not.toBeNull();
-    expect(block![1]).toMatch(/font-size:\s*16px/);
+  it("gibt der Auswahl 16px ueber `Select.fontSize` — geschlossenes Feld UND offene Liste", () => {
+    /*
+     * BEIDE HAELFTEN, denn sie haengen an verschiedenen Tokens: `fontSize`
+     * traegt das geschlossene Feld (`.ant-select-content`/`-placeholder`, keine
+     * `input`-Elemente — die Regel in `globals.css` erreicht sie nicht),
+     * `optionFontSize` die offene Liste.
+     */
+    for (const modus of ["light", "dark"] as const) {
+      const select = buildTheme(modus).components?.Select;
+      expect(select?.fontSize).toBe(16);
+      expect(select?.optionFontSize).toBe(16);
+    }
   });
 
-  it("gibt den Select-Optionen 16px (die CSS-Regel erreicht sie nicht — kein input)", () => {
+  it("haelt die Zeilenbox der Auswahl bei 22px — sonst waechst sie aus ihrer Bediendichte", () => {
+    /*
+     * DIE HAELFTE, DIE MAN VERGISST, UND SIE IST DIE SICHTBARE.
+     *
+     * antd rechnet die Polsterung der Auswahl in CSS aus
+     * `calc((var(--height) - var(--font-height)) / 2 - border)`
+     * (`antd/es/select/style/select-input.js`) — `--font-height` ist der
+     * Zeilenkasten der GLOBALEN Schriftgroesze und faellt bei einem
+     * `fontSize`-Override NICHT mit. Ohne Gegenmasznahme misst die Auswahl im
+     * echten Chromium 59,14px statt 56 und 47,14px statt 44, steht also neben
+     * ihrem Eingabefeld sichtbar zu hoch. `Input` hat das Problem nicht: dort
+     * rechnet antd die Polsterung selbst aus `inputFontSize` nach
+     * (`antd/es/input/style/token.js`).
+     *
+     * GEPRUEFT WIRD DIE ZEILENBOX, NICHT DIE ZAHL 1,375: `fontSize * lineHeight`
+     * muss weiterhin `fontHeight` ergeben. Wer spaeter an der globalen Leiter
+     * dreht, bekaeme sonst still wieder eine zu hohe Auswahl.
+     */
+    const global = antdTheme.getDesignToken();
+    const zeilenbox = global.fontSize * global.lineHeight;
     for (const modus of ["light", "dark"] as const) {
-      const optionFontSize = buildTheme(modus).components?.Select?.optionFontSize;
-      expect(optionFontSize).toBe(16);
+      const theme = buildTheme(modus);
+      expect(theme.token?.fontSize, "globales fontSize ist neu — Ableitung pruefen").toBeUndefined();
+      expect(theme.token?.lineHeight, "globales lineHeight ist neu — Ableitung pruefen").toBeUndefined();
+      const select = theme.components?.Select;
+      expect(select!.fontSize! * select!.lineHeight!).toBeCloseTo(zeilenbox, 10);
     }
+  });
+
+  it("schreibt die Auswahlschrift NIRGENDS ueber eine antd-Klasse — die brach schon einmal still", () => {
+    /*
+     * DRK-190: `:root .ant-select-selector { font-size: 16px }` stand
+     * jahrelang in `globals.css` und war tot, weil antd 6 die Klasse nicht mehr
+     * rendert. Die naheliegende Reparatur waere eine Regel auf den HEUTE
+     * gerenderten Namen (`.ant-select-content` & Co.) — und sie haette genau
+     * dieselbe Sollbruchstelle: ein Klassenname ist antds Innenleben. Der Weg
+     * fuer die SCHRIFT ist deshalb der Token.
+     *
+     * NUR die Schrift, nicht die Klasse an sich: `.filters :global(.ant-select)
+     * { width: 100% }` im Portal-Prueflauf ist eine Layoutregel und gaebe beim
+     * Umbenennen eine zu schmale Spalte — sichtbar, nicht still. Der Fall hier
+     * faengt den stillen Bruch, nicht jede Kopplung.
+     */
+    const verstoesse: string[] = [];
+    for (const pfad of alleCss("src")) {
+      const css = readFileSync(pfad, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/@[a-z-]+[^{;]*\{/gi, "");
+      for (const treffer of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+        if (!/\.ant-select/.test(treffer[1])) continue;
+        if (!/font-size\s*:/.test(treffer[2])) continue;
+        verstoesse.push(`${pfad}: ${treffer[1].trim()}`);
+      }
+    }
+    expect(verstoesse).toEqual([]);
   });
 
   it("gibt Input, InputNumber und DatePicker 16px ueber inputFontSize, nicht fontSize", () => {
@@ -129,7 +193,7 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
       for (const treffer of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
         const selektor = treffer[1];
         const koerper = treffer[2];
-        if (!/\b(input|textarea|select)\b|\.ant-select-selector/.test(selektor)) continue;
+        if (!/\b(input|textarea|select)\b|\.ant-select/.test(selektor)) continue;
         const groesse = /font-size:\s*(\d+)px/.exec(koerper);
         if (groesse && Number(groesse[1]) < 16) {
           verstoesse.push(`${pfad}: ${selektor.trim()} -> ${groesse[1]}px`);

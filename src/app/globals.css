@@ -217,19 +217,23 @@ select {
 }
 
 /*
- * Die EINZIGE Stelle, die erhoehte Spezifitaet braucht: antd baut die
- * geschlossene Auswahl aus einem `<div class="ant-select-selector">` (0,1,0) —
- * das `input` darin ist unsichtbar und traegt die Schriftgroesse nicht. Einen
- * Token bietet antd dafuer nicht an (`Select` kennt nur `optionFontSize` fuer
- * die offene Liste, siehe theme.ts). Alles andere aus antd laeuft ueber
- * `inputFontSize` in `theme.ts` und braucht hier nichts.
+ * HIER STAND EINE AUSNAHME FUER `:root .ant-select-selector` — SIE WAR TOT.
  *
- * Dass hier ein antd-interner Klassenname steht, ist eine bewusst eingegangene
- * Kopplung: ein antd-Major koennte ihn umbenennen, und der Bruch waere still.
+ * Die eingegangene Kopplung an einen antd-internen Klassennamen ist genau so
+ * gebrochen, wie ihr eigener Kommentar es vorhergesagt hatte, nur unbemerkt:
+ * antd 6 rendert `.ant-select-selector` nicht mehr (gemessen an 6.6.2, die
+ * Auswahl besteht heute aus `.ant-select-content` / `-input` / `-placeholder`).
+ * Die Regel lief ins Leere, und ein Test bewachte sie — er pruefte ihre
+ * ANWESENHEIT, nicht ihre WIRKUNG. Das geschlossene Auswahlfeld stand dadurch
+ * ueber Monate auf 14px, waehrend das Eingabefeld daneben auf 16px stand.
+ *
+ * Nichts ersetzt sie an dieser Stelle: die Auswahl laeuft seit DRK-190 ueber
+ * `Select.fontSize`/`fontHeight` in `core/theme/theme.ts`, wie alles andere aus
+ * antd auch (`inputFontSize`). Ein Token ist hier nicht nur der sauberere Weg,
+ * sondern der einzige, der nicht still brechen kann: ein Klassenname ist antds
+ * Innenleben, ein Token ist seine Schnittstelle. `core/theme/feldschrift.test.ts`
+ * haelt fest, dass an dieser Stelle keine antd-Auswahlklasse zurueckkehrt.
  */
-:root .ant-select-selector {
-  font-size: 16px;
-}
 
 @media print {
   body {

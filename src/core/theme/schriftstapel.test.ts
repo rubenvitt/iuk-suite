@@ -36,7 +36,8 @@ describe("Schriftstapel — die drei Rollenvariablen", () => {
     // eine Deklaration, die es doch nur dort gaebe, waere im Hellen wieder der
     // stille Fallback — genau der Ausfall, gegen den diese Datei antritt.
     // `:root\s*\{` matcht `:root[data-theme="dark"] {` nicht (das Attribut
-    // steht dazwischen) und `:root .ant-select-selector {` ebenso wenig;
+    // steht dazwischen) und eine abgesetzte Regel wie `:root .irgendwas {`
+    // ebenso wenig;
     // `--font-` im Block schliesst den `--iuk-*`-Block aus.
     const hell = css.match(/:root\s*\{([^}]*--font-[^}]*)\}/);
     expect(hell, "kein --font-Block auf dem hellen :root").not.toBeNull();

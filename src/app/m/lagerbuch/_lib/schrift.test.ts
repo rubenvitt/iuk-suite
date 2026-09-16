@@ -163,12 +163,20 @@ function schriftgroesze(deklaration: CssDeclaration): string | undefined {
 }
 
 /*
- * Nur echte Element-Tokens und antds exakte Selektorklasse. Die Begrenzungen
- * lassen `input[type]`, `form > input:hover` und `:is(input)` zu, aber weder
- * `.input-hinweis` noch `.ant-select-selector-extra`.
+ * Nur echte Element-Tokens. Die Begrenzungen lassen `input[type]`,
+ * `form > input:hover` und `:is(input)` zu, aber nicht `.input-hinweis`.
+ *
+ * ⚠️ HIER STAND AUCH `.ant-select-selector`, UND DAS WAR EIN TOTER ZWEIG
+ * (DRK-190): antd 6 rendert die Klasse nicht mehr, der Scan konnte sie also nie
+ * treffen. Es kommt KEINE antd-Klasse an ihre Stelle — die Auswahl haengt
+ * suiteweit an Tokens (`Select.fontSize`/`fontHeight`, `core/theme/theme.ts`),
+ * und dass in eigenem CSS keine Schriftgroesze auf einer antd-Auswahlklasse
+ * landet, haelt `core/theme/feldschrift.test.ts` fuer das ganze Repo fest.
+ * Zwei Scans auf dieselbe Sache waeren einer zu viel, und der hier ist der
+ * modul-eigene fuer eigenes Markup.
  */
 const FELD_SELEKTOR =
-  /(^|[\s>+~,(])(?:input|textarea|select)(?=$|[\s>+~.#:[\]),])|\.ant-select-selector(?=$|[\s>+~.#:[\]),])/;
+  /(^|[\s>+~,(])(?:input|textarea|select)(?=$|[\s>+~.#:[\]),])/;
 
 function feldSelektorKette(deklaration: CssDeclaration): string | undefined {
   const selektoren: string[] = [];
@@ -251,7 +259,6 @@ describe("CSS-AST-Fixtures fuer den 16px-Guard", () => {
       .input-hinweis { font-size: 14px; }
       .select-kompakt { font: 500 14px/1 sans-serif; }
       .textarea-info { font-size: .875rem; }
-      .ant-select-selector-extra { font-size: 14px; }
     `)).toEqual([]);
   });
 
@@ -278,7 +285,6 @@ describe("CSS-AST-Fixtures fuer den 16px-Guard", () => {
       input { font-size: 16px; }
       textarea { font-size: 1rem; }
       select { font: 500 16px/1 sans-serif; }
-      .ant-select-selector { font: 500 1rem/1 sans-serif; }
     `)).toEqual([]);
   });
 

@@ -53,6 +53,36 @@ export type ThemeMode = "light" | "dark";
 export type ThemePreference = "auto" | "light" | "dark";
 
 /**
+ * DIE UNTERGRENZE FUER EINGABESCHRIFT — eine Zahl, drei Komponentenblöcke.
+ *
+ * Frueher war 16px die Abwehr gegen iOS' Auto-Zoom beim Fokus. Seit der Zoom
+ * suiteweit gesperrt ist (`app/layout.tsx`), zoomt iOS gar nicht mehr; die
+ * Zahl bleibt aus dem UMGEKEHRTEN Grund: ohne Zoom kann niemand mehr
+ * heranholen, was zu klein ist. `core/theme/feldschrift.test.ts` haelt beide
+ * Haelften zusammen.
+ */
+const FELDSCHRIFT = 16;
+
+/**
+ * DIESELBE ZEILENBOX, GROESZERE BUCHSTABEN — und genau das ist der Trick.
+ *
+ * `Select` rechnet seine Polsterung in CSS aus `fontHeight`, und antd fuehrt
+ * diesen Wert bei einem `fontSize`-Override NICHT nach (Begruendung am
+ * `Select`-Block unten). Statt `fontHeight` mitzusetzen — es steht in antds
+ * Typen gar nicht, waere also ein Cast auf einen undokumentierten Token —
+ * bleibt die Zeilenbox einfach, wie sie ist: `16 × diese Zeilenhoehe` ergibt
+ * wieder 22px, also genau `fontHeight`. Die Polsterungsrechnung stimmt damit
+ * unveraendert, und die Auswahl behaelt ihre Bediendichte auf den Pixel.
+ *
+ * ABGELEITET, NICHT ABGESCHRIEBEN: beide Faktoren kommen aus antds eigenem
+ * Token, damit ein spaeterer Eingriff an `fontSize`/`lineHeight` die Rechnung
+ * mitnimmt statt sie still falsch werden zu lassen. Heute `14 × 1,5714 / 16`
+ * = 1,375.
+ */
+const ANTD_VORGABE = antdTheme.getDesignToken();
+const FELD_ZEILENHOEHE = (ANTD_VORGABE.fontSize * ANTD_VORGABE.lineHeight) / FELDSCHRIFT;
+
+/**
  * Das Design-System der Suite als eine Funktion. Reine Berechnung, kein React —
  * dadurch in `theme.test.ts` statisch prüfbar und aus Server- wie
  * Client-Komponenten aufrufbar.
@@ -128,19 +158,50 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
       // Review vor Task 6.)
       Radio: { radioSize: 28, dotSize: 14 },
       /*
-       * Die Optionen der offenen Auswahlliste sind Tap-Ziele, die gelesen
-       * werden muessen, bevor man sie trifft. Sie sind KEIN `input` — die
-       * 16px-Regel in `globals.css` erreicht sie nicht, deshalb hier.
+       * DIE AUSWAHL — BEIDE HAELFTEN UEBER TOKENS, seit DRK-190.
        *
-       * Das ist keine Doppelung: die CSS-Regel deckt das geschlossene Feld ab
-       * (ueber `.ant-select-selector`), dieser Token die offene Liste. Fuer den
-       * Selektor selbst bietet antd keinen Token an — sonst staende er hier
-       * statt in CSS.
+       * Hier stand nur `optionFontSize` fuer die offene Liste; das geschlossene
+       * Feld deckte eine CSS-Regel `:root .ant-select-selector` in
+       * `globals.css` ab. DIE REGEL WAR TOT. antd 6 rendert diese Klasse nicht
+       * mehr — nachgemessen an 6.6.2: im DOM einer `Select` stehen
+       * `.ant-select-content`, `.ant-select-input`, `.ant-select-placeholder`,
+       * `.ant-select-selector` kommt in `antd/es/` nur noch in
+       * `color-picker/style/input.js` vor. Das geschlossene Feld stand damit
+       * auf 14px, waehrend das `Input` daneben auf 16px stand (gemessen im
+       * echten Chromium, alle drei Bediendichten).
+       *
+       * `fontSize` UND `lineHeight`, und das zweite ist der eigentliche Punkt.
+       * antd rechnet die Polsterung der Auswahl in CSS:
+       * `padding-block: calc((var(--height) - var(--font-height)) / 2 - border)`
+       * (`antd/es/select/style/select-input.js`). `--font-height` ist der
+       * Zeilenkasten der GLOBALEN Schriftgroesze (22px bei 14px Text) und faellt
+       * bei einem `fontSize`-Override NICHT mit. Nur `fontSize: 16` erhoehte die
+       * Auswahl deshalb still um 3,14px ueber ihre Bediendichte — gemessen 59,14
+       * statt 56 und 47,14 statt 44, also ein Select, das neben seinem
+       * Eingabefeld aus der Reihe faellt. `FELD_ZEILENHOEHE` haelt die Zeilenbox
+       * stattdessen bei 22px; gemessen 56,0 / 44,0 gegen 55,92 / 43,92 am
+       * `Input`.
+       *
+       * ⚠️ DAS UEBERSCHREIBT `fontSize` NUR IM SELECT, nicht global — antd
+       * legt den Override in cssVar-Betrieb auf seine eigene Scope-Klasse
+       * (gemessen: `.iuk.ant-select-css-var { --ant-font-size: 16px }`). Die
+       * globale Schriftleiter bleibt unangetastet, wie `docs/design/README.md`
+       * es verlangt („antds eigene Leiter, keine dritte Skala"); ein
+       * `token.fontSize: 16` waere das Gegenteil davon.
+       *
+       * `optionFontSize` BLEIBT AUSGESCHRIEBEN, obwohl antd es inzwischen aus
+       * `fontSize` ableiten wuerde (`select/style/token.js`, `optionFontSize:
+       * fontSize`): der Token ist die Zusage an die offene Liste, und die soll
+       * nicht daran haengen, dass die Ableitung bleibt, wie sie ist.
        *
        * 16 ist ein Wert aus antds eigener Leiter (12/14/16/20/24/30), also
        * keine dritte Skala im Sinne von docs/design/README.md:110.
        */
-      Select: { optionFontSize: 16 },
+      Select: {
+        optionFontSize: FELDSCHRIFT,
+        fontSize: FELDSCHRIFT,
+        lineHeight: FELD_ZEILENHOEHE,
+      },
       /*
        * `inputFontSize`, NICHT `fontSize` — antd nennt den Token an diesen drei
        * Komponenten so. Der globale `fontSize` bliebe verboten, er verschoebe
@@ -163,9 +224,9 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * Kein `inputFontSizeSM`: das erbt laut `token.js:33` von
        * `inputFontSize`, dort ist keine Luecke.
        */
-      Input: { inputFontSize: 16, inputFontSizeLG: 16 },
-      InputNumber: { inputFontSize: 16, inputFontSizeLG: 16 },
-      DatePicker: { inputFontSize: 16, inputFontSizeLG: 16 },
+      Input: { inputFontSize: FELDSCHRIFT, inputFontSizeLG: FELDSCHRIFT },
+      InputNumber: { inputFontSize: FELDSCHRIFT, inputFontSizeLG: FELDSCHRIFT },
+      DatePicker: { inputFontSize: FELDSCHRIFT, inputFontSizeLG: FELDSCHRIFT },
     },
   };
 }

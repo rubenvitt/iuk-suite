@@ -23,8 +23,12 @@
  *
  * DAS DRUCK-CSS GREIFT NIE AUF `input` UND NIE AUF `.ant-*`. Eine Regel gegen
  * einen antd-internen Klassennamen waere eine Kopplung, die ein antd-Major still
- * bricht; die Suite geht sie an genau EINER Stelle bewusst ein
- * (globals.css `:root .ant-select-selector`, „der Bruch waere still").
+ * bricht. ⚠️ HIER STAND, die Suite gehe sie an genau EINER Stelle bewusst ein
+ * (globals.css `:root .ant-select-selector`, „der Bruch waere still"). GENAU DAS
+ * IST EINGETRETEN: antd 6 rendert die Klasse nicht mehr, die Regel lief ins Leere,
+ * und die Auswahlfelder standen auf 14px. Sie ist fort, die Suite hat heute KEINE
+ * solche Kopplung mehr (DRK-190, Falle 19 in CLAUDE.md) — das Verbot hier steht
+ * damit ohne Ausnahme.
  *
  * Die Millimeter sind 1:1-Pflicht 22 und stehen zugleich in
  * _lib/etikettMasse.ts; etiketten/druck.test.ts haelt beide aneinander.
