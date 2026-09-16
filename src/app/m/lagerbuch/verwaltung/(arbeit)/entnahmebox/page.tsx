@@ -1,4 +1,4 @@
-import { Alert, Col, Row } from "antd";
+import { Alert, Button, Col, Row } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../_db/client";
 import { ENTNAHMEBOX_NAME } from "../../../_lib/konstanten";
@@ -131,6 +131,23 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
           "Was hier liegt, wurde aus einem Fahrzeug oder einer Tasche genommen und ist "
           + "noch nicht wieder eingeräumt. Es zählt weder zur Einheit noch zum Handlager."
         }
+        /*
+         * DER WEG ZUM EINRAEUMEN — DRK-381.
+         *
+         * ⚠️ DIE FLAECHE LIEGT NICHT HIER, UND DAS IST EINE ENTSCHEIDUNG: das
+         * Einraeumen ist ein Handgriff AN DER KISTE, mit dem Telefon in der
+         * Hand und der Bediendichte 56/72 — dieselbe Bauform wie Entnahme und
+         * Auffuellen, und derselbe Grund, aus dem die beiden ebenfalls aus
+         * diesem Rahmen herausfuehren (`_lib/nav.ts`). Diese Seite beantwortet
+         * „was liegt drin und woher kam es?"; sie zweimal zu bauen hiesse, die
+         * zweite Fassung von der naechsten Aenderung abzuschneiden.
+         *
+         * ⚠️ KEIN `type="primary"`: die Primaeraktion dieser Seite ist die
+         * Abgabe darunter. Und Rot traegt in diesem Modul fachliche Bedeutung
+         * (Falle 3) — ein roter Knopf neben einer Verfallsampel liest sich als
+         * Warnung.
+         */
+        aktionen={<Button href="/auffuellen/box">Einräumen</Button>}
       />
 
       {!box.aktiv && (

@@ -84,6 +84,17 @@ export const BESTANDSFLAECHEN: readonly string[] = [
    * klassifiziert `revalidierung.test.ts` JEDE Seite des Moduls einzeln.
    */
   "/m/lagerbuch/helfer/check",
+  /*
+   * ⚠️ NEU AUS DRK-381 (PR #189), das PARALLEL dieselbe Datei angelegt hat —
+   * enger gefasst: acht Pfade, weiterhin mit Artikel-ID, nur „Handlager-Bestand
+   * eines Artikels". Diese Liste ist die Obermenge (alle acht sind enthalten,
+   * die beiden mit ID als Muster), deshalb hat sie die andere beim Merge
+   * abgeloest; verloren geht dabei nichts.
+   *
+   * Die Einraeumflaeche der GF zeigt ueber `einraeumPosten` die Posten IN der
+   * Kiste — Buchungszeilen, also Bestand.
+   */
+  "/m/lagerbuch/auffuellen/box",
 
   /*
    * ⚠️ AB HIER ROUTENMUSTER, NICHT PFADE — und `revalidiereBestand` gibt ihnen

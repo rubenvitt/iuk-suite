@@ -45,6 +45,30 @@ import { cookies } from "next/headers";
  * Riegelgrund — und mit ihm die Entscheidung, ob ein Erneuern-Feld erscheint.
  */
 
+/*
+ * ⚠️ DIE PFADLISTE EINES ZUGANGS STEHT SEIT DRK-381 IN
+ * `_lib/revalidierung.ts`, nicht mehr hier — und seit DRK-374 ist es dort die
+ * Liste ALLER Flaechen, die Artikelbestand oder Buchungen zeigen, die JEDER
+ * Bestandsschreiber des Moduls nimmt. Beide Tickets haben denselben Umzug
+ * gemacht; DRK-374 ist die Obermenge und hat beim Merge gewonnen.
+ *
+ * Der Grund, der sie hier entstehen liess, gilt unveraendert und steht dort
+ * ausgeschrieben: DREI RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE — zwei Listen
+ * fuer denselben Effekt. `bucheZugang` und `bucheAuffuellung` buchen denselben
+ * Wareneingang; jede Flaeche, die danach veraltet ist, ist es fuer BEIDE.
+ * Nacheinander fehlten `verwaltung/bestellung`, `verwaltung/verfall` und — als
+ * die neuen Routen dazukamen — `auffuellen`.
+ *
+ * ⚠️ DIE AUFRUFER SIND LAENGST KEINE ZUGAENGE MEHR: `raeumeAusEntnahmebox`
+ * (DRK-381) bucht eine UMLAGERUNG aus der Entnahmebox in einen Schrank,
+ * `aussondern`, `inventur`, `check` und der CSV-Import schreiben ebenfalls
+ * Buchungszeilen. Alle veralten dieselben Flaechen — genau die Lage, vor der
+ * der alte Kommentar gewarnt hat, nur diesmal angekuendigt.
+ *
+ * Deshalb der Umzug nach `_lib/`: eine `"use server"`-Datei kann eine
+ * Hilfsfunktion gar nicht exportieren, ohne aus ihr eine Action mit global
+ * aufrufbarer Id zu machen (`guards.test.ts`).
+ */
 
 const ZugangSchema = z
   .object({
@@ -145,8 +169,8 @@ export async function bucheZugang(
     }
 
     /*
-     * DIESELBE Liste wie in `bucheAuffuellung` und in jedem anderen
-     * Bestandsschreiber — Begruendung je Flaeche steht in
+     * DIESELBE Liste wie in `bucheAuffuellung`, `raeumeAusEntnahmebox` und in
+     * jedem anderen Bestandsschreiber — Begruendung je Flaeche steht in
      * `_lib/revalidierung.ts`. Zwei Listen fuer EINEN Vorgang waren die Ursache
      * von drei Review-Befunden in Folge, sieben Listen fuer EIN Modul die des
      * vierten (DRK-374).
@@ -788,7 +812,8 @@ export async function bucheAuffuellung(
       });
 
       // DIESELBE Liste wie in `bucheZugang` — es ist derselbe Vorgang, nur
-      // eine andere Flaeche davor.
+      // eine andere Flaeche davor. Sie liegt in `_lib/revalidierung.ts`, weil
+      // laengst nicht nur die Zugangswege denselben Bestand aendern.
       revalidiereBestand();
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch

@@ -77,6 +77,7 @@ const SOLL = [
   "/m/lagerbuch/helfer",
   "/m/lagerbuch/helfer/box",
   "/m/lagerbuch/helfer/check",
+  "/m/lagerbuch/auffuellen/box",
   "/m/lagerbuch/verwaltung/fahrzeuge/[id]",
   "/m/lagerbuch/auffuellen/[artikelId]",
   "/m/lagerbuch/a/[artikelId]",
@@ -286,6 +287,7 @@ const SEITEN: Record<string, "bestand" | "kein-bestand"> = {
   "/verwaltung/fahrzeuge/[id]": "bestand",
   "/verwaltung/entnahmebox": "bestand",
   "/auffuellen": "bestand",
+  "/auffuellen/box": "bestand",          // `einraeumPosten` — die Posten IN der Kiste
   "/auffuellen/[artikelId]": "bestand",
   "/a/[artikelId]": "bestand",
   "/helfer": "bestand",
