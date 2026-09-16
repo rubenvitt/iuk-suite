@@ -108,9 +108,31 @@ export function zaehlOrtBeschreibung(ortId: string | null, name: string | undefi
  * Verwechslung aus einer Richtung, an die der Befund nicht gedacht hat.
  */
 export function eindeutigeLabels(orte: readonly ZaehlOrt[]): ZaehlOrt[] {
-  const haeufigkeit = new Map<string, number>();
-  for (const o of orte) haeufigkeit.set(o.label, (haeufigkeit.get(o.label) ?? 0) + 1);
-  return orte.map((o) => (
-    (haeufigkeit.get(o.label) ?? 0) > 1 ? { ...o, label: `${o.label} (${o.id})` } : { ...o }
+  const einDurchgang = orte.map((o) => (
+    zaehle(orte, o.label) > 1 ? { ...o, label: mitKennung(o) } : { ...o }
   ));
+  /*
+   * ⚠️ EIN DURCHGANG REICHT NACHWEISLICH NICHT (zweiter Codex-Befund, nachgerechnet).
+   * Heissen zwei Schraenke `X` und ein dritter bereits woertlich `X (a)`, wobei
+   * `a` die Kennung des ersten ist, dann erzeugt der Durchgang oben fuer den
+   * ersten genau `X (a)` — und der dritte traegt das schon, wurde aber nicht
+   * angefasst, weil SEIN Ausgangsname nur einmal vorkam. Gezaehlt werden die
+   * ALTEN Beschriftungen; die neuen sieht dieser Durchgang nicht.
+   *
+   * Statt nachzubessern, bis es passt, wird die Eindeutigkeit hier BEWIESEN:
+   * kollidiert danach noch etwas, bekommt JEDE Zeile ihre Kennung angehaengt.
+   * Weil jede Zeichenkette dann auf ` (<eigene Kennung>)` endet und Kennungen
+   * eindeutig sind, koennen zwei Ergebnisse nicht mehr gleich sein — das gilt
+   * fuer jede denkbare Eingabe, nicht nur fuer die, an die wir gerade denken.
+   */
+  const alleVerschieden = new Set(einDurchgang.map((o) => o.label)).size === einDurchgang.length;
+  return alleVerschieden ? einDurchgang : orte.map((o) => ({ ...o, label: mitKennung(o) }));
+}
+
+function mitKennung(ort: ZaehlOrt): string {
+  return `${ort.label} (${ort.id})`;
+}
+
+function zaehle(orte: readonly ZaehlOrt[], label: string): number {
+  return orte.reduce((n, o) => (o.label === label ? n + 1 : n), 0);
 }

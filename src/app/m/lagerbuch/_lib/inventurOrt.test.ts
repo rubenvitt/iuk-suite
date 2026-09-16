@@ -123,6 +123,41 @@ describe("eindeutigeLabels", () => {
     expect(schrank!.label).toBe("Nicht zugeordnet (schrank-frech)");
   });
 
+  /**
+   * ⚠️ DER FALL, DEN EIN DURCHGANG NICHT LOEST (zweiter Codex-Befund).
+   * Zwei Schraenke heissen `X`, ein dritter heisst bereits woertlich `X (a)` —
+   * genau das, was der erste Durchgang fuer den ersten Schrank erzeugt. Gezaehlt
+   * werden die ALTEN Beschriftungen, der dritte bleibt also unangetastet, und
+   * am Ende stuenden zwei gleiche Zeilen da. Dieselbe Fehlbedienung wie vorher,
+   * nur eine Stufe tiefer.
+   */
+  it("bleibt eindeutig, wenn eine erzeugte Beschriftung schon vergeben ist", () => {
+    const ergebnis = eindeutigeLabels([
+      { id: "a", label: "X" },
+      { id: "b", label: "X" },
+      { id: "c", label: "X (a)" },
+    ]);
+    expect(new Set(ergebnis.map((o) => o.label)).size).toBe(3);
+  });
+
+  /**
+   * Die Zusicherung, die fuer JEDE Eingabe gilt, nicht nur fuer die bedachten:
+   * gleiche Kennungen gibt es nicht, also kann das Ergebnis keine zwei gleichen
+   * Beschriftungen tragen. Geprueft an einer Sammlung boesartiger Faelle.
+   */
+  it.each([
+    [[{ id: "a", label: "X" }, { id: "b", label: "X" }, { id: "c", label: "X (a)" }]],
+    [[{ id: "a", label: "X" }, { id: "b", label: "X" }, { id: "c", label: "X (a)" }, { id: "d", label: "X (b)" }]],
+    [[{ id: "a", label: "X (b)" }, { id: "b", label: "X (a)" }]],
+    [[{ id: "a", label: "" }, { id: "b", label: "" }]],
+    [[{ id: "a", label: "X" }, { id: "b", label: "X" }, { id: "c", label: "X" }]],
+  ])("liefert fuer %# durchweg verschiedene Beschriftungen", (orte) => {
+    const ergebnis = eindeutigeLabels(orte);
+    expect(new Set(ergebnis.map((o) => o.label)).size).toBe(orte.length);
+    // Die Kennungen bleiben dabei unangetastet — sie sind der Wert, der gebucht wird.
+    expect(ergebnis.map((o) => o.id)).toEqual(orte.map((o) => o.id));
+  });
+
   it("liefert eine neue Liste, ohne die uebergebene anzufassen", () => {
     const orte = [{ id: "a", label: "X" }, { id: "b", label: "X" }];
     const ergebnis = eindeutigeLabels(orte);
