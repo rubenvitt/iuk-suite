@@ -8,13 +8,14 @@ import { getDb, type DB } from "../_db/client";
 import { buchungen, chargen, inventuren, inventurPositionen, newId } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { bestandProOrte } from "../_lib/domain/bestand";
+import type { Lagerbereich } from "../_lib/domain/orte";
 import { KATEGORIE_MAX_LAENGE, KATEGORIEN_AUSWAHL_MAX } from "../_lib/kategorie";
 import { CHARGE_INVENTUR, HANDLAGER_ID, MONAT_REGEX, PSEUDO_VERFALL } from "../_lib/konstanten";
 import { INVENTUR_TEXTE } from "../_lib/inventurTexte";
 import { zaehlOrtLabel } from "../_lib/inventurOrt";
-import { restJeChargeFuerArtikel, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
+import { restJeChargeFuerArtikelImBereich, restJeChargeUndOrt } from "../_lib/lesepfade/bestand";
 import { ortStamm, zaehlBereich, type OrtStammZeile } from "../_lib/lesepfade/orte";
-import { fefoAbbuchung, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
+import { fefoAbbuchungImBereich, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
 import { INVENTUR_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -128,14 +129,14 @@ function positionSpeichern(
  * gesamte Suite, nicht nur dieses Modul).
  */
 function artikelPosition(
-  tx: Tx, lauf: Lauf, orte: readonly string[], stamm: Map<string, OrtStammZeile>,
+  tx: Tx, lauf: Lauf, bereich: Lagerbereich, stamm: Map<string, OrtStammZeile>,
   position: ArtikelPositionT,
 ): boolean {
   // Der Bestand wird innerhalb derselben Transaktion frisch gelesen. Das
   // Lagerortfeld bleibt erhalten, damit Fahrzeugbestand nicht einfliesst.
   const zeilen = tx.select({ lagerortId: buchungen.lagerortId, menge: buchungen.menge })
     .from(buchungen).where(eq(buchungen.artikelId, position.artikelId)).all();
-  const liveBestand = bestandProOrte(zeilen, orte);
+  const liveBestand = bestandProOrte(zeilen, bereich);
   const diff = position.ist - liveBestand;
   positionSpeichern(tx, lauf, position.artikelId, null, liveBestand, position.ist);
   if (diff === 0) return false;
@@ -144,8 +145,8 @@ function artikelPosition(
     // DRK-297 (Nachtrag) — der Bereich, nicht die Wurzel: liegt der Bestand in
     // einem Schrank, fand die Wurzel dort nichts und kappte nach I2 auf zu
     // wenig, ohne den Fehlschlag zu melden.
-    fefoAbbuchung(tx, {
-      artikelId: position.artikelId, menge: -diff, orte,
+    fefoAbbuchungImBereich(tx, {
+      artikelId: position.artikelId, menge: -diff, bereich,
       quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
     });
     return true;
@@ -164,7 +165,7 @@ function artikelPosition(
     }).run();
   }
   const bestandJeOrt = restJeChargeUndOrt(tx, position.artikelId).get(chargeId);
-  bucheKorrektur(tx, lauf, orte, stamm, position.artikelId, chargeId, diff, bestandJeOrt);
+  bucheKorrektur(tx, lauf, bereich, stamm, position.artikelId, chargeId, diff, bestandJeOrt);
   return true;
 }
 
@@ -173,11 +174,11 @@ function artikelPosition(
  * Keine geratene Charge, kein FEFO: gebucht wird auf GENAU die gezaehlte Charge.
  */
 function chargenPosition(
-  tx: Tx, lauf: Lauf, orte: readonly string[], stamm: Map<string, OrtStammZeile>,
+  tx: Tx, lauf: Lauf, bereich: Lagerbereich, stamm: Map<string, OrtStammZeile>,
   position: ChargenPositionT,
 ): number {
   // Vor dem Anlegen neuer Chargen gelesen — eine neue Charge hat Rest 0.
-  const rest = restJeChargeFuerArtikel(tx, position.artikelId, orte);
+  const rest = restJeChargeFuerArtikelImBereich(tx, position.artikelId, bereich);
   // DRK-297, Fixrunde 1 (Befund 3) — EINMAL je Position geladen, nicht einmal
   // je gezaehlter Charge: `restJeChargeUndOrt` aggregiert die GESAMTE
   // Buchungshistorie des Artikels ohne Ortspraedikat und ist damit die
@@ -222,7 +223,7 @@ function chargenPosition(
     if (diff === 0) continue;
     // Kein Kappen noetig: `ist >= 0`, der Rest dieser Charge danach ist `ist` (I2).
     bucheKorrektur(
-      tx, lauf, orte, stamm, position.artikelId, z.chargeId, diff, bestandJeCharge.get(z.chargeId),
+      tx, lauf, bereich, stamm, position.artikelId, z.chargeId, diff, bestandJeCharge.get(z.chargeId),
     );
     abweichend++;
   }
@@ -277,19 +278,19 @@ function juengsteZuerst<T extends { id: string; verfall: string; createdAt: Date
  * — in ein Journal, das kein UPDATE und kein DELETE kennt.
  */
 function bucheKorrektur(
-  tx: Tx, lauf: Lauf, orte: readonly string[], stamm: Map<string, OrtStammZeile>,
+  tx: Tx, lauf: Lauf, bereich: Lagerbereich, stamm: Map<string, OrtStammZeile>,
   artikelId: string, chargeId: string, diff: number, bestandJeOrt: Map<string, number> | undefined,
 ): void {
   if (diff < 0) {
-    fefoAbbuchung(tx, {
-      artikelId, chargeId, menge: -diff, orte,
+    fefoAbbuchungImBereich(tx, {
+      artikelId, chargeId, menge: -diff, bereich,
       quelle: lauf.quelle, kommentar: lauf.kommentar, referenz: lauf.referenz, typ: "korrektur",
     });
     return;
   }
 
   const bestand = bestandJeOrt ?? new Map<string, number>();
-  const kandidaten = orte.filter((ort) => (bestand.get(ort) ?? 0) > 0);
+  const kandidaten = bereich.filter((ort) => (bestand.get(ort) ?? 0) > 0);
   kandidaten.sort((a, b) =>
     (stamm.get(a)?.sortierung ?? 0) - (stamm.get(b)?.sortierung ?? 0) || a.localeCompare(b));
   const ziel = kandidaten[0] ?? lauf.rueckfallOrt;
@@ -383,8 +384,8 @@ export async function inventurKorrektur(
         // Die alte Reihenfolge („zuerst der Kopf, die Positionen tragen einen
         // Fremdschluessel auf ihn") bleibt gewahrt — Positionen entstehen erst
         // in der Schleife darunter.
-        const orte = zaehlBereich(tx, ortId);
-        if (!orte) throw new InventurAbgewiesen(INVENTUR_TEXTE.ortUnbekannt);
+        const bereich = zaehlBereich(tx, ortId);
+        if (!bereich) throw new InventurAbgewiesen(INVENTUR_TEXTE.ortUnbekannt);
         const stamm = ortStamm(tx);
         tx.insert(inventuren).values({
           id: inventurId, ts: new Date(), quelleTyp: lauf.quelle.quelleTyp, quelleId: lauf.quelle.quelleId,
@@ -393,8 +394,8 @@ export async function inventurKorrektur(
         }).run();
         for (const position of v.positionen) {
           korrigiert += "ist" in position
-            ? (artikelPosition(tx, lauf, orte, stamm, position) ? 1 : 0)
-            : chargenPosition(tx, lauf, orte, stamm, position);
+            ? (artikelPosition(tx, lauf, bereich, stamm, position) ? 1 : 0)
+            : chargenPosition(tx, lauf, bereich, stamm, position);
         }
       });
     } catch (e) {

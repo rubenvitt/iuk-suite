@@ -25,9 +25,9 @@ import { normalisiereSchrankName } from "./schrankName";
 import { AUSSONDERN_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { heuteIso } from "./zeit";
-import { fefoAbbuchung, type Quelle } from "./schreibpfade/abbuchung";
+import { fefoAbbuchungImBereich, type Quelle } from "./schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "./schreibpfade/korrektur";
-import { umlagerung } from "./schreibpfade/umlagerung";
+import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerung";
 import { handlagerOrte } from "./lesepfade/orte";
 import { setzeVerfall } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
@@ -589,7 +589,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       for (const [artikelId, menge] of [
         [A.kompresse, 12], [A.mullbinde, 15], [A.handschuh, 6], [A.desinfektion, 3],
       ] as const) {
-        fefoAbbuchung(tx, {
+        fefoAbbuchungImBereich(tx, {
           artikelId, menge, quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
           kommentar: "Sanitätsdienst Stadtfest", referenz: REF_SANI,
         });
@@ -601,7 +601,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   if (!journalGebucht(db, REF_UEBUNG)) {
     db.transaction((tx) => {
       for (const [artikelId, menge] of [[A.verbandpaeckchen, 5], [A.nacl, 2]] as const) {
-        fefoAbbuchung(tx, {
+        fefoAbbuchungImBereich(tx, {
           artikelId, menge, quelle: QUELLE_OIDC,
           kommentar: "Übungsdienst Gruppe 2", referenz: REF_UEBUNG,
         });
@@ -645,9 +645,9 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         });
         const gewuenscht = nachfuellRtw[s.artikelId] ?? 0;
         const gebucht = gewuenscht > 0
-          ? umlagerung(tx, {
+          ? umlagerungAusBereich(tx, {
               artikelId: s.artikelId, menge: gewuenscht,
-              vonOrten: handlagerOrte(tx), nachLagerortId: RTW,
+              vonBereich: handlagerOrte(tx), nachLagerortId: RTW,
               quelle, kommentar: CHECK_NACHFUELLUNG, referenz: REF_CHECK_RTW,
             }).umgelagert
           : 0;
@@ -707,8 +707,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         [A.kompresse, 6], [A.mullbinde, 10], [A.dreiecktuch, 4],
         [A.handschuh, 3], [A.desinfektion, 1], [A.rettungsdecke, 4],
       ] as const) {
-        umlagerung(tx, {
-          artikelId, menge, vonOrten: handlagerOrte(tx), nachLagerortId: KTW,
+        umlagerungAusBereich(tx, {
+          artikelId, menge, vonBereich: handlagerOrte(tx), nachLagerortId: KTW,
           quelle: QUELLE_OIDC, kommentar: "Erstbestückung KTW 1", referenz: REF_KTW,
         });
       }
@@ -760,8 +760,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       for (const [artikelId, menge] of [
         [A.handschuh, 4], [A.desinfektion, 1], [A.kompresse, 6], [A.dreiecktuch, 2],
       ] as const) {
-        umlagerung(tx, {
-          artikelId, menge, vonOrten: handlagerOrte(tx), nachLagerortId: TASCHE_SAN,
+        umlagerungAusBereich(tx, {
+          artikelId, menge, vonBereich: handlagerOrte(tx), nachLagerortId: TASCHE_SAN,
           quelle: QUELLE_OIDC, kommentar: "Sanitätstasche gepackt", referenz: REF_TASCHE,
         });
       }
@@ -771,14 +771,16 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   /* 12b ── DRK-297: eine Charge an ZWEI Orten. Ein Teil des Ringer-Bestands aus
    *        Schrank 1 (Block 8) wandert per `umlagerung` in den MTW — danach
    *        liegt „ch-ringer-schrank1" sowohl in Schrank 1 als auch im MTW.
-   *        `vonOrten: [SCHRANK_1]` ist bewusst EINELEMENTIG, nicht
-   *        `handlagerOrte(tx)`: es geht um GENAU diesen Schrank, nicht den
-   *        ganzen Bereich. */
+   *        `umlagerungVonOrt` ist bewusst der Einzelort-Weg, nicht
+   *        `umlagerungAusBereich` mit `handlagerOrte(tx)`: es geht um GENAU
+   *        diesen Schrank, nicht den ganzen Bereich. Seit DRK-354 sind das zwei
+   *        Funktionen, damit der Unterschied nicht mehr an diesem Kommentar
+   *        haengt. */
   const REF_RINGER_SCHRANK = "seed:umlagerung-ringer-schrank1-mtw";
   if (!journalGebucht(db, REF_RINGER_SCHRANK)) {
     db.transaction((tx) => {
-      umlagerung(tx, {
-        artikelId: A.ringer, menge: 6, vonOrten: [SCHRANK_1], nachLagerortId: MTW,
+      umlagerungVonOrt(tx, {
+        artikelId: A.ringer, menge: 6, vonOrt: SCHRANK_1, nachLagerortId: MTW,
         quelle: QUELLE_OIDC, kommentar: "Ergänzung MTW aus Schrank 1", referenz: REF_RINGER_SCHRANK,
       });
     });

@@ -29,15 +29,23 @@
  * Die Abbuchung buchte mehr ab, als am Ort liegt, und der Bestand wuerde
  * negativ (I2).
  *
- * ⚠️ FUER EIN FAHRZEUG IST DER BEREICH EINELEMENTIG (`[fahrzeugId]`). Wer dort
+ * ⚠️ FUER EIN FAHRZEUG IST ES KEIN BEREICH, SONDERN EIN EINZELNER ORT. Wer dort
  * `handlagerOrte` einsetzt, bucht Handlagerbestand vom Fahrzeug ab — und in
  * einer frisch migrierten Testdatenbank ist das unsichtbar, weil dort beide
  * Bestaende identisch sind.
+ *
+ * DRK-354 — DESHALB GIBT ES ZWEI EINSTIEGE, `fefoAbbuchungImBereich` und
+ * `fefoAbbuchungAnOrt`. Vorher nahm EIN Feld `orte` beides entgegen, und
+ * `handlagerOrte(db)` sah dort genauso aus wie `[fahrzeugId]`; jede neue
+ * Aufrufstelle musste von Hand eingeordnet werden. Jetzt nimmt der eine
+ * Einstieg einen `Lagerbereich` (den nur `teilbaum` baut), der andere eine ID
+ * — die Verwechslung faellt dem Compiler auf, nicht erst einem Pruefer.
  */
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { buchungen, chargen, newId } from "../../_db/schema";
 import { fefoVerteilung, type ChargeRest, type FefoTeil } from "../domain/fefo";
+import type { Lagerbereich } from "../domain/orte";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
 
 /**
@@ -57,18 +65,10 @@ export type Quelle = { quelleTyp: "oidc" | "token" | "system"; quelleId: string 
 export type Teil = FefoTeil;
 
 /**
- * Verteilt `menge` FEFO über die Chargen des Artikels IN EINEM BEREICH von
- * Orten (Rest > 0, aufsteigender Verfall), kappt am dortigen Bestand und
- * schreibt je (Charge, Ort) EINE Abgangsbuchung — auf den Ort, an dem der
- * Bestand wirklich liegt.
- *
- * ⚠️ DER BEREICH IST DER GRUND DIESER ÄNDERUNG (DRK-297). Vorher scopte die
- * Funktion auf EINE `lagerortId`; lag der Bestand in einem Schrank, lieferte
- * sie `gebucht: 0` und `teile: []` — ohne Fehler, ohne Log. Gemessen an einem
- * Artikel mit 12 Stück im Schrank und einer Anforderung über 3.
- *
- * ⚠️ FÜR EIN FAHRZEUG IST DER BEREICH EINELEMENTIG (`[fahrzeugId]`). Wer dort
- * `handlagerOrte` einsetzt, bucht Handlagerbestand vom Fahrzeug ab.
+ * Was BEIDE Einstiege gemeinsam haben. Sie verteilen `menge` FEFO über die
+ * Chargen des Artikels (Rest > 0, aufsteigender Verfall), kappen am dortigen
+ * Bestand und schreiben je (Charge, Ort) EINE Abgangsbuchung — auf den Ort, an
+ * dem der Bestand wirklich liegt. Verschieden ist allein, WO gesucht wird.
  *
  * `chargeId` (DRK-297, Nachtrag Aufgabe 6) schraenkt die Verteilung auf GENAU
  * diese eine Charge ein — fuer `inventurKorrektur`s Chargenweg: die Person hat
@@ -77,21 +77,53 @@ export type Teil = FefoTeil;
  * Inventur-Position (die genau diese `chargeId` traegt) ab. Ohne `chargeId`
  * bleibt das Verhalten unveraendert: FEFO ueber ALLE Chargen des Artikels.
  */
-export function fefoAbbuchung(
-  tx: Tx,
-  args: {
-    artikelId: string;
-    menge: number;
-    orte?: readonly string[];
-    chargeId?: string;
-    quelle: Quelle;
-    kommentar: string | null;
-    referenz: string | null;
-    typ?: "entnahme" | "korrektur" | "umlagerung";
-  },
+export type AbbuchungArgs = {
+  artikelId: string;
+  menge: number;
+  chargeId?: string;
+  quelle: Quelle;
+  kommentar: string | null;
+  referenz: string | null;
+  typ?: "entnahme" | "korrektur" | "umlagerung";
+};
+
+/**
+ * DER BEREICHS-EINSTIEG. `bereich` ist ein `Lagerbereich` aus `teilbaum`
+ * (`domain/orte.ts`); ohne Angabe der ganze Handlager, wie bisher.
+ *
+ * ⚠️ DER BEREICH IST DER GRUND DES SCOPINGS (DRK-297). Vorher scopte die
+ * Funktion auf EINE `lagerortId`; lag der Bestand in einem Schrank, lieferte
+ * sie `gebucht: 0` und `teile: []` — ohne Fehler, ohne Log. Gemessen an einem
+ * Artikel mit 12 Stück im Schrank und einer Anforderung über 3.
+ *
+ * ⚠️ DRK-354 — eine nackte Liste wie `[fahrzeugId]` wird hier ABGELEHNT; fuer
+ * einen einzelnen Ort steht `fefoAbbuchungAnOrt` daneben.
+ */
+export function fefoAbbuchungImBereich(
+  tx: Tx, args: AbbuchungArgs & { bereich?: Lagerbereich },
+): { gebucht: number; teile: Teil[] } {
+  return abbuchen(tx, args, args.bereich ?? handlagerOrte(tx));
+}
+
+/**
+ * DER EINZELORT-EINSTIEG — heute immer ein Fahrzeug oder ein einzelner Schrank.
+ *
+ * ⚠️ DRK-354 — `ort` ist EINE ID, keine Liste; damit wird `handlagerOrte(tx)`
+ * hier vom Compiler ABGELEHNT. Genau diese Verwechslung buchte sonst
+ * Handlagerbestand vom Fahrzeug ab, und in einer frisch migrierten
+ * Testdatenbank waere sie unsichtbar, weil dort beide Bestaende identisch sind.
+ */
+export function fefoAbbuchungAnOrt(
+  tx: Tx, args: AbbuchungArgs & { ort: string },
+): { gebucht: number; teile: Teil[] } {
+  return abbuchen(tx, args, [args.ort]);
+}
+
+function abbuchen(
+  tx: Tx, args: AbbuchungArgs, orte: readonly string[],
 ): { gebucht: number; teile: Teil[] } {
   const {
-    artikelId, menge, orte = handlagerOrte(tx), chargeId, quelle, kommentar, referenz,
+    artikelId, menge, chargeId, quelle, kommentar, referenz,
     typ = "entnahme",
   } = args;
 

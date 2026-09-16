@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "./schema";
-import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
+import { fefoAbbuchungImBereich } from "../_lib/schreibpfade/abbuchung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
@@ -57,7 +57,7 @@ describe("verschiedener Verfall — die frueher ablaufende Charge zuerst", () =>
      */
     chargeMitBestand("aaa", "2026-09", new Date("2026-01-01T00:00:00Z"), 5);
     chargeMitBestand("zzz", "2026-07", new Date("2026-03-01T00:00:00Z"), 5);
-    const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
+    const r = t.db.transaction((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 7, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
     expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5, vonLagerortId: HANDLAGER_ID }, { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID }]);
@@ -84,7 +84,7 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
      */
     chargeMitBestand("aaa", "2026-07", new Date("2026-02-01T00:00:00Z"), 5);
     chargeMitBestand("zzz", "2026-07", new Date("2026-01-01T00:00:00Z"), 5);
-    const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
+    const r = t.db.transaction((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 7, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
     expect(r.teile).toEqual([{ chargeId: "zzz", menge: 5, vonLagerortId: HANDLAGER_ID }, { chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID }]);
@@ -97,7 +97,7 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
     const gleich = new Date("2026-01-01T00:00:00Z");
     chargeMitBestand("zzz", "2026-07", gleich, 2);
     chargeMitBestand("aaa", "2026-07", gleich, 2);
-    const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
+    const r = t.db.transaction((tx) => fefoAbbuchungImBereich(tx, {
       artikelId: "a1", menge: 3, quelle: { quelleTyp: "system", quelleId: "t" },
       kommentar: null, referenz: null }));
     expect(r.teile).toEqual([{ chargeId: "aaa", menge: 2, vonLagerortId: HANDLAGER_ID }, { chargeId: "zzz", menge: 1, vonLagerortId: HANDLAGER_ID }]);
@@ -108,7 +108,7 @@ describe("gleicher Verfall — die AELTERE Charge wird zuerst verbraucht", () =>
     chargeMitBestand("b", "2026-07", gleich, 4);
     chargeMitBestand("a", "2026-07", gleich, 4);
     const lauf = () => t.db.transaction((tx) => {
-      const r = fefoAbbuchung(tx, {
+      const r = fefoAbbuchungImBereich(tx, {
         artikelId: "a1", menge: 2, quelle: { quelleTyp: "system", quelleId: "t" },
         kommentar: null, referenz: null });
       // Zuruecksetzen ist unmoeglich (Append-only) — deshalb wird die zweite
@@ -130,7 +130,7 @@ describe("DRK-297 — der vierte Sortierrang gegen eine ECHTE Verbindung", () =>
    * Seit dieser Aufgabe liegt dieselbe Charge an mehreren Orten im Bereich —
    * genau der Fall, den `_lib/domain/fefo.ts` schon als reine Funktion prueft
    * (`_lib/domain/fefo.test.ts`, „der vierte Sortierrang"), hier aber zum
-   * ersten Mal ueber eine echte `fefoAbbuchung`-Abfrage.
+   * ersten Mal ueber eine echte `fefoAbbuchungImBereich`-Abfrage.
    *
    * ⚠️ DIE ORTS-IDs SIND ABSICHTLICH GEGENLAEUFIG ZUR SORTIERUNG GEWAEHLT:
    * "z-schrank" hat die KLEINERE `sortierung` (10, fachlich vorn), "a-schrank"
@@ -156,8 +156,8 @@ describe("DRK-297 — der vierte Sortierrang gegen eine ECHTE Verbindung", () =>
       }).run();
     }
 
-    const r = t.db.transaction((tx) => fefoAbbuchung(tx, {
-      artikelId: "a1", menge: 3, orte: handlagerOrte(tx),
+    const r = t.db.transaction((tx) => fefoAbbuchungImBereich(tx, {
+      artikelId: "a1", menge: 3, bereich: handlagerOrte(tx),
       quelle: { quelleTyp: "system", quelleId: "t" }, kommentar: null, referenz: null }));
 
     expect(r.teile).toEqual([{ chargeId: "c1", menge: 3, vonLagerortId: "z-schrank" }]);

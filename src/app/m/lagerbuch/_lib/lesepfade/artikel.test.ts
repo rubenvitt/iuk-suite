@@ -5,6 +5,7 @@ import {
   artikelListe, artikelDetail, artikelDetailHelfer, chargenMitRest,
   chargenJeArtikelAmLagerort,
 } from "./artikel";
+import { restJeChargeAnOrt } from "./bestand";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -98,8 +99,14 @@ describe("chargenMitRest — Handlager als Vorgabe", () => {
     expect(new Map(cs.map((c) => [c.id, c.rest]))).toEqual(
       new Map([["c-spaet", 5], ["c-frueh", 7], ["c-leer", 0]]));
   });
-  it("liefert auf Wunsch den Rest an einem anderen Lagerort", () => {
-    expect(chargenMitRest(t.db, "a1", ["rtw"]).find((c) => c.id === "c-frueh")?.rest).toBe(4);
+  /**
+   * DRK-354 — DER DRITTE PARAMETER IST WEG (`chargenMitRest` ist jetzt
+   * handlager-gebunden). Was er konnte, kann `restJeChargeAnOrt` genauer: er
+   * nimmt eine ID statt einer Liste, in die der Handlager-Bereich ebenso
+   * hineingepasst haette.
+   */
+  it("den Rest an einem anderen Lagerort liefert restJeChargeAnOrt", () => {
+    expect(restJeChargeAnOrt(t.db, "rtw").get("c-frueh")).toBe(4);
   });
   it("nennt jede Charge, auch die aufgebrauchte — mit rest 0, nicht fehlend", () => {
     expect(chargenMitRest(t.db, "a1")).toHaveLength(3);

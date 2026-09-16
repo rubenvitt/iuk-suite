@@ -10,8 +10,8 @@ import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerkunft";
-import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
-import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { fefoAbbuchungImBereich } from "../_lib/schreibpfade/abbuchung";
+import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte, ortStamm } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
@@ -234,17 +234,17 @@ export async function bucheEntnahme(
           if (!istAktivesFahrzeug(tx, zielFahrzeug)) {
             throw new Error("Ziel ist kein gültiges, aktives Fahrzeug");
           }
-          gebucht = umlagerung(tx, {
+          gebucht = umlagerungAusBereich(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
-            vonOrten: handlagerOrte(tx),
+            vonBereich: handlagerOrte(tx),
             nachLagerortId: zielFahrzeug,
             quelle,
             kommentar: v.kommentar ?? null,
             referenz: `entnahme-ziel:${zielFahrzeug}`,
           }).umgelagert;
         } else {
-          gebucht = fefoAbbuchung(tx, {
+          gebucht = fefoAbbuchungImBereich(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
             quelle,
@@ -371,12 +371,13 @@ export async function bucheUmlagerung(
           throw new Error("Das Ziel ist stillgelegt und nimmt kein Material mehr auf");
         }
 
-        umgelagert = umlagerung(tx, {
+        umgelagert = umlagerungVonOrt(tx, {
           artikelId: v.artikelId,
           menge: v.menge,
-          // EINELEMENTIG: genau dieser Ort, nicht sein Teilbaum. Ein Bereich
-          // holte sich die fehlende Menge still aus dem Nachbarschrank.
-          vonOrten: [v.vonLagerortId],
+          // GENAU DIESER ORT, nicht sein Teilbaum. Ein Bereich holte sich die
+          // fehlende Menge still aus dem Nachbarschrank — seit DRK-354 haelt
+          // `umlagerungVonOrt` das fest, statt es einem Prueffer zu ueberlassen.
+          vonOrt: v.vonLagerortId,
           nachLagerortId: v.nachLagerortId,
           chargeId: v.chargeId,
           quelle,
@@ -541,16 +542,16 @@ export async function bucheEntnahmeHelfer(
              * missdeuten; die Charge wandert mit, damit das Fahrzeug die
              * Verfall-Herkunft behält.
              */
-            umlagerung(tx, {
+            umlagerungAusBereich(tx, {
               artikelId: v.artikelId,
               menge: v.menge,
-              vonOrten: handlagerOrte(tx),
+              vonBereich: handlagerOrte(tx),
               nachLagerortId: ziel.lagerortId,
               quelle,
               kommentar: null,
               referenz: `entnahme-ziel:${ziel.lagerortId}`,
             }).umgelagert
-          : fefoAbbuchung(tx, {
+          : fefoAbbuchungImBereich(tx, {
               artikelId: v.artikelId,
               menge: v.menge,
               quelle,

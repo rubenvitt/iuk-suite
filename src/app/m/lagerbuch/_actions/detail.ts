@@ -179,7 +179,11 @@ export async function getDetail(
           id: o.id, name: o.name, zugangshinweis: o.zugangshinweis,
         })),
       ],
-      handlagerOrtIds: handlagerOrte(db),
+      // DRK-354 — HIER ENDET DER BEREICH als Typ: die Liste geht als Prop in
+      // eine Client-Insel, und die stellt nur die Frage „liegt dieser Ort im
+      // Handlager?" (`new Set(...)`). Ein `Lagerbereich` ueberquert die
+      // RSC-Grenze ohnehin als nacktes Array; die Kopie sagt das hin.
+      handlagerOrtIds: [...handlagerOrte(db)],
     },
   };
 }
