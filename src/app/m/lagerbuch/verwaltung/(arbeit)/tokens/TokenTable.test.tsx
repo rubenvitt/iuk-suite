@@ -616,7 +616,11 @@ describe("NeuToken", () => {
 
     expect(Array.from(
       document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
-    ).map((option) => option.textContent)).toEqual(["Rucksack Betreuung"]);
+    ).map((option) => option.textContent))
+      // DRK-309, Reviewrunde 4: die Art steht auch im Label — ein laminiertes
+      // Kärtchen klebt hinterher am gewählten Träger, und zwei gleichnamige
+      // Einheiten sind in einer Liste aus bloßen Namen nicht zu trennen.
+      .toEqual(["Rucksack Betreuung · Tasche"]);
   });
 
   it("sendet die Artikel-Liste ohne erfundene Zielart und zeigt den Code im offenen Modal", async () => {

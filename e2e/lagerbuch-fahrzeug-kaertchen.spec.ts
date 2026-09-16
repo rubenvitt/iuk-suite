@@ -88,7 +88,7 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     /*
      * DER TAB-WEG, und er ist der wichtigere von beiden: die Tab-Leiste zeigt
      * auf das nackte `/helfer/check` (`_ui/HelferRahmen.tsx`). Ohne die Bindung
-     * landete die Helferin nach einem einzigen Tipp auf „Fahrzeug-Check" wieder
+     * landete die Helferin nach einem einzigen Tipp auf „Check" wieder
      * in der Liste aller Fahrzeuge — der Scan waere dann eine Vorauswahl
      * gewesen, kein Kontext.
      */

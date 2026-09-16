@@ -53,15 +53,17 @@ export type ChecksTabelleProps = {
  * beides liest niemand zusammen. Volle Begruendung: `core/tabelle/sortierer.ts`
  * (DRK-331, fuenfte Reviewrunde).
  *
- * Die Fahrzeugliste im SPALTENFILTER entsteht aus den GELADENEN Zeilen. Der
- * Fahrzeugfilter ueber der Tabelle (`ChecksFilter`) bleibt daneben stehen und
+ * Die Einheitenliste im SPALTENFILTER entsteht aus den GELADENEN Zeilen. Der
+ * Einheitenfilter ueber der Tabelle (`ChecksFilter`) bleibt daneben stehen und
  * ist nicht dasselbe: er greift VOR dem Deckel und findet damit auch Checks,
  * die hier gar nicht liegen.
  */
 function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["columns"] {
   return [
     {
-      title: "Fahrzeug",
+      // DRK-309: NEUTRAL — die Spalte listet Fahrzeuge UND Taschen
+      // untereinander, und die Zeile nennt die Einheit beim Namen.
+      title: "Einheit",
       dataIndex: "fahrzeugName",
       key: "fahrzeug",
       filters: werteAlsFilter(zeilen, (zeile) => zeile.fahrzeugName),

@@ -165,9 +165,15 @@ export function checksInhalt(
       />
       <ChecksTabelle
         zeilen={zeilen}
+        /*
+          DRK-309: NEUTRAL. Beide Leertexte sprechen ueber die ganze Liste,
+          nicht ueber eine bestimmte Einheit — und die Liste mischt Fahrzeuge
+          und Taschen. „Noch kein abgeschlossener Fahrzeug-Check" waere unter
+          einem gesetzten Taschenfilter sogar nachweislich falsch.
+        */
         leertext={hatFilter
-          ? "Kein Check passt zu Fahrzeug und Zeitraum."
-          : "Noch kein abgeschlossener Fahrzeug-Check."}
+          ? "Kein Check passt zu Einheit und Zeitraum."
+          : "Noch kein abgeschlossener Check."}
       />
     </>
   );

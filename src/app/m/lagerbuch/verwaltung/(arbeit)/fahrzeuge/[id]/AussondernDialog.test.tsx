@@ -12,6 +12,7 @@ vi.mock("../../../../_actions/aussondernLagerort", () => ({
   aussondernVomLagerort: (...args: unknown[]) => mocks.aussondern(...args),
 }));
 
+import type { Einheitenart } from "../../../../_lib/konstanten";
 import { AussondernDialog } from "./AussondernDialog";
 
 const CHARGEN = [
@@ -63,7 +64,7 @@ async function oeffne(): Promise<void> {
   );
 }
 
-function zeige(bestand = 10) {
+function zeige(bestand = 10, einheitenart: Einheitenart | null = "fahrzeug") {
   return mount(
     <AussondernDialog
       lagerortId="fz-1"
@@ -73,6 +74,7 @@ function zeige(bestand = 10) {
       bestand={bestand}
       chargen={CHARGEN}
       verfall="2020-01"
+      einheitenart={einheitenart}
     />,
   );
 }
@@ -121,6 +123,29 @@ describe("AussondernDialog", () => {
 
     expect(existsPortal("[role='dialog']")).toBe(true);
     expect(document.body.textContent).toContain("Hier liegen nur 2 Stück.");
+  });
+});
+
+/**
+ * DRK-309, Reviewrunde 4 — DER HINWEIS SAGT, WO DIE PACKUNGEN LIEGEN.
+ *
+ * ⚠️ DIESER DIALOG VERNICHTET BESTAND. „Das früheste Datum, das jetzt noch im
+ * Fahrzeug auf einer Packung steht" unter einer Tasche ist derselbe
+ * Widerspruch wie „Fahrzeug löschen" über einem Chip „Tasche" — an der Stelle,
+ * an der jemand eine unumkehrbare Menge bestätigt. Geprüft wird über alle drei
+ * Arten, weil der Zwischenstand auf das neutrale Wort fallen muss und nicht
+ * auf „Fahrzeug" zurück.
+ */
+describe("Der Hinweis unter dem Monatswaehler folgt der Art", () => {
+  it.each([
+    ["fahrzeug", "im Fahrzeug"],
+    ["tasche", "in der Tasche"],
+    [null, "in der Einheit"],
+  ] as const)("%s → „%s\"", async (art, ort) => {
+    await zeige(10, art);
+    await oeffne();
+    expect(document.body.textContent)
+      .toContain(`Das früheste Datum, das jetzt noch ${ort} auf einer Packung steht.`);
   });
 });
 

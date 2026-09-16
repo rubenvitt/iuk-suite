@@ -416,7 +416,7 @@ describe("Checks-Seite", () => {
       ],
     });
     expect(tabelle.zeilen.map((zeile) => zeile.id)).toEqual(["check-trotz-ungueltig"]);
-    expect(tabelle.leertext).toBe("Noch kein abgeschlossener Fahrzeug-Check.");
+    expect(tabelle.leertext).toBe("Noch kein abgeschlossener Check.");
   });
 
   it("behält gültige umgekehrte Grenzen sichtbar und zeigt den gefilterten Leertext", () => {
@@ -435,7 +435,7 @@ describe("Checks-Seite", () => {
       hinweise: ["Der Zeitraum ist leer: „von“ liegt nach „bis“."],
     });
     expect(tabelle.zeilen).toEqual([]);
-    expect(tabelle.leertext).toBe("Kein Check passt zu Fahrzeug und Zeitraum.");
+    expect(tabelle.leertext).toBe("Kein Check passt zu Einheit und Zeitraum.");
   });
 
   it("ignoriert unbekannte Fahrzeug-IDs und sortiert die Auswahl deutsch nach Namen", () => {

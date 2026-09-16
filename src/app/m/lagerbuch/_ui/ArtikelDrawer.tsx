@@ -36,7 +36,7 @@ import {
   pruefeLoeschbar,
 } from "../_actions/loeschen";
 import { ampelTon, fmtVerfall } from "../_lib/format";
-import { einheitenartLabel, type Einheitenart } from "../_lib/konstanten";
+import { einheitenartLabel, einheitMeta, type Einheitenart } from "../_lib/konstanten";
 import { journalZeile } from "../_lib/journalZeile";
 import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
@@ -409,18 +409,26 @@ export function ArtikelDrawer({
   /**
    * ⚠️ DIE ART STEHT IN DEN SUCHWORTEN, NICHT IM SICHTBAREN LABEL (DRK-309).
    *
-   * Beides waere vertretbar; die Abwaegung ist, was die Liste LEISTEN muss.
-   * Sie ist eine Auswahl unter Namen, und „Rucksack Betreuung · nicht
-   * zugeordnet" macht jede Zeile laenger, ohne die Wahl zu erleichtern — der
-   * Name unterscheidet die Eintraege bereits. Was ohne die Art NICHT ginge,
-   * ist das Finden: wer „tasche" tippt, meint die Art und nicht die
-   * Schreibweise, und eine „Sanitätstasche 1" heisst zufaellig so, ein
-   * „Rucksack Betreuung" nicht. Die Beschriftung des Feldes darueber sagt
-   * ohnehin „Ziel-Einheit" und behauptet kein Fahrzeug mehr.
+   * ⚠️ DIE ART STEHT IM LABEL, NICHT NUR IN DEN SUCHWORTEN — Kehrtwende aus
+   * Reviewrunde 4, und der Grund ist nachpruefbar statt geschmacklich:
+   * `lagerorte.name` traegt KEINEN Eindeutigkeitsschluessel (`_db/schema.ts`).
+   * Zwei Zeilen duerfen also gleich heissen, und dann sind sie in einer Liste
+   * aus blossen Namen nicht mehr auseinanderzuhalten. Die frueher hier
+   * notierte Abwaegung („der Name unterscheidet die Eintraege bereits") setzte
+   * genau das voraus, was das Schema nicht zusagt.
+   *
+   * ⚠️ DIESELBE FORM WIE AUF DEM HELFERSCHIRM (`_ui/FahrzeugWahl.tsx`):
+   * „Art · Kennung" hinter dem Namen. Zwei Flaechen, die dieselbe Einheit
+   * waehlen lassen, fuehren keine zwei Schreibweisen fuer dieselbe Zeile.
+   * Die Kennung steht nur, wenn es eine gibt; die Art steht immer — auch der
+   * Zwischenstand, der „nicht zugeordnet" sagt statt zu schweigen.
+   *
+   * Die Suchworte bleiben daneben bestehen: wer „tasche" tippt, meint die Art
+   * und nicht die Schreibweise, und das trifft jetzt Label UND Schluessel.
    */
   const fahrzeugOptionen = fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
-    label: fahrzeug.name,
+    label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
     keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
       .filter(Boolean).join(" "),
   }));

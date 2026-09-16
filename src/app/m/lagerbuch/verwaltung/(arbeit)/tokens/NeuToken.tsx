@@ -4,7 +4,11 @@ import { useState, useTransition } from "react";
 import { Alert, Button, Form, Input, Modal, Radio, Select } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { createToken } from "../../../_actions/tokens";
-import { einheitenartLabel, type Einheitenart } from "../../../_lib/konstanten";
+import {
+  einheitenartLabel,
+  einheitMeta,
+  type Einheitenart,
+} from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Ikone } from "../../../_ui/ikonen";
 
@@ -98,9 +102,18 @@ export function NeuToken({
 
   const fahrzeugOptionen: ZielOption[] = ziele.fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
-    label: fahrzeug.name,
-    // DRK-309: „tasche" findet jede Tasche, auch ohne das Wort im Namen und
-    // ohne Kennung — dieselbe Regel wie in der Zielwahl der Artikelschublade.
+    /*
+     * ⚠️ DIE ART STEHT IM LABEL, NICHT NUR IN DEN SUCHWORTEN (DRK-309,
+     * Reviewrunde 4) — und hier kostet ein Griff danebem mehr als anderswo:
+     * das Kärtchen wird laminiert und klebt danach am gewählten Träger.
+     * `lagerorte.name` trägt keinen Eindeutigkeitsschlüssel, ein Fahrzeug und
+     * eine Tasche dürfen also gleich heißen; eine Liste aus bloßen Namen kann
+     * sie dann nicht auseinanderhalten. Dieselbe Form wie auf dem
+     * Helferschirm und in der Artikelschublade.
+     */
+    label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+    // „tasche" findet jede Tasche, auch ohne das Wort im Namen und ohne
+    // Kennung — die Suchworte bleiben neben dem Label bestehen.
     keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
       .filter(Boolean).join(" "),
   }));

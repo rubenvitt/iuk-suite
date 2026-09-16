@@ -9,7 +9,7 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
   EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
-  einheitNomen, dieseEinheit, ausDieserEinheit, inDieEinheit, inDerEinheit,
+  einheitNomen, einheitMeta, dieseEinheit, ausDieserEinheit, inDieEinheit, inDerEinheit,
   checklisteTitel, grossAmAnfang,
 } from "./konstanten";
 import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
@@ -154,6 +154,16 @@ describe("Enum-Listen", () => {
     expect(checklisteTitel("fahrzeug")).toBe("Fahrzeug-Checkliste");
     expect(checklisteTitel("tasche")).toBe("Taschen-Checkliste");
     expect(checklisteTitel(null)).toBe("Checkliste");
+
+    /*
+     * ⚠️ DIE BEIZEILE TRAEGT IMMER ETWAS. Genau das war frueher nicht so: ohne
+     * die Art blieb sie fuer eine Tasche LEER, weil eine Tasche kein
+     * Kennzeichen traegt — und der Name allein musste die Art mittragen.
+     */
+    expect(einheitMeta({ kennung: "MS-1", einheitenart: "fahrzeug" }))
+      .toBe("Fahrzeug · MS-1");
+    expect(einheitMeta({ kennung: null, einheitenart: "tasche" })).toBe("Tasche");
+    expect(einheitMeta({ kennung: null, einheitenart: null })).toBe("nicht zugeordnet");
 
     expect(grossAmAnfang(inDieEinheit("tasche"))).toBe("In die Tasche");
     for (const art of [...EINHEITENARTEN, null] as const) {

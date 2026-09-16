@@ -149,6 +149,30 @@ export function einheitNomen(art: Einheitenart | null): string {
   return art === null ? "Einheit" : EINHEITENART_LABEL[art];
 }
 
+/**
+ * Die Beizeile einer Einheit: „Fahrzeug · MS-E2E-1" · „Tasche" ·
+ * „nicht zugeordnet".
+ *
+ * ⚠️ EINE FUNKTION, WEIL DREI FLAECHEN DIESELBE ZEILE FUEHREN (DRK-309,
+ * Reviewrunde 4): der Helferschirm (`_ui/FahrzeugWahl.tsx`) und die beiden
+ * Zielwahlen in der Verwaltung (Artikelschublade, Zugangs-Codes). Zwei
+ * Schreibweisen fuer dieselbe Zeile sind auf zwei Bildschirmen, die dieselbe
+ * Einheit waehlen lassen, ein eigener kleiner Fehler.
+ *
+ * ⚠️ DIE ART STEHT IMMER, DIE KENNUNG NUR, WENN ES EINE GIBT. Eine Tasche
+ * traegt kein Kennzeichen — ohne die Art bliebe ihre Beizeile leer, und der
+ * Name allein muesste die Art tragen („Rucksack Betreuung" tut das nicht).
+ * Der Zwischenstand sagt „nicht zugeordnet" statt zu schweigen: hier ist das
+ * Wort eine ZUSTANDSANZEIGE und kein Nomen im Satz, also `einheitenartLabel`
+ * und nicht `einheitNomen`.
+ */
+export function einheitMeta(
+  einheit: { kennung: string | null; einheitenart: Einheitenart | null },
+): string {
+  return [einheitenartLabel(einheit.einheitenart), einheit.kennung]
+    .filter(Boolean).join(" · ");
+}
+
 /** „dieses Fahrzeug" · „diese Tasche" · „diese Einheit". */
 export function dieseEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "dieses Fahrzeug";

@@ -64,7 +64,7 @@ export function ChecksFilter({
           filterOption={fahrzeugFilter}
           value={fz || undefined}
           onChange={(wert) => schreibe({ fz: wert ?? "" })}
-          placeholder="Alle Fahrzeuge"
+          placeholder="Alle Einheiten"
           aria-label="Einheit"
           style={{ minWidth: 220 }}
           options={fahrzeuge.map((fahrzeug) => ({

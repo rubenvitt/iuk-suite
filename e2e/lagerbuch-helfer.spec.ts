@@ -523,7 +523,9 @@ test.describe("Falle 63 — aria-current an drei Einstiegen", () => {
    */
   const EINSTIEGE = [
     { pfad: "/helfer", tab: "Entnahme" },
-    { pfad: "/helfer/check", tab: "Fahrzeug-Check" },
+    // DRK-309: der Tab heisst neutral „Check" — er fuehrt erst zur Wahl der
+    // Einheit und kann die Art an dieser Stelle gar nicht kennen.
+    { pfad: "/helfer/check", tab: "Check" },
   ];
 
   for (const e of EINSTIEGE) {

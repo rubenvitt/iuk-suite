@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { einheitenartLabel, type Einheitenart } from "../_lib/konstanten";
+import { einheitMeta, type Einheitenart } from "../_lib/konstanten";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -69,8 +69,7 @@ export function FahrzeugWahl({
                 mittragen, und „Rucksack Betreuung" tut das nicht.
               */}
               <div className={s.zeileMeta}>
-                {[einheitenartLabel(f.einheitenart), f.kennung]
-                  .filter(Boolean).join(" · ")}
+                {einheitMeta(f)}
               </div>
             </div>
             <Ikone name="chevron-rechts" />

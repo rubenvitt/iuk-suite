@@ -82,7 +82,7 @@ describe("ChecksTabelle", () => {
     await mount(<ChecksTabelle zeilen={[ZEILE]} leertext="Noch kein Check." />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Fahrzeug", "Abgeschlossen", "Ergebnis", "Positionen"]);
+      .toEqual(["Einheit", "Abgeschlossen", "Ergebnis", "Positionen"]);
     const tabelle = query("table");
     expect(tabelle.getAttribute("aria-label")).toBe("Checks");
     const zeile = query("tr[data-row-key='check-42']");
@@ -158,11 +158,11 @@ describe("ChecksTabelle", () => {
     await mount(
       <ChecksTabelle
         zeilen={[]}
-        leertext="Kein Check passt zu Fahrzeug und Zeitraum."
+        leertext="Kein Check passt zu Einheit und Zeitraum."
       />,
     );
 
     expect(document.body.textContent)
-      .toContain("Kein Check passt zu Fahrzeug und Zeitraum.");
+      .toContain("Kein Check passt zu Einheit und Zeitraum.");
   });
 });

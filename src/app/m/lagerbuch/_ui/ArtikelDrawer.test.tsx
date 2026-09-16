@@ -392,7 +392,15 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
     const optionen = Array.from(
       document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
     ).map((option) => option.textContent);
-    expect(optionen).toEqual(["Rucksack Betreuung"]);
+    /*
+     * ⚠️ DIE ART STEHT AUCH IM LABEL (DRK-309, Reviewrunde 4), nicht nur in
+     * den Suchworten. `lagerorte.name` trägt keinen Eindeutigkeitsschlüssel:
+     * ein Fahrzeug und eine Tasche dürfen gleich heißen, und eine Liste aus
+     * bloßen Namen könnte sie dann nicht auseinanderhalten. Die Zusicherung
+     * hält deshalb BEIDES fest — dass „tasche" trifft (die Suchworte) und
+     * dass die Zeile es zeigt (das Label).
+     */
+    expect(optionen).toEqual(["Rucksack Betreuung · Tasche"]);
   });
 
   it("bewahrt NEUE_CHARGE plus die serverseitige FEFO-Reihenfolge und blendet Neufelder bei Bestandscharge aus", async () => {

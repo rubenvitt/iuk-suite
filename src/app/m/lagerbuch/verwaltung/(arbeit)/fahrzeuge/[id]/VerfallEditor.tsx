@@ -185,6 +185,10 @@ export function VerfallEditor({
           // Mit ihr stuende im Dialog der alte Monat, und eine Teilaussonderung
           // schriebe ihn ueber den gerade gespeicherten zurueck.
           verfall={monatFuer(eintrag)}
+          // DRK-309: dieselbe Art wie die Kopfzeile und die Überschrift
+          // darüber — der Hinweis im Dialog sagt, wo die verbleibenden
+          // Packungen liegen.
+          einheitenart={einheitenart}
           // Dieselbe Sperre wie am Monatswähler oben: solange die Tabelle
           // selbst schreibt, bleibt der zweite Schreibweg zu.
           gesperrt={laeuft}
