@@ -155,6 +155,16 @@ const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
  * `e2e/lagerbuch-hosts.spec.ts` schreibt (Codex-Review zu PR #183); ohne ihn
  * blieben dort zwei von drei Zeilen ungeprueft.
  *
+ * ⚠️ OHNE DOPPELPUNKT MUSS DIE ZAHL DIREKT ANSCHLIESSEN, und das ist kein
+ * Feinschliff: mit einem Leerzeichen dazwischen frisst die Fortsetzung jede
+ * Zahlenliste hinter einem Anker. Gemessen an `m/radio/_lib/gateSchranke.ts`
+ * (Codex-Review zu PR #183): dort steht „(`./grenzen.ts:76-91`, 12/5/30/300)" —
+ * das sind VORBELEGUNGEN, keine Zeilen. Die lose Fassung las daraus vier
+ * weitere Zeilenangaben bis 300 und war nur deshalb gruen, weil `grenzen.ts`
+ * heute 366 Zeilen hat; ein Kuerzen der Datei haette den Riegel ueber
+ * Konfigurationswerte rot gefaerbt. Ein Riegel, der Falsches meldet, wird
+ * abgeschaltet statt gelesen.
+ *
  * ⚠️ UND DIE BACKTICKS DAZWISCHEN duerfen stehen: die Suite setzt jede
  * Fortsetzung gern in eigene Anfuehrungszeichen. Das ist keine Formalie — genau
  * diese Form deckte den bisher letzten echten Fund auf: eine radio-Zusage
@@ -167,9 +177,11 @@ const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
  */
 const ZAHL = "\\d+(?:\\s*[-–]\\s*\\d+)?";
 const FORTSETZUNG =
-  // entweder ein TRENNER (dann darf der Doppelpunkt fehlen: `:265,266`)
-  `(?:\`?\\s*(?:,|;|und|\\/)\\s*\`?:?${ZAHL}`
-  // oder KEIN Trenner, dann traegt der Doppelpunkt die Last: `…:18-20` `:82-86`
+  // mit TRENNER und Doppelpunkt: `…:181, :201-203`
+  `(?:\`?\\s*(?:,|;|und|\\/)\\s*\`?:${ZAHL}`
+  // mit TRENNER, ohne Doppelpunkt — dann aber DIREKT anschliessend: `:265,266`
+  + `|[,;\\/]${ZAHL}`
+  // ohne Trenner, dann traegt der Doppelpunkt die Last: `…:18-20` `:82-86`
   + `|\`?\\s*\`?:${ZAHL})`;
 
 const ZIEL = new RegExp(
@@ -606,6 +618,11 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
       .toEqual(["probeNotiz.ts:20", "probeNotiz.ts:86"]);
     expect(ziele("`probeBootstrap.ts:103` und `:138`"))
       .toEqual(["probeBootstrap.ts:103", "probeBootstrap.ts:138"]);
+
+    // ⚠️ OHNE Doppelpunkt muss die Zahl DIREKT anschliessen: eine Zahlenliste
+    // hinter dem Anker ist keine Fortsetzung, sondern sind Vorbelegungen.
+    expect(ziele("(`probeGrenzen.ts:76-91`, 12/5/30/300)"))
+      .toEqual(["probeGrenzen.ts:91"]);
 
     // Der Schraegstrich zaehlt ebenfalls als Trenner — `:413/423/437`.
     expect(ziele("`probeHosts.spec.ts:413/423/437`"))

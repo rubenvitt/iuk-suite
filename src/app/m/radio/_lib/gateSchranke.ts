@@ -3,8 +3,8 @@ import { grenzen } from "./grenzen";
 
 /**
  * DIE GATE-SCHRANKE DES MODULS `radio` — drei Zaehler, und sie zaehlen NUR
- * Fehlversuche (Spec 1 §3.7.2, `docs/superpowers/specs/2026-08-17-radio-modul-design.md`
- * :2996-3035).
+ * Fehlversuche (Spec 1 §3.7.2,
+ * `docs/superpowers/specs/2026-08-17-radio-modul-design.md:2996-3035`).
  *
  * KEIN "use client" in dieser Datei — Falle 6 (`CLAUDE.md`): ein WERT aus einem
  * Client-Modul kommt in einer Server Component nicht an, sondern als Client-Referenz,
