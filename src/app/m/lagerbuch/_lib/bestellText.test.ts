@@ -52,7 +52,7 @@ describe("bestellListeText", () => {
    * K-4: ohneKommentare() statt Rohtext-Scan — `bestellText.ts` traegt den
    * Satz „kein \"use client\"" woertlich in seinem eigenen Kopfkommentar, der
    * Scan waere sonst auf seiner eigenen Begruendung rot (vgl. bereits behobenen
-   * Selbstbezug in etikettMasse.test.ts / pwaIcons.test.ts / csvBestellung.test.ts).
+   * Selbstbezug in etikettMasse.test.ts / pwaIcons.test.ts / bestellExport.test.ts).
    */
   it("traegt kein use client", () => {
     const quelle = readFileSync(join(__dirname, "bestellText.ts"), "utf8");

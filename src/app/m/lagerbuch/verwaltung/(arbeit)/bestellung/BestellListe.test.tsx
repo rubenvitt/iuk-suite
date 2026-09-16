@@ -26,7 +26,7 @@ import {
 } from "./BestellListe";
 import type { BestellZeile } from "../../../_lib/lesepfade/bestellung";
 import { bestellAnzeigeZeile, dynamic } from "./page";
-import { baueBestellCsv, BESTELL_CSV_DATEINAME } from "@/app/m/lagerbuch/_lib/csvBestellung";
+import { BESTELL_DATEINAME } from "@/app/m/lagerbuch/_lib/bestellExport";
 import { bestellListeText } from "@/app/m/lagerbuch/_lib/bestellText";
 import s from "../../../_ui/verwaltung.module.css";
 
@@ -336,7 +336,7 @@ describe("Ausgabewege der Bestellliste (§9.1–§9.3)", () => {
   it("stellt beide Knoepfe frei", async () => {
     await mount(<BestellListe zeilen={ZEILEN} />);
     expect(query("[data-testid='lb-kopieren']").hasAttribute("disabled")).toBe(false);
-    expect(query("[data-testid='lb-csv']").hasAttribute("disabled")).toBe(false);
+    expect(query("[data-testid='lb-excel']").hasAttribute("disabled")).toBe(false);
   });
 
   /**
@@ -351,49 +351,47 @@ describe("Ausgabewege der Bestellliste (§9.1–§9.3)", () => {
   it("beschriftet den Zeilenumfang", async () => {
     await mount(<BestellListe zeilen={ZEILEN} />);
     expect(query("[data-testid='lb-kopieren']").textContent).toContain("Liste kopieren (nur offene)");
-    expect(query("[data-testid='lb-csv']").textContent).toContain("CSV (alle Zeilen)");
+    expect(query("[data-testid='lb-excel']").textContent).toContain("Excel (alle Zeilen)");
   });
 
-  it("baut die CSV aus allen Zeilen und benennt sie konstant", async () => {
-    const blobs: string[] = [];
-    vi.stubGlobal("Blob", class {
-      constructor(teile: string[]) { blobs.push(teile.join("")); }
-    });
-    const erzeugt = vi.fn().mockReturnValue("blob:x");
-    const frei = vi.fn();
-    vi.stubGlobal("URL", { createObjectURL: erzeugt, revokeObjectURL: frei });
-    // Ersetzt den echten Klick: jsdom kann `blob:x` nicht navigieren
-    // ("Not implemented: navigation") und ist ohnehin nicht der Pruefgegenstand
-    // — der Vertrag ist der `download`-Dateiname am Anker, byte-genau die
-    // Konstante aus `_lib/csvBestellung.ts`, nicht ein Datum.
-    let heruntergeladenAls: string | null = null;
-    const klick = vi.spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        heruntergeladenAls = this.download;
-      });
+  /**
+   * ⚠️ SEIT DRK-186 EINE MAPPE STATT EINER CSV, und damit prueft dieser Test
+   * etwas anderes als vorher: nicht mehr den Rumpf eines Blobs, sondern die
+   * Argumente, mit denen die Bibliothek gerufen wird. Der Weg selbst hat sich
+   * geaendert — kein `new Blob` und kein `URL.createObjectURL` mehr, das macht
+   * `write-excel-file` intern; die Insel ruft nur noch `xlsxHerunterladen`.
+   *
+   * DIE BIBLIOTHEK WIRD BEIM KLICK NACHGELADEN (9-E), deshalb der Mock auf den
+   * dynamischen Import und `vi.resetModules()` davor: ohne den Reset haelt
+   * Vitest den Import aus einem frueheren Fall im Modul-Cache fest und der neue
+   * Mock griffe nie (Muster aus `qr/HistoryOwner.test.tsx`).
+   */
+  it("baut die Mappe aus allen Zeilen und benennt sie konstant", async () => {
+    vi.resetModules();
+    let fertig: () => void = () => {};
+    const geschrieben = new Promise<void>((aufloesen) => { fertig = aufloesen; });
+    const toFile = vi.fn(() => { fertig(); return Promise.resolve(); });
+    const schreiben = vi.fn().mockReturnValue({ toFile });
+    vi.doMock("write-excel-file/browser", () => ({ default: schreiben }));
 
     await mount(<BestellListe zeilen={ZEILEN} />);
-    await clickElement(query("[data-testid='lb-csv']"));
+    await clickElement(query("[data-testid='lb-excel']"));
+    await act(async () => { await geschrieben; });
 
-    expect(blobs[0]).toBe(baueBestellCsv(ZEILEN.map((z) => ({
-      name: z.name, bestand: z.bestand, mindestbestand: z.mindestbestand,
-      vorschlag: z.vorschlag, einheit: z.einheit, bestellt: z.bestellt,
-    }))));
-    // Literalwerte gegen den Zeilenumfang: die CSV nimmt AUCH die bereits
+    const [mappe] = schreiben.mock.calls[0];
+    expect(mappe).toHaveLength(1);
+    const [blatt] = mappe;
+    expect(blatt.sheet).toBe("Bestellvorschlag");
+    // Literalwerte gegen den Zeilenumfang: die Mappe nimmt AUCH die bereits
     // bestellten Zeilen (BESTELLT, DA) mit — Kopfzeile + 3 Zeilen, alle drei
-    // Namen vertreten. Ein Vergleich nur gegen `baueBestellCsv(ZEILEN...)`
-    // (oben) waere zirkulaer, wenn dieselbe fehlerhafte Filterung an beiden
-    // Stellen einträte.
-    expect(blobs[0].split("\n")).toHaveLength(4);
-    expect(blobs[0]).toContain("Mullbinde");
-    expect(blobs[0]).toContain("Pflaster");
-    expect(blobs[0]).toContain("Kompresse");
-    expect(heruntergeladenAls).toBe(BESTELL_CSV_DATEINAME);
-    // Die Objekt-URL wird wieder freigegeben — sonst haelt jeder Download den
-    // Blob bis zum Seitenwechsel im Speicher.
-    expect(frei).toHaveBeenCalledWith("blob:x");
-    klick.mockRestore();
-    vi.unstubAllGlobals();
+    // Namen vertreten.
+    expect(blatt.data).toHaveLength(4);
+    const namen = blatt.data.slice(1).map((z: { value: unknown }[]) => z[0].value);
+    expect(namen).toContain("Mullbinde");
+    expect(namen).toContain("Pflaster");
+    expect(namen).toContain("Kompresse");
+    // Der Dateiname ist byte-genau die Konstante, kein Datum.
+    expect(toFile).toHaveBeenCalledWith(BESTELL_DATEINAME);
   });
 
   /**
