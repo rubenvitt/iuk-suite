@@ -142,9 +142,9 @@ export async function bucheZugang(
          * ⚠️ DER VORGANG SELBST STEHT SEIT DRK-313 IN
          * `_lib/schreibpfade/zugang.ts`, nicht mehr hier. Er hat einen ZWEITEN
          * Aufrufer bekommen (`bucheAuffuellung`, die Flaeche der GF), und an
-         * ihm haengen drei Invarianten — I5, das gueltige Ziel und das
-         * Loeschen der Bestellt-Markierung —, die in einer zweiten Fassung
-         * still fehlen koennten. Die Begruendung je Invariante steht dort
+         * ihm haengen vier Invarianten — I5, das gueltige Ziel, das Loeschen
+         * der Bestellt-Markierung und seit DRK-380 der AKTIVE Artikel —, die
+         * in einer zweiten Fassung still fehlen koennten. Die Begruendung je Invariante steht dort
          * ausgeschrieben.
          *
          * DIE WUERFE VON DORT ROLLEN DIE TRANSAKTION ZURUECK; der `catch`
@@ -733,7 +733,7 @@ export async function bucheAuffuellung(
        * und der zweite Zweig haette dieselbe Luecke ohne eine Zeile Aenderung
        * hier. Eine Abfrage fuer beide Arten kostet nichts und haengt an nichts.
        */
-      const artikelZeile = db.select({ id: artikel.id }).from(artikel)
+      const artikelZeile = db.select({ id: artikel.id, aktiv: artikel.aktiv }).from(artikel)
         .where(eq(artikel.id, v.artikelId)).get();
       if (!artikelZeile) {
         return {
@@ -742,6 +742,29 @@ export async function bucheAuffuellung(
           text:
             "Diesen Artikel gibt es nicht mehr — er wurde gelöscht. Bitte die " +
             "Seite neu laden; der Bestand ist davon nicht betroffen.",
+        };
+      }
+      /*
+       * ⚠️ DER DEAKTIVIERTE ARTIKEL — DRK-380, und er ist auf DIESER Flaeche
+       * nur ueber einen gemerkten Link oder einen Regal-QR erreichbar: die
+       * Artikelliste unter `/auffuellen` filtert inaktive weg
+       * (`artikelListe` ohne `inklInaktiv`). Das Fenster ist trotzdem echt —
+       * die Seite rendert, jemand legt den Artikel in der Verwaltung still,
+       * und erst danach wird gebucht.
+       *
+       * ⚠️ DER SATZ NENNT DEN WEG ZURUECK, nicht nur die Lage. Wer hier steht,
+       * hat den Karton in der Hand; „geht nicht" ohne Ausgang laesst ihn mit
+       * Material stehen, das er nirgends verbuchen kann. Die Verwaltung ist
+       * der einzige Ort, an dem der Schalter sitzt.
+       */
+      if (!artikelZeile.aktiv) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Dieser Artikel ist deaktiviert — auf ihn geht kein Material mehr zu. " +
+            "Der vorhandene Bestand lässt sich weiter entnehmen. Soll wieder " +
+            "aufgefüllt werden, muss die Verwaltung den Artikel zuerst aktivieren.",
         };
       }
 
