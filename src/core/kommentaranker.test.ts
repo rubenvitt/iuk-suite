@@ -142,12 +142,36 @@ const ZIEL = new RegExp(
   "g",
 );
 
-export type Anker = { ziel: string; bis: number };
+/**
+ * ⚠️ BEIDE ENDEN WERDEN GEFUEHRT, NICHT NUR `bis`. Die erste Fassung reduzierte
+ * eine Spanne auf ihre letzte Zahl und pruefte allein `bis > hat` — damit kamen
+ * zwei Formen durch (Codex-Review zu PR #183): ein Anker auf Zeile 0 (`0 > hat`
+ * ist falsch, und eine Zeile 0 gibt es in keiner Datei) und eine VERDREHTE
+ * Spanne, deren Anfang hinter dem Dateiende liegt und deren Ende auf Zeile 1
+ * zeigt — gruen, solange es eine Zeile 1 gibt. Ein Anker verspricht, dass JEDE
+ * genannte Zeile existiert; dann muss auch jede geprueft werden.
+ *
+ * (Die Beispiele stehen ohne `datei:zeile`-Schreibweise, siehe `zeilenzahlVon`:
+ * der Scan liest auch diese Datei.)
+ */
+export type Anker = { ziel: string; von: number; bis: number };
 
 export function ankerAusText(text: string): Anker[] {
   return [...text.matchAll(ZIEL)]
     .filter(([, ziel]) => !/^\d+$/.test(ziel))
-    .map(([, ziel, von, bis]) => ({ ziel, bis: Number(bis ?? von) }));
+    .map(([, ziel, von, bis]) => ({
+      ziel,
+      von: Number(von),
+      bis: Number(bis ?? von),
+    }));
+}
+
+/** Was an einer Spanne nicht stimmt — `null`, wenn sie in Ordnung ist. */
+export function spannenFehler(anker: Anker, hat: number): string | null {
+  if (anker.von < 1) return `Zeile ${anker.von} gibt es in keiner Datei`;
+  if (anker.bis < anker.von) return `die Spanne laeuft rueckwaerts`;
+  if (anker.bis > hat) return `die Datei hat ${hat} Zeilen`;
+  return null;
 }
 
 const zeilenzahl = new Map<string, number | null>();
@@ -235,7 +259,7 @@ function sammleQuellen(): string[] {
   return sammleDateien().filter(istQuelle);
 }
 
-type Befund = { quelle: string; zeile: number; anker: string; ziel: string; hat: number };
+type Befund = { quelle: string; zeile: number; anker: string; ziel: string; grund: string };
 
 function veralteteAnker(): { befunde: Befund[]; gepruefte: number } {
   const befunde: Befund[] = [];
@@ -244,18 +268,20 @@ function veralteteAnker(): { befunde: Befund[]; gepruefte: number } {
   for (const quelle of sammleQuellen()) {
     const inhalt = readFileSync(quelle, "utf8").split("\n");
     inhalt.forEach((text, i) => {
-      for (const { ziel, bis } of ankerAusText(text)) {
-        const pfad = aufloesen(quelle, ziel);
+      for (const anker of ankerAusText(text)) {
+        const pfad = aufloesen(quelle, anker.ziel);
         if (pfad === null) continue; // Alt-Anwendung, Fremdpaket — nicht pruefbar.
         gepruefte++;
         const hat = zeilen(pfad) ?? 0;
-        if (bis > hat) {
+        const fehler = spannenFehler(anker, hat);
+        if (fehler !== null) {
+          const spanne = anker.bis === anker.von ? `${anker.von}` : `${anker.von}-${anker.bis}`;
           befunde.push({
             quelle,
             zeile: i + 1,
-            anker: `${ziel}:${bis}`,
+            anker: `${anker.ziel}:${spanne}`,
             ziel: relative(".", pfad),
-            hat,
+            grund: fehler,
           });
         }
       }
@@ -269,7 +295,7 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
 
   it("kein `datei:zeile` im Repo zeigt hinter das Ende seiner Datei", () => {
     expect(
-      befunde.map((b) => `${b.quelle}:${b.zeile} → ${b.anker} (${b.ziel} hat ${b.hat} Zeilen)`),
+      befunde.map((b) => `${b.quelle}:${b.zeile} → ${b.anker} (${b.ziel}: ${b.grund})`),
       "Diese Kommentare verankern eine Aussage an einer Zeile, die es in der "
         + "genannten Datei NICHT GIBT. Zwei Ursachen, und die zweite ist die "
         + "haeufigere: (a) die Zieldatei ist geschrumpft — dann gehoert der Anker "
@@ -314,6 +340,23 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
         + "der Riegel es nie und bleibt gruen, waehrend dort ein veralteter "
         + "Anker steht. Ist es binaer, gehoert es in `NICHT_GELESEN`.",
     ).toEqual([]);
+  });
+
+  /**
+   * DIE BEIDEN SPANNEN-FORMEN, DIE DER ERSTE WURF DURCHLIESS: eine Zeile 0 und
+   * eine rueckwaerts laufende Spanne. Beide sind keine Spitzfindigkeit — sie
+   * entstehen beim Tippen, und beide behaupten eine Zeile, die es nicht gibt.
+   */
+  it("prueft beide Enden einer Spanne, nicht nur das letzte", () => {
+    const anker = (von: number, bis = von) => ({ ziel: "egal.ts", von, bis });
+
+    expect(spannenFehler(anker(1, 10), 99)).toBeNull();
+    expect(spannenFehler(anker(99), 99)).toBeNull();
+
+    expect(spannenFehler(anker(0), 99)).toMatch(/Zeile 0/);
+    expect(spannenFehler(anker(999, 1), 99)).toMatch(/rueckwaerts/);
+    expect(spannenFehler(anker(100), 99)).toMatch(/99 Zeilen/);
+    expect(spannenFehler(anker(90, 120), 99)).toMatch(/99 Zeilen/);
   });
 
   /**
