@@ -114,15 +114,27 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
      * { width: 100% }` im Portal-Prueflauf ist eine Layoutregel und gaebe beim
      * Umbenennen eine zu schmale Spalte — sichtbar, nicht still. Der Fall hier
      * faengt den stillen Bruch, nicht jede Kopplung.
+     *
+     * ⚠️ `font-size` UND DIE `font`-KURZFORM, und das zweite ist keine
+     * Vollstaendigkeitsgeste: `font: 14px/1 sans-serif` setzt die
+     * Schriftgroesze genauso, nur schreibt es sie nicht hin. Ein Riegel, der
+     * allein nach `font-size:` sucht, bleibt davor gruen — er waere damit
+     * genau die Sorte Zusicherung, gegen die dieser Fall ueberhaupt
+     * angetreten ist. Der modul-eigene Scan in `lagerbuch/_lib/schrift.test.ts`
+     * prueft beide Schreibweisen seit je; diese Haelfte hier duerfte nicht
+     * dahinter zurueckfallen.
      */
     const verstoesse: string[] = [];
+    // `font:` am Anfang einer Deklaration, nicht `font-family:`/`font-weight:`
+    // — die Grenze davor ist der Blockanfang oder ein Semikolon.
+    const SCHRIFTGROESZE = /(?:^|;)\s*font(?:-size)?\s*:/;
     for (const pfad of alleCss("src")) {
       const css = readFileSync(pfad, "utf8")
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/@[a-z-]+[^{;]*\{/gi, "");
       for (const treffer of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
         if (!/\.ant-select/.test(treffer[1])) continue;
-        if (!/font-size\s*:/.test(treffer[2])) continue;
+        if (!SCHRIFTGROESZE.test(treffer[2])) continue;
         verstoesse.push(`${pfad}: ${treffer[1].trim()}`);
       }
     }
