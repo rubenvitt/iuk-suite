@@ -8,12 +8,12 @@ import {
 } from "./gateTexte";
 
 describe("istGateGrund — ein GESCHLOSSENER Satz", () => {
-  it("erkennt genau die fuenf Werte", () => {
-    for (const g of ["code", "gesperrt", "abgelaufen", "zuviele", "anmeldung"]) {
+  it("erkennt genau die sechs Werte", () => {
+    for (const g of ["code", "gesperrt", "abgelaufen", "zuviele", "anmeldung", "keinZugriff"]) {
       expect(istGateGrund(g)).toBe(true);
     }
     expect([...GATE_GRUENDE].sort())
-      .toEqual(["abgelaufen", "anmeldung", "code", "gesperrt", "zuviele"]);
+      .toEqual(["abgelaufen", "anmeldung", "code", "gesperrt", "keinZugriff", "zuviele"]);
   });
 
   it("weist alles andere ab — ein searchParams-Wert ist NUTZEREINGABE", () => {
@@ -41,6 +41,8 @@ describe("gateMeldung — die einzige Stelle, an der diese Saetze stehen", () =>
       .toBe("Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.");
     expect(gateMeldung("anmeldung", null))
       .toBe("Deine Anmeldung ist abgelaufen. Melde dich erneut an.");
+    expect(gateMeldung("keinZugriff", null))
+      .toBe("Dein Konto hat keinen Zugriff auf das Lagerbuch. Wende dich an die Leitung.");
   });
 
   it("nennt das Kärtchen NUR im Kärtchen-Satz (DRK-305)", () => {
@@ -115,26 +117,55 @@ describe("die Typzusage", () => {
   });
 });
 
-describe("gateGrundFuerSperre — derselbe Zustand, zwei Herkuenfte (DRK-305)", () => {
-  it("ohne Konto heisst `sitzung` am Gate `abgelaufen`", () => {
-    expect(gateGrundFuerSperre("sitzung", false)).toBe("abgelaufen");
+const KAERTCHEN = { herkunft: "kaertchen" } as const;
+const SITZUNG_WEG = { herkunft: "konto", nochAngemeldet: false } as const;
+const GRUPPE_WEG = { herkunft: "konto", nochAngemeldet: true } as const;
+
+describe("gateGrundFuerSperre — ein Zustand, drei Lagen (DRK-305)", () => {
+  it("mit Kaertchen heisst `sitzung` am Gate `abgelaufen`", () => {
+    expect(gateGrundFuerSperre("sitzung", KAERTCHEN)).toBe("abgelaufen");
   });
 
-  it("mit Konto heisst `sitzung` am Gate `anmeldung`", () => {
-    expect(gateGrundFuerSperre("sitzung", true)).toBe("anmeldung");
+  it("angemeldet gewesen, Sitzung weg → `anmeldung`", () => {
+    expect(gateGrundFuerSperre("sitzung", SITZUNG_WEG)).toBe("anmeldung");
   });
 
-  it("`gesperrt` bleibt in BEIDEN Herkuenften `gesperrt`", () => {
+  it("NOCH angemeldet, aber Gruppe entzogen → `keinZugriff`", () => {
+    /*
+     * ⚠️ DER TRAEGER DES ZWEITEN BEFUNDS (P2 zu PR #169), und ohne ihn ist eine
+     * Fassung gruen, die eine SCHLEIFE baut: „Melde dich erneut an" schickt
+     * diese Person durch den ganzen Pocket-ID-Weg — und danach steht sie vor
+     * derselben Sperre, denn ihr fehlt nicht die Sitzung, sondern das Recht.
+     */
+    expect(gateGrundFuerSperre("sitzung", GRUPPE_WEG)).toBe("keinZugriff");
+  });
+
+  it("die drei Lagen liefern DREI verschiedene Saetze", () => {
+    // Mechanisch gegen das Zusammenlegen: zwei gleiche Saetze hiessen, dass
+    // eine der drei Lagen ihre Auskunft verloren hat.
+    const saetze = [KAERTCHEN, SITZUNG_WEG, GRUPPE_WEG]
+      .map((lage) => gateMeldung(gateGrundFuerSperre("sitzung", lage), null));
+    expect(new Set(saetze).size).toBe(3);
+  });
+
+  it("nur `anmeldung` fordert zum Anmelden auf", () => {
+    // Die Probe auf den Befund selbst: der Satz fuer die entzogene Gruppe darf
+    // genau das NICHT verlangen, sonst ist die Schleife wieder da.
+    expect(gateMeldung("keinZugriff", null)).not.toContain("Melde dich");
+    expect(gateMeldung("keinZugriff", null)).toContain("Leitung");
+  });
+
+  it("`gesperrt` bleibt in ALLEN Lagen `gesperrt`", () => {
     /*
      * Das ist kein vergessener Fall, sondern ein Befund aus `befund()`
      * (`_lib/helferZugang.ts`): `gesperrt` entsteht ausschliesslich MIT
      * Kaertchen-Cookie — die Token-Zeile ist weg oder stillgelegt. Wer diesen
      * Grund sieht, HAT also ein Kaertchen, und „wende dich an die Leitung"
-     * stimmt fuer ihn, ob er daneben angemeldet ist oder nicht. Ein zweiter
-     * Satz hier waere eine Unterscheidung ohne Unterschied.
+     * stimmt fuer ihn, wie auch immer es um sein Konto steht.
      */
-    expect(gateGrundFuerSperre("gesperrt", false)).toBe("gesperrt");
-    expect(gateGrundFuerSperre("gesperrt", true)).toBe("gesperrt");
+    for (const lage of [KAERTCHEN, SITZUNG_WEG, GRUPPE_WEG]) {
+      expect(gateGrundFuerSperre("gesperrt", lage)).toBe("gesperrt");
+    }
   });
 
   it("liefert nur Werte, die der Route Handler /abmelden weiterreichen darf", () => {
@@ -142,8 +173,8 @@ describe("gateGrundFuerSperre — derselbe Zustand, zwei Herkuenfte (DRK-305)", 
     // geschlossenen Satz durch (`abmelden/route.ts`). Ein Rueckgabewert
     // ausserhalb davon liefe dort still ins Leere.
     for (const grund of ["sitzung", "gesperrt"] as const) {
-      for (const konto of [true, false]) {
-        expect(istGateGrund(gateGrundFuerSperre(grund, konto))).toBe(true);
+      for (const lage of [KAERTCHEN, SITZUNG_WEG, GRUPPE_WEG]) {
+        expect(istGateGrund(gateGrundFuerSperre(grund, lage))).toBe(true);
       }
     }
   });

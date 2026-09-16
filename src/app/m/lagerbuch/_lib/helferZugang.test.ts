@@ -275,15 +275,15 @@ describe("requireHelferSchreibend — WIRFT NICHT, sondern liefert", () => {
      * Kaertchen erneut — deine Eingaben bleiben stehen." (§7.3, Teil 4).
      */
     cookieWert = undefined;
-    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "sitzung" });
+    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "sitzung", nochAngemeldet: false });
     cookieWert = "muell";
-    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "sitzung" });
+    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "sitzung", nochAngemeldet: false });
   });
 
   it("liefert grund 'gesperrt' bei gesperrtem Code", async () => {
     tokenAnlegen("tk1", false);
     cookieWert = await createHelferSitzung({ tokenId: "tk1" });
-    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "gesperrt" });
+    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "gesperrt", nochAngemeldet: false });
   });
 
   it("HAELT DIE BEIDEN GRUENDE AUSEINANDER — daran haengt §7.4.4", async () => {
@@ -311,7 +311,7 @@ describe("requireHelferSchreibend — WIRFT NICHT, sondern liefert", () => {
     // Es leitet nicht um, sondern gibt zurueck (§7.3) — und der naechste
     // Seitenaufruf laeuft ohnehin durch das Layout, das raeumt dann.
     cookieWert = "muell";
-    await expect(requireHelferSchreibend(t.db)).resolves.toEqual({ ok: false, grund: "sitzung" });
+    await expect(requireHelferSchreibend(t.db)).resolves.toEqual({ ok: false, grund: "sitzung", nochAngemeldet: false });
   });
 });
 
@@ -334,7 +334,7 @@ describe("der Sperrbefund ist DER Sofort-Widerruf des Moduls", () => {
     t.db.update(tokens).set({ aktiv: false }).run();
 
     expect(await helferZugangOderNull(t.db)).toBeNull();
-    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "gesperrt" });
+    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "gesperrt", nochAngemeldet: false });
     await expect(requireHelferSitzung(t.db))
       .rejects.toThrow("NEXT_REDIRECT:/abmelden?grund=gesperrt");
   });
@@ -495,9 +495,32 @@ describe("DRK-305 — ein angemeldetes Konto traegt in den Helfer-Ast", () => {
     expect(r.ok && r.zugang.herkunft).toBe("konto");
   });
 
-  it("ohne Gruppe bleibt requireHelferSchreibend bei seinem Grund", async () => {
+  it("ohne Gruppe bleibt requireHelferSchreibend bei seinem Grund — aber NICHT bei seiner Auskunft",
+    async () => {
+    /*
+     * ⚠️ DER ZWEITE HALBSATZ IST DER BEFUND (P2 zu PR #169). Der GRUND bleibt
+     * `sitzung`: `SperrGrund` ist die geteilte Haelfte von `HelferGrund` und in
+     * beiden Inseln eine Anzeigeweiche — ein dritter Wert dort waere eine
+     * Aenderung an `RIEGEL_TEXTE`, `CheckFlow` und `Entnahme` fuer einen
+     * Zustand, den nur die Zielwahl auswertet.
+     *
+     * `nochAngemeldet` faehrt deshalb DANEBEN mit, und genau hier entsteht der
+     * Unterschied, den es traegt: diese Person IST angemeldet, ihr fehlt die
+     * Gruppe. Waere das Feld `false`, bekaeme sie „melde dich erneut an" — und
+     * landete nach dem ganzen Pocket-ID-Weg in derselben Sperre.
+     */
     angemeldet = FREMD;
-    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "sitzung" });
+    expect(await requireHelferSchreibend(t.db))
+      .toEqual({ ok: false, grund: "sitzung", nochAngemeldet: true });
+  });
+
+  it("OHNE Sitzung meldet derselbe Riegel `nochAngemeldet: false`", async () => {
+    // Die Gegenprobe. Ohne sie waere auch ein fest verdrahtetes `true` gruen —
+    // und dann bekaeme JEDE Person „wende dich an die Leitung", auch die, der
+    // schlicht die Anmeldung fehlt und der ein Login sofort hilft.
+    angemeldet = null;
+    expect(await requireHelferSchreibend(t.db))
+      .toEqual({ ok: false, grund: "sitzung", nochAngemeldet: false });
   });
 
   it("helferZugangOderNull IGNORIERT das Konto — es ist das Kaertchen-Praedikat", async () => {

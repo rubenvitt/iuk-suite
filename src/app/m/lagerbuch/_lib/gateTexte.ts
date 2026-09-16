@@ -1,5 +1,5 @@
 /**
- * Die fuenf Gate-Texte aus §3.9 an GENAU EINER Stelle. KEIN "use client"
+ * Die sechs Gate-Texte aus §3.9 an GENAU EINER Stelle. KEIN "use client"
  * (Falle 6 — die Gate-Seite ist eine Server Component und braucht die WERTE).
  *
  * DER BEFUND, DEN DIESE DATEI HEILT (Falle 60): `lagerbuch/src/app/t/[code]/route.ts:21`
@@ -15,7 +15,7 @@
  * der die Zeile mitnimmt und abhakt, uebernimmt eine SACKGASSE ALS FEATURE.
  *
  * Der Parameter heisst deshalb `grund` und nicht mehr `err`: der Wertesatz
- * waechst von zwei auf fuenf (DRK-305 hat den fuenften gebracht). Ein gespeicherter Alt-Link mit `?err=` ist danach
+ * waechst von zwei auf sechs (DRK-305 hat den fuenften und sechsten gebracht). Ein gespeicherter Alt-Link mit `?err=` ist danach
  * wirkungslos, aber nicht kaputt — unbekannte Parameter werden ignoriert.
  *
  * ⚠️ NICHT ZU VERWECHSELN MIT `HelferGrund` aus `_lib/actionTypen.ts` (§7.3,
@@ -25,7 +25,8 @@
  * Eingaben bleiben stehen" auf eine Seite zu schreiben, auf der nichts
  * eingegeben wurde.
  */
-export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele" | "anmeldung";
+export type GateGrund =
+  | "code" | "gesperrt" | "abgelaufen" | "zuviele" | "anmeldung" | "keinZugriff";
 
 /**
  * Der Anlass einer Sperre (`_lib/helferZugang.ts`) in den Anlass einer Landung
@@ -37,11 +38,18 @@ export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele" | "anmeld
  * über dieselbe Frage — und die zweite ist die, die beim nächsten Wert niemand
  * mitzieht.
  *
- * ⚠️ `kontoZugang` IST PFLICHT, NICHT OPTIONAL — DRK-305. „Scanne das Kärtchen
- * erneut" ist für jemanden, der nie ein Kärtchen hatte, eine Aufforderung ins
- * Leere; er hat sich angemeldet, und seine ANMELDUNG ist abgelaufen. Ein
- * Vorgabewert `false` wäre in jeder vergessenen Aufrufstelle still „Kärtchen"
- * — also genau der Defekt. So nennt der Compiler jede Stelle.
+ * ⚠️ `lage` IST PFLICHT, NICHT OPTIONAL — DRK-305. „Scanne das Kärtchen erneut"
+ * ist für jemanden, der nie ein Kärtchen hatte, eine Aufforderung ins Leere. Ein
+ * Vorgabewert wäre in jeder vergessenen Aufrufstelle still „Kärtchen" — also
+ * genau der Defekt. So nennt der Compiler jede Stelle.
+ *
+ * ⚠️ UND DER KONTO-FALL IST SELBST ZWEIGETEILT (Review-Befund P2 zu PR #169).
+ * „Melde dich erneut an" hilft nur, wenn die SITZUNG fehlt. Wurde stattdessen
+ * die Lagerbuch-Gruppe entzogen, führt die erneute Anmeldung in dieselbe Sperre
+ * zurück — eine Schleife, und zwar eine, die der Satz selbst auslöst. Deshalb
+ * ist `Herkunftslage` eine unterschiedene Form und kein zweites `boolean`: beim
+ * Kärtchen gibt es die Frage nach der Anmeldung gar nicht, und ein Feld, das
+ * dort mitgeschleppt würde, wäre eine Antwort auf eine ungestellte Frage.
  *
  * Nur `sitzung` teilt sich; `gesperrt` bleibt in beiden Herkünften dasselbe
  * Wort. Das ist kein Vergessen, sondern der Befund: `gesperrt` entsteht in
@@ -52,12 +60,19 @@ export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele" | "anmeld
  * Der Parametertyp ist die Literal-Union statt eines Imports von `SperrGrund`:
  * diese Datei ist ein Blatt ohne eigene Importe, und das bleibt sie.
  */
+export type Herkunftslage =
+  /** Die Person kam ueber ein Kaertchen — die Frage nach der Anmeldung stellt sich nicht. */
+  | { herkunft: "kaertchen" }
+  /** Die Person kam angemeldet. `nochAngemeldet` trennt „Sitzung weg" von „Gruppe weg". */
+  | { herkunft: "konto"; nochAngemeldet: boolean };
+
 export function gateGrundFuerSperre(
   grund: "sitzung" | "gesperrt",
-  kontoZugang: boolean,
+  lage: Herkunftslage,
 ): GateGrund {
   if (grund === "gesperrt") return "gesperrt";
-  return kontoZugang ? "anmeldung" : "abgelaufen";
+  if (lage.herkunft === "kaertchen") return "abgelaufen";
+  return lage.nochAngemeldet ? "keinZugriff" : "anmeldung";
 }
 
 /**
@@ -71,6 +86,7 @@ export const GATE_GRUENDE: readonly GateGrund[] = [
   "abgelaufen",
   "zuviele",
   "anmeldung",
+  "keinZugriff",
 ] as const;
 
 /**
@@ -87,7 +103,7 @@ export function istGateGrund(roh: string | null | undefined): roh is GateGrund {
 }
 
 /**
- * DIE FUENF SAETZE. Sie stehen hier und nirgends sonst; §7.2.4 und §11.5
+ * DIE SECHS SAETZE. Sie stehen hier und nirgends sonst; §7.2.4 und §11.5
  * verweisen hierher, statt sie zu wiederholen.
  *
  * `code` und `gesperrt` sind bewusst VERSCHIEDEN formuliert: `code` heisst
@@ -109,6 +125,15 @@ const TEXTE: Record<GateGrund, (sperrSekunden: number | null) => string> = {
    * `returnTo`, mit dem diese Landung hier ankommt.
    */
   anmeldung: () => "Deine Anmeldung ist abgelaufen. Melde dich erneut an.",
+  /**
+   * ⚠️ BEWUSST OHNE „MELDE DICH AN" — Review-Befund P2 zu PR #169. Diese Person
+   * IST angemeldet; ihr fehlt die Lagerbuch-Gruppe. Eine erneute Anmeldung
+   * führte sie durch den ganzen Pocket-ID-Weg zurück in dieselbe Sperre. Der
+   * einzige Weg heraus geht über einen Menschen, also nennt der Satz ihn —
+   * dieselbe Form wie bei `gesperrt` daneben.
+   */
+  keinZugriff: () =>
+    "Dein Konto hat keinen Zugriff auf das Lagerbuch. Wende dich an die Leitung.",
   /**
    * Die Sekundenzahl ist der Rueckgabewert von `gateGesperrt(absenderAus(...))`,
    * DEN DIE GATE-SEITE SELBST LIEST (§7.2.4) — ueber die URL wandert nur der

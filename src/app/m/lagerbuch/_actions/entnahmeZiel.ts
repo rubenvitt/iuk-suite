@@ -50,6 +50,12 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
    * bekommt „melde dich erneut an". Der Weg dorthin steht auf demselben Gate:
    * die Karte „Mit Pocket ID anmelden" baut ihren `callbackUrl` aus genau dem
    * `returnTo`, das hier mitgeht — sie landet also wieder in der Zielwahl.
+   *
+   * ⚠️ MIT EINER AUSNAHME, die sonst zur Schleife wird: wurde nicht die Sitzung
+   * beendet, sondern die LAGERBUCH-GRUPPE entzogen, hilft die erneute Anmeldung
+   * nicht — sie fuehrt durch den ganzen Pocket-ID-Weg in dieselbe Sperre
+   * zurueck. Diese Person bekommt deshalb „kein Zugriff, wende dich an die
+   * Leitung" statt einer Aufforderung, die ins Nichts laeuft.
    */
   if (!riegel.ok) {
     /*
@@ -67,8 +73,19 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
      * gewaehrt wird dadurch nichts — wer das Feld faelscht, liest auf dem
      * eigenen Schirm einen leicht falschen Satz. Anders als `returnTo`, das
      * eine Weiterleitung steuert und deshalb `sanitizeReturnTo` braucht.
+     *
+     * ⚠️ `nochAngemeldet` KOMMT DAGEGEN VOM SERVER, NICHT AUS DEM FORMULAR
+     * (Review-Befund P2 zu PR #169) — und das ist kein Zufall, sondern die
+     * Trennlinie: WELCHE Herkunft gerendert wurde, weiss nur die Seite; ob die
+     * Sitzung JETZT noch steht, weiss nur der Riegel. Wer beides aus dem
+     * Formular naehme, liesse sich den Unterschied zwischen „Sitzung weg" und
+     * „Gruppe entzogen" von aussen diktieren — und der entscheidet hier, ob
+     * eine erneute Anmeldung ueberhaupt hilft.
      */
-    const grund = gateGrundFuerSperre(riegel.grund, zeichenkette(eingabe.get("herkunft")) === "konto");
+    const lage = zeichenkette(eingabe.get("herkunft")) === "konto"
+      ? { herkunft: "konto" as const, nochAngemeldet: riegel.nochAngemeldet }
+      : { herkunft: "kaertchen" as const };
+    const grund = gateGrundFuerSperre(riegel.grund, lage);
     redirect(`/?grund=${grund}&returnTo=${encodeURIComponent(zurueck)}`);
   }
 

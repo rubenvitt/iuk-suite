@@ -197,7 +197,7 @@ describe("waehleEntnahmeZiel", () => {
   });
 
   it("ein GESPERRTES Kärtchen setzt kein Ziel", async () => {
-    riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
 
@@ -214,7 +214,7 @@ describe("waehleEntnahmeZiel", () => {
    * gescannten Etikett in der Hand vor der Artikelliste.
    */
   it("nimmt Rückweg UND Grund mit aufs Gate, wenn die Sitzung abgelaufen ist", async () => {
-    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
 
@@ -227,7 +227,7 @@ describe("waehleEntnahmeZiel", () => {
   it("nennt am Gate den ANDEREN Grund, wenn das Kärtchen gesperrt ist", async () => {
     // Der zweite Grund steht eigens hier: nur er belegt, dass er DURCHgereicht
     // und nicht fest verdrahtet wird.
-    riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1" });
 
@@ -246,7 +246,7 @@ describe("waehleEntnahmeZiel", () => {
    * angemeldete Person zum Scannen eines Kaertchens, das sie nie hatte.
    */
   it("schickt eine ANGEMELDETE Person nicht zum Kärtchen-Scannen", async () => {
-    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" });
 
@@ -261,7 +261,7 @@ describe("waehleEntnahmeZiel", () => {
      * waere der Satz „melde dich erneut an" zwar richtig — und die Person
      * stuende nach der Anmeldung trotzdem woanders als vor dem Absenden.
      */
-    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/helfer/ziel", herkunft: "konto" });
 
@@ -275,7 +275,7 @@ describe("waehleEntnahmeZiel", () => {
      * „wende dich an die Leitung" stimmt fuer ihn, angemeldet oder nicht. Ohne
      * diese Zeile waere eine Verallgemeinerung auf „Konto ⇒ Anmeldung" gruen.
      */
-    riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" });
 
@@ -289,7 +289,7 @@ describe("waehleEntnahmeZiel", () => {
      * nicht. Wichtig ist allein, dass alles ausser dem einen bekannten Wort
      * auf den bisherigen Weg faellt statt auf einen dritten Zustand.
      */
-    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: false });
 
     for (const roh of [undefined, "", "Konto", "token", "kaputt"]) {
       stand.umleitungen.length = 0;
@@ -302,8 +302,57 @@ describe("waehleEntnahmeZiel", () => {
     }
   });
 
+  /*
+   * ⚠️ REVIEW-BEFUND P2 ZU PR #169 — „kein Konto-Zugang" sind ZWEI Lagen, und
+   * die falsche Zusammenlegung baut eine SCHLEIFE.
+   *
+   * Wird jemandem die Lagerbuch-Gruppe entzogen, waehrend die Zielwahl offen
+   * steht, ist die Sitzung weiterhin gueltig — es fehlt das RECHT. „Melde dich
+   * erneut an" schickt diese Person durch den ganzen Pocket-ID-Weg und danach
+   * vor dieselbe Sperre.
+   */
+  it("schickt jemanden mit ENTZOGENER Gruppe nicht in die Anmeldung", async () => {
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: true });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=keinZugriff&returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("die Unterscheidung kommt vom RIEGEL, nicht aus dem Formular", async () => {
+    /*
+     * Dieselbe Eingabe, derselbe Grund — nur der Serverbefund ist ein anderer,
+     * und er entscheidet. Das ist die Trennlinie des ganzen Fixes: WELCHE
+     * Herkunft gerendert wurde, weiss nur die Seite (deshalb das Formularfeld);
+     * ob die Sitzung JETZT noch steht, weiss nur der Riegel. Waere auch das
+     * zweite aus dem Formular gekommen, liesse sich von aussen bestimmen, ob
+     * eine erneute Anmeldung ueberhaupt angeboten wird.
+     */
+    const eingabe = { ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" };
+
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: false });
+    await waehle(eingabe);
+    expect(stand.umleitungen).toEqual(["/?grund=anmeldung&returnTo=%2Fa%2Fart-1"]);
+
+    stand.umleitungen.length = 0;
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: true });
+    await waehle(eingabe);
+    expect(stand.umleitungen).toEqual(["/?grund=keinZugriff&returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("mit KAERTCHEN bleibt es `abgelaufen`, auch wenn daneben jemand angemeldet ist", async () => {
+    // `nochAngemeldet` gilt nur fuer die Konto-Herkunft. Wer ein Kaertchen
+    // benutzt hat, soll es erneut scannen — dass er nebenbei ein Konto hat,
+    // aendert daran nichts.
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: true });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "token" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=abgelaufen&returnTo=%2Fa%2Fart-1"]);
+  });
+
   it("nimmt auch aufs Gate KEIN fremdes `returnTo` mit", async () => {
-    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "//boese.example" });
 
