@@ -78,7 +78,14 @@ function deklarationen(css: string, selektor: string): string {
  * Suite-Untergrenze faelschlich fuer unwirksam.
  */
 function wert(block: string, eigenschaft: string): string | undefined {
-  const regex = new RegExp(`(?:^|;)\\s*${eigenschaft.replace(/[-]/g, "\\-")}\\s*:([^;]*)`, "g");
+  // ⚠️ VOLLSTAENDIG MASKIEREN, nicht nur den Bindestrich. Eine fruehere Fassung
+  // ersetzte allein `-` durch `\\-` und liess damit den RUECKWAERTSSTRICH
+  // selbst stehen — CodeQL meldet das zu Recht („incomplete string escaping").
+  // Hier stehen heute nur Literale wie `font-size`, der Fehler waere also nicht
+  // zu sehen; genau deshalb bliebe er stehen, bis jemand einen Namen aus
+  // gelesenem CSS hereinreicht und der Ausdruck still etwas anderes trifft.
+  const maskiert = eigenschaft.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&");
+  const regex = new RegExp(`(?:^|;)\\s*${maskiert}\\s*:([^;]*)`, "g");
   const treffer = [...block.matchAll(regex)];
   return treffer.at(-1)?.[1].trim();
 }
