@@ -509,6 +509,20 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     //    `korrekturAufLagerort` waehlt bei positivem Abgleich die JUENGSTE Charge —,
     //    aber „harmloser" ist kein Grund, es darauf ankommen zu lassen.
     { id: "ch-pflaster-alt", artikelId: A.pflaster, chargenNr: "P-2024-091", verfall: m.abgelaufen },
+    // DRK-339 — DER FALL DIESES TICKETS: eine ABGELAUFENE Charge, die an ZWEI
+    // Orten des Handlagers liegt (Schrank 1 UND GF-Schrank, Block 8). Erst
+    // damit hat die Verfallsliste lokal eine Zeile, an der sich der Ort
+    // ueberhaupt WAEHLEN laesst — die uebrigen abgelaufenen Chargen liegen an
+    // genau einem Ort, und dort gibt es nichts zu entscheiden.
+    //
+    // ⚠️ DERSELBE ARTIKEL AUS DEMSELBEN GRUND WIE `ch-o2maske-gf`: die
+    // Sauerstoffmaske ist an keinem Schreibpfad beteiligt, der aus dem
+    // Handlager-Bereich zieht. FEFO nimmt die am fruehesten ablaufende Charge
+    // zuerst — eine neue abgelaufene Charge an einem ENTNOMMENEN Artikel
+    // aenderte still, woraus die Demo-Entnahmen gebucht werden (die Lehre steht
+    // bei `ch-pflaster-alt`). Und `korrekturAufLagerort` waehlt bei positivem
+    // Abgleich die JUENGSTE Charge; eine abgelaufene ist nie die juengste.
+    { id: "ch-o2maske-alt", artikelId: A.o2maske, chargenNr: "O2M-2024-310", verfall: m.abgelaufen },
   ].filter((c) => !chDa.has(c.id));
   for (const c of chargenListe) {
     db.insert(chargen).values({ ...c, createdAt: vor(jetzt, 150) }).run();
@@ -550,6 +564,11 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     // DRK-297 — Erstbestand AUSSCHLIESSLICH im GF-Schrank. Es gibt bewusst
     // keine weitere Buchung fuer diese Charge.
     { id: "bu-zg-o2maske-gf", chargeId: "ch-o2maske-gf", artikelId: A.o2maske, menge: 8, vorTagen: 10, lagerortId: SCHRANK_GF },
+    // DRK-339 — dieselbe abgelaufene Charge an ZWEI Orten. ⚠️ 3 und 5, nicht
+    // 4 und 4: verschiedene Zahlen, von denen keine das Doppelte der anderen
+    // ist — sonst laege eine Zusicherung versehentlich richtig.
+    { id: "bu-zg-o2maske-alt-s1", chargeId: "ch-o2maske-alt", artikelId: A.o2maske, menge: 3, vorTagen: 170, lagerortId: SCHRANK_1 },
+    { id: "bu-zg-o2maske-alt-gf", chargeId: "ch-o2maske-alt", artikelId: A.o2maske, menge: 5, vorTagen: 170, lagerortId: SCHRANK_GF },
     { id: "bu-zg-pflaster-alt", chargeId: "ch-pflaster-alt", artikelId: A.pflaster, menge: 8, vorTagen: 150 },
   ];
   const buDa = vorhandeneIds(db.select({ id: buchungen.id }).from(buchungen).all());
@@ -993,6 +1012,10 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       "— dieselbe Charge liegt an zwei Orten.",
     "  GF-Schrank  Sauerstoffmaske, Charge O2M-2026-777: 8 Stk. AUSSCHLIESSLICH hier " +
       '("Zugang nur über die GF — LvD anrufen").',
+    "",
+    "Aussondern je Schrank (DRK-339):",
+    "  Sauerstoffmaske, Charge O2M-2024-310 (abgelaufen): 3 Stk. in Schrank 1, " +
+      "5 Stk. im GF-Schrank — die Verfallsliste fragt dort beim Aussondern den Ort ab.",
     "",
     `Feste Zugangs-Codes (Gate-Eingabe UND QR-Nutzlast):`,
     `  ${CODE_HELFER}  Helfer allgemein → Artikel-Liste`,

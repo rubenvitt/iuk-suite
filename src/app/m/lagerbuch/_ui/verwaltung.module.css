@@ -158,3 +158,31 @@
      sonst trotzdem, weil es nicht umbrechen kann. */
   overflow-wrap: anywhere;
 }
+
+/*
+ * DRK-339 — DIE ORTSWAHL IM AUSSONDERN-POPCONFIRM.
+ *
+ * ⚠️ EINE RADIO-ZEILE ERBT IHRE HOEHE NICHT VON `controlHeight`. antd leitet
+ * aus dem Token die Hoehe von Knoepfen und Feldern ab, NICHT die eines
+ * `label.ant-radio-wrapper`: dessen Kasten ist so hoch wie seine Zeile, also
+ * rund 24px. Die Verwaltung rendert in `FullShell` und damit auch auf dem
+ * Telefon; dort gilt die Arbeitsdichte 44 (CLAUDE.md, Falle 4; WCAG 2.5.5).
+ *
+ * ⚠️ `Radio: { radioSize: 16 }` IN `ARBEITSDICHTE` SETZT DIE MARKE, NICHT DIE
+ * TREFFERFLAECHE — der Kopf von `core/theme/theme.ts` schreibt diese Trennung
+ * ausdruecklich aus („antd leitet die Radio-Marke NICHT aus controlHeight ab").
+ * Wer das Token fuer erledigt haelt, uebersieht genau diese Haelfte.
+ *
+ * ⚠️ ZWEI KLASSEN GEGEN EINE (Falle 5): `.ortWahl :global(.ant-radio-wrapper)`
+ * schlaegt antds `.ant-radio-wrapper` ueber die Spezifitaet. Ein Token waere
+ * besser als Spezifitaet — antd bietet fuer die Zeilenhoehe einer Radio-Zeile
+ * aber keines.
+ *
+ * ⚠️ `align-items: center` STATT antds `baseline`: mit 44px hoher Zeile saesse
+ * die Marke sonst oben am Text statt in der Mitte ihrer Trefferflaeche.
+ */
+.ortWahl :global(.ant-radio-wrapper) {
+  min-height: 44px;
+  align-items: center;
+  margin-inline-end: 0;
+}
