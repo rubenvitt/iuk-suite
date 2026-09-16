@@ -136,6 +136,9 @@ describe("AussondernRow", () => {
 
     expect(mocks.aussondern).toHaveBeenCalledWith({
       chargeId: "c1",
+      // ⚠️ MIT ORT, obwohl es nur einen gibt (Codex-Befund zu PR #173, P1) —
+      // die Begruendung steht bei `gemeinterOrt` in der Insel.
+      lagerortId: HANDLAGER_ID,
       kommentar: "Verfallskontrolle — L42 · Kompressen ausgesondert",
     });
   });
@@ -241,6 +244,38 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
       "nur Nicht zugeordnet (4 Stk.)",
       "nur GF-Schrank (6 Stk.)",
     ]);
+  });
+
+  /**
+   * DER EINZIGE LIEGEPLATZ WIRD GENANNT, NICHT WEGGELASSEN (Codex-Befund zu
+   * PR #173, P1).
+   *
+   * ⚠️ „Kein Feld" heisst serverseitig „ALLE Orte des Bereichs". Beim Rendern
+   * ist das dasselbe wie „dieser eine" — beim Bestaetigen nicht mehr: legt
+   * eine andere Sitzung in der Zwischenzeit Bestand derselben Charge in einen
+   * zweiten Schrank, raeumte die Aktion beide, waehrend der Text davor einen
+   * versprach. Die Mutation, die das faengt, ist genau die weggelassene
+   * Zeile — und sie waere still, weil die Oberflaeche unveraendert aussaehe.
+   */
+  it("schickt auch bei EINEM Liegeplatz dessen Ort mit", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={[{ id: "schrank-1", name: "Schrank 1", menge: 5, zugangshinweis: null }]}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    // Ohne Auswahl — es gibt nichts zu waehlen, und trotzdem steht der Ort im
+    // Aufruf.
+    expect(existsPortal(".ant-radio-group")).toBe(false);
+
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+
+    expect(mocks.aussondern.mock.calls[0]?.[0]).toMatchObject({ lagerortId: "schrank-1" });
   });
 
   it("schickt per Vorgabe KEINEN Ort — „alles raus“ bleibt das Verhalten", async () => {

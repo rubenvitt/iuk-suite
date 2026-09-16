@@ -27,7 +27,8 @@ const ALLE_ORTE = "alle";
  *
  * Liegt die Charge an genau EINEM Ort, ist die Wahl bereits getroffen; eine
  * Auswahl mit einer Zeile ist ein Klick ohne Entscheidung. Der Ort steht dann
- * im Bestätigungstext, damit auf dem Schirm steht, was gebucht wird.
+ * im Bestätigungstext, damit auf dem Schirm steht, was gebucht wird — und er
+ * geht ausgeschrieben an die Aktion, siehe `gemeinterOrt` unten.
  *
  * ⚠️ „ALLES" BLEIBT DIE VORGABE, und das ist eine fachliche Entscheidung: eine
  * abgelaufene Charge ist an JEDEM Ort abgelaufen. Der Regelfall ist, sie
@@ -57,6 +58,28 @@ export function AussondernRow({
 
   const gesamt = orte.reduce((summe, ort) => summe + ort.menge, 0);
   const wahl = orte.length > 1;
+  const einzelnerOrt = orte.length === 1 ? orte[0] : undefined;
+
+  /**
+   * DER ORT, DEN DIESE BESTAETIGUNG MEINT.
+   *
+   * ⚠️ EIN EINZIGER LIEGEPLATZ WIRD GENANNT, NICHT WEGGELASSEN (Codex-Befund
+   * zu PR #173, P1). „Kein Feld" heisst serverseitig „alle Orte des
+   * Bereichs" — und das ist beim Rendern dasselbe wie „dieser eine", aber
+   * nicht mehr beim Bestaetigen: legt eine andere Sitzung in der Zwischenzeit
+   * Bestand derselben Charge in einen ZWEITEN Schrank (Wareneingang direkt in
+   * ein Fach, Umlagerung aus einem Fahrzeug), raeumt die Aktion beide — der
+   * Text davor versprach einen. Der Ort ist deshalb ausgeschrieben; nur die
+   * ausdrueckliche Wahl „Alles" laesst ihn weg.
+   *
+   * ⚠️ DER EINZELNE ORT SCHLAEGT DEN GEMERKTEN ZUSTAND, nicht umgekehrt.
+   * Schrumpft die Liste zwischen zwei Buchungen von zwei Orten auf einen,
+   * traegt `ziel` noch die alte Wahl; die ist dann entweder derselbe Ort oder
+   * einer, an dem nichts mehr liegt. Bleibt eine veraltete Wahl stehen, weist
+   * die Aktion sie ab — LAUT, mit der Meldung am Knopf. Das ist die richtige
+   * Richtung: ein Rückfall auf „Alles" buchte mehr, als jemand wollte.
+   */
+  const gemeinterOrt = einzelnerOrt ? einzelnerOrt.id : ziel;
 
   const bestaetigen = () => {
     if (aussondernLaeuft.current) return;
@@ -66,9 +89,9 @@ export function AussondernRow({
       try {
         const ergebnis = await aussondern({
           chargeId,
-          // Ohne Wahl gar kein Feld — „alles raus" ist die Abwesenheit des
-          // Orts, nicht ein zweiter Wert für dieselbe Sache.
-          ...(wahl && ziel !== ALLE_ORTE ? { lagerortId: ziel } : {}),
+          // „Alles raus" ist die ABWESENHEIT des Orts, nicht ein zweiter Wert
+          // für dieselbe Sache.
+          ...(gemeinterOrt !== ALLE_ORTE ? { lagerortId: gemeinterOrt } : {}),
           kommentar: `Verfallskontrolle — ${bezeichnung} ausgesondert`,
         });
         setFehler(ergebnis.ok ? null : ergebnis.fehler);
@@ -79,8 +102,6 @@ export function AussondernRow({
       }
     });
   };
-
-  const einzelnerOrt = orte.length === 1 ? orte[0] : undefined;
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, flexWrap: "wrap" }}>
