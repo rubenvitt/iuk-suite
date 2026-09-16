@@ -165,6 +165,30 @@ beforeEach(() => {
 // und `schliessen` (Befund 11).
 afterEach(() => { t.schliessen(); vi.clearAllMocks(); });
 
+/**
+ * DIE PFADE, DIE EIN ZUGANG AUSRAEUMT — hier EINMAL, als Sollwert fuer BEIDE
+ * Zugangswege (`bucheZugang` und `bucheAuffuellung`).
+ *
+ * ⚠️ SIE STEHT HIER AUSGESCHRIEBEN UND WIRD NICHT AUS DER QUELLE GELESEN. Der
+ * Sinn ist gerade, dass eine Aenderung an der Liste in der Action HIER auffaellt
+ * — ein Test, der dieselbe Konstante importiert, waere zu jeder Aenderung gruen.
+ *
+ * Drei Review-Befunde in Folge haben je einen fehlenden Pfad gemeldet
+ * (`verwaltung/bestellung`, `verwaltung/verfall`, `auffuellen`), weil die
+ * beiden Actions getrennte Listen fuehrten. Die Reihenfolge gehoert zur
+ * Zusicherung: beide Wege raeumen WOERTLICH dasselbe aus.
+ */
+const ZUGANG_PFADE = (artikelId: string) => [
+  "/m/lagerbuch/verwaltung/verfall",
+  "/m/lagerbuch/verwaltung/artikel",
+  "/m/lagerbuch/verwaltung/bestellung",
+  "/m/lagerbuch/verwaltung",
+  `/m/lagerbuch/auffuellen/${artikelId}`,
+  "/m/lagerbuch/auffuellen",
+  `/m/lagerbuch/a/${artikelId}`,
+  "/m/lagerbuch/helfer",
+];
+
 /** Alle Zeilen, die eine Action geschrieben hat — die Saatzeile bleibt draussen. */
 function geschrieben() {
   return t.db.select().from(buchungen).all().filter((b) => b.quelleId !== "seed");
@@ -210,12 +234,7 @@ describe("bucheZugang", () => {
      * Pfad aus demselben Grund: zwei Schreiber DERSELBEN Spalte duerfen sich
      * darin nicht unterscheiden.
      */
-    expect(revalidiert).toEqual([
-      "/m/lagerbuch/verwaltung/verfall",
-      "/m/lagerbuch/verwaltung/artikel",
-      "/m/lagerbuch/verwaltung/bestellung",
-      "/m/lagerbuch/verwaltung",
-    ]);
+    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
@@ -1218,14 +1237,14 @@ describe("bucheAuffuellung (DRK-313)", () => {
   });
 
   /**
-   * ⚠️ DIESELBEN PFADE WIE BEI `bucheZugang` — es ist derselbe Vorgang, nur
-   * eine andere Flaeche davor. Zwei verschiedene Listen fuer eine Buchung
-   * liessen die eine Flaeche Daten zeigen, die die andere gerade geraeumt hat.
-   *
-   * `verfall`: `verfallListe` ueberspringt jede Charge mit `rest <= 0`, und ein
-   * Zugang aendert genau das. `bestellung`: ein Zugang nullt `bestelltAt`.
+   * ⚠️ WOERTLICH DIESELBE LISTE WIE `bucheZugang`, nicht bloss eine Obermenge.
+   * Es ist derselbe Vorgang, nur eine andere Flaeche davor — und zwei Listen
+   * fuer einen Vorgang waren die Ursache von DREI Review-Befunden in Folge
+   * (`verwaltung/bestellung`, `verwaltung/verfall`, `auffuellen`). Ein
+   * `arrayContaining` liesse die naechste Abweichung wieder durch; die
+   * Gleichheit ist die Zusage.
    */
-  it("raeumt dieselben Pfade aus wie der Zugang aus der Verwaltung", async () => {
+  it("raeumt WOERTLICH dieselben Pfade aus wie der Zugang aus der Verwaltung", async () => {
     await bucheAuffuellung(
       {
         artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
@@ -1233,16 +1252,7 @@ describe("bucheAuffuellung (DRK-313)", () => {
       },
       t.db,
     );
-    expect(revalidiert).toEqual(
-      expect.arrayContaining([
-        "/m/lagerbuch/verwaltung/verfall",
-        "/m/lagerbuch/verwaltung/artikel",
-        "/m/lagerbuch/verwaltung/bestellung",
-        "/m/lagerbuch/verwaltung",
-      ]),
-    );
-    // Und die eigene Flaeche, die sich selbst neu zeichnet.
-    expect(revalidiert).toContain("/m/lagerbuch/auffuellen/art-1");
+    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {

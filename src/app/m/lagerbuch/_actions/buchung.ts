@@ -44,6 +44,52 @@ import { cookies } from "next/headers";
  * Riegelgrund — und mit ihm die Entscheidung, ob ein Erneuern-Feld erscheint.
  */
 
+/**
+ * DIE PFADE, DIE EIN ZUGANG AUSRAEUMT — EINMAL, FUER BEIDE ZUGANGSWEGE
+ * (Codex-Befunde P2 zu PR #174, dritte Runde).
+ *
+ * ⚠️ DREI RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE: zwei Listen fuer EINEN
+ * Vorgang. `bucheZugang` (Artikel-Drawer) und `bucheAuffuellung`
+ * (Auffuellansicht der GF) buchen denselben Wareneingang; jede Flaeche, die
+ * danach veraltet ist, ist es fuer BEIDE. Nacheinander fehlten
+ * `verwaltung/bestellung`, `verwaltung/verfall` und — als die neuen Routen
+ * dazukamen — `auffuellen`. Die naechste Flaeche fehlte wieder, solange die
+ * Listen getrennt sind. Deshalb steht sie hier EINMAL.
+ *
+ * Was sie nennt, und warum jeweils:
+ *
+ *  * `verwaltung/verfall` — `verfallListe` ueberspringt jede Charge mit
+ *    `rest <= 0` und liest den Rest ueber den Handlager-Bereich
+ *    (`_lib/lesepfade/verfall.ts`). Ein Zugang aendert genau das: eine
+ *    aufgebrauchte, ablaufende Charge taucht wieder auf, eine NEU angelegte
+ *    mit nahem Verfall ist eine ganz neue Zeile.
+ *  * `verwaltung/bestellung` — ein Zugang nullt `bestelltAt`. Eine
+ *    zwischengespeicherte Liste fuehrte den gelieferten Artikel sonst weiter
+ *    als „bestellt", und solange sie das tut, schlaegt sie ihn nie wieder vor.
+ *    `markiereBestellt` raeumt denselben Pfad aus demselben Grund; zwei
+ *    Schreiber DERSELBEN Spalte duerfen sich darin nicht unterscheiden.
+ *  * `verwaltung/artikel` und `verwaltung` — Bestand und Kennzahlen.
+ *  * `auffuellen` und `auffuellen/<id>` — Liste und Chargenwahl der GF-Flaeche.
+ *  * `a/<id>` und `helfer` — Bestand und Chargenliste am Regal.
+ *
+ * ⚠️ INNERE PFADE (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
+ * dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
+ * wirft dabei NICHT.
+ *
+ * ⚠️ NICHT EXPORTIERT, und das ist kein Versehen: diese Datei traegt
+ * `"use server"`, dort ist JEDER Export eine Action (`guards.test.ts`).
+ */
+function revalidiereZugang(artikelId: string): void {
+  revalidatePath("/m/lagerbuch/verwaltung/verfall");
+  revalidatePath("/m/lagerbuch/verwaltung/artikel");
+  revalidatePath("/m/lagerbuch/verwaltung/bestellung");
+  revalidatePath("/m/lagerbuch/verwaltung");
+  revalidatePath(`/m/lagerbuch/auffuellen/${artikelId}`);
+  revalidatePath("/m/lagerbuch/auffuellen");
+  revalidatePath(`/m/lagerbuch/a/${artikelId}`);
+  revalidatePath("/m/lagerbuch/helfer");
+}
+
 const ZugangSchema = z
   .object({
     artikelId: z.string().min(1),
@@ -122,37 +168,10 @@ export async function bucheZugang(
       };
     }
 
-    /*
-     * INNERE Pfade (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
-     * dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
-     * wirft dabei nicht.
-     *
-     * ⚠️ DIE VIER SIND DIESELBEN, DIE `aussondern` AUSRAEUMT, plus der
-     * Bestellvorschlag. Das ist kein Zufall und keine Vorsicht: die beiden
-     * Actions aendern DIESELBEN zwei Dinge — den Rest je Charge im Handlager
-     * und, nur beim Zugang, die Bestellt-Markierung. Wer hier eine Zeile
-     * streicht, macht aus einer Regel eine Liste, die die naechste Action
-     * vergisst.
-     *
-     * ⚠️ `verfall` GEHOERT DAZU (Codex-Befund P2 zu PR #174). `verfallListe`
-     * ueberspringt jede Charge mit `rest <= 0` (`_lib/lesepfade/verfall.ts`)
-     * und liest den Rest ueber den Handlager-Bereich. Ein Zugang aendert genau
-     * das: eine aufgebrauchte, ablaufende Charge taucht wieder auf, und eine
-     * NEU angelegte mit nahem oder vergangenem Verfall ist eine ganz neue
-     * Zeile. Ohne diese Zeile arbeitet jemand eine zwischengespeicherte
-     * Verfallsliste ab, in der der frische Bestand fehlt.
-     *
-     * ⚠️ `bestellung` GEHOERT DAZU, WEIL EIN ZUGANG `bestelltAt` NULLT.
-     * Andernfalls fuehrt eine zwischengespeicherte Liste den gerade
-     * gelieferten Artikel weiter als „bestellt" — und solange sie das tut,
-     * schlaegt sie ihn nie wieder vor. `markiereBestellt` raeumt denselben
-     * Pfad aus demselben Grund; zwei Schreiber DERSELBEN Spalte duerfen sich
-     * darin nicht unterscheiden.
-     */
-    revalidatePath("/m/lagerbuch/verwaltung/verfall");
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung/bestellung");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    // DIESELBE Liste wie in `bucheAuffuellung` — Begruendung je Pfad steht an
+    // `revalidiereZugang`. Zwei Listen fuer einen Vorgang waren die Ursache
+    // von drei Review-Befunden in Folge.
+    revalidiereZugang(v.artikelId);
     return { ok: true };
   });
 }
@@ -721,18 +740,9 @@ export async function bucheAuffuellung(
         }).chargeId;
       });
 
-      revalidatePath(`/m/lagerbuch/auffuellen/${v.artikelId}`);
-      revalidatePath("/m/lagerbuch/auffuellen");
-      revalidatePath(`/m/lagerbuch/a/${v.artikelId}`);
-      revalidatePath("/m/lagerbuch/helfer");
-      // ⚠️ DIESELBEN VIER WIE IN `bucheZugang`, und die Begruendung je Pfad
-      // steht dort ausgeschrieben: es ist derselbe Vorgang, nur eine andere
-      // Flaeche davor. Zwei verschiedene Listen fuer eine Buchung liessen die
-      // eine Flaeche Daten zeigen, die die andere gerade geraeumt hat.
-      revalidatePath("/m/lagerbuch/verwaltung/verfall");
-      revalidatePath("/m/lagerbuch/verwaltung/artikel");
-      revalidatePath("/m/lagerbuch/verwaltung/bestellung");
-      revalidatePath("/m/lagerbuch/verwaltung");
+      // DIESELBE Liste wie in `bucheZugang` — es ist derselbe Vorgang, nur
+      // eine andere Flaeche davor.
+      revalidiereZugang(v.artikelId);
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.
