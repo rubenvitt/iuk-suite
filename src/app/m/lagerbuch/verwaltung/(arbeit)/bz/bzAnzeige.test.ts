@@ -17,6 +17,10 @@ function zeile(
     name: `Gerät ${id}`,
     barcode: `CODE-${id}`,
     lagerortName: `Standort ${id}`,
+    lagerortStandort: {
+      name: `Standort ${id}`, typ: "fahrzeug" as const,
+      kennung: null, einheitenart: "fahrzeug" as const,
+    },
     aktiv: true,
     letzteKontrolle,
     letztesBestanden: letzteKontrolle === null ? null : true,
@@ -143,12 +147,12 @@ describe("BZ-Anzeigeprojektion", () => {
       "faelligkeitText",
       "faelligkeitTon",
       "id",
-      "lagerortName",
       // Der Rohwert fuer die Sortierung der Kontrollspalte — eine JSON-sichere
       // Zeichenkette, kein `Date`.
       "letzteKontrolleIso",
       "letzteKontrolleText",
       "name",
+      "standortText",
     ]);
     expect(anzeige[0]).not.toHaveProperty("letzteKontrolle");
     expect(anzeige[0]).not.toHaveProperty("faelligkeit");

@@ -268,7 +268,8 @@ describe("Verfallsseite als Server Component", () => {
 
       expect(queryAll(".ant-card-head-title").map((titel) => titel.textContent)).toEqual([
         "Chargen im Handlager",
-        "Im Fahrzeug gemeldet",
+        // DRK-309: NEUTRAL — die Tabelle darunter fuehrt beide Arten.
+        "An Fahrzeugen und Taschen gemeldet",
       ]);
       /**
        * ⚠️ ZWEI `li`, NICHT DREI — und das ist seit DRK-298 die Aussage dieses

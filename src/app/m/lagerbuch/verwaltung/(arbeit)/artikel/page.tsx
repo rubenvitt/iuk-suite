@@ -38,6 +38,8 @@ export function artikelSeitenInhalt(db: DB, jetzt: Date, userId: string): ReactN
       id: fahrzeug.id,
       name: fahrzeug.name,
       kennung: fahrzeug.kennung,
+      // DRK-309: macht die Zielwahl nach „tasche" durchsuchbar.
+      einheitenart: fahrzeug.einheitenart,
     }));
 
   return (

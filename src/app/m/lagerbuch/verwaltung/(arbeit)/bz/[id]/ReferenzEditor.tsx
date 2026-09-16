@@ -9,6 +9,7 @@ import {
 import { Alert, Card, Input, InputNumber, Select } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { geraetSpeichern } from "../../../../_actions/bz";
+import { standortMeta } from "../../../../_lib/konstanten";
 import type { LagerortOption } from "../../../../_lib/lesepfade/bz";
 import { SCHRIFT } from "../../../../_lib/schrift";
 
@@ -190,11 +191,21 @@ function ReferenzEditorInhalt({
     void speichern(aktuell.current);
   }
 
-  const standortOptionen: LagerortSelectOption[] = lagerorte.map((lagerort) => ({
-    value: lagerort.id,
-    label: lagerort.name,
-    keywords: `${lagerort.name} ${lagerort.typ}`,
-  }));
+  /*
+   * ⚠️ `keywords` STAND SCHON AUF `lagerort.typ`, UND GENAU DAS REICHT SEIT
+   * DRK-309 NICHT MEHR: `typ` ist für jede Tasche `"fahrzeug"`, wer „tasche"
+   * tippt, fand also nichts. Die Art gehört jetzt in beides — ins sichtbare
+   * Label, weil Namen in `lagerorte` nicht eindeutig sind, und in die
+   * Suchworte, weil eine Tasche das Wort nicht im Namen tragen muss.
+   */
+  const standortOptionen: LagerortSelectOption[] = lagerorte.map((lagerort) => {
+    const meta = standortMeta(lagerort);
+    return {
+      value: lagerort.id,
+      label: `${lagerort.name} · ${meta}`,
+      keywords: `${lagerort.name} ${lagerort.typ} ${meta}`,
+    };
+  });
 
   return (
     <Card title="Referenz & Streifen-Lot" style={{ marginBlockEnd: SPACE.xl }}>

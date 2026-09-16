@@ -49,7 +49,7 @@ const ZEILEN: GeraetAnzeigeZeile[] = [
     typ: "medizin",
     name: "Corpuls C3",
     barcode: "SN-MED-1",
-    lagerortName: "Handlager",
+    standortText: "Handlager · Lager",
     aktiv: true,
     faelligkeitAmpel: "gelb",
     keinDatum: false,
@@ -60,7 +60,7 @@ const ZEILEN: GeraetAnzeigeZeile[] = [
     typ: "medizin",
     name: "Defibrillator Reserve",
     barcode: null,
-    lagerortName: "Lager Nord",
+    standortText: "Lager Nord · Lager",
     aktiv: false,
     faelligkeitAmpel: "gruen",
     keinDatum: true,
@@ -71,7 +71,7 @@ const ZEILEN: GeraetAnzeigeZeile[] = [
     typ: "objekt",
     name: "Notfallrucksack",
     barcode: "OBJ-ROT-7",
-    lagerortName: "RTW 1",
+    standortText: "RTW 1 · Fahrzeug",
     aktiv: true,
     faelligkeitAmpel: "rot",
     keinDatum: false,
@@ -82,7 +82,7 @@ const ZEILEN: GeraetAnzeigeZeile[] = [
     typ: "objekt",
     name: "Spineboard",
     barcode: null,
-    lagerortName: "RTW 2",
+    standortText: "RTW 2 · Fahrzeug",
     aktiv: false,
     faelligkeitAmpel: "gruen",
     keinDatum: true,
@@ -91,8 +91,10 @@ const ZEILEN: GeraetAnzeigeZeile[] = [
 ];
 
 const LAGERORTE = [
-  { id: "handlager", name: "Handlager", typ: "lager" as const },
-  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
+  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -565,6 +567,13 @@ describe("Geräte-Übersichtsseite als Server Component", () => {
         name: "RTW T143",
         typ: "fahrzeug",
         kennung: "UE-T143",
+        // ⚠️ EINE TASCHE, UND ZWAR ABSICHTLICH UNTER DIESEM NAMEN (DRK-309,
+        // Reviewrunde 14). Genau dieser Fall war der Befund: das Geraet sitzt
+        // in einer Tasche, und die Uebersicht zeigte nur „RTW T143" — waehrend
+        // die Wahl im Formular daneben laengst „RTW T143 · Tasche · UE-T143"
+        // fuehrte. Ein Name, der nach Fahrzeug klingt, macht die Luecke
+        // sichtbar, die ein passend benannter Seed verdeckt haette.
+        einheitenart: "tasche",
         aktiv: true,
       }).run();
       testDb.db.insert(geraete).values([
@@ -611,7 +620,7 @@ describe("Geräte-Übersichtsseite als Server Component", () => {
           typ: "medizin",
           name: "Corpuls DB",
           barcode: "DB-MED",
-          lagerortName: "Handlager",
+          standortText: "Handlager · Lager",
           aktiv: true,
           faelligkeitAmpel: "gruen",
           keinDatum: true,
@@ -622,7 +631,7 @@ describe("Geräte-Übersichtsseite als Server Component", () => {
           typ: "objekt",
           name: "Spineboard DB",
           barcode: null,
-          lagerortName: "RTW T143",
+          standortText: "RTW T143 · Tasche · UE-T143",
           aktiv: true,
           faelligkeitAmpel: "rot",
           keinDatum: false,

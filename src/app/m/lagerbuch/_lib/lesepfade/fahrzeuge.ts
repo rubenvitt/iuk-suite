@@ -24,6 +24,7 @@
 import { eq } from "drizzle-orm";
 import { artikel, checks, fahrzeugTemplates, lagerorte, sollPositionen,
          templatePositionen } from "../../_db/schema";
+import type { Einheitenart } from "../konstanten";
 import { bestandJeArtikelUndLagerort, type Leser } from "./bestand";
 import { handlagerOrte } from "./orte";
 import { lagerortVerfallListe } from "./verfall";
@@ -54,11 +55,23 @@ export function istAktivesFahrzeug(db: Leser, id: string): boolean {
 export function fahrzeugListe(db: Leser) {
   return db.select().from(lagerorte).where(eq(lagerorte.typ, "fahrzeug")).all()
     .map((f) => ({ id: f.id, name: f.name, kennung: f.kennung,
-                   aktiv: f.aktiv, templateId: f.templateId }));
+                   aktiv: f.aktiv, templateId: f.templateId,
+                   einheitenart: f.einheitenart }));
 }
 
 export type FahrzeugUebersichtZeile = {
   id: string; name: string; kennung: string | null; aktiv: boolean;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
+   *
+   * ⚠️ `null` IST KEIN FEHLER UND KEINE DRITTE ART. Es ist der ausdruecklich
+   * erlaubte Zwischenstand aus Migration 0010, die bewusst nicht backfillt;
+   * die Begruendung steht an der Spalte (`_db/schema.ts`). Wer ihn auf
+   * „Fahrzeug" abbildet, weil das der haeufigere Fall ist, macht aus einer
+   * offenen Frage still eine Antwort — und niemand sieht der Liste danach
+   * noch an, was zugeordnet wurde und was geraten ist.
+   */
+  einheitenart: Einheitenart | null;
   positionen: number; faecher: number;
   /** Artikel, deren Fahrzeugbestand die SOLL-SUMME unterschreitet. */
   artikelUnterSoll: number;
@@ -183,6 +196,7 @@ export function fahrzeugUebersicht(db: Leser, now: Date = new Date()): FahrzeugU
       }
       return {
         id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
+        einheitenart: f.einheitenart,
         positionen: soll.length, faecher: faecher.size, artikelUnterSoll,
         verfallAbgelaufen: verfall?.abgelaufen ?? 0,
         verfallWarnend: verfall?.warnend ?? 0,
@@ -286,7 +300,18 @@ export type TemplatePositionZeile = {
 export type TemplateDetail = {
   id: string; name: string; aktiv: boolean;
   positionen: TemplatePositionZeile[];
-  fahrzeuge: { id: string; name: string; kennung: string | null; aktiv: boolean }[];
+  /**
+   * ⚠️ MIT `einheitenart` (DRK-309, Reviewrunde 4). Eine Vorlage ist nicht
+   * mehr zwangslaeufig eine Fahrzeugvorlage: dieselbe Soll-Liste kann an
+   * einem RTW und an drei Sanitaetstaschen haengen. Wer hier liest, wer diese
+   * Vorlage nutzt, und nur Namen sieht, muss die Art aus dem Namen raten —
+   * und genau das darf er seit dieser Aenderung nicht mehr (eine „Tasche"
+   * heisst nicht zwangslaeufig so, s. `konstanten.ts`).
+   */
+  fahrzeuge: {
+    id: string; name: string; kennung: string | null; aktiv: boolean;
+    einheitenart: Einheitenart | null;
+  }[];
 };
 
 export function templateDetail(db: Leser, id: string): TemplateDetail | null {
@@ -306,7 +331,10 @@ export function templateDetail(db: Leser, id: string): TemplateDetail | null {
     })
     .sort((x, y) => x.fachLabel.localeCompare(y.fachLabel) || x.sort - y.sort);
   const fahrzeuge = db.select().from(lagerorte).where(eq(lagerorte.templateId, id)).all()
-    .map((f) => ({ id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv }))
+    .map((f) => ({
+      id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
+      einheitenart: f.einheitenart,
+    }))
     .sort((a, b) => Number(b.aktiv) - Number(a.aktiv) || a.name.localeCompare(b.name));
   return { id: t.id, name: t.name, aktiv: t.aktiv, positionen, fahrzeuge };
 }

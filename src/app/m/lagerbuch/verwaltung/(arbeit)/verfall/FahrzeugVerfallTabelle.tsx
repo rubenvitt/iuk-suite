@@ -32,6 +32,9 @@ import {
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
+import {
+  einheitenartLabel, einheitMeta, type Einheitenart,
+} from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
@@ -45,6 +48,13 @@ export type FahrzeugVerfallZeile = {
   fahrzeugId: string;
   fahrzeugName: string;
   fahrzeugKennung: string | null;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche. ⚠️ Eine Tasche traegt KEINE Kennung, und
+   * die Kennung war hier die einzige Angabe neben dem Namen: ohne die Art
+   * stand fuer sie nur ein Name, zwischen zwei aehnlich benannten Einheiten
+   * nicht zu unterscheiden.
+   */
+  fahrzeugEinheitenart: Einheitenart | null;
   artikelName: string;
   /**
    * ⚠️ "YYYY-MM" — DER SORTIERWERT, NIE ANGEZEIGT. Als Anzeigetext ordnete
@@ -60,13 +70,21 @@ export type FahrzeugVerfallZeile = {
   gemeldetText: string;
 };
 
-/** SUCHFELDMENGE: Fahrzeug, Kennung und Artikel — was auf der Zeile steht. */
+/**
+ * SUCHFELDMENGE: Einheit, Kennung, ART und Artikel — was auf der Zeile steht.
+ *
+ * ⚠️ DIE ART GEHOERT DAZU, WEIL SIE IM NAMEN FEHLEN DARF (DRK-309). „tasche"
+ * fand sonst nur Einheiten, die das Wort zufaellig im Namen tragen.
+ */
 export function sucheTrifft(zeile: FahrzeugVerfallZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === ""
-    || falte(
-      `${zeile.fahrzeugName} ${zeile.fahrzeugKennung ?? ""} ${zeile.artikelName}`,
-    ).includes(suche);
+    || falte([
+      zeile.fahrzeugName,
+      zeile.fahrzeugKennung,
+      einheitenartLabel(zeile.fahrzeugEinheitenart),
+      zeile.artikelName,
+    ].filter(Boolean).join(" ")).includes(suche);
 }
 
 /**
@@ -106,9 +124,21 @@ function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterIt
     if (gesehen.has(zeile.fahrzeugId)) continue;
     gesehen.set(
       zeile.fahrzeugId,
-      zeile.fahrzeugKennung
-        ? `${zeile.fahrzeugName} · ${zeile.fahrzeugKennung}`
-        : zeile.fahrzeugName,
+      /*
+       * DRK-309: Die Art steht in der Beschriftung, damit zwei gleich benannte
+       * Einheiten unterscheidbar bleiben.
+       *
+       * ⚠️ ART UND KENNUNG, NICHT ART ODER KENNUNG (Reviewrunde 7). Hier stand
+       * `kennung ?? art` — die Kennung als RUECKFALLEBENE fuer die Art. Das
+       * setzt voraus, dass nur Fahrzeuge eine Kennung tragen, und genau das
+       * sagt `createFahrzeug` nicht zu: eine Tasche darf eine haben. Sie war
+       * dann als Tasche nicht mehr zu erkennen — der Fehler versteckte sich
+       * ausgerechnet in der Zeile, die ihn beheben sollte.
+       */
+      [zeile.fahrzeugName, einheitMeta({
+        kennung: zeile.fahrzeugKennung,
+        einheitenart: zeile.fahrzeugEinheitenart,
+      })].join(" · "),
     );
   }
   // Erst zaehlen, dann entscheiden: nur die WIRKLICH doppelten Beschriftungen
@@ -151,7 +181,7 @@ function spalten(
 ): NonNullable<TableProps<FahrzeugVerfallZeile>["columns"]> {
   return [
     {
-      title: "Fahrzeug",
+      title: "Einheit",
       dataIndex: "fahrzeugName",
       key: "fahrzeug",
       sorter: nachText<FahrzeugVerfallZeile>((zeile) => zeile.fahrzeugName),
@@ -167,11 +197,18 @@ function spalten(
           >
             {name}
           </Link>
-          {zeile.fahrzeugKennung ? (
-            <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-              {zeile.fahrzeugKennung}
-            </span>
-          ) : null}
+          {/*
+            DRK-309: Art UND Kennung — nicht die eine als Rueckfall fuer die
+            andere. Begruendung an der Gruppenbeschriftung oben.
+          */}
+          <span style={{ ...SCHRIFT.neben, marginInlineStart: SPACE.sm }}>
+            {einheitenartLabel(zeile.fahrzeugEinheitenart)}
+            {zeile.fahrzeugKennung ? (
+              <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
+                {zeile.fahrzeugKennung}
+              </span>
+            ) : null}
+          </span>
         </span>
       ),
     },
@@ -231,7 +268,7 @@ function gruppenSpalten(
     if (i !== 0) return ohneFilter;
     return {
       ...ohneFilter,
-      title: "Fahrzeug / Artikel",
+      title: "Einheit / Artikel",
       // ⛔ KEIN SORTIERER AUF DER ERSTEN SPALTE IM GRUPPENMODUS. Die Reihenfolge
       // der Fahrzeuge traegt hier eine AUSSAGE — Abgelaufenes zuerst
       // (`gruppierung.ts`) —, und zugeklappt ist sie das Einzige, was man sieht.
@@ -245,9 +282,12 @@ function gruppenSpalten(
         return (
           <Flex gap={6} wrap align="center">
             <span style={{ fontWeight: 600 }}>{zeile.fahrzeugName}</span>
-            {zeile.fahrzeugKennung ? (
-              <span style={SCHRIFT.mono}>{zeile.fahrzeugKennung}</span>
-            ) : null}
+            <span style={SCHRIFT.neben}>
+              {einheitenartLabel(zeile.fahrzeugEinheitenart)}
+            </span>
+            {zeile.fahrzeugKennung
+              ? <span style={SCHRIFT.mono}>{zeile.fahrzeugKennung}</span>
+              : null}
             {zeile.abgelaufen > 0 ? (
               <Chip ton="rot" zeichen="warnung">{zeile.abgelaufen} abgelaufen</Chip>
             ) : null}
@@ -269,7 +309,7 @@ function gruppenSpalten(
  */
 const ANSICHTEN = [
   { value: "liste", label: "Liste" },
-  { value: "gruppiert", label: "nach Fahrzeug" },
+  { value: "gruppiert", label: "nach Einheit" },
 ] as const;
 
 type Ansicht = (typeof ANSICHTEN)[number]["value"];
@@ -336,7 +376,7 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
         <Suchfeld
           wert={suche}
           onWert={setSuche}
-          platzhalter="Fahrzeug, Kennung oder Artikel suchen…"
+          platzhalter="Einheit, Kennung, Art oder Artikel suchen…"
         />
         <Segmented<Ansicht>
           options={[...ANSICHTEN]}
@@ -350,7 +390,7 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
       {gruppiert ? (
         <Datentabelle<Baumzeile>
           rowKey="schluessel"
-          aria-label="Verfallsmeldungen nach Fahrzeug"
+          aria-label="Verfallsmeldungen nach Einheit"
           dataSource={gruppen}
           onChange={(_seite, filter) => setSpaltenFilter(filter)}
           locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
@@ -370,7 +410,7 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
       ) : (
         <Datentabelle<FahrzeugVerfallZeile>
           rowKey="schluessel"
-          aria-label="Verfallsmeldungen aus Fahrzeugen"
+          aria-label="Verfallsmeldungen aus Einheiten"
           dataSource={gefiltert}
           onChange={(_seite, filter) => setSpaltenFilter(filter)}
           locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}

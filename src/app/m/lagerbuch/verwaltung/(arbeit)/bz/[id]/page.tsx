@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
+import { standortZeile } from "../../../../_lib/konstanten";
 import { BZ_LOGBUCH_GRENZE } from "../../../../_lib/grenzen";
 import {
   bzGeraetDetail,
@@ -153,7 +154,7 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
               // dieser Kachel, die einen Skalenwert nahelegen wuerde.
               <span style={{ display: "grid", gap: 2 }}>
                 <span>{geraet.aktiv ? "Aktiv" : "Inaktiv"}</span>
-                <span style={SCHRIFT.neben}>{detail.lagerortName}</span>
+                <span style={SCHRIFT.neben}>{standortZeile(detail.lagerortStandort)}</span>
               </span>
             )}
             beschriftung="Status / Standort"

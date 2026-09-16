@@ -112,6 +112,28 @@ const FAHRZEUG = {
   zielTyp: "fahrzeug" as const,
   zielId: "rtw-1",
   zielName: "RTW 1",
+  zielKennung: "MS-1",
+  zielEinheitenart: "fahrzeug",
+} satisfies TokenAnzeigeZeile;
+
+/**
+ * DRK-309 — EIN KAERTCHEN AN EINER TASCHE, und sie traegt die Art WEDER im
+ * Namen NOCH in einer Kennung. Genau dafuer steht das Feld: `zielTyp` ist auch
+ * hier „fahrzeug", der Name hilft nicht, und ohne `zielEinheitenart` bekaeme
+ * die Zeile den Lastwagen und waere ueber „tasche" nicht zu finden.
+ */
+const TASCHE = {
+  id: "t4",
+  code: "444-444",
+  label: "Rucksack Kärtchen",
+  aktiv: true,
+  lastUsedText: "nie benutzt",
+  lastUsedIso: null,
+  zielTyp: "fahrzeug" as const,
+  zielId: "rucksack-1",
+  zielName: "Rucksack Betreuung",
+  zielKennung: null,
+  zielEinheitenart: "tasche",
 } satisfies TokenAnzeigeZeile;
 
 const ARTIKEL = {
@@ -124,6 +146,8 @@ const ARTIKEL = {
   zielTyp: "artikel" as const,
   zielId: "a1",
   zielName: "Ärzte-Verband",
+  zielKennung: null,
+  zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
 const LISTE = {
@@ -136,13 +160,20 @@ const LISTE = {
   zielTyp: null,
   zielId: null,
   zielName: null,
+  zielKennung: null,
+  zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
 const ZEILEN = [FAHRZEUG, ARTIKEL, LISTE];
 const ZIELE = {
   fahrzeuge: [
-    { id: "rtw-1", name: "RTW Alpha", kennung: "UE-RK 1234" },
-    { id: "rtw-2", name: "RTW Beta", kennung: null },
+    { id: "rtw-1", name: "RTW Alpha", kennung: "UE-RK 1234",
+      einheitenart: "fahrzeug" as const },
+    { id: "rtw-2", name: "RTW Beta", kennung: null, einheitenart: "fahrzeug" as const },
+    // DRK-309: eine Tasche ohne Kennung und ohne das Wort im Namen — sonst
+    // waere „tasche" nicht von einer Namenssuche zu unterscheiden.
+    { id: "ta-1", name: "Rucksack Betreuung", kennung: null,
+      einheitenart: "tasche" as const },
   ],
   artikel: [
     { id: "a1", name: "Mullbinde", fach: "A1" },
@@ -327,6 +358,36 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     expect(zielVon(FAHRZEUG)).toBe("fahrzeug");
     expect(zielVon(ARTIKEL)).toBe("artikel");
     expect(zielVon(LISTE)).toBe("liste");
+  });
+
+  /**
+   * DRK-309, Reviewrunde 6 — DIE ART DES ZIELS, IM TEXT UND IM SCHLUESSEL.
+   *
+   * ⚠️ `zielTyp` HILFT HIER NICHT: `tokens.ziel_typ` kennt nur „fahrzeug" und
+   * „artikel", ein Kaertchen an einer Tasche traegt dort „fahrzeug" wie jedes
+   * andere. Ohne `zielEinheitenart` findet „tasche" kein einziges Kaertchen,
+   * und wer Codes sperrt, sieht zwei gleich benannte Ziele als dieselbe Zeile.
+   * Die Fixture-Tasche traegt die Art deshalb WEDER im Namen NOCH in einer
+   * Kennung.
+   */
+  it("findet ein Kaertchen an einer Tasche ueber die ART des Ziels", () => {
+    expect(sucheTrifft(TASCHE, "tasche")).toBe(true);
+    expect(sucheTrifft(FAHRZEUG, "tasche")).toBe(false);
+    // Und die Kennung bleibt daneben durchsuchbar, wo es eine gibt.
+    expect(sucheTrifft(FAHRZEUG, "MS-1")).toBe(true);
+    // Ein ARTIKEL-Ziel hat keine Art — „nicht zugeordnet" waere dort falsch.
+    expect(sucheTrifft(ARTIKEL, "nicht zugeordnet")).toBe(false);
+  });
+
+  it("zeigt Art und Kennung des Ziels in der Zeile — und das Zeichen der Art", async () => {
+    await mount(<TokenTable zeilen={[FAHRZEUG, TASCHE, ARTIKEL]} />);
+    const ziele = queryAll("tbody tr[data-row-key] td:nth-child(3)")
+      .map((z) => z.textContent);
+    expect(ziele).toEqual([
+      "RTW 1 · Fahrzeug · MS-1",
+      "Rucksack Betreuung · Tasche",
+      "Ärzte-Verband",
+    ]);
   });
 
   it("trägt sechs Spalten, stabile IDs und die vollständigen sichtbaren Werte", async () => {
@@ -571,6 +632,53 @@ describe("NeuToken", () => {
     })).toBe(false);
   });
 
+  /**
+   * DRK-309 — DIE ZIELWAHL FINDET EINE TASCHE UEBER IHRE ART.
+   *
+   * ⚠️ UEBER DAS ECHTE FELD, nicht ueber selbstgebaute `keywords`. Dass
+   * `zielFilter` Suchworte beachtet, sagt der Fall darueber; dass `NeuToken`
+   * die Art auch WIRKLICH hineinschreibt, sagt er nicht — und genau diese
+   * Luecke war ein Reviewbefund an der Geschwisterstelle. Ein Kaertchen klebt
+   * hinterher laminiert am gewaehlten Traeger.
+   */
+  it("findet eine Tasche ueber ihre ART und nennt die Gruppe nach beiden Arten", async () => {
+    await mount(<NeuToken ziele={ZIELE} />);
+    await oeffneNeuToken();
+
+    // Die Gruppe heisst nach beidem — der DB-Wert bleibt „fahrzeug".
+    expect(document.body.textContent).toContain("Fahrzeug oder Tasche");
+
+    // Die Zielwahl erscheint erst, wenn die Zielart nicht „Artikel-Liste" ist.
+    const gruppe = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-modal label.ant-radio-wrapper"),
+    ).find((element) => element.textContent?.trim() === "Fahrzeug oder Tasche");
+    if (!gruppe) throw new Error("Zielart 'Fahrzeug oder Tasche' nicht gefunden");
+    await clickElement(gruppe.querySelector<HTMLInputElement>("input") ?? gruppe);
+    await warte();
+
+    const ziel = queryPortal<HTMLInputElement>("[aria-label='Ziel auswählen']");
+    await act(async () => {
+      ziel.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await warte();
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(ziel), "value")?.set;
+    if (!setter) throw new Error("Kein value-Setter am Zielfeld");
+    await act(async () => {
+      setter.call(ziel, "tasche");
+      ziel.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await warte();
+
+    expect(Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).map((option) => option.textContent))
+      // DRK-309, Reviewrunde 4: die Art steht auch im Label — ein laminiertes
+      // Kärtchen klebt hinterher am gewählten Träger, und zwei gleichnamige
+      // Einheiten sind in einer Liste aus bloßen Namen nicht zu trennen.
+      .toEqual(["Rucksack Betreuung · Tasche"]);
+  });
+
   it("sendet die Artikel-Liste ohne erfundene Zielart und zeigt den Code im offenen Modal", async () => {
     await mount(<NeuToken ziele={ZIELE} />);
     await oeffneNeuToken();
@@ -607,7 +715,7 @@ describe("NeuToken", () => {
     mocks.createToken.mockResolvedValueOnce({
       ok: false,
       fehler: "Bitte die markierten Felder prüfen.",
-      feldFehler: { zielId: "Fahrzeug nicht gefunden oder inaktiv." },
+      feldFehler: { zielId: "Einheit nicht gefunden oder inaktiv." },
     });
     await mount(<NeuToken ziele={ZIELE} />);
     await oeffneNeuToken();
@@ -617,7 +725,7 @@ describe("NeuToken", () => {
     await tokenFormAbsenden();
 
     await vi.waitFor(() => {
-      expect(document.body.textContent).toContain("Fahrzeug nicht gefunden oder inaktiv.");
+      expect(document.body.textContent).toContain("Einheit nicht gefunden oder inaktiv.");
     });
     expect(queryPortal(".ant-alert-warning").textContent).toContain(
       "Bitte die markierten Felder prüfen.",
@@ -698,6 +806,8 @@ describe("TokensSeite", () => {
     zielTyp: "fahrzeug" as const,
     zielId: "rtw-1",
     zielName: "RTW Alpha",
+    zielKennung: "UE-RK 1234",
+    zielEinheitenart: "fahrzeug" as const,
   };
 
   it("formatiert Zeitstempel serverseitig in Europe/Berlin und reicht keine Dates durch", () => {
@@ -713,6 +823,8 @@ describe("TokensSeite", () => {
       zielTyp: "fahrzeug",
       zielId: "rtw-1",
       zielName: "RTW Alpha",
+      zielKennung: "UE-RK 1234",
+      zielEinheitenart: "fahrzeug",
     });
     expect(enthaeltDate(zeile)).toBe(false);
     expect(Object.hasOwn(zeile, "createdAt")).toBe(false);

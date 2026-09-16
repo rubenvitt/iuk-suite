@@ -31,7 +31,7 @@
  * `winAnsi()`: die Standardschriften koennen nur WinAnsi kodieren.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
-import { ZUSTAENDE } from "./konstanten";
+import { checklisteTitel, dieseEinheit, einheitMeta, ZUSTAENDE } from "./konstanten";
 import type { ChecklisteBlatt, ChecklisteFach } from "./lesepfade/checkliste";
 
 /* ── Masse ────────────────────────────────────────────────────────────────── */
@@ -349,8 +349,15 @@ function neueSeite(lage: Lage): void {
   // auf dem Tisch — und auf einem Stapel Checklisten sind das genau die
   // Blaetter, die niemand mehr zuordnen kann.
   if (lage.seiten.length > 1) {
-    const kennung = lage.blatt.kennung ? ` · ${lage.blatt.kennung}` : "";
-    zeichne(lage.seite, `${lage.blatt.name}${kennung} — Fortsetzung`, {
+    /*
+     * ⚠️ DIE ART GEHOERT AUF JEDE SEITE, NICHT NUR AUF DIE ERSTE (DRK-309,
+     * Reviewrunde 15). Ein Bogen wird gedruckt, geheftet und wieder
+     * auseinandergenommen; eine einzelne Fortsetzungsseite, die nur „Rucksack
+     * Betreuung" traegt, ist von dem gleichnamigen Fahrzeugblatt nicht mehr zu
+     * unterscheiden — und auf Papier gibt es kein Zurueckblaettern zur
+     * Kopfzeile.
+     */
+    zeichne(lage.seite, `${lage.blatt.name} · ${einheitMeta(lage.blatt)} — Fortsetzung`, {
       x: RAND.links, y: lage.y - 8, size: 8, font: lage.fett, farbe: GEDAEMPFT,
     });
     lage.y -= 8 + 2 * MM;
@@ -416,7 +423,8 @@ function zeichneKopf(lage: Lage): void {
   }
 
   const rechts = [
-    "Fahrzeug-Checkliste",
+    // DRK-309: „Fahrzeug-Checkliste" · „Taschen-Checkliste" · „Checkliste".
+    checklisteTitel(blatt.einheitenart),
     blatt.vorlage ? `Vorlage: ${blatt.vorlage}` : "ohne Vorlage",
     `${blatt.positionen} ${blatt.positionen === 1 ? "Position" : "Positionen"} · Stand ${stand}`,
   ];
@@ -456,8 +464,9 @@ function zeichneSignatur(lage: Lage): void {
 }
 
 function zeichneFuesse(lage: Lage): void {
-  const kennung = lage.blatt.kennung ? ` · ${lage.blatt.kennung}` : "";
-  const links = `${lage.blatt.name}${kennung} · Stand ${lage.stand}`;
+  // ⚠️ DERSELBE GRUND WIE AM FORTSETZUNGSKOPF: der Fuss steht auf JEDER
+  // Seite und ist bei einer losen Seite oft das Einzige, was sie benennt.
+  const links = `${lage.blatt.name} · ${einheitMeta(lage.blatt)} · Stand ${lage.stand}`;
 
   lage.seiten.forEach((seite, i) => {
     const y = RAND.unten + 4 * MM;
@@ -873,12 +882,25 @@ export async function checklistenPdf(
   const normal = await doc.embedFont(StandardFonts.Helvetica);
   const fett = await doc.embedFont(StandardFonts.HelveticaBold);
 
+  /*
+   * ⚠️ DER DOKUMENTTITEL IST NICHT NUR METADATUM (DRK-309, Reviewrunde 3).
+   * PDF-Betrachter setzen ihn als Fenster- und Reitertitel; er ist damit das
+   * ERSTE, was jemand von einer heruntergeladenen Datei sieht — oft bevor er
+   * die Kopfzeile des Blattes liest. Ein Blatt, das sich „Taschen-Checkliste"
+   * ueberschreibt und „Fahrzeug-Checkliste …" heisst, widerspricht sich in
+   * derselben Ansicht.
+   *
+   * Ein Bogen mit MEHREREN Blaettern mischt Fahrzeuge und Taschen und heisst
+   * deshalb neutral; die Art steht dann je Blatt in dessen Kopfzeile.
+   */
   doc.setTitle(winAnsi(
     blaetter.length === 1
-      ? `Fahrzeug-Checkliste ${blaetter[0]!.name} (Stand ${stand})`
-      : `Fahrzeug-Checklisten (Stand ${stand})`,
+      ? `${checklisteTitel(blaetter[0]!.einheitenart)} ${blaetter[0]!.name} (Stand ${stand})`
+      : `Checklisten (Stand ${stand})`,
   ));
-  doc.setSubject("Fahrzeug-Checkliste zum Abhaken");
+  // NEUTRAL: ein Bogen traegt mehrere Blaetter und kann Fahrzeuge UND Taschen
+  // mischen — die Art steht je Blatt in seiner Kopfzeile.
+  doc.setSubject("Checkliste zum Abhaken");
   doc.setCreator("iuk-suite · Lagerbuch");
   doc.setProducer("iuk-suite · Lagerbuch");
   doc.setCreationDate(erstellt);
@@ -905,7 +927,7 @@ export async function checklistenPdf(
       // Der leere Fall wird BENANNT, statt ein leeres Blatt auszugeben — sonst
       // sieht ein Fahrzeug ohne gepflegtes Soll wie ein Datenverlust aus.
       setze(lage, umbrich(lage, [{
-        text: "Für dieses Fahrzeug ist weder eine Soll-Bestückung noch ein Gerät oder eine "
+        text: `Für ${dieseEinheit(blatt.einheitenart)} ist weder eine Soll-Bestückung noch ein Gerät oder eine `
           + "Sauerstoffflasche hinterlegt. Es gibt nichts abzuhaken.",
         ton: "notiz",
       }], SATZBREITE), RAND.links, lage.y, SATZBREITE, "links");

@@ -8,6 +8,7 @@ function zeile(teil: Partial<FahrzeugVerfallZeile> = {}): FahrzeugVerfallZeile {
     fahrzeugId: "f1",
     fahrzeugName: "RTW Nord",
     fahrzeugKennung: "UE-RK 1234",
+    fahrzeugEinheitenart: "fahrzeug" as const,
     artikelName: "Verband",
     verfall: "2026-08",
     verfallText: "08/26",

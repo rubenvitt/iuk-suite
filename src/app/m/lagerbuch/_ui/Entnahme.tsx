@@ -8,6 +8,7 @@ import { Ikone } from "./ikonen";
 import {
   ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund,
 } from "../_lib/actionTypen";
+import { einheitMeta, ortZeile, type Einheitenart } from "../_lib/konstanten";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
@@ -66,7 +67,19 @@ export type EntnahmeDetail = {
      *  Ansicht VORN im Markup, nicht in einem Tooltip (Nachtrag zu Aufgabe
      *  12) — `OrtVerteilung.tsx` (Aufgabe 11, Verwaltung) ist deshalb bewusst
      *  NICHT wiederverwendet, siehe `_lib/bauform.test.ts`. */
-    orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
+    /**
+     * ⚠️ DIE VOLLE FORM, NICHT NUR DER NAME (DRK-309, Reviewrunde 15). Die
+     * Verteilung kommt aus `OrtVerteilungEintrag` und traegt die Art laengst;
+     * eine engere Angabe HIER warf sie wieder weg. Das wiegt auf diesem
+     * Schirm schwerer als in der Verwaltung: hier steht jemand mit dem
+     * Telefon am Regal und sucht das Material — zwei gleichnamige Zeilen
+     * schicken ihn zur falschen Einheit.
+     */
+    orte: {
+      id: string; name: string; menge: number; zugangshinweis: string | null;
+      typ: "lager" | "fahrzeug"; kennung: string | null;
+      einheitenart: Einheitenart | null;
+    }[];
     ampel: Ampel;
     text: string;
   }[];
@@ -223,8 +236,8 @@ export function Entnahme({
               {ziel === null
                 ? "Noch nichts gewählt"
                 : ziel.art === "fahrzeug"
-                  ? ziel.name
-                  : "Kein Fahrzeug — Verbrauch"}
+                  ? `${ziel.name} · ${einheitMeta(ziel)}`
+                  : "Keine Einheit — Verbrauch"}
             </span>
             <Link className={s.zielAendern} href={zielWahlWeg}>
               {ziel === null ? "Wählen" : "Ändern"}
@@ -316,7 +329,7 @@ export function Entnahme({
               <div className={s.zeileMeta} data-rolle="charge-orte">
                 {c.orte.map((ort) => (
                   <span key={ort.id} data-rolle="charge-ort">
-                    {ort.name}: {ort.menge} {detail.einheit}
+                    {ortZeile(ort)}: {ort.menge} {detail.einheit}
                   </span>
                 ))}
               </div>
@@ -339,7 +352,7 @@ export function Entnahme({
                     className={`${s.chip} ${s.grau} ${s.warnhinweis}`}
                     data-rolle="charge-zugangshinweis"
                   >
-                    {ort.name}: {ort.zugangshinweis}
+                    {ortZeile(ort)}: {ort.zugangshinweis}
                   </span>
                 ))}
             </div>

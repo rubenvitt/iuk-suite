@@ -326,7 +326,11 @@ describe("Fahrzeugblatt als Server Component", () => {
     const zurueck = (kopf.props as {
       zurueck?: { titel: string; href: string };
     }).zurueck;
-    expect(zurueck).toEqual({ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" });
+    // DRK-309: Die BESCHRIFTUNG nennt beide Arten, der `href` bleibt — er
+    // steht in Zugangs-Codes, auf gedruckten Kärtchen und in älteren Notizen.
+    expect(zurueck).toEqual({
+      titel: "Fahrzeuge und Taschen", href: "/verwaltung/fahrzeuge",
+    });
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/page.tsx",
       "utf8",
@@ -541,6 +545,10 @@ describe("Fahrzeugblatt als Server Component", () => {
       aktuelleVorlage: { id: "tpl-inaktiv", name: "Alte RTW-Vorlage" },
       vorlagen: [{ id: "tpl-aktiv", name: "Aktive Alternative" }],
       hatPositionen: true,
+      // DRK-309: `einheitenart` reist mit — „Vorlage aus dieser Einheit
+      // erstellen" faellt auf das neutrale Wort, weil die Fixture den
+      // Zwischenstand traegt. Ohne die Prop stuende dort wieder „Fahrzeug".
+      einheitenart: null,
     });
   });
 
@@ -557,7 +565,10 @@ describe("Fahrzeugblatt als Server Component", () => {
   it("ordnet Vorlage, Soll und Verfall und sendet nur JSON-sichere Inselprops", () => {
     const seite = fahrzeugInhalt(t.db, "fz-1", JETZT);
     expect(elementeVomTyp(seite, "h2").map((ueberschrift) => textVon(ueberschrift)))
-      .toEqual(["Vorlage", "Soll-Bestückung", "Verfall im Fahrzeug"]);
+      // DRK-309: Die letzte Überschrift ist ART-BEWUSST. Die Fixture trägt
+      // keine Art (der Zwischenstand aus Migration 0010), also das neutrale
+      // Wort; bei einem Fahrzeug heißt sie unverändert „Verfall im Fahrzeug".
+      .toEqual(["Art", "Vorlage", "Soll-Bestückung", "Verfall in der Einheit"]);
 
     for (const [typ, name] of [
       [SollEditor, "SollEditor"],
@@ -570,7 +581,11 @@ describe("Fahrzeugblatt als Server Component", () => {
 
     const [kopf] = elementeVomTyp(seite, SeitenKopf);
     const [toggle] = elementeVomTyp(kopf.props.aktionen as ReactNode, FahrzeugAktivToggle);
-    expect(toggle.props).toEqual({ id: "fz-1", name: "RTW 1", aktiv: true });
+    // DRK-309: `einheitenart` reist mit — die Rückfrage vor dem Löschen nennt
+    // dieselbe Art wie der Chip in der Kopfzeile. `null` ist hier der
+    // Zwischenstand, den die Fixture nicht setzt.
+    expect(toggle.props)
+      .toEqual({ id: "fz-1", name: "RTW 1", aktiv: true, einheitenart: null });
     expect(istRekursivJsonSicher(toggle.props)).toBe(true);
   });
 });
@@ -584,7 +599,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     antwort,
   ) => {
     mocks.setAktiv.mockImplementationOnce(antwort);
-    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
+    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv einheitenart="fahrzeug" />);
     await clickElement(query("button[role='switch']"));
     await warte();
 
@@ -592,11 +607,48 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     expect(query("button[role='switch']").getAttribute("aria-checked")).toBe("true");
     expect(document.body.textContent).toContain("Aktiv");
     expect(query(".ant-alert-warning").textContent)
-      .toContain("Fahrzeugstatus konnte nicht geändert werden.");
+      // DRK-309: OHNE Nomen — derselbe Satz gilt für Fahrzeug und Tasche, und
+      // die Art steht im selben Block schon am Schalter daneben.
+      .toContain("Der Status konnte nicht geändert werden.");
+  });
+
+  /**
+   * DRK-309 — DIE RUECKFRAGE VOR DEM LOESCHEN NENNT DIESELBE ART WIE DER KOPF.
+   *
+   * ⚠️ DAS IST DIE FOLGENREICHSTE BESCHRIFTUNG DES BLATTES. „Fahrzeug löschen"
+   * über einer Einheit, deren Kopfzeile einen Chip „Tasche" trägt, widerspricht
+   * sich in derselben Ansicht — und zwar genau dort, wo jemand etwas
+   * Unumkehrbares bestätigen soll. Ein Widerspruch dort kostet entweder das
+   * Vertrauen in die Angabe oder die falsche Einheit.
+   */
+  it("beschriftet Schalter und Löschknopf nach der Art der Einheit", async () => {
+    await mount(
+      <FahrzeugAktivToggle
+        id="ta-1" name="Sanitätstasche 1" aktiv einheitenart="tasche" />,
+    );
+
+    expect(query("button[role='switch']").getAttribute("aria-label"))
+      .toBe("Tasche aktiv");
+    expect(document.body.textContent).toContain("Tasche löschen");
+    expect(document.body.textContent).not.toContain("Fahrzeug löschen");
+  });
+
+  it("faellt beim Zwischenstand auf das neutrale Wort zurueck", async () => {
+    await mount(
+      <FahrzeugAktivToggle
+        id="offen-1" name="Rucksack Betreuung" aktiv einheitenart={null} />,
+    );
+
+    // ⚠️ DAS OBERWORT, NICHT DER CHIPTEXT: „nicht zugeordnet aktiv" waere kein
+    // Deutsch. Der Zustand „nicht zugeordnet" steht daneben im Abschnitt „Art".
+    expect(query("button[role='switch']").getAttribute("aria-label"))
+      .toBe("Einheit aktiv");
+    expect(document.body.textContent).toContain("Einheit löschen");
+    expect(document.body.textContent).not.toContain("Fahrzeug löschen");
   });
 
   it("uebernimmt den sichtbaren Status nach erfolgreichem ActionErgebnis", async () => {
-    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
+    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv einheitenart="fahrzeug" />);
     await clickElement(query("button[role='switch']"));
     await warte();
 
@@ -612,7 +664,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     antwort,
   ) => {
     mocks.loeschen.mockImplementationOnce(antwort);
-    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
+    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv einheitenart="fahrzeug" />);
     await clickElement(hostKnopf("Fahrzeug löschen"));
     await warteAuf(
       () => document.body.querySelector("[aria-label='Namen zur Bestätigung eingeben']") !== null,
@@ -649,7 +701,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
       wert: { loeschbar: false, grund: "Noch verknüpft", kannDeaktivieren: true },
     });
     mocks.deaktivieren.mockImplementationOnce(antwort);
-    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
+    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv einheitenart="fahrzeug" />);
     await clickElement(hostKnopf("Fahrzeug löschen"));
     await warteAuf(
       () => document.body.querySelector("button[data-rolle='deaktivieren']") !== null,
@@ -680,7 +732,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
     antwort,
   ) => {
     mocks.pruefen.mockImplementationOnce(antwort);
-    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv />);
+    await mount(<FahrzeugAktivToggle id="fz-1" name="RTW 1" aktiv einheitenart="fahrzeug" />);
     await clickElement(hostKnopf("Fahrzeug löschen"));
     await warteAuf(
       () => (document.body.textContent ?? "").includes("Löschbarkeit konnte nicht geprüft werden."),

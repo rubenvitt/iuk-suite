@@ -25,7 +25,7 @@ function templateAnzeigeZeilen(db: DB): TemplateAnzeigeZeile[] {
     // Die Rohzahlen reisen mit, weil die Spalten danach sortieren: der
     // Anzeigetext beginnt mit der Zahl und ordnete als Zeichenkette „12" vor „2".
     positionenZahl: zeile.positionen,
-    fahrzeugeText: anzahlText(zeile.fahrzeuge, "Fahrzeug", "Fahrzeuge"),
+    fahrzeugeText: anzahlText(zeile.fahrzeuge, "Einheit", "Einheiten"),
     fahrzeugeZahl: zeile.fahrzeuge,
   }));
 }
@@ -35,7 +35,7 @@ export function vorlagenInhalt(db: DB): ReactNode {
     <>
       <SeitenKopf
         titel="Vorlagen"
-        beschreibung="Bestückung einmal definieren und auf mehrere identisch gepackte Fahrzeuge übertragen. Pro Fahrzeug bleiben manuelle Abweichungen möglich."
+        beschreibung="Bestückung einmal definieren und auf mehrere identisch gepackte Einheiten übertragen. Pro Einheit bleiben manuelle Abweichungen möglich."
         aktionen={<NeuTemplate />}
       />
       <TemplateTable zeilen={templateAnzeigeZeilen(db)} />

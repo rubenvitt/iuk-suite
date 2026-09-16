@@ -285,6 +285,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
         // DRK-338 — der Ort geht als fertiger NAME hinueber, nicht als
         // Kennung: die Insel haette sonst keine Quelle, ihn aufzuloesen.
         ortName: "Handlager",
+        ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
       },
       {
         id: "id-negativ",
@@ -297,6 +298,7 @@ describe("Journalseite — JSON-sichere Client-Grenze", () => {
         kommentar: "Verbraucht",
         referenz: null,
         ortName: "Handlager",
+        ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
       },
     ]);
     // Ohne Filter ist das Objekt LEER, nicht voller `undefined` — siehe

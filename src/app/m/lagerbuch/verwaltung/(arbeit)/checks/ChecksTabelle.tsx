@@ -10,6 +10,7 @@ import {
   werteAlsFilter,
 } from "@/core/tabelle";
 import type { AmpelTon } from "../../../_lib/format";
+import { einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import type { IkonName } from "../../../_ui/ikonen";
@@ -26,6 +27,8 @@ export type CheckAnzeigeZeile = {
   id: string;
   detailHref: string;
   fahrzeugName: string;
+  fahrzeugKennung: string | null;
+  fahrzeugEinheitenart: Einheitenart | null;
   abgeschlossenText: string;
   /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
   abgeschlossenIso: string | null;
@@ -53,22 +56,43 @@ export type ChecksTabelleProps = {
  * beides liest niemand zusammen. Volle Begruendung: `core/tabelle/sortierer.ts`
  * (DRK-331, fuenfte Reviewrunde).
  *
- * Die Fahrzeugliste im SPALTENFILTER entsteht aus den GELADENEN Zeilen. Der
- * Fahrzeugfilter ueber der Tabelle (`ChecksFilter`) bleibt daneben stehen und
+ * Die Einheitenliste im SPALTENFILTER entsteht aus den GELADENEN Zeilen. Der
+ * Einheitenfilter ueber der Tabelle (`ChecksFilter`) bleibt daneben stehen und
  * ist nicht dasselbe: er greift VOR dem Deckel und findet damit auch Checks,
  * die hier gar nicht liegen.
  */
+/**
+ * Die Zeile, wie sie in der Spalte steht UND wie der Filter gruppiert —
+ * dieselbe Zeichenkette, damit beide dasselbe meinen. Waeren es zwei, zeigte
+ * die Liste etwas anderes an, als der Haken daneben auswaehlt.
+ */
+function zeileTitel(zeile: CheckAnzeigeZeile): string {
+  return `${zeile.fahrzeugName} · ${einheitMeta({
+    kennung: zeile.fahrzeugKennung,
+    einheitenart: zeile.fahrzeugEinheitenart,
+  })}`;
+}
+
 function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["columns"] {
   return [
     {
-      title: "Fahrzeug",
+      // DRK-309: NEUTRAL — die Spalte listet Fahrzeuge UND Taschen
+      // untereinander, und die Zeile nennt die Einheit beim Namen.
+      title: "Einheit",
       dataIndex: "fahrzeugName",
       key: "fahrzeug",
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.fahrzeugName),
-      onFilter: trifftWert<CheckAnzeigeZeile>((zeile) => zeile.fahrzeugName),
+      /*
+       * ⚠️ DER FILTER GRUPPIERT UEBER NAME · ART · KENNUNG, NICHT UEBER DEN
+       * NAMEN (DRK-309, Reviewrunde 7). `lagerorte.name` traegt keinen
+       * Eindeutigkeitsschluessel: ein Fahrzeug und eine Tasche duerfen gleich
+       * heissen, und ein Filter ueber den blossen Namen faenge dann BEIDE —
+       * eine Auswahl, die sich wie eine Einschraenkung liest und keine ist.
+       */
+      filters: werteAlsFilter(zeilen, zeileTitel),
+      onFilter: trifftWert<CheckAnzeigeZeile>(zeileTitel),
       render: (name: string, zeile: CheckAnzeigeZeile) => (
         <Link href={zeile.detailHref} style={{ fontWeight: 600 }}>
-          {name}
+          {zeileTitel(zeile)}
         </Link>
       ),
     },
@@ -118,7 +142,7 @@ export function ChecksTabelle({ zeilen, leertext }: ChecksTabelleProps) {
   return (
     <Datentabelle<CheckAnzeigeZeile>
       rowKey="id"
-      aria-label="Fahrzeug-Checks"
+      aria-label="Checks"
       dataSource={zeilen}
       locale={{ emptyText: leertext }}
       columns={spaltenliste}

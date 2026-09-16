@@ -72,13 +72,13 @@ async function portalFuellen(selector: string, wert: string): Promise<void> {
 }
 
 /**
- * „Auf alle Fahrzeuge uebertragen" ist die folgenreichste Aktion der Seite: sie
+ * „Auf alle Einheiten uebertragen" ist die folgenreichste Aktion der Seite: sie
  * schreibt ueber alle verknuepften Fahrzeuge und loescht dabei verwaiste
  * Soll-Zeilen. Sie haengt deshalb hinter einem `Popconfirm`, der die Zahl der
  * betroffenen Fahrzeuge VOR dem Klick nennt.
  */
 async function syncBestaetigen(): Promise<void> {
-  await clickElement(await buttonMitText("Auf alle Fahrzeuge übertragen"));
+  await clickElement(await buttonMitText("Auf alle Einheiten übertragen"));
   await warte();
   const bestaetigen = Array.from(
     document.body.querySelectorAll<HTMLButtonElement>(".ant-popover button"),
@@ -152,7 +152,7 @@ describe("TemplateAktionen", () => {
       "Vorlage aktiv",
     );
     expect(document.body.textContent).toContain("Umbenennen");
-    expect(document.body.textContent).toContain("Auf alle Fahrzeuge übertragen");
+    expect(document.body.textContent).toContain("Auf alle Einheiten übertragen");
     expect(document.body.textContent).toContain("Vorlage löschen");
   });
 
@@ -254,7 +254,7 @@ describe("TemplateAktionen", () => {
 
     expect(actions.templateAufFahrzeugeSyncen).toHaveBeenCalledWith({ templateId: "t1" });
     expect(document.body.textContent).toContain(
-      "2 Fahrzeug(e): 3 hinzugefügt, 4 aktualisiert, 5 übersprungen, 6 entfernt, 7 losgelöst.",
+      "2 Einheit(en): 3 hinzugefügt, 4 aktualisiert, 5 übersprungen, 6 entfernt, 7 losgelöst.",
     );
   });
 
@@ -272,7 +272,7 @@ describe("TemplateAktionen", () => {
     expect(query(".ant-alert-warning").textContent).toContain(
       "Vorlage konnte nicht synchronisiert werden.",
     );
-    expect(document.body.textContent).not.toContain("Fahrzeug(e):");
+    expect(document.body.textContent).not.toContain("Einheit(en):");
     expect(document.body.textContent).not.toContain(INTERN);
   });
 
@@ -282,7 +282,7 @@ describe("TemplateAktionen", () => {
     await warte();
 
     expect(document.body.textContent).toContain(
-      "3 Fahrzeug(e) werden von dieser Vorlage gelöst; ihre Positionen bleiben als individuelle Bestückung erhalten.",
+      "3 Einheit(en) werden von dieser Vorlage gelöst; ihre Positionen bleiben als individuelle Bestückung erhalten.",
     );
   });
 

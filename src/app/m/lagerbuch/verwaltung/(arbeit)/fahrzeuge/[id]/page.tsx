@@ -18,10 +18,13 @@ import {
 } from "../../../../_lib/lesepfade/fahrzeuge";
 import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
 import { SCHRIFT } from "../../../../_lib/schrift";
+import { einheitenartLabel, inDerEinheit } from "../../../../_lib/konstanten";
+import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "../ChecklisteKnopf";
 import { CheckDurchfuehrenKnopf } from "../CheckDurchfuehrenKnopf";
+import { EinheitenartWahl } from "./EinheitenartWahl";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
 import { TemplateVerknuepfung } from "./TemplateVerknuepfung";
@@ -219,10 +222,24 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
     <>
       <SeitenKopf
         titel={fahrzeug.name}
-        beschreibung={fahrzeug.kennung ? (
-          <span style={SCHRIFT.mono}>{fahrzeug.kennung}</span>
-        ) : undefined}
-        zurueck={{ titel: "Fahrzeuge", href: "/verwaltung/fahrzeuge" }}
+        /*
+         * ⚠️ DIE ART STEHT IM KOPF, NICHT ERST BEI IHRER WAHL WEITER UNTEN
+         * (DRK-309). Wer das Blatt aufschlägt, muss wissen, wovon er liest,
+         * bevor er eine Zahl darunter deutet — eine Kennung allein sagt es
+         * nicht mehr, seit eine Tasche gar keine haben muss. Die Wahl weiter
+         * unten ändert die Angabe; hier steht sie.
+         */
+        beschreibung={(
+          <span style={{ display: "inline-flex", alignItems: "center", gap: SPACE.sm }}>
+            <Chip ton="grau" zeichen={fahrzeug.einheitenart ?? undefined}>
+              {einheitenartLabel(fahrzeug.einheitenart)}
+            </Chip>
+            {fahrzeug.kennung ? (
+              <span style={SCHRIFT.mono}>{fahrzeug.kennung}</span>
+            ) : null}
+          </span>
+        )}
+        zurueck={{ titel: "Fahrzeuge und Taschen", href: "/verwaltung/fahrzeuge" }}
         aktionen={(
           <>
             {/*
@@ -252,6 +269,9 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
               id={fahrzeug.id}
               name={fahrzeug.name}
               aktiv={fahrzeug.aktiv}
+              // DRK-309: die Rückfrage vor dem Löschen nennt dieselbe Art wie
+              // der Chip in der Kopfzeile darüber.
+              einheitenart={fahrzeug.einheitenart}
             />
           </>
         )}
@@ -308,6 +328,16 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       </Row>
 
       <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: 0, marginBlockEnd: SPACE.sm }}>
+        Art
+      </h2>
+      <Card>
+        <EinheitenartWahl
+          id={fahrzeug.id}
+          einheitenart={fahrzeug.einheitenart}
+        />
+      </Card>
+
+      <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
         Vorlage
       </h2>
       <Card>
@@ -316,6 +346,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
           aktuelleVorlage={aktuelleVorlage}
           vorlagen={vorlagen}
           hatPositionen={aktivePositionen.length > 0}
+          einheitenart={fahrzeug.einheitenart}
         />
       </Card>
 
@@ -325,10 +356,22 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
       <SollEditor fahrzeugId={fahrzeug.id} positionen={soll} artikel={artikel} />
 
       <h2 style={{ ...SCHRIFT.abschnitt, marginBlockStart: SPACE.xl, marginBlockEnd: SPACE.sm }}>
-        Verfall im Fahrzeug
+        {/*
+          ⚠️ ART-BEWUSST, NICHT NEUTRAL (DRK-309, nach dem ersten CI-Lauf).
+          Hier steht die Art FEST — es ist das Blatt genau dieser Einheit —,
+          und die Regel dieses Tickets lautet: wo sie bekannt ist, steht sie
+          auch da. Ein neutrales „Verfall in dieser Einheit" war die Ausnahme
+          von der eigenen Regel; für ein Fahrzeug liest sich der Satz jetzt
+          wieder wie vorher, für eine Tasche richtig.
+        */}
+        Verfall {inDerEinheit(fahrzeug.einheitenart)}
       </h2>
       <Card>
-        <VerfallEditor lagerortId={fahrzeug.id} eintraege={verfall} />
+        <VerfallEditor
+          lagerortId={fahrzeug.id}
+          eintraege={verfall}
+          einheitenart={fahrzeug.einheitenart}
+        />
       </Card>
     </>
   );

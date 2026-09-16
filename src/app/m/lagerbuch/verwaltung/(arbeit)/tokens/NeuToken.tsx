@@ -4,6 +4,11 @@ import { useState, useTransition } from "react";
 import { Alert, Button, Form, Input, Modal, Radio, Select } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { createToken } from "../../../_actions/tokens";
+import {
+  einheitenartLabel,
+  einheitMeta,
+  type Einheitenart,
+} from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Ikone } from "../../../_ui/ikonen";
 
@@ -41,7 +46,10 @@ export function NeuToken({
   ziele,
 }: {
   ziele: {
-    fahrzeuge: { id: string; name: string; kennung: string | null }[];
+    fahrzeuge: {
+      id: string; name: string; kennung: string | null;
+      einheitenart: Einheitenart | null;
+    }[];
     artikel: { id: string; name: string; fach: string }[];
   };
 }) {
@@ -94,8 +102,20 @@ export function NeuToken({
 
   const fahrzeugOptionen: ZielOption[] = ziele.fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
-    label: fahrzeug.name,
-    keywords: `${fahrzeug.name} ${fahrzeug.kennung ?? ""}`,
+    /*
+     * ⚠️ DIE ART STEHT IM LABEL, NICHT NUR IN DEN SUCHWORTEN (DRK-309,
+     * Reviewrunde 4) — und hier kostet ein Griff danebem mehr als anderswo:
+     * das Kärtchen wird laminiert und klebt danach am gewählten Träger.
+     * `lagerorte.name` trägt keinen Eindeutigkeitsschlüssel, ein Fahrzeug und
+     * eine Tasche dürfen also gleich heißen; eine Liste aus bloßen Namen kann
+     * sie dann nicht auseinanderhalten. Dieselbe Form wie auf dem
+     * Helferschirm und in der Artikelschublade.
+     */
+    label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+    // „tasche" findet jede Tasche, auch ohne das Wort im Namen und ohne
+    // Kennung — die Suchworte bleiben neben dem Label bestehen.
+    keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
+      .filter(Boolean).join(" "),
   }));
   const artikelOptionen: ZielOption[] = ziele.artikel.map((artikel) => ({
     value: artikel.id,
@@ -151,7 +171,14 @@ export function NeuToken({
           <Form.Item name="zielArt" label="Zielart">
             <Radio.Group
               options={[
-                { value: "fahrzeug", label: "Fahrzeug" },
+                /*
+                 * ⚠️ DER WERT BLEIBT "fahrzeug", DIE BESCHRIFTUNG NICHT
+                 * (DRK-309). `tokens.ziel_typ` ist ein Enum in der Datenbank
+                 * und steht in bestehenden Zeilen; die Beschriftung ist das,
+                 * was jemand liest — und ein Kärtchen für eine Sanitätstasche
+                 * wird hier angelegt, nicht unter „Artikel".
+                 */
+                { value: "fahrzeug", label: "Fahrzeug oder Tasche" },
                 { value: "artikel", label: "Artikel" },
                 { value: "liste", label: "Artikel-Liste" },
               ]}

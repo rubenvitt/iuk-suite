@@ -17,6 +17,7 @@ const BASIS: CheckDetail = {
   fahrzeugId: "rtw-1",
   fahrzeugName: "RTW 1",
   fahrzeugKennung: "MS-1",
+  fahrzeugEinheitenart: "fahrzeug",
   quelleId: "111-111",
   startedAt: new Date("2026-06-15T09:00:00Z"),
   completedAt: new Date("2026-06-15T10:00:00Z"),
@@ -405,11 +406,11 @@ describe("Check-Detailseite", () => {
 
     const koepfe = elementeVomTyp(seite, SeitenKopf);
     expect(koepfe).toHaveLength(1);
-    expect(koepfe[0].props).toMatchObject({ titel: "RTW 1" });
+    expect(koepfe[0].props).toMatchObject({ titel: "RTW 1 · Fahrzeug · MS-1" });
     const zurueck = (koepfe[0].props as {
       zurueck?: { titel: string; href: string };
     }).zurueck;
-    expect(zurueck).toEqual({ titel: "Fahrzeug-Checks", href: "/verwaltung/checks" });
+    expect(zurueck).toEqual({ titel: "Checks", href: "/verwaltung/checks" });
     // ⚠️ BEIDE AMPELN, seit der Wechselwert einstellbar ist (DRK-308): auch die
     // Sauerstoff-Zeile rechnet gegen die heutige Vorgabe. Ein Hinweis, der nur
     // eine der beiden nennt, behauptet Vollständigkeit.
@@ -427,6 +428,36 @@ describe("Check-Detailseite", () => {
 
     expect(tabellenAus(seite).nachfuellLeertext)
       .toBe("Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten.");
+  });
+
+  it("nennt im Kopf die Art der Einheit, auch im Zwischenstand", () => {
+    /**
+     * DRK-309, Reviewrunde 11. `lagerorte.name` traegt keinen
+     * Eindeutigkeitsschluessel: ein Fahrzeug und eine Tasche duerfen
+     * „Betreuung" heissen, und ein Kopf aus blossem Namen laesst dann offen,
+     * zu welcher von beiden dieser Check gehoert. Der Zwischenstand
+     * (`einheitenart === null`, Migration 0010) faellt auf das neutrale Wort
+     * zurueck und NIE auf „Fahrzeug" — sonst behauptet die Seite eine
+     * Zuordnung, die niemand getroffen hat.
+     */
+    const kopfTitel = (check: CheckDetail) => {
+      const koepfe = elementeVomTyp(checkDetailInhalt(check), SeitenKopf);
+      return (koepfe[0].props as { titel: string }).titel;
+    };
+
+    expect(kopfTitel({
+      ...BASIS,
+      fahrzeugName: "Betreuung",
+      fahrzeugKennung: null,
+      fahrzeugEinheitenart: "tasche",
+    })).toBe("Betreuung · Tasche");
+
+    expect(kopfTitel({
+      ...BASIS,
+      fahrzeugName: "Betreuung",
+      fahrzeugKennung: "MS-4",
+      fahrzeugEinheitenart: null,
+    })).toBe("Betreuung · nicht zugeordnet · MS-4");
   });
 
   it("kennzeichnet ein unlesbares Ergebnis, statt 0 Positionen zu behaupten", () => {

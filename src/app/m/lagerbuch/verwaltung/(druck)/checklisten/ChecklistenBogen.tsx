@@ -41,7 +41,7 @@ import type {
   ChecklisteBlatt,
   ChecklisteFach,
 } from "../../../_lib/lesepfade/checkliste";
-import { ZUSTAENDE } from "../../../_lib/konstanten";
+import { checklisteTitel, dieseEinheit, ZUSTAENDE } from "../../../_lib/konstanten";
 import { Ikone } from "../../../_ui/ikonen";
 
 /** Das gezeichnete Kaestchen. Nie ein Formularelement — es wird mit dem
@@ -138,7 +138,10 @@ function Blatt({
           {blatt.kennung && <div className="lb-cl-kennung">{blatt.kennung}</div>}
         </div>
         <div className="lb-cl-meta">
-          <div>Fahrzeug-Checkliste</div>
+          {/* DRK-309 — dieselbe Zeichenkette wie im PDF (`checklistePdf.ts`),
+              aus derselben Quelle: zwei Schreibweisen fuer dasselbe Blatt
+              liessen den Leser einen Unterschied vermuten. */}
+          <div>{checklisteTitel(blatt.einheitenart)}</div>
           <div>{blatt.vorlage ? `Vorlage: ${blatt.vorlage}` : "ohne Vorlage"}</div>
           {/*
             DER STAND-VERMERK IST KEINE DEKORATION. Ein Blatt ohne Datum ist
@@ -162,8 +165,11 @@ function Blatt({
 
       {leer && (
         <p className="lb-cl-leer">
-          Für dieses Fahrzeug ist weder eine Soll-Bestückung noch ein Gerät oder
-          eine Sauerstoffflasche hinterlegt. Es gibt nichts abzuhaken.
+          {/* DRK-309 — wörtlich derselbe Satz wie im PDF (`checklistePdf.ts`),
+              aus derselben Quelle: zwei Wege zu einem Blatt dürfen es nicht
+              verschieden benennen. */}
+          Für {dieseEinheit(blatt.einheitenart)} ist weder eine Soll-Bestückung noch
+          ein Gerät oder eine Sauerstoffflasche hinterlegt. Es gibt nichts abzuhaken.
         </p>
       )}
 
@@ -353,7 +359,13 @@ export function ChecklistenBogen({
               sichtbaren Sprung. Uebernommen aus `EtikettenChrome.tsx`. */}
           <Flex align="center" gap={6}>
             <Ikone name="pfeil-links" groesse={15} />
-            Zurück zu den Fahrzeugen
+            {/*
+              DRK-309: Das Ziel heisst „Fahrzeuge und Taschen" — ein Rueckweg,
+              der nur eine der beiden Arten nennt, behauptet fuer den Bogen
+              einer Tasche, er fuehre woandershin. Dieselbe Beschriftung wie
+              der Rueckweg am Einheitenblatt.
+            */}
+            Zurück zu Fahrzeugen und Taschen
           </Flex>
         </Link>
 
@@ -367,9 +379,11 @@ export function ChecklistenBogen({
           <div>
             <h1 style={{ margin: 0 }}>Checklisten</h1>
             <p style={{ margin: 0 }} data-testid="lb-cl-zahl">
+              {/* NEUTRAL: der Bogen mischt Fahrzeuge und Taschen, die Art
+                  steht je Blatt in dessen Kopfzeile (DRK-309). */}
               {blaetter.length === 1
-                ? "1 Fahrzeug, ein Blatt"
-                : `${blaetter.length} Fahrzeuge, je ein Blatt`}
+                ? "1 Einheit, ein Blatt"
+                : `${blaetter.length} Einheiten, je ein Blatt`}
             </p>
           </div>
 

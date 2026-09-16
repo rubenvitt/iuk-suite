@@ -36,6 +36,7 @@ import {
   pruefeLoeschbar,
 } from "../_actions/loeschen";
 import { ampelTon, fmtVerfall } from "../_lib/format";
+import { einheitenartLabel, einheitMeta, type Einheitenart } from "../_lib/konstanten";
 import { journalZeile } from "../_lib/journalZeile";
 import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
@@ -77,6 +78,15 @@ type Fahrzeug = {
   id: string;
   name: string;
   kennung: string | null;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
+   *
+   * ⚠️ PFLICHTFELD, KEIN OPTIONAL. Ein `einheitenart?` waere in jeder
+   * vergessenen Aufrufstelle still `undefined`, und die Suche nach „tasche"
+   * fande dort nichts — ohne dass ein Tor es meldete. Dieselbe Begruendung wie
+   * bei `gebunden` in `CheckFlow.tsx`.
+   */
+  einheitenart: Einheitenart | null;
 };
 
 type ArtikelDrawerProps = {
@@ -490,10 +500,31 @@ export function ArtikelDrawer({
     label: ort.name,
   }));
 
+  /**
+   * ⚠️ DIE ART STEHT IN DEN SUCHWORTEN, NICHT IM SICHTBAREN LABEL (DRK-309).
+   *
+   * ⚠️ DIE ART STEHT IM LABEL, NICHT NUR IN DEN SUCHWORTEN — Kehrtwende aus
+   * Reviewrunde 4, und der Grund ist nachpruefbar statt geschmacklich:
+   * `lagerorte.name` traegt KEINEN Eindeutigkeitsschluessel (`_db/schema.ts`).
+   * Zwei Zeilen duerfen also gleich heissen, und dann sind sie in einer Liste
+   * aus blossen Namen nicht mehr auseinanderzuhalten. Die frueher hier
+   * notierte Abwaegung („der Name unterscheidet die Eintraege bereits") setzte
+   * genau das voraus, was das Schema nicht zusagt.
+   *
+   * ⚠️ DIESELBE FORM WIE AUF DEM HELFERSCHIRM (`_ui/FahrzeugWahl.tsx`):
+   * „Art · Kennung" hinter dem Namen. Zwei Flaechen, die dieselbe Einheit
+   * waehlen lassen, fuehren keine zwei Schreibweisen fuer dieselbe Zeile.
+   * Die Kennung steht nur, wenn es eine gibt; die Art steht immer — auch der
+   * Zwischenstand, der „nicht zugeordnet" sagt statt zu schweigen.
+   *
+   * Die Suchworte bleiben daneben bestehen: wer „tasche" tippt, meint die Art
+   * und nicht die Schreibweise, und das trifft jetzt Label UND Schluessel.
+   */
   const fahrzeugOptionen = fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
-    label: fahrzeug.name,
-    keywords: `${fahrzeug.name} ${fahrzeug.kennung ?? ""}`,
+    label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+    keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
+      .filter(Boolean).join(" "),
   }));
 
   return (
@@ -732,9 +763,14 @@ export function ArtikelDrawer({
                     style={{ width: "100%" }}
                   />
                 </Form.Item>
-                <Form.Item name="zielLagerortId" label="Ziel-Fahrzeug">
+                {/*
+                  DRK-309: „Ziel-Einheit", weil die Liste darunter Fahrzeuge
+                  UND Taschen führt. Welche Art eine einzelne Option hat, sagt
+                  die Option (`fahrzeugOptionen`).
+                */}
+                <Form.Item name="zielLagerortId" label="Ziel-Einheit">
                   <Select
-                    aria-label="Ziel-Fahrzeug"
+                    aria-label="Ziel-Einheit"
                     placeholder="Handlager (Verbrauch)"
                     allowClear
                     showSearch

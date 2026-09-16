@@ -79,13 +79,14 @@ export default async function ChecklistenSeite({
         <h1>Checklisten</h1>
         <p>
           {gewaehlt.length === 0
-            ? "Es ist kein aktives Fahrzeug angelegt. Sobald ein Fahrzeug mit "
-              + "Soll-Bestückung gepflegt ist, gibt es hier ein Blatt je Fahrzeug."
-            : "Zu dieser Auswahl gehört kein Fahrzeug. Der Link zeigt vermutlich "
-              + "auf ein gelöschtes Fahrzeug."}
+            ? "Es ist keine aktive Einheit angelegt. Sobald ein Fahrzeug oder "
+              + "eine Tasche mit Soll-Bestückung gepflegt ist, gibt es hier ein "
+              + "Blatt je Einheit."
+            : "Zu dieser Auswahl gehört keine Einheit. Der Link zeigt vermutlich "
+              + "auf eine gelöschte Einheit."}
         </p>
         <p>
-          <a href="/verwaltung/fahrzeuge">Zurück zu den Fahrzeugen</a>
+          <a href="/verwaltung/fahrzeuge">Zurück zu Fahrzeugen und Taschen</a>
         </p>
       </div>
     );

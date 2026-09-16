@@ -24,6 +24,8 @@
  * Host-only wie `helfer_session`, aber ausdrücklich ANDERS benannt: derselbe
  * Name überschriebe die laufende Sitzung und sperrte die Helferin am Regal aus.
  */
+import type { Einheitenart } from "./konstanten";
+
 export const ZIEL_COOKIE = "helfer_ziel";
 
 export type EntnahmeZiel =
@@ -42,7 +44,28 @@ export type EntnahmeZiel =
  * ergänzt, weiß davon nichts.
  */
 export type ZielAnzeige =
-  | { art: "fahrzeug"; lagerortId: string; name: string }
+  | {
+      art: "fahrzeug";
+      lagerortId: string;
+      name: string;
+      /**
+       * ⚠️ KENNUNG UND ART GEHOEREN SEIT DRK-309 DAZU. Frueher stand hier der
+       * Name allein, mit der Begruendung „die Kennung sagt am Regal niemandem
+       * etwas" — die stimmte, solange jede Einheit ein Fahrzeug war und der
+       * Name sie damit ausreichend beschrieb. Beides gilt nicht mehr:
+       * `lagerorte.name` traegt keinen Eindeutigkeitsschluessel, und eine
+       * Tasche heisst nicht zwangslaeufig wie eine.
+       *
+       * ⚠️ UND DIESE ZEILE IST DIE LETZTE VOR DER BUCHUNG. Die Wahl gilt fuer
+       * ALLE weiteren Entnahmen mit diesem Kaertchen; wer sie hier nicht
+       * nachpruefen kann, raeumt so lange in die falsche Einheit, bis es
+       * jemandem auffaellt. Die Wahl EINEN Schirm vorher zeigt „Art ·
+       * Kennung" — weniger zu zeigen als die Auswahl, aus der sie stammt,
+       * waere genau an der Bestaetigung die falsche Sparsamkeit.
+       */
+      kennung: string | null;
+      einheitenart: Einheitenart | null;
+    }
   | { art: "verbrauch" };
 
 const VERBRAUCH = "verbrauch";
@@ -125,7 +148,7 @@ export function zielWert(ziel: EntnahmeZiel, tokenId: string): string {
  * Ziel neu" weiter, „Lagerort ist kein aktives Fahrzeug" nicht.
  */
 export const ZIEL_UNGUELTIG_TEXT =
-  "Dieses Fahrzeug steht nicht mehr zur Auswahl. Bitte das Ziel neu wählen — die Buchung wurde nicht gespeichert.";
+  "Diese Einheit steht nicht mehr zur Auswahl. Bitte das Ziel neu wählen — die Buchung wurde nicht gespeichert.";
 
 /**
  * Der Satz für ein Ziel, das nicht (mehr) zu dieser Sitzung gehört — eine

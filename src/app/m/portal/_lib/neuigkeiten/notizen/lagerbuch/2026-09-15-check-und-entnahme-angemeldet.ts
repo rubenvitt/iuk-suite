@@ -8,10 +8,10 @@ const notiz: Releasenotiz = {
   titel: "Check und Entnahme auch ohne Code",
   inhalt: [
     absatz(
-      "Bist du angemeldet, erreichst du den Fahrzeug-Check über Prüfungen → Check durchführen " +
-        "und die Entnahme über Bestand → Entnahme — ohne einen Code einzulösen. Im Check wählst " +
-        "du dabei aus allen aktiven Fahrzeugen; auf dem Fahrzeugblatt führt dich „Check " +
-        "durchführen“ direkt zu diesem einen.",
+      "Bist du angemeldet, erreichst du den Check über Prüfungen → Check durchführen und " +
+        "die Entnahme über Bestand → Entnahme — ohne einen Code einzulösen. Im Check wählst " +
+        "du dabei aus allen aktiven Einheiten; auf dem Blatt einer Einheit führt dich „Check " +
+        "durchführen“ direkt zu dieser einen.",
     ),
   ],
 };

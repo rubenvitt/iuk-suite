@@ -28,6 +28,7 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
+import type { Einheitenart, StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { akkuLebensdauer, bzFaelligkeit,
          type BzAkkuKennzahl, type BzFaelligkeit } from "../domain/bz";
@@ -80,23 +81,55 @@ function toZeile(
   };
 }
 
-export type LagerortOption = { id: string; name: string; typ: "lager" | "fahrzeug" };
+/**
+ * ⚠️ MIT `kennung` UND `einheitenart` (DRK-309, Reviewrunde 5). Diese Liste
+ * haengt an jedem Standortfeld — Geraet, BZ-Geraet, Sauerstoffflasche —, und
+ * `typ` allein trennt seit dieser Aenderung nicht mehr, was daran haengt: eine
+ * Tasche traegt `typ: "fahrzeug"` wie jedes Fahrzeug. Ohne die beiden Felder
+ * kann die Auswahl darueber nur Namen zeigen, und Namen sind in `lagerorte`
+ * nicht eindeutig.
+ */
+export type LagerortOption = {
+  id: string; name: string; typ: "lager" | "fahrzeug";
+  kennung: string | null; einheitenart: Einheitenart | null;
+};
 
 /** Aktive Lagerorte als Auswahl fuer Geraete-Formulare. */
 export function lagerortOptionen(db: Leser): LagerortOption[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
-    .map((l) => ({ id: l.id, name: l.name, typ: l.typ }))
+    .map((l) => ({
+      id: l.id, name: l.name, typ: l.typ,
+      kennung: l.kennung, einheitenart: l.einheitenart,
+    }))
     .sort((a, b) => a.typ.localeCompare(b.typ) || a.name.localeCompare(b.name));
 }
 
+/**
+ * DRK-309: Standorte samt Art — siehe `standortZeile`. Der Rueckfall traegt
+ * `typ: "lager"`, damit ein geloeschter Standort „Lager" sagt statt „nicht
+ * zugeordnet": offen ist die Art nur da, wo es eine Einheit GIBT.
+ */
+const STANDORT_UNBEKANNT: StandortAngabe = {
+  name: "–", typ: "lager", kennung: null, einheitenart: null,
+};
+
+function standorte(db: Leser): Map<string, StandortAngabe> {
+  return new Map(db.select().from(lagerorte).all().map((l) => [l.id, {
+    name: l.name, typ: l.typ, kennung: l.kennung, einheitenart: l.einheitenart,
+  }]));
+}
+
 export type BzGeraetZeile = {
-  id: string; name: string; barcode: string | null; lagerortName: string; aktiv: boolean;
+  id: string; name: string; barcode: string | null; lagerortName: string;
+  /** DRK-309: Der Standort wird BENANNT, nicht nur genannt — `standortZeile`. */
+  lagerortStandort: StandortAngabe;
+  aktiv: boolean;
   letzteKontrolle: Date | null; letztesBestanden: boolean | null; faelligkeit: BzFaelligkeit;
 };
 
 export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraetZeile[] {
   const geraete = db.select().from(bzGeraete).all();
-  const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
+  const stamm = standorte(db);
   const kontrollen = db.select().from(bzKontrollen).all();
   const letzteProGeraet = new Map<string, (typeof kontrollen)[number]>();
   for (const k of kontrollen) {
@@ -117,7 +150,9 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
       const letzte = letzteProGeraet.get(g.id) ?? null;
       return {
         id: g.id, name: g.name, barcode: g.barcode,
-        lagerortName: namen.get(g.lagerortId) ?? "–", aktiv: g.aktiv,
+        lagerortName: (stamm.get(g.lagerortId) ?? STANDORT_UNBEKANNT).name,
+        lagerortStandort: stamm.get(g.lagerortId) ?? STANDORT_UNBEKANNT,
+        aktiv: g.aktiv,
         letzteKontrolle: letzte ? letzte.ts : null,
         letztesBestanden: letzte ? letzte.bestanden : null,
         // ⚠️ `null` → rot MIT ueberfaellig false. Die Anzeige muss `nieGeprueft`
@@ -131,6 +166,8 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
 export type BzGeraetDetail = {
   geraet: typeof bzGeraete.$inferSelect;
   lagerortName: string;
+  /** DRK-309: volle Standortangabe — Begruendung an `GeraetDetail`. */
+  lagerortStandort: StandortAngabe;
   faelligkeit: BzFaelligkeit;
   akku: BzAkkuKennzahl;
   /** chronologisch ABSTEIGEND */
@@ -144,8 +181,10 @@ export function bzGeraetDetail(
 ): BzGeraetDetail | null {
   const g = db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get();
   if (!g) return null;
-  const lagerortName =
-    db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get()?.name ?? "–";
+  const lo = db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get();
+  const lagerortStandort: StandortAngabe = lo
+    ? { name: lo.name, typ: lo.typ, kennung: lo.kennung, einheitenart: lo.einheitenart }
+    : STANDORT_UNBEKANNT;
   const sichtbareRows = db.select().from(bzKontrollen)
     .where(eq(bzKontrollen.geraetId, id))
     // id-Tiebreaker: `ts` sind UNIX-Sekunden (§5.14.4).
@@ -163,7 +202,7 @@ export function bzGeraetDetail(
     .all();
   const wer = quelleAufloeser(db);
   return {
-    geraet: g, lagerortName,
+    geraet: g, lagerortName: lagerortStandort.name, lagerortStandort,
     faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
     akku: akkuLebensdauer(batterieWechsel.map((k) => k.ts)),
     logbuch: sichtbareRows.slice(0, BZ_LOGBUCH_GRENZE).map((k) => toZeile(k, wer)),

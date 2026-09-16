@@ -1,10 +1,20 @@
 "use client";
 
 import { Space, Tooltip } from "antd";
+import { ortZeile, type Einheitenart } from "../_lib/konstanten";
 import { Chip } from "./Chip";
 
 /**
- * DRK-297, Aufgabe 11 — DIE VERTEILUNG einer Charge: „Schrank 1: 5 · RTW 1: 7".
+ * DRK-297, Aufgabe 11 — DIE VERTEILUNG einer Charge:
+ * „Schrank 1 · Lager: 5 · RTW 1 · Fahrzeug: 7".
+ *
+ * ⚠️ DER ORT WIRD BENANNT, NICHT NUR GENANNT (DRK-309, Reviewrunde 14).
+ * Bis hierher stand hier der blosse Name — und die Zielwahl eine Zeile
+ * hoeher in derselben Schublade fuehrte bereits „Name · Art". Ein Fahrzeug
+ * und eine gleichnamige Tasche ergaben zwei identische Chips nebeneinander.
+ * `standortZeile` ist dieselbe Funktion, die auch die Wahl benutzt; zwei
+ * Schreibweisen fuer denselben Ort auf DERSELBEN Flaeche waeren ein eigener
+ * kleiner Fehler.
  *
  * "use client": sie steht in `ChargenTabelle`, deren `columns[].render`
  * bereits eine Client-Insel ist (Falle 9) — sie liest antds `Tooltip`, der in
@@ -24,7 +34,11 @@ export function OrtVerteilung({
   orte,
   einheit,
 }: {
-  orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
+  orte: {
+    id: string; name: string; menge: number; zugangshinweis: string | null;
+    typ: "lager" | "fahrzeug"; kennung: string | null;
+    einheitenart: Einheitenart | null;
+  }[];
   einheit: string;
 }) {
   if (orte.length === 0) return <span>–</span>;
@@ -39,7 +53,7 @@ export function OrtVerteilung({
             zeichen={ort.zugangshinweis ? "info" : undefined}
             title={ort.zugangshinweis ?? undefined}
           >
-            {ort.name}: {ort.menge} {einheit}
+            {ortZeile(ort)}: {ort.menge} {einheit}
           </Chip>
         );
         return ort.zugangshinweis ? (

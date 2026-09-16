@@ -14,6 +14,7 @@ const RTW: ChecklisteBlatt = {
   id: "fz-a",
   name: "RTW 1",
   kennung: "MS-1",
+  einheitenart: "fahrzeug",
   vorlage: "RTW-Vorlage",
   positionen: 2,
   faecher: [{
@@ -40,8 +41,20 @@ const RTW: ChecklisteBlatt = {
 };
 
 const NEF: ChecklisteBlatt = {
-  id: "fz-b", name: "NEF 1", kennung: null, vorlage: null,
+  id: "fz-b", name: "NEF 1", kennung: null, einheitenart: "fahrzeug", vorlage: null,
   positionen: 0, faecher: [], geraete: [], flaschen: [],
+};
+
+/** DRK-309: dasselbe Blatt fuer eine TASCHE — sie traegt keine Kennung. */
+const TASCHE: ChecklisteBlatt = {
+  id: "ta-a", name: "Sanitätstasche 1", kennung: null, einheitenart: "tasche",
+  vorlage: null, positionen: 0, faecher: [], geraete: [], flaschen: [],
+};
+
+/** DRK-309: und eine Einheit, deren Art noch nicht zugeordnet ist. */
+const OHNE_ART: ChecklisteBlatt = {
+  id: "offen-a", name: "Rucksack Betreuung", kennung: null, einheitenart: null,
+  vorlage: null, positionen: 0, faecher: [], geraete: [], flaschen: [],
 };
 
 const bogen = (blaetter: ChecklisteBlatt[] = [RTW], auswahl: string[] = []) => (
@@ -93,6 +106,55 @@ describe("das Blatt je Fahrzeug", () => {
   it("nennt eine fehlende Vorlage ausdruecklich, statt die Zeile wegzulassen", async () => {
     await mount(bogen([NEF]));
     expect(query(".lb-cl-meta").textContent).toContain("ohne Vorlage");
+  });
+
+  /**
+   * DRK-309 — DIESELBE UEBERSCHRIFT WIE IM PDF, AUS DERSELBEN QUELLE.
+   *
+   * ⚠️ ZWEI WEGE ZU EINEM BLATT, und beide werden gedruckt: dieser Bogen aus
+   * dem Browser und `checklistePdf.ts`. Zwei Schreibweisen fuer dasselbe Blatt
+   * liessen den Leser einen Unterschied vermuten, den es nicht gibt —
+   * `checklisteTitel` ist deshalb die einzige Quelle, und diese Zusicherung
+   * steht neben ihrem Gegenstueck in `checklistePdf.test.ts`.
+   */
+  it("ueberschreibt jedes Blatt nach seiner Art", async () => {
+    await mount(bogen([NEF]));
+    expect(query(".lb-cl-meta").textContent).toContain("Fahrzeug-Checkliste");
+    await unmount();
+
+    await mount(bogen([TASCHE]));
+    const tasche = query(".lb-cl-meta").textContent ?? "";
+    expect(tasche).toContain("Taschen-Checkliste");
+    expect(tasche).not.toContain("Fahrzeug-Checkliste");
+    await unmount();
+
+    // Der Zwischenstand behauptet keine Art, statt auf die haeufigere zu raten.
+    await mount(bogen([OHNE_ART]));
+    const offen = query(".lb-cl-meta").textContent ?? "";
+    expect(offen).toContain("Checkliste");
+    expect(offen).not.toContain("Fahrzeug-Checkliste");
+    expect(offen).not.toContain("Taschen-Checkliste");
+  });
+
+  it("nennt auch im Leerfall die Art — derselbe Satz wie im PDF", async () => {
+    await mount(bogen([TASCHE]));
+    expect(query(".lb-cl-leer").textContent)
+      .toContain("Für diese Tasche ist weder eine Soll-Bestückung");
+    await unmount();
+
+    await mount(bogen([OHNE_ART]));
+    expect(query(".lb-cl-leer").textContent)
+      .toContain("Für diese Einheit ist weder eine Soll-Bestückung");
+  });
+
+  it("zaehlt die Blaetter NEUTRAL — ein Bogen mischt Fahrzeuge und Taschen", async () => {
+    await mount(bogen([NEF, TASCHE]));
+    expect(query("[data-testid='lb-cl-zahl']").textContent)
+      .toBe("2 Einheiten, je ein Blatt");
+    await unmount();
+
+    await mount(bogen([TASCHE]));
+    expect(query("[data-testid='lb-cl-zahl']").textContent).toBe("1 Einheit, ein Blatt");
   });
 
   it("traegt drei Schreiblinien fuer Name, Datum und Unterschrift", async () => {

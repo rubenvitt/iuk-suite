@@ -17,6 +17,8 @@ import {
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
+import { standortZeile } from "../../../_lib/konstanten";
+import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { ampelTon } from "../../../_lib/format";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
@@ -37,7 +39,7 @@ export type SauerstoffAnzeigeZeile = Omit<O2FlascheZeile, "letzteMessung"> & {
 /** SUCHFELDMENGE 4 VON 6: Name · Lagerort. */
 export function sucheTrifft(z: SauerstoffAnzeigeZeile, begriff: string): boolean {
   const q = falte(begriff.trim());
-  return !q || falte(`${z.name} ${z.lagerortName}`).includes(q);
+  return !q || falte(`${z.name} ${standortZeile(z.lagerortStandort)}`).includes(q);
 }
 
 /**
@@ -79,7 +81,7 @@ const SPALTEN: NonNullable<TableProps<SauerstoffAnzeigeZeile>["columns"]> = [
           {wert}
         </Link>
         <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-          {zeile.lagerortName}
+          {standortZeile(zeile.lagerortStandort)}
         </span>
       </span>
     ),
@@ -165,7 +167,7 @@ export function SauerstoffListe({
   lagerorte,
 }: {
   zeilen: SauerstoffAnzeigeZeile[];
-  lagerorte: { id: string; name: string }[];
+  lagerorte: Lagerort[];
 }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.

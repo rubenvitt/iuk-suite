@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId, sollPositionen } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
+import { EINHEITENARTEN } from "../_lib/konstanten";
 import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -25,9 +26,27 @@ function validierungsFehler(
   };
 }
 
+/**
+ * ⚠️ `einheitenart` IST PFLICHT, OBWOHL DIE SPALTE NULLABLE IST — und genau
+ * das ist die Entscheidung aus DRK-309.
+ *
+ * Migration 0010 backfillt bewusst nicht: die bestehenden Zeilen duerfen „noch
+ * nicht zugeordnet" bleiben, weil niemand ausser der Betreiberin weiss, welche
+ * davon in Wahrheit eine Tasche ist. Der Zwischenstand ist also ein Zustand der
+ * VERGANGENHEIT, kein Weg in die Zukunft. Waere das Feld auch hier optional,
+ * entstuende bei jedem Anlegen eine neue nicht zugeordnete Einheit — der
+ * Uebergang wuerde nie enden, und die Spalte truege dauerhaft eine dritte,
+ * bedeutungslose Auspraegung.
+ *
+ * ⚠️ DESHALB STEHT DIE PFLICHT HIER UND NICHT ALS `NOT NULL` IN DER SPALTE.
+ * Eine NOT-NULL-Spalte ohne Default laesst sich an eine gefuellte Tabelle gar
+ * nicht anhaengen, und ein Default machte aus jeder Altzeile eine Behauptung.
+ * Die Datenbank traegt den Zwischenstand, der Eingang verbietet neue.
+ */
 const FahrzeugSchema = z.object({
   name: z.string().trim().min(1, "Name darf nicht leer sein"),
   kennung: z.string().trim().optional(),
+  einheitenart: z.enum(EINHEITENARTEN, { message: "Fahrzeug oder Tasche wählen" }),
 });
 
 export async function createFahrzeug(
@@ -49,18 +68,34 @@ export async function createFahrzeug(
       db.insert(lagerorte).values({
         id,
         name: v.name,
+        // ⚠️ `typ` BLEIBT "fahrzeug", AUCH FUER EINE TASCHE. `typ` trennt Ort
+        // von beweglichem Bestandstraeger, und daran haengt jeder Schreibpfad
+        // des Moduls; die Art steht daneben. Begruendung an der Spalte
+        // (`_db/schema.ts`).
         typ: "fahrzeug",
+        einheitenart: v.einheitenart,
         kennung: v.kennung || null,
         aktiv: true,
       }).run();
     } catch {
-      return { ok: false, fehler: "Fahrzeug konnte nicht angelegt werden." };
+      return { ok: false, fehler: "Einheit konnte nicht angelegt werden." };
     }
 
     revalidatePath(FAHRZEUGE_PFAD);
     return { ok: true, wert: { id } };
   });
 }
+
+/*
+ * ⚠️ NEUTRAL, WEIL DIE ART HIER NICHT ZU WISSEN IST (DRK-309, Reviewrunde 12).
+ * Die Regel dieses PRs lautet: wo die Art bekannt ist, steht sie auch da. Sie
+ * steht in der Zeile — und dieser Satz faellt genau dann, wenn es die Zeile
+ * nicht (mehr) gibt. Eine Tasche ist im Modell dasselbe Objekt wie ein
+ * Fahrzeug, alle Wege hier nehmen also beide; „Fahrzeug nicht gefunden" waere
+ * eine Aussage ueber etwas, das die Abfrage gerade NICHT gefunden hat, und
+ * schickte die Suche auf die falsche Liste.
+ */
+const EINHEIT_FEHLT = "Einheit nicht gefunden.";
 
 const AktivSchema = z.object({
   id: z.string().min(1),
@@ -83,17 +118,70 @@ export async function setFahrzeugAktiv(
 
     try {
       if (!findeFahrzeug(db, v.id)) {
-        return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+        return { ok: false, fehler: EINHEIT_FEHLT };
       }
       db.update(lagerorte)
         .set({ aktiv: v.aktiv })
         .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
         .run();
     } catch {
-      return { ok: false, fehler: "Fahrzeugstatus konnte nicht geändert werden." };
+      // DRK-309: OHNE Nomen — dieselbe Einheit kann eine Tasche sein, und die
+      // Insel daneben sagt denselben Satz.
+      return { ok: false, fehler: "Der Status konnte nicht geändert werden." };
     }
 
     revalidatePath(FAHRZEUGE_PFAD);
+    return { ok: true };
+  });
+}
+
+const EinheitenartSchema = z.object({
+  id: z.string().min(1),
+  einheitenart: z.enum(EINHEITENARTEN, { message: "Fahrzeug oder Tasche wählen" }),
+});
+
+/**
+ * Traegt die Art an einer bestehenden Einheit nach — der Weg AUS dem
+ * Zwischenstand heraus (DRK-309).
+ *
+ * ⚠️ SIE KANN AUCH EINE GESETZTE ART AENDERN, und das ist Absicht. Die erste
+ * Zuordnung nach der Migration ist eine Aussage aus dem Gedaechtnis; wer sie
+ * einmal falsch trifft, braucht einen Weg zurueck, der nicht „Einheit
+ * stilllegen und neu anlegen" heisst — das verloere Soll, Bestand, Checks und
+ * Journal. Der Audit-Trigger aus Migration 0010 protokolliert jede Aenderung,
+ * die Korrektur ist also nachvollziehbar und nicht still.
+ *
+ * ⚠️ ES GIBT KEINEN WEG ZURUECK NACH `null`. „Ich weiss es doch nicht" ist
+ * kein Zustand, den jemand HERSTELLT — er ist der, aus dem man kommt.
+ */
+export async function setEinheitenart(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis> {
+  const auditViewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
+
+    let v: z.output<typeof EinheitenartSchema>;
+    try {
+      v = EinheitenartSchema.parse(eingabe);
+    } catch (e) {
+      return validierungsFehler(e);
+    }
+
+    try {
+      if (!findeFahrzeug(db, v.id)) {
+        return { ok: false, fehler: "Einheit nicht gefunden." };
+      }
+      db.update(lagerorte)
+        .set({ einheitenart: v.einheitenart })
+        .where(and(eq(lagerorte.id, v.id), eq(lagerorte.typ, "fahrzeug")))
+        .run();
+    } catch {
+      return { ok: false, fehler: "Art konnte nicht gespeichert werden." };
+    }
+
+    revalidatePath(FAHRZEUGE_PFAD);
+    revalidatePath(`${FAHRZEUGE_PFAD}/${v.id}`);
     return { ok: true };
   });
 }
@@ -129,7 +217,7 @@ export async function sollPositionSetzen(
     const id = v.id ?? newId();
     try {
       if (!findeFahrzeug(db, v.fahrzeugId)) {
-        return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+        return { ok: false, fehler: EINHEIT_FEHLT };
       }
       if (v.id) {
         const row = db.select().from(sollPositionen)

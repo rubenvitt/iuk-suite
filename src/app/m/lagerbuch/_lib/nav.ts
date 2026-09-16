@@ -36,10 +36,24 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   // „Check durchführen".
   { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
 
-  { key: "fahrzeuge", title: "Fahrzeuge", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Fahrzeuge & Geräte" },
-  { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Fahrzeuge & Geräte" },
-  { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Fahrzeuge & Geräte" },
-  { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Fahrzeuge & Geräte" },
+  /* DRK-309: Die Beschriftung nennt beide Arten, der `href` bleibt — wer eine
+   * Tasche sucht, findet unter „Fahrzeuge" nichts und schliesst, es gebe den
+   * Ort nicht. `key` und Pfad sind dagegen Adressen (aktiver Eintrag,
+   * Zugangs-Codes, gedruckte Kärtchen) und bleiben unangetastet.
+   *
+   * ⚠️ UND DIE ABSCHNITTSUEBERSCHRIFT MIT, sonst steht „Fahrzeuge & Taschen"
+   * unter „Fahrzeuge & Geräte" (Reviewrunde 13). `abschnitt` wird SICHTBAR
+   * gerendert — in der Leiste ab 768px und in der Schublade darunter —, und
+   * wer Ueberschriften ueberfliegt statt Eintraege, liest dort weiter, es
+   * gehe nur um Fahrzeuge. Neutral ist hier richtig, weil die Ueberschrift
+   * ueber VIER Eintraege spricht (Einheiten, Vorlagen, Geräte, Sauerstoff)
+   * und damit ueber mehr als eine Art — dieselbe Regel wie ueberall sonst in
+   * diesem Ticket. „Einheiten" ist dabei kein neues Wort: die Oberfläche sagt
+   * es bereits an „Verknüpfte Einheiten" und „Einheit wählen". */
+  { key: "fahrzeuge", title: "Fahrzeuge & Taschen", href: "/verwaltung/fahrzeuge", ikon: "fahrzeuge", abschnitt: "Einheiten & Geräte" },
+  { key: "vorlagen", title: "Vorlagen", href: "/verwaltung/vorlagen", ikon: "vorlagen", abschnitt: "Einheiten & Geräte" },
+  { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Einheiten & Geräte" },
+  { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Einheiten & Geräte" },
 
   { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
   /*

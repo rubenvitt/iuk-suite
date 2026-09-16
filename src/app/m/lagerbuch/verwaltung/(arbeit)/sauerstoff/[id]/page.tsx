@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
+import { standortZeile } from "../../../../_lib/konstanten";
 import { o2FlascheDetail, type O2MessungZeile } from "../../../../_lib/lesepfade/o2";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
@@ -85,7 +86,7 @@ export function o2FlascheInhalt(db: DB, id: string): ReactNode {
               // Zuschnitt, die einen Skalenwert nahelegen wuerde.
               <span style={{ display: "grid", gap: 2 }}>
                 <span>{flasche.aktiv ? "Aktiv" : "Inaktiv"}</span>
-                <span style={SCHRIFT.neben}>{detail.lagerortName}</span>
+                <span style={SCHRIFT.neben}>{standortZeile(detail.lagerortStandort)}</span>
               </span>
             )}
             beschriftung="Status / Standort"

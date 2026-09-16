@@ -8,6 +8,11 @@ import {
   ZUSTAENDE, ZUSTAND_DEFEKT,
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
+  EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
+  einheitNomen, einheitMeta, standortMeta, standortZeile, dieseEinheit, ausDieserEinheit,
+  anDieserEinheit,
+  inDieEinheit, inDerEinheit,
+  checklisteTitel, grossAmAnfang,
 } from "./konstanten";
 import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
 
@@ -82,6 +87,144 @@ describe("Enum-Listen", () => {
     expect([...GERAETE_TYPEN].sort()).toEqual(["medizin", "objekt"]);
     expect([...TOKEN_ZIEL_TYPEN].sort()).toEqual(["artikel", "fahrzeug"]);
   });
+
+  /**
+   * DRK-309. ⚠️ ZWEI WERTE, UND KEIN DRITTER FUER DEN ZWISCHENSTAND. Der ist
+   * die ABWESENHEIT eines Wertes (`null` in der Spalte); ein Literal
+   * „unbekannt" waere ueber den Eingangsvalidator anlegbar, und damit liesse
+   * sich eine Einheit anlegen, die sich absichtlich nicht zuordnet.
+   */
+  it("EINHEITENARTEN traegt genau Fahrzeug und Tasche", () => {
+    expect([...EINHEITENARTEN].sort()).toEqual(["fahrzeug", "tasche"]);
+    expect(EINHEITENARTEN).not.toContain("unbekannt");
+  });
+
+  it("jede Art hat eine Beschriftung, und der Zwischenstand hat seine eigene", () => {
+    // EINE Quelle fuer Liste, Filter, Anlegen-Dialog und Einheitenblatt: zwei
+    // Schreibweisen fuer denselben Zustand lassen den Leser einen dritten
+    // vermuten.
+    for (const art of EINHEITENARTEN) {
+      expect(EINHEITENART_LABEL[art], art).toBeTruthy();
+      expect(einheitenartLabel(art)).toBe(EINHEITENART_LABEL[art]);
+    }
+    // „nicht zugeordnet" und NICHT „unbekannt": unbekannt klaenge nach einem
+    // Datenfehler, zugeordnet wird es aber schlicht noch.
+    expect(EINHEITENART_OFFEN_LABEL).toBe("nicht zugeordnet");
+    expect(einheitenartLabel(null)).toBe(EINHEITENART_OFFEN_LABEL);
+  });
+
+  /**
+   * ⚠️ DIE SATZBAUSTEINE FALLEN AUF DAS OBERWORT ZURUECK, NIE AUF „Fahrzeug"
+   * UND NIE AUF DEN CHIPTEXT (DRK-309).
+   *
+   * Auf „Fahrzeug" zu raten machte aus einer offenen Frage still eine Antwort.
+   * Den Chiptext einzusetzen ergaebe „nicht zugeordnet löschen" — der
+   * Unterschied zwischen `einheitenartLabel` (Zustandsanzeige) und
+   * `einheitNomen` (Wort in einem Satz) ist genau dieser Fall.
+   */
+  it("die Satzbausteine tragen jede Art — und den Zwischenstand neutral", () => {
+    expect(einheitNomen("fahrzeug")).toBe("Fahrzeug");
+    expect(einheitNomen("tasche")).toBe("Tasche");
+    expect(einheitNomen(null)).toBe("Einheit");
+
+    expect(dieseEinheit("tasche")).toBe("diese Tasche");
+    expect(dieseEinheit(null)).toBe("diese Einheit");
+
+    // ⚠️ VERSCHIEDENE PRAEPOSITIONEN — der Grund fuer eigene Bausteine statt
+    // eines eingesetzten Nomens: „auf die Tasche" waere falsch.
+    expect(inDieEinheit("fahrzeug")).toBe("aufs Fahrzeug");
+    expect(inDieEinheit("tasche")).toBe("in die Tasche");
+    expect(inDieEinheit(null)).toBe("in die Einheit");
+
+    expect(inDerEinheit("fahrzeug")).toBe("im Fahrzeug");
+    expect(inDerEinheit("tasche")).toBe("in der Tasche");
+    expect(inDerEinheit(null)).toBe("in der Einheit");
+
+    // ⚠️ DATIV, NICHT NOMINATIV — und genau deshalb ein eigener Baustein:
+    // `aus ${dieseEinheit(art)}` ergaebe „aus dieses Fahrzeug", und eine
+    // Zeichenkette hat keinen Fall, an dem ein Tor das merken koennte.
+    expect(ausDieserEinheit("fahrzeug")).toBe("aus diesem Fahrzeug");
+    expect(ausDieserEinheit("tasche")).toBe("aus dieser Tasche");
+    expect(ausDieserEinheit(null)).toBe("aus dieser Einheit");
+    for (const art of [...EINHEITENARTEN, null] as const) {
+      expect(ausDieserEinheit(art), String(art))
+        .not.toContain(dieseEinheit(art));
+    }
+
+    // ⚠️ DERSELBE FALL, ANDERE PRAEPOSITION — und deshalb ein DRITTER
+    // Baustein statt einer Wiederverwendung: `an ${ausDieserEinheit(art)}`
+    // ergaebe „an aus diesem Fahrzeug", was beim Lesen durchginge.
+    expect(anDieserEinheit("fahrzeug")).toBe("an diesem Fahrzeug");
+    expect(anDieserEinheit("tasche")).toBe("an dieser Tasche");
+    expect(anDieserEinheit(null)).toBe("an dieser Einheit");
+    for (const art of [...EINHEITENARTEN, null] as const) {
+      expect(anDieserEinheit(art), String(art)).not.toContain("aus");
+    }
+
+    // ⚠️ FUGEN-N: ein zusammengeklebtes `${label}-Checkliste` ergaebe
+    // „Tasche-Checkliste" — fuer „Fahrzeug" richtig und hier still falsch.
+    expect(checklisteTitel("fahrzeug")).toBe("Fahrzeug-Checkliste");
+    expect(checklisteTitel("tasche")).toBe("Taschen-Checkliste");
+    expect(checklisteTitel(null)).toBe("Checkliste");
+
+    /*
+     * ⚠️ DIE BEIZEILE TRAEGT IMMER ETWAS. Genau das war frueher nicht so: ohne
+     * die Art blieb sie fuer eine Tasche LEER, weil eine Tasche kein
+     * Kennzeichen traegt — und der Name allein musste die Art mittragen.
+     */
+    expect(einheitMeta({ kennung: "MS-1", einheitenart: "fahrzeug" }))
+      .toBe("Fahrzeug · MS-1");
+    expect(einheitMeta({ kennung: null, einheitenart: "tasche" })).toBe("Tasche");
+    expect(einheitMeta({ kennung: null, einheitenart: null })).toBe("nicht zugeordnet");
+
+    /*
+     * ⚠️ EIN LAGER SAGT „Lager", NICHT „nicht zugeordnet". Die Standortlisten
+     * der Geräte, BZ-Geräte und Flaschen mischen das Handlager mit den
+     * Einheiten; für eine Lagerzeile ist die Art gegenstandslos und nicht
+     * offen. Mit dem Zwischenstandstext stünde das Handlager auf jeder dieser
+     * Listen auf der To-do-Liste, die der Artfilter aufmacht.
+     */
+    expect(standortMeta({ typ: "lager", kennung: null, einheitenart: null }))
+      .toBe("Lager");
+    expect(standortMeta({ typ: "fahrzeug", kennung: "MS-1", einheitenart: "fahrzeug" }))
+      .toBe("Fahrzeug · MS-1");
+    expect(standortMeta({ typ: "fahrzeug", kennung: null, einheitenart: null }))
+      .toBe("nicht zugeordnet");
+
+    /*
+     * ⚠️ DER FALL, UM DEN ES GEHT (DRK-309, Reviewrunde 14): ein Fahrzeug und
+     * eine Tasche DESSELBEN Namens. Vor `standortZeile` stand in den drei
+     * Uebersichten nur der Name — zwei Zeilen, nicht auseinanderzuhalten, und
+     * ein Spaltenfilter, der beide in EINEN Wert zog. Die Zusicherung ist
+     * deshalb `not.toBe` und nicht zwei Gleichheiten: sie prueft die
+     * EIGENSCHAFT (unterscheidbar), nicht die heutige Schreibweise.
+     */
+    const alsFahrzeug = { name: "Betreuung", typ: "fahrzeug" as const,
+      kennung: null, einheitenart: "fahrzeug" as const };
+    const alsTasche = { ...alsFahrzeug, einheitenart: "tasche" as const };
+    expect(standortZeile(alsFahrzeug)).not.toBe(standortZeile(alsTasche));
+    expect(standortZeile(alsTasche)).toBe("Betreuung · Tasche");
+
+    // Und die Kennung steht mit drin, wo es eine gibt — sie ist bei zwei
+    // gleichnamigen Fahrzeugen das einzige, was sie trennt.
+    expect(standortZeile({ ...alsFahrzeug, kennung: "MS-1" }))
+      .toBe("Betreuung · Fahrzeug · MS-1");
+
+    // Ein Lager bleibt ein Lager, auch in der vollen Zeile.
+    expect(standortZeile({ name: "Schrank 1", typ: "lager",
+      kennung: null, einheitenart: null })).toBe("Schrank 1 · Lager");
+
+    expect(grossAmAnfang(inDieEinheit("tasche"))).toBe("In die Tasche");
+    for (const art of [...EINHEITENARTEN, null] as const) {
+      expect(dieseEinheit(art), String(art)).not.toBe("");
+      if (art !== "fahrzeug") {
+        expect(inDieEinheit(art), String(art)).not.toContain("Fahrzeug");
+        expect(checklisteTitel(art), String(art)).not.toContain("Fahrzeug");
+        expect(ausDieserEinheit(art), String(art)).not.toContain("Fahrzeug");
+        expect(anDieserEinheit(art), String(art)).not.toContain("Fahrzeug");
+      }
+    }
+  });
 });
 
 describe("_lib und _db tragen weder 'use client' noch einen Icon-Import", () => {
@@ -141,5 +284,9 @@ describe("Enum-Listen: Zod-Seite und Drizzle-Seite sind mengengleich", () => {
   });
   it("TOKEN_ZIEL_TYPEN", () => {
     expect(enumWerte(getTableColumns(tokens).zielTyp)).toEqual([...TOKEN_ZIEL_TYPEN].sort());
+  });
+  it("EINHEITENARTEN — DRK-309", () => {
+    expect(enumWerte(getTableColumns(lagerorte).einheitenart))
+      .toEqual([...EINHEITENARTEN].sort());
   });
 });

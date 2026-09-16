@@ -151,7 +151,7 @@ describe("manifest.webmanifest — die acht Werte, gemessen gegen die Alt-Anwend
     const m = await gelesen();
     expect(m.name).toBe("Lagerbuch · DRK Bereitschaft Musterstadt");
     expect(m.short_name).toBe("Lagerbuch");
-    expect(m.description).toBe("Bestand, Fahrzeuge, Geräte");
+    expect(m.description).toBe("Bestand, Fahrzeuge, Taschen, Geräte");
     expect(m.start_url).toBe("/");
     expect(m.scope).toBe("/");
     expect(m.display).toBe("standalone");

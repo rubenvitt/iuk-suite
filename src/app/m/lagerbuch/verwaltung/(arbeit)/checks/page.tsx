@@ -88,6 +88,8 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
     id: zeile.id,
     detailHref: `/verwaltung/checks/${zeile.id}`,
     fahrzeugName: zeile.fahrzeugName,
+    fahrzeugKennung: zeile.fahrzeugKennung,
+    fahrzeugEinheitenart: zeile.fahrzeugEinheitenart,
     abgeschlossenText: zeile.completedAt?.toLocaleString("de-DE", {
       timeZone: "Europe/Berlin",
     }) ?? "—",
@@ -131,6 +133,8 @@ export function checksInhalt(
       id: fahrzeug.id,
       name: fahrzeug.name,
       kennung: fahrzeug.kennung,
+      // DRK-309: macht die Zielwahl nach „tasche" durchsuchbar.
+      einheitenart: fahrzeug.einheitenart,
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
   const fz = fahrzeuge.some((fahrzeug) => fahrzeug.id === suchparameter.fz)
@@ -151,7 +155,7 @@ export function checksInhalt(
   return (
     <>
       <SeitenKopf
-        titel="Fahrzeug-Checks"
+        titel="Checks an Fahrzeugen und Taschen"
         beschreibung={deckelText(zeilen.length, historie.mehrVorhanden)}
       />
       <ChecksFilter
@@ -163,9 +167,15 @@ export function checksInhalt(
       />
       <ChecksTabelle
         zeilen={zeilen}
+        /*
+          DRK-309: NEUTRAL. Beide Leertexte sprechen ueber die ganze Liste,
+          nicht ueber eine bestimmte Einheit — und die Liste mischt Fahrzeuge
+          und Taschen. „Noch kein abgeschlossener Fahrzeug-Check" waere unter
+          einem gesetzten Taschenfilter sogar nachweislich falsch.
+        */
         leertext={hatFilter
-          ? "Kein Check passt zu Fahrzeug und Zeitraum."
-          : "Noch kein abgeschlossener Fahrzeug-Check."}
+          ? "Kein Check passt zu Einheit und Zeitraum."
+          : "Noch kein abgeschlossener Check."}
       />
     </>
   );

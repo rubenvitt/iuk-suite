@@ -39,6 +39,10 @@ vi.mock("next/navigation", () => ({
 const ZEILEN: SauerstoffAnzeigeZeile[] = [
   {
     id: "o1", name: "O2 klein", lagerortName: "RTW 1", aktiv: true,
+    lagerortStandort: {
+      name: "RTW 1", typ: "fahrzeug" as const,
+      kennung: null, einheitenart: "fahrzeug" as const,
+    },
     groesseLiter: 2, nennfuelldruckBar: 200, letzterDruck: 70, wechselAbProzent: 40,
     letzteMessungText: "07.08. 12:34", herkunft: "check",
     // 70 von 200 bar = 35 %, und die Flasche steht auf 40 % — sie ist faellig,
@@ -51,6 +55,10 @@ const ZEILEN: SauerstoffAnzeigeZeile[] = [
   },
   {
     id: "o2", name: "O2 Reserve", lagerortName: "Lager Beta", aktiv: true,
+    lagerortStandort: {
+      name: "Lager Beta", typ: "lager" as const,
+      kennung: null, einheitenart: null,
+    },
     groesseLiter: 10, nennfuelldruckBar: 300, letzterDruck: 240, wechselAbProzent: 25,
     letzteMessungText: "07.08. 11:30", herkunft: "manuell",
     status: {
@@ -60,11 +68,19 @@ const ZEILEN: SauerstoffAnzeigeZeile[] = [
   },
   {
     id: "o3", name: "O2 ohne", lagerortName: "Handlager", aktiv: true,
+    lagerortStandort: {
+      name: "Handlager", typ: "lager" as const,
+      kennung: null, einheitenart: null,
+    },
     groesseLiter: null, nennfuelldruckBar: 200, letzterDruck: null, wechselAbProzent: 25,
     letzteMessungText: null, herkunft: null, status: null,
   },
   {
     id: "o4", name: "O2 alt", lagerortName: "Altbestand", aktiv: false,
+    lagerortStandort: {
+      name: "Altbestand", typ: "fahrzeug" as const,
+      kennung: null, einheitenart: "fahrzeug" as const,
+    },
     groesseLiter: 2, nennfuelldruckBar: 200, letzterDruck: 40, wechselAbProzent: 25,
     letzteMessungText: "06.08. 09:00", herkunft: "manuell",
     status: {
@@ -75,8 +91,10 @@ const ZEILEN: SauerstoffAnzeigeZeile[] = [
 ];
 
 const LAGERORTE = [
-  { id: "handlager", name: "Handlager" },
-  { id: "rtw-1", name: "RTW 1" },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
+  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);

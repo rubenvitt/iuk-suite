@@ -326,7 +326,7 @@ describe("SollEditor — auto-committende Sollmenge", () => {
   /**
    * ZWEI GETRENNTE ZUSAGEN: der lokale Wert bleibt in BEIDEN Faellen stehen,
    * der TEXT unterscheidet sich. Bei `ok:false` steht der Satz aus der Action
-   * da — `sollPositionSetzen` unterscheidet „Fahrzeug nicht gefunden." von
+   * da — `sollPositionSetzen` unterscheidet „Einheit nicht gefunden." von
    * „Soll-Position nicht gefunden." von einem Schreibfehler, und nur dieser
    * Satz sagt der Person, ob neu laden oder etwas anderes eintragen hilft. Im
    * Wurf bleibt die Modulkonstante: dort ist `e.message` in Produktion
@@ -383,8 +383,8 @@ describe("SollEditor — Hinzufuegen, Entfernen und Wiederherstellen", () => {
   it.each([
     [
       "ok:false",
-      async () => ({ ok: false as const, fehler: "Fahrzeug nicht gefunden." }),
-      "Fahrzeug nicht gefunden.",
+      async () => ({ ok: false as const, fehler: "Einheit nicht gefunden." }),
+      "Einheit nicht gefunden.",
     ],
     [
       "Reject",

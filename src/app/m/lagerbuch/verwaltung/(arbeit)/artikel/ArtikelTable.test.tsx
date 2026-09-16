@@ -135,7 +135,7 @@ const ZEILEN = [
 ];
 
 const FAHRZEUGE = [
-  { id: "rtw-1", name: "RTW 1", kennung: "UE-RK 129" },
+  { id: "rtw-1", name: "RTW 1", kennung: "UE-RK 129", einheitenart: "fahrzeug" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -1016,8 +1016,11 @@ describe("Artikelseite als Server Component", () => {
           naechsteAblaufText: null,
         },
       ]);
+      // DRK-309: `einheitenart` reist mit — sie macht die Zielwahl in der
+      // Schublade nach „tasche" durchsuchbar. `null` ist hier der
+      // Zwischenstand aus Migration 0010, den die Fixture nicht setzt.
       expect(props.fahrzeuge).toEqual([
-        { id: "rtw-aktiv", name: "RTW Aktiv", kennung: "UE-RK 129" },
+        { id: "rtw-aktiv", name: "RTW Aktiv", kennung: "UE-RK 129", einheitenart: null },
       ]);
       expect(props.ausgeblendeteKategorien).toEqual(["hygiene"]);
       expect(istJsonSicher(props)).toBe(true);

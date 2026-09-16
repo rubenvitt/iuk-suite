@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { einheitMeta, type Einheitenart } from "../_lib/konstanten";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -29,11 +30,20 @@ import s from "./helfer.module.css";
 export function FahrzeugWahl({
   fahrzeuge,
 }: {
-  fahrzeuge: { id: string; name: string; kennung: string | null }[];
+  fahrzeuge: {
+    id: string; name: string; kennung: string | null;
+    einheitenart: Einheitenart | null;
+  }[];
 }) {
   return (
     <>
-      <div className={s.schirmKopf}>Fahrzeug wählen</div>
+      {/*
+        DRK-309: NEUTRAL IM KOPF, DIE ART IN DER ZEILE. Die Überschrift spricht
+        über die ganze Liste, und die enthält beides — „Fahrzeug wählen" über
+        einer Zeile, die „Sanitätstasche 1" heißt, ist schlicht falsch. Welche
+        Art eine EINZELNE Zeile hat, sagt die Zeile selbst.
+      */}
+      <div className={s.schirmKopf}>Einheit wählen</div>
       <div className={s.karte}>
         {fahrzeuge.map((f) => (
           <Link
@@ -46,9 +56,21 @@ export function FahrzeugWahl({
           >
             <div className={s.zeileHaupt}>
               <div className={s.zeileName}>{f.name}</div>
-              {/* Die Bedingung ist die Zusage: ein bedingungsloses Meta-Feld
-                  waere bei fehlender Kennung eine LEERE Zeile mit Abstand. */}
-              {f.kennung && <div className={s.zeileMeta}>{f.kennung}</div>}
+              {/*
+                DIE META-ZEILE TRAEGT JETZT IMMER ETWAS (DRK-309) — und damit
+                faellt der Grund fuer die alte Bedingung weg, nicht die Zusage
+                dahinter: ein bedingungsloses Feld war frueher bei fehlender
+                Kennung eine LEERE Zeile mit Abstand. Die Art steht immer,
+                die Kennung nur, wenn es eine gibt.
+
+                ⚠️ UND SIE IST HIER WICHTIGER ALS IN DER VERWALTUNG: eine
+                Tasche traegt kein Kennzeichen, also stand in dieser Zeile fuer
+                sie bisher GAR NICHTS — der Name allein musste die Art
+                mittragen, und „Rucksack Betreuung" tut das nicht.
+              */}
+              <div className={s.zeileMeta}>
+                {einheitMeta(f)}
+              </div>
             </div>
             <Ikone name="chevron-rechts" />
           </Link>

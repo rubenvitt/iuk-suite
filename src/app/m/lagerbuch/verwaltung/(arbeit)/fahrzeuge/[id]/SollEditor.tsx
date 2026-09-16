@@ -125,7 +125,7 @@ export function SollEditor({
 
   /**
    * `ActionAusgang` statt `{ ok: boolean }`: die Actions
-   * unterscheiden „Fahrzeug nicht gefunden." von „Soll-Position nicht
+   * unterscheiden „Einheit nicht gefunden." von „Soll-Position nicht
    * gefunden." von einem Schreibfehler, und nur der Satz aus der Action sagt
    * der Person, ob neu laden, erneut versuchen oder etwas anderes eintragen
    * hilft. Der Konstantentext bleibt Rueckfall fuer den Wurf — dort ist

@@ -5,19 +5,19 @@ const notiz: Releasenotiz = {
   modul: "lagerbuch",
   slug: "abgelaufenes-je-fahrzeug",
   datum: "2026-09-15",
-  titel: "Abgelaufenes Material je Fahrzeug",
+  titel: "Abgelaufenes Material je Einheit",
   inhalt: [
     absatz(
-      "Unter „Verfall“ kannst du die Meldungen aus den Fahrzeugen nach Fahrzeug filtern " +
-        "oder mit „nach Fahrzeug“ gruppiert anzeigen: je Fahrzeug eine aufklappbare " +
-        "Zeile mit Kennung und Bilanz.",
+      "Unter „Verfall“ kannst du die Meldungen nach Einheit filtern oder mit " +
+        "„nach Einheit“ gruppiert anzeigen: je Fahrzeug und Tasche eine aufklappbare " +
+        "Zeile mit Bilanz.",
     ),
     absatz(
-      "Unter „Fahrzeuge“ unterscheidet die Spalte „Verfall“ jetzt, was bereits " +
+      "Unter „Fahrzeuge und Taschen“ unterscheidet die Spalte „Verfall“ jetzt, was bereits " +
         "abgelaufen ist und was erst bald abläuft.",
     ),
     absatz(
-      "Dieselbe Spalte sagt jetzt auch, für wie viele Artikel eines Fahrzeugs überhaupt " +
+      "Dieselbe Spalte sagt jetzt auch, für wie viele Artikel einer Einheit überhaupt " +
         "schon ein Verfall erfasst ist — etwa „3 von 8 erfasst“. „Im grünen Bereich“ steht " +
         "nur noch da, wo wirklich jeder Artikel angesehen wurde.",
     ),

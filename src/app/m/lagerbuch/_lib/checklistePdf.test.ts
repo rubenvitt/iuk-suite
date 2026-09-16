@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { inflateSync } from "node:zlib";
+import { PDFDocument } from "pdf-lib";
 import { checklistenPdf, pdfDateiname, winAnsi } from "./checklistePdf";
 import type { ChecklisteBlatt } from "./lesepfade/checkliste";
 
@@ -100,6 +101,7 @@ const RTW: ChecklisteBlatt = {
   id: "fz-a",
   name: "RTW 1",
   kennung: "MS-1",
+  einheitenart: "fahrzeug",
   vorlage: "RTW-Vorlage",
   positionen: 2,
   faecher: [{
@@ -126,8 +128,20 @@ const RTW: ChecklisteBlatt = {
 };
 
 const NEF: ChecklisteBlatt = {
-  id: "fz-b", name: "NEF 1", kennung: null, vorlage: null,
+  id: "fz-b", name: "NEF 1", kennung: null, einheitenart: "fahrzeug", vorlage: null,
   positionen: 0, faecher: [], geraete: [], flaschen: [],
+};
+
+/** DRK-309: dasselbe leere Blatt, nur fuer eine TASCHE. */
+const TASCHE: ChecklisteBlatt = {
+  id: "ta-a", name: "Sanitätstasche 1", kennung: null, einheitenart: "tasche",
+  vorlage: null, positionen: 0, faecher: [], geraete: [], flaschen: [],
+};
+
+/** DRK-309: und eine, deren Art noch nicht zugeordnet ist. */
+const OHNE_ART: ChecklisteBlatt = {
+  id: "offen-a", name: "Rucksack Betreuung", kennung: null, einheitenart: null,
+  vorlage: null, positionen: 0, faecher: [], geraete: [], flaschen: [],
 };
 
 const OPTIONEN = { stand: "15.06.2026", erstellt: new Date("2026-06-15T08:00:00Z") };
@@ -164,6 +178,71 @@ describe("das Dokument", () => {
     expect(text).toContain("2 Positionen · Stand 15.06.2026");
   });
 
+  /**
+   * DRK-309 — DAS BLATT SAGT, WAS ES BESCHREIBT.
+   *
+   * ⚠️ DAS IST DIE FLAECHE, AUF DER DIE ART AM MEISTEN ZAEHLT. Sie ist
+   * ausgedruckt, liegt auf dem Tisch und laesst sich nicht nachschlagen: wer
+   * eine Sanitaetstasche vor sich hat und „Fahrzeug-Checkliste" liest, greift
+   * zum falschen Blatt oder zweifelt an seinem. Die Verwaltungsliste kann man
+   * dagegen jederzeit neu laden.
+   */
+  it("ueberschreibt jedes Blatt nach seiner Art — Fahrzeug, Tasche oder neutral", async () => {
+    expect(flach(await checklistenPdf([NEF], OPTIONEN))).toContain("Fahrzeug-Checkliste");
+
+    // ⚠️ „Taschen-Checkliste" MIT FUGEN-N. Ein aus dem Label
+    // zusammengeklebtes `${art}-Checkliste` ergaebe „Tasche-Checkliste" — fuer
+    // „Fahrzeug" richtig und hier still falsch (Begruendung an
+    // `checklisteTitel`).
+    const tasche = flach(await checklistenPdf([TASCHE], OPTIONEN));
+    expect(tasche).toContain("Taschen-Checkliste");
+    expect(tasche).not.toContain("Fahrzeug-Checkliste");
+
+    // Der Zwischenstand aus Migration 0010 behauptet keine Art, statt auf die
+    // haeufigere zu raten.
+    const offen = flach(await checklistenPdf([OHNE_ART], OPTIONEN));
+    expect(offen).toContain("Checkliste");
+    expect(offen).not.toContain("Fahrzeug-Checkliste");
+    expect(offen).not.toContain("Taschen-Checkliste");
+  });
+
+  it("nennt auch im Leerfall die Art der Einheit statt pauschal Fahrzeug", async () => {
+    expect(fliesstext(await checklistenPdf([TASCHE], OPTIONEN)))
+      .toContain("Für diese Tasche ist weder eine Soll-Bestückung");
+    expect(fliesstext(await checklistenPdf([OHNE_ART], OPTIONEN)))
+      .toContain("Für diese Einheit ist weder eine Soll-Bestückung");
+  });
+
+  /**
+   * DRK-309 — DER DOKUMENTTITEL IST DAS, WAS DER BETRACHTER OBEN ANZEIGT.
+   *
+   * ⚠️ NICHT DASSELBE WIE DIE KOPFZEILE, und die Zusicherung daher auch nicht
+   * doppelt: `setTitle` landet in den Metadaten, nicht im Textlayer — er faellt
+   * durch jede Probe, die (wie alle anderen hier) den gesetzten Text liest.
+   * Genau deshalb ist er beim ersten Durchgang stehengeblieben, waehrend die
+   * Kopfzeile direkt darunter schon richtig war: ein Blatt, das sich
+   * „Taschen-Checkliste" ueberschreibt und „Fahrzeug-Checkliste …" heisst,
+   * widerspricht sich in derselben Ansicht.
+   */
+  it("benennt das Dokument nach der Art des Blattes", async () => {
+    const titel = async (blatt: ChecklisteBlatt) =>
+      (await PDFDocument.load(await checklistenPdf([blatt], OPTIONEN))).getTitle();
+
+    expect(await titel(NEF)).toBe("Fahrzeug-Checkliste NEF 1 (Stand 15.06.2026)");
+    expect(await titel(TASCHE))
+      .toBe("Taschen-Checkliste Sanitätstasche 1 (Stand 15.06.2026)");
+    // Der Zwischenstand behauptet keine Art, statt auf die haeufigere zu raten.
+    expect(await titel(OHNE_ART)).toBe("Checkliste Rucksack Betreuung (Stand 15.06.2026)");
+  });
+
+  it("nennt einen gemischten Bogen NEUTRAL — er traegt beide Arten", async () => {
+    // Die Art steht dann je Blatt in dessen Kopfzeile; ein Dokumenttitel gilt
+    // fuer alle Blaetter und darf sich nicht auf eines davon festlegen.
+    const doc = await PDFDocument.load(await checklistenPdf([NEF, TASCHE], OPTIONEN));
+    expect(doc.getTitle()).toBe("Checklisten (Stand 15.06.2026)");
+    expect(doc.getSubject()).toBe("Checkliste zum Abhaken");
+  });
+
   it("nennt eine fehlende Vorlage ausdruecklich, statt die Zeile wegzulassen", async () => {
     expect(flach(await checklistenPdf([NEF], OPTIONEN))).toContain("ohne Vorlage");
   });
@@ -182,7 +261,13 @@ describe("das Dokument", () => {
    *  nennen koennen — und sagen, ob es vollstaendig ist. */
   it("nennt in der Fusszeile Fahrzeug, Stand und die Seitenzahl", async () => {
     const text = flach(await checklistenPdf([RTW], OPTIONEN));
-    expect(text).toContain("RTW 1 · MS-1 · Stand 15.06.2026");
+    /*
+     * ⚠️ DER FUSS NENNT DIE ART (DRK-309, Reviewrunde 15). Ein Bogen wird
+     * geheftet und wieder auseinandergenommen; auf einer losen Seite ist der
+     * Fuss oft das Einzige, was sie benennt — und „RTW 1" allein ist von
+     * einer gleichnamigen Tasche nicht zu unterscheiden.
+     */
+    expect(text).toContain("RTW 1 · Fahrzeug · MS-1 · Stand 15.06.2026");
     expect(text).toContain("Seite 1 von 1");
   });
 
@@ -298,7 +383,9 @@ describe("mehrseitige Blaetter", () => {
     const zweite = seiten[1]!.join(" ");
     expect(zweite).toContain("ARTIKEL");
     expect(zweite).toContain("SOLL");
-    expect(zweite).toContain("RTW 1 · MS-1 — Fortsetzung");
+    // DRK-309: dieselbe Angabe wie im Fuss — auf Papier gibt es kein
+    // Zurueckblaettern zur Kopfzeile der ersten Seite.
+    expect(zweite).toContain("RTW 1 · Fahrzeug · MS-1 — Fortsetzung");
   });
 
   /**

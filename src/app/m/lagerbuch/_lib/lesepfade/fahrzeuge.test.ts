@@ -28,16 +28,32 @@ beforeEach(() => {
   // waere `templateDetail("tpl-rtw").fahrzeuge` (nur `rtw-1`) nie mehr als ein
   // Element gross, und dessen aktiv/alphabetisch-Sortierung waere unbeweisbar.
   t.db.insert(lagerorte).values([
+    // DRK-309: DIESE ZEILE TRAEGT KEINE `einheitenart` — der Zwischenstand aus
+    // Migration 0010, die bewusst nicht backfillt. Er steht MITTEN in der
+    // Fixture und nicht am Ende, damit jede Zusicherung ueber die Uebersicht
+    // ueber ihn laeuft, ohne ihn eigens zu suchen.
     { id: "rtw-2", name: "ELW", typ: "fahrzeug", kennung: "MS-2", aktiv: false },
     { id: "rtw-3", name: "ZZZ Ersatzwagen", typ: "fahrzeug", kennung: "MS-3",
-      aktiv: false, templateId: "tpl-rtw" },
+      aktiv: false, templateId: "tpl-rtw", einheitenart: "fahrzeug" },
     { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1",
-      aktiv: true, templateId: "tpl-rtw" },
+      aktiv: true, templateId: "tpl-rtw", einheitenart: "fahrzeug" },
     // VIERTES Fahrzeug fuer die vollstaendig gepflegte, unauffaellige Lage.
     // „AAA" sortiert vor „ELW" — unter den Inaktiven wird der Alphabet-
     // Tiebreaker damit erst wirklich beweisbar.
     { id: "rtw-4", name: "AAA Grünwagen", typ: "fahrzeug", kennung: "MS-4",
       aktiv: false, templateId: null },
+    /*
+     * DRK-309: eine TASCHE — derselbe `typ`, andere Art, und ohne Kennung.
+     *
+     * ⚠️ SIE HAENGT AN DERSELBEN VORLAGE WIE `rtw-1` (Reviewrunde 4), und das
+     * ist der Fall, den die Aenderung sichtbar machen soll: eine Soll-Liste,
+     * die ein Fahrzeug UND eine Tasche bestueckt. Ohne diese Verknuepfung
+     * liefe jede Zusicherung ueber `templateDetail` weiter nur ueber
+     * Fahrzeuge — und ein `einheitenart`, das der Lesepfad fallen laesst,
+     * faellt nirgends auf.
+     */
+    { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug", kennung: null,
+      aktiv: true, templateId: "tpl-rtw", einheitenart: "tasche" },
   ]).run();
   t.db.insert(artikel).values([
     { id: "a1", name: "Verband", einheit: "Stk.", fach: "A1",
@@ -254,13 +270,19 @@ describe("fahrzeugUebersicht — Soll je ARTIKEL summiert, dann verglichen", () 
 
   it("nennt den Vorlagennamen und sortiert aktive nach vorn", () => {
     const l = fahrzeugUebersicht(t.db, NOW);
-    // rtw-1 (aktiv) zuerst, dann die drei Inaktiven alphabetisch:
+    // Die beiden Aktiven zuerst, alphabetisch ("RTW 1" < "Sanitätstasche 1"),
+    // dann die drei Inaktiven, ebenfalls alphabetisch:
     // "AAA Grünwagen" < "ELW" < "ZZZ Ersatzwagen".
-    expect(l.map((z) => z.id)).toEqual(["rtw-1", "rtw-4", "rtw-2", "rtw-3"]);
-    expect(l[0].templateName).toBe("RTW-Vorlage");
-    expect(l[1].templateName).toBeNull();
-    expect(l[2].templateName).toBeNull();
-    expect(l[3].templateName).toBe("RTW-Vorlage");
+    //
+    // ⚠️ DIE TASCHE SORTIERT MIT DEN FAHRZEUGEN, NICHT HINTER IHNEN (DRK-309).
+    // Die Art ist eine EIGENSCHAFT der Einheit, kein Rang: wer sie zum
+    // Sortierschlüssel macht, baut zwei Listen in einer Tabelle — und die
+    // Reihenfolge widerspräche dem Spaltensortierer „Art" daneben, der genau
+    // dafür da ist.
+    expect(l.map((z) => z.id)).toEqual(["rtw-1", "tasche-1", "rtw-4", "rtw-2", "rtw-3"]);
+    // Dieselbe Vorlage an einem Fahrzeug UND an einer Tasche (DRK-309).
+    expect(l.map((z) => z.templateName))
+      .toEqual(["RTW-Vorlage", "RTW-Vorlage", null, null, "RTW-Vorlage"]);
   });
 });
 
@@ -348,16 +370,27 @@ describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
     // "RTW-Vorlage"), dann die inaktiven.
     expect(l.map((x) => x.id)).toEqual(["tpl-basis", "tpl-rtw", "tpl-alt"]);
     expect(l.find((x) => x.id === "tpl-rtw"))
-      .toMatchObject({ positionen: 1, faecher: 1, fahrzeuge: 2 });   // rtw-1 UND rtw-3
+      // rtw-1, tasche-1 UND rtw-3 — die Zahl zaehlt EINHEITEN, nicht Fahrzeuge.
+      .toMatchObject({ positionen: 1, faecher: 1, fahrzeuge: 3 });
   });
 
-  it("templateDetail nennt Positionen und verknuepfte Fahrzeuge", () => {
+  it("templateDetail nennt Positionen und verknuepfte Einheiten MIT ihrer Art", () => {
     const d = templateDetail(t.db, "tpl-rtw")!;
     expect(d.positionen.map((p) => p.id)).toEqual(["tp1"]);
     expect(d.positionen[0].artikelName).toBe("Verband");
     expect(d.positionen[0].handlagerFach).toBe("A1");
-    // rtw-1 (aktiv) vor rtw-3 (inaktiv) — trotz umgekehrter Einfuegereihenfolge.
-    expect(d.fahrzeuge.map((f) => f.id)).toEqual(["rtw-1", "rtw-3"]);
+    // Aktive zuerst (rtw-1, tasche-1 alphabetisch), dann die inaktiven —
+    // trotz umgekehrter Einfuegereihenfolge.
+    expect(d.fahrzeuge.map((f) => f.id)).toEqual(["rtw-1", "tasche-1", "rtw-3"]);
+    /*
+     * DRK-309 — DIE ART MUSS MITKOMMEN. Wer auf dem Vorlagenblatt liest, wer
+     * diese Vorlage nutzt, sieht sonst drei Namen und muss die Art raten; bis
+     * zu dieser Aenderung war sie aus dem Zusammenhang gegeben, jetzt nicht
+     * mehr. Der Zwischenstand gehoert in dieselbe Zusicherung: ein Lesepfad,
+     * der `null` unterwegs in „fahrzeug" verwandelt, wuerde hier auffallen.
+     */
+    expect(d.fahrzeuge.map((f) => f.einheitenart))
+      .toEqual(["fahrzeug", "tasche", "fahrzeug"]);
   });
 
   it("templateDetail liefert null fuer eine unbekannte ID", () => {
@@ -373,8 +406,40 @@ describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
 });
 
 describe("fahrzeugListe", () => {
-  it("liefert alle Lagerorte vom Typ fahrzeug, inklusive inaktiver", () => {
+  it("liefert alle Lagerorte vom Typ fahrzeug, inklusive inaktiver und Taschen", () => {
+    // ⚠️ DIE TASCHE IST DABEI, UND DAS IST DER PUNKT VON DRK-309: sie ist im
+    // Modell ein `typ: "fahrzeug"`, damit jeder Schreib- und Lesepfad sie
+    // erreicht. Eine Liste, die nach der ART filterte, waere die Rueckkehr zu
+    // „Taschen gibt es nicht" — nur eine Ebene tiefer.
     expect(fahrzeugListe(t.db).map((f) => f.id).sort())
-      .toEqual(["rtw-1", "rtw-2", "rtw-3", "rtw-4"]);
+      .toEqual(["rtw-1", "rtw-2", "rtw-3", "rtw-4", "tasche-1"]);
+  });
+
+  it("reicht die Art durch, und `null` bleibt `null`", () => {
+    const nachId = new Map(fahrzeugListe(t.db).map((f) => [f.id, f.einheitenart]));
+    expect(nachId.get("rtw-1")).toBe("fahrzeug");
+    expect(nachId.get("tasche-1")).toBe("tasche");
+    // ⚠️ NICHT auf „fahrzeug" abgebildet, weil das der haeufigere Fall ist:
+    // das machte aus einer offenen Frage still eine Antwort.
+    expect(nachId.get("rtw-2")).toBeNull();
+  });
+});
+
+describe("fahrzeugUebersicht — DRK-309: die Art reist bis in die Zeile", () => {
+  it("traegt Fahrzeug, Tasche und den Zwischenstand unveraendert weiter", () => {
+    const nachId = new Map(
+      fahrzeugUebersicht(t.db, NOW).map((z) => [z.id, z.einheitenart]));
+    expect(nachId.get("rtw-1")).toBe("fahrzeug");
+    expect(nachId.get("tasche-1")).toBe("tasche");
+    expect(nachId.get("rtw-2")).toBeNull();
+  });
+
+  it("nimmt die Tasche in die Uebersicht auf wie jede andere Einheit", () => {
+    // Sie hat kein Soll und keinen Check — die Kennzahlen sind deshalb die
+    // eines leeren Fahrzeugs, nicht „nicht vorhanden".
+    const tasche = fahrzeugUebersicht(t.db, NOW).find((z) => z.id === "tasche-1")!;
+    expect(tasche.positionen).toBe(0);
+    expect(tasche.faecher).toBe(0);
+    expect(tasche.letzterCheck).toBeNull();
   });
 });

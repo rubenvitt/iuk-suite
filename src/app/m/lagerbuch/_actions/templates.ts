@@ -285,6 +285,17 @@ export async function templatePositionEntfernen(
   });
 }
 
+/*
+ * ⚠️ NEUTRAL, WEIL DIE ART HIER NICHT ZU WISSEN IST (DRK-309, Reviewrunde 12).
+ * Die Regel dieses PRs lautet: wo die Art bekannt ist, steht sie auch da. Sie
+ * steht in der Zeile — und dieser Satz faellt genau dann, wenn es die Zeile
+ * nicht (mehr) gibt. Eine Tasche ist im Modell dasselbe Objekt wie ein
+ * Fahrzeug, alle Wege hier nehmen also beide; „Fahrzeug nicht gefunden" waere
+ * eine Aussage ueber etwas, das die Abfrage gerade NICHT gefunden hat, und
+ * schickte die Suche auf die falsche Liste.
+ */
+const EINHEIT_FEHLT = "Einheit nicht gefunden.";
+
 const ZuweisenSchema = z.object({
   fahrzeugId: z.string().min(1),
   templateId: z.string().min(1),
@@ -300,7 +311,7 @@ export async function fahrzeugTemplateZuweisen(
     const geparst = ZuweisenSchema.safeParse(eingabe);
     if (!geparst.success) return validierungsFehler(geparst.error);
     if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
-      return festerFehler("Fahrzeug nicht gefunden.");
+      return festerFehler(EINHEIT_FEHLT);
     }
 
     let ergebnis: SyncErgebnis;
@@ -337,7 +348,7 @@ export async function fahrzeugTemplateSync(
     const geparst = SyncSchema.safeParse(eingabe);
     if (!geparst.success) return validierungsFehler(geparst.error);
     if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
-      return festerFehler("Fahrzeug nicht gefunden.");
+      return festerFehler(EINHEIT_FEHLT);
     }
 
     let ergebnis: SyncErgebnis;
@@ -413,7 +424,7 @@ export async function fahrzeugTemplateLoesen(
     const geparst = LoesenSchema.safeParse(eingabe);
     if (!geparst.success) return validierungsFehler(geparst.error);
     if (!findeFahrzeug(db, geparst.data.fahrzeugId)) {
-      return festerFehler("Fahrzeug nicht gefunden.");
+      return festerFehler(EINHEIT_FEHLT);
     }
 
     try {
@@ -445,7 +456,7 @@ export async function templateAusFahrzeug(
     if (!geparst.success) return validierungsFehler(geparst.error);
     const v = geparst.data;
     if (!findeFahrzeug(db, v.fahrzeugId)) {
-      return festerFehler("Fahrzeug nicht gefunden.");
+      return festerFehler(EINHEIT_FEHLT);
     }
     const templateId = newId();
 

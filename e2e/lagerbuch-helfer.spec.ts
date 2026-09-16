@@ -208,7 +208,7 @@ test.describe("Der Weg am Stueck", () => {
 
     /*
      * DRK-300 — OHNE ZIEL WIRD NICHT GEBUCHT. Der Knopf ist gesperrt, bis die
-     * Wahl getroffen ist; „Kein Fahrzeug — Verbrauch" ist eine ausdrückliche
+     * Wahl getroffen ist; „Keine Einheit — Verbrauch" ist eine ausdrückliche
      * Wahl und kein Leerlassen. Diese drei Zeilen sind zugleich der einzige
      * Ort, an dem die GESPERRTE Form im echten Browser nachgewiesen wird —
      * jsdom rechnet keine Bedienbarkeit, und der Vitest-Fall prüft das
@@ -217,7 +217,7 @@ test.describe("Der Weg am Stueck", () => {
     await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
     await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
-    await waehleZiel(page, /Kein Fahrzeug/);
+    await waehleZiel(page, /Keine Einheit/);
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     await page.getByRole("button", { name: "Entnahme buchen" }).click();
@@ -435,7 +435,7 @@ test.describe("Ein gesperrter Code — deutsche Meldung statt Absturz", () => {
      */
     await page.locator("[data-rolle='entnahme-ziel'] a").click();
     await page.waitForURL(/\/helfer\/ziel/);
-    await waehleZiel(page, /Kein Fahrzeug/);
+    await waehleZiel(page, /Keine Einheit/);
     await page.waitForURL(/\/a\/e2e-artikel/);
 
     // Mitten in der Schicht gesperrt.
@@ -523,7 +523,9 @@ test.describe("Falle 63 — aria-current an drei Einstiegen", () => {
    */
   const EINSTIEGE = [
     { pfad: "/helfer", tab: "Entnahme" },
-    { pfad: "/helfer/check", tab: "Fahrzeug-Check" },
+    // DRK-309: der Tab heisst neutral „Check" — er fuehrt erst zur Wahl der
+    // Einheit und kann die Art an dieser Stelle gar nicht kennen.
+    { pfad: "/helfer/check", tab: "Check" },
   ];
 
   for (const e of EINSTIEGE) {

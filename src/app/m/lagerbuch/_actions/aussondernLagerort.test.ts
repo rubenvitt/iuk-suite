@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
@@ -234,6 +235,68 @@ describe("aussondernVomLagerort — Zugehoerigkeit", () => {
     // pflegbare Meldung, und `bereinigeVerfallOhneAktivesSoll` wuerde sie beim
     // naechsten Soll-Umbau ohnehin wegfegen.
     expect(t.db.select().from(lagerortVerfall).all()).toEqual([]);
+  });
+});
+
+describe("aussondernVomLagerort — die Meldung nennt die Art der Einheit", () => {
+  /**
+   * DRK-309, Reviewrunde 12. Der Dialog daneben zeigt die Antwort dieser
+   * Action WOERTLICH an (`AussondernDialog.tsx`) — nur sie weiss, woran es
+   * lag. „Fahrzeug" in einer Meldung ueber eine Tasche widerspraeche dem
+   * Chip in derselben Ansicht, und zwar an der Stelle, an der jemand gerade
+   * etwas Unumkehrbares bestaetigt hat.
+   *
+   * ⚠️ DER AUSLOESER IST EIN RENNEN, kein Bedienfehler: die Seite steht
+   * offen, waehrend ein Vorlagen-Sync den Artikel aus dem Soll nimmt. Er
+   * faellt also nicht beim Durchspielen auf.
+   */
+  async function meldungFuer(art: "fahrzeug" | "tasche" | null): Promise<string> {
+    t.db.update(lagerorte).set({ einheitenart: art })
+      .where(eq(lagerorte.id, "fz-1")).run();
+    charge("ch-alt", "2020-01");
+    buchen("seed-alt", "ch-alt", 4);
+    t.db.update(sollPositionen).set({ entfernt: true }).run();
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "fz-1", artikelId: "art-1", menge: 2, kommentar: "MHD" },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    return erg.ok ? "" : erg.fehler;
+  }
+
+  it("sagt „an dieser Tasche", async () => {
+    expect(await meldungFuer("tasche"))
+      .toBe("Artikel steht an dieser Tasche nicht im Soll.");
+  });
+
+  it("sagt „an diesem Fahrzeug", async () => {
+    expect(await meldungFuer("fahrzeug"))
+      .toBe("Artikel steht an diesem Fahrzeug nicht im Soll.");
+  });
+
+  it("faellt im Zwischenstand auf das neutrale Wort — nicht auf „Fahrzeug", async () => {
+    // Migration 0010 backfillt nicht; „Fahrzeug" waere hier eine Behauptung.
+    expect(await meldungFuer(null))
+      .toBe("Artikel steht an dieser Einheit nicht im Soll.");
+  });
+
+  it("nennt beim Handlager BEIDE Arten, weil ein Lager gar keine hat", async () => {
+    charge("ch-alt", "2020-01");
+    t.db.insert(buchungen).values({
+      id: "seed-handlager", ts: JETZT, typ: "zugang", artikelId: "art-1",
+      chargeId: "ch-alt", lagerortId: "handlager", menge: 9,
+      quelleTyp: "system", quelleId: "seed", referenz: null, kommentar: null,
+    }).run();
+
+    const erg = await aussondernVomLagerort(
+      { lagerortId: "handlager", artikelId: "art-1", menge: 2, kommentar: "MHD" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(erg.ok ? "" : erg.fehler)
+      .toBe("Dieser Weg gilt nur für Fahrzeuge und Taschen.");
   });
 });
 

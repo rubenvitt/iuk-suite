@@ -3,6 +3,7 @@ import { requireHelferSitzung } from "../../_lib/helferZugang";
 import { fahrzeugListe } from "../../_lib/lesepfade/fahrzeuge";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
 import { ZIEL_COOKIE, wahlWert } from "../../_lib/entnahmeZiel";
+import { einheitenartLabel } from "../../_lib/konstanten";
 import { sanitizeReturnTo } from "../../_lib/returnTo";
 import { waehleEntnahmeZiel } from "../../_actions/entnahmeZiel";
 import { getDb } from "../../_db/client";
@@ -71,8 +72,24 @@ export default async function ZielSeite({
   const fahrzeuge = fahrzeugListe(db).filter((f) => f.aktiv);
 
   const wahlen: { wert: string; name: string; meta: string | null }[] = [
-    { wert: "verbrauch", name: "Kein Fahrzeug — Verbrauch", meta: "Das Material wird verbraucht, nicht eingeräumt" },
-    ...fahrzeuge.map((f) => ({ wert: `fz:${f.id}`, name: f.name, meta: f.kennung })),
+    { wert: "verbrauch", name: "Keine Einheit — Verbrauch", meta: "Das Material wird verbraucht, nicht eingeräumt" },
+    /*
+     * ⚠️ DIE META-ZEILE NENNT DIE ART, NICHT NUR DIE KENNUNG (DRK-309,
+     * Reviewrunde 2). Eine Tasche traegt kein Kennzeichen — mit `meta:
+     * f.kennung` stand fuer sie hier gar nichts, und zwei aehnlich benannte
+     * Einheiten waren auf DIESEM Schirm nicht zu unterscheiden. Er ist der
+     * teuerste Ort dafuer: die Wahl gilt fuer ALLE weiteren Entnahmen mit
+     * diesem Kaertchen, eine falsche raeumt Material in den falschen Traeger.
+     *
+     * ⚠️ DIESELBE FORM WIE IN `_ui/FahrzeugWahl.tsx` („Art · Kennung"). Zwei
+     * Schreibweisen fuer dieselbe Zeile auf zwei Helferschirmen liessen den
+     * Leser einen Unterschied vermuten.
+     */
+    ...fahrzeuge.map((f) => ({
+      wert: `fz:${f.id}`,
+      name: f.name,
+      meta: [einheitenartLabel(f.einheitenart), f.kennung].filter(Boolean).join(" · "),
+    })),
   ];
 
   return (

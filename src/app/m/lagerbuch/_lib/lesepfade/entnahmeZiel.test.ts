@@ -26,8 +26,13 @@ const TOKEN = "tk1";
 beforeEach(() => {
   t = migrierteTestDb("lagerbuch-lese-ziel-");
   t.db.insert(lagerorte).values([
-    { id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true, kennung: "HH-DRK 1" },
+    { id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true, kennung: "HH-DRK 1",
+      einheitenart: "fahrzeug" },
     { id: "fz-alt", name: "RTW alt", typ: "fahrzeug", aktiv: false },
+    // DRK-309: eine TASCHE als Ziel — derselbe `typ`, andere Art, und ohne
+    // Kennung. Genau die Zeile, die der Name allein nicht beschreibt.
+    { id: "tasche-1", name: "Rucksack Betreuung", typ: "fahrzeug", aktiv: true,
+      kennung: null, einheitenart: "tasche" },
     { id: "lager-2", name: "Außenlager", typ: "lager", aktiv: true },
   ]).run();
 });
@@ -35,11 +40,31 @@ beforeEach(() => {
 afterEach(() => t.schliessen());
 
 describe("gemerktesZiel", () => {
-  it("löst ein Fahrzeug mit seinem ANZEIGENAMEN auf", async () => {
+  /**
+   * ⚠️ MIT ART UND KENNUNG (DRK-309, Reviewrunde 6). Der Name allein trug diese
+   * Zeile, solange jede Einheit ein Fahrzeug war; `lagerorte.name` traegt aber
+   * keinen Eindeutigkeitsschluessel, und eine Tasche heisst nicht
+   * zwangslaeufig wie eine. Was hier fehlt, fehlt auf dem Schirm direkt vor der
+   * Buchung — und die Wahl dahinter gilt fuer ALLE weiteren Entnahmen mit
+   * demselben Kaertchen.
+   */
+  it("löst ein Fahrzeug mit Anzeigename, Art und Kennung auf", async () => {
     expect(gemerktesZiel(t.db, `${TOKEN}|fz:fz-1`, TOKEN)).toEqual({
       art: "fahrzeug",
       lagerortId: "fz-1",
       name: "RTW 1",
+      kennung: "HH-DRK 1",
+      einheitenart: "fahrzeug",
+    });
+  });
+
+  it("löst eine Tasche als Tasche auf — ohne Kennung und ohne Raten", async () => {
+    expect(gemerktesZiel(t.db, `${TOKEN}|fz:tasche-1`, TOKEN)).toEqual({
+      art: "fahrzeug",
+      lagerortId: "tasche-1",
+      name: "Rucksack Betreuung",
+      kennung: null,
+      einheitenart: "tasche",
     });
   });
 

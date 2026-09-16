@@ -17,6 +17,8 @@ const ZEILE: CheckAnzeigeZeile = {
   id: "check-42",
   detailHref: "/verwaltung/checks/check-42",
   fahrzeugName: "RTW 1",
+  fahrzeugKennung: "MS-1",
+  fahrzeugEinheitenart: "fahrzeug",
   abgeschlossenText: "7.8.2026, 12:00:00",
   abgeschlossenIso: "2026-08-07T10:00:00.000Z",
   ergebnisChips: [
@@ -82,13 +84,15 @@ describe("ChecksTabelle", () => {
     await mount(<ChecksTabelle zeilen={[ZEILE]} leertext="Noch kein Check." />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Fahrzeug", "Abgeschlossen", "Ergebnis", "Positionen"]);
+      .toEqual(["Einheit", "Abgeschlossen", "Ergebnis", "Positionen"]);
     const tabelle = query("table");
-    expect(tabelle.getAttribute("aria-label")).toBe("Fahrzeug-Checks");
+    expect(tabelle.getAttribute("aria-label")).toBe("Checks");
     const zeile = query("tr[data-row-key='check-42']");
     expect(zeile.textContent).toContain("RTW 1");
+    // DRK-309: Der Link nennt Name · Art · Kennung — dieselbe Zeichenkette,
+    // ueber die der Spaltenfilter gruppiert (Namen sind nicht eindeutig).
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/checks/check-42']").textContent)
-      .toBe("RTW 1");
+      .toBe("RTW 1 · Fahrzeug · MS-1");
     expect(query(`.${s.jts}`).textContent).toBe("7.8.2026, 12:00:00");
     expect(zeile.textContent).toContain("1 aus Handlager nachgefüllt");
     expect(zeile.textContent).toContain("2 korrigiert");
@@ -158,11 +162,11 @@ describe("ChecksTabelle", () => {
     await mount(
       <ChecksTabelle
         zeilen={[]}
-        leertext="Kein Check passt zu Fahrzeug und Zeitraum."
+        leertext="Kein Check passt zu Einheit und Zeitraum."
       />,
     );
 
     expect(document.body.textContent)
-      .toContain("Kein Check passt zu Fahrzeug und Zeitraum.");
+      .toContain("Kein Check passt zu Einheit und Zeitraum.");
   });
 });

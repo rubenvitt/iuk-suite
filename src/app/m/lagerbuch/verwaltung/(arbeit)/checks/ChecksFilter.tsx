@@ -3,6 +3,7 @@
 import { Button, DatePicker, Flex, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
+import { einheitenartLabel, einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
@@ -13,7 +14,11 @@ export type FahrzeugOption = {
   keywords: string;
 };
 
-/** Das Auswahlfeld findet Fahrzeuge über den Namen und das Kennzeichen. */
+/**
+ * Das Auswahlfeld findet Einheiten über Namen, Kennzeichen — und die ART
+ * (DRK-309): „tasche" findet jede Tasche, auch wenn ihr Name das Wort nicht
+ * trägt.
+ */
 export function fahrzeugFilter(
   eingabe: string,
   option?: FahrzeugOption,
@@ -33,7 +38,15 @@ export function ChecksFilter({
   fz: string;
   von: string;
   bis: string;
-  fahrzeuge: { id: string; name: string; kennung: string | null }[];
+  fahrzeuge: {
+    id: string; name: string; kennung: string | null;
+    /**
+     * DRK-309 — Pflichtfeld, kein Optional: ein `einheitenart?` waere in einer
+     * vergessenen Aufrufstelle still `undefined`, und die Suche nach „tasche"
+     * fande dort nichts, ohne dass ein Tor es meldete.
+     */
+    einheitenart: Einheitenart | null;
+  }[];
   hinweise: string[];
 }) {
   const setzen = useUrlFilter();
@@ -51,13 +64,33 @@ export function ChecksFilter({
           filterOption={fahrzeugFilter}
           value={fz || undefined}
           onChange={(wert) => schreibe({ fz: wert ?? "" })}
-          placeholder="Alle Fahrzeuge"
-          aria-label="Fahrzeug"
+          placeholder="Alle Einheiten"
+          aria-label="Einheit"
           style={{ minWidth: 220 }}
           options={fahrzeuge.map((fahrzeug) => ({
             value: fahrzeug.id,
-            label: fahrzeug.name,
-            keywords: fahrzeug.kennung ?? "",
+            /*
+             * ⚠️ DIE ART STEHT IM LABEL UND IN DEN SUCHWORTEN (DRK-309,
+             * Reviewrunde 8 — die Runden 2 und 4 haben je die Haelfte
+             * geliefert).
+             *
+             * Runde 2 trug sie in die Suchworte: ohne sie fand „tasche" nur
+             * Einheiten, die das Wort zufaellig im Namen tragen. Sichtbar stand
+             * sie damals bewusst NICHT, mit der Begruendung „der Name
+             * unterscheidet die Eintraege bereits" — und die faellt mit
+             * derselben Messung wie bei den uebrigen Zielwahlen:
+             * `lagerorte.name` traegt keinen Eindeutigkeitsschluessel. Zwei
+             * Einheiten duerfen „Bereitschaft 1" heissen, und dann waehlt man
+             * hier eine verborgene ID und sieht die Geschichte der anderen.
+             *
+             * ⚠️ DIESE STELLE IST DIE LETZTE, DIE NOCH FEHLTE — Artikelschublade,
+             * Zugangs-Codes und die fuenf Standortfelder tragen die Form schon.
+             * Dass sie uebrig blieb, lag an der Begruendung oben: sie las sich
+             * wie eine Entscheidung und war eine Annahme.
+             */
+            label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+            keywords: [fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
+              .filter(Boolean).join(" "),
           }))}
           virtual={false}
         />

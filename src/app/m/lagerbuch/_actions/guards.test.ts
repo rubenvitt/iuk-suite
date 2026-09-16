@@ -411,11 +411,31 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Action-Dateien") und gilt FUER SICH ALLEIN. Gemeinsam steht die Zaehlung auf
  * 55 = 52 bewacht + 3 Ausnahmen, 52 = 49 + 3, in 23 Action-Dateien.
  *
+ * NACHTRAG DRK-309 (15.09.2026): `setEinheitenart` in `fahrzeuge.ts` traegt die
+ * Art (Fahrzeug oder Tasche) an einer bestehenden Einheit nach — EINE neue,
+ * admin-bewachte Action. Die Zaehlung steht damit auf 56 = 53 bewacht + 3
+ * Ausnahmen, 53 = 50 + 3, in weiterhin 23 Action-Dateien.
+ *
  * NACHTRAG DRK-338 (15.09.2026): `bucheUmlagerung` kommt in `buchung.ts` dazu —
  * der Handweg fuer „Charge wandert von Schrank zu Schrank", admin-bewacht wie
  * die beiden Buchungswege daneben. Keine neue Datei, keine neue Ausnahme. Die
  * Zaehlung steht damit auf 56 = 53 bewacht + 3 Ausnahmen, 53 = 50 + 3, in
  * weiterhin 23 Action-Dateien.
+ *
+ * NACHTRAG ZUSAMMENFUEHRUNG DRK-309/DRK-338 (16.09.2026): und schon wieder
+ * derselbe Fall wie oben bei DRK-303/DRK-300 — zwei Aenderungen am selben Tag,
+ * jede mit EINER neuen admin-bewachten Action, jede ihren Nachtrag vom Stand 55
+ * aus gerechnet. Beide nennen darum „56 … 53"; das gilt jeweils FUER SICH
+ * ALLEIN. Gemeinsam steht die Zaehlung auf 57 = 54 bewacht + 3 Ausnahmen,
+ * 54 = 51 + 3, in weiterhin 23 Action-Dateien.
+ *
+ * ⚠️ UND WIEDER GING DER MERGE STILL DURCH: git sah auf beiden Seiten DIESELBE
+ * Aenderung von 55 auf 56 und uebernahm sie ohne Konflikt — konfliktbehaftet
+ * war allein dieser Kommentarblock, nicht der Testkoerper darunter. Die Warnung
+ * zwanzig Zeilen weiter oben hat damit ein zweites Mal genau das gefangen,
+ * wovor sie warnt; ohne sie waeren die Zahlen unten stehengeblieben, und der
+ * einzige Hinweis waere ein roter Test mit der Meldung „expected 57 to be 56"
+ * gewesen — die wie ein Zaehlfehler aussieht und keine Ursache nennt.
  *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
@@ -460,7 +480,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "csv.ts": 1,
     "detail.ts": 1,
     "entnahmeZiel.ts": 1,   // DRK-300, nach Teil 6 dazugekommen
-    "fahrzeuge.ts": 5,
+    "fahrzeuge.ts": 6,
     "gate.ts": 1,
     "geraete.ts": 3,
     "inventur.ts": 1,
@@ -510,10 +530,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 56 Deklarationen, obwohl es nur 53 verschiedene Namen gibt", () => {
+  it("zaehlt 57 Deklarationen, obwohl es nur 54 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "56 Deklarationen").toHaveLength(56);
-    expect(new Set(namen).size, "53 verschiedene Namen").toBe(53);
+    expect(namen, "57 Deklarationen").toHaveLength(57);
+    expect(new Set(namen).size, "54 verschiedene Namen").toBe(54);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -525,7 +545,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 52 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 54 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -534,7 +554,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "53 bewacht").toBe(53);
+    expect(funde.length - ausnahmen.length, "54 bewacht").toBe(54);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -601,7 +621,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 53 Riegel auf 50 requireLagerbuchAdmin und 3 requireHelferSchreibend", () => {
+  it("verteilt die 54 Riegel auf 51 requireLagerbuchAdmin und 3 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -615,6 +635,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // selben Kaertchen und ist von aussen genauso aufrufbar.
       "entnahmeZiel.ts#waehleEntnahmeZiel",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(50);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(51);
   });
 });

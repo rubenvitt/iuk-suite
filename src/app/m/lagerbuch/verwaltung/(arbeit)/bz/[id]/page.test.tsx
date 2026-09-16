@@ -88,8 +88,13 @@ const EDITOR_WERTE: BzEditorWerte = {
   level2Max: 350,
 };
 const LAGERORT_OPTIONEN = [
-  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const },
-  { id: "handlager", name: "Handlager", typ: "lager" as const },
+  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
+  // DRK-309: eine Tasche in derselben Wahl — ohne Kennung, wie im Leben.
+  { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug" as const,
+    kennung: null, einheitenart: "tasche" as const },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
 ];
 
 let t: TestDb;
@@ -218,6 +223,11 @@ beforeEach(() => {
     name: "RTW 1",
     typ: "fahrzeug",
     kennung: "UE-RK 1234",
+    // ⚠️ EINE TASCHE, UND DAS IST DER FALL DES BEFUNDS (DRK-309,
+    // Reviewrunde 15): das BZ-Geraet liegt in einer Tasche, und die
+    // Detailseite sagte bis hierher nur „RTW 1" — waehrend die
+    // Uebersicht davor die Art laengst nennt.
+    einheitenart: "tasche" as const,
     aktiv: true,
   }).run();
   t.db.insert(bzGeraete).values({
@@ -271,7 +281,7 @@ describe("BZ-Geräteblatt als Server Component", () => {
       "06.09. 14:00",
       "06.08. 14:00",
       "30 Tage",
-      "AktivRTW 1",
+      "AktivRTW 1 · Tasche · UE-RK 1234",
     ]);
     expect(kacheln.map((element) => (element.props as { ton?: string }).ton))
       .toEqual(["ok", "ok", undefined, "ok"]);

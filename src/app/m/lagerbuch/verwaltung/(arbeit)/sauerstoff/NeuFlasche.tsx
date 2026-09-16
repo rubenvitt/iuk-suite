@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
 import { flascheSpeichern } from "../../../_actions/sauerstoff";
+import { standortMeta } from "../../../_lib/konstanten";
+import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import {
   wechselGrenzeBar,
   O2_WECHSEL_MAX_PROZENT,
@@ -43,7 +45,7 @@ export function lagerortFilter(eingabe: string, option?: LagerortOption): boolea
 export function NeuFlasche({
   lagerorte,
 }: {
-  lagerorte: { id: string; name: string }[];
+  lagerorte: Lagerort[];
 }) {
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -142,9 +144,10 @@ export function NeuFlasche({
               aria-label="Standort"
               showSearch
               filterOption={lagerortFilter}
+              // DRK-309: eine Flasche hängt an einer Einheit wie ein Gerät.
               options={lagerorte.map((lagerort) => ({
                 value: lagerort.id,
-                label: lagerort.name,
+                label: `${lagerort.name} · ${standortMeta(lagerort)}`,
               }))}
               virtual={false}
             />

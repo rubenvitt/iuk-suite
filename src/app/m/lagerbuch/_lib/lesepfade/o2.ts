@@ -42,13 +42,32 @@
  */
 import { desc, eq } from "drizzle-orm";
 import { lagerorte, o2Flaschen, o2Messungen } from "../../_db/schema";
+import type { Einheitenart, StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { o2Status, type O2Status } from "../domain/o2";
 import type { DB } from "../../_db/client";
 import type { Leser } from "./bestand";
 
+/**
+ * DRK-309: Standorte samt Art — siehe `standortZeile`. Der Rueckfall traegt
+ * `typ: "lager"`, damit ein geloeschter Standort „Lager" sagt statt „nicht
+ * zugeordnet": offen ist die Art nur da, wo es eine Einheit GIBT.
+ */
+const STANDORT_UNBEKANNT: StandortAngabe = {
+  name: "–", typ: "lager", kennung: null, einheitenart: null,
+};
+
+function standorte(db: Leser): Map<string, StandortAngabe> {
+  return new Map(db.select().from(lagerorte).all().map((l) => [l.id, {
+    name: l.name, typ: l.typ, kennung: l.kennung, einheitenart: l.einheitenart,
+  }]));
+}
+
 export type O2FlascheZeile = {
-  id: string; name: string; lagerortName: string; aktiv: boolean;
+  id: string; name: string; lagerortName: string;
+  /** DRK-309: Der Standort wird BENANNT, nicht nur genannt — `standortZeile`. */
+  lagerortStandort: StandortAngabe;
+  aktiv: boolean;
   groesseLiter: number | null; nennfuelldruckBar: number;
   /** % vom Nennfuelldruck, ab dem gewechselt werden soll (DRK-308). */
   wechselAbProzent: number;
@@ -95,7 +114,7 @@ export function wechselGrenzeNachschlag(db: Leser): (flascheId: string) => numbe
 }
 
 export function o2FlaschenUebersicht(db: Leser): O2FlascheZeile[] {
-  const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
+  const stamm = standorte(db);
   const letzte = letzteJeFlasche(db);
   return db.select().from(o2Flaschen).all()
     .map((f) => {
@@ -105,7 +124,9 @@ export function o2FlaschenUebersicht(db: Leser): O2FlascheZeile[] {
         ? null
         : l.quelleTyp === "token" ? "check" : "manuell";
       return {
-        id: f.id, name: f.name, lagerortName: namen.get(f.lagerortId) ?? "–",
+        id: f.id, name: f.name,
+        lagerortName: (stamm.get(f.lagerortId) ?? STANDORT_UNBEKANNT).name,
+        lagerortStandort: stamm.get(f.lagerortId) ?? STANDORT_UNBEKANNT,
         aktiv: f.aktiv, groesseLiter: f.groesseLiter,
         nennfuelldruckBar: f.nennfuelldruckBar,
         wechselAbProzent: f.wechselAbProzent,
@@ -131,6 +152,9 @@ export type O2MessungZeile = {
 export type O2FlascheDetail = {
   flasche: typeof o2Flaschen.$inferSelect;
   lagerortName: string;
+  /** DRK-309: volle Standortangabe — Begruendung an `GeraetDetail`. */
+  lagerortStandort: StandortAngabe;
+
   status: O2Status | null;
   /** chronologisch ABSTEIGEND */
   verlauf: O2MessungZeile[];
@@ -154,7 +178,11 @@ export function o2FlascheDetail(db: DB, id: string): O2FlascheDetail | null {
   }));
   const letzterDruck = verlauf.length > 0 ? verlauf[0].druckBar : null;
   return {
-    flasche: f, lagerortName: lo?.name ?? "–",
+    flasche: f,
+    lagerortName: lo?.name ?? "–",
+    lagerortStandort: lo
+      ? { name: lo.name, typ: lo.typ, kennung: lo.kennung, einheitenart: lo.einheitenart }
+      : STANDORT_UNBEKANNT,
     status: letzterDruck !== null
       ? o2Status(letzterDruck, f.nennfuelldruckBar, f.wechselAbProzent)
       : null,
@@ -187,8 +215,19 @@ export function o2FlaschenFuerLagerort(db: Leser, lagerortId: string): O2Flasche
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function lagerorteFuerFlaschen(db: Leser): { id: string; name: string }[] {
+/**
+ * ⚠️ DIESELBE FORM WIE `lagerortOptionen` (DRK-309, Reviewrunde 5) — eine
+ * Flasche haengt an einer Einheit wie ein Geraet, und ihre Standortwahl darf
+ * nicht weniger zeigen als die daneben.
+ */
+export function lagerorteFuerFlaschen(db: Leser): {
+  id: string; name: string; typ: "lager" | "fahrzeug";
+  kennung: string | null; einheitenart: Einheitenart | null;
+}[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
-    .map((l) => ({ id: l.id, name: l.name }))
+    .map((l) => ({
+      id: l.id, name: l.name, typ: l.typ,
+      kennung: l.kennung, einheitenart: l.einheitenart,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

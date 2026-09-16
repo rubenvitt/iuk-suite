@@ -19,12 +19,17 @@ import {
   fahrzeugTemplateZuweisen,
   templateAusFahrzeug,
 } from "../../../../_actions/templates";
+import {
+  ausDieserEinheit,
+  dieseEinheit,
+  einheitNomen,
+  type Einheitenart,
+} from "../../../../_lib/konstanten";
 import { Ikone } from "../../../../_ui/ikonen";
 
 const ZUWEISEN_FEHLER = "Vorlage konnte nicht verknüpft werden.";
 const SYNC_FEHLER = "Vorlage konnte nicht erneut übertragen werden.";
 const LOESEN_FEHLER = "Vorlagenverknüpfung konnte nicht gelöst werden.";
-const ERSTELLEN_FEHLER = "Vorlage konnte nicht aus dem Fahrzeug erstellt werden.";
 
 export type TemplateOption = { value: string; label: string };
 
@@ -39,17 +44,40 @@ type NeueVorlageWerte = {
   verknuepfen: boolean;
 };
 
+/**
+ * ⚠️ DIE VIER TEXTE DIESER FLAECHE HAENGEN AN DER ART (DRK-309, Reviewrunde 4).
+ *
+ * Hier steht „Vorlage aus diesem Fahrzeug erstellen" ueber einer Einheit, deren
+ * Kopfzeile drei Abschnitte weiter oben einen Chip „Tasche" traegt — derselbe
+ * Widerspruch in derselben Ansicht wie am Loeschknopf, und mit derselben Folge:
+ * wer zwei sich widersprechende Angaben liest, glaubt keiner von beiden.
+ *
+ * ⚠️ DER MODALTITEL STAND SCHON AUF „aus dieser Einheit", DER KNOPF DANEBEN
+ * NICHT — und genau diese Haelfte ist die schlechtere von beiden. Ein Knopf und
+ * der Dialog, den er oeffnet, mit verschiedenen Woertern fuer dieselbe Sache
+ * lesen sich wie zwei verschiedene Vorgaenge. Jetzt tragen beide denselben Satz
+ * aus demselben Baustein.
+ *
+ * ⚠️ `templateAusFahrzeug` BLEIBT: der Name der Server Action ist kein
+ * Anzeigetext, und eine Tasche ist dort dieselbe Zeile in `lagerorte` wie ein
+ * Fahrzeug.
+ */
 export function TemplateVerknuepfung({
   fahrzeugId,
   aktuelleVorlage,
   vorlagen,
   hatPositionen,
+  einheitenart,
 }: {
   fahrzeugId: string;
   aktuelleVorlage: { id: string; name: string } | null;
   vorlagen: { id: string; name: string }[];
   hatPositionen: boolean;
+  einheitenart: Einheitenart | null;
 }) {
+  const herkunft = ausDieserEinheit(einheitenart);
+  const erstellenTitel = `Vorlage ${herkunft} erstellen`;
+  const erstellenFehler = `Vorlage konnte nicht ${herkunft} erstellt werden.`;
   // Das Feld zeigt die verknuepfte Vorlage (DRK-310); eine abweichende Wahl ist
   // ein Entwurf gegen genau diese Verknuepfung. Kommt eine andere Verknuepfung
   // als Prop an — Verknuepfen, Loesen, „aus Fahrzeug erstellen" —, ist der
@@ -134,7 +162,7 @@ export function TemplateVerknuepfung({
             form.setFields([{ name: "name", errors: [nameFehler] }]);
             setModalFehler(null);
           } else {
-            setModalFehler(ERSTELLEN_FEHLER);
+            setModalFehler(erstellenFehler);
           }
           return;
         }
@@ -144,7 +172,7 @@ export function TemplateVerknuepfung({
         setOffen(false);
         form.resetFields();
       } catch {
-        setModalFehler(ERSTELLEN_FEHLER);
+        setModalFehler(erstellenFehler);
       } finally {
         laufendRef.current = false;
       }
@@ -228,18 +256,19 @@ export function TemplateVerknuepfung({
             setOffen(true);
           }}
         >
-          Vorlage aus diesem Fahrzeug erstellen
+          {erstellenTitel}
         </Button>
       </Flex>
       {!hatPositionen ? (
         <span data-rolle="keine-positionen">
-          Dafür braucht das Fahrzeug mindestens eine aktive Soll-Position.
+          Dafür braucht {dieseEinheit(einheitenart)} mindestens eine aktive
+          Soll-Position.
         </span>
       ) : null}
 
       <Modal
         open={offen}
-        title="Vorlage aus Fahrzeug erstellen"
+        title={erstellenTitel}
         footer={null}
         destroyOnHidden
         onCancel={modalSchliessen}
@@ -271,7 +300,7 @@ export function TemplateVerknuepfung({
             valuePropName="checked"
           >
             <Checkbox aria-label="Neue Vorlage verknüpfen">
-              Fahrzeug mit der neuen Vorlage verknüpfen
+              {einheitNomen(einheitenart)} mit der neuen Vorlage verknüpfen
             </Checkbox>
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={laeuft}>

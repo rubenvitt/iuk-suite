@@ -130,7 +130,7 @@ const DETAIL: EntnahmeDetail = {
   chargen: [
     {
       id: "ch-1", chargenNr: "L1", verfall: "2027-03", rest: 30, restGesamt: 30,
-      orte: [{ id: "handlager", name: "Handlager", menge: 30, zugangshinweis: null }],
+      orte: [{ id: "handlager", name: "Handlager", menge: 30, zugangshinweis: null, typ: "lager" as const, kennung: null, einheitenart: null }],
       ampel: "gruen", text: "bis 03/27",
     },
     /**
@@ -150,8 +150,8 @@ const DETAIL: EntnahmeDetail = {
     {
       id: "ch-2", chargenNr: "L2", verfall: "2026-09", rest: 5, restGesamt: 12,
       orte: [
-        { id: "schrank-gf", name: "GF-Schrank", menge: 5, zugangshinweis: "Zugang über LvD — anrufen" },
-        { id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null },
+        { id: "schrank-gf", name: "GF-Schrank", menge: 5, zugangshinweis: "Zugang über LvD — anrufen", typ: "lager" as const, kennung: null, einheitenart: null },
+        { id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const },
       ],
       ampel: "gelb", text: "läuft bald ab",
     },
@@ -164,7 +164,10 @@ const DETAIL: EntnahmeDetail = {
  * gewählt") kein Verbrauch mehr, und der Knopf bleibt dann gesperrt.
  */
 const VERBRAUCH = { art: "verbrauch" } as const;
-const RTW = { art: "fahrzeug", lagerortId: "fz-1", name: "RTW 1" } as const;
+const RTW = {
+  art: "fahrzeug", lagerortId: "fz-1", name: "RTW 1",
+  kennung: "MS-1", einheitenart: "fahrzeug",
+} as const;
 
 const PLUS = "button[aria-label='Menge erhöhen']";
 const BUCHEN = "[data-rolle='entnahme-buchen']";
@@ -230,8 +233,15 @@ describe("Entnahme — die Anzeige", () => {
       await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const orteZeileL2 = inZeile(zeilen[1], "[data-rolle='charge-orte']");
+      /*
+       * ⚠️ DIE BEIDEN ZEILEN ZEIGEN DIE REGEL IN EINEM BILD (DRK-309,
+       * Reviewrunde 15): der Schrank bleibt nackt, die EINHEIT nennt ihre
+       * Art. Wer hier „GF-Schrank · Lager" erwartet, hat `ortZeile` mit
+       * `standortZeile` verwechselt — der Ort einer MENGE beantwortet „wo
+       * liegt das?", und dafuer ist „GF-Schrank" vollstaendig.
+       */
       expect(orteZeileL2.textContent).toContain("GF-Schrank: 5 Stk");
-      expect(orteZeileL2.textContent).toContain("RTW 1: 7 Stk");
+      expect(orteZeileL2.textContent).toContain("RTW 1 · Fahrzeug: 7 Stk");
     });
 
     /**
@@ -270,7 +280,7 @@ describe("Entnahme — die Anzeige", () => {
         chargen: [
           {
             id: "ch-3", chargenNr: "R-9", verfall: "2027-01", rest: 0, restGesamt: 7,
-            orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null }],
+            orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
             ampel: "gruen", text: "bis 01/27",
           },
         ],
@@ -280,7 +290,10 @@ describe("Entnahme — die Anzeige", () => {
       const mengenfeld = inZeile(zeile, "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("0");
       const orteZeile = inZeile(zeile, "[data-rolle='charge-orte']");
-      expect(orteZeile.textContent).toContain("RTW 1: 7 Stk");
+      // DRK-309: Die Einheit nennt ihre Art — genau der Fall, in dem jemand
+      // mit dem Telefon am Regal steht und das Material NICHT im Handlager
+      // findet.
+      expect(orteZeile.textContent).toContain("RTW 1 · Fahrzeug: 7 Stk");
     });
 
     it("nennt den Zugangshinweis VORN im Markup, nicht in einem Tooltip", async () => {
@@ -615,6 +628,46 @@ describe("Entnahme — Bauform", () => {
     // Und die Person erfährt, was zu tun ist — ein stummer grauer Knopf wäre
     // am Regal eine Sackgasse.
     expect(query(ZIEL).textContent).toMatch(/wählen/i);
+  });
+
+  /**
+   * DRK-309, Reviewrunde 6 — DIE ZIELZEILE NENNT ART UND KENNUNG.
+   *
+   * ⚠️ SIE IST DIE LETZTE ZEILE VOR EINER BUCHUNG, und die Wahl dahinter gilt
+   * fuer ALLE weiteren Entnahmen mit demselben Kaertchen. Zwei gleich benannte
+   * Einheiten — `lagerorte.name` traegt keinen Eindeutigkeitsschluessel — waren
+   * hier bis zu dieser Runde nicht zu unterscheiden, und die Wahl EINEN Schirm
+   * vorher zeigt „Art · Kennung" laengst. Weniger zu zeigen als die Auswahl,
+   * aus der sie stammt, ist genau an der Bestaetigung die falsche Sparsamkeit.
+   *
+   * ⚠️ DIE TASCHE DER FIXTURE TRAEGT KEINE KENNUNG — dann steht dort die Art
+   * allein, und die Zeile bleibt trotzdem unterscheidbar.
+   */
+  it("nennt in der Zielzeile die Art und, wenn es eine gibt, die Kennung", async () => {
+    await mount(
+      <Entnahme
+        kontoZugang={false}
+        ziel={RTW}
+        detail={DETAIL}
+        buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}
+      />,
+    );
+    expect(query(ZIEL).textContent).toContain("RTW 1 · Fahrzeug · MS-1");
+    await unmount();
+
+    await mount(
+      <Entnahme
+        kontoZugang={false}
+        ziel={{
+          art: "fahrzeug", lagerortId: "tasche-1", name: "Rucksack Betreuung",
+          kennung: null, einheitenart: "tasche",
+        }}
+        detail={DETAIL}
+        buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}
+      />,
+    );
+    expect(query(ZIEL).textContent).toContain("Rucksack Betreuung · Tasche");
+    expect(query(ZIEL).textContent).not.toContain("Fahrzeug");
   });
 
   it("zeigt das gewählte Fahrzeug über dem Knopf und gibt es an die Buchung weiter", async () => {

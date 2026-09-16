@@ -7,7 +7,8 @@ import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verf
 import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
-import { verteilungJeCharge } from "../_lib/lesepfade/bestand";
+import { verteilungJeCharge, type OrtVerteilungEintrag } from "../_lib/lesepfade/bestand";
+import { ortZeile } from "../_lib/konstanten";
 import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -23,7 +24,8 @@ export type ArtikelDetailCharge = {
   restGesamt: number;
   /** Die VERTEILUNG dieser Charge: wo wie viel liegt. Nicht zu verwechseln mit
    *  `zielOrte` (die waehlbaren ZIELE eines Zugangs). */
-  orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
+  /** DRK-309: samt Art — `OrtVerteilungEintrag`, dort steht die Begruendung. */
+  orte: OrtVerteilungEintrag[];
   ampel: Ampel;
   text: string;
 };
@@ -157,7 +159,16 @@ export async function getDetail(
         kommentar: buchung.kommentar,
         referenz: buchung.referenz,
         quelleName: quelleName(buchung.quelleTyp, buchung.quelleId),
-        ortName: orte.get(buchung.lagerortId)?.name ?? buchung.lagerortId,
+        // DRK-309: dieselbe Bewegungsliste wie im Journal, also dieselbe
+        // Zeile. `ortStamm` traegt die Art seit Runde 14 mit.
+        ortName: (() => {
+          const o = orte.get(buchung.lagerortId);
+          return o
+            ? ortZeile(o)
+            : ortZeile({
+              name: buchung.lagerortId, typ: "lager", kennung: null, einheitenart: null,
+            });
+        })(),
       })),
       mehrVorhanden: detail.mehrVorhanden,
       // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber

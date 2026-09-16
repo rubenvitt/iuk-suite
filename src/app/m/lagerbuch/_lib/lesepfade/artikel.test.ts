@@ -295,7 +295,10 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
 
   beforeEach(() => {
     t.db.insert(lagerorte).values([
-      { id: RTW1, name: "RTW 1", typ: "fahrzeug", kennung: "MS-DRK-1", aktiv: true },
+      { id: RTW1, name: "RTW 1", typ: "fahrzeug", kennung: "MS-DRK-1",
+        // DRK-309: MIT Art — die Gegenprobe zum Zwischenstand, den
+        // `_actions/detail.test.ts` an derselben Verteilung abdeckt.
+        einheitenart: "fahrzeug", aktiv: true },
       {
         id: SCHRANK_GF, name: "GF-Schrank", typ: "lager", parentId: HANDLAGER_ID,
         zugangshinweis: "Zugang über LvD — anrufen", sortierung: 90, aktiv: true,
@@ -353,8 +356,15 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
     const d = artikelDetailHelfer(t.db, ARTIKEL_A, NOW)!;
     const charge = d.chargen.find((c) => c.chargenNr === "MIX")!;
     expect(charge.orte).toEqual([
-      { id: SCHRANK_GF, name: "GF-Schrank", menge: 4, zugangshinweis: "Zugang über LvD — anrufen" },
-      { id: RTW1, name: "RTW 1", menge: 6, zugangshinweis: null },
+      {
+        id: SCHRANK_GF, name: "GF-Schrank", menge: 4,
+        zugangshinweis: "Zugang über LvD — anrufen",
+        typ: "lager", kennung: null, einheitenart: null,
+      },
+      {
+        id: RTW1, name: "RTW 1", menge: 6, zugangshinweis: null,
+        typ: "fahrzeug", kennung: "MS-DRK-1", einheitenart: "fahrzeug",
+      },
     ]);
     expect(charge.restGesamt).toBe(10);
   });

@@ -20,7 +20,15 @@ const CODE_FEHLER =
   "Es konnte kein freier Code erzeugt werden — bitte erneut versuchen.";
 const ANLEGEN_FEHLER = "Zugangs-Code konnte nicht angelegt werden.";
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
-const FAHRZEUG_FEHLER = "Fahrzeug nicht gefunden oder inaktiv.";
+/*
+ * ⚠️ NEUTRAL, UND HIER IST NEUTRAL DIE EINZIGE EHRLICHE FORM (DRK-309,
+ * Reviewrunde 12). Sonst gilt in diesem PR: wo die Art bekannt ist, steht sie
+ * auch da. Bekannt ist sie aus der Zeile — und dieser Satz faellt genau dann,
+ * wenn es die Zeile NICHT (mehr) gibt oder sie stillgelegt wurde. Die Wahl
+ * daneben bietet Fahrzeuge UND Taschen an; „Fahrzeug nicht gefunden" waere
+ * dann eine Behauptung ueber etwas, das die Abfrage gerade nicht gefunden hat.
+ */
+const ZIEL_FEHLER = "Einheit nicht gefunden oder inaktiv.";
 const ARTIKEL_FEHLER = "Artikel nicht gefunden oder inaktiv.";
 
 /**
@@ -118,7 +126,7 @@ export async function createToken(
             eq(lagerorte.aktiv, true),
           )!)
           .get();
-        if (!fahrzeug) return zielFehler(FAHRZEUG_FEHLER);
+        if (!fahrzeug) return zielFehler(ZIEL_FEHLER);
       } else if (v.zielTyp === "artikel") {
         const zielArtikel = db.select({ id: artikel.id })
           .from(artikel)

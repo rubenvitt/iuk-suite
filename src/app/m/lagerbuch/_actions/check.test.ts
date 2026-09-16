@@ -6,7 +6,7 @@ import {
   lagerorte, artikel, chargen, buchungen, sollPositionen, geraete,
   o2Flaschen, o2Messungen, checks, lagerortVerfall,
 } from "../_db/schema";
-import { HANDLAGER_ID } from "../_lib/konstanten";
+import { CHECK_ABGLEICH, HANDLAGER_ID } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
 
 /**
@@ -132,8 +132,13 @@ beforeEach(() => {
   // `UNIQUE constraint failed: lagerorte.id`. Ebenso traegt `lagerorte` KEIN
   // `createdAt` (`_db/schema.ts:32-43`).
   t.db.insert(lagerorte).values([
-    { id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true },
-    { id: "fz-2", name: "MTW", typ: "fahrzeug", aktiv: true },
+    { id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true,
+      einheitenart: "fahrzeug" },
+    { id: "fz-2", name: "MTW", typ: "fahrzeug", aktiv: true,
+      einheitenart: "fahrzeug" },
+    // DRK-309: eine TASCHE fuer den Rennweg unten — dieselbe Lage, andere Art.
+    { id: "tasche-1", name: "Rucksack Betreuung", typ: "fahrzeug", aktiv: true,
+      einheitenart: "tasche" },
   ]).run();
   expect(t.db.select().from(lagerorte).all().some((l) => l.id === HANDLAGER_ID)).toBe(true);
   t.db.insert(artikel).values([
@@ -285,7 +290,11 @@ describe("checkAbschluss — die WURZEL-ID wird aufgeloest, nicht geglaubt (Rieg
   it("weist ein Lager (typ !== \"fahrzeug\") ab und schreibt NICHTS", async () => {
     const r = await checkAbschluss(AUF_HANDLAGER, t.db);
     expect(!r.ok && r.grund).toBe("eingabe");
-    expect(!r.ok && r.text).toBe("Dieses Fahrzeug ist nicht mehr aktiv. Bitte die Seite neu laden.");
+    // ⚠️ NEUTRAL fuer ein LAGER: hier gibt es keine Art, die man nennen
+    // koennte — ein Lager ist kein Traeger. „Diese Einheit" ist das
+    // Ehrlichste, was dort stehen kann (DRK-309, Reviewrunde 10).
+    expect(!r.ok && r.text)
+      .toBe("Diese Einheit ist nicht mehr aktiv. Bitte die Seite neu laden.");
     expect(t.db.select().from(checks).all().length).toBe(0);
     expect(t.db.select().from(buchungen).all().length).toBe(1);   // nur die Seed-Zeile
     expect(revalidiert).toEqual([]);
@@ -309,6 +318,28 @@ describe("checkAbschluss — die WURZEL-ID wird aufgeloest, nicht geglaubt (Rieg
     const r = await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
     expect(r.ok).toBe(false);
     expect(!r.ok && darfErneuern(r.grund)).toBe(false);
+  });
+
+  /**
+   * DRK-309, Reviewrunde 10 — DER RENNWEG NENNT DIE ART.
+   *
+   * ⚠️ DIE INSEL GIBT DIESEN TEXT WOERTLICH WEITER (§7.3, `CheckFlow`
+   * formuliert eine Servermeldung grundsaetzlich nicht neu). Ohne die Art waere
+   * das die EINZIGE Stelle der ganzen Checkstrecke, an der eine Tasche wieder
+   * zum Fahrzeug wird — und zwar auf einem Weg, den der Quelltext daneben als
+   * ERWARTET beschreibt: die Verwaltung legt still, waehrend jemand zaehlt, und
+   * ein Check dauert zehn bis zwanzig Minuten.
+   */
+  it("nennt beim Stilllegen die ART der Einheit — Fahrzeug wie Tasche", async () => {
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    const fahrzeug = await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
+    expect(!fahrzeug.ok && fahrzeug.text)
+      .toBe("Dieses Fahrzeug ist nicht mehr aktiv. Bitte die Seite neu laden.");
+
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "tasche-1")).run();
+    const tasche = await checkAbschluss({ fahrzeugId: "tasche-1", ...leer }, t.db);
+    expect(!tasche.ok && tasche.text)
+      .toBe("Diese Tasche ist nicht mehr aktiv. Bitte die Seite neu laden.");
   });
 
   it("das AKTIVE Fahrzeug laeuft weiterhin durch — der Riegel diskriminiert (Regel 4)", async () => {
@@ -375,6 +406,36 @@ describe("checkAbschluss — Abgleich und Nachfuellen, pro ARTIKEL", () => {
       .filter((b) => b.lagerortId === "fz-1")
       .reduce((s, b) => s + b.menge, 0);
     expect(amFahrzeug).toBe(2);
+  });
+
+  /**
+   * DRK-309, Reviewrunde 8 — DIE GESCHRIEBENEN KOMMENTARE SIND NEUTRAL.
+   *
+   * ⚠️ DAS IST DIE EINE STELLE, AN DER DIESES TICKET BEWUSST *NICHT*
+   * ART-BEWUSST WIRD, und der Grund ist die Lebensdauer: `setEinheitenart`
+   * erlaubt, die Art einer bestehenden Einheit zu korrigieren, und das Journal
+   * ist append-only. Ein „Fahrzeug-Check Abgleich" in einer Buchungszeile
+   * waere nach so einer Korrektur eine Behauptung, die die Einheit selbst
+   * widerlegt — und niemand schreibt sie um. Die ANZEIGE darf art-bewusst
+   * sein, weil sie die heutige Art liest; ein Eintrag im Buch kann das nicht.
+   *
+   * ⚠️ DIE ZUSICHERUNG HAENGT AN DER KONSTANTE, NICHT AN IHREM WERT — sonst
+   * pruefte sie sich selbst. Was sie festhaelt, ist das NEGATIVE: in keiner
+   * geschriebenen Zeile steht mehr „Fahrzeug".
+   */
+  it("schreibt neutrale Kommentare — das Wort Fahrzeug steht in keiner Zeile", async () => {
+    const r = await checkAbschluss({
+      fahrzeugId: "fz-1", ...leer,
+      positionen: [{ sollPositionId: "sp-1", ist: 2, nachfuellMenge: 1 }],
+    }, t.db);
+    expect(r.ok).toBe(true);
+
+    const kommentare = t.db.select().from(buchungen).all()
+      .map((b) => b.kommentar)
+      .filter((k): k is string => k !== null && k !== "");
+    expect(kommentare.length).toBeGreaterThan(0);
+    expect(kommentare).toContain(CHECK_ABGLEICH);
+    for (const k of kommentare) expect(k, k).not.toContain("Fahrzeug");
   });
 
   it("rechnet pro ARTIKEL, nicht pro Position — zwei Faecher teilen EINEN Bestand (§5.7.1)", async () => {

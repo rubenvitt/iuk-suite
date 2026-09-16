@@ -38,6 +38,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
     name: fahrzeug.name,
     kennung: fahrzeug.kennung,
     aktiv: fahrzeug.aktiv,
+    einheitenart: fahrzeug.einheitenart,
   }));
   const faecher = new Set(positionen.map((p) => p.fachLabel)).size;
 
@@ -57,7 +58,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
           <Kachel zahl={faecher} beschriftung="Fächer" />
         </Col>
         <Col xs={24} md={8}>
-          <Kachel zahl={verknuepfteFahrzeuge.length} beschriftung="Fahrzeuge" />
+          <Kachel zahl={verknuepfteFahrzeuge.length} beschriftung="Einheiten" />
         </Col>
       </Row>
 
@@ -69,7 +70,7 @@ function vorlageInhalt(db: DB, id: string): ReactNode {
         />
       </Card>
 
-      <Card title="Verknüpfte Fahrzeuge" style={{ marginBlockEnd: SPACE.lg }}>
+      <Card title="Verknüpfte Einheiten" style={{ marginBlockEnd: SPACE.lg }}>
         <VerknuepfteFahrzeugeTable zeilen={verknuepfteFahrzeuge} />
       </Card>
 

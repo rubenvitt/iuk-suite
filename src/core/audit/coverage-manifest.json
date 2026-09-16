@@ -407,6 +407,10 @@
     "kind": "context",
     "via": "setFahrzeugAktiv"
   },
+  "src/app/m/lagerbuch/_actions/fahrzeuge.ts#setEinheitenart": {
+    "kind": "context",
+    "via": "setEinheitenart"
+  },
   "src/app/m/lagerbuch/_actions/fahrzeuge.ts#sollPositionSetzen": {
     "kind": "context",
     "via": "sollPositionSetzen"

@@ -17,6 +17,7 @@ import {
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { setTokenAktiv } from "../../../_actions/tokens";
+import { einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
 import { falte } from "../../../_lib/suche";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
@@ -39,20 +40,50 @@ export type TokenAnzeigeZeile = {
   zielTyp: "fahrzeug" | "artikel" | null;
   zielId: string | null;
   zielName: string | null;
+  zielKennung: string | null;
+  zielEinheitenart: Einheitenart | null;
 };
+
+/**
+ * Die Beizeile des Ziels — leer, wo es keine Einheit ist.
+ *
+ * ⚠️ NICHT `einheitMeta` DIREKT: das nennt fuer eine fehlende Art „nicht
+ * zugeordnet", und das waere hier an einem ARTIKEL-Ziel schlicht falsch. Ein
+ * Artikel hat keine Art, die man zuordnen koennte.
+ */
+function zielMeta(z: TokenAnzeigeZeile): string {
+  if (z.zielTyp !== "fahrzeug") return "";
+  return einheitMeta({ kennung: z.zielKennung, einheitenart: z.zielEinheitenart });
+}
 
 export function zielVon(z: TokenAnzeigeZeile): ZielFilter {
   return z.zielTyp ?? "liste";
 }
 
-/** SUCHFELDMENGE 6 VON 6: Code · Label · Zielname. */
+/**
+ * SUCHFELDMENGE 6 VON 6: Code · Label · Zielname — UND die Art des Ziels
+ * (DRK-309).
+ *
+ * ⚠️ OHNE DIE ART FINDET „tasche" KEIN EINZIGES KAERTCHEN. Der Zielname ist
+ * der Name der Einheit, und der traegt das Wort nicht zwangslaeufig; `zielTyp`
+ * steht fuer jede Tasche auf „fahrzeug" und hilft hier gar nicht.
+ */
 export function sucheTrifft(z: TokenAnzeigeZeile, begriff: string): boolean {
   const nadel = falte(begriff.trim());
-  return !nadel || falte(`${z.code} ${z.label} ${z.zielName ?? ""}`).includes(nadel);
+  return !nadel
+    || falte(`${z.code} ${z.label} ${z.zielName ?? ""} ${zielMeta(z)}`).includes(nadel);
 }
 
+/**
+ * ⚠️ DIE SCHLUESSEL SIND DATENBANKWERTE, DIE TEXTE NICHT (DRK-309).
+ * `tokens.ziel_typ` kennt nur „fahrzeug" und „artikel"; ein Kärtchen an einer
+ * Tasche traegt deshalb „fahrzeug" — und wuerde in dieser Spalte als
+ * „Fahrzeug" ausgewiesen, obwohl es an einer Tasche klebt. Die Spalte nennt
+ * daneben ohnehin den NAMEN des Ziels; hier steht die Gruppe, und die heisst
+ * nach beidem.
+ */
 const ZIEL_TEXT: Record<ZielFilter, string> = {
-  fahrzeug: "Fahrzeug",
+  fahrzeug: "Fahrzeug oder Tasche",
   artikel: "Artikel",
   liste: "Artikel-Liste",
 };
@@ -147,13 +178,24 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       render: (_wert: unknown, zeile) => {
         const ziel = zielVon(zeile);
         return (
+          /*
+           * ⚠️ DAS ZEICHEN FOLGT DER ART, NICHT `zielTyp` (DRK-309): ein
+           * Kaertchen an einer Tasche traegt `ziel_typ = "fahrzeug"` und
+           * bekaeme sonst den Lastwagen. Wo die Art fehlt, bleibt es beim
+           * Lastwagen — er ist dort kein Befund, sondern die Gruppe, und ein
+           * eigenes Zeichen fuer „weiss nicht" gibt es nicht.
+           */
           <Chip
             ton="grau"
             zeichen={ziel === "fahrzeug"
-              ? "fahrzeug"
+              ? (zeile.zielEinheitenart ?? "fahrzeug")
               : ziel === "artikel" ? "objekt" : "liste"}
           >
-            {ziel === "liste" ? ZIEL_TEXT.liste : (zeile.zielName ?? "—")}
+            {ziel === "liste"
+              ? ZIEL_TEXT.liste
+              : ziel === "fahrzeug" && zeile.zielName
+                ? `${zeile.zielName} · ${zielMeta(zeile)}`
+                : (zeile.zielName ?? "—")}
           </Chip>
         );
       },

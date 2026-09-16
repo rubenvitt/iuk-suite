@@ -40,7 +40,10 @@ export function gemerktesZiel(
   if (!istAktivesFahrzeug(db, ziel.lagerortId)) return null;
 
   const zeile = db.select().from(lagerorte).where(eq(lagerorte.id, ziel.lagerortId)).get();
-  // Der Name ist das, was am Regal gelesen wird — die Kennung sagt dort
-  // niemandem etwas.
-  return { art: "fahrzeug", lagerortId: ziel.lagerortId, name: zeile!.name };
+  // Der Name ist, was am Regal gelesen wird; Art und Kennung stehen seit
+  // DRK-309 daneben — Begruendung am Typ `ZielAnzeige`.
+  return {
+    art: "fahrzeug", lagerortId: ziel.lagerortId, name: zeile!.name,
+    kennung: zeile!.kennung, einheitenart: zeile!.einheitenart,
+  };
 }

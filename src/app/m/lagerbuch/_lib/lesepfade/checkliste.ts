@@ -39,6 +39,7 @@
 import { eq } from "drizzle-orm";
 import { fahrzeugTemplates, lagerorte } from "../../_db/schema";
 import { wechselGrenzeBar } from "../domain/o2";
+import type { Einheitenart } from "../konstanten";
 import { heuteIso } from "../zeit";
 import type { Leser } from "./bestand";
 import { sollFuerFahrzeug } from "./fahrzeuge";
@@ -90,6 +91,15 @@ export type ChecklisteBlatt = {
   id: string;
   name: string;
   kennung: string | null;
+  /**
+   * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
+   *
+   * ⚠️ SIE STEHT AUF DEM BLATT, weil das Blatt die Flaeche ist, die eine
+   * Helferin mit dem Gegenstand in der Hand vor sich hat. Eine Tasche, deren
+   * ausgedrucktes Blatt „Fahrzeug-Checkliste" ueberschreibt, ist genau die
+   * Einheit, die DRK-309 sichtbar machen wollte.
+   */
+  einheitenart: Einheitenart | null;
   vorlage: string | null;
   faecher: ChecklisteFach[];
   geraete: ChecklisteGeraet[];
@@ -164,6 +174,7 @@ export function checklisteFuerFahrzeug(
     id: fahrzeug.id,
     name: fahrzeug.name,
     kennung: fahrzeug.kennung,
+    einheitenart: fahrzeug.einheitenart,
     vorlage,
     faecher: nachFaechern(positionen),
     geraete: geraeteFuerLagerort(db, fahrzeugId, now).map((geraet) => ({

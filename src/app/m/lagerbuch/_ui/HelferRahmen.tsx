@@ -168,7 +168,15 @@ export function HelferRahmen({
           aria-current={aktiv === "check" ? "page" : undefined}
         >
           <Ikone name="haken" groesse={20} />
-          <span>Fahrzeug-Check</span>
+          {/*
+            DRK-309: NEUTRAL. Der Tab steht ueber einer Strecke, die seit
+            dieser Aenderung „diese Tasche" sagt — „Fahrzeug-Check" darueber
+            ist derselbe Widerspruch, nur an der Stelle, die auf JEDEM
+            Helferschirm steht. Er fuehrt zur Wahl der Einheit und kann die
+            Art deshalb gar nicht kennen; „Check" ist ohnehin das Wort, mit
+            dem das Modul den Vorgang durchgehend benennt.
+          */}
+          <span>Check</span>
         </Link>
       </nav>
     </div>

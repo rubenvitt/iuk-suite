@@ -178,6 +178,7 @@ beforeEach(() => {
     name: "RTW 1",
     typ: "fahrzeug",
     kennung: "UE-RK 1234",
+    einheitenart: "fahrzeug" as const,
     aktiv: true,
   }).run();
   t.db.insert(users).values({
@@ -243,7 +244,7 @@ describe("Flaschenblatt als Server Component", () => {
       .toEqual(["Aktueller Druck", "Füllstand", "Nennfülldruck", "Status / Standort"]);
     expect(kacheln.map((kachel) => textVon(
       (kachel.props as { zahl: ReactNode }).zahl,
-    ))).toEqual(["20 bar", "10 %", "200 bar", "AktivRTW 1"]);
+    ))).toEqual(["20 bar", "10 %", "200 bar", "AktivRTW 1 · Fahrzeug · UE-RK 1234"]);
     expect(kacheln.map((kachel) => (kachel.props as { ton?: string }).ton))
       .toEqual([undefined, "rot", undefined, "ok"]);
 

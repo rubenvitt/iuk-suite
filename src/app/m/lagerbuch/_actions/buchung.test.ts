@@ -631,7 +631,9 @@ describe("bucheEntnahmeHelfer", () => {
       expect(helferFehler(erg).grund).toBe("eingabe");
       // Der fachliche Satz, nicht der der Datenbank: ohne die Prüfung schlüge
       // der Fremdschlüssel zu und meldete „FOREIGN KEY constraint failed".
-      expect(helferFehler(erg).text).toMatch(/Fahrzeug/);
+      // DRK-309: der Satz heisst „Diese Einheit steht nicht mehr zur
+      // Auswahl" — das Ziel kann eine Tasche sein.
+      expect(helferFehler(erg).text).toMatch(/Einheit/);
     }
     expect(geschrieben()).toEqual([]);
     expect(revalidiert).toEqual([]);

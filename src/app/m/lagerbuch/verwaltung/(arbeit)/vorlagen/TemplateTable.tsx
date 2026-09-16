@@ -25,7 +25,7 @@ export type TemplateAnzeigeZeile = {
    */
   positionenZahl: number;
   fahrzeugeText: string;
-  /** Dieselbe Trennung wie `positionenZahl`, fuer „3 Fahrzeuge". */
+  /** Dieselbe Trennung wie `positionenZahl`, fuer „3 Einheiten". */
   fahrzeugeZahl: number;
 };
 
@@ -62,7 +62,7 @@ const SPALTEN: TableProps<TemplateAnzeigeZeile>["columns"] = [
     render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
   },
   {
-    title: "Fahrzeuge",
+    title: "Einheiten",
     dataIndex: "fahrzeugeText",
     sorter: nachZahl<TemplateAnzeigeZeile>((zeile) => zeile.fahrzeugeZahl),
     render: (text: string) => (
@@ -78,7 +78,7 @@ export function TemplateTable({ zeilen }: { zeilen: TemplateAnzeigeZeile[] }) {
       aria-label="Vorlagen"
       dataSource={zeilen}
       locale={{
-        emptyText: "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einem gepackten Fahrzeug.",
+        emptyText: "Noch keine Vorlagen. Lege oben die erste an — oder erstelle eine Vorlage direkt aus einer gepackten Einheit.",
       }}
       columns={SPALTEN}
     />

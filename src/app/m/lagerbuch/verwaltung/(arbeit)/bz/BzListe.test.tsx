@@ -46,7 +46,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     id: "nie",
     name: "Accu-Chek Mobile",
     barcode: "SN-NIE-42",
-    lagerortName: "RTW Nord",
+    standortText: "RTW Nord · Fahrzeug",
     aktiv: true,
     faelligkeitTon: "rot",
     faelligkeitText: "noch nie geprüft",
@@ -58,7 +58,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     id: "ueberfaellig",
     name: "Contour Rot",
     barcode: "OVER-2",
-    lagerortName: "Lager Süd",
+    standortText: "Lager Süd · Lager",
     aktiv: true,
     faelligkeitTon: "rot",
     faelligkeitText: "überfällig (seit 3 Tagen)",
@@ -70,7 +70,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     id: "heute",
     name: "Gluco Heute",
     barcode: null,
-    lagerortName: "Handlager",
+    standortText: "Handlager · Lager",
     aktiv: false,
     faelligkeitTon: "gelb",
     faelligkeitText: "heute fällig",
@@ -82,7 +82,7 @@ const ZEILEN: BzAnzeigeZeile[] = [
     id: "spaeter",
     name: "FreeStyle Zukunft",
     barcode: "FUT-7",
-    lagerortName: "RTW West",
+    standortText: "RTW West · Fahrzeug",
     aktiv: true,
     faelligkeitTon: "ok",
     faelligkeitText: "fällig in 8 Tagen",
@@ -93,8 +93,10 @@ const ZEILEN: BzAnzeigeZeile[] = [
 ];
 
 const LAGERORTE = [
-  { id: "handlager", name: "Handlager", typ: "lager" as const },
-  { id: "rtw-nord", name: "RTW Nord", typ: "fahrzeug" as const },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
+  { id: "rtw-nord", name: "RTW Nord", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -587,6 +589,16 @@ describe("BZ-Übersichtsseite als Server Component", () => {
           typ: "fahrzeug",
           kennung: "UE-RK 137",
           aktiv: true,
+          einheitenart: "fahrzeug",
+        },
+        // DRK-309: eine Tasche in derselben Standortwahl — ohne Kennung.
+        {
+          id: "tasche-1",
+          name: "Sanitätstasche 1",
+          typ: "fahrzeug",
+          kennung: null,
+          aktiv: true,
+          einheitenart: "tasche",
         },
         {
           id: "lager-inaktiv",
@@ -617,7 +629,7 @@ describe("BZ-Übersichtsseite als Server Component", () => {
         id: "bz-db",
         name: "Accu-Chek DB",
         barcode: "DB-137",
-        lagerortName: "RTW Nord",
+        standortText: "RTW Nord · Fahrzeug · UE-RK 137",
         aktiv: true,
         faelligkeitTon: "rot",
         faelligkeitText: "noch nie geprüft",
@@ -625,9 +637,19 @@ describe("BZ-Übersichtsseite als Server Component", () => {
         letzteKontrolleIso: null,
         faellig: true,
       }]);
+      /*
+       * ⚠️ MIT `kennung` UND `einheitenart` (DRK-309). Das Standortfeld zeigt
+       * die Art hinter dem Namen und kann das nur, wenn die Seite sie
+       * durchreicht; die Tasche steht deshalb in derselben Menge und trägt die
+       * Art weder im Namen noch in einer Kennung.
+       */
       expect(props.lagerorte).toEqual([
-        { id: "rtw-nord", name: "RTW Nord", typ: "fahrzeug" },
-        { id: "handlager", name: "Handlager", typ: "lager" },
+        { id: "rtw-nord", name: "RTW Nord", typ: "fahrzeug",
+          kennung: "UE-RK 137", einheitenart: "fahrzeug" },
+        { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug",
+          kennung: null, einheitenart: "tasche" },
+        { id: "handlager", name: "Handlager", typ: "lager",
+          kennung: null, einheitenart: null },
       ]);
       expect(enthaeltDate(props)).toBe(false);
     } finally {

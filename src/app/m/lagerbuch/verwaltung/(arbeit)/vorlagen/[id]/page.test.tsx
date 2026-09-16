@@ -136,6 +136,9 @@ beforeEach(() => {
       kennung: null,
       aktiv: false,
       templateId: "tpl-rtw",
+      // DRK-309: der Zwischenstand aus Migration 0010 — die Seite muss ihn
+      // durchreichen und darf ihn nicht unterwegs zu „fahrzeug" machen.
+      einheitenart: null,
     },
     {
       id: "rtw-aktiv",
@@ -144,6 +147,7 @@ beforeEach(() => {
       kennung: "UE-RK 112",
       aktiv: true,
       templateId: "tpl-rtw",
+      einheitenart: "fahrzeug",
     },
     {
       id: "rtw-fremd",
@@ -218,14 +222,15 @@ describe("Vorlagen-Detailseite als Server Component", () => {
     expect(kacheln.map((k) => (k.props as { beschriftung: ReactNode }).beschriftung)).toEqual([
       "Positionen",
       "Fächer",
-      "Fahrzeuge",
+      // DRK-309: Eine Vorlage kann auch an Taschen hängen.
+      "Einheiten",
     ]);
     expect(kacheln.map((k) => (k.props as { zahl: ReactNode }).zahl)).toEqual([1, 1, 2]);
 
     expect(elementeVomTyp(inhalt, Card).map((karte) =>
       (karte.props as { title: string }).title)).toEqual([
       "Positionen",
-      "Verknüpfte Fahrzeuge",
+      "Verknüpfte Einheiten",
       "Aktionen",
     ]);
   });
@@ -252,8 +257,10 @@ describe("Vorlagen-Detailseite als Server Component", () => {
     });
     expect(fahrzeuge.props).toEqual({
       zeilen: [
-        { id: "rtw-aktiv", name: "RTW Nord", kennung: "UE-RK 112", aktiv: true },
-        { id: "rtw-inaktiv", name: "Ersatzwagen", kennung: null, aktiv: false },
+        { id: "rtw-aktiv", name: "RTW Nord", kennung: "UE-RK 112", aktiv: true,
+          einheitenart: "fahrzeug" },
+        { id: "rtw-inaktiv", name: "Ersatzwagen", kennung: null, aktiv: false,
+          einheitenart: null },
       ],
     });
     expect(aktionen.props).toEqual({
@@ -279,8 +286,13 @@ describe("Vorlagen-Detailseite als Server Component", () => {
 
 describe("VerknuepfteFahrzeugeTable", () => {
   const ZEILEN: VerknuepftesFahrzeugDto[] = [
-    { id: "rtw-aktiv", name: "RTW Nord", kennung: "UE-RK 112", aktiv: true },
-    { id: "rtw-inaktiv", name: "Ersatzwagen", kennung: null, aktiv: false },
+    { id: "rtw-aktiv", name: "RTW Nord", kennung: "UE-RK 112", aktiv: true,
+      einheitenart: "fahrzeug" },
+    { id: "rtw-inaktiv", name: "Ersatzwagen", kennung: null, aktiv: false,
+      einheitenart: "tasche" },
+    // DRK-309: der Zwischenstand aus Migration 0010 steht auch hier.
+    { id: "ohne-art", name: "Altbestand", kennung: null, aktiv: true,
+      einheitenart: null },
   ];
 
   it("rendert die gefüllte Tabelle vollständig mit äußeren Fahrzeug-Links", async () => {
@@ -290,26 +302,35 @@ describe("VerknuepfteFahrzeugeTable", () => {
     });
 
     expect(queryAll("thead th").map((zelle) => zelle.textContent)).toEqual([
-      "Fahrzeug",
+      "Einheit",
+      "Art",
       "Status",
     ]);
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
-      zeile.getAttribute("data-row-key"))).toEqual(["rtw-aktiv", "rtw-inaktiv"]);
+      zeile.getAttribute("data-row-key")))
+      .toEqual(["rtw-aktiv", "rtw-inaktiv", "ohne-art"]);
     const links = queryAll<HTMLAnchorElement>("tbody a");
     expect(links.map((link) => ({ href: link.getAttribute("href"), text: link.textContent })))
       .toEqual([
         { href: "/verwaltung/fahrzeuge/rtw-aktiv", text: "RTW Nord (UE-RK 112)" },
         { href: "/verwaltung/fahrzeuge/rtw-inaktiv", text: "Ersatzwagen" },
+        { href: "/verwaltung/fahrzeuge/ohne-art", text: "Altbestand" },
       ]);
+    /*
+     * DRK-309 — die Artspalte, je Zeile ein grauer Chip VOR dem Statuschip.
+     * Auch der Zwischenstand traegt Grau und nicht Gelb: er ist erlaubt,
+     * Migration 0010 backfillt bewusst nicht (Begruendung in `FahrzeugeListe`).
+     */
     expect(queryAll(`tbody .${verwaltungStyles.chip}.${verwaltungStyles.grau}`)
-      .map((chip) => chip.textContent)).toEqual(["inaktiv"]);
-    expect(queryAll("[aria-label='Verknüpfte Fahrzeuge']")).toHaveLength(1);
+      .map((chip) => chip.textContent))
+      .toEqual(["Fahrzeug", "Tasche", "inaktiv", "nicht zugeordnet"]);
+    expect(queryAll("[aria-label='Verknüpfte Einheiten']")).toHaveLength(1);
     expect(queryAll(".ant-pagination")).toHaveLength(0);
   });
 
   it("zeigt einen festen Leertext und hält die Spalten statisch in der Client-Insel", async () => {
     await mount(<VerknuepfteFahrzeugeTable zeilen={[]} />);
-    expect(document.body.textContent).toContain("Kein Fahrzeug nutzt diese Vorlage.");
+    expect(document.body.textContent).toContain("Keine Einheit nutzt diese Vorlage.");
 
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/vorlagen/[id]/VerknuepfteFahrzeugeTable.tsx",
@@ -341,6 +362,30 @@ describe("VerknuepfteFahrzeugeTable", () => {
     await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
 
     expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
-      zeile.getAttribute("data-row-key"))).toEqual(["rtw-aktiv", "rtw-inaktiv"]);
+      zeile.getAttribute("data-row-key")))
+      .toEqual(["rtw-aktiv", "ohne-art", "rtw-inaktiv"]);
+  });
+
+  /**
+   * DRK-309 — die Art ordnet ueber ihre BESCHRIFTUNG, nicht ueber den
+   * Datenbankwert.
+   *
+   * ⚠️ DER UNTERSCHIED IST GENAU DER ZWISCHENSTAND. Ueber das Feld sortiert
+   * landete `null` je nach Vergleich immer ganz vorn oder ganz hinten, und
+   * „nicht zugeordnet" stuende dann nicht dort, wo ein Leser es alphabetisch
+   * sucht. `einheitenartLabel` macht aus den drei Zustaenden drei Woerter, und
+   * die ordnen sich wie jede andere Textspalte: Fahrzeug · nicht zugeordnet ·
+   * Tasche.
+   */
+  it("sortiert die Art über ihre Beschriftung — mit dem Zwischenstand dazwischen", async () => {
+    await mount(<VerknuepfteFahrzeugeTable zeilen={ZEILEN} />);
+
+    const kopf = queryAll<HTMLElement>("thead th")
+      .find((th) => (th.textContent ?? "").includes("Art"));
+    await clickElement(kopf!.querySelector<HTMLElement>(".ant-table-column-sorters")!);
+
+    expect(queryAll("tbody tr[data-row-key]").map((zeile) =>
+      zeile.getAttribute("data-row-key")))
+      .toEqual(["rtw-aktiv", "ohne-art", "rtw-inaktiv"]);
   });
 });

@@ -15,6 +15,7 @@
  * leere Elternzeile stehen zu bleiben, die behauptet, es gaebe dort etwas.
  */
 import type { FahrzeugVerfallZeile } from "./FahrzeugVerfallTabelle";
+import type { Einheitenart } from "../../../_lib/konstanten";
 
 export type FahrzeugGruppe = {
   /**
@@ -29,6 +30,8 @@ export type FahrzeugGruppe = {
   fahrzeugId: string;
   fahrzeugName: string;
   fahrzeugKennung: string | null;
+  /** DRK-309 — die Gruppenzeile zeigt sie, wo eine Kennung fehlt. */
+  fahrzeugEinheitenart: Einheitenart | null;
   /** Meldungen, deren Monatsende ueberschritten ist. */
   abgelaufen: number;
   /** Meldungen im Warnbereich, die NOCH NICHT abgelaufen sind. */
@@ -68,6 +71,7 @@ export function gruppiereNachFahrzeug(
         fahrzeugId: zeile.fahrzeugId,
         fahrzeugName: zeile.fahrzeugName,
         fahrzeugKennung: zeile.fahrzeugKennung,
+        fahrzeugEinheitenart: zeile.fahrzeugEinheitenart,
         abgelaufen: 0,
         warnend: 0,
         children: [],

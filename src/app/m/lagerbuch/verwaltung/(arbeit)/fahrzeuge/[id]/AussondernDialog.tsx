@@ -5,6 +5,7 @@ import { Alert, Button, DatePicker, Form, Input, InputNumber, Modal, Select } fr
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { aussondernVomLagerort } from "../../../../_actions/aussondernLagerort";
+import { inDerEinheit, type Einheitenart } from "../../../../_lib/konstanten";
 import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
 import { monatAusPicker } from "../../../../_ui/monat";
 import { Ikone } from "../../../../_ui/ikonen";
@@ -41,6 +42,7 @@ export function AussondernDialog({
   bestand,
   chargen,
   verfall,
+  einheitenart,
   gesperrt = false,
   onAusgesondert,
 }: {
@@ -51,6 +53,16 @@ export function AussondernDialog({
   bestand: number;
   chargen: ChargeZeile[];
   verfall: string | null;
+  /**
+   * ⚠️ PFLICHTFELD, NICHT OPTIONAL (DRK-309, Reviewrunde 4). Der Hinweis unter
+   * dem Monatswähler sagt, WO die verbleibenden Packungen liegen — „im
+   * Fahrzeug" unter einer Tasche ist genau der Widerspruch, den das Ticket
+   * beseitigen soll, und er steht hier in einem Dialog, der Bestand
+   * VERNICHTET. Ein `einheitenart?` wäre in jeder vergessenen Aufrufstelle
+   * still `undefined` und fiele auf das neutrale Wort zurück, ohne dass
+   * irgendwo etwas rot würde.
+   */
+  einheitenart: Einheitenart | null;
   /**
    * Sperrt den Zugang, solange die Tabelle daneben selbst schreibt.
    *
@@ -253,7 +265,8 @@ export function AussondernDialog({
             label="Verfall der verbleibenden Packungen"
             extra={allesRaus
               ? "Der ganze Bestand geht raus — die Verfallsangabe entfällt."
-              : "Das früheste Datum, das jetzt noch im Fahrzeug auf einer Packung steht."}
+              : `Das früheste Datum, das jetzt noch ${inDerEinheit(einheitenart)} `
+                + "auf einer Packung steht."}
           >
             <DatePicker
               picker="month"

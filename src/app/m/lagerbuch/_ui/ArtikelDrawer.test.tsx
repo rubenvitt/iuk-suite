@@ -92,6 +92,7 @@ const DETAIL = {
       kommentar: null,
       quelleName: "RTW 1 Karte",
       ortName: "Handlager",
+      ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
     },
   ],
   mehrVorhanden: true,
@@ -122,8 +123,12 @@ const DETAIL_NACH_ZUGANG = {
 };
 
 const FAHRZEUGE = [
-  { id: "f1", name: "RTW 1", kennung: "UE-RK 1234" },
-  { id: "f2", name: "MTW Bereitschaft", kennung: null },
+  { id: "f1", name: "RTW 1", kennung: "UE-RK 1234", einheitenart: "fahrzeug" as const },
+  { id: "f2", name: "MTW Bereitschaft", kennung: null, einheitenart: "fahrzeug" as const },
+  // DRK-309: eine TASCHE, deren Name das Wort „Tasche" NICHT enthaelt — sonst
+  // waere die Suche nach der Art nicht von der Suche nach dem Namen zu
+  // unterscheiden.
+  { id: "t1", name: "Rucksack Betreuung", kennung: null, einheitenart: "tasche" as const },
 ];
 
 async function warte(): Promise<void> {
@@ -356,12 +361,55 @@ describe("ArtikelDrawer: drei suchbare Auswahlfelder", () => {
 
     // Das Kategoriefeld (DRK-294) ist ein `AutoComplete` und damit technisch
     // ebenfalls ein `.ant-select` — gezaehlt werden hier die AUSWAHLfelder.
-    // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Fahrzeug).
+    // DRK-297 fuegt "Wohin" als drittes hinzu (Charge, Wohin, Ziel-Einheit).
     expect(queryPortal(".ant-drawer-body")
       .querySelectorAll(".ant-select:not(.ant-select-auto-complete)")).toHaveLength(3);
     expect(zielFilter("UE-RK", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(true);
     expect(zielFilter("ZZZ", { label: "Charge 12/26", keywords: "ZZZ-ALT" })).toBe(true);
     expect(zielFilter("MTW", { label: "RTW 1", keywords: "UE-RK 1234" })).toBe(false);
+  });
+
+  /**
+   * DRK-309 — DIE ART STEHT IN DEN SUCHWORTEN DER ZIELWAHL.
+   *
+   * ⚠️ UEBER DAS ECHTE FELD, nicht ueber selbstgebaute `keywords`. Dass
+   * `zielFilter` Suchworte beachtet, sagt der Fall darueber; dass die
+   * Schublade die Art auch WIRKLICH hineinschreibt, sagt er nicht — und genau
+   * diese Luecke war ein Reviewbefund an der Geschwisterstelle
+   * (`checks/ChecksFilter.tsx`): ein Kommentar versprach die Suche, waehrend
+   * `keywords` allein aus `kennung` entstand. Die Tasche der Fixture traegt
+   * weder das Wort im Namen noch eine Kennung.
+   */
+  it("findet eine Tasche ueber ihre ART, nicht nur ueber Name und Kennung", async () => {
+    await drawerMounten();
+
+    const ziel = queryPortal<HTMLInputElement>("[aria-label='Ziel-Einheit']");
+    await act(async () => {
+      ziel.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await warte();
+
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(ziel), "value")?.set;
+    if (!setter) throw new Error("Kein value-Setter am Zielfeld");
+    await act(async () => {
+      setter.call(ziel, "tasche");
+      ziel.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await warte();
+
+    const optionen = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).map((option) => option.textContent);
+    /*
+     * ⚠️ DIE ART STEHT AUCH IM LABEL (DRK-309, Reviewrunde 4), nicht nur in
+     * den Suchworten. `lagerorte.name` trägt keinen Eindeutigkeitsschlüssel:
+     * ein Fahrzeug und eine Tasche dürfen gleich heißen, und eine Liste aus
+     * bloßen Namen könnte sie dann nicht auseinanderhalten. Die Zusicherung
+     * hält deshalb BEIDES fest — dass „tasche" trifft (die Suchworte) und
+     * dass die Zeile es zeigt (das Label).
+     */
+    expect(optionen).toEqual(["Rucksack Betreuung · Tasche"]);
   });
 
   it("bewahrt NEUE_CHARGE plus die serverseitige FEFO-Reihenfolge und blendet Neufelder bei Bestandscharge aus", async () => {
@@ -576,7 +624,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
 
     expect(queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").disabled)
       .toBe(true);
-    expect(queryPortal<HTMLInputElement>("[aria-label='Ziel-Fahrzeug']").disabled)
+    expect(queryPortal<HTMLInputElement>("[aria-label='Ziel-Einheit']").disabled)
       .toBe(true);
     expect(queryPortal<HTMLTextAreaElement>("[aria-label='Entnahmekommentar']").disabled)
       .toBe(true);
@@ -596,7 +644,7 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
 
   it("sendet das ausgewaehlte Fahrzeug mit Menge und Kommentar", async () => {
     await drawerMounten();
-    await selectOption("Ziel-Fahrzeug", "RTW 1");
+    await selectOption("Ziel-Einheit", "RTW 1");
     await fillPortal("[aria-label='Entnahmemenge']", "2");
     await fillPortal("[aria-label='Entnahmekommentar']", "Nachfüllung RTW");
 

@@ -23,6 +23,7 @@ export function fahrzeugAnzeigeZeile(
     name: zeile.name,
     kennung: zeile.kennung,
     aktiv: zeile.aktiv,
+    einheitenart: zeile.einheitenart,
     templateName: zeile.templateName,
     positionen: zeile.positionen,
     faecher: zeile.faecher,
@@ -59,16 +60,27 @@ export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         was ich sehe" verspricht und „drucke alle" tut, ist schlimmer als
         einer, der von vornherein „alle" sagt.
       */}
+      {/*
+        ⚠️ DER TITEL NENNT BEIDE ARTEN, DER PFAD BLEIBT `/fahrzeuge` (DRK-309).
+
+        Eine Tasche ist im Modell dasselbe wie ein Fahrzeug (`typ = "fahrzeug"`,
+        Begruendung an der Spalte `einheitenart` in `_db/schema.ts`), und eine
+        zweite Seite daneben waere eine zweite Liste ueber derselben Tabelle —
+        mit zwei Suchen, zwei Filtersaetzen und der Frage, wo die noch nicht
+        zugeordneten Einheiten stehen. Umbenannt wird deshalb, was man LIEST,
+        nicht, was man TIPPT: der Pfad steht in Zugangs-Codes, auf gedruckten
+        Kärtchen und in älteren Anwender-Notizen.
+      */}
       <SeitenKopf
-        titel="Fahrzeuge"
-        beschreibung="Flotte mit Soll-Abgleich und Verfallsmeldungen aus den Fahrzeug-Checks."
+        titel="Fahrzeuge und Taschen"
+        beschreibung="Fahrzeuge und Taschen mit Soll-Abgleich und Verfallsmeldungen aus ihren Checks."
         aktionen={(
           <>
             {/*
               DER ÜBERGREIFENDE EINSTIEG — DRK-305. OHNE `fahrzeugId`: von hier
-              führt der Weg auf die Fahrzeugwahl, nicht auf ein einzelnes
-              Fahrzeug. Genau dafür ist das Ticket geschrieben — wer angemeldet
-              prüft, ist nicht auf das gescannte Fahrzeug beschränkt.
+              führt der Weg auf die Einheitenwahl, nicht auf eine einzelne
+              Einheit. Genau dafür ist das Ticket geschrieben — wer angemeldet
+              prüft, ist nicht auf die gescannte Einheit beschränkt.
             */}
             <CheckDurchfuehrenKnopf beschriftung="Check durchführen" />
             <ChecklisteKnopf beschriftung="Checklisten drucken" />

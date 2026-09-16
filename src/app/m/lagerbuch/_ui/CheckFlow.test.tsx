@@ -89,7 +89,22 @@ function regeln(selektor: string): Map<string, string> {
   );
 }
 
-const FZ = { id: "fz-1", name: "RTW 1", kennung: "HH-DR 1234" };
+const FZ = {
+  id: "fz-1", name: "RTW 1", kennung: "HH-DR 1234",
+  einheitenart: "fahrzeug" as const,
+};
+
+/** DRK-309: dieselbe Strecke, nur fuer eine TASCHE. */
+const TASCHE = {
+  id: "ta-1", name: "Sanitätstasche 1", kennung: null,
+  einheitenart: "tasche" as const,
+};
+
+/** DRK-309: der Zwischenstand aus Migration 0010 — Art noch nicht zugeordnet. */
+const OHNE_ART = {
+  id: "ohne-1", name: "Rucksack Betreuung", kennung: null,
+  einheitenart: null,
+};
 const WARN = { rotTage: 31, gelbTage: 56 };
 
 const POS = (over: Partial<CheckPos> = {}): CheckPos => ({
@@ -620,6 +635,84 @@ describe("CheckFlow — der Zaehlschritt", () => {
     );
     for (let i = 0; i < 3; i++) await plus(0); // 0 → 3, Luecke 2
     expect(query("[data-rolle='zaehlliste']").textContent).toContain("nachfüllen 2");
+  });
+});
+
+/**
+ * DRK-309 — DIE STRECKE SPRICHT VON DEM, WAS DIE HELFERIN IN DER HAND HAELT.
+ *
+ * ⚠️ WARUM DAS EINE ZUSICHERUNG WERT IST UND NICHT NUR EINE FORMULIERUNG. Diese
+ * Strecke ist die einzige Flaeche des Moduls, die eine Person OHNE Konto auf
+ * einem privaten Telefon bedient — sie kann nichts nachschlagen und nichts
+ * umschalten. „Aus dem Handlager aufs Fahrzeug legen" ueber einer Sanitaets-
+ * tasche ist dort nicht ungenau, sondern eine Anweisung, die auf den falschen
+ * Gegenstand zeigt.
+ *
+ * ⚠️ UND DIE PRAEPOSITION IST DER GRUND FUER DREI BAUSTEINE STATT EINEM: „aufs
+ * Fahrzeug" und „in die Tasche" unterscheiden sich nicht nur im Nomen. Ein
+ * Zusammenkleben aus dem Label ergaebe „auf die Tasche".
+ */
+describe("CheckFlow — die Art der Einheit (DRK-309)", () => {
+  async function nachfuellschritt(fahrzeug: typeof FZ | typeof TASCHE | typeof OHNE_ART) {
+    await mount(
+      <CheckFlow
+        fahrzeug={fahrzeug}
+        kontoZugang={false}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[POS({ soll: 5, handlagerBestand: 20 })]}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    for (let i = 0; i < 5; i++) await minus(0);
+    await click(WEITER);
+  }
+
+  it("sagt einer Tasche „in die Tasche“ und einem Fahrzeug „aufs Fahrzeug“", async () => {
+    await nachfuellschritt(FZ);
+    expect(document.body.textContent).toContain("Aus dem Handlager aufs Fahrzeug legen");
+    await unmount();
+
+    await nachfuellschritt(TASCHE);
+    const tasche = document.body.textContent ?? "";
+    expect(tasche).toContain("Aus dem Handlager in die Tasche legen");
+    expect(tasche).not.toContain("aufs Fahrzeug");
+  });
+
+  it("faellt beim Zwischenstand auf das neutrale Wort zurueck, nie auf Fahrzeug", async () => {
+    // Migration 0010 backfillt bewusst nicht. Auf „Fahrzeug" zu raten, weil das
+    // der haeufigere Fall ist, machte aus einer offenen Frage still eine
+    // Antwort — und zwar auf der Flaeche, auf der sie niemand pruefen kann.
+    await nachfuellschritt(OHNE_ART);
+    const offen = document.body.textContent ?? "";
+    expect(offen).toContain("Aus dem Handlager in die Einheit legen");
+    expect(offen).not.toContain("Fahrzeug");
+  });
+
+  it("bietet den Ausweg NEUTRAL an — die Liste dahinter fuehrt beide Arten", async () => {
+    // Der Ausweg steht im LEERZUSTAND (nichts zu pruefen) und auf dem
+    // Abschlussschirm; hier der erste, weil er ohne Zaehlarbeit erreichbar ist.
+    await mount(
+      <CheckFlow
+        fahrzeug={TASCHE}
+        kontoZugang={false}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        soll={[]}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Andere Einheit");
+    expect(text).not.toContain("Anderes Fahrzeug");
+    // Und der Leerzustand nennt die Art der Einheit, die er meint.
+    expect(text).toContain("Für diese Tasche ist weder ein Soll");
   });
 });
 
@@ -1290,8 +1383,8 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     // Welle und erzeugen dieselbe URL-Form.
     await mount(
       <CheckFlow
-    kontoZugang={false}
-        fahrzeug={{ id: "fz 1/a", name: "RTW 1", kennung: null }}
+      kontoZugang={false}
+          fahrzeug={{ id: "fz 1/a", name: "RTW 1", kennung: null, einheitenart: "fahrzeug" }}
         soll={[]}
         geraete={[GERAET]}
         flaschen={[]}
@@ -1413,6 +1506,35 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
     // sagen, wo es anfaengt — und genau das war der Anlass des Tickets.
     expect(t).toContain("Nach dem Dienst auffüllen");
     expect(t).toContain("QR-Code am Handlager");
+    /*
+     * ⚠️ UND DER SATZ STEHT IM DATIV (DRK-309, Reviewrunde 8). „in" mit einer
+     * ORTSANGABE verlangt ihn; `dieseEinheit` liefert den Nominativ, und „Was
+     * in dieses Fahrzeug fehlt" ist falsches Deutsch. Der richtige Baustein war
+     * die ganze Zeit da — ich hatte den falschen gegriffen, und kein Tor sieht
+     * einen Fall.
+     */
+    expect(t).toContain("Was im Fahrzeug fehlt");
+    expect(t).not.toContain("in dieses Fahrzeug");
+  });
+
+  it("setzt den Auffuellsatz fuer eine Tasche in den Dativ", async () => {
+    await mount(
+      <CheckFlow
+        kontoZugang={false}
+        fahrzeug={{ ...FZ, name: "Rucksack", kennung: null, einheitenart: "tasche" }}
+        soll={[POS()]}
+        geraete={[]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        gebunden={false}
+        letzterCheckText={null}
+      />,
+    );
+    await alleBestaetigen();
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+    expect(query(HINWEIS).textContent ?? "").toContain("Was in der Tasche fehlt");
   });
 
   it("ist TEXT, kein Weg — kein Link, kein Knopf (AK3)", async () => {
@@ -1734,7 +1856,10 @@ describe("CheckFlow — Bauform", () => {
     // den RSC-Payload — auf ein privates Telefon, in einer Sitzung ohne Konto.
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(q).not.toMatch(/preselect|Record<string, Pos\[\]>|fahrzeuge:/);
-    expect(q).toMatch(/fahrzeug: \{ id: string/);
+    // ⚠️ MEHRZEILIG SEIT DRK-309 (`einheitenart` kam dazu) — die Zusage ist
+    // unveraendert: EIN Fahrzeug, kein Woerterbuch. Der Ausdruck prueft
+    // deshalb den Anfang der Prop, nicht ihre Zeilenumbrueche.
+    expect(q).toMatch(/fahrzeug: \{\s+id: string/);
   });
 
   it("baut die Nutzlast NICHT selbst, sondern ueber `checkNutzlast` (Teil 3, T43)", () => {

@@ -171,7 +171,7 @@ function checkFixtures(): void {
 
   db.insert(lagerorte).values({
     id: E2E_FAHRZEUG_ID, name: E2E_FAHRZEUG_NAME, typ: "fahrzeug", kennung: "MS-E2E-1",
-    aktiv: true, templateId: null,
+    aktiv: true, templateId: null, einheitenart: "fahrzeug",
   }).onConflictDoNothing().run();
 
   // Der Name ist bewusst > 28 Zeichen (Ruling A10, Plan T170): der Etikettenbogen-
@@ -272,7 +272,7 @@ function geraeteFixtures(): void {
 
   db.insert(lagerorte).values({
     id: E2E_FAHRZEUG_ANDERES_ID, name: E2E_FAHRZEUG_ANDERES_NAME, typ: "fahrzeug",
-    kennung: "MS-E2E-2", aktiv: true, templateId: null,
+    kennung: "MS-E2E-2", aktiv: true, templateId: null, einheitenart: "fahrzeug",
   }).onConflictDoNothing().run();
 
   artikelMitBestand(
@@ -315,8 +315,33 @@ function vorlagenFixtures(): void {
   }).onConflictDoNothing().run();
   db.insert(lagerorte).values({
     id: "e2e-vorlagen-fahrzeug", name: "E2E Vorlagen-KTW", typ: "fahrzeug",
-    kennung: "MS-E2E-3", aktiv: false, templateId: null,
+    kennung: "MS-E2E-3", aktiv: false, templateId: null, einheitenart: "fahrzeug",
   }).onConflictDoNothing().run();
+}
+
+/**
+ * ZWEI EINHEITEN FUER `lagerbuch-einheitenart.spec.ts` (DRK-309): EINE TASCHE
+ * und EINE, DIE NOCH NICHT ZUGEORDNET IST.
+ *
+ * ⚠️ DIE NICHT ZUGEORDNETE IST DIE WICHTIGERE VON BEIDEN. Sie bildet den
+ * Zwischenstand aus Migration 0010 nach, die bewusst nicht backfillt — der
+ * Zustand, in dem JEDE bestehende Anlage nach dem Rollout startet. Ein Seed,
+ * der ueberall eine Art setzt, laesst die Spalte „nicht zugeordnet", ihren
+ * Filter und den Nachtrag am Einheitenblatt an keiner Flaeche pruefbar.
+ *
+ * ⚠️ BEIDE INAKTIV und ohne Soll, aus demselben Grund wie `vorlagenFixtures`:
+ * sonst stuenden sie auf den Checklisten- und Etikettenboegen, und zwei
+ * fremde Specs zaehlten ploetzlich anders.
+ */
+function einheitenartFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values([
+    { id: "e2e-tasche", name: "E2E Sanitätstasche", typ: "fahrzeug",
+      kennung: null, aktiv: false, templateId: null, einheitenart: "tasche" },
+    // OHNE `einheitenart` — der Zwischenstand, den die Spec nachtraegt.
+    { id: "e2e-ohne-art", name: "E2E Rucksack ohne Art", typ: "fahrzeug",
+      kennung: null, aktiv: false, templateId: null },
+  ]).onConflictDoNothing().run();
 }
 
 /**
@@ -356,11 +381,11 @@ function fahrzeugVerfallFixtures(): void {
   const db = getDb();
   db.insert(lagerorte).values([
     { id: "e2e-verfall-fahrzeug", name: "E2E Verfall-RTW", typ: "fahrzeug",
-      kennung: "MS-E2E-4", aktiv: false, templateId: null },
+      kennung: "MS-E2E-4", aktiv: false, templateId: null, einheitenart: "fahrzeug" },
     { id: "e2e-verfall-fahrzeug-2", name: "E2E Verfall-KTW", typ: "fahrzeug",
-      kennung: "MS-E2E-5", aktiv: false, templateId: null },
+      kennung: "MS-E2E-5", aktiv: false, templateId: null, einheitenart: "fahrzeug" },
     { id: "e2e-ungepflegt-fahrzeug", name: "E2E Ungepflegt-MTW", typ: "fahrzeug",
-      kennung: "MS-E2E-6", aktiv: false, templateId: null },
+      kennung: "MS-E2E-6", aktiv: false, templateId: null, einheitenart: "fahrzeug" },
   ]).onConflictDoNothing().run();
 
   db.insert(sollPositionen).values([
@@ -412,7 +437,7 @@ function aussondernFahrzeugFixtures(): void {
   const db = getDb();
   db.insert(lagerorte).values({
     id: "e2e-aussondern-fahrzeug", name: "E2E Aussondern-RTW", typ: "fahrzeug",
-    kennung: "MS-E2E-7", aktiv: false, templateId: null,
+    kennung: "MS-E2E-7", aktiv: false, templateId: null, einheitenart: "fahrzeug",
   }).onConflictDoNothing().run();
 
   db.insert(sollPositionen).values({
@@ -728,6 +753,7 @@ geraeteFixtures();
 fahrzeugKaertchenFixtures();
 bestellFixtures();
 vorlagenFixtures();
+einheitenartFixtures();
 fahrzeugVerfallFixtures();
 aussondernFahrzeugFixtures();
 kategorieFixtures();

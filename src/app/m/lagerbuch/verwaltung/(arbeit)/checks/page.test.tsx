@@ -21,6 +21,7 @@ beforeEach(() => {
     typ: "fahrzeug",
     kennung: "UE-RK 1234",
     aktiv: true,
+    einheitenart: "fahrzeug",
   }).run();
 });
 
@@ -216,6 +217,10 @@ describe("Checks-Seite", () => {
       id: "check-hydration",
       detailHref: "/verwaltung/checks/check-hydration",
       fahrzeugName: "RTW 1",
+      // DRK-309: Art und Kennung reisen mit — die Spalte zeigt beide, und der
+      // Spaltenfilter gruppiert ueber dieselbe Zeichenkette.
+      fahrzeugKennung: "UE-RK 1234",
+      fahrzeugEinheitenart: "fahrzeug",
       abgeschlossenText: "7.8.2026, 12:00:00",
       // Der Rohwert fuer die Sortierung der Abschlussspalte — er faehrt als
       // JSON-sichere Zeichenkette mit, nicht als `Date`.
@@ -416,7 +421,7 @@ describe("Checks-Seite", () => {
       ],
     });
     expect(tabelle.zeilen.map((zeile) => zeile.id)).toEqual(["check-trotz-ungueltig"]);
-    expect(tabelle.leertext).toBe("Noch kein abgeschlossener Fahrzeug-Check.");
+    expect(tabelle.leertext).toBe("Noch kein abgeschlossener Check.");
   });
 
   it("behält gültige umgekehrte Grenzen sichtbar und zeigt den gefilterten Leertext", () => {
@@ -435,7 +440,7 @@ describe("Checks-Seite", () => {
       hinweise: ["Der Zeitraum ist leer: „von“ liegt nach „bis“."],
     });
     expect(tabelle.zeilen).toEqual([]);
-    expect(tabelle.leertext).toBe("Kein Check passt zu Fahrzeug und Zeitraum.");
+    expect(tabelle.leertext).toBe("Kein Check passt zu Einheit und Zeitraum.");
   });
 
   it("ignoriert unbekannte Fahrzeug-IDs und sortiert die Auswahl deutsch nach Namen", () => {

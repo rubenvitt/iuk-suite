@@ -105,7 +105,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     expect(aktive[0]!.textContent).toContain("Entnahme");
   });
 
-  it("`aktiv=\"check\"` setzt sie am Fahrzeug-Check-Tab", async () => {
+  it("`aktiv=\"check\"` setzt sie am Check-Tab", async () => {
     // ⚠️ DIESER TEST IST KEINE KOPIE DES VORIGEN (Regel 4). Er allein haelt den
     // Fall, den Falle 63 im Betrieb traf: eine fest auf „Entnahme" verdrahtete
     // Markierung — oder eine aus `pathname.startsWith(…)` abgeleitete, die auf
@@ -119,7 +119,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     );
     const aktive = queryAll("[data-testid='lb-tableiste'] a[aria-current='page']");
     expect(aktive.length).toBe(1);
-    expect(aktive[0]!.textContent).toContain("Fahrzeug-Check");
+    expect(aktive[0]!.textContent).toContain("Check");
   });
 
   it("die beiden `href` sind AEUSSERE Pfade", async () => {

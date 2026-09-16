@@ -15,6 +15,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { verfallSetzen } from "../../../../_actions/lagerortVerfall";
 import type { AmpelTon } from "../../../../_lib/format";
 import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
+import { inDerEinheit, type Einheitenart } from "../../../../_lib/konstanten";
 import { AussondernDialog } from "./AussondernDialog";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
@@ -42,9 +43,17 @@ export type VerfallAnzeigeZeile = {
 export function VerfallEditor({
   lagerortId,
   eintraege,
+  einheitenart,
 }: {
   lagerortId: string;
   eintraege: VerfallAnzeigeZeile[];
+  /**
+   * DRK-309 — die Tabelle heisst nach der Art der Einheit, deren Verfall sie
+   * zeigt. ⚠️ Fuer ein Fahrzeug bleibt der Name WORTGLEICH („Verfall im
+   * Fahrzeug"); art-bewusst heisst hier nicht „anders", sondern „richtig,
+   * sobald es keins ist".
+   */
+  einheitenart: Einheitenart | null;
 }) {
   const [spiegel, setSpiegel] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(eintraege.map((eintrag) => [eintrag.artikelId, eintrag.verfall])));
@@ -181,6 +190,10 @@ export function VerfallEditor({
           // Mit ihr stuende im Dialog der alte Monat, und eine Teilaussonderung
           // schriebe ihn ueber den gerade gespeicherten zurueck.
           verfall={monatFuer(eintrag)}
+          // DRK-309: dieselbe Art wie die Kopfzeile und die Überschrift
+          // darüber — der Hinweis im Dialog sagt, wo die verbleibenden
+          // Packungen liegen.
+          einheitenart={einheitenart}
           // Dieselbe Sperre wie am Monatswähler oben: solange die Tabelle
           // selbst schreibt, bleibt der zweite Schreibweg zu.
           gesperrt={laeuft}
@@ -218,7 +231,7 @@ export function VerfallEditor({
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
       <Datentabelle<VerfallAnzeigeZeile>
         rowKey="artikelId"
-        aria-label="Verfall im Fahrzeug"
+        aria-label={`Verfall ${inDerEinheit(einheitenart)}`}
         dataSource={eintraege}
         locale={{
           emptyText: "Keine aktive Soll-Position. Verfall wird je Soll-Artikel gepflegt.",

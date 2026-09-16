@@ -11,7 +11,11 @@ let t: TestDb;
 beforeEach(() => {
   t = migrierteTestDb("lagerbuch-lp-o2-");
   t.db.insert(lagerorte).values([
-    { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1", aktiv: true },
+    { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "MS-1", aktiv: true,
+      einheitenart: "fahrzeug" },
+    // DRK-309: eine TASCHE — derselbe `typ`, andere Art, und ohne Kennung.
+    { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug", kennung: null,
+      aktiv: true, einheitenart: "tasche" },
     { id: "alt", name: "Altbestand", typ: "lager", kennung: null, aktiv: false },
   ]).run();
   t.db.insert(users).values(
@@ -168,9 +172,20 @@ describe("lagerorteFuerFlaschen", () => {
     // `INSERT OR IGNORE`, aktiv=1) und existiert deshalb in JEDER frisch
     // migrierten Test-DB. "alt" bleibt zu Recht draussen (aktiv=false).
     // "Handlager" < "RTW 1" alphabetisch.
+    /*
+     * ⚠️ MIT `typ`, `kennung` UND `einheitenart` (DRK-309). Die Standortwahl
+     * der Flaschen zeigt die Art hinter dem Namen, und sie kann das nur, wenn
+     * der Lesepfad sie mitgibt. Die Tasche steht deshalb in derselben Menge
+     * wie das Fahrzeug — sie ist der Fall, um den es geht, und sie trägt die
+     * Art WEDER im Namen NOCH in einer Kennung.
+     */
     expect(lagerorteFuerFlaschen(t.db)).toEqual([
-      { id: "handlager", name: "Handlager" },
-      { id: "rtw-1", name: "RTW 1" },
+      { id: "handlager", name: "Handlager", typ: "lager",
+        kennung: null, einheitenart: null },
+      { id: "rtw-1", name: "RTW 1", typ: "fahrzeug",
+        kennung: "MS-1", einheitenart: "fahrzeug" },
+      { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug",
+        kennung: null, einheitenart: "tasche" },
     ]);
   });
 });

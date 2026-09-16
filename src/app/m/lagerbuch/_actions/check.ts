@@ -10,7 +10,11 @@ import {
 } from "../_db/schema";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
-import { MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT } from "../_lib/konstanten";
+import {
+  CHECK_ABGLEICH, CHECK_MESSUNG, CHECK_NACHFUELLUNG,
+  MONAT_REGEX, ZUSTAENDE, ZUSTAND_DEFEKT,
+  dieseEinheit, grossAmAnfang,
+} from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
@@ -157,10 +161,27 @@ export async function checkAbschluss(
     // Sitzung erneuert.
     const fz = db.select().from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
     if (!fz || fz.typ !== "fahrzeug" || !fz.aktiv) {
+      /*
+       * ⚠️ ART-BEWUSST, UND DIE INSEL GIBT DEN TEXT WOERTLICH WEITER (DRK-309,
+       * Reviewrunde 10). `CheckFlow` formuliert eine Servermeldung
+       * grundsaetzlich nicht neu (§7.3) — was hier steht, liest die Helferin
+       * genau so. Ein festes „Dieses Fahrzeug" waere damit die EINZIGE Stelle
+       * der ganzen Checkstrecke, an der eine Tasche wieder zum Fahrzeug wird,
+       * und zwar auf einem Weg, den der Quelltext daneben als erwartet
+       * beschreibt: die Verwaltung legt still, waehrend jemand zaehlt.
+       *
+       * ⚠️ DER RUECKFALL IST NEUTRAL, NICHT „Fahrzeug". Dieser Zweig faengt
+       * DREI Faelle: die Zeile fehlt ganz, sie ist kein Traeger, oder sie ist
+       * stillgelegt. In den ersten beiden gibt es keine Art — dann ist
+       * „Diese Einheit" das Ehrlichste, was dort stehen kann.
+       */
+      const wer = fz
+        ? grossAmAnfang(dieseEinheit(fz.einheitenart))
+        : "Diese Einheit";
       return {
         ok: false,
         grund: "eingabe",
-        text: "Dieses Fahrzeug ist nicht mehr aktiv. Bitte die Seite neu laden.",
+        text: `${wer} ist nicht mehr aktiv. Bitte die Seite neu laden.`,
       };
     }
 
@@ -229,14 +250,14 @@ export async function checkAbschluss(
         // `bestandProLagerort(…, fahrzeugId) === istMenge`.
         const { diff: korrektur } = korrekturAufLagerort(tx, {
           artikelId: g.artikelId, lagerortId: v.fahrzeugId, istMenge: g.istSumme,
-          quelle, kommentar: "Fahrzeug-Check Abgleich", referenz,
+          quelle, kommentar: CHECK_ABGLEICH, referenz,
         });
         const recordedVorher = g.istSumme - korrektur;
         const nachfuellGebucht = g.nachfuellGewuenscht > 0
           ? umlagerung(tx, {
               artikelId: g.artikelId, menge: g.nachfuellGewuenscht,
               vonOrten: handlagerBereich, nachLagerortId: v.fahrzeugId,
-              quelle, kommentar: "Fahrzeug-Check Nachfüllung", referenz,
+              quelle, kommentar: CHECK_NACHFUELLUNG, referenz,
             }).umgelagert
           : 0;
         nachgefuellt += nachfuellGebucht;
@@ -273,7 +294,7 @@ export async function checkAbschluss(
         if (!f) throw new Error("Flasche gehört nicht zu diesem Fahrzeug");   // WURF 3
         tx.insert(o2Messungen).values({
           id: newId(), flascheId: e.flascheId, ts: new Date(), druckBar: e.druckBar,
-          ...quelle, kommentar: `Fahrzeug-Check ${referenz}`,
+          ...quelle, kommentar: `${CHECK_MESSUNG} ${referenz}`,
         }).run();
 
         // §5.12, §7.9.4 (NEU): eine Flasche OHNE bekannten Nennfuelldruck ist

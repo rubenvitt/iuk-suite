@@ -11,6 +11,8 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useRouter } from "next/navigation";
 import { SPACE } from "@/core/theme/tokens";
 import { geraetSpeichern } from "../../../../_actions/geraete";
+import { standortMeta } from "../../../../_lib/konstanten";
+import type { LagerortOption as Lagerort } from "../../../../_lib/lesepfade/bz";
 import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
 
 export type GeraetInitial = {
@@ -77,7 +79,7 @@ export function GeraetForm({
   lagerorte,
 }: {
   initial: GeraetInitial;
-  lagerorte: { id: string; name: string; typ: "lager" | "fahrzeug" }[];
+  lagerorte: Lagerort[];
 }) {
   const [form] = Form.useForm<Werte>();
   const router = useRouter();
@@ -118,9 +120,17 @@ export function GeraetForm({
   }, [form, zustand]);
 
   const typ = Form.useWatch("typ", form) ?? initial.typ;
+  /*
+   * ⚠️ DIE ART STEHT IM LABEL, NICHT NUR IM NAMEN (DRK-309, Reviewrunde 5).
+   * `lagerorte.name` trägt keinen Eindeutigkeitsschlüssel — ein Fahrzeug und
+   * eine Tasche dürfen gleich heißen, und dann hängt das Gerät am falschen
+   * Träger, ohne dass die Liste es je gezeigt hätte. Dieselbe Form wie in der
+   * Artikelschublade und bei den Zugangs-Codes; das Handlager sagt „Lager"
+   * und nicht „nicht zugeordnet" (Begründung an `standortMeta`).
+   */
   const standorte: LagerortSelectOption[] = lagerorte.map((lagerort) => ({
     value: lagerort.id,
-    label: lagerort.name,
+    label: `${lagerort.name} · ${standortMeta(lagerort)}`,
   }));
 
   function speichern(werte: Werte): void {

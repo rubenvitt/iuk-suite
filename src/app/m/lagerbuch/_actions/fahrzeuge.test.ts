@@ -30,6 +30,7 @@ vi.mock("../_db/client", () => ({
 
 import {
   createFahrzeug,
+  setEinheitenart,
   setFahrzeugAktiv,
   sollPositionEntfernen,
   sollPositionSetzen,
@@ -173,7 +174,7 @@ function verfallFuer(fahrzeugId = "fz-1", artikelId = "art-1") {
 describe("createFahrzeug", () => {
   it("legt genau ein aktives Fahrzeug mit getrimmten Feldern an und gibt dessen ID zurueck", async () => {
     const ergebnis = await createFahrzeug(
-      { name: "  RTW 3  ", kennung: "  UE-RK 3000  " },
+      { name: "  RTW 3  ", kennung: "  UE-RK 3000  ", einheitenart: "fahrzeug" },
       t.db,
     );
 
@@ -189,13 +190,16 @@ describe("createFahrzeug", () => {
       parentId: null,
       zugangshinweis: null,
       sortierung: 0,
+      einheitenart: "fahrzeug",
     });
     expect(revalidiert).toEqual([FAHRZEUGE_PFAD]);
   });
 
   it("speichert eine fehlende oder leere Kennung als null", async () => {
-    const ohne = await createFahrzeug({ name: "MTW" }, t.db);
-    const leer = await createFahrzeug({ name: "KTW", kennung: "   " }, t.db);
+    const ohne = await createFahrzeug(
+      { name: "MTW", einheitenart: "fahrzeug" }, t.db);
+    const leer = await createFahrzeug(
+      { name: "KTW", kennung: "   ", einheitenart: "fahrzeug" }, t.db);
 
     expect(t.db.select().from(lagerorte)
       .where(eq(lagerorte.id, wert<{ id: string }>(ohne).id)).get()?.kennung).toBeNull();
@@ -206,7 +210,8 @@ describe("createFahrzeug", () => {
   it("weist einen leeren Namen am Feld zurueck und schreibt oder revalidiert nichts", async () => {
     const vorher = t.db.select().from(lagerorte).all();
 
-    const ergebnis = await createFahrzeug({ name: "   " }, t.db);
+    const ergebnis = await createFahrzeug(
+      { name: "   ", einheitenart: "fahrzeug" }, t.db);
 
     expect(fehlerVon(ergebnis)).toEqual({
       ok: false,
@@ -227,10 +232,123 @@ describe("createFahrzeug", () => {
       END;
     `);
 
-    const ergebnis = await createFahrzeug({ name: "Defekt" }, t.db);
+    const ergebnis = await createFahrzeug(
+      { name: "Defekt", einheitenart: "fahrzeug" }, t.db);
 
-    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug konnte nicht angelegt werden." });
+    expect(ergebnis).toEqual({ ok: false, fehler: "Einheit konnte nicht angelegt werden." });
     expect(fehlerVon(ergebnis).fehler).not.toContain("db-intern");
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * DIE EIGENTLICHE ZUSICHERUNG AUS DRK-309: „neue Objekte muessen
+   * kategorisiert werden".
+   *
+   * ⚠️ SIE GEHOERT AN DIE ACTION, NICHT AN DEN DIALOG. Die Spalte ist
+   * nullable (Migration 0010 backfillt bewusst nicht), die Pflicht traegt also
+   * allein der Eingangsvalidator — und eine `required`-Regel in `NeuFahrzeug`
+   * ist eine Zusicherung ueber EIN Formular, nicht ueber die Server Action.
+   */
+  it("legt OHNE Art nichts an — weder eine Tasche noch ein Fahrzeug", async () => {
+    const vorher = t.db.select().from(lagerorte).all();
+
+    const ergebnis = await createFahrzeug({ name: "Rucksack ohne Art" }, t.db);
+
+    expect(fehlerVon(ergebnis)).toEqual({
+      ok: false,
+      fehler: "Bitte die markierten Felder prüfen.",
+      feldFehler: { einheitenart: "Fahrzeug oder Tasche wählen" },
+    });
+    expect(t.db.select().from(lagerorte).all()).toEqual(vorher);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("nimmt kein erfundenes drittes Wort als Art an", async () => {
+    const vorher = t.db.select().from(lagerorte).all();
+
+    // „unbekannt" ist der naheliegende Griff, mit dem die Pflicht zu umgehen
+    // waere — der Zwischenstand ist aber die ABWESENHEIT eines Wertes, kein
+    // Wert (Begruendung an `EINHEITENARTEN`).
+    for (const art of ["unbekannt", "anhaenger", "", null]) {
+      const ergebnis = await createFahrzeug(
+        { name: "Erfunden", einheitenart: art }, t.db);
+      expect(ergebnis.ok).toBe(false);
+    }
+    expect(t.db.select().from(lagerorte).all()).toEqual(vorher);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("legt eine TASCHE mit `typ: \"fahrzeug\"` an — sonst traegt sie keinen Bestand", async () => {
+    // ⚠️ Das ist keine Verlegenheitsloesung, sondern das Modell: `typ` trennt
+    // Ort von beweglichem Traeger, die Art trennt Traeger von Traeger. Ohne
+    // den `typ` faende `findeFahrzeug` die Tasche nicht, und weder Soll noch
+    // Check noch Buchung waeren fuer sie erreichbar.
+    const ergebnis = await createFahrzeug(
+      { name: "Sanitätstasche 2", einheitenart: "tasche" }, t.db);
+
+    const zeile = t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, wert<{ id: string }>(ergebnis).id)).get();
+    expect(zeile?.typ).toBe("fahrzeug");
+    expect(zeile?.einheitenart).toBe("tasche");
+    expect(zeile?.aktiv).toBe(true);
+  });
+});
+
+describe("setEinheitenart — der Weg aus dem Zwischenstand", () => {
+  it("traegt die Art an einer nicht zugeordneten Einheit nach", async () => {
+    t.db.insert(lagerorte).values({
+      id: "alt-1", name: "Rucksack Betreuung", typ: "fahrzeug", aktiv: true,
+    }).run();
+    expect(t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, "alt-1")).get()?.einheitenart).toBeNull();
+
+    const ergebnis = await setEinheitenart(
+      { id: "alt-1", einheitenart: "tasche" }, t.db);
+
+    expect(ergebnis.ok).toBe(true);
+    expect(t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, "alt-1")).get()?.einheitenart).toBe("tasche");
+    expect(revalidiert).toEqual([FAHRZEUGE_PFAD, `${FAHRZEUGE_PFAD}/alt-1`]);
+  });
+
+  it("korrigiert auch eine bereits gesetzte Art", async () => {
+    // Die erste Zuordnung nach der Migration ist eine Aussage aus dem
+    // Gedaechtnis. Ohne Korrekturweg hiesse der einzige Ausweg „stilllegen und
+    // neu anlegen" — und das verloere Soll, Bestand, Checks und Journal.
+    t.db.insert(lagerorte).values({
+      id: "alt-2", name: "Verwechselt", typ: "fahrzeug", aktiv: true,
+      einheitenart: "fahrzeug",
+    }).run();
+
+    expect((await setEinheitenart({ id: "alt-2", einheitenart: "tasche" }, t.db)).ok)
+      .toBe(true);
+    expect(t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, "alt-2")).get()?.einheitenart).toBe("tasche");
+  });
+
+  it("nimmt `null` nicht an — der Zwischenstand ist nicht herstellbar", async () => {
+    t.db.insert(lagerorte).values({
+      id: "alt-3", name: "Bleibt Fahrzeug", typ: "fahrzeug", aktiv: true,
+      einheitenart: "fahrzeug",
+    }).run();
+
+    const ergebnis = await setEinheitenart({ id: "alt-3", einheitenart: null }, t.db);
+
+    expect(ergebnis.ok).toBe(false);
+    expect(t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, "alt-3")).get()?.einheitenart).toBe("fahrzeug");
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("fasst einen LAGERORT nicht an, auch wenn seine ID stimmt", async () => {
+    // ⚠️ Der Fremdschluessel auf `lagerorte.id` unterscheidet das Handlager
+    // nicht von einem Fahrzeug — `findeFahrzeug` ist der Riegel, nicht er.
+    const ergebnis = await setEinheitenart(
+      { id: "handlager", einheitenart: "tasche" }, t.db);
+
+    expect(ergebnis).toEqual({ ok: false, fehler: "Einheit nicht gefunden." });
+    expect(t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, "handlager")).get()?.einheitenart).toBeNull();
     expect(revalidiert).toEqual([]);
   });
 });
@@ -263,7 +381,7 @@ describe("setFahrzeugAktiv", () => {
   it("kann das feste Handlager nicht als Fahrzeug deaktivieren", async () => {
     const ergebnis = await setFahrzeugAktiv({ id: HANDLAGER_ID, aktiv: false }, t.db);
 
-    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    expect(ergebnis).toEqual({ ok: false, fehler: "Einheit nicht gefunden." });
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, HANDLAGER_ID)).get())
       .toMatchObject({ typ: "lager", aktiv: true });
     expect(revalidiert).toEqual([]);
@@ -283,7 +401,7 @@ describe("setFahrzeugAktiv", () => {
 
     expect(ergebnis).toEqual({
       ok: false,
-      fehler: "Fahrzeugstatus konnte nicht geändert werden.",
+      fehler: "Der Status konnte nicht geändert werden.",
     });
     expect(fehlerVon(ergebnis).fehler).not.toContain("db-intern");
     expect(revalidiert).toEqual([]);
@@ -417,7 +535,7 @@ describe("sollPositionSetzen", () => {
       soll: 2,
     }, t.db);
 
-    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    expect(ergebnis).toEqual({ ok: false, fehler: "Einheit nicht gefunden." });
     expect(t.db.select().from(sollPositionen).all()).toEqual([]);
     expect(revalidiert).toEqual([]);
   });
