@@ -180,10 +180,25 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     const vorher = await artKnopf(abschnitt, "Fahrzeug")
       .evaluate((el) => el.classList.contains("ant-radio-button-wrapper-checked"));
 
-    // Der Wechsel gilt in beide Richtungen — nur nicht zurueck nach „nicht
-    // zugeordnet". Die Spec setzt deshalb die jeweils ANDERE Art und danach
-    // wieder „Fahrzeug", damit der naechste Lauf denselben Weg findet.
+    /*
+     * ⚠️ BEIDE KLICKS MUESSEN DIE ART WIRKLICH AENDERN — und der zweite tat
+     * das lange nicht. `EinheitenartWahl.waehlen` steigt bei
+     * `naechste === wert` sofort aus, ohne zu senden; ein Klick auf den schon
+     * gesetzten Wert loest also KEINEN Rundlauf aus, und ein
+     * `waitForResponse` daneben wartet auf eine Antwort, die es nie geben
+     * wird. Vorher stand hier fest „danach wieder Fahrzeug", damit der
+     * naechste Lauf denselben Weg findet: auf einer frischen Datenbank traegt
+     * `e2e-ohne-art` gar keine Art, der erste Klick setzte damit „Fahrzeug",
+     * und der zweite klickte genau darauf — ins Zeitbudget.
+     *
+     * Die Gegenprobe ist deshalb immer die ANDERE Art als das erste Ziel.
+     * Damit ist der Fall unabhaengig vom Ausgangszustand: er laeuft auf einer
+     * frischen Datenbank (keine Art) genauso wie auf einer, die schon eine
+     * traegt — und beide Klicks sind in jedem Fall echte Wechsel.
+     * Zurueck nach „nicht zugeordnet" fuehrt kein Weg, das ist Absicht.
+     */
     const ziel = vorher ? "Tasche" : "Fahrzeug";
+    const gegenprobe = ziel === "Fahrzeug" ? "Tasche" : "Fahrzeug";
     /*
      * ⚠️ DER GREIFER AUF DIE ANTWORT IST BREIT, UND DAS IST GEMESSEN, NICHT
      * BEQUEM. `r.url().includes("e2e-ohne-art")` lief dreimal in das volle
@@ -210,14 +225,14 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     // Der Kopf liest den Wert aus der Datenbank — also erst nach dem Neuladen.
     const zurueck = page.waitForResponse((r) =>
       r.request().method() === "POST" && r.url().includes("/verwaltung/fahrzeuge"));
-    await artWaehlen(abschnitt, "Fahrzeug");
+    await artWaehlen(abschnitt, gegenprobe);
     expect((await zurueck).status()).toBe(200);
-    await expect(artKnopf(abschnitt, "Fahrzeug"))
+    await expect(artKnopf(abschnitt, gegenprobe))
       .toHaveClass(/ant-radio-button-wrapper-checked/);
 
     const erneut = await page.goto(lagerbuchUrl(pfad));
     expect(erneut!.status()).toBe(200);
-    await expect(kopf).toContainText("Fahrzeug");
+    await expect(kopf).toContainText(gegenprobe);
     await expect(page.locator("body")).not.toContainText("Noch nicht zugeordnet");
   });
 });
