@@ -6,7 +6,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { createToken } from "../../../_actions/tokens";
 import {
   einheitenartLabel,
-  einheitMeta,
+  einheitLabels,
   type Einheitenart,
 } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
@@ -100,6 +100,7 @@ export function NeuToken({
     });
   };
 
+  const zielBeschriftung = einheitLabels(ziele.fahrzeuge);
   const fahrzeugOptionen: ZielOption[] = ziele.fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
     /*
@@ -111,7 +112,10 @@ export function NeuToken({
      * sie dann nicht auseinanderhalten. Dieselbe Form wie auf dem
      * Helferschirm und in der Artikelschublade.
      */
-    label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+    // ⚠️ UND WO AUCH DIE ART NICHT TRENNT, TRENNT DIE ID (Reviewrunde 16):
+    // zwei Taschen duerfen gleich heissen und beide ohne Kennung sein.
+    // `einheitLabels` haengt die ID NUR im Kollisionsfall an.
+    label: zielBeschriftung.get(fahrzeug.id)!.label,
     // „tasche" findet jede Tasche, auch ohne das Wort im Namen und ohne
     // Kennung — die Suchworte bleiben neben dem Label bestehen.
     keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
