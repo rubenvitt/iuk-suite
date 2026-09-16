@@ -92,6 +92,7 @@ const DETAIL: AuffuellDetail = {
   name: "Mullbinde",
   einheit: "Stk",
   fach: "A-01",
+  aktiv: true,
   bestand: 10,
   chargen: [
     { id: "ch-1", chargenNr: "L1", verfall: "2027-03", rest: 6, ampel: "gruen", text: "ok" },
@@ -131,6 +132,16 @@ async function zeige(
   buchen: ReturnType<typeof ok> = ok(1, "Schrank 1"),
 ) {
   await mount(<Auffuellen detail={DETAIL} ziele={ziele} />);
+  return buchen;
+}
+
+/**
+ * Dieselbe Insel auf einem DEAKTIVIERTEN Artikel — DRK-380. Bewusst mit EINEM
+ * Ziel, damit die Schrankwahl vorbelegt ist: sonst waere der Knopf schon aus
+ * dem anderen Grund gesperrt, und der Test bewiese nichts.
+ */
+async function zeigeInaktiv(buchen: ReturnType<typeof ok> = ok(1, "Handlager (ohne Schrank)")) {
+  await mount(<Auffuellen detail={{ ...DETAIL, aktiv: false }} ziele={[ZIELE[0]!]} />);
   return buchen;
 }
 
@@ -386,5 +397,60 @@ describe("Auffuellen — der Zugangshinweis und die Bauform", () => {
     const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(quelle).not.toMatch(/from "antd/);
     expect(quelle).not.toMatch(/@ant-design\/icons/);
+  });
+});
+
+/**
+ * DER DEAKTIVIERTE ARTIKEL — DRK-380.
+ *
+ * ⚠️ DIE SEITE RENDERT WEITER, UND DAS IST DIE ENTSCHEIDUNG, nicht ihr Rest.
+ * Diese Flaeche haengt an einem gescannten Regal-QR; ein `notFound()` machte
+ * daraus eine Sackgasse fuer Material, das physisch im Regal liegt. Gesperrt
+ * wird allein die BUCHUNG — dieselbe Richtung, die der Schreibpfad haelt:
+ * heraus ja, hinein nein.
+ *
+ * ⚠️ ZUGESICHERT WIRD BEIDES — der gesperrte Knopf UND dass ein Klick darauf
+ * nichts sendet. Die zweite Haelfte faengt den Tastendruck auf einen noch
+ * nicht neu gerenderten Knopf; sie ist derselbe Grund, aus dem `detail.aktiv`
+ * in `bereit` steht und nicht in einer eigenen Weiche daneben.
+ */
+describe("Auffuellen — ein deaktivierter Artikel nimmt nichts mehr an", () => {
+  it("rendert die Seite trotzdem — der Regal-QR bleibt eine Auskunft", async () => {
+    await zeigeInaktiv();
+    expect(query('[data-rolle="bestand"]').textContent).toContain("10");
+    expect(queryAll('[data-rolle="charge-zeile"]').length).toBe(DETAIL.chargen.length);
+  });
+
+  it("sperrt den Knopf, obwohl Ziel und Charge vollstaendig waeren", async () => {
+    await zeigeInaktiv();
+    // Das EINE Ziel ist vorbelegt — der Knopf haengt also nicht daran.
+    expect(query<HTMLInputElement>('[data-rolle="ziel-zeile"] input').checked).toBe(true);
+    await clickElement(queryAll<HTMLInputElement>('[data-rolle="charge-zeile"] input')[0]!);
+    expect(query<HTMLButtonElement>('[data-rolle="auffuellen-buchen"]').disabled).toBe(true);
+  });
+
+  it("sendet auch dann nichts, wenn der gesperrte Knopf doch getroffen wird", async () => {
+    const buchen = await zeigeInaktiv();
+    await clickElement(queryAll<HTMLInputElement>('[data-rolle="charge-zeile"] input')[0]!);
+    await click('[data-rolle="auffuellen-buchen"]');
+    expect(buchen).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ DER HINWEIS NENNT DEN AUSGANG, nicht nur die Lage. „Geht nicht" allein
+   * laesst jemanden mit dem Karton in der Hand stehen; der Schalter sitzt in
+   * der Verwaltung, und das ist die einzige brauchbare Auskunft an dieser
+   * Stelle. Zugesichert wird deshalb der WEG, nicht bloss das Wort.
+   */
+  it("sagt, warum — und wer es aendern kann", async () => {
+    await zeigeInaktiv();
+    const text = query('[data-rolle="auffuellen-inaktiv"]').textContent ?? "";
+    expect(text).toContain("deaktiviert");
+    expect(text).toContain("Verwaltung");
+  });
+
+  it("steht auf einem AKTIVEN Artikel nicht da", async () => {
+    await zeige();
+    expect(exists('[data-rolle="auffuellen-inaktiv"]')).toBe(false);
   });
 });
