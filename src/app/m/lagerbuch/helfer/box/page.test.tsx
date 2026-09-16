@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
+import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { lagerorte, tokens } from "../../_db/schema";
 import { ENTNAHMEBOX_ID } from "../../_lib/konstanten";
@@ -280,10 +281,44 @@ describe("helfer/box — was die Insel bekommt", () => {
   });
 
   it("zeigt einen Leerzustand, wenn die Einheit keinen Bestand hat", async () => {
-    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
     await mount(await BoxSeite(sp({ fz: "fz-1" })));
     expect(exists("[data-rolle='abgabe']")).toBe(false);
     expect(query("[data-rolle='leer-titel']").textContent).toContain("im Fahrzeug");
+  });
+
+  /*
+   * ⚠️ DER WEG AUS DEM LEERZUSTAND DARF NICHT IM KREIS FUEHREN (Codex-Review zu
+   * PR #175). Er ist die einzige Handlung auf einem Schirm, der sonst nichts
+   * anbietet — und er ist genau dann wirkungslos, wenn die Seite oben dieselbe
+   * Einheit erneut waehlt. Die drei Faelle stehen einzeln da, weil sie DREI
+   * verschiedene Gruende haben, nicht einer mit drei Gesichtern.
+   */
+  it("bietet den Weg auf eine andere Einheit an, solange es eine andere gibt", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+    const weg = query("[data-rolle='leer-weg']");
+    expect(weg.textContent).toBe("Andere Einheit");
+    expect(weg.getAttribute("href")).toBe("/helfer/box");
+  });
+
+  it("fuehrt bei genau EINER Einheit nach draussen statt auf denselben Schirm", async () => {
+    // Ohne Wahl waehlt die Seite oben wieder fz-1 — der Link taete nichts.
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='leer-weg']").getAttribute("href")).toBe("/helfer");
+  });
+
+  it("fuehrt bei einem GEBUNDENEN Kaertchen nach draussen — die Bindung gewinnt", async () => {
+    // DRK-302: das Kaertchen zeigt auf fz-1 und schlaegt jedes `?fz=`. Auch mit
+    // zwei Einheiten waere „Andere Einheit" hier eine Schleife.
+    t.db.update(tokens).set({ zielTyp: "fahrzeug", zielId: "fz-1" })
+      .where(eq(tokens.id, "tk1")).run();
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+
+    await mount(await BoxSeite(sp({ fz: "fz-2" })));
+    expect(query("[data-rolle='leer-titel']").textContent).toContain("im Fahrzeug");
+    expect(query("[data-rolle='leer-weg']").getAttribute("href")).toBe("/helfer");
   });
 
   it("markiert den Reiter „Box“ als aktiv", async () => {

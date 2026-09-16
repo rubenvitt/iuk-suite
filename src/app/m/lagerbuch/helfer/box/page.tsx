@@ -126,13 +126,37 @@ export default async function BoxSeite({
   const posten = postenAmOrt(db, gewaehlt.id);
 
   if (posten.length === 0) {
+    /*
+     * ⚠️ „ANDERE EINHEIT" NUR, WENN ES EINE ANDERE GIBT (Codex-Review zu
+     * PR #175). Der Weg hier ist die EINZIGE Handlung auf einem Schirm, der
+     * sonst nichts anbietet — er darf nicht im Kreis fuehren. `/helfer/box`
+     * waehlt oben aber genau dieselbe Einheit erneut, sobald eine der beiden
+     * Bedingungen gilt:
+     *
+     *   `gebunden`             — das Kaertchen zeigt auf DIESE Einheit und
+     *                            gewinnt gegen jedes `?fz=` (DRK-302).
+     *   genau EINE aktive      — die Wahl wird uebersprungen.
+     *
+     * In beiden Faellen landete die Helferin auf demselben leeren Schirm, und
+     * zwar ohne dass etwas kaputt aussieht: der Link funktioniert, er tut nur
+     * nichts. Dann fuehrt der Weg stattdessen nach draussen — derselbe
+     * Rueckweg wie in den beiden Leerzustaenden darueber.
+     *
+     * ⚠️ NICHT DIE BINDUNG LOCKERN: sie ist eine Anzeige-Entscheidung, kein
+     * Riegel, aber sie im Vorbeigehen zu umgehen hiesse, die offene
+     * Betreiberfrage 5 zu beantworten. Geaendert wird der WEG, nicht die Wahl.
+     */
+    const andereEinheitErreichbar = gebunden === undefined && fahrzeuge.length > 1;
+
     return (
       <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           titel={`Nichts ${inDerEinheit(gewaehlt.einheitenart)} gebucht`}
           text={"Hier steht, was das Lagerbuch dieser Einheit zuschreibt. Steht nichts "
               + "da, lässt sich auch nichts abgeben — bitte der Verwaltung melden."}
-          weg={{ href: "/helfer/box", text: "Andere Einheit" }}
+          weg={andereEinheitErreichbar
+            ? { href: "/helfer/box", text: "Andere Einheit" }
+            : { href: "/helfer", text: "Zur Entnahme" }}
         />
       </HelferRahmen>
     );
