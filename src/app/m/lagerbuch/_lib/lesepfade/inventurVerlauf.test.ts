@@ -31,7 +31,7 @@ vi.mock("../../_db/client", () => ({
 }));
 
 import { inventurKorrektur } from "../../_actions/inventur";
-import { inventurLauf, inventurLaeufe, umfangAus } from "./inventurVerlauf";
+import { inventurLauf, inventurLaeufe, umfangAus, umfangText } from "./inventurVerlauf";
 
 const VIEWER = { sub: "u-admin", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
 const JETZT = new Date("2026-07-15T10:00:00Z");
@@ -110,7 +110,7 @@ describe("inventurLaeufe", () => {
       ["Zweiter", 2, 1],
       ["Erster", 1, 0],
     ]);
-    expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [] });
+    expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [], ort: null, ortId: null });
     expect(laeufe[1]!.umfang).toBeNull();
     expect(laeufe[0]!.quelleTyp).toBe("oidc");
     expect(laeufe[0]!.quelleId).toBe("u-admin");
@@ -173,5 +173,114 @@ describe("inventurLauf", () => {
   it("macht aus kaputtem umfang null statt eines Wurfs", () => {
     expect(umfangAus("{kaputt")).toBeNull();
     expect(umfangAus(null)).toBeNull();
+  });
+
+  /**
+   * DRK-337 — der Ort im Umfang. ⚠️ EIN LAUF VOR DRK-337 HAT DAS FELD NICHT,
+   * und der Verlauf ist append-only: `ort: null` ist dort die WAHRE Antwort
+   * („ganzer Handlager"), kein fehlender Wert. Ein `undefined` an dieser Stelle
+   * liesse `umfangText` „Ort undefined" schreiben.
+   */
+  it("liest den Ort aus dem Umfang und laesst Altlaeufe ohne Ort gelten", () => {
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"Schrank 1","ortId":"schrank-1"}'))
+      .toEqual({ kategorien: [], faecher: [], ort: "Schrank 1", ortId: "schrank-1" });
+    expect(umfangAus('{"kategorien":["Hygiene"],"faecher":["A1"]}'))
+      .toEqual({ kategorien: ["Hygiene"], faecher: ["A1"], ort: null, ortId: null });
+    /*
+     * ⚠️ EIN LAUF AUS DER ZEIT VOR DEM DRITTEN CODEX-BEFUND traegt den Namen
+     * ohne Kennung. Auch das ist kein fehlender Wert, sondern die wahre
+     * Antwort: die Identitaet stand damals nicht dabei und laesst sich im
+     * append-only Verlauf nicht nachtragen. `null` sagt genau das.
+     */
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"Schrank 1"}')?.ortId).toBeNull();
+    // Ein leerer Ortsname ist kein Ort — sonst stuende „Ort " im Verlauf.
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":""}')?.ort).toBeNull();
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":42}')?.ort).toBeNull();
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"X","ortId":42}')?.ortId).toBeNull();
+  });
+
+  it("nennt den Ort zuerst und faellt ohne jede Angabe auf vollstaendig zurueck", () => {
+    expect(umfangText({ kategorien: ["Hygiene"], faecher: ["A1"], ort: "Schrank 1", ortId: null }))
+      .toBe("Ort Schrank 1, Hygiene, Fach A1");
+    expect(umfangText({ kategorien: [], faecher: [], ort: "Nicht zugeordnet", ortId: null }))
+      .toBe("Ort Nicht zugeordnet");
+    expect(umfangText({ kategorien: [], faecher: [], ort: null, ortId: null })).toBe("vollständig");
+    expect(umfangText(null)).toBe("vollständig");
+  });
+
+  /**
+   * DRK-337, vierter Codex-Befund: die Kennung zu SPEICHERN reicht nicht, wenn
+   * keine Anzeige sie nutzt — aus dem Sessel des Lesers aendert sich dann
+   * nichts, und zwei Laeufe an verschiedenen Orten lesen sich weiter gleich.
+   */
+  it("zeigt die Kennung, wenn der Name nicht mehr auf genau diesen Ort zeigt", () => {
+    const umfang = { kategorien: [], faecher: [], ort: "Schrank 1", ortId: "schrank-a" };
+    // Loest der Name eindeutig auf DIESEN Ort auf, genuegt der Name.
+    expect(umfangText(umfang, new Map([["Schrank 1", "schrank-a"]]))).toBe("Ort Schrank 1");
+    // Mehrere Orte tragen ihn (`null`) → die Kennung gehoert daneben.
+    expect(umfangText(umfang, new Map([["Schrank 1", null]]))).toBe("Ort Schrank 1 (schrank-a)");
+    /*
+     * ⚠️ DER FALL, DEN EIN BLOSSER DOPPEL-TEST VERSCHLAEFT (fuenfter Befund):
+     * hiessen `a` und `b` beide „Schrank 1" und wird `b` spaeter umbenannt, ist
+     * der Name heute EINDEUTIG — er zeigt nur auf den falschen. Der Lauf von
+     * `b` braucht seine Kennung trotzdem.
+     */
+    const laufVonB = { ...umfang, ortId: "schrank-b" };
+    expect(umfangText(laufVonB, new Map([["Schrank 1", "schrank-a"]])))
+      .toBe("Ort Schrank 1 (schrank-b)");
+    // Umbenannt oder geloescht: den Namen traegt heute keiner mehr.
+    expect(umfangText(umfang, new Map([["Schrank 7", "schrank-a"]])))
+      .toBe("Ort Schrank 1 (schrank-a)");
+    // ⚠️ NUR DANN: ohne Angabe bleibt es beim Namen.
+    expect(umfangText(umfang)).toBe("Ort Schrank 1");
+  });
+
+  /**
+   * DRK-337, siebter Codex-Befund — EINE ERZEUGTE BESCHRIFTUNG DARF NICHT WIE
+   * EIN ECHTER ORTSNAME AUSSEHEN. Heissen `a` und `b` beide „X" und heisst `c`
+   * woertlich „X (a)", dann erzeugt der Lauf von `a` genau „X (a)" — und der
+   * Lauf von `c` traegt denselben Text ROH, weil sein Name eindeutig auf ihn
+   * zeigt. Zwei verschiedene Orte, ein Text.
+   */
+  it("weicht aus, wenn die erzeugte Beschriftung ein echter Ortsname ist", () => {
+    const aufloesung = new Map([["X", null], ["X (a)", "c"]]);
+    const laufVonA = umfangText({ kategorien: [], faecher: [], ort: "X", ortId: "a" }, aufloesung);
+    const laufVonC = umfangText({ kategorien: [], faecher: [], ort: "X (a)", ortId: "c" }, aufloesung);
+    expect(laufVonC).toBe("Ort X (a)");
+    expect(laufVonA).not.toBe(laufVonC);
+    expect(laufVonA).toBe("Ort X (a) (a)");
+  });
+
+  /**
+   * Die Zusicherung, die fuer JEDE Lage gilt: zwei Laeufe an VERSCHIEDENEN
+   * Orten lesen sich nie gleich. Geprueft an boesartigen Aufloesungen, nicht an
+   * einer Beispielausgabe.
+   */
+  it.each([
+    [new Map([["X", null], ["X (a)", "c"]])],
+    [new Map([["X", null], ["X (a)", "c"], ["X (a) (a)", "d"]])],
+    [new Map([["X", "b"]])],
+    [new Map<string, string | null>()],
+  ])("haelt Laeufe verschiedener Orte fuer %# auseinander", (aufloesung) => {
+    const laeufe = [
+      { kategorien: [], faecher: [], ort: "X", ortId: "a" },
+      { kategorien: [], faecher: [], ort: "X", ortId: "b" },
+      { kategorien: [], faecher: [], ort: "X (a)", ortId: "c" },
+    ];
+    const texte = laeufe.map((u) => umfangText(u, aufloesung));
+    expect(new Set(texte).size).toBe(laeufe.length);
+  });
+
+  /**
+   * ⚠️ EIN LAUF VON VOR DIESEM TICKET HAT KEINE KENNUNG. Auch wenn sein Name
+   * heute mehrdeutig ist, bleibt es beim Namen — die Identitaet stand damals
+   * nicht dabei, und der Verlauf kennt kein UPDATE. Eine erfundene Kennung
+   * waere schlimmer als eine fehlende.
+   */
+  it("erfindet fuer einen Altlauf ohne Kennung nichts", () => {
+    expect(umfangText(
+      { kategorien: [], faecher: [], ort: "Schrank 1", ortId: null },
+      new Map([["Schrank 1", null]]),
+    )).toBe("Ort Schrank 1");
   });
 });
