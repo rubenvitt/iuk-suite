@@ -111,6 +111,16 @@ export type CheckVerfallDetail = {
 };
 export type CheckDetail = {
   id: string; fahrzeugId: string; fahrzeugName: string; fahrzeugKennung: string | null;
+  /**
+   * ⚠️ DIESELBE BEGRUENDUNG WIE IN `CheckHistorieZeile` (DRK-309,
+   * Reviewrunde 11) — und hier wiegt sie schwerer, nicht leichter: wer aus
+   * der Historie auf eine Zeile tippt, landet auf dieser Seite, und ohne die
+   * Art steht im Kopf wieder nur ein Name, den sich ein Fahrzeug und eine
+   * Tasche teilen duerfen. Die Seite ist zugleich der Ort, an den ein Link
+   * aus einer Mail oder aus dem Protokoll fuehrt — dort gab es die Zeile
+   * davor gar nicht zu sehen.
+   */
+  fahrzeugEinheitenart: Einheitenart | null;
   quelleId: string; startedAt: Date; completedAt: Date | null;
   positionen: CheckPositionDetail[]; artikel: CheckArtikelDetail[];
   geraete: CheckGeraetDetail[]; flaschen: CheckFlascheDetail[]; verfall: CheckVerfallDetail[];
@@ -255,6 +265,7 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
   return {
     id: c.id, fahrzeugId: c.fahrzeugId,
     fahrzeugName: fahrzeug?.name ?? "–", fahrzeugKennung: fahrzeug?.kennung ?? null,
+    fahrzeugEinheitenart: fahrzeug?.einheitenart ?? null,
     quelleId: c.quelleId, startedAt: c.startedAt, completedAt: c.completedAt,
     positionen, artikel: artikelD, geraete: geraeteD, flaschen: flaschenD, verfall: verfallD,
     altFormat: summe.altFormat,

@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
@@ -351,6 +352,24 @@ describe("checkDetail — das ALTE Format", () => {
     // Die Summen kommen trotzdem — das ist die EINZIGE Auswertung, die es fuer
     // Altchecks je gab (§4.10, 1:1-Pflicht 1).
     expect(d.summe.nachgefuellt).toBe(1);
+  });
+
+  it("reicht die Art der Einheit durch — und den Zwischenstand als null", () => {
+    /**
+     * DRK-309, Reviewrunde 11. Die Detailseite baut ihren Kopf aus diesem
+     * Feld; fehlt es im Lesepfad, steht dort wieder ein blosser Name, den
+     * sich ein Fahrzeug und eine gleichnamige Tasche teilen duerfen.
+     *
+     * ⚠️ Die BEIDEN Faelle stehen hier absichtlich zusammen: der Lagerort aus
+     * `beforeEach` traegt KEINE `einheitenart` (Migration 0009 fuellt nicht
+     * nach), und `null` muss null bleiben. Ein Rueckfall auf „fahrzeug" waere
+     * genau die Behauptung, die der Zwischenstand vermeiden soll.
+     */
+    expect(checkDetail(t.db, "chk-1", NOW)!.fahrzeugEinheitenart).toBeNull();
+
+    t.db.update(lagerorte).set({ einheitenart: "tasche" })
+      .where(eq(lagerorte.id, "rtw-1")).run();
+    expect(checkDetail(t.db, "chk-1", NOW)!.fahrzeugEinheitenart).toBe("tasche");
   });
 
   it("liefert null fuer eine unbekannte ID", () => {

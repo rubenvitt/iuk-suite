@@ -19,7 +19,7 @@ import { verfallStatus, type VerfallSchwellen } from "../_lib/domain/verfall";
 import { o2Status } from "../_lib/domain/o2";
 import { chargeText, ampelTon } from "../_lib/format";
 import {
-  dieseEinheit, grossAmAnfang, inDerEinheit, inDieEinheit, ZUSTAENDE,
+  dieseEinheit, einheitMeta, grossAmAnfang, inDerEinheit, inDieEinheit, ZUSTAENDE,
   type Einheitenart, type Zustand,
 } from "../_lib/konstanten";
 import {
@@ -393,11 +393,30 @@ export function CheckFlow({
     });
   }
 
+  /*
+   * ⚠️ DIE KOPFZEILE NENNT DIE ART — AUF JEDEM SCHIRM (DRK-309,
+   * Reviewrunde 11).
+   *
+   * Bis hierher stand die Art nur dort, wo ein Satz sie ohnehin brauchte
+   * („Wie viel liegt wirklich in der Tasche") und in der Wahl davor. Das
+   * reicht fuer den Regelfall und genau fuer den nicht, den dieser Befund
+   * nennt: ein kaertchengebundenes Ziel mit bereits erfasstem Check, das NUR
+   * Geraete oder NUR Sauerstoff traegt. Dann faellt die Wahl weg, die
+   * Zaehlstrecke mit ihren art-bewussten Saetzen ebenso — und auf dem ganzen
+   * Schirm steht ein blosser Name, der bei einer Tasche nichts ueber sie sagt.
+   *
+   * ⚠️ DIESELBE FORM WIE IN DER WAHL EINEN SCHIRM VORHER (`FahrzeugWahl`,
+   * `einheitMeta`): „Name · Art · Kennung". Wer dort „Rucksack Betreuung ·
+   * Tasche" angetippt hat, liest hier dieselbe Zeile wieder — eine zweite
+   * Schreibweise waere an dieser Stelle ein eigener kleiner Zweifel.
+   */
+  const kopfEinheit = `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`;
+
   // ——— Fahrzeug ohne Soll, Geraet und Flasche ———
   if (schrittFolge.length === 0) {
     return (
       <>
-        <div className={s.schirmKopf}>{fahrzeug.name}</div>
+        <div className={s.schirmKopf}>{kopfEinheit}</div>
         <LeerZustand
           titel="Nichts zu prüfen"
           text={
@@ -429,7 +448,7 @@ export function CheckFlow({
       ergebnis.flaschenNichtBewertbar === 0;
     return (
       <>
-        <div className={s.schirmKopf}>{fahrzeug.name} · Fertig</div>
+        <div className={s.schirmKopf}>{kopfEinheit} · Fertig</div>
         <div className={`${s.karte} ${s.kartePad}`} data-rolle="check-ergebnis">
           <div className={s.zeileName}>Check abgeschlossen</div>
           <div className={s.zeileMeta}>
@@ -699,10 +718,7 @@ export function CheckFlow({
 
     return (
       <>
-        <div className={s.schirmKopf}>
-          {fahrzeug.name}
-          {fahrzeug.kennung ? ` · ${fahrzeug.kennung}` : ""}
-        </div>
+        <div className={s.schirmKopf}>{kopfEinheit}</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         <div className={`${s.karte} ${s.kartePad}`}>
@@ -969,7 +985,7 @@ export function CheckFlow({
   if (aktivePhase === "geraete") {
     return (
       <>
-        <div className={s.schirmKopf}>{fahrzeug.name} · Geräte</div>
+        <div className={s.schirmKopf}>{kopfEinheit} · Geräte</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {idx > 0 && (
@@ -1096,7 +1112,7 @@ export function CheckFlow({
     ).length;
     return (
       <>
-        <div className={s.schirmKopf}>{fahrzeug.name} · Sauerstoff</div>
+        <div className={s.schirmKopf}>{kopfEinheit} · Sauerstoff</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {idx > 0 && (
@@ -1237,7 +1253,7 @@ export function CheckFlow({
 
   return (
     <>
-      <div className={s.schirmKopf}>{fahrzeug.name}</div>
+      <div className={s.schirmKopf}>{kopfEinheit}</div>
       <Schritte folge={schrittFolge} aktiv={aktivePhase} />
       {letzterCheckZeile}
       <button

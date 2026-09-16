@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb } from "../../../../_db/client";
 import { ampelTon } from "../../../../_lib/format";
+import { einheitMeta } from "../../../../_lib/konstanten";
 import { checkDetail, type CheckDetail } from "../../../../_lib/lesepfade/checks";
 import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { Kachel } from "../../../../_ui/Kachel";
@@ -115,10 +116,24 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
     statusChip: chip(eintrag.text, ampelTon(eintrag.ampel)),
   }));
 
+  /*
+   * ⚠️ DER KOPF NENNT DIE ART — DIESELBE FORM WIE IN DER HISTORIE (DRK-309,
+   * Reviewrunde 11). `lagerorte.name` traegt keinen Eindeutigkeitsschluessel;
+   * ein blosser Name im Kopf laesst offen, ob dieser Check zu dem Fahrzeug
+   * oder zu der gleichnamigen Tasche gehoert. In der Historie daneben steht
+   * „Name · Art · Kennung" — wer von dort hierher tippt, liest dieselbe
+   * Zeile wieder, und ein Link aus einer Mail steht ueberhaupt erst hier auf
+   * einer Zeile, die die Einheit benennt.
+   */
+  const kopfEinheitTitel = `${check.fahrzeugName} · ${einheitMeta({
+    kennung: check.fahrzeugKennung,
+    einheitenart: check.fahrzeugEinheitenart,
+  })}`;
+
   return (
     <>
       <SeitenKopf
-        titel={check.fahrzeugName}
+        titel={kopfEinheitTitel}
         zurueck={{ titel: "Checks", href: "/verwaltung/checks" }}
         beschreibung={(
           <>

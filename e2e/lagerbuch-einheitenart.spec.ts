@@ -1,6 +1,8 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { devLogin, klickeWennRuhig } from "./fixtures";
-import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
+import {
+  E2E_FAHRZEUG_NAME, LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
+} from "./helpers/lagerbuch";
 
 /**
  * FAHRZEUG ODER TASCHE — DIE ART DER VERWALTETEN EINHEIT (DRK-309).
@@ -183,6 +185,29 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
     await expect(blatt.locator(".lb-cl-meta")).not.toContainText("Fahrzeug-Checkliste");
     // Die Seite zaehlt neutral — ein Bogen mischt Fahrzeuge und Taschen.
     await expect(page.getByTestId("lb-cl-zahl")).toContainText("1 Einheit, ein Blatt");
+  });
+
+  test("nennt die Art im Kopf der Check-Detailseite", async ({ page }) => {
+    /*
+     * ⚠️ DIESER KOPF IST DER EINZIGE ORT, AN DEM EIN LINK VON AUSSEN LANDET
+     * (DRK-309, Reviewrunde 11). In der Historie daneben steht die Zeile in
+     * der Form „Name · Art · Kennung"; wer von dort hierher tippt — oder aus
+     * einer Mail —, bekam bis hierher einen blossen Namen, den sich ein
+     * Fahrzeug und eine gleichnamige Tasche teilen duerfen.
+     *
+     * ⚠️ UND ER GEHOERT IN EINEN ECHTEN ABRUF, nicht nur in `page.test.tsx`:
+     * die Detailseite ist eine Server Component und liest `einheitMeta` aus
+     * `_lib/konstanten.ts`. Traege dieses Modul je ein `"use client"`, bekaeme
+     * sie eine Client-Referenz statt des Wertes — HTTP 500 fuer die ganze
+     * Seite, waehrend `typecheck`, `build` und Vitest gruen bleiben (Falle 6,
+     * `CLAUDE.md`). Deshalb steht der Status hier vor dem Text.
+     */
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-lesbar"));
+    expect(antwort!.status()).toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+
+    await expect(page.getByRole("heading", { level: 1 }))
+      .toHaveText(`${E2E_FAHRZEUG_NAME} · Fahrzeug · MS-E2E-1`);
   });
 
   test("traegt die Art am Einheitenblatt nach und zeigt sie danach im Kopf", async ({ page }) => {
