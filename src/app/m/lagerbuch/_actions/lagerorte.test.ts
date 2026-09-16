@@ -122,7 +122,9 @@ afterEach(() => {
 
 describe("createSchrank", () => {
   it("legt einen Schrank unter dem Handlager an", async () => {
-    const e = await createSchrank({ name: "Schrank 1", sortierung: 10 }, t.db);
+    // NICHT „Schrank 1": den traegt das Fixture bereits, und seit DRK-367 wird
+    // dieser Aufruf abgewiesen. Der Test meint die Anlage, nicht den Namen.
+    const e = await createSchrank({ name: "Schrank 3", sortierung: 10 }, t.db);
     expect(e.ok).toBe(true);
     const zeile = t.db.select().from(lagerorte)
       .where(eq(lagerorte.id, wert<{ id: string }>(e).id)).get();
@@ -145,6 +147,50 @@ describe("createSchrank", () => {
     expect(fehlerVon(await createSchrank({ name: "  " }, t.db))).toMatchObject({ ok: false });
     expect(revalidiert).toEqual([]);
   });
+
+  /**
+   * DRK-367 — zwei Schraenke duerfen nicht gleich heissen. Der Satz steht am
+   * FELD und daneben: das Formular markiert sonst nichts, und die Person raet,
+   * welches der drei Felder gemeint ist.
+   */
+  it("weist einen bereits vergebenen Namen ab", async () => {
+    const e = fehlerVon(await createSchrank({ name: "Schrank 1" }, t.db));
+    expect(e).toEqual({
+      ok: false,
+      fehler: "Dieser Name ist bereits vergeben.",
+      feldFehler: { name: "Dieser Name ist bereits vergeben." },
+    });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.parentId, HANDLAGER_ID)).all())
+      .toHaveLength(1);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("zaehlt Schreibweise und Leerraum als denselben Namen", async () => {
+    // Zwei Eintraege, die sich nur in Gross-/Kleinschreibung unterscheiden, sind
+    // in einer Auswahlliste nicht auseinanderzuhalten — der Grund fuer das
+    // Ticket bleibt derselbe.
+    expect(fehlerVon(await createSchrank({ name: "  schrank 1  " }, t.db)).fehler)
+      .toBe("Dieser Name ist bereits vergeben.");
+  });
+
+  /**
+   * ⚠️ DIE GRENZE DER FALTUNG, UND SIE IST GEWOLLT: die Probe muss zeichengenau
+   * dieselbe sein wie der Ausdruck im Index, und SQLites `lower()` kann nur
+   * ASCII. Waere die Action hier strenger, gaebe es Altdaten, die sie fuer
+   * gleich haelt, waehrend die Datenbank sie nebeneinander stehen laesst —
+   * niemand koennte die Mehrdeutigkeit dann noch aufloesen (Befund von Codex zu
+   * PR #166). Auf dem Schirm sind die beiden ohnehin zu unterscheiden.
+   */
+  it("haelt zwei Namen auseinander, die sich nur in der Groesse eines Umlauts unterscheiden", async () => {
+    expect((await createSchrank({ name: "Schränkchen" }, t.db)).ok).toBe(true);
+    expect((await createSchrank({ name: "SCHRÄNKCHEN" }, t.db)).ok).toBe(true);
+  });
+
+  it("laesst einen Namen zu, den nur ein FAHRZEUG traegt", async () => {
+    // Fahrzeuge haengen nicht am Handlager und stehen nie in derselben Auswahl
+    // wie ein Schrank. Ein Riegel darueber waere eine Regel ohne Anlass.
+    expect((await createSchrank({ name: "RTW 1" }, t.db)).ok).toBe(true);
+  });
 });
 
 describe("updateSchrank", () => {
@@ -164,6 +210,30 @@ describe("updateSchrank", () => {
         sortierung: 20,
       });
     expect(revalidiert).toEqual([LAGERORTE_PFAD, ARTIKEL_PFAD]);
+  });
+
+  /** DRK-367 — ohne die Selbst-Ausnahme kollidierte jede Bearbeitung, die den
+   *  Namen gar nicht anfasst, mit sich selbst. */
+  it("laesst einen Schrank seinen eigenen Namen behalten", async () => {
+    const e = await updateSchrank({ id: "schrank-1", name: "Schrank 1", sortierung: 9 }, t.db);
+    expect(e).toEqual({ ok: true });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, "schrank-1")).get())
+      .toMatchObject({ name: "Schrank 1", sortierung: 9 });
+  });
+
+  it("weist einen Namen ab, den ein ANDERER Schrank schon traegt", async () => {
+    const neu = wert<{ id: string }>(await createSchrank({ name: "GF-Schrank" }, t.db));
+    revalidiert.length = 0;
+
+    const e = fehlerVon(await updateSchrank({ id: neu.id, name: "Schrank 1" }, t.db));
+    expect(e).toEqual({
+      ok: false,
+      fehler: "Dieser Name ist bereits vergeben.",
+      feldFehler: { name: "Dieser Name ist bereits vergeben." },
+    });
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, neu.id)).get()?.name)
+      .toBe("GF-Schrank");
+    expect(revalidiert).toEqual([]);
   });
 
   it("weist eine unbekannte ID ab, ohne etwas zu schreiben", async () => {

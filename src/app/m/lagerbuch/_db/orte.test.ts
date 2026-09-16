@@ -102,21 +102,22 @@ describe("ortNamensaufloesung", () => {
     expect(karte.has("Schrank 7")).toBe(false);
   });
 
-  /** `null` heisst: mehrere Orte tragen diesen Namen. */
-  it("meldet einen doppelt vergebenen Namen als nicht aufloesbar", () => {
-    t.db.insert(lagerorte).values({
-      id: "schrank-2", name: "Schrank 1", typ: "lager", aktiv: true,
-      parentId: HANDLAGER_ID, sortierung: 20,
-    }).run();
-    expect(ortNamensaufloesung(t.db).get("Schrank 1")).toBeNull();
-  });
-
   /**
-   * ⚠️ DIE RICHTUNG, DIE SONST DURCHFAELLT: die Wurzel heisst in der Auswahl
-   * „Nicht zugeordnet"; ein so benannter Schrank kollidiert mit ihr, nicht mit
-   * einem anderen Schrank.
+   * ⚠️ ZWEI GLEICHNAMIGE SCHRAENKE GIBT ES SEIT DRK-367 NICHT MEHR — hier stand
+   * bis zum Merge von `main` ein Fall, der genau das einfuegte, und die
+   * Datenbank weist ihn jetzt ab (`idx_lagerorte_name_je_parent`). Er ist
+   * ersatzlos weg, statt ihn kuenstlich am Leben zu halten: ein Test, der einen
+   * unmoeglichen Zustand herstellt, prueft nichts ueber die Anwendung.
+   *
+   * ⚠️ DIE FUNKTION BLEIBT TROTZDEM NOETIG, und das ist der Grund, warum hier
+   * eine Notiz steht statt einer Loeschung: der Index deckt NUR KINDER
+   * (`WHERE parent_id IS NOT NULL`, Migration 0009). Die Wurzel traegt
+   * `parent_id IS NULL`, und ihre Beschriftung ist ohnehin eine Konstante, kein
+   * Name — ein Schrank namens „Nicht zugeordnet" kollidiert also weiterhin mit
+   * ihr. Genau diesen Fall prueft der naechste Fall, und er ist seither der
+   * einzige Weg zu `null`.
    */
-  it("meldet auch eine Kollision mit der Wurzel", () => {
+  it("meldet eine Kollision mit der Wurzel, den seit DRK-367 einzigen Weg zu null", () => {
     t.db.insert(lagerorte).values({
       id: "schrank-frech", name: "Nicht zugeordnet", typ: "lager", aktiv: true,
       parentId: HANDLAGER_ID, sortierung: 30,

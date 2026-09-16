@@ -35,7 +35,21 @@ const IdSchema = z.string().min(1);
 
 const REVALIDATE: Record<ElementArt, string[]> = {
   artikel: ["/m/lagerbuch/verwaltung/artikel", "/m/lagerbuch/verwaltung"],
-  fahrzeug: ["/m/lagerbuch/verwaltung/fahrzeuge", "/m/lagerbuch/verwaltung"],
+  /*
+   * VIER PFADE FUER EINE ART, weil `lagerort` drei Flaechen traegt: ein
+   * Fahrzeug steht unter „Fahrzeuge", ein Schrank unter „Lagerorte", und BEIDE
+   * stehen in der Zugangsauswahl auf „Artikel" (dieselbe Begruendung, aus der
+   * `_actions/lagerorte.ts` den Artikel-Pfad mitrevalidiert). Welcher der
+   * ersten drei gemeint ist, weiss die Action nicht — sie kennt nur die ID —,
+   * und ein Revalidieren zu viel kostet einen Rerender, ein Revalidieren zu
+   * wenig zeigt einen geloeschten Ort weiter an.
+   */
+  lagerort: [
+    "/m/lagerbuch/verwaltung/fahrzeuge",
+    "/m/lagerbuch/verwaltung/lagerorte",
+    "/m/lagerbuch/verwaltung/artikel",
+    "/m/lagerbuch/verwaltung",
+  ],
   token: ["/m/lagerbuch/verwaltung/tokens"],
   bzGeraet: ["/m/lagerbuch/verwaltung/bz"],
   o2Flasche: ["/m/lagerbuch/verwaltung/sauerstoff"],
@@ -91,12 +105,47 @@ function pruefeArtikel(db: Leser, id: string): Loeschbarkeit {
   };
 }
 
-function pruefeFahrzeug(db: Leser, id: string): Loeschbarkeit {
+/**
+ * DRK-349 — die Pruefung fuer JEDEN Ort: Handlager, Fahrzeug, Schrank.
+ *
+ * ⚠️ SIE IST DAS EINZIGE TOR. Frueher stand daneben im Loeschzweig ein
+ * `WHERE typ = 'fahrzeug'` als zweiter, stiller Riegel; ein Schrank kam durch
+ * die Pruefung, fiel am Riegel und die Aktion meldete trotzdem Erfolg. Der
+ * Riegel ist weg — was hier nicht abgelehnt wird, wird wirklich geloescht.
+ * Deshalb faengt die Pruefung jetzt bei der Frage an, ob es die Zeile
+ * ueberhaupt gibt: ohne sie loeschte ein unbekanntes `id` null Zeilen und
+ * meldete wieder Erfolg, nur mit einer anderen Ursache.
+ */
+function pruefeLagerort(db: Leser, id: string): Loeschbarkeit {
   if (id === HANDLAGER_ID) {
     return {
       loeschbar: false,
       grund: "Das Handlager ist der feste Bezugspunkt jeder Buchung und kann nicht entfernt werden.",
       kannDeaktivieren: false,
+    };
+  }
+
+  if (anzahl(db, lagerorte, eq(lagerorte.id, id)) === 0) {
+    return {
+      loeschbar: false,
+      grund: "Diesen Lagerort gibt es nicht mehr — die Liste ist vermutlich veraltet.",
+      kannDeaktivieren: false,
+    };
+  }
+
+  /*
+   * DER KINDERRIEGEL BEKOMMT EINEN EIGENEN SATZ, nicht eine Zeile in der
+   * Verknuepfungsliste unten: ein Schrank IM Ort ist kein Nachweis, den das
+   * Loeschen zerstoerte, sondern ein Hindernis, das die verwaltende Person
+   * selbst wegraeumen kann. „Noch mit 2 Schraenken verknuepft — Loeschen wuerde
+   * den Nachweis zerstoeren" naehme ihr genau diese Auskunft.
+   */
+  const kinder = anzahl(db, lagerorte, eq(lagerorte.parentId, id));
+  if (kinder > 0) {
+    return {
+      loeschbar: false,
+      grund: `Hier hängen noch ${plural(kinder, "Schrank", "Schränke")} darin — lösche sie zuerst.`,
+      kannDeaktivieren: true,
     };
   }
 
@@ -200,7 +249,7 @@ function pruefeGeraet(db: Leser, id: string): Loeschbarkeit {
 function pruefe(db: Leser, art: ElementArt, id: string): Loeschbarkeit {
   switch (art) {
     case "artikel": return pruefeArtikel(db, id);
-    case "fahrzeug": return pruefeFahrzeug(db, id);
+    case "lagerort": return pruefeLagerort(db, id);
     case "token": return TOKEN_UNLOESCHBAR;
     case "bzGeraet": return pruefeBzGeraet(db, id);
     case "o2Flasche": return pruefeO2Flasche(db, id);
@@ -254,12 +303,15 @@ export async function loescheElement(
             loescheVerfallFuer(tx, "artikel", i);
             tx.delete(artikel).where(eq(artikel.id, i)).run();
             break;
-          case "fahrzeug":
+          case "lagerort":
             loescheVerfallFuer(tx, "lagerort", i);
-            tx.delete(lagerorte).where(and(
-              eq(lagerorte.id, i),
-              eq(lagerorte.typ, "fahrzeug"),
-            )!).run();
+            // ⚠️ OHNE `eq(lagerorte.typ, "fahrzeug")`, UND DAS IST DER FIX VON
+            // DRK-349: dieser Zusatz war ein zweiter Riegel hinter der
+            // Pruefung, und er lehnte nicht ab, sondern loeschte nur nichts.
+            // Ein Schrank (`typ: "lager"`) blieb stehen, waehrend die Aktion
+            // `{ ok: true }` meldete. Die Zulaessigkeit entscheidet allein
+            // `pruefeLagerort` — hier steht danach kein Urteil mehr.
+            tx.delete(lagerorte).where(eq(lagerorte.id, i)).run();
             break;
           // ——— HIER STAND `case "token"`, UND HIER FEHLT ER ABSICHTLICH ———
           // 8-F: `token` erreicht diesen switch nie — `pruefe()` steigt weiter
@@ -310,7 +362,7 @@ export async function deaktiviereElement(
       return { ok: false, fehler: "Ungültige Anfrage." };
     }
 
-    if (a === "fahrzeug" && i === HANDLAGER_ID) {
+    if (a === "lagerort" && i === HANDLAGER_ID) {
       return { ok: false, fehler: "Das Handlager kann nicht deaktiviert werden." };
     }
 
@@ -318,7 +370,7 @@ export async function deaktiviereElement(
       case "artikel":
         db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, i)).run();
         break;
-      case "fahrzeug":
+      case "lagerort":
         db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, i)).run();
         break;
       case "token":
