@@ -477,18 +477,25 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     // MIT der Id: der Pfad des Einheitenblatts traegt sie, ein Pfad ohne sie
     // traefe die Seite nicht.
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
-    // Die Verfallsliste, weil eine leergeraeumte Einheit ihre Verfallsangabe
-    // verliert (Codex-Review zu PR #175).
-    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/verfall");
   });
 
-  it("loescht die Verfallsangabe der Einheit, wenn sie dabei leer wird", async () => {
+  it("laesst die Verfallsangabe stehen, AUCH wenn die Einheit dabei leer wird", async () => {
     /*
-     * ⚠️ `lagerort_verfall` IST DIE KOMPENSATIONSZEILE, und `verfallFuerLagerort`
-     * liest sie OHNE Bestandsprobe (Codex-Review zu PR #175). Bliebe sie stehen,
-     * meldeten Einheitenblatt und Verfallsliste den Artikel weiter als ablaufend,
-     * obwohl er nur noch in der Kiste liegt — eine Meldung ohne Bestand
-     * behauptet einen Verfall, den es nicht gibt.
+     * ⚠️ DIESE ZUSICHERUNG STAND SCHON EINMAL ANDERSHERUM DA, und der Weg
+     * dahin gehoert zur Aussage (Codex-Review zu PR #175, drei Runden):
+     *
+     * 1. Ohne Loeschen meldet die geleerte Einheit den Artikel weiter als
+     *    ablaufend — `verfallFuerLagerort` liest ohne Bestandsprobe.
+     * 2. Mit Loeschen geht das gemeldete Datum verloren, wo es die EINZIGE
+     *    Stelle ist: `postenAmOrt` liest den Verfall nur aus `chargen.verfall`,
+     *    und die Kiste zeigt die Charge, nicht die Meldung.
+     * 3. Loeschen nur bei „echtem Datum an der bewegten Charge" half nicht:
+     *    `korrekturAufLagerort` waehlt beim Plus-Abgleich IRGENDEINE Charge des
+     *    Artikels, absteigend nach Verfall — das Datum kann geraten sein.
+     *
+     * Solange die Box keinen gemeldeten Verfall fuehren kann (DRK-377), sind
+     * beide Befunde nicht zugleich zu erfuellen. Die veraltete Anzeige ist der
+     * kleinere Fehler: sichtbar und korrigierbar.
      */
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -496,11 +503,10 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
       lagerortId: "fz-1", artikelId: "art-1", verfall: "2027-03",
       quelle: { quelleTyp: "system", quelleId: "seed" },
     });
-    expect(verfallZeilen(), "Vorbedingung: die Angabe steht da").toHaveLength(1);
 
     await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
 
-    expect(verfallZeilen()).toEqual([]);
+    expect(verfallZeilen().map((z) => z.verfall)).toEqual(["2027-03"]);
   });
 
   it("laesst sie stehen, wenn der Bestand auf einer PSEUDO-Charge liegt", async () => {
