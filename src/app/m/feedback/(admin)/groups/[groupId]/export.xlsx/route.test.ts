@@ -11,11 +11,12 @@ import {
   insertSurvey,
 } from "@/app/m/feedback/_db/queries";
 import type { Question } from "@/app/m/feedback/_lib/questions";
+import { blattZellen, blattnamen, mappenBytes } from "@/core/export/test-mappe";
 
 /**
- * DER AGGREGIERTE GRUPPEN-EXPORT (Plan Task 20, §2.5 „CSV (alle Abende)").
+ * DER AGGREGIERTE GRUPPEN-EXPORT (Plan Task 20, §2.5 „Excel (alle Abende)").
  *
- * Er ist ein ANDERES ARTEFAKT als `…/evenings/[eveningId]/export.csv`: dort eine
+ * Er ist ein ANDERES ARTEFAKT als `…/evenings/[eveningId]/export.xlsx`: dort eine
  * Zeile je ANTWORT (Rohdaten eines Abends), hier eine Zeile je DIENSTABEND mit
  * dem Ø je Frage. Der Abend-Export bleibt unverändert — sein Test daneben
  * bewacht das.
@@ -26,10 +27,12 @@ import type { Question } from "@/app/m/feedback/_lib/questions";
  *    Abend einen anderen Bogen haben. Ohne stabile Spaltenvereinigung über ALLE
  *    Abende wandern die Spalten von Zeile zu Zeile, und die Datei ist stumm
  *    falsch — kein Fehler, nur verschobene Zahlen.
- * 2. DIE FORMEL-NEUTRALISIERUNG GILT AUCH HIER. Themen und Fragetexte kommen aus
- *    Eingabefeldern; `=`, `+`, `-`, `@` am Feldanfang führt Excel als Formel aus.
- *    Neutralisiert wird in `csv.ts` (`csvField`) — wiederverwendet, nicht neu
- *    geschrieben.
+ * 2. ⛔ DIE FORMEL-NEUTRALISIERUNG IST MIT DRK-186 ENTFALLEN, und dieser Test
+ *    hält fest, dass sie NICHT ZURÜCKKOMMEN DARF. Im CSV-Weg setzte `csvField`
+ *    einem Thema `=WENN(1;2;3)` und einem Fragetext `-Verpflegung?` einen
+ *    Apostroph voran — der dann im Spaltenkopf mitzulesen war. Der Baustein legt
+ *    jede Textzelle als Textzelle an; eine Textzelle KANN keine Formel sein.
+ *    Wer hier je wieder eine CSV ausliefert, braucht die Neutralisierung zurück.
  * 3. DER GUARD IST DERSELBE WIE IM ABEND-EXPORT: 404 bei fehlender Ressource UND
  *    bei fehlendem Zugriff (nie 403 — das verriete die Existenz).
  * 4. GERECHNET WIRD `avgSchulnote`, NICHT `overallAvg` — auf Fragenebene heißt
@@ -118,65 +121,38 @@ afterEach(() => sqlite.close());
 
 async function hole(groupId: number | string): Promise<Response> {
   const { GET } = await import("./route");
-  return GET(new Request("http://localhost:3000/export.csv"), {
+  return GET(new Request("http://localhost:3000/export.xlsx"), {
     params: Promise.resolve({ groupId: String(groupId) }),
   });
 }
 
-async function exportiere(groupId: number): Promise<string[][]> {
+/**
+ * Das Datenblatt als Raster. ⚠️ ZEILE 0 IST DIE KOPFZEILE — im CSV-Weg standen
+ * darüber noch vier Kopfdatenzeilen und eine Leerzeile, weshalb der alte Test
+ * sie über `kopfIndex` suchen musste. Seit DRK-186 liegen die Kopfdaten auf
+ * einem EIGENEN Blatt (`kopfdaten()`), damit Sortieren und Filtern in der
+ * Kalkulation ab Zeile 1 greifen.
+ */
+async function exportiere(groupId: number): Promise<(string | number | null)[][]> {
   const res = await hole(groupId);
   expect(res.status).toBe(200);
-  return (await res.text()).split("\r\n").map(felder);
+  return blattZellen(await mappenBytes(res));
 }
 
-/**
- * Minimaler RFC-4180-Leser für die Assertions. Nötig, weil die Ø-Werte mit
- * DEZIMALKOMMA geschrieben werden („2,0") und `buildCsv` sie deshalb in
- * Anführungszeichen setzt — ein `split(",")` schnitte mitten in die Zahl.
- */
-function felder(zeile: string): string[] {
-  const aus: string[] = [];
-  let feld = "";
-  let inAnfuehrung = false;
-  for (let i = 0; i < zeile.length; i++) {
-    const z = zeile[i];
-    if (inAnfuehrung) {
-      if (z === '"' && zeile[i + 1] === '"') {
-        feld += '"';
-        i++;
-      } else if (z === '"') {
-        inAnfuehrung = false;
-      } else {
-        feld += z;
-      }
-    } else if (z === '"') {
-      inAnfuehrung = true;
-    } else if (z === ",") {
-      aus.push(feld);
-      feld = "";
-    } else {
-      feld += z;
-    }
-  }
-  aus.push(feld);
-  return aus;
+/** Das zweite Blatt: Gruppenname und Anzahl der Abende. */
+async function kopfdaten(groupId: number): Promise<(string | number | null)[][]> {
+  const res = await hole(groupId);
+  expect(res.status).toBe(200);
+  return blattZellen(await mappenBytes(res), 1);
 }
 
-/** Die Kopfzeile ist die Zeile NACH der Leerzeile — geankert an der Struktur. */
-function kopfIndex(zeilen: string[][]): number {
-  const leer = zeilen.findIndex((z) => z.length === 1 && z[0] === "");
-  expect(leer).toBeGreaterThan(0);
-  return leer + 1;
-}
-
-describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => {
+describe("GET groups/[groupId]/export.xlsx — eine Zeile je Dienstabend", () => {
   it("schreibt je Abend genau eine Zeile, Datum aufsteigend", async () => {
     const g = gruppe();
     abend(g.id, "2026-05-06", BOGEN_B, [{ q1: 2, q3: 3 }]);
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 1 }, { q1: 3, q2: 2 }]);
 
-    const zeilen = await exportiere(g.id);
-    const daten = zeilen.slice(kopfIndex(zeilen) + 1);
+    const daten = (await exportiere(g.id)).slice(1);
 
     expect(daten).toHaveLength(2);
     expect(daten.map((z) => z[0])).toEqual(["2026-04-01", "2026-05-06"]);
@@ -187,40 +163,46 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 1, q2: 2 }]);
     abend(g.id, "2026-05-06", BOGEN_B, [{ q1: 3, q3: 4 }]);
 
-    const zeilen = await exportiere(g.id);
-    const kopf = zeilen[kopfIndex(zeilen)];
-    const daten = zeilen.slice(kopfIndex(zeilen) + 1);
+    const [kopf, ...daten] = await exportiere(g.id);
 
     // Nur Bewertungsfragen haben einen Ø — Freitextfragen stehen nicht im Kopf.
-    expect(kopf).toEqual(["Datum", "Thema", "Rückmeldungen", "Teilnehmer", "Insgesamt?", "Ausbildung?", "'-Verpflegung?"]);
-    // Jede Zeile hat die volle Spaltenzahl; fehlt die Frage im Bogen, ist die
-    // Zelle LEER — nicht weggelassen und nicht 0.
-    expect(daten.every((z) => z.length === kopf.length)).toBe(true);
-    expect(daten[0].slice(4)).toEqual(["1,0", "2,0", ""]);
-    expect(daten[1].slice(4)).toEqual(["3,0", "", "4,0"]);
+    // ⛔ `-Verpflegung?` OHNE Apostroph: die Neutralisierung ist entfallen.
+    expect(kopf).toEqual(["Datum", "Thema", "Rückmeldungen", "Teilnehmer", "Insgesamt?", "Ausbildung?", "-Verpflegung?"]);
+    // Fehlt die Frage im Bogen, ist die Zelle LEER — nicht 0 („nicht gefragt"
+    // ist nicht „Note 0") und nicht weggelassen.
+    expect(daten[0].slice(4)).toEqual([1, 2, null]);
+    expect(daten[1].slice(4)).toEqual([3, null, 4]);
   });
 
   it("nennt Rücklauf und Teilnehmerzahl, erfindet aber keinen Nenner", async () => {
     const g = gruppe();
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 1 }, { q1: 2 }], { teilnehmer: null });
 
-    const zeilen = await exportiere(g.id);
-    const zeile = zeilen[kopfIndex(zeilen) + 1];
+    const zeile = (await exportiere(g.id))[1];
 
-    expect(zeile[2]).toBe("2");
-    expect(zeile[3]).toBe("");
+    // ZAHLEN, KEINE ZEICHENKETTEN — der Ertrag des Formatwechsels: eine
+    // Kalkulation kann über diese Spalte summieren und sortieren.
+    expect(zeile[2]).toBe(2);
+    expect(zeile[3]).toBe(null);
   });
 
-  it("neutralisiert Formeln in Thema UND Fragetext (`csv.ts` wiederverwendet)", async () => {
+  /**
+   * ⛔ DER KERN VON DRK-186. Im CSV-Weg stand hier `'=WENN(1;2;3)` und
+   * `'-Verpflegung?` — der Apostroph war der einzige Schutz davor, dass Excel
+   * die Zelle beim Öffnen als Formel AUSFÜHRT, und er war im Spaltenkopf
+   * mitzulesen. In einer Mappe ist jede Textzelle eine Textzelle; der Wert steht
+   * unverändert da und ist trotzdem keine Formel. Bräche jemand das (etwa durch
+   * eine Rückkehr zur CSV), fiele dieser Test.
+   */
+  it("trägt Formelbeginn in Thema UND Fragetext unverändert, ohne Apostroph", async () => {
     const g = gruppe();
     abend(g.id, "2026-04-01", BOGEN_B, [{ q1: 2, q3: 3 }], { topic: "=WENN(1;2;3)" });
 
-    const zeilen = await exportiere(g.id);
-    const kopf = zeilen[kopfIndex(zeilen)];
-    const zeile = zeilen[kopfIndex(zeilen) + 1];
+    const [kopf, zeile] = await exportiere(g.id);
 
-    expect(zeile[1]).toBe("'=WENN(1;2;3)");
-    expect(kopf).toContain("'-Verpflegung?");
+    expect(zeile[1]).toBe("=WENN(1;2;3)");
+    expect(kopf).toContain("-Verpflegung?");
+    expect(kopf).not.toContain("'-Verpflegung?");
   });
 
   it("mittelt `stars` NICHT in eine Schulnotenspalte, sondern nennt die Skala im Kopf", async () => {
@@ -235,8 +217,7 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
       [{ q1: 2, s1: 5 }],
     );
 
-    const zeilen = await exportiere(g.id);
-    const kopf = zeilen[kopfIndex(zeilen)];
+    const [kopf] = await exportiere(g.id);
 
     expect(kopf).toContain("Insgesamt?");
     expect(kopf).toContain("Ausbilder? (Skala 1–5)");
@@ -269,9 +250,7 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
       [{ q1: 5 }],
     );
 
-    const zeilen = await exportiere(g.id);
-    const kopf = zeilen[kopfIndex(zeilen)];
-    const daten = zeilen.slice(kopfIndex(zeilen) + 1);
+    const [kopf, ...daten] = await exportiere(g.id);
 
     // Zwei Spalten, jede mit ihrem eigenen, richtigen Kopf — und der Fragetext
     // des NEUEN Bogens fehlt nicht mehr in der Datei.
@@ -284,8 +263,8 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
       "Wie war der Dienstabend insgesamt?",
     ]);
     // Die 1–6-Note steht NICHT unter dem Kopf, der Skala 1–5 behauptet.
-    expect(daten[0].slice(4)).toEqual(["5,0", ""]);
-    expect(daten[1].slice(4)).toEqual(["", "5,0"]);
+    expect(daten[0].slice(4)).toEqual([5, null]);
+    expect(daten[1].slice(4)).toEqual([null, 5]);
   });
 
   it("bleibt ein anderes Artefakt als der Abend-Export: keine Rohantwort-Zeilen", async () => {
@@ -296,13 +275,34 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
     ]);
 
     const res = await hole(g.id);
-    const text = await res.text();
+    const bytes = await mappenBytes(res);
+    const flach = blattZellen(bytes).flat();
 
-    expect(text).not.toContain("erste Rückmeldung");
-    expect(text).not.toContain("Abendtag");
-    expect(res.headers.get("Content-Disposition")).toBe(
-      'attachment; filename="feedback-bereitschaft-abende.csv"',
+    expect(flach).not.toContain("erste Rückmeldung");
+    expect(flach).not.toContain("Abendtag");
+    expect(res.headers.get("Content-Type")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
+    expect(res.headers.get("Content-Disposition")).toBe(
+      'attachment; filename="feedback-bereitschaft-abende.xlsx"',
+    );
+  });
+
+  /**
+   * DIE KOPFDATEN AUF EIGENEM BLATT. Im CSV-Weg standen „Gruppe" und
+   * „Dienstabende" als Vorspann ÜBER der Kopfzeile — in einer Kalkulation
+   * verschiebt das Sortieren, Filtern und „als Tabelle formatieren" um vier
+   * Zeilen. Eine Mappe hat ein zweites Blatt; genau dafür.
+   */
+  it("legt Gruppenname und Abendzahl auf ein zweites Blatt, nicht über die Kopfzeile", async () => {
+    const g = gruppe();
+    abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 2 }]);
+
+    const bytes = await mappenBytes(await hole(g.id));
+    expect(blattnamen(bytes)).toEqual(["Dienstabende", "Kopfdaten"]);
+    expect(await kopfdaten(g.id)).toEqual([["Gruppe", "Bereitschaft"], ["Dienstabende", 1]]);
+    // Und auf dem Datenblatt beginnt es sofort mit der Kopfzeile.
+    expect(blattZellen(bytes)[0][0]).toBe("Datum");
   });
 
   it("führt einen Abend ohne Umfrage mit leeren Ø-Zellen, statt ihn zu verschweigen", async () => {
@@ -317,17 +317,16 @@ describe("GET groups/[groupId]/export.csv — eine Zeile je Dienstabend", () => 
     });
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 2 }]);
 
-    const zeilen = await exportiere(g.id);
-    const daten = zeilen.slice(kopfIndex(zeilen) + 1);
+    const daten = (await exportiere(g.id)).slice(1);
 
     expect(daten).toHaveLength(2);
     expect(daten[0][0]).toBe("2026-03-04");
-    expect(daten[0][2]).toBe("0");
-    expect(daten[0].slice(4).every((z) => z === "")).toBe(true);
+    expect(daten[0][2]).toBe(0);
+    expect(daten[0].slice(4).every((z) => z === null)).toBe(true);
   });
 });
 
-describe("GET groups/[groupId]/export.csv — der Guard", () => {
+describe("GET groups/[groupId]/export.xlsx — der Guard", () => {
   it("antwortet 404, wenn die Gruppe nicht existiert", async () => {
     expect((await hole(999)).status).toBe(404);
   });

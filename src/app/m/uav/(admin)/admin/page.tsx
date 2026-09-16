@@ -33,10 +33,14 @@ export const dynamic = "force-dynamic";
  * nacktes `<h1>` statt `Typography.Title` — genau deshalb ist er in dieser
  * Server Component richtig (Falle 1).
  *
- * DER CSV-KNOPF HEISST JETZT „Liste als CSV" UND NICHT MEHR „CSV". „CSV" nennt
- * ein Dateiformat und nicht die Handlung; daneben steht auf der Detailseite ein
- * zweiter Ausgabeweg für EINEN Teilnehmer, und die beiden waren als „CSV" und
- * „Detail-CSV" nicht auseinanderzuhalten.
+ * DER EXPORT-KNOPF HEISST „Liste als Excel" UND NICHT „Excel". Das Format nennt
+ * nicht die Handlung; daneben steht auf der Detailseite ein zweiter Ausgabeweg
+ * für EINEN Teilnehmer, und die beiden wären als „Excel" und „Detail-Excel"
+ * nicht auseinanderzuhalten.
+ *
+ * ⚠️ HIER STAND „Liste als CSV". Seit DRK-186 ist Excel das Reportformat der
+ * ganzen Suite; der Pfad dahinter ist derselbe geblieben, nur die Datei am Ende
+ * ist eine `.xlsx`.
  */
 export function teilnehmerInhalt(zeilen: ParticipantProgressDTO[]) {
   const mitLink = zeilen.map((zeile) => ({ ...zeile, magicLink: magicLink(zeile.participant.loginCode) }));
@@ -46,7 +50,7 @@ export function teilnehmerInhalt(zeilen: ParticipantProgressDTO[]) {
       <Seitenkopf
         titel="Teilnehmer"
         beschreibung="Hier legst du Teilnehmer an, gibst ihnen ihren Zugang weiter und siehst, wie weit jede und jeder im Training ist."
-        aktionen={<Button href="/api/admin/participants/export">Liste als CSV</Button>}
+        aktionen={<Button href="/api/admin/participants/export">Liste als Excel</Button>}
       />
       <TeilnehmerAnlegen />
       <TeilnehmerTabelle zeilen={mitLink} />
