@@ -374,6 +374,19 @@ Angabe — jede Pixelzahl wäre erfunden. **Eine Bedingung dazu:** rc-table scha
 ohne dass irgendwo etwas überläuft. Wer `scroll` ergänzt, misst die Spaltenbreiten bei 1280px vorher
 und nachher — `documentElement.scrollWidth` allein würde den Unterschied nicht sehen.
 
+**Eine Spalte mit Freitext braucht eine Lesebreite — `Zellentext` aus `core/tabelle`.** `max-content`
+heißt: die Tabelle ist so breit, wie es die breiteste Zelle verlangt. Ein Kommentar, eine Bemerkung,
+eine Notiz sind Nachweisfelder ohne Längengrenze, und EIN langer Satz aus dem Altbestand schiebt damit
+alle Spalten dahinter aus dem Bild. **Das Symptom führt in die Irre:** die Zeile sieht richtig aus,
+sie steht nur sehr weit rechts. `ellipsis: true` an der Spalte ist die falsche Abhilfe (s. o.: es
+kippt die ganze Tabelle auf `table-layout: fixed`); gedeckelt wird die ZELLE. **Und `max-width`
+allein reicht dafür nicht:** es gilt nicht für nicht-ersetzte Inline-Elemente (CSS 2.1 §10.4) — an
+einem nackten `<span>` steht die Deklaration richtig da und der Browser verwirft sie, still.
+`Zellentext` bringt sein `display` deshalb selbst mit. **Die Höhe zu deckeln (`zeilen`) ist eine
+ZWEITE Entscheidung** und gehört nur in eine Übersicht, hinter der die Nachweisfläche einen Klick
+entfernt liegt: `overflow: hidden` schneidet für das Auge ab, und `title` braucht einen Zeiger, den
+ein Telefon nicht hat. Auf Logbuch, Journal und Messungsverlauf deckelt allein die Breite (DRK-372).
+
 **Eine Tabelle, die auf schmalen Geräten gar nicht sichtbar ist, braucht kein `scroll`.**
 `feedback/_ui/Verlauf.tsx` rendert beide Darstellungen ins HTML und blendet per CSS eine aus; die
 breite Tabelle steht unter 768px auf `display: none`. Sie ist das Vorbild, nicht der Mangel — und der
