@@ -8,7 +8,9 @@ import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
-import { requireHelferSchreibend } from "../_lib/helferZugang";
+import {
+  kontoZugangOderNull, requireHelferSchreibend, type HelferZugang,
+} from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
@@ -50,10 +52,16 @@ import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
  * nimmt, ist die Helferin, und sie hat kein Konto.
  *
  * ⚠️ DIE HERKUNFT ENTSCHEIDET DIE JOURNALQUELLE, nicht die aufrufende Seite:
- * `journalQuelle(riegel.zugang)` schreibt beim Kaertchen den CODE mit
+ * `journalQuelle(zugang)` schreibt beim Kaertchen den CODE mit
  * `quelleTyp: "token"`, beim Konto den OIDC-`sub` mit `"oidc"`. Ein festes
  * `"oidc" as const` hier schriebe eine Kaertchen-Buchung unter einer Kennung,
  * die es in `users` nicht gibt — und die Zeile ist append-only.
+ *
+ * ⚠️ `zugang` IST NICHT IMMER `riegel.zugang`, und das ist die eine Stelle, an
+ * der diese Action mehr weiss als ihr Riegel: raeumt sie eine STILLGELEGTE
+ * Einheit aus, traegt allein die Verwaltungserlaubnis den Vorgang — dann steht
+ * auch die Verwaltung in der Zeile, nicht das Kaertchen, mit dem der Riegel
+ * zufaellig aufgegangen ist. Die Herleitung steht am Vorabblick unten.
  */
 
 const BoxSchema = z.object({
@@ -89,22 +97,60 @@ export async function bucheInEntnahmebox(
   if (!riegel.ok) {
     return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
   }
+  const geparst = BoxSchema.safeParse(eingabe);
+  if (!geparst.success) {
+    // ⚠️ `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
+    // Verbindung STEHT, sie hat gerade eine unbrauchbare Nutzlast geliefert.
+    // `"netz"` entsteht ausschliesslich im `catch` des Clients.
+    return {
+      ok: false,
+      grund: "eingabe",
+      text: "Die Eingabe war unvollständig. Bitte die Seite neu laden und die Menge erneut eingeben.",
+    };
+  }
+  const v = geparst.data;
+
+  /*
+   * ── DER VORABBLICK AUF DIE QUELLE ─────────────────────────────────────────
+   *
+   * Eine stillgelegte Einheit darf nur die Verwaltung ausraeumen (die
+   * Begruendung steht an Riegel 1 unten). Die Erlaubnis dafuer kann NICHT am
+   * `riegel` haengen: `requireHelferSchreibend` prueft das KAERTCHEN ZUERST und
+   * steigt mit `herkunft: "token"` aus, sobald ein gueltiges Kaertchen-Cookie
+   * da ist — auch bei einer Verwalterin, die daneben angemeldet ist.
+   *
+   * ⚠️ UND WER DIE ERLAUBNIS MITBRINGT, STEHT AUCH IN DER ZEILE (Codex-Review
+   * zu PR #178, P1). Das ist der Grund fuer den zusaetzlichen Lesezugriff hier
+   * oben statt einer Abfrage in der Transaktion: `withAuditContext` und
+   * `journalQuelle` legen die Kennung VOR dem ersten Schreibvorgang fest. Ein
+   * Ausraeumen, das allein die Verwaltungserlaubnis traegt, waere sonst im
+   * Protokoll und im append-only-Journal auf den GEMEINSAMEN Zugangscode
+   * gebucht — `zugangsAkteur` schreibt fuer das Kaertchen ausdruecklich
+   * `auditAccessActor` („Gemeinsamer Zugangscode", identifiziert einen Zugang,
+   * nie eine Person). Die Zeile bliebe fuer immer falsch, und zwar still.
+   *
+   * `kontoZugangOderNull` UND NICHT `istLagerbuchAdmin(await viewerOderNull())`
+   * — es beantwortet dieselbe Frage, liefert aber den Zugang GLEICH MIT und
+   * legt dabei die `users`-Zeile an (`merkeNutzer`). Ohne die zeigte das
+   * Journal die rohe OIDC-Kennung statt des Klarnamens (`_db/quelle.ts`).
+   *
+   * ⚠️ NUR BEI STILLGELEGTER QUELLE, nicht immer. Eine gewoehnliche Buchung mit
+   * Kaertchen bleibt beim Kaertchen — auch die einer angemeldeten Person. Wer
+   * die Kennung IMMER auf das Konto zoege, traegt den Klarnamen jeder
+   * Verwaltenden in jede Buchung, die sie am Fahrzeug mit der Karte macht,
+   * waehrend die Buchung einer Kollegin ohne Konto daneben anonym bleibt. Die
+   * Kennung wechselt genau dort, wo die zusaetzliche Erlaubnis greift.
+   */
+  const quellAktiv = db
+    .select({ aktiv: lagerorte.aktiv })
+    .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get()?.aktiv;
+  const verwaltung = quellAktiv === false ? await kontoZugangOderNull(db) : null;
+  const zugang: HelferZugang = verwaltung ?? riegel.zugang;
+
   return withAuditContext(
-    { actor: zugangsAkteur(riegel.zugang) },
+    { actor: zugangsAkteur(zugang) },
     async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
-      const geparst = BoxSchema.safeParse(eingabe);
-      if (!geparst.success) {
-        // ⚠️ `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
-        // Verbindung STEHT, sie hat gerade eine unbrauchbare Nutzlast geliefert.
-        // `"netz"` entsteht ausschliesslich im `catch` des Clients.
-        return {
-          ok: false,
-          grund: "eingabe",
-          text: "Die Eingabe war unvollständig. Bitte die Seite neu laden und die Menge erneut eingeben.",
-        };
-      }
-      const v = geparst.data;
-      const quelle = journalQuelle(riegel.zugang);
+      const quelle = journalQuelle(zugang);
 
       let gebucht = 0;
       let fachFehler: string | null;
@@ -135,13 +181,56 @@ export async function bucheInEntnahmebox(
            * WEIL nur die Verwaltung ihn ueberhaupt erreicht. Diese Action teilen
            * sich zwei Flaechen, also muss die Unterscheidung in die Action.
            *
-           * ⚠️ `konto` IST NICHT DASSELBE WIE „VERWALTUNG", und das ist die
-           * ehrliche Grenze dieser Probe: auch eine angemeldete Person OHNE
-           * Lagerbuch-Gruppe kaeme durch. Schaerfer ginge nur mit einer zweiten
-           * Rechtepruefung IN der Action — und `guards.test.ts` haelt fest, dass
-           * die erste Anweisung der Riegel ist, damit es genau EINE gibt. Die
-           * Probe schliesst also die Kaertchen aus, nicht die Nicht-Admins;
-           * das ist der Unterschied, um den es hier geht.
+           * ⚠️ GEPRUEFT WIRD DAS KONTO, NICHT DIE HERKUNFT DES RIEGELS
+           * (Codex-Review zu PR #175, zweite Runde an dieser Stelle). Die erste
+           * Fassung fragte `riegel.zugang.herkunft !== "konto"` — und lief in
+           * eine Sackgasse: `requireHelferSchreibend` prueft das KAERTCHEN
+           * ZUERST (`helferZugang.ts`) und gibt `token` zurueck, sobald ein
+           * gueltiges Kaertchen-Cookie da ist. Eine Verwalterin, die vorher
+           * irgendwann ein Kaertchen eingeloest hat, kam damit auf IHRER
+           * EIGENEN Seite nicht mehr an die stillgelegten Einheiten, die genau
+           * dort zum Ausraeumen stehen — und der Satz „Das Ausraeumen laeuft
+           * ueber die Verwaltung" stand ihr entgegen, waehrend sie darin sass.
+           *
+           * ⚠️ GEFRAGT WIRD `verwaltung`, NICHT EIN ZWEITES MAL DAS KONTO, und
+           * das ist die ganze Zusage aus dem P1 der Review zu PR #178: die
+           * Erlaubnis und die Kennung, unter der gebucht wird, stammen aus
+           * DERSELBEN Entscheidung dort oben. Eine zweite Abfrage hier koennte
+           * ja sagen, waehrend `zugangsAkteur` und `journalQuelle` laengst auf
+           * das Kaertchen festgelegt sind — und genau diese Zeile bliebe dann
+           * fuer immer falsch.
+           *
+           * ⚠️ DIE VORABPROBE UND DIESE SIND ZWEI LESEZUGRIFFE, und dazwischen
+           * kann sich `aktiv` in BEIDE Richtungen aendern. Nur die Probe hier
+           * ist massgeblich — sie steht in der Transaktion —, die Kennung liegt
+           * aber laengst fest. Also wird jede Abweichung ABGEWIESEN statt
+           * gebucht, und zwar in beide Richtungen:
+           *
+           *   stillgelegt, `verwaltung === null`  → wurde inzwischen stillgelegt
+           *   aktiv,       `verwaltung !== null`  → wurde inzwischen reaktiviert
+           *
+           * Die zweite Zeile ist der Befund P2 der Codex-Review zu PR #178, und
+           * sie ist die unauffaelligere: die Buchung waere fachlich voellig in
+           * Ordnung — eine gewoehnliche Abgabe aus einer aktiven Einheit —, nur
+           * traegt sie den KLARNAMEN der Verwaltung statt des Kaertchens, weil
+           * die Kennung aus der stillgelegten Lage stammt. Genau das Gegenteil
+           * dessen, was der Vorabblick oben zusichert.
+           *
+           * ⚠️ EIN ZWEITER LESEZUGRIFF NACH DEM `await` LOEST DAS NICHT — er
+           * verkleinert das Fenster und schliesst es nicht, denn auch er laege
+           * vor der Transaktion. Massgeblich kann nur die Probe sein, die mit
+           * dem Schreibvorgang im selben Vorgang steht.
+           *
+           * Beide Male laedt die Person neu und bucht erneut; die Gegenrichtung
+           * hinterliesse eine append-only-Zeile mit falscher Kennung.
+           *
+           * ⚠️ UND DIE PROBE IST DABEI SCHAERFER GEWORDEN, nicht nur anders:
+           * sie fragt nach der Lagerbuch-Gruppe statt nach „irgendein Konto".
+           * Die erste Fassung liess eine angemeldete Person OHNE die Gruppe
+           * durch; das war als Grenze benannt und ist mit diesem Schritt
+           * erledigt. Der Riegel der Action bleibt unberuehrt — hier wird
+           * NICHTS aufgesperrt, was er zugelassen hat, sondern nur eine
+           * zusaetzliche Erlaubnis richtig zugeordnet.
            *
            * ⚠️ `einheitenart` FAEHRT MIT, OBWOHL DER SCHREIBPFAD SIE NICHT
            * BRAUCHT (dieselbe Lage wie in `aussondernVomLagerort`): sie traegt
@@ -157,10 +246,15 @@ export async function bucheInEntnahmebox(
             })
             .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
           if (!von) return "Diese Einheit gibt es nicht mehr. Bitte die Seite neu laden.";
-          if (!von.aktiv && riegel.zugang.herkunft !== "konto") {
+          if (!von.aktiv && !verwaltung) {
             // Der Satz nennt den WEG, nicht die Ursache: dass die Zeile
             // `aktiv = 0` traegt, hilft am Fahrzeug niemandem weiter.
             return "Diese Einheit ist außer Dienst. Das Ausräumen läuft über die Verwaltung.";
+          }
+          if (von.aktiv && verwaltung) {
+            // Der Weg ist das Neuladen, und der Satz sagt auch warum — sonst
+            // liest sich eine Ablehnung ohne erkennbaren Grund wie ein Fehler.
+            return "Diese Einheit ist wieder in Dienst. Bitte die Seite neu laden und erneut buchen.";
           }
           if (von.typ !== "fahrzeug") {
             // NEUTRAL, und zwar nicht aus Vorsicht: die Zeile, die hierher

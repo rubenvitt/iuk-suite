@@ -22,17 +22,51 @@ import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
  * unter dem Handlager, zaehlt ihr Inhalt still als Handlagerbestand.
  */
 
-const { helferRiegel, revalidiert } = vi.hoisted(() => ({
+const { helferRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
   helferRiegel: vi.fn<() => Promise<unknown>>(),
   revalidiert: [] as string[],
+  /**
+   * DIE ANGEMELDETE VERWALTUNG — getrennt vom Riegel, und genau darum geht es.
+   *
+   * ⚠️ DER RIEGEL SAGT NICHT, OB JEMAND ANGEMELDET IST.
+   * `requireHelferSchreibend` prueft das KAERTCHEN ZUERST
+   * (`_lib/helferZugang.ts`) und steigt mit `herkunft: "token"` aus, sobald ein
+   * gueltiges Kaertchen-Cookie da ist — auch bei einer Verwalterin, die
+   * daneben angemeldet ist. Wer die Verwaltungserlaubnis am Riegel ablaese,
+   * saehe diese Person als Helferin. Deshalb steht hier eine ZWEITE, davon
+   * unabhaengige Grosse.
+   */
+  sitzung: {
+    konto: null as unknown,
+    /*
+     * ⚠️ DER HAKEN IM `await` SELBST — der einzige Weg, das Wettlauffenster
+     * ueberhaupt zu treffen. Zwischen dem Vorabblick auf `aktiv` und der
+     * Transaktion liegt genau ein `await`: das Aufloesen der Verwaltung. Was
+     * hier laeuft, laeuft also NACH der Entscheidung ueber die Kennung und VOR
+     * der Probe, die in der Transaktion steht.
+     */
+    beimAufloesen: null as (() => void) | null,
+  },
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
 }));
 
+/*
+ * ⚠️ ZWEI EINSTIEGE AUS DEMSELBEN MODUL, und sie sind absichtlich getrennt
+ * steuerbar: `requireHelferSchreibend` beantwortet „darf hier ueberhaupt jemand
+ * buchen?", `kontoZugangOderNull` „bringt eine angemeldete Verwaltung die
+ * zusaetzliche Erlaubnis mit?". Die echte Fassung des zweiten haengt an
+ * `SUITE_ADMIN_GROUP_LAGERBUCH` und an `merkeNutzer`; ein Test, der sie ruft,
+ * pruefte die Umgebung statt die Action.
+ */
 vi.mock("../_lib/helferZugang", () => ({
   requireHelferSchreibend: () => helferRiegel(),
+  kontoZugangOderNull: async () => {
+    sitzung.beimAufloesen?.();
+    return sitzung.konto;
+  },
 }));
 
 vi.mock("../_db/client", () => ({
@@ -68,11 +102,20 @@ const KONTO = {
   },
 };
 
+/**
+ * Die Sitzung der Verwalterin — UNABHAENGIG davon, was der Riegel zurueckgibt.
+ * Dieselbe Form wie `KONTO.zugang`: sie geht als `HelferZugang` in
+ * `journalQuelle` und `zugangsAkteur`.
+ */
+const VERWALTUNG = KONTO.zugang;
+
 let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
   helferRiegel.mockResolvedValue(KAERTCHEN);
+  sitzung.konto = null;
+  sitzung.beimAufloesen = null;
   t = migrierteTestDb("lagerbuch-actions-entnahmebox-");
 
   t.db.insert(lagerorte).values({
@@ -372,13 +415,14 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
     expect(neueZeilen()).toHaveLength(0);
   });
 
-  it("nimmt MIT KONTO aus einer stillgelegten Einheit — genau die raeumt man aus", async () => {
+  it("nimmt AUS DER VERWALTUNG aus einer stillgelegten Einheit — genau die raeumt man aus", async () => {
     /*
      * ⚠️ DAS ZIEL MUSS AUFNAHMEBEREIT SEIN, DIE QUELLE NICHT — die
      * Gegenrichtung zur Zeile darueber. Eine ausserdienstliche Einheit ist
      * genau die, die man leerraeumt.
      */
     helferRiegel.mockResolvedValue(KONTO);
+    sitzung.konto = VERWALTUNG;
     t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -417,6 +461,115 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
     expect((erg as { ok: false; text: string }).text).toContain("außer Dienst");
     expect(bestand(ENTNAHMEBOX_ID, "ch-1"), "nichts gebucht").toBe(0);
     expect(bestand("fz-1", "ch-1"), "und die Einheit unveraendert").toBe(5);
+  });
+
+  it("laesst die VERWALTUNG auch dann ausraeumen, wenn ihr Kaertchen noch gilt", async () => {
+    /*
+     * ⚠️ DER RIEGEL IST HIER `token`, UND ZWAR NICHT AUS VERSEHEN
+     * (Codex-Review zu PR #175, zweite Runde). `requireHelferSchreibend`
+     * prueft das KAERTCHEN ZUERST und steigt damit aus, sobald ein gueltiges
+     * Kaertchen-Cookie da ist — eine Verwalterin, die vorher irgendwann eines
+     * eingeloest hat, kommt also mit `herkunft: "token"` in diese Action,
+     * waehrend sie in der Verwaltung sitzt.
+     *
+     * Die erste Fassung des Riegels fragte genau diese Herkunft ab und
+     * verwehrte ihr damit die stillgelegten Einheiten, die ihre eigene Seite
+     * zum Ausraeumen anbietet — mit dem Satz „Das Ausraeumen laeuft ueber die
+     * Verwaltung". Der Test baut diese Lage nach: Kaertchen am Riegel,
+     * Lagerbuch-Gruppe in der Sitzung.
+     */
+    helferRiegel.mockResolvedValue(KAERTCHEN);
+    sitzung.konto = VERWALTUNG;
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(5);
+
+    /*
+     * ⚠️ UND SIE STEHT AUCH IN DER ZEILE (Codex-Review zu PR #178, P1). Die
+     * Erlaubnis kam aus der Verwaltung, der Riegel aber aus dem Kaertchen —
+     * wuerde die Kennung dem Riegel folgen, waere ein Vorgang, den NUR die
+     * Verwaltung ausloesen darf, auf den GEMEINSAMEN Zugangscode gebucht.
+     * `quelleTyp: "token"` traegt den Code im Klartext und loest ueber
+     * `tokens.code` auf; das Journal ist append-only, die Zeile bliebe fuer
+     * immer falsch, und zwar still.
+     *
+     * Geprueft werden BEIDE Legs: Abgang und Zugang sind derselbe Vorgang, und
+     * eine halbe Zuschreibung waere die teuerste Auskunft von allen.
+     */
+    const legs = neueZeilen();
+    expect(legs.length, "Abgang und Zugang").toBe(2);
+    for (const leg of legs) {
+      expect(leg.quelleTyp, "die Verwaltung bucht, nicht das Kaertchen").toBe("oidc");
+      expect(leg.quelleId).toBe(KONTO.zugang.sub);
+    }
+  });
+
+  it("weist ab, wenn die Einheit waehrend des Aufloesens WIEDER IN DIENST geht", async () => {
+    /*
+     * ⚠️ DAS UNAUFFAELLIGERE ENDE DESSELBEN WETTLAUFS (Codex-Review zu PR #178,
+     * P2). Der Vorabblick sieht eine stillgelegte Einheit und legt die Kennung
+     * auf die Verwaltung fest; waehrend die Sitzung aufgeloest wird, stellt
+     * jemand die Einheit wieder in Dienst. Die Transaktion saehe dann eine
+     * voellig gewoehnliche Abgabe aus einer AKTIVEN Einheit — gebucht unter dem
+     * KLARNAMEN der Verwaltung statt unter dem Kaertchen, und damit genau
+     * andersherum als die Zeile darunter zusichert.
+     *
+     * ⚠️ NICHT DIE BUCHUNG IST FALSCH, SONDERN DIE ZEILE — das ist der Grund,
+     * warum hier abgewiesen und nicht stillschweigend umgeschrieben wird: die
+     * Kennung liegt im Protokoll laengst fest, und das Journal ist append-only.
+     * Die Person laedt neu und bucht erneut.
+     */
+    helferRiegel.mockResolvedValue(KAERTCHEN);
+    sitzung.konto = VERWALTUNG;
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    sitzung.beimAufloesen = () => {
+      t.db.update(lagerorte).set({ aktiv: true }).where(eq(lagerorte.id, "fz-1")).run();
+    };
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect((erg as { ok: false; text: string }).text).toContain("wieder in Dienst");
+    expect(neueZeilen(), "nichts gebucht").toHaveLength(0);
+  });
+
+  it("bucht eine GEWOEHNLICHE Abgabe weiter auf das Kaertchen", async () => {
+    /*
+     * ⚠️ DIE GEGENRICHTUNG ZUR ZEILE DARUEBER, und sie ist der Grund, warum die
+     * Kennung nur bei STILLGELEGTER Quelle wechselt. Zoege man sie immer aufs
+     * Konto, sobald eines da ist, traegt der Klarname jeder Verwaltenden jede
+     * Buchung, die sie am Fahrzeug mit der Karte macht — waehrend die Buchung
+     * einer Kollegin ohne Konto daneben anonym bleibt. Die Kennung wechselt
+     * genau dort, wo die zusaetzliche Erlaubnis greift, und sonst nirgends.
+     */
+    helferRiegel.mockResolvedValue(KAERTCHEN);
+    sitzung.konto = VERWALTUNG;
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    for (const leg of neueZeilen()) {
+      expect(leg.quelleTyp).toBe("token");
+      expect(leg.quelleId).toBe(KAERTCHEN.zugang.code);
+    }
   });
 
   it("laesst eine AKTIVE Einheit beim Kaertchen unveraendert durch", async () => {
