@@ -125,29 +125,36 @@ export default async function BoxSeite({
   // zeigte den Ueberschuss nur dann, wenn er zufaellig auch im Soll steht.
   const posten = postenAmOrt(db, gewaehlt.id);
 
-  if (posten.length === 0) {
-    /*
-     * ⚠️ „ANDERE EINHEIT" NUR, WENN ES EINE ANDERE GIBT (Codex-Review zu
-     * PR #175). Der Weg hier ist die EINZIGE Handlung auf einem Schirm, der
-     * sonst nichts anbietet — er darf nicht im Kreis fuehren. `/helfer/box`
-     * waehlt oben aber genau dieselbe Einheit erneut, sobald eine der beiden
-     * Bedingungen gilt:
+  /*
+   * ⚠️ „ANDERE EINHEIT" NUR, WENN ES EINE ANDERE GIBT (Codex-Review zu PR #175,
+   * zwei Runden). Der Weg ist die EINZIGE Navigation dieses Schirms — im
+   * Leerzustand die einzige Handlung ueberhaupt, in der gefuellten Ansicht der
+   * einzige Ausgang neben der Reiterleiste. Er darf nicht im Kreis fuehren.
+   * `/helfer/box` waehlt oben aber genau dieselbe Einheit erneut, sobald eine
+   * der beiden Bedingungen gilt:
      *
      *   `gebunden`             — das Kaertchen zeigt auf DIESE Einheit und
      *                            gewinnt gegen jedes `?fz=` (DRK-302).
      *   genau EINE aktive      — die Wahl wird uebersprungen.
      *
-     * In beiden Faellen landete die Helferin auf demselben leeren Schirm, und
-     * zwar ohne dass etwas kaputt aussieht: der Link funktioniert, er tut nur
-     * nichts. Dann fuehrt der Weg stattdessen nach draussen — derselbe
-     * Rueckweg wie in den beiden Leerzustaenden darueber.
-     *
-     * ⚠️ NICHT DIE BINDUNG LOCKERN: sie ist eine Anzeige-Entscheidung, kein
-     * Riegel, aber sie im Vorbeigehen zu umgehen hiesse, die offene
-     * Betreiberfrage 5 zu beantworten. Geaendert wird der WEG, nicht die Wahl.
-     */
-    const andereEinheitErreichbar = gebunden === undefined && fahrzeuge.length > 1;
+   * In beiden Faellen landete die Helferin auf demselben Schirm, und zwar ohne
+   * dass etwas kaputt aussieht: der Link funktioniert, er tut nur nichts. Dann
+   * fuehrt der Weg stattdessen nach draussen — derselbe Rueckweg wie in den
+   * beiden Leerzustaenden oben.
+   *
+   * ⚠️ EINE ENTSCHEIDUNG FUER BEIDE AUSGAENGE, und deshalb steht sie hier und
+   * nicht in einem der beiden Zweige: der Leerzustand und die Insel stellen
+   * dieselbe Frage, und zwei Rechnungen dafuer liefen beim naechsten Griff
+   * auseinander — die zweite Codex-Runde fand genau das, weil die erste nur
+   * den Leerzustand geheilt hatte.
+   *
+   * ⚠️ NICHT DIE BINDUNG LOCKERN: sie ist eine Anzeige-Entscheidung, kein
+   * Riegel, aber sie im Vorbeigehen zu umgehen hiesse, die offene
+   * Betreiberfrage 5 zu beantworten. Geaendert wird der WEG, nicht die Wahl.
+   */
+  const andereEinheitErreichbar = gebunden === undefined && fahrzeuge.length > 1;
 
+  if (posten.length === 0) {
     return (
       <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
@@ -171,6 +178,7 @@ export default async function BoxSeite({
         }}
         posten={posten}
         buchen={bucheInEntnahmebox}
+        andereEinheitErreichbar={andereEinheitErreichbar}
         // DRK-305: faellt der Zugang mitten im Ausraeumen aus, entscheidet diese
         // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
         // unterscheiden — diese Seite kennt sie.

@@ -89,6 +89,7 @@ vi.mock("../../_ui/BoxAbgabe", () => ({
     einheit: Record<string, unknown>;
     posten: Record<string, unknown>[];
     kontoZugang: boolean;
+    andereEinheitErreichbar: boolean;
     buchen: unknown;
   }) => (
     <div
@@ -98,6 +99,7 @@ vi.mock("../../_ui/BoxAbgabe", () => ({
       data-posten-ids={p.posten.map((x) => String(x.artikelId)).join(",")}
       data-posten-felder={Object.keys(p.posten[0] ?? {}).sort().join(",")}
       data-konto={String(p.kontoZugang)}
+      data-andere={p.andereEinheitErreichbar ? "ja" : "nein"}
       data-aktion={typeof p.buchen}
     />
   ),
@@ -319,6 +321,23 @@ describe("helfer/box — was die Insel bekommt", () => {
     await mount(await BoxSeite(sp({ fz: "fz-2" })));
     expect(query("[data-rolle='leer-titel']").textContent).toContain("im Fahrzeug");
     expect(query("[data-rolle='leer-weg']").getAttribute("href")).toBe("/helfer");
+  });
+
+  it("reicht die Erreichbarkeit der Wahl an die Insel weiter", async () => {
+    // ⚠️ DIE GEFUELLTE ANSICHT TRAEGT DENSELBEN LINK wie der Leerzustand
+    // (Codex-Review zu PR #175, zweite Runde): eine Entscheidung, zwei
+    // Ausgaenge. Zwei Rechnungen dafuer liefen beim naechsten Griff auseinander.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    bestandAn("fz-1", 4);
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='abgabe']").getAttribute("data-andere")).toBe("ja");
+  });
+
+  it("sagt der Insel, dass die Wahl dieselbe Einheit zurueckgaebe", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 4);
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='abgabe']").getAttribute("data-andere")).toBe("nein");
   });
 
   it("markiert den Reiter „Box“ als aktiv", async () => {

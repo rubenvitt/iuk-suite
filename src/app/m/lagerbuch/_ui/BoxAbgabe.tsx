@@ -77,6 +77,7 @@ export function BoxAbgabe({
   einheit,
   posten,
   buchen,
+  andereEinheitErreichbar,
   kontoZugang,
 }: {
   einheit: BoxEinheit;
@@ -96,6 +97,25 @@ export function BoxAbgabe({
    * damit „Kaertchen", also genau der Defekt.
    */
   kontoZugang: boolean;
+  /**
+   * Fuehrt „Andere Einheit" ueberhaupt woandershin? (Codex-Review zu PR #175)
+   *
+   * ⚠️ DER LINK OBEN IST DIE EINZIGE NAVIGATION DIESES SCHIRMS, und er ist
+   * genau dann wirkungslos, wenn `/helfer/box` dieselbe Einheit erneut waehlt —
+   * bei einem gebundenen Kaertchen (DRK-302) oder bei genau einer aktiven
+   * Einheit. Er fuehrt dann sichtbar nach nirgendwo: die Seite laedt, zeigt
+   * dasselbe, und wer davorsteht haelt den eigenen Klick fuer danebengegangen.
+   *
+   * ⚠️ DIE ENTSCHEIDUNG GEHOERT DER SEITE, NICHT DIESER INSEL. Nur sie kennt
+   * die Bindung der Sitzung und die Zahl der aktiven Einheiten; die Insel
+   * bekaeme beides nur, wenn man ihr mehr in den Payload legt, als sie zeigt.
+   * Dieselbe Aufteilung wie `gebunden` bei `CheckFlow`.
+   *
+   * PFLICHT-PROP: ein vergessenes `andereEinheitErreichbar?` waere still
+   * `undefined` und damit „nicht erreichbar" — der Link verschwaende auf JEDEM
+   * Schirm, auch dort, wo er gebraucht wird.
+   */
+  andereEinheitErreichbar: boolean;
 }) {
   const [wahl, setWahl] = useState<Wahl | null>(null);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
@@ -164,9 +184,18 @@ export function BoxAbgabe({
 
   return (
     <div className={s.lesebahn}>
-      <Link className={s.rueckweg} href="/helfer/box">
+      {/*
+        ⚠️ DER RUECKWEG WIRD GETAUSCHT, NICHT VERSTECKT. Dieser Schirm hat sonst
+        keine Navigation; ohne den Link bliebe nur die Reiterleiste. Dieselbe
+        Form wie im Leerzustand der Seite und wie in `CheckFlow`.
+      */}
+      <Link
+        className={s.rueckweg}
+        href={andereEinheitErreichbar ? "/helfer/box" : "/helfer"}
+        data-rolle="box-rueckweg"
+      >
         <Ikone name="chevron-links" groesse={15} />
-        Andere Einheit
+        {andereEinheitErreichbar ? "Andere Einheit" : "Zur Entnahme"}
       </Link>
 
       <div className={s.zeile}>

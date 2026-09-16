@@ -42,7 +42,7 @@ describe("BoxAbgabe — der Schirm", () => {
     // DRK-309: zwei Einheiten duerfen gleich heissen, und eine Tasche traegt
     // kein Kennzeichen — ohne die Art stuende fuer sie gar nichts da.
     await mount(
-      <BoxAbgabe einheit={TASCHE} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={TASCHE} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(query("[data-rolle='box-einheit-meta']").textContent).toBe("Tasche");
   });
@@ -56,14 +56,14 @@ describe("BoxAbgabe — der Schirm", () => {
    */
   it("beschriftet die Liste am Fahrzeug art-bewusst", async () => {
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Liegt im Fahrzeug");
   });
 
   it("beschriftet dieselbe Liste an der Tasche anders", async () => {
     await mount(
-      <BoxAbgabe einheit={TASCHE} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={TASCHE} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Liegt in der Tasche");
   });
@@ -80,7 +80,7 @@ describe("BoxAbgabe — der Schirm", () => {
      * es laengst so, und das war der Grund, warum es hier niemandem auffiel.
      */
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(query("[data-rolle='box-posten-knopf']").textContent)
       .toContain("fällig 01/27");
@@ -106,6 +106,7 @@ describe("BoxAbgabe — der Schirm", () => {
           }],
         })]}
         buchen={gelungen()}
+        andereEinheitErreichbar
         kontoZugang={false}
       />,
     );
@@ -116,9 +117,49 @@ describe("BoxAbgabe — der Schirm", () => {
       .toBe(String(BUCHUNG_MENGE_MAX));
   });
 
+  /*
+   * ⚠️ DER RUECKWEG DER GEFUELLTEN ANSICHT (Codex-Review zu PR #175, zweite
+   * Runde am selben Befund). Die erste Runde hatte nur den LEERZUSTAND der
+   * Seite geheilt — hier steht derselbe Link, und diese Ansicht sieht man weit
+   * oefter. `/helfer/box` waehlt dieselbe Einheit erneut, sobald das Kaertchen
+   * gebunden ist oder es nur eine aktive Einheit gibt.
+   *
+   * ⚠️ GETAUSCHT UND NICHT VERSTECKT: dieser Schirm hat sonst keine
+   * Navigation. Ein fehlender Link waere kein Ausgang, sondern gar keiner.
+   */
+  it("fuehrt den Rueckweg auf die Wahl, solange es eine andere Einheit gibt", async () => {
+    await mount(
+      <BoxAbgabe
+        einheit={FAHRZEUG}
+        posten={[posten()]}
+        buchen={gelungen()}
+        andereEinheitErreichbar
+        kontoZugang={false}
+      />,
+    );
+    const weg = query("[data-rolle='box-rueckweg']");
+    expect(weg.getAttribute("href")).toBe("/helfer/box");
+    expect(weg.textContent).toContain("Andere Einheit");
+  });
+
+  it("fuehrt ihn nach draussen, wenn die Wahl dieselbe Einheit zurueckgaebe", async () => {
+    await mount(
+      <BoxAbgabe
+        einheit={FAHRZEUG}
+        posten={[posten()]}
+        buchen={gelungen()}
+        andereEinheitErreichbar={false}
+        kontoZugang={false}
+      />,
+    );
+    const weg = query("[data-rolle='box-rueckweg']");
+    expect(weg.getAttribute("href")).toBe("/helfer");
+    expect(weg.textContent).toContain("Zur Entnahme");
+  });
+
   it("zeigt die Mengeneingabe erst nach dem Tippen auf die Zeile", async () => {
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(exists("[data-rolle='box-eingabe']")).toBe(false);
     expect(query("[data-rolle='box-posten-knopf']").getAttribute("aria-expanded")).toBe("false");
@@ -133,7 +174,7 @@ describe("BoxAbgabe — der Schirm", () => {
     // geoeffneten Zeile ausser dem Absenden — und genau das waere die Buchung,
     // die niemand wollte.
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-posten-knopf']");
@@ -148,6 +189,7 @@ describe("BoxAbgabe — der Schirm", () => {
         einheit={FAHRZEUG}
         posten={[posten(), posten({ artikelId: "art-2", artikelName: "Mullbinde" })]}
         buchen={gelungen()}
+        andereEinheitErreichbar
         kontoZugang={false}
       />,
     );
@@ -164,7 +206,7 @@ describe("BoxAbgabe — die Chargenwahl", () => {
       chargen: [{ id: "ch-1", chargenNr: "L-1", verfall: "2030-01", rest: 2, ampel: "gruen", text: "bis 01/30" }],
     });
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[eine]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[eine]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     // Eine Radiogruppe mit einem Knopf ist eine Bedienung ohne Wirkung.
@@ -174,7 +216,7 @@ describe("BoxAbgabe — die Chargenwahl", () => {
   it("steht auf „zuerst ablaufende“, solange niemand sie anfasst", async () => {
     const buchen = gelungen();
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     expect(exists("[data-rolle='box-chargenwahl']")).toBe(true);
@@ -191,7 +233,7 @@ describe("BoxAbgabe — die Chargenwahl", () => {
   it("schickt die gewaehlte Charge mit", async () => {
     const buchen = gelungen();
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     // Die Reihenfolge der Knoepfe: „Zuerst ablaufende", dann die Chargen.
@@ -207,7 +249,7 @@ describe("BoxAbgabe — die Chargenwahl", () => {
 describe("BoxAbgabe — die Rueckmeldung", () => {
   it("nennt nach dem Erfolg die Menge und den Artikel und schliesst die Zeile", async () => {
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-buchen']");
@@ -224,7 +266,7 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
       ok: false, grund: "eingabe", text: "Es liegen aus diesem Fahrzeug nur 3 Stk.",
     }));
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-buchen']");
@@ -239,7 +281,7 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
     // FALLE 62/66: in Produktion stuende dort ein englischer Satz mit `digest`.
     const buchen = vi.fn<BoxAktion>(async () => { throw new Error("weg"); });
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-buchen']");
@@ -252,7 +294,7 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
       ok: false, grund: "sitzung", text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.",
     }));
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} andereEinheitErreichbar kontoZugang={false} />,
     );
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-buchen']");
@@ -270,7 +312,7 @@ describe("BoxAbgabe — die Rueckmeldung", () => {
       ok: false, grund: "sitzung", text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.",
     }));
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={buchen} kontoZugang andereEinheitErreichbar />,
     );
     await click("[data-rolle='box-posten-knopf']");
     await click("[data-rolle='box-buchen']");
