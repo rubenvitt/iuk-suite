@@ -87,6 +87,7 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
   return {
     id: zeile.id,
     detailHref: `/verwaltung/checks/${zeile.id}`,
+    fahrzeugId: zeile.fahrzeugId,
     fahrzeugName: zeile.fahrzeugName,
     fahrzeugKennung: zeile.fahrzeugKennung,
     fahrzeugEinheitenart: zeile.fahrzeugEinheitenart,
