@@ -18,6 +18,7 @@ import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
+import { revalidiereHandlagerBestand } from "../_lib/revalidierung";
 import {
   ZIEL_COOKIE, ZIEL_UNGUELTIG_TEXT, ZIEL_VERALTET_TEXT, zielAusWert, type EntnahmeZiel,
 } from "../_lib/entnahmeZiel";
@@ -45,51 +46,25 @@ import { cookies } from "next/headers";
  * Riegelgrund — und mit ihm die Entscheidung, ob ein Erneuern-Feld erscheint.
  */
 
-/**
- * DIE PFADE, DIE EIN ZUGANG AUSRAEUMT — EINMAL, FUER BEIDE ZUGANGSWEGE
- * (Codex-Befunde P2 zu PR #174, dritte Runde).
+/*
+ * ⚠️ DIE PFADLISTE EINES ZUGANGS STEHT SEIT DRK-381 IN
+ * `_lib/revalidierung.ts` (`revalidiereHandlagerBestand`), nicht mehr hier.
  *
- * ⚠️ DREI RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE: zwei Listen fuer EINEN
- * Vorgang. `bucheZugang` (Artikel-Drawer) und `bucheAuffuellung`
- * (Auffuellansicht der GF) buchen denselben Wareneingang; jede Flaeche, die
- * danach veraltet ist, ist es fuer BEIDE. Nacheinander fehlten
- * `verwaltung/bestellung`, `verwaltung/verfall` und — als die neuen Routen
- * dazukamen — `auffuellen`. Die naechste Flaeche fehlte wieder, solange die
- * Listen getrennt sind. Deshalb steht sie hier EINMAL.
+ * Der Grund, der sie hier entstehen liess, gilt unveraendert und steht dort
+ * ausgeschrieben: DREI RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE — zwei Listen
+ * fuer denselben Effekt. `bucheZugang` und `bucheAuffuellung` buchen denselben
+ * Wareneingang; jede Flaeche, die danach veraltet ist, ist es fuer BEIDE.
+ * Nacheinander fehlten `verwaltung/bestellung`, `verwaltung/verfall` und — als
+ * die neuen Routen dazukamen — `auffuellen`.
  *
- * Was sie nennt, und warum jeweils:
- *
- *  * `verwaltung/verfall` — `verfallListe` ueberspringt jede Charge mit
- *    `rest <= 0` und liest den Rest ueber den Handlager-Bereich
- *    (`_lib/lesepfade/verfall.ts`). Ein Zugang aendert genau das: eine
- *    aufgebrauchte, ablaufende Charge taucht wieder auf, eine NEU angelegte
- *    mit nahem Verfall ist eine ganz neue Zeile.
- *  * `verwaltung/bestellung` — ein Zugang nullt `bestelltAt`. Eine
- *    zwischengespeicherte Liste fuehrte den gelieferten Artikel sonst weiter
- *    als „bestellt", und solange sie das tut, schlaegt sie ihn nie wieder vor.
- *    `markiereBestellt` raeumt denselben Pfad aus demselben Grund; zwei
- *    Schreiber DERSELBEN Spalte duerfen sich darin nicht unterscheiden.
- *  * `verwaltung/artikel` und `verwaltung` — Bestand und Kennzahlen.
- *  * `auffuellen` und `auffuellen/<id>` — Liste und Chargenwahl der GF-Flaeche.
- *  * `a/<id>` und `helfer` — Bestand und Chargenliste am Regal.
- *
- * ⚠️ INNERE PFADE (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
- * dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
- * wirft dabei NICHT.
- *
- * ⚠️ NICHT EXPORTIERT, und das ist kein Versehen: diese Datei traegt
- * `"use server"`, dort ist JEDER Export eine Action (`guards.test.ts`).
+ * ⚠️ DER DRITTE AUFRUFER IST KEIN ZUGANG MEHR: `raeumeAusEntnahmebox`
+ * (DRK-381) bucht eine UMLAGERUNG aus der Entnahmebox in einen Schrank. Sie
+ * aendert denselben Bestand und veraltet deshalb dieselben Flaechen — genau
+ * die Lage, vor der der alte Kommentar gewarnt hat, nur diesmal angekuendigt.
+ * Deshalb der Umzug nach `_lib/`: eine `"use server"`-Datei kann eine
+ * Hilfsfunktion gar nicht exportieren, ohne aus ihr eine Action mit global
+ * aufrufbarer Id zu machen (`guards.test.ts`).
  */
-function revalidiereZugang(artikelId: string): void {
-  revalidatePath("/m/lagerbuch/verwaltung/verfall");
-  revalidatePath("/m/lagerbuch/verwaltung/artikel");
-  revalidatePath("/m/lagerbuch/verwaltung/bestellung");
-  revalidatePath("/m/lagerbuch/verwaltung");
-  revalidatePath(`/m/lagerbuch/auffuellen/${artikelId}`);
-  revalidatePath("/m/lagerbuch/auffuellen");
-  revalidatePath(`/m/lagerbuch/a/${artikelId}`);
-  revalidatePath("/m/lagerbuch/helfer");
-}
 
 const ZugangSchema = z
   .object({
@@ -189,10 +164,11 @@ export async function bucheZugang(
       };
     }
 
-    // DIESELBE Liste wie in `bucheAuffuellung` — Begruendung je Pfad steht an
-    // `revalidiereZugang`. Zwei Listen fuer einen Vorgang waren die Ursache
-    // von drei Review-Befunden in Folge.
-    revalidiereZugang(v.artikelId);
+    // DIESELBE Liste wie in `bucheAuffuellung` und in `raeumeAusEntnahmebox`
+    // — Begruendung je Pfad steht an `revalidiereHandlagerBestand`
+    // (`_lib/revalidierung.ts`). Zwei Listen fuer denselben Effekt waren die
+    // Ursache von drei Review-Befunden in Folge.
+    revalidiereHandlagerBestand(v.artikelId);
     return { ok: true };
   });
 }
@@ -825,8 +801,10 @@ export async function bucheAuffuellung(
       });
 
       // DIESELBE Liste wie in `bucheZugang` — es ist derselbe Vorgang, nur
-      // eine andere Flaeche davor.
-      revalidiereZugang(v.artikelId);
+      // eine andere Flaeche davor. Sie liegt seit DRK-381 in
+      // `_lib/revalidierung.ts`, weil ein DRITTER Weg denselben Bestand
+      // aendert (`raeumeAusEntnahmebox`).
+      revalidiereHandlagerBestand(v.artikelId);
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.
