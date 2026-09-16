@@ -387,6 +387,38 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(befehle).not.toMatch(/\$SPERRVERZEICHNIS\/[a-z]/);
   });
 
+  it("ein LAUFENDER Lauf haelt seine Sperre am Leben — die Grenze misst Lebenszeichen", () => {
+    // ⚠️ OHNE HERZSCHLAG IST DIE ALTERSGRENZE EINE FRIST AUF DEN LAUF SELBST. Ein
+    // gesunder Lauf, der laenger dauert als sie (eine grosse Ablage, ein langsames
+    // Ziel), galte danach als verwaist — und der naechste naehme ihm die Sperre weg,
+    // waehrend er noch schreibt. Genau die Gleichzeitigkeit, gegen die es die Sperre
+    // gibt, nur mit Zeitverzoegerung. GEMESSEN: Sperre mit 8h alter mtime, der zweite
+    // Lauf startete sofort.
+    //
+    // `touch` auf das VERZEICHNIS hebt seine mtime, ohne etwas hineinzulegen — die
+    // Sperre bleibt leer, was sie bleiben muss. Nachgemessen mit einem 25s-Lauf und
+    // 3s-Takt: das Alter blieb unter 3s. Und mit der Grenze kuenstlich auf 0 Stunden
+    // gab der zweite Lauf auf, statt zu uebernehmen.
+    const rumpfL = funktionsrumpf(befehle, "lauf");
+    expect(rumpfL).toMatch(/herzschlag_starten/);
+    expect(befehle).toMatch(/touch "\$SPERRVERZEICHNIS"/);
+    expect(befehle).toContain("BACKUP_HERZSCHLAG_SEKUNDEN");
+    // Er endet mit der Sperre — auch bei einem gescheiterten Lauf, denn `sperre_ablegen`
+    // haengt an der EXIT-Falle.
+    const rumpfA = funktionsrumpf(befehle, "sperre_ablegen");
+    expect(rumpfA).toMatch(/herzschlag_beenden/);
+    // ⚠️ ER PRUEFT ZWEI DINGE, UND DAS ZWEITE IST DAS WICHTIGERE. „Sperre noch da" reicht
+    // NICHT: stirbt der Eigentuemer hart, bleibt sie ja gerade stehen — der Herzschlag
+    // liefe weiter und hielte sie ewig jung, womit die Uebernahme einer wirklich
+    // verwaisten Sperre nie mehr griffe. Genau die Verklemmung, gegen die die
+    // Altersgrenze da ist. GEMESSEN, als nur die erste Bedingung dastand: Eigentuemer
+    // per SIGKILL beendet, der Herzschlag lief weiter, die mtime blieb frisch. Mit
+    // `kill -0` endet er, und das Alter waechst wieder (gemessen 4s → 14s).
+    expect(befehle).toMatch(
+      /while \[ -d "\$SPERRVERZEICHNIS" \] && kill -0 "\$eltern" 2>\/dev\/null; do/,
+    );
+  });
+
   it("eine verwaiste Sperre wird nach ihrem ALTER uebernommen, nicht nach einer PID", () => {
     // ⚠️ EINE PID NUETZT HIER NICHTS: die beiden Laeufe sitzen in verschiedenen Containern,
     // also in verschiedenen PID-Namensraeumen. Ohne die Uebernahme stuende das Backup nach
@@ -508,6 +540,7 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
       "BACKUP_FRIST_STUNDEN",
       "BACKUP_SPERRE_FRIST_MINUTEN",
       "BACKUP_SPERRE_ALTER_STUNDEN",
+      "BACKUP_HERZSCHLAG_SEKUNDEN",
       "SUITE_BACKUP_STOP_GRACE",
     ]) {
       expect(envBeispiel, `${name} steht in .env.example`).toContain(name);

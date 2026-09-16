@@ -100,7 +100,17 @@ BACKUP_FRIST_STUNDEN="${BACKUP_FRIST_STUNDEN:-26}"
 # Wie lange ein Lauf auf einen anderen wartet, bevor er aufgibt (Minuten).
 BACKUP_SPERRE_FRIST_MINUTEN="${BACKUP_SPERRE_FRIST_MINUTEN:-30}"
 # Ab wann eine Sperre als verwaist gilt und uebernommen werden darf (Stunden).
+#
+# ⚠️ DIESE ZAHL MISST NICHT, WIE LANGE EIN LAUF SCHON LAEUFT, SONDERN WIE LANGE NIEMAND
+# MEHR EIN LEBENSZEICHEN GEGEBEN HAT — und der Unterschied ist der ganze Sinn des
+# Herzschlags weiter unten. Ohne ihn waere ein voellig gesunder Lauf, der laenger dauert
+# als diese Zahl (grosse Ablage, langsames Ziel), nach Ablauf als „verwaist" eingestuft
+# worden, und der naechste haette ihm die Sperre unter den Haenden weggenommen. GEMESSEN:
+# mit einer Sperre, deren Zeitstempel 8h zurueckliegt, startete der zweite Lauf sofort.
 BACKUP_SPERRE_ALTER_STUNDEN="${BACKUP_SPERRE_ALTER_STUNDEN:-6}"
+# Takt des Herzschlags in Sekunden. Muss deutlich unter der Altersgrenze liegen, sonst
+# traegt er nicht; 60s gegen 6h ist reichlich Abstand.
+BACKUP_HERZSCHLAG_SEKUNDEN="${BACKUP_HERZSCHLAG_SEKUNDEN:-60}"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
@@ -417,8 +427,48 @@ sperre_erwarten() {
 # sie blockierte eine Sperre bis zu BACKUP_SPERRE_ALTER_STUNDEN, obwohl niemand mehr
 # arbeitet. ⚠️ `exec` in `vorbereiten` loest KEIN EXIT aus, der Vorlauf faellt also nicht
 # faelschlich hier hinein.
+# ⚠️ OHNE DEN HERZSCHLAG IST DIE ALTERSGRENZE EINE FRIST AUF DEN LAUF SELBST. Ein
+# gesunder Lauf, der laenger dauert (eine grosse Ablage, ein langsames Ziel), galte nach
+# ihrem Ablauf als verwaist — und der naechste Lauf naehme ihm die Sperre weg, waehrend er
+# noch schreibt. Genau die Gleichzeitigkeit, gegen die es die Sperre gibt, nur mit
+# Zeitverzoegerung. GEMESSEN: Sperre mit 8h alter mtime, zweiter Lauf startete sofort.
+#
+# `touch` auf das VERZEICHNIS hebt seine mtime, ohne etwas hineinzulegen — die Sperre
+# bleibt also leer (was sie bleiben muss, siehe `verzeichnis_alter`). Damit misst die
+# Altersgrenze das, was sie messen soll: wie lange niemand mehr ein Lebenszeichen gab.
+#
+# ⚠️ DIE SCHLEIFE PRUEFT ZWEI DINGE, UND DAS ZWEITE IST DAS WICHTIGERE. Dass die Sperre
+# noch da ist, reicht NICHT: stirbt der Eigentuemer hart, bleibt sie ja gerade stehen —
+# der Herzschlag liefe weiter und hielte sie ewig jung, womit die Uebernahme einer
+# wirklich verwaisten Sperre nie mehr griffe. Genau die Verklemmung, gegen die die
+# Altersgrenze da ist. GEMESSEN an einer abgesetzten Sitzung: Eigentuemer per SIGKILL
+# beendet, der Herzschlag lief weiter, die mtime blieb im Takt frisch.
+#
+# Im Container waere das folgenlos (SIGKILL auf PID 1 reisst den ganzen Namensraum mit,
+# der Herzschlag stirbt zwangslaeufig), aber darauf zu bauen hiesse, die Richtigkeit an
+# die Umgebung zu haengen. `kill -0` fragt den Eigentuemer direkt und kostet nichts.
+herzschlag_pid=""
+herzschlag_starten() {
+  eltern=$$
+  (
+    while [ -d "$SPERRVERZEICHNIS" ] && kill -0 "$eltern" 2>/dev/null; do
+      sleep "$BACKUP_HERZSCHLAG_SEKUNDEN" || exit 0
+      touch "$SPERRVERZEICHNIS" 2>/dev/null || exit 0
+    done
+  ) &
+  herzschlag_pid=$!
+}
+
+herzschlag_beenden() {
+  if [ -n "$herzschlag_pid" ]; then
+    kill "$herzschlag_pid" 2>/dev/null || true
+    herzschlag_pid=""
+  fi
+}
+
 haelt_sperre=0
 sperre_ablegen() {
+  herzschlag_beenden
   if [ "$haelt_sperre" -eq 1 ]; then
     haelt_sperre=0
     rm -rf "$SPERRVERZEICHNIS"
@@ -434,6 +484,7 @@ trap sperre_ablegen EXIT
 lauf() {
   sperre_erwarten || return 1
   haelt_sperre=1
+  herzschlag_starten
   if lauf_ungesperrt; then ergebnis=0; else ergebnis=$?; fi
   sperre_ablegen
   return "$ergebnis"

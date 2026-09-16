@@ -119,9 +119,17 @@ den ganzen Tag, endet er weiterhin binnen 30 Sekunden. Wer sofort abbrechen muss
 `docker compose kill backup`.
 
 Wird ein Container doch hart beendet (SIGKILL, Stromausfall), bleibt die Sperre stehen.
-Sie gilt nach `BACKUP_SPERRE_ALTER_STUNDEN` (Vorgabe 6) als verwaist und wird mit einer
-Warnung im Protokoll übernommen — die Übernahme serialisiert sich dabei selbst, damit
-nicht zwei Wartende gleichzeitig zugreifen. Von Hand entfernt man sie so:
+Sie gilt nach `BACKUP_SPERRE_ALTER_STUNDEN` (Vorgabe 6) **ohne Lebenszeichen** als
+verwaist und wird mit einer Warnung im Protokoll übernommen — die Übernahme serialisiert
+sich dabei selbst, damit nicht zwei Wartende gleichzeitig zugreifen.
+
+⚠️ **„Ohne Lebenszeichen" und nicht „seit dem Start" — der Unterschied ist wichtig:** ein
+laufender Lauf meldet sich im Takt von `BACKUP_HERZSCHLAG_SEKUNDEN` (Vorgabe 60). **Ein
+Backup darf also beliebig lange dauern**, ohne dass ihm der nächste die Sperre wegnimmt.
+Ohne diesen Herzschlag wäre die Stundenzahl eine Frist auf den Lauf selbst gewesen, und
+eine große Ablage oder ein langsames Ziel hätten gereicht, um sie zu reißen.
+
+Von Hand entfernt man eine hängengebliebene Sperre so:
 
 ```bash
 docker compose run --rm backup rm -rf /backups/.lauf.sperre
