@@ -137,17 +137,18 @@ test.describe("lagerbuch — Modulnavigation", () => {
     );
   });
 
-  test("achtzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
+  test("neunzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     const leiste = page.getByTestId("modulleiste");
     await expect(leiste).toBeVisible();
-    // 18 seit DRK-305 („Entnahme“, „Check durchführen“). Die Zusage dieses
+    // 19 seit DRK-313 („Auffüllen“); 18 waren es seit DRK-305 („Entnahme“,
+    // „Check durchführen“). Die Zusage dieses
     // Tests hängt NICHT an der Zahl, sondern am Satz darunter: mehr Einträge
     // machen die Marge größer, nicht kleiner.
-    await expect(leiste.locator("a")).toHaveCount(18);
+    await expect(leiste.locator("a")).toHaveCount(19);
 
     const masse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,

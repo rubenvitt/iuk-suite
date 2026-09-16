@@ -198,9 +198,23 @@ describe("bucheZugang", () => {
       typ: "zugang", menge: 10, artikelId: "art-1", chargeId: neue[0]!.id,
       lagerortId: HANDLAGER_ID, quelleTyp: "oidc", quelleId: "u-admin",
     });
-    // INNERE Pfade, in dieser Reihenfolge (§3). Ein aeusserer Pfad trifft
-    // nichts und wirft dabei nicht.
-    expect(revalidiert).toEqual(["/m/lagerbuch/verwaltung/artikel", "/m/lagerbuch/verwaltung"]);
+    /*
+     * INNERE Pfade, in dieser Reihenfolge (§3). Ein aeusserer Pfad trifft
+     * nichts und wirft dabei nicht.
+     *
+     * ⚠️ DER BESTELLVORSCHLAG IST SEIT DEM CODEX-BEFUND P2 ZU PR #174 DABEI.
+     * Ein Zugang nullt `bestelltAt` — nuetzt aber nichts, solange der Client
+     * auf eine zwischengespeicherte Liste zurueckfaellt, die den gelieferten
+     * Artikel weiter als „bestellt" fuehrt; solange er das tut, schlaegt ihn
+     * die Bestellliste nie wieder vor. `markiereBestellt` raeumt denselben
+     * Pfad aus demselben Grund: zwei Schreiber DERSELBEN Spalte duerfen sich
+     * darin nicht unterscheiden.
+     */
+    expect(revalidiert).toEqual([
+      "/m/lagerbuch/verwaltung/artikel",
+      "/m/lagerbuch/verwaltung/bestellung",
+      "/m/lagerbuch/verwaltung",
+    ]);
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
@@ -1200,6 +1214,20 @@ describe("bucheAuffuellung (DRK-313)", () => {
       t.db,
     );
     expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt).toBeNull();
+  });
+
+  /** ⚠️ DIESELBE ZUSAGE WIE BEI `bucheZugang`: beide nullen `bestelltAt`, also
+   *  muessen beide den Bestellvorschlag ausraeumen. Ohne sie faende jemand den
+   *  gerade gelieferten Artikel dort weiter als „bestellt" vor. */
+  it("revalidiert auch den Bestellvorschlag", async () => {
+    await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/bestellung");
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {

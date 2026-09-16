@@ -126,6 +126,14 @@ export async function bucheZugang(
     // dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
     // wirft dabei nicht.
     revalidatePath("/m/lagerbuch/verwaltung/artikel");
+    // ⚠️ DER BESTELLVORSCHLAG GEHOERT DAZU, WEIL EIN ZUGANG `bestelltAt` NULLT
+    // (Codex-Befund P2 zu PR #174). Ohne diese Zeile faellt der Client auf eine
+    // zwischengespeicherte Liste zurueck, die den gerade gelieferten Artikel
+    // weiter als „bestellt" fuehrt — und solange er das tut, schlaegt ihn die
+    // Bestellliste nie wieder vor. `markiereBestellt` raeumt denselben Pfad aus
+    // demselben Grund; die beiden Schreiber DERSELBEN Spalte duerfen sich darin
+    // nicht unterscheiden.
+    revalidatePath("/m/lagerbuch/verwaltung/bestellung");
     revalidatePath("/m/lagerbuch/verwaltung");
     return { ok: true };
   });
@@ -700,6 +708,10 @@ export async function bucheAuffuellung(
       revalidatePath(`/m/lagerbuch/a/${v.artikelId}`);
       revalidatePath("/m/lagerbuch/helfer");
       revalidatePath("/m/lagerbuch/verwaltung/artikel");
+      // ⚠️ SIEHE `bucheZugang`: ein Zugang nullt `bestelltAt`, und eine
+      // zwischengespeicherte Bestellliste fuehrte den gelieferten Artikel sonst
+      // weiter als „bestellt".
+      revalidatePath("/m/lagerbuch/verwaltung/bestellung");
       revalidatePath("/m/lagerbuch/verwaltung");
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch

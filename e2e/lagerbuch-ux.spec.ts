@@ -132,13 +132,14 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
   test("Navigation traegt Zeichen und die Seite antwortet", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung"));
     expect(antwort?.status()).toBe(200);
-    // 18 seit DRK-305: „Entnahme“ und „Check durchführen“ führen in den
-    // Helfer-Ast und tragen eigene Zeichen (`pruefen`, `entnahme` in
-    // `core/shell/navIkonen.tsx`). Die Zahl steht in `_lib/nav.test.ts`
+    // 19 seit DRK-313 („Auffüllen“, Zeichen `auffuellen`); 18 waren es seit
+    // DRK-305 („Entnahme“ und „Check durchführen“ führen in den Helfer-Ast und
+    // tragen eigene Zeichen). Die Zahl steht in `_lib/nav.test.ts`
     // ausgeschrieben; HIER wird geprüft, dass jedes davon wirklich ein SVG
     // rendert — ein unbekannter Schlüssel rendert stillschweigend NICHTS
-    // (`NavIkone`), und genau das sähe kein anderes Tor.
-    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(18, {
+    // (`NavIkone`), und genau das sähe kein anderes Tor. Ein neuer Nav-Eintrag
+    // ohne Eintrag in `NAV_IKONEN` fällt ausschließlich hier auf.
+    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(19, {
       timeout: 10_000,
     });
   });
