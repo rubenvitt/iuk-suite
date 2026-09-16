@@ -25,14 +25,29 @@
  *     praktisch unsichtbar: es taucht nur noch in der Verwaltungsliste und im
  *     Journal auf. Die Begruendung der Richtung steht an der Pruefung selbst.
  *
- * ⚠️ DIE VIER WUERFE SIND KEINE FEHLERTEXTE FUER DEN SCHIRM. Sie rollen die
- * Transaktion zurueck; wie die Lage der Person erklaert wird, entscheidet die
- * aufrufende Action — und beide pruefen dieselben Lagen VORHER noch einmal, mit
- * einem Satz statt eines Wurfs. Diese Pruefungen hier sind die letzte Bank, die
- * auch eine manipulierte Nutzlast haelt, nicht die erste.
+ * ⚠️ DIE VIER WUERFE SIND DIE LETZTE BANK, NICHT DIE ERSTE. Sie rollen die
+ * Transaktion zurueck und halten auch eine manipulierte Nutzlast;
+ * `bucheAuffuellung` beantwortet dieselben Lagen VORHER noch einmal mit
+ * einem eigenen, laengeren Satz, weil ihre Flaeche keinen Platz fuer ein
+ * Formularfeld hat.
+ *
+ * ⚠️ SIE SIND SEIT DRK-193 `BuchungAbgewiesen` UND NICHT `Error`, und das ist
+ * die Zusage, die ihre Texte auf den Schirm traegt: `bucheZugang` hat keine
+ * Vorabpruefung, ihr `catch` reicht genau diese Klasse durch und faengt alles
+ * andere — ein SQLite-Text nahm vorher denselben Weg. Wer hier einen Wurf
+ * ergaenzt und die Klasse vergisst, verliert den Satz still hinter dem
+ * Rueckfall „Zugang konnte nicht gebucht werden."; die Begruendung steht in
+ * `_lib/buchungAbgewiesen.ts`.
+ *
+ * ⚠️ DER WURF VON DRK-380 IST DESHALB LAENGER ALS DIE DREI AELTEREN. Der
+ * Schirm, den er erreicht, ist der Artikel-Drawer — und dort sitzt der
+ * Schalter „Aktiv" zwei Karten ueber dem Formular. Ein knappes „Artikel ist
+ * deaktiviert" saehe an dieser Stelle aus wie ein Defekt; der Satz nennt
+ * stattdessen den naechsten Griff.
  */
 import { eq } from "drizzle-orm";
 import { artikel, buchungen, chargen, newId } from "../../_db/schema";
+import { BuchungAbgewiesen } from "../buchungAbgewiesen";
 import { HANDLAGER_ID } from "../konstanten";
 import { handlagerOrte, ortStamm } from "../lesepfade/orte";
 import type { Quelle, Tx } from "./abbuchung";
@@ -91,18 +106,22 @@ export function zugangBuchen(
   const stamm = tx.select({ aktiv: artikel.aktiv }).from(artikel)
     .where(eq(artikel.id, artikelId)).get();
   /*
-   * ⚠️ ZWEI WUERFE UND NICHT EINER (`!stamm?.aktiv` waere der kuerzere Ausdruck
-   * und die schlechtere Auskunft). „Gibt es nicht" und „ist deaktiviert" sind
-   * verschiedene Lagen mit verschiedenen Ausgaengen — die eine heisst „Seite
-   * neu laden", die andere „Schalter umlegen". Zusammengelegt bekaeme ein
-   * geloeschter Artikel den Satz ueber den Schalter, und wer ihn befolgt,
-   * sucht in der Verwaltung nach einer Zeile, die es nicht mehr gibt.
+   * ⚠️ `stamm &&` UND NICHT `!stamm?.aktiv` — ein FEHLENDER Artikel geht hier
+   * bewusst DURCH. Der kuerzere Ausdruck faenge ihn mit ab und gaebe ihm den
+   * Satz ueber den Schalter; wer ihn befolgt, sucht in der Verwaltung nach
+   * einer Zeile, die es nicht mehr gibt. Sein Weg ist seit DRK-193 ein
+   * anderer und ein geklaerter: der Einschub scheitert am Fremdschluessel
+   * `chargen.artikel_id → artikel.id`, das ist ein TREIBERfehler, und der
+   * gehoert hinter den Rueckfallsatz statt auf die Arbeitsflaeche
+   * (`_lib/buchungAbgewiesen.ts`, geprueft in `_actions/buchung.test.ts`).
+   * Diese Pruefung beantwortet eine fachliche Frage, keine Existenzfrage.
    */
-  if (!stamm) {
-    throw new Error("Artikel gibt es nicht");
-  }
-  if (!stamm.aktiv) {
-    throw new Error("Artikel ist deaktiviert");
+  if (stamm && !stamm.aktiv) {
+    throw new BuchungAbgewiesen(
+      "Dieser Artikel ist deaktiviert — auf ihn geht kein Material mehr zu. " +
+      "Der vorhandene Bestand lässt sich weiter entnehmen und umlagern. " +
+      "Zum Auffüllen den Artikel unter „Aktiv“ wieder einschalten.",
+    );
   }
 
   let chargeId: string;
@@ -122,7 +141,7 @@ export function zugangBuchen(
     chargeId = charge.chargeId;
     const zeile = tx.select().from(chargen).where(eq(chargen.id, chargeId)).get();
     if (!zeile || zeile.artikelId !== artikelId) {
-      throw new Error("Charge gehört nicht zu diesem Artikel");
+      throw new BuchungAbgewiesen("Charge gehört nicht zu diesem Artikel");
     }
   }
 
@@ -147,7 +166,7 @@ export function zugangBuchen(
    */
   const bereich = new Set(handlagerOrte(tx));
   if (!bereich.has(lagerortId)) {
-    throw new Error("Ziel ist kein Ort im Handlager");
+    throw new BuchungAbgewiesen("Ziel ist kein Ort im Handlager");
   }
   /*
    * ⚠️ DIE WURZEL BLEIBT VON DER AKTIV-PROBE AUSGENOMMEN, wie bisher: sie ist
@@ -156,7 +175,7 @@ export function zugangBuchen(
    * das keine Oberflaeche setzt.
    */
   if (lagerortId !== HANDLAGER_ID && !ortStamm(tx).get(lagerortId)?.aktiv) {
-    throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
+    throw new BuchungAbgewiesen("Ziel ist kein gültiger, aktiver Schrank im Handlager");
   }
 
   tx.insert(buchungen)

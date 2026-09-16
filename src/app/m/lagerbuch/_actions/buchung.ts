@@ -16,6 +16,7 @@ import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/uml
 import { handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
+import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
 import {
   ZIEL_COOKIE, ZIEL_UNGUELTIG_TEXT, ZIEL_VERALTET_TEXT, zielAusWert, type EntnahmeZiel,
@@ -135,48 +136,21 @@ export async function bucheZugang(
     }
     const v = geparst.data;
 
-    /*
-     * DER DEAKTIVIERTE ARTIKEL — DRK-380, und HIER als Satz statt als Wurf.
-     *
-     * ⚠️ DAS IST DIE EINZIGE DER VIER INVARIANTEN VON `zugangBuchen`, DIE
-     * DIESER WEG VORHER PRUEFT, und der Grund ist der Ausgang: die anderen
-     * drei (artikelfremde Charge, Ziel ausserhalb des Handlagers, stillgelegter
-     * Schrank) beschreiben eine Nutzlast, die diese Flaeche gar nicht erzeugen
-     * kann — dort ist der `catch` unten die richtige Antwort. Der deaktivierte
-     * Artikel dagegen ist eine LAGE, die der Drawer selbst herstellt: der
-     * Schalter „Aktiv" sitzt zwei Karten ueber diesem Formular. Ein
-     * durchgereichtes „Artikel ist deaktiviert" aus dem Wurf saehe an dieser
-     * Stelle aus wie ein Defekt; der Satz nennt stattdessen den Schalter.
-     *
-     * Die Oberflaeche sperrt das Formular ohnehin (`ArtikelDrawer`), und
-     * `zugangBuchen` wirft weiterhin — das hier ist die mittlere der drei
-     * Bankreihen, nicht die einzige.
-     */
-    const stamm = db.select({ aktiv: artikel.aktiv }).from(artikel)
-      .where(eq(artikel.id, v.artikelId)).get();
-    if (stamm && !stamm.aktiv) {
-      return {
-        ok: false,
-        fehler:
-          "Dieser Artikel ist deaktiviert — auf ihn geht kein Material mehr zu. " +
-          "Der vorhandene Bestand lässt sich weiter entnehmen und umlagern. " +
-          "Zum Auffüllen den Artikel oben unter „Aktiv“ wieder einschalten.",
-      };
-    }
-
     try {
       db.transaction((tx) => {
         /*
          * ⚠️ DER VORGANG SELBST STEHT SEIT DRK-313 IN
          * `_lib/schreibpfade/zugang.ts`, nicht mehr hier. Er hat einen ZWEITEN
          * Aufrufer bekommen (`bucheAuffuellung`, die Flaeche der GF), und an
-         * ihm haengen drei Invarianten — I5, das gueltige Ziel und das
-         * Loeschen der Bestellt-Markierung —, die in einer zweiten Fassung
-         * still fehlen koennten. Die Begruendung je Invariante steht dort
+         * ihm haengen vier Invarianten — I5, das gueltige Ziel, das Loeschen
+         * der Bestellt-Markierung und seit DRK-380 der AKTIVE Artikel —, die
+         * in einer zweiten Fassung still fehlen koennten. Die Begruendung je Invariante steht dort
          * ausgeschrieben.
          *
          * DIE WUERFE VON DORT ROLLEN DIE TRANSAKTION ZURUECK; der `catch`
-         * unten macht daraus den Rueckgabewert (§7.3, Riegelfall).
+         * unten macht daraus den Rueckgabewert (§7.3, Riegelfall) — sofern
+         * sie `BuchungAbgewiesen` sind. Diese Action hat keine Vorabpruefung,
+         * ihre einzige Auskunft ist der Satz von dort.
          */
         zugangBuchen(tx, {
           artikelId: v.artikelId,
@@ -191,9 +165,27 @@ export async function bucheZugang(
         });
       });
     } catch (e) {
+      /*
+       * ⚠️ `BuchungAbgewiesen`, NICHT `Error` — DRK-193, und hier steht die
+       * Begruendung fuer alle drei `catch`-Bloecke dieser Datei.
+       *
+       * Der Kanal SELBST ist richtig und bleibt: die Pruefungen unter der
+       * Transaktion muessen werfen, weil nur ein Wurf zurueckrollt, und was
+       * sie werfen, sind fertige deutsche Saetze fuer den Schirm. Ein `catch`,
+       * der sie durch einen festen Satz ersetzt, nimmt der Verwaltenden die
+       * einzige Auskunft, die ihr den naechsten Griff sagt — bei der Abnahme
+       * (T176-A) machte genau dieser „Fix" vier Tests rot.
+       *
+       * Was fehlte, war die UNTERSCHEIDUNG: `e instanceof Error` ist ein
+       * SQLite-Fehler ebenso wie ein eigener Wurf, und „FOREIGN KEY constraint
+       * failed" nahm damit denselben Weg auf die Arbeitsflaeche. Der Sentinel
+       * trennt beides am TYP und nicht an einer Liste bekannter Saetze — eine
+       * solche Liste faellt still, sobald jemand einen Satz umformuliert.
+       * Volle Herleitung in `_lib/buchungAbgewiesen.ts`.
+       */
       return {
         ok: false,
-        fehler: e instanceof Error ? e.message : "Zugang konnte nicht gebucht werden.",
+        fehler: e instanceof BuchungAbgewiesen ? e.message : "Zugang konnte nicht gebucht werden.",
       };
     }
 
@@ -272,7 +264,7 @@ export async function bucheEntnahme(
            * zweites LAGER kaemen ueberdies ganz durch: beide existieren.
            */
           if (!istAktivesFahrzeug(tx, zielFahrzeug)) {
-            throw new Error("Ziel ist kein gültiges, aktives Fahrzeug");
+            throw new BuchungAbgewiesen("Ziel ist kein gültiges, aktives Fahrzeug");
           }
           gebucht = umlagerungAusBereich(tx, {
             artikelId: v.artikelId,
@@ -294,9 +286,10 @@ export async function bucheEntnahme(
         }
       });
     } catch (e) {
+      // Sentinel statt `Error` — Begruendung am `catch` von `bucheZugang`.
       return {
         ok: false,
-        fehler: e instanceof Error ? e.message : "Entnahme konnte nicht gebucht werden.",
+        fehler: e instanceof BuchungAbgewiesen ? e.message : "Entnahme konnte nicht gebucht werden.",
       };
     }
 
@@ -392,7 +385,7 @@ export async function bucheUmlagerung(
          */
         const charge = tx.select().from(chargen).where(eq(chargen.id, v.chargeId)).get();
         if (!charge || charge.artikelId !== v.artikelId) {
-          throw new Error("Charge gehört nicht zu diesem Artikel");
+          throw new BuchungAbgewiesen("Charge gehört nicht zu diesem Artikel");
         }
 
         /*
@@ -404,11 +397,11 @@ export async function bucheUmlagerung(
          */
         const bereich = new Set(handlagerOrte(tx));
         if (!bereich.has(v.vonLagerortId) || !bereich.has(v.nachLagerortId)) {
-          throw new Error("Umlagern geht nur zwischen Orten des Handlagers");
+          throw new BuchungAbgewiesen("Umlagern geht nur zwischen Orten des Handlagers");
         }
         const stamm = ortStamm(tx);
         if (!stamm.get(v.nachLagerortId)?.aktiv) {
-          throw new Error("Das Ziel ist stillgelegt und nimmt kein Material mehr auf");
+          throw new BuchungAbgewiesen("Das Ziel ist stillgelegt und nimmt kein Material mehr auf");
         }
 
         umgelagert = umlagerungVonOrt(tx, {
@@ -445,7 +438,7 @@ export async function bucheUmlagerung(
           // der jemand zu zaehlen anfaengt.
           const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
             .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
-          throw new Error(
+          throw new BuchungAbgewiesen(
             `In „${ortName}“ liegen nur ${umgelagert} ${einheit}`.trimEnd()
             + " dieser Charge. Es wurde nichts gebucht — bitte die Menge prüfen "
             + "oder eine Inventur erfassen.",
@@ -453,9 +446,10 @@ export async function bucheUmlagerung(
         }
       });
     } catch (e) {
+      // Sentinel statt `Error` — Begruendung am `catch` von `bucheZugang`.
       return {
         ok: false,
-        fehler: e instanceof Error ? e.message : "Umlagerung konnte nicht gebucht werden.",
+        fehler: e instanceof BuchungAbgewiesen ? e.message : "Umlagerung konnte nicht gebucht werden.",
       };
     }
 

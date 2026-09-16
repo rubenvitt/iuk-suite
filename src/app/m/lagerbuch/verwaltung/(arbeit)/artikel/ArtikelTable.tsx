@@ -19,6 +19,8 @@ import {
   type FilterZustand,
   type SortZustand,
 } from "@/core/tabelle";
+import { blatt } from "@/core/export";
+import { xlsxHerunterladen } from "@/core/export/client";
 import { setzeAusgeblendeteKategorien } from "../../../_actions/kategorien";
 import {
   artikelFiltern,
@@ -32,7 +34,7 @@ import {
   type ArtikelFilterZustand,
 } from "../../../_lib/artikelFilter";
 import {
-  bestandExportZeilen, bestandExportDateiname, type BestandExportZeile,
+  bestandExportZeilen, bestandExportDateiname,
 } from "../../../_lib/bestandExport";
 import {
   EXCEL_SPALTEN, EXCEL_BLATTNAME, EXCEL_FEHLERTEXT,
@@ -252,32 +254,21 @@ export function ArtikelTable({
    *
    * Exportiert GENAU das, was gerade in der Tabelle steht — siehe `angezeigt`.
    *
-   * DER DATEINAME ENTSTEHT AUS BROWSERZEIT (`new Date()`), also aus der Zone des
-   * Arbeitsplatzes. Das ist heutiges Verhalten und bleibt es.
+   * ⚠️ DER DATEINAME ENTSTAND AUS BROWSERZEIT, also aus der Zone des
+   * Arbeitsplatzes — seit DRK-186 rechnet `bestandExportDateiname` in
+   * `Europe/Berlin`. `new Date()` bleibt als ZEITPUNKT richtig; nur die Zone,
+   * in der er in einen Kalendertag uebersetzt wird, steht jetzt fest.
    *
-   * Die Bibliothek wird ERST BEIM KLICK nachgeladen, damit sie nicht im
-   * Seiten-Bundle landet.
+   * Die Bibliothek wird ERST BEIM KLICK nachgeladen (`xlsxHerunterladen`),
+   * damit sie nicht im Seiten-Bundle landet.
    */
   const exportieren = () => {
     setExportFehler(null);
     startExport(async () => {
       try {
-        const { default: writeXlsxFile } = await import("write-excel-file/browser");
-        const zeilenExport = bestandExportZeilen(angezeigt);
-        await writeXlsxFile(zeilenExport, {
-          columns: EXCEL_SPALTEN.map((sp) => ({
-            header: { value: sp.header, fontWeight: "bold" as const },
-            width: sp.width,
-            // Zahlen bleiben Zahlen, alles andere ist ausdruecklich Text — die
-            // Bibliothek legt es dann als Textzelle an, nie als Formel (9-G).
-            cell: (z: BestandExportZeile) =>
-              sp.zahl
-                ? { value: Number(sp.wert(z)), type: Number }
-                : { value: String(sp.wert(z)), type: String },
-          })),
-          sheet: EXCEL_BLATTNAME,
-          stickyRowsCount: 1,
-        }).toFile(bestandExportDateiname(new Date()));
+        await xlsxHerunterladen(bestandExportDateiname(new Date()), [
+          blatt(EXCEL_BLATTNAME, EXCEL_SPALTEN, bestandExportZeilen(angezeigt)),
+        ]);
       } catch {
         // Der deutsche Satz als ZUSTAND, nie `e.message`: der waere in
         // Produktion der englische Satz ueber eine „server-side exception".

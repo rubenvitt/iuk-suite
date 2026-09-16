@@ -1,5 +1,7 @@
 import { auditDelivery, auditActor } from "@/core/audit/server";
 import { auth } from "@/core/auth";
+import { blatt, freiesBlatt, type ExportSpalte } from "@/core/export";
+import { xlsxAntwort } from "@/core/export/server";
 import { getDb } from "@/app/m/feedback/_db/client";
 import {
   getGroup,
@@ -11,18 +13,22 @@ import {
 import { viewerFromSession } from "@/app/m/feedback/_lib/viewer";
 import { assertGroupAccess } from "@/app/m/feedback/_lib/access";
 import { computeDAStats } from "@/app/m/feedback/_lib/aggregation";
-import { buildCsv } from "@/app/m/feedback/_lib/csv";
-import { formatiereNote } from "@/app/m/feedback/_lib/noten";
 import { isRatingType, ratingScale, type Question } from "@/app/m/feedback/_lib/questions";
 
 /**
- * DER AGGREGIERTE GRUPPEN-EXPORT (Plan Task 20, §2.5 „CSV (alle Abende)").
+ * DER AGGREGIERTE GRUPPEN-EXPORT (Plan Task 20, §2.5 „alle Abende").
  *
- * ER IST EIN ANDERES ARTEFAKT als `…/evenings/[eveningId]/export.csv`: dort eine
+ * ER IST EIN ANDERES ARTEFAKT als `…/evenings/[eveningId]/export.xlsx`: dort eine
  * Zeile je ANTWORT (die Rohdaten EINES Abends, durchmischt, anonymitaets-
- * gehaertet), hier eine Zeile je DIENSTABEND mit dem Ø je Frage. Der Abend-Export
- * bleibt Zeichen fuer Zeichen unveraendert — beide Dateien beantworten
- * verschiedene Fragen, und eine Datei, die beides versucht, beantwortet keine.
+ * gehaertet), hier eine Zeile je DIENSTABEND mit dem Ø je Frage. Beide
+ * Dateien beantworten verschiedene Fragen, und eine Datei, die beides versucht,
+ * beantwortet keine.
+ *
+ * ⚠️ SEIT DRK-186 EINE EXCEL-MAPPE. Der Pfad heißt deshalb `export.xlsx` und
+ * nicht mehr `export.csv` — er steht in der Adresszeile und in jedem Lesezeichen,
+ * und ein Pfad, der eine CSV verspricht und eine Mappe liefert, ist eine stille
+ * Lüge. Beide Verweise in der Oberfläche (`_ui/Verlauf.tsx`, `trend/page.tsx`)
+ * sind mitgewandert.
  *
  * VIER ENTSCHEIDUNGEN, DIE HIER UND NUR HIER LIEGEN:
  *
@@ -44,16 +50,38 @@ import { isRatingType, ratingScale, type Question } from "@/app/m/feedback/_lib/
  *    sucht das Letzte); eine Tabellenkalkulation liest dieselben Zahlen als
  *    ZEITREIHE, und ein absteigend sortierter Verlauf ergibt dort eine
  *    rueckwaerts laufende Kurve.
- * 4. NEUTRALISIERT WIRD IN `csv.ts`. Themen und Fragetexte kommen aus
- *    Eingabefeldern; `=`, `+`, `-`, `@` am Feldanfang fuehrt Excel beim Oeffnen als
- *    Formel aus. `buildCsv`/`csvField` erledigt das fuer JEDE Zelle — hier steht
- *    keine zweite Neutralisierung.
+ * 4. ⛔ DIE Ø-WERTE SIND ZAHLEN, KEINE ZEICHENKETTEN — und das ist die
+ *    eigentliche Ausbeute des Formatwechsels. Im CSV-Weg stand dort
+ *    `formatiereNote(avg)`, also „2,0" mit Dezimalkomma; eine Kalkulation las
+ *    das je nach Gebietsschema als Text und konnte darueber weder rechnen noch
+ *    ein Diagramm legen. Gerundet wird auf EINE Nachkommastelle, also genau so
+ *    weit wie `formatiereNote` — die Datei zeigt dieselbe Zahl wie der
+ *    Bildschirm, nur eben als Zahl. Das Dezimalkomma malt die Kalkulation
+ *    selbst, nach der Spracheinstellung ihres Lesers.
+ *
+ * ⛔ HIER STAND EINE VIERTE ENTSCHEIDUNG ZUR FORMEL-NEUTRALISIERUNG, UND SIE IST
+ * MIT DEM FORMAT ENTFALLEN. Themen und Fragetexte kommen aus Eingabefeldern;
+ * `=`, `+`, `-`, `@` am Feldanfang fuehrte Excel beim Oeffnen einer CSV als
+ * Formel aus, und `csvField` setzte deshalb einen Apostroph davor — der dann im
+ * Spaltenkopf MITZULESEN war („'-Verpflegung?"). Der Baustein legt jede
+ * Textzelle als Textzelle an; eine Textzelle KANN keine Formel sein. Die
+ * Neutralisierung ist nicht abgeschaltet, sie ist nicht mehr anwendbar.
  *
  * Route Handler statt Seite, deshalb der Guard inline (wie im Abend-Export):
  * `notFound()` ist auf Server-Component-Rendering zugeschnitten. Fehlende
  * Ressource UND fehlender Zugriff ergeben beide 404 — ein 403 verriete die
  * Existenz der Gruppe.
  */
+
+/** Eine Zeile der Mappe: ein Dienstabend. */
+type AbendZeile = {
+  datum: string;
+  thema: string;
+  rueckmeldungen: number;
+  teilnehmer: number | null;
+  werte: Map<string, number>;
+};
+
 export async function GET(_req: Request, { params }: { params: Promise<{ groupId: string }> }) {
   const { groupId } = await params;
   const id = Number(groupId);
@@ -99,7 +127,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
      * keine zweite Spalte, sonst stünden zwei halbe Zeitreihen nebeneinander.
      */
     const spalten = new Map<string, { kopf: string }>();
-    const zeilen: { datum: string; thema: string; rueckmeldungen: number; teilnehmer: string; werte: Map<string, string> }[] = [];
+    const zeilen: AbendZeile[] = [];
 
     for (const abend of abende) {
       const survey = getSurveyByEvening(db, abend.id);
@@ -109,7 +137,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
         : [];
       const stats = computeDAStats(fragen, antworten);
 
-      const werte = new Map<string, string>();
+      const werte = new Map<string, number>();
       for (const frage of stats.perQuestion) {
         // Nur Bewertungsfragen haben einen Ø. Freitexte gehören in den
         // Abend-Export, wo sie einzeln nachlesbar sind — als „Ø" gäbe es sie nicht.
@@ -118,7 +146,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
         // Spalte (Entscheidung 2). `|` kommt in keinem `QuestionType` vor.
         const key = `${frage.id}|${frage.type}`;
         if (!spalten.has(key)) spalten.set(key, { kopf: kopfMitSkala(frage.text, frage.type) });
-        if (frage.avg !== null) werte.set(key, formatiereNote(frage.avg));
+        // Eine Nachkommastelle wie `formatiereNote` (Entscheidung 4), aber als
+        // Zahl: `Number(x.toFixed(1))` rundet und gibt die Zahl zurück.
+        if (frage.avg !== null) werte.set(key, Number(frage.avg.toFixed(1)));
       }
 
       zeilen.push({
@@ -127,7 +157,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
         thema: abend.topic ?? "",
         rueckmeldungen: stats.responseCount,
         // Kein erfundener Nenner (§2.3): ohne Teilnehmerzahl bleibt die Zelle leer.
-        teilnehmer: abend.participantCount === null ? "" : String(abend.participantCount),
+        teilnehmer: abend.participantCount,
         werte,
       });
     }
@@ -136,29 +166,33 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
     // Frage-IDs. `werte` ist auf denselben Schlüssel gelegt, deshalb greift der
     // Zugriff unten unverändert.
     const spaltenSchluessel = [...spalten.keys()];
-    const rows: string[][] = [
-      ["Gruppe", group.name],
-      ["Dienstabende", String(zeilen.length)],
-      [],
-      ["Datum", "Thema", "Rückmeldungen", "Teilnehmer", ...spaltenSchluessel.map((k) => spalten.get(k)!.kopf)],
-      ...zeilen.map((z) => [
-        z.datum,
-        z.thema,
-        String(z.rueckmeldungen),
-        z.teilnehmer,
-        ...spaltenSchluessel.map((k) => z.werte.get(k) ?? ""),
-      ]),
+    const excelSpalten: ExportSpalte<AbendZeile>[] = [
+      { kopf: "Datum", breite: 12, wert: (z) => z.datum },
+      { kopf: "Thema", breite: 32, wert: (z) => z.thema },
+      { kopf: "Rückmeldungen", breite: 15, wert: (z) => z.rueckmeldungen },
+      { kopf: "Teilnehmer", breite: 12, wert: (z) => z.teilnehmer },
+      ...spaltenSchluessel.map((k) => ({
+        kopf: spalten.get(k)!.kopf,
+        breite: 18,
+        wert: (z: AbendZeile) => z.werte.get(k) ?? null,
+      })),
     ];
 
-    const csv = buildCsv(rows);
-    const filename = `feedback-${group.slug}-abende.csv`;
-    return new Response(csv, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return xlsxAntwort(`feedback-${group.slug}-abende.xlsx`, [
+      blatt("Dienstabende", excelSpalten, zeilen),
+      /*
+       * DIE KOPFDATEN AUF EIGENEM BLATT. Im CSV-Weg standen sie als Vorspann
+       * ÜBER der Kopfzeile, weil eine Textdatei nur eine Fläche hat. In einer
+       * Kalkulation ist genau das schädlich: Sortieren, Filtern und „als
+       * Tabelle formatieren" gehen von einer Kopfzeile in Zeile 1 aus, und ein
+       * Vorspann verschiebt sie um vier Zeilen.
+       */
+      freiesBlatt(
+        "Kopfdaten",
+        [["Gruppe", group.name], ["Dienstabende", zeilen.length]],
+        [18, 34],
+      ),
+    ]);
   });
 }
 

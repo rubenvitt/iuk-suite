@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../../_db/schema";
 import { zugangBuchen } from "./zugang";
+import { BuchungAbgewiesen } from "../buchungAbgewiesen";
 import type { Quelle } from "./abbuchung";
 import { HANDLAGER_ID } from "../konstanten";
 
@@ -75,30 +76,41 @@ describe("zugangBuchen — der Artikel muss aktiv sein (DRK-380)", () => {
   });
 
   it("wirft auf einem DEAKTIVIERTEN Artikel und schreibt keine Zeile", () => {
+    // ⚠️ DIE KLASSE GEHOERT ZUR ZUSAGE (DRK-193): nur `BuchungAbgewiesen`
+    // reicht `bucheZugang`s `catch` auf den Schirm durch. Ein gewoehnliches
+    // `Error` verschwaende den Satz still hinter dem Rueckfall.
+    expect(() => bucheAuf("a-inaktiv", "c-inaktiv")).toThrow(BuchungAbgewiesen);
     expect(() => bucheAuf("a-inaktiv", "c-inaktiv")).toThrow(/deaktiviert/);
     expect(zeilen()).toEqual([]);
   });
 
   /**
-   * ⚠️ EIN UNBEKANNTER ARTIKEL WIRFT ANDERS, und darauf kommt es an: „gibt es
-   * nicht" und „ist deaktiviert" haben verschiedene Ausgaenge — Seite neu laden
-   * gegen Schalter umlegen. Ein gemeinsamer Wurf (`!stamm?.aktiv`) waere der
-   * kuerzere Ausdruck und schickte einen geloeschten Artikel in die Verwaltung,
-   * wo niemand mehr eine Zeile fuer ihn findet.
+   * ⚠️ EIN FEHLENDER ARTIKEL GEHT DURCH DIESE PRUEFUNG HINDURCH, und das ist
+   * die Grenze, auf die es ankommt. Der kuerzere Ausdruck `!stamm?.aktiv`
+   * faenge ihn mit ab — und schickte damit jemanden in die Verwaltung, um
+   * einen Schalter an einer Zeile umzulegen, die es nicht mehr gibt.
    *
-   * Dass ueberhaupt geworfen wird, ist die zweite Haelfte: sonst entschiede der
-   * Fremdschluessel, und der meldet „FOREIGN KEY constraint failed".
+   * Sein Weg ist seit DRK-193 ein anderer und ein geklaerter: er scheitert am
+   * Fremdschluessel, das ist ein TREIBERfehler, und der gehoert hinter den
+   * Rueckfallsatz statt auf die Arbeitsflaeche. Zugesichert wird deshalb die
+   * KLASSE, nicht nur der Text: ein `BuchungAbgewiesen` traege den Treibertext
+   * ungefiltert auf den Schirm.
    */
-  it("wirft bei einem unbekannten Artikel — aber NICHT mit „deaktiviert“", () => {
-    const lauf = () =>
+  it("laesst einen fehlenden Artikel am Treiber scheitern, nicht an dieser Pruefung", () => {
+    let gefangen: unknown;
+    try {
       inTx((tx) =>
         zugangBuchen(tx, {
           artikelId: "gibt-es-nicht", menge: 1, lagerortId: HANDLAGER_ID,
           charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
           quelle: QUELLE, kommentar: null, referenz: null,
         }));
-    expect(lauf).toThrow(/gibt es nicht/);
-    expect(lauf).not.toThrow(/deaktiviert/);
+    } catch (e) {
+      gefangen = e;
+    }
+    expect(gefangen).toBeInstanceOf(Error);
+    expect(gefangen).not.toBeInstanceOf(BuchungAbgewiesen);
+    expect((gefangen as Error).message).not.toMatch(/deaktiviert/);
     expect(zeilen()).toEqual([]);
   });
 

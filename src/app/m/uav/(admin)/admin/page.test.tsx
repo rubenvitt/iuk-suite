@@ -46,7 +46,7 @@ describe("teilnehmerInhalt — Kopf, Formular, Tabelle", () => {
     await mount(teilnehmerInhalt([zeile("Bruno")]));
     expect(query('[data-testid="seitenkopf-beschreibung"]').textContent).toContain("Zugang");
     const aktionen = query('[data-testid="seitenkopf-aktionen"]');
-    expect(aktionen.textContent).toContain("Liste als CSV");
+    expect(aktionen.textContent).toContain("Liste als Excel");
     expect(aktionen.querySelector("a")?.getAttribute("href")).toBe("/api/admin/participants/export");
   });
 
