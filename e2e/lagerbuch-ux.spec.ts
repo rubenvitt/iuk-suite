@@ -125,21 +125,33 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
    * anderen Grund: die Kopfzeile traegt Zeichen (Chevron, Menue, Theme), und
    * ein ungefiltertes `page.locator("svg")` zaehlte sie mit.
    *
-   * `modulleiste` statt `modulnav`, weil das Lagerbuch seine sechzehn Ziele
-   * seit den Abschnitten als Seitenleiste fuehrt und nicht mehr als zweite
-   * Kopfzeile. Die Zusage ist dieselbe geblieben, nur ihre Gestalt nicht.
+   * `modulleiste` statt `modulnav`, weil das Lagerbuch seine Ziele seit den
+   * Abschnitten als Seitenleiste fuehrt und nicht mehr als zweite Kopfzeile.
+   * Die Zusage ist dieselbe geblieben, nur ihre Gestalt nicht.
+   *
+   * ⚠️ DIE ZAHL STEHT HIER BEWUSST AUSGESCHRIEBEN UND NICHT ALS
+   * `LAGERBUCH_NAV.length`. Genau daran haengt die Aussage: waeren beide
+   * dieselbe Quelle, ginge ein Eintrag OHNE Zeichen-Eintrag in `NAV_IKONEN`
+   * durch — er rendert stillschweigend nichts, und die Zahl stimmte trotzdem.
    */
   test("Navigation traegt Zeichen und die Seite antwortet", async ({ page }) => {
     const antwort = await page.goto(lagerbuchUrl("/verwaltung"));
     expect(antwort?.status()).toBe(200);
-    // 19 seit DRK-313 („Auffüllen“, Zeichen `auffuellen`); 18 waren es seit
-    // DRK-305 („Entnahme“ und „Check durchführen“ führen in den Helfer-Ast und
-    // tragen eigene Zeichen). Die Zahl steht in `_lib/nav.test.ts`
-    // ausgeschrieben; HIER wird geprüft, dass jedes davon wirklich ein SVG
-    // rendert — ein unbekannter Schlüssel rendert stillschweigend NICHTS
-    // (`NavIkone`), und genau das sähe kein anderes Tor. Ein neuer Nav-Eintrag
-    // ohne Eintrag in `NAV_IKONEN` fällt ausschließlich hier auf.
-    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(19, {
+    // 18 seit DRK-305: „Entnahme“ und „Check durchführen“ führen in den
+    // Helfer-Ast und tragen eigene Zeichen (`pruefen`, `entnahme` in
+    // `core/shell/navIkonen.tsx`). 19 seit DRK-312: „Ortsetiketten“ trägt mit
+    // `ortsetiketten` (PiMapPinArea) ein eigenes — „Etiketten“ steht im selben
+    // Abschnitt, und zwei gleiche Zeichen wären dort nicht auseinanderzuhalten.
+    // 20 seit DRK-313: „Auffüllen“ trägt `auffuellen` (PiHandArrowUp), die
+    // Spiegelung von `entnahme` — die beiden stehen direkt übereinander, und
+    // ein geteiltes Zeichen entschiede hier darüber, ob Material ins Lager
+    // kommt oder es verlässt.
+    // Die Zahl steht in `_lib/nav.test.ts` ausgeschrieben; HIER wird geprüft,
+    // dass jedes davon wirklich ein SVG rendert — ein unbekannter Schlüssel
+    // rendert stillschweigend NICHTS (`NavIkone`), und genau das sähe kein
+    // anderes Tor. Ein neuer Nav-Eintrag ohne Eintrag in `NAV_IKONEN` fällt
+    // ausschließlich hier auf.
+    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(20, {
       timeout: 10_000,
     });
   });

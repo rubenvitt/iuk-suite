@@ -18,7 +18,7 @@ import {
   PiQrCode, PiUploadSimple, PiArrowsLeftRight, PiArrowsClockwise, PiListNumbers,
   PiUsersThree, PiListChecks, PiDrone,
   PiMagnifyingGlass, PiBookmarkSimple, PiPuzzlePiece, PiGraduationCap, PiCardsThree,
-  PiLockers, PiHandArrowDown, PiHandArrowUp, PiNotePencil,
+  PiLockers, PiHandArrowDown, PiHandArrowUp, PiNotePencil, PiMapPinArea,
 } from "react-icons/pi";
 import type { NavIkonName } from "./types";
 
@@ -67,6 +67,8 @@ export const NAV_IKONEN: Record<NavIkonName, IconType> = {
   // DRK-313 — die Spiegelung von `entnahme`; Begruendung ebenfalls dort.
   auffuellen: PiHandArrowUp,
   pruefen: PiNotePencil,
+  // DRK-312 — Begruendung an der Union in `types.ts`.
+  ortsetiketten: PiMapPinArea,
 };
 
 /**

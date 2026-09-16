@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **siebzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **achtzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -314,6 +314,42 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     `src/core/tabelle/spaltenkopf.test.ts` riegelt das repo-weit ab.
     **Nicht mit Falle 9 zusammenlegen:** dort verweigert React eine *Funktion* über die Grenze,
     laut und mit Fehlermeldung; hier geht ein *Element* durch und kommt still nur zur Hälfte an.
+
+18. **Chromium kennt als `@page`-Format nur A3/A4/A5 — jedes kleinere Schlüsselwort fällt
+    STILL heraus** (Modul `lagerbuch`, DRK-312, echter Chromium gegen `page.pdf({
+    preferCSSPageSize: true })`, MediaBox aus dem erzeugten PDF gelesen — nicht vermutet):
+
+    ```
+    size: A4           → 209,9 × 297,0 mm   erkannt
+    size: A5           → 148,2 × 209,9 mm   erkannt
+    size: A6/A7/A8     → 215,9 × 279,4 mm   ← Letter, also die Druckervorgabe
+    size: 74mm 105mm   →  74,1 × 105,2 mm   erkannt
+    ```
+
+    ⚠️ **Die Deklaration überlebt nicht einmal das Parsen:** `document.styleSheets` gibt
+    `@page { size: A7 }` als `"@page { }"` zurück. Es gibt also nichts, was man zur Laufzeit
+    abfragen könnte, und **kein Tor sieht es**: es ist gültiges CSS nach Spezifikation,
+    `typecheck` kennt keine Papierformate, `pnpm build` serialisiert die Datei klaglos, und
+    **Vitest kann es strukturell nicht sehen** — jsdom hat keine Seitenaufteilung. Wer `size:
+    A7` schreibt, bekommt ein Etikett in der Vorgabegröße des Druckers, und zwar erst auf dem
+    Papier. Abhilfe: die Kantenlängen ausschreiben (`74mm 105mm`).
+
+    ⚠️ **Die zweite Hälfte ist teurer, weil sie eine BAUFORM erzwingt: bei GEMISCHTEN
+    Seitengrößen verwirft Chromium die CSS-Größe vollständig.** Gemessen: eine A7-Karte und
+    ein A4-Bogen im selben Dokument ergaben Letter für **beide** Seiten — nicht etwa je Seite
+    die eigene Größe. Eine zweite Druckgröße ist deshalb keine Sektion auf einer bestehenden
+    Druckseite, sondern eine **eigene Route**, auf der alles Gedruckte dieselbe Größe trägt.
+    Was vorher per `display: none` wegfällt, zählt dabei nicht mit (ebenfalls gemessen) —
+    das Bildschirm-Chrome ist also unschädlich, solange es `lb-nichtDrucken` trägt.
+
+    ⚠️ **Teilt sich ein Stylesheet mehrere Druckflächen, MUSS die Regel benannt sein**
+    (`@page a7 { … }` plus `page: a7` am gemeinsamen Vorfahren). `lagerbuch` hat genau ein
+    Druck-Stylesheet für drei Flächen (Falle 43 hält das fest); ein unbenanntes `size` hätte
+    den A4-Etikettenbogen und die Checklisten still mit auf 74 × 105 mm gestellt. Benannte
+    und unbenannte Regel vertragen sich im selben Stylesheet, gemessen.
+    `verwaltung/(druck)/ortsetiketten/druck.test.ts` hält die Form fest,
+    `e2e/lagerbuch-ortsetiketten.spec.ts` misst die Wirkung — **die Zahl kennt nur ein echter
+    Browser**, dieselbe Klasse wie die Fallen 8 und 13.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
