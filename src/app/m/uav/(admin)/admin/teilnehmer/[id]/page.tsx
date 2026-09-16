@@ -49,7 +49,7 @@ export function teilnehmerDetailInhalt(detail: ParticipantDetailDTO) {
         zurueck={{ titel: "Teilnehmer", href: "/admin" }}
         aktionen={
           <Button href={`/api/admin/participants/${detail.participant.id}/export`}>
-            Auswertung als CSV
+            Auswertung als Excel
           </Button>
         }
       />

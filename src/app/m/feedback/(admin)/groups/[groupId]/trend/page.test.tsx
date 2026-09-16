@@ -266,7 +266,7 @@ describe("Trend — Kopfzone, Zeitfenster, Rueckweg", () => {
     expect(rueckweg?.textContent).toContain("Bereitschaft");
     expect(rueckweg?.getAttribute("href")).toBe("/m/feedback/groups/1");
     const ziele = [...wirt.querySelectorAll<HTMLElement>("a")].map((a) => a.getAttribute("href"));
-    expect(ziele).toContain("/m/feedback/groups/1/export.csv");
+    expect(ziele).toContain("/m/feedback/groups/1/export.xlsx");
   });
 
   it("bietet die drei Zeitfenster aus §3.3 an", async () => {
