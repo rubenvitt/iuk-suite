@@ -148,6 +148,7 @@ describe("KontrolleForm: gebundene und zugängliche Felder", () => {
   it("nennt beide Level mit den serverseitigen Labels und auch teilweise unbekannten Grenzen", async () => {
     await mount(
       <KontrolleForm
+        beachtungAktiv={false}
         geraetId="bz-1"
         level1={LEVEL_1}
         level2={LEVEL_2_TEILWEISE}
@@ -160,7 +161,7 @@ describe("KontrolleForm: gebundene und zugängliche Felder", () => {
   });
 
   it("lässt bis 9999 Teststreifen und Lanzetten zu", async () => {
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
 
     expect(query("input[data-rolle='sticks']").getAttribute("aria-valuemax"))
       .toBe("9999");
@@ -168,16 +169,22 @@ describe("KontrolleForm: gebundene und zugängliche Felder", () => {
       .toBe("9999");
   });
 
-  it("stellt Akku gewechselt als genau eine echte Radio.Group bereit", async () => {
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+  /*
+   * DRK-311: ZWEI Gruppen, und die Zahl steht hier ABSICHTLICH als Literal —
+   * „Beachtung erforderlich" ist seither die zweite Ja/Nein-Wahl des Formulars.
+   * Beide sind echte Radiogruppen (ein Tabstop, Pfeiltastenauswahl), keine
+   * gedrueckten Knoepfe; die Gegenprobe auf `aria-pressed` gilt fuer beide.
+   */
+  it("stellt Akku und Beachtung als genau zwei echte Radio.Groups bereit", async () => {
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
 
-    expect(queryAll(".ant-radio-group")).toHaveLength(1);
-    expect(query(".ant-radio-group").getAttribute("aria-label")).toBe("Akku gewechselt");
+    expect(queryAll(".ant-radio-group").map((g) => g.getAttribute("aria-label")))
+      .toEqual(["Akku gewechselt", "Beachtung erforderlich"]);
     expect(exists("button[aria-pressed]")).toBe(false);
   });
 
   it("bindet den Kompressen-Verfall an einen DatePicker picker=month", async () => {
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
 
     expect(exists("input[type='month']")).toBe(false);
     expect(query("input[data-rolle='kompresse']").getAttribute("aria-label"))
@@ -191,7 +198,7 @@ describe("KontrolleForm: gebundene und zugängliche Felder", () => {
     );
     expect(seite).not.toMatch(/Form\.Item/);
 
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
     for (const ariaLabel of [
       "Kompressen-Verfall",
       "Teststreifen",
@@ -208,6 +215,7 @@ describe("KontrolleForm: Action-Payload", () => {
   it("sendet Monat, Maximalbestände, Messwerte, Kommentar und Akku ja exakt", async () => {
     await mount(
       <KontrolleForm
+        beachtungAktiv={false}
         geraetId="bz-1"
         level1={LEVEL_1}
         level2={{ label: "Kontrolllösung hoch", min: 250, max: 350 }}
@@ -234,11 +242,14 @@ describe("KontrolleForm: Action-Payload", () => {
       lanzetten: 9999,
       batterieGewechselt: true,
       kommentar: "Alles geprüft",
+      // DRK-311: die Wahl reist IMMER mit, auch als „nein" — sonst entschiede
+      // der Default der Action, und der steht an einer anderen Stelle.
+      beachtung: false,
     });
   });
 
   it("sendet die sichtbaren Nullzustände und den Radio-Default nein", async () => {
-    await mount(<KontrolleForm geraetId="bz-2" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-2" level1={LEVEL_1} level2={null} />);
 
     expect(query<HTMLInputElement>("input[value='false']").checked).toBe(true);
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
@@ -250,6 +261,7 @@ describe("KontrolleForm: Action-Payload", () => {
       sticks: 0,
       lanzetten: 0,
       batterieGewechselt: false,
+      beachtung: false,
     });
   });
 });
@@ -258,6 +270,7 @@ describe("KontrolleForm: Erfolg und Reset", () => {
   it("meldet bestanden und setzt alle Eingaben auf ihre sichtbaren Defaults zurück", async () => {
     await mount(
       <KontrolleForm
+        beachtungAktiv={false}
         geraetId="bz-1"
         level1={LEVEL_1}
         level2={{ label: "Kontrolllösung hoch", min: 250, max: 350 }}
@@ -294,7 +307,7 @@ describe("KontrolleForm: Erfolg und Reset", () => {
       ok: true,
       wert: { id: "kontrolle-2", bestanden: false },
     });
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
     await warteAuf(
@@ -316,7 +329,7 @@ describe("KontrolleForm: erwartete Action-Fehler", () => {
         sticks: "Teststreifen dürfen höchstens 9999 sein",
       },
     });
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
     await fill("input[aria-label='Teststreifen']", "42");
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
@@ -342,7 +355,7 @@ describe("KontrolleForm: erwartete Action-Fehler", () => {
       ok: false,
       fehler: "Gerät nicht gefunden.",
     });
-    await mount(<KontrolleForm geraetId="bz-verschwunden" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-verschwunden" level1={LEVEL_1} level2={null} />);
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
     await warteAuf(
@@ -360,7 +373,7 @@ describe("KontrolleForm: Laufzeitfehler", () => {
     mocks.kontrolleErfassen.mockRejectedValueOnce(
       new Error("interne Datenbankverbindung mit Geheimnis"),
     );
-    await mount(<KontrolleForm geraetId="bz-1" level1={LEVEL_1} level2={null} />);
+    await mount(<KontrolleForm beachtungAktiv={false} geraetId="bz-1" level1={LEVEL_1} level2={null} />);
     await fill("input[aria-label='Kommentar']", "Bitte erneut versuchen");
 
     await submitForm("form[aria-label='BZ-Kontrolle erfassen']");
@@ -410,11 +423,16 @@ describe("Kontrollseite als Server Component", () => {
         geraetId: string;
         level1: unknown;
         level2: unknown;
+        beachtungAktiv: boolean;
       };
       expect(formProps).toEqual({
         geraetId: "bz-1",
         level1: { label: "Niedrig", min: 40, max: 60 },
         level2: { label: null, min: null, max: 350 },
+        // DRK-311: ein BOOLEAN, nicht der Hinweistext. Das Formular braucht nur
+        // zu wissen, ob es erklaeren muss, dass „nein" nichts aufhebt — der
+        // Text selbst steht auf dem Geraeteblatt, wo er zu aendern ist.
+        beachtungAktiv: false,
       });
       expect(istRekursivJsonSicher(formProps)).toBe(true);
 

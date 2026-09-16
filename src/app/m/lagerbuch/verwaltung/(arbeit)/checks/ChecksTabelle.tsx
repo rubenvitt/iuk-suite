@@ -36,6 +36,9 @@ export type CheckAnzeigeZeile = {
   abgeschlossenText: string;
   /** ISO-Zeitstempel — allein fuer die Sortierung, nie angezeigt. */
   abgeschlossenIso: string | null;
+  /** DRK-311 — der aufgeloeste Verfasser. Nie leer; der Aufloeser faellt
+   *  notfalls auf die rohe Kennung zurueck (`_db/quelle.ts`). */
+  werText: string;
   ergebnisChips: CheckErgebnisChip[];
   positionenText: string;
 };
@@ -124,6 +127,26 @@ function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["co
       key: "abgeschlossen",
       // Die Abfrage liefert „juengste zuerst" (`orderBy(desc(completedAt))`).
       render: (text: string) => <span className={s.jts}>{text}</span>,
+    },
+    {
+      /*
+       * DRK-311 — WER DEN CHECK ERFASST HAT. „Wer" wie im BZ-Logbuch daneben:
+       * dieselbe Frage, dasselbe Wort, derselbe graue Chip. Zwei Ueberschriften
+       * fuer dieselbe Spalte („Verfasser" hier, „Wer" dort) liessen offen, ob
+       * auch dasselbe gemeint ist.
+       *
+       * ⚠️ DER FILTER GRUPPIERT UEBER DEN ANGEZEIGTEN NAMEN, nicht ueber die
+       * Kennung dahinter — dieselbe Zeichenkette, die in der Spalte steht,
+       * damit Haken und Anzeige dasselbe meinen (vgl. `zeileTitel` oben). Zwei
+       * Konten mit demselben Anzeigenamen faellt der Filter damit zusammen; das
+       * ist der Preis dafuer, dass niemand rohe Kennungen ankreuzen muss.
+       */
+      title: "Wer",
+      dataIndex: "werText",
+      key: "wer",
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.werText),
+      onFilter: trifftWert<CheckAnzeigeZeile>((zeile) => zeile.werText),
+      render: (text: string) => <Chip ton="grau">{text}</Chip>,
     },
     {
       title: "Ergebnis",

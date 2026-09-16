@@ -21,6 +21,8 @@
  */
 import { and, desc, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
+import type { DB } from "../../_db/client";
+import { quelleAufloeser } from "../../_db/quelle";
 import type { Einheitenart } from "../konstanten";
 import { parseCheckErgebnis } from "../checkErgebnis";
 import { offenJeArtikel, summiereCheckErgebnis, type CheckSummen } from "../domain/check";
@@ -44,12 +46,36 @@ export type CheckHistorieZeile = CheckSummen & {
    */
   fahrzeugKennung: string | null;
   fahrzeugEinheitenart: Einheitenart | null;
+  /**
+   * DER VERFASSER DES CHECKS — DRK-311.
+   *
+   * ⚠️ AUFGELOEST, NICHT ROH. `checks.quelleTyp`/`quelleId` bleiben in der
+   * Datenbank nachweisfest stehen; `quelleAufloeser` macht daraus einen Namen
+   * (Konto → `users.name`, Kaertchen → `tokens.label`, sonst „System").
+   *
+   * ⚠️ NIE `null`. Loest die Kennung auf nichts auf — geloeschtes Kaertchen,
+   * Konto aus dem alten Kennungsraum (§4.13) —, steht dort die ROHE Kennung und
+   * nicht ein Strich: „unbekannt" laesst offen, ob niemand es weiss oder
+   * niemand es erfasst hat, die rohe Kennung ist wenigstens nachschlagbar. Das
+   * ist zugleich die Lesart von „soweit vorhanden" im Ticket.
+   */
+  wer: string;
 };
 
 export type CheckHistorie = { zeilen: CheckHistorieZeile[]; mehrVorhanden: boolean };
 
-export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
+/**
+ * ⚠️ `DB` STATT `Leser` SEIT DRK-311, und das ist keine Verengung ohne Grund:
+ * `quelleAufloeser` nimmt `DB` (Festlegung H11, ausgeschrieben im Kopf von
+ * `lesepfade/bz.ts`), und wer ihn ruft, nimmt `DB`. Die Historie wird nur aus
+ * Server Components gelesen, nie aus einer offenen Transaktion — anders als die
+ * Geraeteliste, die innerhalb der Check-Transaktion laeuft.
+ */
+export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
   const grenze = f.grenze ?? CHECK_GRENZE;
+  // EIN Aufloeser fuer ALLE Zeilen — er laedt `users` und `tokens` je Aufruf
+  // einmal (`_db/quelle.ts`), nicht je Check.
+  const wer = quelleAufloeser(db);
   const einheiten = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l]));
   // EIN Abruf des Flaschenstamms fuer ALLE Zeilen — der Nachschlag steckt in der
   // Summenfunktion, die je Zeile laeuft; ein Abruf dort waere einer je Check.
@@ -76,6 +102,7 @@ export function checkHistorie(db: Leser, f: CheckFilter = {}): CheckHistorie {
       fahrzeugKennung: einheiten.get(c.fahrzeugId)?.kennung ?? null,
       fahrzeugEinheitenart: einheiten.get(c.fahrzeugId)?.einheitenart ?? null,
       completedAt: c.completedAt,
+      wer: wer(c.quelleTyp, c.quelleId),
       ...summiereCheckErgebnis(c.ergebnis, wechselGrenze),
     })),
   };
@@ -122,6 +149,10 @@ export type CheckDetail = {
    */
   fahrzeugEinheitenart: Einheitenart | null;
   quelleId: string; startedAt: Date; completedAt: Date | null;
+  /** Der Verfasser, aufgeloest — dieselbe Begruendung wie an
+   *  `CheckHistorieZeile.wer`. Wer aus der Historie hierher tippt, soll
+   *  denselben Namen wiederfinden, nicht die rohe Kennung daneben. */
+  wer: string;
   positionen: CheckPositionDetail[]; artikel: CheckArtikelDetail[];
   geraete: CheckGeraetDetail[]; flaschen: CheckFlascheDetail[]; verfall: CheckVerfallDetail[];
   /** ⚠️ Bleibt ein Feld der Antwort, und die Detailseite SAGT es (§4.10, §11.5
@@ -143,7 +174,8 @@ export type CheckDetail = {
   summe: CheckSummen & { verfallAuffaellig: number };
 };
 
-export function checkDetail(db: Leser, id: string, now: Date = new Date()): CheckDetail | null {
+/** ⚠️ `DB` statt `Leser` — Begruendung an `checkHistorie`. */
+export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDetail | null {
   const c = db.select().from(checks).where(eq(checks.id, id)).get();
   if (!c) return null;
   const fahrzeug = db.select().from(lagerorte).where(eq(lagerorte.id, c.fahrzeugId)).get();
@@ -267,6 +299,7 @@ export function checkDetail(db: Leser, id: string, now: Date = new Date()): Chec
     fahrzeugName: fahrzeug?.name ?? "–", fahrzeugKennung: fahrzeug?.kennung ?? null,
     fahrzeugEinheitenart: fahrzeug?.einheitenart ?? null,
     quelleId: c.quelleId, startedAt: c.startedAt, completedAt: c.completedAt,
+    wer: quelleAufloeser(db)(c.quelleTyp, c.quelleId),
     positionen, artikel: artikelD, geraete: geraeteD, flaschen: flaschenD, verfall: verfallD,
     altFormat: summe.altFormat,
     // Aus DERSELBEN Quelle wie `altFormat` daneben. Seit die Uebersicht den

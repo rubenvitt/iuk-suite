@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { eq } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { bzGeraete, bzKontrollen, lagerorte, users } from "../../_db/schema";
@@ -119,6 +120,71 @@ describe("bzGeraeteUebersicht", () => {
     // Die Uebersicht muss DIESELBE Kontrolle als massgeblich behandeln wie
     // das Logbuch — nicht nur irgendeine mit passendem `ts`.
     expect(uebersicht.letztesBestanden).toBe(false);
+  });
+
+  /**
+   * DRK-311 — DIE BEMERKUNG KOMMT AUS DER LETZTEN KONTROLLE, NICHT AUS DER
+   * LETZTEN MIT TEXT.
+   *
+   * ⚠️ `k1` (vor 40 Tagen) traegt keinen Kommentar, `k2` (vor 10 Tagen) „ok" —
+   * und die Spalte daneben zeigt den Zeitpunkt von `k2`. Waehlte der Lesepfad
+   * „die juengste Kontrolle MIT Kommentar", stuende hier nach der naechsten
+   * kommentarlosen Kontrolle weiter ein alter Satz neben einem neuen Datum, und
+   * niemand koennte sehen, dass beide nicht zusammengehoeren.
+   */
+  it("zeigt die Bemerkung DER letzten Kontrolle, auch wenn sie leer ist", () => {
+    const vorher = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(vorher.letzteBemerkung).toBe("ok");
+
+    t.db.insert(bzKontrollen).values({
+      id: "k3", geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "oidc", quelleId: "sub-1",
+      level1Wert: 50, level1ImBereich: true, level2Wert: 300, level2ImBereich: true,
+      kompresseVerfall: null, sticks: 5, lanzetten: 5, batterieGewechselt: false,
+      kommentar: null, bestanden: true, refSnapshot: null,
+    }).run();
+
+    const nachher = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(nachher.letzteKontrolle?.getTime()).toBe(vorTagen(1).getTime());
+    expect(nachher.letzteBemerkung).toBeNull();
+  });
+
+  it("ein Kommentar aus lauter Leerzeichen ist keine Bemerkung", () => {
+    t.db.insert(bzKontrollen).values({
+      id: "k-leer", geraetId: "bz-1", ts: vorTagen(1), quelleTyp: "oidc", quelleId: "sub-1",
+      level1Wert: 50, level1ImBereich: true, level2Wert: 300, level2ImBereich: true,
+      kompresseVerfall: null, sticks: 0, lanzetten: 0, batterieGewechselt: false,
+      kommentar: "   ", bestanden: true, refSnapshot: null,
+    }).run();
+    expect(bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!.letzteBemerkung)
+      .toBeNull();
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, DIE DAS GANZE TICKET TRAEGT: `bz-1` hat eine Bemerkung
+   * („ok") und trotzdem KEINE Beachtung. Waere der gelbe Status aus dem
+   * Kommentar abgeleitet, leuchtete hier eine Auskunft als Warnung — genau das,
+   * was die Gespraechsnotiz zu DRK-311 ausschliesst.
+   */
+  it("eine Bemerkung macht noch keine Beachtung", () => {
+    const z = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(z.letzteBemerkung).toBe("ok");
+    expect(z.beachtung).toEqual({ erforderlich: false, hinweis: null, seit: null });
+  });
+
+  it("reicht eine gesetzte Beachtung samt Standzeit an Liste UND Detail", () => {
+    const seit = vorTagen(3);
+    t.db.update(bzGeraete)
+      .set({ beachtungHinweis: "Display flackert", beachtungSeit: seit })
+      .where(eq(bzGeraete.id, "bz-1"))
+      .run();
+
+    const zeile = bzGeraeteUebersicht(t.db, NOW).find((x) => x.id === "bz-1")!;
+    expect(zeile.beachtung).toEqual({
+      erforderlich: true, hinweis: "Display flackert", seit,
+    });
+    // Dieselbe Aussage im Detail — die Seite formuliert die Bedingung nicht
+    // selbst noch einmal.
+    expect(bzGeraetDetail(t.db, "bz-1", NOW)!.beachtung).toEqual(zeile.beachtung);
   });
 
   it("ein nie geprueftes Geraet ist ROT mit ueberfaellig FALSE", () => {

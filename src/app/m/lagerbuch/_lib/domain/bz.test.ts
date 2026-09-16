@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { bzFaelligkeit, imBereich, bewerteKontrolle, akkuLebensdauer,
+         beachtungsFelder, bzBeachtung,
          BZ_KONTROLL_INTERVALL_TAGE, BZ_WARN_TAGE } from "./bz";
 
 const NOW = new Date("2026-06-15T12:00:00Z");
@@ -157,5 +158,90 @@ describe("akkuLebensdauer", () => {
     const eingabe = [NOW, vorTagen(300), vorTagen(100)];
     expect(akkuLebensdauer(eingabe).tageDurchschnitt).toBe(150);
     expect(eingabe[0]).toBe(NOW);
+  });
+});
+
+describe("bzBeachtung — DER TEXT IST DER ZUSTAND", () => {
+  it("ohne Hinweis: keine Beachtung, und `seit` bleibt leer", () => {
+    expect(bzBeachtung({ beachtungHinweis: null, beachtungSeit: null })).toEqual({
+      erforderlich: false, hinweis: null, seit: null,
+    });
+  });
+
+  it("mit Hinweis: erforderlich, Text getrimmt, `seit` durchgereicht", () => {
+    const seit = new Date("2026-06-01T08:00:00Z");
+    expect(bzBeachtung({ beachtungHinweis: "  Display flackert  ", beachtungSeit: seit }))
+      .toEqual({ erforderlich: true, hinweis: "Display flackert", seit });
+  });
+
+  /**
+   * ⚠️ DIE FALLE DIESER FUNKTION. Ein `!== null` an einer Anzeigestelle faende
+   * hier eine Beachtung und zeigte einen gelben Chip, dessen Begruendung ein
+   * Leerzeichen ist — die Farbe ohne Aussage, die DRK-311 ausschliesst.
+   */
+  it("ein Hinweis aus lauter Leerzeichen ist KEIN Hinweis", () => {
+    expect(bzBeachtung({
+      beachtungHinweis: "   ",
+      beachtungSeit: new Date("2026-06-01T08:00:00Z"),
+    })).toEqual({ erforderlich: false, hinweis: null, seit: null });
+  });
+
+  /**
+   * Eine Altzeile kann einen Hinweis ohne Zeitstempel tragen. Sie ist eine
+   * gueltige Beachtung — nur eben eine ohne Standzeit; die Anzeige muss beides
+   * vertragen, statt am fehlenden Datum zu haengen.
+   */
+  it("Hinweis ohne Zeitstempel bleibt eine Beachtung", () => {
+    expect(bzBeachtung({ beachtungHinweis: "Akku schwach", beachtungSeit: null }))
+      .toEqual({ erforderlich: true, hinweis: "Akku schwach", seit: null });
+  });
+});
+
+describe("beachtungsFelder — setzen, umformulieren, aufheben", () => {
+  const JETZT = new Date("2026-06-15T12:00:00Z");
+  const FRUEHER = new Date("2026-05-20T09:00:00Z");
+  const OHNE = { beachtungHinweis: null, beachtungSeit: null };
+
+  it("setzt `seit` auf jetzt, wenn vorher keine Beachtung lief", () => {
+    expect(beachtungsFelder(OHNE, "Display flackert", JETZT)).toEqual({
+      beachtungHinweis: "Display flackert", beachtungSeit: JETZT,
+    });
+  });
+
+  /**
+   * ⚠️ DIE ZAHL, AN DER MAN MERKT, DASS SICH NIEMAND KUEMMERT. Ein `seit =
+   * jetzt` bei jedem Speichern machte aus einem vier Wochen alten Missstand
+   * still einen frischen — und zwar genau dann, wenn jemand den Satz
+   * praeziser fasst, also beim gutgemeinten Handgriff.
+   */
+  it("laesst `seit` stehen, wenn nur der Text umformuliert wird", () => {
+    expect(beachtungsFelder(
+      { beachtungHinweis: "Display flackert", beachtungSeit: FRUEHER },
+      "Display flackert beim Einschalten",
+      JETZT,
+    )).toEqual({
+      beachtungHinweis: "Display flackert beim Einschalten", beachtungSeit: FRUEHER,
+    });
+  });
+
+  it("faengt die Altzeile ohne Zeitstempel mit jetzt ab", () => {
+    expect(beachtungsFelder(
+      { beachtungHinweis: "Akku schwach", beachtungSeit: null }, "Akku schwach", JETZT,
+    )).toEqual({ beachtungHinweis: "Akku schwach", beachtungSeit: JETZT });
+  });
+
+  /** ⚠️ BEIDE Spalten zurueck. Ein stehengebliebenes `seit` ohne Text waere ein
+   *  Datum, zu dem es nichts gibt. */
+  it("hebt auf und raeumt dabei auch den Zeitstempel weg", () => {
+    expect(beachtungsFelder(
+      { beachtungHinweis: "Display flackert", beachtungSeit: FRUEHER }, null, JETZT,
+    )).toEqual({ beachtungHinweis: null, beachtungSeit: null });
+  });
+
+  /** Ein vorher leerer Stand, der leer bleibt — das Aufheben ist idempotent. */
+  it("bleibt beim Aufheben ohne laufende Beachtung folgenlos", () => {
+    expect(beachtungsFelder(OHNE, null, JETZT)).toEqual({
+      beachtungHinweis: null, beachtungSeit: null,
+    });
   });
 });

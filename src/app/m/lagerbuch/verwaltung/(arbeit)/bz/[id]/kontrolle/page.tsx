@@ -11,11 +11,13 @@ type KontrolleFormDto = {
   geraetId: string;
   level1: KontrolleLevelDto;
   level2: KontrolleLevelDto;
+  beachtungAktiv: boolean;
 };
 
 function formDto(
-  geraet: NonNullable<ReturnType<typeof bzGeraetDetail>>["geraet"],
+  detail: NonNullable<ReturnType<typeof bzGeraetDetail>>,
 ): KontrolleFormDto {
+  const geraet = detail.geraet;
   return {
     geraetId: geraet.id,
     level1: {
@@ -28,6 +30,12 @@ function formDto(
       min: geraet.level2Min,
       max: geraet.level2Max,
     },
+    /*
+     * DRK-311: nur fuer den Erklaertext unter der Wahl — das Formular muss
+     * sagen koennen, dass „nein" einen BESTEHENDEN Hinweis nicht aufhebt. Der
+     * Wert selbst wird nie vorbelegt (Begruendung an `initialValues`).
+     */
+    beachtungAktiv: detail.beachtung.erforderlich,
   };
 }
 
@@ -44,7 +52,7 @@ export function kontrolleSeiteInhalt(db: DB, id: string): ReactNode {
         beschreibung="Die Messwerte werden gegen die heute am Gerät hinterlegten Referenzbereiche bewertet; dieser Stand wird mit der Kontrolle eingefroren."
         zurueck={{ titel: detail.geraet.name, href: `/verwaltung/bz/${detail.geraet.id}` }}
       />
-      <KontrolleForm {...formDto(detail.geraet)} />
+      <KontrolleForm {...formDto(detail)} />
     </>
   );
 }
