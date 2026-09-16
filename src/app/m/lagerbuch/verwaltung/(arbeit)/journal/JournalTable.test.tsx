@@ -43,6 +43,7 @@ const ZEILEN: JournalZeileDTO[] = [
     kommentar: null,
     referenz: null,
     ortName: "Schrank 1",
+    ortStandort: { name: "Schrank 1", typ: "lager" as const, kennung: null, einheitenart: null },
   },
   {
     id: "journal-negativ",
@@ -55,6 +56,7 @@ const ZEILEN: JournalZeileDTO[] = [
     kommentar: "Verbraucht",
     referenz: null,
     ortName: "Handlager",
+    ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
   },
 ];
 
@@ -615,6 +617,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       kommentar: "Verfallskontrolle",
       referenz: "aussondern:handlager",
       ortName: "Handlager",
+      ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
     },
     {
       id: "journal-inventur",
@@ -627,6 +630,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       kommentar: "Jahresinventur",
       referenz: "inventur:iv-1",
       ortName: "Handlager",
+      ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
     },
     {
       id: "journal-handkorrektur",
@@ -639,6 +643,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       kommentar: "verzählt",
       referenz: null,
       ortName: "Handlager",
+      ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
     },
   ];
 
@@ -740,6 +745,7 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
       kommentar: null,
       referenz: "umlagerung:schrank-gf",
       ortName: "GF-Schrank",
+      ortStandort: { name: "GF-Schrank", typ: "lager" as const, kennung: null, einheitenart: null },
     },
     {
       id: "journal-um-quelle",
@@ -752,6 +758,7 @@ describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)
       kommentar: null,
       referenz: "umlagerung:schrank-gf",
       ortName: "Schrank 1",
+      ortStandort: { name: "Schrank 1", typ: "lager" as const, kennung: null, einheitenart: null },
     },
   ];
 

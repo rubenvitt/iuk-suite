@@ -92,6 +92,7 @@ const DETAIL = {
       kommentar: null,
       quelleName: "RTW 1 Karte",
       ortName: "Handlager",
+      ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
     },
   ],
   mehrVorhanden: true,

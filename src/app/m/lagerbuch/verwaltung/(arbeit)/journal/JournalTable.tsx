@@ -7,6 +7,7 @@ import { Datentabelle } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
 import type { Vorgangsart } from "../../../_lib/vorgang";
+import { standortZeile } from "../../../_lib/konstanten";
 import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 // ⚠️ Aus `journalFilterLogik`, NICHT aus `JournalFilter` — letzteres ist eine
 // Client-Komponente, die den Wert nur re-exportiert. Der Umweg ginge hier zwar
@@ -35,7 +36,13 @@ export type JournalAnzeigeZeile = {
   quelleId: string;
   /** DRK-338 — der Lagerort dieser Zeile. Bei einer Umlagerung steht die QUELLE
    *  in der Zeile mit dem Minus und das ZIEL in der mit dem Plus; anders ist
-   *  eine Umlagerung nicht zu lesen. */
+   *  eine Umlagerung nicht zu lesen.
+   *
+   *  ⚠️ DRK-309: die VOLLE Zeile „Name · Art", gebaut in `anzeigeZeile`. Das
+   *  Journal beantwortet „wo ist das hingegangen?" — bei zwei gleichnamigen
+   *  Einheiten beantwortet ein blosser Name sie nicht, und hier steht die
+   *  Antwort in einem append-only Buch, das man spaeter liest, ohne die Liste
+   *  daneben zu haben. */
   ortName: string;
 };
 
@@ -84,7 +91,7 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
     typ: zeile.typ,
     quelleName: zeile.quelleName,
     quelleId: zeile.quelleId,
-    ortName: zeile.ortName,
+    ortName: standortZeile(zeile.ortStandort),
   };
 }
 
@@ -143,6 +150,13 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
    * Sie steht fuer JEDE Zeile da, nicht nur fuer Umlagerungen — ein Zugang, der
    * in Schrank 1 landet, und einer, der unsortiert an der Wurzel liegt, waren
    * im Journal bisher nicht zu unterscheiden.
+   */
+  /*
+   * ⚠️ DER ORT WIRD BENANNT, NICHT NUR GENANNT (DRK-309, Reviewrunde 15).
+   * Das Journal beantwortet „wo ist das hingegangen?"; bei zwei gleichnamigen
+   * Einheiten beantwortet ein blosser Name sie nicht — und hier steht die
+   * Antwort in einem append-only Buch, das man spaeter liest, ohne die Liste
+   * daneben zu haben.
    */
   { title: "Ort", dataIndex: "ortName", key: "ort" },
   {

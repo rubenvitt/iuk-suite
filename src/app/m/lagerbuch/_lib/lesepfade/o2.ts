@@ -152,6 +152,9 @@ export type O2MessungZeile = {
 export type O2FlascheDetail = {
   flasche: typeof o2Flaschen.$inferSelect;
   lagerortName: string;
+  /** DRK-309: volle Standortangabe — Begruendung an `GeraetDetail`. */
+  lagerortStandort: StandortAngabe;
+
   status: O2Status | null;
   /** chronologisch ABSTEIGEND */
   verlauf: O2MessungZeile[];
@@ -175,7 +178,11 @@ export function o2FlascheDetail(db: DB, id: string): O2FlascheDetail | null {
   }));
   const letzterDruck = verlauf.length > 0 ? verlauf[0].druckBar : null;
   return {
-    flasche: f, lagerortName: lo?.name ?? "–",
+    flasche: f,
+    lagerortName: lo?.name ?? "–",
+    lagerortStandort: lo
+      ? { name: lo.name, typ: lo.typ, kennung: lo.kennung, einheitenart: lo.einheitenart }
+      : STANDORT_UNBEKANNT,
     status: letzterDruck !== null
       ? o2Status(letzterDruck, f.nennfuelldruckBar, f.wechselAbProzent)
       : null,

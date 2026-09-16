@@ -95,6 +95,15 @@ export function geraeteFuerLagerort(
 export type GeraetDetail = {
   geraet: typeof geraete.$inferSelect;
   lagerortName: string;
+  /**
+   * ⚠️ DIE VOLLE STANDORTANGABE, NICHT NUR DER NAME (DRK-309, Reviewrunde 15).
+   * Die Uebersicht daneben nennt die Art seit Runde 14 — wer von dort auf eine
+   * Zeile tippt, landet hier und verlor sie wieder. Die Detailseite ist
+   * zugleich der Ort, an den ein Lesezeichen oder ein Link fuehrt; dort gab es
+   * die Uebersichtszeile nie zu sehen.
+   */
+  lagerortStandort: StandortAngabe;
+
   faelligkeit: DatumFaelligkeit;
   chip: FaelligChip | null;
 };
@@ -104,10 +113,15 @@ export function geraetById(
 ): GeraetDetail | null {
   const g = db.select().from(geraete).where(eq(geraete.id, id)).get();
   if (!g) return null;
-  const lagerortName =
-    db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get()?.name ?? "–";
+  const l = db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get();
+  const lagerortStandort: StandortAngabe = l
+    ? { name: l.name, typ: l.typ, kennung: l.kennung, einheitenart: l.einheitenart }
+    : STANDORT_UNBEKANNT;
   const f = geraetFaelligkeit(g, now);
-  return { geraet: g, lagerortName, faelligkeit: f, chip: geraetFaelligChip(g.typ, f) };
+  return {
+    geraet: g, lagerortName: lagerortStandort.name, lagerortStandort,
+    faelligkeit: f, chip: geraetFaelligChip(g.typ, f),
+  };
 }
 
 /** BYTE-EXAKTE Suche — Barcodes stehen physisch am Geraet, oft

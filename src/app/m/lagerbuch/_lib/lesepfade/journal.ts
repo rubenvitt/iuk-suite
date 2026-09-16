@@ -34,7 +34,7 @@
 import { and, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { artikel, buchungen } from "../../_db/schema";
 import { quelleAufloeser } from "../../_db/quelle";
-import { ortStamm } from "./orte";
+import { ortStamm, type OrtStammZeile } from "./orte";
 import { falte } from "../suche";
 import { JOURNAL_GRENZE } from "../grenzen";
 import {
@@ -46,6 +46,18 @@ import {
   type Vorgangsart,
 } from "../vorgang";
 import type { DB } from "../../_db/client";
+import type { StandortAngabe } from "../konstanten";
+
+/**
+ * Ein unbekannter Ort ist kein Ort OHNE Art, sondern gar keine Einheit —
+ * `typ: "lager"` laesst `standortMeta` „Lager" sagen statt „nicht zugeordnet"
+ * (DRK-309).
+ */
+function ortStandortVon(o: OrtStammZeile | undefined, id: string): StandortAngabe {
+  return o
+    ? { name: o.name, typ: o.typ, kennung: o.kennung, einheitenart: o.einheitenart }
+    : { name: id, typ: "lager", kennung: null, einheitenart: null };
+}
 
 /**
  * DIE BEDINGUNG HINTER EINER VORGANGSART (DRK-344).
@@ -153,6 +165,18 @@ export type JournalZeileRoh = {
    * Grenze (Server Component und Server Action).
    */
   ortName: string;
+  /**
+   * ⚠️ DIE ART DES ORTS — UND SIE IST HIER KEIN SCHMUCK (DRK-309,
+   * Reviewrunde 15). Das Journal beantwortet „wo ist das hingegangen?"; bei
+   * zwei gleichnamigen Einheiten beantwortet ein blosser Name sie nicht.
+   *
+   * ⚠️ NICHT ZU VERWECHSELN MIT DER ZWEITEN AUSNAHME DIESES TICKETS: der
+   * VORGANGSTEXT bleibt neutral, weil er GESPEICHERT ist und eine spaetere
+   * Korrektur der Art ihn falsch machen wuerde. Diese Angabe wird dagegen bei
+   * JEDEM Lesen aus `lagerorte` aufgeloest und zeigt damit immer die heutige
+   * Art — sie darf sie deshalb nennen.
+   */
+  ortStandort: StandortAngabe;
 };
 
 export type JournalErgebnis = {
@@ -244,6 +268,7 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
       // Ein geloeschter Ort faellt auf seine Kennung zurueck statt auf „–":
       // das Journal ist append-only, die Zeile bleibt lesbar.
       ortName: orte.get(b.lagerortId)?.name ?? b.lagerortId,
+      ortStandort: ortStandortVon(orte.get(b.lagerortId), b.lagerortId),
     })),
   };
 }

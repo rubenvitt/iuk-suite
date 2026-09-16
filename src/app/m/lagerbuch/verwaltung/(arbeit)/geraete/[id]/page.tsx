@@ -4,6 +4,7 @@ import { Col, Row } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { getDb, type DB } from "../../../../_db/client";
 import { lagerortOptionen } from "../../../../_lib/lesepfade/bz";
+import { standortZeile } from "../../../../_lib/konstanten";
 import { geraetById } from "../../../../_lib/lesepfade/geraete";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -54,7 +55,7 @@ export function geraetSeitenInhalt(db: DB, id: string, jetzt: Date): ReactNode {
           />
         </Col>
         <Col xs={24} md={12} xl={6}>
-          <Kachel zahl={detail.lagerortName} beschriftung="Standort" />
+          <Kachel zahl={standortZeile(detail.lagerortStandort)} beschriftung="Standort" />
         </Col>
         <Col xs={24} md={12} xl={6}>
           <Kachel

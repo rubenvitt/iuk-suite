@@ -156,6 +156,23 @@ afterEach(async () => {
   t.schliessen();
 });
 
+/**
+ * ⚠️ DIE ERWARTETE ZIELLISTE STEHT EINMAL, UND DAS IST DER GANZE PUNKT
+ * (DRK-309, nach dem Merge von DRK-305).
+ *
+ * Hier stand sie zweimal woertlich: einmal in „bietet Verbrauch und jedes
+ * AKTIVE Fahrzeug an" und einmal in „bietet dieselben Ziele an wie mit
+ * Kaertchen". Der zweite Fall kam mit DRK-305 dazu und zaehlte ZWEI
+ * Fahrzeuge, waehrend dieser Zweig die Fixture um eine Tasche und eine
+ * Einheit ohne Art erweitert hat — beide Aenderungen sind fuer sich richtig,
+ * git sah keinen Konflikt, und der Fall fiel erst im Gesamtlauf um.
+ *
+ * Die Aussage des zweiten Falls ist „DIESELBEN Ziele wie mit Kaertchen",
+ * nicht „genau diese zwei". Eine gemeinsame Liste sagt genau das — und die
+ * naechste Fixture-Zeile kann sie nicht mehr still auseinanderlaufen lassen.
+ */
+const ALLE_ZIELE = ["verbrauch", "fz:fz-1", "fz:fz-2", "fz:ta-1", "fz:offen-1"];
+
 async function zeige(returnTo = "/a/art-1") {
   await mount(await ZielSeite({ searchParams: Promise.resolve({ returnTo }) }));
 }
@@ -166,7 +183,7 @@ describe("Die Zielwahl", () => {
 
     const w = wahlen();
     expect(w.map((z) => z.wert))
-      .toEqual(["verbrauch", "fz:fz-1", "fz:fz-2", "fz:ta-1", "fz:offen-1"]);
+      .toEqual(ALLE_ZIELE);
     // Der Verbrauch steht OBEN und heißt nach dem, was er bewirkt.
     // DRK-309: NEUTRAL — die Liste darunter fuehrt Fahrzeuge UND Taschen.
     expect(w[0]!.text).toContain("Keine Einheit");
@@ -314,7 +331,7 @@ describe("Die Zielwahl auf dem Konto-Weg (DRK-305)", () => {
     // diese Zeile wäre eine Fassung grün, die dem Konto-Weg still die
     // Fahrzeugliste nimmt.
     await zeige();
-    expect(wahlen().map((z) => z.wert)).toEqual(["verbrauch", "fz:fz-1", "fz:fz-2"]);
+    expect(wahlen().map((z) => z.wert)).toEqual(ALLE_ZIELE);
   });
 });
 

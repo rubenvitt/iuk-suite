@@ -166,6 +166,8 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
 export type BzGeraetDetail = {
   geraet: typeof bzGeraete.$inferSelect;
   lagerortName: string;
+  /** DRK-309: volle Standortangabe — Begruendung an `GeraetDetail`. */
+  lagerortStandort: StandortAngabe;
   faelligkeit: BzFaelligkeit;
   akku: BzAkkuKennzahl;
   /** chronologisch ABSTEIGEND */
@@ -179,8 +181,10 @@ export function bzGeraetDetail(
 ): BzGeraetDetail | null {
   const g = db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get();
   if (!g) return null;
-  const lagerortName =
-    db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get()?.name ?? "–";
+  const lo = db.select().from(lagerorte).where(eq(lagerorte.id, g.lagerortId)).get();
+  const lagerortStandort: StandortAngabe = lo
+    ? { name: lo.name, typ: lo.typ, kennung: lo.kennung, einheitenart: lo.einheitenart }
+    : STANDORT_UNBEKANNT;
   const sichtbareRows = db.select().from(bzKontrollen)
     .where(eq(bzKontrollen.geraetId, id))
     // id-Tiebreaker: `ts` sind UNIX-Sekunden (§5.14.4).
@@ -198,7 +202,7 @@ export function bzGeraetDetail(
     .all();
   const wer = quelleAufloeser(db);
   return {
-    geraet: g, lagerortName,
+    geraet: g, lagerortName: lagerortStandort.name, lagerortStandort,
     faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
     akku: akkuLebensdauer(batterieWechsel.map((k) => k.ts)),
     logbuch: sichtbareRows.slice(0, BZ_LOGBUCH_GRENZE).map((k) => toZeile(k, wer)),

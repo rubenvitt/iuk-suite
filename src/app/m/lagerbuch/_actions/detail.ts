@@ -8,6 +8,7 @@ import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
 import { verteilungJeCharge, type OrtVerteilungEintrag } from "../_lib/lesepfade/bestand";
+import { standortZeile } from "../_lib/konstanten";
 import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -158,7 +159,16 @@ export async function getDetail(
         kommentar: buchung.kommentar,
         referenz: buchung.referenz,
         quelleName: quelleName(buchung.quelleTyp, buchung.quelleId),
-        ortName: orte.get(buchung.lagerortId)?.name ?? buchung.lagerortId,
+        // DRK-309: dieselbe Bewegungsliste wie im Journal, also dieselbe
+        // Zeile. `ortStamm` traegt die Art seit Runde 14 mit.
+        ortName: (() => {
+          const o = orte.get(buchung.lagerortId);
+          return o
+            ? standortZeile(o)
+            : standortZeile({
+              name: buchung.lagerortId, typ: "lager", kennung: null, einheitenart: null,
+            });
+        })(),
       })),
       mehrVorhanden: detail.mehrVorhanden,
       // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber

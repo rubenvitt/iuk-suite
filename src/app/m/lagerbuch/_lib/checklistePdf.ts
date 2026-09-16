@@ -31,7 +31,7 @@
  * `winAnsi()`: die Standardschriften koennen nur WinAnsi kodieren.
  */
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
-import { checklisteTitel, dieseEinheit, ZUSTAENDE } from "./konstanten";
+import { checklisteTitel, dieseEinheit, einheitMeta, ZUSTAENDE } from "./konstanten";
 import type { ChecklisteBlatt, ChecklisteFach } from "./lesepfade/checkliste";
 
 /* ── Masse ────────────────────────────────────────────────────────────────── */
@@ -349,8 +349,15 @@ function neueSeite(lage: Lage): void {
   // auf dem Tisch — und auf einem Stapel Checklisten sind das genau die
   // Blaetter, die niemand mehr zuordnen kann.
   if (lage.seiten.length > 1) {
-    const kennung = lage.blatt.kennung ? ` · ${lage.blatt.kennung}` : "";
-    zeichne(lage.seite, `${lage.blatt.name}${kennung} — Fortsetzung`, {
+    /*
+     * ⚠️ DIE ART GEHOERT AUF JEDE SEITE, NICHT NUR AUF DIE ERSTE (DRK-309,
+     * Reviewrunde 15). Ein Bogen wird gedruckt, geheftet und wieder
+     * auseinandergenommen; eine einzelne Fortsetzungsseite, die nur „Rucksack
+     * Betreuung" traegt, ist von dem gleichnamigen Fahrzeugblatt nicht mehr zu
+     * unterscheiden — und auf Papier gibt es kein Zurueckblaettern zur
+     * Kopfzeile.
+     */
+    zeichne(lage.seite, `${lage.blatt.name} · ${einheitMeta(lage.blatt)} — Fortsetzung`, {
       x: RAND.links, y: lage.y - 8, size: 8, font: lage.fett, farbe: GEDAEMPFT,
     });
     lage.y -= 8 + 2 * MM;
@@ -457,8 +464,9 @@ function zeichneSignatur(lage: Lage): void {
 }
 
 function zeichneFuesse(lage: Lage): void {
-  const kennung = lage.blatt.kennung ? ` · ${lage.blatt.kennung}` : "";
-  const links = `${lage.blatt.name}${kennung} · Stand ${lage.stand}`;
+  // ⚠️ DERSELBE GRUND WIE AM FORTSETZUNGSKOPF: der Fuss steht auf JEDER
+  // Seite und ist bei einer losen Seite oft das Einzige, was sie benennt.
+  const links = `${lage.blatt.name} · ${einheitMeta(lage.blatt)} · Stand ${lage.stand}`;
 
   lage.seiten.forEach((seite, i) => {
     const y = RAND.unten + 4 * MM;

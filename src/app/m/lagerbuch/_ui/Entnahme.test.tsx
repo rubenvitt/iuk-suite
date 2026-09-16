@@ -130,7 +130,7 @@ const DETAIL: EntnahmeDetail = {
   chargen: [
     {
       id: "ch-1", chargenNr: "L1", verfall: "2027-03", rest: 30, restGesamt: 30,
-      orte: [{ id: "handlager", name: "Handlager", menge: 30, zugangshinweis: null }],
+      orte: [{ id: "handlager", name: "Handlager", menge: 30, zugangshinweis: null, typ: "lager" as const, kennung: null, einheitenart: null }],
       ampel: "gruen", text: "bis 03/27",
     },
     /**
@@ -150,8 +150,8 @@ const DETAIL: EntnahmeDetail = {
     {
       id: "ch-2", chargenNr: "L2", verfall: "2026-09", rest: 5, restGesamt: 12,
       orte: [
-        { id: "schrank-gf", name: "GF-Schrank", menge: 5, zugangshinweis: "Zugang über LvD — anrufen" },
-        { id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null },
+        { id: "schrank-gf", name: "GF-Schrank", menge: 5, zugangshinweis: "Zugang über LvD — anrufen", typ: "lager" as const, kennung: null, einheitenart: null },
+        { id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const },
       ],
       ampel: "gelb", text: "läuft bald ab",
     },
@@ -273,7 +273,7 @@ describe("Entnahme — die Anzeige", () => {
         chargen: [
           {
             id: "ch-3", chargenNr: "R-9", verfall: "2027-01", rest: 0, restGesamt: 7,
-            orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null }],
+            orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
             ampel: "gruen", text: "bis 01/27",
           },
         ],
