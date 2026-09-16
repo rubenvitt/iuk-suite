@@ -8,9 +8,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
-import { artikel, tokens, newId } from "./schema";
+import { artikel, lagerorte, tokens, newId } from "./schema";
 import { decodeQr } from "../../../../../e2e/helpers/decode-qr";
-import { etikettenDaten, EtikettenBasisFehlt } from "./etiketten";
+import { etikettenDaten, ortEtikettenDaten, EtikettenBasisFehlt } from "./etiketten";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 
 /**
  * DER HOST WIRD GEMOCKT, NICHT DIE BASIS-URL — und das ist der Unterschied zum
@@ -183,5 +184,153 @@ describe("etikettenDaten", () => {
     await expect(etikettenDaten(t.db)).rejects.toThrow();
     // Kein Teil-Ergebnis, kein `null/a/<id>` irgendwo — die Funktion steigt vor
     // dem ersten qrSvg aus.
+  });
+});
+
+/**
+ * DIE A7-ORTSETIKETTEN — DRK-312.
+ *
+ * ⚠️ DIE FIXTURE STEHT HIER UND NICHT IM `beforeEach` OBEN: die Lagerorte
+ * gehen keinen der Tests darueber etwas an, und eine Fixture, die jeder Test
+ * mittraegt, ohne sie zu benutzen, laedt den naechsten Leser ein, sie fuer eine
+ * Vorbedingung zu halten. Der Handlager selbst kommt aus Migration 0003 und
+ * wird nur benutzt.
+ */
+describe("ortEtikettenDaten", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "HN-DRK-1101",
+        aktiv: true, einheitenart: "fahrzeug" },
+      { id: "tasche-san", name: "Sanitätstasche 1", typ: "fahrzeug", kennung: null,
+        aktiv: true, einheitenart: "tasche" },
+      { id: "alt-elw", name: "ELW alt", typ: "fahrzeug", kennung: "HN-DRK-9",
+        aktiv: false, einheitenart: "fahrzeug" },
+    ]).run();
+  });
+
+  /**
+   * ⚠️ DIESELBE KONSTRUKTION WIE OBEN, UND AUS DEMSELBEN GRUND: der QR wird
+   * ZURUECKDEKODIERT, nicht auf sein Vorhandensein geprueft. Eine Zusicherung
+   * auf ein `<svg>` bliebe gruen, wenn die Nutzlast ein relativer Pfad waere —
+   * und ein relativer QR ist auf Papier bedeutungslos, sieht am Bildschirm aber
+   * richtig aus. Bei einem laminierten Kaertchen am Fahrzeug faellt das erst
+   * auf, wenn jemand davorsteht und scannt.
+   */
+  it("kodiert die absolute Adresse des Orts in die Pixel", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
+    expect(rtw.url).toBe("https://lagerbuch.iuk-ue.de/o/rtw-1");
+    expect(await decodeQr(rtw.qr)).toBe("https://lagerbuch.iuk-ue.de/o/rtw-1");
+  });
+
+  it("nimmt den Handlager und die aktiven Einheiten, den Handlager zuerst", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    expect(daten.orte.map((o) => o.id)).toEqual([HANDLAGER_ID, "rtw-1", "tasche-san"]);
+  });
+
+  /**
+   * ⚠️ `standortMeta` UND NICHT `einheitMeta`: fuer ein Lager ist die
+   * Einheitenart gegenstandslos, nicht „noch nicht zugeordnet". Stuende dort
+   * der Zwischenstandstext, laese sich der Handlager auf dem gedruckten Etikett
+   * als eine Einheit, bei der jemand die Zuordnung vergessen hat (DRK-309).
+   */
+  it("schreibt je Karte eine Beizeile, die die Art benennt", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    expect(daten.orte.map((o) => o.meta))
+      .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
+  });
+
+  /**
+   * ⚠️ ZWEI GLEICHNAMIGE EINHEITEN MUESSEN AUF PAPIER UNTERSCHEIDBAR BLEIBEN
+   * (Codex-Befund zu PR #177). Zwei aktive Taschen „Betreuung" ohne Kennung
+   * ergaeben sonst zwei Karten mit identischem Namen UND identischer Beizeile
+   * — nur die QR-Codes zeigten auf verschiedene Einheiten. Wer die Kaertchen
+   * beim Ankleben vertauscht, bucht ab da jeden Check auf die falsche.
+   *
+   * Zwei gleiche Namen sind ausdruecklich erlaubt: `lagerorte.name` traegt
+   * fuer Einheiten keinen Eindeutigkeitsschluessel.
+   */
+  it("gibt zwei gleichnamigen Einheiten je einen Unterscheider", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "tasche-a", name: "Betreuung", typ: "fahrzeug", kennung: null,
+        aktiv: true, einheitenart: "tasche" },
+      { id: "tasche-b", name: "Betreuung", typ: "fahrzeug", kennung: null,
+        aktiv: true, einheitenart: "tasche" },
+    ]).run();
+
+    const daten = await ortEtikettenDaten(t.db);
+    const beide = daten.orte.filter((o) => o.name === "Betreuung");
+    expect(beide).toHaveLength(2);
+    // Die eigentliche Zusage: die zwei Karten lesen sich NICHT gleich.
+    expect(beide.map((o) => o.unterscheidung)).toEqual(["tasche-a", "tasche-b"]);
+    /*
+     * ⚠️ UND DIE BEIZEILE BLEIBT SCHLICHT. Sie ist auf der Karte EINE Zeile mit
+     * `text-overflow`; stuende der Unterscheider dort, verschwaende er als
+     * Erstes — gemessen reichte die Zeile fuer „Tasche · <id>" (30 Zeichen)
+     * gerade noch, fuer „nicht zugeordnet · <id>" (40) nicht mehr. Genau das
+     * war der eigene Fehlgriff, den diese Zeile festhaelt.
+     */
+    for (const o of beide) expect(o.meta).toBe("Tasche");
+  });
+
+  /**
+   * ⚠️ AUCH MIT KENNUNG. Der Fall, an dem die alte Bauform gemessen scheiterte:
+   * „Fahrzeug · HN-DRK-1101 · <id>" sind 46 Zeichen und brauchte 325 von 212px.
+   * Im Fuss ist der Unterscheider davon unberuehrt.
+   */
+  it("traegt den Unterscheider auch, wenn die Beizeile schon lang ist", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "rtw-x", name: "Doppelt", typ: "fahrzeug", kennung: "HN-DRK-1101",
+        aktiv: true, einheitenart: "fahrzeug" },
+      { id: "rtw-y", name: "Doppelt", typ: "fahrzeug", kennung: "HN-DRK-1101",
+        aktiv: true, einheitenart: "fahrzeug" },
+    ]).run();
+
+    const daten = await ortEtikettenDaten(t.db);
+    const beide = daten.orte.filter((o) => o.name === "Doppelt");
+    expect(beide.map((o) => o.unterscheidung)).toEqual(["rtw-x", "rtw-y"]);
+    for (const o of beide) expect(o.meta).toBe("Fahrzeug · HN-DRK-1101");
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL BEWIESE: die Id
+   * erscheint NUR im Kollisionsfall. Sie ist haesslich, und eine Beizeile, die
+   * sie immer truege, waere auf jeder Karte schlechter lesbar — auf 64mm zaehlt
+   * jedes Zeichen.
+   */
+  it("laesst die Beizeile ohne Kollision in Ruhe", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
+    expect(rtw.meta).toBe("Fahrzeug · HN-DRK-1101");
+    expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
+    // Die Id ist haesslich und erscheint NUR im Kollisionsfall.
+    for (const o of daten.orte) expect(o.unterscheidung, o.name).toBeNull();
+  });
+
+  /**
+   * ⚠️ DER HANDLAGER GEHT NICHT DURCH `einheitLabels`. Er ist ein
+   * `typ: "lager"`; `einheitMeta` machte aus seiner fehlenden `einheitenart`
+   * ein „nicht zugeordnet" — also eine Einheit, bei der jemand die Art
+   * vergessen hat (DRK-309). Er bleibt „Lager", auch wenn eine Einheit
+   * genauso heisst.
+   */
+  it("laesst den Handlager ein Lager bleiben, auch neben einer gleichnamigen Einheit", async () => {
+    t.db.insert(lagerorte).values({
+      id: "tasche-hl", name: "Handlager", typ: "fahrzeug", kennung: null,
+      aktiv: true, einheitenart: "tasche",
+    }).run();
+
+    const daten = await ortEtikettenDaten(t.db);
+    expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
+    expect(daten.orte.find((o) => o.id === "tasche-hl")!.meta).toBe("Tasche");
+    // Und er bekommt keinen Unterscheider: er kollidiert mit keiner Einheit,
+    // weil „Lager" keine Einheit je erzeugt.
+    expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.unterscheidung).toBeNull();
+  });
+
+  /** Ohne Basis gibt es keinen halben Bogen — dieselbe Zusage wie oben. */
+  it("wirft EtikettenBasisFehlt, wenn moduleUrl null liefert", async () => {
+    modulUrl.wert = null;
+    await expect(ortEtikettenDaten(t.db)).rejects.toThrow(EtikettenBasisFehlt);
   });
 });

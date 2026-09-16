@@ -107,6 +107,14 @@
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
   },
+  "src/app/m/lagerbuch/o/[ortId]/page.tsx#redirect:!zugang:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
+  "src/app/m/lagerbuch/o/[ortId]/page.tsx#redirect:unconditional/catch:1": {
+    "kind": "excluded",
+    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
+  },
   "src/app/m/lagerbuch/g/[code]/page.tsx#redirect:helfer:1": {
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."

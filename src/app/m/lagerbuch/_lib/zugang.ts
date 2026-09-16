@@ -312,10 +312,17 @@ export function adminLandingPfad(returnTo: string | null | undefined): string {
   // /a/{id} leitet angemeldete Admins selbst in die Verwaltung weiter, ist also
   // schleifenfrei — so bleibt ein gescanntes Regaletikett als Ziel erhalten.
   const istArtikelDeepLink = ziel === "/a" || ziel.startsWith("/a/");
+  // DRK-312 — dasselbe fuer das ORTSETIKETT. `/o/{id}` leitet eine angemeldete
+  // Person in den Helfer-Ast weiter und nie zurueck aufs Gate, ist also
+  // schleifenfrei. Ohne diesen Eintrag verloere ein gescanntes Etikett sein Ziel
+  // beim Umweg ueber Pocket ID: die Person stuende mit der Karte in der Hand in
+  // der Uebersicht, und zwar jedes Mal.
+  const istOrtDeepLink = ziel === "/o" || ziel.startsWith("/o/");
   // DRK-305 — der Helfer-Ast steht angemeldeten Personen offen; siehe den Block
   // oben. `/helfer` selbst UND seine Unterseiten, `/helfer/check` ist der Fall,
   // fuer den das Ticket geschrieben ist.
   const istHelferAst =
     ziel === "/helfer" || ziel.startsWith("/helfer/") || ziel.startsWith("/helfer?");
-  return istVerwaltung || istArtikelDeepLink || istHelferAst ? ziel : "/verwaltung";
+  return istVerwaltung || istArtikelDeepLink || istOrtDeepLink || istHelferAst
+    ? ziel : "/verwaltung";
 }

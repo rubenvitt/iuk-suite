@@ -1046,6 +1046,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/verwaltung/journal`,
     `  ${BASIS_URL}/verwaltung/tokens`,
     `  ${BASIS_URL}/verwaltung/etiketten          Bogen mit QR und Klartext-Codes`,
+    `  ${BASIS_URL}/verwaltung/ortsetiketten      A7-Etikett je Handlager und Einheit`,
+    `  ${BASIS_URL}/o/${HANDLAGER_ID}                    Ortsetikett → Artikelliste`,
     `  ${BASIS_URL}/g/4012345678901               Geraete-Barcode → Geraete-Detail`,
     `  ${BASIS_URL}/g/4015630000018               Geraete-Barcode → BZ-Detail`,
     "",

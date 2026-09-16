@@ -94,6 +94,14 @@ const EINSTIEGE = [
   "/m/lagerbuch/helfer/check",
   "/m/lagerbuch/a/V1StGXR8_Z5jdHi6B-myT",
   "/m/lagerbuch/g/4012345678901",
+  // DRK-312 — die Ortsetikett-Weiche. Sie steht EINZELN und nicht als „Deep-
+  // Links, ein Vertreter": `/a/`, `/g/` und `/o/` sind drei verschiedene
+  // Namensraeume mit je eigenem Riegel, und ein Vertreter fuer alle drei
+  // deckte die anderen beiden nicht. `handlager` ist eine ECHTE Zeile
+  // (Migration 0003) — damit traegt auch die Eigen-Host-Haelfte der Schleife
+  // unten etwas: ein Pfad, den es gar nicht gibt, waere dort ebenfalls 404 und
+  // die Zusage liefe leer.
+  "/m/lagerbuch/o/handlager",
   "/m/lagerbuch/verwaltung",
   "/m/lagerbuch/verwaltung/artikel",
   "/m/lagerbuch/verwaltung/etiketten",
@@ -108,15 +116,15 @@ const EINSTIEGE = [
 
 test.describe("Host-Riegel", () => {
   // DIE ZAHL IST DIE ZUSAGE, nicht die Anwesenheit der Schleife: eine
-  // gestrichene Zeile schrumpfte den Lauf sonst STILL, und „vierzehn von
-  // fuenfzehn gesperrt" saehe in der Ausgabe genauso gruen aus wie fuenfzehn.
+  // gestrichene Zeile schrumpfte den Lauf sonst STILL, und „fuenfzehn von
+  // sechzehn gesperrt" saehe in der Ausgabe genauso gruen aus wie sechzehn.
   // ⚠️ Deckt NICHT jeden Tippfehler in einem Pfad — die Laenge haelt bei einer
   // GEAENDERTEN Zeile. Ein grosser Teil davon ist ueber die Eigen-Host-Haelfte
   // der Schleife unten trotzdem abgesichert: ein verschriebener, nicht
   // existierender Pfad waere dort ebenfalls 404 und liesse GENAU DIESEN
   // Eintrag fehlschlagen.
-  test("traegt alle fuenfzehn Einstiege", () => {
-    expect(EINSTIEGE).toHaveLength(15);
+  test("traegt alle sechzehn Einstiege", () => {
+    expect(EINSTIEGE).toHaveLength(16);
   });
 
   /*

@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
-  it("führt genau die 18 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
+  it("führt genau die 19 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -26,6 +26,10 @@ describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
       { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
       { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
+      // DRK-312: das A7-Etikett je Handlager bzw. Einheit. EIGENES Zeichen —
+      // „Etiketten" steht im selben Abschnitt, und zwei gleiche Zeichen waeren
+      // dort nicht auseinanderzuhalten (Begruendung an `core/shell/types.ts`).
+      { key: "ortsetiketten", title: "Ortsetiketten", href: "/verwaltung/ortsetiketten", ikon: "ortsetiketten", abschnitt: "Einrichtung" },
       { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung" },
       { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import", abschnitt: "Einrichtung" },
     ]);
@@ -54,8 +58,8 @@ describe("LAGERBUCH_NAV: die achtzehn Ziele", () => {
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(18);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(18);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(19);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(19);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {
