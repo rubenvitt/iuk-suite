@@ -88,8 +88,15 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
     einheitenart: f.einheitenart, aktiv: f.aktiv,
   }));
   const gewaehlt = von ? einheiten.find((e) => e.id === von) : undefined;
-  // ERST WAEHLEN, DANN LADEN: ohne Wahl kein Bestand im Payload.
-  const quellPosten = gewaehlt ? postenAmOrt(db, gewaehlt.id, jetzt) : [];
+  /*
+   * ERST WAEHLEN, DANN LADEN: ohne Wahl kein Bestand im Payload.
+   *
+   * ⚠️ UND GAR NICHTS, WENN DIE BOX STILLGELEGT IST (Codex-Review zu PR #175).
+   * Die Abgabe verschwindet in dem Fall; ihren Bestand trotzdem zu laden waere
+   * Arbeit fuer eine Flaeche, die nicht rendert — und der Payload traege ihn
+   * mit.
+   */
+  const quellPosten = gewaehlt && box.aktiv ? postenAmOrt(db, gewaehlt.id, jetzt) : [];
 
   const inhalt = boxInhalt(db, jetzt);
   const zugaenge: ZugangZeile[] = letzteBoxZugaenge(db).map((z) => ({
@@ -148,6 +155,9 @@ export function entnahmeboxInhalt(db: DB, von: string | undefined, jetzt: Date) 
 
       <BoxAnsicht
         boxName={box.name}
+        // Stillgelegt ⇒ keine Abgabe. Der Hinweis dazu steht oben; der INHALT
+        // bleibt sichtbar, denn ausraeumen soll man die Kiste weiterhin.
+        nimmtAuf={box.aktiv}
         einheiten={einheiten}
         gewaehltId={gewaehlt?.id ?? ""}
         quellPosten={quellPosten}

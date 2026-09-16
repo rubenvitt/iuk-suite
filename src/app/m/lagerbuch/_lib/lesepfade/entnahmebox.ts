@@ -21,7 +21,7 @@
  * braucht (Artikel, Menge, Chargen mit Verfall), und ein zweiter Lesepfad
  * daneben waere die zweite Wahrheit ueber denselben Ort.
  */
-import { and, desc, eq, gt, like } from "drizzle-orm";
+import { and, desc, eq, gt, like, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { quelleAufloeser } from "../../_db/quelle";
 import { artikel, buchungen, lagerorte } from "../../_db/schema";
@@ -172,7 +172,7 @@ export type BoxZugang = {
 };
 
 /**
- * Die juengsten Zugaenge in die Box, neueste zuerst.
+ * Die juengsten Zugaenge in die Box — EIN VORGANG, EINE ZEILE, neueste zuerst.
  *
  * ⚠️ NUR DIE ZEILEN MIT POSITIVER MENGE. Eine Umlagerung schreibt ZWEI Legs mit
  * derselben Referenz (`_lib/schreibpfade/umlagerung.ts`); ohne diese Bedingung
@@ -180,15 +180,49 @@ export type BoxZugang = {
  * als Zugang in die Box. Der Ortsfilter allein reicht dafuer NICHT, er trennt
  * die Legs zwar, aber die Bedingung ist die, die den Gedanken traegt.
  *
+ * ── WARUM GRUPPIERT WIRD (Codex-Review zu PR #175) ────────────────────────
+ *
+ * ⚠️ EIN HANDGRIFF SIND MEHRERE ZEILEN. `umlagerung` bucht JE CHARGE ein
+ * Legpaar — eine FEFO-Abgabe ueber drei Chargen erzeugt drei positive Zeilen in
+ * der Box. Ungruppiert stuende derselbe Handgriff dreimal untereinander und
+ * fraesse drei Plaetze der Grenze: die Liste behauptete mehr Abgaben, als es
+ * gab, und zeigte weniger weit zurueck, als sie verspricht. Und die Grenze
+ * traegt ihre Zusage nur, wenn sie VORGAENGE zaehlt — deshalb gruppiert die
+ * ABFRAGE, nicht der JS-Code danach: ein `limit` vor der Faltung schnitte
+ * mitten in einen Vorgang.
+ *
+ * ⚠️ DER SCHLUESSEL IST (Referenz, Zeitpunkt, Artikel) UND NICHT DIE REFERENZ
+ * ALLEIN. Die Referenz lautet `entnahmebox:<fahrzeugId>` und ist damit fuer
+ * JEDE Abgabe aus derselben Einheit dieselbe — nach ihr allein zu gruppieren
+ * faltete die gesamte Geschichte einer Einheit zu einer Zeile zusammen, also
+ * genau der Gegenfehler. Der Artikel gehoert dazu, weil die Referenz ihn nicht
+ * nennt; zwei Artikel in einer Mengenangabe waeren eine Auskunft, die es nicht
+ * gibt.
+ *
+ * ⚠️ DER ZEITPUNKT TRAEGT DIE ABGRENZUNG, WEIL EINE TRANSAKTION IHRE LEGS IN
+ * DERSELBEN SEKUNDE SCHREIBT — dieselbe Sekundengranularitaet, die
+ * `_db/schema.ts` am Check ausdruecklich als fachlich sichtbar beschreibt. Der
+ * Preis ist benannt und hinnehmbar: zwei Abgaben desselben Artikels aus
+ * derselben Einheit in derselben Sekunde stehen als eine Zeile. Das ist
+ * dieselbe Sekunde, dieselbe Quelle, dieselbe Einheit, derselbe Artikel — als
+ * getrennte Handgriffe waeren sie fuer einen Leser ohnehin nicht zu
+ * unterscheiden.
+ *
  * ⚠️ DIE HERKUNFT KOMMT AUS DER REFERENZ, NICHT AUS DER GEGENZEILE. Beide Wege
  * sind moeglich; dieser ist eine Abfrage statt zweier und bleibt richtig, wenn
- * eine Umlagerung ueber mehrere Chargen laeuft (dann gibt es je Charge ein
- * Legpaar, aber nur EINE Referenz).
+ * eine Umlagerung ueber mehrere Chargen laeuft.
  *
  * ⚠️ `ORDER BY ts DESC, id DESC` — die Sekunde allein ist keine totale Ordnung
  * (`_db/schema.ts`: `buchungen.id` ist der Tiebreaker jeder deterministischen
- * Sortierung), und eine Umlagerung ueber drei Chargen schreibt alle Zeilen in
- * DERSELBEN Sekunde.
+ * Sortierung). Gruppiert ist `id` das MAXIMUM der Gruppe: es ist zugleich der
+ * Schluessel der Zeile, und ein beliebig gewaehltes Mitglied waere von Lauf zu
+ * Lauf ein anderes.
+ *
+ * ⚠️ `quelle_typ` UND `quelle_id` KOMMEN UEBER `min()` HERAUS, NICHT ALS NACKTE
+ * SPALTEN. Innerhalb einer Gruppe sind sie konstant — dieselbe Transaktion,
+ * dieselbe Quelle —, aber SQLite erlaubt nackte Spalten in einer
+ * Aggregatabfrage und waehlt dann eine BELIEBIGE Zeile aus. Was heute richtig
+ * herauskaeme, waere eine Eigenschaft der Daten und keine der Abfrage.
  */
 export function letzteBoxZugaenge(db: DB, grenze = 25): BoxZugang[] {
   const orte = ortStamm(db);
@@ -197,21 +231,30 @@ export function letzteBoxZugaenge(db: DB, grenze = 25): BoxZugang[] {
     .from(artikel).all().map((a) => [a.id, a] as const));
 
   return db
-    .select()
+    .select({
+      buchungId: sql<string>`max(${buchungen.id})`,
+      ts: buchungen.ts,
+      artikelId: buchungen.artikelId,
+      referenz: buchungen.referenz,
+      menge: sql<number>`sum(${buchungen.menge})`,
+      quelleTyp: sql<string>`min(${buchungen.quelleTyp})`,
+      quelleId: sql<string>`min(${buchungen.quelleId})`,
+    })
     .from(buchungen)
     .where(and(
       eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
       like(buchungen.referenz, `${ENTNAHMEBOX_PRAEFIX}%`),
       gt(buchungen.menge, 0),
     ))
-    .orderBy(desc(buchungen.ts), desc(buchungen.id))
+    .groupBy(buchungen.referenz, buchungen.ts, buchungen.artikelId)
+    .orderBy(desc(buchungen.ts), desc(sql`max(${buchungen.id})`))
     .limit(grenze)
     .all()
     .map((b) => {
       const quelle = orte.get((b.referenz ?? "").slice(ENTNAHMEBOX_PRAEFIX.length));
       const a = namen.get(b.artikelId);
       return {
-        buchungId: b.id,
+        buchungId: b.buchungId,
         ts: b.ts,
         artikelName: a?.name ?? b.artikelId,
         menge: b.menge,

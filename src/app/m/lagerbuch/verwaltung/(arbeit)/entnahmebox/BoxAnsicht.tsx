@@ -290,6 +290,16 @@ function Abgabe({
               onChange={(wert) => setMenge(typeof wert === "number" ? wert : 1)}
               min={1}
               max={Math.max(grenze, 1)}
+              /*
+               * ⚠️ `precision={0}` IST PFLICHT, NICHT ZIERDE (Codex-Review zu
+               * PR #175). Ohne sie nimmt antds `InputNumber` Kommazahlen an:
+               * „1,5" besteht min und max, der Knopf bleibt aktiv, und erst
+               * `BoxSchema` weist es ab — mit „Die Eingabe war unvollständig",
+               * einem Satz, der auf ein ausgefülltes Formular nicht passt. Jedes
+               * andere Mengenfeld des Moduls setzt sie (`SollEditor`,
+               * `AussondernDialog`, `ArtikelDrawer`, `ReferenzEditor`).
+               */
+              precision={0}
               aria-label="Menge"
               style={{ width: 120 }}
             />
@@ -332,6 +342,7 @@ function Abgabe({
 
 export function BoxAnsicht({
   boxName,
+  nimmtAuf,
   einheiten,
   gewaehltId,
   quellPosten,
@@ -339,6 +350,20 @@ export function BoxAnsicht({
   zugaenge,
 }: {
   boxName: string;
+  /**
+   * Nimmt die Box ueberhaupt noch etwas auf? (Codex-Review zu PR #175.)
+   *
+   * ⚠️ IST SIE STILLGELEGT, VERSCHWINDET DIE ABGABE GANZ — sie zu zeigen und
+   * erst der Action widersprechen zu lassen hiesse: Einheit waehlen, Artikel
+   * waehlen, Menge tippen, klicken, abgewiesen werden. Der Hinweis dazu steht
+   * in der Seite darueber; hier bleibt, was in der Kiste liegt, unveraendert
+   * sichtbar — sie ausraeumen soll man ja weiter koennen.
+   *
+   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL: ein vergessenes `nimmtAuf?` waere still
+   * `undefined` und damit „nimmt nichts auf" — die Abgabe verschwaende dann auf
+   * jeder Seite, und zwar lautlos.
+   */
+  nimmtAuf: boolean;
   einheiten: EinheitOption[];
   gewaehltId: string;
   quellPosten: BoxPosten[];
@@ -351,7 +376,9 @@ export function BoxAnsicht({
 
   return (
     <Flex vertical gap={SPACE.xl}>
-      <Abgabe einheiten={einheiten} gewaehlt={gewaehlt} posten={quellPosten} />
+      {nimmtAuf && (
+        <Abgabe einheiten={einheiten} gewaehlt={gewaehlt} posten={quellPosten} />
+      )}
 
       <Datentabelle<BoxPosten>
         rowKey="artikelId"

@@ -121,6 +121,10 @@ describe("entnahmeboxInhalt — der Inhalt", () => {
     const props = ansicht();
     expect(props.inhalt.map((p) => [p.artikelName, p.menge])).toEqual([["Kühlkompresse", 3]]);
   });
+
+  it("bietet die Abgabe an, solange die Box aufnimmt", () => {
+    expect(ansicht().nimmtAuf).toBe(true);
+  });
 });
 
 describe("entnahmeboxInhalt — erst waehlen, dann laden", () => {
@@ -175,6 +179,34 @@ describe("entnahmeboxInhalt — die Zugaenge", () => {
     for (const [name, wert] of Object.entries(props)) {
       expect(istRekursivJsonSicher(wert), `prop ${name}`).toBe(true);
     }
+  });
+});
+
+describe("entnahmeboxInhalt — wenn die Box stillgelegt ist", () => {
+  beforeEach(() => {
+    t.sqlite.prepare("update lagerorte set aktiv = 0 where id = ?").run(ENTNAHMEBOX_ID);
+  });
+
+  it("nimmt der Insel die Abgabe weg, statt sie ins Leere laufen zu lassen", () => {
+    /*
+     * ⚠️ DER BEFUND AUS DER CODEX-REVIEW ZU PR #175: die Seite sagte, die Box
+     * nehme nichts mehr auf, und zeigte das Formular trotzdem bedienbar
+     * daneben. Der ganze Weg — Einheit wählen, Artikel wählen, Menge tippen,
+     * klicken — endete dann in der serverseitigen Ablehnung.
+     */
+    expect(ansicht().nimmtAuf).toBe(false);
+  });
+
+  it("zeigt den INHALT weiter — ausräumen soll man die Kiste ja", () => {
+    buchen("b-1", ENTNAHMEBOX_ID, 3);
+    const props = ansicht();
+    expect(props.inhalt.map((p) => p.menge)).toEqual([3]);
+  });
+
+  it("lädt den Bestand der gewählten Einheit erst gar nicht", () => {
+    // Arbeit für eine Fläche, die nicht rendert — und der Payload trüge sie mit.
+    buchen("b-1", "fz-1", 9);
+    expect(ansicht("fz-1").quellPosten).toEqual([]);
   });
 });
 

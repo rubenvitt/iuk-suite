@@ -227,22 +227,102 @@ describe("letzteBoxZugaenge", () => {
 
   it("sortiert neueste zuerst und bricht Gleichstand deterministisch", () => {
     /*
-     * ⚠️ DIE SEKUNDE ALLEIN IST KEINE TOTALE ORDNUNG: eine Umlagerung ueber drei
-     * Chargen schreibt alle Zeilen in DERSELBEN Sekunde. Ohne den
-     * `id`-Tiebreaker entschiede die Ruecklieferreihenfolge der Datenbank, und
-     * die Liste vertauschte ihre Zeilen von Aufruf zu Aufruf.
+     * ⚠️ DIE SEKUNDE ALLEIN IST KEINE TOTALE ORDNUNG, und seit der Gruppierung
+     * ist der Gleichstand der Fall von ZWEI VORGAENGEN in derselben Sekunde —
+     * zwei Artikel, in einem Zug abgegeben. Ohne den `id`-Tiebreaker entschiede
+     * die Ruecklieferreihenfolge der Datenbank, und die Liste vertauschte ihre
+     * Zeilen von Aufruf zu Aufruf.
+     *
+     * ⚠️ GRUPPIERT IST DIE `id` DAS MAXIMUM DER GRUPPE, nicht ein beliebiges
+     * Mitglied: hier je Vorgang nur eine Zeile, also die eigene.
      */
-    charge("ch-a", "2030-01");
-    charge("ch-b", "2030-02");
-    buchen("zu-b", { charge: "ch-b", menge: 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
-    buchen("zu-a", { charge: "ch-a", menge: 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
+    charge("ch-1", "2030-01");
+    charge("ch-2", "2030-02", "art-2");
+    buchen("zu-b", {
+      charge: "ch-2", menge: 1, artikel: "art-2", referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+    });
+    buchen("zu-a", { charge: "ch-1", menge: 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
     buchen("zu-alt", {
-      charge: "ch-a", menge: 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+      charge: "ch-1", menge: 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
       ts: new Date("2026-09-15T08:00:00Z"),
     });
 
     expect(letzteBoxZugaenge(t.db).map((z) => z.buchungId))
       .toEqual(["zu-b", "zu-a", "zu-alt"]);
+  });
+
+  it("fasst EINE Abgabe ueber mehrere Chargen zu EINER Zeile zusammen", () => {
+    /*
+     * ⚠️ DER FALL, DEN DER ORTSFILTER NICHT FAENGT (Codex-Review zu PR #175).
+     * `umlagerung` schreibt JE CHARGE ein Legpaar — eine FEFO-Abgabe ueber drei
+     * Chargen erzeugt also DREI positive Zeilen in der Box. Ungruppiert stuende
+     * ein Handgriff dreimal untereinander und fraesse drei der Listenplaetze:
+     * die Liste behauptete dann mehr Abgaben, als es gab, und zeigte weniger
+     * weit zurueck, als sie verspricht.
+     */
+    charge("ch-a", "2027-01");
+    charge("ch-b", "2028-01");
+    charge("ch-c", "2029-01");
+    for (const [i, c] of ["ch-a", "ch-b", "ch-c"].entries()) {
+      buchen(`zu-${i}`, { charge: c, menge: i + 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
+    }
+
+    const zugaenge = letzteBoxZugaenge(t.db);
+    expect(zugaenge, "ein Handgriff ist eine Zeile").toHaveLength(1);
+    expect(zugaenge[0]!.menge, "und die Menge ist die Summe").toBe(6);
+  });
+
+  it("trennt zwei Abgaben derselben Einheit, die zu verschiedenen Zeiten liefen", () => {
+    /*
+     * ⚠️ DIE REFERENZ ALLEIN IST KEIN VORGANGSSCHLUESSEL: sie lautet
+     * `entnahmebox:<fahrzeugId>` und ist damit fuer JEDE Abgabe aus derselben
+     * Einheit dieselbe. Wer nur nach ihr gruppiert, faltet die gesamte
+     * Geschichte einer Einheit zu einer Zeile zusammen — der genaue Gegenfehler
+     * zur Zusicherung darueber.
+     */
+    charge("ch-1", "2030-01");
+    buchen("zu-frueh", {
+      charge: "ch-1", menge: 2, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+      ts: new Date("2026-09-16T09:00:00Z"),
+    });
+    buchen("zu-spaet", {
+      charge: "ch-1", menge: 5, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+      ts: new Date("2026-09-16T09:30:00Z"),
+    });
+
+    expect(letzteBoxZugaenge(t.db).map((z) => z.menge)).toEqual([5, 2]);
+  });
+
+  it("trennt zwei ARTIKEL, die in derselben Sekunde abgegeben wurden", () => {
+    /*
+     * ⚠️ UND DIE REFERENZ NENNT DEN ARTIKEL NICHT. Wer eine Zeile in der Liste
+     * antippt und die Menge liest, liest sie zu EINEM Artikel — zwei Artikel in
+     * einer Zahl waeren eine Auskunft, die es nicht gibt.
+     */
+    charge("ch-1", "2030-01");
+    charge("ch-2", "2030-01", "art-2");
+    buchen("zu-1", { charge: "ch-1", menge: 3, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
+    buchen("zu-2", {
+      charge: "ch-2", menge: 4, artikel: "art-2", referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+    });
+
+    const zugaenge = letzteBoxZugaenge(t.db);
+    expect(zugaenge).toHaveLength(2);
+    expect(zugaenge.map((z) => [z.artikelName, z.menge]).sort())
+      .toEqual([["Ampullarium", 4], ["Kühlkompresse", 3]]);
+  });
+
+  it("deckelt auf VORGAENGE, nicht auf Buchungszeilen", () => {
+    // Die Grenze ist eine Zusage ueber die Liste, die jemand liest. Zaehlte sie
+    // Legs, zeigte eine Abgabe ueber drei Chargen nur ein Drittel so weit zurueck.
+    charge("ch-a", "2027-01");
+    charge("ch-b", "2028-01");
+    for (let i = 0; i < 4; i++) {
+      const ts = new Date(`2026-09-16T09:0${i}:00Z`);
+      buchen(`zu-${i}-a`, { charge: "ch-a", menge: 1, ts, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
+      buchen(`zu-${i}-b`, { charge: "ch-b", menge: 1, ts, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
+    }
+    expect(letzteBoxZugaenge(t.db, 2)).toHaveLength(2);
   });
 
   it("uebergeht Boxbuchungen OHNE das Praefix", () => {
@@ -254,11 +334,4 @@ describe("letzteBoxZugaenge", () => {
     expect(letzteBoxZugaenge(t.db)).toEqual([]);
   });
 
-  it("deckelt auf die uebergebene Grenze", () => {
-    charge("ch-1", "2030-01");
-    for (let i = 0; i < 5; i++) {
-      buchen(`zu-${i}`, { charge: "ch-1", menge: 1, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1` });
-    }
-    expect(letzteBoxZugaenge(t.db, 2)).toHaveLength(2);
-  });
 });

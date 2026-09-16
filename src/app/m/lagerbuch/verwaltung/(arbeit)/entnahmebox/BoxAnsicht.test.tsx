@@ -1,0 +1,127 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { mount, unmount, exists, query } from "@/app/m/qr/_lib/test-dom";
+import type { BoxPosten } from "../../../_lib/lesepfade/entnahmebox";
+import { BoxAnsicht, type EinheitOption, type ZugangZeile } from "./BoxAnsicht";
+
+/**
+ * DIE VERWALTUNGSINSEL DER ENTNAHMEBOX — DRK-314.
+ *
+ * ⚠️ DIE ACTION WIRD GEMOCKT, WEIL SIE HIER IMPORTIERT WIRD (anders als bei
+ * `BoxAbgabe`, wo sie als Prop hereinkommt): ein `"use server"`-Modul unter
+ * jsdom zoege `next/headers` und die Datenbank mit. Was die Insel SCHICKT,
+ * prueft `_actions/entnahmebox.test.ts` gegen eine echte SQLite.
+ */
+vi.mock("../../../_actions/entnahmebox", () => ({
+  bucheInEntnahmebox: vi.fn(async () => ({ ok: true, wert: { gebucht: 1 } })),
+}));
+
+/*
+ * ⚠️ OHNE DIESE ATTRAPPE WIRFT SCHON DAS MOUNTEN: `useRouter` und
+ * `usePathname` verlangen einen montierten App-Router („invariant expected app
+ * router to be mounted"), und die Insel liest beide — `router.refresh()` nach
+ * einer gelungenen Buchung, `useUrlFilter` fuer die Wahl der Einheit. Dieselbe
+ * Form wie in `lagerorte/LagerorteListe.test.tsx`.
+ */
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => {}, replace: () => {} }),
+  usePathname: () => "/verwaltung/entnahmebox",
+}));
+
+const QUELLE = "src/app/m/lagerbuch/verwaltung/(arbeit)/entnahmebox/BoxAnsicht.tsx";
+
+const EINHEITEN: EinheitOption[] = [
+  { id: "fz-1", name: "RTW 1", kennung: "MS-DRK-1", einheitenart: "fahrzeug", aktiv: true },
+];
+
+const POSTEN: BoxPosten[] = [{
+  artikelId: "art-1", artikelName: "Kühlkompresse", einheit: "Stk", menge: 6,
+  chargen: [
+    { id: "ch-1", chargenNr: "L-100", verfall: "2030-01", rest: 6, ampel: "gruen", text: "bis 01/30" },
+  ],
+}];
+
+const ZUGAENGE: ZugangZeile[] = [{
+  buchungId: "b-1", zeit: "16.09.2026, 08:47", artikelName: "Kühlkompresse",
+  menge: 2, einheit: "Stk", herkunft: "RTW 1 · Fahrzeug · MS-DRK-1", wer: "A. Verwaltung",
+}];
+
+function ansicht(teil: Partial<Parameters<typeof BoxAnsicht>[0]> = {}) {
+  return (
+    <BoxAnsicht
+      boxName="Entnahmebox"
+      nimmtAuf
+      einheiten={EINHEITEN}
+      gewaehltId=""
+      quellPosten={[]}
+      inhalt={POSTEN}
+      zugaenge={ZUGAENGE}
+      {...teil}
+    />
+  );
+}
+
+afterEach(() => unmount());
+
+describe("BoxAnsicht — die Abgabe", () => {
+  it("steht da, solange die Box aufnimmt", async () => {
+    await mount(ansicht());
+    expect(exists("[data-rolle='box-buchen']")).toBe(true);
+  });
+
+  it("verschwindet, wenn die Box stillgelegt ist", async () => {
+    /*
+     * ⚠️ DER BEFUND AUS DER CODEX-REVIEW ZU PR #175. Sie sichtbar zu lassen und
+     * erst der Action widersprechen zu lassen hiesse: Einheit waehlen, Artikel
+     * waehlen, Menge tippen, klicken — und dann die Ablehnung lesen. Ein
+     * Bedienelement, das nie zum Ziel fuehrt, ist schlimmer als keins.
+     */
+    await mount(ansicht({ nimmtAuf: false }));
+    expect(exists("[data-rolle='box-buchen']")).toBe(false);
+  });
+
+  it("zeigt den INHALT auch dann weiter — ausräumen soll man die Kiste ja", async () => {
+    await mount(ansicht({ nimmtAuf: false }));
+    expect(document.body.textContent).toContain("Kühlkompresse");
+    expect(document.body.textContent).toContain("RTW 1 · Fahrzeug · MS-DRK-1");
+  });
+});
+
+describe("BoxAnsicht — das Mengenfeld", () => {
+  it("laesst keine Kommazahlen zu", () => {
+    /*
+     * ⚠️ QUELLTEXTLICH GEPRUEFT, UND DAS IST HIER DIE EINZIGE MOEGLICHKEIT:
+     * `precision` ist eine Eigenschaft von antds `InputNumber`, die erst beim
+     * TIPPEN wirkt — sie hinterlaesst im DOM kein Attribut, an dem eine Zusage
+     * haengen koennte. Ohne sie besteht „1,5" die min/max-Probe des Feldes, der
+     * Knopf bleibt aktiv, und erst `BoxSchema` weist es ab — mit „Die Eingabe
+     * war unvollständig", einem Satz, der auf ein ausgefülltes Formular nicht
+     * passt. Jedes andere Mengenfeld des Moduls setzt sie.
+     */
+    const q = readFileSync(QUELLE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(q).toMatch(/precision=\{0\}/);
+  });
+
+  it("bleibt bei der ARBEITSDICHTE — kein `size` an einem Bedienelement", () => {
+    // Falle 4: `size="large"` ist 72px. Die Dichte kommt aus dem Theme.
+    const q = readFileSync(QUELLE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(q).not.toMatch(/\bsize="(large|small)"/);
+  });
+});
+
+describe("BoxAnsicht — die Tabellen", () => {
+  it("beschriftet beide Tabellen für Hilfstechnik", async () => {
+    await mount(ansicht());
+    expect(query("[aria-label='Inhalt Entnahmebox']")).toBeTruthy();
+    expect(query("[aria-label='Zuletzt abgegeben']")).toBeTruthy();
+  });
+
+  it("zeigt einen Strich statt einer rohen Id, wenn die Herkunft fehlt", async () => {
+    // Die Referenz trägt keinen Fremdschlüssel; eine gelöschte Einheit
+    // hinterlässt sie als Waise. Eine Zeichenkette, die wie ein Name aussieht
+    // und keiner ist, wäre schlimmer als ein Strich.
+    await mount(ansicht({ zugaenge: [{ ...ZUGAENGE[0]!, herkunft: null }] }));
+    expect(document.body.textContent).toContain("—");
+  });
+});
