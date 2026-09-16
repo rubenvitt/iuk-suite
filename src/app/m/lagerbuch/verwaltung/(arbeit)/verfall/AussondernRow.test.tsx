@@ -22,6 +22,7 @@ import {
   query,
   queryAll,
   queryPortal,
+  rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import {
@@ -297,6 +298,79 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
      * das Feld als `nullish` — ein mitgeschicktes `undefined` waere fachlich
      * dasselbe, aber die Zusage lautet: ohne Wahl gibt es das Feld nicht.
      */
+    expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("lagerortId");
+  });
+
+  /**
+   * EIN SCHRANK NAMENS `alle` WIRD NICHT ZU „ALLES" (Codex-Befund zu PR #173).
+   *
+   * ⚠️ DER NAME IST UNWAHRSCHEINLICH, DER FEHLER WAERE ES NICHT: IDs des
+   * importierten Altbestands sind BELIEBIGE Zeichenketten (`entnahmeZiel.ts`
+   * fuehrt sein `fz:`-Praefix aus genau diesem Grund). Ohne eigenen
+   * Wertebereich bekaeme die Aktion bei dieser Wahl KEIN `lagerortId` und
+   * raeumte jeden Ort leer — statt den einen, den jemand angeklickt hat.
+   */
+  it("verwechselt einen Schrank mit der Kennung „alle“ nicht mit „Alles“", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={[
+          { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 4, zugangshinweis: null },
+          { id: "alle", name: "Altbestand-Schrank", menge: 6, zugangshinweis: null },
+        ]}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    await clickElement(radioMitText("nur Altbestand-Schrank"));
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+
+    expect(mocks.aussondern.mock.calls[0]?.[0]).toMatchObject({ lagerortId: "alle" });
+  });
+
+  /**
+   * EINE WAHL, DIE ES NICHT MEHR GIBT, FAELLT SICHTBAR AUF „ALLES" ZURUECK
+   * (Codex-Befund zu PR #173).
+   *
+   * ⚠️ DER FALL BRAUCHT DREI ORTE. Bei zweien schrumpft die Liste nach einer
+   * Buchung auf einen, und dann gewinnt ohnehin der einzelne Liegeplatz. Bei
+   * dreien bleibt die Auswahl stehen — mit einem gemerkten Ort, den niemand
+   * mehr sieht: KEINE Zeile waere angekreuzt, und ein Bestaetigen schickte den
+   * verschwundenen Ort.
+   */
+  it("gleicht eine verschwundene Wahl ab, statt sie stehen zu lassen", async () => {
+    const DREI: VerfallOrt[] = [
+      { id: "s-a", name: "Schrank A", menge: 2, zugangshinweis: null },
+      { id: "s-b", name: "Schrank B", menge: 3, zugangshinweis: null },
+      { id: "s-c", name: "Schrank C", menge: 4, zugangshinweis: null },
+    ];
+    await mount(
+      <AussondernRow chargeId="c1" bezeichnung="L42" orte={DREI} einheit="Stk." />,
+    );
+    await bestaetigungOeffnen();
+    await clickElement(radioMitText("nur Schrank B"));
+
+    // Schrank B ist gebucht, die Zeile rendert mit den beiden uebrigen neu.
+    await rerender(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42"
+        orte={DREI.filter((o) => o.id !== "s-b")}
+        einheit="Stk."
+      />,
+    );
+    await warte();
+
+    // „Alles" ist angekreuzt — und nicht etwa gar nichts.
+    expect(radioMitText("Alles").checked).toBe(true);
+
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+
+    // Gebucht wird, was angekreuzt IST — nicht der verschwundene Schrank B.
     expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("lagerortId");
   });
 

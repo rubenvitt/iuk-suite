@@ -12,10 +12,24 @@ import { Ikone } from "../../../_ui/ikonen";
  *
  * ⚠️ NICHT `null` UND NICHT DIE WURZEL-ID. `null` wäre in einer antd-Auswahl
  * nicht von „nichts gewählt" zu unterscheiden, und `HANDLAGER_ID` ist selbst
- * ein Liegeplatz („noch keinem Schrank zugeordnet") — dieselbe Verwechslung,
- * die `ZAEHLORT_ALLE` in der Inventur schon einmal auseinandergehalten hat.
+ * ein Liegeplatz („noch keinem Schrank zugeordnet").
  */
 const ALLE_ORTE = "alle";
+
+/**
+ * Ein Ort als Wert der Auswahl — MIT PRÄFIX, nicht als rohe `lagerorte.id`
+ * (Codex-Befund zu PR #173).
+ *
+ * ⚠️ DAS PRÄFIX IST NICHT SCHMUCK, und die Begründung steht schon einmal im
+ * Modul: `_lib/entnahmeZiel.ts` führt `fz:` aus genau diesem Grund. IDs des
+ * importierten Altbestands sind BELIEBIGE Zeichenketten — keine wird beim
+ * Import neu vergeben. Hieße ein Schrank `alle`, wäre seine Wahl von „Alles"
+ * nicht zu unterscheiden: die Aktion bekäme kein `lagerortId` und räumte
+ * JEDEN Ort leer, statt den einen, den jemand angeklickt hat. Ein
+ * Wertebereich, der sich mit dem Wächter überschneidet, ist der Fehler — nicht
+ * der unwahrscheinliche Name.
+ */
+const ortWert = (lagerortId: string) => `ort:${lagerortId}`;
 
 /**
  * `Popconfirm` UND NICHT `Modal`: Aussondern schreibt eine nachvollziehbare
@@ -61,6 +75,24 @@ export function AussondernRow({
   const einzelnerOrt = orte.length === 1 ? orte[0] : undefined;
 
   /**
+   * DIE WAHL, DIE DIE AUSWAHL ANZEIGT — nach einer Buchung neu abgeglichen
+   * (Codex-Befund zu PR #173).
+   *
+   * ⚠️ EINE WAHL, DIE ES NICHT MEHR GIBT, DARF NICHT STEHEN BLEIBEN. Liegt
+   * eine Charge an DREI Orten und räumt jemand einen davon, bleibt die Zeile
+   * mit den beiden übrigen stehen — `ziel` trägt dann den leergeräumten. In
+   * der Auswahl wäre KEINE Zeile angekreuzt, und ein Bestätigen schickte den
+   * verschwundenen Ort: „An diesem Ort liegt nichts mehr", statt das zu tun,
+   * was auf dem Schirm steht.
+   *
+   * ⚠️ DER RÜCKFALL AUF „ALLES" IST HIER KEIN STILLES MEHR-BUCHEN, und das
+   * ist der Unterschied zu einem Rückfall beim ABSENDEN: die Auswahl zeigt
+   * danach sichtbar „Alles" angekreuzt. Gebucht wird, was angekreuzt ist —
+   * wer einen einzelnen Schrank will, sieht, dass er ihn neu wählen muss.
+   */
+  const auswahl = orte.some((ort) => ortWert(ort.id) === ziel) ? ziel : ALLE_ORTE;
+
+  /**
    * DER ORT, DEN DIESE BESTAETIGUNG MEINT.
    *
    * ⚠️ EIN EINZIGER LIEGEPLATZ WIRD GENANNT, NICHT WEGGELASSEN (Codex-Befund
@@ -72,14 +104,13 @@ export function AussondernRow({
    * Text davor versprach einen. Der Ort ist deshalb ausgeschrieben; nur die
    * ausdrueckliche Wahl „Alles" laesst ihn weg.
    *
-   * ⚠️ DER EINZELNE ORT SCHLAEGT DEN GEMERKTEN ZUSTAND, nicht umgekehrt.
-   * Schrumpft die Liste zwischen zwei Buchungen von zwei Orten auf einen,
-   * traegt `ziel` noch die alte Wahl; die ist dann entweder derselbe Ort oder
-   * einer, an dem nichts mehr liegt. Bleibt eine veraltete Wahl stehen, weist
-   * die Aktion sie ab — LAUT, mit der Meldung am Knopf. Das ist die richtige
-   * Richtung: ein Rückfall auf „Alles" buchte mehr, als jemand wollte.
+   * ⚠️ DER EINZELNE ORT SCHLAEGT DIE GEMERKTE WAHL, nicht umgekehrt. Schrumpft
+   * die Liste von zwei Orten auf einen, ist der verbliebene das, was auf dem
+   * Schirm steht — und genau der wird gebucht.
    */
-  const gemeinterOrt = einzelnerOrt ? einzelnerOrt.id : ziel;
+  const gemeinterOrt = einzelnerOrt
+    ? ortWert(einzelnerOrt.id)
+    : auswahl;
 
   const bestaetigen = () => {
     if (aussondernLaeuft.current) return;
@@ -91,7 +122,9 @@ export function AussondernRow({
           chargeId,
           // „Alles raus" ist die ABWESENHEIT des Orts, nicht ein zweiter Wert
           // für dieselbe Sache.
-          ...(gemeinterOrt !== ALLE_ORTE ? { lagerortId: gemeinterOrt } : {}),
+          ...(gemeinterOrt === ALLE_ORTE
+            ? {}
+            : { lagerortId: gemeinterOrt.slice("ort:".length) }),
           kommentar: `Verfallskontrolle — ${bezeichnung} ausgesondert`,
         });
         setFehler(ergebnis.ok ? null : ergebnis.fehler);
@@ -122,12 +155,12 @@ export function AussondernRow({
             {wahl ? (
               <Radio.Group
                 aria-label={`Ort für ${bezeichnung}`}
-                value={ziel}
+                value={auswahl}
                 onChange={(e) => setZiel(e.target.value as string)}
                 options={[
                   { value: ALLE_ORTE, label: `Alles (${gesamt} ${einheit})` },
                   ...orte.map((ort) => ({
-                    value: ort.id,
+                    value: ortWert(ort.id),
                     label: `nur ${ort.name} (${ort.menge} ${einheit})`,
                   })),
                 ]}
