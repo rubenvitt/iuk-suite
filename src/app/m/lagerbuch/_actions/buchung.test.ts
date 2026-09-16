@@ -1323,6 +1323,68 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(geschrieben()).toEqual([]);
   });
 
+  /**
+   * ⚠️ DER ARTIKEL WIRD GELOESCHT, WAEHREND DIE SEITE OFFEN STEHT
+   * (Codex-Befund P2 zu PR #174). Die Lage ist ENGER, als sie aussieht, und
+   * genau deshalb trifft sie diese Flaeche: `pruefeArtikel`
+   * (`_actions/loeschen.ts`) laesst nur einen Artikel mit NULL Chargen und
+   * NULL Buchungen loeschen — also genau den frisch angelegten, und genau den
+   * befuellt das Auffuellen mit „Neue Charge".
+   *
+   * ⚠️ OHNE DIE PRUEFUNG WAERE DER FALL NICHT ETWA UNGEPRUEFT, SONDERN FALSCH
+   * BENANNT: der `chargen`-Einschub wirft am Fremdschluessel, der Wurf
+   * verlaesst die Action (dort steht bewusst kein try/catch), und die Insel
+   * setzt in ihrem `catch` `"netz"` — „Keine Verbindung", wo die Verbindung
+   * steht. Der Test sichert deshalb den GRUND und den SATZ zu, nicht nur, dass
+   * nichts gebucht wurde: `ok: false` allein waere auch mit der falschen
+   * Auskunft gruen.
+   */
+  it("weist einen inzwischen GELOESCHTEN Artikel mit einem Satz ab, nicht mit einem Wurf", async () => {
+    t.db.insert(artikel).values([
+      {
+        id: "art-frisch", name: "Frisch angelegt", einheit: "Stk", fach: "Z-99",
+        mindestbestand: 0, aktiv: true, createdAt: JETZT,
+      },
+    ]).run();
+    // Wie `loescheElement` es tut — der Artikel hat weder Charge noch Buchung
+    // und ist damit das einzige, was `pruefeArtikel` ueberhaupt durchlaesst.
+    t.db.delete(artikel).where(eq(artikel.id, "art-frisch")).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-frisch", menge: 3, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text, "der Satz nennt die Ursache, nicht das Netz")
+      .toContain("Diesen Artikel gibt es nicht mehr");
+    expect(geschrieben()).toEqual([]);
+    // Die Charge darf auch nicht halb entstanden sein.
+    expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).all())
+      .toEqual([]);
+  });
+
+  /**
+   * DIE GEGENPROBE ZUM ZWEITEN CHARGEN-ZWEIG. Er kann heute nicht in die Lage
+   * oben laufen — eine lebende Charge beweist, dass der Artikel die
+   * Loeschpruefung nie bestanden haette. Der Beweis haengt aber an einer
+   * FREMDEN Bedingung (`pruefeArtikel`), und deshalb prueft die Action fuer
+   * beide Arten. Dieser Test haelt fest, dass die vorgezogene Abfrage den
+   * gewoehnlichen Weg nicht verstellt.
+   */
+  it("bucht eine vorhandene Charge unveraendert — die Artikelpruefung steht nicht im Weg", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 2, ziel: "Schrank 1" } });
+  });
+
   it("weist ein Fahrzeug als Ziel ab — die Richtung ist die Gegenrichtung", async () => {
     const erg = await bucheAuffuellung(
       {

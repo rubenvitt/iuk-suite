@@ -674,17 +674,54 @@ export async function bucheAuffuellung(
       const v = geparst.data;
 
       /*
-       * ⚠️ DIE ZWEI ERWARTBAREN LAGEN WERDEN VOR DER TRANSAKTION GEPRUEFT und
-       * als SATZ beantwortet, nicht als Wurf. `zugangBuchen` prueft beide noch
-       * einmal und wirft dabei — das ist die letzte Bank gegen eine
-       * manipulierte Nutzlast, nicht die Erklaerung fuer die Person davor.
+       * ⚠️ DIE DREI ERWARTBAREN LAGEN WERDEN VOR DER TRANSAKTION GEPRUEFT und
+       * als SATZ beantwortet, nicht als Wurf. `zugangBuchen` bzw. der
+       * Fremdschluessel pruefen sie noch einmal und werfen dabei — das ist die
+       * letzte Bank gegen eine manipulierte Nutzlast, nicht die Erklaerung fuer
+       * die Person davor.
        *
-       * Beide Lagen entstehen ohne Zutun: die Seite rendert, jemand legt in der
-       * Verwaltung einen Schrank still oder loescht eine Charge, und erst danach
-       * wird gebucht. Das Fenster bleibt — es gibt keinen Zustand, in dem eine
-       * gerenderte Auswahl und die Datenbank dauerhaft dasselbe sagen —, und
-       * genau deshalb steht die Pruefung auch INNEN noch einmal.
+       * Alle drei entstehen ohne Zutun: die Seite rendert, jemand legt in der
+       * Verwaltung einen Schrank still, loescht eine Charge oder den Artikel,
+       * und erst danach wird gebucht. Das Fenster bleibt — es gibt keinen
+       * Zustand, in dem eine gerenderte Auswahl und die Datenbank dauerhaft
+       * dasselbe sagen —, und genau deshalb steht die Pruefung auch INNEN noch
+       * einmal.
        */
+
+      /*
+       * ⚠️ DER ARTIKEL SELBST — Codex-Befund P2 zu PR #174, und die Lage ist
+       * ENGER, ALS SIE AUSSIEHT: `pruefeArtikel` (`_actions/loeschen.ts`)
+       * laesst einen Artikel nur loeschen, wenn er NULL Chargen und NULL
+       * Buchungen hat. Loeschbar ist damit genau der frisch angelegte Artikel —
+       * und das ist genau der, den diese Flaeche mit „Neue Charge" befuellt.
+       *
+       * ⚠️ OHNE DIESE PRUEFUNG SCHLUEGE DER FALL ALS „KEINE VERBINDUNG" DURCH,
+       * und das waere die falsche Auskunft: der `chargen`-Einschub wirft am
+       * Fremdschluessel, der Wurf verlaesst die Action (hier steht bewusst kein
+       * try/catch, s. u.), und die Insel setzt in ihrem `catch` `"netz"` —
+       * Global Constraint 12. Die Person laedt dann neu in der Annahme, es habe
+       * am Netz gelegen, und trifft die Ursache nur zufaellig.
+       *
+       * ⚠️ GEPRUEFT WIRD FUER BEIDE CHARGEN-ARTEN, obwohl der Zweig
+       * „vorhandene Charge" heute nicht hineinlaufen KANN — eine lebende Charge
+       * beweist, dass der Artikel die Loeschpruefung gar nicht bestanden haette.
+       * Dieser Beweis haengt aber an einer fremden Bedingung: lockert
+       * `pruefeArtikel` je (etwa auf „nur Buchungen zaehlen"), faellt er still,
+       * und der zweite Zweig haette dieselbe Luecke ohne eine Zeile Aenderung
+       * hier. Eine Abfrage fuer beide Arten kostet nichts und haengt an nichts.
+       */
+      const artikelZeile = db.select({ id: artikel.id }).from(artikel)
+        .where(eq(artikel.id, v.artikelId)).get();
+      if (!artikelZeile) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Diesen Artikel gibt es nicht mehr — er wurde gelöscht. Bitte die " +
+            "Seite neu laden; der Bestand ist davon nicht betroffen.",
+        };
+      }
+
       const ziel = zugangsZiele(db).find((o) => o.id === v.zielLagerortId);
       if (!ziel) {
         return {
