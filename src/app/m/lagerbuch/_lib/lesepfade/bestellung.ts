@@ -3,7 +3,7 @@
  *
  * `bestand` ist IMMER der HANDLAGER-Bestand (`queries.ts:519`, §5.2.1): der
  * Mindestbestand ist eine Nachschubschwelle fuers Zentrallager, kein Fahrzeugsoll.
- * Das ist auch der Grund, warum `bestandJeArtikel` mit `handlagerOrte(db)` und
+ * Das ist auch der Grund, warum `bestandJeArtikelImBereich` mit `handlagerOrte(db)` und
  * nicht lagerort-uebergreifend gerufen wird.
  *
  * ⚠️ `artikel.bestelltAt` TRAEGT GENAU EINE WAHRE AUSSAGE (§5.5): „seit wann steht
@@ -24,7 +24,7 @@
 import { eq } from "drizzle-orm";
 import { artikel } from "../../_db/schema";
 import { braucht, vorschlagsmenge } from "../domain/vorschlag";
-import { bestandJeArtikel, type Leser } from "./bestand";
+import { bestandJeArtikelImBereich, type Leser } from "./bestand";
 import { handlagerOrte } from "./orte";
 
 export type BestellZeile = {
@@ -45,7 +45,7 @@ export type BestellZeile = {
 };
 
 export function bestellvorschlag(db: Leser): BestellZeile[] {
-  const bestand = bestandJeArtikel(db, handlagerOrte(db));
+  const bestand = bestandJeArtikelImBereich(db, handlagerOrte(db));
   return db
     .select()
     .from(artikel)

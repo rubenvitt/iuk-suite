@@ -7,7 +7,7 @@
  * braucht. Wer hier spaeter optimiert, optimiert das Falsche.
  */
 import { lagerorte } from "../../_db/schema";
-import { teilbaum, type OrtZeile } from "../domain/orte";
+import { teilbaum, type Lagerbereich, type OrtZeile } from "../domain/orte";
 import { zaehlOrtLabel } from "../inventurOrt";
 import { HANDLAGER_ID, istEntnahmebox, type Einheitenart } from "../konstanten";
 import type { Leser } from "./bestand";
@@ -43,7 +43,7 @@ function alleOrte(db: Leser): OrtStammZeile[] {
  * verschwinden. „Inaktiv" heisst allein: taucht in der Zugangsauswahl nicht
  * mehr auf.
  */
-export function handlagerOrte(db: Leser): string[] {
+export function handlagerOrte(db: Leser): Lagerbereich {
   return teilbaum(baumZeilen(db), HANDLAGER_ID);
 }
 
@@ -110,12 +110,16 @@ export function ortStamm(db: Leser): Map<string, OrtStammZeile> {
  * Aufrufer entscheidet: die Seite faellt auf den ganzen Handlager zurueck (wie
  * `checks/page.tsx` mit einem unbekannten Fahrzeug), die Action weist ab.
  */
-export function zaehlBereich(db: Leser, ortId: string | null): string[] | null {
+export function zaehlBereich(db: Leser, ortId: string | null): Lagerbereich | null {
   const zeilen = baumZeilen(db);
   const handlager = teilbaum(zeilen, HANDLAGER_ID);
   if (ortId === null) return handlager;
   if (!handlager.includes(ortId)) return null;
-  return ortId === HANDLAGER_ID ? [HANDLAGER_ID] : teilbaum(zeilen, ortId);
+  // DRK-354 — `teilbaum(..., { ohneKinder: true })` statt `[HANDLAGER_ID]`:
+  // dasselbe Ergebnis, aber die Marke bleibt bei ihrem einzigen Erzeuger.
+  return ortId === HANDLAGER_ID
+    ? teilbaum(zeilen, HANDLAGER_ID, { ohneKinder: true })
+    : teilbaum(zeilen, ortId);
 }
 
 /**

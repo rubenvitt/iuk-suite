@@ -16,51 +16,77 @@
  * DIE `chargeId` BLEIBT ERHALTEN — die Verfall-Provenienz wandert mit.
  */
 import { buchungen, newId } from "../../_db/schema";
-import { fefoAbbuchung, type Quelle, type Teil, type Tx } from "./abbuchung";
+import type { Lagerbereich } from "../domain/orte";
+import {
+  fefoAbbuchungAnOrt, fefoAbbuchungImBereich, type Quelle, type Teil, type Tx,
+} from "./abbuchung";
 
-export function umlagerung(
-  tx: Tx,
-  args: {
-    artikelId: string;
-    menge: number;
-    /** DRK-297 — die QUELLE ist ein Bereich (Handlager plus Schränke) oder ein
-     *  einzelnes Fahrzeug als einelementige Liste. */
-    vonOrten: readonly string[];
-    nachLagerortId: string;
-    /**
-     * DRK-338 — GENAU DIESE Charge umlagern, statt FEFO ueber alle Chargen des
-     * Artikels laufen zu lassen.
-     *
-     * ⚠️ DER UNTERSCHIED IST FACHLICH, NICHT KOSMETISCH. FEFO ist eine
-     * ENTNAHME-Regel („nimm die aelteste zuerst") — beim UMRAEUMEN gilt sie
-     * nicht: wer eine Charge aus Schrank 1 in den GF-Schrank traegt, traegt
-     * DIESE, nicht die aelteste. Ohne die Einschraenkung buchte das Journal
-     * eine andere Charge um als die, die physisch gewandert ist; der Fehler
-     * waere STILL (Netto bleibt null, der Handlager-Bestand stimmt) und wegen
-     * append-only nicht mehr zu heilen.
-     *
-     * Fehlt das Feld, bleibt das Verhalten unveraendert: FEFO ueber alle
-     * Chargen — das ist der Weg von `check:` und `entnahme-ziel:`, wo eine
-     * Nachfuellung tatsaechlich die aelteste Charge nehmen soll.
-     */
-    chargeId?: string;
-    quelle: Quelle;
-    kommentar: string | null;
-    /** Pflicht, nicht optional: eine Umlagerung ist IMMER Teil eines Vorgangs
-     *  (`check:<id>`, `entnahme-ziel:<lagerortId>`), und die Referenz ist die
-     *  einzige Klammer zwischen den beiden Legs (§5.14.4). */
-    referenz: string;
-  },
+export type UmlagerungArgs = {
+  artikelId: string;
+  menge: number;
+  nachLagerortId: string;
+  /**
+   * DRK-338 — GENAU DIESE Charge umlagern, statt FEFO ueber alle Chargen des
+   * Artikels laufen zu lassen.
+   *
+   * ⚠️ DER UNTERSCHIED IST FACHLICH, NICHT KOSMETISCH. FEFO ist eine
+   * ENTNAHME-Regel („nimm die aelteste zuerst") — beim UMRAEUMEN gilt sie
+   * nicht: wer eine Charge aus Schrank 1 in den GF-Schrank traegt, traegt
+   * DIESE, nicht die aelteste. Ohne die Einschraenkung buchte das Journal
+   * eine andere Charge um als die, die physisch gewandert ist; der Fehler
+   * waere STILL (Netto bleibt null, der Handlager-Bestand stimmt) und wegen
+   * append-only nicht mehr zu heilen.
+   *
+   * Fehlt das Feld, bleibt das Verhalten unveraendert: FEFO ueber alle
+   * Chargen — das ist der Weg von `check:` und `entnahme-ziel:`, wo eine
+   * Nachfuellung tatsaechlich die aelteste Charge nehmen soll.
+   */
+  chargeId?: string;
+  quelle: Quelle;
+  kommentar: string | null;
+  /** Pflicht, nicht optional: eine Umlagerung ist IMMER Teil eines Vorgangs
+   *  (`check:<id>`, `entnahme-ziel:<lagerortId>`), und die Referenz ist die
+   *  einzige Klammer zwischen den beiden Legs (§5.14.4). */
+  referenz: string;
+};
+
+/**
+ * DRK-354 — DIE QUELLE IST EIN BEREICH (Handlager plus Schränke). Eine nackte
+ * Liste wie `[fahrzeugId]` wird hier ABGELEHNT; fuer genau einen Ort steht
+ * `umlagerungVonOrt` daneben.
+ */
+export function umlagerungAusBereich(
+  tx: Tx, args: UmlagerungArgs & { vonBereich: Lagerbereich },
 ): { umgelagert: number; teile: Teil[] } {
-  const {
-    artikelId, menge, vonOrten, nachLagerortId, chargeId, quelle, kommentar, referenz,
-  } = args;
-
-  const { gebucht, teile } = fefoAbbuchung(tx, {
-    artikelId, menge, orte: vonOrten, quelle, kommentar, referenz,
+  const { artikelId, menge, chargeId, quelle, kommentar, referenz } = args;
+  return zielLeg(tx, args, fefoAbbuchungImBereich(tx, {
+    artikelId, menge, bereich: args.vonBereich, quelle, kommentar, referenz,
     typ: "umlagerung",
     ...(chargeId ? { chargeId } : {}),
-  });
+  }));
+}
+
+/**
+ * DRK-354 — DIE QUELLE IST GENAU EIN ORT. `handlagerOrte(tx)` wird hier
+ * ABGELEHNT, weil `vonOrt` eine ID ist: ein Bereich holte sich die fehlende
+ * Menge sonst still aus dem Nachbarschrank.
+ */
+export function umlagerungVonOrt(
+  tx: Tx, args: UmlagerungArgs & { vonOrt: string },
+): { umgelagert: number; teile: Teil[] } {
+  const { artikelId, menge, chargeId, quelle, kommentar, referenz } = args;
+  return zielLeg(tx, args, fefoAbbuchungAnOrt(tx, {
+    artikelId, menge, ort: args.vonOrt, quelle, kommentar, referenz,
+    typ: "umlagerung",
+    ...(chargeId ? { chargeId } : {}),
+  }));
+}
+
+function zielLeg(
+  tx: Tx, args: UmlagerungArgs, quellLeg: { gebucht: number; teile: Teil[] },
+): { umgelagert: number; teile: Teil[] } {
+  const { artikelId, nachLagerortId, quelle, kommentar, referenz } = args;
+  const { gebucht, teile } = quellLeg;
 
   /*
    * ⚠️ EIN ZEITSTEMPEL FUER ALLE LEGS, NICHT EINER JE LEG (Codex-Review zu

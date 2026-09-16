@@ -11,8 +11,8 @@ import {
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { MONAT_REGEX, anDieserEinheit } from "../_lib/konstanten";
 import { AUSSONDERN_PRAEFIX } from "../_lib/vorgang";
-import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
-import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
+import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { fefoAbbuchungAnOrt } from "../_lib/schreibpfade/abbuchung";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import type { VerfallWert } from "../_lib/verfallStand";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -163,7 +163,7 @@ export async function aussondernVomLagerort(
             return `Artikel steht ${anDieserEinheit(ort.einheitenart)} nicht im Soll.`;
           }
 
-          const rest = restJeChargeFuerArtikel(tx, v.artikelId, [v.lagerortId]);
+          const rest = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, v.lagerortId);
           // Der Bestand des ARTIKELS am Ort — Bezugsgröße der Verfallsfrage
           // unten, und beim Chargenabgang ausdrücklich NICHT die Charge allein.
           let gesamt = 0;
@@ -195,10 +195,10 @@ export async function aussondernVomLagerort(
             if (gesamt < v.menge) {
               return `Hier liegen nur ${gesamt} Stück.`;
             }
-            fefoAbbuchung(tx, {
+            fefoAbbuchungAnOrt(tx, {
               artikelId: v.artikelId,
               menge: v.menge,
-              orte: [v.lagerortId],
+              ort: v.lagerortId,
               quelle,
               kommentar: v.kommentar,
               referenz: `${AUSSONDERN_PRAEFIX}${v.lagerortId}`,

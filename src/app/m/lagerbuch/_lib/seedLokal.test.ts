@@ -11,7 +11,7 @@ import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { mtkFaelligkeit } from "./domain/geraet";
 import { bzFaelligkeit } from "./domain/bz";
 import { o2Status } from "./domain/o2";
-import { restJeCharge } from "./lesepfade/bestand";
+import { restJeChargeImBereich } from "./lesepfade/bestand";
 import { handlagerOrte } from "./lesepfade/orte";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 import { parseCheckErgebnis } from "./checkErgebnis";
@@ -183,7 +183,7 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     await seedLokalLagerbuch(t.db);
 
     const schwellen = verfallSchwellen();
-    const rest = restJeCharge(t.db, handlagerOrte(t.db));
+    const rest = restJeChargeImBereich(t.db, handlagerOrte(t.db));
     const stufen = t.db.select().from(chargen).all()
       .filter((c) => (rest.get(c.id) ?? 0) > 0)
       .map((c) => {
