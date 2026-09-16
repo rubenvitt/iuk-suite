@@ -7,6 +7,7 @@ import {
   geraete,
   lagerorte,
 } from "../_db/schema";
+import { ENTNAHMEBOX_ID } from "../_lib/konstanten";
 
 const {
   adminRiegel,
@@ -247,6 +248,28 @@ describe("geraetSpeichern", () => {
       expect(revalidiert).toEqual([]);
     },
   );
+
+  /*
+   * ⚠️ DIE ENTNAHMEBOX IST EIN AKTIVER LAGERORT — DIE PROBE DARUEBER REICHT
+   * ALSO NICHT (DRK-314, Codex-Review zu PR #175). Der Test belegt beides in
+   * einem Zug: dass die Zeile aus der Migration da UND aktiv ist, und dass die
+   * Action sie trotzdem abweist. Ohne die erste Haelfte pruefte er die falsche
+   * Ursache und bliebe gruen, wenn der eigene Riegel wieder verschwaende.
+   */
+  it("lehnt die Entnahmebox ab, obwohl sie ein aktiver Lagerort ist", async () => {
+    const box = t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, ENTNAHMEBOX_ID)).get();
+    expect(box?.aktiv, "Vorbedingung: die Box steht aus der Migration da und ist aktiv").toBe(true);
+
+    const erg = await geraetSpeichern({
+      name: "Accu-Chek",
+      lagerortId: ENTNAHMEBOX_ID,
+    }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: LAGERORT_FEHLER });
+    expect(bzZeilen()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
 
   it("lehnt eine unbekannte Bearbeitungs-ID vor Lagerort- und Barcode-Pruefung ab", async () => {
     t.db.insert(geraete).values({

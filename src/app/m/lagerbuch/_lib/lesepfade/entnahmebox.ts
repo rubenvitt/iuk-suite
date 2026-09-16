@@ -201,12 +201,36 @@ export type BoxZugang = {
  *
  * ⚠️ DER ZEITPUNKT TRAEGT DIE ABGRENZUNG, WEIL EINE TRANSAKTION IHRE LEGS IN
  * DERSELBEN SEKUNDE SCHREIBT — dieselbe Sekundengranularitaet, die
- * `_db/schema.ts` am Check ausdruecklich als fachlich sichtbar beschreibt. Der
- * Preis ist benannt und hinnehmbar: zwei Abgaben desselben Artikels aus
- * derselben Einheit in derselben Sekunde stehen als eine Zeile. Das ist
- * dieselbe Sekunde, dieselbe Quelle, dieselbe Einheit, derselbe Artikel — als
- * getrennte Handgriffe waeren sie fuer einen Leser ohnehin nicht zu
- * unterscheiden.
+ * `_db/schema.ts` am Check ausdruecklich als fachlich sichtbar beschreibt.
+ *
+ * ⚠️ UND DIE QUELLE GEHOERT IN DEN SCHLUESSEL, NICHT IN EIN `min()` DANEBEN
+ * (Codex-Review zu PR #175, zweite Runde). Zwei Menschen koennen im selben
+ * Moment dieselbe Sache aus derselben Einheit abgeben — ein Kaertchen und ein
+ * angemeldetes Konto —, und dann faende die Gruppe ZWEI Quellen vor.
+ * `min(quelle_typ)` und `min(quelle_id)` sind UNABHAENGIGE Aggregate: sie
+ * duerfen ihre Werte aus VERSCHIEDENEN Zeilen nehmen. Herauskaeme die Art des
+ * einen mit der Kennung des anderen — „oidc" plus ein Kaertchen-Code —, und
+ * `quelleAufloeser` schlaegt den Code dann in `users` nach, findet ihn nicht
+ * und zeigt die ROHE Kennung. Eine erfundene Zuschreibung ist schlimmer als
+ * eine zusammengefasste Zeile.
+ *
+ * Mit der Quelle im Schluessel ist die Spalte innerhalb der Gruppe konstant
+ * DURCH KONSTRUKTION und wird deshalb schlicht mitgruppiert, statt aggregiert
+ * zu werden — ein `min()` darauf waere ab hier wirkungslos und trotzdem eine
+ * Einladung, es an der naechsten Spalte wieder falsch zu machen.
+ *
+ * Der Preis ist damit benannt und eng: zwei Abgaben desselben Artikels, aus
+ * derselben Einheit, von DERSELBEN Person, in DERSELBEN Sekunde stehen als
+ * eine Zeile. Als getrennte Handgriffe waeren sie fuer einen Leser ohnehin
+ * nicht zu unterscheiden.
+ *
+ * ⚠️ WARUM KEIN EIGENER VORGANGSSCHLUESSEL IN DER REFERENZ. Er waere die
+ * schaerfere Loesung und kostet mehr, als er hier einbringt: die Referenz ist
+ * append-only Vertrag (`_db/schema.ts`: die Praefixe stehen in historischen
+ * Zeilen), sie traegt heute die HERKUNFT, und ein zweites Feld darin muesste
+ * jeder Leser mitparsen. Steht die Anforderung eines Tages wirklich — etwa,
+ * weil ein Vorgang anklickbar werden soll —, ist das eine eigene Aenderung mit
+ * einer eigenen Migration der Lesart, keine Zeile hier.
  *
  * ⚠️ DIE HERKUNFT KOMMT AUS DER REFERENZ, NICHT AUS DER GEGENZEILE. Beide Wege
  * sind moeglich; dieser ist eine Abfrage statt zweier und bleibt richtig, wenn
@@ -218,11 +242,6 @@ export type BoxZugang = {
  * Schluessel der Zeile, und ein beliebig gewaehltes Mitglied waere von Lauf zu
  * Lauf ein anderes.
  *
- * ⚠️ `quelle_typ` UND `quelle_id` KOMMEN UEBER `min()` HERAUS, NICHT ALS NACKTE
- * SPALTEN. Innerhalb einer Gruppe sind sie konstant — dieselbe Transaktion,
- * dieselbe Quelle —, aber SQLite erlaubt nackte Spalten in einer
- * Aggregatabfrage und waehlt dann eine BELIEBIGE Zeile aus. Was heute richtig
- * herauskaeme, waere eine Eigenschaft der Daten und keine der Abfrage.
  */
 export function letzteBoxZugaenge(db: DB, grenze = 25): BoxZugang[] {
   const orte = ortStamm(db);
@@ -237,8 +256,10 @@ export function letzteBoxZugaenge(db: DB, grenze = 25): BoxZugang[] {
       artikelId: buchungen.artikelId,
       referenz: buchungen.referenz,
       menge: sql<number>`sum(${buchungen.menge})`,
-      quelleTyp: sql<string>`min(${buchungen.quelleTyp})`,
-      quelleId: sql<string>`min(${buchungen.quelleId})`,
+      // GRUPPIERT, NICHT AGGREGIERT — siehe den Kopf: nur so koennen Art und
+      // Kennung nicht aus verschiedenen Zeilen stammen.
+      quelleTyp: buchungen.quelleTyp,
+      quelleId: buchungen.quelleId,
     })
     .from(buchungen)
     .where(and(
@@ -246,7 +267,10 @@ export function letzteBoxZugaenge(db: DB, grenze = 25): BoxZugang[] {
       like(buchungen.referenz, `${ENTNAHMEBOX_PRAEFIX}%`),
       gt(buchungen.menge, 0),
     ))
-    .groupBy(buchungen.referenz, buchungen.ts, buchungen.artikelId)
+    .groupBy(
+      buchungen.referenz, buchungen.ts, buchungen.artikelId,
+      buchungen.quelleTyp, buchungen.quelleId,
+    )
     .orderBy(desc(buchungen.ts), desc(sql`max(${buchungen.id})`))
     .limit(grenze)
     .all()

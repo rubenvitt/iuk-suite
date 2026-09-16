@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { lagerorte, o2Flaschen, o2Messungen } from "../_db/schema";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
+import { ENTNAHMEBOX_ID } from "../_lib/konstanten";
 
 const { revalidiert, adminRiegel } = vi.hoisted(() => ({
   revalidiert: [] as string[],
@@ -166,6 +167,29 @@ describe("flascheSpeichern", () => {
     const erg = await flascheSpeichern({
       name: "O2 klein",
       lagerortId,
+      groesseLiter: 2,
+    }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: "Lagerort nicht gefunden oder inaktiv." });
+    expect(t.db.select().from(o2Flaschen).all()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /*
+   * ⚠️ DIE ENTNAHMEBOX IST EIN AKTIVER LAGERORT — DIE PROBE DARUEBER REICHT
+   * ALSO NICHT (DRK-314, Codex-Review zu PR #175). Der Test belegt beides in
+   * einem Zug: dass die Zeile aus der Migration da UND aktiv ist, und dass die
+   * Action sie trotzdem abweist. Ohne die erste Haelfte pruefte er die falsche
+   * Ursache und bliebe gruen, wenn der eigene Riegel wieder verschwaende.
+   */
+  it("lehnt die Entnahmebox ab, obwohl sie ein aktiver Lagerort ist", async () => {
+    const box = t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, ENTNAHMEBOX_ID)).get();
+    expect(box?.aktiv, "Vorbedingung: die Box steht aus der Migration da und ist aktiv").toBe(true);
+
+    const erg = await flascheSpeichern({
+      name: "O2 klein",
+      lagerortId: ENTNAHMEBOX_ID,
       groesseLiter: 2,
     }, t.db);
 

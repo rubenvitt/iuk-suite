@@ -334,4 +334,37 @@ describe("letzteBoxZugaenge", () => {
     expect(letzteBoxZugaenge(t.db)).toEqual([]);
   });
 
+  it("trennt zwei QUELLEN in derselben Sekunde und schreibt keine gemischte zu", () => {
+    /*
+     * ⚠️ DER FALL, DER EINE ZUSCHREIBUNG ERFINDEN WUERDE (Codex-Review zu
+     * PR #175, zweite Runde). Zwei Menschen geben im selben Moment dieselbe
+     * Sache aus derselben Einheit ab — einer mit Kärtchen, einer angemeldet.
+     * Steht die Quelle nicht im Schluessel, ist das EINE Gruppe mit ZWEI
+     * Quellen, und `min(quelle_typ)`/`min(quelle_id)` sind UNABHAENGIGE
+     * Aggregate: sie duerfen ihre Werte aus verschiedenen Zeilen nehmen.
+     * Herauskaeme „oidc" mit dem Kärtchen-Code, und weil der in `users` nicht
+     * steht, stuende die ROHE Kennung `123-456` in der Spalte „Wer".
+     *
+     * ⚠️ DIE ZWEI ZEILEN SIND NICHT DER PUNKT, DIE ZWEI NAMEN SIND ES: eine
+     * zusammengefasste Zeile waere hinnehmbar, eine erfundene Zuschreibung
+     * nicht. Deshalb pruefen wir beides, und `wer` ausdruecklich auf BEIDE
+     * aufgeloesten Etiketten.
+     */
+    charge("ch-1", "2030-01");
+    const gleich = new Date("2026-09-16T09:00:00Z");
+    buchen("zu-kaertchen", {
+      charge: "ch-1", menge: 1, ts: gleich, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+      quelleTyp: "token", quelleId: "123-456",
+    });
+    buchen("zu-konto", {
+      charge: "ch-1", menge: 2, ts: gleich, referenz: `${ENTNAHMEBOX_PRAEFIX}fz-1`,
+      quelleTyp: "oidc", quelleId: "u-1",
+    });
+
+    const zugaenge = letzteBoxZugaenge(t.db);
+    expect(zugaenge, "zwei Quellen ⇒ zwei Zeilen").toHaveLength(2);
+    expect(zugaenge.map((z) => [z.wer, z.menge]).sort())
+      .toEqual([["A. Verwaltung", 2], ["Kärtchen RTW 1", 1]]);
+  });
+
 });
