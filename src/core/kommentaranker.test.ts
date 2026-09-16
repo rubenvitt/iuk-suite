@@ -283,6 +283,14 @@ const VERFOLGT = new Set(verfolgteDateien());
  * schreibt: wie dagestanden, mit aufgeloestem `@`-Alias, und — wenn die Endung
  * fehlt — mit der, die ein `import` weglaesst.
  *
+ * ⚠️ NUR DER EIGENE REPONAME WIRD ABGESTREIFT, kein anderer: drei Anker
+ * schreiben `iuk-suite/Dockerfile` bzw. `iuk-suite/src/core/routing.ts` und
+ * meinen damit DIESES Repo (Codex-Review zu PR #183) — ungestrippt galten sie
+ * als aeusserer Verweis. `lagerbuch/…` und `radio-inventar/…` bleiben stehen:
+ * das sind die ALT-ANWENDUNGEN, und genau ihr Praefix ist die Auskunft, die
+ * Regel 2 in `CLAUDE.md` verlangt. Wer hier pauschal das erste Segment
+ * abschneidet, macht aus jeder Herkunftsmarke einen Anker in dieses Repo.
+ *
  * ⚠️ BEIDE FORMEN STEHEN IM BESTAND und blieben bis hierher ungeprueft
  * (Codex-Review zu PR #183): zwei radio-Tests verankern auf Zeile 174-186 des
  * DOM-Harnesses und nennen es ueber den tsconfig-Alias `@/…` UND ohne `.tsx` —
@@ -291,8 +299,12 @@ const VERFOLGT = new Set(verfolgteDateien());
  * rohen Text aufloest, haelt eine hausuebliche Schreibweise fuer einen
  * aeusseren Verweis.
  */
+const EIGENES_REPO = "iuk-suite/";
+
 function zielVarianten(ziel: string): string[] {
-  const roh = ziel.startsWith("@/") ? [ziel, `src/${ziel.slice(2)}`] : [ziel];
+  const roh = [ziel];
+  if (ziel.startsWith("@/")) roh.push(`src/${ziel.slice(2)}`);
+  if (ziel.startsWith(EIGENES_REPO)) roh.push(ziel.slice(EIGENES_REPO.length));
   const ohneEndung = roh.filter((z) => extname(basename(z)) === "");
   return [...roh, ...ohneEndung.flatMap((z) => [`${z}.ts`, `${z}.tsx`])];
 }
@@ -505,6 +517,13 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
       .toMatch(/src\/app\/m\/qr\/_lib\/test-dom\.tsx$/);
     expect(aufloesen(von, "app/m/qr/_lib/test-dom"))
       .toMatch(/src\/app\/m\/qr\/_lib\/test-dom\.tsx$/);
+
+    // Der EIGENE Reponame wird abgestreift …
+    expect(aufloesen(von, "iuk-suite/src/core/routing.ts"))
+      .toMatch(/src\/core\/routing\.ts$/);
+    // … ein FREMDER nicht: `lagerbuch/src/app/globals.css` ist die
+    // Alt-Anwendung und darf gerade NICHT auf die Datei hier zeigen.
+    expect(aufloesen(von, "lagerbuch/src/app/globals.css")).toBeNull();
   });
 
   /**
