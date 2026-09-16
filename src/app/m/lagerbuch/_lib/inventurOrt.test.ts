@@ -6,6 +6,7 @@ import {
   zaehlOrtAus,
   zaehlOrtBeschreibung,
   zaehlOrtLabel,
+  zaehlOrtWert,
 } from "./inventurOrt";
 
 /**
@@ -20,9 +21,58 @@ describe("zaehlOrtAus", () => {
   });
 
   it("reicht einen Ort durch, Wurzel wie Schrank", () => {
-    expect(zaehlOrtAus(HANDLAGER_ID)).toBe(HANDLAGER_ID);
-    expect(zaehlOrtAus(" schrank-1 ")).toBe("schrank-1");
+    expect(zaehlOrtAus(zaehlOrtWert(HANDLAGER_ID))).toBe(HANDLAGER_ID);
+    expect(zaehlOrtAus(` ${zaehlOrtWert("schrank-1")} `)).toBe("schrank-1");
   });
+
+  /**
+   * ⚠️ DER ALTE WERT OHNE PRAEFIX GILT WEITER (DRK-371). Er steht in
+   * Lesezeichen; ihn abzuweisen hiesse, dass ein geteilter Link still den
+   * ganzen Handlager zaehlt statt den Schrank, den er meint.
+   */
+  it("liest die Altform ohne Praefix weiter", () => {
+    expect(zaehlOrtAus("schrank-1")).toBe("schrank-1");
+    expect(zaehlOrtAus(HANDLAGER_ID)).toBe(HANDLAGER_ID);
+  });
+
+  /**
+   * ⚠️ EIN PRAEFIX OHNE KENNUNG IST KEINE WAHL. `?ort=ort:` entstuende beim
+   * Zusammenbauen von Hand; als Kennung `""` ginge er bis in `zaehlBereich`
+   * und faende dort nichts — die Vorgabe gleich hier ist derselbe Ausgang,
+   * einen Lesepfad frueher.
+   */
+  it("nimmt ein leeres Praefix als Vorgabe", () => {
+    expect(zaehlOrtAus("ort:")).toBeNull();
+    expect(zaehlOrtAus("ort:   ")).toBeNull();
+  });
+
+  /**
+   * ⚠️ DIESELBE WAHL IN ZWEI SCHREIBWEISEN IST EINE WAHL, kein Widerspruch.
+   * Entdoppelt wird deshalb NACH dem Aufloesen; davor waere `schrank-1` von
+   * `ort:schrank-1` verschieden, und die Seite fiele auf den ganzen Handlager
+   * zurueck — ausgerechnet fuer einen Link, der eindeutig ist.
+   */
+  it("haelt Altform und neue Form desselben Orts fuer denselben Ort", () => {
+    expect(zaehlOrtAus(["schrank-1", "ort:schrank-1"])).toBe("schrank-1");
+  });
+
+  /**
+   * ⚠️ DAS IST DER FUND DES TICKETS (DRK-371), und er haengt NICHT am
+   * unwahrscheinlichen Namen: die Zusicherung lautet, dass der Waechter und
+   * JEDE Lagerort-Kennung in getrennten Wertebereichen liegen. Geprueft am
+   * haertesten Vertreter — ein importierter Schrank heisst woertlich wie der
+   * Waechter. Kennungen des Altbestands sind beliebige Zeichenketten; keine
+   * wird beim Import neu vergeben.
+   */
+  it.each([ZAEHLORT_ALLE, "ort:", "Alle", `${ZAEHLORT_ALLE}x`, "ort:alle"])(
+    "unterscheidet den Schrank mit der Kennung %j vom ganzen Handlager",
+    (kennung) => {
+      const wert = zaehlOrtWert(kennung);
+      expect(wert).not.toBe(ZAEHLORT_ALLE);
+      expect(zaehlOrtAus(wert)).toBe(kennung);
+      expect(zaehlOrtAus(ZAEHLORT_ALLE)).toBeNull();
+    },
+  );
 
   /**
    * ⚠️ DER PARAMETER KANN EIN ARRAY SEIN (Codex-Befund zum PR). Nexts
@@ -58,9 +108,19 @@ describe("zaehlOrtLabel", () => {
    */
   it("unterscheidet ganzen Handlager, Wurzel und Schrank", () => {
     expect(zaehlOrtLabel(null, undefined)).toBe("Ganzer Handlager");
-    expect(zaehlOrtLabel(ZAEHLORT_ALLE, undefined)).toBe("Ganzer Handlager");
     expect(zaehlOrtLabel(HANDLAGER_ID, "Handlager")).toBe("Nicht zugeordnet");
     expect(zaehlOrtLabel("schrank-1", "Schrank 1")).toBe("Schrank 1");
+  });
+
+  /**
+   * ⚠️ „GANZER HANDLAGER" IST `null` UND SONST NICHTS (DRK-371). Bis dahin galt
+   * auch die Zeichenkette `alle` dafuer — ein Schrank mit dieser Kennung hiess
+   * dadurch „Ganzer Handlager", und zwar auch im append-only Verlauf, wo es
+   * niemand mehr geraderuecken kann.
+   */
+  it("laesst dem Schrank mit der Kennung alle seinen eigenen Namen", () => {
+    expect(zaehlOrtLabel(ZAEHLORT_ALLE, "Schrank A")).toBe("Schrank A");
+    expect(zaehlOrtLabel(ZAEHLORT_ALLE, undefined)).toBe(ZAEHLORT_ALLE);
   });
 
   /** Ohne Namen die Kennung: eine leere Beschriftung waere schlimmer als eine rohe. */
@@ -84,7 +144,7 @@ describe("zaehlOrtBeschreibung", () => {
 describe("eindeutigeLabels", () => {
   it("laesst eine Liste ohne Dopplung unveraendert", () => {
     const orte = [
-      { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { id: null, label: "Ganzer Handlager" },
       { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
       { id: "schrank-1", label: "Schrank 1" },
     ];
@@ -97,12 +157,12 @@ describe("eindeutigeLabels", () => {
    */
   it("haengt nur an doppelte Beschriftungen die Kennung", () => {
     expect(eindeutigeLabels([
-      { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { id: null, label: "Ganzer Handlager" },
       { id: "schrank-a", label: "Schrank 1" },
       { id: "schrank-b", label: "Schrank 1" },
       { id: "schrank-c", label: "GF-Schrank" },
     ])).toEqual([
-      { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { id: null, label: "Ganzer Handlager" },
       { id: "schrank-a", label: "Schrank 1 (schrank-a)" },
       { id: "schrank-b", label: "Schrank 1 (schrank-b)" },
       { id: "schrank-c", label: "GF-Schrank" },

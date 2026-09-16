@@ -20,7 +20,7 @@ import {
   inventurTrifft,
   type InventurFilter,
 } from "../../../_lib/inventurFilter";
-import { ZAEHLORT_ALLE, type ZaehlOrt } from "../../../_lib/inventurOrt";
+import { ZAEHLORT_ALLE, zaehlOrtWert, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { INVENTUR_ABWEISUNGEN, INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import { kategorieOptionen } from "../../../_lib/kategorie";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
@@ -209,7 +209,7 @@ export function InventurForm({ zeilen, ortId, orte }: {
       */}
       <Flex gap={SPACE.md} wrap align="center" style={{ marginBlockEnd: SPACE.md }}>
         <Select<string>
-          value={ortId ?? ZAEHLORT_ALLE}
+          value={zaehlOrtWert(ortId)}
           aria-label="Zählort"
           // ⚠️ GESPERRT, SOBALD ETWAS GEZAEHLT IST. Der Wechsel steigt die Insel
           // neu ein (`key` in `page.tsx`) und verwirft damit den Zaehlstand —
@@ -220,7 +220,11 @@ export function InventurForm({ zeilen, ortId, orte }: {
             setzeUrl({ ort: wert === ZAEHLORT_ALLE ? "" : wert });
           })}
           style={{ minWidth: 240 }}
-          options={orte.map((o) => ({ value: o.id, label: o.label }))}
+          // ⚠️ `zaehlOrtWert` UND NICHT `o.id` (DRK-371): die rohe Kennung stuende
+          // im selben Wertebereich wie der Waechter, und ein Schrank namens
+          // `alle` waere nicht mehr waehlbar — sein Klick zaehlte den ganzen
+          // Handlager, samt der Korrekturen, die daraus folgen.
+          options={orte.map((o) => ({ value: zaehlOrtWert(o.id), label: o.label }))}
           virtual={false}
         />
         {positionen.length > 0 ? (

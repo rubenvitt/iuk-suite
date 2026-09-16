@@ -22,8 +22,52 @@ import { HANDLAGER_ID } from "./konstanten";
  * selbst ein waehlbarer Ort („noch keinem Schrank zugeordnet"). Beide auf
  * denselben Wert zu legen hiesse, dass eine Zaehlung der Wurzel still den
  * Bestand aller Schraenke miterwartet.
+ *
+ * ⚠️ ER STEHT SEIT DRK-371 IN EINEM ANDEREN WERTEBEREICH ALS EIN ORT, und die
+ * Richtung ist nicht beliebig: ein Ort traegt das Praefix, der Waechter nicht.
+ * Die Begruendung steht bei `ORT_PRAEFIX`.
  */
 export const ZAEHLORT_ALLE = "alle";
+
+/**
+ * DRK-371 — EIN ORT HEISST IN AUSWAHL UND URL `ort:<kennung>`.
+ *
+ * ⚠️ DAS PRAEFIX IST NICHT SCHMUCK, und es steht in diesem Modul schon zum
+ * dritten Mal in der Suite: `_lib/entnahmeZiel.ts` fuehrt `fz:`,
+ * `verfall/AussondernRow.tsx` `ort:` — beide aus genau diesem Grund. Kennungen
+ * des importierten Altbestands sind BELIEBIGE Zeichenketten; keine wird beim
+ * Import neu vergeben (`_db/schema.ts`). Hiesse ein Schrank `alle`, waere er
+ * ohne Praefix von „ganzer Handlager" nicht zu unterscheiden — `?ort=alle`
+ * zaehlte den ganzen Handlager statt diesen einen Schrank, samt der
+ * Korrekturbuchungen, die aus der Zaehlung folgen, und DIE SEITE SAEHE DABEI
+ * RICHTIG AUS.
+ *
+ * ⚠️ DAS PRAEFIX GEHOERT AN DIE KENNUNG UND NICHT AN DEN WAECHTER, und das ist
+ * die ganze Entscheidung. Ein Waechter `alle:ganz` waere nur ein zweiter Name
+ * fuer dasselbe Problem: auch ihn koennte ein importierter Schrank woertlich
+ * tragen. Erst wenn JEDE Kennung in ihren eigenen Namensraum wandert, ist der
+ * Waechter nachweislich ausserhalb — nicht nur unwahrscheinlicherweise.
+ *
+ * ⚠️ KEIN TOR SIEHT DEN RUECKFALL: `typecheck` prueft eine gueltige
+ * Zeichenkette, `build` serialisiert sie klaglos, und ein Test bliebe gruen,
+ * solange kein Ort so heisst. Nur ein Import mit genau dieser Kennung zeigt es
+ * — und dann als falsch gezaehlten Bestand, nicht als Fehlermeldung.
+ */
+const ORT_PRAEFIX = "ort:";
+
+/**
+ * Die Ortskennung → der Wert, der in Auswahl und URL steht. `null` ist der
+ * ganze Handlager.
+ *
+ * ⚠️ JEDE STELLE, DIE EINEN ORT ALS WERT SCHREIBT, GEHT HIER DURCH — auch der
+ * `key` der Insel in `inventur/page.tsx`. Er ist kein Formkram, sondern der
+ * Riegel gegen eine falsche Buchung (Begruendung dort); baute er seinen Wert
+ * selbst, traege der Schrank `alle` denselben Schluessel wie „ganzer
+ * Handlager", und React behielte beim Wechsel den Zaehlstand.
+ */
+export function zaehlOrtWert(ortId: string | null): string {
+  return ortId === null ? ZAEHLORT_ALLE : `${ORT_PRAEFIX}${ortId}`;
+}
 
 /**
  * Die Wurzel als Zaehlort. Der Name des Lagerorts („Handlager") waere hier
@@ -32,8 +76,17 @@ export const ZAEHLORT_ALLE = "alle";
  */
 export const ZAEHLORT_WURZEL_LABEL = "Nicht zugeordnet";
 
-/** Ein waehlbarer Zaehlort — `id` ist `ZAEHLORT_ALLE`, `HANDLAGER_ID` oder ein Schrank. */
-export type ZaehlOrt = { id: string; label: string };
+/**
+ * Ein waehlbarer Zaehlort — `id` ist `null` („ganzer Handlager"), `HANDLAGER_ID`
+ * oder ein Schrank.
+ *
+ * ⚠️ `null` UND NICHT `ZAEHLORT_ALLE` (DRK-371). Die Kennung ist hier der ROHE
+ * Datenbankwert; stuende der Waechter mit darin, traege der Schrank mit der
+ * Kennung `alle` denselben Eintrag wie „ganzer Handlager" — und die Auswahl
+ * haette zwei Zeilen, die auf denselben Wert zeigen. Was in der Auswahl steht,
+ * rechnet `zaehlOrtWert` daraus aus.
+ */
+export type ZaehlOrt = { id: string | null; label: string };
 
 /**
  * Die Beschriftung eines Zaehlorts — EINE Quelle fuer Auswahl, Seitentext und
@@ -41,7 +94,14 @@ export type ZaehlOrt = { id: string; label: string };
  * Verlauf anders klingen als die Auswahl, aus der er entstanden ist.
  */
 export function zaehlOrtLabel(ortId: string | null, name: string | undefined): string {
-  if (ortId === null || ortId === ZAEHLORT_ALLE) return "Ganzer Handlager";
+  /*
+   * ⚠️ HIER STAND BIS DRK-371 EIN ZWEITER ZWEIG `ortId === ZAEHLORT_ALLE`, und
+   * er war Teil derselben Ueberschneidung: ein Schrank mit der Kennung `alle`
+   * hiess dadurch „Ganzer Handlager" — in der Auswahl, im Seitentext UND im
+   * append-only Verlauf, wo es niemand mehr geraderuecken kann. „Ganzer
+   * Handlager" ist jetzt `null` und sonst nichts.
+   */
+  if (ortId === null) return "Ganzer Handlager";
   if (ortId === HANDLAGER_ID) return ZAEHLORT_WURZEL_LABEL;
   return name ?? ortId;
 }
@@ -69,12 +129,40 @@ export function zaehlOrtLabel(ortId: string | null, name: string | undefined): s
  * eine Wahl und wird genommen.
  */
 export function zaehlOrtAus(roh: string | string[] | undefined): string | null {
+  /*
+   * ⚠️ ENTDOPPELT WIRD NACH DEM AUFLOESEN, NICHT DAVOR (DRK-371): seit es zwei
+   * Schreibweisen fuer denselben Ort gibt, waere `?ort=schrank-1&ort=ort:schrank-1`
+   * sonst ein „Widerspruch" zwischen einem Ort und sich selbst — und fiele auf
+   * den ganzen Handlager zurueck.
+   */
   const werte = [...new Set(
     (Array.isArray(roh) ? roh : [roh])
-      .map((wert) => wert?.trim())
-      .filter((wert): wert is string => Boolean(wert) && wert !== ZAEHLORT_ALLE),
+      .map((wert) => ortAusWert(wert))
+      .filter((id): id is string => id !== null),
   )];
   return werte.length === 1 ? werte[0]! : null;
+}
+
+/**
+ * Ein einzelner Rohwert → die Ortskennung, oder `null` fuer „ganzer Handlager".
+ *
+ * ⚠️ DIE ALTFORM OHNE PRAEFIX WIRD WEITER GELESEN, und das ist eine
+ * Entscheidung, keine Nachlaessigkeit (DRK-371): der Wert steht in der URL und
+ * damit in Lesezeichen. Sie ist VERLUSTFREI, weil der einzige Fall, den sie
+ * nicht ausdruecken kann — der Schrank mit der Kennung `alle` —, ueber ein
+ * altes Lesezeichen ohnehin nie erreichbar war; genau das ist der Fehler,
+ * den dieses Ticket behebt.
+ *
+ * ⚠️ SIE IST EIN LESEPFAD UND KEIN ZWEITER WERTEBEREICH. Geschrieben wird
+ * ausschliesslich `zaehlOrtWert`; eine geoeffnete Seite heilt ihre Adresse beim
+ * ersten Ortswechsel selbst. Wer hier eine rohe Kennung AUSGIBT, holt die
+ * Ueberschneidung zurueck, und zwar still.
+ */
+function ortAusWert(roh: string | undefined): string | null {
+  const wert = roh?.trim();
+  if (!wert || wert === ZAEHLORT_ALLE) return null;
+  if (wert.startsWith(ORT_PRAEFIX)) return wert.slice(ORT_PRAEFIX.length) || null;
+  return wert;
 }
 
 /** Der Ortsteil des Zaehlhinweises auf der Seite — „Gezählt wird …". */
@@ -107,7 +195,9 @@ export function zaehlOrtBeschreibung(ortId: string | null, name: string | undefi
  * jemand „Nicht zugeordnet" nennt, kollidiert mit der Wurzel — dieselbe
  * Verwechslung aus einer Richtung, an die der Befund nicht gedacht hat.
  */
-export function eindeutigeLabels(orte: readonly ZaehlOrt[]): ZaehlOrt[] {
+export function eindeutigeLabels<T extends { id: string | null; label: string }>(
+  orte: readonly T[],
+): T[] {
   const einDurchgang = orte.map((o) => (
     zaehle(orte, o.label) > 1 ? { ...o, label: mitKennung(o) } : { ...o }
   ));
@@ -129,10 +219,17 @@ export function eindeutigeLabels(orte: readonly ZaehlOrt[]): ZaehlOrt[] {
   return alleVerschieden ? einDurchgang : orte.map((o) => ({ ...o, label: mitKennung(o) }));
 }
 
-function mitKennung(ort: ZaehlOrt): string {
-  return `${ort.label} (${ort.id})`;
+/**
+ * ⚠️ DER WAECHTER BRAUCHT EINEN EIGENEN TEXT, seit seine `id` `null` ist
+ * (DRK-371) — sonst stuende „Ganzer Handlager (null)" auf dem Schirm. Fuer
+ * jeden echten Ort bleibt die Kennung buchstabengleich die alte: die ROHE
+ * Datenbankkennung, ohne das Praefix, das nur am Auswahlwert haengt. Sie ist
+ * das, was jemand in der Verwaltung wiederfindet.
+ */
+function mitKennung(ort: { id: string | null; label: string }): string {
+  return `${ort.label} (${ort.id ?? ZAEHLORT_ALLE})`;
 }
 
-function zaehle(orte: readonly ZaehlOrt[], label: string): number {
+function zaehle(orte: readonly { label: string }[], label: string): number {
   return orte.reduce((n, o) => (o.label === label ? n + 1 : n), 0);
 }

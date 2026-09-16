@@ -30,12 +30,12 @@ import { artikel } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
-import { ZAEHLORT_ALLE, type ZaehlOrt } from "../../../_lib/inventurOrt";
+import type { ZaehlOrt } from "../../../_lib/inventurOrt";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { InventurForm } from "./InventurForm";
 
 const ORTE: ZaehlOrt[] = [
-  { id: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+  { id: null, label: "Ganzer Handlager" },
   { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
   { id: "schrank-1", label: "Schrank 1" },
 ];
@@ -562,7 +562,12 @@ describe("InventurForm — Zählort (DRK-337)", () => {
       .toContain("Ganzer Handlager");
 
     await ortWaehlen("Schrank 1");
-    expect(mocks.setzeUrl).toHaveBeenCalledWith({ ort: "schrank-1" });
+    /*
+     * ⚠️ MIT PRAEFIX (DRK-371). Die rohe Kennung stuende im selben Wertebereich
+     * wie der Waechter `alle`; ein importierter Schrank mit genau dieser Kennung
+     * waere dann nicht waehlbar, und sein Klick zaehlte den ganzen Handlager.
+     */
+    expect(mocks.setzeUrl).toHaveBeenCalledWith({ ort: "ort:schrank-1" });
   });
 
   /**
@@ -646,8 +651,11 @@ describe("Inventurseite als RSC", () => {
         // DRK-337: ohne Suchparameter der ganze Handlager — das Verhalten vor
         // diesem Ticket. Die Auswahl kennt ausserdem die Wurzel als eigenen Ort.
         ortId: null,
+        // ⚠️ `null` UND NICHT `"alle"` (DRK-371): der Waechter steht ausserhalb
+        // des Wertebereichs der Lagerort-Kennungen, sonst waere ein Schrank mit
+        // der Kennung `alle` von ihm nicht zu unterscheiden.
         orte: [
-          { id: "alle", label: "Ganzer Handlager" },
+          { id: null, label: "Ganzer Handlager" },
           { id: "handlager", label: "Nicht zugeordnet" },
         ],
       });
@@ -697,11 +705,11 @@ describe("Inventurseite als RSC", () => {
       );
       expect(schrank.props).toMatchObject({ ortId: "schrank-1" });
       expect((schrank.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(6);
-      expect(schrank.key).toBe("schrank-1");
+      expect(schrank.key).toBe("ort:schrank-1");
       // Ein stillgelegter Schrank steht NICHT zur Wahl — er haelt aber weiter
       // Bestand und bleibt ueber die URL erreichbar.
       expect((schrank.props as { orte: ZaehlOrt[] }).orte.map((o) => o.id))
-        .toEqual(["alle", "handlager", "schrank-1"]);
+        .toEqual([null, "handlager", "schrank-1"]);
 
       // Die Wurzel meint NUR die Wurzel: „noch keinem Schrank zugeordnet".
       const [wurzel] = elementeVomTyp(
@@ -742,7 +750,73 @@ describe("Inventurseite als RSC", () => {
         inventurSeitenInhalt(testDb.db, jetzt, { ort: "schrank-alt" }), InventurForm,
       );
       expect((alt.props as { orte: ZaehlOrt[] }).orte.map((o) => o.id))
-        .toEqual(["alle", "handlager", "schrank-1", "schrank-alt"]);
+        .toEqual([null, "handlager", "schrank-1", "schrank-alt"]);
+    } finally {
+      testDb.schliessen();
+    }
+  });
+
+  /**
+   * DRK-371 — DER SCHRANK, DER WIE DER WAECHTER HEISST.
+   *
+   * ⚠️ DAS IST KEIN NAMENSWITZ, SONDERN DER EINZIGE ABRUF, DER DEN FEHLER
+   * ZEIGTE. Kennungen des importierten Altbestands sind beliebige
+   * Zeichenketten; keine wird beim Import neu vergeben. Solange Waechter und
+   * Kennung denselben Wertebereich teilten, zaehlte `?ort=alle` den GANZEN
+   * Handlager statt diesen einen Schrank — samt der Korrekturbuchungen, die aus
+   * der Zaehlung folgen —, und die Seite sah dabei richtig aus.
+   *
+   * ⚠️ DER `key` GEHOERT MIT IN DIE ZUSICHERUNG. Er war der zweite Ort
+   * derselben Ueberschneidung: `ortId ?? "alle"` gab diesem Schrank denselben
+   * Schluessel wie „ganzer Handlager", und die Insel haette beim Wechsel ihren
+   * Zaehlstand behalten — also Werte aus dem einen Bereich gegen die
+   * Erwartungszahlen des anderen gebucht.
+   */
+  it("macht den Schrank mit der Kennung „alle“ wählbar und zählt nur ihn", async () => {
+    const { inventurSeitenInhalt } = await import("./page");
+    const { buchungen, chargen, lagerorte } = await import("../../../_db/schema");
+    const testDb = migrierteTestDb("lagerbuch-inventur-seite-alle-");
+    try {
+      testDb.db.insert(lagerorte).values({
+        id: "alle", name: "Importschrank", typ: "lager", kennung: null, aktiv: true,
+        templateId: null, parentId: "handlager", sortierung: 10,
+      }).run();
+      testDb.db.insert(artikel).values({
+        id: "a-alle", name: "Ortsartikel", einheit: "Stk", fach: "R1",
+        mindestbestand: 0, aktiv: true, createdAt: new Date("2026-08-07T10:00:00Z"),
+      }).run();
+      testDb.db.insert(chargen).values({
+        id: "c-alle", artikelId: "a-alle", chargenNr: "L1", verfall: "2029-01",
+        createdAt: new Date("2026-08-07T10:00:00Z"),
+      }).run();
+      for (const [ort, menge] of [["handlager", 4], ["alle", 6]] as const) {
+        testDb.db.insert(buchungen).values({
+          id: `b-${ort}`, ts: new Date("2026-08-07T10:00:00Z"), typ: "zugang",
+          artikelId: "a-alle", chargeId: "c-alle", lagerortId: ort, menge,
+          quelleTyp: "system", quelleId: "test", referenz: null, kommentar: null,
+        }).run();
+      }
+
+      const jetzt = new Date("2026-09-14T10:00:00Z");
+      const [schrank] = elementeVomTyp(
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "ort:alle" }), InventurForm,
+      );
+      expect(schrank.props).toMatchObject({ ortId: "alle" });
+      // 6 und nicht 10: gezaehlt wird der Schrank, nicht der ganze Handlager.
+      expect((schrank.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(6);
+      expect(schrank.key).toBe("ort:alle");
+      // Er steht als eigene Zeile neben dem Waechter, nicht statt seiner.
+      expect((schrank.props as { orte: ZaehlOrt[] }).orte.map((o) => o.id))
+        .toEqual([null, "handlager", "alle"]);
+
+      // Der Waechter meint weiterhin den ganzen Handlager — 4 + 6.
+      const [ganz] = elementeVomTyp(
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "alle" }), InventurForm,
+      );
+      expect(ganz.props).toMatchObject({ ortId: null });
+      expect((ganz.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(10);
+      expect(ganz.key).toBe("alle");
+      expect(schrank.key).not.toBe(ganz.key);
     } finally {
       testDb.schliessen();
     }
