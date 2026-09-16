@@ -184,7 +184,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -206,7 +206,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -227,7 +227,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -242,7 +242,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
       <CheckFlow
     kontoZugang={false}
         fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -252,19 +252,26 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
     );
   });
 
-  it("Fahrzeug ohne alles, GEBUNDENES Kaertchen: der Rueckweg fuehrt zur Entnahme", async () => {
+  it("Fahrzeug ohne alles, keine andere Einheit: der Rueckweg fuehrt zur Entnahme", async () => {
     /*
-     * DRK-302. `weg` ist Pflicht-Prop (§11.7) — es gibt also keinen Ausgang
-     * „kein Weg". Bei einem gebundenen Kaertchen fuehrte „Anderes Fahrzeug" in
-     * eine Wahl, die die Check-Seite sofort wieder auf DIESES Fahrzeug
-     * aufloest: ein Knopf, der sichtbar nichts tut. Die Entnahme ist der
-     * einzige Ort, an dem es fuer diese Sitzung wirklich weitergeht.
+     * DRK-302, DRK-376. `weg` ist Pflicht-Prop (§11.7) — es gibt also keinen
+     * Ausgang „kein Weg". Gibt die Wahl dieselbe Einheit zurueck (gebundenes
+     * Kaertchen ODER genau eine aktive Einheit), fuehrte „Andere Einheit" in
+     * eine Wahl, die die Check-Seite sofort wieder auf DIESE Einheit aufloest:
+     * ein Knopf, der sichtbar nichts tut — und hier die einzige Handlung des
+     * Schirms. Die Entnahme ist der Ort, an dem es fuer diese Sitzung wirklich
+     * weitergeht.
+     *
+     * ⚠️ WELCHER DER BEIDEN GRUENDE GILT, SIEHT DIESE INSEL NICHT und soll sie
+     * nicht sehen: die Rechnung gehoert der Seite (`helfer/check/page.tsx`),
+     * die beide Gruende kennt, ohne dem Flow mehr in den Payload zu legen, als
+     * er zeigt. Geprueft wird sie in `helfer/check/page.test.tsx`.
      */
     await mount(
       <CheckFlow
     kontoZugang={false}
         fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
-        gebunden
+        andereEinheitErreichbar={false}
         letzterCheckText={null}
       />,
     );
@@ -286,7 +293,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -320,7 +327,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -348,7 +355,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -415,7 +422,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -456,7 +463,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -494,7 +501,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -530,7 +537,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -551,7 +558,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ id: "sp-1", fachLabel: "Fach 1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -575,7 +582,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
         soll={[POS({ id: "sp-1" }), POS({ id: "sp-2", fachLabel: "Fach 2" })]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -612,7 +619,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{ "art-1": "2020-01" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -629,7 +636,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -663,7 +670,7 @@ describe("CheckFlow — die Art der Einheit (DRK-309)", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 20 })]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -704,7 +711,7 @@ describe("CheckFlow — die Art der Einheit (DRK-309)", () => {
         verfall={{}}
         warn={WARN}
         soll={[]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -729,7 +736,7 @@ describe("CheckFlow — Nachfuellen", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 2 })]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -752,7 +759,7 @@ describe("CheckFlow — Nachfuellen", () => {
         verfall={{}}
         warn={WARN}
         soll={[POS({ soll: 5, handlagerBestand: 20 })]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -781,7 +788,7 @@ describe("CheckFlow — Nachfuellen", () => {
           POS({ id: "sp-1", soll: 5, handlagerBestand: 2 }),
           POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
         ]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -840,7 +847,7 @@ describe("CheckFlow — Nachfuellen", () => {
           POS({ id: "sp-1", soll: 5, handlagerBestand: 2 }),
           POS({ id: "sp-2", fachLabel: "Fach 2", soll: 5, handlagerBestand: 2 }),
         ]}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -893,7 +900,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         flaschen={[FLASCHE]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -931,7 +938,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -959,7 +966,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -988,7 +995,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1045,7 +1052,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
   it("die fuenf Auswahlknoepfe sind mit Handschuhen treffbar (Tippmass)", async () => {
     await mount(
       <CheckFlow kontoZugang={false} fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1095,7 +1102,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         flaschen={[O2({ nennfuelldruckBar: 0 })]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1131,7 +1138,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         flaschen={[O2({ nennfuelldruckBar: 200 })]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1163,7 +1170,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         ]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1185,7 +1192,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
         flaschen={[O2({ nennfuelldruckBar: 200, letzterDruck: 190 })]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1221,7 +1228,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1251,7 +1258,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1287,7 +1294,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1311,7 +1318,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1332,7 +1339,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1345,16 +1352,19 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     );
   });
 
-  it("bei GEBUNDENEM Kaertchen bleibt nur EIN Link — „Nochmal dieses Fahrzeug\"", async () => {
+  it("ohne andere Einheit bleibt nur EIN Link — „Nochmal diese Einheit\"", async () => {
     /*
-     * DRK-302, die zweite Haelfte der Begrenzung. Ohne sie zeigte die Seite
-     * zwar nur ein Fahrzeug, staende am Abschluss aber ein Knopf in die volle
-     * Liste — der Einstieg waere genau eine Bedienung von seiner Begrenzung
-     * entfernt, und zwar an der Stelle, an der die Helferin ohnehin hinsieht.
+     * DRK-302, die zweite Haelfte der Begrenzung; seit DRK-376 traegt sie
+     * BEIDE Gruende. Ohne sie zeigte die Seite zwar nur eine Einheit, staende
+     * am Abschluss aber ein Knopf in die volle Liste — der Einstieg waere genau
+     * eine Bedienung von seiner Begrenzung entfernt, und zwar an der Stelle, an
+     * der die Helferin ohnehin hinsieht.
      *
-     * „Nochmal dieses Fahrzeug" BLEIBT: es ist der Weg, mit dem sie nach einer
-     * Buchung frische Bestaende sieht — ein Zustandsreset ueber sieben Setter
-     * ist es ausdruecklich nicht (§7.9.1).
+     * ⚠️ HIER WIRD VERSTECKT UND NICHT GETAUSCHT, anders als im Leerzustand:
+     * „Nochmal diese Einheit" BLEIBT und ist der Ausgang, den dieser Schirm in
+     * jeder Lage behaelt — es ist der Weg, mit dem sie nach einer Buchung
+     * frische Bestaende sieht, und ein Zustandsreset ueber sieben Setter ist es
+     * ausdruecklich nicht (§7.9.1).
      */
     await mount(
       <CheckFlow
@@ -1365,7 +1375,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden
+        andereEinheitErreichbar={false}
         letzterCheckText={null}
       />,
     );
@@ -1390,7 +1400,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1418,7 +1428,7 @@ const VOLLES_FAHRZEUG = (
     flaschen={[FLASCHE]}
     verfall={{}}
     warn={WARN}
-    gebunden={false}
+    andereEinheitErreichbar
     letzterCheckText={null}
   />
 );
@@ -1437,7 +1447,7 @@ const VOLLES_FAHRZEUG_KONTO = (
     flaschen={[FLASCHE]}
     verfall={{}}
     warn={WARN}
-    gebunden={false}
+    andereEinheitErreichbar
     letzterCheckText={null}
   />
 );
@@ -1493,7 +1503,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1527,7 +1537,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1547,7 +1557,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1580,7 +1590,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         flaschen={[FLASCHE]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1609,7 +1619,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1695,7 +1705,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1724,7 +1734,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1745,7 +1755,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1773,7 +1783,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1796,7 +1806,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1823,7 +1833,7 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1899,7 +1909,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText="14.09.2026, 08:12"
       />,
     );
@@ -1919,7 +1929,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -1941,7 +1951,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
         flaschen={[FLASCHE]}
         warn={WARN}
         verfall={{}}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText="14.09.2026, 08:12"
       />,
     );
@@ -1961,7 +1971,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText="14.09.2026, 08:12"
       />,
     );
@@ -1990,7 +2000,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -2017,7 +2027,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -2037,7 +2047,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -2064,7 +2074,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{}}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -2089,7 +2099,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2020-01" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -2116,7 +2126,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
@@ -2138,7 +2148,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
         flaschen={[]}
         verfall={{ "art-1": "2026-09", "art-2": "2026-10" }}
         warn={WARN}
-        gebunden={false}
+        andereEinheitErreichbar
         letzterCheckText={null}
       />,
     );
