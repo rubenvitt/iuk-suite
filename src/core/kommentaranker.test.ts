@@ -150,13 +150,16 @@ const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
  * Gemessen deckt der Zusatz 24 weitere Zeilenangaben ab, keine davon rot.
  *
  * Der Doppelpunkt darf fehlen (`:265,266` ist die Hausform), der TRENNER nicht:
- * nur direkt an den Anker angehaengte Fortsetzungen zaehlen. Ein `:266`, das
+ * nur direkt an den Anker angehaengte Fortsetzungen zaehlen. Als Trenner zaehlt
+ * auch der SCHRAEGSTRICH — `files-hosts.spec.ts:413/423/437` ist die Form, die
+ * `e2e/lagerbuch-hosts.spec.ts` schreibt (Codex-Review zu PR #183); ohne ihn
+ * blieben dort zwei von drei Zeilen ungeprueft. Ein `:266`, das
  * ZEILEN SPAETER im selben Kommentar auf denselben Anker zurueckverweist,
  * bleibt ungeprueft — das zu binden hiesse, einen Kommentarblock zustandsbehaftet
  * zu lesen, und ein nacktes `: 51` steht auch in jedem Ternaer. Als eigener
  * Posten notiert statt still gelassen.
  */
-const FORTSETZUNG = "(?:\\s*(?:,|;|und)\\s*:?\\d+(?:\\s*[-–]\\s*\\d+)?)";
+const FORTSETZUNG = "(?:\\s*(?:,|;|und|\\/)\\s*:?\\d+(?:\\s*[-–]\\s*\\d+)?)";
 
 const ZIEL = new RegExp(
   `(${SEGMENT}(?:\\/${SEGMENT})*):(\\d+)(?:\\s*[-–]\\s*(\\d+))?(${FORTSETZUNG}+)?`,
@@ -182,7 +185,7 @@ export function ankerAusText(text: string): Anker[] {
   for (const [, ziel, von, bis, schwanz] of text.matchAll(ZIEL)) {
     if (/^\d+$/.test(ziel)) continue;
     anker.push({ ziel, von: Number(von), bis: Number(bis ?? von) });
-    for (const [, v, b] of (schwanz ?? "").matchAll(/:?(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
+    for (const [, v, b] of (schwanz ?? "").matchAll(/[:/]?(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
       anker.push({ ziel, von: Number(v), bis: Number(b ?? v) });
     }
   }
@@ -262,6 +265,25 @@ const VERFOLGT = new Set(verfolgteDateien());
  * kann veralten wie jede andere. Ausgeschlossen ist nur, ihre eigene Prosa als
  * Anker zu lesen.
  */
+/**
+ * Die Schreibweisen desselben Ziels, in der Reihenfolge, in der die Suite sie
+ * schreibt: wie dagestanden, mit aufgeloestem `@`-Alias, und — wenn die Endung
+ * fehlt — mit der, die ein `import` weglaesst.
+ *
+ * ⚠️ BEIDE FORMEN STEHEN IM BESTAND und blieben bis hierher ungeprueft
+ * (Codex-Review zu PR #183): zwei radio-Tests verankern auf Zeile 174-186 des
+ * DOM-Harnesses und nennen es ueber den tsconfig-Alias `@/…` UND ohne `.tsx` —
+ * so, wie der `import` zwei Zeilen weiter unten es auch nennt. (Der Anker
+ * steht hier ohne `datei:zeile`-Schreibweise, siehe `zeilenzahlVon`.) Wer nur den
+ * rohen Text aufloest, haelt eine hausuebliche Schreibweise fuer einen
+ * aeusseren Verweis.
+ */
+function zielVarianten(ziel: string): string[] {
+  const roh = ziel.startsWith("@/") ? [ziel, `src/${ziel.slice(2)}`] : [ziel];
+  const ohneEndung = roh.filter((z) => extname(basename(z)) === "");
+  return [...roh, ...ohneEndung.flatMap((z) => [`${z}.ts`, `${z}.tsx`])];
+}
+
 export function aufloesen(quelle: string, ziel: string): string | null {
   const basen: string[] = [];
   let verzeichnis = resolve(dirname(quelle));
@@ -273,15 +295,17 @@ export function aufloesen(quelle: string, ziel: string): string | null {
   }
   basen.push(resolve("src/app/m"), resolve("src"), wurzel);
 
-  for (const basis of basen) {
-    const pfad = resolve(basis, ziel);
-    if (!pfad.startsWith(`${wurzel}/`)) continue;
-    if (!VERFOLGT.has(relative(wurzel, pfad))) continue;
-    if (zeilen(pfad) !== null) return pfad;
-  }
+  for (const variante of zielVarianten(ziel)) {
+    for (const basis of basen) {
+      const pfad = resolve(basis, variante);
+      if (!pfad.startsWith(`${wurzel}/`)) continue;
+      if (!VERFOLGT.has(relative(wurzel, pfad))) continue;
+      if (zeilen(pfad) !== null) return pfad;
+    }
 
-  const eindeutig = EINDEUTIGES_SUFFIX.get(ziel);
-  if (eindeutig !== undefined) return resolve(wurzel, eindeutig);
+    const eindeutig = EINDEUTIGES_SUFFIX.get(variante);
+    if (eindeutig !== undefined) return resolve(wurzel, eindeutig);
+  }
   return null;
 }
 
@@ -462,6 +486,12 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
 
     // Mehrdeutig heisst ebenfalls stumm: `_db/schema.ts` gibt es in jedem Modul.
     expect(aufloesen(von, "_db/schema.ts")).toBeNull();
+
+    // Der tsconfig-Alias und die weggelassene Endung — beide Hausformen.
+    expect(aufloesen(von, "@/app/m/qr/_lib/test-dom"))
+      .toMatch(/src\/app\/m\/qr\/_lib\/test-dom\.tsx$/);
+    expect(aufloesen(von, "app/m/qr/_lib/test-dom"))
+      .toMatch(/src\/app\/m\/qr\/_lib\/test-dom\.tsx$/);
   });
 
   /**
@@ -538,6 +568,9 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
       .toEqual(["probeGlobals.css:265", "probeGlobals.css:266"]);
     expect(ziele("`probeBauform.test.ts:181, :201-203`"))
       .toEqual(["probeBauform.test.ts:181", "probeBauform.test.ts:203"]);
+    // Der Schraegstrich zaehlt ebenfalls als Trenner — `:413/423/437`.
+    expect(ziele("`probeHosts.spec.ts:413/423/437`"))
+      .toEqual(["probeHosts.spec.ts:413", "probeHosts.spec.ts:423", "probeHosts.spec.ts:437"]);
 
     // Kein Anker: eine Datei ohne Zeile, und eine Zeit (nur Ziffern vor dem
     // Doppelpunkt — die eine Einschraenkung, die die Regex noch selbst trifft).
