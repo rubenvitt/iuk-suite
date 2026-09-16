@@ -257,6 +257,119 @@ services:
       # dieser Wert, wie lange die Suite auf clamav wartet.
       start_period: ${SUITE_CLAMAV_START_PERIOD:-120s}
 
+  # ── Backup: Zeitgeber, externes Ziel und Rueckmeldung (DRK-185) ──────────────────────
+  # Dieser Dienst ERSETZT den Host-Cron, der `scripts/backup.sh` bisher gerufen hat. Das
+  # Skript selbst ist unveraendert geblieben; was sich aendert, ist WER es ruft und was
+  # danach mit dem Tarball passiert. Runbook: `docs/runbooks/backup-sidecar.md`.
+  #
+  # DREI GRUENDE, WARUM DER HOST-CRON NICHT REICHTE, und jeder hat hier seine Zeile:
+  #   1. Er stand nur auf dem Server. Faellt der Server neu auf, faellt der Schutz weg,
+  #      und im Stack war davon nichts zu sehen — hier ist er sichtbar und wandert mit.
+  #   2. Er kannte kein externes Ziel. Ein Backup neben den Daten ueberlebt den Verlust
+  #      des Servers nicht (`BACKUP_RCLONE_ZIEL`).
+  #   3. Niemand sah einen Fehlschlag. Jetzt tun es zwei Wege: der `healthcheck` unten
+  #      und der Ping aus `BACKUP_PING_URL`.
+  #
+  # ⚠️ KEIN `depends_on`, IN KEINE RICHTUNG — und das ist eine Entscheidung, keine
+  # Auslassung. Die Suite darf niemals daran haengen, dass das Backup laeuft (clamav
+  # zeigt, was diese Kopplung kostet: wird der Sidecar nicht healthy, startet die Suite
+  # gar nicht). Umgekehrt braucht das Backup die Suite auch nicht — es arbeitet auf dem
+  # VOLUME, nicht auf der Anwendung, und ein Backup bei gestoppter Suite ist der
+  # sauberste Stand, den es gibt.
+  backup:
+    # ALS VARIABLE MIT VORBELEGUNG, `:-` wie oben (ohne den Doppelpunkt scheitert
+    # `docker compose config`, sobald die Variable fehlt).
+    #
+    # Ein NACKTES alpine, und die Werkzeuge kommen beim Start per `apk add` dazu (die
+    # Liste steht in `backup-sidecar.sh`, nicht hier). Der Preis ist benannt: der Start
+    # braucht Netz, und ein Paketspiegel, der schweigt, laesst den Container in die
+    # Neustartschleife laufen. Das ist LAUT (`docker compose ps`) und damit die richtige
+    # Haelfte des Tauschs — die Alternative waere ein ZWEITES eigenes Image mit allem,
+    # was daran haengt: eigener Build-Job, eigene Digest-Kette, eigener Rollout-Pfad.
+    image: ${SUITE_BACKUP_IMAGE:-alpine:3.22}
+    restart: unless-stopped
+    # Reicht die .env durch — genau wie bei `suite` und aus demselben Grund: das Ziel
+    # (`BACKUP_RCLONE_ZIEL`), die rclone-Zugangsdaten (`RCLONE_CONFIG_*`) und die
+    # Melde-URL sind Betreibersache und sollen KEINE Aenderung an dieser Datei kosten.
+    #
+    # ⚠️ DER PREIS, AUSGESCHRIEBEN: damit sieht dieser Container auch AUTH_SECRET und
+    # POCKET_ID_CLIENT_SECRET, die er nicht braucht. Das ist vertretbar und nicht
+    # schoenzureden — er hat ohnehin Lesezugriff auf JEDE Modul-Datenbank, also auf
+    # strikt mehr, als in diesen beiden Zeilen steht. Was er dadurch gewinnt, ist echt:
+    # ein neues Sicherungsziel ist eine Zeile in der .env und sonst nichts.
+    env_file:
+      - path: .env
+        required: false
+    # `environment` gewinnt ueber `env_file` — nur was fix sein MUSS, steht hier.
+    # BACKUP_UHRZEIT, BACKUP_KEEP, BACKUP_RCLONE_* und BACKUP_PING_URL gehoeren bewusst
+    # NICHT hierher: ueber `env_file` bleibt „nicht gesetzt" auch wirklich nicht gesetzt,
+    # und genau daran haengen die Vorgaben im Skript.
+    environment:
+      - DATA_DIR=/data
+      # NICHT `$DATA_DIR/backups` (die Vorgabe des Skripts): die Sicherungen liegen ab
+      # jetzt in einem EIGENEN Volume. Ein versehentliches `docker volume rm suite_data`
+      # nahm sie sonst mit — die Kopie im selben Eimer wie das Original ist keine.
+      - BACKUP_DIR=/backups
+      - BACKUP_SKRIPT=/opt/backup/backup.sh
+      # Ohne TZ rechnet der Container in UTC, und „03:30" waere im Sommer 05:30
+      # Ortszeit. Die Zeitzonendaten laedt der Vorlauf als Paket `tzdata` nach.
+      - TZ=${TZ:-Europe/Berlin}
+      # DIESELBE Zahl wie beim Dienst `suite` daroben, und das ist tragend: der Vorlauf
+      # laeuft als root (fuer `apk`), gibt die Rechte aber ab, BEVOR er eine Datenbank
+      # anfasst. Die Begruendung steht im Skript — kurz: ein WAL-Leser legt `*.db-shm`
+      # an, wenn es fehlt, und ein root-eigenes `-shm` sperrt die Suite aus ihrer
+      # eigenen Datenbank aus.
+      - SUITE_USER=${SUITE_USER:-1001:1001}
+    volumes:
+      # SCHREIBEND, und das ist keine Nachlaessigkeit: die Modul-Datenbanken laufen im
+      # WAL-Modus (`core/db/index.ts`), und ein WAL-LESER braucht Schreibrecht auf das
+      # Verzeichnis und die `-shm`-Datei. `:ro` hier ergaebe „unable to open database
+      # file" fuer jede einzelne DB — also ein Backup, das nichts sichert.
+      - suite_data:/data
+      # Die Blobs des Moduls `files` — NUR LESEND, mehr braucht das rsync nicht.
+      # Zugleich der Grund, warum der Sidecar `BLOB_DIR` nicht setzen muss: unter diesem
+      # Mount stimmt die Vorgabe `$DATA_DIR/files` des Skripts von selbst. Der Host-Cron
+      # musste dafuer `/var/lib/docker/volumes/files_data/_data` kennen, und genau diese
+      # Zeile war die, die man vergisst.
+      - files_data:/data/files:ro
+      # ⚠️ `aufgaben_data` FEHLT HIER, UND DAS IST KEIN VERSEHEN: `scripts/backup.sh`
+      # liest das Verzeichnis heute nicht, ein Mount waere also ein Versprechen ohne
+      # Deckung. Die Luecke ist im README benannt und steht als DRK-391 auf dem Board; wer sie
+      # schliesst, braucht beides — die Zeile hier UND die im Skript.
+      - backup_data:/backups
+      # ZWEITE UND DRITTE DATEI, DIE NEBEN DIESER `compose.yaml` AUF DEM SERVER LIEGEN
+      # MUSS — bisher war es allein `clamd.files.conf`. Fehlt eine, legt Docker an ihrer
+      # Stelle ein leeres VERZEICHNIS an; `/bin/sh` scheitert dann mit „Is a directory"
+      # und der Container laeuft in die Neustartschleife. Laut, aber nur, wenn man
+      # hinsieht — deshalb vergleicht `scripts/deploy.sh` (Schritt 1) beide Dateien
+      # byteweise mit dem Repo und bricht bei Abweichung ab.
+      - ./scripts/backup.sh:/opt/backup/backup.sh:ro
+      - ./scripts/backup-sidecar.sh:/opt/backup/backup-sidecar.sh:ro
+    # Eigenes Netz, NICHT `proxy` und NICHT `av`. Nach aussen braucht der Dienst eine
+    # Route (apk beim Start, rclone zum Ziel, curl fuer den Ping) — nach innen hat er
+    # bei keinem anderen Container etwas zu suchen. `internal: true` waere hier also
+    # genau falsch, und `proxy` waere zu viel.
+    networks: [backupnet]
+    # `/bin/sh` ausgeschrieben, nicht `./…`: die Datei kommt per Bind-Mount vom Server,
+    # ihr Ausfuehrbar-Bit ist damit dessen Sache und nicht unsere.
+    command: ["/bin/sh", "/opt/backup/backup-sidecar.sh", "dienst"]
+    healthcheck:
+      # Liest die Zustandsdatei im Backup-Volume und faellt bei einem gescheiterten ODER
+      # einem ueberfaelligen Lauf. Der zweite Fall ist der wichtigere: ein Dienst, der
+      # gar nicht mehr laeuft, hat keinen gescheiterten Lauf — er hat keinen.
+      test: ["CMD", "/bin/sh", "/opt/backup/backup-sidecar.sh", "zustand"]
+      interval: 5m
+      timeout: 20s
+      retries: 2
+      # ⚠️ EIN TAG UND ZWEI STUNDEN, UND DAS IST ABSICHT. Vor dem ERSTEN Lauf gibt es
+      # keine Zustandsdatei, der Healthcheck kann also gar nicht gruen sein — bei einem
+      # taeglichen Takt bis zu 24 Stunden lang. Ohne diese Spanne staende der Container
+      # nach dem ersten `up -d` einen Tag lang auf `unhealthy`, und ein Alarm, der beim
+      # Einrichten schon falsch steht, wird abgeschaltet statt gelesen. Waehrend der
+      # Spanne meldet Docker `starting` — ehrlich, denn genau das ist der Zustand.
+      # Der Probelauf aus dem Runbook beendet sie sofort: nach ihm gibt es einen Stand.
+      start_period: ${SUITE_BACKUP_START_PERIOD:-26h}
+
 volumes:
   suite_data:
     name: suite_data
@@ -264,6 +377,8 @@ volumes:
     name: files_data
   aufgaben_data:
     name: aufgaben_data
+  backup_data:
+    name: backup_data
   clamav_db:
     name: clamav_db
 
@@ -283,3 +398,7 @@ networks:
   # eine Betreiberentscheidung mit Abwägung, kein Nachtrag hier.
   av:
     internal: true
+  # OHNE `internal: true`, anders als `av` direkt darueber — der Backup-Dienst MUSS
+  # nach aussen: `apk` beim Start, `rclone` zum Ziel, `curl` fuer den Ping. Ein eigenes
+  # Netz statt `proxy`, damit er dabei keinen anderen Container dieses Stacks sieht.
+  backupnet:

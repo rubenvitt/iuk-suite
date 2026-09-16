@@ -67,9 +67,15 @@ Zwei weitere Punkte derselben Art, kürzer, aber nicht optional:
 
 ## A1. Stack-Verzeichnis mit dem Repo angleichen
 
-Der Rollout vergleicht `compose.yaml` und `clamd.files.conf` **byteweise** mit dem Repo
-und bricht bei Abweichung ab. Das ist gewollt (E2 erklärt, warum), heißt aber: einmal
-sauber angleichen, sonst scheitert jeder Lauf in Schritt 1.
+Der Rollout vergleicht **vier Dateien byteweise** mit dem Repo und bricht bei Abweichung
+ab: `compose.yaml`, `clamd.files.conf` und — seit dem Backup-Sidecar (DRK-185) —
+`scripts/backup.sh` und `scripts/backup-sidecar.sh`. Das ist gewollt (E2 erklärt, warum),
+heißt aber: einmal sauber angleichen, sonst scheitert jeder Lauf in Schritt 1.
+
+> ⚠️ **Die beiden Backup-Skripte liegen in einem Unterverzeichnis**
+> (`$SUITE_STACK_DIR/scripts/`), weil die `compose.yaml` sie von dort per Bind-Mount in
+> den Dienst `backup` reicht. Einrichtung, rclone-Ziel und Probelauf stehen in
+> `docs/runbooks/backup-sidecar.md`; hier geht es nur um den Gleichstand.
 
 ```bash
 cd <Verzeichnis mit der compose.yaml der Suite>     # dieser Pfad wird gleich SUITE_STACK_DIR
@@ -181,12 +187,21 @@ sind im Job-Protokoll lesbar, was bei der Fehlersuche zählt.
 | `SUITE_HEALTH_URL` | nein | `https://iuk-ue.de/api/health/portal` | Öffentliche Gegenprobe nach dem Rollout. Nicht gesetzt = diese Vorbelegung. `aus` schaltet sie ab. |
 | `SUITE_BACKUP_CMD` | nein | siehe unten | Sicherung **vor** dem Austausch. Nicht gesetzt = keine, mit Warnung im Protokoll. |
 
-Für `SUITE_BACKUP_CMD` ist der ganze Befehl der Wert; `scripts/backup.sh` liegt bereits
-im Repo und braucht die Volume-Pfade des Hosts:
+Für `SUITE_BACKUP_CMD` ist der ganze Befehl der Wert. Seit dem Backup-Sidecar (DRK-185)
+ist das der Dienst selbst — er braucht **keine Host-Pfade mehr**, weil die Volumes in
+seinem Container schon an der richtigen Stelle gemountet sind:
 
 ```
-DATA_DIR=/var/lib/docker/volumes/suite_data/_data BLOB_DIR=/var/lib/docker/volumes/files_data/_data /opt/iuk-suite/backup.sh
+SUITE_BACKUP_CMD=docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh einmal
 ```
+
+> ⚠️ **`run --rm` und nicht `exec`.** Der Dienst soll auch dann sichern, wenn sein
+> Container gerade nicht läuft — und genau das ist bei einem gescheiterten Rollout der
+> wahrscheinliche Fall. Der frühere Wert rief `backup.sh` direkt auf dem Host und musste
+> dafür `DATA_DIR` und `BLOB_DIR` auf die Volume-Pfade zeigen
+> (`/var/lib/docker/volumes/files_data/_data`); genau diese Zeile war die, die man
+> vergisst. Wer noch den alten Wert gesetzt hat: er funktioniert weiter, solange der Host
+> `sqlite3`, `tar` und `rsync` mitbringt.
 
 > **Warum das mehr ist als Vorsicht:** der Rollback in Teil D tauscht das **Image**
 > zurück, nicht die **Daten**. Die Boot-Instrumentation migriert beim Start nach vorn;
@@ -323,8 +338,8 @@ von selbst.
 
 ### E2 — Abbruch in Schritt 1: „Stack-Dateien weichen ab"
 
-Der erwartete Fall, sobald ein PR `compose.yaml` oder `clamd.files.conf` anfasst — etwa
-weil ein neues Modul ein Volume braucht. Der Abbruch ist folgenlos; Produktion läuft
+Der erwartete Fall, sobald ein PR eine der **vier** verglichenen Dateien anfasst — etwa
+weil ein neues Modul ein Volume braucht oder ein Backup-Skript nachgezogen wird. Der Abbruch ist folgenlos; Produktion läuft
 weiter auf dem alten Stand.
 
 Der Diff steht im Protokoll (links Server, rechts Repo). Ablauf: Repo-Datei übernehmen,
@@ -351,7 +366,11 @@ er fordert die Freigabe erneut an).
 > clamd findet sie nie, und sichtbar wird das Tage später als dauerhaft
 > `scan_status: 'fehler'`. Und fehlt `clamd.files.conf` ganz, legt Docker an der Stelle
 > ein leeres **Verzeichnis** an — clamd startet ohne Konfiguration, wird nie `healthy`,
-> und **die ganze Suite startet nicht** (`depends_on: service_healthy`).
+> und **die ganze Suite startet nicht** (`depends_on: service_healthy`). Bei den beiden
+> Backup-Skripten ist der Fehlfall derselbe, aber enger begrenzt: Docker legt ebenfalls
+> ein leeres Verzeichnis an, der Dienst `backup` läuft in eine Neustartschleife — und
+> weil er in **keine Richtung** ein `depends_on` hat, nimmt er die Suite dabei nicht mit.
+> Sichtbar ist das nur in `docker compose ps`, nicht an der Anwendung.
 
 ### E3 — Schritt 2: „Das Tag :latest trägt Commit X, erwartet war Y"
 

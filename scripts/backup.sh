@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# Dünner erster Wurf: konsistenter SQLite-Backup je Modul + tar, lokal, rotiert.
-# Läuft als Host-Cron; benötigt sqlite3, tar + rsync. Externes Ziel (rclone) folgt
-# bei einem späteren Modul.
+# Konsistenter SQLite-Backup je Modul + tar, lokal, rotiert — der KERN der Sicherung.
+# Läuft im Dienst `backup` des Compose-Stacks; benötigt sqlite3, tar + rsync.
+#
+# ⚠️ WER DIESES SKRIPT RUFT, HAT SICH GEÄNDERT (DRK-185) — WAS ES TUT, NICHT. Bis dahin
+# war es ein Host-Cron, also ein Schutz, der daran hing, dass jemand ihn auf dem Server
+# eingerichtet hatte und er dort auch blieb; im Compose-Stack war davon nichts zu sehen.
+# Heute ruft `scripts/backup-sidecar.sh` es aus dem Dienst `backup`. DORT stehen auch die
+# drei Dinge, die hier bewusst NICHT stehen: der Zeitgeber, das externe Ziel (rclone) und
+# die Rückmeldung bei Fehlschlag.
+#
+# Diese Datei bleibt damit, was sie war — ein Lauf, ein Tarball, exit 0 oder exit 1 — und
+# genau deshalb ist sie weiterhin von Hand aufrufbar. Die letzte Zeile ihrer Ausgabe
+# (`backup: wrote <pfad>`) ist ein VERTRAG: der Sidecar liest daraus, was er auslagern
+# soll, und wertet ihr Fehlen als Fehlschlag.
 set -euo pipefail
 
 DATA_DIR="${DATA_DIR:-/data}"

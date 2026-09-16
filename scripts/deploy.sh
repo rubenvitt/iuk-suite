@@ -51,6 +51,11 @@ FRIST="${SUITE_DEPLOY_FRIST:-300}"
 HEALTH_URL="${SUITE_HEALTH_URL:-https://iuk-ue.de/api/health/portal}"
 if [ "$HEALTH_URL" = "aus" ]; then HEALTH_URL=""; fi
 # Optionaler Sicherungslauf vor dem Austausch, als vollständiger Befehl. Leer = keiner.
+# Seit DRK-185 ist der empfohlene Wert der Sidecar selbst, und er braucht keine Host-Pfade
+# mehr (die Volumes sind in seinem Container schon an der richtigen Stelle gemountet):
+#   SUITE_BACKUP_CMD=docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh einmal
+# `run --rm` und nicht `exec`: der Dienst soll auch dann sichern, wenn sein Container gerade
+# nicht laeuft — und genau das ist bei einem gescheiterten Rollout der wahrscheinliche Fall.
 BACKUP_CMD="${SUITE_BACKUP_CMD-}"
 
 REPO_WURZEL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -84,9 +89,14 @@ echo "Image:     $BASIS:$TAG"
 # schriebe seine Bildnachweise in das Container-Dateisystem statt in `aufgaben_data`, und
 # clamd fände sie nie — sichtbar erst als dauerhaft `scan_status: 'fehler'`, Tage später.
 # Deshalb Gleichstand als Vorbedingung, und Abbruch statt Überschreiben.
-melde "Schritt 1: compose.yaml und clamd.files.conf gegen das Repo prüfen"
+melde "Schritt 1: Stack-Dateien gegen das Repo pruefen"
 abweichung=0
-for datei in compose.yaml clamd.files.conf; do
+# ⚠️ SEIT DRK-185 SIND ES VIER, NICHT ZWEI. Der Backup-Sidecar reicht `backup.sh` und
+# `backup-sidecar.sh` per Bind-Mount in seinen Container — sie liegen damit auf dem
+# Server und sind dieselbe Art Datei wie `clamd.files.conf`. Ohne den Vergleich driftet
+# die Server-Fassung von der getesteten weg, und das sieht niemand: das Repo am
+# wenigsten, und der Sidecar meldet sich erst, wenn eine Sicherung gebraucht wird.
+for datei in compose.yaml clamd.files.conf scripts/backup.sh scripts/backup-sidecar.sh; do
   if [ ! -f "$STACK_DIR/$datei" ]; then
     warne "$datei fehlt auf dem Server."
     abweichung=1
@@ -103,9 +113,10 @@ for datei in compose.yaml clamd.files.conf; do
 done
 if [ "$abweichung" -ne 0 ]; then
   abbruch "Stack-Dateien weichen ab. Sie werden BEWUSST nicht automatisch übernommen —
-  eine Änderung an compose.yaml oder clamd.files.conf ist Runbook-Arbeit (Diff gegen die
-  Server-Datei, Einträge in die .env retten, siehe docs/runbooks/auto-rollout.md Teil E).
-  Danach diesen Job erneut laufen lassen."
+  eine Änderung an compose.yaml, clamd.files.conf oder den beiden Backup-Skripten ist
+  Runbook-Arbeit (Diff gegen die Server-Datei, Einträge in die .env retten, siehe
+  docs/runbooks/auto-rollout.md Teil E; für die Backup-Skripte zusätzlich
+  docs/runbooks/backup-sidecar.md). Danach diesen Job erneut laufen lassen."
 fi
 
 # ══ Schritt 2 — Image ziehen und die Revision prüfen, BEVOR etwas ausgetauscht wird ═══
