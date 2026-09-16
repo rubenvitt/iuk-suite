@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
-import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
+import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
 import { ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR } from "../_lib/konstanten";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 
 /**
  * DIE ABGABE IN DIE ENTNAHMEBOX — DRK-314.
@@ -105,6 +106,12 @@ function buchen(id: string, chargeId: string, menge: number, ort = "fz-1", artik
 }
 
 /** Bestand je (Ort, Charge) ueber ALLE Buchungen. */
+/** Die Verfallszeilen der Quelleinheit — die Kompensationstabelle, nicht die Chargen. */
+function verfallZeilen() {
+  return t.db.select().from(lagerortVerfall)
+    .where(eq(lagerortVerfall.lagerortId, "fz-1")).all();
+}
+
 function bestand(ort: string, chargeId: string): number {
   return t.db.select().from(buchungen).all()
     .filter((b) => b.lagerortId === ort && b.chargeId === chargeId)
@@ -470,5 +477,45 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     // MIT der Id: der Pfad des Einheitenblatts traegt sie, ein Pfad ohne sie
     // traefe die Seite nicht.
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    // Die Verfallsliste, weil eine leergeraeumte Einheit ihre Verfallsangabe
+    // verliert (Codex-Review zu PR #175).
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/verfall");
+  });
+
+  it("loescht die Verfallsangabe der Einheit, wenn sie dabei leer wird", async () => {
+    /*
+     * ⚠️ `lagerort_verfall` IST DIE KOMPENSATIONSZEILE, und `verfallFuerLagerort`
+     * liest sie OHNE Bestandsprobe (Codex-Review zu PR #175). Bliebe sie stehen,
+     * meldeten Einheitenblatt und Verfallsliste den Artikel weiter als ablaufend,
+     * obwohl er nur noch in der Kiste liegt — eine Meldung ohne Bestand
+     * behauptet einen Verfall, den es nicht gibt.
+     */
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2027-03",
+      quelle: { quelleTyp: "system", quelleId: "seed" },
+    });
+    expect(verfallZeilen(), "Vorbedingung: die Angabe steht da").toHaveLength(1);
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
+
+    expect(verfallZeilen()).toEqual([]);
+  });
+
+  it("laesst sie stehen, solange noch etwas an der Einheit liegt", async () => {
+    // ⚠️ DIE GEGENPROBE, und sie ist der teurere Fehler: eine zu frueh
+    // geloeschte Angabe nimmt eine gepflegte Information weg, ohne dass es
+    // jemand merkt. Geloescht wird erst beim LETZTEN Stueck.
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2027-03",
+      quelle: { quelleTyp: "system", quelleId: "seed" },
+    });
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 4 }, t.db);
+
+    expect(verfallZeilen().map((z) => z.verfall)).toEqual(["2027-03"]);
   });
 });

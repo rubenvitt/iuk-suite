@@ -13,6 +13,7 @@ import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
@@ -225,9 +226,16 @@ export async function bucheInEntnahmebox(
            * Stellen verteilt, ist genau der, den ein spaeterer Umbau trennt.
            */
           const rest = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, v.fahrzeugId);
-          const vorhanden = v.chargeId
-            ? (rest.get(v.chargeId) ?? 0)
-            : [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
+          /*
+           * ⚠️ ZWEI ZAHLEN AUS DERSELBEN KARTE, UND SIE MEINEN VERSCHIEDENES —
+           * dieselbe Aufteilung wie in `aussondernVomLagerort`:
+           *
+           *   `vorhanden` deckt die BUCHUNG: bei gewaehlter Charge nur DIESE.
+           *   `gesamt`    ist der Bestand des ARTIKELS an der Einheit und die
+           *               Bezugsgroesse der Verfallsfrage unten.
+           */
+          const gesamt = [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
+          const vorhanden = v.chargeId ? (rest.get(v.chargeId) ?? 0) : gesamt;
           if (vorhanden < v.menge) {
             const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
               .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
@@ -271,6 +279,31 @@ export async function bucheInEntnahmebox(
             // Ausgang ist das Zuruecknehmen der ganzen Transaktion.
             throw new Error("Deckung und Buchung sind uneins");
           }
+          /*
+           * ⚠️ IST DIE EINHEIT DAMIT LEER, MUSS DIE VERFALLSANGABE WEG
+           * (Codex-Review zu PR #175). `lagerort_verfall` ist die
+           * Kompensationszeile fuer Artikel, deren Verfall an der EINHEIT
+           * gepflegt wird — und `verfallFuerLagerort` liest sie OHNE
+           * Bestandsprobe. Bliebe sie stehen, meldete das Einheitenblatt und
+           * die Verfallsliste den Artikel weiter als ablaufend, obwohl er nur
+           * noch in der Kiste liegt. Der Satz dafuer steht ausgeschrieben in
+           * `aussondernVomLagerort`: eine Meldung ohne Bestand behauptet einen
+           * Verfall, den es nicht gibt.
+           *
+           * ⚠️ `gesamt` UND NICHT DIE CHARGE: wird eine von drei Chargen
+           * weggeraeumt, liegt der Artikel weiter an der Einheit, und die
+           * Angabe gilt weiter. Erst die letzte Einheit loescht.
+           *
+           * `setzeVerfall(…, verfall: null)` loescht — kein zweiter Weg
+           * daneben, damit die Quelle der Aenderung mitgeschrieben bleibt.
+           */
+          if (gesamt - ergebnis.umgelagert === 0) {
+            setzeVerfall(tx, {
+              lagerortId: v.fahrzeugId, artikelId: v.artikelId,
+              verfall: null, quelle,
+            });
+          }
+
           gebucht = ergebnis.umgelagert;
           return null;
         });
@@ -302,6 +335,11 @@ export async function bucheInEntnahmebox(
       revalidatePath("/m/lagerbuch/helfer/box");
       revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
       revalidatePath("/m/lagerbuch/verwaltung");
+      // ⚠️ FUENFTER PFAD (Codex-Review zu PR #175): raeumt die Buchung die
+      // Einheit leer, faellt ihre Verfallsangabe mit weg — und die steht auch
+      // in dieser Liste. Ohne den Pfad zeigte sie einen Verfall, den es nicht
+      // mehr gibt; dieselbe Liste, die `aussondernVomLagerort` auffrischt.
+      revalidatePath("/m/lagerbuch/verwaltung/verfall");
       return { ok: true, wert: { gebucht } };
     },
   );
