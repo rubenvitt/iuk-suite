@@ -295,20 +295,75 @@ describe("Lesbar, nicht nur invertiert", () => {
   /** Fläche, auf der der Inhalt der Umfrage sitzt. */
   const karte = (mode: ThemeMode) => TOKEN[mode][FARBROLLEN["survey-background-color"]];
 
+  /**
+   * ⚠️ DIESE LISTEN WAREN EINMAL EINE HANDAUSWAHL, UND GENAU DARAN IST EIN
+   * FEHLER VORBEIGELAUFEN. Die erste Fassung führte sechs Schriftrollen auf und
+   * ließ die zwei Platzhalter-Rollen weg — die hingen an antds
+   * `colorTextPlaceholder` und trugen auf der Karte 1,83:1 (hell) bzw. 2,28:1
+   * (dunkel). Die Zusicherung war grün, weil sie die Rollen nicht kannte. Eine
+   * Auswahl, die man pflegen muss, misst am Ende die Pflege und nicht die
+   * Sache.
+   *
+   * Deshalb ist die Aufteilung jetzt VOLLSTÄNDIG: `VOLLSTAENDIGKEIT` unten
+   * verlangt, dass JEDE Rolle mit einer Schrift-/Zeichenfarbe in genau einer
+   * der beiden Listen steht. Eine neue Rolle kann damit nicht mehr still
+   * zwischen die Zusicherungen fallen.
+   *
+   * Zwei Schwellen, weil es zwei Sachen sind: Schrift auf der Karte ist
+   * WCAG 1.4.3 (4,5:1), das Zeichen des Schließen-Knopfes ist kein Text,
+   * sondern ein Bedienelement — dort gilt 1.4.11 (3:1). Wer beide über einen
+   * Kamm schert, bekommt entweder eine falsch-rote oder eine zu milde Zahl.
+   */
   const SCHRIFT_AUF_KARTE = [
     "heading-color",
+    "element-headline-color",
+    "input-color",
+    "input-text-color",
+    "option-label-color",
     "subheading-color",
+    "element-description-color",
+    "label-color",
+    "element-upper-label-color",
     "info-text-color",
     "signature-text-color",
     "branding-text-color",
-    "label-color",
+    "placeholder-color",
+    "input-placeholder-color",
   ] as const;
+
+  /** Kein Text: das Zeichen des Schließen-Knopfes und seine Hover-Stufe. */
+  const ZEICHEN_AUF_KARTE = [
+    "close-btn-color",
+    "close-btn-color-hover",
+    "close-btn-hover-color",
+  ] as const;
+
+  it("teilt jede Schrift-/Zeichenrolle genau einer Schwelle zu", () => {
+    // Welche Rollen das sind, entscheidet der TOKEN, nicht der Name: alles, was
+    // an einer `colorText*`-Rolle hängt, wird gelesen und braucht eine Zahl.
+    const geprueft = [...SCHRIFT_AUF_KARTE, ...ZEICHEN_AUF_KARTE].sort();
+    const VOLLSTAENDIGKEIT = FARBPAARE.filter(([, rolle]) => rolle.startsWith("colorText"))
+      .map(([name]) => name)
+      // `colorTextLightSolid` ist die Schrift auf der MARKENFLÄCHE, nicht auf
+      // der Karte — sie hat ihre eigene Zusicherung darunter.
+      .filter((name) => FARBROLLEN[name] !== "colorTextLightSolid")
+      .sort();
+    expect(geprueft).toEqual(VOLLSTAENDIGKEIT);
+  });
 
   it.each(MODES)("hält Schrift auf der Umfragenkarte auf AA (4,5:1), Modus %s", (mode) => {
     for (const name of SCHRIFT_AUF_KARTE) {
       const farbe = TOKEN[mode][FARBROLLEN[name]];
       expect(kontrast(farbe, karte(mode)), `--fb-${name} ${farbe} auf ${karte(mode)}`)
         .toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it.each(MODES)("hält das Schließen-Zeichen auf 3:1 gegen die Karte, Modus %s", (mode) => {
+    for (const name of ZEICHEN_AUF_KARTE) {
+      const farbe = TOKEN[mode][FARBROLLEN[name]];
+      expect(kontrast(farbe, karte(mode)), `--fb-${name} ${farbe} auf ${karte(mode)}`)
+        .toBeGreaterThanOrEqual(3);
     }
   });
 

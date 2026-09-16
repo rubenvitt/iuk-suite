@@ -142,8 +142,29 @@ export const FARBROLLEN = {
   "signature-text-color": "colorTextSecondary",
   "branding-text-color": "colorTextSecondary",
   "close-btn-color": "colorTextTertiary",
-  "placeholder-color": "colorTextPlaceholder",
-  "input-placeholder-color": "colorTextPlaceholder",
+  /**
+   * ⚠️ NICHT `colorTextPlaceholder`, UND DAS IST DER EINZIGE ORT, AN DEM DIESE
+   * DATEI ANTDS EIGENEM TOKEN WIDERSPRICHT. Der naheliegende Wert wäre antds
+   * Platzhalter-Token — es heißt so, es steckt in jedem Eingabefeld der Suite,
+   * und genau deshalb stand es hier zuerst. Nachgerechnet trägt es auf der
+   * Umfragenkarte aber **1,83:1** (hell) und **2,28:1** (dunkel): ein
+   * Platzhalter nennt das erwartete Format, ist also Text im Sinne von
+   * WCAG 1.4.3, und 4,5:1 sind Pflicht.
+   *
+   * `colorTextTertiary` reicht ebenfalls nicht (3,35:1 / 4,40:1) — in dieser
+   * Familie erfüllt allein `colorTextSecondary` die Schwelle (6,98:1 / 7,65:1).
+   * Das ist dieselbe Bauform wie `FARBEN.rotAufDunkel` in `core/theme`: wo eine
+   * SCHRIFTROLLE unter AA fällt, korrigiert die Suite antds Rechnung, statt sie
+   * zu übernehmen. „Aus denselben Quellen" heißt das Theme der Suite samt
+   * seiner Korrekturen, nicht jeder abgeleitete Wert ungeprüft.
+   *
+   * Vom eingegebenen Wert bleibt der Platzhalter dadurch unterscheidbar: der
+   * trägt `colorText` (16,56:1 / 12,98:1), ist also weiterhin deutlich
+   * kräftiger. Und verloren geht gegenüber Formbricks nichts — dessen Vorgabe
+   * (`slate-400`) verfehlt die Schwelle genauso.
+   */
+  "placeholder-color": "colorTextSecondary",
+  "input-placeholder-color": "colorTextSecondary",
 } as const;
 
 /**
