@@ -1,13 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { istGateGrund, gateMeldung, GATE_GRUENDE, type GateGrund } from "./gateTexte";
+import {
+  istGateGrund,
+  gateMeldung,
+  gateGrundFuerSperre,
+  GATE_GRUENDE,
+  type GateGrund,
+} from "./gateTexte";
 
 describe("istGateGrund — ein GESCHLOSSENER Satz", () => {
-  it("erkennt genau die vier Werte", () => {
-    for (const g of ["code", "gesperrt", "abgelaufen", "zuviele"]) {
+  it("erkennt genau die fuenf Werte", () => {
+    for (const g of ["code", "gesperrt", "abgelaufen", "zuviele", "anmeldung"]) {
       expect(istGateGrund(g)).toBe(true);
     }
     expect([...GATE_GRUENDE].sort())
-      .toEqual(["abgelaufen", "code", "gesperrt", "zuviele"]);
+      .toEqual(["abgelaufen", "anmeldung", "code", "gesperrt", "zuviele"]);
   });
 
   it("weist alles andere ab — ein searchParams-Wert ist NUTZEREINGABE", () => {
@@ -33,6 +39,22 @@ describe("gateMeldung — die einzige Stelle, an der diese Saetze stehen", () =>
       .toBe("Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.");
     expect(gateMeldung("abgelaufen", null))
       .toBe("Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.");
+    expect(gateMeldung("anmeldung", null))
+      .toBe("Deine Anmeldung ist abgelaufen. Melde dich erneut an.");
+  });
+
+  it("nennt das Kärtchen NUR im Kärtchen-Satz (DRK-305)", () => {
+    /*
+     * ⚠️ DER KERN DES BEFUNDS, NICHT SEINE KOSMETIK. Beide Sätze beschreiben
+     * denselben Zustand — der Zugang ist weg —, und sie unterscheiden sich in
+     * genau der Handlung, die sie verlangen. „Scanne das Kärtchen erneut" ist
+     * für jemanden, der nie eins hatte, eine Aufforderung ins Leere; das Gate
+     * bietet daneben zwar die Pocket-ID-Karte an, aber der SATZ zeigt auf den
+     * falschen der beiden Wege.
+     */
+    expect(gateMeldung("abgelaufen", null)).toContain("Kärtchen");
+    expect(gateMeldung("anmeldung", null)).not.toContain("Kärtchen");
+    expect(gateMeldung("anmeldung", null)).toContain("Anmeldung");
   });
 
   it("unterscheidet `code` und `gesperrt` im WORTLAUT", () => {
@@ -89,6 +111,40 @@ describe("die Typzusage", () => {
       expect(g).toBe("gesperrt");
     } else {
       expect.unreachable("haette erkannt werden muessen");
+    }
+  });
+});
+
+describe("gateGrundFuerSperre — derselbe Zustand, zwei Herkuenfte (DRK-305)", () => {
+  it("ohne Konto heisst `sitzung` am Gate `abgelaufen`", () => {
+    expect(gateGrundFuerSperre("sitzung", false)).toBe("abgelaufen");
+  });
+
+  it("mit Konto heisst `sitzung` am Gate `anmeldung`", () => {
+    expect(gateGrundFuerSperre("sitzung", true)).toBe("anmeldung");
+  });
+
+  it("`gesperrt` bleibt in BEIDEN Herkuenften `gesperrt`", () => {
+    /*
+     * Das ist kein vergessener Fall, sondern ein Befund aus `befund()`
+     * (`_lib/helferZugang.ts`): `gesperrt` entsteht ausschliesslich MIT
+     * Kaertchen-Cookie — die Token-Zeile ist weg oder stillgelegt. Wer diesen
+     * Grund sieht, HAT also ein Kaertchen, und „wende dich an die Leitung"
+     * stimmt fuer ihn, ob er daneben angemeldet ist oder nicht. Ein zweiter
+     * Satz hier waere eine Unterscheidung ohne Unterschied.
+     */
+    expect(gateGrundFuerSperre("gesperrt", false)).toBe("gesperrt");
+    expect(gateGrundFuerSperre("gesperrt", true)).toBe("gesperrt");
+  });
+
+  it("liefert nur Werte, die der Route Handler /abmelden weiterreichen darf", () => {
+    // `/abmelden` baut aus dem Wert einen Location-Kopf und laesst nur den
+    // geschlossenen Satz durch (`abmelden/route.ts`). Ein Rueckgabewert
+    // ausserhalb davon liefe dort still ins Leere.
+    for (const grund of ["sitzung", "gesperrt"] as const) {
+      for (const konto of [true, false]) {
+        expect(istGateGrund(gateGrundFuerSperre(grund, konto))).toBe(true);
+      }
     }
   });
 });

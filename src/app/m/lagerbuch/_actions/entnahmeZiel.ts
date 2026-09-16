@@ -44,9 +44,31 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
    * Artikelliste. Ohne den Grund sieht sie eine gewöhnliche Code-Eingabe ohne
    * jede Erklärung: das Gate zeigt seinen Satz NUR, wenn `grund` gesetzt ist
    * (`_lib/gateTexte.ts`, `page.tsx`). Beides zusammen macht den Satz oben wahr.
+   *
+   * ⚠️ DRK-305 — UND DER SATZ HAENGT AN DER HERKUNFT. Fuer eine angemeldete
+   * Person ist „scanne das Kaertchen erneut" eine Aufforderung ins Leere; sie
+   * bekommt „melde dich erneut an". Der Weg dorthin steht auf demselben Gate:
+   * die Karte „Mit Pocket ID anmelden" baut ihren `callbackUrl` aus genau dem
+   * `returnTo`, das hier mitgeht — sie landet also wieder in der Zielwahl.
    */
   if (!riegel.ok) {
-    const grund = gateGrundFuerSperre(riegel.grund);
+    /*
+     * ⚠️ DIE HERKUNFT KOMMT AUS DEM FORMULAR, UND SIE MUSS ES (DRK-305).
+     *
+     * An dieser Stelle ist der Riegel bereits GEFALLEN — es gibt keinen Zugang
+     * mehr, den man fragen koennte, und serverseitig ist ein abgelaufenes
+     * Auth.js-Cookie von „war nie angemeldet" nicht zu trennen. Wer es WEISS,
+     * ist die Seite: sie hat mit der Herkunft gerendert und legt sie ins
+     * Formular, genau wie `returnTo` daneben.
+     *
+     * ⚠️ DASS DAS FELD VON AUSSEN SETZBAR IST, TRAEGT HIER NICHTS: es
+     * entscheidet ausschliesslich, WELCHER SATZ auf dem Gate steht. Das Ziel
+     * ist in beiden Faellen dasselbe, das Gate bietet beide Wege an, und
+     * gewaehrt wird dadurch nichts — wer das Feld faelscht, liest auf dem
+     * eigenen Schirm einen leicht falschen Satz. Anders als `returnTo`, das
+     * eine Weiterleitung steuert und deshalb `sanitizeReturnTo` braucht.
+     */
+    const grund = gateGrundFuerSperre(riegel.grund, zeichenkette(eingabe.get("herkunft")) === "konto");
     redirect(`/?grund=${grund}&returnTo=${encodeURIComponent(zurueck)}`);
   }
 

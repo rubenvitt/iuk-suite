@@ -234,6 +234,74 @@ describe("waehleEntnahmeZiel", () => {
     expect(stand.umleitungen).toEqual(["/?grund=gesperrt&returnTo=%2Fa%2Fart-1"]);
   });
 
+  /*
+   * ⚠️ REVIEW-BEFUND P2 ZU PR #164 (DRK-305) — die DRITTE Stelle, an der die
+   * Herkunft zaehlt.
+   *
+   * `Entnahme` und `CheckFlow` haben sie als Pflicht-Prop bekommen; die
+   * Zielwahl ist aber kein Insel-Formular, sondern eine Server Component mit
+   * Server Action — und die Action kann nach dem Fall des Riegels NIEMANDEN
+   * mehr fragen: ein abgelaufenes Auth.js-Cookie ist serverseitig von „war nie
+   * angemeldet" nicht zu trennen. Ohne das Feld schickte das Gate jede
+   * angemeldete Person zum Scannen eines Kaertchens, das sie nie hatte.
+   */
+  it("schickt eine ANGEMELDETE Person nicht zum Kärtchen-Scannen", async () => {
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=anmeldung&returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("nimmt den Rückweg auch auf diesem Weg mit — er wird zum callbackUrl", async () => {
+    /*
+     * Nicht dieselbe Zusage wie oben, sondern die, die den Weg ueberhaupt
+     * schliesst: das Gate baut den `callbackUrl` seiner Pocket-ID-Karte aus
+     * genau diesem `returnTo` (`lagerbuch/page.tsx`). Ginge er hier verloren,
+     * waere der Satz „melde dich erneut an" zwar richtig — und die Person
+     * stuende nach der Anmeldung trotzdem woanders als vor dem Absenden.
+     */
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/helfer/ziel", herkunft: "konto" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=anmeldung&returnTo=%2Fhelfer%2Fziel"]);
+  });
+
+  it("ein GESPERRTES Kärtchen bleibt `gesperrt`, auch mit Konto-Herkunft", async () => {
+    /*
+     * Die Gegenprobe zur Abgrenzung in `gateTexte.ts`: `gesperrt` entsteht in
+     * `befund()` nur MIT Kaertchen-Cookie. Wer ihn bekommt, hat ein Kaertchen —
+     * „wende dich an die Leitung" stimmt fuer ihn, angemeldet oder nicht. Ohne
+     * diese Zeile waere eine Verallgemeinerung auf „Konto ⇒ Anmeldung" gruen.
+     */
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=gesperrt&returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("ein FEHLENDES oder unbekanntes Herkunftsfeld gilt als Kärtchen", async () => {
+    /*
+     * Das Feld ist von aussen setzbar — es entscheidet aber ausschliesslich,
+     * welcher SATZ auf dem Gate steht, gewaehrt nichts und aendert das Ziel
+     * nicht. Wichtig ist allein, dass alles ausser dem einen bekannten Wort
+     * auf den bisherigen Weg faellt statt auf einen dritten Zustand.
+     */
+    riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
+
+    for (const roh of [undefined, "", "Konto", "token", "kaputt"]) {
+      stand.umleitungen.length = 0;
+      await waehle({
+        ziel: "fz:fz-1", returnTo: "/a/art-1",
+        ...(roh === undefined ? {} : { herkunft: roh }),
+      });
+      expect(stand.umleitungen, `Herkunft ${JSON.stringify(roh)}`)
+        .toEqual(["/?grund=abgelaufen&returnTo=%2Fa%2Fart-1"]);
+    }
+  });
+
   it("nimmt auch aufs Gate KEIN fremdes `returnTo` mit", async () => {
     riegel.mockResolvedValue({ ok: false, grund: "sitzung" });
 

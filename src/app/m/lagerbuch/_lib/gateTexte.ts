@@ -1,5 +1,5 @@
 /**
- * Die vier Gate-Texte aus §3.9 an GENAU EINER Stelle. KEIN "use client"
+ * Die fuenf Gate-Texte aus §3.9 an GENAU EINER Stelle. KEIN "use client"
  * (Falle 6 — die Gate-Seite ist eine Server Component und braucht die WERTE).
  *
  * DER BEFUND, DEN DIESE DATEI HEILT (Falle 60): `lagerbuch/src/app/t/[code]/route.ts:21`
@@ -15,7 +15,7 @@
  * der die Zeile mitnimmt und abhakt, uebernimmt eine SACKGASSE ALS FEATURE.
  *
  * Der Parameter heisst deshalb `grund` und nicht mehr `err`: der Wertesatz
- * waechst von zwei auf vier. Ein gespeicherter Alt-Link mit `?err=` ist danach
+ * waechst von zwei auf fuenf (DRK-305 hat den fuenften gebracht). Ein gespeicherter Alt-Link mit `?err=` ist danach
  * wirkungslos, aber nicht kaputt — unbekannte Parameter werden ignoriert.
  *
  * ⚠️ NICHT ZU VERWECHSELN MIT `HelferGrund` aus `_lib/actionTypen.ts` (§7.3,
@@ -25,7 +25,7 @@
  * Eingaben bleiben stehen" auf eine Seite zu schreiben, auf der nichts
  * eingegeben wurde.
  */
-export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele";
+export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele" | "anmeldung";
 
 /**
  * Der Anlass einer Sperre (`_lib/helferZugang.ts`) in den Anlass einer Landung
@@ -37,11 +37,27 @@ export type GateGrund = "code" | "gesperrt" | "abgelaufen" | "zuviele";
  * über dieselbe Frage — und die zweite ist die, die beim nächsten Wert niemand
  * mitzieht.
  *
+ * ⚠️ `kontoZugang` IST PFLICHT, NICHT OPTIONAL — DRK-305. „Scanne das Kärtchen
+ * erneut" ist für jemanden, der nie ein Kärtchen hatte, eine Aufforderung ins
+ * Leere; er hat sich angemeldet, und seine ANMELDUNG ist abgelaufen. Ein
+ * Vorgabewert `false` wäre in jeder vergessenen Aufrufstelle still „Kärtchen"
+ * — also genau der Defekt. So nennt der Compiler jede Stelle.
+ *
+ * Nur `sitzung` teilt sich; `gesperrt` bleibt in beiden Herkünften dasselbe
+ * Wort. Das ist kein Vergessen, sondern der Befund: `gesperrt` entsteht in
+ * `befund()` ausschließlich MIT Kärtchen-Cookie (die Token-Zeile ist weg oder
+ * stillgelegt). Wer ihn sieht, HAT ein Kärtchen — und „wende dich an die
+ * Leitung" stimmt für ihn, angemeldet oder nicht.
+ *
  * Der Parametertyp ist die Literal-Union statt eines Imports von `SperrGrund`:
  * diese Datei ist ein Blatt ohne eigene Importe, und das bleibt sie.
  */
-export function gateGrundFuerSperre(grund: "sitzung" | "gesperrt"): GateGrund {
-  return grund === "gesperrt" ? "gesperrt" : "abgelaufen";
+export function gateGrundFuerSperre(
+  grund: "sitzung" | "gesperrt",
+  kontoZugang: boolean,
+): GateGrund {
+  if (grund === "gesperrt") return "gesperrt";
+  return kontoZugang ? "anmeldung" : "abgelaufen";
 }
 
 /**
@@ -54,6 +70,7 @@ export const GATE_GRUENDE: readonly GateGrund[] = [
   "gesperrt",
   "abgelaufen",
   "zuviele",
+  "anmeldung",
 ] as const;
 
 /**
@@ -70,7 +87,7 @@ export function istGateGrund(roh: string | null | undefined): roh is GateGrund {
 }
 
 /**
- * DIE VIER SAETZE. Sie stehen hier und nirgends sonst; §7.2.4 und §11.5
+ * DIE FUENF SAETZE. Sie stehen hier und nirgends sonst; §7.2.4 und §11.5
  * verweisen hierher, statt sie zu wiederholen.
  *
  * `code` und `gesperrt` sind bewusst VERSCHIEDEN formuliert: `code` heisst
@@ -84,6 +101,14 @@ const TEXTE: Record<GateGrund, (sperrSekunden: number | null) => string> = {
   code: () => "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an die Leitung.",
   gesperrt: () => "Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.",
   abgelaufen: () => "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.",
+  /**
+   * DERSELBE ZUSTAND, ANDERE HERKUNFT — DRK-305. Wer den Helfer-Weg angemeldet
+   * benutzt, hat kein Kärtchen; „scanne es erneut" schickte ihn nach etwas
+   * suchen, das es nie gab. Der Weg zurück steht auf derselben Seite: die
+   * Karte „Mit Pocket ID anmelden" trägt den `callbackUrl` aus demselben
+   * `returnTo`, mit dem diese Landung hier ankommt.
+   */
+  anmeldung: () => "Deine Anmeldung ist abgelaufen. Melde dich erneut an.",
   /**
    * Die Sekundenzahl ist der Rueckgabewert von `gateGesperrt(absenderAus(...))`,
    * DEN DIE GATE-SEITE SELBST LIEST (§7.2.4) — ueber die URL wandert nur der

@@ -269,7 +269,14 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
 
   auditDenied("lagerbuch");
   if (!b.hatteCookie) redirect("/");
-  redirect(`/abmelden?grund=${gateGrundFuerSperre(b.grund)}`);
+  /*
+   * ⚠️ `false` IST HIER BEWIESEN, NICHT GERATEN (DRK-305). Diese Zeile ist nur
+   * erreichbar, wenn `hatteCookie` wahr ist — es lag also ein Kaertchen-Cookie
+   * vor, und „scanne das Kaertchen erneut" ist die richtige Aufforderung,
+   * gleichgueltig ob die Person daneben angemeldet war. Wer nie ein Kaertchen
+   * hatte, geht eine Zeile darueber wortlos aufs Gate, das beide Wege anbietet.
+   */
+  redirect(`/abmelden?grund=${gateGrundFuerSperre(b.grund, false)}`);
 }
 
 /**
