@@ -154,6 +154,94 @@ describe("verfallListe — Handlager-Rest, gruen ausgeblendet", () => {
   });
 });
 
+/**
+ * DRK-339 — DIE LIEGEPLAETZE. Bis hierher sagte die Arbeitsliste, WAS
+ * abgelaufen ist, aber nicht, WO es liegt; wer eine Charge aus einem Schrank
+ * holen wollte, schlug in der Artikelschublade nach.
+ */
+describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      // ⚠️ `sortierung` GEGEN DIE ALPHABETISCHE REIHENFOLGE: „GF-Schrank" steht
+      // vor „Schrank 1", kommt aber spaeter — nur so ist ueberhaupt zu sehen,
+      // dass die Reihenfolge aus `handlagerOrte` stammt und nicht aus dem Namen.
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", kennung: null,
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 10 },
+      { id: "schrank-gf", name: "GF-Schrank", typ: "lager", kennung: null,
+        zugangshinweis: "Schlüssel beim Gruppenführer",
+        aktiv: true, parentId: HANDLAGER_ID, sortierung: 90 },
+    ]).run();
+  });
+
+  const orteVon = (chargeId: string) =>
+    verfallListe(t.db, NOW).find((e) => e.chargeId === chargeId)?.orte ?? [];
+
+  const buchen = (chargeId: string, lagerortId: string, menge: number) =>
+    t.db.insert(buchungen).values({
+      id: newId(), ts: NOW, typ: "zugang", artikelId: "a1", chargeId, lagerortId,
+      menge, quelleTyp: "system", quelleId: "t", referenz: null, kommentar: null,
+    }).run();
+
+  it("nennt die Wurzel „Nicht zugeordnet“, nicht „Handlager“", () => {
+    /**
+     * ⚠️ DER STAMMNAME WAERE HIER IRREFUEHREND. Die Karte heisst „Chargen im
+     * Handlager"; ein Chip „Handlager: 3" daneben klaenge nach dem ganzen
+     * Bereich statt nach „in keinem Schrank" — dieselbe Verwechslung, die
+     * DRK-337 fuer die Zaehlauswahl bereits entschieden hat.
+     */
+    expect(orteVon("c-alt")).toEqual([
+      { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 3, zugangshinweis: null },
+    ]);
+  });
+
+  it("fuehrt eine Charge aus zwei Schraenken in der Reihenfolge von handlagerOrte", () => {
+    buchen("c-alt", "schrank-gf", 6);
+    buchen("c-alt", "schrank-1", 4);
+
+    expect(orteVon("c-alt").map((o) => [o.id, o.menge])).toEqual([
+      [HANDLAGER_ID, 3], ["schrank-1", 4], ["schrank-gf", 6],
+    ]);
+  });
+
+  it("traegt den Zugangshinweis des Orts mit", () => {
+    buchen("c-alt", "schrank-gf", 6);
+
+    expect(orteVon("c-alt").at(-1)?.zugangshinweis).toBe("Schlüssel beim Gruppenführer");
+  });
+
+  it("laesst einen Ort ohne positiven Saldo weg — und `rest` zaehlt ihn nicht mit", () => {
+    /**
+     * ⚠️ DIE ZAHL UEBER DEM KNOPF IST DIE WIRKUNG DES KNOPFES. `aussondern`
+     * schreibt ueber einen Ort mit Saldo <= 0 keine Buchung; zaehlte `rest`
+     * ihn trotzdem mit, kuendigte die Zeile eine andere Menge an, als sie
+     * bucht — still, und nur in diesem Datenzustand.
+     */
+    buchen("c-alt", "schrank-1", 5);
+    buchen("c-alt", "schrank-1", -5);
+
+    const eintrag = verfallListe(t.db, NOW).find((e) => e.chargeId === "c-alt");
+    expect(eintrag?.orte.map((o) => o.id)).toEqual([HANDLAGER_ID]);
+    expect(eintrag?.rest).toBe(3);
+  });
+
+  it("zeigt eine Charge, die AUSSCHLIESSLICH in einem Schrank liegt", () => {
+    /**
+     * Genau der Fall, den DRK-297 erstmals in diese Liste gebracht hat: vorher
+     * summierte der Lesepfad nur die Wurzel, und eine Charge im GF-Schrank
+     * fehlte hier ganz.
+     */
+    t.db.insert(chargen).values({
+      id: "c-nur-gf", artikelId: "a1", chargenNr: "GF", verfall: "2020-01", createdAt: NOW,
+    }).run();
+    buchen("c-nur-gf", "schrank-gf", 7);
+
+    expect(orteVon("c-nur-gf")).toEqual([
+      { id: "schrank-gf", name: "GF-Schrank", menge: 7,
+        zugangshinweis: "Schlüssel beim Gruppenführer" },
+    ]);
+  });
+});
+
 describe("lagerortVerfallListe — vier Raenge, drittes Kriterium Lagerortname", () => {
   it("zeigt per Vorgabe ALLE Meldungen, auch gruene", () => {
     expect(lagerortVerfallListe(t.db, {}, NOW)).toHaveLength(6);

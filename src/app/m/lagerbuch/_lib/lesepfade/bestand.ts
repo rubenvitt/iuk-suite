@@ -84,6 +84,46 @@ export function restJeCharge(db: Leser, orte: readonly string[]): Map<string, nu
 }
 
 /**
+ * DRK-339 — Rest je (Charge, Ort) ueber einen BEREICH von Orten. Dieselbe
+ * Abfrage wie `restJeCharge` mit demselben Praedikat, nur ein `lagerort_id`
+ * mehr im `GROUP BY`.
+ *
+ * ⚠️ SIE ERSETZT `restJeCharge` NICHT, UND DAS IST KEINE DOPPELUNG: die KPIs
+ * brauchen eine Summe je Charge ueber Zehntausende Buchungen, nicht die
+ * Aufschluesselung. Wer dort umstellt, laedt je Charge eine Map, um sie sofort
+ * wieder aufzusummieren.
+ *
+ * ⚠️ EIN ORT MIT SALDO <= 0 FAELLT RAUS — dieselbe Regel wie in
+ * `restJeChargeUndOrt` und dieselbe wie in der Aussonderungsaktion, die ueber
+ * einen solchen Ort keine Buchung schreibt. Die Summe ueber diese Map ist
+ * damit genau das, was das Aussondern buchen wuerde; eine Summe, die einen
+ * negativen Ortssaldo mitzaehlte, waere eine andere Zahl als die Wirkung des
+ * Knopfes daneben.
+ */
+export function restJeChargeJeOrt(
+  db: Leser, orte: readonly string[],
+): Map<string, Map<string, number>> {
+  const rows = db
+    .select({
+      chargeId: buchungen.chargeId,
+      lagerortId: buchungen.lagerortId,
+      summe: sql<number>`sum(${buchungen.menge})`,
+    })
+    .from(buchungen)
+    .where(inArray(buchungen.lagerortId, [...orte]))
+    .groupBy(buchungen.chargeId, buchungen.lagerortId)
+    .all();
+  const m = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    if (r.summe <= 0) continue;
+    let innen = m.get(r.chargeId);
+    if (!innen) { innen = new Map(); m.set(r.chargeId, innen); }
+    innen.set(r.lagerortId, r.summe);
+  }
+  return m;
+}
+
+/**
  * Bestand je (Lagerort, Artikel) fuer ALLE Lagerorte — EINE Abfrage fuer die
  * Fahrzeuguebersicht (heute O(N_Fahrzeug · N_ArtikelImSoll · N_Buchungen)).
  *

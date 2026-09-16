@@ -21,6 +21,7 @@ import {
   mount,
   query,
   queryAll,
+  queryPortal,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
 import {
@@ -32,8 +33,31 @@ import {
 } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
+import type { VerfallOrt } from "../../../_lib/lesepfade/verfall";
 import { AussondernRow } from "./AussondernRow";
 import { dynamic, verfallSeitenInhalt } from "./page";
+
+/**
+ * DRK-339 — DER REGELFALL IST EIN LIEGEPLATZ, und die Zeile bietet dann keine
+ * Wahl an. Die Faelle mit zweien stehen unten in ihrem eigenen Block.
+ */
+const EIN_ORT: VerfallOrt[] = [
+  { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 5, zugangshinweis: null },
+];
+
+const ZWEI_ORTE: VerfallOrt[] = [
+  { id: HANDLAGER_ID, name: "Nicht zugeordnet", menge: 4, zugangshinweis: null },
+  { id: "schrank-gf", name: "GF-Schrank", menge: 6, zugangshinweis: "Schlüssel beim GF" },
+];
+
+function radioMitText(text: string): HTMLInputElement {
+  const treffer = [...document.body.querySelectorAll<HTMLElement>(".ant-radio-wrapper")]
+    .find((wrapper) => wrapper.textContent?.includes(text));
+  if (!treffer) throw new Error(`Keine Auswahlzeile mit „${text}"`);
+  const knopf = treffer.querySelector<HTMLInputElement>("input[type='radio']");
+  if (!knopf) throw new Error(`Auswahlzeile „${text}" ohne Radio`);
+  return knopf;
+}
 
 const mocks = vi.hoisted(() => ({
   aussondern: vi.fn(),
@@ -84,7 +108,12 @@ async function bestaetigungOeffnen(): Promise<void> {
 
 describe("AussondernRow", () => {
   it("fragt vor dem Aussondern per Popconfirm, nicht per Modal", async () => {
-    await mount(<AussondernRow chargeId="c1" bezeichnung="L42 · Kompressen" />);
+    await mount(<AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        einheit="Stk."
+      />);
 
     await bestaetigungOeffnen();
 
@@ -94,7 +123,12 @@ describe("AussondernRow", () => {
   });
 
   it("bucht mit einem Kommentar, der die Charge nennt", async () => {
-    await mount(<AussondernRow chargeId="c1" bezeichnung="L42 · Kompressen" />);
+    await mount(<AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        einheit="Stk."
+      />);
     await bestaetigungOeffnen();
 
     await clickPortal(".ant-popconfirm .ant-btn-primary");
@@ -107,7 +141,12 @@ describe("AussondernRow", () => {
   });
 
   it("der Knopf traegt ein aria-label mit der Charge", async () => {
-    await mount(<AussondernRow chargeId="c1" bezeichnung="L42 · Kompressen" />);
+    await mount(<AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        einheit="Stk."
+      />);
 
     expect(query("button").getAttribute("aria-label")).toBe(
       "L42 · Kompressen aussondern",
@@ -119,7 +158,12 @@ describe("AussondernRow", () => {
       ok: false,
       fehler: "Charge hat keinen Restbestand im Handlager.",
     });
-    await mount(<AussondernRow chargeId="c1" bezeichnung="L42 · Kompressen" />);
+    await mount(<AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        einheit="Stk."
+      />);
     await bestaetigungOeffnen();
 
     await clickPortal(".ant-popconfirm .ant-btn-primary");
@@ -135,7 +179,12 @@ describe("AussondernRow", () => {
 
   it("zeigt bei einem Runtimefehler nur einen festen Text ohne Interna", async () => {
     mocks.aussondern.mockRejectedValueOnce(new Error("SQLITE intern und geheim"));
-    await mount(<AussondernRow chargeId="c1" bezeichnung="L42 · Kompressen" />);
+    await mount(<AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        einheit="Stk."
+      />);
     await bestaetigungOeffnen();
 
     await clickPortal(".ant-popconfirm .ant-btn-primary");
@@ -144,6 +193,104 @@ describe("AussondernRow", () => {
     const text = query(".ant-alert-warning").textContent ?? "";
     expect(text).toContain("Charge konnte nicht ausgesondert werden.");
     expect(text).not.toContain("SQLITE intern und geheim");
+  });
+});
+
+/**
+ * DRK-339 — DIE ORTSWAHL. Sie erscheint NUR bei mehr als einem Liegeplatz;
+ * eine Auswahl mit einer Zeile ist ein Klick ohne Entscheidung.
+ *
+ * ⚠️ GEPRUEFT WIRD, WAS ANKOMMT, NICHT NUR, WAS ZU SEHEN IST. Die Mutation,
+ * die hier faellt: das Feld `lagerortId` gar nicht erst mitschicken. Die
+ * Oberflaeche saehe unveraendert aus — die Wahl liesse sich treffen, der
+ * Knopf buchte, und ausgesondert waere trotzdem alles.
+ */
+describe("AussondernRow — Ortswahl (DRK-339)", () => {
+  it("bietet bei EINEM Liegeplatz keine Wahl an und nennt den Ort im Text", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={EIN_ORT}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    expect(existsPortal(".ant-radio-group")).toBe(false);
+    expect(queryPortal(".ant-popconfirm").textContent).toContain(
+      "aus Nicht zugeordnet als Aussonderung aus (5 Stk.)",
+    );
+  });
+
+  it("bietet bei ZWEI Liegeplaetzen je eine Zeile plus „Alles“ an", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={ZWEI_ORTE}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    const zeilen = [...document.body.querySelectorAll(".ant-radio-wrapper")]
+      .map((w) => w.textContent);
+    expect(zeilen).toEqual([
+      "Alles (10 Stk.)",
+      "nur Nicht zugeordnet (4 Stk.)",
+      "nur GF-Schrank (6 Stk.)",
+    ]);
+  });
+
+  it("schickt per Vorgabe KEINEN Ort — „alles raus“ bleibt das Verhalten", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={ZWEI_ORTE}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+
+    /**
+     * ⚠️ `not.toHaveProperty`, NICHT `lagerortId: undefined`. Das Schema liest
+     * das Feld als `nullish` — ein mitgeschicktes `undefined` waere fachlich
+     * dasselbe, aber die Zusage lautet: ohne Wahl gibt es das Feld nicht.
+     */
+    expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("lagerortId");
+  });
+
+  it("schickt den gewaehlten Ort mit, und zwar OHNE Menge", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={ZWEI_ORTE}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    await clickElement(radioMitText("nur GF-Schrank"));
+    await clickPortal(".ant-popconfirm .ant-btn-primary");
+    await warteAuf(() => mocks.aussondern.mock.calls.length === 1, "Aussonderungs-Action");
+
+    expect(mocks.aussondern).toHaveBeenCalledWith({
+      chargeId: "c1",
+      lagerortId: "schrank-gf",
+      kommentar: "Verfallskontrolle — L42 · Kompressen ausgesondert",
+    });
+    /**
+     * ⚠️ KEINE MENGE UEBER DIE GRENZE. Die Zahl auf dem Schirm ist der Stand
+     * beim Rendern; was am Ort liegt, rechnet die Transaktion. Eine
+     * mitgeschickte Menge buchte gegen einen veralteten Stand — still.
+     */
+    expect(mocks.aussondern.mock.calls[0]?.[0]).not.toHaveProperty("menge");
   });
 });
 
@@ -285,6 +432,13 @@ describe("Verfallsseite als Server Component", () => {
       expect(document.body.textContent).toContain("RTW Warnend");
       expect(document.body.textContent).not.toContain("RTW Grün");
       expect(document.body.textContent).toContain("15.06.2026");
+      /**
+       * DRK-339 — DER LIEGEPLATZ STEHT IN DER ZEILE. Beide Chargen liegen in
+       * der Wurzel, also „in keinem Schrank"; der Stammname „Handlager" waere
+       * auf einer Karte namens „Chargen im Handlager" keine Auskunft.
+       */
+      expect(document.body.textContent).toContain("Nicht zugeordnet: 2 Pkg");
+      expect(document.body.textContent).toContain("Nicht zugeordnet: 3 Pkg");
       expect(queryAll("button[aria-label$='aussondern']")).toHaveLength(1);
       /**
        * ⚠️ DER AUSSONDERN-KNOPF HAENGT AN DER HANDLAGER-HAELFTE UND NUR DORT.

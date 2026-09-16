@@ -322,4 +322,105 @@ describe("aussondern — DRK-297: bucht je Ort, an dem die Charge liegt", () => 
       .where(and(eq(buchungen.chargeId, CHARGE_ABGELAUFEN), eq(buchungen.lagerortId, HANDLAGER_ID))).all();
     expect(anDerWurzel).toEqual([]);
   });
+
+  /**
+   * DRK-339 — DER GEZIELTE ORT. Wer eine Charge aus EINEM Schrank nimmt, soll
+   * genau diesen buchen koennen; ohne Angabe bleibt es bei „alles raus".
+   */
+  describe("mit lagerortId", () => {
+    function korrekturen() {
+      return t.db.select().from(buchungen)
+        .where(and(eq(buchungen.chargeId, CHARGE_ABGELAUFEN), eq(buchungen.typ, "korrektur")))
+        .all();
+    }
+
+    it("bucht NUR den gewaehlten Schrank und laesst den anderen stehen", async () => {
+      const erg = await aussondern(
+        { chargeId: CHARGE_ABGELAUFEN, lagerortId: "schrank-gf", kommentar: "MHD" },
+        t.db,
+      );
+
+      expect(erg.ok).toBe(true);
+      expect(korrekturen().map((b) => [b.lagerortId, b.menge])).toEqual([["schrank-gf", -6]]);
+    });
+
+    it("kennzeichnet die Zeile mit dem Praefix UND dem gewaehlten Ort", async () => {
+      await aussondern(
+        { chargeId: CHARGE_ABGELAUFEN, lagerortId: "schrank-1", kommentar: "MHD" },
+        t.db,
+      );
+
+      expect(korrekturen()[0]?.referenz).toBe("aussondern:schrank-1");
+    });
+
+    it("bucht den SALDO DES ORTS, nicht eine mitgeschickte Zahl", async () => {
+      /**
+       * ⚠️ DIE MENGE IST KEIN EINGABEFELD, und dieser Test haelt das fest: ein
+       * unbekanntes Feld faellt aus dem Schema, und gebucht wird, was die
+       * Transaktion am Ort sieht. Naehme die Aktion je eine Menge entgegen,
+       * buchte sie gegen den Stand, den der Schirm beim Rendern hatte — in
+       * einem Journal ohne UPDATE und ohne DELETE.
+       */
+      buchen({ id: "spaeter-abgang", chargeId: CHARGE_ABGELAUFEN,
+        lagerortId: "schrank-gf", menge: -2, typ: "entnahme" });
+
+      await aussondern(
+        { chargeId: CHARGE_ABGELAUFEN, lagerortId: "schrank-gf", menge: 6, kommentar: "MHD" },
+        t.db,
+      );
+
+      expect(korrekturen().map((b) => [b.lagerortId, b.menge])).toEqual([["schrank-gf", -4]]);
+    });
+
+    /**
+     * ⚠️ DER TEUERSTE STILLE AUSGANG DIESES TICKETS. Ohne die Bereichsprobe
+     * waere diese Aktion die weiche Tuer neben `aussondernVomLagerort`: eine
+     * Fahrzeug-ID im Feld, und der Fahrzeugbestand flöge aus — vorbei an der
+     * Soll-Pruefung, die jener Weg genau dafuer fuehrt. Die Zeile entstuende
+     * fehlerfrei und saehe im Journal aus wie jede andere Aussonderung.
+     */
+    it("weist einen Ort AUSSERHALB des Handlagers ab, ohne zu schreiben", async () => {
+      buchen({ id: "seed-fz-selbe-charge", chargeId: CHARGE_ABGELAUFEN,
+        lagerortId: "fz-1", menge: 9 });
+      const anzahlVorher = alleBuchungen().length;
+
+      const erg = await aussondern(
+        { chargeId: CHARGE_ABGELAUFEN, lagerortId: "fz-1", kommentar: "MHD" },
+        t.db,
+      );
+
+      expect(erg.ok).toBe(false);
+      expect(fehlerVon(erg)).toMatch(/gehört nicht zum Handlager/i);
+      erwarteKeineNebenwirkung(anzahlVorher);
+    });
+
+    it("meldet einen Handlager-Ort ohne Bestand dieser Charge, ohne zu schreiben", async () => {
+      const anzahlVorher = alleBuchungen().length;
+
+      const erg = await aussondern(
+        { chargeId: CHARGE_ABGELAUFEN, lagerortId: HANDLAGER_ID, kommentar: "MHD" },
+        t.db,
+      );
+
+      expect(erg.ok).toBe(false);
+      expect(fehlerVon(erg)).toMatch(/An diesem Ort liegt nichts mehr/i);
+      erwarteKeineNebenwirkung(anzahlVorher);
+    });
+
+    it("verlangt weiter eine ABGELAUFENE Charge — der Ort oeffnet keine zweite Tuer", async () => {
+      charge("ch-gueltig-im-schrank", "2099-12");
+      buchen({ id: "seed-gueltig-schrank", chargeId: "ch-gueltig-im-schrank",
+        lagerortId: "schrank-1", menge: 5 });
+      const anzahlVorher = alleBuchungen().length;
+
+      const erg = await aussondern(
+        { chargeId: "ch-gueltig-im-schrank", lagerortId: "schrank-1", kommentar: "MHD" },
+        t.db,
+      );
+
+      expect(erg.ok).toBe(false);
+      expect(fehlerVon(erg)).toMatch(/abgelaufen/i);
+      erwarteKeineNebenwirkung(anzahlVorher);
+    });
+  });
 });
