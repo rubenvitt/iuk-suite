@@ -79,7 +79,31 @@ export function InventurForm({ zeilen, ortId, orte }: {
   const [kommentar, setKommentar] = useState("");
   const [meldung, setMeldung] = useState<ReactNode>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [laeuft, startTransition] = useTransition();
+  const [absendetGerade, startTransition] = useTransition();
+  /**
+   * DRK-337, P1-Befund von Codex — DER WETTLAUF ZWISCHEN AUSWAHL UND SERVER.
+   *
+   * `router.replace` STOESST die Navigation nur an. Bis die neue RSC-Antwort da
+   * ist, steht hier weiter der ALTE Ort, stehen die alten Erwartungszahlen, und
+   * `key` in `page.tsx` hat die Insel noch nicht neu aufgesetzt. Ohne diesen
+   * Riegel koennte in genau diesem Fenster jemand einen Kommentar tippen, eine
+   * Menge erfassen und abschicken — gebucht wuerde gegen den Schrank, den er
+   * gerade verlassen hat. Dieselbe Fehlbuchung, gegen die das ganze Ticket
+   * antritt, nur durch eine langsame Leitung statt durch einen Denkfehler.
+   *
+   * `useTransition` um `router.replace` ist der vorgesehene Weg: `isPending`
+   * bleibt wahr, BIS die Navigation uebernommen hat.
+   *
+   * ⚠️ DAS ZEITFENSTER SELBST SIEHT KEIN VITEST-FALL, und das ist keine Luecke,
+   * sondern eine Eigenschaft der Umgebung: der Router ist dort gemockt und
+   * kehrt SYNCHRON zurueck, die Transition ist also beendet, bevor eine
+   * Zusicherung greifen koennte. Oeffnen laesst sich das Fenster nur durch eine
+   * echte, langsame Navigation. Geprueft ist deshalb die VERDRAHTUNG (der
+   * Wechsel laeuft ueber diese Transition), nicht die Dauer.
+   */
+  const [wechseltOrt, startOrtswechsel] = useTransition();
+  /** Alles, was den Zaehlstand oder die Buchung anfasst, haengt an DIESEM Wert. */
+  const laeuft = absendetGerade || wechseltOrt;
   const absendenLaeuft = useRef(false);
   const setzeUrl = useUrlFilter();
 
@@ -114,7 +138,9 @@ export function InventurForm({ zeilen, ortId, orte }: {
   }
 
   function abschliessen(): void {
-    if (absendenLaeuft.current || !kommentar.trim() || positionen.length === 0) return;
+    // `wechseltOrt` steht hier noch einmal, nicht nur am Knopf: ein Absenden
+    // waehrend der Navigation buchte gegen den verlassenen Ort.
+    if (absendenLaeuft.current || wechseltOrt || !kommentar.trim() || positionen.length === 0) return;
     absendenLaeuft.current = true;
     // Der Umfang ist BESCHREIBEND und bleibt im append-only Verlauf stehen: er
     // traegt die LABELS, nie die gefalteten Schluessel des Filters.
@@ -190,7 +216,9 @@ export function InventurForm({ zeilen, ortId, orte }: {
           // das darf nicht unter der Hand passieren, waehrend jemand vor einem
           // Schrank steht. Der Knopf daneben ist der ausdrueckliche Weg.
           disabled={laeuft || positionen.length > 0}
-          onChange={(wert) => setzeUrl({ ort: wert === ZAEHLORT_ALLE ? "" : wert })}
+          onChange={(wert) => startOrtswechsel(() => {
+            setzeUrl({ ort: wert === ZAEHLORT_ALLE ? "" : wert });
+          })}
           style={{ minWidth: 240 }}
           options={orte.map((o) => ({ value: o.id, label: o.label }))}
           virtual={false}
@@ -408,7 +436,7 @@ export function InventurForm({ zeilen, ortId, orte }: {
         <Button
           type="primary"
           data-rolle="abschluss"
-          loading={laeuft}
+          loading={absendetGerade}
           disabled={laeuft || !kommentar.trim() || positionen.length === 0}
           onClick={abschliessen}
         >

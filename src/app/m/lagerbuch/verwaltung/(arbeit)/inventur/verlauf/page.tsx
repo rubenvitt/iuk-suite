@@ -3,7 +3,7 @@ import { getDb, type DB } from "../../../../_db/client";
 import { quelleAufloeser } from "../../../../_db/quelle";
 import { INVENTUR_VERLAUF_GRENZE } from "../../../../_lib/grenzen";
 import { inventurLaeufe, umfangText } from "../../../../_lib/lesepfade/inventurVerlauf";
-import { mehrdeutigeOrtsnamen } from "../../../../_lib/lesepfade/orte";
+import { ortNamensaufloesung } from "../../../../_lib/lesepfade/orte";
 import { fmtDatumZeit } from "../../../../_lib/zeit";
 import { requireLagerbuchAdmin } from "../../../../_lib/zugang";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
@@ -26,13 +26,13 @@ export function verlaufSeitenInhalt(db: DB): ReactNode {
    * winzig, aber eine Abfrage je Lauf waere trotzdem die falsche Form (Kopf von
    * `lesepfade/bestand.ts`: `better-sqlite3` ist synchron).
    */
-  const mehrdeutig = mehrdeutigeOrtsnamen(db);
+  const aufloesung = ortNamensaufloesung(db);
   const zeilen: VerlaufZeile[] = laeufe.map((l) => ({
     id: l.id,
     zeitText: fmtDatumZeit(l.ts),
     person: person(l.quelleTyp, l.quelleId),
     kommentar: l.kommentar,
-    umfangText: umfangText(l.umfang, mehrdeutig),
+    umfangText: umfangText(l.umfang, aufloesung),
     positionen: l.positionen,
     abweichungen: l.abweichungen,
     detailHref: `/verwaltung/inventur/verlauf/${l.id}`,

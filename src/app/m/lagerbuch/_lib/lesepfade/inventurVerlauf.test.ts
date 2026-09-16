@@ -213,11 +213,25 @@ describe("inventurLauf", () => {
    * keine Anzeige sie nutzt — aus dem Sessel des Lesers aendert sich dann
    * nichts, und zwei Laeufe an verschiedenen Orten lesen sich weiter gleich.
    */
-  it("zeigt die Kennung, wenn der Ortsname heute mehrdeutig ist", () => {
+  it("zeigt die Kennung, wenn der Name nicht mehr auf genau diesen Ort zeigt", () => {
     const umfang = { kategorien: [], faecher: [], ort: "Schrank 1", ortId: "schrank-a" };
-    expect(umfangText(umfang, new Set(["Schrank 1"]))).toBe("Ort Schrank 1 (schrank-a)");
-    // ⚠️ NUR DANN: eine Kennung an jeder Zeile machte den Normalfall haesslich.
-    expect(umfangText(umfang, new Set(["GF-Schrank"]))).toBe("Ort Schrank 1");
+    // Loest der Name eindeutig auf DIESEN Ort auf, genuegt der Name.
+    expect(umfangText(umfang, new Map([["Schrank 1", "schrank-a"]]))).toBe("Ort Schrank 1");
+    // Mehrere Orte tragen ihn (`null`) → die Kennung gehoert daneben.
+    expect(umfangText(umfang, new Map([["Schrank 1", null]]))).toBe("Ort Schrank 1 (schrank-a)");
+    /*
+     * ⚠️ DER FALL, DEN EIN BLOSSER DOPPEL-TEST VERSCHLAEFT (fuenfter Befund):
+     * hiessen `a` und `b` beide „Schrank 1" und wird `b` spaeter umbenannt, ist
+     * der Name heute EINDEUTIG — er zeigt nur auf den falschen. Der Lauf von
+     * `b` braucht seine Kennung trotzdem.
+     */
+    const laufVonB = { ...umfang, ortId: "schrank-b" };
+    expect(umfangText(laufVonB, new Map([["Schrank 1", "schrank-a"]])))
+      .toBe("Ort Schrank 1 (schrank-b)");
+    // Umbenannt oder geloescht: den Namen traegt heute keiner mehr.
+    expect(umfangText(umfang, new Map([["Schrank 7", "schrank-a"]])))
+      .toBe("Ort Schrank 1 (schrank-a)");
+    // ⚠️ NUR DANN: ohne Angabe bleibt es beim Namen.
     expect(umfangText(umfang)).toBe("Ort Schrank 1");
   });
 
@@ -230,7 +244,7 @@ describe("inventurLauf", () => {
   it("erfindet fuer einen Altlauf ohne Kennung nichts", () => {
     expect(umfangText(
       { kategorien: [], faecher: [], ort: "Schrank 1", ortId: null },
-      new Set(["Schrank 1"]),
+      new Map([["Schrank 1", null]]),
     )).toBe("Ort Schrank 1");
   });
 });

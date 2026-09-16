@@ -63,12 +63,12 @@ export function umfangAus(roh: string | null): Umfang {
  * und nicht in einer der beiden Seiten, weil Liste UND Detail ihn brauchen und
  * eine Seite keine Werte aus der anderen importieren soll.
  */
-export function umfangText(umfang: Umfang, mehrdeutig?: ReadonlySet<string>): string {
+export function umfangText(umfang: Umfang, aufloesung?: ReadonlyMap<string, string | null>): string {
   if (!umfang) return "vollständig";
   // Der Ort ZUERST: er begrenzt, was ueberhaupt erwartet wurde, waehrend
   // Kategorie und Fach nur auswaehlen, welche Zeilen auf dem Schirm standen.
   const teile = [
-    ...(umfang.ort ? [`Ort ${ortText(umfang, mehrdeutig)}`] : []),
+    ...(umfang.ort ? [`Ort ${ortText(umfang, aufloesung)}`] : []),
     ...umfang.kategorien,
     ...umfang.faecher.map((f) => `Fach ${f}`),
   ];
@@ -76,25 +76,30 @@ export function umfangText(umfang: Umfang, mehrdeutig?: ReadonlySet<string>): st
 }
 
 /**
- * DRK-337, vierter Codex-Befund — DIE KENNUNG WIRD GEZEIGT, WENN DER NAME
- * HEUTE NICHT TRAEGT.
+ * DRK-337 — DIE KENNUNG WIRD GEZEIGT, WENN DER NAME NICHT MEHR AUF DIESEN ORT
+ * ZEIGT (vierter und fuenfter Codex-Befund).
  *
- * ⚠️ NUR DANN, und zwar aus demselben Grund wie in der Auswahl: eine Kennung an
- * jeder Zeile machte den Normalfall haesslich, um den Ausnahmefall zu heilen.
- * `mehrdeutig` kommt von der Seite, die als einzige weiss, welche Orte es gibt
- * (`mehrdeutigeOrtsnamen`); ohne Angabe bleibt es beim Namen — so lesen die
- * bestehenden Aufrufer und Tests unveraendert.
+ * ⚠️ DIE PRUEFUNG IST NICHT „gibt es den Namen doppelt?", SONDERN „loest er
+ * heute auf GENAU DIESEN Ort auf?" — und der Unterschied ist ein ganzer Fall:
+ * hiessen zwei Schraenke beide „X" und wird einer spaeter umbenannt, ist „X"
+ * nicht mehr doppelt, zeigt aber fuer den einen Lauf auf den falschen Ort.
+ * Dasselbe gilt fuer einen geloeschten Ort — dann zeigt der Name auf gar nichts.
+ *
+ * ⚠️ NUR DANN: eine Kennung an jeder Zeile machte den Normalfall haesslich, um
+ * den Ausnahmefall zu heilen. Ohne `aufloesung` bleibt es beim Namen — so lesen
+ * bestehende Aufrufer und Tests unveraendert.
  *
  * ⚠️ EIN LAUF OHNE GESPEICHERTE KENNUNG (von vor diesem Ticket) BEHAELT NUR DEN
- * NAMEN, auch wenn er heute mehrdeutig ist. Das ist ehrlich: die Identitaet
- * stand damals nicht dabei, und der Verlauf kennt kein UPDATE. Eine erfundene
- * Kennung waere schlimmer als eine fehlende.
+ * NAMEN. Die Identitaet stand damals nicht dabei, und der Verlauf kennt kein
+ * UPDATE. Eine erfundene Kennung waere schlimmer als eine fehlende.
  */
-function ortText(umfang: NonNullable<Umfang>, mehrdeutig?: ReadonlySet<string>): string {
-  const zeigeKennung = umfang.ortId !== null && umfang.ort !== null && mehrdeutig?.has(umfang.ort);
+function ortText(
+  umfang: NonNullable<Umfang>, aufloesung?: ReadonlyMap<string, string | null>,
+): string {
+  const zeigeKennung = umfang.ortId !== null && umfang.ort !== null
+    && aufloesung !== undefined && aufloesung.get(umfang.ort) !== umfang.ortId;
   return zeigeKennung ? `${umfang.ort} (${umfang.ortId})` : `${umfang.ort}`;
 }
-
 function zaehlungen(db: Leser, ids: string[]): Map<string, { positionen: number; abweichungen: number }> {
   if (ids.length === 0) return new Map();
   const rows = db.select({

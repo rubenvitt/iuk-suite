@@ -91,32 +91,34 @@ export function zaehlBereich(db: Leser, ortId: string | null): string[] | null {
 }
 
 /**
- * DRK-337 — DIE ORTSNAMEN, DIE HEUTE NICHT EINDEUTIG SIND (vierter Codex-Befund).
+ * DRK-337 — WOHIN EIN GESPEICHERTER ORTSNAME HEUTE ZEIGT (fuenfter Codex-Befund).
  *
- * Der Verlauf zeigt den NAMEN eines gezaehlten Orts; solange zwei Schraenke
- * gleich heissen duerfen, lesen sich zwei Laeufe an verschiedenen Orten
- * gleich. Die Kennung steht seitdem im Umfang — aber gespeichert ist nicht
- * gezeigt, und aus dem Sessel des Lesers hatte sich damit nichts geaendert.
+ * Der Verlauf zeigt den Namen, den ein Lauf DAMALS trug; die Orte aendern sich
+ * weiter. Die Frage ist deshalb nicht „gibt es den Namen heute doppelt?",
+ * sondern die schaerfere: **loest dieser Name heute noch eindeutig auf GENAU
+ * DIESEN Ort auf?**
  *
- * ⚠️ GEPRUEFT WIRD DIE HEUTIGE LAGE, NICHT DIE VON DAMALS, und das ist Absicht:
- * die Frage lautet „kann ich die beiden gerade auseinanderhalten?". Verschwindet
- * ein Doppel (weil jemand umbenennt oder DRK-367 Namen eindeutig macht),
- * verschwindet die Kennung aus der Anzeige — sie war nie Selbstzweck.
+ * ⚠️ WARUM DIE ERSTE FASSUNG ZU SCHWACH WAR: hiessen zwei Schraenke `a` und `b`
+ * beide „X", als ihre Laeufe entstanden, und wird `b` spaeter in „Y"
+ * umbenannt, gibt es „X" heute nur noch einmal — ein blosser Doppel-Test
+ * schwiege, und BEIDE Altlaeufe stuenden wieder als „Ort X" da, obwohl sie
+ * verschiedene Orte meinen. Die Karte hier beantwortet auch diesen Fall: fuer
+ * den Lauf von `b` zeigt „X" auf `a`, also nicht auf ihn.
+ *
+ * `null` heisst „mehrere Orte tragen diesen Namen", ein fehlender Schluessel
+ * „diesen Namen traegt heute keiner" (umbenannt oder geloescht). Beide Male
+ * traegt der Name nicht mehr allein, und die Kennung gehoert daneben.
  *
  * ⚠️ DIESELBE MENGE WIE IN DER AUSWAHL, also Wurzel UND Schraenke ueber
  * `zaehlOrtLabel`: ein Schrank namens „Nicht zugeordnet" kollidiert mit der
  * Wurzel, und diese Richtung faellt sonst durch.
  */
-export function mehrdeutigeOrtsnamen(db: Leser): Set<string> {
-  const labels = [
-    zaehlOrtLabel(HANDLAGER_ID, undefined),
-    ...handlagerSchraenke(db).map((o) => zaehlOrtLabel(o.id, o.name)),
+export function ortNamensaufloesung(db: Leser): Map<string, string | null> {
+  const orte = [
+    { id: HANDLAGER_ID, label: zaehlOrtLabel(HANDLAGER_ID, undefined) },
+    ...handlagerSchraenke(db).map((o) => ({ id: o.id, label: zaehlOrtLabel(o.id, o.name) })),
   ];
-  const gesehen = new Set<string>();
-  const doppelt = new Set<string>();
-  for (const label of labels) {
-    if (gesehen.has(label)) doppelt.add(label);
-    gesehen.add(label);
-  }
-  return doppelt;
+  const karte = new Map<string, string | null>();
+  for (const o of orte) karte.set(o.label, karte.has(o.label) ? null : o.id);
+  return karte;
 }

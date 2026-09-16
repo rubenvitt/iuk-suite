@@ -3,7 +3,7 @@ import { migrierteTestDb, type TestDb } from "./testdb";
 import { lagerorte } from "./schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import {
-  handlagerOrte, ortStamm, handlagerSchraenke, mehrdeutigeOrtsnamen, zaehlBereich,
+  handlagerOrte, ortStamm, handlagerSchraenke, ortNamensaufloesung, zaehlBereich,
 } from "../_lib/lesepfade/orte";
 
 let t: TestDb;
@@ -90,18 +90,25 @@ describe("zaehlBereich", () => {
   });
 });
 
-/** DRK-337, vierter Codex-Befund — welche Ortsnamen heute nicht tragen. */
-describe("mehrdeutigeOrtsnamen", () => {
-  it("meldet nichts, solange jeder Name einmal vorkommt", () => {
-    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual([]);
+/** DRK-337 — wohin ein gespeicherter Ortsname heute zeigt (vierter/fuenfter Befund). */
+describe("ortNamensaufloesung", () => {
+  it("loest jeden eindeutigen Namen auf seinen Ort auf", () => {
+    const karte = ortNamensaufloesung(t.db);
+    expect(karte.get("Schrank 1")).toBe("schrank-1");
+    expect(karte.get("GF-Schrank")).toBe("schrank-gf");
+    // Die Wurzel ist mit ihrem Auswahlnamen dabei, nicht mit „Handlager".
+    expect(karte.get("Nicht zugeordnet")).toBe(HANDLAGER_ID);
+    // Was es nicht gibt, fehlt — und „fehlt" heisst „traegt nicht mehr".
+    expect(karte.has("Schrank 7")).toBe(false);
   });
 
-  it("meldet einen doppelt vergebenen Schranknamen", () => {
+  /** `null` heisst: mehrere Orte tragen diesen Namen. */
+  it("meldet einen doppelt vergebenen Namen als nicht aufloesbar", () => {
     t.db.insert(lagerorte).values({
       id: "schrank-2", name: "Schrank 1", typ: "lager", aktiv: true,
       parentId: HANDLAGER_ID, sortierung: 20,
     }).run();
-    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual(["Schrank 1"]);
+    expect(ortNamensaufloesung(t.db).get("Schrank 1")).toBeNull();
   });
 
   /**
@@ -114,15 +121,11 @@ describe("mehrdeutigeOrtsnamen", () => {
       id: "schrank-frech", name: "Nicht zugeordnet", typ: "lager", aktiv: true,
       parentId: HANDLAGER_ID, sortierung: 30,
     }).run();
-    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual(["Nicht zugeordnet"]);
+    expect(ortNamensaufloesung(t.db).get("Nicht zugeordnet")).toBeNull();
   });
 
   /** Ein stillgelegter Schrank zaehlt mit: sein Bestand und seine Laeufe bleiben. */
   it("nimmt stillgelegte Schraenke mit", () => {
-    t.db.insert(lagerorte).values({
-      id: "schrank-alt-2", name: "Altschrank", typ: "lager", aktiv: false,
-      parentId: HANDLAGER_ID, sortierung: 60,
-    }).run();
-    expect([...mehrdeutigeOrtsnamen(t.db)]).toEqual(["Altschrank"]);
+    expect(ortNamensaufloesung(t.db).get("Altschrank")).toBe("schrank-alt");
   });
 });
