@@ -674,6 +674,55 @@ describe("ArtikelDrawer: Entnahme und Fahrzeugziel", () => {
   });
 });
 
+/**
+ * DER DEAKTIVIERTE ARTIKEL — DRK-380.
+ *
+ * ⚠️ NUR DER ZUGANG WIRD GESPERRT, und die GEGENPROBE gehoert dazu. Eine Datei,
+ * die allein das gesperrte Zugangsformular zusichert, waere auch dann gruen,
+ * wenn jemand spaeter die ganze Spalte sperrte — und damit den Restbestand
+ * eines Artikels einfroere, der genau deshalb deaktiviert wurde, weil er
+ * Historie hat (`kannDeaktivieren`). Die Richtung ist die Aussage: heraus ja,
+ * hinein nein.
+ *
+ * ⚠️ GEPRUEFT WIRD AN DEN FELDERN, NICHT AM `Form`-Knoten. antds `disabled`
+ * reicht ueber den DisabledContext an die Kinder durch; ein Attribut am
+ * Formular selbst gibt es nicht, und eine Zusicherung darauf waere still
+ * gruen — sie fragte etwas, das nie gesetzt ist.
+ */
+describe("ArtikelDrawer: ein deaktivierter Artikel nimmt keinen Zugang mehr an", () => {
+  const DETAIL_INAKTIV = { ...DETAIL, artikel: { ...DETAIL.artikel, aktiv: false } };
+
+  it("sperrt die Zugangsform", async () => {
+    mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_INAKTIV });
+    await drawerMounten();
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").disabled).toBe(true);
+    expect(queryPortal<HTMLInputElement>("[aria-label='Charge']").disabled).toBe(true);
+  });
+
+  it("laesst Entnahme und Umlagerung offen — der Restbestand bleibt abbuchbar", async () => {
+    mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_INAKTIV });
+    await drawerMounten();
+
+    expect(queryPortal<HTMLInputElement>("[aria-label='Entnahmemenge']").disabled).toBe(false);
+  });
+
+  it("nennt die Folge, nicht nur die Lage — sonst erklaert nichts das gesperrte Feld", async () => {
+    mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_INAKTIV });
+    await drawerMounten();
+
+    const text = queryPortal(".ant-drawer-body").textContent ?? "";
+    expect(text).toContain("deaktiviert");
+    expect(text).toContain("kein Material mehr zu");
+    expect(text).toContain("Entnahme und Umlagerung");
+  });
+
+  it("laesst die Zugangsform auf einem AKTIVEN Artikel offen", async () => {
+    await drawerMounten();
+    expect(queryPortal<HTMLInputElement>("[aria-label='Zugangsmenge']").disabled).toBe(false);
+  });
+});
+
 describe("ArtikelDrawer: Loeschen und Deaktivieren", () => {
   it("zeigt einen Actionfehler beim Loeschen unveraendert im Drawer", async () => {
     mocks.loescheElement.mockResolvedValueOnce({

@@ -135,6 +135,35 @@ export async function bucheZugang(
     }
     const v = geparst.data;
 
+    /*
+     * DER DEAKTIVIERTE ARTIKEL — DRK-380, und HIER als Satz statt als Wurf.
+     *
+     * ⚠️ DAS IST DIE EINZIGE DER VIER INVARIANTEN VON `zugangBuchen`, DIE
+     * DIESER WEG VORHER PRUEFT, und der Grund ist der Ausgang: die anderen
+     * drei (artikelfremde Charge, Ziel ausserhalb des Handlagers, stillgelegter
+     * Schrank) beschreiben eine Nutzlast, die diese Flaeche gar nicht erzeugen
+     * kann — dort ist der `catch` unten die richtige Antwort. Der deaktivierte
+     * Artikel dagegen ist eine LAGE, die der Drawer selbst herstellt: der
+     * Schalter „Aktiv" sitzt zwei Karten ueber diesem Formular. Ein
+     * durchgereichtes „Artikel ist deaktiviert" aus dem Wurf saehe an dieser
+     * Stelle aus wie ein Defekt; der Satz nennt stattdessen den Schalter.
+     *
+     * Die Oberflaeche sperrt das Formular ohnehin (`ArtikelDrawer`), und
+     * `zugangBuchen` wirft weiterhin — das hier ist die mittlere der drei
+     * Bankreihen, nicht die einzige.
+     */
+    const stamm = db.select({ aktiv: artikel.aktiv }).from(artikel)
+      .where(eq(artikel.id, v.artikelId)).get();
+    if (stamm && !stamm.aktiv) {
+      return {
+        ok: false,
+        fehler:
+          "Dieser Artikel ist deaktiviert — auf ihn geht kein Material mehr zu. " +
+          "Der vorhandene Bestand lässt sich weiter entnehmen und umlagern. " +
+          "Zum Auffüllen den Artikel oben unter „Aktiv“ wieder einschalten.",
+      };
+    }
+
     try {
       db.transaction((tx) => {
         /*
@@ -710,7 +739,7 @@ export async function bucheAuffuellung(
        * und der zweite Zweig haette dieselbe Luecke ohne eine Zeile Aenderung
        * hier. Eine Abfrage fuer beide Arten kostet nichts und haengt an nichts.
        */
-      const artikelZeile = db.select({ id: artikel.id }).from(artikel)
+      const artikelZeile = db.select({ id: artikel.id, aktiv: artikel.aktiv }).from(artikel)
         .where(eq(artikel.id, v.artikelId)).get();
       if (!artikelZeile) {
         return {
@@ -719,6 +748,29 @@ export async function bucheAuffuellung(
           text:
             "Diesen Artikel gibt es nicht mehr — er wurde gelöscht. Bitte die " +
             "Seite neu laden; der Bestand ist davon nicht betroffen.",
+        };
+      }
+      /*
+       * ⚠️ DER DEAKTIVIERTE ARTIKEL — DRK-380, und er ist auf DIESER Flaeche
+       * nur ueber einen gemerkten Link oder einen Regal-QR erreichbar: die
+       * Artikelliste unter `/auffuellen` filtert inaktive weg
+       * (`artikelListe` ohne `inklInaktiv`). Das Fenster ist trotzdem echt —
+       * die Seite rendert, jemand legt den Artikel in der Verwaltung still,
+       * und erst danach wird gebucht.
+       *
+       * ⚠️ DER SATZ NENNT DEN WEG ZURUECK, nicht nur die Lage. Wer hier steht,
+       * hat den Karton in der Hand; „geht nicht" ohne Ausgang laesst ihn mit
+       * Material stehen, das er nirgends verbuchen kann. Die Verwaltung ist
+       * der einzige Ort, an dem der Schalter sitzt.
+       */
+      if (!artikelZeile.aktiv) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Dieser Artikel ist deaktiviert — auf ihn geht kein Material mehr zu. " +
+            "Der vorhandene Bestand lässt sich weiter entnehmen. Soll wieder " +
+            "aufgefüllt werden, muss die Verwaltung den Artikel zuerst aktivieren.",
         };
       }
 

@@ -6,7 +6,7 @@
  * Flaechen — der Artikel-Drawer der Verwaltung (`bucheZugang`) und die
  * Auffuellansicht der GF (`bucheAuffuellung`). Vorher stand der Vorgang
  * ausgeschrieben in `_actions/buchung.ts`, und das war richtig, solange es
- * einen Aufrufer gab. Bei zwei Aufrufern haengen drei Invarianten daran, und
+ * einen Aufrufer gab. Bei zwei Aufrufern haengen vier Invarianten daran, und
  * jede einzelne faellt STILL aus, wenn die zweite Fassung sie vergisst:
  *
  *  1. **I5 — die Charge gehoert zu diesem Artikel.** Ohne die Pruefung steigt
@@ -19,8 +19,13 @@
  *  3. **Ein Zugang loescht die Bestellt-Markierung** (§5.5). Eine Markierung,
  *     die die Lieferung ueberlebt, fuehrt die Position dauerhaft als
  *     „bestellt" — und die Bestelliste schlaegt sie nie wieder vor.
+ *  4. **Der Artikel ist AKTIV** (DRK-380). Ein deaktivierter Artikel steht in
+ *     keiner Bedienliste mehr — Entnahme, Auffuellen, Dashboard und Vorlagen
+ *     lassen ihn weg. Material, das trotzdem auf ihn zugeht, ist danach
+ *     praktisch unsichtbar: es taucht nur noch in der Verwaltungsliste und im
+ *     Journal auf. Die Begruendung der Richtung steht an der Pruefung selbst.
  *
- * ⚠️ DIE DREI WUERFE SIND KEINE FEHLERTEXTE FUER DEN SCHIRM. Sie rollen die
+ * ⚠️ DIE VIER WUERFE SIND KEINE FEHLERTEXTE FUER DEN SCHIRM. Sie rollen die
  * Transaktion zurueck; wie die Lage der Person erklaert wird, entscheidet die
  * aufrufende Action — und beide pruefen dieselben Lagen VORHER noch einmal, mit
  * einem Satz statt eines Wurfs. Diese Pruefungen hier sind die letzte Bank, die
@@ -62,6 +67,43 @@ export function zugangBuchen(
   },
 ): { chargeId: string } {
   const { artikelId, menge, lagerortId, charge, quelle, kommentar, referenz } = args;
+
+  /*
+   * DER ARTIKEL IST AKTIV — Punkt 4 im Kopf dieser Datei, DRK-380.
+   *
+   * ⚠️ SIE STEHT GANZ VORN, VOR DEM ANLEGEN EINER NEUEN CHARGE. Der Wurf rollt
+   * die Transaktion zwar ohnehin zurueck; eine `chargen`-Zeile, die erst
+   * entsteht und dann verschwindet, verbraucht aber eine `newId()` und macht
+   * die Reihenfolge der Pruefungen von der Transaktionsgrenze abhaengig. Hier
+   * haengt sie an nichts.
+   *
+   * ⚠️ NUR DER ZUGANG, NICHT DIE ANDEREN DREI BUCHUNGSARTEN (Entscheidung zu
+   * DRK-380). `entnahme`, `umlagerung` und `korrektur` bleiben auf einem
+   * deaktivierten Artikel erlaubt, und das ist kein Vergessen: „deaktivieren"
+   * ist genau der Rueckfall, den der Loeschpfad anbietet, wenn ein Artikel
+   * Historie hat (`kannDeaktivieren`). Wer den Abgang mitsperrte, froere den
+   * Restbestand ein — er waere nur noch ueber ein Reaktivieren abzubuchen, und
+   * `postenAmOrt` (`_lib/lesepfade/entnahmebox.ts`) zeigt inaktive Artikel
+   * ausdruecklich weiter an, WEIL genau sie aus der Kiste genommen und
+   * entsorgt werden muessen. Die Richtung ist die Asymmetrie: heraus ja,
+   * hinein nein.
+   */
+  const stamm = tx.select({ aktiv: artikel.aktiv }).from(artikel)
+    .where(eq(artikel.id, artikelId)).get();
+  /*
+   * ⚠️ ZWEI WUERFE UND NICHT EINER (`!stamm?.aktiv` waere der kuerzere Ausdruck
+   * und die schlechtere Auskunft). „Gibt es nicht" und „ist deaktiviert" sind
+   * verschiedene Lagen mit verschiedenen Ausgaengen — die eine heisst „Seite
+   * neu laden", die andere „Schalter umlegen". Zusammengelegt bekaeme ein
+   * geloeschter Artikel den Satz ueber den Schalter, und wer ihn befolgt,
+   * sucht in der Verwaltung nach einer Zeile, die es nicht mehr gibt.
+   */
+  if (!stamm) {
+    throw new Error("Artikel gibt es nicht");
+  }
+  if (!stamm.aktiv) {
+    throw new Error("Artikel ist deaktiviert");
+  }
 
   let chargeId: string;
   if (charge.art === "neu") {

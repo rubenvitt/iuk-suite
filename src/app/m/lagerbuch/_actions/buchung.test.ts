@@ -478,6 +478,96 @@ describe("bucheZugang mit Zielort (DRK-297)", () => {
   });
 });
 
+/**
+ * DER DEAKTIVIERTE ARTIKEL — DRK-380.
+ *
+ * Die Entscheidung ist eine RICHTUNG, keine Sperre: auf einen deaktivierten
+ * Artikel geht kein Material mehr ZU, sein Restbestand laesst sich aber weiter
+ * abbuchen und umlagern. Deshalb haengen hier BEIDE Haelften — eine Datei, die
+ * nur das Abweisen zusichert, waere auch dann gruen, wenn jemand spaeter alle
+ * vier Buchungsarten sperrte und damit den Restbestand einfroere.
+ *
+ * ⚠️ DIE ZUSICHERUNG STEHT FUER BEIDE ZUGANGSWEGE, nicht nur fuer einen. Genau
+ * das war der Befund, aus dem das Ticket entstand: eine Pruefung allein in
+ * `bucheAuffuellung` waere die einzige Buchungsaktion des Moduls mit dieser
+ * Regel, und derselbe Wareneingang aus dem Artikel-Drawer ginge weiter durch —
+ * zwei Wahrheiten ueber denselben Vorgang.
+ */
+describe("DRK-380 — auf einen deaktivierten Artikel geht kein Material zu", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID, aktiv: true },
+    ]).run();
+    t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
+  });
+
+  it("bucheZugang weist ihn ab — mit einem Satz, nicht mit einem Wurf", async () => {
+    const erg = await bucheZugang({ artikelId: "art-1", menge: 5, chargeId: "ch-1" }, t.db);
+    expect(erg).toMatchObject({ ok: false });
+    expect(fehlerVon(erg)).toMatch(/deaktiviert/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("bucheAuffuellung weist ihn ab — mit `eingabe`, NICHT als Wurf", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text).toMatch(/deaktiviert/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  /**
+   * ⚠️ DIE ABWEISUNG LEGT AUCH KEINE CHARGE AN. Der Zweig „Neue Charge" ist
+   * der teurere: `zugangBuchen` legte die `chargen`-Zeile frueher an, als es
+   * die Pruefung gab, und ein Rollback, der eine halb gebaute Lieferung
+   * hinterliesse, waere still — die Chargenliste zeigte danach ein Los, auf
+   * dem nie etwas lag.
+   */
+  it("legt dabei auch keine neue Charge an", async () => {
+    await bucheZugang(
+      {
+        artikelId: "art-1", menge: 5,
+        neueCharge: { chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).get())
+      .toBeUndefined();
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE IST DIE HAELFTE, DIE DEN RESTBESTAND RETTET. „Deaktiviert"
+   * ist der Rueckfall des Loeschpfades fuer einen Artikel MIT Historie; wer den
+   * Abgang mitsperrte, machte den vorhandenen Bestand unabbuchbar, und
+   * `postenAmOrt` zeigt inaktive Artikel ausdruecklich weiter an, WEIL genau
+   * sie aus der Kiste genommen werden muessen.
+   */
+  it("laesst die Entnahme zu — der Restbestand bleibt abbuchbar", async () => {
+    const erg = await bucheEntnahme({ artikelId: "art-1", menge: 3 }, t.db);
+    expect(erg).toMatchObject({ ok: true });
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({ typ: "entnahme", menge: -3 });
+  });
+
+  it("laesst die Umlagerung zu — Material darf weiter einsortiert werden", async () => {
+    const erg = await bucheUmlagerung(
+      {
+        artikelId: "art-1", chargeId: "ch-1", menge: 2,
+        vonLagerortId: HANDLAGER_ID, nachLagerortId: "schrank-1",
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true });
+    expect(geschrieben().every((b) => b.typ === "umlagerung")).toBe(true);
+    expect(geschrieben().reduce((n, b) => n + b.menge, 0)).toBe(0);
+  });
+});
+
 describe("bucheEntnahmeHelfer", () => {
   it("bucht mit quelleTyp token und dem CODE als quelleId", async () => {
     const erg = await bucheEntnahmeHelfer(
