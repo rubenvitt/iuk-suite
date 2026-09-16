@@ -140,6 +140,27 @@ beenden=0
 protokoll() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"; }
 warne() { protokoll "WARNUNG: $*" >&2; }
 
+# ⚠️ DER STOPPWUNSCH UEBERLEBT KEIN `exec`. Er steht in einer VARIABLEN, und `exec`
+# ersetzt den Prozess — die neue Shell startet mit `beenden=0`. Genau dazwischen liegt
+# der Vorlauf, und der ist die laengste blockierende Stelle ueberhaupt: `apk add` laedt
+# sieben Pakete. Dazu kommt, dass eine POSIX-Shell die Falle aufschiebt, solange ein
+# Kind im Vordergrund laeuft — das Signal wirkt also fruehestens NACH `apk`, und dann
+# ist der `exec` die naechste Anweisung.
+#
+# GEMESSEN mit einer `apk`-Attrappe (6s) und SIGTERM nach 2s: der Dienst meldete
+# „Backup-Sidecar bereit." und blieb stehen. Im Container haette er damit die volle
+# `stop_grace_period` (30min) abgesessen, statt zu enden — und mit BACKUP_BEIM_START=1
+# haette er nach dem Stoppbefehl noch ein volles Backup begonnen.
+#
+# Der Ausgang ist mit Absicht NICHT 0: `vorbereiten` traegt auch `einmal`, und dort
+# haengt `SUITE_BACKUP_CMD` im Rollout am Exit-Code. Eine 0 hiesse dort „gesichert",
+# obwohl kein Lauf stattgefunden hat — und der Rollout zoege ohne Sicherung weiter.
+beenden_pruefen() {
+  [ "$beenden" -ne 0 ] || return 0
+  protokoll "Beendigung waehrend des Vorlaufs angefordert — es wird nichts mehr begonnen."
+  exit 1
+}
+
 # ══ Vorlauf als root ═════════════════════════════════════════════════════════════════
 # ⚠️ WARUM DER LAUF DANACH NICHT ALS root WEITERGEHT, und der Grund ist nicht
 # Prinzipienreiterei: die Modul-Datenbanken laufen im WAL-Modus (`core/db/index.ts`
@@ -158,6 +179,7 @@ vorbereiten() {
   # ist —, aber es gehoert gesagt: fehlt dann ein Werkzeug, liegt es daran.
   if [ "$(id -u)" -ne 0 ]; then
     protokoll "Kein root — Vorlauf uebersprungen, die Werkzeuge muessen vorhanden sein."
+    beenden_pruefen
     exec "$@"
   fi
   protokoll "Vorlauf: Pakete nachladen ($PAKETE)"
@@ -172,6 +194,7 @@ vorbereiten() {
   mkdir -p "$BACKUP_DIR"
   chown "$NUTZER" "$BACKUP_DIR"
   protokoll "Vorlauf fertig, weiter als $NUTZER: $*"
+  beenden_pruefen
   exec su-exec "$NUTZER" "$@"
 }
 

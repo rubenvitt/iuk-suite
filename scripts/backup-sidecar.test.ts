@@ -307,6 +307,36 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(befehle).toMatch(/shift\s+if \[ "\$#" -eq 0 \]/);
     expect(befehle).toMatch(/vorbereiten "\$@"/);
   });
+
+  it("ein Stoppwunsch aus dem Vorlauf ueberlebt den `exec` — weil vorher geprueft wird", () => {
+    // ⚠️ `exec` ERSETZT DEN PROZESS, und `beenden` ist eine VARIABLE: die neue Shell
+    // startet mit 0. Dazwischen liegt ausgerechnet die laengste blockierende Stelle des
+    // Skripts (`apk add`, sieben Pakete) — und eine POSIX-Shell schiebt die Falle auf,
+    // solange ein Kind im Vordergrund laeuft, das Signal wirkt also fruehestens danach,
+    // wenn der `exec` die naechste Anweisung ist.
+    //
+    // GEMESSEN mit einer `apk`-Attrappe (6s) und SIGTERM nach 2s: der Dienst meldete
+    // „Backup-Sidecar bereit." und blieb stehen — im Container haette er die volle
+    // `stop_grace_period` (30min) abgesessen, mit BACKUP_BEIM_START=1 sogar noch ein
+    // Backup begonnen. Nach der Pruefung: exit 1, kein „bereit", kein Lauf.
+    const rumpf = funktionsrumpf(befehle, "vorbereiten");
+    // BEIDE Ausgaenge, nicht nur der mit `apk` davor: die Falle steht schon, wenn der
+    // Vorlauf uebersprungen wird.
+    expect(rumpf.match(/beenden_pruefen/g) ?? [], "vor jedem exec").toHaveLength(2);
+    for (const zeile of rumpf.split("\n")) {
+      if (!zeile.includes("exec ")) continue;
+      const davor = rumpf.slice(0, rumpf.indexOf(zeile));
+      expect(
+        davor.lastIndexOf("beenden_pruefen") > davor.lastIndexOf("exec "),
+        `geprueft wird VOR "${zeile.trim()}"`,
+      ).toBe(true);
+    }
+    // ⚠️ DER AUSGANG IST NICHT 0, UND DAS IST DER PUNKT: `vorbereiten` traegt auch
+    // `einmal`, und dort haengt `SUITE_BACKUP_CMD` im Rollout am Exit-Code. Eine 0
+    // hiesse „gesichert", obwohl kein Lauf stattgefunden hat — der Rollout zoege dann
+    // ohne Sicherung weiter, also genau in der Lage, fuer die es ihn gibt.
+    expect(funktionsrumpf(befehle, "beenden_pruefen")).toMatch(/exit 1/);
+  });
 });
 
 describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", () => {
