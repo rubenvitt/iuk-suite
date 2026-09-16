@@ -1,4 +1,5 @@
 import { ampelTon, type AmpelTon } from "../../../_lib/format";
+import { standortZeile } from "../../../_lib/konstanten";
 import type { BzGeraetZeile } from "../../../_lib/lesepfade/bz";
 import { fmtTs } from "../../../_lib/zeit";
 
@@ -11,7 +12,8 @@ export type BzAnzeigeZeile = {
   id: string;
   name: string;
   barcode: string | null;
-  lagerortName: string;
+  /** Volle Standortzeile — Begruendung an `GeraetAnzeigeZeile`. */
+  standortText: string;
   aktiv: boolean;
   faelligkeitTon: AmpelTon;
   faelligkeitText: string;
@@ -39,7 +41,7 @@ export function bzAnzeigeZeilen(zeilen: BzGeraetZeile[]): BzAnzeigeZeile[] {
     id: zeile.id,
     name: zeile.name,
     barcode: zeile.barcode,
-    lagerortName: zeile.lagerortName,
+    standortText: standortZeile(zeile.lagerortStandort),
     aktiv: zeile.aktiv,
     faelligkeitTon: ampelTon(zeile.faelligkeit.ampel),
     faelligkeitText: faelligText(zeile.faelligkeit),

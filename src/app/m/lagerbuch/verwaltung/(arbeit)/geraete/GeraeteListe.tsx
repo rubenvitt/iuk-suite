@@ -39,18 +39,26 @@ export type GeraetAnzeigeZeile = {
   typ: GeraetTyp;
   name: string;
   barcode: string | null;
-  lagerortName: string;
+  /**
+   * ⚠️ DIE VOLLE ZEILE, NICHT NUR DER NAME (DRK-309, Reviewrunde 14) — und
+   * zwar als ZEICHENKETTE, weil genau dieser eine Wert angezeigt, sortiert,
+   * gefiltert UND durchsucht wird. Ein Spaltenfilter gruppiert ueber den
+   * Wert, den er zeigt; stuende hier der blosse Name, fielen ein Fahrzeug und
+   * eine gleichnamige Tasche in EINEN Filterwert. Gebaut im Serverteil mit
+   * `standortZeile`, damit die Wahl im Formular daneben dieselbe Zeile fuehrt.
+   */
+  standortText: string;
   aktiv: boolean;
   faelligkeitAmpel: "rot" | "gelb" | "gruen";
   keinDatum: boolean;
   chip: { ton: AmpelTon; text: string } | null;
 };
 
-/** SUCHFELDMENGE 5 VON 6: Name · Barcode · Lagerort. */
+/** SUCHFELDMENGE 5 VON 6: Name · Barcode · Standort (mit Art). */
 export function sucheTrifft(zeile: GeraetAnzeigeZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === "" || falte(
-    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.lagerortName}`,
+    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.standortText}`,
   ).includes(suche);
 }
 
@@ -129,10 +137,10 @@ function spalten(
     },
     {
       title: "Standort",
-      dataIndex: "lagerortName",
-      sorter: nachText<GeraetAnzeigeZeile>((zeile) => zeile.lagerortName),
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.lagerortName),
-      onFilter: trifftWert<GeraetAnzeigeZeile>((zeile) => zeile.lagerortName),
+      dataIndex: "standortText",
+      sorter: nachText<GeraetAnzeigeZeile>((zeile) => zeile.standortText),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.standortText),
+      onFilter: trifftWert<GeraetAnzeigeZeile>((zeile) => zeile.standortText),
     },
     {
       title: "Fälligkeit",

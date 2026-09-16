@@ -7,6 +7,7 @@ import {
   type GeraetZeile,
 } from "../../../_lib/lesepfade/geraete";
 import { lagerortOptionen } from "../../../_lib/lesepfade/bz";
+import { standortZeile } from "../../../_lib/konstanten";
 import { Kachel } from "../../../_ui/Kachel";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import {
@@ -26,7 +27,7 @@ export function geraeteAnzeigeZeilen(zeilen: GeraetZeile[]): GeraetAnzeigeZeile[
     typ: zeile.typ,
     name: zeile.name,
     barcode: zeile.barcode,
-    lagerortName: zeile.lagerortName,
+    standortText: standortZeile(zeile.lagerortStandort),
     aktiv: zeile.aktiv,
     faelligkeitAmpel: zeile.faelligkeit.ampel,
     keinDatum: zeile.faelligkeit.keinDatum,

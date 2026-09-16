@@ -28,7 +28,7 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
-import type { Einheitenart } from "../konstanten";
+import type { Einheitenart, StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { akkuLebensdauer, bzFaelligkeit,
          type BzAkkuKennzahl, type BzFaelligkeit } from "../domain/bz";
@@ -104,14 +104,32 @@ export function lagerortOptionen(db: Leser): LagerortOption[] {
     .sort((a, b) => a.typ.localeCompare(b.typ) || a.name.localeCompare(b.name));
 }
 
+/**
+ * DRK-309: Standorte samt Art — siehe `standortZeile`. Der Rueckfall traegt
+ * `typ: "lager"`, damit ein geloeschter Standort „Lager" sagt statt „nicht
+ * zugeordnet": offen ist die Art nur da, wo es eine Einheit GIBT.
+ */
+const STANDORT_UNBEKANNT: StandortAngabe = {
+  name: "–", typ: "lager", kennung: null, einheitenart: null,
+};
+
+function standorte(db: Leser): Map<string, StandortAngabe> {
+  return new Map(db.select().from(lagerorte).all().map((l) => [l.id, {
+    name: l.name, typ: l.typ, kennung: l.kennung, einheitenart: l.einheitenart,
+  }]));
+}
+
 export type BzGeraetZeile = {
-  id: string; name: string; barcode: string | null; lagerortName: string; aktiv: boolean;
+  id: string; name: string; barcode: string | null; lagerortName: string;
+  /** DRK-309: Der Standort wird BENANNT, nicht nur genannt — `standortZeile`. */
+  lagerortStandort: StandortAngabe;
+  aktiv: boolean;
   letzteKontrolle: Date | null; letztesBestanden: boolean | null; faelligkeit: BzFaelligkeit;
 };
 
 export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraetZeile[] {
   const geraete = db.select().from(bzGeraete).all();
-  const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
+  const stamm = standorte(db);
   const kontrollen = db.select().from(bzKontrollen).all();
   const letzteProGeraet = new Map<string, (typeof kontrollen)[number]>();
   for (const k of kontrollen) {
@@ -132,7 +150,9 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
       const letzte = letzteProGeraet.get(g.id) ?? null;
       return {
         id: g.id, name: g.name, barcode: g.barcode,
-        lagerortName: namen.get(g.lagerortId) ?? "–", aktiv: g.aktiv,
+        lagerortName: (stamm.get(g.lagerortId) ?? STANDORT_UNBEKANNT).name,
+        lagerortStandort: stamm.get(g.lagerortId) ?? STANDORT_UNBEKANNT,
+        aktiv: g.aktiv,
         letzteKontrolle: letzte ? letzte.ts : null,
         letztesBestanden: letzte ? letzte.bestanden : null,
         // ⚠️ `null` → rot MIT ueberfaellig false. Die Anzeige muss `nieGeprueft`

@@ -240,6 +240,35 @@ export function standortMeta(
   return ort.typ === "lager" ? "Lager" : einheitMeta(ort);
 }
 
+/** Ein Standort, so wie ihn eine Anzeige braucht — Name plus Beizeile. */
+export type StandortAngabe = {
+  name: string;
+  typ: "lager" | "fahrzeug";
+  kennung: string | null;
+  einheitenart: Einheitenart | null;
+};
+
+/**
+ * „Rucksack Betreuung · Tasche" — die Zeile, die einen Standort BENENNT.
+ *
+ * ⚠️ EINE FUNKTION, WEIL SIEBEN FLAECHEN DIESELBE ZEILE FUEHREN (DRK-309,
+ * Reviewrunde 14): die drei Wahlen (Gerät, BZ-Gerät, Flasche), die drei
+ * Uebersichtstabellen dazu und die Spalte „Liegt in" in der Artikelschublade.
+ * Bis hierher trugen nur die WAHLEN die Art — man suchte sich „Rucksack
+ * Betreuung · Tasche" aus und bekam in der Liste daneben „Rucksack
+ * Betreuung". Bei zwei gleichnamigen Standorten ist das nicht nur karger,
+ * sondern MEHRDEUTIG.
+ *
+ * ⚠️ UND SIE IST ZUGLEICH DER FILTER- UND SUCHWERT. Ein Spaltenfilter
+ * gruppiert ueber die Zeichenkette, die er anzeigt; gruppierte er weiter ueber
+ * den blossen Namen, fielen ein Fahrzeug und eine gleichnamige Tasche in
+ * EINEN Filterwert zusammen — derselbe Befund, den die Checkhistorie in
+ * Runde 7 hatte (`ChecksTabelle.zeileTitel`).
+ */
+export function standortZeile(ort: StandortAngabe): string {
+  return `${ort.name} · ${standortMeta(ort)}`;
+}
+
 /** „dieses Fahrzeug" · „diese Tasche" · „diese Einheit". */
 export function dieseEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "dieses Fahrzeug";

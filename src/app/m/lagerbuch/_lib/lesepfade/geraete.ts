@@ -22,11 +22,31 @@ import { eq } from "drizzle-orm";
 import { geraete, lagerorte } from "../../_db/schema";
 import { geraetFaelligkeit, type DatumFaelligkeit, type GeraetTyp } from "../domain/geraet";
 import { geraetFaelligChip, type FaelligChip } from "../format";
+import { type StandortAngabe } from "../konstanten";
 import type { Leser } from "./bestand";
+
+/**
+ * DRK-309: Standorte samt Art — die Uebersichten benennen sie, nicht nur die
+ * Wahl daneben. Der Rueckfall traegt `typ: "lager"`, damit ein geloeschter
+ * Standort „Lager" sagt statt „nicht zugeordnet": offen ist die Art nur da,
+ * wo es eine Einheit GIBT.
+ */
+const STANDORT_UNBEKANNT: StandortAngabe = {
+  name: "–", typ: "lager", kennung: null, einheitenart: null,
+};
+
+function standorte(db: Leser): Map<string, StandortAngabe> {
+  return new Map(db.select().from(lagerorte).all().map((l) => [l.id, {
+    name: l.name, typ: l.typ, kennung: l.kennung, einheitenart: l.einheitenart,
+  }]));
+}
 
 export type GeraetZeile = {
   id: string; typ: GeraetTyp; name: string; barcode: string | null;
-  lagerortId: string; lagerortName: string; anmerkung: string | null;
+  lagerortId: string; lagerortName: string;
+  /** DRK-309: Der Standort wird BENANNT, nicht nur genannt — `standortZeile`. */
+  lagerortStandort: StandortAngabe;
+  anmerkung: string | null;
   mtkFaellig: string | null; beschreibung: string | null; ablaufdatum: string | null;
   aktiv: boolean;
   faelligkeit: DatumFaelligkeit;
@@ -35,21 +55,22 @@ export type GeraetZeile = {
 };
 
 function toZeile(
-  g: typeof geraete.$inferSelect, lagerortName: string, now: Date,
+  g: typeof geraete.$inferSelect, standort: StandortAngabe, now: Date,
 ): GeraetZeile {
   const f = geraetFaelligkeit(g, now);
   return {
     id: g.id, typ: g.typ, name: g.name, barcode: g.barcode,
-    lagerortId: g.lagerortId, lagerortName, anmerkung: g.anmerkung,
+    lagerortId: g.lagerortId, lagerortName: standort.name,
+    lagerortStandort: standort, anmerkung: g.anmerkung,
     mtkFaellig: g.mtkFaellig, beschreibung: g.beschreibung, ablaufdatum: g.ablaufdatum,
     aktiv: g.aktiv, faelligkeit: f, chip: geraetFaelligChip(g.typ, f),
   };
 }
 
 export function geraeteUebersicht(db: Leser, now: Date = new Date()): GeraetZeile[] {
-  const namen = new Map(db.select().from(lagerorte).all().map((l) => [l.id, l.name]));
+  const stamm = standorte(db);
   return db.select().from(geraete).all()
-    .map((g) => toZeile(g, namen.get(g.lagerortId) ?? "–", now))
+    .map((g) => toZeile(g, stamm.get(g.lagerortId) ?? STANDORT_UNBEKANNT, now))
     .sort((a, b) =>
       Number(b.aktiv) - Number(a.aktiv) ||
       a.typ.localeCompare(b.typ) ||
@@ -61,10 +82,13 @@ export function geraeteUebersicht(db: Leser, now: Date = new Date()): GeraetZeil
 export function geraeteFuerLagerort(
   db: Leser, lagerortId: string, now: Date = new Date(),
 ): GeraetZeile[] {
-  const name = db.select().from(lagerorte).where(eq(lagerorte.id, lagerortId)).get()?.name ?? "–";
+  const l = db.select().from(lagerorte).where(eq(lagerorte.id, lagerortId)).get();
+  const standort: StandortAngabe = l
+    ? { name: l.name, typ: l.typ, kennung: l.kennung, einheitenart: l.einheitenart }
+    : STANDORT_UNBEKANNT;
   return db.select().from(geraete).where(eq(geraete.lagerortId, lagerortId)).all()
     .filter((g) => g.aktiv)
-    .map((g) => toZeile(g, name, now))
+    .map((g) => toZeile(g, standort, now))
     .sort((a, b) => a.typ.localeCompare(b.typ) || a.name.localeCompare(b.name));
 }
 

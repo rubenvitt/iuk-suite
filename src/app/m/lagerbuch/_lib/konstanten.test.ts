@@ -9,7 +9,8 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
   EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
-  einheitNomen, einheitMeta, standortMeta, dieseEinheit, ausDieserEinheit, anDieserEinheit,
+  einheitNomen, einheitMeta, standortMeta, standortZeile, dieseEinheit, ausDieserEinheit,
+  anDieserEinheit,
   inDieEinheit, inDerEinheit,
   checklisteTitel, grossAmAnfang,
 } from "./konstanten";
@@ -189,6 +190,29 @@ describe("Enum-Listen", () => {
       .toBe("Fahrzeug · MS-1");
     expect(standortMeta({ typ: "fahrzeug", kennung: null, einheitenart: null }))
       .toBe("nicht zugeordnet");
+
+    /*
+     * ⚠️ DER FALL, UM DEN ES GEHT (DRK-309, Reviewrunde 14): ein Fahrzeug und
+     * eine Tasche DESSELBEN Namens. Vor `standortZeile` stand in den drei
+     * Uebersichten nur der Name — zwei Zeilen, nicht auseinanderzuhalten, und
+     * ein Spaltenfilter, der beide in EINEN Wert zog. Die Zusicherung ist
+     * deshalb `not.toBe` und nicht zwei Gleichheiten: sie prueft die
+     * EIGENSCHAFT (unterscheidbar), nicht die heutige Schreibweise.
+     */
+    const alsFahrzeug = { name: "Betreuung", typ: "fahrzeug" as const,
+      kennung: null, einheitenart: "fahrzeug" as const };
+    const alsTasche = { ...alsFahrzeug, einheitenart: "tasche" as const };
+    expect(standortZeile(alsFahrzeug)).not.toBe(standortZeile(alsTasche));
+    expect(standortZeile(alsTasche)).toBe("Betreuung · Tasche");
+
+    // Und die Kennung steht mit drin, wo es eine gibt — sie ist bei zwei
+    // gleichnamigen Fahrzeugen das einzige, was sie trennt.
+    expect(standortZeile({ ...alsFahrzeug, kennung: "MS-1" }))
+      .toBe("Betreuung · Fahrzeug · MS-1");
+
+    // Ein Lager bleibt ein Lager, auch in der vollen Zeile.
+    expect(standortZeile({ name: "Schrank 1", typ: "lager",
+      kennung: null, einheitenart: null })).toBe("Schrank 1 · Lager");
 
     expect(grossAmAnfang(inDieEinheit("tasche"))).toBe("In die Tasche");
     for (const art of [...EINHEITENARTEN, null] as const) {

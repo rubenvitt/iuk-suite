@@ -7,7 +7,7 @@ import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verf
 import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
-import { verteilungJeCharge } from "../_lib/lesepfade/bestand";
+import { verteilungJeCharge, type OrtVerteilungEintrag } from "../_lib/lesepfade/bestand";
 import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -23,7 +23,8 @@ export type ArtikelDetailCharge = {
   restGesamt: number;
   /** Die VERTEILUNG dieser Charge: wo wie viel liegt. Nicht zu verwechseln mit
    *  `zielOrte` (die waehlbaren ZIELE eines Zugangs). */
-  orte: { id: string; name: string; menge: number; zugangshinweis: string | null }[];
+  /** DRK-309: samt Art — `OrtVerteilungEintrag`, dort steht die Begruendung. */
+  orte: OrtVerteilungEintrag[];
   ampel: Ampel;
   text: string;
 };

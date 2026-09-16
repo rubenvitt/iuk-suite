@@ -33,7 +33,7 @@ import { NeuBzGeraet } from "./NeuBzGeraet";
 function sucheTrifft(zeile: BzAnzeigeZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === "" || falte(
-    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.lagerortName}`,
+    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.standortText}`,
   ).includes(suche);
 }
 
@@ -81,10 +81,10 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
     },
     {
       title: "Standort",
-      dataIndex: "lagerortName",
-      sorter: nachText<BzAnzeigeZeile>((zeile) => zeile.lagerortName),
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.lagerortName),
-      onFilter: trifftWert<BzAnzeigeZeile>((zeile) => zeile.lagerortName),
+      dataIndex: "standortText",
+      sorter: nachText<BzAnzeigeZeile>((zeile) => zeile.standortText),
+      filters: werteAlsFilter(zeilen, (zeile) => zeile.standortText),
+      onFilter: trifftWert<BzAnzeigeZeile>((zeile) => zeile.standortText),
     },
     {
       title: "Fälligkeit",

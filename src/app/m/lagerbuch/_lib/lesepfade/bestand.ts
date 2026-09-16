@@ -35,6 +35,7 @@ import type { DB } from "../../_db/client";
 import { artikel, buchungen, chargen } from "../../_db/schema";
 import { verfallStatus, verfallSchwellen } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
+import type { Einheitenart } from "../konstanten";
 import { handlagerOrte, ortStamm } from "./orte";
 
 /**
@@ -173,6 +174,16 @@ export function restJeChargeUndOrt(
 
 export type OrtVerteilungEintrag = {
   id: string; name: string; menge: number; zugangshinweis: string | null;
+  /**
+   * ⚠️ DRK-309, Reviewrunde 14: die Spalte „Liegt in" BENENNT den Ort. Ohne
+   * diese beiden Felder stand dort der blosse Name — und ein Fahrzeug und
+   * eine gleichnamige Tasche ergaben zwei ununterscheidbare Chips
+   * nebeneinander, in derselben Schublade, deren Zielwahl eine Zeile hoeher
+   * bereits „Name · Art" fuehrt.
+   */
+  typ: "lager" | "fahrzeug";
+  kennung: string | null;
+  einheitenart: Einheitenart | null;
 };
 
 /**
@@ -208,6 +219,12 @@ export function verteilungJeCharge(
           name: o?.name ?? ortId,
           menge,
           zugangshinweis: o?.zugangshinweis ?? null,
+          // Ein unbekannter Ort ist kein Ort OHNE Art, sondern gar keine
+          // Einheit — `typ: "lager"` laesst `standortMeta` „Lager" sagen
+          // statt „nicht zugeordnet".
+          typ: o?.typ ?? "lager",
+          kennung: o?.kennung ?? null,
+          einheitenart: o?.einheitenart ?? null,
           sortierung: o?.sortierung ?? 0,
           rang: imHandlager.has(ortId) ? 0 : 1,
         };

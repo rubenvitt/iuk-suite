@@ -8,7 +8,7 @@
  */
 import { lagerorte } from "../../_db/schema";
 import { teilbaum, type OrtZeile } from "../domain/orte";
-import { HANDLAGER_ID } from "../konstanten";
+import { HANDLAGER_ID, type Einheitenart } from "../konstanten";
 import type { Leser } from "./bestand";
 
 export type OrtStammZeile = {
@@ -19,13 +19,17 @@ export type OrtStammZeile = {
   sortierung: number;
   parentId: string | null;
   typ: "lager" | "fahrzeug";
+  /** DRK-309: Der Stamm traegt die Art, damit jede Anzeige daraus dieselbe
+   *  Zeile bauen kann (`standortZeile`). */
+  einheitenart: Einheitenart | null;
   aktiv: boolean;
 };
 
 function alleOrte(db: Leser): OrtStammZeile[] {
   return db.select().from(lagerorte).all().map((o) => ({
     id: o.id, name: o.name, kennung: o.kennung, zugangshinweis: o.zugangshinweis,
-    sortierung: o.sortierung, parentId: o.parentId, typ: o.typ, aktiv: o.aktiv,
+    sortierung: o.sortierung, parentId: o.parentId, typ: o.typ,
+    einheitenart: o.einheitenart, aktiv: o.aktiv,
   }));
 }
 

@@ -223,7 +223,12 @@ describe("getDetail", () => {
       kategorie: null,
     });
     const nurHandlager = (menge: number) =>
-      [{ id: HANDLAGER_ID, name: "Handlager", menge, zugangshinweis: null }];
+      [{
+        id: HANDLAGER_ID, name: "Handlager", menge, zugangshinweis: null,
+        // Das Handlager ist ein Lager — `standortMeta` sagt dort „Lager",
+        // nicht „nicht zugeordnet" (DRK-309).
+        typ: "lager" as const, kennung: null, einheitenart: null,
+      }];
     expect(detail.chargen).toEqual([
       { id: "c-rot", chargenNr: "ROT", verfall: "2026-06", rest: 2,
         restGesamt: 2, orte: nurHandlager(2), ampel: "rot", text: "läuft 06/26 ab" },
@@ -304,7 +309,13 @@ describe("getDetail: Verteilung einer Charge ueber mehrere Orte (DRK-297, Aufgab
     const e = await getDetail(ARTIKEL_A, t.db);
     const charge = (e as { wert: { chargen: ArtikelDetailCharge[] } }).wert.chargen
       .find((c) => c.chargenNr === "R-9");
-    expect(charge?.orte).toEqual([{ id: RTW1, name: "RTW 1", menge: 7, zugangshinweis: null }]);
+    expect(charge?.orte).toEqual([{
+      id: RTW1, name: "RTW 1", menge: 7, zugangshinweis: null,
+      // DRK-309: Die Spalte „Liegt in" benennt den Ort. `RTW 1` traegt hier
+      // KEINE Art — der Zwischenstand aus Migration 0010 —, die Anzeige sagt
+      // deshalb „nicht zugeordnet" statt „Fahrzeug" zu behaupten.
+      typ: "fahrzeug", kennung: "MS-DRK-1", einheitenart: null,
+    }]);
     expect(charge?.restGesamt).toBe(7);
   });
 
@@ -333,8 +344,16 @@ describe("getDetail: Verteilung einer Charge ueber mehrere Orte (DRK-297, Aufgab
     const charge = (e as { wert: { chargen: ArtikelDetailCharge[] } }).wert.chargen
       .find((c) => c.chargenNr === "MIX");
     expect(charge?.orte).toEqual([
-      { id: SCHRANK_GF, name: "GF-Schrank", menge: 4, zugangshinweis: "Zugang über LvD — anrufen" },
-      { id: RTW1, name: "RTW 1", menge: 6, zugangshinweis: null },
+      {
+        id: SCHRANK_GF, name: "GF-Schrank", menge: 4,
+        zugangshinweis: "Zugang über LvD — anrufen",
+        // Ein Lager sagt „Lager", nicht „nicht zugeordnet" (`standortMeta`).
+        typ: "lager", kennung: null, einheitenart: null,
+      },
+      {
+        id: RTW1, name: "RTW 1", menge: 6, zugangshinweis: null,
+        typ: "fahrzeug", kennung: "MS-DRK-1", einheitenart: null,
+      },
     ]);
     expect(charge?.restGesamt).toBe(10);
   });
