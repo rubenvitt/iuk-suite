@@ -320,6 +320,19 @@ describe("Teil 4, T87 — die Weichen-Dateien existieren UND tragen ein PRAEDIKA
     { rel: "a/[artikelId]/page.tsx", praedikat: /\bkontoZugangOderNull\s*\(/ },
     // Barcode-Deep-Link (§8.1, T164; Pflicht seit T173)
     { rel: "g/[code]/page.tsx", praedikat: /\bistLagerbuchAdmin\s*\(/ },
+    /*
+     * NACHTRAG 16.09.2026 (DRK-312) — die Ortsetikett-Weiche. Sie ist die
+     * VIERTE Flaeche mit demselben dritten Fall („keine Sitzung" → Gate mit
+     * returnTo) und faellt damit unter dieselbe Zusage; ohne Eintrag hier
+     * waere sie genau die Datei, die der Kopfkommentar meint: eine, die NACH
+     * dem letzten Task-Test entsteht.
+     *
+     * ⚠️ IHR PRAEDIKAT IST `kontoZugangOderNull`, nicht `istLagerbuchAdmin` —
+     * wie bei der Regaletikett-Weiche und aus demselben Grund: sie braucht
+     * einen ZUGANG, keine Ja/Nein-Antwort. Sie leitet Kaertchen und Konto an
+     * DIESELBE Stelle, es gibt also gar keine Rollenfrage zu beantworten.
+     */
+    { rel: "o/[ortId]/page.tsx", praedikat: /\bkontoZugangOderNull\s*\(/ },
   ];
 
   for (const { rel, praedikat } of PFLICHT) {
@@ -1218,7 +1231,10 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     ]);
     const WURZEL = join(MODUL, "page.tsx");
     const dateien = [
-      ...["_ui", "helfer", "a", "t"].flatMap((d) => quellDateien(join(MODUL, d))),
+      // NACHTRAG 16.09.2026 (DRK-312): `o/` ist der vierte oeffentliche Ast —
+      // die Ortsetikett-Weiche. Ohne den Eintrag liefe ein `import { Card }
+      // from "antd"` dort durch, und der Scan bliebe gruen.
+      ...["_ui", "helfer", "a", "t", "o"].flatMap((d) => quellDateien(join(MODUL, d))),
       ...(existsSync(WURZEL) ? [WURZEL] : []),
     ];
     // Ohne diese Zeile meldet der Scan „bestanden" ueber NULL Dateien — und
@@ -1230,7 +1246,8 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `helfer/page.tsx`, `helfer/layout.tsx` — gar keine eigene Testdatei —,
     // `helfer/check/page.tsx`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts`).
     // Fuer die faellt ein leerer Modulscan nicht auf.
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(19);
+    // 19 + `o/[ortId]/page.tsx` (DRK-312) = 20.
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(20);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;
@@ -1297,9 +1314,12 @@ describe("§7.8.2 / Falle 63 — genau eine `usePathname`-Datei im Modul", () =>
     // `CheckFlow`, `Entnahme`, `FahrzeugWahl` und `a/[artikelId]/page.test.tsx`
     // — ohne die Untergrenze meldete dieser Block „bestanden" ueber null
     // Dateien, sobald die Astliste von der Platte abreisst.
-    const AST = ["_ui", "helfer", "a", "t"].map((d) => join(MODUL, d));
+    //
+    // NACHTRAG 16.09.2026 (DRK-312): `o/` kommt als fuenfter Ast dazu — dieselbe
+    // Astliste wie beim antd-Scan oben, und aus demselben Grund. 17 + 1 = 18.
+    const AST = ["_ui", "helfer", "a", "t", "o"].map((d) => join(MODUL, d));
     const dateien = AST.flatMap((wurzel) => quellDateien(wurzel));
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(17);
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(18);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.
