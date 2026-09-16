@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { einloesenAmGate, type GateZustand } from "../_actions/gate";
-import { LAGERBUCH_MARKE, LAGERBUCH_ORGANISATION, LAGERBUCH_ZEILE } from "../_lib/marke";
+import { LAGERBUCH_MARKE, LAGERBUCH_ZEILE } from "../_lib/marke";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -126,12 +126,27 @@ export function Gate({
   meldung,
   returnTo,
   verwaltungsLink,
+  organisation,
 }: {
   meldung: string | null;
   /** Bereits serverseitig sanitiert (`sanitizeReturnTo`, Teil 2 T19). */
   returnTo: string;
   /** FERTIGES Anmeldeziel, serverseitig gebaut (T81). */
   verwaltungsLink: string;
+  /**
+   * Der Organisationsname, SERVERSEITIG aus `LAGERBUCH_ORGANISATION` gelesen
+   * (`_lib/marke.ts`) und als Prop hereingegeben — NICHT per Import.
+   *
+   * ⚠️ DER DIREKTE WEG IST IN DER ENTWICKLUNG UNAUFFAELLIG. Ein
+   * `process.env.LAGERBUCH_ORGANISATION` an dieser Stelle zeigt unter
+   * `next dev` den richtigen Namen (der erste Anstrich kommt per SSR, wo die
+   * Prozessumgebung da ist) — und im Produktionsbuild kippt derselbe Textknoten
+   * NACH DER HYDRATION auf die Vorgabe, weil der Browser kein `process.env`
+   * hat. Gemessen; die Zahlen stehen in `_lib/marke.ts`.
+   *
+   * Ein String ist serialisierbar und darf die RSC-Grenze queren.
+   */
+  organisation: string;
 }) {
   const [zustand, formAction, laeuft] = useActionState<GateZustand, FormData>(amGate, {});
 
@@ -146,7 +161,7 @@ export function Gate({
         LAGER<span className={s.markeAkzent}>BUCH</span>
       </div>
       <div className={s.gateUnter}>
-        {LAGERBUCH_ORGANISATION} · {LAGERBUCH_ZEILE}
+        {organisation} · {LAGERBUCH_ZEILE}
       </div>
 
       <div className={s.gateKarten}>

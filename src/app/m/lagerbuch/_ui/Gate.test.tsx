@@ -36,6 +36,14 @@ const LOGIN = "/login?callbackUrl=http%3A%2F%2Flagerbuch.localtest.me%3A3100%2Fv
 const LOGIN_INNEN = "/login?callbackUrl=%2Fm%2Flagerbuch%2Fverwaltung";
 
 /*
+ * Der Organisationsname kommt SERVERSEITIG aus `LAGERBUCH_ORGANISATION` und
+ * erreicht die Insel als Prop (`_lib/marke.ts`) — hier also ein Wert, der
+ * ABSICHTLICH nicht die Vorgabe ist: eine Insel, die still auf
+ * `process.env` zurueckfiele, waere mit der Vorgabe als Erwartung gruen.
+ */
+const ORG = "DRK Bereitschaft Entenhausen";
+
+/*
  * ⚠️ URSACHENNEUTRAL, und das ist die Zusage (Review-Befund 1, Fix-Runde 1). Das
  * `catch` der Insel faengt DREI Lagen — Verbindungsabbruch, Host-Wurf und jede
  * echte Serverausnahme (fehlendes `LAGERBUCH_HELFER_SITZUNG_SECRET`,
@@ -102,12 +110,12 @@ describe("Gate — die FERTIGE Meldung", () => {
   it("zeigt sie, wenn sie da ist", async () => {
     // Der Prop ist der Rueckgabewert von `gateMeldung` (Teil 2, T18). Die vier
     // Texte stehen in §3.9 und nirgends sonst.
-    await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     expect(query("[data-rolle='gate-fehler']").textContent).toBe(URL_SATZ);
   });
 
   it("zeigt NICHTS, wenn sie null ist", async () => {
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     expect(exists("[data-rolle='gate-fehler']")).toBe(false);
   });
 
@@ -119,7 +127,7 @@ describe("Gate — die FERTIGE Meldung", () => {
      * wenn sie die Meldung aus der URL ueber die Antwort der Action stellte.
      */
     aktion.mockResolvedValue({ fehler: "Zu viele Fehlversuche. Bitte in 42 Sekunden erneut versuchen." });
-    await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     await submitForm();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
@@ -130,7 +138,7 @@ describe("Gate — die FERTIGE Meldung", () => {
     // Mit dem Netzfall (Befund 19) ist der Fehlerort nicht mehr nur beim
     // Seitenaufbau da: er kann nach einem Antippen entstehen. Ohne `role`
     // bemerkt eine Bildschirmleserin genau diesen Fall nicht.
-    await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={URL_SATZ} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     expect(query("[data-rolle='gate-fehler']").getAttribute("role")).toBe("alert");
   });
 });
@@ -144,7 +152,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
      * durch `act` hoch), und der Baum ist danach ausgehaengt.
      */
     aktion.mockRejectedValue(new TypeError("Failed to fetch"));
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     await submitForm();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
@@ -174,7 +182,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
      * diesen hier ROT.
      */
     aktion.mockRejectedValue(Object.assign(new Error("boom"), { digest: "3141592653" }));
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     await submitForm();
     const orte = queryAll("[data-rolle='gate-fehler']");
     expect(orte.length).toBe(1);
@@ -187,7 +195,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
     // teuerste Reparatur: die Abweisung („Code unbekannt") verschwaende hinter
     // einer falschen Diagnose.
     aktion.mockResolvedValue({ fehler: URL_SATZ });
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     await submitForm();
     expect(query("[data-rolle='gate-fehler']").textContent).toBe(URL_SATZ);
   });
@@ -204,7 +212,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
      * „Cannot read properties of undefined" und reisst den Baum ab.
      */
     aktion.mockResolvedValue(undefined as unknown as GateZustand);
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     await submitForm();
     expect(exists("[data-rolle='gate-fehler']")).toBe(false);
     // Der Baum steht noch: das Feld ist da, nicht abgeraeumt.
@@ -228,7 +236,7 @@ describe("Gate — das Zahlenfeld (§7.2.4)", () => {
     // auffaellt. Diese Zeile haelt genau das in der neuen Form fest — kein
     // halber Rueckbau, der das Attribut stehen laesst und das Ziel entfernt.
     // Das Format traegt weiterhin `placeholder="000-000"` samt `pattern`.
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const f = query<HTMLInputElement>("input[name='code']");
     expect(f.getAttribute("inputmode")).toBe("numeric");
     expect(f.getAttribute("maxlength")).toBe("7");
@@ -240,7 +248,7 @@ describe("Gate — das Zahlenfeld (§7.2.4)", () => {
   });
 
   it("reicht `returnTo` als verstecktes Feld durch", async () => {
-    await mount(<Gate meldung={null} returnTo="/a/art-9" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="/a/art-9" verwaltungsLink={LOGIN} organisation={ORG} />);
     const feld = query<HTMLInputElement>("input[name='returnTo']");
     expect(feld.value).toBe("/a/art-9");
     expect(feld.getAttribute("type")).toBe("hidden");
@@ -253,7 +261,7 @@ describe("Gate — das Zahlenfeld (§7.2.4)", () => {
      * identisch aus und kaeme nie an.
      */
     aktion.mockResolvedValue({});
-    await mount(<Gate meldung={null} returnTo="/a/art-9" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="/a/art-9" verwaltungsLink={LOGIN} organisation={ORG} />);
     await fill("input[name='code']", "482-137");
     await submitForm();
     expect(aktion).toHaveBeenCalledTimes(1);
@@ -270,7 +278,7 @@ describe("Gate — die Verwaltungskarte", () => {
     // liefe ins Leere — die Suite kennt den Anbieter als "pocket-id"
     // (core/auth/pocketId.ts:28), und Auth.js meldet einen unbekannten
     // Anbieter erst zur LAUFZEIT.
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const a = query<HTMLAnchorElement>("[data-rolle='gate-verwaltung']");
     expect(a.tagName).toBe("A");
     expect(a.getAttribute("href")).toBe(LOGIN);
@@ -282,7 +290,7 @@ describe("Gate — die Verwaltungskarte", () => {
     // eine zweite Stelle, an der der Cutover-Fall „kein SUITE_HOST_LAGERBUCH"
     // falsch entschieden werden kann — und genau die Stelle, an der B-1 zum
     // zweiten Mal auflaufen wuerde.
-    await mount(<Gate meldung={null} returnTo="/a/art-9" verwaltungsLink={LOGIN_INNEN} />);
+    await mount(<Gate meldung={null} returnTo="/a/art-9" verwaltungsLink={LOGIN_INNEN} organisation={ORG} />);
     expect(query<HTMLAnchorElement>("[data-rolle='gate-verwaltung']").getAttribute("href"))
       .toBe(LOGIN_INNEN);
   });
@@ -292,7 +300,7 @@ describe("Gate — die Verwaltungskarte", () => {
     // immer neben Text. Ein Zeichen ohne Text braeuchte ein `aria-label` am
     // Knopf — die einzige zugelassene Ausnahme ist der Taschenlampenschalter
     // (N-7), und das hier ist nicht sie.
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     const knopf = query("[data-rolle='gate-verwaltung']");
     const zeichen = query("[data-rolle='gate-verwaltung'] svg");
     expect(zeichen.getAttribute("aria-hidden")).toBe("true");
@@ -301,7 +309,7 @@ describe("Gate — die Verwaltungskarte", () => {
   });
 
   it("die Karte BLEIBT — sie ist der einzige sichtbare Verwaltungseinstieg", async () => {
-    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} />);
+    await mount(<Gate meldung={null} returnTo="" verwaltungsLink={LOGIN} organisation={ORG} />);
     expect(queryAll("h2").map((h) => h.textContent)).toEqual(["Im Dienst", "Verwaltung"]);
   });
 });

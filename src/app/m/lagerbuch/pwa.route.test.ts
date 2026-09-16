@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -139,12 +139,15 @@ describe("manifest.webmanifest — die acht Werte, gemessen gegen die Alt-Anwend
      *                        gar nicht
      *
      * Die 1:1-Pflicht gilt also fuer sechs der acht; `description` und `scope`
-     * sind Entscheidungen. Fuer `name` gilt zusaetzlich A-T3-4 aus `marke.ts`:
-     * der wahre Organisationsname ist eine Runbook-Eingabe.
+     * sind Entscheidungen. Fuer `name` gilt zusaetzlich: der zweite Teil kommt
+     * aus `LAGERBUCH_ORGANISATION` (`_lib/marke.ts`). HIER ist die Variable
+     * NICHT gesetzt, gemessen wird also der VORGABEZWEIG; der gesetzte Zweig
+     * steht im eigenen `describe` weiter unten.
      *
      * Woran die Haerte haengt: diese Werte werden beim INSTALLIEREN eingebrannt.
      * Ein spaeterer Tausch erreicht kein Geraet, auf dem die App schon liegt.
      */
+    delete process.env.LAGERBUCH_ORGANISATION;
     const m = await gelesen();
     expect(m.name).toBe("Lagerbuch · DRK Bereitschaft Musterstadt");
     expect(m.short_name).toBe("Lagerbuch");
@@ -154,6 +157,35 @@ describe("manifest.webmanifest — die acht Werte, gemessen gegen die Alt-Anwend
     expect(m.display).toBe("standalone");
     expect(m.theme_color).toBe("#C8000F");
     expect(m.background_color).toBe("#EEF0F1");
+  });
+
+  describe("`name` traegt LAGERBUCH_ORGANISATION", () => {
+    /**
+     * ⚠️ DAS MANIFEST WIRD JE ANFRAGE GEBAUT, nicht beim Import — und genau das
+     * ist hier gemessen: derselbe Modulimport liefert nach dem Setzen einen
+     * anderen `name`. Ein `const MANIFEST = …` auf Modulebene hielte den Wert
+     * fest, den das ERSTE Laden gesehen hat; in einem Standalone-Build waere das
+     * die Umgebung von `next build`, und der Regler stuende still — ohne dass
+     * ein Tor etwas meldet (`_lib/marke.ts`, `grenzen.ts` §10.8 Eigenschaft 3).
+     *
+     * Die Haerte dahinter: `name` wird beim INSTALLIEREN der PWA eingebrannt.
+     * Ein Geraet, auf dem die App schon liegt, sieht eine Korrektur nie.
+     */
+    const VORHER = process.env.LAGERBUCH_ORGANISATION;
+    afterEach(() => {
+      if (VORHER === undefined) delete process.env.LAGERBUCH_ORGANISATION;
+      else process.env.LAGERBUCH_ORGANISATION = VORHER;
+    });
+
+    it("nimmt den gesetzten Wert", async () => {
+      process.env.LAGERBUCH_ORGANISATION = "DRK Bereitschaft Entenhausen";
+      expect((await gelesen()).name).toBe("Lagerbuch · DRK Bereitschaft Entenhausen");
+    });
+
+    it("laesst bei leer gesetztem Wert keinen Trennpunkt ins Leere laufen", async () => {
+      process.env.LAGERBUCH_ORGANISATION = "";
+      expect((await gelesen()).name).toBe("Lagerbuch · DRK Bereitschaft Musterstadt");
+    });
   });
 
   it("nennt VIER Symbole, und das SVG heisst `/pwa-icon.svg`", async () => {
