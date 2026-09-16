@@ -508,7 +508,19 @@
  * ⚠️ FETT UND EIGENE ZEILE, nicht groesser: der Fuss ist auf 6pt vermessen, und
  * ein groesserer Grad hier verschoebe die Zeilenrechnung der Klammer. Verglichen
  * werden zwei Karten nebeneinander — dafuer traegt der Fettdruck. */
-.lb-ortkarteUnterscheidung {
+/* ⚠️ ZWEI SELEKTOREN, EINE REGEL — und sie teilen sich die Messung, nicht nur
+ * das Aussehen (DRK-395). `.lb-ortkarteCode` traegt den Zugangs-Code auf der
+ * Handlager-Karte und steht an derselben Stelle im Fuss: eine eigene Regel
+ * daneben liefe der 6pt-Zeilenrechnung der Klammer beim ersten Umbau davon, und
+ * zwar still — der Fuss klammerte dann eine Zeile frueher, und was verschwaende,
+ * waere das Ende der ADRESSE.
+ *
+ * ⚠️ BEIDE KOENNEN NICHT AUF DERSELBEN KARTE STEHEN: der Unterscheider
+ * entsteht nur fuer eine EINHEIT (`kollidiert()` prueft `typ === "fahrzeug"`),
+ * der Code nur fuer den Handlager. Die dritte Fusszeile ist also nie doppelt
+ * belegt. */
+.lb-ortkarteUnterscheidung,
+.lb-ortkarteCode {
   display: block;
   font-weight: 700;
   color: #000000;
