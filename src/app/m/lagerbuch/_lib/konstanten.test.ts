@@ -274,6 +274,39 @@ describe("einheitLabels — wo auch die Art nicht trennt, trennt die ID", () => 
     expect(new Set(alle).size).toBe(3);
   });
 
+  it("bleibt eindeutig, wenn eine ID das Trennzeichen enthaelt", () => {
+    /*
+     * ⚠️ DAS GEGENBEISPIEL ZU MEINEM EIGENEN „BEWEIS" (Reviewbefund zu PR 170).
+     * Ich hatte behauptet, nach dem Anhaengen der ID koennten zwei Ergebnisse
+     * nicht mehr gleich sein — jedes ende auf ` · <eigene id>`, und IDs seien
+     * eindeutig. Das setzt voraus, dass sich `a · b` wieder in seine Teile
+     * zerlegen laesst, und das faellt, sobald eine ID selbst ein „ · " traegt.
+     *
+     * ⚠️ DIE EINGABE IST UMSTAENDLICH, UND JEDE ZEILE HAT EINEN JOB — sonst
+     * prueft der Fall nichts. Mein erster Versuch hier war zweimal gruen,
+     * OHNE den dritten Durchgang ueberhaupt zu erreichen: Durchgang 1 loeste
+     * die Kollision bereits auf, und die Funktion kam nie weiter.
+     *
+     *  c/d  gleiche Basis          → Durchgang 1 haengt beiden ihre ID an
+     *  e    traegt cs Ausweichform → Durchgang 1 kollidiert, Durchgang 2 startet
+     *  a/b  ID mit Trennzeichen    → Durchgang 2 kollidiert, Durchgang 3 startet
+     */
+    const m = einheitLabels([
+      // Basis „A · Tasche"      + ID „foo · bar"
+      { id: "foo · bar", name: "A", kennung: null, einheitenart: "tasche" },
+      // Basis „A · Tasche · foo" + ID „bar"  → dieselbe Verkettung wie oben
+      { id: "bar", name: "A", kennung: "foo", einheitenart: "tasche" },
+      t("c", "Doppelt", "tasche"),
+      t("d", "Doppelt", "tasche"),
+      // Basis „Doppelt · Tasche · c" — also genau cs Ausweichform.
+      { id: "e", name: "Doppelt", kennung: "c", einheitenart: "tasche" },
+    ]);
+    const alle = [...m.values()].map((w) => w.label);
+    expect(new Set(alle).size).toBe(5);
+    // Und die Meta-Haelfte traegt dieselbe Unterscheidung wie das Label.
+    expect(new Set([...m.values()].map((w) => w.meta)).size).toBe(5);
+  });
+
   it("nimmt je Id nur den ERSTEN Eintrag — eine Liste darf eine Einheit doppelt fuehren", () => {
     const m = einheitLabels([t("a", "RTW 1", "fahrzeug"), t("a", "RTW 1", "fahrzeug")]);
     expect(m.size).toBe(1);

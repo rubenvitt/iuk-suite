@@ -264,14 +264,16 @@ export function standortMeta(
  * Unterscheidbarkeit mehr wert als Schoenheit; zwei identische Zeilen sind
  * die unehrlichere Antwort.
  *
- * ⚠️ ZWEI DURCHGAENGE, UND DER ZWEITE IST EIN BEWEIS, KEINE NACHBESSERUNG.
+ * ⚠️ DREI DURCHGAENGE, UND ERST DER DRITTE BEWEIST ETWAS.
  * Heissen zwei Einheiten `X` und eine dritte woertlich `X · <id der ersten>`,
  * erzeugt der erste Durchgang fuer die erste genau diese Zeichenkette — und
  * die dritte wurde nicht angefasst, weil IHR Ausgangsname nur einmal vorkam.
- * Kollidiert danach noch etwas, bekommt JEDE Zeile ihre ID; weil dann jede
- * auf ` · <eigene id>` endet und IDs eindeutig sind, koennen zwei Ergebnisse
- * nicht mehr gleich sein — fuer jede denkbare Eingabe, nicht nur fuer die, an
- * die wir gerade denken. Dieselbe Bauform wie `eindeutigeLabels` fuer
+ * Kollidiert danach noch etwas, bekommt JEDE Zeile ihre ID. Auch das reicht
+ * noch nicht — eine ID darf das Trennzeichen enthalten, und dann ist die
+ * Verkettung nicht umkehrbar (Begruendung samt Gegenbeispiel unten am dritten
+ * Durchgang). Erst der haengt an, bis die Beschriftung frei ist, und ist damit
+ * eindeutig per Konstruktion statt per Annahme. Verwandte Bauform wie
+ * `eindeutigeLabels` fuer
  * Zaehlorte (`_lib/inventurOrt.ts`, DRK-337); die beiden koennen nicht
  * gemeinsam genutzt werden, weil jene Datei aus DIESER liest und ein
  * Import zurueck einen Zyklus ergaebe.
@@ -307,11 +309,54 @@ export function einheitLabels(
     [...roh].map(([id, teile]) =>
       [id, (anzahl.get(voll(teile)) ?? 0) > 1 ? mitId(id, teile) : schlicht(teile)] as const),
   );
-  const alleVerschieden =
-    new Set([...einDurchgang.values()].map((w) => w.label)).size === einDurchgang.size;
-  return alleVerschieden
-    ? einDurchgang
-    : new Map([...roh].map(([id, teile]) => [id, mitId(id, teile)] as const));
+  if (eindeutig(einDurchgang)) return einDurchgang;
+
+  const zweiterDurchgang = new Map(
+    [...roh].map(([id, teile]) => [id, mitId(id, teile)] as const),
+  );
+  if (eindeutig(zweiterDurchgang)) return zweiterDurchgang;
+
+  /*
+   * ⚠️ DRITTER DURCHGANG — WEIL DIE ID ALS SUFFIX NICHTS BEWEIST
+   * (Reviewbefund zu diesem PR, und er trifft).
+   *
+   * Hier stand vorher die Behauptung, nach dem zweiten Durchgang koennten zwei
+   * Ergebnisse nicht mehr gleich sein: jedes ende auf ` · <eigene id>`, und IDs
+   * seien eindeutig. Das setzt voraus, dass `a · b` die beiden Teile wieder
+   * hergibt — und das tut es nicht, sobald eine ID das Trennzeichen enthaelt:
+   *
+   *     Name „A · Tasche"       + ID „foo · bar"  →  „A · Tasche · foo · bar"
+   *     Name „A · Tasche · foo" + ID „bar"        →  „A · Tasche · foo · bar"
+   *
+   * Beide Zeilen sind erlaubt, und EINE beliebige andere Kollision reicht, um
+   * diesen Zweig ueberhaupt zu betreten. Heute vergibt `createFahrzeug` seine
+   * IDs ueber `newId()` und die enthalten kein „ · " — aber „heute unerreichbar"
+   * ist kein Beweis, und genau als Beweis war der Satz geschrieben.
+   *
+   * Dieser Durchgang macht die Zusage wahr, statt sie zu behaupten: er geht die
+   * Zeilen in fester Reihenfolge durch und haengt an, solange die Beschriftung
+   * schon vergeben ist. Weil die Menge endlich ist, endet die Schleife, und
+   * weil jede Zeile erst eintraegt, wenn ihre Beschriftung frei war, sind am
+   * Ende alle verschieden — ohne Annahme ueber die Form der IDs.
+   */
+  const belegt = new Set<string>();
+  const dritterDurchgang = new Map<string, { label: string; meta: string }>();
+  for (const [id, teile] of roh) {
+    const kandidat = mitId(id, teile);
+    let label = kandidat.label;
+    let meta = kandidat.meta;
+    for (let n = 2; belegt.has(label); n += 1) {
+      label = `${kandidat.label} · ${n}`;
+      meta = `${kandidat.meta} · ${n}`;
+    }
+    belegt.add(label);
+    dritterDurchgang.set(id, { label, meta });
+  }
+  return dritterDurchgang;
+}
+
+function eindeutig(m: ReadonlyMap<string, { label: string }>): boolean {
+  return new Set([...m.values()].map((w) => w.label)).size === m.size;
 }
 
 /** Ein Standort, so wie ihn eine Anzeige braucht — Name plus Beizeile. */
