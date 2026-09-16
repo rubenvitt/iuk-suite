@@ -5,10 +5,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clickElement, mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { EinheitenartWahl } from "./EinheitenartWahl";
 
-const mocks = vi.hoisted(() => ({ setEinheitenart: vi.fn() }));
+const mocks = vi.hoisted(() => ({ setEinheitenart: vi.fn(), refresh: vi.fn() }));
 
 vi.mock("../../../../_actions/fahrzeuge", () => ({
   setEinheitenart: (...args: unknown[]) => mocks.setEinheitenart(...args),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
 }));
 
 async function warte(): Promise<void> {
@@ -39,6 +43,7 @@ afterEach(async () => {
   // fehlenden Text statt eines Aufräumfehlers.
   await unmount();
   mocks.setEinheitenart.mockReset();
+  mocks.refresh.mockReset();
 });
 
 describe("EinheitenartWahl — der Weg aus dem Zwischenstand (DRK-309)", () => {
@@ -83,6 +88,15 @@ describe("EinheitenartWahl — der Weg aus dem Zwischenstand (DRK-309)", () => {
     await warte();
     expect(istGewaehlt("Tasche")).toBe(true);
     expect(document.body.textContent).not.toContain("Noch nicht zugeordnet");
+    /*
+     * ⚠️ UND DAS BLATT WIRD AUFGEFRISCHT (Reviewrunde 7). Diese Insel ist
+     * nicht die einzige Stelle, die die Art liest: der Chip in der Kopfzeile,
+     * der Löschknopf, die Vorlagenfläche und die Verfallsüberschrift bekommen
+     * sie als Prop aus der Server Component. Ohne `refresh()` stünde die Wahl
+     * richtig, und drei Zeilen weiter oben fragte dieselbe Seite „Fahrzeug
+     * löschen?" über einer gerade gespeicherten Tasche.
+     */
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
 
   it("behält den alten Stand und zeigt den Fachtext, wenn die Action ablehnt", async () => {
@@ -97,6 +111,10 @@ describe("EinheitenartWahl — der Weg aus dem Zwischenstand (DRK-309)", () => {
     expect(istGewaehlt("Fahrzeug")).toBe(true);
     expect(istGewaehlt("Tasche")).toBe(false);
     expect(document.body.textContent).toContain("Einheit nicht gefunden.");
+    // ⚠️ UND KEINE AUFFRISCHUNG: es gibt nichts Neues zu holen, und ein
+    // `refresh()` hier holte den ALTEN Stand — was wie ein Zurückspringen
+    // aussähe und die Fehlermeldung daneben Lügen strafte.
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("verbirgt einen geworfenen Fehler hinter einem festen Fachtext", async () => {
@@ -109,6 +127,7 @@ describe("EinheitenartWahl — der Weg aus dem Zwischenstand (DRK-309)", () => {
     expect(document.body.textContent).toContain("Art konnte nicht gespeichert werden.");
     expect(document.body.textContent).not.toContain("SQLITE intern und geheim");
     expect(istGewaehlt("Fahrzeug")).toBe(true);
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("ruft die Action nicht auf, wenn die schon gewählte Art erneut geklickt wird", async () => {

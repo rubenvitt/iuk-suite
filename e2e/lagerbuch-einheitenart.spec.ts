@@ -239,8 +239,22 @@ test.describe("Art der Einheit: Fahrzeug oder Tasche", () => {
      */
     await expect(artKnopf(abschnitt, ziel)).toHaveClass(/ant-radio-button-wrapper-checked/);
     await expect(abschnitt).not.toContainText("Noch nicht zugeordnet");
+    /*
+     * ⚠️ UND DAS GANZE BLATT ZIEHT MIT — OHNE NEULADEN (Reviewrunde 7).
+     *
+     * Bis hierher prüfte dieser Fall den Kopf erst nach einem `goto`, und
+     * genau das VERDECKTE den Fehler: die Insel setzte nur ihren eigenen
+     * Zustand, während Kopfchip, Löschknopf, Vorlagenfläche und
+     * Verfallsüberschrift die alte Art als Prop behielten. Dieselbe Seite
+     * beschrieb die gerade gespeicherte Tasche weiter als Fahrzeug — und der
+     * folgenreichste dieser Texte steht am Löschknopf. Ein Neuladen im Test
+     * beweist nur, dass die Datenbank stimmt; niemand lädt im Betrieb neu,
+     * weil er gerade etwas gespeichert hat.
+     */
+    await expect(kopf).toContainText(ziel);
 
-    // Der Kopf liest den Wert aus der Datenbank — also erst nach dem Neuladen.
+    // Der Kopf liest den Wert aus der Datenbank — hier als Beleg, dass die
+    // Angabe den Seitenwechsel ueberlebt und nicht nur im Speicher stand.
     const zurueck = page.waitForResponse((r) =>
       r.request().method() === "POST" && r.url().includes("/verwaltung/fahrzeuge"));
     await artWaehlen(abschnitt, gegenprobe);

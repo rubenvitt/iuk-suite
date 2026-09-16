@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Alert, Radio, Space } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { setEinheitenart } from "../../../../_actions/fahrzeuge";
@@ -31,6 +32,16 @@ const FEHLER = "Art konnte nicht gespeichert werden.";
  * ⚠️ ES GIBT KEINEN KNOPF ZURÜCK NACH „nicht zugeordnet". Der Zustand ist der,
  * aus dem man kommt, nicht einer, den jemand herstellt; `setEinheitenart`
  * nimmt ihn auch serverseitig nicht an.
+ *
+ * ⚠️ SIE IST NICHT DIE EINZIGE STELLE AUF DEM BLATT, DIE DIE ART LIEST
+ * (Reviewrunde 7). Der Chip in der Kopfzeile, der Löschknopf, die
+ * Vorlagenfläche und die Verfallsüberschrift bekommen sie als Prop aus der
+ * Server Component. Ein rein lokaler Zustand hier hieße: die Wahl steht
+ * richtig, und drei Zeilen weiter oben fragt dieselbe Seite „Fahrzeug
+ * löschen?" über einer gerade gespeicherten Tasche — ein Widerspruch in
+ * derselben Ansicht, und der teuerste davon steht an einer unumkehrbaren
+ * Aktion. `router.refresh()` holt deshalb nach jeder erfolgreichen Änderung
+ * den Serverstand nach.
  */
 export function EinheitenartWahl({
   id,
@@ -39,6 +50,7 @@ export function EinheitenartWahl({
   id: string;
   einheitenart: Einheitenart | null;
 }) {
+  const router = useRouter();
   const [wert, setWert] = useState<Einheitenart | null>(einheitenart);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, start] = useTransition();
@@ -63,6 +75,14 @@ export function EinheitenartWahl({
         }
         setWert(naechste);
         setFehler(null);
+        /*
+         * ⚠️ NACH `setWert`, NICHT STATT DESSEN. Der lokale Zustand haelt die
+         * Knoepfe waehrend der Auffrischung richtig; `refresh()` allein liesse
+         * sie bis zur Antwort des Servers auf dem alten Wert stehen, und der
+         * Klick saehe folgenlos aus. Beides zusammen: sofort sichtbar, und
+         * danach stimmt das ganze Blatt.
+         */
+        router.refresh();
       } catch {
         setFehler(FEHLER);
       } finally {
