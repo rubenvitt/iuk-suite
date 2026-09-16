@@ -113,7 +113,7 @@ export function TemplateAktionen({
         }
         const wert = ergebnis.wert;
         setSyncText(
-          `${wert.fahrzeuge} Fahrzeug(e): ${wert.hinzugefuegt} hinzugefügt, ` +
+          `${wert.fahrzeuge} Einheit(en): ${wert.hinzugefuegt} hinzugefügt, ` +
           `${wert.aktualisiert} aktualisiert, ${wert.uebersprungen} übersprungen, ` +
           `${wert.entfernt} entfernt, ${wert.losgeloest} losgelöst.`,
         );
@@ -155,15 +155,22 @@ export function TemplateAktionen({
         </Space>
         {/*
           Die folgenreichste Aktion der Seite: sie schreibt ueber alle
-          verknuepften Fahrzeuge und loescht dabei verwaiste Soll-Zeilen
+          verknuepften Einheiten und loescht dabei verwaiste Soll-Zeilen
           (`_lib/schreibpfade/templateSync.ts`, Regel 4) — deren IDs stehen in
           historischen `checks.ergebnis`-JSONs. Die Zahl der betroffenen
-          Fahrzeuge liegt als Prop bereits vor, sie gehoert VOR den Klick.
+          Einheiten liegt als Prop bereits vor, sie gehoert VOR den Klick.
+
+          ⚠️ NEUTRAL, NICHT ART-BEWUSST (DRK-309). Hier steht kein Baustein aus
+          `konstanten.ts`, und das ist Absicht: dieselbe Vorlage haengt an einem
+          RTW UND an drei Sanitaetstaschen, der Satz spricht also ueber MEHRERE
+          Einheiten verschiedener Art. Ein „Auf alle Fahrzeuge übertragen" waere
+          hier nicht nur schief, sondern eine falsche Zusage — es klaenge, als
+          bliebe die Tasche daneben unberuehrt.
         */}
         <Popconfirm
           title="Auf alle verknüpften Einheiten übertragen?"
           description={
-            `Überschreibt die Soll-Bestückung von ${fahrzeuge} verknüpften Fahrzeug(en). ` +
+            `Überschreibt die Soll-Bestückung von ${fahrzeuge} verknüpften Einheit(en). ` +
             "Positionen, die nicht mehr in der Vorlage stehen, werden dort entfernt."
           }
           okText="Übertragen"
@@ -176,7 +183,7 @@ export function TemplateAktionen({
             loading={laeuft}
             disabled={laeuft}
           >
-            Auf alle Fahrzeuge übertragen
+            Auf alle Einheiten übertragen
           </Button>
         </Popconfirm>
       </Flex>
@@ -190,7 +197,7 @@ export function TemplateAktionen({
         name={aktuellerName}
         typLabel="Vorlage"
         hinweis={
-          `${fahrzeuge} Fahrzeug(e) werden von dieser Vorlage gelöst; ihre Positionen bleiben ` +
+          `${fahrzeuge} Einheit(en) werden von dieser Vorlage gelöst; ihre Positionen bleiben ` +
           "als individuelle Bestückung erhalten."
         }
         pruefen={async () => ({ loeschbar: true })}

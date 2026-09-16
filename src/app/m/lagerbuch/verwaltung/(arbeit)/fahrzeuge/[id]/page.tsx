@@ -332,6 +332,7 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
           aktuelleVorlage={aktuelleVorlage}
           vorlagen={vorlagen}
           hatPositionen={aktivePositionen.length > 0}
+          einheitenart={fahrzeug.einheitenart}
         />
       </Card>
 

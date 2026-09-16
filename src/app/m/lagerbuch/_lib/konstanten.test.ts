@@ -9,7 +9,8 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
   EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
-  einheitNomen, dieseEinheit, inDieEinheit, inDerEinheit, checklisteTitel, grossAmAnfang,
+  einheitNomen, dieseEinheit, ausDieserEinheit, inDieEinheit, inDerEinheit,
+  checklisteTitel, grossAmAnfang,
 } from "./konstanten";
 import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
 
@@ -137,6 +138,17 @@ describe("Enum-Listen", () => {
     expect(inDerEinheit("tasche")).toBe("in der Tasche");
     expect(inDerEinheit(null)).toBe("in der Einheit");
 
+    // ⚠️ DATIV, NICHT NOMINATIV — und genau deshalb ein eigener Baustein:
+    // `aus ${dieseEinheit(art)}` ergaebe „aus dieses Fahrzeug", und eine
+    // Zeichenkette hat keinen Fall, an dem ein Tor das merken koennte.
+    expect(ausDieserEinheit("fahrzeug")).toBe("aus diesem Fahrzeug");
+    expect(ausDieserEinheit("tasche")).toBe("aus dieser Tasche");
+    expect(ausDieserEinheit(null)).toBe("aus dieser Einheit");
+    for (const art of [...EINHEITENARTEN, null] as const) {
+      expect(ausDieserEinheit(art), String(art))
+        .not.toContain(dieseEinheit(art));
+    }
+
     // ⚠️ FUGEN-N: ein zusammengeklebtes `${label}-Checkliste` ergaebe
     // „Tasche-Checkliste" — fuer „Fahrzeug" richtig und hier still falsch.
     expect(checklisteTitel("fahrzeug")).toBe("Fahrzeug-Checkliste");
@@ -149,6 +161,7 @@ describe("Enum-Listen", () => {
       if (art !== "fahrzeug") {
         expect(inDieEinheit(art), String(art)).not.toContain("Fahrzeug");
         expect(checklisteTitel(art), String(art)).not.toContain("Fahrzeug");
+        expect(ausDieserEinheit(art), String(art)).not.toContain("Fahrzeug");
       }
     }
   });

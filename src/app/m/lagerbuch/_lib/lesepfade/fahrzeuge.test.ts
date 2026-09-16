@@ -42,9 +42,18 @@ beforeEach(() => {
     // Tiebreaker damit erst wirklich beweisbar.
     { id: "rtw-4", name: "AAA Grünwagen", typ: "fahrzeug", kennung: "MS-4",
       aktiv: false, templateId: null },
-    // DRK-309: eine TASCHE — derselbe `typ`, andere Art, und ohne Kennung.
+    /*
+     * DRK-309: eine TASCHE — derselbe `typ`, andere Art, und ohne Kennung.
+     *
+     * ⚠️ SIE HAENGT AN DERSELBEN VORLAGE WIE `rtw-1` (Reviewrunde 4), und das
+     * ist der Fall, den die Aenderung sichtbar machen soll: eine Soll-Liste,
+     * die ein Fahrzeug UND eine Tasche bestueckt. Ohne diese Verknuepfung
+     * liefe jede Zusicherung ueber `templateDetail` weiter nur ueber
+     * Fahrzeuge — und ein `einheitenart`, das der Lesepfad fallen laesst,
+     * faellt nirgends auf.
+     */
     { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug", kennung: null,
-      aktiv: true, templateId: null, einheitenart: "tasche" },
+      aktiv: true, templateId: "tpl-rtw", einheitenart: "tasche" },
   ]).run();
   t.db.insert(artikel).values([
     { id: "a1", name: "Verband", einheit: "Stk.", fach: "A1",
@@ -271,11 +280,9 @@ describe("fahrzeugUebersicht — Soll je ARTIKEL summiert, dann verglichen", () 
     // Reihenfolge widerspräche dem Spaltensortierer „Art" daneben, der genau
     // dafür da ist.
     expect(l.map((z) => z.id)).toEqual(["rtw-1", "tasche-1", "rtw-4", "rtw-2", "rtw-3"]);
-    expect(l[0].templateName).toBe("RTW-Vorlage");
-    expect(l[1].templateName).toBeNull();
-    expect(l[2].templateName).toBeNull();
-    expect(l[3].templateName).toBeNull();
-    expect(l[4].templateName).toBe("RTW-Vorlage");
+    // Dieselbe Vorlage an einem Fahrzeug UND an einer Tasche (DRK-309).
+    expect(l.map((z) => z.templateName))
+      .toEqual(["RTW-Vorlage", "RTW-Vorlage", null, null, "RTW-Vorlage"]);
   });
 });
 
@@ -363,16 +370,27 @@ describe("die drei Vorlagen-Lesepfade (Festlegung H4)", () => {
     // "RTW-Vorlage"), dann die inaktiven.
     expect(l.map((x) => x.id)).toEqual(["tpl-basis", "tpl-rtw", "tpl-alt"]);
     expect(l.find((x) => x.id === "tpl-rtw"))
-      .toMatchObject({ positionen: 1, faecher: 1, fahrzeuge: 2 });   // rtw-1 UND rtw-3
+      // rtw-1, tasche-1 UND rtw-3 — die Zahl zaehlt EINHEITEN, nicht Fahrzeuge.
+      .toMatchObject({ positionen: 1, faecher: 1, fahrzeuge: 3 });
   });
 
-  it("templateDetail nennt Positionen und verknuepfte Fahrzeuge", () => {
+  it("templateDetail nennt Positionen und verknuepfte Einheiten MIT ihrer Art", () => {
     const d = templateDetail(t.db, "tpl-rtw")!;
     expect(d.positionen.map((p) => p.id)).toEqual(["tp1"]);
     expect(d.positionen[0].artikelName).toBe("Verband");
     expect(d.positionen[0].handlagerFach).toBe("A1");
-    // rtw-1 (aktiv) vor rtw-3 (inaktiv) — trotz umgekehrter Einfuegereihenfolge.
-    expect(d.fahrzeuge.map((f) => f.id)).toEqual(["rtw-1", "rtw-3"]);
+    // Aktive zuerst (rtw-1, tasche-1 alphabetisch), dann die inaktiven —
+    // trotz umgekehrter Einfuegereihenfolge.
+    expect(d.fahrzeuge.map((f) => f.id)).toEqual(["rtw-1", "tasche-1", "rtw-3"]);
+    /*
+     * DRK-309 — DIE ART MUSS MITKOMMEN. Wer auf dem Vorlagenblatt liest, wer
+     * diese Vorlage nutzt, sieht sonst drei Namen und muss die Art raten; bis
+     * zu dieser Aenderung war sie aus dem Zusammenhang gegeben, jetzt nicht
+     * mehr. Der Zwischenstand gehoert in dieselbe Zusicherung: ein Lesepfad,
+     * der `null` unterwegs in „fahrzeug" verwandelt, wuerde hier auffallen.
+     */
+    expect(d.fahrzeuge.map((f) => f.einheitenart))
+      .toEqual(["fahrzeug", "tasche", "fahrzeug"]);
   });
 
   it("templateDetail liefert null fuer eine unbekannte ID", () => {

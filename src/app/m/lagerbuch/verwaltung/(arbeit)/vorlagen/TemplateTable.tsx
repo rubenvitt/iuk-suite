@@ -25,7 +25,7 @@ export type TemplateAnzeigeZeile = {
    */
   positionenZahl: number;
   fahrzeugeText: string;
-  /** Dieselbe Trennung wie `positionenZahl`, fuer „3 Fahrzeuge". */
+  /** Dieselbe Trennung wie `positionenZahl`, fuer „3 Einheiten". */
   fahrzeugeZahl: number;
 };
 

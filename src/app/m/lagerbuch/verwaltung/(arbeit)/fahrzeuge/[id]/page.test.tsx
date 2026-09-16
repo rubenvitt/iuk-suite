@@ -545,6 +545,10 @@ describe("Fahrzeugblatt als Server Component", () => {
       aktuelleVorlage: { id: "tpl-inaktiv", name: "Alte RTW-Vorlage" },
       vorlagen: [{ id: "tpl-aktiv", name: "Aktive Alternative" }],
       hatPositionen: true,
+      // DRK-309: `einheitenart` reist mit — „Vorlage aus dieser Einheit
+      // erstellen" faellt auf das neutrale Wort, weil die Fixture den
+      // Zwischenstand traegt. Ohne die Prop stuende dort wieder „Fahrzeug".
+      einheitenart: null,
     });
   });
 

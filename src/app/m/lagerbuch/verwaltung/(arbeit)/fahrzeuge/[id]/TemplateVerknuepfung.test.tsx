@@ -12,6 +12,7 @@ import {
   rerender,
   unmount,
 } from "@/app/m/qr/_lib/test-dom";
+import type { Einheitenart } from "../../../../_lib/konstanten";
 import {
   templateFilter,
   TemplateVerknuepfung,
@@ -91,8 +92,11 @@ async function loesenBestaetigen(): Promise<void> {
 async function modalOeffnen(): Promise<void> {
   await clickElement(knopf("Vorlage aus diesem Fahrzeug erstellen"));
   await warte();
+  // DRK-309: Knopf und Dialog tragen DENSELBEN Satz — vorher stand hier
+  // „Fahrzeug" auf dem Knopf und „Einheit" im Titel, und zwei Woerter fuer
+  // dieselbe Sache lesen sich wie zwei verschiedene Vorgaenge.
   expect(queryPortal(".ant-modal-title").textContent)
-    .toBe("Vorlage aus dieser Einheit erstellen");
+    .toBe("Vorlage aus diesem Fahrzeug erstellen");
 }
 
 async function modalName(wert: string): Promise<void> {
@@ -117,6 +121,7 @@ async function mounten(
   hatPositionen = true,
   aktuelleVorlage: { id: string; name: string } | null = { id: "tpl-alt", name: "Aktuelle Altvorlage" },
   vorlagen = VORLAGEN,
+  einheitenart: Einheitenart | null = "fahrzeug",
 ): Promise<void> {
   await mount(
     <TemplateVerknuepfung
@@ -124,6 +129,7 @@ async function mounten(
       aktuelleVorlage={aktuelleVorlage}
       vorlagen={vorlagen}
       hatPositionen={hatPositionen}
+      einheitenart={einheitenart}
     />,
   );
 }
@@ -235,6 +241,7 @@ describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
         aktuelleVorlage={null}
         vorlagen={VORLAGEN}
         hatPositionen
+        einheitenart="fahrzeug"
       />,
     );
     expect(query(".ant-select").textContent).toContain("Keine Vorlage verknüpft");
@@ -247,6 +254,7 @@ describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
         aktuelleVorlage={{ id: "tpl-neu", name: "Vorlage Neu" }}
         vorlagen={VORLAGEN}
         hatPositionen
+        einheitenart="fahrzeug"
       />,
     );
     expect(query(".ant-select").textContent).toContain("Vorlage Neu");
@@ -268,6 +276,7 @@ describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
         aktuelleVorlage={{ id: "tpl-neu", name: "Vorlage Neu" }}
         vorlagen={VORLAGEN}
         hatPositionen
+        einheitenart="fahrzeug"
       />,
     );
     await loesenBestaetigen();
@@ -277,6 +286,7 @@ describe("TemplateVerknuepfung — Zuweisen, Sync und Loesen", () => {
         aktuelleVorlage={null}
         vorlagen={VORLAGEN}
         hatPositionen
+        einheitenart="fahrzeug"
       />,
     );
 
@@ -452,6 +462,57 @@ describe("TemplateVerknuepfung — Vorlage aus Fahrzeug", () => {
       ".ant-modal input[aria-label='Neue Vorlage verknüpfen']",
     ).checked).toBe(false);
     expect(queryPortal(".ant-modal .ant-alert-warning").textContent)
-      .toContain("Vorlage konnte nicht aus dem Fahrzeug erstellt werden.");
+      .toContain("Vorlage konnte nicht aus diesem Fahrzeug erstellt werden.");
+  });
+});
+
+/**
+ * DRK-309, Reviewrunde 4 — VIER TEXTE, EINE ART.
+ *
+ * ⚠️ DIE PRUEFUNG LAEUFT UEBER ALLE DREI ARTEN, nicht nur ueber „Tasche". Die
+ * teuerste der drei ist der Zwischenstand: „Vorlage aus dieser Einheit
+ * erstellen" muss fallen, wo die Art fehlt, und darf nicht auf „Fahrzeug"
+ * zurueckfallen — das war der Zustand VOR dieser Aenderung und faellt
+ * niemandem auf, weil er wie eine Aussage aussieht statt wie eine Luecke.
+ *
+ * ⚠️ UND DER FEHLERTEXT GEHOERT DAZU. Er entsteht aus demselben Baustein
+ * (`aus diesem Fahrzeug` · `aus dieser Tasche` · `aus dieser Einheit`) und ist
+ * die einzige der vier Stellen, die den DATIV braucht — ein aus `dieseEinheit`
+ * zusammengesetzter Satz waere hier still falsches Deutsch.
+ */
+describe("TemplateVerknuepfung — die Texte folgen der Art", () => {
+  const FAELLE: { art: Einheitenart | null; satz: string; nomen: string }[] = [
+    { art: "fahrzeug", satz: "aus diesem Fahrzeug", nomen: "Fahrzeug" },
+    { art: "tasche", satz: "aus dieser Tasche", nomen: "Tasche" },
+    { art: null, satz: "aus dieser Einheit", nomen: "Einheit" },
+  ];
+
+  for (const { art, satz, nomen } of FAELLE) {
+    it(`nennt Knopf, Dialog und Fehler „${satz}"`, async () => {
+      await mounten(true, null, VORLAGEN, art);
+
+      expect(knopf(`Vorlage ${satz} erstellen`)).toBeTruthy();
+
+      mocks.ausFahrzeug.mockResolvedValue({ ok: false });
+      await clickElement(knopf(`Vorlage ${satz} erstellen`));
+      await warte();
+      expect(queryPortal(".ant-modal-title").textContent)
+        .toBe(`Vorlage ${satz} erstellen`);
+      // Die Beschriftung steht NEBEN dem Kaestchen, nicht auf ihm: das
+      // `aria-label` traegt das `input`, der Text die Huelle.
+      expect(queryPortal(".ant-modal .ant-checkbox-wrapper").textContent)
+        .toContain(`${nomen} mit der neuen Vorlage verknüpfen`);
+
+      await modalName("Egal");
+      await modalAbsenden();
+      expect(queryPortal(".ant-modal .ant-alert-warning").textContent)
+        .toContain(`Vorlage konnte nicht ${satz} erstellt werden.`);
+    });
+  }
+
+  it("erklaert den fehlenden Ausgang mit dem Wort der Art", async () => {
+    await mounten(false, null, VORLAGEN, "tasche");
+    expect(query("[data-rolle='keine-positionen']").textContent)
+      .toContain("Dafür braucht diese Tasche mindestens eine aktive Soll-Position.");
   });
 });

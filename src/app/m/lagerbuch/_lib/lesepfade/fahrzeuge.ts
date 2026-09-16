@@ -300,7 +300,18 @@ export type TemplatePositionZeile = {
 export type TemplateDetail = {
   id: string; name: string; aktiv: boolean;
   positionen: TemplatePositionZeile[];
-  fahrzeuge: { id: string; name: string; kennung: string | null; aktiv: boolean }[];
+  /**
+   * ⚠️ MIT `einheitenart` (DRK-309, Reviewrunde 4). Eine Vorlage ist nicht
+   * mehr zwangslaeufig eine Fahrzeugvorlage: dieselbe Soll-Liste kann an
+   * einem RTW und an drei Sanitaetstaschen haengen. Wer hier liest, wer diese
+   * Vorlage nutzt, und nur Namen sieht, muss die Art aus dem Namen raten —
+   * und genau das darf er seit dieser Aenderung nicht mehr (eine „Tasche"
+   * heisst nicht zwangslaeufig so, s. `konstanten.ts`).
+   */
+  fahrzeuge: {
+    id: string; name: string; kennung: string | null; aktiv: boolean;
+    einheitenart: Einheitenart | null;
+  }[];
 };
 
 export function templateDetail(db: Leser, id: string): TemplateDetail | null {
@@ -320,7 +331,10 @@ export function templateDetail(db: Leser, id: string): TemplateDetail | null {
     })
     .sort((x, y) => x.fachLabel.localeCompare(y.fachLabel) || x.sort - y.sort);
   const fahrzeuge = db.select().from(lagerorte).where(eq(lagerorte.templateId, id)).all()
-    .map((f) => ({ id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv }))
+    .map((f) => ({
+      id: f.id, name: f.name, kennung: f.kennung, aktiv: f.aktiv,
+      einheitenart: f.einheitenart,
+    }))
     .sort((a, b) => Number(b.aktiv) - Number(a.aktiv) || a.name.localeCompare(b.name));
   return { id: t.id, name: t.name, aktiv: t.aktiv, positionen, fahrzeuge };
 }

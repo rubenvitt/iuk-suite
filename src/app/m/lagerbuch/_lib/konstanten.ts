@@ -156,6 +156,22 @@ export function dieseEinheit(art: Einheitenart | null): string {
   return "diese Einheit";
 }
 
+/**
+ * Herkunftsangabe: „aus diesem Fahrzeug" · „aus dieser Tasche" ·
+ * „aus dieser Einheit".
+ *
+ * ⚠️ NICHT AUS `dieseEinheit` ZUSAMMENSETZBAR, und das ist der Grund, warum
+ * dieser Baustein einzeln danebensteht: jenes liefert den NOMINATIV („dieses
+ * Fahrzeug"), „aus" verlangt den DATIV („diesem Fahrzeug"). Ein
+ * `aus ${dieseEinheit(art)}` waere fuer keine der drei Arten richtig und faellt
+ * in keinem Tor auf — Zeichenketten haben keine Faelle.
+ */
+export function ausDieserEinheit(art: Einheitenart | null): string {
+  if (art === "fahrzeug") return "aus diesem Fahrzeug";
+  if (art === "tasche") return "aus dieser Tasche";
+  return "aus dieser Einheit";
+}
+
 /** Ortsangabe: „im Fahrzeug" · „in der Tasche" · „in der Einheit". */
 export function inDerEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "im Fahrzeug";
