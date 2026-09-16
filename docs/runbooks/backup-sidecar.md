@@ -195,8 +195,16 @@ Versionierung), **nicht** ein selteneres Backup.
 
 ### 3.2 Überwachung
 
-`BACKUP_PING_URL` folgt dem Muster von healthchecks.io und Uptime Kuma: Erfolg ruft die
-URL, Fehlschlag ruft `$URL/fail`.
+`BACKUP_PING_URL` folgt dem Muster von healthchecks.io: Erfolg ruft die URL, Fehlschlag
+ruft `$URL/fail`.
+
+> ⚠️ **Bei jedem anderen Ziel gehört `BACKUP_PING_URL_FEHLER` dazu — sonst meldet der
+> Fehlfall GESUND statt kaputt.** Uptime Kuma etwa kodiert den Zustand in der Abfrage,
+> nicht im Pfad, und seine kopierfertige URL trägt bereits `status=up`. Ein angehängtes
+> `/fail` landet damit im Wert von `ping=`, der Pfad bleibt derselbe, und der Ruf, der
+> einen Fehlschlag melden soll, frischt den Wächter auf grün auf. Für Kuma gehört
+> dieselbe URL mit `status=down` in `BACKUP_PING_URL_FEHLER`. Eine Überwachung, die im
+> Ernstfall das Gegenteil behauptet, ist schlimmer als keine.
 
 > ⚠️ **Das ist der einzige Meldeweg, der auch das Schweigen meldet.** Der Healthcheck sieht
 > einen gescheiterten und einen überfälligen Lauf — aber nur, solange ihn jemand ansieht.

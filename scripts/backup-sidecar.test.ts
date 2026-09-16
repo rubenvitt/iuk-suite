@@ -324,6 +324,37 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(befehle).toMatch(/lauf\(\) \{\s*\n\s*sperre_erwarten \|\| return 1/);
   });
 
+  it("ein Fehlschlag meldet sich an einer EIGENEN URL, wenn das Ziel keine /fail kennt", () => {
+    // ⚠️ DER FEHLFALL MELDET SONST GESUND STATT KAPUTT, und das ist schlimmer als gar
+    // keine Ueberwachung. `$URL/fail` ist die Konvention von healthchecks.io. Uptime
+    // Kuma — im Runbook danebengestellt — kodiert den Zustand in der ABFRAGE, und seine
+    // kopierfertige URL traegt bereits `status=up`:
+    //   https://kuma/api/push/AbC123?status=up&msg=OK&ping=
+    // Ein angehaengtes `/fail` landet damit im WERT von `ping=`, der Pfad bleibt
+    // derselbe, `status=up` steht unveraendert drin — der Ruf frischt den Waechter auf
+    // GRUEN auf. Gemessen an beiden Formen.
+    expect(befehle).toContain("BACKUP_PING_URL_FEHLER");
+    const rumpfP = funktionsrumpf(befehle, "ping_senden");
+    expect(rumpfP).toMatch(/elif \[ -n "\$BACKUP_PING_URL_FEHLER" \]; then/);
+    // Und die Vorbelegung bleibt die healthchecks.io-Form, damit der haeufige Fall
+    // ohne zweite Zeile auskommt.
+    expect(rumpfP).toMatch(/ziel="\$BACKUP_PING_URL\/fail"/);
+  });
+
+  it("nach dem Stoppbefehl wird KEIN neuer Lauf mehr begonnen", () => {
+    // ⚠️ Der Dienst kann hinter einer Rollout-Sicherung warten. Kommt dabei SIGTERM,
+    // setzt die Falle `beenden=1` — aber die Warteschleife sah das nicht, holte sich die
+    // freigegebene Sperre und finge ein VOLLES Backup an. Das frisst die restliche
+    // `stop_grace_period` und endet im schlechtesten Fall in SIGKILL mit halbem Archiv.
+    // Gemessen: der Wartende endete nach 7s mit Exit 1, ohne einen Lauf zu beginnen.
+    const rumpfE = funktionsrumpf(befehle, "sperre_erwarten");
+    expect(rumpfE).toMatch(/if \[ "\$beenden" -ne 0 \]; then/);
+    // `beenden` muss belegt sein, BEVOR eine Funktion es liest — unter `set -u` waere es
+    // sonst ein Abbruch statt einer Pruefung.
+    const vorFunktionen = befehle.slice(0, befehle.indexOf("sperre_erwarten()"));
+    expect(vorFunktionen).toMatch(/^beenden=0$/m);
+  });
+
   it("der zweite Lauf WARTET, statt zu ueberspringen", () => {
     // Ein uebersprungener Lauf waere fuer `deploy.sh` ein gruener Exit-Code OHNE
     // Sicherung — es rollte dann ohne aus. Ein zweites Tarball kostet nur Platz.
@@ -569,6 +600,7 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
       "BACKUP_SPERRE_FRIST_MINUTEN",
       "BACKUP_SPERRE_ALTER_STUNDEN",
       "BACKUP_HERZSCHLAG_SEKUNDEN",
+      "BACKUP_PING_URL_FEHLER",
       "SUITE_BACKUP_STOP_GRACE",
     ]) {
       expect(envBeispiel, `${name} steht in .env.example`).toContain(name);

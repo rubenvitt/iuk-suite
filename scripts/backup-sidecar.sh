@@ -93,6 +93,18 @@ TARBALL_MUSTER='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-
 # auch wenn der ganze Container weg ist. Genau das ist der dritte Punkt des Tickets
 # („Ein fehlgeschlagener Lauf faellt erst auf, wenn man ihn braucht").
 BACKUP_PING_URL="${BACKUP_PING_URL:-}"
+# Eigene URL fuer den Fehlschlag. LEER = healthchecks.io-Konvention, also `$URL/fail`.
+#
+# ⚠️ DIESE ZEILE IST PFLICHT, SOBALD DAS ZIEL NICHT healthchecks.io IST — und der
+# Fehlfall meldet GESUND statt kaputt. Uptime Kuma kodiert den Zustand in der
+# ABFRAGE, nicht im Pfad, und seine kopierfertige URL traegt bereits `status=up`:
+#   https://kuma/api/push/AbC123?status=up&msg=OK&ping=
+# Ein angehaengtes `/fail` landet damit im WERT von `ping=`, der Pfad bleibt derselbe,
+# und `status=up` steht unveraendert drin. Der Ruf, der einen Fehlschlag melden soll,
+# frischt den Waechter also auf GRUEN auf — die Ueberwachung waere schlimmer als keine,
+# weil sie dann aktiv das Gegenteil behauptet. Fuer Kuma gehoert hierher dieselbe URL
+# mit `status=down`.
+BACKUP_PING_URL_FEHLER="${BACKUP_PING_URL_FEHLER:-}"
 # Ab wann der Healthcheck einen ausbleibenden Lauf als Fehler wertet. 26 Stunden lassen
 # einem taeglichen Takt zwei Stunden Luft, ohne einen ausgefallenen Tag zu verschlucken.
 BACKUP_FRIST_STUNDEN="${BACKUP_FRIST_STUNDEN:-26}"
@@ -120,6 +132,10 @@ SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
 # externe Ziel, `curl` fuer den Ping, `su-exec` fuer den Rechteabbau, `tzdata` fuer $TZ
 # (ohne es ist der Container UTC, und „03:30" waere im Sommer 05:30 Ortszeit).
 PAKETE="bash sqlite tar rsync rclone curl su-exec tzdata"
+
+# Wird von der Signalfalle gesetzt. Hier belegt, weil `sperre_erwarten` es liest und
+# unter `set -u` sonst auf eine ungesetzte Variable liefe.
+beenden=0
 
 protokoll() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"; }
 warne() { protokoll "WARNUNG: $*" >&2; }
@@ -191,8 +207,13 @@ zustand_schreiben() {
 # ══ Rueckmeldung nach aussen ═════════════════════════════════════════════════════════
 ping_senden() {
   [ -n "$BACKUP_PING_URL" ] || return 0
-  ziel="$BACKUP_PING_URL"
-  [ "$1" = "ok" ] || ziel="$BACKUP_PING_URL/fail"
+  if [ "$1" = "ok" ]; then
+    ziel="$BACKUP_PING_URL"
+  elif [ -n "$BACKUP_PING_URL_FEHLER" ]; then
+    ziel="$BACKUP_PING_URL_FEHLER"
+  else
+    ziel="$BACKUP_PING_URL/fail"
+  fi
   # Ein gescheiterter Ping darf den Lauf NICHT scheitern lassen — das Backup liegt dann
   # ja da. Er ist aber auch nicht folgenlos: ohne ihn ist die Ueberwachung blind, und
   # das gehoert ins Protokoll statt in die Stille.
@@ -422,6 +443,16 @@ sperre_erwarten() {
   frist=$((BACKUP_SPERRE_FRIST_MINUTEN * 60))
   gewartet=0
   while ! sperre_holen; do
+    # ⚠️ OHNE DIESE PRUEFUNG BEGINNT DER DIENST NACH DEM STOPPBEFEHL NOCH EINEN LAUF.
+    # Wartet er hinter einer Rollout-Sicherung und kommt dabei SIGTERM, setzt die Falle
+    # zwar `beenden=1` — aber diese Schleife sah es nicht, holte sich die freigegebene
+    # Sperre und finge ein volles Backup an. Das frisst die restliche `stop_grace_period`
+    # und endet im schlechtesten Fall in SIGKILL mit halbem Archiv. Wer stoppen will,
+    # will keinen NEUEN Lauf mehr.
+    if [ "$beenden" -ne 0 ]; then
+      protokoll "Beendigung angefordert — es wird kein neuer Lauf mehr begonnen."
+      return 1
+    fi
     if [ "$gewartet" -ge "$frist" ]; then
       warne "Seit ${BACKUP_SPERRE_FRIST_MINUTEN}min laeuft bereits eine Sicherung — aufgegeben."
       return 1
@@ -612,7 +643,6 @@ sekunden_bis_uhrzeit() {
   echo "$rest"
 }
 
-beenden=0
 # Ohne diese Falle stirbt der Container beim `docker compose stop` erst nach der
 # Gnadenfrist per SIGKILL — mitten in einem laufenden `tar`, was ein halbes Tarball
 # hinterliesse. Mit ihr endet die Schleife an ihrer naechsten Prüfstelle.
