@@ -1075,6 +1075,96 @@ describe("bucheUmlagerung (DRK-338)", () => {
 });
 
 /**
+ * DRK-193 — DER TREIBERTEXT KOMMT NICHT AUF DEN SCHIRM, DER FACHLICHE SATZ SCHON.
+ *
+ * ⚠️ DIESE DATEI HAT DIE ZWEITE HAELFTE SCHON LANGE. Vier Tests weiter oben
+ * sichern zu, dass die deutschen Saetze der Pruefungen DURCHKOMMEN — „gehört
+ * nicht zu diesem Artikel", „Fahrzeug", „Handlager", „stillgelegt". Sie sind
+ * der Grund, warum das Ternaer im `catch` nicht einfach durch einen festen
+ * Satz ersetzt werden kann; bei der Abnahme (T176-A) wurde genau das versucht
+ * und zurueckgebaut.
+ *
+ * WAS FEHLTE, IST DIE ERSTE HAELFTE: dass ein Fehler, der NICHT fachlich ist,
+ * hinter dem Rueckfall bleibt. `e instanceof Error` traf beides, und damit
+ * stand ein „FOREIGN KEY constraint failed" wortwoertlich im Formular der
+ * Verwaltenden.
+ *
+ * ⚠️ DER FEHLER WIRD ECHT ERZEUGT, NICHT GEMOCKT, und das ist der Punkt: ein
+ * geworfener `new Error("…")` aus einem Mock bewiese nur, dass `instanceof`
+ * funktioniert. Hier wirft der TREIBER auf genau dem Weg, auf dem er es im
+ * Betrieb taete — einmal an einem Fremdschluessel, zweimal an einer Tabelle,
+ * die es nicht mehr gibt. Beides passiert INNERHALB der Transaktion, also
+ * hinter den fachlichen Pruefungen: die Wege kommen nachweislich bis dorthin.
+ *
+ * ⚠️ ZUGESICHERT WIRD DER RUECKFALLSATZ WOERTLICH, nicht nur „nicht der
+ * Treibertext". Eine Zusicherung auf die ABWESENHEIT von „SQLITE" oder
+ * „constraint" waere auch dann gruen, wenn der `catch` eine leere Zeichenkette
+ * lieferte — und eine leere Fehlermeldung ist genau die Lage, in der jemand
+ * neu laedt und nichts erfaehrt.
+ */
+describe("DRK-193 — Treiberfehler gegen fachlichen Satz", () => {
+  /**
+   * Der Fremdschluessel `chargen.artikel_id → artikel.id`, scharfgestellt durch
+   * `foreign_keys = ON` in `migrierteTestDb`. `bucheZugang` prueft den Artikel
+   * NICHT vorab (anders als `bucheAuffuellung`) — der Weg laeuft also bis in
+   * den Einschub und scheitert dort am Treiber.
+   */
+  it("bucheZugang: ein Fremdschluesselfehler wird zum Rueckfallsatz", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-gibt-es-nicht", menge: 1,
+        neueCharge: { chargenNr: "L9", verfall: "2027-06" } },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe("Zugang konnte nicht gebucht werden.");
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ DIE TABELLE FAELLT ERST NACH DEM AUFBAU. `fefoAbbuchungImBereich` liest
+   * `buchungen`, um den Bestand zu bestimmen — der Wurf kommt also aus dem
+   * Schreibpfad und nicht aus einer Pruefung davor. Dass die Eingabe selbst
+   * gueltig ist, zeigt der Erfolgsfall weiter oben mit denselben Werten.
+   */
+  it("bucheEntnahme: ein Treiberfehler wird zum Rueckfallsatz", async () => {
+    t.sqlite.exec("DROP TABLE buchungen");
+    const erg = await bucheEntnahme(
+      { artikelId: "art-1", menge: 1, zielLagerortId: HANDLAGER_ID },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe("Entnahme konnte nicht gebucht werden.");
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ HIER LIEGEN DIE DREI FACHLICHEN PRUEFUNGEN VOR DEM SCHREIBPFAD (Charge,
+   * Bereich, Ziel aktiv) — sie lesen `chargen` und `lagerorte` und kommen
+   * durch. Erst `umlagerungVonOrt` fasst `buchungen` an. Der Test zeigt damit
+   * beides zugleich: die Pruefungen greifen nicht, und trotzdem steht kein
+   * Treibertext im Formular.
+   */
+  it("bucheUmlagerung: ein Treiberfehler wird zum Rueckfallsatz", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: true, sortierung: 10 },
+      { id: "schrank-2", name: "GF-Schrank", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: true, sortierung: 90 },
+    ]).run();
+    t.sqlite.exec("DROP TABLE buchungen");
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe("Umlagerung konnte nicht gebucht werden.");
+    expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
  * DRK-313 — DIE AUFFUELLANSICHT DER GF.
  *
  * Was hier haengt, und warum jeweils GENAU HIER:
