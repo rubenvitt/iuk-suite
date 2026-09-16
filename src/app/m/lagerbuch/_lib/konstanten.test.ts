@@ -9,7 +9,7 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
   EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
-  einheitNomen, einheitMeta, dieseEinheit, ausDieserEinheit, inDieEinheit, inDerEinheit,
+  einheitNomen, einheitMeta, standortMeta, dieseEinheit, ausDieserEinheit, inDieEinheit, inDerEinheit,
   checklisteTitel, grossAmAnfang,
 } from "./konstanten";
 import { buchungen, checks, lagerorte, geraete, tokens } from "../_db/schema";
@@ -164,6 +164,20 @@ describe("Enum-Listen", () => {
       .toBe("Fahrzeug · MS-1");
     expect(einheitMeta({ kennung: null, einheitenart: "tasche" })).toBe("Tasche");
     expect(einheitMeta({ kennung: null, einheitenart: null })).toBe("nicht zugeordnet");
+
+    /*
+     * ⚠️ EIN LAGER SAGT „Lager", NICHT „nicht zugeordnet". Die Standortlisten
+     * der Geräte, BZ-Geräte und Flaschen mischen das Handlager mit den
+     * Einheiten; für eine Lagerzeile ist die Art gegenstandslos und nicht
+     * offen. Mit dem Zwischenstandstext stünde das Handlager auf jeder dieser
+     * Listen auf der To-do-Liste, die der Artfilter aufmacht.
+     */
+    expect(standortMeta({ typ: "lager", kennung: null, einheitenart: null }))
+      .toBe("Lager");
+    expect(standortMeta({ typ: "fahrzeug", kennung: "MS-1", einheitenart: "fahrzeug" }))
+      .toBe("Fahrzeug · MS-1");
+    expect(standortMeta({ typ: "fahrzeug", kennung: null, einheitenart: null }))
+      .toBe("nicht zugeordnet");
 
     expect(grossAmAnfang(inDieEinheit("tasche"))).toBe("In die Tasche");
     for (const art of [...EINHEITENARTEN, null] as const) {

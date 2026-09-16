@@ -75,8 +75,10 @@ const ZEILEN: SauerstoffAnzeigeZeile[] = [
 ];
 
 const LAGERORTE = [
-  { id: "handlager", name: "Handlager" },
-  { id: "rtw-1", name: "RTW 1" },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
+  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);

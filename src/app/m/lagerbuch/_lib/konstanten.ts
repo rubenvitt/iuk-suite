@@ -173,6 +173,28 @@ export function einheitMeta(
     .filter(Boolean).join(" · ");
 }
 
+/**
+ * Die Beizeile eines LAGERORTS — „Lager" oder die Beizeile der Einheit.
+ *
+ * ⚠️ `einheitMeta` REICHT HIER NICHT, und der Unterschied ist keine
+ * Feinheit (DRK-309, Reviewrunde 5). Die Standortlisten der Geräte, der
+ * BZ-Geräte und der Sauerstoffflaschen mischen das Handlager mit den
+ * Einheiten. Für eine Lagerzeile ist `einheitenart` nicht „noch nicht
+ * zugeordnet", sondern gegenstandslos — ein Lager IST keine Einheit. Stünde
+ * dort der Zwischenstandstext, läse sich das Handlager als eine Einheit, bei
+ * der jemand die Zuordnung vergessen hat, und es stünde auf jeder dieser
+ * Listen auf der To-do-Liste, die der Artfilter aufmacht.
+ */
+export function standortMeta(
+  ort: {
+    typ: "lager" | "fahrzeug";
+    kennung: string | null;
+    einheitenart: Einheitenart | null;
+  },
+): string {
+  return ort.typ === "lager" ? "Lager" : einheitMeta(ort);
+}
+
 /** „dieses Fahrzeug" · „diese Tasche" · „diese Einheit". */
 export function dieseEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "dieses Fahrzeug";

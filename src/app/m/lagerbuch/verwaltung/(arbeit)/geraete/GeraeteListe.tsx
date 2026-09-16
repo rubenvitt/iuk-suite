@@ -21,6 +21,7 @@ import {
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
 import type { GeraetTyp } from "../../../_lib/domain/geraet";
+import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
@@ -169,7 +170,7 @@ export function GeraeteListe({
   lagerorte,
 }: {
   zeilen: GeraetAnzeigeZeile[];
-  lagerorte: { id: string; name: string; typ: "lager" | "fahrzeug" }[];
+  lagerorte: Lagerort[];
 }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.

@@ -91,8 +91,10 @@ const ZEILEN: GeraetAnzeigeZeile[] = [
 ];
 
 const LAGERORTE = [
-  { id: "handlager", name: "Handlager", typ: "lager" as const },
-  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
+  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);

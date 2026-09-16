@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, DatePicker, Form, Input, Modal, Radio, Select } from "antd";
 import type { Dayjs } from "dayjs";
 import { geraetSpeichern } from "../../../_actions/geraete";
+import { standortMeta } from "../../../_lib/konstanten";
+import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { Ikone } from "../../../_ui/ikonen";
 
 type Werte = {
@@ -52,7 +54,7 @@ function tag(datum: Dayjs | null | undefined): string | undefined {
 export function NeuGeraet({
   lagerorte,
 }: {
-  lagerorte: { id: string; name: string; typ: "lager" | "fahrzeug" }[];
+  lagerorte: Lagerort[];
 }) {
   const [offen, setOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -182,9 +184,11 @@ export function NeuGeraet({
               aria-label="Standort"
               showSearch
               filterOption={lagerortFilter}
+              // DRK-309: Art (bzw. „Lager") und Kennung hinter dem Namen —
+              // Namen sind in `lagerorte` nicht eindeutig.
               options={lagerorte.map((lagerort) => ({
                 value: lagerort.id,
-                label: lagerort.name,
+                label: `${lagerort.name} · ${standortMeta(lagerort)}`,
               }))}
               virtual={false}
             />

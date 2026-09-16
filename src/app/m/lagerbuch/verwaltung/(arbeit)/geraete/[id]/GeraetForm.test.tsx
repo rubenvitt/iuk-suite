@@ -90,8 +90,13 @@ const OBJEKT: GeraetInitial = {
 };
 
 const ORTE = [
-  { id: "handlager", name: "Handlager", typ: "lager" as const },
-  { id: "rtw-1", name: "RTW Nord", typ: "fahrzeug" as const },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
+  { id: "rtw-1", name: "RTW Nord", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
+  // DRK-309: eine Tasche ohne Kennung — der Fall, den der Name nicht trägt.
+  { id: "tasche-1", name: "Rucksack Betreuung", typ: "fahrzeug" as const,
+    kennung: null, einheitenart: "tasche" as const },
 ];
 
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
@@ -179,6 +184,37 @@ describe("GeraetForm — Felder und Typtrennung", () => {
       .toBe(true);
     expect(lagerortFilter("hand", { value: "rtw-1", label: "RTW Nord" }))
       .toBe(false);
+  });
+
+  /**
+   * DRK-309, Reviewrunde 5 — DAS STANDORTFELD ZEIGT DIE ART.
+   *
+   * ⚠️ DER GRUND IST DAS SCHEMA, NICHT DER GESCHMACK: `lagerorte.name` trägt
+   * keinen Eindeutigkeitsschlüssel. Ein Fahrzeug und eine Tasche dürfen gleich
+   * heißen, und dann hängt das Gerät am falschen Träger, ohne dass die Liste
+   * es je gezeigt hätte. Die Fixture trägt deshalb eine Tasche, die die Art
+   * WEDER im Namen NOCH in einer Kennung hat („Rucksack Betreuung").
+   *
+   * ⚠️ UND DAS HANDLAGER SAGT „Lager", NICHT „nicht zugeordnet". Für eine
+   * Lagerzeile ist die Art gegenstandslos; der Zwischenstandstext läse sich
+   * dort als eine Einheit, bei der jemand die Zuordnung vergessen hat.
+   */
+  it("nennt im Standortfeld Art und Kennung hinter dem Namen", async () => {
+    await mount(<GeraetForm initial={MEDIZIN} lagerorte={ORTE} />);
+    // ⚠️ `mousedown`, NICHT `click` — antds Select öffnet auf `mousedown`; und
+    // die Liste hängt im Portal an `document.body`, nicht im Mount-Knoten.
+    await act(async () => {
+      query("input[role='combobox']")
+        .dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+
+    expect(Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).map((o) => o.textContent)).toEqual([
+      "Handlager · Lager",
+      "RTW Nord · Fahrzeug · MS-1",
+      "Rucksack Betreuung · Tasche",
+    ]);
   });
 
   it("zeigt für Medizin nur MTK und nach Typwechsel nur die Objektfelder", async () => {

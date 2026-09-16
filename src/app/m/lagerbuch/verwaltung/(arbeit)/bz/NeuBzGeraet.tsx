@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Form, Input, InputNumber, Modal, Select } from "antd";
 import { geraetSpeichern } from "../../../_actions/bz";
+import { standortMeta } from "../../../_lib/konstanten";
 import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { Ikone } from "../../../_ui/ikonen";
 
@@ -139,9 +140,10 @@ export function NeuBzGeraet({ lagerorte }: { lagerorte: Lagerort[] }) {
               aria-label="Standort"
               showSearch
               filterOption={lagerortFilter}
+              // DRK-309: wie an jedem anderen Standortfeld auch.
               options={lagerorte.map((lagerort) => ({
                 value: lagerort.id,
-                label: lagerort.name,
+                label: `${lagerort.name} · ${standortMeta(lagerort)}`,
               }))}
               virtual={false}
             />

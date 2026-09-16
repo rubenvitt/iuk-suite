@@ -88,8 +88,13 @@ const EDITOR_WERTE: BzEditorWerte = {
   level2Max: 350,
 };
 const LAGERORT_OPTIONEN = [
-  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const },
-  { id: "handlager", name: "Handlager", typ: "lager" as const },
+  { id: "rtw-1", name: "RTW 1", typ: "fahrzeug" as const,
+    kennung: "MS-1", einheitenart: "fahrzeug" as const },
+  // DRK-309: eine Tasche in derselben Wahl — ohne Kennung, wie im Leben.
+  { id: "tasche-1", name: "Sanitätstasche 1", typ: "fahrzeug" as const,
+    kennung: null, einheitenart: "tasche" as const },
+  { id: "handlager", name: "Handlager", typ: "lager" as const,
+    kennung: null, einheitenart: null },
 ];
 
 let t: TestDb;

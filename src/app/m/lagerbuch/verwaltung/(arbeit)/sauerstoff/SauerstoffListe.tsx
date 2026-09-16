@@ -17,6 +17,7 @@ import {
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
+import type { LagerortOption as Lagerort } from "../../../_lib/lesepfade/bz";
 import { ampelTon } from "../../../_lib/format";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
@@ -165,7 +166,7 @@ export function SauerstoffListe({
   lagerorte,
 }: {
   zeilen: SauerstoffAnzeigeZeile[];
-  lagerorte: { id: string; name: string }[];
+  lagerorte: Lagerort[];
 }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.

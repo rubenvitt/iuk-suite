@@ -28,6 +28,7 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
+import type { Einheitenart } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { akkuLebensdauer, bzFaelligkeit,
          type BzAkkuKennzahl, type BzFaelligkeit } from "../domain/bz";
@@ -80,12 +81,26 @@ function toZeile(
   };
 }
 
-export type LagerortOption = { id: string; name: string; typ: "lager" | "fahrzeug" };
+/**
+ * ⚠️ MIT `kennung` UND `einheitenart` (DRK-309, Reviewrunde 5). Diese Liste
+ * haengt an jedem Standortfeld — Geraet, BZ-Geraet, Sauerstoffflasche —, und
+ * `typ` allein trennt seit dieser Aenderung nicht mehr, was daran haengt: eine
+ * Tasche traegt `typ: "fahrzeug"` wie jedes Fahrzeug. Ohne die beiden Felder
+ * kann die Auswahl darueber nur Namen zeigen, und Namen sind in `lagerorte`
+ * nicht eindeutig.
+ */
+export type LagerortOption = {
+  id: string; name: string; typ: "lager" | "fahrzeug";
+  kennung: string | null; einheitenart: Einheitenart | null;
+};
 
 /** Aktive Lagerorte als Auswahl fuer Geraete-Formulare. */
 export function lagerortOptionen(db: Leser): LagerortOption[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
-    .map((l) => ({ id: l.id, name: l.name, typ: l.typ }))
+    .map((l) => ({
+      id: l.id, name: l.name, typ: l.typ,
+      kennung: l.kennung, einheitenart: l.einheitenart,
+    }))
     .sort((a, b) => a.typ.localeCompare(b.typ) || a.name.localeCompare(b.name));
 }
 

@@ -42,6 +42,7 @@
  */
 import { desc, eq } from "drizzle-orm";
 import { lagerorte, o2Flaschen, o2Messungen } from "../../_db/schema";
+import type { Einheitenart } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
 import { o2Status, type O2Status } from "../domain/o2";
 import type { DB } from "../../_db/client";
@@ -187,8 +188,19 @@ export function o2FlaschenFuerLagerort(db: Leser, lagerortId: string): O2Flasche
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function lagerorteFuerFlaschen(db: Leser): { id: string; name: string }[] {
+/**
+ * ⚠️ DIESELBE FORM WIE `lagerortOptionen` (DRK-309, Reviewrunde 5) — eine
+ * Flasche haengt an einer Einheit wie ein Geraet, und ihre Standortwahl darf
+ * nicht weniger zeigen als die daneben.
+ */
+export function lagerorteFuerFlaschen(db: Leser): {
+  id: string; name: string; typ: "lager" | "fahrzeug";
+  kennung: string | null; einheitenart: Einheitenart | null;
+}[] {
   return db.select().from(lagerorte).where(eq(lagerorte.aktiv, true)).all()
-    .map((l) => ({ id: l.id, name: l.name }))
+    .map((l) => ({
+      id: l.id, name: l.name, typ: l.typ,
+      kennung: l.kennung, einheitenart: l.einheitenart,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
