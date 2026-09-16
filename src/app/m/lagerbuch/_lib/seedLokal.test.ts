@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import {
-  artikel, bzGeraete, chargen, checks, geraete, lagerorte, lagerortVerfall,
-  o2Flaschen, sollPositionen, tokens,
+  artikel, buchungen, bzGeraete, chargen, checks, geraete, lagerorte,
+  lagerortVerfall, o2Flaschen, sollPositionen, tokens,
 } from "../_db/schema";
 import { seedLokalLagerbuch } from "./seedLokal";
 import { HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
@@ -448,5 +448,59 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     expect(erhalten?.mindestbestand).toBe(99);
     expect(t.db.select().from(artikel).all().length).toBeGreaterThan(1);
     expect(t.db.select().from(chargen).all().length).toBeGreaterThan(0);
+  });
+
+  /**
+   * DRK-367 — dieselbe Nagelprobe fuer den Schrankweg, und der faellt anders
+   * aus als der Artikelweg darueber: das Gate dort ist die `id`, hier ist es
+   * seit `idx_lagerorte_name_je_parent` zusaetzlich der NAME. Ein von Hand
+   * angelegter „GF-Schrank" mit eigener Kennung liess den Seed frueher einfach
+   * einen zweiten danebenstellen; jetzt waere es ein UNIQUE-Verstoss — und weil
+   * dieser Abschnitt bewusst ohne Transaktion einfuegt, braeche der Lauf
+   * MITTENDRIN ab (Befund von Codex zu PR #166).
+   *
+   * Der Seed weicht deshalb mit SEINEM Namen aus, statt zu ueberspringen: die
+   * feste `id` haengt an spaeteren Buchungen, eine ausgelassene Zeile risse
+   * deren Fremdschluessel. Die fremde Zeile bleibt unangetastet — ein Seed
+   * fasst nicht an, was jemand selbst angelegt hat.
+   */
+  it("weicht aus, wenn ein Schrankname von Hand schon vergeben ist", async () => {
+    t.db.insert(lagerorte).values({
+      id: "von-hand", name: "GF-Schrank", typ: "lager", kennung: null, aktiv: true,
+      templateId: null, parentId: HANDLAGER_ID, zugangshinweis: null, sortierung: 1,
+    }).run();
+
+    const protokoll = await seedLokalLagerbuch(t.db);
+
+    // Die fremde Zeile steht unveraendert da …
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, "von-hand")).get())
+      .toMatchObject({ name: "GF-Schrank", sortierung: 1 });
+    // … der Seed hat seine eigene angelegt, unter seiner festen id …
+    const seedZeile = t.db.select().from(lagerorte)
+      .where(eq(lagerorte.id, "schrank-gf")).get();
+    expect(seedZeile?.name).toBe("GF-Schrank (Seed 2)");
+    // … und sagt es, statt es still zu tun.
+    expect(protokoll.some((z) => z.includes("GF-Schrank (Seed 2)"))).toBe(true);
+
+    // Die Nagelprobe dahinter: der Lauf ist NICHT mittendrin abgebrochen.
+    expect(t.db.select().from(chargen).all().length).toBeGreaterThan(0);
+    expect(t.db.select().from(buchungen).all().length).toBeGreaterThan(0);
+  });
+
+  /** Und der zweite Lauf danach legt nichts Drittes an: das `id`-Gate greift
+   *  jetzt, der Ausweichname wird also nicht noch einmal gesucht. */
+  it("bleibt nach einem Ausweichnamen idempotent", async () => {
+    t.db.insert(lagerorte).values({
+      id: "von-hand", name: "GF-Schrank", typ: "lager", kennung: null, aktiv: true,
+      templateId: null, parentId: HANDLAGER_ID, zugangshinweis: null, sortierung: 1,
+    }).run();
+
+    await seedLokalLagerbuch(t.db);
+    const nachher1 = t.db.select().from(lagerorte).all().length;
+    await seedLokalLagerbuch(t.db);
+
+    expect(t.db.select().from(lagerorte).all().length).toBe(nachher1);
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, "schrank-gf")).get()?.name)
+      .toBe("GF-Schrank (Seed 2)");
   });
 });

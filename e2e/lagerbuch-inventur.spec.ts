@@ -36,6 +36,13 @@ const NEU_MHD_TEXT = "02/93";
 /** Nicht 1: mit der Vorgabe 1 bewiese die Summenpruefung nur „unveraendert". */
 const NEU_MENGE = 2;
 
+/** DRK-337 — eigener Schrank, eigener Artikel (`seed-lagerbuch.ts`, `ortsFixtures`). */
+const SCHRANK = "E2E Inventurschrank";
+const SCHRANK_ID = "e2e-inventur-schrank";
+const ORT_ARTIKEL = "E2E Inventur Ortszählung";
+/** Seedwert auf der Wurzel. Diese Zahl darf sich durch keinen Lauf aendern. */
+const AUF_DER_WURZEL = 4;
+
 test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE, callbackPath: "/verwaltung" });
@@ -186,5 +193,72 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     await expect(tabelle).toContainText(kommentar);
     // DRK-328: auch in der Liste steht das Jahr.
     await expect(tabelle).toContainText(/\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/);
+  });
+
+  /**
+   * DRK-337 — DIE ZAEHLUNG JE SCHRANK, im echten Browser.
+   *
+   * ⚠️ WAS VITEST STRUKTURELL NICHT SIEHT und deshalb HIER steht: dass der
+   * Ortswechsel den SERVER neu rechnen laesst (die Erwartungszahl kommt aus der
+   * Datenbank, nicht aus der Insel) und dass die Korrektur danach im Schrank
+   * liegt statt auf der Wurzel — die Buchung entsteht in einer Server Action,
+   * jsdom hat keine.
+   *
+   * ⚠️ JEDER VERSUCH ISOLIERT SICH SELBST, wie im Fall darueber: `retries`
+   * laufen gegen DIESELBE Datenbank, der Schrankbestand ist nach dem ersten
+   * Versuch also ein anderer. Deshalb wird relativ zugesichert — und die
+   * WURZELZAHL ist die eigentliche Zusicherung: sie bleibt 4, egal wie oft
+   * gebucht wird. Genau das ist Akzeptanzkriterium 3.
+   */
+  test("zählt einen einzelnen Schrank und bucht die Korrektur dorthin", async ({ page }) => {
+    const kommentar = `E2E Schrankinventur Versuch ${test.info().retry + 1}`;
+    const feld = page.getByLabel(`Ist-Bestand ${ORT_ARTIKEL}`, { exact: true });
+
+    // 1) Der Ort steht in der URL — der Server rechnet die Zeilen dafuer.
+    const seite = await page.goto(lagerbuchUrl(`/verwaltung/inventur?ort=${SCHRANK_ID}`));
+    expect(seite?.status()).toBe(200);
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("seitenkopf-beschreibung")).toContainText(SCHRANK);
+    await expect(page.locator("[aria-label='Zählort']").locator("xpath=ancestor::div[contains(@class,'ant-select')][1]"))
+      .toContainText(SCHRANK);
+
+    // 2) Die Wurzelzahl VOR dem Buchen — sie ist die Konstante dieses Falls.
+    const imSchrank = Number(await feld.inputValue());
+    expect(imSchrank, "der Schrank braucht Bestand, sonst gibt es nichts zu zaehlen")
+      .toBeGreaterThan(0);
+
+    // 3) Einen mehr zaehlen und buchen. Die Antwort wird geprueft (Falle 10).
+    await klickeWennRuhig(page.getByRole("button", { name: `Ist-Bestand ${ORT_ARTIKEL} erhöhen`, exact: true }));
+    await expect(feld).toHaveValue(String(imSchrank + 1));
+    // Der Zaehlort ist ab der ersten Zaehlung festgelegt: ein Wechsel verwuerfe
+    // den Stand, und das darf nicht unter der Hand passieren.
+    await expect(page.locator("[data-rolle='ort-gesperrt']")).toContainText("gezählt");
+    await page.getByLabel("Kommentar", { exact: true }).fill(kommentar);
+    const antwort = page.waitForResponse((r) => (
+      r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined
+    ));
+    await klickeWennRuhig(page.locator("button[data-rolle='abschluss']"));
+    expect((await antwort).ok()).toBe(true);
+    await expect(page.locator(".ant-alert-success")).toContainText("1 Position korrigiert");
+
+    // 4) Der Schrank traegt den neuen Stand …
+    const nachher = await page.goto(lagerbuchUrl(`/verwaltung/inventur?ort=${SCHRANK_ID}`));
+    expect(nachher?.status()).toBe(200);
+    await expect(feld).toHaveValue(String(imSchrank + 1));
+
+    // 5) … und die Wurzel ist unberuehrt. Vor DRK-337 waere der Ueberhang genau
+    //    hier gelandet, weil die Charge im Schrank noch keinen Kandidaten hatte.
+    const wurzel = await page.goto(lagerbuchUrl("/verwaltung/inventur?ort=handlager"));
+    expect(wurzel?.status()).toBe(200);
+    await expect(page.getByTestId("seitenkopf-beschreibung")).toContainText("noch keinem Schrank zugeordnet");
+    await expect(feld).toHaveValue(String(AUF_DER_WURZEL));
+
+    // 6) Der Verlauf nennt den Ort — sonst waere ein Lauf spaeter nicht mehr
+    //    einzuordnen, und der Verlauf ist append-only.
+    const liste = await page.goto(lagerbuchUrl("/verwaltung/inventur/verlauf"));
+    expect(liste?.status()).toBe(200);
+    const zeile = page.getByLabel("Inventur-Verlauf", { exact: true })
+      .locator("tbody tr", { hasText: kommentar });
+    await expect(zeile).toContainText(`Ort ${SCHRANK}`);
   });
 });

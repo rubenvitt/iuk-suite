@@ -54,7 +54,7 @@ export function FahrzeugAktivToggle({
 
   async function loeschen(): Promise<void> {
     try {
-      const ergebnis = await loescheElement("fahrzeug", id);
+      const ergebnis = await loescheElement("lagerort", id);
       if (!ergebnis.ok) throw new Error(LOESCH_FEHLER);
     } catch {
       throw new Error(LOESCH_FEHLER);
@@ -64,7 +64,7 @@ export function FahrzeugAktivToggle({
 
   async function deaktivieren(): Promise<void> {
     try {
-      const ergebnis = await deaktiviereElement("fahrzeug", id);
+      const ergebnis = await deaktiviereElement("lagerort", id);
       if (!ergebnis.ok) throw new Error(DEAKTIVIER_FEHLER);
     } catch {
       throw new Error(DEAKTIVIER_FEHLER);
@@ -87,7 +87,7 @@ export function FahrzeugAktivToggle({
           typLabel="Fahrzeug"
           pruefen={async () => {
             try {
-              const ergebnis = await pruefeLoeschbar("fahrzeug", id);
+              const ergebnis = await pruefeLoeschbar("lagerort", id);
               if (ergebnis.ok) return ergebnis.wert;
             } catch {
               // Der feste, nicht loeschbare Zustand folgt direkt darunter.

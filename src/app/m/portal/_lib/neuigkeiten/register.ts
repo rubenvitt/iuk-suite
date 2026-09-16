@@ -14,6 +14,8 @@ import inventurJeCharge from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/
 import mehrereArtikelBearbeiten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-mehrere-artikel-bearbeiten";
 import journalNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-14-journal-nachladen";
 import schraenke from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schraenke";
+import inventurJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-inventur-je-schrank";
+import schraenkeLoeschen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schraenke-loeschen";
 import aussondernAmFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-aussondern-am-fahrzeug";
 import abgelaufenesJeFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-abgelaufenes-je-fahrzeug";
 import checkNurFuerDeinFahrzeug from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-nur-fuer-dein-fahrzeug";
@@ -23,6 +25,7 @@ import mengenSelbstZaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbu
 import aussonderungUndInventurImJournal from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-aussonderung-und-inventur-im-journal";
 import sauerstoffWechselhinweis from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-sauerstoff-wechselhinweis";
 import umlagernImHandlager from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-umlagern-im-handlager";
+import schranknameEindeutig from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schrankname-eindeutig";
 import checkUndEntnahmeAngemeldet from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-und-entnahme-angemeldet";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
@@ -71,6 +74,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   mehrereArtikelBearbeiten,
   journalNachladen,
   schraenke,
+  inventurJeSchrank,
+  schraenkeLoeschen,
   aussondernAmFahrzeug,
   abgelaufenesJeFahrzeug,
   checkNurFuerDeinFahrzeug,
@@ -80,6 +85,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   aussonderungUndInventurImJournal,
   sauerstoffWechselhinweis,
   umlagernImHandlager,
+  schranknameEindeutig,
   checkUndEntnahmeAngemeldet,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,

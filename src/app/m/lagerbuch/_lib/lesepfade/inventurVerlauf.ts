@@ -8,7 +8,26 @@ import { artikel, chargen, inventuren, inventurPositionen } from "../../_db/sche
 import { INVENTUR_VERLAUF_GRENZE } from "../grenzen";
 import type { Leser } from "./bestand";
 
-export type Umfang = { kategorien: string[]; faecher: string[] } | null;
+/**
+ * DRK-337 — `ort` ist das LABEL des gezaehlten Orts („Schrank 1",
+ * „Nicht zugeordnet") oder `null` fuer den ganzen Handlager.
+ *
+ * ⚠️ LAEUFE VOR DRK-337 HABEN DAS FELD NICHT, und das ist kein Mangel: sie
+ * zaehlten den ganzen Handlager, `null` ist also die wahre Antwort. Der
+ * Verlauf ist append-only — es gibt keinen Weg, das nachzutragen, und es
+ * braucht auch keinen.
+ */
+export type Umfang = {
+  kategorien: string[]; faecher: string[];
+  /** Das LABEL des gezaehlten Orts — was ein Leser wiedererkennt. */
+  ort: string | null;
+  /**
+   * Die KENNUNG desselben Orts (DRK-337, dritter Codex-Befund). Solange zwei
+   * Schraenke gleich heissen duerfen, ist der Name keine Identitaet; im
+   * append-only Verlauf waere sie ohne dieses Feld unwiederbringlich verloren.
+   */
+  ortId: string | null;
+} | null;
 export type LaufKurz = {
   id: string; ts: Date; quelleTyp: string; quelleId: string; kommentar: string;
   umfang: Umfang; positionen: number; abweichungen: number;
@@ -22,10 +41,18 @@ export type LaufPosition = {
 export function umfangAus(roh: string | null): Umfang {
   if (!roh) return null;
   try {
-    const wert = JSON.parse(roh) as { kategorien?: unknown; faecher?: unknown } | null;
+    const wert = JSON.parse(roh) as {
+      kategorien?: unknown; faecher?: unknown; ort?: unknown; ortId?: unknown;
+    } | null;
     if (!wert || typeof wert !== "object") return null;
     const liste = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : []);
-    return { kategorien: liste(wert.kategorien), faecher: liste(wert.faecher) };
+    const text = (x: unknown) => (typeof x === "string" && x !== "" ? x : null);
+    return {
+      kategorien: liste(wert.kategorien),
+      faecher: liste(wert.faecher),
+      ort: text(wert.ort),
+      ortId: text(wert.ortId),
+    };
   } catch {
     return null;
   }
@@ -36,10 +63,69 @@ export function umfangAus(roh: string | null): Umfang {
  * und nicht in einer der beiden Seiten, weil Liste UND Detail ihn brauchen und
  * eine Seite keine Werte aus der anderen importieren soll.
  */
-export function umfangText(umfang: Umfang): string {
+export function umfangText(umfang: Umfang, aufloesung?: ReadonlyMap<string, string | null>): string {
   if (!umfang) return "vollständig";
-  const teile = [...umfang.kategorien, ...umfang.faecher.map((f) => `Fach ${f}`)];
+  // Der Ort ZUERST: er begrenzt, was ueberhaupt erwartet wurde, waehrend
+  // Kategorie und Fach nur auswaehlen, welche Zeilen auf dem Schirm standen.
+  const teile = [
+    ...(umfang.ort ? [`Ort ${ortText(umfang, aufloesung)}`] : []),
+    ...umfang.kategorien,
+    ...umfang.faecher.map((f) => `Fach ${f}`),
+  ];
   return teile.length > 0 ? teile.join(", ") : "vollständig";
+}
+
+/**
+ * DRK-337 — DIE KENNUNG WIRD GEZEIGT, WENN DER NAME NICHT MEHR AUF DIESEN ORT
+ * ZEIGT (vierter bis siebter Codex-Befund).
+ *
+ * ⚠️ DIE PRUEFUNG IST NICHT „gibt es den Namen doppelt?", SONDERN „loest er
+ * heute auf GENAU DIESEN Ort auf?" — und der Unterschied ist ein ganzer Fall:
+ * hiessen zwei Schraenke beide „X" und wird einer spaeter umbenannt, ist „X"
+ * nicht mehr doppelt, zeigt aber fuer den einen Lauf auf den falschen Ort.
+ * Dasselbe gilt fuer einen geloeschten Ort — dann zeigt der Name auf gar nichts.
+ *
+ * ⚠️ NUR DANN: eine Kennung an jeder Zeile machte den Normalfall haesslich, um
+ * den Ausnahmefall zu heilen. Ohne `aufloesung` bleibt es beim Namen — so lesen
+ * bestehende Aufrufer und Tests unveraendert.
+ *
+ * ⚠️ EIN LAUF OHNE GESPEICHERTE KENNUNG (von vor diesem Ticket) BEHAELT NUR DEN
+ * NAMEN. Die Identitaet stand damals nicht dabei, und der Verlauf kennt kein
+ * UPDATE. Eine erfundene Kennung waere schlimmer als eine fehlende.
+ */
+function ortText(
+  umfang: NonNullable<Umfang>, aufloesung?: ReadonlyMap<string, string | null>,
+): string {
+  const zeigeKennung = umfang.ortId !== null && umfang.ort !== null
+    && aufloesung !== undefined && aufloesung.get(umfang.ort) !== umfang.ortId;
+  return zeigeKennung
+    ? freieBeschriftung(`${umfang.ort}`, umfang.ortId!, aufloesung!)
+    : `${umfang.ort}`;
+}
+
+/**
+ * DRK-337, SIEBTER CODEX-BEFUND — EINE ERZEUGTE BESCHRIFTUNG DARF NICHT WIE
+ * EIN ECHTER ORTSNAME AUSSEHEN.
+ *
+ * ⚠️ DER FALL, DEN ZWEI SCHRAENKE UND EIN DRITTER ERZEUGEN: heissen `a` und `b`
+ * beide „X" und heisst `c` woertlich „X (a)", dann erzeugt der Lauf von `a`
+ * genau „X (a)" — und der Lauf von `c` traegt denselben Text ROH, weil sein
+ * Name eindeutig auf ihn aufloest. Zwei verschiedene Orte, ein Text.
+ *
+ * ⚠️ HIER WIRD NICHT NACHGEBESSERT, BIS ES PASST, SONDERN BEWIESEN. Angehaengt
+ * wird so lange, bis die Zeichenkette KEIN heutiger Ortsname mehr ist. Das
+ * terminiert (endlich viele Namen, jeder Schritt verlaengert) und ist damit von
+ * JEDER rohen Anzeige verschieden — denn roh zeigt nur, wessen Name heute
+ * eindeutig auf ihn aufloest, und der steht als Schluessel in der Karte.
+ * Verschiedene Laeufe bleiben ebenfalls verschieden: der ERSTE angehaengte Teil
+ * ist die eigene Kennung, und die gibt es nur einmal.
+ */
+function freieBeschriftung(
+  name: string, ortId: string, aufloesung: ReadonlyMap<string, string | null>,
+): string {
+  let kandidat = `${name} (${ortId})`;
+  while (aufloesung.has(kandidat)) kandidat = `${kandidat} (${ortId})`;
+  return kandidat;
 }
 
 function zaehlungen(db: Leser, ids: string[]): Map<string, { positionen: number; abweichungen: number }> {

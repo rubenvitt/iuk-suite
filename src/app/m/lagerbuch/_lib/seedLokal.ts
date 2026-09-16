@@ -18,6 +18,7 @@ import {
   users,
 } from "../_db/schema";
 import { CHARGE_OHNE_VERFALL, HANDLAGER_ID, PSEUDO_VERFALL } from "./konstanten";
+import { normalisiereSchrankName } from "./schrankName";
 import { AUSSONDERN_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { heuteIso } from "./zeit";
@@ -220,6 +221,35 @@ function vorhandeneIds(rows: { id: string }[]): Set<string> {
 }
 
 /**
+ * DRK-367 — ein Fixture-Name, den kein Geschwister schon traegt.
+ *
+ * ⚠️ DER SEED DARF AN DIESER STELLE NICHT MEHR EINFACH EINFUEGEN. Seit
+ * `idx_lagerorte_name_je_parent` ist ein Schrankname unter seinem Elternort
+ * eindeutig; wer lokal von Hand einen „GF-Schrank" angelegt hat, bekaeme sonst
+ * beim naechsten `pnpm seed:lokal` einen UNIQUE-Verstoss — und der Lauf braeche
+ * MITTENDRIN ab, weil dieser Abschnitt bewusst ohne Transaktion einfuegt. Aus
+ * „idempotent und rein additiv" (AGENTS.md) wuerde eine halb gefuellte
+ * Datenbank (Befund von Codex zu PR #166).
+ *
+ * WARUM AUSWEICHEN UND NICHT UEBERSPRINGEN: die feste `id` des Fixtures haengt
+ * an spaeteren Buchungen (`bu-zg-ringer-schrank1` und den DRK-297-Zeilen).
+ * Liesse man die Zeile aus, brechen deren Fremdschluessel — derselbe Abbruch,
+ * eine Stufe spaeter. Und WARUM NICHT DIE FREMDE ZEILE UMBENENNEN: ein Seed
+ * fasst keine Daten an, die jemand selbst angelegt hat.
+ *
+ * Die Suche laeuft in JS und nicht in SQL, deshalb genuegt hier die einfache
+ * Schleife — anders als in `0009_lagerorte_name_eindeutig.sql`, wo dieselbe
+ * Frage als Mengenausdruck stehen muss.
+ */
+function freierOrtsname(belegt: Set<string>, wunsch: string): string {
+  if (!belegt.has(normalisiereSchrankName(wunsch))) return wunsch;
+  for (let n = 2; ; n++) {
+    const kandidat = `${wunsch} (Seed ${n})`;
+    if (!belegt.has(normalisiereSchrankName(kandidat))) return kandidat;
+  }
+}
+
+/**
  * Hat dieser Vorgang schon gebucht? DAS Gate der Journalschreiber — eine feste
  * `id` genuegt hier nicht, weil die Schreibpfade ihre Zeilen-IDs selbst vergeben.
  */
@@ -293,6 +323,13 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *      die Schränke unten verweisen per `parentId` darauf, die Wurzel muss
    *      also nicht extra eingefügt werden, nur schon existieren. */
   const ortDa = vorhandeneIds(db.select({ id: lagerorte.id }).from(lagerorte).all());
+  // Nur Kinder: `idx_lagerorte_name_je_parent` deckt ausschliesslich Orte mit
+  // `parent_id`, Fahrzeug- und Wurzelnamen bleiben unberuehrt.
+  const ortsnamenDa = new Set(
+    db.select({ name: lagerorte.name, parentId: lagerorte.parentId }).from(lagerorte).all()
+      .filter((o) => o.parentId !== null)
+      .map((o) => normalisiereSchrankName(o.name)),
+  );
   const orteListe = [
     { id: LAGER_KELLER, name: "Lager Keller", typ: "lager" as const, kennung: null, templateId: null },
     { id: RTW, name: "RTW 1", typ: "fahrzeug" as const, kennung: "HN-DRK-1101", templateId: TPL_RTW },
@@ -309,7 +346,18 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       parentId: HANDLAGER_ID, sortierung: 90,
       zugangshinweis: "Zugang nur über die GF — LvD anrufen" },
   ].filter((o) => !ortDa.has(o.id));
-  for (const o of orteListe) db.insert(lagerorte).values({ ...o, aktiv: true }).run();
+  for (const o of orteListe) {
+    // `freierOrtsname` weicht nur bei Schraenken aus — und `ortsnamenDa` waechst
+    // mit, sonst kollidierten zwei Fixtures derselben Liste miteinander.
+    const name = "parentId" in o ? freierOrtsname(ortsnamenDa, o.name) : o.name;
+    if ("parentId" in o) ortsnamenDa.add(normalisiereSchrankName(name));
+    db.insert(lagerorte).values({ ...o, name, aktiv: true }).run();
+    if (name !== o.name) {
+      protokoll.push(
+        `  Lagerort „${o.name}" heißt im Seed „${name}" — der Name war schon vergeben.`,
+      );
+    }
+  }
 
   /* 5 ── Vorlagen-Positionen. Je Artikel GENAU EINE Position — der Check
    *      gruppiert seine Ergebnisse je Artikel, nicht je Position (§5.7.1); mit

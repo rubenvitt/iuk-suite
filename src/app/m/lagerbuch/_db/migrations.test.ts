@@ -289,7 +289,7 @@ describe("19 Tabellen, Spalte fuer Spalte", () => {
 });
 
 const INDIZES: Record<string, string[]> = {
-  lagerorte: ["idx_lagerorte_parent"],
+  lagerorte: ["idx_lagerorte_name_je_parent", "idx_lagerorte_parent"],
   fahrzeug_templates: [],
   template_positionen: ["idx_template_pos_template"],
   artikel: [],
@@ -325,6 +325,22 @@ describe("Indizes — alle bestehenden bleiben, vier kommen dazu", () => {
   it("idx_lagerort_verfall_ort_artikel ist UNIQUE", () => {
     const l = sqlite.prepare("PRAGMA index_list(lagerort_verfall)").all() as IndexInfo[];
     expect(l.find((i) => i.name === "idx_lagerort_verfall_ort_artikel")?.unique).toBe(1);
+  });
+
+  it("idx_lagerorte_name_je_parent ist UNIQUE, TEILWEISE und faltet den Namen", () => {
+    // Drei Eigenschaften, drei Ausfaelle: ohne UNIQUE ist es nur ein Lesepfad;
+    // ohne `WHERE parent_id IS NOT NULL` waere es eine Zusage ueber
+    // Fahrzeugnamen, die niemand getroffen hat; ohne `lower(trim(...))` stuenden
+    // „Schrank 1" und „schrank 1 " weiter nebeneinander. PRAGMA index_list
+    // kennt keine Bedingung und keinen Ausdruck — dafuer gibt es nur das SQL.
+    const l = sqlite.prepare("PRAGMA index_list(lagerorte)").all() as IndexInfo[];
+    expect(l.find((i) => i.name === "idx_lagerorte_name_je_parent")?.unique).toBe(1);
+
+    const ddl = (sqlite.prepare(
+      "select sql from sqlite_master where type='index' and name=?",
+    ).get("idx_lagerorte_name_je_parent") as { sql: string }).sql;
+    expect(ddl).toMatch(/lower\(trim\(`?name`?\)\)/i);
+    expect(ddl).toMatch(/where\s+`?parent_id`?\s+is\s+not\s+null/i);
   });
 
   it("die vier neuen Indizes tragen genau die Spalten aus S3", () => {
@@ -398,8 +414,8 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt neun Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  it("fuehrt zehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -419,7 +435,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
       .toEqual([
         "0001_append_only", "0002_bz_kontrollen_append_only", "0003_handlager", "0004_audit_outbox",
         "0005_artikel_kategorie", "0006_inventuren", "0007_o2_wechsel_grenze",
-        "0008_lagerorte_hierarchie",
+        "0008_lagerorte_hierarchie", "0009_lagerorte_name_eindeutig",
       ]);
   });
 

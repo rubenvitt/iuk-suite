@@ -131,6 +131,31 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     const schrankZeile = page.locator("[data-row-key]").filter({ hasText: schrankName });
     await expect(schrankZeile, "der neue Schrank muss in der Lagerorte-Liste stehen").toHaveCount(1);
 
+    // ── 1b) DRK-367: derselbe Name ein zweites Mal wird abgewiesen ─────────
+    // Die einzige Stelle, an der die ganze Kette am Stueck laeuft: Formular →
+    // Server Action → Datenbank → Satz am Feld. Weder ein DOM-Test (die Action
+    // ist dort gemockt) noch ein Action-Test (dort gibt es kein Formular) sieht
+    // sie. Die Schreibweise ist ABSICHTLICH anders: die Probe faltet, der
+    // Vergleich ist nicht Byte auf Byte.
+    await klickeWennRuhig(page.getByRole("button", { name: "Neuer Schrank" }));
+    const dublettenDialog = page.getByRole("dialog");
+    await dublettenDialog.getByLabel("Name").fill(schrankName.toUpperCase());
+
+    const dublettenAntwort = serverActionAntwort(page);
+    await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
+    expect((await dublettenAntwort).ok(), "Dublette anlegen: Server Action").toBe(true);
+
+    await expect(
+      dublettenDialog.locator(".ant-form-item-explain-error"),
+      "der abgelehnte Name muss AM FELD stehen, nicht nur daneben",
+    ).toHaveText("Dieser Name ist bereits vergeben.");
+    await klickeWennRuhig(dublettenDialog.getByRole("button", { name: "Abbrechen" }));
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.locator("[data-row-key]").filter({ hasText: schrankName }),
+      "die Dublette darf nicht in der Liste stehen",
+    ).toHaveCount(1);
+
     // ── 2) Verwaltung → Artikel, eigenen Artikel anlegen ──────────────────
     // Ein eigener Artikel statt eines geseedeten: siehe Kopfkommentar — jeder
     // vorhandene Kandidat ist einem anderen Flow vorbehalten.
@@ -233,5 +258,79 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     const hinweisZeile = page.locator('[data-rolle="charge-zugangshinweis"]');
     await expect(hinweisZeile, "der Zugangshinweis muss ohne Interaktion sichtbar sein").toBeVisible();
     await expect(hinweisZeile).toContainText(`${schrankName}: ${zugangshinweis}`);
+  });
+
+  /**
+   * DRK-349 — DER LOESCHWEG, UND ZWAR DER GANZE.
+   *
+   * ⚠️ DIE TRAGENDE ZUSICHERUNG IST DIE NACH DEM NEULADEN, nicht die
+   * verschwundene Zeile. Genau das war der gemeldete Fehler: `loescheElement`
+   * lief in einen Loeschzweig mit `WHERE typ = 'fahrzeug'`, traf einen Schrank
+   * (`typ: "lager"`) nie und meldete trotzdem `{ ok: true }`. Der Dialog
+   * schloss sich, die Liste laed neu — und weil `revalidatePath` unter
+   * `next dev` nicht immer sofort durchschlaegt, koennte eine Zusicherung
+   * allein auf die Zeile im selben Dokument sogar gruen werden, waehrend die
+   * Zeile in der Datenbank steht. Ein frischer `page.goto` kann das nicht.
+   *
+   * ⚠️ EIGENER SCHRANK, NICHT DER AUS DEM TEST OBEN: der traegt nach seinem
+   * Zugang eine Buchung und ist damit fachlich richtig UNloeschbar. Ein
+   * Loeschtest darauf pruefte die Ablehnung, nicht den Loeschweg — und die
+   * Ablehnungen stehen vollstaendig in `_actions/loeschen.test.ts` gegen eine
+   * echte Datenbank.
+   */
+  test("leeren Schrank anlegen und wieder löschen — die Zeile ist auch nach dem Neuladen weg", async ({
+    page,
+  }) => {
+    const versuch = test.info().retry;
+    const schrankName = `E2E Löschschrank Versuch ${versuch}`;
+
+    const lagerorteSeite = await page.goto(lagerbuchUrl("/verwaltung/lagerorte"));
+    expect(lagerorteSeite?.status(), "/verwaltung/lagerorte: HTTP").toBe(200);
+    await page.waitForLoadState("networkidle");
+
+    await klickeWennRuhig(page.getByRole("button", { name: "Neuer Schrank" }));
+    const anlegenDialog = page.getByRole("dialog");
+    await anlegenDialog.getByLabel("Name").fill(schrankName);
+
+    const anlegeAntwort = serverActionAntwort(page);
+    await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
+    expect((await anlegeAntwort).ok(), "Schrank anlegen: Server Action").toBe(true);
+
+    const zeile = page.locator("[data-row-key]").filter({ hasText: schrankName });
+    await expect(zeile, "der neue Schrank muss in der Liste stehen").toHaveCount(1);
+
+    // ── Löschen ────────────────────────────────────────────────────────────
+    // ⚠️ AUCH DIESER KLICK LOEST EINE SERVER ACTION AUS, und darum haengt auch
+    // er an `page.waitForResponse` (Falle 10, zweite Testregel): der Dialog
+    // ruft beim Oeffnen `pruefeLoeschbar`. Ohne die Zusicherung liefe eine
+    // abgelehnte Vorpruefung (403, 500, abgebrochen) still in das Zeitbudget
+    // der Zeile darunter und meldete sich als „der leere Schrank muss
+    // löschbar sein" — eine Meldung, die auf die Loeschregeln zeigt, waehrend
+    // in Wahrheit die Anfrage nie ankam.
+    const pruefAntwort = serverActionAntwort(page);
+    await klickeWennRuhig(zeile.getByRole("button", { name: "Löschen", exact: true }));
+    expect((await pruefAntwort).ok(), "Löschbarkeit prüfen: Server Action").toBe(true);
+
+    // Erst danach steht das Bestaetigungsfeld im Dialog. Auf das FELD zu warten
+    // ist die fachliche Probe — es erscheint nur im Zweig `loeschbar: true`;
+    // die Zeile darueber deckt den technischen Teil ab.
+    const loeschDialog = page.getByRole("dialog");
+    const bestaetigung = loeschDialog.getByLabel("Namen zur Bestätigung eingeben");
+    await expect(bestaetigung, "der leere Schrank muss löschbar sein").toBeVisible();
+    await bestaetigung.fill(schrankName);
+
+    const loeschAntwort = serverActionAntwort(page);
+    await klickeWennRuhig(loeschDialog.locator("[data-rolle='loeschen']"));
+    expect((await loeschAntwort).ok(), "Schrank löschen: Server Action").toBe(true);
+
+    await expect(zeile, "die Zeile muss aus der Liste verschwinden").toHaveCount(0);
+
+    // ⚠️ DIE ZEILE, DIE DEN FEHLER VON DRK-349 GEFANGEN HAETTE.
+    const nachNeuladen = await page.goto(lagerbuchUrl("/verwaltung/lagerorte"));
+    expect(nachNeuladen?.status(), "/verwaltung/lagerorte nach dem Löschen: HTTP").toBe(200);
+    await expect(
+      page.locator("[data-row-key]").filter({ hasText: schrankName }),
+      "der gelöschte Schrank darf auch nach einem frischen Abruf nicht mehr dastehen",
+    ).toHaveCount(0);
   });
 });
