@@ -14,18 +14,8 @@ import { AUSSONDERN_PRAEFIX } from "../_lib/vorgang";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
+import type { VerfallWert } from "../_lib/verfallStand";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
-
-/**
- * Der TATSAECHLICH geschriebene Verfall.
- *
- * ⚠️ DIE OBERFLAECHE DARF NICHT IHREN EIGENEN EINGABEWERT SPIEGELN: seit die
- * Transaktion ueber „alles raus" entscheidet, koennen Eingabe und Ergebnis
- * auseinandergehen — der Dialog schickt ein Datum, die Buchung leert den
- * Bestand, geschrieben wird `null`. Ohne diesen Rueckgabewert zeigte der
- * Monatswaehler danach ein Datum, das in der Datenbank nicht steht.
- */
-export type AussondernWert = { verfall: string | null };
 
 const AussondernLagerortSchema = z.object({
   lagerortId: z.string().min(1),
@@ -77,15 +67,27 @@ const AussondernLagerortSchema = z.object({
  *
  * Die Anzeige ist seit DRK-344 NICHT mehr offen: das Journal beschriftet diese
  * Zeilen als „Aussonderung" und lässt sich danach filtern.
+ *
+ * ⚠️ SIE MELDET DEN TATSAECHLICH GESCHRIEBENEN VERFALL, und die Oberfläche darf
+ * nicht ihren eigenen Eingabewert spiegeln: seit die Transaktion über „alles
+ * raus" entscheidet, können Eingabe und Ergebnis auseinandergehen — der Dialog
+ * schickt ein Datum, die Buchung leert den Bestand, geschrieben wird `null`.
+ * Ohne diesen Rückgabewert zeigte der Monatswähler danach ein Datum, das in der
+ * Datenbank nicht steht.
+ *
+ * ⚠️ `VerfallWert` IST DERSELBE TYP WIE BEI `verfallSetzen` (DRK-345,
+ * `_lib/verfallStand.ts`) — kein eigener daneben. Beide Wege schreiben denselben
+ * Wert, also melden sie ihn in derselben Form, und ein Trichter in der Tabelle
+ * nimmt beide.
  */
 export async function aussondernVomLagerort(
   eingabe: unknown,
   db: DB = getDb(),
-): Promise<ActionErgebnis<AussondernWert>> {
+): Promise<ActionErgebnis<VerfallWert>> {
   const viewer = await requireLagerbuchAdmin();
   return withAuditContext(
     { actor: auditActor(viewer) },
-    async (): Promise<ActionErgebnis<AussondernWert>> => {
+    async (): Promise<ActionErgebnis<VerfallWert>> => {
       const geparst = AussondernLagerortSchema.safeParse(eingabe);
       if (!geparst.success) {
         const feldFehler = zodFehler(geparst.error);

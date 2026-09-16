@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { einheitMeta, type Einheitenart } from "../_lib/konstanten";
+import { einheitLabels, einheitMeta, type Einheitenart } from "../_lib/konstanten";
 import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
@@ -51,6 +51,7 @@ export function FahrzeugWahl({
    */
   pfad?: "/helfer/check" | "/helfer/box";
 }) {
+  const beschriftung = einheitLabels(fahrzeuge);
   return (
     <>
       {/*
@@ -61,6 +62,7 @@ export function FahrzeugWahl({
       */}
       <div className={s.schirmKopf}>Einheit wählen</div>
       <div className={s.karte}>
+        {/* Kollisionen brauchen die GANZE Liste, nicht die einzelne Zeile. */}
         {fahrzeuge.map((f) => (
           <Link
             className={s.zeile}
@@ -84,8 +86,16 @@ export function FahrzeugWahl({
                 sie bisher GAR NICHTS — der Name allein musste die Art
                 mittragen, und „Rucksack Betreuung" tut das nicht.
               */}
+              {/*
+                ⚠️ UND WO AUCH DIE ART NICHT TRENNT, TRENNT DIE ID
+                (Reviewrunde 16). Zwei Taschen duerfen „Betreuung" heissen und
+                beide ohne Kennung sein — dann stuenden hier zwei WOERTLICH
+                gleiche Zeilen untereinander, und wer eine antippt, erfaehrt
+                nicht, welche er bekommt. Die Wahl gilt danach fuer alle
+                weiteren Entnahmen mit diesem Kaertchen.
+              */}
               <div className={s.zeileMeta}>
-                {einheitMeta(f)}
+                {beschriftung.get(f.id)?.meta ?? einheitMeta(f)}
               </div>
             </div>
             <Ikone name="chevron-rechts" />

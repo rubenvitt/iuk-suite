@@ -634,6 +634,70 @@ function ortsFixtures(): void {
 }
 
 /**
+ * DRK-339 — EINE ABGELAUFENE CHARGE IN ZWEI SCHRAENKEN.
+ *
+ * Genau die Lage, in der die Verfallsliste den Ort ABFRAGEN muss statt ihn nur
+ * zu nennen: eine Charge, deren Handlager-Rest auf zwei Orte verteilt ist.
+ *
+ * ⚠️ EIGENE SCHRAENKE UND EIN EIGENER ARTIKEL, nicht die aus
+ * `ortsFixtures`/`lagerbuch-schraenke.spec.ts`: Playwright faehrt alle Specs in
+ * EINEM Worker gegen EINE Datei, und dieser Spec BUCHT — er sondert einen der
+ * beiden Schraenke aus. Auf einem geteilten Ort verschoebe das die
+ * Bestandszusagen der anderen Specs.
+ *
+ * ⚠️ DER SPEC STELLT SEINEN ZUSTAND SELBST WIEDER HER, dieser Seed laeuft nur
+ * einmal je Lauf. Die Wiederherstellung geht ueber eine GEGENBUCHUNG, nicht
+ * ueber ein DELETE: `buchungen` ist append-only, ein Loeschversuch bricht am
+ * Trigger `buchungen_no_delete` (Migration 0001).
+ *
+ * ⚠️ 4 UND 6, nicht 5 und 5: verschieden, und keine Zahl ist das Doppelte der
+ * anderen — sonst laege eine Zusicherung versehentlich richtig. Der zweite
+ * Schrank traegt einen Zugangshinweis, weil genau er in der Zeile als Zeichen
+ * erscheint.
+ */
+const VERFALL_ORT_SCHRANK_A = "e2e-ortswahl-schrank-a";
+const VERFALL_ORT_SCHRANK_B = "e2e-ortswahl-schrank-b";
+
+function verfallOrtFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values([
+    {
+      id: VERFALL_ORT_SCHRANK_A, name: "E2E Ortswahl Schrank A", typ: "lager",
+      kennung: null, aktiv: true, templateId: null,
+      parentId: HANDLAGER_ID, sortierung: 81, zugangshinweis: null,
+    },
+    {
+      id: VERFALL_ORT_SCHRANK_B, name: "E2E Ortswahl Schrank B", typ: "lager",
+      kennung: null, aktiv: true, templateId: null,
+      parentId: HANDLAGER_ID, sortierung: 82,
+      zugangshinweis: "E2E Zugang nur über die GF",
+    },
+  ]).onConflictDoNothing().run();
+  db.insert(artikel).values({
+    /* ⚠️ DER NAME DARF KEIN WORT ENTHALTEN, NACH DEM EIN ANDERER SPEC SUCHT
+     * (s. `vorgangFixtures`) — „Schere" kommt in keinem anderen Seed vor. */
+    id: "e2e-ortswahl-artikel", name: "E2E Ortswahl Schere", einheit: "Stk.", fach: "OW-1",
+    mindestbestand: 0, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  db.insert(chargen).values({
+    id: "e2e-ortswahl-charge", artikelId: "e2e-ortswahl-artikel", chargenNr: "E2E-OW",
+    verfall: "2020-02", createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  if (!db.select().from(buchungen).where(eq(buchungen.chargeId, "e2e-ortswahl-charge")).get()) {
+    for (const [lagerortId, menge] of [
+      [VERFALL_ORT_SCHRANK_A, 4], [VERFALL_ORT_SCHRANK_B, 6],
+    ] as const) {
+      db.insert(buchungen).values({
+        id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-ortswahl-artikel",
+        chargeId: "e2e-ortswahl-charge", lagerortId, menge,
+        quelleTyp: "system", quelleId: "e2e", referenz: null, kommentar: null,
+      }).run();
+    }
+  }
+}
+
+/**
  * DRK-344 — drei Korrekturen auf EINEM eigenen Artikel, die sich NUR durch ihre
  * `referenz` unterscheiden.
  *
@@ -832,6 +896,7 @@ aussondernFahrzeugFixtures();
 entnahmeboxFixtures();
 kategorieFixtures();
 inventurFixtures();
+verfallOrtFixtures();
 vorgangFixtures();
 sammelFixtures();
 angemeldetFixtures();

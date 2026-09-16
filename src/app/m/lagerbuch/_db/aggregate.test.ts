@@ -3,7 +3,7 @@ import { migrierteTestDb, type TestDb } from "./testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "./schema";
 import {
   bestandJeArtikel, restJeCharge, bestandJeArtikelUndLagerort,
-  restJeChargeFuerArtikel, restJeChargeUndOrt, kennzahlen,
+  restJeChargeFuerArtikel, restJeChargeUndOrt, restJeChargeJeOrt, kennzahlen,
 } from "../_lib/lesepfade/bestand";
 import {
   bestandProLagerort, bestandProLagerortUndCharge, bestandProOrte,
@@ -304,6 +304,34 @@ describe("kennzahlen", () => {
     expect(k.chargenKritisch).toBe(1);   // c1 unveraendert
   });
 
+  /**
+   * DIE KACHEL ZAEHLT DIESELBEN CHARGEN WIE DIE LISTE DARUNTER (Codex-Befund
+   * zu PR #173).
+   *
+   * ⚠️ EIN ORT DARF IM MINUS STEHEN — das Journal ist append-only, und die
+   * Fassung vor DRK-297 buchte den ganzen Rest auf die Wurzel, auch wenn er in
+   * den Schraenken lag. Liegt eine abgelaufene Charge dann mit +3 in einem
+   * Schrank und mit −5 an der Wurzel, fuehrt `verfallListe` sie (sie laesst
+   * negative Orte weg), und die Zeile traegt einen Aussondern-Knopf. Ueber die
+   * vorzeichenbehaftete Summe gezaehlt, stuende auf der Uebersicht daneben
+   * eine gruene 0.
+   */
+  it("zaehlt eine abgelaufene Charge, die trotz Minus-Ort irgendwo positiv liegt", () => {
+    const zeile = (lagerortId: string, menge: number, typ: "zugang" | "korrektur") => ({
+      id: newId(), ts: NOW, typ, artikelId: "a2", chargeId: "c3",
+      lagerortId, menge, quelleTyp: "system" as const, quelleId: "test",
+      referenz: null, kommentar: null,
+    });
+    t.db.insert(buchungen).values([
+      zeile("schrank-1", 3, "zugang"),
+      zeile(HANDLAGER_ID, -5, "korrektur"),
+    ]).run();
+
+    // Netto ueber den Bereich: −2. Positiv liegt trotzdem etwas: 3 in Schrank 1.
+    expect(restJeCharge(t.db, [HANDLAGER_ID, "schrank-1", "schrank-2"]).get("c3")).toBe(-2);
+    expect(kennzahlen(t.db, NOW).chargenAbgelaufen).toBe(1);
+  });
+
   it("zaehlt ALLE Buchungszeilen, lagerort-uebergreifend", () => {
     // 8 + 2 (die geteilte Charge aus DRK-297: schrank-1 und RTW1).
     expect(kennzahlen(t.db, NOW).buchungenGesamt).toBe(10);
@@ -431,6 +459,49 @@ describe("DRK-297 — Bestand ueber einen Bereich", () => {
    * `inArray` (plus `artikelId`-Praedikat), reine Seite die Vollladung EINES
    * Artikels ohne Ortsprädikat.
    */
+  /**
+   * DRK-339 — DER DIFFERENZTEST FUER `restJeChargeJeOrt`. SQL-Seite: EINE
+   * Abfrage mit `GROUP BY charge_id, lagerort_id` ueber den Bereich. Reine
+   * Seite: `bestandProLagerortUndCharge` JE ORT aus der Vollladung — ein
+   * anderer Weg, nicht dieselbe Formel zweimal.
+   *
+   * ⚠️ DIE ZWEITE ZUSICHERUNG IST DIE WICHTIGERE: die Summe ueber die inneren
+   * Maps MUSS `restJeCharge` ueber denselben Bereich ergeben. Genau darauf
+   * beruht die Verfallsliste, die den Gesamtrest seit DRK-339 aus den
+   * Liegeplaetzen aufaddiert statt ihn ein zweites Mal abzufragen — liefen die
+   * beiden auseinander, stuende ueber dem Aussondern-Knopf eine andere Zahl,
+   * als er bucht.
+   */
+  it("restJeChargeJeOrt stimmt je Ort mit bestandProLagerortUndCharge ueberein", () => {
+    const roh = alleZeilen();
+    const bereich = [HANDLAGER_ID, "schrank-1", "schrank-2"];
+    const sql = restJeChargeJeOrt(t.db, bereich);
+
+    for (const ort of bereich) {
+      for (const [chargeId, menge] of bestandProLagerortUndCharge(roh, ort)) {
+        // Die SQL-Seite laesst einen Ort mit Saldo <= 0 weg, die reine nicht.
+        expect(sql.get(chargeId)?.get(ort), `${ort}/${chargeId}`)
+          .toBe(menge > 0 ? menge : undefined);
+      }
+    }
+
+    // ⚠️ Der Bereich schliesst das Fahrzeug NICHT ein — dort liegen 7 Stueck
+    // derselben Charge, und sie duerfen hier nirgends auftauchen.
+    expect(sql.get(CHARGE_GETEILT)?.get("schrank-1")).toBe(5);
+    expect(sql.get(CHARGE_GETEILT)?.get(RTW1)).toBeUndefined();
+  });
+
+  it("die Summe der Liegeplaetze ist dieselbe Zahl wie restJeCharge", () => {
+    const bereich = [HANDLAGER_ID, "schrank-1", "schrank-2", RTW1];
+    const jeOrt = restJeChargeJeOrt(t.db, bereich);
+    const gesamt = restJeCharge(t.db, bereich);
+
+    for (const [chargeId, orte] of jeOrt) {
+      const summe = [...orte.values()].reduce((s, m) => s + m, 0);
+      expect(summe, chargeId).toBe(gesamt.get(chargeId));
+    }
+  });
+
   it("restJeChargeFuerArtikel ueber eine mehrelementige Ortsmenge stimmt mit restProOrtenUndCharge ueberein", () => {
     const roh = alleZeilen().filter((r) => r.artikelId === "a1");
     const ohneFahrzeug = [HANDLAGER_ID, "schrank-1", "schrank-2"];

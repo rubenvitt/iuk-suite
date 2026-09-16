@@ -10,7 +10,7 @@ import {
   werteAlsFilter,
 } from "@/core/tabelle";
 import type { AmpelTon } from "../../../_lib/format";
-import { einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
+import { einheitLabels, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import type { IkonName } from "../../../_ui/ikonen";
@@ -26,6 +26,10 @@ export type CheckErgebnisChip = {
 export type CheckAnzeigeZeile = {
   id: string;
   detailHref: string;
+  /** ⚠️ DRK-309, Reviewrunde 16: der Filter gruppiert ueber die ID, nicht ueber
+   *  den Namen — zwei gleichnamige Taschen ohne Kennung waeren sonst EIN
+   *  Filterwert (`einheitLabels`). */
+  fahrzeugId: string;
   fahrzeugName: string;
   fahrzeugKennung: string | null;
   fahrzeugEinheitenart: Einheitenart | null;
@@ -66,14 +70,32 @@ export type ChecksTabelleProps = {
  * dieselbe Zeichenkette, damit beide dasselbe meinen. Waeren es zwei, zeigte
  * die Liste etwas anderes an, als der Haken daneben auswaehlt.
  */
-function zeileTitel(zeile: CheckAnzeigeZeile): string {
-  return `${zeile.fahrzeugName} · ${einheitMeta({
-    kennung: zeile.fahrzeugKennung,
-    einheitenart: zeile.fahrzeugEinheitenart,
-  })}`;
+/**
+ * ⚠️ AUS DER GANZEN LISTE, NICHT AUS DER EINZELNEN ZEILE (DRK-309,
+ * Reviewrunde 16). Zwei Taschen duerfen gleich heissen und beide ohne Kennung
+ * sein — dann ergibt `einheitMeta` fuer beide dieselbe Zeichenkette, und der
+ * Spaltenfilter zoege sie in EINEN Wert zusammen. Welche Einheit gemeint ist,
+ * waere ueber diese Spalte dann gar nicht mehr zu isolieren. `einheitLabels`
+ * haengt die ID an, aber nur wo es kollidiert; dafuer braucht es alle Zeilen
+ * auf einmal.
+ */
+function zeilenTitel(
+  zeilen: readonly CheckAnzeigeZeile[],
+): Map<string, { label: string; meta: string }> {
+  return einheitLabels(zeilen.map((z) => ({
+    id: z.fahrzeugId,
+    name: z.fahrzeugName,
+    kennung: z.fahrzeugKennung,
+    einheitenart: z.fahrzeugEinheitenart,
+  })));
 }
 
 function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["columns"] {
+  const beschriftung = zeilenTitel(zeilen);
+  // Dieselbe Zeichenkette fuer Anzeige UND Filter — waeren es zwei,
+  // zeigte die Liste etwas anderes an, als der Haken daneben auswaehlt.
+  const titel = (zeile: CheckAnzeigeZeile) =>
+    beschriftung.get(zeile.fahrzeugId)?.label ?? zeile.fahrzeugName;
   return [
     {
       // DRK-309: NEUTRAL — die Spalte listet Fahrzeuge UND Taschen
@@ -88,11 +110,11 @@ function spalten(zeilen: CheckAnzeigeZeile[]): TableProps<CheckAnzeigeZeile>["co
        * heissen, und ein Filter ueber den blossen Namen faenge dann BEIDE —
        * eine Auswahl, die sich wie eine Einschraenkung liest und keine ist.
        */
-      filters: werteAlsFilter(zeilen, zeileTitel),
-      onFilter: trifftWert<CheckAnzeigeZeile>(zeileTitel),
+      filters: werteAlsFilter(zeilen, titel),
+      onFilter: trifftWert<CheckAnzeigeZeile>(titel),
       render: (name: string, zeile: CheckAnzeigeZeile) => (
         <Link href={zeile.detailHref} style={{ fontWeight: 600 }}>
-          {zeileTitel(zeile)}
+          {titel(zeile)}
         </Link>
       ),
     },
