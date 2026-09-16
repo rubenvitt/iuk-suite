@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { qrSvg } from "@/core/qr";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { einheitLabels, standortMeta } from "../_lib/konstanten";
+import { einheitLabels, einheitMeta, standortMeta, type Einheitenart } from "../_lib/konstanten";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
 import type { DB } from "./client";
 import { artikel, tokens } from "./schema";
@@ -114,6 +114,18 @@ export type OrtEtikett = {
   name: string;
   /** Die Beizeile: „Lager" · „Fahrzeug · HN-DRK-1101" · „Tasche". */
   meta: string;
+  /**
+   * DIE ID, WENN ZWEI EINHEITEN SONST GLEICH AUSSAEHEN — sonst `null`.
+   *
+   * ⚠️ SIE STEHT ALS EIGENES FELD DA UND NICHT IN `meta`, und das ist die
+   * Korrektur eines eigenen Fehlgriffs (Codex, sechste Runde): angehaengt an
+   * die Beizeile landete der Unterscheider in genau dem Feld, dessen
+   * Ueberlaufregel ihn verbirgt — eine Zeile, `text-overflow: ellipsis`, und
+   * gemessen reichte sie fuer „Tasche · <id>" (30 Zeichen) gerade noch, fuer
+   * „nicht zugeordnet · <id>" (40) nicht mehr. Zwei Karten laesen sich dann
+   * wieder gleich, und die Reparatur haette nur so ausgesehen, als wirkte sie.
+   */
+  unterscheidung: string | null;
   /** Die volle, abtippbare Adresse — sie steht im Fuss der Karte. */
   url: string;
   qr: string;
@@ -176,12 +188,30 @@ export async function ortEtikettenDaten(db: DB): Promise<OrtEtikettenDaten> {
    */
   const beschriftung = einheitLabels(zeilen.filter((o) => o.typ === "fahrzeug"));
 
+  /**
+   * ⚠️ `einheitLabels` ENTSCHEIDET, DIE KARTE RENDERT WOANDERS. Der Helfer
+   * haengt die Id an die Beizeile — auf dem Bildschirm richtig, auf 64mm
+   * Papier nicht: dort ist die Beizeile eine Zeile mit `text-overflow`, und
+   * der Unterscheider waere genau das, was als Erstes verschwindet. Benutzt
+   * wird deshalb seine ENTSCHEIDUNG (hat er angehaengt?), nicht seine
+   * Zeichenkette.
+   *
+   * ⚠️ DER VERGLEICH GEGEN `einheitMeta` UND NICHT EIN `slice`: die Id darf
+   * das Trennzeichen enthalten, eine Zerlegung der fertigen Zeichenkette waere
+   * also nicht umkehrbar — dieselbe Falle, die `einheitLabels` in seinem
+   * dritten Durchgang selbst ausschreibt.
+   */
+  const kollidiert = (o: { id: string; typ: "lager" | "fahrzeug"; kennung: string | null;
+                           einheitenart: Einheitenart | null }) =>
+    o.typ === "fahrzeug" && beschriftung.get(o.id)?.meta !== einheitMeta(o);
+
   const orte = await Promise.all(zeilen.map(async (o) => {
     const url = `${basis}/o/${o.id}`;
     return {
       id: o.id,
       name: o.name,
-      meta: beschriftung.get(o.id)?.meta ?? standortMeta(o),
+      meta: standortMeta(o),
+      unterscheidung: kollidiert(o) ? o.id : null,
       url,
       qr: await qrSvg(url),
     };

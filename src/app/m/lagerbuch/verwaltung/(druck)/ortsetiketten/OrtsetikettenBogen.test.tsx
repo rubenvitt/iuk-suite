@@ -53,13 +53,13 @@ function ohneKommentare(quelle: string): string {
 
 const BASIS = "https://lagerbuch.example.org";
 const ORTE = [
-  { id: "handlager", name: "Handlager", meta: "Lager",
+  { id: "handlager", name: "Handlager", meta: "Lager", unterscheidung: null,
     url: `${BASIS}/o/handlager`,
     qr: '<svg viewBox="0 0 45 45"><path d="M0 0h1v1H0z"/></svg>' },
-  { id: "rtw-1", name: "RTW 1", meta: "Fahrzeug · HN-DRK-1101",
+  { id: "rtw-1", name: "RTW 1", meta: "Fahrzeug · HN-DRK-1101", unterscheidung: null,
     url: `${BASIS}/o/rtw-1`,
     qr: '<svg viewBox="0 0 45 45"><path d="M1 1h1v1H1z"/></svg>' },
-  { id: "tasche-san", name: "Sanitätstasche 1", meta: "Tasche",
+  { id: "tasche-san", name: "Sanitätstasche 1", meta: "Tasche", unterscheidung: null,
     url: `${BASIS}/o/tasche-san`,
     qr: '<svg viewBox="0 0 45 45"><path d="M2 2h1v1H2z"/></svg>' },
 ];
@@ -140,6 +140,39 @@ describe("OrtsetikettenBogen", () => {
       expect(text, huelle.textContent ?? "").not.toBeNull();
       expect(text!.parentElement).toBe(huelle);
     }
+  });
+
+  /**
+   * ⚠️ DER UNTERSCHEIDER STEHT IM FUSS, NICHT IN DER BEIZEILE — und diese
+   * Zusicherung ist die Korrektur eines eigenen Fehlgriffs (Codex, sechste
+   * Runde). In der Beizeile landete er im einen Feld mit `text-overflow` und
+   * verschwand als Erstes; der Fuss hat drei fest reservierte Zeilen, von denen
+   * eine uebliche Adresse zwei braucht.
+   *
+   * ⚠️ UND ER STEHT VORN: der Fuss klammert nach drei Zeilen, also kuerzt ein
+   * sehr langer Host das Ende der ADRESSE und nie die Id. Deshalb prueft der
+   * Test die REIHENFOLGE und nicht nur das Vorhandensein.
+   */
+  it("setzt den Unterscheider vorn in den Fuss, nicht in die Beizeile", async () => {
+    const orte = [
+      { ...ORTE[1]!, id: "a", name: "Betreuung", meta: "Tasche", unterscheidung: "a" },
+      { ...ORTE[2]!, id: "b", name: "Betreuung", meta: "Tasche", unterscheidung: "b" },
+    ];
+    await mount(<OrtsetikettenBogen orte={orte} />);
+
+    expect(queryAll(".lb-ortkarteUnterscheidung").map((e) => e.textContent)).toEqual(["a", "b"]);
+    // Die Beizeile bleibt schlicht — dort wuerde er gekuerzt.
+    for (const m of queryAll(".lb-ortkarteMeta")) expect(m.textContent).toBe("Tasche");
+    // Vorn im Fuss, vor der Adresse.
+    for (const fuss of queryAll(".lb-ortkarteUrl")) {
+      expect(fuss.firstElementChild?.className).toBe("lb-ortkarteUnterscheidung");
+    }
+  });
+
+  /** Ohne Kollision bleibt der Fuss, wie er war — die Id ist haesslich. */
+  it("zeigt ohne Kollision keinen Unterscheider", async () => {
+    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    expect(queryAll(".lb-ortkarteUnterscheidung")).toHaveLength(0);
   });
 
   it("waehlt zu Beginn alles aus", async () => {

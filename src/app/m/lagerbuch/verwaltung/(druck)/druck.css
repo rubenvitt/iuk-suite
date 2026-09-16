@@ -422,6 +422,29 @@
  * die 21-stellige Id. Wird es dennoch knapp, verliert die ADRESSE ihr Ende und
  * nicht der Name: den Namen liest ein Mensch, die Adresse liest im Regelfall
  * die Kamera. */
+/* DER UNTERSCHEIDER — die Id, wenn zwei Einheiten sonst gleich aussaehen.
+ *
+ * ⚠️ ER LIEGT IM FUSS UND NICHT IN DER BEIZEILE, und das ist die Korrektur
+ * eines eigenen Fehlgriffs (Codex, sechste Runde): angehaengt an die Beizeile
+ * landete er in dem einen Feld, dessen Regel ihn verbirgt — eine Zeile,
+ * `text-overflow: ellipsis`. Gemessen reichte sie fuer „Tasche · <id>"
+ * (30 Zeichen, 212 von 212px) gerade noch, fuer „nicht zugeordnet · <id>"
+ * (40 Zeichen, 282px) nicht mehr.
+ *
+ * ⚠️ ER KOSTET KEINE HOEHE. Der Fuss hat ohnehin drei feste Zeilen; eine
+ * uebliche Adresse braucht zwei. Der Unterscheider nimmt die dritte — und weil
+ * er VORN steht, kuerzt die Klammer bei einem sehr langen Host das Ende der
+ * ADRESSE und nie ihn.
+ *
+ * ⚠️ FETT UND EIGENE ZEILE, nicht groesser: der Fuss ist auf 6pt vermessen, und
+ * ein groesserer Grad hier verschoebe die Zeilenrechnung der Klammer. Verglichen
+ * werden zwei Karten nebeneinander — dafuer traegt der Fettdruck. */
+.lb-ortkarteUnterscheidung {
+  display: block;
+  font-weight: 700;
+  color: #000000;
+}
+
 .lb-ortkarteUrl {
   display: -webkit-box;
   -webkit-box-orient: vertical;

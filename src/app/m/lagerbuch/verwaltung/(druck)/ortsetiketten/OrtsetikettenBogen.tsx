@@ -47,7 +47,11 @@ import { nameStufe } from "../../../_lib/ortEtikettMasse";
  * sonst vor der Karte steht.
  */
 
-type Ort = { id: string; name: string; meta: string; url: string; qr: string };
+type Ort = {
+  id: string; name: string; meta: string;
+  unterscheidung: string | null;
+  url: string; qr: string;
+};
 
 export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
   const keys = orte.map((o) => o.id);
@@ -116,7 +120,22 @@ export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
             <span className={`lb-ortkarteName ${nameStufe(o.name)}`}>
               <span className="lb-ortkarteNameText">{o.name}</span>
             </span>
-            <span className="lb-ortkarteUrl">{o.url}</span>
+            <span className="lb-ortkarteUrl">
+              {/*
+                ⚠️ DER UNTERSCHEIDER STEHT VORN IM FUSS, und beides ist
+                tragend. „Im Fuss", weil dort als einzigem Feld Platz
+                RESERVIERT ist (drei Zeilen, feste Hoehe) — die Beizeile ist
+                eine Zeile mit `text-overflow`, dort waere er das Erste, was
+                verschwindet, und die Reparatur saehe nur aus, als wirkte sie.
+                „Vorn", weil der Fuss nach drei Zeilen klammert: was bei einem
+                sehr langen Host gekuerzt wird, ist dann das Ende der ADRESSE
+                und nie die Id.
+              */}
+              {o.unterscheidung && (
+                <span className="lb-ortkarteUnterscheidung">{o.unterscheidung}</span>
+              )}
+              {o.url}
+            </span>
           </label>
         ))}
       </div>

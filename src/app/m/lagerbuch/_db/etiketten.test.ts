@@ -250,7 +250,7 @@ describe("ortEtikettenDaten", () => {
    * Zwei gleiche Namen sind ausdruecklich erlaubt: `lagerorte.name` traegt
    * fuer Einheiten keinen Eindeutigkeitsschluessel.
    */
-  it("haengt bei zwei gleichnamigen Einheiten die Id an die Beizeile", async () => {
+  it("gibt zwei gleichnamigen Einheiten je einen Unterscheider", async () => {
     t.db.insert(lagerorte).values([
       { id: "tasche-a", name: "Betreuung", typ: "fahrzeug", kennung: null,
         aktiv: true, einheitenart: "tasche" },
@@ -262,8 +262,34 @@ describe("ortEtikettenDaten", () => {
     const beide = daten.orte.filter((o) => o.name === "Betreuung");
     expect(beide).toHaveLength(2);
     // Die eigentliche Zusage: die zwei Karten lesen sich NICHT gleich.
-    expect(beide[0]!.meta).not.toBe(beide[1]!.meta);
-    for (const o of beide) expect(o.meta).toContain(o.id);
+    expect(beide.map((o) => o.unterscheidung)).toEqual(["tasche-a", "tasche-b"]);
+    /*
+     * ⚠️ UND DIE BEIZEILE BLEIBT SCHLICHT. Sie ist auf der Karte EINE Zeile mit
+     * `text-overflow`; stuende der Unterscheider dort, verschwaende er als
+     * Erstes — gemessen reichte die Zeile fuer „Tasche · <id>" (30 Zeichen)
+     * gerade noch, fuer „nicht zugeordnet · <id>" (40) nicht mehr. Genau das
+     * war der eigene Fehlgriff, den diese Zeile festhaelt.
+     */
+    for (const o of beide) expect(o.meta).toBe("Tasche");
+  });
+
+  /**
+   * ⚠️ AUCH MIT KENNUNG. Der Fall, an dem die alte Bauform gemessen scheiterte:
+   * „Fahrzeug · HN-DRK-1101 · <id>" sind 46 Zeichen und brauchte 325 von 212px.
+   * Im Fuss ist der Unterscheider davon unberuehrt.
+   */
+  it("traegt den Unterscheider auch, wenn die Beizeile schon lang ist", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "rtw-x", name: "Doppelt", typ: "fahrzeug", kennung: "HN-DRK-1101",
+        aktiv: true, einheitenart: "fahrzeug" },
+      { id: "rtw-y", name: "Doppelt", typ: "fahrzeug", kennung: "HN-DRK-1101",
+        aktiv: true, einheitenart: "fahrzeug" },
+    ]).run();
+
+    const daten = await ortEtikettenDaten(t.db);
+    const beide = daten.orte.filter((o) => o.name === "Doppelt");
+    expect(beide.map((o) => o.unterscheidung)).toEqual(["rtw-x", "rtw-y"]);
+    for (const o of beide) expect(o.meta).toBe("Fahrzeug · HN-DRK-1101");
   });
 
   /**
@@ -277,6 +303,8 @@ describe("ortEtikettenDaten", () => {
     const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
     expect(rtw.meta).toBe("Fahrzeug · HN-DRK-1101");
     expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
+    // Die Id ist haesslich und erscheint NUR im Kollisionsfall.
+    for (const o of daten.orte) expect(o.unterscheidung, o.name).toBeNull();
   });
 
   /**
@@ -295,6 +323,9 @@ describe("ortEtikettenDaten", () => {
     const daten = await ortEtikettenDaten(t.db);
     expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
     expect(daten.orte.find((o) => o.id === "tasche-hl")!.meta).toBe("Tasche");
+    // Und er bekommt keinen Unterscheider: er kollidiert mit keiner Einheit,
+    // weil „Lager" keine Einheit je erzeugt.
+    expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.unterscheidung).toBeNull();
   });
 
   /** Ohne Basis gibt es keinen halben Bogen — dieselbe Zusage wie oben. */

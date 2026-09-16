@@ -442,6 +442,63 @@ test.describe("Ortsetiketten (A7)", () => {
   });
 
   /**
+   * ⚠️ DER UNTERSCHEIDER ZWEIER GLEICHNAMIGER EINHEITEN MUSS GANZ DASTEHEN —
+   * Codex, sechste Runde, und der Befund war die Korrektur eines eigenen
+   * Fehlgriffs: die Id an die Beizeile zu haengen legte sie in das eine Feld,
+   * dessen Regel sie verbirgt (eine Zeile, `text-overflow`). Gemessen reichte
+   * die Zeile fuer „Tasche · <id>" (30 Zeichen) gerade noch, fuer „nicht
+   * zugeordnet · <id>" (40 Zeichen, 282 von 212px) nicht mehr — zwei Karten
+   * laesen sich dann WIEDER gleich, und die Reparatur haette nur so
+   * ausgesehen, als wirkte sie.
+   *
+   * ⚠️ GEPRUEFT WIRD DER PLATZ, NICHT DAS MARKUP. Ein `toBeVisible()` bliebe
+   * gruen, waehrend `text-overflow` das Ende abschneidet oder die Klammer die
+   * Zeile aus dem Fuss schiebt. Dass die INSEL den Unterscheider wirklich dort
+   * hinsetzt, haelt `OrtsetikettenBogen.test.tsx` daneben; dieser Test haelt,
+   * dass an dieser Stelle Platz IST.
+   */
+  test("gibt dem Unterscheider im Fuss Platz, der nicht gekuerzt wird", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    await page.emulateMedia({ media: "print" });
+
+    const befund = await page.evaluate((id) => {
+      const karte = document.querySelector(".lb-ortkarte")!;
+      const fuss = karte.querySelector(".lb-ortkarteUrl") as HTMLElement;
+      const meta = karte.querySelector(".lb-ortkarteMeta") as HTMLElement;
+      // Der Kollisionsfall, so wie `ortEtikettenDaten` ihn liefert — dazu die
+      // laengste reale Beizeile, weil genau sie den alten Ort gesprengt hat.
+      meta.textContent = "nicht zugeordnet";
+      /*
+       * ⚠️ MIT EINER LANGEN ADRESSE, und ohne die bewiese der Test nichts: bei
+       * der kurzen Seed-Adresse bleiben im Fuss zwei der drei Zeilen frei, und
+       * der Unterscheider passt dann an JEDER Stelle. Knapp wird es erst, wenn
+       * die Adresse den Fuss fuellt — genau dort entscheidet sich, ob „vorn"
+       * wirklich traegt.
+       */
+      fuss.textContent =
+        `https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/o/${id}`;
+      const marke = document.createElement("span");
+      marke.className = "lb-ortkarteUnterscheidung";
+      marke.textContent = id;
+      fuss.prepend(marke);
+
+      const m = marke.getBoundingClientRect();
+      const f = fuss.getBoundingClientRect();
+      return {
+        text: marke.textContent,
+        seitlichGekuerzt: marke.scrollWidth > marke.clientWidth + 0.5,
+        ausDemFussGefallen: m.bottom > f.bottom + 0.5 || m.top < f.top - 0.5,
+        karteUeberlauf: karte.scrollHeight > karte.clientHeight,
+      };
+    }, "V1StGXR8_Z5jdHi6B-myT");
+
+    expect(befund.text).toBe("V1StGXR8_Z5jdHi6B-myT");
+    expect(befund.seitlichGekuerzt, "der Unterscheider wird seitlich gekuerzt").toBe(false);
+    expect(befund.ausDemFussGefallen, "der Unterscheider liegt ausserhalb des Fusses").toBe(false);
+    expect(befund.karteUeberlauf).toBe(false);
+  });
+
+  /**
    * ⚠️ DER TEST, UM DESSENTWILLEN DIESE DATEI EXISTIERT. `@page { size: A7 }`
    * waere gueltiges CSS, bestuende `typecheck`, `lint`, `build` und jeden
    * Quelltext-Scan — und kaeme im Vorgabeformat des Druckers heraus, weil
