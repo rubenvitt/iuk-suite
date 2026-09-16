@@ -97,7 +97,13 @@ describe("BeachtungEditor mit laufender Beachtung", () => {
       />,
     );
 
-    expect(query(`.${s.chip}`).textContent).toContain("Display flackert");
+    /*
+     * ⚠️ DER CHIP IST DER STATUS, DER TEXT DANEBEN DER HINWEIS (Reviewrunde 2).
+     * `.chip` traegt `white-space: nowrap` — stuende der Hinweis darin, waere
+     * ein langer Satz eine einzige unbrechbare Zeile und liefe aus der Karte.
+     */
+    expect(query(`.${s.chip}`).textContent).toContain("beachten");
+    expect(document.body.textContent).toContain("Display flackert");
     expect(document.body.textContent).toContain("seit 08.07. 09:15");
     // Das Feld ist vorbelegt — wer nur praeziser formulieren will, tippt den
     // Satz nicht neu.

@@ -27,6 +27,7 @@ import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
+import s from "../../../_ui/verwaltung.module.css";
 import type { BzAnzeigeZeile } from "./bzAnzeige";
 import { NeuBzGeraet } from "./NeuBzGeraet";
 
@@ -157,9 +158,18 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
        * Bewertung — „Nicht jede Bemerkung automatisch als Warnung
        * interpretieren" (Gespraechsnotiz DRK-311). Wer Aufmerksamkeit braucht,
        * traegt sie in der Spalte daneben.
+       *
+       * ⚠️ UND SIE BRAUCHT EINE BREITE (Reviewrunde 2). Der Kommentar einer
+       * Kontrolle ist ein Nachweisfeld ohne Laengengrenze, die Tabelle faehrt
+       * `scroll.x: "max-content"` — ein langer Satz schoebe alle folgenden
+       * Spalten aus dem Bild. Die Begruendung samt Gegenvorschlag steht an
+       * `.zellentext` in `verwaltung.module.css`; der volle Text bleibt im
+       * `title` und ungekuerzt im Logbuch des Geraeteblatts.
        */
       render: (text: string | null) => (
-        text ?? <span style={SCHRIFT.neben}>—</span>
+        text === null
+          ? <span style={SCHRIFT.neben}>—</span>
+          : <span className={s.zellentext} title={text}>{text}</span>
       ),
     },
     {
@@ -174,18 +184,36 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
        * schon darin. Ein roter Aufmerksamkeitshinweis waere von einem
        * Missstand nicht mehr zu unterscheiden.
        *
-       * ⚠️ DER HINWEISTEXT STEHT IM CHIP, nicht ein Wort wie „ja". Der Chip
-       * traegt immer Text, nie nur Farbe (`_ui/Chip.tsx`) — und hier ist der
-       * Text die ganze Aussage: ein gelber Punkt ohne Begruendung ist genau
-       * der Zustand, den das Ticket ausschliesst.
+       * ⚠️ CHIP UND HINWEIS SIND GETRENNT, und das war in Reviewrunde 2 nicht
+       * mehr verhandelbar: `.chip` steht auf `white-space: nowrap`
+       * (`verwaltung.module.css`). Ein Hinweis von 500 Zeichen waere darin EINE
+       * unbrechbare Zeile und schoebe die halbe Tabelle aus dem Bild — der
+       * schlimmere Fall als bei der Bemerkung daneben, weil er nicht einmal
+       * umbrechen kann.
+       *
+       * Die Aufteilung ist zugleich naeher am Akzeptanzkriterium, das
+       * ausdruecklich ZWEI Dinge verlangt: „ein gelber Status MIT
+       * verstaendlichem Hinweis". Der Chip ist der Status, der Text daneben der
+       * Hinweis — dieselbe Form wie in der Faelligkeitsspalte, wo der Chip den
+       * Zustand nennt und nicht seine Begruendung.
+       *
+       * ⚠️ „beachten" IST TEXT, nicht nur Farbe (`_ui/Chip.tsx`): ein gelber
+       * Punkt ohne Wort waere genau der Zustand, den das Ticket ausschliesst.
+       * Die Standzeit steht im `title` — sie ist eine Zusatzangabe, keine
+       * Aussage, die man zum Verstehen braucht.
        */
       render: (hinweis: string | null, zeile) => (
         hinweis === null
           ? <span style={SCHRIFT.neben}>—</span>
           : (
-            <Chip ton="gelb" zeichen="warnung" title={zeile.beachtungSeitText ?? undefined}>
-              {hinweis}
-            </Chip>
+            // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — derselbe
+            // enge Chip-Abstand wie in der Ergebnisspalte der Checkliste.
+            <Flex gap={6} align="flex-start" wrap>
+              <Chip ton="gelb" zeichen="warnung" title={zeile.beachtungSeitText ?? undefined}>
+                beachten
+              </Chip>
+              <span className={s.zellentext} title={hinweis}>{hinweis}</span>
+            </Flex>
           )
       ),
     },

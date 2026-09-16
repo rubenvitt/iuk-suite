@@ -284,6 +284,14 @@ describe("BzListe", () => {
   it("zeigt exakt sieben Spalten, fachliche Werte sowie Detail- und Scannerlinks", async () => {
     await mount(<BzListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
 
+    /*
+     * DRK-311, Reviewrunde 2: beide Freitextzellen sind auf eine Lesebreite
+     * gedeckelt (`.zellentext`), sonst schiebt EIN langer Kommentar aus dem
+     * Altbestand die Spalten dahinter aus dem Bild — die Tabelle faehrt
+     * `scroll.x: "max-content"`. Der volle Text bleibt im `title`.
+     */
+    expect(query(`.${s.zellentext}[title='Streifen nachbestellt']`).textContent)
+      .toBe("Streifen nachbestellt");
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual([
         "Gerät", "Standort", "Fälligkeit", "Letzte Kontrolle",

@@ -92,8 +92,21 @@ function BeachtungEditorInhalt({ geraetId, hinweis, seitText }: BeachtungWerte) 
             wissen muss.
           </p>
         ) : (
-          <Space wrap>
-            <Chip ton="gelb" zeichen="warnung">{hinweis}</Chip>
+          /*
+           * ⚠️ DER HINWEIS STEHT NEBEN DEM CHIP, NICHT DARIN (Reviewrunde 2).
+           * `.chip` traegt `white-space: nowrap` (`verwaltung.module.css`) —
+           * ein Hinweis von 500 Zeichen waere darin eine einzige unbrechbare
+           * Zeile und liefe seitlich aus der Karte heraus. Dieselbe Aufteilung
+           * wie in der Liste, und dieselbe wie im Akzeptanzkriterium: „ein
+           * gelber Status MIT verstaendlichem Hinweis" sind zwei Dinge.
+           *
+           * Hier wird NICHT gedeckelt. Auf dem Geraeteblatt ist der volle Satz
+           * das, was jemand lesen will; gedeckelt wird nur die Tabellenzelle,
+           * wo er die Spalten daneben aus dem Bild schoebe.
+           */
+          <Space wrap align="start">
+            <Chip ton="gelb" zeichen="warnung">beachten</Chip>
+            <span style={{ ...SCHRIFT.text, overflowWrap: "anywhere" }}>{hinweis}</span>
             {seitText ? <span style={SCHRIFT.neben}>{seitText}</span> : null}
           </Space>
         )}
