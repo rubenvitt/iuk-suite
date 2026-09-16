@@ -97,10 +97,18 @@ test.describe("lagerbuch — Freitext in der Tabelle ist gedeckelt (DRK-372)", (
       const kasten = probe.getBoundingClientRect();
       /*
        * ⚠️ DIE EINZEILIGE HÖHE WIRD GEMESSEN, NICHT AUS `line-height`
-       * GERECHNET. Steht dort `normal` — und das tut es in dieser Suite an mehr
-       * Stellen als man denkt (CLAUDE.md, Falle 8) —, ergäbe `parseFloat` NaN,
-       * und JEDER Vergleich damit ist falsch. Der Test fiele dann mit einer
-       * Meldung über die Zellhöhe, während die Ursache eine Zeichenkette ist.
+       * GERECHNET. `parseFloat("normal")` ist NaN, und JEDER Vergleich damit
+       * ist falsch — der Test fiele mit einer Meldung über die Zellhöhe,
+       * während die Ursache eine Zeichenkette ist.
+       *
+       * ⚠️ EHRLICH GESAGT: hier steht heute KEIN `normal`. antds Token liefert
+       * eine Zahl, und die gerechnete Fassung lief in CI-Lauf 35146864338
+       * grün. `normal` kam in einer Messung auf einer nackten Seite heraus —
+       * also nicht in dieser Zelle. Die gemessene Fassung bleibt trotzdem: sie
+       * kostet nichts, und `line-height` ist genau die Sorte Wert, die eine
+       * Themeänderung still auf `normal` stellt (CLAUDE.md, Falle 8 zeigt, dass
+       * die Suite das an ihren Hüllen tatsächlich tut). Ein Test, der dann mit
+       * NaN fiele, schickte den Leser in die Zellhöhe statt in die Zeichenkette.
        */
       const einzeilig = { breite: kasten.width, hoehe: kasten.height };
       probe.remove();
