@@ -93,6 +93,19 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
 
   { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
+  /* DRK-312 — das A7-Etikett je Handlager bzw. Einheit. Es steht NEBEN
+   * „Etiketten" und nicht darin: die beiden Flächen drucken auf verschiedenes
+   * Material (gekaufte Klebeetiketten gegen ein Blatt je Ort) und in
+   * verschiedenen Seitengrößen, und zusammen in einem Dokument verwirft
+   * Chromium die Seitengröße für beide.
+   *
+   * ⚠️ EIN EIGENES ZEICHEN, kein geteiltes mit „Etiketten". Die Regel steht in
+   * `core/shell/types.ts` ausgeschrieben und ist an `checks`/`pruefen` schon
+   * einmal angewandt worden: zwei Einträge im SELBEN Abschnitt mit demselben
+   * Zeichen sind in der Seitenleiste nicht auseinanderzuhalten. Die Bauform
+   * von `baukasten` (zwei Einträge, ein Zeichen) trägt nur, solange die
+   * Einträge in verschiedenen Abschnitten stehen. */
+  { key: "ortsetiketten", title: "Ortsetiketten", href: "/verwaltung/ortsetiketten", ikon: "ortsetiketten", abschnitt: "Einrichtung" },
   { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung" },
   { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import", abschnitt: "Einrichtung" },
 ];
