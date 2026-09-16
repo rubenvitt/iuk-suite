@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **achtzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **neunzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -350,6 +350,35 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     `verwaltung/(druck)/ortsetiketten/druck.test.ts` hält die Form fest,
     `e2e/lagerbuch-ortsetiketten.spec.ts` misst die Wirkung — **die Zahl kennt nur ein echter
     Browser**, dieselbe Klasse wie die Fallen 8 und 13.
+
+19. **Eine eigene CSS-Regel auf einen antd-Klassennamen stirbt beim Major-Upgrade STILL — und ein
+    Test, der den REGELTEXT liest, stirbt lautlos mit** (Modul-übergreifend, DRK-190/DRK-191, gegen
+    `antd@6.6.2` und `@rc-component/select@1.10.1` gemessen — nicht vermutet). `globals.css` trug
+    die einzige bewusst eingegangene Kopplung der Suite an einen antd-internen Klassennamen,
+    `:root .ant-select-selector { font-size: 16px }`, samt Kommentar „ein antd-Major könnte ihn
+    umbenennen, und der Bruch wäre still". Genau das ist passiert: antd 6 baut das Auswahlfeld aus
+    `.ant-select > .ant-select-content > (.ant-select-placeholder, input.ant-select-input)`, die
+    alte Klasse rendert nirgends mehr. Die Regel lief ins Leere, **und die 16px-Zusage der Suite sah
+    für jedes Auswahlfeld erfüllt aus, ohne es zu sein.**
+    ⚠️ **Der Test war dabei schlimmer als kein Test.** `feldschrift.test.ts` regexte über
+    `globals.css` und fand die Regel — sie stand ja da. Ein Quelltext-Scan kann strukturell nicht
+    sehen, ob der Baum, auf den ein Selektor zielt, überhaupt existiert; er las den Regeltext, nicht
+    die Wirkung. Weil dort ein Test stand, hat die Regel über Monate niemand hinterfragt.
+    **Abhilfe, und sie kostet keinen Browser:** `renderToString` plus `extractStyle` aus
+    `@ant-design/cssinjs` geben Markup UND das für das Suite-Theme tatsächlich erzeugte CSS heraus —
+    beides in Vitest, ohne Layout. `core/theme/selektschrift.test.ts` prüft damit, dass die Klasse,
+    auf die `globals.css` zielt, wirklich gerendert wird. Wer eine Regel gegen `.ant-*` schreibt,
+    schuldet einen solchen Test dazu.
+    ⚠️ **Die zweite Hälfte ist die teurere, und sie gilt für jedes antd-Bauteil mit Bediendichte:**
+    `.ant-select` trägt **keine `height`**. Es rechnet
+    `padding-block = (height − font-height) / 2 − border` und lässt die Zeilenbox den Rest machen.
+    Wer `font-size` anhebt, ohne `line-height` und `font-height` mitzuziehen, macht jedes
+    Auswahlfeld höher als sein Nachbarfeld (gemessen: 44px → 47,1px); die drei Zahlen hängen über
+    `font-height = line-height × font-size` aneinander. **Und der naheliegende Token greift daneben:**
+    `components.Select.fontSize` ergibt gemessen `.iuk.ant-select-css-var { --ant-font-size: 16px }`
+    — es kapert die GLOBALE Schriftvariable innerhalb des Feldes, statt die des Bauteils zu setzen,
+    und lässt die anderen beiden stehen. Deshalb steht hier ausnahmsweise CSS statt eines Tokens,
+    entgegen Falle 5.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
