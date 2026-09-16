@@ -885,7 +885,8 @@ Mobile Feldschrift: gilt inzwischen **suiteweit** und ohne Breakpoint. Die modul
 bewusst niedrig spezifisch, damit Modul-CSS sie nach oben überschreiben darf (der Abendzettel setzt
 `.textfeld` auf 18px und behält das) — und `core/theme/theme.ts` gibt den antd-Feldern
 `inputFontSize: 16`. **Die Auswahl läuft ebenfalls über Tokens** (`Select.fontSize` plus
-`fontHeight`, sonst wächst sie aus ihrer Bediendichte). Hier stand jahrelang, `.ant-select-selector`
+`Select.lineHeight` — letzteres hält die Zeilenbox, sonst wächst die Auswahl aus ihrer
+Bediendichte). Hier stand jahrelang, `.ant-select-selector`
 brauche in CSS erhöhte Spezifität — die Regel war seit antd 6 tot, weil die Klasse nicht mehr
 gerendert wird, und die Auswahlfelder standen dadurch auf 14px (DRK-190, Falle 19 in `CLAUDE.md`).
 **In eigenem CSS steht keine Schriftgröße mehr auf einer antd-Auswahlklasse**, auch nicht auf der

@@ -367,11 +367,19 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Layoutboxen. Nur ein echter Abruf zeigt die Zahl, dieselbe Klasse wie die Fallen 8 und 13.
     ⚠️ **Die Abhilfe ist NICHT dieselbe Regel auf den heutigen Namen** (sie hätte dieselbe
     Sollbruchstelle), sondern der Token: `Select.fontSize` in `core/theme/theme.ts`. Ein Klassenname
-    ist antds Innenleben, ein Token seine Schnittstelle. **Dabei gehört `fontHeight` mit** — antd
-    rechnet die Polsterung der Auswahl aus `calc((var(--height) - var(--font-height)) / 2 - border)`
-    und führt `--font-height` bei einem `fontSize`-Override **nicht** nach; allein gesetzt wächst die
-    Auswahl um 3,14px aus ihrer Bediendichte (gemessen 59,14 statt 56 und 47,14 statt 44).
-    `Input` braucht das Gegenstück nicht, dort rechnet antd selbst nach.
+    ist antds Innenleben, ein Token seine Schnittstelle.
+    ⚠️ **`fontSize` ALLEIN REICHT NICHT, und die zweite Hälfte ist die sichtbare:** antd rechnet die
+    Polsterung der Auswahl aus `calc((var(--height) - var(--font-height)) / 2 - border)` und führt
+    `--font-height` bei einem `fontSize`-Override **nicht** nach — die Auswahl wächst dann um 3,14px
+    aus ihrer Bediendichte (gemessen 59,14 statt 56 und 47,14 statt 44) und steht neben ihrem
+    Eingabefeld sichtbar zu hoch. ⚠️ **`fontHeight` mitzusetzen ist der naheliegende Griff und der
+    falsche: der Token steht in antds Typen gar nicht** (nur `lineHeight` steht dort, in
+    `theme/interface/maps/font.d.ts`), es bräuchte also einen Cast auf einen undokumentierten Wert.
+    Stattdessen bleibt die ZEILENBOX, wie sie ist: `Select.lineHeight` so gesetzt, dass
+    `fontSize × lineHeight` weiterhin `fontHeight` ergibt (heute `14 × 1,5714 / 16` = 1,375, aus
+    antds eigenem Token abgeleitet statt hingeschrieben). Die Polsterungsrechnung stimmt damit
+    unverändert — gemessen 56,0 und 44,0 auf den Pixel. `Input` braucht das Gegenstück nicht, dort
+    rechnet antd die Polsterung aus `inputFontSize` selbst nach.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
