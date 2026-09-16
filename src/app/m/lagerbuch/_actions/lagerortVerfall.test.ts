@@ -127,7 +127,10 @@ describe("verfallSetzen", () => {
       verfall: VERFALL,
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { gesetzt: true } });
+    // ⚠️ DER WERT, NICHT „gesetzt ja/nein" (DRK-345). Der Monatswaehler daneben
+    // uebernimmt genau diesen Wert in seinen Stand; ein Wahrheitswert liesse ihm
+    // nur, seine eigene Eingabe zu spiegeln.
+    expect(erg).toEqual({ ok: true, wert: { verfall: VERFALL } });
     expect(eintrag()).toMatchObject({
       lagerortId: FAHRZEUG_ID,
       artikelId: ARTIKEL_ID,
@@ -142,7 +145,7 @@ describe("verfallSetzen", () => {
   it.each([
     { leerwert: null, beschreibung: "null" },
     { leerwert: "", beschreibung: "Leerstring" },
-  ])("entfernt die Angabe bei $beschreibung und meldet gesetzt:false", async ({ leerwert }) => {
+  ])("entfernt die Angabe bei $beschreibung und meldet verfall:null", async ({ leerwert }) => {
     aufbauen();
     verfallVorbelegen();
     expect(eintrag()).toBeDefined();
@@ -153,7 +156,7 @@ describe("verfallSetzen", () => {
       verfall: leerwert,
     }, t.db);
 
-    expect(erg).toEqual({ ok: true, wert: { gesetzt: false } });
+    expect(erg).toEqual({ ok: true, wert: { verfall: null } });
     expect(eintrag()).toBeUndefined();
     expect(revalidiert).toEqual(PFADE);
   });

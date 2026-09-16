@@ -94,7 +94,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, "getComputedStyle")
     .mockImplementation((element) => getComputedStyleOhnePseudo(element));
-  mocks.setzen.mockResolvedValue({ ok: true, wert: { gesetzt: true } });
+  /*
+   * ⚠️ DIE ATTRAPPE MELDET DEN WERT, den die echte Aktion nach dem Schreiben
+   * zurueckliest (DRK-345). Ein `{ gesetzt: true }` waere hier keine Kleinigkeit
+   * mehr: der Stand der Tabelle uebernimmt AUSSCHLIESSLICH `wert.verfall`, und
+   * eine Attrappe ohne Wert leerte den Waehler bei jedem Speichern.
+   */
+  mocks.setzen.mockImplementation(async (eingabe: { verfall: string }) => ({
+    ok: true,
+    wert: { verfall: eingabe.verfall || null },
+  }));
 });
 
 afterEach(async () => {
@@ -159,7 +168,7 @@ describe("VerfallEditor — result-aware Auto-Commit", () => {
   });
 
   it("sendet Clear als leeren String statt undefined", async () => {
-    mocks.setzen.mockResolvedValueOnce({ ok: true, wert: { gesetzt: false } });
+    mocks.setzen.mockResolvedValueOnce({ ok: true, wert: { verfall: null } });
     await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
     await monatLeeren("a1");
 
@@ -267,17 +276,16 @@ describe("Aussondern je Zeile", () => {
   });
 });
 
-describe("Aussondern und der Monatsspiegel", () => {
+describe("Aussondern und der eine Stand", () => {
   /**
    * ⚠️ DIE ZWEITE SCHREIBSTELLE AUF DEMSELBEN WERT.
    *
-   * `spiegel` wird EINMAL beim Einhaengen aus den Props gefuellt — fuer JEDEN
-   * Artikel, weshalb `monatFuer` danach IMMER den Spiegel nimmt und nie wieder
-   * die Prop. Solange nur der Monatswaehler schrieb, stimmte das. Der
-   * Aussondern-Dialog aendert denselben Wert, und `revalidatePath` frischt zwar
-   * die Server-Props auf, haengt die Insel aber nicht neu ein: der Waehler
-   * zeigte danach still den ALTEN Monat, waehrend Status und naechster Dialog
-   * schon den neuen fuehren.
+   * Der Aussondern-Dialog aendert denselben Wert wie der Monatswaehler daneben,
+   * und `revalidatePath` frischt zwar die Server-Props auf, haengt die Insel
+   * aber nicht neu ein. Ohne den gemeinsamen Stand zeigte der Waehler danach
+   * still den ALTEN Monat, waehrend Status und naechster Dialog schon den neuen
+   * fuehren. Seit DRK-345 laufen beide Wege durch denselben Trichter, und der
+   * nimmt den Wert aus der ANTWORT.
    */
   it("uebernimmt den im Dialog gesetzten Monat in den Waehler", async () => {
     mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: "2027-09" } });
@@ -398,6 +406,32 @@ describe("Der Spiegel folgt der Antwort, nicht der Eingabe", () => {
    * ihre eigene EINGABE, zeigte der Waehler danach ein Datum, das in der
    * Datenbank nicht steht.
    */
+  /**
+   * ⚠️ DIESELBE ZUSAGE AUF DEM ZWEITEN SCHREIBWEG (DRK-345). Der Monatswaehler
+   * hat sie bis dahin nicht gehalten: `verfallSetzen` meldete nur „gesetzt
+   * ja/nein", also blieb ihm gar nichts anderes, als seine EIGENE Eingabe zu
+   * spiegeln. Solange die Aktion bedingungslos schrieb, fiel das nicht auf —
+   * und genau so eine Stelle ist die naechste, die auseinanderlaeuft.
+   *
+   * Gepruefter Fall: die Aktion meldet einen ANDEREN Monat als den gewaehlten
+   * (ein Fremdschreibvorgang lag dazwischen). Der Waehler zeigt danach den
+   * gemeldeten, nicht den getippten.
+   */
+  it("nimmt am Monatswaehler den gemeldeten Wert, nicht den gewaehlten", async () => {
+    mocks.setzen.mockResolvedValueOnce({ ok: true, wert: { verfall: "2028-01" } });
+    await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
+
+    await monatWaehlen("Verfall Mullbinde", "2027-06");
+
+    expect(mocks.setzen).toHaveBeenCalledWith({
+      lagerortId: "fz-1",
+      artikelId: "a1",
+      verfall: "2027-06",
+    });
+    expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
+      .toBe("2028-01");
+  });
+
   it("leert den Waehler, wenn die Aktion null meldet — trotz Datum im Feld", async () => {
     mocks.aussondern.mockResolvedValue({ ok: true, wert: { verfall: null } });
     await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
@@ -487,7 +521,7 @@ describe("Die beiden Schreibwege schliessen einander aus", () => {
   it("sperrt das Aussondern, solange der Monat noch gespeichert wird", async () => {
     let freigeben: (() => void) | null = null;
     mocks.setzen.mockReturnValue(new Promise((fertig) => {
-      freigeben = () => fertig({ ok: true, wert: { gesetzt: true } });
+      freigeben = () => fertig({ ok: true, wert: { verfall: "2027-09" } });
     }));
 
     await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
