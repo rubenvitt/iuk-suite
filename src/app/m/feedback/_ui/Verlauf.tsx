@@ -155,7 +155,7 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
         {/*
          * Drei LEISE Textknoepfe (§2.5): der Primaerknopf der Seite ist immer die
          * Zustandsaktion der Lagekarte, hier gibt es keinen zweiten. „Trend" und
-         * „CSV" sind echte `href` — ein Tabstop, ein Fokusring, und beide
+         * „Excel" sind echte `href` — ein Tabstop, ein Fokusring, und beide
          * funktionieren ohne JavaScript.
          *
          * `fb-knopfzeile` ergaenzt 2026-07-27: unterhalb von 768px stehen sie
@@ -173,10 +173,10 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
           </Button>
           <Button
             type="text"
-            href={`/m/feedback/groups/${groupId}/export.csv`}
+            href={`/m/feedback/groups/${groupId}/export.xlsx`}
             className="fb-block-mobil"
           >
-            CSV (alle Abende)
+            Excel (alle Abende)
           </Button>
           {/*
            * Der Fall, den der Ein-Klick-Start sonst wegnimmt: einen Dienstabend

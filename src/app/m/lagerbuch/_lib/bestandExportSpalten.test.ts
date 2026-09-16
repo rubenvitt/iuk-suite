@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { blatt } from "@/core/export";
 import { EXCEL_SPALTEN, EXCEL_BLATTNAME, EXCEL_FEHLERTEXT } from "./bestandExportSpalten";
 import type { BestandExportZeile } from "./bestandExport";
 
@@ -44,23 +45,35 @@ describe("EXCEL_SPALTEN", () => {
   /** 1:1 aus ArtikelTable.tsx:89-99, Reihenfolge inbegriffen. */
   /** 1:1 aus ArtikelTable.tsx:89-99, plus „Kategorie" hinter „Fach" (DRK-294). */
   it("traegt zehn Ueberschriften in dieser Reihenfolge", () => {
-    expect(EXCEL_SPALTEN.map((s) => s.header)).toEqual([
+    // `kopf`/`breite` seit DRK-186 — der Typ ist jetzt der suite-weite
+    // `ExportSpalte` aus `core/export`, nicht mehr ein modul-eigener.
+    expect(EXCEL_SPALTEN.map((s) => s.kopf)).toEqual([
       "Artikel", "Fach", "Kategorie", "Bestand", "Einheit", "Mindestbestand",
       "Status", "Nächste Charge", "Verfall", "Hinweis",
     ]);
   });
 
   it("traegt die Breiten aus dem Bestand, plus 20 fuer die Kategorie", () => {
-    expect(EXCEL_SPALTEN.map((s) => s.width)).toEqual([34, 12, 20, 10, 10, 16, 22, 18, 11, 20]);
+    expect(EXCEL_SPALTEN.map((s) => s.breite)).toEqual([34, 12, 20, 10, 10, 16, 22, 18, 11, 20]);
   });
 
   /**
    * Zahlen bleiben Zahlen (Excel darf damit rechnen und sortieren), alles andere
    * ist Text. Genau `Bestand` und `Mindestbestand` — die Kategorie ist Text.
+   *
+   * ⚠️ DAS FLAG `zahl` IST MIT DRK-186 ENTFALLEN, die ZUSAGE nicht. Vorher
+   * entschied eine Spalteneigenschaft ueber `type: Number` bzw. `type: String`;
+   * jetzt liest der Baustein es am Laufzeitwert ab. Geprueft wird deshalb das
+   * ERGEBNIS — welche Zellen die Mappe als Zahl traegt —, und das ist die
+   * belastbarere Zusage: ein `zahl: true` auf einer Textspalte ergab frueher
+   * `Number("Stk.")`, also `NaN`, und keine Zusicherung sah es.
    */
-  it("markiert genau Bestand und Mindestbestand als Zahl", () => {
-    expect(EXCEL_SPALTEN.filter((s) => s.zahl).map((s) => s.header))
-      .toEqual(["Bestand", "Mindestbestand"]);
+  it("legt genau Bestand und Mindestbestand als Zahlenzellen an", () => {
+    const [kopfzeile, datenzeile] = blatt(EXCEL_BLATTNAME, EXCEL_SPALTEN, [ZEILE]).daten;
+    const zahlenkoepfe = datenzeile
+      .map((zelle, i) => (zelle?.type === Number ? kopfzeile[i]?.value : null))
+      .filter((k) => k !== null);
+    expect(zahlenkoepfe).toEqual(["Bestand", "Mindestbestand"]);
   });
 
   it("liest jede Spalte aus dem passenden Feld", () => {

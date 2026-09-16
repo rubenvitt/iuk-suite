@@ -1,3 +1,5 @@
+import { datierterDateiname } from "@/core/export";
+
 /**
  * Aufbereitung der Artikelliste fuer den Excel-Export. Bewusst frei von der
  * Excel-Bibliothek: hier entstehen nur die fertigen Zeilen (deutsche
@@ -67,19 +69,21 @@ export function bestandExportZeilen(rows: BestandExportEingabe[]): BestandExport
 }
 
 /**
- * DER DATEINAME WIRD IM BROWSER GEBILDET (ArtikelTable.tsx:142 uebergibt
- * `new Date()`), also aus der Zeitzone des ARBEITSPLATZES, nicht aus der des
- * Containers. Die TZ-Frage aendert an diesem Format daher nichts.
+ * DER DATEINAME — seit DRK-186 aus dem gemeinsamen Baustein.
  *
- * WANDERT DIE BILDUNG JE AUF DEN SERVER, ist `heuteIso()` aus _lib/zeit.ts der
- * richtige Aufruf und NICHT diese lokalen Datumskomponenten (§9.4). Die Zeile
- * steht hier, damit die Umstellung dann eine Entscheidung ist und kein Versehen.
+ * ⛔ HIER STAND EINE LOKALE RECHNUNG AUS `getFullYear()/getMonth()/getDate()`,
+ * also aus der Zone des ARBEITSPLATZES. Der alte Kommentar hielt das als
+ * „heutiges Verhalten" fest und merkte an, eine Verlagerung auf den Server
+ * muesse dann `heuteIso()` nehmen. DRK-186 beantwortet die Frage fuer die ganze
+ * Suite und zwar in beide Richtungen: `datierterDateiname` rechnet in
+ * `Europe/Berlin`, im Browser wie in einem Route Handler. Zwei stille Fehler
+ * sind damit weg — derselbe Bestand von zwei Rechnern geladen hiess
+ * unterschiedlich, und eine je serverseitig erzeugte Datei trueg um 00:30
+ * Ortszeit den VORTAG im Namen.
+ *
+ * Das FORMAT ist unveraendert `bestand-JJJJ-MM-TT.xlsx`; die E2E prueft es
+ * weiterhin gegen dieselbe Regex.
  */
 export function bestandExportDateiname(now: Date): string {
-  // Lokal aufgefuellt statt aus _lib/format.ts importiert: dessen Produces-Block
-  // (Teil 3, T39) fuehrt `pad2` NICHT. Ein Import auf einen nicht zugesagten
-  // Namen waere eine Wette, und ihn dort nachzutragen ein Eingriff in eine
-  // fremde Datei fuer drei Zeichen.
-  const p2 = (n: number) => String(n).padStart(2, "0");
-  return `bestand-${now.getFullYear()}-${p2(now.getMonth() + 1)}-${p2(now.getDate())}.xlsx`;
+  return datierterDateiname("bestand", now);
 }
