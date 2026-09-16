@@ -1,10 +1,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, extname, join, relative, resolve } from "node:path";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
  * DIESE DATEI BEWACHT EINE MESSUNG, KEINE VERMUTUNG (DRK-192, 2026-09-16,
- * Quelltext-Scan ueber `src`, `e2e` und `scripts`, Stand `e79dc8b`).
+ * Quelltext-Scan ueber das ganze Repo ausser `NICHT_BETRETEN`, Stand `e79dc8b`).
  *
  * DER BEFUND: die Suite schreibt ihre Begruendungen in Kommentare und verankert
  * sie mit `datei:zeile`. Gemessen stehen davon **6027** im Repo — allein
@@ -56,15 +56,39 @@ import { describe, expect, it } from "vitest";
  *      erzieht dazu, ihn zu ueberlesen.
  *   3. **Prosa in `docs/`.** Berichte und Plaene halten einen VERGANGENEN Stand
  *      fest; ihre Anker sollen mit dem Repo gerade NICHT mitwandern. Deshalb
- *      liegt `docs/` nicht in `WURZELN` (dort stehen 24 Anker ueber EOF, alle
+ *      steht `docs` in `NICHT_BETRETEN` (dort stehen 24 Anker ueber EOF, alle
  *      korrekt als historisch).
  */
 
-/** Gelesen wird lebender Quelltext — `docs/` bewusst nicht, siehe Kopf, Punkt 3. */
-const WURZELN = ["src", "e2e", "scripts"];
+/**
+ * GELESEN WIRD DAS GANZE REPO, und die Ausnahmen stehen als VERZEICHNISliste
+ * statt als Wurzelliste da.
+ *
+ * ⚠️ DIE RICHTUNG IST DER GANZE PUNKT, und die erste Fassung hatte sie falsch
+ * herum (`["src", "e2e", "scripts"]`, Codex-Review zu PR #183): eine Wurzel-
+ * ALLOWLIST laesst alles Neue STILL heraus, eine Verzeichnis-BLOCKLIST nimmt
+ * alles Neue auf. Gemessen an dem, was dadurch fehlte: `playwright.config.ts`
+ * verankert auf `src/core/bootstrap.ts`, dazu `compose.yaml`, `.env.example`,
+ * `Dockerfile`, `AGENTS.md` und `clamd.files.conf` — zusammen ueber 90 Anker
+ * in Dateien, die kein Verzeichnis unter sich haben. Ein Riegel, der sich
+ * „repo-weit" nennt und die Repowurzel auslaesst, ist keiner.
+ *
+ * Was hier steht, steht aus einem Grund: `docs` und `patches` halten fremden
+ * oder vergangenen Stand fest (Kopf, Punkt 3); `public`, `.data`, `.next`,
+ * `node_modules` und `.git` tragen keinen Quelltext dieser Suite.
+ */
+const NICHT_BETRETEN = new Set([
+  ".git",
+  ".next",
+  "node_modules",
+  "docs",
+  "patches",
+  "public",
+  ".data",
+]);
 
 /**
- * ⚠️ GELESEN WIRD JEDES TEXTFORMAT UNTER DEN WURZELN, nicht nur `ts|tsx|css`.
+ * ⚠️ GELESEN WIRD JEDES TEXTFORMAT IM REPO, nicht nur `ts|tsx|css`.
  * Die erste Fassung las genau diese drei und uebersah damit still 40 `.sql`
  * und zwei `.mjs` (Codex-Review zu PR #183). Das ist nicht hypothetisch:
  * `scripts/import/fixtures/radio-quelle-ddl.sql` traegt heute einen Anker auf
@@ -74,15 +98,20 @@ const WURZELN = ["src", "e2e", "scripts"];
  * ⚠️ DIE SCHIEFLAGE WAR DIE EIGENTLICHE URSACHE, und sie kehrt ohne Not
  * zurueck: `ZIEL` unten erlaubt `sql`, `mjs`, `md`, `json` … als ZIEL eines
  * Ankers, `ENDUNGEN` liess dieselben Formate aber nicht als QUELLE zu. Deshalb
- * steht daneben `NICHT_GELESEN` und ein Fall, der ROT wird, sobald unter den
- * Wurzeln eine Endung auftaucht, die in keiner der beiden Listen steht. Eine
+ * steht daneben `NICHT_GELESEN` und ein Fall, der ROT wird, sobald im Repo
+ * eine Endung auftaucht, die in keiner der beiden Listen steht. Eine
  * Allowlist, die niemand nachfuehrt, ist genau der Defekt, den dieser Riegel
  * bewacht.
  */
-const ENDUNGEN = /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson)$/;
+const ENDUNGEN =
+  /\.(ts|tsx|css|sql|mjs|md|sh|json|txt|ndjson|ya?ml|conf|example|dockerignore|gitattributes|gitignore)$/;
 
-/** Was kein Text ist und deshalb keinen Kommentar tragen kann. */
-const NICHT_GELESEN = /\.(ttf|woff2?|png|jpe?g|webp|gif|ico|pdf|xlsx|zip|db|sqlite3?)$/;
+/** Dateien ohne Endung, die trotzdem Quelltext sind. */
+const OHNE_ENDUNG = /^(Dockerfile|Makefile|CODEOWNERS|LICENSE)$/;
+
+/** Was kein Text ist, generiert wird oder keinen eigenen Kommentar traegt. */
+const NICHT_GELESEN =
+  /\.(ttf|woff2?|png|jpe?g|webp|gif|ico|svg|pdf|xlsx|zip|db|sqlite3?|lock|tsbuildinfo)$/;
 
 /**
  * Ein Pfad, wie er in einem Kommentar steht, gefolgt von `:zeile` oder
@@ -93,21 +122,32 @@ const NICHT_GELESEN = /\.(ttf|woff2?|png|jpe?g|webp|gif|ico|pdf|xlsx|zip|db|sqli
  * diesen Zweig beginnt der Treffer erst HINTER der Klammer. Klammern als
  * gewoehnliche Pfadzeichen zuzulassen geht nicht — dann frisst `(datei.ts:12)`
  * aus der Prosa die oeffnende Klammer mit.
+ *
+ * ⚠️ HIER STEHT ABSICHTLICH KEINE ENDUNGSLISTE MEHR. Die erste Fassung
+ * verlangte `\.(ts|tsx|css|…)` am Ende und uebersah damit still jedes Ziel
+ * ohne passende Endung (Codex-Review zu PR #183): `Dockerfile:38-39` in
+ * `src/proxy.ts` und `.env.example:107-110` in mehreren radio-Dateien wurden
+ * NIE zu einem Anker. Der Filter ist jetzt `aufloesen` — was sich nicht gegen
+ * eine Datei dieses Repos aufloesen laesst, faellt dort heraus. Das ist die
+ * belastbarere Reihenfolge: die Regex darf grosszuegig sein, das Dateisystem
+ * entscheidet. Gemessen: 18 zusaetzlich erfasste Anker, kein einziger
+ * Fehlalarm.
+ *
+ * Die EINE Einschraenkung, die bleibt: ein Ziel aus lauter Ziffern ist keines.
+ * Sonst waere `12:30` in einer Messnotiz ein Ankerkandidat.
  */
 const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
 const ZIEL = new RegExp(
-  `(${SEGMENT}(?:\\/${SEGMENT})*\\.(?:ts|tsx|js|jsx|mjs|css|json|md|sql|yml|yaml))`
-    + ":(\\d+)(?:\\s*[-–]\\s*(\\d+))?",
+  `(${SEGMENT}(?:\\/${SEGMENT})*):(\\d+)(?:\\s*[-–]\\s*(\\d+))?`,
   "g",
 );
 
 export type Anker = { ziel: string; bis: number };
 
 export function ankerAusText(text: string): Anker[] {
-  return [...text.matchAll(ZIEL)].map(([, ziel, von, bis]) => ({
-    ziel,
-    bis: Number(bis ?? von),
-  }));
+  return [...text.matchAll(ZIEL)]
+    .filter(([, ziel]) => !/^\d+$/.test(ziel))
+    .map(([, ziel, von, bis]) => ({ ziel, bis: Number(bis ?? von) }));
 }
 
 const zeilenzahl = new Map<string, number | null>();
@@ -173,11 +213,11 @@ function aufloesen(quelle: string, ziel: string): string | null {
   return null;
 }
 
-function sammleDateien(verzeichnis: string, treffer: string[] = []): string[] {
+function sammleDateien(verzeichnis = ".", treffer: string[] = []): string[] {
   for (const eintrag of readdirSync(verzeichnis)) {
     const pfad = join(verzeichnis, eintrag);
     if (statSync(pfad).isDirectory()) {
-      if (eintrag === ".next" || eintrag === "node_modules") continue;
+      if (NICHT_BETRETEN.has(eintrag)) continue;
       sammleDateien(pfad, treffer);
       continue;
     }
@@ -186,8 +226,13 @@ function sammleDateien(verzeichnis: string, treffer: string[] = []): string[] {
   return treffer;
 }
 
-function sammleQuellen(verzeichnis: string): string[] {
-  return sammleDateien(verzeichnis).filter((p) => ENDUNGEN.test(p));
+function istQuelle(pfad: string): boolean {
+  const name = basename(pfad);
+  return ENDUNGEN.test(name) || OHNE_ENDUNG.test(name);
+}
+
+function sammleQuellen(): string[] {
+  return sammleDateien().filter(istQuelle);
 }
 
 type Befund = { quelle: string; zeile: number; anker: string; ziel: string; hat: number };
@@ -196,27 +241,25 @@ function veralteteAnker(): { befunde: Befund[]; gepruefte: number } {
   const befunde: Befund[] = [];
   let gepruefte = 0;
 
-  for (const wurzel of WURZELN) {
-    for (const quelle of sammleQuellen(wurzel)) {
-      const inhalt = readFileSync(quelle, "utf8").split("\n");
-      inhalt.forEach((text, i) => {
-        for (const { ziel, bis } of ankerAusText(text)) {
-          const pfad = aufloesen(quelle, ziel);
-          if (pfad === null) continue; // Alt-Anwendung, Fremdpaket — nicht pruefbar.
-          gepruefte++;
-          const hat = zeilen(pfad) ?? 0;
-          if (bis > hat) {
-            befunde.push({
-              quelle,
-              zeile: i + 1,
-              anker: `${ziel}:${bis}`,
-              ziel: relative(".", pfad),
-              hat,
-            });
-          }
+  for (const quelle of sammleQuellen()) {
+    const inhalt = readFileSync(quelle, "utf8").split("\n");
+    inhalt.forEach((text, i) => {
+      for (const { ziel, bis } of ankerAusText(text)) {
+        const pfad = aufloesen(quelle, ziel);
+        if (pfad === null) continue; // Alt-Anwendung, Fremdpaket — nicht pruefbar.
+        gepruefte++;
+        const hat = zeilen(pfad) ?? 0;
+        if (bis > hat) {
+          befunde.push({
+            quelle,
+            zeile: i + 1,
+            anker: `${ziel}:${bis}`,
+            ziel: relative(".", pfad),
+            hat,
+          });
         }
-      });
-    }
+      }
+    });
   }
   return { befunde, gepruefte };
 }
@@ -244,8 +287,8 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
    * DIE GEGENPROBE ZUM SCAN SELBST: er muss ueberhaupt etwas sehen koennen.
    * Ohne sie bliebe der Riegel auch dann gruen, wenn die Suche ins Leere liefe —
    * und das faellt erst auf, wenn er gebraucht wird. Die Untergrenze steht
-   * bewusst weit unter dem gemessenen Stand (3125 aufgeloeste Anker am
-   * 16.09.2026); sie soll einen ABGERISSENEN Scan fangen, nicht jede
+   * bewusst weit unter dem gemessenen Stand (3225 aufgeloeste Anker aus 1860
+   * Dateien am 16.09.2026); sie soll einen ABGERISSENEN Scan fangen, nicht jede
    * Aufraeumarbeit rot faerben.
    */
   it("der Scan loest ueberhaupt Anker auf", () => {
@@ -253,18 +296,16 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
   });
 
   /**
-   * DIE LUECKE, DIE SICH SONST STILL WIEDER AUFTUT: eine neue Endung unter den
-   * Wurzeln, die niemand einsortiert. Der erste Wurf las `ts|tsx|css` und
+   * DIE LUECKE, DIE SICH SONST STILL WIEDER AUFTUT: eine neue Endung im Repo,
+   * die niemand einsortiert. Der erste Wurf las `ts|tsx|css` und
    * uebersah 40 `.sql` und zwei `.mjs` — ein „repo-weiter" Riegel mit einem
    * blinden Fleck, den nur eine Gegenprobe sichtbar macht.
    */
-  it("jede Endung unter den Wurzeln ist einsortiert — gelesen oder nicht", () => {
+  it("jede Endung im Repo ist einsortiert — gelesen oder nicht", () => {
     const unsortiert = new Set<string>();
-    for (const wurzel of WURZELN) {
-      for (const pfad of sammleDateien(wurzel)) {
-        if (ENDUNGEN.test(pfad) || NICHT_GELESEN.test(pfad)) continue;
-        unsortiert.add(extname(pfad) || pfad);
-      }
+    for (const pfad of sammleDateien()) {
+      if (istQuelle(pfad) || NICHT_GELESEN.test(pfad)) continue;
+      unsortiert.add(extname(pfad) || basename(pfad));
     }
     expect(
       [...unsortiert].sort(),
@@ -293,8 +334,9 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
   });
 
   /**
-   * Und die Gegenprobe zur Regex — die beiden ersten Faelle sind die, an denen
-   * der erste Wurf scheiterte.
+   * Und die Gegenprobe zur Regex. Die Faelle stehen in der Reihenfolge, in der
+   * sie schiefgingen: Route-Gruppe und Ternaer-Prosa im ersten Wurf, Ziele ohne
+   * passende Endung in der zweiten Runde (Codex-Review zu PR #183).
    */
   it("die Regex liest Route-Gruppen mit und faellt nicht auf Prosa herein", () => {
     const ziele = (text: string) => ankerAusText(text).map((a) => `${a.ziel}:${a.bis}`);
@@ -305,7 +347,12 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
     expect(ziele("`a/[artikelId]/page.tsx:26`")).toEqual(["a/[artikelId]/page.tsx:26"]);
     expect(ziele("`core/theme/theme.ts:32-33`")).toEqual(["core/theme/theme.ts:33"]);
 
-    // Kein Anker: eine Datei ohne Zeile, und eine Zeit.
+    // Ohne Endung und mit unbekannter Endung — beide kamen frueher gar nicht an.
+    expect(ziele("`Dockerfile:38-39`")).toEqual(["Dockerfile:39"]);
+    expect(ziele("`.env.example:107-110`")).toEqual([".env.example:110"]);
+
+    // Kein Anker: eine Datei ohne Zeile, und eine Zeit (nur Ziffern vor dem
+    // Doppelpunkt — die eine Einschraenkung, die die Regex noch selbst trifft).
     expect(ziele("`core/theme/theme.ts` traegt die Dichten")).toEqual([]);
     expect(ziele("um 12:30 gemessen")).toEqual([]);
   });
