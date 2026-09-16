@@ -126,7 +126,34 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl(`/helfer/check?fz=${E2E_FAHRZEUG_ANDERES_ID}`));
 
     await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
-    await expect(page.getByText(alsText(E2E_FAHRZEUG_ANDERES_NAME))).toHaveCount(0);
+
+    /*
+     * ⚠️ SEIT DRK-373 STEHT DER NAME DES ANDEREN FAHRZEUGS AUF DEM SCHIRM — UND
+     * GENAU DAS IST DIE VERBESSERUNG, NICHT IHR BRUCH.
+     *
+     * Hier stand `toHaveCount(0)` auf diesen Namen. Die ZUSAGE war nie „der
+     * Name kommt nicht vor", sondern „der Check laeuft nicht auf diesem
+     * Fahrzeug"; `toHaveCount(0)` war damals nur ihre einfachste Form, weil die
+     * Seite den uebergangenen Parameter SCHWEIGEND verwarf. Genau dieses
+     * Schweigen ist der offene Rest, den DRK-373 schliesst: die Person erfuhr
+     * nicht, dass ihr `?fz=` nicht gegolten hat, und musste aus dem angezeigten
+     * Namen selbst schliessen, dass das nicht das Fahrzeug ist, das sie
+     * verlangt hat.
+     *
+     * ⚠️ DER TEST WIRD DABEI NICHT WEICHER, ER WIRD PRAEZISER: der Name darf
+     * NUR im Hinweis stehen. Ein `toHaveCount(1)` allein liesse offen, WO —
+     * stuende er in der Ueberschrift, waere genau der Fehler zurueck, gegen den
+     * dieser Fall geschrieben ist. Deshalb zusaetzlich: der Hinweis enthaelt
+     * ihn, und ausserhalb des Hinweises kommt er nicht vor.
+     *
+     * ⚠️ UND DER HINWEIS GILT AUCH HIER, obwohl nichts gescannt wurde. Aus
+     * Serversicht ist ein getipptes `?fz=` von einem gescannten Ortsetikett
+     * nicht zu unterscheiden (`_lib/ortZiel.ts`); derselbe Vorrang gilt, also
+     * gehoert dieselbe Auskunft dazu (DRK-373, offene Frage 3).
+     */
+    const hinweis = page.locator("[data-rolle='scan-hinweis']");
+    await expect(hinweis).toContainText(E2E_FAHRZEUG_ANDERES_NAME);
+    await expect(page.getByText(alsText(E2E_FAHRZEUG_ANDERES_NAME))).toHaveCount(1);
   });
 
   test("ein UNGEBUNDENES Kaertchen waehlt weiterhin frei", async ({ page }) => {

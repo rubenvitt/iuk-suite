@@ -58,22 +58,78 @@ describe("ortZielPfad — ohne gebundenes Kaertchen", () => {
  */
 describe("ortZielPfad — mit gebundenem Kaertchen", () => {
   it("laesst die Bindung gewinnen, wenn eine FREMDE Einheit gescannt wird", () => {
+    // ⚠️ DIE VOLLE ZEICHENKETTE, und das `gescannt=` darin ist die zweite
+    // Haelfte der Aussage (DRK-373): die Bindung gewinnt — und der uebergangene
+    // Scan geht dabei nicht verloren, sonst kann die Check-Seite ihn nicht
+    // benennen. Ein `toContain("fz=rtw-1")` hier waere gruen geblieben, wenn
+    // der Parameter still verschwaende.
     expect(ortZielPfad({ id: "ktw-1", typ: "fahrzeug" }, "rtw-1"))
-      .toBe("/helfer/check?fz=rtw-1");
+      .toBe("/helfer/check?fz=rtw-1&gescannt=ktw-1");
   });
 
   /**
-   * ⚠️ DIE SCHARFE FORM DERSELBEN AUSSAGE: die gescannte Id darf im Pfad GAR
-   * NICHT MEHR VORKOMMEN. Ein `?fz=ktw-1` waere genau die Adresse, die etwas
-   * anderes behauptet als der Bildschirm — und ein Test auf „enthaelt rtw-1"
-   * allein bliebe fuer `?fz=ktw-1&fz=rtw-1` gruen.
+   * ⚠️ DIE SCHARFE FORM DERSELBEN AUSSAGE, UND SIE HAT SICH MIT DRK-373
+   * VERSCHOBEN — von „die gescannte Id kommt im Pfad GAR NICHT VOR" auf „es
+   * gibt genau EIN `fz`, und das ist die gebundene Einheit".
+   *
+   * Hier stand `not.toContain("ktw-1")`, begruendet mit: ein `?fz=ktw-1` waere
+   * die Adresse, die etwas anderes behauptet als der Bildschirm, und ein Test
+   * auf „enthaelt rtw-1" allein bliebe fuer `?fz=ktw-1&fz=rtw-1` gruen. Der
+   * ZWEITE Halbsatz ist die Zusage; der erste war nur ihre damals einfachste
+   * Form. Seit DRK-373 reist die gescannte Id als `gescannt=` mit, damit die
+   * Check-Seite der Person ueberhaupt sagen kann, dass ihr Scan nicht gilt —
+   * und dann behauptet die Adresse nichts anderes als der Bildschirm, sondern
+   * genau dasselbe: gezeigt wird A, gescannt wurde B.
+   *
+   * ⚠️ EIN `toContain`-VERBOT WAERE HIER NICHT NUR ZU STRENG, SONDERN DIE
+   * AUGENBINDE: es machte den Hinweis unmoeglich und waere damit der Test, der
+   * die Person wieder ohne Auskunft dastehen laesst. Was bleiben MUSS, ist die
+   * Eindeutigkeit von `fz` — daran hing der teuerste stille Ausgang.
    */
-  it("laesst die gescannte Id dabei nirgends im Pfad stehen", () => {
-    expect(ortZielPfad({ id: "ktw-1", typ: "fahrzeug" }, "rtw-1")).not.toContain("ktw-1");
+  it("traegt genau EIN `fz`, und das ist die gebundene Einheit", () => {
+    const pfad = ortZielPfad({ id: "ktw-1", typ: "fahrzeug" }, "rtw-1");
+    const params = new URLSearchParams(pfad.slice(pfad.indexOf("?") + 1));
+    expect(params.getAll("fz")).toEqual(["rtw-1"]);
+  });
+
+  /**
+   * DIE ANDERE HAELFTE: die gescannte Einheit muss ueberhaupt ankommen, sonst
+   * kann die Check-Seite sie nicht benennen (DRK-373, AK 2). `fahrzeuge.find()`
+   * dort sucht ueber diese Id.
+   */
+  it("reicht die GESCANNTE Einheit als `gescannt` mit", () => {
+    const pfad = ortZielPfad({ id: "ktw-1", typ: "fahrzeug" }, "rtw-1");
+    const params = new URLSearchParams(pfad.slice(pfad.indexOf("?") + 1));
+    expect(params.get("gescannt")).toBe("ktw-1");
+  });
+
+  /**
+   * ⚠️ EINE ID DARF ZEICHEN TRAGEN, DIE EINE URL ZERLEGEN — der Bestand ist
+   * importiert, nanoid ist nicht die einzige Quelle. Ein rohes
+   * `&gescannt=a&b=c` machte aus einer Einheit zwei Parameter, und der Hinweis
+   * benannte danach eine Einheit, die es nicht gibt (oder gar keine). Dieselbe
+   * Begruendung wie das `encodeURIComponent` in `_ui/FahrzeugWahl.tsx`.
+   */
+  it("kodiert die gescannte Id, statt sie roh anzuhaengen", () => {
+    const pfad = ortZielPfad({ id: "a&fz=ktw-9", typ: "fahrzeug" }, "rtw-1");
+    const params = new URLSearchParams(pfad.slice(pfad.indexOf("?") + 1));
+    expect(params.getAll("fz")).toEqual(["rtw-1"]);
+    expect(params.get("gescannt")).toBe("a&fz=ktw-9");
   });
 
   it("aendert nichts, wenn die gescannte Einheit die gebundene IST", () => {
     expect(ortZielPfad(EINHEIT, "rtw-1")).toBe("/helfer/check?fz=rtw-1");
+  });
+
+  /**
+   * ⚠️ UND DANN AUCH KEIN `gescannt` — DRK-373, AK 3: „wer das Etikett SEINER
+   * gebundenen Einheit scannt, sieht keine solche Auskunft". Die Check-Seite
+   * vergleicht zwar selbst noch einmal, aber ein bedingungsloses `gescannt=`
+   * waere der Parameter, der bei der naechsten Aenderung dort zum Hinweis
+   * fuehrt — auf dem Normalweg, den jeder Scan nimmt.
+   */
+  it("haengt fuer die eigene Einheit KEIN `gescannt` an", () => {
+    expect(ortZielPfad(EINHEIT, "rtw-1")).not.toContain("gescannt");
   });
 
   /**
@@ -135,5 +191,34 @@ describe("ortZielPfad — Form und Herkunft des Pfades", () => {
     const code = quelle.replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).toMatch(/\btokenZielPfad\s*\(/);
     expect(code).not.toContain("/helfer/check");
+  });
+
+  /**
+   * ⚠️ DER PARAMETERNAME WIRD HIER GESCHRIEBEN UND ZWEI DATEIEN WEITER GELESEN
+   * — DRK-373, und zwischen den beiden haelt ihn NICHTS zusammen.
+   *
+   * Eine geteilte Konstante kann es nicht: `searchParams` ist ein TYP mit
+   * literalen Schluesseln (`{ fz?: string; gescannt?: string }`), und ein
+   * berechneter Name laesst sich darin nicht deklarieren. Wer den Parameter
+   * also auf einer Seite umbenennt, bekommt von `typecheck`, `lint` und `build`
+   * kein Wort: die Check-Seite liest still `undefined`, der Hinweis bleibt weg,
+   * und die Lage ist wieder genau die, gegen die dieses Ticket geschrieben ist
+   * — nur diesmal mit gruenen Tests daneben, weil die Wertetests oben den
+   * SCHREIBER pruefen und die Seitentests den LESER, jeder fuer sich.
+   *
+   * Der Test liest deshalb, was `ortZielPfad` WIRKLICH erzeugt (keine
+   * hingeschriebene Zeichenkette — sonst prueft er sich selbst), und verlangt
+   * denselben Namen im `searchParams`-Typ der Check-Seite.
+   */
+  it("schreibt den Parameter, den die Check-Seite auch liest", () => {
+    const pfad = ortZielPfad({ id: "ktw-1", typ: "fahrzeug" }, "rtw-1");
+    const namen = [...new URLSearchParams(pfad.slice(pfad.indexOf("?") + 1)).keys()]
+      .filter((n) => n !== "fz");
+    expect(namen, "ortZielPfad haengt keinen zweiten Parameter an").toHaveLength(1);
+
+    const seite = readFileSync("src/app/m/lagerbuch/helfer/check/page.tsx", "utf8");
+    const typzeile = seite.match(/searchParams:\s*Promise<\{[^}]*\}>/)?.[0];
+    expect(typzeile, "kein `searchParams`-Typ in der Check-Seite gefunden").toBeTruthy();
+    expect(typzeile, `Check-Seite liest \`${namen[0]}\` nicht`).toContain(namen[0]!);
   });
 });

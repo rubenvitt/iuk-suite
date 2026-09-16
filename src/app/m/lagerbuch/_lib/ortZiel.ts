@@ -62,6 +62,12 @@ export type EtikettOrt = { id: string; typ: "lager" | "fahrzeug" };
  * Vorbeigehen beantwortet. Hier wird also nichts gelockert; es wird nur
  * verhindert, dass die Adresse etwas anderes behauptet als der Bildschirm.
  *
+ * ⚠️ SEIT DRK-373 VERLIERT DER SCAN NICHT MEHR SPURLOS. Gewinnt die Bindung,
+ * haengt der Pfad die GESCANNTE Id als `gescannt=` an — sonst kann die
+ * Check-Seite der Person nicht sagen, dass ihr Scan eine andere Einheit meinte.
+ * Die Begruendung, warum das die Zusage von DRK-312 nicht aufweicht, steht
+ * unten an der Zeile selbst.
+ *
  * ⚠️ FUER EIN LAGER GILT DIE BINDUNG NICHT. `/helfer` ist die Artikelliste des
  * Handlagers und an keine Einheit gebunden — ein gebundenes Kaertchen erreicht
  * sie ohnehin ueber die Navigation. Hier gaebe es also nichts zu verfaelschen,
@@ -74,5 +80,44 @@ export function ortZielPfad(
   fahrzeugBindung: string | null,
 ): string {
   if (!ort || ort.typ !== "fahrzeug") return tokenZielPfad(null, null);
-  return tokenZielPfad("fahrzeug", fahrzeugBindung ?? ort.id);
+  /*
+   * ⚠️ `!fahrzeugBindung` UND NICHT `=== null` — dieselbe Falsy-Probe, die die
+   * Check-Seite fuehrt (`zugang.fahrzeugBindung ? … : undefined`). Der Typ
+   * laesst die leere Zeichenkette zu, und `fahrzeugBindungAus` kann sie heute
+   * nicht liefern; zwei Dateien, die „keine Bindung" verschieden auslegen,
+   * sind aber genau die Naht, an der Landung und Anzeige auseinanderlaufen.
+   */
+  if (!fahrzeugBindung || fahrzeugBindung === ort.id) {
+    return tokenZielPfad("fahrzeug", ort.id);
+  }
+  /*
+   * ⚠️ DER UEBERGANGENE SCAN REIST MIT — DRK-373, und das ist der EINZIGE Weg,
+   * auf dem die Check-Seite ihn ueberhaupt erfahren kann.
+   *
+   * Die Zeile darueber laesst die gescannte Id bewusst fallen: gezeigt wird die
+   * gebundene Einheit, und die Adresse soll nichts anderes behaupten
+   * (DRK-312). Genau damit war die Person aber ohne Auskunft — sie liest in der
+   * Ueberschrift den Namen IHRER Einheit und muss selbst schliessen, dass das
+   * nicht die ist, vor der sie steht. Bei „RTW 1" neben „RTW 2" merkt das
+   * niemand.
+   *
+   * ⚠️ `gescannt` WIDERSPRICHT DER ZUSAGE VON DRK-312 NICHT, ES ERFUELLT SIE
+   * GENAUER. Die Zusage lautet „die Adresse darf nicht etwas anderes behaupten
+   * als der Bildschirm". `?fz=A&gescannt=B` behauptet: gezeigt wird A, gescannt
+   * wurde B — und genau diese zwei Saetze stehen danach auf dem Bildschirm
+   * (`_ui/ScanHinweis.tsx`). Was verboten bleibt, ist ein ZWEITES `fz`: `fz`
+   * ist die Einheit, die gilt, und davon gibt es eine.
+   *
+   * ⚠️ NUR DIE ID, NIE DER NAME. Ein `&gescannt=RTW%202` waere Nutzereingabe,
+   * die als Auskunft auf dem Schirm landet — die Check-Seite loest die Id
+   * serverseitig gegen ihre Fahrzeugliste auf (CLAUDE.md, „Zugriffsschutz"),
+   * und was sie dort nicht findet, nennt sie gar nicht.
+   *
+   * ⚠️ DAS TRENNZEICHEN WIRD GELESEN, NICHT GESETZT. Ein festes `&` stimmt
+   * heute, weil der Fahrzeugzweig von `tokenZielPfad` immer ein `?fz=` traegt —
+   * es stimmt aber nur, solange das so bleibt, und ein `/helfer&gescannt=…`
+   * waere ein Pfad, der still nirgends hinfuehrt.
+   */
+  const ziel = tokenZielPfad("fahrzeug", fahrzeugBindung);
+  return `${ziel}${ziel.includes("?") ? "&" : "?"}gescannt=${encodeURIComponent(ort.id)}`;
 }

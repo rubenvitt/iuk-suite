@@ -11,6 +11,7 @@ import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { FahrzeugWahl } from "../../_ui/FahrzeugWahl";
 import { CheckFlow } from "../../_ui/CheckFlow";
+import { ScanHinweis } from "../../_ui/ScanHinweis";
 import { LeerZustand } from "../../_ui/LeerZustand";
 
 /**
@@ -55,9 +56,22 @@ export const dynamic = "force-dynamic";
 export default async function CheckSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ fz?: string }>;
+  /**
+   * `gescannt` SETZT AUSSCHLIESSLICH DIE ORTSETIKETT-WEICHE — DRK-373. Sie
+   * haengt es an, wenn ein gebundenes Kaertchen das Etikett einer ANDEREN
+   * Einheit schlaegt (`_lib/ortZiel.ts`); `fz` traegt dann die Einheit, die
+   * gilt, und `gescannt` die, die gemeint war.
+   *
+   * ⚠️ DER NAME STEHT AN ZWEI STELLEN UND WIRD AN EINER DRITTEN ZUSAMMENGEHALTEN.
+   * Ein `searchParams`-Typ verlangt einen literalen Schluessel, eine geteilte
+   * Konstante kann ihn also nicht ersetzen — benennt eine Seite ihn um, faellt
+   * das in keinem Tor auf: die Seite liest still `undefined`, der Hinweis
+   * bleibt einfach weg. `_lib/ortZiel.test.ts` liest deshalb BEIDE Dateien und
+   * vergleicht den geschriebenen Parameter mit dem gelesenen.
+   */
+  searchParams: Promise<{ fz?: string; gescannt?: string }>;
 }) {
-  const { fz } = await searchParams;
+  const { fz, gescannt } = await searchParams;
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
   const etikett = sitzungsEtikett(zugang);
@@ -117,6 +131,44 @@ export default async function CheckSeite({
   const gebunden = zugang.fahrzeugBindung
     ? fahrzeuge.find((f) => f.id === zugang.fahrzeugBindung)
     : undefined;
+
+  /*
+   * DIE UEBERGANGENE EINHEIT — DRK-373, und sie ist der einzige Grund, warum
+   * diese Seite `gescannt` ueberhaupt liest.
+   *
+   * Die Bindung schlaegt den Scan (Zeile darueber, DRK-302/DRK-312). Was bis
+   * hierher fehlte, ist die AUSKUNFT darueber: die Person liest in der
+   * Ueberschrift den Namen IHRER Einheit und muss selbst schliessen, dass das
+   * nicht die ist, vor der sie steht. Bei „RTW 1" neben „RTW 2" merkt das
+   * niemand — und gezaehlt wuerde der Inhalt der einen in das Buch der anderen.
+   *
+   * ⚠️ `gescannt ?? fz` — ZWEI WEGE, EIN SATZ, und das ist Absicht (offene
+   * Frage 3 des Tickets). Ein getipptes `?fz=B` ist aus Serversicht von einem
+   * gescannten `/o/<B>` nicht zu unterscheiden (`_lib/ortZiel.ts` schreibt das
+   * aus); derselbe Vorrang gilt, also gehoert dieselbe Auskunft dazu. `gescannt`
+   * kommt zuerst, weil auf dem Etikettenweg `fz` bereits die GEBUNDENE Einheit
+   * traegt — dort ist `fz` gar nicht die gemeinte.
+   *
+   * ⚠️ NUR EINE EINHEIT, DIE DIE SEITE AUCH KENNT. Die Suche laeuft ueber
+   * `fahrzeuge`, also ueber die auf `aktiv` gefilterte Liste — dieselbe Menge,
+   * gegen die `etikettOrt` (`_lib/lesepfade/ortEtiketten.ts`) ein Etikett
+   * aufloest. Eine unbekannte, stillgelegte oder geloeschte Id ergibt KEINEN
+   * Hinweis, und das ist die richtige Antwort statt eines halben: das
+   * Akzeptanzkriterium verlangt, dass die Auskunft BEIDE Einheiten beim Namen
+   * nennt, und einen Namen, den die Datenbank nicht hergibt, koennte nur der
+   * Suchparameter selbst liefern — Nutzereingabe, ungeprueft auf dem Schirm.
+   * Ueber `/o/<id>` ist der Fall ohnehin unerreichbar: dort faellt ein Etikett
+   * ohne Ort schon vorher auf `/helfer`.
+   *
+   * ⚠️ OHNE BINDUNG AENDERT SICH NICHTS. `gebunden` ist die erste Bedingung:
+   * wer ungebunden mit `?fz=` kommt, hat seine Einheit selbst gewaehlt, und es
+   * wird ihm nichts uebergangen.
+   */
+  const gemeint = gescannt ?? fz;
+  const uebergangen =
+    gebunden && gemeint && gemeint !== gebunden.id
+      ? fahrzeuge.find((f) => f.id === gemeint) ?? null
+      : null;
 
   // Genau EIN aktives Fahrzeug → keine Wahl anbieten. KEIN `redirect()`: das
   // spart eine Anfrage und schreibt keinen Pfad, den jemand aeusser/innen
@@ -207,6 +259,29 @@ export default async function CheckSeite({
 
   return (
     <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      {/*
+        ⚠️ VOR DEM FLOW UND NICHT IN IHM — DRK-373. Der Flow ist eine
+        Client-Insel mit vier Phasen, die jede ihren eigenen Kopf rendert; ein
+        Hinweis darin muesste an vier Stellen stehen und faellt bei der
+        naechsten Phase an einer davon weg (dieselbe Falle, gegen die
+        `letzterCheckZeile` dort an JEDEM Schritt steht). Hier steht er EINMAL,
+        ausserhalb der Insel — und bleibt damit ueber alle Phasenwechsel
+        stehen, also auch dann noch, wenn der Abschluss gebucht wird. Genau
+        dann zaehlt er: in diesem Moment landet der Inhalt in einem Buch.
+
+        ⚠️ DIE GANZE `fahrzeugListe`-ZEILE GEHT HINEIN, UND DAS IST KEIN
+        VERSEHEN. Jede `.map()` weiter unten haelt den RSC-Schnitt aus
+        Falle 15 — `CheckFlow` ist eine Client-Insel, jedes Feld mehr reist
+        ueber die Grenze auf ein privates Telefon. `ScanHinweis` ist eine
+        SERVER Component: hier wird nichts serialisiert, ein `.map()` waere
+        Ballast mit einer geliehenen Begruendung.
+
+        `gewaehlt` IST hier `gebunden` — `uebergangen` ist nur dann gesetzt,
+        und die `gewaehlt`-Zeile laesst die Bindung zuerst gewinnen. Die
+        Komponente bekommt trotzdem `gewaehlt` und nicht `gebunden`: sie
+        benennt, was der Schirm ZEIGT, und das ist `gewaehlt`.
+      */}
+      {uebergangen && <ScanHinweis gescannt={uebergangen} gezeigt={gewaehlt} />}
       <CheckFlow
         fahrzeug={{
           id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung,
