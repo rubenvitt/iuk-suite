@@ -131,6 +131,31 @@ test.describe("Lagerbuch Schraenke — Zugangsziel und Zugangshinweis (DRK-297)"
     const schrankZeile = page.locator("[data-row-key]").filter({ hasText: schrankName });
     await expect(schrankZeile, "der neue Schrank muss in der Lagerorte-Liste stehen").toHaveCount(1);
 
+    // ── 1b) DRK-367: derselbe Name ein zweites Mal wird abgewiesen ─────────
+    // Die einzige Stelle, an der die ganze Kette am Stueck laeuft: Formular →
+    // Server Action → Datenbank → Satz am Feld. Weder ein DOM-Test (die Action
+    // ist dort gemockt) noch ein Action-Test (dort gibt es kein Formular) sieht
+    // sie. Die Schreibweise ist ABSICHTLICH anders: die Probe faltet, der
+    // Vergleich ist nicht Byte auf Byte.
+    await klickeWennRuhig(page.getByRole("button", { name: "Neuer Schrank" }));
+    const dublettenDialog = page.getByRole("dialog");
+    await dublettenDialog.getByLabel("Name").fill(schrankName.toUpperCase());
+
+    const dublettenAntwort = serverActionAntwort(page);
+    await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
+    expect((await dublettenAntwort).ok(), "Dublette anlegen: Server Action").toBe(true);
+
+    await expect(
+      dublettenDialog.locator(".ant-form-item-explain-error"),
+      "der abgelehnte Name muss AM FELD stehen, nicht nur daneben",
+    ).toHaveText("Dieser Name ist bereits vergeben.");
+    await klickeWennRuhig(dublettenDialog.getByRole("button", { name: "Abbrechen" }));
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page.locator("[data-row-key]").filter({ hasText: schrankName }),
+      "die Dublette darf nicht in der Liste stehen",
+    ).toHaveCount(1);
+
     // ── 2) Verwaltung → Artikel, eigenen Artikel anlegen ──────────────────
     // Ein eigener Artikel statt eines geseedeten: siehe Kopfkommentar — jeder
     // vorhandene Kandidat ist einem anderen Flow vorbehalten.

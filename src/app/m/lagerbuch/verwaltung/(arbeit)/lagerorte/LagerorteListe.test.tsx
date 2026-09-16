@@ -367,6 +367,35 @@ describe("Neuer Schrank", () => {
     );
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
+
+  /**
+   * DRK-367 — der abgelehnte Name landet AM FELD, nicht nur in der Meldung
+   * daneben. Das Formular hat drei Felder; eine Meldung ohne Markierung liesse
+   * die verwaltende Person raten, welches gemeint ist.
+   */
+  it("zeigt einen bereits vergebenen Namen am Namensfeld", async () => {
+    mocks.createSchrank.mockResolvedValueOnce({
+      ok: false,
+      fehler: "Dieser Name ist bereits vergeben.",
+      feldFehler: { name: "Dieser Name ist bereits vergeben." },
+    });
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    await modalOeffnen("Neuer Schrank", "Neuer Schrank");
+    await portalFuellen("Name", "Schrank 1");
+    await portalAbsenden();
+
+    await warteAuf(
+      () => document.body.querySelector(
+        "[data-rolle='neuer-schrank'] .ant-form-item-explain-error",
+      ) !== null,
+      "Feldfehler am Namensfeld",
+    );
+    expect(
+      queryPortal("[data-rolle='neuer-schrank'] .ant-form-item-explain-error").textContent,
+    ).toBe("Dieser Name ist bereits vergeben.");
+    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
 });
 
 describe("Schrank bearbeiten", () => {

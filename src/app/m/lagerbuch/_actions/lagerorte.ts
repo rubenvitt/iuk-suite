@@ -8,6 +8,11 @@ import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { HANDLAGER_ID } from "../_lib/konstanten";
+import {
+  istNamensKollision,
+  NAME_VERGEBEN,
+  schrankNameVergeben,
+} from "../_lib/schrankName";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const LAGERORTE_PFAD = "/m/lagerbuch/verwaltung/lagerorte";
@@ -20,6 +25,16 @@ function validierungsFehler(e: unknown): Extract<ActionErgebnis, { ok: false }> 
     fehler: "Bitte die markierten Felder prüfen.",
     ...(feldFehler ? { feldFehler } : {}),
   };
+}
+
+/**
+ * DRK-367 — der Satz steht am FELD und daneben. Beide Formulare reichen
+ * `feldFehler.name` an die Eingabe durch (`schrankWerte.ts`), und ein Fehler
+ * ohne Feldmarkierung liesse die Person raten, welches der drei Felder gemeint
+ * ist.
+ */
+function nameVergebenFehler(): Extract<ActionErgebnis, { ok: false }> {
+  return { ok: false, fehler: NAME_VERGEBEN, feldFehler: { name: NAME_VERGEBEN } };
 }
 
 const SchrankSchema = z.object({
@@ -41,6 +56,8 @@ export async function createSchrank(
       return validierungsFehler(e);
     }
 
+    if (schrankNameVergeben(db, HANDLAGER_ID, v.name)) return nameVergebenFehler();
+
     const id = newId();
     try {
       db.insert(lagerorte).values({
@@ -58,7 +75,8 @@ export async function createSchrank(
         zugangshinweis: v.zugangshinweis || null,
         sortierung: v.sortierung,
       }).run();
-    } catch {
+    } catch (e) {
+      if (istNamensKollision(e)) return nameVergebenFehler();
       return { ok: false, fehler: "Schrank konnte nicht angelegt werden." };
     }
 
@@ -95,12 +113,17 @@ export async function updateSchrank(
 
     if (!findeSchrank(db, v.id)) return { ok: false, fehler: "Schrank nicht gefunden." };
 
+    // `v.id` als Ausnahme: ein Schrank, der seinen eigenen Namen behaelt und nur
+    // die Reihenfolge aendert, kollidierte sonst mit sich selbst.
+    if (schrankNameVergeben(db, HANDLAGER_ID, v.name, v.id)) return nameVergebenFehler();
+
     try {
       db.update(lagerorte)
         .set({ name: v.name, zugangshinweis: v.zugangshinweis || null, sortierung: v.sortierung })
         .where(eq(lagerorte.id, v.id))
         .run();
-    } catch {
+    } catch (e) {
+      if (istNamensKollision(e)) return nameVergebenFehler();
       return { ok: false, fehler: "Schrank konnte nicht gespeichert werden." };
     }
 
