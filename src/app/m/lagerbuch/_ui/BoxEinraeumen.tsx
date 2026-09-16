@@ -16,9 +16,9 @@ import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
 // dieselbe Form liest die Server Component, die ihn befuellt.
 //
-// ⚠️ `EinraeumPosten` UND NICHT `EinraeumPosten`: die beiden zusaetzlichen Felder
+// ⚠️ `EinraeumPosten` UND NICHT `BoxPosten`: die beiden zusaetzlichen Felder
 // (Fach, Stilllegung) gibt es nur auf DIESEM Weg. Die Begruendung steht am Typ
-// — `helfer/box` reicht `EinraeumPosten` unveraendert an seine Insel und sichert
+// — `helfer/box` reicht `BoxPosten` unveraendert an seine Insel und sichert
 // dort zu, dass nichts Ueberzaehliges im Payload liegt.
 import type { EinraeumPosten } from "../_lib/lesepfade/entnahmebox";
 import s from "./helfer.module.css";
@@ -81,8 +81,8 @@ export function BoxEinraeumen({
 }: {
   /** Aus `lagerorte.name`, nicht aus der Konstante: die Zeile ist umbenennbar. */
   boxName: string;
-  /** Was in der Kiste liegt, nach Artikelnamen sortiert (`boxInhalt`). Nie leer
-   *  — den Leerfall beantwortet die Seite mit einem eigenen Zustand. */
+  /** Was in der Kiste liegt, nach Artikelnamen sortiert (`einraeumPosten`). Nie
+   *  leer — den Leerfall beantwortet die Seite mit einem eigenen Zustand. */
   posten: EinraeumPosten[];
   /** Nie leer: die Wurzel gibt es immer. */
   ziele: EinraeumZiel[];
