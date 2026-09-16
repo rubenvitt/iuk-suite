@@ -107,22 +107,42 @@ export async function aussondern(
 
         // DRK-339 — die Wahl schraenkt die Orte ein, sie ersetzt die Abfrage
         // nicht: gebucht wird weiterhin der Saldo, den die Transaktion sieht.
-        const ziele = v.lagerortId
+        //
+        // ⚠️ EIN ORT MIT SALDO <= 0 IST KEIN ZIEL, UND ZWAR SCHON HIER. Eine
+        // Buchung über 0 stünde im Journal und sagte nichts; eine über eine
+        // negative Zahl drehte das Vorzeichen um und schriebe Bestand ZU.
+        const ziele = (v.lagerortId
           ? jeOrt.filter((z) => z.lagerortId === v.lagerortId)
-          : jeOrt;
+          : jeOrt
+        ).filter((z) => z.summe > 0);
 
-        const gesamt = ziele.reduce((s, z) => s + z.summe, 0);
-        if (gesamt <= 0) {
+        /**
+         * ⚠️ GEZAEHLT WIRD, WAS GEBUCHT WIRD — NICHT DER VORZEICHENBEHAFTETE
+         * GESAMTSALDO (Codex-Befund zu PR #173, nachgerechnet).
+         *
+         * Ein Ort DARF im Minus stehen: das Journal ist append-only, und die
+         * Fassung VOR DRK-297 buchte den ganzen Rest auf die Wurzel, auch wenn
+         * er in den Schränken lag — genau die Zeilen, die deren (Ort,
+         * Charge)-Saldo ins Minus gedrückt haben, stehen dort für immer.
+         *
+         * Liegen dann +5 in Schrank 1 und −6 an der Wurzel, ist die Summe −1.
+         * Über die SUMME geprüft, wiese diese Aktion ab — während die
+         * Verfallsliste daneben „Schrank 1: 5 Stk." zeigt, denn sie lässt
+         * negative Orte weg. Der Knopf schlüge reproduzierbar fehl, und weil
+         * es nur EINEN sichtbaren Ort gibt, böte die Zeile nicht einmal eine
+         * Auswahl an, über die man ihn umgehen könnte: die fünf Stück wären
+         * nicht mehr auszusondern.
+         *
+         * Beide Seiten zählen deshalb dieselben Zeilen — `restJeChargeJeOrt`
+         * in der Anzeige, `ziele` hier.
+         */
+        if (ziele.length === 0) {
           return v.lagerortId
             ? "An diesem Ort liegt nichts mehr von dieser Charge."
             : "Charge hat keinen Restbestand im Handlager.";
         }
 
         for (const zeile of ziele) {
-          // ⚠️ EIN ORT MIT REST 0 ODER WENIGER BEKOMMT KEINE ZEILE. Eine
-          // Buchung über 0 stünde im Journal und sagte nichts; eine über eine
-          // negative Zahl drehte das Vorzeichen um und schriebe Bestand ZU.
-          if (zeile.summe <= 0) continue;
           tx.insert(buchungen).values({
             id: newId(), ts: jetzt, typ: "korrektur", artikelId: charge.artikelId,
             chargeId: charge.id, lagerortId: zeile.lagerortId, menge: -zeile.summe,

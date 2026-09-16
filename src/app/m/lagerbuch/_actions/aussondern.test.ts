@@ -407,6 +407,39 @@ describe("aussondern — DRK-297: bucht je Ort, an dem die Charge liegt", () => 
       erwarteKeineNebenwirkung(anzahlVorher);
     });
 
+    /**
+     * DER SICHTBARE BESTAND WIRD AUSGESONDERT, AUCH WENN DIE SUMME NEGATIV IST
+     * (Codex-Befund zu PR #173).
+     *
+     * ⚠️ EIN ORT DARF IM MINUS STEHEN, und das ist kein erfundener Fall: das
+     * Journal ist append-only, und die Fassung VOR DRK-297 buchte den ganzen
+     * Rest auf die WURZEL, auch wenn er in den Schraenken lag. Genau die
+     * Zeilen, die deren (Ort, Charge)-Saldo ins Minus gedrueckt haben, stehen
+     * dort fuer immer — der Test daneben („bucht nichts auf die Wurzel") haelt
+     * fest, dass es sie gab.
+     *
+     * Ueber die vorzeichenbehaftete SUMME geprueft, wiese die Aktion ab,
+     * waehrend die Verfallsliste „Schrank 1: 4 Stk." zeigt: der Knopf schluege
+     * reproduzierbar fehl, und bei nur EINEM sichtbaren Ort gaebe es nicht
+     * einmal eine Auswahl, ueber die man ihn umgehen koennte.
+     */
+    it("sondert aus, obwohl die Gesamtsumme durch einen Minus-Ort negativ ist", async () => {
+      // Die Wurzel ins Minus druecken: 4 + 6 − 11 = −1 ueber den Bereich.
+      buchen({ id: "alt-wurzelbuchung", chargeId: CHARGE_ABGELAUFEN,
+        lagerortId: HANDLAGER_ID, menge: -11, typ: "korrektur" });
+
+      const erg = await aussondern({ chargeId: CHARGE_ABGELAUFEN, kommentar: "MHD" }, t.db);
+
+      expect(erg.ok).toBe(true);
+      // ⚠️ NUR DIE ZEILEN DER AKTION (`quelleTyp: "oidc"`): die Altzeile oben
+      // traegt selbst `typ: "korrektur"` und stuende sonst in der Erwartung.
+      // ⚠️ KEINE Zeile auf die Wurzel: eine negative Menge dort umgekehrt
+      // gebucht schriebe Bestand ZU.
+      expect(korrekturen().filter((b) => b.quelleTyp === "oidc")
+        .map((b) => [b.lagerortId, b.menge]).sort())
+        .toEqual([["schrank-1", -4], ["schrank-gf", -6]].sort());
+    });
+
     it("verlangt weiter eine ABGELAUFENE Charge — der Ort oeffnet keine zweite Tuer", async () => {
       charge("ch-gueltig-im-schrank", "2099-12");
       buchen({ id: "seed-gueltig-schrank", chargeId: "ch-gueltig-im-schrank",
