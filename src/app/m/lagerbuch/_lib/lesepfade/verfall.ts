@@ -23,9 +23,9 @@
 import { eq } from "drizzle-orm";
 import { artikel, chargen, lagerorte, lagerortVerfall } from "../../_db/schema";
 import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
-import { HANDLAGER_ID, type Einheitenart } from "../konstanten";
+import type { Einheitenart } from "../konstanten";
 import { chargeText } from "../format";
-import { ZAEHLORT_WURZEL_LABEL } from "../inventurOrt";
+import { eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
 import { restJeChargeJeOrt, type Leser } from "./bestand";
 import { handlagerOrte, ortStamm } from "./orte";
 
@@ -37,7 +37,16 @@ import { handlagerOrte, ortStamm } from "./orte";
  * ueberschrieben ist, saegte ein Chip „Handlager: 5" neben „Schrank 1: 3"
  * genau die Frage ab, die er beantworten soll: er klaenge nach dem ganzen
  * Bereich statt nach „in keinem Schrank". DRK-337 hat fuer diesen Ort bereits
- * ein Wort entschieden, und es ist dasselbe Wort wie in der Zaehlauswahl.
+ * ein Wort entschieden, und es ist dasselbe Wort wie in der Zaehlauswahl —
+ * `zaehlOrtLabel`, nicht eine zweite Schreibweise daneben.
+ *
+ * ⚠️ UND SIE IST EINDEUTIG, weil an ihr eine BUCHUNG haengt (Codex-Befund zu
+ * PR #173). Zwei Schraenke duerfen heute gleich heissen, und ein Schrank
+ * namens „Nicht zugeordnet" kollidiert mit der Wurzel — in der Ortswahl
+ * stuenden dann zwei optisch identische Zeilen „nur Nicht zugeordnet (4
+ * Stk.)", und wer danebengreift, bucht den falschen Ort leer. Dieselbe
+ * Verwechslung und dieselbe Abhilfe wie in der Zaehlauswahl: `eindeutigeLabels`
+ * haengt die Kennung an, aber nur dort, wo ein Name doppelt vorkommt.
  */
 export type VerfallOrt = {
   id: string; name: string; menge: number; zugangshinweis: string | null;
@@ -75,6 +84,19 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
   const bereich = handlagerOrte(db);
   const rest = restJeChargeJeOrt(db, bereich);
   const stamm = ortStamm(db);
+  /**
+   * ⚠️ EINMAL UEBER DEN GANZEN BEREICH, nicht je Charge ueber ihre Orte. Die
+   * Mehrdeutigkeit ist eine Eigenschaft der ORTSMENGE; berechnete man sie je
+   * Zeile neu, truege derselbe Schrank mal seine Kennung und mal nicht — je
+   * nachdem, wo sonst noch etwas liegt. Dass eine Kennung auch dann erscheint,
+   * wenn der kollidierende Schrank von DIESER Charge nichts traegt, ist der
+   * Preis dafuer und die sichere Richtung.
+   */
+  const beschriftung = new Map(
+    eindeutigeLabels(
+      bereich.map((id) => ({ id, label: zaehlOrtLabel(id, stamm.get(id)?.name) })),
+    ).map((o) => [o.id, o.label]),
+  );
   const eintraege: VerfallEintrag[] = [];
   for (const c of db.select().from(chargen).all()) {
     const jeOrt = rest.get(c.id);
@@ -93,7 +115,7 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
       const o = stamm.get(ortId);
       orte.push({
         id: ortId,
-        name: ortId === HANDLAGER_ID ? ZAEHLORT_WURZEL_LABEL : o?.name ?? ortId,
+        name: beschriftung.get(ortId) ?? ortId,
         menge,
         zugangshinweis: o?.zugangshinweis ?? null,
       });

@@ -3,6 +3,7 @@ import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall, newId } from "../../_db/schema";
 import { verfallListe, lagerortVerfallListe, verfallFuerLagerort } from "./verfall";
 import { HANDLAGER_ID } from "../konstanten";
+import { ZAEHLORT_WURZEL_LABEL } from "../inventurOrt";
 
 /**
  * DIE VERFALLSSCHWELLEN WERDEN AUSDRUECKLICH GEPINNT.
@@ -222,6 +223,39 @@ describe("verfallListe — die Liegeplaetze im Handlager (DRK-339)", () => {
     const eintrag = verfallListe(t.db, NOW).find((e) => e.chargeId === "c-alt");
     expect(eintrag?.orte.map((o) => o.id)).toEqual([HANDLAGER_ID]);
     expect(eintrag?.rest).toBe(3);
+  });
+
+  /**
+   * DIE BESCHRIFTUNG IST EINDEUTIG, WEIL AN IHR EINE BUCHUNG HAENGT
+   * (Codex-Befund zu PR #173).
+   *
+   * ⚠️ ZWEI SCHRAENKE DUERFEN HEUTE GLEICH HEISSEN, und ein Schrank namens
+   * „Nicht zugeordnet" kollidiert mit der Wurzel (`inventurOrt.ts` schreibt
+   * genau diese Richtung aus). In der Ortswahl stuenden dann zwei optisch
+   * identische Zeilen „nur Nicht zugeordnet (4 Stk.)" — wer danebengreift,
+   * bucht den falschen Ort leer, und die Zeile daneben verraet nicht, welcher
+   * es war.
+   */
+  it("haengt die Kennung an, wenn ein Schrank wie die Wurzel heisst", () => {
+    t.db.insert(lagerorte).values({
+      id: "schrank-doppelt", name: ZAEHLORT_WURZEL_LABEL, typ: "lager", kennung: null,
+      aktiv: true, parentId: HANDLAGER_ID, sortierung: 50,
+    }).run();
+    buchen("c-alt", "schrank-doppelt", 4);
+
+    expect(orteVon("c-alt").map((o) => o.name)).toEqual([
+      `${ZAEHLORT_WURZEL_LABEL} (${HANDLAGER_ID})`,
+      `${ZAEHLORT_WURZEL_LABEL} (schrank-doppelt)`,
+    ]);
+  });
+
+  it("laesst die Kennung weg, solange die Namen verschieden sind", () => {
+    /** Die haessliche Kennung erscheint NUR in der Lage, die selbst schon ein
+     *  Fehler ist — sonst traege jede Zeile technischen Ballast. */
+    buchen("c-alt", "schrank-1", 4);
+
+    expect(orteVon("c-alt").map((o) => o.name))
+      .toEqual([ZAEHLORT_WURZEL_LABEL, "Schrank 1"]);
   });
 
   it("zeigt eine Charge, die AUSSCHLIESSLICH in einem Schrank liegt", () => {
