@@ -289,10 +289,28 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
       expect(erg.entfernt, fz.id).toBe(0);
     }
 
-    // Jede Verfallsmeldung haengt an einer aktiven Soll-Position — sonst raeumte
-    // `bereinigeVerfallOhneAktivesSoll` sie beim naechsten Sync ab.
+    /*
+     * Jede Verfallsmeldung AN EINER EINHEIT haengt an einer aktiven
+     * Soll-Position — sonst raeumte `bereinigeVerfallOhneAktivesSoll` sie beim
+     * naechsten Sync ab.
+     *
+     * ⚠️ „AN EINER EINHEIT" IST SEIT DRK-377 DER TRAGENDE TEIL DES SATZES, und
+     * vorher stand er nicht da. Bis dahin galt die Soll-Bindung fuer die ganze
+     * Tabelle; seither ist sie eine Auflage der PFLEGE und keine der ZEILE, und
+     * `bereinigeVerfallOhneAktivesSoll` fasst ausdruecklich nur Fahrzeuge an
+     * (geprueft in `schreibpfade/lagerortVerfall.test.ts`). Die Entnahmebox
+     * traegt einen gemeldeten Verfall OHNE Soll — das ist der Kern des Tickets
+     * und kein verwaister Eintrag.
+     *
+     * ⚠️ DIE ABFRAGE MUSS DESHALB UEBER `lagerorte.typ` GEHEN und nicht ueber
+     * eine Ausnahmeliste mit der Box-Id: waechst die Suite um einen zweiten
+     * Ort ohne Soll, der eine Meldung traegt, faellt dieser Test sonst mit
+     * einer Begruendung, die auf ihn nicht zutrifft.
+     */
     const verwaist = t.sqlite.prepare(
-      "select count(*) as n from lagerort_verfall v where not exists (" +
+      "select count(*) as n from lagerort_verfall v" +
+      " join lagerorte l on l.id = v.lagerort_id and l.typ = 'fahrzeug'" +
+      " where not exists (" +
       " select 1 from soll_positionen s where s.fahrzeug_id = v.lagerort_id" +
       " and s.artikel_id = v.artikel_id and s.entfernt = 0)",
     ).get() as { n: number };
@@ -388,6 +406,42 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
 
     // Und die Box haengt NEBEN dem Handlager — ihr Inhalt zaehlt dort nicht mit.
     expect(handlagerOrte(t.db)).not.toContain(ENTNAHMEBOX_ID);
+  });
+
+  it("gibt der Box auch den GEMELDETEN Verfall mit — sonst fehlt der Kernzustand", async () => {
+    /*
+     * ⚠️ DER ZUSTAND, DEN DRK-377 HERSTELLT, MUSS IM SEED SICHTBAR SEIN (Codex
+     * zu PR #194, P2). Der Seed bucht die Kompressen ueber `umlagerungVonOrt`
+     * DIREKT und nicht ueber `bucheInEntnahmebox` — er faehrt also an der
+     * Action und damit an `verfallFolgtDemMaterial` vorbei, wenn er die Regel
+     * nicht selbst ruft. Ohne sie stuende in der Kiste „—" in der Spalte
+     * „Gemeldet", die Box fehlte in der Verfallsuebersicht, und der
+     * auffaelligste Zustand des Tickets waere weder lokal noch in einem
+     * Playwright-Lauf zu sehen.
+     *
+     * ⚠️ GEPRUEFT WIRD DIE ZEILE, NICHT IHR DATUM: welchen Monat der Seed für
+     * die Kompressen meldet, haengt an `m.rot` und damit am Lauftag. Eine
+     * Zusicherung darauf prueefte den Kalender statt den Seed.
+     */
+    await seedLokalLagerbuch(t.db);
+
+    const inDerBox = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID);
+    expect(inDerBox.length, "die Box traegt mindestens eine Meldung")
+      .toBeGreaterThan(0);
+
+    // ⚠️ UND SIE STAMMT AUS EINER EINHEIT, die auch wirklich dorthin gebucht
+    // hat — eine Meldung ohne Herkunft waere eine erfundene Zahl.
+    const herkuenfte = new Set(
+      t.db.select().from(buchungen).all()
+        .filter((b) => b.lagerortId === ENTNAHMEBOX_ID && b.referenz)
+        .map((b) => b.referenz!.slice(ENTNAHMEBOX_PRAEFIX.length)),
+    );
+    for (const z of inDerBox) {
+      const ausEinheit = t.db.select().from(buchungen).all()
+        .some((b) => herkuenfte.has(b.lagerortId) && b.artikelId === z.artikelId);
+      expect(ausEinheit, z.artikelId).toBe(true);
+    }
   });
 
   it("vergibt feste Codes — einen davon gesperrt", async () => {

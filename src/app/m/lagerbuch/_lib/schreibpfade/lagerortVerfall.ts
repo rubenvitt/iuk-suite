@@ -26,6 +26,7 @@ import { and, eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { lagerorte, lagerortVerfall, newId, sollPositionen } from "../../_db/schema";
 import { MONAT_REGEX } from "../konstanten";
+import { restJeChargeFuerArtikelAnOrt } from "../lesepfade/bestand";
 import type { Quelle, Tx } from "./abbuchung";
 
 /**
@@ -157,6 +158,57 @@ export function uebernimmVerfall(
       },
     })
     .run();
+}
+
+/**
+ * DIE GANZE REGEL „die Meldung folgt dem Material" AN EINER STELLE (DRK-377).
+ *
+ * Aufzurufen NACH der Umlagerungsbuchung, in derselben Transaktion. Zwei
+ * Schritte, und ihre Reihenfolge ist die ganze Zusage:
+ *
+ *  1. `uebernimmVerfall` traegt die Meldung an den Zielort.
+ *  2. Am Quellort faellt sie, sobald dort nichts mehr von diesem Artikel liegt.
+ *
+ * ⚠️ UEBERNEHMEN VOR LOESCHEN — Schritt 1 LIEST die Quellzeile. Andersherum
+ * waere sie weg, der Aufruf ein No-Op, und das gemeldete Datum verloren.
+ *
+ * ⚠️ DIE VERBLEIBENDE MENGE WIRD NACHGELESEN, NICHT AUSGERECHNET.
+ * „Bestand vorher minus gebuchte Menge" liegt nahe und ist falsch, sobald eine
+ * Charge am Ort einen NEGATIVEN Saldo traegt: die uebliche Summe zaehlt nur die
+ * positiven, die Differenz kaeme also auf Null, waehrend am Ort noch etwas
+ * liegt — und die Angabe waere geloescht, obwohl sie den Rest weiter
+ * beschreibt. Eine Abfrage ist billiger als die stille Fehlmenge.
+ *
+ * ⚠️ GELOESCHT WIRD ERST BEIM LETZTEN STUECK, und das ist die sichere Richtung:
+ * eine zu frueh geloeschte Angabe nimmt eine gepflegte Information weg, ohne
+ * dass es jemand merkt. Dass sie jetzt AUCH am Zielort steht, macht sie am
+ * Quellort nicht falsch — die Tabelle traegt je ORT einen Wert, nicht je
+ * Meldung.
+ *
+ * ⚠️ WARUM EINE FUNKTION UND NICHT ZWEI ZEILEN IN DER ACTION (Codex zu PR #194,
+ * P2): der lokale Seed bucht dieselbe Umlagerung ueber `umlagerungVonOrt`
+ * DIREKT, nicht ueber `bucheInEntnahmebox` — und stand damit an den zwei Zeilen
+ * vorbei. Die Kiste zeigte lokal „—" in der Spalte „Gemeldet" und fehlte in der
+ * Verfallsuebersicht, also genau der Zustand, den dieses Ticket herstellt, war
+ * in den Demodaten nicht zu sehen. Der Seed traegt seine eigene Begruendung
+ * dafuer schon laenger („zwei von Hand geschriebene Zeilen gingen beim
+ * naechsten Griff an diesem Schreibpfad auseinander"); sie gilt hier genauso.
+ *
+ * ⚠️ WER EINE DRITTE STELLE BAUT, DIE MATERIAL ZWISCHEN ORTEN BEWEGT, ruft
+ * DIESE Funktion — nicht `uebernimmVerfall` allein. Der zweite Schritt ist der,
+ * den man vergisst, und sein Fehlen ist still: die geleerte Einheit meldet
+ * ihren Artikel weiter als ablaufend.
+ */
+export function verfallFolgtDemMaterial(
+  db: DB | Tx,
+  args: { vonLagerortId: string; nachLagerortId: string; artikelId: string },
+): void {
+  const { vonLagerortId, nachLagerortId, artikelId } = args;
+  uebernimmVerfall(db, { vonLagerortId, nachLagerortId, artikelId });
+
+  const rest = restJeChargeFuerArtikelAnOrt(db, artikelId, vonLagerortId);
+  const verbleibt = [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
+  if (verbleibt === 0) loescheVerfallEintrag(db, vonLagerortId, artikelId);
 }
 
 /**

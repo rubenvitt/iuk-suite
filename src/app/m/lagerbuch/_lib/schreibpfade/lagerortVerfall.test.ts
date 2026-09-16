@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
-import { artikel, lagerorte, lagerortVerfall, sollPositionen } from "../../_db/schema";
+import {
+  artikel, buchungen, chargen, lagerorte, lagerortVerfall, sollPositionen,
+} from "../../_db/schema";
 import {
   bereinigeVerfallOhneAktivesSoll, loescheVerfallEintrag, loescheVerfallFuer,
-  setzeVerfall, uebernimmVerfall,
+  setzeVerfall, uebernimmVerfall, verfallFolgtDemMaterial,
 } from "./lagerortVerfall";
 import { ENTNAHMEBOX_ID } from "../konstanten";
 import type { Quelle } from "./abbuchung";
@@ -237,6 +239,93 @@ describe("uebernimmVerfall — die Angabe wandert mit dem Material (DRK-377)", (
     });
 
     expect(alle()).toMatchObject([{ lagerortId: ENTNAHMEBOX_ID, verfall: "2026-07" }]);
+  });
+});
+
+describe("verfallFolgtDemMaterial — Uebernahme UND Abraeumen in einem (DRK-377)", () => {
+  /*
+   * ⚠️ DIE ZWEI SCHRITTE STEHEN HIER ZUSAMMEN, WEIL SIE ZUSAMMENGEHOEREN. Der
+   * zweite ist der, den man vergisst, und sein Fehlen ist still: die geleerte
+   * Einheit meldet ihren Artikel weiter als ablaufend. Genau daran fuhr der
+   * lokale Seed vorbei, solange die Regel als zwei Zeilen in der Action stand
+   * (Codex zu PR #194, P2).
+   *
+   * Der Bestand wird hier ueber `buchungen` gestellt, weil die Funktion ihn
+   * NACHLIEST — eine Attrappe prueefte die Rechnung, nicht die Regel.
+   */
+  function buchen(id: string, ort: string, menge: number) {
+    t.db.insert(buchungen).values({
+      id, ts: NOW, typ: "zugang", artikelId: "a1", chargeId: "ch-1",
+      lagerortId: ort, menge, quelleTyp: "system", quelleId: "seed",
+      referenz: null, kommentar: null,
+    }).run();
+  }
+
+  beforeEach(() => {
+    t.db.insert(chargen).values({
+      id: "ch-1", artikelId: "a1", chargenNr: "L-1", verfall: "2030-01", createdAt: NOW,
+    }).run();
+    setzeVerfall(t.db, { lagerortId: "rtw-1", artikelId: "a1",
+      verfall: "2026-09", quelle: QUELLE, jetzt: NOW });
+  });
+
+  it("traegt die Angabe in die Box und raeumt die LEERE Einheit ab", () => {
+    buchen("b-1", "rtw-1", 0);   // nichts mehr da
+
+    verfallFolgtDemMaterial(t.db, {
+      vonLagerortId: "rtw-1", nachLagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+    });
+
+    expect(alle()).toMatchObject([{ lagerortId: ENTNAHMEBOX_ID, verfall: "2026-09" }]);
+  });
+
+  it("laesst sie an der Einheit stehen, solange dort noch etwas liegt", () => {
+    // ⚠️ DIE GEGENPROBE, und sie ist der teurere Fehler: eine zu frueh
+    // geloeschte Angabe nimmt eine gepflegte Information weg, ohne dass es
+    // jemand merkt. Dass sie jetzt AUCH in der Box steht, macht sie an der
+    // Einheit nicht falsch.
+    buchen("b-1", "rtw-1", 4);
+
+    verfallFolgtDemMaterial(t.db, {
+      vonLagerortId: "rtw-1", nachLagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+    });
+
+    expect(alle().map((z) => z.lagerortId).sort()).toEqual([ENTNAHMEBOX_ID, "rtw-1"]);
+  });
+
+  it("zaehlt einen NEGATIVEN Chargensaldo nicht als Leere", () => {
+    /*
+     * ⚠️ DER GRUND, WARUM NACHGELESEN UND NICHT GERECHNET WIRD. „Bestand vorher
+     * minus gebuchte Menge" kaeme hier auf Null, weil die uebliche Summe nur
+     * die positiven Salden zaehlt — und die Angabe waere geloescht, obwohl am
+     * Ort noch vier Stueck einer anderen Charge liegen.
+     */
+    t.db.insert(chargen).values({
+      id: "ch-2", artikelId: "a1", chargenNr: "L-2", verfall: "2030-06", createdAt: NOW,
+    }).run();
+    buchen("b-1", "rtw-1", 4);
+    t.db.insert(buchungen).values({
+      id: "b-2", ts: NOW, typ: "korrektur", artikelId: "a1", chargeId: "ch-2",
+      lagerortId: "rtw-1", menge: -3, quelleTyp: "system", quelleId: "seed",
+      referenz: null, kommentar: null,
+    }).run();
+
+    verfallFolgtDemMaterial(t.db, {
+      vonLagerortId: "rtw-1", nachLagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+    });
+
+    expect(alle().map((z) => z.lagerortId).sort()).toEqual([ENTNAHMEBOX_ID, "rtw-1"]);
+  });
+
+  it("ist ohne Meldung an der Quelle vollstaendig wirkungslos", () => {
+    loescheVerfallEintrag(t.db, "rtw-1", "a1");
+    buchen("b-1", "rtw-1", 0);
+
+    verfallFolgtDemMaterial(t.db, {
+      vonLagerortId: "rtw-1", nachLagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+    });
+
+    expect(alle()).toEqual([]);
   });
 });
 

@@ -29,7 +29,7 @@ import { fefoAbbuchungImBereich, type Quelle } from "./schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "./schreibpfade/korrektur";
 import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerung";
 import { handlagerOrte } from "./lesepfade/orte";
-import { setzeVerfall } from "./schreibpfade/lagerortVerfall";
+import { setzeVerfall, verfallFolgtDemMaterial } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 
 /**
@@ -843,6 +843,27 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         artikelId: A.kompresse, menge: 6, vonOrt: RTW, nachLagerortId: ENTNAHMEBOX_ID,
         quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
         kommentar: ENTNAHMEBOX_KOMMENTAR, referenz: REF_BOX,
+      });
+      /* ⚠️ UND DIE GEMELDETE VERFALLSANGABE FOLGT (DRK-377, Codex zu PR #194).
+       *
+       * Ohne diese Zeile faehrt der Seed an der Regel vorbei, und zwar genau
+       * an der, die das Ticket herstellt: `bucheInEntnahmebox` ruft
+       * `verfallFolgtDemMaterial`, dieser Block aber bucht ueber
+       * `umlagerungVonOrt` DIREKT. Die Kompressen tragen am RTW eine Meldung
+       * (Abschnitt 12a, `m.rot`) — in der Kiste stuende ohne den Aufruf „—" in
+       * der Spalte „Gemeldet", und die Box fehlte in der Verfallsuebersicht.
+       * Der auffaelligste Zustand des Moduls waere lokal nicht zu sehen, und
+       * fuer jeden Playwright-Lauf ebenso wenig.
+       *
+       * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
+       * derselbe Grund, aus dem dieser Block `umlagerungVonOrt` ruft statt zwei
+       * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
+       * naechsten Griff an diesem Schreibpfad auseinander.
+       *
+       * Der RTW behaelt Kompressen, seine Meldung bleibt also stehen — dass
+       * beides zusammenpasst, entscheidet die Funktion und nicht diese Zeile. */
+      verfallFolgtDemMaterial(tx, {
+        vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
       });
     });
   }

@@ -15,9 +15,7 @@ import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
-import {
-  loescheVerfallEintrag, uebernimmVerfall,
-} from "../_lib/schreibpfade/lagerortVerfall";
+import { verfallFolgtDemMaterial } from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
@@ -415,11 +413,13 @@ export async function bucheInEntnahmebox(
            * (`bereinigeVerfallOhneAktivesSoll`), und damit wandert die Angabe
            * schlicht mit dem Material.
            *
-           * ⚠️ UEBERNEHMEN VOR LOESCHEN, und die Reihenfolge ist die ganze
-           * Zusage: `uebernimmVerfall` LIEST die Quellzeile. Stuende das
-           * Loeschen davor, waere sie weg, der Aufruf ein No-Op — und der
-           * Datenverlust aus Fassung 2 waere zurueck, diesmal mit einer Zeile
-           * Code, die das Gegenteil behauptet.
+           * ⚠️ EIN AUFRUF UND NICHT ZWEI SCHRITTE HIER (Codex zu PR #194, P2).
+           * `verfallFolgtDemMaterial` traegt die Meldung an den Zielort UND
+           * raeumt sie am Quellort ab, sobald dort nichts mehr liegt — in
+           * dieser Reihenfolge, weil der erste Schritt die Quellzeile liest.
+           * Die Regel steht dort, weil diese Action nicht die einzige Stelle
+           * ist, die Material in die Box bucht: der lokale Seed tut es ueber
+           * `umlagerungVonOrt` direkt und stand an zwei Zeilen hier vorbei.
            *
            * ⚠️ UEBERNOMMEN WIRD BEI JEDER MENGE, NICHT ERST BEIM LETZTEN
            * STUECK, und das ist eine bewusste Ueberwarnung. Die Meldung haengt
@@ -442,34 +442,11 @@ export async function bucheInEntnahmebox(
            * die niemand mehr wegnehmen kann, waere ein Dauerposten in der
            * Verfallsuebersicht.
            */
-          uebernimmVerfall(tx, {
+          verfallFolgtDemMaterial(tx, {
             vonLagerortId: v.fahrzeugId,
             nachLagerortId: ENTNAHMEBOX_ID,
             artikelId: v.artikelId,
           });
-
-          /*
-           * ⚠️ DIE VERBLEIBENDE MENGE WIRD NACHGELESEN, NICHT AUSGERECHNET.
-           * `gesamt - v.menge` laege nahe und waere falsch, sobald eine Charge
-           * am Ort einen NEGATIVEN Saldo traegt: `gesamt` zaehlt oben nur die
-           * positiven (`r > 0 ? r : 0`), die Differenz kaeme also auf Null,
-           * waehrend am Ort noch etwas liegt — und die Angabe der Einheit waere
-           * geloescht, obwohl sie den Rest weiter beschreibt. Eine Abfrage ist
-           * billiger als die stille Fehlmenge.
-           */
-          const restNachher = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, v.fahrzeugId);
-          const verbleibt = [...restNachher.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
-          if (verbleibt === 0) {
-            /*
-             * ⚠️ GELOESCHT WIRD ERST BEIM LETZTEN STUECK. Liegt noch etwas da,
-             * beschreibt die Meldung diesen Rest weiter — und sie fruehzeitig
-             * wegzunehmen ist der teurere Fehler: eine gepflegte Angabe
-             * verschwindet, ohne dass es jemand merkt. Dass sie jetzt AUCH in
-             * der Box steht, macht sie an der Einheit nicht falsch; die Tabelle
-             * traegt je ORT einen Wert, nicht je Meldung.
-             */
-            loescheVerfallEintrag(tx, v.fahrzeugId, v.artikelId);
-          }
 
           gebucht = ergebnis.umgelagert;
           return null;
