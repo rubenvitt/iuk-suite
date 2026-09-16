@@ -8,9 +8,10 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
-import { artikel, tokens, newId } from "./schema";
+import { artikel, lagerorte, tokens, newId } from "./schema";
 import { decodeQr } from "../../../../../e2e/helpers/decode-qr";
-import { etikettenDaten, EtikettenBasisFehlt } from "./etiketten";
+import { etikettenDaten, ortEtikettenDaten, EtikettenBasisFehlt } from "./etiketten";
+import { HANDLAGER_ID } from "../_lib/konstanten";
 
 /**
  * DER HOST WIRD GEMOCKT, NICHT DIE BASIS-URL — und das ist der Unterschied zum
@@ -183,5 +184,65 @@ describe("etikettenDaten", () => {
     await expect(etikettenDaten(t.db)).rejects.toThrow();
     // Kein Teil-Ergebnis, kein `null/a/<id>` irgendwo — die Funktion steigt vor
     // dem ersten qrSvg aus.
+  });
+});
+
+/**
+ * DIE A7-ORTSETIKETTEN — DRK-312.
+ *
+ * ⚠️ DIE FIXTURE STEHT HIER UND NICHT IM `beforeEach` OBEN: die Lagerorte
+ * gehen keinen der Tests darueber etwas an, und eine Fixture, die jeder Test
+ * mittraegt, ohne sie zu benutzen, laedt den naechsten Leser ein, sie fuer eine
+ * Vorbedingung zu halten. Der Handlager selbst kommt aus Migration 0003 und
+ * wird nur benutzt.
+ */
+describe("ortEtikettenDaten", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "rtw-1", name: "RTW 1", typ: "fahrzeug", kennung: "HN-DRK-1101",
+        aktiv: true, einheitenart: "fahrzeug" },
+      { id: "tasche-san", name: "Sanitätstasche 1", typ: "fahrzeug", kennung: null,
+        aktiv: true, einheitenart: "tasche" },
+      { id: "alt-elw", name: "ELW alt", typ: "fahrzeug", kennung: "HN-DRK-9",
+        aktiv: false, einheitenart: "fahrzeug" },
+    ]).run();
+  });
+
+  /**
+   * ⚠️ DIESELBE KONSTRUKTION WIE OBEN, UND AUS DEMSELBEN GRUND: der QR wird
+   * ZURUECKDEKODIERT, nicht auf sein Vorhandensein geprueft. Eine Zusicherung
+   * auf ein `<svg>` bliebe gruen, wenn die Nutzlast ein relativer Pfad waere —
+   * und ein relativer QR ist auf Papier bedeutungslos, sieht am Bildschirm aber
+   * richtig aus. Bei einem laminierten Kaertchen am Fahrzeug faellt das erst
+   * auf, wenn jemand davorsteht und scannt.
+   */
+  it("kodiert die absolute Adresse des Orts in die Pixel", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
+    expect(rtw.url).toBe("https://lagerbuch.iuk-ue.de/o/rtw-1");
+    expect(await decodeQr(rtw.qr)).toBe("https://lagerbuch.iuk-ue.de/o/rtw-1");
+  });
+
+  it("nimmt den Handlager und die aktiven Einheiten, den Handlager zuerst", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    expect(daten.orte.map((o) => o.id)).toEqual([HANDLAGER_ID, "rtw-1", "tasche-san"]);
+  });
+
+  /**
+   * ⚠️ `standortMeta` UND NICHT `einheitMeta`: fuer ein Lager ist die
+   * Einheitenart gegenstandslos, nicht „noch nicht zugeordnet". Stuende dort
+   * der Zwischenstandstext, laese sich der Handlager auf dem gedruckten Etikett
+   * als eine Einheit, bei der jemand die Zuordnung vergessen hat (DRK-309).
+   */
+  it("schreibt je Karte eine Beizeile, die die Art benennt", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    expect(daten.orte.map((o) => o.meta))
+      .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
+  });
+
+  /** Ohne Basis gibt es keinen halben Bogen — dieselbe Zusage wie oben. */
+  it("wirft EtikettenBasisFehlt, wenn moduleUrl null liefert", async () => {
+    modulUrl.wert = null;
+    await expect(ortEtikettenDaten(t.db)).rejects.toThrow(EtikettenBasisFehlt);
   });
 });

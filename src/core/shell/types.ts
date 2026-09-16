@@ -50,7 +50,17 @@ export type NavIkonName =
   // geteiltes Zeichen machte sie in der Seitenleiste ununterscheidbar. Die
   // Bauform von `baukasten` (zwei Eintraege, ein Zeichen) traegt hier NICHT:
   // dort stehen die beiden Eintraege in verschiedenen Abschnitten.
-  | "entnahme" | "pruefen";
+  | "entnahme" | "pruefen"
+  // DRK-312: das A7-Etikett je Handlager bzw. Einheit. KEIN geliehener Name,
+  // und der Grund steht zwei Absaetze weiter oben schon ausgeschrieben:
+  // `etiketten` (PiQrCode) traegt den Nav-Eintrag daneben, und die beiden
+  // stehen im SELBEN Abschnitt („Einrichtung") — ein geteiltes Zeichen machte
+  // sie in der Seitenleiste ununterscheidbar. Die Bauform von `baukasten`
+  // (zwei Eintraege, ein Zeichen) traegt hier also genauso wenig wie bei
+  // `checks`/`pruefen`. PiMapPinArea meint den ORT, den das Etikett benennt —
+  // `lagerorte` (PiLockers) meint die Schraenke darin und waere eine andere
+  // Aussage.
+  | "ortsetiketten";
 
 /**
  * Ein Eintrag der EINEN Einstiegsliste — Suite-Modul oder externer Dienst.

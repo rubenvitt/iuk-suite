@@ -34,6 +34,31 @@
   margin: 8mm;                            /* globals.css:276 */
 }
 
+/* DIE BENANNTE A7-SEITE DER ORTSETIKETTEN (DRK-312, `_lib/ortEtikettMasse.ts`).
+ *
+ * ⚠️ `size: A7` WAERE STILL WIRKUNGSLOS. Chromiums Schluesselwortliste endet bei
+ * A5/B5; `A6`, `A7` und `A8` fallen schon beim PARSEN heraus — das CSSOM gibt
+ * die Regel danach als `@page { }` zurueck. Gemessen (echter Chromium,
+ * `page.pdf({ preferCSSPageSize: true })`, MediaBox aus dem PDF): `size: A4`
+ * ergibt 209,9 x 297,0 mm, `size: A7` ergibt 215,9 x 279,4 mm — also Letter,
+ * die Vorgabe. `74mm 105mm` ergibt 74,1 x 105,2 mm. Kein Tor sieht das: es ist
+ * gueltiges CSS nach Spezifikation, und jsdom hat keine Seitenaufteilung.
+ *
+ * ⚠️ SIE MUSS BENANNT SEIN. Diese Datei bedient DREI Druckflaechen; ein
+ * unbenanntes `size` gaelte auch fuer den A4-Etikettenbogen und die
+ * Checklisten. Die unbenannte Regel darueber bleibt davon unberuehrt —
+ * ebenfalls gemessen, beide Regeln stehen im selben Stylesheet.
+ *
+ * ⚠️ UND ALLES GEDRUCKTE DIESER SEITE MUSS DARAUF LIEGEN. Chromium verwirft die
+ * CSS-Groesse VOLLSTAENDIG, sobald ein Dokument gemischte Seitengroessen ergibt
+ * (gemessen: A7-Karte plus A4-Bogen im selben Dokument → Letter fuer beide).
+ * Deshalb traegt `.lb-ortbogen` die Seite, und das Chrome faellt ueber
+ * `lb-nichtDrucken` vorher weg. */
+@page a7 {
+  size: 74mm 105mm;
+  margin: 5mm;
+}
+
 .lb-etikettbogen {
   display: grid;
   grid-template-columns: repeat(auto-fill, 48.5mm);   /* :265 */
@@ -118,6 +143,150 @@
 
 .lb-etikettWahl {
   margin: 0;
+  flex: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * DIE A7-ORTSETIKETTEN (`(druck)/ortsetiketten/`) — Praefix `lb-ort`.
+ *
+ * Ein Etikett je Handlager bzw. Einheit, ein Blatt je Etikett (DRK-312). Die
+ * Millimeter stehen zugleich in `_lib/ortEtikettMasse.ts`;
+ * `ortsetiketten/druck.test.ts` haelt beide aneinander.
+ *
+ * WARUM AUCH SIE IN DIESER DATEI STEHT: `etiketten/druck.test.ts` haelt
+ * modulweit fest, dass es GENAU EINE Datei mit `@media print` gibt. Das ist
+ * keine Formalie — die Sichtbarkeitsumkehr aus globals.css ist genau daran
+ * gescheitert, dass Druckregeln sich ueber mehrere Stellen verteilten und
+ * gegenseitig Seiten leerten (Falle 43). Aus demselben Grund stehen die
+ * BILDSCHIRM-Regeln hier VOR dem `@media print`-Block und die Druckregeln
+ * DARIN: `druck.test.ts` schneidet die Datei an `indexOf("@media")`.
+ *
+ * ES GELTEN DIESELBEN VIER VERBOTE: kein `--ant-` (Falle 2), kein `.ant-`, kein
+ * nackter `input`-Selektor, und nirgends `visibility: hidden` oder `body *`.
+ *
+ * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS — alle Farben sind LITERALE. Das
+ * `(druck)`-Layout haengt unter `.modul`, dessen `--lb-*`-Satz im Dunkelzweig
+ * kippt; ein `var(--lb-tinte)` hier druckte aus einer dunkel eingestellten
+ * Sitzung helle Schrift auf weisses Papier, und `print-color-adjust: exact`
+ * verbietet dem Browser jede Notrechnung.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* ⚠️ `page: a7` SITZT HIER, AM GEMEINSAMEN VORFAHREN — nicht an jeder Karte
+ * einzeln. Beides ist gemessen gleichwertig; am Vorfahren ist es die Zusage,
+ * dass ALLES Gedruckte dieser Seite auf der A7-Seite liegt, und genau daran
+ * haengt, ob Chromium die Groesse ueberhaupt annimmt. */
+.lb-ortbogen {
+  page: a7;
+  display: grid;
+  /* Die Spur ist die KARTE (64mm), nicht das Blatt (74mm) — dieselbe Form wie
+   * beim Etikettenbogen darueber, wo die Spur 48,5mm breit ist und das Etikett
+   * ebenso. Eine Spur in Blattbreite liesse neben jeder Karte 10mm leeren
+   * Raster stehen, und der Abstand zwischen zwei Karten laese sich nicht mehr
+   * als der eingestellte `gap` lesen. */
+  grid-template-columns: repeat(auto-fill, 64mm);
+  gap: 4mm;
+  background: #ffffff;
+  color: #000000;
+}
+
+/* DIE KARTE FUELLT DEN BEDRUCKBAREN BEREICH GENAU AUS (64 x 95 mm bei 5mm
+ * Rand auf 74 x 105 mm). Das ist die Bedingung dafuer, dass eine Karte eine
+ * Seite IST: eine kleinere liesse zwei auf ein Blatt rutschen, eine groessere
+ * wuerfe hinter jeder Karte eine fast leere zweite Seite aus.
+ *
+ * ⚠️ `box-sizing: border-box` IST PFLICHT UND KEINE GEWOHNHEIT: Rahmen und
+ * Polster kaemen sonst OBEN DRAUF, die Karte waere 68 x 99 mm und passte nicht
+ * mehr auf ihr eigenes Blatt. Am Bildschirm faellt das nicht auf. */
+.lb-ortkarte {
+  box-sizing: border-box;
+  width: 64mm;
+  height: 95mm;
+  padding: 4mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2mm;
+  border: 1px dashed #c9ced4;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;                        /* die Karte ist als Ganzes klickbar */
+  background: #ffffff;
+  color: #000000;
+  text-align: center;
+}
+
+.lb-ortkarteAbgewaehlt {
+  opacity: 0.35;                          /* blass, aber sichtbar */
+}
+
+.lb-ortkarteWahl {
+  margin: 0;
+  align-self: flex-start;
+  flex: none;
+}
+
+/* Die Beizeile: „Lager" · „Fahrzeug · HN-DRK-1101" · „Tasche". Sie steht OBEN,
+ * weil sie die Frage „was ist das hier?" beantwortet, bevor der Name die Frage
+ * „welches?" beantwortet. */
+.lb-ortkarteMeta {
+  display: block;
+  font: 600 8pt var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #333b42;
+  flex: none;
+}
+
+/* DAS `qrcode`-SVG BRINGT NUR EINE viewBox MIT, KEINE BREITE/HOEHE (8-I).
+ * Ohne diese Regel faellt der Code auf die Ersatzgroesse des Browsers zurueck
+ * und wird winzig — OHNE dass ein Test anschlaegt.
+ *
+ * ⚠️ `flex: none` SITZT AUF DEM UMSCHLAG, NICHT AUF DEM SVG. Flexbox wirkt auf
+ * die FLEX-ITEMS, und das ist hier `.lb-ortkarteQr`. Steht es am SVG, kann der
+ * Umschlag weiter schrumpfen: ein langer Ortsname draengt den QR unter 46mm —
+ * und der grosse QR ist der ganze Zweck dieses Formats. */
+.lb-ortkarteQr {
+  flex: none;
+}
+
+.lb-ortkarteQr > svg {
+  display: block;
+  width: 46mm;
+  height: 46mm;
+}
+
+/* DER NAME IST DIE GROESSTE SCHRIFT DER KARTE. Auf 64mm Breite passen rund
+ * zwoelf Zeichen in 20pt; laengere brechen, statt abgeschnitten zu werden —
+ * „Sanitätstasche 1" abgeschnitten zu „Sanitätsta" waere auf einem laminierten
+ * Kaertchen ein dauerhafter Fehler. `overflow-wrap: anywhere` faengt auch den
+ * Namen ohne Leerzeichen. */
+.lb-ortkarteName {
+  /* `flex` und NICHT `block`: der Name soll den Rest der Karte fuellen UND
+   * darin senkrecht mittig stehen — bei einem einzeiligen Namen wie „RTW 1"
+   * klebte er sonst oben am QR. Eine zweite `display`-Deklaration daneben
+   * waere still: die spaetere gewaenne, und welche das ist, entscheidet die
+   * Zeilenreihenfolge. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  font: 700 20pt var(--font-body);
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+/* DIE ADRESSE — klein, aber vollstaendig. Sie ist die einzige Angabe auf der
+ * Karte, die auch dann eindeutig ist, wenn zwei Taschen gleich heissen
+ * (`lagerorte.name` traegt fuer Einheiten keinen Eindeutigkeitsschluessel).
+ * Sie DARF zweizeilig werden; `anywhere` bricht auch innerhalb der Id, die
+ * keine Trennstellen hat. */
+.lb-ortkarteUrl {
+  display: block;
+  font: 400 6pt var(--font-mono);
+  line-height: 1.25;
+  color: #4a545d;
+  overflow-wrap: anywhere;
   flex: none;
 }
 
@@ -563,5 +732,47 @@
    * weisse Ebene ueber jede Seite. Harmlos auf Papier, teuer im PDF. */
   .lb-cl-bogen {
     background: transparent;
+  }
+
+  /* ── DIE A7-ORTSETIKETTEN AUF PAPIER ─────────────────────────────────────
+   *
+   * Das Raster des Bildschirms faellt weg: auf Papier ist jede Karte eine
+   * Seite, und ein `gap` daneben verschoebe sie im Satzspiegel. */
+  .lb-ortbogen {
+    display: block;
+    gap: 0;
+    background: transparent;
+  }
+
+  /* Die Papierattrappe faellt weg — Strichrahmen und Rundung sind AM BILDSCHIRM
+   * eine Vorschau und AUF PAPIER ein zweiter, kleinerer Rand innerhalb von
+   * `@page a7 { margin: 5mm }`. Das Polster bleibt: es ist der Innenabstand der
+   * Karte, nicht der Rand des Blattes. */
+  .lb-ortkarte {
+    border: none;
+    border-radius: 0;
+    opacity: 1;
+  }
+
+  /* JEDE KARTE BEGINNT AUF EINEM NEUEN BLATT — aber ueber `break-before` am
+   * ZWEITEN und jedem weiteren, NICHT ueber `break-after` an allen. Dieselbe
+   * Form und dieselbe Begruendung wie bei den Checklisten daneben.
+   *
+   * ⚠️ DER GESCHWISTERSELEKTOR TRAEGT AUCH BEI ABGEWAEHLTEN KARTEN, und das ist
+   * der Fall, den man sonst erst am Papier sieht: eine abgewaehlte Karte ist
+   * `display: none`, erzeugt also keinen Kasten — sie bleibt aber DOM-
+   * Geschwister. Gemessen, mit echtem Chromium: drei Karten ergeben drei
+   * Seiten; ist die erste abgewaehlt, zwei; ist die mittlere abgewaehlt,
+   * ebenfalls zwei. Keine leere Seite in keinem der Faelle. */
+  .lb-ortkarte + .lb-ortkarte {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* `display:none`, NICHT `opacity:0`: opacity liesse den Platz stehen — hier
+   * waere das nicht eine verschobene Kachel, sondern ein LEERES BLATT je
+   * abgewaehlter Karte. */
+  .lb-ortkarteAbgewaehlt {
+    display: none;
   }
 }
