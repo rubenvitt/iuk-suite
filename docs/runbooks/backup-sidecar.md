@@ -127,7 +127,10 @@ sich dabei selbst, damit nicht zwei Wartende gleichzeitig zugreifen.
 laufender Lauf meldet sich im Takt von `BACKUP_HERZSCHLAG_SEKUNDEN` (Vorgabe 60). **Ein
 Backup darf also beliebig lange dauern**, ohne dass ihm der nächste die Sperre wegnimmt.
 Ohne diesen Herzschlag wäre die Stundenzahl eine Frist auf den Lauf selbst gewesen, und
-eine große Ablage oder ein langsames Ziel hätten gereicht, um sie zu reißen.
+eine große Ablage oder ein langsames Ziel hätten gereicht, um sie zu reißen. Gemessen:
+über einen 60-Sekunden-Lauf blieb das Alter der Sperre konstant bei 2 Sekunden — es
+wächst nicht mit der Laufzeit. Die Grenze hat zudem einen Boden beim Zehnfachen des
+Herzschlags; eine kleinere wäre selbstwidersprüchlich.
 
 Von Hand entfernt man eine hängengebliebene Sperre so:
 

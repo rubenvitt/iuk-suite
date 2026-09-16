@@ -331,60 +331,70 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(befehle).toMatch(/while ! sperre_holen/);
   });
 
-  it("die Uebernahme einer verwaisten Sperre SERIALISIERT SICH SELBST", () => {
-    // ⚠️ GEMESSEN, ALS SIE ES NICHT TAT: der naheliegende Weg ist, die Verwaistheit zu
-    // pruefen und dann wegzuraeumen und neu anzulegen. Zwei Wartende faellen dann
-    // dasselbe Urteil, BEVOR einer handelt — A raeumt weg und legt neu an, B raeumt A's
-    // FRISCHE Sperre weg und legt wieder neu an, und danach halten sich beide fuer den
-    // Eigentuemer. Mit acht gleichzeitigen Wartenden gegen eine 8h alte Sperre gemessen:
-    // DREI begannen ihren Lauf in derselben Sekunde, also genau die Gleichzeitigkeit,
-    // gegen die es die Sperre gibt.
+  it("die Uebernahme haengt an der IDENTITAET der Belegung, nicht nur an ihrem Alter", () => {
+    // ⚠️ DIE TEUERSTE STELLE DIESES PRS, UND SIE HAT DREI ANLAEUFE GEBRAUCHT. Der
+    // naheliegende Weg — pruefen, ob verwaist, wegraeumen, neu anlegen — hat ein Fenster
+    // zwischen Urteil und Tat, und zwei Wartende treffen es. Nacheinander versucht, und
+    // JEWEILS GEMESSEN, dass es NICHT reicht:
     //
-    // ⚠️ EIN BLOSSES `mv` STATT `rm -rf` REICHT NICHT, so atomar `rename()` auch ist: es
-    // verengt das Fenster, schliesst es aber nicht, weil das Urteil weiterhin VORHER
-    // faellt. Was traegt, ist die zweite, eigene Sperre — `mkdir` laesst genau einen in
-    // den Abschnitt, und dort drin wird noch einmal geprueft. Nach der Aenderung: 8 und
-    // 12 Wettlaeufer, nie mehr als einer gleichzeitig.
-    expect(befehle).toContain("UEBERNAHMEVERZEICHNIS=");
-    // Eingegrenzt auf DIESE Funktion — quer durch die Datei faende ein Regex die
-    // Bestandteile auch dann, wenn sie hier fehlen (siehe `funktionsrumpf`).
+    //   1. `rm -rf` durch das atomare `mv` ersetzt →  8 Wartende, 3 gleichzeitige Laeufe
+    //   2. eine ZWEITE Sperre ueber die Uebernahme,
+    //      mit erneuter Pruefung darin              → 16 Wartende, 2 bzw. 3 gleichzeitig
+    //
+    // Beides verengt das Fenster und schliesst es nicht: das Urteil faellt weiterhin,
+    // bevor gehandelt wird, und die Tat ist an nichts gebunden, was das Urteil betraf.
+    //
+    // Was traegt, ist eine Bedingung auf die IDENTITAET: die Sperre enthaelt genau ein
+    // Unterverzeichnis (ihre Marke), und uebernehmen darf nur, wer GENAU DIE gesehene
+    // Marke entfernen kann. `rmdir` ist atomar — einer gewinnt, jeder Zweite bekommt
+    // ENOENT, und wer zu spaet kommt, findet die alte Marke nicht mehr.
     const rumpfU = funktionsrumpf(befehle, "sperre_uebernehmen");
-    expect(rumpfU).toMatch(/mkdir "\$UEBERNAHMEVERZEICHNIS" 2>\/dev\/null \|\| return 1/);
-    // ⚠️ DIE ZWEITE PRUEFUNG IST DER KERN, NICHT DIE ZWEITE SPERRE: ohne sie betraete zwar
-    // nur einer den Abschnitt, uebernaehme dort aber blind — und damit auch eine Sperre,
-    // die inzwischen ein anderer ganz regulaer angelegt hat.
-    const pruefung = rumpfU.indexOf("if sperre_ist_verwaist; then");
-    const raeumen = rumpfU.indexOf('rm -rf "$SPERRVERZEICHNIS"');
-    expect(pruefung, "im Abschnitt wird die Verwaistheit ERNEUT geprueft").toBeGreaterThan(-1);
-    expect(raeumen, "und erst danach geraeumt").toBeGreaterThan(pruefung);
-    // Der Abschnitt wird in JEDEM Ausgang wieder freigegeben.
-    expect(rumpfU).toMatch(/rm -rf "\$UEBERNAHMEVERZEICHNIS"\s*\n\s*return "\$ergebnis"/);
+    expect(rumpfU).toMatch(/rmdir "\$SPERRVERZEICHNIS\/\$1" 2>\/dev\/null \|\| return 1/);
+    // Das Wegraeumen der Sperre selbst gelingt nur, wenn sie LEER ist — eine ordentlich
+    // gehaltene Sperre traegt ihre Marke und kann so nicht mitgerissen werden. `rm -rf`
+    // haette genau diese Bedingung nicht.
+    expect(rumpfU).toMatch(/rmdir "\$SPERRVERZEICHNIS" 2>\/dev\/null \|\| return 1/);
+    expect(rumpfU).not.toMatch(/rm -rf/);
+    // Und den Besitz entscheidet auch hier allein das `mkdir`.
+    expect(rumpfU).toMatch(/mkdir "\$SPERRVERZEICHNIS" 2>\/dev\/null \|\| return 1/);
+  });
+
+  it("jede Belegung setzt ihre Marke, und eine Sperre ohne Marke ist ein Rest", () => {
+    const rumpfH = funktionsrumpf(befehle, "sperre_holen");
+    expect(rumpfH).toMatch(
+      /mkdir "\$SPERRVERZEICHNIS" 2>\/dev\/null; then\s*\n\s*sperre_marke_setzen/,
+    );
+    // ⚠️ Eine Sperre OHNE Marke ist ein halb angelegter Rest (jemand starb zwischen den
+    // beiden `mkdir`). Sie darf uebernommen werden — aber erst, wenn sie lange genug so
+    // dasteht, dass kein lebender Prozess sie gerade anlegt. Ohne diese Bedingung waere
+    // die GEWOEHNLICHE Belegung selbst wieder ein Wettlauf, und zwar der haeufigste.
+    expect(rumpfH).toMatch(/\[ "\$\(sperre_alter\)" -gt 60 \] \|\| return 1/);
   });
 
   it("der Zeitstempel der Sperre entsteht MIT ihr, nicht in einem zweiten Schritt", () => {
     // ⚠️ GEMESSEN, ALS ER IN EINER DATEI IM SPERRVERZEICHNIS STAND: zwischen `mkdir` und
     // dem Schreiben liegt ein Fenster. Ein zweiter Prozess sieht dort eine Sperre OHNE
     // Zeitstempel, liest ihn als 0, haelt die brandneue Sperre fuer uralt und uebernimmt
-    // sie — beide laufen los. Das braucht nicht einmal eine verwaiste Sperre: es trifft
-    // die GEWOEHNLICHE erste Belegung, also genau den Fall, fuer den es die Sperre gibt
-    // (Zeitgeber und Rollout starten im Zweifel gleichzeitig). Nachgestellt mit einem
-    // leeren `.lauf.sperre`: der Lauf startete.
+    // sie. Nachgestellt mit einem leeren `.lauf.sperre`: der Lauf startete.
     //
     // `mkdir` setzt die mtime in derselben Operation, mit der es das Verzeichnis anlegt.
-    // Es gibt also kein Fenster, das man verkleinern muesste — es gibt keines.
-    const rumpfH = funktionsrumpf(befehle, "sperre_holen");
-    expect(rumpfH).toMatch(/mkdir "\$SPERRVERZEICHNIS" 2>\/dev\/null && return 0/);
-    // Kein zweiter Schritt, der etwas im Sperrverzeichnis ablegt.
-    expect(rumpfH).not.toMatch(/>"?\$SPERRVERZEICHNIS\//);
     expect(befehle).toMatch(/stat -c %Y "\$1"/);
+    expect(befehle).not.toMatch(/>"?\$SPERRVERZEICHNIS\/seit/);
   });
 
-  it("das Sperrverzeichnis bleibt LEER — sonst altert es nie", () => {
-    // ⚠️ Die Kehrseite der mtime: wer dort etwas ablegt, setzt sie neu und laesst die
-    // Sperre ewig jung aussehen. Die Uebernahme einer wirklich verwaisten Sperre griffe
-    // dann nie mehr, und das Backup staende nach einem SIGKILL dauerhaft still.
-    // Gemessen: ein `touch` im Verzeichnis hebt die mtime sofort an.
-    expect(befehle).not.toMatch(/\$SPERRVERZEICHNIS\/[a-z]/);
+  it("in der Sperre liegt NUR ihre Marke — sonst altert sie nie", () => {
+    // ⚠️ Die Kehrseite der mtime: wer dort etwas ablegt, setzt sie neu. Die Marke tut das
+    // genau einmal, bei der Belegung — danach hebt sie allein der Herzschlag. Kaeme
+    // laufend etwas dazu, saehe die Sperre ewig jung aus, und die Uebernahme einer
+    // wirklich verwaisten griffe nie mehr. Gemessen: ein `touch` darin hebt die mtime an.
+    expect(befehle).toMatch(/mkdir "\$SPERRVERZEICHNIS\/eigner\.\$\$\.\$\(date \+%s\)"/);
+    const hineingeschrieben = befehle
+      .split("\n")
+      .filter((z) => z.includes("$SPERRVERZEICHNIS/"))
+      .filter((z) => !z.includes("rmdir"));
+    expect(hineingeschrieben.map((z) => z.trim())).toEqual([
+      'sperre_marke_setzen() { mkdir "$SPERRVERZEICHNIS/eigner.$$.$(date +%s)" 2>/dev/null || true; }',
+    ]);
   });
 
   it("ein LAUFENDER Lauf haelt seine Sperre am Leben — die Grenze misst Lebenszeichen", () => {
@@ -419,12 +429,30 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     );
   });
 
+  it("die Altersgrenze hat einen BODEN am Herzschlag", () => {
+    // ⚠️ Eine Grenze unterhalb des Herzschlags ist selbstwidersprüchlich: der Lauf meldet
+    // sich alle BACKUP_HERZSCHLAG_SEKUNDEN, eine kleinere Grenze erklaerte ihn also
+    // zwischen zwei Lebenszeichen fuer tot. GEMESSEN an der Einstellung 0 Stunden: der
+    // zweite Lauf enteignete den laufenden ersten — und mein erster Nachweis fuer den
+    // Herzschlag hatte genau diese Einstellung benutzt und nur durch Zufall gehalten.
+    // Der Boden macht die Zusicherung strukturell statt dokumentiert.
+    const rumpfV = funktionsrumpf(befehle, "sperre_ist_verwaist");
+    expect(rumpfV).toMatch(/boden=\$\(\(BACKUP_HERZSCHLAG_SEKUNDEN \* 10\)\)/);
+    expect(rumpfV).toMatch(/if \[ "\$grenze" -lt "\$boden" \]; then grenze="\$boden"; fi/);
+  });
+
   it("eine verwaiste Sperre wird nach ihrem ALTER uebernommen, nicht nach einer PID", () => {
     // ⚠️ EINE PID NUETZT HIER NICHTS: die beiden Laeufe sitzen in verschiedenen Containern,
     // also in verschiedenen PID-Namensraeumen. Ohne die Uebernahme stuende das Backup nach
     // einem SIGKILL dauerhaft still — und zwar still, bis der Healthcheck nach 26h anspringt.
     expect(befehle).toContain("BACKUP_SPERRE_ALTER_STUNDEN");
-    expect(befehle).toMatch(/alter.*-gt.*BACKUP_SPERRE_ALTER_STUNDEN \* 3600/);
+    const rumpfV = funktionsrumpf(befehle, "sperre_ist_verwaist");
+    expect(rumpfV).toMatch(/grenze=\$\(\(BACKUP_SPERRE_ALTER_STUNDEN \* 3600\)\)/);
+    expect(rumpfV).toMatch(/\[ "\$alter" -ge 0 \] && \[ "\$alter" -gt "\$grenze" \]/);
+    // ⚠️ `-ge 0` gehoert dazu: ein Verzeichnis, das es NICHT gibt, liefert -1 und ist
+    // nicht „verwaist" — dann haette `mkdir` ohnehin gegriffen. Ohne die Bedingung
+    // liefe die Uebernahme gegen eine Sperre, die gar keine ist.
+    expect(befehle).not.toMatch(/keine PID/);
   });
 
   it("ein FEHLGESCHLAGENER Lauf gibt die Sperre trotzdem frei", () => {

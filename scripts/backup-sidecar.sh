@@ -114,9 +114,6 @@ BACKUP_HERZSCHLAG_SEKUNDEN="${BACKUP_HERZSCHLAG_SEKUNDEN:-60}"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
-# Zweite, kurzlebige Sperre — sie serialisiert allein die UEBERNAHME einer
-# verwaisten Hauptsperre. Warum es sie braucht, steht bei `sperre_uebernehmen`.
-UEBERNAHMEVERZEICHNIS="$BACKUP_DIR/.lauf.uebernahme"
 
 # Die Pakete, die der Vorlauf nachlaedt. `bash` fuer `backup.sh` (Arrays, `shopt`),
 # `sqlite` fuer `.backup`, `tar`+`rsync` fuer das Archiv und die Blobs, `rclone` fuer das
@@ -324,22 +321,15 @@ auslagern() {
 # nichts. Gegen die verwaiste Sperre (Container per SIGKILL beendet) hilft deshalb nur
 # ihr ALTER, und ohne diese Uebernahme stuende das Backup nach einem harten Abbruch
 # dauerhaft still.
-# Alter einer Sperre in Sekunden, -1 wenn es sie gar nicht gibt.
+# Alter eines Verzeichnisses in Sekunden, -1 wenn es das Verzeichnis nicht gibt.
 #
-# ⚠️ DER ZEITSTEMPEL IST DIE mtime DES VERZEICHNISSES SELBST, UND DAS IST DER GANZE
-# WITZ — nicht eine Datei darin. Eine Datei waere ein ZWEITER Schritt, und zwischen
-# `mkdir` und ihr liegt ein Fenster: ein zweiter Prozess sieht dann eine Sperre OHNE
-# Zeitstempel, liest ihn als 0, haelt die brandneue Sperre fuer uralt und uebernimmt sie.
-# GEMESSEN, als es so war — und es braucht dafuer nicht einmal eine verwaiste Sperre,
-# der Fall trifft die GEWOEHNLICHE erste Belegung. Genau die beiden Laeufe, die hier
-# aufeinandertreffen koennen (Zeitgeber und Rollout), starten im Zweifel gleichzeitig.
-#
-# `mkdir` setzt die mtime in derselben Operation, mit der es das Verzeichnis anlegt. Es
-# gibt also kein Fenster, das man verkleinern muesste — es gibt keines.
-#
-# ⚠️ DESHALB BLEIBT DAS SPERRVERZEICHNIS LEER. Wer dort etwas ablegt, setzt die mtime neu
-# und laesst die Sperre ewig jung aussehen; die Uebernahme einer wirklich verwaisten
-# Sperre griffe dann nie mehr. Gemessen: ein `touch` darin hebt die mtime sofort an.
+# ⚠️ DER ZEITSTEMPEL IST DIE mtime DES VERZEICHNISSES SELBST, nicht eine Datei darin.
+# Eine Datei waere ein ZWEITER Schritt, und zwischen `mkdir` und ihr liegt ein Fenster:
+# ein zweiter Prozess saehe dann eine Sperre OHNE Zeitstempel, lese ihn als 0, hielte die
+# brandneue Sperre fuer uralt und uebernaehme sie. GEMESSEN, als es so war — und es
+# braucht dafuer nicht einmal eine verwaiste Sperre, der Fall trifft die GEWOEHNLICHE
+# erste Belegung. `mkdir` setzt die mtime in derselben Operation, mit der es das
+# Verzeichnis anlegt.
 verzeichnis_alter() {
   m="$(stat -c %Y "$1" 2>/dev/null || echo '')"
   case "$m" in '' | *[!0-9]*) echo -1; return 0 ;; esac
@@ -348,57 +338,79 @@ verzeichnis_alter() {
 
 sperre_alter() { verzeichnis_alter "$SPERRVERZEICHNIS"; }
 
-# Ein Verzeichnis, das es nicht gibt (-1), ist NICHT verwaist — dann haette `mkdir` oben
-# ohnehin gegriffen.
+# ══ Die MARKE: die Identitaet einer Belegung ═════════════════════════════════════════
+# ⚠️ OHNE SIE IST JEDE UEBERNAHME EIN WETTLAUF, UND DAS IST GEMESSEN, NICHT HERGELEITET.
+# Der naheliegende Weg — pruefen, ob die Sperre verwaist ist, sie wegraeumen, neu anlegen
+# — hat ein Fenster zwischen Urteil und Tat, und zwei Wartende treffen es. Ich habe
+# dagegen NACHEINANDER versucht: `rm -rf` durch das atomare `mv` ersetzt, dann eine
+# ZWEITE Sperre ueber die Uebernahme gelegt und darin noch einmal geprueft. Beides
+# verengt das Fenster und schliesst es nicht: 16 Wartende gegen eine verwaiste Sperre
+# ergaben in zwei von drei Runden ZWEI bzw. DREI gleichzeitige Laeufe. Genau das, wogegen
+# es die Sperre gibt.
+#
+# Was traegt, ist eine Bedingung auf die IDENTITAET dessen, was man wegraeumt. Die Sperre
+# enthaelt deshalb genau ein Unterverzeichnis, ihre Marke. Wer uebernehmen will, hat eine
+# bestimmte Marke gesehen — und darf nur dann weitermachen, wenn er GENAU DIESE entfernen
+# kann. `rmdir` ist atomar: von zwei Wartenden mit derselben beobachteten Marke gewinnt
+# einer, der andere bekommt ENOENT. Und wer zu spaet kommt, findet die alte Marke nicht
+# mehr, weil der Gewinner laengst eine neue gesetzt hat.
+#
+# ⚠️ DIE MARKE MACHT AUCH DEN ZWEITEN FALL SICHER: eine Sperre OHNE Marke (jemand starb
+# zwischen den beiden `mkdir`) raeumt `rmdir` auf dem Sperrverzeichnis selbst weg — und
+# das gelingt nur, weil es leer ist. Eine ordentlich gehaltene Sperre ist nie leer, kann
+# auf diesem Weg also nicht versehentlich mitgerissen werden.
+sperre_marke() { ls "$SPERRVERZEICHNIS" 2>/dev/null | head -1; }
+
+sperre_marke_setzen() { mkdir "$SPERRVERZEICHNIS/eigner.$$.$(date +%s)" 2>/dev/null || true; }
+
+# ⚠️ DIE GRENZE HAT EINEN BODEN, UND DER IST KEINE VORSICHT. Eine Grenze unterhalb des
+# Herzschlags ist selbstwiderspruechlich: der Lauf meldet sich alle
+# BACKUP_HERZSCHLAG_SEKUNDEN, eine kleinere Grenze erklaerte ihn also zwischen zwei
+# Lebenszeichen fuer tot. GEMESSEN an der Vorgabe 0 Stunden: der zweite Lauf enteignete
+# den laufenden ersten. Zehnfacher Abstand macht die Zusicherung strukturell statt
+# dokumentiert — mit den Vorgaben (60s gegen 6h) ist der Abstand ohnehin Faktor 360.
 sperre_ist_verwaist() {
   alter="$(sperre_alter)"
-  [ "$alter" -ge 0 ] && [ "$alter" -gt $((BACKUP_SPERRE_ALTER_STUNDEN * 3600)) ]
+  grenze=$((BACKUP_SPERRE_ALTER_STUNDEN * 3600))
+  boden=$((BACKUP_HERZSCHLAG_SEKUNDEN * 10))
+  if [ "$grenze" -lt "$boden" ]; then grenze="$boden"; fi
+  [ "$alter" -ge 0 ] && [ "$alter" -gt "$grenze" ]
 }
 
-# ⚠️ DIE UEBERNAHME MUSS SICH SELBST SERIALISIEREN, SONST HEBT SIE DIE SPERRE AUF — und
-# das ist GEMESSEN, nicht hergeleitet. Der naheliegende Weg ist, die Verwaistheit zu
-# pruefen und dann wegzuraeumen und neu anzulegen. Zwei Wartende faellen dann dasselbe
-# Urteil, BEVOR einer von ihnen handelt: A raeumt weg und legt neu an, B raeumt A's
-# FRISCHE Sperre weg und legt wieder neu an — und danach halten sich beide fuer den
-# Eigentuemer. Mit acht gleichzeitigen Wartenden gegen eine 8h alte Sperre gemessen:
-# DREI begannen ihren Lauf in derselben Sekunde. Ein blosses `mv` statt `rm -rf` verengt
-# dieses Fenster nur, es schliesst es nicht — auch da faellt das Urteil vorher.
-#
-# Was traegt, ist die zweite, EIGENE Sperre: `mkdir` ist atomar, also betritt genau einer
-# den Abschnitt, und DORT DRIN wird noch einmal geprueft. Wer nach A hereinkommt, sieht
-# A's frische Sperre und tritt zurueck.
+# $1 = die Marke, die als verwaist beurteilt wurde (leer = Sperre ohne Marke).
 sperre_uebernehmen() {
-  # Der Abschnitt unten dauert Millisekunden. Ein Verzeichnis, das laenger als eine
-  # Minute steht, gehoert also keinem lebenden Prozess mehr — anders als bei der
-  # Hauptsperre, die ein Lauf voellig zu Recht viele Minuten haelt, ist diese
-  # Altersgrenze hier eindeutig.
-  alter_u="$(verzeichnis_alter "$UEBERNAHMEVERZEICHNIS")"
-  [ "$alter_u" -gt 60 ] && rm -rf "$UEBERNAHMEVERZEICHNIS"
-  mkdir "$UEBERNAHMEVERZEICHNIS" 2>/dev/null || return 1
-
-  # Ab hier exklusiv — und genau deshalb zaehlt erst diese Pruefung.
-  if sperre_ist_verwaist; then
-    rm -rf "$SPERRVERZEICHNIS"
-    if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
-      ergebnis=0
-    else
-      ergebnis=1
-    fi
-  else
-    ergebnis=1
+  if [ -n "$1" ]; then
+    # Der eigentliche Riegel: nur wer DIESE Marke entfernen kann, hat die beurteilte
+    # Belegung erwischt. Jeder Zweite scheitert hier und faellt zurueck ins Warten.
+    rmdir "$SPERRVERZEICHNIS/$1" 2>/dev/null || return 1
   fi
-  rm -rf "$UEBERNAHMEVERZEICHNIS"
-  return "$ergebnis"
+  # Jetzt ist die Sperre leer — und nur DANN raeumt `rmdir` sie weg. Haelt sie inzwischen
+  # wieder jemand ordentlich (also mit Marke), scheitert das hier und wir treten zurueck.
+  rmdir "$SPERRVERZEICHNIS" 2>/dev/null || return 1
+  mkdir "$SPERRVERZEICHNIS" 2>/dev/null || return 1
+  sperre_marke_setzen
+  return 0
 }
 
 sperre_holen() {
-  # Ein Schritt, kein zweiter danach: `mkdir` legt die Sperre an UND veroeffentlicht
-  # ihren Zeitstempel (siehe `verzeichnis_alter`).
-  mkdir "$SPERRVERZEICHNIS" 2>/dev/null && return 0
+  # `mkdir` allein entscheidet ueber den Besitz — hier wie bei der Uebernahme.
+  if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
+    sperre_marke_setzen
+    return 0
+  fi
+  marke="$(sperre_marke)"
+  if [ -z "$marke" ]; then
+    # Eine Sperre ohne Marke ist ein halb angelegter Rest. Sie ist nur dann uebernehmbar,
+    # wenn sie lange genug so dasteht, dass kein lebender Prozess sie gerade anlegt — die
+    # beiden `mkdir` liegen Millisekunden auseinander.
+    [ "$(sperre_alter)" -gt 60 ] || return 1
+    sperre_uebernehmen "" && return 0
+    return 1
+  fi
   if sperre_ist_verwaist; then
     warne "Die Sperre ist $(( $(sperre_alter) / 3600 ))h alt — ein Lauf wurde offenbar hart
   beendet. Es wird versucht, sie zu uebernehmen."
-    sperre_uebernehmen && return 0
+    sperre_uebernehmen "$marke" && return 0
   fi
   return 1
 }
