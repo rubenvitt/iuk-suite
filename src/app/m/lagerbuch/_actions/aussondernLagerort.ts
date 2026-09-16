@@ -9,7 +9,7 @@ import {
   buchungen, lagerorte, lagerortVerfall, newId, sollPositionen,
 } from "../_db/schema";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
-import { MONAT_REGEX } from "../_lib/konstanten";
+import { MONAT_REGEX, anDieserEinheit } from "../_lib/konstanten";
 import { AUSSONDERN_PRAEFIX } from "../_lib/vorgang";
 import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
@@ -125,14 +125,28 @@ export async function aussondernVomLagerort(
            * ist genau das, das man ausraeumt. Das Fahrzeugblatt oeffnet dafuer
            * ebenfalls (s. `ChecklisteKnopf` auf derselben Seite).
            */
-          const ort = tx.select({ typ: lagerorte.typ })
+          /*
+           * ⚠️ `einheitenart` WIRD HIER MITGELESEN, OBWOHL DER PFAD SIE NICHT
+           * BRAUCHT (DRK-309, Reviewrunde 12). Sie traegt allein die beiden
+           * Meldungen unten — und genau die sind der Fall, den der Dialog
+           * daneben nicht art-bewusst machen kann: er zeigt die Antwort der
+           * Action WOERTLICH an (`AussondernDialog.tsx`), weil nur sie weiss,
+           * WORAN es lag. Stuende in ihr „Fahrzeug", widerspraeche sie dem
+           * Chip „Tasche" in derselben Ansicht.
+           */
+          const ort = tx.select({ typ: lagerorte.typ, einheitenart: lagerorte.einheitenart })
             .from(lagerorte).where(eq(lagerorte.id, v.lagerortId)).get();
           if (!ort) return "Lagerort nicht gefunden.";
           if (ort.typ !== "fahrzeug") {
             // Das Handlager hat seinen eigenen Weg, und der verlangt eine
             // ABGELAUFENE Charge (`_actions/aussondern.ts`). Dieser hier kennt
             // die Bedingung nicht und waere sonst die weichere Tuer daneben.
-            return "Dieser Weg gilt nur für Fahrzeuge.";
+            //
+            // ⚠️ NEUTRAL, UND ZWAR NICHT AUS VORSICHT: die Zeile, die hierher
+            // faellt, ist ein LAGER — sie hat gar keine Art. Der Satz spricht
+            // ueber die Menge der erlaubten Ziele, nicht ueber eine bestimmte
+            // Einheit, und nennt sie deshalb beide.
+            return "Dieser Weg gilt nur für Fahrzeuge und Taschen.";
           }
 
           const imSoll = tx.select({ id: sollPositionen.id })
@@ -144,7 +158,7 @@ export async function aussondernVomLagerort(
             ))
             .get();
           if (!imSoll) {
-            return "Artikel steht an diesem Fahrzeug nicht im Soll.";
+            return `Artikel steht ${anDieserEinheit(ort.einheitenart)} nicht im Soll.`;
           }
 
           const rest = restJeChargeFuerArtikel(tx, v.artikelId, [v.lagerortId]);

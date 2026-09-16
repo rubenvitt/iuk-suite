@@ -715,7 +715,7 @@ describe("NeuToken", () => {
     mocks.createToken.mockResolvedValueOnce({
       ok: false,
       fehler: "Bitte die markierten Felder prüfen.",
-      feldFehler: { zielId: "Fahrzeug nicht gefunden oder inaktiv." },
+      feldFehler: { zielId: "Einheit nicht gefunden oder inaktiv." },
     });
     await mount(<NeuToken ziele={ZIELE} />);
     await oeffneNeuToken();
@@ -725,7 +725,7 @@ describe("NeuToken", () => {
     await tokenFormAbsenden();
 
     await vi.waitFor(() => {
-      expect(document.body.textContent).toContain("Fahrzeug nicht gefunden oder inaktiv.");
+      expect(document.body.textContent).toContain("Einheit nicht gefunden oder inaktiv.");
     });
     expect(queryPortal(".ant-alert-warning").textContent).toContain(
       "Bitte die markierten Felder prüfen.",

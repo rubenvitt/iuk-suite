@@ -204,7 +204,7 @@ describe("Validierung und feste Fehler", () => {
     }, t.db);
 
     for (const ergebnis of [zuweisen, syncen, loesen, kopieren]) {
-      expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+      expect(ergebnis).toEqual({ ok: false, fehler: "Einheit nicht gefunden." });
     }
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, HANDLAGER_ID)).get())
       .toMatchObject({ typ: "lager", templateId: null });

@@ -257,8 +257,8 @@ describe("createToken", () => {
       }, t.db);
       expect(ergebnis).toEqual({
         ok: false,
-        fehler: "Fahrzeug nicht gefunden oder inaktiv.",
-        feldFehler: { zielId: "Fahrzeug nicht gefunden oder inaktiv." },
+        fehler: "Einheit nicht gefunden oder inaktiv.",
+        feldFehler: { zielId: "Einheit nicht gefunden oder inaktiv." },
       });
     }
 
@@ -618,7 +618,7 @@ describe("tokenZiele", () => {
       fahrzeuge: [
         // DRK-309: `einheitenart` reist als Suchfeld mit — „tasche" findet
         // sonst keine Tasche, die das Wort nicht im Namen traegt. `null` ist
-        // hier der Zwischenstand aus Migration 0009, den die Fixture nicht setzt.
+        // hier der Zwischenstand aus Migration 0010, den die Fixture nicht setzt.
         { id: "fz-alpha", name: "Alpha", kennung: "UE-RK 1", einheitenart: null },
         { id: "fz-zulu", name: "Zulu", kennung: "UE-RK 2", einheitenart: null },
       ],

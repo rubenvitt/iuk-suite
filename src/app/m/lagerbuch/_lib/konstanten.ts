@@ -202,7 +202,7 @@ export function einheitNomen(art: Einheitenart | null): string {
  * ⚠️ DIE PRAEMISSE HINTER ALL DEM — „zwei Einheiten duerfen gleich heissen" —
  * GILT NACH DRK-367 WEITERHIN, und der Index dort sagt das selbst. Rund ein
  * Dutzend Stellen begruenden ihre Beizeile mit „`lagerorte.name` traegt keinen
- * Eindeutigkeitsschluessel"; seit Migration 0009 gibt es einen, und wer ihn
+ * Eindeutigkeitsschluessel"; seit DRK-367 gibt es einen, und wer ihn
  * greppt, haelt die Kommentare fuer veraltet. Er ist aber TEILWEISE:
  * `idx_lagerorte_name_je_parent` steht unter `WHERE parent_id IS NOT NULL` und
  * deckt damit nur die Schraenke unter dem Handlager. Eine Einheit — Fahrzeug
@@ -261,6 +261,22 @@ export function ausDieserEinheit(art: Einheitenart | null): string {
   if (art === "fahrzeug") return "aus diesem Fahrzeug";
   if (art === "tasche") return "aus dieser Tasche";
   return "aus dieser Einheit";
+}
+
+/**
+ * Ortsangabe: „an diesem Fahrzeug" · „an dieser Tasche" · „an dieser Einheit".
+ *
+ * ⚠️ DER DRITTE DATIV-BAUSTEIN, und er steht neben `ausDieserEinheit` aus
+ * demselben Grund, aus dem der dort neben `dieseEinheit` steht: die
+ * Praeposition entscheidet den Kasus, und „an" verlangt hier den Dativ. Die
+ * Formen sehen sich aehnlich genug, dass ein `an ${ausDieserEinheit(art)}`
+ * beim Lesen durchginge — herauskaeme „an aus diesem Fahrzeug", und kein Tor
+ * sieht das: Zeichenketten haben keine Faelle.
+ */
+export function anDieserEinheit(art: Einheitenart | null): string {
+  if (art === "fahrzeug") return "an diesem Fahrzeug";
+  if (art === "tasche") return "an dieser Tasche";
+  return "an dieser Einheit";
 }
 
 /** Ortsangabe: „im Fahrzeug" · „in der Tasche" · „in der Einheit". */

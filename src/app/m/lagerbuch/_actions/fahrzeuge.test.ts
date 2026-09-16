@@ -245,7 +245,7 @@ describe("createFahrzeug", () => {
    * kategorisiert werden".
    *
    * ⚠️ SIE GEHOERT AN DIE ACTION, NICHT AN DEN DIALOG. Die Spalte ist
-   * nullable (Migration 0009 backfillt bewusst nicht), die Pflicht traegt also
+   * nullable (Migration 0010 backfillt bewusst nicht), die Pflicht traegt also
    * allein der Eingangsvalidator — und eine `required`-Regel in `NeuFahrzeug`
    * ist eine Zusicherung ueber EIN Formular, nicht ueber die Server Action.
    */
@@ -381,7 +381,7 @@ describe("setFahrzeugAktiv", () => {
   it("kann das feste Handlager nicht als Fahrzeug deaktivieren", async () => {
     const ergebnis = await setFahrzeugAktiv({ id: HANDLAGER_ID, aktiv: false }, t.db);
 
-    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    expect(ergebnis).toEqual({ ok: false, fehler: "Einheit nicht gefunden." });
     expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, HANDLAGER_ID)).get())
       .toMatchObject({ typ: "lager", aktiv: true });
     expect(revalidiert).toEqual([]);
@@ -535,7 +535,7 @@ describe("sollPositionSetzen", () => {
       soll: 2,
     }, t.db);
 
-    expect(ergebnis).toEqual({ ok: false, fehler: "Fahrzeug nicht gefunden." });
+    expect(ergebnis).toEqual({ ok: false, fehler: "Einheit nicht gefunden." });
     expect(t.db.select().from(sollPositionen).all()).toEqual([]);
     expect(revalidiert).toEqual([]);
   });

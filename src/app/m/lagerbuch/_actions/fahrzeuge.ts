@@ -30,7 +30,7 @@ function validierungsFehler(
  * ⚠️ `einheitenart` IST PFLICHT, OBWOHL DIE SPALTE NULLABLE IST — und genau
  * das ist die Entscheidung aus DRK-309.
  *
- * Migration 0009 backfillt bewusst nicht: die bestehenden Zeilen duerfen „noch
+ * Migration 0010 backfillt bewusst nicht: die bestehenden Zeilen duerfen „noch
  * nicht zugeordnet" bleiben, weil niemand ausser der Betreiberin weiss, welche
  * davon in Wahrheit eine Tasche ist. Der Zwischenstand ist also ein Zustand der
  * VERGANGENHEIT, kein Weg in die Zukunft. Waere das Feld auch hier optional,
@@ -86,6 +86,17 @@ export async function createFahrzeug(
   });
 }
 
+/*
+ * ⚠️ NEUTRAL, WEIL DIE ART HIER NICHT ZU WISSEN IST (DRK-309, Reviewrunde 12).
+ * Die Regel dieses PRs lautet: wo die Art bekannt ist, steht sie auch da. Sie
+ * steht in der Zeile — und dieser Satz faellt genau dann, wenn es die Zeile
+ * nicht (mehr) gibt. Eine Tasche ist im Modell dasselbe Objekt wie ein
+ * Fahrzeug, alle Wege hier nehmen also beide; „Fahrzeug nicht gefunden" waere
+ * eine Aussage ueber etwas, das die Abfrage gerade NICHT gefunden hat, und
+ * schickte die Suche auf die falsche Liste.
+ */
+const EINHEIT_FEHLT = "Einheit nicht gefunden.";
+
 const AktivSchema = z.object({
   id: z.string().min(1),
   aktiv: z.boolean(),
@@ -107,7 +118,7 @@ export async function setFahrzeugAktiv(
 
     try {
       if (!findeFahrzeug(db, v.id)) {
-        return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+        return { ok: false, fehler: EINHEIT_FEHLT };
       }
       db.update(lagerorte)
         .set({ aktiv: v.aktiv })
@@ -137,7 +148,7 @@ const EinheitenartSchema = z.object({
  * Zuordnung nach der Migration ist eine Aussage aus dem Gedaechtnis; wer sie
  * einmal falsch trifft, braucht einen Weg zurueck, der nicht „Einheit
  * stilllegen und neu anlegen" heisst — das verloere Soll, Bestand, Checks und
- * Journal. Der Audit-Trigger aus Migration 0009 protokolliert jede Aenderung,
+ * Journal. Der Audit-Trigger aus Migration 0010 protokolliert jede Aenderung,
  * die Korrektur ist also nachvollziehbar und nicht still.
  *
  * ⚠️ ES GIBT KEINEN WEG ZURUECK NACH `null`. „Ich weiss es doch nicht" ist
@@ -206,7 +217,7 @@ export async function sollPositionSetzen(
     const id = v.id ?? newId();
     try {
       if (!findeFahrzeug(db, v.fahrzeugId)) {
-        return { ok: false, fehler: "Fahrzeug nicht gefunden." };
+        return { ok: false, fehler: EINHEIT_FEHLT };
       }
       if (v.id) {
         const row = db.select().from(sollPositionen)
