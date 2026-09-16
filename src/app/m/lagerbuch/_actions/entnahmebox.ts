@@ -492,16 +492,34 @@ export async function bucheInEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ VIER PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DIESES
-       * TICKETS. Der dritte ist das Einheitenblatt (dessen Bestandszahlen sich
-       * gerade geaendert haben), der vierte die Verwaltungsuebersicht. Der
-       * Helferschirm traegt die Einheit in der URL und wird deshalb mit ihr
-       * genannt — ein Pfad ohne sie traefe die Seite nicht.
+       * ⚠️ SECHS PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DES
+       * URSPRUNGSTICKETS. Der dritte ist das Einheitenblatt (dessen
+       * Bestandszahlen sich gerade geaendert haben), der vierte die
+       * Verwaltungsuebersicht. Der Helferschirm traegt die Einheit in der URL
+       * und wird deshalb mit ihr genannt — ein Pfad ohne sie traefe die Seite
+       * nicht.
+       *
+       * ⚠️ DIE LETZTEN ZWEI KAMEN MIT DRK-377 DAZU, UND ZWAR ZWINGEND (Codex zu
+       * PR #194, P2): seither schreibt diese Action `lagerort_verfall` — sie
+       * traegt die Meldung in die Box und raeumt sie an der leeren Einheit ab.
+       * Damit liest sie dieselbe Tabelle wie `verfallSetzen`, der Check,
+       * `aussondernVomLagerort` und `fahrzeuge.ts`, und ALLE VIER frischen die
+       * Verfallsuebersicht und die Einheitenliste mit auf. Fehlen sie hier,
+       * zeigt eine vorgeladene Uebersicht die geleerte Einheit weiter als
+       * ablaufend und die Box gar nicht — und die Verfallsspalte der
+       * Einheitenliste rechnet mit einer Meldung, die es nicht mehr gibt.
+       *
+       * ⚠️ `force-dynamic` AUF DER SEITE HILFT DAGEGEN NICHT. Es schaltet den
+       * vollen Routen-Cache ab, nicht den Router-Cache im Browser: eine
+       * vorgeladene oder gerade verlassene Seite kommt weiter aus ihm, bis sie
+       * jemand vollstaendig neu laedt. Genau diese Annahme war die Luecke.
        */
       revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
       revalidatePath("/m/lagerbuch/helfer/box");
       revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
       revalidatePath("/m/lagerbuch/verwaltung");
+      revalidatePath("/m/lagerbuch/verwaltung/verfall");
+      revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
       return { ok: true, wert: { gebucht } };
     },
   );

@@ -635,6 +635,35 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
   });
 
+  it("frischt auch die Verfallsuebersicht und die Einheitenliste auf", async () => {
+    /*
+     * ⚠️ SEIT DRK-377 SCHREIBT DIESE ACTION `lagerort_verfall` — sie traegt die
+     * Meldung in die Box und raeumt sie an der leeren Einheit ab. Damit liest
+     * sie dieselbe Tabelle wie `verfallSetzen`, der Check,
+     * `aussondernVomLagerort` und `fahrzeuge.ts`, und alle vier frischen genau
+     * diese beiden Pfade mit auf (Codex zu PR #194, P2).
+     *
+     * ⚠️ `force-dynamic` AUF DER SEITE HILFT NICHT: es schaltet den vollen
+     * Routen-Cache ab, nicht den Router-Cache im Browser. Eine vorgeladene
+     * Verfallsuebersicht zeigte sonst die geleerte Einheit weiter als ablaufend
+     * und die Box gar nicht — und kein Tor sieht das, weil beide Seiten fuer
+     * sich richtig rechnen.
+     */
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2027-03",
+      quelle: { quelleTyp: "system", quelleId: "seed" },
+    });
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
+
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/verfall");
+    // OHNE Id: die Einheitenliste zaehlt die Meldungen JE Einheit
+    // (`fahrzeugUebersicht`), und diese Zahl hat sich gerade geaendert.
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge");
+  });
+
   /*
    * ── DIE GEMELDETE ANGABE WANDERT MIT (DRK-377) ──────────────────────────
    *
