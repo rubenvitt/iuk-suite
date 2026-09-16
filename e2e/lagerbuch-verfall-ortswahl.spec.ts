@@ -99,6 +99,10 @@ test.describe("Aussondern je Schrank", () => {
     // Zeitbudget und meldete sich als etwas ganz anderes (Falle 10).
     expect(antwort!.status()).toBe(200);
 
+    // Ein schmaler Schirm: die Arbeitsdichte gilt gerade DORT, und untereinander
+    // stehende Zeilen sind nur hier von nebeneinander stehenden zu unterscheiden.
+    await page.setViewportSize({ width: 390, height: 844 });
+
     const zeile = page.getByRole("listitem").filter({ hasText: "E2E-OW" });
     await expect(zeile).toContainText("E2E Ortswahl Schrank A: 4 Stk.");
     await expect(zeile).toContainText("E2E Ortswahl Schrank B: 6 Stk.");
@@ -126,6 +130,23 @@ test.describe("Aussondern je Schrank", () => {
 
     await expect(wahl("Alles \\(10 Stk\\.\\)"))
       .toHaveClass(/ant-radio-wrapper-checked/);
+
+    /**
+     * ⚠️ DIE TREFFERFLAECHE MISST NUR EIN ECHTER BROWSER (CLAUDE.md, Fallen
+     * 13/16): jsdom rechnet keine Layoutboxen, `getBoundingClientRect()`
+     * liefert dort ueberall Nullen. Eine Radio-Zeile erbt ihre Hoehe zudem
+     * NICHT von `controlHeight` — `ARBEITSDICHTE` setzt mit `radioSize` nur
+     * die Marke. Die Verwaltung rendert in `FullShell` und damit auch auf dem
+     * Telefon; 44px ist dort die Arbeitsdichte (Falle 4, WCAG 2.5.5).
+     */
+    for (const beschriftung of [
+      "Alles \\(10 Stk\\.\\)",
+      "nur E2E Ortswahl Schrank A \\(4 Stk\\.\\)",
+      "nur E2E Ortswahl Schrank B \\(6 Stk\\.\\)",
+    ]) {
+      const kasten = await wahl(beschriftung).boundingBox();
+      expect(kasten!.height, beschriftung).toBeGreaterThanOrEqual(44);
+    }
 
     await wahl("nur E2E Ortswahl Schrank B \\(6 Stk\\.\\)").click();
 

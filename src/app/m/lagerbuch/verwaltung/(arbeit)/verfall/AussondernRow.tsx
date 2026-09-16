@@ -6,6 +6,7 @@ import { SPACE } from "@/core/theme/tokens";
 import { aussondern } from "../../../_actions/aussondern";
 import type { VerfallOrt } from "../../../_lib/lesepfade/verfall";
 import { Ikone } from "../../../_ui/ikonen";
+import s from "../../../_ui/verwaltung.module.css";
 
 /**
  * Der Wert der Wahl, wenn NICHT auf einen Ort eingeschränkt wird.
@@ -153,18 +154,30 @@ export function AussondernRow({
                 : `Bucht den Handlager-Rest von ${bezeichnung} als Aussonderung aus.`}
             </span>
             {wahl ? (
-              <Radio.Group
-                aria-label={`Ort für ${bezeichnung}`}
-                value={auswahl}
-                onChange={(e) => setZiel(e.target.value as string)}
-                options={[
-                  { value: ALLE_ORTE, label: `Alles (${gesamt} ${einheit})` },
-                  ...orte.map((ort) => ({
-                    value: ortWert(ort.id),
-                    label: `nur ${ort.name} (${ort.menge} ${einheit})`,
-                  })),
-                ]}
-              />
+              /* ⚠️ DIE KLASSE TRAEGT DIE TREFFERFLAECHE (44px, Arbeitsdichte) —
+                 eine Radio-Zeile erbt ihre Hoehe nicht von `controlHeight`.
+                 Begruendung bei `.ortWahl` in `verwaltung.module.css`. */
+              <div className={s.ortWahl}>
+                <Radio.Group
+                  aria-label={`Ort für ${bezeichnung}`}
+                  /* ⚠️ UNTEREINANDER, NICHT NEBENEINANDER. antds Vorgabe ist
+                     waagerecht; „nur GF-Schrank (6 Stk.)" neben zwei
+                     Geschwistern bricht in einem Popconfirm auf dem Telefon
+                     mitten im Namen um. `orientation` ist die heutige Form,
+                     `vertical` nur noch ihr Altbestand
+                     (`antd/es/_util/hooks/useOrientation.js`). */
+                  orientation="vertical"
+                  value={auswahl}
+                  onChange={(e) => setZiel(e.target.value as string)}
+                  options={[
+                    { value: ALLE_ORTE, label: `Alles (${gesamt} ${einheit})` },
+                    ...orte.map((ort) => ({
+                      value: ortWert(ort.id),
+                      label: `nur ${ort.name} (${ort.menge} ${einheit})`,
+                    })),
+                  ]}
+                />
+              </div>
             ) : null}
           </div>
         }

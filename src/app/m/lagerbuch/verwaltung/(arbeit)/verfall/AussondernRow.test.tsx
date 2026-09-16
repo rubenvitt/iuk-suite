@@ -279,6 +279,36 @@ describe("AussondernRow — Ortswahl (DRK-339)", () => {
     expect(mocks.aussondern.mock.calls[0]?.[0]).toMatchObject({ lagerortId: "schrank-1" });
   });
 
+  /**
+   * DIE ZEILEN STEHEN UNTEREINANDER (Codex-Befund zu PR #173).
+   *
+   * ⚠️ antds Vorgabe ist WAAGERECHT. „nur GF-Schrank (6 Stk.)" neben zwei
+   * Geschwistern bricht in einem Popconfirm auf dem Telefon mitten im Namen um
+   * — und ein Ortsname, der auf zwei Zeilen zerfaellt, ist genau die Angabe,
+   * an der hier die Buchung haengt.
+   *
+   * ⚠️ DIE TREFFERFLAECHE SELBST KANN DIESER TEST NICHT PRUEFEN: jsdom rechnet
+   * keine Layoutboxen (CLAUDE.md, Fallen 13/16), `getBoundingClientRect()`
+   * liefert ueberall Nullen. Die 44px misst `e2e/lagerbuch-verfall-ortswahl`
+   * in einem echten Browser; hier steht nur, dass die Klasse ueberhaupt am
+   * Kasten haengt, der sie traegt.
+   */
+  it("stellt die Ortszeilen untereinander und traegt die Trefferflaechen-Klasse", async () => {
+    await mount(
+      <AussondernRow
+        chargeId="c1"
+        bezeichnung="L42 · Kompressen"
+        orte={ZWEI_ORTE}
+        einheit="Stk."
+      />,
+    );
+    await bestaetigungOeffnen();
+
+    expect(existsPortal(".ant-radio-group-vertical")).toBe(true);
+    const kasten = queryPortal(".ant-radio-group").parentElement;
+    expect(kasten?.className).toBeTruthy();
+  });
+
   it("schickt per Vorgabe KEINEN Ort — „alles raus“ bleibt das Verhalten", async () => {
     await mount(
       <AussondernRow
