@@ -43,7 +43,7 @@ const CheckSchema = z.object({
     sollPositionId: z.string().min(1),
     ist: z.coerce.number().int().min(0),
     // Vom Helfer im Nachfuell-Schritt bestaetigte Menge. Serverseitig pro
-    // Position auf max(0, Soll − Ist) geklemmt und ueber `umlagerung()` an der
+    // Position auf max(0, Soll − Ist) geklemmt und ueber die Umlagerung an der
     // Handlager-Verfuegbarkeit gekappt.
     nachfuellMenge: z.coerce.number().int().min(0),
   })).default([]),
@@ -69,7 +69,7 @@ const CheckSchema = z.object({
 
 export type CheckAbschlussWert = {
   checkId: string;
-  /** TATSAECHLICH umgelagert — nach der stillen Kappung in `umlagerung()`. */
+  /** TATSAECHLICH umgelagert — nach der stillen Kappung in der Umlagerung. */
   nachgefuellt: number;
   /** Was der Helfer bestaetigt hat und in der Hand haelt (§7.9.4, NEU). */
   nachfuellBestaetigt: number;

@@ -14,12 +14,31 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const AussondernSchema = z.object({
   chargeId: z.string().min(1),
+  /**
+   * DRK-339 — EIN Ort des Handlagers statt aller. Fehlt das Feld, bleibt es
+   * bei „alles raus", dem Verhalten seit jeher.
+   *
+   * ⚠️ DER CLIENT SCHICKT EINEN ORT, NIE EINE MENGE. Die Zeile auf dem Schirm
+   * nennt einen Rest, den sie beim RENDERN gesehen hat; bis zum Bestaetigen
+   * kann eine andere Sitzung gebucht haben. Wer die Menge mitschickte, buchte
+   * gegen einen veralteten Stand — mal zu viel (Saldo ins Minus, in einem
+   * Journal ohne UPDATE und ohne DELETE), mal zu wenig, und beides still. Was
+   * tatsaechlich am Ort liegt, rechnet die Transaktion unten aus.
+   *
+   * ⚠️ UND ER WIRD GEGEN DEN BEREICH GEPRUEFT, NICHT GEGLAUBT. Ohne die Probe
+   * unten waere das hier die weiche Tuer neben `aussondernVomLagerort`: eine
+   * Fahrzeug-ID im Feld, und der Fahrzeugbestand flöge aus — vorbei an der
+   * Soll-Pruefung, die jener Weg genau dafuer fuehrt.
+   */
+  lagerortId: z.string().min(1).nullish(),
   kommentar: z.string().trim().min(1, "Kommentar erforderlich"),
 });
 
 /**
- * Bucht den positiven Rest einer abgelaufenen Charge im Handlager vollständig
- * als Korrektur aus. Bestand derselben Charge in Fahrzeugen bleibt unberührt.
+ * Bucht den positiven Rest einer abgelaufenen Charge im Handlager als
+ * Korrektur aus — an allen Orten des Bereichs oder, mit `lagerortId`, an genau
+ * einem davon (DRK-339). Bestand derselben Charge in Fahrzeugen bleibt
+ * unberührt.
  *
  * ⚠️ DIE REFERENZ IST DIE KENNZEICHNUNG, NICHT DER KOMMENTAR (DRK-344). Der
  * Kommentar ist Freitext — der Grund, den jemand eingetippt hat; er trägt die
@@ -64,6 +83,15 @@ export async function aussondern(
         // DRK-297 — der Rest je ORT, nicht als eine Summe über den Bereich.
         // EINE Abfrage, `GROUP BY lagerort_id`, mit Bereichs-Prädikat.
         const orte = handlagerOrte(tx);
+
+        // DRK-339 — die Probe VOR der Abfrage, damit ein fremder Ort gar nicht
+        // erst in ein Prädikat gerät. Ein Fahrzeug fällt hier heraus, ein
+        // stillgelegter Schrank NICHT: `handlagerOrte` führt ihn weiter, und
+        // ein stillgelegter Schrank ist genau der, den man ausräumt.
+        if (v.lagerortId && !orte.includes(v.lagerortId)) {
+          return "Dieser Ort gehört nicht zum Handlager.";
+        }
+
         const jeOrt = tx
           .select({
             lagerortId: buchungen.lagerortId,
@@ -77,14 +105,44 @@ export async function aussondern(
           .groupBy(buchungen.lagerortId)
           .all();
 
-        const gesamt = jeOrt.reduce((s, z) => s + z.summe, 0);
-        if (gesamt <= 0) return "Charge hat keinen Restbestand im Handlager.";
+        // DRK-339 — die Wahl schraenkt die Orte ein, sie ersetzt die Abfrage
+        // nicht: gebucht wird weiterhin der Saldo, den die Transaktion sieht.
+        //
+        // ⚠️ EIN ORT MIT SALDO <= 0 IST KEIN ZIEL, UND ZWAR SCHON HIER. Eine
+        // Buchung über 0 stünde im Journal und sagte nichts; eine über eine
+        // negative Zahl drehte das Vorzeichen um und schriebe Bestand ZU.
+        const ziele = (v.lagerortId
+          ? jeOrt.filter((z) => z.lagerortId === v.lagerortId)
+          : jeOrt
+        ).filter((z) => z.summe > 0);
 
-        for (const zeile of jeOrt) {
-          // ⚠️ EIN ORT MIT REST 0 ODER WENIGER BEKOMMT KEINE ZEILE. Eine
-          // Buchung über 0 stünde im Journal und sagte nichts; eine über eine
-          // negative Zahl drehte das Vorzeichen um und schriebe Bestand ZU.
-          if (zeile.summe <= 0) continue;
+        /**
+         * ⚠️ GEZAEHLT WIRD, WAS GEBUCHT WIRD — NICHT DER VORZEICHENBEHAFTETE
+         * GESAMTSALDO (Codex-Befund zu PR #173, nachgerechnet).
+         *
+         * Ein Ort DARF im Minus stehen: das Journal ist append-only, und die
+         * Fassung VOR DRK-297 buchte den ganzen Rest auf die Wurzel, auch wenn
+         * er in den Schränken lag — genau die Zeilen, die deren (Ort,
+         * Charge)-Saldo ins Minus gedrückt haben, stehen dort für immer.
+         *
+         * Liegen dann +5 in Schrank 1 und −6 an der Wurzel, ist die Summe −1.
+         * Über die SUMME geprüft, wiese diese Aktion ab — während die
+         * Verfallsliste daneben „Schrank 1: 5 Stk." zeigt, denn sie lässt
+         * negative Orte weg. Der Knopf schlüge reproduzierbar fehl, und weil
+         * es nur EINEN sichtbaren Ort gibt, böte die Zeile nicht einmal eine
+         * Auswahl an, über die man ihn umgehen könnte: die fünf Stück wären
+         * nicht mehr auszusondern.
+         *
+         * Beide Seiten zählen deshalb dieselben Zeilen — `restJeChargeJeOrt`
+         * in der Anzeige, `ziele` hier.
+         */
+        if (ziele.length === 0) {
+          return v.lagerortId
+            ? "An diesem Ort liegt nichts mehr von dieser Charge."
+            : "Charge hat keinen Restbestand im Handlager.";
+        }
+
+        for (const zeile of ziele) {
           tx.insert(buchungen).values({
             id: newId(), ts: jetzt, typ: "korrektur", artikelId: charge.artikelId,
             chargeId: charge.id, lagerortId: zeile.lagerortId, menge: -zeile.summe,

@@ -94,7 +94,36 @@ export async function klickeWennRuhig(
   ort: Locator,
   optionen: { timeout?: number } = {},
 ): Promise<void> {
+  await messeWennRuhig(ort, { ...optionen, wer: "klickeWennRuhig" });
+  await ort.click();
+}
+
+/**
+ * MISST DEN KASTEN EINES ELEMENTS, SOBALD ER STILLSTEHT — und gibt ihn zurueck.
+ *
+ * ⚠️ DIESELBE PROBE WIE OBEN, UND DAS IST DER PUNKT: `klickeWennRuhig` ruft
+ * sie. Wer sie fuers Messen ein zweites Mal hinschriebe, haette zwei Begriffe
+ * von „ruhig", die beim naechsten Nachjustieren auseinanderlaufen.
+ *
+ * ⚠️ DER ANLASS IST EINE GEMESSENE ROETE, KEINE VORSORGE (DRK-339, Lauf
+ * 35066242148). Eine Zusicherung auf die Trefferflaeche einer Radio-Zeile in
+ * einem Popconfirm las **35,2 px** statt der erwarteten 44 — und 35,2 ist
+ * exakt 44 × 0,8. 0,8 ist die Anfangsskalierung von antds Aufblend-Animation;
+ * `boundingBox()` liefert den TRANSFORMIERTEN Kasten, misst also die
+ * halbfertige Animation. Die Wiederholung las 39,9 px — ein Wert mittendrin,
+ * und genau seine Unstetigkeit verraet die Ursache.
+ *
+ * ⚠️ DAS SYMPTOM FUEHRT IN DIE IRRE. Es sieht aus wie „die CSS-Regel greift
+ * nicht" und schickt die Suche in die Spezifitaet (Falle 5) — dabei steht die
+ * Regel richtig da, und der Kasten ist am Ende 44 px hoch. Wer hier die Regel
+ * „verstaerkt", macht sie kaputt, ohne dass der Test gruen wird.
+ */
+export async function messeWennRuhig(
+  ort: Locator,
+  optionen: { timeout?: number; wer?: string } = {},
+): Promise<{ x: number; y: number; width: number; height: number }> {
   const frist = optionen.timeout ?? 15_000;
+  const wer = optionen.wer ?? "messeWennRuhig";
   const seite = ort.page();
   // DREI gleiche Messungen in Folge, nicht zwei: der beobachtete Sprung faellt
   // in ein Fenster von ~200 ms, und zwei Proben im Abstand von 100 ms koennten
@@ -122,15 +151,12 @@ export async function klickeWennRuhig(
       jetzt.height === vorher.height;
     ruhig = gleich ? ruhig + 1 : 0;
     vorher = jetzt;
-    if (ruhig >= NOETIGE_RUHE) {
-      await ort.click();
-      return;
-    }
+    if (ruhig >= NOETIGE_RUHE && jetzt !== null) return jetzt;
   }
   // Laut statt still: ein Element, das sich nach 15 s immer noch bewegt, ist ein
-  // Befund und kein Grund, trotzdem zu klicken.
+  // Befund und kein Grund, trotzdem zu klicken oder zu messen.
   throw new Error(
-    `klickeWennRuhig: das Element kam binnen ${frist} ms nicht zur Ruhe — ` +
+    `${wer}: das Element kam binnen ${frist} ms nicht zur Ruhe — ` +
       `zuletzt gemessen ${JSON.stringify(vorher)}`,
   );
 }

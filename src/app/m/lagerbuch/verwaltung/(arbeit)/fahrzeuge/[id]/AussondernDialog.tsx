@@ -5,7 +5,9 @@ import { Alert, Button, DatePicker, Form, Input, InputNumber, Modal, Select } fr
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { aussondernVomLagerort } from "../../../../_actions/aussondernLagerort";
+import type { ActionErgebnis } from "../../../../_lib/actionErgebnis";
 import { inDerEinheit, type Einheitenart } from "../../../../_lib/konstanten";
+import type { VerfallWert } from "../../../../_lib/verfallStand";
 import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
 import { monatAusPicker } from "../../../../_ui/monat";
 import { Ikone } from "../../../../_ui/ikonen";
@@ -44,7 +46,7 @@ export function AussondernDialog({
   verfall,
   einheitenart,
   gesperrt = false,
-  onAusgesondert,
+  schreibe,
 }: {
   lagerortId: string;
   artikelId: string;
@@ -64,26 +66,37 @@ export function AussondernDialog({
    */
   einheitenart: Einheitenart | null;
   /**
-   * Sperrt den Zugang, solange die Tabelle daneben selbst schreibt.
+   * Sperrt den Zugang, solange IRGENDEIN Schreibweg auf denselben Wert läuft.
    *
    * ⚠️ EIN WETTLAUF, KEIN SCHOENHEITSFEHLER: läuft `verfallSetzen` noch und wird
    * hier zugleich der ganze Bestand ausgesondert, kann dessen Antwort NACH dem
    * Löschen eintreffen — es prüft nur die Soll-Zugehörigkeit und schreibt den
    * Monat dann bedingungslos zurück. Übrig bliebe eine Verfallszeile für einen
-   * Artikel ohne Bestand. Der Monatswähler daneben ist aus demselben Grund
-   * bereits gesperrt; die beiden Schreibwege schließen einander damit aus.
+   * Artikel ohne Bestand.
+   *
+   * ⚠️ SEIT DRK-345 SPERRT DAS IN BEIDE RICHTUNGEN. Vorher war nur der
+   * Monatswähler zu, während er selbst schrieb; der umgekehrte Fall — Dialog
+   * schreibt, Wähler offen — stand noch frei. Beide Wege teilen sich jetzt die
+   * eine `useTransition` des Trichters, und `laeuft` ist wahr, solange einer von
+   * ihnen unterwegs ist.
    */
   gesperrt?: boolean;
   /**
-   * Meldet den GESCHRIEBENEN Verfall an die Tabelle zurueck — `null`, wenn die
-   * Angabe entfaellt.
+   * DER TRICHTER DER TABELLE (DRK-345) — der Dialog fuehrt die Aktion NICHT
+   * selbst aus, er reicht sie hier hinein und bekommt die Antwort zurueck.
    *
-   * ⚠️ NICHT WEGLASSEN, AUCH WENN `revalidatePath` DIE SEITE AUFFRISCHT: die
-   * Tabelle haelt ihren eigenen Monatsspiegel, den sie EINMAL beim Einhaengen
-   * aus den Props fuellt. Eine Auffrischung haengt die Insel nicht neu ein, der
-   * Waehler zeigte danach still den alten Monat.
+   * ⚠️ PFLICHTFELD, UND DER UMWEG IST DER PUNKT. Vorher rief der Dialog die
+   * Aktion selbst und meldete das Ergebnis ueber einen optionalen Rueckruf; in
+   * drei Reviewrunden hintereinander meldete er dabei das Falsche — erst gar
+   * nichts, dann die Server-Prop, dann seine eigene Eingabe. Alle drei sahen
+   * richtig aus, alle drei liessen den Monatswaehler daneben etwas behaupten,
+   * das nicht in der Datenbank stand. Wer die Antwort nicht in der Hand haelt,
+   * kann sie auch nicht falsch weiterreichen: der Trichter nimmt den Wert aus
+   * `ergebnis.wert.verfall`, und hier gibt es nichts mehr zu melden.
    */
-  onAusgesondert?: (verfall: string | null) => void;
+  schreibe: (
+    aktion: () => Promise<ActionErgebnis<VerfallWert>>,
+  ) => Promise<ActionErgebnis<VerfallWert>>;
 }) {
   const [form] = Form.useForm<Werte>();
   const [offen, setOffen] = useState(false);
@@ -159,23 +172,22 @@ export function AussondernDialog({
          * heißt hier deshalb genau eine Sache: die Person hat es bewusst
          * geleert.
          */
-        const geschrieben = monatAusPicker(werte.verfall) ?? "";
-        const ergebnis = await aussondernVomLagerort({
+        const gemeint = monatAusPicker(werte.verfall) ?? "";
+        // KEINE VORWEGNAHME und kein eigener Rueckkanal: der Trichter uebernimmt
+        // den Wert aus der ANTWORT. Was hier im Feld stand, ist ein Vorschlag —
+        // ob er ankommt, entscheidet die Transaktion am verbleibenden Bestand.
+        const ergebnis = await schreibe(() => aussondernVomLagerort({
           lagerortId,
           artikelId,
           menge: werte.menge,
           chargeId: werte.chargeId ?? null,
-          verfall: geschrieben,
+          verfall: gemeint,
           // Was beim Öffnen im Feld stand — daran erkennt die Aktion, ob der
           // Monat überhaupt gemeint war.
           verfallVorher: verfall ?? "",
           kommentar: werte.kommentar,
-        });
+        }));
         if (ergebnis.ok) {
-          // ⚠️ DER WERT AUS DER ANTWORT, NICHT `geschrieben`: die Transaktion
-          // entscheidet über „alles raus" und kann `null` geschrieben haben,
-          // obwohl hier ein Datum eingegeben wurde.
-          onAusgesondert?.(ergebnis.wert.verfall);
           // Gleiche Reihenfolge wie in `schliessen`: erst leeren, dann zu.
           form.resetFields();
           setOffen(false);
