@@ -580,11 +580,24 @@ export function ArtikelDrawer({
             mindestbestand={mindestbestand ?? detail.artikel.mindestbestand}
           />
 
+          {/*
+            ⚠️ DER SATZ NENNT SEIT DRK-380 AUCH DIE FOLGE, nicht nur die Lage.
+            „Erscheint nicht in den aktiven Listen" allein erklaerte das
+            gesperrte Zugangsformular daneben nicht — und ein gesperrtes Feld
+            ohne Grund ist der Fall, in dem jemand den Schalter sucht und die
+            Verbindung nicht herstellt. Der Zusatz sagt ausserdem, was WEITER
+            geht: Entnahme und Umlagerung bleiben erlaubt, damit der
+            Restbestand abzubuchen ist (Entscheidung zu DRK-380).
+          */}
           {!detail.artikel.aktiv ? (
             <Alert
               type="info"
               showIcon={false}
-              title="Dieser Artikel ist deaktiviert und erscheint nicht in den aktiven Listen."
+              title={
+                "Dieser Artikel ist deaktiviert und erscheint nicht in den aktiven " +
+                "Listen. Auf ihn geht kein Material mehr zu; Entnahme und Umlagerung " +
+                "bleiben möglich."
+              }
             />
           ) : null}
 
@@ -657,10 +670,22 @@ export function ArtikelDrawer({
 
           <div className={styles.buchungsspalten}>
             <Abschnitt titel="Zugang buchen">
+              {/*
+                ⚠️ GESPERRT, WENN DER ARTIKEL DEAKTIVIERT IST — DRK-380, und
+                als EINZIGES der drei Formulare dieser Spalte. Entnahme und
+                Umlagerung bleiben offen: „deaktivieren" ist der Rueckfall des
+                Loeschpfades fuer einen Artikel MIT Historie, und wer den
+                Abgang mitsperrte, froere dessen Restbestand ein. Die Richtung
+                ist die Asymmetrie — heraus ja, hinein nein.
+
+                ⚠️ DER GRUND STEHT OBEN IM `Alert`, NICHT HIER. `Form`s
+                `disabled` reicht an jedes Feld durch; ein zweiter Hinweis
+                direkt am Formular stuende zweimal auf demselben Schirm.
+              */}
               <Form<ZugangWerte>
                 form={zugangForm}
                 layout="vertical"
-                disabled={busy}
+                disabled={busy || !detail.artikel.aktiv}
                 initialValues={{
                   menge: 1,
                   chargeId: NEUE_CHARGE,

@@ -1,6 +1,7 @@
 import ereignisseNachvollziehen from "./notizen/portal/2026-09-06-ereignisse-nachvollziehen";
 import zeichenVoruebergehendPausiert from "./notizen/portal/2026-09-07-zeichen-voruebergehend-pausiert";
 import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-im-profil";
+import berichteAlsExcel from "./notizen/portal/2026-09-16-berichte-als-excel";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
@@ -35,6 +36,7 @@ import bzBemerkungUndBeachtung from "@/app/m/portal/_lib/neuigkeiten/notizen/lag
 import werHatGeprueft from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-wer-hat-geprueft";
 import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-aussondern-je-schrank";
 import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-ortsetiketten";
+import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -96,6 +98,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   auffuellen,
   entnahmebox,
   entnahmeboxEinraeumen,
+  deaktivierteArtikel,
   schranknameEindeutig,
   checkUndEntnahmeAngemeldet,
   taschenNebenFahrzeugen,
@@ -111,6 +114,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   zeichenVoruebergehendPausiert,
   versionsnummerImProfil,
   tabellenSortierenFiltern,
+  berichteAlsExcel,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,

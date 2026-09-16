@@ -127,7 +127,7 @@
     "kind": "excluded",
     "reason": "Technical generated asset, not a business export."
   },
-  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.csv/route.ts#GET": {
+  "src/app/m/feedback/(admin)/groups/[groupId]/evenings/[eveningId]/export.xlsx/route.ts#GET": {
     "kind": "context",
     "via": "GET",
     "delivery": {
@@ -135,7 +135,7 @@
       "reference": "String(evening.id)"
     }
   },
-  "src/app/m/feedback/(admin)/groups/[groupId]/export.csv/route.ts#GET": {
+  "src/app/m/feedback/(admin)/groups/[groupId]/export.xlsx/route.ts#GET": {
     "kind": "context",
     "via": "GET",
     "delivery": {

@@ -323,7 +323,7 @@ describe("Auswertung — Kennzahlen, Kopfzone und Leerzustand (§3.2, §4.2, §4
     expect(wirt.textContent).toContain("Funk");
 
     const ziele = [...wirt.querySelectorAll<HTMLElement>("a")].map((a) => a.getAttribute("href"));
-    expect(ziele).toContain(`/m/feedback/groups/1/evenings/${evening.id}/export.csv`);
+    expect(ziele).toContain(`/m/feedback/groups/1/evenings/${evening.id}/export.xlsx`);
     expect(ziele).toContain("/m/feedback/groups/1/trend");
   });
 
@@ -333,7 +333,7 @@ describe("Auswertung — Kennzahlen, Kopfzone und Leerzustand (§3.2, §4.2, §4
     expect(wirt.textContent).toContain("Zu diesem Abend ist keine Rückmeldung eingegangen.");
     expect(wirt.querySelector(".ant-result")).not.toBeNull();
     const ziele = [...wirt.querySelectorAll<HTMLElement>("a")].map((a) => a.getAttribute("href"));
-    expect(ziele).toContain(`/m/feedback/groups/1/evenings/${evening.id}/export.csv`);
+    expect(ziele).toContain(`/m/feedback/groups/1/evenings/${evening.id}/export.xlsx`);
     // Keine leeren Spuren, kein leeres Achsenkreuz.
     expect(spuren(wirt)).toHaveLength(0);
   });
