@@ -1,5 +1,4 @@
 "use server";
-import { auditAccessActor } from "@/core/audit/server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { z } from "zod";
@@ -10,6 +9,7 @@ import { artikel, buchungen, chargen, lagerorte, newId } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
+import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerkunft";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte, ortStamm } from "../_lib/lesepfade/orte";
@@ -461,7 +461,7 @@ export async function bucheEntnahmeHelfer(
     // (`darfErneuern`, _lib/actionTypen.ts).
     return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
   }
-  return withAuditContext({ actor: auditAccessActor("lagerbuch", riegel.zugang.tokenId) }, async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
+  return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
 
     const geparst = HelferEntnahmeSchema.safeParse(eingabe);
     if (!geparst.success) {
@@ -512,7 +512,7 @@ export async function bucheEntnahmeHelfer(
     const ziel: EntnahmeZiel = v.ziel;
     const gemerkt = zielAusWert(
       (await cookies()).get(ZIEL_COOKIE)?.value,
-      riegel.zugang.tokenId,
+      zugangsKennung(riegel.zugang),
     );
     if (!gemerkt || !gleichesZiel(gemerkt, ziel)) {
       return { ok: false, grund: "eingabe", text: ZIEL_VERALTET_TEXT };
@@ -531,7 +531,7 @@ export async function bucheEntnahmeHelfer(
 
     let gebucht = 0;
     db.transaction((tx) => {
-      const quelle = { quelleTyp: "token" as const, quelleId: riegel.zugang.code };
+      const quelle = journalQuelle(riegel.zugang);
       gebucht =
         ziel.art === "fahrzeug"
           ? /*

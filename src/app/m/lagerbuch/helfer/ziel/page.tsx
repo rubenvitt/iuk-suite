@@ -7,6 +7,7 @@ import { sanitizeReturnTo } from "../../_lib/returnTo";
 import { waehleEntnahmeZiel } from "../../_actions/entnahmeZiel";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
+import { sitzungsEtikett, zugangsKennung } from "../../_lib/zugangHerkunft";
 import s from "../../_ui/helfer.module.css";
 
 /**
@@ -60,7 +61,7 @@ export default async function ZielSeite({
    */
   const zurueck = sanitizeReturnTo((await searchParams).returnTo) ?? "/helfer";
 
-  const aktuell = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value, zugang.tokenId);
+  const aktuell = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value, zugangsKennung(zugang));
   // Der Vergleichswert entsteht aus DERSELBEN Funktion, die die Knöpfe füllt —
   // eine zweite Schreibweise hier markierte die aktuelle Wahl still nicht mehr.
   const aktuellerWert = aktuell === null ? null : wahlWert(aktuell);
@@ -77,7 +78,7 @@ export default async function ZielSeite({
   return (
     <HelferRahmen
       aktiv="entnahme"
-      sitzungsetikett={`Zugang: Token ${zugang.code} · ${zugang.label}`}
+      sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
     >
       <div className={s.schirmKopf}>Ziel wählen</div>

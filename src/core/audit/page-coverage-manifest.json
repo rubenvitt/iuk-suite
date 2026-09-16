@@ -103,10 +103,6 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
-  "src/app/m/lagerbuch/a/[artikelId]/page.tsx#redirect:istLagerbuchAdmin(await viewerOderNull()):1": {
-    "kind": "excluded",
-    "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
-  },
   "src/app/m/lagerbuch/a/[artikelId]/page.tsx#redirect:!zugang:1": {
     "kind": "excluded",
     "reason": "Canonical navigation, legacy routing or login/redemption entry; no additional confirmed role rejection at this redirect."
