@@ -5,11 +5,10 @@ import { quelleAufloeser } from "../_db/quelle";
 import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { verfallSchwellen, verfallStatus, type Ampel } from "../_lib/domain/verfall";
 import { chargeText } from "../_lib/format";
-import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
 import { verteilungJeCharge, type OrtVerteilungEintrag } from "../_lib/lesepfade/bestand";
 import { ortZeile } from "../_lib/konstanten";
-import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
+import { handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /** Typ-Exporte verschwinden beim Kompilieren und sind keine Server Actions. */
@@ -173,12 +172,11 @@ export async function getDetail(
       mehrVorhanden: detail.mehrVorhanden,
       // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber
       // kein Ziel mehr. Die Wurzel steht ausdrücklich darin.
-      zielOrte: [
-        { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
-        ...handlagerSchraenke(db, true).map((o) => ({
-          id: o.id, name: o.name, zugangshinweis: o.zugangshinweis,
-        })),
-      ],
+      // DRK-313 — DIESELBE Liste, die die Auffuellansicht anbietet
+      // (`zugangsZiele`). Vorher stand sie hier ausgeschrieben; zwei
+      // Schreibweisen haetten den beiden Flaechen verschiedene Orte gezeigt,
+      // sobald eine von beiden `nurAktive` vergisst.
+      zielOrte: zugangsZiele(db),
       // DRK-354 — HIER ENDET DER BEREICH als Typ: die Liste geht als Prop in
       // eine Client-Insel, und die stellt nur die Frage „liegt dieser Ort im
       // Handlager?" (`new Set(...)`). Ein `Lagerbereich` ueberquert die

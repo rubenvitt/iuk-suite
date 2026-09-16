@@ -81,7 +81,9 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
 }));
 
-import { bucheZugang, bucheEntnahme, bucheEntnahmeHelfer, bucheUmlagerung } from "./buchung";
+import {
+  bucheZugang, bucheEntnahme, bucheEntnahmeHelfer, bucheUmlagerung, bucheAuffuellung,
+} from "./buchung";
 
 let t: TestDb;
 
@@ -163,6 +165,30 @@ beforeEach(() => {
 // und `schliessen` (Befund 11).
 afterEach(() => { t.schliessen(); vi.clearAllMocks(); });
 
+/**
+ * DIE PFADE, DIE EIN ZUGANG AUSRAEUMT — hier EINMAL, als Sollwert fuer BEIDE
+ * Zugangswege (`bucheZugang` und `bucheAuffuellung`).
+ *
+ * ⚠️ SIE STEHT HIER AUSGESCHRIEBEN UND WIRD NICHT AUS DER QUELLE GELESEN. Der
+ * Sinn ist gerade, dass eine Aenderung an der Liste in der Action HIER auffaellt
+ * — ein Test, der dieselbe Konstante importiert, waere zu jeder Aenderung gruen.
+ *
+ * Drei Review-Befunde in Folge haben je einen fehlenden Pfad gemeldet
+ * (`verwaltung/bestellung`, `verwaltung/verfall`, `auffuellen`), weil die
+ * beiden Actions getrennte Listen fuehrten. Die Reihenfolge gehoert zur
+ * Zusicherung: beide Wege raeumen WOERTLICH dasselbe aus.
+ */
+const ZUGANG_PFADE = (artikelId: string) => [
+  "/m/lagerbuch/verwaltung/verfall",
+  "/m/lagerbuch/verwaltung/artikel",
+  "/m/lagerbuch/verwaltung/bestellung",
+  "/m/lagerbuch/verwaltung",
+  `/m/lagerbuch/auffuellen/${artikelId}`,
+  "/m/lagerbuch/auffuellen",
+  `/m/lagerbuch/a/${artikelId}`,
+  "/m/lagerbuch/helfer",
+];
+
 /** Alle Zeilen, die eine Action geschrieben hat — die Saatzeile bleibt draussen. */
 function geschrieben() {
   return t.db.select().from(buchungen).all().filter((b) => b.quelleId !== "seed");
@@ -196,9 +222,19 @@ describe("bucheZugang", () => {
       typ: "zugang", menge: 10, artikelId: "art-1", chargeId: neue[0]!.id,
       lagerortId: HANDLAGER_ID, quelleTyp: "oidc", quelleId: "u-admin",
     });
-    // INNERE Pfade, in dieser Reihenfolge (§3). Ein aeusserer Pfad trifft
-    // nichts und wirft dabei nicht.
-    expect(revalidiert).toEqual(["/m/lagerbuch/verwaltung/artikel", "/m/lagerbuch/verwaltung"]);
+    /*
+     * INNERE Pfade, in dieser Reihenfolge (§3). Ein aeusserer Pfad trifft
+     * nichts und wirft dabei nicht.
+     *
+     * ⚠️ DER BESTELLVORSCHLAG IST SEIT DEM CODEX-BEFUND P2 ZU PR #174 DABEI.
+     * Ein Zugang nullt `bestelltAt` — nuetzt aber nichts, solange der Client
+     * auf eine zwischengespeicherte Liste zurueckfaellt, die den gelieferten
+     * Artikel weiter als „bestellt" fuehrt; solange er das tut, schlaegt ihn
+     * die Bestellliste nie wieder vor. `markiereBestellt` raeumt denselben
+     * Pfad aus demselben Grund: zwei Schreiber DERSELBEN Spalte duerfen sich
+     * darin nicht unterscheiden.
+     */
+    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
@@ -1035,5 +1071,376 @@ describe("bucheUmlagerung (DRK-338)", () => {
       t.db,
     )).rejects.toThrow("kein Admin");
     expect(geschrieben()).toHaveLength(0);
+  });
+});
+
+/**
+ * DRK-313 — DIE AUFFUELLANSICHT DER GF.
+ *
+ * Was hier haengt, und warum jeweils GENAU HIER:
+ *
+ *   - DER RIEGEL IST DER DER VERWALTUNG, NICHT DER DES HELFERS. Das ist die
+ *     Umsetzung von „nur fuer GF": ein Kaertchen erreicht diese Action nicht.
+ *     Der Nachweis ist ein VERHALTENStest (der Admin-Riegel wirft, und dann
+ *     steht nichts in `buchungen`), kein Quelltext-Scan — ein Scan auf die
+ *     Schreibweise fixierte nur einen Namen.
+ *   - DER ZIELORT IST PFLICHT, anders als bei `bucheZugang`. Ein fehlendes Ziel
+ *     ist hier keine Vorgabe „Wurzel", sondern eine offene Entscheidung.
+ *   - EIN STILLGELEGTER SCHRANK UND EIN FAHRZEUG WERDEN MIT EINEM SATZ
+ *     ABGEWIESEN, nicht mit einem Wurf: beide Lagen entstehen ohne Zutun der
+ *     Person, waehrend die Seite offen steht.
+ *   - `referenz` BLEIBT `null` UND `typ` IST `zugang` — dieselbe Journalzeile
+ *     wie aus dem Drawer der Verwaltung. Ein eigenes Praefix liesse denselben
+ *     Vorgang doppelt gefuehrt aussehen.
+ */
+describe("bucheAuffuellung (DRK-313)", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID, aktiv: true },
+      { id: "schrank-alt", name: "Schrank alt", typ: "lager", parentId: HANDLAGER_ID, aktiv: false },
+    ]).run();
+  });
+
+  it("legt eine neue Charge an und bucht sie in den gewaehlten Schrank", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 4, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 4, ziel: "Schrank 1" } });
+    expect(geschrieben()).toHaveLength(1);
+    // ⚠️ DIESELBE ZEILE WIE AUS DEM DRAWER: `typ: "zugang"`, `referenz: null`.
+    expect(geschrieben()[0]).toMatchObject({
+      typ: "zugang", lagerortId: "schrank-1", menge: 4, referenz: null,
+      quelleTyp: "oidc", quelleId: "u-admin",
+    });
+    const neu = t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).get();
+    expect(neu).toMatchObject({ artikelId: "art-1", verfall: "2028-01" });
+  });
+
+  /**
+   * ⚠️ OHNE DIESE KENNUNG ZERFAELLT EINE LIEFERUNG (Codex-Befund P1 zu PR #174).
+   * Wer auf mehrere Schraenke verteilt, bucht mehrfach; die Insel muss nach der
+   * ersten Buchung auf die ANGELEGTE Charge umschalten koennen, und die Kennung
+   * dafuer kennt nur der Server. Es gibt keinen Eindeutigkeitsindex auf
+   * `(artikel_id, chargen_nr)` — zwei gleiche Zeilen waeren moeglich und in
+   * FEFO nicht mehr zu unterscheiden.
+   */
+  it("gibt die Kennung der ANGELEGTEN Charge zurueck", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 4, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    const wert = (erg as { ok: true; wert: { chargeId: string } }).wert;
+    const zeile = t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).get();
+    expect(wert.chargeId).toBe(zeile?.id);
+
+    // Und mit genau dieser Kennung gebucht, entsteht KEINE zweite Zeile.
+    await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: wert.chargeId },
+      },
+      t.db,
+    );
+    expect(
+      t.db.select().from(chargen).all().filter((c) => c.chargenNr === "L-NEU"),
+      "eine physische Charge bleibt EINE Zeile",
+    ).toHaveLength(1);
+  });
+
+  it("gibt bei einer VORHANDENEN Charge deren Kennung unveraendert zurueck", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { chargeId: "ch-1" } });
+  });
+
+  it("bucht auf eine VORHANDENE Charge, ohne eine zweite anzulegen", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 2 } });
+    expect(geschrieben()[0]).toMatchObject({ chargeId: "ch-1", lagerortId: HANDLAGER_ID });
+    expect(t.db.select().from(chargen).all()).toHaveLength(1);
+  });
+
+  it("nennt die WURZEL beim Namen, unter dem sie zur Wahl stand", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    // Der Beleg auf dem Schirm nennt diesen Namen; er kommt aus dem SERVER,
+    // damit ein umbenannter Ort nicht unter altem Namen quittiert wird.
+    expect(erg).toMatchObject({ ok: true, wert: { ziel: "Handlager (ohne Schrank)" } });
+  });
+
+  /**
+   * ⚠️ DIE WURZEL UND EIN SCHRANK KOENNEN GLEICH HEISSEN, und NUR sie beide:
+   * `idx_lagerorte_name_je_parent` (DRK-367) deckt Kinder, nicht die Wurzel.
+   * Zwei optisch identische Zeilen in der Schrankwahl sind der teuerste stille
+   * Ausgang dieser Flaeche — der Klick trifft die richtige `id`, die Person
+   * weiss nur nicht, welche das ist. Dieselbe Abhilfe wie bei den Zaehlorten.
+   */
+  it("macht zwei gleichnamige Ziele unterscheidbar, statt sie doppelt anzubieten", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-dublette", name: "Handlager (ohne Schrank)", typ: "lager",
+        parentId: HANDLAGER_ID, aktiv: true },
+    ]).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true });
+    // Der Beleg nennt die WURZEL, und zwar unterscheidbar vom gleichnamigen
+    // Schrank — sonst quittierte er eine Buchung, die genauso gut die andere
+    // sein koennte.
+    const wert = (erg as { ok: true; wert: { ziel: string } }).wert;
+    expect(wert.ziel).toContain("Handlager (ohne Schrank)");
+    expect(wert.ziel).not.toBe("Handlager (ohne Schrank)");
+    expect(wert.ziel).toContain(HANDLAGER_ID);
+  });
+
+  it("setzt bestelltAt zurueck — dieselbe Zusage wie beim Zugang", async () => {
+    t.db.update(artikel).set({ bestelltAt: JETZT }).where(eq(artikel.id, "art-1")).run();
+    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt)
+      .not.toBeNull();
+
+    await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt).toBeNull();
+  });
+
+  /**
+   * ⚠️ WOERTLICH DIESELBE LISTE WIE `bucheZugang`, nicht bloss eine Obermenge.
+   * Es ist derselbe Vorgang, nur eine andere Flaeche davor — und zwei Listen
+   * fuer einen Vorgang waren die Ursache von DREI Review-Befunden in Folge
+   * (`verwaltung/bestellung`, `verwaltung/verfall`, `auffuellen`). Ein
+   * `arrayContaining` liesse die naechste Abweichung wieder durch; die
+   * Gleichheit ist die Zusage.
+   */
+  it("raeumt WOERTLICH dieselben Pfade aus wie der Zugang aus der Verwaltung", async () => {
+    await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
+  });
+
+  it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-2", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("weist einen stillgelegten Schrank ab — mit einem Satz, ohne zu werfen", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-alt",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text).toMatch(/stillgelegt/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  /**
+   * ⚠️ WAS DIE AUSWAHL ANBIETET, MUSS DIE BUCHUNG ANNEHMEN (Codex-Befund P2 zu
+   * PR #174). `zugangsZiele` steigt ueber `teilbaum` beliebig tief ab; ein Ort
+   * unterhalb eines Schranks stand also zur Wahl und wurde vom Schreibpfad
+   * trotzdem abgewiesen, weil der auf den DIREKTEN Elternteil prueft. Eine
+   * angebotene Buchung, die immer scheitert.
+   *
+   * Heute nur per Import erreichbar (`createSchrank` verdrahtet
+   * `parentId: HANDLAGER_ID`), aber genau darauf ist `teilbaum` gebaut.
+   */
+  it("nimmt einen Ort UNTERHALB eines Schranks an — die Auswahl bietet ihn an", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "fach-1", name: "Fach 1", typ: "lager", parentId: "schrank-1", aktiv: true },
+    ]).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: "fach-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg, "der tiefere Ort steht in `zugangsZiele` und muss buchbar sein")
+      .toMatchObject({ ok: true });
+    expect(geschrieben()[0]).toMatchObject({ typ: "zugang", lagerortId: "fach-1", menge: 2 });
+  });
+
+  it("weist einen stillgelegten Ort auch UNTERHALB eines Schranks ab", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "fach-alt", name: "Fach alt", typ: "lager", parentId: "schrank-1", aktiv: false },
+    ]).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "fach-alt",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  /**
+   * ⚠️ DER ARTIKEL WIRD GELOESCHT, WAEHREND DIE SEITE OFFEN STEHT
+   * (Codex-Befund P2 zu PR #174). Die Lage ist ENGER, als sie aussieht, und
+   * genau deshalb trifft sie diese Flaeche: `pruefeArtikel`
+   * (`_actions/loeschen.ts`) laesst nur einen Artikel mit NULL Chargen und
+   * NULL Buchungen loeschen — also genau den frisch angelegten, und genau den
+   * befuellt das Auffuellen mit „Neue Charge".
+   *
+   * ⚠️ OHNE DIE PRUEFUNG WAERE DER FALL NICHT ETWA UNGEPRUEFT, SONDERN FALSCH
+   * BENANNT: der `chargen`-Einschub wirft am Fremdschluessel, der Wurf
+   * verlaesst die Action (dort steht bewusst kein try/catch), und die Insel
+   * setzt in ihrem `catch` `"netz"` — „Keine Verbindung", wo die Verbindung
+   * steht. Der Test sichert deshalb den GRUND und den SATZ zu, nicht nur, dass
+   * nichts gebucht wurde: `ok: false` allein waere auch mit der falschen
+   * Auskunft gruen.
+   */
+  it("weist einen inzwischen GELOESCHTEN Artikel mit einem Satz ab, nicht mit einem Wurf", async () => {
+    t.db.insert(artikel).values([
+      {
+        id: "art-frisch", name: "Frisch angelegt", einheit: "Stk", fach: "Z-99",
+        mindestbestand: 0, aktiv: true, createdAt: JETZT,
+      },
+    ]).run();
+    // Wie `loescheElement` es tut — der Artikel hat weder Charge noch Buchung
+    // und ist damit das einzige, was `pruefeArtikel` ueberhaupt durchlaesst.
+    t.db.delete(artikel).where(eq(artikel.id, "art-frisch")).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-frisch", menge: 3, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text, "der Satz nennt die Ursache, nicht das Netz")
+      .toContain("Diesen Artikel gibt es nicht mehr");
+    expect(geschrieben()).toEqual([]);
+    // Die Charge darf auch nicht halb entstanden sein.
+    expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).all())
+      .toEqual([]);
+  });
+
+  /**
+   * DIE GEGENPROBE ZUM ZWEITEN CHARGEN-ZWEIG. Er kann heute nicht in die Lage
+   * oben laufen — eine lebende Charge beweist, dass der Artikel die
+   * Loeschpruefung nie bestanden haette. Der Beweis haengt aber an einer
+   * FREMDEN Bedingung (`pruefeArtikel`), und deshalb prueft die Action fuer
+   * beide Arten. Dieser Test haelt fest, dass die vorgezogene Abfrage den
+   * gewoehnlichen Weg nicht verstellt.
+   */
+  it("bucht eine vorhandene Charge unveraendert — die Artikelpruefung steht nicht im Weg", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 2, ziel: "Schrank 1" } });
+  });
+
+  it("weist ein Fahrzeug als Ziel ab — die Richtung ist die Gegenrichtung", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "fz-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("OHNE Zielort wird NICHT gebucht — anders als beim Zugang gibt es keine Vorgabe", async () => {
+    const erg = await bucheAuffuellung(
+      { artikelId: "art-1", menge: 1, charge: { art: "vorhanden", chargeId: "ch-1" } },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("lehnt einen Verfall ab, der nicht YYYY-MM ist", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "01.2028" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(t.db.select().from(chargen).all()).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ DER TRAGENDE TEST DES TICKETS. „Nur fuer GF" ist serverseitig genau
+   * dann wahr, wenn der Riegel der Verwaltung VOR allem anderen steht — auch
+   * vor dem Parsen. Ein Kaertchen-Riegel kommt auf diesem Weg gar nicht vor.
+   */
+  it("fragt den ADMIN-Riegel — ein Kaertchen kommt hier nicht durch", async () => {
+    adminRiegel.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(
+      bucheAuffuellung(
+        {
+          artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+          charge: { art: "vorhanden", chargeId: "ch-1" },
+        },
+        t.db,
+      ),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(riegel).not.toHaveBeenCalled();
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("der Riegel steht VOR dem Parsen — auf einer Nutzlast, die kein Schema besteht", async () => {
+    adminRiegel.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(bucheAuffuellung({ murks: true }, t.db)).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(geschrieben()).toEqual([]);
   });
 });

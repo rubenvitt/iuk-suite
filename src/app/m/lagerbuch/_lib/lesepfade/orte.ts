@@ -8,7 +8,7 @@
  */
 import { lagerorte } from "../../_db/schema";
 import { teilbaum, type Lagerbereich, type OrtZeile } from "../domain/orte";
-import { zaehlOrtLabel } from "../inventurOrt";
+import { eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
 import { HANDLAGER_ID, istEntnahmebox, type Einheitenart } from "../konstanten";
 import type { Leser } from "./bestand";
 
@@ -153,4 +153,66 @@ export function ortNamensaufloesung(db: Leser): Map<string, string | null> {
   const karte = new Map<string, string | null>();
   for (const o of orte) karte.set(o.label, karte.has(o.label) ? null : o.id);
   return karte;
+}
+
+/**
+ * DRK-313 — DIE BESCHRIFTUNG DER HANDLAGER-WURZEL ALS ZUGANGSZIEL.
+ *
+ * ⚠️ NICHT `ZAEHLORT_WURZEL_LABEL` („Nicht zugeordnet"), obwohl beide denselben
+ * Ort meinen. Eine Zaehlung fragt „was liegt hier?", ein Zugang fragt „wohin
+ * lege ich es?" — und auf die zweite Frage ist „Nicht zugeordnet" keine
+ * Antwort, sondern eine Zustandsbeschreibung. Die Wurzel ist als Ziel eine
+ * bewusste Wahl („ich weiss den Schrank noch nicht"), und der Satz muss das
+ * sagen, sonst waehlt niemand sie absichtlich.
+ */
+export const ZUGANGSZIEL_WURZEL_LABEL = "Handlager (ohne Schrank)";
+
+/**
+ * DRK-313 — DIE WAEHLBAREN ZIELE EINES ZUGANGS: die Wurzel plus die AKTIVEN
+ * Schraenke.
+ *
+ * ⚠️ SIE IST NICHT `handlagerSchraenke` MIT EINEM EINTRAG DAVOR, auch wenn sie
+ * so aussieht. Der Unterschied ist `nurAktive`: ein stillgelegter Schrank
+ * bleibt Bestandsort und bleibt Quelle einer Umlagerung — genau dafuer legt man
+ * ihn still —, aber er nimmt nichts mehr auf. Wer die Liste an einer zweiten
+ * Stelle neu baut, vergisst das Flag irgendwann an einer davon, und der Fehler
+ * ist still: der Zugang GELINGT, er landet nur an einem Ort, den die Verwaltung
+ * gerade leerraeumt.
+ *
+ * Zwei Aufrufer, und das ist der Grund, warum sie hier steht statt an einem von
+ * beiden: der Artikel-Drawer der Verwaltung (`_actions/detail.ts`) und die
+ * Auffuellansicht (`auffuellen/[artikelId]`). Zwei Schreibweisen fuer dieselbe
+ * Auswahl liessen die beiden Flaechen verschiedene Orte anbieten.
+ */
+export function zugangsZiele(
+  db: Leser,
+): { id: string; name: string; zugangshinweis: string | null }[] {
+  const roh = [
+    { id: HANDLAGER_ID, name: ZUGANGSZIEL_WURZEL_LABEL, zugangshinweis: null },
+    ...handlagerSchraenke(db, true).map((o) => ({
+      id: o.id,
+      name: o.name,
+      zugangshinweis: o.zugangshinweis,
+    })),
+  ];
+
+  /*
+   * ⚠️ DIE WURZEL KANN MIT EINEM SCHRANK KOLLIDIEREN, und NUR sie.
+   * `idx_lagerorte_name_je_parent` (DRK-367) haelt zwei Schraenke unter dem
+   * Handlager auseinander — aber ausdruecklich nur Kinder (`parent_id IS NOT
+   * NULL`), und die Wurzel traegt `parent_id IS NULL`. Ein Schrank, den jemand
+   * „Handlager (ohne Schrank)" nennt, steht in dieser Liste also zweimal
+   * gleich da.
+   *
+   * ⚠️ WAS DARAN TEUER IST, IST NICHT DIE OPTIK: der Klick trifft ueber die
+   * `id` weiterhin die richtige Zeile — die Person erfaehrt nur nicht, welche.
+   * Sie buchte den Wareneingang dann in dem Glauben, ihn einzusortieren,
+   * waehrend er auf der Wurzel landet (oder umgekehrt), und der Bestand ist
+   * danach am falschen Ort. Dieselbe Klasse und dieselbe Abhilfe wie bei den
+   * Zaehlorten (`eindeutigeLabels`, DRK-337) und bei den Einheiten
+   * (`einheitLabels`, DRK-309) — deshalb wird sie hier benutzt und nicht ein
+   * drittes Mal nachgebaut.
+   */
+  const eindeutig = eindeutigeLabels(roh.map((o) => ({ id: o.id, label: o.name })));
+  return roh.map((o, i) => ({ ...o, name: eindeutig[i]!.label }));
 }
