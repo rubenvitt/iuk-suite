@@ -150,9 +150,9 @@ describe("zaehlOrtBeschreibung", () => {
 describe("eindeutigeLabels", () => {
   it("laesst eine Liste ohne Dopplung unveraendert", () => {
     const orte = [
-      { id: null, label: "Ganzer Handlager" },
-      { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
-      { id: "schrank-1", label: "Schrank 1" },
+      { schluessel: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { schluessel: HANDLAGER_ID, label: "Nicht zugeordnet" },
+      { schluessel: "schrank-1", label: "Schrank 1" },
     ];
     expect(eindeutigeLabels(orte)).toEqual(orte);
   });
@@ -163,15 +163,15 @@ describe("eindeutigeLabels", () => {
    */
   it("haengt nur an doppelte Beschriftungen die Kennung", () => {
     expect(eindeutigeLabels([
-      { id: null, label: "Ganzer Handlager" },
-      { id: "schrank-a", label: "Schrank 1" },
-      { id: "schrank-b", label: "Schrank 1" },
-      { id: "schrank-c", label: "GF-Schrank" },
+      { schluessel: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { schluessel: "schrank-a", label: "Schrank 1" },
+      { schluessel: "schrank-b", label: "Schrank 1" },
+      { schluessel: "schrank-c", label: "GF-Schrank" },
     ])).toEqual([
-      { id: null, label: "Ganzer Handlager" },
-      { id: "schrank-a", label: "Schrank 1 (schrank-a)" },
-      { id: "schrank-b", label: "Schrank 1 (schrank-b)" },
-      { id: "schrank-c", label: "GF-Schrank" },
+      { schluessel: ZAEHLORT_ALLE, label: "Ganzer Handlager" },
+      { schluessel: "schrank-a", label: "Schrank 1 (schrank-a)" },
+      { schluessel: "schrank-b", label: "Schrank 1 (schrank-b)" },
+      { schluessel: "schrank-c", label: "GF-Schrank" },
     ]);
   });
 
@@ -182,15 +182,40 @@ describe("eindeutigeLabels", () => {
    */
   it("schuetzt auch die Wurzel vor einem gleichnamigen Schrank", () => {
     const [wurzel, schrank] = eindeutigeLabels([
-      { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
-      { id: "schrank-frech", label: "Nicht zugeordnet" },
+      { schluessel: HANDLAGER_ID, label: "Nicht zugeordnet" },
+      { schluessel: "schrank-frech", label: "Nicht zugeordnet" },
     ]);
     expect(wurzel!.label).toBe(`Nicht zugeordnet (${HANDLAGER_ID})`);
     expect(schrank!.label).toBe("Nicht zugeordnet (schrank-frech)");
   });
 
   /**
-   * ⚠️ DER FALL, DEN EIN DURCHGANG NICHT LOEST (zweiter Codex-Befund).
+   * ⚠️ DER ZWEITE P1-BEFUND VON CODEX ZU DRK-371, UND ER TRIFFT GENAU DIE
+   * SCHWACHSTELLE DIESER FUNKTION: sie unterscheidet ueber einen Wert, den der
+   * Aufrufer liefert — taugt der nicht, ist der Beweis wertlos.
+   *
+   * Kurzzeitig war das `id ?? "alle"`. Ein importierter Schrank mit der Kennung
+   * `alle`, der auch noch „Ganzer Handlager" heisst, ergab damit ZWEIMAL
+   * „Ganzer Handlager (alle)" — zwei optisch gleiche Zeilen fuer zwei ganz
+   * verschiedene Zaehlumfaenge, und wer danebengreift, bucht die Korrektur in
+   * den falschen. Also derselbe Fehler wie der des Tickets, nur eine Ebene
+   * weiter: nicht mehr im Wert, sondern in der Beschriftung daneben.
+   *
+   * Mit dem Auswahlwert als Unterscheider faellt er weg — `alle` gegen
+   * `ort:alle`. Das ist die Form, in der die Inventurseite aufruft.
+   */
+  it("haelt den Waechter von einem gleichnamigen Schrank mit der Kennung „alle“ auseinander", () => {
+    const [waechter, schrank] = eindeutigeLabels([
+      { schluessel: zaehlOrtWert(null), label: "Ganzer Handlager" },
+      { schluessel: zaehlOrtWert(ZAEHLORT_ALLE), label: "Ganzer Handlager" },
+    ]);
+    expect(waechter!.label).toBe("Ganzer Handlager (alle)");
+    expect(schrank!.label).toBe("Ganzer Handlager (ort:alle)");
+    expect(waechter!.label).not.toBe(schrank!.label);
+  });
+
+  /**
+   * ⚠️ DER FALL, DEN EIN DURCHGANG NICHT LOEST (zweiter Codex-Befund zu DRK-337).
    * Zwei Schraenke heissen `X`, ein dritter heisst bereits woertlich `X (a)` —
    * genau das, was der erste Durchgang fuer den ersten Schrank erzeugt. Gezaehlt
    * werden die ALTEN Beschriftungen, der dritte bleibt also unangetastet, und
@@ -199,33 +224,40 @@ describe("eindeutigeLabels", () => {
    */
   it("bleibt eindeutig, wenn eine erzeugte Beschriftung schon vergeben ist", () => {
     const ergebnis = eindeutigeLabels([
-      { id: "a", label: "X" },
-      { id: "b", label: "X" },
-      { id: "c", label: "X (a)" },
+      { schluessel: "a", label: "X" },
+      { schluessel: "b", label: "X" },
+      { schluessel: "c", label: "X (a)" },
     ]);
     expect(new Set(ergebnis.map((o) => o.label)).size).toBe(3);
   });
 
   /**
    * Die Zusicherung, die fuer JEDE Eingabe gilt, nicht nur fuer die bedachten:
-   * gleiche Kennungen gibt es nicht, also kann das Ergebnis keine zwei gleichen
-   * Beschriftungen tragen. Geprueft an einer Sammlung boesartiger Faelle.
+   * gleiche Unterscheider gibt es nicht, also kann das Ergebnis keine zwei
+   * gleichen Beschriftungen tragen. Geprueft an einer Sammlung boesartiger
+   * Faelle — darunter die Auswahl der Inventurseite mit dem Waechter neben
+   * einem Schrank namens `alle`.
    */
   it.each([
-    [[{ id: "a", label: "X" }, { id: "b", label: "X" }, { id: "c", label: "X (a)" }]],
-    [[{ id: "a", label: "X" }, { id: "b", label: "X" }, { id: "c", label: "X (a)" }, { id: "d", label: "X (b)" }]],
-    [[{ id: "a", label: "X (b)" }, { id: "b", label: "X (a)" }]],
-    [[{ id: "a", label: "" }, { id: "b", label: "" }]],
-    [[{ id: "a", label: "X" }, { id: "b", label: "X" }, { id: "c", label: "X" }]],
+    [[{ schluessel: "a", label: "X" }, { schluessel: "b", label: "X" }, { schluessel: "c", label: "X (a)" }]],
+    [[{ schluessel: "a", label: "X" }, { schluessel: "b", label: "X" }, { schluessel: "c", label: "X (a)" }, { schluessel: "d", label: "X (b)" }]],
+    [[{ schluessel: "a", label: "X (b)" }, { schluessel: "b", label: "X (a)" }]],
+    [[{ schluessel: "a", label: "" }, { schluessel: "b", label: "" }]],
+    [[{ schluessel: "a", label: "X" }, { schluessel: "b", label: "X" }, { schluessel: "c", label: "X" }]],
+    [[
+      { schluessel: zaehlOrtWert(null), label: "Ganzer Handlager" },
+      { schluessel: zaehlOrtWert(ZAEHLORT_ALLE), label: "Ganzer Handlager" },
+      { schluessel: zaehlOrtWert("x"), label: "Ganzer Handlager (alle)" },
+    ]],
   ])("liefert fuer %# durchweg verschiedene Beschriftungen", (orte) => {
     const ergebnis = eindeutigeLabels(orte);
     expect(new Set(ergebnis.map((o) => o.label)).size).toBe(orte.length);
-    // Die Kennungen bleiben dabei unangetastet — sie sind der Wert, der gebucht wird.
-    expect(ergebnis.map((o) => o.id)).toEqual(orte.map((o) => o.id));
+    // Die Unterscheider bleiben dabei unangetastet — an ihnen haengt die Wahl.
+    expect(ergebnis.map((o) => o.schluessel)).toEqual(orte.map((o) => o.schluessel));
   });
 
   it("liefert eine neue Liste, ohne die uebergebene anzufassen", () => {
-    const orte = [{ id: "a", label: "X" }, { id: "b", label: "X" }];
+    const orte = [{ schluessel: "a", label: "X" }, { schluessel: "b", label: "X" }];
     const ergebnis = eindeutigeLabels(orte);
     expect(orte.map((o) => o.label)).toEqual(["X", "X"]);
     expect(ergebnis.map((o) => o.label)).toEqual(["X (a)", "X (b)"]);

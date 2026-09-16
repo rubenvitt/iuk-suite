@@ -78,15 +78,19 @@ export const ZAEHLORT_WURZEL_LABEL = "Nicht zugeordnet";
 
 /**
  * Ein waehlbarer Zaehlort — `id` ist `null` („ganzer Handlager"), `HANDLAGER_ID`
- * oder ein Schrank.
+ * oder ein Schrank; `schluessel` ist derselbe Ort als Wert der Auswahl.
  *
- * ⚠️ `null` UND NICHT `ZAEHLORT_ALLE` (DRK-371). Die Kennung ist hier der ROHE
+ * ⚠️ `null` UND NICHT `ZAEHLORT_ALLE` (DRK-371). `id` ist der ROHE
  * Datenbankwert; stuende der Waechter mit darin, traege der Schrank mit der
  * Kennung `alle` denselben Eintrag wie „ganzer Handlager" — und die Auswahl
- * haette zwei Zeilen, die auf denselben Wert zeigen. Was in der Auswahl steht,
- * rechnet `zaehlOrtWert` daraus aus.
+ * haette zwei Zeilen, die auf denselben Wert zeigen.
+ *
+ * ⚠️ `schluessel` STEHT DANEBEN UND WIRD NICHT AN DER ANZEIGE NACHGERECHNET.
+ * Er ist der Wert des Auswahlfeldes UND der Unterscheider, mit dem
+ * `eindeutigeLabels` doppelte Beschriftungen auseinanderhaelt — zwei Stellen,
+ * die dasselbe meinen und deshalb dasselbe Feld lesen.
  */
-export type ZaehlOrt = { id: string | null; label: string };
+export type ZaehlOrt = { id: string | null; label: string; schluessel: string };
 
 /**
  * Die Beschriftung eines Zaehlorts — EINE Quelle fuer Auswahl, Seitentext und
@@ -209,7 +213,7 @@ export function zaehlOrtBeschreibung(ortId: string | null, name: string | undefi
  * jemand „Nicht zugeordnet" nennt, kollidiert mit der Wurzel — dieselbe
  * Verwechslung aus einer Richtung, an die der Befund nicht gedacht hat.
  */
-export function eindeutigeLabels<T extends { id: string | null; label: string }>(
+export function eindeutigeLabels<T extends { schluessel: string; label: string }>(
   orte: readonly T[],
 ): T[] {
   const einDurchgang = orte.map((o) => (
@@ -234,14 +238,28 @@ export function eindeutigeLabels<T extends { id: string | null; label: string }>
 }
 
 /**
- * ⚠️ DER WAECHTER BRAUCHT EINEN EIGENEN TEXT, seit seine `id` `null` ist
- * (DRK-371) — sonst stuende „Ganzer Handlager (null)" auf dem Schirm. Fuer
- * jeden echten Ort bleibt die Kennung buchstabengleich die alte: die ROHE
- * Datenbankkennung, ohne das Praefix, das nur am Auswahlwert haengt. Sie ist
- * das, was jemand in der Verwaltung wiederfindet.
+ * ⚠️ DER UNTERSCHEIDER KOMMT VOM AUFRUFER, UND DAS IST DER GANZE FEHLER, DEN
+ * DIESE ZEILE EINMAL HATTE (zweiter P1-Befund von Codex zum PR). Kurzzeitig
+ * stand hier `ort.id ?? ZAEHLORT_ALLE` — womit der Waechter und ein Schrank mit
+ * der Kennung `alle` WIEDER denselben Text ergaben: heisst dieser Schrank auch
+ * noch „Ganzer Handlager", stuenden zwei Zeilen „Ganzer Handlager (alle)"
+ * nebeneinander, und wer danebengreift, bucht die Korrektur in den falschen
+ * Umfang. Also derselbe Fehler wie der des Tickets, nur in der Beschriftung.
+ *
+ * ⚠️ EIN FESTER TEXT FUER DEN WAECHTER HAETTE ES NICHT GEHEILT: `(Vorgabe)`
+ * koennte eine importierte Kennung woertlich tragen, und ein leerer Zusatz
+ * verschoebe die Kollision nur auf den naechsten Namen. Der Unterscheider muss
+ * aus einem Wertebereich kommen, in dem keine zwei Eintraege gleich sind — und
+ * welcher das ist, weiss nur der Aufrufer.
+ *
+ * ⚠️ DESHALB NICHT EINFACH DER AUSWAHLWERT FUER ALLE: `lesepfade/verfall.ts`
+ * und `lesepfade/orte.ts` benutzen dieselbe Funktion, und dort waere ein
+ * `ort:`-Praefix sinnlos — ihre Beschriftungen stehen neben dem Verlauf, der
+ * die ROHE Kennung zeigt (`lesepfade/inventurVerlauf.ts`). Zwei Schreibweisen
+ * derselben Sache sind genau das, was `zaehlOrtLabel` oben verhindert.
  */
-function mitKennung(ort: { id: string | null; label: string }): string {
-  return `${ort.label} (${ort.id ?? ZAEHLORT_ALLE})`;
+function mitKennung(ort: { schluessel: string; label: string }): string {
+  return `${ort.label} (${ort.schluessel})`;
 }
 
 function zaehle(orte: readonly { label: string }[], label: string): number {

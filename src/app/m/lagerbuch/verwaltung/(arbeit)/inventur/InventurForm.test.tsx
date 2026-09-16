@@ -30,7 +30,7 @@ import { artikel } from "../../../_db/schema";
 import { migrierteTestDb } from "../../../_db/testdb";
 import { INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
-import type { ZaehlOrt } from "../../../_lib/inventurOrt";
+import { zaehlOrtWert, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
 import { InventurForm } from "./InventurForm";
 
@@ -38,7 +38,7 @@ const ORTE: ZaehlOrt[] = [
   { id: null, label: "Ganzer Handlager" },
   { id: HANDLAGER_ID, label: "Nicht zugeordnet" },
   { id: "schrank-1", label: "Schrank 1" },
-];
+].map((o) => ({ ...o, schluessel: zaehlOrtWert(o.id) }));
 
 /**
  * DRK-337 — die Faelle unten pruefen den ZAEHLSTAND, nicht die Ortsauswahl, und
@@ -655,8 +655,8 @@ describe("Inventurseite als RSC", () => {
         // des Wertebereichs der Lagerort-Kennungen, sonst waere ein Schrank mit
         // der Kennung `alle` von ihm nicht zu unterscheiden.
         orte: [
-          { id: null, label: "Ganzer Handlager" },
-          { id: "handlager", label: "Nicht zugeordnet" },
+          { id: null, schluessel: "alle", label: "Ganzer Handlager" },
+          { id: "handlager", schluessel: "ort:handlager", label: "Nicht zugeordnet" },
         ],
       });
       expect(istRekursivJsonSicher(form.props)).toBe(true);

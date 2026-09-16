@@ -70,11 +70,12 @@ export function inventurSeitenInhalt(
    * zaehlte den ganzen Handlager. Den Wert fuer die Auswahl rechnet
    * `zaehlOrtWert` im Formular daraus aus.
    */
-  const orte: ZaehlOrt[] = eindeutigeLabels([
-    { id: null, label: zaehlOrtLabel(null, undefined) },
-    { id: HANDLAGER_ID, label: zaehlOrtLabel(HANDLAGER_ID, undefined) },
-    ...waehlbar.map((o) => ({ id: o.id, label: zaehlOrtLabel(o.id, o.name) })),
-  ]);
+  const orte: ZaehlOrt[] = eindeutigeLabels([null, HANDLAGER_ID, ...waehlbar.map((o) => o.id)]
+    .map((id) => ({
+      id,
+      schluessel: zaehlOrtWert(id),
+      label: zaehlOrtLabel(id, waehlbar.find((o) => o.id === id)?.name),
+    })));
 
   return (
     <>

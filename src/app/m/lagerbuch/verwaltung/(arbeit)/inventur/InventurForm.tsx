@@ -220,11 +220,13 @@ export function InventurForm({ zeilen, ortId, orte }: {
             setzeUrl({ ort: wert === ZAEHLORT_ALLE ? "" : wert });
           })}
           style={{ minWidth: 240 }}
-          // ⚠️ `zaehlOrtWert` UND NICHT `o.id` (DRK-371): die rohe Kennung stuende
+          // ⚠️ `o.schluessel` UND NICHT `o.id` (DRK-371): die rohe Kennung stuende
           // im selben Wertebereich wie der Waechter, und ein Schrank namens
           // `alle` waere nicht mehr waehlbar — sein Klick zaehlte den ganzen
-          // Handlager, samt der Korrekturen, die daraus folgen.
-          options={orte.map((o) => ({ value: zaehlOrtWert(o.id), label: o.label }))}
+          // Handlager, samt der Korrekturen, die daraus folgen. Derselbe Wert
+          // haelt auch doppelte Beschriftungen auseinander (`eindeutigeLabels`);
+          // ihn hier nachzurechnen waere eine zweite Quelle fuer dieselbe Sache.
+          options={orte.map((o) => ({ value: o.schluessel, label: o.label }))}
           virtual={false}
         />
         {positionen.length > 0 ? (

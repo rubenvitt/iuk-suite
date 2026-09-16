@@ -94,7 +94,11 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
    */
   const beschriftung = new Map(
     eindeutigeLabels(
-      bereich.map((id) => ({ id, label: zaehlOrtLabel(id, stamm.get(id)?.name) })),
+      // `schluessel` ist hier die rohe Kennung und NICHT der Auswahlwert der
+      // Inventur (DRK-371): diese Beschriftungen stehen neben dem Verlauf, der
+      // ebenfalls die rohe Kennung zeigt. Ein `ort:`-Praefix waere hier eine
+      // zweite Schreibweise derselben Sache.
+      bereich.map((id) => ({ id, schluessel: id, label: zaehlOrtLabel(id, stamm.get(id)?.name) })),
     ).map((o) => [o.id, o.label]),
   );
   const eintraege: VerfallEintrag[] = [];
