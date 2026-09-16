@@ -19,9 +19,11 @@ import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
 import { SCHRIFT as KICKER_SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { setSchrankAktiv, updateSchrank } from "../../../_actions/lagerorte";
+import { loescheElement, pruefeLoeschbar } from "../../../_actions/loeschen";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
+import { LoeschButton } from "../../../_ui/LoeschButton";
 import { NeuSchrank } from "./NeuSchrank";
 import { istFormFeld, leereFormFehler, type SchrankWerte } from "./schrankWerte";
 
@@ -139,9 +141,14 @@ function SchrankBearbeiten({
   );
 }
 
-/** Bearbeiten- und Statusknopf einer Zeile. Stilllegen nimmt keinen Bestand
- *  weg (`_actions/lagerorte.ts`) — deshalb ohne Rueckfrage, wie ein einfacher
- *  Statuswechsel. */
+const PRUEF_FEHLER = "Löschbarkeit konnte nicht geprüft werden.";
+const LOESCH_FEHLER = "Schrank konnte nicht gelöscht werden.";
+const STILLLEGE_FEHLER = "Schrank konnte nicht stillgelegt werden.";
+
+/** Bearbeiten-, Status- und Loeschknopf einer Zeile. Stilllegen nimmt keinen
+ *  Bestand weg (`_actions/lagerorte.ts`) — deshalb ohne Rueckfrage, wie ein
+ *  einfacher Statuswechsel. Loeschen dagegen fragt zurueck: derselbe
+ *  `LoeschButton` wie an Fahrzeug, Artikel, Geraet, BZ-Geraet und O₂-Flasche. */
 function SchrankAktionen({ zeile }: { zeile: LagerortZeile }) {
   const [bearbeitenOffen, setBearbeitenOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -169,6 +176,33 @@ function SchrankAktionen({ zeile }: { zeile: LagerortZeile }) {
     });
   }
 
+  /*
+   * ⚠️ DER DIALOG BRAUCHT EINEN WURF, KEIN ERGEBNISOBJEKT. `LoeschDialog`
+   * unterscheidet Erfolg und Fehlschlag allein daran, ob die uebergebene
+   * Funktion wirft (`actionAusfuehren` faengt sie); ein zurueckgegebenes
+   * `{ ok: false }` schloesse den Dialog als waere alles gut. Dieselbe Form
+   * wie in `fahrzeuge/[id]/FahrzeugAktivToggle.tsx`.
+   */
+  async function loeschen(): Promise<void> {
+    try {
+      const ergebnis = await loescheElement("lagerort", zeile.id);
+      if (!ergebnis.ok) throw new Error(LOESCH_FEHLER);
+    } catch {
+      throw new Error(LOESCH_FEHLER);
+    }
+    router.refresh();
+  }
+
+  async function stilllegen(): Promise<void> {
+    try {
+      const ergebnis = await setSchrankAktiv({ id: zeile.id, aktiv: false });
+      if (!ergebnis.ok) throw new Error(STILLLEGE_FEHLER);
+    } catch {
+      throw new Error(STILLLEGE_FEHLER);
+    }
+    router.refresh();
+  }
+
   return (
     <>
       <Flex gap={SPACE.sm} wrap>
@@ -186,6 +220,38 @@ function SchrankAktionen({ zeile }: { zeile: LagerortZeile }) {
         >
           {zeile.aktiv ? "Stilllegen" : "Wieder aufnehmen"}
         </Button>
+        {/*
+         * DER KNOPF STEHT IMMER DA, AUCH WO NICHT GELOESCHT WERDEN KANN
+         * (DRK-349, offene Frage 1). Ihn nur an leeren Schraenken zu zeigen
+         * hiesse, ihn an der Spalte „Posten" aufzuhaengen — und die zaehlt
+         * etwas anderes als die Pruefung: Posten sind Chargen mit Rest > 0,
+         * abgelehnt wird aber auch wegen Soll-Positionen, Checks, Geraeten,
+         * BZ-Geraeten, O₂-Flaschen, Zugangs-Codes und Kindern. Der Knopf
+         * verschwaende also bei Posten 0 nicht und erschiene bei Posten 0,
+         * wo trotzdem abgelehnt wird — ein Knopf, der aus unsichtbaren
+         * Gruenden mal da ist und mal nicht. Mit dem Dialog bekommt die
+         * verwaltende Person stattdessen den Grund IN WORTEN und gleich
+         * daneben den zweiten Ausgang „Stilllegen".
+         */}
+        <LoeschButton
+          name={zeile.name}
+          typLabel="Schrank"
+          label="Löschen"
+          deaktivierenLabel="Stilllegen"
+          pruefen={async () => {
+            try {
+              const ergebnis = await pruefeLoeschbar("lagerort", zeile.id);
+              if (ergebnis.ok) return ergebnis.wert;
+            } catch {
+              // Der feste, nicht loeschbare Zustand folgt direkt darunter.
+            }
+            return { loeschbar: false, grund: PRUEF_FEHLER, kannDeaktivieren: false };
+          }}
+          onLoeschen={loeschen}
+          // Einem bereits stillgelegten Schrank denselben Ausgang noch einmal
+          // anzubieten waere ein Knopf, der nichts aendert.
+          onDeaktivieren={zeile.aktiv ? stilllegen : undefined}
+        />
       </Flex>
       {/*
        * DIE MELDUNG STEHT IN DER ZEILE, NICHT IN EINEM DIALOG: der Statusknopf

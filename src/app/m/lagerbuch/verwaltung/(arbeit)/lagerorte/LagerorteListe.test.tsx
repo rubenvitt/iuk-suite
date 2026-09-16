@@ -13,6 +13,7 @@ import {
 } from "vitest";
 import {
   clickElement,
+  existsPortal,
   mount,
   query,
   queryAll,
@@ -27,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   createSchrank: vi.fn(),
   updateSchrank: vi.fn(),
   setSchrankAktiv: vi.fn(),
+  pruefeLoeschbar: vi.fn(),
+  loescheElement: vi.fn(),
   refresh: vi.fn(),
 }));
 
@@ -34,6 +37,11 @@ vi.mock("../../../_actions/lagerorte", () => ({
   createSchrank: (...args: unknown[]) => mocks.createSchrank(...args),
   updateSchrank: (...args: unknown[]) => mocks.updateSchrank(...args),
   setSchrankAktiv: (...args: unknown[]) => mocks.setSchrankAktiv(...args),
+}));
+
+vi.mock("../../../_actions/loeschen", () => ({
+  pruefeLoeschbar: (...args: unknown[]) => mocks.pruefeLoeschbar(...args),
+  loescheElement: (...args: unknown[]) => mocks.loescheElement(...args),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -71,6 +79,8 @@ beforeEach(() => {
   mocks.createSchrank.mockResolvedValue({ ok: true, wert: { id: "schrank-neu" } });
   mocks.updateSchrank.mockResolvedValue({ ok: true });
   mocks.setSchrankAktiv.mockResolvedValue({ ok: true });
+  mocks.pruefeLoeschbar.mockResolvedValue({ ok: true, wert: { loeschbar: true } });
+  mocks.loescheElement.mockResolvedValue({ ok: true });
 });
 
 afterEach(async () => {
@@ -206,6 +216,122 @@ describe("LagerorteListe", () => {
 
     const inaktive = query('[data-row-key="schrank-alt"]');
     expect(inaktive.textContent).toContain("Wieder aufnehmen");
+  });
+});
+
+/**
+ * DRK-349 — DER LOESCHKNOPF AUF „VERWALTUNG → LAGERORTE".
+ *
+ * ⚠️ ER STEHT AN JEDER ZEILE, AUCH AN DER MIT BESTAND, und das ist die
+ * Entscheidung zu offener Frage 1, nicht eine Nachlaessigkeit. Ihn an
+ * `bestandsposten === 0` zu haengen waere ein Knopf an der FALSCHEN Zahl: die
+ * Postenspalte zaehlt Chargen mit Rest > 0, abgelehnt wird aber auch wegen
+ * Soll-Positionen, Checks, Geraeten, BZ-Geraeten, O₂-Flaschen, Zugangs-Codes
+ * und Kindern. Der erste Test unten faellt genau dann, wenn jemand ihn doch
+ * an die Postenzahl haengt — `schrank-1` traegt vier Posten.
+ */
+describe("Schrank löschen", () => {
+  function loeschKnopf(rowKey: string): HTMLButtonElement {
+    const zeile = query(`[data-row-key="${rowKey}"]`);
+    const treffer = Array.from(zeile.querySelectorAll<HTMLButtonElement>("button"))
+      .find((b) => (b.textContent ?? "").trim() === "Löschen");
+    if (!treffer) throw new Error(`Kein Löschknopf in ${rowKey}`);
+    return treffer;
+  }
+
+  async function dialogOeffnen(rowKey: string): Promise<void> {
+    await clickElement(loeschKnopf(rowKey));
+    await warteAuf(
+      () => document.body.querySelector(".ant-modal [data-rolle='loeschen'], .ant-modal [data-rolle='fachwarnung']") !== null,
+      "Löschdialog fertig geprüft",
+    );
+  }
+
+  it("trägt an JEDER Zeile einen Löschknopf — auch an der mit Bestand", async () => {
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+
+    for (const { id } of ZEILEN) expect(loeschKnopf(id)).toBeTruthy();
+    // Die Fixture belegt, dass die Sichtbarkeit NICHT an der Postenzahl haengt.
+    expect(ZEILEN.find((z) => z.id === "schrank-1")?.bestandsposten).toBe(4);
+  });
+
+  it("fragt die Löschbarkeit als Lagerort ab, nicht als Fahrzeug", async () => {
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    await dialogOeffnen("schrank-1");
+
+    expect(mocks.pruefeLoeschbar).toHaveBeenCalledWith("lagerort", "schrank-1");
+  });
+
+  it("löscht nach abgetipptem Namen und lädt die Liste neu", async () => {
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    await dialogOeffnen("schrank-1");
+    await portalFuellen("Namen zur Bestätigung eingeben", "Schrank 1");
+    await clickElement(queryPortal<HTMLButtonElement>(".ant-modal [data-rolle='loeschen']"));
+    await warteAuf(() => mocks.loescheElement.mock.calls.length === 1, "Löschaufruf");
+
+    expect(mocks.loescheElement).toHaveBeenCalledWith("lagerort", "schrank-1");
+    await warteAuf(() => mocks.refresh.mock.calls.length === 1, "Neuladen nach Löschen");
+  });
+
+  /**
+   * ⚠️ DIE TRAGENDE ZUSICHERUNG IST `refresh`, NICHT DIE MELDUNG. `LoeschDialog`
+   * unterscheidet Erfolg und Fehlschlag allein am WURF; ein zurueckgegebenes
+   * `{ ok: false }` ohne `throw` schloesse den Dialog und laedt neu, als waere
+   * geloescht worden — derselbe stille Fehlschlag, gegen den dieses Ticket
+   * angetreten ist, nur eine Ebene hoeher.
+   */
+  it("hält den Dialog bei abgelehnter Löschung offen und lädt NICHT neu", async () => {
+    mocks.loescheElement.mockResolvedValueOnce({ ok: false, fehler: "geht nicht" });
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    await dialogOeffnen("schrank-1");
+    await portalFuellen("Namen zur Bestätigung eingeben", "Schrank 1");
+    await clickElement(queryPortal<HTMLButtonElement>(".ant-modal [data-rolle='loeschen']"));
+    await warteAuf(
+      () => (document.body.textContent ?? "").includes("Schrank konnte nicht gelöscht werden."),
+      "Fehlermeldung im Dialog",
+    );
+
+    expect(queryPortal(".ant-modal")).toBeTruthy();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("zeigt den Grund und bietet Stilllegen an, wenn nicht gelöscht werden darf", async () => {
+    mocks.pruefeLoeschbar.mockResolvedValueOnce({
+      ok: true,
+      wert: {
+        loeschbar: false,
+        grund: "Noch mit 4 Buchungen verknüpft — Löschen würde den Nachweis zerstören.",
+        kannDeaktivieren: true,
+      },
+    });
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    await dialogOeffnen("schrank-1");
+
+    expect(queryPortal(".ant-modal [data-rolle='fachwarnung']").textContent)
+      .toContain("4 Buchungen");
+    expect(existsPortal(".ant-modal [data-rolle='loeschen']")).toBe(false);
+    expect(existsPortal(".ant-modal input")).toBe(false);
+
+    await clickElement(queryPortal<HTMLButtonElement>(".ant-modal [data-rolle='deaktivieren']"));
+    await warteAuf(() => mocks.setSchrankAktiv.mock.calls.length === 1, "Stilllegen aus dem Dialog");
+    expect(mocks.setSchrankAktiv).toHaveBeenCalledWith({ id: "schrank-1", aktiv: false });
+  });
+
+  /**
+   * Einem bereits stillgelegten Schrank denselben Ausgang noch einmal
+   * anzubieten waere ein Knopf, der nichts aendert — und er saehe fuer die
+   * verwaltende Person wie ein zweiter, uebersehener Schritt aus.
+   */
+  it("bietet einem bereits stillgelegten Schrank kein zweites Stilllegen an", async () => {
+    mocks.pruefeLoeschbar.mockResolvedValueOnce({
+      ok: true,
+      wert: { loeschbar: false, grund: "Noch mit 3 Buchungen verknüpft.", kannDeaktivieren: true },
+    });
+    await mount(<LagerorteListe zeilen={ZEILEN} />);
+    await dialogOeffnen("schrank-alt");
+
+    expect(existsPortal(".ant-modal [data-rolle='fachwarnung']")).toBe(true);
+    expect(existsPortal(".ant-modal [data-rolle='deaktivieren']")).toBe(false);
   });
 });
 

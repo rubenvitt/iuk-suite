@@ -626,7 +626,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
       "Loeschfehler",
     );
 
-    expect(mocks.loeschen).toHaveBeenCalledWith("fahrzeug", "fz-1");
+    expect(mocks.loeschen).toHaveBeenCalledWith("lagerort", "fz-1");
     expect(queryPortal(".ant-modal")).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toContain("Framework-Text");
@@ -661,7 +661,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
       "Deaktivierfehler",
     );
 
-    expect(mocks.deaktivieren).toHaveBeenCalledWith("fahrzeug", "fz-1");
+    expect(mocks.deaktivieren).toHaveBeenCalledWith("lagerort", "fz-1");
     expect(queryPortal(".ant-modal")).toBeTruthy();
     expect(mocks.push).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toContain("Framework-Text");
@@ -686,7 +686,7 @@ describe("FahrzeugAktivToggle und echter Loeschdialog", () => {
       () => (document.body.textContent ?? "").includes("Löschbarkeit konnte nicht geprüft werden."),
       "fester Pruefstatus",
     );
-    expect(mocks.pruefen).toHaveBeenCalledWith("fahrzeug", "fz-1");
+    expect(mocks.pruefen).toHaveBeenCalledWith("lagerort", "fz-1");
     expect(document.body.textContent).not.toContain("Framework-Text");
   });
 
