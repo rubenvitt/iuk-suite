@@ -217,15 +217,52 @@ export async function helferZugangOderNull(db: DB): Promise<TokenZugang | null> 
  * trotzdem nicht streichen — der Rahmen zeigt den Namen ebenfalls.
  */
 export async function kontoZugangOderNull(db: DB): Promise<KontoZugang | null> {
+  const b = await kontoBefund(db);
+  return b.ok ? b.zugang : null;
+}
+
+/**
+ * DASSELBE, ABER MIT DEM UNTERSCHIED IM MISSERFOLG — Review-Befund P2 zu PR #169.
+ *
+ * ⚠️ „KEIN KONTO-ZUGANG" SIND ZWEI LAGEN, UND SIE VERLANGEN VERSCHIEDENES:
+ *
+ *   * `nochAngemeldet: false` — keine Sitzung. Der Weg heraus ist die Anmeldung.
+ *   * `nochAngemeldet: true` — angemeldet, aber OHNE die Lagerbuch-Gruppe. Eine
+ *     erneute Anmeldung hilft hier nicht; sie führt in dieselbe Sperre zurück.
+ *     Wer das zusammenwirft, schickt jemanden in eine Schleife.
+ *
+ * ⚠️ DIESER UNTERSCHIED IST SERVERSEITIG SICHTBAR — anders als der aus dem
+ * vorigen Befund. „Cookie abgelaufen" und „war nie angemeldet" sind beide
+ * `viewerOderNull() === null` und darum NICHT zu trennen (die Begründung steht
+ * bei `ANMELDUNG_TEXT` in `_lib/actionTypen.ts`). Hier liegt ein Viewer vor, nur
+ * `istLagerbuchAdmin` sagt nein. Der Satz dort ist zu breit geraten, nicht
+ * falsch: er gilt für die Lage, die er beschreibt, und nicht für diese.
+ *
+ * ⚠️ KEIN DRITTER `SperrGrund`. Der Wertesatz ist die geteilte Hälfte von
+ * `HelferGrund` (§7.3) und damit in beiden Inseln eine Anzeigeweiche; eine
+ * Erweiterung dort wäre eine Änderung an `RIEGEL_TEXTE`, `CheckFlow` und
+ * `Entnahme` für einen Zustand, den nur die Zielwahl auswertet. Die Auskunft
+ * fährt deshalb NEBEN dem Grund mit, statt ihn zu überladen.
+ *
+ * `merkeNutzer` läuft nur im Erfolgsfall: eine Person ohne Gruppe hat in
+ * `users` nichts verloren.
+ */
+export async function kontoBefund(
+  db: DB,
+): Promise<{ ok: true; zugang: KontoZugang } | { ok: false; nochAngemeldet: boolean }> {
   const viewer = await viewerOderNull();
-  if (!istLagerbuchAdmin(viewer) || !viewer) return null;
+  if (!viewer) return { ok: false, nochAngemeldet: false };
+  if (!istLagerbuchAdmin(viewer)) return { ok: false, nochAngemeldet: true };
   merkeNutzer(db, viewer);
   return {
-    herkunft: "konto",
-    sub: viewer.sub,
-    name: viewer.name,
-    laeuftAb: null,
-    fahrzeugBindung: null,
+    ok: true,
+    zugang: {
+      herkunft: "konto",
+      sub: viewer.sub,
+      name: viewer.name,
+      laeuftAb: null,
+      fahrzeugBindung: null,
+    },
   };
 }
 
@@ -269,7 +306,14 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
 
   auditDenied("lagerbuch");
   if (!b.hatteCookie) redirect("/");
-  redirect(`/abmelden?grund=${gateGrundFuerSperre(b.grund)}`);
+  /*
+   * ⚠️ `kaertchen` IST HIER BEWIESEN, NICHT GERATEN (DRK-305). Diese Zeile ist nur
+   * erreichbar, wenn `hatteCookie` wahr ist — es lag also ein Kaertchen-Cookie
+   * vor, und „scanne das Kaertchen erneut" ist die richtige Aufforderung,
+   * gleichgueltig ob die Person daneben angemeldet war. Wer nie ein Kaertchen
+   * hatte, geht eine Zeile darueber wortlos aufs Gate, das beide Wege anbietet.
+   */
+  redirect(`/abmelden?grund=${gateGrundFuerSperre(b.grund, { herkunft: "kaertchen" })}`);
 }
 
 /**
@@ -301,7 +345,10 @@ export async function requireHelferSitzung(db: DB): Promise<HelferZugang> {
  */
 export async function requireHelferSchreibend(
   db: DB,
-): Promise<{ ok: true; zugang: HelferZugang } | { ok: false; grund: SperrGrund }> {
+): Promise<
+  | { ok: true; zugang: HelferZugang }
+  | { ok: false; grund: SperrGrund; nochAngemeldet: boolean }
+> {
   requireLagerbuchHost(await headers());
   const b = await befund(db);
   if (b.ok) return { ok: true, zugang: b.zugang };
@@ -309,9 +356,18 @@ export async function requireHelferSchreibend(
   // DRK-305 — dieselbe Reihenfolge wie im lesenden Riegel. Eine Buchung aus
   // diesem Weg traegt `quelleTyp: "oidc"` und den Klarnamen der Person statt des
   // Kaertchen-Labels (`_lib/zugangHerkunft.ts`).
-  const konto = await kontoZugangOderNull(db);
-  if (konto) return { ok: true, zugang: konto };
+  const konto = await kontoBefund(db);
+  if (konto.ok) return { ok: true, zugang: konto.zugang };
 
   auditDenied("lagerbuch");
-  return { ok: false, grund: b.grund };
+  /*
+   * ⚠️ `nochAngemeldet` FAEHRT NEBEN DEM GRUND MIT (Review-Befund P2 zu PR #169)
+   * — es ueberlaedt `SperrGrund` NICHT. Die beiden Inseln lesen weiterhin nur
+   * `grund` und bleiben unveraendert; ausgewertet wird es allein dort, wo eine
+   * UMLEITUNG entsteht und deshalb ein Ziel gewaehlt werden muss (die Zielwahl).
+   * Ohne das Feld erhielte jemand, dem gerade die Lagerbuch-Gruppe entzogen
+   * wurde, die Aufforderung, sich erneut anzumelden — und landete danach in
+   * derselben Sperre.
+   */
+  return { ok: false, grund: b.grund, nochAngemeldet: konto.nochAngemeldet };
 }

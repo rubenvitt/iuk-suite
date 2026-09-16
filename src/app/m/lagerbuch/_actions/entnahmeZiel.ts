@@ -44,9 +44,48 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
    * Artikelliste. Ohne den Grund sieht sie eine gewöhnliche Code-Eingabe ohne
    * jede Erklärung: das Gate zeigt seinen Satz NUR, wenn `grund` gesetzt ist
    * (`_lib/gateTexte.ts`, `page.tsx`). Beides zusammen macht den Satz oben wahr.
+   *
+   * ⚠️ DRK-305 — UND DER SATZ HAENGT AN DER HERKUNFT. Fuer eine angemeldete
+   * Person ist „scanne das Kaertchen erneut" eine Aufforderung ins Leere; sie
+   * bekommt „melde dich erneut an". Der Weg dorthin steht auf demselben Gate:
+   * die Karte „Mit Pocket ID anmelden" baut ihren `callbackUrl` aus genau dem
+   * `returnTo`, das hier mitgeht — sie landet also wieder in der Zielwahl.
+   *
+   * ⚠️ MIT EINER AUSNAHME, die sonst zur Schleife wird: wurde nicht die Sitzung
+   * beendet, sondern die LAGERBUCH-GRUPPE entzogen, hilft die erneute Anmeldung
+   * nicht — sie fuehrt durch den ganzen Pocket-ID-Weg in dieselbe Sperre
+   * zurueck. Diese Person bekommt deshalb „kein Zugriff, wende dich an die
+   * Leitung" statt einer Aufforderung, die ins Nichts laeuft.
    */
   if (!riegel.ok) {
-    const grund = gateGrundFuerSperre(riegel.grund);
+    /*
+     * ⚠️ DIE HERKUNFT KOMMT AUS DEM FORMULAR, UND SIE MUSS ES (DRK-305).
+     *
+     * An dieser Stelle ist der Riegel bereits GEFALLEN — es gibt keinen Zugang
+     * mehr, den man fragen koennte, und serverseitig ist ein abgelaufenes
+     * Auth.js-Cookie von „war nie angemeldet" nicht zu trennen. Wer es WEISS,
+     * ist die Seite: sie hat mit der Herkunft gerendert und legt sie ins
+     * Formular, genau wie `returnTo` daneben.
+     *
+     * ⚠️ DASS DAS FELD VON AUSSEN SETZBAR IST, TRAEGT HIER NICHTS: es
+     * entscheidet ausschliesslich, WELCHER SATZ auf dem Gate steht. Das Ziel
+     * ist in beiden Faellen dasselbe, das Gate bietet beide Wege an, und
+     * gewaehrt wird dadurch nichts — wer das Feld faelscht, liest auf dem
+     * eigenen Schirm einen leicht falschen Satz. Anders als `returnTo`, das
+     * eine Weiterleitung steuert und deshalb `sanitizeReturnTo` braucht.
+     *
+     * ⚠️ `nochAngemeldet` KOMMT DAGEGEN VOM SERVER, NICHT AUS DEM FORMULAR
+     * (Review-Befund P2 zu PR #169) — und das ist kein Zufall, sondern die
+     * Trennlinie: WELCHE Herkunft gerendert wurde, weiss nur die Seite; ob die
+     * Sitzung JETZT noch steht, weiss nur der Riegel. Wer beides aus dem
+     * Formular naehme, liesse sich den Unterschied zwischen „Sitzung weg" und
+     * „Gruppe entzogen" von aussen diktieren — und der entscheidet hier, ob
+     * eine erneute Anmeldung ueberhaupt hilft.
+     */
+    const lage = zeichenkette(eingabe.get("herkunft")) === "konto"
+      ? { herkunft: "konto" as const, nochAngemeldet: riegel.nochAngemeldet }
+      : { herkunft: "kaertchen" as const };
+    const grund = gateGrundFuerSperre(riegel.grund, lage);
     redirect(`/?grund=${grund}&returnTo=${encodeURIComponent(zurueck)}`);
   }
 
