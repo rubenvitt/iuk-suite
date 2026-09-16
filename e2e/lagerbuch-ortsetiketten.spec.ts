@@ -528,10 +528,50 @@ test.describe("Ortsetiketten (Bogen)", () => {
     expect(karten, "ohne Karten bewiese die Seitenzahl nichts").toBeGreaterThan(1);
 
     const seiten = await seitenInMm(page);
-    expect(seiten, "acht Karten je Blatt").toHaveLength(Math.ceil(karten / ORT_JE_BLATT));
+    expect(seiten, "der Seed passt auf ein Blatt")
+      .toHaveLength(Math.ceil(karten / ORT_JE_BLATT));
     for (const s of seiten) {
       expect(s.breite).toBe(A4_BREITE_MM);
       expect(s.hoehe).toBe(A4_HOEHE_MM);
+    }
+
+    /*
+     * ⚠️ DIE ZEILE DARUEBER IST DIE HAELFTE DES TESTS, UND ALLEIN WAERE SIE
+     * WERTLOS (Codex-Befund P2 zu diesem PR). Der Seed liefert vier Karten — den
+     * Handlager und drei aktive Einheiten. `Math.ceil(4 / 8)` ist 1, und EINE
+     * Seite kommt bei vier Karten auch dann heraus, wenn je Blatt nur vier
+     * stehen. Die Zusage „acht je Blatt" beruehrt der Seed also gar nicht.
+     *
+     * Gemessen wird sie deshalb an der GRENZE, und zwar an der PAGINIERUNG
+     * selbst: acht Karten muessen EIN Blatt ergeben, neun ZWEI. Die
+     * Rasterprobe daneben kann das nicht leisten — sie liest Kaesten im
+     * Browser, und ob die neunte Karte auf die zweite Seite faellt, entscheidet
+     * erst Chromiums Seitenaufteilung beim Erzeugen des PDF.
+     *
+     * ⚠️ AUFGEFUELLT WIRD MIT KOPIEN DER ERSTEN KARTE. Sie traegt denselben QR
+     * und denselben Namen — fuer die Frage „wie viele Kaesten passen auf ein
+     * Blatt?" ist das gleichgueltig, und eine Fixture im Seed waere teuer: eine
+     * AKTIVE Einheit steht auch auf dem Checklisten- und auf dem
+     * Etikettenbogen, und `e2e/seed-lagerbuch.ts` schreibt ausdruecklich aus,
+     * dass deshalb zwei fremde Specs ploetzlich anders zaehlten.
+     */
+    const aufKarten = (n: number) => page.evaluate((ziel) => {
+      const bogen = document.querySelector(".lb-ortbogen")!;
+      const vorlage = bogen.querySelector(".lb-ortkarte")!;
+      let da = bogen.querySelectorAll(".lb-ortkarte").length;
+      while (da > ziel) { bogen.querySelector(".lb-ortkarte")!.remove(); da--; }
+      while (da < ziel) { bogen.appendChild(vorlage.cloneNode(true)); da++; }
+      return bogen.querySelectorAll(".lb-ortkarte").length;
+    }, n);
+
+    for (const [anzahl, blaetter] of [[8, 1], [9, 2], [16, 2], [17, 3]] as const) {
+      expect(await aufKarten(anzahl), "auffuellen").toBe(anzahl);
+      const gemessen = await seitenInMm(page);
+      expect(gemessen, `${anzahl} Karten ergeben ${blaetter} Blatt`).toHaveLength(blaetter);
+      for (const s of gemessen) {
+        expect(s.breite).toBe(A4_BREITE_MM);
+        expect(s.hoehe).toBe(A4_HOEHE_MM);
+      }
     }
   });
 
