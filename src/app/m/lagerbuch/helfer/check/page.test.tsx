@@ -298,7 +298,13 @@ const FLASCHE = (id: string, letzterDruck: number | null) => ({
   id, name: `O2 ${id}`, nennfuelldruckBar: 200, letzterDruck,
 });
 
-const sp = (o: Record<string, string> = {}) => ({ searchParams: Promise.resolve(o) });
+/*
+ * ⚠️ `string | string[]`, NICHT `string` — und das ist die Form, die Next
+ * WIRKLICH liefert (Codex-Befund P2 zu PR #186). Eine engere Signatur hier
+ * machte die Faelle unten unschreibbar und den Befund damit unpruefbar; genau
+ * so ist er entstanden.
+ */
+const sp = (o: Record<string, string | string[]> = {}) => ({ searchParams: Promise.resolve(o) });
 
 beforeEach(() => {
   t = migrierteTestDb("lagerbuch-checkseite-");
@@ -971,6 +977,69 @@ describe("/helfer/check — der uebergangene Scan (DRK-373)", () => {
     anFahrzeugBinden("fz-2");
     await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
     expect(umleitungen).toEqual([]);
+  });
+});
+
+describe("/helfer/check — der doppelte Suchparameter (Codex P2 zu PR #186)", () => {
+  /*
+   * NEXTS `searchParams` IST `string | string[] | undefined`, unabhaengig
+   * davon, was die Seite als Typ hinschreibt. Bei `?gescannt=b&gescannt=b`
+   * verglich die Seite ein ARRAY mit einer Id, traf nie, und der Hinweis
+   * verschwand STILL — der Ausgang, gegen den DRK-373 geschrieben ist.
+   *
+   * ⚠️ DIESE FAELLE SIND NUR SCHREIBBAR, WEIL `sp()` ARRAYS ANNIMMT. Mit der
+   * engeren Signatur waere der Befund typseitig unpruefbar geblieben, und genau
+   * so ist er entstanden: die Verengung verbirgt den Laufzeitwert, statt ihn zu
+   * aendern.
+   */
+
+  it("nennt beide Einheiten auch bei DOPPELTEM `gescannt`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: ["fz-1", "fz-1"] })));
+    expect(query("[data-rolle='scan-hinweis']").getAttribute("data-gescannt")).toBe("fz-1");
+  });
+
+  /**
+   * ⚠️ ZWEI VERSCHIEDENE WERTE SIND EIN WIDERSPRUCH, KEINE WAHL — dieselbe
+   * Bedeutung wie `zaehlOrtAus` (DRK-337). Den ersten zu nehmen hiesse, sich
+   * still fuer eine von zwei Anweisungen zu entscheiden, und auf dem Schirm
+   * stuende nichts, was sagt, welche. Der Hinweis benennt dann lieber nichts.
+   */
+  it("schweigt bei WIDERSPRECHENDEM `gescannt`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: ["fz-1", "fz-3"] })));
+    expect(exists("[data-rolle='scan-hinweis']")).toBe(false);
+    // Und der Check laeuft trotzdem auf der gebundenen Einheit weiter.
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+  });
+
+  it("waehlt bei doppeltem `?fz=` auf DENSELBEN Wert dieses Fahrzeug", async () => {
+    // Vorher fiel das still in die Wahl: das Array traf keine Id. Jetzt ist es
+    // eine Wahl — derselbe Wert zweimal ist keine Mehrdeutigkeit.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: ["fz-2", "fz-2"] })));
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+  });
+
+  it("faellt bei WIDERSPRECHENDEM `?fz=` auf die Wahl zurueck", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: ["fz-1", "fz-2"] })));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
+    expect(exists("[data-rolle='flow']")).toBe(false);
+  });
+
+  /**
+   * ⚠️ UND DER LEERE PARAMETER IST KEIN WERT. `?fz=` ergibt die leere
+   * Zeichenkette; die Seite behandelte sie sonst als „Id nicht gefunden" —
+   * dieselbe Wirkung, aber aus dem falschen Grund, und der naechste Leser sucht
+   * den Fehler in der Fahrzeugliste.
+   */
+  it("behandelt ein leeres `?fz=` wie keine Angabe", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: "" })));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
   });
 });
 

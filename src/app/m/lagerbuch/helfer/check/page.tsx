@@ -7,6 +7,7 @@ import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
 import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
 import { fmtDatumZeit } from "../../_lib/zeit";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
+import { einWert } from "../../_lib/suchparameter";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { FahrzeugWahl } from "../../_ui/FahrzeugWahl";
@@ -68,10 +69,33 @@ export default async function CheckSeite({
    * das in keinem Tor auf: die Seite liest still `undefined`, der Hinweis
    * bleibt einfach weg. `_lib/ortZiel.test.ts` liest deshalb BEIDE Dateien und
    * vergleicht den geschriebenen Parameter mit dem gelesenen.
+   *
+   * ⚠️ `string | string[]` IST DIE WAHRHEIT, NICHT EINE VORSICHTSMASSNAHME
+   * (Codex-Befund P2 zu PR #186). Nexts `searchParams` ist
+   * `string | string[] | undefined`, und eine engere Signatur hier aendert den
+   * LAUFZEITWERT nicht — sie verbirgt ihn nur. Hier stand `gescannt?: string`,
+   * und bei `?gescannt=b&gescannt=b` verglich die Zeile unten ein ARRAY mit
+   * einer Id: sie traf nie, und der Hinweis verschwand STILL. Also genau der
+   * Ausgang, gegen den dieses Ticket geschrieben ist. `typecheck` und `build`
+   * bleiben dabei gruen; nur ein echter Abruf mit doppeltem Parameter zeigt es.
+   * `_lib/suchparameter.ts` nimmt die ganze Form entgegen, mit derselben
+   * Bedeutung, die `zaehlOrtAus` fuer den Zaehlort hat (DRK-337): derselbe Wert
+   * mehrfach ist eine Wahl, zwei verschiedene sind ein Widerspruch.
+   *
+   * ⚠️ `fz` GEHT MIT, obwohl der Befund nur `gescannt` nannte. Es trug dieselbe
+   * zu enge Angabe, und eine Datei, in der die eine Zeile die Wahrheit sagt und
+   * die Zeile darueber nicht, laedt den naechsten Leser dazu ein, `fz` fuer
+   * sicher zu halten. Die Wirkung aendert sich dabei fast nicht: ein
+   * widersprechendes `?fz=a&fz=b` faellt weiter auf die Wahl zurueck (vorher,
+   * weil das Array keine Id traf; jetzt, weil der Widerspruch keinen Wert
+   * ergibt), und ein doppeltes `?fz=a&fz=a` waehlt jetzt `a`, statt still in
+   * die Wahl zu fallen.
    */
-  searchParams: Promise<{ fz?: string; gescannt?: string }>;
+  searchParams: Promise<{ fz?: string | string[]; gescannt?: string | string[] }>;
 }) {
-  const { fz, gescannt } = await searchParams;
+  const roh = await searchParams;
+  const fz = einWert(roh.fz);
+  const gescannt = einWert(roh.gescannt);
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
   const etikett = sitzungsEtikett(zugang);
