@@ -117,6 +117,42 @@ describe("ortZielPfad — mit gebundenem Kaertchen", () => {
     expect(params.get("gescannt")).toBe("a&fz=ktw-9");
   });
 
+  /**
+   * ⚠️ UND DIE ANDERE SEITE MUSS ES AUCH — Codex-Befund P2 zu PR #186, und die
+   * Zeile darueber allein liess ihn durch.
+   *
+   * Dort wird die GESCANNTE Id geprueft; die GEBUNDENE kam aus `tokenZielPfad`
+   * und stand dort ROH im `?fz=`. Gemessen an zwei Ids, die ein importierter
+   * Bestand tragen kann:
+   *
+   *   „rtw#1"            → alles ab `#` ist Fragment, der Server sieht
+   *                        `gescannt: null`
+   *   „a&gescannt=ktw-9" → zwei `gescannt`, Next reicht ein Array, der
+   *                        Vergleich auf der Check-Seite trifft nie
+   *
+   * Beide Male ist die Folge dieselbe und sie ist STILL: der Hinweis bleibt weg,
+   * die Seite rendert klaglos, der Check laeuft auf der richtigen Einheit — nur
+   * die Auskunft fehlt, also genau das, wogegen DRK-373 geschrieben ist.
+   *
+   * Der Test liest den Pfad so, wie ein BROWSER ihn liest (ueber `URL` gegen
+   * einen Ankerhost), nicht mit `slice` ab dem ersten `?`: nur so faellt der
+   * Fragment-Fall ueberhaupt auf — `slice` liefert „gescannt" auch dann noch,
+   * wenn es hinter einem `#` steht und beim Server nie ankommt.
+   */
+  it("haelt `gescannt` auch fuer eine GEBUNDENE Id mit URL-Trennzeichen", () => {
+    let geprueft = 0;
+    for (const bindung of ["rtw#1", "a&gescannt=ktw-9", "a?b", "rtw 1", "a+b", "a%2Fb"]) {
+      const pfad = ortZielPfad({ id: "ktw-1", typ: "fahrzeug" }, bindung);
+      const gelesen = new URL(pfad, "http://lagerbuch.example.org").searchParams;
+      expect(gelesen.get("gescannt"), bindung).toBe("ktw-1");
+      expect(gelesen.getAll("gescannt"), bindung).toHaveLength(1);
+      // Und die Bindung kommt unbeschadet an — sie waehlt die Einheit aus.
+      expect(gelesen.getAll("fz"), bindung).toEqual([bindung]);
+      geprueft += 1;
+    }
+    expect(geprueft).toBe(6);
+  });
+
   it("aendert nichts, wenn die gescannte Einheit die gebundene IST", () => {
     expect(ortZielPfad(EINHEIT, "rtw-1")).toBe("/helfer/check?fz=rtw-1");
   });

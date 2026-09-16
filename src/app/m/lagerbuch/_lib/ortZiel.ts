@@ -113,11 +113,42 @@ export function ortZielPfad(
    * serverseitig gegen ihre Fahrzeugliste auf (CLAUDE.md, „Zugriffsschutz"),
    * und was sie dort nicht findet, nennt sie gar nicht.
    *
-   * ⚠️ DAS TRENNZEICHEN WIRD GELESEN, NICHT GESETZT. Ein festes `&` stimmt
-   * heute, weil der Fahrzeugzweig von `tokenZielPfad` immer ein `?fz=` traegt —
-   * es stimmt aber nur, solange das so bleibt, und ein `/helfer&gescannt=…`
-   * waere ein Pfad, der still nirgends hinfuehrt.
+   * ⚠️ DIE ABFRAGE WIRD GEBAUT, NICHT ANGEHAENGT — und hier stand vorher genau
+   * das Gegenteil (Codex-Befund P2 zu PR #186, nachgemessen, nicht vermutet).
+   *
+   * Es stand `${ziel}&gescannt=${encodeURIComponent(ort.id)}`: die GESCANNTE Id
+   * kodiert, die GEBUNDENE nicht — die setzt `tokenZielPfad` roh in sein
+   * `?fz=` ein. Bei einem importierten Bestand kann eine Id URL-Trennzeichen
+   * tragen (`lagerorte.id` ist kein nanoid-Vertrag), und dann ist das Ergebnis
+   * still falsch, gemessen:
+   *
+   *   fz = "rtw#1"            → /helfer/check?fz=rtw#1&gescannt=ktw-1
+   *                             → alles ab `#` ist FRAGMENT, der Server sieht
+   *                               `gescannt: null`
+   *   fz = "a&gescannt=ktw-9" → …?fz=a&gescannt=ktw-9&gescannt=ktw-1
+   *                             → zwei `gescannt`, Next reicht ein ARRAY, der
+   *                               Vergleich auf der Check-Seite trifft nie
+   *
+   * Beide Male passiert genau das, wogegen dieses Ticket geschrieben ist: der
+   * Hinweis bleibt weg, und niemand sieht es — die Seite rendert klaglos, der
+   * Check laeuft auf der richtigen Einheit, nur die Auskunft fehlt. KEIN TOR
+   * SIEHT DAS: die Pfadform ist gueltig, `typecheck` kennt keine URLs, und die
+   * Wertetests standen auf Ids ohne Trennzeichen.
+   *
+   * ⚠️ DER PFAD KOMMT WEITER VON `tokenZielPfad`, nur die Abfrage nicht. Die
+   * Route hier ein zweites Mal hinzuschreiben waere die zweite Wahrheit, gegen
+   * die diese Datei gebaut ist (`ortZiel.test.ts` riegelt es ab); die
+   * Abfrage-Parameter dagegen sind die WERTE, die diese Funktion ohnehin in der
+   * Hand hat — `URLSearchParams` kodiert beide, und das rohe `?fz=` verschwindet
+   * damit aus DIESEM Zweig.
+   *
+   * ⚠️ `tokenZielPfad` SELBST BLEIBT UNBERUEHRT, und das ist Absicht: die Datei
+   * ist ZEICHENGLEICH aus der Alt-Anwendung uebernommen (§3.1, ihr Kopf schreibt
+   * das aus), und ihr fehlendes `encodeURIComponent` trifft auch `/a/<id>` und
+   * das blosse `?fz=` — also mehr als diesen Auftrag. Das steht als eigenes
+   * Ticket auf dem Board (DRK-394), nicht als stille Ausweitung hier.
    */
   const ziel = tokenZielPfad("fahrzeug", fahrzeugBindung);
-  return `${ziel}${ziel.includes("?") ? "&" : "?"}gescannt=${encodeURIComponent(ort.id)}`;
+  const abfrage = new URLSearchParams({ fz: fahrzeugBindung, gescannt: ort.id });
+  return `${ziel.split("?")[0]}?${abfrage}`;
 }

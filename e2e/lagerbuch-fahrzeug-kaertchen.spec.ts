@@ -125,7 +125,19 @@ test.describe("DRK-302 — ein gescanntes Fahrzeug-Kaertchen begrenzt den Check"
     await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
     await page.goto(lagerbuchUrl(`/helfer/check?fz=${E2E_FAHRZEUG_ANDERES_ID}`));
 
-    await expect(page.getByText(alsText(E2E_FAHRZEUG_NAME))).toBeVisible();
+    /*
+     * ⚠️ UEBER `data-rolle="check-einheit"` UND NICHT UEBER DEN BLOSSEN TEXT
+     * (DRK-373). Seit dem Hinweis steht der Name der gebundenen Einheit auf
+     * diesem Schirm ZWEIMAL: in der Ueberschrift und im Hinweis daneben. Ein
+     * `getByText` traf damit zwei Elemente und riss an Playwrights
+     * Strict-Mode. Die naheliegende „Reparatur" `.first()` waere die
+     * schlimmere: in der Reihenfolge des Dokuments kommt der HINWEIS zuerst,
+     * der Test haette also gruen behauptet „der Check laeuft auf meiner
+     * Einheit", waehrend er den Hinweis gelesen hat — genau die Verwechslung,
+     * gegen die DRK-373 geschrieben ist, nur im Test.
+     */
+    await expect(page.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
 
     /*
      * ⚠️ SEIT DRK-373 STEHT DER NAME DES ANDEREN FAHRZEUGS AUF DEM SCHIRM — UND

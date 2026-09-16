@@ -410,13 +410,32 @@ export function CheckFlow({
    * Tasche" angetippt hat, liest hier dieselbe Zeile wieder — eine zweite
    * Schreibweise waere an dieser Stelle ein eigener kleiner Zweifel.
    */
+  /*
+   * DIE UEBERSCHRIFT TRAEGT SEIT DRK-373 EIN `data-rolle="check-einheit"` — an
+   * ALLEN SECHS Stellen, an denen sie steht.
+   *
+   * ⚠️ DER GRUND IST NICHT KOSMETIK: seit DRK-373 steht der Name der
+   * GEBUNDENEN Einheit auf diesem Schirm zweimal — hier und im Hinweis
+   * „dein Scan gilt hier nicht" (`_ui/ScanHinweis.tsx`). Ein e2e-Greifer ueber
+   * den blossen Text traf damit zwei Elemente und riss an Playwrights
+   * Strict-Mode; er liess sich mit `.first()` beruhigen, und DANN haette er
+   * gruen behauptet „der Check laeuft auf meiner Einheit", waehrend er in
+   * Wahrheit den HINWEIS gelesen hat — also genau die Verwechslung, gegen die
+   * DRK-373 geschrieben ist, nur im Test.
+   *
+   * ⚠️ AN ALLEN SECHS, NICHT NUR AN DER ERSTEN. Welche Phase die erste ist,
+   * haengt an der Bestueckung (`schrittFolge`), und die beiden Endschirme
+   * tragen ihre eigene. Ein Greifer, der nur im Zaehlschritt traegt, ist in
+   * einer Einheit ohne Soll-Artikel still weg — dieselbe Begruendung, aus der
+   * `letzterCheckZeile` an JEDEM Schritt steht.
+   */
   const kopfEinheit = `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`;
 
   // ——— Fahrzeug ohne Soll, Geraet und Flasche ———
   if (schrittFolge.length === 0) {
     return (
       <>
-        <div className={s.schirmKopf}>{kopfEinheit}</div>
+        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit}</div>
         <LeerZustand
           titel="Nichts zu prüfen"
           text={
@@ -448,7 +467,7 @@ export function CheckFlow({
       ergebnis.flaschenNichtBewertbar === 0;
     return (
       <>
-        <div className={s.schirmKopf}>{kopfEinheit} · Fertig</div>
+        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Fertig</div>
         <div className={`${s.karte} ${s.kartePad}`} data-rolle="check-ergebnis">
           <div className={s.zeileName}>Check abgeschlossen</div>
           <div className={s.zeileMeta}>
@@ -718,7 +737,7 @@ export function CheckFlow({
 
     return (
       <>
-        <div className={s.schirmKopf}>{kopfEinheit}</div>
+        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit}</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         <div className={`${s.karte} ${s.kartePad}`}>
@@ -985,7 +1004,7 @@ export function CheckFlow({
   if (aktivePhase === "geraete") {
     return (
       <>
-        <div className={s.schirmKopf}>{kopfEinheit} · Geräte</div>
+        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Geräte</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {idx > 0 && (
@@ -1112,7 +1131,7 @@ export function CheckFlow({
     ).length;
     return (
       <>
-        <div className={s.schirmKopf}>{kopfEinheit} · Sauerstoff</div>
+        <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit} · Sauerstoff</div>
         <Schritte folge={schrittFolge} aktiv={aktivePhase} />
         {letzterCheckZeile}
         {idx > 0 && (
@@ -1253,7 +1272,7 @@ export function CheckFlow({
 
   return (
     <>
-      <div className={s.schirmKopf}>{kopfEinheit}</div>
+      <div className={s.schirmKopf} data-rolle="check-einheit">{kopfEinheit}</div>
       <Schritte folge={schrittFolge} aktiv={aktivePhase} />
       {letzterCheckZeile}
       <button

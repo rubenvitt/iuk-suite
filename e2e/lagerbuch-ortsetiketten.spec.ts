@@ -243,7 +243,17 @@ test.describe("Ortsetiketten (Bogen)", () => {
     const adresse = new URL(seite.url());
     expect(adresse.searchParams.getAll("fz")).toEqual([E2E_FAHRZEUG_ID]);
     expect(adresse.searchParams.get("gescannt")).toBe(E2E_FAHRZEUG_ANDERES_ID);
-    await expect(seite.getByText(E2E_FAHRZEUG_NAME).first()).toBeVisible();
+    /*
+     * ⚠️ UEBER `data-rolle="check-einheit"`, NICHT UEBER `.first()`. Hier stand
+     * `getByText(E2E_FAHRZEUG_NAME).first()`, und mit dem Hinweis aus DRK-373
+     * traegt das nichts mehr: der Name der gebundenen Einheit steht jetzt auch
+     * IM Hinweis, und der kommt in der Reihenfolge des Dokuments ZUERST.
+     * `.first()` haette also den Hinweis gelesen und behauptet, der Check laufe
+     * auf dieser Einheit — die Zusicherung waere still zu einer Tautologie
+     * geworden.
+     */
+    await expect(seite.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
 
     await helfer.close();
   });
@@ -288,6 +298,9 @@ test.describe("Ortsetiketten (Bogen)", () => {
      * „E2E Geräte RTW"), sonst waere die Zaehlung wertlos.
      */
     await expect(seite.getByText(E2E_FAHRZEUG_ANDERES_NAME)).toHaveCount(1);
+    // Und die positive Haelfte: der Check laeuft auf der GEBUNDENEN Einheit.
+    await expect(seite.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
 
     await helfer.close();
   });
@@ -311,8 +324,11 @@ test.describe("Ortsetiketten (Bogen)", () => {
       && url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
     expect(new URL(seite.url()).searchParams.has("gescannt")).toBe(false);
     // Die Ueberschrift ist da — die Seite rendert also wirklich den Check und
-    // haelt nicht bloss bei einer leeren Flaeche.
-    await expect(seite.getByText(E2E_FAHRZEUG_NAME).first()).toBeVisible();
+    // haelt nicht bloss bei einer leeren Flaeche. Ohne diese Zeile waere
+    // `toHaveCount(0)` auf den Hinweis darunter auch fuer eine kaputte oder
+    // leere Seite gruen.
+    await expect(seite.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
     await expect(seite.locator("[data-rolle='scan-hinweis']")).toHaveCount(0);
 
     await helfer.close();
