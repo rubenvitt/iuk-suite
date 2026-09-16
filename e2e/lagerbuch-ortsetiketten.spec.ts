@@ -6,7 +6,7 @@ import {
   E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG,
   LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
 } from "./helpers/lagerbuch";
-import { A7_BREITE_MM, A7_HOEHE_MM } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
+import { A7_BREITE_MM, A7_HOEHE_MM, nameStufe } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 
 /**
@@ -55,6 +55,44 @@ async function seitenInMm(page: Page): Promise<{ breite: number; hoehe: number }
     breite: Math.round(Number(m[1]) / PT_JE_MM),
     hoehe: Math.round(Number(m[2]) / PT_JE_MM),
   }));
+}
+
+/**
+ * MISST JE NAME, OB DIE KARTE IHN GANZ ZEIGT — im Browser, an der echten Karte.
+ *
+ * ⚠️ DIE KLAMMER WIRD KURZ AUFGEHOBEN, und das ist der Kern der Messung: mit
+ * ihr laeuft NIE etwas ueber (sie kuerzt ja gerade), ohne sie steht die volle
+ * Hoehe da, die der Name braeuchte. Erst der Vergleich beider beantwortet
+ * „passt der ganze Name?".
+ *
+ * ⚠️ SIE LAEUFT IM BROWSER (`page.evaluate`) und darf deshalb nichts aus diesem
+ * Modul schliessen — die Stufenklasse kommt fertig von aussen herein, aus
+ * derselben Funktion, die auch die Insel benutzt.
+ */
+function misstNamen(faelle: { name: string; klasse: string }[]) {
+  const karte = document.querySelector(".lb-ortkarte") as HTMLElement;
+  const huelle = karte.querySelector(".lb-ortkarteName") as HTMLElement;
+  const text = karte.querySelector(".lb-ortkarteNameText") as HTMLElement;
+  return faelle.map(({ name, klasse }) => {
+    huelle.className = `lb-ortkarteName ${klasse}`;
+    text.textContent = name;
+
+    const gekappteHoehe = text.getBoundingClientRect().height;
+    const vorher = text.style.webkitLineClamp;
+    text.style.webkitLineClamp = "none";
+    const volleHoehe = text.scrollHeight;
+    text.style.webkitLineClamp = vorher;
+
+    return {
+      name,
+      klasse,
+      /** Der ganze Name braucht mehr Platz, als die Karte hat. */
+      gekappt: volleHoehe > huelle.clientHeight,
+      /** Die Klammer greift wirklich — sonst waere der Schnitt still. */
+      sichtbarGekuerzt: volleHoehe > gekappteHoehe + 1,
+      karteUeberlauf: karte.scrollHeight > karte.clientHeight,
+    };
+  });
 }
 
 test.describe("Ortsetiketten (A7)", () => {
@@ -241,6 +279,98 @@ test.describe("Ortsetiketten (A7)", () => {
     await expect(abgewaehlt).toBeHidden();                      // display:none
     await expect(page.getByTestId("lb-ort-chrome")).toBeHidden();
     await expect(page.locator(".lb-ortkarteWahl").nth(1)).toBeHidden();
+  });
+
+  /**
+   * ⚠️ KEIN NAME WIRD STILL ABGESCHNITTEN — Codex-Befund P2 zu PR #177, und der
+   * einzige Test im Repo, der die Aussage halten kann.
+   *
+   * Vorher schnitt die Karte ab rund 24 Zeichen ab, lautlos: `createFahrzeug`
+   * kennt keine Obergrenze, die Karte hat eine feste Hoehe, und
+   * `overflow-wrap: anywhere` schafft Trennstellen, aber keinen Platz. Auf
+   * einem laminierten Kaertchen sieht niemand, dass da noch etwas stand.
+   *
+   * ⚠️ „LAEUFT NICHT UEBER" IST HIER DIE FALSCHE FRAGE, und der erste Anlauf
+   * dieses Tests ist genau daran blind gewesen (gemessen: er blieb gruen, als
+   * ALLE Namen auf die groesste Stufe gezwungen wurden). Die Zeilenklammer
+   * verhindert den Ueberlauf ja gerade — sie macht aus einem stillen Schnitt
+   * einen sichtbaren. Gefragt ist deshalb: braucht der GANZE Name mehr Platz,
+   * als da ist? Gemessen wird das, indem die Klammer kurz aufgehoben und die
+   * volle Hoehe des Textes gegen die verfuegbare gehalten wird.
+   *
+   * ⚠️ DIE NAMEN KOMMEN NICHT AUS DEM SEED, UND DAS IST ABSICHT. Eine AKTIVE
+   * Fixture mit langem Namen stuende auf dem Checklisten- UND auf dem
+   * Etikettenbogen; `e2e/seed-lagerbuch.ts` schreibt an `einheitenartFixtures`
+   * ausdruecklich aus, dass ihre Einheiten deshalb inaktiv bleiben — „sonst
+   * zaehlten zwei fremde Specs ploetzlich anders". Gemessen wird stattdessen
+   * die ECHTE Karte auf der ECHTEN Seite: nur ihr Text und ihre Stufenklasse
+   * werden ausgetauscht, und die Klasse kommt aus DERSELBEN Funktion, die die
+   * Insel benutzt — die Regel wird also nicht zweitgeschrieben, nur angewandt.
+   *
+   * ⚠️ GEMESSEN WIRD IM DRUCKMEDIUM. Am Bildschirm steht dieselbe Karte, aber
+   * die Zusage gilt dem Papier.
+   */
+  test("zeigt realistische Namen VOLLSTAENDIG, in jeder Laenge", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    await page.emulateMedia({ media: "print" });
+
+    const befunde = await page.evaluate(misstNamen, [
+      "RTW 1",
+      // Der Fall, der die Wortspalte erzwungen hat: kurz genug fuer die
+      // groesste Stufe, aber „Sanitätstasche" allein ist dort zu breit.
+      "Sanitätstasche 1",
+      "Rucksack Betreuung Einsatzeinheit 3",
+      "Mannschaftstransportwagen der Bereitschaft Nord Reserve 2",
+      "Mannschaftstransportwagen der Bereitschaft Nord, Reservefahrzeug zwei",
+    ].map((name) => ({ name, klasse: nameStufe(name) })));
+
+    for (const b of befunde) {
+      expect(b.gekappt, `${b.klasse}: „${b.name}" wird gekuerzt`).toBe(false);
+      expect(b.karteUeberlauf, `${b.klasse}: „${b.name}" sprengt die Karte`).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ DIE ANDERE HAELFTE DERSELBEN ZUSAGE: was NICHT mehr passt, hoert
+   * SICHTBAR auf. Unter 9pt weiter zu verkleinern waere eine Scheinloesung —
+   * ein unlesbarer Name ist kein besserer als ein gekuerzter. Die Karte darf
+   * dabei trotzdem nicht ueberlaufen, sonst landete das „…" ausserhalb des
+   * Blattes.
+   */
+  test("kuerzt einen unsinnig langen Namen sichtbar, statt ihn abzuschneiden", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    await page.emulateMedia({ media: "print" });
+
+    const [b] = await page.evaluate(misstNamen, [
+      { name: "Sehr langer Name ".repeat(12), klasse: nameStufe("Sehr langer Name ".repeat(12)) },
+    ]);
+
+    expect(b!.gekappt, "so ein Name MUSS gekuerzt werden — sonst misst der Test nichts").toBe(true);
+    expect(b!.sichtbarGekuerzt, "gekuerzt, aber ohne sichtbares Zeichen dafuer").toBe(true);
+    expect(b!.karteUeberlauf).toBe(false);
+  });
+
+  /**
+   * ⚠️ UND DIE KARTEN, DIE WIRKLICH AUF DEM BOGEN STEHEN, WERDEN AUCH NICHT
+   * GEKUERZT. Die Tests darueber tauschen Text aus; dieser hier fasst nichts an
+   * und misst, was der Seed tatsaechlich druckt — sonst bliebe die Zusage an
+   * einem Fall haengen, den der Test selbst hergestellt hat.
+   */
+  test("zeigt die tatsaechlich gedruckten Karten vollstaendig", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    await page.emulateMedia({ media: "print" });
+    const gekuerzt = await page.$$eval(".lb-ortkarte", (karten) => karten
+      .filter((k) => {
+        const huelle = k.querySelector(".lb-ortkarteName") as HTMLElement;
+        const text = k.querySelector(".lb-ortkarteNameText") as HTMLElement;
+        const vorher = text.style.webkitLineClamp;
+        text.style.webkitLineClamp = "none";
+        const voll = text.scrollHeight;
+        text.style.webkitLineClamp = vorher;
+        return voll > huelle.clientHeight || k.scrollHeight > k.clientHeight;
+      })
+      .map((k) => k.querySelector(".lb-ortkarteName")?.textContent ?? ""));
+    expect(gekuerzt).toEqual([]);
   });
 
   /**

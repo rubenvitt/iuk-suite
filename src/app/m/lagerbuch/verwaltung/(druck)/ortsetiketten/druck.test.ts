@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   A7_BREITE_MM, A7_HOEHE_MM, A7_SEITENNAME, ORT_SEITENRAND_MM,
-  ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM, ORT_QR_MM, mm,
+  ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM, ORT_QR_MM, NAME_STUFEN, mm,
 } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
 
 /**
@@ -176,6 +176,54 @@ describe("die Millimeter stehen zeichengleich in beiden Welten", () => {
     const umschlag = /\.lb-ortkarteQr\s*\{([^}]*)\}/.exec(bildschirmblock());
     expect(umschlag, "keine Regel auf .lb-ortkarteQr selbst").not.toBeNull();
     expect(umschlag![1]).toMatch(/flex:\s*none/);
+  });
+
+  /**
+   * ⚠️ JEDE STUFE AUS `NAME_STUFEN` MUSS IM STYLESHEET ANKOMMEN — Grad UND
+   * Klammerwert. Eine Stufe, die in der Tabelle steht und im CSS fehlt, setzt
+   * der Browser auf den ererbten Grad: die Karte saehe plausibel aus und der
+   * Name waere abgeschnitten, ohne dass ein Tor etwas meldet. Die Zahlen selbst
+   * sind gemessen; die Messreihe steht im Kopf der Tabelle.
+   */
+  it.each(NAME_STUFEN.map((s) => [s.klasse, s] as const))(
+    "%s traegt seinen Grad und seine Zeilenklammer",
+    (klasse, stufe) => {
+      const rein = bildschirmblock();
+      const grad = new RegExp(`\\.${klasse}\\s*\\{([^}]*)\\}`).exec(rein);
+      expect(grad, `keine Regel auf .${klasse}`).not.toBeNull();
+      expect(grad![1]).toContain(`font-size: ${stufe.pt}pt`);
+
+      const klammer = new RegExp(
+        `\\.${klasse}\\s+\\.lb-ortkarteNameText\\s*\\{([^}]*)\\}`,
+      ).exec(rein);
+      expect(klammer, `keine Zeilenklammer fuer .${klasse}`).not.toBeNull();
+      expect(klammer![1]).toContain(`-webkit-line-clamp: ${stufe.zeilen}`);
+    },
+  );
+
+  /**
+   * ⚠️ DIE GRUNDREGEL DARF KEINEN GRAD SETZEN. Ein `font-size` an
+   * `.lb-ortkarteName` waere ein sechster, UNGEMESSENER Fall — er griffe fuer
+   * jede Karte, deren Modifikatorklasse einmal verlorengeht, und die saehe
+   * dann richtig aus und waere es nicht.
+   */
+  it("setzt den Grad ausschliesslich ueber die Stufen", () => {
+    const grund = /\.lb-ortkarteName\s*\{([^}]*)\}/.exec(bildschirmblock());
+    expect(grund, "keine Regel auf .lb-ortkarteName").not.toBeNull();
+    expect(grund![1]).not.toMatch(/font-size|font:/);
+  });
+
+  /**
+   * ⚠️ DIE KLAMMER BRAUCHT `display: -webkit-box` AM SELBEN ELEMENT WIE DEN
+   * TEXT — ohne sie ist `-webkit-line-clamp` wirkungslos, und der Name hoerte
+   * wieder still auf statt auf „…" zu enden.
+   */
+  it("gibt dem Textkasten die Bauform, die die Klammer verlangt", () => {
+    const regel = /\.lb-ortkarteNameText\s*\{([^}]*)\}/.exec(bildschirmblock());
+    expect(regel, "keine Regel auf .lb-ortkarteNameText").not.toBeNull();
+    expect(regel![1]).toMatch(/display:\s*-webkit-box/);
+    expect(regel![1]).toMatch(/-webkit-box-orient:\s*vertical/);
+    expect(regel![1]).toMatch(/overflow:\s*hidden/);
   });
 
   /**

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Button } from "antd";
 import { SPACE } from "@/core/theme/tokens";
+import { nameStufe } from "../../../_lib/ortEtikettMasse";
 
 /**
  * DIE AUSWAHL-INSEL DER A7-ORTSETIKETTEN (DRK-312).
@@ -104,7 +105,17 @@ export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
             />
             <span className="lb-ortkarteMeta">{o.meta}</span>
             <span className="lb-ortkarteQr" dangerouslySetInnerHTML={{ __html: o.qr }} />
-            <span className="lb-ortkarteName">{o.name}</span>
+            {/*
+              ⚠️ ZWEI VERSCHACHTELTE SPANS, UND DAS IST KEINE ZIERDE. Die
+              aeussere Huelle zentriert den Namen senkrecht (Flexbox), die
+              innere traegt die Zeilenklammer — `-webkit-line-clamp` braucht
+              `display: -webkit-box` an DEMSELBEN Element wie den Text, und das
+              vertruege sich nicht mit der Zentrierung. Die Klasse kommt aus
+              der gemessenen Stufentabelle (`_lib/ortEtikettMasse.ts`).
+            */}
+            <span className={`lb-ortkarteName ${nameStufe(o.name)}`}>
+              <span className="lb-ortkarteNameText">{o.name}</span>
+            </span>
             <span className="lb-ortkarteUrl">{o.url}</span>
           </label>
         ))}

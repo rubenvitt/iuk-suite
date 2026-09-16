@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { mount, unmount, query, queryAll, exists, clickElement } from "@/app/m/qr/_lib/test-dom";
+import { nameStufe } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
 import { OrtsetikettenBogen } from "./OrtsetikettenBogen";
 
 /**
@@ -106,10 +107,39 @@ describe("OrtsetikettenBogen", () => {
     await mount(<OrtsetikettenBogen orte={ORTE} />);
     expect(queryAll(".lb-ortkarteMeta").map((e) => e.textContent))
       .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
-    expect(queryAll(".lb-ortkarteName").map((e) => e.textContent))
+    expect(queryAll(".lb-ortkarteNameText").map((e) => e.textContent))
       .toEqual(["Handlager", "RTW 1", "Sanitätstasche 1"]);
     expect(queryAll(".lb-ortkarteUrl").map((e) => e.textContent))
       .toEqual([`${BASIS}/o/handlager`, `${BASIS}/o/rtw-1`, `${BASIS}/o/tasche-san`]);
+  });
+
+  /**
+   * ⚠️ DIE SCHRIFTSTUFE KOMMT AUS `nameStufe`, NICHT AUS EINER ZWEITEN REGEL IN
+   * DER INSEL. Die Karte schnitt Namen ab 24 Zeichen still ab (Codex-Befund P2
+   * zu PR #177); die Tabelle dahinter ist gemessen. Eine zweite Herleitung hier
+   * liefe ihr davon, und zwar lautlos: das Etikett saehe plausibel aus und
+   * waere zu klein oder zu gross.
+   */
+  it("haengt jeder Karte ihre gemessene Schriftstufe an", async () => {
+    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    expect(queryAll(".lb-ortkarteName").map((e) => e.className))
+      .toEqual(ORTE.map((o) => `lb-ortkarteName ${nameStufe(o.name)}`));
+  });
+
+  /**
+   * ⚠️ ZWEI VERSCHACHTELTE KAESTEN, UND DIE INNERE TRAEGT DEN TEXT. Die Klammer
+   * (`-webkit-line-clamp`) braucht `display: -webkit-box` an DEMSELBEN Element
+   * wie den Text; die aeussere Huelle zentriert senkrecht und vertruege das
+   * nicht. Steht der Name direkt in der Huelle, ist die Klammer wirkungslos —
+   * und ein zu langer Name hoert wieder still auf, statt auf „…" zu enden.
+   */
+  it("legt den Namen in einen eigenen Textkasten", async () => {
+    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    for (const huelle of queryAll(".lb-ortkarteName")) {
+      const text = huelle.querySelector(".lb-ortkarteNameText");
+      expect(text, huelle.textContent ?? "").not.toBeNull();
+      expect(text!.parentElement).toBe(huelle);
+    }
   });
 
   it("waehlt zu Beginn alles aus", async () => {

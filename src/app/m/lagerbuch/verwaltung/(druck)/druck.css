@@ -271,9 +271,83 @@
   align-items: center;
   justify-content: center;
   flex: 1 1 auto;
-  font: 700 20pt var(--font-body);
+  /* ⚠️ HIER STEHT KEIN `font-size`. Der Grad kommt aus einer der fuenf
+   * Modifikatorklassen unten, und er ist GEMESSEN — die Tabelle samt Messung
+   * steht an `NAME_STUFEN` (`_lib/ortEtikettMasse.ts`). Ein Grundwert daneben
+   * waere ein sechster, ungemessener Fall und gaebe fuer eine Karte ohne
+   * Modifikator still ein falsches Bild. */
+  font-family: var(--font-body);
+  font-weight: 700;
   line-height: 1.05;
   overflow-wrap: anywhere;
+  /* Der Ueberlauf wird HIER abgefangen und nicht erst an der Karte: an der
+   * Karte schnitte er auch die Fusszeile mit ab, und die traegt die einzige
+   * immer eindeutige Angabe. */
+  overflow: hidden;
+}
+
+/* DIE KLAMMER, DIE AUS EINEM STILLEN SCHNITT EINEN SICHTBAREN MACHT.
+ *
+ * ⚠️ SIE IST DER EIGENTLICHE INHALT DIESES BLOCKS. Die Stufen daneben sorgen
+ * dafuer, dass jeder realistische Name ganz dasteht (gemessen bis 119 Zeichen);
+ * diese Zeilen sorgen dafuer, dass ein Name, der auch dann nicht passt, auf
+ * „…" endet statt einfach aufzuhoeren. Auf einem laminierten Kaertchen sieht
+ * sonst niemand, dass da noch etwas stand — und genau das war der Befund.
+ *
+ * ⚠️ SIE FAENGT AUCH EINE DRIFT, DIE HEUTE NOCH NICHT DA IST: die Messung haengt
+ * an der Hoehe der Fusszeile, also an der Laenge der Basis-URL. Ein deutlich
+ * laengerer Host nimmt dem Namen eine Zeile, und die Stufen waeren um eins
+ * daneben. Mit der Klammer wird daraus ein sichtbares „…" statt eines stillen
+ * Schnitts.
+ *
+ * `-webkit-line-clamp` ist trotz des Praefixes die kanonische Schreibweise —
+ * jeder Browser, der die Eigenschaft kennt, kennt sie unter diesem Namen. Der
+ * Praefix steht hier aus demselben Grund wie `-webkit-print-color-adjust`
+ * weiter unten. Die Zeilenzahl je Stufe ist die gemessene. */
+.lb-ortkarteNameText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lb-ortkarteNameXl {
+  font-size: 20pt;
+}
+
+.lb-ortkarteNameXl .lb-ortkarteNameText {
+  -webkit-line-clamp: 3;
+}
+
+.lb-ortkarteNameL {
+  font-size: 16pt;
+}
+
+.lb-ortkarteNameL .lb-ortkarteNameText {
+  -webkit-line-clamp: 4;
+}
+
+.lb-ortkarteNameM {
+  font-size: 13pt;
+}
+
+.lb-ortkarteNameM .lb-ortkarteNameText {
+  -webkit-line-clamp: 5;
+}
+
+.lb-ortkarteNameS {
+  font-size: 11pt;
+}
+
+.lb-ortkarteNameS .lb-ortkarteNameText {
+  -webkit-line-clamp: 6;
+}
+
+.lb-ortkarteNameXs {
+  font-size: 9pt;
+}
+
+.lb-ortkarteNameXs .lb-ortkarteNameText {
+  -webkit-line-clamp: 7;
 }
 
 /* DIE ADRESSE — klein, aber vollstaendig. Sie ist die einzige Angabe auf der
