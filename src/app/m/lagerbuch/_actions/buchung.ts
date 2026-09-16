@@ -5,14 +5,15 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb, type DB } from "../_db/client";
-import { artikel, buchungen, chargen, lagerorte, newId } from "../_db/schema";
+import { artikel, chargen } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerkunft";
 import { fefoAbbuchung } from "../_lib/schreibpfade/abbuchung";
+import { zugangBuchen } from "../_lib/schreibpfade/zugang";
 import { umlagerung } from "../_lib/schreibpfade/umlagerung";
-import { handlagerOrte, ortStamm } from "../_lib/lesepfade/orte";
+import { handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
@@ -22,18 +23,19 @@ import {
 import { cookies } from "next/headers";
 
 /**
- * DIE VIER BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
+ * DIE FUENF BUCHUNGSWEGE — und warum sie in EINER Datei stehen (H7).
  *
  * `bucheZugang`, `bucheEntnahme` und `bucheUmlagerung` (DRK-338) bedienen den
  * `ArtikelDrawer` (Teil 5), `bucheEntnahmeHelfer` bedient `/a/[artikelId]`
- * (Teil 4). Sie teilen sich `fefoAbbuchung` und dieselbe Zod-Basis; zwei
- * Dateien fuer einen Buchungsvorgang waeren zwei Orte fuer dieselbe
- * Invariante. TEIL 4 LEGT KEINE ZWEITE DATEI AN.
+ * (Teil 4), `bucheAuffuellung` (DRK-313) die Auffuellansicht der GF. Sie teilen
+ * sich `fefoAbbuchung`, `zugangBuchen` und dieselbe Zod-Basis; zwei Dateien
+ * fuer einen Buchungsvorgang waeren zwei Orte fuer dieselbe Invariante. TEIL 4
+ * LEGT KEINE ZWEITE DATEI AN.
  *
- * Der Riegel ist NICHT ueberall derselbe: die ersten drei rufen
- * `requireLagerbuchAdmin()`, die vierte `requireHelferSchreibend(db)`. Beide
- * stehen als erste Anweisung; `_actions/guards.test.ts` (Teil 2) akzeptiert
- * genau diese zwei Formen.
+ * Der Riegel ist NICHT ueberall derselbe: vier rufen `requireLagerbuchAdmin()`,
+ * `bucheEntnahmeHelfer` ruft `requireHelferSchreibend(db)`. Beide stehen als
+ * erste Anweisung; `_actions/guards.test.ts` (Teil 2) akzeptiert genau diese
+ * zwei Formen.
  *
  * ⚠️ DIE ZWEI ERGEBNISTYPEN SIND STRUKTURELL UNVEREINBAR, und das ist Absicht:
  * `ActionErgebnis` traegt im Fehlerzweig `fehler` (+ Feldkarte fuer ein
@@ -89,65 +91,29 @@ export async function bucheZugang(
 
     try {
       db.transaction((tx) => {
-        let chargeId = v.chargeId!;
-        if (v.neueCharge) {
-          chargeId = newId();
-          tx.insert(chargen)
-            .values({
-              id: chargeId,
-              artikelId: v.artikelId,
-              chargenNr: v.neueCharge.chargenNr,
-              verfall: v.neueCharge.verfall,
-              createdAt: new Date(),
-            })
-            .run();
-        } else {
-          /*
-           * I5 — DIE CHARGE MUSS ZU DIESEM ARTIKEL GEHOEREN.
-           * Eine manipulierte Anfrage koennte eine `chargeId` uebergeben, die zu
-           * einem anderen Artikel gehoert. Ohne diese Pruefung buchte der Zugang
-           * auf den Bestand des falschen Artikels — „phantom, un-withdrawable
-           * Bestand": der Bestand steigt, und FEFO findet die Charge nie, weil
-           * sie zum anderen Artikel gehoert. Teil 3 hat diese Invariante
-           * ausdruecklich an Teil 5 abgegeben.
-           *
-           * DER WURF IST HIER RICHTIG (§7.3, Riegelfall): er rollt die
-           * Transaktion zurueck; der `catch` unten macht daraus den
-           * Rueckgabewert.
-           */
-          const charge = tx.select().from(chargen).where(eq(chargen.id, chargeId)).get();
-          if (!charge || charge.artikelId !== v.artikelId) {
-            throw new Error("Charge gehört nicht zu diesem Artikel");
-          }
-        }
-        const ziel = v.zielLagerortId ?? HANDLAGER_ID;
-        if (ziel !== HANDLAGER_ID) {
-          // DREI BEDINGUNGEN, EIN SATZ: existiert der Ort, haengt er am
-          // Handlager, ist er aktiv? Ohne diese Pruefung entschiede der
-          // Fremdschluessel — und der meldet „FOREIGN KEY constraint failed".
-          const ort = tx.select().from(lagerorte).where(eq(lagerorte.id, ziel)).get();
-          if (!ort || ort.parentId !== HANDLAGER_ID || !ort.aktiv) {
-            throw new Error("Ziel ist kein gültiger, aktiver Schrank im Handlager");
-          }
-        }
-        tx.insert(buchungen)
-          .values({
-            id: newId(),
-            ts: new Date(),
-            typ: "zugang",
-            artikelId: v.artikelId,
-            chargeId,
-            lagerortId: ziel,
-            menge: v.menge,
-            quelleTyp: "oidc",
-            quelleId: viewer.sub,
-            referenz: null,
-            kommentar: null,
-          })
-          .run();
-        // Eine Bestellmarkierung, die einen Zugang ueberlebt, fuehrte die
-        // Position nach der Lieferung dauerhaft als „bestellt" (§5.5).
-        tx.update(artikel).set({ bestelltAt: null }).where(eq(artikel.id, v.artikelId)).run();
+        /*
+         * ⚠️ DER VORGANG SELBST STEHT SEIT DRK-313 IN
+         * `_lib/schreibpfade/zugang.ts`, nicht mehr hier. Er hat einen ZWEITEN
+         * Aufrufer bekommen (`bucheAuffuellung`, die Flaeche der GF), und an
+         * ihm haengen drei Invarianten — I5, das gueltige Ziel und das
+         * Loeschen der Bestellt-Markierung —, die in einer zweiten Fassung
+         * still fehlen koennten. Die Begruendung je Invariante steht dort
+         * ausgeschrieben.
+         *
+         * DIE WUERFE VON DORT ROLLEN DIE TRANSAKTION ZURUECK; der `catch`
+         * unten macht daraus den Rueckgabewert (§7.3, Riegelfall).
+         */
+        zugangBuchen(tx, {
+          artikelId: v.artikelId,
+          menge: v.menge,
+          lagerortId: v.zielLagerortId ?? HANDLAGER_ID,
+          charge: v.neueCharge
+            ? { art: "neu", chargenNr: v.neueCharge.chargenNr, verfall: v.neueCharge.verfall }
+            : { art: "vorhanden", chargeId: v.chargeId! },
+          quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
+          kommentar: null,
+          referenz: null,
+        });
       });
     } catch (e) {
       return {
@@ -583,4 +549,150 @@ export async function bucheEntnahmeHelfer(
     revalidatePath("/m/lagerbuch/verwaltung");
     return { ok: true, wert: { gebucht } };
   });
+}
+
+/**
+ * DRK-313 — DER FUENFTE BUCHUNGSWEG: AUFFUELLEN DES HANDLAGERS.
+ *
+ * ⚠️ ER BUCHT DENSELBEN VORGANG WIE `bucheZugang` UND EINEN ANDEREN ALS
+ * `bucheEntnahme` MIT ZIEL-FAHRZEUG. Das ist der Satz, der die beiden
+ * Abgrenzungen des Tickets traegt:
+ *
+ *  * Gegenueber dem Drawer der Verwaltung: derselbe Wareneingang, dieselbe
+ *    Zeile im Journal (`typ: "zugang"`, `referenz: null`), nur eine andere
+ *    Flaeche davor. Deshalb KEIN eigenes Referenz-Praefix und kein eigener
+ *    Vorgangstext — der Weg, auf dem jemand bucht, ist keine fachliche
+ *    Eigenschaft der Buchung, und ein zweites Etikett im Journal liesse
+ *    denselben Vorgang doppelt gefuehrt aussehen.
+ *  * Gegenueber der Entnahme mit Ziel-Fahrzeug: DIE RICHTUNG IST UMGEKEHRT.
+ *    Dort verlaesst Material das Handlager, hier kommt es hinein. Ein Fahrzeug
+ *    ist hier weder Quelle noch Ziel; Fahrzeug -> Schrank steht als DRK-366 auf
+ *    dem Board, die Entnahmebox als DRK-314.
+ *
+ * ⚠️ DER RIEGEL IST `requireLagerbuchAdmin()`, UND DAS IST DIE ANTWORT AUF DIE
+ * OFFENE FRAGE „GF" (DRK-313, Betreiberentscheidung im Ticket): GF ist das
+ * ANGEMELDETE Konto in der Lagerbuch-Gruppe — dieselbe eine Stufe, die auch
+ * `/verwaltung` gatet. KEINE zweite Gruppe. Eine neue Gruppe muesste in Pocket
+ * ID existieren, BEVOR die Funktion ausgerollt wird; tut sie das nicht, ist die
+ * Flaeche am Rollout-Tag fuer alle tot, und zwar still. Enger schneiden geht
+ * spaeter jederzeit. Die fachliche Kraft der Anforderung — „mit einem Kaertchen
+ * fuellt niemand auf" — ist damit erfuellt: `requireHelferSchreibend` kommt hier
+ * NICHT vor, ein Kaertchen erreicht diese Action also auf keinem Weg.
+ *
+ * ⚠️ DER ERGEBNISTYP IST `HelferErgebnis`, NICHT `ActionErgebnis`, obwohl der
+ * Riegel der der Verwaltung ist. Die Insel davor ist im Entnahme-Stil gebaut
+ * und zeigt einen FERTIGEN Satz vom Server (§7.3); `feldFehler` hat dort nichts,
+ * woran es haengen koennte. `grund` ist in allen abgewiesenen Lagen `"eingabe"`
+ * — die beiden Sperrgruende gibt es auf diesem Weg nicht, und `"netz"` entsteht
+ * ausschliesslich im Client (Global Constraint 12).
+ */
+const AuffuellSchema = z.object({
+  artikelId: z.string().min(1),
+  menge: z.coerce.number().int().positive(),
+  /**
+   * PFLICHT, anders als in `ZugangSchema`. Dort ist ein fehlendes Ziel der
+   * Altbestand („Schrank noch nicht zugeordnet"); hier ist die Wurzel eine
+   * ZEILE der Auswahl und wird gewaehlt wie jeder Schrank. Ein fehlendes Feld
+   * ist deshalb keine Vorgabe, sondern eine offene Entscheidung — und die bucht
+   * nicht (dieselbe Regel wie beim Entnahme-Ziel, DRK-300).
+   */
+  zielLagerortId: z.string().min(1),
+  charge: z.discriminatedUnion("art", [
+    z.object({ art: z.literal("vorhanden"), chargeId: z.string().min(1) }),
+    z.object({
+      art: z.literal("neu"),
+      chargenNr: z.string().trim().min(1),
+      verfall: z.string().regex(MONAT_REGEX),
+    }),
+  ]),
+});
+
+export async function bucheAuffuellung(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<HelferErgebnis<{ gebucht: number; ziel: string }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext(
+    { actor: auditActor(viewer) },
+    async (): Promise<HelferErgebnis<{ gebucht: number; ziel: string }>> => {
+      const geparst = AuffuellSchema.safeParse(eingabe);
+      if (!geparst.success) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Die Eingabe war unvollständig. Bitte die Seite neu laden und " +
+            "Charge, Menge und Schrank erneut eingeben.",
+        };
+      }
+      const v = geparst.data;
+
+      /*
+       * ⚠️ DIE ZWEI ERWARTBAREN LAGEN WERDEN VOR DER TRANSAKTION GEPRUEFT und
+       * als SATZ beantwortet, nicht als Wurf. `zugangBuchen` prueft beide noch
+       * einmal und wirft dabei — das ist die letzte Bank gegen eine
+       * manipulierte Nutzlast, nicht die Erklaerung fuer die Person davor.
+       *
+       * Beide Lagen entstehen ohne Zutun: die Seite rendert, jemand legt in der
+       * Verwaltung einen Schrank still oder loescht eine Charge, und erst danach
+       * wird gebucht. Das Fenster bleibt — es gibt keinen Zustand, in dem eine
+       * gerenderte Auswahl und die Datenbank dauerhaft dasselbe sagen —, und
+       * genau deshalb steht die Pruefung auch INNEN noch einmal.
+       */
+      const ziel = zugangsZiele(db).find((o) => o.id === v.zielLagerortId);
+      if (!ziel) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Dieser Schrank nimmt kein Material mehr auf — er wurde stillgelegt " +
+            "oder gelöscht. Bitte die Seite neu laden und einen anderen wählen.",
+        };
+      }
+
+      if (v.charge.art === "vorhanden") {
+        const zeile = db.select().from(chargen).where(eq(chargen.id, v.charge.chargeId)).get();
+        if (!zeile || zeile.artikelId !== v.artikelId) {
+          return {
+            ok: false,
+            grund: "eingabe",
+            text:
+              "Diese Charge gehört nicht mehr zu diesem Artikel. Bitte die Seite " +
+              "neu laden und die Charge erneut wählen.",
+          };
+        }
+      }
+
+      /*
+       * ⚠️ KEIN try/catch UM DIE TRANSAKTION — dieselbe Begruendung wie bei
+       * `bucheEntnahmeHelfer`: `"netz"` entsteht ausschliesslich im Client, und
+       * ein Datenbankfehler ist kein erwartbarer Betriebsfall, sondern ein
+       * Defekt. Er darf durchschlagen.
+       */
+      db.transaction((tx) => {
+        zugangBuchen(tx, {
+          artikelId: v.artikelId,
+          menge: v.menge,
+          lagerortId: v.zielLagerortId,
+          charge: v.charge,
+          // Die Person ist angemeldet — das Journal traegt ihren `sub` und zeigt
+          // ihren Klarnamen (`_db/quelle.ts`), nicht ein Kaertchen-Label.
+          quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
+          kommentar: null,
+          referenz: null,
+        });
+      });
+
+      revalidatePath(`/m/lagerbuch/auffuellen/${v.artikelId}`);
+      revalidatePath("/m/lagerbuch/auffuellen");
+      revalidatePath(`/m/lagerbuch/a/${v.artikelId}`);
+      revalidatePath("/m/lagerbuch/helfer");
+      revalidatePath("/m/lagerbuch/verwaltung/artikel");
+      revalidatePath("/m/lagerbuch/verwaltung");
+      // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
+      // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
+      // unter seinem alten Namen.
+      return { ok: true, wert: { gebucht: v.menge, ziel: ziel.name } };
+    },
+  );
 }

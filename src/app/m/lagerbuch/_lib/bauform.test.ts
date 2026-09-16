@@ -1216,9 +1216,16 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
       "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx",
     ]);
+    //
+    // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.
+    // Die Auffuellansicht ist im Entnahme-Stil gebaut — 56/72er Bediendichte,
+    // eigener Traeger, kein antd —, liegt aber NICHT unter `helfer/`, weil ein
+    // Kaertchen sie nie erreicht. Ohne diese Zeile liefe genau dort ein
+    // `import { Card } from "antd"` durch, und zwar auf der Flaeche, die dem
+    // Helfer-Ast am aehnlichsten sieht.
     const WURZEL = join(MODUL, "page.tsx");
     const dateien = [
-      ...["_ui", "helfer", "a", "t"].flatMap((d) => quellDateien(join(MODUL, d))),
+      ...["_ui", "helfer", "a", "t", "auffuellen"].flatMap((d) => quellDateien(join(MODUL, d))),
       ...(existsSync(WURZEL) ? [WURZEL] : []),
     ];
     // Ohne diese Zeile meldet der Scan „bestanden" ueber NULL Dateien — und
@@ -1230,7 +1237,7 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `helfer/page.tsx`, `helfer/layout.tsx` — gar keine eigene Testdatei —,
     // `helfer/check/page.tsx`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts`).
     // Fuer die faellt ein leerer Modulscan nicht auf.
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(19);
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(24);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;
@@ -1297,9 +1304,12 @@ describe("§7.8.2 / Falle 63 — genau eine `usePathname`-Datei im Modul", () =>
     // `CheckFlow`, `Entnahme`, `FahrzeugWahl` und `a/[artikelId]/page.test.tsx`
     // — ohne die Untergrenze meldete dieser Block „bestanden" ueber null
     // Dateien, sobald die Astliste von der Platte abreisst.
-    const AST = ["_ui", "helfer", "a", "t"].map((d) => join(MODUL, d));
+    //
+    // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` steht hier aus demselben
+    // Grund wie im Scan darueber — dieselbe Ansichtsklasse, derselbe Verzicht.
+    const AST = ["_ui", "helfer", "a", "t", "auffuellen"].map((d) => join(MODUL, d));
     const dateien = AST.flatMap((wurzel) => quellDateien(wurzel));
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(17);
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(23);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.

@@ -422,6 +422,18 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Zaehlung steht damit auf 56 = 53 bewacht + 3 Ausnahmen, 53 = 50 + 3, in
  * weiterhin 23 Action-Dateien.
  *
+ * NACHTRAG DRK-313 (16.09.2026): `bucheAuffuellung` kommt in `buchung.ts` dazu
+ * — die Flaeche, mit der die GF das Handlager auffuellt. Bewacht von
+ * `requireLagerbuchAdmin`, und DAS IST HIER KEINE FORMALIE, SONDERN DIE
+ * UMSETZUNG DER ANFORDERUNG: „nur fuer GF" heisst in diesem Modul „angemeldet
+ * und in der Lagerbuch-Gruppe" (DRK-313 beantwortet damit die bis dahin offene
+ * Frage nach einer eigenen GF-Rolle mit Nein). Dass `requireHelferSchreibend`
+ * hier NICHT steht, ist die Zusage, dass ein Kaertchen diese Action auf keinem
+ * Weg erreicht — eine Action-ID ist global, und ohne den Riegel waere das
+ * Layout darueber wirkungslos. Keine neue Datei, keine neue Ausnahme. Die
+ * Zaehlung steht damit auf 58 = 55 bewacht + 3 Ausnahmen, 55 = 52 + 3, in
+ * weiterhin 23 Action-Dateien.
+ *
  * NACHTRAG ZUSAMMENFUEHRUNG DRK-309/DRK-338 (16.09.2026): und schon wieder
  * derselbe Fall wie oben bei DRK-303/DRK-300 — zwei Aenderungen am selben Tag,
  * jede mit EINER neuen admin-bewachten Action, jede ihren Nachtrag vom Stand 55
@@ -474,7 +486,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "aussondern.ts": 1,
     "aussondernLagerort.ts": 1,   // DRK-303, Aussondern je Lagerort
     "bestellung.ts": 1,
-    "buchung.ts": 4,   // DRK-338: bucheUmlagerung kam dazu
+    "buchung.ts": 5,   // DRK-338: bucheUmlagerung, DRK-313: bucheAuffuellung
     "bz.ts": 4,
     "check.ts": 1,
     "csv.ts": 1,
@@ -530,10 +542,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 57 Deklarationen, obwohl es nur 54 verschiedene Namen gibt", () => {
+  it("zaehlt 58 Deklarationen, obwohl es nur 55 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "57 Deklarationen").toHaveLength(57);
-    expect(new Set(namen).size, "54 verschiedene Namen").toBe(54);
+    expect(namen, "58 Deklarationen").toHaveLength(58);
+    expect(new Set(namen).size, "55 verschiedene Namen").toBe(55);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -545,7 +557,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 54 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 55 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -554,7 +566,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "54 bewacht").toBe(54);
+    expect(funde.length - ausnahmen.length, "55 bewacht").toBe(55);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -621,7 +633,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 54 Riegel auf 51 requireLagerbuchAdmin und 3 requireHelferSchreibend", () => {
+  it("verteilt die 55 Riegel auf 52 requireLagerbuchAdmin und 3 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -635,6 +647,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // selben Kaertchen und ist von aussen genauso aufrufbar.
       "entnahmeZiel.ts#waehleEntnahmeZiel",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(51);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(52);
   });
 });

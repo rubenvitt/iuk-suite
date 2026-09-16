@@ -8,7 +8,7 @@ import { requireLagerbuchHost } from "./host";
 import { HELFER_COOKIE, verifyHelferSitzung } from "./helferSitzung";
 import { gateGrundFuerSperre } from "./gateTexte";
 import { fahrzeugBindungAus } from "./tokenZiel";
-import { istLagerbuchAdmin, viewerOderNull } from "./zugang";
+import { istLagerbuchAdmin, viewerOderNull, type Viewer } from "./zugang";
 import { merkeNutzer } from "./konto";
 
 /**
@@ -100,8 +100,15 @@ export type TokenZugang = {
  * ⚠️ ER IST KEINE ZWEITE RECHTEQUELLE. Das Praedikat ist `istLagerbuchAdmin` —
  * dieselbe EINE Stufe, die auch `/verwaltung` gatet (`_lib/zugang.ts`). Wer hier
  * eine eigene Gruppe einzieht, legt ein zweites Rollenkonzept an, das niemand
- * pflegt; die Frage „bekommt GF eine eigene Rolle?" ist auf dem Board offen und
- * wird hier ausdruecklich NICHT im Vorbeigehen beantwortet.
+ * pflegt.
+ *
+ * ⚠️ DIE FRAGE „BEKOMMT GF EINE EIGENE ROLLE?" IST SEIT DRK-313 BEANTWORTET,
+ * und zwar mit NEIN: GF ist genau diese eine Stufe — das angemeldete Konto in
+ * der Lagerbuch-Gruppe. Eine neue Gruppe muesste in Pocket ID existieren, BEVOR
+ * eine Funktion sie voraussetzt; tut sie das nicht, ist die Flaeche am
+ * Rollout-Tag fuer alle tot, und zwar still. Enger schneiden laesst sich
+ * spaeter jederzeit, aufsperren nicht. Die Entscheidung steht ausgeschrieben an
+ * `bucheAuffuellung` (`_actions/buchung.ts`) — dort, wo sie wirkt.
  */
 export type KontoZugang = {
   herkunft: "konto";
@@ -254,15 +261,29 @@ export async function kontoBefund(
   if (!viewer) return { ok: false, nochAngemeldet: false };
   if (!istLagerbuchAdmin(viewer)) return { ok: false, nochAngemeldet: true };
   merkeNutzer(db, viewer);
+  return { ok: true, zugang: kontoZugangAus(viewer) };
+}
+
+/**
+ * DRK-313 — DIE EINE STELLE, DIE AUS EINEM VIEWER EINEN `KontoZugang` MACHT.
+ *
+ * Sie existiert, weil es jetzt ZWEI Wege in den Konto-Zugang gibt und beide
+ * dieselbe Form brauchen: `kontoBefund` (Helfer-Ast, Praedikat) und die
+ * Auffuellansicht, die ihren Viewer schon aus `requireLagerbuchAdmin()` hat und
+ * ihn nicht ueber eine zweite Sitzungslesung wieder einsammeln soll.
+ *
+ * ⚠️ SIE PRUEFT NICHTS UND SCHREIBT NICHTS. Weder `istLagerbuchAdmin` noch
+ * `merkeNutzer` stehen hier: beide gehoeren zum RIEGEL des jeweiligen Wegs, und
+ * ein Konstruktor, der nebenbei prueft, verleitet dazu, ihn fuer den Riegel zu
+ * halten. Wer sie ruft, hat die Berechtigung bereits belegt.
+ */
+export function kontoZugangAus(viewer: Viewer): KontoZugang {
   return {
-    ok: true,
-    zugang: {
-      herkunft: "konto",
-      sub: viewer.sub,
-      name: viewer.name,
-      laeuftAb: null,
-      fahrzeugBindung: null,
-    },
+    herkunft: "konto",
+    sub: viewer.sub,
+    name: viewer.name,
+    laeuftAb: null,
+    fahrzeugBindung: null,
   };
 }
 

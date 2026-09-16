@@ -81,7 +81,9 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
 }));
 
-import { bucheZugang, bucheEntnahme, bucheEntnahmeHelfer, bucheUmlagerung } from "./buchung";
+import {
+  bucheZugang, bucheEntnahme, bucheEntnahmeHelfer, bucheUmlagerung, bucheAuffuellung,
+} from "./buchung";
 
 let t: TestDb;
 
@@ -1035,5 +1037,177 @@ describe("bucheUmlagerung (DRK-338)", () => {
       t.db,
     )).rejects.toThrow("kein Admin");
     expect(geschrieben()).toHaveLength(0);
+  });
+});
+
+/**
+ * DRK-313 — DIE AUFFUELLANSICHT DER GF.
+ *
+ * Was hier haengt, und warum jeweils GENAU HIER:
+ *
+ *   - DER RIEGEL IST DER DER VERWALTUNG, NICHT DER DES HELFERS. Das ist die
+ *     Umsetzung von „nur fuer GF": ein Kaertchen erreicht diese Action nicht.
+ *     Der Nachweis ist ein VERHALTENStest (der Admin-Riegel wirft, und dann
+ *     steht nichts in `buchungen`), kein Quelltext-Scan — ein Scan auf die
+ *     Schreibweise fixierte nur einen Namen.
+ *   - DER ZIELORT IST PFLICHT, anders als bei `bucheZugang`. Ein fehlendes Ziel
+ *     ist hier keine Vorgabe „Wurzel", sondern eine offene Entscheidung.
+ *   - EIN STILLGELEGTER SCHRANK UND EIN FAHRZEUG WERDEN MIT EINEM SATZ
+ *     ABGEWIESEN, nicht mit einem Wurf: beide Lagen entstehen ohne Zutun der
+ *     Person, waehrend die Seite offen steht.
+ *   - `referenz` BLEIBT `null` UND `typ` IST `zugang` — dieselbe Journalzeile
+ *     wie aus dem Drawer der Verwaltung. Ein eigenes Praefix liesse denselben
+ *     Vorgang doppelt gefuehrt aussehen.
+ */
+describe("bucheAuffuellung (DRK-313)", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID, aktiv: true },
+      { id: "schrank-alt", name: "Schrank alt", typ: "lager", parentId: HANDLAGER_ID, aktiv: false },
+    ]).run();
+  });
+
+  it("legt eine neue Charge an und bucht sie in den gewaehlten Schrank", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 4, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 4, ziel: "Schrank 1" } });
+    expect(geschrieben()).toHaveLength(1);
+    // ⚠️ DIESELBE ZEILE WIE AUS DEM DRAWER: `typ: "zugang"`, `referenz: null`.
+    expect(geschrieben()[0]).toMatchObject({
+      typ: "zugang", lagerortId: "schrank-1", menge: 4, referenz: null,
+      quelleTyp: "oidc", quelleId: "u-admin",
+    });
+    const neu = t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).get();
+    expect(neu).toMatchObject({ artikelId: "art-1", verfall: "2028-01" });
+  });
+
+  it("bucht auf eine VORHANDENE Charge, ohne eine zweite anzulegen", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 2, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true, wert: { gebucht: 2 } });
+    expect(geschrieben()[0]).toMatchObject({ chargeId: "ch-1", lagerortId: HANDLAGER_ID });
+    expect(t.db.select().from(chargen).all()).toHaveLength(1);
+  });
+
+  it("nennt die WURZEL beim Namen, unter dem sie zur Wahl stand", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    // Der Beleg auf dem Schirm nennt diesen Namen; er kommt aus dem SERVER,
+    // damit ein umbenannter Ort nicht unter altem Namen quittiert wird.
+    expect(erg).toMatchObject({ ok: true, wert: { ziel: "Handlager (ohne Schrank)" } });
+  });
+
+  it("setzt bestelltAt zurueck — dieselbe Zusage wie beim Zugang", async () => {
+    t.db.update(artikel).set({ bestelltAt: JETZT }).where(eq(artikel.id, "art-1")).run();
+    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt)
+      .not.toBeNull();
+
+    await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt).toBeNull();
+  });
+
+  it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-2", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("weist einen stillgelegten Schrank ab — mit einem Satz, ohne zu werfen", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-alt",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text).toMatch(/stillgelegt/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("weist ein Fahrzeug als Ziel ab — die Richtung ist die Gegenrichtung", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "fz-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("OHNE Zielort wird NICHT gebucht — anders als beim Zugang gibt es keine Vorgabe", async () => {
+    const erg = await bucheAuffuellung(
+      { artikelId: "art-1", menge: 1, charge: { art: "vorhanden", chargeId: "ch-1" } },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("lehnt einen Verfall ab, der nicht YYYY-MM ist", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "neu", chargenNr: "L-NEU", verfall: "01.2028" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(t.db.select().from(chargen).all()).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ DER TRAGENDE TEST DES TICKETS. „Nur fuer GF" ist serverseitig genau
+   * dann wahr, wenn der Riegel der Verwaltung VOR allem anderen steht — auch
+   * vor dem Parsen. Ein Kaertchen-Riegel kommt auf diesem Weg gar nicht vor.
+   */
+  it("fragt den ADMIN-Riegel — ein Kaertchen kommt hier nicht durch", async () => {
+    adminRiegel.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(
+      bucheAuffuellung(
+        {
+          artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+          charge: { art: "vorhanden", chargeId: "ch-1" },
+        },
+        t.db,
+      ),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(riegel).not.toHaveBeenCalled();
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("der Riegel steht VOR dem Parsen — auf einer Nutzlast, die kein Schema besteht", async () => {
+    adminRiegel.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(bucheAuffuellung({ murks: true }, t.db)).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(geschrieben()).toEqual([]);
   });
 });

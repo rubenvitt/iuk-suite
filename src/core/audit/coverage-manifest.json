@@ -367,6 +367,10 @@
     "kind": "context",
     "via": "bucheEntnahmeHelfer"
   },
+  "src/app/m/lagerbuch/_actions/buchung.ts#bucheAuffuellung": {
+    "kind": "context",
+    "via": "bucheAuffuellung"
+  },
   "src/app/m/lagerbuch/_actions/bz.ts#geraetSpeichern": {
     "kind": "context",
     "via": "geraetSpeichern"

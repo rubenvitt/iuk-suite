@@ -18,10 +18,11 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * „Übersicht" trägt bewusst KEINEN Abschnitt und steht damit vor der ersten
  * Überschrift.
  *
- * ⚠️ ZWEI EINTRÄGE ZEIGEN NICHT AUF `/verwaltung/…` (DRK-305): „Entnahme" und
- * „Check durchführen" führen in den Helfer-Ast. `aktiverEintrag` löst sie per
- * Suffix genauso auf wie die übrigen; sichtbar markiert wird dort ohnehin
- * nichts, weil der Helfer-Ast diese Navigation nicht rendert.
+ * ⚠️ DREI EINTRÄGE ZEIGEN NICHT AUF `/verwaltung/…`: „Entnahme" und „Check
+ * durchführen" führen in den Helfer-Ast (DRK-305), „Auffüllen" auf eine eigene
+ * Fläche im selben Stil (DRK-313). `aktiverEintrag` löst sie per Suffix genauso
+ * auf wie die übrigen; sichtbar markiert wird dort ohnehin nichts, weil keine
+ * der drei Flächen diese Navigation rendert.
  */
 export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
@@ -35,6 +36,21 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   // → Fahrzeug und Schrank → Verbrauch, ohne Kärtchen. Siehe den Block bei
   // „Check durchführen".
   { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
+  /*
+   * DRK-313 — DER EINZIGE WEG IN DIE AUFFUELLANSICHT, und das ist Absicht.
+   *
+   * Sie liegt NICHT im Helfer-Ast und bekommt deshalb auch keinen dritten Tab
+   * in dessen Leiste (Begruendung ausgeschrieben in `_ui/AuffuellRahmen.tsx`):
+   * mit einem Kaertchen fuellt niemand auf, und ein Tab, der fuer die meisten
+   * Sitzungen mit 404 antwortet, ist keine Navigation.
+   *
+   * ⚠️ ER STEHT DIREKT UNTER „Entnahme", weil beide dieselbe Flaeche in
+   * entgegengesetzter Richtung sind — Material heraus, Material hinein. Wer
+   * sie trennt, laesst jemanden die falsche suchen. Der Rueckweg steht im Kopf
+   * des Rahmens draussen („Zur Verwaltung"); ohne ihn waere der Klick eine
+   * Sackgasse.
+   */
+  { key: "auffuellen", title: "Auffüllen", href: "/auffuellen", ikon: "auffuellen", abschnitt: "Bestand" },
 
   /* DRK-309: Die Beschriftung nennt beide Arten, der `href` bleibt — wer eine
    * Tasche sucht, findet unter „Fahrzeuge" nichts und schliesst, es gebe den

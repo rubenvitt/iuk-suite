@@ -77,7 +77,7 @@ afterEach(async () => {
 
 describe("ArtikelSuche — die Liste", () => {
   it("rendert jede Zeile mit Name, Fach, Bestand und Einheit", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     const zeilen = queryAll("[data-rolle='artikel-zeile']");
     expect(zeilen.length).toBe(3);
     expect(zeilen[0].textContent).toContain("Kompresse 10×10");
@@ -93,7 +93,7 @@ describe("ArtikelSuche — die Liste", () => {
     // Geprueft werden ALLE drei Zeilen, nicht nur die erste: der Titel sagt
     // „jede", und ein `query()` auf die erste liesse eine Praefixierung ab der
     // zweiten Zeile durch.
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     const zeilen = queryAll<HTMLAnchorElement>("[data-rolle='artikel-zeile']");
     expect(zeilen.length).toBe(3);
     for (const [i, zeile] of zeilen.entries()) {
@@ -110,7 +110,7 @@ describe("ArtikelSuche — die Liste", () => {
     // einem herausgefilterten Artikel nur noch eine Position zu, und
     // `toContain("Bestand 0")` sichert zusaetzlich zu, dass die Null angezeigt
     // und nicht als Falsy-Wert unterdrueckt wird.
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     const zeilen = queryAll("[data-rolle='artikel-zeile']");
     expect(zeilen.length).toBe(3);
     expect(zeilen[1].textContent).toContain("Mullbinde 6 cm");
@@ -120,7 +120,7 @@ describe("ArtikelSuche — die Liste", () => {
 
 describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
   it("filtert nach Name, unabhaengig von Gross-/Kleinschreibung", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "KOMPRESSE");
     const treffer = queryAll("[data-rolle='artikel-zeile']");
     expect(treffer.length).toBe(1);
@@ -128,7 +128,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
   });
 
   it("filtert auch nach FACH — das steht auf dem Regaletikett", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "B-11");
     const treffer = queryAll("[data-rolle='artikel-zeile']");
     expect(treffer.length).toBe(1);
@@ -145,7 +145,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
     // Die Chargennummer bleibt draussen: sie steht auf keinem Gegenstand, den
     // jemand auf diesem Weg in der Hand hat, und `ArtikelZeileHelfer` fuehrt sie
     // gar nicht.
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "10×10 a-01");
     const treffer = queryAll("[data-rolle='artikel-zeile']");
     expect(treffer.length).toBe(1);
@@ -153,7 +153,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
   });
 
   it("faltet Umlaute so, wie `falte` sie faltet — „wärme“ findet „Wärmedecke“", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "wärme");
     const treffer = queryAll("[data-rolle='artikel-zeile']");
     expect(treffer.length).toBe(1);
@@ -172,7 +172,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
     //
     // Der Test steht als ZUSAGE ueber die Grenze da, nicht als Luecke: wer sie
     // je verschiebt, verschiebt sie in `_lib/suche.ts` fuer BEIDE Haelften.
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "waerme");
     expect(queryAll("[data-rolle='artikel-zeile']").length).toBe(0);
     expect(exists("[data-rolle='kein-treffer']")).toBe(true);
@@ -189,7 +189,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
     // Das ist zugleich die positive Gegenseite zum Test darueber: lernt `falte`
     // je Umlaute, folgt die Client-Suche ohne eine Zeile Aenderung.
     H.ersatz = (s: string) => s.replace(/ä/g, "ae").replace(/Ä/g, "AE").toLowerCase();
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "waerme");
     const treffer = queryAll("[data-rolle='artikel-zeile']");
     expect(treffer.length).toBe(1);
@@ -202,7 +202,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
     // mit dem abgedruckten Code unerreichbar. Aufgeloest zugunsten des Servers:
     // `_lib/artikelFilter.ts:54` ist `falte(f.suche.trim())`. Ohne das lieferten
     // Client- und Serversuche fuer dieselbe Eingabe verschiedene Treffermengen.
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "   mull   ");
     const treffer = queryAll("[data-rolle='artikel-zeile']");
     expect(treffer.length).toBe(1);
@@ -210,7 +210,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
   });
 
   it("eine Eingabe aus lauter Leerzeichen ist KEINE Suche — die Liste bleibt vollstaendig", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "     ");
     expect(queryAll("[data-rolle='artikel-zeile']").length).toBe(3);
     expect(exists("[data-rolle='kein-treffer']")).toBe(false);
@@ -220,7 +220,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
     // Der Zwischenschritt haengt daran, dass „Kompresse 10×10" das ZEICHEN „×"
     // (U+00D7) fuehrt und nicht den Buchstaben „x". Wer die Fixture je auf
     // ASCII „10x10" normalisiert, kippt genau diese eine Zusicherung.
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "x");
     expect(queryAll("[data-rolle='artikel-zeile']").length).toBe(0);
     await fill("[data-rolle='artikel-suche']", "");
@@ -230,7 +230,7 @@ describe("ArtikelSuche — das Filtern, ueber die EINE Faltung", () => {
 
 describe("ArtikelSuche — die beiden Leerlagen sind VERSCHIEDEN", () => {
   it("kein Treffer: sagt, wonach gesucht wurde", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "zzz");
     expect(query("[data-rolle='kein-treffer']").textContent)
       .toBe("Kein Artikel gefunden für „zzz“.");
@@ -240,7 +240,7 @@ describe("ArtikelSuche — die beiden Leerlagen sind VERSCHIEDEN", () => {
   it("gar keine Artikel: sagt etwas ANDERES — und nennt die Verwaltung", async () => {
     // „Kein Artikel gefunden" bei leerer Datenbank schickt die Helferin auf die
     // Suche nach einem Tippfehler, den es nicht gibt.
-    await mount(<ArtikelSuche artikel={[]} />);
+    await mount(<ArtikelSuche artikel={[]} basis="/a" />);
     expect(exists("[data-rolle='kein-treffer']")).toBe(false);
     expect(query("[data-rolle='keine-artikel']").textContent)
       .toBe("Es ist noch kein Artikel angelegt. Die Verwaltung pflegt den Bestand.");
@@ -251,7 +251,7 @@ describe("ArtikelSuche — die beiden Leerlagen sind VERSCHIEDEN", () => {
     // Riegel kippte die leere Datenbank beim ersten Tastendruck in „Kein Artikel
     // gefunden fuer …" — also in genau den Satz, der auf die Suche nach einem
     // Tippfehler schickt.
-    await mount(<ArtikelSuche artikel={[]} />);
+    await mount(<ArtikelSuche artikel={[]} basis="/a" />);
     await fill("[data-rolle='artikel-suche']", "mull");
     expect(exists("[data-rolle='kein-treffer']")).toBe(false);
     expect(exists("[data-rolle='keine-artikel']")).toBe(true);
@@ -260,14 +260,14 @@ describe("ArtikelSuche — die beiden Leerlagen sind VERSCHIEDEN", () => {
 
 describe("ArtikelSuche — Bauform", () => {
   it("das Suchfeld ist benannt und traegt `type=\"search\"`", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     const feld = query<HTMLInputElement>("[data-rolle='artikel-suche']");
     expect(feld.getAttribute("aria-label")).toBe("Artikel suchen");
     expect(feld.getAttribute("type")).toBe("search");
   });
 
   it("jede Artikelzeile behaelt ein stummes Zeichen neben sichtbarem Text", async () => {
-    await mount(<ArtikelSuche artikel={LISTE} />);
+    await mount(<ArtikelSuche artikel={LISTE} basis="/a" />);
     const zeichen = queryAll("[data-rolle='artikel-zeile'] svg");
     expect(zeichen.length).toBe(LISTE.length);
     for (const svg of zeichen) {
