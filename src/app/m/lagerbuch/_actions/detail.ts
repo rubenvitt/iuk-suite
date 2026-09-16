@@ -8,7 +8,7 @@ import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
 import { verteilungJeCharge, type OrtVerteilungEintrag } from "../_lib/lesepfade/bestand";
-import { standortZeile } from "../_lib/konstanten";
+import { ortZeile } from "../_lib/konstanten";
 import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -164,8 +164,8 @@ export async function getDetail(
         ortName: (() => {
           const o = orte.get(buchung.lagerortId);
           return o
-            ? standortZeile(o)
-            : standortZeile({
+            ? ortZeile(o)
+            : ortZeile({
               name: buchung.lagerortId, typ: "lager", kennung: null, einheitenart: null,
             });
         })(),

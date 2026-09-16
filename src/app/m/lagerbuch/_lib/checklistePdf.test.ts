@@ -261,7 +261,13 @@ describe("das Dokument", () => {
    *  nennen koennen — und sagen, ob es vollstaendig ist. */
   it("nennt in der Fusszeile Fahrzeug, Stand und die Seitenzahl", async () => {
     const text = flach(await checklistenPdf([RTW], OPTIONEN));
-    expect(text).toContain("RTW 1 · MS-1 · Stand 15.06.2026");
+    /*
+     * ⚠️ DER FUSS NENNT DIE ART (DRK-309, Reviewrunde 15). Ein Bogen wird
+     * geheftet und wieder auseinandergenommen; auf einer losen Seite ist der
+     * Fuss oft das Einzige, was sie benennt — und „RTW 1" allein ist von
+     * einer gleichnamigen Tasche nicht zu unterscheiden.
+     */
+    expect(text).toContain("RTW 1 · Fahrzeug · MS-1 · Stand 15.06.2026");
     expect(text).toContain("Seite 1 von 1");
   });
 
@@ -377,7 +383,9 @@ describe("mehrseitige Blaetter", () => {
     const zweite = seiten[1]!.join(" ");
     expect(zweite).toContain("ARTIKEL");
     expect(zweite).toContain("SOLL");
-    expect(zweite).toContain("RTW 1 · MS-1 — Fortsetzung");
+    // DRK-309: dieselbe Angabe wie im Fuss — auf Papier gibt es kein
+    // Zurueckblaettern zur Kopfzeile der ersten Seite.
+    expect(zweite).toContain("RTW 1 · Fahrzeug · MS-1 — Fortsetzung");
   });
 
   /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { Space, Tooltip } from "antd";
-import { verteilungOrtZeile, type Einheitenart } from "../_lib/konstanten";
+import { ortZeile, type Einheitenart } from "../_lib/konstanten";
 import { Chip } from "./Chip";
 
 /**
@@ -53,7 +53,7 @@ export function OrtVerteilung({
             zeichen={ort.zugangshinweis ? "info" : undefined}
             title={ort.zugangshinweis ?? undefined}
           >
-            {verteilungOrtZeile(ort)}: {ort.menge} {einheit}
+            {ortZeile(ort)}: {ort.menge} {einheit}
           </Chip>
         );
         return ort.zugangshinweis ? (

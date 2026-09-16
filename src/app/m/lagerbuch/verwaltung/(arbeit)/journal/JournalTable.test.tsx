@@ -256,6 +256,12 @@ describe("JournalTable", () => {
         quelleName: "System",
         kommentar: null,
         referenz: null,
+        // DRK-309: Diese Attrappe trug bis hierher gar keinen Ort — der
+        // lose `mockResolvedValue`-Typ liess das durch, und die Spalte blieb
+        // einfach leer. Mit der Standortzeile ist eine fehlende Angabe kein
+        // leeres Feld mehr, sondern ein Absturz.
+        ortName: "Handlager",
+        ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
       }],
     });
 
@@ -312,6 +318,12 @@ describe("JournalTable", () => {
         quelleName: "System",
         kommentar: null,
         referenz: null,
+        // DRK-309: Diese Attrappe trug bis hierher gar keinen Ort — der
+        // lose `mockResolvedValue`-Typ liess das durch, und die Spalte blieb
+        // einfach leer. Mit der Standortzeile ist eine fehlende Angabe kein
+        // leeres Feld mehr, sondern ein Absturz.
+        ortName: "Handlager",
+        ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
       }],
     });
 
@@ -493,6 +505,12 @@ describe("JournalTable", () => {
           quelleName: "System",
           kommentar: null,
           referenz: null,
+          // DRK-309: Diese Attrappe trug bis hierher gar keinen Ort — der
+          // lose `mockResolvedValue`-Typ liess das durch, und die Spalte blieb
+          // einfach leer. Mit der Standortzeile ist eine fehlende Angabe kein
+          // leeres Feld mehr, sondern ein Absturz.
+          ortName: "Handlager",
+          ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
         }],
       });
     });
@@ -529,6 +547,12 @@ describe("JournalTable", () => {
         quelleName: "System",
         kommentar: null,
         referenz: null,
+        // DRK-309: Diese Attrappe trug bis hierher gar keinen Ort — der
+        // lose `mockResolvedValue`-Typ liess das durch, und die Spalte blieb
+        // einfach leer. Mit der Standortzeile ist eine fehlende Angabe kein
+        // leeres Feld mehr, sondern ein Absturz.
+        ortName: "Handlager",
+        ortStandort: { name: "Handlager", typ: "lager" as const, kennung: null, einheitenart: null },
       }],
     });
 

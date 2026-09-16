@@ -7,7 +7,7 @@ import { Datentabelle } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
 import type { Vorgangsart } from "../../../_lib/vorgang";
-import { standortZeile } from "../../../_lib/konstanten";
+import { ortZeile } from "../../../_lib/konstanten";
 import type { JournalZeileDTO } from "../../../_lib/journalDTO";
 // ⚠️ Aus `journalFilterLogik`, NICHT aus `JournalFilter` — letzteres ist eine
 // Client-Komponente, die den Wert nur re-exportiert. Der Umweg ginge hier zwar
@@ -91,7 +91,7 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
     typ: zeile.typ,
     quelleName: zeile.quelleName,
     quelleId: zeile.quelleId,
-    ortName: standortZeile(zeile.ortStandort),
+    ortName: ortZeile(zeile.ortStandort),
   };
 }
 

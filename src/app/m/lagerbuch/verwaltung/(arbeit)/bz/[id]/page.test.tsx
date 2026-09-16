@@ -223,6 +223,11 @@ beforeEach(() => {
     name: "RTW 1",
     typ: "fahrzeug",
     kennung: "UE-RK 1234",
+    // ⚠️ EINE TASCHE, UND DAS IST DER FALL DES BEFUNDS (DRK-309,
+    // Reviewrunde 15): das BZ-Geraet liegt in einer Tasche, und die
+    // Detailseite sagte bis hierher nur „RTW 1" — waehrend die
+    // Uebersicht davor die Art laengst nennt.
+    einheitenart: "tasche" as const,
     aktiv: true,
   }).run();
   t.db.insert(bzGeraete).values({
@@ -276,7 +281,7 @@ describe("BZ-Geräteblatt als Server Component", () => {
       "06.09. 14:00",
       "06.08. 14:00",
       "30 Tage",
-      "AktivRTW 1",
+      "AktivRTW 1 · Tasche · UE-RK 1234",
     ]);
     expect(kacheln.map((element) => (element.props as { ton?: string }).ton))
       .toEqual(["ok", "ok", undefined, "ok"]);

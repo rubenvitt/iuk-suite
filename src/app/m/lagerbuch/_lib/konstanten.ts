@@ -270,32 +270,35 @@ export function standortZeile(ort: StandortAngabe): string {
 }
 
 /**
- * Dieselbe Angabe fuer einen INLINE-CHIP: „Schrank 1: 5 Stk" ·
- * „RTW 1 · Fahrzeug: 7 Stk".
+ * Der Ort EINER MENGE ODER BEWEGUNG: „Schrank 1: 5 Stk" ·
+ * „RTW 1 · Fahrzeug: 7 Stk" — und die Ortsspalte des Journals.
  *
  * ⚠️ HIER SCHWEIGT EIN LAGER, UND DAS IST EINE ABWEICHUNG MIT GRUND
  * (DRK-309, Reviewrunde 15) — `standortZeile` laesst es „Lager" sagen.
  * Der Unterschied ist die Bauform der Flaeche, nicht die Regel:
  *
- *  * In einer SPALTE „Standort" muss jede Zelle etwas tragen; eine leere
- *    Beizeile neben gefuellten laese sich als fehlende Angabe. Dort ist
- *    „Lager" die richtige Auskunft.
- *  * In einem CHIP steht der Ort mit seiner Menge in einem Fluss —
- *    „Schrank 1 · Lager: 5 Stk" haengt eine Auskunft an, die niemand
- *    braucht: dass ein Schrank ein Lager ist, sieht man am Namen. Die
- *    Zeile wird laenger, ohne dass sie mehr beantwortet.
+ *  * Der STANDORT EINES GEGENSTANDS ist eine Eigenschaft: „wo gehoert das
+ *    Geraet hin?". Die Spalte daneben fuehrt Lager UND Einheiten, jede Zelle
+ *    muss etwas tragen, und eine leere Beizeile neben gefuellten laese sich
+ *    als fehlende Angabe. Dort ist „Lager" die richtige Auskunft
+ *    (`standortZeile`: die drei Uebersichten und die drei Detailseiten).
+ *  * Der ORT EINER MENGE ODER BEWEGUNG beantwortet „wo liegt das / wo ist
+ *    das hingegangen?". Die Antwort „Schrank 1" ist dort VOLLSTAENDIG —
+ *    dass ein Schrank ein Lager ist, sieht man am Namen, und „· Lager"
+ *    haengt nur Laenge an (diese Funktion: Verteilungs-Chips, Helferschirm,
+ *    Journal, Bewegungen der Artikelschublade).
  *
  * ⚠️ UNTERSCHEIDBAR BLEIBT ES TROTZDEM, und das ist die Bedingung, unter
  * der die Abweichung ueberhaupt zulaessig ist: nur die LAGER-Zeile bleibt
  * nackt. Ein gleichnamiges Fahrzeug traegt „· Fahrzeug", eine gleichnamige
  * Tasche „· Tasche" — die drei koennen nie dieselbe Zeichenkette ergeben.
  *
- * ⚠️ UND ES IST EIN VERTRAG, NICHT NUR GESCHMACK: `e2e/lagerbuch-schraenke`
- * und `e2e/lagerbuch-umlagern` sichern die Chipform `Name: Menge Einheit`
- * seit DRK-297/338 zu. Ein „· Lager" darin ist eine Produktaenderung, die
- * dieses Ticket nicht beauftragt hat.
+ * ⚠️ UND ES IST EIN VERTRAG, NICHT NUR GESCHMACK: `e2e/lagerbuch-schraenke`,
+ * `e2e/lagerbuch-umlagern` und die Journalfaelle aus DRK-338 sichern die Form
+ * `Name: Menge Einheit` bzw. den blossen Ortsnamen zu. Ein „· Lager" darin
+ * ist eine Produktaenderung, die dieses Ticket nicht beauftragt hat.
  */
-export function verteilungOrtZeile(ort: StandortAngabe): string {
+export function ortZeile(ort: StandortAngabe): string {
   return ort.typ === "lager" ? ort.name : standortZeile(ort);
 }
 

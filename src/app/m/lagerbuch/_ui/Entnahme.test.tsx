@@ -233,8 +233,15 @@ describe("Entnahme — die Anzeige", () => {
       await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const orteZeileL2 = inZeile(zeilen[1], "[data-rolle='charge-orte']");
+      /*
+       * ⚠️ DIE BEIDEN ZEILEN ZEIGEN DIE REGEL IN EINEM BILD (DRK-309,
+       * Reviewrunde 15): der Schrank bleibt nackt, die EINHEIT nennt ihre
+       * Art. Wer hier „GF-Schrank · Lager" erwartet, hat `ortZeile` mit
+       * `standortZeile` verwechselt — der Ort einer MENGE beantwortet „wo
+       * liegt das?", und dafuer ist „GF-Schrank" vollstaendig.
+       */
       expect(orteZeileL2.textContent).toContain("GF-Schrank: 5 Stk");
-      expect(orteZeileL2.textContent).toContain("RTW 1: 7 Stk");
+      expect(orteZeileL2.textContent).toContain("RTW 1 · Fahrzeug: 7 Stk");
     });
 
     /**
@@ -283,7 +290,10 @@ describe("Entnahme — die Anzeige", () => {
       const mengenfeld = inZeile(zeile, "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("0");
       const orteZeile = inZeile(zeile, "[data-rolle='charge-orte']");
-      expect(orteZeile.textContent).toContain("RTW 1: 7 Stk");
+      // DRK-309: Die Einheit nennt ihre Art — genau der Fall, in dem jemand
+      // mit dem Telefon am Regal steht und das Material NICHT im Handlager
+      // findet.
+      expect(orteZeile.textContent).toContain("RTW 1 · Fahrzeug: 7 Stk");
     });
 
     it("nennt den Zugangshinweis VORN im Markup, nicht in einem Tooltip", async () => {
