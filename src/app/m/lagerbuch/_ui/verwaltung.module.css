@@ -109,3 +109,18 @@
   gap: inherit;
   align-items: start;
 }
+
+/*
+ * DRK-338 — die vier Felder der Umlagerung.
+ *
+ * ⚠️ `auto-fit`/`minmax` MISST DEN KASTEN, eine `@media`-Abfrage das FENSTER
+ * (CLAUDE.md, Falle 13). Diese Felder stehen in einer Schublade, deren Breite
+ * `flyinBreite(880)` deckelt — auf einem schmalen Schirm ist der Kasten
+ * laengst schmal, waehrend das Fenster noch breit aussieht.
+ */
+.umlagerfelder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 12px;
+  align-items: start;
+}
