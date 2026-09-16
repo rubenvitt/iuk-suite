@@ -54,6 +54,22 @@ const befehle = sidecar
   .filter((z) => !z.trim().startsWith("#"))
   .join("\n");
 
+/**
+ * Der Rumpf genau EINER Shell-Funktion. ⚠️ Ohne diese Eingrenzung spannen `[\s\S]*`-
+ * Zusicherungen ueber Funktionsgrenzen hinweg und werden dadurch WERTLOS: gemessen, als
+ * die Pruefung in `sperre_uebernehmen` durch `if true` ersetzt wurde — der Fall blieb
+ * gruen, weil dasselbe `if sperre_ist_verwaist` weiter unten in `sperre_holen` steht und
+ * das `rm -rf` noch weiter unten in `sperre_ablegen`. Der Regex fand beide und verband
+ * sie quer durch die Datei.
+ */
+function funktionsrumpf(quelle: string, name: string): string {
+  const start = quelle.indexOf(`${name}() {`);
+  expect(start, `Funktion ${name}() steht im Skript`).toBeGreaterThan(-1);
+  const ende = quelle.indexOf("\n}\n", start);
+  expect(ende, `Funktion ${name}() ist geschlossen`).toBeGreaterThan(start);
+  return quelle.slice(start, ende);
+}
+
 function tiefe(zeile: string): number {
   if (zeile.trim() === "") return -1;
   return zeile.length - zeile.trimStart().length;
@@ -194,6 +210,21 @@ describe("compose.yaml — der Dienst `backup` ist vom Rest des Stacks entkoppel
     expect(rumpf(deklariert, "backupnet", 2).join("\n")).not.toMatch(/internal:\s*true/);
   });
 
+  it("`stop_grace_period` laesst einen laufenden Lauf fertig werden", () => {
+    // ⚠️ GEMESSEN, NICHT VERMUTET: eine POSIX-Shell schiebt ihre Signalfallen auf, solange
+    // ein KIND im Vordergrund laeuft — dash und bash gleich, ein SIGTERM nach 2s feuerte
+    // erst nach 12s, als das Kind fertig war. Mit Dockers Vorgabe von 10s kommt der
+    // Container waehrend eines Laufs (Minuten) gar nicht dazu, sich zu beenden: es folgt
+    // SIGKILL, die Sperre bleibt stehen, und im Backup-Volume liegt ein abgeschnittenes
+    // Tarball, das wie ein fertiges aussieht.
+    //
+    // Gewartet wird BEWUSST, statt das Signal weiterzureichen: ein `tar` mitten im
+    // Schreiben abzubrechen erzeugt genau die halbe Datei, die man vermeiden will.
+    const frist = kopfzeile(backup, "stop_grace_period", 4) ?? "";
+    expect(frist, "der Dienst setzt `stop_grace_period`").not.toBe("");
+    expect(frist).toMatch(/\$\{SUITE_BACKUP_STOP_GRACE:-[^}]+\}/);
+  });
+
   it("Image und `start_period` sind Variablen MIT Vorbelegung (`:-`)", () => {
     // Ohne den Doppelpunkt setzt Compose eine nicht gesetzte Variable auf den LEEREN
     // String, und ein leerer `image:`-Wert laesst `docker compose config` scheitern —
@@ -300,6 +331,36 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(befehle).toMatch(/while ! sperre_holen/);
   });
 
+  it("die Uebernahme einer verwaisten Sperre SERIALISIERT SICH SELBST", () => {
+    // ⚠️ GEMESSEN, ALS SIE ES NICHT TAT: der naheliegende Weg ist, die Verwaistheit zu
+    // pruefen und dann wegzuraeumen und neu anzulegen. Zwei Wartende faellen dann
+    // dasselbe Urteil, BEVOR einer handelt — A raeumt weg und legt neu an, B raeumt A's
+    // FRISCHE Sperre weg und legt wieder neu an, und danach halten sich beide fuer den
+    // Eigentuemer. Mit acht gleichzeitigen Wartenden gegen eine 8h alte Sperre gemessen:
+    // DREI begannen ihren Lauf in derselben Sekunde, also genau die Gleichzeitigkeit,
+    // gegen die es die Sperre gibt.
+    //
+    // ⚠️ EIN BLOSSES `mv` STATT `rm -rf` REICHT NICHT, so atomar `rename()` auch ist: es
+    // verengt das Fenster, schliesst es aber nicht, weil das Urteil weiterhin VORHER
+    // faellt. Was traegt, ist die zweite, eigene Sperre — `mkdir` laesst genau einen in
+    // den Abschnitt, und dort drin wird noch einmal geprueft. Nach der Aenderung: 8 und
+    // 12 Wettlaeufer, nie mehr als einer gleichzeitig.
+    expect(befehle).toContain("UEBERNAHMEVERZEICHNIS=");
+    // Eingegrenzt auf DIESE Funktion — quer durch die Datei faende ein Regex die
+    // Bestandteile auch dann, wenn sie hier fehlen (siehe `funktionsrumpf`).
+    const rumpfU = funktionsrumpf(befehle, "sperre_uebernehmen");
+    expect(rumpfU).toMatch(/mkdir "\$UEBERNAHMEVERZEICHNIS" 2>\/dev\/null \|\| return 1/);
+    // ⚠️ DIE ZWEITE PRUEFUNG IST DER KERN, NICHT DIE ZWEITE SPERRE: ohne sie betraete zwar
+    // nur einer den Abschnitt, uebernaehme dort aber blind — und damit auch eine Sperre,
+    // die inzwischen ein anderer ganz regulaer angelegt hat.
+    const pruefung = rumpfU.indexOf("if sperre_ist_verwaist; then");
+    const raeumen = rumpfU.indexOf('rm -rf "$SPERRVERZEICHNIS"');
+    expect(pruefung, "im Abschnitt wird die Verwaistheit ERNEUT geprueft").toBeGreaterThan(-1);
+    expect(raeumen, "und erst danach geraeumt").toBeGreaterThan(pruefung);
+    // Der Abschnitt wird in JEDEM Ausgang wieder freigegeben.
+    expect(rumpfU).toMatch(/rm -rf "\$UEBERNAHMEVERZEICHNIS"\s*\n\s*return "\$ergebnis"/);
+  });
+
   it("eine verwaiste Sperre wird nach ihrem ALTER uebernommen, nicht nach einer PID", () => {
     // ⚠️ EINE PID NUETZT HIER NICHTS: die beiden Laeufe sitzen in verschiedenen Containern,
     // also in verschiedenen PID-Namensraeumen. Ohne die Uebernahme stuende das Backup nach
@@ -319,14 +380,49 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
 });
 
 describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () => {
-  it("die Rotation am Ziel filtert auf `*.tar.gz` und loescht EINZELN", () => {
-    // ⚠️ DIESER BLOCK LOESCHT AN EINEM FREMDEN ZIEL. Ein gemeinsam genutzter Eimer oder
-    // ein `BACKUP_RCLONE_ZIEL` mit einem Pfad zu wenig verloere sonst still fremde
-    // Daten. Geloescht wird nur, was aussieht wie unser Tarball.
-    expect(befehle).toContain("--include '*.tar.gz'");
+  it("die Rotation trifft NUR den Namen, den backup.sh erzeugt — nicht jedes `.tar.gz`", () => {
+    // ⚠️ `*.tar.gz` WAERE HIER FALSCH, UND DER FEHLFALL LOESCHT FREMDE DATEN. Zeigt
+    // `BACKUP_RCLONE_ZIEL` auf ein gemeinsam genutztes Verzeichnis — oder, viel
+    // wahrscheinlicher, versehentlich eine Ebene ZU HOCH —, dann traefe die Endung jedes
+    // fremde Archiv daneben, und die Rotation raeumte es mit weg. Die Endung allein sagt
+    // nichts darueber, wer eine Datei geschrieben hat.
+    //
+    // Das Muster ist der Name aus `scripts/backup.sh` (`date +%Y%m%dT%H%M%S`), also feste
+    // Breite ohne Trenner.
+    // Acht Ziffern, `T`, sechs Ziffern, `.tar.gz` — der Name aus `date +%Y%m%dT%H%M%S`.
+    // Die Gruppe MUSS geklammert sein: `\[0-9\]{8}` zaehlte sonst die schliessende
+    // Klammer acht Mal und traefe nie.
+    expect(befehle).toMatch(/TARBALL_MUSTER='(\[0-9\]){8}T(\[0-9\]){6}\.tar\.gz'/);
+    expect(befehle).not.toContain("--include '*.tar.gz'");
+    expect(befehle).toContain('--include "$TARBALL_MUSTER"');
     expect(befehle).toContain("deletefile");
     // `delete`/`purge` arbeiten auf dem VERZEICHNIS und kennen den Filter oben nicht.
     expect(befehle).not.toMatch(/rclone_ruf\s+(delete|purge)\b/);
+  });
+
+  it("gefiltert wird VOR dem Zaehlen — sonst verdraengen fremde Namen unsere Generationen", () => {
+    // ⚠️ DIE REIHENFOLGE IST DER GANZE PUNKT, NICHT DIE EXISTENZ DES RIEGELS. GEMESSEN,
+    // als der Riegel erst vor `deletefile` sass: liegt am Ziel etwas Fremdes
+    // (`wichtig.txt`, `site-dump.tar.gz`), sortiert es sich nach `sort -r` VOR unsere
+    // Zeitstempel, besetzt die „neuesten KEEP" Plaetze und schiebt damit JEDE echte
+    // Generation in die Loeschliste — auch die gerade hochgeladene. Ergebnis der Messung
+    // mit KEEP=2: die vier fremden Dateien ueberlebten alle, unsere waren restlos weg.
+    // Ein Riegel, der bloss fremde Dateien vor dem Loeschen schuetzt, reicht also nicht.
+    //
+    // Das `case` ist damit der TRAGENDE Riegel und `--include` nur die Abkuerzung. Das
+    // ist die richtige Verteilung: rclones Filtersyntax ist nicht die der Shell, und ob
+    // sie Zeichenklassen so auswertet, sieht in diesem Repo kein Tor — es gibt kein
+    // rclone im Laeufer. Das `case` dagegen ist POSIX und in dash, ash und bash gleich
+    // gemessen (gegen eine Attrappe, die den Filter ignoriert: 2 eigene Generationen
+    // behalten, alle 4 fremden Dateien unangetastet).
+    const i = befehle.indexOf('case "$name" in');
+    const j = befehle.indexOf('sort -r "$unsere"');
+    expect(i, "die Liste wird per `case` gefiltert").toBeGreaterThan(-1);
+    expect(j, "sortiert und gezaehlt wird die GEFILTERTE Liste").toBeGreaterThan(-1);
+    expect(i).toBeLessThan(j);
+    expect(befehle).toMatch(/case "\$name" in\s*\n\s*\$TARBALL_MUSTER\)/);
+    // Und es bleibt nicht still: ein fremder Name gehoert jemand anderem.
+    expect(befehle).toMatch(/sieht nicht wie eine Sicherung dieses Stacks aus/);
   });
 
   it("`aus` schaltet die Rotation am Ziel ab, statt sie auf 0 zu setzen", () => {
@@ -386,6 +482,7 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
       "BACKUP_FRIST_STUNDEN",
       "BACKUP_SPERRE_FRIST_MINUTEN",
       "BACKUP_SPERRE_ALTER_STUNDEN",
+      "SUITE_BACKUP_STOP_GRACE",
     ]) {
       expect(envBeispiel, `${name} steht in .env.example`).toContain(name);
     }

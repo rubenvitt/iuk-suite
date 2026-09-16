@@ -353,6 +353,23 @@ services:
     # `/bin/sh` ausgeschrieben, nicht `./…`: die Datei kommt per Bind-Mount vom Server,
     # ihr Ausfuehrbar-Bit ist damit dessen Sache und nicht unsere.
     command: ["/bin/sh", "/opt/backup/backup-sidecar.sh", "dienst"]
+    # ⚠️ OHNE DIESE ZEILE ZERSCHLAEGT EIN `docker compose stop` EINEN LAUFENDEN LAUF —
+    # GEMESSEN, nicht vermutet: eine POSIX-Shell schiebt ihre Signalfallen auf, solange
+    # ein KIND im Vordergrund laeuft (dash und bash gleich; ein SIGTERM nach 2s feuerte
+    # erst nach 12s, als das Kind fertig war). Waehrend `backup.sh` laeuft — Minuten —
+    # kommt der Container also gar nicht dazu, sich zu beenden; Docker wartet seine
+    # Vorgabe von 10s ab und schickt SIGKILL. Dann bleibt die Sperre stehen und im
+    # Zielverzeichnis liegt ein abgeschnittenes Tarball, das wie ein fertiges aussieht.
+    #
+    # Die Antwort ist WARTEN, nicht das Signal weiterreichen: ein `tar` mitten im
+    # Schreiben abzubrechen erzeugt genau die halbe Datei, die man vermeiden will. Ein
+    # Lauf, der zu 90% durch ist, soll fertig werden.
+    #
+    # Im Leerlauf — also fast den ganzen Tag — kostet das nichts: dort schlaeft die
+    # Schleife in 30-Sekunden-Scheiben und endet binnen einer davon. Die Spanne zaehlt
+    # nur, wenn wirklich gesichert wird. Wer trotzdem sofort abbrechen muss:
+    # `docker compose kill backup`.
+    stop_grace_period: ${SUITE_BACKUP_STOP_GRACE:-30m}
     healthcheck:
       # Liest die Zustandsdatei im Backup-Volume und faellt bei einem gescheiterten ODER
       # einem ueberfaelligen Lauf. Der zweite Fall ist der wichtigere: ein Dienst, der

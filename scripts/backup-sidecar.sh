@@ -74,6 +74,16 @@ BACKUP_RCLONE_KEEP="${BACKUP_RCLONE_KEEP:-30}"
 # eine zweite Datei, die neben `compose.yaml` auf dem Server vorhanden sein muss.
 BACKUP_RCLONE_CONF="${BACKUP_RCLONE_CONF:-}"
 
+# Wie ein Tarball DIESES Skripts heisst, als Glob. `scripts/backup.sh` baut den Namen aus
+# `stamp="$(date +%Y%m%dT%H%M%S)"`, also feste Breite ohne Trenner.
+#
+# ⚠️ `*.tar.gz` WAERE HIER FALSCH, UND DER FEHLFALL LOESCHT FREMDE DATEN. Die Rotation am
+# Ziel raeumt auf; zeigt `BACKUP_RCLONE_ZIEL` auf ein gemeinsam genutztes Verzeichnis —
+# oder, viel wahrscheinlicher, versehentlich eine Ebene ZU HOCH —, dann traefe `*.tar.gz`
+# jedes fremde Archiv daneben und die Rotation raeumte es mit weg. Die Endung allein sagt
+# nichts darueber, wer eine Datei geschrieben hat.
+TARBALL_MUSTER='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9].tar.gz'
+
 # Ueberwachung nach dem Muster von healthchecks.io / Uptime Kuma: Erfolg ruft die URL,
 # Fehlschlag ruft `$URL/fail`. LEER = keine Rueckmeldung nach aussen.
 #
@@ -94,6 +104,9 @@ BACKUP_SPERRE_ALTER_STUNDEN="${BACKUP_SPERRE_ALTER_STUNDEN:-6}"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
+# Zweite, kurzlebige Sperre — sie serialisiert allein die UEBERNAHME einer
+# verwaisten Hauptsperre. Warum es sie braucht, steht bei `sperre_uebernehmen`.
+UEBERNAHMEVERZEICHNIS="$BACKUP_DIR/.lauf.uebernahme"
 
 # Die Pakete, die der Vorlauf nachlaedt. `bash` fuer `backup.sh` (Arrays, `shopt`),
 # `sqlite` fuer `.backup`, `tar`+`rsync` fuer das Archiv und die Blobs, `rclone` fuer das
@@ -217,11 +230,8 @@ auslagern() {
     return 0
   fi
 
-  # ⚠️ DAS `--include` IST DER RIEGEL, NICHT DIE KOSMETIK. Dieser Block LOESCHT an einem
-  # fremden Ziel. Ein Ziel, das auch andere Dinge traegt (ein gemeinsamer Eimer, ein
-  # falsch gesetztes BACKUP_RCLONE_ZIEL mit einem Pfad zu wenig), verloere sie sonst
-  # still. Geloescht wird ausschliesslich, was AUSSIEHT WIE UNSER TARBALL — und
-  # `deletefile` je Name, nie `delete` oder `purge` auf das Verzeichnis.
+  # ⚠️ DIESER BLOCK LOESCHT AN EINEM FREMDEN ZIEL. Wie er sich davor schuetzt, steht am
+  # `case` weiter unten — dessen Reihenfolge ist tragend, nicht bloss seine Existenz.
   #
   # Die Sortierung ist lexikografisch und darf es sein: der Name ist `%Y%m%dT%H%M%S`
   # (`backup.sh`, `stamp`), also feste Breite ohne Trenner — dort ist lexikografisch
@@ -229,15 +239,49 @@ auslagern() {
   # `tail -n +KEEP+1` (alles ab der KEEP+1-ten), dieselbe Mechanik wie die lokale
   # Rotation in `backup.sh`.
   protokoll "Rotation am Ziel: die neuesten $BACKUP_RCLONE_KEEP Generationen behalten"
-  if ! vorhanden="$(rclone_ruf lsf "$BACKUP_RCLONE_ZIEL/" --include '*.tar.gz')"; then
+  if ! vorhanden="$(rclone_ruf lsf "$BACKUP_RCLONE_ZIEL/" --include "$TARBALL_MUSTER")"; then
     # KEIN `return 1`: das Tarball liegt am Ziel, dieser Lauf hat also geleistet, wozu er
     # da ist. Folgenlos ist es trotzdem nicht — ohne Rotation waechst das Ziel, bis es
     # voll ist, und dann scheitert der Lauf, der zaehlt.
     warne "Rotation am Ziel nicht moeglich (rclone lsf gescheitert) — das Ziel waechst."
     return 0
   fi
+  # ⚠️ ERST FILTERN, DANN ZAEHLEN — und diese Reihenfolge ist der ganze Punkt.
+  # GEMESSEN, als es umgekehrt war: liegt am Ziel etwas Fremdes (`wichtig.txt`,
+  # `site-dump.tar.gz`), sortiert es sich nach `sort -r` VOR unsere Zeitstempel, besetzt
+  # die „neuesten $KEEP" Plaetze und schiebt damit JEDE echte Generation in die
+  # Loeschliste — auch die gerade hochgeladene. Ergebnis der Messung: die fremden Dateien
+  # ueberlebten alle vier, unsere waren restlos weg. Ein Riegel, der bloss das Loeschen
+  # fremder Dateien verhindert, reicht also nicht — die Zahl muss sich von vornherein auf
+  # UNSERE Dateien beziehen.
+  #
+  # Damit ist dieses `case` der tragende Riegel und `--include` oben nur die Abkuerzung.
+  # Das ist die richtige Verteilung: rclones Filtersyntax ist nicht die der Shell, und ob
+  # sie Zeichenklassen genau so auswertet, sieht in diesem Repo kein Tor — es gibt kein
+  # rclone im Laeufer. Das `case` dagegen ist POSIX und in dash, ash und bash gleich
+  # gemessen.
+  unsere="$(mktemp)"
   printf '%s\n' "$vorhanden" \
-    | sort -r \
+    | while read -r name; do
+        [ -n "$name" ] || continue
+        case "$name" in
+          $TARBALL_MUSTER) printf '%s\n' "$name" ;;
+          *)
+            # Nicht still: der Name gehoert jemand anderem. Entweder teilt sich das Ziel
+            # mit etwas Fremdem, oder `BACKUP_RCLONE_ZIEL` zeigt eine Ebene zu hoch.
+            warne "  $name sieht nicht wie eine Sicherung dieses Stacks aus — bleibt liegen."
+            ;;
+        esac
+      done >"$unsere"
+
+  # `deletefile` je Name, nie `delete` oder `purge`: die arbeiten auf dem VERZEICHNIS und
+  # kennen den Filter ueberhaupt nicht.
+  #
+  # Die Sortierung ist lexikografisch und darf es sein: der Name ist `%Y%m%dT%H%M%S`, also
+  # feste Breite ohne Trenner — dort ist lexikografisch dasselbe wie chronologisch. `-r`
+  # (neueste zuerst) und danach `tail -n +KEEP+1` ist dieselbe Mechanik wie die lokale
+  # Rotation in `backup.sh`.
+  sort -r "$unsere" \
     | tail -n +$((BACKUP_RCLONE_KEEP + 1)) \
     | while read -r alt; do
         [ -n "$alt" ] || continue
@@ -245,6 +289,7 @@ auslagern() {
         rclone_ruf deletefile "$BACKUP_RCLONE_ZIEL/$alt" \
           || warne "  $alt liess sich nicht loeschen."
       done
+  rm -f "$unsere"
   return 0
 }
 
@@ -269,22 +314,66 @@ auslagern() {
 # nichts. Gegen die verwaiste Sperre (Container per SIGKILL beendet) hilft deshalb nur
 # ihr ALTER, und ohne diese Uebernahme stuende das Backup nach einem harten Abbruch
 # dauerhaft still.
+sperre_alter() {
+  seit="$(cat "$SPERRVERZEICHNIS/seit" 2>/dev/null || echo 0)"
+  case "$seit" in '' | *[!0-9]*) seit=0 ;; esac
+  echo $(( $(date +%s) - seit ))
+}
+
+sperre_ist_verwaist() {
+  [ "$(sperre_alter)" -gt $((BACKUP_SPERRE_ALTER_STUNDEN * 3600)) ]
+}
+
+# ⚠️ DIE UEBERNAHME MUSS SICH SELBST SERIALISIEREN, SONST HEBT SIE DIE SPERRE AUF — und
+# das ist GEMESSEN, nicht hergeleitet. Der naheliegende Weg ist, die Verwaistheit zu
+# pruefen und dann wegzuraeumen und neu anzulegen. Zwei Wartende treffen dann dasselbe
+# Urteil, BEVOR einer von ihnen handelt: A raeumt weg und legt neu an, B raeumt A's
+# FRISCHE Sperre weg und legt wieder neu an — und danach halten sich beide fuer den
+# Eigentuemer. Mit acht gleichzeitigen Wartenden gegen eine 8h alte Sperre gemessen:
+# DREI begannen ihren Lauf in derselben Sekunde. Ein blosses `mv` statt `rm -rf` verengt
+# dieses Fenster nur, es schliesst es nicht — auch da faellt das Urteil vorher.
+#
+# Was traegt, ist die zweite, EIGENE Sperre: `mkdir` ist atomar, also betritt genau einer
+# den Abschnitt, und DORT DRIN wird noch einmal geprueft. Wer nach A hereinkommt, sieht
+# A's frische Sperre und tritt zurueck.
+sperre_uebernehmen() {
+  # Der Abschnitt unten dauert Millisekunden. Ein Verzeichnis, das laenger als eine
+  # Minute steht, gehoert also keinem lebenden Prozess mehr — anders als bei der
+  # Hauptsperre, die ein Lauf voellig zu Recht viele Minuten haelt, ist diese
+  # Altersgrenze hier eindeutig.
+  if [ -d "$UEBERNAHMEVERZEICHNIS" ]; then
+    seit_u="$(cat "$UEBERNAHMEVERZEICHNIS/seit" 2>/dev/null || echo 0)"
+    case "$seit_u" in '' | *[!0-9]*) seit_u=0 ;; esac
+    [ $(( $(date +%s) - seit_u )) -gt 60 ] && rm -rf "$UEBERNAHMEVERZEICHNIS"
+  fi
+  mkdir "$UEBERNAHMEVERZEICHNIS" 2>/dev/null || return 1
+  date +%s >"$UEBERNAHMEVERZEICHNIS/seit" 2>/dev/null || true
+
+  # Ab hier exklusiv — und genau deshalb zaehlt erst diese Pruefung.
+  if sperre_ist_verwaist; then
+    rm -rf "$SPERRVERZEICHNIS"
+    if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
+      date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
+      ergebnis=0
+    else
+      ergebnis=1
+    fi
+  else
+    ergebnis=1
+  fi
+  rm -rf "$UEBERNAHMEVERZEICHNIS"
+  return "$ergebnis"
+}
+
 sperre_holen() {
   if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
     date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
     return 0
   fi
-  seit="$(cat "$SPERRVERZEICHNIS/seit" 2>/dev/null || echo 0)"
-  case "$seit" in ''|*[!0-9]*) seit=0 ;; esac
-  alter=$(( $(date +%s) - seit ))
-  if [ "$alter" -gt $((BACKUP_SPERRE_ALTER_STUNDEN * 3600)) ]; then
-    warne "Die Sperre ist $((alter / 3600))h alt — ein Lauf wurde offenbar hart beendet.
-  Sie wird uebernommen."
-    rm -rf "$SPERRVERZEICHNIS"
-    if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
-      date +%s >"$SPERRVERZEICHNIS/seit" 2>/dev/null || true
-      return 0
-    fi
+  if sperre_ist_verwaist; then
+    warne "Die Sperre ist $(( $(sperre_alter) / 3600 ))h alt — ein Lauf wurde offenbar hart
+  beendet. Es wird versucht, sie zu uebernehmen."
+    sperre_uebernehmen && return 0
   fi
   return 1
 }

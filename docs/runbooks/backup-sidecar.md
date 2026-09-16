@@ -110,9 +110,18 @@ Warten und nicht ueberspringen, und das ist Absicht: ein uebersprungener Lauf wa
 `deploy.sh` ein gruener Exit-Code **ohne Sicherung**, und es rollte ohne aus. Ein zweites
 Tarball kurz nach dem ersten kostet dagegen nur Platz.
 
-Wird ein Container mitten im Lauf hart beendet (SIGKILL), bleibt die Sperre stehen. Sie
-gilt nach `BACKUP_SPERRE_ALTER_STUNDEN` (Vorgabe 6) als verwaist und wird mit einer
-Warnung im Protokoll uebernommen; von Hand entfernt man sie so:
+Der Dienst lässt sich deshalb auch nicht mitten im Lauf abwürgen: `stop_grace_period`
+(Vorgabe 30 Minuten, `SUITE_BACKUP_STOP_GRACE`) lässt eine laufende Sicherung fertig
+werden, statt sie abzubrechen. ⚠️ **Dockers Vorgabe von 10 Sekunden reicht dafür nicht**
+— eine POSIX-Shell schiebt ihre Signalfallen auf, solange ein Kind im Vordergrund
+läuft, der Container käme also gar nicht dazu, sich zu beenden. Im Leerlauf, also fast
+den ganzen Tag, endet er weiterhin binnen 30 Sekunden. Wer sofort abbrechen muss:
+`docker compose kill backup`.
+
+Wird ein Container doch hart beendet (SIGKILL, Stromausfall), bleibt die Sperre stehen.
+Sie gilt nach `BACKUP_SPERRE_ALTER_STUNDEN` (Vorgabe 6) als verwaist und wird mit einer
+Warnung im Protokoll übernommen — die Übernahme serialisiert sich dabei selbst, damit
+nicht zwei Wartende gleichzeitig zugreifen. Von Hand entfernt man sie so:
 
 ```bash
 docker compose run --rm backup rm -rf /backups/.lauf.sperre
@@ -147,12 +156,20 @@ RCLONE_CONFIG_HETZNER_ACCESS_KEY_ID=…
 RCLONE_CONFIG_HETZNER_SECRET_ACCESS_KEY=…
 ```
 
-> ⚠️ **Den Pfad im Ziel zweimal lesen.** Der Sidecar **löscht** dort — er hält
-> `BACKUP_RCLONE_KEEP` Generationen. Er löscht ausschließlich, was wie unser Tarball
-> aussieht (`*.tar.gz`), und einzeln per Dateiname; ein gemeinsam genutzter Eimer verliert
-> dadurch nichts. Ein Ziel mit **einem Pfad zu wenig** (`hetzner:iuk-suite` statt
-> `hetzner:iuk-suite/backups`) wäre trotzdem ein schlechter Tag. Wer das nicht will:
-> `BACKUP_RCLONE_KEEP=aus`.
+> ⚠️ **Den Pfad im Ziel zweimal lesen — der Sidecar LÖSCHT dort.** Er hält
+> `BACKUP_RCLONE_KEEP` Generationen und räumt den Rest weg, einzeln per Dateiname (nie
+> `delete` oder `purge` auf das Verzeichnis).
+>
+> Angefasst wird ausschließlich, was **exakt so heißt, wie dieses Skript benennt**:
+> `JJJJMMTTThhmmss.tar.gz`. Ein `wichtig.txt`, ein `site-dump.tar.gz` oder die Sicherung
+> eines anderen Dienstes bleiben liegen, und der Lauf sagt es ins Protokoll. **Die Endung
+> allein reicht dafür nicht** — `*.tar.gz` träfe jedes fremde Archiv daneben.
+>
+> ⚠️ **Ein eigenes Verzeichnis ist trotzdem Pflicht, kein gemeinsamer Eimer.** Der Schutz
+> greift gegen fremde *Namen*, nicht gegen einen zweiten Dienst, der zufällig dasselbe
+> Namensschema benutzt. Und ein Ziel mit **einem Pfad zu wenig** (`hetzner:iuk-suite`
+> statt `hetzner:iuk-suite/backups`) ist auch mit dem Riegel ein schlechter Tag. Wer am
+> Ziel gar nichts gelöscht haben will: `BACKUP_RCLONE_KEEP=aus`.
 
 **Den Platzbedarf vorher ausrechnen, nicht hinterher feststellen.** Jede Generation
 enthält die **vollen** Blobs, es gibt keine Deduplizierung zwischen Läufen:
