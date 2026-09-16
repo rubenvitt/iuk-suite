@@ -282,6 +282,12 @@ export function artikelDetailHelfer(db: Leser, id: string, now: Date = new Date(
  * ⚠️ KEINE `verteilungJeCharge` (anders als `artikelDetailHelfer`). Sie
  * beantwortet „wo liegt das Material?", und das ist die Frage der Entnahme.
  * Wer auffuellt, hat es in der Hand.
+ *
+ * ⚠️ `aktiv` WIRD MITGEFUEHRT, UND ES FILTERT NICHT (DRK-380). Die Seite
+ * rendert einen deaktivierten Artikel weiter — genau wie `/a/<id>` und das
+ * Regaletikett, deren Spiegelung sie ist; ein `null` hier machte aus einem
+ * gescannten Regal-QR eine Sackgasse fuer Material, das physisch da ist.
+ * Gesperrt wird nur die BUCHUNG, und dafuer braucht die Insel das Feld.
  */
 export function artikelDetailAuffuellen(db: Leser, id: string, now: Date = new Date()) {
   const d = artikelDetail(db, id, now);
@@ -296,6 +302,6 @@ export function artikelDetailAuffuellen(db: Leser, id: string, now: Date = new D
   });
   return {
     id: d.artikel.id, name: d.artikel.name, einheit: d.artikel.einheit,
-    fach: d.artikel.fach, bestand: d.bestand, chargen: cs,
+    fach: d.artikel.fach, aktiv: d.artikel.aktiv, bestand: d.bestand, chargen: cs,
   };
 }

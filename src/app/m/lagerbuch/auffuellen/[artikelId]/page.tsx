@@ -31,6 +31,13 @@ import { LeerZustand } from "../../_ui/LeerZustand";
  * Die FEFO-Reihenfolge ist DIESELBE wie auf dem Entnahmeschirm: beide Listen
  * kommen aus `chargenMitRest`, nur eine davon wird danach gefiltert.
  *
+ * ⚠️ EIN DEAKTIVIERTER ARTIKEL WIRD WEITER GERENDERT, NICHT AUSGEFILTERT
+ * (DRK-380). Die Entscheidung ist dieselbe wie bei `a/[artikelId]` und beim
+ * Regaletikett: diese Seite haengt an einem gescannten QR-Code, und Material,
+ * das physisch im Regal liegt, darf nicht in einer Sackgasse landen. `aktiv`
+ * geht deshalb als Prop mit — die Insel sperrt die Buchung und sagt, warum;
+ * die Action prueft es noch einmal, und `zugangBuchen` wirft als letzte Bank.
+ *
  * ⚠️ DIE VERTEILUNG (`orte`, `restGesamt`) WIRD NICHT DURCHGEREICHT. Sie
  * beantwortet die Frage „wo liegt das Material?", und das ist die Frage der
  * ENTNAHME. Wer auffuellt, hat das Material in der Hand und entscheidet, wohin
@@ -60,6 +67,7 @@ export default async function AuffuellenArtikelSeite({
             name: detail.name,
             einheit: detail.einheit,
             fach: detail.fach,
+            aktiv: detail.aktiv,
             bestand: detail.bestand,
             chargen: detail.chargen.map((c) => ({
               id: c.id,
