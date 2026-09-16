@@ -2,7 +2,6 @@
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import {
@@ -15,6 +14,7 @@ import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { fefoAbbuchungAnOrt } from "../_lib/schreibpfade/abbuchung";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 import type { VerfallWert } from "../_lib/verfallStand";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 const AussondernLagerortSchema = z.object({
@@ -264,9 +264,13 @@ export async function aussondernVomLagerort(
 
       if (fachFehler !== null) return { ok: false, fehler: fachFehler };
 
-      revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.lagerortId}`);
-      revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
-      revalidatePath("/m/lagerbuch/verwaltung/verfall");
+      /*
+       * ⚠️ HIER STANDEN BIS DRK-374 DREI PFADE. Das Aussondern AM ORT schreibt
+       * eine Korrekturbuchung wie jede andere; sie senkt den Ortsbestand, sie
+       * steht im Journal, und sie kann den Handlager-Bestand unter den
+       * Mindestbestand druecken. Der Ortsschirm kommt ueber `lagerortId` dazu.
+       */
+      revalidiereBestand({ artikelId: v.artikelId, lagerortId: v.lagerortId });
       return { ok: true, wert: { verfall: geschriebenerVerfall } };
     },
   );

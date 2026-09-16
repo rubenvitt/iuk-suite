@@ -4,6 +4,7 @@ import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern, leerText } from "../_lib/actionTypen";
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
 /**
  * DIE DREI BUCHUNGSWEGE — Teil 5, T114 (vorgezogen vor Welle 7 von Teil 4).
@@ -166,27 +167,27 @@ beforeEach(() => {
 afterEach(() => { t.schliessen(); vi.clearAllMocks(); });
 
 /**
- * DIE PFADE, DIE EIN ZUGANG AUSRAEUMT — hier EINMAL, als Sollwert fuer BEIDE
- * Zugangswege (`bucheZugang` und `bucheAuffuellung`).
+ * DIE PFADE, DIE EINE BUCHUNG AUSRAEUMT — seit DRK-374 die MODULWEITE Liste.
  *
- * ⚠️ SIE STEHT HIER AUSGESCHRIEBEN UND WIRD NICHT AUS DER QUELLE GELESEN. Der
- * Sinn ist gerade, dass eine Aenderung an der Liste in der Action HIER auffaellt
- * — ein Test, der dieselbe Konstante importiert, waere zu jeder Aenderung gruen.
+ * ⚠️ HIER STAND DIE LISTE BIS DRK-374 AUSGESCHRIEBEN, mit der Begruendung „ein
+ * Test, der dieselbe Konstante importiert, waere zu jeder Aenderung gruen". Das
+ * Argument stimmt und traegt weiterhin — aber nur an EINER Stelle: der Sollwert
+ * steht jetzt woertlich in `_lib/revalidierung.test.ts`, zusammen mit der
+ * Liste. Haetten ihn alle sieben Schreibertests, waere „eine neue Flaeche"
+ * wieder eine Aenderung an acht Stellen, nur in `*.test.ts` statt in
+ * `_actions/`. Was HIER geprueft wird, ist die Frage, die nur dieser Test
+ * beantworten kann: nimmt dieser Schreiber die Liste, und welche ID gibt er mit?
  *
- * Drei Review-Befunde in Folge haben je einen fehlenden Pfad gemeldet
- * (`verwaltung/bestellung`, `verwaltung/verfall`, `auffuellen`), weil die
- * beiden Actions getrennte Listen fuehrten. Die Reihenfolge gehoert zur
- * Zusicherung: beide Wege raeumen WOERTLICH dasselbe aus.
+ * Vier Review-Befunde in Folge haben je eine fehlende Flaeche gemeldet
+ * (`verwaltung/bestellung`, `verwaltung/verfall`, `auffuellen`, dazu
+ * `verwaltung/journal` und `verwaltung/lagerorte`), weil jeder Schreiber seine
+ * eigene Liste fuehrte. Die Reihenfolge gehoert weiter zur Zusicherung: beide
+ * Zugangswege raeumen WOERTLICH dasselbe aus.
  */
 const ZUGANG_PFADE = (artikelId: string) => [
-  "/m/lagerbuch/verwaltung/verfall",
-  "/m/lagerbuch/verwaltung/artikel",
-  "/m/lagerbuch/verwaltung/bestellung",
-  "/m/lagerbuch/verwaltung",
-  `/m/lagerbuch/auffuellen/${artikelId}`,
-  "/m/lagerbuch/auffuellen",
+  ...BESTANDSFLAECHEN,
   `/m/lagerbuch/a/${artikelId}`,
-  "/m/lagerbuch/helfer",
+  `/m/lagerbuch/auffuellen/${artikelId}`,
 ];
 
 /** Alle Zeilen, die eine Action geschrieben hat — die Saatzeile bleibt draussen. */
@@ -361,7 +362,8 @@ describe("bucheEntnahme", () => {
       typ: "entnahme", menge: -3, chargeId: "ch-1", lagerortId: HANDLAGER_ID,
       quelleTyp: "oidc", quelleId: "u-admin", kommentar: "Einsatz",
     });
-    expect(revalidiert).toEqual(["/m/lagerbuch/verwaltung/artikel", "/m/lagerbuch/verwaltung"]);
+    // Ohne Ziel-Fahrzeug bleibt `lagerortId` leer — kein Ortsschirm.
+    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
   });
 
   it("mit Ziel-Fahrzeug wird daraus eine Umlagerung — mit BEIDEN Legs, netto null", async () => {
@@ -492,11 +494,7 @@ describe("bucheEntnahmeHelfer", () => {
       typ: "entnahme", menge: -2, lagerortId: HANDLAGER_ID,
       quelleTyp: "token", quelleId: "482-137",
     });
-    expect(revalidiert).toEqual([
-      "/m/lagerbuch/a/art-1",
-      "/m/lagerbuch/helfer",
-      "/m/lagerbuch/verwaltung",
-    ]);
+    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
   });
 
   it("ein GESPERRTER Code bucht NICHT und meldet den Grund", async () => {

@@ -16,6 +16,7 @@ import {
   dieseEinheit, grossAmAnfang,
 } from "../_lib/konstanten";
 import { korrekturAufLagerort } from "../_lib/schreibpfade/korrektur";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { umlagerungAusBereich } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
@@ -375,14 +376,23 @@ export async function checkAbschluss(
       }).run();
     });
 
-    // INNERER Pfad (/m/lagerbuch/…). Gegenrichtung zu allem, was der Client
-    // schreibt und was in ein `Location` geht — das sind AEUSSERE Pfade (§7.2.5).
+    /*
+     * ⚠️ DER CHECK IST EIN BESTANDSSCHREIBER (DRK-374): `korrekturAufLagerort`
+     * und `umlagerungAusBereich` schreiben Buchungszeilen wie jede Entnahme.
+     * Die Bestandsflaechen kommen deshalb aus der modulweiten Liste; das
+     * Fahrzeug traegt seine Kennung in der URL.
+     *
+     * DANEBEN bleibt, was NUR ein Check aendert: sein eigenes Blatt, die
+     * Checkliste und die Sauerstoffuebersicht (Flaschendruck steht in keiner
+     * Buchungszeile).
+     *
+     * INNERER Pfad (/m/lagerbuch/…). Gegenrichtung zu allem, was der Client
+     * schreibt und was in ein `Location` geht — das sind AEUSSERE Pfade (§7.2.5).
+     */
+    revalidiereBestand({ lagerortId: v.fahrzeugId });
     revalidatePath("/m/lagerbuch/helfer/check");
     revalidatePath("/m/lagerbuch/verwaltung/checks");
-    revalidatePath("/m/lagerbuch/verwaltung");
     revalidatePath("/m/lagerbuch/verwaltung/sauerstoff");
-    revalidatePath("/m/lagerbuch/verwaltung/verfall");
-    revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
 
     return {
       ok: true,

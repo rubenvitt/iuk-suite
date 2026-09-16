@@ -2,7 +2,6 @@
 import { withAuditContext } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
@@ -15,6 +14,7 @@ import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
@@ -439,16 +439,14 @@ export async function bucheInEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ VIER PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DIESES
-       * TICKETS. Der dritte ist das Einheitenblatt (dessen Bestandszahlen sich
-       * gerade geaendert haben), der vierte die Verwaltungsuebersicht. Der
-       * Helferschirm traegt die Einheit in der URL und wird deshalb mit ihr
-       * genannt — ein Pfad ohne sie traefe die Seite nicht.
+       * ⚠️ HIER STANDEN BIS DRK-374 VIER PFADE — die beiden Box-Flaechen, das
+       * Einheitenblatt und die Verwaltungsuebersicht. Die Abgabe an der Box ist
+       * eine Umlagerung und damit ein Bestandsschreiber wie jeder andere; sie
+       * nimmt deshalb die modulweite Liste. Das Einheitenblatt traegt seine
+       * Kennung in der URL und kommt ueber `lagerortId` dazu — ein Pfad ohne
+       * sie traefe die Seite nicht.
        */
-      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
-      revalidatePath("/m/lagerbuch/helfer/box");
-      revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
-      revalidatePath("/m/lagerbuch/verwaltung");
+      revalidiereBestand({ lagerortId: v.fahrzeugId });
       return { ok: true, wert: { gebucht } };
     },
   );

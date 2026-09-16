@@ -3,7 +3,6 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
@@ -15,6 +14,7 @@ import { zugangBuchen } from "../_lib/schreibpfade/zugang";
 import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
 import {
@@ -45,49 +45,21 @@ import { cookies } from "next/headers";
  */
 
 /**
- * DIE PFADE, DIE EIN ZUGANG AUSRAEUMT — EINMAL, FUER BEIDE ZUGANGSWEGE
- * (Codex-Befunde P2 zu PR #174, dritte Runde).
+ * DER ZUGANG RAEUMT DIE BESTANDSFLAECHEN AUS — UEBER DIE MODULWEITE LISTE.
  *
- * ⚠️ DREI RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE: zwei Listen fuer EINEN
- * Vorgang. `bucheZugang` (Artikel-Drawer) und `bucheAuffuellung`
- * (Auffuellansicht der GF) buchen denselben Wareneingang; jede Flaeche, die
- * danach veraltet ist, ist es fuer BEIDE. Nacheinander fehlten
- * `verwaltung/bestellung`, `verwaltung/verfall` und — als die neuen Routen
- * dazukamen — `auffuellen`. Die naechste Flaeche fehlte wieder, solange die
- * Listen getrennt sind. Deshalb steht sie hier EINMAL.
+ * ⚠️ HIER STAND BIS DRK-374 EINE EIGENE ACHT-PFAD-LISTE, und sie war der
+ * Endstand von DREI Review-Runden mit je einem nachgetragenen Pfad. Die vierte
+ * Runde meldete `verwaltung/journal` und `verwaltung/lagerorte` — Flaechen, die
+ * dieselbe Buchung zeigen und die KEIN Schreiber im Modul revalidierte. Eine
+ * Liste, die nur die Zugangswege kennt, kann das nicht heilen; sie steht
+ * deshalb jetzt in `_lib/revalidierung.ts` und gilt fuer JEDEN Bestandsschreiber.
  *
- * Was sie nennt, und warum jeweils:
- *
- *  * `verwaltung/verfall` — `verfallListe` ueberspringt jede Charge mit
- *    `rest <= 0` und liest den Rest ueber den Handlager-Bereich
- *    (`_lib/lesepfade/verfall.ts`). Ein Zugang aendert genau das: eine
- *    aufgebrauchte, ablaufende Charge taucht wieder auf, eine NEU angelegte
- *    mit nahem Verfall ist eine ganz neue Zeile.
- *  * `verwaltung/bestellung` — ein Zugang nullt `bestelltAt`. Eine
- *    zwischengespeicherte Liste fuehrte den gelieferten Artikel sonst weiter
- *    als „bestellt", und solange sie das tut, schlaegt sie ihn nie wieder vor.
- *    `markiereBestellt` raeumt denselben Pfad aus demselben Grund; zwei
- *    Schreiber DERSELBEN Spalte duerfen sich darin nicht unterscheiden.
- *  * `verwaltung/artikel` und `verwaltung` — Bestand und Kennzahlen.
- *  * `auffuellen` und `auffuellen/<id>` — Liste und Chargenwahl der GF-Flaeche.
- *  * `a/<id>` und `helfer` — Bestand und Chargenliste am Regal.
- *
- * ⚠️ INNERE PFADE (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
- * dem die Route im Dateibaum liegt. Ein aeusserer Pfad trifft nichts — und
- * wirft dabei NICHT.
- *
- * ⚠️ NICHT EXPORTIERT, und das ist kein Versehen: diese Datei traegt
- * `"use server"`, dort ist JEDER Export eine Action (`guards.test.ts`).
+ * `bucheZugang` (Artikel-Drawer) und `bucheAuffuellung` (Auffuellansicht der GF)
+ * buchen denselben Wareneingang; jede Flaeche, die danach veraltet ist, ist es
+ * fuer BEIDE. Sie rufen deshalb dieselbe Funktion mit derselben Artikel-ID.
  */
 function revalidiereZugang(artikelId: string): void {
-  revalidatePath("/m/lagerbuch/verwaltung/verfall");
-  revalidatePath("/m/lagerbuch/verwaltung/artikel");
-  revalidatePath("/m/lagerbuch/verwaltung/bestellung");
-  revalidatePath("/m/lagerbuch/verwaltung");
-  revalidatePath(`/m/lagerbuch/auffuellen/${artikelId}`);
-  revalidatePath("/m/lagerbuch/auffuellen");
-  revalidatePath(`/m/lagerbuch/a/${artikelId}`);
-  revalidatePath("/m/lagerbuch/helfer");
+  revalidiereBestand({ artikelId });
 }
 
 const ZugangSchema = z
@@ -271,8 +243,15 @@ export async function bucheEntnahme(
       };
     }
 
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    /*
+     * ⚠️ HIER STANDEN BIS DRK-374 ZWEI PFADE. Eine Entnahme aendert dieselben
+     * Flaechen wie ein Zugang, nur in die andere Richtung: eine leergelaufene
+     * Charge faellt aus der Verfallsliste, der Handlager-Bestand kann unter den
+     * Mindestbestand rutschen und die Bestellliste betreten, und die
+     * Buchungszeile steht im Journal. `zielFahrzeug` traegt den Ortsschirm mit,
+     * wenn die Ware auf ein Fahrzeug ging.
+     */
+    revalidiereBestand({ artikelId: v.artikelId, lagerortId: zielFahrzeug });
     return { ok: true, wert: { gebucht } };
   });
 }
@@ -430,8 +409,7 @@ export async function bucheUmlagerung(
       };
     }
 
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    revalidiereBestand({ artikelId: v.artikelId });
     return { ok: true, wert: { umgelagert } };
   });
 }
@@ -590,9 +568,10 @@ export async function bucheEntnahmeHelfer(
       return { ok: false, grund: "leer", text: leerText(name) };
     }
 
-    revalidatePath(`/m/lagerbuch/a/${v.artikelId}`);
-    revalidatePath("/m/lagerbuch/helfer");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    revalidiereBestand({
+      artikelId: v.artikelId,
+      lagerortId: ziel.art === "fahrzeug" ? ziel.lagerortId : null,
+    });
     return { ok: true, wert: { gebucht } };
   });
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
 const { adminRiegel, revalidiert } = vi.hoisted(() => ({
   adminRiegel: vi.fn<() => Promise<unknown>>(),
@@ -178,10 +179,17 @@ describe("aussondern", () => {
      * ihre Aussage.
      */
     expect(geschrieben[0]?.referenz).toBe(`aussondern:${HANDLAGER_ID}`);
+    /*
+     * ⚠️ BIS DRK-374 STANDEN HIER DREI PFADE — ohne `verwaltung/journal`,
+     * obwohl das Aussondern genau dort eine Zeile hinterlaesst. Seither die
+     * modulweite Liste; der Sollwert steht woertlich in
+     * `_lib/revalidierung.test.ts`. Hier zaehlt, WELCHE IDs mitgehen: die
+     * Charge liegt im Handlager, also kein Ortsschirm, aber der Artikel.
+     */
     expect(revalidiert).toEqual([
-      "/m/lagerbuch/verwaltung/verfall",
-      "/m/lagerbuch/verwaltung/artikel",
-      "/m/lagerbuch/verwaltung",
+      ...BESTANDSFLAECHEN,
+      "/m/lagerbuch/a/art-charge",
+      "/m/lagerbuch/auffuellen/art-charge",
     ]);
   });
 
