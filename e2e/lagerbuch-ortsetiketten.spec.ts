@@ -6,11 +6,13 @@ import {
   E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG,
   LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
 } from "./helpers/lagerbuch";
-import { A7_BREITE_MM, A7_HOEHE_MM, nameStufe } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
+import {
+  A4_BREITE_MM, A4_HOEHE_MM, ORT_JE_BLATT, nameStufe,
+} from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
 import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 
 /**
- * DIE A7-ORTSETIKETTEN — DRK-312.
+ * DIE ORTSKARTEN — DRK-312, acht Karten je A4-Blatt seit DRK-388.
  *
  * ⚠️ DREI AUSSAGEN DIESER DATEI KANN SONST NICHTS IM REPO PRUEFEN, und alle
  * drei sind genau die Akzeptanzkriterien des Tickets:
@@ -18,7 +20,10 @@ import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
  *   1. DAS FORMAT. `@page`-Groessen sind fuer `pnpm build` unsichtbar, und
  *      jsdom hat gar keine Seitenaufteilung — die Zahl kennt nur ein echter
  *      Browser. Sie kommt hier aus der MediaBox eines wirklich erzeugten PDF.
- *   2. „EIN ETIKETT JE BLATT". Dieselbe Messung zaehlt die Seiten.
+ *   2. „ACHT KARTEN JE BLATT". Dieselbe Messung zaehlt die Seiten — und das
+ *      ist die einzige Stelle im Repo, die den Unterschied zwischen einem
+ *      Raster, das aufgeht, und einem, das eine Zeile auf die naechste Seite
+ *      schiebt, ueberhaupt sehen kann.
  *   3. „EIN TESTDRUCK LAESST SICH SCANNEN UND FUEHRT ZUM RICHTIGEN KONTEXT."
  *      Eine Zusicherung auf ein vorhandenes `<svg>` bliebe gruen, wenn der Code
  *      den falschen Inhalt truege. Hier wird der QR aus den PIXELN
@@ -95,7 +100,7 @@ function misstNamen(faelle: { name: string; klasse: string }[]) {
   });
 }
 
-test.describe("Ortsetiketten (A7)", () => {
+test.describe("Ortsetiketten (Bogen)", () => {
   test.beforeEach(async ({ page }) => {
     await devLogin(page, {
       host: LAGERBUCH_HOST,
@@ -341,9 +346,16 @@ test.describe("Ortsetiketten (A7)", () => {
     await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
     await page.emulateMedia({ media: "print" });
 
-    const [b] = await page.evaluate(misstNamen, [
-      { name: "Sehr langer Name ".repeat(12), klasse: nameStufe("Sehr langer Name ".repeat(12)) },
-    ]);
+    /*
+     * ⚠️ DIE WIEDERHOLUNGSZAHL IST MIT DEM FORMAT GEWACHSEN (12 → 40), und das
+     * ist kein Zurechtbiegen des Tests, sondern seine Vorbedingung: das
+     * Namensfeld der Querkarte ist 181px hoch statt 89px und traegt bei 9pt
+     * zwoelf Zeilen statt sechs. 204 Zeichen passen darin gemessen VOLLSTAENDIG
+     * — der Test maesse dann nichts mehr und bliebe trotzdem gruen, wenn die
+     * erste Zusicherung darunter nicht genau das abfinge.
+     */
+    const name = "Sehr langer Name ".repeat(40);
+    const [b] = await page.evaluate(misstNamen, [{ name, klasse: nameStufe(name) }]);
 
     expect(b!.gekappt, "so ein Name MUSS gekuerzt werden — sonst misst der Test nichts").toBe(true);
     expect(b!.sichtbarGekuerzt, "gekuerzt, aber ohne sichtbares Zeichen dafuer").toBe(true);
@@ -510,53 +522,163 @@ test.describe("Ortsetiketten (A7)", () => {
    * ergibt. Bliebe das Chrome im Druck stehen, kaeme ALLES im Vorgabeformat
    * heraus — dieser Test wuerde dann rot, und zwar an jeder Seite.
    */
-  test("druckt A7, ein Etikett je Blatt", async ({ page }) => {
+  test("druckt A4 mit acht Karten je Blatt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
     const karten = await page.locator(".lb-ortkarte").count();
     expect(karten, "ohne Karten bewiese die Seitenzahl nichts").toBeGreaterThan(1);
 
     const seiten = await seitenInMm(page);
-    expect(seiten, "ein Blatt je Etikett").toHaveLength(karten);
+    expect(seiten, "der Seed passt auf ein Blatt")
+      .toHaveLength(Math.ceil(karten / ORT_JE_BLATT));
     for (const s of seiten) {
-      expect(s.breite).toBe(A7_BREITE_MM);
-      expect(s.hoehe).toBe(A7_HOEHE_MM);
+      expect(s.breite).toBe(A4_BREITE_MM);
+      expect(s.hoehe).toBe(A4_HOEHE_MM);
+    }
+
+    /*
+     * ⚠️ DIE ZEILE DARUEBER IST DIE HAELFTE DES TESTS, UND ALLEIN WAERE SIE
+     * WERTLOS (Codex-Befund P2 zu diesem PR). Der Seed liefert vier Karten — den
+     * Handlager und drei aktive Einheiten. `Math.ceil(4 / 8)` ist 1, und EINE
+     * Seite kommt bei vier Karten auch dann heraus, wenn je Blatt nur vier
+     * stehen. Die Zusage „acht je Blatt" beruehrt der Seed also gar nicht.
+     *
+     * Gemessen wird sie deshalb an der GRENZE, und zwar an der PAGINIERUNG
+     * selbst: acht Karten muessen EIN Blatt ergeben, neun ZWEI. Die
+     * Rasterprobe daneben kann das nicht leisten — sie liest Kaesten im
+     * Browser, und ob die neunte Karte auf die zweite Seite faellt, entscheidet
+     * erst Chromiums Seitenaufteilung beim Erzeugen des PDF.
+     *
+     * ⚠️ AUFGEFUELLT WIRD MIT KOPIEN DER ERSTEN KARTE. Sie traegt denselben QR
+     * und denselben Namen — fuer die Frage „wie viele Kaesten passen auf ein
+     * Blatt?" ist das gleichgueltig, und eine Fixture im Seed waere teuer: eine
+     * AKTIVE Einheit steht auch auf dem Checklisten- und auf dem
+     * Etikettenbogen, und `e2e/seed-lagerbuch.ts` schreibt ausdruecklich aus,
+     * dass deshalb zwei fremde Specs ploetzlich anders zaehlten.
+     */
+    const aufKarten = (n: number) => page.evaluate((ziel) => {
+      const bogen = document.querySelector(".lb-ortbogen")!;
+      const vorlage = bogen.querySelector(".lb-ortkarte")!;
+      let da = bogen.querySelectorAll(".lb-ortkarte").length;
+      while (da > ziel) { bogen.querySelector(".lb-ortkarte")!.remove(); da--; }
+      while (da < ziel) { bogen.appendChild(vorlage.cloneNode(true)); da++; }
+      return bogen.querySelectorAll(".lb-ortkarte").length;
+    }, n);
+
+    for (const [anzahl, blaetter] of [[8, 1], [9, 2], [16, 2], [17, 3]] as const) {
+      expect(await aufKarten(anzahl), "auffuellen").toBe(anzahl);
+      const gemessen = await seitenInMm(page);
+      expect(gemessen, `${anzahl} Karten ergeben ${blaetter} Blatt`).toHaveLength(blaetter);
+      for (const s of gemessen) {
+        expect(s.breite).toBe(A4_BREITE_MM);
+        expect(s.hoehe).toBe(A4_HOEHE_MM);
+      }
     }
   });
 
   /**
-   * ⚠️ EINE ABGEWAEHLTE KARTE DARF KEIN LEERES BLATT HINTERLASSEN. Sie ist
-   * `display: none`, bleibt aber DOM-Geschwister — und der Umbruchselektor
-   * `.lb-ortkarte + .lb-ortkarte` trifft die FOLGENDE trotzdem. Ob daraus eine
-   * leere Seite wird, entscheidet allein der Browser; kein Scan sieht es.
+   * ⚠️ DIE GEGENPROBE ZUR SEITENZAHL, UND OHNE SIE BEWIESE SIE WENIG: bei einem
+   * Seed mit weniger als acht Karten kommt EINE Seite heraus, egal wie das
+   * Raster steht — auch bei einer einzigen Spalte. Dieser Fall fuellt den Bogen
+   * kuenstlich auf und misst, wo die Karten wirklich liegen: acht Kaesten, zwei
+   * verschiedene linke Kanten, vier verschiedene obere. Ein einspaltiger Bogen
+   * (`auto-fill` gegen einen zu grossen Rand) faellt hier auf, und zwar bevor
+   * jemand acht halbleere Blaetter aus dem Drucker holt.
    */
-  test("laesst eine abgewaehlte Karte kein leeres Blatt zuruecklassen", async ({ page }) => {
+  test("legt die Karten in zwei Spalten zu vier Zeilen", async ({ page }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+    await page.emulateMedia({ media: "print" });
+
+    const raster = await page.evaluate((jeBlatt) => {
+      const bogen = document.querySelector(".lb-ortbogen") as HTMLElement;
+      const vorlage = bogen.querySelector(".lb-ortkarte") as HTMLElement;
+      // Der Bogen bekommt genau die Breite, die er auf dem Papier hat
+      // (A4 minus zweimal Seitenrand) — am Bildschirm ist er breiter, und
+      // `auto-fill` legte dort mehr Spalten nebeneinander.
+      bogen.style.width = "202mm";
+      while (bogen.querySelectorAll(".lb-ortkarte").length < jeBlatt) {
+        bogen.appendChild(vorlage.cloneNode(true));
+      }
+      const kaesten = [...bogen.querySelectorAll(".lb-ortkarte")]
+        .slice(0, jeBlatt)
+        .map((k) => k.getBoundingClientRect());
+      const rund = (n: number) => Math.round(n);
+      return {
+        spalten: new Set(kaesten.map((r) => rund(r.left))).size,
+        zeilen: new Set(kaesten.map((r) => rund(r.top))).size,
+        hoeheGesamt: rund(kaesten[kaesten.length - 1]!.bottom - kaesten[0]!.top),
+      };
+    }, ORT_JE_BLATT);
+
+    expect(raster.spalten, "zwei Spalten").toBe(2);
+    expect(raster.zeilen, "vier Zeilen").toBe(4);
+    // 289mm bedruckbare Hoehe bei 4mm Rand — in Pixeln: 289 / 25.4 * 96.
+    expect(raster.hoeheGesamt).toBeLessThanOrEqual(Math.round((289 / 25.4) * 96));
+  });
+
+  /**
+   * ⚠️ EINE ABGEWAEHLTE KARTE DARF KEINE LUECKE IM RASTER HINTERLASSEN. Sie ist
+   * `display: none`, bleibt aber DOM-Geschwister; ob das Raster darueber
+   * zusammenrueckt oder ein Platz leer stehen bleibt, entscheidet allein der
+   * Browser, und kein Scan sieht es. Gemessen wird beides auf einmal: die
+   * verbliebenen Karten fuellen den Bogen weiterhin von oben links, und die
+   * Seitenzahl richtet sich nach den GEDRUCKTEN Karten, nicht nach allen.
+   */
+  test("laesst eine abgewaehlte Karte keine Luecke im Raster", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
     const karten = await page.locator(".lb-ortkarte").count();
     expect(karten).toBeGreaterThan(1);
 
-    // Die ERSTE abwaehlen: das ist der Fall, in dem ein vorangestellter
-    // Zwangsumbruch ein leeres Deckblatt erzeugen wuerde.
+    // Die ERSTE abwaehlen: nur so zeigt sich, ob die zweite Karte wirklich
+    // nach vorn rueckt statt auf ihrem Platz zu bleiben.
     await page.locator(".lb-ortkarteWahl").nth(0).uncheck();
+    await page.emulateMedia({ media: "print" });
+
+    const ersteLinks = await page.evaluate(() => {
+      const bogen = document.querySelector(".lb-ortbogen")!.getBoundingClientRect();
+      const sichtbar = [...document.querySelectorAll(".lb-ortkarte")]
+        .filter((k) => (k as HTMLElement).offsetParent !== null
+          || k.getBoundingClientRect().height > 0);
+      const r = sichtbar[0]!.getBoundingClientRect();
+      return { dx: Math.round(r.left - bogen.left), dy: Math.round(r.top - bogen.top) };
+    });
+    expect(ersteLinks, "die erste gedruckte Karte sitzt oben links").toEqual({ dx: 0, dy: 0 });
 
     const seiten = await seitenInMm(page);
-    expect(seiten).toHaveLength(karten - 1);
-    for (const s of seiten) expect(s.breite).toBe(A7_BREITE_MM);
+    expect(seiten).toHaveLength(Math.ceil((karten - 1) / ORT_JE_BLATT));
+    for (const s of seiten) expect(s.breite).toBe(A4_BREITE_MM);
   });
 
   /**
-   * ⚠️ DER ETIKETTENBOGEN NEBENAN BLEIBT A4. Die benannte `@page a7` steht im
-   * SELBEN Stylesheet; waere sie unbenannt — oder truege der A4-Bogen sie
-   * versehentlich —, kaemen die gekauften Klebeetiketten ab dann auf 74 x 105 mm
-   * heraus, und zwar still. Diese Gegenprobe ist die einzige Stelle, an der das
-   * auffiele.
+   * ⚠️ DER ETIKETTENBOGEN NEBENAN BEHAELT SEINEN EIGENEN RAND. Die benannte
+   * `@page ortbogen` steht im SELBEN Stylesheet und setzt 4mm; die unbenannte
+   * Regel setzt 8mm. Waere die benannte unbenannt — oder truege der
+   * Etikettenbogen sie versehentlich —, ruecken die gekauften Klebeetiketten um
+   * 4mm, und zwar still: die Stanzung liegt dann neben dem Aufdruck. Diese
+   * Gegenprobe ist die einzige Stelle, an der das auffiele.
    */
-  test("laesst den A4-Etikettenbogen unberuehrt", async ({ page }) => {
+  test("laesst den Etikettenbogen unberuehrt", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/etiketten"));
+    const oben = await page.evaluate(() => {
+      const e = document.querySelector(".lb-etikett");
+      return e ? Math.round(e.getBoundingClientRect().top) : null;
+    });
+    expect(oben, "ohne Etikett bewiese der Test nichts").not.toBeNull();
+
+    /*
+     * ⚠️ ER TRAEGT GAR KEINE CSS-SEITENGROESSE, UND DAS IST DER STAND, DEN
+     * DIESER TEST HAELT — nicht „er ist A4". Die unbenannte `@page`-Regel setzt
+     * nur einen Rand; ohne `size` nimmt Chromium das Vorgabeformat des
+     * Druckers, hier Letter. Genau daran ist zu erkennen, dass die benannte
+     * Regel der Karten ihn NICHT erreicht: truege er sie, kaemen 210 x 297 mm
+     * heraus.
+     */
     const seiten = await seitenInMm(page);
     expect(seiten.length).toBeGreaterThan(0);
     for (const s of seiten) {
-      expect(s.breite).not.toBe(A7_BREITE_MM);
-      expect(s.hoehe).not.toBe(A7_HOEHE_MM);
+      expect(
+        s.breite === A4_BREITE_MM && s.hoehe === A4_HOEHE_MM,
+        `der Etikettenbogen traegt die Seite der Ortskarten (${s.breite} x ${s.hoehe} mm)`,
+      ).toBe(false);
     }
   });
 });

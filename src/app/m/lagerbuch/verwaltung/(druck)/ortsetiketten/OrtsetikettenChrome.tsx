@@ -1,7 +1,7 @@
 "use client";
 
 /*
- * DAS BILDSCHIRM-CHROME DER A7-ORTSETIKETTEN (DRK-312).
+ * DAS BILDSCHIRM-CHROME DER ORTSKARTEN (DRK-312, Bogenformat seit DRK-388).
  *
  * Dieselbe Bauform und dieselben Gruende wie `etiketten/EtikettenChrome.tsx`:
  * das `(druck)`-Layout laesst die Suite-Shell weg (FullShell druckte Kopfzeile
@@ -12,9 +12,10 @@
  * Kosmetik wie am A4-Bogen, sondern TRAGEND: Chromium verwirft die
  * CSS-Seitengroesse vollstaendig, sobald ein Dokument gemischte Seitengroessen
  * ergibt. Bliebe das Chrome im Druck stehen, stuende es auf einer
- * VORGABE-grossen Seite neben den A7-Karten — und alle Karten kaemen ebenfalls
- * im Vorgabeformat heraus. Gemessen ist beides: mit `display: none` kommen alle
- * Seiten mit 74,1 x 105,2 mm, gemischt kommt Letter.
+ * VORGABE-grossen Seite neben den Kartenbogen — und die kaemen ebenfalls im
+ * Vorgabeformat heraus, mit einem Raster, das dann auf nichts mehr passt.
+ * Gemessen ist beides: mit `display: none` kommen alle Seiten mit 210 x 297 mm,
+ * gemischt kommt Letter.
  *
  * WARUM EINE CLIENT-INSEL: `page.tsx` ist eine Server Component und traegt
  * bewusst KEIN antd und KEIN Zeichen (Fallen 1 und 7). Der Druckknopf braucht
@@ -24,7 +25,9 @@ import { Button, Flex } from "antd";
 import Link from "next/link";
 import { SPACE } from "@/core/theme/tokens";
 import { Ikone } from "../../../_ui/ikonen";
-import { A7_BREITE_MM, A7_HOEHE_MM } from "../../../_lib/ortEtikettMasse";
+import {
+  ORT_JE_BLATT, ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM,
+} from "../../../_lib/ortEtikettMasse";
 
 export function OrtsetikettenChrome({ basis }: { basis: string }) {
   return (
@@ -52,16 +55,16 @@ export function OrtsetikettenChrome({ basis }: { basis: string }) {
           <p data-testid="lb-ort-basis" style={{ margin: 0 }}>
             Alle QR-Codes zeigen auf {basis}
           </p>
-          {/*
+{/*
             DIE FORMATANSAGE STEHT AM BILDSCHIRM, nicht nur im Stylesheet. Der
-            Druckdialog uebernimmt die Groesse aus dem Dokument; wer sie im
-            Dialog trotzdem auf A4 stellt, bekommt eine A7-Karte in der Ecke
-            eines A4-Blattes — und sieht erst am Papier, dass er selbst der
-            Grund war.
+            Druckdialog uebernimmt Groesse UND Rand aus dem Dokument; wer den
+            Rand im Dialog groesser stellt, bekommt vier Karten je Blatt statt
+            acht — und sieht erst am Papier, dass er selbst der Grund war.
           */}
           <p data-testid="lb-ort-format" style={{ margin: 0 }}>
-            Ein Etikett je Blatt, Format A7 ({A7_BREITE_MM} × {A7_HOEHE_MM} mm).
-            Im Druckdialog die Seitengröße aus dem Dokument übernehmen.
+            {ORT_JE_BLATT} Karten je A4-Blatt, je {ORT_KARTE_BREITE_MM} ×{" "}
+            {ORT_KARTE_HOEHE_MM} mm zum Ausschneiden. Im Druckdialog Seitengröße
+            und Ränder aus dem Dokument übernehmen.
           </p>
         </div>
         <Button type="primary" onClick={() => window.print()} icon={<Ikone name="drucken" groesse={16} />}>

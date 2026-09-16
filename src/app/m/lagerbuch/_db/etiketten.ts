@@ -44,7 +44,7 @@ export type EtikettenDaten = {
 
 /**
  * DIE EINE HERLEITUNG DER DRUCKBASIS — sie steht als Funktion da, weil seit
- * DRK-312 ZWEI Etikettenflaechen sie brauchen (der Bogen und die A7-Karten).
+ * DRK-312 ZWEI Etikettenflaechen sie brauchen (der Artikelbogen und die Ortskarten).
  * Zwei Abschriften waeren zwei Orte fuer dieselbe Aenderung, und die zweite
  * faellt erst auf, wenn jemand ein GEKLEBTES Etikett scannt.
  *
@@ -102,7 +102,7 @@ export async function etikettenDaten(db: DB): Promise<EtikettenDaten> {
 }
 
 /**
- * DIE DATEN DER A7-ORTSETIKETTEN — DRK-312.
+ * DIE DATEN DER ORTSKARTEN — DRK-312.
  *
  * Ein Etikett je Handlager bzw. Einheit, nicht je Produkt. Es traegt einen
  * grossen QR auf `/o/<id>`; die Weiche dort schickt in den Kontext, der zu

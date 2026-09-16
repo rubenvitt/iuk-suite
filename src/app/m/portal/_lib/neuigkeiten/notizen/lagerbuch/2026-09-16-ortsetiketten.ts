@@ -8,9 +8,10 @@ const notiz: Releasenotiz = {
   titel: "Ein QR-Code je Handlager und Einheit",
   inhalt: [
     absatz(
-      "Unter „Verwaltung → Ortsetiketten“ druckst du ein Etikett je Handlager, Fahrzeug und " +
-        "Tasche — ein Blatt im Format A7, mit einem großen QR-Code darauf. Scannst du es am " +
-        "Fahrzeug, öffnet sich dessen Check; am Handlager landest du in der Artikelliste.",
+      "Unter „Verwaltung → Ortsetiketten“ druckst du eine Karte je Handlager, Fahrzeug und " +
+        "Tasche — acht Karten quer auf ein A4-Blatt, zum Ausschneiden, mit einem großen " +
+        "QR-Code darauf. Scannst du sie am Fahrzeug, öffnet sich dessen Check; am Handlager " +
+        "landest du in der Artikelliste.",
     ),
     absatz(
       "Die Etiketten je Artikel bleiben, wo sie sind: unter „Verwaltung → Etiketten“.",

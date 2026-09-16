@@ -188,7 +188,7 @@ describe("etikettenDaten", () => {
 });
 
 /**
- * DIE A7-ORTSETIKETTEN — DRK-312.
+ * DIE ORTSKARTEN — DRK-312.
  *
  * ⚠️ DIE FIXTURE STEHT HIER UND NICHT IM `beforeEach` OBEN: die Lagerorte
  * gehen keinen der Tests darueber etwas an, und eine Fixture, die jeder Test

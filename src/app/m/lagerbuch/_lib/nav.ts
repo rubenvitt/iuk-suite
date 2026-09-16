@@ -109,7 +109,7 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
 
   { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
-  /* DRK-312 — das A7-Etikett je Handlager bzw. Einheit. Es steht NEBEN
+  /* DRK-312 — die QR-Karte je Handlager bzw. Einheit. Sie steht NEBEN
    * „Etiketten" und nicht darin: die beiden Flächen drucken auf verschiedenes
    * Material (gekaufte Klebeetiketten gegen ein Blatt je Ort) und in
    * verschiedenen Seitengrößen, und zusammen in einem Dokument verwirft
