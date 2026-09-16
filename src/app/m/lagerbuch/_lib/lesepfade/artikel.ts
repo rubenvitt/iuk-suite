@@ -17,7 +17,10 @@ import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import { chargeText } from "../format";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
-import { bestandJeArtikel, restJeCharge, verteilungJeCharge, type Leser } from "./bestand";
+import {
+  bestandJeArtikelImBereich, restJeChargeAnOrt, restJeChargeImBereich, verteilungJeCharge,
+  type Leser,
+} from "./bestand";
 import { handlagerOrte } from "./orte";
 
 export type ChargeZeile = { id: string; chargenNr: string; verfall: string; rest: number };
@@ -48,18 +51,24 @@ export type ArtikelZeile = {
 };
 
 /**
- * Chargen EINES Artikels mit Rest AN EINER ORTSMENGE (Vorgabe: Handlager-Bereich,
- * also die Wurzel und ihre Schraenke — `handlagerOrte`).
+ * Chargen EINES Artikels mit Rest IM HANDLAGER-BEREICH, also der Wurzel und
+ * ihren Schraenken (`handlagerOrte`).
  *
  * ⚠️ AUFGEBRAUCHTE CHARGEN BLEIBEN IN DER LISTE, mit `rest: 0`. Das Artikel-Detail
  * zeigt sie (die Chargennummer ist ein Fundstueck), und `?? 0` macht aus der
  * fehlenden Aggregatzeile die 0.
+ *
+ * ⚠️ DRK-354 — DER FRUEHERE DRITTE PARAMETER IST WEG. Er nahm eine nackte
+ * Ortsliste und hatte in der Anwendung keinen einzigen Aufrufer: jeder Ruf kam
+ * ohne ihn, nur ein Prueftext reichte `["rtw"]` durch. Damit war er
+ * ausschliesslich das, was DRK-354 beseitigt — ein Schlitz, in den Bereich und
+ * Einzelort gleich aussehend hineinpassen. Wer den Rest je Charge an genau
+ * einem Ort braucht, nimmt `restJeChargeAnOrt`; fuer eine ganze Seite je
+ * Lagerort steht `chargenJeArtikelAmLagerort` darunter.
  */
-export function chargenMitRest(
-  db: Leser, artikelId: string, orte: readonly string[] = handlagerOrte(db),
-): ChargeZeile[] {
+export function chargenMitRest(db: Leser, artikelId: string): ChargeZeile[] {
   const chs = db.select().from(chargen).where(eq(chargen.artikelId, artikelId)).all();
-  const rest = restJeCharge(db, orte);
+  const rest = restJeChargeImBereich(db, handlagerOrte(db));
   // Vor der Projektion sortieren: `createdAt` entscheidet, bleibt aber intern.
   return chs
     .sort(vergleicheFefoCharge)
@@ -84,7 +93,7 @@ export function chargenMitRest(
 export function chargenJeArtikelAmLagerort(
   db: Leser, lagerortId: string,
 ): Map<string, ChargeZeile[]> {
-  const rest = restJeCharge(db, [lagerortId]);
+  const rest = restJeChargeAnOrt(db, lagerortId);
   const ids = [...rest.entries()].filter(([, r]) => r > 0).map(([id]) => id);
   if (ids.length === 0) return new Map();
 
@@ -109,9 +118,9 @@ export function artikelListe(
     ? db.select().from(artikel).all()
     : db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
   // DREI Abfragen statt 3·N: Artikel, Bestand je Artikel, Rest je Charge.
-  const orte = handlagerOrte(db);
-  const bestand = bestandJeArtikel(db, orte);
-  const rest = restJeCharge(db, orte);
+  const bereich = handlagerOrte(db);
+  const bestand = bestandJeArtikelImBereich(db, bereich);
+  const rest = restJeChargeImBereich(db, bereich);
 
   /**
    * ⚠️ DIE CHARGEN WERDEN EINMAL NACH ARTIKEL GRUPPIERT, nicht je Artikel neu
@@ -177,7 +186,7 @@ export function artikelDetail(db: Leser, id: string, _now: Date = new Date()) {
     .all();
   return {
     artikel: a,
-    bestand: bestandJeArtikel(db, handlagerOrte(db)).get(id) ?? 0,
+    bestand: bestandJeArtikelImBereich(db, handlagerOrte(db)).get(id) ?? 0,
     chargen: chargenMitRest(db, id),
     // LAGERORT-UEBERGREIFEND — siehe Kopfkommentar.
     buchungen: bu.slice(0, ARTIKEL_VERLAUF_GRENZE).map((b) => ({

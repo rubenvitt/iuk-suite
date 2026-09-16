@@ -26,7 +26,7 @@ import { verfallStatus, verfallSchwellen, type Ampel } from "../domain/verfall";
 import type { Einheitenart } from "../konstanten";
 import { chargeText } from "../format";
 import { eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
-import { restJeChargeJeOrt, type Leser } from "./bestand";
+import { restJeChargeJeOrtImBereich, type Leser } from "./bestand";
 import { handlagerOrte, ortStamm } from "./orte";
 
 /**
@@ -68,7 +68,7 @@ export type VerfallEintrag = {
  * Chargen mit HANDLAGER-Rest > 0, deren Ampel nicht gruen ist.
  * DREI Raenge: abgelaufen (0), rot (1), gelb (2); Zweitkriterium `verfall`.
  *
- * ⚠️ Benutzt `restJeChargeJeOrt(db, handlagerOrte(db))` aus DRK-339 — KEINE
+ * ⚠️ Benutzt `restJeChargeJeOrtImBereich(db, handlagerOrte(db))` aus DRK-339 — KEINE
  * eigene Summierung. Eine zweite Aufsummierung derselben Zahl liefe auseinander
  * und beide Wege saehen fuer sich plausibel aus.
  *
@@ -82,7 +82,7 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
   const schwellen = verfallSchwellen();
   const arts = new Map(db.select().from(artikel).all().map((a) => [a.id, a]));
   const bereich = handlagerOrte(db);
-  const rest = restJeChargeJeOrt(db, bereich);
+  const rest = restJeChargeJeOrtImBereich(db, bereich);
   const stamm = ortStamm(db);
   /**
    * ⚠️ EINMAL UEBER DEN GANZEN BEREICH, nicht je Charge ueber ihre Orte. Die

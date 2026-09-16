@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { and, eq, gt } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
-import { umlagerung } from "./umlagerung";
+import { umlagerungAusBereich, umlagerungVonOrt } from "./umlagerung";
 import type { Quelle } from "./abbuchung";
 import { bestandProLagerort } from "../domain/bestand";
+import { handlagerOrte } from "../lesepfade/orte";
 import { HANDLAGER_ID } from "../konstanten";
 
 const NOW = new Date("2026-06-15T10:00:00Z");
@@ -42,15 +43,15 @@ function inTx<T>(fn: (tx: Parameters<Parameters<typeof t.db.transaction>[0]>[0])
 describe("umlagerung — I3: netto null", () => {
   it("die Summe ALLER Buchungen des Artikels ist vorher und nachher gleich", () => {
     const vorher = summe();
-    inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(summe()).toBe(vorher);
   });
 
   it("verschiebt den Bestand vollstaendig zwischen den Lagerorten", () => {
-    inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     const roh = alleZeilen().map((b) => ({ lagerortId: b.lagerortId, menge: b.menge }));
     expect(bestandProLagerort(roh, HANDLAGER_ID)).toBe(2);
@@ -67,8 +68,8 @@ describe("umlagerung — das Ziel-Leg kommt STRIKT aus teile[]", () => {
      * die Summe aller Buchungen waere nicht mehr gleich.
      */
     const vorher = summe();
-    const r = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 100, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    const r = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 100, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(r.umgelagert).toBe(7);
     expect(summe()).toBe(vorher);
@@ -79,8 +80,8 @@ describe("umlagerung — das Ziel-Leg kommt STRIKT aus teile[]", () => {
 
   it("schreibt bei LEERER Quelle GAR KEINE Zeile", () => {
     const vorher = alleZeilen().length;
-    const r = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: ["rtw-1"], nachLagerortId: HANDLAGER_ID,
+    const r = inTx((tx) => umlagerungVonOrt(tx, {
+      artikelId: "a1", menge: 5, vonOrt: "rtw-1", nachLagerortId: HANDLAGER_ID,
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(r).toEqual({ umgelagert: 0, teile: [] });
     expect(alleZeilen()).toHaveLength(vorher);
@@ -89,8 +90,8 @@ describe("umlagerung — das Ziel-Leg kommt STRIKT aus teile[]", () => {
 
 describe("umlagerung — die chargeId und der Typ", () => {
   it("erhaelt die chargeId je Teil — die Verfall-Provenienz wandert mit", () => {
-    inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     const zielLegs = alleZeilen().filter((b) => b.lagerortId === "rtw-1");
     expect(zielLegs.map((b) => [b.chargeId, b.menge]).sort())
@@ -104,8 +105,8 @@ describe("umlagerung — die chargeId und der Typ", () => {
      * deshalb loescht eine Umlagerung die Bestellt-Markierung NICHT (§5.5) — nur
      * ein `zugang` tut das, und das bleibt 1:1.
      */
-    inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     const neu = alleZeilen().filter((b) => b.referenz === "check:abc");
     expect(neu).toHaveLength(4);
@@ -113,8 +114,8 @@ describe("umlagerung — die chargeId und der Typ", () => {
   });
 
   it("traegt Referenz, Kommentar und Quelle auf BEIDEN Legs", () => {
-    inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 3, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 3, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: "Nachfüllung", referenz: "check:xyz" }));
     for (const b of alleZeilen().filter((x) => x.referenz === "check:xyz")) {
       expect(b.kommentar).toBe("Nachfüllung");
@@ -147,8 +148,8 @@ describe("DRK-297 — die Quelle ist ein Bereich, das Ziel bleibt EIN Ort", () =
    *  Quellort nehmen. Sonst ist die Umlagerung netto null, wirft nicht — und
    *  das Fahrzeug bleibt leer. */
   it("die Umlagerung schreibt die Gutschrift ans Ziel, nicht in den Quellschrank", () => {
-    const ergebnis = inTx((tx) => umlagerung(tx, {
-      artikelId: "a2", menge: 4, vonOrten: [HANDLAGER_ID, "schrank-1"], nachLagerortId: "rtw-1",
+    const ergebnis = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a2", menge: 4, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:schrank" }));
     expect(ergebnis.umgelagert).toBe(4);
     const amZiel = t.db.select().from(buchungen)
@@ -174,8 +175,8 @@ describe("DRK-297 — die Quelle ist ein Bereich, das Ziel bleibt EIN Ort", () =
  */
 describe("umlagerung — DRK-338: die gewaehlte Charge", () => {
   it("bucht ausschliesslich die genannte Charge, auch wenn eine aeltere daliegt", () => {
-    const ergebnis = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 4, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    const ergebnis = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 4, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       chargeId: "c-spaet", quelle: QUELLE, kommentar: null,
       referenz: "umlagerung:rtw-1" }));
     expect(ergebnis.umgelagert).toBe(4);
@@ -193,8 +194,8 @@ describe("umlagerung — DRK-338: die gewaehlte Charge", () => {
   it("kappt an der gewaehlten Charge, statt auf eine andere auszuweichen", () => {
     // 3 Stueck `c-frueh` liegen da, 5 sind angefordert — `c-spaet` daneben
     // haette genug. Ohne die Einschraenkung kaemen 5 heraus.
-    const ergebnis = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    const ergebnis = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       chargeId: "c-frueh", quelle: QUELLE, kommentar: null,
       referenz: "umlagerung:rtw-1" }));
     expect(ergebnis.umgelagert).toBe(3);
@@ -204,8 +205,8 @@ describe("umlagerung — DRK-338: die gewaehlte Charge", () => {
   /** Ohne `chargeId` bleibt es bei FEFO — der Weg von `check:` und
    *  `entnahme-ziel:`, wo die Nachfuellung die aelteste Charge nehmen SOLL. */
   it("laeuft ohne chargeId unveraendert nach FEFO", () => {
-    const ergebnis = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 3, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    const ergebnis = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 3, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
     expect(ergebnis.teile.map((t2) => t2.chargeId)).toEqual(["c-frueh"]);
   });
