@@ -93,11 +93,29 @@ export function ankerAusText(text: string): Anker[] {
 
 const zeilenzahl = new Map<string, number | null>();
 
+/**
+ * ⚠️ `split("\n").length` IST UM EINS ZU GROSS, sobald die Datei mit einem
+ * Zeilenumbruch endet — und das tut in diesem Repo praktisch jede. Hinter dem
+ * letzten `\n` steht eine leere Zeichenkette, die `split` mitzaehlt; der Riegel
+ * liesse damit genau den Grenzfall durch, den er fangen soll. Gemessen an der
+ * ersten Fassung (Codex-Review zu PR #183): ein Anker auf Zeile 100 von
+ * `core/hosts.ts` und zwei auf Zeile 14 von `core/auth/devLogin.ts` kamen
+ * durch, obwohl die Ziele auf 99 bzw. 13 enden. Ein Editor zaehlt wie `wc -l`,
+ * und danach muss sich ein Anker richten. (Die Beispiele stehen hier ohne
+ * `datei:zeile`-Schreibweise — der Scan liest auch diese Datei.)
+ */
+export function zeilenzahlVon(text: string): number {
+  const teile = text.split("\n");
+  // Eine Datei OHNE abschliessenden Umbruch hat in `teile` keine Leerzeile am
+  // Ende — dort zaehlt das letzte Stueck mit.
+  return teile.at(-1) === "" ? teile.length - 1 : teile.length;
+}
+
 function zeilen(pfad: string): number | null {
   if (!zeilenzahl.has(pfad)) {
     let n: number | null = null;
     try {
-      if (statSync(pfad).isFile()) n = readFileSync(pfad, "utf8").split("\n").length;
+      if (statSync(pfad).isFile()) n = zeilenzahlVon(readFileSync(pfad, "utf8"));
     } catch {
       n = null;
     }
@@ -209,6 +227,23 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
    */
   it("der Scan loest ueberhaupt Anker auf", () => {
     expect(gepruefte).toBeGreaterThan(500);
+  });
+
+  /**
+   * DER GRENZFALL, AN DEM DER ERSTE WURF VORBEILIEF (Codex-Review zu PR #183):
+   * `split("\n").length` zaehlt die leere Zeichenkette hinter dem letzten
+   * Umbruch mit. Damit kam GENAU der Anker durch, der um eine Zeile zu weit
+   * zeigt — also der haeufigste Fall ueberhaupt, weil eine Datei beim
+   * Schrumpfen meist ihre letzte Zeile verliert und nicht ihre letzten zehn.
+   */
+  it("zaehlt Zeilen wie `wc -l`, mit und ohne abschliessenden Umbruch", () => {
+    expect(zeilenzahlVon("a\nb\nc\n")).toBe(3);
+    expect(zeilenzahlVon("a\nb\nc")).toBe(3);
+    expect(zeilenzahlVon("a\n")).toBe(1);
+    expect(zeilenzahlVon("a")).toBe(1);
+    expect(zeilenzahlVon("")).toBe(0);
+    // Eine Leerzeile am Ende ist eine Zeile — zwei Umbrueche, ein leerer Rest.
+    expect(zeilenzahlVon("a\n\n")).toBe(2);
   });
 
   /**

@@ -46,7 +46,7 @@ import s from "./helfer.module.css";
  *
  * ⚠️ DER DEMO-LOGIN-KNOPF DES BESTANDS (`Gate.tsx:59-66`) ENTFAELLT ERSATZLOS.
  * Die Suite-Anmeldeseite bietet ihn selbst, wenn `AUTH_DEV_LOGIN` gesetzt ist
- * (`core/auth/devLogin.ts:14`); ein zweiter Knopf im Modul waere ein zweiter
+ * (`core/auth/devLogin.ts`); ein zweiter Knopf im Modul waere ein zweiter
  * Pfad in dieselbe Sitzung, in Produktion nur durch eine BEDINGUNG stillgelegt.
  */
 
