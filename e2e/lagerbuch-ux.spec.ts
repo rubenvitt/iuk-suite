@@ -134,11 +134,12 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
     expect(antwort?.status()).toBe(200);
     // 18 seit DRK-305: „Entnahme“ und „Check durchführen“ führen in den
     // Helfer-Ast und tragen eigene Zeichen (`pruefen`, `entnahme` in
-    // `core/shell/navIkonen.tsx`). Die Zahl steht in `_lib/nav.test.ts`
-    // ausgeschrieben; HIER wird geprüft, dass jedes davon wirklich ein SVG
-    // rendert — ein unbekannter Schlüssel rendert stillschweigend NICHTS
-    // (`NavIkone`), und genau das sähe kein anderes Tor.
-    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(18, {
+    // `core/shell/navIkonen.tsx`); 19 seit DRK-314 („Entnahmebox“,
+    // `entnahmebox`). Die Zahl steht in `_lib/nav.test.ts` ausgeschrieben;
+    // HIER wird geprüft, dass jedes davon wirklich ein SVG rendert — ein
+    // unbekannter Schlüssel rendert stillschweigend NICHTS (`NavIkone`), und
+    // genau das sähe kein anderes Tor.
+    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(19, {
       timeout: 10_000,
     });
   });
