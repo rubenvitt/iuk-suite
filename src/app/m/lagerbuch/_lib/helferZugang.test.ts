@@ -18,6 +18,27 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
+/*
+ * DRK-305 — DER ZWEITE WEG IN DEN HELFER-AST, hier als Attrappe.
+ *
+ * `viewerOderNull` ruft `auth()` und braucht dafuer eine Sitzung, eine
+ * Konfiguration und einen Request; `merkeNutzer` schreibt in `users`. Beides
+ * gehoert nicht in einen Test ueber die REIHENFOLGE der beiden Herkuenfte.
+ *
+ * ⚠️ DIE ATTRAPPE IST STANDARDMAESSIG LEER (`angemeldet = null`). Ohne das
+ * liefen die Kaertchen-Tests unten still durch den Konto-Zweig und waeren
+ * gleichzeitig gruen — die Reihenfolge waere dann ungeprueft.
+ */
+let angemeldet: { sub: string; groups: string[]; name: string | null; email: string | null } | null = null;
+const gemerkteNutzer: string[] = [];
+vi.mock("./zugang", () => ({
+  viewerOderNull: async () => angemeldet,
+  istLagerbuchAdmin: (v: { groups: string[] } | null) => !!v?.groups.includes("lagerbuch"),
+}));
+vi.mock("./konto", () => ({
+  merkeNutzer: (_db: unknown, v: { sub: string }) => { gemerkteNutzer.push(v.sub); },
+}));
+
 import { createHelferSitzung } from "./helferSitzung";
 import { helferZugangOderNull, requireHelferSitzung, requireHelferSchreibend } from "./helferZugang";
 
@@ -37,6 +58,8 @@ beforeEach(() => {
   t = migrierteTestDb("lagerbuch-helferzugang-");
   hostKopf = new Headers({ host: "lagerbuch.localtest.me" });
   cookieWert = undefined;
+  angemeldet = null;
+  gemerkteNutzer.length = 0;
 });
 afterEach(() => {
   t.schliessen();
@@ -166,7 +189,7 @@ describe("requireHelferSitzung — NUR aus helfer/layout.tsx", () => {
   it("liefert den Zugang im Regelfall", async () => {
     tokenAnlegen("tk1");
     cookieWert = await createHelferSitzung({ tokenId: "tk1" });
-    expect((await requireHelferSitzung(t.db)).tokenId).toBe("tk1");
+    expect(await requireHelferSitzung(t.db)).toMatchObject({ herkunft: "token", tokenId: "tk1" });
   });
 
   it("OHNE Cookie: unmittelbar aufs Gate, KEIN Umweg", async () => {
@@ -382,5 +405,118 @@ describe("die Fahrzeugbindung des Kaertchens (DRK-302)", () => {
     // saehe mit einem gueltigen Kaertchen gar nichts mehr.
     expect((await zugangMit({ zielTyp: "fahrzeug", zielId: null }))?.fahrzeugBindung)
       .toBeNull();
+  });
+});
+
+/**
+ * DRK-305 — DER KONTO-ZUGANG.
+ *
+ * Er ist der Gegenpol zu DRK-302: nach dem Scan gilt das Fahrzeug des
+ * Kärtchens, angemeldet gilt keins. Was hier geprüft wird, ist nicht die
+ * Oberfläche, sondern die REIHENFOLGE und der ZUSCHNITT der drei Riegel.
+ */
+const ADMIN = { sub: "sub-42", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
+const FREMD = { sub: "sub-99", groups: ["andere-gruppe"], name: "B. Fremd", email: null };
+
+describe("DRK-305 — ein angemeldetes Konto traegt in den Helfer-Ast", () => {
+  it("OHNE Cookie: requireHelferSitzung liefert einen KONTO-Zugang statt aufs Gate zu werfen", async () => {
+    angemeldet = ADMIN;
+    const z = await requireHelferSitzung(t.db);
+    expect(z).toEqual({
+      herkunft: "konto",
+      sub: "sub-42",
+      name: "A. Verwaltung",
+      laeuftAb: null,
+      fahrzeugBindung: null,
+    });
+  });
+
+  it("KEINE Bindung an ein Fahrzeug — das ist der ganze Punkt des Tickets", async () => {
+    /*
+     * DRK-302 begrenzt den Einstieg nach dem SCAN auf das Fahrzeug des
+     * Kärtchens. Wer angemeldet kommt, hat keins gescannt: `helfer/check`
+     * zeigt darum die volle Fahrzeugwahl. Die `null` steht im TYP
+     * (`KontoZugang`), nicht in einer Abfrage der Seite — eine Bindung kann
+     * hier konstruktiv nicht entstehen.
+     */
+    angemeldet = ADMIN;
+    expect((await requireHelferSitzung(t.db)).fahrzeugBindung).toBeNull();
+  });
+
+  it("legt die users-Zeile an — sonst zeigt das Journal die ROHE Kennung", async () => {
+    // `quelleAufloeser` schlägt `oidc`-Quellen in `users` nach (`_db/quelle.ts`).
+    // Ohne die Zeile gelänge jede Buchung und niemand läse sie.
+    angemeldet = ADMIN;
+    await requireHelferSitzung(t.db);
+    expect(gemerkteNutzer).toEqual(["sub-42"]);
+  });
+
+  it("OHNE die Gruppe bleibt es beim Gate — eine Anmeldung allein genuegt NICHT", async () => {
+    angemeldet = FREMD;
+    await expect(requireHelferSitzung(t.db)).rejects.toThrow("NEXT_REDIRECT:/");
+    expect(gemerkteNutzer).toEqual([]);
+  });
+
+  it("DAS KAERTCHEN GEWINNT: ein gueltiges Cookie schlaegt die Anmeldung", async () => {
+    /*
+     * ⚠️ DIE REIHENFOLGE IST DIE ZUSAGE, NICHT EINE LAUNE. Wer angemeldet ist
+     * UND ein Fahrzeug-Kärtchen gescannt hat, steht mit dem Kärtchen in der
+     * Hand vor genau diesem Fahrzeug. Käme das Konto zuerst, verschwände die
+     * Bindung aus DRK-302 für jede angemeldete Person — still, und nur für die,
+     * die beides haben.
+     */
+    tokenAnlegen("tk1");
+    t.db.update(tokens).set({ zielTyp: "fahrzeug", zielId: "rtw-1" }).run();
+    cookieWert = await createHelferSitzung({ tokenId: "tk1" });
+    angemeldet = ADMIN;
+    const z = await requireHelferSitzung(t.db);
+    expect(z.herkunft).toBe("token");
+    expect(z.fahrzeugBindung).toBe("rtw-1");
+    // Der Konto-Zweig wurde gar nicht erst betreten.
+    expect(gemerkteNutzer).toEqual([]);
+  });
+
+  it("ein TOTES Kaertchen-Cookie sperrt die angemeldete Person NICHT aus", async () => {
+    /*
+     * Gesperrter Code plus Anmeldung: ohne diesen Zweig landete die Person auf
+     * `/abmelden` und käme mit ihrem eigenen, gültigen Zugang nirgendwohin.
+     * Das tote Cookie bleibt liegen und ist wirkungslos — `befund()` prüft es
+     * bei jedem Aufruf erneut gegen die Datenbank.
+     */
+    tokenAnlegen("tk1", false);
+    cookieWert = await createHelferSitzung({ tokenId: "tk1" });
+    angemeldet = ADMIN;
+    expect((await requireHelferSitzung(t.db)).herkunft).toBe("konto");
+  });
+
+  it("requireHelferSchreibend liefert denselben Zugang, ohne zu werfen", async () => {
+    angemeldet = ADMIN;
+    const r = await requireHelferSchreibend(t.db);
+    expect(r.ok && r.zugang.herkunft).toBe("konto");
+  });
+
+  it("ohne Gruppe bleibt requireHelferSchreibend bei seinem Grund", async () => {
+    angemeldet = FREMD;
+    expect(await requireHelferSchreibend(t.db)).toEqual({ ok: false, grund: "sitzung" });
+  });
+
+  it("helferZugangOderNull IGNORIERT das Konto — es ist das Kaertchen-Praedikat", async () => {
+    /*
+     * ⚠️ DIE AUSNAHME IST DIE WICHTIGSTE ZEILE DIESER DATEI. `a/[artikelId]`
+     * fragt dieses Prädikat ZUERST und schickt eine angemeldete Person erst
+     * danach in die Verwaltung. Zöge man das Konto auch hier ein, führte ein
+     * gescanntes Regaletikett eine verwaltende Person in die Helfer-Ansicht
+     * statt auf die Artikelseite der Verwaltung — die drei Ausgänge im Kopf
+     * jener Datei stimmten nicht mehr, und kein Tor sähe es.
+     */
+    angemeldet = ADMIN;
+    await expect(helferZugangOderNull(t.db)).resolves.toBeNull();
+  });
+
+  it("der HOST-Riegel steht auch vor dem Konto-Zweig", async () => {
+    hostKopf = new Headers({ host: "feedback.localtest.me" });
+    angemeldet = ADMIN;
+    await expect(requireHelferSitzung(t.db)).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(requireHelferSchreibend(t.db)).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });

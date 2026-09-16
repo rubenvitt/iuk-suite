@@ -77,10 +77,20 @@ let t: TestDb;
 const ZUGANG_OK = {
   ok: true,
   zugang: {
+    /*
+     * DRK-305: `herkunft` ist der Diskriminator, aus dem `journalQuelle`,
+     * `zugangsKennung` und `zugangsAkteur` ihre Antwort ziehen
+     * (`_lib/zugangHerkunft.ts`). Eine Attrappe OHNE das Feld schreibt still
+     * `quelleTyp: "oidc"` mit `quelleId: undefined` — die Action liefe durch,
+     * und die gepruefte Journalzeile truege eine Quelle, die auf nichts
+     * aufloest.
+     */
+    herkunft: "token" as const,
     tokenId: "tk1",
     code: "482-137",
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
+    fahrzeugBindung: null,
   },
 };
 

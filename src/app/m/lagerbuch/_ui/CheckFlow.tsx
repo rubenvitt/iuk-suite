@@ -19,7 +19,9 @@ import { verfallStatus, type VerfallSchwellen } from "../_lib/domain/verfall";
 import { o2Status } from "../_lib/domain/o2";
 import { chargeText, ampelTon } from "../_lib/format";
 import { ZUSTAENDE, type Zustand } from "../_lib/konstanten";
-import { NETZ_TEXT_CHECK, darfErneuern, type HelferGrund } from "../_lib/actionTypen";
+import {
+  ANMELDUNG_TEXT, NETZ_TEXT_CHECK, darfKaertchenErneuern, type HelferGrund,
+} from "../_lib/actionTypen";
 import s from "./helfer.module.css";
 
 /**
@@ -124,6 +126,7 @@ export function CheckFlow({
   verfall,
   warn,
   gebunden,
+  kontoZugang,
   letzterCheckText,
 }: {
   fahrzeug: { id: string; name: string; kennung: string | null };
@@ -133,6 +136,27 @@ export function CheckFlow({
   /** Beim letzten Check gemeldeter Verfall je artikelId („YYYY-MM"), leer = keine Angabe. */
   verfall: Record<string, string>;
   warn: VerfallSchwellen;
+  /**
+   * DIE HERKUNFT DES ZUGANGS — DRK-305: `true` heisst „angemeldetes Konto, kein
+   * Kaertchen".
+   *
+   * Sie steuert GENAU EINE Sache: was passiert, wenn der Zugang MITTEN IM CHECK
+   * ausfaellt. Der Server kann das nicht entscheiden — faellt der Konto-Zweig
+   * aus, sieht er nur noch „kein Kaertchen, kein Konto" und gibt den
+   * Kaertchen-Grund `sitzung` zurueck (`_lib/helferZugang.ts`). Die Seite
+   * dagegen KENNT die Herkunft, weil sie mit ihr gerendert hat.
+   *
+   * ⚠️ OHNE SIE IST DER AUSFALL EINE SACKGASSE, und eine teure: `darfErneuern`
+   * oeffnete das Code-Feld, die angemeldete Person hat aber kein Kaertchen
+   * einzugeben — und zum Anmelden muesste sie diese Seite verlassen, wo der
+   * gesamte Zaehlstand in sechs `useState` liegt. Gefunden hat das die
+   * Codex-Review zu PR #164.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL — dieselbe Begruendung wie bei `gebunden`
+   * darunter: ein vergessenes `kontoZugang?` waere still `undefined` und damit
+   * „Kaertchen", also genau der Defekt.
+   */
+  kontoZugang: boolean;
   /**
    * Das gescannte Kaertchen haengt an DIESEM Fahrzeug (DRK-302) — dann gibt es
    * kein „anderes Fahrzeug", und die beiden Auswege in die Wahl entfallen.
@@ -554,9 +578,27 @@ export function CheckFlow({
   const fehlerBereich = fehler && (
     <div className={`${s.karte} ${s.kartePad}`}>
       <div className={s.gateFehler} data-rolle="check-fehler" role="status">
-        {fehler.text}
+        {/*
+          DER SATZ DES SERVERS GILT — AUSSER FUER DEN KONTO-WEG (DRK-305).
+          `RIEGEL_TEXTE.sitzung` lautet woertlich „Scanne das Kaertchen erneut";
+          wer angemeldet zaehlt, hat keins. Die Herkunft kennt nur diese Seite,
+          also setzt sie hier den richtigen Satz ein.
+        */}
+        {kontoZugang && fehler.grund === "sitzung" ? ANMELDUNG_TEXT : fehler.text}
       </div>
-      {darfErneuern(fehler.grund) && (
+      {kontoZugang && fehler.grund === "sitzung" && (
+        /*
+          NEUER TAB, und das ist die ganze Zusage: der Zaehlstand liegt im
+          Client. `rel="noreferrer"` gehoert zu `target="_blank"` — ohne es
+          bekaeme die Zielseite `window.opener`.
+        */
+        <p className={s.fussnote}>
+          <a href="/verwaltung" target="_blank" rel="noreferrer" data-rolle="check-anmelden">
+            Verwaltung in neuem Tab öffnen
+          </a>
+        </p>
+      )}
+      {darfKaertchenErneuern(fehler.grund, kontoZugang) && (
         <div data-rolle="erneuern">
           <p className={s.fussnote}>
             Kärtchen erneut eingeben — <b>die gezählten Mengen bleiben stehen.</b>
