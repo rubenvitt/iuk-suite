@@ -472,7 +472,10 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     const hineingeschrieben = befehle
       .split("\n")
       .filter((z) => z.includes("$SPERRVERZEICHNIS/"))
-      .filter((z) => !z.includes("rmdir"));
+      .filter((z) => !z.includes("rmdir"))
+      // Lesende Pruefungen legen nichts ab — der Herzschlag fragt nach seiner eigenen
+      // Marke, bevor er auffrischt.
+      .filter((z) => !z.includes("[ -d "));
     expect(hineingeschrieben.map((z) => z.trim())).toEqual([
       'if ! mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then',
     ]);
@@ -518,7 +521,7 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // gab der zweite Lauf auf, statt zu uebernehmen.
     const rumpfL = funktionsrumpf(befehle, "lauf");
     expect(rumpfL).toMatch(/herzschlag_starten/);
-    expect(befehle).toMatch(/touch "\$SPERRVERZEICHNIS"/);
+    expect(befehle).toMatch(/touch -c "\$SPERRVERZEICHNIS"/);
     expect(befehle).toContain("BACKUP_HERZSCHLAG_SEKUNDEN");
     // Er endet mit der Sperre — auch bei einem gescheiterten Lauf, denn `sperre_ablegen`
     // haengt an der EXIT-Falle.
@@ -531,9 +534,33 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // Altersgrenze da ist. GEMESSEN, als nur die erste Bedingung dastand: Eigentuemer
     // per SIGKILL beendet, der Herzschlag lief weiter, die mtime blieb frisch. Mit
     // `kill -0` endet er, und das Alter waechst wieder (gemessen 4s → 14s).
-    expect(befehle).toMatch(
-      /while \[ -d "\$SPERRVERZEICHNIS" \] && kill -0 "\$eltern" 2>\/dev\/null; do/,
+    // ⚠️ Und die Bedingung fragt nach UNSERER MARKE, nicht nach der Sperre: nach einer
+    // Uebernahme steht dort die Sperre des Nachfolgers, und ein Herzschlag, der die
+    // auffrischt, haelt eine FREMDE am Leben. Gemessen: fremde Sperre nach 6s immer noch
+    // 186s alt (nicht aufgefrischt), die eigene 1s (aufgefrischt).
+    const rumpfH2 = funktionsrumpf(befehle, "herzschlag_starten");
+    expect(rumpfH2).toMatch(
+      /while \[ -n "\$marke" \] && \[ -d "\$SPERRVERZEICHNIS\/\$marke" \] && kill -0 "\$eltern"/,
     );
+    // Nach JEDEM Schlaf erneut — in der Zwischenzeit kann die Sperre den Eigentuemer
+    // gewechselt haben, und die Bedingung oben hat das lange vorher geprueft.
+    expect(rumpfH2).toMatch(/sleep "\$BACKUP_HERZSCHLAG_SEKUNDEN"[\s\S]*\[ -d "\$SPERRVERZEICHNIS\/\$marke" \] \|\| exit 0/);
+  });
+
+  it("der Herzschlag LEGT NICHTS AN — sonst blockiert er jede kuenftige Sperre", () => {
+    // ⚠️ DER TEUERSTE FEHLER DIESES PRs, UND ER IST GEMESSEN. `touch` legt an, was es
+    // nicht findet. Eine Uebernahme besteht aus `rmdir` und `mkdir`; faellt der
+    // Herzschlag genau dazwischen, entsteht `.lauf.sperre` als REGULAERE DATEI — und
+    // daran scheitert jedes kuenftige `mkdir`. Nicht einmal, sondern fuer immer:
+    //
+    //   Danach ist .lauf.sperre: REGULAERE DATEI
+    //   mkdir SCHEITERT — Backups dauerhaft blockiert
+    //
+    // `-c` ist POSIX und legt nicht an. Nachgemessen: derselbe Ablauf laesst den Pfad
+    // frei, das naechste `mkdir` gelingt wieder.
+    const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
+    expect(rumpfH).toMatch(/touch -c /);
+    expect(rumpfH, "kein anlegendes touch").not.toMatch(/touch "\$SPERRVERZEICHNIS"/);
   });
 
   it("die Altersgrenze hat einen BODEN am Herzschlag", () => {
@@ -693,8 +720,16 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // ⚠️ GESETZT, NICHT AUFGEFRISCHT: wuerde jeder Start ihn neu schreiben, setzte jeder
     // Neustart die Uhr zurueck, und ein Dienst, der oefter neu startet als er sichert,
     // meldete sich nie als ueberfaellig.
+    // ⚠️ GESCHRIEBEN WIRD MIT `set -C`, NICHT NACH EINER LESEPRUEFUNG. Erst lesen, dann
+    // schreiben hat ein Fenster: ein `einmal` daneben kann in der Zwischenzeit seinen
+    // ERFOLG in dieselbe Datei legen, und das Ersetzen haette ihn verworfen — die
+    // gelungene Sicherung vergessen, der Healthcheck meldet „noch kein Lauf". noclobber
+    // macht daraus eine Operation, und sie deckt zugleich den Neustart ab: die Datei ist
+    // da, also wird nichts geschrieben.
     const rumpfV = funktionsrumpf(befehle, "zustand_bereit_vermerken");
-    expect(rumpfV).toMatch(/zustand_lesen gestartet[\s\S]*return 0/);
+    expect(rumpfV).toMatch(/set -C/);
+    expect(rumpfV, "kein Lesen-dann-Schreiben mehr").not.toMatch(/zustand_lesen/);
+    expect(rumpfV, "und kein Ersetzen einer vorhandenen Datei").not.toMatch(/\bmv\b/);
     // Und die Spanne darf jetzt kurz sein — 26h waeren wieder die alte Decke.
     const spanne = kopfzeile(rumpf(backup, "healthcheck", 4), "start_period", 6) ?? "";
     const vorgabe = spanne.replace(/.*:-([^}]+)\}.*/, "$1");

@@ -248,18 +248,27 @@ zustand_schreiben() {
 # Zusicherung und ihrem Gegenteil: wuerde ihn jeder Start neu schreiben, setzte jeder
 # Neustart die Uhr zurueck — ein Dienst, der oefter neu startet als er sichert, meldete
 # sich dann nie als ueberfaellig. Ein Neustart entschuldigt keine fehlende Sicherung.
+#
+# ⚠️ ERST LESEN, DANN SCHREIBEN WAERE HIER FALSCH, und der Fall ist real: der Dienst
+# startet, sieht keinen Stand — und waehrend er das feststellt, schreibt ein
+# `docker compose run … einmal` daneben seinen ERFOLG in dieselbe Datei. Das `mv` haette
+# ihn danach durch eine Datei ersetzt, in der nur `gestartet` steht: die gelungene
+# Sicherung waere vergessen und der Healthcheck meldete „noch kein Lauf". Diese Zeile
+# laeuft ausserhalb der Sperre und kann sich darauf auch nicht stuetzen — sie gehoert zum
+# Start, nicht zu einem Lauf.
+#
+# `set -C` (noclobber) macht daraus EINE Operation: die Datei entsteht nur, wenn es sie
+# nicht gibt, und sonst scheitert die Umlenkung. Damit gibt es kein Fenster zwischen
+# Pruefung und Tat — und die beiden frueheren Pruefungen braucht es nicht mehr, denn
+# beide Gruende (es gibt einen Lauf / es gibt den Vermerk schon) bedeuten dasselbe: die
+# Datei ist da, also wird nichts geschrieben. Das ist zugleich die Zusicherung, dass der
+# Vermerk GESETZT und nicht aufgefrischt wird — wuerde ihn jeder Start neu schreiben,
+# setzte jeder Neustart die Uhr zurueck, und ein Dienst, der oefter neu startet als er
+# sichert, meldete sich nie als ueberfaellig.
+#
+# Die Subshell haelt `set -C` lokal; ohne sie traefe noclobber jede spaetere Umlenkung.
 zustand_bereit_vermerken() {
-  # Gibt es einen Lauf, zaehlt der Lauf.
-  if [ -n "$(zustand_lesen letzter_status || true)" ]; then
-    return 0
-  fi
-  # Gibt es den Vermerk schon, bleibt er stehen.
-  if [ -n "$(zustand_lesen gestartet || true)" ]; then
-    return 0
-  fi
-  tmp="$ZUSTANDSDATEI.neu.$$"
-  printf 'gestartet=%s\n' "$(date +%s)" >"$tmp"
-  mv "$tmp" "$ZUSTANDSDATEI"
+  ( set -C; printf 'gestartet=%s\n' "$(date +%s)" >"$ZUSTANDSDATEI" ) 2>/dev/null || true
 }
 
 # ══ Rueckmeldung nach aussen ═════════════════════════════════════════════════════════
@@ -631,12 +640,35 @@ sperre_erwarten() {
 # der Herzschlag stirbt zwangslaeufig), aber darauf zu bauen hiesse, die Richtigkeit an
 # die Umgebung zu haengen. `kill -0` fragt den Eigentuemer direkt und kostet nichts.
 herzschlag_pid=""
+#
+# ⚠️ ZWEI DINGE, DIE BEIDE GEMESSEN SIND UND VON DENEN DAS ZWEITE ALLES ANHAELT.
+#
+# ERSTENS haelt ein Herzschlag ohne Besitzpruefung eine FREMDE Sperre jung. Wurde die
+# unsere inzwischen uebernommen, frischt er die des Nachfolgers auf — und deren eigene
+# Altersgrenze griffe nie mehr. Deshalb wird vor jedem `touch` geprueft, ob dort noch
+# UNSERE Marke liegt; liegt sie nicht mehr, ist der Herzschlag fertig.
+#
+# ZWEITENS, und das ist der teure Teil: `touch` LEGT AN, was es nicht findet. Eine
+# Uebernahme besteht aus `rmdir` und `mkdir`; faellt der Herzschlag genau dazwischen,
+# entsteht `.lauf.sperre` als REGULAERE DATEI — und dann scheitert jedes kuenftige
+# `mkdir` daran. Nicht einmal, sondern fuer immer: die Sicherung stuende dauerhaft still,
+# und kein Lauf koennte sie je wieder aufnehmen. GEMESSEN, genau so nachgestellt:
+#
+#   Danach ist .lauf.sperre: REGULAERE DATEI
+#   mkdir SCHEITERT — Backups dauerhaft blockiert
+#
+# `touch -c` legt nicht an (POSIX), und die Besitzpruefung davor schliesst das Fenster
+# ohnehin — beides zusammen, weil eine der beiden allein je auf die andere baute.
 herzschlag_starten() {
   eltern=$$
+  marke="$meine_marke"
   (
-    while [ -d "$SPERRVERZEICHNIS" ] && kill -0 "$eltern" 2>/dev/null; do
+    while [ -n "$marke" ] && [ -d "$SPERRVERZEICHNIS/$marke" ] && kill -0 "$eltern" 2>/dev/null; do
       sleep "$BACKUP_HERZSCHLAG_SEKUNDEN" || exit 0
-      touch "$SPERRVERZEICHNIS" 2>/dev/null || exit 0
+      # Nach dem Schlaf ERNEUT pruefen: in der Zwischenzeit kann die Sperre den
+      # Eigentuemer gewechselt haben, und dann ist sie nicht mehr unsere aufzufrischen.
+      [ -d "$SPERRVERZEICHNIS/$marke" ] || exit 0
+      touch -c "$SPERRVERZEICHNIS" 2>/dev/null || exit 0
     done
   ) &
   herzschlag_pid=$!
