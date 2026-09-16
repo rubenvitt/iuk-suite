@@ -227,6 +227,41 @@ zustand_schreiben() {
   mv "$tmp" "$ZUSTANDSDATEI"
 }
 
+# ⚠️ DER STARTVERMERK IST DER GRUND, WARUM DIE GNADENFRIST KURZ SEIN DARF. Vor dem ersten
+# Lauf gibt es keinen Stand, und „kein Stand" sah aus wie „kaputt" — gedeckt wurde das
+# durch ein `start_period` von 26 Stunden. Das deckte aber ALLES mit, auch einen
+# GESPEICHERTEN Fehlschlag: `backup_data` ueberlebt ein `up -d --force-recreate`
+# absichtlich, und ein neu erzeugter Container haette den Fehlschlag der letzten Nacht
+# danach noch einen Tag lang als `starting` versteckt — bei leerem BACKUP_PING_URL das
+# einzige Signal, das es gibt.
+#
+# Mit diesem Vermerk kann der Healthcheck die beiden Faelle selbst unterscheiden: „noch
+# kein Lauf, aber seit kurzem bereit" ist gruen, „seit mehr als der Frist bereit und
+# immer noch kein Lauf" ist rot, und ein gespeicherter Fehlschlag ist SOFORT rot. Die
+# Gnadenfrist deckt dann nur noch das, wofuer sie da ist: die Sekunden zwischen dem Start
+# des Containers und dieser Zeile.
+#
+# Er wird nur gesetzt, solange es keinen Lauf gibt — `zustand_schreiben` schreibt die
+# Datei neu und laesst ihn fallen, was richtig ist: ab dem ersten Lauf zaehlt der Lauf.
+#
+# ⚠️ ER WIRD GESETZT, NICHT AUFGEFRISCHT, und das ist der Unterschied zwischen einer
+# Zusicherung und ihrem Gegenteil: wuerde ihn jeder Start neu schreiben, setzte jeder
+# Neustart die Uhr zurueck — ein Dienst, der oefter neu startet als er sichert, meldete
+# sich dann nie als ueberfaellig. Ein Neustart entschuldigt keine fehlende Sicherung.
+zustand_bereit_vermerken() {
+  # Gibt es einen Lauf, zaehlt der Lauf.
+  if [ -n "$(zustand_lesen letzter_status || true)" ]; then
+    return 0
+  fi
+  # Gibt es den Vermerk schon, bleibt er stehen.
+  if [ -n "$(zustand_lesen gestartet || true)" ]; then
+    return 0
+  fi
+  tmp="$ZUSTANDSDATEI.neu.$$"
+  printf 'gestartet=%s\n' "$(date +%s)" >"$tmp"
+  mv "$tmp" "$ZUSTANDSDATEI"
+}
+
 # ══ Rueckmeldung nach aussen ═════════════════════════════════════════════════════════
 ping_senden() {
   [ -n "$BACKUP_PING_URL" ] || return 0
@@ -437,10 +472,40 @@ sperre_marke() { ls "$SPERRVERZEICHNIS" 2>/dev/null | head -1; }
 
 # Der Name der Marke, die DIESER Prozess gesetzt hat — sein Besitznachweis. Die Freigabe
 # braucht ihn (siehe `sperre_ablegen`).
+#
+# ⚠️ DAS SETZEN IST EIN ZWEITER SCHRITT, UND DER DARF NICHT BLIND GELINGEN. Zwischen dem
+# `mkdir` der Sperre und dem `mkdir` der Marke liegt ein Fenster. Es ist normalerweise
+# Millisekunden schmal — aber „normalerweise" ist keine Zusicherung: haelt die Maschine
+# an (Host-Suspend, eingefrorener Container, ein stehendes Dateisystem), sieht ein
+# Wartender eine Sperre OHNE Marke, haelt sie nach 60s fuer einen halb angelegten Rest
+# und uebernimmt sie — zu Recht. Der Erste wacht danach auf und setzt seine Marke in die
+# Sperre des ZWEITEN.
+#
+# GEMESSEN mit einem Halt von 8s zwischen den beiden `mkdir` und einer auf 5min
+# zurueckdatierten Sperre: „B: haelt die Sperre" UND „A: haelt die Sperre", zwei Marken
+# im Verzeichnis. Genau die Gleichzeitigkeit, gegen die es die Sperre gibt.
+#
+# Der Riegel ist derselbe wie ueberall hier: eine Bedingung auf die IDENTITAET. Eine
+# ordentlich gehaltene Sperre traegt GENAU EINE Marke. Steht nach unserem `mkdir` eine
+# zweite da, gehoert die Sperre inzwischen jemand anderem — dann nehmen wir unsere
+# zurueck und treten zurueck.
+#
+# ⚠️ Treffen sich beide genau hier, treten BEIDE zurueck und die Sperre bleibt leer
+# liegen. Das ist die richtige der beiden Fehlerarten (keiner laeuft statt zweien), und
+# es loest sich von selbst: eine leere Sperre ist nach 60s wieder uebernehmbar.
 meine_marke=""
 sperre_marke_setzen() {
   meine_marke="eigner.$$.$(date +%s)"
-  mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null || meine_marke=""
+  if ! mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then
+    meine_marke=""
+    return 1
+  fi
+  if [ "$(ls "$SPERRVERZEICHNIS" 2>/dev/null | wc -l)" -ne 1 ]; then
+    rmdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null || true
+    meine_marke=""
+    return 1
+  fi
+  return 0
 }
 
 # ⚠️ DIE GRENZE HAT EINEN BODEN, UND DER IST KEINE VORSICHT. Eine Grenze unterhalb des
@@ -468,14 +533,16 @@ sperre_uebernehmen() {
   # wieder jemand ordentlich (also mit Marke), scheitert das hier und wir treten zurueck.
   rmdir "$SPERRVERZEICHNIS" 2>/dev/null || return 1
   mkdir "$SPERRVERZEICHNIS" 2>/dev/null || return 1
-  sperre_marke_setzen
+  # Auch hier zaehlt erst die Marke als Besitz, nicht schon das `mkdir`.
+  sperre_marke_setzen || return 1
   return 0
 }
 
 sperre_holen() {
   # `mkdir` allein entscheidet ueber den Besitz — hier wie bei der Uebernahme.
   if mkdir "$SPERRVERZEICHNIS" 2>/dev/null; then
-    sperre_marke_setzen
+    # Das `mkdir` ist die halbe Belegung; besetzt ist sie erst mit der Marke.
+    sperre_marke_setzen || return 1
     return 0
   fi
   marke="$(sperre_marke)"
@@ -737,6 +804,8 @@ sekunden_bis_uhrzeit() {
 trap 'beenden=1' TERM INT
 
 schleife() {
+  # Vor dem Protokoll: ab hier laeuft der Zeitgeber, und genau das vermerkt er.
+  zustand_bereit_vermerken
   protokoll "Backup-Sidecar bereit."
   protokoll "  Zeit:      taeglich $BACKUP_UHRZEIT (TZ=${TZ:-UTC})"
   protokoll "  Quelle:    $BACKUP_SKRIPT"
@@ -794,13 +863,29 @@ schleife() {
 
 # ══ Healthcheck ══════════════════════════════════════════════════════════════════════
 zustand() {
-  if [ ! -f "$ZUSTANDSDATEI" ]; then
-    echo "noch kein Lauf verzeichnet"
-    return 1
-  fi
-  status="$(zustand_lesen letzter_status || echo unbekannt)"
+  status="$(zustand_lesen letzter_status || echo '')"
   meldung="$(zustand_lesen letzte_meldung || echo '')"
   erfolg="$(zustand_lesen letzter_erfolg || echo '')"
+  gestartet="$(zustand_lesen gestartet || echo '')"
+
+  # ⚠️ ZUERST DER FALL „NOCH KEIN LAUF", UND ZWAR GETRENNT VOM FEHLSCHLAG. Beides in eine
+  # lange Gnadenfrist zu packen war der Fehler: der eine Fall ist harmlos und geht
+  # vorueber, der andere ist die Meldung selbst. Getrennt darf die Frist kurz sein.
+  if [ -z "$status" ]; then
+    case "$gestartet" in
+      '' | *[!0-9]*)
+        echo "kein Lauf und kein Startvermerk — der Dienst ist nicht bis zur Schleife gekommen"
+        return 1
+        ;;
+    esac
+    alter=$(( $(date +%s) - gestartet ))
+    if [ "$alter" -gt $((BACKUP_FRIST_STUNDEN * 3600)) ]; then
+      echo "seit $((alter / 3600))h bereit, aber noch kein Lauf — Frist sind ${BACKUP_FRIST_STUNDEN}h"
+      return 1
+    fi
+    echo "noch kein Lauf, seit $((alter / 3600))h bereit"
+    return 0
+  fi
 
   if [ "$status" != "ok" ]; then
     echo "letzter Lauf gescheitert: $meldung"

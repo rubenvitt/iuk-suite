@@ -407,10 +407,23 @@ Danach:
 
 ### F2 — `(health: starting)` und es hört nicht auf
 
-Vor dem **ersten** Lauf gibt es keine Zustandsdatei; die Spanne ist mit Absicht 26 Stunden
-lang (`SUITE_BACKUP_START_PERIOD`). Der Probelauf aus Abschnitt 5 beendet sie sofort. Hört
-es auch danach nicht auf, schreibt der Lauf nicht ins richtige Volume — `BACKUP_DIR` in
-`compose.yaml` gegen den Mount `backup_data:/backups` halten.
+Die Anlaufspanne ist kurz (5 Minuten, `SUITE_BACKUP_START_PERIOD`) — sie deckt nur den
+Vorlauf mit `apk`. Hält `starting` länger an, kommt der Dienst nicht bis zur Schleife:
+`docker compose logs backup`, dann weiter bei F1.
+
+⚠️ **Sie ist bewusst kurz, und das war sie nicht immer.** Solange sie 26 Stunden betrug,
+verdeckte sie mehr als den ersten Lauf: während der Spanne zählt Docker eine gescheiterte
+Probe nicht an, der Container bleibt `starting`. Weil `backup_data` ein
+`up -d --force-recreate` absichtlich überlebt, überlebt auch ein **gespeicherter**
+Fehlschlag — und der wäre danach noch einen Tag lang unsichtbar gewesen. Ohne
+`BACKUP_PING_URL` ist der Healthcheck das einzige Signal. Die beiden Fälle trennt jetzt
+das Skript: „noch kein Lauf, aber seit kurzem bereit" ist grün, „seit mehr als
+`BACKUP_FRIST_STUNDEN` bereit und immer noch kein Lauf" ist rot, ein gespeicherter
+Fehlschlag sofort rot.
+
+Der Startvermerk dazu steht in der Zustandsdatei und wird **einmal** gesetzt, nicht bei
+jedem Start aufgefrischt — sonst setzte jeder Neustart die Uhr zurück und ein Dienst, der
+öfter neu startet als er sichert, meldete sich nie als überfällig.
 
 ### F3 — `(unhealthy)`, aber es gibt Tarballs
 
@@ -426,6 +439,9 @@ Die Meldung sagt, welcher der beiden Fälle es ist:
 * **„letzter Erfolg vor Nh — Frist sind 26h"** → es läuft niemand mehr. Protokoll auf den
   letzten „Naechster Lauf in …" prüfen; wurde der Container zwischendurch neu erzeugt,
   fängt der Zeitgeber bei der nächsten Uhrzeit wieder an.
+* **„seit Nh bereit, aber noch kein Lauf"** → der Dienst steht, hat aber nie gesichert.
+  Meist eine `BACKUP_UHRZEIT`, die nie erreicht wird, oder ein Container, der öfter neu
+  erzeugt wird als der Takt lang ist. Der Probelauf aus Abschnitt 5 klärt beides.
 
 ### F4 — Der Ping kommt nicht an
 

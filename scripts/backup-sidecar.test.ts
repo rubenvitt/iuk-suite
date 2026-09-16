@@ -474,8 +474,34 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
       .filter((z) => z.includes("$SPERRVERZEICHNIS/"))
       .filter((z) => !z.includes("rmdir"));
     expect(hineingeschrieben.map((z) => z.trim())).toEqual([
-      'mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null || meine_marke=""',
+      'if ! mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then',
     ]);
+  });
+
+  it("die Marke gilt erst, wenn sie die EINZIGE ist — sonst gehoert die Sperre jemand anderem", () => {
+    // ⚠️ ZWISCHEN DEN BEIDEN `mkdir` LIEGT EIN FENSTER, und mein eigener Kommentar hat es
+    // mit „liegen Millisekunden auseinander" weggeredet. „Normalerweise" ist keine
+    // Zusicherung: haelt die Maschine an (Host-Suspend, eingefrorener Container), sieht
+    // ein Wartender eine Sperre OHNE Marke, haelt sie nach 60s fuer einen Rest und
+    // uebernimmt sie zu Recht — und der Erste setzt danach seine Marke in die Sperre des
+    // ZWEITEN.
+    //
+    // GEMESSEN mit 8s Halt zwischen den beiden `mkdir` und einer auf 5min
+    // zurueckdatierten Sperre: „B: haelt die Sperre" UND „A: haelt die Sperre", zwei
+    // Marken im Verzeichnis. Nach dem Riegel: B haelt, A tritt zurueck, eine Marke.
+    const rumpfM = funktionsrumpf(befehle, "sperre_marke_setzen");
+    expect(rumpfM).toMatch(/ls "\$SPERRVERZEICHNIS"[\s\S]*wc -l[\s\S]*-ne 1/);
+    // Wer zuruecktritt, nimmt seine eigene Marke wieder mit — sonst stuende sie in einer
+    // fremden Sperre und der naechste `head -1` griffe daneben.
+    expect(rumpfM).toMatch(/rmdir "\$SPERRVERZEICHNIS\/\$meine_marke"/);
+    expect(rumpfM).toMatch(/meine_marke=""\s*\n\s*return 1/);
+    // ⚠️ DER RIEGEL NUETZT NUR, WENN SEIN ERGEBNIS AUCH ANKOMMT. Beide Aufrufer haben
+    // vorher blind weitergemacht — `mkdir` galt als Besitz, die Marke war Beiwerk.
+    for (const f of ["sperre_holen", "sperre_uebernehmen"]) {
+      expect(funktionsrumpf(befehle, f), `${f} wertet das Ergebnis aus`).toMatch(
+        /sperre_marke_setzen \|\| return 1/,
+      );
+    }
   });
 
   it("ein LAUFENDER Lauf haelt seine Sperre am Leben — die Grenze misst Lebenszeichen", () => {
@@ -643,6 +669,36 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // Der ganze Zweck des Ziels ist der Fall „Server weg"; ein Lauf, der nur lokal
     // ankam, hat ihn nicht abgedeckt.
     expect(befehle).toContain("zustand_schreiben fehler");
+  });
+
+  it("ein GESPEICHERTER Fehlschlag wird nicht von der Anlaufspanne verdeckt", () => {
+    // ⚠️ `start_period` STAND AUF 26 STUNDEN, UND DAS DECKTE ZU VIEL. Waehrend der Spanne
+    // zaehlt Docker eine gescheiterte Probe nicht auf `retries` an — der Container bleibt
+    // `starting`. `backup_data` ueberlebt ein `up -d --force-recreate` absichtlich, also
+    // ueberlebt auch der Fehlschlag der letzten Nacht; er waere danach noch einen Tag
+    // lang versteckt gewesen. Bei leerem BACKUP_PING_URL ist der Healthcheck das einzige
+    // Signal, das es gibt.
+    //
+    // Getrennt wird das im Skript, nicht in der Spanne: „noch kein Lauf" ist ein eigener
+    // Zweig mit eigenem Zeitbezug (dem Startvermerk), der Fehlschlag faellt sofort.
+    const rumpfZ = funktionsrumpf(befehle, "zustand");
+    const kein = rumpfZ.indexOf('if [ -z "$status" ]');
+    const fehl = rumpfZ.indexOf('if [ "$status" != "ok" ]');
+    expect(kein, "der Zweig „noch kein Lauf“ existiert").toBeGreaterThan(-1);
+    expect(fehl, "der Zweig „gescheitert“ existiert").toBeGreaterThan(-1);
+    expect(kein, "und er steht VOR dem Fehlschlag").toBeLessThan(fehl);
+    // Der Startvermerk traegt den Zeitbezug — ohne ihn muesste die Spanne ihn ersetzen.
+    expect(rumpfZ).toContain("gestartet");
+    expect(befehle).toMatch(/zustand_bereit_vermerken/);
+    // ⚠️ GESETZT, NICHT AUFGEFRISCHT: wuerde jeder Start ihn neu schreiben, setzte jeder
+    // Neustart die Uhr zurueck, und ein Dienst, der oefter neu startet als er sichert,
+    // meldete sich nie als ueberfaellig.
+    const rumpfV = funktionsrumpf(befehle, "zustand_bereit_vermerken");
+    expect(rumpfV).toMatch(/zustand_lesen gestartet[\s\S]*return 0/);
+    // Und die Spanne darf jetzt kurz sein — 26h waeren wieder die alte Decke.
+    const spanne = kopfzeile(rumpf(backup, "healthcheck", 4), "start_period", 6) ?? "";
+    const vorgabe = spanne.replace(/.*:-([^}]+)\}.*/, "$1");
+    expect(vorgabe, "Vorgabe in Minuten oder Sekunden, nicht in Stunden").toMatch(/^\d+(s|m)$/);
   });
 
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {

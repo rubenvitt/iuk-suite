@@ -378,14 +378,26 @@ services:
       interval: 5m
       timeout: 20s
       retries: 2
-      # ⚠️ EIN TAG UND ZWEI STUNDEN, UND DAS IST ABSICHT. Vor dem ERSTEN Lauf gibt es
-      # keine Zustandsdatei, der Healthcheck kann also gar nicht gruen sein — bei einem
-      # taeglichen Takt bis zu 24 Stunden lang. Ohne diese Spanne staende der Container
-      # nach dem ersten `up -d` einen Tag lang auf `unhealthy`, und ein Alarm, der beim
-      # Einrichten schon falsch steht, wird abgeschaltet statt gelesen. Waehrend der
-      # Spanne meldet Docker `starting` — ehrlich, denn genau das ist der Zustand.
-      # Der Probelauf aus dem Runbook beendet sie sofort: nach ihm gibt es einen Stand.
-      start_period: ${SUITE_BACKUP_START_PERIOD:-26h}
+      # ⚠️ FUENF MINUTEN, UND FRUEHER STANDEN HIER 26 STUNDEN. Der Gedanke war richtig
+      # und die Umsetzung zu grob: vor dem ERSTEN Lauf gibt es keinen Stand, und ohne
+      # eine Spanne staende der Container nach dem ersten `up -d` bis zum ersten
+      # naechtlichen Lauf auf `unhealthy` — ein Alarm, der beim Einrichten schon falsch
+      # steht, wird abgeschaltet statt gelesen.
+      #
+      # Waehrend `start_period` zaehlt Docker eine gescheiterte Probe NICHT auf `retries`
+      # an; der Container bleibt `starting`. Die lange Spanne deckte damit auch den Fall
+      # mit, den sie am wenigsten decken durfte: `backup_data` ueberlebt ein
+      # `up -d --force-recreate` absichtlich, also ueberlebt auch ein GESPEICHERTER
+      # Fehlschlag — und der waere danach noch einen Tag lang als `starting` versteckt
+      # gewesen. Bei leerem BACKUP_PING_URL ist der Healthcheck das einzige Signal.
+      #
+      # Beides trennt jetzt das Skript selbst: „noch kein Lauf, aber seit kurzem bereit"
+      # meldet es gruen (Startvermerk in der Zustandsdatei), „seit mehr als
+      # BACKUP_FRIST_STUNDEN bereit und immer noch kein Lauf" rot, und einen
+      # gespeicherten Fehlschlag sofort rot. Hier bleibt damit nur zu decken, was
+      # wirklich Anlauf ist: die Sekunden zwischen dem Start des Containers und der
+      # Zeile, die den Vermerk schreibt (der Vorlauf mit `apk` liegt dazwischen).
+      start_period: ${SUITE_BACKUP_START_PERIOD:-5m}
 
 volumes:
   suite_data:
