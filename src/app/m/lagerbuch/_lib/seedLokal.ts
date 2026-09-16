@@ -827,7 +827,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *         Seed bis hierher nirgends vor — die Seite stuende leer, und
    *         dieselbe Luecke bliebe fuer jeden Playwright-Lauf.
    *
-   *         ⚠️ UEBER `umlagerung()`, NICHT ueber zwei Inserts: die
+   *         ⚠️ UEBER `umlagerungVonOrt()`, NICHT ueber zwei Inserts: die
    *         Netto-Null-Eigenschaft und die mitwandernde Charge sind genau das,
    *         was der Seed abbilden soll. Zwei von Hand geschriebene Zeilen
    *         gingen beim naechsten Griff an diesem Schreibpfad auseinander.
@@ -838,8 +838,9 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   const REF_BOX = `${ENTNAHMEBOX_PRAEFIX}${RTW}`;
   if (!journalGebucht(db, REF_BOX)) {
     db.transaction((tx) => {
-      umlagerung(tx, {
-        artikelId: A.kompresse, menge: 6, vonOrten: [RTW], nachLagerortId: ENTNAHMEBOX_ID,
+      // ⚠️ `…VonOrt` (DRK-354): GENAU dieser RTW, nicht sein Teilbaum.
+      umlagerungVonOrt(tx, {
+        artikelId: A.kompresse, menge: 6, vonOrt: RTW, nachLagerortId: ENTNAHMEBOX_ID,
         quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
         kommentar: ENTNAHMEBOX_KOMMENTAR, referenz: REF_BOX,
       });

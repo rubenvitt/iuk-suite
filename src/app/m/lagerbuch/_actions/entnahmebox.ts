@@ -12,8 +12,8 @@ import { requireHelferSchreibend } from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
-import { restJeChargeFuerArtikel } from "../_lib/lesepfade/bestand";
-import { umlagerung } from "../_lib/schreibpfade/umlagerung";
+import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 
@@ -196,7 +196,7 @@ export async function bucheInEntnahmebox(
            * derselben Transaktion, aber ein Gleichlauf, der sich auf zwei
            * Stellen verteilt, ist genau der, den ein spaeterer Umbau trennt.
            */
-          const rest = restJeChargeFuerArtikel(tx, v.artikelId, [v.fahrzeugId]);
+          const rest = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, v.fahrzeugId);
           const vorhanden = v.chargeId
             ? (rest.get(v.chargeId) ?? 0)
             : [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
@@ -212,13 +212,18 @@ export async function bucheInEntnahmebox(
               + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
           }
 
-          const ergebnis = umlagerung(tx, {
+          const ergebnis = umlagerungVonOrt(tx, {
             artikelId: v.artikelId,
             menge: v.menge,
-            // EINELEMENTIG: genau diese Einheit, nicht ihr Teilbaum. Eine
-            // Einheit hat heute keine Kinder — ein Bereich holte sich die
-            // fehlende Menge morgen still von woanders.
-            vonOrten: [v.fahrzeugId],
+            /*
+             * ⚠️ `…VonOrt` UND NICHT `…AusBereich`: genau diese Einheit, nicht
+             * ihr Teilbaum. Eine Einheit hat heute keine Kinder — ein Bereich
+             * holte sich die fehlende Menge morgen still von woanders.
+             *
+             * Seit DRK-354 sagt das der Typ und nicht mehr dieser Kommentar:
+             * `vonOrt` nimmt eine ID, ein `Lagerbereich` wird hier abgelehnt.
+             */
+            vonOrt: v.fahrzeugId,
             nachLagerortId: ENTNAHMEBOX_ID,
             ...(v.chargeId ? { chargeId: v.chargeId } : {}),
             quelle,

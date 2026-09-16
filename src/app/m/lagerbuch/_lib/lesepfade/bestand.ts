@@ -75,15 +75,27 @@ export type Leser = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
  * `handlagerOrte` liefert deshalb immer mindestens die Wurzel
  * (`_lib/lesepfade/orte.ts`).
  *
- * ⚠️ KEIN `…AnOrt`-GEGENSTUECK, und das ist kein Versehen: den Bestand JE ORT
- * liefert `bestandJeArtikelUndLagerort` in EINER Abfrage fuer alle Orte, und
- * die Fahrzeuguebersicht braucht genau die Form. Ein zweiter Einstieg hier
- * haette heute keinen Aufrufer.
+ * ⚠️ DAS `…AnOrt`-GEGENSTUECK STEHT SEIT DRK-314 DARUNTER. Bis dahin hatte es
+ * keinen Aufrufer, und die Fahrzeuguebersicht bekommt ihre Form weiterhin von
+ * `bestandJeArtikelUndLagerort` — EINE Abfrage fuer alle Orte. Die Entnahmebox
+ * fragt dagegen nach GENAU EINEM Ort (der Kiste oder der gewaehlten Einheit);
+ * dafuer alle Orte zu aggregieren und einen herauszugreifen waere die ganze
+ * Tabelle statt eines Ausschnitts.
  */
 export function bestandJeArtikelImBereich(
   db: Leser, bereich: Lagerbereich,
 ): Map<string, number> {
   return bestandJeArtikelAn(db, bereich);
+}
+
+/**
+ * Bestand je Artikel AN GENAU EINEM Ort — die Entnahmebox, eine Einheit, ein
+ * einzelner Schrank. Dieselbe Aufteilung wie bei `restJeCharge…` (DRK-354):
+ * eine ID, damit ein `Lagerbereich` hier abgelehnt wird und sich die Menge
+ * nicht still aus dem Teilbaum zusammensucht.
+ */
+export function bestandJeArtikelAnOrt(db: Leser, lagerortId: string): Map<string, number> {
+  return bestandJeArtikelAn(db, [lagerortId]);
 }
 
 /**

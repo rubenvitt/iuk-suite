@@ -250,8 +250,8 @@ describe("umlagerung — EIN Zeitstempel je Vorgang", () => {
 
   it("schreibt alle Zugangs-Legs einer FEFO-Umlagerung mit DEMSELBEN ts", () => {
     // 5 Stueck ueber zwei Chargen: 3 aus `c-frueh`, 2 aus `c-spaet`.
-    const ergebnis = inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    const ergebnis = inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "entnahmebox:rtw-1" }));
     expect(ergebnis.teile, "Vorbedingung: der Vorgang geht ueber ZWEI Chargen")
       .toHaveLength(2);
@@ -263,9 +263,9 @@ describe("umlagerung — EIN Zeitstempel je Vorgang", () => {
   });
 
   it("schreibt auch die Abgangs-Legs mit DEMSELBEN ts", () => {
-    // Dieselbe Falle eine Ebene tiefer, in `fefoAbbuchung` — und derselbe Fix.
-    inTx((tx) => umlagerung(tx, {
-      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+    // Dieselbe Falle eine Ebene tiefer, in `fefoAbbuchungImBereich` — und derselbe Fix.
+    inTx((tx) => umlagerungAusBereich(tx, {
+      artikelId: "a1", menge: 5, vonBereich: handlagerOrte(tx), nachLagerortId: "rtw-1",
       quelle: QUELLE, kommentar: null, referenz: "entnahmebox:rtw-1" }));
 
     const abgaenge = alleZeilen()

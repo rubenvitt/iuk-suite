@@ -30,7 +30,7 @@ import { chargeText } from "../format";
 import { ENTNAHMEBOX_ID, standortZeile } from "../konstanten";
 import { ENTNAHMEBOX_PRAEFIX } from "../vorgang";
 import { chargenJeArtikelAmLagerort, type ChargeZeile } from "./artikel";
-import { bestandJeArtikel, type Leser } from "./bestand";
+import { bestandJeArtikelAnOrt, type Leser } from "./bestand";
 import { ortStamm } from "./orte";
 
 /**
@@ -103,7 +103,7 @@ export function boxOrt(db: Leser): { id: string; name: string; aktiv: boolean } 
  * saehe aus wie etwas, das jemand einsortieren muss.
  */
 export function postenAmOrt(db: Leser, lagerortId: string, jetzt: Date = new Date()): BoxPosten[] {
-  const mengen = bestandJeArtikel(db, [lagerortId]);
+  const mengen = bestandJeArtikelAnOrt(db, lagerortId);
   const chargen = chargenJeArtikelAmLagerort(db, lagerortId);
   const schwellen = verfallSchwellen();
 
