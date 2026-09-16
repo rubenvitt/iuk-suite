@@ -41,16 +41,38 @@ vi.mock("../../_lib/helferSitzung", () => ({
 
 let zielCookie: string | undefined;
 
+/*
+ * DRK-305 — das Kaertchen-Cookie ist ABSCHALTBAR, damit der Konto-Weg geprueft
+ * werden kann. Vorgabe bleibt „da": jeder bestehende Test dieser Datei laeuft
+ * unveraendert ueber das Kaertchen.
+ */
+let kaertchenCookie: string | undefined = GUELTIGES_COOKIE;
+
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ host: "lagerbuch.localtest.me" }),
   cookies: async () => ({
     get: (name: string) => {
-      if (name === "helfer_session") return { name, value: GUELTIGES_COOKIE };
+      if (name === "helfer_session" && kaertchenCookie !== undefined) {
+        return { name, value: kaertchenCookie };
+      }
       if (name === "helfer_ziel" && zielCookie !== undefined) return { name, value: zielCookie };
       return undefined;
     },
   }),
 }));
+
+/*
+ * DRK-305 — der zweite Weg in den Helfer-Ast, als Attrappe. `viewerOderNull`
+ * ruft `auth()` und braucht dafuer Sitzung, Konfiguration und Request;
+ * `merkeNutzer` schreibt in `users`. Standardmaessig LEER — sonst entschiede
+ * die Reihenfolge der Riegel, welcher Weg geprueft wird.
+ */
+let angemeldet: { sub: string; groups: string[]; name: string | null; email: null } | null = null;
+vi.mock("../../_lib/zugang", () => ({
+  viewerOderNull: async () => angemeldet,
+  istLagerbuchAdmin: (v: { groups: string[] } | null) => !!v?.groups.includes("lagerbuch"),
+}));
+vi.mock("../../_lib/konto", () => ({ merkeNutzer: () => {} }));
 
 vi.mock("next/navigation", () => ({
   redirect: (ziel: string) => { throw new Error(`NEXT_REDIRECT:${ziel}`); },
@@ -105,6 +127,8 @@ function formular() {
 
 beforeEach(() => {
   zielCookie = undefined;
+  kaertchenCookie = GUELTIGES_COOKIE;
+  angemeldet = null;
   t = migrierteTestDb("lagerbuch-ziel-seite-");
   t.db.insert(tokens).values({
     id: "tk1", code: "482-137", label: "RTW 1", aktiv: true,
@@ -223,5 +247,60 @@ describe("Die Zielwahl", () => {
   it("bleibt im Helfer-Rahmen, damit der Weg zurück erreichbar ist", async () => {
     await zeige();
     expect(query("[data-rolle='rahmen']").getAttribute("data-aktiv")).toBe("entnahme");
+  });
+});
+
+/**
+ * DRK-305 — DIE ZIELWAHL AUF DEM KONTO-WEG (Review-Befund P2 zu PR #164).
+ *
+ * Die beiden Zusagen dieser Gruppe sind verschieden und hängen doch zusammen:
+ * der SATZ beschreibt die Reichweite der Wahl, und das versteckte FELD ist das
+ * einzige, woraus die Action nach einem Ausfall noch ableiten kann, wohin sie
+ * jemanden schickt. Beides stünde sonst auf „Kärtchen", und beides wäre still
+ * falsch — die Seite rendert in jedem Fall mit HTTP 200.
+ */
+describe("Die Zielwahl auf dem Konto-Weg (DRK-305)", () => {
+  beforeEach(() => {
+    kaertchenCookie = undefined;                                  // KEIN Kärtchen
+    angemeldet = { sub: "sub-42", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
+  });
+
+  it("nennt kein Kärtchen — die Wahl hängt an der ANMELDUNG", async () => {
+    await zeige();
+    const text = query("[data-rolle='rahmen']").textContent ?? "";
+    expect(text).toContain("in deiner Anmeldung");
+    expect(text).not.toContain("Kärtchen");
+  });
+
+  it("legt die Herkunft ins Formular", async () => {
+    /*
+     * ⚠️ DAS FELD IST DER GANZE BEFUND. Fällt die Anmeldung zwischen Rendern
+     * und Absenden aus, sieht `waehleEntnahmeZiel` nur noch „kein Kärtchen,
+     * kein Konto" — ein abgelaufenes Auth.js-Cookie ist serverseitig von „war
+     * nie angemeldet" nicht zu trennen. Ohne diese Zeile landete die Person am
+     * Gate mit „Scanne das Kärtchen erneut".
+     */
+    await zeige();
+    const feld = formular().querySelector<HTMLInputElement>("input[type='hidden'][name='herkunft']");
+    expect(feld?.value).toBe("konto");
+  });
+
+  it("bietet dieselben Ziele an wie mit Kärtchen", async () => {
+    // Die Herkunft ändert die Reichweite der Wahl, nicht die Wahl selbst. Ohne
+    // diese Zeile wäre eine Fassung grün, die dem Konto-Weg still die
+    // Fahrzeugliste nimmt.
+    await zeige();
+    expect(wahlen().map((z) => z.wert)).toEqual(["verbrauch", "fz:fz-1", "fz:fz-2"]);
+  });
+});
+
+describe("Die Zielwahl mit Kärtchen — die Gegenprobe (DRK-305)", () => {
+  it("nennt das Kärtchen und trägt `herkunft=token`", async () => {
+    // Ohne diese beiden Zeilen wäre auch eine Fassung grün, die den
+    // Kärtchen-Satz ersatzlos gestrichen hat.
+    await zeige();
+    expect(query("[data-rolle='rahmen']").textContent ?? "").toContain("mit diesem Kärtchen");
+    const feld = formular().querySelector<HTMLInputElement>("input[type='hidden'][name='herkunft']");
+    expect(feld?.value).toBe("token");
   });
 });

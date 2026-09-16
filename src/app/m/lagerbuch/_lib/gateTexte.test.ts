@@ -1,13 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { istGateGrund, gateMeldung, GATE_GRUENDE, type GateGrund } from "./gateTexte";
+import {
+  istGateGrund,
+  gateMeldung,
+  gateGrundFuerSperre,
+  GATE_GRUENDE,
+  type GateGrund,
+} from "./gateTexte";
 
 describe("istGateGrund — ein GESCHLOSSENER Satz", () => {
-  it("erkennt genau die vier Werte", () => {
-    for (const g of ["code", "gesperrt", "abgelaufen", "zuviele"]) {
+  it("erkennt genau die sechs Werte", () => {
+    for (const g of ["code", "gesperrt", "abgelaufen", "zuviele", "anmeldung", "keinZugriff"]) {
       expect(istGateGrund(g)).toBe(true);
     }
     expect([...GATE_GRUENDE].sort())
-      .toEqual(["abgelaufen", "code", "gesperrt", "zuviele"]);
+      .toEqual(["abgelaufen", "anmeldung", "code", "gesperrt", "keinZugriff", "zuviele"]);
   });
 
   it("weist alles andere ab — ein searchParams-Wert ist NUTZEREINGABE", () => {
@@ -33,6 +39,24 @@ describe("gateMeldung — die einzige Stelle, an der diese Saetze stehen", () =>
       .toBe("Dieser Zugangs-Code wurde gesperrt. Wende dich an die Leitung.");
     expect(gateMeldung("abgelaufen", null))
       .toBe("Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut.");
+    expect(gateMeldung("anmeldung", null))
+      .toBe("Deine Anmeldung ist abgelaufen. Melde dich erneut an.");
+    expect(gateMeldung("keinZugriff", null))
+      .toBe("Dein Konto hat keinen Zugriff auf das Lagerbuch. Wende dich an die Leitung.");
+  });
+
+  it("nennt das Kärtchen NUR im Kärtchen-Satz (DRK-305)", () => {
+    /*
+     * ⚠️ DER KERN DES BEFUNDS, NICHT SEINE KOSMETIK. Beide Sätze beschreiben
+     * denselben Zustand — der Zugang ist weg —, und sie unterscheiden sich in
+     * genau der Handlung, die sie verlangen. „Scanne das Kärtchen erneut" ist
+     * für jemanden, der nie eins hatte, eine Aufforderung ins Leere; das Gate
+     * bietet daneben zwar die Pocket-ID-Karte an, aber der SATZ zeigt auf den
+     * falschen der beiden Wege.
+     */
+    expect(gateMeldung("abgelaufen", null)).toContain("Kärtchen");
+    expect(gateMeldung("anmeldung", null)).not.toContain("Kärtchen");
+    expect(gateMeldung("anmeldung", null)).toContain("Anmeldung");
   });
 
   it("unterscheidet `code` und `gesperrt` im WORTLAUT", () => {
@@ -89,6 +113,86 @@ describe("die Typzusage", () => {
       expect(g).toBe("gesperrt");
     } else {
       expect.unreachable("haette erkannt werden muessen");
+    }
+  });
+});
+
+const KAERTCHEN = { herkunft: "kaertchen" } as const;
+const SITZUNG_WEG = { herkunft: "konto", nochAngemeldet: false } as const;
+const GRUPPE_WEG = { herkunft: "konto", nochAngemeldet: true } as const;
+
+describe("gateGrundFuerSperre — ein Zustand, drei Lagen (DRK-305)", () => {
+  it("mit Kaertchen heisst `sitzung` am Gate `abgelaufen`", () => {
+    expect(gateGrundFuerSperre("sitzung", KAERTCHEN)).toBe("abgelaufen");
+  });
+
+  it("angemeldet gewesen, Sitzung weg → `anmeldung`", () => {
+    expect(gateGrundFuerSperre("sitzung", SITZUNG_WEG)).toBe("anmeldung");
+  });
+
+  it("NOCH angemeldet, aber Gruppe entzogen → `keinZugriff`", () => {
+    /*
+     * ⚠️ DER TRAEGER DES ZWEITEN BEFUNDS (P2 zu PR #169), und ohne ihn ist eine
+     * Fassung gruen, die eine SCHLEIFE baut: „Melde dich erneut an" schickt
+     * diese Person durch den ganzen Pocket-ID-Weg — und danach steht sie vor
+     * derselben Sperre, denn ihr fehlt nicht die Sitzung, sondern das Recht.
+     */
+    expect(gateGrundFuerSperre("sitzung", GRUPPE_WEG)).toBe("keinZugriff");
+  });
+
+  it("die drei Lagen liefern DREI verschiedene Saetze", () => {
+    // Mechanisch gegen das Zusammenlegen: zwei gleiche Saetze hiessen, dass
+    // eine der drei Lagen ihre Auskunft verloren hat.
+    const saetze = [KAERTCHEN, SITZUNG_WEG, GRUPPE_WEG]
+      .map((lage) => gateMeldung(gateGrundFuerSperre("sitzung", lage), null));
+    expect(new Set(saetze).size).toBe(3);
+  });
+
+  it("nur `anmeldung` fordert zum Anmelden auf", () => {
+    // Die Probe auf den Befund selbst: der Satz fuer die entzogene Gruppe darf
+    // genau das NICHT verlangen, sonst ist die Schleife wieder da.
+    expect(gateMeldung("keinZugriff", null)).not.toContain("Melde dich");
+    expect(gateMeldung("keinZugriff", null)).toContain("Leitung");
+  });
+
+  it("`gesperrt` gilt NUR in der Kaertchen-Lage", () => {
+    expect(gateGrundFuerSperre("gesperrt", KAERTCHEN)).toBe("gesperrt");
+  });
+
+  it("ein TOTES Kaertchen-Cookie ueberstimmt die Konto-Herkunft NICHT", () => {
+    /*
+     * ⚠️ DER TRAEGER DES DRITTEN BEFUNDS (P2 zu PR #169, zweite Runde), und er
+     * sichert eine Unterscheidung zwischen BESITZEN und BENUTZEN.
+     *
+     * `requireHelferSitzung` faellt hinter `grund: "gesperrt"` ausdruecklich auf
+     * das Konto durch — wer ein totes Kaertchen-Cookie im Browser hat und sich
+     * anmeldet, arbeitet also angemeldet weiter, und das Cookie bleibt liegen.
+     * Faellt spaeter die Anmeldung, liefert der Riegel den Grund des KAERTCHENS.
+     * Ohne diese Zeile stuende dann „dieser Zugangs-Code wurde gesperrt" vor
+     * einer Person, die nie einen Code eingegeben hat — eine Auskunft ueber den
+     * falschen Gegenstand, und sie verschweigt den Weg, der wirklich hilft.
+     */
+    expect(gateGrundFuerSperre("gesperrt", SITZUNG_WEG)).toBe("anmeldung");
+    expect(gateGrundFuerSperre("gesperrt", GRUPPE_WEG)).toBe("keinZugriff");
+  });
+
+  it("in der Konto-Lage sind BEIDE Gruende gleichgueltig", () => {
+    // Die Verallgemeinerung des Falls darueber: was dem Kaertchen widerfahren
+    // ist, spielt fuer jemanden, der es nicht benutzt hat, keine Rolle.
+    for (const lage of [SITZUNG_WEG, GRUPPE_WEG]) {
+      expect(gateGrundFuerSperre("gesperrt", lage))
+        .toBe(gateGrundFuerSperre("sitzung", lage));
+    }
+  });
+
+  it("liefert nur Werte, die der Route Handler /abmelden weiterreichen darf", () => {
+    // `/abmelden` baut aus dem Wert einen Location-Kopf und laesst nur den
+    // geschlossenen Satz durch (`abmelden/route.ts`). Ein Rueckgabewert
+    // ausserhalb davon liefe dort still ins Leere.
+    for (const grund of ["sitzung", "gesperrt"] as const) {
+      for (const lage of [KAERTCHEN, SITZUNG_WEG, GRUPPE_WEG]) {
+        expect(istGateGrund(gateGrundFuerSperre(grund, lage))).toBe(true);
+      }
     }
   });
 });
