@@ -51,7 +51,29 @@ export type ArtikelZeileHelfer = {
   bestand: number;
 };
 
-export function ArtikelSuche({ artikel }: { artikel: ArtikelZeileHelfer[] }) {
+export function ArtikelSuche({
+  artikel,
+  basis,
+}: {
+  artikel: ArtikelZeileHelfer[];
+  /**
+   * DRK-313 — DER PFADSTAMM, UNTER DEM EINE ZEILE IHREN ARTIKEL OEFFNET:
+   * `/a` fuer die Entnahme (der Pfad, der auch auf dem Regaletikett steht),
+   * `/auffuellen` fuer die Auffuellansicht der GF.
+   *
+   * ⚠️ EINE ZEICHENKETTE, KEINE FUNKTION. Eine `(a) => string`-Prop waere die
+   * naheliegende Form und geht NICHT: diese Liste bekommt ihre Props aus einer
+   * Server Component, und eine gewoehnliche Funktion ueberquert die RSC-Grenze
+   * nicht (Falle 9, „Functions cannot be passed directly to Client
+   * Components"). Weder `build` noch Vitest sehen das — nur ein echter Abruf.
+   *
+   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL MIT VORGABE `"/a"`. Ein vergessenes `basis`
+   * waere still die ENTNAHME: die Auffuellliste fuehrte dann auf den Schirm,
+   * der Material HERAUSBUCHT — dieselbe Liste, dieselbe Zeile, umgekehrte
+   * Richtung. Der Compiler ist hier die einzige Stelle, die das faengt.
+   */
+  basis: string;
+}) {
   const [q, setQ] = useState("");
 
   const treffer = useMemo(() => {
@@ -100,8 +122,14 @@ export function ArtikelSuche({ artikel }: { artikel: ArtikelZeileHelfer[] }) {
         )}
 
         {treffer.map((a) => (
-          // AEUSSERER Pfad — derselbe, der auf dem Regaletikett steht (§8.1).
-          <Link className={s.zeile} key={a.id} href={`/a/${a.id}`} data-rolle="artikel-zeile">
+          // AEUSSERER Pfad (§8.1) — bei `basis="/a"` derselbe, der auf dem
+          // Regaletikett steht.
+          <Link
+            className={s.zeile}
+            key={a.id}
+            href={`${basis}/${a.id}`}
+            data-rolle="artikel-zeile"
+          >
             <div className={s.zeileHaupt}>
               <div className={s.zeileName}>{a.name}</div>
               <div className={s.zeileMeta}>

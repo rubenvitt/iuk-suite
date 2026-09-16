@@ -253,3 +253,49 @@ export function artikelDetailHelfer(db: Leser, id: string, now: Date = new Date(
     fach: d.artikel.fach, bestand: d.bestand, chargen: cs,
   };
 }
+
+/**
+ * DIE ANSICHT DES AUFFUELLENS (`/auffuellen/[artikelId]`) — DRK-313,
+ * Codex-Befund P1 zu PR #174.
+ *
+ * ⚠️ SIE FILTERT NICHT, UND GENAU DARIN UNTERSCHEIDET SIE SICH VON
+ * `artikelDetailHelfer`. Dessen `restGesamt > 0` ist fuer die ENTNAHME richtig
+ * — was nirgends liegt, kann man nicht mitnehmen. Fuers ANNEHMEN ist er
+ * falsch, und zwar auf die teuerste Art: kommt Nachschub aus demselben Los,
+ * dessen Vorgaenger ueberall aufgebraucht ist, stuende die vorhandene Charge
+ * gar nicht zur Wahl. Die einzige Ausweichform waere „Neue Charge" mit
+ * derselben Nummer und demselben Verfall — also genau die zweite, in FEFO
+ * nicht unterscheidbare Zeile, gegen die das Umschalten nach der Buchung
+ * gebaut ist (`_ui/Auffuellen.tsx`). Ein Filter haette die Falle wieder
+ * aufgemacht, durch die andere Tuer.
+ *
+ * `chargenMitRest` fuehrt die aufgebrauchte Charge ausdruecklich als
+ * „Fundstueck" weiter — das ist die Liste, die hier gebraucht wird, und sie
+ * kommt bereits FEFO-sortiert.
+ *
+ * ⚠️ `rest` IST DER HANDLAGER-REST, wie auf dem Entnahmeschirm, und eine `0`
+ * ist dort eine AUSSAGE: dieses Los gibt es, hier liegt nichts mehr davon.
+ * Die Ampel daneben sagt, ob es ueberhaupt noch eins sein sollte — eine
+ * abgelaufene Charge wird nicht versteckt, sondern als abgelaufen gezeigt.
+ * Wegzulassen waere hier dieselbe Sorte Fehler wie das Filtern.
+ *
+ * ⚠️ KEINE `verteilungJeCharge` (anders als `artikelDetailHelfer`). Sie
+ * beantwortet „wo liegt das Material?", und das ist die Frage der Entnahme.
+ * Wer auffuellt, hat es in der Hand.
+ */
+export function artikelDetailAuffuellen(db: Leser, id: string, now: Date = new Date()) {
+  const d = artikelDetail(db, id, now);
+  if (!d) return null;
+  const schwellen = verfallSchwellen();
+  const cs = d.chargen.map((c) => {
+    const s = verfallStatus(c.verfall, schwellen, now);
+    return {
+      id: c.id, chargenNr: c.chargenNr, verfall: c.verfall, rest: c.rest,
+      ampel: s.ampel as Ampel, text: chargeText(s, c.verfall),
+    };
+  });
+  return {
+    id: d.artikel.id, name: d.artikel.name, einheit: d.artikel.einheit,
+    fach: d.artikel.fach, bestand: d.bestand, chargen: cs,
+  };
+}

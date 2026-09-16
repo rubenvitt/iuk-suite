@@ -50,7 +50,14 @@ export type NavIkonName =
   // geteiltes Zeichen machte sie in der Seitenleiste ununterscheidbar. Die
   // Bauform von `baukasten` (zwei Eintraege, ein Zeichen) traegt hier NICHT:
   // dort stehen die beiden Eintraege in verschiedenen Abschnitten.
-  | "entnahme" | "pruefen"
+  // DRK-313: das Auffuellen des Handlagers. Es steht direkt UNTER „Entnahme"
+  // in derselben Seitenleiste und ist die Gegenrichtung — genau deshalb KEIN
+  // geteiltes Zeichen: zwei benachbarte Eintraege mit demselben Bild sind in
+  // der Leiste nicht zu unterscheiden, und hier entschiede das darueber, ob
+  // Material ins Lager kommt oder es verlaesst. `PiHandArrowUp` ist die
+  // Spiegelung von `entnahme` (`PiHandArrowDown`) und traegt die Richtung als
+  // Bild.
+  | "entnahme" | "auffuellen" | "pruefen"
   // DRK-312: das A7-Etikett je Handlager bzw. Einheit. KEIN geliehener Name,
   // und der Grund steht zwei Absaetze weiter oben schon ausgeschrieben:
   // `etiketten` (PiQrCode) traegt den Nav-Eintrag daneben, und die beiden

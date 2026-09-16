@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, newId } from "../../_db/schema";
 import {
-  artikelListe, artikelDetail, artikelDetailHelfer, chargenMitRest,
-  chargenJeArtikelAmLagerort,
+  artikelListe, artikelDetail, artikelDetailHelfer, artikelDetailAuffuellen,
+  chargenMitRest, chargenJeArtikelAmLagerort,
 } from "./artikel";
 import { restJeChargeAnOrt } from "./bestand";
 import { ARTIKEL_VERLAUF_GRENZE } from "../grenzen";
@@ -374,6 +374,61 @@ describe("artikelDetailHelfer — Verteilung ueber mehrere Orte (DRK-297, Aufgab
       },
     ]);
     expect(charge.restGesamt).toBe(10);
+  });
+});
+
+describe("artikelDetailAuffuellen (DRK-313)", () => {
+  /**
+   * ⚠️ DER UNTERSCHIED ZU `artikelDetailHelfer` IST EIN FILTER, UND ER
+   * ENTSCHEIDET UEBER EINEN STILLEN DATENFEHLER (Codex-Befund P1 zu PR #174).
+   *
+   * `c-leer` ist ueberall aufgebraucht. Fuer die ENTNAHME ist sie zu Recht
+   * weg — was nirgends liegt, kann man nicht mitnehmen. Fuers ANNEHMEN muss
+   * sie DA sein: kommt Nachschub aus demselben Los, waere sie sonst nicht
+   * waehlbar, und die einzige Ausweichform waere „Neue Charge" mit derselben
+   * Nummer und demselben Verfall — also eine zweite, in FEFO nicht
+   * unterscheidbare Zeile.
+   *
+   * Die beiden Zusicherungen stehen ABSICHTLICH nebeneinander: „enthaelt
+   * c-leer" allein waere auch dann gruen, wenn jemand den Filter im
+   * Helfer-Weg entfernte — und der gehoert dort hin.
+   */
+  it("fuehrt die aufgebrauchte Charge, die der Entnahmeweg ausblendet", () => {
+    const auffuellen = artikelDetailAuffuellen(t.db, "a1", NOW)!;
+    const helfer = artikelDetailHelfer(t.db, "a1", NOW)!;
+
+    expect(auffuellen.chargen.map((c) => c.id)).toContain("c-leer");
+    expect(helfer.chargen.map((c) => c.id)).not.toContain("c-leer");
+  });
+
+  it("zeigt den Handlager-Rest, und `0` ist dort eine Aussage", () => {
+    const d = artikelDetailAuffuellen(t.db, "a1", NOW)!;
+    expect(d.chargen.find((c) => c.id === "c-leer")?.rest).toBe(0);
+    // `c-frueh` liegt 7 im Handlager und 4 im Fahrzeug — gezeigt wird der
+    // Handlager-Rest, dieselbe Sprache wie die Kopfzahl.
+    expect(d.chargen.find((c) => c.id === "c-frueh")?.rest).toBe(7);
+  });
+
+  it("ordnet FEFO — dieselbe Reihenfolge wie der Entnahmeweg", () => {
+    const auffuellen = artikelDetailAuffuellen(t.db, "a1", NOW)!;
+    const helfer = artikelDetailHelfer(t.db, "a1", NOW)!;
+    // Beide kommen aus `chargenMitRest`; nur eine davon wird danach gefiltert.
+    expect(auffuellen.chargen.map((c) => c.id).filter((id) => id !== "c-leer"))
+      .toEqual(helfer.chargen.map((c) => c.id));
+    expect(auffuellen.chargen.map((c) => c.id)).toEqual(["c-leer", "c-frueh", "c-spaet"]);
+  });
+
+  /** Eine abgelaufene Charge wird NICHT versteckt, sondern als abgelaufen
+   *  gezeigt — verstecken waere dieselbe Sorte Fehler wie das Filtern. */
+  it("traegt Ampel und Text je Charge", () => {
+    const d = artikelDetailAuffuellen(t.db, "a1", NOW)!;
+    const leer = d.chargen.find((c) => c.id === "c-leer")!;
+    expect(leer.ampel).toBe("rot");
+    expect(leer.text).toBeTruthy();
+  });
+
+  it("liefert `null` fuer einen unbekannten Artikel", () => {
+    expect(artikelDetailAuffuellen(t.db, "x", NOW)).toBeNull();
   });
 });
 
