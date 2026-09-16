@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * DIESE DATEI BEWACHT EINE MESSUNG, KEINE VERMUTUNG (DRK-192, 2026-09-16,
- * Quelltext-Scan ueber das ganze Repo ausser `NICHT_BETRETEN`, Stand `e79dc8b`).
+ * Quelltext-Scan ueber alle von git verfolgten Dateien, Stand `e79dc8b`).
  *
  * DER BEFUND: die Suite schreibt ihre Begruendungen in Kommentare und verankert
  * sie mit `datei:zeile`. Gemessen stehen davon **6027** im Repo — allein
@@ -51,14 +51,16 @@ import { describe, expect, it } from "vitest";
  *      Trigger-Begruendung. Kein EOF, kein Treffer. Dagegen hilft nur die
  *      NAMENSFORM (Symbol- oder Zusicherungsname statt Zeilennummer), und
  *      genau deshalb steht sie als Regel in `CLAUDE.md`.
- *   2. **Anker in die Alt-Anwendung und in Fremdpakete.** Beide liegen nicht in
- *      diesem Repo; es gibt nichts, wogegen man sie halten koennte. Sie werden
+ *   2. **Anker in die Alt-Anwendung und in Fremdpakete.** Beide sind nicht
+ *      VERSIONIERT; es gibt nichts, wogegen man sie halten koennte. Sie werden
  *      hier bewusst NICHT gemeldet — ein Riegel, der Unpruefbares anmahnt,
- *      erzieht dazu, ihn zu ueberlesen.
+ *      erzieht dazu, ihn zu ueberlesen. ⚠️ „Nicht versioniert" und „liegt nicht
+ *      da" sind dabei ZWEIERLEI: ein installiertes `node_modules/…` liegt da,
+ *      gehoert aber nicht zum Repo — siehe `aufloesen`.
  *   3. **Prosa in `docs/`.** Berichte und Plaene halten einen VERGANGENEN Stand
  *      fest; ihre Anker sollen mit dem Repo gerade NICHT mitwandern. Deshalb
- *      steht `docs` in `NICHT_BETRETEN` (dort stehen 24 Anker ueber EOF, alle
- *      korrekt als historisch).
+ *      steht `docs` in `NICHT_GELESENE_PFADE` (dort stehen 24 Anker ueber EOF,
+ *      alle korrekt als historisch). Als ZIEL bleibt `docs` erlaubt.
  */
 
 /**
@@ -129,9 +131,9 @@ const NICHT_GELESEN =
  * `src/proxy.ts` und `.env.example:107-110` in mehreren radio-Dateien wurden
  * NIE zu einem Anker. Der Filter ist jetzt `aufloesen` — was sich nicht gegen
  * eine Datei dieses Repos aufloesen laesst, faellt dort heraus. Das ist die
- * belastbarere Reihenfolge: die Regex darf grosszuegig sein, das Dateisystem
- * entscheidet. Gemessen: 18 zusaetzlich erfasste Anker, kein einziger
- * Fehlalarm.
+ * belastbarere Reihenfolge: die Regex darf grosszuegig sein, die VERSIONIERTE
+ * Dateiliste entscheidet. Gemessen: 18 zusaetzlich erfasste Anker, kein
+ * einziger Fehlalarm.
  *
  * Die EINE Einschraenkung, die bleibt: ein Ziel aus lauter Ziffern ist keines.
  * Sonst waere `12:30` in einer Messnotiz ein Ankerkandidat.
@@ -207,6 +209,14 @@ function zeilen(pfad: string): number | null {
   return zeilenzahl.get(pfad) ?? null;
 }
 
+/** Jede von git verfolgte Datei, relativ zur Repowurzel. */
+function verfolgteDateien(): string[] {
+  const roh = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8", maxBuffer: 64 << 20 });
+  return roh.split("\0").filter((p) => p !== "");
+}
+
+const VERFOLGT = new Set(verfolgteDateien());
+
 /**
  * Die Basen, gegen die ein Anker aufgeloest wird, in der Reihenfolge, in der
  * die Suite sie tatsaechlich schreibt: das eigene Verzeichnis (`./nachbar.ts`),
@@ -216,8 +226,22 @@ function zeilen(pfad: string): number | null {
  *
  * Der ERSTE Treffer gewinnt. Das ist dieselbe Reihenfolge, in der ein Mensch
  * sucht, und damit die Datei, in der er landet.
+ *
+ * ⚠️ AUFGELOEST WIRD NUR GEGEN `VERFOLGT`, nicht gegen das Dateisystem, und das
+ * ist der Unterschied zwischen „liegt da" und „gehoert zum Repo" (Codex-Review
+ * zu PR #183). Mit `existsSync` traf `node_modules/drizzle-orm/sqlite-core/
+ * db.d.ts:16-17` aus `scripts/import/radio.ts` eine INSTALLIERTE Fremddatei —
+ * ein Paket-Update haette den Riegel rot gefaerbt, und zwar wegen Inhalten, die
+ * dieses Repo weder kennt noch versioniert. Genau das Gegenteil dessen, was der
+ * Kopf zusagt („Anker in Fremdpakete kann er nicht pruefen"). Ein ignoriertes
+ * lokales `foo.ts` haette umgekehrt einen aeusseren Anker beschattet.
+ *
+ * `docs` und `patches` bleiben als ZIEL erlaubt, obwohl sie als QUELLE
+ * ausgeschlossen sind: ein Anker DORTHIN zeigt in eine Datei dieses Repos und
+ * kann veralten wie jede andere. Ausgeschlossen ist nur, ihre eigene Prosa als
+ * Anker zu lesen.
  */
-function aufloesen(quelle: string, ziel: string): string | null {
+export function aufloesen(quelle: string, ziel: string): string | null {
   const basen: string[] = [];
   let verzeichnis = resolve(dirname(quelle));
   const wurzel = resolve(".");
@@ -231,17 +255,14 @@ function aufloesen(quelle: string, ziel: string): string | null {
   for (const basis of basen) {
     const pfad = resolve(basis, ziel);
     if (!pfad.startsWith(`${wurzel}/`)) continue;
-    if (!existsSync(pfad)) continue;
+    if (!VERFOLGT.has(relative(wurzel, pfad))) continue;
     if (zeilen(pfad) !== null) return pfad;
   }
   return null;
 }
 
 function sammleDateien(): string[] {
-  const roh = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8", maxBuffer: 64 << 20 });
-  return roh
-    .split("\0")
-    .filter((p) => p !== "" && !NICHT_GELESENE_PFADE.some((r) => r.test(p)));
+  return [...VERFOLGT].filter((p) => !NICHT_GELESENE_PFADE.some((r) => r.test(p)));
 }
 
 function istQuelle(pfad: string): boolean {
@@ -334,6 +355,26 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
         + "der Riegel es nie und bleibt gruen, waehrend dort ein veralteter "
         + "Anker steht. Ist es binaer, gehoert es in `NICHT_GELESEN`.",
     ).toEqual([]);
+  });
+
+  /**
+   * DIE GEGENPROBE ZUR VERSIONIERTEN DATEILISTE: eine INSTALLIERTE Fremddatei
+   * liegt da, gehoert aber nicht zum Repo. Mit `existsSync` als Filter traf
+   * `node_modules/drizzle-orm/sqlite-core/db.d.ts:16-17` aus
+   * `scripts/import/radio.ts` eine echte Paketdatei — ein Paket-Update haette
+   * den Riegel rot gefaerbt wegen Inhalten, die dieses Repo nicht versioniert.
+   * Gemessen fielen durch die Umstellung 32 Anker heraus, ALLE nach
+   * `node_modules`; kein einziger zeigte auf eine Datei des Repos.
+   *
+   * Das Ziel steht bewusst auf `vitest`: das Paket laeuft gerade, ist also
+   * installiert — die Gegenprobe kann nicht still ins Leere greifen.
+   */
+  it("loest ein Ziel in node_modules NICHT auf, auch wenn die Datei daliegt", () => {
+    const fremd = "node_modules/vitest/package.json";
+    expect(existsSync(fremd), "die Gegenprobe braucht ein installiertes Paket").toBe(true);
+    expect(aufloesen("src/core/kommentaranker.test.ts", fremd)).toBeNull();
+    // Und die Gegenrichtung: eine versionierte Datei loest weiterhin auf.
+    expect(aufloesen("src/core/kommentaranker.test.ts", "core/registry.ts")).not.toBeNull();
   });
 
   /**
