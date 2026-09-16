@@ -139,8 +139,27 @@ const NICHT_GELESEN =
  * Sonst waere `12:30` in einer Messnotiz ein Ankerkandidat.
  */
 const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
+
+/**
+ * Die FORTSETZUNGEN hinter dem ersten Bereich: `portal.ts:48-49 und :51`,
+ * `globals.css:265,266`, `bauform.test.ts:181, :201-203`.
+ *
+ * ⚠️ OHNE DIESEN TEIL WIRD NUR DIE ERSTE ZAHL GEPRUEFT und der Rest still
+ * uebergangen (Codex-Review zu PR #183) — bei `48-49 und :51` also gerade die
+ * Zahl, die als einzige allein steht und damit am ehesten verrutscht.
+ * Gemessen deckt der Zusatz 24 weitere Zeilenangaben ab, keine davon rot.
+ *
+ * Der Doppelpunkt darf fehlen (`:265,266` ist die Hausform), der TRENNER nicht:
+ * nur direkt an den Anker angehaengte Fortsetzungen zaehlen. Ein `:266`, das
+ * ZEILEN SPAETER im selben Kommentar auf denselben Anker zurueckverweist,
+ * bleibt ungeprueft — das zu binden hiesse, einen Kommentarblock zustandsbehaftet
+ * zu lesen, und ein nacktes `: 51` steht auch in jedem Ternaer. Als eigener
+ * Posten notiert statt still gelassen.
+ */
+const FORTSETZUNG = "(?:\\s*(?:,|;|und)\\s*:?\\d+(?:\\s*[-–]\\s*\\d+)?)";
+
 const ZIEL = new RegExp(
-  `(${SEGMENT}(?:\\/${SEGMENT})*):(\\d+)(?:\\s*[-–]\\s*(\\d+))?`,
+  `(${SEGMENT}(?:\\/${SEGMENT})*):(\\d+)(?:\\s*[-–]\\s*(\\d+))?(${FORTSETZUNG}+)?`,
   "g",
 );
 
@@ -159,13 +178,15 @@ const ZIEL = new RegExp(
 export type Anker = { ziel: string; von: number; bis: number };
 
 export function ankerAusText(text: string): Anker[] {
-  return [...text.matchAll(ZIEL)]
-    .filter(([, ziel]) => !/^\d+$/.test(ziel))
-    .map(([, ziel, von, bis]) => ({
-      ziel,
-      von: Number(von),
-      bis: Number(bis ?? von),
-    }));
+  const anker: Anker[] = [];
+  for (const [, ziel, von, bis, schwanz] of text.matchAll(ZIEL)) {
+    if (/^\d+$/.test(ziel)) continue;
+    anker.push({ ziel, von: Number(von), bis: Number(bis ?? von) });
+    for (const [, v, b] of (schwanz ?? "").matchAll(/:?(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
+      anker.push({ ziel, von: Number(v), bis: Number(b ?? v) });
+    }
+  }
+  return anker;
 }
 
 /** Was an einer Spanne nicht stimmt — `null`, wenn sie in Ordnung ist. */
@@ -494,6 +515,15 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
     // Ohne Endung und mit unbekannter Endung — beide kamen frueher gar nicht an.
     expect(ziele("`Dockerfile:38-39`")).toEqual(["Dockerfile:39"]);
     expect(ziele("`.env.example:107-110`")).toEqual([".env.example:110"]);
+
+    // Fortsetzungen zaehlen als eigene Anker — sonst bliebe die letzte Zahl
+    // ungeprueft, und die steht am ehesten allein da.
+    expect(ziele("`portal.ts:48-49 und :51`"))
+      .toEqual(["portal.ts:49", "portal.ts:51"]);
+    expect(ziele("`globals.css:265,266`"))
+      .toEqual(["globals.css:265", "globals.css:266"]);
+    expect(ziele("`bauform.test.ts:181, :201-203`"))
+      .toEqual(["bauform.test.ts:181", "bauform.test.ts:203"]);
 
     // Kein Anker: eine Datei ohne Zeile, und eine Zeit (nur Ziffern vor dem
     // Doppelpunkt — die eine Einschraenkung, die die Regex noch selbst trifft).
