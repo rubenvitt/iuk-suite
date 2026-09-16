@@ -19,6 +19,7 @@ const BASIS: CheckDetail = {
   fahrzeugKennung: "MS-1",
   fahrzeugEinheitenart: "fahrzeug",
   quelleId: "111-111",
+  wer: "Anna Beispiel",
   startedAt: new Date("2026-06-15T09:00:00Z"),
   completedAt: new Date("2026-06-15T10:00:00Z"),
   positionen: [],

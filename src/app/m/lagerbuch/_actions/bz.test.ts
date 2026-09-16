@@ -47,6 +47,7 @@ vi.mock("../_lib/domain/bz", async (importOriginal) => {
 });
 
 import {
+  beachtungSetzen,
   geraetSpeichern,
   geraetZuBarcode,
   kontrolleErfassen,
@@ -138,10 +139,11 @@ async function geraetOhneBereiche(): Promise<string> {
 }
 
 describe("Bauform und Riegel", () => {
-  it("exportiert genau die vier bewachten Actions", async () => {
+  it("exportiert genau die fünf bewachten Actions", async () => {
     const mod = await import("./bz");
 
     expect(Object.keys(mod).sort()).toEqual([
+      "beachtungSetzen",
       "geraetSpeichern",
       "geraetZuBarcode",
       "kontrolleErfassen",
@@ -154,6 +156,7 @@ describe("Bauform und Riegel", () => {
     ["setGeraetAktiv", () => setGeraetAktiv({}, t.db)],
     ["geraetZuBarcode", () => geraetZuBarcode("BZ-1", t.db)],
     ["kontrolleErfassen", () => kontrolleErfassen({}, t.db)],
+    ["beachtungSetzen", () => beachtungSetzen({}, t.db)],
   ])("%s ruft den Admin-Riegel vor Validierung oder Datenzugriff auf", async (_name, aufruf) => {
     const riegelFehler = new Error("Riegel vor Eingabe und DB");
     adminRiegel.mockRejectedValueOnce(riegelFehler);
@@ -230,6 +233,11 @@ describe("geraetSpeichern", () => {
         level2Max: null,
         aktiv: false,
         createdAt,
+        // DRK-311: `geraetSpeichern` fasst die Beachtung NICHT an — sie hat
+        // ihre eigene Action. Stuenden die beiden Spalten in `felder`, loeschte
+        // jedes Speichern der Referenzbereiche still den Hinweis.
+        beachtungHinweis: null,
+        beachtungSeit: null,
       });
     expect(revalidiert).toEqual(erwartetePfade(id));
   });
@@ -646,5 +654,163 @@ describe("kontrolleErfassen", () => {
     expect(fehlerVon(erg).fehler).not.toContain("KONTROLLE_GEHEIMNIS");
     expect(kontrollZeilen()).toEqual([]);
     expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * DER AUFMERKSAMKEITSHINWEIS — DRK-311.
+ *
+ * ⚠️ DER GANZE ABSCHNITT PRUEFT EINE EINZIGE ENTSCHEIDUNG AUS ZWEI RICHTUNGEN:
+ * Beachtung ist ZUSTAND DES GERAETS, nicht Inhalt einer Kontrolle. Deshalb
+ * kann sie unabhaengig von einer Kontrolle aufgehoben werden — und deshalb
+ * hebt eine Kontrolle sie nicht still auf.
+ */
+describe("beachtungSetzen", () => {
+  function geraetZeile(id: string) {
+    return t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get()!;
+  }
+
+  it("setzt Hinweis und Zeitstempel und revalidiert beide Pfade", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "  Display flackert  " }, t.db);
+
+    expect(wertVon<{ erforderlich: boolean }>(erg)).toEqual({ erforderlich: true });
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert");
+    expect(zeile.beachtungSeit).toBeInstanceOf(Date);
+    expect(revalidiert).toEqual(erwartetePfade(id));
+  });
+
+  /** ⚠️ Die Standzeit ist die Zahl, an der auffaellt, dass sich niemand
+   *  kuemmert — ein praeziser formulierter Satz darf sie nicht zuruecksetzen. */
+  it("laesst beim Umformulieren den Zeitstempel stehen", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    const seit = geraetZeile(id).beachtungSeit;
+
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert beim Einschalten" }, t.db);
+
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert beim Einschalten");
+    expect(zeile.beachtungSeit?.getTime()).toBe(seit?.getTime());
+  });
+
+  /**
+   * ⚠️ DER EINZIGE WEG ZURUECK, und er liegt hier statt an der Kontrolle:
+   * `bz_kontrollen` ist append-only, ein Hinweis dort waere nur loszuwerden,
+   * indem jemand eine Kontrolle erfindet, die nie stattgefunden hat.
+   */
+  it("hebt bei leerem Hinweis auf und raeumt beide Spalten", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "   " }, t.db);
+
+    expect(wertVon<{ erforderlich: boolean }>(erg)).toEqual({ erforderlich: false });
+    expect(geraetZeile(id)).toMatchObject({
+      beachtungHinweis: null,
+      beachtungSeit: null,
+    });
+  });
+
+  it("meldet ein unbekanntes Geraet, ohne etwas zu schreiben", async () => {
+    revalidiert.length = 0;
+    const vorher = sqliteAenderungen();
+
+    const erg = await beachtungSetzen({ geraetId: "gibtsnicht", hinweis: "x" }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: "BZ-Gerät nicht gefunden." });
+    expect(sqliteAenderungen()).toBe(vorher);
+    expect(revalidiert).toEqual([]);
+  });
+
+  it("weist einen zu langen Hinweis als Feldfehler ab", async () => {
+    const id = await geraetOhneBereiche();
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "x".repeat(501) }, t.db);
+
+    expect(fehlerVon(erg).feldFehler?.hinweis).toBe("Hinweis ist zu lang");
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+  });
+});
+
+describe("kontrolleErfassen — Beachtung", () => {
+  function geraetZeile(id: string) {
+    return t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get()!;
+  }
+
+  it("setzt bei „ja“ den Kommentar als Hinweis ans Geraet", async () => {
+    const id = await geraetOhneBereiche();
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
+      t.db,
+    );
+
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert");
+    expect(zeile.beachtungSeit).toBeInstanceOf(Date);
+    // Die Bemerkung steht zusaetzlich an der Kontrolle — der Nachweis behaelt
+    // seinen eigenen Text, der Zustand ist eine Kopie davon.
+    expect(kontrollZeilen()[0].kommentar).toBe("Display flackert");
+  });
+
+  /**
+   * ⚠️ DIE REGEL, DIE DAS TICKET ERZWINGT: kein gelber Status ohne
+   * verstaendlichen Hinweis. Und die Kontrolle darf dabei NICHT halb
+   * geschrieben sein — `bz_kontrollen` ist append-only, eine Zeile hier waere
+   * fuer immer da.
+   */
+  it("verweigert „ja“ ohne Kommentar, ohne die Kontrolle zu schreiben", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    const erg = await kontrolleErfassen({ geraetId: id, level1Wert: 1, beachtung: true }, t.db);
+
+    expect(fehlerVon(erg).feldFehler?.kommentar).toContain("Bitte kurz aufschreiben");
+    expect(kontrollZeilen()).toEqual([]);
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ „nein“ HEISST „ich habe nichts Neues zu melden", NICHT „das Vorherige hat
+   * sich erledigt". Eine turnusmaessige Kontrolle wuerde sonst still den
+   * Hinweis loeschen, den jemand anders letzte Woche gesetzt hat — und niemand
+   * merkte es, weil die Liste danach einfach wieder unauffaellig waere.
+   */
+  it("laesst bei „nein“ einen bestehenden Hinweis unangetastet", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    const seit = geraetZeile(id).beachtungSeit;
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Streifen nachbestellt", beachtung: false },
+      t.db,
+    );
+
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert");
+    expect(zeile.beachtungSeit?.getTime()).toBe(seit?.getTime());
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUR GESPRAECHSNOTIZ („Nicht jede Bemerkung automatisch
+   * als Warnung interpretieren"): ein Kommentar allein loest nichts aus.
+   */
+  it("macht aus einem blossen Kommentar keine Beachtung", async () => {
+    const id = await geraetOhneBereiche();
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Streifen nachbestellt" },
+      t.db,
+    );
+
+    expect(geraetZeile(id)).toMatchObject({
+      beachtungHinweis: null,
+      beachtungSeit: null,
+    });
   });
 });

@@ -53,6 +53,9 @@ const ZEILEN: BzAnzeigeZeile[] = [
     letzteKontrolleText: null,
     letzteKontrolleIso: null,
     faellig: true,
+    letzteBemerkungText: null,
+    beachtungHinweis: null,
+    beachtungSeitText: null,
   },
   {
     id: "ueberfaellig",
@@ -65,6 +68,12 @@ const ZEILEN: BzAnzeigeZeile[] = [
     letzteKontrolleText: "07.08. 12:34",
     letzteKontrolleIso: "2026-08-07T10:34:00.000Z",
     faellig: true,
+    letzteBemerkungText: "Streifen nachbestellt",
+    // ⚠️ BEMERKUNG OHNE BEACHTUNG — genau der Fall aus der Gespraechsnotiz:
+    // eine Auskunft ist keine Warnung. Faende der Filter diese Zeile, waere
+    // die Ableitung wieder da, die DRK-311 ausschliesst.
+    beachtungHinweis: null,
+    beachtungSeitText: null,
   },
   {
     id: "heute",
@@ -77,6 +86,11 @@ const ZEILEN: BzAnzeigeZeile[] = [
     letzteKontrolleText: "07.07. 10:00",
     letzteKontrolleIso: "2026-07-07T08:00:00.000Z",
     faellig: true,
+    letzteBemerkungText: null,
+    // ⚠️ BEACHTUNG OHNE BEMERKUNG — die Gegenprobe: der Hinweis steht am
+    // Geraet, nicht an der letzten Kontrolle, und darf allein auftreten.
+    beachtungHinweis: "Display flackert beim Einschalten",
+    beachtungSeitText: "seit 08.07. 09:15",
   },
   {
     id: "spaeter",
@@ -89,6 +103,9 @@ const ZEILEN: BzAnzeigeZeile[] = [
     letzteKontrolleText: "15.07. 10:00",
     letzteKontrolleIso: "2026-07-15T08:00:00.000Z",
     faellig: false,
+    letzteBemerkungText: null,
+    beachtungHinweis: null,
+    beachtungSeitText: null,
   },
 ];
 
@@ -264,11 +281,18 @@ afterEach(async () => {
 });
 
 describe("BzListe", () => {
-  it("zeigt exakt fünf Spalten, fachliche Werte sowie Detail- und Scannerlinks", async () => {
+  it("zeigt exakt sieben Spalten, fachliche Werte sowie Detail- und Scannerlinks", async () => {
     await mount(<BzListe zeilen={ZEILEN} lagerorte={LAGERORTE} />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Gerät", "Standort", "Fälligkeit", "Letzte Kontrolle", "Status"]);
+      .toEqual([
+        "Gerät", "Standort", "Fälligkeit", "Letzte Kontrolle",
+        // DRK-311: getrennte Spalten, und die Reihenfolge ist Absicht — die
+        // Bemerkung steht neben dem Zeitpunkt der Kontrolle, zu der sie
+        // gehoert, die Beachtung daneben als eigener Status.
+        "Letzte Bemerkung", "Beachtung",
+        "Status",
+      ]);
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/bz/nie']").textContent)
       .toBe("Accu-Chek Mobile");
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/bz/scan']").textContent)
@@ -636,6 +660,9 @@ describe("BZ-Übersichtsseite als Server Component", () => {
         letzteKontrolleText: null,
         letzteKontrolleIso: null,
         faellig: true,
+        letzteBemerkungText: null,
+        beachtungHinweis: null,
+        beachtungSeitText: null,
       }]);
       /*
        * ⚠️ MIT `kennung` UND `einheitenart` (DRK-309). Das Standortfeld zeigt

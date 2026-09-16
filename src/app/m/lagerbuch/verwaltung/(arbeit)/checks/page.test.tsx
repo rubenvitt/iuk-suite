@@ -225,6 +225,13 @@ describe("Checks-Seite", () => {
       // Der Rohwert fuer die Sortierung der Abschlussspalte — er faehrt als
       // JSON-sichere Zeichenkette mit, nicht als `Date`.
       abgeschlossenIso: "2026-08-07T10:00:00.000Z",
+      /*
+       * DRK-311: der AUFGELOESTE Verfasser, nicht die rohe Kennung. Der Seed
+       * dieses Tests schreibt `quelleTyp: "system"`; dafuer ist „System" die
+       * Antwort des Aufloesers (`_db/quelle.ts`) — und sie beweist zugleich,
+       * dass die Aufloesung ueberhaupt stattgefunden hat.
+       */
+      werText: "System",
       ergebnisChips: [{
         schluessel: "vollstaendig",
         text: "vollständig",

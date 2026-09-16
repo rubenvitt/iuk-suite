@@ -141,6 +141,11 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
             {check.completedAt?.toLocaleString("de-DE", {
               timeZone: "Europe/Berlin",
             }) ?? "—"}{" · "}
+            {/* DRK-311: derselbe aufgeloeste Name wie in der Spalte „Wer" der
+                Historie — wer von dort hierher tippt, liest ihn wieder. Beim
+                Kaertchen ist das die Beschriftung des Zugangs, nicht eine
+                Person; genau das ist die Aussage, die hier zu treffen ist. */}
+            Erfasst von {check.wer}{" · "}
             {/* ⚠️ DER SATZ NENNT BEIDE AMPELN, seit der Wechselwert einstellbar
                 ist (DRK-308). Vorher stand hier nur die Verfall-Ampel — und
                 genau dadurch las sich die Sauerstoff-Zeile wie der Stand bei

@@ -15,7 +15,7 @@ import {
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { normalisiereBarcode } from "../_lib/barcode";
 import { MONAT_REGEX } from "../_lib/konstanten";
-import { bewerteKontrolle } from "../_lib/domain/bz";
+import { beachtungsFelder, bewerteKontrolle } from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -54,7 +54,28 @@ const KontrolleSchema = z.object({
   lanzetten: z.coerce.number().int().min(0).max(9999).default(0),
   batterieGewechselt: z.coerce.boolean().default(false),
   kommentar: z.string().trim().optional(),
+  /**
+   * DRK-311. ⚠️ EIGENES FELD, NICHT AUS `kommentar` ABGELEITET. Die
+   * Gespraechsnotiz sagt „Nicht jede Bemerkung automatisch als Warnung
+   * interpretieren" — „Streifen nachbestellt" ist kein Missstand. Wer hier
+   * spart, macht aus jedem Kommentar einen gelben Status und aus dem gelben
+   * Status ein Rauschen, das niemand mehr liest.
+   */
+  beachtung: z.coerce.boolean().default(false),
 });
+
+/**
+ * ⚠️ EIN LEERER HINWEIS IST DAS AUFHEBEN, nicht ein Fehler. Das ist der ganze
+ * Weg zurueck: die Spalte traegt Zustand UND Begruendung in einem Feld
+ * (`_db/schema.ts`), also heisst „kein Text" genau „keine Beachtung mehr".
+ */
+const BeachtungSchema = z.object({
+  geraetId: z.string().min(1),
+  hinweis: z.string().trim().max(500, "Hinweis ist zu lang").optional(),
+});
+
+const BEACHTUNG_OHNE_TEXT =
+  "Bitte kurz aufschreiben, was zu beachten ist — ohne Hinweis ist der gelbe Status nicht zu verstehen.";
 
 type FehlerErgebnis = Extract<ActionErgebnis, { ok: false }>;
 
@@ -260,31 +281,119 @@ export async function kontrolleErfassen(
         level2Max: geraet.level2Max,
       });
 
+      /**
+       * DRK-311: Beachtung VERLANGT einen Satz, und der Satz ist der Kommentar.
+       *
+       * ⚠️ DIE PRUEFUNG STEHT HIER UND NICHT IM SCHEMA, weil sie ZWEI Felder
+       * verbindet — `z.object` prueft jedes fuer sich, und ein `superRefine`
+       * darueber landete im Fehlerpfad ohne Feldbezug. So zeigt das Formular
+       * den Satz an der Stelle, an der er zu beheben ist.
+       *
+       * Ohne diesen Riegel entstuende genau der Zustand, den das Ticket
+       * ausschliesst: ein gelber Status ohne verstaendlichen Hinweis.
+       */
+      const beachtungsHinweis = orNull(v.kommentar);
+      if (v.beachtung && beachtungsHinweis === null) {
+        return {
+          ok: false,
+          fehler: BEACHTUNG_OHNE_TEXT,
+          feldFehler: { kommentar: BEACHTUNG_OHNE_TEXT },
+        };
+      }
+
       id = newId();
       bestanden = bewertung.bestanden;
-      db.insert(bzKontrollen).values({
-        id,
-        geraetId: geraet.id,
-        ts: new Date(),
-        quelleTyp: "oidc",
-        quelleId: viewer.sub,
-        level1Wert,
-        level1ImBereich: bewertung.level1ImBereich,
-        level2Wert,
-        level2ImBereich: bewertung.level2ImBereich,
-        kompresseVerfall: v.kompresseVerfall ?? null,
-        sticks: v.sticks,
-        lanzetten: v.lanzetten,
-        batterieGewechselt: v.batterieGewechselt,
-        kommentar: orNull(v.kommentar),
-        bestanden,
-        refSnapshot,
-      }).run();
+      const jetzt = new Date();
+      /**
+       * ⚠️ EINE TRANSAKTION UEBER BEIDE SCHREIBVORGAENGE. Die Kontrollzeile ist
+       * append-only: waere sie geschrieben und das nachfolgende UPDATE des
+       * Geraets schluege fehl, gaebe es einen Nachweis mit Bemerkung und kein
+       * Geraet, das darauf zeigt — und zurueckgenommen werden koennte die Zeile
+       * nie (0002).
+       */
+      db.transaction((tx) => {
+        tx.insert(bzKontrollen).values({
+          id,
+          geraetId: geraet.id,
+          ts: jetzt,
+          quelleTyp: "oidc",
+          quelleId: viewer.sub,
+          level1Wert,
+          level1ImBereich: bewertung.level1ImBereich,
+          level2Wert,
+          level2ImBereich: bewertung.level2ImBereich,
+          kompresseVerfall: v.kompresseVerfall ?? null,
+          sticks: v.sticks,
+          lanzetten: v.lanzetten,
+          batterieGewechselt: v.batterieGewechselt,
+          kommentar: beachtungsHinweis,
+          bestanden,
+          refSnapshot,
+        }).run();
+
+        /**
+         * ⚠️ NUR SETZEN, NIE AUFHEBEN. „Beachtung: nein" heisst hier „ich habe
+         * nichts Neues zu melden" — nicht „das Vorherige hat sich erledigt".
+         * Eine turnusmaessige Kontrolle wuerde sonst still den Hinweis
+         * loeschen, den jemand anders letzte Woche gesetzt hat, und niemand
+         * merkte es: die Liste waere danach einfach wieder unauffaellig.
+         * Aufgehoben wird ausdruecklich, am Geraet (`beachtungSetzen`).
+         */
+        if (!v.beachtung) return;
+        tx.update(bzGeraete)
+          .set(beachtungsFelder(geraet, beachtungsHinweis, jetzt))
+          .where(eq(bzGeraete.id, geraet.id))
+          .run();
+      });
     } catch {
       return festerFehler("Kontrolle konnte nicht gespeichert werden.");
     }
 
     revalidate(v.geraetId);
     return { ok: true, wert: { id, bestanden } };
+  });
+}
+
+/**
+ * DIE BEACHTUNG SETZEN, UMFORMULIEREN ODER AUFHEBEN — DRK-311.
+ *
+ * ⚠️ EIN LEERER `hinweis` IST DAS AUFHEBEN. Damit gibt es genau einen Weg
+ * zurueck, und er liegt am Geraet: `bz_kontrollen` ist append-only (0002), ein
+ * Hinweis dort waere nur noch loszuwerden, indem jemand eine Kontrolle erfindet,
+ * die nie stattgefunden hat.
+ *
+ * ⚠️ DIE HERKUNFT STEHT NICHT IN DIESER TABELLE, UND DAS IST ABSICHT. Wer wann
+ * gesetzt oder aufgehoben hat, traegt der UPDATE-Trigger ins Zugriffsprotokoll
+ * (0011) — zwei eigene Spalten daneben waeren eine zweite, schlechtere Wahrheit
+ * ueber denselben Vorgang.
+ */
+export async function beachtungSetzen(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ erforderlich: boolean }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ erforderlich: boolean }>> => {
+
+    const geparst = BeachtungSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
+    const hinweis = orNull(v.hinweis);
+
+    try {
+      const geraet = db.select().from(bzGeraete)
+        .where(eq(bzGeraete.id, v.geraetId))
+        .get();
+      if (!geraet) return festerFehler(BZ_GERAET_FEHLER);
+
+      db.update(bzGeraete)
+        .set(beachtungsFelder(geraet, hinweis, new Date()))
+        .where(eq(bzGeraete.id, geraet.id))
+        .run();
+    } catch {
+      return festerFehler("Beachtung konnte nicht gespeichert werden.");
+    }
+
+    revalidate(v.geraetId);
+    return { ok: true, wert: { erforderlich: hinweis !== null } };
   });
 }

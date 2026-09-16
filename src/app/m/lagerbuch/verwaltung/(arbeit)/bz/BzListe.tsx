@@ -30,10 +30,18 @@ import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
 import type { BzAnzeigeZeile } from "./bzAnzeige";
 import { NeuBzGeraet } from "./NeuBzGeraet";
 
+/**
+ * ⚠️ BEMERKUNG UND HINWEIS SIND DURCHSUCHBAR, UND DAS STEHT AUCH IM
+ * PLATZHALTER (DRK-311). Eine Suche, die still mehr findet, als sie ankuendigt,
+ * ist genauso irrefuehrend wie eine, die zu wenig findet: wer „Display" tippt
+ * und ein Geraet bekommt, dessen Name das Wort nicht enthaelt, haelt die Liste
+ * fuer kaputt.
+ */
 function sucheTrifft(zeile: BzAnzeigeZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === "" || falte(
-    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.standortText}`,
+    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.standortText} `
+      + `${zeile.letzteBemerkungText ?? ""} ${zeile.beachtungHinweis ?? ""}`,
   ).includes(suche);
 }
 
@@ -52,6 +60,24 @@ const FAELLIG_FILTER = zustandsFilter<BzAnzeigeZeile>([
 const STATUS_FILTER = zustandsFilter<BzAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
   { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
+]);
+
+/**
+ * DRK-311 — „zeig mir alles, was Beachtung braucht" ist die Frage, wegen der
+ * diese Spalte ueberhaupt existiert. Ohne Filter muesste man sie suchen, und
+ * gesucht wird in einer Liste, in der die meisten Zeilen leer bleiben, nicht.
+ */
+const BEACHTUNG_FILTER = zustandsFilter<BzAnzeigeZeile>([
+  {
+    wert: "beachten",
+    text: "Beachtung nötig",
+    trifft: (zeile) => zeile.beachtungHinweis !== null,
+  },
+  {
+    wert: "ohne",
+    text: "ohne Hinweis",
+    trifft: (zeile) => zeile.beachtungHinweis === null,
+  },
 ]);
 
 /** Rot vor gelb vor ok: was Aufmerksamkeit verlangt, gehoert nach oben. */
@@ -118,6 +144,52 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
       ),
     },
     {
+      /*
+       * DRK-311. ⚠️ „Letzte Bemerkung", NICHT „Bemerkung": der Text gehoert zu
+       * der Kontrolle, deren Zeitpunkt in der Spalte davor steht, und ist kein
+       * Merkmal des Geraets. Ohne das Wort liest sich ein drei Wochen alter
+       * Satz wie ein aktueller Zustand.
+       */
+      title: "Letzte Bemerkung",
+      dataIndex: "letzteBemerkungText",
+      /*
+       * ⚠️ KEIN CHIP UND KEINE FARBE. Eine Bemerkung ist eine Auskunft, keine
+       * Bewertung — „Nicht jede Bemerkung automatisch als Warnung
+       * interpretieren" (Gespraechsnotiz DRK-311). Wer Aufmerksamkeit braucht,
+       * traegt sie in der Spalte daneben.
+       */
+      render: (text: string | null) => (
+        text ?? <span style={SCHRIFT.neben}>—</span>
+      ),
+    },
+    {
+      title: "Beachtung",
+      dataIndex: "beachtungHinweis",
+      filters: BEACHTUNG_FILTER.filters,
+      onFilter: BEACHTUNG_FILTER.onFilter,
+      /*
+       * ⚠️ GELB, NICHT ROT (Falle 3, §6.6.5): `colorError` ist `colorPrimary`
+       * ist Suite-Rot, und Rot traegt in diesem Modul fachliche Bedeutung —
+       * „ueberfaellig" und „nicht bestanden" stehen in den Spalten daneben
+       * schon darin. Ein roter Aufmerksamkeitshinweis waere von einem
+       * Missstand nicht mehr zu unterscheiden.
+       *
+       * ⚠️ DER HINWEISTEXT STEHT IM CHIP, nicht ein Wort wie „ja". Der Chip
+       * traegt immer Text, nie nur Farbe (`_ui/Chip.tsx`) — und hier ist der
+       * Text die ganze Aussage: ein gelber Punkt ohne Begruendung ist genau
+       * der Zustand, den das Ticket ausschliesst.
+       */
+      render: (hinweis: string | null, zeile) => (
+        hinweis === null
+          ? <span style={SCHRIFT.neben}>—</span>
+          : (
+            <Chip ton="gelb" zeichen="warnung" title={zeile.beachtungSeitText ?? undefined}>
+              {hinweis}
+            </Chip>
+          )
+      ),
+    },
+    {
       title: "Status",
       dataIndex: "aktiv",
       sorter: nachJaNein<BzAnzeigeZeile>((zeile) => zeile.aktiv),
@@ -163,7 +235,7 @@ export function BzListe({
         <Suchfeld
           wert={suche}
           onWert={setSuche}
-          platzhalter="Gerät, Barcode oder Lagerort suchen…"
+          platzhalter="Gerät, Barcode, Lagerort oder Bemerkung suchen…"
         />
         <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <Button href="/verwaltung/bz/scan" icon={<Ikone name="scannen" groesse={16} />}>
