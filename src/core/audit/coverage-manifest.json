@@ -347,6 +347,10 @@
     "kind": "context",
     "via": "aussondernVomLagerort"
   },
+  "src/app/m/lagerbuch/_actions/entnahmebox.ts#bucheInEntnahmebox": {
+    "kind": "context",
+    "via": "bucheInEntnahmebox"
+  },
   "src/app/m/lagerbuch/_actions/bestellung.ts#markiereBestellt": {
     "kind": "context",
     "via": "markiereBestellt"

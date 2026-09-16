@@ -1,7 +1,8 @@
+import { eq } from "drizzle-orm";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "./testdb";
 import { lagerorte } from "./schema";
-import { HANDLAGER_ID } from "../_lib/konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../_lib/konstanten";
 import {
   handlagerOrte, ortStamm, handlagerSchraenke, ortNamensaufloesung, zaehlBereich,
 } from "../_lib/lesepfade/orte";
@@ -33,6 +34,39 @@ describe("handlagerOrte", () => {
    *  Material verschwinden. Inaktiv heisst nur: nicht mehr waehlbar. */
   it("nimmt auch stillgelegte Schraenke mit", () => {
     expect(handlagerOrte(t.db)).toContain("schrank-alt");
+  });
+
+  it("laesst die Entnahmebox draussen, AUCH wenn sie eingehaengt ist", () => {
+    /*
+     * ⚠️ DIE ZUSAGE VON DRK-314, UND SIE HING BIS HIER AN EINEM WERT IN EINER
+     * MIGRATION (Codex-Review zu PR #175). 0011 setzt `parent_id` auf NULL,
+     * aber sie schreibt `INSERT OR IGNORE`: liegt in einer importierten
+     * Datenbank schon eine Zeile `entnahmebox`, bleibt sie samt ihres
+     * `parent_id` stehen. Der Test stellt genau diese Datenbank her.
+     *
+     * ⚠️ WAS DABEI SCHIEFGINGE, SIEHT MAN NICHT: die Box zaehlte als
+     * Handlagerbestand — im Bestellvorschlag, in der Verfallsliste, in der
+     * FEFO-Verteilung jeder Entnahme. Die Zahlen blieben plausibel, sie
+     * meinten nur etwas anderes.
+     */
+    t.db.update(lagerorte).set({ parentId: HANDLAGER_ID })
+      .where(eq(lagerorte.id, ENTNAHMEBOX_ID)).run();
+
+    expect(handlagerOrte(t.db)).not.toContain(ENTNAHMEBOX_ID);
+  });
+
+  it("laesst auch einen Teilbaum UNTER der Box draussen", () => {
+    // ⚠️ DESHALB WIRD VOR DEM BAUM GEFILTERT, nicht danach: wer nur das
+    // Ergebnis von `teilbaum` saeubert, laesst die Kinder der Box drin — und
+    // der Bestand steckt in den Kindern.
+    t.db.update(lagerorte).set({ parentId: HANDLAGER_ID })
+      .where(eq(lagerorte.id, ENTNAHMEBOX_ID)).run();
+    t.db.insert(lagerorte).values({
+      id: "kiste-fach", name: "Fach in der Kiste", typ: "lager", aktiv: true,
+      parentId: ENTNAHMEBOX_ID, sortierung: 10,
+    }).run();
+
+    expect(handlagerOrte(t.db)).not.toContain("kiste-fach");
   });
 });
 

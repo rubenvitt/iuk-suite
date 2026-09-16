@@ -461,6 +461,79 @@ function aussondernFahrzeugFixtures(): void {
 }
 
 /**
+ * EIGENE Zeilen fuer `lagerbuch-entnahmebox.spec.ts` (DRK-314).
+ *
+ * ⚠️ EIN EIGENES FAHRZEUG, EIN EIGENER ARTIKEL, EINE EIGENE CHARGE — und jedes
+ * davon einzeln begruendet:
+ *
+ *  * EIGENES FAHRZEUG, weil die Spec BUCHT. `e2e-aussondern-fahrzeug` traegt
+ *    dieselbe Eigenschaft, und zwei schreibende Specs auf derselben Zeile sind
+ *    genau die Reihenfolgeabhaengigkeit, die isoliert gruen ist und im Verbund
+ *    rot (alle Specs teilen EINE Datenbank, `workers: 1`).
+ *  * EIGENER ARTIKEL, obwohl `aussondernFahrzeugFixtures` ausdruecklich einen
+ *    WIEDERVERWENDET. Der Unterschied ist die BOX: sie ist ein eigener
+ *    Lagerort, und was die Spec dorthin bucht, steht danach in der
+ *    Boxansicht — mit einem geteilten Artikel zaehlte jeder Lauf eine Zeile
+ *    mehr, und eine als „genau eine" geschriebene Zusicherung waere
+ *    laufabhaengig. INAKTIV ist er trotzdem nicht: die Helferflaeche zeigt nur,
+ *    was Bestand hat, und ein inaktiver Artikel bliebe dort sichtbar (der
+ *    Lesepfad filtert `artikel.aktiv` bewusst nicht).
+ *  * ⚠️ MINDESTBESTAND 0 und ein Name ohne „Pflaster"/„Kompresse": sonst
+ *    verschoebe er die Zahlen, die Bestellliste, Kennzahlen und der
+ *    Bestandsexport zusichern (I-14).
+ *
+ * ⚠️ ZWEI CHARGEN, NICHT EINE. Die Chargenwahl der beiden Flaechen erscheint
+ * NUR, wenn es mehr als eine gibt — mit einer einzigen bliebe der Zweig
+ * ungeprueft, und zwar still: die Spec waere gruen, weil sie die Vorgabe
+ * benutzt.
+ *
+ * ⚠️ BEIDE VERFALLSMONATE IM FERNEN BAND (`E2E_VERFALL_FERN` und ein Monat
+ * darunter): ein naher Monat waere eine Zeitbombe fuer die Verfallsliste, die
+ * eine Nachbarspec durchzaehlt.
+ *
+ * ⚠️ KEINE SOLL-POSITION. Der Anlass des Tickets ist „jemand hat zu viel drauf
+ * gelegt" — genau das ist Bestand OHNE Soll, und der Lesepfad der Boxflaeche
+ * geht deshalb ueber den BESTAND und nicht ueber `sollFuerFahrzeug`. Eine
+ * Soll-Position hier machte die Spec blind fuer diese Entscheidung.
+ */
+function entnahmeboxFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values({
+    id: "e2e-box-fahrzeug", name: "E2E Box-RTW", typ: "fahrzeug",
+    kennung: "MS-E2E-9", aktiv: true, templateId: null, einheitenart: "fahrzeug",
+  }).onConflictDoNothing().run();
+
+  db.insert(artikel).values({
+    id: "e2e-box-artikel", name: "E2E Box Rettungsdecke", einheit: "Stk.", fach: "BOX-1",
+    mindestbestand: 0, aktiv: true, kategorie: "E2E Box", createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  db.insert(chargen).values([
+    { id: "e2e-box-charge-alt", artikelId: "e2e-box-artikel", chargenNr: "E2E-BOX-ALT",
+      verfall: "2089-01", createdAt: JETZT },
+    { id: "e2e-box-charge-neu", artikelId: "e2e-box-artikel", chargenNr: "E2E-BOX-NEU",
+      verfall: E2E_VERFALL_FERN, createdAt: JETZT },
+  ]).onConflictDoNothing().run();
+
+  // Idempotent ueber die Referenz: ein zweiter Seed-Lauf darf den Bestand nicht
+  // verdoppeln, und `buchungen` traegt keinen eindeutigen Index dafuer.
+  const schon = db.select().from(buchungen)
+    .where(eq(buchungen.referenz, "e2e-box-seed")).get();
+  if (!schon) {
+    for (const [chargeId, menge] of [
+      ["e2e-box-charge-alt", 6], ["e2e-box-charge-neu", 6],
+    ] as const) {
+      db.insert(buchungen).values({
+        id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-box-artikel",
+        chargeId, lagerortId: "e2e-box-fahrzeug", menge,
+        quelleTyp: "system", quelleId: "e2e",
+        referenz: "e2e-box-seed", kommentar: null,
+      }).run();
+    }
+  }
+}
+
+/**
  * Ein Artikel MIT Kategorie fuer `lagerbuch-kategorien.spec.ts` (DRK-294).
  *
  * INAKTIV und ohne Charge, und beides mit Absicht: die Artikelliste zeigt
@@ -820,6 +893,7 @@ vorlagenFixtures();
 einheitenartFixtures();
 fahrzeugVerfallFixtures();
 aussondernFahrzeugFixtures();
+entnahmeboxFixtures();
 kategorieFixtures();
 inventurFixtures();
 verfallOrtFixtures();

@@ -220,7 +220,11 @@ describe("g/[code] — der eine gerenderte Zustand (§11.3, 8-C2)", () => {
   it("reicht LAGERBUCH_NAV unveraendert an den Rahmen weiter", async () => {
     await mount(await GeraetDeepLink({ params: params("4012345678901") }));
     expect(rahmenAufrufe.nav.at(-1)).toBe(LAGERBUCH_NAV);
-    expect(LAGERBUCH_NAV).toHaveLength(20);   // DRK-305: plus Entnahme und Check durchfuehren; DRK-312: plus Ortsetiketten; DRK-313: plus Auffuellen
+    // ⚠️ BEIDE SEITEN SCHRIEBEN HIER 20, und beide hatten fuer sich recht: DRK-313
+    // und DRK-314 haben je EINEN Eintrag ergaenzt, jeder von 19 aus gerechnet.
+    // Zusammen sind es 21. Wer den Marker aufloest, ohne nachzuzaehlen, uebernimmt
+    // eine Zahl, die auf keiner der beiden Seiten falsch war.
+    expect(LAGERBUCH_NAV).toHaveLength(21);   // DRK-305: Entnahme + Check durchfuehren; DRK-312: Ortsetiketten; DRK-313: Auffuellen; DRK-314: Entnahmebox
   });
 });
 

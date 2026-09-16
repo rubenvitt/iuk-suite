@@ -165,9 +165,16 @@ function abbuchen(
 
   const teile = fefoVerteilung(chargenRest, menge);
   let gebucht = 0;
+  /*
+   * ⚠️ EIN ZEITSTEMPEL FUER ALLE LEGS, dieselbe Begruendung wie in
+   * `umlagerung.ts`: `new Date()` IN der Schleife liest die Uhr je Charge neu,
+   * und eine Abbuchung ueber mehrere Chargen kann eine Sekundengrenze
+   * ueberqueren. `ts` ist auf Sekunden genau, der Unterschied also sichtbar.
+   */
+  const ts = new Date();
   for (const teil of teile) {
     tx.insert(buchungen).values({
-      id: newId(), ts: new Date(), typ, artikelId, chargeId: teil.chargeId,
+      id: newId(), ts, typ, artikelId, chargeId: teil.chargeId,
       // DER ORT DES TEILS, nicht die Wurzel des Bereichs.
       lagerortId: teil.vonLagerortId,
       // VORZEICHENBEHAFTET: ein Abgang ist negativ (`schema.ts:98`).

@@ -9,7 +9,7 @@
 import { lagerorte } from "../../_db/schema";
 import { teilbaum, type Lagerbereich, type OrtZeile } from "../domain/orte";
 import { eindeutigeLabels, zaehlOrtLabel } from "../inventurOrt";
-import { HANDLAGER_ID, type Einheitenart } from "../konstanten";
+import { HANDLAGER_ID, istEntnahmebox, type Einheitenart } from "../konstanten";
 import type { Leser } from "./bestand";
 
 export type OrtStammZeile = {
@@ -47,8 +47,32 @@ export function handlagerOrte(db: Leser): Lagerbereich {
   return teilbaum(baumZeilen(db), HANDLAGER_ID);
 }
 
+/**
+ * Die Zeilen, aus denen der HANDLAGER-BAUM gerechnet wird.
+ *
+ * ⚠️ DIE ENTNAHMEBOX FAELLT HIER RAUS, UND ZWAR NICHT AUS VORSICHT
+ * (Codex-Review zu PR #175). Migration 0011 haengt sie NEBEN den Handlager
+ * (`parent_id IS NULL`) — das ist die ganze Entscheidung von DRK-314, und der
+ * Grund steht bei `ENTNAHMEBOX_ID`: alles unter `HANDLAGER_ID` zaehlt sofort
+ * als Handlagerbestand, in den Bestellvorschlag, in die Verfallsliste, in die
+ * FEFO-Verteilung jeder Entnahme.
+ *
+ * Diese Zusage hing aber allein am Wert in der Migration, und die schreibt
+ * `INSERT OR IGNORE`: liegt in einer importierten Datenbank schon eine Zeile
+ * `entnahmebox`, bleibt sie unangetastet — samt ihres `parent_id`. Damit waere
+ * die Box eingehaengt, jede Abgabe zaehlte doppelt, und eine Helferin am Regal
+ * bekaeme Material angeboten, das ungeprueft in einer Kiste liegt. Nichts
+ * daran waere zu sehen: die Zahlen stimmen ja, sie meinen nur etwas anderes.
+ *
+ * ⚠️ VOR dem Baum und nicht danach, damit auch ein Teilbaum UNTER der Box
+ * unerreichbar wird: nur zu filtern, was `teilbaum` zurueckgibt, liesse ihre
+ * Kinder drin. Und lieber hier als in einem Riegel je Schreibpfad — die Frage
+ * „was ist Handlager?" hat genau eine Antwort, und das ist diese Funktion.
+ */
 function baumZeilen(db: Leser): OrtZeile[] {
-  return alleOrte(db).map((o) => ({ id: o.id, parentId: o.parentId, sortierung: o.sortierung }));
+  return alleOrte(db)
+    .filter((o) => !istEntnahmebox(o.id))
+    .map((o) => ({ id: o.id, parentId: o.parentId, sortierung: o.sortierung }));
 }
 
 /** Die Schraenke OHNE die Wurzel — fuer Auswahllisten und die Verwaltung. */

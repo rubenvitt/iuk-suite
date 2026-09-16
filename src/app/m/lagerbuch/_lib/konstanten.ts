@@ -15,6 +15,58 @@
  *  Aussonderung und Nachfuellung bucht gegen genau diese ID. */
 export const HANDLAGER_ID = "handlager";
 
+/**
+ * DIE ENTNAHMEBOX — die Kiste in der Halle, DRK-314.
+ *
+ * Sie nimmt auf, was aus einer Einheit HERAUSgenommen wurde und noch nicht
+ * wieder einsortiert ist: zu viel mitgenommene Kühlkompressen, was jemand
+ * beim Check zu viel auf dem Fahrzeug fand. Eingeräumt wird später, von Hand,
+ * durch jemanden mit Lagerbuch-Zugang.
+ *
+ * ⚠️ SIE HÄNGT NEBEN DEM HANDLAGER, NICHT DARUNTER (`parent_id IS NULL`,
+ * Migration 0011), UND DAS IST DIE GANZE ENTSCHEIDUNG DES TICKETS. Ein Schrank
+ * unter der Wurzel wäre der naheliegende Bau und wäre falsch: `handlagerOrte`
+ * ist der Bereich JEDER handlager-gescopten Abfrage (`_lib/lesepfade/orte.ts`),
+ * und alles darunter zählt sofort als Handlagerbestand — in den Bestellvorschlag,
+ * in die Verfallsliste, in die FEFO-Verteilung jeder Entnahme. Eine Helferin am
+ * Regal bekäme Material angeboten, das ungeprüft in einer Kiste liegt.
+ *
+ * ⚠️ UND SIE IST KEIN `typ: "fahrzeug"`. Die Art trennt den Bestandsort vom
+ * beweglichen Träger, und an dieser Trennung hängt jeder Schreibpfad des Moduls
+ * (dieselbe Begründung wie bei `einheitenart`, `_db/schema.ts`): eine Box mit
+ * `typ: "fahrzeug"` bekäme ein Soll, stünde in der Einheitenliste, ließe sich
+ * checken und tauchte in der Zielwahl jeder Entnahme auf.
+ *
+ * Was daraus folgt und ausdrücklich so gewollt ist: die Box hat KEIN Soll,
+ * KEINEN Check, KEINEN Mindestbestand und steht in KEINER Zielwahl. Sie ist ein
+ * Zwischenzustand, kein Lagerplatz.
+ */
+export const ENTNAHMEBOX_ID = "entnahmebox";
+
+/**
+ * Der Name, den die Migration schreibt — und damit der, den jede Anzeige aus
+ * `lagerorte.name` liest.
+ *
+ * ⚠️ ER STEHT HIER ALS ZWEITE KOPIE DESSELBEN WORTES, und das ist Absicht: die
+ * Zeile in der Datenbank ist umbenennbar (es ist eine gewöhnliche
+ * `lagerorte`-Zeile), dieser Wert ist es nicht. Gebraucht wird er allein dort,
+ * wo eine Fläche über die Box spricht, OHNE sie geladen zu haben — im
+ * Seitenkopf, in einem Satz, in einer leeren Liste. Wo die Zeile vorliegt,
+ * gewinnt `lagerorte.name`; `_lib/lesepfade/entnahmebox.test.ts` hält fest,
+ * dass die Migration genau dieses Wort schreibt.
+ */
+export const ENTNAHMEBOX_NAME = "Entnahmebox";
+
+/**
+ * Ist dieser Ort die Box?
+ *
+ * ⚠️ EINE FUNKTION UND KEIN `=== ENTNAHMEBOX_ID` AN VIER STELLEN: die Frage
+ * wird von den drei Standortwahlen gestellt (Gerät, BZ-Gerät, Flasche), und die
+ * drei laufen über `lagerorte.aktiv` und sonst nichts. Ein Vergleich, den man
+ * je Datei abschreibt, ist der, den die vierte Datei vergisst.
+ */
+export const istEntnahmebox = (lagerortId: string): boolean => lagerortId === ENTNAHMEBOX_ID;
+
 /** Kodiert „kein Verfall". Auf NULL umgestellt kippen Ampel, Verfall-Liste und die
  *  FEFO-Sortierung (fefo.ts sortiert ueber den String) fuer jede so angelegte Charge. */
 export const PSEUDO_VERFALL = "2099-12";
@@ -54,6 +106,23 @@ export const istOhneVerfall = (verfall: string): boolean => verfall === PSEUDO_V
 export const CHECK_ABGLEICH = "Check Abgleich";
 export const CHECK_NACHFUELLUNG = "Check Nachfüllung";
 export const CHECK_MESSUNG = "Check";
+
+/**
+ * DER KOMMENTAR, DEN EINE BUCHUNG IN DIE ENTNAHMEBOX SCHREIBT — DRK-314.
+ *
+ * ⚠️ FESTGENAGELT UND NICHT FREITEXT, aus demselben Grund wie `CHECK_ABGLEICH`
+ * daneben: dadurch steht in der Journalspalte „Kommentar" bereits, WAS passiert
+ * ist, und das Praefix `entnahmebox:` braucht kein zweites Etikett in der Spalte
+ * „Vorgang" (die Entscheidungstabelle steht im Kopf von `_lib/vorgang.ts`).
+ *
+ * ⚠️ NEUTRAL, OHNE DIE ART DER EINHEIT — dieselbe Ausnahme und dieselbe
+ * Begruendung wie bei `CHECK_ABGLEICH`: ein GESPEICHERTER Text darf nichts
+ * behaupten, was eine spaetere Korrektur falsch macht, und `setEinheitenart`
+ * erlaubt ausdruecklich, die Art einer bestehenden Einheit zu aendern. Woher das
+ * Material kam, steht ohnehin praeziser in der Referenz und in der Ortsspalte
+ * der Gegenzeile — und zwar als ID, die kein Umbenennen veraltet.
+ */
+export const ENTNAHMEBOX_KOMMENTAR = "In die Entnahmebox gelegt";
 
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
