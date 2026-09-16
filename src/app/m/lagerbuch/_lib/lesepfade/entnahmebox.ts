@@ -199,9 +199,18 @@ export type BoxZugang = {
  * nennt; zwei Artikel in einer Mengenangabe waeren eine Auskunft, die es nicht
  * gibt.
  *
- * ⚠️ DER ZEITPUNKT TRAEGT DIE ABGRENZUNG, WEIL EINE TRANSAKTION IHRE LEGS IN
- * DERSELBEN SEKUNDE SCHREIBT — dieselbe Sekundengranularitaet, die
+ * ⚠️ DER ZEITPUNKT TRAEGT DIE ABGRENZUNG, WEIL ALLE ZUGANGS-LEGS EINES
+ * VORGANGS DENSELBEN `ts` TRAGEN — dieselbe Sekundengranularitaet, die
  * `_db/schema.ts` am Check ausdruecklich als fachlich sichtbar beschreibt.
+ *
+ * ⚠️ DAS WAR BIS DRK-314 EINE ANNAHME UND KEINE ZUSAGE (Codex-Review zu
+ * PR #175, dritte Runde): `umlagerung` las die Uhr JE CHARGE neu, und eine
+ * FEFO-Abgabe ueber mehrere Chargen, die eine Sekundengrenze ueberquert, stand
+ * hier als zwei Vorgaenge. Selten, still, und nicht zu reproduzieren, weil es
+ * daran haengt, wo die Uhr steht. Seither liest `umlagerung` sie EINMAL je
+ * Vorgang (`schreibpfade/umlagerung.ts`, geprueft mit einer tickenden
+ * Attrappe) — die Abgrenzung hier ruht also auf einer durchgesetzten
+ * Eigenschaft des Schreibpfads, nicht auf einer Hoffnung ueber die Laufzeit.
  *
  * ⚠️ UND DIE QUELLE GEHOERT IN DEN SCHLUESSEL, NICHT IN EIN `min()` DANEBEN
  * (Codex-Review zu PR #175, zweite Runde). Zwei Menschen koennen im selben

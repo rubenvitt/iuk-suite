@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
+import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
@@ -59,7 +60,7 @@ const BoxSchema = z.object({
   /** Die Einheit, AUS der genommen wird — Fahrzeug oder Tasche. */
   fahrzeugId: z.string().min(1),
   artikelId: z.string().min(1),
-  menge: z.coerce.number().int().positive("Menge muss größer als 0 sein").max(99_999),
+  menge: z.coerce.number().int().positive("Menge muss größer als 0 sein").max(BUCHUNG_MENGE_MAX),
   /**
    * GENAU DIESE Charge, oder `null` fuer FEFO ueber die Einheit.
    *

@@ -62,10 +62,24 @@ export function umlagerung(
     ...(chargeId ? { chargeId } : {}),
   });
 
+  /*
+   * ⚠️ EIN ZEITSTEMPEL FUER ALLE LEGS, NICHT EINER JE LEG (Codex-Review zu
+   * PR #175). `new Date()` IN der Schleife liest die Uhr je Charge neu: eine
+   * FEFO-Umlagerung ueber drei Chargen, die eine Sekundengrenze ueberquert,
+   * bekommt zwei verschiedene `ts` — und weil `ts` auf Sekunden genau
+   * gespeichert wird (`_db/schema.ts`), ist der Unterschied sichtbar.
+   *
+   * Wer die Legs eines Vorgangs anhand von Referenz UND Zeitpunkt
+   * zusammenfasst, sieht dann ZWEI Vorgaenge, wo einer war
+   * (`lesepfade/entnahmebox.ts`). Der Fehler ist still und selten, also genau
+   * der, den niemand reproduziert: er haengt daran, wo die Uhr steht.
+   */
+  const ts = new Date();
+
   // ⚠️ STRIKT AUS `teile[]` — nie aus `menge`. Sonst Netto != 0.
   for (const teil of teile) {
     tx.insert(buchungen).values({
-      id: newId(), ts: new Date(), typ: "umlagerung", artikelId,
+      id: newId(), ts, typ: "umlagerung", artikelId,
       chargeId: teil.chargeId, lagerortId: nachLagerortId, menge: teil.menge,
       quelleTyp: quelle.quelleTyp, quelleId: quelle.quelleId, referenz, kommentar,
     }).run();

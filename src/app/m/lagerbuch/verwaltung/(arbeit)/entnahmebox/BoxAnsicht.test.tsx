@@ -103,6 +103,25 @@ describe("BoxAnsicht — das Mengenfeld", () => {
     expect(q).toMatch(/precision=\{0\}/);
   });
 
+  it("deckelt die Menge bei `BUCHUNG_MENGE_MAX`, nicht erst am Bestand", () => {
+    /*
+     * ⚠️ ZWEI WAHRHEITEN WAEREN DER FEHLER (Codex-Review zu PR #175): der
+     * Bestand ist die fachliche Grenze, `BUCHUNG_MENGE_MAX` die technische, und
+     * `BoxSchema` weist alles darueber ab — mit „Die Eingabe war
+     * unvollständig" an einem vollstaendig ausgefuellten Formular.
+     *
+     * ⚠️ QUELLTEXTLICH, WIE BEI `precision` DARUEBER, und aus einem verwandten
+     * Grund: das Feld rendert erst, wenn im antd-`Select` ein Artikel gewaehlt
+     * ist, und dessen Liste haengt in einem Portal ausserhalb des Wirts. Ein
+     * DOM-Test dafuer pruefte die Bedienung des Selects, nicht den Deckel.
+     * Die Wirkung selbst haelt `_ui/BoxAbgabe.test.tsx` am Helferweg fest —
+     * dort laesst sich die Zahl wirklich eintippen — und `_actions` die
+     * Serverseite.
+     */
+    const q = readFileSync(QUELLE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(q).toMatch(/Math\.min\(\s*aktiverPosten[\s\S]*?BUCHUNG_MENGE_MAX/);
+  });
+
   it("bleibt bei der ARBEITSDICHTE — kein `size` an einem Bedienelement", () => {
     // Falle 4: `size="large"` ist 72px. Die Dichte kommt aus dem Theme.
     const q = readFileSync(QUELLE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");

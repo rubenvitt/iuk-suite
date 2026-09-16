@@ -2,8 +2,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
-  mount, unmount, query, queryAll, exists, click, clickElement,
+  mount, unmount, query, queryAll, exists, click, clickElement, fill,
 } from "@/app/m/qr/_lib/test-dom";
+import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { BoxAbgabe, type BoxAktion, type BoxEinheit } from "./BoxAbgabe";
 import type { BoxPosten } from "../_lib/lesepfade/entnahmebox";
 
@@ -83,6 +84,36 @@ describe("BoxAbgabe — der Schirm", () => {
     );
     expect(query("[data-rolle='box-posten-knopf']").textContent)
       .toContain("fällig 01/27");
+  });
+
+  it("laesst nicht ueber den Mengendeckel der Action tippen", async () => {
+    /*
+     * ⚠️ ZWEI WAHRHEITEN WAEREN DER FEHLER (Codex-Review zu PR #175). Der
+     * Bestand ist die fachliche Grenze, `BUCHUNG_MENGE_MAX` die technische:
+     * `BoxSchema` weist alles darueber ab — und zwar mit „Die Eingabe war
+     * unvollständig", einem Satz, der auf ein ausgefuelltes Formular nicht
+     * passt. Liegt mehr als der Deckel an der Einheit, bot der Stepper bis
+     * hierher die volle Menge an.
+     */
+    await mount(
+      <BoxAbgabe
+        einheit={FAHRZEUG}
+        posten={[posten({
+          menge: 200_000,
+          chargen: [{
+            id: "ch-viel", chargenNr: "L-300", verfall: "2030-01", rest: 200_000,
+            ampel: "gruen", text: "bis 01/30",
+          }],
+        })]}
+        buchen={gelungen()}
+        kontoZugang={false}
+      />,
+    );
+    await click("[data-rolle='box-posten-knopf']");
+    await fill("[aria-label='Menge Kühlkompresse']", "150000");
+
+    expect(query<HTMLInputElement>("[aria-label='Menge Kühlkompresse']").value)
+      .toBe(String(BUCHUNG_MENGE_MAX));
   });
 
   it("zeigt die Mengeneingabe erst nach dem Tippen auf die Zeile", async () => {

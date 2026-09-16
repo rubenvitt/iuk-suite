@@ -10,6 +10,7 @@ import {
 } from "../_lib/actionTypen";
 import { einheitMeta, inDerEinheit, type Einheitenart } from "../_lib/konstanten";
 import { ampelTon } from "../_lib/format";
+import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
 // dieselbe Form liest die Server Component, die ihn befuellt.
 import type { BoxPosten } from "../_lib/lesepfade/entnahmebox";
@@ -121,9 +122,12 @@ export function BoxAbgabe({
      * pruefen wuerde: die Buchung fiele mit „Von dieser Charge liegen hier nur
      * …" ab, und zwar erst nach dem Tippen.
      */
-    const grenze = wahl.chargeId
-      ? (p.chargen.find((c) => c.id === wahl.chargeId)?.rest ?? 0)
-      : p.menge;
+    const grenze = Math.min(
+      wahl.chargeId
+        ? (p.chargen.find((c) => c.id === wahl.chargeId)?.rest ?? 0)
+        : p.menge,
+      BUCHUNG_MENGE_MAX,
+    );
     const menge = Math.min(wahl.menge, grenze);
     if (menge <= 0) return;
     setRueck(null);
@@ -315,10 +319,21 @@ export function BoxAbgabe({
                       wert={wahl.menge}
                       setWert={(m) => setWahl({ ...wahl, menge: m })}
                       min={1}
+                      /*
+                        ⚠️ `BUCHUNG_MENGE_MAX` DECKELT AUCH HIER
+                        (Codex-Review zu PR #175). Der Bestand ist die
+                        fachliche Grenze, der Deckel die technische — `BoxSchema`
+                        weist alles darueber ab, und die Meldung spraeche dann
+                        von einer unvollstaendigen Eingabe an einem vollstaendig
+                        ausgefuellten Formular.
+                      */
                       max={Math.max(
-                        wahl.chargeId
-                          ? (p.chargen.find((c) => c.id === wahl.chargeId)?.rest ?? 1)
-                          : p.menge,
+                        Math.min(
+                          wahl.chargeId
+                            ? (p.chargen.find((c) => c.id === wahl.chargeId)?.rest ?? 1)
+                            : p.menge,
+                          BUCHUNG_MENGE_MAX,
+                        ),
                         1,
                       )}
                       beschriftung={`Menge ${p.artikelName}`}

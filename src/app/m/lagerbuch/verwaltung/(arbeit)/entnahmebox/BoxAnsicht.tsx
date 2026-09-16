@@ -29,6 +29,7 @@ import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { bucheInEntnahmebox } from "../../../_actions/entnahmebox";
 import { ampelTon, fmtVerfall } from "../../../_lib/format";
+import { BUCHUNG_MENGE_MAX } from "../../../_lib/grenzen";
 import { einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
 import type { BoxPosten } from "../../../_lib/lesepfade/entnahmebox";
 import { SCHRIFT } from "../../../_lib/schrift";
@@ -169,14 +170,24 @@ function Abgabe({
 
   /*
    * ⚠️ DIE OBERGRENZE IST DIE CHARGE, SOBALD EINE GEWAEHLT IST — nicht die
-   * Artikelmenge an der Einheit. Ohne diese Unterscheidung boete der Stepper
+   * Artikelmenge an der Einheit. Ohne diese Unterscheidung boete das Feld
    * eine Zahl an, die der Server danach ablehnt, und zwar erst nach dem Klick.
+   *
+   * ⚠️ UND `BUCHUNG_MENGE_MAX` DECKELT SIE (Codex-Review zu PR #175). Der
+   * Bestand ist die FACHLICHE Grenze, der Deckel die TECHNISCHE: `BoxSchema`
+   * weist alles darueber ab — mit „Die Eingabe war unvollständig", einem Satz,
+   * der auf ein ausgefuelltes Formular nicht passt. Dieselbe Klasse wie das
+   * fehlende `precision={0}`: nicht falsch gerechnet, sondern zwei Wahrheiten.
+   * Deshalb kommt die Zahl aus `_lib/grenzen.ts` und nicht aus dieser Datei.
    */
-  const grenze = aktiverPosten
-    ? (chargeId
-        ? (aktiverPosten.chargen.find((c) => c.id === chargeId)?.rest ?? 0)
-        : aktiverPosten.menge)
-    : 0;
+  const grenze = Math.min(
+    aktiverPosten
+      ? (chargeId
+          ? (aktiverPosten.chargen.find((c) => c.id === chargeId)?.rest ?? 0)
+          : aktiverPosten.menge)
+      : 0,
+    BUCHUNG_MENGE_MAX,
+  );
 
   function einheitWaehlen(wert: string | undefined): void {
     setArtikelId("");
