@@ -42,6 +42,7 @@ const ZEILEN: JournalZeileDTO[] = [
     quelleName: "Helfer",
     kommentar: null,
     referenz: null,
+    ortName: "Schrank 1",
   },
   {
     id: "journal-negativ",
@@ -53,6 +54,7 @@ const ZEILEN: JournalZeileDTO[] = [
     quelleName: "System",
     kommentar: "Verbraucht",
     referenz: null,
+    ortName: "Handlager",
   },
 ];
 
@@ -159,6 +161,10 @@ describe("JournalTable", () => {
       "Zeit",
       "Artikel",
       "Vorgang",
+      // DRK-338 — zwischen Vorgang und Δ: eine Umlagerung besteht aus zwei
+      // Zeilen mit demselben Vorgangstext, und erst Ort plus Δ sagen, welche
+      // die Quelle ist.
+      "Ort",
       "Δ",
       "Quelle",
     ]);
@@ -608,6 +614,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       quelleName: "Helfer",
       kommentar: "Verfallskontrolle",
       referenz: "aussondern:handlager",
+      ortName: "Handlager",
     },
     {
       id: "journal-inventur",
@@ -619,6 +626,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       quelleName: "Helfer",
       kommentar: "Jahresinventur",
       referenz: "inventur:iv-1",
+      ortName: "Handlager",
     },
     {
       id: "journal-handkorrektur",
@@ -630,6 +638,7 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
       quelleName: "Helfer",
       kommentar: "verzählt",
       referenz: null,
+      ortName: "Handlager",
     },
   ];
 
@@ -704,3 +713,92 @@ describe("JournalTable — die Vorgangsspalte liest die Referenz", () => {
   });
 });
 
+
+/**
+ * DRK-338 — DIE ORTSSPALTE, und warum sie eine SPALTE ist.
+ *
+ * Eine Umlagerung schreibt ZWEI Zeilen: denselben Vorgangstext, dieselbe
+ * Referenz, entgegengesetztes Vorzeichen. Welche die QUELLE ist und welche das
+ * ZIEL, sagt allein der Ort. Ohne die Spalte stand im Journal zweimal
+ * „Umlagerung", einmal −5 und einmal +5 — und wohin das Material gewandert
+ * ist, war aus der Oberflaeche ueberhaupt nicht zu erfahren.
+ *
+ * ⚠️ GEPRUEFT WIRD DAS PAAR, NICHT EINE ZEILE. Eine einzelne Zeile mit einem
+ * Ortsnamen waere auch dann gruen, wenn beide Legs denselben Ort trugen — und
+ * genau das ist der Fehler, der eine Umlagerung wertlos macht.
+ */
+describe("JournalTable — die Ortsspalte macht Quelle und Ziel lesbar (DRK-338)", () => {
+  const UMLAGERUNG: JournalZeileDTO[] = [
+    {
+      id: "journal-um-ziel",
+      ts: "2026-09-15T09:00:01.000Z",
+      artikelName: "Ringer-Lactat",
+      typ: "umlagerung",
+      menge: 5,
+      quelleId: "u-admin",
+      quelleName: "A. Verwaltung",
+      kommentar: null,
+      referenz: "umlagerung:schrank-gf",
+      ortName: "GF-Schrank",
+    },
+    {
+      id: "journal-um-quelle",
+      ts: "2026-09-15T09:00:00.000Z",
+      artikelName: "Ringer-Lactat",
+      typ: "umlagerung",
+      menge: -5,
+      quelleId: "u-admin",
+      quelleName: "A. Verwaltung",
+      kommentar: null,
+      referenz: "umlagerung:schrank-gf",
+      ortName: "Schrank 1",
+    },
+  ];
+
+  it("nennt an beiden Legs den Ort, der fuer dieses Leg gilt", async () => {
+    await mount(
+      <JournalTable
+        ersteZeilen={UMLAGERUNG}
+        ersterCursor={null}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+
+    const quelle = query("tr[data-row-key='journal-um-quelle']");
+    const ziel = query("tr[data-row-key='journal-um-ziel']");
+
+    // Spalte 4 ist „Ort" — Zeit, Artikel, Vorgang, Ort, Δ, Quelle.
+    expect(quelle.querySelectorAll("td")[3]?.textContent).toBe("Schrank 1");
+    expect(ziel.querySelectorAll("td")[3]?.textContent).toBe("GF-Schrank");
+
+    // ⚠️ Der Vorgangstext ist an BEIDEN Zeilen derselbe — deshalb braucht es
+    // die Spalte ueberhaupt.
+    expect(quelle.querySelectorAll("td")[2]?.textContent).toBe("Umlagerung");
+    expect(ziel.querySelectorAll("td")[2]?.textContent).toBe("Umlagerung");
+    expect(quelle.textContent).toContain("-5");
+    expect(ziel.textContent).toContain("+5");
+  });
+
+  it("reicht den Ort auch auf dem Nachladepfad durch", async () => {
+    const { ausloesen } = beobachterStellen();
+    mocks.naechsteJournalSeite.mockReset();
+    mocks.naechsteJournalSeite.mockResolvedValue({
+      ok: true, cursor: null, zeilen: [UMLAGERUNG[1]],
+    });
+
+    await mount(
+      <JournalTable
+        ersteZeilen={[UMLAGERUNG[0]!]}
+        ersterCursor={{ ts: "2026-09-15T09:00:01.000Z", id: "journal-um-ziel" }}
+        abrufFilter={KEIN_FILTER}
+        leertext="Noch keine Buchung."
+      />,
+    );
+    await act(async () => { ausloesen(); });
+    await warte();
+
+    expect(query("tr[data-row-key='journal-um-quelle']").querySelectorAll("td")[3]?.textContent)
+      .toBe("Schrank 1");
+  });
+});
