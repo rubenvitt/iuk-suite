@@ -348,7 +348,22 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // `stop_grace_period` und endet im schlechtesten Fall in SIGKILL mit halbem Archiv.
     // Gemessen: der Wartende endete nach 7s mit Exit 1, ohne einen Lauf zu beginnen.
     const rumpfE = funktionsrumpf(befehle, "sperre_erwarten");
-    expect(rumpfE).toMatch(/if \[ "\$beenden" -ne 0 \]; then/);
+    // ⚠️ DIE REIHENFOLGE IST DER FIX, NICHT DIE PRUEFUNG — und das hatte ich zuerst
+    // falsch. Stand sie im Schleifenrumpf und `sperre_holen` in der Schleifenbedingung,
+    // lief sie zu spaet: gibt der andere Lauf waehrend unseres Schlafs frei, belegt die
+    // BEDINGUNG die Sperre und verlaesst die Schleife, bevor der Rumpf drankommt.
+    // NACHGESTELLT: SIGTERM im Schlaf, danach die Sperre freigegeben — „Sperre nach 10s
+    // bekommen", und ein volles Backup lief an, nach dem Stoppbefehl.
+    const pruefung = rumpfE.indexOf('[ "$beenden" -ne 0 ]');
+    const versuch = rumpfE.indexOf("if sperre_holen; then");
+    expect(pruefung, "die Beendigung wird geprueft").toBeGreaterThan(-1);
+    expect(versuch, "die Sperre wird im RUMPF geholt, nicht in der Bedingung").toBeGreaterThan(-1);
+    expect(pruefung).toBeLessThan(versuch);
+    expect(rumpfE).not.toMatch(/while ! sperre_holen/);
+    // ⚠️ Und eine im Rennen mit dem Signal geholte Sperre muss sofort wieder weg —
+    // sonst blockiert sie jeden naechsten Lauf bis zur Altersgrenze, obwohl niemand
+    // mehr arbeitet.
+    expect(rumpfE).toMatch(/haelt_sperre=1[\s\S]*?sperre_ablegen\s*\n\s*return 1/);
     // `beenden` muss belegt sein, BEVOR eine Funktion es liest — unter `set -u` waere es
     // sonst ein Abbruch statt einer Pruefung.
     const vorFunktionen = befehle.slice(0, befehle.indexOf("sperre_erwarten()"));
@@ -359,7 +374,12 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // Ein uebersprungener Lauf waere fuer `deploy.sh` ein gruener Exit-Code OHNE
     // Sicherung — es rollte dann ohne aus. Ein zweites Tarball kostet nur Platz.
     expect(befehle).toContain("BACKUP_SPERRE_FRIST_MINUTEN");
-    expect(befehle).toMatch(/while ! sperre_holen/);
+    // Gewartet wird in einer Schleife mit Frist — die Belegung steht im RUMPF, nicht in
+    // der Bedingung (siehe den Fall zur Beendigung).
+    const rumpfW = funktionsrumpf(befehle, "sperre_erwarten");
+    expect(rumpfW).toMatch(/while :; do/);
+    expect(rumpfW).toMatch(/\[ "\$gewartet" -ge "\$frist" \]/);
+    expect(rumpfW).toMatch(/sleep 10/);
   });
 
   it("die Uebernahme haengt an der IDENTITAET der Belegung, nicht nur an ihrem Alter", () => {

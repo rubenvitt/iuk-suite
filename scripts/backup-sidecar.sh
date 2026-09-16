@@ -442,26 +442,40 @@ sperre_holen() {
 sperre_erwarten() {
   frist=$((BACKUP_SPERRE_FRIST_MINUTEN * 60))
   gewartet=0
-  while ! sperre_holen; do
-    # ⚠️ OHNE DIESE PRUEFUNG BEGINNT DER DIENST NACH DEM STOPPBEFEHL NOCH EINEN LAUF.
-    # Wartet er hinter einer Rollout-Sicherung und kommt dabei SIGTERM, setzt die Falle
-    # zwar `beenden=1` — aber diese Schleife sah es nicht, holte sich die freigegebene
-    # Sperre und finge ein volles Backup an. Das frisst die restliche `stop_grace_period`
-    # und endet im schlechtesten Fall in SIGKILL mit halbem Archiv. Wer stoppen will,
-    # will keinen NEUEN Lauf mehr.
+  while :; do
+    # ⚠️ DIE BEENDIGUNG WIRD VOR JEDEM VERSUCH GEPRUEFT, NICHT DANACH — und genau das
+    # hatte ich zuerst falsch. Stand die Pruefung im Schleifenrumpf und `sperre_holen` in
+    # der Schleifenbedingung, lief sie zu spaet: gibt der andere Lauf waehrend unseres
+    # Schlafs frei, belegt die BEDINGUNG die Sperre und verlaesst die Schleife, bevor der
+    # Rumpf ueberhaupt drankommt. NACHGESTELLT: SIGTERM im Schlaf, danach die Sperre
+    # freigegeben — „Sperre nach 10s bekommen", und ein volles Backup lief an, nach dem
+    # Stoppbefehl.
     if [ "$beenden" -ne 0 ]; then
       protokoll "Beendigung angefordert — es wird kein neuer Lauf mehr begonnen."
       return 1
+    fi
+    if sperre_holen; then
+      # ⚠️ UND NOCH EINMAL DANACH. Zwischen der Pruefung oben und dem `mkdir` liegt ein
+      # Fenster, in dem das Signal eintreffen kann. Die gerade geholte Sperre gehoert
+      # dann uns — und muss sofort wieder weg, sonst blockiert sie jeden naechsten Lauf
+      # bis zur Altersgrenze, obwohl niemand mehr arbeitet.
+      haelt_sperre=1
+      if [ "$beenden" -ne 0 ]; then
+        protokoll "Beendigung angefordert — die eben geholte Sperre wird freigegeben."
+        sperre_ablegen
+        return 1
+      fi
+      break
     fi
     if [ "$gewartet" -ge "$frist" ]; then
       warne "Seit ${BACKUP_SPERRE_FRIST_MINUTEN}min laeuft bereits eine Sicherung — aufgegeben."
       return 1
     fi
-    [ "$gewartet" -eq 0 ] && protokoll "Ein anderer Lauf haelt die Sperre — warte."
+    if [ "$gewartet" -eq 0 ]; then protokoll "Ein anderer Lauf haelt die Sperre — warte."; fi
     sleep 10 || true
     gewartet=$((gewartet + 10))
   done
-  [ "$gewartet" -eq 0 ] || protokoll "Sperre nach ${gewartet}s bekommen."
+  if [ "$gewartet" -ne 0 ]; then protokoll "Sperre nach ${gewartet}s bekommen."; fi
   return 0
 }
 
