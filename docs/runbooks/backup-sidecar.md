@@ -10,6 +10,13 @@ Sichtbarkeit im Deployment.
 > daneben, ein Tarball je Lauf. Was sich ändert, ist **wer** es ruft und **was danach mit
 > dem Tarball passiert**. Die Substanz dieses Runbooks steckt deshalb in **Abschnitt 3
 > (die .env)** und **Abschnitt 6 (Wiederherstellung)** — nicht in den Handgriffen.
+>
+> Die eine Ausnahme: der Name eines Tarballs ist sekundengenau, und zwei Läufe
+> unmittelbar nacheinander bekamen deshalb denselben — der zweite schrieb über den
+> ersten und meldete trotzdem Erfolg. `backup.sh` wartet jetzt auf die nächste Sekunde.
+> Sichtbar wird das nur in einem Fall: wechselt der Zeitstempel gar nicht, bricht der
+> Lauf nach fünf Versuchen mit `steht die Uhr?` ab, statt die vorhandene Generation zu
+> überschreiben — dann ist die Uhr im Container das Problem, nicht die Sicherung.
 
 Ticket: DRK-185. Entstanden aus Entscheidung **D1** der Lagerbuch-Portierung.
 

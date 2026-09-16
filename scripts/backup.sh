@@ -45,7 +45,39 @@ if [ "${#dbs[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# ⚠️ DER ZEITSTEMPEL IST DER NAME DER GENERATION — UND ER IST NUR SEKUNDENGENAU.
+# Zwei Laeufe, die NACHEINANDER in derselben Sekunde stempeln, bekommen denselben Namen,
+# und `tar -czf` legt nicht daneben, sondern DARUEBER. GEMESSEN mit zwei unmittelbar
+# aufeinanderfolgenden Laeufen: beide meldeten `backup: wrote …T223946.tar.gz`, beide
+# exit 0 — im Ziel lag EIN Tarball. Die Sperre im Sidecar verhindert das NICHT: sie
+# serialisiert, und genau die Serialisierung erzeugt den Fall (ein Lauf endet, der
+# naechste beginnt in derselben Sekunde). Am externen Ziel wiederholt er sich, weil dort
+# derselbe Name hochgeladen wird.
+#
+# Zwei Schaeden, der zweite ist der teurere: die Aufbewahrungstiefe schrumpft still um
+# eine Generation, obwohl zweimal Erfolg gemeldet wurde — und faellt der zweite Lauf
+# mitten im `tar` aus (SIGKILL am Ende von `stop_grace_period`), steht an der Stelle
+# einer GUTEN Generation ein abgeschnittenes Archiv.
+#
+# ABHILFE IST WARTEN, NICHT ANHAENGEN. Ein Namenszusatz (`…T223946-2.tar.gz`) faellt aus
+# dem Muster, mit dem der Sidecar am externen Ziel die eigenen Sicherungen erkennt
+# (TARBALL_MUSTER) — er wuerde dort als fremd gewarnt und nie mehr wegrotiert. Eine
+# Sekunde zu warten kostet eine Sekunde und laesst Namensform und Sortierung
+# (lexikografisch = chronologisch, worauf die Rotation beruht) unangetastet.
 stamp="$(date +%Y%m%dT%H%M%S)"
+versuche=0
+while [ -e "$BACKUP_DIR/$stamp.tar.gz" ] || [ -e "$BACKUP_DIR/$stamp" ]; do
+  # Nach zwei Runden MUSS die Sekunde gewechselt haben; tut sie es nicht, steht die Uhr.
+  # Dann ist Abbrechen richtig: stilles Ueberschreiben waere der Schaden, den es zu
+  # verhindern gilt.
+  versuche=$((versuche + 1))
+  if [ "$versuche" -gt 5 ]; then
+    echo "backup: $BACKUP_DIR/$stamp.tar.gz belegt, Zeitstempel wechselt nicht — aborting (steht die Uhr?)" >&2
+    exit 1
+  fi
+  sleep 1
+  stamp="$(date +%Y%m%dT%H%M%S)"
+done
 work="$BACKUP_DIR/$stamp"
 mkdir -p "$work"
 
