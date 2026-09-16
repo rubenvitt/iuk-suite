@@ -844,29 +844,41 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
         kommentar: ENTNAHMEBOX_KOMMENTAR, referenz: REF_BOX,
       });
-      /* ⚠️ UND DIE GEMELDETE VERFALLSANGABE FOLGT (DRK-377, Codex zu PR #194).
-       *
-       * Ohne diese Zeile faehrt der Seed an der Regel vorbei, und zwar genau
-       * an der, die das Ticket herstellt: `bucheInEntnahmebox` ruft
-       * `verfallFolgtDemMaterial`, dieser Block aber bucht ueber
-       * `umlagerungVonOrt` DIREKT. Die Kompressen tragen am RTW eine Meldung
-       * (Abschnitt 12a, `m.rot`) — in der Kiste stuende ohne den Aufruf „—" in
-       * der Spalte „Gemeldet", und die Box fehlte in der Verfallsuebersicht.
-       * Der auffaelligste Zustand des Moduls waere lokal nicht zu sehen, und
-       * fuer jeden Playwright-Lauf ebenso wenig.
-       *
-       * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
-       * derselbe Grund, aus dem dieser Block `umlagerungVonOrt` ruft statt zwei
-       * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
-       * naechsten Griff an diesem Schreibpfad auseinander.
-       *
-       * Der RTW behaelt Kompressen, seine Meldung bleibt also stehen — dass
-       * beides zusammenpasst, entscheidet die Funktion und nicht diese Zeile. */
-      verfallFolgtDemMaterial(tx, {
-        vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
-      });
     });
   }
+
+  /* ⚠️ UND DIE GEMELDETE VERFALLSANGABE FOLGT (DRK-377, Codex zu PR #194).
+   *
+   * Ohne diesen Aufruf faehrt der Seed an der Regel vorbei, und zwar genau an
+   * der, die das Ticket herstellt: `bucheInEntnahmebox` ruft
+   * `verfallFolgtDemMaterial`, der Block darueber aber bucht ueber
+   * `umlagerungVonOrt` DIREKT. Die Kompressen tragen am RTW eine Meldung
+   * (Abschnitt 12a, `m.rot`) — in der Kiste stuende ohne den Aufruf „—" in der
+   * Spalte „Gemeldet", und die Box fehlte in der Verfallsuebersicht. Der
+   * auffaelligste Zustand des Moduls waere lokal nicht zu sehen, und fuer
+   * jeden Playwright-Lauf ebenso wenig.
+   *
+   * ⚠️ AUSSERHALB DES BUCHUNGS-RIEGELS, UND DAS IST DER PUNKT (Codex zu
+   * PR #194, P2). Stuende er darin, liefe er auf einer Datenbank, die den
+   * Vorgang schon kennt, NIE — `pnpm seed:lokal lagerbuch` ist aber „idempotent
+   * und rein additiv" (CLAUDE.md), also muss ein zweiter Lauf genau solche
+   * Luecken nachtragen. Jede bestehende Demo-Datenbank haette die Meldung sonst
+   * dauerhaft nicht.
+   *
+   * ⚠️ ER DARF DAS AUCH: `uebernimmVerfall` schreibt denselben Wert erneut oder
+   * gar nicht (das fruehere Datum gewinnt), und das Abraeumen greift nur an
+   * einem Ort ohne Bestand — der RTW behaelt Kompressen. Zweimal laufen heisst
+   * hier dasselbe wie einmal laufen.
+   *
+   * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
+   * derselbe Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei
+   * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
+   * naechsten Griff an diesem Schreibpfad auseinander. */
+  db.transaction((tx) => {
+    verfallFolgtDemMaterial(tx, {
+      vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
+    });
+  });
 
   /* 13 ── Geraete: je eine Zeile fuer rot (ueberfaellig), gelb (im Warnfenster),
    *        gruen und GRAU (kein Datum gepflegt → `keinDatum`, kein Fehlalarm). */

@@ -897,6 +897,42 @@ describe("raeumeAusEntnahmebox — die gemeldete Verfallsangabe der Box (DRK-377
     expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall)).toEqual(["2026-10"]);
   });
 
+  it("BEHAELT sie, wenn die bewegte Charge gar kein Datum traegt", async () => {
+    /*
+     * ⚠️ DER GEFAEHRLICHSTE FALL DES GANZEN TICKETS, und mein erster Entwurf
+     * hatte ihn falsch (Codex zu PR #194, P1). Meine Begruendung lautete „im
+     * Handlager traegt den Verfall die Charge" — das stimmt nur, solange die
+     * Charge ueberhaupt eines traegt. Kann ein Check den gezaehlten Bestand
+     * keiner echten Charge zuordnen, legt er ihn auf eine Pseudo-Charge mit
+     * `PSEUDO_VERFALL`; die sagt „bis 12/99", also gar nichts, und das einzige
+     * echte Datum steht in `lagerort_verfall`.
+     *
+     * Wer es hier loescht, macht aus einer stillen Falschanzeige einen stillen
+     * DATENVERLUST — und zwar am gefaehrlichsten Ort: im Handlager sieht das
+     * Material danach bis 2099 unbedenklich aus.
+     */
+    /*
+     * ⚠️ EIN EIGENER ARTIKEL, DAMIT DIE KISTE WIRKLICH LEER WIRD. Die
+     * gemeinsame Vorbereitung legt zehn Stueck einer ECHT datierten Charge in
+     * die Box; blieben die liegen, raeumte die Regel ohnehin nichts ab und der
+     * Test waere auch ohne den Riegel gruen — er prueefte dann nichts.
+     */
+    charge("ch-pseudo", PSEUDO_VERFALL, "art-2");
+    inDerBox("seed-2", "ch-pseudo", 5, "art-2");
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-pseudo", menge: 5, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    const fuerArt2 = verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2");
+    expect(fuerArt2.map((z) => z.verfall), "10/26 bleibt erhalten").toEqual(["2026-10"]);
+  });
+
   it("traegt sie NICHT ins Handlager — dort meldet die Charge", async () => {
     /*
      * ⚠️ DIE FACHLICHE AUSSAGE DIESES TESTS. Im Handlager rechnet

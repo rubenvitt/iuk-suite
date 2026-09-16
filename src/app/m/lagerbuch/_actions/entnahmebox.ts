@@ -13,7 +13,7 @@ import {
 } from "../_lib/helferZugang";
 import {
   ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR,
-  ENTNAHMEBOX_NAME, ausDieserEinheit,
+  ENTNAHMEBOX_NAME, ausDieserEinheit, istOhneVerfall,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
@@ -704,8 +704,11 @@ export async function raeumeAusEntnahmebox(
            * faengt das NICHT zuverlaessig mit ab — sie fragt nur nach dem Rest
            * DIESER Charge in DER BOX.
            */
-          const charge = tx.select({ artikelId: chargen.artikelId })
-            .from(chargen).where(eq(chargen.id, v.chargeId)).get();
+          // `verfall` faehrt mit: er entscheidet unten, ob die gemeldete
+          // Angabe der Box fallen darf (DRK-377).
+          const charge = tx.select({
+            artikelId: chargen.artikelId, verfall: chargen.verfall,
+          }).from(chargen).where(eq(chargen.id, v.chargeId)).get();
           if (!charge || charge.artikelId !== v.artikelId) {
             return "Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.";
           }
@@ -767,26 +770,51 @@ export async function raeumeAusEntnahmebox(
           }
 
           /*
-           * ⚠️ DIE GEMELDETE VERFALLSANGABE DER BOX FAELLT, WENN DIE KISTE LEER
-           * IST — und sie wandert NICHT mit (DRK-377, beim Merge dieser beiden
-           * Tickets aufgefallen).
+           * ── DIE GEMELDETE VERFALLSANGABE DER BOX (DRK-377) ────────────────
            *
            * Seit DRK-377 kann die Entnahmebox einen gemeldeten Verfall tragen:
            * gibt eine Einheit Material ab, fuer das beim Check ein Datum
            * abgelesen wurde, wandert die Meldung mit in die Kiste. Dieser Weg
-           * hier raeumt die Kiste wieder aus — und ohne diese Zeile bliebe die
-           * Zeile fuer immer stehen. Die Box hat KEINEN Verfall-Editor; sie
-           * meldete auf Dauer einen Verfall fuer Material, das laengst im
-           * Schrank liegt, und niemand kaeme an sie heran.
+           * raeumt die Kiste wieder aus — und muss sich um die Meldung
+           * kuemmern, denn die Box hat KEINEN Verfall-Editor: was hier stehen
+           * bleibt, bekommt niemand mehr weg.
            *
-           * ⚠️ NUR ABRAEUMEN, NICHT UEBERNEHMEN, und das ist die fachliche
-           * Aussage: im Handlager traegt den Verfall die CHARGE, nicht der Ort
-           * (`verfallListe` rechnet dort je Charge). Die Charge wandert oben
-           * ohnehin mit — eine `lagerort_verfall`-Zeile am Schrank waere ein
-           * zweiter, widersprechender Melder fuer dieselbe Packung. Deshalb
-           * `raeumeVerfallAmLeerenOrt` und nicht `verfallFolgtDemMaterial`.
+           * ⚠️ ABGERAEUMT WIRD NUR, WENN DAS MATERIAL SEINEN VERFALL SELBST
+           * MITNIMMT — also wenn die bewegte Charge ein ECHTES Datum traegt.
+           * Dann sagt im Handlager die Charge, was zu sagen ist
+           * (`verfallListe` rechnet dort je Charge), und eine
+           * `lagerort_verfall`-Zeile am Schrank waere ein zweiter,
+           * widersprechender Melder fuer dieselbe Packung.
+           *
+           * ⚠️ TRAEGT SIE KEINES, BLEIBT DIE MELDUNG STEHEN (Codex zu PR #194,
+           * P1 — und der Befund deckte eine Luecke in meiner eigenen
+           * Begruendung auf). Genau der Fall, um den dieses Ticket gebaut ist:
+           * kann ein Check den gezaehlten Bestand keiner echten Charge
+           * zuordnen, legt er ihn auf eine Pseudo-Charge mit `PSEUDO_VERFALL`
+           * — die sagt „bis 12/99", also gar nichts. Das einzige echte Datum
+           * steht dann in `lagerort_verfall`. Wer es hier loescht, macht aus
+           * der stillen Falschanzeige einen stillen DATENVERLUST, und zwar am
+           * gefaehrlichsten Ort: im Handlager sieht das Material danach bis
+           * 2099 unbedenklich aus.
+           *
+           * ⚠️ DER PREIS IST BENANNT UND IST DER KLEINERE: die Kiste behaelt
+           * eine Meldung, obwohl nichts mehr darin liegt — sichtbar in der
+           * Verfallsuebersicht, laestig, aber ungefaehrlich. Das ist dieselbe
+           * Abwaegung, die DRK-377 schon einmal getroffen hat („eine veraltete
+           * Anzeige ist der kleinere Fehler, ein verlorenes Verfallsdatum ist
+           * weder sichtbar noch korrigierbar"). Was mit einer solchen Meldung
+           * beim Einraeumen RICHTIG geschehen soll, ist eine Betreiberfrage und
+           * liegt als eigenes Ticket auf dem Board — hier steht bewusst der
+           * sichere Ausgang, nicht der endgueltige.
+           *
+           * ⚠️ `istOhneVerfall` UND KEIN VERGLEICH AUF DIE KONSTANTE: dieselbe
+           * Probe deckt die Pseudo-Charge des Checks UND eine Charge, deren
+           * Artikel gar kein Verfallsdatum hat. Beide sagen dasselbe — „diese
+           * Charge kann fuer das Material nicht sprechen".
            */
-          raeumeVerfallAmLeerenOrt(tx, ENTNAHMEBOX_ID, v.artikelId);
+          if (!istOhneVerfall(charge.verfall)) {
+            raeumeVerfallAmLeerenOrt(tx, ENTNAHMEBOX_ID, v.artikelId);
+          }
 
           eingeraeumt = ergebnis.umgelagert;
           return null;

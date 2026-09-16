@@ -444,6 +444,32 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     }
   });
 
+  it("traegt die Boxmeldung auch auf einer SCHON geseedeten Datenbank nach", async () => {
+    /*
+     * ⚠️ „IDEMPOTENT UND REIN ADDITIV" IST EINE ZUSAGE UEBER DEN ZWEITEN LAUF
+     * (CLAUDE.md, Codex zu PR #194, P2). Stuende der Verfallsschritt hinter dem
+     * Riegel der Boxbuchung, liefe er auf einer Datenbank, die den Vorgang
+     * schon kennt, NIE — jede bestehende Demo-Datenbank haette die Meldung also
+     * dauerhaft nicht, und niemand saehe es, weil der erste Lauf richtig ist.
+     *
+     * Der Test stellt genau diesen Zustand her: einmal seeden, die Boxmeldung
+     * wegnehmen (als waere sie nie geschrieben worden), erneut seeden.
+     */
+    await seedLokalLagerbuch(t.db);
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+    expect(t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID)).toEqual([]);
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID).length,
+      "der zweite Lauf traegt sie nach",
+    ).toBeGreaterThan(0);
+  });
+
   it("vergibt feste Codes — einen davon gesperrt", async () => {
     const protokoll = await seedLokalLagerbuch(t.db);
 
