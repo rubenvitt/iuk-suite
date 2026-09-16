@@ -16,6 +16,7 @@ import { ChecksTabelle, type CheckAnzeigeZeile } from "./ChecksTabelle";
 const ZEILE: CheckAnzeigeZeile = {
   id: "check-42",
   detailHref: "/verwaltung/checks/check-42",
+  fahrzeugId: "fz-rtw-1",
   fahrzeugName: "RTW 1",
   fahrzeugKennung: "MS-1",
   fahrzeugEinheitenart: "fahrzeug",

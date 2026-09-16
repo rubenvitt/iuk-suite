@@ -36,7 +36,7 @@ import {
   pruefeLoeschbar,
 } from "../_actions/loeschen";
 import { ampelTon, fmtVerfall } from "../_lib/format";
-import { einheitenartLabel, einheitMeta, type Einheitenart } from "../_lib/konstanten";
+import { einheitenartLabel, einheitLabels, type Einheitenart } from "../_lib/konstanten";
 import { journalZeile } from "../_lib/journalZeile";
 import { kategorieNormalisieren } from "../_lib/kategorie";
 import { SCHRIFT } from "../_lib/schrift";
@@ -520,9 +520,13 @@ export function ArtikelDrawer({
    * Die Suchworte bleiben daneben bestehen: wer „tasche" tippt, meint die Art
    * und nicht die Schreibweise, und das trifft jetzt Label UND Schluessel.
    */
+  const fahrzeugBeschriftung = einheitLabels(fahrzeuge);
   const fahrzeugOptionen = fahrzeuge.map((fahrzeug) => ({
     value: fahrzeug.id,
-    label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+    // ⚠️ UND WO AUCH DIE ART NICHT TRENNT, TRENNT DIE ID (Reviewrunde 16):
+    // zwei Taschen duerfen gleich heissen und beide ohne Kennung sein.
+    // `einheitLabels` haengt die ID NUR im Kollisionsfall an.
+    label: fahrzeugBeschriftung.get(fahrzeug.id)!.label,
     keywords: [fahrzeug.name, fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
       .filter(Boolean).join(" "),
   }));
