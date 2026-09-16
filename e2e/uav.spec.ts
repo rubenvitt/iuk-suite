@@ -81,12 +81,23 @@ test("/api/admin/participants/export löst zur Export-Route auf, nicht zur [id]-
   await devLogin(page, { host: UAV_HOST, groups: UAV_ADMIN_GRUPPE, callbackPath: "/admin" });
   const antwort = await page.request.get(uavUrl("/api/admin/participants/export"));
   expect(antwort.status()).toBe(200);
-  expect(antwort.headers()["content-type"]).toContain("text/csv");
-  const text = await antwort.text();
-  // Header-Zeile aus `api/admin/participants/export/route.ts:12` — ein Treffer
-  // auf die `[id]`-Route läge stattdessen als JSON vor (Participant-Detail
-  // oder ein 404 aus `NotFound`, weil "export" keine gültige Teilnehmer-ID ist).
-  expect(text).toContain('"Name","Beginn","Erledigt","Gesamt","Quote","LetzteAktivität","Status"');
+  // Seit DRK-186 eine Excel-Mappe. Ein Treffer auf die `[id]`-Route läge
+  // stattdessen als JSON vor (Participant-Detail oder ein 404 aus `NotFound`,
+  // weil "export" keine gültige Teilnehmer-ID ist) — der Medientyp allein
+  // unterscheidet die beiden Routen also schon.
+  expect(antwort.headers()["content-type"]).toContain(
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
+  expect(antwort.headers()["content-disposition"]).toContain("teilnehmer-uebersicht.xlsx");
+  /*
+   * ⚠️ UND DIE BYTES, NICHT NUR DIE KOPFZEILEN: eine `.xlsx` ist ein
+   * ZIP-Archiv und beginnt mit `PK`. Ohne diese zwei Bytes belegte der Test
+   * nur, DASS geantwortet wurde — ein umbenanntes CSV bestünde ihn.
+   */
+  const rumpf = await antwort.body();
+  expect(rumpf.subarray(0, 2).toString()).toBe("PK");
+  // Die Spaltenköpfe stehen komprimiert in der Mappe; sie gegenzulesen ist
+  // Aufgabe von `route.test.ts` (dort mit `core/export/test-mappe.ts`).
 });
 
 test("Die Verwaltung trägt genau eine Kopfzeile, die Teilnehmer-Ansicht gar keine (Check 2)", async ({

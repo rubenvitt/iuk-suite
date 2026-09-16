@@ -13,7 +13,7 @@ import { assertGroupAccess, type Viewer } from "@/app/m/feedback/_lib/access";
  * sein (bei evening/survey-Seiten über `evening.groupId`), NIE der rohe
  * URL-Parameter — sonst IDOR wie bei der Alt-App.
  *
- * NICHT für Route Handler (z. B. `export.csv/route.ts`) geeignet: `notFound()`
+ * NICHT für Route Handler (z. B. `export.xlsx/route.ts`) geeignet: `notFound()`
  * ist auf Seiten-Rendering zugeschnitten, ein Route Handler muss seine eigene
  * `Response` mit Statuscode zurückgeben.
  *

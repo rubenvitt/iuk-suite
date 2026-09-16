@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **achtzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **neunzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -350,6 +350,45 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     `verwaltung/(druck)/ortsetiketten/druck.test.ts` hält die Form fest,
     `e2e/lagerbuch-ortsetiketten.spec.ts` misst die Wirkung — **die Zahl kennt nur ein echter
     Browser**, dieselbe Klasse wie die Fallen 8 und 13.
+
+19. **Eine `.xlsx` gegenzulesen ist zweimal anders, als es aussieht — und beide Male meldet
+    sich der Irrtum als etwas ANDERES** (Modul-übergreifend, DRK-186, gegen
+    `write-excel-file@4.1.1` und die erzeugten Archive gemessen — nicht vermutet). Seit die
+    Suite ihre Reports als Mappe ausgibt, prüft jeder Export-Test eine ZIP-Datei; das
+    Harness dafür ist `src/core/export/test-mappe.ts` (eine Stelle, kein zweites erfinden —
+    dieselbe Regel wie `qr/_lib/test-dom.tsx`). Wer es umgeht und selbst liest, läuft in
+    genau diese zwei:
+
+    **a) Der lokale Dateikopf führt die Größe 0.** `write-excel-file` schreibt STRÖMEND,
+    setzt also Bit 3 des Flag-Feldes; gepackte wie ungepackte Größe stehen erst im
+    Datendeskriptor HINTER den Daten. Der naheliegende Leser läuft über die lokalen Köpfe
+    (`PK\x03\x04`), inflatiert null Bytes und bekommt **„unexpected end of file"** — eine
+    Meldung, die nach einer KAPUTTEN DATEI klingt, während die Mappe einwandfrei ist. Der
+    Weg, der trägt, ist das zentrale Verzeichnis am Dateiende.
+
+    **b) Eine abschließend leere Zelle steht in der Datei GAR NICHT.** Das ist der
+    Unterschied zur CSV, die jede Zeile auf gleiche Feldzahl auffüllt (`a,b,,`): hier endet
+    die Zeile nach der letzten gefüllten Zelle. Gemessen an einer Zeile mit leerer
+    Schlussspalte: `[5]` statt `[5, null]` — **eine Zusicherung auf die Spaltenzahl fällt,
+    obwohl die Mappe richtig ist**, und der Befund liest sich wie „der Export verliert eine
+    Spalte". Verschoben ist nichts: jede Zelle nennt ihre Spalte selbst (`r="E2"`). Das
+    Harness füllt deshalb auf die Breite der Kopfzeile auf.
+
+    **Kein Tor sieht beides:** `typecheck` prüft gültige Aufrufe, `pnpm build` serialisiert
+    klaglos, und `lint` hat damit nichts zu tun. ⚠️ **Anders als die Fallen 8, 13 und 18
+    braucht das hier KEINEN echten Browser** — die Bytes entstehen in Node, Vitest sieht
+    alles. Wer das verwechselt, verschiebt eine Zusicherung in einen Playwright-Lauf, wo
+    sie langsamer und seltener läuft, ohne dass sie dort mehr wüsste.
+
+    ⚠️ **Die dritte Hälfte ist keine Test-, sondern eine Bauformfrage, und sie ist Falle 6 in
+    neuem Gewand:** `core/export` hat ZWEI Einstiegspunkte — `server.ts` (Route Handler,
+    `write-excel-file/node`, `toBuffer()`) und `client.ts` (Insel, `/browser`, `toFile()`).
+    `index.ts` re-exportiert **keinen von beiden**, anders als `core/tabelle/index.ts`. Ein
+    Re-Export von `client.ts` reichte seine Funktion als Client-Referenz in jede Server
+    Component (Falle 6), ein Re-Export von `server.ts` zöge `node:stream` in jedes
+    Client-Bundle. Und die beiden Einstiegspunkte des Pakets tragen **identische Typen**
+    (die `.d.ts` sagt das wörtlich) — der falsche Griff ist damit typkorrekt und fällt erst
+    zur Laufzeit auf.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
