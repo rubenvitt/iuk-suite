@@ -124,6 +124,22 @@ export const CHECK_MESSUNG = "Check";
  */
 export const ENTNAHMEBOX_KOMMENTAR = "In die Entnahmebox gelegt";
 
+/**
+ * DER KOMMENTAR DES WEGES ZURUECK — DRK-381, aus der Kiste in einen Schrank.
+ *
+ * ⚠️ DERSELBE GRUND WIE EINE ZEILE HOEHER: festgenagelt, damit die
+ * Journalspalte „Kommentar" schon sagt, was passiert ist, und das Praefix
+ * `einraeumen:` kein zweites Etikett in der Spalte „Vorgang" braucht.
+ *
+ * ⚠️ ER SAGT „EINGERAEUMT" UND NICHT „AUFGEFUELLT", und das ist keine
+ * Wortwahl, sondern die Abgrenzung des ganzen Tickets: Auffuellen ist ein
+ * WARENEINGANG (`typ: "zugang"`, Material entsteht), dies hier eine
+ * UMLAGERUNG (Material wandert, netto null). Stuende „aufgefuellt" im
+ * Journal, laese jemand spaeter eine Lieferung, wo nur etwas umgeraeumt
+ * wurde — und die Zeile ist append-only.
+ */
+export const ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR = "Aus der Entnahmebox eingeräumt";
+
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";
