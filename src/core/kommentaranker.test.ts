@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { basename, dirname, extname, join, relative, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { basename, dirname, extname, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -61,31 +62,30 @@ import { describe, expect, it } from "vitest";
  */
 
 /**
- * GELESEN WIRD DAS GANZE REPO, und die Ausnahmen stehen als VERZEICHNISliste
- * statt als Wurzelliste da.
+ * GELESEN WIRD DAS GANZE REPO, und zwar das, was GIT dafuer haelt.
  *
  * ⚠️ DIE RICHTUNG IST DER GANZE PUNKT, und die erste Fassung hatte sie falsch
  * herum (`["src", "e2e", "scripts"]`, Codex-Review zu PR #183): eine Wurzel-
- * ALLOWLIST laesst alles Neue STILL heraus, eine Verzeichnis-BLOCKLIST nimmt
- * alles Neue auf. Gemessen an dem, was dadurch fehlte: `playwright.config.ts`
- * verankert auf `src/core/bootstrap.ts`, dazu `compose.yaml`, `.env.example`,
- * `Dockerfile`, `AGENTS.md` und `clamd.files.conf` — zusammen ueber 90 Anker
- * in Dateien, die kein Verzeichnis unter sich haben. Ein Riegel, der sich
- * „repo-weit" nennt und die Repowurzel auslaesst, ist keiner.
+ * ALLOWLIST laesst alles Neue STILL heraus. Gemessen an dem, was dadurch
+ * fehlte: `playwright.config.ts` verankert auf `src/core/bootstrap.ts`, dazu
+ * `compose.yaml`, `.env.example`, `Dockerfile`, `AGENTS.md` und
+ * `clamd.files.conf` — zusammen ueber 90 Anker in Dateien, die kein
+ * Verzeichnis unter sich haben. Ein Riegel, der sich „repo-weit" nennt und die
+ * Repowurzel auslaesst, ist keiner.
  *
- * Was hier steht, steht aus einem Grund: `docs` und `patches` halten fremden
- * oder vergangenen Stand fest (Kopf, Punkt 3); `public`, `.data`, `.next`,
- * `node_modules` und `.git` tragen keinen Quelltext dieser Suite.
+ * ⚠️ DIE DATEILISTE KOMMT AUS `git ls-files` UND NICHT AUS `readdirSync`, und
+ * auch das ist ein Befund derselben Review: ein Lauf ueber das Dateisystem
+ * sammelt alles ein, was in einem BENUTZTEN Arbeitsbaum herumliegt —
+ * `.env.local`, `playwright-report/index.html`, `test-results/`. Der
+ * Einsortier-Fall unten haette dann `.local` und `.html` gemeldet und `pnpm
+ * vitest run` waere bei jedem ausser einem frisch geklonten Baum rot gewesen.
+ * Eine weitere Ausschlussliste waere genau der Defekt, den dieser Riegel
+ * bewacht; `git` fuehrt die Liste ohnehin und fuehrt sie richtig.
+ *
+ * Bleiben zwei bewusste Ausnahmen unter dem, was git kennt: `docs` und
+ * `patches` halten vergangenen oder fremden Stand fest (Kopf, Punkt 3).
  */
-const NICHT_BETRETEN = new Set([
-  ".git",
-  ".next",
-  "node_modules",
-  "docs",
-  "patches",
-  "public",
-  ".data",
-]);
+const NICHT_GELESENE_PFADE = [/^docs\//, /^patches\//];
 
 /**
  * ⚠️ GELESEN WIRD JEDES TEXTFORMAT IM REPO, nicht nur `ts|tsx|css`.
@@ -111,7 +111,7 @@ const OHNE_ENDUNG = /^(Dockerfile|Makefile|CODEOWNERS|LICENSE)$/;
 
 /** Was kein Text ist, generiert wird oder keinen eigenen Kommentar traegt. */
 const NICHT_GELESEN =
-  /\.(ttf|woff2?|png|jpe?g|webp|gif|ico|svg|pdf|xlsx|zip|db|sqlite3?|lock|tsbuildinfo)$/;
+  /(\.(ttf|woff2?|png|jpe?g|webp|gif|ico|svg|pdf|xlsx|zip|db|sqlite3?|lock|tsbuildinfo)|(^|\/)\.gitkeep)$/;
 
 /**
  * Ein Pfad, wie er in einem Kommentar steht, gefolgt von `:zeile` oder
@@ -237,17 +237,11 @@ function aufloesen(quelle: string, ziel: string): string | null {
   return null;
 }
 
-function sammleDateien(verzeichnis = ".", treffer: string[] = []): string[] {
-  for (const eintrag of readdirSync(verzeichnis)) {
-    const pfad = join(verzeichnis, eintrag);
-    if (statSync(pfad).isDirectory()) {
-      if (NICHT_BETRETEN.has(eintrag)) continue;
-      sammleDateien(pfad, treffer);
-      continue;
-    }
-    treffer.push(pfad);
-  }
-  return treffer;
+function sammleDateien(): string[] {
+  const roh = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8", maxBuffer: 64 << 20 });
+  return roh
+    .split("\0")
+    .filter((p) => p !== "" && !NICHT_GELESENE_PFADE.some((r) => r.test(p)));
 }
 
 function istQuelle(pfad: string): boolean {
