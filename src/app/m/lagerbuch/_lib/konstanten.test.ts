@@ -9,7 +9,8 @@ import {
   MONAT_REGEX, TAG_REGEX, istEchterKalendertag,
   BUCHUNGSTYPEN, QUELLE_TYPEN, LAGERORT_TYPEN, GERAETE_TYPEN, TOKEN_ZIEL_TYPEN,
   EINHEITENARTEN, EINHEITENART_LABEL, EINHEITENART_OFFEN_LABEL, einheitenartLabel,
-  einheitNomen, einheitMeta, standortMeta, standortZeile, dieseEinheit, ausDieserEinheit,
+  einheitNomen, einheitMeta, einheitLabels, standortMeta, standortZeile, dieseEinheit,
+  ausDieserEinheit,
   anDieserEinheit,
   inDieEinheit, inDerEinheit,
   checklisteTitel, grossAmAnfang,
@@ -224,6 +225,59 @@ describe("Enum-Listen", () => {
         expect(anDieserEinheit(art), String(art)).not.toContain("Fahrzeug");
       }
     }
+  });
+});
+
+describe("einheitLabels — wo auch die Art nicht trennt, trennt die ID", () => {
+  /**
+   * DRK-309, Reviewrunde 16. Der ganze PR argumentiert, die Art mache zwei
+   * gleichnamige Einheiten unterscheidbar — das stimmt fuer ein Fahrzeug
+   * neben einer Tasche und NICHT fuer zwei Taschen. `createFahrzeug` verlangt
+   * weder einen eindeutigen Namen noch eine Kennung, und der Index aus
+   * DRK-367 deckt nur Schraenke.
+   */
+  const t = (id: string, name: string, art: "fahrzeug" | "tasche" | null,
+    kennung: string | null = null) => ({ id, name, kennung, einheitenart: art });
+
+  it("laesst eindeutige Beschriftungen in Ruhe — die ID ist kein Schmuck", () => {
+    const m = einheitLabels([t("a", "RTW 1", "fahrzeug", "MS-1"), t("b", "Betreuung", "tasche")]);
+    expect(m.get("a")!.label).toBe("RTW 1 · Fahrzeug · MS-1");
+    expect(m.get("b")!.label).toBe("Betreuung · Tasche");
+  });
+
+  it("haengt die ID an, wenn Name, Art UND Kennung gleich sind", () => {
+    const m = einheitLabels([t("ta-1", "Betreuung", "tasche"), t("ta-2", "Betreuung", "tasche")]);
+    expect(m.get("ta-1")!.label).toBe("Betreuung · Tasche · ta-1");
+    expect(m.get("ta-2")!.label).toBe("Betreuung · Tasche · ta-2");
+    expect(m.get("ta-1")!.label).not.toBe(m.get("ta-2")!.label);
+  });
+
+  it("traegt die ID auch in der META-Haelfte — der Helferschirm rendert zwei Elemente", () => {
+    const m = einheitLabels([t("ta-1", "Betreuung", "tasche"), t("ta-2", "Betreuung", "tasche")]);
+    expect(m.get("ta-1")!.meta).toBe("Tasche · ta-1");
+  });
+
+  it("trennt auch, wenn eine dritte Einheit die Ausweichform SCHON traegt", () => {
+    /*
+     * ⚠️ DER ZWEITE DURCHGANG IST EIN BEWEIS, KEINE NACHBESSERUNG. Nach einem
+     * Durchgang hiesse die erste „Betreuung · Tasche · ta-1" — und die dritte
+     * heisst woertlich so, wurde aber nicht angefasst, weil IHR Ausgangsname
+     * nur einmal vorkam. Kollidiert danach noch etwas, bekommt JEDE Zeile
+     * ihre ID, und weil IDs eindeutig sind, kann nichts mehr gleich sein.
+     */
+    const m = einheitLabels([
+      t("ta-1", "Betreuung", "tasche"),
+      t("ta-2", "Betreuung", "tasche"),
+      t("ta-3", "Betreuung · Tasche · ta-1", null),
+    ]);
+    const alle = [...m.values()].map((w) => w.label);
+    expect(new Set(alle).size).toBe(3);
+  });
+
+  it("nimmt je Id nur den ERSTEN Eintrag — eine Liste darf eine Einheit doppelt fuehren", () => {
+    const m = einheitLabels([t("a", "RTW 1", "fahrzeug"), t("a", "RTW 1", "fahrzeug")]);
+    expect(m.size).toBe(1);
+    expect(m.get("a")!.label).toBe("RTW 1 · Fahrzeug");
   });
 });
 

@@ -3,7 +3,7 @@
 import { Button, DatePicker, Flex, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
-import { einheitenartLabel, einheitMeta, type Einheitenart } from "../../../_lib/konstanten";
+import { einheitenartLabel, einheitLabels, type Einheitenart } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
@@ -54,6 +54,9 @@ export function ChecksFilter({
     setzen({ fz, von, bis, ...teil });
   };
   const hatFilter = Boolean(fz || von || bis || hinweise.length > 0);
+  // ⚠️ Wo auch die Art nicht trennt, trennt die ID (Reviewrunde 16):
+  // zwei Taschen duerfen gleich heissen und beide ohne Kennung sein.
+  const einheitBeschriftung = einheitLabels(fahrzeuge);
 
   return (
     <Flex vertical gap={SPACE.sm} style={{ marginBlockEnd: SPACE.md }}>
@@ -88,7 +91,7 @@ export function ChecksFilter({
              * Dass sie uebrig blieb, lag an der Begruendung oben: sie las sich
              * wie eine Entscheidung und war eine Annahme.
              */
-            label: `${fahrzeug.name} · ${einheitMeta(fahrzeug)}`,
+            label: einheitBeschriftung.get(fahrzeug.id)!.label,
             keywords: [fahrzeug.kennung, einheitenartLabel(fahrzeug.einheitenart)]
               .filter(Boolean).join(" "),
           }))}

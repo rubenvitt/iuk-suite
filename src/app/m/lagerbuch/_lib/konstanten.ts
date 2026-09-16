@@ -240,6 +240,80 @@ export function standortMeta(
   return ort.typ === "lager" ? "Lager" : einheitMeta(ort);
 }
 
+/**
+ * DIE BESCHRIFTUNGEN EINER EINHEITEN-LISTE — EINDEUTIG (DRK-309,
+ * Reviewrunde 16).
+ *
+ * ⚠️ „NAME · ART · KENNUNG" REICHT NICHT, UND DAS IST EIN LOCH IN MEINER
+ * EIGENEN BEGRUENDUNG. Der ganze PR argumentiert, die Art mache zwei
+ * gleichnamige Einheiten unterscheidbar — das stimmt fuer ein Fahrzeug neben
+ * einer Tasche. Zwei TASCHEN duerfen aber ebenfalls „Betreuung" heissen und
+ * beide gar keine Kennung tragen: `createFahrzeug` prueft nichts dergleichen,
+ * und `idx_lagerorte_name_je_parent` (DRK-367) deckt nur Schraenke unter dem
+ * Handlager, nicht Einheiten. Dann ergibt `einheitMeta` fuer beide dieselbe
+ * Zeichenkette.
+ *
+ * ⚠️ WAS DARAN TEUER IST, IST NICHT DIE OPTIK. In einer WAHL filtert ein Klick
+ * danach zwar korrekt auf EINE Einheit — der Benutzer erfaehrt nur nicht, auf
+ * welche, und liest die Zahlen der einen im Glauben, die der anderen zu sehen.
+ * In einem SPALTENFILTER faellt es zusammen: zwei Einheiten, ein Filterwert,
+ * und die gemeinte ist ueber diese Spalte gar nicht zu isolieren.
+ *
+ * ⚠️ DIE ID IST HAESSLICH UND ERSCHEINT NUR IM KOLLISIONSFALL — also nur in
+ * genau der Lage, die selbst schon ein Datenfehler ist. Dort ist
+ * Unterscheidbarkeit mehr wert als Schoenheit; zwei identische Zeilen sind
+ * die unehrlichere Antwort.
+ *
+ * ⚠️ ZWEI DURCHGAENGE, UND DER ZWEITE IST EIN BEWEIS, KEINE NACHBESSERUNG.
+ * Heissen zwei Einheiten `X` und eine dritte woertlich `X · <id der ersten>`,
+ * erzeugt der erste Durchgang fuer die erste genau diese Zeichenkette — und
+ * die dritte wurde nicht angefasst, weil IHR Ausgangsname nur einmal vorkam.
+ * Kollidiert danach noch etwas, bekommt JEDE Zeile ihre ID; weil dann jede
+ * auf ` · <eigene id>` endet und IDs eindeutig sind, koennen zwei Ergebnisse
+ * nicht mehr gleich sein — fuer jede denkbare Eingabe, nicht nur fuer die, an
+ * die wir gerade denken. Dieselbe Bauform wie `eindeutigeLabels` fuer
+ * Zaehlorte (`_lib/inventurOrt.ts`, DRK-337); die beiden koennen nicht
+ * gemeinsam genutzt werden, weil jene Datei aus DIESER liest und ein
+ * Import zurueck einen Zyklus ergaebe.
+ */
+export function einheitLabels(
+  einheiten: readonly { id: string; name: string; kennung: string | null;
+    einheitenart: Einheitenart | null }[],
+): Map<string, { label: string; meta: string }> {
+  const roh = new Map<string, { name: string; meta: string }>();
+  for (const e of einheiten) {
+    if (!roh.has(e.id)) roh.set(e.id, { name: e.name, meta: einheitMeta(e) });
+  }
+  const voll = (t: { name: string; meta: string }) => `${t.name} · ${t.meta}`;
+
+  const anzahl = new Map<string, number>();
+  for (const teile of roh.values()) {
+    const text = voll(teile);
+    anzahl.set(text, (anzahl.get(text) ?? 0) + 1);
+  }
+  /*
+   * ⚠️ DIE ID HAENGT AN DER META-HAELFTE, NICHT AN DER GANZEN ZEILE. Der
+   * Helferschirm rendert Name und Beizeile in ZWEI Elementen; haette nur die
+   * volle Zeichenkette die ID, muesste er sie wieder auseinanderschneiden —
+   * und ein `slice` ueber die Namenslaenge bricht beim ersten Namen, der
+   * selbst ein „ · " enthaelt.
+   */
+  const mitId = (id: string, teile: { name: string; meta: string }) =>
+    ({ label: `${voll(teile)} · ${id}`, meta: `${teile.meta} · ${id}` });
+  const schlicht = (teile: { name: string; meta: string }) =>
+    ({ label: voll(teile), meta: teile.meta });
+
+  const einDurchgang = new Map(
+    [...roh].map(([id, teile]) =>
+      [id, (anzahl.get(voll(teile)) ?? 0) > 1 ? mitId(id, teile) : schlicht(teile)] as const),
+  );
+  const alleVerschieden =
+    new Set([...einDurchgang.values()].map((w) => w.label)).size === einDurchgang.size;
+  return alleVerschieden
+    ? einDurchgang
+    : new Map([...roh].map(([id, teile]) => [id, mitId(id, teile)] as const));
+}
+
 /** Ein Standort, so wie ihn eine Anzeige braucht — Name plus Beizeile. */
 export type StandortAngabe = {
   name: string;
