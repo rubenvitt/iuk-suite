@@ -1,5 +1,7 @@
 import { auditDelivery, auditActor } from "@/core/audit/server";
 import { auth } from "@/core/auth";
+import { blatt, freiesBlatt, type ExportSpalte } from "@/core/export";
+import { xlsxAntwort } from "@/core/export/server";
 import { getDb } from "@/app/m/feedback/_db/client";
 import {
   getEvening,
@@ -10,8 +12,7 @@ import {
 } from "@/app/m/feedback/_db/queries";
 import { viewerFromSession } from "@/app/m/feedback/_lib/viewer";
 import { assertGroupAccess } from "@/app/m/feedback/_lib/access";
-import type { Question } from "@/app/m/feedback/_lib/questions";
-import { buildCsv } from "@/app/m/feedback/_lib/csv";
+import { isRatingType, type Question } from "@/app/m/feedback/_lib/questions";
 import { shuffleStable } from "@/app/m/feedback/_lib/aggregation";
 
 /**
@@ -23,10 +24,17 @@ import { shuffleStable } from "@/app/m/feedback/_lib/aggregation";
  * zurück — kein 403, verrät die Existenz nicht.
  *
  * Matrix = eine Zeile pro Antwort (Response), eine Spalte pro Frage — die
- * rohen Einzel-Rückmeldungen, nicht aggregiert. JEDE Zelle (auch die
- * Metadaten-Zeilen oben) läuft durch `buildCsv`/`csvField`, damit die
- * Formula-Injection-Neutralisierung (Task 6) auch auf anonymen
- * Freitext-Antworten greift.
+ * rohen Einzel-Rückmeldungen, nicht aggregiert.
+ *
+ * ⚠️ SEIT DRK-186 EINE EXCEL-MAPPE, und der Pfad heißt entsprechend
+ * `export.xlsx`. ⛔ DER SATZ „JEDE Zelle läuft durch `buildCsv`/`csvField`,
+ * damit die Formula-Injection-Neutralisierung auch auf anonymen
+ * Freitext-Antworten greift" STAND HIER UND IST ENTFALLEN — nicht weil die
+ * Gefahr kleiner geworden wäre (die Freitexte sind weiterhin anonym und
+ * öffentlich eingegeben), sondern weil sie auf diesem Weg nicht mehr existiert:
+ * der Baustein legt jede Textzelle mit `type: String` als Textzelle an, und eine
+ * Textzelle kann keine Formel sein. Wer hier je wieder eine CSV ausliefert,
+ * braucht die Neutralisierung zurück.
  */
 export async function GET(
   _req: Request,
@@ -81,7 +89,7 @@ export async function GET(
      *
      * Die DATENBANK bleibt unangetastet (Import-Parität mit der Alt-Anwendung);
      * normalisiert wird nur die AUSGABE, und zwar auf denselben Ausdruck wie die
-     * Metadaten-Zeile „Datum" — ein Kalendertag ohne Uhrzeit.
+     * Kopfdatenzeile „Datum" — ein Kalendertag ohne Uhrzeit.
      */
     const abendtag = new Date(evening.date).toISOString().slice(0, 10);
 
@@ -89,34 +97,47 @@ export async function GET(
      * DER SPALTENNAME (Fund aus dem Review von Task 8). „Zeitstempel" versprach
      * eine Genauigkeit, die die Ausgabe nach der Normalisierung bewusst NICHT mehr
      * hat: dort steht ein Kalendertag, in jeder Zeile derselbe. „Abendtag" sagt
-     * genau das — und bleibt unterscheidbar von der Metadatenzeile „Datum", die
+     * genau das — und bleibt unterscheidbar von der Kopfdatenzeile „Datum", die
      * denselben Wert trägt (ein zweites „Datum" hier machte jede Suche nach der
      * Kopfzeile zweideutig).
      */
-    const rows: string[][] = [
-      ["Gruppe", group.name],
-      ["Datum", abendtag],
-      ["Thema", evening.topic ?? ""],
-      ["Anzahl Rückmeldungen", String(responses.length)],
-      [],
-      ["Abendtag", ...questions.map((q) => q.text)],
-      ...responses.map((r) => [
-        abendtag,
-        ...questions.map((q) => {
-          const v = r.answers[q.id];
-          return v === undefined || v === null ? "" : String(v);
-        }),
-      ]),
+    type AntwortZeile = { answers: Record<string, unknown> };
+    const spalten: ExportSpalte<AntwortZeile>[] = [
+      { kopf: "Abendtag", breite: 12, wert: () => abendtag },
+      ...questions.map((q) => ({
+        kopf: q.text,
+        breite: isRatingType(q.type) ? 14 : 46,
+        /*
+         * ⛔ EINE BEWERTUNG IST EINE ZAHL, EIN FREITEXT IST TEXT. Der CSV-Weg
+         * schrieb beides als `String(v)`; eine Kalkulation konnte über die
+         * Notenspalten dann weder mitteln noch ein Diagramm legen — genau das,
+         * wofür man diese Datei herunterlädt. Der Typ der FRAGE entscheidet,
+         * nicht der Laufzeitwert: eine Bewertungsfrage, die ausnahmsweise Text
+         * trägt, ist ein Datenfehler und soll als solcher sichtbar bleiben.
+         */
+        wert: (z: AntwortZeile) => {
+          const v = z.answers[q.id];
+          if (v === undefined || v === null) return null;
+          if (isRatingType(q.type) && typeof v === "number") return v;
+          return String(v);
+        },
+      })),
     ];
 
-    const csv = buildCsv(rows);
-    const filename = `feedback-${group.slug}-${eveningId}.csv`;
-    return new Response(csv, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return xlsxAntwort(`feedback-${group.slug}-${eveningId}.xlsx`, [
+      blatt("Rückmeldungen", spalten, responses),
+      // Kopfdaten auf eigenem Blatt — im CSV-Weg standen sie als Vorspann ÜBER
+      // der Kopfzeile und verschoben dort Sortieren und Filtern.
+      freiesBlatt(
+        "Kopfdaten",
+        [
+          ["Gruppe", group.name],
+          ["Datum", abendtag],
+          ["Thema", evening.topic ?? ""],
+          ["Anzahl Rückmeldungen", responses.length],
+        ],
+        [22, 34],
+      ),
+    ]);
   });
 }
