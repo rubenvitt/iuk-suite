@@ -8,7 +8,7 @@ const notiz: Releasenotiz = {
   titel: "Zählen beginnt bei 0",
   inhalt: [
     absatz(
-      "Im Fahrzeug-Check startet jede Position bei 0. Du zählst mit „+“ hoch, was du wirklich " +
+      "Im Check startet jede Position bei 0. Du zählst mit „+“ hoch, was du wirklich " +
         "findest; ist ein Fach leer, tippst du einmal auf „−“. Vorher stand überall schon die " +
         "Sollmenge, und wer durchtippte, meldete einen vollen Wagen.",
     ),

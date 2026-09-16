@@ -359,7 +359,13 @@ export function ChecklistenBogen({
               sichtbaren Sprung. Uebernommen aus `EtikettenChrome.tsx`. */}
           <Flex align="center" gap={6}>
             <Ikone name="pfeil-links" groesse={15} />
-            Zurück zu den Fahrzeugen
+            {/*
+              DRK-309: Das Ziel heisst „Fahrzeuge und Taschen" — ein Rueckweg,
+              der nur eine der beiden Arten nennt, behauptet fuer den Bogen
+              einer Tasche, er fuehre woandershin. Dieselbe Beschriftung wie
+              der Rueckweg am Einheitenblatt.
+            */}
+            Zurück zu Fahrzeugen und Taschen
           </Flex>
         </Link>
 

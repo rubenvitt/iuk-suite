@@ -5,7 +5,7 @@ const notiz: Releasenotiz = {
   modul: "lagerbuch",
   slug: "letzter-check-und-verfall-loeschen",
   datum: "2026-09-15",
-  titel: "Der Fahrzeug-Check zeigt, wann zuletzt geprüft wurde",
+  titel: "Der Check zeigt, wann zuletzt geprüft wurde",
   inhalt: [
     absatz(
       "Über der Liste steht jetzt, wann dieses Fahrzeug zuletzt geprüft wurde — oder dass es " +

@@ -5,13 +5,13 @@ const notiz: Releasenotiz = {
   modul: "lagerbuch",
   slug: "check-nur-fuer-dein-fahrzeug",
   datum: "2026-09-15",
-  titel: "Check ohne Fahrzeugauswahl",
+  titel: "Check ohne Auswahlliste",
   inhalt: [
     absatz(
-      "Scannst du den Code eines Fahrzeugs, führt dich der Fahrzeug-Check direkt zu diesem " +
-        "Fahrzeug — ohne Auswahlliste und auch dann, wenn du unten auf „Fahrzeug-Check“ tippst. " +
-        "Für ein anderes Fahrzeug scannst du dessen Code. Mit dem allgemeinen Code der " +
-        "Bereitschaft wählst du wie bisher aus allen Fahrzeugen.",
+      "Scannst du den Code einer Einheit, führt dich der Check direkt zu ihr — ohne " +
+        "Auswahlliste und auch dann, wenn du unten auf „Check“ tippst. Für eine andere " +
+        "Einheit scannst du deren Code. Mit dem allgemeinen Code der Bereitschaft wählst " +
+        "du wie bisher aus allen Einheiten.",
     ),
   ],
 };

@@ -9,7 +9,7 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Im Fahrzeugblatt sonderst du abgelaufenes Material jetzt einzeln aus, ohne einen ganzen " +
-        "Fahrzeug-Check zu fahren. In der Verfallstabelle steht je Artikel „aussondern“: du gibst " +
+        "Check zu fahren. In der Verfallstabelle steht je Artikel „aussondern“: du gibst " +
         "die Menge an, bei Bedarf die Charge, und trägst das Verfallsdatum ein, das danach noch " +
         "im Fahrzeug auf einer Packung steht.",
     ),
