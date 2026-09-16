@@ -29,7 +29,7 @@ test("ab 768px steht die Navigation als Leiste mit Abschnitten", async ({ page }
   await expect(leiste).toBeVisible();
   await expect(leiste.getByTestId("nav-abschnitt")).toHaveText([
     "Bestand",
-    "Fahrzeuge & Geräte",
+    "Einheiten & Geräte",
     "Prüfungen",
     "Protokoll",
     "Einrichtung",
