@@ -12,7 +12,11 @@ import {
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { markiereBestellt } from "../../../_actions/bestellung";
-import { baueBestellCsv, BESTELL_CSV_DATEINAME } from "../../../_lib/csvBestellung";
+import { blatt } from "@/core/export";
+import { xlsxHerunterladen } from "@/core/export/client";
+import {
+  BESTELL_BLATTNAME, BESTELL_DATEINAME, BESTELL_FEHLERTEXT, BESTELL_SPALTEN,
+} from "../../../_lib/bestellExport";
 import { bestellListeText } from "../../../_lib/bestellText";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { Chip } from "../../../_ui/Chip";
@@ -77,7 +81,7 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
   /**
    * ZWISCHENABLAGE (Spec §9.3, Entscheidung 9-D).
    *
-   * NUR DIE OFFENEN ZEILEN — die CSV nimmt alle. Die beiden Wege duerfen
+   * NUR DIE OFFENEN ZEILEN — die Mappe nimmt alle. Die beiden Wege duerfen
    * auseinanderlaufen und tun es; 9-A laesst den Umfang und beschriftet ihn
    * stattdessen ueber die Knopfbeschriftungen.
    *
@@ -102,25 +106,31 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
   }
 
   /**
-   * CSV (Spec §9.2). ALLE Zeilen, auch die bereits als bestellt markierten.
+   * EXCEL (Spec §9.2, seit DRK-186 eine Mappe statt einer CSV). ALLE Zeilen,
+   * auch die bereits als bestellt markierten.
+   *
+   * ⚠️ DER WEG BLEIBT IM BROWSER, und das ist keine Altlast: die Bibliothek wird
+   * ERST BEIM KLICK nachgeladen (`xlsxHerunterladen`), damit sie nicht im
+   * Seiten-Bundle jeder Verwaltungsseite liegt. Der Aufbau des Blattes selbst
+   * steht in `_lib/bestellExport.ts` und trägt kein "use client" — dort ist er
+   * ohne DOM prüfbar.
+   *
    * Der Dateiname ist konstant und traegt kein Datum — wiederholte Downloads
-   * kollidieren dadurch im Download-Ordner. Ein datierter Name waere eine
-   * Verbesserung UND eine Formataenderung; 1:1-Pflicht 28 laesst ihn.
+   * kollidieren dadurch im Ablageordner. Ein datierter Name waere eine
+   * Verbesserung UND eine zweite Aenderung; siehe `bestellExport.ts`.
    */
-  function csvLaden(): void {
-    const inhalt = baueBestellCsv(
-      zeilen.map((z) => ({
-        name: z.name, bestand: z.bestand, mindestbestand: z.mindestbestand,
-        vorschlag: z.vorschlag, einheit: z.einheit, bestellt: z.bestellt,
-      })),
-    );
-    const blob = new Blob([inhalt], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = BESTELL_CSV_DATEINAME;
-    a.click();
-    URL.revokeObjectURL(url);
+  function excelLaden(): void {
+    setFehler(null);
+    void xlsxHerunterladen(BESTELL_DATEINAME, [
+      blatt(
+        BESTELL_BLATTNAME,
+        BESTELL_SPALTEN,
+        zeilen.map((z) => ({
+          name: z.name, bestand: z.bestand, mindestbestand: z.mindestbestand,
+          vorschlag: z.vorschlag, einheit: z.einheit, bestellt: z.bestellt,
+        })),
+      ),
+    ]).catch(() => setFehler(BESTELL_FEHLERTEXT));
   }
 
   function markierungAendern(z: BestellAnzeigeZeile): void {
@@ -259,11 +269,11 @@ export function BestellListe({ zeilen }: { zeilen: BestellAnzeigeZeile[] }) {
           Liste kopieren (nur offene)
         </Button>
         <Button
-          data-testid="lb-csv"
+          data-testid="lb-excel"
           icon={<Ikone name="herunterladen" groesse={16} />}
-          onClick={csvLaden}
+          onClick={excelLaden}
         >
-          CSV (alle Zeilen)
+          Excel (alle Zeilen)
         </Button>
       </Flex>
 

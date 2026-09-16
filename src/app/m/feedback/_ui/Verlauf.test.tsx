@@ -382,12 +382,12 @@ describe("Verlauf — die Kopfzeile (§2.5)", () => {
     );
 
     expect(beschriftungen).toContain("Trend");
-    expect(beschriftungen).toContain("CSV (alle Abende)");
+    expect(beschriftungen).toContain("Excel (alle Abende)");
     expect(beschriftungen).toContain("Abend ohne Feedback nachtragen");
 
     const ziele = [...kopf.querySelectorAll<HTMLAnchorElement>("a")].map((a) => a.getAttribute("href"));
     expect(ziele).toContain("/m/feedback/groups/7/trend");
-    expect(ziele).toContain("/m/feedback/groups/7/export.csv");
+    expect(ziele).toContain("/m/feedback/groups/7/export.xlsx");
     // Kein zweiter Primaerknopf auf der Seite (§2.6) — der gehoert der Lagekarte.
     expect(kopf.querySelectorAll(".ant-btn-primary")).toHaveLength(0);
   });

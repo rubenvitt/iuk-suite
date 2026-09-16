@@ -478,6 +478,96 @@ describe("bucheZugang mit Zielort (DRK-297)", () => {
   });
 });
 
+/**
+ * DER DEAKTIVIERTE ARTIKEL — DRK-380.
+ *
+ * Die Entscheidung ist eine RICHTUNG, keine Sperre: auf einen deaktivierten
+ * Artikel geht kein Material mehr ZU, sein Restbestand laesst sich aber weiter
+ * abbuchen und umlagern. Deshalb haengen hier BEIDE Haelften — eine Datei, die
+ * nur das Abweisen zusichert, waere auch dann gruen, wenn jemand spaeter alle
+ * vier Buchungsarten sperrte und damit den Restbestand einfroere.
+ *
+ * ⚠️ DIE ZUSICHERUNG STEHT FUER BEIDE ZUGANGSWEGE, nicht nur fuer einen. Genau
+ * das war der Befund, aus dem das Ticket entstand: eine Pruefung allein in
+ * `bucheAuffuellung` waere die einzige Buchungsaktion des Moduls mit dieser
+ * Regel, und derselbe Wareneingang aus dem Artikel-Drawer ginge weiter durch —
+ * zwei Wahrheiten ueber denselben Vorgang.
+ */
+describe("DRK-380 — auf einen deaktivierten Artikel geht kein Material zu", () => {
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID, aktiv: true },
+    ]).run();
+    t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
+  });
+
+  it("bucheZugang weist ihn ab — mit einem Satz, nicht mit einem Wurf", async () => {
+    const erg = await bucheZugang({ artikelId: "art-1", menge: 5, chargeId: "ch-1" }, t.db);
+    expect(erg).toMatchObject({ ok: false });
+    expect(fehlerVon(erg)).toMatch(/deaktiviert/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  it("bucheAuffuellung weist ihn ab — mit `eingabe`, NICHT als Wurf", async () => {
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: "schrank-1",
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(helferFehler(erg).grund).toBe("eingabe");
+    expect(helferFehler(erg).text).toMatch(/deaktiviert/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  /**
+   * ⚠️ DIE ABWEISUNG LEGT AUCH KEINE CHARGE AN. Der Zweig „Neue Charge" ist
+   * der teurere: `zugangBuchen` legte die `chargen`-Zeile frueher an, als es
+   * die Pruefung gab, und ein Rollback, der eine halb gebaute Lieferung
+   * hinterliesse, waere still — die Chargenliste zeigte danach ein Los, auf
+   * dem nie etwas lag.
+   */
+  it("legt dabei auch keine neue Charge an", async () => {
+    await bucheZugang(
+      {
+        artikelId: "art-1", menge: 5,
+        neueCharge: { chargenNr: "L-NEU", verfall: "2028-01" },
+      },
+      t.db,
+    );
+    expect(t.db.select().from(chargen).where(eq(chargen.chargenNr, "L-NEU")).get())
+      .toBeUndefined();
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE IST DIE HAELFTE, DIE DEN RESTBESTAND RETTET. „Deaktiviert"
+   * ist der Rueckfall des Loeschpfades fuer einen Artikel MIT Historie; wer den
+   * Abgang mitsperrte, machte den vorhandenen Bestand unabbuchbar, und
+   * `postenAmOrt` zeigt inaktive Artikel ausdruecklich weiter an, WEIL genau
+   * sie aus der Kiste genommen werden muessen.
+   */
+  it("laesst die Entnahme zu — der Restbestand bleibt abbuchbar", async () => {
+    const erg = await bucheEntnahme({ artikelId: "art-1", menge: 3 }, t.db);
+    expect(erg).toMatchObject({ ok: true });
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({ typ: "entnahme", menge: -3 });
+  });
+
+  it("laesst die Umlagerung zu — Material darf weiter einsortiert werden", async () => {
+    const erg = await bucheUmlagerung(
+      {
+        artikelId: "art-1", chargeId: "ch-1", menge: 2,
+        vonLagerortId: HANDLAGER_ID, nachLagerortId: "schrank-1",
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true });
+    expect(geschrieben().every((b) => b.typ === "umlagerung")).toBe(true);
+    expect(geschrieben().reduce((n, b) => n + b.menge, 0)).toBe(0);
+  });
+});
+
 describe("bucheEntnahmeHelfer", () => {
   it("bucht mit quelleTyp token und dem CODE als quelleId", async () => {
     const erg = await bucheEntnahmeHelfer(
@@ -1071,6 +1161,96 @@ describe("bucheUmlagerung (DRK-338)", () => {
       t.db,
     )).rejects.toThrow("kein Admin");
     expect(geschrieben()).toHaveLength(0);
+  });
+});
+
+/**
+ * DRK-193 — DER TREIBERTEXT KOMMT NICHT AUF DEN SCHIRM, DER FACHLICHE SATZ SCHON.
+ *
+ * ⚠️ DIESE DATEI HAT DIE ZWEITE HAELFTE SCHON LANGE. Vier Tests weiter oben
+ * sichern zu, dass die deutschen Saetze der Pruefungen DURCHKOMMEN — „gehört
+ * nicht zu diesem Artikel", „Fahrzeug", „Handlager", „stillgelegt". Sie sind
+ * der Grund, warum das Ternaer im `catch` nicht einfach durch einen festen
+ * Satz ersetzt werden kann; bei der Abnahme (T176-A) wurde genau das versucht
+ * und zurueckgebaut.
+ *
+ * WAS FEHLTE, IST DIE ERSTE HAELFTE: dass ein Fehler, der NICHT fachlich ist,
+ * hinter dem Rueckfall bleibt. `e instanceof Error` traf beides, und damit
+ * stand ein „FOREIGN KEY constraint failed" wortwoertlich im Formular der
+ * Verwaltenden.
+ *
+ * ⚠️ DER FEHLER WIRD ECHT ERZEUGT, NICHT GEMOCKT, und das ist der Punkt: ein
+ * geworfener `new Error("…")` aus einem Mock bewiese nur, dass `instanceof`
+ * funktioniert. Hier wirft der TREIBER auf genau dem Weg, auf dem er es im
+ * Betrieb taete — einmal an einem Fremdschluessel, zweimal an einer Tabelle,
+ * die es nicht mehr gibt. Beides passiert INNERHALB der Transaktion, also
+ * hinter den fachlichen Pruefungen: die Wege kommen nachweislich bis dorthin.
+ *
+ * ⚠️ ZUGESICHERT WIRD DER RUECKFALLSATZ WOERTLICH, nicht nur „nicht der
+ * Treibertext". Eine Zusicherung auf die ABWESENHEIT von „SQLITE" oder
+ * „constraint" waere auch dann gruen, wenn der `catch` eine leere Zeichenkette
+ * lieferte — und eine leere Fehlermeldung ist genau die Lage, in der jemand
+ * neu laedt und nichts erfaehrt.
+ */
+describe("DRK-193 — Treiberfehler gegen fachlichen Satz", () => {
+  /**
+   * Der Fremdschluessel `chargen.artikel_id → artikel.id`, scharfgestellt durch
+   * `foreign_keys = ON` in `migrierteTestDb`. `bucheZugang` prueft den Artikel
+   * NICHT vorab (anders als `bucheAuffuellung`) — der Weg laeuft also bis in
+   * den Einschub und scheitert dort am Treiber.
+   */
+  it("bucheZugang: ein Fremdschluesselfehler wird zum Rueckfallsatz", async () => {
+    const erg = await bucheZugang(
+      { artikelId: "art-gibt-es-nicht", menge: 1,
+        neueCharge: { chargenNr: "L9", verfall: "2027-06" } },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe("Zugang konnte nicht gebucht werden.");
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ DIE TABELLE FAELLT ERST NACH DEM AUFBAU. `fefoAbbuchungImBereich` liest
+   * `buchungen`, um den Bestand zu bestimmen — der Wurf kommt also aus dem
+   * Schreibpfad und nicht aus einer Pruefung davor. Dass die Eingabe selbst
+   * gueltig ist, zeigt der Erfolgsfall weiter oben mit denselben Werten.
+   */
+  it("bucheEntnahme: ein Treiberfehler wird zum Rueckfallsatz", async () => {
+    t.sqlite.exec("DROP TABLE buchungen");
+    const erg = await bucheEntnahme(
+      { artikelId: "art-1", menge: 1, zielLagerortId: HANDLAGER_ID },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe("Entnahme konnte nicht gebucht werden.");
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ HIER LIEGEN DIE DREI FACHLICHEN PRUEFUNGEN VOR DEM SCHREIBPFAD (Charge,
+   * Bereich, Ziel aktiv) — sie lesen `chargen` und `lagerorte` und kommen
+   * durch. Erst `umlagerungVonOrt` fasst `buchungen` an. Der Test zeigt damit
+   * beides zugleich: die Pruefungen greifen nicht, und trotzdem steht kein
+   * Treibertext im Formular.
+   */
+  it("bucheUmlagerung: ein Treiberfehler wird zum Rueckfallsatz", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: true, sortierung: 10 },
+      { id: "schrank-2", name: "GF-Schrank", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: true, sortierung: 90 },
+    ]).run();
+    t.sqlite.exec("DROP TABLE buchungen");
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toBe("Umlagerung konnte nicht gebucht werden.");
+    expect(revalidiert).toEqual([]);
   });
 });
 

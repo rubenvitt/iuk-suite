@@ -1103,16 +1103,28 @@ describe("Excel-Export (§9.4)", () => {
       await toFileAufgerufen;
     });
 
-    const [zeilen, optionen] = schreiben.mock.calls[0];
-    expect(zeilen).toHaveLength(ZEILEN.length);
-    expect(optionen.sheet).toBe("Bestand Handlager");
-    expect(optionen.stickyRowsCount).toBe(1);
-    expect(optionen.columns).toHaveLength(10);
-    expect(optionen.columns[0].header).toMatchObject({ value: "Artikel", fontWeight: "bold" });
+    /*
+     * ⚠️ DIE AUFRUFFORM HAT SICH MIT DRK-186 GEAENDERT. Vorher: zwei Argumente
+     * (Zeilenobjekte, Optionen mit `columns[].cell`-Funktionen). Jetzt: EIN
+     * Argument, eine Liste fertiger Blaetter — der gemeinsame Baustein rechnet
+     * die Zellen vorher aus (`core/export/spalten.ts`), damit dieselbe Rechnung
+     * fuer den Server-Weg gilt. Die Kopfzeile steht deshalb als erste DATENZEILE
+     * im Blatt und nicht mehr als `columns[].header`.
+     */
+    const [mappe] = schreiben.mock.calls[0];
+    expect(mappe).toHaveLength(1);
+    const [blatt] = mappe;
+    expect(blatt.sheet).toBe("Bestand Handlager");
+    expect(blatt.stickyRowsCount).toBe(1);
+    expect(blatt.columns).toHaveLength(10);
+    // Zeile 0 ist die Kopfzeile, danach je eine Zeile je Artikel.
+    expect(blatt.data).toHaveLength(1 + ZEILEN.length);
+    expect(blatt.data[0][0]).toMatchObject({ value: "Artikel", fontWeight: "bold" });
     // `bestandExportDateiname(expect.any(Date))` liesse sich nicht direkt
     // aufrufen (kein echtes Date-Objekt) — die Form allein zeigt, dass der
     // Aufruf ueber `bestandExportDateiname(new Date())` gelaufen ist; die
-    // Werte-Fixierung fuer LOKALE Zeit steckt bereits in `bestandExport.test.ts`.
+    // Werte-Fixierung steckt in `bestandExport.test.ts`, die Zonenfrage seit
+    // DRK-186 in `core/export/dateiname.test.ts`.
     expect(toFile).toHaveBeenCalledWith(
       expect.stringMatching(/^bestand-\d{4}-\d{2}-\d{2}\.xlsx$/),
     );
@@ -1142,7 +1154,8 @@ describe("Excel-Export (§9.4)", () => {
       await toFileAufgerufen;
     });
 
-    expect(schreiben.mock.calls[0][0]).toHaveLength(1);
+    // Ein Blatt, darin die Kopfzeile plus GENAU EINE Artikelzeile.
+    expect(schreiben.mock.calls[0][0][0].data).toHaveLength(1 + 1);
   });
 
   /**
