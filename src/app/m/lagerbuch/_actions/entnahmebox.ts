@@ -1,5 +1,5 @@
 "use server";
-import { withAuditContext } from "@/core/audit/server";
+import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -12,15 +12,35 @@ import {
   kontoZugangOderNull, requireHelferSchreibend, type HelferZugang,
 } from "../_lib/helferZugang";
 import {
-  ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
+  ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR,
+  ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import { zugangsZiele } from "../_lib/lesepfade/orte";
+import { revalidiereHandlagerBestand } from "../_lib/revalidierung";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
-import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import { requireLagerbuchAdmin } from "../_lib/zugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 
 /**
- * VOM FAHRZEUG IN DIE ENTNAHMEBOX — DRK-314.
+ * DIE BEIDEN RICHTUNGEN DER ENTNAHMEBOX — DRK-314 (hinein) und DRK-381
+ * (heraus).
+ *
+ * ⚠️ SIE STEHEN IN EINER DATEI, UND DIE PROBE DAFUER IST DER GETEILTE
+ * SCHREIBPFAD, NICHT DIE AEHNLICHE FLAECHE. Hin- und Rueckweg teilen sich
+ * `umlagerungVonOrt`, die Box-Riegel (gibt es die Zeile, ist sie ein Lager?)
+ * und die Regel „nicht gedeckt heisst abweisen, nicht kappen". Zwei Dateien
+ * dafuer waeren zwei Orte fuer dieselben Invarianten — dieselbe Festlegung,
+ * mit der `buchung.ts` fuenf Buchungswege zusammenhaelt (H7).
+ *
+ * ⚠️ IHRE RIEGEL SIND VERSCHIEDEN, und das ist kein Widerspruch dazu, sondern
+ * eine fachliche Aussage: in die Kiste legt die HELFERIN am Fahrzeug
+ * (`requireHelferSchreibend`, traegt Kaertchen UND Konto), eingeraeumt wird vom
+ * Gruppenfuehrer (`requireLagerbuchAdmin`, also angemeldetes Konto in der
+ * Lagerbuch-Gruppe). Die Begruendung steht je Action.
+ *
+ * ── VOM FAHRZEUG IN DIE ENTNAHMEBOX — DRK-314 ──────────────────────────────
  *
  * Der Vorgang, den es bisher gar nicht gab: Material verlaesst eine Einheit,
  * OHNE verbraucht oder entsorgt zu sein. Bis hierher kannte das Modul dafuer
@@ -450,6 +470,287 @@ export async function bucheInEntnahmebox(
       revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
       revalidatePath("/m/lagerbuch/verwaltung");
       return { ok: true, wert: { gebucht } };
+    },
+  );
+}
+
+/**
+ * AUS DER ENTNAHMEBOX IN EINEN SCHRANK — DRK-381, der Weg ZURUECK.
+ *
+ * Die zweite Haelfte von DRK-313: dessen User Story sagt woertlich „das
+ * Handlager neu aufzufuellen ODER AUS DER BOX mit Dingen aufzufuellen, die zu
+ * viel waren". Der zweite Teil war zurueckgestellt, weil er die Kiste
+ * voraussetzte.
+ *
+ * ── DIE FALLE, DIE HIER AM TEUERSTEN IST ───────────────────────────────────
+ *
+ * ⚠️ DAS IST EINE UMLAGERUNG, KEIN WARENEINGANG — und der naheliegende Griff
+ * waere der falsche. `bucheAuffuellung` (`_actions/buchung.ts`) heisst
+ * schliesslich „auffuellen" und traegt dieselbe Zielliste; sie bucht aber einen
+ * `zugang`, und ein Zugang laesst Material ENTSTEHEN. Der Bestand in der Kiste
+ * bliebe stehen, im Handlager kaeme neuer dazu — DIESELBEN TEILE ZWEIMAL IM
+ * BUCH. Das Journal ist append-only; heilbar waere das nur mit einer
+ * Gegenkorrektur, die selbst wieder eine Behauptung ist.
+ *
+ * Richtig ist derselbe Umlagerungspfad, den die Kiste in der Gegenrichtung
+ * schon nutzt: zwei Legs, eine Referenz, die Charge wandert mit — und damit
+ * die Verfallsangabe, auf die FEFO spaeter zugreift.
+ *
+ * ⚠️ SIE STEHT IN DIESER DATEI UND NICHT IN `buchung.ts`, und die Probe dafuer
+ * ist der geteilte SCHREIBPFAD, nicht die aehnliche Flaeche: Hin- und Rueckweg
+ * der Kiste teilen sich `umlagerungVonOrt`, die Box-Riegel (gibt es die Zeile,
+ * ist sie ein Lager?) und die Deckungsregel „abweisen statt kappen". Die
+ * Auffuellansicht teilt mit ihnen nur das Aussehen.
+ *
+ * ── DIE RIEGELFRAGE ────────────────────────────────────────────────────────
+ *
+ * ⚠️ `requireLagerbuchAdmin` UND NICHT `requireHelferSchreibend` — der
+ * Unterschied zum Hinweg eine Datei weiter oben, und er ist fachlich. In die
+ * Kiste legt die HELFERIN am Fahrzeug, sie hat kein Konto; EINGERAEUMT wird
+ * vom Gruppenfuehrer („die Artikel werden anschliessend von einem
+ * Gruppenfuehrer wieder in das Handlager einsortiert"). Das ist dieselbe eine
+ * Stufe wie bei DRK-313: angemeldetes Konto in der Lagerbuch-Gruppe, KEINE
+ * zweite Gruppe (die Begruendung steht ausgeschrieben an `bucheAuffuellung`).
+ * Ein Kaertchen erreicht diese Action damit auf keinem Weg — und das ist eine
+ * Zusage der ACTION, nicht ihrer Flaeche: eine Action-Id ist global.
+ */
+const EinraeumenSchema = z.object({
+  artikelId: z.string().min(1),
+  /**
+   * ⚠️ PFLICHT, anders als beim Hinweg — und das ist die zweite Entscheidung
+   * dieses Tickets.
+   *
+   * Beim ABLEGEN ist FEFO ein zulaessiger Rueckfall: wer die Packung nicht
+   * unterscheiden kann, weil die Einheit nur eine fuehrt oder ihr
+   * Chargenbestand aus einem Check-Abgleich geraten ist, nimmt die aelteste.
+   * Beim EINRAEUMEN gibt es diesen Rueckfall nicht: die Kiste liegt offen vor
+   * einem, die Charge steht auf dem Schirm, und genau ihre Verfallsampel
+   * entscheidet, ob das Teil ueberhaupt zurueck in den Schrank geht oder in den
+   * Muell. Eine FEFO-Vorgabe schriebe hier eine andere Charge ins Journal als
+   * die physisch gewanderte — still (netto bleibt null, der Handlager-Bestand
+   * stimmt) und wegen append-only nicht mehr zu heilen. Dieselbe Festlegung wie
+   * in `bucheUmlagerung` (DRK-338) und aus demselben Grund.
+   */
+  chargeId: z.string().min(1),
+  /**
+   * ⚠️ TEILMENGEN SIND ERLAUBT — die dritte Entscheidung des Tickets. Eine
+   * Charge aus der Kiste auf zwei Schraenke zu verteilen ist der Normalfall,
+   * nicht die Ausnahme; ein „ganzer Posten oder gar nichts" zwaenge dazu,
+   * erst alles in einen Schrank zu buchen und danach von dort weiter
+   * umzulagern — zwei Vorgaenge im Journal fuer einen Handgriff.
+   *
+   * Der Deckel ist derselbe wie ueberall (`BUCHUNG_MENGE_MAX`): die fachliche
+   * Grenze ist der Bestand, die technische diese Zahl.
+   */
+  menge: z.coerce.number().int().positive("Menge muss größer als 0 sein").max(BUCHUNG_MENGE_MAX),
+  /**
+   * PFLICHT, nicht optional — dieselbe Regel wie in `AuffuellSchema`: die
+   * Handlager-Wurzel („Handlager (ohne Schrank)") ist eine ZEILE der Auswahl
+   * und wird gewaehlt wie jeder Schrank. Ein fehlendes Feld ist deshalb keine
+   * Vorgabe, sondern eine offene Entscheidung, und die bucht nicht.
+   */
+  zielLagerortId: z.string().min(1),
+});
+
+export async function raeumeAusEntnahmebox(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<HelferErgebnis<{ eingeraeumt: number; ziel: string }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext(
+    { actor: auditActor(viewer) },
+    async (): Promise<HelferErgebnis<{ eingeraeumt: number; ziel: string }>> => {
+      const geparst = EinraeumenSchema.safeParse(eingabe);
+      if (!geparst.success) {
+        // `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die
+        // Verbindung STEHT, sie hat gerade eine unbrauchbare Nutzlast geliefert.
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Die Eingabe war unvollständig. Bitte die Seite neu laden und " +
+            "Charge, Menge und Schrank erneut wählen.",
+        };
+      }
+      const v = geparst.data;
+
+      /*
+       * ⚠️ DAS ZIEL WIRD VOR DER TRANSAKTION GEPRUEFT UND ALS SATZ BEANTWORTET
+       * — dieselbe Form und derselbe Grund wie in `bucheAuffuellung`: die Lage
+       * entsteht ohne Zutun (die Seite rendert, jemand legt in der Verwaltung
+       * einen Schrank still, erst danach wird gebucht), sie ist also erwartbar
+       * und kein Defekt.
+       *
+       * ⚠️ `zugangsZiele` UND NICHT `handlagerOrte`: die beiden beantworten
+       * verschiedene Fragen. `handlagerOrte` ist der BESTANDSBEREICH und
+       * enthaelt stillgelegte Schraenke ausdruecklich mit — genau dafuer legt
+       * man einen still: um ihn auszuraeumen. `zugangsZiele` ist die Liste
+       * derer, die noch AUFNEHMEN. Wer hier den Bereich pruefte, raeumte
+       * Material in einen Schrank, den die Verwaltung gerade leert.
+       *
+       * Dieselbe Funktion, die die Flaeche anzeigt — die Seite bietet damit
+       * nichts an, was die Buchung danach verwirft.
+       */
+      const ziel = zugangsZiele(db).find((o) => o.id === v.zielLagerortId);
+      if (!ziel) {
+        return {
+          ok: false,
+          grund: "eingabe",
+          text:
+            "Dieser Schrank nimmt kein Material mehr auf — er wurde stillgelegt " +
+            "oder gelöscht. Bitte die Seite neu laden und einen anderen wählen.",
+        };
+      }
+
+      let eingeraeumt = 0;
+      let fachFehler: string | null;
+      try {
+        fachFehler = db.transaction((tx): string | null => {
+          /*
+           * RIEGEL 1 — DIE BOX GIBT ES, UND SIE IST EIN LAGER.
+           *
+           * Dieselbe Probe wie beim Hinweg, mit EINEM Unterschied:
+           *
+           * ⚠️ `aktiv` WIRD HIER NICHT VERLANGT, und das ist kein Vergessen.
+           * Eine stillgelegte Box nimmt nichts mehr AUF — genau das prueft der
+           * Hinweg. Sie AUSZURAEUMEN muss trotzdem moeglich bleiben, sonst
+           * strandet jedes Teil, das beim Stilllegen noch darin lag. Die
+           * Verwaltungsseite sagt denselben Satz mit anderen Worten: „Was
+           * bereits darin liegt, steht unverändert unten."
+           */
+          const box = tx
+            .select({ typ: lagerorte.typ })
+            .from(lagerorte).where(eq(lagerorte.id, ENTNAHMEBOX_ID)).get();
+          if (!box || box.typ !== "lager") {
+            return `Die ${ENTNAHMEBOX_NAME} ist nicht eingerichtet. Bitte der Verwaltung melden.`;
+          }
+
+          /*
+           * RIEGEL 2 — DAS ZIEL NOCH EINMAL, IN DER TRANSAKTION.
+           *
+           * Die Probe oben und diese sind zwei Lesezugriffe, und dazwischen
+           * kann sich `aktiv` aendern. Massgeblich ist die hier — sie steht mit
+           * dem Schreibvorgang im selben Vorgang. Ohne sie entschiede der
+           * Fremdschluessel, und der laesst JEDEN Lagerort klaglos durch: eine
+           * selbst gebaute Anfrage raeumte damit in ein Fahrzeug ein oder
+           * zurueck in die Box.
+           *
+           * ⚠️ DER TEILBAUM UND DAS `aktiv`-FLAG WERDEN BEIDE GEBRAUCHT, und
+           * `zugangsZiele` deckt beides auf einmal ab — deshalb steht hier
+           * dieselbe Funktion und nicht eine handgeschriebene Kombination aus
+           * `handlagerOrte` und `ortStamm`. Zwei Schreibweisen fuer dieselbe
+           * Auswahl liefen mit der Zeit auseinander.
+           */
+          if (!zugangsZiele(tx).some((o) => o.id === v.zielLagerortId)) {
+            return "Dieser Schrank nimmt kein Material mehr auf. Bitte die Seite neu laden.";
+          }
+
+          /*
+           * RIEGEL 3 — DIE CHARGE GEHOERT ZU DIESEM ARTIKEL (I5).
+           *
+           * Dieselbe Pruefung wie im Hinweg und in `bucheZugang`, aus
+           * demselben Grund: eine manipulierte Anfrage buchte sonst gegen den
+           * Bestand eines anderen Artikels. Die Deckungspruefung darunter
+           * faengt das NICHT zuverlaessig mit ab — sie fragt nur nach dem Rest
+           * DIESER Charge in DER BOX.
+           */
+          const charge = tx.select({ artikelId: chargen.artikelId })
+            .from(chargen).where(eq(chargen.id, v.chargeId)).get();
+          if (!charge || charge.artikelId !== v.artikelId) {
+            return "Diese Charge gehört nicht zu diesem Artikel. Bitte die Seite neu laden.";
+          }
+
+          /*
+           * ⚠️ NICHT GEDECKTE MENGEN WERDEN ABGEWIESEN, NICHT GEKAPPT
+           * (Akzeptanzkriterium 4) — dieselbe Regel und dieselbe Begruendung
+           * wie beim Hinweg und in `bucheUmlagerung`: `fefoAbbuchung` kappt
+           * STILL an der Verfuegbarkeit. Fuer eine ENTNAHME ist das richtig,
+           * fuer eine Umlagerung nicht: die Person hat fuenf Stueck in den
+           * Schrank gelegt, gebucht waeren drei, und die verbleibenden zwei
+           * stuenden weiter in der Kiste. Der Buchstand waere danach an BEIDEN
+           * Orten falsch, und niemand bekaeme es gesagt.
+           */
+          const rest = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, ENTNAHMEBOX_ID);
+          const vorhanden = rest.get(v.chargeId) ?? 0;
+          if (vorhanden < v.menge) {
+            // Die EINHEIT des Artikels, nicht ein erfundenes „Stück": das Modul
+            // fuehrt sie als freien Text („Stk.", „Pkg.", „Paar"), und ein
+            // erfundenes Wort in einer Fehlermeldung ist genau die Stelle, an
+            // der jemand zu zaehlen anfaengt.
+            const einheit = tx.select({ einheit: artikel.einheit }).from(artikel)
+              .where(eq(artikel.id, v.artikelId)).get()?.einheit ?? "";
+            return `Von dieser Charge liegen in der ${ENTNAHMEBOX_NAME} nur `
+              + `${vorhanden} ${einheit}`.trimEnd()
+              + ". Es wurde nichts gebucht — bitte die Menge prüfen.";
+          }
+
+          const ergebnis = umlagerungVonOrt(tx, {
+            artikelId: v.artikelId,
+            menge: v.menge,
+            /*
+             * ⚠️ `…VonOrt` UND NICHT `…AusBereich`: genau die Box, nicht ihr
+             * Teilbaum. Die Box haengt heute frei (`parent_id IS NULL`, siehe
+             * `ENTNAHMEBOX_ID`) — ein Bereich holte sich die fehlende Menge
+             * morgen still von woanders. Seit DRK-354 sagt das der Typ.
+             */
+            vonOrt: ENTNAHMEBOX_ID,
+            nachLagerortId: v.zielLagerortId,
+            // DIE CHARGE WANDERT MIT (Akzeptanzkriterium 3) — und zwar GENAU
+            // die gewaehlte, nicht die zuerst ablaufende. `umlagerungVonOrt`
+            // traegt sie auf BEIDE Legs; damit bleibt die Verfallsangabe
+            // erhalten, auf die FEFO im Handlager spaeter zugreift.
+            chargeId: v.chargeId,
+            quelle: { quelleTyp: "oidc", quelleId: viewer.sub },
+            kommentar: ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR,
+            // ⚠️ DAS PRAEFIX KOMMT AUS `_lib/vorgang.ts` UND WIRD NICHT
+            // ABGESCHRIEBEN — es ist die einzige Klammer zwischen den beiden
+            // Legs, und zwei Literale liefen still auseinander.
+            referenz: `${EINRAEUMEN_PRAEFIX}${v.zielLagerortId}`,
+          });
+
+          if (ergebnis.umgelagert < v.menge) {
+            // Unerreichbar, solange die Deckungspruefung darueber steht — und
+            // genau deshalb ein WURF und keine Meldung: waere er erreichbar,
+            // stuende die Datenbank halb gebucht da, und der einzige richtige
+            // Ausgang ist das Zuruecknehmen der ganzen Transaktion.
+            throw new Error("Deckung und Buchung sind uneins");
+          }
+
+          eingeraeumt = ergebnis.umgelagert;
+          return null;
+        });
+      } catch {
+        // Wie beim Hinweg: der Wurf oben ist KEIN Datenbankfehler, sondern die
+        // Notbremse eines Gleichlaufs. Ohne diesen Zweig schluege sie bis zur
+        // Fehlerseite durch, und in Produktion stuende dort ein englischer Satz
+        // mit `digest` (Falle 66) statt einer Zeile am Formular.
+        return {
+          ok: false,
+          grund: "eingabe",
+          text: "Die Buchung wurde nicht gespeichert. Bitte die Seite neu laden und es erneut versuchen.",
+        };
+      }
+
+      if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
+
+      /*
+       * ⚠️ ZWEI LISTEN, UND SIE SIND NICHT DASSELBE. Der Handlager-Bestand
+       * dieses Artikels hat sich geaendert — dafuer steht die geteilte Liste
+       * (`_lib/revalidierung.ts`, Begruendung je Pfad dort). Die beiden
+       * Box-Flaechen darunter stehen NICHT darin: sie veralten nur bei einem
+       * Vorgang, der die Kiste betrifft, und eine Zugangsbuchung im Drawer der
+       * Verwaltung raeumte sie sonst bei jedem Wareneingang mit aus.
+       *
+       * ⚠️ `helfer/box` FEHLT ABSICHTLICH: dieser Schirm zeigt den Bestand
+       * EINER EINHEIT, und der aendert sich beim Einraeumen nicht.
+       */
+      revalidiereHandlagerBestand(v.artikelId);
+      revalidatePath("/m/lagerbuch/auffuellen/box");
+      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
+      // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
+      // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
+      // unter seinem alten Namen.
+      return { ok: true, wert: { eingeraeumt, ziel: ziel.name } };
     },
   );
 }
