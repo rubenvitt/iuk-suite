@@ -184,11 +184,7 @@ afterEach(() => { t.schliessen(); vi.clearAllMocks(); });
  * eigene Liste fuehrte. Die Reihenfolge gehoert weiter zur Zusicherung: beide
  * Zugangswege raeumen WOERTLICH dasselbe aus.
  */
-const ZUGANG_PFADE = (artikelId: string) => [
-  ...BESTANDSFLAECHEN,
-  `/m/lagerbuch/a/${artikelId}`,
-  `/m/lagerbuch/auffuellen/${artikelId}`,
-];
+const ZUGANG_PFADE = () => [...BESTANDSFLAECHEN];
 
 /** Alle Zeilen, die eine Action geschrieben hat — die Saatzeile bleibt draussen. */
 function geschrieben() {
@@ -235,7 +231,7 @@ describe("bucheZugang", () => {
      * Pfad aus demselben Grund: zwei Schreiber DERSELBEN Spalte duerfen sich
      * darin nicht unterscheiden.
      */
-    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
+    expect(revalidiert).toEqual(ZUGANG_PFADE());
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {
@@ -363,7 +359,7 @@ describe("bucheEntnahme", () => {
       quelleTyp: "oidc", quelleId: "u-admin", kommentar: "Einsatz",
     });
     // Ohne Ziel-Fahrzeug bleibt `lagerortId` leer — kein Ortsschirm.
-    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
+    expect(revalidiert).toEqual(ZUGANG_PFADE());
   });
 
   it("mit Ziel-Fahrzeug wird daraus eine Umlagerung — mit BEIDEN Legs, netto null", async () => {
@@ -494,7 +490,7 @@ describe("bucheEntnahmeHelfer", () => {
       typ: "entnahme", menge: -2, lagerortId: HANDLAGER_ID,
       quelleTyp: "token", quelleId: "482-137",
     });
-    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
+    expect(revalidiert).toEqual(ZUGANG_PFADE());
   });
 
   it("ein GESPERRTER Code bucht NICHT und meldet den Grund", async () => {
@@ -1340,7 +1336,7 @@ describe("bucheAuffuellung (DRK-313)", () => {
       },
       t.db,
     );
-    expect(revalidiert).toEqual(ZUGANG_PFADE("art-1"));
+    expect(revalidiert).toEqual(ZUGANG_PFADE());
   });
 
   it("I5: lehnt eine Charge ab, die zu einem ANDEREN Artikel gehoert", async () => {

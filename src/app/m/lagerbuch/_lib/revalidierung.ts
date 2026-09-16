@@ -73,31 +73,41 @@ export const BESTANDSFLAECHEN: readonly string[] = [
   "/m/lagerbuch/helfer",
   /* `postenAmOrt` — die Entnahmebox am Regal. */
   "/m/lagerbuch/helfer/box",
+  /*
+   * ⚠️ DIESE FLAECHE FEHLTE BIS ZUR CODEX-REVIEW ZU PR #187, und sie ist der
+   * Beweis, dass die alte Bauform des Waechters nicht getragen hat: der
+   * Check-Schirm zeigt je Soll-Zeile `fahrzeugBestand` UND `handlagerBestand`
+   * (`sollFuerFahrzeug` rechnet beide aus `bestandJeArtikelUndLagerort`).
+   * Uebersehen wurde er, weil die erste Fassung eine handgepflegte Liste von
+   * LESERFUNKTIONEN fuehrte und `sollFuerFahrzeug` nicht darin stand — eine
+   * Luecke genau der Art, gegen die dieses Ticket gebaut ist. Seither
+   * klassifiziert `revalidierung.test.ts` JEDE Seite des Moduls einzeln.
+   */
+  "/m/lagerbuch/helfer/check",
+
+  /*
+   * ⚠️ AB HIER ROUTENMUSTER, NICHT PFADE — und `revalidiereBestand` gibt ihnen
+   * `type: "page"` mit. Ohne den zweiten Parameter ist ein Pfad mit
+   * `[`-Segment kein Muster, sondern ein Pfad, den es nicht gibt
+   * (`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/
+   * revalidatePath.md`: „If `path` contains a dynamic segment … this parameter
+   * is required").
+   *
+   * ⚠️ WARUM MUSTER UND NICHT DIE EINE ID, DIE DER SCHREIBER KENNT (zweiter
+   * Codex-Befund zu PR #187): weil die Zahl auf diesen Seiten NICHT nur von
+   * ihrer eigenen ID abhaengt. Jede Fahrzeugseite zeigt ueber
+   * `sollFuerFahrzeug` auch den HANDLAGER-Bestand je Position — ein Zugang,
+   * eine gewoehnliche Entnahme, ein CSV-Import oder eine Inventur aendert
+   * damit JEDE Fahrzeugseite, und keiner dieser Schreiber nennt ein Fahrzeug.
+   * Ein Import oder ein Inventurlauf beruehrt ausserdem viele Artikel auf
+   * einmal. Eine Invalidierung „nur fuer die uebergebene ID" liesse den Rest
+   * still veralten — dieselbe Teil-Liste, nur je Aufruf statt je Schreiber.
+   */
+  "/m/lagerbuch/verwaltung/fahrzeuge/[id]",
+  "/m/lagerbuch/auffuellen/[artikelId]",
+  "/m/lagerbuch/a/[artikelId]",
 ];
 
-/**
- * DIE FLAECHEN MIT EINEM WERT IN DER URL.
- *
- * Sie stehen NICHT in `BESTANDSFLAECHEN`, weil ein Pfad mit Platzhalter nichts
- * traefe und ein Pfad ohne Wert die falsche Seite meinte. Wer die ID hat, gibt
- * sie mit; wer sie nicht hat, laesst sie weg — ein fehlender Eintrag kostet
- * hier einen veralteten Detailschirm, kein falsches Ergebnis.
- */
-function flaechenMitId(
-  artikelId?: string | null,
-  lagerortId?: string | null,
-): string[] {
-  const pfade: string[] = [];
-  if (artikelId) {
-    /* `artikelDetailHelfer` — Bestand und Chargenliste am Regal. */
-    pfade.push(`/m/lagerbuch/a/${artikelId}`);
-    /* `artikelDetailAuffuellen` — die Chargenwahl der GF. */
-    pfade.push(`/m/lagerbuch/auffuellen/${artikelId}`);
-  }
-  /* `chargenJeArtikelAmLagerort` — der Ortsbestand eines Fahrzeugs. */
-  if (lagerortId) pfade.push(`/m/lagerbuch/verwaltung/fahrzeuge/${lagerortId}`);
-  return pfade;
-}
 
 /**
  * DIE LISTE WIRD PAUSCHAL GENOMMEN, NICHT JE SCHREIBER GEFILTERT — und das ist
@@ -124,12 +134,10 @@ function flaechenMitId(
  * revalidiert er weiterhin selbst daneben. Diese Liste beantwortet genau eine
  * Frage: „wo steht Artikelbestand oder eine Buchungszeile?"
  */
-export function revalidiereBestand(opts: {
-  artikelId?: string | null;
-  lagerortId?: string | null;
-} = {}): void {
-  for (const pfad of BESTANDSFLAECHEN) revalidatePath(pfad);
-  for (const pfad of flaechenMitId(opts.artikelId, opts.lagerortId)) {
-    revalidatePath(pfad);
+export function revalidiereBestand(): void {
+  for (const pfad of BESTANDSFLAECHEN) {
+    // Ein Muster braucht `"page"`; ein fester Pfad darf es NICHT bekommen.
+    if (pfad.includes("[")) revalidatePath(pfad, "page");
+    else revalidatePath(pfad);
   }
 }

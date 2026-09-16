@@ -186,11 +186,7 @@ describe("aussondern", () => {
      * `_lib/revalidierung.test.ts`. Hier zaehlt, WELCHE IDs mitgehen: die
      * Charge liegt im Handlager, also kein Ortsschirm, aber der Artikel.
      */
-    expect(revalidiert).toEqual([
-      ...BESTANDSFLAECHEN,
-      "/m/lagerbuch/a/art-charge",
-      "/m/lagerbuch/auffuellen/art-charge",
-    ]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
   });
 
   it("schliesst Bestand derselben Charge in einem Fahrzeug aus", async () => {

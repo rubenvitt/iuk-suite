@@ -270,7 +270,7 @@ export async function aussondernVomLagerort(
        * steht im Journal, und sie kann den Handlager-Bestand unter den
        * Mindestbestand druecken. Der Ortsschirm kommt ueber `lagerortId` dazu.
        */
-      revalidiereBestand({ artikelId: v.artikelId, lagerortId: v.lagerortId });
+      revalidiereBestand();
       return { ok: true, wert: { verfall: geschriebenerVerfall } };
     },
   );

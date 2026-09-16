@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const { revalidiert } = vi.hoisted(() => ({ revalidiert: [] as string[] }));
+const { revalidiert } = vi.hoisted(() => ({
+  revalidiert: [] as { pfad: string; art?: string }[],
+}));
 vi.mock("next/cache", () => ({
-  revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
+  revalidatePath: (pfad: string, art?: string) => { revalidiert.push({ pfad, art }); },
 }));
 
 const { BESTANDSFLAECHEN, revalidiereBestand } = await import("./revalidierung");
@@ -74,7 +76,14 @@ const SOLL = [
   "/m/lagerbuch/auffuellen",
   "/m/lagerbuch/helfer",
   "/m/lagerbuch/helfer/box",
+  "/m/lagerbuch/helfer/check",
+  "/m/lagerbuch/verwaltung/fahrzeuge/[id]",
+  "/m/lagerbuch/auffuellen/[artikelId]",
+  "/m/lagerbuch/a/[artikelId]",
 ];
+
+/** Die Muster daraus — sie und nur sie bekommen `"page"` als zweiten Parameter. */
+const MUSTER = SOLL.filter((p) => p.includes("["));
 
 describe("BESTANDSFLAECHEN — der ausgeschriebene Sollwert", () => {
   it("ist genau diese Liste, in dieser Reihenfolge", () => {
@@ -83,24 +92,34 @@ describe("BESTANDSFLAECHEN — der ausgeschriebene Sollwert", () => {
 });
 
 describe("revalidiereBestand — was tatsaechlich gerufen wird", () => {
-  it("raeumt ohne IDs genau die Bestandsflaechen aus", () => {
+  it("raeumt genau die Bestandsflaechen aus, in dieser Reihenfolge", () => {
     revalidiereBestand();
-    expect(revalidiert).toEqual(SOLL);
+    expect(revalidiert.map((r) => r.pfad)).toEqual(SOLL);
   });
 
-  it("haengt die Detailschirme hinten an, wenn die IDs da sind", () => {
-    revalidiereBestand({ artikelId: "art-1", lagerortId: "fz-1" });
-    expect(revalidiert).toEqual([
-      ...SOLL,
-      "/m/lagerbuch/a/art-1",
-      "/m/lagerbuch/auffuellen/art-1",
-      "/m/lagerbuch/verwaltung/fahrzeuge/fz-1",
-    ]);
+  it("gibt JEDEM Muster `\"page\"` mit — ohne den Parameter ist es kein Muster", () => {
+    /*
+     * ⚠️ DIE ZUSICHERUNG, AN DER DER ZWEITE CODEX-BEFUND HAENGT. Next verlangt
+     * den zweiten Parameter fuer jeden Pfad mit dynamischem Segment
+     * (`revalidatePath.md`); ohne ihn raeumt der Aufruf keine einzige der
+     * Seiten aus, sondern zeigt auf einen Pfad, den es nicht gibt — und wirft
+     * dabei NICHT (Falle 49). Genau still.
+     */
+    revalidiereBestand();
+    for (const { pfad, art } of revalidiert) {
+      expect(art, pfad).toBe(pfad.includes("[") ? "page" : undefined);
+    }
+    expect(MUSTER.length).toBeGreaterThan(0);
   });
 
-  it("laesst `null` und `undefined` weg, statt einen Pfad mit Luecke zu bauen", () => {
-    revalidiereBestand({ artikelId: null, lagerortId: undefined });
-    expect(revalidiert).toEqual(SOLL);
+  it("nimmt keine Argumente — eine ID waere wieder eine Teilmenge", () => {
+    /*
+     * Die Signatur IST die Zusicherung: solange `revalidiereBestand` eine ID
+     * entgegennaehme, gaebe es einen Aufrufer, der nur SEINE Seite ausraeumt —
+     * und die Fahrzeugseiten zeigen ueber `sollFuerFahrzeug` auch den
+     * Handlager-Bestand, aendern sich also bei Schreibern ohne jedes Fahrzeug.
+     */
+    expect(revalidiereBestand.length).toBe(0);
   });
 });
 
@@ -145,9 +164,14 @@ describe("BESTANDSFLAECHEN — jede Flaeche gibt es", () => {
     expect(new Set(BESTANDSFLAECHEN).size).toBe(BESTANDSFLAECHEN.length);
   });
 
-  it("nennt keinen Platzhalter — ein Pfad mit ID gehoert an die Aufrufstelle", () => {
+  it("nennt keine eingesetzte ID — ein Detailschirm steht als MUSTER drin", () => {
+    /*
+     * Die Gegenrichtung zur ersten Fassung: dort war ein `[`-Segment verboten
+     * und die ID kam vom Aufrufer. Verboten ist jetzt die eingesetzte ID —
+     * eine Interpolation (`${…}`) oder ein Pfadstueck, das wie ein Wert
+     * aussieht, waere wieder eine Teilmenge.
+     */
     for (const pfad of BESTANDSFLAECHEN) {
-      expect(pfad.includes("["), pfad).toBe(false);
       expect(pfad.includes("$"), pfad).toBe(false);
     }
   });
@@ -218,44 +242,82 @@ describe("_actions/ — jeder Bestandsschreiber benutzt die eine Liste", () => {
 /* ------------------------------------------------------------------ 4 ----- */
 
 /**
- * DIE LESER — die Funktionen, deren Ergebnis sich mit JEDER Buchung aendert.
+ * JEDE SEITE DES MODULS, EINZELN KLASSIFIZIERT — die Vollstaendigkeit in der
+ * LESERICHTUNG.
  *
- * Kuratiert, und die Kuratierung ist selbst bewacht: der Test unten verlangt,
- * dass jeder Name in seinem Modul auch exportiert wird. Eine Umbenennung faellt
- * damit auf, statt den Scan still leerlaufen zu lassen.
+ * ⚠️ HIER STAND ZUERST EINE LISTE VON LESERFUNKTIONEN, und sie hat genau den
+ * Fehler durchgelassen, gegen den sie gebaut war (Codex-Review zu PR #187):
+ * `sollFuerFahrzeug` stand nicht darin, also fiel `/helfer/check` aus dem Scan
+ * — eine Seite, die je Soll-Zeile `fahrzeugBestand` UND `handlagerBestand`
+ * zeigt. Eine handgepflegte Liste von Funktionsnamen ist dieselbe Bauform wie
+ * sieben handgepflegte Pfadlisten; sie driftet aus demselben Grund.
  *
- * ⚠️ NICHT DRIN, obwohl es danach aussieht: `verfallFuerLagerort` und
- * `lagerortVerfallListe` lesen `lagerort_verfall` — eine GEMELDETE Verfallszahl
- * je Ort, keine Charge und keinen Saldo. Eine Buchung aendert sie nicht.
+ * ⚠️ DREI MECHANISCHE ERSATZFORMEN WURDEN GEMESSEN UND SIND ALLE UNBRAUCHBAR,
+ * und das ist der Grund, warum hier eine Aufzaehlung steht statt eines Scans:
+ *
+ *   * TRANSITIV ueber den Importgraphen der Seite: 37 von 38 Seiten melden
+ *     „liest Bestand", weil jede Seite ueber die Huelle an einer Action haengt.
+ *   * MODULWEISE ueber `lesepfade/*` mit Huelle: 33 von 38 — `orte.ts` zieht
+ *     `bestand.ts` herein, `bz`/`geraete`/`o2` ziehen `orte` herein.
+ *   * FUNKTIONSWEISE als lexikalischer Aufrufgraph: findet `sollFuerFahrzeug`,
+ *     verliert aber `artikelListe` und `journalEintraege`, weil eine Signatur
+ *     mit `{` die Klammerzaehlung verschiebt.
+ *
+ * Die Grenze ist eine FACHLICHE: „steht auf dieser Seite eine Bestandszahl
+ * oder eine Buchungszeile?" Gemessenes Beispiel, an dem jeder Scan scheitert:
+ * der Checklisten-DRUCKBOGEN ruft ebenfalls `sollFuerFahrzeug`, wirft
+ * `handlagerBestand` und `fahrzeugBestand` aber weg und druckt nur das Soll —
+ * also KEIN Bestand, bei identischem Aufruf.
+ *
+ * Deshalb wird hier JEDE Seite benannt. Eine neue Seite ist ein ROTER TEST, bis
+ * jemand sie einordnet; das ist der Punkt, und es ist die einzige Form, die
+ * keine stille Luecke zulaesst.
  */
-const LESER: Record<string, string[]> = {
-  "_lib/lesepfade/artikel": [
-    "artikelListe", "artikelDetailHelfer", "artikelDetailAuffuellen",
-    "chargenJeArtikelAmLagerort",
-  ],
-  "_lib/lesepfade/bestand": [
-    "kennzahlen", "bestandJeArtikelImBereich", "bestandJeArtikelAnOrt",
-    "restJeChargeImBereich", "restJeChargeAnOrt", "restJeChargeJeOrtImBereich",
-    "bestandJeArtikelUndLagerort", "restJeChargeFuerArtikelImBereich",
-    "restJeChargeFuerArtikelAnOrt", "restJeChargeUndOrt", "verteilungJeCharge",
-  ],
-  "_lib/lesepfade/verfall": ["verfallListe"],
-  "_lib/lesepfade/journal": ["journalEintraege"],
-  "_lib/lesepfade/inventur": ["inventurZeilen"],
-  "_lib/lesepfade/entnahmebox": ["boxInhalt", "postenAmOrt", "letzteBoxZugaenge"],
-  "_lib/lesepfade/bestellung": ["bestellvorschlag"],
-  "_lib/lesepfade/fahrzeuge": ["fahrzeugUebersicht"],
-  "_db/schema": ["buchungen", "chargen"],
-};
+const SEITEN: Record<string, "bestand" | "kein-bestand"> = {
+  /* — zeigt Bestand oder Buchungszeilen — */
+  "/verwaltung": "bestand",
+  "/verwaltung/artikel": "bestand",
+  "/verwaltung/bestellung": "bestand",
+  "/verwaltung/verfall": "bestand",
+  "/verwaltung/journal": "bestand",
+  "/verwaltung/lagerorte": "bestand",
+  "/verwaltung/inventur": "bestand",
+  "/verwaltung/fahrzeuge": "bestand",
+  "/verwaltung/fahrzeuge/[id]": "bestand",
+  "/verwaltung/entnahmebox": "bestand",
+  "/auffuellen": "bestand",
+  "/auffuellen/[artikelId]": "bestand",
+  "/a/[artikelId]": "bestand",
+  "/helfer": "bestand",
+  "/helfer/box": "bestand",
+  "/helfer/check": "bestand",
 
-/**
- * DIE EINZIGE AUSNAHME, und sie ist gemessen: `vorlagen/[id]` ruft
- * `artikelListe`, nimmt daraus aber NUR `id`, `name` und `fach` — die Auswahl
- * fuer eine Vorlagenposition. Es zeigt keine Bestandszahl, also veraltet dort
- * auch keine. Waechst diese Liste, ist das eine Entscheidung im Diff und kein
- * Nebenbei.
- */
-const AUSNAHMEN = new Set(["/verwaltung/vorlagen/[id]"]);
+  /* — zeigt keinen: mit dem Grund, sonst ist die Einordnung wertlos — */
+  "": "kein-bestand",                              // Gate, reine Anmeldung
+  "/g/[code]": "kein-bestand",                     // Scan-Weiche auf ein Geraet
+  "/o/[ortId]": "kein-bestand",                    // Scan-Weiche auf einen Ort
+  "/helfer/ziel": "kein-bestand",                  // Zielwahl, nur Fahrzeugnamen
+  "/verwaltung/bz": "kein-bestand",                // Beatmungsgeraete, eigener Stamm
+  "/verwaltung/bz/[id]": "kein-bestand",
+  "/verwaltung/bz/[id]/kontrolle": "kein-bestand",
+  "/verwaltung/bz/scan": "kein-bestand",
+  "/verwaltung/checks": "kein-bestand",            // Check-HISTORIE, kein Live-Bestand
+  "/verwaltung/checks/[id]": "kein-bestand",       // liest den `ergebnis`-Schnappschuss
+  "/verwaltung/geraete": "kein-bestand",           // Geraetestamm
+  "/verwaltung/geraete/[id]": "kein-bestand",
+  "/verwaltung/geraete/scan": "kein-bestand",
+  "/verwaltung/import": "kein-bestand",            // nur das Formular
+  "/verwaltung/inventur/verlauf": "kein-bestand",  // Laufhistorie; `inventur.ts` raeumt sie selbst
+  "/verwaltung/inventur/verlauf/[id]": "kein-bestand",
+  "/verwaltung/sauerstoff": "kein-bestand",        // Flaschendruck, keine Buchungszeile
+  "/verwaltung/sauerstoff/[id]": "kein-bestand",
+  "/verwaltung/tokens": "kein-bestand",            // Kaertchen
+  "/verwaltung/vorlagen": "kein-bestand",          // Vorlagenstamm
+  "/verwaltung/vorlagen/[id]": "kein-bestand",     // `artikelListe` nur als Auswahl (id/name/fach)
+  "/verwaltung/checklisten": "kein-bestand",       // druckt das SOLL, nicht den Bestand
+  "/verwaltung/etiketten": "kein-bestand",
+  "/verwaltung/ortsetiketten": "kein-bestand",
+};
 
 function seitenDateien(): string[] {
   const gefunden: string[] = [];
@@ -277,51 +339,32 @@ function routeVon(datei: string): string {
     .replace(/\/\([^)]*\)/g, "");
 }
 
-function liestBestand(text: string): string[] {
-  const treffer: string[] = [];
-  const muster = /import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*"([^"]+)"/g;
-  for (const m of text.matchAll(muster)) {
-    const modul = Object.keys(LESER).find((k) => m[2].endsWith(k));
-    if (!modul) continue;
-    for (const teil of m[1].split(",")) {
-      const name = teil.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0].trim();
-      if (LESER[modul].includes(name)) treffer.push(name);
-    }
-  }
-  return treffer;
-}
-
-describe("Vollstaendigkeit — jede lesende Flaeche steht in der Liste", () => {
-  it("nennt in LESER nur Namen, die es gibt", () => {
-    for (const [modul, namen] of Object.entries(LESER)) {
-      const text = readFileSync(join(MODUL, `${modul}.ts`), "utf8");
-      for (const name of namen) {
-        expect(new RegExp(`export (?:function|const) ${name}\\b`).test(text), `${modul}: ${name}`)
-          .toBe(true);
-      }
-    }
+describe("Vollstaendigkeit — jede Seite ist eingeordnet", () => {
+  it("kennt genau die Seiten, die es auf der Platte gibt", () => {
+    // BEIDE Richtungen: eine neue Seite fehlt hier, eine geloeschte steht zu
+    // viel drin. Nur zusammen ist es eine Zusicherung ueber Vollstaendigkeit.
+    expect(seitenDateien().map(routeVon).sort()).toEqual(Object.keys(SEITEN).sort());
   });
 
-  it("deckt jede Seite ab, die einen dieser Leser direkt importiert", () => {
-    const offen: string[] = [];
-    for (const datei of seitenDateien()) {
-      const gelesen = liestBestand(readFileSync(datei, "utf8"));
-      if (gelesen.length === 0) continue;
-      const route = routeVon(datei);
-      if (AUSNAHMEN.has(route)) continue;
-      // Eine Route mit Platzhalter wird an der Aufrufstelle mit ihrem Wert
-      // revalidiert; die Liste kennt sie nicht und darf es nicht.
-      if (route.includes("[")) continue;
-      if (!BESTANDSFLAECHEN.includes(`${PRAEFIX}${route}`)) {
-        offen.push(`${route} liest ${gelesen.join(", ")}`);
-      }
-    }
+  it("hat jede Bestandsseite in der Liste", () => {
+    const offen = Object.entries(SEITEN)
+      .filter(([route, art]) => art === "bestand"
+        && !BESTANDSFLAECHEN.includes(`${PRAEFIX}${route}`))
+      .map(([route]) => route);
     expect(offen).toEqual([]);
   });
 
-  it("haelt die Ausnahmen klein und gueltig", () => {
-    const routen = new Set(seitenDateien().map(routeVon));
-    for (const a of AUSNAHMEN) expect(routen.has(a), a).toBe(true);
-    expect(AUSNAHMEN.size).toBeLessThanOrEqual(1);
+  it("haelt jede Nicht-Bestandsseite aus der Liste heraus", () => {
+    const zuviel = Object.entries(SEITEN)
+      .filter(([route, art]) => art === "kein-bestand"
+        && BESTANDSFLAECHEN.includes(`${PRAEFIX}${route}`))
+      .map(([route]) => route);
+    expect(zuviel).toEqual([]);
+  });
+
+  it("nennt in der Liste nichts, was keine Seite ist", () => {
+    for (const pfad of BESTANDSFLAECHEN) {
+      expect(SEITEN[pfad.slice(PRAEFIX.length)], pfad).toBe("bestand");
+    }
   });
 });

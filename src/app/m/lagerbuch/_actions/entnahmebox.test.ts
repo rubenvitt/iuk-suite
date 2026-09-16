@@ -627,9 +627,14 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
 
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/entnahmebox");
     expect(revalidiert).toContain("/m/lagerbuch/helfer/box");
-    // MIT der Id: der Pfad des Einheitenblatts traegt sie, ein Pfad ohne sie
-    // traefe die Seite nicht.
-    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    /*
+     * ⚠️ DAS EINHEITENBLATT ALS MUSTER, NICHT MIT DER ID — und die Korrektur
+     * kam aus der Codex-Review zu PR #187. Hier stand `…/fahrzeuge/fz-1`, weil
+     * nur DIESE Einheit Ware bekommen hat. Jede Fahrzeugseite zeigt aber ueber
+     * `sollFuerFahrzeug` auch den HANDLAGER-Bestand je Position, und der ist
+     * gerade gesunken — betroffen sind also alle, nicht nur `fz-1`.
+     */
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/[id]");
   });
 
   it("laesst die Verfallsangabe stehen, AUCH wenn die Einheit dabei leer wird", async () => {

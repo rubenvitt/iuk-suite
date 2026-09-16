@@ -45,23 +45,6 @@ import { cookies } from "next/headers";
  * Riegelgrund — und mit ihm die Entscheidung, ob ein Erneuern-Feld erscheint.
  */
 
-/**
- * DER ZUGANG RAEUMT DIE BESTANDSFLAECHEN AUS — UEBER DIE MODULWEITE LISTE.
- *
- * ⚠️ HIER STAND BIS DRK-374 EINE EIGENE ACHT-PFAD-LISTE, und sie war der
- * Endstand von DREI Review-Runden mit je einem nachgetragenen Pfad. Die vierte
- * Runde meldete `verwaltung/journal` und `verwaltung/lagerorte` — Flaechen, die
- * dieselbe Buchung zeigen und die KEIN Schreiber im Modul revalidierte. Eine
- * Liste, die nur die Zugangswege kennt, kann das nicht heilen; sie steht
- * deshalb jetzt in `_lib/revalidierung.ts` und gilt fuer JEDEN Bestandsschreiber.
- *
- * `bucheZugang` (Artikel-Drawer) und `bucheAuffuellung` (Auffuellansicht der GF)
- * buchen denselben Wareneingang; jede Flaeche, die danach veraltet ist, ist es
- * fuer BEIDE. Sie rufen deshalb dieselbe Funktion mit derselben Artikel-ID.
- */
-function revalidiereZugang(artikelId: string): void {
-  revalidiereBestand({ artikelId });
-}
 
 const ZugangSchema = z
   .object({
@@ -161,10 +144,14 @@ export async function bucheZugang(
       };
     }
 
-    // DIESELBE Liste wie in `bucheAuffuellung` — Begruendung je Pfad steht an
-    // `revalidiereZugang`. Zwei Listen fuer einen Vorgang waren die Ursache
-    // von drei Review-Befunden in Folge.
-    revalidiereZugang(v.artikelId);
+    /*
+     * DIESELBE Liste wie in `bucheAuffuellung` und in jedem anderen
+     * Bestandsschreiber — Begruendung je Flaeche steht in
+     * `_lib/revalidierung.ts`. Zwei Listen fuer EINEN Vorgang waren die Ursache
+     * von drei Review-Befunden in Folge, sieben Listen fuer EIN Modul die des
+     * vierten (DRK-374).
+     */
+    revalidiereBestand();
     return { ok: true };
   });
 }
@@ -273,7 +260,7 @@ export async function bucheEntnahme(
      * Buchungszeile steht im Journal. `zielFahrzeug` traegt den Ortsschirm mit,
      * wenn die Ware auf ein Fahrzeug ging.
      */
-    revalidiereBestand({ artikelId: v.artikelId, lagerortId: zielFahrzeug });
+    revalidiereBestand();
     return { ok: true, wert: { gebucht } };
   });
 }
@@ -432,7 +419,7 @@ export async function bucheUmlagerung(
       };
     }
 
-    revalidiereBestand({ artikelId: v.artikelId });
+    revalidiereBestand();
     return { ok: true, wert: { umgelagert } };
   });
 }
@@ -591,10 +578,7 @@ export async function bucheEntnahmeHelfer(
       return { ok: false, grund: "leer", text: leerText(name) };
     }
 
-    revalidiereBestand({
-      artikelId: v.artikelId,
-      lagerortId: ziel.art === "fahrzeug" ? ziel.lagerortId : null,
-    });
+    revalidiereBestand();
     return { ok: true, wert: { gebucht } };
   });
 }
@@ -782,7 +766,7 @@ export async function bucheAuffuellung(
 
       // DIESELBE Liste wie in `bucheZugang` — es ist derselbe Vorgang, nur
       // eine andere Flaeche davor.
-      revalidiereZugang(v.artikelId);
+      revalidiereBestand();
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.

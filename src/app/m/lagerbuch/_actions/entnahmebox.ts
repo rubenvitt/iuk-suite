@@ -446,7 +446,7 @@ export async function bucheInEntnahmebox(
        * Kennung in der URL und kommt ueber `lagerortId` dazu — ein Pfad ohne
        * sie traefe die Seite nicht.
        */
-      revalidiereBestand({ lagerortId: v.fahrzeugId });
+      revalidiereBestand();
       return { ok: true, wert: { gebucht } };
     },
   );

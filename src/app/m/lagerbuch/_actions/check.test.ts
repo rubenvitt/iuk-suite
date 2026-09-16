@@ -789,8 +789,6 @@ describe("checkAbschluss — revalidatePath, INNERE Pfade (§7.9.5)", () => {
     await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
     expect(revalidiert).toEqual([
       ...BESTANDSFLAECHEN,
-      "/m/lagerbuch/verwaltung/fahrzeuge/fz-1",
-      "/m/lagerbuch/helfer/check",
       "/m/lagerbuch/verwaltung/checks",
       "/m/lagerbuch/verwaltung/sauerstoff",
     ]);
@@ -800,7 +798,7 @@ describe("checkAbschluss — revalidatePath, INNERE Pfade (§7.9.5)", () => {
     // Die Richtung, nicht die Existenz: `/lagerbuch/helfer/check` ist der
     // aeussere Pfad und trifft im Router dieser Suite nichts.
     await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
-    expect(revalidiert.length).toBe(BESTANDSFLAECHEN.length + 4);
+    expect(revalidiert.length).toBe(BESTANDSFLAECHEN.length + 2);
     for (const p of revalidiert) {
       expect(p.startsWith("/m/lagerbuch/"), `aeusserer Pfad: ${p}`).toBe(true);
     }

@@ -382,15 +382,18 @@ export async function checkAbschluss(
      * Die Bestandsflaechen kommen deshalb aus der modulweiten Liste; das
      * Fahrzeug traegt seine Kennung in der URL.
      *
-     * DANEBEN bleibt, was NUR ein Check aendert: sein eigenes Blatt, die
-     * Checkliste und die Sauerstoffuebersicht (Flaschendruck steht in keiner
-     * Buchungszeile).
+     * ⚠️ DER CHECK-SCHIRM SELBST (`helfer/check`) STEHT SEIT DER CODEX-REVIEW
+     * ZU PR #187 IN DER LISTE und darf hier nicht noch einmal auftauchen: er
+     * zeigt je Soll-Zeile den Fahrzeug- UND den Handlager-Bestand, veraltet
+     * also nach JEDER Buchung und nicht nur nach einem Check.
+     *
+     * DANEBEN bleibt, was NUR ein Check aendert: die Check-Historie und die
+     * Sauerstoffuebersicht (Flaschendruck steht in keiner Buchungszeile).
      *
      * INNERER Pfad (/m/lagerbuch/…). Gegenrichtung zu allem, was der Client
      * schreibt und was in ein `Location` geht — das sind AEUSSERE Pfade (§7.2.5).
      */
-    revalidiereBestand({ lagerortId: v.fahrzeugId });
-    revalidatePath("/m/lagerbuch/helfer/check");
+    revalidiereBestand();
     revalidatePath("/m/lagerbuch/verwaltung/checks");
     revalidatePath("/m/lagerbuch/verwaltung/sauerstoff");
 

@@ -68,11 +68,6 @@ export async function aussondern(
     }
     const v = geparst.data;
 
-    /*
-     * Der Artikel der Charge steht erst IN der Transaktion fest; die
-     * Detailschirme `/a/<id>` und `/auffuellen/<id>` brauchen ihn danach.
-     */
-    let ausgesonderterArtikel: string | null = null;
     let fachFehler: string | null;
     try {
       const schwellen = verfallSchwellen();
@@ -80,7 +75,6 @@ export async function aussondern(
       fachFehler = db.transaction((tx): string | null => {
         const charge = tx.select().from(chargen).where(eq(chargen.id, v.chargeId)).get();
         if (!charge) return "Charge nicht gefunden.";
-        ausgesonderterArtikel = charge.artikelId;
 
         if (!verfallStatus(charge.verfall, schwellen, jetzt).abgelaufen) {
           return "Nur abgelaufene Chargen können ausgesondert werden.";
@@ -170,10 +164,7 @@ export async function aussondern(
      * schreibt, die genau dort steht. Dieselbe Luecke hatte `verwaltung/
      * lagerorte`, dessen Postenzaehlung aus eben diesen Zeilen kommt.
      */
-    revalidiereBestand({
-      artikelId: ausgesonderterArtikel,
-      lagerortId: v.lagerortId ?? null,
-    });
+    revalidiereBestand();
     return { ok: true };
   });
 }
