@@ -60,6 +60,12 @@ export type AuffuellDetail = {
   name: string;
   einheit: string;
   fach: string;
+  /**
+   * DRK-380 — `false` heisst: der Artikel ist deaktiviert, es geht kein
+   * Material mehr auf ihn zu. Die Seite rendert trotzdem (der Regal-QR darf
+   * keine Sackgasse werden); gesperrt wird allein die Buchung.
+   */
+  aktiv: boolean;
   bestand: number;
   chargen: AuffuellCharge[];
 };
@@ -128,7 +134,15 @@ export function Auffuellen({
    */
   const uebergang = angelegt && !detail.chargen.some((c) => c.id === angelegt.id) ? angelegt : null;
   const chargeVollstaendig = neu ? chargenNr.trim() !== "" && verfall !== "" : true;
-  const bereit = chargeVollstaendig && zielId !== "" && menge > 0 && !laeuft;
+  /*
+   * ⚠️ `detail.aktiv` STEHT IN DERSELBEN BEDINGUNG WIE DIE OFFENE ENTSCHEIDUNG
+   * (DRK-380), nicht in einer eigenen Weiche davor. `bereit` traegt schon
+   * heute die zweite Haelfte der Zusage — `absenden` faellt bei `!bereit`
+   * heraus, damit ein Tastendruck auf einen noch nicht neu gerenderten Knopf
+   * nicht doch durchkommt. Eine zweite Sperre daneben haette diese Eigenschaft
+   * nicht geerbt.
+   */
+  const bereit = detail.aktiv && chargeVollstaendig && zielId !== "" && menge > 0 && !laeuft;
   const zielName = ziele.find((z) => z.id === zielId)?.name ?? null;
 
   function absenden() {
@@ -223,6 +237,39 @@ export function Auffuellen({
           {detail.bestand} <span style={{ fontSize: 16 }}>{detail.einheit}</span>
         </div>
       </div>
+
+      {/*
+        DER DEAKTIVIERTE ARTIKEL — DRK-380.
+
+        ⚠️ ER STEHT OBEN, NICHT AM KNOPF. Wer den Karton in der Hand hat,
+        soll es lesen, BEVOR er Chargennummer und Verfall abtippt — ein
+        Hinweis erst unten am gesperrten Knopf kostet genau die Arbeit, die
+        er verhindern soll.
+
+        ⚠️ DER SATZ NENNT DEN AUSGANG. „Geht nicht" allein laesst jemanden mit
+        Material stehen, das er nirgends verbuchen kann; der Schalter sitzt in
+        der Verwaltung, und das ist die einzige brauchbare Auskunft hier.
+
+        ⚠️ KEIN ROT (Falle 3, und die Hausregel dieser Flaeche): Rot traegt am
+        Regal die Ampel und „Bestand geht weg". Das hier ist keine Gefahr,
+        sondern eine Lage.
+      */}
+      {!detail.aktiv && (
+        <div
+          className={`${s.karte} ${s.kartePad}`}
+          data-rolle="auffuellen-inaktiv"
+          role="status"
+        >
+          <div className={s.karteTitel} style={{ padding: 0 }}>
+            Artikel ist deaktiviert
+          </div>
+          <p className={s.fussnote} style={{ margin: "6px 0 0" }}>
+            Auf diesen Artikel geht kein Material mehr zu. Der vorhandene
+            Bestand lässt sich weiter entnehmen. Soll wieder aufgefüllt werden,
+            muss die Verwaltung den Artikel zuerst aktivieren.
+          </p>
+        </div>
+      )}
 
       {/*
         ⚠️ DIE CHARGE STEHT VORN, NICHT DIE MENGE. Wer eine Lieferung auspackt,
