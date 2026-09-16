@@ -64,7 +64,7 @@ describe("teilnehmerDetailInhalt — Kopf und Stammdaten (Vorbild personenInhalt
   it("bietet den Detail-CSV-Weg als Aktion des Seitenkopfs, nicht als roten Textlink", async () => {
     await mount(teilnehmerDetailInhalt(fixture()));
     const aktionen = query('[data-testid="seitenkopf-aktionen"]');
-    expect(aktionen.textContent).toContain("Auswertung als CSV");
+    expect(aktionen.textContent).toContain("Auswertung als Excel");
     expect(aktionen.querySelector("a")?.getAttribute("href")).toBe(
       "/api/admin/participants/p1/export",
     );
