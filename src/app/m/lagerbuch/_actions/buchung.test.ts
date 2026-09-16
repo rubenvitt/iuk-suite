@@ -1112,6 +1112,36 @@ describe("bucheAuffuellung (DRK-313)", () => {
     expect(erg).toMatchObject({ ok: true, wert: { ziel: "Handlager (ohne Schrank)" } });
   });
 
+  /**
+   * ⚠️ DIE WURZEL UND EIN SCHRANK KOENNEN GLEICH HEISSEN, und NUR sie beide:
+   * `idx_lagerorte_name_je_parent` (DRK-367) deckt Kinder, nicht die Wurzel.
+   * Zwei optisch identische Zeilen in der Schrankwahl sind der teuerste stille
+   * Ausgang dieser Flaeche — der Klick trifft die richtige `id`, die Person
+   * weiss nur nicht, welche das ist. Dieselbe Abhilfe wie bei den Zaehlorten.
+   */
+  it("macht zwei gleichnamige Ziele unterscheidbar, statt sie doppelt anzubieten", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-dublette", name: "Handlager (ohne Schrank)", typ: "lager",
+        parentId: HANDLAGER_ID, aktiv: true },
+    ]).run();
+
+    const erg = await bucheAuffuellung(
+      {
+        artikelId: "art-1", menge: 1, zielLagerortId: HANDLAGER_ID,
+        charge: { art: "vorhanden", chargeId: "ch-1" },
+      },
+      t.db,
+    );
+    expect(erg).toMatchObject({ ok: true });
+    // Der Beleg nennt die WURZEL, und zwar unterscheidbar vom gleichnamigen
+    // Schrank — sonst quittierte er eine Buchung, die genauso gut die andere
+    // sein koennte.
+    const wert = (erg as { ok: true; wert: { ziel: string } }).wert;
+    expect(wert.ziel).toContain("Handlager (ohne Schrank)");
+    expect(wert.ziel).not.toBe("Handlager (ohne Schrank)");
+    expect(wert.ziel).toContain(HANDLAGER_ID);
+  });
+
   it("setzt bestelltAt zurueck — dieselbe Zusage wie beim Zugang", async () => {
     t.db.update(artikel).set({ bestelltAt: JETZT }).where(eq(artikel.id, "art-1")).run();
     expect(t.db.select().from(artikel).where(eq(artikel.id, "art-1")).get()?.bestelltAt)
