@@ -1,7 +1,7 @@
 "use client";
 
 import { Empty, type TableProps } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import { Datentabelle, Zellentext } from "@/core/tabelle";
 import s from "../../_ui/verwaltung.module.css";
 
 export type UebersichtJournalZeile = {
@@ -48,9 +48,21 @@ const SPALTEN: TableProps<UebersichtJournalZeile>["columns"] = [
     key: "artikel",
   },
   {
+    /*
+     * ⚠️ DERSELBE TEXT WIE IM JOURNAL, ALSO DERSELBE DECKEL (DRK-372). Der
+     * Vorgangstext traegt den Kommentar der Buchung (`typText · …`), und
+     * `buchungen.kommentar` hat keine Laengengrenze — die Tabelle faehrt
+     * `scroll.x: "max-content"`, ein langer Satz schoebe Δ und Quelle aus dem
+     * Bild. Dass hier nur FUENF Zeilen stehen, hilft nicht: es braucht genau
+     * eine davon.
+     *
+     * Ohne `zeilen`: gedeckelt wird die Breite, nie die Hoehe — dieselbe
+     * Abwaegung wie im Journal, dort ausgeschrieben.
+     */
     title: "Vorgang",
     dataIndex: "vorgangText",
     key: "vorgang",
+    render: (text: string) => <Zellentext text={text} />,
   },
   {
     title: "Δ",
