@@ -200,12 +200,29 @@ export async function bucheInEntnahmebox(
            * das Kaertchen festgelegt sind — und genau diese Zeile bliebe dann
            * fuer immer falsch.
            *
-           * ⚠️ DIE VORABPROBE UND DIESE SIND ZWEI LESEZUGRIFFE, und zwischen
-           * ihnen kann jemand die Einheit stilllegen. Dann steht hier
-           * `verwaltung === null` bei inaktiver Quelle, und die Buchung wird
-           * ABGEWIESEN — auch einer Verwalterin gegenueber. Das ist die
-           * richtige Richtung: sie laedt neu und bucht erneut, waehrend die
-           * Gegenrichtung eine append-only-Zeile mit falscher Kennung hinterliesse.
+           * ⚠️ DIE VORABPROBE UND DIESE SIND ZWEI LESEZUGRIFFE, und dazwischen
+           * kann sich `aktiv` in BEIDE Richtungen aendern. Nur die Probe hier
+           * ist massgeblich — sie steht in der Transaktion —, die Kennung liegt
+           * aber laengst fest. Also wird jede Abweichung ABGEWIESEN statt
+           * gebucht, und zwar in beide Richtungen:
+           *
+           *   stillgelegt, `verwaltung === null`  → wurde inzwischen stillgelegt
+           *   aktiv,       `verwaltung !== null`  → wurde inzwischen reaktiviert
+           *
+           * Die zweite Zeile ist der Befund P2 der Codex-Review zu PR #178, und
+           * sie ist die unauffaelligere: die Buchung waere fachlich voellig in
+           * Ordnung — eine gewoehnliche Abgabe aus einer aktiven Einheit —, nur
+           * traegt sie den KLARNAMEN der Verwaltung statt des Kaertchens, weil
+           * die Kennung aus der stillgelegten Lage stammt. Genau das Gegenteil
+           * dessen, was der Vorabblick oben zusichert.
+           *
+           * ⚠️ EIN ZWEITER LESEZUGRIFF NACH DEM `await` LOEST DAS NICHT — er
+           * verkleinert das Fenster und schliesst es nicht, denn auch er laege
+           * vor der Transaktion. Massgeblich kann nur die Probe sein, die mit
+           * dem Schreibvorgang im selben Vorgang steht.
+           *
+           * Beide Male laedt die Person neu und bucht erneut; die Gegenrichtung
+           * hinterliesse eine append-only-Zeile mit falscher Kennung.
            *
            * ⚠️ UND DIE PROBE IST DABEI SCHAERFER GEWORDEN, nicht nur anders:
            * sie fragt nach der Lagerbuch-Gruppe statt nach „irgendein Konto".
@@ -233,6 +250,11 @@ export async function bucheInEntnahmebox(
             // Der Satz nennt den WEG, nicht die Ursache: dass die Zeile
             // `aktiv = 0` traegt, hilft am Fahrzeug niemandem weiter.
             return "Diese Einheit ist außer Dienst. Das Ausräumen läuft über die Verwaltung.";
+          }
+          if (von.aktiv && verwaltung) {
+            // Der Weg ist das Neuladen, und der Satz sagt auch warum — sonst
+            // liest sich eine Ablehnung ohne erkennbaren Grund wie ein Fehler.
+            return "Diese Einheit ist wieder in Dienst. Bitte die Seite neu laden und erneut buchen.";
           }
           if (von.typ !== "fahrzeug") {
             // NEUTRAL, und zwar nicht aus Vorsicht: die Zeile, die hierher

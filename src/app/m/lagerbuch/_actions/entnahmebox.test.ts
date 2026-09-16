@@ -36,7 +36,17 @@ const { helferRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
    * saehe diese Person als Helferin. Deshalb steht hier eine ZWEITE, davon
    * unabhaengige Grosse.
    */
-  sitzung: { konto: null as unknown },
+  sitzung: {
+    konto: null as unknown,
+    /*
+     * ⚠️ DER HAKEN IM `await` SELBST — der einzige Weg, das Wettlauffenster
+     * ueberhaupt zu treffen. Zwischen dem Vorabblick auf `aktiv` und der
+     * Transaktion liegt genau ein `await`: das Aufloesen der Verwaltung. Was
+     * hier laeuft, laeuft also NACH der Entscheidung ueber die Kennung und VOR
+     * der Probe, die in der Transaktion steht.
+     */
+    beimAufloesen: null as (() => void) | null,
+  },
 }));
 
 vi.mock("next/cache", () => ({
@@ -53,7 +63,10 @@ vi.mock("next/cache", () => ({
  */
 vi.mock("../_lib/helferZugang", () => ({
   requireHelferSchreibend: () => helferRiegel(),
-  kontoZugangOderNull: async () => sitzung.konto,
+  kontoZugangOderNull: async () => {
+    sitzung.beimAufloesen?.();
+    return sitzung.konto;
+  },
 }));
 
 vi.mock("../_db/client", () => ({
@@ -102,6 +115,7 @@ beforeEach(() => {
   revalidiert.length = 0;
   helferRiegel.mockResolvedValue(KAERTCHEN);
   sitzung.konto = null;
+  sitzung.beimAufloesen = null;
   t = migrierteTestDb("lagerbuch-actions-entnahmebox-");
 
   t.db.insert(lagerorte).values({
@@ -496,6 +510,40 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
       expect(leg.quelleTyp, "die Verwaltung bucht, nicht das Kaertchen").toBe("oidc");
       expect(leg.quelleId).toBe(KONTO.zugang.sub);
     }
+  });
+
+  it("weist ab, wenn die Einheit waehrend des Aufloesens WIEDER IN DIENST geht", async () => {
+    /*
+     * ⚠️ DAS UNAUFFAELLIGERE ENDE DESSELBEN WETTLAUFS (Codex-Review zu PR #178,
+     * P2). Der Vorabblick sieht eine stillgelegte Einheit und legt die Kennung
+     * auf die Verwaltung fest; waehrend die Sitzung aufgeloest wird, stellt
+     * jemand die Einheit wieder in Dienst. Die Transaktion saehe dann eine
+     * voellig gewoehnliche Abgabe aus einer AKTIVEN Einheit — gebucht unter dem
+     * KLARNAMEN der Verwaltung statt unter dem Kaertchen, und damit genau
+     * andersherum als die Zeile darunter zusichert.
+     *
+     * ⚠️ NICHT DIE BUCHUNG IST FALSCH, SONDERN DIE ZEILE — das ist der Grund,
+     * warum hier abgewiesen und nicht stillschweigend umgeschrieben wird: die
+     * Kennung liegt im Protokoll laengst fest, und das Journal ist append-only.
+     * Die Person laedt neu und bucht erneut.
+     */
+    helferRiegel.mockResolvedValue(KAERTCHEN);
+    sitzung.konto = VERWALTUNG;
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    sitzung.beimAufloesen = () => {
+      t.db.update(lagerorte).set({ aktiv: true }).where(eq(lagerorte.id, "fz-1")).run();
+    };
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect((erg as { ok: false; text: string }).text).toContain("wieder in Dienst");
+    expect(neueZeilen(), "nichts gebucht").toHaveLength(0);
   });
 
   it("bucht eine GEWOEHNLICHE Abgabe weiter auf das Kaertchen", async () => {
