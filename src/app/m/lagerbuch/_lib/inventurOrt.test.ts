@@ -232,11 +232,38 @@ describe("eindeutigeLabels", () => {
   });
 
   /**
+   * ⚠️ DER P2-BEFUND VON CODEX ZU DRK-371, nachgerechnet und bestaetigt — und
+   * er trifft den BEWEIS, nicht nur einen Fall. Die Verkettung
+   * `Name (Kennung)` bildet das PAAR nicht eindeutig ab, weil Name und Kennung
+   * beide beliebige Zeichenketten sind:
+   *
+   *   Name `X`     + Kennung `p) (q`  →  `X (p) (q)`
+   *   Name `X (p)` + Kennung `q`      →  `X (p) (q)`
+   *
+   * ⚠️ DIE BEIDEN ZEILEN ALLEIN REICHEN NICHT, und das ist der Grund, warum die
+   * Beispiele des Befunds sich auflosten: ihre Ausgangsnamen sind verschieden,
+   * also fasst der erste Durchgang sie gar nicht an. Erreichbar wird die
+   * Kollision erst im Rueckfall — den erzwingen hier die drei `Y`-Zeilen, bei
+   * denen eine ERZEUGTE Beschriftung eine unangetastete trifft.
+   */
+  it("bleibt eindeutig, wenn die Verkettung selbst zweideutig wird", () => {
+    const orte = [
+      { schluessel: "s1", label: "Y" },
+      { schluessel: "s2", label: "Y" },
+      { schluessel: "s3", label: "Y (s1)" },
+      { schluessel: "p) (q", label: "X" },
+      { schluessel: "q", label: "X (p)" },
+    ];
+    const ergebnis = eindeutigeLabels(orte);
+    expect(new Set(ergebnis.map((o) => o.label)).size).toBe(orte.length);
+  });
+
+  /**
    * Die Zusicherung, die fuer JEDE Eingabe gilt, nicht nur fuer die bedachten:
    * gleiche Unterscheider gibt es nicht, also kann das Ergebnis keine zwei
    * gleichen Beschriftungen tragen. Geprueft an einer Sammlung boesartiger
    * Faelle — darunter die Auswahl der Inventurseite mit dem Waechter neben
-   * einem Schrank namens `alle`.
+   * einem Schrank namens `alle`, und die zweideutige Verkettung von oben.
    */
   it.each([
     [[{ schluessel: "a", label: "X" }, { schluessel: "b", label: "X" }, { schluessel: "c", label: "X (a)" }]],
@@ -248,6 +275,20 @@ describe("eindeutigeLabels", () => {
       { schluessel: zaehlOrtWert(null), label: "Ganzer Handlager" },
       { schluessel: zaehlOrtWert(ZAEHLORT_ALLE), label: "Ganzer Handlager" },
       { schluessel: zaehlOrtWert("x"), label: "Ganzer Handlager (alle)" },
+    ]],
+    [[
+      { schluessel: "s1", label: "Y" },
+      { schluessel: "s2", label: "Y" },
+      { schluessel: "s3", label: "Y (s1)" },
+      { schluessel: "p) (q", label: "X" },
+      { schluessel: "q", label: "X (p)" },
+    ]],
+    [[
+      { schluessel: "a", label: "X" },
+      { schluessel: "b", label: "X" },
+      { schluessel: "c", label: "X (a)" },
+      { schluessel: ") (", label: "" },
+      { schluessel: "", label: " ()" },
     ]],
   ])("liefert fuer %# durchweg verschiedene Beschriftungen", (orte) => {
     const ergebnis = eindeutigeLabels(orte);

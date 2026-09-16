@@ -220,21 +220,50 @@ export function eindeutigeLabels<T extends { schluessel: string; label: string }
     zaehle(orte, o.label) > 1 ? { ...o, label: mitKennung(o) } : { ...o }
   ));
   /*
-   * ⚠️ EIN DURCHGANG REICHT NACHWEISLICH NICHT (zweiter Codex-Befund, nachgerechnet).
-   * Heissen zwei Schraenke `X` und ein dritter bereits woertlich `X (a)`, wobei
-   * `a` die Kennung des ersten ist, dann erzeugt der Durchgang oben fuer den
-   * ersten genau `X (a)` — und der dritte traegt das schon, wurde aber nicht
-   * angefasst, weil SEIN Ausgangsname nur einmal vorkam. Gezaehlt werden die
-   * ALTEN Beschriftungen; die neuen sieht dieser Durchgang nicht.
-   *
-   * Statt nachzubessern, bis es passt, wird die Eindeutigkeit hier BEWIESEN:
-   * kollidiert danach noch etwas, bekommt JEDE Zeile ihre Kennung angehaengt.
-   * Weil jede Zeichenkette dann auf ` (<eigene Kennung>)` endet und Kennungen
-   * eindeutig sind, koennen zwei Ergebnisse nicht mehr gleich sein — das gilt
-   * fuer jede denkbare Eingabe, nicht nur fuer die, an die wir gerade denken.
+   * ⚠️ EIN DURCHGANG REICHT NACHWEISLICH NICHT (zweiter Codex-Befund zu DRK-337,
+   * nachgerechnet). Heissen zwei Schraenke `X` und ein dritter bereits woertlich
+   * `X (a)`, wobei `a` die Kennung des ersten ist, dann erzeugt der Durchgang
+   * oben fuer den ersten genau `X (a)` — und der dritte traegt das schon, wurde
+   * aber nicht angefasst, weil SEIN Ausgangsname nur einmal vorkam. Gezaehlt
+   * werden die ALTEN Beschriftungen; die neuen sieht dieser Durchgang nicht.
+   * Dann bekommt JEDE Zeile ihre Kennung angehaengt.
    */
-  const alleVerschieden = new Set(einDurchgang.map((o) => o.label)).size === einDurchgang.length;
-  return alleVerschieden ? einDurchgang : orte.map((o) => ({ ...o, label: mitKennung(o) }));
+  if (verschieden(einDurchgang)) return einDurchgang;
+  const alleMitKennung = orte.map((o) => ({ ...o, label: mitKennung(o) }));
+  /*
+   * ⚠️ UND AUCH DAS IST NOCH KEIN BEWEIS — hier stand einmal einer, und er war
+   * falsch (P2-Befund von Codex zum PR, nachgerechnet und bestaetigt). Er lautete:
+   * „jede Zeichenkette endet auf ` (<eigene Kennung>)`, Kennungen sind
+   * eindeutig, also koennen zwei Ergebnisse nicht gleich sein." Der Schluss
+   * gilt nur, wenn die Verkettung das PAAR eindeutig abbildet — und das tut sie
+   * nicht, weil Name UND Kennung beliebige Zeichenketten sind. Die Klammern
+   * trennen nichts, was im Namen nicht auch vorkommen darf:
+   *
+   *   Name `X`      + Kennung `p) (q`  →  `X (p) (q)`
+   *   Name `X (p)`  + Kennung `q`      →  `X (p) (q)`   ← dieselbe Zeichenkette
+   *
+   * ⚠️ DIE BEISPIELE DES BEFUNDS TRAFEN NICHT, DIE LUECKE GIBT ES TROTZDEM:
+   * nachgerechnet loesen sie sich auf, weil der erste Durchgang nur ANGLEICHE
+   * Ausgangsnamen anfasst. Erreichbar ist die Kollision erst, wenn eine ERZEUGTE
+   * Beschriftung eine unangetastete trifft (siehe oben) und daneben ein solches
+   * Paar steht. Ein entlegener Fall — aber „welcher Name traegt schon `) (`?"
+   * ist genau die Begruendung, gegen die dieses Ticket angetreten ist.
+   *
+   * ⚠️ ESCAPEN WAERE DIE ZWEITE MOEGLICHKEIT UND IST HIER DIE SCHLECHTERE: es
+   * macht jede Beschriftung von einer Fluchtregel abhaengig, die ein Leser auf
+   * dem Schirm nicht sieht, und den Beweis von einem Parser abhaengig. Die
+   * letzte Stufe verzichtet stattdessen auf die Verkettung GANZ und zeigt nur
+   * noch die Kennung. Die sind paarweise verschieden — das ist die Zusage des
+   * Aufrufers —, also ist das Ergebnis es auch, fuer JEDE Eingabe. Haesslich
+   * ist das nur in einer Lage, die ohnehin schon aus lauter Fallen besteht;
+   * dort ist Unterscheidbarkeit mehr wert als ein Name.
+   */
+  if (verschieden(alleMitKennung)) return alleMitKennung;
+  return orte.map((o) => ({ ...o, label: o.schluessel }));
+}
+
+function verschieden(orte: readonly { label: string }[]): boolean {
+  return new Set(orte.map((o) => o.label)).size === orte.length;
 }
 
 /**
