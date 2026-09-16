@@ -421,7 +421,10 @@ describe("/a/<id> — der Rahmen", () => {
     // die erste könnte die Seite ein festes Ziel anzeigen; ohne die zweite
     // stünde auf dem Schirm etwas anderes, als gebucht wird.
     zielCookie = "tk1|fz:fz-1";
-    const aufgeloest = { art: "fahrzeug" as const, lagerortId: "fz-1", name: "RTW 1" };
+    const aufgeloest = {
+      art: "fahrzeug" as const, lagerortId: "fz-1", name: "RTW 1",
+      kennung: "MS-1", einheitenart: "fahrzeug" as const,
+    };
     vi.mocked(gemerktesZiel).mockReturnValue(aufgeloest);
 
     await mount(await ArtikelDeepLink(params("art-9")));

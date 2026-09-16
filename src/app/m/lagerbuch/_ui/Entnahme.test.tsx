@@ -164,7 +164,10 @@ const DETAIL: EntnahmeDetail = {
  * gewählt") kein Verbrauch mehr, und der Knopf bleibt dann gesperrt.
  */
 const VERBRAUCH = { art: "verbrauch" } as const;
-const RTW = { art: "fahrzeug", lagerortId: "fz-1", name: "RTW 1" } as const;
+const RTW = {
+  art: "fahrzeug", lagerortId: "fz-1", name: "RTW 1",
+  kennung: "MS-1", einheitenart: "fahrzeug",
+} as const;
 
 const PLUS = "button[aria-label='Menge erhöhen']";
 const BUCHEN = "[data-rolle='entnahme-buchen']";
@@ -615,6 +618,46 @@ describe("Entnahme — Bauform", () => {
     // Und die Person erfährt, was zu tun ist — ein stummer grauer Knopf wäre
     // am Regal eine Sackgasse.
     expect(query(ZIEL).textContent).toMatch(/wählen/i);
+  });
+
+  /**
+   * DRK-309, Reviewrunde 6 — DIE ZIELZEILE NENNT ART UND KENNUNG.
+   *
+   * ⚠️ SIE IST DIE LETZTE ZEILE VOR EINER BUCHUNG, und die Wahl dahinter gilt
+   * fuer ALLE weiteren Entnahmen mit demselben Kaertchen. Zwei gleich benannte
+   * Einheiten — `lagerorte.name` traegt keinen Eindeutigkeitsschluessel — waren
+   * hier bis zu dieser Runde nicht zu unterscheiden, und die Wahl EINEN Schirm
+   * vorher zeigt „Art · Kennung" laengst. Weniger zu zeigen als die Auswahl,
+   * aus der sie stammt, ist genau an der Bestaetigung die falsche Sparsamkeit.
+   *
+   * ⚠️ DIE TASCHE DER FIXTURE TRAEGT KEINE KENNUNG — dann steht dort die Art
+   * allein, und die Zeile bleibt trotzdem unterscheidbar.
+   */
+  it("nennt in der Zielzeile die Art und, wenn es eine gibt, die Kennung", async () => {
+    await mount(
+      <Entnahme
+        kontoZugang={false}
+        ziel={RTW}
+        detail={DETAIL}
+        buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}
+      />,
+    );
+    expect(query(ZIEL).textContent).toContain("RTW 1 · Fahrzeug · MS-1");
+    await unmount();
+
+    await mount(
+      <Entnahme
+        kontoZugang={false}
+        ziel={{
+          art: "fahrzeug", lagerortId: "tasche-1", name: "Rucksack Betreuung",
+          kennung: null, einheitenart: "tasche",
+        }}
+        detail={DETAIL}
+        buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}
+      />,
+    );
+    expect(query(ZIEL).textContent).toContain("Rucksack Betreuung · Tasche");
+    expect(query(ZIEL).textContent).not.toContain("Fahrzeug");
   });
 
   it("zeigt das gewählte Fahrzeug über dem Knopf und gibt es an die Buchung weiter", async () => {

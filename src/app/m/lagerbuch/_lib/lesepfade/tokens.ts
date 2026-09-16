@@ -29,18 +29,34 @@ export type TokenZeile = {
   zielTyp: "fahrzeug" | "artikel" | null;
   zielId: string | null;
   zielName: string | null;
+  /**
+   * ⚠️ DIE ART DES ZIELS, UND SIE IST NICHT `zielTyp` (DRK-309, Reviewrunde 6).
+   * `tokens.ziel_typ` kennt nur „fahrzeug" und „artikel" — ein Kaertchen an
+   * einer Tasche traegt dort „fahrzeug" wie jedes andere. Ohne dieses Feld
+   * zeigt die Liste der Codes fuer eine Tasche das Lastwagensymbol und findet
+   * sie ueber „tasche" nicht; und zwei gleich benannte Ziele (Namen sind in
+   * `lagerorte` nicht eindeutig) sind beim Sperren nicht zu unterscheiden.
+   * `null` heisst hier zweierlei — Ziel ist kein Lagerort, oder die Art ist
+   * noch nicht zugeordnet; die Anzeige behandelt beide gleich und nennt
+   * nichts, wo sie nichts weiss.
+   */
+  zielKennung: string | null;
+  zielEinheitenart: Einheitenart | null;
 };
 
 export function tokenListe(db: DB): TokenZeile[] {
   const zeilen = db.select().from(tokens)
     .orderBy(desc(tokens.createdAt), desc(tokens.id))
     .all();
-  const fahrzeugNamen = new Map(
-    db.select({ id: lagerorte.id, name: lagerorte.name })
+  const einheiten = new Map(
+    db.select({
+      id: lagerorte.id, name: lagerorte.name,
+      kennung: lagerorte.kennung, einheitenart: lagerorte.einheitenart,
+    })
       .from(lagerorte)
       .where(eq(lagerorte.typ, "fahrzeug"))
       .all()
-      .map((fahrzeug) => [fahrzeug.id, fahrzeug.name] as const),
+      .map((einheit) => [einheit.id, einheit] as const),
   );
   const artikelNamen = new Map(
     db.select({ id: artikel.id, name: artikel.name })
@@ -59,10 +75,16 @@ export function tokenListe(db: DB): TokenZeile[] {
     zielTyp: zeile.zielTyp,
     zielId: zeile.zielId,
     zielName: zeile.zielTyp === "fahrzeug"
-      ? fahrzeugNamen.get(zeile.zielId ?? "") ?? null
+      ? einheiten.get(zeile.zielId ?? "")?.name ?? null
       : zeile.zielTyp === "artikel"
         ? artikelNamen.get(zeile.zielId ?? "") ?? null
         : null,
+    zielKennung: zeile.zielTyp === "fahrzeug"
+      ? einheiten.get(zeile.zielId ?? "")?.kennung ?? null
+      : null,
+    zielEinheitenart: zeile.zielTyp === "fahrzeug"
+      ? einheiten.get(zeile.zielId ?? "")?.einheitenart ?? null
+      : null,
   }));
 }
 

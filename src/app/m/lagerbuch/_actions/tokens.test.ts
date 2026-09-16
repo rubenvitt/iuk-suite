@@ -125,6 +125,7 @@ function fahrzeugAnlegen(args: {
   name: string;
   kennung?: string | null;
   aktiv?: boolean;
+  einheitenart?: "fahrzeug" | "tasche" | null;
 }): void {
   t.db.insert(lagerorte).values({
     id: args.id,
@@ -132,6 +133,7 @@ function fahrzeugAnlegen(args: {
     typ: "fahrzeug",
     kennung: args.kennung ?? null,
     aktiv: args.aktiv ?? true,
+    einheitenart: args.einheitenart ?? null,
   }).run();
 }
 
@@ -406,7 +408,9 @@ describe("tokenListe", () => {
     fahrzeugAnlegen({
       id: "fz-inaktiv",
       name: "RTW Vergangenheit",
+      kennung: "MS-ALT",
       aktiv: false,
+      einheitenart: "fahrzeug",
     });
     artikelAnlegen({ id: "art-1", name: "Mullbinde", fach: "A1" });
     const gleich = new Date("2026-08-07T12:00:00Z");
@@ -449,6 +453,10 @@ describe("tokenListe", () => {
         zielTyp: "artikel",
         zielId: "art-1",
         zielName: "Mullbinde",
+        // ⚠️ EIN ARTIKEL HAT KEINE ART (DRK-309) — hier steht `null`, und das
+        // heisst „gegenstandslos", nicht „noch nicht zugeordnet".
+        zielKennung: null,
+        zielEinheitenart: null,
       },
       {
         id: "token-y",
@@ -460,6 +468,10 @@ describe("tokenListe", () => {
         zielTyp: "fahrzeug",
         zielId: "fz-inaktiv",
         zielName: "RTW Vergangenheit",
+        // Auch fuer ein INAKTIVES Ziel — die Liste bleibt lesbar, und wer den
+        // Code sperrt, muss sehen, woran er klebte.
+        zielKennung: "MS-ALT",
+        zielEinheitenart: "fahrzeug",
       },
       {
         id: "token-a",
@@ -471,6 +483,8 @@ describe("tokenListe", () => {
         zielTyp: null,
         zielId: null,
         zielName: null,
+        zielKennung: null,
+        zielEinheitenart: null,
       },
     ]);
     expect(revalidiert).toEqual([]);

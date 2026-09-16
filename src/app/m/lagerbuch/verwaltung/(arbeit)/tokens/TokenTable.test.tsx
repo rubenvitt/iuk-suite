@@ -112,6 +112,28 @@ const FAHRZEUG = {
   zielTyp: "fahrzeug" as const,
   zielId: "rtw-1",
   zielName: "RTW 1",
+  zielKennung: "MS-1",
+  zielEinheitenart: "fahrzeug",
+} satisfies TokenAnzeigeZeile;
+
+/**
+ * DRK-309 — EIN KAERTCHEN AN EINER TASCHE, und sie traegt die Art WEDER im
+ * Namen NOCH in einer Kennung. Genau dafuer steht das Feld: `zielTyp` ist auch
+ * hier „fahrzeug", der Name hilft nicht, und ohne `zielEinheitenart` bekaeme
+ * die Zeile den Lastwagen und waere ueber „tasche" nicht zu finden.
+ */
+const TASCHE = {
+  id: "t4",
+  code: "444-444",
+  label: "Rucksack Kärtchen",
+  aktiv: true,
+  lastUsedText: "nie benutzt",
+  lastUsedIso: null,
+  zielTyp: "fahrzeug" as const,
+  zielId: "rucksack-1",
+  zielName: "Rucksack Betreuung",
+  zielKennung: null,
+  zielEinheitenart: "tasche",
 } satisfies TokenAnzeigeZeile;
 
 const ARTIKEL = {
@@ -124,6 +146,8 @@ const ARTIKEL = {
   zielTyp: "artikel" as const,
   zielId: "a1",
   zielName: "Ärzte-Verband",
+  zielKennung: null,
+  zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
 const LISTE = {
@@ -136,6 +160,8 @@ const LISTE = {
   zielTyp: null,
   zielId: null,
   zielName: null,
+  zielKennung: null,
+  zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
 const ZEILEN = [FAHRZEUG, ARTIKEL, LISTE];
@@ -332,6 +358,36 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     expect(zielVon(FAHRZEUG)).toBe("fahrzeug");
     expect(zielVon(ARTIKEL)).toBe("artikel");
     expect(zielVon(LISTE)).toBe("liste");
+  });
+
+  /**
+   * DRK-309, Reviewrunde 6 — DIE ART DES ZIELS, IM TEXT UND IM SCHLUESSEL.
+   *
+   * ⚠️ `zielTyp` HILFT HIER NICHT: `tokens.ziel_typ` kennt nur „fahrzeug" und
+   * „artikel", ein Kaertchen an einer Tasche traegt dort „fahrzeug" wie jedes
+   * andere. Ohne `zielEinheitenart` findet „tasche" kein einziges Kaertchen,
+   * und wer Codes sperrt, sieht zwei gleich benannte Ziele als dieselbe Zeile.
+   * Die Fixture-Tasche traegt die Art deshalb WEDER im Namen NOCH in einer
+   * Kennung.
+   */
+  it("findet ein Kaertchen an einer Tasche ueber die ART des Ziels", () => {
+    expect(sucheTrifft(TASCHE, "tasche")).toBe(true);
+    expect(sucheTrifft(FAHRZEUG, "tasche")).toBe(false);
+    // Und die Kennung bleibt daneben durchsuchbar, wo es eine gibt.
+    expect(sucheTrifft(FAHRZEUG, "MS-1")).toBe(true);
+    // Ein ARTIKEL-Ziel hat keine Art — „nicht zugeordnet" waere dort falsch.
+    expect(sucheTrifft(ARTIKEL, "nicht zugeordnet")).toBe(false);
+  });
+
+  it("zeigt Art und Kennung des Ziels in der Zeile — und das Zeichen der Art", async () => {
+    await mount(<TokenTable zeilen={[FAHRZEUG, TASCHE, ARTIKEL]} />);
+    const ziele = queryAll("tbody tr[data-row-key] td:nth-child(3)")
+      .map((z) => z.textContent);
+    expect(ziele).toEqual([
+      "RTW 1 · Fahrzeug · MS-1",
+      "Rucksack Betreuung · Tasche",
+      "Ärzte-Verband",
+    ]);
   });
 
   it("trägt sechs Spalten, stabile IDs und die vollständigen sichtbaren Werte", async () => {
@@ -750,6 +806,8 @@ describe("TokensSeite", () => {
     zielTyp: "fahrzeug" as const,
     zielId: "rtw-1",
     zielName: "RTW Alpha",
+    zielKennung: "UE-RK 1234",
+    zielEinheitenart: "fahrzeug" as const,
   };
 
   it("formatiert Zeitstempel serverseitig in Europe/Berlin und reicht keine Dates durch", () => {
@@ -765,6 +823,8 @@ describe("TokensSeite", () => {
       zielTyp: "fahrzeug",
       zielId: "rtw-1",
       zielName: "RTW Alpha",
+      zielKennung: "UE-RK 1234",
+      zielEinheitenart: "fahrzeug",
     });
     expect(enthaeltDate(zeile)).toBe(false);
     expect(Object.hasOwn(zeile, "createdAt")).toBe(false);

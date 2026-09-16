@@ -35,6 +35,8 @@ export function tokenAnzeigeZeilen(zeilen: TokenZeile[]): TokenAnzeigeZeile[] {
     zielTyp: zeile.zielTyp,
     zielId: zeile.zielId,
     zielName: zeile.zielName,
+    zielKennung: zeile.zielKennung,
+    zielEinheitenart: zeile.zielEinheitenart,
   }));
 }
 
