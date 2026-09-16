@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { qrSvg } from "@/core/qr";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { standortMeta } from "../_lib/konstanten";
+import { einheitLabels, standortMeta } from "../_lib/konstanten";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
 import type { DB } from "./client";
 import { artikel, tokens } from "./schema";
@@ -144,16 +144,44 @@ export async function ortEtikettenDaten(db: DB): Promise<OrtEtikettenDaten> {
    * wie oben (8-I, Punkt 1): `qrSvg` ist async, und ein fehlendes `await`
    * ergaebe `[object Promise]` als Markup statt einer Fehlermeldung.
    */
+  /**
+   * ⚠️ ZWEI EINHEITEN DUERFEN GLEICH HEISSEN, UND AUF PAPIER IST DAS TEUER
+   * (Codex-Befund zu PR #177): zwei aktive Taschen „Betreuung" ohne Kennung
+   * ergaeben zwei Karten mit demselben Namen und derselben Beizeile — nur die
+   * QR-Codes zeigten auf verschiedene Einheiten. Wer die beiden Kaertchen beim
+   * Ankleben vertauscht, bucht ab da jeden Check auf die falsche.
+   * `lagerorte.name` traegt fuer Einheiten keinen Eindeutigkeitsschluessel;
+   * `idx_lagerorte_name_je_parent` deckt nur die Schraenke.
+   *
+   * ⚠️ UEBER `einheitLabels` UND NICHT UEBER EINE EIGENE RECHNUNG. Das Modul
+   * beantwortet diese Frage bereits — in der Fahrzeugwahl und in der
+   * Artikelschublade —, und die dortige Fassung ist die schaerfere: sie haengt
+   * an, bis die Beschriftung frei ist, statt EINEN Durchgang zu raten. Eine
+   * zweite Rechnung hier zeigte auf Papier eine andere Beizeile als der
+   * Bildschirm daneben.
+   *
+   * ⚠️ NUR DIE EINHEITEN GEHEN HINEIN. Der Handlager ist ein `typ: "lager"`;
+   * `einheitMeta` machte daraus „nicht zugeordnet" statt „Lager", also eine
+   * Einheit, bei der jemand die Art vergessen hat (DRK-309). Er kann mit
+   * keiner Einheit kollidieren — `standortMeta` gibt fuer ein Lager „Lager",
+   * und das erzeugt keine Einheit. Deshalb faellt er hier durch `get()`
+   * hindurch auf `standortMeta`, ohne eine eigene Verzweigung.
+   *
+   * ⚠️ WAS DAS NICHT LEISTET, UND ZWAR GEMESSEN: die verlaengerte Beizeile
+   * passt auf 64mm in eine Zeile, solange sie kurz bleibt („Tasche · <id>",
+   * 30 Zeichen, 212 von 212px). Kommt eine Kennung dazu (46 Zeichen) oder
+   * heisst die Art „nicht zugeordnet" (40 Zeichen), endet sie sichtbar auf
+   * „…" — dann traegt die ADRESSE im Fuss die Unterscheidung, die dort
+   * ohnehin immer vollstaendig steht.
+   */
+  const beschriftung = einheitLabels(zeilen.filter((o) => o.typ === "fahrzeug"));
+
   const orte = await Promise.all(zeilen.map(async (o) => {
     const url = `${basis}/o/${o.id}`;
     return {
       id: o.id,
       name: o.name,
-      // `standortMeta` und nicht `einheitMeta`: fuer die Lagerzeile ist
-      // `einheitenart` gegenstandslos, nicht „noch nicht zugeordnet" — sonst
-      // laese sich der Handlager als Einheit, bei der jemand die Zuordnung
-      // vergessen hat (DRK-309).
-      meta: standortMeta(o),
+      meta: beschriftung.get(o.id)?.meta ?? standortMeta(o),
       url,
       qr: await qrSvg(url),
     };

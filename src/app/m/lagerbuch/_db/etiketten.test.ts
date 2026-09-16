@@ -240,6 +240,63 @@ describe("ortEtikettenDaten", () => {
       .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
   });
 
+  /**
+   * ⚠️ ZWEI GLEICHNAMIGE EINHEITEN MUESSEN AUF PAPIER UNTERSCHEIDBAR BLEIBEN
+   * (Codex-Befund zu PR #177). Zwei aktive Taschen „Betreuung" ohne Kennung
+   * ergaeben sonst zwei Karten mit identischem Namen UND identischer Beizeile
+   * — nur die QR-Codes zeigten auf verschiedene Einheiten. Wer die Kaertchen
+   * beim Ankleben vertauscht, bucht ab da jeden Check auf die falsche.
+   *
+   * Zwei gleiche Namen sind ausdruecklich erlaubt: `lagerorte.name` traegt
+   * fuer Einheiten keinen Eindeutigkeitsschluessel.
+   */
+  it("haengt bei zwei gleichnamigen Einheiten die Id an die Beizeile", async () => {
+    t.db.insert(lagerorte).values([
+      { id: "tasche-a", name: "Betreuung", typ: "fahrzeug", kennung: null,
+        aktiv: true, einheitenart: "tasche" },
+      { id: "tasche-b", name: "Betreuung", typ: "fahrzeug", kennung: null,
+        aktiv: true, einheitenart: "tasche" },
+    ]).run();
+
+    const daten = await ortEtikettenDaten(t.db);
+    const beide = daten.orte.filter((o) => o.name === "Betreuung");
+    expect(beide).toHaveLength(2);
+    // Die eigentliche Zusage: die zwei Karten lesen sich NICHT gleich.
+    expect(beide[0]!.meta).not.toBe(beide[1]!.meta);
+    for (const o of beide) expect(o.meta).toContain(o.id);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL BEWIESE: die Id
+   * erscheint NUR im Kollisionsfall. Sie ist haesslich, und eine Beizeile, die
+   * sie immer truege, waere auf jeder Karte schlechter lesbar — auf 64mm zaehlt
+   * jedes Zeichen.
+   */
+  it("laesst die Beizeile ohne Kollision in Ruhe", async () => {
+    const daten = await ortEtikettenDaten(t.db);
+    const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
+    expect(rtw.meta).toBe("Fahrzeug · HN-DRK-1101");
+    expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
+  });
+
+  /**
+   * ⚠️ DER HANDLAGER GEHT NICHT DURCH `einheitLabels`. Er ist ein
+   * `typ: "lager"`; `einheitMeta` machte aus seiner fehlenden `einheitenart`
+   * ein „nicht zugeordnet" — also eine Einheit, bei der jemand die Art
+   * vergessen hat (DRK-309). Er bleibt „Lager", auch wenn eine Einheit
+   * genauso heisst.
+   */
+  it("laesst den Handlager ein Lager bleiben, auch neben einer gleichnamigen Einheit", async () => {
+    t.db.insert(lagerorte).values({
+      id: "tasche-hl", name: "Handlager", typ: "fahrzeug", kennung: null,
+      aktiv: true, einheitenart: "tasche",
+    }).run();
+
+    const daten = await ortEtikettenDaten(t.db);
+    expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
+    expect(daten.orte.find((o) => o.id === "tasche-hl")!.meta).toBe("Tasche");
+  });
+
   /** Ohne Basis gibt es keinen halben Bogen — dieselbe Zusage wie oben. */
   it("wirft EtikettenBasisFehlt, wenn moduleUrl null liefert", async () => {
     modulUrl.wert = null;
