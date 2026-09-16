@@ -1229,12 +1229,21 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
       "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx",
     ]);
+    //
+    // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.
+    // Die Auffuellansicht ist im Entnahme-Stil gebaut — 56/72er Bediendichte,
+    // eigener Traeger, kein antd —, liegt aber NICHT unter `helfer/`, weil ein
+    // Kaertchen sie nie erreicht. Ohne diese Zeile liefe genau dort ein
+    // `import { Card } from "antd"` durch, und zwar auf der Flaeche, die dem
+    // Helfer-Ast am aehnlichsten sieht.
     const WURZEL = join(MODUL, "page.tsx");
     const dateien = [
       // NACHTRAG 16.09.2026 (DRK-312): `o/` ist der vierte oeffentliche Ast —
       // die Ortsetikett-Weiche. Ohne den Eintrag liefe ein `import { Card }
       // from "antd"` dort durch, und der Scan bliebe gruen.
-      ...["_ui", "helfer", "a", "t", "o"].flatMap((d) => quellDateien(join(MODUL, d))),
+      // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` ist der fuenfte, aus
+      // demselben Grund — dieselbe Ansichtsklasse, derselbe Verzicht auf antd.
+      ...["_ui", "helfer", "a", "t", "o", "auffuellen"].flatMap((d) => quellDateien(join(MODUL, d))),
       ...(existsSync(WURZEL) ? [WURZEL] : []),
     ];
     // Ohne diese Zeile meldet der Scan „bestanden" ueber NULL Dateien — und
@@ -1246,8 +1255,10 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // `helfer/page.tsx`, `helfer/layout.tsx` — gar keine eigene Testdatei —,
     // `helfer/check/page.tsx`, `a/[artikelId]/page.tsx`, `t/[code]/route.ts`).
     // Fuer die faellt ein leerer Modulscan nicht auf.
-    // 19 + `o/[ortId]/page.tsx` (DRK-312) = 20.
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(20);
+    // NACHGEMESSEN am Merge-Stand von DRK-312 und DRK-313: 41 Dateien ueber die
+    // sechs Aeste plus die Modulwurzel = 42. Die aelteren Zahlen in den
+    // Absaetzen darueber sind Momentaufnahmen ihrer Zeit, nicht die Untergrenze.
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(42);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       if (VERWALTUNG.has(pfad.split("/").pop()!)) continue;
@@ -1315,11 +1326,13 @@ describe("§7.8.2 / Falle 63 — genau eine `usePathname`-Datei im Modul", () =>
     // — ohne die Untergrenze meldete dieser Block „bestanden" ueber null
     // Dateien, sobald die Astliste von der Platte abreisst.
     //
-    // NACHTRAG 16.09.2026 (DRK-312): `o/` kommt als fuenfter Ast dazu — dieselbe
-    // Astliste wie beim antd-Scan oben, und aus demselben Grund. 17 + 1 = 18.
-    const AST = ["_ui", "helfer", "a", "t", "o"].map((d) => join(MODUL, d));
+    // NACHTRAG 16.09.2026 (DRK-312/DRK-313): `o/` und `auffuellen/` kommen als
+    // fuenfter und sechster Ast dazu — dieselbe Astliste wie beim antd-Scan
+    // oben, und aus demselben Grund.
+    const AST = ["_ui", "helfer", "a", "t", "o", "auffuellen"].map((d) => join(MODUL, d));
     const dateien = AST.flatMap((wurzel) => quellDateien(wurzel));
-    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(18);
+    // NACHGEMESSEN: 41 — dieselbe Menge wie oben OHNE die Modulwurzel.
+    expect(dateien.length, "leere Dateimenge — der Scan waere leer-gruen").toBeGreaterThanOrEqual(41);
     const verstoesse: string[] = [];
     for (const pfad of dateien) {
       // Die Verwaltungsbausteine im selben `_ui/`-Ordner duerfen beides.

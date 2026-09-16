@@ -60,7 +60,7 @@ export default async function HelferSeite() {
       <p className={s.fussnote} data-rolle="helfer-hinweis">
         Regaletikett scannen öffnet den Artikel direkt — oder hier suchen.
       </p>
-      <ArtikelSuche artikel={artikel} />
+      <ArtikelSuche artikel={artikel} basis="/a" />
     </HelferRahmen>
   );
 }

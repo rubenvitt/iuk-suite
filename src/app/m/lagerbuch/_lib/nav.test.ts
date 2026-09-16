@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { aktiverEintrag } from "@/core/shell/SuiteNav";
 import { LAGERBUCH_NAV } from "./nav";
 
-describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
-  it("führt genau die 20 Einträge in Abschnitten, in dieser Reihenfolge", () => {
+describe("LAGERBUCH_NAV: die einundzwanzig Ziele", () => {
+  it("führt genau die 21 Einträge in Abschnitten, in dieser Reihenfolge", () => {
     expect(LAGERBUCH_NAV).toEqual([
       { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
       { key: "artikel", title: "Artikel", href: "/verwaltung/artikel", ikon: "artikel", abschnitt: "Bestand" },
@@ -13,8 +13,12 @@ describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
       { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung", abschnitt: "Bestand" },
       // DRK-297: die Schraenke des Handlagers.
       { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
-      // DRK-305: der erste von zwei Eintraegen, die NICHT nach /verwaltung fuehren.
+      // DRK-305: der erste von drei Eintraegen, die NICHT nach /verwaltung fuehren.
       { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
+      // DRK-313: der zweite — und der einzige Weg in die Auffuellansicht. Er
+      // steht direkt unter „Entnahme", weil beide dieselbe Flaeche in
+      // entgegengesetzter Richtung sind.
+      { key: "auffuellen", title: "Auffüllen", href: "/auffuellen", ikon: "auffuellen", abschnitt: "Bestand" },
       // DRK-314: die Kiste in der Halle. Sie steht bei „Bestand", weil sie ein
       // LAGERORT ist und kein Traeger — und sie fuehrt in die VERWALTUNG, anders
       // als die beiden Helfer-Eintraege daneben.
@@ -24,7 +28,7 @@ describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
       { key: "geraete", title: "Geräte", href: "/verwaltung/geraete", ikon: "geraete", abschnitt: "Einheiten & Geräte" },
       { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Einheiten & Geräte" },
       { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
-      // DRK-305: der zweite. `pruefen` ist die HANDLUNG, `checks` daneben die
+      // DRK-305: der dritte. `pruefen` ist die HANDLUNG, `checks` daneben die
       // Historie — zwei Eintraege im selben Abschnitt, deshalb zwei Zeichen.
       { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Prüfungen" },
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
@@ -44,11 +48,13 @@ describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
   });
 
   /*
-   * ⚠️ ZWEI PRAEFIXE SEIT DRK-305, NICHT MEHR EINES. „Entnahme" und „Check
-   * durchfuehren" fuehren in den HELFER-Ast: dieselben Flaechen, die eine
+   * ⚠️ DREI PRAEFIXE, NICHT MEHR EINES. „Entnahme" und „Check durchfuehren"
+   * fuehren seit DRK-305 in den HELFER-Ast: dieselben Flaechen, die eine
    * Helferin nach dem Kaertchen-Scan sieht, nur ohne Kaertchen und ohne Bindung
-   * an ein einzelnes Fahrzeug. Eine zweite Fassung im Verwaltungsrahmen waere
-   * eine zweite Wahrheit darueber, wie gebucht und geprueft wird.
+   * an ein einzelnes Fahrzeug. „Auffuellen" fuehrt seit DRK-313 auf eine eigene
+   * Flaeche im selben Stil, die ein Kaertchen NIE erreicht. Eine zweite Fassung
+   * im Verwaltungsrahmen waere je eine zweite Wahrheit darueber, wie gebucht
+   * und geprueft wird.
    *
    * Was UNVERAENDERT gilt und die eigentliche Zusage dieses Tests ist: die
    * AEUSZERE Pfadform. Ein `/m/lagerbuch`-Praefix wuerde auf dem Modul-Host
@@ -56,14 +62,14 @@ describe("LAGERBUCH_NAV: die neunzehn Ziele", () => {
    */
   it("traegt AUSSCHLIESZLICH die aeuszere Pfadform", () => {
     for (const e of LAGERBUCH_NAV) {
-      expect(e.href, e.key).toMatch(/^\/(verwaltung|helfer)/);
+      expect(e.href, e.key).toMatch(/^\/(verwaltung|helfer|auffuellen)/);
       expect(e.href, e.key).not.toMatch(/^\/m\/lagerbuch/);
     }
   });
 
   it("hat eindeutige Schluessel und eindeutige Ziele", () => {
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(20);
-    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(20);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.key)).size).toBe(21);
+    expect(new Set(LAGERBUCH_NAV.map((e) => e.href)).size).toBe(21);
   });
 
   it("fuehrt weder kein-zugriff noch identitaeten", () => {

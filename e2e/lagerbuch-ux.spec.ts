@@ -142,13 +142,17 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
     // `core/shell/navIkonen.tsx`). 19 seit DRK-312: „Ortsetiketten“ trägt mit
     // `ortsetiketten` (PiMapPinArea) ein eigenes — „Etiketten“ steht im selben
     // Abschnitt, und zwei gleiche Zeichen wären dort nicht auseinanderzuhalten.
-    // 20 seit DRK-314 („Entnahmebox“, `entnahmebox`), aus demselben Grund
-    // gegenüber „Lagerorte“ und „Entnahme“.
+    // 20 seit DRK-313 („Auffüllen“, `auffuellen`/PiHandArrowUp — die Spiegelung
+    // von `entnahme`, die beiden stehen direkt übereinander) und 21 seit DRK-314
+    // („Entnahmebox“, `entnahmebox`), jeweils aus demselben Grund: zwei Einträge
+    // im selben Abschnitt mit demselben Zeichen sind in der Leiste nicht zu
+    // unterscheiden.
     // Die Zahl steht in `_lib/nav.test.ts` ausgeschrieben; HIER wird geprüft,
     // dass jedes davon wirklich ein SVG rendert — ein unbekannter Schlüssel
     // rendert stillschweigend NICHTS (`NavIkone`), und genau das sähe kein
-    // anderes Tor.
-    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(20, {
+    // anderes Tor. Ein neuer Nav-Eintrag ohne Eintrag in `NAV_IKONEN` fällt
+    // ausschließlich hier auf.
+    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(21, {
       timeout: 10_000,
     });
   });

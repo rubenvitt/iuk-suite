@@ -422,6 +422,18 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Zaehlung steht damit auf 56 = 53 bewacht + 3 Ausnahmen, 53 = 50 + 3, in
  * weiterhin 23 Action-Dateien.
  *
+ * NACHTRAG DRK-313 (16.09.2026): `bucheAuffuellung` kommt in `buchung.ts` dazu
+ * — die Flaeche, mit der die GF das Handlager auffuellt. Bewacht von
+ * `requireLagerbuchAdmin`, und DAS IST HIER KEINE FORMALIE, SONDERN DIE
+ * UMSETZUNG DER ANFORDERUNG: „nur fuer GF" heisst in diesem Modul „angemeldet
+ * und in der Lagerbuch-Gruppe" (DRK-313 beantwortet damit die bis dahin offene
+ * Frage nach einer eigenen GF-Rolle mit Nein). Dass `requireHelferSchreibend`
+ * hier NICHT steht, ist die Zusage, dass ein Kaertchen diese Action auf keinem
+ * Weg erreicht — eine Action-ID ist global, und ohne den Riegel waere das
+ * Layout darueber wirkungslos. Keine neue Datei, keine neue Ausnahme. Die
+ * Zaehlung steht damit auf 58 = 55 bewacht + 3 Ausnahmen, 55 = 52 + 3, in
+ * weiterhin 23 Action-Dateien.
+ *
  * NACHTRAG DRK-314 (16.09.2026): `entnahmebox.ts` mit `bucheInEntnahmebox`
  * kommt dazu — die Umlagerung aus einer Einheit in die Kiste in der Halle.
  * Bewacht von `requireHelferSchreibend`, und das ist die VIERTE Action mit
@@ -454,6 +466,24 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * Keine neue Datei, keine neue Ausnahme. Die Zaehlung steht damit auf
  * 58 = 55 bewacht + 3 Ausnahmen, 55 = 52 + 3, in weiterhin 23 Action-Dateien.
  *
+ * NACHTRAG ZUSAMMENFUEHRUNG DRK-311/DRK-313 (16.09.2026): ZUM DRITTEN MAL
+ * derselbe Fall, und diesmal liegt er offen genug, um die Regel daraus zu
+ * lesen. DRK-311 legte `beachtungSetzen` in `bz.ts`, DRK-313 `bucheAuffuellung`
+ * in `buchung.ts`; beide rechneten ihren Nachtrag vom Stand 57 aus und nennen
+ * darum „58 … 55". Gemeinsam steht die Zaehlung auf 59 = 56 bewacht + 3
+ * Ausnahmen, 56 = 53 + 3, in weiterhin 23 Action-Dateien.
+ *
+ * ⚠️ DIESMAL KOLLIDIERTE DIE SOLL-TABELLE — und genau das machte den stillen
+ * Teil sichtbar. Weil die beiden Actions in VERSCHIEDENEN Dateien liegen, sah
+ * git zwei Aenderungen an benachbarten Zeilen (`"buchung.ts"` und `"bz.ts"`)
+ * und meldete einen Konflikt; bei DRK-309/DRK-338 lagen sie in derselben Zeile
+ * und der Merge ging stumm durch. Die DREI SUMMEN unten liefen aber auch
+ * diesmal konfliktfrei durch und standen nach dem Merge je EINS zu niedrig.
+ * Daraus die Regel, die diesen Block traegt: **der laute Teil eines Konflikts
+ * sagt nichts darueber, wie viel still danebensteht.** Wer hier nur die
+ * Marker aufloest, bekommt „expected 58 to be 59" — eine Meldung, die wie ein
+ * Zaehlfehler aussieht und die Ursache nicht nennt.
+ *
  * NACHTRAG ZUSAMMENFUEHRUNG DRK-311/DRK-314 (16.09.2026): UND ZUM DRITTEN MAL
  * DERSELBE FALL — die Warnung oben hat ihn wieder gefangen. Beide Aenderungen
  * rechneten ihren Nachtrag vom Stand 57 aus und kamen jede fuer sich auf 58;
@@ -466,6 +496,21 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * `bucheInEntnahmebox` (`requireHelferSchreibend`). Gemeinsam steht die
  * Zaehlung damit auf 59 = 56 bewacht + 3 Ausnahmen, 56 = 52 + 4, in 24
  * Action-Dateien.
+ *
+ * NACHTRAG ZUSAMMENFUEHRUNG DRK-311/DRK-313/DRK-314 (16.09.2026): die beiden
+ * Bloecke darueber sind zwei Haelften DESSELBEN Tages, jede geschrieben ohne
+ * die andere zu kennen — DRK-313 traf auf DRK-311, DRK-314 ebenfalls auf
+ * DRK-311, und erst dieser Merge bringt alle drei zusammen. DREI Actions ab
+ * Stand 57: `beachtungSetzen` (bz.ts, admin), `bucheAuffuellung` (buchung.ts,
+ * admin) und `bucheInEntnahmebox` (entnahmebox.ts, NEUE Datei,
+ * requireHelferSchreibend). Die Zahlen unten sind nachgemessen, nicht addiert.
+ *
+ * ⚠️ DIE SOLL-TABELLE KAM DIESMAL SAUBER DURCH — `buchung.ts: 5`, `bz.ts: 5`
+ * und `entnahmebox.ts: 1` stehen in verschiedenen Zeilen, git konnte sie
+ * zusammenlegen. Konfliktbehaftet waren allein diese Kommentarbloecke und die
+ * `it`-Titel. Das ist die Umkehrung des Falls, den der Block darueber
+ * beschreibt, und bestaetigt seine Regel von der anderen Seite: WO ein
+ * Konflikt auftritt, sagt nichts darueber, WO die Zahlen falsch werden.
  *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
@@ -494,7 +539,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * prueft der Test den Code gegen sich selbst und bliebe auch bei einer
    * fehlenden Datei gruen.
    *
-   * ⚠️ Die Summen unten (55, 52, 3, 52, 3) stehen ABSICHTLICH als Literale da
+   * ⚠️ Die Summen unten (56, 53, 3, 53, 3) stehen ABSICHTLICH als Literale da
    * und werden NICHT aus dieser Tabelle gerechnet. Zwei unabhaengige Anker:
    * SOLL bindet je Datei, die Literale binden die Summe. Ein
    * `Object.values(SOLL).reduce(...)` waere immer gruen.
@@ -504,7 +549,7 @@ describe("Zaehlung (§2.1 a)", () => {
     "aussondern.ts": 1,
     "aussondernLagerort.ts": 1,   // DRK-303, Aussondern je Lagerort
     "bestellung.ts": 1,
-    "buchung.ts": 4,   // DRK-338: bucheUmlagerung kam dazu
+    "buchung.ts": 5,   // DRK-338: bucheUmlagerung, DRK-313: bucheAuffuellung
     "bz.ts": 5,
     "check.ts": 1,
     "csv.ts": 1,
@@ -561,10 +606,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 59 Deklarationen, obwohl es nur 56 verschiedene Namen gibt", () => {
+  it("zaehlt 60 Deklarationen, obwohl es nur 57 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "59 Deklarationen").toHaveLength(59);
-    expect(new Set(namen).size, "56 verschiedene Namen").toBe(56);
+    expect(namen, "60 Deklarationen").toHaveLength(60);
+    expect(new Set(namen).size, "57 verschiedene Namen").toBe(57);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -576,7 +621,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 56 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 57 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -585,7 +630,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "56 bewacht").toBe(56);
+    expect(funde.length - ausnahmen.length, "57 bewacht").toBe(57);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -652,7 +697,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 55 Riegel auf 51 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
+  it("verteilt die 57 Riegel auf 53 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -675,6 +720,6 @@ describe("Zaehlung (§2.1 a)", () => {
       // einem `String`-Vergleich kleiner sind als Kleinbuchstaben ("Z" < "b").
       "entnahmebox.ts#bucheInEntnahmebox",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(52);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(53);
   });
 });
