@@ -17,7 +17,17 @@ import type { Leser } from "./bestand";
  * Verlauf ist append-only — es gibt keinen Weg, das nachzutragen, und es
  * braucht auch keinen.
  */
-export type Umfang = { kategorien: string[]; faecher: string[]; ort: string | null } | null;
+export type Umfang = {
+  kategorien: string[]; faecher: string[];
+  /** Das LABEL des gezaehlten Orts — was ein Leser wiedererkennt. */
+  ort: string | null;
+  /**
+   * Die KENNUNG desselben Orts (DRK-337, dritter Codex-Befund). Solange zwei
+   * Schraenke gleich heissen duerfen, ist der Name keine Identitaet; im
+   * append-only Verlauf waere sie ohne dieses Feld unwiederbringlich verloren.
+   */
+  ortId: string | null;
+} | null;
 export type LaufKurz = {
   id: string; ts: Date; quelleTyp: string; quelleId: string; kommentar: string;
   umfang: Umfang; positionen: number; abweichungen: number;
@@ -31,13 +41,17 @@ export type LaufPosition = {
 export function umfangAus(roh: string | null): Umfang {
   if (!roh) return null;
   try {
-    const wert = JSON.parse(roh) as { kategorien?: unknown; faecher?: unknown; ort?: unknown } | null;
+    const wert = JSON.parse(roh) as {
+      kategorien?: unknown; faecher?: unknown; ort?: unknown; ortId?: unknown;
+    } | null;
     if (!wert || typeof wert !== "object") return null;
     const liste = (x: unknown) => (Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : []);
+    const text = (x: unknown) => (typeof x === "string" && x !== "" ? x : null);
     return {
       kategorien: liste(wert.kategorien),
       faecher: liste(wert.faecher),
-      ort: typeof wert.ort === "string" && wert.ort !== "" ? wert.ort : null,
+      ort: text(wert.ort),
+      ortId: text(wert.ortId),
     };
   } catch {
     return null;

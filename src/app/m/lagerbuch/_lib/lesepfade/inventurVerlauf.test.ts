@@ -110,7 +110,7 @@ describe("inventurLaeufe", () => {
       ["Zweiter", 2, 1],
       ["Erster", 1, 0],
     ]);
-    expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [], ort: null });
+    expect(laeufe[0]!.umfang).toEqual({ kategorien: ["Hygiene"], faecher: [], ort: null, ortId: null });
     expect(laeufe[1]!.umfang).toBeNull();
     expect(laeufe[0]!.quelleTyp).toBe("oidc");
     expect(laeufe[0]!.quelleId).toBe("u-admin");
@@ -182,21 +182,29 @@ describe("inventurLauf", () => {
    * liesse `umfangText` „Ort undefined" schreiben.
    */
   it("liest den Ort aus dem Umfang und laesst Altlaeufe ohne Ort gelten", () => {
-    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"Schrank 1"}'))
-      .toEqual({ kategorien: [], faecher: [], ort: "Schrank 1" });
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"Schrank 1","ortId":"schrank-1"}'))
+      .toEqual({ kategorien: [], faecher: [], ort: "Schrank 1", ortId: "schrank-1" });
     expect(umfangAus('{"kategorien":["Hygiene"],"faecher":["A1"]}'))
-      .toEqual({ kategorien: ["Hygiene"], faecher: ["A1"], ort: null });
+      .toEqual({ kategorien: ["Hygiene"], faecher: ["A1"], ort: null, ortId: null });
+    /*
+     * ⚠️ EIN LAUF AUS DER ZEIT VOR DEM DRITTEN CODEX-BEFUND traegt den Namen
+     * ohne Kennung. Auch das ist kein fehlender Wert, sondern die wahre
+     * Antwort: die Identitaet stand damals nicht dabei und laesst sich im
+     * append-only Verlauf nicht nachtragen. `null` sagt genau das.
+     */
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"Schrank 1"}')?.ortId).toBeNull();
     // Ein leerer Ortsname ist kein Ort — sonst stuende „Ort " im Verlauf.
     expect(umfangAus('{"kategorien":[],"faecher":[],"ort":""}')?.ort).toBeNull();
     expect(umfangAus('{"kategorien":[],"faecher":[],"ort":42}')?.ort).toBeNull();
+    expect(umfangAus('{"kategorien":[],"faecher":[],"ort":"X","ortId":42}')?.ortId).toBeNull();
   });
 
   it("nennt den Ort zuerst und faellt ohne jede Angabe auf vollstaendig zurueck", () => {
-    expect(umfangText({ kategorien: ["Hygiene"], faecher: ["A1"], ort: "Schrank 1" }))
+    expect(umfangText({ kategorien: ["Hygiene"], faecher: ["A1"], ort: "Schrank 1", ortId: null }))
       .toBe("Ort Schrank 1, Hygiene, Fach A1");
-    expect(umfangText({ kategorien: [], faecher: [], ort: "Nicht zugeordnet" }))
+    expect(umfangText({ kategorien: [], faecher: [], ort: "Nicht zugeordnet", ortId: null }))
       .toBe("Ort Nicht zugeordnet");
-    expect(umfangText({ kategorien: [], faecher: [], ort: null })).toBe("vollständig");
+    expect(umfangText({ kategorien: [], faecher: [], ort: null, ortId: null })).toBe("vollständig");
     expect(umfangText(null)).toBe("vollständig");
   });
 });

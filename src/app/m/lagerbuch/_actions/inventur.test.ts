@@ -869,11 +869,19 @@ describe("inventurKorrektur — DRK-337: ein Lauf zaehlt genau einen Ort", () =>
     }, t.db);
 
     const id = (erg: unknown) => (erg as { ok: true; wert: { inventurId: string } }).wert.inventurId;
-    expect(JSON.parse(umfangVon(id(mitOrt))!)).toEqual({ kategorien: [], faecher: [], ort: "Schrank 1" });
+    /*
+     * ⚠️ NAME UND KENNUNG (dritter Codex-Befund). Der Name ist, was ein Leser
+     * wiedererkennt; die Kennung ist die Identitaet. Solange zwei Schraenke
+     * gleich heissen duerfen, stuenden zwei Laeufe an verschiedenen Orten sonst
+     * als derselbe „Ort Schrank 1" im Verlauf — und der kennt kein UPDATE.
+     */
+    expect(JSON.parse(umfangVon(id(mitOrt))!))
+      .toEqual({ kategorien: [], faecher: [], ort: "Schrank 1", ortId: "schrank-1" });
     // ⚠️ NICHT der Name des Lagerorts („Handlager") — der stuende fuer denselben
     // Bereich wie „ganzer Handlager", und im Verlauf waere beides nicht mehr
     // auseinanderzuhalten.
-    expect(JSON.parse(umfangVon(id(wurzel))!)).toEqual({ kategorien: [], faecher: [], ort: "Nicht zugeordnet" });
+    expect(JSON.parse(umfangVon(id(wurzel))!))
+      .toEqual({ kategorien: [], faecher: [], ort: "Nicht zugeordnet", ortId: HANDLAGER_ID });
     expect(umfangVon(id(ohneOrt))).toBeNull();
   });
 });

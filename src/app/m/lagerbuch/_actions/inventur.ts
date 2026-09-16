@@ -321,11 +321,19 @@ function umfangJson(
   return JSON.stringify({
     kategorien: filter?.kategorien ?? [],
     faecher: filter?.faecher ?? [],
-    // ⚠️ OHNE ORTSWAHL FEHLT DAS FELD GANZ, statt `null` zu tragen: ein Lauf
+    // ⚠️ OHNE ORTSWAHL FEHLEN BEIDE FELDER GANZ, statt `null` zu tragen: ein Lauf
     // ueber den ganzen Handlager schreibt damit BUCHSTABENGLEICH dieselbe
     // Zeichenkette wie vor DRK-337. `umfangAus` liest ein fehlendes Feld
     // ohnehin als `null` — Altlaeufe und neue Laeufe bleiben eine Sorte.
-    ...(ortId === null ? {} : { ort: ortLabel }),
+    //
+    // ⚠️ DIE KENNUNG STEHT NEBEN DEM NAMEN, UND ZWAR WEIL DER VERLAUF
+    // APPEND-ONLY IST (dritter Codex-Befund). Solange zwei Schraenke gleich
+    // heissen duerfen, ist der NAME allein keine Identitaet: zwei Laeufe an
+    // verschiedenen Orten stuenden als derselbe „Ort Schrank 1" da, und
+    // spaeter ist das nicht mehr aufzuloesen — hier gibt es kein UPDATE.
+    // Der Name bleibt trotzdem der ANGEZEIGTE Wert: er ist das, was ein Leser
+    // wiedererkennt, und er ueberlebt auch das Umbenennen des Schranks.
+    ...(ortId === null ? {} : { ort: ortLabel, ortId }),
   });
 }
 
