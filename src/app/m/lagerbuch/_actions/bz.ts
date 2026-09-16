@@ -1,5 +1,5 @@
 "use server";
-import { withAuditContext, auditActor } from "@/core/audit/server";
+import { withAuditContext, auditActor, auditEvent } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -120,9 +120,62 @@ function orNull<T>(value: T | undefined): T | null {
   return value === undefined || value === "" ? null : value;
 }
 
+/**
+ * ⚠️ DIE ERFASSUNGSSEITE GEHOERT DAZU, UND ZWAR FUER JEDE DIESER ACTIONS
+ * (Reviewrunde 3). `/bz/<id>/kontrolle` liest die Geraetezeile: die
+ * Level-Beschriftungen samt Referenzbereichen UND seit DRK-311 den Merker, ob
+ * schon ein Beachtungshinweis steht. Sie stand hier nicht — mit zwei Folgen,
+ * von denen die zweite still ist:
+ *
+ *  * Nach „Beachtung erforderlich: ja" bleibt das Formular stehen und setzt
+ *    sich zurueck. Ohne diese Zeile behauptet der Erklaertext darunter
+ *    weiterhin, es gebe keinen Hinweis — und ein zweites „ja" ersetzt den
+ *    gerade erst gesetzten Vermerk, ohne die Ersetzung anzukuendigen.
+ *  * Wer die Referenzbereiche aendert, sieht auf der Erfassungsseite noch die
+ *    alten Grenzen in den Feldbeschriftungen, waehrend die Bewertung schon
+ *    gegen die neuen rechnet.
+ *
+ * Beides betrifft dieselbe Zeile, also gehoert der Pfad in den gemeinsamen
+ * Helfer und nicht in einen einzelnen Aufrufer.
+ */
 function revalidate(id: string) {
   revalidatePath(LISTENPFAD);
   revalidatePath(`${LISTENPFAD}/${id}`);
+  revalidatePath(`${LISTENPFAD}/${id}/kontrolle`);
+}
+
+/**
+ * DAS AUSDRUECKLICHE PROTOKOLLEREIGNIS ZUR BEACHTUNG — DRK-311, Reviewrunde 3.
+ *
+ * ⚠️ DER DATENBANK-TRIGGER ALLEIN BEANTWORTET DIE FRAGE NICHT. `audit_bz_geraete_update`
+ * schreibt `action: "update"`, `objectType: "bz_geraete"` — dieselbe Zeile wie
+ * bei einer Namensaenderung, einem neuen Referenzbereich oder dem
+ * Aktiv-Schalter. Das Ereignisschema traegt keine Spaltenliste
+ * (`core/audit/types.ts`), also ist aus dem Protokoll NICHT zu lesen, ob jemand
+ * einen Aufmerksamkeitshinweis gesetzt, umformuliert oder aufgehoben hat.
+ *
+ * Genau das war aber die Begruendung dafuer, die Beachtung ans GERAET zu haengen
+ * statt in die append-only Kontrolltabelle. Die Begruendung traegt erst mit
+ * diesem Ereignis; ohne es waere sie eine Behauptung gewesen.
+ *
+ * ⚠️ `delete` FUERS AUFHEBEN, `update` FUERS SETZEN UND UMFORMULIEREN. Die
+ * Aktionsliste ist fest (`AUDIT_ACTIONS`); „aufgehoben" ist unter ihnen am
+ * ehesten ein Loeschen, und es ist die Unterscheidung, die jemand beim
+ * Nachsehen wirklich braucht.
+ *
+ * ⚠️ DER HINWEISTEXT STEHT NICHT IM EREIGNIS. Das Protokoll fuehrt Objekte,
+ * keine Inhalte — und der Text kann ein Geraet beschreiben, das gerade jemand
+ * bemaengelt hat.
+ */
+function protokolliereBeachtung(geraetId: string, gesetzt: boolean): void {
+  auditEvent({
+    module: "lagerbuch",
+    action: gesetzt ? "update" : "delete",
+    objectType: "bz_beachtung",
+    objectRef: geraetId,
+    result: "success",
+    origin: "server",
+  });
 }
 
 function bzGeraetExistiert(db: DB, id: string): boolean {
@@ -380,6 +433,14 @@ export async function kontrolleErfassen(
           .where(eq(bzGeraete.id, geraet.id))
           .run();
       });
+      /*
+       * ⚠️ NACH der Transaktion, nicht darin: `auditEvent` schluckt seine
+       * eigenen Fehler (`core/audit/server.ts`), aber ein Schreibvorgang
+       * innerhalb der offenen Transaktion haette an ihrer Rolle teilgenommen —
+       * ein Rollback nahm das Protokoll mit, und ein Protokoll, das mit der
+       * Sache verschwindet, die es bezeugen soll, ist keins.
+       */
+      if (v.beachtung) protokolliereBeachtung(geraet.id, true);
     } catch {
       return festerFehler("Kontrolle konnte nicht gespeichert werden.");
     }
@@ -424,6 +485,7 @@ export async function beachtungSetzen(
         .set(beachtungsFelder(geraet, hinweis, new Date()))
         .where(eq(bzGeraete.id, geraet.id))
         .run();
+      protokolliereBeachtung(geraet.id, hinweis !== null);
     } catch {
       return festerFehler("Beachtung konnte nicht gespeichert werden.");
     }

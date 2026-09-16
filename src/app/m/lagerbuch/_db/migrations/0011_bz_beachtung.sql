@@ -11,8 +11,14 @@
 --
 -- AM GERAET, NICHT AN DER KONTROLLE: `bz_kontrollen` ist append-only (0002), ein
 -- Hinweis dort waere nicht mehr aufzuheben, ohne eine Kontrolle zu erfinden, die
--- niemand durchgefuehrt hat. Wer die Beachtung wann gesetzt oder aufgehoben hat,
--- steht damit im Zugriffsprotokoll ueber den UPDATE-Trigger unten.
+-- niemand durchgefuehrt hat.
+--
+-- ⚠️ DER TRIGGER UNTEN BEANTWORTET „WER HAT DIE BEACHTUNG GESETZT?" NICHT. Er
+-- schreibt `action: "update"`, `objectType: "bz_geraete"` — dieselbe Zeile wie
+-- bei einer Namensaenderung, und das Ereignisschema traegt keine Spaltenliste.
+-- Die Frage beantwortet ein ausdrueckliches Ereignis `bz_beachtung` aus
+-- `_actions/bz.ts`. Der Trigger hier bleibt trotzdem noetig: er deckt JEDE
+-- Aenderung an der Zeile ab, auch eine, die kein Anwendungspfad geschrieben hat.
 --
 -- KEIN BACKFILL: jede bestehende Zeile bekommt NULL und heisst damit „keine
 -- Beachtung". Das ist keine Behauptung, sondern der einzige Stand, den es vor

@@ -11,6 +11,7 @@ import {
 const {
   adminRiegel,
   bewertungOverride,
+  protokoll,
   revalidiert,
 } = vi.hoisted(() => ({
   adminRiegel: vi.fn<() => Promise<unknown>>(),
@@ -22,11 +23,31 @@ const {
     },
   },
   revalidiert: [] as string[],
+  /** DRK-311, Reviewrunde 3 — die ausdruecklichen Protokollereignisse. */
+  protokoll: [] as { action: string; objectType: string; objectRef?: string }[],
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
 }));
+
+/**
+ * ⚠️ NUR `auditEvent` WIRD ABGEFANGEN, der Rest bleibt echt. `withAuditContext`
+ * und `auditActor` tragen den Akteur — waeren sie mitgefaelscht, pruefte der
+ * Test seine eigene Attrappe. Und `auditEvent` schluckt seine Fehler
+ * (`core/audit/server.ts`): ohne diesen Griff liefe ein fehlendes Ereignis
+ * unbemerkt durch, denn geschrieben wird es in die AUDIT-Datenbank, nicht in
+ * die Modul-Testdatenbank.
+ */
+vi.mock("@/core/audit/server", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("@/core/audit/server")>();
+  return {
+    ...echt,
+    auditEvent: (ereignis: { action: string; objectType: string; objectRef?: string }) => {
+      protokoll.push(ereignis);
+    },
+  };
+});
 
 vi.mock("../_lib/zugang", () => ({
   requireLagerbuchAdmin: () => adminRiegel(),
@@ -69,6 +90,7 @@ let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
+  protokoll.length = 0;
   bewertungOverride.current = null;
   adminRiegel.mockResolvedValue(VIEWER);
   t = migrierteTestDb("lagerbuch-actions-bz-");
@@ -104,8 +126,14 @@ function kontrollZeilen() {
   return t.db.select().from(bzKontrollen).all();
 }
 
+/**
+ * ⚠️ DIE ERFASSUNGSSEITE GEHOERT DAZU (Reviewrunde 3). `/bz/<id>/kontrolle`
+ * liest die Geraetezeile — Referenzbereiche UND den Merker, ob schon ein
+ * Beachtungshinweis steht. Ohne sie bleibt das Formular nach „Beachtung: ja"
+ * auf dem alten Stand und behauptet weiter, es gebe keinen Hinweis.
+ */
 function erwartetePfade(id: string) {
-  return [LISTENPFAD, `${LISTENPFAD}/${id}`];
+  return [LISTENPFAD, `${LISTENPFAD}/${id}`, `${LISTENPFAD}/${id}/kontrolle`];
 }
 
 function sqliteAenderungen() {
@@ -715,6 +743,30 @@ describe("beachtungSetzen", () => {
     });
   });
 
+  /**
+   * DAS PROTOKOLL MUSS SETZEN UND AUFHEBEN UNTERSCHEIDEN — Reviewrunde 3.
+   *
+   * ⚠️ DER DATENBANK-TRIGGER KANN DAS NICHT. `audit_bz_geraete_update` schreibt
+   * `action: "update"`, `objectType: "bz_geraete"` — ununterscheidbar von einer
+   * Namensaenderung, und das Ereignisschema traegt keine Spaltenliste. Genau
+   * die Nachvollziehbarkeit war aber die Begruendung dafuer, die Beachtung ans
+   * Geraet zu haengen statt in die append-only Kontrolltabelle.
+   */
+  it("protokolliert das Setzen als update und das Aufheben als delete", async () => {
+    const id = await geraetOhneBereiche();
+    protokoll.length = 0;
+
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    await beachtungSetzen({ geraetId: id, hinweis: "" }, t.db);
+
+    expect(protokoll).toEqual([
+      { module: "lagerbuch", action: "update", objectType: "bz_beachtung",
+        objectRef: id, result: "success", origin: "server" },
+      { module: "lagerbuch", action: "delete", objectType: "bz_beachtung",
+        objectRef: id, result: "success", origin: "server" },
+    ]);
+  });
+
   it("meldet ein unbekanntes Geraet, ohne etwas zu schreiben", async () => {
     revalidiert.length = 0;
     const vorher = sqliteAenderungen();
@@ -724,6 +776,7 @@ describe("beachtungSetzen", () => {
     expect(erg).toEqual({ ok: false, fehler: "BZ-Gerät nicht gefunden." });
     expect(sqliteAenderungen()).toBe(vorher);
     expect(revalidiert).toEqual([]);
+    expect(protokoll).toEqual([]);
   });
 
   it("weist einen zu langen Hinweis als Feldfehler ab", async () => {
@@ -754,11 +807,20 @@ describe("kontrolleErfassen — Beachtung", () => {
 
   it("setzt bei „ja“ den Kommentar als Hinweis ans Geraet", async () => {
     const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
 
     await kontrolleErfassen(
       { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
       t.db,
     );
+
+    /*
+     * ⚠️ DIE ERFASSUNGSSEITE MUSS MIT (Reviewrunde 3). Das Formular bleibt nach
+     * dem Speichern stehen; ohne diese Revalidierung sagt sein Erklaertext
+     * weiter „es gibt keinen Hinweis", und ein zweites „ja" ersetzt den gerade
+     * gesetzten Vermerk, ohne die Ersetzung anzukuendigen.
+     */
+    expect(revalidiert).toEqual(erwartetePfade(id));
 
     const zeile = geraetZeile(id);
     expect(zeile.beachtungHinweis).toBe("Display flackert");
@@ -766,6 +828,13 @@ describe("kontrolleErfassen — Beachtung", () => {
     // Die Bemerkung steht zusaetzlich an der Kontrolle — der Nachweis behaelt
     // seinen eigenen Text, der Zustand ist eine Kopie davon.
     expect(kontrollZeilen()[0].kommentar).toBe("Display flackert");
+    // ⚠️ AUCH AUF DIESEM WEG ausdruecklich protokolliert — die Frage „wer hat
+    // den Hinweis gesetzt?" darf nicht davon abhaengen, ueber welches Formular
+    // es geschah.
+    expect(protokoll).toEqual([
+      { module: "lagerbuch", action: "update", objectType: "bz_beachtung",
+        objectRef: id, result: "success", origin: "server" },
+    ]);
   });
 
   /**
@@ -866,5 +935,8 @@ describe("kontrolleErfassen — Beachtung", () => {
       beachtungHinweis: null,
       beachtungSeit: null,
     });
+    // ⚠️ KEIN Ereignis: es hat sich an der Beachtung nichts geaendert, und ein
+    // Protokoll voller Nichtereignisse ist eins, das niemand mehr durchsieht.
+    expect(protokoll).toEqual([]);
   });
 });

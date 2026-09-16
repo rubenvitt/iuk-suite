@@ -389,9 +389,14 @@ export const bzGeraete = sqliteTable(
      * ⚠️ AM GERAET, NICHT AN DER KONTROLLE, und das ist die Entscheidung dieser
      * Spalte. `bz_kontrollen` ist append-only (0002): dort waere der Hinweis
      * nicht mehr aufzuheben, ohne eine Kontrolle zu erfinden, die niemand
-     * durchgefuehrt hat. Beachtung ist Ist-Zustand des Geraets, kein Nachweis —
-     * WER sie wann gesetzt hat, traegt das Zugriffsprotokoll ueber den
-     * UPDATE-Trigger (0004/0011).
+     * durchgefuehrt hat. Beachtung ist Ist-Zustand des Geraets, kein Nachweis.
+     *
+     * ⚠️ WER SIE WANN GESETZT HAT, BEANTWORTET NICHT DER UPDATE-TRIGGER
+     * (Reviewrunde 3). Der schreibt `action: "update"`, `objectType:
+     * "bz_geraete"` — ununterscheidbar von einer Namensaenderung, und das
+     * Ereignisschema traegt keine Spaltenliste. Die Frage beantwortet ein
+     * AUSDRUECKLICHES Ereignis `bz_beachtung`, das `_actions/bz.ts` schreibt.
+     * Ohne das waere die Entscheidung oben nicht zu halten gewesen.
      */
     beachtungHinweis: text("beachtung_hinweis"),
     /** Seit wann der Hinweis steht. Bleibt beim BEARBEITEN des Textes stehen —
