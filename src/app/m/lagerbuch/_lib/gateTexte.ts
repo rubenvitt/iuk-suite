@@ -51,11 +51,19 @@ export type GateGrund =
  * Kärtchen gibt es die Frage nach der Anmeldung gar nicht, und ein Feld, das
  * dort mitgeschleppt würde, wäre eine Antwort auf eine ungestellte Frage.
  *
- * Nur `sitzung` teilt sich; `gesperrt` bleibt in beiden Herkünften dasselbe
- * Wort. Das ist kein Vergessen, sondern der Befund: `gesperrt` entsteht in
- * `befund()` ausschließlich MIT Kärtchen-Cookie (die Token-Zeile ist weg oder
- * stillgelegt). Wer ihn sieht, HAT ein Kärtchen — und „wende dich an die
- * Leitung" stimmt für ihn, angemeldet oder nicht.
+ * ⚠️ DIE HERKUNFT ENTSCHEIDET ZUERST, DER GRUND ERST DANACH (Review-Befund P2
+ * zu PR #169, zweite Runde). Der naheliegende Aufbau — „`gesperrt` gewinnt
+ * immer, dann die Herkunft" — war hier falsch, und die Begründung dafür war
+ * eine Verwechslung von BESITZEN und BENUTZEN: `gesperrt` entsteht in `befund()`
+ * zwar ausschließlich mit Kärtchen-Cookie, aber `requireHelferSitzung` fällt
+ * hinter genau diesem Grund auf das Konto durch (ausgeschrieben dort). Wer ein
+ * totes Kärtchen-Cookie im Browser hat und angemeldet arbeitet, HAT also ein
+ * gesperrtes Kärtchen — benutzt aber seines nie. Ihm „wende dich an die
+ * Leitung" über einen Code zu sagen, den er nie eingegeben hat, ist eine
+ * Auskunft über den falschen Gegenstand.
+ *
+ * Innerhalb der Kärtchen-Herkunft bleibt die alte Teilung: `gesperrt` heißt
+ * „wende dich an die Leitung", `sitzung` heißt „scanne erneut".
  *
  * Der Parametertyp ist die Literal-Union statt eines Imports von `SperrGrund`:
  * diese Datei ist ein Blatt ohne eigene Importe, und das bleibt sie.
@@ -70,8 +78,7 @@ export function gateGrundFuerSperre(
   grund: "sitzung" | "gesperrt",
   lage: Herkunftslage,
 ): GateGrund {
-  if (grund === "gesperrt") return "gesperrt";
-  if (lage.herkunft === "kaertchen") return "abgelaufen";
+  if (lage.herkunft === "kaertchen") return grund === "gesperrt" ? "gesperrt" : "abgelaufen";
   return lage.nochAngemeldet ? "keinZugriff" : "anmeldung";
 }
 

@@ -155,16 +155,33 @@ describe("gateGrundFuerSperre — ein Zustand, drei Lagen (DRK-305)", () => {
     expect(gateMeldung("keinZugriff", null)).toContain("Leitung");
   });
 
-  it("`gesperrt` bleibt in ALLEN Lagen `gesperrt`", () => {
+  it("`gesperrt` gilt NUR in der Kaertchen-Lage", () => {
+    expect(gateGrundFuerSperre("gesperrt", KAERTCHEN)).toBe("gesperrt");
+  });
+
+  it("ein TOTES Kaertchen-Cookie ueberstimmt die Konto-Herkunft NICHT", () => {
     /*
-     * Das ist kein vergessener Fall, sondern ein Befund aus `befund()`
-     * (`_lib/helferZugang.ts`): `gesperrt` entsteht ausschliesslich MIT
-     * Kaertchen-Cookie — die Token-Zeile ist weg oder stillgelegt. Wer diesen
-     * Grund sieht, HAT also ein Kaertchen, und „wende dich an die Leitung"
-     * stimmt fuer ihn, wie auch immer es um sein Konto steht.
+     * ⚠️ DER TRAEGER DES DRITTEN BEFUNDS (P2 zu PR #169, zweite Runde), und er
+     * sichert eine Unterscheidung zwischen BESITZEN und BENUTZEN.
+     *
+     * `requireHelferSitzung` faellt hinter `grund: "gesperrt"` ausdruecklich auf
+     * das Konto durch — wer ein totes Kaertchen-Cookie im Browser hat und sich
+     * anmeldet, arbeitet also angemeldet weiter, und das Cookie bleibt liegen.
+     * Faellt spaeter die Anmeldung, liefert der Riegel den Grund des KAERTCHENS.
+     * Ohne diese Zeile stuende dann „dieser Zugangs-Code wurde gesperrt" vor
+     * einer Person, die nie einen Code eingegeben hat — eine Auskunft ueber den
+     * falschen Gegenstand, und sie verschweigt den Weg, der wirklich hilft.
      */
-    for (const lage of [KAERTCHEN, SITZUNG_WEG, GRUPPE_WEG]) {
-      expect(gateGrundFuerSperre("gesperrt", lage)).toBe("gesperrt");
+    expect(gateGrundFuerSperre("gesperrt", SITZUNG_WEG)).toBe("anmeldung");
+    expect(gateGrundFuerSperre("gesperrt", GRUPPE_WEG)).toBe("keinZugriff");
+  });
+
+  it("in der Konto-Lage sind BEIDE Gruende gleichgueltig", () => {
+    // Die Verallgemeinerung des Falls darueber: was dem Kaertchen widerfahren
+    // ist, spielt fuer jemanden, der es nicht benutzt hat, keine Rolle.
+    for (const lage of [SITZUNG_WEG, GRUPPE_WEG]) {
+      expect(gateGrundFuerSperre("gesperrt", lage))
+        .toBe(gateGrundFuerSperre("sitzung", lage));
     }
   });
 

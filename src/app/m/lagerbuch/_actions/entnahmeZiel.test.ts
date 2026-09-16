@@ -268,16 +268,35 @@ describe("waehleEntnahmeZiel", () => {
     expect(stand.umleitungen).toEqual(["/?grund=anmeldung&returnTo=%2Fhelfer%2Fziel"]);
   });
 
-  it("ein GESPERRTES Kärtchen bleibt `gesperrt`, auch mit Konto-Herkunft", async () => {
+  it("ein gesperrtes Kärtchen im Browser ÜBERSTIMMT die Konto-Herkunft nicht", async () => {
     /*
-     * Die Gegenprobe zur Abgrenzung in `gateTexte.ts`: `gesperrt` entsteht in
-     * `befund()` nur MIT Kaertchen-Cookie. Wer ihn bekommt, hat ein Kaertchen —
-     * „wende dich an die Leitung" stimmt fuer ihn, angemeldet oder nicht. Ohne
-     * diese Zeile waere eine Verallgemeinerung auf „Konto ⇒ Anmeldung" gruen.
+     * ⚠️ DIESE ZUSAGE STAND HIER EINMAL UMGEKEHRT, und das war der dritte
+     * Review-Befund (P2 zu PR #169, zweite Runde). Die alte Begründung lautete:
+     * `gesperrt` entstehe nur mit Kärtchen-Cookie, wer ihn bekomme, HABE also
+     * ein Kärtchen. Das stimmt — und trägt trotzdem nicht, weil es Besitzen mit
+     * Benutzen verwechselt.
+     *
+     * `requireHelferSitzung` fällt hinter `grund: "gesperrt"` ausdrücklich auf
+     * das Konto durch: wer ein totes Kärtchen-Cookie im Browser hat und sich
+     * anmeldet, arbeitet angemeldet weiter, und das Cookie bleibt wirkungslos
+     * liegen. Fällt später die Anmeldung, liefert der Riegel den Grund des
+     * KÄRTCHENS — und die Person läse „dieser Zugangs-Code wurde gesperrt",
+     * obwohl sie nie einen Code eingegeben hat. Der Satz spräche über den
+     * falschen Gegenstand und verschwiege den Weg, der wirklich hilft.
      */
     riegel.mockResolvedValue({ ok: false, grund: "gesperrt", nochAngemeldet: false });
 
     await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "konto" });
+
+    expect(stand.umleitungen).toEqual(["/?grund=anmeldung&returnTo=%2Fa%2Fart-1"]);
+  });
+
+  it("mit KÄRTCHEN-Herkunft bleibt `gesperrt` dagegen `gesperrt`", async () => {
+    // Die Gegenprobe: nur sie hält fest, dass der Grund überhaupt noch
+    // durchgereicht wird und nicht alles auf die Herkunft zusammenfällt.
+    riegel.mockResolvedValue({ ok: false, grund: "gesperrt", nochAngemeldet: false });
+
+    await waehle({ ziel: "fz:fz-1", returnTo: "/a/art-1", herkunft: "token" });
 
     expect(stand.umleitungen).toEqual(["/?grund=gesperrt&returnTo=%2Fa%2Fart-1"]);
   });
