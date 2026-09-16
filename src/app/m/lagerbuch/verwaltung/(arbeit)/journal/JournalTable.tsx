@@ -33,6 +33,10 @@ export type JournalAnzeigeZeile = {
   quelleName: string;
   /** Der rohe Code/die rohe Kennung, NUR fuer den `title` des Chips (Ruling A15). */
   quelleId: string;
+  /** DRK-338 — der Lagerort dieser Zeile. Bei einer Umlagerung steht die QUELLE
+   *  in der Zeile mit dem Minus und das ZIEL in der mit dem Plus; anders ist
+   *  eine Umlagerung nicht zu lesen. */
+  ortName: string;
 };
 
 /** Die Cursor-Form, wie sie ueber die Server Action reist. */
@@ -80,6 +84,7 @@ export function anzeigeZeile(zeile: JournalZeileDTO): JournalAnzeigeZeile {
     typ: zeile.typ,
     quelleName: zeile.quelleName,
     quelleId: zeile.quelleId,
+    ortName: zeile.ortName,
   };
 }
 
@@ -126,6 +131,20 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
     ),
   },
   { title: "Vorgang", dataIndex: "vorgangText", key: "vorgang" },
+  /*
+   * DRK-338 — DER ORT STEHT NEBEN DEM VORGANG UND NICHT IM VORGANGSTEXT.
+   *
+   * Eine Umlagerung schreibt zwei Zeilen desselben Typs mit entgegengesetztem
+   * Vorzeichen; welche die Quelle ist und welche das Ziel, sagt allein diese
+   * Spalte — zusammen mit dem Δ daneben. Sie in den Vorgangstext zu falten
+   * („Umlagerung → GF-Schrank") waere die zweite Sorte Etikett, die
+   * `_lib/vorgang.ts` ausdruecklich ablehnt: ein Ort gehoert in eine Spalte.
+   *
+   * Sie steht fuer JEDE Zeile da, nicht nur fuer Umlagerungen — ein Zugang, der
+   * in Schrank 1 landet, und einer, der unsortiert an der Wurzel liegt, waren
+   * im Journal bisher nicht zu unterscheiden.
+   */
+  { title: "Ort", dataIndex: "ortName", key: "ort" },
   {
     title: "Δ",
     dataIndex: "deltaText",

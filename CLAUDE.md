@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sechzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **siebzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -286,6 +286,34 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     ist ohnehin verboten), und `min-height: 100vh` an der Hülle ist auf dem Telefon die GROSSE
     Sichtfläche — solange die Adresszeile steht, scrollt das Dokument dadurch allein deshalb.
     `100dvh` ist gemeint.
+
+17. **Eine Spaltenüberschrift als JSX aus einer SERVER COMPONENT kommt im Server-HTML gar nicht
+    an — die Kopfzelle bleibt LEER** (Modul `files`, DRK-329, echter Chromium gegen `next dev`,
+    SSR-HTML und DOM nebeneinander gelesen — nicht vermutet). `@rc-component/table` rendert
+    `columns[].title` an **zwei** Stellen: in die Kopfzelle und in eine verborgene Messzeile, dort
+    über `React.cloneElement(rawTitle, { ref: null })` (`1.11.1`,
+    `es/Body/MeasureRow.js:36-40`). Entsteht das Element in einer Server Component, bekommt im
+    Server-HTML nur die **Messzeile** es zu sehen; gemessen an der Dateiliste von
+    `/shares/<id>` (vier Spalten, `scroll.x` 1020): viermal `<th class="ant-table-cell"
+    scope="col"></th>`, die vier Titel allein in `.ant-table-measure-row`. Der Browser setzt sie
+    dann in die Kopfzelle — das ist die Abweichung, und React meldet sie als „Hydration failed
+    because the server rendered HTML didn't match the client" mit `+ <span style={…}>` unter dem
+    `<th>`. ⚠️ **Das Symptom ist nicht die Meldung, sondern eine Tabelle ohne
+    Spaltenüberschriften:** React repariert bis zur ersten Abweichung und verwirft den Rest des
+    Teilbaums — nach der Hydration trug **eine** der vier Kopfzellen ihren Text, die anderen drei
+    blieben leer. Ohne JavaScript bleiben alle vier leer.
+    **Zwei Gegenproben, beide gemessen:** derselbe Titel als **Zeichenkette** steht in beiden
+    Stellen und meldet nichts (`cloneElement` greift nur für ein Element); derselbe Titel als
+    Element, aber **im Client** erzeugt (`mitKicker` in `core/tabelle/Datentabelle.tsx`), ebenso.
+    Der Unterschied ist die RSC-Grenze, nicht die Elementform. **Kein Tor sieht das:**
+    `typecheck` kennt `ReactNode` als gültigen `title`, `build` serialisiert ihn klaglos, und
+    **Vitest kann die Wirkung strukturell nicht sehen** — unter jsdom gibt es keine RSC-Grenze,
+    das Element ist dort gewöhnlich und rendert in beiden Stellen. Dieselbe Lage wie bei den
+    Fallen 6 und 7. **Abhilfe:** `title` als Zeichenkette übergeben — `Datentabelle` baut den
+    Kicker-`<span>` im Client —, oder die Spalten in eine Client-Insel heben.
+    `src/core/tabelle/spaltenkopf.test.ts` riegelt das repo-weit ab.
+    **Nicht mit Falle 9 zusammenlegen:** dort verweigert React eine *Funktion* über die Grenze,
+    laut und mit Fehlermeldung; hier geht ein *Element* durch und kommt still nur zur Hälfte an.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
