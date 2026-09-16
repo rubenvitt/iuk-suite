@@ -356,6 +356,16 @@ Aufbewahrung nach Tagen. Drei Gründe, in dieser Reihenfolge:
 vollen Blobs. Wird das teuer, ist der Hebel `BACKUP_RCLONE_KEEP` oder ein Ziel mit eigener
 Versionierung — **nicht** ein selteneres Backup.
 
+**Und eine Eigenheit, die genau eine Nacht im Jahr zählt:** der Name einer Generation ist
+Ortszeit, und am Ende der Sommerzeit gibt es die Stunde von 02:00 bis 03:00 zweimal. In
+dieser Nacht sortiert eine Sicherung aus der zweiten 02-Stunde vor eine ältere aus der
+ersten; beim Trimmen fällt dann von zwei Generationen **derselben Nacht** die falsche der
+beiden zuerst. Es geht nichts verloren, was es nicht an anderer Stelle noch gäbe, und
+Namen doppeln sich nicht (der Lauf wartet auf die nächste freie Sekunde). Ein Stempel in
+UTC wäre für diesen einen Nachteil die saubere Lösung und erkaufte ihn mit einem, der
+jeden Tag gilt: der Name ließe sich beim Wiederherstellen nicht mehr als die Uhrzeit
+lesen, zu der gesichert wurde.
+
 ## 8. Den Host-Cron abbauen — zuletzt, nicht zuerst
 
 **Erst wenn Abschnitt 5 durch ist und mindestens ein planmäßiger Lauf um 03:30 grün war.**

@@ -308,6 +308,17 @@ auslagern() {
   # dasselbe wie chronologisch. Genau deshalb steht `-r` (neueste zuerst) und danach
   # `tail -n +KEEP+1` (alles ab der KEEP+1-ten), dieselbe Mechanik wie die lokale
   # Rotation in `backup.sh`.
+  #
+  # ⚠️ MIT EINER AUSNAHME, UND DIE IST EINMAL IM JAHR ECHT: der Stempel ist ORTSZEIT, und
+  # die Wiederholstunde am Ende der Sommerzeit ist kein monoton wachsender Zeitpunkt.
+  # In der Nacht der Rueckstellung sortiert eine Sicherung aus der zweiten 02-Stunde VOR
+  # eine aeltere aus der ersten. Die Folge ist begrenzt und kostet keine Daten: beim
+  # Trimmen faellt von zwei Generationen DERSELBEN Nacht die falsche der beiden zuerst.
+  # Auf einen Stempel in UTC umzustellen waere die saubere Loesung fuer diesen einen
+  # Nachteil und erkauft ihn mit einem, der jeden Tag gilt — der Name im Runbook und
+  # beim Wiederherstellen laese sich dann nicht mehr als die Uhrzeit, zu der gesichert
+  # wurde. Deshalb bleibt es bei Ortszeit; die Eindeutigkeit des Namens sichert
+  # `backup.sh` ohnehin getrennt davon (es wartet auf die naechste freie Sekunde).
   protokoll "Rotation am Ziel: die neuesten $BACKUP_RCLONE_KEEP Generationen behalten"
   if ! vorhanden="$(rclone_ruf lsf "$BACKUP_RCLONE_ZIEL/" --include "$TARBALL_MUSTER")"; then
     # KEIN `return 1`: das Tarball liegt am Ziel, dieser Lauf hat also geleistet, wozu er
@@ -350,7 +361,7 @@ auslagern() {
   # Die Sortierung ist lexikografisch und darf es sein: der Name ist `%Y%m%dT%H%M%S`, also
   # feste Breite ohne Trenner — dort ist lexikografisch dasselbe wie chronologisch. `-r`
   # (neueste zuerst) und danach `tail -n +KEEP+1` ist dieselbe Mechanik wie die lokale
-  # Rotation in `backup.sh`.
+  # Rotation in `backup.sh`. Die Ausnahme (Wiederholstunde) steht oben bei `lsf`.
   sort -r "$unsere" \
     | tail -n +$((BACKUP_RCLONE_KEEP + 1)) \
     | while read -r alt; do
