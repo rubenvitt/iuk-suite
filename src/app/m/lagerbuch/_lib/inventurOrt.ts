@@ -130,10 +130,11 @@ export function zaehlOrtLabel(ortId: string | null, name: string | undefined): s
  */
 export function zaehlOrtAus(roh: string | string[] | undefined): string | null {
   /*
-   * ⚠️ ENTDOPPELT WIRD NACH DEM AUFLOESEN, NICHT DAVOR (DRK-371): seit es zwei
-   * Schreibweisen fuer denselben Ort gibt, waere `?ort=schrank-1&ort=ort:schrank-1`
-   * sonst ein „Widerspruch" zwischen einem Ort und sich selbst — und fiele auf
-   * den ganzen Handlager zurueck.
+   * ⚠️ ENTDOPPELT WIRD NACH DEM AUFLOESEN, NICHT DAVOR (DRK-371). Heute faellt
+   * beides zusammen — `ort:x` ist die einzige Schreibweise —, aber die
+   * Reihenfolge ist die richtige: verglichen wird, was GEMEINT ist, nicht, wie
+   * es geschrieben steht. Andersherum waere jede kuenftige zweite Schreibweise
+   * ein „Widerspruch" zwischen einem Ort und sich selbst.
    */
   const werte = [...new Set(
     (Array.isArray(roh) ? roh : [roh])
@@ -145,24 +146,37 @@ export function zaehlOrtAus(roh: string | string[] | undefined): string | null {
 
 /**
  * Ein einzelner Rohwert → die Ortskennung, oder `null` fuer „ganzer Handlager".
+ * NUR `ort:<kennung>` waehlt einen Ort; alles andere ist die Vorgabe.
  *
- * ⚠️ DIE ALTFORM OHNE PRAEFIX WIRD WEITER GELESEN, und das ist eine
- * Entscheidung, keine Nachlaessigkeit (DRK-371): der Wert steht in der URL und
- * damit in Lesezeichen. Sie ist VERLUSTFREI, weil der einzige Fall, den sie
- * nicht ausdruecken kann — der Schrank mit der Kennung `alle` —, ueber ein
- * altes Lesezeichen ohnehin nie erreichbar war; genau das ist der Fehler,
- * den dieses Ticket behebt.
+ * ⚠️ EIN HARTER SCHNITT, UND DIE ERSTE FASSUNG DIESES TICKETS WAR WEICHER —
+ * das war ein Fehler (P1-Befund von Codex zum PR, nachgerechnet und bestaetigt).
+ * Sie las einen Wert OHNE Praefix weiter als rohe Kennung, damit alte
+ * Lesezeichen gelten, und nannte das verlustfrei. Das war es nicht: fuer eine
+ * Kennung, die selbst mit `ort:` beginnt, laufen beide Deutungen auseinander.
+ * `?ort=ort:alle` meinte bis dahin den Schrank mit der Kennung `ort:alle` und
+ * haette danach den Schrank `alle` gezaehlt — falls es den gibt, gegen den
+ * falschen Bestand, und sonst gegen den ganzen Handlager.
  *
- * ⚠️ SIE IST EIN LESEPFAD UND KEIN ZWEITER WERTEBEREICH. Geschrieben wird
- * ausschliesslich `zaehlOrtWert`; eine geoeffnete Seite heilt ihre Adresse beim
- * ersten Ortswechsel selbst. Wer hier eine rohe Kennung AUSGIBT, holt die
- * Ueberschneidung zurueck, und zwar still.
+ * ⚠️ DAS IST DERSELBE FEHLER, GEGEN DEN DIESES TICKET ANGETRETEN IST, nur eine
+ * Ebene hoeher: nicht mehr Waechter gegen Kennung, sondern Altform gegen neue
+ * Form. Wer ihn mit „welche Kennung faengt schon mit `ort:` an?" wegwiegt, hat
+ * dieselbe Begruendung benutzt, die den urspruenglichen Fehler jahrelang hat
+ * stehen lassen. ZWEI DEUTUNGEN EINER ZEICHENKETTE SIND DER FEHLER, nicht die
+ * unwahrscheinliche Kennung.
+ *
+ * ⚠️ WAS DER SCHNITT KOSTET, UND WARUM ES TRAGBAR IST: ein Lesezeichen mit
+ * roher Kennung zaehlt jetzt den ganzen Handlager. Das ist nicht still — es ist
+ * GENAU der Zustand, den die Seite fuer einen unbekannten Ort ohnehin einnimmt
+ * (Begruendung in `inventur/page.tsx`): die Auswahl zeigt „Ganzer Handlager",
+ * der Seitentext sagt es, und die Erwartungszahlen daneben sind die des ganzen
+ * Handlagers. Die Ortswahl selbst ist erst mit DRK-337 entstanden.
+ * Die Vorgabe `alle` gilt unveraendert weiter; ein Lesezeichen darauf bricht
+ * nicht.
  */
 function ortAusWert(roh: string | undefined): string | null {
   const wert = roh?.trim();
-  if (!wert || wert === ZAEHLORT_ALLE) return null;
-  if (wert.startsWith(ORT_PRAEFIX)) return wert.slice(ORT_PRAEFIX.length) || null;
-  return wert;
+  if (!wert || !wert.startsWith(ORT_PRAEFIX)) return null;
+  return wert.slice(ORT_PRAEFIX.length) || null;
 }
 
 /** Der Ortsteil des Zaehlhinweises auf der Seite — „Gezählt wird …". */

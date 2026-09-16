@@ -701,7 +701,7 @@ describe("Inventurseite als RSC", () => {
 
       const jetzt = new Date("2026-09-14T10:00:00Z");
       const [schrank] = elementeVomTyp(
-        inventurSeitenInhalt(testDb.db, jetzt, { ort: "schrank-1" }), InventurForm,
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "ort:schrank-1" }), InventurForm,
       );
       expect(schrank.props).toMatchObject({ ortId: "schrank-1" });
       expect((schrank.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(6);
@@ -713,7 +713,7 @@ describe("Inventurseite als RSC", () => {
 
       // Die Wurzel meint NUR die Wurzel: „noch keinem Schrank zugeordnet".
       const [wurzel] = elementeVomTyp(
-        inventurSeitenInhalt(testDb.db, jetzt, { ort: "handlager" }), InventurForm,
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "ort:handlager" }), InventurForm,
       );
       expect((wurzel.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(4);
 
@@ -724,7 +724,7 @@ describe("Inventurseite als RSC", () => {
        * derselbe Rueckfall gegen einen anderen Bestand buchen als gezaehlt.
        */
       const [fremd] = elementeVomTyp(
-        inventurSeitenInhalt(testDb.db, jetzt, { ort: "rtw-1" }), InventurForm,
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "ort:rtw-1" }), InventurForm,
       );
       expect(fremd.props).toMatchObject({ ortId: null });
       expect((fremd.props as { zeilen: InventurZeile[] }).zeilen[0]!.bestand).toBe(10);
@@ -739,7 +739,7 @@ describe("Inventurseite als RSC", () => {
        * dass die SEITE damit noch rendert.
        */
       const doppelt = () => inventurSeitenInhalt(
-        testDb.db, jetzt, { ort: ["schrank-1", "handlager"] },
+        testDb.db, jetzt, { ort: ["ort:schrank-1", "ort:handlager"] },
       );
       expect(doppelt).not.toThrow();
       expect(elementeVomTyp(doppelt(), InventurForm)[0]!.props).toMatchObject({ ortId: null });
@@ -747,7 +747,7 @@ describe("Inventurseite als RSC", () => {
       // Ein stillgelegter Schrank aus der URL bleibt waehlbar, damit die
       // Auswahl nicht einen Ort anzeigt, den sie nicht kennt.
       const [alt] = elementeVomTyp(
-        inventurSeitenInhalt(testDb.db, jetzt, { ort: "schrank-alt" }), InventurForm,
+        inventurSeitenInhalt(testDb.db, jetzt, { ort: "ort:schrank-alt" }), InventurForm,
       );
       expect((alt.props as { orte: ZaehlOrt[] }).orte.map((o) => o.id))
         .toEqual([null, "handlager", "schrank-1", "schrank-alt"]);

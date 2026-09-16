@@ -26,13 +26,29 @@ describe("zaehlOrtAus", () => {
   });
 
   /**
-   * ⚠️ DER ALTE WERT OHNE PRAEFIX GILT WEITER (DRK-371). Er steht in
-   * Lesezeichen; ihn abzuweisen hiesse, dass ein geteilter Link still den
-   * ganzen Handlager zaehlt statt den Schrank, den er meint.
+   * ⚠️ NUR `ort:<kennung>` WAEHLT EINEN ORT — ein harter Schnitt, und die erste
+   * Fassung dieses Tickets war weicher (P1-Befund von Codex zum PR). Sie las
+   * einen Wert ohne Praefix weiter als rohe Kennung, damit alte Lesezeichen
+   * gelten. Das ging fuer eine Kennung, die selbst mit `ort:` beginnt, schief:
+   * beide Deutungen liefen auseinander, und das ist derselbe Fehler wie der des
+   * Tickets, nur eine Ebene hoeher. Der Fall darunter haelt ihn fest.
    */
-  it("liest die Altform ohne Praefix weiter", () => {
-    expect(zaehlOrtAus("schrank-1")).toBe("schrank-1");
-    expect(zaehlOrtAus(HANDLAGER_ID)).toBe(HANDLAGER_ID);
+  it("waehlt ohne Praefix keinen Ort, sondern die Vorgabe", () => {
+    expect(zaehlOrtAus("schrank-1")).toBeNull();
+    expect(zaehlOrtAus(HANDLAGER_ID)).toBeNull();
+  });
+
+  /**
+   * ⚠️ DER BEFUND, DER DEN WEICHEN WEG GEKIPPT HAT. Mit Altform-Lesen meinte
+   * `?ort=ort:alle` zwei verschiedene Orte auf einmal: den Schrank `ort:alle`
+   * (so stand es in einem alten Lesezeichen) und den Schrank `alle` (so liest
+   * es die neue Form). Gibt es beide, zaehlte die Seite gegen den falschen
+   * Bestand — und buchte die Korrektur dorthin. Jetzt gibt es nur die eine
+   * Deutung: der Wert `ort:<x>` meint IMMER den Ort `<x>`.
+   */
+  it("deutet einen Wert mit Praefix nur auf eine Weise", () => {
+    expect(zaehlOrtAus("ort:alle")).toBe(ZAEHLORT_ALLE);
+    expect(zaehlOrtAus(zaehlOrtWert("ort:alle"))).toBe("ort:alle");
   });
 
   /**
@@ -44,16 +60,6 @@ describe("zaehlOrtAus", () => {
   it("nimmt ein leeres Praefix als Vorgabe", () => {
     expect(zaehlOrtAus("ort:")).toBeNull();
     expect(zaehlOrtAus("ort:   ")).toBeNull();
-  });
-
-  /**
-   * ⚠️ DIESELBE WAHL IN ZWEI SCHREIBWEISEN IST EINE WAHL, kein Widerspruch.
-   * Entdoppelt wird deshalb NACH dem Aufloesen; davor waere `schrank-1` von
-   * `ort:schrank-1` verschieden, und die Seite fiele auf den ganzen Handlager
-   * zurueck — ausgerechnet fuer einen Link, der eindeutig ist.
-   */
-  it("haelt Altform und neue Form desselben Orts fuer denselben Ort", () => {
-    expect(zaehlOrtAus(["schrank-1", "ort:schrank-1"])).toBe("schrank-1");
   });
 
   /**
@@ -83,17 +89,17 @@ describe("zaehlOrtAus", () => {
    * echter Abruf mit doppeltem Parameter — oder dieser Test.
    */
   it("wirft bei einem wiederholten Parameter nicht", () => {
-    expect(() => zaehlOrtAus(["schrank-1", "schrank-2"])).not.toThrow();
+    expect(() => zaehlOrtAus(["ort:schrank-1", "ort:schrank-2"])).not.toThrow();
   });
 
   it("nimmt denselben Ort mehrfach als Wahl, zwei verschiedene als Widerspruch", () => {
     // Dieselbe Angabe zweimal ist eine Angabe.
-    expect(zaehlOrtAus(["schrank-1", " schrank-1 "])).toBe("schrank-1");
+    expect(zaehlOrtAus(["ort:schrank-1", " ort:schrank-1 "])).toBe("schrank-1");
     // Zwei verschiedene sind keine Wahl: den ersten zu nehmen hiesse, sich
     // still fuer eine von zwei Anweisungen zu entscheiden.
-    expect(zaehlOrtAus(["schrank-1", "schrank-2"])).toBeNull();
+    expect(zaehlOrtAus(["ort:schrank-1", "ort:schrank-2"])).toBeNull();
     // Die Vorgabe zaehlt dabei nicht mit — sie IST der Rueckfall.
-    expect(zaehlOrtAus([ZAEHLORT_ALLE, "schrank-1"])).toBe("schrank-1");
+    expect(zaehlOrtAus([ZAEHLORT_ALLE, "ort:schrank-1"])).toBe("schrank-1");
     expect(zaehlOrtAus([])).toBeNull();
     expect(zaehlOrtAus(["", "  "])).toBeNull();
   });

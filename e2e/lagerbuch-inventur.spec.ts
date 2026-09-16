@@ -217,10 +217,12 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     /*
      * 1) Der Ort steht in der URL — der Server rechnet die Zeilen dafuer.
      *
-     * ⚠️ MIT DEM PRAEFIX `ort:` (DRK-371), also in der Form, die die Auswahl
-     * selbst schreibt. Die rohe Kennung laege im Wertebereich des Waechters
-     * `alle`; sie wird noch gelesen (Lesezeichen), aber ein Browserlauf soll
-     * den Weg pruefen, den die Oberflaeche geht, nicht den Altpfad daneben.
+     * ⚠️ MIT DEM PRAEFIX `ort:` (DRK-371), und das ist die EINZIGE Form, die
+     * einen Ort waehlt. Die rohe Kennung laege im Wertebereich des Waechters
+     * `alle`; sie faellt deshalb auf den ganzen Handlager zurueck — wie ein
+     * unbekannter Ort. Ohne das Praefix pruefte dieser Fall also den Rueckfall
+     * und nicht den Schrank, und zwar mit einer Zusicherung, die nach etwas
+     * anderem klingt.
      */
     const seite = await page.goto(lagerbuchUrl(`/verwaltung/inventur?ort=ort:${SCHRANK_ID}`));
     expect(seite?.status()).toBe(200);
