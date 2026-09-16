@@ -22,9 +22,21 @@ import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
  * unter dem Handlager, zaehlt ihr Inhalt still als Handlagerbestand.
  */
 
-const { helferRiegel, revalidiert } = vi.hoisted(() => ({
+const { helferRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
   helferRiegel: vi.fn<() => Promise<unknown>>(),
   revalidiert: [] as string[],
+  /**
+   * DIE ANGEMELDETE PERSON — getrennt vom Riegel, und genau darum geht es.
+   *
+   * ⚠️ DER RIEGEL SAGT NICHT, OB JEMAND ANGEMELDET IST.
+   * `requireHelferSchreibend` prueft das KAERTCHEN ZUERST
+   * (`_lib/helferZugang.ts`) und steigt mit `herkunft: "token"` aus, sobald ein
+   * gueltiges Kaertchen-Cookie da ist — auch bei einer Verwalterin, die
+   * daneben angemeldet ist. Wer die Verwaltungserlaubnis am Riegel ablaese,
+   * saehe diese Person als Helferin. Deshalb steht hier eine ZWEITE, davon
+   * unabhaengige Grosse.
+   */
+  sitzung: { viewer: null as { groups: string[] } | null },
 }));
 
 vi.mock("next/cache", () => ({
@@ -37,6 +49,15 @@ vi.mock("../_lib/helferZugang", () => ({
 
 vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
+}));
+
+// `istLagerbuchAdmin` NICHT nachgebaut, sondern in seiner Bedeutung gespiegelt:
+// die Gruppenliste kommt aus `adminGroupsFor(getModule("lagerbuch"))` und
+// haengt an der Umgebung (`SUITE_ADMIN_GROUP_LAGERBUCH`) — ein Test, der das
+// echte Praedikat ruft, pruefte die Umgebung statt die Action.
+vi.mock("../_lib/zugang", () => ({
+  viewerOderNull: async () => sitzung.viewer,
+  istLagerbuchAdmin: (v: { groups: string[] } | null) => !!v?.groups.includes("lagerbuch"),
 }));
 
 import { bucheInEntnahmebox } from "./entnahmebox";
@@ -68,11 +89,18 @@ const KONTO = {
   },
 };
 
+/**
+ * Die Sitzung der Verwalterin — UNABHAENGIG davon, was der Riegel zurueckgibt.
+ * `groups` ist alles, was `istLagerbuchAdmin` liest.
+ */
+const VERWALTUNG = { groups: ["lagerbuch"] };
+
 let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
   helferRiegel.mockResolvedValue(KAERTCHEN);
+  sitzung.viewer = null;
   t = migrierteTestDb("lagerbuch-actions-entnahmebox-");
 
   t.db.insert(lagerorte).values({
@@ -372,13 +400,14 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
     expect(neueZeilen()).toHaveLength(0);
   });
 
-  it("nimmt MIT KONTO aus einer stillgelegten Einheit — genau die raeumt man aus", async () => {
+  it("nimmt AUS DER VERWALTUNG aus einer stillgelegten Einheit — genau die raeumt man aus", async () => {
     /*
      * ⚠️ DAS ZIEL MUSS AUFNAHMEBEREIT SEIN, DIE QUELLE NICHT — die
      * Gegenrichtung zur Zeile darueber. Eine ausserdienstliche Einheit ist
      * genau die, die man leerraeumt.
      */
     helferRiegel.mockResolvedValue(KONTO);
+    sitzung.viewer = VERWALTUNG;
     t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -417,6 +446,60 @@ describe("bucheInEntnahmebox — was sie ablehnt", () => {
     expect((erg as { ok: false; text: string }).text).toContain("außer Dienst");
     expect(bestand(ENTNAHMEBOX_ID, "ch-1"), "nichts gebucht").toBe(0);
     expect(bestand("fz-1", "ch-1"), "und die Einheit unveraendert").toBe(5);
+  });
+
+  it("laesst die VERWALTUNG auch dann ausraeumen, wenn ihr Kaertchen noch gilt", async () => {
+    /*
+     * ⚠️ DER RIEGEL IST HIER `token`, UND ZWAR NICHT AUS VERSEHEN
+     * (Codex-Review zu PR #175, zweite Runde). `requireHelferSchreibend`
+     * prueft das KAERTCHEN ZUERST und steigt damit aus, sobald ein gueltiges
+     * Kaertchen-Cookie da ist — eine Verwalterin, die vorher irgendwann eines
+     * eingeloest hat, kommt also mit `herkunft: "token"` in diese Action,
+     * waehrend sie in der Verwaltung sitzt.
+     *
+     * Die erste Fassung des Riegels fragte genau diese Herkunft ab und
+     * verwehrte ihr damit die stillgelegten Einheiten, die ihre eigene Seite
+     * zum Ausraeumen anbietet — mit dem Satz „Das Ausraeumen laeuft ueber die
+     * Verwaltung". Der Test baut diese Lage nach: Kaertchen am Riegel,
+     * Lagerbuch-Gruppe in der Sitzung.
+     */
+    helferRiegel.mockResolvedValue(KAERTCHEN);
+    sitzung.viewer = VERWALTUNG;
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(5);
+  });
+
+  it("weist eine ANGEMELDETE PERSON OHNE Lagerbuch-Gruppe ab", async () => {
+    /*
+     * ⚠️ DIE GEGENPROBE ZUR SCHAERFE: gefragt ist die Lagerbuch-Gruppe, nicht
+     * „irgendeine Sitzung". Waere die Probe ein blosses „ist angemeldet",
+     * raeumte jede Person mit Suite-Konto und einem Helfer-Kaertchen eine
+     * ausserdienstliche Einheit aus — der Riegel der Action laesst sie ja
+     * durch, er fragt nach dem Kaertchen.
+     */
+    helferRiegel.mockResolvedValue(KAERTCHEN);
+    sitzung.viewer = { groups: ["feedback"] };
+    t.db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, "fz-1")).run();
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect((erg as { ok: false; text: string }).text).toContain("außer Dienst");
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1"), "nichts gebucht").toBe(0);
   });
 
   it("laesst eine AKTIVE Einheit beim Kaertchen unveraendert durch", async () => {

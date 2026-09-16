@@ -9,6 +9,7 @@ import { artikel, chargen, lagerorte } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
+import { istLagerbuchAdmin, viewerOderNull } from "../_lib/zugang";
 import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
@@ -106,6 +107,13 @@ export async function bucheInEntnahmebox(
       const v = geparst.data;
       const quelle = journalQuelle(riegel.zugang);
 
+      /*
+       * ⚠️ VOR der Transaktion, und das ist keine Stilfrage: `viewerOderNull`
+       * ist `async`, `db.transaction` laeuft SYNCHRON (better-sqlite3). Ein
+       * `await` im Transaktionsrumpf gibt es nicht.
+       */
+      const darfStillgelegteRaeumen = istLagerbuchAdmin(await viewerOderNull());
+
       let gebucht = 0;
       let fachFehler: string | null;
       try {
@@ -135,13 +143,24 @@ export async function bucheInEntnahmebox(
            * WEIL nur die Verwaltung ihn ueberhaupt erreicht. Diese Action teilen
            * sich zwei Flaechen, also muss die Unterscheidung in die Action.
            *
-           * ⚠️ `konto` IST NICHT DASSELBE WIE „VERWALTUNG", und das ist die
-           * ehrliche Grenze dieser Probe: auch eine angemeldete Person OHNE
-           * Lagerbuch-Gruppe kaeme durch. Schaerfer ginge nur mit einer zweiten
-           * Rechtepruefung IN der Action — und `guards.test.ts` haelt fest, dass
-           * die erste Anweisung der Riegel ist, damit es genau EINE gibt. Die
-           * Probe schliesst also die Kaertchen aus, nicht die Nicht-Admins;
-           * das ist der Unterschied, um den es hier geht.
+           * ⚠️ GEPRUEFT WIRD DAS KONTO, NICHT DIE HERKUNFT DES RIEGELS
+           * (Codex-Review zu PR #175, zweite Runde an dieser Stelle). Die erste
+           * Fassung fragte `riegel.zugang.herkunft !== "konto"` — und lief in
+           * eine Sackgasse: `requireHelferSchreibend` prueft das KAERTCHEN
+           * ZUERST (`helferZugang.ts`) und gibt `token` zurueck, sobald ein
+           * gueltiges Kaertchen-Cookie da ist. Eine Verwalterin, die vorher
+           * irgendwann ein Kaertchen eingeloest hat, kam damit auf IHRER
+           * EIGENEN Seite nicht mehr an die stillgelegten Einheiten, die genau
+           * dort zum Ausraeumen stehen — und der Satz „Das Ausraeumen laeuft
+           * ueber die Verwaltung" stand ihr entgegen, waehrend sie darin sass.
+           *
+           * ⚠️ UND DIE PROBE IST DABEI SCHAERFER GEWORDEN, nicht nur anders:
+           * sie fragt jetzt nach der Lagerbuch-Gruppe statt nach „irgendein
+           * Konto". Die erste Fassung liess eine angemeldete Person OHNE die
+           * Gruppe durch; das war als Grenze benannt und ist mit diesem Schritt
+           * erledigt. Der Riegel der Action bleibt unberuehrt — hier wird
+           * NICHTS aufgesperrt, was er zugelassen hat, sondern nur eine
+           * zusaetzliche Erlaubnis richtig zugeordnet.
            *
            * ⚠️ `einheitenart` FAEHRT MIT, OBWOHL DER SCHREIBPFAD SIE NICHT
            * BRAUCHT (dieselbe Lage wie in `aussondernVomLagerort`): sie traegt
@@ -157,7 +176,7 @@ export async function bucheInEntnahmebox(
             })
             .from(lagerorte).where(eq(lagerorte.id, v.fahrzeugId)).get();
           if (!von) return "Diese Einheit gibt es nicht mehr. Bitte die Seite neu laden.";
-          if (!von.aktiv && riegel.zugang.herkunft !== "konto") {
+          if (!von.aktiv && !darfStillgelegteRaeumen) {
             // Der Satz nennt den WEG, nicht die Ursache: dass die Zeile
             // `aktiv = 0` traegt, hilft am Fahrzeug niemandem weiter.
             return "Diese Einheit ist außer Dienst. Das Ausräumen läuft über die Verwaltung.";
