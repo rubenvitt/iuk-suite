@@ -15,6 +15,9 @@ import {
   ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, ENTNAHMEBOX_NAME, ausDieserEinheit,
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
+import {
+  loescheVerfallEintrag, uebernimmVerfall,
+} from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
@@ -373,10 +376,11 @@ export async function bucheInEntnahmebox(
             throw new Error("Deckung und Buchung sind uneins");
           }
           /*
-           * ⚠️ DIE VERFALLSANGABE DER EINHEIT BLEIBT STEHEN — AUCH WENN DIE
-           * EINHEIT DAMIT LEER IST. Das ist die dritte Fassung dieser Stelle,
-           * und die beiden davor waren falsch; wer sie wieder anfasst, sollte
-           * die Kette kennen (Codex-Review zu PR #175, drei Runden).
+           * ── DIE VERFALLSANGABE WANDERT MIT (DRK-377) ──────────────────────
+           *
+           * ⚠️ DIESE STELLE HATTE VIER FASSUNGEN, UND DIE ERSTEN DREI WAREN
+           * FALSCH. Wer sie wieder anfasst, sollte die Kette kennen
+           * (Codex-Review zu PR #175, drei Runden, dann DRK-377):
            *
            * 1. URSPRUENGLICH wurde gar nichts geloescht. Befund: nach dem
            *    letzten Stueck meldeten Einheitenblatt und Verfallsliste den
@@ -388,35 +392,84 @@ export async function bucheInEntnahmebox(
            *    wo die Kompensationszeile gebraucht wird, ist sie die EINZIGE
            *    Stelle mit dem gemeldeten Datum — ein Check legt Bestand, den er
            *    keiner Charge zuordnen kann, auf eine geratene Charge, und
-           *    `postenAmOrt` liest den Verfall ausschliesslich aus
+           *    `postenAmOrt` las den Verfall ausschliesslich aus
            *    `chargen.verfall`. Loeschen machte aus einer Falschanzeige einen
            *    Datenverlust.
            *
            * 3. DANN wurde nur noch geloescht, wenn eine bewegte Charge ein
-           *    echtes Datum traegt — als Beleg, dass nichts verloren geht.
-           *    Auch das war falsch, und das ist der Grund, warum hier jetzt
-           *    NICHTS mehr passiert: `korrekturAufLagerort` waehlt beim
-           *    Plus-Abgleich IRGENDEINE Charge des Artikels (`chargen` ohne
-           *    Ortsfilter, absteigend nach `verfall`) — die geratene Charge
-           *    kann also 12/30 sagen, waehrend der Check 10/26 gemeldet hat.
-           *    Ein echtes Datum an der Charge beweist gar nichts.
+           *    echtes Datum traegt — als Beleg, dass nichts verloren geht. Auch
+           *    das war falsch: `korrekturAufLagerort` waehlt beim Plus-Abgleich
+           *    IRGENDEINE Charge des Artikels (`chargen` ohne Ortsfilter,
+           *    absteigend nach `verfall`) — die geratene Charge kann 12/30
+           *    sagen, waehrend der Check 10/26 gemeldet hat. Ein echtes Datum
+           *    an der Charge beweist gar nichts.
            *
-           * ⚠️ UND DIE ANGABE MITWANDERN ZU LASSEN GEHT NICHT:
-           * `lagerort_verfall` setzt eine aktive Sollposition voraus
-           * (`bereinigeVerfallOhneAktivesSoll`: „ohne mindestens eine aktive
-           * Sollposition gibt es keinen pflegbaren Verfall"), und die Box hat
-           * ausdruecklich KEIN Soll (`_lib/konstanten.ts`).
+           * ⚠️ ALLE DREI SCHEITERTEN AN DERSELBEN SACKGASSE, und sie war keine
+           * Eigenschaft dieser Action: die Box konnte einen gemeldeten Verfall
+           * gar nicht FUEHREN. `lagerort_verfall` galt als soll-gebunden, und
+           * die Box hat ausdruecklich kein Soll — also blieb nur die Wahl
+           * zwischen einer veralteten Anzeige an der leeren Einheit und einem
+           * verlorenen Datum. DRK-377 hat die Sackgasse aufgeloest, nicht die
+           * Abwaegung gewonnen: seit dort ist die Bindung ans Soll eine Auflage
+           * des EDITORS und keine der TABELLE
+           * (`bereinigeVerfallOhneAktivesSoll`), und damit wandert die Angabe
+           * schlicht mit dem Material.
            *
-           * Solange die Box einen gemeldeten Verfall nicht fuehren kann, sind
-           * die beiden Befunde nicht zugleich zu erfuellen. Von den zwei
-           * Fehlern ist die veraltete Anzeige der kleinere: sie ist sichtbar
-           * und mit einem Handgriff zu korrigieren, ein geloeschtes
-           * Verfallsdatum ist weder das eine noch das andere. Deshalb steht
-           * hier bewusst KEIN Loeschen.
+           * ⚠️ UEBERNEHMEN VOR LOESCHEN, und die Reihenfolge ist die ganze
+           * Zusage: `uebernimmVerfall` LIEST die Quellzeile. Stuende das
+           * Loeschen davor, waere sie weg, der Aufruf ein No-Op — und der
+           * Datenverlust aus Fassung 2 waere zurueck, diesmal mit einer Zeile
+           * Code, die das Gegenteil behauptet.
            *
-           * Die Entscheidung dahinter ist eine Betreiberfrage und liegt als
-           * DRK-377 auf dem Board — mit ihr faellt auch diese Stelle.
+           * ⚠️ UEBERNOMMEN WIRD BEI JEDER MENGE, NICHT ERST BEIM LETZTEN
+           * STUECK, und das ist eine bewusste Ueberwarnung. Die Meldung haengt
+           * am ARTIKEL, nicht an einer Charge („das frueheste Datum, das an
+           * diesem Ort auf einer Packung steht") — welche Packung das Datum
+           * trug und ob gerade SIE in die Kiste gewandert ist, weiss niemand.
+           * Die Kiste bekommt das Datum also auch dann, wenn die fruehe Packung
+           * an der Einheit geblieben ist. Die Gegenrichtung waere, in der Kiste
+           * Material ohne Hinweis liegen zu lassen, fuer das ein Datum gemeldet
+           * war — genau der Befund dieses Tickets.
+           *
+           * ⚠️ WAS DIESE STELLE NICHT LOESEN KANN: die Zeile der BOX wieder
+           * loszuwerden. Es gibt heute keinen Weg, Bestand aus der Box
+           * herauszubuchen (`aussondernVomLagerort` nimmt nur Einheiten, diese
+           * Action nimmt die Box nicht als Quelle), also kann sie auch nicht
+           * leerlaufen — DRK-313 hat die Box ausdruecklich draussen gelassen.
+           * Mit dem Auffuellen AUS der Box (DRK-381) kommt der Weg, und mit ihm
+           * die Pflicht, die Angabe dort abzuraeumen, sobald das letzte Stueck
+           * aus der Kiste ist. Die Box hat keinen Verfall-Editor; eine Zeile,
+           * die niemand mehr wegnehmen kann, waere ein Dauerposten in der
+           * Verfallsuebersicht.
            */
+          uebernimmVerfall(tx, {
+            vonLagerortId: v.fahrzeugId,
+            nachLagerortId: ENTNAHMEBOX_ID,
+            artikelId: v.artikelId,
+          });
+
+          /*
+           * ⚠️ DIE VERBLEIBENDE MENGE WIRD NACHGELESEN, NICHT AUSGERECHNET.
+           * `gesamt - v.menge` laege nahe und waere falsch, sobald eine Charge
+           * am Ort einen NEGATIVEN Saldo traegt: `gesamt` zaehlt oben nur die
+           * positiven (`r > 0 ? r : 0`), die Differenz kaeme also auf Null,
+           * waehrend am Ort noch etwas liegt — und die Angabe der Einheit waere
+           * geloescht, obwohl sie den Rest weiter beschreibt. Eine Abfrage ist
+           * billiger als die stille Fehlmenge.
+           */
+          const restNachher = restJeChargeFuerArtikelAnOrt(tx, v.artikelId, v.fahrzeugId);
+          const verbleibt = [...restNachher.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
+          if (verbleibt === 0) {
+            /*
+             * ⚠️ GELOESCHT WIRD ERST BEIM LETZTEN STUECK. Liegt noch etwas da,
+             * beschreibt die Meldung diesen Rest weiter — und sie fruehzeitig
+             * wegzunehmen ist der teurere Fehler: eine gepflegte Angabe
+             * verschwindet, ohne dass es jemand merkt. Dass sie jetzt AUCH in
+             * der Box steht, macht sie an der Einheit nicht falsch; die Tabelle
+             * traegt je ORT einen Wert, nicht je Meldung.
+             */
+            loescheVerfallEintrag(tx, v.fahrzeugId, v.artikelId);
+          }
 
           gebucht = ergebnis.umgelagert;
           return null;

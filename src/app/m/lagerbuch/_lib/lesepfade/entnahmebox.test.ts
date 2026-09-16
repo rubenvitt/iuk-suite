@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, tokens, users } from "../../_db/schema";
-import { ENTNAHMEBOX_ID, ENTNAHMEBOX_NAME } from "../konstanten";
+import { ENTNAHMEBOX_ID, ENTNAHMEBOX_NAME, PSEUDO_VERFALL } from "../konstanten";
+import { setzeVerfall } from "../schreibpfade/lagerortVerfall";
 import { ENTNAHMEBOX_PRAEFIX } from "../vorgang";
 import { boxInhalt, boxOrt, letzteBoxZugaenge, postenAmOrt } from "./entnahmebox";
 
@@ -164,6 +165,80 @@ describe("boxInhalt", () => {
 
     expect(boxInhalt(t.db, JETZT)[0]!.menge).toBe(2);
     expect(postenAmOrt(t.db, "fz-1", JETZT)[0]!.menge).toBe(7);
+  });
+});
+
+describe("postenAmOrt — der gemeldete Verfall (DRK-377)", () => {
+  it("haengt die Meldung DIESES Orts an den Posten", () => {
+    charge("ch-1", "2030-01");
+    buchen("b-1", { charge: "ch-1", menge: 4 });
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    const [posten] = boxInhalt(t.db, JETZT);
+    expect(posten.gemeldet).toMatchObject({ verfall: "2026-10", abgelaufen: false });
+  });
+
+  it("zeigt die Meldung AUCH DANN, wenn die Charge eine Pseudo-Charge ist", () => {
+    /*
+     * ⚠️ DER FALL, DER DRK-377 AUSGELOEST HAT. Ein Check, der den gezaehlten
+     * Bestand keiner echten Charge zuordnen kann, legt ihn auf eine
+     * Pseudo-Charge ohne Verfall. Die Chargenzeile sagt dann „bis 12/99" — also
+     * KEIN Hinweis —, obwohl fuer dieses Material ein Datum gemeldet wurde. Wer
+     * nur die Chargen liest, legt abgelaufenes Material zurueck ins Regal.
+     */
+    charge("ch-pseudo", PSEUDO_VERFALL);
+    buchen("b-1", { charge: "ch-pseudo", menge: 4 });
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-1", verfall: "2026-05",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    const [posten] = boxInhalt(t.db, JETZT);
+    expect(posten.chargen.map((c) => c.ampel), "die Charge behauptet Entwarnung")
+      .toEqual(["gruen"]);
+    expect(posten.gemeldet, "die Meldung widerspricht ihr")
+      .toMatchObject({ abgelaufen: true, text: "abgelaufen" });
+  });
+
+  it("meldet `null`, wo nichts gemeldet ist — nicht eine gruene Ampel", () => {
+    // „Dazu liegt keine Meldung vor" und „unbedenklich" sind zwei verschiedene
+    // Auskuenfte; ein erfundener gruener Chip waere die zweite.
+    charge("ch-1", "2030-01");
+    buchen("b-1", { charge: "ch-1", menge: 4 });
+
+    expect(boxInhalt(t.db, JETZT)[0].gemeldet).toBeNull();
+  });
+
+  it("nimmt NUR die Meldung dieses Orts — nicht die der Herkunft", () => {
+    // Die Kiste liest ihre eigene Zeile. Die der Einheit mitzulesen war Weg 1
+    // aus DRK-377 und ist verworfen: der Wert bliebe an einem Ort stehen, an
+    // dem er nichts mehr beschreibt.
+    charge("ch-1", "2030-01");
+    buchen("b-1", { charge: "ch-1", menge: 4 });
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    expect(boxInhalt(t.db, JETZT)[0].gemeldet).toBeNull();
+  });
+
+  it("ordnet die Meldung dem RICHTIGEN Artikel zu", () => {
+    charge("ch-1", "2030-01");
+    charge("ch-2", "2030-01", "art-2");
+    buchen("b-1", { charge: "ch-1", menge: 4 });
+    buchen("b-2", { charge: "ch-2", menge: 2, artikel: "art-2" });
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    const nachArtikel = new Map(boxInhalt(t.db, JETZT).map((p) => [p.artikelId, p.gemeldet]));
+    expect(nachArtikel.get("art-1")).toBeNull();
+    expect(nachArtikel.get("art-2")).toMatchObject({ verfall: "2026-10" });
   });
 });
 
