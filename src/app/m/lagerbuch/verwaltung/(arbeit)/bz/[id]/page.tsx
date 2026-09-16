@@ -17,6 +17,7 @@ import { SCHRIFT } from "../../../../_lib/schrift";
 import { fmtTs } from "../../../../_lib/zeit";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
+import { BeachtungEditor } from "./BeachtungEditor";
 import { BzAktivToggle } from "./BzAktivToggle";
 import {
   BzLogbuchTabelle,
@@ -168,6 +169,19 @@ export function bzGeraetInhalt(db: DB, id: string, jetzt: Date): ReactNode {
         Schluessel selbst aus der Geraete-`id`. Ein zweiter Remount-Ausloeser
         auf dieser Ebene haette denselben Fokusverlust wieder eingebaut.
       */}
+      {/*
+        DRK-311: VOR dem Referenzeditor, nicht darunter. Der Hinweis ist das,
+        was jemand wissen muss, BEVOR er an diesem Geraet arbeitet; die
+        Referenzbereiche sind Stammdatenpflege.
+      */}
+      <BeachtungEditor
+        geraetId={geraet.id}
+        hinweis={detail.beachtung.hinweis}
+        seitText={detail.beachtung.seit === null
+          ? null
+          : `seit ${fmtTs(detail.beachtung.seit)}`}
+      />
+
       <ReferenzEditor geraet={editor} lagerorte={lagerortOptionen(db)} />
 
       <div style={{ marginBlockEnd: SPACE.lg }}>

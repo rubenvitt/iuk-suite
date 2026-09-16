@@ -27,13 +27,22 @@ import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
+import s from "../../../_ui/verwaltung.module.css";
 import type { BzAnzeigeZeile } from "./bzAnzeige";
 import { NeuBzGeraet } from "./NeuBzGeraet";
 
+/**
+ * ⚠️ BEMERKUNG UND HINWEIS SIND DURCHSUCHBAR, UND DAS STEHT AUCH IM
+ * PLATZHALTER (DRK-311). Eine Suche, die still mehr findet, als sie ankuendigt,
+ * ist genauso irrefuehrend wie eine, die zu wenig findet: wer „Display" tippt
+ * und ein Geraet bekommt, dessen Name das Wort nicht enthaelt, haelt die Liste
+ * fuer kaputt.
+ */
 function sucheTrifft(zeile: BzAnzeigeZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === "" || falte(
-    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.standortText}`,
+    `${zeile.name} ${zeile.barcode ?? ""} ${zeile.standortText} `
+      + `${zeile.letzteBemerkungText ?? ""} ${zeile.beachtungHinweis ?? ""}`,
   ).includes(suche);
 }
 
@@ -52,6 +61,24 @@ const FAELLIG_FILTER = zustandsFilter<BzAnzeigeZeile>([
 const STATUS_FILTER = zustandsFilter<BzAnzeigeZeile>([
   { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.aktiv },
   { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.aktiv },
+]);
+
+/**
+ * DRK-311 — „zeig mir alles, was Beachtung braucht" ist die Frage, wegen der
+ * diese Spalte ueberhaupt existiert. Ohne Filter muesste man sie suchen, und
+ * gesucht wird in einer Liste, in der die meisten Zeilen leer bleiben, nicht.
+ */
+const BEACHTUNG_FILTER = zustandsFilter<BzAnzeigeZeile>([
+  {
+    wert: "beachten",
+    text: "Beachtung nötig",
+    trifft: (zeile) => zeile.beachtungHinweis !== null,
+  },
+  {
+    wert: "ohne",
+    text: "ohne Hinweis",
+    trifft: (zeile) => zeile.beachtungHinweis === null,
+  },
 ]);
 
 /** Rot vor gelb vor ok: was Aufmerksamkeit verlangt, gehoert nach oben. */
@@ -118,6 +145,79 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
       ),
     },
     {
+      /*
+       * DRK-311. ⚠️ „Letzte Bemerkung", NICHT „Bemerkung": der Text gehoert zu
+       * der Kontrolle, deren Zeitpunkt in der Spalte davor steht, und ist kein
+       * Merkmal des Geraets. Ohne das Wort liest sich ein drei Wochen alter
+       * Satz wie ein aktueller Zustand.
+       */
+      title: "Letzte Bemerkung",
+      dataIndex: "letzteBemerkungText",
+      /*
+       * ⚠️ KEIN CHIP UND KEINE FARBE. Eine Bemerkung ist eine Auskunft, keine
+       * Bewertung — „Nicht jede Bemerkung automatisch als Warnung
+       * interpretieren" (Gespraechsnotiz DRK-311). Wer Aufmerksamkeit braucht,
+       * traegt sie in der Spalte daneben.
+       *
+       * ⚠️ UND SIE BRAUCHT EINE BREITE (Reviewrunde 2). Der Kommentar einer
+       * Kontrolle ist ein Nachweisfeld ohne Laengengrenze, die Tabelle faehrt
+       * `scroll.x: "max-content"` — ein langer Satz schoebe alle folgenden
+       * Spalten aus dem Bild. Die Begruendung samt Gegenvorschlag steht an
+       * `.zellentext` in `verwaltung.module.css`; der volle Text bleibt im
+       * `title` und ungekuerzt im Logbuch des Geraeteblatts.
+       */
+      render: (text: string | null) => (
+        text === null
+          ? <span style={SCHRIFT.neben}>—</span>
+          : <span className={s.zellentext} title={text}>{text}</span>
+      ),
+    },
+    {
+      title: "Beachtung",
+      dataIndex: "beachtungHinweis",
+      filters: BEACHTUNG_FILTER.filters,
+      onFilter: BEACHTUNG_FILTER.onFilter,
+      /*
+       * ⚠️ GELB, NICHT ROT (Falle 3, §6.6.5): `colorError` ist `colorPrimary`
+       * ist Suite-Rot, und Rot traegt in diesem Modul fachliche Bedeutung —
+       * „ueberfaellig" und „nicht bestanden" stehen in den Spalten daneben
+       * schon darin. Ein roter Aufmerksamkeitshinweis waere von einem
+       * Missstand nicht mehr zu unterscheiden.
+       *
+       * ⚠️ CHIP UND HINWEIS SIND GETRENNT, und das war in Reviewrunde 2 nicht
+       * mehr verhandelbar: `.chip` steht auf `white-space: nowrap`
+       * (`verwaltung.module.css`). Ein Hinweis von 500 Zeichen waere darin EINE
+       * unbrechbare Zeile und schoebe die halbe Tabelle aus dem Bild — der
+       * schlimmere Fall als bei der Bemerkung daneben, weil er nicht einmal
+       * umbrechen kann.
+       *
+       * Die Aufteilung ist zugleich naeher am Akzeptanzkriterium, das
+       * ausdruecklich ZWEI Dinge verlangt: „ein gelber Status MIT
+       * verstaendlichem Hinweis". Der Chip ist der Status, der Text daneben der
+       * Hinweis — dieselbe Form wie in der Faelligkeitsspalte, wo der Chip den
+       * Zustand nennt und nicht seine Begruendung.
+       *
+       * ⚠️ „beachten" IST TEXT, nicht nur Farbe (`_ui/Chip.tsx`): ein gelber
+       * Punkt ohne Wort waere genau der Zustand, den das Ticket ausschliesst.
+       * Die Standzeit steht im `title` — sie ist eine Zusatzangabe, keine
+       * Aussage, die man zum Verstehen braucht.
+       */
+      render: (hinweis: string | null, zeile) => (
+        hinweis === null
+          ? <span style={SCHRIFT.neben}>—</span>
+          : (
+            // 6 liegt nicht auf der SPACE-Skala (4/8/12/16/24/32) — derselbe
+            // enge Chip-Abstand wie in der Ergebnisspalte der Checkliste.
+            <Flex gap={6} align="flex-start" wrap>
+              <Chip ton="gelb" zeichen="warnung" title={zeile.beachtungSeitText ?? undefined}>
+                beachten
+              </Chip>
+              <span className={s.zellentext} title={hinweis}>{hinweis}</span>
+            </Flex>
+          )
+      ),
+    },
+    {
       title: "Status",
       dataIndex: "aktiv",
       sorter: nachJaNein<BzAnzeigeZeile>((zeile) => zeile.aktiv),
@@ -163,7 +263,7 @@ export function BzListe({
         <Suchfeld
           wert={suche}
           onWert={setSuche}
-          platzhalter="Gerät, Barcode oder Lagerort suchen…"
+          platzhalter="Gerät, Barcode, Lagerort oder Bemerkung suchen…"
         />
         <Trefferanzeige gezeigt={angezeigt.length} gesamt={zeilen.length} />
         <Button href="/verwaltung/bz/scan" icon={<Ikone name="scannen" groesse={16} />}>

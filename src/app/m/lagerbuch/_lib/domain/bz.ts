@@ -136,3 +136,66 @@ export function akkuLebensdauer(wechselTs: Date[]): BzAkkuKennzahl {
   }
   return { tageDurchschnitt: summe / anzahlIntervalle, anzahlWechsel, anzahlIntervalle };
 }
+
+/**
+ * DER AUFMERKSAMKEITSHINWEIS — DRK-311.
+ *
+ * ⚠️ DER TEXT IST DER ZUSTAND, und diese Funktion ist die EINZIGE Stelle, die
+ * daraus „Beachtung ja/nein" macht. Ohne sie stuende die Bedingung an jeder
+ * Anzeigestelle noch einmal — Liste, Detailkachel, Formular, Filter —, und eine
+ * davon prueft frueher oder spaeter `!== null` statt auf den GETRIMMTEN Text.
+ * Der Unterschied ist genau ein Geraet, das gelb leuchtet und als Begruendung
+ * ein Leerzeichen zeigt.
+ *
+ * Ein Text aus Leerzeichen ist kein Hinweis — dieselbe Regel wie in
+ * `_lib/konto.ts` und `_db/quelle.ts`.
+ *
+ * ⚠️ NICHTS AN DIESER FUNKTION LIEST EINE BEMERKUNG. Die Gespraechsnotiz zu
+ * DRK-311 sagt ausdruecklich „Nicht jede Bemerkung automatisch als Warnung
+ * interpretieren": eine Kontrolle mit Kommentar „Streifen nachbestellt" ist
+ * kein Missstand. Beachtung entsteht nur, wenn ein Mensch sie setzt.
+ */
+export type BzBeachtung = {
+  erforderlich: boolean;
+  /** Der Satz, der neben dem gelben Chip steht. `null`, wenn keine Beachtung. */
+  hinweis: string | null;
+  /** Seit wann. `null`, wenn keine Beachtung — oder wenn es eine Altzeile ohne
+   *  Zeitstempel gibt; die Anzeige muss beide Faelle vertragen. */
+  seit: Date | null;
+};
+
+export function bzBeachtung(
+  geraet: { beachtungHinweis: string | null; beachtungSeit: Date | null },
+): BzBeachtung {
+  const hinweis = geraet.beachtungHinweis?.trim() || null;
+  if (hinweis === null) return { erforderlich: false, hinweis: null, seit: null };
+  return { erforderlich: true, hinweis, seit: geraet.beachtungSeit };
+}
+
+/**
+ * Die beiden Spaltenwerte, mit denen eine Beachtung gesetzt, umformuliert oder
+ * aufgehoben wird.
+ *
+ * ⚠️ `seit` BLEIBT STEHEN, WENN SCHON EINE BEACHTUNG LIEF. Wer den Satz nur
+ * praeziser fasst („Display flackert" → „Display flackert beim Einschalten"),
+ * hat die Aufmerksamkeit nicht neu begonnen — ein `seit = jetzt` bei jedem
+ * Speichern machte aus einem drei Wochen alten Missstand still einen frischen,
+ * und genau die Standzeit ist die Zahl, an der jemand merkt, dass sich niemand
+ * kuemmert.
+ *
+ * ⚠️ `hinweis === null` HEBT AUF und setzt BEIDE Spalten zurueck. Ein
+ * stehengebliebenes `seit` ohne Text waere ein Datum, zu dem es nichts gibt.
+ */
+export function beachtungsFelder(
+  vorher: { beachtungHinweis: string | null; beachtungSeit: Date | null },
+  hinweis: string | null,
+  jetzt: Date,
+): { beachtungHinweis: string | null; beachtungSeit: Date | null } {
+  if (hinweis === null) return { beachtungHinweis: null, beachtungSeit: null };
+  const lief = bzBeachtung(vorher);
+  return {
+    beachtungHinweis: hinweis,
+    // `?? jetzt` faengt die Altzeile, die einen Hinweis ohne Zeitstempel traegt.
+    beachtungSeit: lief.erforderlich ? lief.seit ?? jetzt : jetzt,
+  };
+}

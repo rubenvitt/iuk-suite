@@ -30,8 +30,8 @@ import { and, desc, eq } from "drizzle-orm";
 import { bzGeraete, bzKontrollen, lagerorte } from "../../_db/schema";
 import type { Einheitenart, StandortAngabe } from "../konstanten";
 import { quelleAufloeser } from "../../_db/quelle";
-import { akkuLebensdauer, bzFaelligkeit,
-         type BzAkkuKennzahl, type BzFaelligkeit } from "../domain/bz";
+import { akkuLebensdauer, bzBeachtung, bzFaelligkeit,
+         type BzAkkuKennzahl, type BzBeachtung, type BzFaelligkeit } from "../domain/bz";
 import { BZ_LOGBUCH_GRENZE } from "../grenzen";
 import type { DB } from "../../_db/client";
 import type { Leser } from "./bestand";
@@ -125,6 +125,24 @@ export type BzGeraetZeile = {
   lagerortStandort: StandortAngabe;
   aktiv: boolean;
   letzteKontrolle: Date | null; letztesBestanden: boolean | null; faelligkeit: BzFaelligkeit;
+  /**
+   * DRK-311 — DER KOMMENTAR DER LETZTEN KONTROLLE, sonst `null`.
+   *
+   * ⚠️ AUS DERSELBEN ZEILE WIE `letzteKontrolle` UND `letztesBestanden`, nicht
+   * aus der letzten Kontrolle, die ueberhaupt einen Kommentar trug. Der
+   * naheliegende „letzte nicht-leere Bemerkung" waere die falsche Aussage:
+   * daneben steht der Zeitpunkt der LETZTEN Kontrolle, und dann liest jemand
+   * einen drei Monate alten Satz als das, was gestern beobachtet wurde. Keine
+   * Bemerkung ist eine Aussage — „bei der letzten Kontrolle gab es nichts zu
+   * sagen".
+   */
+  letzteBemerkung: string | null;
+  /**
+   * DRK-311 — der Aufmerksamkeitshinweis. ⚠️ NICHT aus `letzteBemerkung`
+   * abgeleitet (Gespraechsnotiz: „Nicht jede Bemerkung automatisch als Warnung
+   * interpretieren"); beide Felder stehen absichtlich nebeneinander.
+   */
+  beachtung: BzBeachtung;
 };
 
 export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraetZeile[] {
@@ -155,6 +173,10 @@ export function bzGeraeteUebersicht(db: Leser, now: Date = new Date()): BzGeraet
         aktiv: g.aktiv,
         letzteKontrolle: letzte ? letzte.ts : null,
         letztesBestanden: letzte ? letzte.bestanden : null,
+        // Ein Kommentar aus lauter Leerzeichen ist keiner — dieselbe Regel wie
+        // in `bzBeachtung`, damit die Spalte nicht scheinbar etwas traegt.
+        letzteBemerkung: letzte?.kommentar?.trim() || null,
+        beachtung: bzBeachtung(g),
         // ⚠️ `null` → rot MIT ueberfaellig false. Die Anzeige muss `nieGeprueft`
         // eigenstaendig behandeln (§5.11).
         faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
@@ -169,6 +191,12 @@ export type BzGeraetDetail = {
   /** DRK-309: volle Standortangabe — Begruendung an `GeraetDetail`. */
   lagerortStandort: StandortAngabe;
   faelligkeit: BzFaelligkeit;
+  /**
+   * DRK-311. ⚠️ Auch hier FERTIG GERECHNET, obwohl `geraet` die beiden Rohfelder
+   * mitbringt: die Detailseite soll dieselbe Bedingung nicht ein zweites Mal
+   * formulieren wie die Liste (`bzBeachtung` in `domain/bz.ts`).
+   */
+  beachtung: BzBeachtung;
   akku: BzAkkuKennzahl;
   /** chronologisch ABSTEIGEND */
   logbuch: BzKontrolleZeile[];
@@ -204,6 +232,7 @@ export function bzGeraetDetail(
   return {
     geraet: g, lagerortName: lagerortStandort.name, lagerortStandort,
     faelligkeit: bzFaelligkeit(letzte ? letzte.ts : null, now),
+    beachtung: bzBeachtung(g),
     akku: akkuLebensdauer(batterieWechsel.map((k) => k.ts)),
     logbuch: sichtbareRows.slice(0, BZ_LOGBUCH_GRENZE).map((k) => toZeile(k, wer)),
     logbuchMehrVorhanden: sichtbareRows.length > BZ_LOGBUCH_GRENZE,

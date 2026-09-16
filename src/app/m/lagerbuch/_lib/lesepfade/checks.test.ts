@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
-import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
+import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen, tokens, users }
+  from "../../_db/schema";
 import { checkHistorie, checkDetail, letzterCheckZeitpunkt } from "./checks";
 import { CHECK_GRENZE } from "../grenzen";
 import { summiereCheckErgebnis } from "../domain/check";
@@ -84,6 +85,48 @@ describe("checkHistorie", () => {
     const z = checkHistorie(t.db).zeilen[0];
     expect(z.nichtBewertbar).toBe(1);
     expect(z.flaschenAuffaellig).toBe(0);
+  });
+
+  /**
+   * DRK-311 — DER VERFASSER WIRD AUFGELOEST, NICHT ROH DURCHGEREICHT.
+   *
+   * Die drei Herkuenfte gehen verschiedene Wege (`_db/quelle.ts`): das Kaertchen
+   * ueber `tokens.code` auf sein Etikett, das Konto ueber `users.id` auf den
+   * Namen, „system" auf ein festes Wort. In der Datenbank bleibt die rohe
+   * Kennung stehen — nachweisfest —, angezeigt wird der Name.
+   */
+  it("nennt den Verfasser mit Namen, je nach Herkunft", () => {
+    t.db.insert(tokens).values({
+      id: "tk1", code: "111-111", label: "Kärtchen RTW 1", aktiv: true,
+      createdAt: NOW, createdBy: "sub-anna",
+      scopeLagerortId: null, zielTyp: null, zielId: null,
+    }).run();
+    t.db.insert(users).values(
+      { id: "sub-anna", name: "Anna Beispiel", email: null, lastLoginAt: NOW }).run();
+    t.db.insert(checks).values([
+      { id: "chk-konto", fahrzeugId: "rtw-1", quelleTyp: "oidc", quelleId: "sub-anna",
+        startedAt: NOW, completedAt: NOW, ergebnis: JSON.stringify(V2) },
+      { id: "chk-system", fahrzeugId: "rtw-1", quelleTyp: "system", quelleId: "boot",
+        startedAt: NOW, completedAt: NOW, ergebnis: JSON.stringify(V2) },
+    ]).run();
+
+    const nachId = new Map(checkHistorie(t.db).zeilen.map((z) => [z.id, z.wer]));
+    expect(nachId.get("chk-1")).toBe("Kärtchen RTW 1");
+    expect(nachId.get("chk-konto")).toBe("Anna Beispiel");
+    expect(nachId.get("chk-system")).toBe("System");
+    // Dieselbe Antwort auf der Detailseite — wer aus der Historie dorthin
+    // tippt, soll denselben Namen wiederfinden.
+    expect(checkDetail(t.db, "chk-konto", NOW)!.wer).toBe("Anna Beispiel");
+  });
+
+  /**
+   * ⚠️ „SOWEIT VORHANDEN" HEISST ROHE KENNUNG, NICHT EIN STRICH. Ein geloeschtes
+   * Kaertchen oder ein Konto aus dem alten Kennungsraum (§4.13) loest auf
+   * nichts auf; „unbekannt" liesse offen, ob niemand es weiss oder niemand es
+   * erfasst hat — die rohe Kennung ist wenigstens nachschlagbar.
+   */
+  it("faellt auf die rohe Kennung zurueck, wenn sie auf nichts auflöst", () => {
+    expect(checkHistorie(t.db).zeilen[0].wer).toBe("111-111");
   });
 
   it("filtert nach Fahrzeug und Zeitraum", () => {

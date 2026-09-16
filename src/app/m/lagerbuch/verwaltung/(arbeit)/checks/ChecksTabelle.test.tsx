@@ -22,6 +22,7 @@ const ZEILE: CheckAnzeigeZeile = {
   fahrzeugEinheitenart: "fahrzeug",
   abgeschlossenText: "7.8.2026, 12:00:00",
   abgeschlossenIso: "2026-08-07T10:00:00.000Z",
+  werText: "Anna Beispiel",
   ergebnisChips: [
     {
       schluessel: "nachgefuellt",
@@ -85,7 +86,9 @@ describe("ChecksTabelle", () => {
     await mount(<ChecksTabelle zeilen={[ZEILE]} leertext="Noch kein Check." />);
 
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
-      .toEqual(["Einheit", "Abgeschlossen", "Ergebnis", "Positionen"]);
+      // DRK-311: „Wer" steht neben dem Abschlusszeitpunkt — wann und von wem
+      // sind dieselbe Frage an dieselbe Zeile.
+      .toEqual(["Einheit", "Abgeschlossen", "Wer", "Ergebnis", "Positionen"]);
     const tabelle = query("table");
     expect(tabelle.getAttribute("aria-label")).toBe("Checks");
     const zeile = query("tr[data-row-key='check-42']");
@@ -95,6 +98,7 @@ describe("ChecksTabelle", () => {
     expect(query<HTMLAnchorElement>("a[href='/verwaltung/checks/check-42']").textContent)
       .toBe("RTW 1 · Fahrzeug · MS-1");
     expect(query(`.${s.jts}`).textContent).toBe("7.8.2026, 12:00:00");
+    expect(zeile.textContent).toContain("Anna Beispiel");
     expect(zeile.textContent).toContain("1 aus Handlager nachgefüllt");
     expect(zeile.textContent).toContain("2 korrigiert");
     expect(zeile.textContent).toContain("1 fehlt weiterhin");
@@ -143,6 +147,7 @@ describe("ChecksTabelle", () => {
       id: "check-august",
       abgeschlossenText: "7.8.2026, 12:00:00",
       abgeschlossenIso: "2026-08-07T10:00:00.000Z",
+  werText: "Anna Beispiel",
     };
     const oktober: CheckAnzeigeZeile = {
       ...ZEILE,

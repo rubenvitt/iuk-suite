@@ -11,6 +11,7 @@ import {
 const {
   adminRiegel,
   bewertungOverride,
+  protokoll,
   revalidiert,
 } = vi.hoisted(() => ({
   adminRiegel: vi.fn<() => Promise<unknown>>(),
@@ -22,11 +23,31 @@ const {
     },
   },
   revalidiert: [] as string[],
+  /** DRK-311, Reviewrunde 3 — die ausdruecklichen Protokollereignisse. */
+  protokoll: [] as { action: string; objectType: string; objectRef?: string }[],
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
 }));
+
+/**
+ * ⚠️ NUR `auditEvent` WIRD ABGEFANGEN, der Rest bleibt echt. `withAuditContext`
+ * und `auditActor` tragen den Akteur — waeren sie mitgefaelscht, pruefte der
+ * Test seine eigene Attrappe. Und `auditEvent` schluckt seine Fehler
+ * (`core/audit/server.ts`): ohne diesen Griff liefe ein fehlendes Ereignis
+ * unbemerkt durch, denn geschrieben wird es in die AUDIT-Datenbank, nicht in
+ * die Modul-Testdatenbank.
+ */
+vi.mock("@/core/audit/server", async (importOriginal) => {
+  const echt = await importOriginal<typeof import("@/core/audit/server")>();
+  return {
+    ...echt,
+    auditEvent: (ereignis: { action: string; objectType: string; objectRef?: string }) => {
+      protokoll.push(ereignis);
+    },
+  };
+});
 
 vi.mock("../_lib/zugang", () => ({
   requireLagerbuchAdmin: () => adminRiegel(),
@@ -47,6 +68,7 @@ vi.mock("../_lib/domain/bz", async (importOriginal) => {
 });
 
 import {
+  beachtungSetzen,
   geraetSpeichern,
   geraetZuBarcode,
   kontrolleErfassen,
@@ -68,6 +90,7 @@ let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
+  protokoll.length = 0;
   bewertungOverride.current = null;
   adminRiegel.mockResolvedValue(VIEWER);
   t = migrierteTestDb("lagerbuch-actions-bz-");
@@ -103,8 +126,14 @@ function kontrollZeilen() {
   return t.db.select().from(bzKontrollen).all();
 }
 
+/**
+ * ⚠️ DIE ERFASSUNGSSEITE GEHOERT DAZU (Reviewrunde 3). `/bz/<id>/kontrolle`
+ * liest die Geraetezeile — Referenzbereiche UND den Merker, ob schon ein
+ * Beachtungshinweis steht. Ohne sie bleibt das Formular nach „Beachtung: ja"
+ * auf dem alten Stand und behauptet weiter, es gebe keinen Hinweis.
+ */
 function erwartetePfade(id: string) {
-  return [LISTENPFAD, `${LISTENPFAD}/${id}`];
+  return [LISTENPFAD, `${LISTENPFAD}/${id}`, `${LISTENPFAD}/${id}/kontrolle`];
 }
 
 function sqliteAenderungen() {
@@ -138,10 +167,11 @@ async function geraetOhneBereiche(): Promise<string> {
 }
 
 describe("Bauform und Riegel", () => {
-  it("exportiert genau die vier bewachten Actions", async () => {
+  it("exportiert genau die fünf bewachten Actions", async () => {
     const mod = await import("./bz");
 
     expect(Object.keys(mod).sort()).toEqual([
+      "beachtungSetzen",
       "geraetSpeichern",
       "geraetZuBarcode",
       "kontrolleErfassen",
@@ -154,6 +184,7 @@ describe("Bauform und Riegel", () => {
     ["setGeraetAktiv", () => setGeraetAktiv({}, t.db)],
     ["geraetZuBarcode", () => geraetZuBarcode("BZ-1", t.db)],
     ["kontrolleErfassen", () => kontrolleErfassen({}, t.db)],
+    ["beachtungSetzen", () => beachtungSetzen({}, t.db)],
   ])("%s ruft den Admin-Riegel vor Validierung oder Datenzugriff auf", async (_name, aufruf) => {
     const riegelFehler = new Error("Riegel vor Eingabe und DB");
     adminRiegel.mockRejectedValueOnce(riegelFehler);
@@ -230,6 +261,11 @@ describe("geraetSpeichern", () => {
         level2Max: null,
         aktiv: false,
         createdAt,
+        // DRK-311: `geraetSpeichern` fasst die Beachtung NICHT an — sie hat
+        // ihre eigene Action. Stuenden die beiden Spalten in `felder`, loeschte
+        // jedes Speichern der Referenzbereiche still den Hinweis.
+        beachtungHinweis: null,
+        beachtungSeit: null,
       });
     expect(revalidiert).toEqual(erwartetePfade(id));
   });
@@ -646,5 +682,312 @@ describe("kontrolleErfassen", () => {
     expect(fehlerVon(erg).fehler).not.toContain("KONTROLLE_GEHEIMNIS");
     expect(kontrollZeilen()).toEqual([]);
     expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * DER AUFMERKSAMKEITSHINWEIS — DRK-311.
+ *
+ * ⚠️ DER GANZE ABSCHNITT PRUEFT EINE EINZIGE ENTSCHEIDUNG AUS ZWEI RICHTUNGEN:
+ * Beachtung ist ZUSTAND DES GERAETS, nicht Inhalt einer Kontrolle. Deshalb
+ * kann sie unabhaengig von einer Kontrolle aufgehoben werden — und deshalb
+ * hebt eine Kontrolle sie nicht still auf.
+ */
+describe("beachtungSetzen", () => {
+  function geraetZeile(id: string) {
+    return t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get()!;
+  }
+
+  it("setzt Hinweis und Zeitstempel und revalidiert beide Pfade", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "  Display flackert  " }, t.db);
+
+    expect(wertVon<{ erforderlich: boolean }>(erg)).toEqual({ erforderlich: true });
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert");
+    expect(zeile.beachtungSeit).toBeInstanceOf(Date);
+    expect(revalidiert).toEqual(erwartetePfade(id));
+  });
+
+  /** ⚠️ Die Standzeit ist die Zahl, an der auffaellt, dass sich niemand
+   *  kuemmert — ein praeziser formulierter Satz darf sie nicht zuruecksetzen. */
+  it("laesst beim Umformulieren den Zeitstempel stehen", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    const seit = geraetZeile(id).beachtungSeit;
+
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert beim Einschalten" }, t.db);
+
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert beim Einschalten");
+    expect(zeile.beachtungSeit?.getTime()).toBe(seit?.getTime());
+  });
+
+  /**
+   * ⚠️ DER EINZIGE WEG ZURUECK, und er liegt hier statt an der Kontrolle:
+   * `bz_kontrollen` ist append-only, ein Hinweis dort waere nur loszuwerden,
+   * indem jemand eine Kontrolle erfindet, die nie stattgefunden hat.
+   */
+  it("hebt bei leerem Hinweis auf und raeumt beide Spalten", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "   " }, t.db);
+
+    expect(wertVon<{ erforderlich: boolean }>(erg)).toEqual({ erforderlich: false });
+    expect(geraetZeile(id)).toMatchObject({
+      beachtungHinweis: null,
+      beachtungSeit: null,
+    });
+  });
+
+  /**
+   * DAS PROTOKOLL MUSS SETZEN UND AUFHEBEN UNTERSCHEIDEN — Reviewrunde 3.
+   *
+   * ⚠️ DER DATENBANK-TRIGGER KANN DAS NICHT. `audit_bz_geraete_update` schreibt
+   * `action: "update"`, `objectType: "bz_geraete"` — ununterscheidbar von einer
+   * Namensaenderung, und das Ereignisschema traegt keine Spaltenliste. Genau
+   * die Nachvollziehbarkeit war aber die Begruendung dafuer, die Beachtung ans
+   * Geraet zu haengen statt in die append-only Kontrolltabelle.
+   */
+  it("protokolliert das Setzen als update und das Aufheben als delete", async () => {
+    const id = await geraetOhneBereiche();
+    protokoll.length = 0;
+
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    await beachtungSetzen({ geraetId: id, hinweis: "" }, t.db);
+
+    expect(protokoll).toEqual([
+      { module: "lagerbuch", action: "update", objectType: "bz_beachtung",
+        objectRef: id, result: "success", origin: "server" },
+      { module: "lagerbuch", action: "delete", objectType: "bz_beachtung",
+        objectRef: id, result: "success", origin: "server" },
+    ]);
+  });
+
+  /**
+   * ⚠️ ZWEI PERSONEN AUF DEMSELBEN GERAETEBLATT — Reviewrunde 4. Eine hebt die
+   * Beachtung auf, die andere drueckt auf ihrem VERALTETEN Stand ebenfalls
+   * „Aufheben". Der zweite Klick legt `NULL` ueber `NULL`; schriebe er ein
+   * zweites `delete`, naennte das Protokoll als Urheberin die Person, die gar
+   * nichts mehr aufgehoben hat — falsch genau in dem Feld, wegen dessen dieses
+   * Ereignis existiert.
+   */
+  it("protokolliert ein folgenloses Aufheben NICHT", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    await beachtungSetzen({ geraetId: id, hinweis: "" }, t.db);
+    protokoll.length = 0;
+
+    await beachtungSetzen({ geraetId: id, hinweis: "" }, t.db);
+
+    expect(protokoll).toEqual([]);
+  });
+
+  /** Dieselbe Regel fuer den unveraenderten Text: wer denselben Satz noch
+   *  einmal speichert, hat nichts geaendert. */
+  it("protokolliert ein unveraendertes Umformulieren NICHT", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    protokoll.length = 0;
+
+    // Mit anderen Leerzeichen ringsum — `bzBeachtung` trimmt, es ist derselbe
+    // Hinweis.
+    await beachtungSetzen({ geraetId: id, hinweis: "  Display flackert  " }, t.db);
+
+    expect(protokoll).toEqual([]);
+    expect(geraetZeile(id).beachtungHinweis).toBe("Display flackert");
+  });
+
+  it("meldet ein unbekanntes Geraet, ohne etwas zu schreiben", async () => {
+    revalidiert.length = 0;
+    const vorher = sqliteAenderungen();
+
+    const erg = await beachtungSetzen({ geraetId: "gibtsnicht", hinweis: "x" }, t.db);
+
+    expect(erg).toEqual({ ok: false, fehler: "BZ-Gerät nicht gefunden." });
+    expect(sqliteAenderungen()).toBe(vorher);
+    expect(revalidiert).toEqual([]);
+    expect(protokoll).toEqual([]);
+  });
+
+  it("weist einen zu langen Hinweis als Feldfehler ab", async () => {
+    const id = await geraetOhneBereiche();
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "x".repeat(501) }, t.db);
+
+    expect(fehlerVon(erg).feldFehler?.hinweis)
+      .toBe("Hinweis ist zu lang (höchstens 500 Zeichen).");
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+  });
+
+  /** Die Gegenprobe zur Zeile darueber — genau auf der Grenze geht es durch. */
+  it("nimmt genau 500 Zeichen an", async () => {
+    const id = await geraetOhneBereiche();
+
+    const erg = await beachtungSetzen({ geraetId: id, hinweis: "x".repeat(500) }, t.db);
+
+    expect(wertVon<{ erforderlich: boolean }>(erg)).toEqual({ erforderlich: true });
+    expect(geraetZeile(id).beachtungHinweis).toHaveLength(500);
+  });
+});
+
+describe("kontrolleErfassen — Beachtung", () => {
+  function geraetZeile(id: string) {
+    return t.db.select().from(bzGeraete).where(eq(bzGeraete.id, id)).get()!;
+  }
+
+  it("setzt bei „ja“ den Kommentar als Hinweis ans Geraet", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
+      t.db,
+    );
+
+    /*
+     * ⚠️ DIE ERFASSUNGSSEITE MUSS MIT (Reviewrunde 3). Das Formular bleibt nach
+     * dem Speichern stehen; ohne diese Revalidierung sagt sein Erklaertext
+     * weiter „es gibt keinen Hinweis", und ein zweites „ja" ersetzt den gerade
+     * gesetzten Vermerk, ohne die Ersetzung anzukuendigen.
+     */
+    expect(revalidiert).toEqual(erwartetePfade(id));
+
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert");
+    expect(zeile.beachtungSeit).toBeInstanceOf(Date);
+    // Die Bemerkung steht zusaetzlich an der Kontrolle — der Nachweis behaelt
+    // seinen eigenen Text, der Zustand ist eine Kopie davon.
+    expect(kontrollZeilen()[0].kommentar).toBe("Display flackert");
+    // ⚠️ AUCH AUF DIESEM WEG ausdruecklich protokolliert — die Frage „wer hat
+    // den Hinweis gesetzt?" darf nicht davon abhaengen, ueber welches Formular
+    // es geschah.
+    expect(protokoll).toEqual([
+      { module: "lagerbuch", action: "update", objectType: "bz_beachtung",
+        objectRef: id, result: "success", origin: "server" },
+    ]);
+  });
+
+  /**
+   * ⚠️ DIE REGEL, DIE DAS TICKET ERZWINGT: kein gelber Status ohne
+   * verstaendlichen Hinweis. Und die Kontrolle darf dabei NICHT halb
+   * geschrieben sein — `bz_kontrollen` ist append-only, eine Zeile hier waere
+   * fuer immer da.
+   */
+  it("verweigert „ja“ ohne Kommentar, ohne die Kontrolle zu schreiben", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    const erg = await kontrolleErfassen({ geraetId: id, level1Wert: 1, beachtung: true }, t.db);
+
+    expect(fehlerVon(erg).feldFehler?.kommentar).toContain("Bitte kurz aufschreiben");
+    expect(kontrollZeilen()).toEqual([]);
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ „nein“ HEISST „ich habe nichts Neues zu melden", NICHT „das Vorherige hat
+   * sich erledigt". Eine turnusmaessige Kontrolle wuerde sonst still den
+   * Hinweis loeschen, den jemand anders letzte Woche gesetzt hat — und niemand
+   * merkte es, weil die Liste danach einfach wieder unauffaellig waere.
+   */
+  it("laesst bei „nein“ einen bestehenden Hinweis unangetastet", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    const seit = geraetZeile(id).beachtungSeit;
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Streifen nachbestellt", beachtung: false },
+      t.db,
+    );
+
+    const zeile = geraetZeile(id);
+    expect(zeile.beachtungHinweis).toBe("Display flackert");
+    expect(zeile.beachtungSeit?.getTime()).toBe(seit?.getTime());
+  });
+
+  /**
+   * ⚠️ DIE LAENGENGRENZE GILT AUF BEIDEN WEGEN (Review zu DRK-311). Der
+   * Kommentar einer Kontrolle kennt als Nachweisfeld keine Grenze — wird er
+   * aber zum Beachtungshinweis, gilt dieselbe Zahl wie in `beachtungSetzen`.
+   * Ohne diesen Riegel entstuende ein Hinweis, den das Geraeteblatt nicht mehr
+   * speichern kann, ohne ihn vorher zu kuerzen.
+   */
+  it("weist einen zu langen Kommentar ab, wenn er zum Hinweis werden soll", async () => {
+    const id = await geraetOhneBereiche();
+    revalidiert.length = 0;
+
+    const erg = await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "x".repeat(501), beachtung: true },
+      t.db,
+    );
+
+    expect(fehlerVon(erg).feldFehler?.kommentar)
+      .toBe("Hinweis ist zu lang (höchstens 500 Zeichen).");
+    // ⚠️ Die Kontrolle wird GAR NICHT erst geschrieben — `bz_kontrollen` ist
+    // append-only, ein halber Vorgang bliebe fuer immer stehen.
+    expect(kontrollZeilen()).toEqual([]);
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ UND DIE GEGENPROBE: OHNE Beachtung bleibt der Kommentar ungedeckelt. Er
+   * ist ein Nachweisfeld; was jemand ueber ein Medizinprodukt aufschreibt, wird
+   * nicht an einer Anzeigegrenze abgeschnitten.
+   */
+  it("laesst einen langen Kommentar ohne Beachtung unangetastet durch", async () => {
+    const id = await geraetOhneBereiche();
+
+    const erg = await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "x".repeat(501) },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(kontrollZeilen()[0].kommentar).toHaveLength(501);
+    expect(geraetZeile(id).beachtungHinweis).toBeNull();
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUR GESPRAECHSNOTIZ („Nicht jede Bemerkung automatisch
+   * als Warnung interpretieren"): ein Kommentar allein loest nichts aus.
+   */
+  /** ⚠️ Dieselbe Regel auf dem Kontrollweg (Reviewrunde 4). */
+  it("protokolliert „ja“ mit unveraendertem Hinweis NICHT", async () => {
+    const id = await geraetOhneBereiche();
+    await beachtungSetzen({ geraetId: id, hinweis: "Display flackert" }, t.db);
+    protokoll.length = 0;
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Display flackert", beachtung: true },
+      t.db,
+    );
+
+    expect(protokoll).toEqual([]);
+    // Die Kontrolle selbst ist trotzdem geschrieben — nur das Protokoll zur
+    // Beachtung schweigt, weil sich an ihr nichts geaendert hat.
+    expect(kontrollZeilen()).toHaveLength(1);
+  });
+
+  it("macht aus einem blossen Kommentar keine Beachtung", async () => {
+    const id = await geraetOhneBereiche();
+
+    await kontrolleErfassen(
+      { geraetId: id, level1Wert: 1, kommentar: "Streifen nachbestellt" },
+      t.db,
+    );
+
+    expect(geraetZeile(id)).toMatchObject({
+      beachtungHinweis: null,
+      beachtungSeit: null,
+    });
+    // ⚠️ KEIN Ereignis: es hat sich an der Beachtung nichts geaendert, und ein
+    // Protokoll voller Nichtereignisse ist eins, das niemand mehr durchsieht.
+    expect(protokoll).toEqual([]);
   });
 });

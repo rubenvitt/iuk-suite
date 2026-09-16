@@ -1,5 +1,5 @@
 "use server";
-import { withAuditContext, auditActor } from "@/core/audit/server";
+import { withAuditContext, auditActor, auditEvent } from "@/core/audit/server";
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -15,7 +15,8 @@ import {
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { normalisiereBarcode } from "../_lib/barcode";
 import { MONAT_REGEX } from "../_lib/konstanten";
-import { bewerteKontrolle } from "../_lib/domain/bz";
+import { BEACHTUNG_HINWEIS_MAX } from "../_lib/grenzen";
+import { beachtungsFelder, bewerteKontrolle, bzBeachtung } from "../_lib/domain/bz";
 import { bzGeraetByBarcode } from "../_lib/lesepfade/bz";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -54,7 +55,43 @@ const KontrolleSchema = z.object({
   lanzetten: z.coerce.number().int().min(0).max(9999).default(0),
   batterieGewechselt: z.coerce.boolean().default(false),
   kommentar: z.string().trim().optional(),
+  /**
+   * DRK-311. ⚠️ EIGENES FELD, NICHT AUS `kommentar` ABGELEITET. Die
+   * Gespraechsnotiz sagt „Nicht jede Bemerkung automatisch als Warnung
+   * interpretieren" — „Streifen nachbestellt" ist kein Missstand. Wer hier
+   * spart, macht aus jedem Kommentar einen gelben Status und aus dem gelben
+   * Status ein Rauschen, das niemand mehr liest.
+   */
+  beachtung: z.coerce.boolean().default(false),
 });
+
+/**
+ * ⚠️ DIESELBE GRENZE AUF BEIDEN WEGEN. Der Kommentar einer Kontrolle ist ein
+ * Nachweisfeld und bleibt ungedeckelt — sobald er aber als Beachtungshinweis
+ * ans Geraet wandert, gilt fuer ihn, was auch `beachtungSetzen` verlangt.
+ * Sonst schreibt der eine Weg einen Wert, den der andere nicht mehr annimmt.
+ *
+ * ⚠️ SIE STEHT VOR `BeachtungSchema`, und das ist keine Stilfrage: das Schema
+ * liest die Meldung beim IMPORT des Moduls. Eine Zeile weiter unten laege sie
+ * in der temporalen Totzone, und jeder Aufruf dieser Datei — alle fuenf Actions
+ * — endete in einem ReferenceError.
+ */
+const HINWEIS_ZU_LANG =
+  `Hinweis ist zu lang (höchstens ${BEACHTUNG_HINWEIS_MAX} Zeichen).`;
+
+/**
+ * ⚠️ EIN LEERER HINWEIS IST DAS AUFHEBEN, nicht ein Fehler. Das ist der ganze
+ * Weg zurueck: die Spalte traegt Zustand UND Begruendung in einem Feld
+ * (`_db/schema.ts`), also heisst „kein Text" genau „keine Beachtung mehr".
+ */
+const BeachtungSchema = z.object({
+  geraetId: z.string().min(1),
+  hinweis: z.string().trim().max(BEACHTUNG_HINWEIS_MAX, HINWEIS_ZU_LANG).optional(),
+});
+
+const BEACHTUNG_OHNE_TEXT =
+  "Bitte kurz aufschreiben, was zu beachten ist — ohne Hinweis ist der gelbe Status nicht zu verstehen.";
+
 
 type FehlerErgebnis = Extract<ActionErgebnis, { ok: false }>;
 
@@ -83,9 +120,80 @@ function orNull<T>(value: T | undefined): T | null {
   return value === undefined || value === "" ? null : value;
 }
 
+/**
+ * ⚠️ DIE ERFASSUNGSSEITE GEHOERT DAZU, UND ZWAR FUER JEDE DIESER ACTIONS
+ * (Reviewrunde 3). `/bz/<id>/kontrolle` liest die Geraetezeile: die
+ * Level-Beschriftungen samt Referenzbereichen UND seit DRK-311 den Merker, ob
+ * schon ein Beachtungshinweis steht. Sie stand hier nicht — mit zwei Folgen,
+ * von denen die zweite still ist:
+ *
+ *  * Nach „Beachtung erforderlich: ja" bleibt das Formular stehen und setzt
+ *    sich zurueck. Ohne diese Zeile behauptet der Erklaertext darunter
+ *    weiterhin, es gebe keinen Hinweis — und ein zweites „ja" ersetzt den
+ *    gerade erst gesetzten Vermerk, ohne die Ersetzung anzukuendigen.
+ *  * Wer die Referenzbereiche aendert, sieht auf der Erfassungsseite noch die
+ *    alten Grenzen in den Feldbeschriftungen, waehrend die Bewertung schon
+ *    gegen die neuen rechnet.
+ *
+ * Beides betrifft dieselbe Zeile, also gehoert der Pfad in den gemeinsamen
+ * Helfer und nicht in einen einzelnen Aufrufer.
+ */
 function revalidate(id: string) {
   revalidatePath(LISTENPFAD);
   revalidatePath(`${LISTENPFAD}/${id}`);
+  revalidatePath(`${LISTENPFAD}/${id}/kontrolle`);
+}
+
+/**
+ * DAS AUSDRUECKLICHE PROTOKOLLEREIGNIS ZUR BEACHTUNG — DRK-311, Reviewrunde 3.
+ *
+ * ⚠️ DER DATENBANK-TRIGGER ALLEIN BEANTWORTET DIE FRAGE NICHT. `audit_bz_geraete_update`
+ * schreibt `action: "update"`, `objectType: "bz_geraete"` — dieselbe Zeile wie
+ * bei einer Namensaenderung, einem neuen Referenzbereich oder dem
+ * Aktiv-Schalter. Das Ereignisschema traegt keine Spaltenliste
+ * (`core/audit/types.ts`), also ist aus dem Protokoll NICHT zu lesen, ob jemand
+ * einen Aufmerksamkeitshinweis gesetzt, umformuliert oder aufgehoben hat.
+ *
+ * Genau das war aber die Begruendung dafuer, die Beachtung ans GERAET zu haengen
+ * statt in die append-only Kontrolltabelle. Die Begruendung traegt erst mit
+ * diesem Ereignis; ohne es waere sie eine Behauptung gewesen.
+ *
+ * ⚠️ `delete` FUERS AUFHEBEN, `update` FUERS SETZEN UND UMFORMULIEREN. Die
+ * Aktionsliste ist fest (`AUDIT_ACTIONS`); „aufgehoben" ist unter ihnen am
+ * ehesten ein Loeschen, und es ist die Unterscheidung, die jemand beim
+ * Nachsehen wirklich braucht.
+ *
+ * ⚠️ DER HINWEISTEXT STEHT NICHT IM EREIGNIS. Das Protokoll fuehrt Objekte,
+ * keine Inhalte — und der Text kann ein Geraet beschreiben, das gerade jemand
+ * bemaengelt hat.
+ *
+ * ⚠️ NUR WENN SICH ETWAS AENDERT, und das ist keine Sparsamkeit, sondern
+ * Richtigkeit (Reviewrunde 4). Zwei Personen sehen dasselbe Geraeteblatt; eine
+ * hebt die Beachtung auf, die andere drueckt auf ihrem VERALTETEN Stand
+ * ebenfalls „Aufheben". Ohne diese Zeile schriebe der zweite Klick — der `NULL`
+ * ueber `NULL` legt — ein zweites `delete`, und das Protokoll nennt als
+ * Urheberin die Person, die gar nichts mehr aufgehoben hat. Die Antwort auf
+ * „wer war das?" waere dann falsch, und zwar genau in dem Feld, wegen dessen
+ * dieses Ereignis ueberhaupt existiert.
+ *
+ * Der Datenbank-Trigger macht es fuer seine Zeile schon richtig: sein `WHEN`
+ * vergleicht jede Spalte einzeln, ein UPDATE ohne Wertaenderung feuert ihn
+ * nicht. Das ausdrueckliche Ereignis muss dieselbe Regel selbst mitbringen.
+ */
+function protokolliereBeachtung(
+  geraetId: string,
+  vorher: string | null,
+  nachher: string | null,
+): void {
+  if (vorher === nachher) return;
+  auditEvent({
+    module: "lagerbuch",
+    action: nachher === null ? "delete" : "update",
+    objectType: "bz_beachtung",
+    objectRef: geraetId,
+    result: "success",
+    origin: "server",
+  });
 }
 
 function bzGeraetExistiert(db: DB, id: string): boolean {
@@ -260,31 +368,154 @@ export async function kontrolleErfassen(
         level2Max: geraet.level2Max,
       });
 
+      /**
+       * DRK-311: Beachtung VERLANGT einen Satz, und der Satz ist der Kommentar.
+       *
+       * ⚠️ DIE PRUEFUNG STEHT HIER UND NICHT IM SCHEMA, weil sie ZWEI Felder
+       * verbindet — `z.object` prueft jedes fuer sich, und ein `superRefine`
+       * darueber landete im Fehlerpfad ohne Feldbezug. So zeigt das Formular
+       * den Satz an der Stelle, an der er zu beheben ist.
+       *
+       * Ohne diesen Riegel entstuende genau der Zustand, den das Ticket
+       * ausschliesst: ein gelber Status ohne verstaendlichen Hinweis.
+       */
+      const beachtungsHinweis = orNull(v.kommentar);
+      if (v.beachtung && beachtungsHinweis === null) {
+        return {
+          ok: false,
+          fehler: BEACHTUNG_OHNE_TEXT,
+          feldFehler: { kommentar: BEACHTUNG_OHNE_TEXT },
+        };
+      }
+      /**
+       * ⚠️ UND DIE LAENGE, AUS DEMSELBEN GRUND. `KontrolleSchema.kommentar`
+       * deckelt nicht — als Nachweisfeld soll es das auch nicht. Hier wird der
+       * Kommentar aber zum Geraetezustand, und `beachtungSetzen` nimmt oberhalb
+       * dieser Grenze nichts mehr an: ohne diese Zeile entstuende ein Hinweis,
+       * den das Geraeteblatt nicht mehr speichern kann, ohne ihn zu kuerzen.
+       *
+       * ⚠️ DIE KONTROLLE WIRD GAR NICHT ERST GESCHRIEBEN. `bz_kontrollen` ist
+       * append-only — eine Zeile, deren Beachtung scheitert, bliebe fuer immer
+       * als halber Vorgang stehen.
+       */
+      if (v.beachtung && beachtungsHinweis !== null
+          && beachtungsHinweis.length > BEACHTUNG_HINWEIS_MAX) {
+        return {
+          ok: false,
+          fehler: HINWEIS_ZU_LANG,
+          feldFehler: { kommentar: HINWEIS_ZU_LANG },
+        };
+      }
+
       id = newId();
       bestanden = bewertung.bestanden;
-      db.insert(bzKontrollen).values({
-        id,
-        geraetId: geraet.id,
-        ts: new Date(),
-        quelleTyp: "oidc",
-        quelleId: viewer.sub,
-        level1Wert,
-        level1ImBereich: bewertung.level1ImBereich,
-        level2Wert,
-        level2ImBereich: bewertung.level2ImBereich,
-        kompresseVerfall: v.kompresseVerfall ?? null,
-        sticks: v.sticks,
-        lanzetten: v.lanzetten,
-        batterieGewechselt: v.batterieGewechselt,
-        kommentar: orNull(v.kommentar),
-        bestanden,
-        refSnapshot,
-      }).run();
+      const jetzt = new Date();
+      /**
+       * ⚠️ EINE TRANSAKTION UEBER BEIDE SCHREIBVORGAENGE. Die Kontrollzeile ist
+       * append-only: waere sie geschrieben und das nachfolgende UPDATE des
+       * Geraets schluege fehl, gaebe es einen Nachweis mit Bemerkung und kein
+       * Geraet, das darauf zeigt — und zurueckgenommen werden koennte die Zeile
+       * nie (0002).
+       */
+      db.transaction((tx) => {
+        tx.insert(bzKontrollen).values({
+          id,
+          geraetId: geraet.id,
+          ts: jetzt,
+          quelleTyp: "oidc",
+          quelleId: viewer.sub,
+          level1Wert,
+          level1ImBereich: bewertung.level1ImBereich,
+          level2Wert,
+          level2ImBereich: bewertung.level2ImBereich,
+          kompresseVerfall: v.kompresseVerfall ?? null,
+          sticks: v.sticks,
+          lanzetten: v.lanzetten,
+          batterieGewechselt: v.batterieGewechselt,
+          kommentar: beachtungsHinweis,
+          bestanden,
+          refSnapshot,
+        }).run();
+
+        /**
+         * ⚠️ NUR SETZEN, NIE AUFHEBEN. „Beachtung: nein" heisst hier „ich habe
+         * nichts Neues zu melden" — nicht „das Vorherige hat sich erledigt".
+         * Eine turnusmaessige Kontrolle wuerde sonst still den Hinweis
+         * loeschen, den jemand anders letzte Woche gesetzt hat, und niemand
+         * merkte es: die Liste waere danach einfach wieder unauffaellig.
+         * Aufgehoben wird ausdruecklich, am Geraet (`beachtungSetzen`).
+         */
+        if (!v.beachtung) return;
+        tx.update(bzGeraete)
+          .set(beachtungsFelder(geraet, beachtungsHinweis, jetzt))
+          .where(eq(bzGeraete.id, geraet.id))
+          .run();
+      });
+      /*
+       * ⚠️ NACH der Transaktion, nicht darin: `auditEvent` schluckt seine
+       * eigenen Fehler (`core/audit/server.ts`), aber ein Schreibvorgang
+       * innerhalb der offenen Transaktion haette an ihrer Rolle teilgenommen —
+       * ein Rollback nahm das Protokoll mit, und ein Protokoll, das mit der
+       * Sache verschwindet, die es bezeugen soll, ist keins.
+       */
+      // ⚠️ AUCH HIER NUR BEI EINER ECHTEN AENDERUNG: wer „ja" waehlt und
+      // denselben Satz noch einmal schreibt, hat nichts geaendert.
+      if (v.beachtung) {
+        protokolliereBeachtung(geraet.id, bzBeachtung(geraet).hinweis, beachtungsHinweis);
+      }
     } catch {
       return festerFehler("Kontrolle konnte nicht gespeichert werden.");
     }
 
     revalidate(v.geraetId);
     return { ok: true, wert: { id, bestanden } };
+  });
+}
+
+/**
+ * DIE BEACHTUNG SETZEN, UMFORMULIEREN ODER AUFHEBEN — DRK-311.
+ *
+ * ⚠️ EIN LEERER `hinweis` IST DAS AUFHEBEN. Damit gibt es genau einen Weg
+ * zurueck, und er liegt am Geraet: `bz_kontrollen` ist append-only (0002), ein
+ * Hinweis dort waere nur noch loszuwerden, indem jemand eine Kontrolle erfindet,
+ * die nie stattgefunden hat.
+ *
+ * ⚠️ DIE HERKUNFT STEHT NICHT IN DIESER TABELLE, UND DAS IST ABSICHT. Wer wann
+ * gesetzt oder aufgehoben hat, traegt der UPDATE-Trigger ins Zugriffsprotokoll
+ * (0011) — zwei eigene Spalten daneben waeren eine zweite, schlechtere Wahrheit
+ * ueber denselben Vorgang.
+ */
+export async function beachtungSetzen(
+  eingabe: unknown,
+  db: DB = getDb(),
+): Promise<ActionErgebnis<{ erforderlich: boolean }>> {
+  const viewer = await requireLagerbuchAdmin();
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ erforderlich: boolean }>> => {
+
+    const geparst = BeachtungSchema.safeParse(eingabe);
+    if (!geparst.success) return validierungsFehler(geparst.error);
+    const v = geparst.data;
+    const hinweis = orNull(v.hinweis);
+
+    try {
+      const geraet = db.select().from(bzGeraete)
+        .where(eq(bzGeraete.id, v.geraetId))
+        .get();
+      if (!geraet) return festerFehler(BZ_GERAET_FEHLER);
+
+      db.update(bzGeraete)
+        .set(beachtungsFelder(geraet, hinweis, new Date()))
+        .where(eq(bzGeraete.id, geraet.id))
+        .run();
+      // ⚠️ DER STAND VOR DEM SCHREIBEN, getrimmt wie der neue Wert — sonst
+      // verglichen sich „Display flackert" und " Display flackert " als
+      // verschieden und ergaeben ein Ereignis ohne Aenderung.
+      protokolliereBeachtung(geraet.id, bzBeachtung(geraet).hinweis, hinweis);
+    } catch {
+      return festerFehler("Beachtung konnte nicht gespeichert werden.");
+    }
+
+    revalidate(v.geraetId);
+    return { ok: true, wert: { erforderlich: hinweis !== null } };
   });
 }

@@ -126,6 +126,40 @@
 }
 
 /*
+ * FREITEXT IN EINER TABELLENZELLE BRAUCHT EINE BREITE — DRK-311, Reviewrunde 2.
+ *
+ * ⚠️ `Datentabelle` faehrt `scroll={{ x: "max-content" }}` (Vorgabe der Suite,
+ * `core/tabelle/masse.ts`). Die Tabelle ist damit so breit wie die BREITESTE
+ * Zelle es verlangt — und `bz_kontrollen.kommentar` ist ein Nachweisfeld ohne
+ * Laengengrenze. EIN langer Satz aus dem Altbestand schiebt alle folgenden
+ * Spalten aus dem Bild, und niemand sieht die Ursache: die Zeile sieht richtig
+ * aus, nur eben sehr weit rechts.
+ *
+ * ⚠️ NICHT `ellipsis: true` AN DER SPALTE. rc-table schaltet die ganze Tabelle
+ * dann auf `table-layout: fixed` (`lib/Table.js:426-442`, ausgeschrieben in
+ * `docs/design/README.md`) und verteilt ALLE Spalten gleichmaessig — das
+ * Desktop-Bild aendert sich, ohne dass irgendwo etwas ueberlaeuft. Eine Klasse
+ * an der ZELLE deckelt nur diese eine Spalte und laesst den Rest in Ruhe.
+ *
+ * ⚠️ GEDECKELT WIRD DIE ANZEIGE, NIE DER NACHWEIS. Der volle Text steht im
+ * `title` und ungekuerzt im Logbuch des Geraeteblatts.
+ *
+ * 320px und 3 Zeilen liegen auf keiner Skala des Moduls und sollen es nicht:
+ * es ist eine Lesebreite, kein Abstand.
+ */
+.zellentext {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  max-width: 320px;
+  /* Ein Wort ohne Leerzeichen — eine lange Seriennummer — sprengte den Deckel
+     sonst trotzdem, weil es nicht umbrechen kann. */
+  overflow-wrap: anywhere;
+}
+
+/*
  * DRK-339 — DIE ORTSWAHL IM AUSSONDERN-POPCONFIRM.
  *
  * ⚠️ EINE RADIO-ZEILE ERBT IHRE HOEHE NICHT VON `controlHeight`. antd leitet

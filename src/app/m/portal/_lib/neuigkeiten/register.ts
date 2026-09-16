@@ -29,6 +29,8 @@ import auffuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-0
 import schranknameEindeutig from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schrankname-eindeutig";
 import checkUndEntnahmeAngemeldet from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-und-entnahme-angemeldet";
 import taschenNebenFahrzeugen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-taschen-neben-fahrzeugen";
+import bzBemerkungUndBeachtung from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-bz-bemerkung-und-beachtung";
+import werHatGeprueft from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-wer-hat-geprueft";
 import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-aussondern-je-schrank";
 import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-ortsetiketten";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
@@ -93,6 +95,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   schranknameEindeutig,
   checkUndEntnahmeAngemeldet,
   taschenNebenFahrzeugen,
+  bzBemerkungUndBeachtung,
+  werHatGeprueft,
   aussondernJeSchrank,
   ortsetiketten,
   neuerNameSammelhaus,
