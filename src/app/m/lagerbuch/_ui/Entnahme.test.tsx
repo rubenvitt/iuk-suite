@@ -1,8 +1,52 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { mount, unmount, query, queryAll, exists, click } from "@/app/m/qr/_lib/test-dom";
+import type { HelferErgebnis } from "../_lib/actionTypen";
+/*
+ * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (DRK-375). Die Insel
+ * importiert `bucheEntnahmeHelfer` seit DRK-375 DIREKT — `AGENTS.md`/Falle 9:
+ * „Server Actions duerfen als einzige ueber die Grenze, aber direkt importiert,
+ * nicht als Prop durchgereicht." Ein Prop waere der bequemere Test, und genau
+ * deshalb steht hier der Mock: der Test folgt der Bauform, nicht umgekehrt.
+ * Dieselbe Form wie in `_ui/Auffuellen.test.tsx` (DRK-313).
+ *
+ * ⚠️ `vi.hoisted`, weil `vi.mock` an den Dateikopf gehoben wird — ein
+ * gewoehnliches Modulebenen-`const` waere zu diesem Zeitpunkt noch in der
+ * temporalen Totzone.
+ *
+ * ⚠️ OHNE DEN MOCK ZOEGE `_actions/buchung.ts` `better-sqlite3` und
+ * `next/headers` in diese jsdom-Umgebung.
+ */
+const { buchenSpion } = vi.hoisted(() => ({
+  buchenSpion: vi.fn<(eingabe: unknown) => Promise<unknown>>(),
+}));
+
+vi.mock("../_actions/buchung", () => ({
+  bucheEntnahmeHelfer: (eingabe: unknown) => buchenSpion(eingabe),
+}));
+
 import { Entnahme, type EntnahmeDetail } from "./Entnahme";
+
+/** Die Signatur, die die Insel von der Action erwartet — frueher der Prop-Typ
+ *  `BuchungsAktion`, heute die Form, auf die der Spion antwortet. */
+type Buchungseingabe = {
+  artikelId: string;
+  menge: number;
+  ziel: { art: "fahrzeug"; lagerortId: string } | { art: "verbrauch" };
+};
+
+/**
+ * Setzt die Antwort des gemockten Moduls und gibt den Spion zurueck. Steht an
+ * der Stelle, an der frueher `buchen={…}` im JSX stand — die Testkoerper
+ * lesen sich damit unveraendert.
+ */
+function antwortet(
+  f: (eingabe: Buchungseingabe) => Promise<HelferErgebnis<{ gebucht: number }>>,
+) {
+  buchenSpion.mockImplementation((eingabe) => f(eingabe as Buchungseingabe));
+  return buchenSpion;
+}
 
 const QUELLE = "src/app/m/lagerbuch/_ui/Entnahme.tsx";
 const STYLESHEET = "src/app/m/lagerbuch/_ui/helfer.module.css";
@@ -177,11 +221,22 @@ const ZIEL = "[data-rolle='entnahme-ziel']";
 
 afterEach(async () => {
   await unmount();
+  vi.clearAllMocks();
+});
+
+/**
+ * DIE VORGABEANTWORT — sie ersetzt das frueher ueberall wiederholte
+ * `buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}`. Tests, denen die
+ * Antwort gleich ist, sagen dazu nichts mehr; die uebrigen setzen sie mit
+ * `antwortet(...)` VOR dem `mount`.
+ */
+beforeEach(() => {
+  antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
 });
 
 describe("Entnahme — die Anzeige", () => {
   it("zeigt Name, Fach, Bestand und Einheit", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     expect(query("h1").textContent).toBe("Kompresse 10×10");
     expect(query("[data-rolle='fach']").textContent).toBe("A-01");
     expect(query("[data-rolle='bestand']").textContent).toContain("42");
@@ -189,7 +244,7 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("der Rueckweg behaelt sein stummes Zeichen neben sichtbarem Text", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     const link = query<HTMLAnchorElement>("a[href='/helfer']");
     const svg = query("a[href='/helfer'] svg");
     expect(svg.getAttribute("aria-hidden")).toBe("true");
@@ -198,7 +253,7 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("listet die Chargen mit Chip und Monatsangabe (FEFO)", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     const zeilen = queryAll("[data-rolle='charge-zeile']");
     expect(zeilen.length).toBe(2);
     expect(zeilen[1].textContent).toContain("L2");
@@ -230,7 +285,7 @@ describe("Entnahme — die Anzeige", () => {
     }
 
     it("zeigt je Charge, wo wie viel liegt", async () => {
-      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const orteZeileL2 = inZeile(zeilen[1], "[data-rolle='charge-orte']");
       /*
@@ -258,7 +313,7 @@ describe("Entnahme — die Anzeige", () => {
      * Hash-Form zu kennen.
      */
     it("nennt die Menge im HANDLAGER-BEREICH im Zahlenfeld — nicht die Gesamtmenge ueber alle Orte", async () => {
-      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
       const zeilen = queryAll("[data-rolle='charge-zeile']");
       const mengenfeld = inZeile(zeilen[1], "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("5");
@@ -285,7 +340,7 @@ describe("Entnahme — die Anzeige", () => {
           },
         ],
       };
-      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={detailNurFahrzeug} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={detailNurFahrzeug} />);
       const zeile = query("[data-rolle='charge-zeile']");
       const mengenfeld = inZeile(zeile, "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("0");
@@ -301,7 +356,7 @@ describe("Entnahme — die Anzeige", () => {
       // allein (das waere ein natives Tooltip-Aequivalent) und kein Element,
       // das erst eine Interaktion braucht — der Hinweis steht als GEWOEHNLICHER
       // Text sofort im DOM, ohne Klick oder Hover.
-      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
       const hinweis = query("[data-rolle='charge-zugangshinweis']");
       expect(hinweis.textContent).toContain("GF-Schrank");
       expect(hinweis.textContent).toContain("Zugang über LvD — anrufen");
@@ -312,7 +367,7 @@ describe("Entnahme — die Anzeige", () => {
     });
 
     it("nennt keinen Zugangshinweis fuer einen Ort ohne Hinweis (Handlager, RTW 1)", async () => {
-      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+      await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
       // Genau EIN Hinweis fuer zwei Chargen mit zusammen drei Orten (Handlager,
       // GF-Schrank, RTW 1), von denen nur einer (GF-Schrank) einen
       // Zugangshinweis traegt.
@@ -321,7 +376,7 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("der Chip traegt den Ton aus `ampelTon` — eine im Stylesheet DEKLARIERTE Klasse (§5.17)", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     const chips = queryAll("[data-rolle='charge-zeile'] [data-rolle='helfer-chip']");
     // ⚠️ Befund 18b: ohne diese Zeile fuehrt die Pruefung bei leerem
     // Trefferarray NULL Zusicherungen aus — benennt jemand das `data-rolle` um,
@@ -334,12 +389,12 @@ describe("Entnahme — die Anzeige", () => {
   });
 
   it("der Buchen-Knopf ist bei Bestand 0 deaktiviert", async () => {
+    antwortet(async () => ({ ok: true, wert: { gebucht: 0 } }));
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={{ ...DETAIL, bestand: 0, chargen: [] }}
-        buchen={async () => ({ ok: true, wert: { gebucht: 0 } })}
       />,
     );
     expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(true);
@@ -348,7 +403,7 @@ describe("Entnahme — die Anzeige", () => {
 
 describe("Entnahme — der ERFOLG", () => {
   it("volle Menge: gruener Chip mit Menge und Namen", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     await click(BUCHEN);
     const r = query(ERGEBNIS);
     // ⚠️ NICHT `toMatch(/\bok\b/)` wie im Plan: die Vitest-Klasse heisst
@@ -362,7 +417,8 @@ describe("Entnahme — der ERFOLG", () => {
   it("TEILMENGE: sagt ‚3 von 5 gebucht' — heute steht dort nur die kleinere Zahl", async () => {
     // §7.3: heute ein gruener Chip mit der KLEINEREN Zahl, ohne Hinweis. Der
     // Helfer legt fuenf Teile ins Fahrzeug und das Journal kennt drei.
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 3 } })} />);
+    antwortet(async () => ({ ok: true, wert: { gebucht: 3 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     for (let i = 0; i < 4; i++) await click(PLUS); // 1 → 5
     await click(BUCHEN);
     expect(query(ERGEBNIS).textContent).toBe("3 von 5 gebucht; mehr lag nicht im Handlager.");
@@ -371,7 +427,8 @@ describe("Entnahme — der ERFOLG", () => {
   });
 
   it("setzt die Menge nach einem Erfolg auf 1 zurueck", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 3 } })} />);
+    antwortet(async () => ({ ok: true, wert: { gebucht: 3 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     for (let i = 0; i < 2; i++) await click(PLUS);
     expect(query<HTMLInputElement>(MENGE).value).toBe("3");
     await click(BUCHEN);
@@ -384,16 +441,16 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // DER REGRESSIONSTEST gegen „Entnahme gebucht: 0 × X" mit Haekchen
     // (HelferEntnahme.tsx:26-27, :55 `chip chip-ok`). Ein 200, das luegt, ist
     // der teuerste Zustand der Tabelle.
+    antwortet(async () => ({
+      ok: false,
+      grund: "leer",
+      text: "Im Handlager liegt nichts mehr von Kompresse 10×10. Bitte der Verwaltung melden.",
+    }));
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({
-          ok: false,
-          grund: "leer",
-          text: "Im Handlager liegt nichts mehr von Kompresse 10×10. Bitte der Verwaltung melden.",
-        })}
       />,
     );
     await click(BUCHEN);
@@ -413,16 +470,16 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
   it("`gesperrt` zeigt den Text und KEINEN Weg zurueck aufs Gate", async () => {
     // Ein erneutes Einloesen desselben Codes scheitert genauso; einen Weg
     // anzubieten, der nicht helfen kann, ist schlimmer als keiner (§7.4.4).
+    antwortet(async () => ({
+      ok: false,
+      grund: "gesperrt",
+      text: "Dieses Kärtchen wurde gesperrt. Die Buchung wurde nicht gespeichert.",
+    }));
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({
-          ok: false,
-          grund: "gesperrt",
-          text: "Dieses Kärtchen wurde gesperrt. Die Buchung wurde nicht gespeichert.",
-        })}
       />,
     );
     await click(BUCHEN);
@@ -437,16 +494,16 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
   });
 
   it("`sitzung` zeigt den Text und schickt zum Gate — ohne die Menge zu verwerfen", async () => {
+    antwortet(async () => ({
+      ok: false,
+      grund: "sitzung",
+      text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut — deine Eingaben bleiben stehen.",
+    }));
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({
-          ok: false,
-          grund: "sitzung",
-          text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut — deine Eingaben bleiben stehen.",
-        })}
       />,
     );
     for (let i = 0; i < 2; i++) await click(PLUS);
@@ -465,16 +522,16 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
      * dort einen Code — den eine angemeldete Person nie hatte. Eine Sackgasse,
      * gefunden von der Codex-Review zu PR #164.
      */
+    antwortet(async () => ({
+      ok: false as const,
+      grund: "sitzung" as const,
+      text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut — deine Eingaben bleiben stehen.",
+    }));
     await mount(
       <Entnahme
         kontoZugang
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({
-          ok: false as const,
-          grund: "sitzung" as const,
-          text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut — deine Eingaben bleiben stehen.",
-        })}
       />,
     );
     await click(BUCHEN);
@@ -490,12 +547,12 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
   it("DRK-305 — angemeldet bleibt jeder ANDERE Grund unverändert", async () => {
     // Die Umleitung gilt genau für `sitzung`. Ein `leer` oder `eingabe` hat mit
     // der Herkunft nichts zu tun, und sein Satz stammt weiter vom Server.
+    antwortet(async () => ({ ok: false as const, grund: "leer" as const, text: "Nichts mehr da." }));
     await mount(
       <Entnahme
         kontoZugang
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({ ok: false as const, grund: "leer" as const, text: "Nichts mehr da." })}
       />,
     );
     await click(BUCHEN);
@@ -509,16 +566,16 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // unvollstaendig. `darfErneuern("eingabe")` ist false — eine unvollstaendige
     // Nutzlast wird nicht dadurch vollstaendig, dass jemand die Sitzung
     // erneuert. Die Insel formuliert nichts neu; der `text` traegt die Botschaft.
+    antwortet(async () => ({
+      ok: false,
+      grund: "eingabe",
+      text: "Die Angaben waren unvollständig. Bitte die Seite neu laden und erneut buchen.",
+    }));
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({
-          ok: false,
-          grund: "eingabe",
-          text: "Die Angaben waren unvollständig. Bitte die Seite neu laden und erneut buchen.",
-        })}
       />,
     );
     await click(BUCHEN);
@@ -533,7 +590,8 @@ describe("Entnahme — die Fehlerlagen (§7.3)", () => {
     // Falle 62: HelferEntnahme.tsx:22-30 hat KEIN catch — der Wurf schlaegt bis
     // zur Fehlerseite durch, und in Produktion steht dort ein ENGLISCHER Satz
     // (Falle 66).
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => { throw new Error("offline"); }} />);
+    antwortet(async () => { throw new Error("offline"); });
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
     for (let i = 0; i < 4; i++) await click(PLUS);
     await click(BUCHEN);
     expect(query(ERGEBNIS).textContent).toBe("Keine Verbindung. Die Buchung wurde nicht gespeichert.");
@@ -575,16 +633,16 @@ describe("Entnahme — die Rueckmeldung ist ganz lesbar (Review-Befund 1)", () =
     // weiss, dass die Ueberschreibung neu zu bewerten ist.
     expect(chip.get("white-space")).toBe("nowrap");
 
+    antwortet(async () => ({
+      ok: false,
+      grund: "leer",
+      text: "Im Handlager liegt nichts mehr von Kompresse 10×10. Bitte der Verwaltung melden.",
+    }));
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async () => ({
-          ok: false,
-          grund: "leer",
-          text: "Im Handlager liegt nichts mehr von Kompresse 10×10. Bitte der Verwaltung melden.",
-        })}
       />,
     );
     await click(BUCHEN);
@@ -619,7 +677,7 @@ describe("Entnahme — Bauform", () => {
    * Handlager, und kein Gate würde rot.
    */
   it("OHNE Ziel ist der Buchen-Knopf gesperrt — trotz Bestand", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} />);
 
     // ⚠️ `DETAIL.bestand` ist 42. Ohne diese Zeile wäre der Test auch dann
     // grün, wenn der Knopf nur wegen leeren Bestands gesperrt wäre.
@@ -649,7 +707,6 @@ describe("Entnahme — Bauform", () => {
         kontoZugang={false}
         ziel={RTW}
         detail={DETAIL}
-        buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}
       />,
     );
     expect(query(ZIEL).textContent).toContain("RTW 1 · Fahrzeug · MS-1");
@@ -663,7 +720,6 @@ describe("Entnahme — Bauform", () => {
           kennung: null, einheitenart: "tasche",
         }}
         detail={DETAIL}
-        buchen={async () => ({ ok: true, wert: { gebucht: 1 } })}
       />,
     );
     expect(query(ZIEL).textContent).toContain("Rucksack Betreuung · Tasche");
@@ -672,12 +728,12 @@ describe("Entnahme — Bauform", () => {
 
   it("zeigt das gewählte Fahrzeug über dem Knopf und gibt es an die Buchung weiter", async () => {
     const gesehen: unknown[] = [];
+    antwortet(async (e) => { gesehen.push(e); return { ok: true, wert: { gebucht: 1 } }; });
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={RTW}
         detail={DETAIL}
-        buchen={async (e) => { gesehen.push(e); return { ok: true, wert: { gebucht: 1 } }; }}
       />,
     );
 
@@ -695,8 +751,9 @@ describe("Entnahme — Bauform", () => {
   });
 
   it("nennt das Fahrzeug in der Erfolgsmeldung", async () => {
+    antwortet(async () => ({ ok: true, wert: { gebucht: 2 } }));
     await mount(
-      <Entnahme kontoZugang={false} ziel={RTW} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 2 } })} />,
+      <Entnahme kontoZugang={false} ziel={RTW} detail={DETAIL} />,
     );
     await click(BUCHEN);
     // Der Beleg am Telefon: was ist wohin gegangen. Ohne das Fahrzeug im Satz
@@ -706,12 +763,12 @@ describe("Entnahme — Bauform", () => {
 
   it("mit ausdrücklichem Verbrauch bucht es ohne Fahrzeug — und sagt das auch", async () => {
     const gesehen: unknown[] = [];
+    antwortet(async (e) => { gesehen.push(e); return { ok: true, wert: { gebucht: 1 } }; });
     await mount(
       <Entnahme
         kontoZugang={false}
         ziel={VERBRAUCH}
         detail={DETAIL}
-        buchen={async (e) => { gesehen.push(e); return { ok: true, wert: { gebucht: 1 } }; }}
       />,
     );
     expect(query<HTMLButtonElement>(BUCHEN).disabled).toBe(false);
@@ -720,7 +777,7 @@ describe("Entnahme — Bauform", () => {
   });
 
   it("der Weg zur Zielwahl kehrt zu DIESEM Artikel zurück", async () => {
-    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} buchen={async () => ({ ok: true, wert: { gebucht: 1 } })} />);
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
 
     const link = query<HTMLAnchorElement>(`${ZIEL} a`);
     // ÄUSSERE Pfade (Falle 63): ein innerer würde auf dem Modul-Host doppelt
@@ -729,13 +786,23 @@ describe("Entnahme — Bauform", () => {
     expect(link.getAttribute("href")).toBe("/helfer/ziel?returnTo=%2Fa%2Fart-1");
   });
 
-  it("importiert die Action NICHT, sie kommt als Prop", () => {
-    // `_actions/buchung.ts` gehoert Teil 5 (H7). Als Prop ist diese Insel
-    // vollstaendig, testbar und gruen; der eine Import liegt in T83.
-    //
-    // ⚠️ Befund 1: `ohneKommentare()`, sonst trifft der Scan den Kopfkommentar
-    // der geprueften Datei — also seine eigene Begruendung.
-    expect(ohneKommentare(readFileSync(QUELLE, "utf8"))).not.toMatch(/_actions\/buchung/);
+  /**
+   * ⚠️ DIESER SCAN STAND EINMAL ANDERSHERUM (DRK-375). Bis dahin sicherte er
+   * zu, dass die Insel `_actions/buchung` NICHT importiert — mit der
+   * Begruendung, die Datei gehoere einem SPAETER laufenden Plan (Teil 5, H7).
+   * Diese Begruendung ist abgelaufen, und Falle 9 (`AGENTS.md`/`CLAUDE.md`)
+   * verlangt das Gegenteil: „Server Actions duerfen als einzige ueber die
+   * Grenze — aber direkt importiert, nicht als Prop durchgereicht."
+   *
+   * ⚠️ Befund 1: `ohneKommentare()`, sonst trifft der Scan den Kopfkommentar
+   * der geprueften Datei — der beide Formen NENNT, weil er die Entscheidung
+   * begruendet. Auf dem Rohtext waere die zweite Zusicherung still falsch
+   * gruen.
+   */
+  it("importiert die Action direkt und nimmt sie NICHT als Prop", () => {
+    const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    expect(q).toMatch(/import \{ bucheEntnahmeHelfer \} from "\.\.\/_actions\/buchung"/);
+    expect(q, "kein `buchen`-Prop mehr").not.toMatch(/\bbuchen[?]?:/);
   });
 
   it("faengt JEDEN Action-Aufruf in try/catch", () => {
@@ -743,9 +810,9 @@ describe("Entnahme — Bauform", () => {
     // gefangen"). Dieser Scan haelt einen anderen Fall: einen ZWEITEN
     // Aufrufort, den kein DOM-Test erreicht.
     const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
-    const aufrufe = q.match(/\bbuchen\(/g) ?? [];
+    const aufrufe = q.match(/\bbucheEntnahmeHelfer\(/g) ?? [];
     expect(aufrufe.length).toBe(1);
-    expect(q).toMatch(/try \{[\s\S]*?await buchen\([\s\S]*?\} catch/);
+    expect(q).toMatch(/try \{[\s\S]*?await bucheEntnahmeHelfer\([\s\S]*?\} catch/);
   });
 
   it("ist eine Client-Insel ohne antd, ohne lucide, ohne Plakette", () => {
