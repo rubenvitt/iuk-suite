@@ -5,7 +5,9 @@ import Link from "next/link";
 import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
-import { NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund } from "../_lib/actionTypen";
+import {
+  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund,
+} from "../_lib/actionTypen";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
@@ -83,11 +85,27 @@ export function Entnahme({
   detail,
   ziel,
   buchen,
+  kontoZugang,
 }: {
   detail: EntnahmeDetail;
   /** `null` = noch nichts gewählt; dann wird NICHT gebucht (DRK-300). */
   ziel: ZielAnzeige | null;
   buchen: BuchungsAktion;
+  /**
+   * DIE HERKUNFT DES ZUGANGS — DRK-305: `true` heißt „angemeldetes Konto, kein
+   * Kärtchen".
+   *
+   * ⚠️ SIE ENTSCHEIDET DEN RÜCKWEG, und ohne sie ist er eine Sackgasse: fällt
+   * der Zugang aus, gibt der Server den Kärtchen-Grund `sitzung` zurück — er
+   * kann die Herkunft nicht unterscheiden (`_lib/helferZugang.ts`) —, und der
+   * Weg darunter führte aufs Gate, wo ein Code verlangt wird, den eine
+   * angemeldete Person nicht hat. Die Seite kennt die Herkunft, weil sie mit ihr
+   * gerendert hat. Gefunden hat das die Codex-Review zu PR #164.
+   *
+   * PFLICHT-PROP: ein vergessenes `kontoZugang?` wäre still `undefined` und
+   * damit „Kärtchen" — also genau der Defekt.
+   */
+  kontoZugang: boolean;
 }) {
   const [menge, setMenge] = useState(1);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
@@ -231,7 +249,12 @@ export function Entnahme({
                 data-rolle="entnahme-ergebnis"
                 role="status"
               >
-                {rueck.text}
+                {/*
+                  DRK-305: `RIEGEL_TEXTE.sitzung` lautet wörtlich „Scanne das
+                  Kärtchen erneut". Für eine angemeldete Person ist das falsch,
+                  und der Server kann es nicht wissen — die Seite schon.
+                */}
+                {kontoZugang && rueck.grund === "sitzung" ? ANMELDUNG_TEXT : rueck.text}
               </span>
               {/*
                 Bei `sitzung` fuehrt der Weg zurueck aufs Gate — MIT `returnTo`,
@@ -241,13 +264,30 @@ export function Entnahme({
                 den ein Seitenwechsel verwuerfe — nur eine Zahl, und die bleibt
                 stehen.
               */}
-              {rueck.grund === "sitzung" && (
+              {rueck.grund === "sitzung" && !kontoZugang && (
                 <Link
                   className={s.rueckweg}
                   href={`/?returnTo=${encodeURIComponent(`/a/${detail.id}`)}`}
                   data-rolle="entnahme-zum-gate"
                 >
                   Kärtchen erneut eingeben
+                </Link>
+              )}
+              {/*
+                DRK-305 — derselbe Ausfall, anderer Rückweg. Kein `returnTo`
+                aufs Gate: dort steht ein Zahlenfeld für ein Kärtchen, das diese
+                Person nicht hat. Der Weg in die Verwaltung löst die Anmeldung
+                aus; die eingetippte Menge ist eine Zahl und schnell wieder
+                gesetzt, deshalb hier KEIN neuer Tab (anders als im Check, wo
+                der ganze Zählstand im Client liegt).
+              */}
+              {rueck.grund === "sitzung" && kontoZugang && (
+                <Link
+                  className={s.rueckweg}
+                  href="/verwaltung"
+                  data-rolle="entnahme-zur-anmeldung"
+                >
+                  Erneut anmelden
                 </Link>
               )}
             </>

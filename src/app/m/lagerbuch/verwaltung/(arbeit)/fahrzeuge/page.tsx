@@ -7,6 +7,7 @@ import {
 import { fmtDatumZeit } from "../../../_lib/zeit";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "./ChecklisteKnopf";
+import { CheckDurchfuehrenKnopf } from "./CheckDurchfuehrenKnopf";
 import {
   FahrzeugeListe,
   type FahrzeugAnzeigeZeile,
@@ -73,7 +74,18 @@ export function fahrzeugeSeitenInhalt(db: DB, jetzt: Date): ReactNode {
       <SeitenKopf
         titel="Fahrzeuge und Taschen"
         beschreibung="Fahrzeuge und Taschen mit Soll-Abgleich und Verfallsmeldungen aus ihren Checks."
-        aktionen={<ChecklisteKnopf beschriftung="Checklisten drucken" />}
+        aktionen={(
+          <>
+            {/*
+              DER ÜBERGREIFENDE EINSTIEG — DRK-305. OHNE `fahrzeugId`: von hier
+              führt der Weg auf die Einheitenwahl, nicht auf eine einzelne
+              Einheit. Genau dafür ist das Ticket geschrieben — wer angemeldet
+              prüft, ist nicht auf die gescannte Einheit beschränkt.
+            */}
+            <CheckDurchfuehrenKnopf beschriftung="Check durchführen" />
+            <ChecklisteKnopf beschriftung="Checklisten drucken" />
+          </>
+        )}
       />
       <FahrzeugeListe zeilen={zeilen} />
     </>

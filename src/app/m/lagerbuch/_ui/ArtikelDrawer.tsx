@@ -23,7 +23,7 @@ import {
 import { Datentabelle, nachRang, nachText, nachZahl } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
-import { bucheEntnahme, bucheZugang } from "../_actions/buchung";
+import { bucheEntnahme, bucheUmlagerung, bucheZugang } from "../_actions/buchung";
 import {
   getDetail,
   type ArtikelDetailBuchung,
@@ -50,6 +50,12 @@ import { Plakette } from "./Plakette";
 import styles from "./verwaltung.module.css";
 
 export const NEUE_CHARGE = "__neu__";
+
+/**
+ * Wo eine Meldung HINGEHOERT. Der Drawer ist lang; ein Fehler aus dem
+ * Umlagern-Formular gehoert an dieses Formular, nicht 900px darueber.
+ */
+type Meldungsquelle = "allgemein" | "zugang" | "entnahme" | "umlagern";
 const MINDEST_DEBOUNCE_MS = 400;
 
 /** Rot vor gelb vor gruen: was Aufmerksamkeit verlangt, gehoert nach oben. */
@@ -105,6 +111,15 @@ type EntnahmeWerte = {
   kommentar?: string;
 };
 
+/** DRK-338 — beide Enden sind Orte des Handlagers, die Charge ist Pflicht. */
+type UmlagerWerte = {
+  chargeId: string;
+  vonLagerortId: string;
+  nachLagerortId: string;
+  menge: number;
+  kommentar?: string;
+};
+
 type ArtikelPatch = Partial<{
   mindestbestand: number;
   fach: string;
@@ -128,11 +143,11 @@ export function ArtikelDrawer({
    * alles Uebrige (Laden, Stammdaten, Loeschen) bleibt oben.
    */
   const [meldung, setMeldung] = useState<
-    { text: string; quelle: "allgemein" | "zugang" | "entnahme" } | null
+    { text: string; quelle: Meldungsquelle } | null
   >(null);
   function setFehler(
     text: string | null,
-    quelle: "allgemein" | "zugang" | "entnahme" = "allgemein",
+    quelle: Meldungsquelle = "allgemein",
   ): void {
     setMeldung(text === null ? null : { text, quelle });
   }
@@ -149,8 +164,11 @@ export function ArtikelDrawer({
   const offeneMutationen = useRef(0);
   const [zugangForm] = Form.useForm<ZugangWerte>();
   const [entnahmeForm] = Form.useForm<EntnahmeWerte>();
+  const [umlagerForm] = Form.useForm<UmlagerWerte>();
   const ausgewaehlteCharge =
     Form.useWatch("chargeId", zugangForm) ?? NEUE_CHARGE;
+  const umlagerCharge = Form.useWatch("chargeId", umlagerForm);
+  const umlagerVon = Form.useWatch("vonLagerortId", umlagerForm);
 
   const laden = useCallback(async (): Promise<boolean> => {
     const generation = ++ladeGeneration.current;
@@ -389,6 +407,82 @@ export function ArtikelDrawer({
       }
     });
   }
+
+  async function umlagern(werte: UmlagerWerte): Promise<void> {
+    const kommentar = werte.kommentar?.trim();
+    const eingabe = {
+      artikelId: id,
+      chargeId: werte.chargeId,
+      vonLagerortId: werte.vonLagerortId,
+      nachLagerortId: werte.nachLagerortId,
+      menge: werte.menge,
+      ...(kommentar ? { kommentar } : {}),
+    };
+
+    await mutationSerialisieren(async () => {
+      setFehler(null);
+      try {
+        const ergebnis = await bucheUmlagerung(eingabe);
+        if (!ergebnis.ok) {
+          setFehler(ergebnis.fehler, "umlagern");
+          return;
+        }
+        await laden();
+        umlagerForm.resetFields();
+      } catch {
+        setFehler("Umlagerung konnte nicht gebucht werden.", "umlagern");
+      }
+    });
+  }
+
+  /**
+   * DRK-338 — DIE BRAUCHBAREN QUELLORTE EINER CHARGE, und das ist EINE Regel
+   * fuer ZWEI Listen: welche Chargen angeboten werden und welche Quellorte.
+   *
+   * ⚠️ DASS ES EINE EINZIGE REGEL IST, IST DER EIGENTLICHE FIX (Review-Befunde
+   * Codex P2 zu PR #161, zweiter und vierter). Erst hing sie nur an der
+   * Charge — dann bot eine Charge, die ueber EINEN Ort wandern kann, ihre
+   * uebrigen Orte trotzdem an: liegt sie an der Wurzel UND in einem
+   * stillgelegten Schrank, waehrend kein Schrank aktiv ist, taugt der Schrank
+   * als Quelle (Ziel: die Wurzel) und die Wurzel nicht (es gibt kein zweites
+   * aktives Ziel). Zwei Listen mit zwei Regeln liefen genau hier auseinander.
+   *
+   * Drei Bedingungen, alle drei fachlich:
+   *
+   * 1. Der Ort gehoert zum HANDLAGER-BEREICH. `charge.orte` fuehrt auch
+   *    Fahrzeuge mit („Schrank 1: 5 · RTW 1: 7"); umgelagert wird hier aber
+   *    ausschliesslich innerhalb des Handlagers, damit dessen Summe gleich
+   *    bleibt.
+   * 2. An dem Ort liegt etwas VON DIESER Charge — aus einem Schrank, in dem
+   *    nichts davon liegt, kann nichts wandern. Das ist `charge.orte` selbst.
+   * 3. Es gibt ein ANDERES aktives Ziel. Sonst filtert „Nach" den gewaehlten
+   *    Quellort heraus und steht leer da: ein Formular, das sich oeffnen laesst
+   *    und nicht absenden.
+   *
+   * ⚠️ Bedingung 3 ist NICHT „mindestens zwei Orte im Bereich": die Quellen
+   * schliessen stillgelegte Schraenke ein (genau dafuer gibt es sie), die Ziele
+   * nicht. Die Abkuerzung waere wahr fuer den Fall, der scheitert, und falsch
+   * fuer den, der tragen muss.
+   */
+  const handlagerOrtSet = new Set(detail?.handlagerOrtIds ?? []);
+  const quellenVon = (charge: ArtikelDetailCharge | undefined) =>
+    (charge?.orte ?? []).filter((ort) =>
+      handlagerOrtSet.has(ort.id)
+      && (detail?.zielOrte ?? []).some((ziel) => ziel.id !== ort.id));
+
+  const umlagerQuellen = quellenVon(
+    detail?.chargen.find((charge) => charge.id === umlagerCharge),
+  );
+  const umlagerQuelle = umlagerQuellen.find((ort) => ort.id === umlagerVon);
+
+  /** Chargen, von denen im Handlager ueberhaupt etwas liegt — ohne Ruecksicht
+   *  darauf, ob es von dort aus weitergeht. Traegt allein den Leer-Satz. */
+  const chargenImHandlager = (detail?.chargen ?? [])
+    .filter((charge) => charge.orte.some((ort) => handlagerOrtSet.has(ort.id)));
+
+  /** Und die, fuer die es wirklich einen Weg gibt — dieselbe Regel wie oben. */
+  const umlagerChargen = (detail?.chargen ?? [])
+    .filter((charge) => quellenVon(charge).length > 0);
 
   const chargeOptionen = detail
     ? [
@@ -711,6 +805,153 @@ export function ArtikelDrawer({
             </Abschnitt>
           </div>
 
+          {/*
+            DRK-338 — DAS UMLAGERN STEHT UEBER DER CHARGENTABELLE UND NICHT IM
+            Raster daneben: es liest sich aus derselben Tabelle („Liegt in:
+            Schrank 1: 5 · GF-Schrank: 3"), die direkt darunter steht. Zwei
+            Spalten waeren hier ausserdem eng — das Formular traegt fuenf
+            Felder, Zugang und Entnahme drei bzw. vier.
+          */}
+          <Abschnitt titel="Umlagern im Handlager">
+            {/*
+              ⚠️ ZWEI VERSCHIEDENE LEEREN, ZWEI VERSCHIEDENE SAETZE. „Es liegt
+              nichts da" und „es gibt keinen zweiten Ort" verlangen
+              unterschiedliche Handgriffe; ein gemeinsamer Satz schickte die
+              Haelfte der Leser an die falsche Stelle.
+            */}
+            {umlagerChargen.length === 0 ? (
+              <div style={SCHRIFT.neben}>
+                {chargenImHandlager.length === 0
+                  ? "Von diesem Artikel liegt im Handlager nichts, das sich umlagern ließe."
+                  : "Es gibt im Handlager keinen zweiten aktiven Ort, in den dieses Material "
+                    + "wandern könnte. Lege unter „Lagerorte“ einen Schrank an oder nimm einen "
+                    + "stillgelegten wieder in Betrieb."}
+              </div>
+            ) : (
+              <Form<UmlagerWerte>
+                form={umlagerForm}
+                layout="vertical"
+                disabled={busy}
+                initialValues={{ menge: 1 }}
+                onFinish={(werte) => { void umlagern(werte); }}
+                data-rolle="umlager-form"
+              >
+                <div className={styles.umlagerfelder}>
+                  <Form.Item name="chargeId" label="Charge" rules={[{ required: true }]}>
+                    <Select
+                      aria-label="Umlagerung Charge"
+                      showSearch
+                      filterOption={zielFilter}
+                      options={umlagerChargen.map((charge) => ({
+                        value: charge.id,
+                        label: `${charge.chargenNr} · ${fmtVerfall(charge.verfall)}`,
+                        keywords: charge.chargenNr,
+                      }))}
+                      virtual={false}
+                      /*
+                       * ⚠️ QUELLE UND MENGE MUESSEN MIT. Beide haengen an der
+                       * Charge: ein stehengebliebener Schrank waere nach dem
+                       * Wechsel eine Quelle, an der diese Charge gar nicht
+                       * liegt — und die Menge eine, die es dort nicht gibt. Der
+                       * Server faengt beides ab, aber erst nach dem Absenden.
+                       */
+                      onChange={() => umlagerForm.setFieldsValue({
+                        vonLagerortId: undefined, menge: 1,
+                      })}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="vonLagerortId"
+                    label="Von"
+                    rules={[{ required: true, message: "Bitte den Quellort wählen" }]}
+                  >
+                    <Select
+                      aria-label="Von"
+                      disabled={!umlagerCharge}
+                      placeholder={umlagerCharge ? undefined : "Erst die Charge wählen"}
+                      options={umlagerQuellen.map((ort) => ({
+                        value: ort.id,
+                        label: `${ort.name} · ${ort.menge} ${detail.artikel.einheit}`,
+                      }))}
+                      /*
+                       * ⚠️ DAS ZIEL MUSS MIT — EIN FELD AUS DER AUSWAHL ZU
+                       * NEHMEN LOESCHT SEINEN WERT NICHT (Review-Befund Codex
+                       * P2 zu PR #161). „Nach" filtert den gewaehlten Quellort
+                       * heraus; wer aber ZUERST das Ziel waehlt und danach
+                       * denselben Ort als Quelle, behaelt ihn als Formularwert.
+                       * Die Auswahl zeigt dann die nackte Kennung an, und das
+                       * Absenden laeuft in „Quelle und Ziel muessen verschieden
+                       * sein" — an einer Bedienfolge, die nichts Falsches tut.
+                       */
+                      onChange={(wert: string) => umlagerForm.setFieldsValue({
+                        menge: 1,
+                        ...(umlagerForm.getFieldValue("nachLagerortId") === wert
+                          ? { nachLagerortId: undefined }
+                          : {}),
+                      })}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="nachLagerortId"
+                    label="Nach"
+                    rules={[{ required: true, message: "Bitte den Zielort wählen" }]}
+                  >
+                    <Select
+                      aria-label="Nach"
+                      showSearch
+                      optionFilterProp="label"
+                      // Der gewaehlte Quellort faellt heraus: „von A nach A" ist
+                      // keine Umlagerung, und der Server lehnt sie ohnehin ab.
+                      options={detail.zielOrte
+                        .filter((ort) => ort.id !== umlagerVon)
+                        .map((ort) => ({ value: ort.id, label: ort.name }))}
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="menge"
+                    label="Menge"
+                    rules={[{ required: true }, { type: "number", min: 1 }]}
+                    /*
+                     * ⚠️ DER DECKEL IST EINE HILFE, KEIN RIEGEL. Er steht
+                     * daneben in `bucheUmlagerung`, und dort rollt eine zu
+                     * grosse Menge die ganze Buchung zurueck — eine TEILWEISE
+                     * Umlagerung liesse den Buchstand an beiden Orten falsch
+                     * stehen, ohne dass es jemand erfaehrt.
+                     */
+                    extra={umlagerQuelle
+                      ? `Dort liegen ${umlagerQuelle.menge} ${detail.artikel.einheit}.`
+                      : undefined}
+                  >
+                    <InputNumber
+                      min={1}
+                      max={umlagerQuelle?.menge}
+                      precision={0}
+                      aria-label="Umlagerungsmenge"
+                      style={{ width: "100%" }}
+                    />
+                  </Form.Item>
+                </div>
+                <Form.Item name="kommentar" label="Kommentar">
+                  <Input.TextArea
+                    aria-label="Umlagerungskommentar"
+                    autoSize={{ minRows: 1, maxRows: 3 }}
+                  />
+                </Form.Item>
+                {meldung?.quelle === "umlagern" ? (
+                  <Alert
+                    type="warning"
+                    showIcon={false}
+                    title={meldung.text}
+                    style={{ marginBlockEnd: 12 }}
+                  />
+                ) : null}
+                <Button type="primary" htmlType="submit" loading={busy}>
+                  Umlagern
+                </Button>
+              </Form>
+            )}
+          </Abschnitt>
+
           <ChargenTabelle
             chargen={detail.chargen}
             einheit={detail.artikel.einheit}
@@ -919,6 +1160,13 @@ function HistorieTabelle({
                 ? `${zeile.typText} · ${buchung.kommentar}`
                 : zeile.typText;
             },
+          },
+          // DRK-338 — ohne den Ort stehen die beiden Zeilen einer Umlagerung
+          // ununterscheidbar untereinander: zweimal „Umlagerung", −5 und +5.
+          {
+            title: "Ort",
+            dataIndex: "ortName",
+            key: "ortName",
           },
           {
             title: "Quelle",

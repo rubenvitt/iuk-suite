@@ -27,6 +27,23 @@ export function umlagerung(
      *  einzelnes Fahrzeug als einelementige Liste. */
     vonOrten: readonly string[];
     nachLagerortId: string;
+    /**
+     * DRK-338 — GENAU DIESE Charge umlagern, statt FEFO ueber alle Chargen des
+     * Artikels laufen zu lassen.
+     *
+     * ⚠️ DER UNTERSCHIED IST FACHLICH, NICHT KOSMETISCH. FEFO ist eine
+     * ENTNAHME-Regel („nimm die aelteste zuerst") — beim UMRAEUMEN gilt sie
+     * nicht: wer eine Charge aus Schrank 1 in den GF-Schrank traegt, traegt
+     * DIESE, nicht die aelteste. Ohne die Einschraenkung buchte das Journal
+     * eine andere Charge um als die, die physisch gewandert ist; der Fehler
+     * waere STILL (Netto bleibt null, der Handlager-Bestand stimmt) und wegen
+     * append-only nicht mehr zu heilen.
+     *
+     * Fehlt das Feld, bleibt das Verhalten unveraendert: FEFO ueber alle
+     * Chargen — das ist der Weg von `check:` und `entnahme-ziel:`, wo eine
+     * Nachfuellung tatsaechlich die aelteste Charge nehmen soll.
+     */
+    chargeId?: string;
     quelle: Quelle;
     kommentar: string | null;
     /** Pflicht, nicht optional: eine Umlagerung ist IMMER Teil eines Vorgangs
@@ -35,11 +52,14 @@ export function umlagerung(
     referenz: string;
   },
 ): { umgelagert: number; teile: Teil[] } {
-  const { artikelId, menge, vonOrten, nachLagerortId, quelle, kommentar, referenz } = args;
+  const {
+    artikelId, menge, vonOrten, nachLagerortId, chargeId, quelle, kommentar, referenz,
+  } = args;
 
   const { gebucht, teile } = fefoAbbuchung(tx, {
     artikelId, menge, orte: vonOrten, quelle, kommentar, referenz,
     typ: "umlagerung",
+    ...(chargeId ? { chargeId } : {}),
   });
 
   // ⚠️ STRIKT AUS `teile[]` — nie aus `menge`. Sonst Netto != 0.

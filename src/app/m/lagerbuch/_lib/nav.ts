@@ -17,6 +17,11 @@ import type { SuiteNavItem } from "@/core/shell/types";
  *
  * „Übersicht" trägt bewusst KEINEN Abschnitt und steht damit vor der ersten
  * Überschrift.
+ *
+ * ⚠️ ZWEI EINTRÄGE ZEIGEN NICHT AUF `/verwaltung/…` (DRK-305): „Entnahme" und
+ * „Check durchführen" führen in den Helfer-Ast. `aktiverEintrag` löst sie per
+ * Suffix genauso auf wie die übrigen; sichtbar markiert wird dort ohnehin
+ * nichts, weil der Helfer-Ast diese Navigation nicht rendert.
  */
 export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "uebersicht", title: "Übersicht", href: "/verwaltung", ikon: "uebersicht" },
@@ -26,6 +31,10 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "inventur", title: "Inventur", href: "/verwaltung/inventur", ikon: "inventur", abschnitt: "Bestand" },
   { key: "bestellung", title: "Bestellung", href: "/verwaltung/bestellung", ikon: "bestellung", abschnitt: "Bestand" },
   { key: "lagerorte", title: "Lagerorte", href: "/verwaltung/lagerorte", ikon: "lagerorte", abschnitt: "Bestand" },
+  // DRK-305, zweite Hälfte: dieselbe Entnahmefläche, die am Regal hängt — Schrank
+  // → Fahrzeug und Schrank → Verbrauch, ohne Kärtchen. Siehe den Block bei
+  // „Check durchführen".
+  { key: "entnahme", title: "Entnahme", href: "/helfer", ikon: "entnahme", abschnitt: "Bestand" },
 
     /* DRK-309: Die Beschriftung nennt beide Arten, der `href` bleibt — wer eine
    * Tasche sucht, findet unter „Fahrzeuge" nichts und schliesst, es gebe den
@@ -37,6 +46,23 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
   { key: "sauerstoff", title: "Sauerstoff", href: "/verwaltung/sauerstoff", ikon: "sauerstoff", abschnitt: "Fahrzeuge & Geräte" },
 
   { key: "checks", title: "Checks", href: "/verwaltung/checks", ikon: "checks", abschnitt: "Prüfungen" },
+  /*
+   * DER EINSTIEG IN DEN HELFER-AST — DRK-305, und die beiden einzigen Einträge,
+   * die aus dem Verwaltungsrahmen HERAUSFÜHREN.
+   *
+   * Das ist kein Versehen: die Check- und die Entnahmefläche sind für eine Hand
+   * am Telefon gebaut, mit 56/72px-Bedienhöhen und ohne Seitenleiste. Sie in den
+   * Rahmen zu holen hieße, sie zweimal zu bauen — und die zweite Fassung
+   * bekommt die nächste Änderung nicht mit.
+   *
+   * Der Weg zurück steht im Kopf des Rahmens draußen („Zur Verwaltung",
+   * `_ui/HelferRahmen.tsx`); ohne ihn wäre der Klick eine Sackgasse.
+   *
+   * ⚠️ `/helfer/check` OHNE `?fz=`: die Seite bietet dann die volle Fahrzeugwahl
+   * an. Mit einer Id wäre der Eintrag ein Lesezeichen auf ein einzelnes Fahrzeug
+   * — genau die Beschränkung, gegen die das Ticket geschrieben ist.
+   */
+  { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Prüfungen" },
   { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
 
   { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },

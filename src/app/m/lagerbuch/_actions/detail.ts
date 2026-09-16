@@ -8,7 +8,7 @@ import { chargeText } from "../_lib/format";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { artikelDetail } from "../_lib/lesepfade/artikel";
 import { verteilungJeCharge } from "../_lib/lesepfade/bestand";
-import { handlagerSchraenke } from "../_lib/lesepfade/orte";
+import { handlagerOrte, handlagerSchraenke, ortStamm } from "../_lib/lesepfade/orte";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /** Typ-Exporte verschwinden beim Kompilieren und sind keine Server Actions. */
@@ -41,6 +41,11 @@ export type ArtikelDetailBuchung = {
    *  waehrend das Journal daneben „Aussonderung" sagt. */
   referenz: string | null;
   quelleName: string;
+  /** DRK-338 — der Ort dieser Zeile. Eine Umlagerung besteht aus ZWEI Zeilen
+   *  mit demselben Vorgangstext; erst der Ort sagt, welche die Quelle und
+   *  welche das Ziel ist. Ohne ihn stuende hier direkt nach dem Umlagern
+   *  zweimal „Umlagerung", einmal −5 und einmal +5. */
+  ortName: string;
 };
 
 export type ArtikelDetailResult = {
@@ -65,6 +70,19 @@ export type ArtikelDetailResult = {
    * greifen.
    */
   zielOrte: { id: string; name: string; zugangshinweis: string | null }[];
+  /**
+   * DRK-338 — DIE ORTE DES HANDLAGER-BEREICHS (Wurzel plus Schraenke), als
+   * KENNUNGEN. Sie beantworten die eine Frage, die der Drawer sonst nicht
+   * beantworten kann: welche Eintraege aus `chargen[].orte` sind Schraenke und
+   * welche Fahrzeuge?
+   *
+   * ⚠️ STILLGELEGTE SCHRAENKE SIND DABEI, `zielOrte` daneben enthaelt nur die
+   * aktiven — und der Unterschied ist Absicht, nicht Schlamperei: aus einem
+   * stillgelegten Schrank umzulagern ist genau der Grund, warum man ihn
+   * stillgelegt hat. Als ZIEL taugt er nicht mehr. Ein einziges Feld fuer beide
+   * Fragen liesse eine der beiden still falsch werden.
+   */
+  handlagerOrtIds: string[];
 };
 
 /**
@@ -89,6 +107,13 @@ export async function getDetail(
   // `_lib/lesepfade/bestand.ts`, den auch `artikelDetailHelfer` benutzt. Zwei
   // wortgleiche Kopien dieser Projektion liefen sonst garantiert auseinander.
   const verteilung = verteilungJeCharge(db, id);
+  // Ein ZWEITER Durchlauf ueber `lagerorte` — bewusst, nicht uebersehen:
+  // `verteilungJeCharge` laedt die Tabelle intern ebenfalls, und sie ist eine
+  // Handvoll Zeilen (`_lib/lesepfade/orte.ts`: „wer hier optimiert, optimiert
+  // das Falsche"). Die Alternative waere, `verteilungJeCharge` den Stamm
+  // durchreichen zu lassen — das machte aus einem Aggregat einen Parameter,
+  // den jeder Aufrufer richtig befuellen muss.
+  const orte = ortStamm(db);
 
   const chargenErgebnis = detail.chargen
     .map((charge): ArtikelDetailCharge => {
@@ -132,6 +157,7 @@ export async function getDetail(
         kommentar: buchung.kommentar,
         referenz: buchung.referenz,
         quelleName: quelleName(buchung.quelleTyp, buchung.quelleId),
+        ortName: orte.get(buchung.lagerortId)?.name ?? buchung.lagerortId,
       })),
       mehrVorhanden: detail.mehrVorhanden,
       // Nur AKTIVE Orte — ein stillgelegter Schrank bleibt im Bestand, ist aber
@@ -142,6 +168,7 @@ export async function getDetail(
           id: o.id, name: o.name, zugangshinweis: o.zugangshinweis,
         })),
       ],
+      handlagerOrtIds: handlagerOrte(db),
     },
   };
 }

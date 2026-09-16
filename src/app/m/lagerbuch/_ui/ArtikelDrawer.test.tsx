@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   setArtikelAktiv: vi.fn(),
   bucheZugang: vi.fn(),
   bucheEntnahme: vi.fn(),
+  bucheUmlagerung: vi.fn(),
   pruefeLoeschbar: vi.fn(),
   loescheElement: vi.fn(),
   deaktiviereElement: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("../_actions/artikel", () => ({
 vi.mock("../_actions/buchung", () => ({
   bucheZugang: (...args: unknown[]) => mocks.bucheZugang(...args),
   bucheEntnahme: (...args: unknown[]) => mocks.bucheEntnahme(...args),
+  bucheUmlagerung: (...args: unknown[]) => mocks.bucheUmlagerung(...args),
 }));
 
 vi.mock("../_actions/loeschen", () => ({
@@ -89,6 +91,7 @@ const DETAIL = {
       menge: -3,
       kommentar: null,
       quelleName: "RTW 1 Karte",
+      ortName: "Handlager",
     },
   ],
   mehrVorhanden: true,
@@ -98,6 +101,10 @@ const DETAIL = {
   zielOrte: [
     { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
   ],
+  // DRK-338 — hier nur die Wurzel: das Umlagern braucht ZWEI Orte und zeigt
+  // in dieser Vorrichtung deshalb bloss seinen Hinweis. Die eigene Vorrichtung
+  // mit Schraenken steht unten bei den DRK-338-Faellen.
+  handlagerOrtIds: [HANDLAGER_ID],
 };
 
 const DETAIL_NACH_ZUGANG = {
@@ -199,6 +206,7 @@ beforeEach(() => {
   mocks.setArtikelAktiv.mockResolvedValue({ ok: true });
   mocks.bucheZugang.mockResolvedValue({ ok: true });
   mocks.bucheEntnahme.mockResolvedValue({ ok: true, wert: { gebucht: 1 } });
+  mocks.bucheUmlagerung.mockResolvedValue({ ok: true, wert: { umgelagert: 1 } });
   mocks.pruefeLoeschbar.mockResolvedValue({ ok: true, wert: { loeschbar: true } });
   mocks.loescheElement.mockResolvedValue({ ok: true });
   mocks.deaktiviereElement.mockResolvedValue({ ok: true });
@@ -796,5 +804,376 @@ describe("monatAusPicker: die directive-freie Dayjs-Grenze", () => {
 
     expect(monatAusPicker(dayjs("2027-03-15"))).toBe("2027-03");
     expect(monatAusPicker(null)).toBeUndefined();
+  });
+});
+
+/**
+ * DRK-338 — DAS UMLAGERN IM HANDLAGER.
+ *
+ * Was diese Faelle tragen:
+ *
+ *   - „Von" fuehrt NUR die Orte des Handlagers, an denen die GEWAEHLTE Charge
+ *     wirklich liegt. Der Traeger ist eine Charge, die in Schrank 1 UND im
+ *     RTW liegt: das Fahrzeug darf dort nicht auftauchen (es waere ein Ziel,
+ *     das der Server danach ablehnen MUSS), und ein Schrank ohne Bestand
+ *     dieser Charge ebenso wenig.
+ *   - Der Chargenwechsel SETZT die Quelle zurueck. Ohne das bliebe ein
+ *     Schrank stehen, an dem die neue Charge gar nicht liegt.
+ *   - Die Nutzlast traegt Charge, Quelle, Ziel und Menge — und zwar genau die
+ *     gewaehlten.
+ *   - Der Fehlersatz der Action steht AM Formular, nicht 900px darueber
+ *     (dieselbe Zusage wie fuer Zugang und Entnahme).
+ *   - Bei nur EINEM Ort im Handlager gibt es kein Formular, sondern einen
+ *     Satz, der sagt warum.
+ */
+describe("ArtikelDrawer: Umlagern im Handlager (DRK-338)", () => {
+  const DETAIL_MIT_SCHRAENKEN = {
+    ...DETAIL,
+    chargen: [
+      {
+        ...DETAIL.chargen[0],
+        restGesamt: 11,
+        // DIESELBE Charge an drei Orten — zwei davon im Handlager, einer ein
+        // Fahrzeug. Genau daran haengt der Filter.
+        orte: [
+          { id: "schrank-1", name: "Schrank 1", menge: 4, zugangshinweis: null },
+          { id: "schrank-gf", name: "GF-Schrank", menge: 2, zugangshinweis: "LvD anrufen" },
+          { id: "f1", name: "RTW 1", menge: 5, zugangshinweis: null },
+        ],
+      },
+      {
+        ...DETAIL.chargen[1],
+        restGesamt: 3,
+        orte: [{ id: "schrank-gf", name: "GF-Schrank", menge: 3, zugangshinweis: null }],
+      },
+    ],
+    zielOrte: [
+      { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+      { id: "schrank-1", name: "Schrank 1", zugangshinweis: null },
+      { id: "schrank-gf", name: "GF-Schrank", zugangshinweis: "LvD anrufen" },
+    ],
+    handlagerOrtIds: [HANDLAGER_ID, "schrank-1", "schrank-gf"],
+  };
+
+  async function mitSchraenken(): Promise<void> {
+    mocks.getDetail.mockResolvedValue({ ok: true, wert: DETAIL_MIT_SCHRAENKEN });
+    await drawerMounten();
+  }
+
+  /**
+   * ⚠️ GESUCHT WIRD IN DER SICHTBAREN LISTE, nicht im ganzen Body.
+   *
+   * Zwei Fallen liegen hier dicht beieinander, und beide machen den Test
+   * GRUEN, ohne zu pruefen, was er behauptet:
+   *
+   * 1. antd laesst ein einmal geoeffnetes Auswahlfeld samt Liste im DOM
+   *    stehen und markiert sie nur mit `ant-select-dropdown-hidden`. Ein
+   *    Suchlauf ueber `document.body` trifft deshalb auch die Optionen der
+   *    zuvor geoeffneten Felder — und die Zugangsform fuehrt unter „Wohin"
+   *    dieselben Ortsnamen.
+   * 2. `aria-controls` zeigt NICHT auf die sichtbare Liste, sondern auf die
+   *    versteckte Hilfsliste von rc-select, die die ROHEN WERTE traegt
+   *    (gemessen: `schrank-gf` statt „GF-Schrank · 3 Stk"). Ein Greifer
+   *    darauf findet die Beschriftungen nie.
+   *
+   * Es kann immer nur EIN Feld offen sein — das Oeffnen des naechsten
+   * schliesst das vorige. Die sichtbare Liste ist damit eindeutig.
+   */
+  function offeneListe(): HTMLElement {
+    const listen = document.body
+      .querySelectorAll<HTMLElement>(".ant-select-dropdown:not(.ant-select-dropdown-hidden)");
+    if (listen.length !== 1) {
+      throw new Error(`Genau eine offene Auswahlliste erwartet, ${listen.length} gefunden`);
+    }
+    return listen[0]!;
+  }
+
+  /**
+   * ⚠️ AUF DIE LISTE WIRD GEWARTET, nicht auf einen festen Takt. antd baut das
+   * Aufklappfenster beim ERSTEN Oeffnen und laesst es danach stehen; der erste
+   * Griff braucht deshalb einen Durchlauf mehr als jeder spaetere. Ein fester
+   * `warte()` ist mal genug und mal nicht — und der Ausfall traefe immer den
+   * Test, der als erster ein Feld anfasst.
+   */
+  async function oeffne(ariaLabel: string): Promise<void> {
+    const input = queryPortal<HTMLInputElement>(`[aria-label='${ariaLabel}']`);
+    if (input.disabled) throw new Error(`Auswahlfeld ist gesperrt: ${ariaLabel}`);
+    // ⚠️ EIN ZWEITES `mousedown` SCHLIESST WIEDER. `optionenVon` und `waehle`
+    // oeffnen beide; nacheinander auf DEMSELBEN Feld gerufen klappte das
+    // zweite die Liste zu, und der Test wartete danach auf etwas, das er
+    // gerade selbst weggeklickt hat. `aria-expanded` sagt, ob schon offen ist.
+    if (input.getAttribute("aria-expanded") !== "true") {
+      await act(async () => {
+        input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      });
+    }
+    await warteAuf(
+      () => document.body
+        .querySelectorAll(".ant-select-dropdown:not(.ant-select-dropdown-hidden)").length === 1,
+      `offene Auswahlliste an ${ariaLabel}`,
+    );
+  }
+
+  /** Die Beschriftungen der Optionen GENAU dieses Auswahlfelds. */
+  async function optionenVon(ariaLabel: string): Promise<string[]> {
+    await oeffne(ariaLabel);
+    return Array.from(offeneListe().querySelectorAll<HTMLElement>(".ant-select-item-option"))
+      .map((element) => element.textContent ?? "");
+  }
+
+  /**
+   * Was in einem Auswahlfeld GEWAEHLT dasteht — leer, wenn nichts gewaehlt ist.
+   *
+   * ⚠️ Es gibt keinen Weg an die Form-Instanz der Insel; geprueft wird also
+   * das, was auch die Bedienende sieht. Das ist hier sogar die schaerfere
+   * Probe: ein stehengebliebener Wert ohne passende Option zeigt antd als
+   * NACKTE KENNUNG an, und genau das soll nicht passieren.
+   */
+  function auswahlText(ariaLabel: string): string {
+    const feld = queryPortal<HTMLInputElement>(`[aria-label='${ariaLabel}']`).closest(".ant-select");
+    // ⚠️ `.ant-select-content-has-value` UND NICHT `.ant-select-selection-item`.
+    // antd 6 rendert die gewaehlte Beschriftung in `.ant-select-content` und
+    // setzt die zweite Klasse nur, wenn wirklich etwas gewaehlt ist; der aus
+    // aelteren Fassungen bekannte Greifer findet HIER GAR NICHTS — und ein
+    // Test, der auf „leer" zusichert, waere damit gruen, ohne je etwas
+    // gemessen zu haben. Gemessen am offenen Drawer, nicht vermutet.
+    return feld?.querySelector(".ant-select-content-has-value")?.textContent ?? "";
+  }
+
+  /** Wie `selectOption`, aber auf die sichtbare Liste eingegrenzt. */
+  async function waehle(ariaLabel: string, text: string): Promise<void> {
+    await oeffne(ariaLabel);
+    const option = Array
+      .from(offeneListe().querySelectorAll<HTMLElement>(".ant-select-item-option"))
+      .find((element) => (element.textContent ?? "").includes(text));
+    if (!option) throw new Error(`Option nicht gefunden an ${ariaLabel}: ${text}`);
+    await clickElement(option);
+    await warte();
+  }
+
+  it("sagt bei nur einem Ort im Handlager, warum es nichts zu tun gibt", async () => {
+    await drawerMounten();
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(false);
+    expect(queryPortal(".ant-drawer-body").textContent)
+      .toContain("keinen zweiten aktiven Ort");
+  });
+
+  /**
+   * ⚠️ DIE QUELLEN SCHLIESSEN STILLGELEGTE SCHRAENKE EIN, DIE ZIELE NICHT — und
+   * dazwischen liegt ein Formular, das sich oeffnen laesst und nicht absenden
+   * (Review-Befund Codex P2 zu PR #161).
+   *
+   * Sind alle Schraenke stillgelegt und die Charge liegt nur an der Wurzel, ist
+   * die Wurzel der einzige Quellort UND der einzige Zielort. „Nach" filtert den
+   * gewaehlten Quellort heraus und steht danach leer da.
+   *
+   * ⚠️ „Mindestens zwei Orte im Bereich" ist NICHT die Probe: hier sind es zwei
+   * (Wurzel plus stillgelegter Schrank), und trotzdem geht nichts.
+   */
+  it("bietet keine Charge an, fuer die es keinen zweiten aktiven Ort gibt", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [{
+          ...DETAIL.chargen[0],
+          orte: [{ id: HANDLAGER_ID, name: "Handlager", menge: 4, zugangshinweis: null }],
+        }],
+        // Nur die Wurzel ist aktiv — der Schrank ist stillgelegt.
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ],
+        handlagerOrtIds: [HANDLAGER_ID, "schrank-alt"],
+      },
+    });
+    await drawerMounten();
+
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(false);
+    expect(queryPortal(".ant-drawer-body").textContent)
+      .toContain("keinen zweiten aktiven Ort");
+  });
+
+  /**
+   * DIE GEGENPROBE, und sie ist der Grund, warum die Probe je Charge laeuft:
+   * dieselbe Lage, nur liegt die Charge im STILLGELEGTEN Schrank. Genau dafuer
+   * legt man einen Schrank still — sie muss an die Wurzel zurueck koennen.
+   */
+  it("bietet eine Charge an, die aus einem stillgelegten Schrank heraus kann", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [{
+          ...DETAIL.chargen[0],
+          orte: [{ id: "schrank-alt", name: "Schrank alt", menge: 4, zugangshinweis: null }],
+        }],
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ],
+        handlagerOrtIds: [HANDLAGER_ID, "schrank-alt"],
+      },
+    });
+    await drawerMounten();
+
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(true);
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    expect(await optionenVon("Von")).toEqual(["Schrank alt · 4 Stk"]);
+    await waehle("Von", "Schrank alt");
+    // ⚠️ DER PUNKT DER GEGENPROBE: „Nach" steht NICHT leer da.
+    expect(await optionenVon("Nach")).toEqual(["Handlager (ohne Schrank)"]);
+  });
+
+  it("bietet als Quelle nur die Handlager-Orte DIESER Charge — kein Fahrzeug", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+
+    const quellen = await optionenVon("Von");
+    expect(quellen.some((text) => text.includes("Schrank 1"))).toBe(true);
+    expect(quellen.some((text) => text.includes("GF-Schrank"))).toBe(true);
+    // ⚠️ DER KERN DES FILTERS: das Fahrzeug traegt 5 Stueck derselben Charge
+    // und steht trotzdem nicht zur Wahl.
+    expect(quellen.some((text) => text.includes("RTW 1"))).toBe(false);
+    // Die Menge am Ort steht dabei — sonst muesste man sie aus der Tabelle
+    // darunter abschreiben.
+    expect(quellen.some((text) => text.includes("4 Stk"))).toBe(true);
+  });
+
+  it("bietet als Quelle nichts an, was zur anderen Charge nicht passt", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "AAA-NEU");
+
+    const quellen = await optionenVon("Von");
+    expect(quellen.some((text) => text.includes("GF-Schrank"))).toBe(true);
+    expect(quellen.some((text) => text.includes("Schrank 1"))).toBe(false);
+  });
+
+  it("schickt Charge, Quelle, Ziel und Menge genau so, wie sie gewaehlt wurden", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    await waehle("Von", "Schrank 1");
+    await waehle("Nach", "GF-Schrank");
+    await fillPortal("[aria-label='Umlagerungsmenge']", "3");
+
+    await submitPortalForm("[data-rolle='umlager-form']");
+    await act(async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); });
+
+    expect(mocks.bucheUmlagerung).toHaveBeenCalledTimes(1);
+    expect(mocks.bucheUmlagerung.mock.calls[0]![0]).toMatchObject({
+      artikelId: "a1",
+      chargeId: "c-fefo-1",
+      vonLagerortId: "schrank-1",
+      nachLagerortId: "schrank-gf",
+      menge: 3,
+    });
+  });
+
+  it("setzt die Quelle zurueck, wenn die Charge wechselt", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    await waehle("Von", "Schrank 1");
+    expect(queryPortal<HTMLInputElement>("[aria-label='Von']")
+      .closest(".ant-select")?.textContent).toContain("Schrank 1");
+
+    await waehle("Umlagerung Charge", "AAA-NEU");
+    // ⚠️ „Schrank 1" fuehrt von der neuen Charge nichts — bliebe die Wahl
+    // stehen, waere sie eine Quelle, die der Server ablehnen MUSS.
+    expect(queryPortal<HTMLInputElement>("[aria-label='Von']")
+      .closest(".ant-select")?.textContent).not.toContain("Schrank 1");
+  });
+
+  /**
+   * ⚠️ EIN FELD AUS DER AUSWAHL ZU NEHMEN LOESCHT SEINEN WERT NICHT
+   * (Review-Befund Codex P2 zu PR #161). „Nach" filtert den gewaehlten
+   * Quellort heraus — das hilft aber nur, wenn die Quelle ZUERST gewaehlt
+   * wird. Wer umgekehrt erst das Ziel waehlt und dann denselben Ort als
+   * Quelle, behaelt ihn als Formularwert: die Auswahl zeigt die nackte
+   * Kennung, und das Absenden laeuft in „Quelle und Ziel muessen verschieden
+   * sein" — an einer Bedienfolge, die nichts Falsches tut.
+   */
+  it("leert das Ziel, wenn es zur neu gewaehlten Quelle wird", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    // ZIEL ZUERST — in dieser Reihenfolge steht „GF-Schrank" noch zur Wahl.
+    await waehle("Nach", "GF-Schrank");
+    await waehle("Von", "GF-Schrank");
+
+    expect(auswahlText("Nach"), "das Ziel muss leer sein").toBe("");
+
+    // Und das Absenden laeuft in die FELDpruefung, nicht in die Action: ein
+    // stehengebliebenes Ziel haette `bucheUmlagerung` mit von === nach
+    // gerufen.
+    await submitPortalForm("[data-rolle='umlager-form']");
+    await act(async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); });
+    expect(mocks.bucheUmlagerung).not.toHaveBeenCalled();
+  });
+
+  /** Die Gegenprobe: ein Ziel, das NICHT die neue Quelle ist, bleibt stehen. */
+  it("laesst ein Ziel stehen, das nicht die neue Quelle ist", async () => {
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    await waehle("Nach", "Handlager (ohne Schrank)");
+    await waehle("Von", "GF-Schrank");
+
+    expect(auswahlText("Nach")).toBe("Handlager (ohne Schrank)");
+  });
+
+  /**
+   * ⚠️ DIE REGEL MUSS AUCH DIE QUELLENLISTE TREFFEN, nicht nur die Chargenwahl
+   * (Review-Befund Codex P2 zu PR #161, vierter — der Nachschlag zum zweiten).
+   *
+   * Liegt dieselbe Charge an der Wurzel UND in einem stillgelegten Schrank,
+   * waehrend kein Schrank aktiv ist, taugt der SCHRANK als Quelle (Ziel: die
+   * Wurzel) — die Wurzel aber nicht, denn ein zweites aktives Ziel gibt es
+   * nicht. Die Charge wird also angeboten, und genau deshalb darf ihre
+   * Quellenliste die Wurzel NICHT fuehren: wer sie waehlte, staende vor einem
+   * leeren „Nach".
+   */
+  it("bietet nur Quellorte an, von denen aus es weitergeht", async () => {
+    mocks.getDetail.mockResolvedValue({
+      ok: true,
+      wert: {
+        ...DETAIL,
+        chargen: [{
+          ...DETAIL.chargen[0],
+          orte: [
+            { id: HANDLAGER_ID, name: "Handlager", menge: 4, zugangshinweis: null },
+            { id: "schrank-alt", name: "Schrank alt", menge: 2, zugangshinweis: null },
+          ],
+        }],
+        // Nur die Wurzel ist aktiv.
+        zielOrte: [
+          { id: HANDLAGER_ID, name: "Handlager (ohne Schrank)", zugangshinweis: null },
+        ],
+        handlagerOrtIds: [HANDLAGER_ID, "schrank-alt"],
+      },
+    });
+    await drawerMounten();
+
+    // Die Charge KANN wandern — aus dem stillgelegten Schrank an die Wurzel.
+    expect(existsPortal("[data-rolle='umlager-form']")).toBe(true);
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+
+    // ⚠️ ABER NUR VON DORT. Die Wurzel als Quelle liefe ins Leere.
+    expect(await optionenVon("Von")).toEqual(["Schrank alt · 2 Stk"]);
+
+    await waehle("Von", "Schrank alt");
+    expect(await optionenVon("Nach")).toEqual(["Handlager (ohne Schrank)"]);
+  });
+
+  it("zeigt den Fehlersatz der Action AM Umlagerungsformular", async () => {
+    mocks.bucheUmlagerung.mockResolvedValue({
+      ok: false,
+      fehler: "In „Schrank 1“ liegen nur 4 Stück dieser Charge.",
+    });
+    await mitSchraenken();
+    await waehle("Umlagerung Charge", "ZZZ-ALT");
+    await waehle("Von", "Schrank 1");
+    await waehle("Nach", "GF-Schrank");
+
+    await submitPortalForm("[data-rolle='umlager-form']");
+    await act(async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); });
+
+    const formular = queryPortal("[data-rolle='umlager-form']");
+    expect(formular.textContent).toContain("liegen nur 4 Stück");
   });
 });

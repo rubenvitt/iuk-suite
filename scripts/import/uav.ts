@@ -365,12 +365,12 @@ export function paritaetUav(quelle: Database.Database, ziel: UavDb, jetzt: Date 
     .all()
     .filter((r) => quellExecutionIds.has(r.id));
 
-  const quellTaskStatusSchluessel = new Set(q.taskStatus.map((z) => `${z.participant_id} ${z.task_id}`));
+  const quellTaskStatusSchluessel = new Set(q.taskStatus.map((z) => `${z.participant_id}\0${z.task_id}`));
   const zielTaskStatusImportiert = ziel
     .select()
     .from(schema.taskStatus)
     .all()
-    .filter((r) => quellTaskStatusSchluessel.has(`${r.participantId} ${r.taskId}`));
+    .filter((r) => quellTaskStatusSchluessel.has(`${r.participantId}\0${r.taskId}`));
 
   const quellSessionTokens = new Set(importierbareSessions.map((z) => z.token));
   const zielSessionsImportiert = ziel

@@ -359,6 +359,10 @@
     "kind": "context",
     "via": "bucheEntnahme"
   },
+  "src/app/m/lagerbuch/_actions/buchung.ts#bucheUmlagerung": {
+    "kind": "context",
+    "via": "bucheUmlagerung"
+  },
   "src/app/m/lagerbuch/_actions/buchung.ts#bucheEntnahmeHelfer": {
     "kind": "context",
     "via": "bucheEntnahmeHelfer"

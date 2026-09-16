@@ -26,6 +26,14 @@ import s from "./helfer.module.css";
  * Wildcard-DNS, ohne Reverse-Proxy. DER SERVER-PROP MACHT DIE FRAGE
  * GEGENSTANDSLOS — der Server kennt das Segment ohnehin.
  *
+ * ⚠️ `laeuftAb: null` IST DER KONTO-ZUGANG — DRK-305, und der einzige
+ * Unterscheider, den dieser Rahmen braucht. Eine Kärtchen-Sitzung HAT immer
+ * einen Ablauf (er steht im `exp` des Cookies); eine angemeldete Person hat
+ * keinen. Daran hängen zwei Dinge, und beide wären mit einem zweiten Prop
+ * daneben widersprüchlich setzbar: die Restzeit entfällt, und statt „Beenden"
+ * (das ein Kärtchen-Cookie räumt, von dem es hier keins gibt) steht der Weg
+ * zurück in die Verwaltung.
+ *
  * ⚠️ DIE DREI ANGABEN SIND PFLICHT-PROPS, KEINE OPTIONALS. Ein Layout kann
  * einer Seite keine Props reichen; deshalb wandert der Rahmen aus dem Layout in
  * die drei Seiten, die ihn brauchen, und die beiden Helfer-Seiten rufen
@@ -55,7 +63,8 @@ export function HelferRahmen({
 }: {
   aktiv: "entnahme" | "check";
   sitzungsetikett: string;
-  laeuftAb: Date;
+  /** `null` = angemeldetes Konto statt Kärtchen-Sitzung (DRK-305). */
+  laeuftAb: Date | null;
   children: React.ReactNode;
 }) {
   /*
@@ -91,26 +100,45 @@ export function HelferRahmen({
             Seite — und weder `pnpm build` noch Vitest sehen es. Wandert die
             Schwelle, gehoert sie in ein Modul ohne "use client" (`_lib/`).
           */}
-          <Restzeit
-            uhrzeit={uhrzeit(laeuftAb)}
-            laeuftAb={laeuftAb}
-            warntInitial={laeuftAb.getTime() - jetzt.getTime() <= 30 * 60_000}
-          />
+          {laeuftAb !== null && (
+            <Restzeit
+              uhrzeit={uhrzeit(laeuftAb)}
+              laeuftAb={laeuftAb}
+              warntInitial={laeuftAb.getTime() - jetzt.getTime() <= 30 * 60_000}
+            />
+          )}
         </div>
 
-        {/*
-          FORMULAR, KEIN LINK. `beenden` ist eine Server Action (T74) — ein Link
-          auf einen GET-Handler waere vorlade- und prefetch-faehig, und ein
-          Prefetch, der die Sitzung beendet, ist genau die Sorte Fehler, die
-          niemand reproduziert. Der Sperr- und der Ablauffall gehen ueber
-          `/abmelden` (Teil 2, T26), weil ein LAYOUT kein Cookie raeumen kann.
-        */}
-        <form action={beenden}>
-          <button className={s.beenden} type="submit">
-            <Ikone name="kreuz" groesse={14} />
-            Beenden
-          </button>
-        </form>
+        {laeuftAb === null ? (
+          /*
+           * DER KONTO-WEG — DRK-305. KEIN `beenden`: die Action löscht das
+           * Kärtchen-Cookie, und hier gibt es keins. Sie liefe ins Leere und
+           * setzte die angemeldete Person wortlos aufs Gate, wo sie einen Code
+           * eingeben soll, den sie nicht hat.
+           *
+           * Ein ECHTER Link, kein Knopf: die Verwaltung liegt auf demselben
+           * Host, aber außerhalb dieses Rahmens — ein Dokumentwechsel ist hier
+           * das Richtige und liefert nebenbei frische Daten.
+           */
+          <Link className={s.beenden} href="/verwaltung">
+            <Ikone name="pfeil-rechts" groesse={14} />
+            Zur Verwaltung
+          </Link>
+        ) : (
+          /*
+            FORMULAR, KEIN LINK. `beenden` ist eine Server Action (T74) — ein Link
+            auf einen GET-Handler waere vorlade- und prefetch-faehig, und ein
+            Prefetch, der die Sitzung beendet, ist genau die Sorte Fehler, die
+            niemand reproduziert. Der Sperr- und der Ablauffall gehen ueber
+            `/abmelden` (Teil 2, T26), weil ein LAYOUT kein Cookie raeumen kann.
+          */
+          <form action={beenden}>
+            <button className={s.beenden} type="submit">
+              <Ikone name="kreuz" groesse={14} />
+              Beenden
+            </button>
+          </form>
+        )}
       </header>
 
       <main className={s.inhalt}>{children}</main>

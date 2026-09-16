@@ -137,14 +137,17 @@ test.describe("lagerbuch — Modulnavigation", () => {
     );
   });
 
-  test("sechzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
+  test("achtzehn Einträge in der Leiste schieben die Seite nicht seitwärts — sie fängt ihren Überlauf senkrecht ab", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
     const leiste = page.getByTestId("modulleiste");
     await expect(leiste).toBeVisible();
-    await expect(leiste.locator("a")).toHaveCount(16);
+    // 18 seit DRK-305 („Entnahme“, „Check durchführen“). Die Zusage dieses
+    // Tests hängt NICHT an der Zahl, sondern am Satz darunter: mehr Einträge
+    // machen die Marge größer, nicht kleiner.
+    await expect(leiste.locator("a")).toHaveCount(18);
 
     const masse = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
@@ -163,7 +166,7 @@ test.describe("lagerbuch — Modulnavigation", () => {
      * calc(100vh - 64px)`, `overflow-y: auto`).
      *
      * GEMESSEN, nicht angenommen (Fix-Runde 1, vor Aufgabe 9s sechzehntem
-     * Eintrag „Lagerorte"): zwanzig Zeilen (damals fünfzehn 56px-Links plus
+     * Eintrag „Lagerorte“): zwanzig Zeilen (damals fünfzehn 56px-Links plus
      * fünf Überschriften, siehe `nav.ts`) ergaben eine Inhaltshöhe von
      * 1116px (`aside.scrollHeight`, in einem Wegwerf-Testlauf gemessen).
      * Das überschritt `100vh - 64px` schon bei 800px Viewporthöhe

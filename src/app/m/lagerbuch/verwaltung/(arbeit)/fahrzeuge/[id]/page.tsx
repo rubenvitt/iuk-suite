@@ -23,6 +23,7 @@ import { Chip } from "../../../../_ui/Chip";
 import { Kachel } from "../../../../_ui/Kachel";
 import { SeitenKopf } from "../../../../_ui/SeitenKopf";
 import { ChecklisteKnopf } from "../ChecklisteKnopf";
+import { CheckDurchfuehrenKnopf } from "../CheckDurchfuehrenKnopf";
 import { EinheitenartWahl } from "./EinheitenartWahl";
 import { FahrzeugAktivToggle } from "./FahrzeugAktivToggle";
 import { SollEditor } from "./SollEditor";
@@ -251,6 +252,19 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
               fahrzeugId={fahrzeug.id}
               beschriftung="Checkliste drucken"
             />
+            {/*
+              NUR AM AKTIVEN FAHRZEUG — DRK-305, und das ist der Unterschied zum
+              Knopf darüber. Der Druckbogen meint ausdrücklich auch ein
+              stillgelegtes Fahrzeug; die Check-Seite kennt nur aktive und führt
+              für jedes andere auf die Fahrzeugwahl. Ein Knopf, der woanders
+              landet, als er verspricht, ist schlimmer als keiner.
+            */}
+            {fahrzeug.aktiv && (
+              <CheckDurchfuehrenKnopf
+                fahrzeugId={fahrzeug.id}
+                beschriftung="Check durchführen"
+              />
+            )}
             <FahrzeugAktivToggle
               id={fahrzeug.id}
               name={fahrzeug.name}

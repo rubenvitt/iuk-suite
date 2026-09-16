@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb, type DB } from "../_db/client";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
+import { zugangsKennung } from "../_lib/zugangHerkunft";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
 import { helferCookieOptionen, helferGueltigkeitSekunden } from "../_lib/helferSitzung";
 import { ZIEL_COOKIE, wahlAusWert, zielWert } from "../_lib/entnahmeZiel";
@@ -84,10 +85,12 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
     redirect(`/helfer/ziel?returnTo=${encodeURIComponent(zurueck)}`);
   }
 
-  // Die Kärtchen-Kennung wandert IN den Wert: die Wahl gehört ihrer Schicht.
+  // Die Zugangskennung wandert IN den Wert: die Wahl gehört ihrer Schicht —
+  // beim Kärtchen dessen Zeilen-Id, beim angemeldeten Konto der OIDC-`sub`
+  // (DRK-305). Ein geteiltes Telefon bucht so nicht auf das Ziel der vorigen.
   kekse.set(
     ZIEL_COOKIE,
-    zielWert(ziel!, riegel.zugang.tokenId),
+    zielWert(ziel!, zugangsKennung(riegel.zugang)),
     helferCookieOptionen(helferGueltigkeitSekunden()),
   );
   redirect(zurueck);

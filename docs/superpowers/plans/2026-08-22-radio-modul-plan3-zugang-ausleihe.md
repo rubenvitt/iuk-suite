@@ -1332,7 +1332,7 @@ describe("radio-Code: normalisiereCode", () => {
     ["nur Bindestriche", "---"],
     ["500 Zeichen", "x".repeat(500)],
     ["Emoji", "😀🚀"],
-    ["Steuerzeichen", "A B"],
+    ["Steuerzeichen", "A\0B"],
     ["Zeilenumbrueche", "A\nB\r\nC"],
     ["nur Trennzeichen", " \t \t "],
   ])("wirft nie: %s", (_name, roh) => {

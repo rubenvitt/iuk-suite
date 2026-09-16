@@ -34,6 +34,7 @@
 import { and, desc, eq, gte, inArray, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { artikel, buchungen } from "../../_db/schema";
 import { quelleAufloeser } from "../../_db/quelle";
+import { ortStamm } from "./orte";
 import { falte } from "../suche";
 import { JOURNAL_GRENZE } from "../grenzen";
 import {
@@ -133,9 +134,25 @@ export type JournalZeileRoh = {
   quelleName: string;
   kommentar: string | null;
   /** NEU in der Zeile: die einzige KAUSALE Klammer (`check:<id>`,
-   *  `inventur:<id>`, `entnahme-ziel:<lagerortId>`) — der id-Tiebreaker ist es
-   *  ausdruecklich nicht (§5.14.4). */
+   *  `inventur:<id>`, `entnahme-ziel:<lagerortId>`, `umlagerung:<lagerortId>`)
+   *  — der id-Tiebreaker ist es ausdruecklich nicht (§5.14.4). */
   referenz: string | null;
+  /**
+   * DRK-338 — DER ORT DIESER ZEILE, bereits aufgeloest.
+   *
+   * ⚠️ ER IST DER EINZIGE WEG, EINE UMLAGERUNG ZU LESEN. Sie schreibt zwei
+   * Zeilen mit demselben Typ und entgegengesetztem Vorzeichen; welche die
+   * QUELLE und welche das ZIEL ist, steht ausschliesslich in `lagerort_id`.
+   * Ohne diese Spalte stand im Journal zweimal „Umlagerung" und einmal −5,
+   * einmal +5 — und wohin das Material gewandert ist, war aus der Oberflaeche
+   * ueberhaupt nicht zu erfahren.
+   *
+   * Aufgeloest wird HIER und nicht in der Anzeige: `lagerorte` ist winzig und
+   * liegt ohnehin schon im Prozess (`ortStamm`), waehrend die Anzeige eine
+   * zweite Quelle fuer Namen braeuchte — und zwar auf BEIDEN Wegen ueber die
+   * Grenze (Server Component und Server Action).
+   */
+  ortName: string;
 };
 
 export type JournalErgebnis = {
@@ -157,6 +174,9 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
   const grenze = f.grenze ?? JOURNAL_GRENZE;
   const alleArtikel = db.select().from(artikel).all();
   const namen = new Map(alleArtikel.map((a) => [a.id, a.name]));
+  // `lagerorte` ist eine Handvoll Zeilen — dieselbe Vollladung wie ueberall
+  // (`_lib/lesepfade/orte.ts`), nicht ein Join je Buchungszeile.
+  const orte = ortStamm(db);
 
   const conds: SQL[] = [];
   if (f.vorgang) conds.push(vorgangBedingung(f.vorgang));
@@ -221,6 +241,9 @@ export function journalEintraege(db: DB, f: JournalFilter = {}): JournalErgebnis
       quelleName: wer(b.quelleTyp, b.quelleId),
       kommentar: b.kommentar,
       referenz: b.referenz,
+      // Ein geloeschter Ort faellt auf seine Kennung zurueck statt auf „–":
+      // das Journal ist append-only, die Zeile bleibt lesbar.
+      ortName: orte.get(b.lagerortId)?.name ?? b.lagerortId,
     })),
   };
 }

@@ -81,7 +81,7 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
 }));
 
-import { bucheZugang, bucheEntnahme, bucheEntnahmeHelfer } from "./buchung";
+import { bucheZugang, bucheEntnahme, bucheEntnahmeHelfer, bucheUmlagerung } from "./buchung";
 
 let t: TestDb;
 
@@ -90,10 +90,20 @@ const VIEWER = { sub: "u-admin", groups: ["lagerbuch"], name: "A. Verwaltung", e
 const ZUGANG_OK = {
   ok: true,
   zugang: {
+    /*
+     * DRK-305: `herkunft` ist der Diskriminator, aus dem `journalQuelle`,
+     * `zugangsKennung` und `zugangsAkteur` ihre Antwort ziehen
+     * (`_lib/zugangHerkunft.ts`). Eine Attrappe OHNE das Feld schreibt still
+     * `quelleTyp: "oidc"` mit `quelleId: undefined` — die Action liefe durch,
+     * und die gepruefte Journalzeile truege eine Quelle, die auf nichts
+     * aufloest.
+     */
+    herkunft: "token" as const,
     tokenId: "tk1",
     code: "482-137",
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
+    fahrzeugBindung: null,
   },
 };
 
@@ -732,4 +742,298 @@ it("audit attributes the real helper mutation to confirmed shared access without
   expect(rows.length).toBeGreaterThan(0);
   for (const row of rows) expect(JSON.parse(row.actor)).toEqual({ kind: "access", id: "lagerbuch:token:tk1", name: "Gemeinsamer Zugangscode" });
   expect(JSON.stringify(rows)).not.toContain(ZUGANG_OK.zugang.code);
+});
+
+/**
+ * DRK-305 — DIESELBE ACTION, ZWEITE HERKUNFT.
+ *
+ * Die Attrappe des Riegels liefert jetzt ein angemeldetes Konto. Geprüft wird,
+ * was in die append-only-Zeile und ins Zugriffsprotokoll wandert — die beiden
+ * Stellen, die eine vergessene Fallunterscheidung dauerhaft falsch machte.
+ */
+describe("DRK-305 — der angemeldete Weg bucht als PERSON", () => {
+  const KONTO = {
+    ok: true,
+    zugang: {
+      herkunft: "konto" as const,
+      sub: "sub-42",
+      name: "A. Verwaltung",
+      laeuftAb: null,
+      fahrzeugBindung: null,
+    },
+  };
+
+  beforeEach(() => {
+    riegel.mockResolvedValue(KONTO);
+    // Die Bindung des Ziel-Cookies trägt beim Konto den `sub` statt der
+    // Kärtchen-Kennung (`zugangsKennung`).
+    zielCookie = "sub-42|verbrauch";
+  });
+
+  it("schreibt quelleTyp oidc mit dem SUB — nicht token mit undefined", async () => {
+    /*
+     * ⚠️ DER FEHLERFALL, GEGEN DEN DIESER TEST STEHT, IST STILL. Ein fest
+     * verdrahtetes `quelleTyp: "token"` schriebe eine OIDC-Kennung in die
+     * Token-Spalte; `quelleAufloeser` suchte sie unter `tokens.code`, fände
+     * nichts und zeigte die ROHE Kennung. Die Buchung gelänge, das Journal wäre
+     * dauerhaft unlesbar — die Tabelle ist append-only.
+     */
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+
+    expect(erg.ok).toBe(true);
+    const b = geschrieben();
+    expect(b).toHaveLength(1);
+    expect(b[0]).toMatchObject({
+      typ: "entnahme", menge: -2, quelleTyp: "oidc", quelleId: "sub-42",
+    });
+  });
+
+  it("das Zugriffsprotokoll nennt die PERSON, nicht einen gemeinsamen Code", async () => {
+    // `auditAccessActor` trägt den Namen „Gemeinsamer Zugangscode" und meint
+    // ausdrücklich einen Zugang. Für eine namentlich angemeldete Person wäre
+    // das schlicht falsch.
+    t.sqlite.exec("DELETE FROM audit_outbox");
+    expect((await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db)).ok).toBe(true);
+    const rows = t.sqlite.prepare("SELECT actor FROM audit_outbox").all() as { actor: string }[];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(JSON.parse(row.actor)).toEqual({ kind: "user", id: "sub-42", name: "A. Verwaltung" });
+    }
+  });
+
+  it("die Ziel-Bindung gilt PRO PERSON — ein fremdes Cookie bucht nicht", async () => {
+    // Dieselbe Zusage wie beim Kärtchen: die Wahl gehört ihrer Sitzung. Auf
+    // einem geteilten Telefon buchte sonst die nächste Person auf das Ziel der
+    // vorigen, ohne je gewählt zu haben.
+    zielCookie = "tk1|verbrauch";
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 1, ziel: VERBRAUCH }, t.db);
+    expect(erg.ok).toBe(false);
+    expect(geschrieben()).toEqual([]);
+  });
+});
+
+/**
+ * DRK-338 — DAS UMLAGERN ZWISCHEN ZWEI ORTEN DES HANDLAGERS.
+ *
+ * Was diese Faelle tragen, und warum jeweils GENAU DIESER:
+ *
+ *   - Die CHARGE bleibt dieselbe und die HANDLAGER-SUMME aendert sich nicht.
+ *     Beides zusammen, nicht einzeln: die Summe allein waere auch dann gruen,
+ *     wenn gar nichts gebucht wurde, die Charge allein auch dann, wenn zwei
+ *     Zeilen mit gleichem Vorzeichen entstuenden.
+ *   - FEFO WAEHLT DIE CHARGE NICHT. Der Traeger ist ein Schrank mit einer
+ *     frueher und einer spaeter verfallenden Charge: gewaehlt wird die
+ *     SPAETERE. Ohne den `chargeId`-Durchgriff buchte die Umlagerung still die
+ *     frueh verfallende um — Netto bleibt null, der Handlager-Bestand stimmt,
+ *     und nur die Ortsangabe je Charge ist falsch. Append-only: nicht heilbar.
+ *   - Der QUELLORT ist einelementig. Traeger: dieselbe Charge liegt in ZWEI
+ *     Schraenken; gebucht wird nur aus dem gewaehlten. Ein Bereich statt eines
+ *     Ortes holte sich die Menge still aus dem Nachbarschrank.
+ *   - Eine ZU GROSSE Menge rollt ALLES zurueck. Zugesichert wird nicht nur der
+ *     Fehler (der kaeme auch aus einem Tippfehler im Schema), sondern dass
+ *     KEINE Zeile steht.
+ *   - Ein FAHRZEUG ist weder Quelle noch Ziel — sonst aenderte sich die
+ *     Handlager-Summe doch, und der Fremdschluessel liesse es klaglos durch.
+ *   - Aus einem STILLGELEGTEN Schrank darf man heraus, hinein nicht. Genau
+ *     dafuer legt man einen Schrank stille.
+ */
+describe("bucheUmlagerung (DRK-338)", () => {
+  /** Die Handlager-Summe ueber alle Orte des Bereichs — die Zusage aus AK 2. */
+  function handlagerSumme(): number {
+    return t.db.select().from(buchungen).all()
+      .filter((b) => [HANDLAGER_ID, "schrank-1", "schrank-2", "schrank-alt"].includes(b.lagerortId))
+      .reduce((s, b) => s + b.menge, 0);
+  }
+  function bestandAn(ortId: string, chargeId?: string): number {
+    return t.db.select().from(buchungen).all()
+      .filter((b) => b.lagerortId === ortId && (!chargeId || b.chargeId === chargeId))
+      .reduce((s, b) => s + b.menge, 0);
+  }
+
+  beforeEach(() => {
+    t.db.insert(lagerorte).values([
+      { id: "schrank-1", name: "Schrank 1", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: true, sortierung: 10 },
+      { id: "schrank-2", name: "GF-Schrank", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: true, sortierung: 90 },
+      { id: "schrank-alt", name: "Schrank alt", typ: "lager", parentId: HANDLAGER_ID,
+        aktiv: false, sortierung: 50 },
+    ]).run();
+    // Eine ZWEITE Charge desselben Artikels, die FRUEHER verfaellt als `ch-1`
+    // (2027-03) — sie ist der Traeger der FEFO-Zusage.
+    t.db.insert(chargen).values([
+      { id: "ch-frueh", artikelId: "art-1", chargenNr: "L0", verfall: "2026-09",
+        createdAt: JETZT },
+    ]).run();
+    t.db.insert(buchungen).values([
+      { id: "b-s1-spaet", ts: JETZT, typ: "zugang", artikelId: "art-1", chargeId: "ch-1",
+        lagerortId: "schrank-1", menge: 6, quelleTyp: "system", quelleId: "seed",
+        referenz: null, kommentar: null },
+      { id: "b-s1-frueh", ts: JETZT, typ: "zugang", artikelId: "art-1", chargeId: "ch-frueh",
+        lagerortId: "schrank-1", menge: 4, quelleTyp: "system", quelleId: "seed",
+        referenz: null, kommentar: null },
+      // DIESELBE Charge ein zweites Mal — im stillgelegten Schrank.
+      { id: "b-alt-spaet", ts: JETZT, typ: "zugang", artikelId: "art-1", chargeId: "ch-1",
+        lagerortId: "schrank-alt", menge: 3, quelleTyp: "system", quelleId: "seed",
+        referenz: null, kommentar: null },
+    ]).run();
+  });
+
+  it("verschiebt die Menge und laesst die Handlager-Summe unveraendert", async () => {
+    const vorher = handlagerSumme();
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 5 },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
+    expect(handlagerSumme()).toBe(vorher);
+    expect(bestandAn("schrank-1", "ch-1")).toBe(1);
+    expect(bestandAn("schrank-2", "ch-1")).toBe(5);
+  });
+
+  it("schreibt beide Legs als `umlagerung` mit derselben Charge und Referenz", async () => {
+    await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 5 },
+      t.db,
+    );
+    const neu = geschrieben();
+    expect(neu).toHaveLength(2);
+    for (const zeile of neu) {
+      expect(zeile.typ).toBe("umlagerung");
+      expect(zeile.chargeId).toBe("ch-1");
+      expect(zeile.referenz).toBe("umlagerung:schrank-2");
+    }
+    expect(neu.map((b) => `${b.lagerortId}:${b.menge}`).sort())
+      .toEqual(["schrank-1:-5", "schrank-2:5"]);
+  });
+
+  /**
+   * ⚠️ DER TRAEGER DES GANZEN TICKETS. `ch-frueh` verfaellt 2026-09 und `ch-1`
+   * erst 2027-03; FEFO griffe also zur frueheren. Gewaehlt wird die spaetere —
+   * und genau die muss wandern, denn sie ist die, die jemand in der Hand hatte.
+   */
+  it("bucht die GEWAEHLTE Charge um, nicht die nach FEFO aelteste", async () => {
+    await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 2 },
+      t.db,
+    );
+    expect(bestandAn("schrank-2", "ch-1")).toBe(2);
+    expect(bestandAn("schrank-2", "ch-frueh")).toBe(0);
+    expect(bestandAn("schrank-1", "ch-frueh")).toBe(4);
+  });
+
+  /**
+   * Dieselbe Charge liegt in `schrank-1` (6) UND in `schrank-alt` (3). Gebucht
+   * werden 6 aus `schrank-1` — ginge die Quelle als BEREICH hinein, holte sich
+   * FEFO den Rest still aus dem Nachbarschrank.
+   */
+  it("nimmt ausschliesslich aus dem gewaehlten Quellort", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 6 },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
+    expect(bestandAn("schrank-1", "ch-1")).toBe(0);
+    expect(bestandAn("schrank-alt", "ch-1")).toBe(3);
+  });
+
+  it("rollt eine zu grosse Menge VOLLSTAENDIG zurueck und nennt den vorhandenen Rest", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 7 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toContain("Schrank 1");
+    expect(fehlerVon(erg)).toContain("6");
+    // ⚠️ NICHT NUR DER FEHLER: eine teilweise gebuchte Umlagerung liesse den
+    // Buchstand an BEIDEN Orten falsch stehen.
+    expect(geschrieben()).toHaveLength(0);
+  });
+
+  it("weist ein Fahrzeug als Ziel ab", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "fz-1", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toContain("Handlager");
+    expect(geschrieben()).toHaveLength(0);
+  });
+
+  it("weist ein Fahrzeug als Quelle ab", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "fz-1",
+        nachLagerortId: "schrank-2", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(geschrieben()).toHaveLength(0);
+  });
+
+  it("laesst aus einem stillgelegten Schrank HERAUS umlagern", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-alt",
+        nachLagerortId: "schrank-2", menge: 3 },
+      t.db,
+    );
+    expect(erg.ok).toBe(true);
+    expect(bestandAn("schrank-alt", "ch-1")).toBe(0);
+    expect(bestandAn("schrank-2", "ch-1")).toBe(3);
+  });
+
+  it("weist einen stillgelegten Schrank als ZIEL ab", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-alt", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(fehlerVon(erg)).toContain("stillgelegt");
+    expect(geschrieben()).toHaveLength(0);
+  });
+
+  /** I5 — dieselbe Zusage wie beim Zugang, aus demselben Grund. */
+  it("weist eine Charge ab, die zu einem anderen Artikel gehoert", async () => {
+    t.db.insert(chargen).values([
+      { id: "ch-fremd", artikelId: "art-2", chargenNr: "X", verfall: "2027-01",
+        createdAt: JETZT },
+    ]).run();
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-fremd", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(geschrieben()).toHaveLength(0);
+  });
+
+  it("weist Quelle gleich Ziel am Feld ab", async () => {
+    const erg = await bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-1", menge: 1 },
+      t.db,
+    );
+    expect(erg.ok).toBe(false);
+    expect(feldFehlerVon(erg)?.nachLagerortId).toBeTruthy();
+    expect(geschrieben()).toHaveLength(0);
+  });
+
+  it("fragt den Admin-Riegel", async () => {
+    adminRiegel.mockRejectedValueOnce(new Error("kein Admin"));
+    await expect(bucheUmlagerung(
+      { artikelId: "art-1", chargeId: "ch-1", vonLagerortId: "schrank-1",
+        nachLagerortId: "schrank-2", menge: 1 },
+      t.db,
+    )).rejects.toThrow("kein Admin");
+    expect(geschrieben()).toHaveLength(0);
+  });
 });

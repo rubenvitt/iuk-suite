@@ -678,6 +678,32 @@ function fahrzeugKaertchenFixtures(): void {
   }).onConflictDoNothing().run();
 }
 
+/**
+ * EIGENER ARTIKEL fuer `e2e/lagerbuch-check-angemeldet.spec.ts` (DRK-305).
+ *
+ * ⚠️ DIESELBE BEGRUENDUNG WIE BEI `checkFixtures()`, und sie ist keine
+ * Foermlichkeit: Playwright faehrt alle Specs in EINEM Worker gegen EINE
+ * Datenbankdatei. Der angemeldete Entnahme-Lauf schliesst eine echte Buchung ab;
+ * liefe er auf `e2e-artikel`, senkte er bei jedem Lauf und bei jedem Retry den
+ * Handlager-Bestand, den `lagerbuch-helfer.spec.ts` zusichert — und haenge
+ * dessen Ergebnis still an der Reihenfolge und an der Zahl der Wiederholungen.
+ * Der Befund kam aus der Codex-Review zu PR #164.
+ *
+ * KEIN eigenes Fahrzeug: gebucht wird auf `E2E_FAHRZEUG_ID`, das den Weg
+ * Schrank → Fahrzeug ohnehin schon von `lagerbuch-helfer.spec.ts` erhaelt. Ein
+ * drittes aktives Fahrzeug stuende dagegen in jeder Fahrzeugliste, jedem
+ * Checklistenbogen und jeder Fahrzeugwahl der ganzen Suite.
+ *
+ * Die Menge ist grosszuegig (50): der Lauf entnimmt 1 je Durchgang, und der Seed
+ * ist additiv-idempotent — er fuellt NICHT wieder auf
+ * (`artikelMitBestand` schreibt die Zugangsbuchung nur beim ersten Mal).
+ */
+function angemeldetFixtures(): void {
+  artikelMitBestand(
+    "e2e-konto-artikel", "E2E Konto Kompresse", "A4",
+    "e2e-konto-charge", "E2E-KONTO", 50);
+}
+
 migriere();
 helferFixtures();
 verfallFixtures();
@@ -693,5 +719,6 @@ kategorieFixtures();
 inventurFixtures();
 vorgangFixtures();
 sammelFixtures();
+angemeldetFixtures();
 lastFixtures();
 console.log(`[e2e] lagerbuch migriert + geseedet: ${moduleDbPath("lagerbuch")}`);

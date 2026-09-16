@@ -154,7 +154,7 @@ interface FeldProps {
 /* ── DATUM ──────────────────────────────────────────────────────────────────────────────────── */
 
 export function DatumFeld({ stand, ...rest }: FeldProps): React.ReactElement {
-  return <DatumFeldInnen key={`${stand ?? ""} ${rest.wert ?? ""}`} {...rest} />;
+  return <DatumFeldInnen key={`${stand ?? ""}\0${rest.wert ?? ""}`} {...rest} />;
 }
 
 function DatumFeldInnen({
@@ -191,7 +191,7 @@ function DatumFeldInnen({
 /* ── UHRZEIT ────────────────────────────────────────────────────────────────────────────────── */
 
 export function ZeitFeld({ stand, ...rest }: FeldProps): React.ReactElement {
-  return <ZeitFeldInnen key={`${stand ?? ""} ${rest.wert ?? ""}`} {...rest} />;
+  return <ZeitFeldInnen key={`${stand ?? ""}\0${rest.wert ?? ""}`} {...rest} />;
 }
 
 function ZeitFeldInnen({
@@ -269,7 +269,7 @@ interface WahlFeldProps extends FeldProps {
 }
 
 export function WahlFeld({ stand, ...rest }: WahlFeldProps): React.ReactElement {
-  return <WahlFeldInnen key={`${stand ?? ""} ${rest.wert ?? ""}`} {...rest} />;
+  return <WahlFeldInnen key={`${stand ?? ""}\0${rest.wert ?? ""}`} {...rest} />;
 }
 
 function WahlFeldInnen({
