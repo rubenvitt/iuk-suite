@@ -25,9 +25,9 @@ import { normalisiereSchrankName } from "./schrankName";
 import { AUSSONDERN_PRAEFIX } from "./vorgang";
 import { verfallSchwellen, verfallStatus } from "./domain/verfall";
 import { heuteIso } from "./zeit";
-import { fefoAbbuchung, type Quelle } from "./schreibpfade/abbuchung";
+import { fefoAbbuchungImBereich, type Quelle } from "./schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "./schreibpfade/korrektur";
-import { umlagerung } from "./schreibpfade/umlagerung";
+import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerung";
 import { handlagerOrte } from "./lesepfade/orte";
 import { setzeVerfall } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
@@ -509,6 +509,20 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     //    `korrekturAufLagerort` waehlt bei positivem Abgleich die JUENGSTE Charge —,
     //    aber „harmloser" ist kein Grund, es darauf ankommen zu lassen.
     { id: "ch-pflaster-alt", artikelId: A.pflaster, chargenNr: "P-2024-091", verfall: m.abgelaufen },
+    // DRK-339 — DER FALL DIESES TICKETS: eine ABGELAUFENE Charge, die an ZWEI
+    // Orten des Handlagers liegt (Schrank 1 UND GF-Schrank, Block 8). Erst
+    // damit hat die Verfallsliste lokal eine Zeile, an der sich der Ort
+    // ueberhaupt WAEHLEN laesst — die uebrigen abgelaufenen Chargen liegen an
+    // genau einem Ort, und dort gibt es nichts zu entscheiden.
+    //
+    // ⚠️ DERSELBE ARTIKEL AUS DEMSELBEN GRUND WIE `ch-o2maske-gf`: die
+    // Sauerstoffmaske ist an keinem Schreibpfad beteiligt, der aus dem
+    // Handlager-Bereich zieht. FEFO nimmt die am fruehesten ablaufende Charge
+    // zuerst — eine neue abgelaufene Charge an einem ENTNOMMENEN Artikel
+    // aenderte still, woraus die Demo-Entnahmen gebucht werden (die Lehre steht
+    // bei `ch-pflaster-alt`). Und `korrekturAufLagerort` waehlt bei positivem
+    // Abgleich die JUENGSTE Charge; eine abgelaufene ist nie die juengste.
+    { id: "ch-o2maske-alt", artikelId: A.o2maske, chargenNr: "O2M-2024-310", verfall: m.abgelaufen },
   ].filter((c) => !chDa.has(c.id));
   for (const c of chargenListe) {
     db.insert(chargen).values({ ...c, createdAt: vor(jetzt, 150) }).run();
@@ -550,6 +564,11 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     // DRK-297 — Erstbestand AUSSCHLIESSLICH im GF-Schrank. Es gibt bewusst
     // keine weitere Buchung fuer diese Charge.
     { id: "bu-zg-o2maske-gf", chargeId: "ch-o2maske-gf", artikelId: A.o2maske, menge: 8, vorTagen: 10, lagerortId: SCHRANK_GF },
+    // DRK-339 — dieselbe abgelaufene Charge an ZWEI Orten. ⚠️ 3 und 5, nicht
+    // 4 und 4: verschiedene Zahlen, von denen keine das Doppelte der anderen
+    // ist — sonst laege eine Zusicherung versehentlich richtig.
+    { id: "bu-zg-o2maske-alt-s1", chargeId: "ch-o2maske-alt", artikelId: A.o2maske, menge: 3, vorTagen: 170, lagerortId: SCHRANK_1 },
+    { id: "bu-zg-o2maske-alt-gf", chargeId: "ch-o2maske-alt", artikelId: A.o2maske, menge: 5, vorTagen: 170, lagerortId: SCHRANK_GF },
     { id: "bu-zg-pflaster-alt", chargeId: "ch-pflaster-alt", artikelId: A.pflaster, menge: 8, vorTagen: 150 },
   ];
   const buDa = vorhandeneIds(db.select({ id: buchungen.id }).from(buchungen).all());
@@ -570,7 +589,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       for (const [artikelId, menge] of [
         [A.kompresse, 12], [A.mullbinde, 15], [A.handschuh, 6], [A.desinfektion, 3],
       ] as const) {
-        fefoAbbuchung(tx, {
+        fefoAbbuchungImBereich(tx, {
           artikelId, menge, quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
           kommentar: "Sanitätsdienst Stadtfest", referenz: REF_SANI,
         });
@@ -582,7 +601,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   if (!journalGebucht(db, REF_UEBUNG)) {
     db.transaction((tx) => {
       for (const [artikelId, menge] of [[A.verbandpaeckchen, 5], [A.nacl, 2]] as const) {
-        fefoAbbuchung(tx, {
+        fefoAbbuchungImBereich(tx, {
           artikelId, menge, quelle: QUELLE_OIDC,
           kommentar: "Übungsdienst Gruppe 2", referenz: REF_UEBUNG,
         });
@@ -626,9 +645,9 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         });
         const gewuenscht = nachfuellRtw[s.artikelId] ?? 0;
         const gebucht = gewuenscht > 0
-          ? umlagerung(tx, {
+          ? umlagerungAusBereich(tx, {
               artikelId: s.artikelId, menge: gewuenscht,
-              vonOrten: handlagerOrte(tx), nachLagerortId: RTW,
+              vonBereich: handlagerOrte(tx), nachLagerortId: RTW,
               quelle, kommentar: CHECK_NACHFUELLUNG, referenz: REF_CHECK_RTW,
             }).umgelagert
           : 0;
@@ -688,8 +707,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         [A.kompresse, 6], [A.mullbinde, 10], [A.dreiecktuch, 4],
         [A.handschuh, 3], [A.desinfektion, 1], [A.rettungsdecke, 4],
       ] as const) {
-        umlagerung(tx, {
-          artikelId, menge, vonOrten: handlagerOrte(tx), nachLagerortId: KTW,
+        umlagerungAusBereich(tx, {
+          artikelId, menge, vonBereich: handlagerOrte(tx), nachLagerortId: KTW,
           quelle: QUELLE_OIDC, kommentar: "Erstbestückung KTW 1", referenz: REF_KTW,
         });
       }
@@ -741,8 +760,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       for (const [artikelId, menge] of [
         [A.handschuh, 4], [A.desinfektion, 1], [A.kompresse, 6], [A.dreiecktuch, 2],
       ] as const) {
-        umlagerung(tx, {
-          artikelId, menge, vonOrten: handlagerOrte(tx), nachLagerortId: TASCHE_SAN,
+        umlagerungAusBereich(tx, {
+          artikelId, menge, vonBereich: handlagerOrte(tx), nachLagerortId: TASCHE_SAN,
           quelle: QUELLE_OIDC, kommentar: "Sanitätstasche gepackt", referenz: REF_TASCHE,
         });
       }
@@ -752,14 +771,16 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   /* 12b ── DRK-297: eine Charge an ZWEI Orten. Ein Teil des Ringer-Bestands aus
    *        Schrank 1 (Block 8) wandert per `umlagerung` in den MTW — danach
    *        liegt „ch-ringer-schrank1" sowohl in Schrank 1 als auch im MTW.
-   *        `vonOrten: [SCHRANK_1]` ist bewusst EINELEMENTIG, nicht
-   *        `handlagerOrte(tx)`: es geht um GENAU diesen Schrank, nicht den
-   *        ganzen Bereich. */
+   *        `umlagerungVonOrt` ist bewusst der Einzelort-Weg, nicht
+   *        `umlagerungAusBereich` mit `handlagerOrte(tx)`: es geht um GENAU
+   *        diesen Schrank, nicht den ganzen Bereich. Seit DRK-354 sind das zwei
+   *        Funktionen, damit der Unterschied nicht mehr an diesem Kommentar
+   *        haengt. */
   const REF_RINGER_SCHRANK = "seed:umlagerung-ringer-schrank1-mtw";
   if (!journalGebucht(db, REF_RINGER_SCHRANK)) {
     db.transaction((tx) => {
-      umlagerung(tx, {
-        artikelId: A.ringer, menge: 6, vonOrten: [SCHRANK_1], nachLagerortId: MTW,
+      umlagerungVonOrt(tx, {
+        artikelId: A.ringer, menge: 6, vonOrt: SCHRANK_1, nachLagerortId: MTW,
         quelle: QUELLE_OIDC, kommentar: "Ergänzung MTW aus Schrank 1", referenz: REF_RINGER_SCHRANK,
       });
     });
@@ -975,6 +996,10 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       "— dieselbe Charge liegt an zwei Orten.",
     "  GF-Schrank  Sauerstoffmaske, Charge O2M-2026-777: 8 Stk. AUSSCHLIESSLICH hier " +
       '("Zugang nur über die GF — LvD anrufen").',
+    "",
+    "Aussondern je Schrank (DRK-339):",
+    "  Sauerstoffmaske, Charge O2M-2024-310 (abgelaufen): 3 Stk. in Schrank 1, " +
+      "5 Stk. im GF-Schrank — die Verfallsliste fragt dort beim Aussondern den Ort ab.",
     "",
     `Feste Zugangs-Codes (Gate-Eingabe UND QR-Nutzlast):`,
     `  ${CODE_HELFER}  Helfer allgemein → Artikel-Liste`,

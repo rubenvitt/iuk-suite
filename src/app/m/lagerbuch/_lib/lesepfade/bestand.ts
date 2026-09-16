@@ -33,6 +33,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { artikel, buchungen, chargen } from "../../_db/schema";
+import type { Lagerbereich } from "../domain/orte";
 import { verfallStatus, verfallSchwellen } from "../domain/verfall";
 import { braucht } from "../domain/vorschlag";
 import type { Einheitenart } from "../konstanten";
@@ -49,16 +50,57 @@ import { handlagerOrte, ortStamm } from "./orte";
  */
 export type Leser = DB | Parameters<Parameters<DB["transaction"]>[0]>[0];
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * DRK-354 — DIE ZWEI EINSTIEGE, EINMAL ERKLAERT. Jedes ortsgebundene Aggregat
+ * dieser Datei gibt es doppelt, und der Unterschied ist NICHT kosmetisch:
+ *
+ *   `…ImBereich(db, bereich)` nimmt einen `Lagerbereich` — eine Wurzel samt
+ *      allem darunter, gebaut allein von `teilbaum` (`domain/orte.ts`). Eine
+ *      nackte Liste wie `[fahrzeugId]` wird hier ABGELEHNT.
+ *   `…AnOrt(db, lagerortId)` nimmt EINE ID. `handlagerOrte(db)` wird hier
+ *      ABGELEHNT, weil es kein `string` ist — genau die Verwechslung, die vor
+ *      DRK-354 nur ein Pruefer sah.
+ *
+ * ⚠️ DIE ABFRAGE IST IN BEIDEN FAELLEN DIESELBE, der Unterschied liegt
+ * ausschliesslich in der Absicht. Wer die zwei Einstiege spaeter „aufraeumt"
+ * und wieder zu einem zusammenlegt, nimmt genau den Schutz weg, fuer den sie da
+ * sind — die gemeinsame Abfrage steht deshalb schon jetzt nur einmal unten.
+ * ───────────────────────────────────────────────────────────────────────── */
+
 /**
  * Bestand je Artikel über einen BEREICH von Orten (DRK-297: Handlager plus
- * Schränke, oder ein einzelnes Fahrzeug als einelementige Liste).
- * Index: `idx_buchungen_lagerort_artikel`.
+ * Schränke). Index: `idx_buchungen_lagerort_artikel`.
  *
  * ⚠️ EINE LEERE LISTE ERGIBT `WHERE false` und damit überall 0 — still.
  * `handlagerOrte` liefert deshalb immer mindestens die Wurzel
  * (`_lib/lesepfade/orte.ts`).
+ *
+ * ⚠️ KEIN `…AnOrt`-GEGENSTUECK, und das ist kein Versehen: den Bestand JE ORT
+ * liefert `bestandJeArtikelUndLagerort` in EINER Abfrage fuer alle Orte, und
+ * die Fahrzeuguebersicht braucht genau die Form. Ein zweiter Einstieg hier
+ * haette heute keinen Aufrufer.
  */
-export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string, number> {
+export function bestandJeArtikelImBereich(
+  db: Leser, bereich: Lagerbereich,
+): Map<string, number> {
+  return bestandJeArtikelAn(db, bereich);
+}
+
+/**
+ * Rest je Charge über einen BEREICH von Orten. Ersetzt
+ * `bestandProLagerortUndCharge` ueber die Vollladung.
+ * Index: `idx_buchungen_lagerort_artikel`.
+ */
+export function restJeChargeImBereich(db: Leser, bereich: Lagerbereich): Map<string, number> {
+  return restJeChargeAn(db, bereich);
+}
+
+/** Rest je Charge AN GENAU EINEM Ort — ein Fahrzeug, ein einzelner Schrank. */
+export function restJeChargeAnOrt(db: Leser, lagerortId: string): Map<string, number> {
+  return restJeChargeAn(db, [lagerortId]);
+}
+
+function bestandJeArtikelAn(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ artikelId: buchungen.artikelId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
@@ -68,12 +110,7 @@ export function bestandJeArtikel(db: Leser, orte: readonly string[]): Map<string
   return new Map(rows.map((r) => [r.artikelId, r.summe]));
 }
 
-/**
- * Rest je Charge über einen BEREICH von Orten. Ersetzt
- * `bestandProLagerortUndCharge` ueber die Vollladung.
- * Index: `idx_buchungen_lagerort_artikel`.
- */
-export function restJeCharge(db: Leser, orte: readonly string[]): Map<string, number> {
+function restJeChargeAn(db: Leser, orte: readonly string[]): Map<string, number> {
   const rows = db
     .select({ chargeId: buchungen.chargeId, summe: sql<number>`sum(${buchungen.menge})` })
     .from(buchungen)
@@ -81,6 +118,57 @@ export function restJeCharge(db: Leser, orte: readonly string[]): Map<string, nu
     .groupBy(buchungen.chargeId)
     .all();
   return new Map(rows.map((r) => [r.chargeId, r.summe]));
+}
+
+/**
+ * DRK-339 — Rest je (Charge, Ort) ueber einen BEREICH von Orten. Dieselbe
+ * Abfrage wie `restJeChargeImBereich` mit demselben Praedikat, nur ein
+ * `lagerort_id` mehr im `GROUP BY`.
+ *
+ * ⚠️ SIE ERSETZT `restJeChargeImBereich` NICHT, UND DAS IST KEINE DOPPELUNG:
+ * drei Lesepfade (`artikel.ts`, `inventur.ts`) brauchen die Summe je Charge,
+ * nicht die Aufschluesselung.
+ *
+ * ⚠️ DRK-354 — KEIN `…AnOrt`-GEGENSTUECK, und diesmal auch kein denkbares: die
+ * Aufschluesselung EINES Ortes waere eine Map mit einem Schluessel, also die
+ * Frage, die `restJeChargeAnOrt` schon beantwortet. Der Name traegt den
+ * Bereich trotzdem, weil die Ortsmenge hier der Parameter ist.
+ *
+ * ⚠️ DIE KPIs LESEN TROTZDEM DIESE HIER, und zwar nicht aus Bequemlichkeit:
+ * sie fragen „liegt die Charge irgendwo positiv?", und das ist genau die
+ * Frage, die `verfallListe` fuer die Liste unter der Kachel beantwortet.
+ * Ueber die vorzeichenbehaftete Summe gezaehlt, liefen Kachel und Liste bei
+ * einem Ort im Minus auseinander (Codex-Befund zu PR #173). Aufsummiert wird
+ * dort nichts — ein `has()` reicht.
+ *
+ * ⚠️ EIN ORT MIT SALDO <= 0 FAELLT RAUS — dieselbe Regel wie in
+ * `restJeChargeUndOrt` und dieselbe wie in der Aussonderungsaktion, die ueber
+ * einen solchen Ort keine Buchung schreibt. Die Summe ueber diese Map ist
+ * damit genau das, was das Aussondern buchen wuerde; eine Summe, die einen
+ * negativen Ortssaldo mitzaehlte, waere eine andere Zahl als die Wirkung des
+ * Knopfes daneben.
+ */
+export function restJeChargeJeOrtImBereich(
+  db: Leser, bereich: Lagerbereich,
+): Map<string, Map<string, number>> {
+  const rows = db
+    .select({
+      chargeId: buchungen.chargeId,
+      lagerortId: buchungen.lagerortId,
+      summe: sql<number>`sum(${buchungen.menge})`,
+    })
+    .from(buchungen)
+    .where(inArray(buchungen.lagerortId, [...bereich]))
+    .groupBy(buchungen.chargeId, buchungen.lagerortId)
+    .all();
+  const m = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    if (r.summe <= 0) continue;
+    let innen = m.get(r.chargeId);
+    if (!innen) { innen = new Map(); m.set(r.chargeId, innen); }
+    innen.set(r.lagerortId, r.summe);
+  }
+  return m;
 }
 
 /**
@@ -124,7 +212,25 @@ export function bestandJeArtikelUndLagerort(db: Leser): Map<string, Map<string, 
  * `artikel_id` VORAN, und genau daran entscheidet SQLite, ob ein Index fuer eine
  * WHERE-Klausel taugt.
  */
-export function restJeChargeFuerArtikel(
+export function restJeChargeFuerArtikelImBereich(
+  db: Leser, artikelId: string, bereich: Lagerbereich,
+): Map<string, number> {
+  return restJeChargeFuerArtikelAn(db, artikelId, bereich);
+}
+
+/**
+ * Dasselbe AN GENAU EINEM Ort. Der Regelfall ist ein Fahrzeug: der
+ * Fahrzeug-Check, die Inventurkorrektur darauf und die Aussonderung fragen
+ * alle nach dem Bestand DORT — mit dem Handlager-Bereich stuende Handlagerware
+ * im Fahrzeugabgleich, und der Abgleich buchte eine viel zu grosse Korrektur.
+ */
+export function restJeChargeFuerArtikelAnOrt(
+  db: Leser, artikelId: string, lagerortId: string,
+): Map<string, number> {
+  return restJeChargeFuerArtikelAn(db, artikelId, [lagerortId]);
+}
+
+function restJeChargeFuerArtikelAn(
   db: Leser, artikelId: string, orte: readonly string[],
 ): Map<string, number> {
   const rows = db
@@ -273,9 +379,24 @@ export type Kennzahlen = {
 export function kennzahlen(db: Leser, now: Date = new Date()): Kennzahlen {
   const schwellen = verfallSchwellen();
   const arts = db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
-  const orte = handlagerOrte(db);
-  const bestand = bestandJeArtikel(db, orte);
-  const restProCharge = restJeCharge(db, orte);
+  const bereich = handlagerOrte(db);
+  const bestand = bestandJeArtikelImBereich(db, bereich);
+  /**
+   * ⚠️ DIE LIEGEPLAETZE, NICHT DER NETTO-SALDO (Codex-Befund zu PR #173).
+   *
+   * Die Kachel und die Verfallsliste, auf die sie verlinkt, MUESSEN dieselben
+   * Chargen zaehlen. `verfallListe` fuehrt seit DRK-339 eine Charge, sobald
+   * IRGENDEIN Ort des Bereichs positiv ist; ein Ort darf dabei im Minus stehen
+   * (append-only Journal, die Zeilen der Fassung vor DRK-297). Ueber die
+   * vorzeichenbehaftete Summe gezaehlt, stuende hier eine gruene 0, waehrend
+   * einen Klick weiter eine Zeile mit einem Aussondern-Knopf steht.
+   *
+   * ⚠️ HIER WIRD NICHTS NEU AUFSUMMIERT: gefragt ist nur, OB die Charge
+   * irgendwo positiv liegt — `has()` genuegt. `restJeChargeJeOrtImBereich`
+   * traegt einen Schluessel ausschliesslich dann, wenn mindestens ein Ort
+   * positiv ist.
+   */
+  const liegeplaetze = restJeChargeJeOrtImBereich(db, bereich);
 
   let unterMindest = 0;
   let nichtBestellt = 0;
@@ -288,7 +409,7 @@ export function kennzahlen(db: Leser, now: Date = new Date()): Kennzahlen {
   let chargenKritisch = 0;
   let chargenAbgelaufen = 0;
   for (const c of db.select().from(chargen).all()) {
-    if ((restProCharge.get(c.id) ?? 0) <= 0) continue;   // aufgebraucht → kein Risiko
+    if (!liegeplaetze.has(c.id)) continue;               // aufgebraucht → kein Risiko
     const s = verfallStatus(c.verfall, schwellen, now);
     if (s.abgelaufen) chargenAbgelaufen += 1;
     else if (s.ampel !== "gruen") chargenKritisch += 1;

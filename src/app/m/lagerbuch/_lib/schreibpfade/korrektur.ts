@@ -29,8 +29,8 @@
 import { eq } from "drizzle-orm";
 import { buchungen, chargen, newId } from "../../_db/schema";
 import { CHARGE_KORREKTUR, PSEUDO_VERFALL } from "../konstanten";
-import { restJeChargeFuerArtikel } from "../lesepfade/bestand";
-import { fefoAbbuchung, type Quelle, type Tx } from "./abbuchung";
+import { restJeChargeFuerArtikelAnOrt } from "../lesepfade/bestand";
+import { fefoAbbuchungAnOrt, type Quelle, type Tx } from "./abbuchung";
 
 export function korrekturAufLagerort(
   tx: Tx,
@@ -50,8 +50,8 @@ export function korrekturAufLagerort(
    * Artikels und filtert in JS; ohne das Scoping saehe der Abgleich den
    * Handlager-Bestand mit und buchte eine viel zu grosse Korrektur.
    *
-   * ⚠️ HIER STEHT `restJeChargeFuerArtikel` UND NICHT `bestandJeArtikel`, und das
-   * ist eine Entscheidung: `bestandJeArtikel(tx, lagerortId)` aggregierte JEDEN
+   * ⚠️ HIER STEHT `restJeChargeFuerArtikelAnOrt` UND NICHT `bestandJeArtikel…`, und
+   * das ist eine Entscheidung: ein Bestandsaggregat aggregierte JEDEN
    * Artikel am Lagerort, um EINEN zu lesen — der Fahrzeug-Check ruft diese
    * Funktion je Artikel, bei 60 Artikeln also 60-mal. Die
    * Zwei-Praedikat-Form laeuft auf `idx_buchungen_artikel_lagerort_charge`, genau
@@ -63,19 +63,20 @@ export function korrekturAufLagerort(
    * Wege gegen `bestandProLagerort` (T44).
    */
   let recorded = 0;
-  for (const rest of restJeChargeFuerArtikel(tx, artikelId, [lagerortId]).values()) {
+  for (const rest of restJeChargeFuerArtikelAnOrt(tx, artikelId, lagerortId).values()) {
     recorded += rest;
   }
   const diff = istMenge - recorded;
   if (diff === 0) return { diff: 0, chargeId: null };
 
   if (diff < 0) {
-    // DRK-297 — `orte: [lagerortId]`, EIN einzelner Ort (heute immer ein
-    // Fahrzeug, s.o.): `korrekturAufLagerort` bleibt Einzelort-gescoped, der
-    // Bereich ist NICHT gemeint — sonst zaehlte Handlagerbestand in den
-    // Fahrzeugabgleich hinein.
-    const { teile } = fefoAbbuchung(tx, {
-      artikelId, menge: -diff, orte: [lagerortId], quelle, kommentar, referenz, typ: "korrektur",
+    // DRK-297 — EIN einzelner Ort (heute immer ein Fahrzeug, s.o.):
+    // `korrekturAufLagerort` bleibt Einzelort-gescoped, der Bereich ist NICHT
+    // gemeint — sonst zaehlte Handlagerbestand in den Fahrzeugabgleich hinein.
+    // DRK-354 haelt das jetzt der Compiler fest: `fefoAbbuchungAnOrt` nimmt
+    // eine ID, `handlagerOrte(tx)` passt hier nicht mehr hinein.
+    const { teile } = fefoAbbuchungAnOrt(tx, {
+      artikelId, menge: -diff, ort: lagerortId, quelle, kommentar, referenz, typ: "korrektur",
     });
     return { diff, chargeId: teile[0]?.chargeId ?? null };
   }

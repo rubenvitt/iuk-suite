@@ -28,7 +28,7 @@ export type ChargeRest = {
 
 /**
  * ⚠️ DAS FELD HEISST `vonLagerortId` UND NICHT `lagerortId`, und der Name ist
- * der Riegel: `umlagerung()` bucht das Ziel-Leg strikt aus `teile[]` und
+ * der Riegel: die Umlagerung bucht das Ziel-Leg strikt aus `teile[]` und
  * müsste bei einem neutral benannten Feld raten, ob es Quelle oder Ziel meint.
  * Ein Ziel-Leg, das den Quellort nimmt, ist netto null, wirft nicht — und das
  * Fahrzeug bleibt leer.
