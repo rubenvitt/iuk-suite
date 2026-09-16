@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { rmSync } from "node:fs";
 import { migrateAllModules } from "@/core/bootstrap";
+import { blattnamen, mappenBytes, zeichenketten } from "@/core/export/test-mappe";
 
 const DIR = "./.data/uav-admin-participants-export-test";
 let gruppen: string[] | null = null;
@@ -23,7 +24,9 @@ describe("GET /api/admin/participants/export", () => {
     expect((await GET(get())).status).toBe(403);
   });
 
-  it("mit uav-training-admin → CSV mit Überschriftszeile", async () => {
+  /** Seit DRK-186 eine Excel-Mappe statt einer CSV. Der äußere Pfad bleibt
+   *  derselbe; nur Medientyp und Dateiname wechseln. */
+  it("mit uav-training-admin → Excel-Mappe mit Überschriftszeile", async () => {
     gruppen = ["uav-training-admin"];
     const { getDb } = await import("../../../../_db/client");
     const { teilnehmerAnlegen } = await import("../../../../_lib/queries");
@@ -31,12 +34,37 @@ describe("GET /api/admin/participants/export", () => {
     const { GET } = await import("./route");
     const res = await GET(get());
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/csv");
-    expect(res.headers.get("content-disposition")).toBe('attachment; filename="teilnehmer-uebersicht.csv"');
-    // `res.text()` streicht das BOM spec-konform (WHATWG) — der Vertrag ist der
-    // Byte-Rumpf, deshalb hier mit `ignoreBOM` decodieren statt `.text()`.
-    const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(await res.arrayBuffer());
-    expect(text.startsWith('﻿"Name","Beginn","Erledigt","Gesamt","Quote","LetzteAktivität","Status"\r\n')).toBe(true);
-    expect(text).toContain('"Ada","2026-01-01"');
+    expect(res.headers.get("content-type")).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    expect(res.headers.get("content-disposition")).toBe('attachment; filename="teilnehmer-uebersicht.xlsx"');
+
+    const bytes = await mappenBytes(res);
+    expect(blattnamen(bytes)).toEqual(["Teilnehmer"]);
+    const texte = zeichenketten(bytes);
+    // Die sieben Köpfe in dieser Reihenfolge — `Quote %` statt `Quote`, weil
+    // die Zelle jetzt eine Zahl trägt (siehe `_lib/export.ts`).
+    expect(texte.slice(0, 7)).toEqual([
+      "Name", "Beginn", "Erledigt", "Gesamt", "Quote %", "Letzte Aktivität", "Status",
+    ]);
+    expect(texte).toContain("Ada");
+    expect(texte).toContain("2026-01-01");
+  });
+
+  /**
+   * DER GRUND FÜR DEN WECHSEL, GEMESSEN: `erledigt` und `gesamt` standen im
+   * CSV-Weg als `String(...)` in der Datei — in einer Kalkulation weder
+   * summierbar noch richtig sortierbar („10" vor „9"). Sie dürfen deshalb
+   * NICHT in der Zeichenkettentabelle auftauchen.
+   */
+  it("schreibt die Zahlenspalten als Zahlen, nicht als Text", async () => {
+    gruppen = ["uav-training-admin"];
+    const { getDb } = await import("../../../../_db/client");
+    const { teilnehmerAnlegen } = await import("../../../../_lib/queries");
+    teilnehmerAnlegen(getDb(), "Ada", "2026-01-01");
+    const { GET } = await import("./route");
+    const texte = zeichenketten(await mappenBytes(await GET(get())));
+    expect(texte).not.toContain("0");
+    expect(texte.some((t) => /^\d+%$/.test(t))).toBe(false);
   });
 });
