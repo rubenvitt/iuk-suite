@@ -15,11 +15,19 @@
  * obwohl im Schrank nichts liegt, und die Entnahme am Regal boete Material an,
  * das niemand dort findet.
  *
- * ⚠️ UND ES GIBT KEINEN SCHREIBWEG AUS DER BOX HERAUS. Das Einsortieren ins
- * Handlager ist [DRK-313] und ausdruecklich NICHT Teil dieses Tickets. Die
- * Naht dafuer ist `boxInhalt()`: sie liefert bereits, was eine Auffuellansicht
- * braucht (Artikel, Menge, Chargen mit Verfall), und ein zweiter Lesepfad
- * daneben waere die zweite Wahrheit ueber denselben Ort.
+ * ⚠️ DER SCHREIBWEG AUS DER BOX HERAUS KAM MIT DRK-381 UND LIEGT NICHT HIER:
+ * `raeumeAusEntnahmebox` (`_actions/entnahmebox.ts`). Die Naht dafuer ist
+ * `boxInhalt()` — sie liefert, was die Einraeumflaeche braucht (Artikel, Fach,
+ * Menge, Chargen mit Verfall), und ein zweiter Lesepfad daneben waere die
+ * zweite Wahrheit ueber denselben Ort. Was diese Flaeche darueber hinaus
+ * braucht — Fach und Stilllegung des Artikels —, haengt `einraeumPosten()`
+ * unten an, ohne die Faltung ein zweites Mal zu schreiben.
+ *
+ * ⚠️ WAS DER WEG ZURUECK NICHT IST: ein Wareneingang. Er ist eine UMLAGERUNG,
+ * und die ganze Begruendung steht an der Action. Kurz: der Zugangspfad
+ * (`bucheAuffuellung`) laesst Material ENTSTEHEN — der Bestand in der Kiste
+ * bliebe stehen, im Handlager kaeme neuer dazu, dieselben Teile stuenden
+ * zweimal im append-only-Journal.
  */
 import { and, desc, eq, gt, like, sql } from "drizzle-orm";
 import type { DB } from "../../_db/client";
@@ -186,6 +194,71 @@ export function postenAmOrt(db: Leser, lagerortId: string, jetzt: Date = new Dat
  */
 export function boxInhalt(db: Leser, jetzt: Date = new Date()): BoxPosten[] {
   return postenAmOrt(db, ENTNAHMEBOX_ID, jetzt);
+}
+
+/**
+ * Ein Posten der Kiste, wie ihn die EINRAEUMFLAECHE braucht — DRK-381.
+ *
+ * ⚠️ ZWEI FELDER MEHR, UND SIE STEHEN NICHT IN `BoxPosten`. Das ist kein
+ * Geschmack: `helfer/box/page.tsx` reicht `BoxPosten` unveraendert an seine
+ * Insel, und `page.test.tsx` sichert dort woertlich zu, dass NUR die
+ * angezeigten Felder mitreisen — „auf einem privaten Telefon, in einer Sitzung
+ * ohne Konto". Zwei Felder an `BoxPosten` haetten diese Zusage still
+ * aufgeweicht, fuer eine Flaeche, die sie gar nicht zeigt.
+ *
+ * ⚠️ UND ES IST TROTZDEM KEIN ZWEITER LESEPFAD: die Faltung bleibt
+ * `postenAmOrt` (Bestand, Chargen, Ampel, Sortierung). Hier kommt genau EINE
+ * Abfrage auf die Artikelstammdaten dazu — dieselbe Tabelle, die `postenAmOrt`
+ * ohnehin liest, aber ihr Ergebnis gehoert dem anderen Aufrufer.
+ */
+export type EinraeumPosten = BoxPosten & {
+  /**
+   * `artikel.fach` — die Regalangabe („A-01"), aus der die Person den Schrank
+   * erschliesst.
+   *
+   * ⚠️ ES IST NICHT DER SCHRANK. Das Fach steht am ARTIKEL, der Schrank ist
+   * eine `lagerorte`-Zeile; die beiden haengen in den Daten nicht zusammen. Es
+   * ist ein Hinweis auf dem Schirm, keine Vorbelegung der Wahl — eine
+   * abgeleitete Vorbelegung waere eine Behauptung, die die Daten nicht decken.
+   */
+  fach: string;
+  /**
+   * Ist der Artikel noch in Gebrauch?
+   *
+   * ⚠️ `postenAmOrt` FILTERT STILLGELEGTE ARTIKEL AUSDRUECKLICH NICHT (die
+   * Begruendung steht an der Schleife dort). In der Kiste steht damit
+   * regelmaessig etwas, das nicht mehr gefuehrt wird — und beim EINRAEUMEN ist
+   * das eine Entscheidung: zurueck in den Schrank oder in den Muell. Ohne
+   * dieses Feld traefe sie jemand, ohne zu wissen, dass er sie trifft.
+   */
+  artikelAktiv: boolean;
+};
+
+/**
+ * Was in der Kiste liegt, plus Fach und Stilllegung je Artikel.
+ *
+ * Leere Liste heisst „die Kiste ist leer"; dass es sie ueberhaupt gibt,
+ * beantwortet `boxOrt`.
+ */
+export function einraeumPosten(db: Leser, jetzt: Date = new Date()): EinraeumPosten[] {
+  // EINE Abfrage, nicht eine je Posten: `better-sqlite3` ist SYNCHRON, und eine
+  // Schleife mit einer Abfrage je Artikel blockiert die GANZE Suite.
+  const stamm = new Map(
+    db.select({ id: artikel.id, fach: artikel.fach, aktiv: artikel.aktiv })
+      .from(artikel).all().map((a) => [a.id, a] as const),
+  );
+  return boxInhalt(db, jetzt).map((p) => {
+    const a = stamm.get(p.artikelId);
+    /*
+     * ⚠️ DIE RUECKFAELLE SIND UNERREICHBAR UND STEHEN TROTZDEM DA: `boxInhalt`
+     * baut seine Posten aus derselben Tabelle, ein Artikel ohne Stammzeile kann
+     * also gar nicht entstehen. Ein `!` waere hier trotzdem die falsche
+     * Abkuerzung — faellt die Annahme je, ist ein leeres Fach eine fehlende
+     * Angabe, `artikelAktiv: true` dagegen die HARMLOSE Lesart („wird
+     * gefuehrt"), und nur die darf geraten werden.
+     */
+    return { ...p, fach: a?.fach ?? "", artikelAktiv: a?.aktiv ?? true };
+  });
 }
 
 /**

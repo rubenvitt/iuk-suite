@@ -52,6 +52,22 @@ vi.mock("../_lib/lesepfade/artikel", () => ({
 const ziele = vi.fn(() => [{ id: "handlager", name: "Handlager (ohne Schrank)", zugangshinweis: null }]);
 vi.mock("../_lib/lesepfade/orte", () => ({ zugangsZiele: () => ziele() }));
 
+/*
+ * DIE KISTE — DRK-381, und die Attrappe liefert bewusst „es gibt sie, sie ist
+ * leer".
+ *
+ * ⚠️ DER EINSTIEG IN DIE KISTE IST EINE ZWEITE, UNABHAENGIGE AUSSAGE dieser
+ * Seite und gehoert deshalb in eigene Zusicherungen (unten, „der Weg in die
+ * Kiste"), nicht in die Vorgabe hier. Die Vorgabe ist der Normalfall der
+ * uebrigen Zusicherungen: sie sprechen ueber die Artikelliste, und ein
+ * Einstieg, der in jedem Baum mitrendert, machte jede von ihnen unschaerfer.
+ */
+const kiste = vi.fn<() => unknown[]>(() => []);
+vi.mock("../_lib/lesepfade/entnahmebox", () => ({
+  boxOrt: () => ({ id: "entnahmebox", name: "Entnahmebox", aktiv: true }),
+  boxInhalt: () => kiste(),
+}));
+
 vi.mock("../_actions/buchung", () => ({ bucheAuffuellung: vi.fn() }));
 
 /*
@@ -82,7 +98,7 @@ import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
 
 const VIEWER = { sub: "u-gf", groups: ["lagerbuch_nutzer"], name: "G. Führer", email: null };
 
-beforeEach(() => { riegel.mockResolvedValue(VIEWER); detail.mockReturnValue(null); });
+beforeEach(() => { riegel.mockResolvedValue(VIEWER); detail.mockReturnValue(null); kiste.mockReturnValue([]); });
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
 
 const params = (artikelId: string) => Promise.resolve({ artikelId });
@@ -143,6 +159,45 @@ describe("auffuellen — die Liste zeigt auf die Auffuellstrecke, nicht auf die 
   it("traegt das Etikett der angemeldeten Person, nicht ein Kaertchen-Label", async () => {
     await mount(await AuffuellenSeite());
     expect(query('[data-rolle="rahmen"]').dataset.etikett).toBe("Angemeldet: G. Führer");
+  });
+});
+
+/**
+ * DER WEG IN DIE KISTE — DRK-381.
+ *
+ * ⚠️ WAS HIER HAENGT, IST DIE ABGRENZUNG, NICHT DER LINK. Von dieser Seite
+ * gehen ZWEI Wege ab, und sie sind verschiedene Vorgaenge: die Artikelliste
+ * fuehrt zum WARENEINGANG (Material entsteht), die Zeile darueber zum
+ * UMRAEUMEN (Material wandert, netto null). Verwechselt jemand sie, stehen
+ * dieselben Teile zweimal im append-only-Journal — die teuerste Falle des
+ * Tickets. Deshalb wird der WORTLAUT mitgeprueft und nicht nur das `href`.
+ */
+describe("auffuellen — der Weg in die Kiste", () => {
+  it("zeigt den Einstieg mit der Zahl der Posten, wenn etwas drin liegt", async () => {
+    kiste.mockReturnValue([{ artikelId: "a" }, { artikelId: "b" }]);
+    await mount(await AuffuellenSeite());
+    const einstieg = query('[data-rolle="kisten-einstieg"]');
+    expect(einstieg.getAttribute("href")).toBe("/auffuellen/box");
+    expect(einstieg.textContent).toContain("2");
+  });
+
+  it("sagt „einräumen“ und nennt es „nicht neu angenommen“", async () => {
+    kiste.mockReturnValue([{ artikelId: "a" }]);
+    await mount(await AuffuellenSeite());
+    const text = query('[data-rolle="kisten-einstieg"]').textContent ?? "";
+    expect(text).toContain("einräumen");
+    expect(text).toContain("nicht neu angenommen");
+    // ⚠️ DIE GEGENPROBE: „auffuellen" darf auf DIESEM Weg nicht stehen. Das
+    // Wort gehoert dem anderen Vorgang, und beide Wege stehen untereinander.
+    expect(text.toLowerCase()).not.toContain("auffüllen");
+  });
+
+  it("zeigt gar keinen Einstieg, wenn die Kiste leer ist", async () => {
+    kiste.mockReturnValue([]);
+    await mount(await AuffuellenSeite());
+    // Ein dauerhafter Weg mit „0 Posten" fuehrte in einen Leerzustand, und zwar
+    // auf der Flaeche, die am haeufigsten benutzt wird.
+    expect(exists('[data-rolle="kisten-einstieg"]')).toBe(false);
   });
 });
 

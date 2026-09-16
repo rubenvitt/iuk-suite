@@ -205,10 +205,36 @@ export function verfallFolgtDemMaterial(
 ): void {
   const { vonLagerortId, nachLagerortId, artikelId } = args;
   uebernimmVerfall(db, { vonLagerortId, nachLagerortId, artikelId });
+  raeumeVerfallAmLeerenOrt(db, vonLagerortId, artikelId);
+}
 
-  const rest = restJeChargeFuerArtikelAnOrt(db, artikelId, vonLagerortId);
+/**
+ * NUR DIE ZWEITE HAELFTE: die Meldung faellt, wenn der Ort leer ist (DRK-377).
+ *
+ * ⚠️ SIE STEHT EINZELN DA, WEIL EIN WEG SIE EINZELN BRAUCHT — das Einraeumen
+ * aus der Entnahmebox ins Handlager (DRK-381, `raeumeAusEntnahmebox`). Dort
+ * darf die Meldung NICHT mitwandern: im Handlager traegt den Verfall die
+ * CHARGE, nicht der Ort (`_lib/lesepfade/verfall.ts` rechnet `verfallListe`
+ * ausdruecklich je Charge und nur fuer diesen Bereich). Eine
+ * `lagerort_verfall`-Zeile an einem Schrank waere ein Fremdkoerper in einem
+ * Modell, das dort gar nicht gilt — und sie stuende in der Verfallsuebersicht
+ * neben derselben Charge, die sich schon selbst meldet.
+ *
+ * ⚠️ ABGERAEUMT WERDEN MUSS SIE TROTZDEM, und das ist der teure Teil: die
+ * Entnahmebox hat KEINEN Verfall-Editor. Eine Zeile, die niemand mehr
+ * wegnehmen kann, meldete auf Dauer einen Verfall fuer Material, das laengst
+ * im Schrank liegt — sichtbar in der Verfallsuebersicht, und von Hand nicht zu
+ * korrigieren.
+ *
+ * Die Begruendungen zum Nachlesen der Restmenge stehen an
+ * `verfallFolgtDemMaterial` oben; hier gelten sie unveraendert.
+ */
+export function raeumeVerfallAmLeerenOrt(
+  db: DB | Tx, lagerortId: string, artikelId: string,
+): void {
+  const rest = restJeChargeFuerArtikelAnOrt(db, artikelId, lagerortId);
   const verbleibt = [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
-  if (verbleibt === 0) loescheVerfallEintrag(db, vonLagerortId, artikelId);
+  if (verbleibt === 0) loescheVerfallEintrag(db, lagerortId, artikelId);
 }
 
 /**
