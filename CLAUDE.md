@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **sechzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **siebzehn Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -108,6 +108,40 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Lage hält über alle drei Versuche an. Lokal unsichtbar (warmes `.next`, 20 von 20 Mal grün).
     Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
     dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
+
+    ⚠️ **Die Hülle bricht ein ZWEITES Mal um, und dieser Umbruch trifft nicht den Klick,
+    sondern jede MESSUNG** (gemessen im Modul `lagerbuch`, DRK-322, bei 834px — gegen antds
+    Quelle gelesen, nicht vermutet). `Layout` legt seine Kinder nur dann nebeneinander, wenn es
+    die Klasse `ant-layout-has-sider` trägt. Die steht **nicht im Server-HTML**: dort kommt
+    `class="ant-layout iuk"` an, und `.ant-layout` ist `flex-direction: column` — die
+    Seitenleiste steht also zunächst **über** dem Inhalt, und der nimmt die volle Fensterbreite.
+    Erst bei der Hydration meldet sich `Sider` per `useEffect` bei `Layout` an
+    (`antd/es/layout/Sider.js:122-125`), und das Raster kippt:
+
+    ```
+    t=0ms     class="ant-layout iuk"                       flex-direction: column   Inhalt 834px
+    t=500ms   class="ant-layout ant-layout-has-sider iuk"  flex-direction: row      Inhalt 594px
+    ```
+
+    ⚠️ **Es ist die KLASSE, die fehlt, nicht die Regel** — und der Unterschied schickt die
+    Fehlersuche sonst ins falsche Stilsystem. Die cssinjs-Regel `.ant-layout-has-sider
+    { flex-direction: row }` steht im selben Server-HTML bereits drin (nachgemessen), und
+    `shell.module.css` deckelt ohnehin nur die Leiste selbst, nie `Layout` oder `Content`.
+    `useHasSider` hat zwar einen synchronen Rückfall über die Kinder
+    (`childNodes.some(node => node.type === Sider)`) — der greift hier nicht, weil `SuiteRahmen`
+    eine **Server Component** ist und `<Sider>` die RSC-Grenze als Client-Referenz überquert.
+
+    Für einen Test heißt das: bis dahin ist nichts zu eng, eine Tabelle scrollt nicht in sich,
+    und eine Zusicherung darauf fällt, **obwohl die Seite richtig ist** (gemessen: Tabellenkasten
+    802px statt 562px, die 746px-Tabelle passt hinein). `expect`s eigene Wiederholung rettet das
+    nicht — wer einmal per `evaluate` misst und danach nur noch rechnet, hat genau einen Versuch.
+    Abhilfe ist nicht „länger warten", sondern die Invariante des fertigen Rasters abzufragen:
+    der Inhalt beginnt dort, wo die Leiste endet (`warteAufSpaltenaufteilung` in
+    `e2e/lagerbuch-ist-bestand.spec.ts`). ⚠️ Die Richtung ist **umgekehrt zu der oben**: dort
+    fliegt die CI mit kaltem `.next` auf, hier die warme Maschine, auf der die Zusicherung sofort
+    greift — und weil die Ursache die Hydration ist, gilt sie **nicht nur unter `next dev`**.
+    Dass die Hülle den Sprung überhaupt macht, statt `hasSider` fest zu setzen, steht als DRK-363
+    auf dem Board.
 
     **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
     Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes
@@ -252,6 +286,34 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     ist ohnehin verboten), und `min-height: 100vh` an der Hülle ist auf dem Telefon die GROSSE
     Sichtfläche — solange die Adresszeile steht, scrollt das Dokument dadurch allein deshalb.
     `100dvh` ist gemeint.
+
+17. **Eine Spaltenüberschrift als JSX aus einer SERVER COMPONENT kommt im Server-HTML gar nicht
+    an — die Kopfzelle bleibt LEER** (Modul `files`, DRK-329, echter Chromium gegen `next dev`,
+    SSR-HTML und DOM nebeneinander gelesen — nicht vermutet). `@rc-component/table` rendert
+    `columns[].title` an **zwei** Stellen: in die Kopfzelle und in eine verborgene Messzeile, dort
+    über `React.cloneElement(rawTitle, { ref: null })` (`1.11.1`,
+    `es/Body/MeasureRow.js:36-40`). Entsteht das Element in einer Server Component, bekommt im
+    Server-HTML nur die **Messzeile** es zu sehen; gemessen an der Dateiliste von
+    `/shares/<id>` (vier Spalten, `scroll.x` 1020): viermal `<th class="ant-table-cell"
+    scope="col"></th>`, die vier Titel allein in `.ant-table-measure-row`. Der Browser setzt sie
+    dann in die Kopfzelle — das ist die Abweichung, und React meldet sie als „Hydration failed
+    because the server rendered HTML didn't match the client" mit `+ <span style={…}>` unter dem
+    `<th>`. ⚠️ **Das Symptom ist nicht die Meldung, sondern eine Tabelle ohne
+    Spaltenüberschriften:** React repariert bis zur ersten Abweichung und verwirft den Rest des
+    Teilbaums — nach der Hydration trug **eine** der vier Kopfzellen ihren Text, die anderen drei
+    blieben leer. Ohne JavaScript bleiben alle vier leer.
+    **Zwei Gegenproben, beide gemessen:** derselbe Titel als **Zeichenkette** steht in beiden
+    Stellen und meldet nichts (`cloneElement` greift nur für ein Element); derselbe Titel als
+    Element, aber **im Client** erzeugt (`mitKicker` in `core/tabelle/Datentabelle.tsx`), ebenso.
+    Der Unterschied ist die RSC-Grenze, nicht die Elementform. **Kein Tor sieht das:**
+    `typecheck` kennt `ReactNode` als gültigen `title`, `build` serialisiert ihn klaglos, und
+    **Vitest kann die Wirkung strukturell nicht sehen** — unter jsdom gibt es keine RSC-Grenze,
+    das Element ist dort gewöhnlich und rendert in beiden Stellen. Dieselbe Lage wie bei den
+    Fallen 6 und 7. **Abhilfe:** `title` als Zeichenkette übergeben — `Datentabelle` baut den
+    Kicker-`<span>` im Client —, oder die Spalten in eine Client-Insel heben.
+    `src/core/tabelle/spaltenkopf.test.ts` riegelt das repo-weit ab.
+    **Nicht mit Falle 9 zusammenlegen:** dort verweigert React eine *Funktion* über die Grenze,
+    laut und mit Fehlermeldung; hier geht ein *Element* durch und kommt still nur zur Hälfte an.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

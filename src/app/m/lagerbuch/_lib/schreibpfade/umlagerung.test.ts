@@ -160,3 +160,53 @@ describe("DRK-297 — die Quelle ist ein Bereich, das Ziel bleibt EIN Ort", () =
     expect(imSchrank).toBe(8); // 12 − 4
   });
 });
+
+/**
+ * DRK-338 — `chargeId` schraenkt die Verteilung auf GENAU EINE Charge ein.
+ *
+ * Die Vorrichtung des Dateikopfs traegt den Fall schon: `c-frueh` (2026-07)
+ * und `c-spaet` (2028-01), beide im Handlager. FEFO griffe zur frueheren; beim
+ * UMRAEUMEN ist das falsch — gewandert ist die, die jemand in der Hand hatte.
+ *
+ * ⚠️ DER AUSFALL WAERE STILL: Netto bleibt null (beide Legs kommen aus
+ * `teile[]`), die Handlager-Summe stimmt, und nur die Ortsangabe je Charge ist
+ * falsch. Das Journal ist append-only — heilbar ist das nicht.
+ */
+describe("umlagerung — DRK-338: die gewaehlte Charge", () => {
+  it("bucht ausschliesslich die genannte Charge, auch wenn eine aeltere daliegt", () => {
+    const ergebnis = inTx((tx) => umlagerung(tx, {
+      artikelId: "a1", menge: 4, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+      chargeId: "c-spaet", quelle: QUELLE, kommentar: null,
+      referenz: "umlagerung:rtw-1" }));
+    expect(ergebnis.umgelagert).toBe(4);
+    expect(ergebnis.teile.map((t2) => t2.chargeId)).toEqual(["c-spaet"]);
+
+    const amZiel = alleZeilen().filter((b) => b.lagerortId === "rtw-1");
+    expect(amZiel).toHaveLength(1);
+    expect(amZiel[0]!.chargeId).toBe("c-spaet");
+    // Die frueher verfallende Charge wurde NICHT angefasst.
+    const frueh = alleZeilen().filter((b) => b.chargeId === "c-frueh")
+      .reduce((s, b) => s + b.menge, 0);
+    expect(frueh).toBe(3);
+  });
+
+  it("kappt an der gewaehlten Charge, statt auf eine andere auszuweichen", () => {
+    // 3 Stueck `c-frueh` liegen da, 5 sind angefordert — `c-spaet` daneben
+    // haette genug. Ohne die Einschraenkung kaemen 5 heraus.
+    const ergebnis = inTx((tx) => umlagerung(tx, {
+      artikelId: "a1", menge: 5, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+      chargeId: "c-frueh", quelle: QUELLE, kommentar: null,
+      referenz: "umlagerung:rtw-1" }));
+    expect(ergebnis.umgelagert).toBe(3);
+    expect(summe()).toBe(7);   // Netto null bleibt
+  });
+
+  /** Ohne `chargeId` bleibt es bei FEFO — der Weg von `check:` und
+   *  `entnahme-ziel:`, wo die Nachfuellung die aelteste Charge nehmen SOLL. */
+  it("laeuft ohne chargeId unveraendert nach FEFO", () => {
+    const ergebnis = inTx((tx) => umlagerung(tx, {
+      artikelId: "a1", menge: 3, vonOrten: [HANDLAGER_ID], nachLagerortId: "rtw-1",
+      quelle: QUELLE, kommentar: null, referenz: "check:abc" }));
+    expect(ergebnis.teile.map((t2) => t2.chargeId)).toEqual(["c-frueh"]);
+  });
+});

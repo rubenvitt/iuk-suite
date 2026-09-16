@@ -1,5 +1,5 @@
 import { hostAbweisung } from "../_lib/hostRiegel";
-import { LAGERBUCH_MARKE, LAGERBUCH_ORGANISATION, LAGERBUCH_ZEILE } from "../_lib/marke";
+import { LAGERBUCH_MARKE, LAGERBUCH_ZEILE, lagerbuchOrganisation } from "../_lib/marke";
 
 /**
  * DAS PWA-MANIFEST — §7.10.2. Route Handler UNTER dem Modul, nicht in `app/`
@@ -34,9 +34,15 @@ import { LAGERBUCH_MARKE, LAGERBUCH_ORGANISATION, LAGERBUCH_ZEILE } from "../_li
  * Splash-Farbe und Startziel — UND SIE WERDEN BEIM INSTALLIEREN EINGEBRANNT.
  * Ein spaeterer Tausch erreicht kein Geraet, auf dem die App schon liegt.
  *
- * ⚠️ DIE DREI TEXTWERTE KOMMEN AUS `_lib/marke.ts`, NICHT AUS DER
- * PROZESSUMGEBUNG (§10.2). Fuer `name` gilt A-T3-4 aus derselben Datei: der
- * wahre Organisationsname ist eine Runbook-Eingabe.
+ * ⚠️ DIE DREI TEXTWERTE KOMMEN AUS `_lib/marke.ts`. Marke und Unterzeile sind
+ * dort Konstanten; der ORGANISATIONSNAME liest `LAGERBUCH_ORGANISATION`.
+ *
+ * ⚠️ DESHALB WIRD DAS MANIFEST JE ANFRAGE GEBAUT UND NICHT MEHR BEIM IMPORT.
+ * Ein `const MANIFEST = { name: `… ${lagerbuchOrganisation()}` }` auf Modulebene
+ * laese die Variable EINMAL, beim ersten Laden des Moduls — in einem
+ * Standalone-Build also mit der Umgebung, die `next build` gesehen hat, und der
+ * Regler stuende danach still. Dieselbe Regel wie `grenzen()` in
+ * `_lib/grenzen.ts`: gelesen wird bei jedem Aufruf (§10.8, Eigenschaft 3).
  *
  * ⚠️ `start_url: "/"` und `scope: "/"` BLEIBEN RICHTIG — der Browser sieht den
  * externen Modul-Host, der Rewrite ist serverintern unsichtbar. BEDINGUNG:
@@ -46,41 +52,43 @@ import { LAGERBUCH_MARKE, LAGERBUCH_ORGANISATION, LAGERBUCH_ZEILE } from "../_li
  */
 export const dynamic = "force-dynamic";
 
-const MANIFEST = {
-  name: `${LAGERBUCH_MARKE} · ${LAGERBUCH_ORGANISATION}`,
-  short_name: LAGERBUCH_MARKE,
-  description: LAGERBUCH_ZEILE,
-  start_url: "/",
-  scope: "/",
-  display: "standalone",
-  background_color: "#EEF0F1",
-  theme_color: "#C8000F",
-  icons: [
-    /**
-     * ⚠️ `/pwa-icon.svg`, NICHT `/icon.svg`. Der Plan begruendet das damit, dass
-     * der Alt-Eintrag (`manifest.webmanifest/route.ts:19`) auf eine Datei zeige,
-     * DIE ES NICHT GIBT — das ist NACHGEMESSEN FALSCH und schliesst aus dem
-     * falschen Verzeichnis: `../lagerbuch/public/` enthaelt sie nicht, aber
-     * `../lagerbuch/src/app/icon.svg` gibt es (385 Bytes), Next liefert eine
-     * App-Router-Metadatendatei unter `/icon.svg` aus, und `_lib/pwaIcons.ts`
-     * nennt genau diese Datei als Portierungsquelle des Zeichens.
-     *
-     * Der tragfaehige Grund ist ein anderer und staerker: eine `app/icon.svg`
-     * laege in der SUITE an der Wurzel und wuerde von jedem Host getragen —
-     * dieselbe Falle 56, gegen die dieser ganze Task gebaut ist —, und ein
-     * Verzeichnis `icon.svg/` mit `route.ts` unter dem Modul stuende gegen Nexts
-     * Metadatendatei-Konvention fuer dieses Segment. Ergebnis unveraendert (E7),
-     * Begruendung tragfaehig.
-     */
-    { src: "/pwa-icon.svg", sizes: "any", type: "image/svg+xml" },
-    { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-    { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-    { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-  ],
-};
+function manifest() {
+  return {
+    name: `${LAGERBUCH_MARKE} · ${lagerbuchOrganisation()}`,
+    short_name: LAGERBUCH_MARKE,
+    description: LAGERBUCH_ZEILE,
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    background_color: "#EEF0F1",
+    theme_color: "#C8000F",
+    icons: [
+      /**
+       * ⚠️ `/pwa-icon.svg`, NICHT `/icon.svg`. Der Plan begruendet das damit, dass
+       * der Alt-Eintrag (`manifest.webmanifest/route.ts:19`) auf eine Datei zeige,
+       * DIE ES NICHT GIBT — das ist NACHGEMESSEN FALSCH und schliesst aus dem
+       * falschen Verzeichnis: `../lagerbuch/public/` enthaelt sie nicht, aber
+       * `../lagerbuch/src/app/icon.svg` gibt es (385 Bytes), Next liefert eine
+       * App-Router-Metadatendatei unter `/icon.svg` aus, und `_lib/pwaIcons.ts`
+       * nennt genau diese Datei als Portierungsquelle des Zeichens.
+       *
+       * Der tragfaehige Grund ist ein anderer und staerker: eine `app/icon.svg`
+       * laege in der SUITE an der Wurzel und wuerde von jedem Host getragen —
+       * dieselbe Falle 56, gegen die dieser ganze Task gebaut ist —, und ein
+       * Verzeichnis `icon.svg/` mit `route.ts` unter dem Modul stuende gegen Nexts
+       * Metadatendatei-Konvention fuer dieses Segment. Ergebnis unveraendert (E7),
+       * Begruendung tragfaehig.
+       */
+      { src: "/pwa-icon.svg", sizes: "any", type: "image/svg+xml" },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
+}
 
 export function GET(req: Request): Response {
-  return hostAbweisung(req) ?? new Response(JSON.stringify(MANIFEST), {
+  return hostAbweisung(req) ?? new Response(JSON.stringify(manifest()), {
     headers: { "Content-Type": "application/manifest+json" },
   });
 }

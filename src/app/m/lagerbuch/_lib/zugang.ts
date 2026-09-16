@@ -277,13 +277,20 @@ export async function requireLagerbuchAdmin(): Promise<Viewer> {
  * `url.origin` zurueck und der frisch angemeldete Admin steht wieder am Gate.
  * Diese Weiche faengt das COOKIE-UNABHAENGIG ab.
  *
- * Das Ziel wird gegen eine Allowlist geprueft: /helfer ist fuer Admins ohne
+ * Das Ziel wird gegen eine Allowlist geprueft.
+ *
+ * ⚠️ DIE BEGRUENDUNG DIESER LISTE HAT SICH MIT DRK-305 GEAENDERT, DIE LISTE
+ * SELBST AUCH. Bis dahin stand hier: „/helfer ist fuer Admins ohne
  * Helfer-Sitzung gesperrt und wuerde direkt zurueck aufs Gate werfen — eine
- * Endlosschleife. ⚠️ Der Bestandskommentar verweist dafuer auf
- * `helferGateDecision`; die Funktion ENTFAELLT (§3.1). Der Verweis lautet ab
- * jetzt `requireHelferSitzung` (`_lib/helferZugang.ts`, §3.4.4) — die Sache
- * bleibt unveraendert wahr: `helfer/layout.tsx` ruft sie, und sie schickt eine
- * verwaltende Person ohne Helfer-Sitzung sofort wieder aufs Gate.
+ * Endlosschleife." Das ist nicht mehr wahr: `requireHelferSitzung`
+ * (`_lib/helferZugang.ts`) nimmt seit DRK-305 auch ein angemeldetes
+ * Lagerbuch-Konto an, und wer hier ankommt, IST angemeldet und IST in der
+ * Gruppe — beides hat die Weiche am Gate gerade geprueft. Ein `/helfer` als
+ * `returnTo` fuehrt also dorthin, wo die Person hinwollte, statt sie wortlos in
+ * die Uebersicht zu setzen.
+ *
+ * Alles UEBRIGE bleibt gesperrt und landet auf `/verwaltung` — die Liste ist
+ * eine Allowlist, kein Filter.
  *
  * GENAU EIN AUFRUFER: die Gate-Seite `page.tsx` (§7.2.4, Teil 4). Das ist keine
  * Nebensache, sondern die Bedingung, unter der die Zusage ueberhaupt eintritt —
@@ -305,5 +312,10 @@ export function adminLandingPfad(returnTo: string | null | undefined): string {
   // /a/{id} leitet angemeldete Admins selbst in die Verwaltung weiter, ist also
   // schleifenfrei — so bleibt ein gescanntes Regaletikett als Ziel erhalten.
   const istArtikelDeepLink = ziel === "/a" || ziel.startsWith("/a/");
-  return istVerwaltung || istArtikelDeepLink ? ziel : "/verwaltung";
+  // DRK-305 — der Helfer-Ast steht angemeldeten Personen offen; siehe den Block
+  // oben. `/helfer` selbst UND seine Unterseiten, `/helfer/check` ist der Fall,
+  // fuer den das Ticket geschrieben ist.
+  const istHelferAst =
+    ziel === "/helfer" || ziel.startsWith("/helfer/") || ziel.startsWith("/helfer?");
+  return istVerwaltung || istArtikelDeepLink || istHelferAst ? ziel : "/verwaltung";
 }

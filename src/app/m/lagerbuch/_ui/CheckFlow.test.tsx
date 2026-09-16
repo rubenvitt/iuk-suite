@@ -162,6 +162,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
   it("Artikel + Geraete + Flaschen ergeben VIER Schritte", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[GERAET]}
@@ -183,6 +184,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
   it("Fahrzeug OHNE Geraete hat DREI Schritte", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -203,6 +205,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
   it("Fahrzeug OHNE Artikel hat ZWEI Schritte", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -222,6 +225,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
   it("Fahrzeug OHNE ALLES zeigt den LeerZustand — mit benanntem Rueckweg", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
         gebunden={false}
         letzterCheckText={null}
@@ -243,6 +247,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ} soll={[]} geraete={[]} flaschen={[]} verfall={{}} warn={WARN}
         gebunden
         letzterCheckText={null}
@@ -259,6 +264,7 @@ describe("CheckFlow — die adaptive Schrittfolge (1:1, §7.9.2)", () => {
     // zweite.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -292,6 +298,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS({ soll: 7, fahrzeugBestand: 5 })]}
         geraete={[]}
@@ -319,6 +326,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -385,6 +393,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS({ soll: 5 })]}
         geraete={[]}
@@ -425,6 +434,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
 
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -462,6 +472,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
 
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[GERAET]}
@@ -497,6 +508,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // und `stepanzeige` gaebe es gar nicht.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -517,6 +529,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // Zwei Felder fuer EINE Angabe waeren nicht auseinanderzuhalten (:100-109).
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -540,6 +553,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // sie wird hier zugesichert.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -576,6 +590,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
     // (Teil 3, T43); hier wird geprueft, dass sie ANKOMMT.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -592,6 +607,7 @@ describe("CheckFlow — der Zaehlschritt", () => {
   it("`Soll` runterzaehlen zeigt „nachfuellen N\"", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS({ soll: 5 })]}
         geraete={[]}
@@ -613,6 +629,7 @@ describe("CheckFlow — Nachfuellen", () => {
     // Luecke 5, Handlager 2 → Vorschlag 2.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -635,6 +652,7 @@ describe("CheckFlow — Nachfuellen", () => {
     // aber ueber die Luecke hinaus ist sie keine Nachfuellung mehr.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -660,6 +678,7 @@ describe("CheckFlow — Nachfuellen", () => {
     // der Deckel noch die Warnung.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -718,6 +737,7 @@ describe("CheckFlow — Nachfuellen", () => {
 
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         geraete={[]}
         flaschen={[]}
@@ -773,6 +793,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     // Schluessel mit Wert `undefined` wie einen fehlenden.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS({ soll: 5 })]}
         geraete={[GERAET]}
@@ -810,6 +831,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     // dann gruen, wenn gar nichts mehr gesendet wuerde.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -837,6 +859,7 @@ describe("CheckFlow — die Nutzlast (§12.1 Punkt 1)", () => {
     // mit wegwirft, bliebe gruen.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -865,6 +888,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
     // eine Bildschirmleserin gar nicht vorhanden.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -927,7 +951,7 @@ describe("CheckFlow — der Geraeteschritt (Befund 35)", () => {
    */
   it("die fuenf Auswahlknoepfe sind mit Handschuhen treffbar (Tippmass)", async () => {
     await mount(
-      <CheckFlow fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN}
+      <CheckFlow kontoZugang={false} fahrzeug={FZ} soll={[]} geraete={[GERAET]} flaschen={[]} verfall={{}} warn={WARN}
         gebunden={false}
         letzterCheckText={null}
       />,
@@ -971,6 +995,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
     // um eine VOLLE Flasche zu tauschen.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[]}
@@ -1006,6 +1031,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
   it("MIT Nennfuelldruck steht der Prozentwert da", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[]}
@@ -1034,6 +1060,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
     // (kein Sollwert vs. keine Messung) und ersetzt sie nicht.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[]}
@@ -1058,6 +1085,7 @@ describe("CheckFlow — der Sauerstoffschritt (§5.12, Uebergabe Teil 3 Punkt 4)
     // schriebe ein Check den vorigen Wert fort, ohne dass jemand hinsieht.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[]}
@@ -1093,6 +1121,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[GERAET]}
@@ -1122,6 +1151,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     // eine Aussage ueber Arbeit, die nie stattgefunden hat.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1157,6 +1187,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1180,6 +1211,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1200,6 +1232,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
   it("bietet ZWEI Links statt eines Zustandsresets (§7.9.1)", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1232,6 +1265,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1256,6 +1290,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     // Welle und erzeugen dieselbe URL-Form.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={{ id: "fz 1/a", name: "RTW 1", kennung: null }}
         soll={[]}
         geraete={[GERAET]}
@@ -1283,6 +1318,7 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
  */
 const VOLLES_FAHRZEUG = (
   <CheckFlow
+    kontoZugang={false}
     fahrzeug={FZ}
     soll={[POS({ soll: 5 })]}
     geraete={[GERAET]}
@@ -1294,8 +1330,27 @@ const VOLLES_FAHRZEUG = (
   />
 );
 
-async function alleSechsSetzen(): Promise<void> {
-  await mount(VOLLES_FAHRZEUG);
+/**
+ * Dasselbe Fahrzeug, aber ANGEMELDET statt mit Kärtchen (DRK-305).
+ * Einziger Unterschied ist `kontoZugang` — alles andere bleibt gleich, damit
+ * die Gegenprobe unten wirklich nur die Herkunft misst.
+ */
+const VOLLES_FAHRZEUG_KONTO = (
+  <CheckFlow
+    kontoZugang
+    fahrzeug={FZ}
+    soll={[POS({ soll: 5 })]}
+    geraete={[GERAET]}
+    flaschen={[FLASCHE]}
+    verfall={{}}
+    warn={WARN}
+    gebunden={false}
+    letzterCheckText={null}
+  />
+);
+
+async function alleSechsSetzen(flaeche = VOLLES_FAHRZEUG): Promise<void> {
+  await mount(flaeche);
   for (let i = 0; i < 3; i++) await plus(0); // 1 `ist` = 3
   await fill("[data-rolle='zaehlliste'] input[type='month']", "2027-03"); // 2 `verfallState`
   await click(WEITER); // 3 `nachfuell` = 2 (greedy)
@@ -1338,6 +1393,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
   it("nennt am Abschluss den QR-Code am Handlager als Einstieg", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1362,6 +1418,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
   it("ist TEXT, kein Weg — kein Link, kein Knopf (AK3)", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1394,6 +1451,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
     // konkurrierte der Satz mit dessen eigener Anweisung.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[GERAET]}
@@ -1422,6 +1480,7 @@ describe("CheckFlow — der Auffuellhinweis nach dem Dienst (DRK-301)", () => {
     // von Arbeit, die es nicht gibt.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1451,6 +1510,52 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
     await pruefeAlleSechs();
   });
 
+  it("DRK-305 — ANGEMELDET zeigt das Code-Feld NICHT, sondern den Weg zur Anmeldung", async () => {
+    /*
+     * ⚠️ DER TEUERSTE SACKGASSEN-FALL DES MODULS, und der Server sieht ihn
+     * nicht: fällt der Konto-Zugang mitten im Check aus, gibt er den
+     * Kärtchen-Grund `sitzung` zurück — er kann die Herkunft nicht
+     * unterscheiden. Das Code-Feld verlangte dann ein Kärtchen, das diese
+     * Person nie hatte, und der einzige Ausweg wäre, die Seite zu verlassen:
+     * der GESAMTE Zählstand liegt in sechs `useState`. Gefunden von der
+     * Codex-Review zu PR #164.
+     *
+     * Deshalb steht hier `pruefeAlleSechs()` wie im Kärtchen-Fall darueber —
+     * die Zusage ist dieselbe: nichts geht verloren.
+     */
+    abschluss.mockResolvedValue({
+      ok: false,
+      grund: "sitzung",
+      text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut — deine Eingaben bleiben stehen.",
+    });
+    await alleSechsSetzen(VOLLES_FAHRZEUG_KONTO);
+    await click(ABSCHLIESSEN);
+
+    expect(exists("[data-rolle='erneuern']")).toBe(false);
+    const weg = query<HTMLAnchorElement>("[data-rolle='check-anmelden']");
+    expect(weg.getAttribute("href")).toBe("/verwaltung");
+    // NEUER TAB — daran hängt, dass der Zählstand überlebt.
+    expect(weg.getAttribute("target")).toBe("_blank");
+    expect(weg.getAttribute("rel")).toBe("noreferrer");
+    // Und der Satz nennt kein Kärtchen mehr.
+    expect(query("[data-rolle='check-fehler']").textContent).not.toContain("Kärtchen");
+    await pruefeAlleSechs();
+  });
+
+  it("DRK-305 — mit Kärtchen gibt es den Anmelde-Weg NICHT", async () => {
+    // Gegenprobe zur Zeile darueber: ohne sie wäre der Test auch dann grün,
+    // wenn der Link in BEIDEN Herkünften erschiene.
+    abschluss.mockResolvedValue({
+      ok: false,
+      grund: "sitzung",
+      text: "Dein Zugang ist abgelaufen. Scanne das Kärtchen erneut — deine Eingaben bleiben stehen.",
+    });
+    await alleSechsSetzen();
+    await click(ABSCHLIESSEN);
+    expect(exists("[data-rolle='check-anmelden']")).toBe(false);
+    expect(exists("[data-rolle='erneuern']")).toBe(true);
+  });
+
   it("`grund:\"gesperrt\"` zeigt das Feld NICHT", async () => {
     // Ein erneutes Einloesen desselben Codes scheitert genauso, und ein Feld
     // anzubieten, das nicht helfen kann, ist schlimmer als keins.
@@ -1461,6 +1566,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
     });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1489,6 +1595,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
     });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1509,6 +1616,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
     erneuere.mockResolvedValue({ ok: true, wert: null });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1536,6 +1644,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
     });
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1558,6 +1667,7 @@ describe("CheckFlow — die Inline-Erneuerung (§7.4.4)", () => {
     erneuere.mockRejectedValue(new Error("fetch failed"));
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1584,6 +1694,7 @@ describe("CheckFlow — Netz (Falle 62, Falle 66)", () => {
     abschluss.mockRejectedValue(new Error("fetch failed"));
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1656,6 +1767,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
   it("nennt den Zeitpunkt des letzten Checks im Zaehlschritt", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1675,6 +1787,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
     // Historie ist der haeufigste Ersteinsatz.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1696,6 +1809,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
     // dann eine Aussage ueber die Bestueckung, nicht ueber die Oberflaeche.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[]}
         geraete={[GERAET]}
@@ -1715,6 +1829,7 @@ describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
     // 14.09." direkt unter „Check abgeschlossen".
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1743,6 +1858,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
   it("bietet den Knopf NUR an, wenn eine Angabe dasteht", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1769,6 +1885,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1788,6 +1905,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
   it("sendet daraufhin `null` — die Angabe wird geloescht, nicht „unangetastet\" gelassen", async () => {
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1814,6 +1932,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
     // es nie gab.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1838,6 +1957,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
     // zurueckgenommen hat.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1864,6 +1984,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
      */
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS()]}
         geraete={[]}
@@ -1885,6 +2006,7 @@ describe("CheckFlow — das Verfallsfeld leeren (DRK-306, AK4)", () => {
     // Bildschirmleserin zweimal derselbe Text an zwei verschiedenen Angaben.
     await mount(
       <CheckFlow
+    kontoZugang={false}
         fahrzeug={FZ}
         soll={[POS(), POS({ id: "sp-2", artikelId: "art-2", artikelName: "Mullbinde" })]}
         geraete={[]}
