@@ -67,6 +67,24 @@ describe("BoxAbgabe — der Schirm", () => {
     expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Liegt in der Tasche");
   });
 
+  it("schreibt den Verfallsstatus in die Zusammenfassung, statt ihn zu faerben", async () => {
+    /*
+     * ⚠️ DIE FARBE IST KEINE AUSKUNFT (Codex-Review zu PR #175). „01/27"
+     * allein laesst offen, ob das gut oder schlecht ist; die Antwort steckte
+     * bis hierher nur im Ton des Chips und war mit Rot-Gruen-Schwaeche oder
+     * einer Vorleseanwendung nicht zu haben. Genau an dieser Zeile entscheidet
+     * jemand, ob er den Posten ueberhaupt aufklappt.
+     *
+     * ⚠️ DIE ZUSAMMENGEKLAPPTE ZEILE, nicht die Chargenwahl darunter: die hat
+     * es laengst so, und das war der Grund, warum es hier niemandem auffiel.
+     */
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,
+    );
+    expect(query("[data-rolle='box-posten-knopf']").textContent)
+      .toContain("fällig 01/27");
+  });
+
   it("zeigt die Mengeneingabe erst nach dem Tippen auf die Zeile", async () => {
     await mount(
       <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} kontoZugang={false} />,

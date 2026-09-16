@@ -117,6 +117,26 @@ describe("BoxAnsicht — die Tabellen", () => {
     expect(query("[aria-label='Zuletzt abgegeben']")).toBeTruthy();
   });
 
+  it("schreibt den Verfallsstatus in den Chargen-Chip, statt ihn zu faerben", async () => {
+    /*
+     * ⚠️ DIE FARBE IST KEINE AUSKUNFT (Codex-Review zu PR #175). Wer die Kiste
+     * einraeumt, entscheidet an genau diesem Chip, ob das Teil zurueck ins
+     * Regal geht oder in den Muell — und „01/27" allein beantwortet das nicht.
+     * Bis hierher stand die Antwort nur im Ton und war mit Rot-Gruen-Schwaeche
+     * oder einer Vorleseanwendung nicht zu haben.
+     */
+    await mount(ansicht({
+      inhalt: [{
+        ...POSTEN[0]!,
+        chargen: [{
+          id: "ch-alt", chargenNr: "L-099", verfall: "2026-01", rest: 3,
+          ampel: "rot", text: "abgelaufen",
+        }],
+      }],
+    }));
+    expect(document.body.textContent).toContain("L-099 · abgelaufen · 3");
+  });
+
   it("zeigt einen Strich statt einer rohen Id, wenn die Herkunft fehlt", async () => {
     // Die Referenz trägt keinen Fremdschlüssel; eine gelöschte Einheit
     // hinterlässt sie als Waise. Eine Zeichenkette, die wie ein Name aussieht

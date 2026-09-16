@@ -88,10 +88,20 @@ function inhaltSpalten(): NonNullable<TableProps<BoxPosten>["columns"]> {
               ⚠️ DER CHIP TRAEGT DEN STATUS ALS TEXT, nicht allein ueber die
               Farbe — dieselbe Regel wie ueberall im Modul. Und er traegt ihn
               HIER besonders: wer die Kiste einraeumt, entscheidet an genau
-              dieser Zahl, ob das Teil zurueck ins Regal geht oder in den Muell.
+              dieser Stelle, ob das Teil zurueck ins Regal geht oder in den
+              Muell.
+
+              ⚠️ DESHALB `c.text` UND NICHT `fmtVerfall(c.verfall)`
+              (Codex-Review zu PR #175): das blosse Datum ist eine ZAHL, keine
+              Aussage — „01/27" laesst offen, ob das gut oder schlecht ist, und
+              die Antwort steckte allein in der Farbe. `chargeText` schreibt sie
+              hin („abgelaufen", „laeuft 09/26 ab", „faellig 09/26",
+              „bis 01/30") und nennt das Datum weiterhin mit; doppelt steht
+              damit nichts. Dieselbe Form wie `Entnahme.tsx` und der
+              `ArtikelDrawer`.
             */
             <Chip key={c.id} ton={ampelTon(c.ampel)}>
-              {c.chargenNr} · {fmtVerfall(c.verfall)} · {c.rest}
+              {c.chargenNr} · {c.text} · {c.rest}
             </Chip>
           ))}
         </Flex>

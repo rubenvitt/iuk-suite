@@ -9,7 +9,7 @@ import {
   ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund,
 } from "../_lib/actionTypen";
 import { einheitMeta, inDerEinheit, type Einheitenart } from "../_lib/konstanten";
-import { fmtVerfall, ampelTon } from "../_lib/format";
+import { ampelTon } from "../_lib/format";
 // NUR DER TYP, und er liegt in einem Modul OHNE "use client" (Falle 6):
 // dieselbe Form liest die Server Component, die ihn befuellt.
 import type { BoxPosten } from "../_lib/lesepfade/entnahmebox";
@@ -237,9 +237,18 @@ export function BoxAbgabe({
                 <div className={s.zeileHaupt}>
                   <div className={s.zeileName}>{p.artikelName}</div>
                   <div className={s.zeileMeta}>
+                    {/*
+                      ⚠️ `c.text` UND NICHT DAS BLOSSE DATUM (Codex-Review zu
+                      PR #175). Die Zusammenfassung ist die Zeile, an der jemand
+                      entscheidet, ob er den Posten ueberhaupt aufklappt — und
+                      „01/27" allein sagt nicht, ob das gut oder schlecht ist.
+                      Die Antwort steckte bis hier allein in der FARBE; mit
+                      Rot-Gruen-Schwaeche oder einer Vorleseanwendung war sie
+                      nicht zu haben. Die Chargenwahl darunter hat es laengst so.
+                    */}
                     {p.chargen.map((c) => (
                       <HelferChip key={c.id} ton={ampelTon(c.ampel)}>
-                        {fmtVerfall(c.verfall)}
+                        {c.text}
                       </HelferChip>
                     ))}
                   </div>
