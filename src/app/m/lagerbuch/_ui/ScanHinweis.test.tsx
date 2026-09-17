@@ -87,9 +87,52 @@ describe("ScanHinweis — beide Einheiten stehen drin (AK 2)", () => {
     expect(text()).toMatch(/Kärtchen/);
   });
 
-  it("traegt eine Ueberschrift, die sagt, dass der Scan nicht gilt", async () => {
+  it("traegt eine Ueberschrift, die die geltende Regel nennt", async () => {
     await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
-    expect(query("[data-rolle='scan-hinweis']").textContent).toContain("gilt hier nicht");
+    expect(query("[data-rolle='scan-hinweis']").textContent).toContain("gilt dein Kärtchen");
+  });
+});
+
+/**
+ * REVIEWRUNDE 4 — DER HINWEIS BEHAUPTET KEINEN VORGANG, DEN ER NICHT BELEGEN
+ * KANN.
+ *
+ * `gescannt` kommt als Suchparameter. `helfer/check/page.tsx` nimmt ihn nur in
+ * der Form, die `ortZielPfad` erzeugt — aber eine erkennbare FORM ist keine
+ * nachgewiesene HERKUNFT: `?fz=<gebunden>&gescannt=<andere>` ist von Hand
+ * schreibbar, und ein Lesezeichen oder die Zurueck-Taste auf eine frueher
+ * besuchte Check-Adresse traegt sie ohne jede Absicht. Der alte Satz
+ * („Gescannt hast du das Etikett von X") wurde damit zu einer falschen Aussage
+ * auf genau der Flaeche, deren Wahrhaftigkeit DRK-373 herstellt.
+ *
+ * ⚠️ DIE NEGATIVE ZUSICHERUNG IST HIER DIE TRAGENDE, nicht die positive: der
+ * alte Wortlaut ist der schoenere und der naheliegende Rueckfall. Wer ihn gut
+ * gemeint wiederherstellt, bekommt diesen Test rot — und nur ihn, denn „nennt
+ * beide Einheiten" und „sagt den Grund" waeren weiterhin gruen.
+ */
+describe("ScanHinweis — nur behaupten, was belegbar ist (Reviewrunde 4)", () => {
+  it("behauptet NICHT, dass gescannt wurde", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(text()).not.toMatch(/[Gg]escannt hast du/);
+    expect(text()).not.toMatch(/[Dd]ein Scan/);
+  });
+
+  it("benennt die Adresse als das, worauf sich die andere Einheit stuetzt", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(text()).toMatch(/Adresse/);
+  });
+
+  /**
+   * Die Umkehrprobe zur negativen Zusicherung: der Hinweis darf durch die
+   * Korrektur nicht VERSTUMMEN. Beide Namen, der Grund und der Schluss stehen
+   * unveraendert — geprueft ist das in den Faellen oben; hier steht nur, dass
+   * der Kasten ueberhaupt noch kommt.
+   */
+  it("steht trotzdem da und nennt weiter beide Einheiten", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(query("[data-rolle='scan-hinweis']")).not.toBeNull();
+    expect(text()).toContain("KTW 1");
+    expect(text()).toContain("RTW 1");
   });
 });
 
