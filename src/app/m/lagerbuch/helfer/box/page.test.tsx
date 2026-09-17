@@ -532,6 +532,34 @@ describe("helfer/box — kein Ausgang fuehrt im Kreis (DRK-417)", () => {
     expect(query("[data-rolle='abgabe']").getAttribute("data-rueckweg")).not.toBe("/helfer");
   });
 
+  /**
+   * ⚠️ DIE KARTE AN DER EINHEIT BEHAELT IHREN CHECK ALS AUSWEG — Codex-Befund
+   * P2 zu PR #206.
+   *
+   * Sie darf keine Entnahme, also griff der erste Fix fuer sie denselben Zweig
+   * wie fuer die Box-Karte und schickte sie aufs Gate: ein noch gueltiger
+   * Arbeitsweg, wortlos beendet. Vorher fuehrte `/helfer` fuer sie ueber
+   * `startPfad` in IHREN Check — der Fix hatte also einen Umweg durch eine
+   * Sackgasse ersetzt. Ohne diese Zusicherung ist das nicht zu sehen: der
+   * Link funktioniert in beiden Fassungen, er fuehrt nur woandershin.
+   */
+  it("die Karte an der Einheit bekommt ihren Check als Ausweg, nicht das Gate", async () => {
+    t.db.insert(lagerorte).values({
+      id: "fz-2", name: "FZ-2", typ: "fahrzeug", aktiv: true, einheitenart: "fahrzeug",
+    }).run();
+    karteHaengtAn("fz-2");
+    // Gebunden an fz-2 → keine „andere Einheit", also greift der Ausweg.
+    t.db.update(tokens).set({ zielTyp: "fahrzeug", zielId: "fz-2" })
+      .where(eq(tokens.id, "tk1")).run();
+    fahrzeuge.mockReturnValue([FZ("fz-2"), FZ("fz-1")]);
+
+    await mount(await BoxSeite(sp()));
+
+    const weg = query("[data-rolle='leer-weg']");
+    expect(weg.getAttribute("href")).toBe("/helfer/check?fz=fz-2");
+    expect(weg.textContent).toContain("Check");
+  });
+
   it("ein voller Zugang bekommt weiterhin die Entnahme als Ausweg", async () => {
     fahrzeuge.mockReturnValue([FZ("fz-1")]);
     bestandAn("fz-1", 5);

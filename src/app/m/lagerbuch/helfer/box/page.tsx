@@ -93,18 +93,35 @@ export default async function BoxSeite({
    * `andereEinheitErreichbar`-Block weiter unten geschrieben ist. Genau in
    * einem Leerzustand ist er die EINZIGE Handlung auf dem Schirm.
    *
-   * ⚠️ DAS GATE IST DER RICHTIGE AUSGANG, nicht der Check: den darf eine
-   * Box-Karte ebenso wenig, ein Ausweichen dorthin waere derselbe Kreis eine
-   * Tuer weiter. Und es ist kein Notbehelf, sondern der Weg, den die
+   * ⚠️ DREI FAELLE, NICHT ZWEI — und hier stand zwischenzeitlich die
+   * Zweier-Fassung (Codex-Befund P2 zu PR #206, und er hat recht). Sie fragte
+   * nur nach der Entnahme und schickte damit auch die Karte an der EINHEIT aufs
+   * Gate, obwohl die den Check darf: ein noch gueltiger Arbeitsweg, wortlos
+   * beendet. Vorher fuehrte sie auf `/helfer`, was fuer sie ueber `startPfad`
+   * in IHREN Check umleitete — mein erster Fix hat also einen Umweg durch eine
+   * Sackgasse ersetzt. Das ist die Sorte Ueberkorrektur, die beim Schliessen
+   * eines Kreises entsteht: zwei Faelle zusammenlegen, statt den dritten zu
+   * sehen.
+   *
+   * ⚠️ DAS GATE BLEIBT DER AUSGANG FUER DIE BOX-KARTE, und nur fuer sie: den
+   * Check darf sie ebenso wenig, ein Ausweichen dorthin waere derselbe Kreis
+   * eine Tuer weiter. Es ist kein Notbehelf, sondern der Weg, den die
    * Betreiberentscheidung vom 17.09.2026 vorsieht — ein Scan ersetzt die
    * laufende Sitzung, und wer hier nichts zu tun hat, scannt die Karte an dem
    * Ort, an dem er etwas zu tun hat. Das Gate leitet eine gueltige
    * Kaertchen-Sitzung ausdruecklich NICHT weiter (`page.tsx`), der Weg ist
    * also schleifenfrei.
+   *
+   * ⚠️ DER CHECK-ZWEIG GEHT UEBER `startPfad` UND NICHT UEBER EIN NACKTES
+   * `/helfer/check`: mit Bindung fuehrt er in den Check GENAU DIESER Einheit,
+   * ohne Bindung auf die Wahl. Dieselbe Funktion, die auch die Landung nach dem
+   * Scan rechnet — zwei Rechnungen dafuer liefen auseinander.
    */
   const rueckweg = darf(zugang.reichweite, "entnahme")
     ? { href: "/helfer", text: "Zur Entnahme" }
-    : { href: "/", text: "Andere Karte scannen" };
+    : darf(zugang.reichweite, "check")
+      ? { href: startPfad(zugang.reichweite, zugang.fahrzeugBindung), text: "Zum Check" }
+      : { href: "/", text: "Andere Karte scannen" };
 
   /*
    * ⚠️ DIE BOX WIRD VOR DER EINHEIT GEPRUEFT, und die Reihenfolge ist die
