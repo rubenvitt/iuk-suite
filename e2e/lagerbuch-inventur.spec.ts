@@ -214,8 +214,17 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     const kommentar = `E2E Schrankinventur Versuch ${test.info().retry + 1}`;
     const feld = page.getByLabel(`Ist-Bestand ${ORT_ARTIKEL}`, { exact: true });
 
-    // 1) Der Ort steht in der URL — der Server rechnet die Zeilen dafuer.
-    const seite = await page.goto(lagerbuchUrl(`/verwaltung/inventur?ort=${SCHRANK_ID}`));
+    /*
+     * 1) Der Ort steht in der URL — der Server rechnet die Zeilen dafuer.
+     *
+     * ⚠️ PARAMETER `zaehlort`, WERT MIT PRAEFIX `ort:` (DRK-371) — beides
+     * zusammen: der Name trennt alt von neu, das Praefix den Ort vom Waechter. Die rohe Kennung laege im Wertebereich des Waechters
+     * `alle`; sie faellt deshalb auf den ganzen Handlager zurueck — wie ein
+     * unbekannter Ort. Ohne das Praefix pruefte dieser Fall also den Rueckfall
+     * und nicht den Schrank, und zwar mit einer Zusicherung, die nach etwas
+     * anderem klingt.
+     */
+    const seite = await page.goto(lagerbuchUrl(`/verwaltung/inventur?zaehlort=ort:${SCHRANK_ID}`));
     expect(seite?.status()).toBe(200);
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("seitenkopf-beschreibung")).toContainText(SCHRANK);
@@ -242,13 +251,13 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     await expect(page.locator(".ant-alert-success")).toContainText("1 Position korrigiert");
 
     // 4) Der Schrank traegt den neuen Stand …
-    const nachher = await page.goto(lagerbuchUrl(`/verwaltung/inventur?ort=${SCHRANK_ID}`));
+    const nachher = await page.goto(lagerbuchUrl(`/verwaltung/inventur?zaehlort=ort:${SCHRANK_ID}`));
     expect(nachher?.status()).toBe(200);
     await expect(feld).toHaveValue(String(imSchrank + 1));
 
     // 5) … und die Wurzel ist unberuehrt. Vor DRK-337 waere der Ueberhang genau
     //    hier gelandet, weil die Charge im Schrank noch keinen Kandidaten hatte.
-    const wurzel = await page.goto(lagerbuchUrl("/verwaltung/inventur?ort=handlager"));
+    const wurzel = await page.goto(lagerbuchUrl("/verwaltung/inventur?zaehlort=ort:handlager"));
     expect(wurzel?.status()).toBe(200);
     await expect(page.getByTestId("seitenkopf-beschreibung")).toContainText("noch keinem Schrank zugeordnet");
     await expect(feld).toHaveValue(String(AUF_DER_WURZEL));
