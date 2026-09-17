@@ -105,6 +105,12 @@ zahl_oder_vorgabe() {
 # Umgebung, hier steht kein Zweitwert dafuer.
 BACKUP_SKRIPT="${BACKUP_SKRIPT:-/opt/backup/backup.sh}"
 BACKUP_DIR="${BACKUP_DIR:-/backups}"
+# ⚠️ EINZIGE AUSNAHME VON DEM ABSATZ DARUEBER, und sie ist kein Zweitwert der Konfiguration,
+# sondern einer fuer den Vorlauf: der muss wissen, WELCHES Verzeichnis er der Suite
+# uebereignet (siehe `vorbereiten`). Die Vorgabe ist zeichengleich die aus
+# `scripts/backup.sh`; `backup-sidecar.test.ts` haelt beide zusammen, denn zwei Vorgaben,
+# die auseinanderlaufen, ergaeben ein uebereignetes Verzeichnis, das niemand liest.
+DATA_DIR="${DATA_DIR:-/data}"
 
 # Uhrzeit des taeglichen Laufs, `HH:MM` in der Zeitzone des Containers ($TZ).
 BACKUP_UHRZEIT="${BACKUP_UHRZEIT:-03:30}"
@@ -245,6 +251,38 @@ vorbereiten() {
   # anlegen. Dieselbe Falle, die im `Dockerfile` bei `/data/files` steht.
   mkdir -p "$BACKUP_DIR"
   chown "$NUTZER" "$BACKUP_DIR"
+  # ⚠️ UND DASSELBE FUER `$DATA_DIR`, aus demselben Grund und mit einem Umweg mehr.
+  # Dieser Dienst hat bewusst KEIN `depends_on` (ein kaputtes Backup darf die Suite nicht
+  # am Starten hindern) — also kann er beim ersten `up -d` derjenige sein, der
+  # `suite_data` als ERSTER mountet. Dann erbt das leere Volume Eigentuemer und Modus
+  # seines Mountpunkts aus DIESEM Image, und `alpine` hat kein `/data`: root:root. Die
+  # Suite laeuft danach als uid 1001 und kann keine einzige Datenbank anlegen.
+  #
+  # Das ist genau die Falle, die im `Dockerfile` bei `/data/files` steht (dort am
+  # 30.07.2026 gemessen) — nur dass sie von hier aus erreichbar wird, seit dieser Dienst
+  # dasselbe Volume mountet. Nachgemessen mit echtem Kennungswechsel:
+  #
+  #   /data root:root 755   → uid 1001 darf NICHT schreiben
+  #   nach `chown`          → uid 1001 darf schreiben
+  #
+  # ⚠️ NICHT `-R`: das Verzeichnis selbst reicht, um darin anzulegen, und rekursiv
+  # traefe es die Blobs unter `/data/files` — ein eigenes Volume, das dem files-Image
+  # gehoert und hier nur lesend gemountet ist (nachgemessen: bleibt unangetastet).
+  # ⚠️ Repariert wird nur, was kaputt IST: gefragt wird nicht nach dem Eigentuemer,
+  # sondern nach der Eigenschaft, auf die es ankommt — kann SUITE_USER dort schreiben?
+  datenprobe="$DATA_DIR/.schreibprobe.$$"
+  if ! schreibprobe "$datenprobe"; then
+    protokoll "$DATA_DIR ist fuer $NUTZER nicht beschreibbar — vermutlich hat dieser
+  Container das Volume zuerst gemountet. Eigentuemer wird gesetzt."
+    chown "$NUTZER" "$DATA_DIR" 2>/dev/null || true
+    if schreibprobe "$datenprobe"; then
+      protokoll "$DATA_DIR gehoert jetzt $NUTZER."
+    else
+      warne "$DATA_DIR bleibt fuer $NUTZER unbeschreibbar. Die Suite kann dort keine
+  Datenbank anlegen — das ist KEIN Backup-Problem, faellt aber hier zuerst auf."
+    fi
+  fi
+  rm -f "$datenprobe"
   protokoll "Vorlauf fertig, weiter als $NUTZER: $*"
   beenden_pruefen
   exec su-exec "$NUTZER" "$@"
@@ -327,7 +365,21 @@ letzter_erfolg=$alt"
     fi
   fi
 
-  tmp="$ZUSTANDSDATEI.neu.$$"
+  # ⚠️ NICHT `$$` ALLEIN, und das ist dieselbe Falle wie bei der Eignermarke: der Dienst
+  # und ein `docker compose run --rm … einmal` sind beide PID 1 in ihrem Container, das
+  # Backup-Volume sehen beide. Der Name der Zwischendatei waere also derselbe.
+  #
+  # GEMESSEN: der ueberholte Lauf raeumt in seinem Besitz-Fehlzweig `rm -f "$tmp"` — und
+  # traf damit die Zwischendatei DES ANDEREN:
+  #
+  #   B hat seine Zwischendatei geschrieben: .zustand.neu.1
+  #   B: Zwischendatei WEG           ← A hat sie geloescht
+  #   B konnte NICHT veroeffentlichen — Stand bleibt: STAND DES ALTEN LAUFS
+  #
+  # Also eine fertige Sicherung, deren Ergebnis verschwindet, und ein Healthcheck, der
+  # den Stand von vorgestern weitermeldet. Die andere Richtung ist genauso schlimm: ein
+  # `mv` auf den Inhalt des anderen veroeffentlicht dessen Ergebnis unter diesem Lauf.
+  tmp="$ZUSTANDSDATEI.neu.$LAUF_KENNUNG"
   if ! printf '%s\n' "$inhalt" >"$tmp" 2>/dev/null; then
     rm -f "$tmp" 2>/dev/null || true
     warne "Der Stand liess sich NICHT schreiben ($1: $2). Ist $BACKUP_DIR voll oder
@@ -805,7 +857,14 @@ eigner_kennung() {
   # `case`-MUSTER benutzt, ein `*` oder `?` darin traefe fremde Marken mit.
   echo "$kennung"
 }
-MARKE_PRAEFIX="eigner.$(eigner_kennung).$$."
+# EINE Kennung fuer diesen Lauf, zwei Benutzer: der Name der Eignermarke und der Name der
+# Zwischendatei in `zustand_schreiben`. Beide waren vorher `$$` allein, und beide fielen
+# damit derselben Kollision zum Opfer.
+#
+# ⚠️ DIE ZUWEISUNG STEHT HIER, DIE ZWEITE VERWENDUNG WEITER OBEN — das geht, weil dort
+# eine FUNKTION steht: sie wird erst gerufen, wenn diese Zeile laengst gelaufen ist.
+LAUF_KENNUNG="$(eigner_kennung).$$"
+MARKE_PRAEFIX="eigner.$LAUF_KENNUNG."
 meine_marke=""
 sperre_marke_setzen() {
   meine_marke="$(printf '%s%06d' "$MARKE_PRAEFIX" 1)"

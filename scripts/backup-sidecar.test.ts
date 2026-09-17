@@ -504,6 +504,40 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(sidecar).toContain('chown "$NUTZER" "$BACKUP_DIR"');
   });
 
+  it("`$DATA_DIR` gehoert der Suite, auch wenn DIESER Container es zuerst mountet", () => {
+    // ⚠️ DER DIENST HAT BEWUSST KEIN `depends_on` — also kann er beim ersten `up -d`
+    // derjenige sein, der `suite_data` als ERSTER mountet. Dann erbt das leere Volume
+    // Eigentuemer und Modus seines Mountpunkts aus DIESEM Image, und `alpine` hat kein
+    // `/data`: root:root. Die Suite laeuft danach als uid 1001 und kann keine einzige
+    // Datenbank anlegen. Es ist dieselbe Falle, die im `Dockerfile` bei `/data/files`
+    // steht — sie wird von hier aus erst erreichbar, seit dieser Dienst dasselbe Volume
+    // mountet. GEMESSEN mit echtem Kennungswechsel:
+    //
+    //   /data root:root 755  → uid 1001 darf NICHT schreiben
+    //   nach `chown`         → uid 1001 darf schreiben, /data/files bleibt unangetastet
+    const rumpfV = funktionsrumpf(befehle, "vorbereiten");
+    expect(rumpfV, "das Datenverzeichnis wird geprueft").toMatch(
+      /schreibprobe "\$datenprobe"/,
+    );
+    expect(rumpfV).toMatch(/chown "\$NUTZER" "\$DATA_DIR"/);
+    // ⚠️ NICHT REKURSIV: das Verzeichnis selbst reicht, um darin anzulegen, und `-R`
+    // traefe die Blobs unter `/data/files` — ein eigenes Volume, das dem files-Image
+    // gehoert und hier nur LESEND gemountet ist.
+    expect(rumpfV, "kein -R").not.toMatch(/chown -R/);
+    // Repariert wird nur, was kaputt ist — gefragt wird nach der Eigenschaft, auf die es
+    // ankommt, nicht nach dem Eigentuemer.
+    expect(rumpfV).toMatch(/if ! schreibprobe "\$datenprobe"; then/);
+    // Und es bleibt nichts liegen.
+    expect(rumpfV).toMatch(/rm -f "\$datenprobe"/);
+    // ⚠️ DIE VORGABE MUSS ZEICHENGLEICH DIE AUS `backup.sh` SEIN. Der Sidecar uebereignet
+    // hier ein Verzeichnis, aus dem JENES Skript die Datenbanken liest — laufen die
+    // beiden Vorgaben auseinander, wird das falsche uebereignet und niemand merkt es.
+    const ausSidecar = befehle.match(/^DATA_DIR="(.*)"$/m);
+    const ausKern = lies("scripts/backup.sh").match(/^DATA_DIR="(.*)"$/m);
+    expect(ausSidecar?.[1], "DATA_DIR steht im Sidecar").toBeTruthy();
+    expect(ausSidecar?.[1]).toBe(ausKern?.[1]);
+  });
+
   it("`einmal` durchlaeuft den Vorlauf ebenso wie `dienst`", () => {
     // ⚠️ NICHT OFFENSICHTLICH, UND DER DOKUMENTIERTE WEG HAENGT DARAN: der Probelauf und
     // `SUITE_BACKUP_CMD` rufen `docker compose run --rm backup … einmal`, und `run`
@@ -693,7 +727,8 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // ⚠️ Und das Praefix traegt seit dem Container-Fund eine Kennung neben der PID —
     // die Form steht in einem eigenen Fall, hier zaehlt nur, dass die Marke daraus
     // gebildet wird.
-    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$\(eigner_kennung\)\.\$\$\."/);
+    expect(befehle).toMatch(/LAUF_KENNUNG="\$\(eigner_kennung\)\.\$\$"/);
+    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$LAUF_KENNUNG\."/);
     expect(befehle).toMatch(/meine_marke="\$\(printf '%s%06d' "\$MARKE_PRAEFIX" 1\)"/);
     const hineingeschrieben = befehle
       .split("\n")
@@ -1295,9 +1330,18 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // Damit faellt genau die Zusicherung, auf der alles andere hier steht: A rotiert
     // weiter, schreibt den Stand und raeumt bei der Freigabe die Sperre des Nachfolgers
     // weg. Die Identitaetsbindung war da, sie war nur nicht identifizierend.
-    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$\(eigner_kennung\)\.\$\$\."/);
+    expect(befehle).toMatch(/LAUF_KENNUNG="\$\(eigner_kennung\)\.\$\$"/);
+    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$LAUF_KENNUNG\."/);
     expect(befehle, "die PID allein reicht nicht").not.toMatch(
       /MARKE_PRAEFIX="eigner\.\$\$\."/,
+    );
+    // ⚠️ DIESELBE KENNUNG TRAEGT DIE ZWISCHENDATEI DES STANDES, und aus demselben Grund:
+    // `.zustand.neu.$$` war in beiden Containern derselbe Pfad. GEMESSEN — der ueberholte
+    // Lauf raeumt in seinem Besitz-Fehlzweig `rm -f "$tmp"` und traf die Zwischendatei
+    // DES ANDEREN: „B: Zwischendatei WEG", und veroeffentlicht wurde der Stand von
+    // vorgestern. Die andere Richtung veroeffentlichte fremden Inhalt unter diesem Lauf.
+    expect(funktionsrumpf(befehle, "zustand_schreiben")).toMatch(
+      /tmp="\$ZUSTANDSDATEI\.neu\.\$LAUF_KENNUNG"/,
     );
     // Gemessen statt gescannt: zwei Aufrufe muessen VERSCHIEDENE Kennungen liefern —
     // eine Konstante bestuende jeden Quelltext-Scan und waere trotzdem wertlos.
