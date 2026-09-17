@@ -59,20 +59,18 @@ const HOST = "lagerbuch.localtest.me";
  * `vi.mock` wird ueber die Importe gehoben; eine Fabrik, die eine gewoehnliche
  * `const` der Datei liest, liefe in die TDZ.
  *
- * `BUCHEN` ist die ATTRAPPE der Server Action. Sie wird hier festgehalten,
- * damit die Zusicherung „die Action kommt als PROP in die Insel" eine
- * IDENTITAETSpruefung sein kann (`toBe(BUCHEN)`) statt eines Quelltext-Scans
- * auf die Schreibweise `buchen={bucheEntnahmeHelfer}` (N-8, Regel 2). Sie wird
- * hier auch NICHT aus `../../_actions/buchung` importiert: die Datei gehoert
- * Teil 5 (T114) und existiert noch nicht — so bleibt die eine unaufloesbare
- * Importzeile in `page.tsx` und wandert nicht in den Testkoerper.
+ * ⚠️ HIER STAND EINMAL `BUCHEN`, DIE ATTRAPPE DER SERVER ACTION (DRK-375). Sie
+ * trug die Zusicherung „die Action kommt als PROP in die Insel" als
+ * IDENTITAETSpruefung. Seit DRK-375 importiert `_ui/Entnahme.tsx` die Action
+ * selbst (Falle 9), diese Seite reicht sie NICHT mehr durch — und damit hat der
+ * Test kein Gegenueber mehr. Was an seine Stelle getreten ist, steht unten bei
+ * „reicht die Action NICHT mehr als Prop durch".
  */
-const { DB, BUCHEN, gesehen } = vi.hoisted(() => ({
+const { DB, gesehen } = vi.hoisted(() => ({
   DB: { marke: "db" },
-  BUCHEN: async () => ({ ok: true as const, wert: { gebucht: 1 } }),
   gesehen: {
     entnahme: null as
-      | { detailId: string; detailName: string; buchen: unknown; ziel: unknown }
+      | { detailId: string; detailName: string; hatBuchenProp: boolean; ziel: unknown }
       | null,
     rahmen: null as { aktiv: string; etikett: string; laeuftAb: unknown } | null,
   },
@@ -128,7 +126,6 @@ vi.mock("../../_db/client", () => ({ getDb: vi.fn(() => DB) }));
  * Hier geht es nur um die Verdrahtung: Cookie rein, Insel-Prop raus.
  */
 vi.mock("../../_lib/lesepfade/entnahmeZiel", () => ({ gemerktesZiel: vi.fn() }));
-vi.mock("../../_actions/buchung", () => ({ bucheEntnahmeHelfer: BUCHEN }));
 
 /*
  * Beide Attrappen schreiben ihre Props in `gesehen` UND an den gerenderten Baum
@@ -141,9 +138,15 @@ vi.mock("../../_actions/buchung", () => ({ bucheEntnahmeHelfer: BUCHEN }));
  * Attrappen-Attribut gesetzt hat.
  */
 vi.mock("../../_ui/Entnahme", () => ({
-  Entnahme: (p: { detail: { id: string; name: string }; ziel: unknown; buchen: unknown }) => {
+  Entnahme: (p: { detail: { id: string; name: string }; ziel: unknown }) => {
     gesehen.entnahme = {
-      detailId: p.detail.id, detailName: p.detail.name, buchen: p.buchen, ziel: p.ziel,
+      detailId: p.detail.id,
+      detailName: p.detail.name,
+      // ⚠️ DAS VORHANDENSEIN DES SCHLUESSELS, nicht sein Wert (DRK-375): ein
+      // `buchen={undefined}` waere von „gar kein Prop" ueber den Wert nicht zu
+      // unterscheiden — und genau das ist hier die Frage.
+      hatBuchenProp: "buchen" in p,
+      ziel: p.ziel,
     };
     return <div data-rolle="entnahme" data-id={p.detail.id} data-name={p.detail.name} />;
   },
@@ -401,18 +404,22 @@ describe("/a/<id> — der Rahmen", () => {
     expect(gesehen.rahmen?.laeuftAb).toBe(ZUGANG.laeuftAb);
   });
 
-  it("die Insel bekommt die Action als PROP — Identitaet, nicht Schreibweise", async () => {
-    /*
-     * ⚠️ N-8 UND REGEL 2. Der Plan prueft das mit
-     * `toMatch(/buchen=\{bucheEntnahmeHelfer\}/)` auf dem DATEITEXT — ein Scan
-     * auf eine exakte Schreibweise dort, wo ein Verhaltenstest moeglich ist, und
-     * zugleich falsch-negativ-anfaellig (er waere auch gruen, wenn die
-     * Zeichenfolge nur im Kopfkommentar staende). Hier haengt die Zusage am
-     * gerenderten Baum: es muss GENAU die Funktion aus `_actions/buchung` sein.
-     * `_ui/Entnahme.tsx` importiert sie ausdruecklich NICHT selbst (T78).
-     */
+  /**
+   * ⚠️ DIESE ZUSICHERUNG STAND EINMAL ANDERSHERUM (DRK-375) — sie pruefte die
+   * IDENTITAET des durchgereichten `buchen`-Props. Seit DRK-375 importiert
+   * `_ui/Entnahme.tsx` die Action selbst; Falle 9 (`AGENTS.md`/`CLAUDE.md`):
+   * „Server Actions duerfen als einzige ueber die Grenze — aber direkt
+   * importiert, nicht als Prop durchgereicht."
+   *
+   * ⚠️ ZWEI HAELFTEN, UND BEIDE TRAGEN. Am gerenderten Baum faellt auf, wenn
+   * jemand den Prop zurueckholt; am Quelltext faellt auf, wenn die Importzeile
+   * bleibt, ohne dass sie noch jemand benutzt — eine ungenutzte Einfuhr einer
+   * Server Action ist genau die Zeile, aus der der Prop wieder entsteht.
+   */
+  it("reicht die Action NICHT mehr als Prop durch", async () => {
     await mount(await ArtikelDeepLink(params("art-9")));
-    expect(gesehen.entnahme?.buchen).toBe(BUCHEN);
+    expect(gesehen.entnahme?.hatBuchenProp).toBe(false);
+    expect(readFileSync(QUELLE, "utf8")).not.toMatch(/import .*from "\.\.\/\.\.\/_actions\/buchung"/);
   });
 
   it("löst das gemerkte Ziel aus DEM Cookie auf und reicht es an die Insel", async () => {

@@ -394,9 +394,11 @@ describe("BoxEinraeumen — die Bauform", () => {
 
   it("importiert die Action DIREKT, statt sie als Prop zu nehmen (Falle 9)", () => {
     // ⚠️ DIE REGEL LAUTET WOERTLICH: „Server Actions duerfen als einzige ueber
-    // die Grenze — aber direkt importiert, nicht als Prop durchgereicht." Die
-    // Prop-Form in `Entnahme.tsx` und `BoxAbgabe.tsx` lebt allein aus ihrer
-    // Vorgeschichte (Begruendung im Kopf von `Auffuellen.tsx`).
+    // die Grenze — aber direkt importiert, nicht als Prop durchgereicht."
+    // ⚠️ HIER STAND, `Entnahme.tsx` und `BoxAbgabe.tsx` fuehrten die Prop-Form
+    // noch aus ihrer Vorgeschichte — seit DRK-375 stimmt das nicht mehr:
+    // beide importieren direkt, und die Begruendung im Kopf von
+    // `Auffuellen.tsx` gibt es nicht mehr. Es gibt keine Ausnahme im Modul.
     const quelle = ohneKommentare(readFileSync(QUELLE, "utf8"));
     expect(quelle).toMatch(/import\s*\{\s*raeumeAusEntnahmebox\s*\}\s*from\s*"\.\.\/_actions\/entnahmebox"/);
   });

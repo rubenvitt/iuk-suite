@@ -90,7 +90,6 @@ vi.mock("../../_ui/BoxAbgabe", () => ({
     posten: Record<string, unknown>[];
     kontoZugang: boolean;
     andereEinheitErreichbar: boolean;
-    buchen: unknown;
   }) => (
     <div
       data-rolle="abgabe"
@@ -100,7 +99,10 @@ vi.mock("../../_ui/BoxAbgabe", () => ({
       data-posten-felder={Object.keys(p.posten[0] ?? {}).sort().join(",")}
       data-konto={String(p.kontoZugang)}
       data-andere={p.andereEinheitErreichbar ? "ja" : "nein"}
-      data-aktion={typeof p.buchen}
+      // ⚠️ DAS VORHANDENSEIN DES SCHLUESSELS, nicht sein Wert (DRK-375): ein
+      // `buchen={undefined}` waere von „gar kein Prop" ueber den Wert nicht zu
+      // unterscheiden — und genau das ist hier die Frage.
+      data-hat-buchen={"buchen" in p ? "ja" : "nein"}
     />
   ),
 }));
@@ -380,5 +382,24 @@ describe("helfer/box — die Bauform", () => {
     const q = readFileSync(QUELLE, "utf8");
     expect(q).not.toMatch(/from\s+"antd/);
     expect(q).not.toMatch(/from\s+"@ant-design\/icons/);
+  });
+
+  /**
+   * ⚠️ DIE ACTION GEHT NICHT MEHR ALS PROP IN DIE INSEL (DRK-375).
+   * `_ui/BoxAbgabe.tsx` importiert `bucheInEntnahmebox` selbst; Falle 9
+   * (`AGENTS.md`/`CLAUDE.md`): „Server Actions duerfen als einzige ueber die
+   * Grenze — aber direkt importiert, nicht als Prop durchgereicht."
+   *
+   * ⚠️ ZWEI HAELFTEN, UND BEIDE TRAGEN. Am gerenderten Baum faellt auf, wenn
+   * jemand den Prop zurueckholt; am Quelltext faellt auf, wenn die Importzeile
+   * bleibt, ohne dass sie noch jemand benutzt — eine ungenutzte Einfuhr einer
+   * Server Action ist genau die Zeile, aus der der Prop wieder entsteht.
+   */
+  it("reicht die Action NICHT als Prop durch", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 4);
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='abgabe']").getAttribute("data-hat-buchen")).toBe("nein");
+    expect(readFileSync(QUELLE, "utf8")).not.toMatch(/import .*from "\.\.\/\.\.\/_actions\/entnahmebox"/);
   });
 });

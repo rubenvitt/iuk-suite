@@ -6,8 +6,13 @@ import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
 import {
-  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund,
+  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferGrund,
 } from "../_lib/actionTypen";
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`/`CLAUDE.md`):
+// „Server Actions duerfen als einzige ueber die Grenze — aber direkt
+// importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
+// `_ui/Auffuellen.tsx` und `_ui/Entnahme.tsx`.
+import { bucheInEntnahmebox } from "../_actions/entnahmebox";
 import { einheitMeta, inDerEinheit, type Einheitenart } from "../_lib/konstanten";
 import { ampelTon } from "../_lib/format";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
@@ -27,8 +32,14 @@ import s from "./helfer.module.css";
  * Konto, und seine Bediendichte ist 56/72, nicht die der Verwaltung.
  * `_lib/bauform.test.ts` riegelt das fuer den ganzen Ast ab.
  *
- * ⚠️ DIE ACTION KOMMT ALS PROP, wie bei `Entnahme.tsx`: die Insel bleibt damit
- * ohne Server-Import testbar, und der eine Import liegt in `helfer/box/page.tsx`.
+ * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT (DRK-375). Bis dahin kam sie als PROP —
+ * uebernommen von `Entnahme.tsx`, dessen Begruendung eine REIHENFOLGE war
+ * (`_actions/buchung.ts` gehoerte einem spaeter laufenden Plan). Diese
+ * Begruendung hat hier nie gegolten: `_actions/entnahmebox.ts` entstand in
+ * DERSELBEN Aufgabe wie diese Insel. Uebrig blieb nur die bequemere Testform —
+ * und dafuer gibt Falle 9 (`AGENTS.md`/`CLAUDE.md`) die Bauform vor: „Server
+ * Actions duerfen als einzige ueber die Grenze — aber direkt importiert, nicht
+ * als Prop durchgereicht."
  *
  * ── EINE SEITE STATT ZWEIER ────────────────────────────────────────────────
  *
@@ -44,14 +55,6 @@ import s from "./helfer.module.css";
  * Mengenfelder untereinander sind zwei Absichten, von denen der Knopf nur eine
  * ausfuehrt; welche, waere aus der Anzeige nicht zu erkennen.
  */
-
-/** Genau die Signatur von `bucheInEntnahmebox` (`_actions/entnahmebox.ts`). */
-export type BoxAktion = (eingabe: {
-  fahrzeugId: string;
-  artikelId: string;
-  menge: number;
-  chargeId: string | null;
-}) => Promise<HelferErgebnis<{ gebucht: number }>>;
 
 export type BoxEinheit = {
   id: string;
@@ -76,13 +79,11 @@ type Wahl = { artikelId: string; menge: number; chargeId: string | null };
 export function BoxAbgabe({
   einheit,
   posten,
-  buchen,
   andereEinheitErreichbar,
   kontoZugang,
 }: {
   einheit: BoxEinheit;
   posten: BoxPosten[];
-  buchen: BoxAktion;
   /**
    * DIE HERKUNFT DES ZUGANGS — `true` heisst „angemeldetes Konto, kein
    * Kaertchen" (DRK-305).
@@ -153,7 +154,7 @@ export function BoxAbgabe({
     setRueck(null);
     start(async () => {
       try {
-        const r = await buchen({
+        const r = await bucheInEntnahmebox({
           fahrzeugId: einheit.id,
           artikelId: p.artikelId,
           menge,
