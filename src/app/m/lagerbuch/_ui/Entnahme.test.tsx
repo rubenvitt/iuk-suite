@@ -226,6 +226,7 @@ const BUCHEN = "[data-rolle='entnahme-buchen']";
 const MENGE = "input[aria-label='Menge']";
 const ERGEBNIS = "[data-rolle='entnahme-ergebnis']";
 const ZIEL = "[data-rolle='entnahme-ziel']";
+const UMSCHALTER = "[data-rolle='charge-umschalter']";
 
 afterEach(async () => {
   await unmount();
@@ -336,6 +337,11 @@ describe("Entnahme — die Anzeige", () => {
      * eine „0". Das ist nicht raetselhaft, WEIL die Ortszeile direkt daneben
      * erklaert, wohin die Menge gehoert — „hier nichts, aber auf dem RTW
      * liegt welches" ist die praezisere Auskunft, nicht eine vermischte Zahl.
+     *
+     * ⚠️ SEIT DRK-397 RUHT DIESE ZEILE, SIE FEHLT ABER NICHT. Der Umschalter
+     * deckt sie auf; die Zusicherung von damals gilt danach unveraendert
+     * weiter. Wer sie hier streicht, weil „die Zeile ja versteckt ist", nimmt
+     * die einzige Auskunft weg, die jemand am leeren Regalfach bekommt.
      */
     it("eine Charge komplett im Fahrzeug: die Zahl ist 0, die Ortszeile erklaert es", async () => {
       const detailNurFahrzeug: EntnahmeDetail = {
@@ -349,6 +355,7 @@ describe("Entnahme — die Anzeige", () => {
         ],
       };
       await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={detailNurFahrzeug} />);
+      await click(UMSCHALTER);
       const zeile = query("[data-rolle='charge-zeile']");
       const mengenfeld = inZeile(zeile, "[class*='mengenChip']");
       expect(mengenfeld.textContent).toContain("0");
@@ -380,6 +387,115 @@ describe("Entnahme — die Anzeige", () => {
       // GF-Schrank, RTW 1), von denen nur einer (GF-Schrank) einen
       // Zugangshinweis traegt.
       expect(queryAll("[data-rolle='charge-zugangshinweis']").length).toBe(1);
+    });
+  });
+
+  /**
+   * DRK-397 — WAS AM REGAL LIEGT, STEHT OBEN.
+   *
+   * ⚠️ DIE AUFTEILUNG GEHT AUF `rest` (Handlager), NICHT AUF `restGesamt`.
+   * Eine Zusicherung, die stattdessen auf `restGesamt` prueft, waere fuer die
+   * Fixture hier gruen und im Regal falsch: L2 liegt mit 5 im Handlager und
+   * mit 7 im RTW, gehoert also OBEN — genau die Zeile, die eine Verwechslung
+   * der beiden Zahlen wegschoebe.
+   */
+  describe("DRK-397 — Chargen ohne Bestand im Handlager", () => {
+    const CH_FAHRZEUG = {
+      id: "ch-3", chargenNr: "R-9", verfall: "2027-01", rest: 0, restGesamt: 7,
+      orte: [{ id: "rtw-1", name: "RTW 1", menge: 7, zugangshinweis: null, typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
+      ampel: "gruen" as const, text: "bis 01/27",
+    };
+    const MIT_FAHRZEUGCHARGE: EntnahmeDetail = {
+      ...DETAIL, chargen: [...DETAIL.chargen, CH_FAHRZEUG],
+    };
+    const NUR_FAHRZEUG: EntnahmeDetail = { ...DETAIL, bestand: 0, chargen: [CH_FAHRZEUG] };
+
+    /* Die Vorgabeantwort setzt das `beforeEach` oben — hier steht nur, was
+       diese Tests unterscheidet: die Chargenliste. */
+    const montiere = (detail: EntnahmeDetail) =>
+      mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={detail} />);
+
+    it("zeigt zu Beginn nur die Chargen mit Bestand im Handlager", async () => {
+      await montiere(MIT_FAHRZEUGCHARGE);
+      const zeilen = queryAll("[data-rolle='charge-zeile']");
+      expect(zeilen.length).toBe(2);
+      // ⚠️ L2 BLEIBT STEHEN, obwohl der groessere Teil im RTW liegt: 5 davon
+      // sind hier, und danach entscheidet dieser Schirm.
+      expect(zeilen.map((z) => z.textContent).join(" ")).toContain("L2");
+      expect(zeilen.map((z) => z.textContent).join(" ")).not.toContain("R-9");
+    });
+
+    it("der Umschalter nennt die Zahl und deckt die Zeilen auf", async () => {
+      await montiere(MIT_FAHRZEUGCHARGE);
+      const knopf = query(UMSCHALTER);
+      expect(knopf.textContent).toContain("1 Charge ");
+      expect(knopf.getAttribute("aria-expanded")).toBe("false");
+
+      await click(UMSCHALTER);
+      expect(queryAll("[data-rolle='charge-zeile']").length).toBe(3);
+      expect(query(UMSCHALTER).getAttribute("aria-expanded")).toBe("true");
+
+      // Und wieder zu — der Schirm ist nicht einbahnig.
+      await click(UMSCHALTER);
+      expect(queryAll("[data-rolle='charge-zeile']").length).toBe(2);
+    });
+
+    it("zaehlt im Plural, sobald zwei Zeilen ruhen", async () => {
+      await montiere({
+        ...DETAIL,
+        chargen: [DETAIL.chargen[0]!, CH_FAHRZEUG, { ...CH_FAHRZEUG, id: "ch-4", chargenNr: "R-10" }],
+      });
+      expect(query(UMSCHALTER).textContent).toContain("2 Chargen");
+    });
+
+    it("ohne ruhende Zeile gibt es keinen Umschalter", async () => {
+      await montiere(DETAIL);
+      expect(exists(UMSCHALTER)).toBe(false);
+      expect(exists("[data-rolle='charge-leer']")).toBe(false);
+    });
+
+    /**
+     * ⚠️ DER TEURE FALL: liegt NICHTS im Handlager, waere die Karte sonst
+     * leer — und eine leere Karte sagt nicht, dass es das Material gibt. Der
+     * Satz steht deshalb VOR dem Umschalter, und der Umschalter steht
+     * trotzdem da.
+     */
+    it("liegt nichts im Handlager, sagt die Karte das und bietet den Umschalter an", async () => {
+      await montiere(NUR_FAHRZEUG);
+      expect(queryAll("[data-rolle='charge-zeile']").length).toBe(0);
+      expect(query("[data-rolle='charge-leer']").textContent)
+        .toContain("Im Handlager liegt von diesem Artikel nichts");
+      await click(UMSCHALTER);
+      expect(queryAll("[data-rolle='charge-zeile']").length).toBe(1);
+      expect(exists("[data-rolle='charge-leer']")).toBe(false);
+    });
+
+    /**
+     * ⚠️ DIESE ZEILE FAENGT DEN AUSFALL, DEN DIE TESTS DARUEBER NICHT SEHEN
+     * KOENNEN. Unter Vitest ist ein CSS-Modul ein Proxy, der fuer JEDEN
+     * Schluessel eine Zeichenkette liefert (gemessen, `HelferChip.test.tsx`) —
+     * ein vertipptes `s.chargenUmschalter` bliebe also gruen und verloere im
+     * Browser die ganze Form. Geprueft wird deshalb gegen das Stylesheet auf
+     * der Festplatte.
+     *
+     * ⚠️ UND DER SELEKTOR MUSS ZUSAMMENGESETZT SEIN (Falle 5): `.zeile` setzt
+     * `text-decoration: none`, eine einzelne Klasse staende mit ihr auf
+     * derselben Stufe. Die Unterstreichung haenge dann an der Reihenfolge im
+     * Stylesheet und verschwaende beim naechsten Umsortieren still.
+     */
+    it("traegt am Umschalter nur DEKLARIERTE Klassen, und die staerkere Form", async () => {
+      await montiere(MIT_FAHRZEUGCHARGE);
+      const klassen = schluessel(query(UMSCHALTER));
+      expect(klassen).toContain("chargenUmschalter");
+      for (const k of klassen) expect(DEKLARIERT.has(k), k).toBe(true);
+      expect(CSS).toContain(".zeileKnopf.chargenUmschalter");
+    });
+
+    it("ohne jede Charge steht der andere Satz da — und kein Umschalter", async () => {
+      await montiere({ ...DETAIL, bestand: 0, chargen: [] });
+      expect(query("[data-rolle='charge-leer']").textContent)
+        .toContain("keine Charge erfasst");
+      expect(exists(UMSCHALTER)).toBe(false);
     });
   });
 
