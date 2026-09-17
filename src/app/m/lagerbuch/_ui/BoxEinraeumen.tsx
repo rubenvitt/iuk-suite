@@ -252,6 +252,22 @@ export function BoxEinraeumen({
                       </HelferChip>
                     ))}
                     {/*
+                      ⚠️ DER GEMELDETE VERFALL, UND ER SAGT DAZU, DASS ER EINER
+                      IST (DRK-377). Auf DIESEM Schirm zaehlt er am meisten:
+                      hier entscheidet jemand zwischen Regal und Muell, und
+                      genau hier ging die Angabe bisher verloren. Kann ein Check
+                      den gezaehlten Bestand keiner echten Charge zuordnen, legt
+                      er ihn auf eine Pseudo-Charge — der Chip darueber sagt dann
+                      „bis 12/99", also Entwarnung, obwohl fuer dieses Material
+                      ein Datum abgelesen wurde. Ohne das Wort „gemeldet" stuenden
+                      zwei widersprechende Aussagen gleichrangig nebeneinander.
+                    */}
+                    {p.gemeldet && (
+                      <HelferChip ton={ampelTon(p.gemeldet.ampel)}>
+                        gemeldet: {p.gemeldet.text}
+                      </HelferChip>
+                    )}
+                    {/*
                       ⚠️ DIE STILLLEGUNG WIRD BENANNT, NICHT VERHINDERT — die
                       dritte offene Frage des Tickets. Ein stillgelegter Artikel
                       laesst sich einraeumen, und das ist die bewusste Antwort:

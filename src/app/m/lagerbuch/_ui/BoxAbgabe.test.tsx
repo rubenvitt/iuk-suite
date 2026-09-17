@@ -72,6 +72,9 @@ function posten(teil: Partial<BoxPosten> = {}): BoxPosten {
       { id: "ch-alt", chargenNr: "L-100", verfall: "2027-01", rest: 2, ampel: "gelb", text: "fällig 01/27" },
       { id: "ch-neu", chargenNr: "L-200", verfall: "2030-01", rest: 4, ampel: "gruen", text: "bis 01/30" },
     ],
+    // Der Normalfall: zu diesem Artikel liegt an dieser Einheit keine Meldung
+    // vor. Die Faelle, in denen eine vorliegt, setzen sie ueber `teil`.
+    gemeldet: null,
     ...teil,
   };
 }
@@ -119,6 +122,41 @@ describe("BoxAbgabe — der Schirm", () => {
       <BoxAbgabe einheit={TASCHE} posten={[posten()]} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(query("[data-rolle='box-liste-titel']").textContent).toBe("Liegt in der Tasche");
+  });
+
+  it("nennt die GEMELDETE Angabe als solche — DRK-377", async () => {
+    /*
+     * ⚠️ DER CHIP SAGT DAZU, DASS ER EINE MELDUNG IST. Neben den Chargenchips
+     * stuenden sonst zwei widersprechende Aussagen gleichrangig nebeneinander —
+     * „bis 12/99" aus dem Buch und „abgelaufen" von der Packung —, ohne einen
+     * Hinweis, welcher wovon spricht. Genau dieser Fall ist der haeufige: der
+     * Check legt Bestand, den er keiner echten Charge zuordnen kann, auf eine
+     * Pseudo-Charge und schreibt das abgelesene Datum daneben.
+     */
+    await mount(
+      <BoxAbgabe
+        einheit={FAHRZEUG}
+        posten={[posten({
+          chargen: [{
+            id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
+            ampel: "gruen", text: "bis 12/99",
+          }],
+          gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
+        })]}
+        andereEinheitErreichbar
+        kontoZugang={false}
+      />,
+    );
+    expect(query("[data-rolle='box-posten']").textContent).toContain("gemeldet: abgelaufen");
+  });
+
+  it("laesst den Chip weg, wo nichts gemeldet ist", async () => {
+    // Ein Chip „gemeldet: —" waere eine Zeile ueber eine Auskunft, die es nicht
+    // gibt; auf dem Telefon kostet jede davon eine Zeile Platz.
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar kontoZugang={false} />,
+    );
+    expect(query("[data-rolle='box-posten']").textContent).not.toContain("gemeldet");
   });
 
   it("schreibt den Verfallsstatus in die Zusammenfassung, statt ihn zu faerben", async () => {

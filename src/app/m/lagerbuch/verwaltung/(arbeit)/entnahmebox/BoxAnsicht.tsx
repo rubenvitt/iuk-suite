@@ -108,6 +108,41 @@ function inhaltSpalten(): NonNullable<TableProps<BoxPosten>["columns"]> {
         </Flex>
       ),
     },
+    {
+      /*
+       * ⚠️ EINE EIGENE SPALTE, NICHT EIN CHIP MEHR IN „Chargen" — DRK-377.
+       * Die beiden Zahlen kommen aus verschiedenen Quellen und koennen sich
+       * widersprechen: die Chargen tragen, was im BUCH steht, diese Spalte
+       * traegt, was ein Mensch auf der PACKUNG gelesen und beim Check gemeldet
+       * hat. Nebeneinander in einer Zelle stuenden „bis 12/99" und „läuft 10/26
+       * ab" als gleichrangige Angaben zu derselben Sache da — und wer die
+       * Kiste einraeumt, entscheidet an genau dieser Stelle zwischen Regal und
+       * Muell.
+       *
+       * ⚠️ UND SIE IST GENAU DER FALL, DER DIE SPALTE NOETIG MACHT: kann ein
+       * Check den gezaehlten Bestand keiner echten Charge zuordnen, legt er ihn
+       * auf eine Pseudo-Charge ohne Verfall. Die Chargenspalte sagt dann „bis
+       * 12/99" — kein Hinweis —, obwohl fuer dieses Material ein Datum gemeldet
+       * wurde.
+       */
+      title: "Gemeldet",
+      key: "gemeldet",
+      render: (zeile: BoxPosten) => (
+        zeile.gemeldet
+          ? (
+            <Chip
+              ton={ampelTon(zeile.gemeldet.ampel)}
+              zeichen={zeile.gemeldet.abgelaufen ? "warnung" : "verfall"}
+            >
+              {zeile.gemeldet.text}
+            </Chip>
+          )
+          // Ein Strich und kein leeres Feld: „dazu liegt keine Meldung vor" ist
+          // eine Auskunft, eine leere Zelle neben gefuellten liest sich als
+          // vergessene Angabe.
+          : <span style={SCHRIFT.neben}>—</span>
+      ),
+    },
   ];
 }
 

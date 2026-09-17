@@ -33,28 +33,35 @@ import {
 import { SPACE } from "@/core/theme/tokens";
 import type { AmpelTon } from "../../../_lib/format";
 import {
-  einheitenartLabel, einheitMeta, type Einheitenart,
+  istEntnahmebox, standortMeta, type Einheitenart,
 } from "../../../_lib/konstanten";
 import { SCHRIFT } from "../../../_lib/schrift";
 import { falte } from "../../../_lib/suche";
 import { Chip } from "../../../_ui/Chip";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
-import { gruppiereNachFahrzeug, type FahrzeugGruppe } from "./gruppierung";
+import { gruppiereNachOrt, type OrtGruppe } from "./gruppierung";
 
-export type FahrzeugVerfallZeile = {
+export type OrtVerfallZeile = {
   /** `${lagerortId}:${artikelId}` — je Paar gibt es hoechstens eine Meldung. */
   schluessel: string;
-  fahrzeugId: string;
-  fahrzeugName: string;
-  fahrzeugKennung: string | null;
+  ortId: string;
+  ortName: string;
+  ortKennung: string | null;
+  /**
+   * DRK-377 — die Liste fuehrt seit der Entkopplung vom Soll nicht mehr nur
+   * Einheiten: die Entnahmebox ist ein LAGER. Das Feld entscheidet die Beizeile
+   * UND den Link, und beides waere ohne es still falsch (Begruendung an
+   * `ortArt` und an der Spalte unten).
+   */
+  ortTyp: "lager" | "fahrzeug";
   /**
    * DRK-309 — Fahrzeug oder Tasche. ⚠️ Eine Tasche traegt KEINE Kennung, und
    * die Kennung war hier die einzige Angabe neben dem Namen: ohne die Art
    * stand fuer sie nur ein Name, zwischen zwei aehnlich benannten Einheiten
    * nicht zu unterscheiden.
    */
-  fahrzeugEinheitenart: Einheitenart | null;
+  ortEinheitenart: Einheitenart | null;
   artikelName: string;
   /**
    * ⚠️ "YYYY-MM" — DER SORTIERWERT, NIE ANGEZEIGT. Als Anzeigetext ordnete
@@ -71,18 +78,61 @@ export type FahrzeugVerfallZeile = {
 };
 
 /**
- * SUCHFELDMENGE: Einheit, Kennung, ART und Artikel — was auf der Zeile steht.
+ * DIE ART DES ORTS ALS WORT: „Fahrzeug" · „Tasche" · „nicht zugeordnet" ·
+ * „Lager" (DRK-377).
+ *
+ * ⚠️ NICHT `einheitenartLabel`, UND DER UNTERSCHIED IST KEINE FEINHEIT. Fuer
+ * ein Lager ist `einheitenart` nicht „noch nicht zugeordnet", sondern
+ * gegenstandslos — ein Lager IST keine Einheit (`standortMeta`,
+ * `_lib/konstanten.ts`). Stuende der Zwischenstandstext an der Entnahmebox,
+ * laese sie sich als Einheit, bei der jemand die Zuordnung vergessen hat, und
+ * sie stuende genau deshalb auf einer To-do-Liste, die es nicht gibt.
+ *
+ * ⚠️ `kennung: null` IST ABSICHT UND KEIN VERSEHEN. `standortMeta` liefert
+ * sonst „Fahrzeug · MS-1" in EINER Zeichenkette; die Spalten hier setzen Art
+ * und Kennung als ZWEI Elemente nebeneinander, weil die Kennung
+ * dicktengleich gesetzt wird. Die Funktion wird also um ihr Wort gebeten, nicht
+ * um ihre Zeile — und das „Lager" bleibt trotzdem an genau einer Stelle im
+ * Modul definiert.
+ */
+function ortArt(
+  zeile: { ortTyp: "lager" | "fahrzeug"; ortEinheitenart: Einheitenart | null },
+): string {
+  return standortMeta({
+    typ: zeile.ortTyp, kennung: null, einheitenart: zeile.ortEinheitenart,
+  });
+}
+
+/**
+ * Wohin die erste Spalte verlinkt — `null` heisst „kein Blatt, also kein Link".
+ *
+ * ⚠️ EIN LAGER LIEGT NICHT UNTER `/verwaltung/fahrzeuge/…`, und der feste Pfad
+ * dort war bis DRK-377 richtig, weil `lagerort_verfall` nur an Einheiten
+ * haengen konnte. Fuer die Entnahmebox ergaebe er ein 404 — ein toter Link in
+ * genau der Zeile, die jemanden zum Aufraeumen schicken soll.
+ *
+ * ⚠️ UND EIN DRITTES LAGER BEKOMMT KEINEN, statt einen zu raten. Heute schreibt
+ * nichts sonst eine Meldung an ein Lager; kaeme eines dazu, waere ein geratenes
+ * Ziel schlimmer als gar keines — der Name steht ja da.
+ */
+function ortHref(zeile: { ortId: string; ortTyp: "lager" | "fahrzeug" }): string | null {
+  if (zeile.ortTyp !== "lager") return `/verwaltung/fahrzeuge/${zeile.ortId}`;
+  return istEntnahmebox(zeile.ortId) ? "/verwaltung/entnahmebox" : null;
+}
+
+/**
+ * SUCHFELDMENGE: Ort, Kennung, ART und Artikel — was auf der Zeile steht.
  *
  * ⚠️ DIE ART GEHOERT DAZU, WEIL SIE IM NAMEN FEHLEN DARF (DRK-309). „tasche"
  * fand sonst nur Einheiten, die das Wort zufaellig im Namen tragen.
  */
-export function sucheTrifft(zeile: FahrzeugVerfallZeile, begriff: string): boolean {
+export function sucheTrifft(zeile: OrtVerfallZeile, begriff: string): boolean {
   const suche = falte(begriff.trim());
   return suche === ""
     || falte([
-      zeile.fahrzeugName,
-      zeile.fahrzeugKennung,
-      einheitenartLabel(zeile.fahrzeugEinheitenart),
+      zeile.ortName,
+      zeile.ortKennung,
+      ortArt(zeile),
       zeile.artikelName,
     ].filter(Boolean).join(" ")).includes(suche);
 }
@@ -99,7 +149,7 @@ const SAMMLER = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
  * Die vorkommenden Fahrzeuge als Filterliste — ueber die ID, beschriftet mit
  * Name und Kennung.
  *
- * ⚠️ NICHT `werteAlsFilter(… fahrzeugName)`, UND DAS IST KEIN STILWUNSCH
+ * ⚠️ NICHT `werteAlsFilter(… ortName)`, UND DAS IST KEIN STILWUNSCH
  * (Reviewbefund zu DRK-298). `lagerorte.name` traegt KEINEN Unique-Index, und
  * `createFahrzeug` prueft auf Eindeutigkeit nicht — zwei „MTW" sind erlaubt und
  * kommen in einer gewachsenen Flotte vor. Filtert die Spalte ueber den NAMEN,
@@ -118,12 +168,12 @@ const SAMMLER = new Intl.Collator("de", { numeric: true, sensitivity: "base" });
  * die des anderen zu sehen. Die ID ist haesslich und taucht nur in genau
  * diesem Fall auf — ehrlicher als zwei gleiche Zeilen.
  */
-function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterItem[] {
+function ortFilter(zeilen: readonly OrtVerfallZeile[]): ColumnFilterItem[] {
   const gesehen = new Map<string, string>();
   for (const zeile of zeilen) {
-    if (gesehen.has(zeile.fahrzeugId)) continue;
+    if (gesehen.has(zeile.ortId)) continue;
     gesehen.set(
-      zeile.fahrzeugId,
+      zeile.ortId,
       /*
        * DRK-309: Die Art steht in der Beschriftung, damit zwei gleich benannte
        * Einheiten unterscheidbar bleiben.
@@ -135,9 +185,10 @@ function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterIt
        * dann als Tasche nicht mehr zu erkennen — der Fehler versteckte sich
        * ausgerechnet in der Zeile, die ihn beheben sollte.
        */
-      [zeile.fahrzeugName, einheitMeta({
-        kennung: zeile.fahrzeugKennung,
-        einheitenart: zeile.fahrzeugEinheitenart,
+      [zeile.ortName, standortMeta({
+        typ: zeile.ortTyp,
+        kennung: zeile.ortKennung,
+        einheitenart: zeile.ortEinheitenart,
       })].join(" · "),
     );
   }
@@ -155,7 +206,7 @@ function fahrzeugFilter(zeilen: readonly FahrzeugVerfallZeile[]): ColumnFilterIt
     .sort((a, b) => SAMMLER.compare(a.text, b.text));
 }
 
-const STATUS_FILTER = zustandsFilter<FahrzeugVerfallZeile>([
+const STATUS_FILTER = zustandsFilter<OrtVerfallZeile>([
   { wert: "abgelaufen", text: "abgelaufen", trifft: (zeile) => zeile.abgelaufen },
   { wert: "laeuftAb", text: "läuft ab", trifft: (zeile) => !zeile.abgelaufen },
 ]);
@@ -164,7 +215,7 @@ const STATUS_FILTER = zustandsFilter<FahrzeugVerfallZeile>([
  * Was in der Tabelle stehen kann: eine Meldung — oder, im Gruppenmodus, eine
  * Fahrzeugzeile mit ihren Meldungen als `children`.
  */
-export type Baumzeile = FahrzeugVerfallZeile | FahrzeugGruppe;
+export type Baumzeile = OrtVerfallZeile | OrtGruppe;
 
 /**
  * ⚠️ UEBER `children` UND NICHT UEBER EIN FELD WIE `istGruppe`. Das Feld traegt
@@ -172,51 +223,51 @@ export type Baumzeile = FahrzeugVerfallZeile | FahrzeugGruppe;
  * daneben koennte davon abweichen — und die Zelle zeigte dann das Falsche,
  * waehrend der Baum richtig aufklappt.
  */
-function istGruppe(zeile: Baumzeile): zeile is FahrzeugGruppe {
+function istGruppe(zeile: Baumzeile): zeile is OrtGruppe {
   return "children" in zeile;
 }
 
 function spalten(
-  zeilen: FahrzeugVerfallZeile[],
-): NonNullable<TableProps<FahrzeugVerfallZeile>["columns"]> {
+  zeilen: OrtVerfallZeile[],
+): NonNullable<TableProps<OrtVerfallZeile>["columns"]> {
   return [
     {
-      title: "Einheit",
-      dataIndex: "fahrzeugName",
-      key: "fahrzeug",
-      sorter: nachText<FahrzeugVerfallZeile>((zeile) => zeile.fahrzeugName),
+      title: "Ort",
+      dataIndex: "ortName",
+      key: "ort",
+      sorter: nachText<OrtVerfallZeile>((zeile) => zeile.ortName),
       // Die Filterliste entsteht aus den DATEN — es steht also nie ein
-      // Fahrzeug im Menue, das keine Meldung hat.
-      filters: fahrzeugFilter(zeilen),
-      onFilter: (wert, zeile) => zeile.fahrzeugId === wert,
-      render: (name: string, zeile) => (
-        <span>
-          <Link
-            href={`/verwaltung/fahrzeuge/${zeile.fahrzeugId}`}
-            style={{ fontWeight: 600 }}
-          >
-            {name}
-          </Link>
-          {/*
-            DRK-309: Art UND Kennung — nicht die eine als Rueckfall fuer die
-            andere. Begruendung an der Gruppenbeschriftung oben.
-          */}
-          <span style={{ ...SCHRIFT.neben, marginInlineStart: SPACE.sm }}>
-            {einheitenartLabel(zeile.fahrzeugEinheitenart)}
-            {zeile.fahrzeugKennung ? (
-              <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
-                {zeile.fahrzeugKennung}
-              </span>
-            ) : null}
+      // Ort im Menue, der keine Meldung hat.
+      filters: ortFilter(zeilen),
+      onFilter: (wert, zeile) => zeile.ortId === wert,
+      render: (name: string, zeile) => {
+        const ziel = ortHref(zeile);
+        return (
+          <span>
+            {ziel
+              ? <Link href={ziel} style={{ fontWeight: 600 }}>{name}</Link>
+              : <span style={{ fontWeight: 600 }}>{name}</span>}
+            {/*
+              DRK-309: Art UND Kennung — nicht die eine als Rueckfall fuer die
+              andere. Begruendung an der Gruppenbeschriftung oben.
+            */}
+            <span style={{ ...SCHRIFT.neben, marginInlineStart: SPACE.sm }}>
+              {ortArt(zeile)}
+              {zeile.ortKennung ? (
+                <span style={{ ...SCHRIFT.mono, marginInlineStart: SPACE.sm }}>
+                  {zeile.ortKennung}
+                </span>
+              ) : null}
+            </span>
           </span>
-        </span>
-      ),
+        );
+      },
     },
     {
       title: "Artikel",
       dataIndex: "artikelName",
       key: "artikel",
-      sorter: nachText<FahrzeugVerfallZeile>((zeile) => zeile.artikelName),
+      sorter: nachText<OrtVerfallZeile>((zeile) => zeile.artikelName),
     },
     {
       title: "Verfall",
@@ -224,7 +275,7 @@ function spalten(
       key: "verfall",
       // ⚠️ Ueber `verfall` ("YYYY-MM"), nie ueber `verfallText`. Begruendung
       // am Feld.
-      sorter: nachText<FahrzeugVerfallZeile>((zeile) => zeile.verfall),
+      sorter: nachText<OrtVerfallZeile>((zeile) => zeile.verfall),
       render: (text: string) => <span style={SCHRIFT.mono}>{text}</span>,
     },
     {
@@ -260,7 +311,7 @@ function spalten(
  * `onChange` stehen bleiben — nur das Filtern selbst macht diese Komponente.
  */
 function gruppenSpalten(
-  zeilen: FahrzeugVerfallZeile[],
+  zeilen: OrtVerfallZeile[],
 ): NonNullable<TableProps<Baumzeile>["columns"]> {
   const flach = spalten(zeilen) as NonNullable<TableProps<Baumzeile>["columns"]>;
   return flach.map((spalte, i) => {
@@ -268,12 +319,12 @@ function gruppenSpalten(
     if (i !== 0) return ohneFilter;
     return {
       ...ohneFilter,
-      title: "Einheit / Artikel",
+      title: "Ort / Artikel",
       // ⛔ KEIN SORTIERER AUF DER ERSTEN SPALTE IM GRUPPENMODUS. Die Reihenfolge
-      // der Fahrzeuge traegt hier eine AUSSAGE — Abgelaufenes zuerst
+      // der Orte traegt hier eine AUSSAGE — Abgelaufenes zuerst
       // (`gruppierung.ts`) —, und zugeklappt ist sie das Einzige, was man sieht.
       // Ein Vergleicher im Spaltenkopf verspraeche stattdessen das Alphabet und
-      // stellte das dringendste Fahrzeug irgendwohin.
+      // stellte den dringendsten Ort irgendwohin.
       sorter: undefined,
       render: (_wert: unknown, zeile: Baumzeile) => {
         if (!istGruppe(zeile)) {
@@ -281,12 +332,10 @@ function gruppenSpalten(
         }
         return (
           <Flex gap={6} wrap align="center">
-            <span style={{ fontWeight: 600 }}>{zeile.fahrzeugName}</span>
-            <span style={SCHRIFT.neben}>
-              {einheitenartLabel(zeile.fahrzeugEinheitenart)}
-            </span>
-            {zeile.fahrzeugKennung
-              ? <span style={SCHRIFT.mono}>{zeile.fahrzeugKennung}</span>
+            <span style={{ fontWeight: 600 }}>{zeile.ortName}</span>
+            <span style={SCHRIFT.neben}>{ortArt(zeile)}</span>
+            {zeile.ortKennung
+              ? <span style={SCHRIFT.mono}>{zeile.ortKennung}</span>
               : null}
             {zeile.abgelaufen > 0 ? (
               <Chip ton="rot" zeichen="warnung">{zeile.abgelaufen} abgelaufen</Chip>
@@ -309,12 +358,14 @@ function gruppenSpalten(
  */
 const ANSICHTEN = [
   { value: "liste", label: "Liste" },
-  { value: "gruppiert", label: "nach Einheit" },
+  // DRK-377: „nach Ort" und nicht mehr „nach Einheit" — die Tabelle faltet
+  // seither auch die Entnahmebox, und die ist ein Lager.
+  { value: "gruppiert", label: "nach Ort" },
 ] as const;
 
 type Ansicht = (typeof ANSICHTEN)[number]["value"];
 
-export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeile[] }) {
+export function OrtVerfallTabelle({ zeilen }: { zeilen: OrtVerfallZeile[] }) {
   const [suche, setSuche] = useState("");
   // Das FELD bleibt unentprellt, entprellt wird die Ableitung.
   const sucheNachlauf = useEntprellt(suche);
@@ -362,7 +413,7 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
    * zu bleiben, die behauptet, es gaebe dort etwas.
    */
   const gruppen = useMemo(
-    () => (gruppiert ? gruppiereNachFahrzeug(angezeigt) : []),
+    () => (gruppiert ? gruppiereNachOrt(angezeigt) : []),
     // `angezeigt` entsteht bei jedem Rendern neu; die Faltung haengt an seinem
     // INHALT, und der folgt aus diesen dreien.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -376,7 +427,7 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
         <Suchfeld
           wert={suche}
           onWert={setSuche}
-          platzhalter="Einheit, Kennung, Art oder Artikel suchen…"
+          platzhalter="Ort, Kennung, Art oder Artikel suchen…"
         />
         <Segmented<Ansicht>
           options={[...ANSICHTEN]}
@@ -390,7 +441,7 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
       {gruppiert ? (
         <Datentabelle<Baumzeile>
           rowKey="schluessel"
-          aria-label="Verfallsmeldungen nach Einheit"
+          aria-label="Verfallsmeldungen nach Ort"
           dataSource={gruppen}
           onChange={(_seite, filter) => setSpaltenFilter(filter)}
           locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
@@ -408,9 +459,9 @@ export function FahrzeugVerfallTabelle({ zeilen }: { zeilen: FahrzeugVerfallZeil
           }}
         />
       ) : (
-        <Datentabelle<FahrzeugVerfallZeile>
+        <Datentabelle<OrtVerfallZeile>
           rowKey="schluessel"
-          aria-label="Verfallsmeldungen aus Einheiten"
+          aria-label="Gemeldete Verfälle"
           dataSource={gefiltert}
           onChange={(_seite, filter) => setSpaltenFilter(filter)}
           locale={{ emptyText: "Keine Meldung passt zu Suche und Filter." }}
