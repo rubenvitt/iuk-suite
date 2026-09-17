@@ -157,7 +157,7 @@ afterEach(() => {
  * eine Lesung von zwei trennt, ist eine Uhr, die WEITERLAEUFT.
  *
  * ⛔ WARUM EIN GANZER TAG UND NICHT EINE SEKUNDE: `haengeNotizAn` formt ueber `isoDatum` nur
- * `YYYY-MM-DD` (`_lib/notiz.ts:18-20`, `:82-86`), und `changedAt` liegt in einer
+ * `YYYY-MM-DD` (`_lib/notiz.ts`, beide Funktionen), und `changedAt` liegt in einer
  * `mode: "timestamp"`-Spalte, die SEKUNDEN speichert (`_db/schema.ts:134`). Ein Sprung
  * unterhalb eines Tages faerbt die erste Zusage gemessen NICHT — genau das ist die
  * Mitternachtsgrenze, vor der der Alt-Kommentar warnt

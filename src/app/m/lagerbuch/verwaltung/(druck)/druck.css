@@ -6,7 +6,7 @@
  * liegt allein daran, dass dort die Klassennamen gehasht werden.
  *
  * WAS HIER AUSDRUECKLICH NICHT STEHT: `body * { visibility: hidden }`
- * (globals.css:277). CSS Modules schreiben ausschliesslich KLASSENselektoren um
+ * (lagerbuch/src/app/globals.css:277). CSS Modules schreiben ausschliesslich KLASSENselektoren um
  * — `body *` bliebe global und leerte JEDE andere Druckseite der Suite
  * (feedback-Aushang, files-Zugangslinks; Falle 43). Die Sichtbarkeitsumkehr wird
  * ersatzlos durch die eigene Route-Gruppe ersetzt: ohne Shell gibt es nichts
@@ -33,7 +33,7 @@
  */
 
 @page {
-  margin: 8mm;                            /* globals.css:276 */
+  margin: 8mm;                            /* lagerbuch/src/app/globals.css:276 */
 }
 
 /* DIE BENANNTE SEITE DES ORTSKARTEN-BOGENS (DRK-312/DRK-388,
@@ -98,13 +98,13 @@
 }
 
 /* DAS `qrcode`-SVG BRINGT NUR EINE viewBox MIT, KEINE BREITE/HOEHE (8-I).
- * globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
+ * lagerbuch/src/app/globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
  * Ohne diese Regel faellt der Code auf die Ersatzgroesse des Browsers zurueck
  * und wird winzig — OHNE dass ein Test anschlaegt.
  *
  * ⚠️ `flex: none` SITZT AUF DEM UMSCHLAG, NICHT AUF DEM SVG. Flexbox wirkt auf
  * die FLEX-ITEMS, und das ist hier `.lb-etikettQr` — im Bestand war es das
- * <img> selbst (globals.css:268: `.etikett img{...flex:none}`), deshalb sass es
+ * <img> selbst (lagerbuch/src/app/globals.css:268: `.etikett img{...flex:none}`), deshalb sass es
  * dort richtig. Steht es am SVG, kann der Umschlag weiter schrumpfen: ein langer
  * Artikelname draengt den QR unter 20mm. */
 .lb-etikettQr {
@@ -548,7 +548,7 @@
  * WARUM SIE IN DIESER DATEI STEHT UND NICHT IN EINER EIGENEN: `druck.test.ts`
  * haelt modulweit fest, dass es GENAU EINE Datei mit `@media print` gibt, und
  * dass es diese ist. Das ist keine Formalie — die Sichtbarkeitsumkehr aus
- * globals.css:277 (`body * { visibility: hidden }`) ist genau daran
+ * lagerbuch/src/app/globals.css:277 (`body * { visibility: hidden }`) ist genau daran
  * gescheitert, dass Druckregeln sich ueber mehrere Stellen verteilten und
  * gegenseitig Seiten leerten (Falle 43). Ein zweites Stylesheet hier waere der
  * erste Schritt zurueck dorthin. Aus demselben Grund stehen die
