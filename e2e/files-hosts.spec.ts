@@ -74,11 +74,11 @@ test("1 — Verwaltungs-Host: `/` zeigt die Freigaben-Uebersicht und die dreigli
   /*
    * DREI Eintraege, und die Zahl ist die Zusage — nicht die Anwesenheit des
    * Behaelters: `Modulleiste` rendert bei leerer Liste gar nichts
-   * (`Modulleiste.tsx:29`), aber eine Liste mit einem Eintrag ergaebe denselben
+   * (`Modulleiste.tsx`, `nav.length === 0`), aber eine Liste mit einem Eintrag ergaebe denselben
    * `data-testid` und dieselbe gruene Behaelter-Pruefung.
    *
    * Auf `modulleiste` eingegrenzt, weil der Drawer dieselben Links ein zweites
-   * Mal traegt (`SuiteNav.tsx:251`, `:396`) — ein ungegrenztes
+   * Mal traegt (`SuiteNav.tsx`, `drawerNav` im `Drawer`) — ein ungegrenztes
    * `getByRole("link")` waere eine Strict-Mode-Verletzung, kein Befund.
    */
   const modulleiste = page.getByTestId("modulleiste");

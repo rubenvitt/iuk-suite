@@ -40,6 +40,7 @@ import ortscodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09
 import artikeletiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-artikeletiketten";
 import qrReichweite from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-qr-reichweite";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
+import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
 import inventurLinkZaehlort from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-inventur-link-zaehlort";
 import verfallInDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-verfall-in-der-box";
@@ -120,6 +121,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   artikeletiketten,
   qrReichweite,
   chargeWaehlen,
+  menueFiltern,
   chargenImHandlager,
   codeAufDerHandlagerkarte,
   neuerNameSammelhaus,

@@ -802,3 +802,96 @@ describe("Markenstreifen und Kopfzeilentypografie", () => {
    * der Träger, der überhaupt bleibt.
    */
 });
+
+/**
+ * DAS LANGE MENUE — Aufklappen und Filtern (`NavListe` in SuiteNav.tsx).
+ *
+ * Diese Regeln stehen hier und nicht im DOM-Test, weil jsdom sie strukturell
+ * nicht sehen kann: es rechnet keine Layoutboxen und wertet die Kaskade fuer
+ * `display` nicht aus. Was der DOM-Test besitzt, ist `hidden` am Knoten; was
+ * diese Datei besitzt, ist, dass `hidden` auch WIRKT.
+ */
+describe("das lange Menue — Aufklappen und Filtern", () => {
+  /*
+   * ⚠️ DIE STILLSTE DER VIER REGELN, und die einzige, die ohne Test wirklich
+   * weh taete. `hidden` ist eine Vorgabe des Browsers (`display: none` im
+   * UA-Stylesheet) und verliert gegen JEDE eigene `display`-Deklaration am
+   * selben Element — `.navGruppeLinks { display: flex }` ist genau so eine, hat
+   * dieselbe Spezifitaet (0,1,0) und kommt spaeter. Ohne die Gegenregel klappte
+   * der Abschnitt SICHTBAR gar nicht zu, waehrend `aria-expanded="false"`
+   * meldet, er sei zu: eine Leiste, die das Gegenteil dessen zeigt, was sie
+   * ansagt. Der DOM-Test bleibt dabei gruen, weil `hidden` am Knoten steht.
+   */
+  it("macht `hidden` gegen das eigene `display: flex` wieder wirksam", () => {
+    const regeln = cssRegeln(OHNE_KOMMENTARE);
+    const versteckt = regeln.filter((r) => /\.navGruppeLinks\[hidden\]/.test(r.selektor));
+    expect(versteckt.length, "Regel `.navGruppeLinks[hidden]` fehlt").toBe(1);
+    expect(versteckt[0].deklarationen).toMatch(/display\s*:\s*none/);
+
+    // Nicht-vakuaer: die Basisregel setzt tatsaechlich ein `display`, gegen das
+    // `hidden` verloere. Faellt sie weg, ist die Gegenregel ueberfluessig — und
+    // dieser Fall sagt es, statt eine tote Regel zu bewachen.
+    const basis = regeln.filter((r) => /^\.navGruppeLinks$/.test(r.selektor));
+    expect(basis.length, "Basisregel `.navGruppeLinks` fehlt").toBe(1);
+    expect(basis[0].deklarationen).toMatch(/display\s*:\s*flex/);
+  });
+
+  /*
+   * DIE UEBERSCHRIFT IST AB DER SCHWELLE EIN `<button>` — und ein Knopf bringt
+   * Rahmen, Flaeche und Systemfarbe mit. Ohne die drei Ruecknahmen stuende die
+   * Abschnittsueberschrift als grauer Kasten in der Leiste.
+   */
+  it("nimmt dem Abschnittsschalter das Knopf-Aussehen", () => {
+    const regel = cssRegeln(OHNE_KOMMENTARE).find((r) => r.selektor === ".navAbschnittKnopf");
+    expect(regel, "Klasse .navAbschnittKnopf fehlt").toBeDefined();
+    expect(regel!.deklarationen).toMatch(/border\s*:\s*0/);
+    expect(regel!.deklarationen).toMatch(/background\s*:\s*none/);
+    expect(regel!.deklarationen).toMatch(/color\s*:\s*var\(--iuk-gedaempft\)/);
+  });
+
+  /*
+   * ZWEI KLASSEN AM SELBEN KNOTEN, und `.navAbschnitt` bleibt davon unberuehrt:
+   * die kurzen Navigationen (`uav`) tragen weiterhin die starre Ueberschrift.
+   * Bekaeme `.navAbschnitt` selbst eine Bedienhoehe, wuechse dort eine Zeile von
+   * ~24px auf 56px, ohne dass irgendjemand etwas davon haette — und kein Tor
+   * saehe es, weil `uav` keinen Test auf seine Leistenhoehe hat.
+   */
+  it("laesst `.navAbschnitt` ohne Bedienhoehe", () => {
+    const regel = cssRegeln(OHNE_KOMMENTARE).find((r) => r.selektor === ".navAbschnitt");
+    expect(regel, "Klasse .navAbschnitt fehlt").toBeDefined();
+    expect(regel!.deklarationen).not.toMatch(/min-height/);
+  });
+
+  /*
+   * DIESELBE DICHTE-AUFTEILUNG WIE BEI `.navLink`: 56px im Drawer (Tap-Masz der
+   * Suite), 40px in der Seitenleiste, die es unter 768px gar nicht gibt und die
+   * mit Maus bedient wird. Und dieselbe Spezifitaetsfalle: ohne den
+   * `.modulleiste`-Praefix stuende die Ausnahme gleichauf mit der Basisregel und
+   * die Reihenfolge entschiede (Falle 5).
+   */
+  it("gibt dem Schalter im Drawer 56px und in der Leiste 40px", () => {
+    const regeln = cssRegeln(OHNE_KOMMENTARE);
+    const basis = regeln.find((r) => r.selektor === ".navAbschnittKnopf");
+    expect(basis!.deklarationen).toMatch(/min-height\s*:\s*56px/);
+    const leiste = regeln.find((r) => r.selektor === ".modulleiste .navAbschnittKnopf");
+    expect(leiste, "Regel `.modulleiste .navAbschnittKnopf` fehlt").toBeDefined();
+    expect(leiste!.deklarationen).toMatch(/min-height\s*:\s*40px/);
+  });
+
+  /*
+   * KEINE `--ant-*`-VARIABLE IN DEN NEUEN REGELN (Falle 2): antd deklariert sie
+   * auf seiner Scope-Klasse, eigenes Markup sieht sie nicht — und der Ausfall
+   * ist still, die Farbe verschwindet einfach.
+   */
+  it("faerbt die neuen Flaechen ueber eigene Variablen, nicht ueber antds", () => {
+    const neue = cssRegeln(OHNE_KOMMENTARE).filter((r) =>
+      /\.(navAbschnittKnopf|navPfeil|navFilter|navFilterStand|navGruppeLinks)\b/.test(r.selektor),
+    );
+    expect(neue.length).toBeGreaterThan(0);
+    for (const regel of neue) {
+      expect(regel.deklarationen, `${regel.selektor} liest eine --ant-*-Variable`).not.toMatch(
+        /var\(\s*--ant-/,
+      );
+    }
+  });
+});

@@ -26,7 +26,7 @@ describe("ZEICHEN_NAV", () => {
   });
 
   /*
-   * ⛔ KEIN EINTRAG AUF DIE MODULWURZEL. `aktiverEintrag` (`core/shell/SuiteNav.tsx:99-107`)
+   * ⛔ KEIN EINTRAG AUF DIE MODULWURZEL. `aktiverEintrag` (`core/shell/SuiteNav.tsx`)
    * behandelt einen Eintrag mit `href: "/"` als WURZEL-RUECKFALL: auf jeder Seite, auf die kein
    * anderer Eintrag passt, wird dieser hervorgehoben — mit `aria-current="true"`. `uav/_lib/nav.ts`
    * traegt genau diesen Fall samt Browser-Messung aus, `lagerbuch/_lib/nav.ts` weicht ihm durch

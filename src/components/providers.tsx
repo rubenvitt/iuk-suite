@@ -73,7 +73,7 @@ function SessionGuard({
       // weiter und der naechste Login-Klick meldet wortlos denselben Nutzer an.
       //
       // `callbackUrl` hier bewusst, obwohl drei Zeilen tiefer `redirectTo`
-      // steht: `SuiteNav.tsx:242` und `oidc-signout/route.test.ts` fahren auf
+      // steht: `SuiteNav.tsx` (`abmeldenEintrag`) und `oidc-signout/route.test.ts` fahren auf
       // dieser Schreibweise. Sie zu vereinheitlichen ist ein eigener Umbau,
       // kein Nebeneffekt dieser Aenderung — wer es hier still angleicht,
       // bricht `SuiteNav.test.tsx`.

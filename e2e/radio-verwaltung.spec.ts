@@ -66,7 +66,7 @@ import {
  * fuer T4.
  * ⚠️ **UND SIE SIND DIE FALSIFIZIERBARKEIT DIESER VIER FAELLE, NICHT EIN ROTER ERSTLAUF:**
  * alle vier beschreiben Verhalten, das am Bautag bereits GEBAUT war (beide `render`-Funktionen,
- * `shell.module.css:486`, beide `requireRadioAdmin()`-Zeilen). Sie waren beim ersten Lauf
+ * `shell.module.css`, `.umschalter`, beide `requireRadioAdmin()`-Zeilen). Sie waren beim ersten Lauf
  * gruen, und eine absichtlich falsche Zusicherung, nur um eine rote Zeile vorzuweisen, waere
  * genau die Fehlerform, gegen die dieses Haus vernarbt ist.
  *
@@ -76,7 +76,7 @@ import {
  *   S-T5b   `AusleihenTabelle.tsx:157`, dieselbe Ersetzung an der Spalte `Status`
  *                                                 -> **1 rot**: `toHaveCount` erwartete 4,
  *                                                   erhielt 0 — die Marke entsteht nicht mehr.
- *   S-T5c   `src/core/shell/shell.module.css:486`, `line-height: normal` am GEMEINSAMEN
+ *   S-T5c   `src/core/shell/shell.module.css`, `.umschalter`: `line-height: normal` am GEMEINSAMEN
  *           Vorfahren `.umschalter` entfernt      -> **1 rot**: ein Panel-Eintrag ist
  *                                                   **80 px** hoch in einer **64 px** hohen
  *                                                   Kopfzeile. ⚠️ Der Kommentar an jener
@@ -238,7 +238,7 @@ test.describe("radio-Verwaltung", () => {
      * Gemessen war jeder Panel-Eintrag dadurch 82 px hoch (8 px Polster + 64 px Zeilenbox +
      * 8 px Polster) in einer 64 px hohen Kopfzeile; die Gegenmassnahme ist EINE Zeile am
      * GEMEINSAMEN VORFAHREN, `line-height: normal` an `.umschalter`
-     * (`src/core/shell/shell.module.css:486`, Begruendung `:482-487`).
+     * (`src/core/shell/shell.module.css`, Regel `.umschalter` samt Begruendung darueber).
      *
      * ⛔ ALS VERHAELTNIS UND NICHT ALS ZAHL. `shell-css.test.ts` haelt fest, dass die
      * Gegenmassnahme DASTEHT; `e2e/shell-mobil.spec.ts:653-660` misst den Eintrag gegen die
@@ -296,7 +296,7 @@ test.describe("radio-Verwaltung", () => {
     expect(
       eintragKasten!.height,
       `ein Panel-Eintrag ist ${eintragKasten!.height} px hoch bei einer ${kopfKasten!.height} px ` +
-        "hohen Kopfzeile — die geerbte Zeilenhoehe ist zurueck (shell.module.css:486)",
+        "hohen Kopfzeile — die geerbte Zeilenhoehe ist zurueck (shell.module.css, `.umschalter`)",
     ).toBeLessThan(kopfKasten!.height);
   });
 
@@ -1350,7 +1350,7 @@ test.describe("radio-Verwaltung", () => {
      *
      * ⛔ DIE ANKER SIND SUITE-ANKER, KEINE MODULANKER: `suite-header` sitzt am `<Header>`
      * (`src/core/shell/SuiteHeader.tsx:75`), `modulleiste` an der `<nav>`
-     * (`src/core/shell/Modulleiste.tsx:31`). Beide entstehen im `SuiteRahmen`
+     * (`src/core/shell/Modulleiste.tsx`, `Modulleiste`). Beide entstehen im `SuiteRahmen`
      * (`src/core/shell/SuiteRahmen.tsx:49-61`), den das `(arbeit)`-Layout ueber
      * `RadioVerwaltungsRahmen` zieht und das `(druck)`-Layout bewusst NICHT
      * (`admin/(druck)/layout.tsx:10-12`).
@@ -1647,7 +1647,7 @@ test.describe("radio-Verwaltung", () => {
      * `notFound()` fuehren.
      *
      * ⛔ GEZAEHLT WIRD INNERHALB DER MODULLEISTE. `nav-link` vergibt auch der Drawer
-     * (`core/shell/SuiteNav.tsx:151`); eine freie Zaehlung ueber der ganzen Seite maesse
+     * (`core/shell/SuiteNav.tsx`, `navLinks`); eine freie Zaehlung ueber der ganzen Seite maesse
      * beide Ausprägungen zusammen und traefe die Vier nie.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_UPDATER_GRUPPE });
@@ -1873,7 +1873,7 @@ test.describe("radio-Verwaltung", () => {
      * Eintraege (`_lib/nav.ts:59-83`), `radioNav("updater")` blendet drei aus. Ohne sie bliebe
      * „angekommen" auch dann gruen, wenn die Verwaltung die falsche Stufe rendert.
      * ⛔ GEZAEHLT WIRD INNERHALB DER MODULLEISTE — `nav-link` vergibt auch der Drawer
-     * (`core/shell/SuiteNav.tsx:151`), eine freie Zaehlung maesse beide zusammen.
+     * (`core/shell/SuiteNav.tsx`, `navLinks`), eine freie Zaehlung maesse beide zusammen.
      */
     await expect(
       page.getByTestId("modulleiste").getByTestId("nav-link"),
@@ -2065,7 +2065,7 @@ test.describe("radio-Verwaltung", () => {
      * (`core/theme/ThemeToggle.tsx`), erbt seine Hoehe also aus der Dichte, die ihn umgibt, und
      * ist damit genau die Sonde, die anschlaegt, wenn die 32 zu weit nach aussen wandert.
      * ⚠️ `theme-toggle` IST DER DESKTOP-KNOPF; der Zwilling in der Schublade traegt
-     * `theme-toggle-drawer` (`core/shell/SuiteNav.tsx:360`, `:469`) — kein Strict-Mode-Konflikt.
+     * `theme-toggle-drawer` (`core/shell/SuiteNav.tsx`, `ThemeToggle` im `Drawer`) — kein Strict-Mode-Konflikt.
      *
      * ⛔ KEIN `test.use({ viewport })` — das setzte die Breite fuer JEDEN Fall dieser Datei
      * still um; Playwrights Vorgabe 1280x720 traegt `md === true`, worauf die Tabellenzweige der

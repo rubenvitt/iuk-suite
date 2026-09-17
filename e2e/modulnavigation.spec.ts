@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { devLogin } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
@@ -108,4 +108,133 @@ test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
    */
   await devLogin(page, { host: "gamma.localtest.me", groups: "", callbackPath: "/" });
   await expect(page.getByTestId("modulleiste")).toHaveCount(0);
+});
+
+/**
+ * DER SCHALTER EINES ABSCHNITTS — ueber testId und Textinhalt, NICHT ueber
+ * `getByRole("button", { name })`.
+ *
+ * ⚠️ DER UNTERSCHIED IST `text-transform: uppercase` (`SCHRIFT.kicker`).
+ * Chromium wendet es auf den ZUGAENGLICHEN NAMEN an; eine Rollenabfrage auf
+ * „Bestand" faende den Knopf deshalb nicht, und der Fehlschlag laese sich wie
+ * „der Schalter fehlt" statt wie „der Name ist gross geschrieben".
+ * `hasText` vergleicht den Textinhalt, und der bleibt „Bestand".
+ */
+function abschnittsSchalter(bereich: Locator, titel: string): Locator {
+  return bereich.getByTestId("nav-abschnitt").filter({ hasText: titel });
+}
+
+/**
+ * DAS LANGE MENUE — Filter und aufklappbare Abschnitte (`NavListe`).
+ *
+ * WAS NUR EIN ECHTER BROWSER SIEHT, und deshalb stehen diese drei Faelle hier
+ * und nicht in Vitest:
+ *
+ *  1. **Ob `hidden` WIRKT.** jsdom rechnet keine Layoutboxen und wertet die
+ *     Kaskade fuer `display` nicht aus — `.navGruppeLinks { display: flex }`
+ *     schlaegt die Browservorgabe `[hidden] { display: none }`, und ohne die
+ *     Gegenregel klappte der Abschnitt SICHTBAR gar nicht zu, waehrend
+ *     `aria-expanded="false"` das Gegenteil ansagt. Der DOM-Test bliebe gruen
+ *     (`hidden` steht ja am Knoten), `shell-css.test.ts` haelt nur fest, dass
+ *     die Regel DASTEHT. Dass sie gewinnt, weisz nur der Browser.
+ *  2. **Dass der Speicher einen echten Seitenwechsel ueberlebt.** In Vitest ist
+ *     ein „Neuaufbau" ein zweites `mount` im selben Prozess; hier ist es ein
+ *     neues Dokument mit einem neuen React-Baum.
+ *  3. **Dass Leiste und Drawer denselben Stand zeigen.** Beide stehen
+ *     gleichzeitig im Baum, welche man sieht entscheidet CSS — und genau
+ *     deshalb koennen sie auseinanderlaufen.
+ */
+test("ein zugeklappter Abschnitt verbirgt seine Einträge und übersteht den Seitenwechsel", async ({
+  page,
+}) => {
+  await devLogin(page, {
+    host: LAGERBUCH_HOST,
+    groups: LAGERBUCH_ADMIN_GRUPPE,
+    callbackPath: "/verwaltung/journal",
+  });
+
+  const leiste = page.getByTestId("modulleiste");
+  const artikel = leiste.getByRole("link", { name: "Artikel", exact: true });
+  await expect(artikel).toBeVisible();
+
+  const bestand = abschnittsSchalter(leiste, "Bestand");
+  await expect(bestand).toHaveAttribute("aria-expanded", "true");
+  await bestand.click();
+
+  // ⚠️ `toBeHidden` UND NICHT `toHaveCount(0)`: der Knoten bleibt im DOM
+  // (`aria-controls` zeigt auf ihn). Gemessen wird also die CSS-Wirkung, und
+  // das ist genau die Zusage, die kein anderes Tor tragen kann.
+  await expect(artikel).toBeHidden();
+  await expect(bestand).toBeVisible();
+
+  // Ein echter Seitenwechsel, nicht nur ein Neurendern.
+  await page.goto(`http://${LAGERBUCH_HOST}/verwaltung/journal`, { waitUntil: "load" });
+  await expect(abschnittsSchalter(leiste, "Bestand")).toHaveAttribute("aria-expanded", "false");
+});
+
+test("der Abschnitt der aufgerufenen Seite klappt wieder auf", async ({ page }) => {
+  await devLogin(page, {
+    host: LAGERBUCH_HOST,
+    groups: LAGERBUCH_ADMIN_GRUPPE,
+    callbackPath: "/verwaltung/journal",
+  });
+
+  const leiste = page.getByTestId("modulleiste");
+  await abschnittsSchalter(leiste, "Bestand").click();
+  await expect(leiste.getByRole("link", { name: "Artikel", exact: true })).toBeHidden();
+
+  /*
+   * DIE REGEL, DIE DAS ZUKLAPPEN GEFAHRLOS MACHT: wer per Lesezeichen in einen
+   * zugeklappten Abschnitt hineinspringt, saehe sonst eine Seite, deren Platz in
+   * der Navigation fehlt — die Orientierung fiele genau dann aus, wenn man sie
+   * braucht.
+   */
+  await page.goto(`http://${LAGERBUCH_HOST}/verwaltung/artikel`, { waitUntil: "load" });
+  await expect(leiste.getByRole("link", { name: "Artikel", exact: true })).toBeVisible();
+  await expect(abschnittsSchalter(leiste, "Bestand")).toHaveAttribute("aria-expanded", "true");
+});
+
+test("das Filterfeld grenzt die Leiste ein und nennt die Trefferzahl", async ({ page }) => {
+  await devLogin(page, {
+    host: LAGERBUCH_HOST,
+    groups: LAGERBUCH_ADMIN_GRUPPE,
+    callbackPath: "/verwaltung",
+  });
+
+  const leiste = page.getByTestId("modulleiste");
+  const vorher = await leiste.getByTestId("nav-link").count();
+  expect(vorher).toBeGreaterThan(12);
+
+  // „etiketten" trifft BEIDE Etikettenseiten — der Fall, für den die Suche
+  // mitten im Wort sucht und nicht nur am Anfang.
+  await leiste.getByTestId("nav-filter").fill("etiketten");
+  await expect(leiste.getByTestId("nav-link")).toHaveText(["Artikeletiketten", "Ortsetiketten"]);
+  await expect(leiste.getByTestId("nav-filter-stand")).toHaveText(`2 von ${vorher} Einträgen`);
+
+  // Umlaut ausgeschrieben — die Schreibweise ohne Umlauttaste muss dasselbe
+  // finden wie „Prüfungen".
+  await leiste.getByTestId("nav-filter").fill("pruef");
+  await expect(leiste.getByTestId("nav-link")).toHaveText([
+    "Checks",
+    "Check durchführen",
+    "BZ-Kontrolle",
+  ]);
+
+  await leiste.getByTestId("nav-filter").fill("");
+  await expect(leiste.getByTestId("nav-link")).toHaveCount(vorher);
+});
+
+test("Leiste und Drawer zeigen denselben Aufklappzustand", async ({ page }) => {
+  await devLogin(page, {
+    host: LAGERBUCH_HOST,
+    groups: LAGERBUCH_ADMIN_GRUPPE,
+    callbackPath: "/verwaltung",
+  });
+
+  await abschnittsSchalter(page.getByTestId("modulleiste"), "Bestand").click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId("menue-knopf").click();
+  const drawer = page.getByTestId("suite-drawer");
+  await expect(abschnittsSchalter(drawer, "Bestand")).toHaveAttribute("aria-expanded", "false");
 });

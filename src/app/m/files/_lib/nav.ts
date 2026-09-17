@@ -31,7 +31,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * Praedikat legt und dabei genau diese Ein-Eintrag-Zeile erzeugt.
  *
  * Die `href`s stehen so, wie `Modulnav` sie verlinkt — unveraendert
- * (`core/shell/SuiteNav.tsx:136-150`). Das passt, weil ein Modul der Suite unter
+ * (`core/shell/SuiteNav.tsx`, `navLinks`). Das passt, weil ein Modul der Suite unter
  * seinem eigenen Host an der Wurzel haengt; dieselbe Form wie in
  * `feedback/(admin)/layout.tsx` und `portal/layout.tsx`.
  */

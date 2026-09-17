@@ -57,6 +57,7 @@ async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
   await mount(
     <SuiteNav
       nav={[]}
+      modulKey="feedback"
       userName="Ruben Vitt"
       angemeldet
       profilHref="http://portal.localtest.me:3000"

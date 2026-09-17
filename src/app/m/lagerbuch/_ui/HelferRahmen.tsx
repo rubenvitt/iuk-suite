@@ -15,7 +15,7 @@ import s from "./helfer.module.css";
  * ⚠️ DIE AKTIVMARKIERUNG IST EIN PROP (Falle 63). `HelferFrame.tsx:8-9`
  * steuert die zwei Tabs heute mit `pathname.startsWith("/helfer/check")`. Die
  * Suite hat gemessen, dass `usePathname()` den AEUSSEREN Pfad liefert
- * (`core/shell/SuiteNav.tsx:88-95`) — auf dem regulaeren Weg funktioniert das
+ * (`core/shell/SuiteNav.tsx`, `aktiverEintrag`) — auf dem regulaeren Weg funktioniert das
  * also weiter. WAS BRICHT, IST DER ZWEITE WEG: `core/routing.ts:54-67`
  * behandelt bereits praefixierte Pfade eigens und schliesst `/m/*` bewusst
  * NICHT aus dem Matcher aus. `/m/lagerbuch/helfer/check` rendert also, und dort
