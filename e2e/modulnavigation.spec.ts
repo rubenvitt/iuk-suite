@@ -1,6 +1,6 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { devLogin } from "./fixtures";
-import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
+import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
 /**
  * Der echte Abruf zu Plan B: die Lagerbuch-Verwaltung bekommt fünf Abschnitte
@@ -168,7 +168,7 @@ test("ein zugeklappter Abschnitt verbirgt seine Einträge und übersteht den Sei
   await expect(bestand).toBeVisible();
 
   // Ein echter Seitenwechsel, nicht nur ein Neurendern.
-  await page.goto(`http://${LAGERBUCH_HOST}/verwaltung/journal`, { waitUntil: "load" });
+  await page.goto(lagerbuchUrl("/verwaltung/journal"), { waitUntil: "load" });
   await expect(abschnittsSchalter(leiste, "Bestand")).toHaveAttribute("aria-expanded", "false");
 });
 
@@ -189,7 +189,7 @@ test("der Abschnitt der aufgerufenen Seite klappt wieder auf", async ({ page }) 
    * der Navigation fehlt — die Orientierung fiele genau dann aus, wenn man sie
    * braucht.
    */
-  await page.goto(`http://${LAGERBUCH_HOST}/verwaltung/artikel`, { waitUntil: "load" });
+  await page.goto(lagerbuchUrl("/verwaltung/artikel"), { waitUntil: "load" });
   await expect(leiste.getByRole("link", { name: "Artikel", exact: true })).toBeVisible();
   await expect(abschnittsSchalter(leiste, "Bestand")).toHaveAttribute("aria-expanded", "true");
 });
@@ -205,10 +205,20 @@ test("das Filterfeld grenzt die Leiste ein und nennt die Trefferzahl", async ({ 
   const vorher = await leiste.getByTestId("nav-link").count();
   expect(vorher).toBeGreaterThan(12);
 
-  // „etiketten" trifft BEIDE Etikettenseiten — der Fall, für den die Suche
-  // mitten im Wort sucht und nicht nur am Anfang.
+  /*
+   * „etiketten" trifft BEIDE Etikettenseiten — der Fall, für den die Suche
+   * mitten im Wort sucht und nicht nur am Anfang.
+   *
+   * ⚠️ „Ortsetiketten" ZUERST, und das ist keine Sortierung, sondern die
+   * QUELLREIHENFOLGE: `filtereNav` lässt sie unangetastet, und im Abschnitt
+   * „Einrichtung" steht die Ortskarte seit DRK-406 bewusst vor dem
+   * Artikeletikett (die Codes, mit denen der Helfer-Weg anfängt, vor dem Bogen,
+   * den man einmal beim Einrichten druckt). Wer hier alphabetisch erwartet,
+   * misst eine Sortierung, die es nicht gibt — und baut sie beim „Reparieren"
+   * womöglich ein.
+   */
   await leiste.getByTestId("nav-filter").fill("etiketten");
-  await expect(leiste.getByTestId("nav-link")).toHaveText(["Artikeletiketten", "Ortsetiketten"]);
+  await expect(leiste.getByTestId("nav-link")).toHaveText(["Ortsetiketten", "Artikeletiketten"]);
   await expect(leiste.getByTestId("nav-filter-stand")).toHaveText(`2 von ${vorher} Einträgen`);
 
   // Umlaut ausgeschrieben — die Schreibweise ohne Umlauttaste muss dasselbe
