@@ -467,7 +467,63 @@ describe("setTokenAktiv — ein Ortscode wird nie reaktiviert", () => {
     expect(await setTokenAktiv({ id: "ort-neu", aktiv: false }, t.db)).toEqual({ ok: true });
     expect(aktivVon("ort-neu")).toBe(false);
   });
+
+  /**
+   * ⚠️ UND SPERREN SETZT DABEI DEN TAG — gefunden in der Durchsicht, und ohne
+   * ihn widerspraeche sich die Datei selbst: wer einen Ortscode sperrt, sperrt
+   * ihn DAUERHAFT (die Zeilen darueber lassen ihn nie wieder hoch). Er ist also
+   * verbrannt, und ein verbrannter Code ohne Datum ist genau das, was
+   * `ersetzt_am` verhindern soll.
+   *
+   * ⚠️ ES IST NICHT NUR EINE LEERE ZELLE: wird der Ort spaeter geloescht,
+   * stempelt `loescheElement` den Tag dort nach, wo noch keiner steht — die
+   * Zeile truege dann den LOESCHTAG statt des Tages, an dem der Code wirklich
+   * aufhoerte zu wirken.
+   */
+  it("haelt beim Sperren eines Ortscodes fest, seit wann er verbrannt ist", async () => {
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
+
+    await setTokenAktiv({ id: "ort-neu", aktiv: false }, t.db);
+
+    expect(zeileVon("ort-neu")?.ersetztAm).toBeInstanceOf(Date);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL TAETE: am Altbestand
+   * ist Sperren RUECKNEHMBAR (Betreiberentscheidung 17.09.2026). Ein Datum
+   * naehme ihm genau diese Ruecknahme — `ERSETZT_FEHLER` liesse ihn danach nie
+   * wieder hoch, und zwar wegen eines Handgriffs, der das gar nicht sagen
+   * wollte.
+   */
+  it("setzt am Altbestand KEIN Datum und laesst ihn danach wieder hoch", async () => {
+    tokenDirekt({ id: "alt", code: "555-666", aktiv: true });
+
+    await setTokenAktiv({ id: "alt", aktiv: false }, t.db);
+    expect(zeileVon("alt")?.ersetztAm).toBeNull();
+
+    expect(await setTokenAktiv({ id: "alt", aktiv: true }, t.db)).toEqual({ ok: true });
+    expect(aktivVon("alt")).toBe(true);
+  });
+
+  /**
+   * ⚠️ EIN SCHON GESETZTER TAG BLEIBT STEHEN. Ein zweites Sperren derselben
+   * Zeile darf ihn nicht nach vorn schieben — dasselbe Anliegen wie beim
+   * Loeschen, wo `isNull` die Vorgaenger schuetzt.
+   */
+  it("schiebt einen schon gesetzten Tag beim zweiten Sperren nicht nach vorn", async () => {
+    const frueher = new Date("2026-01-02T03:04:05.000Z");
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: true });
+    t.db.update(tokens).set({ ersetztAm: frueher }).where(eq(tokens.id, "ort-alt")).run();
+
+    await setTokenAktiv({ id: "ort-alt", aktiv: false }, t.db);
+
+    expect(zeileVon("ort-alt")?.ersetztAm).toEqual(frueher);
+  });
 });
+
+function zeileVon(id: string) {
+  return t.db.select().from(tokens).where(eq(tokens.id, id)).get();
+}
 
 function aktivVon(id: string): boolean | undefined {
   return t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.aktiv;

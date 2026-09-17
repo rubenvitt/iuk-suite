@@ -88,18 +88,45 @@ export async function setTokenAktiv(
      * ⚠️ NUR BEIM REAKTIVIEREN. Sperren bleibt fuer JEDEN Code offen, auch fuer
      * den Ortscode: es ist der Griff, der wirkt, wenn eine Karte verschwindet.
      */
+    const zeile = db.select({ ortId: tokens.ortId, ersetztAm: tokens.ersetztAm })
+      .from(tokens)
+      .where(eq(tokens.id, geparst.data.id))
+      .get();
+
     if (geparst.data.aktiv) {
-      const zeile = db.select({ ortId: tokens.ortId, ersetztAm: tokens.ersetztAm })
-        .from(tokens)
-        .where(eq(tokens.id, geparst.data.id))
-        .get();
       if (zeile?.ortId) return { ok: false, fehler: ORTSCODE_FEHLER };
       if (zeile?.ersetztAm) return { ok: false, fehler: ERSETZT_FEHLER };
     }
 
+    /*
+     * SPERREN SETZT DEN TAG — fuer einen ORTSCODE, und nur fuer ihn.
+     *
+     * ⚠️ DAS FOLGT AUS DEM RIEGEL DARUEBER, und ohne diese Zeilen widerspraeche
+     * sich die Datei selbst: wer einen Ortscode sperrt, sperrt ihn DAUERHAFT
+     * (`ORTSCODE_FEHLER` laesst ihn nie wieder hoch). Er ist damit verbrannt,
+     * und ein verbrannter Code ohne Datum ist genau das, was `ersetzt_am`
+     * verhindern soll — die Liste koennte fuer das Foto in der Hand nicht mehr
+     * sagen, seit wann es nicht mehr gilt.
+     *
+     * ⚠️ UND ES IST NICHT NUR EINE LEERE ZELLE. Wird der Ort spaeter geloescht,
+     * stempelt `_actions/loeschen.ts` den Tag nach — dort, wo noch keiner
+     * steht. Ohne diese Zeilen bekaeme die Zeile den LOESCHTAG, also ein
+     * spaeteres Datum als das, an dem der Code wirklich aufhoerte zu wirken.
+     * Das ist derselbe Fehler, den die Trennung beim Loeschen gerade behebt,
+     * nur durch die Hintertuer.
+     *
+     * ⚠️ DER ALTBESTAND BLEIBT UNBERUEHRT (`ortId === null`): dort ist Sperren
+     * ruecknehmbar, und ein Datum wuerde ihn ueber `ERSETZT_FEHLER` genau um
+     * diese Ruecknahme bringen. Und ein schon gesetzter Tag bleibt stehen —
+     * ein zweites Sperren derselben Zeile darf ihn nicht nach vorn schieben.
+     */
+    const verbrennt = !geparst.data.aktiv && zeile?.ortId != null && zeile.ersetztAm == null;
+
     try {
       db.update(tokens)
-        .set({ aktiv: geparst.data.aktiv })
+        .set(verbrennt
+          ? { aktiv: false, ersetztAm: new Date() }
+          : { aktiv: geparst.data.aktiv })
         .where(eq(tokens.id, geparst.data.id))
         .run();
     } catch {
