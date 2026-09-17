@@ -66,7 +66,7 @@ export default async function OrtsetikettenSeite() {
   return (
     <>
       <OrtsetikettenChrome basis={daten.basis} />
-      <OrtsetikettenBogen orte={daten.orte} />
+      <OrtsetikettenBogen orte={daten.orte} kaertchen={daten.kaertchen} />
       {/*
         §11.7 — jeder gestaltete Zustand traegt einen benannten Weg zurueck, und
         `DruckRahmen` hat konstruktionsbedingt KEINE Navigation. Ohne diesen Link

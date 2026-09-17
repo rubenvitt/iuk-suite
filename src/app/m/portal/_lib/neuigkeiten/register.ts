@@ -37,6 +37,8 @@ import werHatGeprueft from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/20
 import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-aussondern-je-schrank";
 import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-ortsetiketten";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
+import chargenImHandlager from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-chargen-im-handlager";
+import codeAufDerHandlagerkarte from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-code-auf-der-handlagerkarte";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -106,6 +108,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   werHatGeprueft,
   aussondernJeSchrank,
   ortsetiketten,
+  chargenImHandlager,
+  codeAufDerHandlagerkarte,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,

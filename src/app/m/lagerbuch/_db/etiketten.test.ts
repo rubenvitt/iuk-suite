@@ -328,6 +328,74 @@ describe("ortEtikettenDaten", () => {
     expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.unterscheidung).toBeNull();
   });
 
+  /**
+   * DRK-395 — DAS KAERTCHEN, DAS AUF DIE HANDLAGER-KARTE DARF.
+   *
+   * Die Grundmontierung bringt zwei Codes mit: `482-137` (aktiv, ohne Ziel) und
+   * `999-999` (gesperrt). Die Tests hier setzen nur das obendrauf, was sie
+   * gerade abgrenzen.
+   */
+  describe("die Kaertchen fuer die Handlager-Karte", () => {
+    it("markiert genau eine Karte als Handlager", async () => {
+      const daten = await ortEtikettenDaten(t.db);
+      expect(daten.orte.filter((o) => o.istHandlager).map((o) => o.id)).toEqual([HANDLAGER_ID]);
+    });
+
+    it("brennt die absolute Einloese-Adresse in die Pixel", async () => {
+      const daten = await ortEtikettenDaten(t.db);
+      const k = daten.kaertchen.find((x) => x.code === "482-137")!;
+      expect(k.url).toBe("https://lagerbuch.iuk-ue.de/t/482-137");
+      /*
+       * ⚠️ ZURUECKDEKODIERT, nicht auf ein `<svg>` geprueft — dieselbe
+       * Begruendung wie bei den Ortskarten daneben: ein relativer QR sieht am
+       * Bildschirm richtig aus und ist auf Papier bedeutungslos.
+       */
+      expect(await decodeQr(k.qr)).toBe("https://lagerbuch.iuk-ue.de/t/482-137");
+    });
+
+    it("laesst einen gesperrten Code draussen", async () => {
+      const daten = await ortEtikettenDaten(t.db);
+      // ⚠️ `999-999` ist gesperrt, WEIL ein laminiertes Kaertchen verschwunden
+      // ist. Ihn zu drucken hiesse, ihn auf Papier wieder auszugeben.
+      expect(daten.kaertchen.map((k) => k.code)).not.toContain("999-999");
+    });
+
+    /**
+     * ⚠️ DIE EIGENTLICHE ZUSAGE: ein Kaertchen mit Fahrzeug- oder Artikelziel
+     * landet NICHT am Regal (`tokenZielPfad`). Auf der Handlager-Karte
+     * gedruckt ergaebe es ein Etikett, das das Regal verspricht und den
+     * Fahrzeug-Check liefert — und das faellt erst auf, wenn jemand davorsteht.
+     */
+    it("bietet nur Kaertchen an, die auf der Artikelliste landen", async () => {
+      t.db.insert(tokens).values([
+        { id: newId(), code: "200-001", label: "Am RTW", zielTyp: "fahrzeug",
+          zielId: "rtw-1", aktiv: true, createdAt: new Date(), createdBy: "sub-1" },
+        { id: newId(), code: "200-002", label: "Am Regalfach", zielTyp: "artikel",
+          zielId: A_ID, aktiv: true, createdAt: new Date(), createdBy: "sub-1" },
+      ]).run();
+
+      const daten = await ortEtikettenDaten(t.db);
+      expect(daten.kaertchen.map((k) => k.code)).toEqual(["482-137"]);
+    });
+
+    /** Gewaehlt wird nach der BEZEICHNUNG — also ist sie auch die Ordnung. */
+    it("sortiert nach der Bezeichnung, mit deutscher Sortierung", async () => {
+      t.db.insert(tokens).values([
+        { id: newId(), code: "300-001", label: "Übung", aktiv: true,
+          createdAt: new Date(), createdBy: "sub-1" },
+        { id: newId(), code: "300-002", label: "Zentrale", aktiv: true,
+          createdAt: new Date(), createdBy: "sub-1" },
+        { id: newId(), code: "300-003", label: "Ausbildung", aktiv: true,
+          createdAt: new Date(), createdBy: "sub-1" },
+      ]).run();
+
+      const daten = await ortEtikettenDaten(t.db);
+      // ⚠️ „Ü" vor „Z": `localeCompare` OHNE Sprache sortierte es dahinter.
+      expect(daten.kaertchen.map((k) => k.label))
+        .toEqual(["Ausbildung", "RTW 1", "Übung", "Zentrale"]);
+    });
+  });
+
   /** Ohne Basis gibt es keinen halben Bogen — dieselbe Zusage wie oben. */
   it("wirft EtikettenBasisFehlt, wenn moduleUrl null liefert", async () => {
     modulUrl.wert = null;

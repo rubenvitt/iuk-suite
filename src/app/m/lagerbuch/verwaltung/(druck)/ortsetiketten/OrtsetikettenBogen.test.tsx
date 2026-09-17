@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { act } from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -54,21 +55,36 @@ function ohneKommentare(quelle: string): string {
 const BASIS = "https://lagerbuch.example.org";
 const ORTE = [
   { id: "handlager", name: "Handlager", meta: "Lager", unterscheidung: null,
-    url: `${BASIS}/o/handlager`,
+    url: `${BASIS}/o/handlager`, istHandlager: true,
     qr: '<svg viewBox="0 0 45 45"><path d="M0 0h1v1H0z"/></svg>' },
   { id: "rtw-1", name: "RTW 1", meta: "Fahrzeug · HN-DRK-1101", unterscheidung: null,
-    url: `${BASIS}/o/rtw-1`,
+    url: `${BASIS}/o/rtw-1`, istHandlager: false,
     qr: '<svg viewBox="0 0 45 45"><path d="M1 1h1v1H1z"/></svg>' },
   { id: "tasche-san", name: "Sanitätstasche 1", meta: "Tasche", unterscheidung: null,
-    url: `${BASIS}/o/tasche-san`,
+    url: `${BASIS}/o/tasche-san`, istHandlager: false,
     qr: '<svg viewBox="0 0 45 45"><path d="M2 2h1v1H2z"/></svg>' },
+];
+
+/**
+ * DRK-395 — die Vorgabe jeder Montierung, die von der Wahl nichts wissen will:
+ * kein Kaertchen angeboten, die Handlager-Karte traegt also ihre Ortsadresse.
+ * Das ist zugleich der Zustand von VOR dem Ticket, und deshalb bleiben die
+ * Zusicherungen darunter woertlich, wie sie waren.
+ */
+const OHNE_KAERTCHEN: { code: string; label: string; url: string; qr: string }[] = [];
+
+const KAERTCHEN = [
+  { code: "482-137", label: "Regal Erdgeschoss", url: `${BASIS}/t/482-137`,
+    qr: '<svg viewBox="0 0 45 45"><path d="M3 3h1v1H3z"/></svg>' },
+  { code: "119-004", label: "Ausbildung", url: `${BASIS}/t/119-004`,
+    qr: '<svg viewBox="0 0 45 45"><path d="M4 4h1v1H4z"/></svg>' },
 ];
 
 afterEach(() => unmount());
 
 describe("OrtsetikettenBogen", () => {
   it("rendert je Ort genau eine Karte mit genau einem QR", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarte")).toHaveLength(3);
     expect(queryAll(".lb-ortkarteQr > svg")).toHaveLength(3);
     expect(exists(".lb-ortkarte img")).toBe(false);
@@ -86,13 +102,13 @@ describe("OrtsetikettenBogen", () => {
    * falsch-rot.
    */
   it("gibt jeder Karte IHREN Code", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarteQr svg path").map((p) => p.getAttribute("d")))
       .toEqual(["M0 0h1v1H0z", "M1 1h1v1H1z", "M2 2h1v1H2z"]);
   });
 
   it("setzt das SVG unveraendert ein", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(query(".lb-ortkarteQr").innerHTML).toContain('viewBox="0 0 45 45"');
   });
 
@@ -104,7 +120,7 @@ describe("OrtsetikettenBogen", () => {
    * fuer ein Telefon, dessen Kamera streikt.
    */
   it("traegt Beizeile, Namen und die volle Adresse", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarteMeta").map((e) => e.textContent))
       .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
     expect(queryAll(".lb-ortkarteNameText").map((e) => e.textContent))
@@ -121,7 +137,7 @@ describe("OrtsetikettenBogen", () => {
    * waere zu klein oder zu gross.
    */
   it("haengt jeder Karte ihre gemessene Schriftstufe an", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarteName").map((e) => e.className))
       .toEqual(ORTE.map((o) => `lb-ortkarteName ${nameStufe(o.name)}`));
   });
@@ -134,7 +150,7 @@ describe("OrtsetikettenBogen", () => {
    * und ein zu langer Name hoert wieder still auf, statt auf „…" zu enden.
    */
   it("legt den Namen in einen eigenen Textkasten", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     for (const huelle of queryAll(".lb-ortkarteName")) {
       const text = huelle.querySelector(".lb-ortkarteNameText");
       expect(text, huelle.textContent ?? "").not.toBeNull();
@@ -158,7 +174,7 @@ describe("OrtsetikettenBogen", () => {
       { ...ORTE[1]!, id: "a", name: "Betreuung", meta: "Tasche", unterscheidung: "a" },
       { ...ORTE[2]!, id: "b", name: "Betreuung", meta: "Tasche", unterscheidung: "b" },
     ];
-    await mount(<OrtsetikettenBogen orte={orte} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={orte} />);
 
     expect(queryAll(".lb-ortkarteUnterscheidung").map((e) => e.textContent)).toEqual(["a", "b"]);
     // Die Beizeile bleibt schlicht — dort wuerde er gekuerzt.
@@ -171,18 +187,18 @@ describe("OrtsetikettenBogen", () => {
 
   /** Ohne Kollision bleibt der Fuss, wie er war — die Id ist haesslich. */
   it("zeigt ohne Kollision keinen Unterscheider", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarteUnterscheidung")).toHaveLength(0);
   });
 
   it("waehlt zu Beginn alles aus", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarteAbgewaehlt")).toHaveLength(0);
     expect(query("[data-testid='lb-ort-drucken']").textContent).toContain("(3)");
   });
 
   it("waehlt eine Karte ab und wieder an", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     await clickElement(queryAll(".lb-ortkarteWahl")[0]);
     expect(queryAll(".lb-ortkarteAbgewaehlt")).toHaveLength(1);
     expect(query("[data-testid='lb-ort-drucken']").textContent).toContain("(2)");
@@ -191,7 +207,7 @@ describe("OrtsetikettenBogen", () => {
   });
 
   it("schaltet ueber Alle und Keine", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     await clickElement(query("[data-testid='lb-ort-keine']"));
     expect(queryAll(".lb-ortkarteAbgewaehlt")).toHaveLength(3);
     expect(query("[data-testid='lb-ort-drucken']").textContent).toContain("(0)");
@@ -202,14 +218,14 @@ describe("OrtsetikettenBogen", () => {
   it("ruft window.print", async () => {
     const print = vi.fn();
     vi.stubGlobal("print", print);
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     await clickElement(query("[data-testid='lb-ort-drucken']"));
     expect(print).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
   });
 
   it("nennt den leeren Zustand beim Namen", async () => {
-    await mount(<OrtsetikettenBogen orte={[]} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={[]} />);
     expect(query(".lb-nichtDrucken").textContent).toBe("Kein Handlager und keine aktive Einheit.");
     expect(exists(".lb-ortbogen")).toBe(false);
   });
@@ -222,7 +238,7 @@ describe("OrtsetikettenBogen", () => {
    * Ausdruck auffaellt.
    */
   it("benutzt ein nacktes Kontrollkaestchen, keinen antd-Baustein", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     const kasten = queryAll(".lb-ortkarteWahl");
     expect(kasten).toHaveLength(3);
     for (const k of kasten) {
@@ -240,7 +256,7 @@ describe("OrtsetikettenBogen", () => {
    * Kacheln, hier kaeme eine leere A7-Seite je Ort aus dem Drucker.
    */
   it("haengt lb-nichtDrucken NICHT an die Karte selbst", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     for (const karte of queryAll(".lb-ortkarte")) {
       expect(karte.className).not.toContain("lb-nichtDrucken");
     }
@@ -253,9 +269,115 @@ describe("OrtsetikettenBogen", () => {
    * abwaehlt, saehe man nur mit den Augen.
    */
   it("benennt jedes Kaestchen nach seinem Ort", async () => {
-    await mount(<OrtsetikettenBogen orte={ORTE} />);
+    await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
     expect(queryAll(".lb-ortkarteWahl").map((k) => k.getAttribute("aria-label")))
       .toEqual(["Handlager drucken", "RTW 1 drucken", "Sanitätstasche 1 drucken"]);
+  });
+
+  /**
+   * DRK-395 — DAS KAERTCHEN AUF DER HANDLAGER-KARTE.
+   *
+   * ⚠️ GEPRUEFT WIRD DIE BINDUNG VON QR UND FUSS, nicht nur, dass sich etwas
+   * aendert. Der teuerste Ausgang dieser Karte ist nicht „kein Kaertchen",
+   * sondern ein QR auf den einen Zugang mit der abtippbaren Adresse des
+   * anderen darunter — das faellt erst auf, wenn jemand am Regal steht und
+   * beide Wege verschiedene Dinge tun.
+   */
+  describe("DRK-395 — Zugangs-Code auf der Handlager-Karte", () => {
+    async function warte(): Promise<void> {
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    }
+
+    /** Dasselbe Muster wie in `TemplateVerknuepfung.test.tsx`: antd oeffnet
+     *  seine Liste auf `mousedown`, die Eintraege haengen im Portal. */
+    async function waehle(text: string): Promise<void> {
+      const feld = query<HTMLInputElement>("[aria-label='QR auf der Handlager-Karte']");
+      await act(async () => {
+        feld.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      });
+      await warte();
+      const option = Array.from(
+        document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+      ).find((element) => (element.textContent ?? "").includes(text));
+      if (!option) throw new Error(`Eintrag nicht gefunden: ${text}`);
+      await clickElement(option);
+      await warte();
+    }
+
+    const qrPfade = () =>
+      queryAll(".lb-ortkarteQr svg path").map((p) => p.getAttribute("d"));
+
+    it("traegt ohne Wahl die Ortsadresse — der Zustand von vorher", async () => {
+      await mount(<OrtsetikettenBogen kaertchen={KAERTCHEN} orte={ORTE} />);
+      expect(qrPfade()[0]).toBe("M0 0h1v1H0z");
+      expect(queryAll(".lb-ortkarteUrl")[0]!.textContent).toBe(`${BASIS}/o/handlager`);
+      expect(exists(".lb-ortkarteCode")).toBe(false);
+    });
+
+    it("setzt nach der Wahl QR UND Fuss der Handlager-Karte auf das Kaertchen", async () => {
+      await mount(<OrtsetikettenBogen kaertchen={KAERTCHEN} orte={ORTE} />);
+      await waehle("Regal Erdgeschoss");
+
+      // Der QR traegt den Code des Kaertchens …
+      expect(qrPfade()[0]).toBe("M3 3h1v1H3z");
+      // … und der Fuss nennt denselben, in beiden Formen.
+      const fuss = queryAll(".lb-ortkarteUrl")[0]!;
+      expect(query(".lb-ortkarteCode").textContent).toBe("Code 482-137");
+      expect(fuss.textContent).toContain(`${BASIS}/t/482-137`);
+      // ⚠️ Die alte Ortsadresse darf NICHT danebenstehen: zwei Wege auf einer
+      // Karte sind einer zu viel.
+      expect(fuss.textContent).not.toContain("/o/handlager");
+    });
+
+    /**
+     * ⚠️ DIE ENTSCHEIDENDE ABGRENZUNG. Ein Kaertchen auf der FAHRZEUG-Karte
+     * oeffnete den Check dieses Fahrzeugs fuer jeden, der die Karte
+     * abfotografiert — die Betreiberentscheidung gilt dem Regal, nicht den
+     * Einheiten. Faellt diese Zeile weg, weitet sie sich still mit aus.
+     */
+    it("laesst die Einheiten unberuehrt", async () => {
+      await mount(<OrtsetikettenBogen kaertchen={KAERTCHEN} orte={ORTE} />);
+      await waehle("Regal Erdgeschoss");
+      expect(qrPfade().slice(1)).toEqual(["M1 1h1v1H1z", "M2 2h1v1H2z"]);
+      expect(queryAll(".lb-ortkarteUrl").slice(1).map((e) => e.textContent))
+        .toEqual([`${BASIS}/o/rtw-1`, `${BASIS}/o/tasche-san`]);
+      expect(queryAll(".lb-ortkarteCode")).toHaveLength(1);
+    });
+
+    it("nimmt die Wahl wieder zurueck", async () => {
+      await mount(<OrtsetikettenBogen kaertchen={KAERTCHEN} orte={ORTE} />);
+      await waehle("Regal Erdgeschoss");
+      await waehle("Ortsadresse");
+      expect(qrPfade()[0]).toBe("M0 0h1v1H0z");
+      expect(exists(".lb-ortkarteCode")).toBe(false);
+    });
+
+    /**
+     * ⚠️ OHNE KAERTCHEN STEHT DER WEG DA, NICHT EIN LEERES FELD. „Geht nicht"
+     * ist keine Auskunft; was fehlt, ist ein Code der Zielart „Artikel-Liste".
+     */
+    it("nennt ohne Kaertchen den Weg zur Verwaltung statt eines leeren Feldes", async () => {
+      await mount(<OrtsetikettenBogen kaertchen={OHNE_KAERTCHEN} orte={ORTE} />);
+      expect(exists("[aria-label='QR auf der Handlager-Karte']")).toBe(false);
+      const hinweis = query("[data-testid='lb-ort-kaertchen-leer']");
+      expect(hinweis.textContent).toContain("Artikel-Liste");
+      expect(hinweis.querySelector("a")?.getAttribute("href")).toBe("/verwaltung/tokens");
+    });
+
+    /**
+     * ⚠️ DIE WAHL GEHOERT NICHT AUFS PAPIER. Sie traegt `lb-nichtDrucken` —
+     * ohne die Klasse stuende das Auswahlfeld mit auf dem Bogen und kostete
+     * die erste Kartenreihe ihren Platz. Dieselbe Falle wie beim
+     * Kontrollkaestchen, nur eine Ebene hoeher.
+     */
+    it("haelt die Wahl vom Papier fern", async () => {
+      await mount(<OrtsetikettenBogen kaertchen={KAERTCHEN} orte={ORTE} />);
+      const feld = query("[aria-label='QR auf der Handlager-Karte']");
+      expect(feld.closest(".lb-nichtDrucken")).not.toBeNull();
+    });
   });
 
   const lies = (datei: string) =>
