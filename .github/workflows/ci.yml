@@ -277,16 +277,16 @@ jobs:
   # `testIgnore`-Dateien nicht mitgezaehlt) — eine Auskunft, KEINE Zusage:
   # die Zahlen wandern mit jedem neuen Fall, und nichts prueft sie nach.
   #
-  #   lagerbuch 134 · aufgaben 93 · suite-huelle 60 · files-feedback 54
-  #   radio 42 · suite-verwaltung 42 · uav-zeichen 24
+  #   lagerbuch 134 · aufgaben-breiten 49 · aufgaben 44 · suite-huelle 60
+  #   files-feedback 54 · radio 42 · suite-verwaltung 42 · uav-zeichen 24
   #
   # ⚠️ `lagerbuch` BLEIBT EIN GLOB, die anderen sind Listen. Absicht: in dieses
   # Modul kommen die meisten neuen Specs (von den ~145 Faellen, die seit der
   # 5-Shard-Messung dazukamen, fast alle), und ein Glob nimmt sie ohne
-  # Handarbeit in die richtige Gruppe. `aufgaben` ist mit 93 Faellen die
-  # Untergrenze des kritischen Pfads und laesst sich nicht weiter teilen:
-  # `aufgaben.spec.ts` traegt davon 86 in EINER Datei, und eine Datei bleibt
-  # zusammen.
+  # Handarbeit in die richtige Gruppe. ⛔ HIER STAND, `aufgaben` sei mit 93
+  # Faellen die Untergrenze des kritischen Pfads, weil 86 davon in EINER Datei
+  # stehen und eine Datei zusammenbleibt. Das galt fuer `--shard`, nicht fuer
+  # den Quelltext: DRK-408 hat die Datei geteilt (8:58 -> 4:20 + 4:20).
   #
   # ⚠️ KEIN TOR FINDET DEN AUSFALL, DEN DIESE ZAHL ABWEHRT. `pnpm build` faehrt
   # `next build` und haengt am ANDEREN Schalter (`…ForBuild`); `typecheck` und
