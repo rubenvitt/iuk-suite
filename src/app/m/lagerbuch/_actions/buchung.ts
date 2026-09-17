@@ -3,7 +3,6 @@ import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
@@ -15,10 +14,10 @@ import { zugangBuchen } from "../_lib/schreibpfade/zugang";
 import { umlagerungAusBereich, umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { handlagerOrte, ortStamm, zugangsZiele } from "../_lib/lesepfade/orte";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { BuchungAbgewiesen } from "../_lib/buchungAbgewiesen";
 import { RIEGEL_TEXTE, leerText, type HelferErgebnis } from "../_lib/actionTypen";
-import { revalidiereHandlagerBestand } from "../_lib/revalidierung";
 import {
   ZIEL_COOKIE, ZIEL_UNGUELTIG_TEXT, ZIEL_VERALTET_TEXT, zielAusWert, type EntnahmeZiel,
 } from "../_lib/entnahmeZiel";
@@ -48,7 +47,10 @@ import { cookies } from "next/headers";
 
 /*
  * ⚠️ DIE PFADLISTE EINES ZUGANGS STEHT SEIT DRK-381 IN
- * `_lib/revalidierung.ts` (`revalidiereHandlagerBestand`), nicht mehr hier.
+ * `_lib/revalidierung.ts`, nicht mehr hier — und seit DRK-374 ist es dort die
+ * Liste ALLER Flaechen, die Artikelbestand oder Buchungen zeigen, die JEDER
+ * Bestandsschreiber des Moduls nimmt. Beide Tickets haben denselben Umzug
+ * gemacht; DRK-374 ist die Obermenge und hat beim Merge gewonnen.
  *
  * Der Grund, der sie hier entstehen liess, gilt unveraendert und steht dort
  * ausgeschrieben: DREI RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE — zwei Listen
@@ -57,10 +59,12 @@ import { cookies } from "next/headers";
  * Nacheinander fehlten `verwaltung/bestellung`, `verwaltung/verfall` und — als
  * die neuen Routen dazukamen — `auffuellen`.
  *
- * ⚠️ DER DRITTE AUFRUFER IST KEIN ZUGANG MEHR: `raeumeAusEntnahmebox`
- * (DRK-381) bucht eine UMLAGERUNG aus der Entnahmebox in einen Schrank. Sie
- * aendert denselben Bestand und veraltet deshalb dieselben Flaechen — genau
- * die Lage, vor der der alte Kommentar gewarnt hat, nur diesmal angekuendigt.
+ * ⚠️ DIE AUFRUFER SIND LAENGST KEINE ZUGAENGE MEHR: `raeumeAusEntnahmebox`
+ * (DRK-381) bucht eine UMLAGERUNG aus der Entnahmebox in einen Schrank,
+ * `aussondern`, `inventur`, `check` und der CSV-Import schreiben ebenfalls
+ * Buchungszeilen. Alle veralten dieselben Flaechen — genau die Lage, vor der
+ * der alte Kommentar gewarnt hat, nur diesmal angekuendigt.
+ *
  * Deshalb der Umzug nach `_lib/`: eine `"use server"`-Datei kann eine
  * Hilfsfunktion gar nicht exportieren, ohne aus ihr eine Action mit global
  * aufrufbarer Id zu machen (`guards.test.ts`).
@@ -164,11 +168,14 @@ export async function bucheZugang(
       };
     }
 
-    // DIESELBE Liste wie in `bucheAuffuellung` und in `raeumeAusEntnahmebox`
-    // — Begruendung je Pfad steht an `revalidiereHandlagerBestand`
-    // (`_lib/revalidierung.ts`). Zwei Listen fuer denselben Effekt waren die
-    // Ursache von drei Review-Befunden in Folge.
-    revalidiereHandlagerBestand(v.artikelId);
+    /*
+     * DIESELBE Liste wie in `bucheAuffuellung`, `raeumeAusEntnahmebox` und in
+     * jedem anderen Bestandsschreiber — Begruendung je Flaeche steht in
+     * `_lib/revalidierung.ts`. Zwei Listen fuer EINEN Vorgang waren die Ursache
+     * von drei Review-Befunden in Folge, sieben Listen fuer EIN Modul die des
+     * vierten (DRK-374).
+     */
+    revalidiereBestand();
     return { ok: true };
   });
 }
@@ -269,8 +276,15 @@ export async function bucheEntnahme(
       };
     }
 
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    /*
+     * ⚠️ HIER STANDEN BIS DRK-374 ZWEI PFADE. Eine Entnahme aendert dieselben
+     * Flaechen wie ein Zugang, nur in die andere Richtung: eine leergelaufene
+     * Charge faellt aus der Verfallsliste, der Handlager-Bestand kann unter den
+     * Mindestbestand rutschen und die Bestellliste betreten, und die
+     * Buchungszeile steht im Journal. `zielFahrzeug` traegt den Ortsschirm mit,
+     * wenn die Ware auf ein Fahrzeug ging.
+     */
+    revalidiereBestand();
     return { ok: true, wert: { gebucht } };
   });
 }
@@ -429,8 +443,7 @@ export async function bucheUmlagerung(
       };
     }
 
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    revalidiereBestand();
     return { ok: true, wert: { umgelagert } };
   });
 }
@@ -444,7 +457,11 @@ const HelferEntnahmeSchema = z.object({
 
 /**
  * DER HELFER-WEG. Einziger Aufrufer: `_ui/Entnahme.tsx` (Teil 4, §7.2) — und
- * zwar als PROP aus `a/[artikelId]/page.tsx`, nicht per Import in der Insel.
+ * zwar per DIREKTEM IMPORT in der Insel (DRK-375). Bis dahin kam sie als PROP
+ * aus `a/[artikelId]/page.tsx`; die Begruendung war eine Reihenfolge und ist
+ * abgelaufen. Falle 9 (`AGENTS.md`/`CLAUDE.md`): „Server Actions duerfen als
+ * einzige ueber die Grenze — aber direkt importiert, nicht als Prop
+ * durchgereicht."
  *
  * `requireHelferSchreibend` prueft Sitzung UND Sperrbefund (Teil 2, T25): ein
  * gesperrter Code liest im Bestand bis zu 12 Stunden weiter und darf hier auf
@@ -589,9 +606,7 @@ export async function bucheEntnahmeHelfer(
       return { ok: false, grund: "leer", text: leerText(name) };
     }
 
-    revalidatePath(`/m/lagerbuch/a/${v.artikelId}`);
-    revalidatePath("/m/lagerbuch/helfer");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    revalidiereBestand();
     return { ok: true, wert: { gebucht } };
   });
 }
@@ -801,10 +816,9 @@ export async function bucheAuffuellung(
       });
 
       // DIESELBE Liste wie in `bucheZugang` — es ist derselbe Vorgang, nur
-      // eine andere Flaeche davor. Sie liegt seit DRK-381 in
-      // `_lib/revalidierung.ts`, weil ein DRITTER Weg denselben Bestand
-      // aendert (`raeumeAusEntnahmebox`).
-      revalidiereHandlagerBestand(v.artikelId);
+      // eine andere Flaeche davor. Sie liegt in `_lib/revalidierung.ts`, weil
+      // laengst nicht nur die Zugangswege denselben Bestand aendern.
+      revalidiereBestand();
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.

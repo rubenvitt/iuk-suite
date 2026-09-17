@@ -3,6 +3,7 @@ import { artikel, buchungen, chargen } from "../_db/schema";
 import type { DB } from "../_db/client";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { CHARGE_OHNE_VERFALL, HANDLAGER_ID, PSEUDO_VERFALL } from "../_lib/konstanten";
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
 const { revalidiert, adminRiegel } = vi.hoisted(() => ({
   revalidiert: [] as string[],
@@ -30,7 +31,6 @@ const VIEWER = {
   email: null,
 };
 const JETZT = new Date("2026-08-07T12:34:56.000Z");
-const LISTENPFAD = "/m/lagerbuch/verwaltung/artikel";
 const KOPF = "Name;Einheit;Fach;Mindestbestand;Startbestand";
 
 let t: TestDb;
@@ -79,7 +79,7 @@ describe("importArtikelCsv", () => {
       quelleId: VIEWER.sub,
       kommentar: "CSV-Startbestand",
     });
-    expect(revalidiert).toEqual([LISTENPFAD]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
   });
 
   it("legt bei Startbestand null weder Charge noch Buchung an", async () => {
@@ -89,7 +89,7 @@ describe("importArtikelCsv", () => {
     expect(t.db.select().from(artikel).all()).toHaveLength(1);
     expect(t.db.select().from(chargen).all()).toEqual([]);
     expect(t.db.select().from(buchungen).all()).toEqual([]);
-    expect(revalidiert).toEqual([LISTENPFAD]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
   });
 
   it("reicht Parserfehler mit Zeilennummer durch und importiert gueltige Zeilen weiter", async () => {
@@ -108,7 +108,7 @@ describe("importArtikelCsv", () => {
       },
     });
     expect(t.db.select().from(artikel).all().map((a) => a.name)).toEqual(["Kompressen"]);
-    expect(revalidiert).toEqual([LISTENPFAD]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
   });
 
   it("isoliert jede Zeile in einer Transaktion, setzt nach Fehlern fort und verbirgt DB-Texte", async () => {
@@ -138,7 +138,7 @@ describe("importArtikelCsv", () => {
       ]);
     expect(t.db.select().from(chargen).all()).toHaveLength(2);
     expect(t.db.select().from(buchungen).all()).toHaveLength(2);
-    expect(revalidiert).toEqual([LISTENPFAD]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
   });
 
   it("laesst den Admin-Riegel vor Parser und Datenbank entscheiden", async () => {
