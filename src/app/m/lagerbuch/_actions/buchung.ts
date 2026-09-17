@@ -454,6 +454,26 @@ const HelferEntnahmeSchema = z.object({
   menge: z.coerce.number().int().positive(),
   /** PFLICHT seit DRK-300 — siehe `ZielSchema`. */
   ziel: ZielSchema,
+  /**
+   * GENAU DIESE Charge, oder `null`/fehlend fuer FEFO ueber den Handlager —
+   * DRK-418.
+   *
+   * ⚠️ OPTIONAL UND NICHT PFLICHT, dieselbe Abwaegung wie in `BoxSchema`
+   * (`_actions/entnahmebox.ts`): wer die Packung in der Hand haelt, liest ihr
+   * Verfallsdatum ab und waehlt DIESE Charge; wer sie nicht unterscheiden kann,
+   * nimmt die aelteste. Eine Pflichtangabe verlangte am Regal eine Genauigkeit,
+   * die die Daten nicht immer hergeben — und kostete bei JEDER Entnahme einen
+   * zusaetzlichen Handgriff, auch bei den vielen Artikeln mit genau einer
+   * Charge.
+   *
+   * ⚠️ DIE ZUGEHOERIGKEIT ZUM ARTIKEL WIRD NICHT HIER GEPRUEFT, sondern im
+   * Schreibpfad: `fefoAbbuchungImBereich` sucht mit
+   * `and(chargen.artikelId, chargen.id)` (`_lib/schreibpfade/abbuchung.ts`).
+   * Eine fremde `chargeId` findet damit nichts, `gebucht` bleibt 0, und die
+   * Antwort ist der `leer`-Zweig unten — kein 200, das luegt. Eine zweite
+   * Pruefung hier waere eine zweite Wahrheit ueber dieselbe Frage.
+   */
+  chargeId: z.string().min(1).nullish(),
 });
 
 /**
@@ -597,6 +617,14 @@ export async function bucheEntnahmeHelfer(
               quelle,
               kommentar: null,
               referenz: `entnahme-ziel:${ziel.lagerortId}`,
+              /*
+               * DRK-418 — DIE WAHL GILT IN BEIDEN ZWEIGEN, und der hier ist
+               * der, den man vergisst. Beim Ziel-Fahrzeug wandert die Charge
+               * ausdruecklich MIT, damit das Fahrzeug die Verfall-Herkunft
+               * behaelt (Absatz oben); eine Wahl, die nur im Verbrauchszweig
+               * wirkte, schriebe dem Fahrzeug still die falsche Charge zu.
+               */
+              ...(v.chargeId ? { chargeId: v.chargeId } : {}),
             }).umgelagert
           : fefoAbbuchungImBereich(tx, {
               artikelId: v.artikelId,
@@ -604,6 +632,14 @@ export async function bucheEntnahmeHelfer(
               quelle,
               kommentar: null,
               referenz: null,
+              /*
+               * ⚠️ NUR SETZEN, WENN GEWAEHLT. `AbbuchungArgs.chargeId` ist
+               * `string | undefined`; ein durchgereichtes `null` waere ein
+               * Typfehler, und ein `chargeId: undefined` im Objektliteral
+               * verhielte sich zwar gleich, legte aber nahe, hier werde
+               * IMMER eine Charge bestimmt.
+               */
+              ...(v.chargeId ? { chargeId: v.chargeId } : {}),
             }).gebucht;
     });
 

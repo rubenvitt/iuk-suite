@@ -145,6 +145,44 @@ export function Entnahme({
   const sichtbareChargen = zeigeOhneBestand ? detail.chargen : imHandlager;
 
   /*
+   * DIE GEWAEHLTE CHARGE — DRK-418. `null` heisst FEFO, also die Vorgabe.
+   *
+   * ⚠️ FEFO BLEIBT DIE VORGABE UND WIRD NICHT ZUR PFLICHTWAHL. Wer nichts tut,
+   * bucht wie bisher; das ist der haeufige Fall und der schnellste Handgriff am
+   * Regal. Die Wahl ist fuer den anderen: wer nicht die vorderste Packung in
+   * der Hand haelt, erzeugte bis hierher einen Bestand, der auf dem Papier
+   * anders aussah als im Fach.
+   *
+   * ⚠️ NUR CHARGEN MIT REST IM HANDLAGER SIND WAEHLBAR. Die Zeilen unter dem
+   * Umschalter (`rest <= 0`) bleiben reine Auskunft: sie sagen, WO das Material
+   * sonst liegt (DRK-297, Aufgabe 12). Eine waehlbare Zeile ohne Bestand waere
+   * ein Angebot, das die Action danach ablehnt.
+   */
+  const [chargeId, setChargeId] = useState<string | null>(null);
+  const gewaehlteCharge = chargeId === null
+    ? null
+    : (imHandlager.find((c) => c.id === chargeId) ?? null);
+  /*
+   * ⚠️ DIE OBERGRENZE FOLGT DER WAHL. Ohne diese Zeile stuende der Stepper
+   * weiter auf dem Gesamtbestand des Handlagers, und die Action wiese eine
+   * Menge ab, die der Schirm gerade angeboten hat — „reicht die gewaehlte
+   * Charge nicht, sagt der Schirm das VOR dem Buchen" ist die Zusage des
+   * Tickets.
+   *
+   * ⚠️ UND SIE IST DIE EINE RECHNUNG, nicht zwei: derselbe Wert deckelt den
+   * Stepper und die Menge, die `absenden` schickt. Zwei Rechnungen liefen beim
+   * naechsten Griff auseinander, und die zweite ist die, die bucht.
+   */
+  const hoechstmenge = gewaehlteCharge ? gewaehlteCharge.rest : detail.bestand;
+  /*
+   * ⚠️ DIE WAHL WIRD NUR ANGEBOTEN, WENN ES ETWAS ZU WAEHLEN GIBT — dieselbe
+   * Bedingung wie in `_ui/BoxAbgabe.tsx`. Bei genau einer Charge ist die Frage
+   * beantwortet, bevor sie gestellt wird, und eine Radiogruppe mit einem Knopf
+   * ist eine Bedienung ohne Wirkung.
+   */
+  const wahlMoeglich = imHandlager.length > 1;
+
+  /*
    * DER WEG ZUR ZIELWAHL UND ZURÜCK. `returnTo` ist keine Bequemlichkeit: ohne
    * ihn stünde die Person nach der Wahl auf der Artikelliste statt vor dem
    * Regalfach, vor dem sie gerade steht.
@@ -157,7 +195,8 @@ export function Entnahme({
     // diese Zeile ist die zweite Hälfte derselben Zusage — ein Tastendruck auf
     // einem noch nicht neu gerenderten Knopf käme sonst durch.
     if (!ziel) return;
-    const m = Math.min(menge, detail.bestand);
+    // DRK-418: an der GEWAEHLTEN Charge deckeln, sonst am Handlagerbestand.
+    const m = Math.min(menge, hoechstmenge);
     if (m <= 0) return;
     setRueck(null);
     start(async () => {
@@ -165,6 +204,17 @@ export function Entnahme({
         const r = await bucheEntnahmeHelfer({
           artikelId: detail.id,
           menge: m,
+          /*
+           * DRK-418 — NUR MITSCHICKEN, WENN GEWAEHLT. Ein `chargeId: null` waere
+           * gleichbedeutend (das Schema ist `nullish`), aber der Schluessel
+           * stuende dann in jeder Nutzlast und legte nahe, die Wahl sei Pflicht.
+           *
+           * ⚠️ `gewaehlteCharge?.id` UND NICHT `chargeId`: verschwindet die
+           * gewaehlte Charge zwischen Wahl und Klick aus dem Handlager — ein
+           * zweites Telefon am selben Regal —, zeigt der Schirm sie nicht mehr
+           * an, und die Nutzlast soll dann auch nicht mehr von ihr sprechen.
+           */
+          ...(gewaehlteCharge ? { chargeId: gewaehlteCharge.id } : {}),
           // Die KENNUNG wandert, nicht der Anzeigename — der Server kennt nur sie.
           ziel: ziel.art === "fahrzeug" ? { art: "fahrzeug", lagerortId: ziel.lagerortId } : ziel,
         });
@@ -234,7 +284,13 @@ export function Entnahme({
               wert={menge}
               setWert={setMenge}
               min={1}
-              max={Math.max(detail.bestand, 1)}
+              /*
+                DRK-418 — DIE OBERGRENZE FOLGT DER CHARGENWAHL. Ohne sie boete
+                der Schirm eine Menge an, die die Action danach ablehnt: eine
+                gewaehlte Charge deckelt die Buchung auf IHREN Rest, nicht auf
+                den des ganzen Handlagers.
+              */
+              max={Math.max(hoechstmenge, 1)}
               beschriftung="Menge"
             />
           </div>
@@ -371,9 +427,88 @@ export function Entnahme({
       </div>
 
       <div className={s.karte}>
-        <div className={s.karteTitel}>Nächste Charge zuerst (FEFO)</div>
-        {sichtbareChargen.map((c) => (
-          <div className={s.zeile} key={c.id} data-rolle="charge-zeile">
+        {/*
+          ⚠️ DIE UEBERSCHRIFT SAGT SEIT DRK-418 ETWAS ANDERES, SOBALD MAN WAEHLEN
+          KANN. „Nächste Charge zuerst (FEFO)" beschreibt eine Regel, die die
+          Anwendung befolgt; wo eine Wahl steht, ist sie nur noch die VORGABE,
+          und die Ueberschrift muss sagen, dass hier etwas zu tun ist. Eine
+          Liste, die aussieht wie eine Auskunft, tippt niemand an.
+        */}
+        <div className={s.karteTitel}>
+          {wahlMoeglich ? "Charge wählen" : "Nächste Charge zuerst (FEFO)"}
+        </div>
+        {/*
+          ⚠️ DIE FEFO-ZEILE IST EINE ZEILE IN DERSELBEN LISTE, kein Leerlassen —
+          dieselbe Entscheidung wie bei der Zielwahl (`helfer/ziel/page.tsx`).
+          Ein Ablauf, in dem man die Vorgabe durch Nichtstun bekommt, laesst
+          niemanden sehen, was gerade gilt.
+        */}
+        {wahlMoeglich && (
+          <label
+            className={`${s.zeile} ${s.zeileWahl}`}
+            data-rolle="charge-fefo"
+          >
+            <input
+              type="radio"
+              name={`charge-${detail.id}`}
+              className={s.wahlKnopf}
+              checked={chargeId === null}
+              onChange={() => setChargeId(null)}
+            />
+            <div className={s.zeileHaupt}>
+              <div className={s.zeileName}>Zuerst ablaufende</div>
+              <div className={s.zeileMeta}>
+                <span>Die Vorgabe — nimmt die Charge mit dem nächsten Verfall</span>
+              </div>
+            </div>
+          </label>
+        )}
+        {sichtbareChargen.map((c) => {
+          /*
+           * ⚠️ WAEHLBAR IST NUR, WAS IM HANDLAGER LIEGT. Die Zeilen unter dem
+           * Umschalter sind Auskunft darueber, WO das Material sonst ist
+           * (DRK-297, Aufgabe 12) — ein Radioknopf daran waere ein Angebot,
+           * das die Action danach ablehnt, und zwar mit einem Satz ueber
+           * Bestand, den die Zeile daneben gerade mit „0" erklaert.
+           */
+          const waehlbar = wahlMoeglich && c.rest > 0;
+          const Zeile = waehlbar ? "label" : "div";
+          return (
+          <Zeile
+            className={waehlbar ? `${s.zeile} ${s.zeileWahl}` : s.zeile}
+            key={c.id}
+            data-rolle="charge-zeile"
+            data-waehlbar={waehlbar ? "ja" : "nein"}
+          >
+            {waehlbar && (
+              <input
+                type="radio"
+                name={`charge-${detail.id}`}
+                className={s.wahlKnopf}
+                data-rolle="charge-wahl"
+                /*
+                  ⚠️ `value` TRAEGT DIE CHARGEN-ID, obwohl die Gruppe nicht in
+                  einem Formular steht und React den Stand ueber `checked`
+                  fuehrt. Sie ist der Greifer: ohne sie sind die Knoepfe von
+                  aussen nur ueber ihre POSITION zu treffen, und eine
+                  Zusicherung auf „der zweite Radioknopf" misst beim naechsten
+                  Sortierwechsel etwas anderes, als sie sagt.
+                */
+                value={c.id}
+                checked={chargeId === c.id}
+                /*
+                  ⚠️ DIE MENGE WANDERT MIT NACH UNTEN, nie nach oben. Wer 8
+                  eingestellt hat und dann eine Charge mit 3 waehlt, bekaeme
+                  sonst einen Stepper, dessen Wert ueber seinem eigenen `max`
+                  steht — und die Zahl, die dann bucht, waere die dritte
+                  Wahrheit neben Anzeige und Deckel.
+                */
+                onChange={() => {
+                  setChargeId(c.id);
+                  setMenge((m) => Math.min(m, c.rest));
+                }}
+              />
+            )}
             <div className={s.zeileHaupt}>
               <div style={{ font: "600 13px var(--lb-mono)" }}>Charge {c.chargenNr}</div>
               <div className={s.zeileMeta}>
@@ -432,8 +567,9 @@ export function Entnahme({
               {c.rest}
               <small>{detail.einheit}</small>
             </div>
-          </div>
-        ))}
+          </Zeile>
+          );
+        })}
 
         {/*
           ⚠️ EINE LEERE KARTE IST KEINE AUSKUNFT. Liegt von diesem Artikel

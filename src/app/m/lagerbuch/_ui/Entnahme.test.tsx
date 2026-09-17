@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { mount, unmount, query, queryAll, exists, click } from "@/app/m/qr/_lib/test-dom";
+import { mount, unmount, query, queryAll, exists, click, fill } from "@/app/m/qr/_lib/test-dom";
 /*
  * ⚠️ DIE KLASSENNAMEN KOMMEN AUS DEM MODUL, NICHT ALS ZEICHENKETTE (DRK-406).
  * Sie sind gehasht; `toContain("knopfBreit")` waere im Betrieb rot und im Test
@@ -42,6 +42,8 @@ type Buchungseingabe = {
   artikelId: string;
   menge: number;
   ziel: { art: "fahrzeug"; lagerortId: string } | { art: "verbrauch" };
+  /** DRK-418 — fehlt, wenn nichts gewaehlt wurde. Das Fehlen IST die Aussage. */
+  chargeId?: string;
 };
 
 /**
@@ -1027,5 +1029,154 @@ describe("Entnahme — Bauform", () => {
     // still auf `transparent` zurueck.
     expect(q).not.toMatch(/--ant-/);
     expect(q).not.toMatch(/usePathname|useSearchParams|router\.(push|replace)/);
+  });
+});
+
+/**
+ * DIE CHARGENWAHL — DRK-418.
+ *
+ * ⚠️ `DETAIL` HAT ZWEI CHARGEN MIT REST IM HANDLAGER (L1: 30, L2: 5) — die
+ * Wahl wird also angeboten. Fuer die Gegenprobe steht `EINE_CHARGE` daneben;
+ * ohne sie bliebe unbelegt, dass die Gruppe bei einer einzigen Charge
+ * verschwindet, und eine Radiogruppe mit einem Knopf ist eine Bedienung ohne
+ * Wirkung.
+ */
+describe("Entnahme — die Charge waehlen (DRK-418)", () => {
+  const EINE_CHARGE: EntnahmeDetail = {
+    ...DETAIL,
+    bestand: 30,
+    chargen: [DETAIL.chargen[0]!],
+  };
+
+  const FEFO = "[data-rolle='charge-fefo'] input";
+  const radios = () => queryAll<HTMLInputElement>("[data-rolle='charge-wahl']");
+  /** Der Greifer geht ueber die CHARGEN-ID, nicht ueber die Position. */
+  const wahl = (id: string) => `[data-rolle='charge-wahl'][value='${id}']`;
+
+  it("bietet die Wahl an, sobald mehr als eine Charge im Handlager liegt", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    expect(exists("[data-rolle='charge-fefo']")).toBe(true);
+    expect(radios().length).toBe(2);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE IST NICHT ENTBEHRLICH: ohne sie bliebe der Block gruen,
+   * wenn die Gruppe IMMER erschiene — also auch dort, wo es nichts zu waehlen
+   * gibt und der zusaetzliche Handgriff niemandem nuetzt.
+   */
+  it("bietet sie NICHT an, wenn es nur eine Charge gibt", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={EINE_CHARGE} />);
+    expect(exists("[data-rolle='charge-fefo']")).toBe(false);
+    expect(radios().length).toBe(0);
+  });
+
+  it("steht auf FEFO, solange niemand etwas waehlt", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    expect(query<HTMLInputElement>(FEFO).checked).toBe(true);
+    for (const r of radios()) expect(r.checked).toBe(false);
+  });
+
+  /**
+   * ⚠️ DIE VORGABE BUCHT WIE VORHER — und das ist die teuerste Zusage dieses
+   * Tickets. Ein `chargeId: null` in der Nutzlast waere gleichbedeutend, ein
+   * versehentlich mitgeschicktes `chargeId: "ch-1"` dagegen bucht still die
+   * FALSCHE Charge fuer jeden, der gar nichts gewaehlt hat.
+   */
+  it("schickt ohne Wahl KEINE Charge mit", async () => {
+    const spion = antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(BUCHEN);
+    expect("chargeId" in (spion.mock.calls[0]![0] as object)).toBe(false);
+  });
+
+  it("schickt die gewaehlte Charge mit", async () => {
+    const spion = antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await click(wahl("ch-1"));
+    await click(BUCHEN);
+    expect((spion.mock.calls[0]![0] as Buchungseingabe).chargeId).toBe("ch-1");
+  });
+
+  /**
+   * ⚠️ DER DECKEL FOLGT DER WAHL — „reicht die gewaehlte Charge nicht, sagt der
+   * Schirm das VOR dem Buchen". L2 traegt 5 Stueck im Handlager, der Artikel 42;
+   * ohne diese Zeile boete der Stepper weiter 42 an, und die Action wiese eine
+   * Menge ab, die der Schirm gerade angeboten hat.
+   */
+  /**
+   * ⚠️ GEMESSEN AM VERHALTEN, NICHT AM ATTRIBUT. `Stepper` rendert ein
+   * `type="text"`-Feld und klemmt in `tippen()`/`klemmen()` selbst; ein
+   * `input.max` gibt es dort gar nicht. Wer darauf zusichert, prueft eine
+   * leere Zeichenkette gegen eine leere Zeichenkette.
+   */
+  it("deckelt die Menge an der gewaehlten Charge, nicht am Handlagerbestand", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    await fill(MENGE, "42");
+    expect(query<HTMLInputElement>(MENGE).value).toBe("42");
+
+    /*
+     * ⚠️ DIE ANZEIGE FAELLT SCHON MIT DEM KLICK, nicht erst mit dem naechsten
+     * Tastendruck. Gemessen stand hier vorher „42" im Feld, waehrend 5 gebucht
+     * worden waere — der Entwurf des Steppers ueberlebte die Aenderung von
+     * aussen (behoben in `_ui/Stepper.tsx`). Im echten Browser deckte das der
+     * Blur ab; eine Zusage, die an der Fokusreihenfolge haengt, ist keine.
+     */
+    await click(wahl("ch-2"));   // L2 — 5 im Handlager
+    expect(query<HTMLInputElement>(MENGE).value).toBe("5");
+    await fill(MENGE, "42");
+    expect(query<HTMLInputElement>(MENGE).value).toBe("5");
+
+    // Und die Wahl laesst sich zuruecknehmen, ohne den Schirm neu zu laden.
+    await click(FEFO);
+    await fill(MENGE, "42");
+    expect(query<HTMLInputElement>(MENGE).value).toBe("42");
+  });
+
+  /**
+   * ⚠️ DIE MENGE WANDERT MIT NACH UNTEN. Wer 8 eingestellt hat und dann eine
+   * Charge mit 5 waehlt, stuende sonst vor einem Stepper, dessen Wert ueber
+   * seinem eigenen `max` liegt — und die Zahl, die dann bucht, waere die dritte
+   * Wahrheit neben Anzeige und Deckel.
+   */
+  it("zieht eine zu grosse Menge auf den Rest der gewaehlten Charge herunter", async () => {
+    const spion = antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+    for (let i = 0; i < 7; i++) await click(PLUS);   // 1 → 8
+    expect(query<HTMLInputElement>(MENGE).value).toBe("8");
+
+    await click(wahl("ch-2"));   // L2 — nur 5 da
+    expect(query<HTMLInputElement>(MENGE).value).toBe("5");
+
+    await click(BUCHEN);
+    expect((spion.mock.calls[0]![0] as Buchungseingabe).menge).toBe(5);
+  });
+
+  /**
+   * ⚠️ EINE CHARGE OHNE REST IM HANDLAGER IST AUSKUNFT, KEINE WAHL. Sie sagt,
+   * WO das Material sonst liegt (DRK-297, Aufgabe 12); ein Radioknopf daran
+   * waere ein Angebot, das die Action danach ablehnt — mit einem Satz ueber
+   * fehlenden Bestand, den die Zeile daneben gerade mit „0" erklaert.
+   */
+  it("macht Chargen ohne Rest im Handlager nicht waehlbar", async () => {
+    const mitLeerer: EntnahmeDetail = {
+      ...DETAIL,
+      chargen: [
+        ...DETAIL.chargen,
+        { id: "ch-3", chargenNr: "L3", verfall: "2028-01", rest: 0, restGesamt: 4,
+          orte: [{ id: "rtw-1", name: "RTW 1", menge: 4, zugangshinweis: null,
+                   typ: "fahrzeug" as const, kennung: null, einheitenart: "fahrzeug" as const }],
+          ampel: "gruen" as const, text: "bis 01/28" },
+      ],
+    };
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={mitLeerer} />);
+    await click(UMSCHALTER);   // auch die ohne Bestand zeigen
+
+    const zeilen = queryAll("[data-rolle='charge-zeile']");
+    expect(zeilen.length).toBe(3);
+    const leer = zeilen.find((z) => z.textContent?.includes("L3"))!;
+    expect(leer.getAttribute("data-waehlbar")).toBe("nein");
+    expect(leer.querySelector("input")).toBeNull();
+    // Die beiden mit Bestand bleiben waehlbar.
+    expect(radios().length).toBe(2);
   });
 });
