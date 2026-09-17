@@ -115,9 +115,10 @@ test.describe("Abgelaufenes Material je Fahrzeug", () => {
     // `getByRole("radio", { name })` loest auf gar nichts auf. Gegriffen wird
     // deshalb, was auch eine Person anklickt.
     await klickeWennRuhig(
-      // DRK-309: Der Umschalter heisst „nach Einheit" — die Tabelle fuehrt
-      // Fahrzeuge UND Taschen.
-      page.locator(".ant-segmented-item-label", { hasText: "nach Einheit" }));
+      // DRK-309: Der Umschalter heisst nicht „nach Fahrzeug" — die Tabelle
+      // fuehrt Fahrzeuge UND Taschen. DRK-377: und seit die Kompensationszeile
+      // nicht mehr ans Soll gebunden ist, auch die Entnahmebox, also „nach Ort".
+      page.locator(".ant-segmented-item-label", { hasText: "nach Ort" }));
 
     // Die Fahrzeugzeile traegt Name, Kennung UND die Bilanz — zugeklappt ist sie
     // damit schon die Antwort.

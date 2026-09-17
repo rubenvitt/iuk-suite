@@ -94,7 +94,11 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
    */
   const beschriftung = new Map(
     eindeutigeLabels(
-      bereich.map((id) => ({ id, label: zaehlOrtLabel(id, stamm.get(id)?.name) })),
+      // `schluessel` ist hier die rohe Kennung und NICHT der Auswahlwert der
+      // Inventur (DRK-371): diese Beschriftungen stehen neben dem Verlauf, der
+      // ebenfalls die rohe Kennung zeigt. Ein `ort:`-Praefix waere hier eine
+      // zweite Schreibweise derselben Sache.
+      bereich.map((id) => ({ id, schluessel: id, label: zaehlOrtLabel(id, stamm.get(id)?.name) })),
     ).map((o) => [o.id, o.label]),
   );
   const eintraege: VerfallEintrag[] = [];
@@ -135,6 +139,19 @@ export function verfallListe(db: Leser, now: Date = new Date()): VerfallEintrag[
 export type LagerortVerfallZeile = {
   lagerortId: string; lagerortName: string; lagerortKennung: string | null;
   /**
+   * DRK-377 — die Liste fuehrt seit der Entkopplung vom Soll nicht mehr nur
+   * Einheiten: die Entnahmebox ist ein LAGER und traegt jetzt ebenfalls
+   * gemeldete Verfaelle.
+   *
+   * ⚠️ OHNE DIESES FELD IST DIE ZEILE NICHT RICHTIG DARSTELLBAR, und der
+   * Fehler waere still. `einheitenart` ist an einem Lager nicht „noch nicht
+   * zugeordnet", sondern gegenstandslos (`standortMeta`, `_lib/konstanten.ts`)
+   * — die Box stuende sonst als Einheit da, bei der jemand die Zuordnung
+   * vergessen hat. Und ihr Blatt liegt nicht unter `/verwaltung/fahrzeuge/…`,
+   * ein Link dorthin ergaebe ein 404.
+   */
+  lagerortTyp: "lager" | "fahrzeug";
+  /**
    * DRK-309 — Fahrzeug oder Tasche, `null` heisst „noch nicht zugeordnet".
    *
    * ⚠️ EINE TASCHE TRAEGT KEINE KENNUNG, und `lagerortKennung` ist in dieser
@@ -154,6 +171,13 @@ export type LagerortVerfallZeile = {
  * ⚠️ VIER Raenge (inkl. gruen) und ein DRITTES Kriterium `lagerortName` — anders
  * als `verfallListe`, und das ist Absicht: dieselbe Ampel taucht hier ueber
  * mehrere Fahrzeuge verteilt auf.
+ *
+ * ⚠️ „Die im Fahrzeug gemeldeten" IST SEIT DRK-377 ZU ENG. Die Liste gibt
+ * zurueck, was in `lagerort_verfall` steht, und seit die Tabelle nicht mehr
+ * ans Soll gebunden ist, steht dort auch die Entnahmebox: ein Verfall, der mit
+ * dem Material aus einer Einheit in die Kiste gewandert ist. Wer hier auf
+ * `typ = "fahrzeug"` filtert, macht abgelaufenes Material in der Kiste wieder
+ * unsichtbar — genau das, was DRK-377 beheben sollte.
  */
 export function lagerortVerfallListe(
   db: Leser,
@@ -177,6 +201,7 @@ export function lagerortVerfallListe(
     if (!ort || !a) continue;
     zeilen.push({
       lagerortId: ort.id, lagerortName: ort.name, lagerortKennung: ort.kennung,
+      lagerortTyp: ort.typ,
       lagerortEinheitenart: ort.einheitenart,
       artikelId: a.id, artikelName: a.name, einheit: a.einheit,
       verfall: r.verfall, erfasstAt: r.erfasstAt,

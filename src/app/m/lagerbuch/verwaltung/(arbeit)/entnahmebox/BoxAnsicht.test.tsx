@@ -42,6 +42,7 @@ const POSTEN: BoxPosten[] = [{
   chargen: [
     { id: "ch-1", chargenNr: "L-100", verfall: "2030-01", rest: 6, ampel: "gruen", text: "bis 01/30" },
   ],
+  gemeldet: null,
 }];
 
 const ZUGAENGE: ZugangZeile[] = [{
@@ -156,6 +157,34 @@ describe("BoxAnsicht — die Tabellen", () => {
       }],
     }));
     expect(document.body.textContent).toContain("L-099 · abgelaufen · 3");
+  });
+
+  it("stellt die GEMELDETE Angabe neben die Chargen — DRK-377", async () => {
+    /*
+     * ⚠️ DER FALL, DER DAS TICKET AUSGELOEST HAT, IN EINER ZEILE: die Charge
+     * ist eine Pseudo-Charge („bis 12/99", also Entwarnung), und fuer dasselbe
+     * Material ist 05/26 gemeldet. Wer nur die Chargenspalte liest, legt
+     * abgelaufenes Material zurueck ins Regal.
+     */
+    await mount(ansicht({
+      inhalt: [{
+        ...POSTEN[0]!,
+        chargen: [{
+          id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
+          ampel: "gruen", text: "bis 12/99",
+        }],
+        gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
+      }],
+    }));
+    expect(document.body.textContent).toContain("Korrektur · bis 12/99 · 6");
+    expect(document.body.textContent).toContain("abgelaufen");
+  });
+
+  it("setzt einen Strich, wo nichts gemeldet ist — keine leere Zelle", async () => {
+    // „Dazu liegt keine Meldung vor" ist eine Auskunft; eine leere Zelle neben
+    // gefuellten liest sich als vergessene Angabe.
+    await mount(ansicht());
+    expect(query("[aria-label='Inhalt Entnahmebox']")!.textContent).toContain("—");
   });
 
   it("zeigt einen Strich statt einer rohen Id, wenn die Herkunft fehlt", async () => {

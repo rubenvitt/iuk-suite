@@ -817,6 +817,52 @@
 .leerWeg { margin-top: 14px; display: inline-flex }
 
 /*
+ * DER HINWEIS „DEIN SCAN GILT HIER NICHT" — DRK-373.
+ *
+ * ⚠️ ZWEI KLASSEN AM SELBEN SELEKTOR, NICHT ZWEI SELEKTOREN — dieselbe Bauform
+ * wie `.chip.warnhinweis` und `.abschluss.abschlussRuhend`, und hier ist sie
+ * nicht optional: `.karte` setzt `border` als KURZSCHREIBWEISE. Ein
+ * `.scanHinweis { border-left: … }` allein haette dieselbe Spezifitaet (0,1,0),
+ * dann entschiede die Reihenfolge im Stylesheet — und die ist eine Beobachtung,
+ * keine Zusage (Falle 5). Die Kante verschwaende still, sobald die Regel
+ * wandert. `.karte.scanHinweis` ist (0,2,0) und gewinnt unabhaengig davon.
+ *
+ * ⚠️ DIE KANTE FAERBT, DIE FLAECHE BLEIBT KARTE. `--lb-gelb-bg` als Hintergrund
+ * waere zeichengleich `--lb-ampel-gelb-flaeche` — ein gelb gefuellter Kasten
+ * ueber der Zaehlliste laese sich als Verfalls-Ampel, und Rot ist auf dieser
+ * Flaeche ohnehin vergeben (Falle 3). `docs/design/README.md` nennt genau diese
+ * zweite Form: „Text plus 3px linke Kante".
+ *
+ * ⚠️ `margin-bottom` MUSS HIER STEHEN. `.karte + .karte { margin-top: 10px }`
+ * greift nicht: der naechste Nachbar ist `.schirmKopf` der Check-Insel, keine
+ * Karte — der Hinweis klebte sonst an der Ueberschrift.
+ *
+ * ⚠️ DIE UEBERSCHRIFT IST `--lb-tinte`, NICHT `--lb-gelb` — NACHGERECHNET,
+ * nicht nach Gefuehl. Hier stand der Warnton auch auf der Schrift, und das
+ * unterschreitet WCAG 1.4.3 im HELLEN Modus: #b26a00 auf #ffffff ergibt
+ * 4,24:1, verlangt sind 4,5:1. „Grosser Text" (3:1) greift nicht — dafuer
+ * braeuchte es 18,66px fett, die Zeile ist 16px. Im DUNKLEN Modus waere es
+ * dagegen durchgegangen (#d9a032 auf #1c2126 = 6,97:1), und genau das ist die
+ * Falle: wer im dunklen Modus entwirft, sieht den Mangel nie. Der Warnton
+ * bleibt an der Kante und am Zeichen — dort gilt 1.4.11 mit 3:1, und 4,24:1
+ * haelt das in beiden Modi.
+ *
+ * `overflow-wrap` am Text, weil der Satz zwei Einheitennamen traegt und einer
+ * davon im Kollisionsfall eine Id anhaengt (`einheitLabels`): eine nanoid ist
+ * 21 Zeichen ohne Trennstelle und sprengte die Karte am Telefon (§7.7).
+ */
+.karte.scanHinweis {
+  border-left: 3px solid var(--lb-gelb); padding: 11px 13px; margin-bottom: 12px;
+}
+.scanHinweisKopf {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  font-family: var(--lb-display); font-weight: 700; font-size: 16px;
+  letter-spacing: .04em; color: var(--lb-tinte);
+}
+.scanHinweisZeichen { display: inline-flex; color: var(--lb-gelb) }
+.scanHinweis .fussnote { overflow-wrap: anywhere }
+
+/*
  * DER BUTTON-RESET — ALT-BESTAND AUS lagerbuch/src/app/globals.css:39, BEIM
  * PORTIEREN VERLOREN GEGANGEN. Zeile 40 derselben Datei (die Fokus-Regel
  * direkt darunter) ist zeichengleich mitgewandert; ihr Nachbar fehlte. Das ist

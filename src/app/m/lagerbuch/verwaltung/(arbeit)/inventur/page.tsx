@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 import { getDb, type DB } from "../../../_db/client";
 import {
   eindeutigeLabels,
-  ZAEHLORT_ALLE,
   zaehlOrtAus,
   zaehlOrtBeschreibung,
   zaehlOrtLabel,
+  ZAEHLORT_PARAM,
+  zaehlOrtWert,
   type ZaehlOrt,
 } from "../../../_lib/inventurOrt";
 import { HANDLAGER_ID } from "../../../_lib/konstanten";
@@ -20,11 +21,16 @@ export const dynamic = "force-dynamic";
 /**
  * ⚠️ `string[]` STEHT HIER MIT ABSICHT (Codex-Befund zu DRK-337). Nexts
  * `SearchParams` ist `string | string[] | undefined`; ein enger Typ an dieser
- * Stelle waere eine Behauptung ueber die Laufzeit, die `?ort=a&ort=b` widerlegt
- * — und zwar mit HTTP 500, ohne dass `typecheck` oder `build` etwas melden.
- * Was daraus folgt, entscheidet `zaehlOrtAus`.
+ * Stelle waere eine Behauptung ueber die Laufzeit, die `?zaehlort=a&zaehlort=b`
+ * widerlegt — und zwar mit HTTP 500, ohne dass `typecheck` oder `build` etwas
+ * melden. Was daraus folgt, entscheidet `zaehlOrtAus`.
+ *
+ * ⚠️ DER PARAMETER HEISST SEIT DRK-371 `zaehlort` UND NICHT MEHR `ort`, damit
+ * alte und neue Form nicht im selben Namen liegen; die Begruendung steht bei
+ * `ZAEHLORT_PARAM`. Ein `?ort=…` aus einem Lesezeichen wird hier deshalb gar
+ * nicht mehr gelesen.
  */
-type InventurSuchparameter = { ort?: string | string[] };
+type InventurSuchparameter = { [ZAEHLORT_PARAM]?: string | string[] };
 
 export function inventurSeitenInhalt(
   db: DB, now: Date = new Date(), suchparameter: InventurSuchparameter = {},
@@ -35,7 +41,7 @@ export function inventurSeitenInhalt(
    * nur im Browser stuende, muesste sie nachladen oder raten. `force-dynamic`
    * steht ohnehin schon oben.
    */
-  const gewuenscht = zaehlOrtAus(suchparameter.ort);
+  const gewuenscht = zaehlOrtAus(suchparameter[ZAEHLORT_PARAM]);
   const bereich = zaehlBereich(db, gewuenscht);
   /*
    * ⚠️ EIN UNBEKANNTER ORT FAELLT AUF DEN GANZEN HANDLAGER ZURUECK, wie
@@ -63,12 +69,19 @@ export function inventurSeitenInhalt(
    * Zeilen in dieser Auswahl fuehrten dazu, dass jemand den falschen Schrank
    * zaehlt und die Korrektur dorthin bucht — ohne dass die Zahlen daneben es
    * verraten. Die Begruendung steht bei der Funktion.
+   *
+   * ⚠️ DER WAECHTER TRAEGT `null` UND KEINE KENNUNG (DRK-371). Stuende hier die
+   * Zeichenkette `alle`, haette die Auswahl zwei Zeilen mit demselben Wert,
+   * sobald ein importierter Schrank so heisst — und der Klick auf den Schrank
+   * zaehlte den ganzen Handlager. Den Wert fuer die Auswahl rechnet
+   * `zaehlOrtWert` im Formular daraus aus.
    */
-  const orte: ZaehlOrt[] = eindeutigeLabels([
-    { id: ZAEHLORT_ALLE, label: zaehlOrtLabel(null, undefined) },
-    { id: HANDLAGER_ID, label: zaehlOrtLabel(HANDLAGER_ID, undefined) },
-    ...waehlbar.map((o) => ({ id: o.id, label: zaehlOrtLabel(o.id, o.name) })),
-  ]);
+  const orte: ZaehlOrt[] = eindeutigeLabels([null, HANDLAGER_ID, ...waehlbar.map((o) => o.id)]
+    .map((id) => ({
+      id,
+      schluessel: zaehlOrtWert(id),
+      label: zaehlOrtLabel(id, waehlbar.find((o) => o.id === id)?.name),
+    })));
 
   return (
     <>
@@ -86,9 +99,14 @@ export function inventurSeitenInhalt(
         wanderten in Schrank 1 gezaehlte Werte in die Buchung fuer Schrank 2 —
         gegen dessen Erwartungszahlen, und niemand saehe es. Mit `key` steigt die
         Insel neu ein: leerer Stand, leerer Kommentar.
+
+        ⚠️ UND ER GEHT DESHALB DURCH `zaehlOrtWert` (DRK-371), statt seinen Wert
+        selbst zu bauen: ein `ortId ?? "alle"` gaebe dem Schrank mit der Kennung
+        `alle` denselben Schluessel wie „ganzer Handlager", und genau dann liefe
+        der Riegel leer, den dieser Absatz beschreibt.
       */}
       <InventurForm
-        key={ortId ?? ZAEHLORT_ALLE}
+        key={zaehlOrtWert(ortId)}
         ortId={ortId}
         orte={orte}
         zeilen={inventurZeilen(db, now, bereich ?? undefined)}

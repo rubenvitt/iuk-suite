@@ -7,9 +7,9 @@ import { lagerortVerfallListe, verfallListe } from "../../../_lib/lesepfade/verf
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import { AussondernRow } from "./AussondernRow";
 import {
-  FahrzeugVerfallTabelle,
-  type FahrzeugVerfallZeile,
-} from "./FahrzeugVerfallTabelle";
+  OrtVerfallTabelle,
+  type OrtVerfallZeile,
+} from "./OrtVerfallTabelle";
 import { VerfallItem } from "./VerfallItem";
 
 export const dynamic = "force-dynamic";
@@ -67,12 +67,13 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
    * Client-Insel bekommt nur JSON-sichere Skalare. Ein `Ampel`-Wert ueber die
    * Grenze waere eine Client-Referenz statt eines Wertes (Falle 6).
    */
-  const verfallZeilen: FahrzeugVerfallZeile[] = gemeldet.map((meldung) => ({
+  const verfallZeilen: OrtVerfallZeile[] = gemeldet.map((meldung) => ({
     schluessel: `${meldung.lagerortId}:${meldung.artikelId}`,
-    fahrzeugId: meldung.lagerortId,
-    fahrzeugName: meldung.lagerortName,
-    fahrzeugKennung: meldung.lagerortKennung,
-    fahrzeugEinheitenart: meldung.lagerortEinheitenart,
+    ortId: meldung.lagerortId,
+    ortName: meldung.lagerortName,
+    ortKennung: meldung.lagerortKennung,
+    ortTyp: meldung.lagerortTyp,
+    ortEinheitenart: meldung.lagerortEinheitenart,
     artikelName: meldung.artikelName,
     verfall: meldung.verfall,
     verfallText: fmtVerfall(meldung.verfall),
@@ -86,7 +87,7 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
     <>
       <SeitenKopf
         titel="Verfall"
-        beschreibung="Chargen im Handlager nach Verfallsampel — und die an Fahrzeugen und Taschen gemeldeten Angaben."
+        beschreibung="Chargen im Handlager nach Verfallsampel — und die an Einheiten und in der Entnahmebox gemeldeten Angaben."
       />
 
       <Card title="Chargen im Handlager" style={{ marginBlockEnd: SPACE.xl }}>
@@ -119,12 +120,19 @@ export function verfallSeitenInhalt(db: DB, jetzt: Date): ReactNode {
         )}
       </Card>
 
-      {/* DRK-309: NEUTRAL — die Tabelle darunter führt Fahrzeuge UND Taschen. */}
-      <Card title="An Fahrzeugen und Taschen gemeldet">
+      {/*
+        DRK-309: NEUTRAL — die Tabelle darunter führt Fahrzeuge UND Taschen.
+        DRK-377: und seit die Kompensationszeile nicht mehr ans Soll gebunden
+        ist, auch die Entnahmebox. Ein Verfall, der mit dem Material aus einer
+        Einheit in die Kiste gewandert ist, stand bis dahin nirgends auf dieser
+        Seite — abgelaufenes Material in der Kiste ist aber genau das, was
+        jemand wegräumen muss.
+      */}
+      <Card title="An Einheiten und in der Entnahmebox gemeldet">
         {verfallZeilen.length === 0 ? (
-          <Empty description="Keine auffällige Verfallsmeldung aus einer Einheit." />
+          <Empty description="Keine auffällige Verfallsmeldung." />
         ) : (
-          <FahrzeugVerfallTabelle zeilen={verfallZeilen} />
+          <OrtVerfallTabelle zeilen={verfallZeilen} />
         )}
       </Card>
     </>

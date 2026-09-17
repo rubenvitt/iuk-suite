@@ -1896,6 +1896,70 @@ describe("CheckFlow — Bauform", () => {
   });
 });
 
+describe("CheckFlow — die Ueberschrift ist greifbar (DRK-373)", () => {
+  /*
+   * WOZU DER GREIFER DA IST. Seit DRK-373 steht der Name der gebundenen
+   * Einheit auf der Check-Strecke ZWEIMAL: in dieser Ueberschrift und im
+   * Hinweis „dein Scan gilt hier nicht" (`_ui/ScanHinweis.tsx`), den die Seite
+   * darueber rendert. Ein e2e-Greifer ueber den blossen Text traf damit zwei
+   * Elemente; die naheliegende „Reparatur" `.first()` haette den HINWEIS
+   * gelesen und gruen behauptet, der Check laufe auf dieser Einheit — genau
+   * die Verwechslung, gegen die DRK-373 geschrieben ist, nur im Test.
+   *
+   * ⚠️ DIESER BLOCK IST DIE EINZIGE STELLE, DIE DEN GREIFER UEBER ALLE PHASEN
+   * HAELT. In `e2e/` steht er in drei Faellen, und die laufen je gegen EINE
+   * Phase; faellt er in einer anderen weg, ist das dort nicht zu sehen. Welche
+   * Phase die erste ist, haengt an der Bestueckung (`schrittFolge`) — dieselbe
+   * Begruendung, aus der `letzterCheckZeile` an JEDEM Schritt steht.
+   */
+  const KOPF = "[data-rolle='check-einheit']";
+
+  const lagen = [
+    { was: "Zaehlschritt", soll: [POS()], geraete: [], flaschen: [] },
+    { was: "Geraeteschritt als erster", soll: [], geraete: [GERAET], flaschen: [] },
+    { was: "Sauerstoff als erster", soll: [], geraete: [], flaschen: [FLASCHE] },
+    { was: "nichts zu pruefen", soll: [], geraete: [], flaschen: [] },
+  ] as const;
+
+  it("traegt den Greifer in JEDER Eingangslage", async () => {
+    let geprueft = 0;
+    for (const lage of lagen) {
+      await mount(
+        <CheckFlow
+          kontoZugang={false}
+          fahrzeug={FZ}
+          soll={[...lage.soll]}
+          geraete={[...lage.geraete]}
+          flaschen={[...lage.flaschen]}
+          verfall={{}}
+          warn={WARN}
+          andereEinheitErreichbar={false}
+          letzterCheckText={null}
+        />,
+      );
+      expect(query(KOPF).textContent, lage.was).toContain(FZ.name);
+      geprueft += 1;
+      await unmount();
+    }
+    // Eine Schleife ohne Durchlauf fuehrt null Zusicherungen aus.
+    expect(geprueft).toBe(lagen.length);
+  });
+
+  it("sitzt an ALLEN Ueberschriften der Datei, nicht nur an der ersten", () => {
+    /*
+     * Die Lagen oben erreichen die Eingangsschirme; die Ueberschriften der
+     * SPAETEREN Phasen (Nachfuellen, Geraete, Sauerstoff, Fertig) haengen an
+     * einem Zaehlstand, den dieser Block nicht durchklickt. Deshalb hier ein
+     * Quelltext-Scan: JEDE `{kopfEinheit}`-Ueberschrift traegt den Greifer.
+     * Ohne ihn waere „an allen sechs" eine Behauptung im Kommentar.
+     */
+    const q = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    const alle = [...q.matchAll(/<div className=\{s\.schirmKopf\}[^>]*>\{kopfEinheit\}/g)];
+    expect(alle.length, "keine `kopfEinheit`-Ueberschrift gefunden").toBeGreaterThanOrEqual(6);
+    expect(alle.filter((m) => !m[0].includes('data-rolle="check-einheit"'))).toEqual([]);
+  });
+});
+
 describe("CheckFlow — der letzte Check (DRK-306, AK1)", () => {
   const ZEILE = "[data-rolle='letzter-check']";
 

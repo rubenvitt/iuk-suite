@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { gruppiereNachFahrzeug } from "./gruppierung";
-import type { FahrzeugVerfallZeile } from "./FahrzeugVerfallTabelle";
+import { gruppiereNachOrt } from "./gruppierung";
+import type { OrtVerfallZeile } from "./OrtVerfallTabelle";
 
-function zeile(teil: Partial<FahrzeugVerfallZeile> = {}): FahrzeugVerfallZeile {
+function zeile(teil: Partial<OrtVerfallZeile> = {}): OrtVerfallZeile {
   return {
     schluessel: "f1:a1",
-    fahrzeugId: "f1",
-    fahrzeugName: "RTW Nord",
-    fahrzeugKennung: "UE-RK 1234",
-    fahrzeugEinheitenart: "fahrzeug" as const,
+    ortId: "f1",
+    ortName: "RTW Nord",
+    ortKennung: "UE-RK 1234",
+    ortTyp: "fahrzeug" as const,
+    ortEinheitenart: "fahrzeug" as const,
     artikelName: "Verband",
     verfall: "2026-08",
     verfallText: "08/26",
@@ -20,17 +21,17 @@ function zeile(teil: Partial<FahrzeugVerfallZeile> = {}): FahrzeugVerfallZeile {
   };
 }
 
-describe("gruppiereNachFahrzeug", () => {
+describe("gruppiereNachOrt", () => {
   it("fasst die Meldungen eines Fahrzeugs unter EINER Elternzeile zusammen", () => {
-    const gruppen = gruppiereNachFahrzeug([
+    const gruppen = gruppiereNachOrt([
       zeile({ schluessel: "f1:a1", artikelName: "Verband" }),
-      zeile({ schluessel: "f2:a1", fahrzeugId: "f2", fahrzeugName: "RTW Süd",
-              fahrzeugKennung: "UE-RK 5678" }),
+      zeile({ schluessel: "f2:a1", ortId: "f2", ortName: "RTW Süd",
+              ortKennung: "UE-RK 5678" }),
       zeile({ schluessel: "f1:a2", artikelName: "NaCl" }),
     ]);
 
     expect(gruppen).toHaveLength(2);
-    expect(gruppen[0].fahrzeugId).toBe("f1");
+    expect(gruppen[0].ortId).toBe("f1");
     expect(gruppen[0].children.map((k) => k.artikelName)).toEqual(["Verband", "NaCl"]);
     expect(gruppen[1].children).toHaveLength(1);
   });
@@ -46,7 +47,7 @@ describe("gruppiereNachFahrzeug", () => {
    * Elternschluessel dagegen unverwechselbar.
    */
   it("gibt der Elternzeile einen Schlüssel, der mit keinem Kind kollidiert", () => {
-    const gruppen = gruppiereNachFahrzeug([zeile({ schluessel: "f1:a1" })]);
+    const gruppen = gruppiereNachOrt([zeile({ schluessel: "f1:a1" })]);
     const alle = [gruppen[0].schluessel, ...gruppen[0].children.map((k) => k.schluessel)];
 
     expect(new Set(alle).size).toBe(alle.length);
@@ -61,7 +62,7 @@ describe("gruppiereNachFahrzeug", () => {
    * Meldung in BEIDEN Zahlen.
    */
   it("zählt abgelaufen und warnend überschneidungsfrei", () => {
-    const [gruppe] = gruppiereNachFahrzeug([
+    const [gruppe] = gruppiereNachOrt([
       zeile({ schluessel: "f1:a1", abgelaufen: true, statusTon: "rot",
               statusText: "abgelaufen" }),
       zeile({ schluessel: "f1:a2", abgelaufen: true, statusTon: "rot",
@@ -81,18 +82,18 @@ describe("gruppiereNachFahrzeug", () => {
    * Dringlichkeit entscheidet der Name.
    */
   it("stellt Fahrzeuge mit Abgelaufenem nach oben", () => {
-    const gruppen = gruppiereNachFahrzeug([
-      zeile({ schluessel: "a:1", fahrzeugId: "a", fahrzeugName: "AAA Nur Warnend" }),
-      zeile({ schluessel: "z:1", fahrzeugId: "z", fahrzeugName: "ZZZ Abgelaufen",
+    const gruppen = gruppiereNachOrt([
+      zeile({ schluessel: "a:1", ortId: "a", ortName: "AAA Nur Warnend" }),
+      zeile({ schluessel: "z:1", ortId: "z", ortName: "ZZZ Abgelaufen",
               abgelaufen: true, statusTon: "rot", statusText: "abgelaufen" }),
-      zeile({ schluessel: "m:1", fahrzeugId: "m", fahrzeugName: "MMM Nur Warnend" }),
+      zeile({ schluessel: "m:1", ortId: "m", ortName: "MMM Nur Warnend" }),
     ]);
 
-    expect(gruppen.map((g) => g.fahrzeugId)).toEqual(["z", "a", "m"]);
+    expect(gruppen.map((g) => g.ortId)).toEqual(["z", "a", "m"]);
   });
 
   it("liefert für eine leere Liste keine Gruppe", () => {
-    expect(gruppiereNachFahrzeug([])).toEqual([]);
+    expect(gruppiereNachOrt([])).toEqual([]);
   });
 
   /**
@@ -102,11 +103,11 @@ describe("gruppiereNachFahrzeug", () => {
    * darueber ist die Summe zweier Fahrzeuge.
    */
   it("wirft zwei gleichnamige Fahrzeuge NICHT zusammen", () => {
-    const gruppen = gruppiereNachFahrzeug([
-      zeile({ schluessel: "mtw-a:1", fahrzeugId: "mtw-a", fahrzeugName: "MTW",
-              fahrzeugKennung: null }),
-      zeile({ schluessel: "mtw-b:1", fahrzeugId: "mtw-b", fahrzeugName: "MTW",
-              fahrzeugKennung: null }),
+    const gruppen = gruppiereNachOrt([
+      zeile({ schluessel: "mtw-a:1", ortId: "mtw-a", ortName: "MTW",
+              ortKennung: null }),
+      zeile({ schluessel: "mtw-b:1", ortId: "mtw-b", ortName: "MTW",
+              ortKennung: null }),
     ]);
 
     expect(gruppen).toHaveLength(2);

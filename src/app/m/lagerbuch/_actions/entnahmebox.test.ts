@@ -169,10 +169,13 @@ function buchen(id: string, chargeId: string, menge: number, ort = "fz-1", artik
 }
 
 /** Bestand je (Ort, Charge) ueber ALLE Buchungen. */
-/** Die Verfallszeilen der Quelleinheit — die Kompensationstabelle, nicht die Chargen. */
-function verfallZeilen() {
+/**
+ * Die Verfallszeilen EINES Orts — die Kompensationstabelle, nicht die Chargen.
+ * Vorgabe ist die Quelleinheit; seit DRK-377 wird auch die Box danach gefragt.
+ */
+function verfallZeilen(ortId = "fz-1") {
   return t.db.select().from(lagerortVerfall)
-    .where(eq(lagerortVerfall.lagerortId, "fz-1")).all();
+    .where(eq(lagerortVerfall.lagerortId, ortId)).all();
 }
 
 function bestand(ort: string, chargeId: string): number {
@@ -655,25 +658,24 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
      * gerade gesunken — betroffen sind also alle, nicht nur `fz-1`.
      */
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/[id]");
+    // DIE EINRAEUMSEITE liest ueber `einraeumPosten` denselben Boxinhalt —
+    // samt der gemeldeten Verfallsangabe, die seit DRK-377 an ihm haengt.
+    expect(revalidiert).toContain("/m/lagerbuch/auffuellen/box");
   });
 
-  it("laesst die Verfallsangabe stehen, AUCH wenn die Einheit dabei leer wird", async () => {
+  it("frischt auch die Verfallsuebersicht und die Einheitenliste auf", async () => {
     /*
-     * ⚠️ DIESE ZUSICHERUNG STAND SCHON EINMAL ANDERSHERUM DA, und der Weg
-     * dahin gehoert zur Aussage (Codex-Review zu PR #175, drei Runden):
+     * ⚠️ SEIT DRK-377 SCHREIBT DIESE ACTION `lagerort_verfall` — sie traegt die
+     * Meldung in die Box und raeumt sie an der leeren Einheit ab. Damit liest
+     * sie dieselbe Tabelle wie `verfallSetzen`, der Check,
+     * `aussondernVomLagerort` und `fahrzeuge.ts`, und alle vier frischen genau
+     * diese beiden Pfade mit auf (Codex zu PR #194, P2).
      *
-     * 1. Ohne Loeschen meldet die geleerte Einheit den Artikel weiter als
-     *    ablaufend — `verfallFuerLagerort` liest ohne Bestandsprobe.
-     * 2. Mit Loeschen geht das gemeldete Datum verloren, wo es die EINZIGE
-     *    Stelle ist: `postenAmOrt` liest den Verfall nur aus `chargen.verfall`,
-     *    und die Kiste zeigt die Charge, nicht die Meldung.
-     * 3. Loeschen nur bei „echtem Datum an der bewegten Charge" half nicht:
-     *    `korrekturAufLagerort` waehlt beim Plus-Abgleich IRGENDEINE Charge des
-     *    Artikels, absteigend nach Verfall — das Datum kann geraten sein.
-     *
-     * Solange die Box keinen gemeldeten Verfall fuehren kann (DRK-377), sind
-     * beide Befunde nicht zugleich zu erfuellen. Die veraltete Anzeige ist der
-     * kleinere Fehler: sichtbar und korrigierbar.
+     * ⚠️ `force-dynamic` AUF DER SEITE HILFT NICHT: es schaltet den vollen
+     * Routen-Cache ab, nicht den Router-Cache im Browser. Eine vorgeladene
+     * Verfallsuebersicht zeigte sonst die geleerte Einheit weiter als ablaufend
+     * und die Box gar nicht — und kein Tor sieht das, weil beide Seiten fuer
+     * sich richtig rechnen.
      */
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
@@ -684,23 +686,58 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
 
     await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
 
-    expect(verfallZeilen().map((z) => z.verfall)).toEqual(["2027-03"]);
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/verfall");
+    // OHNE Id: die Einheitenliste zaehlt die Meldungen JE Einheit
+    // (`fahrzeugUebersicht`), und diese Zahl hat sich gerade geaendert.
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge");
   });
 
-  it("laesst sie stehen, wenn der Bestand auf einer PSEUDO-Charge liegt", async () => {
+  /*
+   * ── DIE GEMELDETE ANGABE WANDERT MIT (DRK-377) ──────────────────────────
+   *
+   * ⚠️ DIESE VIER FAELLE STANDEN EINMAL ANDERSHERUM DA, und der Weg dahin
+   * gehoert zur Aussage (Codex-Review zu PR #175, drei Runden, dann DRK-377):
+   *
+   * 1. Ohne Loeschen meldet die geleerte Einheit den Artikel weiter als
+   *    ablaufend — `verfallFuerLagerort` liest ohne Bestandsprobe.
+   * 2. Mit Loeschen ging das gemeldete Datum verloren, wo es die EINZIGE Stelle
+   *    war: `postenAmOrt` las den Verfall nur aus `chargen.verfall`, und die
+   *    Kiste zeigt die Charge, nicht die Meldung.
+   * 3. Loeschen nur bei „echtem Datum an der bewegten Charge" half nicht:
+   *    `korrekturAufLagerort` waehlt beim Plus-Abgleich IRGENDEINE Charge des
+   *    Artikels, absteigend nach Verfall — das Datum kann geraten sein.
+   *
+   * Alle drei scheiterten daran, dass die Box einen gemeldeten Verfall gar
+   * nicht FUEHREN konnte. DRK-377 hat die Bindung ans Soll von der Tabelle
+   * genommen, und seither gibt es den dritten Ausgang: die Angabe wandert.
+   */
+  it("traegt den gemeldeten Verfall IN DIE BOX und raeumt ihn an der leeren Einheit ab", async () => {
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2027-03",
+      quelle: { quelleTyp: "system", quelleId: "seed" },
+    });
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
+
+    expect(verfallZeilen().map((z) => z.verfall), "die geleerte Einheit").toEqual([]);
+    expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall), "die Box").toEqual(["2027-03"]);
+  });
+
+  it("rettet das Datum, wenn der Bestand auf einer PSEUDO-Charge liegt", async () => {
     /*
-     * ⚠️ DER TEUERSTE FALL, UND MEIN EIGENER FIX HAT IHN ERST GESCHAFFEN
-     * (Codex-Review zu PR #175, zweite Runde am selben Ort). Ein Check, der
-     * Bestand keiner echten Charge zuordnen kann, legt ihn auf eine
-     * Pseudo-Charge (`PSEUDO_VERFALL`) und schreibt den wirklich gemeldeten
-     * Verfall in `lagerort_verfall`. Wandert dieser Bestand in die Box, wandert
-     * die Pseudo-Charge mit — und `postenAmOrt` liest den Verfall
-     * AUSSCHLIESSLICH aus `chargen.verfall`. Die Kiste zeigt „bis 12/99".
+     * ⚠️ DER FALL, DER DAS TICKET AUSGELOEST HAT. Ein Check, der Bestand keiner
+     * echten Charge zuordnen kann, legt ihn auf eine Pseudo-Charge
+     * (`PSEUDO_VERFALL`) und schreibt den wirklich gemeldeten Verfall in
+     * `lagerort_verfall`. Wandert dieser Bestand in die Box, wandert die
+     * Pseudo-Charge mit — und `postenAmOrt` las den Verfall bis DRK-377
+     * AUSSCHLIESSLICH aus `chargen.verfall`. Die Kiste zeigte „bis 12/99",
+     * obwohl fuer dieses Material 10/26 gemeldet war.
      *
-     * Wer die Zeile hier loescht, nimmt die EINZIGE Stelle weg, die „10/26"
-     * wusste: aus einer stillen Falschanzeige wird stiller Datenverlust. Die
-     * Angabe mitwandern zu lassen geht nicht — die Box hat kein Soll, und
-     * `lagerort_verfall` setzt eine aktive Sollposition voraus (DRK-377).
+     * ⚠️ DAS IST DER REGRESSIONSTEST DES TICKETS: ohne die Uebernahme steht die
+     * 10/26 nach dieser Buchung nirgends mehr — weder an der Einheit noch in
+     * der Box —, und die Zusicherung auf die Box ist rot.
      */
     charge("ch-pseudo", PSEUDO_VERFALL);
     buchen("seed-1", "ch-pseudo", 5);
@@ -712,14 +749,77 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     // ALLES raus — die Einheit ist danach leer.
     await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
 
-    expect(verfallZeilen().map((z) => z.verfall), "die einzige Stelle mit 10/26")
+    expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall), "die Kiste kennt 10/26")
       .toEqual(["2026-10"]);
+    expect(verfallZeilen().map((z) => z.verfall), "die leere Einheit nicht mehr")
+      .toEqual([]);
   });
 
-  it("laesst sie stehen, solange noch etwas an der Einheit liegt", async () => {
+  it("uebernimmt Meldezeitpunkt und Quelle unveraendert — sie stammen aus dem Check", async () => {
+    /*
+     * ⚠️ EINE MELDUNG IST EINE MESSUNG, KEINE BUCHUNG. Stempelte die Uebernahme
+     * „jetzt" und den Umbuchenden darauf, stuende in der Verfallsuebersicht
+     * unter „Gemeldet" der heutige Tag — eine Ablesung, die nie stattgefunden
+     * hat. Genau diese Klasse von Fehler hat DRK-377 an seinem Weg 3
+     * ausdruecklich verworfen („schreibt Geschichte, die so nie gemessen
+     * wurde"); sie hier durch die Hintertuer einzubauen waere derselbe Fehler
+     * eine Ebene tiefer.
+     */
+    const gemeldetAm = new Date("2026-06-01T09:30:00Z");
+    charge("ch-pseudo", PSEUDO_VERFALL);
+    buchen("seed-1", "ch-pseudo", 3);
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "oidc", quelleId: "u-pruefer" }, jetzt: gemeldetAm,
+    });
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 3 }, t.db);
+
+    const inDerBox = verfallZeilen(ENTNAHMEBOX_ID);
+    expect(inDerBox).toHaveLength(1);
+    expect(inDerBox[0].erfasstAt).toEqual(gemeldetAm);
+    expect(inDerBox[0].quelleTyp).toBe("oidc");
+    expect(inDerBox[0].quelleId).toBe("u-pruefer");
+  });
+
+  it("behaelt bei zwei Herkuenften das FRUEHERE Datum", async () => {
+    /*
+     * ⚠️ BETREIBERENTSCHEIDUNG ZU DRK-377. Die Box traegt je Artikel genau
+     * EINEN Wert (Unique-Index Ort/Artikel), und die Tabelle bedeutet „das
+     * frueheste Datum, das an diesem Ort auf einer Packung steht". Zwei
+     * Einheiten, die denselben Artikel in dieselbe Kiste geben, ergeben also
+     * keine zwei Zeilen — die sichere Richtung ist, eher zu frueh zu warnen als
+     * zu spaet.
+     *
+     * Die zweite Abgabe traegt hier das SPAETERE Datum und kommt als ZWEITE:
+     * ein naiver Upsert (wie ihn `setzeVerfall` macht) ueberschriebe damit die
+     * 10/26 mit 11/28, und die Kiste verspraeche fuenfzehn Monate, die sie
+     * nicht hat.
+     */
+    charge("ch-a", PSEUDO_VERFALL);
+    buchen("seed-1", "ch-a", 2, "fz-1");
+    setzeVerfall(t.db, {
+      lagerortId: "fz-1", artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+    charge("ch-b", PSEUDO_VERFALL);
+    buchen("seed-2", "ch-b", 2, "ta-1");
+    setzeVerfall(t.db, {
+      lagerortId: "ta-1", artikelId: "art-1", verfall: "2028-11",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 2 }, t.db);
+    await bucheInEntnahmebox({ fahrzeugId: "ta-1", artikelId: "art-1", menge: 2 }, t.db);
+
+    expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall)).toEqual(["2026-10"]);
+  });
+
+  it("laesst die Angabe an der Einheit stehen, solange noch etwas dort liegt", async () => {
     // ⚠️ DIE GEGENPROBE, und sie ist der teurere Fehler: eine zu frueh
     // geloeschte Angabe nimmt eine gepflegte Information weg, ohne dass es
-    // jemand merkt. Geloescht wird erst beim LETZTEN Stueck.
+    // jemand merkt. Geloescht wird erst beim LETZTEN Stueck — dass die Angabe
+    // jetzt AUCH in der Box steht, macht sie an der Einheit nicht falsch.
     charge("ch-1", "2030-01");
     buchen("seed-1", "ch-1", 5);
     setzeVerfall(t.db, {
@@ -730,7 +830,21 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 4 }, t.db);
 
     expect(verfallZeilen().map((z) => z.verfall)).toEqual(["2027-03"]);
+    expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall)).toEqual(["2027-03"]);
   });
+
+  it("legt ohne Meldung an der Einheit auch in der Box keine an", async () => {
+    // Eine leere Zeile waere eine Behauptung ueber ein Datum, das niemand
+    // gelesen hat — und `lagerortVerfallListe` fuehrte die Box dann mit einem
+    // Wert, den kein Mensch gemeldet hat.
+    charge("ch-1", "2030-01");
+    buchen("seed-1", "ch-1", 5);
+
+    await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 5 }, t.db);
+
+    expect(verfallZeilen(ENTNAHMEBOX_ID)).toEqual([]);
+  });
+
 });
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -754,6 +868,133 @@ function schrank(id: string, name: string, aktiv = true) {
 function inDerBox(id: string, chargeId: string, menge: number, artikelId = "art-1") {
   buchen(id, chargeId, menge, ENTNAHMEBOX_ID, artikelId);
 }
+
+describe("raeumeAusEntnahmebox — die gemeldete Verfallsangabe der Box (DRK-377)", () => {
+  /*
+   * ⚠️ DIESE VIER FAELLE SIND BEIM MERGE VON DRK-377 UND DRK-381 ENTSTANDEN,
+   * und vorher konnte es sie gar nicht geben: bis DRK-377 trug die Box keinen
+   * gemeldeten Verfall, und bis DRK-381 gab es keinen Weg aus ihr heraus. Erst
+   * zusammen ergeben sie den Fall — und ohne das Abraeumen bliebe die Zeile
+   * FUER IMMER stehen, weil die Box keinen Verfall-Editor hat. Sie meldete
+   * dauerhaft einen Verfall fuer Material, das laengst im Schrank liegt.
+   */
+  /*
+   * ⚠️ DIE CHARGE TRAEGT HIER DAS GEMELDETE DATUM. Das ist der einzige Fall, in
+   * dem das Material seinen Verfall wirklich mitnimmt — und damit der einzige,
+   * in dem die Meldung fallen darf. Die Faelle, in denen sie es NICHT tut,
+   * stehen einzeln darunter.
+   */
+  beforeEach(() => {
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2026-10");
+    inDerBox("seed-1", "ch-1", 10);
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-1", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+  });
+
+  it("raeumt die Angabe ab, wenn die Kiste dabei leer wird", async () => {
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 10, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(verfallZeilen(ENTNAHMEBOX_ID)).toEqual([]);
+  });
+
+  it("laesst sie stehen, solange noch etwas in der Kiste liegt", async () => {
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 4, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(verfallZeilen(ENTNAHMEBOX_ID).map((z) => z.verfall)).toEqual(["2026-10"]);
+  });
+
+  it("BEHAELT sie, wenn die Charge ein ECHTES, aber ANDERES Datum traegt", async () => {
+    /*
+     * ⚠️ DER FALL, DEN „hat die Charge ueberhaupt ein Datum?" DURCHGELASSEN
+     * HAETTE (Codex zu PR #194, zweiter P1). `korrekturAufLagerort` waehlt beim
+     * Plus-Abgleich IRGENDEINE Charge des Artikels — ohne Ortsfilter,
+     * absteigend nach `verfall`. Die kann 12/30 sagen, waehrend der Check 10/26
+     * gemeldet hat. Ein echtes Datum an der Charge beweist also nichts ueber
+     * DIESES Material, und wer die Meldung darauf hin loescht, laesst das
+     * Handlager bis 12/30 unbedenklich aussehen.
+     *
+     * Die Begruendung steht seit jeher im Modul — an Fassung 3 der
+     * Gegenrichtung. Mein erster Riegel stuetzte sich trotzdem auf genau die
+     * Eigenschaft, die sie als wertlos bezeichnet.
+     */
+    charge("ch-geraten", "2030-12", "art-2");
+    inDerBox("seed-2", "ch-geraten", 5, "art-2");
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-geraten", menge: 5, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    const fuerArt2 = verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2");
+    expect(fuerArt2.map((z) => z.verfall), "10/26 bleibt erhalten").toEqual(["2026-10"]);
+  });
+
+  it("BEHAELT sie, wenn die bewegte Charge gar kein Datum traegt", async () => {
+    /*
+     * ⚠️ DER GEFAEHRLICHSTE FALL DES GANZEN TICKETS, und mein erster Entwurf
+     * hatte ihn falsch (Codex zu PR #194, P1). Meine Begruendung lautete „im
+     * Handlager traegt den Verfall die Charge" — das stimmt nur, solange die
+     * Charge ueberhaupt eines traegt. Kann ein Check den gezaehlten Bestand
+     * keiner echten Charge zuordnen, legt er ihn auf eine Pseudo-Charge mit
+     * `PSEUDO_VERFALL`; die sagt „bis 12/99", also gar nichts, und das einzige
+     * echte Datum steht in `lagerort_verfall`.
+     *
+     * Wer es hier loescht, macht aus einer stillen Falschanzeige einen stillen
+     * DATENVERLUST — und zwar am gefaehrlichsten Ort: im Handlager sieht das
+     * Material danach bis 2099 unbedenklich aus.
+     */
+    /*
+     * ⚠️ EIN EIGENER ARTIKEL, DAMIT DIE KISTE WIRKLICH LEER WIRD. Die
+     * gemeinsame Vorbereitung legt zehn Stueck einer ECHT datierten Charge in
+     * die Box; blieben die liegen, raeumte die Regel ohnehin nichts ab und der
+     * Test waere auch ohne den Riegel gruen — er prueefte dann nichts.
+     */
+    charge("ch-pseudo", PSEUDO_VERFALL, "art-2");
+    inDerBox("seed-2", "ch-pseudo", 5, "art-2");
+    setzeVerfall(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "art-2", verfall: "2026-10",
+      quelle: { quelleTyp: "system", quelleId: "check" },
+    });
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-2", chargeId: "ch-pseudo", menge: 5, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    const fuerArt2 = verfallZeilen(ENTNAHMEBOX_ID).filter((z) => z.artikelId === "art-2");
+    expect(fuerArt2.map((z) => z.verfall), "10/26 bleibt erhalten").toEqual(["2026-10"]);
+  });
+
+  it("traegt sie NICHT ins Handlager — dort meldet die Charge", async () => {
+    /*
+     * ⚠️ DIE FACHLICHE AUSSAGE DIESES TESTS. Im Handlager rechnet
+     * `verfallListe` den Verfall je CHARGE, und die Charge wandert bei dieser
+     * Buchung ohnehin mit. Eine `lagerort_verfall`-Zeile am Schrank waere ein
+     * zweiter, widersprechender Melder fuer dieselbe Packung — und stuende in
+     * der Verfallsuebersicht neben ihr.
+     */
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 10, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(verfallZeilen("sch-1")).toEqual([]);
+  });
+
+});
 
 describe("raeumeAusEntnahmebox — die Umbuchung", () => {
   it("bildet Abgang und Zugang als EIN Vorgang ab: zwei Legs, eine Referenz, eine Charge", async () => {
