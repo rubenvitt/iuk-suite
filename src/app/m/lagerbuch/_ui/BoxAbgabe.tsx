@@ -80,6 +80,7 @@ export function BoxAbgabe({
   einheit,
   posten,
   andereEinheitErreichbar,
+  rueckweg,
   kontoZugang,
 }: {
   einheit: BoxEinheit;
@@ -117,6 +118,20 @@ export function BoxAbgabe({
    * Schirm, auch dort, wo er gebraucht wird.
    */
   andereEinheitErreichbar: boolean;
+  /**
+   * WOHIN DER RUECKWEG FUEHRT, WENN ES KEINE ANDERE EINHEIT GIBT — DRK-417.
+   *
+   * ⚠️ ER KOMMT VOM SERVER, WEIL NUR DER DIE REICHWEITE KENNT. Hier stand fest
+   * `/helfer`, und fuer eine Karte an der Entnahmebox ist das ein Link, der
+   * nichts tut: die Artikelliste weist dieselbe Karte ab und schickt sie
+   * hierher zurueck. Dieser Schirm hat sonst keine Navigation ausser der
+   * Reiterleiste — der Weg darf nicht im Kreis fuehren (Codex-Befund P2 zu
+   * PR #205).
+   *
+   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL. Ein Vorgabewert waere wieder das feste
+   * `/helfer` — also genau der Kreis, und zwar still.
+   */
+  rueckweg: { href: string; text: string };
 }) {
   const [wahl, setWahl] = useState<Wahl | null>(null);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
@@ -192,11 +207,11 @@ export function BoxAbgabe({
       */}
       <Link
         className={s.rueckweg}
-        href={andereEinheitErreichbar ? "/helfer/box" : "/helfer"}
+        href={andereEinheitErreichbar ? "/helfer/box" : rueckweg.href}
         data-rolle="box-rueckweg"
       >
         <Ikone name="chevron-links" groesse={15} />
-        {andereEinheitErreichbar ? "Andere Einheit" : "Zur Entnahme"}
+        {andereEinheitErreichbar ? "Andere Einheit" : rueckweg.text}
       </Link>
 
       <div className={s.zeile}>

@@ -101,7 +101,7 @@ import s from "./helfer.module.css";
  * andere Zeichenkette im selben Feld aendert keine fremde Datei.
  *
  * ⚠️ `?? {}` IST NICHT DEFENSIV, SONDERN DER ERFOLGSPFAD. `einloesenAmGate`
- * endet im Erfolg mit `redirect()` (`_actions/gate.ts:99`). Der Client-Aufruf
+ * endet im Erfolg mit `redirect()` (`_actions/gate.ts`). Der Client-Aufruf
  * lehnt dafuer NICHT ab — Next transportiert den Redirect in der Antwort
  * (`src/app/m/feedback/f/[slugSecret]/Zettel.tsx:647-650`) —, er loest mit
  * `undefined` auf. React

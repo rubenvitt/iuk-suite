@@ -446,3 +446,76 @@ describe("_actions/gate.ts — Bauform", () => {
     ].join("\n")).toEqual(["headers"]);
   });
 });
+
+/**
+ * DIE LANDUNG FOLGT DEM ORT, AUCH AM GETIPPTEN GATE — DRK-417, Codex-Befund P2
+ * zu PR #205.
+ *
+ * ⚠️ HIER STAND `tokenZielPfad`, UND DAS WAR NICHT BLOSS EIN UMWEG. Der Code
+ * der Entnahmebox traegt `zielTyp: null`; er landete damit auf `/helfer`, wo
+ * die Reichweite ihn abweist — der Riegel schrieb ein `access_denied` und
+ * leitete weiter auf `/helfer/box`. Die Person kam also an, und im Protokoll
+ * stand trotzdem eine Ablehnung. Das Zugriffsprotokoll ist die Grundlage fuer
+ * „welche Karte muss zurueckgesetzt werden?"; ein Eintrag, den JEDE
+ * erfolgreiche Anmeldung mit diesem Code erzeugt, macht genau diese Frage
+ * unbeantwortbar.
+ *
+ * ⚠️ TIPPEN UND SCANNEN SIND DERSELBE CODE AUF ZWEI WEGEN, und beide rechnen
+ * jetzt mit derselben Funktion. Die drei Zusicherungen unten sind deshalb
+ * absichtlich dieselben wie in `t/[code]/route.test.ts`.
+ */
+describe("einloesenAmGate — die Landung haengt am Ort (DRK-417)", () => {
+  it("der Code der Entnahmebox landet am Ablegeschirm, nicht auf der Artikelliste", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-box",
+      zielTyp: null, zielId: null, ortId: "entnahmebox",
+    });
+
+    await expect(einloesenAmGate({}, form({ code: "666-666" })))
+      .rejects.toThrow("NEXT_REDIRECT");
+
+    expect(stand.umleitungen).toEqual(["/helfer/box"]);
+  });
+
+  it("der Code des Handlagers landet unveraendert auf der Artikelliste", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-regal",
+      zielTyp: null, zielId: null, ortId: "handlager",
+    });
+
+    await expect(einloesenAmGate({}, form({ code: "111-111" })))
+      .rejects.toThrow("NEXT_REDIRECT");
+
+    expect(stand.umleitungen).toEqual(["/helfer"]);
+  });
+
+  it("der Code einer Einheit landet unveraendert in ihrem Check", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-rtw",
+      zielTyp: "fahrzeug", zielId: "fz-1", ortId: "fz-1",
+    });
+
+    await expect(einloesenAmGate({}, form({ code: "222-222" })))
+      .rejects.toThrow("NEXT_REDIRECT");
+
+    expect(stand.umleitungen).toEqual(["/helfer/check?fz=fz-1"]);
+  });
+
+  /**
+   * ⚠️ DER ALTBESTAND BEHAELT SEINE LANDUNG. Ein Kaertchen ohne `ort_id` kann
+   * auf einen ARTIKEL zeigen, und dafuer gibt es in keiner Reichweite eine
+   * Entsprechung — es liefe auf die Artikelliste, also einen Klick vor sein
+   * Ziel. „Altbestand bleibt gueltig" gilt auch hier.
+   */
+  it("ein Altbestands-Kaertchen mit Artikelziel landet weiter am Artikel", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-alt",
+      zielTyp: "artikel", zielId: "art-9", ortId: null,
+    });
+
+    await expect(einloesenAmGate({}, form({ code: "333-333" })))
+      .rejects.toThrow("NEXT_REDIRECT");
+
+    expect(stand.umleitungen).toEqual(["/a/art-9"]);
+  });
+});

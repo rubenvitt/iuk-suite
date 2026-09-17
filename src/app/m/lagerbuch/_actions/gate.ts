@@ -9,7 +9,7 @@ import { gateGesperrt, gateFehlversuchBuchen } from "../_lib/gateSchranke";
 import { gateMeldung } from "../_lib/gateTexte";
 import { normalisiereCode } from "../_lib/code";
 import { sanitizeReturnTo } from "../_lib/returnTo";
-import { tokenZielPfad } from "../_lib/tokenZiel";
+import { ortcodeZielPfad } from "../_lib/ortZiel";
 import {
   HELFER_COOKIE, helferCookieOptionen, helferGueltigkeitSekunden,
 } from "../_lib/helferSitzung";
@@ -96,8 +96,27 @@ export async function einloesenAmGate(
     helferCookieOptionen(helferGueltigkeitSekunden()),
   );
 
-  // AEUSSERER Pfad. Ein ausdrueckliches `returnTo` (Deep-Link) hat Vorrang;
-  // sonst fuehrt der Code an sein hinterlegtes Ziel (§7.2.5).
+  /*
+   * AEUSSERER Pfad. Ein ausdrueckliches `returnTo` (Deep-Link) hat Vorrang;
+   * sonst fuehrt der Code an sein hinterlegtes Ziel (§7.2.5).
+   *
+   * ⚠️ UEBER DEN ORT, NICHT UEBER DIE ZIELART — DRK-417, und diese Zeile ist
+   * dieselbe wie im gescannten `/t/<code>`. Hier stand `tokenZielPfad`, und der
+   * kennt „sonst" nur als Artikelliste: ein von Hand GETIPPTER Box-Code landete
+   * damit auf `/helfer`, wo die Reichweite ihn abweist — der Riegel schrieb ein
+   * `access_denied` und leitete weiter auf `/helfer/box`. Die Person kam also
+   * an, und im Protokoll stand trotzdem eine Ablehnung.
+   *
+   * ⚠️ DAS IST TEURER ALS EIN UMWEG. Das Zugriffsprotokoll ist die Grundlage
+   * fuer „welche Karte muss zurueckgesetzt werden?"; ein Eintrag, den jede
+   * erfolgreiche Anmeldung mit diesem Code erzeugt, macht genau diese Frage
+   * unbeantwortbar. Gefunden hat es die Codex-Review zu PR #205 — kein Tor sah
+   * es, weil beide Seiten je fuer sich richtig antworteten.
+   *
+   * ⚠️ BEIDE EINSTIEGE RECHNEN JETZT MIT DERSELBEN FUNKTION, und das ist der
+   * Punkt: Tippen und Scannen sind derselbe Code auf zwei Wegen. Zwei
+   * Rechnungen dafuer liefen beim naechsten Ort auseinander.
+   */
   auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
-  redirect(returnTo ?? tokenZielPfad(res.zielTyp, res.zielId));
+  redirect(returnTo ?? ortcodeZielPfad(res.ortId, res.zielTyp, res.zielId));
 }

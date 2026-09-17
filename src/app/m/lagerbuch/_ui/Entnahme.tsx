@@ -162,6 +162,33 @@ export function Entnahme({
   const gewaehlteCharge = chargeId === null
     ? null
     : (imHandlager.find((c) => c.id === chargeId) ?? null);
+
+  /*
+   * ⚠️ EINE VERSCHWUNDENE CHARGE FAELLT AUF FEFO ZURUECK — Codex-Befund P1 zu
+   * PR #205, nachgeprueft und real.
+   *
+   * Der Fall entsteht bei jeder Buchung, die die gewaehlte Charge LEERT:
+   * `bucheEntnahmeHelfer` ruft `revalidiereBestand()`, der Server liefert
+   * frische Props, und die Charge faellt aus `imHandlager` heraus. Der
+   * ZUSTAND dieser Insel ueberlebt das aber — `chargeId` zeigte danach auf
+   * eine Zeile, die es nicht mehr gibt.
+   *
+   * ⚠️ WAS DARAUS FOLGTE, WAR STILL UND FALSCH: `gewaehlteCharge` wurde `null`,
+   * also stand KEIN Radioknopf mehr auf „an" (auch nicht der FEFO-Knopf, denn
+   * `chargeId` war ja gesetzt), die Obergrenze sprang zurueck auf den vollen
+   * Handlagerbestand, und die naechste Buchung schickte GAR KEINE `chargeId` —
+   * sie buchte FEFO, waehrend der Schirm eine ausdrueckliche Wahl behauptete.
+   * Im Journal steht danach eine andere Charge, als die Person gewaehlt hat,
+   * und das Buch ist append-only.
+   *
+   * ⚠️ DIE ABLEITUNG STEHT HIER UND NICHT IM ERFOLGSZWEIG VON `absenden`.
+   * Ein `setChargeId(null)` nach dem Buchen deckte denselben Fall — aber nur
+   * diesen einen. Verschwindet die Charge, weil ein ZWEITES Telefon am selben
+   * Regal gebucht hat, trifft derselbe Zustand ohne eigene Buchung ein. Die
+   * Form ist Reacts Muster fuer „Zustand aus Props nachfuehren", dieselbe wie
+   * in `_ui/Stepper.tsx`.
+   */
+  if (chargeId !== null && gewaehlteCharge === null) setChargeId(null);
   /*
    * ⚠️ DIE OBERGRENZE FOLGT DER WAHL. Ohne diese Zeile stuende der Stepper
    * weiter auf dem Gesamtbestand des Handlagers, und die Action wiese eine
