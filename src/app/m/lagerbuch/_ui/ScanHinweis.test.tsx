@@ -87,9 +87,70 @@ describe("ScanHinweis — beide Einheiten stehen drin (AK 2)", () => {
     expect(text()).toMatch(/Kärtchen/);
   });
 
-  it("traegt eine Ueberschrift, die sagt, dass der Scan nicht gilt", async () => {
+  it("traegt eine Ueberschrift, die die geltende Regel nennt", async () => {
     await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
-    expect(query("[data-rolle='scan-hinweis']").textContent).toContain("gilt hier nicht");
+    expect(query("[data-rolle='scan-hinweis']").textContent).toContain("gilt dein Kärtchen");
+  });
+});
+
+/**
+ * REVIEWRUNDE 4 — DER HINWEIS BEHAUPTET KEINEN VORGANG, DEN ER NICHT BELEGEN
+ * KANN.
+ *
+ * `gescannt` kommt als Suchparameter. `helfer/check/page.tsx` nimmt ihn nur in
+ * der Form, die `ortZielPfad` erzeugt — aber eine erkennbare FORM ist keine
+ * nachgewiesene HERKUNFT: `?fz=<gebunden>&gescannt=<andere>` ist von Hand
+ * schreibbar, und ein Lesezeichen oder die Zurueck-Taste auf eine frueher
+ * besuchte Check-Adresse traegt sie ohne jede Absicht. Der alte Satz
+ * („Gescannt hast du das Etikett von X") wurde damit zu einer falschen Aussage
+ * auf genau der Flaeche, deren Wahrhaftigkeit DRK-373 herstellt.
+ *
+ * ⚠️ DIE NEGATIVE ZUSICHERUNG IST HIER DIE TRAGENDE, nicht die positive: der
+ * alte Wortlaut ist der schoenere und der naheliegende Rueckfall. Wer ihn gut
+ * gemeint wiederherstellt, bekommt diesen Test rot — und nur ihn, denn „nennt
+ * beide Einheiten" und „sagt den Grund" waeren weiterhin gruen.
+ */
+describe("ScanHinweis — nur behaupten, was belegbar ist (Reviewrunde 4)", () => {
+  it("behauptet NICHT, dass gescannt wurde", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(text()).not.toMatch(/[Gg]escannt hast du/);
+    expect(text()).not.toMatch(/[Dd]ein Scan/);
+  });
+
+  /**
+   * REVIEWRUNDE 5 — DERSELBE FEHLER EINE STUFE FEINER. Hier stand „Diese
+   * Adresse zeigt auf X". Das ZIEL dieser Adresse ist aber diese Seite mit der
+   * GEBUNDENEN Einheit; `gescannt` steht darin bloss als Name. „Zeigt auf X"
+   * behauptete eine Wegrichtung, die es nicht gibt — auf einem Schirm, der
+   * sichtbar die andere Einheit laedt.
+   *
+   * Die Zusicherung ist bewusst auf die Wendung gemuenzt und nicht auf eine
+   * allgemeine Regel: „nur behaupten, was belegbar ist" laesst sich nicht
+   * pruefen, dieser eine Rueckfall schon — und er ist der naheliegende, weil
+   * „zeigt auf" sich fluessiger liest als „nennt".
+   */
+  it("behauptet NICHT, dass die Adresse zur anderen Einheit fuehrt", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(text()).not.toMatch(/Adresse zeigt auf/);
+    expect(text()).toMatch(/Adresse nennt/);
+  });
+
+  it("benennt die Adresse als das, worauf sich die andere Einheit stuetzt", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(text()).toMatch(/Adresse/);
+  });
+
+  /**
+   * Die Umkehrprobe zur negativen Zusicherung: der Hinweis darf durch die
+   * Korrektur nicht VERSTUMMEN. Beide Namen, der Grund und der Schluss stehen
+   * unveraendert — geprueft ist das in den Faellen oben; hier steht nur, dass
+   * der Kasten ueberhaupt noch kommt.
+   */
+  it("steht trotzdem da und nennt weiter beide Einheiten", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(query("[data-rolle='scan-hinweis']")).not.toBeNull();
+    expect(text()).toContain("KTW 1");
+    expect(text()).toContain("RTW 1");
   });
 });
 

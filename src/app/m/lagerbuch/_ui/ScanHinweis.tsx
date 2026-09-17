@@ -3,7 +3,7 @@ import { Ikone } from "./ikonen";
 import s from "./helfer.module.css";
 
 /**
- * „DEIN SCAN GILT HIER NICHT" — DRK-373.
+ * „HIER GILT DEIN KAERTCHEN" — DRK-373.
  *
  * KEIN "use client": eine Server Component, kein antd (§7.1). Sie steht auf dem
  * oeffentlichen Ast, den `_lib/bauform.test.ts` antd-frei haelt — `Ikone` ist
@@ -16,6 +16,46 @@ import s from "./helfer.module.css";
  * dem Etikett in ihrer Hand. Bei „RTW 1" neben „RTW 2" merkt das im Zweifel
  * niemand, und gezaehlt wuerde der Inhalt der einen Einheit in das Buch der
  * anderen.
+ *
+ * ⚠️ DER SATZ SPRICHT VON DER ADRESSE, NICHT VOM SCAN — und das ist die
+ * Korrektur aus Reviewrunde 4, nicht eine Geschmacksfrage. Hier stand
+ * „Gescannt hast du das Etikett von X"; diese Seite kann einen Scan aber NICHT
+ * belegen. `gescannt` kommt als Suchparameter, und `helfer/check/page.tsx`
+ * nimmt ihn nur in der Form, die `ortZielPfad` erzeugt (`fz` = die gebundene
+ * Einheit) — eine erkennbare FORM ist jedoch keine nachgewiesene HERKUNFT:
+ *
+ *   ?fz=<gebunden>&gescannt=<andere>  →  „Gescannt hast du <andere>",
+ *                                        ohne dass je gescannt wurde.
+ *
+ * ⚠️ UND DER WEG DORTHIN BRAUCHT KEINE ABSICHT: ein Lesezeichen oder die
+ * Zurueck-Taste auf eine frueher besuchte Check-Adresse traegt genau diese
+ * Form. Wer sie tippt, belaegt sich selbst — wer sie wiederaufruft, wird
+ * belogen, und das auf der Flaeche, deren Wahrhaftigkeit dieses Ticket
+ * herstellt.
+ *
+ * ⛔ DER NAHELIEGENDE AUSWEG IST ABGEWOGEN UND VERWORFEN: ein signierter
+ * Marker (oder ein Cookie aus `/o/<id>`) wuerde die Herkunft echt nachweisen
+ * — und die falsche Aussage gegen ein SCHWEIGEN tauschen, sobald er ablaeuft,
+ * fehlt oder nicht gesetzt wird. Schweigen an dieser Stelle ist der Ausgang,
+ * gegen den DRK-373 geschrieben ist; ein Tausch, der die Fehlerklasse des
+ * Tickets wiederherstellt, ist der schlechtere Handel. Zumal nie ein BESTAND
+ * falsch wird: geladen und gezaehlt wird ohnehin die gebundene Einheit
+ * (`helfer/check/page.tsx`, Falle 15) — falsch werden konnte allein der Satz.
+ * Betreiberentscheidung 2026-09-17: nur behaupten, was belegbar ist.
+ *
+ * ⚠️ SIE „NENNT", SIE „ZEIGT" NICHT DARAUF — Reviewrunde 5, und die
+ * Unterscheidung ist keine Wortklauberei. Hier stand „Diese Adresse zeigt auf
+ * X", und das war derselbe Fehler eine Stufe feiner: das ZIEL dieser Adresse
+ * ist diese Seite mit der GEBUNDENEN Einheit (`fz`), `gescannt` steht darin
+ * bloss als Name. „Zeigt auf X" behauptete also eine Wegrichtung, die es nicht
+ * gibt — und zwar ausgerechnet auf einem Schirm, der sichtbar die andere
+ * Einheit laedt, was die Frage „warum bin ich dann hier?" erst erzeugt.
+ * „Nennt X" ist genau das, was belegbar ist: X steht in der Adresse.
+ *
+ * ⚠️ DIE UEBERSCHRIFT TRAEGT DIE REGEL, NICHT DEN VORGANG. „Dein Scan gilt
+ * hier nicht" behauptete denselben Scan und las sich zugleich wie ein Fehler
+ * der Anwendung; „Hier gilt dein Kaertchen" ist auf jedem Weg wahr und ist
+ * die Regel, um deren Sichtbarkeit es geht.
  *
  * ⚠️ EIN HINWEIS UND KEINE SACKGASSE, und das ist eine Entscheidung gegen die
  * naheliegende Alternative „Zwischenschirm mit Weiterknopf". Drei Gruende, alle
@@ -62,14 +102,17 @@ export function ScanHinweis({
   gezeigt,
 }: {
   /**
-   * Die Einheit, deren Etikett gescannt wurde — die, die NICHT gilt.
+   * Die Einheit, die die ADRESSE nennt — die, die NICHT gilt. Auf dem echten
+   * Etikettenweg ist das die gescannte; behaupten darf dieser Baustein das
+   * aber nicht, und „zeigt auf" darf er auch nicht sagen (Begruendung im Kopf,
+   * Reviewrunden 4 und 5).
    *
    * ⚠️ BEIDE ANGABEN SIND PFLICHT-PROPS, KEINE OPTIONALS, und die Begruendung
    * ist dieselbe wie bei `LeerZustand.weg` und `CheckFlow.gebunden`: als
    * Optional waere „nenne beide Einheiten beim Namen" eine Bitte, als Pflicht
    * ist es eine Zusage, die `typecheck` durchsetzt. Der halbe Hinweis
-   * („dein Scan gilt hier nicht" ohne zu sagen, was stattdessen gilt) ist der
-   * teuerste Ausgang dieser Datei.
+   * („hier gilt dein Kaertchen" ohne zu sagen, welches und statt welcher) ist
+   * der teuerste Ausgang dieser Datei.
    */
   gescannt: EinheitAngabe;
   /** Die gebundene Einheit, die der Check zeigt. */
@@ -92,7 +135,7 @@ export function ScanHinweis({
         <span className={s.scanHinweisZeichen}>
           <Ikone name="warnung" />
         </span>
-        Dein Scan gilt hier nicht
+        Hier gilt dein Kärtchen
       </div>
       <p className={s.fussnote} data-rolle="scan-hinweis-text">
         {/*
@@ -110,9 +153,9 @@ export function ScanHinweis({
           `dieseEinheit` zeigt auf die zuletzt genannte und traegt dabei die
           richtige Art (DRK-309: „dieses Fahrzeug" / „diese Tasche").
         */}
-        Gescannt hast du das Etikett von „{label(gescannt)}“. Dein Kärtchen gilt
-        aber, und es ist auf „{label(gezeigt)}“ ausgestellt — geprüft wird hier
-        also {dieseEinheit(gezeigt.einheitenart)}.
+        Diese Adresse nennt „{label(gescannt)}“. Ausgestellt ist dein Kärtchen
+        aber auf „{label(gezeigt)}“ — geprüft wird hier also{" "}
+        {dieseEinheit(gezeigt.einheitenart)}.
       </p>
     </div>
   );
