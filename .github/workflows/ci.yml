@@ -334,8 +334,28 @@ jobs:
   # auf einem alten Image fest. Nebeneffekt: der image-smoke läuft jetzt auch
   # auf arm64 wirklich, vorher wurde dort nur gebaut und nie gestartet.
   build:
-    # `version` dazu, weil die Nummer als Build-Arg ins Image geht (unten).
-    needs: [test, version]
+    # ⚠️ BEWUSST OHNE `test`, UND DAS IST KEINE LOCKERUNG — DIE ABSICHERUNG
+    # STEHT EINE STUFE WEITER UNTEN AN `merge`. Gemessen an Lauf 35187192289
+    # (DRK-407): `build` ist erst um 06:07:03 gestartet, weil `test` auf die
+    # langsamste e2e-Gruppe wartet (lagerbuch, 14:17) — und lief dann 3:26. Die
+    # standen damit rein SERIELL im kritischen Pfad, ohne dass `build` irgendetwas
+    # aus e2e liest.
+    #
+    # Auf einem PR baut dieser Job ein Image und faehrt den image-smoke; Login,
+    # Digest-Push und Artefakt-Upload tragen alle `if: github.event_name !=
+    # 'pull_request'` und sind uebersprungen. Es gibt dort also gar nichts, was
+    # ein rotes e2e verhindern muesste.
+    #
+    # Auf `main` schiebt er einen Digest nach ghcr.io — ein Blob OHNE Tag, den
+    # erst `merge` zu einem Manifest zusammenfasst. Genau deshalb traegt `merge`
+    # jetzt `test` SELBST in seinem `needs` (vorher kam es nur ueber diese Zeile
+    # hier mit): ohne das haette ein rotes e2e nach dieser Aenderung bis in
+    # `release` und `deploy` durchlaufen koennen. Wer `test` hier je wieder
+    # ergaenzt, nimmt die Beschleunigung zurueck; wer es an `merge` entfernt,
+    # nimmt die Absicherung mit.
+    #
+    # `version` bleibt, weil die Nummer als Build-Arg ins Image geht (unten).
+    needs: [version]
     strategy:
       fail-fast: false
       matrix:
@@ -462,7 +482,13 @@ jobs:
   # Führt die per-Plattform-Digests zu einer Multi-Arch-Manifest-Liste zusammen
   # und hängt erst hier die Tags (latest/sha/branch) dran.
   merge:
-    needs: [build, version]
+    # ⚠️ `test` STEHT HIER, SEIT `build` ES NICHT MEHR TRAEGT (DRK-407). Vorher
+    # kam die Absicherung transitiv ueber `build`; seit der dort entfallen ist,
+    # ist DIESE Zeile die einzige Stelle, an der ein rotes `checks`/`e2e`/
+    # `version` den Rollout aufhaelt. `merge` schmiedet aus den beiden
+    # Architektur-Digests das getaggte Manifest — ab hier wird ein Stand
+    # ausrollbar, und genau davor gehoert das Tor.
+    needs: [build, test, version]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # Zwei Laeufe DESSELBEN Commits (ein workflow_dispatch neben seinem Push-Lauf, ein
