@@ -123,9 +123,30 @@ entnullen() {
 # niemand eingeben — 18 Stunden sind schon reichlich, 18 Ziffern Stunden sind ein Tippfehler.
 zu_viele_ziffern() { [ "${#1}" -gt 18 ]; }
 
+# ⚠️ UND DIE LAENGE IST NOCH KEINE OBERGRENZE — dieselbe Lehre eine Ebene hoeher.
+# 18 Ziffern passen in die Zahl, ihr PRODUKT aber nicht: `BACKUP_FRIST_STUNDEN` mal 3600
+# laeuft ueber und wird NEGATIV. GEMESSEN am ganzen Skript mit 100000000000000000:
+#
+#   letzter Erfolg vor 0h — Frist sind 100000000000000000h        exit 1
+#
+# Ein eben geschriebener Erfolg gilt also als ueberfaellig, und die Meldung widerspricht
+# sich in sich selbst. An der Sperre geht es in BEIDE Richtungen daneben, gemessen an
+# einer acht Stunden alten Sperre bei einer Altersgrenze von sechs:
+#
+#   ALTER=6   HERZSCHLAG=10^17   boden = 10^18   → „lebt", NIE mehr uebernehmbar
+#   ALTER=10^17 HERZSCHLAG=60    grenze negativ  → der Boden greift, VERWAIST nach 10min
+#
+# Das erste haelt die Sicherung dauerhaft an, das zweite holt genau die Gleichzeitigkeit
+# zurueck, gegen die es die Sperre gibt. Deshalb bekommt jeder Wert eine FACHLICHE
+# Obergrenze statt einer rechnerischen: ein Jahr fuer die beiden Stundenwerte, ein Tag
+# fuer Takt und Wartezeit. Wer mehr eintraegt, meint es nicht so.
+#
+# ⚠️ Die Laengenpruefung bleibt trotzdem, und sie muss VORHER stehen: ein Vergleich gegen
+# die Obergrenze mit einem 20-stelligen Wert waere wieder „Illegal number" und damit
+# falsch — also keine Pruefung, sondern ein Loch.
 zahl_oder_vorgabe() {
-  # $1 = Name (nur fuer die Meldung), $2 = Wert, $3 = Vorgabe,
-  # $4 = `positiv`, wenn 0 ebenfalls unbrauchbar ist
+  # $1 = Name (nur fuer die Meldung), $2 = Wert, $3 = Vorgabe, $4 = Obergrenze,
+  # $5 = `positiv`, wenn 0 ebenfalls unbrauchbar ist
   zov_wert="$(entnullen "$2")"
   zov_grund=""
   case "$zov_wert" in
@@ -134,7 +155,10 @@ zahl_oder_vorgabe() {
   if [ -z "$zov_grund" ] && zu_viele_ziffern "$zov_wert"; then
     zov_grund="ist zu gross"
   fi
-  if [ -z "$zov_grund" ] && [ "${4:-}" = "positiv" ] && [ "$zov_wert" -eq 0 ]; then
+  if [ -z "$zov_grund" ] && [ "$zov_wert" -gt "$4" ]; then
+    zov_grund="ist groesser als $4"
+  fi
+  if [ -z "$zov_grund" ] && [ "${5:-}" = "positiv" ] && [ "$zov_wert" -eq 0 ]; then
     zov_grund="muss groesser als 0 sein"
   fi
   if [ -n "$zov_grund" ]; then
@@ -211,10 +235,14 @@ BACKUP_PING_URL="${BACKUP_PING_URL:-}"
 BACKUP_PING_URL_FEHLER="${BACKUP_PING_URL_FEHLER:-}"
 # Ab wann der Healthcheck einen ausbleibenden Lauf als Fehler wertet. 26 Stunden lassen
 # einem taeglichen Takt zwei Stunden Luft, ohne einen ausgefallenen Tag zu verschlucken.
-BACKUP_FRIST_STUNDEN="$(zahl_oder_vorgabe BACKUP_FRIST_STUNDEN "${BACKUP_FRIST_STUNDEN:-26}" 26)"
+# Obergrenze ein Jahr: laenger als das ist keine Frist mehr, sondern ein abgeschalteter
+# Healthcheck — und `8760 * 3600` bleibt weit im Zahlenbereich.
+BACKUP_FRIST_STUNDEN="$(zahl_oder_vorgabe BACKUP_FRIST_STUNDEN "${BACKUP_FRIST_STUNDEN:-26}" 26 8760)"
 
 # Wie lange ein Lauf auf einen anderen wartet, bevor er aufgibt (Minuten).
-BACKUP_SPERRE_FRIST_MINUTEN="$(zahl_oder_vorgabe BACKUP_SPERRE_FRIST_MINUTEN "${BACKUP_SPERRE_FRIST_MINUTEN:-30}" 30)"
+# Obergrenze ein Tag: wer laenger wartet, wartet ueber den naechsten planmaessigen Lauf
+# hinaus.
+BACKUP_SPERRE_FRIST_MINUTEN="$(zahl_oder_vorgabe BACKUP_SPERRE_FRIST_MINUTEN "${BACKUP_SPERRE_FRIST_MINUTEN:-30}" 30 1440)"
 # Ab wann eine Sperre als verwaist gilt und uebernommen werden darf (Stunden).
 #
 # ⚠️ DIESE ZAHL MISST NICHT, WIE LANGE EIN LAUF SCHON LAEUFT, SONDERN WIE LANGE NIEMAND
@@ -223,7 +251,10 @@ BACKUP_SPERRE_FRIST_MINUTEN="$(zahl_oder_vorgabe BACKUP_SPERRE_FRIST_MINUTEN "${
 # als diese Zahl (grosse Ablage, langsames Ziel), nach Ablauf als „verwaist" eingestuft
 # worden, und der naechste haette ihm die Sperre unter den Haenden weggenommen. GEMESSEN:
 # mit einer Sperre, deren Zeitstempel 8h zurueckliegt, startete der zweite Lauf sofort.
-BACKUP_SPERRE_ALTER_STUNDEN="$(zahl_oder_vorgabe BACKUP_SPERRE_ALTER_STUNDEN "${BACKUP_SPERRE_ALTER_STUNDEN:-6}" 6)"
+# Obergrenze ein Jahr: darueber waere keine Sperre je wieder uebernehmbar, und die
+# Rechnung liefe ueber (gemessen: negativ, womit der Boden greift und es ins Gegenteil
+# kippt).
+BACKUP_SPERRE_ALTER_STUNDEN="$(zahl_oder_vorgabe BACKUP_SPERRE_ALTER_STUNDEN "${BACKUP_SPERRE_ALTER_STUNDEN:-6}" 6 8760)"
 # Takt des Herzschlags in Sekunden. Muss deutlich unter der Altersgrenze liegen, sonst
 # traegt er nicht; 60s gegen 6h ist reichlich Abstand.
 # ⚠️ DIESER WERT MUSS POSITIV SEIN, UND ZWAR SCHON HIER — nicht erst, wenn der
@@ -239,7 +270,11 @@ BACKUP_SPERRE_ALTER_STUNDEN="$(zahl_oder_vorgabe BACKUP_SPERRE_ALTER_STUNDEN "${
 # Also wieder die Gleichzeitigkeit, gegen die es die Sperre gibt — durch zwei Nullen in
 # der `.env`. (Die Leerlaufschleife aus dem Herzschlag ist damit gleich mit erledigt:
 # `sleep 0` kehrt sofort zurueck, gemessen 1423 Runden in zwei Sekunden.)
-BACKUP_HERZSCHLAG_SEKUNDEN="$(zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}" 60 positiv)"
+# Obergrenze ein Tag — und die ist hier nicht kosmetisch: aus diesem Wert rechnet
+# `sperre_ist_verwaist` den BODEN, unter den die Altersgrenze nicht faellt. Ein
+# absurder Takt hebt damit den Boden ueber jede Altersgrenze, und eine tote Sperre
+# waere nie wieder uebernehmbar (gemessen).
+BACKUP_HERZSCHLAG_SEKUNDEN="$(zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}" 60 86400 positiv)"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"

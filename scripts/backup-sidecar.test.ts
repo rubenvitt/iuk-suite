@@ -118,12 +118,16 @@ const HELFER = ["protokoll", "warne", "entnullen", "zu_viele_ziffern"];
 const kurzeForm = (url: string) =>
   shellSkript(["ping_ziel_kurz"], 'ping_ziel_kurz "$1"', url);
 
-const zahlOderVorgabe = (wert: string, vorgabe = "60") =>
+// ⚠️ Die Obergrenze ist Pflichtargument (Nr. 4). Vorbelegt mit 18 Neunen — dem
+// groessten Wert, den die LAENGENpruefung noch durchlaesst —, damit die Faelle unten
+// weiterhin diese und nicht die Obergrenze messen.
+const zahlOderVorgabe = (wert: string, vorgabe = "60", max = "9".repeat(18)) =>
   shellSkript(
     [...HELFER, "zahl_oder_vorgabe"],
-    'zahl_oder_vorgabe TEST "$1" "$2"',
+    'zahl_oder_vorgabe TEST "$1" "$2" "$3"',
     wert,
     vorgabe,
+    max,
   );
 
 const geprueftUhrzeit = (uhrzeit: string) =>
@@ -412,10 +416,29 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
       // gemessen am ganzen Skript mit `BACKUP_FRIST_STUNDEN=99999999999999999999`: der
       // Healthcheck starb mit Exit 2 („Illegal number"), statt zu antworten.
       ["9".repeat(20), "60"],
-      // 18 Ziffern passen immer (der groesste 64-Bit-Wert hat 19) und bleiben deshalb.
+      // 18 Ziffern passen immer (der groesste 64-Bit-Wert hat 19) und bleiben deshalb —
+      // soweit die Obergrenze sie laesst, siehe gleich darunter.
       ["9".repeat(18), "9".repeat(18)],
     ] as const) {
       expect(zahlOderVorgabe(wert), `"${wert}" ergibt eine Zahl`).toBe(erwartet);
+    }
+    // ⚠️ UND DIE LAENGE IST NOCH KEINE OBERGRENZE — dieselbe Lehre eine Ebene hoeher.
+    // 18 Ziffern passen in die Zahl, ihr PRODUKT aber nicht: gemessen am ganzen Skript
+    // meldete `BACKUP_FRIST_STUNDEN=100000000000000000` einen eben geschriebenen Erfolg
+    // als ueberfaellig („letzter Erfolg vor 0h — Frist sind 100000000000000000h"), weil
+    // `* 3600` ueberlaeuft und NEGATIV wird.
+    expect(zahlOderVorgabe("100", "60", "50"), "ueber der Obergrenze").toBe("60");
+    expect(zahlOderVorgabe("50", "60", "50"), "genau auf der Obergrenze").toBe("50");
+    // Jeder der vier Werte traegt eine FACHLICHE Obergrenze, keine rechnerische.
+    for (const [name, max] of [
+      ["BACKUP_FRIST_STUNDEN", "8760"],
+      ["BACKUP_SPERRE_FRIST_MINUTEN", "1440"],
+      ["BACKUP_SPERRE_ALTER_STUNDEN", "8760"],
+      ["BACKUP_HERZSCHLAG_SEKUNDEN", "86400"],
+    ] as const) {
+      const zeile = befehle.split("\n").find((z) => z.startsWith(`${name}=`));
+      expect(zeile, `${name} steht in der Konfiguration`).toBeTruthy();
+      expect(zeile, `${name} bekommt die Obergrenze ${max}`).toContain(` ${max}`);
     }
     // ⚠️ Geprueft wird an der QUELLE, nicht an den Rechenstellen — dieselbe Entscheidung
     // wie bei `entnullen`, und aus demselben Grund: die naechste Rechenstelle haette es
@@ -1055,6 +1078,21 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
       expect(riesigeFrist.status, "kein Exit 2 aus der Arithmetik").toBe(0);
       expect(`${riesigeFrist.stdout}${riesigeFrist.stderr}`).toMatch(/ist zu gross/);
       expect(zustand("26").status, "und der gueltige Wert bleibt unveraendert").toBe(0);
+      // ⚠️ UND EINE ZAHL, DIE IN DIE ZAHL PASST, IST NOCH KEINE GUELTIGE FRIST: 18 Ziffern
+      // bestehen die Laengenpruefung, ihr Produkt mit 3600 laeuft aber ueber und wird
+      // NEGATIV — gemessen meldete der Healthcheck damit einen eben geschriebenen Erfolg
+      // als ueberfaellig: „letzter Erfolg vor 0h — Frist sind 100000000000000000h".
+      const ueberlauf = zustand("1".padEnd(18, "0"));
+      expect(ueberlauf.status, "der frische Erfolg bleibt ein Erfolg").toBe(0);
+      expect(ueberlauf.stdout, "und wird nicht als ueberfaellig gemeldet").toMatch(
+        /ok, letzter Erfolg/,
+      );
+      expect(ueberlauf.stderr, "die Obergrenze wird gemeldet").toMatch(/ist groesser als 8760/);
+      // Die Grenze selbst, beide Seiten.
+      expect(zustand("8760").status, "genau auf der Obergrenze").toBe(0);
+      expect(zustand("8761").stderr, "eins darueber faellt zurueck").toMatch(
+        /ist groesser als 8760/,
+      );
     } finally {
       rmSync(kladde, { recursive: true, force: true });
     }
@@ -1090,13 +1128,13 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
       .split("\n")
       .find((z) => z.startsWith("BACKUP_HERZSCHLAG_SEKUNDEN="));
     expect(zeile, "der Takt wird an der Quelle als POSITIV geprueft").toMatch(
-      /zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN .* 60 positiv\)/,
+      /zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN .* 60 86400 positiv\)/,
     );
     // Gemessen statt gescannt: 0 faellt auf die Vorgabe, eine gueltige Zahl nicht.
     const positiv = (wert: string) =>
       shellSkript(
         [...HELFER, "zahl_oder_vorgabe"],
-        'zahl_oder_vorgabe TEST "$1" 60 positiv',
+        'zahl_oder_vorgabe TEST "$1" 60 86400 positiv',
         wert,
       );
     expect(positiv("0"), "0 ist kein Takt").toBe("60");
