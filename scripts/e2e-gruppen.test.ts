@@ -185,56 +185,42 @@ function loese(muster: string, vorhanden: string[]): string[] {
 }
 
 /**
- * Die BEFEHLSZEILEN eines Workflows: YAML-Kommentare entfernt,
- * Zeilenfortsetzungen verbunden, Leeres weg.
+ * DER e2e-AUFRUF, WOERTLICH. Jede Abweichung ist ein roter Test.
  *
- * ⚠️ HIER STAND EIN MINI-YAML-PARSER, UND ER WAR DAS PROBLEM, NICHT DIE LOESUNG.
+ * ⚠️ HIER STAND VIER RUNDEN LANG EIN TEXTSCANNER, UND DAS WAR DER FEHLER.
  *
- * Erst zerlegte der Waechter zeilenweise und uebersah die Zeilenfortsetzung
- * (`pnpm e2e \` / `--shard=1/5`). Dann zerlegte er `run:`-Bloecke — und uebersah
- * drei gueltige Blockskalar-Koepfe, gemessen: `| # Erklaerung`, `|2-`, `>2-`
- * liefen alle als „Wert in derselben Zeile" durch, womit der Blockinhalt nie
- * gelesen wurde. Zwei Runden, drei Luecken, beide Male von Codex gefunden.
+ * Die Aufgabe klingt einfach: „e2e darf nicht `--shard` tragen". Sie gegen den
+ * TEXT des Workflows zu pruefen, hat vier echte Luecken gekostet, alle von
+ * einem Review gefunden und keine von einem Tor:
  *
- * Die Lehre ist nicht „den Parser besser machen": jede Kopfform, die YAML
- * erlaubt und dieser Parser nicht kennt, ist eine weitere stille Luecke. Die
- * Klasse verschwindet erst, wenn gar kein Blockskalar mehr erkannt werden muss
- * — und das geht, weil `--shard` IMMER auf einer Befehlszeile steht, gleich in
- * welcher YAML-Verpackung sie steckt. Gefragt wird deshalb nur noch: traegt
- * diese Zeile `--shard`, und ruft sie `vitest`?
+ *   1. zeilenweise  -> Zeilenfortsetzung (`pnpm e2e \` / `--shard=1/5`)
+ *   2. `run`-Bloecke -> drei gueltige Blockskalar-Koepfe (`| # …`, `|2-`, `>2-`)
+ *   3.               -> `vitest` irgendwo im Block reichte als Erlaubnis
+ *   4. Befehlszeilen -> `#` in Shell-Anfuehrungszeichen ist DATEN, kein Kommentar
  *
- * Zwei Vorbereitungen braucht das, und beide sind noetig:
- *   * KOMMENTARE WEG, sonst faellt der Waechter ueber die eigene Begruendung —
- *     `ci.yml` erklaert an mehreren Stellen, warum `--shard` bei e2e verboten
- *     ist, und diese Saetze enthalten die Zeichenkette.
- *   * FORTSETZUNGEN VERBINDEN, sonst steht `--shard` auf einer Zeile ohne den
- *     Befehl, zu dem es gehoert — die erste der drei Luecken.
+ * Jede Fassung war lesbar und plausibel; jede war luecken­haft. Der Grund ist
+ * strukturell: YAML und Shell haben zusammen mehr Schreibweisen, als ein Test
+ * nachbauen kann, und jede nicht nachgebaute ist eine STILLE Luecke — der
+ * Waechter bleibt gruen, waehrend e2e shardet.
  *
- * Ein gefalteter Skalar (`>`), dessen Befehl ueber mehrere Zeilen OHNE
- * Rueckstrich laeuft, faellt damit auf; das ist Absicht (fail closed): die
- * Zusicherung wird laut, statt still durchzulassen.
+ * Deshalb wird nicht mehr interpretiert, sondern VERGLICHEN. Es gibt genau
+ * einen e2e-Aufruf in diesem Workflow; er steht hier woertlich. Jede Aenderung
+ * daran — `--shard` in jeder Verpackung, ein zweiter Aufruf, ein Umbau der
+ * Zeile — macht den Test rot, ohne dass er YAML oder Shell verstehen muesste.
+ *
+ * ⚠️ DAS IST ABSICHTLICH STRENG: auch eine harmlose Aenderung (ein Reporter,
+ * ein Flag) faellt auf. Wer sie vornimmt, zieht diese Zeile mit nach — und
+ * entscheidet dabei bewusst, dass kein `--shard` dabei ist. Genau diese
+ * bewusste Entscheidung ist der Zweck.
+ *
+ * ⛔ WAS HIER NICHT MEHR STEHT, und warum das kein Verlust ist: die Regel „nur
+ * `vitest` darf sharden" war eleganter und loeste ein Problem, das es nicht
+ * gibt. Gefaehrlich ist Sharding allein bei e2e, weil dort EIN `next dev` den
+ * ganzen Shard bedient (DRK-358, oben). Ein anderer Job, der shardet, ist
+ * harmlos; ihn mitzuverbieten hat den Waechter angreifbar gemacht, ohne etwas
+ * zu schuetzen.
  */
-export function befehlszeilen(yaml: string): string[] {
-  return yaml
-    .split("\n")
-    // ganze Kommentarzeile raus, Kommentar am Zeilenende abschneiden
-    .map((z) => (/^\s*#/.test(z) ? "" : z.replace(/\s#.*$/, "")))
-    .join("\n")
-    // Zeilenfortsetzung: der Befehl geht auf der naechsten Zeile weiter
-    .replace(/\\\n\s*/g, " ")
-    .split("\n")
-    /*
-     * ⚠️ UND AN DEN SHELL-OPERATOREN TRENNEN — sonst haengt die Erlaubnis wieder
-     * an der UMGEBUNG statt am Befehl. Dritter Codex-Befund derselben Familie,
-     * nachgestellt: `pnpm vitest run && pnpm e2e --shard=1/5` steht auf EINER
-     * Zeile, die Zeile enthaelt `vitest`, und der shardende e2e-Aufruf daneben
-     * lief durch. `&&`, `||`, `;`, `|` und `&` trennen hier, was die Shell auch
-     * trennt. `\|\|` steht VOR `\|`, sonst zerfiele es in zwei leere Stuecke.
-     */
-    .flatMap((z) => z.split(/\s*(?:&&|\|\||;|\||&)\s*/))
-    .map((z) => z.trim())
-    .filter(Boolean);
-}
+const E2E_AUFRUF = "      - run: pnpm e2e ${{ matrix.gruppe.specs }}";
 
 describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt", () => {
   const alle = alleSpecs();
@@ -354,94 +340,22 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     expect(ci).toContain("e2e/gruppen.json");
 
     /*
-     * ⚠️ NUR `vitest` DARF SHARDEN — die Frage ist bewusst UMGEDREHT.
+     * ⚠️ VERGLICHEN, NICHT INTERPRETIERT — die Begruendung steht an `E2E_AUFRUF`.
+     * Kurz: vier Anlaeufe, den Text zu verstehen, hatten vier stille Luecken;
+     * ein woertlicher Vergleich hat keine, weil er nichts verstehen muss.
      *
-     * Bis DRK-412 stand hier `expect(ci).not.toMatch(/--shard=\$\{\{\s*matrix/)`:
-     * ein Verbot der Matrix-Form irgendwo in der Datei. Das traf auch den
-     * Vitest-Job, der zu Recht shardet — dort gibt es keinen Dev-Server, dessen
-     * Speicher mit der Routenflaeche waechst, und jeder Shard ist ein eigener
-     * Runner. Die Begruendung von DRK-358 gilt fuer e2e, nicht fuer jeden Aufruf
-     * mit demselben Flag.
-     *
-     * ⛔ DER ERSTE ERSATZ WAR EINE ZEILENPRUEFUNG AUF `pnpm e2e`, UND DER WAR
-     * LOECHRIG — Codex-Befund P2 auf diesem PR, nachgestellt und bestaetigt.
-     * Bei einer Zeilenfortsetzung im `run: |`-Block
-     *
-     *     - run: |
-     *         pnpm e2e \
-     *           --shard=1/5
-     *
-     * traegt die Zeile mit `pnpm e2e` kein `--shard`, und die Zeile mit
-     * `--shard` kein `pnpm e2e`. Der Waechter blieb gruen, waehrend e2e wieder
-     * shardete. Bitter daran: GENAU DIESE FORM HAETTE DER ALTE GEFANGEN, weil er
-     * die ganze Datei las. Eine Verschaerfung in einer Richtung war eine
-     * Schwaechung in der anderen.
-     *
-     * ⛔ DER ZWEITE VERSUCH (`run`-Bloecke statt Zeilen) WAR EBENFALLS LOECHRIG,
-     * und zwar doppelt — beide Male Codex, beide Male nachgemessen:
-     *   * drei gueltige Blockskalar-Koepfe (`| # Erklaerung`, `|2-`, `>2-`)
-     *     hielt er fuer einen Wert in derselben Zeile und las den Inhalt nie;
-     *   * `block.includes("vitest")` liess jeden Block durch, in dem das Wort
-     *     IRGENDWO stand — ein Kommentar „der vitest-Job macht das anders" ueber
-     *     einem shardenden e2e-Aufruf reichte.
-     * Die Begruendung, warum daraus `befehlszeilen()` wurde statt eines dritten
-     * Parser-Anlaufs, steht an jener Funktion.
-     *
-     * Umgedreht wird die Frage, weil die Positivliste den kuenftigen Fall
-     * miterschlaegt: nicht „e2e darf nicht sharden" (dann muss jeder neue
-     * Sharder einzeln verboten werden), sondern „wer shardet, muss `vitest`
-     * sein". Ein dritter Job, der es morgen versucht, faellt damit auf, ohne
-     * dass jemand diesen Test anfasst.
-     *
-     * ⚠️ GEFRAGT WIRD DIE ZEILE MIT DEM FLAG, nicht ihre Umgebung: `--shard`
-     * gehoert zu dem Befehl, auf dem es steht, und nur der muss `vitest` rufen.
+     * Gefiltert wird ueber ALLE Zeilen, damit auch ein ZWEITER e2e-Aufruf
+     * auffaellt — der koennte sonst irgendwo shardend danebenstehen, waehrend
+     * der erste unveraendert bleibt.
      */
-    const zeilen = befehlszeilen(ci);
+    const aufrufe = ci
+      .split("\n")
+      .filter((zeile) => zeile.includes("pnpm e2e") || zeile.includes("playwright test"));
 
     expect(
-      zeilen.some((z) => z.includes("pnpm e2e") || z.includes("playwright test")),
-      "kein e2e-Aufruf im Workflow gefunden",
-    ).toBe(true);
-
-    for (const zeile of zeilen) {
-      if (!zeile.includes("--shard")) continue;
-      expect(
-        /\bvitest\b/.test(zeile),
-        `nur vitest darf sharden, diese Befehlszeile tut es auch: ${zeile}`,
-      ).toBe(true);
-    }
-  });
-
-  it("die Zerlegung haelt JEDE Form fest, die uns schon einmal gekostet hat", () => {
-    // Drei Luecken in zwei Runden, alle von Codex gefunden. Ohne diese Faelle
-    // faellt die Zerlegung still auf ein Verhalten zurueck, das eine davon hatte.
-    const shardet = (yaml: string) => befehlszeilen(yaml).filter((z) => z.includes("--shard"));
-    const erlaubt = (yaml: string) => shardet(yaml).every((z) => /\bvitest\b/.test(z));
-
-    // 1. Runde: die Zeilenfortsetzung, an der die Zeilenpruefung scheiterte.
-    expect(erlaubt("      - run: |\n          pnpm e2e \\\n            --shard=1/5")).toBe(false);
-
-    // 2. Runde, Teil a: Blockskalar-Koepfe, die der Mini-Parser nicht kannte.
-    for (const kopf of ["| # warum auch immer", "|2-", ">2-", "|-2", "|"]) {
-      expect(
-        erlaubt(`      - run: ${kopf}\n          pnpm e2e \\\n            --shard=1/5`),
-        `Kopf ${kopf} laesst e2e sharden`,
-      ).toBe(false);
-    }
-
-    // 2. Runde, Teil b: `vitest` im Kommentar ueber einem shardenden e2e-Aufruf.
-    expect(erlaubt("      - run: |\n          # der vitest-Job macht das anders\n          pnpm e2e --shard=1/5")).toBe(false);
-
-    // 3. Runde: zwei Befehle auf EINER Zeile — `vitest` links, das Verbotene rechts.
-    expect(erlaubt("      - run: pnpm vitest run && pnpm e2e --shard=1/5")).toBe(false);
-    expect(erlaubt("      - run: pnpm vitest run ; pnpm e2e --shard=1/5")).toBe(false);
-    expect(erlaubt("      - run: pnpm vitest run || pnpm e2e --shard=1/5")).toBe(false);
-    expect(erlaubt("      - run: pnpm e2e --shard=1/5 | tee lauf.log")).toBe(false);
-
-    // Gegenprobe nach oben: der echte Vitest-Aufruf bleibt erlaubt …
-    expect(erlaubt("      - run: pnpm vitest run --shard=${{ matrix.shard }}/3")).toBe(true);
-    // … und die eigene Begruendung in `ci.yml` faellt nicht ueber sich selbst.
-    expect(erlaubt("  # ⚠️ `--shard` ist hier richtig und bei e2e verboten")).toBe(true);
-    expect(befehlszeilen("  # nur ein Kommentar")).toEqual([]);
+      aufrufe,
+      "der e2e-Aufruf in ci.yml weicht vom erwarteten Wortlaut ab — wenn das Absicht ist, " +
+        "ziehe E2E_AUFRUF mit nach UND pruefe dabei, dass kein --shard dazugekommen ist",
+    ).toEqual([E2E_AUFRUF]);
   });
 });
