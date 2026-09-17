@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { mount, unmount, query, queryAll, exists, click, fill } from "@/app/m/qr/_lib/test-dom";
+import { mount, rerender, unmount, query, queryAll, exists, click, fill } from "@/app/m/qr/_lib/test-dom";
 /*
  * ⚠️ DIE KLASSENNAMEN KOMMEN AUS DEM MODUL, NICHT ALS ZEICHENKETTE (DRK-406).
  * Sie sind gehasht; `toContain("knopfBreit")` waere im Betrieb rot und im Test
@@ -1149,6 +1149,63 @@ describe("Entnahme — die Charge waehlen (DRK-418)", () => {
 
     await click(BUCHEN);
     expect((spion.mock.calls[0]![0] as Buchungseingabe).menge).toBe(5);
+  });
+
+  /**
+   * DER CODEX-BEFUND P1 ZU PR #205 — EINE VERSCHWUNDENE CHARGE FAELLT AUF FEFO
+   * ZURUECK, UND ZWAR SICHTBAR.
+   *
+   * ⚠️ DER FALL IST NICHT KONSTRUIERT: jede Buchung, die die gewaehlte Charge
+   * LEERT, erzeugt ihn — `bucheEntnahmeHelfer` revalidiert, der Server liefert
+   * frische Props, die Charge faellt aus `imHandlager`. Der Inselzustand
+   * ueberlebt das. Hier wird er durch ein Neu-Rendern mit den neuen Props
+   * nachgestellt, weil genau das die Revalidierung tut.
+   *
+   * ⚠️ OHNE DEN RUECKFALL WAR ES STILL UND FALSCH: kein Radioknopf stand mehr
+   * auf „an" — auch der FEFO-Knopf nicht, denn `chargeId` war ja gesetzt —,
+   * die Obergrenze sprang auf den vollen Handlagerbestand, und die naechste
+   * Buchung schickte GAR KEINE `chargeId`. Sie buchte FEFO, waehrend der
+   * Schirm eine ausdrueckliche Wahl behauptete; im append-only-Journal stuende
+   * danach eine andere Charge als die gewaehlte.
+   */
+  it("faellt auf FEFO zurueck, wenn die gewaehlte Charge aus dem Handlager verschwindet", async () => {
+    const spion = antwortet(async () => ({ ok: true, wert: { gebucht: 1 } }));
+    /*
+     * ⚠️ DREI CHARGEN, NICHT ZWEI. Blieben nach dem Leeren nur noch EINE
+     * uebrig, verschwaende die ganze Wahl (`wahlMoeglich`), und der Test
+     * pruefte dann etwas anderes als seinen Namen — den Fall, in dem es gar
+     * nichts mehr zu waehlen gibt. Codex' Befund nennt ausdruecklich „mit
+     * mindestens zwei weiteren Chargen".
+     */
+    const drei: EntnahmeDetail = {
+      ...DETAIL,
+      chargen: [
+        ...DETAIL.chargen,
+        { id: "ch-3", chargenNr: "L3", verfall: "2028-05", rest: 10, restGesamt: 10,
+          orte: [{ id: "handlager", name: "Handlager", menge: 10, zugangshinweis: null,
+                   typ: "lager" as const, kennung: null, einheitenart: null }],
+          ampel: "gruen" as const, text: "bis 05/28" },
+      ],
+    };
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={drei} />);
+    await click(wahl("ch-2"));
+    expect(query<HTMLInputElement>(wahl("ch-2")).checked).toBe(true);
+
+    // Die Revalidierung: dieselbe Insel, neue Props — ch-2 ist leer.
+    const ohneCh2: EntnahmeDetail = {
+      ...drei,
+      chargen: drei.chargen.map((c) => (c.id === "ch-2" ? { ...c, rest: 0 } : c)),
+    };
+    await rerender(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={ohneCh2} />);
+
+    // Die Wahl steht noch — zwei Chargen sind uebrig.
+    expect(exists("[data-rolle='charge-fefo']")).toBe(true);
+
+    // Der FEFO-Knopf steht wieder auf „an" — und nicht etwa gar keiner.
+    expect(query<HTMLInputElement>(FEFO).checked).toBe(true);
+    // Und die naechste Buchung sagt auch, dass sie FEFO bucht.
+    await click(BUCHEN);
+    expect("chargeId" in (spion.mock.calls[0]![0] as object)).toBe(false);
   });
 
   /**

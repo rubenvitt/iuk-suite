@@ -218,9 +218,16 @@ export default async function BoxSeite({
           titel={`Nichts ${inDerEinheit(gewaehlt.einheitenart)} gebucht`}
           text={"Hier steht, was das Lagerbuch dieser Einheit zuschreibt. Steht nichts "
               + "da, lässt sich auch nichts abgeben — bitte der Verwaltung melden."}
+          /*
+           * ⚠️ DER ZWEITE ZWEIG IST `rueckweg`, NICHT FEST `/helfer` — Codex-
+           * Befund P2 zu PR #205. Fuer eine Box-Karte ist die Artikelliste eine
+           * Umleitung hierher zurueck; im Leerzustand ist dieser Link die
+           * einzige Handlung auf dem Schirm, und ein Kreis ist dort das Ende
+           * des Weges.
+           */
           weg={andereEinheitErreichbar
             ? { href: "/helfer/box", text: "Andere Einheit" }
-            : { href: "/helfer", text: "Zur Entnahme" }}
+            : rueckweg}
         />
       </HelferRahmen>
     );
@@ -237,6 +244,17 @@ export default async function BoxSeite({
         // ⚠️ KEIN `buchen`-PROP MEHR (DRK-375): `_ui/BoxAbgabe.tsx` importiert
         // `bucheInEntnahmebox` selbst — Falle 9.
         andereEinheitErreichbar={andereEinheitErreichbar}
+        /*
+         * ⚠️ DER AUSWEG WIRD HEREINGEREICHT, NICHT IN DER INSEL GERECHNET —
+         * Codex-Befund P2 zu PR #205. Sie baute ihn aus
+         * `andereEinheitErreichbar` allein und landete damit fuer jede
+         * begrenzte Karte auf `/helfer`, also im Kreis. Die REICHWEITE kennt
+         * nur der Server; eine zweite Rechnung in der Insel waere die Naht, an
+         * der die beiden Ausgaenge dieses Schirms auseinanderlaufen — dieselbe
+         * Begruendung, aus der `andereEinheitErreichbar` schon hier oben steht
+         * und nicht dort.
+         */
+        rueckweg={rueckweg}
         // DRK-305: faellt der Zugang mitten im Ausraeumen aus, entscheidet diese
         // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
         // unterscheiden — diese Seite kennt sie.

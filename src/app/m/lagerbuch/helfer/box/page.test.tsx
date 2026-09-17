@@ -90,6 +90,7 @@ vi.mock("../../_ui/BoxAbgabe", () => ({
     posten: Record<string, unknown>[];
     kontoZugang: boolean;
     andereEinheitErreichbar: boolean;
+    rueckweg?: { href: string; text: string };
   }) => (
     <div
       data-rolle="abgabe"
@@ -99,6 +100,8 @@ vi.mock("../../_ui/BoxAbgabe", () => ({
       data-posten-felder={Object.keys(p.posten[0] ?? {}).sort().join(",")}
       data-konto={String(p.kontoZugang)}
       data-andere={p.andereEinheitErreichbar ? "ja" : "nein"}
+      // DRK-417: der Ausweg kommt vom SERVER — nur der kennt die Reichweite.
+      data-rueckweg={String(p.rueckweg?.href)}
       // ⚠️ DAS VORHANDENSEIN DES SCHLUESSELS, nicht sein Wert (DRK-375): ein
       // `buchen={undefined}` waere von „gar kein Prop" ueber den Wert nicht zu
       // unterscheiden — und genau das ist hier die Frage.
@@ -488,5 +491,53 @@ describe("helfer/box — wer hier ablegen darf (DRK-417)", () => {
     fahrzeuge.mockReturnValue([]);
     await mount(await BoxSeite(sp()));
     expect(query("[data-rolle='leer-weg']").getAttribute("href")).toBe("/helfer");
+  });
+});
+
+/**
+ * DER RUECKWEG TRAEGT ALLE AUSGAENGE — Codex-Befund P2 zu PR #205.
+ *
+ * ⚠️ DER ERSTE WURF DECKTE NUR DIE BEIDEN OBEREN LEERZUSTAENDE. Danach — mit
+ * gewaehlter Einheit — bauten der Posten-Leerzustand und die Insel ihren Link
+ * weiter aus `andereEinheitErreichbar` allein und landeten fuer jede begrenzte
+ * Karte auf `/helfer`, also im Kreis. Der Fall ist nicht exotisch: eine
+ * Box-Karte mit genau EINER aktiven Einheit ueberspringt die Wahl und trifft
+ * ihn sofort.
+ */
+describe("helfer/box — kein Ausgang fuehrt im Kreis (DRK-417)", () => {
+  function karteHaengtAn(ortId: string): void {
+    t.db.update(tokens).set({ ortId }).where(eq(tokens.id, "tk1")).run();
+  }
+
+  it("der Posten-Leerzustand schickt eine Box-Karte nicht auf die Artikelliste", async () => {
+    karteHaengtAn(ENTNAHMEBOX_ID);
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);   // genau eine → keine Wahl, kein „Andere Einheit"
+
+    await mount(await BoxSeite(sp()));
+
+    const weg = query("[data-rolle='leer-weg']");
+    expect(weg.getAttribute("href")).not.toBe("/helfer");
+    expect(weg.getAttribute("href")).not.toMatch(/^\/helfer\/(box|check)/);
+  });
+
+  it("die Insel bekommt denselben Ausweg hereingereicht", async () => {
+    karteHaengtAn(ENTNAHMEBOX_ID);
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 5);
+
+    await mount(await BoxSeite(sp()));
+
+    // Kein „Andere Einheit" — und damit greift der Ausweg vom Server.
+    expect(query("[data-rolle='abgabe']").getAttribute("data-andere")).toBe("nein");
+    expect(query("[data-rolle='abgabe']").getAttribute("data-rueckweg")).not.toBe("/helfer");
+  });
+
+  it("ein voller Zugang bekommt weiterhin die Entnahme als Ausweg", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 5);
+
+    await mount(await BoxSeite(sp()));
+
+    expect(query("[data-rolle='abgabe']").getAttribute("data-rueckweg")).toBe("/helfer");
   });
 });

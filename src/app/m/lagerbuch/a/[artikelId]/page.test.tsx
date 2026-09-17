@@ -151,6 +151,23 @@ vi.mock("../../_ui/Entnahme", () => ({
     return <div data-rolle="entnahme" data-id={p.detail.id} data-name={p.detail.name} />;
   },
 }));
+/*
+ * DAS ZUGRIFFSPROTOKOLL — DRK-417, Codex-Befund P2 zu PR #205.
+ *
+ * ⚠️ `_lib/helferBereich.ts` ist hier ABSICHTLICH NICHT ersetzt: die
+ * Reichweitenpruefung soll ECHT laufen (ihr Kopf schreibt aus, warum eine
+ * Attrappe sie stumm abschalten wuerde). Was sie zieht, ist `auditDenied` —
+ * und DAS gehoert in eine Attrappe, weil es sonst einen Anfragekontext
+ * braeuchte, den es in Vitest nicht gibt.
+ */
+const auditDenied = vi.hoisted(() => vi.fn());
+vi.mock("@/core/audit/server", () => ({
+  auditDenied,
+  auditEvent: vi.fn(),
+  auditAccessActor: vi.fn(() => ({ kind: "access" })),
+  withAuditContext: async (_k: unknown, f: () => unknown) => f(),
+}));
+
 vi.mock("../../_ui/HelferRahmen", () => ({
   HelferRahmen: (p: {
     aktiv: string;
@@ -671,6 +688,29 @@ describe("a/[artikelId] — Ausgang 4: der Code darf nicht entnehmen", () => {
     vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_BOX);
     await mount(await ArtikelDeepLink(params("art-9")));
     expect(query("[data-rolle='rahmen']").getAttribute("data-reichweite")).toBe("box");
+  });
+
+  /**
+   * ⚠️ DIE ABLEHNUNG STEHT IM ZUGRIFFSPROTOKOLL — Codex-Befund P2 zu PR #205.
+   *
+   * Hier stand `darf(...)` direkt, und damit war dies die EINZIGE Ablehnung der
+   * Reichweite ohne Protokollzeile. Ausgerechnet hier wiegt sie am meisten: ein
+   * direkt aufgerufenes `/a/<id>` ist der Weg, den jemand mit einem FOTO der
+   * Regalkarte geht — und das Protokoll beantwortet sonst genau die Frage
+   * nicht, fuer die man es liest: welche Karte zurueckgesetzt gehoert.
+   */
+  it("schreibt die Ablehnung ins Zugriffsprotokoll", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_EINHEIT);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(auditDenied).toHaveBeenCalled();
+  });
+
+  /** Und die Gegenprobe: ein erlaubter Zugang erzeugt keine Zeile. */
+  it("schreibt fuer einen erlaubten Zugang KEINE Ablehnung", async () => {
+    vi.mocked(auditDenied).mockClear();
+    vi.mocked(helferZugangOderNull).mockResolvedValue({ ...ZUGANG, reichweite: ["entnahme"] });
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(auditDenied).not.toHaveBeenCalled();
   });
 
   /** Und der Weg heraus fuehrt dorthin, wo dieser Code etwas zu tun hat. */

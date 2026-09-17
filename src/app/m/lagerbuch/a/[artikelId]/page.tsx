@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "../../_lib/host";
-import { darf, startPfad } from "../../_lib/helferBereich";
+import { bereichsAbweisung, darf, startPfad } from "../../_lib/helferBereich";
 import { helferZugangOderNull, kontoZugangOderNull } from "../../_lib/helferZugang";
 import { sitzungsEtikett, zugangsKennung } from "../../_lib/zugangHerkunft";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
@@ -134,7 +134,25 @@ export default async function ArtikelDeepLink({
    * den Weg, der bleibt — und hier ist das ein Handgriff, wenn es dasteht, und
    * eine Viertelstunde Suchen, wenn nicht.
    */
-  if (!darf(zugang.reichweite, "entnahme")) {
+  /*
+   * ⚠️ UEBER `bereichsAbweisung` UND NICHT UEBER `darf` DIREKT — Codex-Befund
+   * P2 zu PR #205, und er hat recht: hier stand `darf`, und damit war dies die
+   * EINZIGE Ablehnung der Reichweite ohne Protokollzeile. `helferBereich.ts`
+   * schreibt in seinem eigenen Kopf aus, dass genau das der Grund fuer die
+   * Funktion ist — vier Aufrufer, die den Eintrag selbst setzen muessten, sind
+   * vier Gelegenheiten, ihn zu vergessen. Ich habe ihn vergessen.
+   *
+   * ⚠️ UND AUSGERECHNET HIER WIEGT ER AM MEISTESTEN: ein direkt aufgerufenes
+   * `/a/<id>` ist der Weg, den jemand mit einem Foto der Regalkarte geht. Ohne
+   * die Zeile beantwortet das Zugriffsprotokoll genau die Frage nicht, fuer die
+   * man es liest — welche Karte zurueckgesetzt gehoert.
+   *
+   * ⚠️ DER GESAGTE ZUSTAND BLEIBT. Die Funktion liefert einen fertigen
+   * Absagetext fuer die ACTIONS; diese Seite benutzt nur ihre ENTSCHEIDUNG und
+   * schreibt weiter ihren eigenen Satz — wer gescannt hat, braucht die Karte
+   * genannt, nicht den Bereich.
+   */
+  if (bereichsAbweisung(zugang, "entnahme")) {
     return (
       <HelferRahmen
         aktiv={darf(zugang.reichweite, "check") ? "check" : "box"}
