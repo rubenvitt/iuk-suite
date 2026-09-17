@@ -79,8 +79,18 @@ test.describe("Fahrzeug-Checklisten", () => {
     await page.goto(lagerbuchUrl("/verwaltung/checklisten?fz=gibtsnicht"));
     await expect(page.locator(".lb-cl-blatt")).toHaveCount(0);
     await expect(page.getByText(/gelöschte Einheit/)).toBeVisible();
-    // §11.7: `DruckRahmen` traegt konstruktionsbedingt keine Navigation.
-    await expect(page.locator("a[href='/verwaltung/fahrzeuge']")).toBeVisible();
+    /*
+     * §11.7 — der leere Zustand nennt den Weg zurueck SELBST.
+     *
+     * ⚠️ DER GREIFER IST SEIT DRK-406 EINGEGRENZT, und ohne die Eingrenzung
+     * faellt der Test an Playwrights strict mode: der Druckast traegt jetzt die
+     * Modulnavigation, und die fuehrt ebenfalls nach `/verwaltung/fahrzeuge`.
+     * Zwei Treffer sind kein Beweis fuer den einen, der hier zaehlt — der im
+     * leeren Zustand. `.lb-nichtDrucken` ist sein Kasten.
+     */
+    await expect(
+      page.locator(".lb-nichtDrucken a[href='/verwaltung/fahrzeuge']"),
+    ).toBeVisible();
   });
 
   test("traegt Kopf, Unterschriftszeile und die drei Abschnitte", async ({ page }) => {
@@ -105,23 +115,46 @@ test.describe("Fahrzeug-Checklisten", () => {
 
     await expect(leiste).toBeHidden();
     await expect(page.locator(".lb-cl-blatt").nth(0)).toBeVisible();
-    // Ohne Suite-Shell: sonst druckten Kopfzeile und App-Umschalter mit, und
-    // `minHeight: 100vh` erzeugte hinter jedem Blatt eine leere Folgeseite.
-    await expect(page.getByTestId("suite-header")).toHaveCount(0);
+    /*
+     * ⚠️ `toBeHidden`, NICHT `toHaveCount(0)` — seit DRK-406 ein Unterschied.
+     * Die Sorge der alten Zeile bleibt woertlich gueltig („sonst druckten
+     * Kopfzeile und App-Umschalter mit, und `minHeight` erzeugte hinter jedem
+     * Blatt eine leere Folgeseite"); nur wird sie jetzt von `display: none`
+     * ausgeraeumt statt davon, dass die Huelle gar nicht erst da ist. Am
+     * Bildschirm ist sie da — sonst waere der Druckast eine Sackgasse.
+     */
+    await expect(page.getByTestId("suite-header")).toHaveCount(1);
+    await expect(page.getByTestId("suite-header")).toBeHidden();
 
     await page.emulateMedia({ media: "screen" });
+    await expect(page.getByTestId("suite-header")).toBeVisible();
   });
 
   /**
-   * DIE KONTROLLE ZUR VORIGEN ZEILE, und ohne sie waere jene ein NO-OP:
-   * `toHaveCount(0)` geht auch dann durch, wenn es den Anker gar nicht gibt.
-   * Der Anker existiert — `core/shell/SuiteHeader.tsx` setzt ihn am `<Header>`.
+   * DIE KONTROLLE ZUR VORIGEN ZEILE, und ohne sie waere jene ein NO-OP.
+   *
+   * ⚠️ SEIT DRK-406 LAEUFT DIE TRENNLINIE ZWISCHEN DEN MEDIEN, nicht mehr
+   * zwischen den Seiten: die Kopfzeile steht auf BEIDEN am Bildschirm und
+   * faellt nur auf dem Druckast und nur im Druck weg. Ohne diesen Test liesse
+   * sich die Zusicherung oben durch eine Druckregel erfuellen, die die
+   * Kopfzeile ueberall abschaltet — auch dort, wo sie aufs Papier gehoert.
    */
-  test("dieselbe Kopfzeile ist auf einer Arbeitsseite sehr wohl da", async ({ page }) => {
+  test("dieselbe Kopfzeile faellt nur auf dem Druckast weg, und nur im Druck", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/fahrzeuge"));
-    await expect(page.getByTestId("suite-header")).toHaveCount(1);
+    await expect(page.getByTestId("suite-header")).toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByTestId("suite-header"), "Arbeitsseite: auch auf Papier")
+      .toBeVisible();
+
+    await page.emulateMedia({ media: "screen" });
     await page.goto(lagerbuchUrl("/verwaltung/checklisten"));
-    await expect(page.getByTestId("suite-header")).toHaveCount(0);
+    await expect(page.getByTestId("suite-header"), "Druckast: am Bildschirm da")
+      .toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByTestId("suite-header"), "Druckast: auf Papier weg")
+      .toBeHidden();
+
+    await page.emulateMedia({ media: "screen" });
   });
 
   /**

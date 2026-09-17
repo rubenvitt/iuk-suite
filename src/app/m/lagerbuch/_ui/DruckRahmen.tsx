@@ -1,10 +1,40 @@
 import type { ReactNode } from "react";
+import { SuiteRahmen } from "@/core/shell/SuiteRahmen";
+import { Arbeitsdichte } from "@/core/theme/Arbeitsdichte";
+import { LAGERBUCH_NAV } from "../_lib/nav";
 import s from "./verwaltung.module.css";
 
 /**
- * DER RAHMEN DES DRUCKASTS — ohne Shell, ohne Modulnavigation, ohne App-Switcher
- * (§2.9, §6.1.2). Er ist absichtlich fast leer: alles, was er zusaetzlich
- * renderte, landete auf dem Papier.
+ * DER RAHMEN DES DRUCKASTS — seit DRK-406 MIT Kopfzeile und Modulnavigation am
+ * Bildschirm, und ohne beides auf dem Papier.
+ *
+ * ⚠️ BIS DRK-406 WAR ER FAST LEER, und die Begründung dafür war richtig: alles,
+ * was er zusätzlich renderte, landete auf dem Papier. Was sich geändert hat,
+ * ist nicht diese Einsicht, sondern dass die Shell ihre eigenen Teile jetzt
+ * ausblenden kann (`SuiteRahmen`, Prop `druck`) — `display: none` im
+ * Druckkontext, und was so wegfällt, zählt für Chromiums
+ * Seitengrößen-Entscheidung nicht mit (CLAUDE.md, Falle 18).
+ *
+ * ⚠️ WAS DAS BEHEBT: der Druckast war am BILDSCHIRM eine Sackgasse. Wer die
+ * Ortskarten öffnete, hatte keine Navigation mehr — der einzige Weg zurück war
+ * ein Textlink, den jede der drei Druckflächen selbst mitbringen musste (§11.7,
+ * ausgeschrieben im Kopf jeder dieser Seiten). Auf einer Fläche, die man beim
+ * Einrichten mehrfach hintereinander aufruft, ist das jedes Mal ein
+ * Dokumentwechsel zu viel.
+ *
+ * ⚠️ ER BENUTZT `SuiteRahmen` DIREKT UND NICHT `Shell`/`FullShell`, und das ist
+ * die tragende Zeile dieser Datei. `FullShell` hängt die UMFRAGEN ein
+ * (`core/umfragen`), und deren Kopf schreibt ausdrücklich aus, warum sie nicht
+ * über allem liegen dürfen: „ein Umfragekärtchen im gedruckten Aushang ist ein
+ * Fehldruck". Über `Shell` zu gehen wäre der bequeme Weg gewesen und hätte
+ * genau diese Entscheidung im Vorbeigehen umgestoßen — ein Formbricks-Widget
+ * auf einem Etikettenbogen.
+ *
+ * ⚠️ `Arbeitsdichte` KOMMT MIT, denn sie ist eine Eigenschaft des INHALTS, nicht
+ * des Rahmens (`FullShell` schreibt das so aus). Ohne sie stünden die
+ * Bedienelemente des Druck-Chromes auf 56/72 statt auf den 44px, die überall
+ * sonst in der Verwaltung gelten — sichtbar größer als dieselben Knöpfe eine
+ * Seite weiter.
  *
  * DIE EINE ZEILE, OHNE DIE DIE HALBE FARBENTSCHEIDUNG STILL INS LEERE LAEUFT:
  * `className={s.modul}`. Auf `.modul` liegen ALLE `--lb-*`- und
@@ -15,20 +45,19 @@ import s from "./verwaltung.module.css";
  * Scan aus §6.6.2a Punkt 4 bliebe gruen, weil er die Deklaration prueft und
  * nicht ihren Traeger.
  *
- * WARUM AUCH DER DRUCKAST IHN BRAUCHT, obwohl er keinen Chip rendert: die
- * Fokusregel und der Rueckweg aus §6.8.4 gelten unter BEIDEN Group-Layouts.
- * Die einzige Aussage, die das haelt, ist ein echter Abruf je Modus (§6.6.7).
+ * ⚠️ DER TRAEGER LIEGT AUSSEN, UM DIE SHELL HERUM. Innen — also nur um den
+ * Inhalt — trügen Kopfzeile und Seitenleiste die Variablen nicht, und das
+ * fiele erst im Dunkelmodus auf.
  *
- * §6.8.4 nannte den Rueckweg „Brotkrume"; die Komponente dieses Namens ist am
- * 13.08.2026 geloescht worden. HIER FEHLT DESHALB NICHTS: dieser Rahmen traegt
- * konstruktionsbedingt keine Navigation, und die Seiten darin bringen ihren
- * Weg zurueck selbst mit — `EtikettenChrome.tsx:50` im Normalfall,
- * `etiketten/page.tsx:59` und `:88` in den beiden leeren Zustaenden.
- *
- * KEIN "use client": der Rahmen ist eine Server Component und darf deshalb
- * keinen Compound-Zugriff auf antd und keinen Icon-Import tragen. Er traegt
- * ueberhaupt kein antd.
+ * KEIN "use client": der Rahmen ist eine Server Component und traegt deshalb
+ * keinen Compound-Zugriff auf antd (Falle 1) und keinen Icon-Import (Falle 7).
  */
 export function DruckRahmen({ children }: { children: ReactNode }) {
-  return <div className={s.modul}>{children}</div>;
+  return (
+    <div className={s.modul}>
+      <SuiteRahmen moduleKey="lagerbuch" nav={LAGERBUCH_NAV} druck>
+        <Arbeitsdichte>{children}</Arbeitsdichte>
+      </SuiteRahmen>
+    </div>
+  );
 }

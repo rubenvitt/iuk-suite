@@ -4,11 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, lagerorte, tokens } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
-import {
-  TOKEN_ALPHABET,
-  TOKEN_ZIEHUNGEN,
-  TOKEN_ZIFFERN,
-} from "../_lib/tokenForm";
 
 const {
   adminRiegel,
@@ -48,8 +43,8 @@ vi.mock("nanoid", async () => {
 import * as tokenActions from "./tokens";
 import * as tokenLesepfade from "../_lib/lesepfade/tokens";
 
-const { createToken, setTokenAktiv } = tokenActions;
-const { tokenListe, tokenZiele } = tokenLesepfade;
+const { setTokenAktiv } = tokenActions;
+const { tokenListe } = tokenLesepfade;
 
 const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
 const QUELLE = "src/app/m/lagerbuch/_actions/tokens.ts";
@@ -155,197 +150,41 @@ function artikelAnlegen(args: {
 }
 
 describe("Bauform und Riegel", () => {
-  it("exportiert genau zwei Runtime-Actions und zwei Runtime-Lesepfade", () => {
-    expect(Object.keys(tokenActions).sort()).toEqual([
-      "createToken",
-      "setTokenAktiv",
-    ]);
-    expect(Object.keys(tokenLesepfade).sort()).toEqual([
-      "tokenListe",
-      "tokenZiele",
-    ]);
+  /**
+   * ⚠️ EINE ACTION, EIN LESEPFAD — DRK-406, und diese Zusicherung ist der
+   * Riegel gegen das naheliegende Versehen. `createToken` und `tokenZiele`
+   * sind mit dem Anlegen von Hand entfallen; eine `"use server"`-Datei macht
+   * aus jedem Export einen global aufrufbaren Endpunkt, ein „nur den Knopf
+   * wegnehmen" hätte die Fähigkeit stehen lassen. Wer sie zurückholt, holt
+   * nicht einen Dialog zurück, sondern einen Weg, Codes ohne Karte anzulegen.
+   */
+  it("exportiert genau eine Runtime-Action und einen Runtime-Lesepfad", () => {
+    expect(Object.keys(tokenActions).sort()).toEqual(["setTokenAktiv"]);
+    expect(Object.keys(tokenLesepfade).sort()).toEqual(["tokenListe"]);
   });
 
-  it("konfiguriert den internen Generator fuer sechs Dezimalziffern", () => {
-    expect(generatorKonfiguration).toContainEqual({
-      alphabet: "0123456789",
-      laenge: 6,
-    });
+  /**
+   * ⚠️ UND DIE ZIEHUNG IST MIT UMGEZOGEN. Diese Datei zieht keine Codes mehr;
+   * sie steht in `_lib/schreibpfade/ortCodes.ts` und nirgends sonst. Ein
+   * zweiter `customAlphabet`-Aufruf hier wären zwei Zufälle für denselben
+   * Namensraum — und das fiele erst auf, wenn zwei Karten denselben Code
+   * trügen. Geprüft wird die ABWESENHEIT am Quelltext, weil ein Laufzeittest
+   * für etwas, das nicht passiert, nichts zu beobachten hat.
+   */
+  it("zieht selbst keine Codes mehr", () => {
+    const quelle = readFileSync(QUELLE, "utf8");
+    expect(quelle).not.toContain("customAlphabet");
+    expect(quelle).not.toContain("tokenForm");
+    expect(generatorKonfiguration).toEqual([]);
   });
 
   it.each([
-    ["createToken", () => createToken({ label: "" }, t.db)],
     ["setTokenAktiv", () => setTokenAktiv({ id: "", aktiv: "nein" }, t.db)],
   ])("%s ruft den Admin-Riegel vor Validierung oder Datenzugriff auf", async (_name, aufruf) => {
     const riegelFehler = new Error("Riegel vor Eingabe und DB");
     adminRiegel.mockRejectedValueOnce(riegelFehler);
 
     await expect(aufruf()).rejects.toBe(riegelFehler);
-    expect(tokenZeilen()).toEqual([]);
-    expect(revalidiert).toEqual([]);
-  });
-});
-
-describe("createToken", () => {
-  it("speichert sechs Ziffern mit Bindestrich im Wert und ein allgemeines Ziel", async () => {
-    ziffernGenerator.mockReturnValueOnce("123456");
-
-    const ergebnis = await createToken({ label: "  Bereitschaft  " }, t.db);
-    const { id, code } = wertVon<{ id: string; code: string }>(ergebnis);
-
-    expect(code).toBe("123-456");
-    expect(code).toMatch(/^\d{3}-\d{3}$/);
-    expect(t.db.select().from(tokens).where(eq(tokens.id, id)).get()).toMatchObject({
-      id,
-      code: "123-456",
-      label: "Bereitschaft",
-      scopeLagerortId: null,
-      zielTyp: null,
-      zielId: null,
-      aktiv: true,
-      createdBy: "u-admin",
-      lastUsedAt: null,
-    });
-    expect(revalidiert).toEqual([LISTENPFAD]);
-  });
-
-  it("akzeptiert nur vollstaendige Zielpaare", async () => {
-    for (const eingabe of [
-      { label: "X", zielTyp: "artikel" },
-      { label: "X", zielId: "art-1" },
-      { label: "X", zielTyp: "ungueltig", zielId: "art-1" },
-    ]) {
-      const ergebnis = await createToken(eingabe, t.db);
-      expect(ergebnis.ok).toBe(false);
-      expect(fehlerVon(ergebnis).fehler).toBe("Bitte die markierten Felder prüfen.");
-    }
-
-    expect(tokenZeilen()).toEqual([]);
-    expect(revalidiert).toEqual([]);
-  });
-
-  it("speichert aktive Fahrzeug- und Artikelziele mit ihrer echten Art", async () => {
-    fahrzeugAnlegen({ id: "fz-aktiv", name: "RTW 1" });
-    artikelAnlegen({ id: "art-aktiv", name: "Mullbinde", fach: "A1" });
-
-    const fahrzeugToken = wertVon<{ id: string }>(await createToken({
-      label: "Fahrzeug",
-      zielTyp: "fahrzeug",
-      zielId: "fz-aktiv",
-    }, t.db));
-    const artikelToken = wertVon<{ id: string }>(await createToken({
-      label: "Artikel",
-      zielTyp: "artikel",
-      zielId: "art-aktiv",
-    }, t.db));
-
-    expect(t.db.select().from(tokens).where(eq(tokens.id, fahrzeugToken.id)).get())
-      .toMatchObject({ zielTyp: "fahrzeug", zielId: "fz-aktiv" });
-    expect(t.db.select().from(tokens).where(eq(tokens.id, artikelToken.id)).get())
-      .toMatchObject({ zielTyp: "artikel", zielId: "art-aktiv" });
-    expect(revalidiert).toEqual([LISTENPFAD, LISTENPFAD]);
-  });
-
-  it("lehnt fehlende, inaktive und artfremde Fahrzeugziele ab", async () => {
-    fahrzeugAnlegen({ id: "fz-inaktiv", name: "RTW alt", aktiv: false });
-
-    for (const zielId of ["fz-fehlt", "fz-inaktiv", HANDLAGER_ID]) {
-      const ergebnis = await createToken({
-        label: "Fahrzeug",
-        zielTyp: "fahrzeug",
-        zielId,
-      }, t.db);
-      expect(ergebnis).toEqual({
-        ok: false,
-        fehler: "Einheit nicht gefunden oder inaktiv.",
-        feldFehler: { zielId: "Einheit nicht gefunden oder inaktiv." },
-      });
-    }
-
-    expect(tokenZeilen()).toEqual([]);
-    expect(revalidiert).toEqual([]);
-  });
-
-  it("lehnt fehlende und inaktive Artikelziele ab", async () => {
-    artikelAnlegen({
-      id: "art-inaktiv",
-      name: "Altbestand",
-      fach: "Z9",
-      aktiv: false,
-    });
-
-    for (const zielId of ["art-fehlt", "art-inaktiv"]) {
-      const ergebnis = await createToken({
-        label: "Artikel",
-        zielTyp: "artikel",
-        zielId,
-      }, t.db);
-      expect(ergebnis).toEqual({
-        ok: false,
-        fehler: "Artikel nicht gefunden oder inaktiv.",
-        feldFehler: { zielId: "Artikel nicht gefunden oder inaktiv." },
-      });
-    }
-
-    expect(tokenZeilen()).toEqual([]);
-    expect(revalidiert).toEqual([]);
-  });
-
-  it("wiederholt eine Kollision auch gegen einen inaktiven Token", async () => {
-    tokenDirekt({
-      id: "belegt",
-      code: "111-111",
-      aktiv: false,
-    });
-    ziffernGenerator
-      .mockReturnValueOnce("111111")
-      .mockReturnValueOnce("222222");
-
-    const ergebnis = await createToken({ label: "Neu" }, t.db);
-
-    expect(wertVon<{ code: string }>(ergebnis).code).toBe("222-222");
-    expect(ziffernGenerator).toHaveBeenCalledTimes(2);
-    expect(tokenZeilen().map((zeile) => zeile.code).sort())
-      .toEqual(["111-111", "222-222"]);
-    expect(revalidiert).toEqual([LISTENPFAD]);
-  });
-
-  it("bricht nach genau zwanzig belegten Ziehungen mit festem Fehler ab", async () => {
-    tokenDirekt({
-      id: "belegt",
-      code: "111-111",
-      aktiv: false,
-    });
-    ziffernGenerator.mockReturnValue("111111");
-
-    const ergebnis = await createToken({ label: "Ohne freien Code" }, t.db);
-
-    expect(ergebnis).toEqual({
-      ok: false,
-      fehler: "Es konnte kein freier Code erzeugt werden — bitte erneut versuchen.",
-    });
-    expect(ziffernGenerator).toHaveBeenCalledTimes(20);
-    expect(tokenZeilen()).toHaveLength(1);
-    expect(revalidiert).toEqual([]);
-  });
-
-  it("gibt bei einem Insertfehler nur einen festen deutschen Fehler zurueck", async () => {
-    ziffernGenerator.mockReturnValueOnce("333333");
-    t.sqlite.exec(`
-      CREATE TRIGGER tokens_insert_defekt
-      BEFORE INSERT ON tokens
-      BEGIN
-        SELECT RAISE(ABORT, 'TOKEN_SQL_GEHEIMNIS');
-      END;
-    `);
-
-    const ergebnis = await createToken({ label: "Fehler" }, t.db);
-
-    expect(ergebnis).toEqual({
-      ok: false,
-      fehler: "Zugangs-Code konnte nicht angelegt werden.",
-    });
-    expect(fehlerVon(ergebnis).fehler).not.toContain("TOKEN_SQL_GEHEIMNIS");
     expect(tokenZeilen()).toEqual([]);
     expect(revalidiert).toEqual([]);
   });
@@ -457,6 +296,12 @@ describe("tokenListe", () => {
         // heisst „gegenstandslos", nicht „noch nicht zugeordnet".
         zielKennung: null,
         zielEinheitenart: null,
+        ortId: null,
+        ortName: null,
+        ortTyp: null,
+        ortKennung: null,
+        ortEinheitenart: null,
+        ersetztAm: null,
       },
       {
         id: "token-y",
@@ -472,6 +317,12 @@ describe("tokenListe", () => {
         // Code sperrt, muss sehen, woran er klebte.
         zielKennung: "MS-ALT",
         zielEinheitenart: "fahrzeug",
+        ortId: null,
+        ortName: null,
+        ortTyp: null,
+        ortKennung: null,
+        ortEinheitenart: null,
+        ersetztAm: null,
       },
       {
         id: "token-a",
@@ -485,6 +336,12 @@ describe("tokenListe", () => {
         zielName: null,
         zielKennung: null,
         zielEinheitenart: null,
+        ortId: null,
+        ortName: null,
+        ortTyp: null,
+        ortKennung: null,
+        ortEinheitenart: null,
+        ersetztAm: null,
       },
     ]);
     expect(revalidiert).toEqual([]);
@@ -492,141 +349,182 @@ describe("tokenListe", () => {
 });
 
 /**
- * §8.3 — DER TOKEN-VERTRAG, 1:1-Pflicht (T160).
+ * DRK-406 — EIN CODE, DER ZU EINER ORTSKARTE GEHOERT ODER GEHOERT HAT, KOMMT
+ * NIE ZURUECK.
  *
- * Die drei Zahlen selbst stehen in `_lib/tokenForm.ts` und werden dort geprueft
- * (A1: eine `"use server"`-Datei exportiert ausschliesslich Actions). Hier steht
- * die andere Haelfte: dass DIESE Datei sie auch BENUTZT statt sie ein zweites
- * Mal abzuschreiben. Ein Test gegen ein Literal im Funktionsrumpf koennte nur
- * pruefen, dass das Literal dasteht — nicht, dass es wirkt.
+ * ⚠️ HIER STAND EINE SCHWAECHERE ZUSAGE, UND SIE WAR DER FEHLER SELBST: die
+ * erste Fassung fragte „hat dieser Ort schon einen aktiven Code?" und liess
+ * durch, wenn nicht — mit einer ausgeschriebenen Gegenprobe, die genau das als
+ * richtig festhielt. Der Weg zurueck geht aber ueber zwei ERLAUBTE Handgriffe:
+ * erst den NACHFOLGER sperren, dann am Vorgaenger reaktivieren. Danach gilt das
+ * weggeworfene Kaertchen wieder, von dem jemand ein Foto hat — und die
+ * Anwender-Notiz hat „dauerhaft gesperrt" versprochen.
+ *
+ * ⚠️ DER TEILINDEX KANN DAS NICHT FANGEN und ist deshalb keine Antwort darauf:
+ * es ist zu jedem Zeitpunkt genau ein aktiver Code je Ort, nur eben der
+ * verbrannte. Die Herkunft entscheidet, nicht der Zustand des Ortes.
+ *
+ * ⚠️ DER WEG, DER BLEIBT, IST NICHT DIESER KNOPF: ein Ort ohne aktiven Code
+ * bekommt beim naechsten Oeffnen der Ortsetiketten einen neuen
+ * (`stelleOrtCodesSicher`). Eine Sperre hier nimmt also niemandem etwas.
  */
-describe("Token-Codeform (§8.3)", () => {
-  it("konfiguriert den Generator aus den Konstanten, nicht aus Literalen", () => {
-    const quelle = readFileSync(QUELLE, "utf8");
+describe("setTokenAktiv — ein Ortscode wird nie reaktiviert", () => {
+  function ortscode(args: {
+    id: string; code: string; aktiv: boolean; ersetzt?: boolean; ortId?: string | null;
+  }): void {
+    t.db.insert(tokens).values({
+      id: args.id, code: args.code, label: "Ortskarte",
+      ortId: args.ortId === undefined ? HANDLAGER_ID : args.ortId,
+      zielTyp: null, zielId: null,
+      ersetztAm: args.ersetzt ? JETZT : null,
+      aktiv: args.aktiv, createdAt: JETZT, createdBy: "u-admin",
+    }).run();
+  }
 
-    expect(quelle).toContain('from "../_lib/tokenForm"');
-    expect(quelle).toMatch(/customAlphabet\(\s*TOKEN_ALPHABET\s*,\s*TOKEN_ZIFFERN\s*\)/);
-    expect(quelle, "das Alphabet steht nur noch in _lib/tokenForm.ts")
-      .not.toMatch(/customAlphabet\(\s*["']/);
-    // Der Laufzeitwert kommt beim selben Aufruf an — siehe
-    // „konfiguriert den internen Generator fuer sechs Dezimalziffern" oben.
-    expect(generatorKonfiguration).toContainEqual({
-      alphabet: TOKEN_ALPHABET,
-      laenge: TOKEN_ZIFFERN,
-    });
-  });
+  function fehlerVon(r: Awaited<ReturnType<typeof setTokenAktiv>>): string {
+    expect(r.ok).toBe(false);
+    return (r as { fehler: string }).fehler;
+  }
 
-  it("zieht hoechstens TOKEN_ZIEHUNGEN mal", async () => {
-    tokenDirekt({ id: "belegt", code: "111-111" });
-    ziffernGenerator.mockReturnValue("111111");
+  it("weist den zurueckgesetzten Code ab, waehrend sein Nachfolger gilt", async () => {
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: false, ersetzt: true });
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
 
-    expect((await createToken({ label: "Ohne freien Code" }, t.db)).ok).toBe(false);
-    expect(ziffernGenerator).toHaveBeenCalledTimes(TOKEN_ZIEHUNGEN);
-    expect(readFileSync(QUELLE, "utf8"))
-      .toMatch(/versuch\s*<\s*TOKEN_ZIEHUNGEN/);
-  });
+    const text = fehlerVon(await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db));
 
-  /**
-   * DER BINDESTRICH IST TEIL DES GESPEICHERTEN WERTES (Spalte `tokens.code`,
-   * UNIQUE). Er steht zwischen Position 3 und 4. Die Normalisierung der EINGABE
-   * (`_lib/code.ts`, Teil 2) bringt `123456` auf diese Form — sie kann damit nur
-   * Treffer HINZUFUEGEN, nie einen bestehenden verlieren (8-E).
-   */
-  it("speichert den Code in der Form NNN-NNN", async () => {
-    const { code } = wertVon<{ id: string; code: string }>(
-      await createToken({ label: "RTW 1" }, t.db),
-    );
+    expect(text).toContain("dauerhaft gesperrt");
+    // §11.7 — der abgelehnte Weg nennt den Weg, der bleibt.
+    expect(text).toContain("Ortsetiketten");
+    // ⚠️ UND KEINE DATENBANKSPRACHE: „UNIQUE constraint failed" hilft niemandem.
+    expect(text).not.toContain("UNIQUE");
+    expect(text).not.toContain("tokens");
 
-    expect(code).toMatch(/^\d{3}-\d{3}$/);
-    expect(
-      t.db.select().from(tokens).where(eq(tokens.code, code)).get(),
-      "der Bindestrich muss in der Spalte stehen",
-    ).toBeDefined();
-  });
-
-  /**
-   * ES GIBT KEINEN ABLAUF — kein `expiresAt`, kein `validUntil`
-   * (`_db/schema.ts:376-410`). Widerruf laeuft ausschliesslich ueber `aktiv`.
-   * Mehrfachgebrauch ist ausdruecklich beabsichtigt: die Codes sind physisch
-   * laminiert.
-   */
-  it("legt kein Ablaufdatum an", async () => {
-    const { id } = wertVon<{ id: string; code: string }>(
-      await createToken({ label: "RTW 1" }, t.db),
-    );
-    const zeile = t.db.select().from(tokens).where(eq(tokens.id, id)).get()!;
-
-    expect(Object.keys(zeile)).not.toContain("expiresAt");
-    expect(Object.keys(zeile)).not.toContain("validUntil");
-    expect(zeile.lastUsedAt).toBeNull();
-  });
-
-  /**
-   * ENTSCHEIDUNG 8-F: Die Kollisionspruefung laeuft gegen ALLE vorhandenen
-   * Zeilen — nicht nur gegen die aktiven. Ein gesperrter Code bleibt belegt.
-   *
-   * 999.999 von 1.000.000 Codes zu belegen waere unpraktikabel; stattdessen
-   * wird die Aussage direkt geprueft: der gesperrte Code steht in der Tabelle,
-   * und die Abfrage im Generator fragt die Tabelle OHNE aktiv-Bedingung.
-   * `erzeugeFreienCode` selbst bleibt dabei unveraendert — der Namensraum wird
-   * nicht hier dichtgemacht, sondern in `_actions/loeschen.ts`, indem die Zeile
-   * nicht mehr verschwinden kann.
-   */
-  it("vergibt einen gesperrten Code nicht neu", async () => {
-    const { id, code } = wertVon<{ id: string; code: string }>(
-      await createToken({ label: "wird gesperrt" }, t.db),
-    );
-    expect(await setTokenAktiv({ id, aktiv: false }, t.db)).toEqual({ ok: true });
-    expect(t.db.select().from(tokens).where(eq(tokens.code, code)).get()?.aktiv)
-      .toBe(false);
-
-    const block = /function erzeugeFreienCode[\s\S]*?\n}/
-      .exec(readFileSync(QUELLE, "utf8"))![0];
-    expect(block).toContain("tokens.code");
-    expect(block, "Kollisionspruefung darf nicht auf aktiv filtern")
-      .not.toContain("tokens.aktiv");
-  });
-});
-
-describe("tokenZiele", () => {
-  it("liefert nur aktive Fahrzeuge und Artikel, mit Suchfeldern und Namenssortierung", () => {
-    fahrzeugAnlegen({
-      id: "fz-zulu",
-      name: "Zulu",
-      kennung: "UE-RK 2",
-    });
-    fahrzeugAnlegen({
-      id: "fz-alpha",
-      name: "Alpha",
-      kennung: "UE-RK 1",
-    });
-    fahrzeugAnlegen({
-      id: "fz-inaktiv",
-      name: "Alt",
-      aktiv: false,
-    });
-    artikelAnlegen({ id: "art-zulu", name: "Zubehör", fach: "Z9" });
-    artikelAnlegen({ id: "art-alpha", name: "Absaugkatheter", fach: "A1" });
-    artikelAnlegen({
-      id: "art-inaktiv",
-      name: "Altbestand",
-      fach: "X1",
-      aktiv: false,
-    });
-
-    expect(tokenZiele(t.db)).toEqual({
-      fahrzeuge: [
-        // DRK-309: `einheitenart` reist als Suchfeld mit — „tasche" findet
-        // sonst keine Tasche, die das Wort nicht im Namen traegt. `null` ist
-        // hier der Zwischenstand aus Migration 0010, den die Fixture nicht setzt.
-        { id: "fz-alpha", name: "Alpha", kennung: "UE-RK 1", einheitenart: null },
-        { id: "fz-zulu", name: "Zulu", kennung: "UE-RK 2", einheitenart: null },
-      ],
-      artikel: [
-        { id: "art-alpha", name: "Absaugkatheter", fach: "A1" },
-        { id: "art-zulu", name: "Zubehör", fach: "Z9" },
-      ],
-    });
+    expect(aktivVon("ort-alt")).toBe(false);
     expect(revalidiert).toEqual([]);
   });
+
+  /**
+   * ⚠️ DER FUND AUS DER DURCHSICHT, IN EINEM TEST. Zwei Klicks, beide erlaubt:
+   * der Nachfolger wird gesperrt, danach steht der Ort ohne aktiven Code da.
+   * Die alte Pruefung liess hier durch und machte den verbrannten Code wieder
+   * gueltig.
+   */
+  it("weist ihn auch ab, wenn der Ort GERADE KEINEN aktiven Code hat", async () => {
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: false, ersetzt: true });
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: false });
+
+    expect(fehlerVon(await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db)))
+      .toContain("dauerhaft gesperrt");
+    expect(aktivVon("ort-alt")).toBe(false);
+  });
+
+  /**
+   * ⚠️ AUCH DER NACHFOLGER SELBST BLEIBT UNTEN. Er ist nicht „ersetzt", er
+   * gehoert aber weiterhin einer Karte — und deren Nachschub sind die
+   * Ortsetiketten. Ohne diese Zeile waere der zweite Klick von oben rueckgaengig
+   * zu machen und der erste damit auch.
+   */
+  it("weist den heutigen Ortscode ab, nachdem jemand ihn gesperrt hat", async () => {
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: false });
+
+    expect(fehlerVon(await setTokenAktiv({ id: "ort-neu", aktiv: true }, t.db)))
+      .toContain("nicht wieder aktiviert");
+    expect(aktivVon("ort-neu")).toBe(false);
+  });
+
+  /**
+   * ⚠️ DER ZWEITE WEG, UND ER BRAUCHT NICHT EINMAL DEN ERSTEN KLICK. Beim
+   * Loeschen einer Einheit MUSS `ort_id` geleert werden (Fremdschluessel,
+   * `_actions/loeschen.ts`) — danach saehe die gesperrte Zeile aus wie
+   * Altbestand. `ersetztAm` ueberlebt das und ist hier der einzige Unterschied.
+   */
+  it("weist den Code einer geloeschten Einheit ab, obwohl er keinen Ort mehr hat", async () => {
+    ortscode({ id: "verwaist", code: "777-888", aktiv: false, ersetzt: true, ortId: null });
+
+    const text = fehlerVon(await setTokenAktiv({ id: "verwaist", aktiv: true }, t.db));
+
+    expect(text).toContain("nicht mehr gibt");
+    expect(text).toContain("dauerhaft gesperrt");
+    expect(aktivVon("verwaist")).toBe(false);
+  });
+
+  /** Der Altbestand hat keinen Ort — er bleibt uneingeschraenkt reaktivierbar. */
+  it("laesst den Altbestand unberuehrt", async () => {
+    tokenDirekt({ id: "alt", code: "555-666", aktiv: false });
+
+    expect(await setTokenAktiv({ id: "alt", aktiv: true }, t.db)).toEqual({ ok: true });
+    expect(aktivVon("alt")).toBe(true);
+  });
+
+  /**
+   * ⚠️ SPERREN BLEIBT FUER JEDEN CODE OFFEN. Der Riegel gilt nur der Richtung
+   * nach oben; eine Sperre, die auch das Sperren verboete, naehme der
+   * Betreiberin genau den Griff, den sie braucht, wenn eine Karte verschwindet.
+   */
+  it("sperrt einen aktiven Ortscode weiterhin", async () => {
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
+
+    expect(await setTokenAktiv({ id: "ort-neu", aktiv: false }, t.db)).toEqual({ ok: true });
+    expect(aktivVon("ort-neu")).toBe(false);
+  });
+
+  /**
+   * ⚠️ UND SPERREN SETZT DABEI DEN TAG — gefunden in der Durchsicht, und ohne
+   * ihn widerspraeche sich die Datei selbst: wer einen Ortscode sperrt, sperrt
+   * ihn DAUERHAFT (die Zeilen darueber lassen ihn nie wieder hoch). Er ist also
+   * verbrannt, und ein verbrannter Code ohne Datum ist genau das, was
+   * `ersetzt_am` verhindern soll.
+   *
+   * ⚠️ ES IST NICHT NUR EINE LEERE ZELLE: wird der Ort spaeter geloescht,
+   * stempelt `loescheElement` den Tag dort nach, wo noch keiner steht — die
+   * Zeile truege dann den LOESCHTAG statt des Tages, an dem der Code wirklich
+   * aufhoerte zu wirken.
+   */
+  it("haelt beim Sperren eines Ortscodes fest, seit wann er verbrannt ist", async () => {
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
+
+    await setTokenAktiv({ id: "ort-neu", aktiv: false }, t.db);
+
+    expect(zeileVon("ort-neu")?.ersetztAm).toBeInstanceOf(Date);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL TAETE: am Altbestand
+   * ist Sperren RUECKNEHMBAR (Betreiberentscheidung 17.09.2026). Ein Datum
+   * naehme ihm genau diese Ruecknahme — `ERSETZT_FEHLER` liesse ihn danach nie
+   * wieder hoch, und zwar wegen eines Handgriffs, der das gar nicht sagen
+   * wollte.
+   */
+  it("setzt am Altbestand KEIN Datum und laesst ihn danach wieder hoch", async () => {
+    tokenDirekt({ id: "alt", code: "555-666", aktiv: true });
+
+    await setTokenAktiv({ id: "alt", aktiv: false }, t.db);
+    expect(zeileVon("alt")?.ersetztAm).toBeNull();
+
+    expect(await setTokenAktiv({ id: "alt", aktiv: true }, t.db)).toEqual({ ok: true });
+    expect(aktivVon("alt")).toBe(true);
+  });
+
+  /**
+   * ⚠️ EIN SCHON GESETZTER TAG BLEIBT STEHEN. Ein zweites Sperren derselben
+   * Zeile darf ihn nicht nach vorn schieben — dasselbe Anliegen wie beim
+   * Loeschen, wo `isNull` die Vorgaenger schuetzt.
+   */
+  it("schiebt einen schon gesetzten Tag beim zweiten Sperren nicht nach vorn", async () => {
+    const frueher = new Date("2026-01-02T03:04:05.000Z");
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: true });
+    t.db.update(tokens).set({ ersetztAm: frueher }).where(eq(tokens.id, "ort-alt")).run();
+
+    await setTokenAktiv({ id: "ort-alt", aktiv: false }, t.db);
+
+    expect(zeileVon("ort-alt")?.ersetztAm).toEqual(frueher);
+  });
 });
+
+function zeileVon(id: string) {
+  return t.db.select().from(tokens).where(eq(tokens.id, id)).get();
+}
+
+function aktivVon(id: string): boolean | undefined {
+  return t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.aktiv;
+}

@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { nurEntnahmeAbweisung } from "../../_lib/helferBereich";
 import { requireHelferSitzung } from "../../_lib/helferZugang";
 import { sitzungsEtikett } from "../../_lib/zugangHerkunft";
 import { fahrzeugListe } from "../../_lib/lesepfade/fahrzeuge";
@@ -46,6 +48,31 @@ export default async function BoxSeite({
   const { fz } = await searchParams;
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
+
+  /*
+   * DER REGAL-CODE KOMMT HIER NICHT HEREIN — DRK-406.
+   *
+   * ⚠️ `redirect` UND NICHT `notFound`: die Seite EXISTIERT, sie ist fuer
+   * diesen Zugang nur nicht gedacht. Eine 404 behauptete, es gebe sie nicht,
+   * und schickte jemanden am Regal auf die Suche nach einem Tippfehler.
+   *
+   * ⚠️ ER STEHT DIREKT HINTER DEM SITZUNGSRIEGEL, vor jedem Lesepfad. Weiter
+   * unten haette die Seite den Bestand einer Einheit bereits geladen und in den
+   * RSC-Payload gelegt — auf ein privates Telefon, fuer einen Zugang, der ihn
+   * nicht bekommen soll (§3.4.5).
+   *
+   * ⚠️ UND DAS IST ANZEIGE, KEIN RIEGEL. Die Durchsetzung steht in der Action,
+   * die DIESELBE Funktion ruft; ohne sie waere dieser Redirect mit einem
+   * selbstgebauten POST zu umgehen.
+   *
+   * ⚠️ DIE BEDINGUNG GEHT UEBER `nurEntnahmeAbweisung` UND NICHT UEBER
+   * `zugang.nurEntnahme` DIREKT, obwohl das hier kuerzer waere. Der Grund ist
+   * der Protokolleintrag: die Funktion schreibt das `access_denied` mit dem
+   * Akteur des Zugangs. Ein direkter Feldzugriff liesse die Umleitung STILL —
+   * und still ist sie genau in dem Fall falsch, fuer den es sie gibt: jemand
+   * tippt die Adresse, weil die Reiterleiste sie nicht anbietet.
+   */
+  if (nurEntnahmeAbweisung(zugang)) redirect("/helfer");
   const etikett = sitzungsEtikett(zugang);
 
   /*
@@ -58,7 +85,7 @@ export default async function BoxSeite({
   const box = boxOrt(db);
   if (box === null || !box.aktiv) {
     return (
-      <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           titel={box === null ? `Keine ${ENTNAHMEBOX_NAME}` : `${box.name} ist stillgelegt`}
           text={"Die Verwaltung muss die Entnahmebox einrichten, bevor hier etwas "
@@ -90,7 +117,7 @@ export default async function BoxSeite({
 
   if (fahrzeuge.length === 0) {
     return (
-      <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           // NEUTRAL, weil hier ueber ALLE Einheiten gesprochen wird und es keine
           // gibt — es gibt also auch keine Art zu nennen (DRK-309).
@@ -105,7 +132,7 @@ export default async function BoxSeite({
 
   if (!gewaehlt) {
     return (
-      <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <FahrzeugWahl
           pfad="/helfer/box"
           fahrzeuge={fahrzeuge.map((f) => ({
@@ -155,7 +182,7 @@ export default async function BoxSeite({
 
   if (posten.length === 0) {
     return (
-      <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           titel={`Nichts ${inDerEinheit(gewaehlt.einheitenart)} gebucht`}
           text={"Hier steht, was das Lagerbuch dieser Einheit zuschreibt. Steht nichts "
@@ -169,7 +196,7 @@ export default async function BoxSeite({
   }
 
   return (
-    <HelferRahmen aktiv="box" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+    <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       <BoxAbgabe
         einheit={{
           id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung,

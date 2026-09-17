@@ -371,6 +371,43 @@ describe("aktiverEintrag — welcher Eintrag ist dran, und ist er es wirklich", 
   });
 });
 
+/**
+ * DIE KLASSE, AN DER DER DRUCK DEN SCHUB WIEDERFINDET — DRK-406.
+ *
+ * ⚠️ WARUM DAS EINE ZUSICHERUNG WERT IST: `forceRender` haelt den
+ * GESCHLOSSENEN Drawer im Baum, antd haengt ihn per Portal an `document.body`,
+ * und im Druck wird aus seinem `position: fixed` ein Kasten in Fenstergroesse.
+ * Er liegt damit ausserhalb jeder benannten `@page` und erzeugte ein
+ * zusaetzliches, leeres Blatt im Vorgabeformat des Druckers hinter dem
+ * A4-Bogen der Ortskarten — gemessen in CI und danach im echten Chromium
+ * nachgestellt (210x297 | 216x279 statt 210x297).
+ *
+ * Die Druckregel in `shell.module.css` haengt an genau dieser Klasse. Faellt
+ * sie weg oder wandert sie an ein anderes Element, greift die Regel still ins
+ * Leere, und das Blatt ist zurueck — ohne dass ein Tor etwas meldete.
+ *
+ * ⚠️ UND SIE MUSS AN DER WURZEL DES PORTALS SITZEN, nicht am Inhaltskasten.
+ * `className` landete bei antd auf dem inneren Kasten; `rootClassName` auf
+ * `.ant-drawer`, und genau der ist der Kasten in Fenstergroesse.
+ */
+describe("SuiteNav — der Navigationsschub traegt seinen Druckanker", () => {
+  afterEach(unmount);
+
+  it("setzt navSchub auf die Wurzel des Drawers, nicht auf den Inhalt", async () => {
+    await zeichne({ nav: NAV });
+
+    const wurzel = document.body.querySelector(`.${s.navSchub}`);
+    expect(wurzel, "kein Element traegt die Klasse").not.toBeNull();
+    expect(wurzel!.classList.contains("ant-drawer")).toBe(true);
+    /*
+     * Und die Wurzel liegt im PORTAL, also als Kind von `body` — nicht im
+     * Wirt. Waere sie dort, traefe die Druckregel `body > div:has(> .navSchub)`
+     * nichts.
+     */
+    expect(wurzel!.parentElement?.parentElement).toBe(document.body);
+  });
+});
+
 describe("SuiteNav — anonym", () => {
   it("bietet Anmelden in der Kopfzeile statt Abmelden und KEINE Modulliste", async () => {
     /*

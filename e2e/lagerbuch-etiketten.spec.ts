@@ -96,27 +96,53 @@ test.describe("Etikettenbogen", () => {
      */
     await expect(page.locator(".lb-etikettWahl").nth(1)).toBeHidden();
     await expect(page.getByTestId("lb-drucken")).toBeHidden();
-    await expect(page.getByTestId("suite-header")).toHaveCount(0);
+    /*
+     * ⚠️ `toBeHidden`, NICHT `toHaveCount(0)` — seit DRK-406 ist das ein
+     * Unterschied und nicht Geschmack. Bis dahin trug der Druckast gar keine
+     * Kopfzeile; jetzt steht sie am BILDSCHIRM da (der Druckast war sonst eine
+     * Sackgasse ohne Navigation) und faellt im Druck ueber `display: none`
+     * weg. Die Zusage der Entscheidung 8-H gilt unveraendert weiter — auf dem
+     * PAPIER keine Kopfzeile —, nur beweist man sie jetzt an der Sichtbarkeit
+     * statt an der Abwesenheit.
+     *
+     * Die Zeile darueber haelt den No-op fern, vor dem die naechste
+     * Zusicherung warnt: ohne Anker waere sie wahr und wertlos.
+     */
+    await expect(page.getByTestId("suite-header")).toHaveCount(1);
+    await expect(page.getByTestId("suite-header")).toBeHidden();
 
     await page.emulateMedia({ media: "screen" });
+    await expect(page.getByTestId("suite-header")).toBeVisible();
   });
 
   /**
-   * DIE KONTROLLE ZUR VORIGEN ZEILE, und ohne sie waere jene ein NO-OP.
-   * `expect(getByTestId("suite-header")).toHaveCount(0)` geht auch dann durch,
-   * wenn es den Anker gar nicht gibt — dieselbe Bauform wie ein defensiver
-   * Uebersprung, nur im anderen Kostuem. Ein No-op ist hier SCHLIMMER als
-   * keine Zusicherung, weil er abgehakt wird.
+   * DIE KONTROLLE ZUR VORIGEN ZEILE, und ohne sie waere jene ein NO-OP —
+   * seit DRK-406 an einer anderen Stelle, aber aus demselben Grund.
    *
-   * Der Anker existiert: core/shell/SuiteHeader.tsx:65 setzt
-   * data-testid="suite-header" am <Header>. Auf einer Arbeitsseite ist er da,
-   * auf dem Druckast nicht — DAS ist die Aussage von Entscheidung 8-H.
+   * ⚠️ FRUEHER STAND HIER „auf dem Druckast gibt es die Kopfzeile nicht",
+   * gemessen an `toHaveCount(0)`. Das ist ueberholt: der Druckast traegt sie
+   * jetzt am Bildschirm, damit er keine Sackgasse ohne Navigation mehr ist.
+   * Die Trennlinie laeuft seither nicht zwischen den SEITEN, sondern zwischen
+   * den MEDIEN — und genau die misst dieser Test, auf beiden Seiten
+   * nacheinander. Ohne ihn liesse sich die Zusicherung oben durch eine
+   * Druckregel erfuellen, die die Kopfzeile ueberall abschaltet.
    */
-  test("dieselbe Kopfzeile ist auf einer Arbeitsseite sehr wohl da", async ({ page }) => {
+  test("dieselbe Kopfzeile faellt nur auf dem Druckast weg, und nur im Druck", async ({ page }) => {
     await page.goto(lagerbuchUrl("/verwaltung/artikel"));
-    await expect(page.getByTestId("suite-header")).toHaveCount(1);
+    await expect(page.getByTestId("suite-header")).toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByTestId("suite-header"), "Arbeitsseite: auch auf Papier")
+      .toBeVisible();
+
+    await page.emulateMedia({ media: "screen" });
     await page.goto(lagerbuchUrl("/verwaltung/etiketten"));
-    await expect(page.getByTestId("suite-header")).toHaveCount(0);
+    await expect(page.getByTestId("suite-header"), "Druckast: am Bildschirm da")
+      .toBeVisible();
+    await page.emulateMedia({ media: "print" });
+    await expect(page.getByTestId("suite-header"), "Druckast: auf Papier weg")
+      .toBeHidden();
+
+    await page.emulateMedia({ media: "screen" });
   });
 
   /**

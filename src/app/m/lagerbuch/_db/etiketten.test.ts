@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 /**
  * J9 NACHGEMESSEN (04.08.2026, vitest 4.1.10): der relative Import aus
  * `e2e/helpers/decode-qr` loest aus einem `src`-Test auf (`sharp`/`jsQR` stehen
@@ -98,17 +99,26 @@ describe("etikettenDaten", () => {
     expect(await decodeQr(e.qr)).toBe(`https://lagerbuch.iuk-ue.de/a/${A_ID}`);
   });
 
-  it("brennt den absoluten Token-Link in die Pixel des Token-QR", async () => {
+  /**
+   * DRK-406 — DIESER BOGEN DRUCKT KEINE ZUGANGS-KAERTCHEN MEHR.
+   *
+   * ⚠️ HIER STANDEN ZWEI ZUSICHERUNGEN AUF DIE KAERTCHEN-KARTEN („brennt den
+   * absoluten Token-Link in die Pixel", „laesst den Bindestrich im Code
+   * stehen"). Beide gelten unveraendert weiter — nur an der Stelle, an der ein
+   * Code heute gedruckt wird: auf der ORTSKARTE. Sie stehen jetzt bei
+   * `ortEtikettenDaten` („kodiert die absolute Einloese-Adresse des Ortscodes
+   * in die Pixel").
+   *
+   * ⚠️ WAS DIESE ZUSICHERUNG DAFUER NEU HAELT, ist die Abwesenheit, und die
+   * braucht ein eigenes Netz: die Grundmontierung legt einen aktiven Code
+   * (`482-137`) an. Bliebe irgendwo eine Token-Schleife stehen, waere sie am
+   * Datenobjekt sofort zu sehen — aber KEINE andere Zusicherung dieser Datei
+   * schaute hin.
+   */
+  it("liefert nur Artikel und keine Kaertchen mehr", async () => {
     const d = await etikettenDaten(t.db);
-    const e = d.tokens.find((x) => x.code === "482-137")!;
-    expect(await decodeQr(e.qr)).toBe("https://lagerbuch.iuk-ue.de/t/482-137");
-  });
-
-  /** Der Bindestrich ist Teil des gespeicherten Wertes (§4.7, §8.3). */
-  it("laesst den Bindestrich im Code stehen", async () => {
-    const d = await etikettenDaten(t.db);
-    expect(d.tokens[0].url).toContain("/t/482-137");
-    expect(d.tokens[0].url).not.toContain("/t/482137");
+    expect(Object.keys(d).sort()).toEqual(["artikel", "basis"]);
+    expect(JSON.stringify(d)).not.toContain("482-137");
   });
 
   /** SVG, nicht data:image/png (8-I, Punkt 1). Vektor statt 200px-Raster —
@@ -126,16 +136,15 @@ describe("etikettenDaten", () => {
    */
   it("laesst nirgends ein Promise stehen", async () => {
     const d = await etikettenDaten(t.db);
-    for (const e of [...d.artikel, ...d.tokens]) {
+    for (const e of d.artikel) {
       expect(e.qr).not.toContain("[object Promise]");
     }
   });
 
   /** 1:1 aus etiketten.ts:16-17 — und die Luecke steht als R32 im Runbook. */
-  it("nimmt nur aktive Artikel und aktive Codes", async () => {
+  it("nimmt nur aktive Artikel", async () => {
     const d = await etikettenDaten(t.db);
     expect(d.artikel.map((a) => a.name)).toEqual(["Mullbinde 8cm"]);
-    expect(d.tokens.map((x) => x.code)).toEqual(["482-137"]);
   });
 
   /**
@@ -216,15 +225,54 @@ describe("ortEtikettenDaten", () => {
    * richtig aus. Bei einem laminierten Kaertchen am Fahrzeug faellt das erst
    * auf, wenn jemand davorsteht und scannt.
    */
-  it("kodiert die absolute Adresse des Orts in die Pixel", async () => {
-    const daten = await ortEtikettenDaten(t.db);
+  it("kodiert die absolute Einloese-Adresse des Ortscodes in die Pixel", async () => {
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
-    expect(rtw.url).toBe("https://lagerbuch.iuk-ue.de/o/rtw-1");
-    expect(await decodeQr(rtw.qr)).toBe("https://lagerbuch.iuk-ue.de/o/rtw-1");
+    /*
+     * ⚠️ `/t/<code>` UND NICHT MEHR `/o/<id>` — DRK-406. Bis dahin trug jede
+     * Karte ihre Ortsadresse, und ein Scan verlangte eine Anmeldung.
+     */
+    expect(rtw.code).toMatch(/^\d{3}-\d{3}$/);
+    expect(rtw.url).toBe(`https://lagerbuch.iuk-ue.de/t/${rtw.code}`);
+    expect(await decodeQr(rtw.qr)).toBe(`https://lagerbuch.iuk-ue.de/t/${rtw.code}`);
+  });
+
+  /**
+   * ⚠️ QR UND FUSSZEILE MUESSEN DENSELBEN ZUGANG NENNEN — und das ist die
+   * teuerste Karte ueberhaupt, wenn es schiefgeht: ein QR auf den einen Zugang,
+   * darunter die abtippbare Adresse auf den anderen. Wer die Karte scannt und
+   * wer sie abtippt, landeten dann an verschiedenen Orten.
+   */
+  it("laesst QR und abtippbare Adresse nie auseinanderlaufen", async () => {
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+    for (const o of daten.orte) {
+      expect(await decodeQr(o.qr), o.id).toBe(o.url);
+    }
+  });
+
+  /**
+   * DIE ZUSAGE DES TICKETS, IN EINER ZEILE: jede Karte traegt einen Code.
+   *
+   * ⚠️ SIE ENTSTEHEN BEIM OEFFNEN DIESER SEITE, nicht vorher — das ist die
+   * Betreiberentscheidung vom 17.09.2026. Die Grundmontierung dieses Laufs legt
+   * KEINE Ortscodes an; sie entstehen erst durch den Aufruf.
+   */
+  it("versorgt jede Karte mit einem Code und meldet, wie viele neu sind", async () => {
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+
+    expect(daten.orte.map((o) => o.code === null)).toEqual([false, false, false]);
+    expect(daten.neueCodes).toBe(3);
+
+    // ⚠️ DER ZWEITE AUFRUF LEGT NICHTS NACH, und die Codes bleiben dieselben.
+    // Sonst wechselte der Code am Fahrzeug bei jedem Blick in die Vorschau,
+    // und jede gedruckte Karte waere beim Ankleben schon tot.
+    const zweiter = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+    expect(zweiter.neueCodes).toBe(0);
+    expect(zweiter.orte.map((o) => o.code)).toEqual(daten.orte.map((o) => o.code));
   });
 
   it("nimmt den Handlager und die aktiven Einheiten, den Handlager zuerst", async () => {
-    const daten = await ortEtikettenDaten(t.db);
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     expect(daten.orte.map((o) => o.id)).toEqual([HANDLAGER_ID, "rtw-1", "tasche-san"]);
   });
 
@@ -235,7 +283,7 @@ describe("ortEtikettenDaten", () => {
    * als eine Einheit, bei der jemand die Zuordnung vergessen hat (DRK-309).
    */
   it("schreibt je Karte eine Beizeile, die die Art benennt", async () => {
-    const daten = await ortEtikettenDaten(t.db);
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     expect(daten.orte.map((o) => o.meta))
       .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
   });
@@ -258,7 +306,7 @@ describe("ortEtikettenDaten", () => {
         aktiv: true, einheitenart: "tasche" },
     ]).run();
 
-    const daten = await ortEtikettenDaten(t.db);
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     const beide = daten.orte.filter((o) => o.name === "Betreuung");
     expect(beide).toHaveLength(2);
     // Die eigentliche Zusage: die zwei Karten lesen sich NICHT gleich.
@@ -286,7 +334,7 @@ describe("ortEtikettenDaten", () => {
         aktiv: true, einheitenart: "fahrzeug" },
     ]).run();
 
-    const daten = await ortEtikettenDaten(t.db);
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     const beide = daten.orte.filter((o) => o.name === "Doppelt");
     expect(beide.map((o) => o.unterscheidung)).toEqual(["rtw-x", "rtw-y"]);
     for (const o of beide) expect(o.meta).toBe("Fahrzeug · HN-DRK-1101");
@@ -299,7 +347,7 @@ describe("ortEtikettenDaten", () => {
    * jedes Zeichen.
    */
   it("laesst die Beizeile ohne Kollision in Ruhe", async () => {
-    const daten = await ortEtikettenDaten(t.db);
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     const rtw = daten.orte.find((o) => o.id === "rtw-1")!;
     expect(rtw.meta).toBe("Fahrzeug · HN-DRK-1101");
     expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
@@ -320,7 +368,7 @@ describe("ortEtikettenDaten", () => {
       aktiv: true, einheitenart: "tasche",
     }).run();
 
-    const daten = await ortEtikettenDaten(t.db);
+    const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
     expect(daten.orte.find((o) => o.id === HANDLAGER_ID)!.meta).toBe("Lager");
     expect(daten.orte.find((o) => o.id === "tasche-hl")!.meta).toBe("Tasche");
     // Und er bekommt keinen Unterscheider: er kollidiert mit keiner Einheit,
@@ -329,76 +377,64 @@ describe("ortEtikettenDaten", () => {
   });
 
   /**
-   * DRK-395 — DAS KAERTCHEN, DAS AUF DIE HANDLAGER-KARTE DARF.
+   * DIE ORTSCODES UND DER ALTBESTAND — DRK-406.
    *
-   * Die Grundmontierung bringt zwei Codes mit: `482-137` (aktiv, ohne Ziel) und
-   * `999-999` (gesperrt). Die Tests hier setzen nur das obendrauf, was sie
-   * gerade abgrenzen.
+   * Die Grundmontierung bringt zwei Codes OHNE Zugehoerigkeit mit: `482-137`
+   * (aktiv) und `999-999` (gesperrt). Beide sind Altbestand und haben mit den
+   * Karten nichts zu tun.
    */
-  describe("die Kaertchen fuer die Handlager-Karte", () => {
-    it("markiert genau eine Karte als Handlager", async () => {
-      const daten = await ortEtikettenDaten(t.db);
-      expect(daten.orte.filter((o) => o.istHandlager).map((o) => o.id)).toEqual([HANDLAGER_ID]);
-    });
-
-    it("brennt die absolute Einloese-Adresse in die Pixel", async () => {
-      const daten = await ortEtikettenDaten(t.db);
-      const k = daten.kaertchen.find((x) => x.code === "482-137")!;
-      expect(k.url).toBe("https://lagerbuch.iuk-ue.de/t/482-137");
-      /*
-       * ⚠️ ZURUECKDEKODIERT, nicht auf ein `<svg>` geprueft — dieselbe
-       * Begruendung wie bei den Ortskarten daneben: ein relativer QR sieht am
-       * Bildschirm richtig aus und ist auf Papier bedeutungslos.
-       */
-      expect(await decodeQr(k.qr)).toBe("https://lagerbuch.iuk-ue.de/t/482-137");
-    });
-
-    it("laesst einen gesperrten Code draussen", async () => {
-      const daten = await ortEtikettenDaten(t.db);
-      // ⚠️ `999-999` ist gesperrt, WEIL ein laminiertes Kaertchen verschwunden
-      // ist. Ihn zu drucken hiesse, ihn auf Papier wieder auszugeben.
-      expect(daten.kaertchen.map((k) => k.code)).not.toContain("999-999");
+  describe("Ortscodes gegen Altbestand", () => {
+    /**
+     * ⚠️ DER ALTBESTAND DARF NICHT AUF EINE KARTE RUTSCHEN. Er gehoert keinem
+     * Ort, und ein Kaertchen mit Fahrzeugziel auf der Handlager-Karte ergaebe
+     * ein Etikett, das das Regal verspricht und den Fahrzeug-Check liefert.
+     * Seit DRK-406 kann das konstruktiv nicht mehr passieren — die Karte liest
+     * ihren Code ueber `ort_id`, und Altbestand hat keine. Diese Zusicherung
+     * haelt genau das fest.
+     */
+    it("nimmt keinen Code ohne Zugehoerigkeit auf eine Karte", async () => {
+      const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+      const codes = daten.orte.map((o) => o.code);
+      expect(codes).not.toContain("482-137");
+      expect(codes).not.toContain("999-999");
     });
 
     /**
-     * ⚠️ DIE EIGENTLICHE ZUSAGE: ein Kaertchen mit Fahrzeug- oder Artikelziel
-     * landet NICHT am Regal (`tokenZielPfad`). Auf der Handlager-Karte
-     * gedruckt ergaebe es ein Etikett, das das Regal verspricht und den
-     * Fahrzeug-Check liefert — und das faellt erst auf, wenn jemand davorsteht.
+     * ⚠️ EIN GESPERRTER ORTSCODE IST GESPERRT, WEIL EINE KARTE ABHANDEN
+     * GEKOMMEN IST. Ihn auf eine Karte zu drucken hiesse, ihn auf Papier wieder
+     * auszugeben — und die Karte fuehrte beim Scan aufs Anmeldefeld.
      */
-    it("bietet nur Kaertchen an, die auf der Artikelliste landen", async () => {
-      t.db.insert(tokens).values([
-        { id: newId(), code: "200-001", label: "Am RTW", zielTyp: "fahrzeug",
-          zielId: "rtw-1", aktiv: true, createdAt: new Date(), createdBy: "sub-1" },
-        { id: newId(), code: "200-002", label: "Am Regalfach", zielTyp: "artikel",
-          zielId: A_ID, aktiv: true, createdAt: new Date(), createdBy: "sub-1" },
-      ]).run();
+    it("druckt einen gesperrten Ortscode nicht, sondern zieht einen neuen nach", async () => {
+      const erst = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+      const alt = erst.orte.find((o) => o.id === "rtw-1")!.code!;
+      t.db.update(tokens).set({ aktiv: false }).where(eq(tokens.code, alt)).run();
 
-      const daten = await ortEtikettenDaten(t.db);
-      expect(daten.kaertchen.map((k) => k.code)).toEqual(["482-137"]);
+      const danach = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+      const neu = danach.orte.find((o) => o.id === "rtw-1")!.code!;
+      expect(neu).not.toBe(alt);
+      expect(danach.neueCodes).toBe(1);
     });
 
-    /** Gewaehlt wird nach der BEZEICHNUNG — also ist sie auch die Ordnung. */
-    it("sortiert nach der Bezeichnung, mit deutscher Sortierung", async () => {
-      t.db.insert(tokens).values([
-        { id: newId(), code: "300-001", label: "Übung", aktiv: true,
-          createdAt: new Date(), createdBy: "sub-1" },
-        { id: newId(), code: "300-002", label: "Zentrale", aktiv: true,
-          createdAt: new Date(), createdBy: "sub-1" },
-        { id: newId(), code: "300-003", label: "Ausbildung", aktiv: true,
-          createdAt: new Date(), createdBy: "sub-1" },
-      ]).run();
+    /**
+     * ⚠️ DER HANDLAGER-CODE HAT KEIN ZIEL, der Einheiten-Code schon. Landete
+     * der Handlager-Code auf `ziel_typ: "fahrzeug"`, fuehrte ein Scan am Regal
+     * in den Fahrzeug-Check.
+     */
+    it("gibt dem Handlager kein Ziel und der Einheit ihres", async () => {
+      await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+      const zeilen = t.db.select().from(tokens).all();
 
-      const daten = await ortEtikettenDaten(t.db);
-      // ⚠️ „Ü" vor „Z": `localeCompare` OHNE Sprache sortierte es dahinter.
-      expect(daten.kaertchen.map((k) => k.label))
-        .toEqual(["Ausbildung", "RTW 1", "Übung", "Zentrale"]);
+      const lager = zeilen.find((z) => z.ortId === HANDLAGER_ID)!;
+      expect(lager.zielTyp).toBeNull();
+      const rtw = zeilen.find((z) => z.ortId === "rtw-1")!;
+      expect(rtw.zielTyp).toBe("fahrzeug");
+      expect(rtw.zielId).toBe("rtw-1");
     });
   });
 
   /** Ohne Basis gibt es keinen halben Bogen — dieselbe Zusage wie oben. */
   it("wirft EtikettenBasisFehlt, wenn moduleUrl null liefert", async () => {
     modulUrl.wert = null;
-    await expect(ortEtikettenDaten(t.db)).rejects.toThrow(EtikettenBasisFehlt);
+    await expect(ortEtikettenDaten(t.db, "sub-1", null)).rejects.toThrow(EtikettenBasisFehlt);
   });
 });

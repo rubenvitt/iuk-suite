@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
-# Dünner erster Wurf: konsistenter SQLite-Backup je Modul + tar, lokal, rotiert.
-# Läuft als Host-Cron; benötigt sqlite3, tar + rsync. Externes Ziel (rclone) folgt
-# bei einem späteren Modul.
+# Konsistenter SQLite-Backup je Modul + tar, lokal, rotiert — der KERN der Sicherung.
+# Läuft im Dienst `backup` des Compose-Stacks; benötigt sqlite3, tar + rsync.
+#
+# ⚠️ WER DIESES SKRIPT RUFT, HAT SICH GEÄNDERT (DRK-185) — WAS ES TUT, NICHT. Bis dahin
+# war es ein Host-Cron, also ein Schutz, der daran hing, dass jemand ihn auf dem Server
+# eingerichtet hatte und er dort auch blieb; im Compose-Stack war davon nichts zu sehen.
+# Heute ruft `scripts/backup-sidecar.sh` es aus dem Dienst `backup`. DORT stehen auch die
+# drei Dinge, die hier bewusst NICHT stehen: der Zeitgeber, das externe Ziel (rclone) und
+# die Rückmeldung bei Fehlschlag.
+#
+# Diese Datei bleibt damit, was sie war — ein Lauf, ein Tarball, exit 0 oder exit 1 — und
+# genau deshalb ist sie weiterhin von Hand aufrufbar. Die letzte Zeile ihrer Ausgabe
+# (`backup: wrote <pfad>`) ist ein VERTRAG: der Sidecar liest daraus, was er auslagern
+# soll, und wertet ihr Fehlen als Fehlschlag.
 set -euo pipefail
 
 DATA_DIR="${DATA_DIR:-/data}"
@@ -10,7 +21,10 @@ BACKUP_DIR="${BACKUP_DIR:-$DATA_DIR/backups}"
 # paar hundert kB DBs: 7 Generationen sind 7x die Ablage. Wer hier hochgeht, prueft
 # den freien Platz — ein vollgelaufenes Ziel laesst das Backup genau dann scheitern,
 # wenn man es braucht.
+# ⚠️ Fuehrende Nullen sind in Shell-Arithmetik OKTAL: `08` bricht die Rotation unten mit
+# einem Syntaxfehler ab, `010` rechnet still 8 statt 10. Beide unter dash gemessen.
 KEEP="${BACKUP_KEEP:-7}"
+while [ "${#KEEP}" -gt 1 ] && [ "${KEEP#0}" != "$KEEP" ]; do KEEP="${KEEP#0}"; done
 
 # Der Ort der files-Blobs ist eine EIGENE Variable und nicht fest `$DATA_DIR/files`:
 # liegen die Blobs im eigenen benannten Volume, ist `$DATA_DIR/files` host-seitig ein
@@ -34,7 +48,39 @@ if [ "${#dbs[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# ⚠️ DER ZEITSTEMPEL IST DER NAME DER GENERATION — UND ER IST NUR SEKUNDENGENAU.
+# Zwei Laeufe, die NACHEINANDER in derselben Sekunde stempeln, bekommen denselben Namen,
+# und `tar -czf` legt nicht daneben, sondern DARUEBER. GEMESSEN mit zwei unmittelbar
+# aufeinanderfolgenden Laeufen: beide meldeten `backup: wrote …T223946.tar.gz`, beide
+# exit 0 — im Ziel lag EIN Tarball. Die Sperre im Sidecar verhindert das NICHT: sie
+# serialisiert, und genau die Serialisierung erzeugt den Fall (ein Lauf endet, der
+# naechste beginnt in derselben Sekunde). Am externen Ziel wiederholt er sich, weil dort
+# derselbe Name hochgeladen wird.
+#
+# Zwei Schaeden, der zweite ist der teurere: die Aufbewahrungstiefe schrumpft still um
+# eine Generation, obwohl zweimal Erfolg gemeldet wurde — und faellt der zweite Lauf
+# mitten im `tar` aus (SIGKILL am Ende von `stop_grace_period`), steht an der Stelle
+# einer GUTEN Generation ein abgeschnittenes Archiv.
+#
+# ABHILFE IST WARTEN, NICHT ANHAENGEN. Ein Namenszusatz (`…T223946-2.tar.gz`) faellt aus
+# dem Muster, mit dem der Sidecar am externen Ziel die eigenen Sicherungen erkennt
+# (TARBALL_MUSTER) — er wuerde dort als fremd gewarnt und nie mehr wegrotiert. Eine
+# Sekunde zu warten kostet eine Sekunde und laesst Namensform und Sortierung
+# (lexikografisch = chronologisch, worauf die Rotation beruht) unangetastet.
 stamp="$(date +%Y%m%dT%H%M%S)"
+versuche=0
+while [ -e "$BACKUP_DIR/$stamp.tar.gz" ] || [ -e "$BACKUP_DIR/$stamp" ]; do
+  # Nach zwei Runden MUSS die Sekunde gewechselt haben; tut sie es nicht, steht die Uhr.
+  # Dann ist Abbrechen richtig: stilles Ueberschreiben waere der Schaden, den es zu
+  # verhindern gilt.
+  versuche=$((versuche + 1))
+  if [ "$versuche" -gt 5 ]; then
+    echo "backup: $BACKUP_DIR/$stamp.tar.gz belegt, Zeitstempel wechselt nicht — aborting (steht die Uhr?)" >&2
+    exit 1
+  fi
+  sleep 1
+  stamp="$(date +%Y%m%dT%H%M%S)"
+done
 work="$BACKUP_DIR/$stamp"
 mkdir -p "$work"
 
@@ -103,6 +149,16 @@ rm -rf "$work"
 # Rotation: nur die neuesten $KEEP Tarballs behalten. Wir haben gerade eines
 # geschrieben, das Glob matcht also >=1; mit nullglob AUS bleibt ein (hier
 # unmöglicher) Leermatch literal und ls scheitert harmlos, statt das CWD zu listen.
-ls -1t "$BACKUP_DIR"/*.tar.gz | tail -n +$((KEEP + 1)) | xargs -r rm -f
+#
+# ⚠️ ABSCHALTBAR, WEIL DIESES SKRIPT NICHT WISSEN KANN, OB ES NOCH ZUSTÄNDIG IST.
+# Ein Aufruf von Hand oder aus dem alten Host-Cron soll wie bisher rotieren, deshalb
+# ist 1 die Vorgabe. Der Sidecar dagegen setzt 0 und rotiert SELBST — nach seiner
+# Prüfung, ob die Sperre noch ihm gehört. Der Grund ist gemessen: hält die Maschine
+# mitten im Lauf lange genug an, übernimmt ein zweiter Lauf, legt seine Generation ab
+# — und der wiedererwachte erste löscht sie hier, bevor der Sidecar ihn stoppen kann.
+# Mit BACKUP_KEEP=1 nachgestellt: die Generation des Nachfolgers war weg.
+if [ "${BACKUP_ROTATE:-1}" = "1" ]; then
+  ls -1t "$BACKUP_DIR"/*.tar.gz | tail -n +$((KEEP + 1)) | xargs -r rm -f
+fi
 
 echo "backup: wrote $work.tar.gz"

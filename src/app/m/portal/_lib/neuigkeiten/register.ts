@@ -36,6 +36,8 @@ import bzBemerkungUndBeachtung from "@/app/m/portal/_lib/neuigkeiten/notizen/lag
 import werHatGeprueft from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-wer-hat-geprueft";
 import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-aussondern-je-schrank";
 import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-ortsetiketten";
+import ortscodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-ortscodes";
+import artikeletiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-artikeletiketten";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
 import inventurLinkZaehlort from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-inventur-link-zaehlort";
 import verfallInDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-verfall-in-der-box";
@@ -112,6 +114,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   ortsetiketten,
   inventurLinkZaehlort,
   verfallInDerBox,
+  ortscodes,
+  artikeletiketten,
   chargenImHandlager,
   codeAufDerHandlagerkarte,
   neuerNameSammelhaus,

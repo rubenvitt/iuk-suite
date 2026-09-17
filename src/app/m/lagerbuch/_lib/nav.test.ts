@@ -33,11 +33,20 @@ describe("LAGERBUCH_NAV: die einundzwanzig Ziele", () => {
       { key: "pruefen", title: "Check durchführen", href: "/helfer/check", ikon: "pruefen", abschnitt: "Prüfungen" },
       { key: "bz", title: "BZ-Kontrolle", href: "/verwaltung/bz", ikon: "bz", abschnitt: "Prüfungen" },
       { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
-      { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
       // DRK-312: die QR-Karte je Handlager bzw. Einheit. EIGENES Zeichen —
-      // „Etiketten" steht im selben Abschnitt, und zwei gleiche Zeichen waeren
-      // dort nicht auseinanderzuhalten (Begruendung an `core/shell/types.ts`).
+      // „Artikeletiketten" steht im selben Abschnitt, und zwei gleiche Zeichen
+      // waeren dort nicht auseinanderzuhalten (Begruendung an
+      // `core/shell/types.ts`).
+      //
+      // ⚠️ DRK-406: SIE STEHT JETZT VOR DEN ARTIKELETIKETTEN. Die Reihenfolge
+      // ist eine Aussage ueber die Haeufigkeit — hier entstehen die Codes, mit
+      // denen der ganze Helfer-Weg anfaengt.
       { key: "ortsetiketten", title: "Ortsetiketten", href: "/verwaltung/ortsetiketten", ikon: "ortsetiketten", abschnitt: "Einrichtung" },
+      // ⚠️ DRK-406: „Artikeletiketten" statt „Etiketten" — der Bogen druckt
+      // keine Zugangs-Kaertchen mehr. `key` und `href` bleiben: sie sind
+      // Adressen, die Beschriftung ist das, was jemand liest (dieselbe Trennung
+      // wie bei „Fahrzeuge & Taschen", DRK-309).
+      { key: "etiketten", title: "Artikeletiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
       { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung" },
       { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import", abschnitt: "Einrichtung" },
     ]);

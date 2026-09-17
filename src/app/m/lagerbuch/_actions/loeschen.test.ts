@@ -222,6 +222,9 @@ function tokenAnlegen(args: {
   zielId?: string | null;
   scopeLagerortId?: string | null;
   lastUsedAt?: Date | null;
+  /** DRK-406: gesetzt = ORTSCODE, `null` = von Hand angelegter Altbestand. */
+  ortId?: string | null;
+  aktiv?: boolean;
 } = {}): string {
   const id = args.id ?? newId();
   t.db.insert(tokens).values({
@@ -229,9 +232,10 @@ function tokenAnlegen(args: {
     code: args.code ?? "111-111",
     label: "Zugangs-Code",
     scopeLagerortId: args.scopeLagerortId ?? null,
+    ortId: args.ortId ?? null,
     zielTyp: args.zielTyp ?? null,
     zielId: args.zielId ?? null,
-    aktiv: true,
+    aktiv: args.aktiv ?? true,
     createdAt: JETZT,
     createdBy: "u-admin",
     lastUsedAt: args.lastUsedAt ?? null,
@@ -1028,5 +1032,115 @@ describe("Fixture-Selbstpruefung", () => {
       eq(lagerortVerfall.lagerortId, fahrzeugId),
       eq(lagerortVerfall.artikelId, artikelId),
     )).get()).toMatchObject({ id: "verfall-echt" });
+  });
+});
+
+/**
+ * DRK-406 — DER ORTSCODE DARF SEINE EIGENE EINHEIT NICHT FESTHALTEN.
+ *
+ * ⚠️ DAS IST DER TEUERSTE STILLE AUSGANG DIESES TICKETS, und er wurde in der
+ * Durchsicht gefunden, nicht von einem Tor: `createFahrzeug` legt jeder neuen
+ * Einheit sofort einen Ortscode an, und der traegt `ziel_typ = "fahrzeug"` mit
+ * `ziel_id = <Einheit>` — genau das, was `pruefeLagerort` als „jemand hat ein
+ * Kaertchen darauf ausgestellt" zaehlt. Ohne den `ort_id IS NULL`-Filter waere
+ * ab dem Ticket KEINE neu angelegte Einheit mehr loeschbar, mit dem Grund
+ * „1 Zugangs-Code" — einer Entscheidung, die niemand getroffen hat.
+ *
+ * ⚠️ UND „loeschbar" MUSS AUCH DURCHLAUFEN. Auf `tokens.ort_id` liegt ein
+ * Fremdschluessel; ein `DELETE` auf die Einheit braeche mit einem
+ * Datenbankfehler ab, waehrend die Pruefung gerade gruen gesagt hat. Deshalb
+ * sperrt `loescheElement` den Ortscode und loest die Bindung — beide Haelften
+ * stehen hier, weil die eine ohne die andere schlimmer ist als keine.
+ */
+describe("DRK-406 — Ortscodes blockieren ihre eigene Einheit nicht", () => {
+  it("laesst eine Einheit loeschen, die nur ihren eigenen Ortscode traegt", async () => {
+    const id = fahrzeugAnlegen();
+    tokenAnlegen({ code: "700-700", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await pruefeLoeschbar("lagerort", id, t.db))
+      .toEqual({ ok: true, wert: { loeschbar: true } });
+  });
+
+  it("blockiert sie weiterhin, wenn ein Kaertchen VON HAND darauf zeigt", async () => {
+    const id = fahrzeugAnlegen();
+    tokenAnlegen({ code: "800-800", ortId: null, zielTyp: "fahrzeug", zielId: id });
+
+    erwarteBlockiert(await pruefeLoeschbar("lagerort", id, t.db), "1 Zugangs-Code");
+  });
+
+  it("sperrt den Ortscode beim Loeschen, statt ihn zu entfernen", async () => {
+    const id = fahrzeugAnlegen();
+    const tok = tokenAnlegen({ code: "900-700", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()).toBeUndefined();
+    const zeile = t.db.select().from(tokens).where(eq(tokens.id, tok)).get()!;
+    /*
+     * ⚠️ DIE ZEILE BLEIBT — Entscheidung 8-F haelt den Codewert dauerhaft
+     * belegt. Waere sie weg, liesse sich „900-700" neu ziehen, und eine alte
+     * Journalzeile stuende danach unter der Bezeichnung eines neuen Codes.
+     */
+    expect(zeile.code).toBe("900-700");
+    expect(zeile.aktiv).toBe(false);
+    // Die Bindung ist geloest — der Ort, auf den sie zeigte, gibt es nicht mehr.
+    expect(zeile.ortId).toBeNull();
+    /*
+     * ⚠️ UND GENAU DESHALB DIE MARKIERUNG. Ohne sie waere die geloeste Bindung
+     * eine Luecke: eine gesperrte Zeile ohne `ort_id` sieht aus wie Altbestand,
+     * und der DARF reaktiviert werden. Ein Klick in der Codeverwaltung machte
+     * den Code einer geloeschten Einheit wieder gueltig; `_actions/tokens.ts`
+     * liest diese Spalte und lehnt ab.
+     */
+    expect(zeile.ersetztAm).toBeInstanceOf(Date);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUM STILLEN NEBENEFFEKT: das `UPDATE` trifft ALLE Codes
+   * dieses Ortes, auch die schon gesperrten Vorgaenger. Das ist richtig — die
+   * Einheit ist weg, keiner von ihnen darf je wieder gelten — und es ist die
+   * Stelle, an der ein `where` zu wenig genau denselben Schaden anrichtet wie
+   * ein vergessenes.
+   */
+  it("markiert AUCH die schon gesperrten Vorgaenger der Einheit", async () => {
+    const id = fahrzeugAnlegen();
+    const alt = tokenAnlegen({
+      code: "900-701", ortId: id, zielTyp: "fahrzeug", zielId: id, aktiv: false,
+    });
+    const jetzt = tokenAnlegen({ code: "900-702", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+
+    for (const tok of [alt, jetzt]) {
+      const zeile = t.db.select().from(tokens).where(eq(tokens.id, tok)).get()!;
+      expect(zeile.ersetztAm).toBeInstanceOf(Date);
+      expect(zeile.aktiv).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ EIN SCHON ERSETZTER CODE BEHAELT SEINEN TAG — gefunden in der
+   * Durchsicht. Das `UPDATE` beim Loeschen trifft ALLE Codes des Ortes; mit
+   * einem gemeinsamen `set` haette es das `ersetztAm` der laengst
+   * zurueckgesetzten Vorgaenger auf den LOESCHTAG ueberschrieben. Die Liste
+   * naennte dann fuer ein altes Foto einen Tag, an dem es schon lange nicht
+   * mehr galt — und genau diese Frage soll der Zeitstempel beantworten.
+   */
+  it("ueberschreibt ein frueheres Ersetzt-Datum beim Loeschen nicht", async () => {
+    const id = fahrzeugAnlegen();
+    const frueher = new Date("2026-01-02T03:04:05.000Z");
+    const verbrannt = tokenAnlegen({
+      code: "900-703", ortId: id, zielTyp: "fahrzeug", zielId: id, aktiv: false,
+    });
+    t.db.update(tokens).set({ ersetztAm: frueher }).where(eq(tokens.id, verbrannt)).run();
+    const jetzt = tokenAnlegen({ code: "900-704", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+
+    expect(t.db.select().from(tokens).where(eq(tokens.id, verbrannt)).get()!.ersetztAm)
+      .toEqual(frueher);
+    // Der bis eben aktive bekommt seinen Tag jetzt — er hatte noch keinen.
+    expect(t.db.select().from(tokens).where(eq(tokens.id, jetzt)).get()!.ersetztAm)
+      .toBeInstanceOf(Date);
   });
 });

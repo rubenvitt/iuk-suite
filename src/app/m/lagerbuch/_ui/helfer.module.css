@@ -456,6 +456,40 @@
  * mit dran.
  */
 .knopfBreit { width: 100% }
+
+/*
+ * ═══ DIE ZIELWAHL ALS PFLICHTFELD — DRK-406 ═══════════════════════════════
+ *
+ * ⚠️ DAS ZIEL IST PFLICHT UND SAH NICHT DANACH AUS. Bis DRK-406 stand es als
+ * Zeile „Ziel · Noch nichts gewählt · Wählen" über dem Buchen-Knopf, und der
+ * Weg dorthin war ein 14px-Textlink rechts außen — kleiner und blasser als
+ * alles andere auf dem Schirm, obwohl ohne ihn gar nichts geht. Der
+ * Buchen-Knopf daneben war gesperrt und sagte nicht, warum; wer am Regal steht,
+ * tippt dann gegen einen grauen Knopf, statt nach rechts oben zu greifen.
+ *
+ * ⚠️ DER UNGEWÄHLTE ZUSTAND BEKOMMT DESHALB EIGENES GEWICHT, nicht nur eine
+ * andere Farbe: eine volle Knopfbreite an der Stelle, an der sonst gebucht
+ * wird. Die Aufmerksamkeit soll dort liegen, wo der nächste Handgriff ist —
+ * und der ist, solange nichts gewählt ist, NICHT das Buchen.
+ *
+ * ⚠️ TINTE UND NICHT ROT. Rot gehört dem Buchen-Knopf (`.knopfRot`); zwei rote
+ * Flächen übereinander streiten um dieselbe Aufmerksamkeit, und Rot trägt in
+ * diesem Modul zusätzlich fachliche Bedeutung (Falle 3, docs/design/README.md).
+ * Der Unterschied „das musst du zuerst" gegen „das ist die Buchung" ist damit
+ * an der Form abzulesen, nicht nur an der Farbe.
+ *
+ * ⚠️ 56px, NICHT 44: dieser Schirm läuft ohne Shell, seine Bediendichte ist
+ * 56/72 (CLAUDE.md, Falle 4). `.knopf` bringt das Maß bereits mit.
+ */
+.zielPflicht {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-block: 4px 12px;
+}
+/* Der Satz erklärt den gesperrten Knopf darunter — ohne ihn ist „grau" eine
+   Behauptung ohne Grund. Kein Rot: hier ist nichts schiefgegangen. */
+.zielPflichtHinweis {
+  font-size: 13px; line-height: 1.35; color: var(--lb-stahl);
+}
 .zeileHaupt { flex: 1; min-width: 0 }
 /*
  * `overflow-wrap: anywhere` IST HIER DER GLIMPFLICHERE AUSFALL, nicht Kosmetik.

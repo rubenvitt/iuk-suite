@@ -108,20 +108,33 @@ export const LAGERBUCH_NAV: SuiteNavItem[] = [
 
   { key: "journal", title: "Journal", href: "/verwaltung/journal", ikon: "journal", abschnitt: "Protokoll" },
 
-  { key: "etiketten", title: "Etiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
-  /* DRK-312 — die QR-Karte je Handlager bzw. Einheit. Sie steht NEBEN
-   * „Etiketten" und nicht darin: die beiden Flächen drucken auf verschiedenes
-   * Material (gekaufte Klebeetiketten gegen ein Blatt je Ort) und in
-   * verschiedenen Seitengrößen, und zusammen in einem Dokument verwirft
-   * Chromium die Seitengröße für beide.
+  /* DRK-312 — die QR-Karte je Handlager bzw. Einheit.
    *
-   * ⚠️ EIN EIGENES ZEICHEN, kein geteiltes mit „Etiketten". Die Regel steht in
-   * `core/shell/types.ts` ausgeschrieben und ist an `checks`/`pruefen` schon
-   * einmal angewandt worden: zwei Einträge im SELBEN Abschnitt mit demselben
-   * Zeichen sind in der Seitenleiste nicht auseinanderzuhalten. Die Bauform
-   * von `baukasten` (zwei Einträge, ein Zeichen) trägt nur, solange die
-   * Einträge in verschiedenen Abschnitten stehen. */
+   * ⚠️ SIE STEHT SEIT DRK-406 VOR DEN ARTIKELETIKETTEN, und die Reihenfolge ist
+   * eine Aussage über die Häufigkeit: hier stehen die Codes, mit denen der
+   * ganze Helfer-Weg anfängt, und diese Fläche zieht fehlende Codes beim Öffnen
+   * nach. Die Klebeetiketten fürs Regalfach druckt man einmal beim Einrichten
+   * eines Artikels — die Ortskarten immer dann, wenn eine Einheit dazukommt
+   * oder ein Code zurückgesetzt wurde.
+   *
+   * ⚠️ EIN EIGENES ZEICHEN, kein geteiltes mit „Artikeletiketten". Die Regel
+   * steht in `core/shell/types.ts` ausgeschrieben und ist an `checks`/`pruefen`
+   * schon einmal angewandt worden: zwei Einträge im SELBEN Abschnitt mit
+   * demselben Zeichen sind in der Seitenleiste nicht auseinanderzuhalten. */
   { key: "ortsetiketten", title: "Ortsetiketten", href: "/verwaltung/ortsetiketten", ikon: "ortsetiketten", abschnitt: "Einrichtung" },
+  /* DRK-406 — „Artikeletiketten" statt „Etiketten", und einen Platz weiter
+   * unten.
+   *
+   * ⚠️ DER NAME IST ENGER GEWORDEN, WEIL DIE FLÄCHE ES IST: sie druckte bis
+   * dahin auch Zugangs-Kärtchen, die jetzt auf den Ortskarten stehen. „Etiketten"
+   * über einem Bogen, der nur noch Artikel kennt, ist die Sorte Beschriftung,
+   * nach der jemand zwanzig Minuten sucht, bevor er fragt.
+   *
+   * ⚠️ `key` UND `href` BLEIBEN. Sie sind Adressen — der aktive Eintrag hängt am
+   * `key`, der Pfad steht in Lesezeichen. Dieselbe Trennung wie bei
+   * „Fahrzeuge & Taschen" (DRK-309): die Beschriftung ist das, was jemand liest,
+   * `key` und Pfad sind das, worauf etwas zeigt. */
+  { key: "etiketten", title: "Artikeletiketten", href: "/verwaltung/etiketten", ikon: "etiketten", abschnitt: "Einrichtung" },
   { key: "tokens", title: "Zugangs-Codes", href: "/verwaltung/tokens", ikon: "tokens", abschnitt: "Einrichtung" },
   { key: "import", title: "Import", href: "/verwaltung/import", ikon: "import", abschnitt: "Einrichtung" },
 ];

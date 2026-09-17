@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { TestDb } from "../_db/testdb";
 import { migrierteTestDb } from "../_db/testdb";
-import { tokens } from "../_db/schema";
+import { lagerorte, tokens } from "../_db/schema";
 
 vi.mock("next/navigation", () => ({
   redirect: (ziel: string) => { throw new Error(`NEXT_REDIRECT:${ziel}`); },
@@ -39,7 +39,10 @@ vi.mock("./konto", () => ({
   merkeNutzer: (_db: unknown, v: { sub: string }) => { gemerkteNutzer.push(v.sub); },
 }));
 
+import { BEREICH_TEXT } from "./actionTypen";
+import { nurEntnahmeAbweisung } from "./helferBereich";
 import { createHelferSitzung } from "./helferSitzung";
+import { HANDLAGER_ID } from "./konstanten";
 import { helferZugangOderNull, requireHelferSitzung, requireHelferSchreibend } from "./helferZugang";
 
 let t: TestDb;
@@ -428,6 +431,7 @@ describe("DRK-305 — ein angemeldetes Konto traegt in den Helfer-Ast", () => {
       name: "A. Verwaltung",
       laeuftAb: null,
       fahrzeugBindung: null,
+      nurEntnahme: false,
     });
   });
 
@@ -541,5 +545,81 @@ describe("DRK-305 — ein angemeldetes Konto traegt in den Helfer-Ast", () => {
     angemeldet = ADMIN;
     await expect(requireHelferSitzung(t.db)).rejects.toThrow("NEXT_NOT_FOUND");
     await expect(requireHelferSchreibend(t.db)).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+});
+
+/**
+ * DIE REICHWEITE DES REGAL-CODES — DRK-406.
+ *
+ * ⚠️ SIE WIRD HIER AM ECHTEN `befund()` GEMESSEN, nicht an `nurEntnahmeAus`
+ * allein. Die Funktion für sich ist ein Zweizeiler; was schiefgehen kann, ist
+ * die VERDRAHTUNG — dass die Zeile aus der Datenbank kommt, dass es die `ort_id`
+ * ist und nicht die `ziel_id`, und dass der Altbestand nichts abbekommt.
+ */
+describe("nurEntnahme — der Ortscode des Handlagers darf nur entnehmen", () => {
+  /** Eine Ortscode-Zeile — wie `stelleOrtCodesSicher` sie anlegt. */
+  function ortscodeAnlegen(args: {
+    id: string; code: string; ortId: string | null;
+    zielTyp?: "fahrzeug"; zielId?: string;
+  }): void {
+    t.db.insert(tokens).values({
+      id: args.id, code: args.code, label: "Ortskarte",
+      ortId: args.ortId,
+      zielTyp: args.zielTyp ?? null, zielId: args.zielId ?? null,
+      aktiv: true, createdAt: new Date(), createdBy: "sub-1",
+    }).run();
+  }
+
+  it("setzt nurEntnahme für den Ortscode des Handlagers", async () => {
+    ortscodeAnlegen({ id: "tok-regal", code: "111-111", ortId: HANDLAGER_ID });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-regal" });
+
+    const z = await requireHelferSitzung(t.db);
+    expect(z.nurEntnahme).toBe(true);
+  });
+
+  it("lässt den Ortscode einer Einheit unberührt", async () => {
+    t.db.insert(lagerorte).values({
+      id: "rtw-1", name: "RTW 1", typ: "fahrzeug",
+      kennung: null, aktiv: true, einheitenart: "fahrzeug",
+    }).run();
+    ortscodeAnlegen({
+      id: "tok-rtw", code: "222-222", ortId: "rtw-1",
+      zielTyp: "fahrzeug", zielId: "rtw-1",
+    });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-rtw" });
+
+    const z = await requireHelferSitzung(t.db);
+    expect(z.nurEntnahme).toBe(false);
+    expect(z.fahrzeugBindung).toBe("rtw-1");
+  });
+
+  /**
+   * ⚠️ DER TEUERSTE FEHLGRIFF DIESES TICKETS, UND ER WÄRE STILL: ein
+   * Altbestands-Kärtchen mit der Zielart „Artikel-Liste" landet auf DEMSELBEN
+   * Schirm wie der Regal-Code — `tokenZielPfad(null, null)` ist für beide
+   * `/helfer`. Wer die Einschränkung über die ZIELART ableitet statt über die
+   * Zugehörigkeit, nimmt jedem laminierten Kärtchen im Umlauf über Nacht Box
+   * und Check weg, und die Betreiberentscheidung „Altbestand bleibt gültig"
+   * wäre gebrochen, ohne dass ein Tor etwas meldet.
+   */
+  it("lässt ein Altbestands-Kärtchen mit derselben LANDUNG unberührt", async () => {
+    ortscodeAnlegen({ id: "tok-alt", code: "333-333", ortId: null });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-alt" });
+
+    const z = await requireHelferSitzung(t.db);
+    expect(z.nurEntnahme).toBe(false);
+  });
+
+  it("weist Check und Box ab, sobald nurEntnahme gilt — und sonst nie", async () => {
+    ortscodeAnlegen({ id: "tok-regal2", code: "444-444", ortId: HANDLAGER_ID });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-regal2" });
+    const regal = await requireHelferSitzung(t.db);
+    expect(nurEntnahmeAbweisung(regal))
+      .toEqual({ ok: false, grund: "bereich", text: BEREICH_TEXT });
+
+    ortscodeAnlegen({ id: "tok-frei", code: "555-555", ortId: null });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-frei" });
+    expect(nurEntnahmeAbweisung(await requireHelferSitzung(t.db))).toBeNull();
   });
 });

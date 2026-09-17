@@ -188,7 +188,7 @@ const ZUGANG = {
   // Ein Regaletikett haengt an keinem Fahrzeug (DRK-302). Diese Weiche liest die
   // Bindung nicht — sie steht hier, weil `HelferZugang` sie als Pflichtfeld
   // fuehrt, und `null` ist der Fall, der zu einem Artikel-Kaertchen passt.
-  fahrzeugBindung: null,
+  fahrzeugBindung: null, nurEntnahme: false,
 };
 /**
  * DRK-305 — der Konto-Zugang, wie ihn `kontoZugangOderNull` liefert.
@@ -201,6 +201,7 @@ const KONTO = {
   name: "A. Verwaltung",
   laeuftAb: null,
   fahrzeugBindung: null,
+  nurEntnahme: false as const,
 };
 const DETAIL = {
   id: "art-9",
