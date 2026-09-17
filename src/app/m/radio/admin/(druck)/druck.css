@@ -15,12 +15,12 @@
  * `Layout{minHeight:100vh}` (`core/shell/SuiteRahmen.tsx:50`) bliebe unter
  * `visibility:hidden` im Fluss und erzeugte leere Folgeseiten hinter dem Bogen. Dieselbe
  * Begruendung in `lagerbuch/verwaltung/(druck)/druck.css:8-15`.
- * ⚠️ DIE REGEL SELBST IST HEUTE FORT, UND DAS IST GEMESSEN (2026-08-26):
- * `/usr/bin/grep -rn "visibility *: *hidden" src` und `/usr/bin/grep -rn "body \*" src`
- * finden sie in KEINEM Stylesheet — nur noch in Prosa. Die drei `lagerbuch`-Stellen, die auf
- * `globals.css:277` zeigen, sind damit veraltete Anker (`globals.css` hat 231 Zeilen); sie
- * bleiben unangetastet, weil sie einen historischen Stand festhalten. ⛔ DAS VERBOT BLEIBT
- * TROTZDEM: es sperrt die Rueckkehr der Form, nicht eine bestehende Zeile.
+ * ⚠️ DIE REGEL STAND NIE IN DIESEM REPO, GEMESSEN (2026-08-26, korrigiert 2026-09-16):
+ * `/usr/bin/grep -rn "body \*" src` findet sie in KEINEM Stylesheet, und
+ * `git log -S"body *" -- src/app/globals.css` ist leer. Die drei `lagerbuch`-Stellen zeigen
+ * auf `lagerbuch/src/app/globals.css:277`, also in die ALT-ANWENDUNG; hier stand frueher, sie
+ * seien „veraltet" — das kam davon, dass der nackte Anker sich gegen die gleichnamige Datei
+ * DIESES Repos aufloesen liess (DRK-192). ⛔ DAS VERBOT SPERRT DIE RUECKKEHR DER FORM.
  *
  * ⛔ ES GREIFT NIE AUF `input` UND NIE AUF `.ant-*`. Eine Regel gegen einen antd-internen
  * Klassennamen waere eine Kopplung, die ein antd-Major still bricht; die Suite geht sie an
