@@ -223,46 +223,27 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
    * Luecken, und ein Quelltext-Scan sieht ohnehin nur Deklarationen, nicht
    * die aufgeloeste Kaskade (Falle 5) — nur ein echter Browser sieht das.
    *
-   * ⚠️ EIN BEGRUENDETER AUSSCHLUSS, KEIN STILLER (Betreiberentscheidung,
-   * 11.08.2026, zu diesem Task): `.ant-select-input` ist ausgeschlossen, weil
-   * es GEMESSEN — nicht angenommen — die Rueckseite einer bereits
-   * dokumentierten Entscheidung ist, keine vergessene Stelle.
+   * ⚠️ DER AUSSCHLUSS FUER `.ant-select-input` IST MIT DRK-190/DRK-191 FORT,
+   * UND ZWAR WEIL DIE URSACHE BEHOBEN IST, NICHT WEIL DER BEFUND VERJAEHRT WAERE.
+   * Hier stand ab dem 11.08.2026 eine begruendete Ausnahme: das Eingabefeld
+   * eines antd-`Select` mass 14px, war aber `readonly` und ohne Wert, zeigte
+   * also nie sichtbaren Text. Zwei Dinge haben sich seither geaendert. Erstens
+   * ist der alte Grund fuer die 16px weg — `app/layout.tsx` sperrt den Zoom
+   * suiteweit, iOS zoomt nirgends mehr — und der neue ist der umgekehrte: ohne
+   * Zoom kann niemand mehr heranholen, was zu klein ist, und das gilt fuer
+   * jeden sichtbaren Text. Zweitens ist das Feld eben NICHT immer leer: 21 der
+   * 44 Auswahlfelder der Suite haben eine Suche, und der getippte Text steht
+   * genau dort.
    *
-   * GEMESSEN auf `/verwaltung/artikel`. ⚠️ Die Messung galt urspruenglich dem
-   * Sortierungs-Select; den gibt es seit DRK-331 nicht mehr (sortiert wird in
-   * den Spaltenkoepfen). Der Befund haengt aber nicht an DIESEM Feld, sondern
-   * an jedem antd-`Select` — auf derselben Seite traegt ihn jetzt „Kategorien
-   * dauerhaft ausblenden". Das Feld traegt
-   * `<input class="ant-select-input" role="combobox" readonly value="">`,
-   * `getComputedStyle(...).fontSize` 14px. Ein Tap auf die Auswahl fokussiert
-   * dieses Feld tatsaechlich (`document.activeElement` danach:
-   * `INPUT.ant-select-input`), aber `value` bleibt IMMER `""` — es zeigt nie
-   * sichtbaren Text.
-   *
-   * ⚠️ REVIEW-FIX (Befund 3, 11.08.2026): der urspruengliche Kommentar zitierte
-   * `lagerbuch/src/app/globals.css:59-69` (die Ausnahme fuer
-   * `.ant-select-selector`) als Erklaerung. Diese Klasse wird von antd 6.5.3 / `@rc-component/select@1.8.2`
-   * gar nicht mehr gerendert — die Regel bewacht seit dem antd-Upgrade nichts
-   * mehr (eigener ClickUp-Fund, s. u.). Die tatsaechliche Quelle der 14px ist
-   * `antd/es/select/style/select-input.js:206-225`:
-   * `[${componentCls}-input]: { ...fontSize: 'inherit'... }` — das Feld erbt
-   * die Schriftgroesse von seinem antd-Vorfahren, der sie auf `token.fontSize`
-   * (= 14) setzt. Kein `.ant-select-selector` im Spiel, und ein
-   * `div`/`span`-Container laege ohnehin nie in der Menge `input, textarea,
-   * select`, die dieser Test misst.
-   *
-   * NICHT BEHOBEN in diesem Task: eine Aenderung an `globals.css` wirkte
-   * suiteweit (portal, qr, feedback, files) — eine stille Suite-Entscheidung
-   * als Nebenwirkung einer lagerbuch-Spec, die der Plan ausdruecklich
-   * ausschliesst („Keine `core`-Datei wird in diesem Plan angefasst"). Der
-   * Fund steht als eigener Posten ausserhalb dieses Plans.
-   *
-   * DER AUSSCHLUSS BLEIBT ENG: nur die Klasse `ant-select-input`, nicht „alle
-   * antd-Inputs" — sonst deckte dieser Test die 16px-Zusage fuer die Felder
-   * nicht mehr ab, fuer die sie gilt. `Suchfeld` (`_ui/Suchfeld.tsx`, ein
-   * echtes antd `Input type="search"` mit sichtbarem Text) bleibt Teil der
-   * gemessenen Menge — genau dieser Fall belegt unten, dass die Kandidatenzahl
-   * nicht nur aus dem ausgeschlossenen Select-Proxy besteht.
+   * Die Quelle der 14px war `antd/es/select/style/select-input.js`
+   * (`.ant-select-input { font-size: inherit }`, geerbt von `.ant-select` mit
+   * `token.fontSize` = 14); die alte Ausnahme in `globals.css` zielte auf
+   * `.ant-select-selector` und lief seit antd 6 ins Leere. `globals.css` setzt
+   * dem Auswahlfeld jetzt `--ant-select-font-size`/`-line-height`/`-font-height`
+   * (16px / 1.5 / 24px), `core/theme/selektschrift.test.ts` misst das an antds
+   * erzeugtem CSS, und dieser Test hier misst die Kaskade im Browser — ohne
+   * Ausnahme. Der Select ist damit nicht laenger ein Sonderfall, sondern der
+   * interessanteste Fall der gemessenen Menge.
    */
   test("kein Eingabefeld unter 16px", async ({ page }) => {
     await devLogin(page, { host: LAGERBUCH_HOST, groups: LAGERBUCH_ADMIN_GRUPPE });
@@ -281,7 +262,7 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
     // Die Sortierauswahl (antd Select) traegt ein Eingabefeld ausserhalb
     // jedes Modals — kein Formular oeffnen noetig.
     const felder = page.locator(
-      "input:not([type=radio]):not([type=checkbox]):not([type=hidden]):not(.ant-select-input), textarea, select",
+      "input:not([type=radio]):not([type=checkbox]):not([type=hidden]), textarea, select",
     );
     expect(
       await felder.count(),
@@ -294,13 +275,9 @@ test.describe("Tapflaechen und Feldschrift bei 390px", () => {
           tag: e.tagName,
           groesse: parseFloat(getComputedStyle(e).fontSize),
           typ: (e as HTMLInputElement).type ?? "",
-          cls: typeof e.className === "string" ? e.className : "",
         }))
         // Kontrollkaestchen und Schalter tragen keine Textgroesse.
         .filter((e) => !["checkbox", "radio", "hidden"].includes(e.typ))
-        // Begruendeter Ausschluss s. o. — eng auf die eine Klasse, kein
-        // pauschaler antd-Ausschluss.
-        .filter((e) => !e.cls.split(/\s+/).includes("ant-select-input"))
         .filter((e) => e.groesse < 16),
     );
     expect(zuKlein).toEqual([]);

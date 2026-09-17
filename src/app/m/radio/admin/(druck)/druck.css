@@ -24,8 +24,9 @@
  *
  * ⛔ ES GREIFT NIE AUF `input` UND NIE AUF `.ant-*`. Eine Regel gegen einen antd-internen
  * Klassennamen waere eine Kopplung, die ein antd-Major still bricht; die Suite geht sie an
- * genau EINER Stelle bewusst ein (`globals.css`, `:root .ant-select-selector`, „der Bruch
- * waere still"). ⛔ Auf diesem Bogen gibt es ohnehin kein antd — er ist ohne Insel gebaut
+ * genau EINER Stelle bewusst ein (`globals.css`, `:root .ant-select`, „der Bruch waere
+ * still" — und er IST eingetreten: die Regel hiesz bis DRK-190 `.ant-select-selector`,
+ * eine Klasse, die antd 6 nicht mehr rendert). ⛔ Auf diesem Bogen gibt es ohnehin kein antd — er ist ohne Insel gebaut
  * (`blatt/page.tsx`, Kopf).
  *
  * EIN BLATT PAPIER HAT KEINEN DUNKELMODUS. Alle Farben sind LITERALE, kein `var(--ant-*)`
