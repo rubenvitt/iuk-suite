@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **siebzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **zwanzig Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -108,6 +108,40 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Lage hält über alle drei Versuche an. Lokal unsichtbar (warmes `.next`, 20 von 20 Mal grün).
     Abhilfe: `klickeWennRuhig` aus `e2e/fixtures.ts` klickt erst, wenn der Kasten des Elements
     dreimal in Folge stillsteht; dort steht auch die volle Messung mit Bildzeiten.
+
+    ⚠️ **Die Hülle bricht ein ZWEITES Mal um, und dieser Umbruch trifft nicht den Klick,
+    sondern jede MESSUNG** (gemessen im Modul `lagerbuch`, DRK-322, bei 834px — gegen antds
+    Quelle gelesen, nicht vermutet). `Layout` legt seine Kinder nur dann nebeneinander, wenn es
+    die Klasse `ant-layout-has-sider` trägt. Die steht **nicht im Server-HTML**: dort kommt
+    `class="ant-layout iuk"` an, und `.ant-layout` ist `flex-direction: column` — die
+    Seitenleiste steht also zunächst **über** dem Inhalt, und der nimmt die volle Fensterbreite.
+    Erst bei der Hydration meldet sich `Sider` per `useEffect` bei `Layout` an
+    (`antd/es/layout/Sider.js:122-125`), und das Raster kippt:
+
+    ```
+    t=0ms     class="ant-layout iuk"                       flex-direction: column   Inhalt 834px
+    t=500ms   class="ant-layout ant-layout-has-sider iuk"  flex-direction: row      Inhalt 594px
+    ```
+
+    ⚠️ **Es ist die KLASSE, die fehlt, nicht die Regel** — und der Unterschied schickt die
+    Fehlersuche sonst ins falsche Stilsystem. Die cssinjs-Regel `.ant-layout-has-sider
+    { flex-direction: row }` steht im selben Server-HTML bereits drin (nachgemessen), und
+    `shell.module.css` deckelt ohnehin nur die Leiste selbst, nie `Layout` oder `Content`.
+    `useHasSider` hat zwar einen synchronen Rückfall über die Kinder
+    (`childNodes.some(node => node.type === Sider)`) — der greift hier nicht, weil `SuiteRahmen`
+    eine **Server Component** ist und `<Sider>` die RSC-Grenze als Client-Referenz überquert.
+
+    Für einen Test heißt das: bis dahin ist nichts zu eng, eine Tabelle scrollt nicht in sich,
+    und eine Zusicherung darauf fällt, **obwohl die Seite richtig ist** (gemessen: Tabellenkasten
+    802px statt 562px, die 746px-Tabelle passt hinein). `expect`s eigene Wiederholung rettet das
+    nicht — wer einmal per `evaluate` misst und danach nur noch rechnet, hat genau einen Versuch.
+    Abhilfe ist nicht „länger warten", sondern die Invariante des fertigen Rasters abzufragen:
+    der Inhalt beginnt dort, wo die Leiste endet (`warteAufSpaltenaufteilung` in
+    `e2e/lagerbuch-ist-bestand.spec.ts`). ⚠️ Die Richtung ist **umgekehrt zu der oben**: dort
+    fliegt die CI mit kaltem `.next` auf, hier die warme Maschine, auf der die Zusicherung sofort
+    greift — und weil die Ursache die Hydration ist, gilt sie **nicht nur unter `next dev`**.
+    Dass die Hülle den Sprung überhaupt macht, statt `hasSider` fest zu setzen, steht als DRK-363
+    auf dem Board.
 
     **Fallen 10, 11 und 12 sind Testfallen, keine Produktionsfallen** — alle drei gehören zur selben
     Familie wie die zweite Testregel aus Falle 10: Fälle, in denen ein e2e-Test **etwas anderes
@@ -280,6 +314,117 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     `src/core/tabelle/spaltenkopf.test.ts` riegelt das repo-weit ab.
     **Nicht mit Falle 9 zusammenlegen:** dort verweigert React eine *Funktion* über die Grenze,
     laut und mit Fehlermeldung; hier geht ein *Element* durch und kommt still nur zur Hälfte an.
+
+18. **Die `@page`-Formate hören bei A3/A4/A5 auf — jedes kleinere Schlüsselwort fällt
+    STILL heraus** (Modul `lagerbuch`, DRK-312, echter Chromium gegen `page.pdf({
+    preferCSSPageSize: true })`, MediaBox aus dem erzeugten PDF gelesen — nicht vermutet):
+
+    ```
+    size: A4           → 209,9 × 297,0 mm   erkannt
+    size: A5           → 148,2 × 209,9 mm   erkannt
+    size: A6/A7/A8     → 215,9 × 279,4 mm   ← Letter, also die Druckervorgabe
+    size: 74mm 105mm   →  74,1 × 105,2 mm   erkannt
+    ```
+
+    ⚠️ **DAS IST KEINE CHROMIUM-MACKE, UND DER UNTERSCHIED ENTSCHEIDET, WO MAN SUCHT.**
+    CSS Paged Media kennt als `<page-size>` genau `A5 | A4 | A3 | B5 | B4 | JIS-B5 | JIS-B4 |
+    letter | legal | ledger` — A6, A7 und A8 stehen dort **nicht**. `size: A7` ist also
+    ungültiges CSS, und jeder Browser wirft eine ungültige Deklaration weg; Chromium verhält
+    sich hier spezifikationstreu. Wer es für eine Engine-Eigenheit hält, wartet auf eine
+    Behebung, die nie kommt, oder hofft auf einen anderen Browser.
+
+    ⚠️ **Die Deklaration überlebt nicht einmal das Parsen:** `document.styleSheets` gibt
+    `@page { size: A7 }` als `"@page { }"` zurück. Es gibt also nichts, was man zur Laufzeit
+    abfragen könnte, und **kein Tor sieht es**: die Datei ist syntaktisch einwandfrei,
+    `typecheck` kennt keine Papierformate, `pnpm build` serialisiert sie klaglos, und
+    **Vitest kann es strukturell nicht sehen** — jsdom hat keine Seitenaufteilung. Wer `size:
+    A7` schreibt, bekommt ein Etikett in der Vorgabegröße des Druckers, und zwar erst auf dem
+    Papier. Abhilfe: die Kantenlängen ausschreiben (`74mm 105mm`).
+
+    ⚠️ **Die zweite Hälfte ist teurer, weil sie eine BAUFORM erzwingt: bei GEMISCHTEN
+    Seitengrößen verwirft Chromium die CSS-Größe vollständig.** Gemessen: eine A7-Karte und
+    ein A4-Bogen im selben Dokument ergaben Letter für **beide** Seiten — nicht etwa je Seite
+    die eigene Größe. Eine zweite Druckgröße ist deshalb keine Sektion auf einer bestehenden
+    Druckseite, sondern eine **eigene Route**, auf der alles Gedruckte dieselbe Größe trägt.
+    Was vorher per `display: none` wegfällt, zählt dabei nicht mit (ebenfalls gemessen) —
+    das Bildschirm-Chrome ist also unschädlich, solange es `lb-nichtDrucken` trägt.
+
+    ⚠️ **Teilt sich ein Stylesheet mehrere Druckflächen, MUSS die Regel benannt sein**
+    (`@page a7 { … }` plus `page: a7` am gemeinsamen Vorfahren). `lagerbuch` hat genau ein
+    Druck-Stylesheet für drei Flächen (Falle 43 hält das fest); ein unbenanntes `size` hätte
+    den A4-Etikettenbogen und die Checklisten still mit auf 74 × 105 mm gestellt. Benannte
+    und unbenannte Regel vertragen sich im selben Stylesheet, gemessen.
+    `verwaltung/(druck)/ortsetiketten/druck.test.ts` hält die Form fest,
+    `e2e/lagerbuch-ortsetiketten.spec.ts` misst die Wirkung — **die Zahl kennt nur ein echter
+    Browser**, dieselbe Klasse wie die Fallen 8 und 13.
+
+19. **Eine `.xlsx` gegenzulesen ist zweimal anders, als es aussieht — und beide Male meldet
+    sich der Irrtum als etwas ANDERES** (Modul-übergreifend, DRK-186, gegen
+    `write-excel-file@4.1.1` und die erzeugten Archive gemessen — nicht vermutet). Seit die
+    Suite ihre Reports als Mappe ausgibt, prüft jeder Export-Test eine ZIP-Datei; das
+    Harness dafür ist `src/core/export/test-mappe.ts` (eine Stelle, kein zweites erfinden —
+    dieselbe Regel wie `qr/_lib/test-dom.tsx`). Wer es umgeht und selbst liest, läuft in
+    genau diese zwei:
+
+    **a) Der lokale Dateikopf führt die Größe 0.** `write-excel-file` schreibt STRÖMEND,
+    setzt also Bit 3 des Flag-Feldes; gepackte wie ungepackte Größe stehen erst im
+    Datendeskriptor HINTER den Daten. Der naheliegende Leser läuft über die lokalen Köpfe
+    (`PK\x03\x04`), inflatiert null Bytes und bekommt **„unexpected end of file"** — eine
+    Meldung, die nach einer KAPUTTEN DATEI klingt, während die Mappe einwandfrei ist. Der
+    Weg, der trägt, ist das zentrale Verzeichnis am Dateiende.
+
+    **b) Eine abschließend leere Zelle steht in der Datei GAR NICHT.** Das ist der
+    Unterschied zur CSV, die jede Zeile auf gleiche Feldzahl auffüllt (`a,b,,`): hier endet
+    die Zeile nach der letzten gefüllten Zelle. Gemessen an einer Zeile mit leerer
+    Schlussspalte: `[5]` statt `[5, null]` — **eine Zusicherung auf die Spaltenzahl fällt,
+    obwohl die Mappe richtig ist**, und der Befund liest sich wie „der Export verliert eine
+    Spalte". Verschoben ist nichts: jede Zelle nennt ihre Spalte selbst (`r="E2"`). Das
+    Harness füllt deshalb auf die Breite der Kopfzeile auf.
+
+    **Kein Tor sieht beides:** `typecheck` prüft gültige Aufrufe, `pnpm build` serialisiert
+    klaglos, und `lint` hat damit nichts zu tun. ⚠️ **Anders als die Fallen 8, 13 und 18
+    braucht das hier KEINEN echten Browser** — die Bytes entstehen in Node, Vitest sieht
+    alles. Wer das verwechselt, verschiebt eine Zusicherung in einen Playwright-Lauf, wo
+    sie langsamer und seltener läuft, ohne dass sie dort mehr wüsste.
+
+    ⚠️ **Die dritte Hälfte ist keine Test-, sondern eine Bauformfrage, und sie ist Falle 6 in
+    neuem Gewand:** `core/export` hat ZWEI Einstiegspunkte — `server.ts` (Route Handler,
+    `write-excel-file/node`, `toBuffer()`) und `client.ts` (Insel, `/browser`, `toFile()`).
+    `index.ts` re-exportiert **keinen von beiden**, anders als `core/tabelle/index.ts`. Ein
+    Re-Export von `client.ts` reichte seine Funktion als Client-Referenz in jede Server
+    Component (Falle 6), ein Re-Export von `server.ts` zöge `node:stream` in jedes
+    Client-Bundle. Und die beiden Einstiegspunkte des Pakets tragen **identische Typen**
+    (die `.d.ts` sagt das wörtlich) — der falsche Griff ist damit typkorrekt und fällt erst
+    zur Laufzeit auf.
+
+20. **Eine eigene CSS-Regel auf einen antd-Klassennamen stirbt beim Major-Upgrade STILL — und ein
+    Test, der den REGELTEXT liest, stirbt lautlos mit** (Modul-übergreifend, DRK-190/DRK-191, gegen
+    `antd@6.6.2` und `@rc-component/select@1.10.1` gemessen — nicht vermutet). `globals.css` trug
+    die einzige bewusst eingegangene Kopplung der Suite an einen antd-internen Klassennamen,
+    `:root .ant-select-selector { font-size: 16px }`, samt Kommentar „ein antd-Major könnte ihn
+    umbenennen, und der Bruch wäre still". Genau das ist passiert: antd 6 baut das Auswahlfeld aus
+    `.ant-select > .ant-select-content > (.ant-select-placeholder, input.ant-select-input)`, die
+    alte Klasse rendert nirgends mehr. Die Regel lief ins Leere, **und die 16px-Zusage der Suite sah
+    für jedes Auswahlfeld erfüllt aus, ohne es zu sein.**
+    ⚠️ **Der Test war dabei schlimmer als kein Test.** `feldschrift.test.ts` regexte über
+    `globals.css` und fand die Regel — sie stand ja da. Ein Quelltext-Scan kann strukturell nicht
+    sehen, ob der Baum, auf den ein Selektor zielt, überhaupt existiert; er las den Regeltext, nicht
+    die Wirkung. Weil dort ein Test stand, hat die Regel über Monate niemand hinterfragt.
+    **Abhilfe, und sie kostet keinen Browser:** `renderToString` plus `extractStyle` aus
+    `@ant-design/cssinjs` geben Markup UND das für das Suite-Theme tatsächlich erzeugte CSS heraus —
+    beides in Vitest, ohne Layout. `core/theme/selektschrift.test.ts` prüft damit, dass die Klasse,
+    auf die `globals.css` zielt, wirklich gerendert wird. Wer eine Regel gegen `.ant-*` schreibt,
+    schuldet einen solchen Test dazu.
+    ⚠️ **Die zweite Hälfte ist die teurere, und sie gilt für jedes antd-Bauteil mit Bediendichte:**
+    `.ant-select` trägt **keine `height`**. Es rechnet
+    `padding-block = (height − font-height) / 2 − border` und lässt die Zeilenbox den Rest machen.
+    Wer `font-size` anhebt, ohne `line-height` und `font-height` mitzuziehen, macht jedes
+    Auswahlfeld höher als sein Nachbarfeld (gemessen: 44px → 47,1px); die drei Zahlen hängen über
+    `font-height = line-height × font-size` aneinander. **Und der naheliegende Token greift daneben:**
+    `components.Select.fontSize` ergibt gemessen `.iuk.ant-select-css-var { --ant-font-size: 16px }`
+    — es kapert die GLOBALE Schriftvariable innerhalb des Feldes, statt die des Bauteils zu setzen,
+    und lässt die anderen beiden stehen. Deshalb steht hier ausnahmsweise CSS statt eines Tokens,
+    entgegen Falle 5.
 
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb

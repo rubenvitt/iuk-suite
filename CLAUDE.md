@@ -315,7 +315,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     **Nicht mit Falle 9 zusammenlegen:** dort verweigert React eine *Funktion* über die Grenze,
     laut und mit Fehlermeldung; hier geht ein *Element* durch und kommt still nur zur Hälfte an.
 
-18. **Chromium kennt als `@page`-Format nur A3/A4/A5 — jedes kleinere Schlüsselwort fällt
+18. **Die `@page`-Formate hören bei A3/A4/A5 auf — jedes kleinere Schlüsselwort fällt
     STILL heraus** (Modul `lagerbuch`, DRK-312, echter Chromium gegen `page.pdf({
     preferCSSPageSize: true })`, MediaBox aus dem erzeugten PDF gelesen — nicht vermutet):
 
@@ -326,10 +326,17 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     size: 74mm 105mm   →  74,1 × 105,2 mm   erkannt
     ```
 
+    ⚠️ **DAS IST KEINE CHROMIUM-MACKE, UND DER UNTERSCHIED ENTSCHEIDET, WO MAN SUCHT.**
+    CSS Paged Media kennt als `<page-size>` genau `A5 | A4 | A3 | B5 | B4 | JIS-B5 | JIS-B4 |
+    letter | legal | ledger` — A6, A7 und A8 stehen dort **nicht**. `size: A7` ist also
+    ungültiges CSS, und jeder Browser wirft eine ungültige Deklaration weg; Chromium verhält
+    sich hier spezifikationstreu. Wer es für eine Engine-Eigenheit hält, wartet auf eine
+    Behebung, die nie kommt, oder hofft auf einen anderen Browser.
+
     ⚠️ **Die Deklaration überlebt nicht einmal das Parsen:** `document.styleSheets` gibt
     `@page { size: A7 }` als `"@page { }"` zurück. Es gibt also nichts, was man zur Laufzeit
-    abfragen könnte, und **kein Tor sieht es**: es ist gültiges CSS nach Spezifikation,
-    `typecheck` kennt keine Papierformate, `pnpm build` serialisiert die Datei klaglos, und
+    abfragen könnte, und **kein Tor sieht es**: die Datei ist syntaktisch einwandfrei,
+    `typecheck` kennt keine Papierformate, `pnpm build` serialisiert sie klaglos, und
     **Vitest kann es strukturell nicht sehen** — jsdom hat keine Seitenaufteilung. Wer `size:
     A7` schreibt, bekommt ein Etikett in der Vorgabegröße des Druckers, und zwar erst auf dem
     Papier. Abhilfe: die Kantenlängen ausschreiben (`74mm 105mm`).
