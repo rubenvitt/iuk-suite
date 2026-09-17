@@ -9,7 +9,7 @@ import {
 import {
   A4_BREITE_MM, A4_HOEHE_MM, ORT_JE_BLATT, nameStufe,
 } from "@/app/m/lagerbuch/_lib/ortEtikettMasse";
-import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
+import { ENTNAHMEBOX_NAME, HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 
 /**
  * DIE ORTSKARTEN — DRK-312, acht Karten je A4-Blatt seit DRK-388.
@@ -243,13 +243,23 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
 
     /*
-     * Die Karte wird ueber ihre BEIZEILE gefunden, nicht ueber ihren Namen:
-     * „Handlager" kann auch in einem Einheitennamen stecken. `standortMeta`
-     * gibt fuer den Handlager „Lager" und fuer jede Einheit „Fahrzeug …" oder
-     * „Tasche" — die Beizeile trennt also genau die beiden Arten.
+     * Die Karte wird ueber BEIZEILE UND NAMEN gefunden. Die Beizeile allein
+     * reichte bis DRK-417: `standortMeta` gab „Lager" nur fuer den Handlager
+     * und fuer jede Einheit „Fahrzeug …" oder „Tasche". Seit die Entnahmebox
+     * eine eigene Karte hat, gibt es ZWEI Karten mit „Lager", und ein
+     * `findIndex` nimmt still die erste — heute die richtige, weil
+     * `etikettOrte` den Handlager vorn sortiert, aber das ist eine Zusage ueber
+     * die REIHENFOLGE, und dieser Test wollte gerade keine machen.
+     *
+     * ⚠️ DER NAME ALLEIN REICHT EBENSO WENIG, und das ist der urspruengliche
+     * Grund fuer die Beizeile: „Handlager" kann in einem Einheitennamen
+     * stecken. Beides zusammen trennt eindeutig.
      */
     const metas = await page.locator(".lb-ortkarteMeta").allTextContents();
-    const index = metas.findIndex((m) => m.trim() === "Lager");
+    const namen = await page.locator(".lb-ortkarteNameText").allTextContents();
+    const index = metas.findIndex(
+      (m, i) => m.trim() === "Lager" && namen[i]?.trim() === "Handlager",
+    );
     expect(index, "der Seed muss eine Handlager-Karte liefern").toBeGreaterThanOrEqual(0);
     const karte = page.locator(".lb-ortkarte").nth(index);
 
@@ -305,6 +315,79 @@ test.describe("Ortsetiketten (Bogen)", () => {
    * gebaut ist. Der Abruf laeuft deshalb in einem FRISCHEN Kontext ohne die
    * Cookies aus `beforeEach`.
    */
+  /**
+   * DRK-417 — DIE KARTE AN DER KISTE, DENSELBEN WEG ENTLANG.
+   *
+   * ⚠️ WARUM SIE HIER STEHT UND NICHT NUR IN VITEST. Die Unit-Haelfte kennt
+   * jedes Stueck einzeln: `helferBereich.test.ts` die Reichweite,
+   * `ortZiel.test.ts` die Landung, `HelferRahmen.test.tsx` die Reiterleiste.
+   * Keines davon merkt, wenn die Karte den FALSCHEN Code truege oder gar keinen
+   * — der QR entsteht beim Oeffnen dieser Seite, und ob er auf die Box zeigt,
+   * sagt erst ein echter Abruf. Dieselbe Begruendung wie bei der
+   * Handlager-Karte daneben.
+   *
+   * ⚠️ DIE REICHWEITE IST DIE ZWEITE HAELFTE, und sie ist hier enger als
+   * ueberall sonst: dieser Code darf ALS EINZIGER weder entnehmen noch checken.
+   * Ein Riegel, der nur „nicht der Regal-Code" fragte, liesse ihn ueberall
+   * durch — die getippten Adressen unten sind der Nachweis, dass die Bereiche
+   * einzeln haengen und nicht als Paar.
+   */
+  test("die Entnahmebox-Karte fuehrt abgemeldet ans Ablegen — und sonst nirgendwohin", async ({ page, browser }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+
+    // Beizeile UND Name, aus demselben Grund wie bei der Handlager-Karte:
+    // beide Karten tragen „Lager".
+    const metas = await page.locator(".lb-ortkarteMeta").allTextContents();
+    const namen = await page.locator(".lb-ortkarteNameText").allTextContents();
+    const index = metas.findIndex(
+      /*
+       * ⚠️ UEBER DIE KONSTANTE, NICHT UEBER EIN LITERAL. Der Name steht in
+       * `konstanten.ts` und in Migration 0012; ein hier getipptes
+       * „Entnahmebox" liefe bei einer Umbenennung ins Leere, und der Test
+       * meldete dann „die Karte fehlt" statt „die Karte heisst anders".
+       */
+      (m, i) => m.trim() === "Lager" && namen[i]?.trim() === ENTNAHMEBOX_NAME,
+    );
+    expect(index, "seit DRK-417 gehoert die Entnahmebox auf den Bogen")
+      .toBeGreaterThanOrEqual(0);
+    const karte = page.locator(".lb-ortkarte").nth(index);
+
+    const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
+    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
+
+    // Der Scan — abgemeldet, wie in der Halle.
+    const anonym = await browser.newContext();
+    const seite = await anonym.newPage();
+    await seite.goto(ziel);
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer/box"));
+
+    /*
+     * ⚠️ DIE EINHEIT WIRD VOR DER ABLAGE GEWAEHLT — Betreiberentscheidung vom
+     * 17.09.2026. Ohne Herkunft ist die Umbuchung im Journal nicht
+     * nachvollziehbar; der Schirm sagt das auch, statt es nur zu verlangen.
+     */
+    await expect(seite.getByText("Einheit wählen")).toBeVisible();
+    await expect(seite.locator("[data-rolle='wahl-zweck']")).toContainText("Überschuss");
+
+    // Die Reiterleiste fuehrt fuer diesen Zugang NUR die Box.
+    const reiter = seite.getByTestId("lb-tableiste");
+    await expect(reiter.getByText("Box")).toBeVisible();
+    await expect(reiter.getByText("Entnahme")).toHaveCount(0);
+    await expect(reiter.getByText("Check")).toHaveCount(0);
+
+    /*
+     * ⚠️ UND DIE GETIPPTEN ADRESSEN KOMMEN AUCH NICHT DURCH. Eine ausgeblendete
+     * Navigation ist kein Riegel; ohne diese beiden Zeilen bewiese der Test nur,
+     * dass aufgeraeumt wurde.
+     */
+    await seite.goto(lagerbuchUrl("/helfer"));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer/box"));
+    await seite.goto(lagerbuchUrl("/helfer/check"));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer/box"));
+
+    await anonym.close();
+  });
+
   test("ein Scan ohne Sitzung landet auf dem Gate, mit Rueckkehrziel", async ({ browser }) => {
     const anonym = await browser.newContext();
     const seite = await anonym.newPage();
@@ -780,10 +863,10 @@ test.describe("Ortsetiketten (Bogen)", () => {
 
     /*
      * ⚠️ DIE ZEILE DARUEBER IST DIE HAELFTE DES TESTS, UND ALLEIN WAERE SIE
-     * WERTLOS (Codex-Befund P2 zu diesem PR). Der Seed liefert vier Karten — den
-     * Handlager und drei aktive Einheiten. `Math.ceil(4 / 8)` ist 1, und EINE
-     * Seite kommt bei vier Karten auch dann heraus, wenn je Blatt nur vier
-     * stehen. Die Zusage „acht je Blatt" beruehrt der Seed also gar nicht.
+     * WERTLOS (Codex-Befund P2 zu diesem PR). Der Seed liefert fuenf Karten — den
+     * Handlager, die Entnahmebox (DRK-417) und drei aktive Einheiten.
+     * `Math.ceil(5 / 8)` ist 1, und EINE Seite kommt bei fuenf Karten auch dann
+     * heraus, wenn je Blatt nur vier stehen. Die Zusage „acht je Blatt" beruehrt der Seed also gar nicht.
      *
      * Gemessen wird sie deshalb an der GRENZE, und zwar an der PAGINIERUNG
      * selbst: acht Karten muessen EIN Blatt ergeben, neun ZWEI. Die
