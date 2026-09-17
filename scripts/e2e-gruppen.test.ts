@@ -184,6 +184,56 @@ function loese(muster: string, vorhanden: string[]): string[] {
     });
 }
 
+/**
+ * Die `run:`-Bloecke eines Workflows, jeder als EIN Text.
+ *
+ * ⚠️ WARUM NICHT ZEILENWEISE, UND WARUM KEIN YAML-PARSER.
+ *
+ * Zeilenweise war der erste Versuch und ist an einer Zeilenfortsetzung
+ * gescheitert (Codex-Befund P2, Begruendung an der Zusicherung unten). Ein
+ * echter YAML-Parser waere sauberer, ist aber im Baum nicht vorhanden —
+ * nachgesehen, weder `yaml` noch `js-yaml`. Eine Abhaengigkeit fuer einen
+ * einzigen Test einzuziehen waere teurer als diese zwanzig Zeilen.
+ *
+ * Gefasst wird deshalb genau so viel YAML, wie dieser Workflow braucht: der
+ * Wert hinter `run:` steht entweder in derselben Zeile, oder er ist ein
+ * Blockskalar (`|`, `>`, samt `-`/`+`-Nachsatz) und laeuft dann ueber alle
+ * FOLGENDEN Zeilen, die tiefer eingerueckt sind als der Schluessel selbst.
+ * Leerzeilen gehoeren dazu, weil sie einen Block nicht beenden.
+ */
+export function laufBloecke(yaml: string): string[] {
+  const zeilen = yaml.split("\n");
+  const bloecke: string[] = [];
+
+  for (let i = 0; i < zeilen.length; i++) {
+    // `- run: …` wie `run: …`; die Einrueckung des SCHLUESSELS entscheidet, was
+    // noch zum Block gehoert — nicht die des Spiegelstrichs davor.
+    const treffer = /^(\s*(?:-\s+)?)run:(.*)$/.exec(zeilen[i]);
+    if (!treffer) continue;
+
+    const schluesselSpalte = treffer[1].length;
+    const rest = treffer[2].trim();
+
+    // Wert in derselben Zeile: fertig, nichts zieht nach.
+    if (rest && !/^[|>][-+]?\d*$/.test(rest)) {
+      bloecke.push(rest);
+      continue;
+    }
+
+    const inhalt: string[] = [];
+    while (i + 1 < zeilen.length) {
+      const naechste = zeilen[i + 1];
+      const tiefe = naechste.length - naechste.trimStart().length;
+      if (naechste.trim() !== "" && tiefe <= schluesselSpalte) break;
+      inhalt.push(naechste);
+      i++;
+    }
+    bloecke.push(inhalt.join("\n"));
+  }
+
+  return bloecke;
+}
+
 describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt", () => {
   const alle = alleSpecs();
   const erwartet = alle.filter((d) => !wirdAusgelassen(d));
@@ -302,27 +352,72 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     expect(ci).toContain("e2e/gruppen.json");
 
     /*
-     * ⚠️ GEPRUEFT WIRD DIE e2e-ZEILE, NICHT DIE GANZE DATEI — und das ist eine
-     * VERSCHAERFUNG, keine Lockerung.
+     * ⚠️ NUR `vitest` DARF SHARDEN — die Frage ist bewusst UMGEDREHT.
      *
-     * Hier stand `expect(ci).not.toMatch(/--shard=\$\{\{\s*matrix/)`, also ein
-     * Verbot von `--shard` IRGENDWO in der Datei. Das traf ab DRK-412 auch den
-     * Vitest-Job, der zu Recht shardet: dort gibt es keinen Dev-Server, dessen
-     * Speicher mit der Routenflaeche waechst, und jeder Shard ist ohnehin ein
-     * eigener Runner. Die Begruendung von DRK-358 gilt fuer e2e, nicht fuer
-     * jeden Aufruf mit demselben Flag.
+     * Bis DRK-412 stand hier `expect(ci).not.toMatch(/--shard=\$\{\{\s*matrix/)`:
+     * ein Verbot der Matrix-Form irgendwo in der Datei. Das traf auch den
+     * Vitest-Job, der zu Recht shardet — dort gibt es keinen Dev-Server, dessen
+     * Speicher mit der Routenflaeche waechst, und jeder Shard ist ein eigener
+     * Runner. Die Begruendung von DRK-358 gilt fuer e2e, nicht fuer jeden Aufruf
+     * mit demselben Flag.
      *
-     * Der Ersatz ist enger am Schutzgut und faengt mehr als der alte:
-     *   * der alte sah NUR die Matrix-Form — ein hartes `--shard=1/5` an
-     *     `pnpm e2e` waere durchgegangen;
-     *   * dieser sieht JEDE Form, aber nur dort, wo sie schadet.
+     * ⛔ DER ERSTE ERSATZ WAR EINE ZEILENPRUEFUNG AUF `pnpm e2e`, UND DER WAR
+     * LOECHRIG — Codex-Befund P2 auf diesem PR, nachgestellt und bestaetigt.
+     * Bei einer Zeilenfortsetzung im `run: |`-Block
+     *
+     *     - run: |
+     *         pnpm e2e \
+     *           --shard=1/5
+     *
+     * traegt die Zeile mit `pnpm e2e` kein `--shard`, und die Zeile mit
+     * `--shard` kein `pnpm e2e`. Der Waechter blieb gruen, waehrend e2e wieder
+     * shardete. Bitter daran: GENAU DIESE FORM HAETTE DER ALTE GEFANGEN, weil er
+     * die ganze Datei las. Eine Verschaerfung in einer Richtung war eine
+     * Schwaechung in der anderen — der Grund, warum hier jetzt der ganze
+     * `run`-Block geprueft wird und nicht eine Zeile daraus.
+     *
+     * Umgedreht wird die Frage, weil die Positivliste den kuenftigen Fall
+     * miterschlaegt: nicht „e2e darf nicht sharden" (dann muss jeder neue
+     * Sharder einzeln verboten werden), sondern „wer shardet, muss `vitest`
+     * sein". Ein dritter Job, der es morgen versucht, faellt damit auf, ohne
+     * dass jemand diesen Test anfasst.
      */
-    const e2eZeilen = ci
-      .split("\n")
-      .filter((z) => z.includes("pnpm e2e") || z.includes("playwright test"));
-    expect(e2eZeilen.length, "kein e2e-Aufruf im Workflow gefunden").toBeGreaterThan(0);
-    for (const z of e2eZeilen) {
-      expect(z.includes("--shard"), `e2e shardet wieder: ${z.trim()}`).toBe(false);
+    const e2eAufrufe = laufBloecke(ci).filter(
+      (b) => b.includes("pnpm e2e") || b.includes("playwright test"),
+    );
+    expect(e2eAufrufe.length, "kein e2e-Aufruf im Workflow gefunden").toBeGreaterThan(0);
+
+    for (const block of laufBloecke(ci)) {
+      if (!block.includes("--shard")) continue;
+      expect(
+        block.includes("vitest"),
+        `nur vitest darf sharden, dieser Block tut es auch: ${block.replace(/\s+/g, " ").trim()}`,
+      ).toBe(true);
     }
+  });
+
+  it("die Block-Zerlegung sieht die Zeilenfortsetzung, die eine Zeilenpruefung verpasst", () => {
+    // Die Gegenprobe zum Codex-Befund: ohne diese Faelle faellt die Zerlegung
+    // still auf das Verhalten zurueck, das die Luecke hatte.
+    const mitFortsetzung = [
+      "      - run: |",
+      "          pnpm e2e \\",
+      "            --shard=1/5",
+      "      - run: pnpm lint",
+    ].join("\n");
+    const bloecke = laufBloecke(mitFortsetzung);
+    expect(bloecke).toHaveLength(2);
+    expect(bloecke[0]).toContain("pnpm e2e");
+    expect(bloecke[0], "Fortsetzungszeile fehlt im Block").toContain("--shard");
+    expect(bloecke[1].trim()).toBe("pnpm lint");
+
+    // Ein `run:` mit Wert in derselben Zeile bleibt ein eigener Block, und der
+    // naechste Schritt zieht nichts von ihm mit.
+    const einzeilig = ["      - run: pnpm e2e e2e/a.spec.ts", "      - run: pnpm test"].join("\n");
+    expect(laufBloecke(einzeilig)).toEqual(["pnpm e2e e2e/a.spec.ts", "pnpm test"]);
+
+    // Ein gefalteter Skalar (`>`) gehoert ebenso ganz in den Block.
+    const gefaltet = ["      - run: >", "          pnpm e2e", "          --shard=2/5"].join("\n");
+    expect(laufBloecke(gefaltet)[0]).toContain("--shard");
   });
 });
