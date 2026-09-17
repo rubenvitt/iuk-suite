@@ -82,6 +82,22 @@ file scripts/backup.sh scripts/backup-sidecar.sh
 > ein Stack, der läuft, ein Dienst, der ständig neu startet, und kein Backup. Dieselbe
 > Falle wie bei `clamd.files.conf`, nur zweimal.
 
+> ⚠️ **Jedes spätere `cp` auf `scripts/backup-sidecar.sh` braucht einen Austausch des
+> Containers.** Der Dienst läuft als **ein** `sh`-Prozess über Wochen und hat seine
+> Funktionen beim Start gelesen; `docker compose up -d` tauscht ihn aber nur aus, wenn
+> sich Image oder Konfiguration geändert haben, und neuer Dateiinhalt hinter einem
+> unveränderten Mount-Pfad ist beides nicht. Der Rollout erledigt das ab jetzt selbst
+> (Schritt 5 vergleicht die ctime beider Skripte mit der Startzeit des Containers); wer
+> die Datei von Hand nachzieht, ruft danach selbst:
+>
+> ```bash
+> docker compose up -d --force-recreate backup
+> ```
+>
+> Sonst sichert der Sidecar bis zum nächsten Neustart nach dem alten Stand — ohne dass
+> irgendwo etwas rot wird. (`scripts/backup.sh` bräuchte das nicht: das startet der
+> Sidecar je Lauf als eigenen Prozess.)
+
 ## 2. Was der Dienst mitbringt
 
 | | |

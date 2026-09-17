@@ -347,6 +347,18 @@ dabei **jede `environment:`-Zeile, die nur die Server-Datei hatte, in die `.env`
 retten** (A1), dann den `deploy`-Job des Laufs neu starten (**Re-run failed jobs** —
 er fordert die Freigabe erneut an).
 
+> ⚠️ **Ein nachgezogenes `backup-sidecar.sh` wirkt erst nach einem Austausch des
+> Containers — der Rollout erledigt das selbst.** Der Dienst `backup` läuft als **ein**
+> `sh`-Prozess über Wochen und hat seine Funktionen beim Start gelesen; `docker compose
+> up -d` tauscht ihn aber nur aus, wenn sich Image oder Konfiguration geändert haben, und
+> der Inhalt einer Datei hinter einem unveränderten Mount-Pfad ist beides nicht. Schritt 5
+> vergleicht deshalb die **ctime** beider Skripte mit der Startzeit des laufenden
+> Containers und ruft bei Bedarf `docker compose up -d --force-recreate backup`.
+> (`scripts/backup.sh` bräuchte das nicht — das startet der Sidecar je Lauf als eigenen
+> Prozess. Geprüft werden trotzdem beide.) Wer die Datei **von Hand** nachzieht, ohne den
+> Rollout zu fahren, holt den Austausch selbst nach — oder der Sidecar sichert bis zum
+> nächsten Neustart nach dem alten Stand, ohne dass irgendwo etwas rot wird.
+
 > **Was NICHT der Ausweg ist: eine dauerhaft abweichende `compose.yaml` auf dem Server.**
 > Der Vergleich ist byteweise — ein Host, der einen Wert anders braucht als die Vorlage,
 > hätte damit entweder nie einen grünen Rollout oder, schlimmer, eine spätere Angleichung

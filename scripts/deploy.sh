@@ -275,10 +275,55 @@ warte_gesund() {
   return 1
 }
 
+# ⚠️ EIN GEÄNDERTES BIND-MOUNT-SKRIPT ERREICHT DEN LAUFENDEN DIENST NICHT. `docker
+# compose up -d` tauscht einen Container aus, wenn sich sein IMAGE oder seine
+# KONFIGURATION geändert hat; der Inhalt einer Datei hinter einem unveränderten Mount-Pfad
+# ist beides nicht. Der Sidecar läuft aber als ein einziger `sh`-Prozess über Wochen
+# (`command: [… "dienst"]`), und der hat seine Funktionen beim Start gelesen.
+#
+# GEMESSEN an einem Skript, das im Sekundentakt eine Zeile schreibt und dabei ausgetauscht
+# wurde: der laufende Prozess gab sechsmal die ALTE Fassung aus, ein neu gestarteter sofort
+# die neue. Schritt 1 meldet die Datei dabei als „identisch" — sie IST es ja —, und genau
+# das ist die Falle: der Rollout sagt „aktuell", und nachts läuft der alte Stand.
+#
+# ⚠️ FÜR `backup.sh` GILT DAS NICHT, und der Unterschied ist tragend: das startet der
+# Sidecar je Lauf als eigenen Prozess (`bash "$BACKUP_SKRIPT"`), liest also jedes Mal neu.
+# Nur `backup-sidecar.sh` selbst braucht den Neustart — geprüft werden trotzdem beide,
+# weil die Unterscheidung hier niemand im Kopf haben soll.
+#
+# ⚠️ ctime, NICHT mtime: `cp -p`, `install -p` und `rsync -a` erhalten die mtime, und dann
+# wäre eine frisch kopierte Datei „älter" als der Container. Die ctime setzt der Kern beim
+# Schreiben, sie lässt sich nicht erhalten. Ist die Startzeit nicht zu lesen, wird
+# neugestartet — lieber einmal zu viel als eine Nacht auf dem alten Stand.
+backup_skripte_neuer_als() {
+  local seit="$1" datei zeit
+  for datei in scripts/backup.sh scripts/backup-sidecar.sh; do
+    zeit="$(stat -c %Z "$STACK_DIR/$datei" 2>/dev/null || echo 0)"
+    if [ "$zeit" -gt "$seit" ]; then
+      echo "  $datei ist jünger als der laufende backup-Container."
+      return 0
+    fi
+  done
+  return 1
+}
+
 melde "Schritt 5: Image pinnen und Stack neu starten"
 setze_pin "$NEUES_IMAGE"
 docker compose config >/dev/null || abbruch "docker compose config ist nach dem Pinnen ungültig — .env prüfen."
 docker compose up -d
+
+# Erst NACH `up -d` fragen: hat es den Container ohnehin ausgetauscht (geänderte .env,
+# geänderte compose.yaml), ist seine Startzeit jetzt jünger als jedes Skript, und es
+# bleibt beim einen Austausch.
+backup_cid="$(docker compose ps -q backup 2>/dev/null || true)"
+if [ -n "$backup_cid" ]; then
+  gestartet="$(docker inspect -f '{{.State.StartedAt}}' "$backup_cid" 2>/dev/null || true)"
+  seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
+  if backup_skripte_neuer_als "$seit"; then
+    melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
+    docker compose up -d --force-recreate backup
+  fi
+fi
 
 # ── Ab hier ist Produktion angefasst: jeder Fehlschlag geht über zurueck_und_raus ──────
 zurueck_und_raus() {

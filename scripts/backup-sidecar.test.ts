@@ -2004,6 +2004,65 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
     expect(zeile).toContain("scripts/backup-sidecar.sh");
   });
 
+  it("ein geaendertes Sidecar-Skript loest einen Austausch des Containers aus", () => {
+    // ⚠️ `docker compose up -d` tauscht einen Container aus, wenn sich IMAGE oder
+    // KONFIGURATION geaendert haben — der Inhalt einer Datei hinter einem unveraenderten
+    // Mount-Pfad ist beides nicht. Der Sidecar laeuft aber als EIN `sh`-Prozess ueber
+    // Wochen und hat seine Funktionen beim Start gelesen. GEMESSEN an einem Skript, das
+    // im Takt eine Zeile schreibt und dabei ausgetauscht wird: der laufende Prozess gab
+    // sechsmal die ALTE Fassung aus, ein neu gestarteter sofort die neue. Schritt 1
+    // meldet die Datei dabei als „identisch" — sie IST es ja.
+    expect(deploySh, "nach `up -d` wird der Sidecar bei Bedarf ausgetauscht").toMatch(
+      /docker compose up -d --force-recreate backup/,
+    );
+    // Gemessen statt gescannt: die Entscheidung wird aus dem Skript geschnitten und in
+    // `bash` ausgefuehrt (sie benutzt `local`, `sh` reicht nicht).
+    const quelle = deploySh.slice(
+      deploySh.indexOf("backup_skripte_neuer_als() {"),
+      deploySh.indexOf("\n}\n", deploySh.indexOf("backup_skripte_neuer_als() {")),
+    );
+    expect(quelle, "die Entscheidung steht als eigene Funktion da").toContain("stat -c");
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-deploy-"));
+    const entscheide = (seit: number) => {
+      const ergebnis = spawnSync(
+        "bash",
+        [
+          "-c",
+          `${quelle}\n}\nSTACK_DIR=${kladde}\nif backup_skripte_neuer_als "$1"; then echo NEUSTART; else echo nein; fi`,
+          "bash",
+          String(seit),
+        ],
+        { encoding: "utf8" },
+      );
+      return ergebnis.stdout.trim().split("\n").pop();
+    };
+    try {
+      mkdirSync(path.join(kladde, "scripts"));
+      for (const name of ["backup.sh", "backup-sidecar.sh"]) {
+        writeFileSync(path.join(kladde, "scripts", name), "");
+      }
+      const jetzt = Math.floor(Date.now() / 1000);
+      expect(entscheide(jetzt + 100), "Container juenger als beide Skripte").toBe("nein");
+      expect(entscheide(jetzt - 100), "ein Skript frisch hingelegt").toBe("NEUSTART");
+      // ⚠️ DER FALL, DER DIE ZEITQUELLE ENTSCHEIDET: `cp -p`, `install -p` und `rsync -a`
+      // erhalten die mtime. Eine mtime-Pruefung hielte eine eben kopierte Datei fuer alt
+      // und liesse den Dienst auf dem alten Stand — die ctime setzt der Kern beim
+      // Schreiben, sie laesst sich nicht erhalten.
+      const damals = new Date("2020-01-01T00:00:00Z");
+      for (const name of ["backup.sh", "backup-sidecar.sh"]) {
+        utimesSync(path.join(kladde, "scripts", name), damals, damals);
+      }
+      expect(entscheide(jetzt - 100), "mtime alt, ctime frisch: trotzdem Neustart").toBe(
+        "NEUSTART",
+      );
+      // Ist die Startzeit nicht zu lesen, wird neugestartet — lieber einmal zu viel als
+      // eine Nacht auf dem alten Stand.
+      expect(entscheide(0), "Startzeit unbekannt").toBe("NEUSTART");
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  });
+
   it(".env.example nennt die Betreiberknoepfe — sonst findet sie niemand", () => {
     // Alle sind in `compose.yaml` bzw. im Skript vorbelegt und deshalb optional. Genau
     // darum stehen sie hier: eine Vorgabe, die niemand kennt, ist keine Entscheidung.
