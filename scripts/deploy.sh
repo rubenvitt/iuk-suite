@@ -367,8 +367,16 @@ backup_skripte_neuer_als() {
   local seit="$1" datei zeit
   for datei in scripts/backup.sh scripts/backup-sidecar.sh; do
     zeit="$(stat -c %Z "$STACK_DIR/$datei" 2>/dev/null || echo 0)"
-    if [ "$zeit" -gt "$seit" ]; then
-      echo "  $datei ist jünger als der laufende backup-Container."
+    # ⚠️ `-ge`, NICHT `-gt`: bei GLEICHER Sekunde ist die Reihenfolge nicht mehr
+    # feststellbar. Beide Zahlen sind auf Sekunden gerundet (gemessen: StartedAt
+    # `…00.000000001Z` und `…00.999999999Z` ergeben ueber `date +%s` dieselbe Zahl) —
+    # „Skript kurz VOR dem Start geschrieben" (Container hat es) und „kurz DANACH"
+    # (Container hat es nicht) sind darin dasselbe Zahlenpaar. Das ist keine knapp
+    # falsche Rechnung, sondern eine Frage, die diese Daten nicht beantworten; es
+    # bleibt die Wahl, wohin man irrt — und die ist im Kopf dieser Funktion schon
+    # getroffen: lieber einmal zu viel als eine Nacht auf dem alten Stand.
+    if [ "$zeit" -ge "$seit" ]; then
+      echo "  $datei ist nicht älter als der laufende backup-Container."
       return 0
     fi
   done

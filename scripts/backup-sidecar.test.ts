@@ -8,6 +8,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -3054,6 +3055,18 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
       const jetzt = Math.floor(Date.now() / 1000);
       expect(entscheide(jetzt + 100), "Container juenger als beide Skripte").toBe("nein");
       expect(entscheide(jetzt - 100), "ein Skript frisch hingelegt").toBe("NEUSTART");
+      // ⚠️ DIE GLEICHE SEKUNDE, UND SIE IST NICHT DER RANDFALL, NACH DEM SIE AUSSIEHT:
+      // beide Zahlen sind auf Sekunden gerundet, „kurz VOR dem Start geschrieben" (der
+      // Container hat das Skript) und „kurz DANACH" (er hat es nicht) sind darin
+      // dasselbe Zahlenpaar. Mit `-gt` fiel der Fall auf „kein Austausch" und der
+      // Sidecar sicherte bis zum naechsten Neustart nach dem ALTEN Skript — still.
+      // Entschieden wird er nicht, er wird in die billigere Richtung gefaellt.
+      const gleiche = Math.floor(
+        statSync(path.join(kladde, "scripts", "backup-sidecar.sh")).ctimeMs / 1000,
+      );
+      expect(entscheide(gleiche), "Skript und Containerstart in derselben Sekunde").toBe(
+        "NEUSTART",
+      );
       // ⚠️ DER FALL, DER DIE ZEITQUELLE ENTSCHEIDET: `cp -p`, `install -p` und `rsync -a`
       // erhalten die mtime. Eine mtime-Pruefung hielte eine eben kopierte Datei fuer alt
       // und liesse den Dienst auf dem alten Stand — die ctime setzt der Kern beim

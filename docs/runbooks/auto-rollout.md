@@ -354,6 +354,9 @@ er fordert die Freigabe erneut an).
 > der Inhalt einer Datei hinter einem unveränderten Mount-Pfad ist beides nicht.
 > **Schritt 8b** vergleicht deshalb die **ctime** beider Skripte mit der Startzeit des
 > laufenden Containers und ruft bei Bedarf `docker compose up -d --force-recreate backup`.
+> Bei **gleicher Sekunde** wird ausgetauscht: beide Zahlen sind auf Sekunden gerundet, und
+> „kurz vor dem Start geschrieben" und „kurz danach" sind darin dasselbe Zahlenpaar — die
+> Reihenfolge ist daraus nicht zu lesen, also wird in die billigere Richtung gefällt.
 > Er steht bewusst hinter der Revisionsprüfung: dort ist der Rollout bewiesen, und ein
 > Docker-Fehler am Backup-Dienst rollt ihn nicht zurück — er wird nur laut gemeldet.
 > (`scripts/backup.sh` bräuchte das nicht — das startet der Sidecar je Lauf als eigenen
