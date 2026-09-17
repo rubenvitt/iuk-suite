@@ -52,6 +52,16 @@ import { getDb } from "../../_db/client";
  * Begrenzung aus DRK-302 nicht aufheben — und die Adresse darf nicht etwas
  * anderes behaupten als der Bildschirm.
  *
+ * ⚠️ SEIT DRK-373 TRAEGT DER ZIELPFAD IN DIESEM FALL EIN `gescannt=` — und wer
+ * das fuer einen Widerspruch zum Absatz darueber haelt, sucht danach an der
+ * falschen Stelle. Die Zusage lautet nicht „die gescannte Id kommt nicht vor",
+ * sondern „Adresse und Bildschirm sagen dasselbe": `?fz=A&gescannt=B` sagt
+ * „gezeigt wird A, gescannt wurde B", und genau diese zwei Saetze stehen danach
+ * auf dem Schirm (`_ui/ScanHinweis.tsx`). Es gibt weiterhin genau EIN `fz`.
+ * Ohne den Parameter kann die Check-Seite der Person nicht sagen, dass ihr Scan
+ * nicht gegolten hat — sie sah nur den Namen ihrer eigenen Einheit und musste
+ * selbst schliessen, dass das nicht die ist, vor der sie steht.
+ *
  * ⚠️ EIN UNBEKANNTER ODER STILLGELEGTER ORT FUEHRT AUF `/helfer`, NICHT AUF
  * EINE 404. Der Fall ist real und gutartig: ein Fahrzeug wird ausgemustert, das
  * laminierte Kaertchen haengt noch dran. Eine 404 liesse die Person mit dem
@@ -106,6 +116,12 @@ export default async function OrtDeepLink({
    * Beim Konto-Zugang ist `fahrzeugBindung` durch den TYP `null`
    * (`_lib/helferZugang.ts`), nicht durch eine Abfrage hier — dieselbe Form wie
    * auf der Check-Seite.
+   *
+   * ⚠️ UND DIESE ZEILE BLEIBT DER EINZIGE ORT, AN DEM DER SCAN UEBERHAUPT NOCH
+   * BEKANNT IST (DRK-373). `ortZielPfad` haengt ihn deshalb als `gescannt=` an
+   * den Zielpfad; eine Weiche, die hier „aufraeumt" und nur `?fz=` weitergibt,
+   * laesst die Person wieder ohne Auskunft dastehen — und zwar still, weil die
+   * Seite dahinter klaglos rendert.
    */
   redirect(ortZielPfad(etikettOrt(db, ortId), zugang.fahrzeugBindung));
 }
