@@ -323,10 +323,29 @@ const VERFOLGT = new Set(verfolgteDateien());
  */
 const EIGENES_REPO = "iuk-suite/";
 
+/**
+ * Die AUSLASSUNGSFORM — ein Pfad, dem die Suite die oberen Segmente abkuerzt,
+ * geschrieben als drei Punkte und ein Schraegstrich vor dem Rest. 31 Anker im
+ * Bestand (Codex-Review zu PR #183).
+ * `...` ist kein gueltiges Pfadsegment, das Abstreifen also eindeutig; `..`
+ * bleibt unangetastet, das ist ein echter relativer Schritt.
+ *
+ * ⚠️ DAS ABSTREIFEN ALLEIN WAERE DER AUSGANGSFEHLER VON DRK-192: die 31
+ * zerfallen in lokale Verweise UND in Alt-Anwendung bzw. Fremdpakete
+ * (`.../request-cookies.js` ist Next.js, `.../es/Select.js` antd,
+ * `.../routes/admin/login.tsx` die Alt-Anwendung). Deshalb entsteht hier nur
+ * eine VARIANTE; ob sie etwas bedeutet, entscheidet weiterhin die verfolgte
+ * Dateiliste. Was dort kein Suffix hat, bleibt `null` — und genau das trennt
+ * die beiden Gruppen, ohne dass jemand eine Liste pflegen muesste.
+ */
+const AUSLASSUNG = /^(?:\.\.\.|…)\//;
+
 function zielVarianten(ziel: string): string[] {
   const roh = [ziel];
   if (ziel.startsWith("@/")) roh.push(`src/${ziel.slice(2)}`);
   if (ziel.startsWith(EIGENES_REPO)) roh.push(ziel.slice(EIGENES_REPO.length));
+  const ohneAuslassung = ziel.replace(AUSLASSUNG, "");
+  if (ohneAuslassung !== ziel) roh.push(ohneAuslassung);
   const ohneEndung = roh.filter((z) => extname(basename(z)) === "");
   return [...roh, ...ohneEndung.flatMap((z) => [`${z}.ts`, `${z}.tsx`])];
 }
@@ -634,6 +653,31 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
     // Obergrenze — sonst faerbte der Riegel Anker in die Alt-Anwendung rot.
     expect(obergrenzeVon("lagerbuch/src/app/globals.css")).toBeNull();
     expect(obergrenzeVon("node_modules/vitest/package.json")).toBeNull();
+  });
+
+  /**
+   * DIE AUSLASSUNGSFORM wird abgestreift — aber sie macht aus einem fremden
+   * Pfad keinen eigenen. Beide Richtungen stehen hier, weil nur ihr Zusammenspiel
+   * die Zusage traegt.
+   */
+  it("streift die Auslassung ab, ohne Fremdes einzugemeinden", () => {
+    const quelle = "src/app/m/radio/admin/(arbeit)/page.test.tsx";
+
+    // Lokal und eindeutig — der Pfad hat ein Suffix in der verfolgten Liste.
+    expect(aufloesen(quelle, ".../artikel/ArtikelTable.test.tsx"))
+      .toMatch(/lagerbuch\/verwaltung\/\(arbeit\)\/artikel\/ArtikelTable\.test\.tsx$/);
+    expect(aufloesen(quelle, ".../versionen/page.tsx"))
+      .toMatch(/radio\/admin\/\(arbeit\)\/versionen\/page\.tsx$/);
+
+    // Fremdpaket und Alt-Anwendung bleiben draussen — genau der Fehlschluss,
+    // gegen den es DRK-192 gibt. Kein Eintrag in der verfolgten Liste, kein Ziel.
+    expect(aufloesen(quelle, ".../request-cookies.js")).toBeNull();
+    expect(aufloesen(quelle, ".../es/Select.js")).toBeNull();
+    expect(aufloesen(quelle, ".../routes/admin/login.tsx")).toBeNull();
+    expect(aufloesen(quelle, ".../components/features/admin/AppQRCode.tsx")).toBeNull();
+
+    // `..` ist ein echter relativer Schritt und wird NICHT abgestreift.
+    expect(aufloesen(quelle, "../nichtVorhanden/probeDatei.ts")).toBeNull();
   });
 
   it("prueft beide Enden einer Spanne, nicht nur das letzte", () => {
