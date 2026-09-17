@@ -57,6 +57,7 @@ import s from "./helfer.module.css";
  */
 export function HelferRahmen({
   aktiv,
+  nurEntnahme,
   sitzungsetikett,
   laeuftAb,
   children,
@@ -71,6 +72,23 @@ export function HelferRahmen({
    * Reiter braucht ein anderes Muster, keinen weiteren Wert hier.
    */
   aktiv: "entnahme" | "check" | "box";
+  /**
+   * NUR DIE ENTNAHME — DRK-406: der Ortscode des Handlagers.
+   *
+   * ⚠️ DIE LEISTE SCHRUMPFT DANN AUF EINEN REITER, UND DAS IST RICHTIG SO.
+   * Ein ausgegrauter Reiter waere die schlechtere Loesung: er behauptet, es gebe
+   * dort etwas zu holen, und laesst jemanden am Regal dagegen tippen. Wo es
+   * nichts zu waehlen gibt, steht keine Wahl.
+   *
+   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL. Ein vergessenes `nurEntnahme?` waere still
+   * `undefined` und damit „alles erlaubt" — also genau der Zustand, den dieses
+   * Ticket schliesst, und zwar an der Stelle, an der man ihn sieht.
+   *
+   * ⚠️ UND ES IST ANZEIGE, KEIN RIEGEL. Die Durchsetzung steht in
+   * `checkAbschluss` und `bucheInEntnahmebox` (`nurEntnahmeAbweisung`); eine
+   * getippte Adresse kommt an dieser Leiste vorbei.
+   */
+  nurEntnahme: boolean;
   sitzungsetikett: string;
   /** `null` = angemeldetes Konto statt Kärtchen-Sitzung (DRK-305). */
   laeuftAb: Date | null;
@@ -171,36 +189,46 @@ export function HelferRahmen({
           <Ikone name="tabelle" groesse={20} />
           <span>Entnahme</span>
         </Link>
-        <Link
-          href="/helfer/box"
-          className={s.tab}
-          aria-current={aktiv === "box" ? "page" : undefined}
-        >
-          <Ikone name="box" groesse={20} />
-          {/*
-            DRK-314: „Box" und nicht „Entnahmebox". Der Reiter steht neben zwei
-            einwortigen Beschriftungen und teilt sich die Breite mit ihnen; das
-            volle Wort umbraeche auf einem 320px-Schirm. Wohin er fuehrt, sagt
-            der Schirm dahinter in ganzen Saetzen.
-          */}
-          <span>Box</span>
-        </Link>
-        <Link
-          href="/helfer/check"
-          className={s.tab}
-          aria-current={aktiv === "check" ? "page" : undefined}
-        >
-          <Ikone name="haken" groesse={20} />
-          {/*
-            DRK-309: NEUTRAL. Der Tab steht ueber einer Strecke, die seit
-            dieser Aenderung „diese Tasche" sagt — „Fahrzeug-Check" darueber
-            ist derselbe Widerspruch, nur an der Stelle, die auf JEDEM
-            Helferschirm steht. Er fuehrt zur Wahl der Einheit und kann die
-            Art deshalb gar nicht kennen; „Check" ist ohnehin das Wort, mit
-            dem das Modul den Vorgang durchgehend benennt.
-          */}
-          <span>Check</span>
-        </Link>
+        {/*
+          DRK-406 — BOX UND CHECK GIBT ES FUER DEN REGAL-CODE NICHT. Sie
+          verschwinden GEMEINSAM oder gar nicht: beide gehoeren zum Fahrzeug,
+          und ein einzeln stehengelassener Reiter waere eine Zusage, die die
+          Action daneben nicht einloest.
+        */}
+        {!nurEntnahme && (
+          <>
+          <Link
+            href="/helfer/box"
+            className={s.tab}
+            aria-current={aktiv === "box" ? "page" : undefined}
+          >
+            <Ikone name="box" groesse={20} />
+            {/*
+              DRK-314: „Box" und nicht „Entnahmebox". Der Reiter steht neben zwei
+              einwortigen Beschriftungen und teilt sich die Breite mit ihnen; das
+              volle Wort umbraeche auf einem 320px-Schirm. Wohin er fuehrt, sagt
+              der Schirm dahinter in ganzen Saetzen.
+            */}
+            <span>Box</span>
+          </Link>
+          <Link
+            href="/helfer/check"
+            className={s.tab}
+            aria-current={aktiv === "check" ? "page" : undefined}
+          >
+            <Ikone name="haken" groesse={20} />
+            {/*
+              DRK-309: NEUTRAL. Der Tab steht ueber einer Strecke, die seit
+              dieser Aenderung „diese Tasche" sagt — „Fahrzeug-Check" darueber
+              ist derselbe Widerspruch, nur an der Stelle, die auf JEDEM
+              Helferschirm steht. Er fuehrt zur Wahl der Einheit und kann die
+              Art deshalb gar nicht kennen; „Check" ist ohnehin das Wort, mit
+              dem das Modul den Vorgang durchgehend benennt.
+            */}
+            <span>Check</span>
+          </Link>
+          </>
+        )}
       </nav>
     </div>
   );

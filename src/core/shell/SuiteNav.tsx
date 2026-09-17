@@ -445,6 +445,31 @@ export function SuiteNav({
           placement="left"
           title="IDA"
           forceRender
+          /*
+            ⚠️ DIESE ZEILE HAENGT AN `forceRender` DARUEBER, UND OHNE SIE KOSTET
+            ES EIN BLATT PAPIER — gemessen in CI (Lauf 35201078030), danach
+            lokal im echten Chromium nachgestellt: die Ortskarten kamen als
+            ZWEI Seiten heraus, A4 und daneben eine leere im Vorgabeformat des
+            Druckers (216 x 279 mm).
+
+            `forceRender` haelt den GESCHLOSSENEN Drawer im Baum, und antd
+            haengt ihn per PORTAL an `document.body` — also NEBEN die Huelle,
+            nicht hinein. Die Druckregeln der Huelle sind `.druckRahmen …`
+            geschachtelt und koennen ihn damit grundsaetzlich nicht treffen;
+            im Druck wird aus seinem `position: fixed` ein Kasten in
+            Fenstergroesse (gemessen: 1280 x 720), und der liegt AUSSERHALB von
+            `.lb-ortbogen` und damit auf der unbenannten `@page` ohne `size`.
+
+            ⚠️ DER FEHLER WAR VOR DRK-406 NICHT DA, obwohl der Drawer es war:
+            bis dahin trug der Druckast gar keine Huelle. Wer die Huelle wieder
+            wegnaehme, naehme auch diesen Grund weg — die Regel bleibt trotzdem
+            richtig, ein geschlossener Navigationsschub gehoert auf kein Blatt.
+
+            ⚠️ `rootClassName` UND NICHT `className`: `className` landet am
+            Inhaltskasten INNERHALB des Portalwurzelknotens, und der Kasten in
+            Fenstergroesse ist die Wurzel. Geprueft in `SuiteNav.test.tsx`.
+          */
+          rootClassName={s.navSchub}
         >
           <div data-testid="suite-drawer">
             {nav.length > 0 ? (

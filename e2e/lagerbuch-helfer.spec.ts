@@ -336,7 +336,19 @@ test.describe("Der Weg am Stueck", () => {
 
     const ziel = page.locator("[data-rolle='entnahme-ziel']");
     await expect(ziel).not.toContainText(E2E_FAHRZEUG_NAME);
-    await expect(ziel).toContainText("Noch nichts gewählt");
+    /*
+     * ⚠️ HIER STAND „Noch nichts gewählt" — DRK-406 hat die Zeile ersetzt. Die
+     * Zielwahl ist ein Pflichtfeld und sah nicht danach aus: ein Textlink
+     * rechts aussen, daneben ein gesperrter Buchen-Knopf ohne Begruendung. Ohne
+     * Wahl steht dort jetzt die Handlung selbst.
+     *
+     * Der Greifer bleibt derselbe Kasten (`[data-rolle='entnahme-ziel']`), und
+     * die Aussage des Tests auch: nach dem Kaertchenwechsel ist KEIN Ziel
+     * gesetzt. Belegt wird sie doppelt — der Name der vorigen Schicht ist weg
+     * (Zeile darueber) UND der ungewaehlte Zustand ist da.
+     */
+    await expect(ziel).toContainText("Ziel wählen");
+    await expect(ziel).toContainText("Ohne Ziel wird nicht gebucht");
     await expect(page.getByRole("button", { name: "Entnahme buchen" })).toBeDisabled();
   });
 });

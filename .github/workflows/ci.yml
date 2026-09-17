@@ -50,8 +50,8 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Kleinstmoegliches Recht als Vorgabe fuer den GITHUB_TOKEN. `checks`, `e2e`
-# und `test` brauchen nur den Checkout und erben es damit; `build` und `merge`
+# Kleinstmoegliches Recht als Vorgabe fuer den GITHUB_TOKEN. `lint`, `typecheck`,
+# `vitest`, `e2e` und `test` brauchen nur Checkout und erben es; `build`/`merge`
 # heben es fuer sich auf `packages: write` an, weil sie nach ghcr.io schreiben.
 # Ohne diese Zeile gilt die Repo-Vorgabe, die je nach Einstellung Schreibrechte
 # auf ALLE Bereiche mitgibt (CodeQL-Befund 5).
@@ -63,12 +63,85 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # lint/typecheck/vitest hingen frueher SERIELL vor e2e im selben Job und
-  # kosteten dort 4:37, ohne dass e2e etwas von ihnen braucht. Als eigener Job
-  # laufen sie parallel zu den Shards; der kritische Pfad ist seither die
-  # laengste Einzelspur, nicht die Summe.
-  checks:
+  # ══ DREI JOBS, WO EINER WAR — UND DIESELBE BEGRUENDUNG WIE BEI `build` ═══════════
+  #
+  # `checks` fuhr `lint`, `typecheck` und `pnpm test` SERIELL in einem Job, obwohl
+  # keiner der drei etwas vom anderen braucht. Seit DRK-407 war das der Engpass des
+  # ganzen Laufs; gemessen am main-Lauf 35196572005:
+  #
+  #   checks 11:02   = lint 0:47 + typecheck 0:33 + Vitest 9:23
+  #   e2e (laengste Gruppe, aufgaben) 9:08
+  #
+  # Die Summe stand im kritischen Pfad, obwohl nur die laengste Einzelspur dort
+  # hingehoert. Als drei Jobs kostet der Block noch, was sein langsamstes Glied
+  # kostet — und das ist Vitest, deshalb steht der unten auf Shards.
+  #
+  # ⚠️ DER JOBNAME `checks` IST WEG, UND DAS IST EIN VERTRAG WENIGER, NICHT MEHR:
+  # anders als `test` (dessen Name das Ruleset auf `main` woertlich verlangt) war
+  # `checks` nie ein erforderlicher Status-Kontext. Die einzige Stelle, die ihn
+  # gelesen hat, ist der Job `test` weiter unten — dort stehen jetzt alle drei.
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      # OHNE `lfs: true`, anders als `vitest` unten: ESLint liest Quelltext, keine
+      # Medien. Eine Zeigerdatei statt eines Bildes faellt ihm nicht auf und soll
+      # es auch nicht — dafuer gibt es `src/lfs-medien.test.ts`.
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # ⚠️ `--pretty false` steht im Skript, nicht hier — die Begruendung (RTKs
+      # tsc-Filter meldet „No errors found" auf pretty-Ausgabe) in `CLAUDE.md`.
+      - run: pnpm typecheck
+
+  # ⚠️ HIER IST `--shard` RICHTIG, WAEHREND ES BEI e2e VERBOTEN IST — die
+  # Begruendung von DRK-358 traegt genau NICHT hierher, und der Unterschied ist
+  # der Grund, warum beides nebeneinander stehen kann:
+  #
+  #   e2e:    EIN `next dev` bedient den ganzen Shard, sein Speicher waechst mit
+  #           der Zahl uebersetzter Routen und faellt nie zurueck. Wer nach
+  #           Fallzahl teilt, mischt Module in einen Server — gemessen 12 768 MB
+  #           Spitze und ein toter Runner (`scripts/e2e-gruppen.test.ts`).
+  #   Vitest: kein Server, kein geteilter Zustand ueber Dateigrenzen. Jeder Shard
+  #           ist ein eigener Runner mit eigenem Arbeitsbaum; die Dateien, die
+  #           feste relative Pfade beschreiben (`./.data/…`), liegen damit auf
+  #           GETRENNTEN Maschinen statt nebeneinander.
+  #
+  # Innerhalb eines Shards aendert sich nichts: Vitest parallelisiert seine
+  # Dateien dort schon heute.
+  #
+  # ⚠️ ALLE DREI SHARDS BRAUCHEN `lfs: true`, nicht nur einer. `--shard` teilt die
+  # sortierte Dateiliste, und welcher Shard `src/lfs-medien.test.ts` bekommt,
+  # verschiebt sich mit jeder neuen Testdatei. Die Zeile an nur einen Shard zu
+  # haengen waere genau die Sorte Kopplung, die spaeter still bricht.
+  vitest:
+    runs-on: ubuntu-latest
+    strategy:
+      # Ohne das verdeckt der erste rote Shard die anderen — dieselbe Begruendung
+      # wie bei der e2e-Matrix.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: vitest (${{ matrix.shard }}/3)
     steps:
       # `lfs: true`, weil `src/lfs-medien.test.ts` den INHALT der Medien prueft und
       # nicht bloss ihre Existenz — ohne die Objekte waere er rot. Warum die Zeile
@@ -84,9 +157,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm vitest run --shard=${{ matrix.shard }}/3
 
   # ══ Welche Version wird dieser Stand? ══════════════════════════════════════════════
   # Regeln, Rollback ueber Versionstag und Fehlerbilder: docs/runbooks/versionierung.md
@@ -249,7 +320,7 @@ jobs:
     name: e2e (${{ matrix.gruppe.name }})
     runs-on: ubuntu-latest
     steps:
-      # BEWUSST OHNE `lfs: true`, anders als `checks` und `build`: kein e2e-Fall
+      # BEWUSST OHNE `lfs: true`, anders als `vitest` und `build`: kein e2e-Fall
       # sichert heute ein Bild zu, und die Objekte fuenfmal — einmal je Shard — zu
       # holen kostet ohne Gegenwert. Wer hier eine Bildzusicherung ergaenzt, ergaenzt
       # die Zeile mit; sonst laeuft sie gegen eine Zeigerdatei.
@@ -301,7 +372,7 @@ jobs:
           retention-days: 14
 
   # DER NAME `test` IST VERTRAGLICH, NICHT BESCHREIBEND: das Ruleset auf `main`
-  # verlangt genau diesen Status-Kontext. Wuerden `checks` und `e2e (1/3)` …
+  # verlangt genau diesen Status-Kontext. Wuerden `lint` und `e2e (radio)` …
   # direkt als erforderliche Checks dienen, bliebe `test` auf ewig ausstehend
   # und JEDER Merge waere blockiert — bei gruener CI.
   #
@@ -314,17 +385,27 @@ jobs:
     # UEBERSPRUNGEN, und ein uebersprungener Job ist fuer das Ruleset kein Fehlschlag.
     # Ohne diese Zeile liesse sich ein Stand mergen, dessen Nummer schon vergeben ist
     # (scripts/version.mjs) — und der Fehler traefe erst den main-Lauf, samt Rollout.
-    needs: [checks, e2e, version]
+    #
+    # ⚠️ `checks` IST IN DREI ZERFALLEN (DRK-412), UND JEDER DER DREI MUSS HIER
+    # STEHEN. Dieser Job ist der einzige erforderliche Status-Kontext des
+    # Rulesets; was in seinem `needs` fehlt, kann rot sein, ohne den Merge
+    # aufzuhalten — lautlos, weil nichts es meldet. Wer kuenftig einen Job
+    # ergaenzt, ergaenzt ihn hier UND in der Pruefung unten: die Liste oben
+    # entscheidet, worauf gewartet wird, die Zeilen unten, was zaehlt.
+    needs: [lint, typecheck, vitest, e2e, version]
     if: always()
     runs-on: ubuntu-latest
     steps:
       # `needs.e2e.result` ist nur `success`, wenn ALLE Matrix-Jobs es sind —
-      # ein einzelner roter Shard reicht. Der Vergleich faengt zugleich
-      # `cancelled` und `skipped` ab.
+      # ein einzelner roter Shard reicht. Dasselbe gilt seit DRK-412 fuer
+      # `needs.vitest.result` ueber die drei Vitest-Shards. Der Vergleich faengt
+      # zugleich `cancelled` und `skipped` ab.
       - name: Ergebnisse der Vorstufen prüfen
         run: |
-          echo "checks=${{ needs.checks.result }} e2e=${{ needs.e2e.result }} version=${{ needs.version.result }}"
-          test "${{ needs.checks.result }}" = "success"
+          echo "lint=${{ needs.lint.result }} typecheck=${{ needs.typecheck.result }} vitest=${{ needs.vitest.result }} e2e=${{ needs.e2e.result }} version=${{ needs.version.result }}"
+          test "${{ needs.lint.result }}" = "success"
+          test "${{ needs.typecheck.result }}" = "success"
+          test "${{ needs.vitest.result }}" = "success"
           test "${{ needs.e2e.result }}" = "success"
           test "${{ needs.version.result }}" = "success"
 
@@ -484,7 +565,7 @@ jobs:
   merge:
     # ⚠️ `test` STEHT HIER, SEIT `build` ES NICHT MEHR TRAEGT (DRK-407). Vorher
     # kam die Absicherung transitiv ueber `build`; seit der dort entfallen ist,
-    # ist DIESE Zeile die einzige Stelle, an der ein rotes `checks`/`e2e`/
+    # ist DIESE Zeile die einzige Stelle, an der ein rotes `vitest`/`e2e`/
     # `version` den Rollout aufhaelt. `merge` schmiedet aus den beiden
     # Architektur-Digests das getaggte Manifest — ab hier wird ein Stand
     # ausrollbar, und genau davor gehoert das Tor.

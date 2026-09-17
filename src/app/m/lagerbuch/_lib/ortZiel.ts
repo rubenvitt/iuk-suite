@@ -153,30 +153,17 @@ export function ortZielPfad(
   return `${ziel.split("?")[0]}?${abfrage}`;
 }
 
-/**
- * DARF DIESES KAERTCHEN AUF DIE HANDLAGER-KARTE? — DRK-395.
+/*
+ * ⚠️ HIER STAND `kaertchenFuehrtInsHandlager` (DRK-395) — die Frage „darf
+ * dieses Kaertchen auf die Handlager-Karte?". Sie ist mit DRK-406
+ * GEGENSTANDSLOS geworden, nicht bloss ungenutzt: es gibt keine Auswahl mehr,
+ * auf die eine Antwort passte. Jede Ortskarte traegt seither ihren EIGENEN
+ * Code, und welcher das ist, entscheidet `tokens.ort_id` — keine Ableitung aus
+ * der Zielart.
  *
- * ⚠️ SIE VERGLEICHT ZWEI AUFRUFE DERSELBEN FUNKTION, statt `/helfer`
- * hinzuschreiben, und das ist der ganze Zweck: `tokenZielPfad(null, null)` IST
- * die Definition von „landet auf der Artikelliste". Ein Literal hier waere eine
- * zweite Wahrheit ueber denselben Pfad — und sie fiele erst auf, wenn jemand
- * die Landung umbenennt: der Filter waere dann leer, der Ortskarten-Bogen boete
- * kein einziges Kaertchen mehr an, und kein Tor meldete etwas.
- *
- * ⚠️ WARUM UEBERHAUPT GEFILTERT WIRD: ein Kaertchen mit Fahrzeug- oder
- * Artikelziel landet woanders (`tokenZielPfad`). Auf der Handlager-Karte
- * gedruckt ergaebe es ein Etikett, das das Regal verspricht und den
- * Fahrzeug-Check liefert — genau die Sorte Luege, gegen die diese Datei
- * geschrieben ist, nur auf Papier.
- *
- * ⚠️ SIE STEHT HIER UND NICHT IN `tokenZiel.ts`: jene Datei ist ZEICHENGLEICH
- * aus der Alt-Anwendung uebernommen (§3.1), und ein neuer Export darin loeschte
- * diese Zusage fuer etwas, das es dort gar nicht gibt. Dieselbe Begruendung wie
- * fuer `ortZielPfad`.
+ * ⚠️ SIE WIRD GELOESCHT UND NICHT AUFBEWAHRT. Eine exportierte Funktion, die
+ * nur noch ihr eigener Test aufruft, sieht beim naechsten Lesen wie eine
+ * gueltige Regel aus — und ihre Regel war: „ein Kaertchen mit Fahrzeugziel darf
+ * NICHT auf die Handlager-Karte". Wer sie wieder anwendet, baut die
+ * Entscheidung wieder ein, die dieses Ticket abgeloest hat.
  */
-export function kaertchenFuehrtInsHandlager(
-  zielTyp: string | null | undefined,
-  zielId: string | null | undefined,
-): boolean {
-  return tokenZielPfad(zielTyp, zielId) === tokenZielPfad(null, null);
-}

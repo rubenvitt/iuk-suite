@@ -95,6 +95,7 @@ export default async function ZielSeite({
   return (
     <HelferRahmen
       aktiv="entnahme"
+      nurEntnahme={zugang.nurEntnahme}
       sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
     >

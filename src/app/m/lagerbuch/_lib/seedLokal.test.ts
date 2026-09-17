@@ -724,6 +724,51 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     }
   });
 
+  /**
+   * ⚠️ DER ZWEITE LAUF IST NICHT DER EINZIGE ZWEITE SCHREIBER — DRK-406,
+   * gefunden in der Durchsicht, und der Fall ist ab jetzt der haeufigere.
+   *
+   * Bis zu diesem Ticket entstand ein Zugangs-Code nur im Seed. Seither
+   * entsteht er auch beim ANLEGEN einer Einheit und beim OEFFNEN der
+   * Ortsetiketten — mit einem GEZOGENEN Code, den der Seed nicht kennt. Wer
+   * also lokal einmal die Ortsetiketten aufruft und danach `pnpm seed:lokal`
+   * laufen laesst, hat genau diese Lage: die feste Seed-Id fehlt noch, der
+   * PLATZ ist aber besetzt.
+   *
+   * Ohne den Filter schlaegt das `INSERT` gegen `idx_tokens_ort_aktiv` an und
+   * der Lauf bricht MITTENDRIN ab — die Zusage „idempotent und rein additiv"
+   * gaelte dann nur noch fuer eine Datenbank, die niemand benutzt hat.
+   *
+   * Nachgestellt wird der gezogene Code als das, was er ist: eine fremde Zeile
+   * mit eigener Id auf demselben Ort.
+   */
+  it("bleibt additiv, wenn ein Ort schon einen fremden aktiven Code hat", async () => {
+    t.db.insert(tokens).values({
+      id: "gezogen-woanders",
+      code: "424-242",
+      label: "Vom Nachzug erzeugt",
+      ortId: HANDLAGER_ID,
+      zielTyp: null,
+      zielId: null,
+      aktiv: true,
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+      createdBy: "jemand-anders",
+    }).run();
+
+    await expect(seedLokalLagerbuch(t.db)).resolves.toBeDefined();
+
+    // Der fremde Code steht unveraendert da — er klebt womoeglich auf einer
+    // gedruckten Karte; ihn zu ersetzen machte sie still ungueltig.
+    const amHandlager = t.db.select().from(tokens)
+      .where(eq(tokens.ortId, HANDLAGER_ID)).all();
+    expect(amHandlager.filter((z) => z.aktiv)).toHaveLength(1);
+    expect(amHandlager.find((z) => z.aktiv)!.code).toBe("424-242");
+    // Und der Rest des Seeds ist trotzdem durchgelaufen.
+    for (const [tabelle, n] of Object.entries(zeilenzahlen())) {
+      expect(n, `Tabelle ${tabelle} ist leer geblieben`).toBeGreaterThan(0);
+    }
+  });
+
   it("ist idempotent — der zweite Lauf aendert KEINE Tabelle", async () => {
     await seedLokalLagerbuch(t.db);
     const nachher1 = zeilenzahlen();

@@ -8,7 +8,9 @@ import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId, sollPositionen } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { EINHEITENARTEN } from "../_lib/konstanten";
+import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
 import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
+import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -79,6 +81,43 @@ export async function createFahrzeug(
       }).run();
     } catch {
       return { ok: false, fehler: "Einheit konnte nicht angelegt werden." };
+    }
+
+    /*
+     * DER ORTSCODE ENTSTEHT MIT DER EINHEIT — DRK-406.
+     *
+     * ⚠️ NACH dem `insert` und AUSSERHALB seines `try`, und beides ist Absicht.
+     * „Nach", weil der Fremdschlüssel `tokens.ort_id → lagerorte.id` die Zeile
+     * voraussetzt. „Außerhalb", weil ein fehlgeschlagener Code die ANGELEGTE
+     * EINHEIT nicht wieder wegnehmen darf: die Einheit ist das, was jemand
+     * wollte, der Code ist die Beigabe. `stelleOrtCodeSicher` wirft deshalb
+     * nicht, sondern gibt `null` zurück — und der Nachzug beim Öffnen der
+     * Ortsetiketten holt es beim nächsten Mal.
+     *
+     * ⚠️ DIE ZEILE WIRD AUS DER DATENBANK GELESEN statt aus `v` gebaut. Die
+     * Menge der Ortskarten ist `etikettOrte` (`_lib/lesepfade/ortEtiketten.ts`),
+     * und nur was DORT steht, bekommt einen Code — ein hier
+     * zusammengesetztes Objekt wäre eine zweite Wahrheit darüber, was eine
+     * Ortskarte ist.
+     */
+    /*
+     * ⚠️ DAS `try` UMFASST AUCH DIE ABFRAGE, nicht nur das Anlegen — gefunden
+     * in der Durchsicht, und ohne es hob diese Zeile die Zusage des Absatzes
+     * darueber wieder auf. `stelleOrtCodeSicher` wirft nie; `etikettOrt` ist
+     * aber ein gewoehnlicher Lesezugriff und wirft sehr wohl, wenn die
+     * Datenbank gerade gesperrt ist. Er laeuft unmittelbar nach dem `insert`
+     * der Einheit, also genau dann, wenn der Schreiber noch haelt.
+     *
+     * Der Wurf haette die Aktion abgebrochen, NACHDEM die Einheit stand: die
+     * Bedienende saehe einen Fehlschlag, legte die Einheit erneut an, und
+     * haette sie danach zweimal.
+     */
+    try {
+      const ort = etikettOrt(db, id);
+      if (ort) stelleOrtCodeSicher(db, ort, auditViewer.sub);
+    } catch {
+      // Die Einheit ist das, was jemand wollte; der Code ist die Beigabe. Den
+      // Nachzug beim Oeffnen der Ortsetiketten holt es beim naechsten Mal.
     }
 
     revalidatePath(FAHRZEUGE_PFAD);

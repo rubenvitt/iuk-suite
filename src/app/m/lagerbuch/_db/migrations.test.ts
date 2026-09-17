@@ -253,6 +253,14 @@ const TABELLEN: Record<
     { name: "created_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
     { name: "created_by", typ: "text", notnull: 1, dflt: null, pk: 0 },
     { name: "last_used_at", typ: "integer", notnull: 0, dflt: null, pk: 0 },
+    // DRK-406 — der Ort, dem der Code gehoert. NULLBAR, und das ist der
+    // Altbestand: jedes von Hand angelegte Kaertchen bleibt hier leer.
+    { name: "ort_id", typ: "text", notnull: 0, dflt: null, pk: 0 },
+    // DRK-406 — seit wann dieser Code verbrannt ist. Sie UEBERLEBT den Verlust
+    // der `ort_id` beim Loeschen einer Einheit und ist genau deshalb da: ohne
+    // sie saehe ein ersetzter Code danach aus wie Altbestand — und der darf
+    // reaktiviert werden.
+    { name: "ersetzt_am", typ: "integer", notnull: 0, dflt: null, pk: 0 },
   ],
   users: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -325,7 +333,8 @@ const INDIZES: Record<string, string[]> = {
   o2_flaschen: ["idx_o2_flaschen_lagerort"],
   o2_messungen: ["idx_o2_messungen_flasche_ts"],
   geraete: ["geraete_barcode_unique", "idx_geraete_lagerort"],
-  tokens: ["tokens_code_unique"],
+  // DRK-406: der zweite Index ist TEILWEISE — „genau ein AKTIVER Code je Ort".
+  tokens: ["idx_tokens_ort_aktiv", "tokens_code_unique"],
   users: [],
   ausgeblendete_kategorien: [],
   inventuren: [],
@@ -429,9 +438,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt fuenfzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+  it("fuehrt siebzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
     expect(journal.entries.map((e) => e.idx))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -461,6 +470,14 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         "0012_entnahmebox",
         "0013_box_verfall_nachtrag",
         "0014_lagerort_verfall_verwaist",
+        // ⚠️ DRK-406 KAM ALS 0013 UND WURDE BEIM MERGE ZUR 0015 — derselbe
+        // Fall wie DRK-314 zwei Zeilen darueber, und aus demselben Grund: die
+        // beiden Nummern lagen vorher auf `main` und damit schon in
+        // Datenbanken. Eine zweite 0013 haette denselben `idx` zweimal
+        // vergeben, und die Kette der Migrationen ist die einzige Stelle, an
+        // der eine Nummer wirklich eindeutig sein MUSS.
+        "0015_ortscodes",
+        "0016_ortscode_ersetzt",
       ]);
   });
 

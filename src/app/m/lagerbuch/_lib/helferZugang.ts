@@ -7,6 +7,7 @@ import { tokens } from "../_db/schema";
 import { requireLagerbuchHost } from "./host";
 import { HELFER_COOKIE, verifyHelferSitzung } from "./helferSitzung";
 import { gateGrundFuerSperre } from "./gateTexte";
+import { nurEntnahmeAus } from "./helferBereich";
 import { fahrzeugBindungAus } from "./tokenZiel";
 import { istLagerbuchAdmin, viewerOderNull, type Viewer } from "./zugang";
 import { merkeNutzer } from "./konto";
@@ -80,6 +81,37 @@ export type TokenZugang = {
    * zum Riegel macht, beantwortet die offene Betreiberfrage 5 im Vorbeigehen.
    */
   fahrzeugBindung: string | null;
+  /**
+   * DARF DIESER ZUGANG NUR ENTNEHMEN? — DRK-406.
+   *
+   * `true` fuer den ORTSCODE DES HANDLAGERS und sonst nie. Box und Check sind
+   * fuer ihn zu; die Entnahme bleibt offen, denn genau dafuer haengt die Karte
+   * am Regal.
+   *
+   * ⚠️ SIE HAENGT AM ORT, NICHT AN DER ZIELART. Ein Altbestands-Kaertchen mit
+   * der Zielart „Artikel-Liste" landet auf DEMSELBEN Schirm und behaelt
+   * trotzdem seine volle Reichweite — die Betreiberentscheidung vom 17.09.2026
+   * lautet „Altbestand bleibt gueltig", und eine Ableitung ueber `zielTyp`
+   * haette den Kaertchen im Umlauf still die Haelfte weggenommen. Eingeschraenkt
+   * wird ausschliesslich, was als Ortscode am Handlager haengt.
+   *
+   * ⚠️ UND SIE IST EIN RIEGEL, KEINE ANZEIGE-ENTSCHEIDUNG — anders als
+   * `fahrzeugBindung` eine Zeile darueber. Der Unterschied ist Absicht: die
+   * Bindung begrenzt den EINSTIEG nach dem Scan und laesst sich per getippter
+   * Adresse umgehen (offene Betreiberfrage 5); diese hier wird in den beiden
+   * schreibenden Actions durchgesetzt (`_lib/helferBereich.ts`,
+   * `nurEntnahmeAbweisung`) und ist damit auch gegen eine selbst gebaute
+   * Anfrage dicht. Wer ein Foto der Regalkarte hat, bekommt den Bestand — aber
+   * keinen Check.
+   *
+   * ⚠️ DIE ABLEITUNG UND DER RIEGEL LIEGEN IN EINER EIGENEN DATEI, nicht hier.
+   * Diese Datei zieht `next/headers` und die Auth-Kette; jede Action ersetzt
+   * sie im Test durch eine Attrappe mit genau den Exporten, die sie ruft. Ein
+   * Riegel HIER waere in jedem dieser Tests entweder ein Abbruch oder — noch
+   * teurer — ein nachgereichtes `() => null`, also abgeschaltet, ohne dass eine
+   * Zeile davon spricht. Die volle Messung steht im Kopf von `helferBereich.ts`.
+   */
+  nurEntnahme: boolean;
 };
 
 /**
@@ -117,6 +149,8 @@ export type KontoZugang = {
   name: string | null;
   laeuftAb: null;
   fahrzeugBindung: null;
+  /** DRK-406: ein angemeldetes Konto ist an keine Karte gebunden. */
+  nurEntnahme: false;
 };
 
 export type HelferZugang = TokenZugang | KontoZugang;
@@ -174,6 +208,11 @@ async function befund(db: DB): Promise<Befund> {
       // `tokenZielPfad` seinen Fahrzeug-Zweig baut. Landung nach dem Scan und
       // Begrenzung des Einstiegs koennen so konstruktiv nicht auseinanderfallen.
       fahrzeugBindung: fahrzeugBindungAus(zeile.zielTyp, zeile.zielId),
+      // DRK-406 — aus DERSELBEN Zeile, ohne zusaetzlichen Zugriff. Der
+      // Vergleich steht hier und nicht in der Oberflaeche: die Reiterleiste
+      // und die beiden Seiten lesen alle dieselbe Antwort, und eine zweite
+      // Rechnung neben dieser waere die Stelle, an der sie auseinanderlaufen.
+      nurEntnahme: nurEntnahmeAus(zeile.ortId),
     },
   };
 }
@@ -284,6 +323,7 @@ export function kontoZugangAus(viewer: Viewer): KontoZugang {
     name: viewer.name,
     laeuftAb: null,
     fahrzeugBindung: null,
+    nurEntnahme: false,
   };
 }
 

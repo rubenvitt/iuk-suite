@@ -7,9 +7,21 @@ import { DruckRahmen } from "../../_ui/DruckRahmen";
 /**
  * DAS DRUCK-LAYOUT DES ETIKETTENBOGENS (Spec §8.4, Entscheidung 8-H; §6.1.3).
  *
- * EIGENE ROUTE-GROUP OHNE SUITE-SHELL: laege der Bogen unter `(arbeit)`, druckte
- * `FullShell` Kopfzeile und App-Switcher mit — und `minHeight:100vh`
- * (FullShell.tsx:19) erzeugte leere Folgeseiten hinter dem Bogen.
+ * EIGENE ROUTE-GROUP MIT EIGENEM RAHMEN. Sie entstand, weil `FullShell` unter
+ * `(arbeit)` Kopfzeile und App-Switcher MITDRUCKTE und sein `minHeight` leere
+ * Folgeseiten hinter dem Bogen erzeugte.
+ *
+ * ⚠️ SEIT DRK-406 IST DIE SHELL WIEDER DA — am BILDSCHIRM. Was sich geaendert
+ * hat, ist nicht jene Einsicht, sondern dass die Shell ihre eigenen Teile
+ * ausblenden kann: `SuiteRahmen` nimmt ein `druck`-Prop, und
+ * `core/shell/shell.module.css` legt Kopfzeile, Seitenleiste, `minHeight` und
+ * Polsterung unter `@media print` still (mit `!important`, weil zwei davon
+ * INLINE-Styles sind). Was per `display: none` wegfaellt, zaehlt fuer Chromiums
+ * Seitengroessen-Entscheidung nicht mit (Falle 18).
+ *
+ * ⚠️ DIE GROUP BLEIBT TROTZDEM, und zwar wegen der Zeile darunter: sie traegt
+ * die zweite Riegel-Linie und das Druck-Stylesheet. Wer sie aufloest, verliert
+ * beides — die Shell-Frage war nie ihr einziger Zweck.
  *
  * DER PREIS UND SEINE BEZAHLUNG — und das ist die sicherheitsrelevante Zeile
  * dieses Moduls: mit dem `(arbeit)`-Layout faellt auch dessen Zugriffsriegel

@@ -96,7 +96,7 @@ afterEach(async () => {
 describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () => {
   it("`aktiv=\"entnahme\"` setzt `aria-current=\"page\"` GENAU EINMAL, am Entnahme-Tab", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
         <p>Inhalt</p>
       </HelferRahmen>,
     );
@@ -113,7 +113,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // markierte — laesst den vorigen Test GRUEN und faellt nur hier.
     // Per Mutation belegt (Bericht, Mutation A).
     await mount(
-      <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
         <p>Inhalt</p>
       </HelferRahmen>,
     );
@@ -127,7 +127,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // Vereinheitlichung mit Falle 49 — sie wuerden auf dem aeusseren Host
     // DOPPELT praefixiert.
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
     // DRK-314: der dritte Reiter ist die Entnahmebox, und er steht in der MITTE
@@ -146,7 +146,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // moeglich: BEIDE Tabs tragen DIESELBE Klassenliste, der Unterschied liegt
     // allein im ARIA-Attribut. Per Mutation belegt (Bericht, Mutation C).
     await mount(
-      <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
     expect(links.length).toBe(3);   // DRK-314: Entnahme, Box, Check
@@ -173,7 +173,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // `q.toContain('data-testid="lb-tableiste"')`, was auch dann gruen bliebe,
     // wenn die Zeichenfolge in einem toten Zweig oder an einem `<div>` staende.
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const leiste = query("[data-testid='lb-tableiste']");
     expect(leiste.tagName).toBe("NAV");
@@ -185,7 +185,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
 describe("HelferRahmen — der Kopf", () => {
   it("zeigt das Sitzungsetikett auf der dafuer vorgesehenen Flaeche", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
         <p />
       </HelferRahmen>,
     );
@@ -198,7 +198,7 @@ describe("HelferRahmen — der Kopf", () => {
 
   it("rendert die Restzeit-Insel mit der SERVER-Uhrzeit", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     // `uhrzeit()` aus `_lib/zeit.ts` rechnet in Europe/Berlin: 17:00 UTC → 19:00.
     // Eine im Rahmen selbst gebaute Zeit (`toISOString().slice(11,16)`) ergaebe
@@ -211,7 +211,7 @@ describe("HelferRahmen — der Kopf", () => {
     // Ein Link waere vorlade- und prefetch-faehig. Ein Prefetch, der die
     // Sitzung beendet, ist genau die Sorte Fehler, die niemand reproduziert.
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     expect(exists("header form button[type='submit']")).toBe(true);
     expect(query("header form button").textContent).toContain("Beenden");
@@ -230,7 +230,7 @@ describe("HelferRahmen — der Kopf", () => {
    */
   it("laeuftAb=null: KEINE Restzeit — eine Kontositzung laeuft nicht ab", async () => {
     await mount(
-      <HelferRahmen aktiv="check" sitzungsetikett="Angemeldet: A. Verwaltung" laeuftAb={null}>
+      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="Angemeldet: A. Verwaltung" laeuftAb={null}>
         <p />
       </HelferRahmen>,
     );
@@ -250,7 +250,7 @@ describe("HelferRahmen — der Kopf", () => {
      * reinen Textpruefung unsichtbar.
      */
     await mount(
-      <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
     );
     expect(exists("header form")).toBe(false);
     expect(beendenMock).not.toHaveBeenCalled();
@@ -263,7 +263,7 @@ describe("HelferRahmen — der Kopf", () => {
     // Entnahme und Fahrzeug-Check sind fuer das Konto genauso erreichbar wie
     // fuer das Kaertchen — „mehr Freiheiten, nicht weniger" (DRK-305).
     await mount(
-      <HelferRahmen aktiv="check" sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
     );
     expect(queryAll("nav[data-testid='lb-tableiste'] a").map((a) => a.getAttribute("href")))
       .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
@@ -271,7 +271,7 @@ describe("HelferRahmen — der Kopf", () => {
 
   it("rendert die Kinder im `<main>`", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
         <p data-rolle="kind">Inhalt</p>
       </HelferRahmen>,
     );
@@ -299,7 +299,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme"
+        aktiv="entnahme" nurEntnahme={false}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 6 * 3600_000)}
       >
@@ -315,7 +315,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme"
+        aktiv="entnahme" nurEntnahme={false}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 10 * 60_000)}
       >
@@ -366,7 +366,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme"
+        aktiv="entnahme" nurEntnahme={false}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 30 * 60_000)}
       >
@@ -386,7 +386,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme"
+        aktiv="entnahme" nurEntnahme={false}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 30 * 60_000 + 1_000)}
       >
@@ -408,7 +408,7 @@ describe("HelferRahmen — der Traeger und die Zeichen", () => {
     // Saesse eines der vier Teile ausserhalb, fiele jede `var(--lb-…)` darin
     // still auf `transparent` zurueck — gueltiges CSS, unsichtbarer Ausfall.
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
         <p data-rolle="kind">Inhalt</p>
       </HelferRahmen>,
     );
@@ -425,7 +425,7 @@ describe("HelferRahmen — der Traeger und die Zeichen", () => {
     // am Knopf braeuchte (die einzige festgeschriebene Ausnahme ist der
     // Taschenlampenschalter in `_ui/BarcodeScanner.tsx`, N-7).
     await mount(
-      <HelferRahmen aktiv="entnahme" sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const zeichen = queryAll("svg");
     // Ohne diese Zeile fuehrte ein leeres Trefferarray null Zusicherungen aus.

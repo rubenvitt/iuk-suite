@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import { artikel, lagerorte, tokens } from "../../_db/schema";
 import type { Einheitenart } from "../konstanten";
@@ -16,8 +16,22 @@ import type { Einheitenart } from "../konstanten";
  * darauf. Eine Aenderung haette hier nichts zu tun gehabt.
  *
  * Zielnamen werden serverseitig aufgeloest. Auch gesperrte Tokens und spaeter
- * deaktivierte Ziele bleiben in der Liste lesbar; nur die Auswahllisten fuer
- * neue Codes sind auf aktive Ziele begrenzt.
+ * deaktivierte Ziele bleiben in der Liste lesbar.
+ *
+ * ⚠️ DRK-406 — SEIT DIESEM TICKET TRAEGT DIE ZEILE ZWEI VERSCHIEDENE DINGE, und
+ * sie zu verwechseln ist der teuerste Fehlgriff dieser Datei: `ziel*` sagt, WO
+ * JEMAND LANDET, `ort*` sagt, AN WELCHER KARTE DER CODE KLEBT. Fuer eine
+ * Einheit fallen sie zusammen, fuer den Handlager nicht — dessen Code hat
+ * `ortName: "Handlager"` und gar kein Ziel. Die Verwaltung zeigt beides
+ * nebeneinander, weil die Frage „welchen Code hat das RTW?" und die Frage „wo
+ * komme ich damit raus?" verschiedene sind.
+ *
+ * ⚠️ DER ORTSNAME IST DER VON HEUTE, `label` DER VON DAMALS. Das ist kein
+ * Widerspruch, sondern die Arbeitsteilung: `label` ist der Anzeigename im
+ * JOURNAL und soll den Namen tragen, unter dem eine Buchung entstanden ist;
+ * diese Liste soll zeigen, an welcher Karte der Code heute haengt. Wer eine
+ * Tasche umbenennt, sieht hier sofort den neuen Namen und im Journal weiter
+ * den alten.
  */
 export type TokenZeile = {
   id: string;
@@ -42,21 +56,50 @@ export type TokenZeile = {
    */
   zielKennung: string | null;
   zielEinheitenart: Einheitenart | null;
+  /** DRK-406: der Ort, dem der Code gehoert. `null` = Altbestand. */
+  ortId: string | null;
+  /**
+   * Der HEUTIGE Name dieses Ortes. `null` heisst „Altbestand"; eine `ortId`
+   * ohne Namen kann es nicht geben, weil ein Fremdschluessel darauf steht.
+   */
+  ortName: string | null;
+  ortTyp: "lager" | "fahrzeug" | null;
+  ortKennung: string | null;
+  ortEinheitenart: Einheitenart | null;
+  /**
+   * DRK-406 — SEIT WANN DIESER CODE VERBRANNT IST, `null` = nie ersetzt.
+   *
+   * ⚠️ ER STEHT HIER, WEIL DIE LISTE DIE FRAGE AM TRESEN BEANTWORTEN SOLL:
+   * jemand kommt mit einem alten Foto, und „gesperrt" allein sagt nicht, ob
+   * seine Geschichte aufgeht. Die Spalte ist zugleich der Riegel gegen das
+   * Reaktivieren (`_actions/tokens.ts`); ohne sie in der Liste verschwaende der
+   * Knopf erst, wenn die Action ihn abweist.
+   */
+  ersetztAm: Date | null;
 };
 
 export function tokenListe(db: DB): TokenZeile[] {
   const zeilen = db.select().from(tokens)
     .orderBy(desc(tokens.createdAt), desc(tokens.id))
     .all();
-  const einheiten = new Map(
+  /**
+   * ⚠️ ALLE ORTE, NICHT NUR DIE EINHEITEN (DRK-406). Bis hierher las die
+   * Abfrage `where typ = "fahrzeug"`, weil ein Ziel nur eine Einheit sein
+   * konnte. Ein ORTSCODE haengt aber auch am Handlager (`typ = "lager"`) —
+   * mit der alten Bedingung bliebe dessen Zeile ohne Ortsnamen, und die
+   * Verwaltung zeigte fuer den wichtigsten Code der Suite „—".
+   *
+   * Der Zielname liest weiter aus DERSELBEN Map und filtert dabei selbst auf
+   * `zielTyp === "fahrzeug"`; ein Lagerort kann als ZIEL gar nicht vorkommen.
+   */
+  const orte = new Map(
     db.select({
-      id: lagerorte.id, name: lagerorte.name,
+      id: lagerorte.id, name: lagerorte.name, typ: lagerorte.typ,
       kennung: lagerorte.kennung, einheitenart: lagerorte.einheitenart,
     })
       .from(lagerorte)
-      .where(eq(lagerorte.typ, "fahrzeug"))
       .all()
-      .map((einheit) => [einheit.id, einheit] as const),
+      .map((ort) => [ort.id, ort] as const),
   );
   const artikelNamen = new Map(
     db.select({ id: artikel.id, name: artikel.name })
@@ -75,55 +118,21 @@ export function tokenListe(db: DB): TokenZeile[] {
     zielTyp: zeile.zielTyp,
     zielId: zeile.zielId,
     zielName: zeile.zielTyp === "fahrzeug"
-      ? einheiten.get(zeile.zielId ?? "")?.name ?? null
+      ? orte.get(zeile.zielId ?? "")?.name ?? null
       : zeile.zielTyp === "artikel"
         ? artikelNamen.get(zeile.zielId ?? "") ?? null
         : null,
     zielKennung: zeile.zielTyp === "fahrzeug"
-      ? einheiten.get(zeile.zielId ?? "")?.kennung ?? null
+      ? orte.get(zeile.zielId ?? "")?.kennung ?? null
       : null,
     zielEinheitenart: zeile.zielTyp === "fahrzeug"
-      ? einheiten.get(zeile.zielId ?? "")?.einheitenart ?? null
+      ? orte.get(zeile.zielId ?? "")?.einheitenart ?? null
       : null,
+    ortId: zeile.ortId,
+    ortName: zeile.ortId ? orte.get(zeile.ortId)?.name ?? null : null,
+    ortTyp: zeile.ortId ? orte.get(zeile.ortId)?.typ ?? null : null,
+    ortKennung: zeile.ortId ? orte.get(zeile.ortId)?.kennung ?? null : null,
+    ortEinheitenart: zeile.ortId ? orte.get(zeile.ortId)?.einheitenart ?? null : null,
+    ersetztAm: zeile.ersetztAm,
   }));
-}
-
-/**
- * Nur aktive Ziele sind fuer neue laminierte Codes waehlbar. `kennung`, `fach`
- * und die ART werden fuer die spaetere Suche im Select mitgegeben.
- *
- * ⚠️ DIE ART GEHOERT DAZU (DRK-309). Eine Tasche traegt kein Kennzeichen, und
- * ohne sie hatte sie in der Zielwahl fuer ein neues Kaertchen ueberhaupt kein
- * Suchwort ausser ihrem Namen. Ein Kaertchen zeigt danach auf einen Traeger,
- * und ein falsch gewaehltes klebt laminiert am falschen.
- */
-export function tokenZiele(db: DB): {
-  fahrzeuge: {
-    id: string; name: string; kennung: string | null;
-    einheitenart: Einheitenart | null;
-  }[];
-  artikel: { id: string; name: string; fach: string }[];
-} {
-  return {
-    fahrzeuge: db
-      .select({
-        id: lagerorte.id,
-        name: lagerorte.name,
-        kennung: lagerorte.kennung,
-        einheitenart: lagerorte.einheitenart,
-      })
-      .from(lagerorte)
-      .where(and(
-        eq(lagerorte.typ, "fahrzeug"),
-        eq(lagerorte.aktiv, true),
-      )!)
-      .all()
-      .sort((a, b) => a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id)),
-    artikel: db
-      .select({ id: artikel.id, name: artikel.name, fach: artikel.fach })
-      .from(artikel)
-      .where(eq(artikel.aktiv, true))
-      .all()
-      .sort((a, b) => a.name.localeCompare(b.name, "de") || a.id.localeCompare(b.id)),
-  };
 }

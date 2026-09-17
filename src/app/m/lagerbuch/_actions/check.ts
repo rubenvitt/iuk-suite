@@ -8,6 +8,7 @@ import { getDb, type DB } from "../_db/client";
 import {
   checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, newId,
 } from "../_db/schema";
+import { nurEntnahmeAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 import {
@@ -99,6 +100,17 @@ export async function checkAbschluss(
   // nicht durch eine Liste, die die naechste Action vergisst.
   const riegel = await requireHelferSchreibend(db);
   if (!riegel.ok) return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
+  /*
+   * DER REGAL-CODE DARF HIER NICHT DURCH — DRK-406, und er steht DIREKT hinter
+   * dem Sitzungsriegel, vor Audit-Kontext und Validierung. Weiter unten waere
+   * er eine Absage, die vorher schon eine Zeile geschrieben haette.
+   *
+   * ⚠️ DIE REITERLEISTE ZEIGT DEN CHECK FUER DIESEN ZUGANG GAR NICHT AN, und
+   * die Seite leitet um. Beides ist Anzeige. Diese Zeile ist der Riegel: eine
+   * selbst gebaute Anfrage an diese Action kommt an keiner Navigation vorbei.
+   */
+  const bereich = nurEntnahmeAbweisung(riegel.zugang);
+  if (bereich) return bereich;
   return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<CheckAbschlussWert>> => {
 
     // ⚠️ ANSATZPUNKT 2 VON 2 fuer eine spaetere Durchsetzung von

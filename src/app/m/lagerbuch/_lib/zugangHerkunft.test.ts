@@ -25,7 +25,7 @@ const TOKEN: HelferZugang = {
   code: "482-137",
   label: "RTW 1 Kärtchen",
   laeuftAb: new Date("2026-09-15T18:00:00.000Z"),
-  fahrzeugBindung: "fz-rtw1",
+  fahrzeugBindung: "fz-rtw1", nurEntnahme: false,
 };
 
 const KONTO: HelferZugang = {
@@ -33,7 +33,7 @@ const KONTO: HelferZugang = {
   sub: "pocket-id-sub-42",
   name: "A. Verwaltung",
   laeuftAb: null,
-  fahrzeugBindung: null,
+  fahrzeugBindung: null, nurEntnahme: false,
 };
 
 describe("zugangsKennung — die Bindung, nicht die Anzeige", () => {

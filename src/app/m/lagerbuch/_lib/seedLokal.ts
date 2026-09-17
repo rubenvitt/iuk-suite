@@ -1,4 +1,4 @@
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, eq, gt, isNotNull, lt } from "drizzle-orm";
 import type { DB } from "../_db/client";
 import {
   artikel,
@@ -157,6 +157,27 @@ const CODE_HELFER = "100-100";
 const CODE_RTW = "200-200";
 const CODE_ARTIKEL = "300-300";
 const CODE_GESPERRT = "900-900";
+/*
+ * DIE ORTSCODES — DRK-406. Feste Werte, wie alle Seed-Codes: sie stehen im
+ * Protokoll und auf laminierten Karten.
+ *
+ * ⚠️ SIE WERDEN HIER GESEEDET, obwohl die Ortsetiketten-Seite sie ohnehin
+ * nachzieht. Der Grund ist die VERWALTUNGSLISTE: ohne sie zeigte
+ * `/verwaltung/tokens` lokal ausschliesslich Altbestand — also genau die Form,
+ * die dieses Ticket abgeloest hat —, und die neuen Griffe („Neu erzeugen", der
+ * Ortsfilter) haetten keine einzige Zeile zum Ausprobieren. Man saehe sie erst,
+ * nachdem man zufaellig die Etikettenseite geoeffnet hat.
+ *
+ * ⚠️ NICHT FUER ALLE EINHEITEN. `RUCKSACK_OFFEN` bleibt bewusst ohne Code: er
+ * ist die Einheit, an der sich der NACHZUG ausprobieren laesst — wer die
+ * Ortsetiketten oeffnet, sieht dort den Satz „ein neuer Zugangs-Code ist
+ * entstanden" und danach die Karte damit.
+ */
+const CODE_ORT_HANDLAGER = "110-110";
+const CODE_ORT_RTW = "220-220";
+const CODE_ORT_KTW = "330-330";
+const CODE_ORT_MTW = "440-440";
+const CODE_ORT_TASCHE = "550-550";
 
 const A = {
   kompresse: "art-kompresse-10x10",
@@ -1162,15 +1183,63 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *        laminierten Kaertchen. `aktiv` wird NICHT pauschal gesetzt: der
    *        gesperrte Code ist der einzige Widerruf, den es gibt. */
   const tkDa = vorhandeneIds(db.select({ id: tokens.id }).from(tokens).all());
+  /*
+   * ⚠️ DREI FILTER, NICHT EINER — und die zwei zusaetzlichen sind seit DRK-406
+   * die Bedingung dafuer, dass der Seed ueberhaupt noch idempotent ist
+   * (gefunden in der Durchsicht). Bis dahin entstand ein Zugangs-Code nur hier;
+   * seit dem Ticket entsteht er auch beim ANLEGEN einer Einheit und beim
+   * OEFFNEN der Ortsetiketten — mit einem GEZOGENEN Code, den dieser Seed nicht
+   * kennt.
+   *
+   * ⚠️ „Die feste Id fehlt" heisst damit nicht mehr „der Platz ist frei".
+   * Hat der Ort laengst einen aktiven Code, schlaegt das `INSERT` gegen
+   * `idx_tokens_ort_aktiv` an; hat die Ziehung zufaellig denselben Wert
+   * gezogen, gegen die Eindeutigkeit von `tokens.code`. Beide Male bricht der
+   * Lauf MITTENDRIN ab, und die Zusage „idempotent und rein additiv"
+   * (AGENTS.md, „Lokale Demodaten") waere gebrochen — zurueck bleibt eine halb
+   * gefuellte Datenbank.
+   *
+   * ⚠️ UEBERSPRINGEN UND NICHT UEBERSCHREIBEN: der vorhandene Code klebt
+   * womoeglich schon auf einer gedruckten Karte. Ein Seed, der ihn ersetzt,
+   * macht sie still ungueltig.
+   */
+  const ortBesetzt = new Set(
+    db.select({ ortId: tokens.ortId }).from(tokens)
+      .where(and(isNotNull(tokens.ortId), eq(tokens.aktiv, true))!)
+      .all()
+      .map((z) => z.ortId as string),
+  );
+  const codeBelegt = new Set(
+    db.select({ code: tokens.code }).from(tokens).all().map((z) => z.code),
+  );
   const tokenListe = [
     { id: "tok-helfer", code: CODE_HELFER, label: "Helfer Bereitschaft (Demo)", zielTyp: null, zielId: null, aktiv: true, lastUsedAt: vor(jetzt, 2) },
     { id: "tok-rtw1", code: CODE_RTW, label: "RTW 1 – Fahrzeug-Check", zielTyp: "fahrzeug" as const, zielId: RTW, aktiv: true, lastUsedAt: checkAbgeschlossenAm },
     { id: "tok-kompresse", code: CODE_ARTIKEL, label: "Regaletikett Kompressen 10×10", zielTyp: "artikel" as const, zielId: A.kompresse, aktiv: true, lastUsedAt: null },
     { id: "tok-gesperrt", code: CODE_GESPERRT, label: "Verlorenes Kärtchen (gesperrt)", zielTyp: null, zielId: null, aktiv: false, lastUsedAt: vor(jetzt, 60) },
-  ].filter((t) => !tkDa.has(t.id));
+  ].filter((t) => !tkDa.has(t.id) && !codeBelegt.has(t.code));
   for (const t of tokenListe) {
     db.insert(tokens).values({
-      ...t, scopeLagerortId: null, createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
+      ...t, ortId: null, scopeLagerortId: null, createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
+    }).run();
+  }
+
+  /* 17b ── Die ORTSCODES (DRK-406): je ein Code fuer den Handlager und vier der
+   *        fuenf Einheiten. `ziel_typ`/`ziel_id` folgen der Zeile — der
+   *        Handlager landet auf der Artikelliste und hat deshalb KEIN Ziel,
+   *        eine Einheit fuehrt in ihren Check. Die Begruendung steht an
+   *        `zielSpalten` (`_lib/schreibpfade/ortCodes.ts`). */
+  const ortCodeListe = [
+    { id: "ortcode-handlager", code: CODE_ORT_HANDLAGER, label: "Handlager", ortId: HANDLAGER_ID, zielTyp: null, zielId: null },
+    { id: "ortcode-rtw1", code: CODE_ORT_RTW, label: "RTW 1", ortId: RTW, zielTyp: "fahrzeug" as const, zielId: RTW },
+    { id: "ortcode-ktw1", code: CODE_ORT_KTW, label: "KTW 1", ortId: KTW, zielTyp: "fahrzeug" as const, zielId: KTW },
+    { id: "ortcode-mtw1", code: CODE_ORT_MTW, label: "MTW 1", ortId: MTW, zielTyp: "fahrzeug" as const, zielId: MTW },
+    { id: "ortcode-tasche", code: CODE_ORT_TASCHE, label: "Sanitätstasche 1", ortId: TASCHE_SAN, zielTyp: "fahrzeug" as const, zielId: TASCHE_SAN },
+  ].filter((t) => !tkDa.has(t.id) && !ortBesetzt.has(t.ortId) && !codeBelegt.has(t.code));
+  for (const t of ortCodeListe) {
+    db.insert(tokens).values({
+      ...t, aktiv: true, lastUsedAt: null, scopeLagerortId: null,
+      createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
     }).run();
   }
 
@@ -1184,7 +1253,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       `KTW +${syncKtw.hinzugefuegt}/~${syncKtw.aktualisiert}, MTW ${spListe.length} manuell neu.`,
     `Ausstattung: ${geraeteListe.length} Geräte, ${bzListe.length} BZ-Geräte, ` +
       `${bzkListe.length} BZ-Kontrollen, ${flaschenListe.length} O₂-Flaschen, ` +
-      `${messungenListe.length} O₂-Messungen, ${tokenListe.length} Zugangs-Codes neu.`,
+      `${messungenListe.length} O₂-Messungen, ${tokenListe.length} Zugangs-Codes und ` +
+      `${ortCodeListe.length} Ortscodes neu.`,
     "",
     "Verfallsampel — belegte Stufen:",
     `  abgelaufen  Chargen mit Verfall ${m.abgelaufen} (Kompressen, Handlager)`,
@@ -1218,10 +1288,20 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${CODE_ARTIKEL}  Regaletikett Kompressen → Artikel-Detail`,
     `  ${CODE_GESPERRT}  gesperrt (aktiv = false) — muss abgewiesen werden`,
     "",
+    "Ortscodes (DRK-406) — jede Ortskarte trägt genau einen:",
+    `  ${CODE_ORT_HANDLAGER}  Handlager → Entnahme, OHNE Box und OHNE Check`,
+    `  ${CODE_ORT_RTW}  RTW 1 → Check, volle Reichweite`,
+    `  ${CODE_ORT_KTW}  KTW 1`,
+    `  ${CODE_ORT_MTW}  MTW 1`,
+    `  ${CODE_ORT_TASCHE}  Sanitätstasche 1`,
+    "  Rucksack Betreuung hat BEWUSST keinen — beim Öffnen der Ortsetiketten",
+    "  entsteht er, und die Seite sagt es.",
+    "",
     "Lokale Adressen (äußere Pfadform auf dem Modul-Host):",
     `  ${BASIS_URL}/                      Gate (Code eintippen)`,
     `  ${BASIS_URL}/t/${CODE_HELFER}               Code einlösen (QR-Weg)`,
     `  ${BASIS_URL}/t/${CODE_RTW}               Code einlösen → RTW-Check`,
+    `  ${BASIS_URL}/t/${CODE_ORT_HANDLAGER}               Regal-Code — nur Entnahme, kein Box-/Check-Reiter`,
     `  ${BASIS_URL}/a/${A.kompresse}   Artikel-Detail`,
     `  ${BASIS_URL}/helfer                Helfer-Startseite (nach Einlösung)`,
     `  ${BASIS_URL}/verwaltung            Übersicht mit Kennzahlen`,
@@ -1238,8 +1318,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/verwaltung/inventur`,
     `  ${BASIS_URL}/verwaltung/journal`,
     `  ${BASIS_URL}/verwaltung/tokens`,
-    `  ${BASIS_URL}/verwaltung/etiketten          Bogen mit QR und Klartext-Codes`,
-    `  ${BASIS_URL}/verwaltung/ortsetiketten      QR-Karte je Handlager und Einheit, 8 je A4-Blatt`,
+    `  ${BASIS_URL}/verwaltung/etiketten          Artikeletiketten — Bogen je Regalfach`,
+    `  ${BASIS_URL}/verwaltung/ortsetiketten      Ortskarte je Handlager und Einheit MIT Code, 8 je A4-Blatt`,
     `  ${BASIS_URL}/o/${HANDLAGER_ID}                    Ortsetikett → Artikelliste`,
     `  ${BASIS_URL}/g/4012345678901               Geraete-Barcode → Geraete-Detail`,
     `  ${BASIS_URL}/g/4015630000018               Geraete-Barcode → BZ-Detail`,
