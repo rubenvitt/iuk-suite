@@ -1,71 +1,154 @@
-/**
- * DIE FLAECHEN, DIE VERALTEN, WENN SICH DER HANDLAGER-BESTAND EINES ARTIKELS
- * AENDERT — EINMAL, FUER ALLE SCHREIBWEGE (DRK-381).
- *
- * ── WARUM DIESE DATEI UEBERHAUPT EXISTIERT ────────────────────────────────
- *
- * ⚠️ DREI REVIEW-RUNDEN, DREI FEHLENDE PFADE, EINE URSACHE: zwei Listen fuer
- * denselben Effekt. Die Liste stand bis DRK-381 als `revalidiereZugang` in
- * `_actions/buchung.ts` und trug dort den Befund aus drei Runden zu PR #174 —
- * nacheinander fehlten `verwaltung/bestellung`, `verwaltung/verfall` und
- * `auffuellen`. Der Kommentar dort schloss woertlich: „Die naechste Flaeche
- * fehlte wieder, solange die Listen getrennt sind."
- *
- * Mit DRK-381 kam ein VIERTER Schreibweg dazu (`raeumeAusEntnahmebox`), und er
- * aendert denselben Bestand. Ihn seine eigene Liste schreiben zu lassen waere
- * genau der Fehler, vor dem der Kommentar gewarnt hat — nur diesmal
- * angekuendigt.
- *
- * ⚠️ SIE LIEGT IN `_lib/` UND NICHT IN EINER ACTION-DATEI, und das ist keine
- * Geschmacksfrage: `_actions/*.ts` tragen `"use server"`, und dort ist JEDER
- * Export eine Server Action mit global aufrufbarer Id (`guards.test.ts`).
- * Eine geteilte Hilfsfunktion koennte dort also gar nicht exportiert werden.
- *
- * KEIN "use client": `revalidatePath` gibt es nur auf dem Server, und beide
- * Aufrufer sind Actions.
- *
- * ── WAS DIE LISTE NICHT IST ───────────────────────────────────────────────
- *
- * ⚠️ SIE IST NICHT „ALLES, WAS MIT DEM ARTIKEL ZU TUN HAT". Jeder Pfad steht
- * mit einem Grund unten; ein Pfad ohne Grund ist Arbeit bei jeder Buchung, die
- * niemand braucht. Und sie ist NICHT die Liste der BOX-Flaechen: die aendern
- * sich nur beim Ein- und Ausraeumen und stehen deshalb beim jeweiligen
- * Aufrufer.
- *
- * ⚠️ INNERE PFADE (§2.1 g, Falle 49): `revalidatePath` bekommt den Pfad, unter
- * dem die Route im DATEIBAUM liegt. Ein aeusserer Pfad trifft nichts — und
- * wirft dabei NICHT.
- */
 import { revalidatePath } from "next/cache";
 
 /**
- * Die Flaechen, die den Handlager-Bestand eines Artikels zeigen.
+ * DIE FLAECHEN, DIE ARTIKELBESTAND ODER BUCHUNGEN ZEIGEN — EINE LISTE FUER DAS
+ * GANZE MODUL (DRK-374).
  *
- * Was sie nennt, und warum jeweils:
+ * ⚠️ WARUM EINE LISTE UND NICHT SECHS. Die Review zu DRK-313 (PR #174) meldete
+ * VIERMAL IN FOLGE dieselbe Sache in anderer Gestalt: eine Flaeche, die nach
+ * einer Buchung veraltet stehen bleibt — `verwaltung/bestellung`,
+ * `verwaltung/verfall`, die Auffuellrouten, `verwaltung/journal`,
+ * `verwaltung/lagerorte`. Jeder Fund wurde einzeln nachgetragen, und der
+ * naechste kam trotzdem. Die Ursache ist nicht Unachtsamkeit, sondern die
+ * BAUFORM: solange jeder Schreiber seine eigene Liste fuehrt, ist „eine neue
+ * Flaeche" eine Aenderung an acht Stellen, und acht Stellen driften.
  *
- *  * `verwaltung/verfall` — `verfallListe` ueberspringt jede Charge mit
- *    `rest <= 0` und liest den Rest ueber den Handlager-Bereich
- *    (`_lib/lesepfade/verfall.ts`). Jede Bestandsaenderung aendert genau das:
- *    eine aufgebrauchte, ablaufende Charge taucht wieder auf, eine NEU
- *    angelegte mit nahem Verfall ist eine ganz neue Zeile.
- *  * `verwaltung/bestellung` — die Liste zeigt, was unter den Mindestbestand
- *    gefallen ist; steigt der Bestand, faellt der Artikel heraus. ⚠️ EIN
- *    ZUGANG nullt zusaetzlich `bestelltAt`, eine UMLAGERUNG ausdruecklich
- *    NICHT (§5.5, Punkt 2). Der Pfad gehoert trotzdem in BEIDE Wege — die
- *    Zahl aendert sich so oder so. `markiereBestellt` raeumt denselben Pfad
- *    aus demselben Grund; zwei Schreiber DERSELBEN Liste duerfen sich darin
- *    nicht unterscheiden.
- *  * `verwaltung/artikel` und `verwaltung` — Bestand und Kennzahlen.
- *  * `auffuellen` und `auffuellen/<id>` — Liste und Chargenwahl der GF-Flaeche.
- *  * `a/<id>` und `helfer` — Bestand und Chargenliste am Regal.
+ * Gemessen war der Stand vor diesem Ticket: `aussondern` nannte drei Pfade,
+ * `revalidiereZugang` acht, `csv` einen — und `verwaltung/journal` sowie
+ * `verwaltung/lagerorte` nannte KEINE EINZIGE Action, obwohl beide
+ * Buchungszeilen lesen.
+ *
+ * ⚠️ DIE WIRKUNG IST HEUTE LATENT, NICHT AKUT — und das ist kein Grund, sie
+ * stehen zu lassen. `experimental.staleTimes.dynamic` steht auf dem Vorgabewert
+ * `0` (`next.config.ts` ueberschreibt ihn nicht), und diese Seiten sind
+ * dynamisch; eine dynamische Route wird bei Client-Navigation ohnehin neu
+ * geholt. Wer den Wert spaeter hochsetzt oder eine dieser Seiten statisch
+ * macht, schaltet die GANZE Klasse auf einmal scharf — nicht eine Flaeche.
+ *
+ * ⚠️ INNERE PFADE (Falle 49): `revalidatePath` bekommt den Pfad, unter dem die
+ * Route im DATEIBAUM liegt, nicht den, den der Browser auf dem Lagerbuch-Host
+ * sieht. Ein aeusserer Pfad trifft nichts — und wirft dabei NICHT. Deshalb
+ * beginnt hier jeder Eintrag mit `/m/lagerbuch`.
+ *
+ * ⚠️ ROUTENGRUPPEN ZAEHLEN NICHT MIT: die Verwaltungsseiten liegen unter
+ * `verwaltung/(arbeit)/…`, der Pfad lautet trotzdem `/m/lagerbuch/verwaltung/…`.
+ * `revalidierung.test.ts` loest das beim Abgleich mit dem Dateibaum auf.
+ *
+ * ⚠️ DIESE DATEI TRAEGT KEIN `"use server"`, und das ist die Bedingung dafuer,
+ * dass es sie gibt: in `_actions/buchung.ts` waere jeder Export eine Action
+ * (`_actions/guards.test.ts`) — der Vorlaeufer `revalidiereZugang` musste
+ * deshalb dateilokal bleiben und war genau darum nicht teilbar.
  */
-export function revalidiereHandlagerBestand(artikelId: string): void {
-  revalidatePath("/m/lagerbuch/verwaltung/verfall");
-  revalidatePath("/m/lagerbuch/verwaltung/artikel");
-  revalidatePath("/m/lagerbuch/verwaltung/bestellung");
-  revalidatePath("/m/lagerbuch/verwaltung");
-  revalidatePath(`/m/lagerbuch/auffuellen/${artikelId}`);
-  revalidatePath("/m/lagerbuch/auffuellen");
-  revalidatePath(`/m/lagerbuch/a/${artikelId}`);
-  revalidatePath("/m/lagerbuch/helfer");
+export const BESTANDSFLAECHEN: readonly string[] = [
+  /* Kennzahlen, Bestandstabelle und Journal-Auszug der Verwaltungsuebersicht. */
+  "/m/lagerbuch/verwaltung",
+  /* `artikelListe` — Bestand je Artikel, die Hauptflaeche. */
+  "/m/lagerbuch/verwaltung/artikel",
+  /*
+   * `bestellvorschlag` liest den Handlager-Bestand (`bestandJeArtikelImBereich`)
+   * und filtert die Zeilen danach. Ein Zugang nullt zusaetzlich `bestelltAt`:
+   * eine zwischengespeicherte Liste fuehrte den gelieferten Artikel sonst weiter
+   * als „bestellt" und schluege ihn nie wieder vor.
+   */
+  "/m/lagerbuch/verwaltung/bestellung",
+  /*
+   * `verfallListe` ueberspringt jede Charge mit `rest <= 0`. Jede Buchung
+   * aendert genau das — eine aufgebrauchte, ablaufende Charge taucht nach einem
+   * Zugang wieder auf, eine neu angelegte ist eine ganz neue Zeile.
+   */
+  "/m/lagerbuch/verwaltung/verfall",
+  /* `journalEintraege` — die Buchungszeilen selbst. */
+  "/m/lagerbuch/verwaltung/journal",
+  /* Zaehlt „Bestandsposten je Schrank" direkt aus `buchungen`. */
+  "/m/lagerbuch/verwaltung/lagerorte",
+  /* `inventurZeilen` — Soll gegen Ist, also Bestand. */
+  "/m/lagerbuch/verwaltung/inventur",
+  /* `fahrzeugUebersicht` liest `bestandJeArtikelUndLagerort`. */
+  "/m/lagerbuch/verwaltung/fahrzeuge",
+  /* `boxInhalt`, `postenAmOrt`, `letzteBoxZugaenge` — Bestand am Box-Ort. */
+  "/m/lagerbuch/verwaltung/entnahmebox",
+  /* `artikelListe` — die Auffuellansicht der GF. */
+  "/m/lagerbuch/auffuellen",
+  /* `artikelListe` — das Regalblatt der Helferinnen. */
+  "/m/lagerbuch/helfer",
+  /* `postenAmOrt` — die Entnahmebox am Regal. */
+  "/m/lagerbuch/helfer/box",
+  /*
+   * ⚠️ DIESE FLAECHE FEHLTE BIS ZUR CODEX-REVIEW ZU PR #187, und sie ist der
+   * Beweis, dass die alte Bauform des Waechters nicht getragen hat: der
+   * Check-Schirm zeigt je Soll-Zeile `fahrzeugBestand` UND `handlagerBestand`
+   * (`sollFuerFahrzeug` rechnet beide aus `bestandJeArtikelUndLagerort`).
+   * Uebersehen wurde er, weil die erste Fassung eine handgepflegte Liste von
+   * LESERFUNKTIONEN fuehrte und `sollFuerFahrzeug` nicht darin stand — eine
+   * Luecke genau der Art, gegen die dieses Ticket gebaut ist. Seither
+   * klassifiziert `revalidierung.test.ts` JEDE Seite des Moduls einzeln.
+   */
+  "/m/lagerbuch/helfer/check",
+  /*
+   * ⚠️ NEU AUS DRK-381 (PR #189), das PARALLEL dieselbe Datei angelegt hat —
+   * enger gefasst: acht Pfade, weiterhin mit Artikel-ID, nur „Handlager-Bestand
+   * eines Artikels". Diese Liste ist die Obermenge (alle acht sind enthalten,
+   * die beiden mit ID als Muster), deshalb hat sie die andere beim Merge
+   * abgeloest; verloren geht dabei nichts.
+   *
+   * Die Einraeumflaeche der GF zeigt ueber `einraeumPosten` die Posten IN der
+   * Kiste — Buchungszeilen, also Bestand.
+   */
+  "/m/lagerbuch/auffuellen/box",
+
+  /*
+   * ⚠️ AB HIER ROUTENMUSTER, NICHT PFADE — und `revalidiereBestand` gibt ihnen
+   * `type: "page"` mit. Ohne den zweiten Parameter ist ein Pfad mit
+   * `[`-Segment kein Muster, sondern ein Pfad, den es nicht gibt
+   * (`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/
+   * revalidatePath.md`: „If `path` contains a dynamic segment … this parameter
+   * is required").
+   *
+   * ⚠️ WARUM MUSTER UND NICHT DIE EINE ID, DIE DER SCHREIBER KENNT (zweiter
+   * Codex-Befund zu PR #187): weil die Zahl auf diesen Seiten NICHT nur von
+   * ihrer eigenen ID abhaengt. Jede Fahrzeugseite zeigt ueber
+   * `sollFuerFahrzeug` auch den HANDLAGER-Bestand je Position — ein Zugang,
+   * eine gewoehnliche Entnahme, ein CSV-Import oder eine Inventur aendert
+   * damit JEDE Fahrzeugseite, und keiner dieser Schreiber nennt ein Fahrzeug.
+   * Ein Import oder ein Inventurlauf beruehrt ausserdem viele Artikel auf
+   * einmal. Eine Invalidierung „nur fuer die uebergebene ID" liesse den Rest
+   * still veralten — dieselbe Teil-Liste, nur je Aufruf statt je Schreiber.
+   */
+  "/m/lagerbuch/verwaltung/fahrzeuge/[id]",
+  "/m/lagerbuch/auffuellen/[artikelId]",
+  "/m/lagerbuch/a/[artikelId]",
+];
+
+
+/**
+ * DIE LISTE WIRD PAUSCHAL GENOMMEN, NICHT JE SCHREIBER GEFILTERT — und das ist
+ * die Entscheidung dieses Tickets, nicht eine Bequemlichkeit.
+ *
+ * Drei Gruende, der dritte ist der gemessene:
+ *
+ *  1. DIE KOSTEN SIND UNSYMMETRISCH. Ein Pfad zu viel kostet einen Rerender
+ *     einer ohnehin dynamischen Seite. Ein Pfad zu wenig zeigt eine falsche
+ *     Zahl auf einer Arbeitsflaeche — und niemand meldet ihn, weil nichts
+ *     bricht.
+ *  2. EIN FILTER IST WIEDER EINE LISTE. Sechs Filter sind sechs Listen mit
+ *     einem anderen Namen; die Drift, gegen die dieses Ticket gebaut ist, waere
+ *     unveraendert da.
+ *  3. DAS NAHELIEGENDSTE GEGENBEISPIEL HAELT NICHT. „Eine Umlagerung aendert die
+ *     Bestellt-Markierung nicht" stimmt fuer `artikel.bestelltAt` — und trotzdem
+ *     aendert sie die Bestellliste: `bestellvorschlag` filtert ueber
+ *     `bestandJeArtikelImBereich(db, handlagerOrte(db))`, und eine Umlagerung
+ *     AUS dem Handlager auf ein Fahrzeug senkt genau diesen Bestand unter den
+ *     Mindestbestand. Wer nach der Markierung filtert, streicht die Flaeche, die
+ *     sich gerade geaendert hat.
+ *
+ * Was ein Schreiber ZUSAETZLICH beruehrt — Checks, Sauerstoff, Inventurlaeufe —,
+ * revalidiert er weiterhin selbst daneben. Diese Liste beantwortet genau eine
+ * Frage: „wo steht Artikelbestand oder eine Buchungszeile?"
+ */
+export function revalidiereBestand(): void {
+  for (const pfad of BESTANDSFLAECHEN) {
+    // Ein Muster braucht `"page"`; ein fester Pfad darf es NICHT bekommen.
+    if (pfad.includes("[")) revalidatePath(pfad, "page");
+    else revalidatePath(pfad);
+  }
 }

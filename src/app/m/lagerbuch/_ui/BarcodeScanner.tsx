@@ -22,6 +22,24 @@ import s from "./helfer.module.css";
  * `var(--ant-color-primary)` waere ein Knopf OHNE Hintergrundfarbe, still, weil
  * eine nicht aufloesbare CSS-Variable gueltiges CSS ist (Falle 2, §7.6.4).
  *
+ * ⚠️ `zuBarcode` IST KEIN FALL VON FALLE 9, UND DAS IST GEPRUEFT (DRK-375).
+ * `Entnahme.tsx` und `BoxAbgabe.tsx` nahmen ihre Server Action als Prop und
+ * nannten diese Datei als Vorbild; beide sind umgestellt, diese NICHT — der
+ * Fall ist ein anderer, und zwar aus zwei Gruenden.
+ *
+ * ERSTENS ueberquert hier gar keine RSC-Grenze: die zwei Aufrufer
+ * (`verwaltung/geraete/scan/GeraetScanner.tsx`,
+ * `verwaltung/bz/scan/BzScanner.tsx`) tragen selbst `"use client"`. Falle 9
+ * handelt von einer Funktion, die aus einer SERVER Component in eine Insel
+ * gereicht wird; Client zu Client ist gewoehnliches JavaScript.
+ *
+ * ZWEITENS ist `zuBarcode` auch gar nicht die Action, sondern eine Huelle um
+ * sie: die zwei Aufrufer reichen ZWEI VERSCHIEDENE Suchen herein (`_actions/
+ * geraete` und `_actions/bz`, beide `geraetZuBarcode` genannt, verschiedene
+ * Tabellen) und packen je ihr `{ ok, wert }` aus. Ein fester Import hier
+ * muesste sich fuer eine der beiden entscheiden. Das ist Polymorphie, keine
+ * abgelaufene Begruendung.
+ *
  * DIE SIEBEN POSSIBLE_FORMATS BLEIBEN ZEICHENGLEICH (§7.6.2, 1:1-Pflicht). EAN
  * und ITF sind reine Handels- und Herstellercodierungen; sie stehen auf keinem
  * lagerbuch-Etikett, sondern VOM HERSTELLER GEDRUCKT am Geraet. Ein Format zu

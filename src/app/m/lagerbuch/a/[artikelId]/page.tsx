@@ -12,13 +12,6 @@ import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { Entnahme } from "../../_ui/Entnahme";
 import { LeerZustand } from "../../_ui/LeerZustand";
 import s from "../../_ui/helfer.module.css";
-// ⚠️ DIE EINE REIHENFOLGEBINDUNG DIESES PLANS NACH AUSSEN: `_actions/buchung.ts`
-// gehoert vollstaendig Teil 5 (Festlegung H7). Teil 5s T114 wird VORGEZOGEN —
-// sie haengt nur an Teil 2 (`requireHelferSchreibend`) und Teil 3
-// (`fefoAbbuchung`, `umlagerung`) und hat KEINE Teil-4-Abhaengigkeit. Das ist
-// eine Ablaufanweisung, kein Dateianspruch; eine zweite `_actions/buchung.ts`
-// entsteht NICHT.
-import { bucheEntnahmeHelfer } from "../../_actions/buchung";
 
 /**
  * DER REGALETIKETT-DEEP-LINK — §7.4.3.
@@ -147,13 +140,12 @@ export default async function ArtikelDeepLink({
         </p>
       )}
       {detail ? (
-        // Die Action kommt als PROP in die Insel — `_ui/Entnahme.tsx` importiert
-        // sie NICHT selbst (T78). Dies ist die EINE Stelle, die die
-        // Reihenfolge zu Teil 5 kennt.
+        // ⚠️ KEIN `buchen`-PROP MEHR (DRK-375): `_ui/Entnahme.tsx` importiert
+        // `bucheEntnahmeHelfer` selbst. Falle 9 — Server Actions gehoeren
+        // direkt importiert, nicht als Prop durchgereicht.
         <Entnahme
           detail={detail}
           ziel={ziel}
-          buchen={bucheEntnahmeHelfer}
           // DRK-305 — entscheidet den Rueckweg, wenn der Zugang ausfaellt.
           kontoZugang={zugang.herkunft === "konto"}
         />

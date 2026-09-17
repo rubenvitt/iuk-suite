@@ -6,8 +6,13 @@ import { Stepper } from "./Stepper";
 import { HelferChip } from "./HelferChip";
 import { Ikone } from "./ikonen";
 import {
-  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferErgebnis, type HelferGrund,
+  ANMELDUNG_TEXT, NETZ_TEXT_BUCHUNG, type HelferGrund,
 } from "../_lib/actionTypen";
+// ⚠️ DIREKT IMPORTIERT, NICHT ALS PROP (Falle 9, `AGENTS.md`/`CLAUDE.md`):
+// „Server Actions duerfen als einzige ueber die Grenze — aber direkt
+// importiert, nicht als Prop durchgereicht." Dieselbe Form wie in
+// `_ui/Auffuellen.tsx` und `_ui/BoxAbgabe.tsx`.
+import { bucheEntnahmeHelfer } from "../_actions/buchung";
 import { einheitMeta, ortZeile, type Einheitenart } from "../_lib/konstanten";
 import { fmtVerfall, ampelTon } from "../_lib/format";
 import type { Ampel } from "../_lib/domain/verfall";
@@ -24,14 +29,18 @@ import s from "./helfer.module.css";
  * fuehrt sie so; teil5.md nennt sie an fuenf Stellen falsch. Das ist ein
  * Schreibfehler in einem Kommentar, keine Planaenderung.
  *
- * ⚠️ DIE ACTION KOMMT ALS PROP. `_actions/buchung.ts` gehoert vollstaendig
- * Teil 5 (Festlegung H7) — alle drei Buchungs-Actions teilen sich dort
- * `fefoAbbuchung` und dieselbe Zod-Basis, deshalb entsteht die Datei EINMAL und
- * dort. Ein Import hier machte diese Datei von einem SPAETER laufenden Plan
- * abhaengig; als Prop ist die Insel vollstaendig, testbar und gruen, und der
- * eine Import liegt in
- * `a/[artikelId]/page.tsx` (T83) — genau eine Stelle, die die Reihenfolge
- * kennt. Dasselbe Muster benutzt Teil 5 fuer `_ui/BarcodeScanner.tsx`.
+ * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT (DRK-375). Bis dahin kam sie als PROP,
+ * und die Begruendung war eine REIHENFOLGE: `_actions/buchung.ts` gehoerte
+ * vollstaendig Teil 5 (Festlegung H7), ein Import hier haette diese Insel von
+ * einem SPAETER laufenden Plan abhaengig gemacht. Diese Begruendung ist
+ * ABGELAUFEN — die Datei existiert, und Falle 9 (`AGENTS.md`/`CLAUDE.md`)
+ * lautet woertlich: „Server Actions duerfen als einzige ueber die Grenze —
+ * aber direkt importiert, nicht als Prop durchgereicht."
+ *
+ * ⚠️ WER DEN PROP ZURUECKHOLT, HOLT KEINE VEREINFACHUNG ZURUECK, SONDERN EINE
+ * AUSNAHME. Als Prop ist die Insel im Test bequemer (man reicht eine Funktion
+ * hinein statt ein Modul zu ersetzen) — genau deshalb steht der Mock jetzt in
+ * `Entnahme.test.tsx`: der Test folgt der Bauform, nicht umgekehrt.
  */
 export type EntnahmeDetail = {
   id: string;
@@ -85,25 +94,16 @@ export type EntnahmeDetail = {
   }[];
 };
 
-/** Genau die Signatur von `bucheEntnahmeHelfer` (Teil 5, T114). */
-export type BuchungsAktion = (eingabe: {
-  artikelId: string;
-  menge: number;
-  ziel: { art: "fahrzeug"; lagerortId: string } | { art: "verbrauch" };
-}) => Promise<HelferErgebnis<{ gebucht: number }>>;
-
 type Rueckmeldung = { art: "ok" | "fehler"; text: string; grund?: HelferGrund };
 
 export function Entnahme({
   detail,
   ziel,
-  buchen,
   kontoZugang,
 }: {
   detail: EntnahmeDetail;
   /** `null` = noch nichts gewählt; dann wird NICHT gebucht (DRK-300). */
   ziel: ZielAnzeige | null;
-  buchen: BuchungsAktion;
   /**
    * DIE HERKUNFT DES ZUGANGS — DRK-305: `true` heißt „angemeldetes Konto, kein
    * Kärtchen".
@@ -142,7 +142,7 @@ export function Entnahme({
     setRueck(null);
     start(async () => {
       try {
-        const r = await buchen({
+        const r = await bucheEntnahmeHelfer({
           artikelId: detail.id,
           menge: m,
           // Die KENNUNG wandert, nicht der Anzeigename — der Server kennt nur sie.
