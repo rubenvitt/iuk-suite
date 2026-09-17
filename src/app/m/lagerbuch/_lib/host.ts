@@ -94,7 +94,7 @@ export function lagerbuchHostOderNull(headers: Headers): "lagerbuch" | null {
  * ⚠️ Die Zahl der Hosts in SUITE_HOST_LAGERBUCH ist NICHT begrenzt: 0 (vor dem
  * Cutover), 1 (Normalfall) und ≥ 2 (abgeloeste Domain laeuft mit) sind alle erlaubt.
  * Es gibt deshalb KEIN validateLagerbuchHosts — Tippfehler, Protokoll/Port im Wert und
- * doppelt vergebene ENV-Hosts faengt bereits validateHostConfig (core/hosts.ts:65-100).
+ * doppelt vergebene ENV-Hosts faengt bereits validateHostConfig (core/hosts.ts).
  * WAS DORT NICHT AUFFAELLT: ein Host, den ein ANDERES Modul ueber `prodHosts` in der
  * Registry fuehrt (z. B. `portal`s "iuk-ue.de"). validateHostConfig fuellt seine
  * Kollisions-Map ausschliesslich aus `envHostsFor` (core/hosts.ts) — ein

@@ -613,6 +613,46 @@ Traefik-Labels → Router umschwenken (nie zwei Router gleichzeitig aktiv) → 2
 konsistenter Mapping-Fehler ist paritätsgrün. Deshalb zusätzlich feldweise Stichproben gegen die
 Alt-Anwendung.
 
+## Kommentaranker — ein Name hält, eine Zeilennummer wandert
+
+Die Suite begründet in Kommentaren und verankert die Begründung an ihrer Quelle. **6027 solcher
+`datei:zeile`-Anker stehen im Repo** (gemessen 16.09.2026; `m/radio` 4253, `m/lagerbuch` 640 in 178
+Dateien) — sie sind ein tragender Teil des Gedächtnisses, und sie sind die häufigste Einzelursache
+für Fehlschlüsse bei einem Rotlauf. Ein Anker, der die Aussage nicht mehr deckt, kostet doppelt:
+erst sucht jemand an der falschen Stelle, dann hält er die Zusicherung für ungedeckt und
+„repariert" sie, indem er sie streicht. Zwei Regeln, beide billig:
+
+1. **Ein Anker in dieses Repo nennt einen NAMEN, keine Zeile.** Zusicherungs-, Symbol- oder
+   Selektorname — `_db/schema.ts`, Feld `lastUsedAt` statt `_db/schema.ts:412-413`. Eine
+   Zeilennummer wandert bei jeder Einfügung darüber, und **kein Tor sieht das**: sie steht in
+   einem Kommentar, den `typecheck` nicht liest, `lint` nicht kennt und `build` klaglos
+   mitserialisiert. Gemessen an genau diesem Beispiel: `lastUsedAt` steht heute auf `:538-540`,
+   auf `:412` steht eine Trigger-Begründung — der Anker zeigte auf eine Aussage über etwas
+   anderes.
+2. **Ein Anker in die ALT-ANWENDUNG nennt das Repository mit** — `lagerbuch/src/app/globals.css:277`,
+   nie nacktes `globals.css:277`. Dort ist die Zeilennummer richtig und stabil (das Repo ist
+   eingefroren); ambig ist der **Dateiname**. ⚠️ Dieser Fall hat schon einmal zugeschlagen: in
+   `m/radio` stand, die `lagerbuch`-Anker auf `globals.css:277` seien „veraltet (`globals.css` hat
+   231 Zeilen)". Der nackte Anker hatte sich gegen die gleichnamige Datei **dieses** Repos auflösen
+   lassen, und aus einer richtigen Herkunftsmarke wurde eine falsche Fehlmeldung.
+
+**Findest du einen veralteten Anker, ziehst du den ANKER nach — nie die Zusicherung.** Der Anker
+ist veraltet, nicht die Aussage.
+
+⚠️ **Und wer Kommentare aufräumt, hält die ZEILENZAHL der Datei** — das ist der Teil, den man erst
+merkt, wenn er weh tut. Gemessen an diesem PR: ein erster Wurf hat dieselben Kommentare nur sauber
+umgebrochen, dabei 27 Zeilen eingefügt und damit **29 fremde Anker aus vier anderen Dateien
+veraltet** — ein Kommentar-Fix, der die Fehlerklasse vervielfacht, die er beheben soll. Zeilenzahl-
+neutral formuliert (kürzer, nicht länger) kostet er nichts. Prüfen lässt sich das in einem Zug:
+`for f in $(git diff --name-only); do echo "$(( $(wc -l < "$f") - $(git show HEAD:"$f" | wc -l) ))
+$f"; done`.
+
+`src/core/kommentaranker.test.ts` riegelt die beweisbare Hälfte repo-weit ab: ein Anker, der sich
+gegen eine Datei dieses Repos auflösen lässt, muss auf eine Zeile zeigen, die es dort gibt. Er ist
+ein **Boden, keine Decke** — Drift *innerhalb* einer Datei sieht er nicht, und Anker in die
+Alt-Anwendung oder in Fremdpakete kann er nicht prüfen. `docs/` steht bewusst außerhalb: Berichte
+halten einen vergangenen Stand fest und sollen gerade nicht mitwandern.
+
 ## Tests
 
 `pnpm typecheck` · `pnpm lint` (Fehler blockieren die CI, Warnungen nicht) · `pnpm vitest run` ·

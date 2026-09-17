@@ -128,7 +128,7 @@ export function CheckFlow({
   flaschen,
   verfall,
   warn,
-  gebunden,
+  andereEinheitErreichbar,
   kontoZugang,
   letzterCheckText,
 }: {
@@ -166,20 +166,47 @@ export function CheckFlow({
    * gesamte Zaehlstand in sechs `useState` liegt. Gefunden hat das die
    * Codex-Review zu PR #164.
    *
-   * PFLICHT-PROP, KEIN OPTIONAL — dieselbe Begruendung wie bei `gebunden`
-   * darunter: ein vergessenes `kontoZugang?` waere still `undefined` und damit
-   * „Kaertchen", also genau der Defekt.
+   * PFLICHT-PROP, KEIN OPTIONAL — dieselbe Begruendung wie bei
+   * `andereEinheitErreichbar` darunter: ein vergessenes `kontoZugang?` waere
+   * still `undefined` und damit „Kaertchen", also genau der Defekt.
    */
   kontoZugang: boolean;
   /**
-   * Das gescannte Kaertchen haengt an DIESEM Fahrzeug (DRK-302) — dann gibt es
-   * kein „anderes Fahrzeug", und die beiden Auswege in die Wahl entfallen.
+   * FUEHRT „ANDERE EINHEIT" UEBERHAUPT WOANDERSHIN? — DRK-376.
    *
-   * PFLICHT-PROP, KEIN OPTIONAL. Ein `gebunden?: boolean` waere in jeder
-   * vergessenen Aufrufstelle still `undefined` und damit „ungebunden" — der
-   * Knopf in die volle Liste stuende wieder da, und kein Tor meldete es. Die
-   * Seite ist heute der einzige Aufrufer; ein zweiter muesste die Frage
-   * ausdruecklich beantworten.
+   * Die beiden Auswege dieses Flows — der Rueckweg im Leerzustand und der Knopf
+   * auf dem Abschlussschirm — zeigen auf `/helfer/check`, also auf DIESELBE
+   * Seite, die ihre Einheit als `gebunden ?? (?fz= …) ?? (genau eine aktive)`
+   * waehlt. Sie sind genau dann wirkungslos, wenn diese Kette wieder dieselbe
+   * Einheit liefert, und dafuer gibt es ZWEI Gruende:
+   *
+   *   `gebunden`         — das Kaertchen zeigt auf DIESE Einheit und gewinnt
+   *                        gegen jedes `?fz=` (DRK-302).
+   *   genau EINE aktive  — die Wahl wird uebersprungen.
+   *
+   * Bis DRK-376 kannte der Flow nur den ersten (als Prop `gebunden`). Beim
+   * zweiten lud der Link denselben Schirm, und zwar ohne dass etwas kaputt
+   * aussieht: er funktioniert, die Seite laedt, sie zeigt dasselbe — wer
+   * davorsteht, haelt den eigenen Klick fuer danebengegangen und klickt noch
+   * einmal. Getroffen hat es genau die Bereitschaften mit einer einzigen
+   * aktiven Einheit, also die, denen am wenigsten auffaellt, dass eine Wahl
+   * fehlt.
+   *
+   * ⚠️ DIE ENTSCHEIDUNG GEHOERT DER SEITE, NICHT DIESER INSEL. Nur sie kennt
+   * die Bindung der Sitzung und die Zahl der aktiven Einheiten; die Insel
+   * bekaeme beides nur, wenn man ihr mehr in den Payload legt, als sie zeigt.
+   * Dieselbe Aufteilung und DERSELBE NAME wie bei `BoxAbgabe` — zwei Woerter
+   * fuer dieselbe Frage liefen beim naechsten Griff auseinander.
+   *
+   * ⚠️ NICHT DIE BINDUNG LOCKERN. Sie ist eine Anzeige-Entscheidung, kein
+   * Riegel, aber sie im Vorbeigehen zu umgehen hiesse, die offene
+   * Betreiberfrage 5 zu beantworten. Geaendert ist der WEG, nicht die Wahl.
+   *
+   * PFLICHT-PROP, KEIN OPTIONAL. Ein `andereEinheitErreichbar?: boolean` waere
+   * in jeder vergessenen Aufrufstelle still `undefined` und damit „nicht
+   * erreichbar" — der Weg in die Wahl verschwaende auf JEDEM Schirm, auch dort,
+   * wo er gebraucht wird. Die Seite ist heute der einzige Aufrufer; ein zweiter
+   * muesste die Frage ausdruecklich beantworten.
    *
    * ⚠️ DER WERT FRIERT BEI DER INLINE-ERNEUERUNG EIN, UND DAS BLEIBT SO.
    * `erneuereSitzung` (§7.4.4) tauscht das Cookie OHNE Seitenaufbau; wer mit
@@ -196,8 +223,8 @@ export function CheckFlow({
    * 2. `fahrzeug.id` FRIERT MIT EIN, und das ist RICHTIG: gezaehlt wurde
    *    DIESES Fahrzeug, also gehoeren die Mengen dorthin. Ein Ziel, das unter
    *    der Helferin wechselt, waere die Fehlbuchung.
-   * 3. KEINE SACKGASSE. `gebunden` steuert allein, ob „Anderes Fahrzeug"
-   *    dasteht — die Tab-Leiste des `HelferRahmen` liegt in JEDER Lage darunter
+   * 3. KEINE SACKGASSE. Das Prop steuert allein, WOHIN der eine Ausweg fuehrt
+   *    — die Tab-Leiste des `HelferRahmen` liegt in JEDER Lage darunter
    *    (der Flow ist ihr Kind, `helfer/check/page.tsx`), und ihr
    *    „Fahrzeug-Check" fuehrt auf `/helfer/check`, wo die Bindung frisch
    *    aufgeloest wird.
@@ -207,7 +234,7 @@ export function CheckFlow({
    * Anzeigefrage — offene Betreiberfrage 5, Ansatzpunkt 2 in
    * `_actions/check.ts`, und sie gilt dort unveraendert AUCH OHNE Erneuerung.
    */
-  gebunden: boolean;
+  andereEinheitErreichbar: boolean;
   /**
    * DER LETZTE ABGESCHLOSSENE CHECK DIESES FAHRZEUGS — DRK-306, als FERTIGER
    * TEXT; `null` heisst „noch nie abgeschlossen geprueft".
@@ -218,9 +245,10 @@ export function CheckFlow({
    * (`helfer/check/page.tsx`, `fmtDatumZeit`) — dieselbe Zusage, die
    * `verwaltung/fahrzeuge` woertlich traegt.
    *
-   * PFLICHT-PROP, KEIN OPTIONAL — aus demselben Grund wie `gebunden` darueber.
-   * Ein `letzterCheckText?: string | null` waere in jeder vergessenen
-   * Aufrufstelle still `undefined` und damit vom „noch nie geprueft"-Fall NICHT
+   * PFLICHT-PROP, KEIN OPTIONAL — aus demselben Grund wie
+   * `andereEinheitErreichbar` darueber. Ein `letzterCheckText?: string | null`
+   * waere in jeder vergessenen Aufrufstelle still `undefined` und damit vom
+   * „noch nie geprueft"-Fall NICHT
    * zu unterscheiden: ein gestern geprueftes Fahrzeug bekaeme die Zeile „Noch
    * kein Check erfasst" und saehe aus wie ein vergessenes. Ein fehlender Wert
    * soll LAUT sein, nicht falsch.
@@ -424,15 +452,16 @@ export function CheckFlow({
             "hinterlegt. Die Verwaltung pflegt die Bestückung."
           }
           /*
-           * DER RUECKWEG HAENGT AM KAERTCHEN (DRK-302). Bei einem gebundenen
-           * Kaertchen gibt es kein anderes Fahrzeug — „Anderes Fahrzeug" fuehrte
-           * dann in eine Wahl, aus der die Seite unmittelbar wieder auf DIESES
-           * Fahrzeug zurueckspringt: ein Knopf, der nichts tut. `weg` ist
-           * Pflicht-Prop (§11.7), ein Weglassen ist also keine Option.
+           * DER RUECKWEG WIRD GETAUSCHT, NICHT VERSTECKT (DRK-302, DRK-376).
+           * Fuehrt die Wahl auf DIESELBE Einheit zurueck, waere „Andere
+           * Einheit" ein Knopf, der nichts tut — und er ist hier die einzige
+           * Handlung des Schirms neben der Reiterleiste. `weg` ist Pflicht-Prop
+           * (§11.7), ein Weglassen ist also ohnehin keine Option; die Entnahme
+           * ist der Ort, an dem es fuer diese Sitzung wirklich weitergeht.
            */
-          weg={gebunden
-            ? { href: "/helfer", text: "Zur Entnahme" }
-            : { href: "/helfer/check", text: "Andere Einheit" }}
+          weg={andereEinheitErreichbar
+            ? { href: "/helfer/check", text: "Andere Einheit" }
+            : { href: "/helfer", text: "Zur Entnahme" }}
         />
       </>
     );
@@ -578,13 +607,18 @@ export function CheckFlow({
           Nochmal {dieseEinheit(fahrzeug.einheitenart)}
         </Link>
         {/*
-          NUR BEI UNGEBUNDENEM KAERTCHEN (DRK-302). Nach dem Scan eines
-          Fahrzeug-Kaertchens gibt es kein anderes Fahrzeug; der Knopf fuehrte in
-          eine Wahl, die die Seite sofort wieder auf dieses Fahrzeug aufloest.
-          „Nochmal dieses Fahrzeug" bleibt in BEIDEN Lagen stehen — es ist der
-          Weg, mit dem die Helferin nach einer Buchung frische Bestaende sieht.
+          NUR, WENN ES EINE ANDERE GIBT (DRK-302, DRK-376). Gibt die Wahl
+          dieselbe Einheit zurueck — gebundenes Kaertchen ODER genau eine aktive
+          Einheit —, fuehrte der Knopf sichtbar nach nirgendwo.
+
+          ⚠️ HIER WIRD VERSTECKT UND NICHT GETAUSCHT, anders als im Leerzustand
+          darueber und in `BoxAbgabe`: dieser Schirm behaelt seinen Ausgang
+          ohnehin. „Nochmal diese Einheit" bleibt in BEIDEN Lagen stehen — es ist
+          der Weg, mit dem die Helferin nach einer Buchung frische Bestaende
+          sieht —, und ein zweites „Zur Entnahme" daneben waere ein zweiter
+          Ausgang statt eines Ersatzes.
         */}
-        {!gebunden && (
+        {andereEinheitErreichbar && (
           <Link className={`${s.knopf} ${s.knopfGeist}`} href="/helfer/check" data-rolle="anderes">
             Andere Einheit
           </Link>

@@ -8,6 +8,7 @@ import {
 } from "../_db/schema";
 import { CHECK_ABGLEICH, HANDLAGER_ID } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
 /**
  * DER FAHRZEUG-CHECK-ABSCHLUSS — §5.8, §7.9.4.
@@ -770,20 +771,26 @@ describe("checkAbschluss — der Check-Eintrag", () => {
   });
 });
 
-describe("checkAbschluss — revalidatePath, sechs INNERE Pfade (§7.9.5)", () => {
-  it("genau diese sechs, in dieser Form", async () => {
+describe("checkAbschluss — revalidatePath, INNERE Pfade (§7.9.5)", () => {
+  it("die Bestandsflaechen plus genau das, was NUR ein Check aendert", async () => {
     // Innen hier, aussen dort — und beide Sorten stehen in derselben Datei.
     // Alle 61 Aufrufe des Bestands uebergeben den AEUSSEREN Pfad; alle vier
     // Suite-Module den inneren (Falle 49). Ein falscher Pfad, der nichts tut,
     // wird beim naechsten Caching-Schritt zum stillen Defekt.
+    //
+    // ⚠️ BIS DRK-374 STANDEN HIER SECHS PFADE. Der Check IST ein
+    // Bestandsschreiber — `korrekturAufLagerort` und `umlagerungAusBereich`
+    // schreiben Buchungszeilen —, und ihm fehlten mit `verwaltung/journal`,
+    // `verwaltung/lagerorte`, `verwaltung/bestellung`, `verwaltung/artikel`,
+    // `verwaltung/inventur`, `verwaltung/entnahmebox`, `auffuellen` und
+    // `helfer` acht Flaechen, die seine eigenen Buchungen zeigen. Der Sollwert
+    // der Liste steht woertlich in `_lib/revalidierung.test.ts`; hier zaehlt,
+    // was DANEBEN steht — und dass das Fahrzeug seine Kennung mitbekommt.
     await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
     expect(revalidiert).toEqual([
-      "/m/lagerbuch/helfer/check",
+      ...BESTANDSFLAECHEN,
       "/m/lagerbuch/verwaltung/checks",
-      "/m/lagerbuch/verwaltung",
       "/m/lagerbuch/verwaltung/sauerstoff",
-      "/m/lagerbuch/verwaltung/verfall",
-      "/m/lagerbuch/verwaltung/fahrzeuge",
     ]);
   });
 
@@ -791,7 +798,7 @@ describe("checkAbschluss — revalidatePath, sechs INNERE Pfade (§7.9.5)", () =
     // Die Richtung, nicht die Existenz: `/lagerbuch/helfer/check` ist der
     // aeussere Pfad und trifft im Router dieser Suite nichts.
     await checkAbschluss({ fahrzeugId: "fz-1", ...leer }, t.db);
-    expect(revalidiert.length).toBe(6);
+    expect(revalidiert.length).toBe(BESTANDSFLAECHEN.length + 2);
     for (const p of revalidiert) {
       expect(p.startsWith("/m/lagerbuch/"), `aeusserer Pfad: ${p}`).toBe(true);
     }

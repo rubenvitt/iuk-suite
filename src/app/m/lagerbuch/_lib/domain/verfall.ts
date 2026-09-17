@@ -49,7 +49,7 @@ export type VerfallStatus = {
  * Ampel, Resttage und Ablaufkennzeichen fuer ein Monatsdatum "YYYY-MM".
  *
  * Das Monatsende kommt aus `_lib/zeit.ts#monatsEnde` — ZONENEXPLIZIT. Die
- * Alt-Anwendung bildet es mit `new Date(y, m, 0, 23,59,59,999)` (`verfall.ts:10`),
+ * Alt-Anwendung bildet es mit `new Date(y, m, 0, 23,59,59,999)` (dort Zeile 10),
  * also aus lokalen Komponenten: unter TZ=UTC schnitte sie das Monatsende zwei
  * Stunden SPAETER. Beide Ampelgrenzen wanderten dabei in die harmlose Richtung —
  * kaputt ginge `fmtTs`, wo eine Buchung um 01:30 Ortszeit als Vortag 23:30

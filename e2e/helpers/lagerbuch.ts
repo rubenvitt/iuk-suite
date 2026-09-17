@@ -158,3 +158,21 @@ export function fremdUrl(pfad: string): string {
 export const E2E_LAST_PRAEFIX = "ZZZ E2E Last";
 /** Deutlich ueber 150, damit die Schwelle nicht knapp erreicht wird. */
 export const E2E_LAST_ANZAHL = 200;
+
+/**
+ * DRK-372 — der ueberlange Kommentar, an dem `lagerbuch-zellentext.spec.ts` die
+ * Deckelung misst.
+ *
+ * ⚠️ ER STEHT HIER UND NICHT IM SEED, aus demselben Grund wie alles andere in
+ * dieser Datei: der Spec sichert zu, dass die Zelle SCHMALER ist als ihr Satz.
+ * Liefen Seed und Zusicherung auseinander, fiele der Test nicht auf — er faende
+ * seine Zeile nicht und meldete das als Anzeigefehler.
+ *
+ * ⚠️ UND ER MUSS LANG BLEIBEN. Kuerzt ihn jemand auf einen Halbsatz, passt er
+ * ohne Deckel in die Spalte, und die Messung ist still trivial wahr.
+ */
+export const E2E_ZELLENTEXT_ARTIKEL = "E2E Zellentext Warnweste";
+export const E2E_ZELLENTEXT_KOMMENTAR =
+  "Bei der Uebergabe faellt auf, dass die Sendung aus zwei Teillieferungen "
+  + "besteht; die zweite traegt einen abweichenden Lieferschein, der dem "
+  + "Vorgang lose beilag und im Ordner Wareneingang abgeheftet wurde.";

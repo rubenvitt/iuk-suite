@@ -715,7 +715,7 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
   it("gibt jeder Stepper-Flaeche 56px — das Suite-Tap-Mass", () => {
     // core/theme/tokens.ts:33 setzt TAP = 56 mit der Begruendung „Bedienung mit
     // Handschuhen … eine Einsatzanforderung, keine Stilfrage". lagerbuch liegt
-    // heute bei 42x42 (globals.css:73) bzw. 30x30 in der sm-Variante (:75).
+    // heute bei 42x42 (lagerbuch/src/app/globals.css:73) bzw. 30x30 in der sm-Variante (:75).
     const css = lies();
     expect(css).toMatch(/\.stepTaste\s*\{[^}]*width:\s*56px/);
     expect(css).toMatch(/\.stepTaste\s*\{[^}]*height:\s*56px/);
@@ -736,7 +736,7 @@ describe("Teil 4, T64 — das Stylesheet des Helfer-Wegs existiert und traegt se
 
   it("behaelt den `prefers-reduced-motion`-Zweig des Scanstrichs", () => {
     // Die einzige Animation des Wegs, und sie hat den Zweig heute schon
-    // (globals.css:158-160). Ihn beim Portieren zu verlieren ist eine
+    // (lagerbuch/src/app/globals.css:158-160). Ihn beim Portieren zu verlieren ist eine
     // Verschlechterung, die niemand meldet.
     //
     // ⚠️ Das ist die EINE Media Query dieser Datei und die ausdrueckliche
@@ -1003,7 +1003,7 @@ describe("§7.7.1 — der eine Breakpoint, und dieses Modul erfindet keinen zwei
     // Reihenfolge im Stylesheet entscheidet. Der Scan laeuft ueber ALLE .css
     // unter m/lagerbuch/** — nicht nur `_ui/*.module.css`, sonst fiele
     // `(druck)/druck.css` heraus (§6.10.2). lagerbuch schaltet heute bei 760px
-    // (globals.css:250); derselbe Fall, an beiden Enden unsichtbar.
+    // (lagerbuch/src/app/globals.css:250); derselbe Fall, an beiden Enden unsichtbar.
     //
     // GELESEN WIRD NUR DIE PRAELUDE einer `@media`-Regel: `max-width` als
     // LAYOUT-Eigenschaft (`.rahmen{max-width:560px}`) ist kein Breakpoint.
@@ -1059,7 +1059,7 @@ describe("§7.7.2 — die Luecke in `core/theme/feldschrift.test.ts`, modul-loka
    * Das Suite-Gate liest NUR die Langform `font-size:` und filtert auf
    * Selektoren, die `input|textarea|select` nennen. Drei zu kleine Felder des
    * Bestands kommen dadurch DURCH: `.input` mit `font:500 14px …`
-   * (globals.css:80), `.combo-input` (:83) und `.stepper.sm .stepval` mit 15px
+   * (lagerbuch/src/app/globals.css:80), `.combo-input` (:83) und `.stepper.sm .stepval` mit 15px
    * (:76) — obwohl `.stepval` (Stepper.tsx:52) ein echtes `<input>` IST.
    *
    * Wer den gruenen Suite-Test als bestandene Pruefung liest, portiert drei zu

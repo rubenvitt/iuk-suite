@@ -10,7 +10,7 @@
  * dem Stand davor: kein Pixel aendert sich. Waere hier je eine `max-width`-
  * Abfrage noetig, hiesse sie `max-width: 767.98px` — nicht 768, sonst gelten
  * bei exakt 768px beide Seiten und die Reihenfolge im Stylesheet entscheidet.
- * lagerbuch schaltet heute bei 760px (globals.css:250); derselbe Fall, an
+ * lagerbuch schaltet heute bei 760px (lagerbuch/src/app/globals.css:250); derselbe Fall, an
  * beiden Enden unsichtbar.
  *
  * ⚠️ DIE EINE AUSNAHME, ausdruecklich statt stillschweigend: weiter unten in
@@ -18,7 +18,7 @@
  * Constraint 16 sagt woertlich „enthaelt NULL Media Queries" — gemeint sind
  * BREITEN-Abfragen, und `prefers-reduced-motion` ist keine. Wer den Constraint
  * woertlich nimmt und die Zeile streicht, verliert einen Zweig, den der
- * Alt-Bestand heute schon hat (globals.css:158-160). `_lib/bauform.test.ts`
+ * Alt-Bestand heute schon hat (lagerbuch/src/app/globals.css:158-160). `_lib/bauform.test.ts`
  * VERLANGT ihn deshalb.
  *
  * `.rahmen` IST DER TRAEGER ALLER VARIABLEN. `_ui/verwaltung.module.css`
@@ -193,11 +193,39 @@
 .etikett { font-size: 12px; color: var(--lb-stahl); margin-top: 1px }
 .restzeit { font-size: 12px; color: var(--lb-stahl) }
 .restzeitWarnt { color: var(--lb-ampel-gelb-text); font-weight: 600 }
+/*
+ * DER AUSSTIEG — 56px, NICHT 44 (DRK-378).
+ *
+ * ⚠️ DIE 44 WAREN KEINE ENTSCHEIDUNG, SIE WAREN DIE FALSCHE DICHTE. Der
+ * Helferweg rendert OHNE Shell und liegt damit bei 56/72 (`CLAUDE.md`,
+ * Falle 4); 44 ist die `FullShell`-Dichte (`ARBEITSDICHTE`). Genau diese
+ * Verwechslung steht seit dem Reviewbefund zu DRK-306 in
+ * `e2e/lagerbuch-helfer.spec.ts` ausgeschrieben: eine 44er-Zusage laesst ein
+ * Bedienelement still auf die Shell-Dichte zurueckfallen und bleibt dabei
+ * gruen. Dass 44 WCAG 2.5.5 (AAA) haelt, macht es hier nicht richtig — die
+ * 56/72 sind eine EINSATZANFORDERUNG (Bedienung mit Handschuhen), und die
+ * gilt fuer den Rueckweg wie fuer das, was bucht. Wer mit Handschuhen nicht
+ * aussteigen kann, sitzt fest; das ist teurer als eine Fehlbuchung, denn die
+ * laesst sich korrigieren.
+ *
+ * ⚠️ DIE KOPFZEILE WAECHST DABEI NICHT MIT, und das ist gemessen, nicht
+ * angenommen (echter Chromium, 390x844, `/helfer` in einer Kaertchen-Sitzung):
+ *
+ *   Textblock mit Restzeit   73,3px  →  Kopf 94,3px bei 44 UND bei 56
+ *   Textblock ohne Restzeit  53,4px  →  Kopf 74,4px bei 44, 77,0px bei 56
+ *
+ * Der Knopf ist in der Kaertchen-Sitzung nie das hoechste Kind des Kopfes —
+ * Marke, Etikett und Restzeit sind zusammen hoeher als er. Uebrig bleiben
+ * 2,6px im kuerzesten Fall (angemeldetes Konto ohne Restzeit, DRK-305, und
+ * `AuffuellRahmen`). Der Verdacht, 56px liesse den Kopf spuerbar mitwachsen,
+ * ist damit ausgeraeumt — und er war der einzige Grund, hier einen anderen
+ * Wert zu fuehren als bei `.rueckweg`.
+ */
 .beenden {
   font-size: 13px; font-weight: 600; border: 1.5px solid var(--lb-linie);
   background: var(--lb-karte); border-radius: 99px; padding: 8px 14px;
   color: var(--lb-stahl); display: inline-flex; align-items: center; gap: 5px;
-  min-height: 44px; flex: none; white-space: nowrap;
+  min-height: 56px; flex: none; white-space: nowrap;
 }
 .inhalt { flex: 1; overflow-y: auto; padding: 14px 14px 18px; -webkit-overflow-scrolling: touch }
 .tableiste { flex: none; display: flex; background: var(--lb-karte); border-top: 1px solid var(--lb-linie) }
@@ -353,6 +381,26 @@
   background: none; border: none; font: inherit; cursor: pointer; min-height: 56px;
 }
 .zeileKnopf:first-child { border-top: none }
+/*
+ * DER UMSCHALTER DER CHARGENLISTE — DRK-397.
+ *
+ * Er ist ein WEG und keine Handlung, trägt also dieselbe Form wie „Ändern" in
+ * der Zielzeile: Tinte und Unterstreichung, nicht Rot und keine Fläche. Rot
+ * gehört dem Buchen-Knopf darüber; zwei rote Flächen auf einem Schirm streiten
+ * um dieselbe Aufmerksamkeit (Falle 3).
+ *
+ * ⚠️ ZWEI KLASSEN IM SELEKTOR, und das ist gegen Falle 5: `.zeile` setzt
+ * `text-decoration: none`, und eine einzelne Klasse stünde mit ihr auf
+ * derselben Stufe — die Unterstreichung hinge dann an der Reihenfolge im
+ * Stylesheet und verschwände beim nächsten Umsortieren still.
+ *
+ * `min-height` bleibt beim Wert von `.zeileKnopf` (56px, Bediendichte ohne
+ * Shell) — er wird hier NICHT unterschritten.
+ */
+.zeileKnopf.chargenUmschalter {
+  justify-content: center; font-size: 14px; font-weight: 600;
+  color: var(--lb-tinte); text-decoration: underline; text-underline-offset: 3px;
+}
 
 /*
  * EINE ZEILE DER ZIELWAHL — DRK-300.
@@ -451,11 +499,22 @@
 .letzterCheck {
   font-size: 13px; color: var(--lb-stahl); line-height: 1.4; margin: -6px 2px 12px;
 }
+/*
+ * DER RUECKWEG — 56px, NICHT 44, aus demselben Grund wie `.beenden`
+ * (DRK-378). Er steht frei ueber dem Inhalt und waechst folgenlos.
+ *
+ * ⚠️ EINE REGEL, VIER FLAECHEN: Entnahme, Check, Auffuellansicht und der
+ * benannte Leerzustand teilen sie sich. Das ist Absicht und keine Abkuerzung —
+ * die Auffuellansicht ist ausdruecklich die SPIEGELUNG der Entnahme
+ * (DRK-313), und zwei Spiegelflaechen mit verschieden grossen Rueckwegen
+ * waeren schlechter als beide auf demselben Wert. Wer hier eine flaechen-
+ * eigene Fassung anlegt, bricht genau das.
+ */
 .rueckweg {
   display: inline-flex; align-items: center; gap: 5px; margin-bottom: 12px;
   font-size: 14px; font-weight: 600; border: 1.5px solid var(--lb-linie);
   background: var(--lb-karte); border-radius: 99px; padding: 10px 14px;
-  color: var(--lb-stahl); text-decoration: none; min-height: 44px;
+  color: var(--lb-stahl); text-decoration: none; min-height: 56px;
 }
 .bestandsZahl {
   font-family: var(--lb-display); font-weight: 700; font-size: 36px; line-height: 1.05;
@@ -512,7 +571,7 @@
  * konzentrische Innenrundung, damit die Tastenecke exakt unter der
  * Aussenrundung des Rahmens liegt statt eckig dagegenzustehen.
  *
- * `box-sizing: border-box` (global, `globals.css:10`) haelt die Aussenmasse
+ * `box-sizing: border-box` (global, `lagerbuch/src/app/globals.css:10`) haelt die Aussenmasse
  * bei genau 56x56px: die neue 1px-Trennlinie verkleinert die Innenflaeche,
  * nicht die Tapflaeche selbst — Abnahmebedingung „Tasten bleiben 56x56px".
  */
@@ -703,7 +762,7 @@
 }
 @keyframes scan { 0% { top: 16% } 50% { top: 82% } 100% { top: 16% } }
 /* Die EINZIGE Animation des Wegs — und sie hat den Zweig heute schon
-   (globals.css:158-160). Ihn beim Portieren zu verlieren ist eine
+   (lagerbuch/src/app/globals.css:158-160). Ihn beim Portieren zu verlieren ist eine
    Verschlechterung, die niemand meldet. Zugleich die EINE Media Query dieser
    Datei; die Begruendung steht im Kopfkommentar. */
 @media (prefers-reduced-motion: reduce) { .scanStrich { animation: none; top: 49% } }
