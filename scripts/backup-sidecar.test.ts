@@ -838,6 +838,39 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(marke, "und fragt sie VOR der Zustandsdatei ab").toBeLessThan(lesen);
   });
 
+  it("ein Erfolg, den niemand festhalten kann, wird NICHT als Erfolg gemeldet", () => {
+    // ⚠️ DER RUECKGABEWERT STAND HIER UNGEPRUEFT — und das faellt nur deshalb nicht auf,
+    // weil `lauf()` diese Funktion als `if`-Bedingung ruft: `set -e` ist darin
+    // ausgesetzt, es ging also weiter zu `ping_senden ok` und `return 0`.
+    //
+    // GEMESSEN auf einem read-only tmpfs, mit demselben `if` wie in `lauf()`:
+    //
+    //   WARNUNG: Der Stand liess sich NICHT schreiben (ok: …)
+    //   Ping (ok) abgesetzt.             ← der WAECHTER wird auf gruen aufgefrischt
+    //   lauf_ungesperrt meldete: exit=0  ← und SUITE_BACKUP_CMD meldet dem Rollout Erfolg
+    //
+    // Dieselbe Klasse wie der Uptime-Kuma-Fund: eine Ueberwachung, die im Ernstfall das
+    // Gegenteil behauptet, ist schlimmer als keine. Dass der Healthcheck ueber die Marke
+    // rot steht, rettet es nicht — der Ping ist der Weg, der auch ein totes
+    // Container-Gespann meldet, und genau der sagte „alles gut".
+    //
+    // Nach der Aenderung, beide Lagen gemessen: read-only → EXIT=1 und Fehler-Ping
+    // (`?status=down`); schreibbar → EXIT=0 und ok-Ping.
+    const rumpfL = funktionsrumpf(befehle, "lauf_ungesperrt");
+    expect(rumpfL).toMatch(/if ! zustand_schreiben ok "\$meldung"; then/);
+    // Und die Reaktion ist vollstaendig: melden, Waechter warnen, scheitern.
+    const zweig = rumpfL.slice(rumpfL.indexOf('if ! zustand_schreiben ok "$meldung"; then'));
+    const bisEnde = zweig.slice(0, zweig.indexOf("ping_senden ok"));
+    expect(bisEnde).toMatch(/warne /);
+    expect(bisEnde).toMatch(/ping_senden fehler/);
+    expect(bisEnde).toMatch(/return 1/);
+    // ⚠️ Der ok-Ping darf NUR auf dem Weg liegen, auf dem der Stand auch geschrieben
+    // wurde — sonst waere die Pruefung eine Verzierung.
+    expect(rumpfL.indexOf("ping_senden ok")).toBeGreaterThan(
+      rumpfL.indexOf('if ! zustand_schreiben ok "$meldung"; then'),
+    );
+  });
+
   it("der Besitz wird unmittelbar vor dem Umbenennen NOCH EINMAL geprueft", () => {
     // ⚠️ DAS SCHLIESST DAS FENSTER NICHT, ES VERENGT ES — und das steht hier so, weil
     // der Unterschied in diesem Skript schon zweimal Geld gekostet hat. Zwischen der

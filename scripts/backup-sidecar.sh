@@ -902,7 +902,33 @@ lauf_ungesperrt() {
   fi
 
   protokoll "Lauf fertig: $meldung"
-  zustand_schreiben ok "$meldung"
+
+  # ⚠️ EIN ERFOLG, DEN NIEMAND FESTHALTEN KANN, IST KEIN SAUBERER ERFOLG. Der Rueckgabewert
+  # stand hier ungeprueft — und weil `lauf()` diese Funktion als `if`-Bedingung ruft, ist
+  # `set -e` darin ausgesetzt: es ging weiter zu `ping_senden ok` und `return 0`.
+  #
+  # GEMESSEN auf einem read-only Volume, mit demselben `if` wie in `lauf()`:
+  #
+  #   WARNUNG: Der Stand liess sich NICHT schreiben (ok: …)
+  #   Ping (ok) abgesetzt.            ← der WAECHTER wird auf gruen aufgefrischt
+  #   lauf_ungesperrt meldete: exit=0 ← und `SUITE_BACKUP_CMD` meldet dem Rollout Erfolg
+  #
+  # Das ist dieselbe Klasse wie der Uptime-Kuma-Fund: eine Ueberwachung, die im Ernstfall
+  # das Gegenteil behauptet, ist schlimmer als keine. Dass der Healthcheck ueber die Marke
+  # rot steht, rettet es nicht — der Ping ist der Weg, der auch ein TOTES Container-
+  # Gespann meldet, und genau der sagte „alles gut".
+  #
+  # ⚠️ Das Tarball SELBST liegt und ist ausgelagert; gescheitert ist das Festhalten. Der
+  # Fehlschlag wird trotzdem gemeldet, und zwar in diese Richtung, weil die Kette, an der
+  # man es sonst merkt, gerade gerissen ist — und weil ein Volume, das nicht mehr
+  # beschreibbar ist, den naechsten Lauf ohnehin zerlegt.
+  if ! zustand_schreiben ok "$meldung"; then
+    warne "Die Sicherung liegt ($tarball), aber ihr Ergebnis liess sich nicht festhalten.
+  Der Lauf wird als GESCHEITERT gemeldet — bis das Volume wieder schreibbar ist, ist
+  jede Erfolgsmeldung von hier eine Behauptung."
+    ping_senden fehler
+    return 1
+  fi
   ping_senden ok
   return 0
 }
