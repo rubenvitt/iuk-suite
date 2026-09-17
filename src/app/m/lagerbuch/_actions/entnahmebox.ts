@@ -16,10 +16,9 @@ import {
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
-import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
 import { revalidiereBestand } from "../_lib/revalidierung";
 import {
-  raeumeVerfallAmLeerenOrt, verfallFolgtDemMaterial,
+  raeumeBoxVerfallWennMaterialEsMitnimmt, verfallFolgtDemMaterial,
 } from "../_lib/schreibpfade/lagerortVerfall";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
@@ -769,57 +768,23 @@ export async function raeumeAusEntnahmebox(
           /*
            * ── DIE GEMELDETE VERFALLSANGABE DER BOX (DRK-377) ────────────────
            *
-           * Seit DRK-377 kann die Entnahmebox einen gemeldeten Verfall tragen:
-           * gibt eine Einheit Material ab, fuer das beim Check ein Datum
-           * abgelesen wurde, wandert die Meldung mit in die Kiste. Dieser Weg
-           * raeumt die Kiste wieder aus — und muss sich um die Meldung
+           * Dieser Weg raeumt die Kiste aus und muss sich um ihre Meldung
            * kuemmern, denn die Box hat KEINEN Verfall-Editor: was hier stehen
            * bleibt, bekommt niemand mehr weg.
            *
-           * ⚠️ ABGERAEUMT WIRD NUR, WENN DIE BEWEGTE CHARGE GENAU DAS
-           * GEMELDETE DATUM TRAEGT. Dann — und nur dann — nimmt das Material
-           * seinen Verfall wirklich mit: im Handlager sagt die Charge dasselbe,
-           * was die Meldung gesagt hat (`verfallListe` rechnet dort je Charge),
-           * und eine `lagerort_verfall`-Zeile am Schrank waere ein zweiter,
-           * gleichlautender Melder fuer dieselbe Packung.
-           *
-           * ⚠️ „TRAEGT DIE CHARGE UEBERHAUPT EIN DATUM?" REICHT ALS PROBE
-           * NICHT, und diese Fassung hat das erst im zweiten Anlauf richtig
-           * gemacht (Codex zu PR #194, zwei P1 hintereinander). Die
-           * Gegenbegruendung steht seit jeher ein paar hundert Zeilen weiter
-           * oben, an Fassung 3 der Gegenrichtung: `korrekturAufLagerort` waehlt
-           * beim Plus-Abgleich IRGENDEINE Charge des Artikels, ohne Ortsfilter
-           * und absteigend nach `verfall` — die kann 12/30 sagen, waehrend der
-           * Check 10/26 gemeldet hat. Ein echtes Datum an der Charge beweist
-           * also nichts ueber DIESES Material; mein erster Riegel stuetzte sich
-           * auf genau die Eigenschaft, die derselbe Kommentar als wertlos
-           * bezeichnet.
-           *
-           * ⚠️ DER GLEICHHEITSTEST DECKT BEIDE FAELLE ZUGLEICH: eine
-           * Pseudo-Charge (`PSEUDO_VERFALL`) ist nie gleich einem gemeldeten
-           * Monat, und eine geratene echte Charge auch nicht. Wer ihn gegen
-           * „hat ein Datum" zurueckbaut, macht aus der stillen Falschanzeige
-           * einen stillen DATENVERLUST, und zwar am gefaehrlichsten Ort: im
-           * Handlager sieht das Material danach bis zum geratenen Datum
-           * unbedenklich aus.
-           *
-           * ⚠️ OHNE MELDUNG IST NICHTS ZU TUN — der Vergleich ist dann `false`,
-           * und `raeumeVerfallAmLeerenOrt` waere ohnehin ein No-Op.
-           *
-           * ⚠️ DER PREIS IST BENANNT UND IST DER KLEINERE: die Kiste behaelt
-           * eine Meldung, obwohl nichts mehr darin liegt — sichtbar in der
-           * Verfallsuebersicht, laestig, aber ungefaehrlich. Das ist dieselbe
-           * Abwaegung, die DRK-377 schon einmal getroffen hat („eine veraltete
-           * Anzeige ist der kleinere Fehler, ein verlorenes Verfallsdatum ist
-           * weder sichtbar noch korrigierbar"). Was mit einer solchen Meldung
-           * beim Einraeumen RICHTIG geschehen soll, ist eine Betreiberfrage und
-           * liegt als DRK-404 auf dem Board — hier steht bewusst der sichere
-           * Ausgang, nicht der endgueltige.
+           * ⚠️ DIE GANZE REGEL STEHT IN DER FUNKTION, NICHT HIER — welche
+           * Proben noetig sind, hat diese Stelle dreimal falsch beantwortet
+           * (Codex zu PR #194, drei P1 hintereinander: „hat die Charge ein
+           * Datum?", dann „traegt die bewegte Charge das gemeldete Datum?",
+           * und beide Male war es zu wenig). Die Begruendungen samt Ablauf
+           * stehen an `raeumeBoxVerfallWennMaterialEsMitnimmt`; wer sie hier
+           * nachbaut, baut die naechste Fassung davon.
            */
-          const gemeldet = verfallFuerLagerort(tx, ENTNAHMEBOX_ID).get(v.artikelId);
-          if (gemeldet?.verfall === charge.verfall) {
-            raeumeVerfallAmLeerenOrt(tx, ENTNAHMEBOX_ID, v.artikelId);
-          }
+          raeumeBoxVerfallWennMaterialEsMitnimmt(tx, {
+            lagerortId: ENTNAHMEBOX_ID,
+            artikelId: v.artikelId,
+            bewegterVerfall: charge.verfall,
+          });
 
           eingeraeumt = ergebnis.umgelagert;
           return null;

@@ -5,6 +5,7 @@ import {
 } from "../../_db/schema";
 import {
   bereinigeVerfallOhneAktivesSoll, loescheVerfallEintrag, loescheVerfallFuer,
+  raeumeBoxVerfallWennMaterialEsMitnimmt,
   setzeVerfall, uebernimmVerfall, verfallFolgtDemMaterial,
 } from "./lagerortVerfall";
 import { ENTNAHMEBOX_ID } from "../konstanten";
@@ -370,5 +371,108 @@ describe("bereinigeVerfallOhneAktivesSoll — nur EINHEITEN sind soll-gebunden",
     bereinigeVerfallOhneAktivesSoll(t.db, ENTNAHMEBOX_ID, "a1");
 
     expect(alle()).toHaveLength(1);
+  });
+});
+
+describe("raeumeBoxVerfallWennMaterialEsMitnimmt — der Ruecklauf aus der Kiste", () => {
+  /**
+   * Die Kiste traegt EINE Meldung, der Artikel darin aber beliebig viele
+   * Chargen — bei zwei Herkuenften gewinnt in `uebernimmVerfall` das fruehere
+   * Datum. Die Meldung gehoert damit der KISTE, nicht einer ihrer Chargen, und
+   * genau daran ist die Entscheidung „aus der zuletzt bewegten Charge" gescheitert.
+   */
+  const PSEUDO = "2099-12";
+  const ECHT = "2026-10";
+
+  function buche(id: string, chargeId: string, menge: number, ts = NOW) {
+    t.db.insert(buchungen).values({
+      id, ts, typ: "umlagerung", artikelId: "a1", chargeId,
+      lagerortId: ENTNAHMEBOX_ID, menge, quelleTyp: "system", quelleId: "seed",
+      referenz: null, kommentar: null,
+    }).run();
+  }
+
+  beforeEach(() => {
+    t.db.insert(chargen).values([
+      { id: "ch-pseudo", artikelId: "a1", chargenNr: "PSEUDO", verfall: PSEUDO, createdAt: NOW },
+      { id: "ch-echt", artikelId: "a1", chargenNr: "L-9", verfall: ECHT, createdAt: NOW },
+    ]).run();
+    setzeVerfall(t.db, { lagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+      verfall: ECHT, quelle: QUELLE, jetzt: NOW });
+  });
+
+  const boxZeile = () => alle().find((z) => z.lagerortId === ENTNAHMEBOX_ID);
+
+  it("loescht die Meldung, wenn die Kiste durch die PASSENDE Charge leer wird", () => {
+    buche("zu-1", "ch-echt", 2);
+    buche("ab-1", "ch-echt", -2, SPAETER);
+
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: ECHT,
+    });
+
+    // Alles, was je drin lag, hat sein Datum mitgenommen: im Handlager sagt die
+    // Charge dasselbe, was die Meldung gesagt hat.
+    expect(boxZeile()).toBeUndefined();
+  });
+
+  it("BEHAELT die Meldung, wenn vorher UNPASSENDES Material die Kiste verlassen hat", () => {
+    /**
+     * ⚠️ DER FALL AUS DEM BEFUND (Codex zu PR #194, dritter P1). Ohne die
+     * Historienprobe ist dieser Test rot: im Moment des zweiten Einraeumens ist
+     * die Kiste leer, die bewegte Charge passt — und die Meldung faellt,
+     * obwohl die drei Stueck aus dem ersten Schritt ohne jede Warnung im
+     * Handlager liegen und bis 2099 unbedenklich aussehen.
+     */
+    buche("zu-1", "ch-pseudo", 3);
+    buche("zu-2", "ch-echt", 2);
+
+    // 1. Die Pseudo-Charge geht ins Regal — passt nicht, Meldung bleibt stehen.
+    buche("ab-1", "ch-pseudo", -3, SPAETER);
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: PSEUDO,
+    });
+    expect(boxZeile()?.verfall).toBe(ECHT);
+
+    // 2. Die echte Charge geht ins Regal — die Kiste ist jetzt LEER.
+    buche("ab-2", "ch-echt", -2, SPAETER);
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: ECHT,
+    });
+
+    expect(boxZeile()?.verfall).toBe(ECHT);
+  });
+
+  it("BEHAELT die Meldung, wenn die bewegte Charge ein anderes Datum traegt", () => {
+    buche("zu-1", "ch-pseudo", 3);
+    buche("ab-1", "ch-pseudo", -3, SPAETER);
+
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: PSEUDO,
+    });
+
+    expect(boxZeile()?.verfall).toBe(ECHT);
+  });
+
+  it("BEHAELT die Meldung, solange noch etwas in der Kiste liegt", () => {
+    buche("zu-1", "ch-echt", 5);
+    buche("ab-1", "ch-echt", -2, SPAETER);
+
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: ECHT,
+    });
+
+    expect(boxZeile()?.verfall).toBe(ECHT);
+  });
+
+  it("ist ein No-Op, wenn die Kiste gar keine Meldung traegt", () => {
+    loescheVerfallEintrag(t.db, ENTNAHMEBOX_ID, "a1");
+    buche("zu-1", "ch-echt", 2);
+    buche("ab-1", "ch-echt", -2, SPAETER);
+
+    expect(() => raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: ECHT,
+    })).not.toThrow();
+    expect(boxZeile()).toBeUndefined();
   });
 });

@@ -22,9 +22,11 @@
  * dieser Einheit im Soll steht —, nicht die Zeile. Die Begruendung im Langen
  * steht an `bereinigeVerfallOhneAktivesSoll` unten.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, gte, lt, ne } from "drizzle-orm";
 import type { DB } from "../../_db/client";
-import { lagerorte, lagerortVerfall, newId, sollPositionen } from "../../_db/schema";
+import {
+  buchungen, chargen, lagerorte, lagerortVerfall, newId, sollPositionen,
+} from "../../_db/schema";
 import { MONAT_REGEX } from "../konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../lesepfade/bestand";
 import type { Quelle, Tx } from "./abbuchung";
@@ -235,6 +237,93 @@ export function raeumeVerfallAmLeerenOrt(
   const rest = restJeChargeFuerArtikelAnOrt(db, artikelId, lagerortId);
   const verbleibt = [...rest.values()].reduce((s, r) => s + (r > 0 ? r : 0), 0);
   if (verbleibt === 0) loescheVerfallEintrag(db, lagerortId, artikelId);
+}
+
+/**
+ * DIE KISTE GIBT IHRE MELDUNG ERST HER, WENN ALLES MATERIAL SIE MITGENOMMEN
+ * HAT (DRK-377; Codex zu PR #194, dritter P1 an derselben Naht).
+ *
+ * Aufzurufen NACH der Umlagerungsbuchung, in derselben Transaktion — der
+ * Ruecklauf aus der Entnahmebox ins Handlager. Drei Proben, und die dritte ist
+ * die, die zweimal gefehlt hat:
+ *
+ *  1. Ohne Meldung ist nichts zu tun.
+ *  2. Die BEWEGTE Charge muss genau das gemeldete Datum tragen.
+ *  3. Und seit dieser Fassung: aus der Kiste darf fuer diesen Artikel nie
+ *     etwas UNPASSENDES herausgegangen sein.
+ *
+ * ⚠️ PROBE 2 ALLEIN ENTSCHEIDET AUS DER LETZTEN CHARGE, UND DAS IST ZU WENIG,
+ * sobald ein Artikel in der Kiste auf MEHREREN Chargen liegt — und das ist der
+ * Normalfall, nicht die Ausnahme: zwei Einheiten geben denselben Artikel ab,
+ * und bei zwei Herkuenften gewinnt in `uebernimmVerfall` das FRUEHERE Datum.
+ * Die Meldung gehoert dann zur Kiste, nicht zu einer ihrer Chargen. Der Ablauf,
+ * der die Meldung verlor:
+ *
+ *    Kiste: Pseudo-Charge (12/99, 3 Stk) + echte Charge (10/26, 2 Stk),
+ *           gemeldet 10/26
+ *    1. Die Pseudo-Charge wird eingeraeumt → 12/99 ≠ 10/26, Meldung bleibt.
+ *       Die 3 Stueck liegen jetzt im Handlager und sehen bis 2099 unbedenklich
+ *       aus. DAS ist der benannte, hingenommene Preis (DRK-404).
+ *    2. Die echte Charge wird eingeraeumt → 10/26 = 10/26, die Kiste ist leer,
+ *       die Meldung faellt.
+ *    → Die 3 Stueck aus Schritt 1 sind ohne jede Warnung im Regal, und die
+ *      einzige Zeile, die 10/26 noch kannte, ist weg.
+ *
+ * Schritt 1 nimmt der Kiste nichts — die Meldung steht danach noch da, sichtbar
+ * in der Verfallsuebersicht, „laestig, aber ungefaehrlich". Erst Schritt 2
+ * loescht sie, und zwar mit einer Begruendung, die nur fuer die Charge aus
+ * Schritt 2 gilt. Aus dem hingenommenen Preis wird so ein STILLER DATENVERLUST.
+ *
+ * ⚠️ PROBE 3 BRAUCHT DIE HISTORIE, WEIL DER BESTAND SIE NICHT MEHR HERGIBT.
+ * Im Moment des Loeschens ist die Kiste leer; was vorher darin lag, ist ihr
+ * nicht mehr anzusehen. Die Buchungen wissen es: ein Abgang aus der Kiste ist
+ * eine Zeile mit NEGATIVER Menge an diesem Ort, und ueber `charge_id` haengt an
+ * ihr das Datum, mit dem das Material gegangen ist.
+ *
+ * ⚠️ DIE UNTERGRENZE IST `erfasstAt` UND NICHT „seit dem letzten Zugang".
+ * `uebernimmVerfall` traegt den Zeitpunkt der ABLESUNG mit an den Zielort, nie
+ * „jetzt" — die Grenze liegt damit eher zu frueh als zu spaet und zieht im
+ * Zweifel mehr Historie heran. Das ist die sichere Richtung: sie laesst die
+ * Meldung stehen, und eine stehengebliebene Meldung ist sichtbar und
+ * korrigierbar, ein verlorenes Verfallsdatum ist keines von beidem.
+ *
+ * ⚠️ DIE EIGENE BUCHUNG DIESES AUFRUFS STEHT SCHON IN DER TABELLE und wird
+ * mitgeprueft — sie passt ja (Probe 2 war vorher dran), stoert also nicht. Wer
+ * die Reihenfolge umdreht und zuerst loescht, prueft gegen eine Meldung, die es
+ * nicht mehr gibt.
+ */
+export function raeumeBoxVerfallWennMaterialEsMitnimmt(
+  db: DB | Tx,
+  args: { lagerortId: string; artikelId: string; bewegterVerfall: string },
+): void {
+  const { lagerortId, artikelId, bewegterVerfall } = args;
+
+  const gemeldet = db.select({
+    verfall: lagerortVerfall.verfall, erfasstAt: lagerortVerfall.erfasstAt,
+  })
+    .from(lagerortVerfall)
+    .where(and(
+      eq(lagerortVerfall.lagerortId, lagerortId),
+      eq(lagerortVerfall.artikelId, artikelId),
+    ))
+    .get();
+  if (!gemeldet) return;
+  if (gemeldet.verfall !== bewegterVerfall) return;
+
+  const unpassendGegangen = db.select({ id: buchungen.id })
+    .from(buchungen)
+    .innerJoin(chargen, eq(chargen.id, buchungen.chargeId))
+    .where(and(
+      eq(buchungen.lagerortId, lagerortId),
+      eq(buchungen.artikelId, artikelId),
+      lt(buchungen.menge, 0),
+      gte(buchungen.ts, gemeldet.erfasstAt),
+      ne(chargen.verfall, gemeldet.verfall),
+    ))
+    .get();
+  if (unpassendGegangen) return;
+
+  raeumeVerfallAmLeerenOrt(db, lagerortId, artikelId);
 }
 
 /**
