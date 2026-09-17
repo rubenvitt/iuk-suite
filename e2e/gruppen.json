@@ -1,5 +1,12 @@
 [
-  { "name": "aufgaben", "specs": "e2e/aufgaben.spec.ts e2e/aufgaben-anleitung.spec.ts" },
+  {
+    "name": "aufgaben",
+    "specs": "e2e/aufgaben.spec.ts e2e/aufgaben-anleitung.spec.ts"
+  },
+  {
+    "name": "aufgaben-breiten",
+    "specs": "e2e/aufgaben-breiten.spec.ts"
+  },
   {
     "name": "lagerbuch-1",
     "specs": "e2e/lagerbuch-helfer.spec.ts e2e/lagerbuch-etiketten.spec.ts e2e/lagerbuch-check-angemeldet.spec.ts e2e/lagerbuch-einheitenart.spec.ts e2e/lagerbuch-journal-vorgang.spec.ts e2e/lagerbuch-zellentext.spec.ts e2e/lagerbuch-organisation.spec.ts e2e/lagerbuch-einraeumen.spec.ts e2e/lagerbuch-vorlagenfeld.spec.ts e2e/lagerbuch-sammelbearbeitung.spec.ts e2e/lagerbuch-fahrzeugblatt-mobil.spec.ts"
@@ -12,9 +19,18 @@
     "name": "lagerbuch-3",
     "specs": "e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-ux.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-umlagern.spec.ts e2e/lagerbuch-ist-bestand.spec.ts"
   },
-  { "name": "radio", "specs": "e2e/radio-*.spec.ts" },
-  { "name": "files-feedback", "specs": "e2e/files-*.spec.ts e2e/feedback.spec.ts" },
-  { "name": "uav-zeichen", "specs": "e2e/uav.spec.ts e2e/zeichen.spec.ts e2e/zeichen-deaktiviert.spec.ts" },
+  {
+    "name": "radio",
+    "specs": "e2e/radio-*.spec.ts"
+  },
+  {
+    "name": "files-feedback",
+    "specs": "e2e/files-*.spec.ts e2e/feedback.spec.ts"
+  },
+  {
+    "name": "uav-zeichen",
+    "specs": "e2e/uav.spec.ts e2e/zeichen.spec.ts e2e/zeichen-deaktiviert.spec.ts"
+  },
   {
     "name": "suite-huelle",
     "specs": "e2e/shell-mobil.spec.ts e2e/theme.spec.ts e2e/keystone.spec.ts e2e/launcher.spec.ts e2e/modulnavigation.spec.ts e2e/flyin-breite.spec.ts e2e/select-feldschrift.spec.ts e2e/login-dev-gruppen.spec.ts e2e/konto-widerruf.spec.ts"

@@ -40,7 +40,7 @@ import { join, sep } from "node:path";
  * und die ist seit DRK-358 EXPLIZIT (`e2e/gruppen.json`) statt aus der Fallzahl
  * abgeleitet. Eine Gruppe je Modul heisst: eine Zusage, keine Nebenwirkung.
  *
- * ── WARUM LAGERBUCH DREI GRUPPEN HAT (DRK-407) ────────────────────────────
+ * ── WARUM EIN MODUL MEHRERE GRUPPEN HAT (DRK-407, DRK-408) ────────────────
  *
  * „Eine Gruppe je Modul" war die Regel von DRK-358, nicht ihr Zweck. Der Zweck
  * ist die Routenflaeche je Server — und ein Modul darf dafuer auch MEHRERE
@@ -56,24 +56,92 @@ import { join, sep } from "node:path";
  *     uav-zeichen       1:22
  *
  * Sechs Runner standen neun bis dreizehn Minuten still, waehrend lagerbuch
- * seriell durchlief. Die Aufteilung ist nach FALLZAHL je Datei ausbalanciert
- * (66/66/64) — grob, aber der einzige Massstab, den ein Dot-Reporter hergibt.
+ * seriell durchlief.
+ *
+ * ⚠️ DIE AUFTEILUNG GING NACH FALLZAHL, UND DAS IST DER FALSCHE MASSSTAB.
+ * DRK-407 balancierte lagerbuch auf 66/66/64 Faelle, weil Playwrights
+ * `dot`-Reporter nichts anderes hergibt; gemessen kamen 4:42 / 8:15 / 4:59
+ * heraus. 75 % Spreizung bei GLEICHER Fallzahl: ein Fall kann 0,8 s dauern
+ * oder 52 s. Seit DRK-408 laeuft die CI deshalb mit `reporter: "list"`, und
+ * jede Zeile nennt die Dauer ihres Falls.
+ *
+ * ⛔ UND JETZT DER TEIL, DER GELD GEKOSTET HAT — ZWEIMAL, UND DAS ZWEITE MAL
+ * WAR EIN IRRTUM UEBER DEN ERSTEN. Mit den gemessenen Zahlen wurde in DRK-408
+ * ein Schnitt gerechnet, der lagerbuch auf 365 / 359 / 360 s bringen sollte:
+ * vier Dateien wandern, keine Zusicherung wird angefasst. Gemessen kamen
+ * 312 / 449 / 398 s heraus, bei einer Summe, die von 1088 auf 1159 s stieg —
+ * obwohl eine reine Umverteilung die Summe nicht aendern darf.
+ *
+ * ⚠️ DIESE 71 s SIND ABER KEIN BEFUND, SONDERN RAUSCHEN, und das faellt erst
+ * auf, wenn man dieselbe Gruppe oefter als einmal misst. `lagerbuch-2` mit
+ * UNVERAENDERTEN elf Dateien, ueber drei Laeufe:
+ *
+ *     Lauf 1058 (main)   495 s     Lauf 1078 (PR)  460 s
+ *     Lauf 1087 (PR)     538 s     Spanne          78 s
+ *
+ * Mit dem Schnitt (sieben Dateien) waren es 449 s — also WENIGER als die
+ * Spanne der unveraenderten Konfiguration von ihrem eigenen besten Lauf
+ * entfernt. Aus je einem Lauf laesst sich die Wirkung des Schnitts damit
+ * ueberhaupt nicht ablesen, in keine Richtung. Der Schnitt ist trotzdem
+ * zurueckgenommen, aber aus dem schwaecheren und ehrlicheren Grund: er zeigt
+ * keinen messbaren Gewinn, und dann gewinnt die Fassung mit der laengeren
+ * Lauf-Historie.
+ *
+ * WAS BLEIBT, IST DIE BAUART-EINSICHT, und die haengt nicht an den 71 s: ein
+ * erheblicher Teil dessen, was der Reporter einem Fall zuschreibt, ist die
+ * ERSTUEBERSETZUNG der Route, die er anfaesst (`next dev` auf kaltem `.next`
+ * — die Einzelzahlen stehen am `timeout` in `playwright.config.ts`, 7,4 s
+ * fuer ein einziges `GET /login`). Sie gehoert nicht der Datei, sondern dem
+ * ersten Fall der GRUPPE, der die Route trifft. Dateizeiten zu addieren
+ * unterstellt, sie waeren verschiebbar; das sind sie nicht.
+ *
+ * ⛔ DARAUS FOLGEN ZWEI REGELN FUER DEN NAECHSTEN SCHNITT, und die zweite ist
+ * die teurere: Dateizeiten NICHT addieren, sondern den Kandidaten-Schnitt
+ * fahren — und ihn MEHRFACH fahren, weil ein einzelner Lauf eine Streuung von
+ * 78 s hat und damit alles verdeckt, was kleiner ist. Wer unter dieser Grenze
+ * optimieren will, misst zuerst die Grenze.
  *
  * ⚠️ DIE NUMMERN SIND EIMER, KEINE BEDEUTUNG. `lagerbuch-2` ist nicht „die
  * Verwaltung", sondern „der zweite Eimer". Wer eine neue lagerbuch-Spec
- * anlegt, traegt sie in den KLEINSTEN ein; welcher das ist, sagt die Fallzahl,
- * nicht der Name. Der Waechter unten wird rot, solange sie in keinem steht —
- * still verschwinden kann sie nicht.
+ * anlegt, traegt sie in den KLEINSTEN ein; welcher das ist, sagt die LAUFZEIT
+ * im letzten gruenen Lauf, nicht die Fallzahl und nicht der Name. Der
+ * Waechter unten wird rot, solange sie in keinem steht — still verschwinden
+ * kann sie nicht.
  *
  * ⛔ UND NICHT ZURUECK ZU `--shard`: das teilt wieder nach Fallzahl ueber ALLE
  * Module und bringt genau den Speicherausfall zurueck, den DRK-358 oben misst.
  * Die letzte Zusicherung dieser Datei haelt das fest.
  *
- * `aufgaben` bleibt mit 9:10 ungeteilt und ist damit der neue Engpass. Das ist
- * kein Versehen: die 43 seiner 48 Faelle stehen in EINER Datei, und die traegt
- * Zustand ueber Testgrenzen hinweg (der Nachweis-Pfad aus dem Upload-Fall wird
- * von spaeteren Faellen gelesen). Sie zu zerlegen ist echte Arbeit mit echtem
- * Flakiness-Risiko und steht als eigenes Ticket auf dem Board.
+ * ── WARUM `aufgaben` ZWEI GRUPPEN HAT (DRK-408) ───────────────────────────
+ *
+ * `aufgaben` war mit 8:58 die langsamste Gruppe. Von seinen 468 s standen
+ * 240 s in EINEM zusammenhaengenden Block — Umschaltung, „Kein waagerechtes
+ * Scrollen" (vier Viewports mal neun Seiten, 185 s allein), Fuehrungskarte,
+ * Dunkelmodus. Der steht seit DRK-408 in `aufgaben-breiten.spec.ts` und
+ * damit in einer eigenen Gruppe. Gemessen: 8:58 -> 4:20 + 4:20.
+ *
+ * ⚠️ WARUM DAS HIER AUFGING UND BEI LAGERBUCH NICHT (die Rechnung oben): die
+ * Faelle dieses Blocks rufen dieselben wenigen Routen immer wieder auf, nur
+ * in anderen Breiten. Die zweite Gruppe uebersetzt also fast nichts, was die
+ * erste nicht auch braeuchte — die SUMME fiel sogar leicht (8:58 -> 8:40),
+ * statt wie bei lagerbuch um 71 s zu steigen. Das ist die Bedingung, unter
+ * der ein Schnitt billig ist, und sie steht in keiner Laufzeitzahl.
+ *
+ * ⚠️ DER SCHNITT IST NICHT DIE HAELFTE DER FAELLE: 49 der 93 stehen drueben,
+ * aber nur die Haelfte der Zeit. Nach Fallzahl waere er woanders gelandet.
+ *
+ * ⚠️ ZWEI GRUPPEN, NICHT ZWEI DATEIEN IN EINER GRUPPE — sonst spart der
+ * Schnitt nichts: ein `next dev` faehrt seine Dateien seriell. Der Preis ist
+ * ein zweiter Serverstart (gemessen ~38 s); er faellt gegen 4:20 gesparte
+ * Laufzeit nicht ins Gewicht, waere aber der Grund, es NICHT beliebig weit
+ * zu treiben.
+ *
+ * ⚠️ WAS DEN SCHNITT ZULAESSIG MACHTE, steht im Kopf von
+ * `aufgaben-breiten.spec.ts`: kein Fall dort haengt an einem Fall hier. Der
+ * einzige gekoppelte Verbund des Moduls ist das Nachweis-Trio und blieb
+ * vollstaendig in `aufgaben.spec.ts`. ⛔ `workers: 1` traegt ueber eine
+ * Gruppengrenze NICHTS mehr — zwei Gruppen sind zwei Prozesse gegen zwei
+ * Server.
  *
  * ── WAS DIESER TEST HAELT ─────────────────────────────────────────────────
  *

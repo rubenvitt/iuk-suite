@@ -124,8 +124,8 @@ describe("verteilenInhalt — Kopf und Leerzustand", () => {
  * PARAMETER FOLGT und dass die Brett-Spalten aus derselben Quelle kommen wie die Zielliste. Sie
  * kann NICHT pruefen, dass die Wahl einen Neuladen ueberlebt (das ist eine Frage an die Adresse und
  * den Browser, nicht an eine Funktion) und nicht, dass das Brett auf 360px stapelt (jsdom wertet
- * keine Medienabfrage aus). Beides steht in `e2e/aufgaben.spec.ts`, und nur zusammen sind die zwei
- * die Zusicherung.
+ * keine Medienabfrage aus). Das erste steht in `e2e/aufgaben.spec.ts`, das zweite seit DRK-408
+ * in `e2e/aufgaben-breiten.spec.ts`; nur zusammen sind die zwei die Zusicherung.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 describe("verteilenInhalt — die Ansichtswahl (`?ansicht=`)", () => {
