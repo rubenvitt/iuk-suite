@@ -223,6 +223,15 @@ export function befehlszeilen(yaml: string): string[] {
     // Zeilenfortsetzung: der Befehl geht auf der naechsten Zeile weiter
     .replace(/\\\n\s*/g, " ")
     .split("\n")
+    /*
+     * ⚠️ UND AN DEN SHELL-OPERATOREN TRENNEN — sonst haengt die Erlaubnis wieder
+     * an der UMGEBUNG statt am Befehl. Dritter Codex-Befund derselben Familie,
+     * nachgestellt: `pnpm vitest run && pnpm e2e --shard=1/5` steht auf EINER
+     * Zeile, die Zeile enthaelt `vitest`, und der shardende e2e-Aufruf daneben
+     * lief durch. `&&`, `||`, `;`, `|` und `&` trennen hier, was die Shell auch
+     * trennt. `\|\|` steht VOR `\|`, sonst zerfiele es in zwei leere Stuecke.
+     */
+    .flatMap((z) => z.split(/\s*(?:&&|\|\||;|\||&)\s*/))
     .map((z) => z.trim())
     .filter(Boolean);
 }
@@ -422,6 +431,12 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
 
     // 2. Runde, Teil b: `vitest` im Kommentar ueber einem shardenden e2e-Aufruf.
     expect(erlaubt("      - run: |\n          # der vitest-Job macht das anders\n          pnpm e2e --shard=1/5")).toBe(false);
+
+    // 3. Runde: zwei Befehle auf EINER Zeile — `vitest` links, das Verbotene rechts.
+    expect(erlaubt("      - run: pnpm vitest run && pnpm e2e --shard=1/5")).toBe(false);
+    expect(erlaubt("      - run: pnpm vitest run ; pnpm e2e --shard=1/5")).toBe(false);
+    expect(erlaubt("      - run: pnpm vitest run || pnpm e2e --shard=1/5")).toBe(false);
+    expect(erlaubt("      - run: pnpm e2e --shard=1/5 | tee lauf.log")).toBe(false);
 
     // Gegenprobe nach oben: der echte Vitest-Aufruf bleibt erlaubt …
     expect(erlaubt("      - run: pnpm vitest run --shard=${{ matrix.shard }}/3")).toBe(true);
