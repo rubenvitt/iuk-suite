@@ -125,7 +125,14 @@ FROM (
        WHERE b3.lagerort_id = 'entnahmebox'
          AND b3.artikel_id  = lv.artikel_id
          AND b3.menge > 0
-         AND b3.ts < lv.erfasst_at
+         -- ⚠️ `<=` UND NICHT `<`: BEIDE ZEITEN SIND SEKUNDEN (Falle 3 am
+         -- Schema), Gleichstand ist also kein Beweis fuer „davor". Faellt ein
+         -- Check in dieselbe Sekunde wie die Lieferung, kann er die Meldung
+         -- danach ueberschrieben haben — und der Nachtrag traege eine Angabe
+         -- nach, die das Material nie beschrieben hat. Mehrdeutig heisst hier
+         -- „nicht nachtragen": der Nachtrag laesst den Zustand dann so, wie er
+         -- ohne ihn waere.
+         AND b3.ts <= lv.erfasst_at
     )
     AND NOT EXISTS (
       SELECT 1 FROM buchungen b4

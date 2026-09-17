@@ -84,7 +84,15 @@ function legeEinheit(sqlite: Database.Database, id: string): void {
 }
 
 /** Eine Buchung auf die Kiste, wie `bucheInEntnahmebox` sie schreibt: das
- *  Praefix nennt die QUELLE. */
+ *  Praefix nennt die QUELLE.
+ *
+ *  ⚠️ DIE VORGABE IST `JETZT + 60` UND NICHT `JETZT`, und das ist keine
+ *  Kosmetik: die Ablesung schreibt der CHECK, die Abgabe eine getrennte
+ *  Aktion — in der Produktion folgt sie ihr. Beide auf dieselbe Sekunde zu
+ *  legen war Testbequemlichkeit und hat einen Gleichstand zum Normalfall
+ *  gemacht, den der Nachtrag seit dem neunten Codex-Befund als MEHRDEUTIG
+ *  abweist. Wer hier wieder `JETZT` einsetzt, prueft nicht den Nachtrag,
+ *  sondern seine Abweisung. */
 function bucheInKiste(
   sqlite: Database.Database,
   b: { artikelId: string; vonOrt: string; menge: number; ts?: number },
@@ -94,7 +102,7 @@ function bucheInKiste(
     + " quelle_typ, quelle_id, referenz, kommentar)"
     + " values (?,?,'umlagerung',?,?, 'entnahmebox', ?, 'oidc','wer', ?, 'Entnahmebox')",
   ).run(
-    `bu-${b.artikelId}-${b.vonOrt}-${b.menge}-${b.ts ?? JETZT}`, b.ts ?? JETZT,
+    `bu-${b.artikelId}-${b.vonOrt}-${b.menge}-${b.ts ?? JETZT + 60}`, b.ts ?? JETZT + 60,
     b.artikelId, `ch-${b.artikelId}`, b.menge, `entnahmebox:${b.vonOrt}`,
   );
 }
@@ -162,6 +170,26 @@ describe("0013 — der gemeldete Verfall fuer Bestand, der schon in der Kiste li
     // Der Check kommt SPAETER als die Abgabe und ueberschreibt die Zeile.
     meldeVerfall(sqlite, {
       ortId: "rtw", artikelId: "kompresse", verfall: "2030-12", erfasstAt: JETZT + 3600,
+    });
+
+    spiele0013(sqlite);
+
+    expect(meldungen(sqlite, "entnahmebox")).toHaveLength(0);
+  });
+
+  it("weist GLEICHSTAND auf die Sekunde als mehrdeutig ab", () => {
+    /**
+     * ⚠️ DER NEUNTE CODEX-BEFUND. Beide Zeiten sind SEKUNDEN (Falle 3 am
+     * Schema). Faellt ein Check in dieselbe Sekunde wie die Lieferung, kann er
+     * die Meldung danach ueberschrieben haben — nachweisbar „davor" ist der
+     * Gleichstand nicht. Mehrdeutig heisst hier „nicht nachtragen".
+     */
+    const sqlite = standVor0013();
+    legeArtikel(sqlite, "kompresse");
+    legeEinheit(sqlite, "rtw");
+    bucheInKiste(sqlite, { artikelId: "kompresse", vonOrt: "rtw", menge: 6, ts: JETZT });
+    meldeVerfall(sqlite, {
+      ortId: "rtw", artikelId: "kompresse", verfall: "2026-10", erfasstAt: JETZT,
     });
 
     spiele0013(sqlite);

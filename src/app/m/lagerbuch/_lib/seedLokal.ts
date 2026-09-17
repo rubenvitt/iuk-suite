@@ -950,7 +950,12 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * und der Nachtrag truege diese Beobachtung dann auf aelteres Kistenmaterial,
    * das sie nie beschrieben hat. Dasselbe, was Migration 0013 mit ihren beiden
    * Zeitproben abweist; hier ist der Fehlschlag eine Demo-Datenbank, die eine
-   * Zuordnung behauptet, die es nie gab. */
+   * Zuordnung behauptet, die es nie gab.
+   *
+   * ⚠️ STRIKT `<` UND NICHT `<=`: beide Zeiten sind Sekunden, Gleichstand ist
+   * also kein Beweis fuer „davor" — derselbe Grund wie in 0013. Der Seed
+   * verliert dadurch nichts, seine Ablesung liegt echt vor der Abgabe
+   * (gemessen: alle Faelle in `seedLokal.test.ts` bleiben gruen). */
   const aelteteBoxZugang = db.select({ ts: buchungen.ts }).from(buchungen)
     .where(and(
       eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
@@ -961,7 +966,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     .get();
   const meldungAelterAlsAbgabe = aelteteBoxZugang !== undefined
     && (verfallFuerLagerort(db, RTW).get(A.kompresse)?.erfasstAt?.getTime() ?? Infinity)
-      <= aelteteBoxZugang.ts.getTime();
+      < aelteteBoxZugang.ts.getTime();
 
   if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht && meldungAelterAlsAbgabe) {
     db.transaction((tx) => {
