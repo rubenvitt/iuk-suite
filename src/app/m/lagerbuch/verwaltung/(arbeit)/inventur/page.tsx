@@ -6,6 +6,7 @@ import {
   zaehlOrtAus,
   zaehlOrtBeschreibung,
   zaehlOrtLabel,
+  ZAEHLORT_PARAM,
   zaehlOrtWert,
   type ZaehlOrt,
 } from "../../../_lib/inventurOrt";
@@ -20,11 +21,16 @@ export const dynamic = "force-dynamic";
 /**
  * ⚠️ `string[]` STEHT HIER MIT ABSICHT (Codex-Befund zu DRK-337). Nexts
  * `SearchParams` ist `string | string[] | undefined`; ein enger Typ an dieser
- * Stelle waere eine Behauptung ueber die Laufzeit, die `?ort=a&ort=b` widerlegt
- * — und zwar mit HTTP 500, ohne dass `typecheck` oder `build` etwas melden.
- * Was daraus folgt, entscheidet `zaehlOrtAus`.
+ * Stelle waere eine Behauptung ueber die Laufzeit, die `?zaehlort=a&zaehlort=b`
+ * widerlegt — und zwar mit HTTP 500, ohne dass `typecheck` oder `build` etwas
+ * melden. Was daraus folgt, entscheidet `zaehlOrtAus`.
+ *
+ * ⚠️ DER PARAMETER HEISST SEIT DRK-371 `zaehlort` UND NICHT MEHR `ort`, damit
+ * alte und neue Form nicht im selben Namen liegen; die Begruendung steht bei
+ * `ZAEHLORT_PARAM`. Ein `?ort=…` aus einem Lesezeichen wird hier deshalb gar
+ * nicht mehr gelesen.
  */
-type InventurSuchparameter = { ort?: string | string[] };
+type InventurSuchparameter = { [ZAEHLORT_PARAM]?: string | string[] };
 
 export function inventurSeitenInhalt(
   db: DB, now: Date = new Date(), suchparameter: InventurSuchparameter = {},
@@ -35,7 +41,7 @@ export function inventurSeitenInhalt(
    * nur im Browser stuende, muesste sie nachladen oder raten. `force-dynamic`
    * steht ohnehin schon oben.
    */
-  const gewuenscht = zaehlOrtAus(suchparameter.ort);
+  const gewuenscht = zaehlOrtAus(suchparameter[ZAEHLORT_PARAM]);
   const bereich = zaehlBereich(db, gewuenscht);
   /*
    * ⚠️ EIN UNBEKANNTER ORT FAELLT AUF DEN GANZEN HANDLAGER ZURUECK, wie

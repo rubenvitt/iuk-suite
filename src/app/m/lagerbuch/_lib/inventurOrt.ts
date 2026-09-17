@@ -56,6 +56,35 @@ export const ZAEHLORT_ALLE = "alle";
 const ORT_PRAEFIX = "ort:";
 
 /**
+ * DRK-371 — DER NAME DES URL-PARAMETERS, und er ist NICHT mehr `ort`.
+ *
+ * ⚠️ DAS PRAEFIX ALLEIN TRENNT DIE BEIDEN ZEITALTER NICHT (vierter Befund von
+ * Codex zum PR, nachgerechnet und bestaetigt). Es trennt innerhalb der NEUEN
+ * Form den Waechter von einem Ort — aber unter demselben Parameternamen bleibt
+ * jeder Wert zwischen ALTER und NEUER Deutung zweideutig:
+ *
+ *   `?ort=ort:alle`   frueher: der Schrank mit der Kennung `ort:alle`
+ *                     seither: der Schrank mit der Kennung `alle`
+ *
+ * Gibt es beide, zaehlt die Seite den falschen — und bucht die Korrektur
+ * dorthin. Der harte Schnitt hat das nicht geheilt, er hat es nur auf die
+ * Kennungen verschoben, die selbst mit `ort:` beginnen.
+ *
+ * ⚠️ EIN NEUER NAME LOEST ES DURCH KONSTRUKTION: unter `zaehlort` hat es nie
+ * eine Altform gegeben, also kann dort kein Wert zwei Bedeutungen tragen. Ein
+ * altes Lesezeichen mit `?ort=…` traegt einen Parameter, den diese Seite nicht
+ * mehr liest — es faellt auf den ganzen Handlager zurueck, sichtbar und fuer
+ * JEDE Kennung gleich, statt fuer die einen sichtbar und fuer die anderen
+ * still falsch.
+ *
+ * ⚠️ BEIDES ZUSAMMEN, NICHT EINES STATT DES ANDEREN: der Name trennt alt von
+ * neu, das Praefix trennt Ort von Waechter. Nimmt man das Praefix wieder
+ * heraus, ist der Waechter sofort wieder eine moegliche Kennung — der
+ * urspruengliche Fehler dieses Tickets.
+ */
+export const ZAEHLORT_PARAM = "zaehlort";
+
+/**
  * Die Ortskennung → der Wert, der in Auswahl und URL steht. `null` ist der
  * ganze Handlager.
  *
@@ -119,7 +148,7 @@ export function zaehlOrtLabel(ortId: string | null, name: string | undefined): s
  * ⚠️ DER PARAMETER KANN EIN ARRAY SEIN, UND ZWAR UNABHAENGIG DAVON, WAS DIE
  * SEITE ALS TYP HINSCHREIBT. Nexts `SearchParams` ist
  * `string | string[] | undefined` (`next/dist/server/request/search-params`):
- * bei `?ort=a&ort=b` kommt ein Array an, und ein `.trim()` darauf wirft — HTTP
+ * bei `?zaehlort=a&zaehlort=b` kommt ein Array an, und ein `.trim()` darauf wirft — HTTP
  * 500 fuer die ganze Inventurseite. Eine engere Signatur an der Seite aendert
  * den Laufzeitwert nicht, `typecheck` und `build` bleiben gruen, und nur ein
  * echter Abruf mit doppeltem Parameter zeigt es. Deshalb nimmt DIESE Funktion

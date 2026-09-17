@@ -52,7 +52,7 @@ describe("zaehlOrtAus", () => {
   });
 
   /**
-   * ⚠️ EIN PRAEFIX OHNE KENNUNG IST KEINE WAHL. `?ort=ort:` entstuende beim
+   * ⚠️ EIN PRAEFIX OHNE KENNUNG IST KEINE WAHL. `?zaehlort=ort:` entstuende beim
    * Zusammenbauen von Hand; als Kennung `""` ginge er bis in `zaehlBereich`
    * und faende dort nichts — die Vorgabe gleich hier ist derselbe Ausgang,
    * einen Lesepfad frueher.
@@ -82,7 +82,7 @@ describe("zaehlOrtAus", () => {
 
   /**
    * ⚠️ DER PARAMETER KANN EIN ARRAY SEIN (Codex-Befund zum PR). Nexts
-   * `SearchParams` ist `string | string[] | undefined`; `?ort=a&ort=b` liefert
+   * `SearchParams` ist `string | string[] | undefined`; `?zaehlort=a&zaehlort=b` liefert
    * ein Array, und ein `.trim()` darauf warf — HTTP 500 fuer die ganze Seite.
    * ⚠️ WEDER `typecheck` NOCH `build` SEHEN DAS: eine engere Signatur an der
    * Seite ist eine Behauptung ueber die Laufzeit, keine Zusicherung. Nur ein

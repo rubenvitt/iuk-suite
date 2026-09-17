@@ -20,7 +20,7 @@ import {
   inventurTrifft,
   type InventurFilter,
 } from "../../../_lib/inventurFilter";
-import { ZAEHLORT_ALLE, zaehlOrtWert, type ZaehlOrt } from "../../../_lib/inventurOrt";
+import { ZAEHLORT_ALLE, ZAEHLORT_PARAM, zaehlOrtWert, type ZaehlOrt } from "../../../_lib/inventurOrt";
 import { INVENTUR_ABWEISUNGEN, INVENTUR_TEXTE } from "../../../_lib/inventurTexte";
 import { kategorieOptionen } from "../../../_lib/kategorie";
 import type { InventurZeile } from "../../../_lib/lesepfade/inventur";
@@ -217,7 +217,7 @@ export function InventurForm({ zeilen, ortId, orte }: {
           // Schrank steht. Der Knopf daneben ist der ausdrueckliche Weg.
           disabled={laeuft || positionen.length > 0}
           onChange={(wert) => startOrtswechsel(() => {
-            setzeUrl({ ort: wert === ZAEHLORT_ALLE ? "" : wert });
+            setzeUrl({ [ZAEHLORT_PARAM]: wert === ZAEHLORT_ALLE ? "" : wert });
           })}
           style={{ minWidth: 240 }}
           // ⚠️ `o.schluessel` UND NICHT `o.id` (DRK-371): die rohe Kennung stuende
