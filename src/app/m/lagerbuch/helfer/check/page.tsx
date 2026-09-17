@@ -166,12 +166,39 @@ export default async function CheckSeite({
    * nicht die ist, vor der sie steht. Bei „RTW 1" neben „RTW 2" merkt das
    * niemand — und gezaehlt wuerde der Inhalt der einen in das Buch der anderen.
    *
-   * ⚠️ `gescannt ?? fz` — ZWEI WEGE, EIN SATZ, und das ist Absicht (offene
-   * Frage 3 des Tickets). Ein getipptes `?fz=B` ist aus Serversicht von einem
-   * gescannten `/o/<B>` nicht zu unterscheiden (`_lib/ortZiel.ts` schreibt das
-   * aus); derselbe Vorrang gilt, also gehoert dieselbe Auskunft dazu. `gescannt`
-   * kommt zuerst, weil auf dem Etikettenweg `fz` bereits die GEBUNDENE Einheit
-   * traegt — dort ist `fz` gar nicht die gemeinte.
+   * ⚠️ ZWEI WEGE, EIN SATZ, und das ist Absicht (offene Frage 3 des Tickets).
+   * Ein getipptes `?fz=B` ist aus Serversicht von einem gescannten `/o/<B>`
+   * nicht zu unterscheiden (`_lib/ortZiel.ts` schreibt das aus); derselbe
+   * Vorrang gilt, also gehoert dieselbe Auskunft dazu.
+   *
+   * ⚠️ `gescannt` GILT NUR AUF DEM ETIKETTENWEG, UND DER IST AN SEINER FORM
+   * ERKENNBAR — Codex-Befund P2 zu `4bb5135`. Hier stand `gescannt ?? fz`, und
+   * die Begruendung dafuer stand schon richtig da: auf dem Etikettenweg traegt
+   * `fz` bereits die GEBUNDENE Einheit, dort ist `fz` gar nicht die gemeinte.
+   * Nur war das eine ANNAHME UEBER DIE ADRESSE und keine Bedingung — und BEIDE
+   * Parameter sind Nutzereingabe. Gemessen an einem Kaertchen auf A:
+   *
+   *   ?fz=B&gescannt=A  →  gemeint = A = gebunden  →  KEIN Hinweis,
+   *                        obwohl B uebergangen wurde. Der Hinweis liess sich
+   *                        also per Adresse ABSCHALTEN — genau der Ausgang,
+   *                        gegen den dieses Ticket geschrieben ist.
+   *   ?fz=B&gescannt=C  →  gemeint = C  →  „gescannt hast du C", und C wurde
+   *                        nie gescannt. Eine LUEGE auf einer Datenflaeche,
+   *                        und schlimmer als das Schweigen von vorher.
+   *
+   * `ortZielPfad` schreibt `{ fz: fahrzeugBindung, gescannt: ort.id }` — auf dem
+   * echten Weg ist `fz` also IMMER die gebundene Einheit. Das ist die Form, die
+   * `vomEtikettenweg` prueft. Traegt `fz` etwas anderes, ist `fz` selbst die
+   * uebergangene Einheit (der getippte Fall), und `gescannt` hat daneben nichts
+   * zu sagen: eine zweite Behauptung ueber denselben Vorgang, fuer die es keine
+   * Quelle gibt. Ein `?gescannt=` OHNE `fz` ergibt damit nichts — diese Form
+   * entsteht nirgends, und sie behauptet keine uebergangene Einheit.
+   *
+   * ⚠️ NICHT MIT EINER RECHTEPRUEFUNG VERWECHSELN. Hier wird nichts gesichert:
+   * geladen wird ohnehin nur die gebundene Einheit (Falle 15, unten), und die
+   * Bindung schlaegt den Scan unabhaengig davon. Was hier geprueft wird, ist
+   * allein, ob die AUSKUNFT wahr ist — und eine Auskunft, die die Adresse frei
+   * waehlt, ist keine.
    *
    * ⚠️ NUR EINE EINHEIT, DIE DIE SEITE AUCH KENNT. Die Suche laeuft ueber
    * `fahrzeuge`, also ueber die auf `aktiv` gefilterte Liste — dieselbe Menge,
@@ -188,7 +215,8 @@ export default async function CheckSeite({
    * wer ungebunden mit `?fz=` kommt, hat seine Einheit selbst gewaehlt, und es
    * wird ihm nichts uebergangen.
    */
-  const gemeint = gescannt ?? fz;
+  const vomEtikettenweg = fz !== undefined && fz === gebunden?.id;
+  const gemeint = vomEtikettenweg ? gescannt ?? fz : fz;
   const uebergangen =
     gebunden && gemeint && gemeint !== gebunden.id
       ? fahrzeuge.find((f) => f.id === gemeint) ?? null

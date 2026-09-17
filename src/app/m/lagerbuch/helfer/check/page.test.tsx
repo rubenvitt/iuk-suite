@@ -961,6 +961,59 @@ describe("/helfer/check — der uebergangene Scan (DRK-373)", () => {
   });
 
   /**
+   * ⚠️ `gescannt` DARF DEN HINWEIS NICHT ABSCHALTEN — Codex-Befund P2 zu
+   * `4bb5135`, und der Vorrang aus dem Test darueber war genau die Luecke.
+   * `gescannt ?? fz` nahm `gescannt` BEDINGUNGSLOS, obwohl beide Parameter
+   * Nutzereingabe sind: mit `?fz=B&gescannt=A` an einem Kaertchen auf A wurde
+   * „gemeint" gleich „gebunden", und der Hinweis fiel weg — obwohl B
+   * uebergangen wurde. Der Hinweis liess sich also per Adresse abschalten,
+   * und das ist der Ausgang, gegen den dieses Ticket geschrieben ist.
+   *
+   * Die Bedingung ist die FORM des echten Weges: `ortZielPfad` schreibt `fz`
+   * immer als die gebundene Einheit. Traegt `fz` etwas anderes, ist `fz` selbst
+   * die uebergangene — hier also B.
+   */
+  it("laesst sich mit `gescannt` NICHT abschalten", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-1");
+    // `fz` zeigt auf fz-2, `gescannt` auf die gebundene fz-1.
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    expect(hinweis.getAttribute("data-gescannt")).toBe("fz-2");
+    expect(hinweis.getAttribute("data-gezeigt")).toBe("fz-1");
+  });
+
+  /**
+   * ⚠️ UND ER DARF KEINE EINHEIT BENENNEN, DIE NIEMAND GESCANNT HAT — dieselbe
+   * Ursache, die teurere Haelfte. Mit `?fz=B&gescannt=C` an einem Kaertchen auf
+   * A nannte der Hinweis C, und C kam in dem Vorgang gar nicht vor: eine
+   * falsche Auskunft auf einer Datenflaeche, schlimmer als das Schweigen, das
+   * dieses Ticket behebt. Uebergangen wurde B, und B gehoert dort hin.
+   */
+  it("benennt nicht die Einheit, die ein fremdes `gescannt` behauptet", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-1");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-3" })));
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    expect(hinweis.getAttribute("data-gescannt")).toBe("fz-2");
+    expect(hinweis.getAttribute("data-gezeigt")).toBe("fz-1");
+  });
+
+  /**
+   * Ein `?gescannt=` OHNE `fz` entsteht nirgends — `ortZielPfad` schreibt immer
+   * beide — und behauptet keine uebergangene Einheit: die Adresse hat gar nicht
+   * versucht, woandershin zu fuehren. Also kein Hinweis, und der Check laeuft
+   * auf der gebundenen Einheit weiter.
+   */
+  it("schweigt bei `gescannt=` ohne `fz`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-1");
+    await mount(await CheckSeite(sp({ gescannt: "fz-2" })));
+    expect(exists("[data-rolle='scan-hinweis']")).toBe(false);
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-1");
+  });
+
+  /**
    * ⚠️ DER HINWEIS STEHT IM RAHMEN UND VOR DEM FLOW.
    *
    * Im Rahmen: ausserhalb faenden die `--lb-*`-Variablen ihn nicht, und der
