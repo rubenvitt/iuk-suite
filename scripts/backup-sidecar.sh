@@ -1633,6 +1633,10 @@ lauf_ungesperrt() {
 # `${x#0}` schneidet genau eine fuehrende Null ab und ist ueberall dieselbe Regel.
 ohne_null() { echo "${1#0}"; }
 
+# Tag und Minute der Uhr — die Kennung des Zielzeitpunkts, der zuletzt gelaufen ist.
+# Absichtlich MINUTENGENAU und nicht sekundengenau: der Zeitplan nennt eine Minute.
+zielminute() { date '+%Y%m%d%H%M' 2>/dev/null || echo ""; }
+
 sekunden_bis_uhrzeit() {
   hh="$(ohne_null "${BACKUP_UHRZEIT%%:*}")"
   mm="$(ohne_null "${BACKUP_UHRZEIT##*:}")"
@@ -1734,13 +1738,35 @@ schleife() {
   und der meldet sich nur, wenn jemand hinsieht."
   fi
 
+  # ⚠️ WELCHE ZIELMINUTE SCHON GELAUFEN IST. Leer heisst „noch keine" — und nicht etwa
+  # „diese hier", sonst uebersprungen ein Start um Punkt 03:30 den Lauf um 03:30.
+  gelaufen_um=""
+
   if [ "$BACKUP_BEIM_START" = "1" ]; then
     protokoll "BACKUP_BEIM_START=1 — ein Lauf sofort."
     lauf || true
+    gelaufen_um="$(zielminute)"
   fi
 
   while [ "$beenden" -eq 0 ]; do
     rest="$(sekunden_bis_uhrzeit)"
+    # ⚠️ EIN LAUF, DER IN DERSELBEN SEKUNDE FERTIG WIRD, DARF NICHT GLEICH WIEDER
+    # STARTEN. Seit ein Rest von 0 „jetzt" heisst und nicht „morgen" (die richtige
+    # Entscheidung: wer den Dienst zur Zielsekunde erreicht, wartete sonst 24h), ist
+    # genau diese Null auch der Rueckweg: endet `lauf` noch in der Zielsekunde, rechnet
+    # die aeussere Runde wieder 0 und ruft ihn erneut. GEMESSEN am ganzen Skript mit
+    # einer stehenden Uhr auf 03:30:00: 98 Laeufe in vier Sekunden — im Betrieb bricht
+    # das ab, sobald die Uhr weiterzieht, und genau ein zweiter Lauf schafft es dabei
+    # bis zum Tarball. Das ist eine zusaetzliche Generation je Tag, und mit einem
+    # schnellen Fehlschlag (etwa `BACKUP_SPERRE_FRIST_MINUTEN=0`) ein Schwall
+    # Protokollzeilen.
+    #
+    # Der Riegel haengt an der ZIELMINUTE, nicht an einem Zaehler: eine Zeitumstellung
+    # oder eine angehaltene Maschine traegt sich damit weiter von selbst aus, und der
+    # Lauf von morgen um dieselbe Zeit traegt eine andere Kennung.
+    if [ "$rest" -eq 0 ] && [ -n "$gelaufen_um" ] && [ "$(zielminute)" = "$gelaufen_um" ]; then
+      rest=86400
+    fi
     protokoll "Naechster Lauf in $((rest / 3600))h $(((rest % 3600) / 60))min."
     # In Scheiben schlafen, damit ein SIGTERM nicht bis zur naechsten Uhrzeit wartet —
     # und den Rest bei JEDER Runde neu aus der Uhr rechnen statt herunterzuzaehlen: so
@@ -1763,9 +1789,10 @@ schleife() {
       if [ "$neu" -gt "$rest" ]; then rest=0; else rest="$neu"; fi
     done
     [ "$beenden" -eq 0 ] || break
-    # Nach dem Lauf rechnet die aeussere Runde neu; weil `lauf` die Zielminute in jedem
-    # Fall ueberschreitet, steht dort dann der volle Tag — kein zweiter Lauf am Stueck.
+    # Nach dem Lauf rechnet die aeussere Runde neu: ueberschreitet `lauf` die
+    # Zielsekunde, steht dort der volle Tag; bleibt er darin, faengt ihn der Riegel oben.
     lauf || true
+    gelaufen_um="$(zielminute)"
   done
   protokoll "Beendet."
 }

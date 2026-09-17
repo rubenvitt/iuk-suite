@@ -361,6 +361,18 @@ er fordert die Freigabe erneut an).
 > Rollout zu fahren, holt den Austausch selbst nach — oder der Sidecar sichert bis zum
 > nächsten Neustart nach dem alten Stand, ohne dass irgendwo etwas rot wird.
 
+> ⚠️ **Und er wartet danach, bis der Dienst sich meldet.** Ein `up -d` sagt „gestartet",
+> nicht „läuft": der Sidecar holt seine Werkzeuge zur Laufzeit per `apk add`, und
+> schweigt der Paketspiegel, bricht der Vorlauf ab — `restart: unless-stopped` macht
+> daraus eine Neustartschleife, während `up -d` längst erfolgreich zurückgekehrt ist.
+> Ohne konfigurierten `BACKUP_PING_URL` fiele das erst auf, wenn die Sicherung der
+> nächsten Nacht fehlt. Schritt 8b fragt deshalb bis zu **120 Sekunden** lang den
+> Healthcheck ab (`SUITE_BACKUP_GESUND_FRIST` setzt die Frist, `0` heißt: nur einmal
+> nachsehen) und unterscheidet drei Ausgänge: *gesund* (still), *nach der Frist immer
+> noch im Anlauf* (kann ein langsamer Paketspiegel sein und sich von selbst geben),
+> *weg oder in der Neustartschleife* (gibt sich nie von selbst). **Zurückgerollt wird
+> in keinem der drei Fälle** — dieselbe Abwägung wie beim Austausch selbst.
+
 > **Was NICHT der Ausweg ist: eine dauerhaft abweichende `compose.yaml` auf dem Server.**
 > Der Vergleich ist byteweise — ein Host, der einen Wert anders braucht als die Vorlage,
 > hätte damit entweder nie einen grünen Rollout oder, schlimmer, eine spätere Angleichung

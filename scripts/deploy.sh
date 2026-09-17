@@ -295,6 +295,39 @@ warte_gesund() {
 # wäre eine frisch kopierte Datei „älter" als der Container. Die ctime setzt der Kern beim
 # Schreiben, sie lässt sich nicht erhalten. Ist die Startzeit nicht zu lesen, wird
 # neugestartet — lieber einmal zu viel als eine Nacht auf dem alten Stand.
+# Wartet, bis der backup-Dienst sich gesund meldet.
+#
+# ⚠️ EIN `up -d` MELDET „GESTARTET", NICHT „LAEUFT". Der Sidecar holt seine Werkzeuge zur
+# Laufzeit per `apk add` — schweigt der Paketspiegel, bricht der Vorlauf ab, und
+# `restart: unless-stopped` macht daraus eine Neustartschleife. `up -d` ist da längst
+# erfolgreich zurückgekehrt, der Rollout meldete „abgeschlossen", und ohne konfigurierten
+# Ping fällt es erst auf, wenn jemand von sich aus nach Docker sieht — also frühestens,
+# wenn die Sicherung der nächsten Nacht fehlt.
+#
+# Rückgabe: 0 gesund (oder laufend ohne Healthcheck) · 1 weg oder in der Neustartschleife
+# · 2 nach der Frist immer noch im Anlauf. Drei Ausgänge, weil sie drei verschiedene
+# Handgriffe bedeuten — ein gemeinsames „nicht gesund" verschenkte genau die Auskunft.
+backup_wird_gesund() {
+  local frist="$1" ende cid lage gesund
+  ende=$(( $(date +%s) + frist ))
+  while :; do
+    cid="$(docker compose ps -q backup 2>/dev/null || true)"
+    [ -n "$cid" ] || return 1
+    lage="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || echo "")"
+    # `{{if .State.Health}}`: ohne Healthcheck gibt es den Block gar nicht, und ein
+    # blindes `.State.Health.Status` wäre dann ein Fehler statt einer Auskunft.
+    gesund="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}ohne{{end}}' "$cid" 2>/dev/null || echo "")"
+    case "$gesund" in
+      healthy) return 0 ;;
+      # Ohne Healthcheck ist „läuft" alles, was sich feststellen lässt.
+      ohne) [ "$lage" = "running" ] && return 0 ;;
+    esac
+    case "$lage" in restarting | exited | dead) return 1 ;; esac
+    [ "$(date +%s)" -lt "$ende" ] || return 2
+    sleep 5
+  done
+}
+
 backup_skripte_neuer_als() {
   local seit="$1" datei zeit
   for datei in scripts/backup.sh scripts/backup-sidecar.sh; do
@@ -403,11 +436,31 @@ else
   seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
   if backup_skripte_neuer_als "$seit"; then
     melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
-    # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESER MELDUNG (siehe setze_pin).
-    docker compose up -d --force-recreate backup || warne "Der Austausch des Dienstes
+    # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESEN MELDUNGEN (siehe setze_pin).
+    if docker compose up -d --force-recreate backup; then
+      # Und dann warten, bis er sich meldet — Begründung an backup_wird_gesund.
+      # 120s: das `apk add` der sieben Pakete braucht gemessen Sekunden, die
+      # Anlaufspanne des Healthchecks sind 5 Minuten. Wer den Rollout nicht so lange
+      # aufhalten will, setzt SUITE_BACKUP_GESUND_FRIST.
+      echo "  auf den Healthcheck des backup-Dienstes warten …"
+      lage_backup=0
+      backup_wird_gesund "${SUITE_BACKUP_GESUND_FRIST:-120}" || lage_backup=$?
+      case "$lage_backup" in
+        0) echo "  backup meldet sich gesund." ;;
+        2) warne "Der Dienst backup ist nach der Frist immer noch im Anlauf. Das kann an
+  einem langsamen Paketspiegel liegen und sich von selbst geben — nachsehen:
+  docker compose ps backup && docker compose logs --tail=50 backup" ;;
+        *) warne "Der Dienst backup kommt nach dem Austausch NICHT hoch — er ist weg oder
+  in der Neustartschleife. Die Suite läuft und ist geprüft, dieser Rollout wird deshalb
+  nicht zurückgerollt; es gibt aber bis auf Weiteres KEINE naechtliche Sicherung.
+  Ursache ablesen: docker compose logs --tail=50 backup" ;;
+      esac
+    else
+      warne "Der Austausch des Dienstes
   backup ist gescheitert. Die Suite läuft und ist geprüft — der Sidecar sichert aber bis
   zu einem Neustart nach dem ALTEN Skript. Von Hand nachholen:
   docker compose up -d --force-recreate backup"
+    fi
   else
     echo "  beide Skripte sind älter als der laufende Container — kein Austausch nötig."
   fi

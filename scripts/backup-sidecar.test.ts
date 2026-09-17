@@ -2335,6 +2335,183 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(rumpfZ.indexOf("command -v su-exec")).toBeLessThan(rumpfZ.indexOf('probe="$BACKUP_DIR'));
   });
 
+  it("ein Lauf, der in der Zielsekunde fertig wird, startet nicht gleich wieder", () => {
+    // ⚠️ DIE NULL IST ZUGLEICH DER RUECKWEG. Ein Rest von 0 heisst seit einem frueheren
+    // Fund „jetzt" und nicht „morgen" — richtig so, wer den Dienst zur Zielsekunde
+    // erreicht, wartete sonst 24h. Genau diese Null rechnet die aeussere Runde aber
+    // wieder aus, wenn `lauf` die Zielsekunde nicht ueberschreitet: eine kleine,
+    // rein lokale Sicherung, oder ein Fehlschlag, der sofort zurueckkommt (etwa
+    // `BACKUP_SPERRE_FRIST_MINUTEN=0`).
+    //
+    // GEMESSEN am ganzen Skript mit einer STEHENDEN Uhr auf 03:30:00 — die Attrappe
+    // ueberzeichnet die Lage bewusst: im Betrieb bricht der Schwall ab, sobald die
+    // Sekunde weiterzieht, und genau ein zweiter Lauf schafft es dabei bis zum Tarball.
+    // Vorher **98 Laeufe in vier Sekunden**, nachher einer.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-zielminute-"));
+    const laeufe = (uhr: string, umgebung: Record<string, string> = {}) => {
+      const stubs = path.join(kladde, `stubs-${uhr.replace(/ /g, "")}`);
+      rmSync(stubs, { recursive: true, force: true });
+      mkdirSync(stubs, { recursive: true });
+      // Eine Uhr, die steht. `+%s` bleibt gueltig, damit die Zustandsdatei rechnet.
+      writeFileSync(
+        path.join(stubs, "date"),
+        `#!/bin/sh\ncase "$1" in\n '+%s') echo 1800000000 ;;\n '+%H %M %S') echo "${uhr}" ;;\n *) echo "2026-01-01T${uhr.replace(/ /g, "")}" ;;\nesac\n`,
+      );
+      chmodSync(path.join(stubs, "date"), 0o755);
+      const skript = path.join(kladde, "backup.sh");
+      const tarball = path.join(kladde, "suite-20260101T033000.tar.gz");
+      writeFileSync(skript, `#!/bin/sh\necho "backup: wrote ${tarball}"\n`);
+      chmodSync(skript, 0o755);
+      writeFileSync(tarball, "");
+      const p = spawnSync("dash", [SIDECAR, "schleife"], {
+        encoding: "utf8",
+        timeout: 3000,
+        killSignal: "SIGKILL",
+        env: {
+          ...process.env,
+          PATH: `${stubs}:${process.env.PATH}`,
+          TMPDIR: kladde,
+          BACKUP_DIR: kladde,
+          BACKUP_SKRIPT: skript,
+          BACKUP_UHRZEIT: "03:30",
+          BACKUP_RCLONE_ZIEL: "",
+          BACKUP_PING_URL: "",
+          BACKUP_KEEP: "aus",
+          ...umgebung,
+        },
+      });
+      const aus = `${p.stdout}${p.stderr}`;
+      return {
+        beginnt: (aus.match(/Lauf beginnt/g) ?? []).length,
+        rest: aus.match(/Naechster Lauf in [^\n]*/g) ?? [],
+      };
+    };
+    try {
+      const auf = laeufe("03 30 00");
+      expect(auf.beginnt, "genau ein Lauf, obwohl die Uhr steht").toBe(1);
+      // ⚠️ UND DER PLAN RUECKT WEITER, statt nur den zweiten Lauf zu unterdruecken:
+      // stuende dort weiter „0h 0min", liefe die Schleife leer und schriebe je Runde
+      // eine Protokollzeile.
+      expect(auf.rest[0], "die erste Runde faellt faellig").toMatch(/in 0h 0min/);
+      expect(auf.rest[1], "danach der volle Tag").toMatch(/in 24h 0min/);
+      // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: der Riegel darf den Lauf nicht
+      // verschlucken, den es zu tun gilt. Steht die Uhr NEBEN der Zielzeit, wartet der
+      // Dienst — und mit BACKUP_BEIM_START sichert er trotzdem einmal.
+      const daneben = laeufe("04 00 00", { BACKUP_BEIM_START: "1" });
+      expect(daneben.beginnt, "der Start-Lauf findet statt").toBe(1);
+      expect(daneben.rest[0], "und danach wird gewartet").toMatch(/in 23h 30min/);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // Der Riegel haengt an der ZIELMINUTE, nicht an einem Zaehler — eine Zeitumstellung
+    // und eine angehaltene Maschine tragen sich damit weiter von selbst aus.
+    const rumpfS = funktionsrumpf(befehle, "schleife");
+    expect(rumpfS).toMatch(/gelaufen_um="\$\(zielminute\)"/);
+    expect(funktionsrumpf(befehle, "zielminute")).toMatch(/%Y%m%d%H%M/);
+    // ⚠️ Und der Riegel greift NUR bei einem Rest von 0: bei jedem anderen Wert waere er
+    // ein uebersprungener Lauf statt eines verhinderten Doppellaufs.
+    expect(rumpfS).toMatch(/if \[ "\$rest" -eq 0 \] && \[ -n "\$gelaufen_um" \]/);
+  }, 20_000);
+
+  it("der Rollout wartet, bis der ausgetauschte Sidecar sich meldet", () => {
+    // ⚠️ EIN `up -d` MELDET „GESTARTET", NICHT „LAEUFT". Der Sidecar holt seine Werkzeuge
+    // zur Laufzeit per `apk add`; schweigt der Paketspiegel, bricht der Vorlauf ab, und
+    // `restart: unless-stopped` macht daraus eine Neustartschleife — waehrend `up -d`
+    // laengst erfolgreich zurueckgekehrt ist und der Rollout „abgeschlossen" meldet.
+    // Ohne konfigurierten Ping faellt das erst auf, wenn die Sicherung der naechsten
+    // Nacht fehlt.
+    //
+    // ⚠️ DER HEALTHCHECK KANN DAS ERST SEIT DEM FUND DARUEBER BEANTWORTEN: solange er
+    // als root ohne `su-exec` den alten `ok`-Stand aus dem ueberlebenden Volume meldete,
+    // waere jedes Warten sofort mit „gesund" zurueckgekommen.
+    const quelle = deploySh.slice(
+      deploySh.indexOf("backup_wird_gesund() {"),
+      deploySh.indexOf("\n}\n", deploySh.indexOf("backup_wird_gesund() {")) + 3,
+    );
+    expect(quelle, "die Warterei steht als eigene Funktion da").toContain("State.Health");
+    const block = deploySh.slice(
+      deploySh.indexOf("    if docker compose up -d --force-recreate backup; then"),
+      deploySh.indexOf("\n    fi\n", deploySh.indexOf("    if docker compose up -d --force-recreate backup; then")) +
+        "\n    fi\n".length,
+    );
+    expect(block, "und der Austausch wertet sie aus").toContain("backup_wird_gesund");
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-gesund-"));
+    // Eine `docker`-Attrappe, die Lage und Gesundheit aus der Umgebung nimmt.
+    writeFileSync(
+      path.join(kladde, "docker"),
+      [
+        "#!/bin/bash",
+        'if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then echo "${CID-abc123}"; exit 0; fi',
+        'if [ "$1" = "compose" ] && [ "$2" = "up" ]; then exit "${UPRC:-0}"; fi',
+        'if [ "$1" = "inspect" ]; then',
+        '  case "$3" in',
+        '    *State.Status*) echo "${LAGE:-running}" ;;',
+        '    *Health*) echo "${GESUND:-healthy}" ;;',
+        "  esac",
+        "  exit 0",
+        "fi",
+        "exit 0",
+      ].join("\n"),
+    );
+    chmodSync(path.join(kladde, "docker"), 0o755);
+    const fahre = (umgebung: Record<string, string>) => {
+      // ⚠️ Unter `set -euo pipefail` gefahren, wie im Rollout selbst — sonst misst der
+      // Fall die Meldung und nicht das, worauf es ankommt: dass Schritt 9 erreicht wird.
+      const p = spawnSync(
+        "bash",
+        [
+          "-c",
+          `set -euo pipefail\nwarne() { printf '\\n! %s\\n' "$*" >&2; }\n${quelle}\n${block}\necho SCHRITT-9-ERREICHT`,
+        ],
+        {
+          encoding: "utf8",
+          timeout: 20_000,
+          env: { ...process.env, PATH: `${kladde}:${process.env.PATH}`, ...umgebung },
+        },
+      );
+      return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+    };
+    try {
+      const gesund = fahre({ GESUND: "healthy" });
+      expect(gesund.aus, "gesund: keine Warnung").toMatch(/meldet sich gesund/);
+      expect(gesund.aus).not.toMatch(/NICHT hoch|immer noch im Anlauf/);
+      // Die Neustartschleife — der Fall, um dessentwillen es die Warterei gibt.
+      const schleife = fahre({ GESUND: "unhealthy", LAGE: "restarting" });
+      expect(schleife.aus, "die Neustartschleife wird benannt").toMatch(/NICHT hoch/);
+      // Ein verschwundener Container ist dasselbe Urteil.
+      expect(fahre({ CID: "" }).aus).toMatch(/NICHT hoch/);
+      // ⚠️ „NOCH IM ANLAUF" IST EIN EIGENER AUSGANG, und das ist keine Feinheit: ein
+      // langsamer Paketspiegel gibt sich von selbst, eine Neustartschleife nie. Ein
+      // gemeinsames „nicht gesund" verschenkte genau diese Auskunft.
+      const anlauf = fahre({ GESUND: "starting", SUITE_BACKUP_GESUND_FRIST: "0" });
+      expect(anlauf.aus).toMatch(/immer noch im Anlauf/);
+      expect(anlauf.aus).not.toMatch(/NICHT hoch/);
+      // Ohne Healthcheck bleibt „laeuft" die einzige feststellbare Auskunft.
+      expect(fahre({ GESUND: "ohne", LAGE: "running" }).aus).toMatch(/meldet sich gesund/);
+      // Und der alte Zweig bleibt, was er war.
+      expect(fahre({ UPRC: "1" }).aus).toMatch(/Austausch des Dienstes/);
+      // ⚠️ DER TRAGENDE TEIL: KEINER DIESER AUSGAENGE BRICHT DEN ROLLOUT AB. Dieselbe
+      // Abwaegung wie beim Austausch selbst — ein Image-Rollback machte einen kaputten
+      // Backup-Dienst nicht besser, er verlaengerte nur die Stoerung.
+      const alleLagen: Record<string, string>[] = [
+        { GESUND: "healthy" },
+        { GESUND: "unhealthy", LAGE: "restarting" },
+        { CID: "" },
+        { GESUND: "starting", SUITE_BACKUP_GESUND_FRIST: "0" },
+        { UPRC: "1" },
+      ];
+      for (const umgebung of alleLagen) {
+        const lauf = fahre(umgebung);
+        expect(lauf.aus, `Schritt 9 wird erreicht (${JSON.stringify(umgebung)})`).toContain(
+          "SCHRITT-9-ERREICHT",
+        );
+        expect(lauf.code, "und zwar mit Exit 0").toBe(0);
+      }
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  });
+
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {
     // Der wichtigere der beiden Faelle: ein Dienst, der gar nicht mehr laeuft, hat
     // keinen gescheiterten Lauf — er hat keinen. Ohne diese Pruefung meldete der
@@ -2497,8 +2674,17 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
         /WARNUNG:[\s\S]*docker compose up -d --force-recreate backup/,
       );
       // ⚠️ Die Gegenprobe ist die Hälfte der Messung: ohne den Auffangzweig beendet
-      // `set -e` das Skript genau hier — und genau das war der Befund.
-      const ohne = lauf(deploySh.slice(ab, bis).replace(/ \|\| warne "Der Austausch[\s\S]*?backup"/, ""));
+      // `set -e` das Skript genau hier — und genau das war der Befund. Seit der
+      // Austausch zusätzlich auf den Healthcheck wartet, ist dieser Zweig ein `else`
+      // statt eines `|| warne`; die Mutation nimmt deshalb das ganze `if` weg und lässt
+      // den nackten Befehl stehen — dieselbe Lage wie vor der Behebung.
+      const roh = deploySh.slice(ab, bis);
+      const aufAb = roh.indexOf("    if docker compose up -d --force-recreate backup; then");
+      expect(aufAb, "der Austausch steht als `if` im Block").toBeGreaterThan(-1);
+      const aufBis = roh.indexOf("\n    fi\n", aufAb) + "\n    fi\n".length;
+      const ohne = lauf(
+        `${roh.slice(0, aufAb)}    docker compose up -d --force-recreate backup\n${roh.slice(aufBis)}`,
+      );
       expect(ohne.code, "ohne Auffangzweig bricht der Rollout ab").toBe(1);
       expect(ohne.aus, "und Schritt 9 wird nie erreicht").not.toMatch(/SCHRITT 9 ERREICHT/);
     } finally {
