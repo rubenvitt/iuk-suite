@@ -5,7 +5,7 @@ import { absenderAus } from "../../_lib/absender";
 import { gateGesperrt, gateFehlversuchBuchen } from "../../_lib/gateSchranke";
 import { normalisiereCode } from "../../_lib/code";
 import { sanitizeReturnTo } from "../../_lib/returnTo";
-import { tokenZielPfad } from "../../_lib/tokenZiel";
+import { ortcodeZielPfad } from "../../_lib/ortZiel";
 import {
   HELFER_COOKIE, helferCookieOptionen, helferGueltigkeitSekunden,
 } from "../../_lib/helferSitzung";
@@ -93,7 +93,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   // SCHRITT 5 — Erfolg. KEIN Budgetverbrauch: ein richtiger Code kostet nichts,
   // sonst sperrte sich eine Bereitschaft zu Schichtbeginn mit RICHTIGEN Codes
   // selbst aus (§3.5.3).
-  const antw = antwort(returnTo ?? tokenZielPfad(res.zielTyp, res.zielId));
+  /*
+   * ⚠️ DIE LANDUNG RECHNET SEIT DRK-417 UEBER DEN ORT, NICHT NUR UEBER DIE
+   * ZIELART. `tokenZielPfad` kennt „sonst" nur als Artikelliste; der Code der
+   * Entnahmebox traegt `zielTyp: null` und schickte damit jemanden, der vor der
+   * Kiste steht, auf den Bestand des Regals. Fuer jeden anderen Code liefert
+   * `ortcodeZielPfad` dieselbe Adresse wie vorher — nachgerechnet in
+   * `ortZiel.test.ts`, nicht behauptet.
+   */
+  const antw = antwort(returnTo ?? ortcodeZielPfad(res.ortId, res.zielTyp, res.zielId));
   antw.cookies.set(HELFER_COOKIE, res.cookieValue, helferCookieOptionen(helferGueltigkeitSekunden()));
   auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
   return antw;

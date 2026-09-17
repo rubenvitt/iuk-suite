@@ -121,6 +121,13 @@ const TREFFER = {
   tokenId: "tk1",
   zielTyp: "fahrzeug" as const,
   zielId: "fz-1",
+  /*
+   * DRK-417 — die Karte einer Einheit traegt BEIDES: `ort_id` (wo sie klebt)
+   * und `ziel_id` (welche Einheit sie meint). Hier stehen sie auf demselben
+   * Wert, weil `stelleOrtCodesSicher` sie so anlegt; die Fixture bildet damit
+   * ab, was `redeemToken` in Produktion wirklich liefert.
+   */
+  ortId: "fz-1",
 };
 
 /**
@@ -452,5 +459,59 @@ describe("Bauform", () => {
     // IST die Existenz des Kommentars. `ohneKommentare` machte ihn
     // konstruktiv unerfuellbar.
     expect(readFileSync(QUELLE, "utf8")).toMatch(/x-forwarded-host/);
+  });
+});
+
+/**
+ * DIE LANDUNG HAENGT AM ORT, NICHT NUR AN DER ZIELART — DRK-417.
+ *
+ * ⚠️ DER FALL IST IN VITEST SICHTBAR, anders als der Mehrhost-Fall im Kopf
+ * dieser Datei: `ortcodeZielPfad` ist eine reine Rechnung, und diese Datei
+ * misst, dass der Handler sie mit dem ORT fuettert statt nur mit der Zielart.
+ */
+describe("/t/<code> — die Landung folgt dem gescannten Ort (DRK-417)", () => {
+  /**
+   * ⚠️ DER CODE DER ENTNAHMEBOX TRAEGT `zielTyp: null` (`zielFuer` in
+   * `_lib/schreibpfade/ortCodes.ts` vergibt eine Zielart nur fuer Einheiten).
+   * Wer die Landung weiter allein aus der Zielart rechnet, schickt damit
+   * jemanden, der vor der Kiste steht, auf den Bestand des REGALS — und zwar
+   * still: die Seite dahinter rendert klaglos.
+   */
+  it("die Karte an der Entnahmebox landet am Ablegeschirm", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-box",
+      zielTyp: null, zielId: null, ortId: "entnahmebox",
+    });
+
+    const r = await GET(anfrage("/t/666-666"), ctx("666-666"));
+
+    expect(r.status).toBe(303);
+    expect(r.headers.get("Location")).toBe("/helfer/box");
+    // Und das Cookie haengt an DERSELBEN Antwort — sonst landet die Person
+    // ohne Sitzung auf einem Schirm, den sie nur mit Sitzung sehen darf.
+    expect(r.headers.get("set-cookie") ?? "").toContain("helfer_session=jwt");
+  });
+
+  it("die Karte am Handlager landet unveraendert auf der Artikelliste", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-regal",
+      zielTyp: null, zielId: null, ortId: "handlager",
+    });
+    expect((await GET(anfrage("/t/111-111"), ctx("111-111"))).headers.get("Location"))
+      .toBe("/helfer");
+  });
+
+  /**
+   * ⚠️ DAS AUSDRUECKLICHE `returnTo` SCHLAEGT AUCH DIE NEUE RECHNUNG. Sonst
+   * verlore ein Deep-Link, der ueber das Gate gelaufen ist, sein Ziel — genau
+   * der Fall, fuer den `returnTo` gebaut ist.
+   */
+  it("ein `returnTo` hat auch bei der Box Vorrang", async () => {
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk-box",
+      zielTyp: null, zielId: null, ortId: "entnahmebox",
+    });
+    const r = await GET(anfrage("/t/666-666?returnTo=%2Fa%2Fart-9"), ctx("666-666"));
+    expect(r.headers.get("Location")).toBe("/a/art-9");
   });
 });

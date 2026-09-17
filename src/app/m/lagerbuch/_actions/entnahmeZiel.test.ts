@@ -71,6 +71,7 @@ vi.mock("../_db/client", () => ({
 }));
 
 import { waehleEntnahmeZiel } from "./entnahmeZiel";
+import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
 
 let t: TestDb;
 
@@ -91,6 +92,7 @@ const ZUGANG_OK = {
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
     fahrzeugBindung: null,
+    reichweite: VOLLE_REICHWEITE,
   },
 };
 

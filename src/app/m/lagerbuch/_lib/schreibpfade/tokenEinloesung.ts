@@ -43,6 +43,22 @@ export type EinloesungTreffer = {
   tokenId: string;
   zielTyp: "fahrzeug" | "artikel" | null;
   zielId: string | null;
+  /**
+   * DER ORT, AN DEM DIE KARTE HAENGT — DRK-417, `null` fuer den Altbestand.
+   *
+   * Sie kommt aus DERSELBEN Zeile und kostet keinen zusaetzlichen Zugriff. Der
+   * Aufrufer braucht sie fuer die LANDUNG: seit dieses Ticket die Reichweite an
+   * den Ort haengt, ist `zielTyp` allein nicht mehr genug — der Code der
+   * Entnahmebox traegt `zielTyp: null` und landete damit auf dem Bestand des
+   * REGALS (`_lib/ortZiel.ts#ortcodeZielPfad`).
+   *
+   * ⚠️ SIE IST NICHT DIE REICHWEITE SELBST. Die steht in `befund()`
+   * (`_lib/helferZugang.ts`) und wird bei JEDEM Aufruf neu aus der Zeile
+   * gelesen; hier herausgereicht wuerde sie zwoelf Stunden lang eingefroren —
+   * dieselbe Begruendung, aus der `code` und `label` aus der Datenbank kommen
+   * und nicht aus dem Cookie (§3.4.4).
+   */
+  ortId: string | null;
 };
 
 export type Einloesung = EinloesungTreffer | { ok: false };
@@ -83,6 +99,7 @@ export async function redeemToken(code: string, db: DB): Promise<Einloesung> {
       tokenId: t.id,
       zielTyp: t.zielTyp,
       zielId: t.zielId,
+      ortId: t.ortId,
     };
   });
 }

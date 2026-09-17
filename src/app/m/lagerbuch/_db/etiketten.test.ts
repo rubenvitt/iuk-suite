@@ -12,7 +12,7 @@ import { migrierteTestDb, type TestDb } from "./testdb";
 import { artikel, lagerorte, tokens, newId } from "./schema";
 import { decodeQr } from "../../../../../e2e/helpers/decode-qr";
 import { etikettenDaten, ortEtikettenDaten, EtikettenBasisFehlt } from "./etiketten";
-import { HANDLAGER_ID } from "../_lib/konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../_lib/konstanten";
 
 /**
  * DER HOST WIRD GEMOCKT, NICHT DIE BASIS-URL — und das ist der Unterschied zum
@@ -260,8 +260,9 @@ describe("ortEtikettenDaten", () => {
   it("versorgt jede Karte mit einem Code und meldet, wie viele neu sind", async () => {
     const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
 
-    expect(daten.orte.map((o) => o.code === null)).toEqual([false, false, false]);
-    expect(daten.neueCodes).toBe(3);
+    expect(daten.orte.map((o) => o.code === null)).toEqual([false, false, false, false]);
+    // DRK-417: vier Karten — Handlager, Entnahmebox und die zwei Einheiten.
+    expect(daten.neueCodes).toBe(4);
 
     // ⚠️ DER ZWEITE AUFRUF LEGT NICHTS NACH, und die Codes bleiben dieselben.
     // Sonst wechselte der Code am Fahrzeug bei jedem Blick in die Vorschau,
@@ -271,9 +272,10 @@ describe("ortEtikettenDaten", () => {
     expect(zweiter.orte.map((o) => o.code)).toEqual(daten.orte.map((o) => o.code));
   });
 
-  it("nimmt den Handlager und die aktiven Einheiten, den Handlager zuerst", async () => {
+  it("nimmt die beiden festen Orte und die aktiven Einheiten, die festen zuerst", async () => {
     const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
-    expect(daten.orte.map((o) => o.id)).toEqual([HANDLAGER_ID, "rtw-1", "tasche-san"]);
+    expect(daten.orte.map((o) => o.id))
+      .toEqual([HANDLAGER_ID, ENTNAHMEBOX_ID, "rtw-1", "tasche-san"]);
   });
 
   /**
@@ -284,8 +286,15 @@ describe("ortEtikettenDaten", () => {
    */
   it("schreibt je Karte eine Beizeile, die die Art benennt", async () => {
     const daten = await ortEtikettenDaten(t.db, "sub-1", "A. Verwaltung");
+    /*
+     * ⚠️ DIE ENTNAHMEBOX TRAEGT „Lager" WIE DER HANDLAGER — DRK-417, und das
+     * ist richtig: `standortMeta` beantwortet die Art des ORTES, und beide sind
+     * Lager. Was die beiden Karten unterscheidet, ist ihr NAME und ihr Code;
+     * eine eigene Beizeile fuer die Kiste waere eine zweite Sprache fuer eine
+     * Sache, die das Modul schon benennt.
+     */
     expect(daten.orte.map((o) => o.meta))
-      .toEqual(["Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
+      .toEqual(["Lager", "Lager", "Fahrzeug · HN-DRK-1101", "Tasche"]);
   });
 
   /**

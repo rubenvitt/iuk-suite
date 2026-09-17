@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { bereichsAbweisung, startPfad } from "../../_lib/helferBereich";
 import { requireHelferSitzung } from "../../_lib/helferZugang";
 import { fahrzeugListe } from "../../_lib/lesepfade/fahrzeuge";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
@@ -54,6 +56,21 @@ export default async function ZielSeite({
   const zugang = await requireHelferSitzung(db);
 
   /*
+   * DIE ZIELWAHL GEHOERT ZUR ENTNAHME — DRK-417. Sie merkt sich, WOHIN das
+   * Material aus dem Regal geht; ein Zugang, der gar nicht entnehmen darf, hat
+   * hier nichts zu waehlen. Ohne diesen Riegel bliebe eine Fluke offen, die
+   * harmlos aussieht und es nicht ist: die Wahl liegt in einem Cookie, das an
+   * die Zugangskennung gebunden ist und die naechste Entnahme steuert.
+   *
+   * ⚠️ DIE ACTION DAHINTER FUEHRT DENSELBEN RIEGEL (`waehleEntnahmeZiel`). Hier
+   * steht er, damit niemand einen Schirm ausfuellt, den der Absendeknopf danach
+   * ablehnt.
+   */
+  if (bereichsAbweisung(zugang, "entnahme")) {
+    redirect(startPfad(zugang.reichweite, zugang.fahrzeugBindung));
+  }
+
+  /*
    * Der Rückweg wird HIER gesäubert und wandert gesäubert ins Formular — die
    * Action säubert ihn ein zweites Mal. Das ist keine doppelte Arbeit aus
    * Misstrauen: das Formularfeld ist von außen frei setzbar, die Action ist
@@ -95,7 +112,7 @@ export default async function ZielSeite({
   return (
     <HelferRahmen
       aktiv="entnahme"
-      nurEntnahme={zugang.nurEntnahme}
+      reichweite={zugang.reichweite}
       sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
     >

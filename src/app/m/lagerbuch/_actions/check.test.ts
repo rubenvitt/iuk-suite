@@ -7,7 +7,7 @@ import {
   o2Flaschen, o2Messungen, checks, lagerortVerfall,
 } from "../_db/schema";
 import { CHECK_ABGLEICH, HANDLAGER_ID } from "../_lib/konstanten";
-import { BEREICH_TEXT, RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
+import { bereichText, RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
 /**
@@ -100,6 +100,7 @@ vi.mock("../_db/client", () => ({
 }));
 
 import { checkAbschluss } from "./check";
+import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
 
 let t: TestDb;
 
@@ -122,7 +123,7 @@ const ZUGANG_OK = {
     fahrzeugBindung: null,
     // DRK-406: ein Fahrzeug-Ortscode darf checken. Der REGAL-Code nicht — die
     // Zusicherung dazu steht am Ende dieser Datei.
-    nurEntnahme: false,
+    reichweite: VOLLE_REICHWEITE,
   },
 };
 
@@ -861,6 +862,7 @@ describe("DRK-305 — der angemeldete Check schreibt als PERSON", () => {
         name: "A. Verwaltung",
         laeuftAb: null,
         fahrzeugBindung: null,
+        reichweite: VOLLE_REICHWEITE,
       },
     });
   });
@@ -925,7 +927,7 @@ describe("DRK-305 — der angemeldete Check schreibt als PERSON", () => {
 /**
  * DER REGAL-CODE KOMMT NICHT IN DEN CHECK — DRK-406.
  *
- * ⚠️ GEMESSEN AM ECHTEN RIEGEL, nicht an einer Attrappe. `nurEntnahmeAbweisung`
+ * ⚠️ GEMESSEN AM ECHTEN RIEGEL, nicht an einer Attrappe. `bereichsAbweisung`
  * liegt bewusst in `_lib/helferBereich.ts` und damit ausserhalb der Attrappe für
  * `_lib/helferZugang` — die Begründung steht im Kopf jener Datei. Stünde er
  * drüben, müsste diese Datei ihn nachbilden, und die Zusicherung prüfte eine
@@ -935,7 +937,7 @@ describe("DRK-406 — der Ortscode des Handlagers darf nicht checken", () => {
   it("weist den Abschluss mit `bereich` ab, bevor irgendetwas geschrieben ist", async () => {
     riegel.mockResolvedValue({
       ...ZUGANG_OK,
-      zugang: { ...ZUGANG_OK.zugang, nurEntnahme: true },
+      zugang: { ...ZUGANG_OK.zugang, reichweite: ["entnahme"] as const },
     });
 
     const buchungenVorher = t.db.select().from(buchungen).all().length;
@@ -947,7 +949,7 @@ describe("DRK-406 — der Ortscode des Handlagers darf nicht checken", () => {
 
     expect(r.ok).toBe(false);
     expect((r as { grund: string }).grund).toBe("bereich");
-    expect((r as { text: string }).text).toBe(BEREICH_TEXT);
+    expect((r as { text: string }).text).toBe(bereichText(["entnahme"]));
     /*
      * ⚠️ DIE ZWEITE HÄLFTE IST DIE WICHTIGERE: keine `checks`-Zeile, keine
      * Buchung, keine Revalidierung. Eine Absage, die vorher schon geschrieben
@@ -971,7 +973,7 @@ describe("DRK-406 — der Ortscode des Handlagers darf nicht checken", () => {
   it("nennt einen eigenen Grund und nicht `gesperrt`", async () => {
     riegel.mockResolvedValue({
       ...ZUGANG_OK,
-      zugang: { ...ZUGANG_OK.zugang, nurEntnahme: true },
+      zugang: { ...ZUGANG_OK.zugang, reichweite: ["entnahme"] as const },
     });
 
     const r = await checkAbschluss(

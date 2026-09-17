@@ -154,13 +154,27 @@ vi.mock("../../_ui/Entnahme", () => ({
 vi.mock("../../_ui/HelferRahmen", () => ({
   HelferRahmen: (p: {
     aktiv: string;
+    reichweite: readonly string[];
     sitzungsetikett: string;
     laeuftAb: Date;
     children: ReactNode;
   }) => {
     gesehen.rahmen = { aktiv: p.aktiv, etikett: p.sitzungsetikett, laeuftAb: p.laeuftAb };
+    /*
+     * ⚠️ DIE REICHWEITE WIRD MITGESCHRIEBEN — DRK-417. Eine Attrappe, die das
+     * Pflicht-Prop verwirft, macht die Zusage „die Reiterleiste dieses Schirms
+     * kennt die Reichweite des Zugangs" fuer diese Datei unsichtbar: sie
+     * bliebe gruen, wenn die Seite `reichweite={VOLLE_REICHWEITE}` fest
+     * einsetzte. Dieselbe Ueberlegung wie beim `nav`-Mock in
+     * `g/[code]/page.test.tsx`.
+     */
     return (
-      <div data-rolle="rahmen" data-aktiv={p.aktiv} data-etikett={p.sitzungsetikett}>
+      <div
+        data-rolle="rahmen"
+        data-aktiv={p.aktiv}
+        data-etikett={p.sitzungsetikett}
+        data-reichweite={p.reichweite.join(",")}
+      >
         {p.children}
       </div>
     );
@@ -173,6 +187,7 @@ import { getDb } from "../../_db/client";
 import { gemerktesZiel } from "../../_lib/lesepfade/entnahmeZiel";
 import ArtikelDeepLink from "./page";
 import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
+import { VOLLE_REICHWEITE } from "../../_lib/helferBereich";
 
 const ZUGANG = {
   // DRK-305: `herkunft` unterscheidet Kaertchen und angemeldetes Konto. Diese
@@ -188,7 +203,7 @@ const ZUGANG = {
   // Ein Regaletikett haengt an keinem Fahrzeug (DRK-302). Diese Weiche liest die
   // Bindung nicht — sie steht hier, weil `HelferZugang` sie als Pflichtfeld
   // fuehrt, und `null` ist der Fall, der zu einem Artikel-Kaertchen passt.
-  fahrzeugBindung: null, nurEntnahme: false,
+  fahrzeugBindung: null, reichweite: VOLLE_REICHWEITE,
 };
 /**
  * DRK-305 — der Konto-Zugang, wie ihn `kontoZugangOderNull` liefert.
@@ -201,7 +216,7 @@ const KONTO = {
   name: "A. Verwaltung",
   laeuftAb: null,
   fahrzeugBindung: null,
-  nurEntnahme: false as const,
+  reichweite: VOLLE_REICHWEITE,
 };
 const DETAIL = {
   id: "art-9",
@@ -589,5 +604,102 @@ describe("Bauform", () => {
     for (const ausgang of [/RENDERN/, /verwaltung\/artikel/, /returnTo/]) {
       expect(roh).toMatch(ausgang);
     }
+  });
+});
+
+/**
+ * AUSGANG 4 — DAS REGALETIKETT MIT DEM FALSCHEN CODE IN DER HAND (DRK-417).
+ *
+ * ⚠️ DIE WEICHE HAT DAMIT VIER AUSGAENGE, NICHT DREI. Bis hierher bekam JEDER
+ * gueltige Zugang die volle Entnahmeflaeche — auch die Karte an einer Einheit,
+ * die aus dem Handlager gar nicht buchen soll. Der Kopf der Datei zaehlt die
+ * Ausgaenge auf; wer diesen wieder entfernt, oeffnet genau den Weg zurueck.
+ */
+describe("a/[artikelId] — Ausgang 4: der Code darf nicht entnehmen", () => {
+  const KARTE_EINHEIT = { ...ZUGANG, reichweite: ["box", "check"] as const,
+                          fahrzeugBindung: "rtw-1" };
+  const KARTE_BOX = { ...ZUGANG, reichweite: ["box"] as const };
+
+  /**
+   * ⚠️ EIN GESAGTER ZUSTAND, KEINE UMLEITUNG — anders als auf `/helfer/box` und
+   * `/helfer/check`. Der Unterschied ist der Einstieg: dort tippt jemand eine
+   * Adresse, hier hat jemand GESCANNT und haelt das Etikett in der Hand. Eine
+   * wortlose Umleitung sieht fuer ihn aus, als haette der Scan nicht
+   * funktioniert — und er scannt noch dreimal.
+   */
+  it("sagt es, statt wortlos umzuleiten", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_EINHEIT);
+    await mount(await ArtikelDeepLink(params("art-9")));
+
+    expect(umleitungen).toEqual([]);
+    expect(exists("[data-rolle='leer-titel']")).toBe(true);
+    expect(exists("[data-rolle='entnahme']")).toBe(false);
+  });
+
+  /**
+   * ⚠️ DER SATZ NENNT DIE KARTE, DIE HILFT (§11.7). Ohne sie steht die Person
+   * mit dem Etikett in der Hand da und weiss nur, dass es nicht geht.
+   */
+  it("nennt die Karte, die stattdessen hilft", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_EINHEIT);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(query("[data-rolle='leer-text']").textContent).toContain("Handlager");
+  });
+
+  /**
+   * ⚠️ DAS DETAIL WIRD GAR NICHT ERST GELESEN. Weiter unten laege der Bestand
+   * dieses Artikels samt Chargen im RSC-Payload — auf einem privaten Telefon,
+   * fuer einen Zugang, der ihn nicht bekommen soll (§3.4.5). Sichtbar waere das
+   * nur im Netzwerkteil, nie auf dem Schirm.
+   */
+  it("liest den Artikel gar nicht erst", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_BOX);
+    vi.mocked(artikelDetailHelfer).mockClear();
+
+    await mount(await ArtikelDeepLink(params("art-9")));
+
+    expect(artikelDetailHelfer).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ DIE REITERLEISTE ZEIGT DIE REICHWEITE DES ZUGANGS, nicht die der Seite.
+   * Ein fest eingesetztes `VOLLE_REICHWEITE` waere hier die naheliegende
+   * Abkuerzung — und boete der Person genau den Reiter an, der sie eben
+   * abgewiesen hat.
+   */
+  it("reicht die Reichweite des Zugangs an den Rahmen weiter", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_BOX);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(query("[data-rolle='rahmen']").getAttribute("data-reichweite")).toBe("box");
+  });
+
+  /** Und der Weg heraus fuehrt dorthin, wo dieser Code etwas zu tun hat. */
+  it("fuehrt auf den Schirm, den dieser Code oeffnen darf", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_EINHEIT);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(query("[data-rolle='leer-weg']").getAttribute("href"))
+      .toBe("/helfer/check?fz=rtw-1");
+
+    await unmount();
+    vi.mocked(helferZugangOderNull).mockResolvedValue(KARTE_BOX);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(query("[data-rolle='leer-weg']").getAttribute("href")).toBe("/helfer/box");
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, und sie ist nicht entbehrlich: ohne sie bliebe der Block
+   * gruen, wenn die Weiche JEDEN Zugang abwiese — die Regalkarte eingeschlossen,
+   * also genau die, fuer die diese Seite gebaut ist.
+   */
+  it("laesst die Regalkarte und das angemeldete Konto weiterhin durch", async () => {
+    vi.mocked(helferZugangOderNull).mockResolvedValue({ ...ZUGANG, reichweite: ["entnahme"] });
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(exists("[data-rolle='entnahme']")).toBe(true);
+
+    await unmount();
+    vi.mocked(helferZugangOderNull).mockResolvedValue(null);
+    vi.mocked(kontoZugangOderNull).mockResolvedValue(KONTO);
+    await mount(await ArtikelDeepLink(params("art-9")));
+    expect(exists("[data-rolle='entnahme']")).toBe(true);
   });
 });

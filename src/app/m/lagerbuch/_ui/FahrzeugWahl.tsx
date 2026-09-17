@@ -61,6 +61,26 @@ export function FahrzeugWahl({
         Art eine EINZELNE Zeile hat, sagt die Zeile selbst.
       */}
       <div className={s.schirmKopf}>Einheit wählen</div>
+      {/*
+        ⚠️ WARUM HIER ETWAS ZU WAEHLEN IST — DRK-417, und zwar nur auf dem
+        Ablegeweg. Seit die Entnahmebox eine eigene Karte hat, ist DIESER Schirm
+        das Erste, was jemand nach dem Scan an der Kiste sieht: „Einheit
+        wählen" allein beantwortet dort nicht, warum ueberhaupt gefragt wird,
+        wenn man doch vor der Box steht. Die Antwort ist die
+        Betreiberentscheidung vom 17.09.2026 — ohne Herkunft ist die Umbuchung
+        im Journal nicht nachvollziehbar.
+
+        ⚠️ AUF DEM CHECKWEG STEHT HIER NICHTS. Dort ist die Frage von selbst
+        beantwortet: man checkt eine Einheit, also waehlt man sie. Ein Satz, der
+        Selbstverstaendliches erklaert, wird beim zweiten Mal ueberlesen — und
+        beim dritten auch der daneben, der etwas sagt.
+      */}
+      {pfad === "/helfer/box" && (
+        <p className={s.fussnote} data-rolle="wahl-zweck">
+          Aus welcher Einheit nimmst du den Überschuss heraus? Das Lagerbuch
+          schreibt ihn dort ab und der Entnahmebox zu.
+        </p>
+      )}
       <div className={s.karte}>
         {/* Kollisionen brauchen die GANZE Liste, nicht die einzelne Zeile. */}
         {fahrzeuge.map((f) => (

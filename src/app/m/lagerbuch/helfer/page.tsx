@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { bereichsAbweisung, startPfad } from "../_lib/helferBereich";
 import { requireHelferSitzung } from "../_lib/helferZugang";
 import { sitzungsEtikett } from "../_lib/zugangHerkunft";
 import { artikelListe } from "../_lib/lesepfade/artikel";
@@ -36,6 +38,26 @@ export default async function HelferSeite() {
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
 
+  /*
+   * DIE KARTE AN DER EINHEIT UND DIE AN DER BOX KOMMEN HIER NICHT HEREIN —
+   * DRK-417, und das ist die Haelfte des Tickets, die man am leichtesten
+   * vergisst: bis hierher war die Entnahme der EINE Bereich ohne Riegel, weil
+   * jeder Zugang sie durfte.
+   *
+   * ⚠️ ER STEHT VOR `artikelListe`, nicht dahinter. Diese Seite legt den
+   * gesamten Handlagerbestand in den RSC-Payload; eine Umleitung DANACH haette
+   * ihn fuer einen Zugang geladen, der ihn nicht bekommen soll (§3.4.5) — und
+   * zwar sichtbar erst im Netzwerkteil, nie auf dem Schirm.
+   *
+   * ⚠️ UEBER `bereichsAbweisung` UND NICHT UEBER `zugang.reichweite` DIREKT:
+   * die Funktion schreibt den `access_denied`-Eintrag mit dem Akteur. Ein
+   * direkter Feldzugriff liesse die Umleitung STILL — und still ist sie genau
+   * in dem Fall falsch, fuer den es sie gibt.
+   */
+  if (bereichsAbweisung(zugang, "entnahme")) {
+    redirect(startPfad(zugang.reichweite, zugang.fahrzeugBindung));
+  }
+
   // NUR die fuenf Anzeigefelder. `artikelListe` traegt serverseitig mehr
   // (mindestbestand, unterMindest, chargeKritisch, naechsteCharge …), und alles
   // davon landete sonst im RSC-Payload — auf einem privaten Telefon, in einer
@@ -51,7 +73,7 @@ export default async function HelferSeite() {
   return (
     <HelferRahmen
       aktiv="entnahme"
-      nurEntnahme={zugang.nurEntnahme}
+      reichweite={zugang.reichweite}
       sitzungsetikett={sitzungsEtikett(zugang)}
       laeuftAb={zugang.laeuftAb}
     >

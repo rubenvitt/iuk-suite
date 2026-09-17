@@ -16,6 +16,7 @@ const beendenMock = vi.hoisted(() => vi.fn());
 vi.mock("../_actions/sitzung", () => ({ beenden: beendenMock }));
 
 import { HelferRahmen } from "./HelferRahmen";
+import { VOLLE_REICHWEITE, type Bereich } from "../_lib/helferBereich";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/HelferRahmen.tsx";
 const STYLESHEET = "src/app/m/lagerbuch/_ui/helfer.module.css";
@@ -96,7 +97,7 @@ afterEach(async () => {
 describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () => {
   it("`aktiv=\"entnahme\"` setzt `aria-current=\"page\"` GENAU EINMAL, am Entnahme-Tab", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
         <p>Inhalt</p>
       </HelferRahmen>,
     );
@@ -113,7 +114,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // markierte — laesst den vorigen Test GRUEN und faellt nur hier.
     // Per Mutation belegt (Bericht, Mutation A).
     await mount(
-      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
         <p>Inhalt</p>
       </HelferRahmen>,
     );
@@ -127,7 +128,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // Vereinheitlichung mit Falle 49 — sie wuerden auf dem aeusseren Host
     // DOPPELT praefixiert.
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
     // DRK-314: der dritte Reiter ist die Entnahmebox, und er steht in der MITTE
@@ -146,7 +147,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // moeglich: BEIDE Tabs tragen DIESELBE Klassenliste, der Unterschied liegt
     // allein im ARIA-Attribut. Per Mutation belegt (Bericht, Mutation C).
     await mount(
-      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const links = queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a");
     expect(links.length).toBe(3);   // DRK-314: Entnahme, Box, Check
@@ -173,7 +174,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
     // `q.toContain('data-testid="lb-tableiste"')`, was auch dann gruen bliebe,
     // wenn die Zeichenfolge in einem toten Zweig oder an einem `<div>` staende.
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const leiste = query("[data-testid='lb-tableiste']");
     expect(leiste.tagName).toBe("NAV");
@@ -185,7 +186,7 @@ describe("HelferRahmen — die Aktivmarkierung kommt als PROP (Falle 63)", () =>
 describe("HelferRahmen — der Kopf", () => {
   it("zeigt das Sitzungsetikett auf der dafuer vorgesehenen Flaeche", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Token 482-137 · RTW 1" laeuftAb={LAEUFT_AB}>
         <p />
       </HelferRahmen>,
     );
@@ -198,7 +199,7 @@ describe("HelferRahmen — der Kopf", () => {
 
   it("rendert die Restzeit-Insel mit der SERVER-Uhrzeit", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     // `uhrzeit()` aus `_lib/zeit.ts` rechnet in Europe/Berlin: 17:00 UTC → 19:00.
     // Eine im Rahmen selbst gebaute Zeit (`toISOString().slice(11,16)`) ergaebe
@@ -211,7 +212,7 @@ describe("HelferRahmen — der Kopf", () => {
     // Ein Link waere vorlade- und prefetch-faehig. Ein Prefetch, der die
     // Sitzung beendet, ist genau die Sorte Fehler, die niemand reproduziert.
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     expect(exists("header form button[type='submit']")).toBe(true);
     expect(query("header form button").textContent).toContain("Beenden");
@@ -230,7 +231,7 @@ describe("HelferRahmen — der Kopf", () => {
    */
   it("laeuftAb=null: KEINE Restzeit — eine Kontositzung laeuft nicht ab", async () => {
     await mount(
-      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="Angemeldet: A. Verwaltung" laeuftAb={null}>
+      <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="Angemeldet: A. Verwaltung" laeuftAb={null}>
         <p />
       </HelferRahmen>,
     );
@@ -250,7 +251,7 @@ describe("HelferRahmen — der Kopf", () => {
      * reinen Textpruefung unsichtbar.
      */
     await mount(
-      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
     );
     expect(exists("header form")).toBe(false);
     expect(beendenMock).not.toHaveBeenCalled();
@@ -263,7 +264,7 @@ describe("HelferRahmen — der Kopf", () => {
     // Entnahme und Fahrzeug-Check sind fuer das Konto genauso erreichbar wie
     // fuer das Kaertchen — „mehr Freiheiten, nicht weniger" (DRK-305).
     await mount(
-      <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="check" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={null}><p /></HelferRahmen>,
     );
     expect(queryAll("nav[data-testid='lb-tableiste'] a").map((a) => a.getAttribute("href")))
       .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
@@ -271,7 +272,7 @@ describe("HelferRahmen — der Kopf", () => {
 
   it("rendert die Kinder im `<main>`", async () => {
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
         <p data-rolle="kind">Inhalt</p>
       </HelferRahmen>,
     );
@@ -299,7 +300,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme" nurEntnahme={false}
+        aktiv="entnahme" reichweite={VOLLE_REICHWEITE}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 6 * 3600_000)}
       >
@@ -315,7 +316,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme" nurEntnahme={false}
+        aktiv="entnahme" reichweite={VOLLE_REICHWEITE}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 10 * 60_000)}
       >
@@ -366,7 +367,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme" nurEntnahme={false}
+        aktiv="entnahme" reichweite={VOLLE_REICHWEITE}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 30 * 60_000)}
       >
@@ -386,7 +387,7 @@ describe("HelferRahmen — die Warnschwelle rechnet der SERVER (§3.4.3 Punkt 1)
     let html = "";
     await hydrate(
       <HelferRahmen
-        aktiv="entnahme" nurEntnahme={false}
+        aktiv="entnahme" reichweite={VOLLE_REICHWEITE}
         sitzungsetikett="X"
         laeuftAb={new Date(Date.now() + 30 * 60_000 + 1_000)}
       >
@@ -408,7 +409,7 @@ describe("HelferRahmen — der Traeger und die Zeichen", () => {
     // Saesse eines der vier Teile ausserhalb, fiele jede `var(--lb-…)` darin
     // still auf `transparent` zurueck — gueltiges CSS, unsichtbarer Ausfall.
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
         <p data-rolle="kind">Inhalt</p>
       </HelferRahmen>,
     );
@@ -425,7 +426,7 @@ describe("HelferRahmen — der Traeger und die Zeichen", () => {
     // am Knopf braeuchte (die einzige festgeschriebene Ausnahme ist der
     // Taschenlampenschalter in `_ui/BarcodeScanner.tsx`, N-7).
     await mount(
-      <HelferRahmen aktiv="entnahme" nurEntnahme={false} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
+      <HelferRahmen aktiv="entnahme" reichweite={VOLLE_REICHWEITE} sitzungsetikett="X" laeuftAb={LAEUFT_AB}><p /></HelferRahmen>,
     );
     const zeichen = queryAll("svg");
     // Ohne diese Zeile fuehrte ein leeres Trefferarray null Zusicherungen aus.
@@ -451,21 +452,31 @@ describe("HelferRahmen — die drei Angaben sind PFLICHT-Props (§7.8.2, §3.4.3
     // anderen drei: liesse eines zusaetzlich `children` weg, bliebe die
     // Direktive auch dann verbraucht, wenn die gepruefte Angabe optional wuerde
     // — und der Test traege nichts. Per Mutation belegt (Bericht, Mutation E).
+    // ⚠️ SEIT DRK-417 TRAEGT JEDES DER OBJEKTE AUCH `reichweite`. Ohne diese
+    // Ergaenzung waere jede der drei Direktiven schon durch das FEHLENDE
+    // `reichweite` verbraucht — und der Test bliebe gruen, wenn `aktiv`,
+    // `sitzungsetikett` oder `laeuftAb` optional wuerde. Genau die Mutation,
+    // gegen die der Absatz darueber geschrieben ist, nur eine Angabe weiter.
     // @ts-expect-error `aktiv` ist ABSICHTLICH nicht optional (Falle 63).
     const ohneAktiv: ComponentProps<typeof HelferRahmen> = {
-      sitzungsetikett: "X", laeuftAb: LAEUFT_AB, children: null,
+      reichweite: VOLLE_REICHWEITE, sitzungsetikett: "X", laeuftAb: LAEUFT_AB, children: null,
     };
     // @ts-expect-error `sitzungsetikett` ist ABSICHTLICH nicht optional (§7.8.2).
     const ohneEtikett: ComponentProps<typeof HelferRahmen> = {
-      aktiv: "entnahme", laeuftAb: LAEUFT_AB, children: null,
+      aktiv: "entnahme", reichweite: VOLLE_REICHWEITE, laeuftAb: LAEUFT_AB, children: null,
     };
     // @ts-expect-error `laeuftAb` ist ABSICHTLICH nicht optional (§3.4.3 Punkt 1).
     const ohneAblauf: ComponentProps<typeof HelferRahmen> = {
-      aktiv: "entnahme", sitzungsetikett: "X", children: null,
+      aktiv: "entnahme", reichweite: VOLLE_REICHWEITE, sitzungsetikett: "X", children: null,
+    };
+    // @ts-expect-error `reichweite` ist ABSICHTLICH nicht optional (DRK-417).
+    const ohneReichweite: ComponentProps<typeof HelferRahmen> = {
+      aktiv: "entnahme", sitzungsetikett: "X", laeuftAb: LAEUFT_AB, children: null,
     };
     expect("aktiv" in ohneAktiv).toBe(false);
     expect("sitzungsetikett" in ohneEtikett).toBe(false);
     expect("laeuftAb" in ohneAblauf).toBe(false);
+    expect("reichweite" in ohneReichweite).toBe(false);
   });
 });
 
@@ -507,5 +518,50 @@ describe("HelferRahmen — Bauform", () => {
     const genutzt = genutzteKlassen(QUELLE);
     expect(genutzt.length, "keine einzige Klasse geprueft").toBeGreaterThanOrEqual(10);
     expect(genutzt.filter((k) => !deklariert.has(k))).toEqual([]);
+  });
+});
+
+/**
+ * DIE REITERLEISTE FOLGT DER REICHWEITE — DRK-417.
+ *
+ * ⚠️ JEDER REITER WIRD EINZELN GEPRUEFT, und das ist der Punkt: bis DRK-406
+ * verschwanden Box und Check GEMEINSAM, weil beide an derselben Bedingung
+ * hingen. Eine Zusicherung, die nur „Regal-Code sieht einen Reiter" und
+ * „Altbestand sieht drei" misst, bliebe fuer die beiden neuen Faelle gruen,
+ * egal was die Leiste tut — und genau die sind der Anlass des Tickets.
+ */
+describe("HelferRahmen — die Reiter haengen je an ihrem Bereich (DRK-417)", () => {
+  async function hrefsFuer(reichweite: readonly Bereich[]): Promise<string[]> {
+    await mount(
+      <HelferRahmen aktiv="entnahme" reichweite={reichweite} sitzungsetikett="X" laeuftAb={LAEUFT_AB}>
+        <p />
+      </HelferRahmen>,
+    );
+    return queryAll<HTMLAnchorElement>("[data-testid='lb-tableiste'] a")
+      .map((a) => a.getAttribute("href")!);
+  }
+
+  it("Regal-Code: nur die Entnahme", async () => {
+    expect(await hrefsFuer(["entnahme"])).toEqual(["/helfer"]);
+  });
+
+  /**
+   * ⚠️ BOX UND CHECK, UND DIE REIHENFOLGE BLEIBT DIE DER LEISTE. Sie
+   * rutschen nicht an den Anfang, nur weil die Entnahme fehlt — die Leiste
+   * teilt sich per `flex: 1` auf, und zwei Reiter, die je nach Karte an
+   * anderer Stelle stehen, sind auf einem Telefon in der Hand die Sorte
+   * Bedienung, bei der man sich vertippt.
+   */
+  it("Karte an der Einheit: Box und Check, keine Entnahme", async () => {
+    expect(await hrefsFuer(["box", "check"])).toEqual(["/helfer/box", "/helfer/check"]);
+  });
+
+  it("Karte an der Entnahmebox: nur die Box", async () => {
+    expect(await hrefsFuer(["box"])).toEqual(["/helfer/box"]);
+  });
+
+  it("voller Zugang: alle drei, in der Reihenfolge der Leiste", async () => {
+    expect(await hrefsFuer(VOLLE_REICHWEITE))
+      .toEqual(["/helfer", "/helfer/box", "/helfer/check"]);
   });
 });

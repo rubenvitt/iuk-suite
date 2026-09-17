@@ -7,7 +7,7 @@ import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
-import { nurEntnahmeAbweisung } from "../_lib/helferBereich";
+import { bereichsAbweisung } from "../_lib/helferBereich";
 import {
   kontoZugangOderNull, requireHelferSchreibend, type HelferZugang,
 } from "../_lib/helferZugang";
@@ -125,8 +125,14 @@ export async function bucheInEntnahmebox(
    * derselbe Grund wie in `checkAbschluss`: die Kiste gehoert zum Fahrzeug,
    * nicht zum Regal. Sie steht VOR der Validierung, weil eine Absage nach einem
    * Teilschritt eine Absage waere, die schon etwas getan hat.
+   *
+   * ⚠️ SEIT DRK-417 NENNT DIE ZEILE IHREN BEREICH. Vorher lautete die Frage
+   * „ist das der Regal-Code?" — und beantwortete damit ZWEI Flaechen mit einer
+   * Pruefung. Das ging so lange gut, wie Box und Check dieselbe Karte hatten;
+   * die Entnahmebox hat jetzt eine eigene, und die darf hier durch und beim
+   * Check nicht. Eine gemeinsame Bedingung koennte das nicht mehr trennen.
    */
-  const bereich = nurEntnahmeAbweisung(riegel.zugang);
+  const bereich = bereichsAbweisung(riegel.zugang, "box");
   if (bereich) return bereich;
   const geparst = BoxSchema.safeParse(eingabe);
   if (!geparst.success) {

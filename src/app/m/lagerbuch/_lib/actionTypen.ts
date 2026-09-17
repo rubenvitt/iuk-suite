@@ -1,3 +1,4 @@
+import type { Reichweite } from "./helferBereich";
 import type { SperrGrund } from "./helferZugang";
 
 /**
@@ -116,7 +117,7 @@ export const ANMELDUNG_TEXT =
   + "deine Eingaben bleiben stehen.";
 
 /**
- * DER SATZ FUER DEN REGAL-CODE — DRK-406.
+ * DER SATZ FUER DEN FALSCHEN CODE — DRK-406, je Reichweite seit DRK-417.
  *
  * ⚠️ ER SAGT, WAS GEHT, NICHT NUR WAS NICHT GEHT (§11.7: jeder abgelehnte Weg
  * nennt den Weg, der bleibt). Wer am Regal steht und den Check aufrufen wollte,
@@ -124,13 +125,38 @@ export const ANMELDUNG_TEXT =
  * Fahrzeugs — beides ist ein Handgriff, wenn es dasteht, und eine Viertelstunde
  * Suchen, wenn nicht.
  *
- * ⚠️ „AM FAHRZEUG" UND NICHT „AM REGAL": der Ortscode einer Einheit klebt auf
- * ihrer Karte, nicht im Lager. Ein Satz, der ins Lager schickt, schickt in die
- * falsche Richtung.
+ * ⚠️ ER NENNT DEN ORT DER RICHTIGEN KARTE, nicht ihren Namen: der Ortscode
+ * einer Einheit klebt auf ihrer Karte, nicht im Lager. Ein Satz, der ins Lager
+ * schickt, schickt in die falsche Richtung.
+ *
+ * ⚠️ EIN SATZ JE REICHWEITE UND KEINE BAUKASTENFORMEL. Drei Saetze aus
+ * Bausteinen zusammenzusetzen ergaebe grammatisch richtige Zeilen, die niemand
+ * so sagen wuerde („Fuer Entnahme und Box scanne die Karte am Regal oder an
+ * der Entnahmebox") — und der Satz ist das Einzige, was die Person in der Hand
+ * hat, wenn ihr Code nicht gilt.
+ *
+ * ⚠️ DER `default`-ZWEIG IST KEIN TOTER CODE. Die volle Reichweite erreicht
+ * diese Funktion nie (`bereichsAbweisung` steigt vorher mit `null` aus), eine
+ * kuenftige vierte Reichweite aber schon — und dann ist ein allgemeiner Satz
+ * besser als ein `undefined`, das als leerer Fehlerkasten auf dem Telefon
+ * landet.
  */
-export const BEREICH_TEXT =
-  "Mit dem Code vom Regal kannst du nur Material entnehmen. Für Box und Check "
-  + "scanne die Karte am Fahrzeug oder an der Tasche.";
+export function bereichText(reichweite: Reichweite): string {
+  if (!reichweite.includes("entnahme") && reichweite.includes("check")) {
+    return "Mit der Karte an der Einheit kannst du den Check machen und Material "
+      + "in die Entnahmebox legen. Zum Entnehmen scanne die Karte am Regal.";
+  }
+  if (reichweite.length === 1 && reichweite[0] === "entnahme") {
+    return "Mit dem Code vom Regal kannst du nur Material entnehmen. Für Box und Check "
+      + "scanne die Karte am Fahrzeug oder an der Tasche.";
+  }
+  if (reichweite.length === 1 && reichweite[0] === "box") {
+    return "Mit der Karte an der Entnahmebox kannst du nur Material ablegen. Für "
+      + "Entnahme oder Check scanne die Karte am Regal oder an der Einheit.";
+  }
+  return "Dieser Code gilt für diesen Bereich nicht. Scanne die Karte an dem Ort, "
+    + "an dem du gerade stehst.";
+}
 
 /**
  * `gebucht === 0` ist ausdruecklich ein FEHLER, kein Erfolg (§7.3). Heute gibt

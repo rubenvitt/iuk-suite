@@ -39,10 +39,10 @@ vi.mock("./konto", () => ({
   merkeNutzer: (_db: unknown, v: { sub: string }) => { gemerkteNutzer.push(v.sub); },
 }));
 
-import { BEREICH_TEXT } from "./actionTypen";
-import { nurEntnahmeAbweisung } from "./helferBereich";
+import { bereichText } from "./actionTypen";
+import { bereichsAbweisung, VOLLE_REICHWEITE } from "./helferBereich";
 import { createHelferSitzung } from "./helferSitzung";
-import { HANDLAGER_ID } from "./konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "./konstanten";
 import { helferZugangOderNull, requireHelferSitzung, requireHelferSchreibend } from "./helferZugang";
 
 let t: TestDb;
@@ -431,7 +431,7 @@ describe("DRK-305 — ein angemeldetes Konto traegt in den Helfer-Ast", () => {
       name: "A. Verwaltung",
       laeuftAb: null,
       fahrzeugBindung: null,
-      nurEntnahme: false,
+      reichweite: VOLLE_REICHWEITE,
     });
   });
 
@@ -549,14 +549,15 @@ describe("DRK-305 — ein angemeldetes Konto traegt in den Helfer-Ast", () => {
 });
 
 /**
- * DIE REICHWEITE DES REGAL-CODES — DRK-406.
+ * DIE REICHWEITE EINES ORTSCODES — DRK-406, vier Faelle statt zwei seit
+ * DRK-417.
  *
- * ⚠️ SIE WIRD HIER AM ECHTEN `befund()` GEMESSEN, nicht an `nurEntnahmeAus`
- * allein. Die Funktion für sich ist ein Zweizeiler; was schiefgehen kann, ist
+ * ⚠️ SIE WIRD HIER AM ECHTEN `befund()` GEMESSEN, nicht an `reichweiteAus`
+ * allein. Die Funktion für sich ist ein Vierzeiler; was schiefgehen kann, ist
  * die VERDRAHTUNG — dass die Zeile aus der Datenbank kommt, dass es die `ort_id`
  * ist und nicht die `ziel_id`, und dass der Altbestand nichts abbekommt.
  */
-describe("nurEntnahme — der Ortscode des Handlagers darf nur entnehmen", () => {
+describe("reichweite — der gescannte Ortscode entscheidet, was geht", () => {
   /** Eine Ortscode-Zeile — wie `stelleOrtCodesSicher` sie anlegt. */
   function ortscodeAnlegen(args: {
     id: string; code: string; ortId: string | null;
@@ -570,15 +571,24 @@ describe("nurEntnahme — der Ortscode des Handlagers darf nur entnehmen", () =>
     }).run();
   }
 
-  it("setzt nurEntnahme für den Ortscode des Handlagers", async () => {
+  it("gibt dem Ortscode des Handlagers NUR die Entnahme", async () => {
     ortscodeAnlegen({ id: "tok-regal", code: "111-111", ortId: HANDLAGER_ID });
     cookieWert = await createHelferSitzung({ tokenId: "tok-regal" });
 
     const z = await requireHelferSitzung(t.db);
-    expect(z.nurEntnahme).toBe(true);
+    expect(z.reichweite).toEqual(["entnahme"]);
   });
 
-  it("lässt den Ortscode einer Einheit unberührt", async () => {
+  /**
+   * DRK-417, ERSTE HAELFTE: die Karte an der Einheit verliert die Entnahme.
+   *
+   * ⚠️ SIE BEHAELT DIE BOX, und das ist die Betreiberentscheidung vom
+   * 17.09.2026, nicht eine Ungenauigkeit: der Ueberschuss faellt AM FAHRZEUG
+   * auf. Wer diese Zusicherung auf `["check"]` verschaerft, nimmt der Person am
+   * Fahrzeug den einzigen Weg, ihn im selben Handgriff zu buchen — und die
+   * naechste Runde legt ihn wieder unbeschrieben in die Kiste.
+   */
+  it("gibt dem Ortscode einer Einheit Check UND Box, aber nicht die Entnahme", async () => {
     t.db.insert(lagerorte).values({
       id: "rtw-1", name: "RTW 1", typ: "fahrzeug",
       kennung: null, aktiv: true, einheitenart: "fahrzeug",
@@ -590,8 +600,24 @@ describe("nurEntnahme — der Ortscode des Handlagers darf nur entnehmen", () =>
     cookieWert = await createHelferSitzung({ tokenId: "tok-rtw" });
 
     const z = await requireHelferSitzung(t.db);
-    expect(z.nurEntnahme).toBe(false);
+    expect(z.reichweite).toEqual(["box", "check"]);
     expect(z.fahrzeugBindung).toBe("rtw-1");
+  });
+
+  /**
+   * DRK-417, ZWEITE HAELFTE: die Karte an der Kiste legt nur ab.
+   *
+   * ⚠️ SIE IST EIN `typ: "lager"` WIE DER HANDLAGER, und genau daran haengt
+   * die Zusicherung: wer die Reichweite ueber den TYP ableitet statt ueber die
+   * Id, gibt der Box die Entnahme des Regals — und damit einer Karte an der
+   * Kiste den gesamten Handlagerbestand.
+   */
+  it("gibt dem Ortscode der Entnahmebox NUR die Box", async () => {
+    ortscodeAnlegen({ id: "tok-box", code: "666-666", ortId: ENTNAHMEBOX_ID });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-box" });
+
+    const z = await requireHelferSitzung(t.db);
+    expect(z.reichweite).toEqual(["box"]);
   });
 
   /**
@@ -608,18 +634,37 @@ describe("nurEntnahme — der Ortscode des Handlagers darf nur entnehmen", () =>
     cookieWert = await createHelferSitzung({ tokenId: "tok-alt" });
 
     const z = await requireHelferSitzung(t.db);
-    expect(z.nurEntnahme).toBe(false);
+    expect(z.reichweite).toEqual(VOLLE_REICHWEITE);
   });
 
-  it("weist Check und Box ab, sobald nurEntnahme gilt — und sonst nie", async () => {
+  /**
+   * DER RIEGEL, AM ECHTEN ZUGANG GEMESSEN — und zwar in beide Richtungen je
+   * Bereich. Eine Zusicherung, die nur „Regal-Code wird abgewiesen" prueft,
+   * bliebe gruen, wenn `bereichsAbweisung` seinen Bereich ignorierte und immer
+   * abwiese.
+   */
+  it("weist genau die fremden Bereiche ab — und die eigenen nie", async () => {
     ortscodeAnlegen({ id: "tok-regal2", code: "444-444", ortId: HANDLAGER_ID });
     cookieWert = await createHelferSitzung({ tokenId: "tok-regal2" });
     const regal = await requireHelferSitzung(t.db);
-    expect(nurEntnahmeAbweisung(regal))
-      .toEqual({ ok: false, grund: "bereich", text: BEREICH_TEXT });
+    expect(bereichsAbweisung(regal, "entnahme")).toBeNull();
+    expect(bereichsAbweisung(regal, "box")).toEqual({
+      ok: false, grund: "bereich", text: bereichText(regal.reichweite),
+    });
+    expect(bereichsAbweisung(regal, "check")).not.toBeNull();
+
+    ortscodeAnlegen({ id: "tok-box2", code: "777-777", ortId: ENTNAHMEBOX_ID });
+    cookieWert = await createHelferSitzung({ tokenId: "tok-box2" });
+    const box = await requireHelferSitzung(t.db);
+    expect(bereichsAbweisung(box, "box")).toBeNull();
+    expect(bereichsAbweisung(box, "entnahme")).not.toBeNull();
+    expect(bereichsAbweisung(box, "check")).not.toBeNull();
 
     ortscodeAnlegen({ id: "tok-frei", code: "555-555", ortId: null });
     cookieWert = await createHelferSitzung({ tokenId: "tok-frei" });
-    expect(nurEntnahmeAbweisung(await requireHelferSitzung(t.db))).toBeNull();
+    const frei = await requireHelferSitzung(t.db);
+    for (const b of ["entnahme", "box", "check"] as const) {
+      expect(bereichsAbweisung(frei, b)).toBeNull();
+    }
   });
 });

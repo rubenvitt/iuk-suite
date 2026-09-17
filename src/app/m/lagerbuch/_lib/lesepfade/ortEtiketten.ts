@@ -10,14 +10,25 @@
  * gedruckt wird und dessen Ziel die Weiche nicht kennt — oder umgekehrt eine
  * Adresse, die antwortet, obwohl kein Etikett zu ihr gehoert.
  *
- * DIE MENGE: die feste Handlager-Zeile und jede AKTIVE Einheit
+ * DIE MENGE: die feste Handlager-Zeile, die Entnahmebox und jede AKTIVE Einheit
  * (`typ = "fahrzeug"`, also Fahrzeuge UND Taschen). Ausdruecklich NICHT die
  * Schraenke und NICHT ein zweites Lager; die Begruendung steht in
  * `_lib/ortZiel.ts` und am Etikettenbogen.
+ *
+ * ⚠️ DIE ENTNAHMEBOX KAM MIT DRK-417 DAZU, und sie ist der Grund, warum die
+ * Ausnahme fuer ein „zweites Lager" bestehen bleibt und trotzdem nicht gilt:
+ * die Begruendung dort lautet, ein Etikett brauche ein ZIEL, das von ihm
+ * handelt. Fuer die Box gibt es seit DRK-314 eines — `/helfer/box` —, fuer
+ * einen beliebigen weiteren Lagerort weiterhin nicht.
+ *
+ * ⚠️ UND DIESE MENGE IST ZUGLEICH DIE MENGE DER REICHWEITEN. `reichweiteAus`
+ * (`_lib/helferBereich.ts`) liest „alles, was weder Handlager noch Entnahmebox
+ * ist, ist eine Einheit" — das stimmt genau so lange, wie hier nichts anderes
+ * hineinkommt. `helferBereich.test.ts` haelt beide Seiten zusammen.
  */
 import { and, eq, or } from "drizzle-orm";
 import { lagerorte } from "../../_db/schema";
-import { HANDLAGER_ID, type Einheitenart } from "../konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID, type Einheitenart } from "../konstanten";
 import type { Leser } from "./bestand";
 
 /**
@@ -36,16 +47,20 @@ export type EtikettOrtZeile = {
 };
 
 /**
- * ⚠️ DER HANDLAGER STEHT VORN, nicht alphabetisch irgendwo: er ist der Ort, an
- * dem gedruckt und geklebt wird, und ein Bogen, dessen erste Karte man suchen
- * muss, wird zweimal durchgeblaettert. Die Einheiten danach nach Namen, mit
- * `de` — `localeCompare` ohne Sprache sortiert „Ü" hinter „Z".
+ * ⚠️ DIE BEIDEN FESTEN ORTE STEHEN VORN, nicht alphabetisch irgendwo: dort wird
+ * gedruckt und geklebt, und ein Bogen, dessen erste Karte man suchen muss, wird
+ * zweimal durchgeblaettert. Die Einheiten danach nach Namen, mit `de` —
+ * `localeCompare` ohne Sprache sortiert „Ü" hinter „Z".
  */
 export function etikettOrte(db: Leser): EtikettOrtZeile[] {
   return db.select().from(lagerorte)
     .where(and(
       eq(lagerorte.aktiv, true),
-      or(eq(lagerorte.id, HANDLAGER_ID), eq(lagerorte.typ, "fahrzeug")),
+      or(
+        eq(lagerorte.id, HANDLAGER_ID),
+        eq(lagerorte.id, ENTNAHMEBOX_ID),
+        eq(lagerorte.typ, "fahrzeug"),
+      ),
     ))
     .all()
     .map((o) => ({
@@ -53,9 +68,21 @@ export function etikettOrte(db: Leser): EtikettOrtZeile[] {
       kennung: o.kennung, einheitenart: o.einheitenart,
     }))
     .sort((a, b) => {
-      if (a.id === HANDLAGER_ID) return -1;
-      if (b.id === HANDLAGER_ID) return 1;
-      return a.name.localeCompare(b.name, "de");
+      /*
+       * ⚠️ HANDLAGER, DANN ENTNAHMEBOX, DANN DIE EINHEITEN — und die zweite
+       * Stelle ist dieselbe Ueberlegung wie die erste: die beiden festen Orte
+       * stehen im Haus, die Einheiten fahren weg. Wer den Bogen in die Hand
+       * nimmt, um eine Karte nachzukleben, sucht fast immer eine der beiden.
+       *
+       * ⚠️ DER VERGLEICH IST EIN RANG UND KEINE KETTE AUS `if`s. Mit zwei
+       * Sonderfaellen wird die alte Form („a vorne, sonst b vorne") unvollstaendig:
+       * sie beantwortet Handlager-gegen-Box richtig und Box-gegen-Handlager
+       * nicht mehr, und `Array.prototype.sort` ist mit einem inkonsistenten
+       * Vergleicher nicht bloss ungenau, sondern beliebig.
+       */
+      const rang = (id: string) => (id === HANDLAGER_ID ? 0 : id === ENTNAHMEBOX_ID ? 1 : 2);
+      const d = rang(a.id) - rang(b.id);
+      return d !== 0 ? d : a.name.localeCompare(b.name, "de");
     });
 }
 

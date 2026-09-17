@@ -27,7 +27,9 @@
  * das Etikett zeigte auf einen fremden Bestand. Ein Etikett, das luegt, ist
  * schlimmer als keins.
  */
-import { tokenZielPfad } from "./tokenZiel";
+import { reichweiteAus, startPfad } from "./helferBereich";
+import { ENTNAHMEBOX_ID } from "./konstanten";
+import { fahrzeugBindungAus, tokenZielPfad } from "./tokenZiel";
 
 /** Genau das, was die Zielwahl braucht — mehr liest diese Funktion nicht. */
 export type EtikettOrt = { id: string; typ: "lager" | "fahrzeug" };
@@ -79,6 +81,20 @@ export function ortZielPfad(
   ort: EtikettOrt | null,
   fahrzeugBindung: string | null,
 ): string {
+  /*
+   * ⚠️ DIE ENTNAHMEBOX IST EIN `typ: "lager"` UND TROTZDEM KEIN HANDLAGER —
+   * DRK-417. Ohne diese Zeile faellt sie in den Zweig darunter und landet auf
+   * der Artikelliste: eine Karte, die an der Kiste klebt und den Bestand des
+   * REGALS zeigt. Das ist genau das Etikett, das luegt, gegen das der Absatz
+   * ueber den fehlenden Lager-Zweig im Kopf dieser Datei geschrieben ist —
+   * hier gibt es das Ziel, das dort fehlte.
+   *
+   * ⚠️ DIE BINDUNG GILT HIER NICHT, aus demselben Grund wie beim Handlager
+   * eine Zeile weiter: `/helfer/box` fragt die Einheit selbst ab und gibt der
+   * Bindung dort den Vorrang (DRK-302). Sie hier vorwegzunehmen hiesse, die
+   * Entscheidung zweimal zu treffen.
+   */
+  if (ort?.id === ENTNAHMEBOX_ID) return "/helfer/box";
   if (!ort || ort.typ !== "fahrzeug") return tokenZielPfad(null, null);
   /*
    * ⚠️ `!fahrzeugBindung` UND NICHT `=== null` — dieselbe Falsy-Probe, die die
@@ -167,3 +183,40 @@ export function ortZielPfad(
  * NICHT auf die Handlager-Karte". Wer sie wieder anwendet, baut die
  * Entscheidung wieder ein, die dieses Ticket abgeloest hat.
  */
+
+/**
+ * WOHIN EIN EINGELOESTER ORTSCODE FUEHRT — DRK-417.
+ *
+ * Der Zwilling von `ortZielPfad` fuer den anderen Einstieg: `/o/<id>` ist das
+ * gescannte ORTSETIKETT, `/t/<code>` der gescannte ORTSCODE. Seit DRK-406
+ * tragen die Karten den Code, dieser Weg ist also der haeufigere.
+ *
+ * ⚠️ ER RECHNET UEBER DIE REICHWEITE UND NICHT UEBER DIE ZIELART, und das ist
+ * die ganze Aenderung. `tokenZielPfad` kennt nur `artikel`, `fahrzeug` und
+ * „sonst" — und „sonst" ist die Artikelliste. Der Code der Entnahmebox traegt
+ * `zielTyp: null` (`_lib/schreibpfade/ortCodes.ts`, `zielFuer`), landete damit
+ * auf dem Regalbestand und zeigte einer Person vor der Kiste die falsche Haelfte
+ * des Hauses.
+ *
+ * ⚠️ FUER JEDEN ANDEREN CODE AENDERT SICH NICHTS, und das ist nachpruefbar
+ * statt behauptet: der Handlager-Code hat die Reichweite `["entnahme"]` und
+ * `startPfad` gibt dafuer `/helfer` — dasselbe, was `tokenZielPfad(null, null)`
+ * lieferte. Der Code einer Einheit traegt `zielTyp: "fahrzeug"` mit seiner
+ * eigenen Id, `fahrzeugBindungAus` holt sie heraus, und `startPfad` baut
+ * dieselbe Adresse. `ortZiel.test.ts` haelt beide Gleichungen fest.
+ *
+ * ⚠️ DER ALTBESTAND GEHT WEITER UEBER `tokenZielPfad`, und zwar VOR jeder
+ * Reichweitenrechnung. Ein Kaertchen ohne `ort_id` kann auf einen ARTIKEL
+ * zeigen (`zielTyp: "artikel"`), und diese Landung hat in keiner Reichweite
+ * eine Entsprechung — `startPfad` schickte es auf die Artikelliste, also einen
+ * Klick vor sein Ziel. Die Betreiberentscheidung vom 17.09.2026 lautet
+ * „Altbestand bleibt gueltig", und dazu gehoert seine Landung.
+ */
+export function ortcodeZielPfad(
+  ortId: string | null | undefined,
+  zielTyp: string | null | undefined,
+  zielId: string | null | undefined,
+): string {
+  if (!ortId) return tokenZielPfad(zielTyp, zielId);
+  return startPfad(reichweiteAus(ortId), fahrzeugBindungAus(zielTyp, zielId));
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import type { HelferZugang } from "./helferZugang";
+import { VOLLE_REICHWEITE } from "./helferBereich";
 import {
   journalQuelle,
   sitzungsEtikett,
@@ -25,7 +26,7 @@ const TOKEN: HelferZugang = {
   code: "482-137",
   label: "RTW 1 Kärtchen",
   laeuftAb: new Date("2026-09-15T18:00:00.000Z"),
-  fahrzeugBindung: "fz-rtw1", nurEntnahme: false,
+  fahrzeugBindung: "fz-rtw1", reichweite: VOLLE_REICHWEITE,
 };
 
 const KONTO: HelferZugang = {
@@ -33,7 +34,7 @@ const KONTO: HelferZugang = {
   sub: "pocket-id-sub-42",
   name: "A. Verwaltung",
   laeuftAb: null,
-  fahrzeugBindung: null, nurEntnahme: false,
+  fahrzeugBindung: null, reichweite: VOLLE_REICHWEITE,
 };
 
 describe("zugangsKennung — die Bindung, nicht die Anzeige", () => {

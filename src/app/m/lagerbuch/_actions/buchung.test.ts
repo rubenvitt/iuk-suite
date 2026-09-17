@@ -5,6 +5,7 @@ import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern, leerText } from "../_lib/actionTypen";
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
+import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
 
 /**
  * DIE DREI BUCHUNGSWEGE — Teil 5, T114 (vorgezogen vor Welle 7 von Teil 4).
@@ -107,6 +108,7 @@ const ZUGANG_OK = {
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
     fahrzeugBindung: null,
+    reichweite: VOLLE_REICHWEITE,
   },
 };
 
@@ -583,6 +585,107 @@ describe("bucheEntnahmeHelfer", () => {
     expect(revalidiert).toEqual(ZUGANG_PFADE());
   });
 
+  /**
+   * DIE CHARGENWAHL — DRK-418.
+   *
+   * ⚠️ DIE ZWEITE CHARGE VERFAELLT FRUEHER ALS `ch-1`. Ohne diesen Unterschied
+   * traefe FEFO ohnehin dieselbe Zeile, und jede Zusicherung hier waere von der
+   * Vorgabe erfuellt — sie pruefte, dass die Wahl WIRKT, und bliebe gruen, wenn
+   * sie ignoriert wuerde.
+   */
+  function zweiteCharge(): void {
+    t.db.insert(chargen).values([
+      { id: "ch-frueh", artikelId: "art-1", chargenNr: "L0", verfall: "2026-01",
+        createdAt: JETZT },
+    ]).run();
+    t.db.insert(buchungen).values([
+      { id: "b-seed-frueh", ts: JETZT, typ: "zugang", artikelId: "art-1",
+        chargeId: "ch-frueh", lagerortId: HANDLAGER_ID, menge: 6,
+        quelleTyp: "system", quelleId: "seed", referenz: null, kommentar: null },
+    ]).run();
+  }
+
+  it("ohne Angabe bucht weiterhin FEFO — die zuerst verfallende Charge", async () => {
+    zweiteCharge();
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({ chargeId: "ch-frueh", menge: -2 });
+  });
+
+  it("mit Angabe bucht GENAU diese Charge, auch wenn eine andere frueher verfaellt", async () => {
+    zweiteCharge();
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH, chargeId: "ch-1" }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0]).toMatchObject({ chargeId: "ch-1", menge: -2 });
+  });
+
+  /**
+   * ⚠️ DIE WAHL GILT AUCH AUF DEM UMLAGERUNGSWEG, und das ist der Zweig, den
+   * man vergisst. Beim Ziel-Fahrzeug wandert die Charge ausdruecklich MIT, damit
+   * das Fahrzeug die Verfall-Herkunft behaelt — eine Wahl, die nur im
+   * Verbrauchszweig wirkte, schriebe dem Fahrzeug still die falsche Charge zu,
+   * und der naechste Check rechnete mit einem falschen Verfall.
+   */
+  it("mit ZIEL-FAHRZEUG wandert die GEWAEHLTE Charge mit", async () => {
+    zweiteCharge();
+    zielCookie = "tk1|fz:fz-1";
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: { art: "fahrzeug", lagerortId: "fz-1" },
+        chargeId: "ch-1" }, t.db);
+
+    expect(erg.ok).toBe(true);
+    const um = geschrieben().filter((b) => b.typ === "umlagerung");
+    expect(um).toHaveLength(2);
+    expect(um.every((b) => b.chargeId === "ch-1")).toBe(true);
+    expect(um.reduce((sum, b) => sum + b.menge, 0)).toBe(0);
+  });
+
+  /**
+   * ⚠️ EINE FREMDE CHARGE BUCHT NICHTS UND MELDET ES — kein 200, das luegt.
+   *
+   * Die Zugehoerigkeit zum Artikel wird nicht im Schema geprueft, sondern im
+   * Schreibpfad: `fefoAbbuchungImBereich` sucht mit `and(artikelId, id)`. Eine
+   * fremde Id findet damit nichts, `gebucht` bleibt 0 — und der `leer`-Zweig
+   * traegt den Artikelnamen. Wer hier eine zweite Pruefung einzoege, haette
+   * zwei Wahrheiten ueber dieselbe Frage.
+   */
+  it("eine Charge, die dem Artikel nicht gehoert, bucht nichts", async () => {
+    t.db.insert(chargen).values([
+      { id: "ch-fremd", artikelId: "art-2", chargenNr: "X", verfall: "2027-03",
+        createdAt: JETZT },
+    ]).run();
+
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH, chargeId: "ch-fremd" }, t.db);
+
+    expect(erg.ok).toBe(false);
+    expect(helferFehler(erg).grund).toBe("leer");
+    expect(geschrieben()).toEqual([]);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ `null` IST „KEINE WAHL", NICHT „KEINE CHARGE". Die Insel schickt den
+   * Schluessel zwar nur, wenn gewaehlt wurde — aber das Schema ist `nullish`,
+   * und eine aeltere offene Seite oder ein anderer Aufrufer kann `null`
+   * liefern. Verhielte sich das anders als das Fehlen, waere die Vorgabe von
+   * der Nutzlastform abhaengig.
+   */
+  it("behandelt `chargeId: null` wie „nicht angegeben“", async () => {
+    zweiteCharge();
+    const erg = await bucheEntnahmeHelfer(
+      { artikelId: "art-1", menge: 2, ziel: VERBRAUCH, chargeId: null }, t.db);
+
+    expect(erg.ok).toBe(true);
+    expect(geschrieben()[0]).toMatchObject({ chargeId: "ch-frueh" });
+  });
+
   it("ein GESPERRTER Code bucht NICHT und meldet den Grund", async () => {
     riegel.mockResolvedValue({ ok: false, grund: "gesperrt" });
 
@@ -880,6 +983,7 @@ describe("DRK-305 — der angemeldete Weg bucht als PERSON", () => {
       name: "A. Verwaltung",
       laeuftAb: null,
       fahrzeugBindung: null,
+      reichweite: VOLLE_REICHWEITE,
     },
   };
 

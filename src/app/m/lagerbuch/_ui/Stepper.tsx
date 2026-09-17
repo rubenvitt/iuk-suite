@@ -63,6 +63,41 @@ export function Stepper({
    * (1:1 aus dem Alt-Bestand, `lagerbuch/src/components/Stepper.tsx:24-28`).
    */
   const [draft, setDraft] = useState<string | null>(null);
+
+  /*
+   * ⚠️ EINE AENDERUNG VON AUSSEN VERWIRFT DEN ENTWURF — DRK-418, gemessen und
+   * nicht vermutet.
+   *
+   * Bis hierher konnte der Parent den `wert` nicht verstellen, waehrend jemand
+   * tippt: `draft` wurde ausschliesslich in `tippen()` gesetzt und in
+   * `abschliessen()` (onBlur) geraeumt. Mit der Chargenwahl gibt es diesen Fall
+   * — wer 42 tippt und dann eine Charge mit 5 waehlt, bekommt `setMenge(5)` von
+   * draussen. Gemessen stand danach „42" im Feld, waehrend 5 gebucht worden
+   * waere: die dritte Wahrheit neben Anzeige und Deckel.
+   *
+   * ⚠️ IM ECHTEN BROWSER DECKT DAS DER BLUR AB — ein Tipp auf den Radioknopf
+   * nimmt dem Feld den Fokus, `abschliessen()` laeuft, der Entwurf faellt. Das
+   * ist genau der Grund, warum es KEIN Tor gesehen haette: jsdom bewegt den
+   * Fokus bei einem synthetischen Klick nicht, und ein echter Abruf sah es
+   * nicht, weil dort der Blur half. Eine Zusage, die an der Fokusreihenfolge
+   * haengt, ist keine — der naechste Aufrufer, der den Wert per Effekt oder
+   * aus einer Antwort setzt, hat keinen Blur.
+   *
+   * ⚠️ FUER DAS TIPPEN SELBST AENDERT SICH NICHTS: `tippen()` setzt `draft` und
+   * `wert` im selben Durchgang auf DENSELBEN geklemmten Wert, das Raeumen zeigt
+   * also dieselbe Zeichenkette. Nur die leere Eingabe („loeschen und neu
+   * tippen") laesst `wert` unberuehrt und bleibt damit stehen — genau wie
+   * bisher.
+   *
+   * Die Form ist Reacts eigenes Muster fuer „Zustand aus Props nachfuehren":
+   * ein Vergleich im Render statt eines Effekts, der erst nach dem Malen liefe.
+   */
+  const [gesehen, setGesehen] = useState(wert);
+  if (wert !== gesehen) {
+    setGesehen(wert);
+    setDraft(null);
+  }
+
   const anzeige = draft ?? String(wert);
 
   function tippen(roh: string) {

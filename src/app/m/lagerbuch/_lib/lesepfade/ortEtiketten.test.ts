@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { lagerorte } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../konstanten";
 import { etikettOrte, etikettOrt } from "./ortEtiketten";
 
 /**
@@ -41,9 +41,23 @@ beforeEach(() => {
 afterEach(() => t.schliessen());
 
 describe("etikettOrte", () => {
-  it("nimmt den Handlager und jede aktive Einheit — in dieser Reihenfolge", () => {
+  it("nimmt Handlager, Entnahmebox und jede aktive Einheit — in dieser Reihenfolge", () => {
     expect(etikettOrte(t.db).map((o) => o.id))
-      .toEqual([HANDLAGER_ID, "tasche-san", "rucksack", "zzz-mtw"]);
+      .toEqual([HANDLAGER_ID, ENTNAHMEBOX_ID, "tasche-san", "rucksack", "zzz-mtw"]);
+  });
+
+  /**
+   * DRK-417 — DIE BOX IST DIE EINE AUSNAHME VON „KEIN ZWEITES LAGER".
+   *
+   * ⚠️ DIESE ZUSICHERUNG STEHT NEBEN DER NAECHSTEN, und zwar absichtlich: die
+   * beiden sind die zwei Haelften derselben Regel. Ein Ort kommt auf den Bogen,
+   * wenn es im Helfer-Ast ein ZIEL gibt, das von ihm handelt. Fuer die Box gibt
+   * es eines (`/helfer/box`), fuer „Lager Keller" nicht. Wer die Box ueber den
+   * TYP hereinliesse statt ueber ihre Id, holte den Keller mit — und dessen
+   * Karte zeigte auf den Bestand des Handlagers.
+   */
+  it("nimmt die Entnahmebox, obwohl sie ein Lager ist", () => {
+    expect(etikettOrte(t.db).map((o) => o.id)).toContain(ENTNAHMEBOX_ID);
   });
 
   /**
