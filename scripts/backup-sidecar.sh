@@ -714,8 +714,24 @@ lokal_rotieren() {
       if [ -n "${1:-}" ] && [ "$alt" = "${1##*/}" ]; then
         continue
       fi
-      protokoll "  lokal geloescht: $alt"
-      rm -f "$BACKUP_DIR/$alt"
+      # ⚠️ ERST LOESCHEN, DANN MELDEN — UND DAS ERGEBNIS LESEN. `rm -f` verschweigt nur
+      # die fehlende Datei; scheitert das Entfernen selbst (I/O-Fehler, `chattr +i`,
+      # ein nur lesend eingehaengtes Volume), gibt es 1 zurueck. Das stand hier ungelesen
+      # da, und die Meldung stand VOR der Tat: GEMESSEN mit einem `rm`, das an genau
+      # einer Generation scheitert — „lokal geloescht: 20260101T030000.tar.gz", Datei
+      # noch da, `lokal_rotieren` gibt 0, und der Lauf meldet sich als Erfolg samt Ping.
+      # Die Aufbewahrung ist damit still ausser Kraft, und `$BACKUP_DIR` waechst, bis
+      # der Lauf scheitert, der zaehlt.
+      #
+      # Kein `return 1`: dieselbe Abwaegung wie bei der Rotation am Ziel — das Tarball
+      # liegt, dieser Lauf hat geleistet, wozu er da ist. Ein Fehlschlag hiesse „keine
+      # Sicherung", und das waere die falschere Auskunft. Dass ein volles Volume laut
+      # wird, deckt der Healthcheck mit seiner Schreibprobe.
+      if rm -f "$BACKUP_DIR/$alt"; then
+        protokoll "  lokal geloescht: $alt"
+      else
+        warne "  $alt liess sich nicht loeschen — $BACKUP_DIR waechst."
+      fi
     done
   rm -f "$unsere"
 }

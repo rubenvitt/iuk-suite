@@ -1865,6 +1865,97 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     }
   });
 
+  it("eine Loeschung, die scheitert, wird nicht als Erfolg gemeldet", () => {
+    // ⚠️ `rm -f` VERSCHWEIGT NUR DIE FEHLENDE DATEI. Scheitert das Entfernen selbst
+    // (I/O-Fehler, `chattr +i`, ein nur lesend eingehaengtes Volume), gibt es 1 zurueck
+    // — und das stand hier ungelesen da, die Meldung sogar VOR der Tat. GEMESSEN mit
+    // einem `rm`, das an genau einer Generation scheitert:
+    //
+    //   vorher   „lokal geloescht: 20260101T030000.tar.gz", Datei noch da, Rueckgabe 0
+    //   nachher  „… liess sich nicht loeschen — $BACKUP_DIR waechst.", Datei noch da
+    //
+    // Der Unterschied ist nicht die Datei, sondern die Auskunft: vorher meldete der Lauf
+    // sich als Erfolg samt Ping, waehrend die Aufbewahrung still ausser Kraft war und
+    // `$BACKUP_DIR` wuchs, bis der Lauf scheitert, der zaehlt.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-rmfehler-"));
+    const rotiere = (mitFehler: boolean) => {
+      const dir = path.join(kladde, "backup");
+      const sperre = path.join(kladde, "sperre");
+      const stubs = path.join(kladde, "stubs");
+      for (const d of [dir, sperre, stubs]) {
+        rmSync(d, { recursive: true, force: true });
+        mkdirSync(d, { recursive: true });
+      }
+      if (mitFehler) {
+        // Scheitert NUR an der Generation, die weg soll — `rm -f "$unsere"` (die
+        // Kladdendatei der Funktion) muss weiter durchgehen, sonst misst der Fall etwas
+        // anderes als er sagt.
+        writeFileSync(
+          path.join(stubs, "rm"),
+          [
+            "#!/bin/sh",
+            'for a in "$@"; do',
+            "  case \"$a\" in",
+            "    */20260101T030000.tar.gz) echo \"rm: Operation not permitted\" >&2; exit 1 ;;",
+            "  esac",
+            "done",
+            'exec /bin/rm "$@"',
+          ].join("\n"),
+        );
+        chmodSync(path.join(stubs, "rm"), 0o755);
+      }
+      writeFileSync(path.join(dir, "20260101T030000.tar.gz"), "");
+      writeFileSync(path.join(dir, "20260101T033000.tar.gz"), "");
+      mkdirSync(path.join(sperre, "eigner.aaaa.1.000001"));
+      const quelle = [
+        sidecar.split("\n").find((z) => z.startsWith("TARBALL_MUSTER=")) ?? "",
+        ...[
+          "protokoll",
+          "warne",
+          "entnullen",
+          "zu_viele_ziffern",
+          "sperre_gehoert_uns",
+          "lokal_rotieren",
+        ].map(shellQuelle),
+        `BACKUP_DIR=${dir}`,
+        `SPERRVERZEICHNIS=${sperre}`,
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'meine_marke="eigner.aaaa.1.000001"',
+        "BACKUP_KEEP=1",
+        `lokal_rotieren "${path.join(dir, "20260101T033000.tar.gz")}"`,
+      ].join("\n");
+      const p = spawnSync("sh", ["-c", quelle], {
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${stubs}:${process.env.PATH}` },
+      });
+      return { aus: `${p.stdout}${p.stderr}`, liegt: readdirSync(dir).sort() };
+    };
+    try {
+      const kaputt = rotiere(true);
+      expect(kaputt.aus, "die Lage wird benannt").toMatch(/liess sich nicht loeschen/);
+      expect(kaputt.aus, "und NICHT als Erfolg gemeldet").not.toMatch(/lokal geloescht/);
+      expect(kaputt.liegt, "die Datei liegt weiter da").toEqual([
+        "20260101T030000.tar.gz",
+        "20260101T033000.tar.gz",
+      ]);
+      // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: ein Rotieren, das jetzt IMMER
+      // warnt, bestuende die Zeilen darueber ebenso — und waere im Alltag schlimmer als
+      // das Schweigen, das es ersetzt.
+      const heil = rotiere(false);
+      expect(heil.aus, "der Normalfall meldet den Vollzug").toMatch(/lokal geloescht/);
+      expect(heil.aus, "und warnt nicht").not.toMatch(/liess sich nicht loeschen/);
+      expect(heil.liegt).toEqual(["20260101T033000.tar.gz"]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // Gemeldet wird NACH der Tat — davor war die Meldung eine Behauptung.
+    const rumpfR = funktionsrumpf(befehle, "lokal_rotieren");
+    expect(rumpfR).toMatch(/if rm -f "\$BACKUP_DIR\/\$alt"; then\s*\n\s*protokoll/);
+    // Und dieselbe Abwaegung wie am Ziel: laut, aber kein `return 1` — das Tarball liegt.
+    // Die Rotation am Ziel steckt in `auslagern` und hat den Zweig laengst.
+    expect(funktionsrumpf(befehle, "auslagern")).toMatch(/liess sich nicht loeschen/);
+  });
+
   it("ein gescheiterter Ping schreibt die Kennung NICHT ins Protokoll", () => {
     // ⚠️ WER DIE URL HAT, KANN DEM WAECHTER „BACKUP GESUND" MELDEN. Beide unterstuetzten
     // Dienste tragen ihre Kennung IM Pfad (healthchecks.io `/<uuid>`, Uptime Kuma
