@@ -165,10 +165,16 @@ function schriftgroesze(deklaration: CssDeclaration): string | undefined {
 /*
  * Nur echte Element-Tokens und antds exakte Selektorklasse. Die Begrenzungen
  * lassen `input[type]`, `form > input:hover` und `:is(input)` zu, aber weder
- * `.input-hinweis` noch `.ant-select-selector-extra`.
+ * `.input-hinweis` noch `.ant-select-extra`.
+ *
+ * ⚠️ DIE KLASSE HIESZ BIS DRK-190 `.ant-select-selector` — die rendert antd 6
+ * nicht mehr, der Zweig lief also ins Leere. Das geschlossene Auswahlfeld ist
+ * heute `.ant-select` selbst; die Grenze dahinter haelt `.ant-select-input`
+ * und `.ant-select-content` weiterhin drauszen, weil `-` nicht in der
+ * Nachschau steht.
  */
 const FELD_SELEKTOR =
-  /(^|[\s>+~,(])(?:input|textarea|select)(?=$|[\s>+~.#:[\]),])|\.ant-select-selector(?=$|[\s>+~.#:[\]),])/;
+  /(^|[\s>+~,(])(?:input|textarea|select)(?=$|[\s>+~.#:[\]),])|\.ant-select(?=$|[\s>+~.#:[\]),])/;
 
 function feldSelektorKette(deklaration: CssDeclaration): string | undefined {
   const selektoren: string[] = [];
@@ -251,7 +257,7 @@ describe("CSS-AST-Fixtures fuer den 16px-Guard", () => {
       .input-hinweis { font-size: 14px; }
       .select-kompakt { font: 500 14px/1 sans-serif; }
       .textarea-info { font-size: .875rem; }
-      .ant-select-selector-extra { font-size: 14px; }
+      .ant-select-extra { font-size: 14px; }
     `)).toEqual([]);
   });
 
@@ -278,7 +284,7 @@ describe("CSS-AST-Fixtures fuer den 16px-Guard", () => {
       input { font-size: 16px; }
       textarea { font-size: 1rem; }
       select { font: 500 16px/1 sans-serif; }
-      .ant-select-selector { font: 500 1rem/1 sans-serif; }
+      .ant-select { font: 500 1rem/1 sans-serif; }
     `)).toEqual([]);
   });
 
