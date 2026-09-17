@@ -992,8 +992,8 @@ describe("8-F: Zugangs-Codes werden gesperrt, nicht geloescht", () => {
 
     expect(quelle, "8-F: keine Loeschzeile auf der Token-Tabelle")
       .not.toContain("delete(tokens)");
-    expect(quelle, "der Sperrweg bleibt")
-      .toContain("update(tokens)");
+    expect(quelle, "der Sperrweg bleibt — und er laeuft ueber den EINEN Schreibpfad")
+      .toContain("sperreToken(db, i)");
   });
 
   /** Der zweite Ausgang bleibt und wirkt: `aktiv = false`. */
@@ -1004,6 +1004,57 @@ describe("8-F: Zugangs-Codes werden gesperrt, nicht geloescht", () => {
     expect(t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.aktiv)
       .toBe(false);
     expect(revalidiert).toEqual(["/m/lagerbuch/verwaltung/tokens"]);
+  });
+
+  /**
+   * DRK-406, aus Codex' Durchsicht von `100235b`: `deaktiviereElement` ist der
+   * ZWEITE Sperrweg auf dieselbe Spalte, und er kannte die Stempelregel nicht.
+   *
+   * ⚠️ DER SCHADEN IST EIN FALSCHES DATUM, NICHT EIN OFFENER CODE — deshalb
+   * prueft der Fall nicht „ist gesperrt", sondern „traegt den Sperrtag". Ohne
+   * ihn bekaeme die Zeile beim spaeteren Loeschen des Ortes den LOESCHTAG, und
+   * die Liste beantwortete „seit wann gilt das Kaertchen nicht mehr?" falsch.
+   */
+  it("stempelt ueber deaktiviereElement auch den Ortscode", async () => {
+    const fahrzeugId = fahrzeugAnlegen();
+    const id = tokenAnlegen({ code: "559-559", ortId: fahrzeugId });
+
+    expect(await deaktiviereElement("token", id, t.db)).toEqual({ ok: true });
+
+    const zeile = t.db.select().from(tokens).where(eq(tokens.id, id)).get();
+    expect(zeile?.aktiv).toBe(false);
+    expect(zeile?.ersetztAm, "ein gesperrter Ortscode ist verbrannt").toBeInstanceOf(Date);
+  });
+
+  /**
+   * Die Gegenrichtung, und sie ist die Betreiberentscheidung vom 17.09.2026:
+   * ein von Hand angelegtes Kaertchen bleibt ruecknehmbar. Ein Tag hier naehme
+   * ihm ueber `ERSETZT_FEHLER` genau diese Ruecknahme.
+   */
+  it("laesst den Altbestand ueber deaktiviereElement ruecknehmbar", async () => {
+    const id = tokenAnlegen({ code: "560-560", ortId: null });
+
+    expect(await deaktiviereElement("token", id, t.db)).toEqual({ ok: true });
+
+    const zeile = t.db.select().from(tokens).where(eq(tokens.id, id)).get();
+    expect(zeile?.aktiv).toBe(false);
+    expect(zeile?.ersetztAm, "kein Tag am Altbestand").toBeNull();
+  });
+
+  /**
+   * Ein zweites Sperren darf den Tag nicht nach vorn schieben — sonst
+   * beantwortete die Liste „seit wann" mit dem Tag des letzten Klicks.
+   */
+  it("schiebt einen schon gesetzten Sperrtag nicht nach vorn", async () => {
+    const fahrzeugId = fahrzeugAnlegen();
+    const frueher = new Date(JETZT.getTime() - 86_400_000);
+    const id = tokenAnlegen({ code: "561-561", ortId: fahrzeugId, aktiv: false });
+    t.db.update(tokens).set({ ersetztAm: frueher }).where(eq(tokens.id, id)).run();
+
+    expect(await deaktiviereElement("token", id, t.db)).toEqual({ ok: true });
+
+    expect(t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.ersetztAm)
+      .toEqual(frueher);
   });
 
   /**

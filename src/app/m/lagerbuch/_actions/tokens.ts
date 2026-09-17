@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { tokens } from "../_db/schema";
 import { type ActionErgebnis } from "../_lib/actionErgebnis";
+import { sperreToken } from "../_lib/schreibpfade/tokenSperre";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -99,36 +100,31 @@ export async function setTokenAktiv(
     }
 
     /*
-     * SPERREN SETZT DEN TAG — fuer einen ORTSCODE, und nur fuer ihn.
+     * SPERREN SETZT DEN TAG — fuer einen ORTSCODE, und nur fuer ihn. Die Regel
+     * steht als `sperreToken` in `_lib/schreibpfade/tokenSperre.ts`, nicht hier.
      *
-     * ⚠️ DAS FOLGT AUS DEM RIEGEL DARUEBER, und ohne diese Zeilen widerspraeche
-     * sich die Datei selbst: wer einen Ortscode sperrt, sperrt ihn DAUERHAFT
-     * (`ORTSCODE_FEHLER` laesst ihn nie wieder hoch). Er ist damit verbrannt,
-     * und ein verbrannter Code ohne Datum ist genau das, was `ersetzt_am`
-     * verhindern soll — die Liste koennte fuer das Foto in der Hand nicht mehr
-     * sagen, seit wann es nicht mehr gilt.
+     * ⚠️ SIE STAND HIER, UND DAS WAR DER FEHLER — Codex' Durchsicht von
+     * `100235b` hat ihn gefunden. `deaktiviereElement("token", …)` ist ein
+     * ZWEITER Sperrweg auf dieselbe Spalte, und der kannte die Regel nicht.
+     * Zwei Wege, eine Regel, eine Stelle: auch der naechste Sperrweg erbt sie,
+     * ohne dass jemand daran denken muss.
      *
-     * ⚠️ UND ES IST NICHT NUR EINE LEERE ZELLE. Wird der Ort spaeter geloescht,
-     * stempelt `_actions/loeschen.ts` den Tag nach — dort, wo noch keiner
-     * steht. Ohne diese Zeilen bekaeme die Zeile den LOESCHTAG, also ein
-     * spaeteres Datum als das, an dem der Code wirklich aufhoerte zu wirken.
-     * Das ist derselbe Fehler, den die Trennung beim Loeschen gerade behebt,
-     * nur durch die Hintertuer.
-     *
-     * ⚠️ DER ALTBESTAND BLEIBT UNBERUEHRT (`ortId === null`): dort ist Sperren
-     * ruecknehmbar, und ein Datum wuerde ihn ueber `ERSETZT_FEHLER` genau um
-     * diese Ruecknahme bringen. Und ein schon gesetzter Tag bleibt stehen —
-     * ein zweites Sperren derselben Zeile darf ihn nicht nach vorn schieben.
+     * ⚠️ WARUM SPERREN UEBERHAUPT STEMPELT, steht dort ausgeschrieben; hier
+     * zaehlt die Naht zum Riegel darueber: wer einen Ortscode sperrt, sperrt
+     * ihn DAUERHAFT (`ORTSCODE_FEHLER` laesst ihn nie wieder hoch). Ein
+     * verbrannter Code ohne Datum waere genau das, was `ersetzt_am` verhindern
+     * soll — die Liste koennte fuer das Foto in der Hand nicht mehr sagen, seit
+     * wann es nicht mehr gilt.
      */
-    const verbrennt = !geparst.data.aktiv && zeile?.ortId != null && zeile.ersetztAm == null;
-
     try {
-      db.update(tokens)
-        .set(verbrennt
-          ? { aktiv: false, ersetztAm: new Date() }
-          : { aktiv: geparst.data.aktiv })
-        .where(eq(tokens.id, geparst.data.id))
-        .run();
+      if (geparst.data.aktiv) {
+        db.update(tokens)
+          .set({ aktiv: true })
+          .where(eq(tokens.id, geparst.data.id))
+          .run();
+      } else {
+        sperreToken(db, geparst.data.id);
+      }
     } catch {
       return { ok: false, fehler: STATUS_FEHLER };
     }
