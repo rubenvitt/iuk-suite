@@ -134,8 +134,8 @@ for (const vp of [
 
 /**
  * KEIN WAAGERECHTES SCROLLEN AUF KEINEM DER DREI VIEWPORTS (Brief Teil 4, Punkt 5) — LOKAL IN
- * DIESER DATEI, NICHT IN EINEM HELFER: Vorbild `e2e/lagerbuch-mobil.spec.ts:98-104`, dieselbe
- * Begruendung dort ("ein Layout-Helfer gehoert nicht zu dem, was diese Datei traegt").
+ * DIESER DATEI, NICHT IN EINEM HELFER: Vorbild `e2e/lagerbuch-mobil.spec.ts`s `ueberlauf`,
+ * dieselbe Begruendung dort ("ein Layout-Helfer gehoert nicht zu dem, was diese Datei traegt").
  *
  * GEMESSEN WIRD `documentElement` UND `body`: die Brief-Formulierung nennt woertlich
  * `scrollWidth <= clientWidth am body`, die uebliche Aussagekraft liegt aber am `documentElement`
