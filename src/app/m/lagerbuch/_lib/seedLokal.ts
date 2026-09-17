@@ -1,4 +1,4 @@
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, eq, gt, isNotNull, lt } from "drizzle-orm";
 import type { DB } from "../_db/client";
 import {
   artikel,
@@ -1183,12 +1183,41 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *        laminierten Kaertchen. `aktiv` wird NICHT pauschal gesetzt: der
    *        gesperrte Code ist der einzige Widerruf, den es gibt. */
   const tkDa = vorhandeneIds(db.select({ id: tokens.id }).from(tokens).all());
+  /*
+   * ⚠️ DREI FILTER, NICHT EINER — und die zwei zusaetzlichen sind seit DRK-406
+   * die Bedingung dafuer, dass der Seed ueberhaupt noch idempotent ist
+   * (gefunden in der Durchsicht). Bis dahin entstand ein Zugangs-Code nur hier;
+   * seit dem Ticket entsteht er auch beim ANLEGEN einer Einheit und beim
+   * OEFFNEN der Ortsetiketten — mit einem GEZOGENEN Code, den dieser Seed nicht
+   * kennt.
+   *
+   * ⚠️ „Die feste Id fehlt" heisst damit nicht mehr „der Platz ist frei".
+   * Hat der Ort laengst einen aktiven Code, schlaegt das `INSERT` gegen
+   * `idx_tokens_ort_aktiv` an; hat die Ziehung zufaellig denselben Wert
+   * gezogen, gegen die Eindeutigkeit von `tokens.code`. Beide Male bricht der
+   * Lauf MITTENDRIN ab, und die Zusage „idempotent und rein additiv"
+   * (AGENTS.md, „Lokale Demodaten") waere gebrochen — zurueck bleibt eine halb
+   * gefuellte Datenbank.
+   *
+   * ⚠️ UEBERSPRINGEN UND NICHT UEBERSCHREIBEN: der vorhandene Code klebt
+   * womoeglich schon auf einer gedruckten Karte. Ein Seed, der ihn ersetzt,
+   * macht sie still ungueltig.
+   */
+  const ortBesetzt = new Set(
+    db.select({ ortId: tokens.ortId }).from(tokens)
+      .where(and(isNotNull(tokens.ortId), eq(tokens.aktiv, true))!)
+      .all()
+      .map((z) => z.ortId as string),
+  );
+  const codeBelegt = new Set(
+    db.select({ code: tokens.code }).from(tokens).all().map((z) => z.code),
+  );
   const tokenListe = [
     { id: "tok-helfer", code: CODE_HELFER, label: "Helfer Bereitschaft (Demo)", zielTyp: null, zielId: null, aktiv: true, lastUsedAt: vor(jetzt, 2) },
     { id: "tok-rtw1", code: CODE_RTW, label: "RTW 1 – Fahrzeug-Check", zielTyp: "fahrzeug" as const, zielId: RTW, aktiv: true, lastUsedAt: checkAbgeschlossenAm },
     { id: "tok-kompresse", code: CODE_ARTIKEL, label: "Regaletikett Kompressen 10×10", zielTyp: "artikel" as const, zielId: A.kompresse, aktiv: true, lastUsedAt: null },
     { id: "tok-gesperrt", code: CODE_GESPERRT, label: "Verlorenes Kärtchen (gesperrt)", zielTyp: null, zielId: null, aktiv: false, lastUsedAt: vor(jetzt, 60) },
-  ].filter((t) => !tkDa.has(t.id));
+  ].filter((t) => !tkDa.has(t.id) && !codeBelegt.has(t.code));
   for (const t of tokenListe) {
     db.insert(tokens).values({
       ...t, ortId: null, scopeLagerortId: null, createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
@@ -1206,7 +1235,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     { id: "ortcode-ktw1", code: CODE_ORT_KTW, label: "KTW 1", ortId: KTW, zielTyp: "fahrzeug" as const, zielId: KTW },
     { id: "ortcode-mtw1", code: CODE_ORT_MTW, label: "MTW 1", ortId: MTW, zielTyp: "fahrzeug" as const, zielId: MTW },
     { id: "ortcode-tasche", code: CODE_ORT_TASCHE, label: "Sanitätstasche 1", ortId: TASCHE_SAN, zielTyp: "fahrzeug" as const, zielId: TASCHE_SAN },
-  ].filter((t) => !tkDa.has(t.id));
+  ].filter((t) => !tkDa.has(t.id) && !ortBesetzt.has(t.ortId) && !codeBelegt.has(t.code));
   for (const t of ortCodeListe) {
     db.insert(tokens).values({
       ...t, aktiv: true, lastUsedAt: null, scopeLagerortId: null,
