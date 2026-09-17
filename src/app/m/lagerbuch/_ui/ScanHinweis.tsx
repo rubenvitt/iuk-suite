@@ -43,6 +43,15 @@ import s from "./helfer.module.css";
  * (`helfer/check/page.tsx`, Falle 15) — falsch werden konnte allein der Satz.
  * Betreiberentscheidung 2026-09-17: nur behaupten, was belegbar ist.
  *
+ * ⚠️ SIE „NENNT", SIE „ZEIGT" NICHT DARAUF — Reviewrunde 5, und die
+ * Unterscheidung ist keine Wortklauberei. Hier stand „Diese Adresse zeigt auf
+ * X", und das war derselbe Fehler eine Stufe feiner: das ZIEL dieser Adresse
+ * ist diese Seite mit der GEBUNDENEN Einheit (`fz`), `gescannt` steht darin
+ * bloss als Name. „Zeigt auf X" behauptete also eine Wegrichtung, die es nicht
+ * gibt — und zwar ausgerechnet auf einem Schirm, der sichtbar die andere
+ * Einheit laedt, was die Frage „warum bin ich dann hier?" erst erzeugt.
+ * „Nennt X" ist genau das, was belegbar ist: X steht in der Adresse.
+ *
  * ⚠️ DIE UEBERSCHRIFT TRAEGT DIE REGEL, NICHT DEN VORGANG. „Dein Scan gilt
  * hier nicht" behauptete denselben Scan und las sich zugleich wie ein Fehler
  * der Anwendung; „Hier gilt dein Kaertchen" ist auf jedem Weg wahr und ist
@@ -93,9 +102,10 @@ export function ScanHinweis({
   gezeigt,
 }: {
   /**
-   * Die Einheit, auf die die ADRESSE zeigt — die, die NICHT gilt. Auf dem
-   * echten Etikettenweg ist das die gescannte; behaupten darf dieser Baustein
-   * das aber nicht (Begruendung im Kopf, Reviewrunde 4).
+   * Die Einheit, die die ADRESSE nennt — die, die NICHT gilt. Auf dem echten
+   * Etikettenweg ist das die gescannte; behaupten darf dieser Baustein das
+   * aber nicht, und „zeigt auf" darf er auch nicht sagen (Begruendung im Kopf,
+   * Reviewrunden 4 und 5).
    *
    * ⚠️ BEIDE ANGABEN SIND PFLICHT-PROPS, KEINE OPTIONALS, und die Begruendung
    * ist dieselbe wie bei `LeerZustand.weg` und `CheckFlow.gebunden`: als
@@ -143,8 +153,8 @@ export function ScanHinweis({
           `dieseEinheit` zeigt auf die zuletzt genannte und traegt dabei die
           richtige Art (DRK-309: „dieses Fahrzeug" / „diese Tasche").
         */}
-        Diese Adresse zeigt auf „{label(gescannt)}“. Ausgestellt ist dein
-        Kärtchen aber auf „{label(gezeigt)}“ — geprüft wird hier also{" "}
+        Diese Adresse nennt „{label(gescannt)}“. Ausgestellt ist dein Kärtchen
+        aber auf „{label(gezeigt)}“ — geprüft wird hier also{" "}
         {dieseEinheit(gezeigt.einheitenart)}.
       </p>
     </div>

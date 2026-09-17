@@ -117,6 +117,24 @@ describe("ScanHinweis — nur behaupten, was belegbar ist (Reviewrunde 4)", () =
     expect(text()).not.toMatch(/[Dd]ein Scan/);
   });
 
+  /**
+   * REVIEWRUNDE 5 — DERSELBE FEHLER EINE STUFE FEINER. Hier stand „Diese
+   * Adresse zeigt auf X". Das ZIEL dieser Adresse ist aber diese Seite mit der
+   * GEBUNDENEN Einheit; `gescannt` steht darin bloss als Name. „Zeigt auf X"
+   * behauptete eine Wegrichtung, die es nicht gibt — auf einem Schirm, der
+   * sichtbar die andere Einheit laedt.
+   *
+   * Die Zusicherung ist bewusst auf die Wendung gemuenzt und nicht auf eine
+   * allgemeine Regel: „nur behaupten, was belegbar ist" laesst sich nicht
+   * pruefen, dieser eine Rueckfall schon — und er ist der naheliegende, weil
+   * „zeigt auf" sich fluessiger liest als „nennt".
+   */
+  it("behauptet NICHT, dass die Adresse zur anderen Einheit fuehrt", async () => {
+    await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
+    expect(text()).not.toMatch(/Adresse zeigt auf/);
+    expect(text()).toMatch(/Adresse nennt/);
+  });
+
   it("benennt die Adresse als das, worauf sich die andere Einheit stuetzt", async () => {
     await mount(<ScanHinweis gescannt={KTW} gezeigt={RTW} />);
     expect(text()).toMatch(/Adresse/);
