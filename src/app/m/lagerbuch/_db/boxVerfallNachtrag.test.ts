@@ -143,6 +143,32 @@ describe("0013 — der gemeldete Verfall fuer Bestand, der schon in der Kiste li
     });
   });
 
+  it("nimmt KEINE Meldung, die NACH der Abgabe an der Einheit entstanden ist", () => {
+    /**
+     * ⚠️ DER SECHSTE CODEX-BEFUND ZU PR #194. `lagerort_verfall` fuehrt keine
+     * Historie — ein spaeterer Check an der Herkunftseinheit ueberschreibt ihre
+     * einzige Zeile. Ohne die Zeitprobe kopierte der Nachtrag diese neue
+     * Beobachtung an die Kiste, obwohl sie an einer inzwischen neu bestueckten
+     * Einheit gemacht wurde und das Kistenmaterial nie beschrieben hat.
+     *
+     * Der Schaden ist die TEURE Haelfte: 12/30 an einer Packung, die 10/26
+     * ist, beruhigt zu Unrecht — waehrend „jedes Datum ist frueher als gar
+     * keines" nur gilt, solange das Datum das Material auch meint.
+     */
+    const sqlite = standVor0013();
+    legeArtikel(sqlite, "kompresse");
+    legeEinheit(sqlite, "rtw");
+    bucheInKiste(sqlite, { artikelId: "kompresse", vonOrt: "rtw", menge: 6, ts: JETZT });
+    // Der Check kommt SPAETER als die Abgabe und ueberschreibt die Zeile.
+    meldeVerfall(sqlite, {
+      ortId: "rtw", artikelId: "kompresse", verfall: "2030-12", erfasstAt: JETZT + 3600,
+    });
+
+    spiele0013(sqlite);
+
+    expect(meldungen(sqlite, "entnahmebox")).toHaveLength(0);
+  });
+
   it("laesst die Zeile an der Einheit STEHEN — sie kopiert, sie verschiebt nicht", () => {
     // Zur Laufzeit faellt die Angabe an der Einheit, weil dort in derselben
     // Sekunde das letzte Stueck verschwindet. Hier liegt ein unbekannter

@@ -40,6 +40,14 @@
 -- Betreiberentscheidung „das fruehere Datum gewinnt" ohnehin waehlt, und die
 -- harmlose Haelfte des Irrtums. Genau umgekehrt waere sie teuer.
 --
+-- ⚠️ UND „GENAU UMGEKEHRT" WAR MOEGLICH, BIS DIE ZEITPROBE DAZUKAM. Dieser
+-- Absatz hat die harmlose Richtung behauptet, ohne sie zu sichern: weil
+-- `lagerort_verfall` keine Historie fuehrt, konnte ein SPAETERER Check der
+-- Herkunftseinheit ihre Zeile ueberschreiben, und der Nachtrag trug dann ein zu
+-- SPAETES Datum ein. Die Bedingung, die den Absatz wahr macht, steht unten an
+-- der Buchung (`b.ts >= lv.erfasst_at`) — wer sie entfernt, nimmt nicht eine
+-- Vorsichtsmassnahme weg, sondern die Voraussetzung dieser Begruendung.
+--
 -- ⚠️ NUR AN EINEN ARTIKEL MIT BESTAND UND OHNE EIGENE MELDUNG. `NOT EXISTS`
 -- macht den Schritt zugleich wiederholbar: eine Meldung, die der neue Weg
 -- bereits geschrieben hat, wird nie ueberschrieben.
@@ -84,6 +92,29 @@ FROM (
          AND b.artikel_id  = lv.artikel_id
          AND b.menge > 0
          AND b.referenz = 'entnahmebox:' || lv.lagerort_id
+         -- ⚠️ UND DIE MELDUNG MUSS AELTER SEIN ALS DIE ABGABE, sonst beschreibt
+         -- sie das Material in der Kiste gar nicht (Codex zu PR #194, sechster
+         -- Befund). `lagerort_verfall` fuehrt KEINE Historie: ein spaeterer
+         -- Check an derselben Einheit ueberschreibt ihre einzige Zeile. Ohne
+         -- diese Zeile wanderte eine Beobachtung in die Kiste, die NACH dem
+         -- Abgang an einer inzwischen neu bestueckten Einheit gemacht wurde:
+         --
+         --     T1  RTW gibt Kompressen ab, gemeldet 10/26
+         --     T2  RTW wird neu bestueckt, Check meldet 12/30 (ueberschreibt)
+         --     --  Nachtrag kopiert 12/30 an die Kiste
+         --     →   die Packung von T1 sieht bis 12/30 unbedenklich aus
+         --
+         -- DAS IST DIE TEURE HAELFTE DES IRRTUMS und widerspricht der
+         -- Begruendung im Kopf: „jedes Datum ist frueher als gar keines" gilt
+         -- nur, solange das Datum das Material auch MEINT. Eine zu spaete
+         -- Angabe warnt nicht zu frueh, sie beruhigt zu Unrecht — und eine
+         -- konkrete Zahl auf dem Schirm erstickt den Verdacht, den ein leeres
+         -- Feld noch zulaesst.
+         --
+         -- `>=` und nicht `>`: Abgabe und Ablesung fallen im Check in dieselbe
+         -- Sekunde (Sekundengranularitaet, Falle 3 am Schema) — mit `>` fiele
+         -- genau der haeufigste Fall heraus.
+         AND b.ts >= lv.erfasst_at
     )
     -- Die Kiste fuehrt fuer diesen Artikel noch keine eigene Meldung.
     AND NOT EXISTS (
