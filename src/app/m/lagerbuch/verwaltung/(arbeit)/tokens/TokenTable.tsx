@@ -176,7 +176,23 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     startTransition(async () => {
       try {
         const ergebnis = await setTokenAktiv({ id: zeile.id, aktiv: !zeile.aktiv });
-        if (!ergebnis.ok) setFehler(STATUS_FEHLER);
+        /*
+         * ⚠️ DER SATZ DES SERVERS, NICHT DER FESTE — DRK-406, Codex-Befund P2.
+         * Hier stand `setFehler(STATUS_FEHLER)` für JEDEN abgelehnten Ausgang,
+         * und das war richtig, solange der Server nur einen kannte. Seit dem
+         * Ticket kennt er einen zweiten: „für diesen Ort gilt bereits ein
+         * neuerer Code" — ein NORMALZUSTAND mit einem Weg heraus, den die Action
+         * ausdrücklich formuliert. Ihn hier durch „Status konnte nicht geändert
+         * werden" zu ersetzen hieße, die Erklärung auf dem letzten Meter
+         * wegzuwerfen; die Verwaltende sähe einen Defekt statt einer Absicht.
+         *
+         * ⚠️ DIE HÜLLE IST KEIN FREIBRIEF FÜR SERVERTEXTE. Sie zeigt, was die
+         * Action als `fehler` zurückgibt — und das sind ausschließlich feste,
+         * deutsche Sätze aus der Aktionsdatei, nie eine Datenbankmeldung
+         * (§11.2 d). `STATUS_FEHLER` bleibt der Rückfall für den Wurf darunter,
+         * wo es keinen Satz gibt.
+         */
+        if (!ergebnis.ok) setFehler(ergebnis.fehler || STATUS_FEHLER);
       } catch {
         setFehler(STATUS_FEHLER);
       }

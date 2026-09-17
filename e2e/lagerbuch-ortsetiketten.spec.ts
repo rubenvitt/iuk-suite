@@ -182,8 +182,22 @@ test.describe("Ortsetiketten (Bogen)", () => {
      * waere eine Zusage ueber eine Ziehung, die niemand gegeben hat.
      */
     expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
-    // Der Fuss nennt denselben Zugang — abtippbar, fuer ein Telefon ohne Kamera.
-    await expect(karte.locator(".lb-ortkarteUrl")).toHaveText(ziel);
+    /*
+     * Der Fuss nennt denselben Zugang — abtippbar, fuer ein Telefon ohne Kamera.
+     *
+     * ⚠️ `toContainText` UND NICHT `toHaveText`, und das ist kein Geschmack:
+     * `.lb-ortkarteUrl` traegt seit DRK-406 ZWEI Dinge — den verschachtelten
+     * `Code NNN-NNN`-Span und danach die Adresse. Playwrights `toHaveText` mit
+     * einer Zeichenkette verlangt Gleichheit des GESAMTEN normalisierten
+     * Textes; die Zusicherung faellt damit an jeder korrekt gerenderten Karte.
+     * Vor diesem Ticket ging sie durch, weil der Fuss nur die Adresse trug.
+     *
+     * ⚠️ DIE SCHAERFE HOLT DIE ZEILE DARUNTER ZURUECK: `toContainText` allein
+     * bliebe auch dann gruen, wenn daneben noch die alte Ortsadresse stuende.
+     */
+    await expect(karte.locator(".lb-ortkarteUrl")).toContainText(ziel);
+    await expect(karte.locator(".lb-ortkarteUrl"))
+      .not.toContainText(`/o/${E2E_FAHRZEUG_ID}`);
     await expect(karte.locator(".lb-ortkarteCode"))
       .toHaveText(`Code ${ziel.slice(-7)}`);
 

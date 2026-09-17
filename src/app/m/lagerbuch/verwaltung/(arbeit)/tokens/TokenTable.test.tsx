@@ -529,26 +529,77 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(reaktivieren.textContent).toBe("Reaktivieren");
   });
 
-  it.each([
-    ["fachlich", { ok: false, fehler: "SQL intern" }],
-    ["Runtime", new Error("SQLITE geheim")],
-  ] as const)("zeigt bei %s fehlgeschlagenem Statuswechsel nur den festen Warntext", async (
-    _art,
-    ausgang,
-  ) => {
-    if (ausgang instanceof Error) mocks.setTokenAktiv.mockRejectedValueOnce(ausgang);
-    else mocks.setTokenAktiv.mockResolvedValueOnce(ausgang);
+  async function sperrenKlicken(): Promise<HTMLElement> {
     await mount(<TokenTable zeilen={ZEILEN} />);
     const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
       .find((knopf) => knopf.textContent === "Sperren");
     if (!sperren) throw new Error("Sperrknopf fehlt");
     await clickElement(sperren);
     await warte();
+    return sperren;
+  }
+
+  /**
+   * ⚠️ DIESE ZUSICHERUNG HIESS BIS DRK-406 „zeigt nur den FESTEN Warntext" —
+   * fuer den Wurf UND fuer die fachliche Ablehnung. Ihr Anliegen war und ist:
+   * KEINE INTERNA AUF DEM SCHIRM. Sie ist verengt worden, nicht aufgegeben,
+   * und der Grund ist ein zweiter Ablehnungsgrund, den es vorher nicht gab:
+   * „fuer diesen Ort gilt bereits ein neuerer Code" ist ein NORMALZUSTAND mit
+   * einem Weg heraus, den die Action ausdruecklich formuliert. Ihn durch den
+   * festen Satz zu ersetzen hiess, die Erklaerung auf dem letzten Meter
+   * wegzuwerfen — die Verwaltende saehe einen Defekt statt einer Absicht.
+   *
+   * Das Anliegen traegt jetzt der Quelltext-Scan darunter: die Action gibt
+   * ausschliesslich ihre eigenen festen Saetze zurueck, nie eine gefangene
+   * Ausnahme. WO die Zusicherung sitzt, hat sich geaendert; WAS sie zusagt,
+   * nicht.
+   */
+  it("reicht den Satz des Servers durch, wenn er einen hat", async () => {
+    mocks.setTokenAktiv.mockResolvedValueOnce({
+      ok: false,
+      fehler: "Für diesen Ort gilt bereits ein neuerer Code.",
+    });
+    const sperren = await sperrenKlicken();
+
+    expect(query(".ant-alert-warning").textContent ?? "")
+      .toContain("Für diesen Ort gilt bereits ein neuerer Code.");
+    expect(sperren.textContent).toBe("Sperren");
+  });
+
+  it("zeigt bei einem WURF den festen Warntext und nie die Ausnahme", async () => {
+    mocks.setTokenAktiv.mockRejectedValueOnce(new Error("SQLITE geheim"));
+    const sperren = await sperrenKlicken();
 
     const warnung = query(".ant-alert-warning").textContent ?? "";
     expect(warnung).toContain("Zugangs-Code-Status konnte nicht geändert werden.");
-    expect(warnung).not.toContain("SQL");
+    expect(warnung).not.toContain("SQLITE");
     expect(sperren.textContent).toBe("Sperren");
+  });
+
+  /**
+   * DAS ANLIEGEN DER ALTEN ZUSICHERUNG, AN SEINER WIRKSAMEN STELLE — DRK-406.
+   *
+   * ⚠️ DIE HUELLE ZEIGT JETZT `ergebnis.fehler`, also ist die Frage „was kann
+   * dort ueberhaupt stehen?" von der Insel zur ACTION gewandert. Dort ist sie
+   * beantwortbar und hier gepinnt: jedes `fehler:` in `_actions/tokens.ts` ist
+   * eine benannte Konstante DIESER Datei. Ein `fehler: String(e)` oder
+   * `e.message` waere der Weg, auf dem eine Datenbankmeldung auf den Schirm
+   * kaeme (§11.2 d) — und kein Tor sonst saehe ihn.
+   */
+  it("laesst die Action nur ihre eigenen festen Saetze zurueckgeben", () => {
+    const quelle = ohneKommentare(readFileSync(
+      "src/app/m/lagerbuch/_actions/tokens.ts",
+      "utf8",
+    ));
+
+    const werte = [...quelle.matchAll(/fehler:\s*([^,}\n]+)/g)].map((m) => m[1].trim());
+    expect(werte.length, "keine `fehler:`-Zuweisung gefunden").toBeGreaterThan(0);
+    for (const wert of werte) {
+      expect(wert, `unerwarteter Fehlerwert: ${wert}`)
+        .toMatch(/^(STATUS_FEHLER|ORT_BESETZT_FEHLER|"[^"]*")$/);
+    }
+    // Und der offensichtliche Weg daran vorbei steht namentlich da.
+    expect(quelle).not.toMatch(/fehler:\s*(String\(|`|.*\.message)/);
   });
 
   /**
