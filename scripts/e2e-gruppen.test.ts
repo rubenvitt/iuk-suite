@@ -65,34 +65,41 @@ import { join, sep } from "node:path";
  * oder 52 s. Seit DRK-408 laeuft die CI deshalb mit `reporter: "list"`, und
  * jede Zeile nennt die Dauer ihres Falls.
  *
- * ⛔ UND JETZT DER TEIL, DER GELD GEKOSTET HAT: LAUFZEIT JE DATEI IST KEINE
- * UEBERTRAGBARE GROESSE. Mit den gemessenen Zahlen wurde in DRK-408 ein
- * Schnitt gerechnet, der die drei Gruppen auf 365 / 359 / 360 s bringen
- * sollte — vier Dateien wandern, keine Zusicherung wird angefasst. Gemessen
- * kam heraus (Lauf 35222829005):
+ * ⛔ UND JETZT DER TEIL, DER GELD GEKOSTET HAT — ZWEIMAL, UND DAS ZWEITE MAL
+ * WAR EIN IRRTUM UEBER DEN ERSTEN. Mit den gemessenen Zahlen wurde in DRK-408
+ * ein Schnitt gerechnet, der lagerbuch auf 365 / 359 / 360 s bringen sollte:
+ * vier Dateien wandern, keine Zusicherung wird angefasst. Gemessen kamen
+ * 312 / 449 / 398 s heraus, bei einer Summe, die von 1088 auf 1159 s stieg —
+ * obwohl eine reine Umverteilung die Summe nicht aendern darf.
  *
- *     lagerbuch-1  304 s   erwartet 365   gemessen 312   (−53)
- *     lagerbuch-2  460 s   erwartet 364   gemessen 449   (+85)
- *     lagerbuch-3  324 s   erwartet 360   gemessen 398   (+38)
- *     SUMME       1088 s   erwartet 1088  gemessen 1159  (+71)
+ * ⚠️ DIESE 71 s SIND ABER KEIN BEFUND, SONDERN RAUSCHEN, und das faellt erst
+ * auf, wenn man dieselbe Gruppe oefter als einmal misst. `lagerbuch-2` mit
+ * UNVERAENDERTEN elf Dateien, ueber drei Laeufe:
  *
- * Die Summe MUSS gleich bleiben, wenn nur umverteilt wird — sie stieg um
- * 71 s. `lagerbuch-2` gab vier Dateien mit zusammen 96 s ab und wurde 7 s
- * schneller. Der Grund: ein erheblicher Teil dessen, was der Reporter einem
- * Fall zuschreibt, ist die ERSTUEBERSETZUNG der Route, die er anfaesst
- * (`next dev`, kaltes `.next` — Kopfkommentar am `timeout` in
- * `playwright.config.ts`). Sie faellt nicht der Datei zu, sondern dem ersten
- * Fall der Gruppe, der die Route trifft. Wandert die Datei, wandert ihre
- * Uebersetzungszeit NICHT mit: die alte Gruppe zahlt sie weiter fuer ihre
- * uebrigen Dateien, die neue zahlt sie zusaetzlich.
+ *     Lauf 1058 (main)   495 s     Lauf 1078 (PR)  460 s
+ *     Lauf 1087 (PR)     538 s     Spanne          78 s
  *
- * Der Schnitt ist deshalb zurueckgenommen; lagerbuch steht wieder wie in
- * DRK-407. Eine Datei laesst sich nur dann guenstig verschieben, wenn die
- * Zielgruppe ihre Routen ohnehin schon anfaesst — und das sagt keine der
- * Zahlen oben. Wer es erneut versucht, MISST DEN KANDIDATEN-SCHNITT selbst,
- * statt Dateizeiten zu addieren. Die eigentliche Abhilfe ist, die
- * Uebersetzung ganz loszuwerden (`next start` auf einem vorgebauten Stand
- * statt `next dev`) — eigenes Ticket.
+ * Mit dem Schnitt (sieben Dateien) waren es 449 s — also WENIGER als die
+ * Spanne der unveraenderten Konfiguration von ihrem eigenen besten Lauf
+ * entfernt. Aus je einem Lauf laesst sich die Wirkung des Schnitts damit
+ * ueberhaupt nicht ablesen, in keine Richtung. Der Schnitt ist trotzdem
+ * zurueckgenommen, aber aus dem schwaecheren und ehrlicheren Grund: er zeigt
+ * keinen messbaren Gewinn, und dann gewinnt die Fassung mit der laengeren
+ * Lauf-Historie.
+ *
+ * WAS BLEIBT, IST DIE BAUART-EINSICHT, und die haengt nicht an den 71 s: ein
+ * erheblicher Teil dessen, was der Reporter einem Fall zuschreibt, ist die
+ * ERSTUEBERSETZUNG der Route, die er anfaesst (`next dev` auf kaltem `.next`
+ * — die Einzelzahlen stehen am `timeout` in `playwright.config.ts`, 7,4 s
+ * fuer ein einziges `GET /login`). Sie gehoert nicht der Datei, sondern dem
+ * ersten Fall der GRUPPE, der die Route trifft. Dateizeiten zu addieren
+ * unterstellt, sie waeren verschiebbar; das sind sie nicht.
+ *
+ * ⛔ DARAUS FOLGEN ZWEI REGELN FUER DEN NAECHSTEN SCHNITT, und die zweite ist
+ * die teurere: Dateizeiten NICHT addieren, sondern den Kandidaten-Schnitt
+ * fahren — und ihn MEHRFACH fahren, weil ein einzelner Lauf eine Streuung von
+ * 78 s hat und damit alles verdeckt, was kleiner ist. Wer unter dieser Grenze
+ * optimieren will, misst zuerst die Grenze.
  *
  * ⚠️ DIE NUMMERN SIND EIMER, KEINE BEDEUTUNG. `lagerbuch-2` ist nicht „die
  * Verwaltung", sondern „der zweite Eimer". Wer eine neue lagerbuch-Spec
