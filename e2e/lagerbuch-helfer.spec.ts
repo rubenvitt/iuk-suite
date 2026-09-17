@@ -844,3 +844,83 @@ test.describe("DRK-306 — letzter Check und Verfall leeren", () => {
     await expect(feld).toHaveValue("");
   });
 });
+
+test.describe("DRK-378 — die Nebennavigation gehoert derselben Bediendichte", () => {
+  /**
+   * DIE ENTSCHEIDUNG: „Beenden“ und „Zurueck“ stehen auf 56, nicht auf 44.
+   *
+   * Der Helferweg rendert OHNE Shell und liegt damit bei 56/72 (`CLAUDE.md`,
+   * Falle 4) — eine EINSATZANFORDERUNG (Bedienung mit Handschuhen), keine
+   * Stilfrage. 44 ist die `FullShell`-Dichte; sie haelt zwar WCAG 2.5.5 (AAA)
+   * und ist damit nicht „zu klein“, aber sie ist hier die FALSCHE Dichte. Der
+   * Unterschied zaehlt: wer mit Handschuhen nicht aussteigen oder zuruecksetzen
+   * kann, sitzt auf dem falschen Artikel fest — teurer als eine Fehlbuchung,
+   * denn die laesst sich korrigieren.
+   *
+   * ⚠️ WARUM DIE ZUSAGE AUF 56 UND NICHT AUF 44 LAUTET, ist derselbe
+   * Reviewbefund wie beim Leerknopf oben (DRK-306): eine 44er-Zusicherung
+   * liesse beide Elemente still auf die Shell-Dichte zurueckfallen und bliebe
+   * dabei GRUEN — sie pruefte eine Grenze, die dieses Modul gar nicht hat.
+   *
+   * ⚠️ VITEST KANN DAS STRUKTURELL NICHT SEHEN: jsdom rechnet keine
+   * Layoutboxen (`getBoundingClientRect()` liefert ueberall Nullen). Die Zahl
+   * kennt nur ein echter Browser — dieselbe Klasse wie die Fallen 8 und 13.
+   *
+   * ⚠️ EINE REGEL JE ELEMENT, VIER FLAECHEN: `.rueckweg` teilen sich Entnahme,
+   * Check, Auffuellansicht und der benannte Leerzustand, `.beenden` teilen sich
+   * `HelferRahmen` und `AuffuellRahmen`. Deshalb genuegen hier zwei Messungen
+   * fuer alle vier Flaechen — und deshalb ist eine flaechen-eigene Fassung die
+   * falsche Antwort: die Auffuellansicht ist ausdruecklich die SPIEGELUNG der
+   * Entnahme (DRK-313).
+   */
+  test.beforeEach(async ({ page }) => {
+    // 390x844 ist das Telefonmass, auf dem der Helferweg tatsaechlich bedient
+    // wird — und der Fall, in dem der Kopf am engsten ist.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    await page.waitForURL(/\/helfer$/);
+  });
+
+  test("„Beenden“ und „Zurueck“ messen 56px, nicht 44", async ({ page }) => {
+    const beenden = page.getByRole("button", { name: "Beenden" });
+    await expect(beenden).toBeVisible();
+    const beendenKasten = await beenden.boundingBox();
+    expect(beendenKasten, "„Beenden“ muss eine Flaeche im Bild haben").not.toBeNull();
+    expect(
+      beendenKasten!.height,
+      "Bediendichte des Helferwegs: 56, nicht 44 (DRK-378)",
+    ).toBeGreaterThanOrEqual(56);
+
+    /*
+     * ⚠️ DIE KOPFZEILE DARF DABEI NICHT DAVONLAUFEN. Gemessen (echter Chromium,
+     * 390x844): der Kopf steht in der Kaertchen-Sitzung bei 44 UND bei 56 auf
+     * 94,3px — Marke, Etikett und Restzeit sind zusammen 73,3px hoch und damit
+     * ohnehin das hoechste Kind. Ohne Restzeit (angemeldetes Konto, DRK-305,
+     * und `AuffuellRahmen`) waechst er von 74,4 auf 77,0px. Die 110px hier sind
+     * die Schranke gegen eine kuenftige Aenderung, die den Kopf ueber das
+     * Gemessene hinaus aufblaeht — nicht der gemessene Wert selbst, der waere
+     * beim naechsten Schriftwechsel rot, ohne dass etwas kaputt waere.
+     */
+    const kopf = page.locator("header").first();
+    const kopfKasten = await kopf.boundingBox();
+    expect(kopfKasten, "der Kopf muss eine Flaeche im Bild haben").not.toBeNull();
+    expect(
+      kopfKasten!.height,
+      "der 56er-Ausstieg darf die Kopfzeile nicht aufblaehen (gemessen: 94,3px)",
+    ).toBeLessThan(110);
+
+    // Der Rueckweg steht auf dem Artikelschritt — ueber den ECHTEN Klick aus
+    // der Liste, damit die ID aus der Anwendung kommt und nicht aus dem Test.
+    await page.getByRole("link", { name: /E2E Verbandpäckchen/ }).click();
+    await page.waitForURL(/\/a\//);
+
+    const zurueck = page.getByRole("link", { name: /^Zurück/ }).first();
+    await expect(zurueck).toBeVisible();
+    const zurueckKasten = await zurueck.boundingBox();
+    expect(zurueckKasten, "„Zurück“ muss eine Flaeche im Bild haben").not.toBeNull();
+    expect(
+      zurueckKasten!.height,
+      "Bediendichte des Helferwegs: 56, nicht 44 (DRK-378)",
+    ).toBeGreaterThanOrEqual(56);
+  });
+});
