@@ -66,6 +66,39 @@ entnullen() {
   echo "$w"
 }
 
+# ⚠️ `entnullen` ALLEIN REICHT NICHT FUER EINEN WERT, DER IN ARITHMETIK LANDET. Es macht
+# aus `08` eine `8` und laesst `abc` unveraendert durch — und genau dort wird es teuer,
+# und zwar auf ZWEI gegenlaeufige Arten. Beide gemessen, an
+# `sperre_ist_verwaist` (`$((BACKUP_SPERRE_ALTER_STUNDEN * 3600))`,
+# `$((BACKUP_HERZSCHLAG_SEKUNDEN * 10))`):
+#
+#   dash  BACKUP_HERZSCHLAG_SEKUNDEN=abc  → `Illegal number: abc`, EXIT 2
+#   bash  BACKUP_HERZSCHLAG_SEKUNDEN=abc  → laeuft durch, rechnet 0
+#
+# Die erste Haelfte trifft die Sperre, und die ist der schlechteste Ort dafuer: der
+# Prozess stirbt, BEVOR er warten oder uebernehmen kann — also kein Backup, und beim
+# Rollout ein Exit, der wie ein gescheiterter Lauf aussieht. Die zweite ist stiller und
+# schlimmer: mit 0 faellt die Untergrenze weg, die eine LEBENDE Sperre schuetzt.
+# GEMESSEN unter bash mit `BACKUP_SPERRE_ALTER_STUNDEN=abc`: eine 5 SEKUNDEN alte Sperre
+# galt als verwaist — also genau die Gleichzeitigkeit, gegen die es sie gibt.
+#
+# Geprueft wird deshalb an der QUELLE, nicht an den Rechenstellen (dieselbe Entscheidung
+# wie bei `entnullen`: es gibt sechs davon, und die siebte haette es wieder vergessen).
+# `BACKUP_RCLONE_KEEP` und `BACKUP_KEEP` bleiben bewusst aussen vor — dort ist `aus` ein
+# gueltiger Wert, und beide pruefen selbst, bevor sie rechnen.
+zahl_oder_vorgabe() {
+  # $1 = Name (nur fuer die Meldung), $2 = Wert, $3 = Vorgabe
+  zov_wert="$(entnullen "$2")"
+  case "$zov_wert" in
+    '' | *[!0-9]*)
+      # `warne` schreibt nach stderr — die Meldung landet also NICHT im Wert.
+      warne "$1=\"$2\" ist keine Zahl — es gilt die Vorgabe $3."
+      zov_wert="$3"
+      ;;
+  esac
+  echo "$zov_wert"
+}
+
 # ══ Konfiguration ════════════════════════════════════════════════════════════════════
 # Der Kern bleibt `scripts/backup.sh`. Diese Datei ruft es, sie ersetzt es nicht —
 # DATA_DIR, BACKUP_DIR, BLOB_DIR und BACKUP_KEEP liest weiterhin JENES Skript aus der
@@ -126,10 +159,10 @@ BACKUP_PING_URL="${BACKUP_PING_URL:-}"
 BACKUP_PING_URL_FEHLER="${BACKUP_PING_URL_FEHLER:-}"
 # Ab wann der Healthcheck einen ausbleibenden Lauf als Fehler wertet. 26 Stunden lassen
 # einem taeglichen Takt zwei Stunden Luft, ohne einen ausgefallenen Tag zu verschlucken.
-BACKUP_FRIST_STUNDEN="$(entnullen "${BACKUP_FRIST_STUNDEN:-26}")"
+BACKUP_FRIST_STUNDEN="$(zahl_oder_vorgabe BACKUP_FRIST_STUNDEN "${BACKUP_FRIST_STUNDEN:-26}" 26)"
 
 # Wie lange ein Lauf auf einen anderen wartet, bevor er aufgibt (Minuten).
-BACKUP_SPERRE_FRIST_MINUTEN="$(entnullen "${BACKUP_SPERRE_FRIST_MINUTEN:-30}")"
+BACKUP_SPERRE_FRIST_MINUTEN="$(zahl_oder_vorgabe BACKUP_SPERRE_FRIST_MINUTEN "${BACKUP_SPERRE_FRIST_MINUTEN:-30}" 30)"
 # Ab wann eine Sperre als verwaist gilt und uebernommen werden darf (Stunden).
 #
 # ⚠️ DIESE ZAHL MISST NICHT, WIE LANGE EIN LAUF SCHON LAEUFT, SONDERN WIE LANGE NIEMAND
@@ -138,10 +171,10 @@ BACKUP_SPERRE_FRIST_MINUTEN="$(entnullen "${BACKUP_SPERRE_FRIST_MINUTEN:-30}")"
 # als diese Zahl (grosse Ablage, langsames Ziel), nach Ablauf als „verwaist" eingestuft
 # worden, und der naechste haette ihm die Sperre unter den Haenden weggenommen. GEMESSEN:
 # mit einer Sperre, deren Zeitstempel 8h zurueckliegt, startete der zweite Lauf sofort.
-BACKUP_SPERRE_ALTER_STUNDEN="$(entnullen "${BACKUP_SPERRE_ALTER_STUNDEN:-6}")"
+BACKUP_SPERRE_ALTER_STUNDEN="$(zahl_oder_vorgabe BACKUP_SPERRE_ALTER_STUNDEN "${BACKUP_SPERRE_ALTER_STUNDEN:-6}" 6)"
 # Takt des Herzschlags in Sekunden. Muss deutlich unter der Altersgrenze liegen, sonst
 # traegt er nicht; 60s gegen 6h ist reichlich Abstand.
-BACKUP_HERZSCHLAG_SEKUNDEN="$(entnullen "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}")"
+BACKUP_HERZSCHLAG_SEKUNDEN="$(zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}" 60)"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
@@ -1288,6 +1321,12 @@ uhrzeit_pruefen() {
   mm="${BACKUP_UHRZEIT##*:}"
   gueltig=1
   case "$BACKUP_UHRZEIT" in *:*) ;; *) gueltig=0 ;; esac
+  # ⚠️ GENAU EIN DOPPELPUNKT, sonst ist die Zerlegung daneben und MELDET ES NICHT:
+  # `hh` nimmt alles vor dem ERSTEN, `mm` alles nach dem LETZTEN. GEMESSEN:
+  # `03:30:45` → hh=03, mm=45, also ein Lauf um 03:45 — beide Teile sind Ziffern, die
+  # Bereichspruefung unten ist zufrieden, und die Warnung bleibt aus. Eine Sekunde
+  # anzuhaengen ist die naheliegendste Fehleingabe ueberhaupt.
+  case "$BACKUP_UHRZEIT" in *:*:*) gueltig=0 ;; esac
   case "$hh" in '' | *[!0-9]*) gueltig=0 ;; esac
   case "$mm" in '' | *[!0-9]*) gueltig=0 ;; esac
   if [ "$gueltig" -eq 1 ]; then

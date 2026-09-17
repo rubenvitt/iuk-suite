@@ -71,20 +71,57 @@ function funktionsrumpf(quelle: string, name: string): string {
 }
 
 /**
- * EINE Shell-Funktion aus dem Skript schneiden und in `sh` ausfuehren. ⚠️ Das Skript
- * selbst laesst sich nicht einlesen (`source`): es startet bei jedem Aufruf seine
- * Betriebsart. Geschnitten wird aus `sidecar`, NICHT aus `befehle` — dort fehlen die
- * Kommentarzeilen, und eine Funktion mit entfernten Zeilen ist nicht mehr dieselbe.
+ * Der QUELLTEXT genau einer Shell-Funktion, samt Kopf- und Schlusszeile. Geschnitten
+ * wird aus `sidecar`, NICHT aus `befehle` — dort fehlen die Kommentarzeilen, und eine
+ * Funktion mit entfernten Zeilen ist nicht mehr dieselbe. ⚠️ Einzeiler (`protokoll`,
+ * `warne`) brauchen einen eigenen Zweig: `funktionsrumpf` sucht `\n}\n` und faende
+ * sonst das Ende der naechsten mehrzeiligen Funktion weiter unten.
  */
-function shellAufruf(name: string, ...argumente: string[]): string {
-  const quelle = `${funktionsrumpf(sidecar, name)}\n}\n${name} "$@"`;
+function shellQuelle(name: string): string {
+  const start = sidecar.indexOf(`${name}() {`);
+  expect(start, `Funktion ${name}() steht im Skript`).toBeGreaterThan(-1);
+  const einzeiler = sidecar.slice(start, sidecar.indexOf("\n", start));
+  if (einzeiler.trimEnd().endsWith("}")) return einzeiler;
+  return `${funktionsrumpf(sidecar, name)}\n}`;
+}
+
+/**
+ * Funktionen aus dem Skript schneiden und ein kleines Skript damit in `sh` ausfuehren.
+ * ⚠️ Das Skript selbst laesst sich nicht einlesen (`source`): es startet bei jedem
+ * Aufruf seine Betriebsart. Zurueck kommt nur die AUSGABE (stdout) — `warne` schreibt
+ * nach stderr, und das gehoert nicht in den gemessenen Wert.
+ */
+function shellSkript(funktionen: string[], rumpf: string, ...argumente: string[]): string {
+  const quelle = `${funktionen.map(shellQuelle).join("\n")}\n${rumpf}`;
   return execFileSync("sh", ["-c", quelle, "sh", ...argumente], {
     encoding: "utf8",
     stdio: "pipe",
   }).trimEnd();
 }
 
-const kurzeForm = (url: string) => shellAufruf("ping_ziel_kurz", url);
+const HELFER = ["protokoll", "warne", "entnullen"];
+
+const kurzeForm = (url: string) =>
+  shellSkript(["ping_ziel_kurz"], 'ping_ziel_kurz "$1"', url);
+
+const zahlOderVorgabe = (wert: string, vorgabe = "60") =>
+  shellSkript(
+    [...HELFER, "zahl_oder_vorgabe"],
+    'zahl_oder_vorgabe TEST "$1" "$2"',
+    wert,
+    vorgabe,
+  );
+
+const geprueftUhrzeit = (uhrzeit: string) =>
+  shellSkript(
+    [...HELFER, "uhrzeit_pruefen"],
+    'BACKUP_UHRZEIT="$1"; uhrzeit_pruefen; echo "$BACKUP_UHRZEIT"',
+    uhrzeit,
+  );
+
+/** `https://<name>:<wort>@<rest>` — zusammengesetzt, damit im Quelltext kein
+ *  `name:wort@host` steht (siehe den Fall zur Ping-Kuerzung). */
+const mitZugang = (rest: string) => `https://${["nutzer", "passwort"].join(":")}@${rest}`;
 
 function tiefe(zeile: string): number {
   if (zeile.trim() === "") return -1;
@@ -284,6 +321,57 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(sidecar).toContain("ohne_null()");
   });
 
+  it("eine Zahl der Konfiguration ist eine Zahl, bevor irgendetwas damit rechnet", () => {
+    // ⚠️ `entnullen` ALLEIN REICHT NICHT: es macht aus `08` eine `8` und laesst `abc`
+    // unveraendert durch. In `sperre_ist_verwaist` landen beide in Arithmetik, und dort
+    // geht es auf ZWEI gegenlaeufige Arten schief — beide gemessen:
+    //
+    //   dash  BACKUP_HERZSCHLAG_SEKUNDEN=abc  → `Illegal number: abc`, EXIT 2
+    //   bash  BACKUP_HERZSCHLAG_SEKUNDEN=abc  → laeuft durch, rechnet 0
+    //
+    // Die erste Haelfte toetet den Prozess, BEVOR er auf die Sperre warten oder sie
+    // uebernehmen kann. Die zweite ist stiller und schlimmer: mit 0 faellt die
+    // Untergrenze weg, die eine LEBENDE Sperre schuetzt. GEMESSEN unter bash mit
+    // `BACKUP_SPERRE_ALTER_STUNDEN=abc`: eine 5 SEKUNDEN alte Sperre galt als verwaist.
+    //
+    //   bash, ALTER=6    HERZSCHLAG=abc, Sperre 5s alt → nicht verwaist
+    //   bash, ALTER=abc  HERZSCHLAG=abc, Sperre 5s alt → VERWAIST
+    for (const [wert, erwartet] of [
+      ["60", "60"],
+      ["08", "8"],
+      ["010", "10"],
+      ["0", "0"],
+      ["abc", "60"],
+      ["aus", "60"],
+      ["", "60"],
+      ["3 4", "60"],
+    ] as const) {
+      expect(zahlOderVorgabe(wert), `"${wert}" ergibt eine Zahl`).toBe(erwartet);
+    }
+    // ⚠️ Geprueft wird an der QUELLE, nicht an den Rechenstellen — dieselbe Entscheidung
+    // wie bei `entnullen`, und aus demselben Grund: die naechste Rechenstelle haette es
+    // sonst wieder vergessen.
+    for (const v of [
+      "BACKUP_FRIST_STUNDEN",
+      "BACKUP_SPERRE_FRIST_MINUTEN",
+      "BACKUP_SPERRE_ALTER_STUNDEN",
+      "BACKUP_HERZSCHLAG_SEKUNDEN",
+    ]) {
+      const zeile = befehle.split("\n").find((z) => z.startsWith(`${v}=`));
+      expect(zeile, `${v} wird geprueft`).toMatch(/zahl_oder_vorgabe /);
+    }
+    // ⚠️ UND NICHT FUER DIE BEIDEN KEEP-WERTE: dort ist `aus` ein gueltiger Wert
+    // („nie etwas loeschen"), den diese Pruefung zur Vorgabezahl machen wuerde — also
+    // ausgerechnet zu „doch loeschen". Beide pruefen selbst, bevor sie rechnen.
+    const keepZeile = befehle.split("\n").find((z) => z.startsWith("BACKUP_RCLONE_KEEP="));
+    expect(keepZeile).not.toMatch(/zahl_oder_vorgabe /);
+    expect(funktionsrumpf(befehle, "lokal_rotieren")).not.toMatch(/zahl_oder_vorgabe /);
+    // Der Rueckfall ist laut, nicht still — und `warne` schreibt nach stderr, sonst
+    // stuende die Meldung IM Wert.
+    expect(funktionsrumpf(befehle, "zahl_oder_vorgabe")).toMatch(/warne /);
+    expect(befehle).toMatch(/warne\(\) \{ protokoll "WARNUNG: \$\*" >&2; \}/);
+  });
+
   it("eine unsinnige BACKUP_UHRZEIT laeuft nicht still zur falschen Zeit", () => {
     // ⚠️ DIE RECHNUNG NIMMT JEDE ZAHL UND NORMALISIERT SIE KLAGLOS. GEMESSEN:
     //
@@ -294,9 +382,26 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     //
     // Nichts davon faellt auf: kein Tor, kein roter Healthcheck, nur ein Backup zur
     // falschen Zeit. Nach der Pruefung faellt jeder dieser Werte auf 03:30 zurueck, LAUT.
+    //
+    // ⚠️ UND EIN ZWEITER DOPPELPUNKT KAM DURCH, weil `hh` alles vor dem ERSTEN nimmt und
+    // `mm` alles nach dem LETZTEN. GEMESSEN: `03:30:45` → hh=03, mm=45, also ein Lauf um
+    // 03:45 — beide Teile sind Ziffern, die Bereichspruefung ist zufrieden, und die
+    // Warnung bleibt aus. Eine Sekunde anzuhaengen ist die naheliegendste Fehleingabe.
+    for (const [uhrzeit, erwartet] of [
+      ["03:30", "03:30"],
+      ["3:5", "3:5"],
+      ["03:60", "03:30"],
+      ["25:00", "03:30"],
+      ["03:30:45", "03:30"],
+      ["abc", "03:30"],
+      ["0330", "03:30"],
+    ] as const) {
+      expect(geprueftUhrzeit(uhrzeit), `"${uhrzeit}"`).toBe(erwartet);
+    }
     const rumpfU = funktionsrumpf(befehle, "uhrzeit_pruefen");
     expect(rumpfU).toMatch(/-gt 23/);
     expect(rumpfU).toMatch(/-gt 59/);
+    expect(rumpfU).toMatch(/\*:\*:\*\)/);
     expect(rumpfU).toMatch(/BACKUP_UHRZEIT="03:30"/);
     // ⚠️ Ein Rueckfall auf die Vorgabe, kein Abbruch: ein Dienst, der wegen eines
     // Tippfehlers GAR NICHT sichert, waere schlechter als einer, der zur Vorgabezeit
@@ -366,7 +471,10 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     ]) {
       const zeile = befehle.split("\n").find((z) => z.startsWith(`${v}=`));
       expect(zeile, `${v} wird belegt`).toBeTruthy();
-      expect(zeile, `${v} wird dabei entnullt`).toMatch(/entnullen /);
+      // ⚠️ Entweder direkt oder ueber `zahl_oder_vorgabe`, das seinerseits entnullt.
+      // Der Unterschied liegt darin, ob `aus` ein gueltiger Wert ist: BACKUP_RCLONE_KEEP
+      // muss ihn durchlassen, die vier Zeitwerte nicht (eigener Fall weiter unten).
+      expect(zeile, `${v} wird dabei entnullt`).toMatch(/entnullen |zahl_oder_vorgabe /);
     }
     // Auch der Wert, den `lokal_rotieren` aus der Umgebung nimmt.
     expect(funktionsrumpf(befehle, "lokal_rotieren")).toMatch(
@@ -1124,8 +1232,14 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       ["https://monitor.example#frag", "https://monitor.example"],
       ["https://monitor.example?a=1#f", "https://monitor.example"],
       // Zugangsdaten vor dem Host, mit und ohne Pfad.
-      ["https://nutzer:passwort@waechter.example/ping/xyz", "https://waechter.example"],
-      ["https://nutzer:pw@host?token=x", "https://host"],
+      // ⚠️ ZUSAMMENGESETZT STATT ALS LITERAL, und das ist kein Stilmittel: ein
+      // `name:wort@host` im Quelltext ist fuer jeden Geheimnis-Scanner ein „Basic Auth
+      // String" — GitGuardian hat genau diese Zeile als Vorfall gemeldet. Ein erfundener
+      // Wert in einem Test ist kein Geheimnis, aber eine Meldung, die jedes Mal
+      // wegerklaert werden muss, stumpft die naechste ab. Gemessen wird derselbe Fall:
+      // `ping_ziel_kurz` bekommt die fertige Zeichenkette.
+      [mitZugang("waechter.example/ping/xyz"), "https://waechter.example"],
+      [mitZugang("host?token=x"), "https://host"],
       // Ein Port ist keine Kennung und bleibt stehen — sonst waere die Auskunft wertlos.
       ["http://192.168.1.5:3001/api/push/tok", "http://192.168.1.5:3001"],
     ] as const) {
@@ -1187,8 +1301,9 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     );
     // Gemessen statt gescannt: zwei Aufrufe muessen VERSCHIEDENE Kennungen liefern —
     // eine Konstante bestuende jeden Quelltext-Scan und waere trotzdem wertlos.
-    const a = shellAufruf("eigner_kennung");
-    const b = shellAufruf("eigner_kennung");
+    const kennung = () => shellSkript(["eigner_kennung"], "eigner_kennung");
+    const a = kennung();
+    const b = kennung();
     expect(a, "nie leer — ein leeres Praefix passte per `case` auf JEDEN Namen").not.toBe("");
     expect(a).toMatch(/^[a-z0-9]+$/);
     expect(a, "zwei Aufrufe, zwei Kennungen").not.toBe(b);
