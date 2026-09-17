@@ -225,6 +225,15 @@ export function stelleOrtCodesSicher(db: DB, ausstellerSub: string, name: string
  * ⚠️ UND DIE ALTE ZEILE BEHÄLT IHRE `ort_id`. Sie ist danach die einzige
  * Auskunft darüber, an welcher Karte ein gesperrter Code einmal hing.
  *
+ * ⚠️ `ersetztAm` IST NICHT DIE DOPPELUNG VON `aktiv = false`, sondern der
+ * Unterschied zwischen „gesperrt" und „verbrannt" — gefunden in der Durchsicht.
+ * Sperren ist rücknehmbar und soll es am Altbestand bleiben; ein
+ * zurückgesetzter Code darf es nie sein. Ohne die Spalte führte ein erlaubter
+ * Handgriff zurück: erst den NACHFOLGER sperren, dann am Vorgänger
+ * „Reaktivieren" — der Riegel dort fragte „hat dieser Ort schon einen aktiven
+ * Code?", und nach dem ersten Klick hat er keinen. Das weggeworfene Kärtchen
+ * gälte wieder. Gelesen wird die Spalte in `_actions/tokens.ts`.
+ *
  * ⚠️ EINE TRANSAKTION, keine zwei Anweisungen. Bräche es dazwischen ab, stünde
  * der Ort ohne aktiven Code da — die Karte am Fahrzeug führte ab dann aufs Gate,
  * und niemand wüsste, warum.
@@ -247,7 +256,7 @@ export function setzeOrtCodeNeu(
   try {
     return db.transaction((tx) => {
       tx.update(tokens)
-        .set({ aktiv: false })
+        .set({ aktiv: false, ersetztAm: new Date() })
         .where(and(eq(tokens.ortId, ort.id), eq(tokens.aktiv, true))!)
         .run();
       const code = legeAn(tx as unknown as DB, ort, ausstellerSub);

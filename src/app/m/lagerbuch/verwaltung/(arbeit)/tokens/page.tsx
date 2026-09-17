@@ -66,6 +66,15 @@ export function tokenAnzeigeZeilen(
       })
       : null,
     zuruecksetzbar: zeile.ortId !== null && kartenOrte.has(zeile.ortId),
+    /**
+     * ⚠️ NUR DER TAG, NICHT DIE UHRZEIT — anders als `lastUsedText` daneben.
+     * Die Frage, die dieser Wert beantwortet, ist „galt mein Foto damals
+     * noch?"; auf die Minute genau zu antworten hieße, eine Schärfe zu
+     * behaupten, die niemand braucht, und die Zeile unnötig breit zu machen.
+     */
+    ersetztText: zeile.ersetztAm
+      ? zeile.ersetztAm.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })
+      : null,
     zielTyp: zeile.zielTyp,
     zielId: zeile.zielId,
     zielName: zeile.zielName,

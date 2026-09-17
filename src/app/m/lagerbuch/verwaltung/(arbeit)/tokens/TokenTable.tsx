@@ -53,6 +53,11 @@ export type TokenAnzeigeZeile = {
    * Zeilenquelle, `page.tsx`).
    */
   zuruecksetzbar: boolean;
+  /**
+   * DRK-406 — „ersetzt am 17.9.2026", oder `null` fuer jeden Code, der nie
+   * ersetzt wurde. Fertig formatiert vom Server (Zeitzone ist Fachvertrag).
+   */
+  ersetztText: string | null;
   zielTyp: "fahrzeug" | "artikel" | null;
   zielId: string | null;
   zielName: string | null;
@@ -72,6 +77,22 @@ export function zielVon(z: TokenAnzeigeZeile): ZielFilter {
 
 export function artVon(z: TokenAnzeigeZeile): ArtFilter {
   return z.ortId === null ? "altbestand" : "ortscode";
+}
+
+/**
+ * DARF DIESER GESPERRTE CODE WIEDER GELTEN? Nur der Altbestand darf — DRK-406.
+ *
+ * ⚠️ ZWEI BEDINGUNGEN, UND DIE ZWEITE IST NICHT DIE ERSTE NOCH EINMAL. `ortId`
+ * faengt den Code, der heute zu einer Karte gehoert; `ersetztText` den, der es
+ * einmal tat. Beim Loeschen einer Einheit MUSS `ort_id` geleert werden
+ * (Fremdschluessel), und ohne die zweite Bedingung saehe ihr verbrannter Code
+ * danach aus wie ein laminiertes Kaertchen von Hand.
+ *
+ * Dieselbe Entscheidung faellt serverseitig in `_actions/tokens.ts` — diese
+ * Funktion ist die Anzeige davon, nicht der Riegel.
+ */
+export function kannReaktivieren(z: TokenAnzeigeZeile): boolean {
+  return z.ortId === null && z.ersetztText === null;
 }
 
 /**
@@ -372,12 +393,34 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
               Neu erzeugen
             </Button>
           ) : null}
-          <Button
-            disabled={laeuft}
-            onClick={() => statusAendern(zeile)}
-          >
-            {zeile.aktiv ? "Sperren" : "Reaktivieren"}
-          </Button>
+          {/*
+            ⚠️ „REAKTIVIEREN" GIBT ES NUR AM ALTBESTAND — DRK-406, gefunden in
+            der Durchsicht. Ein Code, der zu einer Ortskarte gehört oder gehört
+            HAT, kommt nie zurück: sein Nachschub sind die Ortsetiketten, nicht
+            dieser Knopf. Die Action lehnt genau so ab; hier steht derselbe
+            Riegel nur früher, damit niemand einen Knopf drückt, der nichts tun
+            kann.
+
+            ⚠️ AN SEINER STELLE STEHT EINE AUSKUNFT, KEINE LÜCKE. Eine leere
+            Zelle liest sich wie ein vergessener Knopf. „Ersetzt am …"
+            beantwortet dazu die Frage, die am Tresen wirklich gestellt wird,
+            wenn jemand mit einem alten Foto auftaucht.
+
+            ⚠️ „SPERREN" BLEIBT FÜR JEDEN CODE. Es ist der Griff, der wirkt,
+            wenn eine Karte verschwindet — auch an einem Ortscode.
+          */}
+          {zeile.aktiv || kannReaktivieren(zeile) ? (
+            <Button
+              disabled={laeuft}
+              onClick={() => statusAendern(zeile)}
+            >
+              {zeile.aktiv ? "Sperren" : "Reaktivieren"}
+            </Button>
+          ) : (
+            <span style={SCHRIFT.neben}>
+              {zeile.ersetztText ? `ersetzt am ${zeile.ersetztText}` : "dauerhaft gesperrt"}
+            </span>
+          )}
         </Flex>
       ),
     },

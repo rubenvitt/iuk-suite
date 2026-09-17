@@ -224,6 +224,7 @@ function tokenAnlegen(args: {
   lastUsedAt?: Date | null;
   /** DRK-406: gesetzt = ORTSCODE, `null` = von Hand angelegter Altbestand. */
   ortId?: string | null;
+  aktiv?: boolean;
 } = {}): string {
   const id = args.id ?? newId();
   t.db.insert(tokens).values({
@@ -234,7 +235,7 @@ function tokenAnlegen(args: {
     ortId: args.ortId ?? null,
     zielTyp: args.zielTyp ?? null,
     zielId: args.zielId ?? null,
-    aktiv: true,
+    aktiv: args.aktiv ?? true,
     createdAt: JETZT,
     createdBy: "u-admin",
     lastUsedAt: args.lastUsedAt ?? null,
@@ -1084,5 +1085,36 @@ describe("DRK-406 — Ortscodes blockieren ihre eigene Einheit nicht", () => {
     expect(zeile.aktiv).toBe(false);
     // Die Bindung ist geloest — der Ort, auf den sie zeigte, gibt es nicht mehr.
     expect(zeile.ortId).toBeNull();
+    /*
+     * ⚠️ UND GENAU DESHALB DIE MARKIERUNG. Ohne sie waere die geloeste Bindung
+     * eine Luecke: eine gesperrte Zeile ohne `ort_id` sieht aus wie Altbestand,
+     * und der DARF reaktiviert werden. Ein Klick in der Codeverwaltung machte
+     * den Code einer geloeschten Einheit wieder gueltig; `_actions/tokens.ts`
+     * liest diese Spalte und lehnt ab.
+     */
+    expect(zeile.ersetztAm).toBeInstanceOf(Date);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUM STILLEN NEBENEFFEKT: das `UPDATE` trifft ALLE Codes
+   * dieses Ortes, auch die schon gesperrten Vorgaenger. Das ist richtig — die
+   * Einheit ist weg, keiner von ihnen darf je wieder gelten — und es ist die
+   * Stelle, an der ein `where` zu wenig genau denselben Schaden anrichtet wie
+   * ein vergessenes.
+   */
+  it("markiert AUCH die schon gesperrten Vorgaenger der Einheit", async () => {
+    const id = fahrzeugAnlegen();
+    const alt = tokenAnlegen({
+      code: "900-701", ortId: id, zielTyp: "fahrzeug", zielId: id, aktiv: false,
+    });
+    const jetzt = tokenAnlegen({ code: "900-702", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+
+    for (const tok of [alt, jetzt]) {
+      const zeile = t.db.select().from(tokens).where(eq(tokens.id, tok)).get()!;
+      expect(zeile.ersetztAm).toBeInstanceOf(Date);
+      expect(zeile.aktiv).toBe(false);
+    }
   });
 });

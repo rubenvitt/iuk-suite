@@ -118,6 +118,7 @@ const FAHRZEUG = {
   ortName: "RTW 1",
   ortMeta: "Fahrzeug · MS-1",
   zuruecksetzbar: true,
+  ersetztText: null,
   zielTyp: "fahrzeug" as const,
   zielId: "rtw-1",
   zielName: "RTW 1",
@@ -142,6 +143,7 @@ const TASCHE = {
   ortName: "Rucksack Betreuung",
   ortMeta: "Tasche",
   zuruecksetzbar: true,
+  ersetztText: null,
   zielTyp: "fahrzeug" as const,
   zielId: "rucksack-1",
   zielName: "Rucksack Betreuung",
@@ -160,6 +162,7 @@ const ARTIKEL = {
   ortName: null,
   ortMeta: null,
   zuruecksetzbar: false,
+  ersetztText: null,
   zielTyp: "artikel" as const,
   zielId: "a1",
   zielName: "Ärzte-Verband",
@@ -178,6 +181,7 @@ const LISTE = {
   ortName: null,
   ortMeta: null,
   zuruecksetzbar: false,
+  ersetztText: null,
   zielTyp: null,
   zielId: null,
   zielName: null,
@@ -202,6 +206,7 @@ const HANDLAGER = {
   ortName: "Handlager",
   ortMeta: "Lager",
   zuruecksetzbar: true,
+  ersetztText: null,
   zielTyp: null,
   zielId: null,
   zielName: null,
@@ -557,12 +562,12 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   it("reicht den Satz des Servers durch, wenn er einen hat", async () => {
     mocks.setTokenAktiv.mockResolvedValueOnce({
       ok: false,
-      fehler: "Für diesen Ort gilt bereits ein neuerer Code.",
+      fehler: "Ein Code, der zu einer Ortskarte gehört, wird nicht wieder aktiviert.",
     });
     const sperren = await sperrenKlicken();
 
     expect(query(".ant-alert-warning").textContent ?? "")
-      .toContain("Für diesen Ort gilt bereits ein neuerer Code.");
+      .toContain("wird nicht wieder aktiviert");
     expect(sperren.textContent).toBe("Sperren");
   });
 
@@ -596,7 +601,7 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(werte.length, "keine `fehler:`-Zuweisung gefunden").toBeGreaterThan(0);
     for (const wert of werte) {
       expect(wert, `unerwarteter Fehlerwert: ${wert}`)
-        .toMatch(/^(STATUS_FEHLER|ORT_BESETZT_FEHLER|"[^"]*")$/);
+        .toMatch(/^(STATUS_FEHLER|ORTSCODE_FEHLER|ERSETZT_FEHLER|"[^"]*")$/);
     }
     // Und der offensichtliche Weg daran vorbei steht namentlich da.
     expect(quelle).not.toMatch(/fehler:\s*(String\(|`|.*\.message)/);
@@ -649,6 +654,47 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(knoepfe("t3"), "Altbestand hat keinen Ort").not.toContain("Neu erzeugen");
     expect(knoepfe("t9"), "gesperrt: der Ort hat längst einen neuen Code")
       .not.toContain("Neu erzeugen");
+  });
+
+  /**
+   * ⚠️ „REAKTIVIEREN" GIBT ES NUR AM ALTBESTAND — DRK-406, gefunden in der
+   * Durchsicht. Ein Code, der zu einer Ortskarte gehört oder gehört HAT, kommt
+   * nie zurück; die Action lehnt genau so ab. Stünde der Knopf trotzdem da,
+   * wäre er ein Versprechen, das der Server bricht — und der einzige Weg zur
+   * Erklärung führte über einen Fehlversuch.
+   *
+   * ⚠️ DER ZWEITE FALL BRAUCHT `ortId: null` UND IST TROTZDEM GESPERRT: so
+   * sieht der Code einer GELÖSCHTEN Einheit aus (dort muss die Bindung fallen,
+   * Fremdschlüssel). Ohne `ersetztText` wäre er von Altbestand nicht zu
+   * unterscheiden — das ist der ganze Grund, warum es das Feld gibt.
+   */
+  it("bietet Reaktivieren weder am Ortscode noch an einem ersetzten Code an", async () => {
+    const gesperrterOrtscode = { ...FAHRZEUG, id: "t9", code: "999-111", aktiv: false };
+    const verwaist = {
+      ...FAHRZEUG,
+      id: "t8",
+      code: "999-222",
+      aktiv: false,
+      ortId: null,
+      ortName: null,
+      ortMeta: null,
+      zuruecksetzbar: false,
+      ersetztText: "17.9.2026",
+    } satisfies TokenAnzeigeZeile;
+    await mount(<TokenTable zeilen={[ARTIKEL, gesperrterOrtscode, verwaist]} />);
+
+    const knoepfe = (id: string) => Array.from(
+      query(`tr[data-row-key='${id}']`).querySelectorAll("button"),
+    ).map((knopf) => knopf.textContent);
+
+    expect(knoepfe("t2"), "Altbestand bleibt reaktivierbar").toContain("Reaktivieren");
+    expect(knoepfe("t9")).not.toContain("Reaktivieren");
+    expect(knoepfe("t8")).not.toContain("Reaktivieren");
+
+    // ⚠️ AN SEINER STELLE STEHT EINE AUSKUNFT, KEINE LÜCKE — und am ersetzten
+    // Code beantwortet sie die Frage, die am Tresen wirklich gestellt wird.
+    expect(query("tr[data-row-key='t9']").textContent).toContain("dauerhaft gesperrt");
+    expect(query("tr[data-row-key='t8']").textContent).toContain("ersetzt am 17.9.2026");
   });
 
   /**
@@ -761,6 +807,7 @@ describe("TokensSeite", () => {
     ortTyp: "fahrzeug" as const,
     ortKennung: "UE-RK 1234",
     ortEinheitenart: "fahrzeug" as const,
+    ersetztAm: null,
   };
 
   const KARTEN = new Set(["rtw-1", "handlager"]);
@@ -779,6 +826,7 @@ describe("TokensSeite", () => {
       ortName: "RTW Alpha",
       ortMeta: "Fahrzeug · UE-RK 1234",
       zuruecksetzbar: true,
+      ersetztText: null,
       zielTyp: "fahrzeug",
       zielId: "rtw-1",
       zielName: "RTW Alpha",

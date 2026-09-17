@@ -334,6 +334,39 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
     expect(zeilen.every((z) => z.ortId === "rtw-1")).toBe(true);
   });
 
+  /**
+   * ⚠️ „GESPERRT" IST NICHT „VERBRANNT", und der Unterschied ist genau das,
+   * was die Anwender-Notiz zusagt: „der bisherige ist dann dauerhaft
+   * gesperrt". `aktiv = false` allein ist rücknehmbar — und soll es am
+   * Altbestand bleiben. `ersetztAm` ist die Spur, die das Zurücknehmen für
+   * DIESEN Code ausschließt; gelesen wird sie in `_actions/tokens.ts`.
+   *
+   * ⚠️ UND SIE STEHT NUR AM ALTEN. Trüge der neue Code sie auch, wäre er vom
+   * ersten Tag an nicht mehr reaktivierbar — die Sperre gälte dem Falschen.
+   */
+  it("markiert den alten Code als ersetzt und den neuen nicht", () => {
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    const alt = stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER)!;
+
+    const neu = setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER)!;
+
+    const zeilen = zeilenVon("rtw-1");
+    expect(zeilen.find((z) => z.code === alt)!.ersetztAm).toBeInstanceOf(Date);
+    expect(zeilen.find((z) => z.code === neu)!.ersetztAm).toBeNull();
+  });
+
+  /**
+   * ⚠️ EIN CODE, DER NIE ERSETZT WURDE, TRAEGT NICHTS — auch nicht, nachdem
+   * jemand ihn von Hand gesperrt hat. Sonst verlöre der Altbestand sein
+   * Reaktivieren, sobald ihn jemand einmal versehentlich sperrt.
+   */
+  it("markiert beim blossen Anlegen niemanden als ersetzt", () => {
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER);
+
+    expect(zeilenVon("rtw-1").every((z) => z.ersetztAm === null)).toBe(true);
+  });
+
   it("lässt sich mehrfach hintereinander anwenden", () => {
     stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
     const erste = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
@@ -359,5 +392,8 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
 
     expect(zeilenVon(HANDLAGER_ID)).toHaveLength(1);
     expect(aktiverOrtCode(t.db, HANDLAGER_ID)).toBe(alt);
+    // Auch die Markierung ist zurückgerollt — sonst stünde ein gültiger,
+    // aktiver Code als „ersetzt" da und wäre nie wieder zu reaktivieren.
+    expect(zeilenVon(HANDLAGER_ID)[0]!.ersetztAm).toBeNull();
   });
 });

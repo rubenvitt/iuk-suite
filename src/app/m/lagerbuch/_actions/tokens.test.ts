@@ -301,6 +301,7 @@ describe("tokenListe", () => {
         ortTyp: null,
         ortKennung: null,
         ortEinheitenart: null,
+        ersetztAm: null,
       },
       {
         id: "token-y",
@@ -321,6 +322,7 @@ describe("tokenListe", () => {
         ortTyp: null,
         ortKennung: null,
         ortEinheitenart: null,
+        ersetztAm: null,
       },
       {
         id: "token-a",
@@ -339,6 +341,7 @@ describe("tokenListe", () => {
         ortTyp: null,
         ortKennung: null,
         ortEinheitenart: null,
+        ersetztAm: null,
       },
     ]);
     expect(revalidiert).toEqual([]);
@@ -346,57 +349,103 @@ describe("tokenListe", () => {
 });
 
 /**
- * DRK-406 — EIN ZURUECKGESETZTER ORTSCODE LAESST SICH NICHT REAKTIVIEREN.
+ * DRK-406 — EIN CODE, DER ZU EINER ORTSKARTE GEHOERT ODER GEHOERT HAT, KOMMT
+ * NIE ZURUECK.
  *
- * ⚠️ GEFUNDEN IN DER DURCHSICHT, NICHT VON EINEM TOR. Die Liste bietet
- * „Reaktivieren" an jeder gesperrten Zeile an — auch an einem zurueckgesetzten
- * Ortscode, dessen Ort laengst einen neuen aktiven Code hat. Der Teilindex
- * `idx_tokens_ort_aktiv` weist den Schreibvorgang ab (gemessen gegen SQLite:
- * `UNIQUE constraint failed: tokens.ort_id`), und ohne die Vorpruefung faende
- * die Verwaltende nur die allgemeine Meldung „Status konnte nicht geaendert
- * werden" — fuer einen Zustand, der kein Fehler ist, sondern eine Absicht.
+ * ⚠️ HIER STAND EINE SCHWAECHERE ZUSAGE, UND SIE WAR DER FEHLER SELBST: die
+ * erste Fassung fragte „hat dieser Ort schon einen aktiven Code?" und liess
+ * durch, wenn nicht — mit einer ausgeschriebenen Gegenprobe, die genau das als
+ * richtig festhielt. Der Weg zurueck geht aber ueber zwei ERLAUBTE Handgriffe:
+ * erst den NACHFOLGER sperren, dann am Vorgaenger reaktivieren. Danach gilt das
+ * weggeworfene Kaertchen wieder, von dem jemand ein Foto hat — und die
+ * Anwender-Notiz hat „dauerhaft gesperrt" versprochen.
+ *
+ * ⚠️ DER TEILINDEX KANN DAS NICHT FANGEN und ist deshalb keine Antwort darauf:
+ * es ist zu jedem Zeitpunkt genau ein aktiver Code je Ort, nur eben der
+ * verbrannte. Die Herkunft entscheidet, nicht der Zustand des Ortes.
+ *
+ * ⚠️ DER WEG, DER BLEIBT, IST NICHT DIESER KNOPF: ein Ort ohne aktiven Code
+ * bekommt beim naechsten Oeffnen der Ortsetiketten einen neuen
+ * (`stelleOrtCodesSicher`). Eine Sperre hier nimmt also niemandem etwas.
  */
-describe("setTokenAktiv — der zurueckgesetzte Ortscode bleibt gesperrt", () => {
-  function ortscode(args: { id: string; code: string; aktiv: boolean }): void {
+describe("setTokenAktiv — ein Ortscode wird nie reaktiviert", () => {
+  function ortscode(args: {
+    id: string; code: string; aktiv: boolean; ersetzt?: boolean; ortId?: string | null;
+  }): void {
     t.db.insert(tokens).values({
       id: args.id, code: args.code, label: "Ortskarte",
-      ortId: HANDLAGER_ID, zielTyp: null, zielId: null,
+      ortId: args.ortId === undefined ? HANDLAGER_ID : args.ortId,
+      zielTyp: null, zielId: null,
+      ersetztAm: args.ersetzt ? JETZT : null,
       aktiv: args.aktiv, createdAt: JETZT, createdBy: "u-admin",
     }).run();
   }
 
-  it("nennt den Grund, statt am Index aufzulaufen", async () => {
-    ortscode({ id: "ort-alt", code: "111-222", aktiv: false });
+  function fehlerVon(r: Awaited<ReturnType<typeof setTokenAktiv>>): string {
+    expect(r.ok).toBe(false);
+    return (r as { fehler: string }).fehler;
+  }
+
+  it("weist den zurueckgesetzten Code ab, waehrend sein Nachfolger gilt", async () => {
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: false, ersetzt: true });
     ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
 
-    const r = await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db);
+    const text = fehlerVon(await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db));
 
-    expect(r.ok).toBe(false);
-    const text = (r as { fehler: string }).fehler;
-    expect(text).toContain("bereits ein neuerer Code");
+    expect(text).toContain("dauerhaft gesperrt");
     // §11.7 — der abgelehnte Weg nennt den Weg, der bleibt.
-    expect(text).toContain("neu");
+    expect(text).toContain("Ortsetiketten");
     // ⚠️ UND KEINE DATENBANKSPRACHE: „UNIQUE constraint failed" hilft niemandem.
     expect(text).not.toContain("UNIQUE");
     expect(text).not.toContain("tokens");
 
-    expect(t.db.select().from(tokens).where(eq(tokens.id, "ort-alt")).get()?.aktiv)
-      .toBe(false);
+    expect(aktivVon("ort-alt")).toBe(false);
     expect(revalidiert).toEqual([]);
   });
 
   /**
-   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL VERBOETE: hat der Ort
-   * gerade KEINEN aktiven Code — etwa weil auch der neue gesperrt wurde —, ist
-   * Reaktivieren genau das Richtige. Eine pauschale Sperre fuer Ortscodes naehme
-   * der Betreiberin den einzigen Weg zurueck.
+   * ⚠️ DER FUND AUS DER DURCHSICHT, IN EINEM TEST. Zwei Klicks, beide erlaubt:
+   * der Nachfolger wird gesperrt, danach steht der Ort ohne aktiven Code da.
+   * Die alte Pruefung liess hier durch und machte den verbrannten Code wieder
+   * gueltig.
    */
-  it("laesst reaktivieren, solange der Ort keinen aktiven Code hat", async () => {
-    ortscode({ id: "ort-alt", code: "111-222", aktiv: false });
+  it("weist ihn auch ab, wenn der Ort GERADE KEINEN aktiven Code hat", async () => {
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: false, ersetzt: true });
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: false });
 
-    expect(await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db)).toEqual({ ok: true });
-    expect(t.db.select().from(tokens).where(eq(tokens.id, "ort-alt")).get()?.aktiv)
-      .toBe(true);
+    expect(fehlerVon(await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db)))
+      .toContain("dauerhaft gesperrt");
+    expect(aktivVon("ort-alt")).toBe(false);
+  });
+
+  /**
+   * ⚠️ AUCH DER NACHFOLGER SELBST BLEIBT UNTEN. Er ist nicht „ersetzt", er
+   * gehoert aber weiterhin einer Karte — und deren Nachschub sind die
+   * Ortsetiketten. Ohne diese Zeile waere der zweite Klick von oben rueckgaengig
+   * zu machen und der erste damit auch.
+   */
+  it("weist den heutigen Ortscode ab, nachdem jemand ihn gesperrt hat", async () => {
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: false });
+
+    expect(fehlerVon(await setTokenAktiv({ id: "ort-neu", aktiv: true }, t.db)))
+      .toContain("nicht wieder aktiviert");
+    expect(aktivVon("ort-neu")).toBe(false);
+  });
+
+  /**
+   * ⚠️ DER ZWEITE WEG, UND ER BRAUCHT NICHT EINMAL DEN ERSTEN KLICK. Beim
+   * Loeschen einer Einheit MUSS `ort_id` geleert werden (Fremdschluessel,
+   * `_actions/loeschen.ts`) — danach saehe die gesperrte Zeile aus wie
+   * Altbestand. `ersetztAm` ueberlebt das und ist hier der einzige Unterschied.
+   */
+  it("weist den Code einer geloeschten Einheit ab, obwohl er keinen Ort mehr hat", async () => {
+    ortscode({ id: "verwaist", code: "777-888", aktiv: false, ersetzt: true, ortId: null });
+
+    const text = fehlerVon(await setTokenAktiv({ id: "verwaist", aktiv: true }, t.db));
+
+    expect(text).toContain("nicht mehr gibt");
+    expect(text).toContain("dauerhaft gesperrt");
+    expect(aktivVon("verwaist")).toBe(false);
   });
 
   /** Der Altbestand hat keinen Ort — er bleibt uneingeschraenkt reaktivierbar. */
@@ -404,5 +453,22 @@ describe("setTokenAktiv — der zurueckgesetzte Ortscode bleibt gesperrt", () =>
     tokenDirekt({ id: "alt", code: "555-666", aktiv: false });
 
     expect(await setTokenAktiv({ id: "alt", aktiv: true }, t.db)).toEqual({ ok: true });
+    expect(aktivVon("alt")).toBe(true);
+  });
+
+  /**
+   * ⚠️ SPERREN BLEIBT FUER JEDEN CODE OFFEN. Der Riegel gilt nur der Richtung
+   * nach oben; eine Sperre, die auch das Sperren verboete, naehme der
+   * Betreiberin genau den Griff, den sie braucht, wenn eine Karte verschwindet.
+   */
+  it("sperrt einen aktiven Ortscode weiterhin", async () => {
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
+
+    expect(await setTokenAktiv({ id: "ort-neu", aktiv: false }, t.db)).toEqual({ ok: true });
+    expect(aktivVon("ort-neu")).toBe(false);
   });
 });
+
+function aktivVon(id: string): boolean | undefined {
+  return t.db.select().from(tokens).where(eq(tokens.id, id)).get()?.aktiv;
+}

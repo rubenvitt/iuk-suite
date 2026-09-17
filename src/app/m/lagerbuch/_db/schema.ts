@@ -571,6 +571,25 @@ export const tokens = sqliteTable(
     // NULL = „nie eingeloest". Reines Anzeigefeld, OHNE Einfluss auf Gueltigkeit und
     // (nach Entscheidung 8-F) auch ohne Einfluss auf Loeschbarkeit. Wandert vollstaendig mit.
     lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+    /**
+     * DRK-406 — SEIT WANN DIESER CODE VERBRANNT IST. Gesetzt, wo ein Code
+     * dauerhaft aus dem Verkehr geht: beim Zuruecksetzen einer Ortskarte
+     * (`_lib/schreibpfade/ortCodes.ts`, `setzeOrtCodeNeu`) und beim Loeschen
+     * der Einheit, an der er hing (`_actions/loeschen.ts`). `null` heisst
+     * „nie ersetzt" — jeder Altbestand, jeder aktive Code.
+     *
+     * ⚠️ SIE IST DER RIEGEL GEGEN DAS REAKTIVIEREN, und sie existiert, weil
+     * `ort_id` ihn nicht tragen kann. Beim Loeschen einer Einheit MUSS
+     * `ort_id` geleert werden (Fremdschluessel); ohne eine zweite Spur waeren
+     * die gesperrten Codes danach von Altbestand nicht zu unterscheiden — und
+     * der darf reaktiviert werden.
+     *
+     * ⚠️ SIE IST NICHT „gesperrt". `aktiv = false` ist ruecknehmbar und soll es
+     * fuer den Altbestand bleiben; `ersetzt_am` ist es nicht. Die beiden zu
+     * verschmelzen naehme der Betreiberin entweder das Zuruecknehmen am
+     * laminierten Kaertchen oder die Dauerhaftigkeit am Ortscode.
+     */
+    ersetztAm: integer("ersetzt_am", { mode: "timestamp" }),
   },
   /**
    * DRK-406 — „GENAU EIN AKTIVER CODE JE ORT" STEHT IN DER DATENBANK, nicht

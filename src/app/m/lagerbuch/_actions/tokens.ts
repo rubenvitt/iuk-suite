@@ -1,7 +1,7 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
@@ -37,18 +37,19 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
 const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
 /*
- * ⚠️ DER EINE FALL, DEN „Status konnte nicht geändert werden" NICHT ERKLAEREN
- * WUERDE — DRK-406, gefunden in der Durchsicht. Ein zurückgesetzter Ortscode
- * liegt gesperrt neben dem neuen aktiven Code DESSELBEN Ortes. Wer ihn
- * reaktiviert, verletzt `idx_tokens_ort_aktiv` („genau ein aktiver Code je
- * Ort"), und ohne diesen Satz bekäme er die allgemeine Meldung — für einen
- * Zustand, der kein Fehler ist, sondern eine Absicht.
- *
- * §11.7: der abgelehnte Weg nennt den Weg, der bleibt.
+ * ⚠️ ZWEI FAELLE, DIE „Status konnte nicht geändert werden" NICHT ERKLAEREN
+ * WUERDE — DRK-406, beide in der Durchsicht gefunden. Keiner von beiden ist ein
+ * Fehler; beide sind eine Absicht, und §11.7 verlangt, dass der abgelehnte Weg
+ * den Weg nennt, der bleibt.
  */
-const ORT_BESETZT_FEHLER =
-  "Für diesen Ort gilt bereits ein neuerer Code. Ein zurückgesetzter Code "
-  + "bleibt dauerhaft gesperrt — drucke die Karte mit dem aktuellen Code neu.";
+const ORTSCODE_FEHLER =
+  "Ein Code, der zu einer Ortskarte gehört, wird nicht wieder aktiviert — ein "
+  + "zurückgesetzter Code bleibt dauerhaft gesperrt. Den aktuellen Code des "
+  + "Ortes findest du unter „Verwaltung → Ortsetiketten“; fehlt dort einer, "
+  + "entsteht er beim Öffnen.";
+const ERSETZT_FEHLER =
+  "Dieser Code gehörte zu einem Ort, den es nicht mehr gibt. Er bleibt "
+  + "dauerhaft gesperrt.";
 
 const AktivSchema = z.object({
   id: z.string().min(1),
@@ -66,26 +67,34 @@ export async function setTokenAktiv(
     if (!geparst.success) return { ok: false, fehler: "Ungültige Eingabe." };
 
     /*
-     * ⚠️ DIE PRUEFUNG STEHT VOR DEM SCHREIBEN UND ERSETZT DEN INDEX NICHT. Der
-     * Teilindex bleibt der Riegel — er haelt auch gegen zwei gleichzeitige
-     * Anfragen. Diese Zeilen sind die ERKLAERUNG: sie machen aus einem
-     * `UNIQUE constraint failed` einen Satz, der sagt, was los ist.
+     * REAKTIVIEREN GILT NUR FUER DEN ALTBESTAND — DRK-406, und die zwei Zeilen
+     * sind die Zusage, die die Anwender-Notiz gibt: „der bisherige ist dann
+     * dauerhaft gesperrt".
      *
-     * ⚠️ NUR BEIM REAKTIVIEREN. Sperren kann den Index nie verletzen, und eine
-     * Abfrage dafuer waere ein Zugriff, der nichts entscheidet.
+     * ⚠️ HIER STAND „hat dieser Ort schon einen aktiven Code?", UND DAS WAR ZU
+     * WENIG. Der Weg zurueck ging ueber zwei erlaubte Handgriffe: erst den
+     * NACHFOLGER sperren, dann am Vorgaenger reaktivieren — nach dem ersten
+     * Klick hat der Ort keinen aktiven Code mehr, und die Pruefung liess
+     * durch. Das weggeworfene Kaertchen galt wieder. Der Teilindex
+     * `idx_tokens_ort_aktiv` sieht das nicht und kann es nicht sehen: es ist zu
+     * jedem Zeitpunkt genau ein aktiver Code je Ort, nur eben der verbrannte.
+     *
+     * ⚠️ DESHALB ENTSCHEIDET DIE HERKUNFT, NICHT DER ZUSTAND DES ORTES. Ein
+     * Code mit `ort_id` gehoert einer Karte; sein Nachschub kommt aus den
+     * Ortsetiketten, nie aus diesem Knopf. Ein Code mit `ersetzt_am` ist
+     * verbrannt — die Spalte ueberlebt das Loeschen der Einheit, bei dem
+     * `ort_id` geleert werden MUSS (`_actions/loeschen.ts`).
+     *
+     * ⚠️ NUR BEIM REAKTIVIEREN. Sperren bleibt fuer JEDEN Code offen, auch fuer
+     * den Ortscode: es ist der Griff, der wirkt, wenn eine Karte verschwindet.
      */
     if (geparst.data.aktiv) {
-      const zeile = db.select({ ortId: tokens.ortId })
+      const zeile = db.select({ ortId: tokens.ortId, ersetztAm: tokens.ersetztAm })
         .from(tokens)
         .where(eq(tokens.id, geparst.data.id))
         .get();
-      if (zeile?.ortId
-        && db.select({ id: tokens.id })
-          .from(tokens)
-          .where(and(eq(tokens.ortId, zeile.ortId), eq(tokens.aktiv, true))!)
-          .get()) {
-        return { ok: false, fehler: ORT_BESETZT_FEHLER };
-      }
+      if (zeile?.ortId) return { ok: false, fehler: ORTSCODE_FEHLER };
+      if (zeile?.ersetztAm) return { ok: false, fehler: ERSETZT_FEHLER };
     }
 
     try {

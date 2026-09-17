@@ -341,9 +341,17 @@ export async function loescheElement(
              * ⚠️ `ort_id = null` IST DER PREIS, und er ist unvermeidlich: der
              * Ort, auf den sie zeigte, existiert gleich nicht mehr. Was die
              * Karte war, steht weiterhin im `label` der Zeile.
+             *
+             * ⚠️ UND GENAU DESHALB `ersetztAm` — ohne das Feld waere dieser
+             * Preis eine Luecke (gefunden in der Durchsicht). Sobald `ort_id`
+             * weg ist, sieht die gesperrte Zeile aus wie Altbestand, und der
+             * DARF reaktiviert werden (Betreiberentscheidung 17.09.2026): ein
+             * Klick in der Codeverwaltung machte den Code einer geloeschten
+             * Einheit wieder gueltig. `ersetztAm` ueberlebt den Verlust der
+             * `ort_id` und ist der Riegel dagegen (`_actions/tokens.ts`).
              */
             tx.update(tokens)
-              .set({ aktiv: false, ortId: null })
+              .set({ aktiv: false, ortId: null, ersetztAm: new Date() })
               .where(eq(tokens.ortId, i))
               .run();
             // ⚠️ OHNE `eq(lagerorte.typ, "fahrzeug")`, UND DAS IST DER FIX VON

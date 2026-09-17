@@ -66,6 +66,16 @@ export type TokenZeile = {
   ortTyp: "lager" | "fahrzeug" | null;
   ortKennung: string | null;
   ortEinheitenart: Einheitenart | null;
+  /**
+   * DRK-406 — SEIT WANN DIESER CODE VERBRANNT IST, `null` = nie ersetzt.
+   *
+   * ⚠️ ER STEHT HIER, WEIL DIE LISTE DIE FRAGE AM TRESEN BEANTWORTEN SOLL:
+   * jemand kommt mit einem alten Foto, und „gesperrt" allein sagt nicht, ob
+   * seine Geschichte aufgeht. Die Spalte ist zugleich der Riegel gegen das
+   * Reaktivieren (`_actions/tokens.ts`); ohne sie in der Liste verschwaende der
+   * Knopf erst, wenn die Action ihn abweist.
+   */
+  ersetztAm: Date | null;
 };
 
 export function tokenListe(db: DB): TokenZeile[] {
@@ -123,5 +133,6 @@ export function tokenListe(db: DB): TokenZeile[] {
     ortTyp: zeile.ortId ? orte.get(zeile.ortId)?.typ ?? null : null,
     ortKennung: zeile.ortId ? orte.get(zeile.ortId)?.kennung ?? null : null,
     ortEinheitenart: zeile.ortId ? orte.get(zeile.ortId)?.einheitenart ?? null : null,
+    ersetztAm: zeile.ersetztAm,
   }));
 }
