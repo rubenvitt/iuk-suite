@@ -31,7 +31,7 @@ const IPV4_MAPPED_MARKER = 0xffff;
  * erkennen ihn. Auf dem APEX heisst das: die Auditspalten `client_ip_unbestaetigt`
  * (`src/app/m/files/_db/zaehler.ts:139`, `.../upload/route.ts:581`) werden
  * flaechendeckend leer, wo vorher (ueber `x-forwarded-for`) das Netz stand —
- * sichtbar als „—" (`shares/[id]/page.tsx:414`). Auf MODUL-HOSTS (`qr`,
+ * sichtbar als „—" (`shares/[id]/page.tsx`, Log-Tabelle). Auf MODUL-HOSTS (`qr`,
  * `feedback`, `files`, `lagerbuch`, `aufgaben`) ist die Lage schlimmer als
  * leer: `roh` ist dort NICHT `"unknown"`, sondern die Egress-IP dieses
  * Servers (Befund 4 des Berichts oben) — `ipKuerzen` erkennt sie als

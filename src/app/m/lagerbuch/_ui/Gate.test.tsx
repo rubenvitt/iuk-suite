@@ -61,7 +61,7 @@ const URL_SATZ = "Dieser Code ist unbekannt oder wurde gesperrt. Wende dich an d
  * Kopie von `ohneKommentare()` aus `_lib/bauform.test.ts` (Regel 1 / N-5 der
  * Regeldatei fuer Teil 4). Ohne sie waeren die Negativ-Scans unten auf ihrer
  * EIGENEN Begruendung rot: `Gate.tsx` nennt in seinem Kopfkommentar woertlich
- * `signIn("oidc", …)`, `core/auth/devLogin.ts:14` und `callbackUrl`, weil genau
+ * `signIn("oidc", …)`, `core/auth/devLogin.ts` und `callbackUrl`, weil genau
  * das die Begruendung der Datei ist (Befund 1 des Preflight-Scans nennt beide
  * Fundstellen namentlich fuer T77). `bauform.test.ts` exportiert die Funktion
  * nicht, und dies ist ein anderer Testkoerper — deshalb die lokale Kopie statt

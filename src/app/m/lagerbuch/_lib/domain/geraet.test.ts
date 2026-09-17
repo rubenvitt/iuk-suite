@@ -89,7 +89,7 @@ describe("datumFaelligkeit — zonentreue am Tagesrand (UTC-Kalendertag != Berli
      * liegt einen Tag VOR dem Berliner Kalendertag. Ein Regress auf lokale
      * now-Komponenten (`new Date(now.getFullYear(), now.getMonth(), now.getDate())`,
      * der von `_lib/zeit.ts#startDesTages` ausdruecklich ausgeschlossene Alt-Pfad,
-     * `geraet.ts:37` der Alt-Anwendung) griffe unter TZ=UTC den 14. statt den 15.
+     * `geraet.ts` Zeile 37 der Alt-Anwendung) griffe unter TZ=UTC den 14. statt 15.
      * und ergaebe DETERMINISTISCH 1 statt 0 — kein Vorzeichen-Zufall wie bei einem
      * Aufruf genau um Mitternacht, wo `Math.round` ein `-0`/`+0` liefern kann, das
      * `toBe` (Object.is) je nach Prozess-Zone unterschiedlich bewertet.

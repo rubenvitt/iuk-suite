@@ -134,7 +134,7 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
   /**
    * FALLE 43 — DIE ZEILE, WEGEN DER DIESER SCAN EXISTIERT.
    *
-   * globals.css:277 schaltet heute mit `body * { visibility: hidden }` ALLES
+   * lagerbuch/src/app/globals.css:277 schaltet heute mit `body * { visibility: hidden }` ALLES
    * unsichtbar. CSS Modules schreiben ausschliesslich KLASSENselektoren um:
    * `body *` bliebe global und leerte JEDE andere Druckseite der Suite — den
    * feedback-Aushang und die files-Zugangslinks. Die Sichtbarkeitsumkehr wird
@@ -203,7 +203,7 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
 
     /**
      * DER QR BRINGT NUR EINE viewBox MIT, KEINE BREITE/HOEHE (8-I, Punkt 2).
-     * globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
+     * lagerbuch/src/app/globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
      * Ohne diese Regel faellt der Code auf die Ersatzgroesse des Browsers zurueck
      * und wird winzig — OHNE dass ein Test anschlaegt.
      */
@@ -219,7 +219,7 @@ describe("druck.css — die Regel steht da (§8.5, §6.10.2)", () => {
     /**
      * `flex: none` GEHOERT AN DEN UMSCHLAG, NICHT AN DAS SVG. Flexbox wirkt auf
      * die FLEX-ITEMS — das ist `.lb-etikettQr`, nicht sein Kind. Im Bestand war
-     * das <img> selbst das Item (globals.css:268), deshalb sass es dort richtig.
+     * das <img> selbst das Item (lagerbuch/src/app/globals.css:268), deshalb sass es dort richtig.
      * Steht es am SVG, draengt ein langer Artikelname den QR unter 20mm.
      */
     it("haelt den QR-Umschlag am Schrumpfen", () => {
