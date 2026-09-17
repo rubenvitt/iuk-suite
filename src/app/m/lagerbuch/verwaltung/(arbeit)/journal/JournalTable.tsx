@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Spin, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
-import { Datentabelle } from "@/core/tabelle";
+import { Datentabelle, Zellentext } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
 import type { Vorgangsart } from "../../../_lib/vorgang";
@@ -137,7 +137,25 @@ const SPALTEN: TableProps<JournalAnzeigeZeile>["columns"] = [
       <span style={{ fontWeight: 600 }}>{artikelName}</span>
     ),
   },
-  { title: "Vorgang", dataIndex: "vorgangText", key: "vorgang" },
+  {
+    /*
+     * ⚠️ DER VORGANGSTEXT TRAEGT DEN KOMMENTAR DER BUCHUNG (`typText · …`) UND
+     * BRAUCHT DESHALB EINE BREITE (DRK-372). `buchungen.kommentar` ist ein
+     * Freitextfeld ohne Laengengrenze, die Tabelle faehrt `scroll.x:
+     * "max-content"` — EIN langer Satz aus dem Altbestand schiebt Ort, Δ und
+     * Quelle aus dem Bild, und das Symptom fuehrt in die Irre: die Zeile sieht
+     * richtig aus, sie steht nur sehr weit rechts.
+     *
+     * ⚠️ OHNE `zeilen`. Das Journal ist ein append-only Buch und damit selbst
+     * der Nachweis — es gibt keine Detailseite je Buchung, auf die man den
+     * vollen Satz verweisen koennte. Gedeckelt wird hier die Breite, nie die
+     * Hoehe.
+     */
+    title: "Vorgang",
+    dataIndex: "vorgangText",
+    key: "vorgang",
+    render: (text: string) => <Zellentext text={text} />,
+  },
   /*
    * DRK-338 — DER ORT STEHT NEBEN DEM VORGANG UND NICHT IM VORGANGSTEXT.
    *
