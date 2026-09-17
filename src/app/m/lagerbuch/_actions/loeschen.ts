@@ -27,6 +27,7 @@ import { parseCheckErgebnis } from "../_lib/checkErgebnis";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { ELEMENT_ARTEN, type ElementArt, type Loeschbarkeit } from "../_lib/loeschen";
 import { loescheVerfallFuer } from "../_lib/schreibpfade/lagerortVerfall";
+import { sperreToken } from "../_lib/schreibpfade/tokenSperre";
 import { TOKEN_LOESCHGRUND } from "../_lib/tokenForm";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -437,8 +438,14 @@ export async function deaktiviereElement(
       case "lagerort":
         db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, i)).run();
         break;
+      /*
+       * ⚠️ NICHT `set({ aktiv: false })` — DER SPERRWEG LIEGT IN `ortCodes.ts`.
+       * Ein Ortscode, der hier gesperrt wird, muss seinen Tag bekommen wie
+       * jeder andere auch; stand er hier nackt, bekaeme die Zeile spaeter den
+       * LOESCHTAG des Ortes statt des Sperrtages (Begruendung dort, DRK-406).
+       */
       case "token":
-        db.update(tokens).set({ aktiv: false }).where(eq(tokens.id, i)).run();
+        sperreToken(db, i);
         break;
       case "bzGeraet":
         db.update(bzGeraete).set({ aktiv: false }).where(eq(bzGeraete.id, i)).run();

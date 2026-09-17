@@ -18,7 +18,8 @@ import { TOKEN_ALPHABET, TOKEN_ZIEHUNGEN, TOKEN_ZIFFERN } from "../tokenForm";
  *
  * ⚠️ KEIN "use client" (Falle 6) und KEIN Icon-Import (Falle 7): drei Aufrufer,
  * alle serverseitig — die Ortsetiketten-Seite, das Anlegen einer Einheit und
- * die Zurücksetz-Action.
+ * die Zurücksetz-Action. Das SPERREN steht bewusst nicht hier, sondern in
+ * `tokenSperre.ts` — Begründung dort, kurz: es braucht die Ziehung nicht.
  *
  * ⚠️ DIE MENGE DER ORTE KOMMT AUS `etikettOrte`, NICHT AUS EINER EIGENEN
  * ABFRAGE. Das ist dieselbe Zusage, die der Kopf jener Datei schon für den
