@@ -58,21 +58,41 @@ import { join, sep } from "node:path";
  * Sechs Runner standen neun bis dreizehn Minuten still, waehrend lagerbuch
  * seriell durchlief.
  *
- * ⚠️ DER ERSTE SCHNITT GING NACH FALLZAHL, UND DAS WAR DER FEHLER — kein
- * grober Massstab, sondern der falsche. DRK-407 balancierte lagerbuch auf
- * 66/66/64 Faelle, weil Playwrights `dot`-Reporter nichts anderes hergibt;
- * gemessen kamen 4:42 / 8:15 / 4:59 heraus. 75 % Spreizung bei GLEICHER
- * Fallzahl: ein Fall kann 0,8 s dauern oder 52 s, und welcher von beiden es
- * ist, sagt keine Zahl, die man vor dem Lauf kennt.
+ * ⚠️ DIE AUFTEILUNG GING NACH FALLZAHL, UND DAS IST DER FALSCHE MASSSTAB.
+ * DRK-407 balancierte lagerbuch auf 66/66/64 Faelle, weil Playwrights
+ * `dot`-Reporter nichts anderes hergibt; gemessen kamen 4:42 / 8:15 / 4:59
+ * heraus. 75 % Spreizung bei GLEICHER Fallzahl: ein Fall kann 0,8 s dauern
+ * oder 52 s. Seit DRK-408 laeuft die CI deshalb mit `reporter: "list"`, und
+ * jede Zeile nennt die Dauer ihres Falls.
  *
- * Deshalb setzt `playwright.config.ts` unter `CI` den `list`-Reporter: jede
- * Zeile nennt die Dauer ihres Falls, und der Schnitt ist damit eine MESSUNG.
- * Stand Lauf 35218938723, je Datei aufsummiert und neu verteilt:
+ * ⛔ UND JETZT DER TEIL, DER GELD GEKOSTET HAT: LAUFZEIT JE DATEI IST KEINE
+ * UEBERTRAGBARE GROESSE. Mit den gemessenen Zahlen wurde in DRK-408 ein
+ * Schnitt gerechnet, der die drei Gruppen auf 365 / 359 / 360 s bringen
+ * sollte — vier Dateien wandern, keine Zusicherung wird angefasst. Gemessen
+ * kam heraus (Lauf 35222829005):
  *
- *     lagerbuch-1  304 s -> 365 s   (+ inventur)
- *     lagerbuch-2  456 s -> 359 s   (− inventur, verfall-fahrzeug,
- *                                      kategorien, verfall-ortswahl)
- *     lagerbuch-3  324 s -> 360 s   (+ die drei kleinen)
+ *     lagerbuch-1  304 s   erwartet 365   gemessen 312   (−53)
+ *     lagerbuch-2  460 s   erwartet 364   gemessen 449   (+85)
+ *     lagerbuch-3  324 s   erwartet 360   gemessen 398   (+38)
+ *     SUMME       1088 s   erwartet 1088  gemessen 1159  (+71)
+ *
+ * Die Summe MUSS gleich bleiben, wenn nur umverteilt wird — sie stieg um
+ * 71 s. `lagerbuch-2` gab vier Dateien mit zusammen 96 s ab und wurde 7 s
+ * schneller. Der Grund: ein erheblicher Teil dessen, was der Reporter einem
+ * Fall zuschreibt, ist die ERSTUEBERSETZUNG der Route, die er anfaesst
+ * (`next dev`, kaltes `.next` — Kopfkommentar am `timeout` in
+ * `playwright.config.ts`). Sie faellt nicht der Datei zu, sondern dem ersten
+ * Fall der Gruppe, der die Route trifft. Wandert die Datei, wandert ihre
+ * Uebersetzungszeit NICHT mit: die alte Gruppe zahlt sie weiter fuer ihre
+ * uebrigen Dateien, die neue zahlt sie zusaetzlich.
+ *
+ * Der Schnitt ist deshalb zurueckgenommen; lagerbuch steht wieder wie in
+ * DRK-407. Eine Datei laesst sich nur dann guenstig verschieben, wenn die
+ * Zielgruppe ihre Routen ohnehin schon anfaesst — und das sagt keine der
+ * Zahlen oben. Wer es erneut versucht, MISST DEN KANDIDATEN-SCHNITT selbst,
+ * statt Dateizeiten zu addieren. Die eigentliche Abhilfe ist, die
+ * Uebersetzung ganz loszuwerden (`next start` auf einem vorgebauten Stand
+ * statt `next dev`) — eigenes Ticket.
  *
  * ⚠️ DIE NUMMERN SIND EIMER, KEINE BEDEUTUNG. `lagerbuch-2` ist nicht „die
  * Verwaltung", sondern „der zweite Eimer". Wer eine neue lagerbuch-Spec
@@ -87,11 +107,18 @@ import { join, sep } from "node:path";
  *
  * ── WARUM `aufgaben` ZWEI GRUPPEN HAT (DRK-408) ───────────────────────────
  *
- * Nach dem lagerbuch-Schnitt war `aufgaben` mit 8:58 die langsamste Gruppe.
- * Von seinen 468 s standen 240 s in EINEM zusammenhaengenden Block —
- * Umschaltung, „Kein waagerechtes Scrollen" (vier Viewports mal neun Seiten,
- * 185 s allein), Fuehrungskarte, Dunkelmodus. Der steht seit DRK-408 in
- * `aufgaben-breiten.spec.ts` und damit in einer eigenen Gruppe.
+ * `aufgaben` war mit 8:58 die langsamste Gruppe. Von seinen 468 s standen
+ * 240 s in EINEM zusammenhaengenden Block — Umschaltung, „Kein waagerechtes
+ * Scrollen" (vier Viewports mal neun Seiten, 185 s allein), Fuehrungskarte,
+ * Dunkelmodus. Der steht seit DRK-408 in `aufgaben-breiten.spec.ts` und
+ * damit in einer eigenen Gruppe. Gemessen: 8:58 -> 4:20 + 4:20.
+ *
+ * ⚠️ WARUM DAS HIER AUFGING UND BEI LAGERBUCH NICHT (die Rechnung oben): die
+ * Faelle dieses Blocks rufen dieselben wenigen Routen immer wieder auf, nur
+ * in anderen Breiten. Die zweite Gruppe uebersetzt also fast nichts, was die
+ * erste nicht auch braeuchte — die SUMME fiel sogar leicht (8:58 -> 8:40),
+ * statt wie bei lagerbuch um 71 s zu steigen. Das ist die Bedingung, unter
+ * der ein Schnitt billig ist, und sie steht in keiner Laufzeitzahl.
  *
  * ⚠️ DER SCHNITT IST NICHT DIE HAELFTE DER FAELLE: 49 der 93 stehen drueben,
  * aber nur die Haelfte der Zeit. Nach Fallzahl waere er woanders gelandet.
