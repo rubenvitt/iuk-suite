@@ -189,7 +189,13 @@ describe("aussondernVomLagerort", () => {
     );
 
     // Ohne den Detailpfad stuende nach dem Schliessen des Dialogs der alte Bestand.
-    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    /*
+     * ⚠️ ALS MUSTER, NICHT MIT DER ID (Codex-Review zu PR #187): jede
+     * Fahrzeugseite zeigt ueber `sollFuerFahrzeug` auch den Handlager-Bestand,
+     * den diese Korrekturbuchung mit senkt — betroffen sind alle, nicht nur die
+     * ausgeraeumte Einheit.
+     */
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/[id]");
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge");
   });
 });

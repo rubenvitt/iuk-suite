@@ -2,7 +2,6 @@
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
@@ -18,7 +17,7 @@ import {
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
 import { verfallFuerLagerort } from "../_lib/lesepfade/verfall";
-import { revalidiereHandlagerBestand } from "../_lib/revalidierung";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import {
   raeumeVerfallAmLeerenOrt, verfallFolgtDemMaterial,
 } from "../_lib/schreibpfade/lagerortVerfall";
@@ -492,43 +491,31 @@ export async function bucheInEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ SIEBEN PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DES
-       * URSPRUNGSTICKETS. Der dritte ist das Einheitenblatt (dessen
-       * Bestandszahlen sich gerade geaendert haben), der vierte die
-       * Verwaltungsuebersicht. Der Helferschirm traegt die Einheit in der URL
-       * und wird deshalb mit ihr genannt — ein Pfad ohne sie traefe die Seite
+       * ⚠️ HIER STANDEN BIS DRK-374 VIER PFADE — die beiden Box-Flaechen, das
+       * Einheitenblatt und die Verwaltungsuebersicht. Die Abgabe an der Box ist
+       * eine Umlagerung und damit ein Bestandsschreiber wie jeder andere; sie
+       * nimmt deshalb die modulweite Liste. Das Einheitenblatt traegt seine
+       * Kennung in der URL und kommt ueber das Muster
+       * `verwaltung/fahrzeuge/[id]` dazu — ein Pfad ohne sie traefe die Seite
        * nicht.
        *
-       * ⚠️ DIE LETZTEN ZWEI KAMEN MIT DRK-377 DAZU, UND ZWAR ZWINGEND (Codex zu
-       * PR #194, P2): seither schreibt diese Action `lagerort_verfall` — sie
-       * traegt die Meldung in die Box und raeumt sie an der leeren Einheit ab.
-       * Damit liest sie dieselbe Tabelle wie `verfallSetzen`, der Check,
-       * `aussondernVomLagerort` und `fahrzeuge.ts`, und ALLE VIER frischen die
-       * Verfallsuebersicht und die Einheitenliste mit auf. Fehlen sie hier,
-       * zeigt eine vorgeladene Uebersicht die geleerte Einheit weiter als
-       * ablaufend und die Box gar nicht — und die Verfallsspalte der
-       * Einheitenliste rechnet mit einer Meldung, die es nicht mehr gibt.
+       * ⚠️ DRK-377 HAT DIESE STELLE VORUEBERGEHEND AUF SIEBEN HANDGEPFLEGTE
+       * PFADE GEBRACHT, und der Merge von DRK-374 loest genau das wieder auf.
+       * Der Grund war echt: seit DRK-377 schreibt diese Action
+       * `lagerort_verfall` — sie traegt die Meldung in die Box und raeumt sie
+       * an der leeren Einheit ab —, also veralten zusaetzlich die
+       * Verfallsuebersicht, die Einheitenliste und die Einraeumflaeche. Alle
+       * drei stehen in `BESTANDSFLAECHEN`; eine eigene Zeile waere jetzt nicht
+       * falsch, nur doppelt. Die Lehre der beiden Tickets ist dieselbe, aus
+       * zwei Richtungen: eine Flaeche fehlt in einer handgepflegten Liste
+       * IMMER, und sie meldet sich nie von selbst.
        *
        * ⚠️ `force-dynamic` AUF DER SEITE HILFT DAGEGEN NICHT. Es schaltet den
        * vollen Routen-Cache ab, nicht den Router-Cache im Browser: eine
        * vorgeladene oder gerade verlassene Seite kommt weiter aus ihm, bis sie
        * jemand vollstaendig neu laedt. Genau diese Annahme war die Luecke.
-       *
-       * ⚠️ UND DIE EINRAEUMSEITE GEHOERT DAZU (Codex zu PR #194): sie liest
-       * ueber `einraeumPosten` denselben Boxinhalt, den diese Action gerade
-       * veraendert hat — samt der gemeldeten Verfallsangabe, die jetzt an ihm
-       * haengt. Fehlt der Pfad, zeigt eine vorgeladene Einraeumflaeche das neu
-       * abgegebene Material gar nicht oder ohne seine Warnung, und jemand
-       * raeumt es auf einem veralteten Stand ins Regal. Der Rueckweg frischt
-       * sie laengst auf; der Hinweg tat es nicht.
        */
-      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
-      revalidatePath("/m/lagerbuch/auffuellen/box");
-      revalidatePath("/m/lagerbuch/helfer/box");
-      revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
-      revalidatePath("/m/lagerbuch/verwaltung");
-      revalidatePath("/m/lagerbuch/verwaltung/verfall");
-      revalidatePath("/m/lagerbuch/verwaltung/fahrzeuge");
+      revalidiereBestand();
       return { ok: true, wert: { gebucht } };
     },
   );
@@ -852,25 +839,30 @@ export async function raeumeAusEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ ZWEI LISTEN, UND SIE SIND NICHT DASSELBE. Der Handlager-Bestand
-       * dieses Artikels hat sich geaendert — dafuer steht die geteilte Liste
-       * (`_lib/revalidierung.ts`, Begruendung je Pfad dort). Die beiden
-       * Box-Flaechen darunter stehen NICHT darin: sie veralten nur bei einem
-       * Vorgang, der die Kiste betrifft, und eine Zugangsbuchung im Drawer der
-       * Verwaltung raeumte sie sonst bei jedem Wareneingang mit aus.
+       * ⚠️ HIER STANDEN BIS ZUM MERGE VON DRK-374 DREI AUFRUFE: die geteilte
+       * Liste plus die beiden Box-Flaechen einzeln, mit der ausdruecklichen
+       * Begruendung, dass die Box-Flaechen NICHT in die geteilte Liste
+       * gehoerten — „eine Zugangsbuchung im Drawer der Verwaltung raeumte sie
+       * sonst bei jedem Wareneingang mit aus".
        *
-       * ⚠️ `helfer/box` FEHLT ABSICHTLICH: dieser Schirm zeigt den Bestand
-       * EINER EINHEIT, und der aendert sich beim Einraeumen nicht.
+       * DIESE ABWAEGUNG IST MIT DRK-374 ANDERS ENTSCHIEDEN, und zwar bewusst:
+       * ein Pfad zu viel kostet einen Rerender einer ohnehin dynamischen
+       * Seite, ein Pfad zu wenig zeigt eine falsche Zahl auf einer
+       * Arbeitsflaeche — und niemand meldet ihn, weil nichts bricht. Die
+       * Kosten sind unsymmetrisch, also gewinnt die Obermenge. Ein Filter je
+       * Schreiber war ausserdem genau die Bauform, die vier Review-Befunde in
+       * Folge erzeugt hat; die Codex-Review zu PR #187 hat dafuer noch ein
+       * zweites Beispiel geliefert.
        *
-       * ⚠️ UND DIE VERFALLSUEBERSICHT BRAUCHT HIER KEINE EIGENE ZEILE, obwohl
-       * die Meldung der Box gerade wegfallen kann (DRK-377): sie steht bereits
-       * an ERSTER Stelle in `revalidiereHandlagerBestand`. Eine zweite Zeile
-       * dafuer waere nicht falsch, nur doppelt — und der Test, der die Liste
-       * vollstaendig aufzaehlt, faengt sie.
+       * Beide Box-Flaechen stehen deshalb jetzt IN der Liste — sie lesen ueber
+       * `einraeumPosten` bzw. `postenAmOrt` Buchungszeilen wie jede andere
+       * Bestandsflaeche auch.
+       *
+       * ⚠️ DIE VERFALLSUEBERSICHT IST DAMIT EBENFALLS GEDECKT, und hier zaehlt
+       * das mehr als anderswo: beim Einraeumen kann die Meldung der Box
+       * wegfallen (DRK-377). Sie steht in `BESTANDSFLAECHEN`.
        */
-      revalidiereHandlagerBestand(v.artikelId);
-      revalidatePath("/m/lagerbuch/auffuellen/box");
-      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
+      revalidiereBestand();
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.

@@ -88,6 +88,7 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
 }));
 
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 import { bucheInEntnahmebox, raeumeAusEntnahmebox } from "./entnahmebox";
 
 const JETZT = new Date("2026-09-16T10:00:00Z");
@@ -649,12 +650,16 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
 
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/entnahmebox");
     expect(revalidiert).toContain("/m/lagerbuch/helfer/box");
-    // MIT der Id: der Pfad des Einheitenblatts traegt sie, ein Pfad ohne sie
-    // traefe die Seite nicht.
-    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    /*
+     * ⚠️ DAS EINHEITENBLATT ALS MUSTER, NICHT MIT DER ID — und die Korrektur
+     * kam aus der Codex-Review zu PR #187. Hier stand `…/fahrzeuge/fz-1`, weil
+     * nur DIESE Einheit Ware bekommen hat. Jede Fahrzeugseite zeigt aber ueber
+     * `sollFuerFahrzeug` auch den HANDLAGER-Bestand je Position, und der ist
+     * gerade gesunken — betroffen sind also alle, nicht nur `fz-1`.
+     */
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/[id]");
     // DIE EINRAEUMSEITE liest ueber `einraeumPosten` denselben Boxinhalt —
-    // samt der gemeldeten Verfallsangabe, die jetzt an ihm haengt. Der
-    // Rueckweg frischt sie laengst auf; der Hinweg tat es nicht.
+    // samt der gemeldeten Verfallsangabe, die seit DRK-377 an ihm haengt.
     expect(revalidiert).toContain("/m/lagerbuch/auffuellen/box");
   });
 
@@ -1182,26 +1187,18 @@ describe("raeumeAusEntnahmebox — die Umbuchung", () => {
     );
 
     /*
-     * ⚠️ DIE ERSTEN ACHT SIND DIE GETEILTE LISTE (`revalidiereHandlagerBestand`)
-     * — dieselbe, die `bucheZugang` und `bucheAuffuellung` fahren. Sie steht
-     * seit DRK-381 in `_lib/`, weil drei Review-Runden gezeigt haben, was zwei
-     * Listen fuer denselben Effekt kosten.
+     * ⚠️ HIER STANDEN BIS ZUM MERGE VON DRK-374 ZEHN AUSGESCHRIEBENE PFADE:
+     * die geteilte Acht aus DRK-381, plus die beiden Box-Flaechen einzeln, und
+     * `helfer/box` fehlte ausdruecklich („zeigt den Bestand EINER EINHEIT").
      *
-     * ⚠️ `helfer/box` FEHLT ABSICHTLICH: dieser Schirm zeigt den Bestand EINER
-     * EINHEIT, und der aendert sich beim Einraeumen nicht.
+     * DRK-374 entscheidet diese Abwaegung anders: die Liste ist pauschal, sie
+     * nennt JEDE Flaeche, die Artikelbestand oder Buchungszeilen zeigt, und
+     * jeder Bestandsschreiber nimmt sie ganz. Ein Pfad zu viel kostet einen
+     * Rerender, ein Pfad zu wenig eine falsche Zahl, die niemand meldet. Der
+     * Sollwert steht woertlich in `_lib/revalidierung.test.ts`; hier zaehlt
+     * nur, DASS dieser Schreiber sie nimmt und nichts daneben.
      */
-    expect(revalidiert).toEqual([
-      "/m/lagerbuch/verwaltung/verfall",
-      "/m/lagerbuch/verwaltung/artikel",
-      "/m/lagerbuch/verwaltung/bestellung",
-      "/m/lagerbuch/verwaltung",
-      "/m/lagerbuch/auffuellen/art-1",
-      "/m/lagerbuch/auffuellen",
-      "/m/lagerbuch/a/art-1",
-      "/m/lagerbuch/helfer",
-      "/m/lagerbuch/auffuellen/box",
-      "/m/lagerbuch/verwaltung/entnahmebox",
-    ]);
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
   });
 });
 
