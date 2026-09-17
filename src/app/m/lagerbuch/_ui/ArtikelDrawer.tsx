@@ -20,7 +20,7 @@ import {
   Space,
   Switch,
 } from "antd";
-import { Datentabelle, nachRang, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle, nachRang, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
 import { bucheEntnahme, bucheUmlagerung, bucheZugang } from "../_actions/buchung";
@@ -1181,13 +1181,28 @@ function HistorieTabelle({
             render: (ts: Date) => <span className={styles.jts}>{fmtTs(ts)}</span>,
           },
           {
+            /*
+             * ⚠️ DER KOMMENTAR BRAUCHT EINE BREITE (DRK-372), und in einer
+             * Schublade wiegt das doppelt: `buchungen.kommentar` hat keine
+             * Laengengrenze, die Tabelle faehrt `scroll.x: "max-content"` —
+             * und der Platz daneben ist hier nicht das Fenster, sondern der
+             * `flyinBreite`-Deckel der Schublade (Falle 13). Ort, Quelle und
+             * Menge waeren damit schon bei einem Satz aus dem Bild.
+             *
+             * Ohne `zeilen`: gedeckelt wird die Breite, nie die Hoehe —
+             * dieselbe Abwaegung wie im Journal, dort ausgeschrieben.
+             */
             title: "Buchung",
             key: "typ",
             render: (_, buchung) => {
               const zeile = journalZeile(buchung);
-              return buchung.kommentar
-                ? `${zeile.typText} · ${buchung.kommentar}`
-                : zeile.typText;
+              return (
+                <Zellentext
+                  text={buchung.kommentar
+                    ? `${zeile.typText} · ${buchung.kommentar}`
+                    : zeile.typText}
+                />
+              );
             },
           },
           // DRK-338 — ohne den Ort stehen die beiden Zeilen einer Umlagerung

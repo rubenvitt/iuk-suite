@@ -286,12 +286,19 @@ describe("BzListe", () => {
 
     /*
      * DRK-311, Reviewrunde 2: beide Freitextzellen sind auf eine Lesebreite
-     * gedeckelt (`.zellentext`), sonst schiebt EIN langer Kommentar aus dem
-     * Altbestand die Spalten dahinter aus dem Bild — die Tabelle faehrt
-     * `scroll.x: "max-content"`. Der volle Text bleibt im `title`.
+     * gedeckelt, sonst schiebt EIN langer Kommentar aus dem Altbestand die
+     * Spalten dahinter aus dem Bild — die Tabelle faehrt `scroll.x:
+     * "max-content"`. Der volle Text bleibt im `title`.
+     *
+     * ⚠️ UEBER `[data-zellentext]` UND NICHT UEBER DEN KLASSENNAMEN (DRK-372):
+     * die Klasse liegt seit dem Umzug nach `core/tabelle` in einem CSS-Modul,
+     * das dieser Datei nicht gehoert — ein Import von dort waere ein zweiter
+     * Weg zu demselben Wert. `data-gekuerzt` ist dabei die eigentliche Aussage:
+     * die GERAETELISTE kuerzt auf drei Zeilen, das Logbuch dahinter nicht.
      */
-    expect(query(`.${s.zellentext}[title='Streifen nachbestellt']`).textContent)
-      .toBe("Streifen nachbestellt");
+    const bemerkung = query("[data-zellentext][title='Streifen nachbestellt']");
+    expect(bemerkung.textContent).toBe("Streifen nachbestellt");
+    expect(bemerkung.hasAttribute("data-gekuerzt")).toBe(true);
     expect(queryAll("thead th").map((spalte) => spalte.textContent))
       .toEqual([
         "Gerät", "Standort", "Fälligkeit", "Letzte Kontrolle",

@@ -47,7 +47,7 @@ import { SCHREIBBARE_KATEGORIEN, anzeigeKategorie } from "../_lib/kategorien";
  */
 import type { AvStatus } from "../_lib/av";
 import { Seitenkopf } from "@/core/shell/Seitenkopf";
-import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import styles from "./posteingang.module.css";
 
 /**
@@ -599,10 +599,14 @@ function spalten() {
          Satzes und beantwortet keine Frage, die jemand stellt. */
       key: "hinweis",
       title: "Hinweis",
+      /* ⚠️ `Zellentext` AUS `core/tabelle` UND NICHT MEHR `.hinweistext`
+         (DRK-372). Die eigene Klasse setzte `max-width: 32ch` an einem nackten
+         `<span>` — und `max-width` gilt nicht fuer nicht-ersetzte
+         Inline-Elemente (CSS 2.1 §10.4). In der KARTE, wo dieselbe Klasse an
+         einem `<p>` haengt, wirkte sie; HIER nie, und zwar still. `Zellentext`
+         bringt sein `display` selbst mit. */
       render: (_: unknown, zeile: PosteingangZeile) => (
-        <span data-spalte="hinweis" className={styles.hinweistext}>
-          {zeile.hinweis ?? "—"}
-        </span>
+        <Zellentext data-spalte="hinweis" text={zeile.hinweis ?? "—"} />
       ),
     },
     {

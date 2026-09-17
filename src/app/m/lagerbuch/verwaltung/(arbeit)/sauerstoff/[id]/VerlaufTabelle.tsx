@@ -1,7 +1,7 @@
 "use client";
 
 import type { TableProps } from "antd";
-import { Datentabelle, nachDatum, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle, nachDatum, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -65,11 +65,21 @@ const VERLAUF_SPALTEN: TableProps<VerlaufAnzeigeZeile>["columns"] = [
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
+    /*
+     * ⚠️ EINE BREITE, KEINE HOEHENDECKELUNG (DRK-372). `o2_messungen.kommentar`
+     * ist ein Nachweisfeld ohne Laengengrenze, und die Tabelle faehrt
+     * `scroll.x: "max-content"` — ohne Deckel schoebe EIN langer Satz die
+     * Spalten dahinter aus dem Bild. Dieser Verlauf ist zugleich die Stelle, an
+     * der der Kommentar ungekuerzt zu LESEN sein muss; er kuerzt deshalb nur
+     * seitlich. Dieselbe Abwaegung wie im BZ-Logbuch, dort ausgeschrieben.
+     */
     title: "Kommentar",
     dataIndex: "kommentarText",
     key: "kommentar",
     render: (text: string | null) => (
-      text ?? <span style={SCHRIFT.neben}>—</span>
+      text === null
+        ? <span style={SCHRIFT.neben}>—</span>
+        : <Zellentext text={text} />
     ),
   },
 ];
