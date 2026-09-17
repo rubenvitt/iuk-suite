@@ -342,6 +342,23 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     Was vorher per `display: none` wegfällt, zählt dabei nicht mit (ebenfalls gemessen) —
     das Bildschirm-Chrome ist also unschädlich, solange es `lb-nichtDrucken` trägt.
 
+    ⚠️ **Eine PORTALIERTE Fläche ist kein Nachfahre — und im Druck kostet sie ein Blatt**
+    (Modul-übergreifend, DRK-406, in CI aufgefallen und danach im echten Chromium
+    nachgestellt). `SuiteNav` rendert den Navigationsschub mit `forceRender`; antd hängt ihn
+    per Portal an `document.body`, also **neben** die Hülle. Jede Druckregel, die unter
+    `.druckRahmen …` geschachtelt ist, kann ihn damit grundsätzlich nicht treffen — die Regel
+    steht richtig da und greift nur nicht (Falle 5, dritte Ausprägung, in neuem Gewand). Im
+    Druck wird aus `position: fixed` ein Kasten in Fenstergröße; er liegt außerhalb jeder
+    **benannten** `@page` und damit auf der unbenannten ohne `size`. Gemessen an den
+    Ortskarten: `210x297 | 216x279` statt `210x297` — ein leeres Letter-Blatt hinter dem
+    A4-Bogen. ⚠️ **Der Anker gehört an die Portalwurzel, und die Regel eine Ebene darüber:**
+    `rootClassName` landet auf `.ant-drawer`, aber rc-util legt darum noch einen **nackten
+    `div`** an; nur `.ant-drawer` zu verstecken ließ den leeren Wrapper als Kasten im Fluss
+    stehen und das Blatt blieb (beides nacheinander gemessen). `body > div:has(> .navSchub)`
+    trifft ihn. **Kein Tor sieht das:** das Portal entsteht erst bei der **Hydration**, und
+    eine Umgebung ohne sie zeigt die Seite klaglos einseitig — nur ein echter, hydrierter
+    Browser kennt die Zahl.
+
     ⚠️ **Teilt sich ein Stylesheet mehrere Druckflächen, MUSS die Regel benannt sein**
     (`@page a7 { … }` plus `page: a7` am gemeinsamen Vorfahren). `lagerbuch` hat genau ein
     Druck-Stylesheet für drei Flächen (Falle 43 hält das fest); ein unbenanntes `size` hätte
