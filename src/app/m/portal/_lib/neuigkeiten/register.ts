@@ -37,6 +37,7 @@ import werHatGeprueft from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/20
 import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-aussondern-je-schrank";
 import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-ortsetiketten";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
+import inventurLinkZaehlort from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-inventur-link-zaehlort";
 import verfallInDerBox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-verfall-in-der-box";
 import chargenImHandlager from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-chargen-im-handlager";
 import codeAufDerHandlagerkarte from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-code-auf-der-handlagerkarte";
@@ -109,6 +110,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   werHatGeprueft,
   aussondernJeSchrank,
   ortsetiketten,
+  inventurLinkZaehlort,
   verfallInDerBox,
   chargenImHandlager,
   codeAufDerHandlagerkarte,
