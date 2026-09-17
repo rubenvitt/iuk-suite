@@ -222,6 +222,31 @@ function loese(muster: string, vorhanden: string[]): string[] {
  */
 const E2E_AUFRUF = "      - run: pnpm e2e ${{ matrix.gruppe.specs }}";
 
+/**
+ * Die EINZIGE Zeile, auf der `--shard` ueberhaupt stehen darf.
+ *
+ * ⚠️ DER ZWEITE PIN, UND ER TRAEGT MEHR ALS DER ERSTE. Der Vergleich oben haelt
+ * den e2e-Aufruf fest, kennt aber nur dessen Schreibweise — ein FUENFTER
+ * Codex-Befund hat gezeigt, dass `pnpm run e2e --shard=1/5` als zusaetzlicher
+ * Schritt daneben durchginge, weil dort weder `pnpm e2e` noch `playwright test`
+ * woertlich vorkommt. Und `npx playwright test`, `pnpm exec playwright test`,
+ * `npm run e2e` … waeren die naechsten.
+ *
+ * Diese Zusicherung modelliert deshalb GAR KEINE Befehle mehr. Sie fragt nur:
+ * steht `--shard` irgendwo ausserhalb von Kommentarzeilen und ausserhalb dieser
+ * einen Zeile? Damit ist es gleichgueltig, WIE jemand e2e aufruft — kein
+ * Aufruf, in welcher Schreibweise auch immer, kann das Flag tragen, ohne dass
+ * der Test rot wird.
+ *
+ * Gestrichen werden nur Zeilen, deren erstes Zeichen `#` ist (nach Einrueckung)
+ * — das trifft YAML-Kommentare und ganze Shell-Kommentarzeilen gleichermassen,
+ * und beides eindeutig. Ein Kommentar am ZEILENENDE wird bewusst NICHT
+ * abgeschnitten: dort war die vierte Luecke (`#` in Anfuehrungszeichen ist
+ * Daten). Faellt jemand darueber, wird der Test rot statt still gruen — fail
+ * closed, und die Meldung sagt, was zu tun ist.
+ */
+const VITEST_AUFRUF = "      - run: pnpm vitest run --shard=${{ matrix.shard }}/3";
+
 describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt", () => {
   const alle = alleSpecs();
   const erwartet = alle.filter((d) => !wirdAusgelassen(d));
@@ -357,5 +382,19 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
       "der e2e-Aufruf in ci.yml weicht vom erwarteten Wortlaut ab — wenn das Absicht ist, " +
         "ziehe E2E_AUFRUF mit nach UND pruefe dabei, dass kein --shard dazugekommen ist",
     ).toEqual([E2E_AUFRUF]);
+
+    // Der zweite Pin, unabhaengig vom ersten: `--shard` steht NUR dort, wo es
+    // hingehoert. Begruendung an `VITEST_AUFRUF` — diese Zusicherung ist es,
+    // die jede Schreibweise eines e2e-Aufrufs miterschlaegt.
+    const mitShard = ci
+      .split("\n")
+      .filter((zeile) => !/^\s*#/.test(zeile))
+      .filter((zeile) => zeile.includes("--shard"));
+
+    expect(
+      mitShard,
+      "ausserhalb des vitest-Jobs shardet etwas — bei e2e ist das der Ausfall aus DRK-358 " +
+        "(ein `next dev` je Shard, 12 768 MB Spitze, Runner tot)",
+    ).toEqual([VITEST_AUFRUF]);
   });
 });
