@@ -24,15 +24,15 @@ import { createHelferSitzung, type HelferPayload } from "../helferSitzung";
  * ⚠️ NICHT MEHR GUELTIG (korrigiert im Abschluss von Teil 4): die aus der
  * Alt-Anwendung uebernommene Begruendung, ein einmal eingeloester Code sei
  * „nicht mehr loeschbar, sondern nur noch sperrbar". Das Schema dieses Moduls
- * entscheidet das GEGENTEILIG — `_db/schema.ts:412-413`: `lastUsedAt` ist
- * „reines Anzeigefeld, OHNE Einfluss auf Gueltigkeit und (nach Entscheidung
- * 8-F) auch ohne Einfluss auf Loeschbarkeit". Ein Kaertchen wird JEDE SCHICHT
- * gescannt und bleibt nach der Einloesung einloesbar
- * (`tokenEinloesung.test.ts`, „BLEIBT NACH DER EINLOESUNG EINLOESBAR").
- * `loeschen.ts:89-99` ist eine HERKUNFTSMARKE in die ALT-Anwendung
- * (`lagerbuch/src/actions/loeschen.ts`); im neuen Modul gibt es die Datei
- * nicht. Wer die Marke fuer geltendes Recht haelt, haelt die Auflagen oben fuer
- * entbehrlich — und holt Falle 16 zurueck.
+ * entscheidet das GEGENTEILIG — `_db/schema.ts`, Feld `lastUsedAt`: „reines
+ * Anzeigefeld, OHNE Einfluss auf Gueltigkeit und (nach Entscheidung 8-F) auch
+ * ohne Einfluss auf Loeschbarkeit". Ein Kaertchen wird JEDE SCHICHT gescannt
+ * und bleibt nach der Einloesung einloesbar (`tokenEinloesung.test.ts`,
+ * „BLEIBT NACH DER EINLOESUNG EINLOESBAR").
+ * `lagerbuch/src/actions/loeschen.ts:89-99` ist eine HERKUNFTSMARKE in die
+ * ALT-Anwendung — der Alt-Pfad gehoert in den Anker (DRK-192), dieses Modul
+ * hat zwei eigene `loeschen.ts`. Wer die Marke fuer geltendes Recht haelt,
+ * haelt die Auflagen oben fuer entbehrlich — und holt Falle 16 zurueck.
  *
  * KEIN "use client": drei Aufrufer, alle serverseitig.
  */
