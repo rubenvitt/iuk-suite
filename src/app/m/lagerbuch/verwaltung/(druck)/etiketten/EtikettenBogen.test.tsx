@@ -71,10 +71,14 @@ const ARTIKEL = [
   { id: "aaaaaaaaaaaaaaaaaaaaa", name: "Kompresse 10x10", fach: "B1",
     qr: '<svg viewBox="0 0 45 45"><path d="M1 1h1v1H1z"/></svg>' },
 ];
-const TOKENS = [
-  { code: "482-137", label: "RTW 1",
-    qr: '<svg viewBox="0 0 45 45"><path d="M2 2h1v1H2z"/></svg>' },
-];
+/*
+ * ⚠️ DRK-406 — HIER STAND EINE `TOKENS`-MONTIERUNG. Dieser Bogen druckt keine
+ * Zugangs-Kaertchen mehr; ein Code gehoert seit dem Ticket immer zu einem Ort
+ * und steht auf dessen Ortskarte (`ortsetiketten/`). Die drei Zusicherungen,
+ * die daran hingen (Klartext-Code unter dem QR, Label/Code als Beschriftung,
+ * Kaertchen-Kachel), sind mit dem gedruckten Gegenstand entfallen — nicht
+ * abgeschaltet.
+ */
 
 afterEach(() => unmount());
 
@@ -94,68 +98,64 @@ describe("EtikettenBogen", () => {
    * besitzt jetzt _db/etiketten.test.ts, mit Dekodierung.
    */
   it("rendert je Datensatz genau einen QR-Knoten", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
-    expect(queryAll(".lb-etikettQr > svg")).toHaveLength(3);
-    expect(queryAll(".lb-etikett")).toHaveLength(3);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
+    expect(queryAll(".lb-etikettQr > svg")).toHaveLength(2);
+    expect(queryAll(".lb-etikett")).toHaveLength(2);
     // Kein <img> mehr — der alte Anker ist tot und soll es bleiben.
     expect(exists(".lb-etikett img")).toBe(false);
     /**
      * DIE QR↔DATENSATZ-BINDUNG, NICHT NUR DIE KNOTENZAHL (Review-Befund 1,
      * 10.08.2026). Ohne diese Zeile bliebe ein Fehlgriff wie
-     * `etikett(k, ARTIKEL[0].qr, …)` fuer ALLE DREI Kacheln unbemerkt gruen —
-     * die Knotenzahl stimmt, aber alle drei Etiketten zeigten auf dasselbe
+     * `etikett(k, ARTIKEL[0].qr, …)` fuer ALLE Kacheln unbemerkt gruen —
+     * die Knotenzahl stimmt, aber alle Etiketten zeigten auf dasselbe
      * Ziel. Auf Papier ist genau das der teure Fall. Ueber das `d`-Attribut
      * des `<path>`, NICHT ueber `innerHTML`: jsdom re-serialisiert
      * `<path .../>` zu `<path ...></path>` und ein Textvergleich daran
      * schiede falsch-rot.
      */
     expect(queryAll(".lb-etikettQr svg path").map((p) => p.getAttribute("d")))
-      .toEqual(["M0 0h1v1H0z", "M1 1h1v1H1z", "M2 2h1v1H2z"]);
+      .toEqual(["M0 0h1v1H0z", "M1 1h1v1H1z"]);
   });
 
   it("setzt das SVG unveraendert ein", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     expect(query(".lb-etikettQr").innerHTML).toContain('viewBox="0 0 45 45"');
   });
 
-  it("zeigt Name und Fach beim Artikel, Label und Code beim Token", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+  it("zeigt Name und Fach je Artikel", async () => {
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     const texte = queryAll(".lb-etikettTitel").map((e) => e.textContent);
-    expect(texte).toEqual(["Mullbinde 8cm", "Kompresse 10x10", "RTW 1"]);
+    expect(texte).toEqual(["Mullbinde 8cm", "Kompresse 10x10"]);
     const subs = queryAll(".lb-etikettSub").map((e) => e.textContent);
-    expect(subs).toEqual(["A2", "B1", "482-137"]);
+    expect(subs).toEqual(["A2", "B1"]);
   });
 
-  /**
-   * DER KLARTEXT-CODE IST EIN EIGENER VERTRAG (§8.1, Form 3): der QR ist
-   * host-gebunden, die Zeile darunter ist es NICHT. Ein Domainwechsel kostet
-   * dort nur den Komfort — die Helferin tippt 482-137 am Gate ein und ist drin.
-   * Deshalb steht der Code als TEXT auf dem Kaertchen und nicht nur im QR.
+  /*
+   * ⚠️ DRK-406 — HIER STAND „druckt den Zugangs-Code als Klartext unter den
+   * QR". Die Zusage dahinter gilt unveraendert weiter (§8.1, Form 3: der QR ist
+   * host-gebunden, die Zeile darunter nicht — ein Domainwechsel kostet dann nur
+   * den Komfort). Sie gilt nur woanders: auf der ORTSKARTE, und dort haelt sie
+   * `OrtsetikettenBogen.test.tsx` fest. Dieser Bogen druckt keinen Code mehr.
    */
-  it("druckt den Zugangs-Code als Klartext unter den QR", async () => {
-    await mount(<EtikettenBogen artikel={[]} tokens={TOKENS} />);
-    expect(query(".lb-etikettSub").textContent).toBe("482-137");
-  });
-
   it("waehlt zu Beginn alles aus", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     expect(queryAll(".lb-etikettAbgewaehlt")).toHaveLength(0);
-    expect(query("[data-testid='lb-drucken']").textContent).toContain("(3)");
+    expect(query("[data-testid='lb-drucken']").textContent).toContain("(2)");
   });
 
   it("waehlt eine Kachel ab und wieder an", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     await clickElement(queryAll(".lb-etikettWahl")[0]);
     expect(queryAll(".lb-etikettAbgewaehlt")).toHaveLength(1);
-    expect(query("[data-testid='lb-drucken']").textContent).toContain("(2)");
+    expect(query("[data-testid='lb-drucken']").textContent).toContain("(1)");
     await clickElement(queryAll(".lb-etikettWahl")[0]);
     expect(queryAll(".lb-etikettAbgewaehlt")).toHaveLength(0);
   });
 
   it("schaltet ueber Alle und Keine", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     await clickElement(query("[data-testid='lb-keine']"));
-    expect(queryAll(".lb-etikettAbgewaehlt")).toHaveLength(3);
+    expect(queryAll(".lb-etikettAbgewaehlt")).toHaveLength(2);
     expect(query("[data-testid='lb-drucken']").textContent).toContain("(0)");
     await clickElement(query("[data-testid='lb-alle']"));
     expect(queryAll(".lb-etikettAbgewaehlt")).toHaveLength(0);
@@ -164,7 +164,7 @@ describe("EtikettenBogen", () => {
   it("ruft window.print", async () => {
     const print = vi.fn();
     vi.stubGlobal("print", print);
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     await clickElement(query("[data-testid='lb-drucken']"));
     expect(print).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
@@ -172,8 +172,8 @@ describe("EtikettenBogen", () => {
 
   /** 1:1 aus EtikettenBogen.tsx:27 — Wortlaut unveraendert. */
   it("nennt den leeren Zustand beim Namen", async () => {
-    await mount(<EtikettenBogen artikel={[]} tokens={[]} />);
-    expect(query(".lb-nichtDrucken").textContent).toBe("Keine aktiven Artikel oder Token.");
+    await mount(<EtikettenBogen artikel={[]} />);
+    expect(query(".lb-nichtDrucken").textContent).toBe("Keine aktiven Artikel.");
     expect(exists(".lb-etikettbogen")).toBe(false);
   });
 
@@ -185,9 +185,9 @@ describe("EtikettenBogen", () => {
    * Ausdruck auffaellt (§6.10.2, Punkt 1).
    */
   it("benutzt ein nacktes Kontrollkaestchen, keinen antd-Baustein", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     const kasten = queryAll(".lb-etikettWahl");
-    expect(kasten).toHaveLength(3);
+    expect(kasten).toHaveLength(2);
     for (const k of kasten) {
       expect(k.tagName).toBe("INPUT");
       expect(k.getAttribute("type")).toBe("checkbox");
@@ -201,14 +201,14 @@ describe("EtikettenBogen", () => {
    * die Druckregel auf dem GANZEN Etikett und druckte ein leeres Blatt (§8.4).
    */
   it("haengt lb-nichtDrucken nicht an die Kachel", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     for (const kachel of queryAll(".lb-etikett")) {
       expect(kachel.className).not.toContain("lb-nichtDrucken");
     }
   });
 
   it("versteckt die Bedienleiste im Druck", async () => {
-    await mount(<EtikettenBogen artikel={ARTIKEL} tokens={TOKENS} />);
+    await mount(<EtikettenBogen artikel={ARTIKEL} />);
     expect(query("[data-testid='lb-drucken']").closest(".lb-nichtDrucken")).not.toBeNull();
   });
 
@@ -247,13 +247,13 @@ describe("EtikettenBogen", () => {
    * `3776ac6`) und der Scan gar nicht sehen wuerde, ob der NEUE Link im
    * LEER-Zweig fehlt. Deshalb wird die Bedingung UND der Link GEMEINSAM
    * gepinnt: das Regex fasst den Codeblock zwischen der Leer-Bedingung
-   * (`daten.artikel.length === 0 && daten.tokens.length === 0 && (`) und der
+   * (`daten.artikel.length === 0 && (`) und der
    * schliessenden `)}` und prueft NUR innerhalb dieses Blocks.
    */
   it("zeigt im leeren Zustand einen Weg zurueck", () => {
     const seite = ohneKommentare(readFileSync(join(__dirname, "page.tsx"), "utf8"));
     const block =
-      /daten\.artikel\.length === 0 && daten\.tokens\.length === 0 && \(([\s\S]*?)\)\}/.exec(seite);
+      /daten\.artikel\.length === 0 && \(([\s\S]*?)\)\}/.exec(seite);
     expect(block, "kein Leer-Zweig mit der erwarteten Bedingung gefunden").not.toBeNull();
     expect(block![1]).toContain('href="/verwaltung"');
     expect(block![1]).toContain("lb-nichtDrucken");

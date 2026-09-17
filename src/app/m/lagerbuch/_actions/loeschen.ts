@@ -1,7 +1,7 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { and, count, eq, type SQL } from "drizzle-orm";
+import { and, count, eq, isNull, type SQL } from "drizzle-orm";
 import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -155,9 +155,27 @@ function pruefeLagerort(db: Leser, id: string): Loeschbarkeit {
   const bzGer = anzahl(db, bzGeraete, eq(bzGeraete.lagerortId, id));
   const ger = anzahl(db, geraete, eq(geraete.lagerortId, id));
   const flaschen = anzahl(db, o2Flaschen, eq(o2Flaschen.lagerortId, id));
+  /*
+   * ⚠️ NUR CODES OHNE ZUGEHOERIGKEIT ZAEHLEN — DRK-406, und ohne diese Zeile
+   * waere ab sofort KEINE neu angelegte Einheit mehr loeschbar. `createFahrzeug`
+   * legt ihr seit dem Ticket sofort einen ORTSCODE an, und der traegt
+   * `ziel_typ = "fahrzeug"` mit `ziel_id = <Einheit>` — also genau das, was
+   * diese Zaehlung bis eben als „jemand hat ein Kaertchen darauf ausgestellt"
+   * gelesen hat. Der Zaehler stuende damit fuer jede Einheit ab der ersten
+   * Sekunde auf 1, und der Grund („1 Zugangs-Code") klaenge nach einer
+   * Entscheidung, die niemand getroffen hat.
+   *
+   * ⚠️ DER UNTERSCHIED IST DIE HERKUNFT, NICHT DIE FORM. Ein Code mit `ort_id`
+   * ist ein Artefakt DIESER Einheit — er entsteht mit ihr und geht mit ihr
+   * (`loescheElement` sperrt ihn und loest die Bindung, siehe dort). Ein Code
+   * OHNE `ort_id` ist Altbestand: den hat jemand von Hand auf diese Einheit
+   * ausgestellt und laminiert, und DER ist weiterhin ein Grund, die Einheit
+   * nicht wegzuwerfen.
+   */
   const codes = anzahl(db, tokens, and(
     eq(tokens.zielTyp, "fahrzeug"),
     eq(tokens.zielId, id),
+    isNull(tokens.ortId),
   )!);
 
   if (buch + soll + chk + bzGer + ger + flaschen + codes === 0) {
@@ -305,6 +323,52 @@ export async function loescheElement(
             break;
           case "lagerort":
             loescheVerfallFuer(tx, "lagerort", i);
+            /*
+             * DER ORTSCODE GEHT MIT — DRK-406, und er wird GESPERRT, nicht
+             * geloescht.
+             *
+             * ⚠️ OHNE DIESE ZEILE SCHLAEGT DAS `DELETE` DARUNTER FEHL: auf
+             * `tokens.ort_id` liegt ein Fremdschluessel, und `foreign_keys` ist
+             * in dieser Verbindung AN (`core/db`). Die Aktion braeche mit einem
+             * Datenbankfehler ab, obwohl `pruefeLagerort` die Loeschung gerade
+             * erlaubt hat — und der Grund staende in keiner Meldung.
+             *
+             * ⚠️ `aktiv = false` UND NICHT `DELETE`: Entscheidung 8-F haelt den
+             * Codewert dauerhaft belegt. Die Zeile verschwinden zu lassen gaebe
+             * ihn zur Wiederverwendung frei, und eine alte Journalzeile stuende
+             * danach unter der Bezeichnung eines neuen Codes.
+             *
+             * ⚠️ `ort_id = null` IST DER PREIS, und er ist unvermeidlich: der
+             * Ort, auf den sie zeigte, existiert gleich nicht mehr. Was die
+             * Karte war, steht weiterhin im `label` der Zeile.
+             *
+             * ⚠️ UND GENAU DESHALB `ersetztAm` — ohne das Feld waere dieser
+             * Preis eine Luecke (gefunden in der Durchsicht). Sobald `ort_id`
+             * weg ist, sieht die gesperrte Zeile aus wie Altbestand, und der
+             * DARF reaktiviert werden (Betreiberentscheidung 17.09.2026): ein
+             * Klick in der Codeverwaltung machte den Code einer geloeschten
+             * Einheit wieder gueltig. `ersetztAm` ueberlebt den Verlust der
+             * `ort_id` und ist der Riegel dagegen (`_actions/tokens.ts`).
+             */
+            tx.update(tokens)
+              .set({ aktiv: false, ortId: null, ersetztAm: new Date() })
+              .where(and(eq(tokens.ortId, i), isNull(tokens.ersetztAm))!)
+              .run();
+            /*
+             * ⚠️ ZWEI ANWEISUNGEN, UND DIE TRENNUNG IST DER AUDITWERT DER
+             * SPALTE — gefunden in der Durchsicht. Das `UPDATE` darueber trifft
+             * ALLE Codes dieses Ortes, auch die laengst zurueckgesetzten
+             * Vorgaenger; mit einem gemeinsamen `set` haette es deren
+             * `ersetztAm` auf den Loeschtag ueberschrieben. Die Liste naennte
+             * dann fuer ein altes Foto einen Tag, an dem es laengst nicht mehr
+             * galt — und genau diese Frage soll der Zeitstempel beantworten.
+             * Die erste Anweisung setzt ihn nur, wo noch keiner steht; die
+             * zweite loest die Bindung fuer alle.
+             */
+            tx.update(tokens)
+              .set({ aktiv: false, ortId: null })
+              .where(eq(tokens.ortId, i))
+              .run();
             // ⚠️ OHNE `eq(lagerorte.typ, "fahrzeug")`, UND DAS IST DER FIX VON
             // DRK-349: dieser Zusatz war ein zweiter Riegel hinter der
             // Pruefung, und er lehnte nicht ab, sondern loeschte nur nichts.

@@ -11,10 +11,29 @@ import {
 } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 
-const { revalidiert, adminRiegel } = vi.hoisted(() => ({
+const { revalidiert, adminRiegel, ortLeseWirft } = vi.hoisted(() => ({
   revalidiert: [] as string[],
   adminRiegel: vi.fn<() => Promise<unknown>>(),
+  /** Schalter fuer den gesperrten Lesezugriff — siehe den Fall ganz unten. */
+  ortLeseWirft: { an: false },
 }));
+
+/*
+ * ⚠️ NUR `etikettOrt` WIRD UMGELENKT, und nur auf Zuruf. Die Datei prueft
+ * ansonsten den echten Lesepfad; ein pauschaler Mock machte aus dem
+ * Ortscode-Zweig von `createFahrzeug` eine Attrappe und die Zusicherungen
+ * darueber wertlos.
+ */
+vi.mock("../_lib/lesepfade/ortEtiketten", async (echtes) => {
+  const echt = await echtes<typeof import("../_lib/lesepfade/ortEtiketten")>();
+  return {
+    ...echt,
+    etikettOrt: (...args: Parameters<typeof echt.etikettOrt>) => {
+      if (ortLeseWirft.an) throw new Error("SQLITE_BUSY: database is locked");
+      return echt.etikettOrt(...args);
+    },
+  };
+});
 
 vi.mock("next/cache", () => ({
   revalidatePath: (pfad: string) => { revalidiert.push(pfad); },
@@ -106,6 +125,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  ortLeseWirft.an = false;
   t.schliessen();
   vi.clearAllMocks();
 });
@@ -745,5 +765,35 @@ describe("sollPositionWiederherstellen", () => {
     });
     expect(fehlerVon(ergebnis).fehler).not.toContain("db-intern");
     expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * DIE EINHEIT UEBERLEBT EINEN FEHLGESCHLAGENEN ORTSCODE — DRK-406, gefunden in
+ * der Durchsicht.
+ *
+ * ⚠️ `stelleOrtCodeSicher` WIRFT NIE, `etikettOrt` SEHR WOHL. Der zweite ist ein
+ * gewoehnlicher Lesezugriff, und er laeuft unmittelbar nach dem `insert` der
+ * Einheit — also genau dann, wenn der Schreiber die Datenbank noch haelt. Stand
+ * er ausserhalb des `try`, brach sein Wurf die ganze Aktion ab, NACHDEM die
+ * Einheit in der Datenbank stand: die Bedienende sah „Einheit konnte nicht
+ * angelegt werden", legte sie erneut an und hatte sie danach zweimal.
+ *
+ * Der Code ist die Beigabe, die Einheit ist das, was jemand wollte — den Code
+ * holt der Nachzug beim naechsten Oeffnen der Ortsetiketten.
+ */
+describe("createFahrzeug — ein gesperrter Lesezugriff nimmt die Einheit nicht zurueck", () => {
+  it("meldet Erfolg und laesst die Einheit stehen, auch ohne Ortscode", async () => {
+    ortLeseWirft.an = true;
+
+    const ergebnis = await createFahrzeug(
+      { name: "RTW 9", kennung: "UE-RK 9000", einheitenart: "fahrzeug" },
+      t.db,
+    );
+
+    expect(ergebnis.ok, "der Wurf des Lesepfads darf nicht durchschlagen").toBe(true);
+    const id = wert<{ id: string }>(ergebnis).id;
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()?.name)
+      .toBe("RTW 9");
   });
 });

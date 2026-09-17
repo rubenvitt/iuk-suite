@@ -33,7 +33,6 @@ import {
   zielVon,
   type TokenAnzeigeZeile,
 } from "./TokenTable";
-import { NeuToken, zielFilter } from "./NeuToken";
 import { SeitenKopf } from "../../../_ui/SeitenKopf";
 import TokensSeite, { dynamic, tokenAnzeigeZeilen } from "./page";
 
@@ -46,16 +45,23 @@ import TokensSeite, { dynamic, tokenAnzeigeZeilen } from "./page";
  */
 const mocks = vi.hoisted(() => ({
   setTokenAktiv: vi.fn(),
-  createToken: vi.fn(),
+  setzeOrtCodeZurueck: vi.fn(),
   refresh: vi.fn(),
   getDb: vi.fn(),
   tokenListe: vi.fn(),
-  tokenZiele: vi.fn(),
+  etikettOrte: vi.fn(),
 }));
 
 vi.mock("../../../_actions/tokens", () => ({
   setTokenAktiv: (...args: unknown[]) => mocks.setTokenAktiv(...args),
-  createToken: (...args: unknown[]) => mocks.createToken(...args),
+}));
+
+vi.mock("../../../_actions/ortCodes", () => ({
+  setzeOrtCodeZurueck: (...args: unknown[]) => mocks.setzeOrtCodeZurueck(...args),
+}));
+
+vi.mock("../../../_lib/lesepfade/ortEtiketten", () => ({
+  etikettOrte: (...args: unknown[]) => mocks.etikettOrte(...args),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -68,7 +74,6 @@ vi.mock("../../../_db/client", () => ({
 
 vi.mock("../../../_lib/lesepfade/tokens", () => ({
   tokenListe: (...args: unknown[]) => mocks.tokenListe(...args),
-  tokenZiele: (...args: unknown[]) => mocks.tokenZiele(...args),
 }));
 
 /**
@@ -109,10 +114,15 @@ const FAHRZEUG = {
   aktiv: true,
   lastUsedText: "30.07.2026, 12:00:00",
   lastUsedIso: "2026-07-30T10:00:00.000Z",
+  ortId: "rtw-1",
+  ortName: "RTW 1",
+  ortMeta: "Fahrzeug · MS-1",
+  zuruecksetzbar: true,
+  ersetztText: null,
   zielTyp: "fahrzeug" as const,
   zielId: "rtw-1",
   zielName: "RTW 1",
-  zielKennung: "MS-1",
+  zielMeta: "Fahrzeug · MS-1",
   zielEinheitenart: "fahrzeug",
 } satisfies TokenAnzeigeZeile;
 
@@ -129,10 +139,15 @@ const TASCHE = {
   aktiv: true,
   lastUsedText: "nie benutzt",
   lastUsedIso: null,
+  ortId: "rucksack-1",
+  ortName: "Rucksack Betreuung",
+  ortMeta: "Tasche",
+  zuruecksetzbar: true,
+  ersetztText: null,
   zielTyp: "fahrzeug" as const,
   zielId: "rucksack-1",
   zielName: "Rucksack Betreuung",
-  zielKennung: null,
+  zielMeta: "Tasche",
   zielEinheitenart: "tasche",
 } satisfies TokenAnzeigeZeile;
 
@@ -143,10 +158,15 @@ const ARTIKEL = {
   aktiv: false,
   lastUsedText: "nie benutzt",
   lastUsedIso: null,
+  ortId: null,
+  ortName: null,
+  ortMeta: null,
+  zuruecksetzbar: false,
+  ersetztText: null,
   zielTyp: "artikel" as const,
   zielId: "a1",
   zielName: "Ärzte-Verband",
-  zielKennung: null,
+  zielMeta: null,
   zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
@@ -157,29 +177,52 @@ const LISTE = {
   aktiv: true,
   lastUsedText: "nie benutzt",
   lastUsedIso: null,
+  ortId: null,
+  ortName: null,
+  ortMeta: null,
+  zuruecksetzbar: false,
+  ersetztText: null,
   zielTyp: null,
   zielId: null,
   zielName: null,
-  zielKennung: null,
+  zielMeta: null,
   zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
+/**
+ * DER HANDLAGER-CODE — DRK-406, und er ist die Zeile, an der jede Annahme
+ * dieser Tabelle bricht, die „Ortscode" mit „Einheit" gleichsetzt: er GEHÖRT
+ * einem Ort und hat trotzdem KEIN Ziel. `ortName` trägt seinen einzigen
+ * Namen; wer ihn über die Zielspalte sucht, findet nichts.
+ */
+const HANDLAGER = {
+  id: "t5",
+  code: "555-555",
+  label: "Handlager",
+  aktiv: true,
+  lastUsedText: "nie benutzt",
+  lastUsedIso: null,
+  ortId: "handlager",
+  ortName: "Handlager",
+  ortMeta: "Lager",
+  zuruecksetzbar: true,
+  ersetztText: null,
+  zielTyp: null,
+  zielId: null,
+  zielName: null,
+  zielMeta: null,
+  zielEinheitenart: null,
+} satisfies TokenAnzeigeZeile;
+
+/*
+ * ⚠️ MIT DEM ANLEGEDIALOG SIND FÜNF HILFSFUNKTIONEN ENTFALLEN (DRK-406):
+ * `oeffneNeuToken`, `portalFeldSetzen`, `zielartWaehlen`, `zielWaehlen` und
+ * `tokenFormAbsenden`. Sie bedienten ein Formular, das es nicht mehr gibt —
+ * `lint` meldete sie als unbenutzt, und eine aufbewahrte Bedienhilfe für eine
+ * entfernte Fläche liest sich beim nächsten Mal wie eine Fläche, die es noch
+ * gibt.
+ */
 const ZEILEN = [FAHRZEUG, ARTIKEL, LISTE];
-const ZIELE = {
-  fahrzeuge: [
-    { id: "rtw-1", name: "RTW Alpha", kennung: "UE-RK 1234",
-      einheitenart: "fahrzeug" as const },
-    { id: "rtw-2", name: "RTW Beta", kennung: null, einheitenart: "fahrzeug" as const },
-    // DRK-309: eine Tasche ohne Kennung und ohne das Wort im Namen — sonst
-    // waere „tasche" nicht von einer Namenssuche zu unterscheiden.
-    { id: "ta-1", name: "Rucksack Betreuung", kennung: null,
-      einheitenart: "tasche" as const },
-  ],
-  artikel: [
-    { id: "a1", name: "Mullbinde", fach: "A1" },
-    { id: "a2", name: "Kompresse", fach: "Notfallfach" },
-  ],
-};
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
 beforeAll(() => {
@@ -191,10 +234,11 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.setTokenAktiv.mockResolvedValue({ ok: true });
-  mocks.createToken.mockResolvedValue({ ok: true, wert: { id: "neu", code: "999-999" } });
+  mocks.setzeOrtCodeZurueck.mockResolvedValue({ ok: true, wert: { code: "999-999" } });
   mocks.getDb.mockReturnValue({ kennung: "token-test-db" });
   mocks.tokenListe.mockReturnValue([]);
-  mocks.tokenZiele.mockReturnValue(ZIELE);
+  mocks.etikettOrte.mockReturnValue([{ id: "rtw-1" }, { id: "handlager" }]);
+  window.confirm = () => true;
 });
 
 afterEach(async () => {
@@ -283,51 +327,10 @@ function knopfMitText(text: string): HTMLElement {
   return knopf;
 }
 
-async function oeffneNeuToken(): Promise<void> {
-  await clickElement(knopfMitText("Neuen Code anlegen"));
-  await warte();
-  expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
-}
 
-async function portalFeldSetzen(ariaLabel: string, wert: string): Promise<void> {
-  const input = queryPortal<HTMLInputElement>(`[aria-label='${ariaLabel}']`);
-  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
-  if (!setter) throw new Error(`Kein value-Setter für ${ariaLabel}`);
-  await act(async () => {
-    setter.call(input, wert);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-}
 
-async function zielartWaehlen(text: string): Promise<void> {
-  const label = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-radio-wrapper"))
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!label) throw new Error(`Zielart fehlt: ${text}`);
-  await clickElement(label);
-  await warte();
-}
 
-async function zielWaehlen(text: string): Promise<void> {
-  const input = queryPortal<HTMLInputElement>("[aria-label='Ziel auswählen']");
-  await act(async () => {
-    input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-  });
-  await warte();
-  const option = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!option) throw new Error(`Zieloption fehlt: ${text}`);
-  await clickElement(option);
-  await warte();
-}
 
-async function tokenFormAbsenden(): Promise<void> {
-  const form = queryPortal<HTMLFormElement>("[data-rolle='neu-token-form']");
-  await act(async () => {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  });
-  await warte();
-}
 
 function elementeVomTyp(
   wert: ReactNode,
@@ -381,7 +384,8 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
 
   it("zeigt Art und Kennung des Ziels in der Zeile — und das Zeichen der Art", async () => {
     await mount(<TokenTable zeilen={[FAHRZEUG, TASCHE, ARTIKEL]} />);
-    const ziele = queryAll("tbody tr[data-row-key] td:nth-child(3)")
+    // ⚠️ VIERTE SPALTE SEIT DRK-406 — „Ort" steht jetzt an zweiter Stelle.
+    const ziele = queryAll("tbody tr[data-row-key] td:nth-child(4)")
       .map((z) => z.textContent);
     expect(ziele).toEqual([
       "RTW 1 · Fahrzeug · MS-1",
@@ -390,10 +394,17 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
     ]);
   });
 
-  it("trägt sechs Spalten, stabile IDs und die vollständigen sichtbaren Werte", async () => {
+  it("trägt sieben Spalten, stabile IDs und die vollständigen sichtbaren Werte", async () => {
     await mount(<TokenTable zeilen={ZEILEN} />);
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
       "Code",
+      /*
+       * ⚠️ „Ort" STEHT VOR „Bezeichnung" — DRK-406. Das ist keine Kosmetik:
+       * diese Seite wird mit der Frage geöffnet „welchen Code hat das RTW?",
+       * und die Bezeichnung ist der Name von DAMALS (sie wandert bei einer
+       * Umbenennung nicht mit, weil sie im Journal steht).
+       */
+      "Ort",
       "Bezeichnung",
       "Ziel",
       "Status",
@@ -472,7 +483,8 @@ describe("TokenTable — Suche, Filter und Tabelle", () => {
 
   it("unterscheidet leeren Bestand von einer leeren Filtermenge", async () => {
     await mount(<TokenTable zeilen={[]} />);
-    expect(document.body.textContent).toContain("Noch keine Codes. Lege oben den ersten an.");
+    expect(document.body.textContent)
+      .toContain("Noch keine Codes. Öffne Verwaltung → Ortsetiketten — dort entstehen sie.");
     await unmount();
     await mount(<TokenTable zeilen={ZEILEN} />);
     await suchen("ohne Treffer");
@@ -522,26 +534,77 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     expect(reaktivieren.textContent).toBe("Reaktivieren");
   });
 
-  it.each([
-    ["fachlich", { ok: false, fehler: "SQL intern" }],
-    ["Runtime", new Error("SQLITE geheim")],
-  ] as const)("zeigt bei %s fehlgeschlagenem Statuswechsel nur den festen Warntext", async (
-    _art,
-    ausgang,
-  ) => {
-    if (ausgang instanceof Error) mocks.setTokenAktiv.mockRejectedValueOnce(ausgang);
-    else mocks.setTokenAktiv.mockResolvedValueOnce(ausgang);
+  async function sperrenKlicken(): Promise<HTMLElement> {
     await mount(<TokenTable zeilen={ZEILEN} />);
     const sperren = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
       .find((knopf) => knopf.textContent === "Sperren");
     if (!sperren) throw new Error("Sperrknopf fehlt");
     await clickElement(sperren);
     await warte();
+    return sperren;
+  }
+
+  /**
+   * ⚠️ DIESE ZUSICHERUNG HIESS BIS DRK-406 „zeigt nur den FESTEN Warntext" —
+   * fuer den Wurf UND fuer die fachliche Ablehnung. Ihr Anliegen war und ist:
+   * KEINE INTERNA AUF DEM SCHIRM. Sie ist verengt worden, nicht aufgegeben,
+   * und der Grund ist ein zweiter Ablehnungsgrund, den es vorher nicht gab:
+   * „fuer diesen Ort gilt bereits ein neuerer Code" ist ein NORMALZUSTAND mit
+   * einem Weg heraus, den die Action ausdruecklich formuliert. Ihn durch den
+   * festen Satz zu ersetzen hiess, die Erklaerung auf dem letzten Meter
+   * wegzuwerfen — die Verwaltende saehe einen Defekt statt einer Absicht.
+   *
+   * Das Anliegen traegt jetzt der Quelltext-Scan darunter: die Action gibt
+   * ausschliesslich ihre eigenen festen Saetze zurueck, nie eine gefangene
+   * Ausnahme. WO die Zusicherung sitzt, hat sich geaendert; WAS sie zusagt,
+   * nicht.
+   */
+  it("reicht den Satz des Servers durch, wenn er einen hat", async () => {
+    mocks.setTokenAktiv.mockResolvedValueOnce({
+      ok: false,
+      fehler: "Ein Code, der zu einer Ortskarte gehört, wird nicht wieder aktiviert.",
+    });
+    const sperren = await sperrenKlicken();
+
+    expect(query(".ant-alert-warning").textContent ?? "")
+      .toContain("wird nicht wieder aktiviert");
+    expect(sperren.textContent).toBe("Sperren");
+  });
+
+  it("zeigt bei einem WURF den festen Warntext und nie die Ausnahme", async () => {
+    mocks.setTokenAktiv.mockRejectedValueOnce(new Error("SQLITE geheim"));
+    const sperren = await sperrenKlicken();
 
     const warnung = query(".ant-alert-warning").textContent ?? "";
     expect(warnung).toContain("Zugangs-Code-Status konnte nicht geändert werden.");
-    expect(warnung).not.toContain("SQL");
+    expect(warnung).not.toContain("SQLITE");
     expect(sperren.textContent).toBe("Sperren");
+  });
+
+  /**
+   * DAS ANLIEGEN DER ALTEN ZUSICHERUNG, AN SEINER WIRKSAMEN STELLE — DRK-406.
+   *
+   * ⚠️ DIE HUELLE ZEIGT JETZT `ergebnis.fehler`, also ist die Frage „was kann
+   * dort ueberhaupt stehen?" von der Insel zur ACTION gewandert. Dort ist sie
+   * beantwortbar und hier gepinnt: jedes `fehler:` in `_actions/tokens.ts` ist
+   * eine benannte Konstante DIESER Datei. Ein `fehler: String(e)` oder
+   * `e.message` waere der Weg, auf dem eine Datenbankmeldung auf den Schirm
+   * kaeme (§11.2 d) — und kein Tor sonst saehe ihn.
+   */
+  it("laesst die Action nur ihre eigenen festen Saetze zurueckgeben", () => {
+    const quelle = ohneKommentare(readFileSync(
+      "src/app/m/lagerbuch/_actions/tokens.ts",
+      "utf8",
+    ));
+
+    const werte = [...quelle.matchAll(/fehler:\s*([^,}\n]+)/g)].map((m) => m[1].trim());
+    expect(werte.length, "keine `fehler:`-Zuweisung gefunden").toBeGreaterThan(0);
+    for (const wert of werte) {
+      expect(wert, `unerwarteter Fehlerwert: ${wert}`)
+        .toMatch(/^(STATUS_FEHLER|ORTSCODE_FEHLER|ERSETZT_FEHLER|"[^"]*")$/);
+    }
+    // Und der offensichtliche Weg daran vorbei steht namentlich da.
+    expect(quelle).not.toMatch(/fehler:\s*(String\(|`|.*\.message)/);
   });
 
   /**
@@ -560,18 +623,145 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
    * Weg heißt jetzt „Sperren", und `pruefeLoeschbar("token", …)` erklärt das
    * serverseitig weiterhin in Worten (`_lib/tokenForm.ts`, TOKEN_LOESCHGRUND).
    */
-  it("bietet je Zeile genau eine Aktion an — Sperren, keinen Löschweg", async () => {
+  it("bietet an einem Ortscode Neu erzeugen und Sperren an, keinen Löschweg", async () => {
     await mount(<TokenTable zeilen={ZEILEN} />);
 
     expect(
       Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
         .map((knopf) => knopf.textContent),
-    ).toEqual(["Sperren"]);
+    ).toEqual(["Neu erzeugen", "Sperren"]);
     expect(
       Array.from(query("tr[data-row-key='t2']").querySelectorAll("button"))
         .map((knopf) => knopf.textContent),
     ).toEqual(["Reaktivieren"]);
     expect(document.body.textContent).not.toContain("Löschen");
+  });
+
+  /**
+   * ⚠️ „NEU ERZEUGEN" STEHT NUR AN AKTIVEN ORTSCODES — DRK-406, und beide
+   * Ausschlüsse tragen. Am ALTBESTAND gibt es keinen Ort, an den ein neuer
+   * Code ginge; an einem GESPERRTEN Ortscode hat der Ort längst einen neuen
+   * aktiven, und ein Klick sperrte genau den.
+   */
+  it("bietet Neu erzeugen weder am Altbestand noch an einem gesperrten Code an", async () => {
+    const gesperrterOrtscode = { ...FAHRZEUG, id: "t9", code: "999-111", aktiv: false };
+    await mount(<TokenTable zeilen={[LISTE, gesperrterOrtscode]} />);
+
+    const knoepfe = (id: string) => Array.from(
+      query(`tr[data-row-key='${id}']`).querySelectorAll("button"),
+    ).map((knopf) => knopf.textContent);
+
+    expect(knoepfe("t3"), "Altbestand hat keinen Ort").not.toContain("Neu erzeugen");
+    expect(knoepfe("t9"), "gesperrt: der Ort hat längst einen neuen Code")
+      .not.toContain("Neu erzeugen");
+  });
+
+  /**
+   * ⚠️ „REAKTIVIEREN" GIBT ES NUR AM ALTBESTAND — DRK-406, gefunden in der
+   * Durchsicht. Ein Code, der zu einer Ortskarte gehört oder gehört HAT, kommt
+   * nie zurück; die Action lehnt genau so ab. Stünde der Knopf trotzdem da,
+   * wäre er ein Versprechen, das der Server bricht — und der einzige Weg zur
+   * Erklärung führte über einen Fehlversuch.
+   *
+   * ⚠️ DER ZWEITE FALL BRAUCHT `ortId: null` UND IST TROTZDEM GESPERRT: so
+   * sieht der Code einer GELÖSCHTEN Einheit aus (dort muss die Bindung fallen,
+   * Fremdschlüssel). Ohne `ersetztText` wäre er von Altbestand nicht zu
+   * unterscheiden — das ist der ganze Grund, warum es das Feld gibt.
+   */
+  it("bietet Reaktivieren weder am Ortscode noch an einem ersetzten Code an", async () => {
+    const gesperrterOrtscode = { ...FAHRZEUG, id: "t9", code: "999-111", aktiv: false };
+    const verwaist = {
+      ...FAHRZEUG,
+      id: "t8",
+      code: "999-222",
+      aktiv: false,
+      ortId: null,
+      ortName: null,
+      ortMeta: null,
+      zuruecksetzbar: false,
+      ersetztText: "17.9.2026",
+    } satisfies TokenAnzeigeZeile;
+    await mount(<TokenTable zeilen={[ARTIKEL, gesperrterOrtscode, verwaist]} />);
+
+    const knoepfe = (id: string) => Array.from(
+      query(`tr[data-row-key='${id}']`).querySelectorAll("button"),
+    ).map((knopf) => knopf.textContent);
+
+    expect(knoepfe("t2"), "Altbestand bleibt reaktivierbar").toContain("Reaktivieren");
+    expect(knoepfe("t9")).not.toContain("Reaktivieren");
+    expect(knoepfe("t8")).not.toContain("Reaktivieren");
+
+    // ⚠️ AN SEINER STELLE STEHT EINE AUSKUNFT, KEINE LÜCKE — und am ersetzten
+    // Code beantwortet sie die Frage, die am Tresen wirklich gestellt wird.
+    expect(query("tr[data-row-key='t9']").textContent).toContain("dauerhaft gesperrt");
+    expect(query("tr[data-row-key='t8']").textContent).toContain("ersetzt am 17.9.2026");
+  });
+
+  /**
+   * DER NEUE CODE STEHT AM SCHIRM — DRK-406. Er kommt aus der Action zurück,
+   * und die Insel zeigt ihn, statt ihn nur in die revalidierte Tabelle fallen
+   * zu lassen: wer zurücksetzt, muss die Karte JETZT neu drucken, und welche
+   * der sechsstelligen Zahlen die neue ist, sieht man einer Zeile nicht an.
+   */
+  it("setzt den Code des Ortes zurück und nennt den neuen", async () => {
+    await mount(<TokenTable zeilen={ZEILEN} />);
+    const knopf = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
+      .find((k) => k.textContent === "Neu erzeugen");
+    if (!knopf) throw new Error("Knopf „Neu erzeugen“ fehlt");
+    await clickElement(knopf);
+    await warte();
+
+    /*
+     * ⚠️ DIE ORT-ID WANDERT, NICHT DIE TOKEN-ID. Die Action erzeugt für einen
+     * ORT neu; eine Token-Id sagte nicht, welche Karte gemeint ist.
+     *
+     * ⚠️ UND DER CODE WANDERT MIT — der Riegel gegen den Wettlauf zweier
+     * Verwaltender (gefunden in der Durchsicht). Er ist der Code, der auf
+     * DIESEM Schirm stand; ohne ihn setzte die Action „den gerade aktiven"
+     * zurück und damit im Wettlauf den, den die andere Seite eben erzeugt hat.
+     * Fällt das Feld hier weg, bleibt der Server grün und die Sperre wirkungslos.
+     */
+    expect(mocks.setzeOrtCodeZurueck.mock.calls)
+      .toEqual([[{ ortId: "rtw-1", bisher: "111-111" }]]);
+    expect(query("[data-testid='lb-token-neuer-code']").textContent)
+      .toContain("999-999");
+  });
+
+  /**
+   * ⚠️ DIE RÜCKFRAGE IST TEIL DER HANDLUNG, NICHT IHRE VERZIERUNG. Die Wirkung
+   * tritt ANDERSWO ein — an einer laminierten Karte am Fahrzeug, die ab dem
+   * Klick ins Leere führt. Wer sie abbricht, darf keinen Code verlieren.
+   */
+  it("erzeugt nichts, wenn die Rückfrage abgelehnt wird", async () => {
+    window.confirm = () => false;
+    await mount(<TokenTable zeilen={ZEILEN} />);
+    const knopf = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
+      .find((k) => k.textContent === "Neu erzeugen");
+    if (!knopf) throw new Error("Knopf „Neu erzeugen“ fehlt");
+    await clickElement(knopf);
+    await warte();
+
+    expect(mocks.setzeOrtCodeZurueck).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["fachlich", { ok: false, fehler: "Zu dieser Adresse gehört keine Ortskarte." }],
+    ["Runtime", new Error("SQLITE geheim")],
+  ] as const)("zeigt bei %s fehlgeschlagenem Zurücksetzen keinen neuen Code", async (
+    _art,
+    ausgang,
+  ) => {
+    if (ausgang instanceof Error) mocks.setzeOrtCodeZurueck.mockRejectedValueOnce(ausgang);
+    else mocks.setzeOrtCodeZurueck.mockResolvedValueOnce(ausgang);
+    await mount(<TokenTable zeilen={ZEILEN} />);
+    const knopf = Array.from(query("tr[data-row-key='t1']").querySelectorAll("button"))
+      .find((k) => k.textContent === "Neu erzeugen");
+    if (!knopf) throw new Error("Knopf „Neu erzeugen“ fehlt");
+    await clickElement(knopf);
+    await warte();
+
+    expect(document.querySelector("[data-testid='lb-token-neuer-code']")).toBeNull();
+    expect(query(".ant-alert-warning").textContent ?? "").not.toContain("SQLITE");
   });
 
   it("bietet für aktive Codes „Einsteigen“ über den QR-Weg im neuen Tab an, für gesperrte nicht", async () => {
@@ -608,193 +798,6 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
   });
 });
 
-describe("NeuToken", () => {
-  it("filtert Fahrzeug und Artikel explizit über Label plus Kennung oder Fach", () => {
-    expect(zielFilter("alpha", {
-      value: "rtw-1",
-      label: "RTW Alpha",
-      keywords: "RTW Alpha UE-RK 1234",
-    })).toBe(true);
-    expect(zielFilter("1234", {
-      value: "rtw-1",
-      label: "RTW Alpha",
-      keywords: "RTW Alpha UE-RK 1234",
-    })).toBe(true);
-    expect(zielFilter("notfallfach", {
-      value: "a2",
-      label: "Kompresse",
-      keywords: "Kompresse Notfallfach",
-    })).toBe(true);
-    expect(zielFilter("fremd", {
-      value: "a2",
-      label: "Kompresse",
-      keywords: "Kompresse Notfallfach",
-    })).toBe(false);
-  });
-
-  /**
-   * DRK-309 — DIE ZIELWAHL FINDET EINE TASCHE UEBER IHRE ART.
-   *
-   * ⚠️ UEBER DAS ECHTE FELD, nicht ueber selbstgebaute `keywords`. Dass
-   * `zielFilter` Suchworte beachtet, sagt der Fall darueber; dass `NeuToken`
-   * die Art auch WIRKLICH hineinschreibt, sagt er nicht — und genau diese
-   * Luecke war ein Reviewbefund an der Geschwisterstelle. Ein Kaertchen klebt
-   * hinterher laminiert am gewaehlten Traeger.
-   */
-  it("findet eine Tasche ueber ihre ART und nennt die Gruppe nach beiden Arten", async () => {
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-
-    // Die Gruppe heisst nach beidem — der DB-Wert bleibt „fahrzeug".
-    expect(document.body.textContent).toContain("Fahrzeug oder Tasche");
-
-    // Die Zielwahl erscheint erst, wenn die Zielart nicht „Artikel-Liste" ist.
-    const gruppe = Array.from(
-      document.body.querySelectorAll<HTMLElement>(".ant-modal label.ant-radio-wrapper"),
-    ).find((element) => element.textContent?.trim() === "Fahrzeug oder Tasche");
-    if (!gruppe) throw new Error("Zielart 'Fahrzeug oder Tasche' nicht gefunden");
-    await clickElement(gruppe.querySelector<HTMLInputElement>("input") ?? gruppe);
-    await warte();
-
-    const ziel = queryPortal<HTMLInputElement>("[aria-label='Ziel auswählen']");
-    await act(async () => {
-      ziel.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-    });
-    await warte();
-    const setter = Object.getOwnPropertyDescriptor(
-      Object.getPrototypeOf(ziel), "value")?.set;
-    if (!setter) throw new Error("Kein value-Setter am Zielfeld");
-    await act(async () => {
-      setter.call(ziel, "tasche");
-      ziel.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    await warte();
-
-    expect(Array.from(
-      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
-    ).map((option) => option.textContent))
-      // DRK-309, Reviewrunde 4: die Art steht auch im Label — ein laminiertes
-      // Kärtchen klebt hinterher am gewählten Träger, und zwei gleichnamige
-      // Einheiten sind in einer Liste aus bloßen Namen nicht zu trennen.
-      .toEqual(["Rucksack Betreuung · Tasche"]);
-  });
-
-  it("sendet die Artikel-Liste ohne erfundene Zielart und zeigt den Code im offenen Modal", async () => {
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-    await portalFeldSetzen("Bezeichnung", "  Helferliste  ");
-    await tokenFormAbsenden();
-
-    expect(mocks.createToken).toHaveBeenCalledWith({ label: "Helferliste" });
-    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
-    expect(document.body.textContent).toContain("999-999");
-    expect(mocks.refresh).not.toHaveBeenCalled();
-  });
-
-  it("sendet Fahrzeug und Artikel vollständig und löscht beim Artwechsel das alte Ziel", async () => {
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-    await portalFeldSetzen("Bezeichnung", "Direktcode");
-    await zielartWaehlen("Fahrzeug");
-    await zielWaehlen("RTW Alpha");
-    await zielartWaehlen("Artikel");
-    await tokenFormAbsenden();
-    expect(mocks.createToken).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain("Ziel auswählen");
-
-    await zielWaehlen("Kompresse");
-    await tokenFormAbsenden();
-    expect(mocks.createToken).toHaveBeenCalledWith({
-      label: "Direktcode",
-      zielTyp: "artikel",
-      zielId: "a2",
-    });
-  });
-
-  it("bindet Feldfehler ans Ziel und zeigt allgemeine Fehler als Warning mit title", async () => {
-    mocks.createToken.mockResolvedValueOnce({
-      ok: false,
-      fehler: "Bitte die markierten Felder prüfen.",
-      feldFehler: { zielId: "Einheit nicht gefunden oder inaktiv." },
-    });
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-    await portalFeldSetzen("Bezeichnung", "Fahrzeugcode");
-    await zielartWaehlen("Fahrzeug");
-    await zielWaehlen("RTW Alpha");
-    await tokenFormAbsenden();
-
-    await vi.waitFor(() => {
-      expect(document.body.textContent).toContain("Einheit nicht gefunden oder inaktiv.");
-    });
-    expect(queryPortal(".ant-alert-warning").textContent).toContain(
-      "Bitte die markierten Felder prüfen.",
-    );
-    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
-    const quelle = readFileSync(
-      "src/app/m/lagerbuch/verwaltung/(arbeit)/tokens/NeuToken.tsx",
-      "utf8",
-    );
-    expect(quelle).toMatch(/<Alert[\s\S]*?title=\{fehler\}/);
-    expect(quelle).not.toMatch(/<Alert[\s\S]*?message=\{fehler\}/);
-  });
-
-  it("hält bei Runtimefehler Form und Modal offen und verrät keine Interna", async () => {
-    mocks.createToken.mockRejectedValueOnce(new Error("SQLITE geheim"));
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-    await portalFeldSetzen("Bezeichnung", "Fehlercode");
-    await tokenFormAbsenden();
-
-    expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
-    expect(queryPortal(".ant-alert-warning").textContent).toContain(
-      "Zugangs-Code konnte nicht angelegt werden.",
-    );
-    expect(document.body.textContent).not.toContain("SQLITE geheim");
-    expect(queryPortal<HTMLInputElement>("[aria-label='Bezeichnung']").value).toBe("Fehlercode");
-  });
-
-  it("setzt Code und Formular erst beim bewussten Schließen für die nächste Öffnung zurück", async () => {
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-    await portalFeldSetzen("Bezeichnung", "Einmalcode");
-    await tokenFormAbsenden();
-    expect(document.body.textContent).toContain("999-999");
-
-    await clickElement(queryPortal<HTMLElement>("button[aria-label='Close']"));
-    await warte();
-    await oeffneNeuToken();
-    expect(document.body.textContent).not.toContain("999-999");
-    expect(queryPortal<HTMLInputElement>("[aria-label='Bezeichnung']").value).toBe("");
-  });
-
-  it("friert nach Erfolg das Formular ein und behält den Code bis zum bewussten Schließen", async () => {
-    await mount(<NeuToken ziele={ZIELE} />);
-    await oeffneNeuToken();
-    await portalFeldSetzen("Bezeichnung", "Nicht verlieren");
-    await tokenFormAbsenden();
-
-    expect(document.body.textContent).toContain("999-999");
-    const fahrzeug = Array.from(
-      document.body.querySelectorAll<HTMLElement>(".ant-radio-wrapper"),
-    ).find((element) => (element.textContent ?? "").includes("Fahrzeug"));
-    const radio = fahrzeug?.querySelector<HTMLInputElement>("input[type='radio']");
-    if (!fahrzeug || !radio) throw new Error("Fahrzeug-Zielart fehlt");
-    expect(radio.disabled).toBe(true);
-
-    await clickElement(fahrzeug);
-    await warte();
-    expect(document.body.textContent).toContain("999-999");
-    expect(mocks.createToken).toHaveBeenCalledOnce();
-
-    const fertig = queryPortal<HTMLElement>(".ant-modal-footer .ant-btn-primary");
-    expect(fertig.textContent).toContain("Schließen");
-    await clickElement(fertig);
-    await warte();
-    expect(document.body.querySelector("[role='dialog']")).toBeNull();
-  });
-});
-
 describe("TokensSeite", () => {
   const ROHZEILE = {
     id: "t-nacht",
@@ -808,10 +811,18 @@ describe("TokensSeite", () => {
     zielName: "RTW Alpha",
     zielKennung: "UE-RK 1234",
     zielEinheitenart: "fahrzeug" as const,
+    ortId: "rtw-1",
+    ortName: "RTW Alpha",
+    ortTyp: "fahrzeug" as const,
+    ortKennung: "UE-RK 1234",
+    ortEinheitenart: "fahrzeug" as const,
+    ersetztAm: null,
   };
 
+  const KARTEN = new Set(["rtw-1", "handlager"]);
+
   it("formatiert Zeitstempel serverseitig in Europe/Berlin und reicht keine Dates durch", () => {
-    const [zeile] = tokenAnzeigeZeilen([ROHZEILE]);
+    const [zeile] = tokenAnzeigeZeilen([ROHZEILE], KARTEN);
 
     expect(zeile).toEqual({
       id: "t-nacht",
@@ -820,34 +831,94 @@ describe("TokensSeite", () => {
       aktiv: true,
       lastUsedText: "2.1.2026, 00:30:00",
       lastUsedIso: "2026-01-01T23:30:00.000Z",
+      ortId: "rtw-1",
+      ortName: "RTW Alpha",
+      ortMeta: "Fahrzeug · UE-RK 1234",
+      zuruecksetzbar: true,
+      ersetztText: null,
       zielTyp: "fahrzeug",
       zielId: "rtw-1",
       zielName: "RTW Alpha",
-      zielKennung: "UE-RK 1234",
+      zielMeta: "Fahrzeug · UE-RK 1234",
       zielEinheitenart: "fahrzeug",
     });
     expect(enthaeltDate(zeile)).toBe(false);
     expect(Object.hasOwn(zeile, "createdAt")).toBe(false);
-    expect(tokenAnzeigeZeilen([{ ...ROHZEILE, lastUsedAt: null }])[0].lastUsedText)
+    expect(tokenAnzeigeZeilen([{ ...ROHZEILE, lastUsedAt: null }], KARTEN)[0].lastUsedText)
       .toBe("nie benutzt");
   });
 
-  it("verdrahtet Lesepfade, Seitenkopf und beide Client-Inseln ohne inneren Verwaltungspfad", () => {
+  /**
+   * DER HANDLAGER IST EIN `typ: "lager"` — DRK-406, und diese Zusicherung
+   * riegelt den naheliegenden Fehlgriff ab: `einheitMeta` machte daraus „nicht
+   * zugeordnet", also eine Einheit, bei der jemand die Art vergessen hat
+   * (DRK-309). Die Beizeile des WICHTIGSTEN Codes der Suite läse sich dann wie
+   * ein Datenfehler.
+   */
+  it("nennt den Handlager „Lager“ und nicht „nicht zugeordnet“", () => {
+    const [zeile] = tokenAnzeigeZeilen([{
+      ...ROHZEILE,
+      zielTyp: null, zielId: null, zielName: null,
+      zielKennung: null, zielEinheitenart: null,
+      ortId: "handlager", ortName: "Handlager", ortTyp: "lager" as const,
+      ortKennung: null, ortEinheitenart: null,
+    }], KARTEN);
+
+    expect(zeile.ortMeta).toBe("Lager");
+    expect(zeile.zielMeta).toBeNull();
+    expect(zeile.zuruecksetzbar).toBe(true);
+  });
+
+  /**
+   * ⚠️ „HAT EINE ORT-ID" IST NICHT „IST ZURÜCKSETZBAR". Eine stillgelegte
+   * Tasche behält ihren Code samt Zugehörigkeit — es gibt nur keine Karte
+   * mehr, auf die ein neuer käme. Ohne diese Unterscheidung stünde der Knopf
+   * da und die Action wiese ihn ab.
+   */
+  it("hält einen Code an einer stillgelegten Einheit für nicht zurücksetzbar", () => {
+    const [zeile] = tokenAnzeigeZeilen(
+      [{ ...ROHZEILE, ortId: "ausgemustert" }],
+      KARTEN,
+    );
+
+    expect(zeile.ortId).toBe("ausgemustert");
+    expect(zeile.zuruecksetzbar).toBe(false);
+  });
+
+  /** Altbestand: keine Zugehörigkeit, kein Knopf, aber weiterhin gelistet. */
+  it("lässt den Altbestand ohne Ort und ohne Zurücksetzen stehen", () => {
+    const [zeile] = tokenAnzeigeZeilen([{
+      ...ROHZEILE,
+      ortId: null, ortName: null, ortTyp: null,
+      ortKennung: null, ortEinheitenart: null,
+    }], KARTEN);
+
+    expect(zeile.ortName).toBeNull();
+    expect(zeile.ortMeta).toBeNull();
+    expect(zeile.zuruecksetzbar).toBe(false);
+  });
+
+  it("verdrahtet Lesepfade, Seitenkopf und die Tabelle ohne inneren Verwaltungspfad", () => {
     mocks.tokenListe.mockReturnValue([ROHZEILE]);
     const seite = TokensSeite();
 
     expect(dynamic).toBe("force-dynamic");
     expect(mocks.getDb).toHaveBeenCalledOnce();
     expect(mocks.tokenListe).toHaveBeenCalledWith({ kennung: "token-test-db" });
-    expect(mocks.tokenZiele).toHaveBeenCalledWith({ kennung: "token-test-db" });
+    expect(mocks.etikettOrte).toHaveBeenCalledWith({ kennung: "token-test-db" });
 
     const kopf = elementeVomTyp(seite, SeitenKopf)[0];
     expect(kopf.props.titel).toBe("Zugangs-Codes");
-    expect(elementeVomTyp(kopf.props.aktionen as ReactNode, NeuToken)[0].props.ziele)
-      .toEqual(ZIELE);
+    /*
+     * ⚠️ DRK-406 — DER SEITENKOPF TRÄGT KEINE AKTION MEHR. Bis hierher hing
+     * dort „Neuen Code anlegen". Die Zusicherung prüft die ABWESENHEIT, weil
+     * genau das der Auftrag war: ein Code entsteht ab jetzt nur noch als
+     * Ortscode.
+     */
+    expect(kopf.props.aktionen).toBeUndefined();
 
     const tabelle = elementeVomTyp(seite, TokenTable)[0];
-    expect(tabelle.props.zeilen).toEqual(tokenAnzeigeZeilen([ROHZEILE]));
+    expect(tabelle.props.zeilen).toEqual(tokenAnzeigeZeilen([ROHZEILE], KARTEN));
     expect(enthaeltDate(tabelle.props.zeilen)).toBe(false);
 
     const quelle = readFileSync(
