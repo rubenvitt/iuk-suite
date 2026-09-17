@@ -169,6 +169,51 @@ describe("0013 — der gemeldete Verfall fuer Bestand, der schon in der Kiste li
     expect(meldungen(sqlite, "entnahmebox")).toHaveLength(0);
   });
 
+  it("nimmt NICHTS, wenn aeltere Ware als die Meldung in der Kiste liegt", () => {
+    /**
+     * ⚠️ DER SIEBTE CODEX-BEFUND. Die Zeitprobe an der BUCHUNG reichte nicht:
+     * sie liess jede Lieferung nach der Meldung gelten, auch wenn daneben
+     * AELTERE Ware liegt, die die Meldung nie beschrieben hat.
+     *
+     *   T1  alte Ladung kommt in die Kiste (echt 10/26)
+     *   T2  RTW-Check ueberschreibt die Meldung auf 12/30
+     *   T3  zweite Ladung kommt — erfuellt „juenger als die Meldung"
+     *   →   ohne diese Probe traegt die alte Ladung danach 12/30
+     */
+    const sqlite = standVor0013();
+    legeArtikel(sqlite, "kompresse");
+    legeEinheit(sqlite, "rtw");
+    bucheInKiste(sqlite, { artikelId: "kompresse", vonOrt: "rtw", menge: 4, ts: JETZT });
+    bucheInKiste(sqlite, { artikelId: "kompresse", vonOrt: "rtw", menge: 2, ts: JETZT + 7200 });
+    // Der Check liegt ZWISCHEN den beiden Lieferungen.
+    meldeVerfall(sqlite, {
+      ortId: "rtw", artikelId: "kompresse", verfall: "2030-12", erfasstAt: JETZT + 3600,
+    });
+
+    spiele0013(sqlite);
+
+    expect(meldungen(sqlite, "entnahmebox")).toHaveLength(0);
+  });
+
+  it("nimmt NICHTS, wenn aus der Kiste je etwas herausgebucht wurde", () => {
+    /**
+     * Die Zuordnung ist dann mehrdeutig: eine Buchung sagt, WIEVIEL an einen
+     * Ort kam, nicht WELCHE Packung noch dort liegt. Die qualifizierende
+     * Lieferung kann laengst wieder draussen sein, waehrend aeltere Ware den
+     * Saldo positiv haelt.
+     */
+    const sqlite = standVor0013();
+    legeArtikel(sqlite, "kompresse");
+    legeEinheit(sqlite, "rtw");
+    bucheInKiste(sqlite, { artikelId: "kompresse", vonOrt: "rtw", menge: 6, ts: JETZT });
+    bucheInKiste(sqlite, { artikelId: "kompresse", vonOrt: "rtw", menge: -2, ts: JETZT + 60 });
+    meldeVerfall(sqlite, { ortId: "rtw", artikelId: "kompresse", verfall: "2026-10" });
+
+    spiele0013(sqlite);
+
+    expect(meldungen(sqlite, "entnahmebox")).toHaveLength(0);
+  });
+
   it("laesst die Zeile an der Einheit STEHEN — sie kopiert, sie verschiebt nicht", () => {
     // Zur Laufzeit faellt die Angabe an der Einheit, weil dort in derselben
     // Sekunde das letzte Stueck verschwindet. Hier liegt ein unbekannter

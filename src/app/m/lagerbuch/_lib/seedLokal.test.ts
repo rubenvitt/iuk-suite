@@ -470,6 +470,36 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
     ).toBeGreaterThan(0);
   });
 
+  it("nimmt KEINE RTW-Meldung, die NACH der Abgabe entstanden ist", async () => {
+    /*
+     * ⚠️ DIE FUENFTE KANTE (Codex zu PR #194, P2). Die drei bisherigen Proben
+     * pruefen alle die KISTE — Bestand, fehlende Meldung, nie herausgebucht —,
+     * keine von ihnen die ZEIT. `lagerort_verfall` fuehrt keine Historie: ein
+     * ECHTER RTW-Check in einer benutzten Demo-Datenbank ueberschreibt die
+     * einzige Zeile der Einheit. Der Nachtrag truege diese Beobachtung dann auf
+     * Kistenmaterial, das sie nie beschrieben hat — der Seed behauptete eine
+     * Zuordnung, die es nie gab.
+     *
+     * Migration 0013 weist dieselbe Chronologie ab; hier steht die Entsprechung.
+     */
+    await seedLokalLagerbuch(t.db);
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    // Ein spaeterer Check am RTW: die Meldung ist juenger als jede Box-Abgabe.
+    const spaeter = new Date(Date.now() + 86_400_000);
+    t.db.update(lagerortVerfall).set({ erfasstAt: spaeter })
+      .where(eq(lagerortVerfall.lagerortId, "fz-rtw-1")).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
+      "die juengere Beobachtung gehoert nicht an die Kiste",
+    ).toEqual([]);
+  });
+
   it("erfindet KEINE Meldung fuer eine leergeraeumte Box", async () => {
     /*
      * ⚠️ DIE KEHRSEITE DES NACHTRAGS (Codex zu PR #194, Folgebefund zum P2).

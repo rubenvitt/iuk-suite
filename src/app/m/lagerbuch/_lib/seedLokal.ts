@@ -1,4 +1,4 @@
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import type { DB } from "../_db/client";
 import {
   artikel,
@@ -943,7 +943,27 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       lt(buchungen.menge, 0),
     ))
     .get() !== undefined;
-  if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht) {
+  /* ⚠️ UND DIE VIERTE PROBE: DIE MELDUNG MUSS AELTER SEIN ALS DIE ABGABE
+   * (Codex zu PR #194). Die drei oben pruefen die KISTE, keine von ihnen die
+   * ZEIT. Ein echter RTW-Check in einer benutzten Demo-Datenbank ueberschreibt
+   * die einzige Zeile der Einheit — `lagerort_verfall` fuehrt keine Historie —,
+   * und der Nachtrag truege diese Beobachtung dann auf aelteres Kistenmaterial,
+   * das sie nie beschrieben hat. Dasselbe, was Migration 0013 mit ihren beiden
+   * Zeitproben abweist; hier ist der Fehlschlag eine Demo-Datenbank, die eine
+   * Zuordnung behauptet, die es nie gab. */
+  const aelteteBoxZugang = db.select({ ts: buchungen.ts }).from(buchungen)
+    .where(and(
+      eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
+      eq(buchungen.artikelId, A.kompresse),
+      gt(buchungen.menge, 0),
+    ))
+    .orderBy(buchungen.ts)
+    .get();
+  const meldungAelterAlsAbgabe = aelteteBoxZugang !== undefined
+    && (verfallFuerLagerort(db, RTW).get(A.kompresse)?.erfasstAt?.getTime() ?? Infinity)
+      <= aelteteBoxZugang.ts.getTime();
+
+  if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht && meldungAelterAlsAbgabe) {
     db.transaction((tx) => {
       uebernimmVerfall(tx, {
         vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,

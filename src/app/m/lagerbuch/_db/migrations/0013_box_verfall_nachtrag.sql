@@ -45,8 +45,9 @@
 -- `lagerort_verfall` keine Historie fuehrt, konnte ein SPAETERER Check der
 -- Herkunftseinheit ihre Zeile ueberschreiben, und der Nachtrag trug dann ein zu
 -- SPAETES Datum ein. Die Bedingung, die den Absatz wahr macht, steht unten an
--- der Buchung (`b.ts >= lv.erfasst_at`) — wer sie entfernt, nimmt nicht eine
--- Vorsichtsmassnahme weg, sondern die Voraussetzung dieser Begruendung.
+-- den Buchungen (nichts Aelteres in der Kiste, nie etwas heraus) — wer sie
+-- entfernt, nimmt nicht eine Vorsichtsmassnahme weg, sondern die Voraussetzung
+-- dieser Begruendung.
 --
 -- ⚠️ NUR AN EINEN ARTIKEL MIT BESTAND UND OHNE EIGENE MELDUNG. `NOT EXISTS`
 -- macht den Schritt zugleich wiederholbar: eine Meldung, die der neue Weg
@@ -92,29 +93,45 @@ FROM (
          AND b.artikel_id  = lv.artikel_id
          AND b.menge > 0
          AND b.referenz = 'entnahmebox:' || lv.lagerort_id
-         -- ⚠️ UND DIE MELDUNG MUSS AELTER SEIN ALS DIE ABGABE, sonst beschreibt
-         -- sie das Material in der Kiste gar nicht (Codex zu PR #194, sechster
-         -- Befund). `lagerort_verfall` fuehrt KEINE Historie: ein spaeterer
-         -- Check an derselben Einheit ueberschreibt ihre einzige Zeile. Ohne
-         -- diese Zeile wanderte eine Beobachtung in die Kiste, die NACH dem
-         -- Abgang an einer inzwischen neu bestueckten Einheit gemacht wurde:
-         --
-         --     T1  RTW gibt Kompressen ab, gemeldet 10/26
-         --     T2  RTW wird neu bestueckt, Check meldet 12/30 (ueberschreibt)
-         --     --  Nachtrag kopiert 12/30 an die Kiste
-         --     →   die Packung von T1 sieht bis 12/30 unbedenklich aus
-         --
-         -- DAS IST DIE TEURE HAELFTE DES IRRTUMS und widerspricht der
-         -- Begruendung im Kopf: „jedes Datum ist frueher als gar keines" gilt
-         -- nur, solange das Datum das Material auch MEINT. Eine zu spaete
-         -- Angabe warnt nicht zu frueh, sie beruhigt zu Unrecht — und eine
-         -- konkrete Zahl auf dem Schirm erstickt den Verdacht, den ein leeres
-         -- Feld noch zulaesst.
-         --
-         -- `>=` und nicht `>`: Abgabe und Ablesung fallen im Check in dieselbe
-         -- Sekunde (Sekundengranularitaet, Falle 3 am Schema) — mit `>` fiele
-         -- genau der haeufigste Fall heraus.
-         AND b.ts >= lv.erfasst_at
+    )
+    -- ⚠️ UND DIE KISTE MUSS EINDEUTIG SEIN. Dass die Einheit einmal geliefert
+    -- hat, sagt NICHT, dass die heutige Kistenware von dieser Lieferung stammt
+    -- (Codex zu PR #194, sechster und siebter Befund). Zwei Zeiten muessen
+    -- stimmen, und beide pruefen die KISTE, nicht die Buchung:
+    --
+    --   1. Nichts in der Kiste ist AELTER als die Meldung. `lagerort_verfall`
+    --      fuehrt keine Historie — ein spaeterer Check an der Einheit
+    --      ueberschreibt ihre einzige Zeile. Laege in der Kiste Ware von VOR
+    --      der Meldung, traege sie danach ein Datum, das sie nie beschrieben
+    --      hat: 12/30 auf einer Packung, die 10/26 ist.
+    --   2. Seit jeher ist nichts herausgegangen. Sonst ist die Zuordnung
+    --      mehrdeutig — eine Buchung sagt, WIEVIEL an einen Ort kam, nicht
+    --      WELCHE Packung noch dort liegt (der Satz steht schon im Kopf). Eine
+    --      qualifizierende Lieferung kann laengst wieder draussen sein,
+    --      waehrend aeltere Ware den Saldo positiv haelt.
+    --
+    -- ⚠️ ZUSAMMEN STELLEN SIE DIE BEGRUENDUNG DES KOPFES WIEDER HER. Eine
+    -- Einheit meldet den FRUEHESTEN Verfall ihres Bestandes; war die Meldung
+    -- aktuell, als die Ware ging, ist der echte Verfall dieser Ware NIE frueher
+    -- als die Meldung. Der Irrtum kann damit nur noch zu frueh warnen — die
+    -- harmlose Haelfte. Ohne die beiden Proben konnte er zu spaet BERUHIGEN.
+    --
+    -- ⚠️ DER PREIS IST, DASS EINE DURCHGEWACHSENE KISTE LEER AUSGEHT: wo je
+    -- etwas herausgebucht wurde, traegt der Nachtrag nichts nach. Das ist die
+    -- richtige Richtung — er laesst den Zustand dann so, wie er ohne ihn waere,
+    -- statt eine Zuordnung zu behaupten, die die Daten nicht hergeben.
+    AND NOT EXISTS (
+      SELECT 1 FROM buchungen b3
+       WHERE b3.lagerort_id = 'entnahmebox'
+         AND b3.artikel_id  = lv.artikel_id
+         AND b3.menge > 0
+         AND b3.ts < lv.erfasst_at
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM buchungen b4
+       WHERE b4.lagerort_id = 'entnahmebox'
+         AND b4.artikel_id  = lv.artikel_id
+         AND b4.menge < 0
     )
     -- Die Kiste fuehrt fuer diesen Artikel noch keine eigene Meldung.
     AND NOT EXISTS (
