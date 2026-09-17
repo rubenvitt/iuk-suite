@@ -268,6 +268,30 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(sidecar).toContain("ohne_null()");
   });
 
+  it("die Uhr wird in EINER Ablesung gelesen, nicht in dreien", () => {
+    // ⚠️ DREI `date`-AUFRUFE KOENNEN EINEN WECHSEL UMSPANNEN, und dann setzt sich die
+    // Uhrzeit aus Feldern VERSCHIEDENER Zeitpunkte zusammen. Nachgerechnet mit einer
+    // Attrappe, die zwischen dem ersten und dem zweiten Aufruf von 03:59:59 auf
+    // 04:00:00 rollt: abgelesen wurden 03:00:00 — eine Stunde rueckwaerts.
+    //
+    // ⚠️ DAS SYMPTOM KOMMT EINE RUNDE SPAETER UND SIEHT NACH ETWAS ANDEREM AUS. Der Rest
+    // faellt zuerst nur (84601 → 1800); beim naechsten, korrekten Ablesen springt er
+    // wieder hoch (1800 → 84570), und GENAU DIESER SPRUNG ist das Zeichen, an dem die
+    // Schleife „Zielzeit ueberschritten" erkennt. Nachgespielt mit der Schleifenlogik:
+    //
+    //   neu=1800  <= rest=84601 → rest=1800
+    //   neu=84570 >  rest=1800  → rest=0 → LAUF WIRD AUSGELOEST
+    //
+    // Also ein volles Backup Stunden vor der Zeit, ohne dass irgendwo etwas rot wird.
+    const rumpfS = funktionsrumpf(befehle, "sekunden_bis_uhrzeit");
+    const aufrufe = rumpfS.match(/\$\(date /g) ?? [];
+    expect(aufrufe, "genau eine Ablesung der Uhr").toHaveLength(1);
+    expect(rumpfS).toMatch(/date '\+%H %M %S'/);
+    // Zerlegt wird mit Parametererweiterung — `cut` waere ein zweiter Prozess je Feld,
+    // ohne dass es etwas besser machte.
+    expect(rumpfS).toMatch(/uhr_rest="\$\{uhr#\* \}"/);
+  });
+
   it("kein `PIPESTATUS` und kein `[[` — beides bash", () => {
     expect(befehle).not.toContain("PIPESTATUS");
     expect(befehle).not.toContain("[[");
@@ -545,6 +569,37 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // Nach JEDEM Schlaf erneut — in der Zwischenzeit kann die Sperre den Eigentuemer
     // gewechselt haben, und die Bedingung oben hat das lange vorher geprueft.
     expect(rumpfH2).toMatch(/sleep "\$BACKUP_HERZSCHLAG_SEKUNDEN"[\s\S]*\[ -d "\$SPERRVERZEICHNIS\/\$marke" \] \|\| exit 0/);
+  });
+
+  it("ein Lauf, der die Sperre VERLIERT, fasst nichts Geteiltes mehr an", () => {
+    // ⚠️ DEN HERZSCHLAG ZU BEENDEN REICHT NICHT — er ist nur der Melder. Stand die
+    // Maschine laenger als die Altersgrenze, hat ein anderer Lauf uebernommen und
+    // arbeitet; dieser hier liefe ohne Zaun weiter in genau die geteilten Dinge hinein,
+    // gegen die es die Sperre gibt: dieselbe Rotation am Ziel und dieselbe
+    // Zustandsdatei. Dass die Freigabe die fremde Sperre in Ruhe laesst, verhindert das
+    // nicht — sie kommt zu spaet.
+    //
+    // GEMESSEN mit einer Uebernahme waehrend `backup.sh` lief: rclone 0 mal gerufen,
+    // der Stand des NEUEN Laufs unveraendert, die fremde Sperre steht, Exit 1.
+    const rumpfL = funktionsrumpf(befehle, "lauf_ungesperrt");
+    const zaun = rumpfL.indexOf("sperre_gehoert_uns");
+    const auslagern = rumpfL.indexOf("auslagern ");
+    expect(zaun, "der Lauf prueft den Besitz").toBeGreaterThan(-1);
+    expect(zaun, "und zwar VOR dem Auslagern").toBeLessThan(auslagern);
+
+    // ⚠️ DIE ZUSTANDSDATEI IST DER ZWEITE GETEILTE ORT, und sie wird an VIER Stellen
+    // geschrieben. Deshalb haengt die Pruefung an der Funktion selbst: so kann keine
+    // kuenftige Aufrufstelle sie vergessen.
+    const rumpfZ = funktionsrumpf(befehle, "zustand_schreiben");
+    expect(rumpfZ).toMatch(/if ! sperre_gehoert_uns; then[\s\S]*return 0/);
+    const pruefung = rumpfZ.indexOf("sperre_gehoert_uns");
+    expect(pruefung, "vor dem Schreiben, nicht danach").toBeLessThan(rumpfZ.indexOf("mv "));
+
+    // Der Besitznachweis ist die eigene Marke — dieselbe Bedingung wie bei Freigabe und
+    // Herzschlag, nicht eine zweite, die auseinanderlaufen koennte.
+    expect(funktionsrumpf(befehle, "sperre_gehoert_uns")).toMatch(
+      /\[ -n "\$meine_marke" \] && \[ -d "\$SPERRVERZEICHNIS\/\$meine_marke" \]/,
+    );
   });
 
   it("der Herzschlag LEGT NICHTS AN — sonst blockiert er jede kuenftige Sperre", () => {

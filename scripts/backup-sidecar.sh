@@ -208,8 +208,21 @@ zustand_lesen() {
   sed -n "s/^$1=//p" "$ZUSTANDSDATEI" | tail -1
 }
 
+# ⚠️ SIE SCHREIBT NUR, SOLANGE DIE SPERRE UNS GEHOERT. Alle vier Aufrufe stehen in
+# `lauf_ungesperrt`, also in einem Lauf unter der Sperre — aber ein Lauf kann sie
+# unterwegs verlieren (die Maschine stand laenger als die Altersgrenze, ein anderer hat
+# uebernommen). Diese Datei ist der geteilte Stand, den der Healthcheck liest; wer sie
+# ohne die Sperre schreibt, ueberschreibt das Ergebnis dessen, der gerade arbeitet.
+#
+# Die Pruefung steht HIER und nicht an den vier Aufrufstellen: so kann keine kuenftige
+# hinzukommen, die sie vergisst. `sperre_gehoert_uns` ist weiter unten definiert — das
+# geht, weil eine Shell Funktionen beim AUFRUF aufloest, nicht beim Lesen der Datei.
 zustand_schreiben() {
   # status meldung
+  if ! sperre_gehoert_uns; then
+    warne "Der Stand wird NICHT geschrieben ($1: $2) — die Sperre gehoert uns nicht mehr."
+    return 0
+  fi
   tmp="$ZUSTANDSDATEI.neu.$$"
   {
     printf 'letzter_versuch=%s\n' "$(date +%s)"
@@ -517,6 +530,12 @@ sperre_marke_setzen() {
   return 0
 }
 
+# Haelt DIESER Prozess die Sperre noch? Der Besitznachweis ist die eigene Marke: liegt
+# sie nicht mehr im Sperrverzeichnis, hat jemand anderes uebernommen.
+sperre_gehoert_uns() {
+  [ -n "$meine_marke" ] && [ -d "$SPERRVERZEICHNIS/$meine_marke" ]
+}
+
 # ⚠️ DIE GRENZE HAT EINEN BODEN, UND DER IST KEINE VORSICHT. Eine Grenze unterhalb des
 # Herzschlags ist selbstwiderspruechlich: der Lauf meldet sich alle
 # BACKUP_HERZSCHLAG_SEKUNDEN, eine kleinere Grenze erklaerte ihn also zwischen zwei
@@ -777,6 +796,22 @@ lauf_ungesperrt() {
   groesse="$(du -h "$tarball" | cut -f1)"
   protokoll "Lokal: $tarball ($groesse)"
 
+  # ⚠️ DER ZAUN. Bis hierher kann viel Zeit vergangen sein — ein grosses `tar` dauert.
+  # Stand die Maschine zwischendurch laenger als die Altersgrenze, hat inzwischen ein
+  # anderer Lauf die Sperre uebernommen und arbeitet. Der Herzschlag merkt das und endet,
+  # und die Freigabe fasst eine fremde Sperre nicht an — aber BEIDES HAELT DIESEN LAUF
+  # NICHT AUF. Ohne diese Stelle liefe er weiter in genau die geteilten Dinge hinein,
+  # gegen die es die Sperre gibt: dieselbe Rotation am Ziel und dieselbe Zustandsdatei.
+  #
+  # Das lokale Tarball ist dabei nicht das Problem — es traegt seit dem Wartelauf in
+  # `backup.sh` einen eindeutigen Namen. Das Auslagern und der Zustand sind es.
+  if ! sperre_gehoert_uns; then
+    meldung="Die Sperre gehoert uns nicht mehr — ein anderer Lauf hat uebernommen. $tarball
+  liegt lokal; ausgelagert und vermerkt wird NICHT, das ist Sache des neuen Laufs."
+    warne "$meldung"
+    return 1
+  fi
+
   if [ -n "$BACKUP_RCLONE_ZIEL" ]; then
     if auslagern "$tarball"; then
       meldung="$tarball ($groesse), ausgelagert nach $BACKUP_RCLONE_ZIEL"
@@ -822,9 +857,22 @@ sekunden_bis_uhrzeit() {
   hh="$(ohne_null "${BACKUP_UHRZEIT%%:*}")"
   mm="$(ohne_null "${BACKUP_UHRZEIT##*:}")"
   ziel=$((hh * 3600 + mm * 60))
-  jetzt=$(( $(ohne_null "$(date +%H)") * 3600 \
-          + $(ohne_null "$(date +%M)") * 60 \
-          + $(ohne_null "$(date +%S)") ))
+  # ⚠️ EINE ABLESUNG, NICHT DREI. Drei `date`-Aufrufe koennen einen Sekunden- oder
+  # Stundenwechsel umspannen, und dann setzt sich `jetzt` aus Feldern VERSCHIEDENER
+  # Zeitpunkte zusammen. Nachgerechnet mit einer Attrappe, die zwischen dem ersten und
+  # dem zweiten Aufruf von 03:59:59 auf 04:00:00 rollt: abgelesen wurden 03:00:00 — eine
+  # Stunde rueckwaerts.
+  #
+  # Das Symptom kommt dabei erst eine Runde SPAETER und sieht nach etwas anderem aus:
+  # der Rest faellt zuerst nur (84601 → 1800), und beim naechsten, korrekten Ablesen
+  # springt er wieder hoch (1800 → 84570). Dieser Sprung ist genau das Zeichen, an dem
+  # die Schleife „Zielzeit ueberschritten" erkennt — sie startet also einen ungeplanten
+  # Lauf, Stunden vor der Zeit.
+  uhr="$(date '+%H %M %S')"
+  uhr_rest="${uhr#* }"
+  jetzt=$(( $(ohne_null "${uhr%% *}") * 3600 \
+          + $(ohne_null "${uhr_rest%% *}") * 60 \
+          + $(ohne_null "${uhr_rest##* }") ))
   rest=$((ziel - jetzt))
   [ "$rest" -gt 0 ] || rest=$((rest + 86400))
   echo "$rest"
