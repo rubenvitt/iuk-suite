@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Button } from "antd";
+import { Button, Select } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import { nameStufe } from "../../../_lib/ortEtikettMasse";
 
@@ -52,11 +52,45 @@ type Ort = {
   id: string; name: string; meta: string;
   unterscheidung: string | null;
   url: string; qr: string;
+  istHandlager: boolean;
 };
 
-export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
+type Kaertchen = { code: string; label: string; url: string; qr: string };
+
+/** „Ortsadresse" — der Zustand von vor DRK-395 und weiterhin die Vorgabe. */
+const OHNE_KAERTCHEN = "";
+
+export function OrtsetikettenBogen({
+  orte,
+  kaertchen,
+}: {
+  orte: Ort[];
+  /**
+   * PFLICHT-PROP, auch wenn `[]` der haeufige Wert ist: ein vergessenes
+   * `kaertchen?` waere still `undefined`, die Wahl verschwaende wortlos, und
+   * der Bogen druckte wieder ausschliesslich Ortsadressen — genau der Zustand,
+   * den DRK-395 behebt.
+   */
+  kaertchen: Kaertchen[];
+}) {
   const keys = orte.map((o) => o.id);
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set(keys));
+  /**
+   * WELCHES KAERTCHEN AUF DER HANDLAGER-KARTE STEHT — DRK-395.
+   *
+   * ⚠️ DIE VORGABE IST DIE ORTSADRESSE, und das ist keine Zurueckhaltung aus
+   * Gewohnheit: ein voreingestelltes Kaertchen legte den Code beim ersten
+   * Druck nach dem Rollout auf Papier, ohne dass jemand die Entscheidung
+   * getroffen haette. Ein Zugang gehoert gewaehlt, nicht geerbt.
+   *
+   * ⚠️ DIE WAHL GILT FUER DIESEN DRUCK, sie wird nirgends gespeichert. Der
+   * Zettel selbst ist die Erinnerung: der Code steht im Fuss der Karte, die am
+   * Regal haengt. Eine gespeicherte Wahl waere eine zweite Wahrheit ueber
+   * „welcher Code haengt dort?" — und die stimmte ab dem Tag nicht mehr, an
+   * dem jemand die Karte austauscht, ohne die Verwaltung zu oeffnen.
+   */
+  const [kaertchenCode, setKaertchenCode] = useState<string>(OHNE_KAERTCHEN);
+  const gewaehltesKaertchen = kaertchen.find((k) => k.code === kaertchenCode) ?? null;
 
   function umschalten(k: string) {
     setGewaehlt((s) => {
@@ -90,13 +124,88 @@ export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
         </Button>
       </div>
 
+      {/*
+        DIE WAHL FUER DIE HANDLAGER-KARTE — DRK-395.
+
+        ⚠️ SIE STEHT UEBER DEM BOGEN UND NICHT AUF DER KARTE. Die Karte ist das,
+        was gedruckt wird; jedes Bedienelement darin muesste `lb-nichtDrucken`
+        tragen und kostete am Bildschirm eine Hoehe, die es auf Papier nicht
+        hat — genau die Falle, die beim Kontrollkaestchen oben ausgeschrieben
+        steht (Vorschau und Ausdruck zeigten dann verschieden viel Text).
+
+        ⚠️ KEIN `size` AM SELECT (Falle 4): `controlHeight` ist unter dem
+        Druckast schon das richtige Mass, `size="large"` waere 72px.
+      */}
+      <div className="lb-nichtDrucken" style={{ marginBottom: SPACE.md }}>
+        <label
+          htmlFor="lb-ort-kaertchen"
+          style={{ display: "block", marginBottom: SPACE.xs, fontWeight: 600 }}
+        >
+          QR auf der Handlager-Karte
+        </label>
+        {kaertchen.length === 0 ? (
+          /*
+            ⚠️ KEIN LEERES AUSWAHLFELD, SONDERN DER WEG DORTHIN. Ein Select ohne
+            Eintraege sagt „geht nicht" und nicht „was fehlt" — und was fehlt,
+            ist ein Zugangs-Code der Zielart „Artikel-Liste"; jede andere
+            Zielart landet woanders als am Regal (`_lib/ortZiel.ts`).
+          */
+          <p data-testid="lb-ort-kaertchen-leer">
+            Kein Zugangs-Code mit der Zielart „Artikel-Liste“ angelegt. Die Karte
+            trägt deshalb ihre Ortsadresse — ein Scan verlangt dann eine
+            Anmeldung.{" "}
+            <a href="/verwaltung/tokens">Zugangs-Codes verwalten</a>
+          </p>
+        ) : (
+          <>
+            <Select<string>
+              id="lb-ort-kaertchen"
+              data-testid="lb-ort-kaertchen"
+              aria-label="QR auf der Handlager-Karte"
+              value={kaertchenCode}
+              onChange={setKaertchenCode}
+              style={{ minWidth: 320, maxWidth: "100%" }}
+              options={[
+                { value: OHNE_KAERTCHEN, label: "Ortsadresse — Scan verlangt eine Anmeldung" },
+                ...kaertchen.map((k) => ({
+                  // Bezeichnung UND Code: die Bezeichnung waehlt man, der Code
+                  // ist das, was hinterher auf dem Papier steht.
+                  value: k.code,
+                  label: `${k.label} · ${k.code}`,
+                })),
+              ]}
+              virtual={false}
+            />
+            <p style={{ marginTop: SPACE.xs, marginBottom: 0 }}>
+              Mit einem Zugangs-Code führt der Scan ohne Anmeldung direkt zum
+              Entnehmen. Wer die Karte abfotografiert, hat denselben Zugang wie
+              mit einem laminierten Kärtchen; sperren lässt er sich unter
+              Verwaltung → Zugangs-Codes.
+            </p>
+          </>
+        )}
+      </div>
+
       {/* ⚠️ `lb-ortbogen` TRAEGT `page: ortbogen`. Alles Gedruckte dieser Seite liegt
           darin — das Chrome und die Bedienleiste fallen ueber `lb-nichtDrucken`
           vorher weg. Das ist die Bedingung dafuer, dass Chromium die
           Seitengroesse ueberhaupt annimmt (gemessen: gemischte Groessen in
           einem Dokument ergeben Letter fuer alles). */}
       <div className="lb-ortbogen">
-        {orte.map((o) => (
+        {orte.map((o) => {
+          /*
+            ⚠️ DAS KAERTCHEN ERSETZT DEN QR NUR AUF DER HANDLAGER-KARTE, und
+            `istHandlager` kommt vom SERVER — die Insel rechnet keine
+            Ortskennung nach (Begruendung am Feld in `_db/etiketten.ts`).
+
+            ⚠️ QR UND FUSS WECHSELN GEMEINSAM ODER GAR NICHT. Beide lesen
+            dieselbe Variable; ein zweites `o.istHandlager && …` weiter unten
+            koennte auseinanderlaufen, und das Ergebnis waere die teuerste
+            Karte ueberhaupt: ein QR auf den einen Zugang, darunter die
+            abtippbare Adresse auf den anderen.
+          */
+          const k = o.istHandlager ? gewaehltesKaertchen : null;
+          return (
           <label
             className={`lb-ortkarte${gewaehlt.has(o.id) ? "" : " lb-ortkarteAbgewaehlt"}`}
             key={o.id}
@@ -126,7 +235,7 @@ export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
               acht passen auf das Blatt.
             */}
             <span className="lb-ortkarteHauptteil">
-              <span className="lb-ortkarteQr" dangerouslySetInnerHTML={{ __html: o.qr }} />
+              <span className="lb-ortkarteQr" dangerouslySetInnerHTML={{ __html: k?.qr ?? o.qr }} />
               {/*
                 ⚠️ ZWEI VERSCHACHTELTE SPANS, UND DAS IST KEINE ZIERDE. Die
                 aeussere Huelle zentriert den Namen (Flexbox), die innere traegt
@@ -153,10 +262,22 @@ export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
               {o.unterscheidung && (
                 <span className="lb-ortkarteUnterscheidung">{o.unterscheidung}</span>
               )}
-              {o.url}
+              {/*
+                ⚠️ DER CODE STEHT IM KLARTEXT AUF DER KARTE, und das ist keine
+                Unachtsamkeit: der QR daneben TRAEGT ihn bereits, die Zeile
+                gibt also nichts preis, was die Karte nicht ohnehin hergibt.
+                Sie ist das, was ein Telefon mit streikender Kamera braucht —
+                und die einzige Stelle, an der spaeter nachzulesen ist, WELCHER
+                Code am Regal haengt. Dieselbe Erwaegung wie bei der
+                Kaertchen-Karte des Etikettenbogens, die Label und Code
+                ebenfalls ausschreibt.
+              */}
+              {k && <span className="lb-ortkarteCode">Code {k.code}</span>}
+              {k?.url ?? o.url}
             </span>
           </label>
-        ))}
+          );
+        })}
       </div>
     </>
   );
