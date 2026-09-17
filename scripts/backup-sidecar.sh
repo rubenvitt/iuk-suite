@@ -179,15 +179,15 @@ TARBALL_MUSTER='[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-
 BACKUP_PING_URL="${BACKUP_PING_URL:-}"
 # Eigene URL fuer den Fehlschlag. LEER = healthchecks.io-Konvention, also `$URL/fail`.
 #
-# ⚠️ DIESE ZEILE IST PFLICHT, SOBALD DAS ZIEL NICHT healthchecks.io IST — und der
-# Fehlfall meldet GESUND statt kaputt. Uptime Kuma kodiert den Zustand in der
-# ABFRAGE, nicht im Pfad, und seine kopierfertige URL traegt bereits `status=up`:
+# ⚠️ DIESE ZEILE IST PFLICHT, SOBALD DAS ZIEL NICHT healthchecks.io IST. Uptime Kuma
+# kodiert den Zustand in der ABFRAGE, nicht im Pfad, und seine kopierfertige URL traegt
+# bereits `status=up`:
 #   https://kuma/api/push/AbC123?status=up&msg=OK&ping=
-# Ein angehaengtes `/fail` landet damit im WERT von `ping=`, der Pfad bleibt derselbe,
-# und `status=up` steht unveraendert drin. Der Ruf, der einen Fehlschlag melden soll,
-# frischt den Waechter also auf GRUEN auf — die Ueberwachung waere schlimmer als keine,
-# weil sie dann aktiv das Gegenteil behauptet. Fuer Kuma gehoert hierher dieselbe URL
-# mit `status=down`.
+# `fehler_url` setzt das `/fail` in den PFAD (`/api/push/AbC123/fail?status=up…`), und
+# den gibt es bei Kuma nicht: der Ruf frischt den Waechter zwar nicht mehr auf GRUEN auf
+# — das tat er, solange `/fail` im WERT von `ping=` landete —, aber Kuma erfaehrt vom
+# Fehlschlag auch nichts; im Protokoll steht dann eine Warnung. Fuer Kuma gehoert
+# hierher dieselbe URL mit `status=down`.
 BACKUP_PING_URL_FEHLER="${BACKUP_PING_URL_FEHLER:-}"
 # Ab wann der Healthcheck einen ausbleibenden Lauf als Fehler wertet. 26 Stunden lassen
 # einem taeglichen Takt zwei Stunden Luft, ohne einen ausgefallenen Tag zu verschlucken.
@@ -604,6 +604,32 @@ ping_ziel_kurz() {
   esac
 }
 
+# Die Fehler-URL zur healthchecks.io-Konvention: `/fail` gehoert VOR eine Abfrage oder
+# einen Anker, nicht dahinter.
+#
+# ⚠️ GEMESSEN gegen einen mitschreibenden Server, nicht vermutet — angehaengt statt
+# eingesetzt kommt an:
+#
+#   .../uuid/fail              → Server sieht /uuid/fail        richtig
+#   .../uuid?rid=abc  + /fail  → Server sieht /uuid?rid=abc/fail  ← Pfad ist /uuid
+#   .../uuid#anker    + /fail  → Server sieht /uuid              ← /fail ist WEG
+#
+# Im ersten Fall steht das `/fail` im WERT eines Abfrageparameters, im zweiten wird es
+# gar nicht erst gesendet (ein Fragment verlaesst den Browser bzw. curl nie). Beide Male
+# trifft der Ruf den ERFOLGS-Endpunkt: ein gescheiterter Lauf meldet sich als gesund.
+# Dieselbe Klasse wie der Uptime-Kuma-Fund und wie „ein Erfolg, den niemand festhalten
+# kann" — eine Ueberwachung, die das Gegenteil behauptet, ist schlimmer als keine.
+#
+# ⚠️ `[?#]` ist eine Zeichenklasse, das Fragezeichen darin also woertlich. AUSSERHALB
+# waere es das Muster fuer ein beliebiges Zeichen und schnitte alles weg — genau die
+# Falle, die `ping_ziel_kurz` eine Runde vorher gekostet hat.
+fehler_url() {
+  fu_kopf="${1%%[?#]*}"
+  fu_rest="${1#"$fu_kopf"}"
+  # Ein Schraegstrich am Ende ergaebe `/uuid//fail` — ein Pfad, den es nirgends gibt.
+  echo "${fu_kopf%/}/fail$fu_rest"
+}
+
 ping_senden() {
   [ -n "$BACKUP_PING_URL" ] || return 0
   # ⚠️ NUR DER LAUF, DEM DIE SPERRE NOCH GEHOERT, DARF DEN WAECHTER ANFASSEN — und die
@@ -638,7 +664,7 @@ ping_senden() {
   elif [ -n "$BACKUP_PING_URL_FEHLER" ]; then
     ziel="$BACKUP_PING_URL_FEHLER"
   else
-    ziel="$BACKUP_PING_URL/fail"
+    ziel="$(fehler_url "$BACKUP_PING_URL")"
   fi
   # Ein gescheiterter Ping darf den Lauf NICHT scheitern lassen — das Backup liegt dann
   # ja da. Er ist aber auch nicht folgenlos: ohne ihn ist die Ueberwachung blind, und

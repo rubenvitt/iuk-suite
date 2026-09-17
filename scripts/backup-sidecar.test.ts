@@ -707,15 +707,15 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // Kuma — im Runbook danebengestellt — kodiert den Zustand in der ABFRAGE, und seine
     // kopierfertige URL traegt bereits `status=up`:
     //   https://kuma/api/push/AbC123?status=up&msg=OK&ping=
-    // Ein angehaengtes `/fail` landet damit im WERT von `ping=`, der Pfad bleibt
-    // derselbe, `status=up` steht unveraendert drin — der Ruf frischt den Waechter auf
-    // GRUEN auf. Gemessen an beiden Formen.
+    // Das `/fail` geht in den PFAD (`/api/push/AbC123/fail?status=up…`), und den gibt
+    // es bei Kuma nicht: gruen aufgefrischt wird der Waechter dadurch zwar nicht mehr,
+    // von seinem Fehlschlag erfaehrt er aber auch nichts. Gemessen an beiden Formen.
     expect(befehle).toContain("BACKUP_PING_URL_FEHLER");
     const rumpfP = funktionsrumpf(befehle, "ping_senden");
     expect(rumpfP).toMatch(/elif \[ -n "\$BACKUP_PING_URL_FEHLER" \]; then/);
     // Und die Vorbelegung bleibt die healthchecks.io-Form, damit der haeufige Fall
-    // ohne zweite Zeile auskommt.
-    expect(rumpfP).toMatch(/ziel="\$BACKUP_PING_URL\/fail"/);
+    // ohne zweite Zeile auskommt — ueber `fehler_url`, nicht als Anhaengen von Hand.
+    expect(rumpfP).toMatch(/ziel="\$\(fehler_url "\$BACKUP_PING_URL"\)"/);
   });
 
   it("nach dem Stoppbefehl wird KEIN neuer Lauf mehr begonnen", () => {
@@ -1459,6 +1459,78 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     }
   });
 
+  it("`/fail` steht VOR der Abfrage — sonst meldet der Fehlfall GESUND", () => {
+    // ⚠️ DER FUND: `$BACKUP_PING_URL/fail` haengt an, statt einzusetzen. GEMESSEN gegen
+    // einen mitschreibenden HTTP-Server, was dort ankommt:
+    //
+    //   .../uuid?rid=abc  + /fail  → Server sieht /uuid?rid=abc/fail  ← Pfad ist /uuid
+    //   .../uuid#anker    + /fail  → Server sieht /uuid              ← /fail ist WEG
+    //
+    // Beide Male trifft der Ruf den ERFOLGS-Endpunkt: ein gescheiterter Lauf meldet
+    // sich als gesund. Dieselbe Klasse wie der Uptime-Kuma-Fund — eine Ueberwachung,
+    // die das Gegenteil behauptet, ist schlimmer als keine. healthchecks.io haengt an
+    // seine Ping-URLs durchaus etwas an (`?rid=` fuer die Lauf-Kennung), der Fall ist
+    // also nicht konstruiert.
+    const fehlerUrl = (url: string) =>
+      shellSkript(["fehler_url"], 'fehler_url "$1"', url);
+    for (const [url, erwartet] of [
+      // Der gewoehnliche Fall bleibt Zeichen fuer Zeichen, wie er war.
+      ["https://hc-ping.com/uuid", "https://hc-ping.com/uuid/fail"],
+      // Abfrage und Anker bleiben ERHALTEN und stehen hinter dem `/fail`.
+      ["https://hc-ping.com/uuid?rid=abc", "https://hc-ping.com/uuid/fail?rid=abc"],
+      ["https://hc-ping.com/uuid#anker", "https://hc-ping.com/uuid/fail#anker"],
+      ["https://hc-ping.com/uuid?a=1#f", "https://hc-ping.com/uuid/fail?a=1#f"],
+      // Eine URL ganz ohne Pfad — derselbe Randfall, der die Kuerzung gekostet hat.
+      ["https://monitor.example?token=x", "https://monitor.example/fail?token=x"],
+      // Ein Schraegstrich am Ende ergaebe `/uuid//fail`, einen Pfad, den es nicht gibt.
+      ["https://hc-ping.com/uuid/", "https://hc-ping.com/uuid/fail"],
+    ] as const) {
+      expect(fehlerUrl(url), `${url} bekommt /fail in den PFAD`).toBe(erwartet);
+    }
+    // ⚠️ Und der ganze Weg, mit einer `curl`-Attrappe statt einer Behauptung ueber den
+    // Quelltext: so kann kein kuenftiges `"$BACKUP_PING_URL/fail"` daneben entstehen.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-fail-"));
+    try {
+      mkdirSync(path.join(kladde, "bin"));
+      writeFileSync(
+        path.join(kladde, "bin/curl"),
+        `#!/bin/sh\nfor a in "$@"; do case "$a" in http*) echo "$a" >>${kladde}/pings ;; esac; done\nexit 0\n`,
+      );
+      chmodSync(path.join(kladde, "bin/curl"), 0o755);
+      const quelle = [
+        `SPERRVERZEICHNIS=${kladde}/sperre`,
+        'BACKUP_PING_URL="https://hc-ping.com/uuid?rid=abc"',
+        'BACKUP_PING_URL_FEHLER=""',
+        ...["protokoll", "warne", "ping_ziel_kurz", "fehler_url", "ping_senden", "sperre_gehoert_uns"].map(
+          shellQuelle,
+        ),
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'mkdir -p "$SPERRVERZEICHNIS"',
+        'meine_marke="${MARKE_PRAEFIX}000001"',
+        'mkdir "$SPERRVERZEICHNIS/$meine_marke"',
+        "ping_senden ok >/dev/null",
+        "ping_senden fehler >/dev/null",
+      ].join("\n");
+      execFileSync("sh", ["-c", quelle], {
+        encoding: "utf8",
+        stdio: "pipe",
+        env: { ...process.env, PATH: `${kladde}/bin:${process.env.PATH}` },
+      });
+      expect(
+        readFileSync(path.join(kladde, "pings"), "utf8").trim().split("\n"),
+        "der Erfolgsruf bleibt unveraendert, der Fehlerruf trifft /uuid/fail",
+      ).toEqual([
+        "https://hc-ping.com/uuid?rid=abc",
+        "https://hc-ping.com/uuid/fail?rid=abc",
+      ]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // ⚠️ Das Fragezeichen steht in einer ZEICHENKLASSE. Ausserhalb waere es das Muster
+    // fuer ein beliebiges Zeichen und schnitte alles weg — die Falle aus der Kuerzung.
+    expect(funktionsrumpf(befehle, "fehler_url")).toMatch(/\$\{1%%\[\?#\]\*\}/);
+  });
+
   it("ein ueberholter Lauf faelscht den Waechter NICHT auf rot", () => {
     // ⚠️ `auslagern` gibt bei verlorener Sperre 1 zurueck, und der Zweig in
     // `lauf_ungesperrt` liest das als „Auslagern gescheitert" — mit Fehler-Ping. Steht
@@ -1481,9 +1553,14 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
         `SPERRVERZEICHNIS=${kladde}/sperre`,
         'BACKUP_PING_URL="https://hc-ping.com/uuid"',
         'BACKUP_PING_URL_FEHLER=""',
-        ...["protokoll", "warne", "ping_ziel_kurz", "ping_senden", "sperre_gehoert_uns"].map(
-          shellQuelle,
-        ),
+        ...[
+          "protokoll",
+          "warne",
+          "ping_ziel_kurz",
+          "fehler_url",
+          "ping_senden",
+          "sperre_gehoert_uns",
+        ].map(shellQuelle),
         // A belegt die Sperre.
         'MARKE_PRAEFIX="eigner.aaaa.1."',
         'mkdir -p "$SPERRVERZEICHNIS"',
