@@ -12,10 +12,10 @@ import {
 } from "@/app/m/qr/_lib/test-dom";
 import s from "../../../_ui/verwaltung.module.css";
 import {
-  FahrzeugVerfallTabelle,
+  OrtVerfallTabelle,
   sucheTrifft,
-  type FahrzeugVerfallZeile,
-} from "./FahrzeugVerfallTabelle";
+  type OrtVerfallZeile,
+} from "./OrtVerfallTabelle";
 
 /**
  * DREI FAHRZEUGE, DAMIT DER FAHRZEUGFILTER ETWAS ZU TRENNEN HAT — und „RTW
@@ -26,13 +26,14 @@ import {
  * Einfuegereihenfolge GEGEN die Sollreihenfolge des Lesepfads (abgelaufen
  * zuerst) — sonst faellt eine fehlende Ordnung nicht auf.
  */
-const ZEILEN: FahrzeugVerfallZeile[] = [
+const ZEILEN: OrtVerfallZeile[] = [
   {
     schluessel: "f2:a1",
-    fahrzeugId: "f2",
-    fahrzeugName: "RTW Süd",
-    fahrzeugKennung: "UE-RK 5678",
-    fahrzeugEinheitenart: "fahrzeug" as const,
+    ortId: "f2",
+    ortName: "RTW Süd",
+    ortKennung: "UE-RK 5678",
+    ortTyp: "fahrzeug" as const,
+    ortEinheitenart: "fahrzeug" as const,
     artikelName: "NaCl",
     verfall: "2026-09",
     verfallText: "09/26",
@@ -43,10 +44,11 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
   },
   {
     schluessel: "f1:a2",
-    fahrzeugId: "f1",
-    fahrzeugName: "RTW Nord",
-    fahrzeugKennung: "UE-RK 1234",
-    fahrzeugEinheitenart: "fahrzeug" as const,
+    ortId: "f1",
+    ortName: "RTW Nord",
+    ortKennung: "UE-RK 1234",
+    ortTyp: "fahrzeug" as const,
+    ortEinheitenart: "fahrzeug" as const,
     artikelName: "Verband",
     verfall: "2026-05",
     verfallText: "05/26",
@@ -57,10 +59,11 @@ const ZEILEN: FahrzeugVerfallZeile[] = [
   },
   {
     schluessel: "f1:a3",
-    fahrzeugId: "f1",
-    fahrzeugName: "RTW Nord",
-    fahrzeugKennung: "UE-RK 1234",
-    fahrzeugEinheitenart: "fahrzeug" as const,
+    ortId: "f1",
+    ortName: "RTW Nord",
+    ortKennung: "UE-RK 1234",
+    ortTyp: "fahrzeug" as const,
+    ortEinheitenart: "fahrzeug" as const,
     artikelName: "Rettungsdecke",
     verfall: "2026-08",
     verfallText: "08/26",
@@ -158,20 +161,22 @@ async function suchen(wert: string): Promise<void> {
   });
 }
 
-describe("FahrzeugVerfallTabelle — Spalten", () => {
+describe("OrtVerfallTabelle — Spalten", () => {
   it("macht Artikel, Ablaufdatum und Fahrzeug erkennbar", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     // Die drei Angaben aus Akzeptanzkriterium 2, plus Status und Meldedatum.
     // DRK-309: „Einheit" statt „Fahrzeug" — die Tabelle führt beide Arten.
+    // DRK-377: „Ort", weil sie seither auch die Entnahmebox führt, und die ist
+    // keine Einheit, sondern ein Lager.
     expect(queryAll("thead th").map((spalte) => spalte.textContent)).toEqual([
-      "Einheit",
+      "Ort",
       "Artikel",
       "Verfall",
       "Status",
       "Gemeldet",
     ]);
-    expect(query("table").getAttribute("aria-label")).toBe("Verfallsmeldungen aus Einheiten");
+    expect(query("table").getAttribute("aria-label")).toBe("Gemeldete Verfälle");
 
     const zeile = query("[data-row-key='f1:a2']");
     expect(zeile.textContent).toContain("RTW Nord");
@@ -182,10 +187,56 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
   });
 
   it("verlinkt das Fahrzeug auf sein Blatt", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     expect(query("[data-row-key='f1:a2'] a").getAttribute("href"))
       .toBe("/verwaltung/fahrzeuge/f1");
+  });
+
+  /*
+   * ── DIE ENTNAHMEBOX IN DIESER TABELLE (DRK-377) ──────────────────────────
+   *
+   * Seit die Kompensationszeile nicht mehr ans Soll gebunden ist, traegt auch
+   * die Entnahmebox gemeldete Verfaelle — und sie ist keine Einheit, sondern
+   * ein LAGER. Beide Zusicherungen hier waeren ohne `ortTyp` still falsch, und
+   * zwar auf verschiedene Weise: die eine liest sich als Datenfehler, die
+   * andere ist ein toter Link.
+   */
+  const BOX_ZEILE: OrtVerfallZeile = {
+    schluessel: "entnahmebox:a1",
+    ortId: "entnahmebox",
+    ortName: "Entnahmebox",
+    ortKennung: null,
+    ortTyp: "lager",
+    ortEinheitenart: null,
+    artikelName: "Kühlkompresse",
+    verfall: "2026-05",
+    verfallText: "05/26",
+    statusTon: "rot",
+    statusText: "abgelaufen",
+    abgelaufen: true,
+    gemeldetText: "01.06.2026",
+  };
+
+  it("nennt die Entnahmebox ein Lager — nicht „nicht zugeordnet“", async () => {
+    // ⚠️ `einheitenartLabel(null)` ergaebe „nicht zugeordnet" — richtig als
+    // Zwischenstand einer EINHEIT, an einem Lager aber eine Behauptung ueber
+    // eine Zuordnung, die jemand vergessen haben soll. Die Box stuende damit
+    // auf einer To-do-Liste, die es nicht gibt.
+    await mount(<OrtVerfallTabelle zeilen={[BOX_ZEILE]} />);
+
+    const zeile = query("[data-row-key='entnahmebox:a1']");
+    expect(zeile.textContent).toContain("Lager");
+    expect(zeile.textContent).not.toContain("nicht zugeordnet");
+  });
+
+  it("verlinkt die Entnahmebox auf ihre Seite, nicht auf ein Fahrzeugblatt", async () => {
+    // ⚠️ `/verwaltung/fahrzeuge/entnahmebox` ergaebe ein 404 — ein toter Link
+    // in genau der Zeile, die jemanden zum Aufraeumen schicken soll.
+    await mount(<OrtVerfallTabelle zeilen={[BOX_ZEILE]} />);
+
+    expect(query("[data-row-key='entnahmebox:a1'] a").getAttribute("href"))
+      .toBe("/verwaltung/entnahmebox");
   });
 
   /**
@@ -196,7 +247,7 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
    * (Falle 6).
    */
   it("zeigt den Status als Chip im gelieferten Ton", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     expect(query(`[data-row-key='f1:a2'] .${s.rot}`).textContent).toContain("abgelaufen");
     expect(query(`[data-row-key='f2:a1'] .${s.gelb}`).textContent).toContain("läuft ab");
@@ -209,7 +260,7 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
    * Liste liegt.
    */
   it("sortiert Verfall chronologisch, nicht über den Anzeigetext", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     const kopf = queryAll<HTMLElement>("thead th")
       .find((th) => (th.textContent ?? "").includes("Verfall"))!;
@@ -218,7 +269,7 @@ describe("FahrzeugVerfallTabelle — Spalten", () => {
   });
 });
 
-describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
+describe("OrtVerfallTabelle — nach Fahrzeug gruppieren", () => {
   async function umschalten(auf: string): Promise<void> {
     const knopf = queryAll<HTMLElement>(".ant-segmented-item")
       .find((element) => (element.textContent ?? "").includes(auf));
@@ -232,12 +283,12 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
    * Entscheidung, den Umschalter NICHT in der URL zu fuehren.
    */
   it("startet flach und zeigt erst auf Wunsch die Fahrzeugzeilen", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
     // ⚠️ `document.querySelector` und NICHT `query` — der Helfer WIRFT, wenn er
     // nichts findet, und taugt deshalb nicht fuer eine Abwesenheitsprobe.
     expect(document.querySelector("[data-row-key='fzg:f1']")).toBeNull();
 
-    await umschalten("nach Einheit");
+    await umschalten("nach Ort");
     expect(query("[data-row-key='fzg:f1']")).toBeTruthy();
   });
 
@@ -248,16 +299,16 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
    * diese Probe war die Gruppierung eine Liste von Ueberschriften.
    */
   it("klappt die Meldungen von sich aus auf", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Einheit");
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Ort");
 
     expect(document.querySelector("[data-row-key='f1:a2']")).toBeTruthy();
     expect(document.querySelector("[data-row-key='f1:a3']")).toBeTruthy();
   });
 
   it("trägt auf der Fahrzeugzeile Name, Kennung und Bilanz", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Einheit");
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Ort");
 
     const kopf = query("[data-row-key='fzg:f1']");
     expect(kopf.textContent).toContain("RTW Nord");
@@ -273,8 +324,8 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
    * stehen, die behauptet, es gaebe dort etwas.
    */
   it("lässt ein leer gefiltertes Fahrzeug gar nicht erst entstehen", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Einheit");
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Ort");
     expect(document.querySelector("[data-row-key='fzg:f2']")).toBeTruthy();
 
     await suchen("Nord");
@@ -284,8 +335,8 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
 
   /** Derselbe Beweis für den Spaltenfilter — er läuft über einen anderen Weg. */
   it("faltet erst nach dem Spaltenfilter", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
-    await umschalten("nach Einheit");
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
+    await umschalten("nach Ort");
 
     await spaltenFilter("Status", "abgelaufen");
     // Nur f1 hat eine abgelaufene Meldung.
@@ -294,16 +345,16 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug gruppieren", () => {
   });
 });
 
-describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
+describe("OrtVerfallTabelle — nach Fahrzeug filtern", () => {
   /**
    * AKZEPTANZKRITERIUM 1. Vorher war das gar nicht moeglich: die Karte zeigte
    * eine flache Aufzaehlung, in der die Meldungen eines Fahrzeugs ueber die
    * ganze Liste verstreut standen.
    */
   it("filtert über den Spaltenkopf auf ein Fahrzeug", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
-    await spaltenFilter("Einheit", "RTW Nord");
+    await spaltenFilter("Ort", "RTW Nord");
     expect(zeilenSchluessel()).toEqual(["f1:a2", "f1:a3"]);
   });
 
@@ -326,17 +377,17 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
    */
   it("trennt zwei gleichnamige Fahrzeuge", async () => {
     await mount(
-      <FahrzeugVerfallTabelle
+      <OrtVerfallTabelle
         zeilen={[
-          { ...ZEILEN[1], schluessel: "mtw-a:a1", fahrzeugId: "mtw-a",
-            fahrzeugName: "MTW", fahrzeugKennung: "UE-RK 1" },
-          { ...ZEILEN[1], schluessel: "mtw-b:a1", fahrzeugId: "mtw-b",
-            fahrzeugName: "MTW", fahrzeugKennung: "UE-RK 2" },
+          { ...ZEILEN[1], schluessel: "mtw-a:a1", ortId: "mtw-a",
+            ortName: "MTW", ortKennung: "UE-RK 1" },
+          { ...ZEILEN[1], schluessel: "mtw-b:a1", ortId: "mtw-b",
+            ortName: "MTW", ortKennung: "UE-RK 2" },
         ]}
       />,
     );
 
-    await spaltenFilter("Einheit", "MTW · Fahrzeug · UE-RK 2");
+    await spaltenFilter("Ort", "MTW · Fahrzeug · UE-RK 2");
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
@@ -354,12 +405,12 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
    */
   it("unterscheidet gleichnamige Fahrzeuge auch ohne Kennung", async () => {
     await mount(
-      <FahrzeugVerfallTabelle
+      <OrtVerfallTabelle
         zeilen={[
-          { ...ZEILEN[1], schluessel: "mtw-a:a1", fahrzeugId: "mtw-a",
-            fahrzeugName: "MTW", fahrzeugKennung: null },
-          { ...ZEILEN[1], schluessel: "mtw-b:a1", fahrzeugId: "mtw-b",
-            fahrzeugName: "MTW", fahrzeugKennung: null },
+          { ...ZEILEN[1], schluessel: "mtw-a:a1", ortId: "mtw-a",
+            ortName: "MTW", ortKennung: null },
+          { ...ZEILEN[1], schluessel: "mtw-b:a1", ortId: "mtw-b",
+            ortName: "MTW", ortKennung: null },
         ]}
       />,
     );
@@ -367,7 +418,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
     // DRK-309: Ohne Kennung traegt die Beschriftung die ART — zwei gleich
     // benannte Einheiten sind damit erst dann noch gleich, wenn auch die Art
     // uebereinstimmt, und erst DANN haengt die Liste die ID an.
-    await spaltenFilter("Einheit", "MTW · Fahrzeug · mtw-b");
+    await spaltenFilter("Ort", "MTW · Fahrzeug · mtw-b");
     expect(zeilenSchluessel()).toEqual(["mtw-b:a1"]);
   });
 
@@ -382,11 +433,11 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
    */
   it("nennt bei einer Tasche MIT Kennung beides — Art und Kennung", async () => {
     await mount(
-      <FahrzeugVerfallTabelle
+      <OrtVerfallTabelle
         zeilen={[
-          { ...ZEILEN[1], schluessel: "tasche:a1", fahrzeugId: "tasche-1",
-            fahrzeugName: "Rucksack Betreuung", fahrzeugKennung: "INV-77",
-            fahrzeugEinheitenart: "tasche" as const },
+          { ...ZEILEN[1], schluessel: "tasche:a1", ortId: "tasche-1",
+            ortName: "Rucksack Betreuung", ortKennung: "INV-77",
+            ortEinheitenart: "tasche" as const },
         ]}
       />,
     );
@@ -400,14 +451,14 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
 
   /** Gegenprobe: ein eindeutiger Name bekommt keine ID angehaengt. */
   it("hängt einem eindeutigen Fahrzeugnamen keine ID an", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
-    await spaltenFilter("Einheit", "RTW Süd · Fahrzeug · UE-RK 5678");
+    await spaltenFilter("Ort", "RTW Süd · Fahrzeug · UE-RK 5678");
     expect(zeilenSchluessel()).toEqual(["f2:a1"]);
   });
 
   it("trennt abgelaufen von bald ablaufend", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     await spaltenFilter("Status", "abgelaufen");
     expect(zeilenSchluessel()).toEqual(["f1:a2"]);
@@ -432,7 +483,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
    * Zahl von vorhin.
    */
   it("zählt nach Suche UND Spaltenfilter", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     await spaltenFilter("Status", "läuft ab");
     await suchen("Nord");
@@ -441,7 +492,7 @@ describe("FahrzeugVerfallTabelle — nach Fahrzeug filtern", () => {
   });
 
   it("nennt bei leerem Filter den Filter-Leertext", async () => {
-    await mount(<FahrzeugVerfallTabelle zeilen={ZEILEN} />);
+    await mount(<OrtVerfallTabelle zeilen={ZEILEN} />);
 
     await suchen("gibtesnicht");
     expect(zeilenSchluessel()).toEqual([]);
