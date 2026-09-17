@@ -30,6 +30,7 @@ import { korrekturAufLagerort } from "./schreibpfade/korrektur";
 import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerung";
 import { bestandJeArtikelAnOrt } from "./lesepfade/bestand";
 import { handlagerOrte } from "./lesepfade/orte";
+import { verfallFuerLagerort } from "./lesepfade/verfall";
 import { setzeVerfall, verfallFolgtDemMaterial } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 
@@ -866,29 +867,35 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * Luecken nachtragen. Jede bestehende Demo-Datenbank haette die Meldung sonst
    * dauerhaft nicht.
    *
-   * ⚠️ ABER NUR, SOLANGE WIRKLICH ETWAS IN DER KISTE LIEGT (Codex zu PR #194,
-   * P2 — der Folgebefund zum Herausziehen aus dem Riegel). „Ausserhalb des
-   * Riegels" heisst sonst „bei JEDEM Lauf", und der RTW behaelt seine Meldung
-   * ja. Wer die geseedete Box einraeumt und danach erneut seedet, bekaeme also
-   * eine Meldung fuer eine LEERE Kiste zurueck — der Seed erfaende einen
-   * Zustand, statt einen nachzutragen. „Rein additiv" heisst nicht „egal, was
-   * inzwischen passiert ist".
+   * ⚠️ ZWEI BEDINGUNGEN, UND JEDE HAT EINEN EIGENEN BEFUND HINTER SICH (Codex
+   * zu PR #194, drei Runden auf diesen Zeilen). „Ausserhalb des Riegels" heisst
+   * „bei JEDEM Lauf" — damit wird der Aufruf selbst zum Schreiber, und ein
+   * Schreiber, der bei jedem Lauf feuert, ist genau das, was „rein additiv"
+   * verbietet:
    *
-   * ⚠️ DIE PROBE IST DER BESTAND, NICHT DIE BUCHUNG. `journalGebucht` sagt nur,
-   * dass der Vorgang EINMAL stattgefunden hat — genau die Auskunft, die hier
-   * nicht reicht.
+   *   BESTAND > 0 — sonst erfindet der Nachtrag einen Zustand. Wer die
+   *   geseedete Box einraeumt und danach erneut seedet, bekaeme eine Meldung
+   *   fuer eine LEERE Kiste zurueck.
    *
-   * ⚠️ IM UEBRIGEN DARF DER SCHRITT WIEDERHOLT LAUFEN: `uebernimmVerfall`
-   * schreibt denselben Wert erneut oder gar nicht (das fruehere Datum gewinnt),
-   * und das Abraeumen greift nur an einem Ort ohne Bestand — der RTW behaelt
-   * Kompressen.
+   *   NOCH KEINE MELDUNG AN DER BOX — sonst SCHREIBT der Nachtrag um. Der
+   *   RTW-Check im Seed ist zwar geriegelt, seine Meldung also stabil; ein
+   *   ECHTER Check in einer benutzten Demo-Datenbank aendert sie aber, und ein
+   *   frueheres Datum gewaenne in `uebernimmVerfall`. Die Kiste truege danach
+   *   eine Beobachtung, die am RTW gemacht wurde, NACHDEM das Material ihn
+   *   verlassen hat.
+   *
+   * ⚠️ BEIDE PROBEN SIND ZUSTAENDE, NICHT DIE BUCHUNG. `journalGebucht` sagt
+   * nur, dass der Vorgang EINMAL stattgefunden hat — genau die Auskunft, die
+   * hier dreimal nicht gereicht hat. Was nachgetragen werden soll, ist eine
+   * FEHLENDE Meldung an einer GEFUELLTEN Kiste; beides steht in den Daten.
    *
    * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
    * derselbe Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei
    * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
    * naechsten Griff an diesem Schreibpfad auseinander. */
   const inDerBox = bestandJeArtikelAnOrt(db, ENTNAHMEBOX_ID).get(A.kompresse) ?? 0;
-  if (inDerBox > 0) {
+  const boxMeldung = verfallFuerLagerort(db, ENTNAHMEBOX_ID).get(A.kompresse);
+  if (inDerBox > 0 && !boxMeldung) {
     db.transaction((tx) => {
       verfallFolgtDemMaterial(tx, {
         vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,

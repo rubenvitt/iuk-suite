@@ -16,7 +16,7 @@ import { handlagerOrte } from "./lesepfade/orte";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 import { parseCheckErgebnis } from "./checkErgebnis";
 import { heuteIso } from "./zeit";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 /**
  * ZWEI FRAGEN, DIE DIESER TEST BEANTWORTEN MUSS — und eine, die er NICHT stellt.
@@ -497,6 +497,39 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
         .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
       "kein Bestand, keine Meldung",
     ).toEqual([]);
+  });
+
+  it("SCHREIBT eine vorhandene Boxmeldung nicht um", async () => {
+    /*
+     * ⚠️ DIE DRITTE KANTE DESSELBEN NACHTRAGS (Codex zu PR #194). Der
+     * RTW-Check im Seed ist geriegelt, seine Meldung also stabil — ein ECHTER
+     * Check in einer benutzten Demo-Datenbank aendert sie aber. Ist das neue
+     * Datum frueher, gewaenne es in `uebernimmVerfall`, und die Kiste truege
+     * danach eine Beobachtung, die am RTW gemacht wurde, NACHDEM das Material
+     * ihn verlassen hat. Ein zweiter Lauf soll nachtragen, nicht umschreiben.
+     */
+    await seedLokalLagerbuch(t.db);
+    const vorher = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID);
+    expect(vorher.length, "der erste Lauf hat die Meldung gesetzt").toBeGreaterThan(0);
+
+    // Ein spaeterer Check am RTW meldet einen FRUEHEREN Monat.
+    for (const z of vorher) {
+      t.db.update(lagerortVerfall)
+        .set({ verfall: "2000-01" })
+        .where(and(
+          eq(lagerortVerfall.lagerortId, "fz-rtw-1"),
+          eq(lagerortVerfall.artikelId, z.artikelId),
+        ))
+        .run();
+    }
+
+    await seedLokalLagerbuch(t.db);
+
+    const nachher = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID);
+    expect(nachher.map((z) => z.verfall), "die Kiste behaelt ihren Stand")
+      .toEqual(vorher.map((z) => z.verfall));
   });
 
   it("vergibt feste Codes — einen davon gesperrt", async () => {
