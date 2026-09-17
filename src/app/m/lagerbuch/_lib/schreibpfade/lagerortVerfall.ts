@@ -22,7 +22,7 @@
  * dieser Einheit im Soll steht —, nicht die Zeile. Die Begruendung im Langen
  * steht an `bereinigeVerfallOhneAktivesSoll` unten.
  */
-import { and, eq, gte, lt, ne } from "drizzle-orm";
+import { and, eq, lt, ne } from "drizzle-orm";
 import type { DB } from "../../_db/client";
 import {
   buchungen, chargen, lagerorte, lagerortVerfall, newId, sollPositionen,
@@ -280,12 +280,28 @@ export function raeumeVerfallAmLeerenOrt(
  * eine Zeile mit NEGATIVER Menge an diesem Ort, und ueber `charge_id` haengt an
  * ihr das Datum, mit dem das Material gegangen ist.
  *
- * ⚠️ DIE UNTERGRENZE IST `erfasstAt` UND NICHT „seit dem letzten Zugang".
- * `uebernimmVerfall` traegt den Zeitpunkt der ABLESUNG mit an den Zielort, nie
- * „jetzt" — die Grenze liegt damit eher zu frueh als zu spaet und zieht im
- * Zweifel mehr Historie heran. Das ist die sichere Richtung: sie laesst die
- * Meldung stehen, und eine stehengebliebene Meldung ist sichtbar und
- * korrigierbar, ein verlorenes Verfallsdatum ist keines von beidem.
+ * ⚠️ UND SIE HAT KEINE UNTERGRENZE — DIE ERSTE FASSUNG HATTE EINE, UND GENAU
+ * DIE WAR DER FEHLER (Codex zu PR #194, vierter P1). Sie fragte „seit
+ * `erfasstAt`", und `erfasstAt` ist RUECKSETZBAR: traegt eine neue Herkunft ein
+ * FRUEHERES Datum ein, ueberschreibt `uebernimmVerfall` oben Wert UND
+ * Zeitpunkt. Die Grenze wanderte damit hinter einen bereits geschehenen
+ * unpassenden Abgang, die Probe sah ihn nicht mehr, und die Meldung fiel —
+ * derselbe stille Verlust, eine Ebene tiefer. Eine Grenze, die der zu
+ * pruefende Vorgang selbst verschieben kann, ist keine.
+ *
+ * ⚠️ DER PREIS IST BENANNT: ist fuer einen Artikel je etwas Unpassendes aus
+ * der Kiste gegangen, bleibt ihre Meldung stehen, bis jemand sie von Hand
+ * aufloest — und die Kiste hat keinen Verfall-Editor. Das ist bewusst die
+ * teurere, aber sichtbare Haelfte: eine stehengebliebene Meldung steht in der
+ * Verfallsuebersicht und ist korrigierbar, ein verlorenes Verfallsdatum ist
+ * weder sichtbar noch korrigierbar. Was mit ihr richtig zu geschehen hat, ist
+ * die Betreiberfrage DRK-404 — hier steht der sichere Ausgang, nicht der
+ * endgueltige.
+ *
+ * ⚠️ DIE PROBE IST KEINE DAUERHAFTE SPERRE, auch wenn sie so aussieht: sie
+ * vergleicht gegen den AKTUELL gemeldeten Wert. Ein Abgang, der genau dieses
+ * Datum trug, ist kein Abweichler — aendert sich die Meldung, aendert sich die
+ * Menge der Abweichler mit.
  *
  * ⚠️ DIE EIGENE BUCHUNG DIESES AUFRUFS STEHT SCHON IN DER TABELLE und wird
  * mitgeprueft — sie passt ja (Probe 2 war vorher dran), stoert also nicht. Wer
@@ -298,9 +314,7 @@ export function raeumeBoxVerfallWennMaterialEsMitnimmt(
 ): void {
   const { lagerortId, artikelId, bewegterVerfall } = args;
 
-  const gemeldet = db.select({
-    verfall: lagerortVerfall.verfall, erfasstAt: lagerortVerfall.erfasstAt,
-  })
+  const gemeldet = db.select({ verfall: lagerortVerfall.verfall })
     .from(lagerortVerfall)
     .where(and(
       eq(lagerortVerfall.lagerortId, lagerortId),
@@ -317,7 +331,6 @@ export function raeumeBoxVerfallWennMaterialEsMitnimmt(
       eq(buchungen.lagerortId, lagerortId),
       eq(buchungen.artikelId, artikelId),
       lt(buchungen.menge, 0),
-      gte(buchungen.ts, gemeldet.erfasstAt),
       ne(chargen.verfall, gemeldet.verfall),
     ))
     .get();

@@ -383,6 +383,8 @@ describe("raeumeBoxVerfallWennMaterialEsMitnimmt — der Ruecklauf aus der Kiste
    */
   const PSEUDO = "2099-12";
   const ECHT = "2026-10";
+  const FRUEH = "2026-09";
+  const NOCH_SPAETER = new Date("2026-06-25T10:00:00Z");
 
   function buche(id: string, chargeId: string, menge: number, ts = NOW) {
     t.db.insert(buchungen).values({
@@ -396,6 +398,7 @@ describe("raeumeBoxVerfallWennMaterialEsMitnimmt — der Ruecklauf aus der Kiste
     t.db.insert(chargen).values([
       { id: "ch-pseudo", artikelId: "a1", chargenNr: "PSEUDO", verfall: PSEUDO, createdAt: NOW },
       { id: "ch-echt", artikelId: "a1", chargenNr: "L-9", verfall: ECHT, createdAt: NOW },
+      { id: "ch-frueh", artikelId: "a1", chargenNr: "L-8", verfall: FRUEH, createdAt: NOW },
     ]).run();
     setzeVerfall(t.db, { lagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
       verfall: ECHT, quelle: QUELLE, jetzt: NOW });
@@ -441,6 +444,42 @@ describe("raeumeBoxVerfallWennMaterialEsMitnimmt — der Ruecklauf aus der Kiste
     });
 
     expect(boxZeile()?.verfall).toBe(ECHT);
+  });
+
+  it("BEHAELT die Meldung, wenn eine FRUEHERE Meldung die alte ersetzt hat", () => {
+    /**
+     * ⚠️ DER VIERTE P1 (Codex zu PR #194) — und er trifft nicht die Regel,
+     * sondern die UNTERGRENZE, mit der ich sie zuerst gebaut hatte.
+     *
+     * `uebernimmVerfall` ueberschreibt bei einem frueheren Datum Wert UND
+     * `erfasstAt`. Eine Probe „unpassende Abgaenge seit `erfasstAt`" schiebt
+     * ihre eigene Grenze damit hinter einen Abgang, der laengst geschehen ist —
+     * der Abweichler wird unsichtbar, und die Meldung faellt doch. Eine Grenze,
+     * die der zu pruefende Vorgang selbst verschieben kann, ist keine; deshalb
+     * fragt die Probe ohne Zeitgrenze.
+     *
+     * Ohne diese Aenderung ist genau dieser Fall rot.
+     */
+    buche("zu-1", "ch-pseudo", 3);
+    buche("ab-1", "ch-pseudo", -3, SPAETER);
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: PSEUDO,
+    });
+    expect(boxZeile()?.verfall).toBe(ECHT);
+
+    // Eine neue Herkunft meldet ein FRUEHERES Datum — Wert und Zeitpunkt
+    // werden ueberschrieben, die Grenze der alten Fassung wanderte mit.
+    setzeVerfall(t.db, { lagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+      verfall: FRUEH, quelle: QUELLE, jetzt: NOCH_SPAETER });
+    buche("zu-2", "ch-frueh", 2, NOCH_SPAETER);
+    buche("ab-2", "ch-frueh", -2, NOCH_SPAETER);
+
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: FRUEH,
+    });
+
+    // Die drei Pseudo-Stuecke liegen weiterhin ohne Warnung im Handlager.
+    expect(boxZeile()?.verfall).toBe(FRUEH);
   });
 
   it("BEHAELT die Meldung, wenn die bewegte Charge ein anderes Datum traegt", () => {
