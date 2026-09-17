@@ -174,6 +174,16 @@ const SEGMENT = "(?:[A-Za-z0-9_@.\\[\\]-]+|\\([A-Za-z0-9_-]+\\))";
  * bleibt ungeprueft — das zu binden hiesse, einen Kommentarblock zustandsbehaftet
  * zu lesen, und ein nacktes `: 51` steht auch in jedem Ternaer. Als eigener
  * Posten notiert statt still gelassen.
+ *
+ * ⚠️ DER DOPPELPUNKT-ZWEIG VERLANGT EINEN BACKTICK ODER EIN LEERZEICHEN davor,
+ * und zwar wegen `datei:zeile:spalte` — der Form jeder Compiler- und
+ * Stapelmeldung. Ohne die Forderung las er die SPALTE als zweite Zeilenangabe;
+ * 13 solcher Stellen stehen im Repo, und sie waren nur zufaellig gruen (Spalte
+ * 46 gegen 129 Zeilen in `lagerbuch/_lib/boot.test.ts`, Spalte 54 gegen 307 in
+ * `lesepfade/artikel.ts`). Ein Kuerzen einer dieser Dateien haette CI rot
+ * gefaerbt wegen einer Zahl, die gar keine Zeile ist. Eine echte Fortsetzung
+ * traegt Backtick oder Leerzeichen, eine Diagnose keines von beidem — derselbe
+ * Gedanke wie beim Trenner eine Ebene darueber (Codex-Review zu PR #183).
  */
 const ZAHL = "\\d+(?:\\s*[-–]\\s*\\d+)?";
 const FORTSETZUNG =
@@ -182,7 +192,7 @@ const FORTSETZUNG =
   // mit TRENNER, ohne Doppelpunkt — dann aber DIREKT anschliessend: `:265,266`
   + `|[,;\\/]${ZAHL}`
   // ohne Trenner, dann traegt der Doppelpunkt die Last: `…:18-20` `:82-86`
-  + `|\`?\\s*\`?:${ZAHL})`;
+  + `|(?:\`\\s*\`?|\\s+\`?):${ZAHL})`;
 
 const ZIEL = new RegExp(
   `(${SEGMENT}(?:\\/${SEGMENT})*):(\\d+)(?:\\s*[-–]\\s*(\\d+))?(${FORTSETZUNG}+)?`,
@@ -627,6 +637,19 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
     // Der Schraegstrich zaehlt ebenfalls als Trenner — `:413/423/437`.
     expect(ziele("`probeHosts.spec.ts:413/423/437`"))
       .toEqual(["probeHosts.spec.ts:413", "probeHosts.spec.ts:423", "probeHosts.spec.ts:437"]);
+
+    // ⚠️ UND EINE SPALTE IST KEINE ZEILE. `datei:zeile:spalte` ist die Form
+    // jeder Compiler- und Stapelmeldung, und 13 davon stehen im Repo — bis
+    // hierher las der Doppelpunkt-Zweig die SPALTE als zweite Zeilenangabe.
+    // Gruen war das rein zufaellig (Spalte 46 gegen 129 Zeilen in `boot.test.ts`);
+    // ein Kuerzen der Datei haette den Riegel ueber eine Spaltennummer rot
+    // gefaerbt. Deshalb verlangt der Zweig jetzt einen Backtick oder ein
+    // Leerzeichen vor dem Doppelpunkt — eine echte Fortsetzung hat beides, eine
+    // Diagnose keines von beidem (Codex-Review zu PR #183).
+    expect(ziele("at module evaluation (probe/probeIcons.ts:1:1)"))
+      .toEqual(["probe/probeIcons.ts:1"]);
+    expect(ziele("probe/probeBoot.test.ts:60:9999 meldet tsc"))
+      .toEqual(["probe/probeBoot.test.ts:60"]);
 
     // Kein Anker: eine Datei ohne Zeile, und eine Zeit (nur Ziffern vor dem
     // Doppelpunkt — die eine Einschraenkung, die die Regex noch selbst trifft).
