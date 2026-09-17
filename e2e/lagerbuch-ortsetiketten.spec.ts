@@ -289,9 +289,109 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await seite.goto(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ANDERES_ID}`));
     await seite.waitForURL((url) => url.pathname.endsWith("/helfer/check")
       && url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
-    expect(seite.url()).not.toContain(E2E_FAHRZEUG_ANDERES_ID);
-    await expect(seite.getByText(E2E_FAHRZEUG_NAME).first()).toBeVisible();
-    await expect(seite.getByText(E2E_FAHRZEUG_ANDERES_NAME)).toHaveCount(0);
+    /*
+     * ⚠️ DIE ZUSAGE IST „GENAU EIN `fz`", NICHT MEHR „DIE GESCANNTE ID KOMMT
+     * NICHT VOR" — DRK-373 hat die Grenze verschoben, nicht aufgegeben.
+     *
+     * Hier stand `expect(seite.url()).not.toContain(E2E_FAHRZEUG_ANDERES_ID)`.
+     * Seit DRK-373 reist die gescannte Id als `gescannt=` mit: ohne sie kann die
+     * Check-Seite der Person nicht sagen, dass ihr Scan eine andere Einheit
+     * meinte, und genau das war der offene Rest dieses Befunds. Was NICHT
+     * passieren darf, ist ein zweites `fz` — daran hing der teure Ausgang
+     * (Adresse sagt B, Bildschirm zeigt A), und `getAll` ist die Form, die es
+     * faengt: ein `searchParams.get("fz")` allein bliebe fuer `?fz=B&fz=A`
+     * gruen.
+     */
+    const adresse = new URL(seite.url());
+    expect(adresse.searchParams.getAll("fz")).toEqual([E2E_FAHRZEUG_ID]);
+    expect(adresse.searchParams.get("gescannt")).toBe(E2E_FAHRZEUG_ANDERES_ID);
+    /*
+     * ⚠️ UEBER `data-rolle="check-einheit"`, NICHT UEBER `.first()`. Hier stand
+     * `getByText(E2E_FAHRZEUG_NAME).first()`, und mit dem Hinweis aus DRK-373
+     * traegt das nichts mehr: der Name der gebundenen Einheit steht jetzt auch
+     * IM Hinweis, und der kommt in der Reihenfolge des Dokuments ZUERST.
+     * `.first()` haette also den Hinweis gelesen und behauptet, der Check laufe
+     * auf dieser Einheit — die Zusicherung waere still zu einer Tautologie
+     * geworden.
+     */
+    await expect(seite.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
+
+    await helfer.close();
+  });
+
+  /**
+   * DRK-373 — DIE PERSON ERFAEHRT, DASS IHR SCAN NICHT GEGOLTEN HAT.
+   *
+   * ⚠️ WARUM DAS HIER UND NICHT IN VITEST STEHT. Die Unit-Halbzeit
+   * (`helfer/check/page.test.tsx`) rendert die Seite mit einer ATTRAPPE fuer
+   * `_ui/ScanHinweis` und pruefte damit nur, WELCHE ZWEI EINHEITEN sie ihm
+   * reicht; `_ui/ScanHinweis.test.tsx` prueft den Satz, aber gegen von Hand
+   * gesetzte Props. Dazwischen liegen die Weiche `/o/<id>`, ihr `gescannt=` und
+   * das Lesen desselben Parameters auf der Check-Seite — drei Stationen, von
+   * denen keine ein Tor hinter sich hat: benennt eine Seite den Parameter um,
+   * bleibt alles gruen und der Hinweis verschwindet still. Nur ein echter
+   * Abruf sieht die Kette.
+   */
+  test("der uebergangene Scan wird benannt — beide Einheiten", async ({ browser }) => {
+    const helfer = await browser.newContext();
+    const seite = await helfer.newPage();
+
+    await seite.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
+    await seite.waitForURL((url) => url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+
+    await seite.goto(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ANDERES_ID}`));
+    await seite.waitForURL((url) => url.searchParams.get("gescannt") === E2E_FAHRZEUG_ANDERES_ID);
+
+    const hinweis = seite.locator("[data-rolle='scan-hinweis']");
+    await expect(hinweis).toBeVisible();
+    // AK 2: beide Einheiten beim Namen — die gescannte UND die gezeigte.
+    await expect(hinweis).toContainText(E2E_FAHRZEUG_ANDERES_NAME);
+    await expect(hinweis).toContainText(E2E_FAHRZEUG_NAME);
+
+    /*
+     * ⚠️ UND DIE GESCANNTE EINHEIT STEHT NUR IM HINWEIS. Ohne diese Zeile waere
+     * die Zusicherung oben auch dann gruen, wenn die Seite versehentlich den
+     * Check der GESCANNTEN Einheit rendert — dann stuende ihr Name in der
+     * Ueberschrift, und der Hinweis daneben laese sich als blosse Notiz. Genau
+     * die Verwechslung, gegen die dieses Ticket geschrieben ist.
+     *
+     * Die zwei Seed-Namen enthalten einander bewusst NICHT („E2E RTW" gegen
+     * „E2E Geräte RTW"), sonst waere die Zaehlung wertlos.
+     */
+    await expect(seite.getByText(E2E_FAHRZEUG_ANDERES_NAME)).toHaveCount(1);
+    // Und die positive Haelfte: der Check laeuft auf der GEBUNDENEN Einheit.
+    await expect(seite.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
+
+    await helfer.close();
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DER TEST DARUEBER ZU VIEL BEWIESE (AK 3): wer
+   * das Etikett SEINER gebundenen Einheit scannt, sieht keinen Hinweis. Das ist
+   * der Normalweg — Kaertchen an der Einheit, Etikett an derselben Einheit —,
+   * und ein Hinweis darauf waere nicht bloss Ballast: weil er den Regelfall
+   * traefe, lernte man ihn in einer Woche zu uebersehen.
+   */
+  test("das eigene Etikett erzeugt KEINEN Hinweis", async ({ browser }) => {
+    const helfer = await browser.newContext();
+    const seite = await helfer.newPage();
+
+    await seite.goto(lagerbuchUrl(`/t/${E2E_TOKEN_FAHRZEUG}`));
+    await seite.waitForURL((url) => url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+
+    await seite.goto(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ID}`));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer/check")
+      && url.searchParams.get("fz") === E2E_FAHRZEUG_ID);
+    expect(new URL(seite.url()).searchParams.has("gescannt")).toBe(false);
+    // Die Ueberschrift ist da — die Seite rendert also wirklich den Check und
+    // haelt nicht bloss bei einer leeren Flaeche. Ohne diese Zeile waere
+    // `toHaveCount(0)` auf den Hinweis darunter auch fuer eine kaputte oder
+    // leere Seite gruen.
+    await expect(seite.locator("[data-rolle='check-einheit']"))
+      .toContainText(E2E_FAHRZEUG_NAME);
+    await expect(seite.locator("[data-rolle='scan-hinweis']")).toHaveCount(0);
 
     await helfer.close();
   });

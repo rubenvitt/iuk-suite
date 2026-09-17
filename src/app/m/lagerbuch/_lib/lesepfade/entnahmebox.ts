@@ -40,6 +40,7 @@ import { ENTNAHMEBOX_PRAEFIX } from "../vorgang";
 import { chargenJeArtikelAmLagerort, type ChargeZeile } from "./artikel";
 import { bestandJeArtikelAnOrt, type Leser } from "./bestand";
 import { ortStamm } from "./orte";
+import { verfallFuerLagerort } from "./verfall";
 
 /**
  * Eine Charge, wie sie BEIDE Flaechen zeigen — die Chargenzeile plus ihre
@@ -75,6 +76,28 @@ export type BoxPosten = {
   menge: number;
   /** FEFO-sortiert, nur Chargen mit Rest > 0 (`chargenJeArtikelAmLagerort`). */
   chargen: BoxCharge[];
+  /**
+   * DER AN DIESEM ORT GEMELDETE VERFALL (`lagerort_verfall`) — DRK-377.
+   * `null` heisst „dazu liegt keine Meldung vor", nicht „unbedenklich".
+   *
+   * ⚠️ DAS IST NICHT DIE AMPEL EINER CHARGE, UND DER UNTERSCHIED IST DER GRUND
+   * FUER DIESES FELD. Die Chargen darueber tragen, was im BUCH steht; diese
+   * Angabe traegt, was ein Mensch auf der PACKUNG gelesen hat. Beide koennen
+   * auseinandergehen, und genau dort, wo es darauf ankommt, tun sie es: kann
+   * ein Check den gezaehlten Bestand keiner echten Charge zuordnen, legt er ihn
+   * auf eine Pseudo-Charge mit `PSEUDO_VERFALL` und schreibt das wirklich
+   * abgelesene Datum hierher. Bis DRK-377 las diese Datei allein
+   * `chargen.verfall` — in der Kiste stand dann „bis 12/99" neben Material,
+   * fuer das 10/26 gemeldet war, und wer sie einraeumte, legte es zurueck ins
+   * Regal.
+   *
+   * ⚠️ AUSSCHLIESSLICH JSON-SICHERE SKALARE, wie der ganze Typ: `erfasstAt`
+   * bleibt hier draussen (ein `Date` ueberquert die RSC-Grenze klaglos und
+   * formatiert danach in der Zone des Geraets, DRK-306). Wer den Meldezeitpunkt
+   * braucht, holt ihn ueber `lagerortVerfallListe` — die Flaeche, die ihn
+   * ohnehin zeigt.
+   */
+  gemeldet: { verfall: string; ampel: Ampel; abgelaufen: boolean; text: string } | null;
 };
 
 /**
@@ -100,8 +123,9 @@ export function boxOrt(db: Leser): { id: string; name: string; aktiv: boolean } 
 /**
  * Was an EINEM Ort liegt, nach Artikelnamen sortiert.
  *
- * ⚠️ DREI ABFRAGEN, NICHT DREI JE ARTIKEL: Bestand je Artikel am Ort, Chargen
- * je Artikel am Ort, Artikelstammdaten. Dieselbe Form und dieselbe Begruendung
+ * ⚠️ VIER ABFRAGEN, NICHT VIER JE ARTIKEL: Bestand je Artikel am Ort, Chargen
+ * je Artikel am Ort, gemeldete Verfaelle am Ort, Artikelstammdaten. Dieselbe
+ * Form und dieselbe Begruendung
  * wie im Fahrzeugblatt (`chargenJeArtikelAmLagerort`, §5.2.3) —
  * `better-sqlite3` ist SYNCHRON, eine Schleife mit einer Abfrage je Artikel
  * blockiert die GANZE Suite, nicht nur dieses Modul.
@@ -113,6 +137,18 @@ export function boxOrt(db: Leser): { id: string; name: string; aktiv: boolean } 
 export function postenAmOrt(db: Leser, lagerortId: string, jetzt: Date = new Date()): BoxPosten[] {
   const mengen = bestandJeArtikelAnOrt(db, lagerortId);
   const chargen = chargenJeArtikelAmLagerort(db, lagerortId);
+  /*
+   * ⚠️ VIERTE ABFRAGE, UND SIE IST DER GRUND FUER DRK-377. `verfallFuerLagerort`
+   * liefert die gemeldeten Verfaelle DIESES Orts je Artikel — die Kompensation
+   * dafuer, dass der Check die Charge raet (`_lib/lesepfade/verfall.ts`). Ohne
+   * sie liest diese Datei den Verfall allein aus `chargen.verfall`, und eine
+   * Pseudo-Charge sagt „bis 12/99".
+   *
+   * ⚠️ EINE ABFRAGE FUER DEN GANZEN ORT, NICHT EINE JE ARTIKEL — dieselbe
+   * Begruendung wie fuer die drei darueber: `better-sqlite3` ist SYNCHRON, und
+   * eine Schleife mit einer Abfrage je Artikel blockiert die ganze Suite.
+   */
+  const gemeldet = verfallFuerLagerort(db, lagerortId, jetzt);
   const schwellen = verfallSchwellen();
 
   const posten: BoxPosten[] = [];
@@ -135,6 +171,18 @@ export function postenAmOrt(db: Leser, lagerortId: string, jetzt: Date = new Dat
         const s = verfallStatus(c.verfall, schwellen, jetzt);
         return { ...c, ampel: s.ampel, text: chargeText(s, c.verfall) };
       }),
+      /*
+       * ⚠️ `erfasstAt` UND `artikelId` FALLEN HIER WEG, und das ist kein
+       * Vergessen: `VerfallAmLagerort` traegt ein `Date`, der Posten geht an
+       * eine Client-Insel. Die Felder einzeln zu uebernehmen ist die Stelle, an
+       * der das entschieden wird — ein `...m` reichte das `Date` still durch.
+       */
+      gemeldet: (() => {
+        const m = gemeldet.get(a.id);
+        return m
+          ? { verfall: m.verfall, ampel: m.ampel, abgelaufen: m.abgelaufen, text: m.text }
+          : null;
+      })(),
     });
   }
   return posten.sort((x, y) => x.artikelName.localeCompare(y.artikelName, "de"));
