@@ -582,7 +582,10 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // ⚠️ Der Name traegt jetzt eine GENERATION statt eines Zeitstempels — der
     // Herzschlag zaehlt sie hoch, damit die Uebernahme ein Vergleiche-und-Tausche ueber
     // Identitaet UND Generation ist (eigener Fall weiter unten).
-    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$\$\."/);
+    // ⚠️ Und das Praefix traegt seit dem Container-Fund eine Kennung neben der PID —
+    // die Form steht in einem eigenen Fall, hier zaehlt nur, dass die Marke daraus
+    // gebildet wird.
+    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$\(eigner_kennung\)\.\$\$\."/);
     expect(befehle).toMatch(/meine_marke="\$\(printf '%s%06d' "\$MARKE_PRAEFIX" 1\)"/);
     const hineingeschrieben = befehle
       .split("\n")
@@ -1160,6 +1163,91 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // wurde — sonst waere die Pruefung eine Verzierung.
     expect(rumpfL.indexOf("ping_senden ok")).toBeGreaterThan(
       rumpfL.indexOf('if ! zustand_schreiben ok "$meldung"; then'),
+    );
+  });
+
+  it("die Eignermarke traegt eine Kennung, die den CONTAINER unterscheidet", () => {
+    // ⚠️ `$$` ALLEIN IST HIER NICHT EINDEUTIG. Der Dienst laeuft als
+    // `command: ["/bin/sh", …, "dienst"]` ohne Entrypoint — die Shell ist PID 1 im
+    // Container; `docker compose run --rm backup … einmal` startet einen EIGENEN
+    // Container, und dort ist sie ebenfalls PID 1. Beide leiteten daraus dasselbe
+    // `eigner.1.` ab, und die Sperre liegt in einem Volume, das beide sehen. GEMESSEN
+    // mit zwei Prozessen desselben Praefix und einer Uebernahme dazwischen:
+    //
+    //   A haelt:        eigner.1.000001
+    //   B haelt jetzt:  eigner.1.000001
+    //   A sagt: SPERRE GEHOERT MIR   ← falsch, B haelt sie
+    //
+    // Damit faellt genau die Zusicherung, auf der alles andere hier steht: A rotiert
+    // weiter, schreibt den Stand und raeumt bei der Freigabe die Sperre des Nachfolgers
+    // weg. Die Identitaetsbindung war da, sie war nur nicht identifizierend.
+    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$\(eigner_kennung\)\.\$\$\."/);
+    expect(befehle, "die PID allein reicht nicht").not.toMatch(
+      /MARKE_PRAEFIX="eigner\.\$\$\."/,
+    );
+    // Gemessen statt gescannt: zwei Aufrufe muessen VERSCHIEDENE Kennungen liefern —
+    // eine Konstante bestuende jeden Quelltext-Scan und waere trotzdem wertlos.
+    const a = shellAufruf("eigner_kennung");
+    const b = shellAufruf("eigner_kennung");
+    expect(a, "nie leer — ein leeres Praefix passte per `case` auf JEDEN Namen").not.toBe("");
+    expect(a).toMatch(/^[a-z0-9]+$/);
+    expect(a, "zwei Aufrufe, zwei Kennungen").not.toBe(b);
+    // ⚠️ Nur Hexziffern: das Praefix wird als `case`-MUSTER benutzt, ein `*` oder `?`
+    // darin traefe fremde Marken mit.
+    const rumpfK = funktionsrumpf(befehle, "eigner_kennung");
+    expect(rumpfK).toMatch(/tr -dc/);
+    // Drei Quellen — und die letzte nur, damit die Kennung nie leer bleibt.
+    expect(rumpfK).toMatch(/\/proc\/sys\/kernel\/random\/uuid/);
+    expect(rumpfK).toMatch(/\/dev\/urandom/);
+    expect(rumpfK).toMatch(/hostname/);
+  });
+
+  it("die Freigabe ERNTET den Herzschlag ab und wiederholt die Raeumung", () => {
+    // ⚠️ `kill` BITTET NUR. Ohne `wait` kehrt `herzschlag_beenden` zurueck, waehrend der
+    // Herzschlag noch eine ganze Runde dreht — er koennte danach BELIEBIG viele weitere
+    // Marken anlegen, und die Freigabe darunter raeumte ins Leere.
+    const rumpfH = funktionsrumpf(befehle, "herzschlag_beenden");
+    expect(rumpfH).toMatch(/kill "\$herzschlag_pid"/);
+    expect(rumpfH, "geerntet wird mit `wait`").toMatch(/wait "\$herzschlag_pid"/);
+    expect(
+      rumpfH.indexOf('wait "$herzschlag_pid"'),
+      "und zwar NACH dem kill",
+    ).toBeGreaterThan(rumpfH.indexOf('kill "$herzschlag_pid"'));
+    // `|| true`, sonst bricht `set -e` am Beendigungsgrund (SIGTERM = 143) ab — im
+    // EXIT-Trap ausgerechnet.
+    expect(rumpfH).toMatch(/wait "\$herzschlag_pid" 2>\/dev\/null \|\| true/);
+
+    // ⚠️ DER HERZSCHLAG IST TOT, SEIN `mkdir` KANN ES NOCH NICHT SEIN: `wait` erntet die
+    // Subshell ab, nicht aber das `mkdir`, das sie als eigenen Prozess gestartet hatte.
+    // Landet diese eine Marke zwischen Auflistung und `rmdir`, bleibt die Sperre LIEGEN
+    // — mit einer Marke, der kein Prozess mehr entspricht; jeder folgende Lauf wartet
+    // dann bis zur Altersgrenze (Vorgabe 6h).
+    //
+    // ⚠️ GEMESSEN IN ALLEN VIER ZUSAMMENSTELLUNGEN, weil der naheliegende Schluss
+    // („dann ernte den Herzschlag eben ab") nachweislich danebengeht — je 150 Runden
+    // mit einem 20ms-Takt:
+    //
+    //                          eine Raeumung     Raeumung wiederholt
+    //   bash, ohne `wait`        51 / 150              0 / 150
+    //   bash, mit `wait`         53 / 150              0 / 150
+    //   dash, mit `wait`          1 / 150              0 / 150
+    //
+    // Es ist die Wiederholung, die traegt; `wait` liefert nur die Schranke „hoechstens
+    // EIN Nachzuegler", ohne die eine begrenzte Wiederholung nichts zusichert.
+    const rumpfA = funktionsrumpf(befehle, "sperre_ablegen");
+    expect(rumpfA, "die Raeumung laeuft mehrfach").toMatch(/while \[ "\$versuch" -le 3 \]/);
+    // Dass das `rmdir` des VERZEICHNISSES gelingt, ist zugleich der Riegel gegen den
+    // Nachzuegler: ein `mkdir` hinein scheitert danach. Deshalb bricht die Schleife
+    // genau darauf ab — nicht nach fester Rundenzahl.
+    expect(rumpfA).toMatch(/rmdir "\$SPERRVERZEICHNIS" 2>\/dev\/null && break/);
+    // In der Wiederholung ist der Besitz nicht erneut geprueft — also nur eigene Marken.
+    const schleife = rumpfA.slice(rumpfA.indexOf('while [ "$versuch" -le 3 ]'));
+    expect(schleife, "nur EIGENE Generationen").toMatch(/"\$MARKE_PRAEFIX"\*\)/);
+    // Und der Herzschlag muss VOR der Raeumung tot sein, sonst ist die Schranke „ein
+    // Nachzuegler" keine.
+    expect(rumpfA.indexOf("herzschlag_beenden")).toBeGreaterThan(-1);
+    expect(rumpfA.indexOf("herzschlag_beenden")).toBeLessThan(
+      rumpfA.indexOf('while [ "$versuch" -le 3 ]'),
     );
   });
 

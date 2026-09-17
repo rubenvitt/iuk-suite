@@ -737,7 +737,42 @@ sperre_marke() { ls "$SPERRVERZEICHNIS" 2>/dev/null | head -1; }
 # ERSTE Marke, und die muss waehrend einer Rotation die AELTERE sein — sonst raeumt ein
 # Wartender die frische weg und laesst die alte stehen. Mit fester Breite ist
 # lexikografisch dasselbe wie chronologisch (dieselbe Ueberlegung wie bei den Tarballs).
-MARKE_PRAEFIX="eigner.$$."
+# ⚠️ `$$` ALLEIN IST NICHT EINDEUTIG, UND ZWAR AUSGERECHNET HIER NICHT. Der Dienst laeuft
+# als `command: ["/bin/sh", …, "dienst"]` ohne Entrypoint — die Shell ist also PID 1 im
+# Container. Der dokumentierte Handgriff `docker compose run --rm backup … einmal` startet
+# einen EIGENEN Container, und dort ist sie ebenfalls PID 1. Beide leiten daraus dasselbe
+# `eigner.1.` ab, und die Sperre liegt in einem Volume, das beide sehen.
+#
+# GEMESSEN, mit zwei Prozessen desselben Praefix und einer Uebernahme dazwischen:
+#
+#   A haelt:        eigner.1.000001
+#   B haelt jetzt:  eigner.1.000001
+#   A sagt: SPERRE GEHOERT MIR   ← falsch, B haelt sie
+#
+# Damit faellt genau die Zusicherung, auf der in dieser Datei alles andere steht: `A`
+# rotiert weiter, schreibt den Stand und raeumt bei der Freigabe die Sperre des
+# NACHFOLGERS weg. Die Identitaetsbindung war da, sie war nur nicht identifizierend.
+#
+# Deshalb eine Kennung, die den Container unterscheidet, statt der PID allein. Drei
+# Quellen in abnehmender Guete; die letzte ist nur da, damit das Praefix niemals leer
+# wird (ein leeres Praefix passte per `case` auf JEDEN Namen — die Falle noch einmal,
+# eine Stufe schlimmer).
+eigner_kennung() {
+  kennung=""
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    kennung="$(tr -dc 'a-f0-9' </proc/sys/kernel/random/uuid 2>/dev/null)"
+  fi
+  if [ -z "$kennung" ] && [ -r /dev/urandom ]; then
+    kennung="$(od -An -N8 -tx1 /dev/urandom 2>/dev/null | tr -dc 'a-f0-9')"
+  fi
+  if [ -z "$kennung" ]; then
+    kennung="$(hostname 2>/dev/null | tr -dc 'a-z0-9')$$$(date +%s 2>/dev/null)"
+  fi
+  # ⚠️ Nur Hexziffern (und beim Rueckfall Kleinbuchstaben/Ziffern): das Praefix wird als
+  # `case`-MUSTER benutzt, ein `*` oder `?` darin traefe fremde Marken mit.
+  echo "$kennung"
+}
+MARKE_PRAEFIX="eigner.$(eigner_kennung).$$."
 meine_marke=""
 sperre_marke_setzen() {
   meine_marke="$(printf '%s%06d' "$MARKE_PRAEFIX" 1)"
@@ -954,9 +989,21 @@ herzschlag_starten() {
   herzschlag_pid=$!
 }
 
+# ⚠️ `kill` BITTET NUR — GEERNTET WIRD MIT `wait`. Und das ist hier ausdruecklich KEINE
+# Behebung: gemessen ueber je 150 Runden mit einem 20ms-Takt aendert `wait` allein
+# nichts (unter `bash` 53 statt 51 verwaiste Sperren). Die Ursache sitzt eine Ebene
+# tiefer und steht in `sperre_ablegen`; wer hier aufhoert, hat sie nicht getroffen.
+#
+# `wait` steht trotzdem da, und zwar fuer die SCHRANKE: ohne es kann der Herzschlag —
+# etwa bei verzoegerter Zustellung oder zwischen zwei Runden — noch beliebig viele
+# weitere Marken anlegen. Mit ihm bleibt hoechstens EINE uebrig, und erst das macht die
+# begrenzte Wiederholung dort unten ausreichend statt hoffnungsvoll.
 herzschlag_beenden() {
   if [ -n "$herzschlag_pid" ]; then
     kill "$herzschlag_pid" 2>/dev/null || true
+    # `|| true`, weil `wait` den Beendigungsgrund zurueckgibt (bei SIGTERM 143) und
+    # `set -e` daran sonst den ganzen Lauf abbricht — im EXIT-Trap ausgerechnet.
+    wait "$herzschlag_pid" 2>/dev/null || true
     herzschlag_pid=""
   fi
 }
@@ -982,12 +1029,50 @@ sperre_ablegen() {
     meine_marke=""
     return 0
   fi
-  for eintrag in "$SPERRVERZEICHNIS"/*; do
-    [ -d "$eintrag" ] || continue
-    rmdir "$eintrag" 2>/dev/null || true
+  # ⚠️ DER HERZSCHLAG IST TOT, SEIN `mkdir` KANN ES NOCH NICHT SEIN. `wait` erntet die
+  # Subshell ab — nicht aber das `mkdir`, das sie als eigenen Prozess gestartet hatte und
+  # das der Kern zu Ende fuehrt. Landet diese eine Marke zwischen der Auflistung hier und
+  # dem `rmdir` darunter, scheitert das `rmdir` an einem nicht leeren Verzeichnis: die
+  # Sperre bleibt LIEGEN, und zwar mit einer Marke, der kein Prozess mehr entspricht.
+  # Jeder folgende Lauf — der planmaessige wie der des Rollouts — wartet dann bis zur
+  # Altersgrenze (Vorgabe 6h), bevor er sie uebernehmen darf.
+  #
+  # GEMESSEN ueber je 150 Runden mit einem 20ms-Takt, damit das Fenster oft getroffen
+  # wird — und in allen vier Zusammenstellungen, weil der naheliegende Schluss („dann
+  # ernte den Herzschlag eben ab") nachweislich danebengeht:
+  #
+  #                          eine Raeumung     Raeumung wiederholt
+  #   bash, ohne `wait`        51 / 150              0 / 150
+  #   bash, mit `wait`         53 / 150              0 / 150
+  #   dash, mit `wait`          1 / 150              0 / 150
+  #
+  # Die Zahl haengt am Zeitverhalten der Shell, das Muster nicht: es ist die
+  # Wiederholung, die traegt.
+  #
+  # Die Wiederholung schliesst es, und zwar nicht ungefaehr: dass das `rmdir` des
+  # Verzeichnisses GELINGT, ist zugleich der Riegel gegen den Nachzuegler — ein
+  # `mkdir "$SPERRVERZEICHNIS/…"` in ein Verzeichnis, das es nicht mehr gibt, scheitert.
+  # Es bleiben also genau zwei Faelle, und beide sind nach dem zweiten Durchgang erledigt:
+  # der Nachzuegler ist noch nicht da (dann raeumt der erste Durchgang alles weg und
+  # sperrt ihn aus) oder er ist es (dann raeumt ihn der zweite weg). Der dritte ist Rand.
+  versuch=1
+  while [ "$versuch" -le 3 ]; do
+    for eintrag in "$SPERRVERZEICHNIS"/*; do
+      [ -d "$eintrag" ] || continue
+      # Nur EIGENE Generationen — in der Wiederholung ist der Besitz nicht erneut
+      # geprueft, und eine fremde Marke faellt hier sonst mit.
+      case "${eintrag##*/}" in
+        "$MARKE_PRAEFIX"*) rmdir "$eintrag" 2>/dev/null || true ;;
+      esac
+    done
+    rmdir "$SPERRVERZEICHNIS" 2>/dev/null && break
+    versuch=$((versuch + 1))
   done
   meine_marke=""
-  rmdir "$SPERRVERZEICHNIS" 2>/dev/null || true
+  if [ -d "$SPERRVERZEICHNIS" ]; then
+    warne "Die Sperre liess sich nicht freigeben — sie bleibt liegen und wird erst nach
+  BACKUP_SPERRE_ALTER_STUNDEN ($BACKUP_SPERRE_ALTER_STUNDEN h) wieder uebernehmbar."
+  fi
 }
 trap sperre_ablegen EXIT
 
