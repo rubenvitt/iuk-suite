@@ -361,6 +361,10 @@ export const lagerortVerfall = sqliteTable(
     erfasstAt: integer("erfasst_at", { mode: "timestamp" }).notNull(),
     quelleTyp: text("quelle_typ", { enum: ["token", "oidc", "system"] }).notNull(),
     quelleId: text("quelle_id").notNull(),
+    // DRK-377: Material hat diesen Ort ohne das gemeldete Datum verlassen. Haelt
+    // genau so lange wie die Zeile — ein Upsert laesst die Markierung stehen,
+    // ein sauberes Abraeumen nimmt sie mit. Begruendung in Migration 0014.
+    verwaist: integer("verwaist", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [uniqueIndex("idx_lagerort_verfall_ort_artikel").on(t.lagerortId, t.artikelId)],
 );

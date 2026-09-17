@@ -22,11 +22,9 @@
  * dieser Einheit im Soll steht —, nicht die Zeile. Die Begruendung im Langen
  * steht an `bereinigeVerfallOhneAktivesSoll` unten.
  */
-import { and, eq, lt, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DB } from "../../_db/client";
-import {
-  buchungen, chargen, lagerorte, lagerortVerfall, newId, sollPositionen,
-} from "../../_db/schema";
+import { lagerorte, lagerortVerfall, newId, sollPositionen } from "../../_db/schema";
 import { MONAT_REGEX } from "../konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../lesepfade/bestand";
 import type { Quelle, Tx } from "./abbuchung";
@@ -274,39 +272,36 @@ export function raeumeVerfallAmLeerenOrt(
  * loescht sie, und zwar mit einer Begruendung, die nur fuer die Charge aus
  * Schritt 2 gilt. Aus dem hingenommenen Preis wird so ein STILLER DATENVERLUST.
  *
- * ⚠️ PROBE 3 BRAUCHT DIE HISTORIE, WEIL DER BESTAND SIE NICHT MEHR HERGIBT.
- * Im Moment des Loeschens ist die Kiste leer; was vorher darin lag, ist ihr
- * nicht mehr anzusehen. Die Buchungen wissen es: ein Abgang aus der Kiste ist
- * eine Zeile mit NEGATIVER Menge an diesem Ort, und ueber `charge_id` haengt an
- * ihr das Datum, mit dem das Material gegangen ist.
+ * ⚠️ PROBE 3 STEHT AN DER MELDUNG UND NICHT IM JOURNAL, und die erste Fassung
+ * hatte sie dort (Codex zu PR #194, fuenfter Befund). Sie fragte „ist je etwas
+ * mit einem anderen Datum aus der Kiste gegangen?" — und verglich damit ALTE
+ * Abgaenge gegen den HEUTIGEN Wert. Ein Abgang, der zu seiner Zeit genau
+ * passte, wurde rueckwirkend zum Abweichler, sobald spaeter eine andere
+ * Meldung an der Kiste stand:
  *
- * ⚠️ UND SIE HAT KEINE UNTERGRENZE — DIE ERSTE FASSUNG HATTE EINE, UND GENAU
- * DIE WAR DER FEHLER (Codex zu PR #194, vierter P1). Sie fragte „seit
- * `erfasstAt`", und `erfasstAt` ist RUECKSETZBAR: traegt eine neue Herkunft ein
- * FRUEHERES Datum ein, ueberschreibt `uebernimmVerfall` oben Wert UND
- * Zeitpunkt. Die Grenze wanderte damit hinter einen bereits geschehenen
- * unpassenden Abgang, die Probe sah ihn nicht mehr, und die Meldung fiel —
- * derselbe stille Verlust, eine Ebene tiefer. Eine Grenze, die der zu
- * pruefende Vorgang selbst verschieben kann, ist keine.
+ *     sauber geleert mit 2026-10  → Meldung faellt, alles richtig
+ *     neue Lieferung meldet 2027-01
+ *     sauber geleert mit 2027-01  → der alte 2026-10-Abgang passt nicht zu
+ *                                   2027-01 → Meldung bleibt, fuer immer
  *
- * ⚠️ DER PREIS IST BENANNT: ist fuer einen Artikel je etwas Unpassendes aus
- * der Kiste gegangen, bleibt ihre Meldung stehen, bis jemand sie von Hand
- * aufloest — und die Kiste hat keinen Verfall-Editor. Das ist bewusst die
- * teurere, aber sichtbare Haelfte: eine stehengebliebene Meldung steht in der
- * Verfallsuebersicht und ist korrigierbar, ein verlorenes Verfallsdatum ist
- * weder sichtbar noch korrigierbar. Was mit ihr richtig zu geschehen hat, ist
- * die Betreiberfrage DRK-404 — hier steht der sichere Ausgang, nicht der
- * endgueltige.
+ * Die Kiste sammelte so Meldungen an, die niemand mehr wegbekommt. Aus der
+ * Schutzmassnahme wurde ein Dauerzustand — und mein Satz „das ist keine
+ * Dauersperre, verglichen wird gegen den aktuellen Wert" war genau verkehrt
+ * herum: DASS gegen den aktuellen Wert verglichen wurde, WAR die Sperre.
  *
- * ⚠️ DIE PROBE IST KEINE DAUERHAFTE SPERRE, auch wenn sie so aussieht: sie
- * vergleicht gegen den AKTUELL gemeldeten Wert. Ein Abgang, der genau dieses
- * Datum trug, ist kein Abweichler — aendert sich die Meldung, aendert sich die
- * Menge der Abweichler mit.
+ * ⚠️ DER ZUSTAND HAELT JETZT GENAU SO LANGE WIE DIE MELDUNG SELBST, und das ist
+ * die ganze Kunst an `verwaist`:
  *
- * ⚠️ DIE EIGENE BUCHUNG DIESES AUFRUFS STEHT SCHON IN DER TABELLE und wird
- * mitgeprueft — sie passt ja (Probe 2 war vorher dran), stoert also nicht. Wer
- * die Reihenfolge umdreht und zuerst loescht, prueft gegen eine Meldung, die es
- * nicht mehr gibt.
+ *   * Eine spaetere, fruehere Meldung ERSETZT den Wert — der Upsert oben fasst
+ *     die Markierung nicht an, das verwaiste Material liegt ja weiter im Regal.
+ *   * Ein sauberes Abraeumen loescht die ZEILE, und die Markierung geht mit ihr.
+ *     Die naechste Meldung beginnt unbelastet.
+ *
+ * Genau das ist mit „ueber den Wechsel der Meldung hinweg merken, beim
+ * Neubeginn vergessen" gemeint — und es ist der Grund, warum kein Zeitstempel
+ * taugt: `erfasstAt` ist rueckstellbar (vierter Befund), das Journal kennt die
+ * Lebensdauer der Meldung nicht (fuenfter).
+ *
  */
 export function raeumeBoxVerfallWennMaterialEsMitnimmt(
   db: DB | Tx,
@@ -314,27 +309,23 @@ export function raeumeBoxVerfallWennMaterialEsMitnimmt(
 ): void {
   const { lagerortId, artikelId, bewegterVerfall } = args;
 
-  const gemeldet = db.select({ verfall: lagerortVerfall.verfall })
-    .from(lagerortVerfall)
-    .where(and(
-      eq(lagerortVerfall.lagerortId, lagerortId),
-      eq(lagerortVerfall.artikelId, artikelId),
-    ))
-    .get();
+  const amOrt = and(
+    eq(lagerortVerfall.lagerortId, lagerortId),
+    eq(lagerortVerfall.artikelId, artikelId),
+  );
+  const gemeldet = db.select({
+    verfall: lagerortVerfall.verfall, verwaist: lagerortVerfall.verwaist,
+  })
+    .from(lagerortVerfall).where(amOrt).get();
   if (!gemeldet) return;
-  if (gemeldet.verfall !== bewegterVerfall) return;
 
-  const unpassendGegangen = db.select({ id: buchungen.id })
-    .from(buchungen)
-    .innerJoin(chargen, eq(chargen.id, buchungen.chargeId))
-    .where(and(
-      eq(buchungen.lagerortId, lagerortId),
-      eq(buchungen.artikelId, artikelId),
-      lt(buchungen.menge, 0),
-      ne(chargen.verfall, gemeldet.verfall),
-    ))
-    .get();
-  if (unpassendGegangen) return;
+  if (gemeldet.verfall !== bewegterVerfall) {
+    // Dieses Material geht OHNE das gemeldete Datum — ab jetzt ueberlebt die
+    // Meldung Material, das sie nicht mehr beschreibt.
+    db.update(lagerortVerfall).set({ verwaist: true }).where(amOrt).run();
+    return;
+  }
+  if (gemeldet.verwaist) return;
 
   raeumeVerfallAmLeerenOrt(db, lagerortId, artikelId);
 }

@@ -482,6 +482,37 @@ describe("raeumeBoxVerfallWennMaterialEsMitnimmt — der Ruecklauf aus der Kiste
     expect(boxZeile()?.verfall).toBe(FRUEH);
   });
 
+  it("VERGISST die Markierung, wenn eine Meldung sauber abgeraeumt wurde", () => {
+    /**
+     * ⚠️ DER FUENFTE BEFUND (Codex zu PR #194). Die Vorfassung las die
+     * Abweichler aus dem Journal und verglich sie gegen den HEUTIGEN Wert —
+     * ein Abgang, der zu seiner Zeit passte, wurde damit rueckwirkend zum
+     * Abweichler, und die Kiste sammelte Meldungen an, die niemand wegbekommt.
+     *
+     * Hier leert sich die Kiste ZWEIMAL saeuberlich, mit je passender Charge.
+     * Beim zweiten Mal steht der alte 2026-10-Abgang noch im Journal; mit der
+     * Journal-Probe ist dieser Fall rot.
+     */
+    buche("zu-1", "ch-echt", 2);
+    buche("ab-1", "ch-echt", -2, SPAETER);
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: ECHT,
+    });
+    expect(boxZeile()).toBeUndefined();
+
+    // Eine neue Lieferung bringt eine neue Meldung — ein neuer Lebenszyklus.
+    setzeVerfall(t.db, { lagerortId: ENTNAHMEBOX_ID, artikelId: "a1",
+      verfall: FRUEH, quelle: QUELLE, jetzt: NOCH_SPAETER });
+    buche("zu-2", "ch-frueh", 2, NOCH_SPAETER);
+    buche("ab-2", "ch-frueh", -2, NOCH_SPAETER);
+
+    raeumeBoxVerfallWennMaterialEsMitnimmt(t.db, {
+      lagerortId: ENTNAHMEBOX_ID, artikelId: "a1", bewegterVerfall: FRUEH,
+    });
+
+    expect(boxZeile()).toBeUndefined();
+  });
+
   it("BEHAELT die Meldung, wenn die bewegte Charge ein anderes Datum traegt", () => {
     buche("zu-1", "ch-pseudo", 3);
     buche("ab-1", "ch-pseudo", -3, SPAETER);
