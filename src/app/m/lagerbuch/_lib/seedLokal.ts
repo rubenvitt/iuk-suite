@@ -968,7 +968,41 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     && (verfallFuerLagerort(db, RTW).get(A.kompresse)?.erfasstAt?.getTime() ?? Infinity)
       < aelteteBoxZugang.ts.getTime();
 
-  if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht && meldungAelterAlsAbgabe) {
+  /* ⚠️ UND DIE FUENFTE: DIE KISTENWARE MUSS VOM RTW STAMMEN (Codex zu PR #194).
+   * Die vier Proben oben pruefen Bestand, fehlende Meldung, Abgaenge und Zeit —
+   * keine davon die HERKUNFT. Liegen in der Kiste Kompressen aus einer anderen
+   * Einheit und ist der eigene Abschnitt 12d geriegelt, treffen alle vier zu,
+   * und der Nachtrag schriebe die RTW-Meldung auf fremdes Material.
+   *
+   * Migration 0013 hat genau diese Probe von Anfang an (`b.referenz =
+   * 'entnahmebox:' || lv.lagerort_id`); dem Seed hat sie gefehlt. `REF_BOX`
+   * traegt dieselbe Zeichenkette — das Praefix nennt die QUELLE, nicht das
+   * Ziel, und ist damit hier die tragende Eigenschaft.
+   *
+   * ⚠️ DIESE PROBE IST ARGUMENTIERT, NICHT GEMESSEN — und das steht hier, weil
+   * ein fehlender Test sonst wie ein vergessener aussieht. Der Fall verlangt
+   * eine Datenbank, in der `REF_BOX` fuer IRGENDEINEN Artikel existiert,
+   * waehrend die Kompressen aus einer anderen Einheit kamen. Nach einem Seed
+   * ist er nicht mehr herstellbar: `journalGebucht(REF_BOX)` ist genau dann
+   * wahr, wenn 12d gelaufen ist — und dann gibt es die Kompressen-Buchung. Und
+   * `buchungen` ist append-only, eine bestehende Zeile laesst sich weder
+   * umschreiben noch loeschen (der Trigger wirft „journal ist append-only").
+   * Erreichbar ist er nur ueber einen Nutzer, der vor dem ersten Seed
+   * IRGENDEINEN RTW-Artikel in die Kiste gibt — `bucheInEntnahmebox` schreibt
+   * dieselbe Referenz. Wer diese Probe testbar machen will, hebt die
+   * Entscheidung in eine eigene Funktion; das waere der Weg, nicht ein Test,
+   * der aus dem falschen Grund gruen ist. */
+  const vomRtwGeliefert = db.select({ id: buchungen.id }).from(buchungen)
+    .where(and(
+      eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
+      eq(buchungen.artikelId, A.kompresse),
+      gt(buchungen.menge, 0),
+      eq(buchungen.referenz, REF_BOX),
+    ))
+    .get() !== undefined;
+
+  if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht && meldungAelterAlsAbgabe
+      && vomRtwGeliefert) {
     db.transaction((tx) => {
       uebernimmVerfall(tx, {
         vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
