@@ -368,7 +368,9 @@ er fordert die Freigabe erneut an).
 > Ohne konfigurierten `BACKUP_PING_URL` fiele das erst auf, wenn die Sicherung der
 > nächsten Nacht fehlt. Schritt 8b fragt deshalb bis zu **120 Sekunden** lang den
 > Healthcheck ab (`SUITE_BACKUP_GESUND_FRIST` setzt die Frist, `0` heißt: nur einmal
-> nachsehen) und unterscheidet drei Ausgänge: *gesund* (still), *nach der Frist immer
+> nachsehen; ein Unsinnswert fällt laut auf 120 zurück, mehr als 3600 wird auf 3600
+> gedeckelt — ein Rollout, der eine Stunde auf den Backup-Dienst wartet, hat seinen
+> Zweck ohnehin verfehlt) und unterscheidet drei Ausgänge: *gesund* (still), *nach der Frist immer
 > noch im Anlauf* (kann ein langsamer Paketspiegel sein und sich von selbst geben),
 > *weg oder in der Neustartschleife* (gibt sich nie von selbst). **Zurückgerollt wird
 > in keinem der drei Fälle** — dieselbe Abwägung wie beim Austausch selbst.

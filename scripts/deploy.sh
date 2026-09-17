@@ -309,6 +309,39 @@ warte_gesund() {
 # Handgriffe bedeuten — ein gemeinsames „nicht gesund" verschenkte genau die Auskunft.
 backup_wird_gesund() {
   local frist="$1" ende cid lage gesund
+  # ⚠️ ERST PRÜFEN, DANN RECHNEN — und die beiden Fehlfälle gehen GEGENLÄUFIG
+  # auseinander, beide unter `set -euo pipefail` gemessen:
+  #
+  #   SUITE_BACKUP_GESUND_FRIST=abc  → `abc: unbound variable`, EXIT 1. Das Skript stirbt
+  #     hier, also HINTER dem in Schritt 7 bewiesenen Rollout: Schritt 9 wird nie
+  #     erreicht, und ein erfolgreicher Rollout meldet sich als gescheiterter Job.
+  #   SUITE_BACKUP_GESUND_FRIST=08   → `value too great for base` (führende Null ist
+  #     OKTAL), das Skript läuft WEITER, aber `ende` bleibt leer und die Warterei ist
+  #     still kaputt — ein langsamer Dienst gälte sofort als „noch im Anlauf".
+  #
+  # Dieselbe Klasse wie im Sidecar (dort `entnullen` plus Ziffernprüfung), und dieselbe
+  # Reihenfolge: Ziffern, dann Länge, dann Wert. Eine Obergrenze steht dabei nicht gegen
+  # den Überlauf, sondern gegen den Unsinn: ein Rollout, der eine Stunde auf den
+  # Backup-Dienst wartet, hat den Job längst verfehlt.
+  case "$frist" in
+    '' | *[!0-9]*)
+      warne "SUITE_BACKUP_GESUND_FRIST=\"$frist\" ist keine Zahl — es gelten 120s."
+      frist=120
+      ;;
+  esac
+  # ⚠️ ERST DIE NULLEN WEG, DANN DIE LÄNGE MESSEN — sonst meldet `00120` „zu gross",
+  # obwohl 120 gemeint und gültig ist (gemessen). Das letzte Zeichen bleibt stehen,
+  # damit aus `000` eine `0` wird und keine leere Zeichenkette.
+  while [ "${frist#0}" != "$frist" ] && [ "${#frist}" -gt 1 ]; do frist="${frist#0}"; done
+  # Danach steht keine führende Null mehr da, und die Arithmetik liest nicht mehr oktal.
+  if [ "${#frist}" -gt 4 ]; then
+    warne "SUITE_BACKUP_GESUND_FRIST=\"$frist\" ist zu gross — es gelten 120s."
+    frist=120
+  fi
+  if [ "$frist" -gt 3600 ]; then
+    warne "SUITE_BACKUP_GESUND_FRIST=$frist ist groesser als 3600 — es gelten 3600s."
+    frist=3600
+  fi
   ende=$(( $(date +%s) + frist ))
   while :; do
     cid="$(docker compose ps -q backup 2>/dev/null || true)"

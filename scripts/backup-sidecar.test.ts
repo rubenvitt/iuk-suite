@@ -239,6 +239,26 @@ describe("compose.yaml — der Dienst `backup` existiert und haengt am richtigen
     // Host-Cron die, die man vergisst (dort musste sie
     // `/var/lib/docker/volumes/files_data/_data` lauten).
     expect(backupMounts).toContain("files_data:/data/files:ro");
+    // ⚠️ UND `suite` BLEIBT DER EINZIGE DIENST, DER DIESES VOLUME SCHREIBEND MOUNTET.
+    // Das ist der Riegel gegen eine naheliegende „Reparatur": ein Befund hat vermutet,
+    // dieser `:ro`-Mount koenne auf einem frischen Stack `files_data` mit root als
+    // Eigentuemer anlegen, weil der Vorlauf es hier nicht mehr richten kann. Der Stack
+    // beantwortet das schon selbst — `clamav` mountet dasselbe Volume seit jeher `:ro`
+    // und `suite` haengt per `depends_on: service_healthy` daran, fasst es auf jedem
+    // frischen Stack also SPAETER an als ein fremdes Image mit einem Nur-Lese-Mount;
+    // die Blobs werden trotzdem geschrieben. Waere ein `:ro`-Mount die Stelle, an der
+    // ein leeres Volume seinen Eigentuemer bekommt, gaebe es das Modul `files` nicht.
+    // Wer den Mount hier trotzdem schreibend macht, nimmt dem Backup die einzige
+    // Zusicherung, die es den Blobs gegenueber gibt.
+    const schreibend = Object.entries({ suite, clamav: rumpf(services, "clamav", 2), backup })
+      .map(([name, dienst]) => [name, liste(dienst, "volumes", 4)] as const)
+      .filter(([, mounts]) => mounts.some((m) => /^files_data:/.test(m) && !m.endsWith(":ro")))
+      .map(([name]) => name);
+    expect(schreibend, "nur `suite` schreibt in `files_data`").toEqual(["suite"]);
+    // Die Voraussetzung der Messung oben — faellt sie weg, faellt auch die Begruendung.
+    expect(liste(rumpf(services, "clamav", 2), "volumes", 4)).toContain(
+      "files_data:/data/files:ro",
+    );
   });
 
   it("die Sicherungen liegen in einem EIGENEN benannten Volume, nicht in `suite_data`", () => {
@@ -2412,6 +2432,90 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // ein uebersprungener Lauf statt eines verhinderten Doppellaufs.
     expect(rumpfS).toMatch(/if \[ "\$rest" -eq 0 \] && \[ -n "\$gelaufen_um" \]/);
   }, 20_000);
+
+  it("ein Unsinnswert in SUITE_BACKUP_GESUND_FRIST kippt den Rollout nicht", () => {
+    // ⚠️ ERST PRUEFEN, DANN RECHNEN — und die beiden Fehlfaelle gehen GEGENLAEUFIG
+    // auseinander, beide unter `set -euo pipefail` am ausgeschnittenen Block gemessen:
+    //
+    //   =abc → `abc: unbound variable`, EXIT 1. Das Skript stirbt HINTER dem bewiesenen
+    //          Rollout: Schritt 9 wird nie erreicht, ein erfolgreicher Rollout meldet
+    //          sich als gescheiterter Job.
+    //   =08  → `value too great for base` (fuehrende Null ist oktal), das Skript laeuft
+    //          WEITER, aber `ende` bleibt leer und die Warterei ist still kaputt.
+    //
+    // Dieselbe Klasse wie die Zahlenpruefungen im Sidecar, und dieselbe Reihenfolge:
+    // Ziffern, Nullen weg, Laenge, Wert.
+    const quelle = deploySh.slice(
+      deploySh.indexOf("backup_wird_gesund() {"),
+      deploySh.indexOf("\n}\n", deploySh.indexOf("backup_wird_gesund() {")) + 3,
+    );
+    const block = deploySh.slice(
+      deploySh.indexOf("    if docker compose up -d --force-recreate backup; then"),
+      deploySh.indexOf("\n    fi\n", deploySh.indexOf("    if docker compose up -d --force-recreate backup; then")) +
+        "\n    fi\n".length,
+    );
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-frist-"));
+    writeFileSync(
+      path.join(kladde, "docker"),
+      [
+        "#!/bin/bash",
+        'if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then echo abc123; exit 0; fi',
+        'if [ "$1" = "compose" ] && [ "$2" = "up" ]; then exit 0; fi',
+        'if [ "$1" = "inspect" ]; then',
+        '  case "$3" in',
+        '    *State.Status*) echo running ;;',
+        '    *Health*) echo "${GESUND:-healthy}" ;;',
+        "  esac",
+        "  exit 0",
+        "fi",
+        "exit 0",
+      ].join("\n"),
+    );
+    chmodSync(path.join(kladde, "docker"), 0o755);
+    const fahre = (wert?: string) => {
+      const p = spawnSync(
+        "bash",
+        [
+          "-c",
+          `set -euo pipefail\nwarne() { printf '! %s\\n' "$*" >&2; }\n${quelle}\n${block}\necho SCHRITT-9-ERREICHT`,
+        ],
+        {
+          encoding: "utf8",
+          timeout: 20_000,
+          env: {
+            ...process.env,
+            PATH: `${kladde}:${process.env.PATH}`,
+            ...(wert === undefined ? {} : { SUITE_BACKUP_GESUND_FRIST: wert }),
+          },
+        },
+      );
+      return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+    };
+    try {
+      for (const wert of ["abc", "08", "00120", "000", "99999", "7200", "3600", "120", ""]) {
+        const lauf = fahre(wert);
+        expect(lauf.code, `Exit 0 bei SUITE_BACKUP_GESUND_FRIST="${wert}"`).toBe(0);
+        expect(lauf.aus, `Schritt 9 bei "${wert}"`).toContain("SCHRITT-9-ERREICHT");
+        expect(lauf.aus, `keine rohe Shell-Meldung bei "${wert}"`).not.toMatch(
+          /unbound variable|value too great for base/,
+        );
+      }
+      // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: ein Rueckfall, der still bleibt,
+      // waere derselbe Fehler eine Etage tiefer — der Betreiber saehe eine Frist, die
+      // nicht gilt. Und ein gueltiger Wert darf NICHT warnen, sonst warnt jeder Rollout.
+      expect(fahre("abc").aus, "der Unsinnswert wird benannt").toMatch(/ist keine Zahl/);
+      expect(fahre("99999").aus, "und ein zu langer auch").toMatch(/ist zu gross/);
+      expect(fahre("7200").aus, "und einer ueber der Obergrenze").toMatch(/groesser als 3600/);
+      for (const gut of ["120", "08", "00120", "3600", ""]) {
+        expect(fahre(gut).aus, `kein Wort ueber "${gut}"`).not.toMatch(/SUITE_BACKUP_GESUND_FRIST/);
+      }
+      // ⚠️ UND `00120` IST 120, NICHT „ZU GROSS": die Nullen fallen VOR der
+      // Laengenmessung weg, sonst meldete ein gueltiger Wert einen Rueckfall.
+      expect(fahre("00120").aus).not.toMatch(/ist zu gross/);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it("der Rollout wartet, bis der ausgetauschte Sidecar sich meldet", () => {
     // ⚠️ EIN `up -d` MELDET „GESTARTET", NICHT „LAEUFT". Der Sidecar holt seine Werkzeuge

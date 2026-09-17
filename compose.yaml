@@ -331,6 +331,19 @@ services:
       # Mount stimmt die Vorgabe `$DATA_DIR/files` des Skripts von selbst. Der Host-Cron
       # musste dafuer `/var/lib/docker/volumes/files_data/_data` kennen, und genau diese
       # Zeile war die, die man vergisst.
+      #
+      # ⚠️ NEIN, DIESER MOUNT KANN DAS VOLUME NICHT MIT FALSCHEM EIGENTUEMER ANLEGEN —
+      # die Frage ist berechtigt und der Stack beantwortet sie schon: `clamav` mountet
+      # `files_data` seit jeher ebenfalls `:ro`, und `suite` haengt per
+      # `depends_on: condition: service_healthy` daran. Auf JEDEM frischen Stack fasst
+      # also ein fremdes Image das Volume nur lesend an, BEVOR die Suite es je sieht —
+      # und die Suite schreibt ihre Blobs. Waere ein `:ro`-Mount die Stelle, an der ein
+      # leeres Volume seinen Eigentümer bekommt, gaebe es `files` nicht. Dieser Dienst
+      # ist der dritte solche Mount, nicht der erste.
+      # ⚠️ Der Umkehrschluss gilt nicht: `suite` ist und bleibt der EINZIGE Dienst, der
+      # `files_data` schreibend mountet. Wer diesen Mount hier schreibend macht — etwa
+      # um „den Eigentümer zu reparieren" —, nimmt dem Backup die einzige Zusicherung,
+      # die es den Blobs gegenueber gibt. `scripts/backup-sidecar.test.ts` haelt beides.
       - files_data:/data/files:ro
       # ⚠️ `aufgaben_data` FEHLT HIER, UND DAS IST KEIN VERSEHEN: `scripts/backup.sh`
       # liest das Verzeichnis heute nicht, ein Mount waere also ein Versprechen ohne
