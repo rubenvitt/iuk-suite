@@ -100,8 +100,25 @@ export async function createFahrzeug(
      * zusammengesetztes Objekt wäre eine zweite Wahrheit darüber, was eine
      * Ortskarte ist.
      */
-    const ort = etikettOrt(db, id);
-    if (ort) stelleOrtCodeSicher(db, ort, auditViewer.sub);
+    /*
+     * ⚠️ DAS `try` UMFASST AUCH DIE ABFRAGE, nicht nur das Anlegen — gefunden
+     * in der Durchsicht, und ohne es hob diese Zeile die Zusage des Absatzes
+     * darueber wieder auf. `stelleOrtCodeSicher` wirft nie; `etikettOrt` ist
+     * aber ein gewoehnlicher Lesezugriff und wirft sehr wohl, wenn die
+     * Datenbank gerade gesperrt ist. Er laeuft unmittelbar nach dem `insert`
+     * der Einheit, also genau dann, wenn der Schreiber noch haelt.
+     *
+     * Der Wurf haette die Aktion abgebrochen, NACHDEM die Einheit stand: die
+     * Bedienende saehe einen Fehlschlag, legte die Einheit erneut an, und
+     * haette sie danach zweimal.
+     */
+    try {
+      const ort = etikettOrt(db, id);
+      if (ort) stelleOrtCodeSicher(db, ort, auditViewer.sub);
+    } catch {
+      // Die Einheit ist das, was jemand wollte; der Code ist die Beigabe. Den
+      // Nachzug beim Oeffnen der Ortsetiketten holt es beim naechsten Mal.
+    }
 
     revalidatePath(FAHRZEUGE_PFAD);
     return { ok: true, wert: { id } };

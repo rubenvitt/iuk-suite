@@ -351,6 +351,53 @@ describe("stelleOrtCodeSicher — auch ein werfender Lesepfad kommt nicht durch"
   });
 });
 
+/**
+ * DER VERLIERER EINES WETTLAUFS ZAEHLT NICHT MIT — gefunden in der Durchsicht.
+ *
+ * ⚠️ DIE ZAHL STEHT AUF DEM BILDSCHIRM und traegt eine Aufforderung: die
+ * Ortsetiketten melden „N neue Codes" und schicken damit jemanden zum Drucker.
+ * Zwei Anfragen auf denselben leeren Ort — ein zweiter Tab, ein Reload waehrend
+ * die erste noch laeuft — liefen beide durch; die zweite bekam den Code der
+ * ersten zurueck und zaehlte ihn als ihren eigenen. Die Karte hatte sich nicht
+ * geaendert, gedruckt haette man sie trotzdem.
+ *
+ * Nachgestellt wird das Fenster, das eine Abfrage davor nicht schliessen kann:
+ * der andere fuegt GENAU ZWISCHEN Pruefung und `INSERT` ein.
+ */
+describe("stelleOrtCodesSicher — zaehlt nur, was dieser Aufruf angelegt hat", () => {
+  /** Eine `db`, bei der der andere Aufruf das Rennen im `INSERT`-Moment gewinnt. */
+  function ueberholt(ortId: string, fremdCode: string): DB {
+    return new Proxy(t.db as object, {
+      get(ziel, name, empfaenger) {
+        if (name !== "insert") return Reflect.get(ziel, name, empfaenger);
+        return () => {
+          t.db.insert(tokens).values({
+            id: "fremd", code: fremdCode, label: "Vom anderen Aufruf",
+            ortId, zielTyp: null, zielId: null, aktiv: true,
+            createdAt: new Date(), createdBy: "jemand-anders",
+          }).run();
+          throw new Error("UNIQUE constraint failed: tokens.ort_id");
+        };
+      },
+    }) as DB;
+  }
+
+  it("meldet 0, wenn ein anderer Aufruf zwischen Pruefung und INSERT einfuegt", () => {
+    const anzahl = stelleOrtCodesSicher(ueberholt(HANDLAGER_ID, "424-242"), AUSSTELLER, null);
+
+    expect(anzahl, "der Code ist da, aber nicht von diesem Aufruf").toBe(0);
+    // Die Karte IST versorgt — nur eben vom anderen.
+    expect(aktiverOrtCode(t.db, HANDLAGER_ID)).toBe("424-242");
+  });
+
+  it("gibt den fremden Code trotzdem heraus, statt zu werfen", () => {
+    const ort = ortVon(HANDLAGER_ID);
+
+    expect(stelleOrtCodeSicher(ueberholt(HANDLAGER_ID, "424-243"), ort, AUSSTELLER))
+      .toBe("424-243");
+  });
+});
+
 describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
   it("sperrt den alten Code, legt einen neuen an und behält die Zugehörigkeit", () => {
     einheit({ id: "rtw-1", name: "RTW 1" });

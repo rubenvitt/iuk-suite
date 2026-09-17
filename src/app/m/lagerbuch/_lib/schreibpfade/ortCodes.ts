@@ -161,30 +161,49 @@ export function stelleOrtCodeSicher(
   ort: EtikettOrtZeile,
   ausstellerSub: string,
 ): string | null {
-  /*
-   * ⚠️ ALLE DREI ZUGRIFFE LIEGEN IM `try`, UND DAS IST DER GANZE VERTRAG —
-   * gefunden in der Durchsicht, nachdem der erste Anlauf nur das `INSERT`
-   * abgesichert hatte. Auch eine LESENDE Abfrage wirft, wenn die Datenbank
-   * gerade gesperrt ist (`SQLITE_BUSY`), und die erste stand davor. Sie ist
-   * damit der wahrscheinlichste Wurf von allen: sie laeuft unmittelbar nach dem
-   * `INSERT` der Einheit, also genau dann, wenn der Schreiber noch haelt.
-   *
-   * ⚠️ AUCH DER RUECKFALL IM `catch` IST EINE ABFRAGE und kann dasselbe tun. Ein
-   * `catch`, das selbst wirft, hebt den Vertrag auf, ohne dass es auffiele —
-   * `createFahrzeug` ruft diese Funktion ausserhalb seines eigenen `try`, und
-   * ein durchgeschlagener Wurf meldete der Bedienenden einen Fehlschlag,
-   * NACHDEM die Einheit schon stand. Der zweite Versuch legte sie ein zweites
-   * Mal an.
-   */
+  return versorge(db, ort, ausstellerSub).code;
+}
+
+/**
+ * ⚠️ `neu` SAGT „DIESER AUFRUF HAT EINGEFUEGT" — nicht „es gibt jetzt einen
+ * Code". Gefunden in der Durchsicht, und der Unterschied steht am Ende auf dem
+ * Bildschirm: `stelleOrtCodesSicher` zaehlt damit die Karten, die WIRKLICH neu
+ * gedruckt werden muessen. Zaehlte es jeden nicht-leeren Rueckgabewert, meldete
+ * der Verlierer eines Wettlaufs den Code des Gewinners als seinen eigenen —
+ * die Seite naennte eine Zahl zu viel und schickte jemanden zum Drucker fuer
+ * eine Karte, die sich nicht geaendert hat.
+ *
+ * ⚠️ ALLE DREI ZUGRIFFE LIEGEN IM `try`, UND DAS IST DER VERTRAG „wirft nie" —
+ * gefunden in der Durchsicht, nachdem ein erster Anlauf nur das `INSERT`
+ * abgesichert hatte. Auch eine LESENDE Abfrage wirft, wenn die Datenbank
+ * gerade gesperrt ist (`SQLITE_BUSY`), und die erste stand davor. Sie ist
+ * damit der wahrscheinlichste Wurf von allen: sie laeuft unmittelbar nach dem
+ * `INSERT` der Einheit, also genau dann, wenn der Schreiber noch haelt.
+ *
+ * ⚠️ AUCH DER RUECKFALL IM `catch` IST EINE ABFRAGE und kann dasselbe tun. Ein
+ * `catch`, das selbst wirft, hebt den Vertrag auf, ohne dass es auffiele —
+ * `createFahrzeug` ruft ueber `stelleOrtCodeSicher` ausserhalb seines eigenen
+ * `try`, und ein durchgeschlagener Wurf meldete der Bedienenden einen
+ * Fehlschlag, NACHDEM die Einheit schon stand. Der zweite Versuch legte sie ein
+ * zweites Mal an.
+ */
+function versorge(
+  db: DB,
+  ort: EtikettOrtZeile,
+  ausstellerSub: string,
+): { code: string | null; neu: boolean } {
   try {
     const vorhanden = aktiverOrtCode(db, ort.id);
-    if (vorhanden) return vorhanden;
-    return legeAn(db, ort, ausstellerSub);
+    if (vorhanden) return { code: vorhanden, neu: false };
+    const code = legeAn(db, ort, ausstellerSub);
+    return { code, neu: code !== null };
   } catch {
+    // Der Wettlauf ist verloren, die Karte aber versorgt: der andere Aufruf hat
+    // eingefuegt. Sein Code ist das richtige Ergebnis — nur eben nicht unseres.
     try {
-      return aktiverOrtCode(db, ort.id);
+      return { code: aktiverOrtCode(db, ort.id), neu: false };
     } catch {
-      return null;
+      return { code: null, neu: false };
     }
   }
 }
@@ -215,16 +234,25 @@ export function stelleOrtCodesSicher(db: DB, ausstellerSub: string, name: string
       let neu = 0;
       for (const ort of etikettOrte(db)) {
         /*
-         * ⚠️ ÜBER `stelleOrtCodeSicher` UND NICHT ÜBER `legeAn` DIREKT. Jene
-         * Funktion trägt die ganze Fehlerbehandlung — vorhandener Code,
-         * erschöpfte Ziehung, Wettlauf —, und eine zweite Fassung davon hier
-         * wäre die Stelle, an der die beiden auseinanderlaufen.
+         * ⚠️ ÜBER `versorge` UND NICHT ÜBER `legeAn` DIREKT. Jene Funktion
+         * trägt die ganze Fehlerbehandlung — vorhandener Code, erschöpfte
+         * Ziehung, Wettlauf —, und eine zweite Fassung davon hier wäre die
+         * Stelle, an der die beiden auseinanderlaufen.
          *
-         * Gezählt wird, was NEU ist: `stelleOrtCodeSicher` gibt auch einen
-         * bereits vorhandenen Code zurück, deshalb die Abfrage davor.
+         * ⚠️ HIER STAND EIN `aktiverOrtCode`-VORLAUF UND DANEBEN `if (code)
+         * neu++`, und beides war falsch (Durchsicht). Die Abfrage konnte den
+         * Wettlauf nicht schließen — zwischen ihr und dem `INSERT` liegt das
+         * Fenster, in dem der andere Aufruf einfügt —, und danach zählte der
+         * Verlierer den Code des Gewinners als seinen eigenen. Die Seite nannte
+         * eine Zahl zu viel und schickte jemanden zum Drucker für eine Karte,
+         * die sich nicht geändert hat. `versorge` beantwortet beides in einem
+         * Zug und sagt mit `neu`, wer wirklich eingefügt hat.
+         *
+         * ⚠️ UND DIE ABFRAGE LAG AUSSERHALB JEDES `try` — in einer Server
+         * Component, also mit einem HTTP 500 für die ganze Seite als Preis.
+         * `versorge` nimmt sie mit hinein.
          */
-        if (aktiverOrtCode(db, ort.id)) continue;
-        if (stelleOrtCodeSicher(db, ort, ausstellerSub)) neu++;
+        if (versorge(db, ort, ausstellerSub).neu) neu++;
       }
       return neu;
     },
