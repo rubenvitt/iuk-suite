@@ -7,6 +7,7 @@ import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
 import { RIEGEL_TEXTE, type HelferErgebnis } from "../_lib/actionTypen";
 import { BUCHUNG_MENGE_MAX } from "../_lib/grenzen";
+import { nurEntnahmeAbweisung } from "../_lib/helferBereich";
 import {
   kontoZugangOderNull, requireHelferSchreibend, type HelferZugang,
 } from "../_lib/helferZugang";
@@ -116,6 +117,14 @@ export async function bucheInEntnahmebox(
   if (!riegel.ok) {
     return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
   }
+  /*
+   * DER REGAL-CODE DARF HIER NICHT DURCH — DRK-406. Dieselbe Zeile und
+   * derselbe Grund wie in `checkAbschluss`: die Kiste gehoert zum Fahrzeug,
+   * nicht zum Regal. Sie steht VOR der Validierung, weil eine Absage nach einem
+   * Teilschritt eine Absage waere, die schon etwas getan hat.
+   */
+  const bereich = nurEntnahmeAbweisung(riegel.zugang);
+  if (bereich) return bereich;
   const geparst = BoxSchema.safeParse(eingabe);
   if (!geparst.success) {
     // ⚠️ `grund: "eingabe"`, NICHT `"netz"` (Betreiberentscheidung B4): die

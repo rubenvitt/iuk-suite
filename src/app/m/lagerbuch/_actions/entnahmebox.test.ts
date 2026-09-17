@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
+import { BEREICH_TEXT } from "../_lib/actionTypen";
 import {
   ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL,
 } from "../_lib/konstanten";
@@ -103,6 +104,9 @@ const KAERTCHEN = {
     label: "RTW 1",
     laeuftAb: new Date("2026-09-16T22:00:00Z"),
     fahrzeugBindung: null,
+    // DRK-406: ein Fahrzeug-Ortscode darf in die Kiste legen. Der REGAL-Code
+    // nicht — die Zusicherung dazu steht am Ende dieser Datei.
+    nurEntnahme: false,
   },
 };
 
@@ -1109,6 +1113,38 @@ describe("raeumeAusEntnahmebox — was sie ablehnt", () => {
       t.db,
     );
 
+    expect(revalidiert).toEqual([]);
+  });
+});
+
+/**
+ * DER REGAL-CODE LEGT NICHTS IN DIE KISTE — DRK-406.
+ *
+ * ⚠️ DIE KISTE GEHÖRT ZUM FAHRZEUG, NICHT ZUM REGAL. Wer sie mit dem Code vom
+ * Regal befüllen könnte, bucht Material AUS einer Einheit heraus, an der er gar
+ * nicht steht — und die Zeile im Journal trüge den Regal-Code als Quelle.
+ *
+ * ⚠️ AM ECHTEN RIEGEL GEMESSEN: `nurEntnahmeAbweisung` liegt in
+ * `_lib/helferBereich.ts`, also außerhalb der Attrappe für `_lib/helferZugang`
+ * weiter oben. Die Begründung steht im Kopf jener Datei.
+ */
+describe("DRK-406 — der Ortscode des Handlagers darf nichts in die Box legen", () => {
+  it("weist die Buchung mit `bereich` ab, ohne eine Zeile zu schreiben", async () => {
+    helferRiegel.mockResolvedValue({
+      ...KAERTCHEN,
+      zugang: { ...KAERTCHEN.zugang, nurEntnahme: true },
+    });
+    const vorher = t.db.select().from(buchungen).all().length;
+
+    const erg = await bucheInEntnahmebox(
+      { fahrzeugId: "fz-1", artikelId: "art-1", menge: 3 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect((erg as { grund: string }).grund).toBe("bereich");
+    expect((erg as { text: string }).text).toBe(BEREICH_TEXT);
+    expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
     expect(revalidiert).toEqual([]);
   });
 });

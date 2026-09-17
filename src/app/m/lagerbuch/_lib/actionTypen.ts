@@ -53,7 +53,27 @@ import type { SperrGrund } from "./helferZugang";
  * `darfErneuern("eingabe")` ist FALSE: eine unvollstaendige Nutzlast wird nicht
  * dadurch vollstaendig, dass jemand die Sitzung erneuert.
  */
-export type HelferGrund = SperrGrund | "leer" | "netz" | "eingabe";
+/**
+ * ⚠️ `"bereich"` — der SECHSTE Wert, DRK-406.
+ *
+ * WARUM ES IHN GIBT. Der Handlager-Code darf ausschliesslich entnehmen; Box und
+ * Check sind fuer ihn zu. Das ist keiner der fuenf vorhandenen Faelle: die
+ * Sitzung ist gueltig, das Kaertchen ist NICHT gesperrt, die Verbindung steht,
+ * die Eingabe ist vollstaendig, und gebucht wurde nichts, weil nichts gebucht
+ * werden durfte.
+ *
+ * ⚠️ NICHT `"gesperrt"` MITBENUTZEN, so naheliegend das waere. Der Satz dort
+ * lautet woertlich „Dieses Kaertchen wurde gesperrt" — fuer einen voll
+ * gueltigen Regal-Code ist das schlicht falsch, und wer ihn liest, meldet der
+ * Verwaltung einen Defekt, den es nicht gibt. Und es haette eine zweite,
+ * teurere Folge: `RIEGEL_TEXTE` ist `Record<SperrGrund, string>`, ein dritter
+ * `SperrGrund` waere also eine Aenderung an `requireHelferSchreibend`,
+ * `CheckFlow` und `Entnahme` fuer einen Zustand, den nur zwei Actions kennen.
+ *
+ * `darfErneuern("bereich")` ist FALSE: derselbe Code erneut eingeloest darf
+ * genauso wenig. Ein Erneuerungsfeld waere eine Schleife.
+ */
+export type HelferGrund = SperrGrund | "leer" | "netz" | "eingabe" | "bereich";
 
 export type HelferErgebnis<T> =
   | { ok: true; wert: T }
@@ -94,6 +114,23 @@ export const RIEGEL_TEXTE: Readonly<Record<SperrGrund, string>> = {
 export const ANMELDUNG_TEXT =
   "Deine Anmeldung ist abgelaufen. Melde dich in einem neuen Tab an und tippe hier erneut — "
   + "deine Eingaben bleiben stehen.";
+
+/**
+ * DER SATZ FUER DEN REGAL-CODE — DRK-406.
+ *
+ * ⚠️ ER SAGT, WAS GEHT, NICHT NUR WAS NICHT GEHT (§11.7: jeder abgelehnte Weg
+ * nennt den Weg, der bleibt). Wer am Regal steht und den Check aufrufen wollte,
+ * hat entweder das falsche Kaertchen in der Hand oder braucht das des
+ * Fahrzeugs — beides ist ein Handgriff, wenn es dasteht, und eine Viertelstunde
+ * Suchen, wenn nicht.
+ *
+ * ⚠️ „AM FAHRZEUG" UND NICHT „AM REGAL": der Ortscode einer Einheit klebt auf
+ * ihrer Karte, nicht im Lager. Ein Satz, der ins Lager schickt, schickt in die
+ * falsche Richtung.
+ */
+export const BEREICH_TEXT =
+  "Mit dem Code vom Regal kannst du nur Material entnehmen. Für Box und Check "
+  + "scanne die Karte am Fahrzeug oder an der Tasche.";
 
 /**
  * `gebucht === 0` ist ausdruecklich ein FEHLER, kein Erfolg (§7.3). Heute gibt

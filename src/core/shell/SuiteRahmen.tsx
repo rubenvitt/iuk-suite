@@ -40,10 +40,31 @@ import s from "./shell.module.css";
 export async function SuiteRahmen({
   moduleKey,
   nav = [],
+  druck = false,
   children,
 }: {
   moduleKey: string;
   nav?: SuiteNavItem[];
+  /**
+   * DIESE FLAECHE WIRD GEDRUCKT — DRK-406.
+   *
+   * Am BILDSCHIRM aendert das nichts: Kopfzeile und Seitenleiste stehen wie
+   * ueberall. Im DRUCK faellt beides weg, dazu die `minHeight` an diesem
+   * `Layout` und die Polsterung am `Content`. Die Regeln stehen in
+   * `shell.module.css` unter „DIE DRUCKVORSCHAU IN DER SHELL"; dort steht auch,
+   * warum sie `!important` brauchen.
+   *
+   * ⚠️ NUR EINE KLASSE, KEIN ZWEITER BAUM. Die Alternative waere gewesen, dem
+   * Druckast eine eigene Rahmenkomponente zu geben — und damit eine zweite
+   * Fassung der Kopfzeile, die die naechste Aenderung nicht mitbekommt. Genau
+   * diesen Fehler beschreibt der Kopf dieser Datei fuer die beiden
+   * Shell-Varianten, die bis 2026-08-13 je ein eigenes Geruest hatten.
+   *
+   * ⚠️ DER VORGABEWERT IST `false`, und er bleibt es. Jede andere Flaeche der
+   * Suite wuerde sonst im Druck ihre Kopfzeile verlieren — unauffaellig, weil
+   * niemand sie druckt, bis es doch jemand tut.
+   */
+  druck?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -58,7 +79,7 @@ export async function SuiteRahmen({
      * das genau die zwei Scrollbalken, von denen mal der eine, mal der andere
      * reagiert. `100dvh` ist die Hoehe, die gerade tatsaechlich sichtbar ist.
      */
-    <Layout style={{ minHeight: "100dvh" }}>
+    <Layout className={druck ? s.druckRahmen : undefined} style={{ minHeight: "100dvh" }}>
       <SuiteHeader moduleKey={moduleKey} nav={nav} />
       <Layout>
         {nav.length > 0 ? (
@@ -66,7 +87,16 @@ export async function SuiteRahmen({
             <Modulleiste nav={nav} />
           </Sider>
         ) : null}
-        <Content style={{ padding: SPACE.lg }}>{children}</Content>
+        {/*
+          ⚠️ `s.druckInhalt` HAENGT IMMER DARAN, nicht nur wenn `druck` gilt.
+          Die Klasse setzt fuer sich genommen NICHTS — sie existiert allein als
+          Angriffspunkt der Druckregel, und die greift nur unterhalb von
+          `.druckRahmen`. Bedingt gesetzt waere sie eine zweite Stelle, an der
+          dieselbe Entscheidung faellt.
+        */}
+        <Content className={s.druckInhalt} style={{ padding: SPACE.lg }}>
+          {children}
+        </Content>
       </Layout>
     </Layout>
   );

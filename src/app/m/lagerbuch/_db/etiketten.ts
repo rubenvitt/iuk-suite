@@ -4,8 +4,8 @@ import { moduleUrl } from "@/core/shell/moduleUrl";
 import {
   HANDLAGER_ID, einheitLabels, einheitMeta, standortMeta, type Einheitenart,
 } from "../_lib/konstanten";
-import { kaertchenFuehrtInsHandlager } from "../_lib/ortZiel";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
+import { stelleOrtCodesSicher } from "../_lib/schreibpfade/ortCodes";
 import type { DB } from "./client";
 import { artikel, tokens } from "./schema";
 
@@ -35,14 +35,21 @@ export class EtikettenBasisFehlt extends Error {
 }
 
 export type ArtikelEtikett = { id: string; name: string; fach: string; url: string; qr: string };
-export type TokenEtikett = { code: string; label: string; url: string; qr: string };
+/**
+ * ⚠️ NUR NOCH ARTIKEL — DRK-406. Bis hierher druckte dieser Bogen auch
+ * KAERTCHEN-Karten (`TokenEtikett`, je ein Zugangs-Code auf Klebematerial).
+ * Die sind ersatzlos entfallen, und zwar nicht aus Aufraeumlust: ein Code
+ * gehoert seit diesem Ticket IMMER zu einem Ort und steht auf dessen Ortskarte
+ * (`ortEtikettenDaten`). Ein zweiter Druckweg fuer denselben Code haette zwei
+ * Papierformen fuer eine Sache ergeben — und die Frage „welches Etikett gilt?"
+ * beantwortet man am Regal nicht.
+ */
 export type EtikettenDaten = {
   /** Die tatsaechlich verwendete Basis. Die Seite schreibt sie ueber den Bogen
    *  (Klasse `lb-nichtDrucken`) — der EINZIGE Weg, eine Umsortierung von
    *  SUITE_HOST_LAGERBUCH vor dem Papier zu bemerken (§8.1, 8-B). */
   basis: string;
   artikel: ArtikelEtikett[];
-  tokens: TokenEtikett[];
 };
 
 /**
@@ -77,31 +84,20 @@ export async function etikettenDaten(db: DB): Promise<EtikettenDaten> {
   // unter /a/<id> weiterhin bebuchbar, aber nie wieder nachdruckbar (Falle 26) —
   // die Luecke ist bewusst uebernommen und steht als R32 im Runbook.
   const arts = db.select().from(artikel).where(eq(artikel.aktiv, true)).all();
-  const toks = db.select().from(tokens).where(eq(tokens.aktiv, true)).all();
 
   /**
    * EIN Promise.all, keine Schleife mit vergessenem `await`: `qrSvg` ist async
    * (core/qr/index.ts:37-40), und ein fehlendes `await` ergaebe hier keine
    * Fehlermeldung, sondern `[object Promise]` als Markup (8-I, Punkt 1).
    */
-  const [artikelEtiketten, tokenEtiketten] = await Promise.all([
-    Promise.all(
-      arts.map(async (a) => {
-        const url = `${basis}/a/${a.id}`;
-        return { id: a.id, name: a.name, fach: a.fach, url, qr: await qrSvg(url) };
-      }),
-    ),
-    Promise.all(
-      toks.map(async (t) => {
-        // Der Bindestrich ist Teil des gespeicherten Wertes (§4.7) und wandert
-        // ungefiltert in die Pixel.
-        const url = `${basis}/t/${t.code}`;
-        return { code: t.code, label: t.label, url, qr: await qrSvg(url) };
-      }),
-    ),
-  ]);
+  const artikelEtiketten = await Promise.all(
+    arts.map(async (a) => {
+      const url = `${basis}/a/${a.id}`;
+      return { id: a.id, name: a.name, fach: a.fach, url, qr: await qrSvg(url) };
+    }),
+  );
 
-  return { basis, artikel: artikelEtiketten, tokens: tokenEtiketten };
+  return { basis, artikel: artikelEtiketten };
 }
 
 /**
@@ -133,40 +129,39 @@ export type OrtEtikett = {
   url: string;
   qr: string;
   /**
-   * DIE HANDLAGER-KARTE IST DIE EINZIGE, DIE EIN KAERTCHEN TRAGEN DARF —
-   * DRK-395, und deshalb sagt es der SERVER statt der Insel.
+   * DER ZUGANGS-CODE DIESER KARTE — DRK-406. `null` heisst: fuer diesen Ort gibt
+   * es heute keinen (die Ziehung war erschoepft), und die Karte faellt auf ihre
+   * Ortsadresse zurueck.
    *
-   * ⚠️ NICHT ALS `id === HANDLAGER_ID` IN DER INSEL NACHGERECHNET. Die Insel
-   * kennt sonst eine Kennung aus der Datenbank, und die Frage „welche Karte ist
-   * das Regal?" haette zwei Antworten — eine hier und eine dort. Die zweite
-   * zieht beim naechsten Umbau niemand mit.
+   * ⚠️ DER RUECKFALL IST LAUT, NICHT STILL: eine Karte ohne Code traegt
+   * `/o/<id>`, und ein Scan verlangt dann eine Anmeldung. Das ist unbequem und
+   * richtig — eine Karte, die gar nichts traegt, waere unbrauchbar, und eine,
+   * die einen fremden Code traegt, waere gefaehrlich.
    *
-   * ⚠️ UND ES IST BEWUSST NUR DER HANDLAGER. Ein Kaertchen auf der
-   * FAHRZEUG-Karte oeffnete den Check dieses Fahrzeugs fuer jeden, der die
-   * Karte abfotografiert; am Regal ist die Entnahme genau das, was dort ohnehin
-   * jeder mit einem laminierten Kaertchen tut. Wer das ausweitet, weitet die
-   * Betreiberentscheidung mit aus.
+   * ⚠️ DIESE KARTE TRAEGT EINEN ZUGANG. Bis DRK-406 galt das nur fuer den
+   * Handlager (DRK-395), mit der Begruendung, ein Code auf der FAHRZEUG-Karte
+   * oeffne den Check dieses Fahrzeugs fuer jeden, der die Karte abfotografiert.
+   * Die Betreiberentscheidung vom 17.09.2026 hebt das auf: jede Einheit
+   * bekommt ihren eigenen Code, und der Ausgleich ist das ZURUECKSETZEN
+   * einzelner Codes, das es damals noch nicht gab. Wer das rueckgaengig macht,
+   * nimmt nicht eine Zeile zurueck, sondern eine Entscheidung.
    */
-  istHandlager: boolean;
+  code: string | null;
 };
-
-/**
- * EIN ZUGANGS-KAERTCHEN, WIE ES AUF DIE HANDLAGER-KARTE PASST — DRK-395.
- *
- * Es traegt DENSELBEN Code wie die Kaertchen-Karte auf dem Etikettenbogen
- * nebenan; neu ist allein, dass er auch auf die Ortskarte darf.
- */
-export type KaertchenEtikett = { code: string; label: string; url: string; qr: string };
 
 export type OrtEtikettenDaten = {
   basis: string;
   orte: OrtEtikett[];
   /**
-   * DIE WAHL, DIE DIE DRUCKENDE PERSON HAT — leer, wenn es kein passendes
-   * Kaertchen gibt. Die Insel bietet sie an; gewaehlt wird beim Drucken, nicht
-   * hier.
+   * WIE VIELE CODES BEIM OEFFNEN DIESER SEITE NEU ENTSTANDEN SIND — DRK-406.
+   * Null ist der Normalfall; die Insel sagt es nur, wenn es etwas zu sagen gibt.
+   *
+   * ⚠️ DIE ZAHL STEHT AM SCHIRM, WEIL DIE SEITE SONST STILL SCHREIBT. Ein GET,
+   * der ungefragt Datenbankzeilen anlegt, ist vertretbar, solange er es sagt —
+   * und wer gerade eine neue Tasche angelegt hat, will genau das lesen, bevor
+   * er druckt.
    */
-  kaertchen: KaertchenEtikett[];
+  neueCodes: number;
 };
 
 /**
@@ -183,15 +178,14 @@ export type OrtEtikettenDaten = {
  * (`istAktivesFahrzeug`), sein Etikett fuehrte also in eine Fahrzeugwahl ohne
  * dieses Fahrzeug. Nicht nachdruckbar ist hier das Richtige.
  */
-export async function ortEtikettenDaten(db: DB): Promise<OrtEtikettenDaten> {
+export async function ortEtikettenDaten(
+  db: DB,
+  ausstellerSub: string,
+  ausstellerName: string | null,
+): Promise<OrtEtikettenDaten> {
   const basis = etikettenBasis();
   const zeilen = etikettOrte(db);
 
-  /**
-   * EIN Promise.all, keine Schleife mit vergessenem `await` — dieselbe Falle
-   * wie oben (8-I, Punkt 1): `qrSvg` ist async, und ein fehlendes `await`
-   * ergaebe `[object Promise]` als Markup statt einer Fehlermeldung.
-   */
   /**
    * ⚠️ ZWEI EINHEITEN DUERFEN GLEICH HEISSEN, UND AUF PAPIER IST DAS TEUER
    * (Codex-Befund zu PR #177): zwei aktive Taschen „Betreuung" ohne Kennung
@@ -242,47 +236,62 @@ export async function ortEtikettenDaten(db: DB): Promise<OrtEtikettenDaten> {
     o.typ === "fahrzeug" && beschriftung.get(o.id)?.meta !== einheitMeta(o);
 
   /**
-   * DIE KAERTCHEN, DIE AUF DIE HANDLAGER-KARTE DUERFEN — DRK-395.
+   * DIE CODES — DRK-406, und sie werden HIER NACHGEZOGEN, nicht nur gelesen.
    *
-   * ⚠️ NUR AKTIVE, und hier ist das mehr als Aufraeumen: ein gesperrter Code
-   * ist gesperrt, WEIL ein laminiertes Kaertchen verschwunden ist
-   * (`_db/schema.ts`, `tokens.aktiv`). Ihn auf die Karte zu drucken hiesse, ihn
-   * auf Papier wieder auszugeben.
+   * ⚠️ EIN GET, DER SCHREIBT, UND DAS IST DIE BETREIBERENTSCHEIDUNG VOM
+   * 17.09.2026. Die Zusage lautet „jede Karte traegt einen Code"; haengt ihre
+   * Erfuellung an einem Knopf, ist sie auf Papier keine Zusage, sondern eine
+   * Absicht. `stelleOrtCodesSicher` ist idempotent und rein additiv — ein
+   * Reload, ein doppeltes Rendern, zwei gleichzeitige Aufrufe aendern nichts;
+   * der Teilindex `idx_tokens_ort_aktiv` ist der Riegel darunter.
    *
-   * ⚠️ UND NUR SOLCHE, DIE AUF DER ARTIKELLISTE LANDEN — ueber
-   * `kaertchenFuehrtInsHandlager`, also ueber DIESELBE Funktion, die den
-   * gescannten Code weiterleitet. Die Begruendung steht dort; kurz: ein
-   * Kaertchen mit Fahrzeugziel ergaebe am Regal ein Etikett, das den Check
-   * eines Fahrzeugs oeffnet.
-   *
-   * Nach der BEZEICHNUNG sortiert, mit `de` — das ist die Angabe, an der die
-   * druckende Person waehlt, und `localeCompare` ohne Sprache sortiert „Ü"
-   * hinter „Z".
+   * ⚠️ DER AUSSTELLER IST DIE PERSON, DIE DIE SEITE OEFFNET. Die Seite hat
+   * `requireLagerbuchAdmin()` hinter sich und reicht den Viewer herein; ein
+   * System-Akteur waere hier eine Luege, denn ohne diesen Seitenaufruf waere
+   * keine Zeile entstanden.
    */
-  const kaertchenZeilen = db.select().from(tokens).where(eq(tokens.aktiv, true)).all()
-    .filter((t) => kaertchenFuehrtInsHandlager(t.zielTyp, t.zielId))
-    .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  const neueCodes = stelleOrtCodesSicher(db, ausstellerSub, ausstellerName);
 
-  const [orte, kaertchen] = await Promise.all([
-    Promise.all(zeilen.map(async (o) => {
-      const url = `${basis}/o/${o.id}`;
-      return {
-        id: o.id,
-        name: o.name,
-        meta: standortMeta(o),
-        unterscheidung: kollidiert(o) ? o.id : null,
-        url,
-        qr: await qrSvg(url),
-        istHandlager: o.id === HANDLAGER_ID,
-      };
-    })),
-    Promise.all(kaertchenZeilen.map(async (t) => {
-      // Der Bindestrich ist Teil des gespeicherten Wertes (§4.7) und wandert
-      // ungefiltert in die Pixel — dieselbe Zeile wie am Etikettenbogen.
-      const url = `${basis}/t/${t.code}`;
-      return { code: t.code, label: t.label, url, qr: await qrSvg(url) };
-    })),
-  ]);
+  /**
+   * ⚠️ EINE ABFRAGE FUER ALLE ORTE, kein `aktiverOrtCode` je Karte in der
+   * Schleife. Bei zwanzig Einheiten waeren das zwanzig Abfragen fuer eine
+   * Zuordnung, die in eine Map passt — und die Schleife darunter ist ohnehin
+   * schon durch `qrSvg` teuer.
+   */
+  const codeJeOrt = new Map(
+    db.select({ ortId: tokens.ortId, code: tokens.code })
+      .from(tokens)
+      .where(eq(tokens.aktiv, true))
+      .all()
+      .filter((t): t is { ortId: string; code: string } => t.ortId !== null)
+      .map((t) => [t.ortId, t.code] as const),
+  );
 
-  return { basis, orte, kaertchen };
+  /**
+   * EIN Promise.all, keine Schleife mit vergessenem `await` — dieselbe Falle
+   * wie oben (8-I, Punkt 1): `qrSvg` ist async, und ein fehlendes `await`
+   * ergaebe `[object Promise]` als Markup statt einer Fehlermeldung.
+   */
+  const orte = await Promise.all(zeilen.map(async (o) => {
+    const code = codeJeOrt.get(o.id) ?? null;
+    /*
+     * ⚠️ QR UND FUSSZEILE LESEN DIESELBE VARIABLE. Ein zweites `code ? … : …`
+     * weiter unten in der Insel koennte auseinanderlaufen, und das Ergebnis
+     * waere die teuerste Karte ueberhaupt: ein QR auf den Zugang, darunter die
+     * abtippbare Adresse auf etwas anderes. Deshalb entsteht die Adresse HIER,
+     * einmal, aus derselben Entscheidung wie der QR.
+     */
+    const url = code ? `${basis}/t/${code}` : `${basis}/o/${o.id}`;
+    return {
+      id: o.id,
+      name: o.name,
+      meta: standortMeta(o),
+      unterscheidung: kollidiert(o) ? o.id : null,
+      url,
+      qr: await qrSvg(url),
+      code,
+    };
+  }));
+
+  return { basis, orte, neueCodes };
 }

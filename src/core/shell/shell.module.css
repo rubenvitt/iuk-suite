@@ -782,3 +782,59 @@
     inline-size: 320px;
   }
 }
+
+/*
+ * ═══ DIE DRUCKVORSCHAU IN DER SHELL — DRK-406 ═════════════════════════════
+ *
+ * Eine Druckfläche, die am BILDSCHIRM Kopfzeile und Modulnavigation trägt und
+ * im DRUCK nichts davon. Bis DRK-406 gab es diesen Zustand nicht: eine
+ * Druckfläche ließ die Shell ganz weg (`lagerbuch/verwaltung/(druck)`,
+ * `feedback/(print)`, `radio/admin/(druck)`) und war damit am Bildschirm eine
+ * Sackgasse ohne Navigation.
+ *
+ * ⚠️ ZWEI DINGE MÜSSEN WEG, UND NUR EINES DAVON IST SICHTBAR. Das Chrome
+ * (Kopfzeile, Seitenleiste) ist das offensichtliche. Das zweite ist
+ * `minHeight: 100dvh` am äußeren `Layout` und die Polsterung am `Content`:
+ * beides sind INLINE-Styles aus `SuiteRahmen.tsx`, sie überleben jede
+ * Selektorregel — und `minHeight` erzeugt im Druck eine leere Folgeseite hinter
+ * dem Bogen. Genau dieser Ausfall steht im Kopf von `lagerbuch`s `druck.css`
+ * als Grund dafür, dass es die Shell dort GAR NICHT gab.
+ *
+ * ⚠️ DESHALB `!important`, und hier ist es die Regel und nicht die Ausnahme:
+ * React kann `!important` in einem Style-Objekt nicht ausdrücken (das CSSOM
+ * verwirft es), ein Inline-Style schlägt also jede gewöhnliche Regel. Dieselbe
+ * Begründung trägt `lb-nichtDrucken` in `lagerbuch/verwaltung/(druck)/druck.css`
+ * (RULING A14).
+ *
+ * ⚠️ UND ES IST EIN CSS-MODUL, KEINE REGEL AUF `.ant-*`. Die Klassen hier sind
+ * gehasht und werden über `s.x` gesetzt; eine Regel gegen `.ant-layout` wäre
+ * die Kopplung an einen antd-internen Klassennamen, die ein Major still bricht
+ * (Falle 20, gemessen an `.ant-select-selector`). Die Selektoren stehen
+ * absichtlich alle in DIESER Datei, damit sie gemeinsam gehasht werden.
+ *
+ * ⚠️ WAS `display: none` FÜR DEN DRUCK BEDEUTET, ist der eigentliche Grund,
+ * warum das überhaupt geht: was so wegfällt, zählt für Chromiums
+ * Seitengrößen-Entscheidung NICHT mit (CLAUDE.md, Falle 18 — gemischte
+ * Seitengrößen in einem Dokument ergeben sonst Letter für alles). Das Chrome
+ * ist damit unschädlich, solange es diese Klasse trägt.
+ */
+@media print {
+  .druckRahmen {
+    min-height: 0 !important;
+  }
+
+  .druckRahmen .kopfBlock,
+  .druckRahmen .sider {
+    display: none !important;
+  }
+
+  /*
+   * Die Polsterung gehört dem Bildschirm. Auf dem Papier setzt `@page` den
+   * Rand, und eine zusätzliche Innenpolsterung verschöbe jedes Raster, das
+   * gegen die Blattbreite gemessen ist — bei den Ortskarten sind das acht
+   * Karten je A4-Blatt auf 4mm Rand.
+   */
+  .druckRahmen .druckInhalt {
+    padding: 0 !important;
+  }
+}

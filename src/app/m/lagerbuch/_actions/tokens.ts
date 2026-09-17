@@ -1,167 +1,46 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { and, eq } from "drizzle-orm";
-import { customAlphabet } from "nanoid";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
-import { artikel, lagerorte, newId, tokens } from "../_db/schema";
-import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
-import {
-  TOKEN_ALPHABET,
-  TOKEN_ZIEHUNGEN,
-  TOKEN_ZIFFERN,
-} from "../_lib/tokenForm";
+import { tokens } from "../_db/schema";
+import { type ActionErgebnis } from "../_lib/actionErgebnis";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
-const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
-const CODE_FEHLER =
-  "Es konnte kein freier Code erzeugt werden — bitte erneut versuchen.";
-const ANLEGEN_FEHLER = "Zugangs-Code konnte nicht angelegt werden.";
-const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
-/*
- * ⚠️ NEUTRAL, UND HIER IST NEUTRAL DIE EINZIGE EHRLICHE FORM (DRK-309,
- * Reviewrunde 12). Sonst gilt in diesem PR: wo die Art bekannt ist, steht sie
- * auch da. Bekannt ist sie aus der Zeile — und dieser Satz faellt genau dann,
- * wenn es die Zeile NICHT (mehr) gibt oder sie stillgelegt wurde. Die Wahl
- * daneben bietet Fahrzeuge UND Taschen an; „Fahrzeug nicht gefunden" waere
- * dann eine Behauptung ueber etwas, das die Abfrage gerade nicht gefunden hat.
- */
-const ZIEL_FEHLER = "Einheit nicht gefunden oder inaktiv.";
-const ARTIKEL_FEHLER = "Artikel nicht gefunden oder inaktiv.";
-
 /**
- * §8.3 — DER TOKEN-VERTRAG. Alphabet, Laenge und Ziehungszahl stehen seit T160
- * benannt in `_lib/tokenForm.ts` und werden hier nur noch BENUTZT. Sie stehen
- * nicht in dieser Datei, weil eine `"use server"`-Datei ausschliesslich Actions
- * exportiert (T126 hat das so uebergeben; der Bauform-Scan in
- * `_actions/guards.test.ts` — Zusicherung „kennt an einem Zeilenanfang mit
- * `export` NUR die eine Action-Bauform und Typ-Exporte" — meldet jede andere
- * Form).
+ * SPERREN UND REAKTIVIEREN — seit DRK-406 das EINZIGE, was diese Datei noch
+ * kann.
  *
- * Der Bindestrich ist Teil des gespeicherten Werts. `normalisiereCode` fuegt
- * ihn beim Einloesen derselben sechs Ziffern wieder ein.
+ * ⚠️ `createToken` IST ERSATZLOS ENTFALLEN, und dass die Action MIT dem Knopf
+ * verschwindet, ist der Punkt: eine `"use server"`-Datei macht aus jedem Export
+ * einen global aufrufbaren Endpunkt. Nur den Dialog wegzunehmen hätte die
+ * Oberfläche aufgeräumt und die Fähigkeit stehen lassen — Codes von Hand
+ * anzulegen wäre weiter möglich gewesen, nur nicht mehr sichtbar. Ein Code
+ * entsteht ab jetzt ausschließlich als ORTSCODE
+ * (`_lib/schreibpfade/ortCodes.ts`), also immer mit einer Karte, an der er
+ * klebt.
+ *
+ * ⚠️ DIE ZIEHUNG IST MIT UMGEZOGEN, NICHT KOPIERT. `erzeugeFreienCode` stand
+ * hier als modulprivate Funktion; sie steht jetzt in jenem Schreibpfad und
+ * nirgends sonst. Zwei Ziehungen für denselben Namensraum wären zwei Zufälle
+ * und zwei Kollisionsbehandlungen — und das fiele erst auf, wenn zwei Karten
+ * denselben Code trügen.
+ *
+ * ⚠️ WAS BLEIBT, IST DER WIDERRUF FÜR ALLES. `setTokenAktiv` gilt für
+ * Ortscodes UND für den Altbestand (Betreiberentscheidung 17.09.2026: von Hand
+ * angelegte Kärtchen bleiben gültig und sperrbar). Ein Riegel, der nur noch
+ * Ortscodes sperren ließe, nähme der Betreiberin genau den Griff, den sie
+ * braucht, wenn ein altes laminiertes Kärtchen verschwindet.
  */
-const sechsZiffern = customAlphabet(TOKEN_ALPHABET, TOKEN_ZIFFERN);
-
-/**
- * ENTSCHEIDUNG 8-F: Die Kollisionspruefung laeuft gegen ALLE vorhandenen
- * Zeilen, ohne `aktiv`-Bedingung — und das war schon immer so. Loechrig war sie
- * nur, weil Zeilen per Hard-Delete verschwinden konnten. Mit dem Wegfall des
- * Token-Hard-Deletes (`_actions/loeschen.ts`) schliesst sich die Luecke OHNE
- * eine Zeile hier: kein neuer Wurf, keine geaenderte Signatur, derselbe
- * Nullpfad. Eine `verbrauchte_codes`-Tabelle (Option b der Analyse) waere
- * teurer ohne Zusatznutzen.
- */
-function erzeugeFreienCode(db: DB): string | null {
-  for (let versuch = 0; versuch < TOKEN_ZIEHUNGEN; versuch++) {
-    const ziffern = sechsZiffern();
-    const code = `${ziffern.slice(0, 3)}-${ziffern.slice(3)}`;
-    const belegt = db.select({ id: tokens.id })
-      .from(tokens)
-      .where(eq(tokens.code, code))
-      .get();
-    if (!belegt) return code;
-  }
-  return null;
-}
-
-const CreateSchema = z.object({
-  label: z.string().trim().min(1, "Bezeichnung erforderlich"),
-  zielTyp: z.enum(["fahrzeug", "artikel"]).optional(),
-  zielId: z.string().min(1).optional(),
-}).refine(
-  (wert) => (wert.zielTyp ? Boolean(wert.zielId) : !wert.zielId),
-  { message: "Ziel unvollständig", path: ["zielId"] },
-);
+const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
+const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
 
 const AktivSchema = z.object({
   id: z.string().min(1),
   aktiv: z.boolean(),
 });
-
-type FehlerErgebnis = Extract<ActionErgebnis, { ok: false }>;
-
-function festerFehler(fehler: string): FehlerErgebnis {
-  return { ok: false, fehler };
-}
-
-function validierungsFehler(e: unknown): FehlerErgebnis {
-  const feldFehler = zodFehler(e);
-  return {
-    ok: false,
-    fehler: "Bitte die markierten Felder prüfen.",
-    ...(feldFehler ? { feldFehler } : {}),
-  };
-}
-
-function zielFehler(fehler: string): FehlerErgebnis {
-  return {
-    ok: false,
-    fehler,
-    feldFehler: { zielId: fehler },
-  };
-}
-
-export async function createToken(
-  eingabe: unknown,
-  db: DB = getDb(),
-): Promise<ActionErgebnis<{ id: string; code: string }>> {
-  const viewer = await requireLagerbuchAdmin();
-  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<ActionErgebnis<{ id: string; code: string }>> => {
-
-    const geparst = CreateSchema.safeParse(eingabe);
-    if (!geparst.success) return validierungsFehler(geparst.error);
-    const v = geparst.data;
-    let angelegt: { id: string; code: string } | undefined;
-
-    try {
-      if (v.zielTyp === "fahrzeug") {
-        const fahrzeug = db.select({ id: lagerorte.id })
-          .from(lagerorte)
-          .where(and(
-            eq(lagerorte.id, v.zielId!),
-            eq(lagerorte.typ, "fahrzeug"),
-            eq(lagerorte.aktiv, true),
-          )!)
-          .get();
-        if (!fahrzeug) return zielFehler(ZIEL_FEHLER);
-      } else if (v.zielTyp === "artikel") {
-        const zielArtikel = db.select({ id: artikel.id })
-          .from(artikel)
-          .where(and(
-            eq(artikel.id, v.zielId!),
-            eq(artikel.aktiv, true),
-          )!)
-          .get();
-        if (!zielArtikel) return zielFehler(ARTIKEL_FEHLER);
-      }
-
-      const code = erzeugeFreienCode(db);
-      if (!code) return festerFehler(CODE_FEHLER);
-
-      const id = newId();
-      db.insert(tokens).values({
-        id,
-        code,
-        label: v.label,
-        zielTyp: v.zielTyp ?? null,
-        zielId: v.zielTyp ? v.zielId! : null,
-        aktiv: true,
-        createdAt: new Date(),
-        createdBy: viewer.sub,
-      }).run();
-      angelegt = { id, code };
-    } catch {
-      return festerFehler(ANLEGEN_FEHLER);
-    }
-
-    if (!angelegt) return festerFehler(ANLEGEN_FEHLER);
-    revalidatePath(LISTENPFAD);
-    return { ok: true, wert: angelegt };
-  });
-}
 
 export async function setTokenAktiv(
   eingabe: unknown,
@@ -171,7 +50,7 @@ export async function setTokenAktiv(
   return withAuditContext({ actor: auditActor(auditViewer) }, async (): Promise<ActionErgebnis> => {
 
     const geparst = AktivSchema.safeParse(eingabe);
-    if (!geparst.success) return festerFehler("Ungültige Eingabe.");
+    if (!geparst.success) return { ok: false, fehler: "Ungültige Eingabe." };
 
     try {
       db.update(tokens)
@@ -179,7 +58,7 @@ export async function setTokenAktiv(
         .where(eq(tokens.id, geparst.data.id))
         .run();
     } catch {
-      return festerFehler(STATUS_FEHLER);
+      return { ok: false, fehler: STATUS_FEHLER };
     }
 
     revalidatePath(LISTENPFAD);

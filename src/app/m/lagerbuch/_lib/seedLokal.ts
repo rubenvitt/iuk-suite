@@ -155,6 +155,27 @@ const CODE_HELFER = "100-100";
 const CODE_RTW = "200-200";
 const CODE_ARTIKEL = "300-300";
 const CODE_GESPERRT = "900-900";
+/*
+ * DIE ORTSCODES — DRK-406. Feste Werte, wie alle Seed-Codes: sie stehen im
+ * Protokoll und auf laminierten Karten.
+ *
+ * ⚠️ SIE WERDEN HIER GESEEDET, obwohl die Ortsetiketten-Seite sie ohnehin
+ * nachzieht. Der Grund ist die VERWALTUNGSLISTE: ohne sie zeigte
+ * `/verwaltung/tokens` lokal ausschliesslich Altbestand — also genau die Form,
+ * die dieses Ticket abgeloest hat —, und die neuen Griffe („Neu erzeugen", der
+ * Ortsfilter) haetten keine einzige Zeile zum Ausprobieren. Man saehe sie erst,
+ * nachdem man zufaellig die Etikettenseite geoeffnet hat.
+ *
+ * ⚠️ NICHT FUER ALLE EINHEITEN. `RUCKSACK_OFFEN` bleibt bewusst ohne Code: er
+ * ist die Einheit, an der sich der NACHZUG ausprobieren laesst — wer die
+ * Ortsetiketten oeffnet, sieht dort den Satz „ein neuer Zugangs-Code ist
+ * entstanden" und danach die Karte damit.
+ */
+const CODE_ORT_HANDLAGER = "110-110";
+const CODE_ORT_RTW = "220-220";
+const CODE_ORT_KTW = "330-330";
+const CODE_ORT_MTW = "440-440";
+const CODE_ORT_TASCHE = "550-550";
 
 const A = {
   kompresse: "art-kompresse-10x10",
@@ -1007,7 +1028,26 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
   ].filter((t) => !tkDa.has(t.id));
   for (const t of tokenListe) {
     db.insert(tokens).values({
-      ...t, scopeLagerortId: null, createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
+      ...t, ortId: null, scopeLagerortId: null, createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
+    }).run();
+  }
+
+  /* 17b ── Die ORTSCODES (DRK-406): je ein Code fuer den Handlager und vier der
+   *        fuenf Einheiten. `ziel_typ`/`ziel_id` folgen der Zeile — der
+   *        Handlager landet auf der Artikelliste und hat deshalb KEIN Ziel,
+   *        eine Einheit fuehrt in ihren Check. Die Begruendung steht an
+   *        `zielSpalten` (`_lib/schreibpfade/ortCodes.ts`). */
+  const ortCodeListe = [
+    { id: "ortcode-handlager", code: CODE_ORT_HANDLAGER, label: "Handlager", ortId: HANDLAGER_ID, zielTyp: null, zielId: null },
+    { id: "ortcode-rtw1", code: CODE_ORT_RTW, label: "RTW 1", ortId: RTW, zielTyp: "fahrzeug" as const, zielId: RTW },
+    { id: "ortcode-ktw1", code: CODE_ORT_KTW, label: "KTW 1", ortId: KTW, zielTyp: "fahrzeug" as const, zielId: KTW },
+    { id: "ortcode-mtw1", code: CODE_ORT_MTW, label: "MTW 1", ortId: MTW, zielTyp: "fahrzeug" as const, zielId: MTW },
+    { id: "ortcode-tasche", code: CODE_ORT_TASCHE, label: "Sanitätstasche 1", ortId: TASCHE_SAN, zielTyp: "fahrzeug" as const, zielId: TASCHE_SAN },
+  ].filter((t) => !tkDa.has(t.id));
+  for (const t of ortCodeListe) {
+    db.insert(tokens).values({
+      ...t, aktiv: true, lastUsedAt: null, scopeLagerortId: null,
+      createdAt: vor(jetzt, 90), createdBy: SEED_SUB,
     }).run();
   }
 
@@ -1021,7 +1061,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
       `KTW +${syncKtw.hinzugefuegt}/~${syncKtw.aktualisiert}, MTW ${spListe.length} manuell neu.`,
     `Ausstattung: ${geraeteListe.length} Geräte, ${bzListe.length} BZ-Geräte, ` +
       `${bzkListe.length} BZ-Kontrollen, ${flaschenListe.length} O₂-Flaschen, ` +
-      `${messungenListe.length} O₂-Messungen, ${tokenListe.length} Zugangs-Codes neu.`,
+      `${messungenListe.length} O₂-Messungen, ${tokenListe.length} Zugangs-Codes und ` +
+      `${ortCodeListe.length} Ortscodes neu.`,
     "",
     "Verfallsampel — belegte Stufen:",
     `  abgelaufen  Chargen mit Verfall ${m.abgelaufen} (Kompressen, Handlager)`,
@@ -1055,10 +1096,20 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${CODE_ARTIKEL}  Regaletikett Kompressen → Artikel-Detail`,
     `  ${CODE_GESPERRT}  gesperrt (aktiv = false) — muss abgewiesen werden`,
     "",
+    "Ortscodes (DRK-406) — jede Ortskarte trägt genau einen:",
+    `  ${CODE_ORT_HANDLAGER}  Handlager → Entnahme, OHNE Box und OHNE Check`,
+    `  ${CODE_ORT_RTW}  RTW 1 → Check, volle Reichweite`,
+    `  ${CODE_ORT_KTW}  KTW 1`,
+    `  ${CODE_ORT_MTW}  MTW 1`,
+    `  ${CODE_ORT_TASCHE}  Sanitätstasche 1`,
+    "  Rucksack Betreuung hat BEWUSST keinen — beim Öffnen der Ortsetiketten",
+    "  entsteht er, und die Seite sagt es.",
+    "",
     "Lokale Adressen (äußere Pfadform auf dem Modul-Host):",
     `  ${BASIS_URL}/                      Gate (Code eintippen)`,
     `  ${BASIS_URL}/t/${CODE_HELFER}               Code einlösen (QR-Weg)`,
     `  ${BASIS_URL}/t/${CODE_RTW}               Code einlösen → RTW-Check`,
+    `  ${BASIS_URL}/t/${CODE_ORT_HANDLAGER}               Regal-Code — nur Entnahme, kein Box-/Check-Reiter`,
     `  ${BASIS_URL}/a/${A.kompresse}   Artikel-Detail`,
     `  ${BASIS_URL}/helfer                Helfer-Startseite (nach Einlösung)`,
     `  ${BASIS_URL}/verwaltung            Übersicht mit Kennzahlen`,
@@ -1075,8 +1126,8 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     `  ${BASIS_URL}/verwaltung/inventur`,
     `  ${BASIS_URL}/verwaltung/journal`,
     `  ${BASIS_URL}/verwaltung/tokens`,
-    `  ${BASIS_URL}/verwaltung/etiketten          Bogen mit QR und Klartext-Codes`,
-    `  ${BASIS_URL}/verwaltung/ortsetiketten      QR-Karte je Handlager und Einheit, 8 je A4-Blatt`,
+    `  ${BASIS_URL}/verwaltung/etiketten          Artikeletiketten — Bogen je Regalfach`,
+    `  ${BASIS_URL}/verwaltung/ortsetiketten      Ortskarte je Handlager und Einheit MIT Code, 8 je A4-Blatt`,
     `  ${BASIS_URL}/o/${HANDLAGER_ID}                    Ortsetikett → Artikelliste`,
     `  ${BASIS_URL}/g/4012345678901               Geraete-Barcode → Geraete-Detail`,
     `  ${BASIS_URL}/g/4015630000018               Geraete-Barcode → BZ-Detail`,

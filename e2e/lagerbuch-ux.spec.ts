@@ -58,8 +58,29 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
     await expect(page.getByTestId("lb-chrome")).toBeVisible();
     await expect(page.getByTestId("lb-basis")).toBeVisible();
 
+    /*
+     * DIE SUITE-SHELL STEHT SEIT DRK-406 AM BILDSCHIRM MIT DABEI. Bis dahin
+     * liess `(druck)/layout.tsx` sie ganz weg, und die Druckflaeche war ohne
+     * Navigation — eine Sackgasse, aus der nur ein Textlink herausfuehrte.
+     */
+    await expect(page.getByTestId("suite-header")).toBeVisible();
+
     await page.emulateMedia({ media: "print" });
     await expect(page.getByTestId("lb-chrome")).toBeHidden();
+    /*
+     * ⚠️ UND DIE SHELL MUSS IM DRUCK VERSCHWINDEN — das ist die Bedingung, unter
+     * der sie ueberhaupt dabei sein darf. Zwei Gruende, und der zweite ist der
+     * teurere: die Kopfzeile stuende sonst auf dem Etikettenmaterial, UND ihr
+     * `minHeight: 100dvh` erzeugte eine leere Folgeseite hinter dem Bogen.
+     * Genau dieser zweite Ausfall ist der Grund, aus dem die Shell hier
+     * jahrelang gar nicht erst stand (`(druck)/druck.css`, Kopfkommentar).
+     *
+     * ⚠️ `display: none` IST DABEI NICHT NUR KOSMETIK: was so wegfaellt, zaehlt
+     * fuer Chromiums Seitengroessen-Entscheidung nicht mit (Falle 18 — gemischte
+     * Seitengroessen in einem Dokument ergeben Letter fuer ALLES). Bliebe die
+     * Kopfzeile stehen, kaemen die Ortskarten nebenan im falschen Format heraus.
+     */
+    await expect(page.getByTestId("suite-header")).toBeHidden();
 
     // Der Bogen selbst bleibt — er ist der Zweck der Seite.
     await expect(page.locator(".lb-etikettbogen")).toBeVisible();

@@ -7,7 +7,7 @@ import {
   o2Flaschen, o2Messungen, checks, lagerortVerfall,
 } from "../_db/schema";
 import { CHECK_ABGLEICH, HANDLAGER_ID } from "../_lib/konstanten";
-import { RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
+import { BEREICH_TEXT, RIEGEL_TEXTE, darfErneuern } from "../_lib/actionTypen";
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 
 /**
@@ -120,6 +120,9 @@ const ZUGANG_OK = {
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
     fahrzeugBindung: null,
+    // DRK-406: ein Fahrzeug-Ortscode darf checken. Der REGAL-Code nicht — die
+    // Zusicherung dazu steht am Ende dieser Datei.
+    nurEntnahme: false,
   },
 };
 
@@ -918,3 +921,67 @@ describe("DRK-305 — der angemeldete Check schreibt als PERSON", () => {
   });
 });
 
+
+/**
+ * DER REGAL-CODE KOMMT NICHT IN DEN CHECK — DRK-406.
+ *
+ * ⚠️ GEMESSEN AM ECHTEN RIEGEL, nicht an einer Attrappe. `nurEntnahmeAbweisung`
+ * liegt bewusst in `_lib/helferBereich.ts` und damit ausserhalb der Attrappe für
+ * `_lib/helferZugang` — die Begründung steht im Kopf jener Datei. Stünde er
+ * drüben, müsste diese Datei ihn nachbilden, und die Zusicherung prüfte eine
+ * Funktion, die im Test gar nicht läuft.
+ */
+describe("DRK-406 — der Ortscode des Handlagers darf nicht checken", () => {
+  it("weist den Abschluss mit `bereich` ab, bevor irgendetwas geschrieben ist", async () => {
+    riegel.mockResolvedValue({
+      ...ZUGANG_OK,
+      zugang: { ...ZUGANG_OK.zugang, nurEntnahme: true },
+    });
+
+    const buchungenVorher = t.db.select().from(buchungen).all().length;
+
+    const r = await checkAbschluss(
+      { fahrzeugId: "fz1", positionen: [], geraete: [], flaschen: [], verfall: [] },
+      t.db,
+    );
+
+    expect(r.ok).toBe(false);
+    expect((r as { grund: string }).grund).toBe("bereich");
+    expect((r as { text: string }).text).toBe(BEREICH_TEXT);
+    /*
+     * ⚠️ DIE ZWEITE HÄLFTE IST DIE WICHTIGERE: keine `checks`-Zeile, keine
+     * Buchung, keine Revalidierung. Eine Absage, die vorher schon geschrieben
+     * hat, ist keine Absage — und ein Check ist der teuerste Schreibvorgang des
+     * Moduls (er setzt den ganzen Fahrzeugbestand).
+     */
+    expect(t.db.select().from(checks).all()).toEqual([]);
+    // ⚠️ GEGEN DEN STAND VORHER, nicht gegen `[]`: die Vorbereitung dieses
+    // Laufs legt Bestandsbuchungen an. Ein `toEqual([])` waere hier rot, ohne
+    // dass die Action etwas falsch gemacht haette.
+    expect(t.db.select().from(buchungen).all()).toHaveLength(buchungenVorher);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ „NICHT `gesperrt` MITBENUTZEN" — der Satz dort lautet wörtlich „Dieses
+   * Kärtchen wurde gesperrt". Für einen voll gültigen Regal-Code ist das
+   * falsch, und wer ihn liest, meldet der Verwaltung einen Defekt, den es nicht
+   * gibt.
+   */
+  it("nennt einen eigenen Grund und nicht `gesperrt`", async () => {
+    riegel.mockResolvedValue({
+      ...ZUGANG_OK,
+      zugang: { ...ZUGANG_OK.zugang, nurEntnahme: true },
+    });
+
+    const r = await checkAbschluss(
+      { fahrzeugId: "fz1", positionen: [], geraete: [], flaschen: [], verfall: [] },
+      t.db,
+    );
+
+    expect((r as { grund: string }).grund).not.toBe("gesperrt");
+    expect((r as { text: string }).text).not.toContain("gesperrt");
+    // §11.7 — der abgelehnte Weg nennt den Weg, der bleibt.
+    expect((r as { text: string }).text).toContain("Fahrzeug");
+  });
+});

@@ -38,10 +38,16 @@ import { SPACE } from "@/core/theme/tokens";
  */
 
 type A = { id: string; name: string; fach: string; qr: string };
-type T = { code: string; label: string; qr: string };
 
-export function EtikettenBogen({ artikel, tokens }: { artikel: A[]; tokens: T[] }) {
-  const keys = [...artikel.map((a) => `a:${a.id}`), ...tokens.map((t) => `t:${t.code}`)];
+/**
+ * ⚠️ NUR NOCH ARTIKEL — DRK-406. Der `tokens`-Prop ist ersatzlos entfallen; ein
+ * Zugangs-Code gehoert seit diesem Ticket immer zu einem Ort und steht auf
+ * dessen Ortskarte. Der Schluesselpraefix `a:` bleibt trotzdem stehen: er ist
+ * der React-`key` jeder Kachel, und ein Wechsel auf die nackte Id waere eine
+ * stille Aenderung an einer Identitaet, die Reacts Abgleich benutzt.
+ */
+export function EtikettenBogen({ artikel }: { artikel: A[] }) {
+  const keys = artikel.map((a) => `a:${a.id}`);
   const [gewaehlt, setGewaehlt] = useState<Set<string>>(new Set(keys));
 
   function umschalten(k: string) {
@@ -72,9 +78,14 @@ export function EtikettenBogen({ artikel, tokens }: { artikel: A[]; tokens: T[] 
     );
   }
 
-  // 1:1 aus EtikettenBogen.tsx:27, Wortlaut unveraendert.
+  /*
+   * ⚠️ DER WORTLAUT AENDERT SICH MIT — DRK-406. „Keine aktiven Artikel oder
+   * Token" war bis hierher 1:1 aus der Alt-Anwendung uebernommen; er nennt
+   * jetzt etwas, das dieser Bogen gar nicht mehr druckt, und schickte jemanden
+   * auf die Suche nach einer Token-Verwaltung, die ihm hier nicht hilft.
+   */
   if (keys.length === 0) {
-    return <p className="lb-nichtDrucken">Keine aktiven Artikel oder Token.</p>;
+    return <p className="lb-nichtDrucken">Keine aktiven Artikel.</p>;
   }
 
   return (
@@ -98,7 +109,6 @@ export function EtikettenBogen({ artikel, tokens }: { artikel: A[]; tokens: T[] 
       </div>
       <div className="lb-etikettbogen">
         {artikel.map((a) => etikett(`a:${a.id}`, a.qr, a.name, a.fach))}
-        {tokens.map((t) => etikett(`t:${t.code}`, t.qr, t.label, t.code))}
       </div>
     </>
   );

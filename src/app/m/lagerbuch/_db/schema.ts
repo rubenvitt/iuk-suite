@@ -499,46 +499,79 @@ export const o2Messungen = sqliteTable(
   (t) => [index("idx_o2_messungen_flasche_ts").on(t.flascheId, t.ts)],
 );
 
-export const tokens = sqliteTable("tokens", {
-  // Steckt im jose-Cookie JEDER laufenden Helfer-Sitzung — nicht neu vergeben.
-  id: text("id").primaryKey(),
-  // "NNN-NNN", sechs Ziffern MIT Bindestrich. Der Bindestrich ist Teil des
-  // gespeicherten Werts, nicht der Anzeige; die Suche ist exakt. Der Code ist
-  // zugleich QR-Nutzlast, Gate-Eingabe UND Anzeigeschluessel im Journal — er darf
-  // beim Import unter keinen Umstaenden umkodiert oder normalisiert werden.
-  code: text("code").notNull().unique(),
-  // Der Anzeigename im Journal — der Code allein sagt niemandem etwas.
-  label: text("label").notNull(),
+export const tokens = sqliteTable(
+  "tokens",
+  {
+    // Steckt im jose-Cookie JEDER laufenden Helfer-Sitzung — nicht neu vergeben.
+    id: text("id").primaryKey(),
+    /**
+     * DRK-406 — DER ORT, DEM DIESER CODE GEHOERT. `null` heisst „Altbestand":
+     * ein von Hand angelegtes Kaertchen, das keiner Karte zugeordnet ist.
+     *
+     * ⚠️ SIE IST NICHT `ziel_id`, und die Verwechslung kostet den Handlager.
+     * `ziel_id` sagt, WO JEMAND LANDET (polymorph, je nach `ziel_typ`); `ort_id`
+     * sagt, AN WELCHER KARTE DER CODE KLEBT. Fuer eine Einheit fallen beide
+     * zusammen, fuer den Handlager gerade nicht: dessen Code traegt
+     * `ort_id = 'handlager'` bei `ziel_typ = null`, weil die Landung die
+     * Artikelliste ist und nicht „der Ort Handlager".
+     *
+     * ⚠️ AN EINER GESPERRTEN ZEILE BLEIBT SIE STEHEN. Zuruecksetzen heisst:
+     * alte Zeile sperren, neue daneben — die alte `ort_id` ist danach die
+     * einzige Auskunft darueber, an welcher Karte ein gesperrter Code einmal
+     * hing. Genau die braucht man, wenn jemand mit einem alten Foto auftaucht.
+     */
+    ortId: text("ort_id").references(() => lagerorte.id),
+    // "NNN-NNN", sechs Ziffern MIT Bindestrich. Der Bindestrich ist Teil des
+    // gespeicherten Werts, nicht der Anzeige; die Suche ist exakt. Der Code ist
+    // zugleich QR-Nutzlast, Gate-Eingabe UND Anzeigeschluessel im Journal — er darf
+    // beim Import unter keinen Umstaenden umkodiert oder normalisiert werden.
+    code: text("code").notNull().unique(),
+    // Der Anzeigename im Journal — der Code allein sagt niemandem etwas.
+    label: text("label").notNull(),
+    /**
+     * TOTE SPALTE, 1:1 ERHALTEN. Belegt: createToken schreibt sie nicht, redeemToken
+     * liest sie nicht, einziger Leser im ganzen src/ ist ein Loeschzaehler, der
+     * dauerhaft auf 0 steht. Ein nicht zurueckgebauter Planrest.
+     *
+     * SIE WIRD TROTZDEM NICHT GESTRICHEN: „kein Produktionspfad schreibt sie" ist eine
+     * CODE-Aussage, und die produktive Tabelle steht nicht im Repo. Eine weggelassene
+     * Spalte macht einen vorhandenen Wert unwiederbringlich, und der Import hat keinen
+     * zweiten Versuch. Der Loeschzaehler wechselt stattdessen auf `ziel_id` (§5.21).
+     */
+    scopeLagerortId: text("scope_lagerort_id").references(() => lagerorte.id),
+    zielTyp: text("ziel_typ", { enum: ["fahrzeug", "artikel"] }),
+    // BEWUSST POLYMORPH, OHNE FK: je nach zielTyp eine lagerorte.id oder eine artikel.id.
+    // ⚠️ Waisenrisiko — ein ziel_id kann auf eine geloeschte Zeile zeigen. Runbook:
+    // vor dem Cutover pruefen; Treffer sind laminierte Kaertchen, die ins Leere zeigen.
+    zielId: text("ziel_id"),
+    /**
+     * DER EINZIGE WIDERRUF, DEN ES GIBT — und die schaerfste Import-Zusage dieser
+     * Tabelle. Ein Import, der alles als aktiv anlegt, reaktiviert stillschweigend
+     * jeden gesperrten Code — und zwar genau die, die gesperrt wurden, weil ein
+     * laminiertes Kaertchen verschwunden ist (1:1-Pflicht 5).
+     */
+    aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    // OIDC-`sub` des ausstellenden Kontos. Reines Auditfeld — kein Leser im ganzen Repo.
+    createdBy: text("created_by").notNull(),
+    // NULL = „nie eingeloest". Reines Anzeigefeld, OHNE Einfluss auf Gueltigkeit und
+    // (nach Entscheidung 8-F) auch ohne Einfluss auf Loeschbarkeit. Wandert vollstaendig mit.
+    lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
+  },
   /**
-   * TOTE SPALTE, 1:1 ERHALTEN. Belegt: createToken schreibt sie nicht, redeemToken
-   * liest sie nicht, einziger Leser im ganzen src/ ist ein Loeschzaehler, der
-   * dauerhaft auf 0 steht. Ein nicht zurueckgebauter Planrest.
-   *
-   * SIE WIRD TROTZDEM NICHT GESTRICHEN: „kein Produktionspfad schreibt sie" ist eine
-   * CODE-Aussage, und die produktive Tabelle steht nicht im Repo. Eine weggelassene
-   * Spalte macht einen vorhandenen Wert unwiederbringlich, und der Import hat keinen
-   * zweiten Versuch. Der Loeschzaehler wechselt stattdessen auf `ziel_id` (§5.21).
+   * DRK-406 — „GENAU EIN AKTIVER CODE JE ORT" STEHT IN DER DATENBANK, nicht
+   * nur im Schreibpfad. Beide Bedingungen tragen: `ort_id is not null` laesst
+   * den Altbestand in Ruhe, `aktiv = 1` laesst das Zuruecksetzen zu — ohne sie
+   * schluege der Index beim zweiten Zuruecksetzen gegen die gesperrte
+   * Vorgaengerzeile an, mit einer Meldung, die nach einem Fehler klingt und
+   * keiner waere.
    */
-  scopeLagerortId: text("scope_lagerort_id").references(() => lagerorte.id),
-  zielTyp: text("ziel_typ", { enum: ["fahrzeug", "artikel"] }),
-  // BEWUSST POLYMORPH, OHNE FK: je nach zielTyp eine lagerorte.id oder eine artikel.id.
-  // ⚠️ Waisenrisiko — ein ziel_id kann auf eine geloeschte Zeile zeigen. Runbook:
-  // vor dem Cutover pruefen; Treffer sind laminierte Kaertchen, die ins Leere zeigen.
-  zielId: text("ziel_id"),
-  /**
-   * DER EINZIGE WIDERRUF, DEN ES GIBT — und die schaerfste Import-Zusage dieser
-   * Tabelle. Ein Import, der alles als aktiv anlegt, reaktiviert stillschweigend
-   * jeden gesperrten Code — und zwar genau die, die gesperrt wurden, weil ein
-   * laminiertes Kaertchen verschwunden ist (1:1-Pflicht 5).
-   */
-  aktiv: integer("aktiv", { mode: "boolean" }).notNull().default(true),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-  // OIDC-`sub` des ausstellenden Kontos. Reines Auditfeld — kein Leser im ganzen Repo.
-  createdBy: text("created_by").notNull(),
-  // NULL = „nie eingeloest". Reines Anzeigefeld, OHNE Einfluss auf Gueltigkeit und
-  // (nach Entscheidung 8-F) auch ohne Einfluss auf Loeschbarkeit. Wandert vollstaendig mit.
-  lastUsedAt: integer("last_used_at", { mode: "timestamp" }),
-});
+  (t) => [
+    uniqueIndex("idx_tokens_ort_aktiv")
+      .on(t.ortId)
+      .where(sql`${t.ortId} is not null and ${t.aktiv} = 1`),
+  ],
+);
 
 /**
  * Reine Nachschlagetabelle fuer die ANZEIGE. `quelleAufloeser` laedt sie einmal je

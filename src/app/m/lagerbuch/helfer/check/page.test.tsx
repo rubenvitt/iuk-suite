@@ -613,14 +613,34 @@ describe("Bauform", () => {
     expect(text, "nennt den zweiten Ansatzpunkt nicht").toMatch(/check\.ts|checkAbschluss/);
   });
 
-  it("benutzt KEIN `redirect` — auch nicht bei genau einem Fahrzeug", () => {
-    // Der Verhaltensbeleg steht oben (`umleitungen` bleibt leer). Dieser Scan
-    // haelt zusaetzlich fest, dass der Aufruf gar nicht erst im Rumpf steht —
-    // und laeuft ueber `ohneKommentare()`, weil die Begruendung an der
-    // `gewaehlt`-Zeile das Wort selbst nennt (Regel 1, Befund 1). Seit
-    // DRK-302 gilt das doppelt: dort steht auch, warum ein `?fz=`, das gegen
-    // die Bindung verliert, NICHT geradegezogen wird.
-    expect(ohneKommentare(readFileSync(QUELLE, "utf8"))).not.toMatch(/redirect\s*\(/);
+  /**
+   * ⚠️ DIESE ZUSICHERUNG HIESS BIS DRK-406 „benutzt KEIN `redirect`", UND SIE
+   * IST VERENGT WORDEN, NICHT GESTRICHEN. Ihr Gegenstand war nie „kein
+   * `redirect` im Modul", sondern: die FAHRZEUGWAHL leitet nicht um — weder bei
+   * genau einem Fahrzeug, noch um ein `?fz=` geradezuziehen, das gegen die
+   * Kärtchenbindung verliert (DRK-302). Beides gilt unverändert.
+   *
+   * DRK-406 fügt genau EINEN Redirect hinzu, und er steht vor jedem Lesepfad:
+   * der Ortscode des Handlagers darf den Check gar nicht erst sehen. Deshalb
+   * wird jetzt die ZAHL und das ZIEL festgehalten statt der Abwesenheit — ein
+   * zweiter Aufruf irgendwo weiter unten wäre wieder genau der Fall, den die
+   * alte Fassung verbot, und käme durch ein bloßes „mindestens einer" hindurch.
+   */
+  it("leitet GENAU EINMAL um — für den Regal-Code, nie aus der Fahrzeugwahl", () => {
+    // Über `ohneKommentare()`, weil die Begründungen das Wort selbst nennen
+    // (Regel 1, Befund 1).
+    const rumpf = ohneKommentare(readFileSync(QUELLE, "utf8"));
+    const aufrufe = rumpf.match(/redirect\s*\(/g) ?? [];
+    expect(aufrufe).toHaveLength(1);
+    /*
+     * ⚠️ UEBER `nurEntnahmeAbweisung`, NICHT UEBER `zugang.nurEntnahme` DIREKT.
+     * Das ist kein Formalismus: die Funktion schreibt die Protokollzeile mit
+     * dem Akteur des Zugangs (`_lib/helferBereich.ts`). Ein direkter
+     * Feldzugriff waere kuerzer, liesse die Umleitung aber STILL — und still
+     * ist sie genau in dem Fall falsch, fuer den es sie gibt: jemand tippt die
+     * Adresse, weil die Reiterleiste sie nicht anbietet.
+     */
+    expect(rumpf).toMatch(/if \(nurEntnahmeAbweisung\(zugang\)\) redirect\("\/helfer"\);/);
   });
 
   it("ist `force-dynamic`", () => {

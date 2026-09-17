@@ -18,6 +18,13 @@ export const dynamic = "force-dynamic";
  * ausdruecklich, dass die bestehenden Produktcodes ohne Migrationsentscheidung
  * nicht verschwinden.
  *
+ * ⚠️ DIESE SEITE SCHREIBT — DRK-406, und das ist bei einem GET
+ * bemerkenswert genug, um hier zu stehen. `ortEtikettenDaten` zieht jeden
+ * fehlenden Ortscode nach, bevor es die Karten baut; die Zusage „jede Karte
+ * traegt einen Code" haengt sonst an einem Knopf, den jemand druecken muss, und
+ * ist auf Papier keine Zusage. Der Vorgang ist idempotent und rein additiv, und
+ * die Insel sagt am Schirm, wie viele Codes dabei neu entstanden sind.
+ *
  * ZWEI FLAECHEN UND NICHT EINE, und der Grund ist das Papier: die Karten
  * brauchen einen anderen Seitenrand als der Etikettenbogen (4mm statt 8mm),
  * damit acht davon auf ein Blatt gehen — und Chromium verwirft die
@@ -38,11 +45,17 @@ export const dynamic = "force-dynamic";
  */
 export default async function OrtsetikettenSeite() {
   requireLagerbuchHost(await headers());
-  await requireLagerbuchAdmin();
+  /*
+   * ⚠️ DER VIEWER WIRD FESTGEHALTEN, NICHT WEGGEWORFEN — DRK-406. Diese Seite
+   * zieht fehlende Ortscodes nach, und jede so entstandene Zeile traegt einen
+   * `created_by`. Ein System-Akteur waere dort eine Luege: ohne DIESEN
+   * Seitenaufruf waere keine Zeile entstanden.
+   */
+  const viewer = await requireLagerbuchAdmin();
 
   let daten;
   try {
-    daten = await ortEtikettenDaten(getDb());
+    daten = await ortEtikettenDaten(getDb(), viewer.sub, viewer.name);
   } catch (e) {
     /*
      * NUR diese eine Klasse wird gefangen; jeder andere Wurf faellt an
@@ -65,8 +78,8 @@ export default async function OrtsetikettenSeite() {
 
   return (
     <>
-      <OrtsetikettenChrome basis={daten.basis} />
-      <OrtsetikettenBogen orte={daten.orte} kaertchen={daten.kaertchen} />
+      <OrtsetikettenChrome basis={daten.basis} neueCodes={daten.neueCodes} />
+      <OrtsetikettenBogen orte={daten.orte} />
       {/*
         §11.7 — jeder gestaltete Zustand traegt einen benannten Weg zurueck, und
         `DruckRahmen` hat konstruktionsbedingt KEINE Navigation. Ohne diesen Link

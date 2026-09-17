@@ -9,21 +9,25 @@ import {
 const QUELLE = "src/app/m/lagerbuch/_lib/actionTypen.ts";
 
 describe("HelferGrund — der geschlossene Satz aus §7.3", () => {
-  it("hat genau fuenf Werte, und die Typzusicherung haelt sie fest", () => {
+  it("hat genau sechs Werte, und die Typzusicherung haelt sie fest", () => {
     // Ein `satisfies` statt `as`: `as` schwiege, wenn ein Wert wegfiele.
     // ⚠️ `satisfies` allein FAENGE EINEN FEHLENDEN WERT NICHT — eine Teilmenge
     // erfuellt `HelferGrund[]` genauso. Der Traeger ist die
-    // Exhaustiveness-Zusicherung darunter: fiele einer der fuenf Werte weg oder
-    // kaeme ein sechster hinzu, ist `zuOrdnung` nicht mehr vollstaendig und
+    // Exhaustiveness-Zusicherung darunter: fiele einer der sechs Werte weg oder
+    // kaeme ein siebter hinzu, ist `zuOrdnung` nicht mehr vollstaendig und
     // `pnpm typecheck` bricht.
-    const alle = ["sitzung", "gesperrt", "leer", "netz", "eingabe"] satisfies HelferGrund[];
-    expect(new Set(alle).size).toBe(5);
+    const alle = [
+      "sitzung", "gesperrt", "leer", "netz", "eingabe", "bereich",
+    ] satisfies HelferGrund[];
+    expect(new Set(alle).size).toBe(6);
 
     const zuOrdnung: Record<HelferGrund, true> = {
       sitzung: true, gesperrt: true, leer: true, netz: true, eingabe: true,
+      // DRK-406: der Regal-Code darf nur entnehmen.
+      bereich: true,
     };
     expect(Object.keys(zuOrdnung).sort()).toEqual(
-      ["eingabe", "gesperrt", "leer", "netz", "sitzung"],
+      ["bereich", "eingabe", "gesperrt", "leer", "netz", "sitzung"],
     );
   });
 
@@ -34,7 +38,7 @@ describe("HelferGrund — der geschlossene Satz aus §7.3", () => {
     const q = readFileSync(QUELLE, "utf8");
     expect(q).toMatch(/import type \{ SperrGrund \} from "\.\/helferZugang";/);
     expect(q).toMatch(
-      /export type HelferGrund = SperrGrund \| "leer" \| "netz" \| "eingabe";/,
+      /export type HelferGrund = SperrGrund \| "leer" \| "netz" \| "eingabe" \| "bereich";/,
     );
     expect(q).not.toMatch(/HelferGrund =\s*"sitzung"/);
   });

@@ -451,6 +451,17 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * ALLEIN. Gemeinsam steht die Zaehlung auf 57 = 54 bewacht + 3 Ausnahmen,
  * 54 = 51 + 3, in weiterhin 23 Action-Dateien.
  *
+ * NACHTRAG DRK-406 (17.09.2026): die Zugangs-Codes entstehen nicht mehr von
+ * Hand. `createToken` faellt ersatzlos weg, `setzeOrtCodeZurueck` kommt in der
+ * NEUEN Datei `ortCodes.ts` dazu — beide admin-bewacht. Die Summen bleiben
+ * damit unveraendert bei 58 = 55 bewacht + 3 Ausnahmen, 55 = 52 + 3; allein die
+ * DATEIZAHL steigt auf 25.
+ *
+ * ⚠️ DASS DIE SUMME GLEICH BLEIBT, IST DER GRUND, WARUM DIE DATEIZAHL HIER
+ * GEPRUEFT WIRD. Eine Aenderung, die eine Action loescht und eine andere
+ * anlegt, kaeme durch jede Summenzusicherung hindurch; erst die namentliche
+ * Dateiliste zeigt, dass `tokens.ts` eine Faehigkeit verloren hat.
+ *
  * ⚠️ UND WIEDER GING DER MERGE STILL DURCH: git sah auf beiden Seiten DIESELBE
  * Aenderung von 55 auf 56 und uebernahm sie ohne Konflikt — konfliktbehaftet
  * war allein dieser Kommentarblock, nicht der Testkoerper darunter. Die Warnung
@@ -578,11 +589,16 @@ describe("Zaehlung (§2.1 a)", () => {
     "kategorien.ts": 1,   // DRK-294, nach Teil 6 dazugekommen
     "lagerorte.ts": 3,   // DRK-297, nach Teil 6 dazugekommen
     "lagerortVerfall.ts": 1,
+    // DRK-406: das Zuruecksetzen eines Ortscodes — die EINZIGE Action, die
+    // seither noch einen Zugangs-Code in die Welt bringt.
+    "ortCodes.ts": 1,
     "loeschen.ts": 3,
     "sauerstoff.ts": 3,
     "sitzung.ts": 2,
     "templates.ts": 11,
-    "tokens.ts": 2,
+    // DRK-406: `createToken` ist mit dem Anlegen von Hand entfallen; uebrig
+    // bleibt `setTokenAktiv` (sperren/reaktivieren, auch fuer den Altbestand).
+    "tokens.ts": 1,
   };
 
   /** Die Deklarationen EINER Datei — aus dem einen Scan, in Fundreihenfolge. */
@@ -593,13 +609,13 @@ describe("Zaehlung (§2.1 a)", () => {
   const ADMIN = /requireLagerbuchAdmin\s*\(/;
   const HELFER = /requireHelferSchreibend\s*\(/;
 
-  it("hat 24 Action-Dateien plus `guards.test.ts`", () => {
+  it("hat 25 Action-Dateien plus `guards.test.ts`", () => {
     // ⚠️ NICHT `readdirSync(ORDNER)` zaehlen (Ruling A7): der Ordner fuehrt
     // auch die Testdateien. Gezaehlt werden die ACTION-Dateien; `guards.test.ts`
     // wird separat nachgewiesen, weil `actionDateien()` sie ausfiltert.
     const dateien = actionDateien();
-    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 24 Dateien.").toHaveLength(24);
-    expect(dateien, "24 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
+    expect(Object.keys(SOLL), "Die Sollliste selbst nennt 25 Dateien.").toHaveLength(25);
+    expect(dateien, "25 Action-Dateien, namentlich").toEqual(Object.keys(SOLL).sort());
     expect(existsSync(join(ORDNER, SELBST)), `${SELBST} liegt daneben.`).toBe(true);
   });
 

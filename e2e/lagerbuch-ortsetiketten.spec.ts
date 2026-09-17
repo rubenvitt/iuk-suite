@@ -3,7 +3,7 @@ import { devLogin } from "./fixtures";
 import { decodeQr } from "./helpers/decode-qr";
 import {
   E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
-  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG, E2E_TOKEN_HELFER,
+  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG,
   LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
 } from "./helpers/lagerbuch";
 import {
@@ -33,14 +33,26 @@ import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
  * ⚠️ KEIN WARMLAUF-GET NOETIG (Falle 10): diese Datei loest keinen POST aus.
  * Kein `klickeWennRuhig` (Falle 12): sie navigiert mit `goto` statt zu klicken.
  *
- * ⚠️ SIE HINTERLAESST FAST NICHTS. Playwright faehrt alle Specs in EINEM Worker
- * gegen EINE SQLite-Datei; gelesen wird ausschliesslich — mit EINER Ausnahme:
- * der Kaertchen-Test (DRK-395) loest `E2E_TOKEN_HELFER` wirklich ein und setzt
- * damit dessen `tokens.last_used_at`. Das ist folgenlos und ausdruecklich
- * vorgesehen: das Schema fuehrt das Feld als „reines Anzeigefeld, OHNE Einfluss
- * auf Gueltigkeit" (`_db/schema.ts`), und Ruling A9 reserviert genau diesen
- * Code fuer echte Einloese-Laeufe — die Codes, an deren `last_used_at` eine
- * andere Spec haengt, sind andere (`lagerbuch-hosts.spec.ts`).
+ * ⚠️ SEIT DRK-406 SCHREIBT SIE — und zwar schon beim ERSTEN `goto` auf
+ * `/verwaltung/ortsetiketten`. Die Seite zieht jeden fehlenden Ortscode nach
+ * (`_lib/schreibpfade/ortCodes.ts`); Playwright faehrt alle Specs in EINEM
+ * Worker gegen EINE SQLite-Datei, die Zeilen bleiben also fuer die folgenden
+ * Specs stehen.
+ *
+ * ⚠️ DAS IST UNSCHAEDLICH, UND ZWAR AUS EINEM NACHPRUEFBAREN GRUND: der Vorgang
+ * ist REIN ADDITIV. Er legt Zeilen in `tokens` an, die es vorher nicht gab, und
+ * fasst keine bestehende an — kein Code wird gesperrt, kein `ziel_typ`
+ * geaendert, keiner der vier E2E-Codes beruehrt. Eine Spec, die auf
+ * `E2E_TOKEN_*` zaehlt, sieht davon nichts.
+ *
+ * ⚠️ WER HIER EINE ZUSICHERUNG AUF DIE ZAHL DER TOKEN-ZEILEN SCHREIBT, schreibt
+ * sie auf einen Wert, der von der REIHENFOLGE der Spec-Dateien abhaengt. Die
+ * Codes dieser Karten werden deshalb GELESEN, nie erwartet.
+ *
+ * Die zweite Schreibspur ist dieselbe wie vorher: der Kaertchen-Test loest
+ * einen Code wirklich ein und setzt dessen `tokens.last_used_at`. Das Schema
+ * fuehrt das Feld als „reines Anzeigefeld, OHNE Einfluss auf Gueltigkeit"
+ * (`_db/schema.ts`).
  */
 
 const PT_JE_MM = 2.83465;
@@ -162,10 +174,18 @@ test.describe("Ortsetiketten (Bogen)", () => {
     const svg = await karte.locator(".lb-ortkarteQr").innerHTML();
     const ziel = await decodeQr(svg);
 
-    // Erst die Adresse — sie steht so auch im Fuss der Karte, damit sie
-    // abtippbar ist.
-    expect(ziel).toBe(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ID}`));
+    /*
+     * ⚠️ SEIT DRK-406 TRAEGT DIE KARTE IHREN ZUGANGS-CODE, nicht mehr ihre
+     * Ortsadresse — `/t/<code>` statt `/o/<id>`. Der Code wird HIER GELESEN und
+     * nicht als Konstante erwartet: er entsteht beim Oeffnen dieser Seite und
+     * ist in keiner Vorrichtung festgeschrieben. Ein erwarteter Literalwert
+     * waere eine Zusage ueber eine Ziehung, die niemand gegeben hat.
+     */
+    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
+    // Der Fuss nennt denselben Zugang — abtippbar, fuer ein Telefon ohne Kamera.
     await expect(karte.locator(".lb-ortkarteUrl")).toHaveText(ziel);
+    await expect(karte.locator(".lb-ortkarteCode"))
+      .toHaveText(`Code ${ziel.slice(-7)}`);
 
     // Dann der Abruf. Als Praedikat und NICHT als Regex: ein `?` im Muster ist
     // der klassische stille Fehlgriff — unescaped macht es das vorige Zeichen
@@ -185,8 +205,7 @@ test.describe("Ortsetiketten (Bogen)", () => {
   });
 
   /**
-   * DRK-395 — DER GANZE WEG, DEN DER BETREIBER GEMELDET HAT: Karte drucken,
-   * abgemeldet scannen, am Regal stehen.
+   * DRK-406 — DER GANZE WEG: Karte drucken, abgemeldet scannen, am Regal stehen.
    *
    * ⚠️ NUR HIER TREFFEN SICH DIE BEIDEN HAELFTEN. Vitest haelt fest, WAS auf
    * der Karte steht, und `lagerbuch-helfer.spec.ts` haelt fest, dass ein Code
@@ -195,41 +214,43 @@ test.describe("Ortsetiketten (Bogen)", () => {
    * und die dekodierte Adresse danach WIRKLICH aufgerufen, in einem frischen
    * Kontext OHNE die Cookies aus `beforeEach`.
    *
-   * ⚠️ DIE GEGENPROBE AN DER FAHRZEUGKARTE GEHOERT DAZU. Die
-   * Betreiberentscheidung gilt dem Regal, nicht den Einheiten; ein Kaertchen
-   * auf der Fahrzeugkarte oeffnete den Check dieses Fahrzeugs fuer jeden, der
-   * die Karte abfotografiert. Ohne diese Zeile wuechse die Entscheidung still
-   * mit.
+   * ⚠️ DIE ZWEITE HAELFTE IST DIE REICHWEITE, und sie kann sonst nichts
+   * pruefen: mit dem Regal-Code gibt es Box und Check NICHT. Das ist die
+   * sicherheitsrelevante Halbzeile des Tickets — wer die Karte am Regal
+   * abfotografiert, bekommt den Bestand, aber keinen Check.
+   *
+   * ⚠️ BIS DRK-406 STAND HIER EINE AUSWAHL („QR auf der Handlager-Karte") und
+   * die Gegenprobe, dass die FAHRZEUGkarte ihre Ortsadresse behaelt. Beides ist
+   * mit der Betreiberentscheidung vom 17.09.2026 entfallen: jede Karte traegt
+   * jetzt ihren eigenen Code. Der Ausgleich ist das Zuruecksetzen einzelner
+   * Codes in der Verwaltung.
    */
-  test("mit Zugangs-Code fuehrt die Handlager-Karte abgemeldet ans Regal", async ({ page, browser }) => {
+  test("die Handlager-Karte fuehrt abgemeldet ans Regal — ohne Box und ohne Check", async ({ page, browser }) => {
     await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
 
     /*
-     * Die Karte wird ueber IHRE ADRESSE gefunden, nicht ueber ihren Namen:
-     * „Handlager" kann auch in einem Einheitennamen stecken, `/o/handlager`
-     * nicht. Der Index wird VOR der Wahl genommen — danach traegt der Fuss
-     * die Kaertchen-Adresse und die Suche liefe ins Leere.
+     * Die Karte wird ueber ihre BEIZEILE gefunden, nicht ueber ihren Namen:
+     * „Handlager" kann auch in einem Einheitennamen stecken. `standortMeta`
+     * gibt fuer den Handlager „Lager" und fuer jede Einheit „Fahrzeug …" oder
+     * „Tasche" — die Beizeile trennt also genau die beiden Arten.
      */
-    const fuesse = await page.locator(".lb-ortkarteUrl").allTextContents();
-    const index = fuesse.findIndex((u) => u.includes(`/o/${HANDLAGER_ID}`));
+    const metas = await page.locator(".lb-ortkarteMeta").allTextContents();
+    const index = metas.findIndex((m) => m.trim() === "Lager");
     expect(index, "der Seed muss eine Handlager-Karte liefern").toBeGreaterThanOrEqual(0);
     const karte = page.locator(".lb-ortkarte").nth(index);
 
-    await page.getByLabel("QR auf der Handlager-Karte").click();
-    await page.locator(".ant-select-item-option", { hasText: E2E_TOKEN_HELFER }).click();
-
     const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
-    expect(ziel).toBe(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
-    // Der Fuss nennt denselben Zugang — abtippbar, fuer ein Telefon ohne Kamera.
-    await expect(karte.locator(".lb-ortkarteCode")).toHaveText(`Code ${E2E_TOKEN_HELFER}`);
+    expect(ziel).toMatch(new RegExp(`^${lagerbuchUrl("/t/")}\\d{3}-\\d{3}$`));
     await expect(karte.locator(".lb-ortkarteUrl")).toContainText(ziel);
     await expect(karte.locator(".lb-ortkarteUrl")).not.toContainText(`/o/${HANDLAGER_ID}`);
 
-    // Die Gegenprobe: die Einheit behaelt ihre Ortsadresse.
-    const fahrzeugKarte = page.locator(".lb-ortkarte", { hasText: E2E_FAHRZEUG_NAME }).first();
-    await expect(fahrzeugKarte.locator(".lb-ortkarteUrl"))
-      .toHaveText(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ID}`));
-    await expect(page.locator(".lb-ortkarteCode")).toHaveCount(1);
+    /*
+     * ⚠️ JEDE Karte traegt einen Code — das ist die Zusage des Tickets, und sie
+     * ist nur hier zu sehen. `toHaveCount(1)` stand an dieser Stelle bis
+     * DRK-406 und sagte das Gegenteil.
+     */
+    const karten = await page.locator(".lb-ortkarte").count();
+    await expect(page.locator(".lb-ortkarteCode")).toHaveCount(karten);
 
     // Und jetzt der Scan — abgemeldet, wie am Regal.
     const anonym = await browser.newContext();
@@ -237,6 +258,28 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await seite.goto(ziel);
     await seite.waitForURL((url) => url.pathname.endsWith("/helfer"));
     await expect(seite.getByText("Artikel wählen")).toBeVisible();
+
+    /*
+     * DIE REICHWEITE. Die Reiterleiste fuehrt fuer diesen Zugang nur die
+     * Entnahme; Box und Check stehen nicht darin. Das ist Anzeige — der Riegel
+     * liegt in den Actions —, aber es ist die Haelfte, die jemand am Regal
+     * ueberhaupt zu sehen bekommt.
+     */
+    const reiter = seite.getByTestId("lb-tableiste");
+    await expect(reiter.getByText("Entnahme")).toBeVisible();
+    await expect(reiter.getByText("Box")).toHaveCount(0);
+    await expect(reiter.getByText("Check")).toHaveCount(0);
+
+    /*
+     * ⚠️ UND DIE GETIPPTE ADRESSE KOMMT AUCH NICHT DURCH. Eine ausgeblendete
+     * Navigation ist kein Riegel; ohne diese Zeile bewiese der Test nur, dass
+     * aufgeraeumt wurde.
+     */
+    await seite.goto(lagerbuchUrl("/helfer/check"));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer"));
+    await seite.goto(lagerbuchUrl("/helfer/box"));
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer"));
+
     await anonym.close();
   });
 

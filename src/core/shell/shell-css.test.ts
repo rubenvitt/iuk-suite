@@ -58,6 +58,39 @@ function deklarationsWerte(regeln: CssRegel[], eigenschaft: string): string[] {
   );
 }
 
+/**
+ * SCHNEIDET DEN `@media print`-BLOCK HERAUS — DRK-406.
+ *
+ * ⚠️ WARUM DAS KEINE AUFWEICHUNG DER KASKADENPRUEFUNG IST. Die drei Muster
+ * darunter pruefen eine Klasse von Fehlern: ein gruener Ersttreffer, hinter dem
+ * eine SPAETERE Regel dieselbe Eigenschaft still ueberschreibt. Das setzt
+ * voraus, dass beide Regeln im selben Medienkontext gelten und um dieselbe
+ * Kaskade streiten. Eine Regel unter `@media print` tut das nicht: sie greift
+ * am Bildschirm nie, und die 768px-Umschaltung greift auf Papier nie.
+ *
+ * ⚠️ OHNE DIESEN SCHNITT WAERE DIE PRUEFUNG NICHT SCHAERFER, SONDERN UNBRAUCHBAR:
+ * seit DRK-406 blendet `.druckRahmen .sider` die Leiste im Druck aus (die
+ * Druckvorschau laeuft in der Shell). Der Zaehler saehe zwei `.sider`-Regeln
+ * nach dem Breakpoint und waere rot fuer etwas, das keine Kaskade beruehrt —
+ * und die naheliegende „Reparatur" waere, den Zaehler auf 2 zu heben. Damit
+ * waere er gegen den ECHTEN Fehler blind, gegen den er geschrieben ist.
+ *
+ * Gezaehlt wird ueber die Klammern, nicht per Regex bis zur naechsten `}`: der
+ * Block enthaelt selbst geschachtelte Regeln.
+ */
+function ohneDruckblock(css: string): string {
+  const start = css.indexOf("@media print");
+  if (start === -1) return css;
+  let tiefe = 0;
+  for (let i = css.indexOf("{", start); i < css.length; i++) {
+    if (css[i] === "{") tiefe++;
+    else if (css[i] === "}" && --tiefe === 0) {
+      return ohneDruckblock(css.slice(0, start) + css.slice(i + 1));
+    }
+  }
+  return css.slice(0, start);
+}
+
 function siderRegeln(css: string): CssRegel[] {
   const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
   return cssRegeln(ohneKommentare).filter((regel) => zieltAufKlasse(regel.selektor, "sider"));
@@ -81,7 +114,7 @@ function siderRegeln(css: string): CssRegel[] {
  * diese Falle steht schon am Test „klebt die Seitenleiste ab 768px fest".
  */
 function erwartetRobusteSiderUmschaltung(css: string) {
-  const ohneKommentare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const ohneKommentare = ohneDruckblock(css.replace(/\/\*[\s\S]*?\*\//g, ""));
   const basisIndex = ohneKommentare.indexOf(".sider {");
   expect(basisIndex, "Basisregel .sider fehlt").toBeGreaterThanOrEqual(0);
 

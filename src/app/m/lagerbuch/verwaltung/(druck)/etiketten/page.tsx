@@ -10,7 +10,14 @@ import { EtikettenChrome } from "./EtikettenChrome";
 export const dynamic = "force-dynamic";
 
 /**
- * DER ETIKETTENBOGEN → /verwaltung/etiketten (Entscheidung 8-H2).
+ * DIE ARTIKELETIKETTEN → /verwaltung/etiketten (Entscheidung 8-H2, seit
+ * DRK-406 nur noch Artikel).
+ *
+ * ⚠️ DER NAME IST ENGER GEWORDEN, DER PFAD NICHT. „Etiketten" hiess diese
+ * Flaeche, solange sie zwei Dinge druckte: Artikel UND Zugangs-Kaertchen. Seit
+ * DRK-406 gehoert jeder Code zu einem Ort und steht auf dessen Ortskarte; hier
+ * bleiben die Klebeetiketten fuer die Regalfaecher. Ein Name, der mehr
+ * verspricht als die Flaeche haelt, schickt jemanden zum Suchen.
  *
  * DER OEFFENTLICHE PFAD BLEIBT. Route-Gruppen erscheinen nicht in der URL; ein
  * naiv unter der Modulwurzel angelegtes (druck)/etiketten loeste auf
@@ -53,7 +60,7 @@ export default async function EtikettenSeite() {
     if (e instanceof EtikettenBasisFehlt) {
       return (
         <div className="lb-nichtDrucken">
-          <h1>Etiketten</h1>
+          <h1>Artikeletiketten</h1>
           <p>{etikettenDomainFehlt()}</p>
           <p>
             <a href="/verwaltung">Zurück zur Übersicht</a>
@@ -67,7 +74,7 @@ export default async function EtikettenSeite() {
   return (
     <>
       <EtikettenChrome basis={daten.basis} />
-      <EtikettenBogen artikel={daten.artikel} tokens={daten.tokens} />
+      <EtikettenBogen artikel={daten.artikel} />
       {/*
         BETREIBERENTSCHEIDUNG, 10.08.2026 (Review-Nachtrag zu T162): der
         Global Constraint „Jeder gestaltete Zustand traegt einen benannten Weg
@@ -78,12 +85,11 @@ export default async function EtikettenSeite() {
         1:1-Pflicht, sondern deren Folge.
 
         Die Bedingung dupliziert EtikettenBogens eigene `keys.length === 0`
-        (dort Wortlaut-1:1-Pflicht, nicht anzufassen) bewusst hier: `page.tsx`
-        haelt dieselben Daten (`daten.artikel`, `daten.tokens`) bereits vor,
+        bewusst hier: `page.tsx` haelt dieselben Daten (`daten.artikel`) bereits vor,
         und der Link steht damit als ECHTES DOM-Geschwister direkt NACH dem
         `<p>`, das <EtikettenBogen> im leeren Fall rendert.
       */}
-      {daten.artikel.length === 0 && daten.tokens.length === 0 && (
+      {daten.artikel.length === 0 && (
         <p className="lb-nichtDrucken">
           <a href="/verwaltung">Zurück zur Übersicht</a>
         </p>

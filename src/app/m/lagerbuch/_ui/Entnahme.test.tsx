@@ -2,6 +2,14 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { mount, unmount, query, queryAll, exists, click } from "@/app/m/qr/_lib/test-dom";
+/*
+ * ⚠️ DIE KLASSENNAMEN KOMMEN AUS DEM MODUL, NICHT ALS ZEICHENKETTE (DRK-406).
+ * Sie sind gehasht; `toContain("knopfBreit")` waere im Betrieb rot und im Test
+ * gruen — oder umgekehrt, je nach Aufloesung. Dieselbe Ueberlegung steht in
+ * `files/_ui/ZugangslinksListe.test.tsx` ausgeschrieben („die Klassennamen sind
+ * gehasht — sie zu tippen waere …").
+ */
+import s from "./helfer.module.css";
 import type { HelferErgebnis } from "../_lib/actionTypen";
 /*
  * ⚠️ DIE ACTION WIRD GEMOCKT, NICHT ALS PROP INJIZIERT (DRK-375). Die Insel
@@ -810,6 +818,72 @@ describe("Entnahme — Bauform", () => {
     // Und die Person erfährt, was zu tun ist — ein stummer grauer Knopf wäre
     // am Regal eine Sackgasse.
     expect(query(ZIEL).textContent).toMatch(/wählen/i);
+  });
+
+  /**
+   * DRK-406 — DAS ZIEL IST PFLICHT UND SIEHT JETZT DANACH AUS.
+   *
+   * ⚠️ GEPRUEFT WIRD DIE FORM, NICHT DER TEXT. Bis DRK-406 war der Weg zur
+   * Zielwahl ein 14px-Textlink rechts aussen (`.zielAendern`) — kleiner und
+   * blasser als alles andere auf dem Schirm, obwohl ohne ihn gar nichts geht.
+   * Der Buchen-Knopf daneben war gesperrt und sagte nicht, warum. Der Test
+   * darueber („nennt `wählen`") bliebe auch dann gruen, wenn der Link wieder
+   * auf Fussnotengroesse schrumpfte; DIESER hier faellt dann.
+   */
+  it("bietet die Zielwahl ohne Wahl als vollbreite Handlung an", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} />);
+
+    const wahl = query<HTMLAnchorElement>("[data-rolle='entnahme-ziel-waehlen']");
+    // ⚠️ `.knopf` UND `.knopfBreit`, nicht `.zielAendern`: 56px Mindesthoehe
+    // und volle Breite, also dasselbe Gewicht wie der Buchen-Knopf darunter.
+    expect(wahl.className).toContain(s.knopf);
+    expect(wahl.className).toContain(s.knopfBreit);
+    expect(wahl.className).not.toContain(s.zielAendern);
+    // Ein echter Link, kein Knopf: die Zielwahl ist eine eigene Seite.
+    expect(wahl.tagName).toBe("A");
+    expect(wahl.getAttribute("href")).toBe("/helfer/ziel?returnTo=%2Fa%2Fart-1");
+  });
+
+  /**
+   * ⚠️ TINTE UND NICHT ROT. Rot gehoert dem Buchen-Knopf; zwei rote Flaechen
+   * uebereinander streiten um dieselbe Aufmerksamkeit, und Rot traegt in diesem
+   * Modul zusaetzlich fachliche Bedeutung (Falle 3). Der Unterschied „das
+   * zuerst" gegen „das ist die Buchung" muss an der FORM ablesbar sein.
+   */
+  it("faerbt die Zielwahl nicht wie die Buchung", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} />);
+
+    const wahl = query("[data-rolle='entnahme-ziel-waehlen']");
+    expect(wahl.className).toContain(s.knopfTinte);
+    expect(wahl.className).not.toContain(s.knopfRot);
+  });
+
+  /**
+   * ⚠️ DER GESPERRTE KNOPF BEKOMMT EINEN GRUND, und er haengt AM LINK statt nur
+   * danebenzustehen: eine Vorleseanwendung liest sonst „Ziel wählen, Link" und
+   * den erklaerenden Satz erst drei Elemente spaeter.
+   */
+  it("erklaert den gesperrten Buchen-Knopf und haengt den Grund an die Wahl", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={null} detail={DETAIL} />);
+
+    const wahl = query("[data-rolle='entnahme-ziel-waehlen']");
+    const id = wahl.getAttribute("aria-describedby");
+    expect(id).toBeTruthy();
+    expect(query(`#${id}`).textContent).toMatch(/ohne ziel wird nicht gebucht/i);
+  });
+
+  /**
+   * ⚠️ UND SIE VERSCHWINDET WIEDER, sobald gewaehlt ist. Eine Daueranzeige in
+   * Knopfgroesse waere ab dem zweiten Artikel lauter als die Buchung selbst —
+   * das Ziel ist dann eine ANGABE, die man ueberfliegt, keine Handlung.
+   */
+  it("schrumpft nach der Wahl auf die Zeile mit `Ändern` zurueck", async () => {
+    await mount(<Entnahme kontoZugang={false} ziel={VERBRAUCH} detail={DETAIL} />);
+
+    expect(exists("[data-rolle='entnahme-ziel-waehlen']")).toBe(false);
+    const link = query<HTMLAnchorElement>(`${ZIEL} a`);
+    expect(link.textContent?.trim()).toBe("Ändern");
+    expect(link.className).toContain(s.zielAendern);
   });
 
   /**

@@ -92,6 +92,13 @@
       "when": 1789570800000,
       "tag": "0012_entnahmebox",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1789574400000,
+      "tag": "0013_ortscodes",
+      "breakpoints": true
     }
   ]
 }

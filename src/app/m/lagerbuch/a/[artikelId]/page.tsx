@@ -125,7 +125,12 @@ export default async function ArtikelDeepLink({
   const ziel = gemerktesZiel(db, (await cookies()).get(ZIEL_COOKIE)?.value, zugangsKennung(zugang));
 
   return (
-    <HelferRahmen aktiv="entnahme" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+    <HelferRahmen
+      aktiv="entnahme"
+      nurEntnahme={zugang.nurEntnahme}
+      sitzungsetikett={etikett}
+      laeuftAb={zugang.laeuftAb}
+    >
       {/*
         DER WEG INS ARTIKELBLATT — DRK-305, und er ersetzt die frühere Umleitung
         (siehe den Kopf dieser Datei). Nur für das angemeldete Konto: wer mit

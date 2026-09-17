@@ -8,7 +8,9 @@ import { getDb, type DB } from "../_db/client";
 import { lagerorte, newId, sollPositionen } from "../_db/schema";
 import { type ActionErgebnis, zodFehler } from "../_lib/actionErgebnis";
 import { EINHEITENARTEN } from "../_lib/konstanten";
+import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
 import { findeFahrzeug } from "../_lib/schreibpfade/fahrzeug";
+import { stelleOrtCodeSicher } from "../_lib/schreibpfade/ortCodes";
 import { loescheVerfallEintrag } from "../_lib/schreibpfade/lagerortVerfall";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
@@ -80,6 +82,26 @@ export async function createFahrzeug(
     } catch {
       return { ok: false, fehler: "Einheit konnte nicht angelegt werden." };
     }
+
+    /*
+     * DER ORTSCODE ENTSTEHT MIT DER EINHEIT — DRK-406.
+     *
+     * ⚠️ NACH dem `insert` und AUSSERHALB seines `try`, und beides ist Absicht.
+     * „Nach", weil der Fremdschlüssel `tokens.ort_id → lagerorte.id` die Zeile
+     * voraussetzt. „Außerhalb", weil ein fehlgeschlagener Code die ANGELEGTE
+     * EINHEIT nicht wieder wegnehmen darf: die Einheit ist das, was jemand
+     * wollte, der Code ist die Beigabe. `stelleOrtCodeSicher` wirft deshalb
+     * nicht, sondern gibt `null` zurück — und der Nachzug beim Öffnen der
+     * Ortsetiketten holt es beim nächsten Mal.
+     *
+     * ⚠️ DIE ZEILE WIRD AUS DER DATENBANK GELESEN statt aus `v` gebaut. Die
+     * Menge der Ortskarten ist `etikettOrte` (`_lib/lesepfade/ortEtiketten.ts`),
+     * und nur was DORT steht, bekommt einen Code — ein hier
+     * zusammengesetztes Objekt wäre eine zweite Wahrheit darüber, was eine
+     * Ortskarte ist.
+     */
+    const ort = etikettOrt(db, id);
+    if (ort) stelleOrtCodeSicher(db, ort, auditViewer.sub);
 
     revalidatePath(FAHRZEUGE_PFAD);
     return { ok: true, wert: { id } };

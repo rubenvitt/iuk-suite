@@ -59,7 +59,14 @@ export function EtikettenChrome({ basis }: { basis: string }) {
 
       <Flex align="center" justify="space-between" gap={SPACE.md} style={{ marginBlock: SPACE.md }}>
         <div>
-          <h1 style={{ margin: 0 }}>Etiketten</h1>
+          {/*
+            ⚠️ „ARTIKELETIKETTEN" UND NICHT „ETIKETTEN" — DRK-406. Der Bogen
+            druckte bis dahin auch Zugangs-Kaertchen; die stehen jetzt auf den
+            Ortskarten. Ein Name, der mehr verspricht als die Flaeche haelt,
+            schickt jemanden zum Suchen — und zwar an genau der Stelle, an der
+            er gerade drucken wollte.
+          */}
+          <h1 style={{ margin: 0 }}>Artikeletiketten</h1>
           {/*
             §8.1, 8-B: `moduleUrl` nimmt prodHostsFor(mod)[0]. Eine Umsortierung
             von SUITE_HOST_LAGERBUCH aendert STILL jeden ab dann gedruckten

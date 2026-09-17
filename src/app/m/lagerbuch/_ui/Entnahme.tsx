@@ -245,24 +245,60 @@ export function Entnahme({
             tippt. Eine Wahl, die für den ganzen Kärtchen-Zugang gilt, muss an
             jedem Artikel sichtbar sein — sonst lenkt eine vergessene Wahl
             still Bestand um.
+
+            ⚠️ SEIT DRK-406 SIND ES ZWEI VERSCHIEDENE DINGE, nicht ein Feld mit
+            zwei Werten. Ist nichts gewählt, ist die Zielwahl der NÄCHSTE
+            HANDGRIFF und bekommt die Form dazu — volle Breite, an der Stelle,
+            an der sonst gebucht wird. Ist etwas gewählt, ist sie eine ANGABE,
+            die man überfliegt und selten ändert, und schrumpft auf die Zeile
+            zurück, die sie immer war.
+
+            ⚠️ WER DIE BEIDEN ZUSAMMENLEGT, bekommt entweder eine Pflicht, die
+            wie eine Fußnote aussieht (der Zustand vor diesem Ticket), oder eine
+            Daueranzeige, die lauter ist als der Buchen-Knopf daneben.
           */}
-          <div
-            className={`${s.zeile} ${s.zielZeile}`}
-            style={{ borderTop: "none", padding: "11px 0" }}
-            data-rolle="entnahme-ziel"
-          >
-            <span className={s.zeileHaupt}>Ziel</span>
-            <span className={`${s.zielWert} ${ziel === null ? s.zielOffen : ""}`}>
-              {ziel === null
-                ? "Noch nichts gewählt"
-                : ziel.art === "fahrzeug"
+          {ziel === null ? (
+            <div className={s.zielPflicht} data-rolle="entnahme-ziel">
+              {/*
+                EIN ECHTER LINK, KEIN KNOPF: die Zielwahl ist eine eigene Seite
+                (`/helfer/ziel`), und ein Dokumentwechsel ist hier das Richtige.
+                Ein `<button>` mit `router.push` nähme der Adresszeile, dem
+                Zurück-Wisch und dem langen Antippen ihre Wirkung.
+
+                `aria-describedby` hängt den Grund an den Link statt ihn nur
+                danebenzustellen — eine Vorleseanwendung liest sonst „Ziel
+                wählen, Link" und den Satz erst drei Elemente später.
+              */}
+              <Link
+                className={`${s.knopf} ${s.knopfTinte} ${s.knopfBreit}`}
+                href={zielWahlWeg}
+                aria-describedby="lb-ziel-pflicht"
+                data-rolle="entnahme-ziel-waehlen"
+              >
+                Ziel wählen
+              </Link>
+              <span id="lb-ziel-pflicht" className={s.zielPflichtHinweis}>
+                Ohne Ziel wird nicht gebucht — wähle die Einheit oder
+                {" „Kein Fahrzeug — Verbrauch“."}
+              </span>
+            </div>
+          ) : (
+            <div
+              className={`${s.zeile} ${s.zielZeile}`}
+              style={{ borderTop: "none", padding: "11px 0" }}
+              data-rolle="entnahme-ziel"
+            >
+              <span className={s.zeileHaupt}>Ziel</span>
+              <span className={s.zielWert}>
+                {ziel.art === "fahrzeug"
                   ? `${ziel.name} · ${einheitMeta(ziel)}`
                   : "Keine Einheit — Verbrauch"}
-            </span>
-            <Link className={s.zielAendern} href={zielWahlWeg}>
-              {ziel === null ? "Wählen" : "Ändern"}
-            </Link>
-          </div>
+              </span>
+              <Link className={s.zielAendern} href={zielWahlWeg}>
+                Ändern
+              </Link>
+            </div>
+          )}
 
           <button
             className={`${s.knopf} ${s.knopfRot} ${s.knopfBreit}`}

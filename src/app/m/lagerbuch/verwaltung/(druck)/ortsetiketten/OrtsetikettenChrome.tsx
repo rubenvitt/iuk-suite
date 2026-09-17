@@ -29,7 +29,20 @@ import {
   ORT_JE_BLATT, ORT_KARTE_BREITE_MM, ORT_KARTE_HOEHE_MM,
 } from "../../../_lib/ortEtikettMasse";
 
-export function OrtsetikettenChrome({ basis }: { basis: string }) {
+export function OrtsetikettenChrome({
+  basis,
+  neueCodes,
+}: {
+  basis: string;
+  /**
+   * WIE VIELE ORTSCODES BEIM OEFFNEN DIESER SEITE NEU ENTSTANDEN SIND — DRK-406.
+   *
+   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL. Ein vergessenes `neueCodes?` waere still
+   * `undefined`, der Satz verschwaende wortlos, und die Seite schriebe
+   * ungefragt Datenbankzeilen, ohne es zu sagen. Genau das soll sie nicht.
+   */
+  neueCodes: number;
+}) {
   return (
     <div className="lb-nichtDrucken" data-testid="lb-ort-chrome">
       <Link href="/verwaltung">
@@ -55,7 +68,24 @@ export function OrtsetikettenChrome({ basis }: { basis: string }) {
           <p data-testid="lb-ort-basis" style={{ margin: 0 }}>
             Alle QR-Codes zeigen auf {basis}
           </p>
-{/*
+          {/*
+            ⚠️ DER SATZ STEHT NUR DA, WENN ES ETWAS ZU SAGEN GIBT. Null ist der
+            Normalfall — ein dauerhaftes „0 Codes neu erzeugt" waere Rauschen an
+            der Stelle, an der sonst die Formatansage steht, und genau die muss
+            jemand vor dem Druck lesen.
+
+            ⚠️ ER NENNT DIE FOLGE, NICHT NUR DIE ZAHL: neue Codes heisst neue
+            Karten, und wer das nicht liest, klebt die alte wieder an.
+          */}
+          {neueCodes > 0 && (
+            <p data-testid="lb-ort-neu" style={{ margin: 0, fontWeight: 600 }}>
+              {neueCodes === 1
+                ? "Für eine Einheit ist gerade ein neuer Zugangs-Code entstanden."
+                : `Für ${neueCodes} Orte sind gerade neue Zugangs-Codes entstanden.`}
+              {" "}Diese Karten musst du ausdrucken und anbringen.
+            </p>
+          )}
+          {/*
             DIE FORMATANSAGE STEHT AM BILDSCHIRM, nicht nur im Stylesheet. Der
             Druckdialog uebernimmt Groesse UND Rand aus dem Dokument; wer den
             Rand im Dialog groesser stellt, bekommt vier Karten je Blatt statt
