@@ -167,7 +167,7 @@ export async function messeWennRuhig(
  *
  * ⚠️ `about:blank` VOR `clearCookies()`, UND DAS IST GEMESSEN, NICHT VORSORGE.
  * Gemessen auf `main` (Lauf 33173490683, Job `e2e (1)`, Versuch 2 von
- * `aufgaben.spec.ts:1716`), aus dem Netzwerkteil der Ablaufverfolgung gelesen:
+ * `aufgaben.spec.ts`, „Der volle Durchlauf"), aus der Ablaufverfolgung gelesen:
  *
  *     13:11:18.522  GET /api/auth/session   Cookie: csrf, theme, callback-url, session-token
  *     13:11:18.526  GET /api/auth/session   (dito)          ← beide VOR clearCookies losgeschickt

@@ -59,7 +59,7 @@ import s from "./aufgaben.module.css";
  *    Trefferpruefung gegen einen Portalknoten, dort waere beides gruen.
  *
  * ══ KEIN `type="primary"` UND KEIN antd-`Button` AM AUSLOESER: der Zaehlriegel in
- *    `e2e/aufgaben.spec.ts` laesst innerhalb von `data-testid="aufgaben-flaeche"` hoechstens einen
+ *    `e2e/aufgaben-breiten.spec.ts` laesst in `data-testid="aufgaben-flaeche"` hoechstens einen
  *    `.ant-btn-primary` zu, und der gehoert der Fuehrungskarte (Regel P). Der Ausloeser traegt
  *    `.zeilenKnopf` — dieselbe stille Form, die der Verweis vorher trug, und dieselbe
  *    44px-Zusage.

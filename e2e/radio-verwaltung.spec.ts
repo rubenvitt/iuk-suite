@@ -635,7 +635,7 @@ test.describe("radio-Verwaltung", () => {
      * Action ist er gleichermassen abwesend. Ein `toHaveCount(0)` darauf trifft deshalb sofort
      * zu, faengt kein fehlgeschlagenes Speichern — und ist vor allem KEINE Wartestelle: das
      * `page.reload()` darunter koennte die laufende Action abbrechen.
-     * ⛔ DIESELBE BAUFORM WIE `e2e/aufgaben.spec.ts:1619-1623`, und dieselbe Lehre wie Falle 10
+     * ⛔ DIESELBE BAUFORM WIE `aufgaben.spec.ts`s „Tastaturbedienung", dieselbe Lehre wie Falle 10
      * in `CLAUDE.md`: wer eine Anfrage ausloest, prueft ihre ANTWORT.
      * ⚠️ HAENGT DIESE STELLE JE, ist die Gleichheit `r.url() === seite` der Verdaechtige (eine
      * Server Action postet auf die Adresse der Seite), nicht die Action — dann auf die Methode
@@ -1688,7 +1688,7 @@ test.describe("radio-Verwaltung", () => {
      * weiter, das E-Mail-Feld erscheint nie, und `devLogin` lief in die vollen 90 s
      * Zeitbudget — mit einer Meldung („waiting for getByLabel('email')"), die nach einer
      * kaputten Anmeldemaske klingt statt nach einer bestehenden Sitzung. Dieselbe Lehre und
-     * dieselbe Abhilfe wie `e2e/aufgaben.spec.ts:1644-1656` und
+     * dieselbe Abhilfe wie `e2e/aufgaben.spec.ts`s `wechsleRolle` und
      * `e2e/lagerbuch-checklisten.spec.ts:375-377`.
      */
     await devLogin(page, { host: RADIO_HOST, groups: RADIO_UPDATER_GRUPPE });

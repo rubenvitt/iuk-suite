@@ -154,7 +154,7 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
    * WAS DIESER TEST KANN UND WAS NICHT, ausdrücklich: er prüft, dass die Datei die Absicht noch
    * TRÄGT — er kann nicht prüfen, dass ein Browser daraus die richtige Spaltenzahl rechnet (jsdom
    * wertet weder `@media` noch Grid-Spuren aus). Das tut der 820px-Überlauf-Sweep in
-   * `e2e/aufgaben.spec.ts`, und nur beide zusammen sind die Zusicherung: der Sweep fällt, wenn die
+   * `e2e/aufgaben-breiten.spec.ts`, und nur beide sind die Zusicherung: der Sweep fällt, wenn die
    * Rechnung nicht aufgeht, dieser hier, wenn eine Aufräumrunde die Regel „vereinfacht".
    */
   it("lässt `.wochenGitter` die Spaltenzahl aus der Fläche ableiten, statt sie festzuschreiben", () => {
@@ -246,7 +246,7 @@ describe("aufgaben.module.css — Aussage 4: die Umschaltung sitzt richtig herum
    * untereinander.
    *
    * WAS DIESER TEST KANN UND WAS NICHT: er prüft, dass die Datei die Absicht noch TRÄGT. Ob ein
-   * Browser daraus eine Spur rechnet, sieht nur der 360px-Überlauf-Sweep in `e2e/aufgaben.spec.ts`
+   * Browser daraus eine Spur rechnet, sieht nur der 360px-Sweep in `e2e/aufgaben-breiten.spec.ts`
    * — jsdom wertet weder `@media` noch Grid-Spuren aus. Erst beide zusammen sind die Zusicherung.
    */
   it("stapelt `.brettGitter` innerhalb des 767.98px-Blocks auf EINE Spur", () => {
