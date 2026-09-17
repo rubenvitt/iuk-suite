@@ -159,16 +159,20 @@ und kosten je einen halben Tag, wenn man sie nicht kennt. Vor Oberflächenarbeit
   Multi-Arch-Image, vergibt aus der Commit-Historie eine Versionsnummer (`scripts/version.mjs`,
   Conventional-Commit-Präfixe entscheiden über Major/Minor/Patch), erstellt Tag und Release und
   rollt nach Freigabe über einen selbst gehosteten Runner aus (`scripts/deploy.sh`).
-* **Stack:** `compose.yaml` mit den Diensten `suite` und `clamav` hinter Traefik. Der Rollout
-  prüft `compose.yaml` und `clamd.files.conf` auf Gleichstand mit dem Repo und bricht bei
-  Abweichung ab, statt sie zu überschreiben.
+* **Stack:** `compose.yaml` mit den Diensten `suite`, `clamav` und `backup` hinter Traefik. Der
+  Rollout prüft `compose.yaml`, `clamd.files.conf` und die beiden Backup-Skripte auf Gleichstand
+  mit dem Repo und bricht bei Abweichung ab, statt sie zu überschreiben.
 * **Datenbanken** liegen im Volume `/data`; Migrationen laufen beim Start des Containers nach
   vorn (`src/core/bootstrap.ts`). Ein Image-Rollback rollt Migrationen nicht zurück.
-* **Backup:** `scripts/backup.sh` sichert je Modul eine konsistente SQLite-Kopie und die Blobs
-  des Moduls `files` (`BLOB_DIR`), rotiert lokal. ⚠️ Die Bildnachweise des Moduls `aufgaben`
-  liegen im eigenen Volume `aufgaben_data` (`/data/aufgaben`) und werden vom Skript heute
-  **nicht** mitgesichert; ein Restore enthält dann `aufgaben.db` mit Verweisen auf Bilder, die
-  fehlen. Wer das Volume nutzt, sichert es daneben, bis das Skript nachgezogen ist.
+* **Backup:** der Dienst `backup` im Compose-Stack ruft `scripts/backup.sh` täglich, lagert das
+  Tarball per rclone extern aus (`BACKUP_RCLONE_ZIEL`) und meldet einen Fehlschlag über seinen
+  Healthcheck und einen Ping (`BACKUP_PING_URL`). Runbook: `docs/runbooks/backup-sidecar.md`.
+  Gesichert wird je Modul eine konsistente SQLite-Kopie plus die Blobs des Moduls `files`;
+  lokal liegen die Tarballs im eigenen Volume `backup_data`, rotiert über `BACKUP_KEEP`.
+  ⚠️ Die Bildnachweise des Moduls `aufgaben` liegen im eigenen Volume `aufgaben_data`
+  (`/data/aufgaben`) und werden vom Skript weiterhin **nicht** mitgesichert (DRK-391); ein Restore
+  enthält dann `aufgaben.db` mit Verweisen auf Bilder, die fehlen. Wer das Volume nutzt,
+  sichert es daneben, bis das Skript nachgezogen ist.
 * **Runbooks** in `docs/runbooks/`: automatischer Rollout, Versionierung, Inbetriebnahme und
   Cutover je Modul, Sitzungswiderruf, WebFinger.
 

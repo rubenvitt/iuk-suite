@@ -67,9 +67,15 @@ Zwei weitere Punkte derselben Art, kürzer, aber nicht optional:
 
 ## A1. Stack-Verzeichnis mit dem Repo angleichen
 
-Der Rollout vergleicht `compose.yaml` und `clamd.files.conf` **byteweise** mit dem Repo
-und bricht bei Abweichung ab. Das ist gewollt (E2 erklärt, warum), heißt aber: einmal
-sauber angleichen, sonst scheitert jeder Lauf in Schritt 1.
+Der Rollout vergleicht **vier Dateien byteweise** mit dem Repo und bricht bei Abweichung
+ab: `compose.yaml`, `clamd.files.conf` und — seit dem Backup-Sidecar (DRK-185) —
+`scripts/backup.sh` und `scripts/backup-sidecar.sh`. Das ist gewollt (E2 erklärt, warum),
+heißt aber: einmal sauber angleichen, sonst scheitert jeder Lauf in Schritt 1.
+
+> ⚠️ **Die beiden Backup-Skripte liegen in einem Unterverzeichnis**
+> (`$SUITE_STACK_DIR/scripts/`), weil die `compose.yaml` sie von dort per Bind-Mount in
+> den Dienst `backup` reicht. Einrichtung, rclone-Ziel und Probelauf stehen in
+> `docs/runbooks/backup-sidecar.md`; hier geht es nur um den Gleichstand.
 
 ```bash
 cd <Verzeichnis mit der compose.yaml der Suite>     # dieser Pfad wird gleich SUITE_STACK_DIR
@@ -181,12 +187,21 @@ sind im Job-Protokoll lesbar, was bei der Fehlersuche zählt.
 | `SUITE_HEALTH_URL` | nein | `https://iuk-ue.de/api/health/portal` | Öffentliche Gegenprobe nach dem Rollout. Nicht gesetzt = diese Vorbelegung. `aus` schaltet sie ab. |
 | `SUITE_BACKUP_CMD` | nein | siehe unten | Sicherung **vor** dem Austausch. Nicht gesetzt = keine, mit Warnung im Protokoll. |
 
-Für `SUITE_BACKUP_CMD` ist der ganze Befehl der Wert; `scripts/backup.sh` liegt bereits
-im Repo und braucht die Volume-Pfade des Hosts:
+Für `SUITE_BACKUP_CMD` ist der ganze Befehl der Wert. Seit dem Backup-Sidecar (DRK-185)
+ist das der Dienst selbst — er braucht **keine Host-Pfade mehr**, weil die Volumes in
+seinem Container schon an der richtigen Stelle gemountet sind:
 
 ```
-DATA_DIR=/var/lib/docker/volumes/suite_data/_data BLOB_DIR=/var/lib/docker/volumes/files_data/_data /opt/iuk-suite/backup.sh
+SUITE_BACKUP_CMD=docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh einmal
 ```
+
+> ⚠️ **`run --rm` und nicht `exec`.** Der Dienst soll auch dann sichern, wenn sein
+> Container gerade nicht läuft — und genau das ist bei einem gescheiterten Rollout der
+> wahrscheinliche Fall. Der frühere Wert rief `backup.sh` direkt auf dem Host und musste
+> dafür `DATA_DIR` und `BLOB_DIR` auf die Volume-Pfade zeigen
+> (`/var/lib/docker/volumes/files_data/_data`); genau diese Zeile war die, die man
+> vergisst. Wer noch den alten Wert gesetzt hat: er funktioniert weiter, solange der Host
+> `sqlite3`, `tar` und `rsync` mitbringt.
 
 > **Warum das mehr ist als Vorsicht:** der Rollback in Teil D tauscht das **Image**
 > zurück, nicht die **Daten**. Die Boot-Instrumentation migriert beim Start nach vorn;
@@ -323,14 +338,56 @@ von selbst.
 
 ### E2 — Abbruch in Schritt 1: „Stack-Dateien weichen ab"
 
-Der erwartete Fall, sobald ein PR `compose.yaml` oder `clamd.files.conf` anfasst — etwa
-weil ein neues Modul ein Volume braucht. Der Abbruch ist folgenlos; Produktion läuft
+Der erwartete Fall, sobald ein PR eine der **vier** verglichenen Dateien anfasst — etwa
+weil ein neues Modul ein Volume braucht oder ein Backup-Skript nachgezogen wird. Der Abbruch ist folgenlos; Produktion läuft
 weiter auf dem alten Stand.
 
 Der Diff steht im Protokoll (links Server, rechts Repo). Ablauf: Repo-Datei übernehmen,
 dabei **jede `environment:`-Zeile, die nur die Server-Datei hatte, in die `.env`
 retten** (A1), dann den `deploy`-Job des Laufs neu starten (**Re-run failed jobs** —
 er fordert die Freigabe erneut an).
+
+> ⚠️ **Ein nachgezogenes `backup-sidecar.sh` wirkt erst nach einem Austausch des
+> Containers — der Rollout erledigt das selbst.** Der Dienst `backup` läuft als **ein**
+> `sh`-Prozess über Wochen und hat seine Funktionen beim Start gelesen; `docker compose
+> up -d` tauscht ihn aber nur aus, wenn sich Image oder Konfiguration geändert haben, und
+> der Inhalt einer Datei hinter einem unveränderten Mount-Pfad ist beides nicht.
+> **Schritt 8b** vergleicht deshalb die **ctime** beider Skripte mit der Startzeit des
+> laufenden Containers und ruft bei Bedarf `docker compose up -d --force-recreate backup`.
+> Bei **gleicher Sekunde** wird ausgetauscht: beide Zahlen sind auf Sekunden gerundet, und
+> „kurz vor dem Start geschrieben" und „kurz danach" sind darin dasselbe Zahlenpaar — die
+> Reihenfolge ist daraus nicht zu lesen, also wird in die billigere Richtung gefällt.
+> Er steht bewusst hinter der Revisionsprüfung: dort ist der Rollout bewiesen, und ein
+> Docker-Fehler am Backup-Dienst rollt ihn nicht zurück — er wird nur laut gemeldet.
+> (`scripts/backup.sh` bräuchte das nicht — das startet der Sidecar je Lauf als eigenen
+> Prozess. Geprüft werden trotzdem beide.) Wer die Datei **von Hand** nachzieht, ohne den
+> Rollout zu fahren, holt den Austausch selbst nach — oder der Sidecar sichert bis zum
+> nächsten Neustart nach dem alten Stand, ohne dass irgendwo etwas rot wird.
+
+> ⚠️ **Und er wartet, bis der Dienst sich meldet — bei JEDEM Rollout, nicht nur wenn er
+> ihn ausgetauscht hat.** Das ist keine Feinheit: Schritt 5 erneuert den Container selbst,
+> sobald sich Image oder `.env` geändert haben — beim ersten Rollout dieses Features also
+> immer —, und dann ist seine Startzeit jünger als beide Skripte, Schritt 8b tauscht
+> nichts aus, und eine Warterei im Austausch-Zweig hätte ausgerechnet den frischesten
+> Container nie geprüft.
+>
+> Ein `up -d` sagt „gestartet", nicht „läuft": der Sidecar holt seine Werkzeuge zur Laufzeit per `apk add`, und
+> schweigt der Paketspiegel, bricht der Vorlauf ab — `restart: unless-stopped` macht
+> daraus eine Neustartschleife, während `up -d` längst erfolgreich zurückgekehrt ist.
+> Ohne konfigurierten `BACKUP_PING_URL` fiele das erst auf, wenn die Sicherung der
+> nächsten Nacht fehlt. Schritt 8b fragt deshalb bis zu **120 Sekunden** lang den
+> Healthcheck ab (`SUITE_BACKUP_GESUND_FRIST` setzt die Frist, `0` heißt: nur einmal
+> nachsehen; ein Unsinnswert fällt laut auf 120 zurück, mehr als 3600 wird auf 3600
+> gedeckelt — ein Rollout, der eine Stunde auf den Backup-Dienst wartet, hat seinen
+> Zweck ohnehin verfehlt) und unterscheidet drei Ausgänge: *gesund* (still),
+> *nach der Frist immer noch im Anlauf* (kann ein langsamer Paketspiegel sein und sich von selbst geben),
+> *läuft nicht* — gestoppt, abgestürzt oder in der Neustartschleife (gibt sich nie von
+> selbst). ⚠️ Gefragt wird mit `docker compose ps -q **-a**`: ohne das `-a` zeigt Compose
+> nur LAUFENDE Container, ein abgestürzter Sidecar käme also als leere Antwort zurück und
+> gälte als „gar nicht da". Bleibt die Antwort auch mit `-a` leer, gibt es wirklich keinen
+> Container — auch das wird gemeldet, denn Schritt 1 hat die `compose.yaml` gegen das Repo
+> geprüft und Schritt 5 den Stack hochgefahren. **Zurückgerollt wird
+> in keinem der drei Fälle** — dieselbe Abwägung wie beim Austausch selbst.
 
 > **Was NICHT der Ausweg ist: eine dauerhaft abweichende `compose.yaml` auf dem Server.**
 > Der Vergleich ist byteweise — ein Host, der einen Wert anders braucht als die Vorlage,
@@ -351,7 +408,11 @@ er fordert die Freigabe erneut an).
 > clamd findet sie nie, und sichtbar wird das Tage später als dauerhaft
 > `scan_status: 'fehler'`. Und fehlt `clamd.files.conf` ganz, legt Docker an der Stelle
 > ein leeres **Verzeichnis** an — clamd startet ohne Konfiguration, wird nie `healthy`,
-> und **die ganze Suite startet nicht** (`depends_on: service_healthy`).
+> und **die ganze Suite startet nicht** (`depends_on: service_healthy`). Bei den beiden
+> Backup-Skripten ist der Fehlfall derselbe, aber enger begrenzt: Docker legt ebenfalls
+> ein leeres Verzeichnis an, der Dienst `backup` läuft in eine Neustartschleife — und
+> weil er in **keine Richtung** ein `depends_on` hat, nimmt er die Suite dabei nicht mit.
+> Sichtbar ist das nur in `docker compose ps`, nicht an der Anwendung.
 
 ### E3 — Schritt 2: „Das Tag :latest trägt Commit X, erwartet war Y"
 

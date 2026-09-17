@@ -51,6 +51,11 @@ FRIST="${SUITE_DEPLOY_FRIST:-300}"
 HEALTH_URL="${SUITE_HEALTH_URL:-https://iuk-ue.de/api/health/portal}"
 if [ "$HEALTH_URL" = "aus" ]; then HEALTH_URL=""; fi
 # Optionaler Sicherungslauf vor dem Austausch, als vollständiger Befehl. Leer = keiner.
+# Seit DRK-185 ist der empfohlene Wert der Sidecar selbst, und er braucht keine Host-Pfade
+# mehr (die Volumes sind in seinem Container schon an der richtigen Stelle gemountet):
+#   SUITE_BACKUP_CMD=docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh einmal
+# `run --rm` und nicht `exec`: der Dienst soll auch dann sichern, wenn sein Container gerade
+# nicht laeuft — und genau das ist bei einem gescheiterten Rollout der wahrscheinliche Fall.
 BACKUP_CMD="${SUITE_BACKUP_CMD-}"
 
 REPO_WURZEL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -84,9 +89,14 @@ echo "Image:     $BASIS:$TAG"
 # schriebe seine Bildnachweise in das Container-Dateisystem statt in `aufgaben_data`, und
 # clamd fände sie nie — sichtbar erst als dauerhaft `scan_status: 'fehler'`, Tage später.
 # Deshalb Gleichstand als Vorbedingung, und Abbruch statt Überschreiben.
-melde "Schritt 1: compose.yaml und clamd.files.conf gegen das Repo prüfen"
+melde "Schritt 1: Stack-Dateien gegen das Repo pruefen"
 abweichung=0
-for datei in compose.yaml clamd.files.conf; do
+# ⚠️ SEIT DRK-185 SIND ES VIER, NICHT ZWEI. Der Backup-Sidecar reicht `backup.sh` und
+# `backup-sidecar.sh` per Bind-Mount in seinen Container — sie liegen damit auf dem
+# Server und sind dieselbe Art Datei wie `clamd.files.conf`. Ohne den Vergleich driftet
+# die Server-Fassung von der getesteten weg, und das sieht niemand: das Repo am
+# wenigsten, und der Sidecar meldet sich erst, wenn eine Sicherung gebraucht wird.
+for datei in compose.yaml clamd.files.conf scripts/backup.sh scripts/backup-sidecar.sh; do
   if [ ! -f "$STACK_DIR/$datei" ]; then
     warne "$datei fehlt auf dem Server."
     abweichung=1
@@ -103,9 +113,10 @@ for datei in compose.yaml clamd.files.conf; do
 done
 if [ "$abweichung" -ne 0 ]; then
   abbruch "Stack-Dateien weichen ab. Sie werden BEWUSST nicht automatisch übernommen —
-  eine Änderung an compose.yaml oder clamd.files.conf ist Runbook-Arbeit (Diff gegen die
-  Server-Datei, Einträge in die .env retten, siehe docs/runbooks/auto-rollout.md Teil E).
-  Danach diesen Job erneut laufen lassen."
+  eine Änderung an compose.yaml, clamd.files.conf oder den beiden Backup-Skripten ist
+  Runbook-Arbeit (Diff gegen die Server-Datei, Einträge in die .env retten, siehe
+  docs/runbooks/auto-rollout.md Teil E; für die Backup-Skripte zusätzlich
+  docs/runbooks/backup-sidecar.md). Danach diesen Job erneut laufen lassen."
 fi
 
 # ══ Schritt 2 — Image ziehen und die Revision prüfen, BEVOR etwas ausgetauscht wird ═══
@@ -264,6 +275,114 @@ warte_gesund() {
   return 1
 }
 
+# ⚠️ EIN GEÄNDERTES BIND-MOUNT-SKRIPT ERREICHT DEN LAUFENDEN DIENST NICHT. `docker
+# compose up -d` tauscht einen Container aus, wenn sich sein IMAGE oder seine
+# KONFIGURATION geändert hat; der Inhalt einer Datei hinter einem unveränderten Mount-Pfad
+# ist beides nicht. Der Sidecar läuft aber als ein einziger `sh`-Prozess über Wochen
+# (`command: [… "dienst"]`), und der hat seine Funktionen beim Start gelesen.
+#
+# GEMESSEN an einem Skript, das im Sekundentakt eine Zeile schreibt und dabei ausgetauscht
+# wurde: der laufende Prozess gab sechsmal die ALTE Fassung aus, ein neu gestarteter sofort
+# die neue. Schritt 1 meldet die Datei dabei als „identisch" — sie IST es ja —, und genau
+# das ist die Falle: der Rollout sagt „aktuell", und nachts läuft der alte Stand.
+#
+# ⚠️ FÜR `backup.sh` GILT DAS NICHT, und der Unterschied ist tragend: das startet der
+# Sidecar je Lauf als eigenen Prozess (`bash "$BACKUP_SKRIPT"`), liest also jedes Mal neu.
+# Nur `backup-sidecar.sh` selbst braucht den Neustart — geprüft werden trotzdem beide,
+# weil die Unterscheidung hier niemand im Kopf haben soll.
+#
+# ⚠️ ctime, NICHT mtime: `cp -p`, `install -p` und `rsync -a` erhalten die mtime, und dann
+# wäre eine frisch kopierte Datei „älter" als der Container. Die ctime setzt der Kern beim
+# Schreiben, sie lässt sich nicht erhalten. Ist die Startzeit nicht zu lesen, wird
+# neugestartet — lieber einmal zu viel als eine Nacht auf dem alten Stand.
+# Wartet, bis der backup-Dienst sich gesund meldet.
+#
+# ⚠️ EIN `up -d` MELDET „GESTARTET", NICHT „LAEUFT". Der Sidecar holt seine Werkzeuge zur
+# Laufzeit per `apk add` — schweigt der Paketspiegel, bricht der Vorlauf ab, und
+# `restart: unless-stopped` macht daraus eine Neustartschleife. `up -d` ist da längst
+# erfolgreich zurückgekehrt, der Rollout meldete „abgeschlossen", und ohne konfigurierten
+# Ping fällt es erst auf, wenn jemand von sich aus nach Docker sieht — also frühestens,
+# wenn die Sicherung der nächsten Nacht fehlt.
+#
+# Rückgabe: 0 gesund (oder laufend ohne Healthcheck) · 1 weg oder in der Neustartschleife
+# · 2 nach der Frist immer noch im Anlauf. Drei Ausgänge, weil sie drei verschiedene
+# Handgriffe bedeuten — ein gemeinsames „nicht gesund" verschenkte genau die Auskunft.
+backup_wird_gesund() {
+  local frist="$1" ende cid lage gesund
+  # ⚠️ ERST PRÜFEN, DANN RECHNEN — und die beiden Fehlfälle gehen GEGENLÄUFIG
+  # auseinander, beide unter `set -euo pipefail` gemessen:
+  #
+  #   SUITE_BACKUP_GESUND_FRIST=abc  → `abc: unbound variable`, EXIT 1. Das Skript stirbt
+  #     hier, also HINTER dem in Schritt 7 bewiesenen Rollout: Schritt 9 wird nie
+  #     erreicht, und ein erfolgreicher Rollout meldet sich als gescheiterter Job.
+  #   SUITE_BACKUP_GESUND_FRIST=08   → `value too great for base` (führende Null ist
+  #     OKTAL), das Skript läuft WEITER, aber `ende` bleibt leer und die Warterei ist
+  #     still kaputt — ein langsamer Dienst gälte sofort als „noch im Anlauf".
+  #
+  # Dieselbe Klasse wie im Sidecar (dort `entnullen` plus Ziffernprüfung), und dieselbe
+  # Reihenfolge: Ziffern, dann Länge, dann Wert. Eine Obergrenze steht dabei nicht gegen
+  # den Überlauf, sondern gegen den Unsinn: ein Rollout, der eine Stunde auf den
+  # Backup-Dienst wartet, hat den Job längst verfehlt.
+  case "$frist" in
+    '' | *[!0-9]*)
+      warne "SUITE_BACKUP_GESUND_FRIST=\"$frist\" ist keine Zahl — es gelten 120s."
+      frist=120
+      ;;
+  esac
+  # ⚠️ ERST DIE NULLEN WEG, DANN DIE LÄNGE MESSEN — sonst meldet `00120` „zu gross",
+  # obwohl 120 gemeint und gültig ist (gemessen). Das letzte Zeichen bleibt stehen,
+  # damit aus `000` eine `0` wird und keine leere Zeichenkette.
+  while [ "${frist#0}" != "$frist" ] && [ "${#frist}" -gt 1 ]; do frist="${frist#0}"; done
+  # Danach steht keine führende Null mehr da, und die Arithmetik liest nicht mehr oktal.
+  if [ "${#frist}" -gt 4 ]; then
+    warne "SUITE_BACKUP_GESUND_FRIST=\"$frist\" ist zu gross — es gelten 120s."
+    frist=120
+  fi
+  if [ "$frist" -gt 3600 ]; then
+    warne "SUITE_BACKUP_GESUND_FRIST=$frist ist groesser als 3600 — es gelten 3600s."
+    frist=3600
+  fi
+  ende=$(( $(date +%s) + frist ))
+  while :; do
+    # `-a` aus demselben Grund wie in Schritt 8b: ein Container, der waehrend des
+    # Wartens STIRBT, soll als `exited` gelesen werden und nicht als „gar nicht da".
+    cid="$(docker compose ps -q -a backup 2>/dev/null || true)"
+    [ -n "$cid" ] || return 1
+    lage="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || echo "")"
+    # `{{if .State.Health}}`: ohne Healthcheck gibt es den Block gar nicht, und ein
+    # blindes `.State.Health.Status` wäre dann ein Fehler statt einer Auskunft.
+    gesund="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}ohne{{end}}' "$cid" 2>/dev/null || echo "")"
+    case "$gesund" in
+      healthy) return 0 ;;
+      # Ohne Healthcheck ist „läuft" alles, was sich feststellen lässt.
+      ohne) [ "$lage" = "running" ] && return 0 ;;
+    esac
+    case "$lage" in restarting | exited | dead) return 1 ;; esac
+    [ "$(date +%s)" -lt "$ende" ] || return 2
+    sleep 5
+  done
+}
+
+backup_skripte_neuer_als() {
+  local seit="$1" datei zeit
+  for datei in scripts/backup.sh scripts/backup-sidecar.sh; do
+    zeit="$(stat -c %Z "$STACK_DIR/$datei" 2>/dev/null || echo 0)"
+    # ⚠️ `-ge`, NICHT `-gt`: bei GLEICHER Sekunde ist die Reihenfolge nicht mehr
+    # feststellbar. Beide Zahlen sind auf Sekunden gerundet (gemessen: StartedAt
+    # `…00.000000001Z` und `…00.999999999Z` ergeben ueber `date +%s` dieselbe Zahl) —
+    # „Skript kurz VOR dem Start geschrieben" (Container hat es) und „kurz DANACH"
+    # (Container hat es nicht) sind darin dasselbe Zahlenpaar. Das ist keine knapp
+    # falsche Rechnung, sondern eine Frage, die diese Daten nicht beantworten; es
+    # bleibt die Wahl, wohin man irrt — und die ist im Kopf dieser Funktion schon
+    # getroffen: lieber einmal zu viel als eine Nacht auf dem alten Stand.
+    if [ "$zeit" -ge "$seit" ]; then
+      echo "  $datei ist nicht älter als der laufende backup-Container."
+      return 0
+    fi
+  done
+  return 1
+}
+
 melde "Schritt 5: Image pinnen und Stack neu starten"
 setze_pin "$NEUES_IMAGE"
 docker compose config >/dev/null || abbruch "docker compose config ist nach dem Pinnen ungültig — .env prüfen."
@@ -333,6 +452,85 @@ if [ -n "$HEALTH_URL" ]; then
   fi
 else
   echo "  übersprungen (SUITE_HEALTH_URL leer)."
+fi
+
+# ══ Schritt 8b — den Backup-Sidecar nachziehen ═══════════════════════════════════════
+# ⚠️ ER STEHT HIER UND NICHT IN SCHRITT 5, und das ist die Lehre aus einem Befund: dort
+# läge er in dem Fenster, in dem Produktion schon angefasst ist, `zurueck_und_raus` aber
+# noch nicht definiert. Ein Docker-Fehler beim Austausch beendete das Skript per `set -e`
+# — und eine ungeprüfte Fassung liefe weiter, ohne dass der festgehaltene Rückweg je
+# gegangen wird. Hier ist der Rollout bewiesen (Schritt 7), und der Rückweg existiert.
+#
+# ⚠️ UND ER ROLLT NICHTS ZURÜCK, dieselbe Abwägung wie in Schritt 8: der Backup-Dienst
+# hat in KEINE Richtung ein depends_on; ein Image-Rollback machte einen Docker-Fehler an
+# ihm nicht besser, er verlängerte nur die Störung. Laut ist er trotzdem — sonst sichert
+# der Sidecar still nach dem alten Skript, und genau das ist der Fund, dessentwegen es
+# diesen Schritt überhaupt gibt.
+#
+# Gefragt wird erst hier, weil `docker compose up -d` in Schritt 5 den Container ohnehin
+# ausgetauscht haben kann (geänderte .env, geänderte compose.yaml): dann ist seine
+# Startzeit jünger als jedes Skript, und es bleibt beim einen Austausch.
+melde "Schritt 8b: Backup-Sidecar gegen die Skripte pruefen"
+# ⚠️ `-a`, SONST IST EIN GESTOPPTER CONTAINER DASSELBE WIE GAR KEINER. `docker compose
+# ps -q` zeigt nur LAUFENDE; ein abgestürzter oder von Hand gestoppter Sidecar liefert
+# damit eine leere Antwort, und der Rollout las das als „nichts auszutauschen" und
+# meldete Erfolg — obwohl es bis auf Weiteres keine nächtliche Sicherung gibt. Mit `-a`
+# findet die Abfrage ihn, `backup_wird_gesund` liest seinen Zustand (`exited`) und sagt
+# es laut. Das ist zugleich die Rücknahme einer eigenen Entscheidung: der leere Fall war
+# bewusst still, weil „ein Stack ohne diesen Dienst soll nicht bei jedem Rollout warnen"
+# — nur ist der leere Fall JETZT ein anderer.
+backup_cid="$(docker compose ps -q -a backup 2>/dev/null || true)"
+if [ -z "$backup_cid" ]; then
+  # ⚠️ UND DAS IST KEINE HARMLOSE AUSKUNFT MEHR: nach `-a` heisst leer, dass es GAR
+  # KEINEN Container gibt, auch keinen gestoppten — obwohl Schritt 1 die `compose.yaml`
+  # des Servers byteweise gegen die des Repos geprüft hat (dort steht der Dienst) und
+  # Schritt 5 den Stack hochgefahren hat. Dann ist etwas anderes kaputt als ein Skript.
+  warne "Der Dienst backup hat gar keinen Container — auch keinen gestoppten. Die Suite
+  läuft und ist geprüft, dieser Rollout wird deshalb nicht zurückgerollt; es gibt aber
+  bis auf Weiteres KEINE naechtliche Sicherung.
+  Nachsehen: docker compose ps -a backup && docker compose up -d backup"
+else
+  gestartet="$(docker inspect -f '{{.State.StartedAt}}' "$backup_cid" 2>/dev/null || true)"
+  seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
+  if backup_skripte_neuer_als "$seit"; then
+    melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
+    # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESEN MELDUNGEN (siehe setze_pin).
+    docker compose up -d --force-recreate backup || warne "Der Austausch des Dienstes
+  backup ist gescheitert. Die Suite läuft und ist geprüft — der Sidecar sichert aber bis
+  zu einem Neustart nach dem ALTEN Skript. Von Hand nachholen:
+  docker compose up -d --force-recreate backup"
+  else
+    echo "  beide Skripte sind älter als der laufende Container — kein Austausch nötig."
+  fi
+
+  # ⚠️ UND JETZT GEFRAGT, OB ER LAEUFT — UNABHAENGIG DAVON, OB DIESER SCHRITT IHN
+  # AUSGETAUSCHT HAT. Das ist die Lehre aus einem Befund: stand der Austausch im `if`,
+  # blieb ausgerechnet der wahrscheinlichste Fall ungeprueft. SCHRITT 5 (`docker compose
+  # up -d`) erzeugt den Container naemlich selbst neu, sobald sich Image oder
+  # Konfiguration geaendert haben — beim ERSTEN Rollout dieses Features und nach jeder
+  # backup-bezogenen Aenderung in der `.env`. Danach ist seine Startzeit juenger als
+  # beide Skripte, `backup_skripte_neuer_als` ist falsch, und die einzige Stelle, die
+  # gewartet haette, wurde uebersprungen: ein scheiterndes `apk add` haette den frischen
+  # Dienst in die Neustartschleife geschickt, waehrend der Rollout Erfolg meldet.
+  #
+  # Die Frage kostet im Regelfall einen `docker inspect` — ein Dienst, der seit Wochen
+  # laeuft, antwortet sofort mit `healthy`.
+  # 120s: das `apk add` der sieben Pakete braucht gemessen Sekunden, die Anlaufspanne des
+  # Healthchecks sind 5 Minuten. Wer den Rollout nicht so lange aufhalten will, setzt
+  # SUITE_BACKUP_GESUND_FRIST.
+  echo "  auf den Healthcheck des backup-Dienstes warten …"
+  lage_backup=0
+  backup_wird_gesund "${SUITE_BACKUP_GESUND_FRIST:-120}" || lage_backup=$?
+  case "$lage_backup" in
+    0) echo "  backup meldet sich gesund." ;;
+    2) warne "Der Dienst backup ist nach der Frist immer noch im Anlauf. Das kann an
+  einem langsamen Paketspiegel liegen und sich von selbst geben — nachsehen:
+  docker compose ps backup && docker compose logs --tail=50 backup" ;;
+    *) warne "Der Dienst backup laeuft NICHT — gestoppt, abgestuerzt oder in der
+  Neustartschleife. Die Suite läuft und ist geprüft, dieser Rollout wird deshalb nicht
+  zurückgerollt; es gibt aber bis auf Weiteres KEINE naechtliche Sicherung.
+  Ursache ablesen: docker compose logs --tail=50 backup" ;;
+  esac
 fi
 
 # ══ Schritt 9 — Ergebnis ═════════════════════════════════════════════════════════════

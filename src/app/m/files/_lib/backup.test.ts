@@ -213,6 +213,61 @@ describe("scripts/backup.sh — die Reihenfolge der vier Bloecke", () => {
   });
 });
 
+describe("scripts/backup.sh — der Zeitstempel ist der NAME der Generation", () => {
+  it("prueft, ob der Name schon belegt ist, BEVOR er das Arbeitsverzeichnis anlegt", () => {
+    // ⚠️ GEMESSEN MIT ZWEI UNMITTELBAR AUFEINANDERFOLGENDEN LAEUFEN: beide meldeten
+    // `backup: wrote …T223946.tar.gz`, beide exit 0 — im Ziel lag EIN Tarball. `date`
+    // ist sekundengenau, und `tar -czf` legt nicht daneben, sondern DARUEBER.
+    //
+    // Die Sperre im Sidecar verhindert das nicht, sie ERZEUGT den Fall: sie
+    // serialisiert, und zwei serialisierte Laeufe folgen einander um Sekundenbruchteile.
+    // Am externen Ziel wiederholt sich das, weil derselbe Name hochgeladen wird.
+    const i = zeileMit('stamp="$(date +%Y%m%dT%H%M%S)"');
+    const pruefung = zeileMit('while [ -e "$BACKUP_DIR/$stamp.tar.gz" ]');
+    const anlegen = zeileMit('mkdir -p "$work"');
+    expect(i, "erst stempeln").toBeLessThan(pruefung);
+    expect(pruefung, "dann auf Belegung pruefen, erst dann anlegen").toBeLessThan(anlegen);
+    // Auch ein liegengebliebenes Arbeitsverzeichnis (SIGKILL im vorigen Lauf) belegt
+    // den Namen — `tar` packte es sonst als Inhalt der neuen Generation mit ein.
+    expect(befehleText).toContain('|| [ -e "$BACKUP_DIR/$stamp" ]');
+  });
+
+  it("WARTET auf die naechste Sekunde, statt einen Zusatz an den Namen zu haengen", () => {
+    // ⚠️ DER NAHELIEGENDE FIX WAERE DER FALSCHE. Ein `…T223946-2.tar.gz` faellt aus
+    // TARBALL_MUSTER, mit dem `backup-sidecar.sh` am externen Ziel die eigenen
+    // Sicherungen von fremden Dateien unterscheidet: es wuerde dort als fremd gewarnt
+    // und NIE MEHR wegrotiert. Ausserdem beruht die Rotation darauf, dass der Name
+    // lexikografisch wie chronologisch sortiert.
+    const rumpf = quelle.slice(
+      quelle.indexOf('while [ -e "$BACKUP_DIR/$stamp.tar.gz" ]'),
+      quelle.indexOf('work="$BACKUP_DIR/$stamp"'),
+    );
+    expect(rumpf).toContain("sleep 1");
+    expect(rumpf).toContain('stamp="$(date +%Y%m%dT%H%M%S)"');
+    // Kein Namenszusatz — der Stempel bleibt das, was `date` liefert.
+    expect(befehleText).not.toMatch(/stamp="\$\{?stamp\}?[-_.]/);
+    const muster = readFileSync(path.join(WURZEL, "scripts/backup-sidecar.sh"), "utf8").match(
+      /TARBALL_MUSTER='([^']+)'/,
+    );
+    expect(muster, "TARBALL_MUSTER in scripts/backup-sidecar.sh").not.toBeNull();
+    expect(muster?.[1]).toBe(
+      "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9].tar.gz",
+    );
+  });
+
+  it("bricht ab, statt ewig zu warten, wenn der Stempel nicht wechselt", () => {
+    // Eine stehende Uhr liesse die Schleife sonst nie enden und der Dienst haenge
+    // stumm. GEMESSEN mit einer `date`-Attrappe: exit 1 nach 5s, die vorhandene
+    // Generation unversehrt. Der Sidecar wertet das als Fehlschlag — laut, wie es sein
+    // soll; stilles Ueberschreiben ist genau der Schaden, den die Schleife verhindert.
+    expect(befehleText).toContain('if [ "$versuche" -gt 5 ]; then');
+    expect(befehleText).toMatch(/aborting \(steht die Uhr\?\)/);
+    const abbruch = zeileMit('if [ "$versuche" -gt 5 ]; then');
+    const schlafen = zeileMit("sleep 1");
+    expect(abbruch, "erst zaehlen und abbrechen, dann schlafen").toBeLessThan(schlafen);
+  });
+});
+
 describe("scripts/backup.sh — was unveraendert bleiben muss", () => {
   it("packt genau EIN tar und haengt nichts an ein gzip-Archiv an", () => {
     // `tar -rf` an ein gzip-Archiv ist unmoeglich („Cannot append to compressed
@@ -229,6 +284,17 @@ describe("scripts/backup.sh — was unveraendert bleiben muss", () => {
     expect(quelle).toContain("shopt -u nullglob");
     expect(quelle).toContain('if [ "${#dbs[@]}" -eq 0 ]; then');
     expect(quelle).toContain("set -euo pipefail");
+  });
+
+  it("KEEP verliert fuehrende Nullen, bevor die Rotation damit rechnet", () => {
+    // ⚠️ Fuehrende Nullen sind in Shell-Arithmetik OKTAL, mit zwei Folgen: `08` bricht
+    // `tail -n +$((KEEP + 1))` mit einem Syntaxfehler ab, `010` rechnet STILL 8 statt 10.
+    // Gemessen mit zwoelf Generationen und BACKUP_KEEP=010: vorher blieben 8, jetzt 10.
+    const i = zeileMit('KEEP="${BACKUP_KEEP:-7}"');
+    const j = zeileMit('KEEP="${KEEP#0}"');
+    const rotation = zeileMit("tail -n +$((KEEP + 1))");
+    expect(j, "entnullt wird direkt nach der Belegung").toBeGreaterThan(i);
+    expect(j, "und lange vor der Rotation").toBeLessThan(rotation);
   });
 
   it("ist syntaktisch gueltiges bash", () => {
