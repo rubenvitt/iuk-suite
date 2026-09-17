@@ -26,17 +26,16 @@ import s from "./helfer.module.css";
  * Breitknopf mit umgekehrter Wirkung waere der teuerste denkbare Gleichklang —
  * am Regal wird nach Farbe und Position getippt, nicht nach Beschriftung.
  *
- * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT — UND DAS IST DER UNTERSCHIED ZU
- * `Entnahme.tsx` (Codex-Befund P1 zu PR #174, `AGENTS.md`/Falle 9). Die Regel
- * dort lautet woertlich: „Server Actions duerfen als einzige ueber die Grenze —
+ * ⚠️ DIE ACTION WIRD DIREKT IMPORTIERT (Codex-Befund P1 zu PR #174,
+ * `AGENTS.md`/Falle 9): „Server Actions duerfen als einzige ueber die Grenze —
  * aber direkt importiert, nicht als Prop durchgereicht."
  *
- * `Entnahme.tsx` nimmt sie trotzdem als Prop, und seine Begruendung ist
- * ausgeschrieben: `_actions/buchung.ts` gehoerte damals einem SPAETER laufenden
- * Plan (Teil 5), ein Import haette die Insel von ihm abhaengig gemacht. Diese
- * Begruendung ist ABGELAUFEN — die Datei existiert. Wer die beiden Inseln
- * vergleicht und hier „vereinheitlicht", holt eine Ausnahme zurueck, die nur
- * noch aus ihrer Vorgeschichte lebt.
+ * ⚠️ HIER STAND, DASS DAS DER UNTERSCHIED ZU `Entnahme.tsx` SEI — das gilt
+ * seit DRK-375 nicht mehr. `Entnahme.tsx` und `BoxAbgabe.tsx` nahmen ihre
+ * Action als Prop, weil `_actions/buchung.ts` damals einem SPAETER laufenden
+ * Plan gehoerte; diese Begruendung ist abgelaufen, und beide sind umgestellt.
+ * Alle drei Buchungsinseln des Helfer-Wegs fuehren jetzt dieselbe Form — es
+ * gibt keine Ausnahme mehr, an der man sich orientieren koennte.
  *
  * ⚠️ KEIN antd UND KEIN `@ant-design/icons` (Fallen 1 und 7) — wie der ganze
  * Helfer-Ast. Die Monatsauswahl ist ein natives `<input type="month">`, dieselbe
