@@ -87,7 +87,7 @@ file scripts/backup.sh scripts/backup-sidecar.sh
 > Funktionen beim Start gelesen; `docker compose up -d` tauscht ihn aber nur aus, wenn
 > sich Image oder Konfiguration geändert haben, und neuer Dateiinhalt hinter einem
 > unveränderten Mount-Pfad ist beides nicht. Der Rollout erledigt das ab jetzt selbst
-> (Schritt 5 vergleicht die ctime beider Skripte mit der Startzeit des Containers); wer
+> (Schritt 8b vergleicht die ctime beider Skripte mit der Startzeit des Containers); wer
 > die Datei von Hand nachzieht, ruft danach selbst:
 >
 > ```bash

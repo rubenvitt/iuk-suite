@@ -351,9 +351,11 @@ er fordert die Freigabe erneut an).
 > Containers — der Rollout erledigt das selbst.** Der Dienst `backup` läuft als **ein**
 > `sh`-Prozess über Wochen und hat seine Funktionen beim Start gelesen; `docker compose
 > up -d` tauscht ihn aber nur aus, wenn sich Image oder Konfiguration geändert haben, und
-> der Inhalt einer Datei hinter einem unveränderten Mount-Pfad ist beides nicht. Schritt 5
-> vergleicht deshalb die **ctime** beider Skripte mit der Startzeit des laufenden
-> Containers und ruft bei Bedarf `docker compose up -d --force-recreate backup`.
+> der Inhalt einer Datei hinter einem unveränderten Mount-Pfad ist beides nicht.
+> **Schritt 8b** vergleicht deshalb die **ctime** beider Skripte mit der Startzeit des
+> laufenden Containers und ruft bei Bedarf `docker compose up -d --force-recreate backup`.
+> Er steht bewusst hinter der Revisionsprüfung: dort ist der Rollout bewiesen, und ein
+> Docker-Fehler am Backup-Dienst rollt ihn nicht zurück — er wird nur laut gemeldet.
 > (`scripts/backup.sh` bräuchte das nicht — das startet der Sidecar je Lauf als eigenen
 > Prozess. Geprüft werden trotzdem beide.) Wer die Datei **von Hand** nachzieht, ohne den
 > Rollout zu fahren, holt den Austausch selbst nach — oder der Sidecar sichert bis zum

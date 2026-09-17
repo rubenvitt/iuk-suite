@@ -312,19 +312,6 @@ setze_pin "$NEUES_IMAGE"
 docker compose config >/dev/null || abbruch "docker compose config ist nach dem Pinnen ungültig — .env prüfen."
 docker compose up -d
 
-# Erst NACH `up -d` fragen: hat es den Container ohnehin ausgetauscht (geänderte .env,
-# geänderte compose.yaml), ist seine Startzeit jetzt jünger als jedes Skript, und es
-# bleibt beim einen Austausch.
-backup_cid="$(docker compose ps -q backup 2>/dev/null || true)"
-if [ -n "$backup_cid" ]; then
-  gestartet="$(docker inspect -f '{{.State.StartedAt}}' "$backup_cid" 2>/dev/null || true)"
-  seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
-  if backup_skripte_neuer_als "$seit"; then
-    melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
-    docker compose up -d --force-recreate backup
-  fi
-fi
-
 # ── Ab hier ist Produktion angefasst: jeder Fehlschlag geht über zurueck_und_raus ──────
 zurueck_und_raus() {
   local grund="$1"
@@ -389,6 +376,41 @@ if [ -n "$HEALTH_URL" ]; then
   fi
 else
   echo "  übersprungen (SUITE_HEALTH_URL leer)."
+fi
+
+# ══ Schritt 8b — den Backup-Sidecar nachziehen ═══════════════════════════════════════
+# ⚠️ ER STEHT HIER UND NICHT IN SCHRITT 5, und das ist die Lehre aus einem Befund: dort
+# läge er in dem Fenster, in dem Produktion schon angefasst ist, `zurueck_und_raus` aber
+# noch nicht definiert. Ein Docker-Fehler beim Austausch beendete das Skript per `set -e`
+# — und eine ungeprüfte Fassung liefe weiter, ohne dass der festgehaltene Rückweg je
+# gegangen wird. Hier ist der Rollout bewiesen (Schritt 7), und der Rückweg existiert.
+#
+# ⚠️ UND ER ROLLT NICHTS ZURÜCK, dieselbe Abwägung wie in Schritt 8: der Backup-Dienst
+# hat in KEINE Richtung ein depends_on; ein Image-Rollback machte einen Docker-Fehler an
+# ihm nicht besser, er verlängerte nur die Störung. Laut ist er trotzdem — sonst sichert
+# der Sidecar still nach dem alten Skript, und genau das ist der Fund, dessentwegen es
+# diesen Schritt überhaupt gibt.
+#
+# Gefragt wird erst hier, weil `docker compose up -d` in Schritt 5 den Container ohnehin
+# ausgetauscht haben kann (geänderte .env, geänderte compose.yaml): dann ist seine
+# Startzeit jünger als jedes Skript, und es bleibt beim einen Austausch.
+melde "Schritt 8b: Backup-Sidecar gegen die Skripte pruefen"
+backup_cid="$(docker compose ps -q backup 2>/dev/null || true)"
+if [ -z "$backup_cid" ]; then
+  echo "  kein laufender backup-Container — nichts auszutauschen."
+else
+  gestartet="$(docker inspect -f '{{.State.StartedAt}}' "$backup_cid" 2>/dev/null || true)"
+  seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
+  if backup_skripte_neuer_als "$seit"; then
+    melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
+    # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESER MELDUNG (siehe setze_pin).
+    docker compose up -d --force-recreate backup || warne "Der Austausch des Dienstes
+  backup ist gescheitert. Die Suite läuft und ist geprüft — der Sidecar sichert aber bis
+  zu einem Neustart nach dem ALTEN Skript. Von Hand nachholen:
+  docker compose up -d --force-recreate backup"
+  else
+    echo "  beide Skripte sind älter als der laufende Container — kein Austausch nötig."
+  fi
 fi
 
 # ══ Schritt 9 — Ergebnis ═════════════════════════════════════════════════════════════

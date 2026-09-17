@@ -2074,9 +2074,26 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
     // im Takt eine Zeile schreibt und dabei ausgetauscht wird: der laufende Prozess gab
     // sechsmal die ALTE Fassung aus, ein neu gestarteter sofort die neue. Schritt 1
     // meldet die Datei dabei als „identisch" — sie IST es ja.
-    expect(deploySh, "nach `up -d` wird der Sidecar bei Bedarf ausgetauscht").toMatch(
+    expect(deploySh, "der Sidecar wird bei Bedarf ausgetauscht").toMatch(
       /docker compose up -d --force-recreate backup/,
     );
+    // ⚠️ UND ZWAR ERST, WENN DER ROLLOUT BEWIESEN IST. In Schritt 5 läge der Austausch in
+    // dem Fenster, in dem Produktion schon angefasst ist, `zurueck_und_raus` aber noch
+    // nicht definiert — ein Docker-Fehler beendete das Skript per `set -e`, und eine
+    // UNGEPRUEFTE Fassung liefe weiter, ohne dass der festgehaltene Rückweg je gegangen
+    // wird. Erst Existenz, dann Reihenfolge (sonst prüft −1 gegen −1).
+    const rueckweg = deploySh.indexOf("zurueck_und_raus() {");
+    const beweis = deploySh.indexOf("Schritt 7: Revision der laufenden Instanz");
+    const austausch = deploySh.indexOf("docker compose up -d --force-recreate backup");
+    for (const [wert, was] of [
+      [rueckweg, "der Rückweg"],
+      [beweis, "die Revisionsprüfung"],
+      [austausch, "der Austausch"],
+    ] as const) {
+      expect(wert, `${was} steht im Skript`).toBeGreaterThan(-1);
+    }
+    expect(austausch, "der Austausch steht NACH dem Rückweg").toBeGreaterThan(rueckweg);
+    expect(austausch, "und NACH dem Beweis aus Schritt 7").toBeGreaterThan(beweis);
     // Gemessen statt gescannt: die Entscheidung wird aus dem Skript geschnitten und in
     // `bash` ausgefuehrt (sie benutzt `local`, `sh` reicht nicht).
     const quelle = deploySh.slice(
@@ -2120,6 +2137,77 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
       // Ist die Startzeit nicht zu lesen, wird neugestartet — lieber einmal zu viel als
       // eine Nacht auf dem alten Stand.
       expect(entscheide(0), "Startzeit unbekannt").toBe("NEUSTART");
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  });
+
+  it("ein gescheiterter Austausch des Sidecars rollt den Rollout NICHT zurueck", () => {
+    // ⚠️ ER DARF AUCH NICHT STILL SEIN — beides zusammen ist der Fall: der Backup-Dienst
+    // hat in KEINE Richtung ein `depends_on`, ein Image-Rollback machte einen
+    // Docker-Fehler an ihm nicht besser (er verlängerte nur die Störung); zugleich
+    // sichert der Sidecar ohne Austausch still nach dem alten Skript.
+    //
+    // GEMESSEN mit einer `docker`-Attrappe, die genau beim Austausch scheitert — der
+    // Block wird aus `scripts/deploy.sh` geschnitten und unter `set -euo pipefail`
+    // gefahren, also so, wie ihn der Rollout fährt.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-8b-"));
+    const ab = deploySh.indexOf('melde "Schritt 8b:');
+    const bis = deploySh.indexOf("# ══ Schritt 9", ab === -1 ? 0 : ab);
+    expect(ab, "Schritt 8b steht im Skript").toBeGreaterThan(-1);
+    expect(bis, "und endet vor Schritt 9").toBeGreaterThan(ab);
+    const fuss = deploySh.indexOf("backup_skripte_neuer_als() {");
+    const funktion = deploySh.slice(fuss, deploySh.indexOf("\n}\n", fuss)) + "\n}";
+    const lauf = (block: string) => {
+      writeFileSync(
+        path.join(kladde, "bin/docker"),
+        [
+          "#!/bin/sh",
+          'case "$*" in',
+          '  "compose ps -q backup") echo cid-abc ;;',
+          '  "inspect -f {{.State.StartedAt}} cid-abc") echo 2020-01-01T00:00:00Z ;;',
+          '  "compose up -d --force-recreate backup") echo "Attrappe: Austausch gescheitert" >&2; exit 1 ;;',
+          '  *) echo "unerwartet: $*" >&2; exit 99 ;;',
+          "esac",
+          "",
+        ].join("\n"),
+      );
+      chmodSync(path.join(kladde, "bin/docker"), 0o755);
+      const p = spawnSync(
+        "bash",
+        [
+          "-c",
+          [
+            "set -euo pipefail",
+            "melde() { echo \"== $*\"; }",
+            "warne() { echo \"WARNUNG: $*\" >&2; }",
+            `STACK_DIR=${kladde}/stack`,
+            funktion,
+            block,
+            'echo "SCHRITT 9 ERREICHT"',
+          ].join("\n"),
+        ],
+        { encoding: "utf8", env: { ...process.env, PATH: `${kladde}/bin:${process.env.PATH}` } },
+      );
+      return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+    };
+    try {
+      mkdirSync(path.join(kladde, "bin"));
+      mkdirSync(path.join(kladde, "stack/scripts"), { recursive: true });
+      for (const name of ["backup.sh", "backup-sidecar.sh"]) {
+        writeFileSync(path.join(kladde, "stack/scripts", name), "");
+      }
+      const jetzt = lauf(deploySh.slice(ab, bis));
+      expect(jetzt.code, "der Rollout läuft zu Ende").toBe(0);
+      expect(jetzt.aus, "und erreicht sein Ergebnis").toMatch(/SCHRITT 9 ERREICHT/);
+      expect(jetzt.aus, "aber laut, mit dem Handgriff").toMatch(
+        /WARNUNG:[\s\S]*docker compose up -d --force-recreate backup/,
+      );
+      // ⚠️ Die Gegenprobe ist die Hälfte der Messung: ohne den Auffangzweig beendet
+      // `set -e` das Skript genau hier — und genau das war der Befund.
+      const ohne = lauf(deploySh.slice(ab, bis).replace(/ \|\| warne "Der Austausch[\s\S]*?backup"/, ""));
+      expect(ohne.code, "ohne Auffangzweig bricht der Rollout ab").toBe(1);
+      expect(ohne.aus, "und Schritt 9 wird nie erreicht").not.toMatch(/SCHRITT 9 ERREICHT/);
     } finally {
       rmSync(kladde, { recursive: true, force: true });
     }
