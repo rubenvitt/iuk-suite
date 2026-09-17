@@ -5,6 +5,7 @@ import { artikel, buchungen, chargen, lagerorte } from "../_db/schema";
 import { HANDLAGER_ID } from "../_lib/konstanten";
 import { RIEGEL_TEXTE, darfErneuern, leerText } from "../_lib/actionTypen";
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
+import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
 
 /**
  * DIE DREI BUCHUNGSWEGE — Teil 5, T114 (vorgezogen vor Welle 7 von Teil 4).
@@ -107,6 +108,7 @@ const ZUGANG_OK = {
     label: "RTW 1",
     laeuftAb: new Date(Date.now() + 3_600_000),
     fahrzeugBindung: null,
+    reichweite: VOLLE_REICHWEITE,
   },
 };
 
@@ -880,6 +882,7 @@ describe("DRK-305 — der angemeldete Weg bucht als PERSON", () => {
       name: "A. Verwaltung",
       laeuftAb: null,
       fahrzeugBindung: null,
+      reichweite: VOLLE_REICHWEITE,
     },
   };
 

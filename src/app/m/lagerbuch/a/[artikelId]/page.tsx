@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "../../_lib/host";
+import { darf, startPfad } from "../../_lib/helferBereich";
 import { helferZugangOderNull, kontoZugangOderNull } from "../../_lib/helferZugang";
 import { sitzungsEtikett, zugangsKennung } from "../../_lib/zugangHerkunft";
 import { artikelDetailHelfer } from "../../_lib/lesepfade/artikel";
@@ -108,6 +109,54 @@ export default async function ArtikelDeepLink({
   // Cookie (§3.4.4): dort sind sie AKTUELL, waehrend ein Cookie sie zwoelf
   // Stunden einfriert. Beim Konto steht der Name der Person da.
   const etikett = sitzungsEtikett(zugang);
+
+  /*
+   * AUSGANG 4 — DRK-417: DAS REGALETIKETT MIT DEM FALSCHEN CODE IN DER HAND.
+   *
+   * Seit die Reichweite am Ort haengt, gibt es Codes ohne Entnahme: die Karte an
+   * einer Einheit und die an der Entnahmebox. Wer mit einer davon ein
+   * Regaletikett scannt, bekam bis hierher die volle Entnahmeflaeche — genau
+   * den Weg, den dieses Ticket schliesst.
+   *
+   * ⚠️ EIN GESAGTER ZUSTAND, KEINE UMLEITUNG — anders als auf `/helfer/box` und
+   * `/helfer/check`. Der Unterschied ist der Einstieg: dort tippt jemand eine
+   * Adresse, hier hat jemand GESCANNT und haelt das Etikett in der Hand. Eine
+   * wortlose Umleitung sieht fuer ihn aus, als haette der Scan nicht
+   * funktioniert, und er scannt noch dreimal. Dieselbe Begruendung wie beim
+   * Zustand „Dieses Etikett kennt kein Artikel" weiter unten (Entscheidung 8-C,
+   * 36 a).
+   *
+   * ⚠️ ER STEHT VOR `artikelDetailHelfer`, nicht dahinter: der Zustand braucht
+   * das Detail nicht, und ein geladenes Detail landete im RSC-Payload eines
+   * Zugangs, der den Bestand nicht bekommen soll (§3.4.5).
+   *
+   * ⚠️ DER SATZ NENNT DIE KARTE, DIE HILFT. §11.7: jeder abgelehnte Weg nennt
+   * den Weg, der bleibt — und hier ist das ein Handgriff, wenn es dasteht, und
+   * eine Viertelstunde Suchen, wenn nicht.
+   */
+  if (!darf(zugang.reichweite, "entnahme")) {
+    return (
+      <HelferRahmen
+        aktiv={darf(zugang.reichweite, "check") ? "check" : "box"}
+        reichweite={zugang.reichweite}
+        sitzungsetikett={etikett}
+        laeuftAb={zugang.laeuftAb}
+      >
+        <LeerZustand
+          titel="Dieser Code entnimmt nicht"
+          text={
+            "Du hast die Karte an der Einheit oder an der Entnahmebox gescannt — damit "
+            + "geht kein Griff ins Regal. Scanne die Karte am Handlager und danach "
+            + "dieses Etikett noch einmal."
+          }
+          weg={{
+            href: startPfad(zugang.reichweite, zugang.fahrzeugBindung),
+            text: darf(zugang.reichweite, "check") ? "Zum Check" : "Zur Entnahmebox",
+          }}
+        />
+      </HelferRahmen>
+    );
+  }
   const detail = artikelDetailHelfer(db, artikelId);
 
   /*
@@ -127,7 +176,7 @@ export default async function ArtikelDeepLink({
   return (
     <HelferRahmen
       aktiv="entnahme"
-      nurEntnahme={zugang.nurEntnahme}
+      reichweite={zugang.reichweite}
       sitzungsetikett={etikett}
       laeuftAb={zugang.laeuftAb}
     >

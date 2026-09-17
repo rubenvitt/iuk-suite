@@ -223,12 +223,20 @@
     "kind": "excluded",
     "reason": "Ordinary absent row, unavailable generated asset, resource-type mismatch or unknown help key; not an authorization decision."
   },
-  "src/app/m/lagerbuch/helfer/box/page.tsx#redirect:nurEntnahmeAbweisung(zugang):1": {
+  "src/app/m/lagerbuch/helfer/box/page.tsx#redirect:bereichsAbweisung(zugang, \"box\"):1": {
     "kind": "delegated-denial",
-    "reason": "DRK-406: the Handlager place code may only take out material. `nurEntnahmeAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
+    "reason": "DRK-417: a place code only opens the area its card hangs at — Handlager takeout, Entnahmebox drop-off, unit check and drop-off. `bereichsAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
   },
-  "src/app/m/lagerbuch/helfer/check/page.tsx#redirect:nurEntnahmeAbweisung(zugang):1": {
+  "src/app/m/lagerbuch/helfer/check/page.tsx#redirect:bereichsAbweisung(zugang, \"check\"):1": {
     "kind": "delegated-denial",
-    "reason": "DRK-406: the Handlager place code may only take out material. `nurEntnahmeAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
+    "reason": "DRK-417: a place code only opens the area its card hangs at — Handlager takeout, Entnahmebox drop-off, unit check and drop-off. `bereichsAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
+  },
+  "src/app/m/lagerbuch/helfer/page.tsx#redirect:bereichsAbweisung(zugang, \"entnahme\"):1": {
+    "kind": "delegated-denial",
+    "reason": "DRK-417: a place code only opens the area its card hangs at — Handlager takeout, Entnahmebox drop-off, unit check and drop-off. `bereichsAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
+  },
+  "src/app/m/lagerbuch/helfer/ziel/page.tsx#redirect:bereichsAbweisung(zugang, \"entnahme\"):1": {
+    "kind": "delegated-denial",
+    "reason": "DRK-417: a place code only opens the area its card hangs at — Handlager takeout, Entnahmebox drop-off, unit check and drop-off. `bereichsAbweisung` (_lib/helferBereich.ts) records exactly one confirmed access_denied with the access actor before this redirect, and the write path enforces the same rule through the same function."
   }
 }

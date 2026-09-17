@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { darf, type Bereich, type Reichweite } from "../_lib/helferBereich";
 import { uhrzeit } from "../_lib/zeit";
 import { beenden } from "../_actions/sitzung";
 import { Restzeit } from "./Restzeit";
@@ -57,7 +58,7 @@ import s from "./helfer.module.css";
  */
 export function HelferRahmen({
   aktiv,
-  nurEntnahme,
+  reichweite,
   sitzungsetikett,
   laeuftAb,
   children,
@@ -71,24 +72,31 @@ export function HelferRahmen({
    * 106px, und die Beschriftung „Entnahme" misst darin schon 62px. Ein vierter
    * Reiter braucht ein anderes Muster, keinen weiteren Wert hier.
    */
-  aktiv: "entnahme" | "check" | "box";
+  aktiv: Bereich;
   /**
-   * NUR DIE ENTNAHME — DRK-406: der Ortscode des Handlagers.
+   * WAS DIESER ZUGANG OEFFNEN DARF — DRK-406, vier Werte statt zwei seit
+   * DRK-417.
    *
-   * ⚠️ DIE LEISTE SCHRUMPFT DANN AUF EINEN REITER, UND DAS IST RICHTIG SO.
+   * ⚠️ DIE LEISTE SCHRUMPFT AUF DIE ERLAUBTEN REITER, UND DAS IST RICHTIG SO.
    * Ein ausgegrauter Reiter waere die schlechtere Loesung: er behauptet, es gebe
    * dort etwas zu holen, und laesst jemanden am Regal dagegen tippen. Wo es
    * nichts zu waehlen gibt, steht keine Wahl.
    *
-   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL. Ein vergessenes `nurEntnahme?` waere still
-   * `undefined` und damit „alles erlaubt" — also genau der Zustand, den dieses
-   * Ticket schliesst, und zwar an der Stelle, an der man ihn sieht.
+   * ⚠️ PFLICHT-PROP, KEIN OPTIONAL. Ein vergessenes `reichweite?` waere still
+   * `undefined` und damit entweder ein Absturz oder — nach einem `?? BEREICHE`,
+   * das jemand aus Hoeflichkeit ergaenzt — „alles erlaubt", also genau der
+   * Zustand, den dieses Ticket schliesst, und zwar an der Stelle, an der man
+   * ihn sieht.
    *
-   * ⚠️ UND ES IST ANZEIGE, KEIN RIEGEL. Die Durchsetzung steht in
-   * `checkAbschluss` und `bucheInEntnahmebox` (`nurEntnahmeAbweisung`); eine
-   * getippte Adresse kommt an dieser Leiste vorbei.
+   * ⚠️ UND ES IST ANZEIGE, KEIN RIEGEL. Die Durchsetzung steht in den vier
+   * schreibenden Actions (`bereichsAbweisung`); eine getippte Adresse kommt an
+   * dieser Leiste vorbei.
+   *
+   * ⚠️ SIE WIRD DURCHGEREICHT, NICHT HIER GERECHNET. Jede der vier Seiten hat
+   * ihren `zugang` ohnehin in der Hand, und eine zweite Ableitung an dieser
+   * Stelle waere die Naht, an der Leiste und Riegel auseinanderlaufen.
    */
-  nurEntnahme: boolean;
+  reichweite: Reichweite;
   sitzungsetikett: string;
   /** `null` = angemeldetes Konto statt Kärtchen-Sitzung (DRK-305). */
   laeuftAb: Date | null;
@@ -181,22 +189,26 @@ export function HelferRahmen({
         prueft der E2E dieselbe Sache, die die Bildschirmleserin hoert.
       */}
       <nav className={s.tableiste} aria-label="Helfer-Bereiche" data-testid="lb-tableiste">
-        <Link
-          href="/helfer"
-          className={s.tab}
-          aria-current={aktiv === "entnahme" ? "page" : undefined}
-        >
-          <Ikone name="tabelle" groesse={20} />
-          <span>Entnahme</span>
-        </Link>
+        {darf(reichweite, "entnahme") && (
+          <Link
+            href="/helfer"
+            className={s.tab}
+            aria-current={aktiv === "entnahme" ? "page" : undefined}
+          >
+            <Ikone name="tabelle" groesse={20} />
+            <span>Entnahme</span>
+          </Link>
+        )}
         {/*
-          DRK-406 — BOX UND CHECK GIBT ES FUER DEN REGAL-CODE NICHT. Sie
-          verschwinden GEMEINSAM oder gar nicht: beide gehoeren zum Fahrzeug,
-          und ein einzeln stehengelassener Reiter waere eine Zusage, die die
-          Action daneben nicht einloest.
+          DRK-417 — JEDER REITER HAENGT AN SEINEM EIGENEN BEREICH.
+          Bis hierher verschwanden Box und Check GEMEINSAM, weil beide „zum
+          Fahrzeug" gehoerten und es nur die eine Gegenfrage „Regal-Code?" gab.
+          Seit die Entnahmebox ihre eigene Karte hat, ist das falsch: an ihr
+          haengt Box OHNE Check, an einer Einheit Check UND Box, am Regal
+          keines von beiden. Eine gemeinsame Bedingung koennte diese drei
+          Faelle nicht mehr auseinanderhalten.
         */}
-        {!nurEntnahme && (
-          <>
+        {darf(reichweite, "box") && (
           <Link
             href="/helfer/box"
             className={s.tab}
@@ -211,6 +223,8 @@ export function HelferRahmen({
             */}
             <span>Box</span>
           </Link>
+        )}
+        {darf(reichweite, "check") && (
           <Link
             href="/helfer/check"
             className={s.tab}
@@ -227,7 +241,6 @@ export function HelferRahmen({
             */}
             <span>Check</span>
           </Link>
-          </>
         )}
       </nav>
     </div>

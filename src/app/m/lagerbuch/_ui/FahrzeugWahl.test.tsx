@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
-import { mount, unmount, query, queryAll } from "@/app/m/qr/_lib/test-dom";
+import { mount, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 import { FahrzeugWahl } from "./FahrzeugWahl";
 
 const QUELLE = "src/app/m/lagerbuch/_ui/FahrzeugWahl.tsx";
@@ -209,5 +209,40 @@ describe("FahrzeugWahl — die Wahl ist eine NAVIGATION (§7.9.1, E5)", () => {
     const genutzt = genutzteKlassen(QUELLE);
     expect(genutzt.length, "keine einzige Klasse geprueft").toBeGreaterThanOrEqual(6);
     expect(genutzt.filter((k) => !deklariert.has(k))).toEqual([]);
+  });
+});
+
+/**
+ * WARUM HIER ETWAS ZU WAEHLEN IST — DRK-417.
+ *
+ * ⚠️ DER SATZ STEHT NUR AUF DEM ABLEGEWEG. Seit die Entnahmebox eine eigene
+ * Karte hat, ist dieser Schirm das Erste nach dem Scan an der Kiste — und
+ * „Einheit wählen" allein beantwortet dort nicht, warum ueberhaupt gefragt
+ * wird, wenn man doch vor der Box steht.
+ */
+describe("FahrzeugWahl — der Zwecksatz haengt am Weg (DRK-417)", () => {
+  const FZ = [{ id: "rtw-1", name: "RTW 1", kennung: "HN-1", einheitenart: "fahrzeug" as const }];
+
+  it("nennt auf dem Ablegeweg den Ueberschuss", async () => {
+    await mount(<FahrzeugWahl pfad="/helfer/box" fahrzeuge={FZ} />);
+    expect(query("[data-rolle='wahl-zweck']").textContent).toContain("Überschuss");
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE IST NICHT ENTBEHRLICH: ein bedingungsloser Satz waere auf
+   * dem Checkweg die Erklaerung einer Selbstverstaendlichkeit — man checkt eine
+   * Einheit, also waehlt man sie. Wer Selbstverstaendliches erklaert, wird beim
+   * zweiten Mal ueberlesen, und beim dritten auch der Satz daneben, der etwas
+   * sagt.
+   */
+  it("sagt auf dem Checkweg nichts dergleichen", async () => {
+    await mount(<FahrzeugWahl pfad="/helfer/check" fahrzeuge={FZ} />);
+    expect(exists("[data-rolle='wahl-zweck']")).toBe(false);
+  });
+
+  /** Und die Vorgabe ist der Checkweg — ein vergessenes `pfad` erklaert nichts. */
+  it("sagt ohne `pfad` nichts dergleichen", async () => {
+    await mount(<FahrzeugWahl fahrzeuge={FZ} />);
+    expect(exists("[data-rolle='wahl-zweck']")).toBe(false);
   });
 });

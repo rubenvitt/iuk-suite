@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import type { DB } from "../../_db/client";
 import { lagerorte, tokens } from "../../_db/schema";
-import { HANDLAGER_ID } from "../konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../konstanten";
 import { TOKEN_ALPHABET, TOKEN_ZIEHUNGEN, TOKEN_ZIFFERN } from "../tokenForm";
 
 /**
@@ -182,13 +182,20 @@ describe("die Codeform (§8.3) — unverändert, nur an der neuen Stelle", () =>
 });
 
 describe("stelleOrtCodesSicher — idempotent und rein additiv", () => {
-  it("versorgt den Handlager und jede aktive Einheit mit genau einem Code", () => {
+  it("versorgt Handlager, Entnahmebox und jede aktive Einheit mit genau einem Code", () => {
     einheit({ id: "rtw-1", name: "RTW 1" });
     einheit({ id: "ta-1", name: "Rucksack", einheitenart: "tasche" });
 
-    expect(stelleOrtCodesSicher(t.db, AUSSTELLER, "A. Verwaltung")).toBe(3);
+    /*
+     * ⚠️ VIER, NICHT DREI — DRK-417. Die Entnahmebox kam mit diesem Ticket in
+     * `etikettOrte`, und diese Funktion laeuft ueber genau diese Menge. Die
+     * Zahl steht hier NICHT als Selbstzweck: sie ist der einzige Ort, an dem
+     * auffiele, dass die Box ihre Karte zwar gedruckt bekommt, aber keinen
+     * Code — dann haengt an der Kiste ein QR, der ins Gate fuehrt.
+     */
+    expect(stelleOrtCodesSicher(t.db, AUSSTELLER, "A. Verwaltung")).toBe(4);
 
-    for (const id of [HANDLAGER_ID, "rtw-1", "ta-1"]) {
+    for (const id of [HANDLAGER_ID, ENTNAHMEBOX_ID, "rtw-1", "ta-1"]) {
       expect(zeilenVon(id), id).toHaveLength(1);
       expect(aktiverOrtCode(t.db, id), id).toMatch(/^\d{3}-\d{3}$/);
     }

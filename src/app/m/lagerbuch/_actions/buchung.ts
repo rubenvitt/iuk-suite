@@ -7,6 +7,7 @@ import { getDb, type DB } from "../_db/client";
 import { artikel, chargen } from "../_db/schema";
 import { HANDLAGER_ID, MONAT_REGEX } from "../_lib/konstanten";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
+import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur, zugangsKennung } from "../_lib/zugangHerkunft";
 import { fefoAbbuchungImBereich } from "../_lib/schreibpfade/abbuchung";
@@ -489,6 +490,25 @@ export async function bucheEntnahmeHelfer(
     // (`darfErneuern`, _lib/actionTypen.ts).
     return { ok: false, grund: riegel.grund, text: RIEGEL_TEXTE[riegel.grund] };
   }
+  /*
+   * DIE KARTE AN DER EINHEIT UND DIE AN DER BOX KOMMEN HIER NICHT DURCH —
+   * DRK-417.
+   *
+   * ⚠️ DIES IST DIE ZEILE, DIE ES BIS DRK-417 NICHT GAB, und ihr Fehlen war
+   * kein Versehen: solange jeder Zugang entnehmen durfte, gab es nichts zu
+   * pruefen. Seit die Reichweite am Ort haengt, ist die Entnahme der einzige
+   * Bereich, dessen Riegel man vergessen KANN, ohne dass etwas anderes
+   * auffaellt — die drei uebrigen hatten schon einen.
+   *
+   * ⚠️ SIE STEHT VOR DEM AUDIT-KONTEXT UND VOR DER VALIDIERUNG. Weiter unten
+   * waere sie eine Absage, die vorher schon eine Zeile geschrieben haette.
+   *
+   * ⚠️ DIE REITERLEISTE UND DIE BEIDEN SEITEN SIND ANZEIGE. Diese Zeile ist der
+   * Riegel: eine selbst gebaute Anfrage an diese Action kommt an keiner
+   * Navigation vorbei.
+   */
+  const bereich = bereichsAbweisung(riegel.zugang, "entnahme");
+  if (bereich) return bereich;
   return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<{ gebucht: number }>> => {
 
     const geparst = HelferEntnahmeSchema.safeParse(eingabe);

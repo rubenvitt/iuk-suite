@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { nurEntnahmeAbweisung } from "../../_lib/helferBereich";
+import { bereichsAbweisung, darf, startPfad } from "../../_lib/helferBereich";
 import { requireHelferSitzung } from "../../_lib/helferZugang";
 import { sitzungsEtikett } from "../../_lib/zugangHerkunft";
 import { fahrzeugListe } from "../../_lib/lesepfade/fahrzeuge";
@@ -50,7 +50,8 @@ export default async function BoxSeite({
   const zugang = await requireHelferSitzung(db);
 
   /*
-   * DER REGAL-CODE KOMMT HIER NICHT HEREIN — DRK-406.
+   * DER REGAL-CODE KOMMT HIER NICHT HEREIN — DRK-406, seit DRK-417 jeder Code
+   * ohne den Bereich „box".
    *
    * ⚠️ `redirect` UND NICHT `notFound`: die Seite EXISTIERT, sie ist fuer
    * diesen Zugang nur nicht gedacht. Eine 404 behauptete, es gebe sie nicht,
@@ -65,15 +66,45 @@ export default async function BoxSeite({
    * die DIESELBE Funktion ruft; ohne sie waere dieser Redirect mit einem
    * selbstgebauten POST zu umgehen.
    *
-   * ⚠️ DIE BEDINGUNG GEHT UEBER `nurEntnahmeAbweisung` UND NICHT UEBER
-   * `zugang.nurEntnahme` DIREKT, obwohl das hier kuerzer waere. Der Grund ist
+   * ⚠️ DIE BEDINGUNG GEHT UEBER `bereichsAbweisung` UND NICHT UEBER
+   * `zugang.reichweite` DIREKT, obwohl das hier kuerzer waere. Der Grund ist
    * der Protokolleintrag: die Funktion schreibt das `access_denied` mit dem
    * Akteur des Zugangs. Ein direkter Feldzugriff liesse die Umleitung STILL —
    * und still ist sie genau in dem Fall falsch, fuer den es sie gibt: jemand
    * tippt die Adresse, weil die Reiterleiste sie nicht anbietet.
+   *
+   * ⚠️ DAS ZIEL IST NICHT MEHR FEST `/helfer` (DRK-417). Es gibt jetzt Codes
+   * OHNE Entnahme — die Karte an einer Einheit ist einer —, und fuer sie war
+   * die Artikelliste eine Umleitung auf den naechsten Redirect. `startPfad`
+   * gibt denselben Schirm, auf dem dieser Code auch nach dem Scan landet.
    */
-  if (nurEntnahmeAbweisung(zugang)) redirect("/helfer");
+  if (bereichsAbweisung(zugang, "box")) {
+    redirect(startPfad(zugang.reichweite, zugang.fahrzeugBindung));
+  }
   const etikett = sitzungsEtikett(zugang);
+
+  /*
+   * DER RUECKWEG AUS EINEM LEERZUSTAND — DRK-417.
+   *
+   * ⚠️ „Zur Entnahme" STAND HIER FEST, UND DAS IST SEIT DIESEM TICKET EIN
+   * KREIS: die Karte an der Entnahmebox darf `/helfer` nicht oeffnen — sie
+   * landet dort auf der Umleitung, die sie hierher zurueckschickt. Der Link
+   * funktioniert, er tut nur nichts; dieselbe Sorte Weg, gegen die der
+   * `andereEinheitErreichbar`-Block weiter unten geschrieben ist. Genau in
+   * einem Leerzustand ist er die EINZIGE Handlung auf dem Schirm.
+   *
+   * ⚠️ DAS GATE IST DER RICHTIGE AUSGANG, nicht der Check: den darf eine
+   * Box-Karte ebenso wenig, ein Ausweichen dorthin waere derselbe Kreis eine
+   * Tuer weiter. Und es ist kein Notbehelf, sondern der Weg, den die
+   * Betreiberentscheidung vom 17.09.2026 vorsieht — ein Scan ersetzt die
+   * laufende Sitzung, und wer hier nichts zu tun hat, scannt die Karte an dem
+   * Ort, an dem er etwas zu tun hat. Das Gate leitet eine gueltige
+   * Kaertchen-Sitzung ausdruecklich NICHT weiter (`page.tsx`), der Weg ist
+   * also schleifenfrei.
+   */
+  const rueckweg = darf(zugang.reichweite, "entnahme")
+    ? { href: "/helfer", text: "Zur Entnahme" }
+    : { href: "/", text: "Andere Karte scannen" };
 
   /*
    * ⚠️ DIE BOX WIRD VOR DER EINHEIT GEPRUEFT, und die Reihenfolge ist die
@@ -85,13 +116,13 @@ export default async function BoxSeite({
   const box = boxOrt(db);
   if (box === null || !box.aktiv) {
     return (
-      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           titel={box === null ? `Keine ${ENTNAHMEBOX_NAME}` : `${box.name} ist stillgelegt`}
           text={"Die Verwaltung muss die Entnahmebox einrichten, bevor hier etwas "
               + "abgelegt werden kann. Bis dahin bitte nichts aus der Einheit nehmen, "
               + "ohne es zu melden."}
-          weg={{ href: "/helfer", text: "Zur Entnahme" }}
+          weg={rueckweg}
         />
       </HelferRahmen>
     );
@@ -117,14 +148,14 @@ export default async function BoxSeite({
 
   if (fahrzeuge.length === 0) {
     return (
-      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           // NEUTRAL, weil hier ueber ALLE Einheiten gesprochen wird und es keine
           // gibt — es gibt also auch keine Art zu nennen (DRK-309).
           titel="Keine Einheit angelegt"
           text={"Die Verwaltung muss zuerst ein Fahrzeug oder eine Tasche pflegen. "
               + "Bis dahin gibt es hier nichts auszuräumen."}
-          weg={{ href: "/helfer", text: "Zur Entnahme" }}
+          weg={rueckweg}
         />
       </HelferRahmen>
     );
@@ -132,7 +163,7 @@ export default async function BoxSeite({
 
   if (!gewaehlt) {
     return (
-      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <FahrzeugWahl
           pfad="/helfer/box"
           fahrzeuge={fahrzeuge.map((f) => ({
@@ -182,7 +213,7 @@ export default async function BoxSeite({
 
   if (posten.length === 0) {
     return (
-      <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      <HelferRahmen aktiv="box" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
         <LeerZustand
           titel={`Nichts ${inDerEinheit(gewaehlt.einheitenart)} gebucht`}
           text={"Hier steht, was das Lagerbuch dieser Einheit zuschreibt. Steht nichts "
@@ -196,7 +227,7 @@ export default async function BoxSeite({
   }
 
   return (
-    <HelferRahmen aktiv="box" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+    <HelferRahmen aktiv="box" reichweite={zugang.reichweite} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
       <BoxAbgabe
         einheit={{
           id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung,

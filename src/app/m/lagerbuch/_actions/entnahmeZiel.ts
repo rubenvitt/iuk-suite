@@ -2,6 +2,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb, type DB } from "../_db/client";
+import { bereichsAbweisung, startPfad } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { zugangsKennung } from "../_lib/zugangHerkunft";
 import { istAktivesFahrzeug } from "../_lib/lesepfade/fahrzeuge";
@@ -87,6 +88,26 @@ export async function waehleEntnahmeZiel(eingabe: FormData, db: DB = getDb()): P
       : { herkunft: "kaertchen" as const };
     const grund = gateGrundFuerSperre(riegel.grund, lage);
     redirect(`/?grund=${grund}&returnTo=${encodeURIComponent(zurueck)}`);
+  }
+
+  /*
+   * DIE ZIELWAHL GEHOERT ZUR ENTNAHME — DRK-417, und dieser Riegel ist die
+   * tragende Haelfte; die Seite davor ist nur die Anzeige.
+   *
+   * ⚠️ ER LIEFERT KEINEN FEHLERZUSTAND, SONDERN LEITET UM — anders als in den
+   * drei anderen Actions. Der Grund ist die Signatur: diese Action gibt `void`
+   * zurueck (der Weg zurueck IST ihre Antwort, siehe oben), es gibt also kein
+   * Feld, an dem ein Satz erschiene. `startPfad` fuehrt auf den Schirm, den
+   * dieser Code oeffnen darf.
+   *
+   * ⚠️ ER STEHT VOR DEM COOKIE, nicht dahinter. Das gemerkte Ziel steuert die
+   * NAECHSTE Entnahme; ein Zugang, der nicht entnehmen darf, darf es auch nicht
+   * setzen — sonst legt er eine Wahl ab, die erst die naechste Kaertchen-Sitzung
+   * auf demselben Telefon einloest.
+   */
+  const bereich = bereichsAbweisung(riegel.zugang, "entnahme");
+  if (bereich) {
+    redirect(startPfad(riegel.zugang.reichweite, riegel.zugang.fahrzeugBindung));
   }
 
   // Das FORMULAR trägt die nackte Wahl; die Bindung ans Kärtchen entsteht erst

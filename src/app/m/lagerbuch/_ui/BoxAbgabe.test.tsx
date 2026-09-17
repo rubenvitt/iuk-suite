@@ -437,3 +437,34 @@ describe("BoxAbgabe — die Bauform des Helfer-Wegs", () => {
     expect(q, "kein `buchen`-Prop mehr").not.toMatch(/\bbuchen[?]?:/);
   });
 });
+
+/**
+ * WOFUER DIESER SCHIRM DA IST — DRK-417.
+ *
+ * ⚠️ VORHER STAND HIER „Was du herausnimmst, kommt in die Entnahmebox in der
+ * Halle". Das beschreibt den MECHANISMUS und beantwortet die Frage nicht, die
+ * jemand vor der offenen Klappe hat: WAS soll ich herausnehmen? Der Anlass des
+ * Tickets ist der Ueberschuss, und der stand nirgends auf dem Schirm.
+ */
+describe("BoxAbgabe — der Zwecksatz nennt den Ueberschuss (DRK-417)", () => {
+  it("sagt, was in die Box gehoert", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar kontoZugang={false} />,
+    );
+    const zweck = query("[data-rolle='box-zweck']").textContent ?? "";
+    expect(zweck).toContain("zu viel");
+    expect(zweck).toContain("Entnahmebox");
+  });
+
+  /**
+   * ⚠️ UND ER BERUHIGT WEITER, WEIL DIE AENDERUNG SO AUSSIEHT, ALS NAEHME SIE
+   * ETWAS WEG. Ohne den zweiten Halbsatz liest sich „kommt in die Entnahmebox"
+   * wie „ist aus dem Buch verschwunden" — und dann legt es niemand hinein.
+   */
+  it("sagt weiterhin, dass das Material im Buch bleibt", async () => {
+    await mount(
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar kontoZugang={false} />,
+    );
+    expect(query("[data-rolle='box-zweck']").textContent).toContain("im Buch");
+  });
+});

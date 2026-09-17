@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import type { TestDb } from "../_db/testdb";
 import { migrierteTestDb } from "../_db/testdb";
-import { tokens } from "../_db/schema";
+import { lagerorte, tokens } from "../_db/schema";
 
 const LAYOUT = "src/app/m/lagerbuch/helfer/layout.tsx";
 
@@ -158,6 +158,8 @@ vi.mock("../_ui/HelferRahmen", () => ({
 import HelferSeite, { dynamic as seiteDynamic } from "./page";
 import HelferLayout, { dynamic as layoutDynamic } from "./layout";
 import { mount, unmount, query, exists } from "@/app/m/qr/_lib/test-dom";
+import { eq } from "drizzle-orm";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../_lib/konstanten";
 
 /**
  * Die Fixture-Zeile. `code` und `label` kommen aus DIESER Zeile in das Etikett —
@@ -349,5 +351,75 @@ describe("helfer/page.tsx", () => {
 
   it("ist `force-dynamic`", () => {
     expect(seiteDynamic).toBe("force-dynamic");
+  });
+});
+
+/**
+ * WER DIE ARTIKELLISTE SEHEN DARF — DRK-417.
+ *
+ * ⚠️ DIE ENTNAHME WAR BIS HIERHER DER EINE BEREICH OHNE RIEGEL, weil jeder
+ * Zugang sie durfte. Genau deshalb ist sie die, deren Riegel man vergessen
+ * kann, ohne dass etwas anderes auffaellt — die drei uebrigen hatten schon
+ * einen.
+ *
+ * ⚠️ GEMESSEN AM ECHTEN RIEGEL: der Zugang entsteht aus einer echten
+ * `tokens`-Zeile, `_lib/helferBereich.ts` ist nicht durch eine Attrappe
+ * ersetzt.
+ */
+describe("helfer/page.tsx — wer hier entnehmen darf (DRK-417)", () => {
+  function karteHaengtAn(ortId: string): void {
+    t.db.update(tokens).set({ ortId }).where(eq(tokens.id, TOKEN_ID)).run();
+  }
+
+  it("die Karte am Regal darf — genau dafuer haengt sie dort", async () => {
+    karteHaengtAn(HANDLAGER_ID);
+    await mount(await HelferSeite());
+    expect(umleitungen).toEqual([]);
+    expect(exists("[data-rolle='rahmen']")).toBe(true);
+  });
+
+  /**
+   * ⚠️ DIE ZUSICHERUNG AUF `liste` IST DIE TEURERE HAELFTE. Eine Umleitung
+   * NACH dem Lesepfad haette den gesamten Handlagerbestand in den RSC-Payload
+   * gelegt — auf ein privates Telefon, in einer Sitzung ohne Konto (§3.4.5).
+   * Sichtbar waere das nur im Netzwerkteil, nie auf dem Schirm.
+   */
+  it("die Karte an der Einheit kommt nicht herein — und zwar vor dem Lesepfad", async () => {
+    /*
+     * ⚠️ DIE EINHEIT MUSS ES GEBEN: `tokens.ort_id` traegt einen Fremdschluessel
+     * auf `lagerorte.id`. Das ist nebenbei die Zusage, auf der `reichweiteAus`
+     * steht — die Funktion sieht nie eine erfundene Id, sondern nur Orte, die
+     * `etikettOrte` gefuehrt hat.
+     */
+    t.db.insert(lagerorte).values({
+      id: "fz-1", name: "RTW 1", typ: "fahrzeug", aktiv: true, einheitenart: "fahrzeug",
+    }).run();
+    karteHaengtAn("fz-1");
+    liste.mockClear();
+
+    await expect(HelferSeite()).rejects.toThrow("NEXT_REDIRECT");
+    expect(umleitungen).toEqual(["/helfer/check"]);
+    expect(liste).not.toHaveBeenCalled();
+  });
+
+  it("die Karte an der Entnahmebox landet am Ablegeschirm, nicht auf der Liste", async () => {
+    karteHaengtAn(ENTNAHMEBOX_ID);
+    liste.mockClear();
+
+    await expect(HelferSeite()).rejects.toThrow("NEXT_REDIRECT");
+    expect(umleitungen).toEqual(["/helfer/box"]);
+    expect(liste).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ DER ALTBESTAND DARF WEITERHIN. „Altbestand bleibt gueltig" ist die
+   * Betreiberentscheidung vom 17.09.2026, und ohne diese Zeile waere ein
+   * `reichweiteAus`, das bei fehlender `ort_id` versehentlich einschraenkt,
+   * hier nicht zu sehen — die Zeile aus `beforeEach` traegt keine `ort_id`.
+   */
+  it("ein Kaertchen ohne Ortsbezug darf weiterhin", async () => {
+    await mount(await HelferSeite());
+    expect(umleitungen).toEqual([]);
+    expect(exists("[data-rolle='rahmen']")).toBe(true);
   });
 });

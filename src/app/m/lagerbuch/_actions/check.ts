@@ -8,7 +8,7 @@ import { getDb, type DB } from "../_db/client";
 import {
   checks, sollPositionen, geraete, o2Flaschen, o2Messungen, lagerorte, newId,
 } from "../_db/schema";
-import { nurEntnahmeAbweisung } from "../_lib/helferBereich";
+import { bereichsAbweisung } from "../_lib/helferBereich";
 import { requireHelferSchreibend } from "../_lib/helferZugang";
 import { journalQuelle, zugangsAkteur } from "../_lib/zugangHerkunft";
 import {
@@ -109,7 +109,7 @@ export async function checkAbschluss(
    * die Seite leitet um. Beides ist Anzeige. Diese Zeile ist der Riegel: eine
    * selbst gebaute Anfrage an diese Action kommt an keiner Navigation vorbei.
    */
-  const bereich = nurEntnahmeAbweisung(riegel.zugang);
+  const bereich = bereichsAbweisung(riegel.zugang, "check");
   if (bereich) return bereich;
   return withAuditContext({ actor: zugangsAkteur(riegel.zugang) }, async (): Promise<HelferErgebnis<CheckAbschlussWert>> => {
 

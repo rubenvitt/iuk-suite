@@ -667,14 +667,27 @@ describe("Bauform", () => {
     const aufrufe = rumpf.match(/redirect\s*\(/g) ?? [];
     expect(aufrufe).toHaveLength(1);
     /*
-     * ⚠️ UEBER `nurEntnahmeAbweisung`, NICHT UEBER `zugang.nurEntnahme` DIREKT.
+     * ⚠️ UEBER `bereichsAbweisung`, NICHT UEBER `zugang.reichweite` DIREKT.
      * Das ist kein Formalismus: die Funktion schreibt die Protokollzeile mit
      * dem Akteur des Zugangs (`_lib/helferBereich.ts`). Ein direkter
      * Feldzugriff waere kuerzer, liesse die Umleitung aber STILL — und still
      * ist sie genau in dem Fall falsch, fuer den es sie gibt: jemand tippt die
      * Adresse, weil die Reiterleiste sie nicht anbietet.
+     *
+     * ⚠️ UND MIT DEM BEREICHSNAMEN — DRK-417. Ein `bereichsAbweisung(zugang,
+     * "box")` an dieser Stelle waere typkorrekt, liefe fehlerfrei und liesse
+     * jeden Check-fremden Code durch; die Reiterleiste daneben zeigte das
+     * Gegenteil. Der Name ist das Einzige, was die beiden Flaechen hier
+     * unterscheidet.
      */
-    expect(rumpf).toMatch(/if \(nurEntnahmeAbweisung\(zugang\)\) redirect\("\/helfer"\);/);
+    expect(rumpf).toMatch(/bereichsAbweisung\(zugang, "check"\)/);
+    /*
+     * ⚠️ DAS ZIEL IST `startPfad`, NICHT `"\/helfer"` (DRK-417). Fest auf die
+     * Artikelliste umzuleiten war richtig, solange der einzige abgewiesene
+     * Zugang der Regal-Code war — der darf dort hin. Die Karte an der
+     * Entnahmebox darf es nicht, und sie liefe in die naechste Umleitung.
+     */
+    expect(rumpf).toMatch(/redirect\(startPfad\(/);
   });
 
   it("ist `force-dynamic`", () => {

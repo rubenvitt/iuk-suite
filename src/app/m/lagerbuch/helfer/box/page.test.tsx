@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { lagerorte, tokens } from "../../_db/schema";
-import { ENTNAHMEBOX_ID } from "../../_lib/konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "../../_lib/konstanten";
 
 const QUELLE = "src/app/m/lagerbuch/helfer/box/page.tsx";
 
@@ -401,5 +401,92 @@ describe("helfer/box — die Bauform", () => {
     await mount(await BoxSeite(sp({ fz: "fz-1" })));
     expect(query("[data-rolle='abgabe']").getAttribute("data-hat-buchen")).toBe("nein");
     expect(readFileSync(QUELLE, "utf8")).not.toMatch(/import .*from "\.\.\/\.\.\/_actions\/entnahmebox"/);
+  });
+});
+
+/**
+ * DIE REICHWEITE AM ABLEGESCHIRM — DRK-417.
+ *
+ * ⚠️ GEMESSEN AM ECHTEN RIEGEL: `bereichsAbweisung` liegt in
+ * `_lib/helferBereich.ts`, und diese Datei ersetzt jene Datei NICHT durch eine
+ * Attrappe. Der Zugang entsteht aus einer echten `tokens`-Zeile, also aus
+ * derselben Kette wie im Betrieb.
+ */
+describe("helfer/box — wer hier ablegen darf (DRK-417)", () => {
+  /** Setzt die Ortszugehoerigkeit der Kaertchen-Zeile, die `beforeEach` anlegt. */
+  function karteHaengtAn(ortId: string): void {
+    t.db.update(tokens).set({ ortId }).where(eq(tokens.id, "tk1")).run();
+  }
+
+  it("die Karte an der Einheit darf ablegen — sie ist der Ort, an dem der Überschuss auffällt", async () => {
+    karteHaengtAn("fz-1");
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 5);
+
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+
+    expect(umleitungen).toEqual([]);
+    expect(exists("[data-rolle='abgabe']")).toBe(true);
+  });
+
+  it("die Karte an der Entnahmebox darf ablegen", async () => {
+    karteHaengtAn(ENTNAHMEBOX_ID);
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 5);
+
+    await mount(await BoxSeite(sp({ fz: "fz-1" })));
+
+    expect(umleitungen).toEqual([]);
+    // Die Einheit wird weiterhin VOR der Ablage gewaehlt (Betreiberentscheidung
+    // vom 17.09.2026): ohne Herkunft ist die Umbuchung im Journal nicht
+    // nachvollziehbar.
+    expect(query("[data-rolle='abgabe']").getAttribute("data-einheit")).toBe("fz-1");
+  });
+
+  /**
+   * ⚠️ DER REGAL-CODE WIRD ABGEWIESEN, BEVOR EIN LESEPFAD LAEUFT. Die
+   * Zusicherung auf `fahrzeuge` ist der teurere Teil: weiter unten haette die
+   * Seite den Bestand einer Einheit bereits in den RSC-Payload gelegt — auf
+   * ein privates Telefon, fuer einen Zugang, der ihn nicht bekommen soll.
+   */
+  it("der Regal-Code kommt nicht herein — und zwar vor jedem Lesepfad", async () => {
+    karteHaengtAn(HANDLAGER_ID);
+    fahrzeuge.mockReturnValue([FZ("fz-1")]);
+    bestandAn("fz-1", 5);
+    // ⚠️ `beforeEach` setzt nur den RUECKGABEWERT zurueck, nicht den Zaehler —
+    // ohne diese Zeile zaehlte die Zusicherung unten die Aufrufe aller
+    // vorherigen Tests dieser Datei mit und waere nie gruen.
+    fahrzeuge.mockClear();
+
+    await expect(BoxSeite(sp({ fz: "fz-1" }))).rejects.toThrow("NEXT_REDIRECT:/helfer");
+    expect(umleitungen).toEqual(["/helfer"]);
+    expect(fahrzeuge).not.toHaveBeenCalled();
+  });
+
+  /**
+   * DER LEERZUSTAND EINER BOX-KARTE FUEHRT NICHT IM KREIS.
+   *
+   * ⚠️ „Zur Entnahme" WAERE HIER EIN LINK, DER NICHTS TUT: `/helfer` weist
+   * dieselbe Karte ab und schickt sie hierher zurueck. Im Leerzustand ist er
+   * die einzige Handlung auf dem Schirm — ein Kreis ist dort das Ende des
+   * Weges, nicht bloss ein Schoenheitsfehler.
+   */
+  it("bietet einer Box-Karte im Leerzustand einen Weg, der nicht hierher zurückführt", async () => {
+    karteHaengtAn(ENTNAHMEBOX_ID);
+    fahrzeuge.mockReturnValue([]);   // keine Einheit angelegt
+
+    await mount(await BoxSeite(sp()));
+
+    const weg = query("[data-rolle='leer-weg']");
+    expect(weg.getAttribute("href")).not.toBe("/helfer");
+    expect(weg.getAttribute("href")).not.toBe("/helfer/box");
+    // Und auch nicht in den Check — den darf diese Karte ebenso wenig.
+    expect(weg.getAttribute("href")).not.toMatch(/^\/helfer\/check/);
+  });
+
+  it("bietet einem vollen Zugang im Leerzustand weiterhin die Entnahme", async () => {
+    fahrzeuge.mockReturnValue([]);
+    await mount(await BoxSeite(sp()));
+    expect(query("[data-rolle='leer-weg']").getAttribute("href")).toBe("/helfer");
   });
 });

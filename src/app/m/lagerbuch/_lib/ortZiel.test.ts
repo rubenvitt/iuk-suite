@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { ortZielPfad } from "./ortZiel";
+import { ortZielPfad, ortcodeZielPfad } from "./ortZiel";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "./konstanten";
 import { tokenZielPfad } from "./tokenZiel";
 
 /**
@@ -259,3 +260,87 @@ describe("ortZielPfad — Form und Herkunft des Pfades", () => {
   });
 });
 
+/**
+ * DRK-417 — DIE ENTNAHMEBOX HAT EIN ZIEL, DAS VON IHR HANDELT.
+ *
+ * ⚠️ SIE IST EIN `typ: "lager"` WIE DER HANDLAGER, und genau darin liegt der
+ * Fehlgriff, den diese Zusicherungen abfangen: ohne eigenen Zweig fiele sie in
+ * „sonst" und landete auf `/helfer` — eine Karte, die an der Kiste klebt und
+ * den Bestand des REGALS zeigt.
+ */
+describe("ortZielPfad — die Entnahmebox (DRK-417)", () => {
+  const BOX = { id: ENTNAHMEBOX_ID, typ: "lager" as const };
+
+  it("schickt die Box auf den Ablegeschirm, nicht auf die Artikelliste", () => {
+    expect(ortZielPfad(BOX, null)).toBe("/helfer/box");
+  });
+
+  /**
+   * ⚠️ EIN GEBUNDENES KAERTCHEN AENDERT DARAN NICHTS. `/helfer/box` fragt die
+   * Einheit selbst ab und gibt der Bindung dort den Vorrang (DRK-302); sie hier
+   * vorwegzunehmen hiesse, dieselbe Entscheidung zweimal zu treffen — und die
+   * zweite Fassung liefe beim naechsten Griff aus der ersten heraus.
+   */
+  it("bleibt dabei, auch wenn das Kaertchen an eine Einheit gebunden ist", () => {
+    expect(ortZielPfad(BOX, "rtw-1")).toBe("/helfer/box");
+  });
+
+  /**
+   * ⚠️ UND JEDES ANDERE LAGER BLEIBT AUF DER ARTIKELLISTE. Die Ausnahme gilt
+   * der Box, nicht dem TYP — wer sie ueber `typ === "lager"` baute, schickte
+   * „Lager Keller" ebenfalls an die Kiste.
+   */
+  it("gilt fuer die Box, nicht fuer jedes Lager", () => {
+    expect(ortZielPfad({ id: "keller", typ: "lager" }, null)).toBe("/helfer");
+  });
+});
+
+/**
+ * DIE LANDUNG NACH DEM EINGELOESTEN ORTSCODE — DRK-417, der Weg ueber
+ * `/t/<code>`.
+ *
+ * ⚠️ DIE ERSTEN DREI ZUSICHERUNGEN SIND KEINE WIEDERHOLUNG DER OBEREN, SONDERN
+ * DIE ZUSAGE „fuer jeden anderen Code aendert sich nichts". Sie vergleichen
+ * gegen `tokenZielPfad` — also gegen die Rechnung, die vor diesem Ticket allein
+ * zustaendig war. Eine hingeschriebene Zeichenkette pruefte hier die eigene
+ * Erwartung statt der Gleichheit.
+ */
+describe("ortcodeZielPfad — wohin ein eingeloester Ortscode fuehrt", () => {
+  it("Handlager: dieselbe Adresse wie vorher", () => {
+    expect(ortcodeZielPfad(HANDLAGER_ID, null, null)).toBe(tokenZielPfad(null, null));
+  });
+
+  it("Einheit: dieselbe Adresse wie vorher, mit ihr vorgewaehlt", () => {
+    expect(ortcodeZielPfad("rtw-1", "fahrzeug", "rtw-1"))
+      .toBe(tokenZielPfad("fahrzeug", "rtw-1"));
+  });
+
+  /**
+   * ⚠️ DER ALTBESTAND GEHT WEITER UEBER `tokenZielPfad`, UND ZWAR VOR JEDER
+   * REICHWEITENRECHNUNG. Ein Kaertchen ohne `ort_id` kann auf einen ARTIKEL
+   * zeigen, und diese Landung hat in keiner Reichweite eine Entsprechung —
+   * `startPfad` schickte es auf die Artikelliste, also einen Klick vor sein
+   * Ziel. „Altbestand bleibt gueltig" gilt auch fuer seine Landung.
+   */
+  it("Altbestand mit Artikelziel: unveraendert auf den Artikel", () => {
+    expect(ortcodeZielPfad(null, "artikel", "art-9")).toBe("/a/art-9");
+    expect(ortcodeZielPfad(undefined, "artikel", "art-9")).toBe("/a/art-9");
+  });
+
+  it("Altbestand ohne Ziel: unveraendert auf die Artikelliste", () => {
+    expect(ortcodeZielPfad(null, null, null)).toBe("/helfer");
+  });
+
+  /**
+   * DIE EINE ZEILE, DIE SICH AENDERT — und der Grund fuer die ganze Funktion.
+   *
+   * ⚠️ `tokenZielPfad` HAETTE HIER `/helfer` GELIEFERT, weil der Code der Box
+   * `zielTyp: null` traegt (`_lib/schreibpfade/ortCodes.ts`, `zielFuer`). Die
+   * Gegenprobe steht ausdruecklich daneben: ohne sie liesse sich nicht sagen,
+   * ob die Zusicherung die neue Rechnung misst oder zufaellig dasselbe trifft.
+   */
+  it("Entnahmebox: auf den Ablegeschirm — und NICHT dorthin, wo die Zielart zeigt", () => {
+    expect(ortcodeZielPfad(ENTNAHMEBOX_ID, null, null)).toBe("/helfer/box");
+    expect(tokenZielPfad(null, null)).toBe("/helfer");
+  });
+});

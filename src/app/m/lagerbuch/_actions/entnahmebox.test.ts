@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
-import { BEREICH_TEXT } from "../_lib/actionTypen";
+import { bereichText } from "../_lib/actionTypen";
 import {
   ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL,
 } from "../_lib/konstanten";
@@ -91,6 +91,7 @@ vi.mock("../_db/client", () => ({
 
 import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 import { bucheInEntnahmebox, raeumeAusEntnahmebox } from "./entnahmebox";
+import { VOLLE_REICHWEITE } from "../_lib/helferBereich";
 
 const JETZT = new Date("2026-09-16T10:00:00Z");
 
@@ -106,7 +107,7 @@ const KAERTCHEN = {
     fahrzeugBindung: null,
     // DRK-406: ein Fahrzeug-Ortscode darf in die Kiste legen. Der REGAL-Code
     // nicht — die Zusicherung dazu steht am Ende dieser Datei.
-    nurEntnahme: false,
+    reichweite: VOLLE_REICHWEITE,
   },
 };
 
@@ -119,6 +120,7 @@ const KONTO = {
     name: "A. Verwaltung",
     laeuftAb: null,
     fahrzeugBindung: null,
+    reichweite: VOLLE_REICHWEITE,
   },
 };
 
@@ -1365,7 +1367,7 @@ describe("raeumeAusEntnahmebox — was sie ablehnt", () => {
  * Regal befüllen könnte, bucht Material AUS einer Einheit heraus, an der er gar
  * nicht steht — und die Zeile im Journal trüge den Regal-Code als Quelle.
  *
- * ⚠️ AM ECHTEN RIEGEL GEMESSEN: `nurEntnahmeAbweisung` liegt in
+ * ⚠️ AM ECHTEN RIEGEL GEMESSEN: `bereichsAbweisung` liegt in
  * `_lib/helferBereich.ts`, also außerhalb der Attrappe für `_lib/helferZugang`
  * weiter oben. Die Begründung steht im Kopf jener Datei.
  */
@@ -1373,7 +1375,7 @@ describe("DRK-406 — der Ortscode des Handlagers darf nichts in die Box legen",
   it("weist die Buchung mit `bereich` ab, ohne eine Zeile zu schreiben", async () => {
     helferRiegel.mockResolvedValue({
       ...KAERTCHEN,
-      zugang: { ...KAERTCHEN.zugang, nurEntnahme: true },
+      zugang: { ...KAERTCHEN.zugang, reichweite: ["entnahme"] as const },
     });
     const vorher = t.db.select().from(buchungen).all().length;
 
@@ -1384,7 +1386,7 @@ describe("DRK-406 — der Ortscode des Handlagers darf nichts in die Box legen",
 
     expect(erg.ok).toBe(false);
     expect((erg as { grund: string }).grund).toBe("bereich");
-    expect((erg as { text: string }).text).toBe(BEREICH_TEXT);
+    expect((erg as { text: string }).text).toBe(bereichText(["entnahme"]));
     expect(t.db.select().from(buchungen).all()).toHaveLength(vorher);
     expect(revalidiert).toEqual([]);
   });

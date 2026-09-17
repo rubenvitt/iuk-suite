@@ -211,9 +211,24 @@ export function BoxAbgabe({
       */}
       <p className={s.fussnote} data-rolle="box-einheit-meta">{einheitMeta(einheit)}</p>
 
-      <p className={s.fussnote}>
-        Was du herausnimmst, kommt in die Entnahmebox in der Halle. Eingeräumt
-        wird es später — das Material bleibt so lange im Buch.
+      {/*
+        ⚠️ DER ERSTE SATZ SAGT JETZT, WOFUER DER SCHIRM DA IST — DRK-417.
+        Vorher stand hier „Was du herausnimmst, kommt in die Entnahmebox in der
+        Halle". Das beschreibt den MECHANISMUS und beantwortet die Frage nicht,
+        die jemand vor der offenen Klappe hat: WAS soll ich herausnehmen? Der
+        Anlass des Tickets ist der Ueberschuss — was zu viel drin ist, was nicht
+        hierher gehoert, was jemand drauf gelegt hat —, und das stand nirgends
+        auf dem Schirm. Die Liste darunter zeigt folgerichtig den BESTAND und
+        nicht das Soll (siehe `postenAmOrt` an der Seite).
+
+        ⚠️ ZWEI SAETZE, NICHT VIER. Dieser Schirm wird im Stehen gelesen, mit
+        einer Hand. Was gleich bleibt („das Material bleibt so lange im Buch"),
+        gehoert in den zweiten Satz, weil die Aenderung so aussieht, als naehme
+        sie etwas weg — mehr Beruhigung braucht es nicht.
+      */}
+      <p className={s.fussnote} data-rolle="box-zweck">
+        Was zu viel drin ist oder nicht hierher gehört, kommt in die Entnahmebox
+        in der Halle. Eingeräumt wird es später — bis dahin bleibt es im Buch.
       </p>
 
       {rueck && (
