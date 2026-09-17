@@ -107,15 +107,21 @@ entnullen() {
 # `BACKUP_RCLONE_KEEP` und `BACKUP_KEEP` bleiben bewusst aussen vor — dort ist `aus` ein
 # gueltiger Wert, und beide pruefen selbst, bevor sie rechnen.
 zahl_oder_vorgabe() {
-  # $1 = Name (nur fuer die Meldung), $2 = Wert, $3 = Vorgabe
+  # $1 = Name (nur fuer die Meldung), $2 = Wert, $3 = Vorgabe,
+  # $4 = `positiv`, wenn 0 ebenfalls unbrauchbar ist
   zov_wert="$(entnullen "$2")"
+  zov_grund=""
   case "$zov_wert" in
-    '' | *[!0-9]*)
-      # `warne` schreibt nach stderr — die Meldung landet also NICHT im Wert.
-      warne "$1=\"$2\" ist keine Zahl — es gilt die Vorgabe $3."
-      zov_wert="$3"
-      ;;
+    '' | *[!0-9]*) zov_grund="ist keine Zahl" ;;
   esac
+  if [ -z "$zov_grund" ] && [ "${4:-}" = "positiv" ] && [ "$zov_wert" -eq 0 ]; then
+    zov_grund="muss groesser als 0 sein"
+  fi
+  if [ -n "$zov_grund" ]; then
+    # `warne` schreibt nach stderr — die Meldung landet also NICHT im Wert.
+    warne "$1=\"$2\" $zov_grund — es gilt die Vorgabe $3."
+    zov_wert="$3"
+  fi
   echo "$zov_wert"
 }
 
@@ -200,7 +206,20 @@ BACKUP_SPERRE_FRIST_MINUTEN="$(zahl_oder_vorgabe BACKUP_SPERRE_FRIST_MINUTEN "${
 BACKUP_SPERRE_ALTER_STUNDEN="$(zahl_oder_vorgabe BACKUP_SPERRE_ALTER_STUNDEN "${BACKUP_SPERRE_ALTER_STUNDEN:-6}" 6)"
 # Takt des Herzschlags in Sekunden. Muss deutlich unter der Altersgrenze liegen, sonst
 # traegt er nicht; 60s gegen 6h ist reichlich Abstand.
-BACKUP_HERZSCHLAG_SEKUNDEN="$(zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}" 60)"
+# ⚠️ DIESER WERT MUSS POSITIV SEIN, UND ZWAR SCHON HIER — nicht erst, wenn der
+# Herzschlag startet. `sperre_ist_verwaist` rechnet daraus die Untergrenze, die eine
+# LEBENDE Sperre schuetzt, und dort kommt ein WARTENDER an, lange bevor er selbst je
+# einen Herzschlag gestartet hat. Stand die Null nur im Herzschlag gerade, hatte der
+# Wartende sie nie. GEMESSEN mit BACKUP_HERZSCHLAG_SEKUNDEN=0 und
+# BACKUP_SPERRE_ALTER_STUNDEN=0:
+#
+#   Vorgaben (60 / 6h)   Sperre 1s alt → lebt
+#   beides 0             Sperre 1s alt → VERWAIST (wird uebernommen)
+#
+# Also wieder die Gleichzeitigkeit, gegen die es die Sperre gibt — durch zwei Nullen in
+# der `.env`. (Die Leerlaufschleife aus dem Herzschlag ist damit gleich mit erledigt:
+# `sleep 0` kehrt sofort zurueck, gemessen 1423 Runden in zwei Sekunden.)
+BACKUP_HERZSCHLAG_SEKUNDEN="$(zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}" 60 positiv)"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
@@ -960,18 +979,45 @@ sperre_marke_setzen() {
 # Generation weiter, der exakte Name aendert sich also waehrend des Laufs. Waehrend einer
 # Rotation liegen kurz ZWEI Marken da — beide unsere. Traegt eine davon ein fremdes
 # Praefix, gehoert die Sperre nicht mehr uns.
+# ⚠️ DER GLOB WIRD VOR DER SCHLEIFE ERWEITERT, UND DER HERZSCHLAG RAEUMT DAZWISCHEN AUF.
+# Die Rotation legt erst die neue Generation an und entfernt dann die alte (die
+# Reihenfolge ist Absicht, siehe unten) — faellt diese Pruefung genau dazwischen, steht
+# in der bereits erweiterten Liste ein Eintrag, den es nicht mehr gibt. Vorher hiess das
+# `return 1`: „enteignet", obwohl die neue Marke mit DEMSELBEN Praefix danebenliegt.
+# GEMESSEN, mit einer Rotation mitten in der Schleife:
+#
+#   ENTEIGNET    ← falsch, Inhalt der Sperre: eigner.aaaa.1.000002
+#
+# Ein voellig gesunder langer Lauf haette daraufhin das Auslagern uebersprungen, seinen
+# Stand nicht hinterlegt und den Erfolgs-Ping unterdrueckt — rein aus Zeitverhalten.
+#
+# Ein verschwundener Eintrag ist deshalb KEIN Urteil mehr, sondern nur eine veraltete
+# Momentaufnahme: die Schleife geht darueber hinweg, und wenn danach nichts Eigenes
+# gefunden wurde, wird die Liste EINMAL neu erhoben. Mehr braucht es nicht — die
+# Rotation ist ein begrenztes Ereignis, keine Dauerbewegung.
+#
+# ⚠️ Eine FREMDE Marke bleibt sofort ein `return 1`: dann gehoert die Sperre wirklich
+# jemand anderem, und ein zweiter Blick aendert daran nichts.
 sperre_gehoert_uns() {
   [ -n "$meine_marke" ] || return 1
-  gefunden=0
-  for eintrag in "$SPERRVERZEICHNIS"/*; do
-    [ -e "$eintrag" ] || return 1
-    name="${eintrag##*/}"
-    case "$name" in
-      "$MARKE_PRAEFIX"*) gefunden=1 ;;
-      *) return 1 ;;
-    esac
+  versuch=1
+  while [ "$versuch" -le 2 ]; do
+    gefunden=0
+    fremd=0
+    for eintrag in "$SPERRVERZEICHNIS"/*; do
+      # Kein Treffer (leeres Verzeichnis) oder waehrend der Rotation weggeraeumt — beides
+      # sagt fuer sich genommen nichts. Entschieden wird nach der Schleife.
+      [ -e "$eintrag" ] || continue
+      case "${eintrag##*/}" in
+        "$MARKE_PRAEFIX"*) gefunden=1 ;;
+        *) fremd=1 ;;
+      esac
+    done
+    [ "$fremd" -eq 0 ] || return 1
+    [ "$gefunden" -eq 0 ] || return 0
+    versuch=$((versuch + 1))
   done
-  [ "$gefunden" -eq 1 ]
+  return 1
 }
 
 # ⚠️ DIE GRENZE HAT EINEN BODEN, UND DER IST KEINE VORSICHT. Eine Grenze unterhalb des
@@ -1117,18 +1163,15 @@ herzschlag_pid=""
 # `touch -c` legt nicht an (POSIX), und die Besitzpruefung davor schliesst das Fenster
 # ohnehin — beides zusammen, weil eine der beiden allein je auf die andere baute.
 herzschlag_starten() {
-  # ⚠️ EIN TAKT VON 0 IST KEIN SCHNELLER HERZSCHLAG, SONDERN EINE LEERLAUFSCHLEIFE.
-  # `sleep 0` kehrt sofort zurueck; die Schleife prueft und `touch`t dann ohne Pause.
-  # GEMESSEN mit BACKUP_HERZSCHLAG_SEKUNDEN=0: 1423 Runden in zwei Sekunden — einen Kern
-  # voll ausgelastet und das Backup-Volume beschrieben, und zwar so lange der Lauf
-  # dauert. Ein Tippfehler in der `.env` reicht dafuer.
-  case "$BACKUP_HERZSCHLAG_SEKUNDEN" in
-    '' | *[!0-9]* | 0)
-      warne "BACKUP_HERZSCHLAG_SEKUNDEN=\"$BACKUP_HERZSCHLAG_SEKUNDEN\" ist kein positiver
-  Takt — es gilt die Vorgabe 60s. (0 waere eine Leerlaufschleife, keine schnelle Meldung.)"
-      BACKUP_HERZSCHLAG_SEKUNDEN=60
-      ;;
-  esac
+  # ⚠️ EIN TAKT VON 0 IST KEIN SCHNELLER HERZSCHLAG, SONDERN EINE LEERLAUFSCHLEIFE —
+  # `sleep 0` kehrt sofort zurueck, gemessen 1423 Runden in zwei Sekunden. Abgefangen
+  # wird das NICHT hier, sondern an der Quelle (`zahl_oder_vorgabe … positiv`), und das
+  # ist der Unterschied, der zaehlt: die Untergrenze in `sperre_ist_verwaist` rechnet
+  # mit demselben Wert, und dort kommt ein WARTENDER an, lange bevor er selbst je einen
+  # Herzschlag gestartet hat. Stuende die Pruefung nur hier, haette der Wartende sie nie
+  # — und mit BACKUP_SPERRE_ALTER_STUNDEN=0 daneben waere eine lebende Sperre nach einer
+  # Sekunde uebernehmbar (gemessen). Eine zweite Pruefung an dieser Stelle waere seither
+  # toter Code, der beim naechsten Umbau auseinanderlaeuft.
   eltern=$$
   marke="$meine_marke"
   (

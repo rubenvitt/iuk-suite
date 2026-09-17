@@ -942,7 +942,12 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // unsere. Eine fremde darunter heisst: die Sperre gehoert uns nicht mehr.
     const rumpfB = funktionsrumpf(befehle, "sperre_gehoert_uns");
     expect(rumpfB).toMatch(/"\$MARKE_PRAEFIX"\*\) gefunden=1/);
-    expect(rumpfB).toMatch(/\*\) return 1/);
+    // ⚠️ Die FREMDE Marke entscheidet weiterhin sofort — nur wird sie inzwischen erst
+    // vermerkt und nach der Schleife ausgewertet, weil ein waehrend der Pruefung
+    // weggeraeumter EIGENER Eintrag kein Urteil mehr sein darf (eigener Fall weiter
+    // unten). Das `*)` trifft also jetzt `fremd=1` statt `return 1`.
+    expect(rumpfB).toMatch(/\*\) fremd=1/);
+    expect(rumpfB).toMatch(/\[ "\$fremd" -eq 0 \] \|\| return 1/);
   });
 
   it("der Herzschlag LEGT NICHTS AN — sonst blockiert er jede kuenftige Sperre", () => {
@@ -974,14 +979,92 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     //
     // Nach der Aenderung: Warnung, Vorgabe 60s, und die mtime der Sperre bewegt sich in
     // zwei Sekunden nicht mehr.
-    const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
-    expect(rumpfH).toMatch(/\| \*\[!0-9\]\* \| 0\)/);
-    expect(rumpfH).toMatch(/BACKUP_HERZSCHLAG_SEKUNDEN=60/);
-    // ⚠️ Die Pruefung steht VOR dem Start des Hintergrundprozesses — der erbt den Wert
-    // beim Abspalten, eine Korrektur danach erreichte ihn nicht mehr.
-    expect(rumpfH.indexOf("BACKUP_HERZSCHLAG_SEKUNDEN=60")).toBeLessThan(
-      rumpfH.indexOf("eltern=$$"),
+    // ⚠️ ABGEFANGEN WIRD AN DER QUELLE, NICHT IM HERZSCHLAG — und das ist kein
+    // Aufräumen, sondern der Unterschied, der zaehlt: `sperre_ist_verwaist` rechnet aus
+    // demselben Wert die Untergrenze, die eine LEBENDE Sperre schuetzt, und dort kommt
+    // ein WARTENDER an, lange bevor er selbst je einen Herzschlag gestartet hat. Stand
+    // die Pruefung nur im Herzschlag, hatte der Wartende sie nie. GEMESSEN mit
+    // BACKUP_HERZSCHLAG_SEKUNDEN=0 und BACKUP_SPERRE_ALTER_STUNDEN=0:
+    //
+    //   Vorgaben (60 / 6h)   Sperre 1s alt → lebt
+    //   beides 0             Sperre 1s alt → VERWAIST (wird uebernommen)
+    const zeile = befehle
+      .split("\n")
+      .find((z) => z.startsWith("BACKUP_HERZSCHLAG_SEKUNDEN="));
+    expect(zeile, "der Takt wird an der Quelle als POSITIV geprueft").toMatch(
+      /zahl_oder_vorgabe BACKUP_HERZSCHLAG_SEKUNDEN .* 60 positiv\)/,
     );
+    // Gemessen statt gescannt: 0 faellt auf die Vorgabe, eine gueltige Zahl nicht.
+    const positiv = (wert: string) =>
+      shellSkript(
+        [...HELFER, "zahl_oder_vorgabe"],
+        'zahl_oder_vorgabe TEST "$1" 60 positiv',
+        wert,
+      );
+    expect(positiv("0"), "0 ist kein Takt").toBe("60");
+    expect(positiv("30"), "eine gueltige Zahl bleibt").toBe("30");
+    expect(positiv("abc")).toBe("60");
+    // ⚠️ UND KEINE ZWEITE PRUEFUNG IM HERZSCHLAG: sie waere seit der Quelle toter Code,
+    // der beim naechsten Umbau auseinanderlaeuft.
+    const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
+    expect(rumpfH, "kein zweiter Rueckfall").not.toMatch(/BACKUP_HERZSCHLAG_SEKUNDEN=60/);
+  });
+
+  it("eine Marke, die WAEHREND der Pruefung rotiert, enteignet niemanden", () => {
+    // ⚠️ DER GLOB WIRD VOR DER SCHLEIFE ERWEITERT. Der Herzschlag legt erst die neue
+    // Generation an und entfernt dann die alte; faellt die Pruefung genau dazwischen,
+    // steht in der bereits erweiterten Liste ein Eintrag, den es nicht mehr gibt.
+    // Vorher hiess das `return 1` — „enteignet", obwohl die neue Marke mit DEMSELBEN
+    // Praefix danebenliegt. GEMESSEN, deterministisch mit einer Rotation mitten in der
+    // Schleife: „ENTEIGNET, Inhalt der Sperre: eigner.aaaa.1.000002".
+    //
+    // Und als echtes Wettrennen, ein Dreher im Hintergrund gegen 4000 Pruefungen,
+    // drei Runden:
+    //
+    //   alt: 3 / 2 / 1 von 4000 melden faelschlich ENTEIGNET
+    //   neu: 0 / 0 / 0
+    //
+    // Selten — aber die Folge ist teuer: ein voellig gesunder langer Lauf haette das
+    // Auslagern uebersprungen, seinen Stand nicht hinterlegt und den Erfolgs-Ping
+    // unterdrueckt, rein aus Zeitverhalten.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-sperre-"));
+    try {
+      const lage = (aufbau: string[]) =>
+        shellSkript(
+          ["sperre_gehoert_uns"],
+          [
+            `SPERRVERZEICHNIS=${kladde}/sperre`,
+            'MARKE_PRAEFIX="eigner.aaaa.1."',
+            'meine_marke="${MARKE_PRAEFIX}000001"',
+            'rm -rf "$SPERRVERZEICHNIS"; mkdir -p "$SPERRVERZEICHNIS"',
+            ...aufbau,
+            'if sperre_gehoert_uns; then echo uns; else echo fremd; fi',
+          ].join("\n"),
+        );
+      const marke = (n: string) => `mkdir "$SPERRVERZEICHNIS/\${MARKE_PRAEFIX}${n}"`;
+      expect(lage([marke("000001")]), "ruhig, eigene Marke").toBe("uns");
+      // Rotation vollzogen: nur noch die NEUE Generation liegt da.
+      expect(lage([marke("000002")]), "nach vollzogener Rotation").toBe("uns");
+      // Der Moment der Rotation selbst — kurz liegen zwei eigene nebeneinander.
+      expect(lage([marke("000002"), marke("000003")]), "zwei eigene Generationen").toBe("uns");
+      // ⚠️ Eine FREMDE Marke bleibt sofort ein Nein — daran aendert ein zweiter Blick
+      // nichts, und ein `continue` daraus zu machen waere genau der Rueckbau, der die
+      // Sperre wieder wertlos machte.
+      expect(
+        lage([marke("000001"), 'mkdir "$SPERRVERZEICHNIS/eigner.bbbb.1.000001"']),
+        "fremde Marke daneben",
+      ).toBe("fremd");
+      expect(lage([]), "leere Sperre").toBe("fremd");
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    const rumpfG = funktionsrumpf(befehle, "sperre_gehoert_uns");
+    // Ein verschwundener Eintrag ist kein Urteil mehr, sondern eine veraltete Aufnahme.
+    expect(rumpfG).toMatch(/\[ -e "\$eintrag" \] \|\| continue/);
+    // …und die Aufnahme wird EINMAL wiederholt, wenn nichts Eigenes dabei war.
+    expect(rumpfG).toMatch(/while \[ "\$versuch" -le 2 \]/);
+    // Eine fremde Marke entscheidet weiterhin sofort.
+    expect(rumpfG).toMatch(/\[ "\$fremd" -eq 0 \] \|\| return 1/);
   });
 
   it("die Uebernahme scheitert an einem Herzschlag, der DAZWISCHEN kommt", () => {
