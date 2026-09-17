@@ -574,6 +574,22 @@ lokal_rotieren() {
     done >"$unsere"
   tail -n +$((keep + 1)) "$unsere" | while read -r alt; do
       [ -n "$alt" ] || continue
+      # ⚠️ VOR JEDEM LOESCHEN, genau wie am Ziel — der Zaun in `lauf_ungesperrt` hat
+      # gemessen, wem die Sperre VOR dem Auflisten gehoerte, und dazwischen liegt ein
+      # `backup.sh`-Lauf, der Minuten dauern kann.
+      #
+      # GEMESSEN, mit einer verlorenen Sperre und `BACKUP_KEEP=1`: `ls -1t` stellt das
+      # Tarball des Nachfolgers nach vorn — es ist ja das juengste, auch waehrend es noch
+      # WAECHST —, und die Loeschliste beginnt damit bei unserer letzten FERTIGEN
+      # Generation. Danach lag genau eine Datei im Verzeichnis, und die war halb
+      # geschrieben; scheitert der Nachfolger, ist sie alles, was bleibt. Der lokale Fall
+      # ist damit teurer als derselbe am Ziel: dort gibt es die Generationen noch.
+      #
+      # `break` statt `return` — dies ist die Subshell einer Pipe.
+      if ! sperre_gehoert_uns; then
+        warne "  Sperre verloren — die restlichen Generationen bleiben stehen."
+        break
+      fi
       protokoll "  lokal geloescht: $alt"
       rm -f "$BACKUP_DIR/$alt"
     done

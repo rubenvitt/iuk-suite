@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -1419,6 +1428,67 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(rumpfR).toMatch(/\$TARBALL_MUSTER\)/);
     expect(rumpfR).toMatch(/-lt 1 \]; then[\s\S]*return 0/);
     expect(rumpfR).toMatch(/\*\[!0-9\]\*\)[\s\S]*return 0/);
+  });
+
+  it("vor JEDER lokalen Loeschung wird der Besitz erneut geprueft", () => {
+    // ⚠️ DER ZAUN IN `lauf_ungesperrt` MISST, WEM DIE SPERRE VOR DEM AUFLISTEN GEHOERTE
+    // — und dazwischen liegt ein `backup.sh`-Lauf, der Minuten dauern kann. Haelt die
+    // Maschine dort an, arbeitet danach ein anderer Lauf, und `ls -1t` stellt DESSEN
+    // Tarball nach vorn: es ist das juengste, auch waehrend es noch WAECHST. Mit
+    // BACKUP_KEEP=1 beginnt die Loeschliste damit bei unserer letzten FERTIGEN
+    // Generation. GEMESSEN, mit einer Sperre, in der nur die Marke des Nachfolgers liegt.
+    //
+    // Der lokale Fall ist teurer als derselbe am Ziel: dort gibt es die Generationen
+    // noch, hier bliebe eine halb geschriebene Datei als einzige zurueck.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-lokrot-"));
+    const rotiere = (fremdeMarke: boolean) => {
+      const dir = path.join(kladde, "backup");
+      const sperre = path.join(kladde, "sperre");
+      for (const d of [dir, sperre]) {
+        rmSync(d, { recursive: true, force: true });
+        mkdirSync(d, { recursive: true });
+      }
+      // Unsere fertige Generation von gestern, dazu das wachsende Tarball des
+      // Nachfolgers — juenger, also fuer `ls -1t` das erste.
+      writeFileSync(path.join(dir, "20260916T033000.tar.gz"), "");
+      const gestern = new Date(Date.now() - 3600_000);
+      utimesSync(path.join(dir, "20260916T033000.tar.gz"), gestern, gestern);
+      writeFileSync(path.join(dir, "20260917T033000.tar.gz"), "");
+      mkdirSync(path.join(sperre, fremdeMarke ? "eigner.bbbb.1.000001" : "eigner.aaaa.1.000001"));
+      const quelle = [
+        sidecar.split("\n").find((z) => z.startsWith("TARBALL_MUSTER=")) ?? "",
+        ...["protokoll", "warne", "entnullen", "sperre_gehoert_uns", "lokal_rotieren"].map(
+          shellQuelle,
+        ),
+        `BACKUP_DIR=${dir}`,
+        `SPERRVERZEICHNIS=${sperre}`,
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'meine_marke="eigner.aaaa.1.000001"',
+        "BACKUP_KEEP=1",
+        "lokal_rotieren",
+      ].join("\n");
+      execFileSync("sh", ["-c", quelle], { encoding: "utf8", stdio: "pipe" });
+      return readdirSync(dir).sort();
+    };
+    try {
+      expect(rotiere(true), "Sperre verloren: es wird NICHTS geloescht").toEqual([
+        "20260916T033000.tar.gz",
+        "20260917T033000.tar.gz",
+      ]);
+      // ⚠️ Die Gegenprobe ist die Haelfte der Messung: mit der eigenen Marke rotiert es
+      // unveraendert weiter, sonst hiesse „nichts geloescht" nur „die Funktion tut nichts".
+      expect(rotiere(false), "Sperre unsere: die aelteste geht wie bisher").toEqual([
+        "20260917T033000.tar.gz",
+      ]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // `break` statt `return`: die Schleife ist die Subshell einer Pipe — dieselbe Falle
+    // wie bei der Rotation am Ziel.
+    const schleife = funktionsrumpf(befehle, "lokal_rotieren");
+    const ab = schleife.indexOf("tail -n +$((keep + 1))");
+    expect(ab, "die Loeschschleife steht da").toBeGreaterThan(-1);
+    expect(schleife.slice(ab)).toMatch(/if ! sperre_gehoert_uns; then[\s\S]*break/);
   });
 
   it("ein gescheiterter Ping schreibt die Kennung NICHT ins Protokoll", () => {
