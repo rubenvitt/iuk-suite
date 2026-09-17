@@ -185,53 +185,46 @@ function loese(muster: string, vorhanden: string[]): string[] {
 }
 
 /**
- * Die `run:`-Bloecke eines Workflows, jeder als EIN Text.
+ * Die BEFEHLSZEILEN eines Workflows: YAML-Kommentare entfernt,
+ * Zeilenfortsetzungen verbunden, Leeres weg.
  *
- * ⚠️ WARUM NICHT ZEILENWEISE, UND WARUM KEIN YAML-PARSER.
+ * ⚠️ HIER STAND EIN MINI-YAML-PARSER, UND ER WAR DAS PROBLEM, NICHT DIE LOESUNG.
  *
- * Zeilenweise war der erste Versuch und ist an einer Zeilenfortsetzung
- * gescheitert (Codex-Befund P2, Begruendung an der Zusicherung unten). Ein
- * echter YAML-Parser waere sauberer, ist aber im Baum nicht vorhanden —
- * nachgesehen, weder `yaml` noch `js-yaml`. Eine Abhaengigkeit fuer einen
- * einzigen Test einzuziehen waere teurer als diese zwanzig Zeilen.
+ * Erst zerlegte der Waechter zeilenweise und uebersah die Zeilenfortsetzung
+ * (`pnpm e2e \` / `--shard=1/5`). Dann zerlegte er `run:`-Bloecke — und uebersah
+ * drei gueltige Blockskalar-Koepfe, gemessen: `| # Erklaerung`, `|2-`, `>2-`
+ * liefen alle als „Wert in derselben Zeile" durch, womit der Blockinhalt nie
+ * gelesen wurde. Zwei Runden, drei Luecken, beide Male von Codex gefunden.
  *
- * Gefasst wird deshalb genau so viel YAML, wie dieser Workflow braucht: der
- * Wert hinter `run:` steht entweder in derselben Zeile, oder er ist ein
- * Blockskalar (`|`, `>`, samt `-`/`+`-Nachsatz) und laeuft dann ueber alle
- * FOLGENDEN Zeilen, die tiefer eingerueckt sind als der Schluessel selbst.
- * Leerzeilen gehoeren dazu, weil sie einen Block nicht beenden.
+ * Die Lehre ist nicht „den Parser besser machen": jede Kopfform, die YAML
+ * erlaubt und dieser Parser nicht kennt, ist eine weitere stille Luecke. Die
+ * Klasse verschwindet erst, wenn gar kein Blockskalar mehr erkannt werden muss
+ * — und das geht, weil `--shard` IMMER auf einer Befehlszeile steht, gleich in
+ * welcher YAML-Verpackung sie steckt. Gefragt wird deshalb nur noch: traegt
+ * diese Zeile `--shard`, und ruft sie `vitest`?
+ *
+ * Zwei Vorbereitungen braucht das, und beide sind noetig:
+ *   * KOMMENTARE WEG, sonst faellt der Waechter ueber die eigene Begruendung —
+ *     `ci.yml` erklaert an mehreren Stellen, warum `--shard` bei e2e verboten
+ *     ist, und diese Saetze enthalten die Zeichenkette.
+ *   * FORTSETZUNGEN VERBINDEN, sonst steht `--shard` auf einer Zeile ohne den
+ *     Befehl, zu dem es gehoert — die erste der drei Luecken.
+ *
+ * Ein gefalteter Skalar (`>`), dessen Befehl ueber mehrere Zeilen OHNE
+ * Rueckstrich laeuft, faellt damit auf; das ist Absicht (fail closed): die
+ * Zusicherung wird laut, statt still durchzulassen.
  */
-export function laufBloecke(yaml: string): string[] {
-  const zeilen = yaml.split("\n");
-  const bloecke: string[] = [];
-
-  for (let i = 0; i < zeilen.length; i++) {
-    // `- run: …` wie `run: …`; die Einrueckung des SCHLUESSELS entscheidet, was
-    // noch zum Block gehoert — nicht die des Spiegelstrichs davor.
-    const treffer = /^(\s*(?:-\s+)?)run:(.*)$/.exec(zeilen[i]);
-    if (!treffer) continue;
-
-    const schluesselSpalte = treffer[1].length;
-    const rest = treffer[2].trim();
-
-    // Wert in derselben Zeile: fertig, nichts zieht nach.
-    if (rest && !/^[|>][-+]?\d*$/.test(rest)) {
-      bloecke.push(rest);
-      continue;
-    }
-
-    const inhalt: string[] = [];
-    while (i + 1 < zeilen.length) {
-      const naechste = zeilen[i + 1];
-      const tiefe = naechste.length - naechste.trimStart().length;
-      if (naechste.trim() !== "" && tiefe <= schluesselSpalte) break;
-      inhalt.push(naechste);
-      i++;
-    }
-    bloecke.push(inhalt.join("\n"));
-  }
-
-  return bloecke;
+export function befehlszeilen(yaml: string): string[] {
+  return yaml
+    .split("\n")
+    // ganze Kommentarzeile raus, Kommentar am Zeilenende abschneiden
+    .map((z) => (/^\s*#/.test(z) ? "" : z.replace(/\s#.*$/, "")))
+    .join("\n")
+    // Zeilenfortsetzung: der Befehl geht auf der naechsten Zeile weiter
+    .replace(/\\\n\s*/g, " ")
+    .split("\n")
+    .map((z) => z.trim())
+    .filter(Boolean);
 }
 
 describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt", () => {
@@ -373,51 +366,67 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
      * `--shard` kein `pnpm e2e`. Der Waechter blieb gruen, waehrend e2e wieder
      * shardete. Bitter daran: GENAU DIESE FORM HAETTE DER ALTE GEFANGEN, weil er
      * die ganze Datei las. Eine Verschaerfung in einer Richtung war eine
-     * Schwaechung in der anderen — der Grund, warum hier jetzt der ganze
-     * `run`-Block geprueft wird und nicht eine Zeile daraus.
+     * Schwaechung in der anderen.
+     *
+     * ⛔ DER ZWEITE VERSUCH (`run`-Bloecke statt Zeilen) WAR EBENFALLS LOECHRIG,
+     * und zwar doppelt — beide Male Codex, beide Male nachgemessen:
+     *   * drei gueltige Blockskalar-Koepfe (`| # Erklaerung`, `|2-`, `>2-`)
+     *     hielt er fuer einen Wert in derselben Zeile und las den Inhalt nie;
+     *   * `block.includes("vitest")` liess jeden Block durch, in dem das Wort
+     *     IRGENDWO stand — ein Kommentar „der vitest-Job macht das anders" ueber
+     *     einem shardenden e2e-Aufruf reichte.
+     * Die Begruendung, warum daraus `befehlszeilen()` wurde statt eines dritten
+     * Parser-Anlaufs, steht an jener Funktion.
      *
      * Umgedreht wird die Frage, weil die Positivliste den kuenftigen Fall
      * miterschlaegt: nicht „e2e darf nicht sharden" (dann muss jeder neue
      * Sharder einzeln verboten werden), sondern „wer shardet, muss `vitest`
      * sein". Ein dritter Job, der es morgen versucht, faellt damit auf, ohne
      * dass jemand diesen Test anfasst.
+     *
+     * ⚠️ GEFRAGT WIRD DIE ZEILE MIT DEM FLAG, nicht ihre Umgebung: `--shard`
+     * gehoert zu dem Befehl, auf dem es steht, und nur der muss `vitest` rufen.
      */
-    const e2eAufrufe = laufBloecke(ci).filter(
-      (b) => b.includes("pnpm e2e") || b.includes("playwright test"),
-    );
-    expect(e2eAufrufe.length, "kein e2e-Aufruf im Workflow gefunden").toBeGreaterThan(0);
+    const zeilen = befehlszeilen(ci);
 
-    for (const block of laufBloecke(ci)) {
-      if (!block.includes("--shard")) continue;
+    expect(
+      zeilen.some((z) => z.includes("pnpm e2e") || z.includes("playwright test")),
+      "kein e2e-Aufruf im Workflow gefunden",
+    ).toBe(true);
+
+    for (const zeile of zeilen) {
+      if (!zeile.includes("--shard")) continue;
       expect(
-        block.includes("vitest"),
-        `nur vitest darf sharden, dieser Block tut es auch: ${block.replace(/\s+/g, " ").trim()}`,
+        /\bvitest\b/.test(zeile),
+        `nur vitest darf sharden, diese Befehlszeile tut es auch: ${zeile}`,
       ).toBe(true);
     }
   });
 
-  it("die Block-Zerlegung sieht die Zeilenfortsetzung, die eine Zeilenpruefung verpasst", () => {
-    // Die Gegenprobe zum Codex-Befund: ohne diese Faelle faellt die Zerlegung
-    // still auf das Verhalten zurueck, das die Luecke hatte.
-    const mitFortsetzung = [
-      "      - run: |",
-      "          pnpm e2e \\",
-      "            --shard=1/5",
-      "      - run: pnpm lint",
-    ].join("\n");
-    const bloecke = laufBloecke(mitFortsetzung);
-    expect(bloecke).toHaveLength(2);
-    expect(bloecke[0]).toContain("pnpm e2e");
-    expect(bloecke[0], "Fortsetzungszeile fehlt im Block").toContain("--shard");
-    expect(bloecke[1].trim()).toBe("pnpm lint");
+  it("die Zerlegung haelt JEDE Form fest, die uns schon einmal gekostet hat", () => {
+    // Drei Luecken in zwei Runden, alle von Codex gefunden. Ohne diese Faelle
+    // faellt die Zerlegung still auf ein Verhalten zurueck, das eine davon hatte.
+    const shardet = (yaml: string) => befehlszeilen(yaml).filter((z) => z.includes("--shard"));
+    const erlaubt = (yaml: string) => shardet(yaml).every((z) => /\bvitest\b/.test(z));
 
-    // Ein `run:` mit Wert in derselben Zeile bleibt ein eigener Block, und der
-    // naechste Schritt zieht nichts von ihm mit.
-    const einzeilig = ["      - run: pnpm e2e e2e/a.spec.ts", "      - run: pnpm test"].join("\n");
-    expect(laufBloecke(einzeilig)).toEqual(["pnpm e2e e2e/a.spec.ts", "pnpm test"]);
+    // 1. Runde: die Zeilenfortsetzung, an der die Zeilenpruefung scheiterte.
+    expect(erlaubt("      - run: |\n          pnpm e2e \\\n            --shard=1/5")).toBe(false);
 
-    // Ein gefalteter Skalar (`>`) gehoert ebenso ganz in den Block.
-    const gefaltet = ["      - run: >", "          pnpm e2e", "          --shard=2/5"].join("\n");
-    expect(laufBloecke(gefaltet)[0]).toContain("--shard");
+    // 2. Runde, Teil a: Blockskalar-Koepfe, die der Mini-Parser nicht kannte.
+    for (const kopf of ["| # warum auch immer", "|2-", ">2-", "|-2", "|"]) {
+      expect(
+        erlaubt(`      - run: ${kopf}\n          pnpm e2e \\\n            --shard=1/5`),
+        `Kopf ${kopf} laesst e2e sharden`,
+      ).toBe(false);
+    }
+
+    // 2. Runde, Teil b: `vitest` im Kommentar ueber einem shardenden e2e-Aufruf.
+    expect(erlaubt("      - run: |\n          # der vitest-Job macht das anders\n          pnpm e2e --shard=1/5")).toBe(false);
+
+    // Gegenprobe nach oben: der echte Vitest-Aufruf bleibt erlaubt …
+    expect(erlaubt("      - run: pnpm vitest run --shard=${{ matrix.shard }}/3")).toBe(true);
+    // … und die eigene Begruendung in `ci.yml` faellt nicht ueber sich selbst.
+    expect(erlaubt("  # ⚠️ `--shard` ist hier richtig und bei e2e verboten")).toBe(true);
+    expect(befehlszeilen("  # nur ein Kommentar")).toEqual([]);
   });
 });
