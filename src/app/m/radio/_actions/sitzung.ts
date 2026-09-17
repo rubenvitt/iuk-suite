@@ -105,7 +105,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
 
   /*
    * SCHRITT 3 — normalisieren, ⛔ ALS EIGENE ANWEISUNG, NICHT INLINE. Derselbe Grund wie in
-   * `_actions/gate.ts:104-110`: der Reihenfolge-Scan vergleicht TEXTPOSITIONEN, und in
+   * `_actions/gate.ts`, „SCHRITT 3 — normalisieren": der Scan vergleicht TEXTPOSITIONEN, und in
    * `loeseCodeEin(normalisiereCode(x), …)` stuende die Einloesung textlich vor dem
    * Normalisieren (Spec:2264-2268). Sachlich ist sie hier ausserdem die Stelle, an der die
    * eingetragene Arbeit auf dem Spiel steht.

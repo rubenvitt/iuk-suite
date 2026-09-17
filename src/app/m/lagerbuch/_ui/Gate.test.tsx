@@ -203,7 +203,7 @@ describe("Gate — der Ausnahmeweg des `catch` (Global Constraint 11, Befund 19)
   it("ueberlebt den ERFOLGSFALL, in dem die Action mit `undefined` aufloest", async () => {
     /*
      * ⚠️ DER PFAD, DER IN PRODUKTION ZAEHLT. `einloesenAmGate` endet im Erfolg
-     * mit `redirect()` (`_actions/gate.ts:99`). Der Client-Aufruf lehnt dafuer
+     * mit `redirect()` (`_actions/gate.ts`). Der Client-Aufruf lehnt dafuer
      * NICHT ab — Next transportiert den Redirect in der Antwort
      * (`src/app/m/feedback/f/[slugSecret]/Zettel.tsx:647-650`) —, er loest mit
      * `undefined` auf.
