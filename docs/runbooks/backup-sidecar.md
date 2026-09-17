@@ -443,6 +443,23 @@ Die Meldung sagt, welcher der beiden Fälle es ist:
   Meist eine `BACKUP_UHRZEIT`, die nie erreicht wird, oder ein Container, der öfter neu
   erzeugt wird als der Takt lang ist. Der Probelauf aus Abschnitt 5 klärt beides.
 
+### F3b — „der letzte Lauf konnte seinen Stand nicht schreiben"
+
+Der Healthcheck ist rot, und die Meldung nennt weder einen Fehlschlag noch eine Frist.
+Dann ist **das Backup-Volume selbst** der Defekt — voll oder nur lesend eingehängt:
+
+```bash
+docker compose exec backup /bin/sh -c 'df -h /backups; touch /backups/.probe && echo schreibbar'
+```
+
+Der Lauf, der das ausgelöst hat, hat sein Ergebnis **nirgends** hinterlassen können; was
+in der Zustandsdatei steht, ist der Stand **davor** und damit veraltet. Deshalb meldet
+sich der Healthcheck hier sofort statt erst nach `BACKUP_FRIST_STUNDEN` — ein alter
+`ok`-Stand wäre in dieser Lage die gefährlichste Auskunft von allen.
+
+Ist das Volume wieder in Ordnung, räumt der nächste Lauf die Meldung von selbst ab; ein
+`docker compose restart backup` beschleunigt das nur.
+
 ### F4 — Der Ping kommt nicht an
 
 Der Lauf ist davon **nicht** betroffen — die Sicherung liegt. Im Protokoll steht dann

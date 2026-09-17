@@ -217,27 +217,69 @@ zustand_lesen() {
 # Die Pruefung steht HIER und nicht an den vier Aufrufstellen: so kann keine kuenftige
 # hinzukommen, die sie vergisst. `sperre_gehoert_uns` ist weiter unten definiert — das
 # geht, weil eine Shell Funktionen beim AUFRUF aufloest, nicht beim Lesen der Datei.
+# ⚠️ EINE MARKE AUSSERHALB DES VOLUMES, UND GENAU DAS IST IHR ZWECK. Laesst sich der
+# Stand nicht schreiben, ist das Volume selbst der Defekt — dort noch etwas ablegen zu
+# wollen, waere zirkulaer. Der Healthcheck laeuft aber im SELBEN Container, also reicht
+# eine Marke in dessen eigenem Dateisystem, um ihn sofort rot zu faerben.
+#
+# Ohne sie bliebe nur die Frist: der Healthcheck haette den alten `ok`-Stand gelesen und
+# waere erst nach BACKUP_FRIST_STUNDEN (26h) umgesprungen. Bei leerem BACKUP_PING_URL ist
+# er das einzige Signal — einen Tag zu spaet ist hier zu spaet.
+#
+# Sie ueberlebt bewusst kein `--force-recreate`: ein neuer Container laeuft in dieselbe
+# Lage und setzt sie beim naechsten Versuch neu, und ein behobenes Volume soll nicht an
+# einer alten Marke haengen bleiben.
+NICHT_VERMERKT="${TMPDIR:-/tmp}/backup-sidecar.nicht-vermerkt"
+nicht_vermerkt_setzen() { : >"$NICHT_VERMERKT" 2>/dev/null || true; }
+nicht_vermerkt_loeschen() { rm -f "$NICHT_VERMERKT" 2>/dev/null || true; }
+
 zustand_schreiben() {
   # status meldung
   if ! sperre_gehoert_uns; then
     warne "Der Stand wird NICHT geschrieben ($1: $2) — die Sperre gehoert uns nicht mehr."
     return 0
   fi
-  tmp="$ZUSTANDSDATEI.neu.$$"
-  {
-    printf 'letzter_versuch=%s\n' "$(date +%s)"
-    printf 'letzter_status=%s\n' "$1"
-    printf 'letzte_meldung=%s\n' "$2"
-    if [ "$1" = "ok" ]; then
-      printf 'letzter_erfolg=%s\n' "$(date +%s)"
-    else
-      # Den frueheren Erfolg MITNEHMEN, nicht wegwerfen: „seit wann geht es schief"
-      # ist die Frage, die morgens um acht zaehlt, und die Antwort steht nur hier.
-      alt="$(zustand_lesen letzter_erfolg || true)"
-      if [ -n "${alt:-}" ]; then printf 'letzter_erfolg=%s\n' "$alt"; fi
+  # ⚠️ ERST DEN GANZEN INHALT BAUEN, DANN EINMAL SCHREIBEN — und beides pruefen. Wie es
+  # vorher dastand (`{ printf … } >"$tmp"; mv …`), gab es zwei Arten, still zu scheitern,
+  # und sie sehen VERSCHIEDEN aus. GEMESSEN, beide auf einem echten tmpfs:
+  #
+  #   VOLLES VOLUME:    jedes `printf` scheitert mit „I/O error", `$tmp` bleibt LEER —
+  #                     und `mv` einer leeren Datei GELINGT. Die Funktion meldete 0, und
+  #                     der gute Stand war durch eine leere Datei ersetzt: `letzter_erfolg`
+  #                     weg, also genau die Angabe, aus der der Healthcheck „ueberfaellig"
+  #                     ableitet.
+  #   READ-ONLY VOLUME: schon die Umlenkung scheitert, `mv` findet nichts, Rueckgabe 1 —
+  #                     die niemand las. Der alte `ok`-Stand blieb stehen, und der
+  #                     Healthcheck meldete nach einem GESCHEITERTEN Lauf „gesund".
+  #
+  # Ein Inhalt in einer Variablen laesst sich in EINER Umlenkung schreiben und diese
+  # pruefen; und `mv` laeuft erst, wenn dabei nichts schiefging.
+  inhalt="letzter_versuch=$(date +%s)
+letzter_status=$1
+letzte_meldung=$2"
+  if [ "$1" = "ok" ]; then
+    inhalt="$inhalt
+letzter_erfolg=$(date +%s)"
+  else
+    # Den frueheren Erfolg MITNEHMEN, nicht wegwerfen: „seit wann geht es schief"
+    # ist die Frage, die morgens um acht zaehlt, und die Antwort steht nur hier.
+    alt="$(zustand_lesen letzter_erfolg || true)"
+    if [ -n "${alt:-}" ]; then
+      inhalt="$inhalt
+letzter_erfolg=$alt"
     fi
-  } >"$tmp"
-  mv "$tmp" "$ZUSTANDSDATEI"
+  fi
+
+  tmp="$ZUSTANDSDATEI.neu.$$"
+  if ! printf '%s\n' "$inhalt" >"$tmp" 2>/dev/null || ! mv "$tmp" "$ZUSTANDSDATEI" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null || true
+    warne "Der Stand liess sich NICHT schreiben ($1: $2). Ist $BACKUP_DIR voll oder
+  nur lesend eingehaengt? Der vorhandene Stand bleibt unangetastet."
+    nicht_vermerkt_setzen
+    return 1
+  fi
+  nicht_vermerkt_loeschen
+  return 0
 }
 
 # ⚠️ DER STARTVERMERK IST DER GRUND, WARUM DIE GNADENFRIST KURZ SEIN DARF. Vor dem ersten
@@ -943,6 +985,14 @@ schleife() {
 
 # ══ Healthcheck ══════════════════════════════════════════════════════════════════════
 zustand() {
+  # ⚠️ ZUERST: KONNTE DER LETZTE LAUF SEIN ERGEBNIS UEBERHAUPT HINTERLEGEN? Wenn nicht,
+  # ist alles, was danach in der Zustandsdatei steht, VERALTET — und ein alter `ok`-Stand
+  # ist dann die gefaehrlichste Auskunft von allen. Diese Zeile steht deshalb vor jedem
+  # Lesen der Datei.
+  if [ -f "$NICHT_VERMERKT" ]; then
+    echo "der letzte Lauf konnte seinen Stand nicht schreiben — $BACKUP_DIR voll oder nur lesend?"
+    return 1
+  fi
   status="$(zustand_lesen letzter_status || echo '')"
   meldung="$(zustand_lesen letzte_meldung || echo '')"
   erfolg="$(zustand_lesen letzter_erfolg || echo '')"

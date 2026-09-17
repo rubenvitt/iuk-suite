@@ -791,6 +791,48 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(vorgabe, "Vorgabe in Minuten oder Sekunden, nicht in Stunden").toMatch(/^\d+(s|m)$/);
   });
 
+  it("ein Stand, der sich NICHT schreiben laesst, meldet sich sofort — nicht erst nach der Frist", () => {
+    // ⚠️ ZWEI ARTEN, STILL ZU SCHEITERN, UND SIE SEHEN VERSCHIEDEN AUS. Beide auf einem
+    // echten tmpfs gemessen, nicht hergeleitet:
+    //
+    //   VOLLES VOLUME:    jedes `printf` scheitert mit „I/O error", die Zwischendatei
+    //                     bleibt LEER — und `mv` einer leeren Datei GELINGT. Rueckgabe 0,
+    //                     und der gute Stand war durch eine leere Datei ersetzt:
+    //                     `letzter_erfolg` weg, also genau die Angabe, aus der der
+    //                     Healthcheck „ueberfaellig" ableitet.
+    //   READ-ONLY VOLUME: schon die Umlenkung scheitert, Rueckgabe 1 — die niemand las.
+    //                     Der alte `ok`-Stand blieb stehen, und der Healthcheck meldete
+    //                     nach einem GESCHEITERTEN Lauf „gesund".
+    //
+    // Nach der Aenderung, beide Faelle: Rueckgabe 1, der vorhandene Stand UNANGETASTET,
+    // Healthcheck sofort rot. Im Normalfall unveraendert 0 und gruen.
+    const rumpfZ = funktionsrumpf(befehle, "zustand_schreiben");
+    // Erst schreiben UND pruefen, dann erst `mv` — die Reihenfolge ist der Fix.
+    expect(rumpfZ).toMatch(/if ! printf '%s\\n' "\$inhalt" >"\$tmp"[\s\S]*\|\| ! mv "\$tmp"/);
+    expect(rumpfZ).toMatch(/rm -f "\$tmp"[\s\S]*return 1/);
+
+    // ⚠️ DIE MARKE LIEGT AUSSERHALB DES VOLUMES, und das ist ihr ganzer Zweck: laesst
+    // sich der Stand nicht schreiben, ist das Volume der Defekt — dort noch etwas
+    // ablegen zu wollen waere zirkulaer. Der Healthcheck laeuft im selben Container.
+    expect(befehle).toMatch(/NICHT_VERMERKT="\$\{TMPDIR:-\/tmp\}/);
+    expect(befehle, "die Marke liegt NICHT im Backup-Volume").not.toMatch(
+      /NICHT_VERMERKT="\$BACKUP_DIR/,
+    );
+    expect(rumpfZ).toMatch(/nicht_vermerkt_setzen/);
+    // Und sie verschwindet wieder, sobald ein Lauf seinen Stand hinterlegen konnte —
+    // sonst bliebe der Healthcheck nach der Reparatur des Volumes rot.
+    expect(rumpfZ).toMatch(/nicht_vermerkt_loeschen/);
+
+    // Im Healthcheck steht sie VOR jedem Lesen der Datei: ist der letzte Stand nicht
+    // hinterlegt, ist alles in der Datei veraltet — und ein alter `ok` die
+    // gefaehrlichste Auskunft von allen.
+    const rumpfH = funktionsrumpf(befehle, "zustand");
+    const marke = rumpfH.indexOf("NICHT_VERMERKT");
+    const lesen = rumpfH.indexOf("zustand_lesen");
+    expect(marke, "der Healthcheck kennt die Marke").toBeGreaterThan(-1);
+    expect(marke, "und fragt sie VOR der Zustandsdatei ab").toBeLessThan(lesen);
+  });
+
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {
     // Der wichtigere der beiden Faelle: ein Dienst, der gar nicht mehr laeuft, hat
     // keinen gescheiterten Lauf — er hat keinen. Ohne diese Pruefung meldete der
