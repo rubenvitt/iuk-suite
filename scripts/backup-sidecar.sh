@@ -711,9 +711,25 @@ sperre_marke() { ls "$SPERRVERZEICHNIS" 2>/dev/null | head -1; }
 # ⚠️ Treffen sich beide genau hier, treten BEIDE zurueck und die Sperre bleibt leer
 # liegen. Das ist die richtige der beiden Fehlerarten (keiner laeuft statt zweien), und
 # es loest sich von selbst: eine leere Sperre ist nach 60s wieder uebernehmbar.
+# ⚠️ DIE MARKE TRAEGT EINE GENERATION, UND DER HERZSCHLAG ZAEHLT SIE HOCH. Ohne das ist
+# die Uebernahme ein Wettlauf, den eine LEBENDE Sperre verlieren kann: der Wartende liest
+# die alte mtime, urteilt „verwaist" — und zwischen Urteil und `rmdir` meldet sich der
+# Eigentuemer. Der Name war derselbe, also gelang das `rmdir`, und ein laufender Lauf
+# wurde enteignet. GEMESSEN: „WARTENDER hat uebernommen", Alter der Sperre in diesem
+# Moment 0s, also ein kerngesunder Eigentuemer.
+#
+# Mit der Generation ist das `rmdir` der beobachteten Marke ein Vergleiche-und-Tausche
+# ueber BEIDES: wer sie gesehen hat und seither einen Herzschlag verpasst hat, greift
+# ins Leere.
+#
+# ⚠️ DIE ZAHL IST NULLGEFUELLT, WEIL `ls` ALPHABETISCH SORTIERT. `sperre_marke` nimmt die
+# ERSTE Marke, und die muss waehrend einer Rotation die AELTERE sein — sonst raeumt ein
+# Wartender die frische weg und laesst die alte stehen. Mit fester Breite ist
+# lexikografisch dasselbe wie chronologisch (dieselbe Ueberlegung wie bei den Tarballs).
+MARKE_PRAEFIX="eigner.$$."
 meine_marke=""
 sperre_marke_setzen() {
-  meine_marke="eigner.$$.$(date +%s)"
+  meine_marke="$(printf '%s%06d' "$MARKE_PRAEFIX" 1)"
   if ! mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then
     meine_marke=""
     return 1
@@ -728,8 +744,22 @@ sperre_marke_setzen() {
 
 # Haelt DIESER Prozess die Sperre noch? Der Besitznachweis ist die eigene Marke: liegt
 # sie nicht mehr im Sperrverzeichnis, hat jemand anderes uebernommen.
+# ⚠️ NICHT MEHR AUF DEN EXAKTEN NAMEN, sondern auf das Praefix: der Herzschlag dreht die
+# Generation weiter, der exakte Name aendert sich also waehrend des Laufs. Waehrend einer
+# Rotation liegen kurz ZWEI Marken da — beide unsere. Traegt eine davon ein fremdes
+# Praefix, gehoert die Sperre nicht mehr uns.
 sperre_gehoert_uns() {
-  [ -n "$meine_marke" ] && [ -d "$SPERRVERZEICHNIS/$meine_marke" ]
+  [ -n "$meine_marke" ] || return 1
+  gefunden=0
+  for eintrag in "$SPERRVERZEICHNIS"/*; do
+    [ -e "$eintrag" ] || return 1
+    name="${eintrag##*/}"
+    case "$name" in
+      "$MARKE_PRAEFIX"*) gefunden=1 ;;
+      *) return 1 ;;
+    esac
+  done
+  [ "$gefunden" -eq 1 ]
 }
 
 # ⚠️ DIE GRENZE HAT EINEN BODEN, UND DER IST KEINE VORSICHT. Eine Grenze unterhalb des
@@ -890,12 +920,24 @@ herzschlag_starten() {
   eltern=$$
   marke="$meine_marke"
   (
+    zaehler=1
     while [ -n "$marke" ] && [ -d "$SPERRVERZEICHNIS/$marke" ] && kill -0 "$eltern" 2>/dev/null; do
       sleep "$BACKUP_HERZSCHLAG_SEKUNDEN" || exit 0
       # Nach dem Schlaf ERNEUT pruefen: in der Zwischenzeit kann die Sperre den
       # Eigentuemer gewechselt haben, und dann ist sie nicht mehr unsere aufzufrischen.
       [ -d "$SPERRVERZEICHNIS/$marke" ] || exit 0
-      touch -c "$SPERRVERZEICHNIS" 2>/dev/null || exit 0
+      # ⚠️ ERST DIE NEUE, DANN DIE ALTE WEG. In dieser Reihenfolge liegen kurz zwei
+      # Marken da, und ein Wartender, der die AELTERE gesehen hat, raeumt genau die weg,
+      # die ohnehin gehen sollte — sein anschliessendes `rmdir` auf die Sperre scheitert
+      # dann an der neuen, er tritt also zurueck. Andersherum gaebe es einen Moment ganz
+      # OHNE Marke, und in dem hielte der Eigentuemer sich selbst fuer enteignet.
+      #
+      # Das `mkdir` zieht die mtime der Sperre ohnehin nach; ein `touch` braucht es nicht.
+      zaehler=$((zaehler + 1))
+      neu="$(printf '%s%06d' "$MARKE_PRAEFIX" "$zaehler")"
+      mkdir "$SPERRVERZEICHNIS/$neu" 2>/dev/null || exit 0
+      rmdir "$SPERRVERZEICHNIS/$marke" 2>/dev/null || true
+      marke="$neu"
     done
   ) &
   herzschlag_pid=$!
@@ -922,12 +964,17 @@ sperre_ablegen() {
   herzschlag_beenden
   [ "$haelt_sperre" -eq 1 ] || return 0
   haelt_sperre=0
-  if [ -n "$meine_marke" ] && ! rmdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then
+  # Alle EIGENEN Generationen weg — waehrend einer Rotation koennen es zwei sein.
+  if ! sperre_gehoert_uns; then
     warne "Die Sperre traegt nicht mehr unsere Marke — sie wird NICHT freigegeben.
   Ein anderer Lauf hat sie uebernommen, waehrend dieser noch arbeitete."
     meine_marke=""
     return 0
   fi
+  for eintrag in "$SPERRVERZEICHNIS"/*; do
+    [ -d "$eintrag" ] || continue
+    rmdir "$eintrag" 2>/dev/null || true
+  done
   meine_marke=""
   rmdir "$SPERRVERZEICHNIS" 2>/dev/null || true
 }
@@ -1115,7 +1162,12 @@ sekunden_bis_uhrzeit() {
           + $(ohne_null "${uhr_rest%% *}") * 60 \
           + $(ohne_null "${uhr_rest##* }") ))
   rest=$((ziel - jetzt))
-  [ "$rest" -gt 0 ] || rest=$((rest + 86400))
+  # ⚠️ NULL IST „JETZT", NICHT „MORGEN". Stand hier `-gt 0`, wurde aus einem Rest von 0
+  # ein voller Tag — wer den Dienst ausgerechnet zur Zielsekunde erreicht (Neustart, ein
+  # langsamer Vorlauf, der genau dann fertig wird), wartete 24 Stunden auf die Sicherung,
+  # die in derselben Sekunde faellig war. GEMESSEN: jetzt 03:30:00, Ziel 03:30 → 86400s.
+  # Nur ein NEGATIVER Rest gehoert auf morgen geschoben.
+  [ "$rest" -ge 0 ] || rest=$((rest + 86400))
   echo "$rest"
 }
 

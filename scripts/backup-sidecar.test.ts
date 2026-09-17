@@ -563,7 +563,11 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // genau einmal, bei der Belegung — danach hebt sie allein der Herzschlag. Kaeme
     // laufend etwas dazu, saehe die Sperre ewig jung aus, und die Uebernahme einer
     // wirklich verwaisten griffe nie mehr. Gemessen: ein `touch` darin hebt die mtime an.
-    expect(befehle).toMatch(/meine_marke="eigner\.\$\$\.\$\(date \+%s\)"/);
+    // ⚠️ Der Name traegt jetzt eine GENERATION statt eines Zeitstempels — der
+    // Herzschlag zaehlt sie hoch, damit die Uebernahme ein Vergleiche-und-Tausche ueber
+    // Identitaet UND Generation ist (eigener Fall weiter unten).
+    expect(befehle).toMatch(/MARKE_PRAEFIX="eigner\.\$\$\."/);
+    expect(befehle).toMatch(/meine_marke="\$\(printf '%s%06d' "\$MARKE_PRAEFIX" 1\)"/);
     const hineingeschrieben = befehle
       .split("\n")
       .filter((z) => z.includes("$SPERRVERZEICHNIS/"))
@@ -573,6 +577,9 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
       .filter((z) => !z.includes("[ -d "));
     expect(hineingeschrieben.map((z) => z.trim())).toEqual([
       'if ! mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then',
+      // Der Herzschlag legt die naechste Generation an und raeumt die alte weg — auch er
+      // schreibt also nur Marken hinein, nichts anderes.
+      'mkdir "$SPERRVERZEICHNIS/$neu" 2>/dev/null || exit 0',
     ]);
   });
 
@@ -616,7 +623,13 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // gab der zweite Lauf auf, statt zu uebernehmen.
     const rumpfL = funktionsrumpf(befehle, "lauf");
     expect(rumpfL).toMatch(/herzschlag_starten/);
-    expect(befehle).toMatch(/touch -c "\$SPERRVERZEICHNIS"/);
+    // ⚠️ Aufgefrischt wird jetzt durch die ROTATION: das `mkdir` der naechsten
+    // Generation zieht die mtime der Sperre ohnehin nach, ein `touch` braucht es nicht
+    // mehr — und die Rotation leistet zusaetzlich das, was `touch` nicht konnte
+    // (eigener Fall: die Uebernahme einer LEBENDEN Sperre).
+    expect(funktionsrumpf(befehle, "herzschlag_starten")).toMatch(
+      /mkdir "\$SPERRVERZEICHNIS\/\$neu"/,
+    );
     expect(befehle).toContain("BACKUP_HERZSCHLAG_SEKUNDEN");
     // Er endet mit der Sperre — auch bei einem gescheiterten Lauf, denn `sperre_ablegen`
     // haengt an der EXIT-Falle.
@@ -668,9 +681,12 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
 
     // Der Besitznachweis ist die eigene Marke — dieselbe Bedingung wie bei Freigabe und
     // Herzschlag, nicht eine zweite, die auseinanderlaufen koennte.
-    expect(funktionsrumpf(befehle, "sperre_gehoert_uns")).toMatch(
-      /\[ -n "\$meine_marke" \] && \[ -d "\$SPERRVERZEICHNIS\/\$meine_marke" \]/,
-    );
+    // ⚠️ Geprueft wird das PRAEFIX, nicht der exakte Name: der Herzschlag dreht die
+    // Generation weiter, und waehrend einer Rotation liegen kurz zwei Marken da — beide
+    // unsere. Eine fremde darunter heisst: die Sperre gehoert uns nicht mehr.
+    const rumpfB = funktionsrumpf(befehle, "sperre_gehoert_uns");
+    expect(rumpfB).toMatch(/"\$MARKE_PRAEFIX"\*\) gefunden=1/);
+    expect(rumpfB).toMatch(/\*\) return 1/);
   });
 
   it("der Herzschlag LEGT NICHTS AN — sonst blockiert er jede kuenftige Sperre", () => {
@@ -684,9 +700,14 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     //
     // `-c` ist POSIX und legt nicht an. Nachgemessen: derselbe Ablauf laesst den Pfad
     // frei, das naechste `mkdir` gelingt wieder.
+    // ⚠️ SEIT DER ROTATION IST DIE EIGENSCHAFT STRUKTURELL STATT ERKAUFT: der
+    // Herzschlag `touch`t gar nicht mehr, er legt ein UNTERverzeichnis an. GEMESSEN:
+    // existiert die Sperre nicht, scheitert `mkdir .lauf.sperre/eigner.1.000002` mit
+    // „No such file or directory" und legt NICHTS an — die regulaere Datei aus diesem
+    // Fund kann auf diesem Weg gar nicht mehr entstehen.
     const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
-    expect(rumpfH).toMatch(/touch -c /);
-    expect(rumpfH, "kein anlegendes touch").not.toMatch(/touch "\$SPERRVERZEICHNIS"/);
+    expect(rumpfH, "gar kein touch mehr").not.toMatch(/touch /);
+    expect(rumpfH).toMatch(/mkdir "\$SPERRVERZEICHNIS\/\$neu" 2>\/dev\/null \|\| exit 0/);
   });
 
   it("ein Takt von 0 ist eine Leerlaufschleife und wird abgefangen", () => {
@@ -705,6 +726,40 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(rumpfH.indexOf("BACKUP_HERZSCHLAG_SEKUNDEN=60")).toBeLessThan(
       rumpfH.indexOf("eltern=$$"),
     );
+  });
+
+  it("die Uebernahme scheitert an einem Herzschlag, der DAZWISCHEN kommt", () => {
+    // ⚠️ DIE ALTERSGRENZE ALLEIN IST EIN URTEIL UEBER DIE VERGANGENHEIT. Der Wartende
+    // liest die alte mtime, urteilt „verwaist" — und zwischen Urteil und `rmdir` meldet
+    // sich der Eigentuemer. Solange der Name der Marke gleich blieb, gelang das `rmdir`
+    // trotzdem, und ein LAUFENDER Lauf wurde enteignet. GEMESSEN:
+    //
+    //   WARTENDER hat uebernommen — Alter der Sperre in diesem Moment: 0s
+    //
+    // Also ein kerngesunder Eigentuemer, dem die Sperre weggenommen wurde.
+    //
+    // Der Herzschlag dreht deshalb die GENERATION weiter. Damit ist das `rmdir` der
+    // beobachteten Marke ein Vergleiche-und-Tausche ueber Identitaet UND Generation: wer
+    // sie gesehen und seither einen Schlag verpasst hat, greift ins Leere. Nachgemessen,
+    // derselbe Aufbau: „WARTENDER tritt zurueck", und die Sperre traegt danach die
+    // naechste Generation des Eigentuemers.
+    const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
+    expect(rumpfH).toMatch(/zaehler=\$\(\(zaehler \+ 1\)\)/);
+    expect(rumpfH).toMatch(/neu="\$\(printf '%s%06d' "\$MARKE_PRAEFIX" "\$zaehler"\)"/);
+    // ⚠️ ERST DIE NEUE, DANN DIE ALTE WEG — die Reihenfolge ist der ganze Trick. So
+    // liegen kurz zwei Marken da, und ein Wartender, der die AELTERE gesehen hat, raeumt
+    // genau die weg, die ohnehin gehen sollte; sein `rmdir` auf die Sperre scheitert dann
+    // an der neuen. Andersherum gaebe es einen Moment ganz OHNE Marke, und in dem hielte
+    // der Eigentuemer sich selbst fuer enteignet.
+    const anlegen = rumpfH.indexOf('mkdir "$SPERRVERZEICHNIS/$neu"');
+    const wegraeumen = rumpfH.indexOf('rmdir "$SPERRVERZEICHNIS/$marke"');
+    expect(anlegen, "die neue Generation entsteht").toBeGreaterThan(-1);
+    expect(wegraeumen, "die alte wird weggeraeumt").toBeGreaterThan(-1);
+    expect(anlegen, "und zwar in dieser Reihenfolge").toBeLessThan(wegraeumen);
+    // ⚠️ NULLGEFUELLT, WEIL `ls` ALPHABETISCH SORTIERT: `sperre_marke` nimmt die erste
+    // Marke, und die muss waehrend einer Rotation die AELTERE sein. Ohne feste Breite
+    // sortierte sich `…10` vor `…9`, und ein Wartender raeumte die frische weg.
+    expect(befehle).toMatch(/printf '%s%06d'/);
   });
 
   it("die Altersgrenze hat einen BODEN am Herzschlag", () => {
@@ -816,11 +871,16 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // beendet — die fremde Sperre war weg.
     const rumpfF = funktionsrumpf(befehle, "sperre_ablegen");
     expect(rumpfF).not.toMatch(/rm -rf/);
-    expect(rumpfF).toMatch(/rmdir "\$SPERRVERZEICHNIS\/\$meine_marke" 2>\/dev\/null/);
+    // ⚠️ Der Besitznachweis ist jetzt `sperre_gehoert_uns` (Praefix statt exaktem
+    // Namen), und weggeraeumt werden ALLE eigenen Generationen — waehrend einer Rotation
+    // koennen kurz zwei dastehen.
+    expect(rumpfF).toMatch(/if ! sperre_gehoert_uns; then/);
+    expect(rumpfF).toMatch(/for eintrag in "\$SPERRVERZEICHNIS"\/\*/);
+    expect(rumpfF).toMatch(/rmdir "\$eintrag"/);
     // Und das Verzeichnis selbst nur, wenn es danach leer ist.
     expect(rumpfF).toMatch(/rmdir "\$SPERRVERZEICHNIS" 2>\/dev\/null/);
     // Die Marke muss bei JEDER Belegung festgehalten werden, sonst gibt es nichts zu pruefen.
-    expect(befehle).toMatch(/meine_marke="eigner\.\$\$\.\$\(date \+%s\)"/);
+    expect(befehle).toMatch(/meine_marke="\$\(printf '%s%06d' "\$MARKE_PRAEFIX" 1\)"/);
   });
 
   it("`aus` schaltet die Rotation am Ziel ab, statt sie auf 0 zu setzen", () => {
