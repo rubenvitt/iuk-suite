@@ -163,10 +163,54 @@ describe("OrtsetikettenBogen", () => {
     expect(queryAll(".lb-ortkarteUnterscheidung").map((e) => e.textContent)).toEqual(["a", "b"]);
     // Die Beizeile bleibt schlicht — dort wuerde er gekuerzt.
     for (const m of queryAll(".lb-ortkarteMeta")) expect(m.textContent).toBe("Tasche");
-    // Vorn im Fuss, vor der Adresse.
+    /*
+     * Vorn im Fuss, vor der Adresse — seit DRK-406 in der Kennzeile, die er
+     * sich mit dem Code teilt. Die Reihenfolge bleibt die Aussage: was ein
+     * langer Host kuerzt, ist das Ende der ADRESSE und nie die Id.
+     */
     for (const fuss of queryAll(".lb-ortkarteUrl")) {
-      expect(fuss.firstElementChild?.className).toBe("lb-ortkarteUnterscheidung");
+      expect(fuss.firstElementChild?.className).toBe("lb-ortkarteKennzeile");
+      expect(fuss.firstElementChild?.firstElementChild?.className)
+        .toBe("lb-ortkarteUnterscheidung");
     }
+  });
+
+  /**
+   * ⚠️ UNTERSCHEIDER UND CODE STEHEN IN EINER ZEILE, NICHT IN ZWEIEN — DRK-406,
+   * gefunden in der Durchsicht. Bis dahin trug nur die Handlager-Karte einen
+   * Code und nur eine Einheit einen Unterscheider; sie konnten sich nicht
+   * begegnen, und der Fuss war auf drei Zeilen vermessen. Jetzt hat JEDE Karte
+   * einen Code — zwei Zeilen liessen der Adresse nur noch eine, und bei einem
+   * langen Host fiele ihr Ende weg.
+   *
+   * Eine vierte Fusszeile waere der naheliegende, aber falsche Weg: sie naehme
+   * dem Namen Hoehe (`ORT_FUSS_ZEILEN` schreibt das aus, nachgemessen 181px →
+   * 171px) und taeuschte einen stillen Schnitt gegen einen anderen ein.
+   */
+  it("setzt Unterscheider und Code in EINE Fusszeile", async () => {
+    const orte = [
+      { ...ORTE[1]!, id: "a", name: "Betreuung", meta: "Tasche",
+        unterscheidung: "a", code: "111-222" },
+      { ...ORTE[2]!, id: "b", name: "Betreuung", meta: "Tasche",
+        unterscheidung: "b", code: "333-444" },
+    ];
+    await mount(<OrtsetikettenBogen orte={orte} />);
+
+    const zeilen = queryAll(".lb-ortkarteKennzeile");
+    expect(zeilen).toHaveLength(2);
+    // Genau EIN Block je Karte — zwei waeren die Zeile, die der Adresse fehlt.
+    for (const fuss of queryAll(".lb-ortkarteUrl")) {
+      expect(fuss.querySelectorAll(".lb-ortkarteKennzeile")).toHaveLength(1);
+    }
+    expect(zeilen[0]!.textContent).toBe("a · Code 111-222");
+    expect(zeilen[1]!.textContent).toBe("b · Code 333-444");
+  });
+
+  /** Ohne Unterscheider traegt die Kennzeile den Code allein, ohne Trenner. */
+  it("laesst den Trenner weg, wenn nur der Code dasteht", async () => {
+    await mount(<OrtsetikettenBogen orte={[{ ...ORTE[0]!, code: "555-666" }]} />);
+
+    expect(query(".lb-ortkarteKennzeile").textContent).toBe("Code 555-666");
   });
 
   /** Ohne Kollision bleibt der Fuss, wie er war — die Id ist haesslich. */

@@ -524,12 +524,29 @@
  * zwar still — der Fuss klammerte dann eine Zeile frueher, und was verschwaende,
  * waere das Ende der ADRESSE.
  *
- * ⚠️ BEIDE KOENNEN NICHT AUF DERSELBEN KARTE STEHEN: der Unterscheider
- * entsteht nur fuer eine EINHEIT (`kollidiert()` prueft `typ === "fahrzeug"`),
- * der Code nur fuer den Handlager. Die dritte Fusszeile ist also nie doppelt
- * belegt. */
-.lb-ortkarteUnterscheidung,
-.lb-ortkarteCode {
+ * ⚠️ HIER STAND „BEIDE KOENNEN NICHT AUF DERSELBEN KARTE STEHEN", UND SEIT
+ * DRK-406 IST DAS FALSCH. Die Begruendung stimmte, solange der Code nur auf der
+ * Handlager-Karte stand: der Unterscheider entsteht nur fuer eine EINHEIT
+ * (`kollidiert()` prueft `typ === "fahrzeug"`), die beiden konnten sich also
+ * nie begegnen. Seit dem Ticket traegt JEDE Karte einen Code — zwei
+ * gleichnamige Einheiten haben damit BEIDE. Gefunden in der Durchsicht; ein
+ * Kommentar, der eine tote Invariante behauptet, ist teurer als keiner.
+ *
+ * ⚠️ SIE TEILEN SICH DESHALB EINE ZEILE, statt zwei zu belegen. Gemessen
+ * (echter Chromium, Druckmedium, Fussbreite 346px, 6pt Mono): 72 Zeichen je
+ * Zeile; Unterscheider (21) + Trenner (3) + „Code NNN-NNN" (12) sind 36. Die
+ * Adresse behaelt damit ihre zwei Zeilen — genau das Budget von vor dem Ticket.
+ *
+ * ⚠️ UND DESHALB NICHT EINE VIERTE FUSSZEILE, so naheliegend das waere:
+ * `ORT_FUSS_ZEILEN` schreibt aus, dass eine vierte dem NAMEN Hoehe naehme, und
+ * das ist keine Vermutung — nachgemessen, acht Karten, vorher/nachher:
+ *
+ *     Kartenhoehe 272px → 272px · QR 174px → 174px · Namenskasten 181px → 171px
+ *
+ * Nichts lief ueber, die Seitenzahl blieb — nur haette die Zeilenklammer des
+ * NAMENS danach frueher geschnitten, abhaengig von der Laenge des Namens. Ein
+ * stiller Schnitt gegen einen anderen getauscht. */
+.lb-ortkarteKennzeile {
   display: block;
   font-weight: 700;
   color: #000000;

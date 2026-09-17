@@ -708,10 +708,24 @@ test.describe("Ortsetiketten (Bogen)", () => {
        */
       fuss.textContent =
         `https://lagerbuch.drk-bereitschaft-musterstadt-nord.example.org/o/${id}`;
+      /*
+       * ⚠️ MIT DEM CODE DANEBEN — seit DRK-406, und ohne ihn misst der Test
+       * eine Karte, die es nicht mehr gibt. Bis dahin trug nur die
+       * Handlager-Karte einen Code, dieser Fuss hier also nie; jetzt hat JEDE
+       * Karte einen, und der Kollisionsfall bringt beides mit. Die Kennzeile
+       * ist die Stelle, an der sie sich EINE Zeile teilen — genau das ist der
+       * Platz, den dieser Test nachmisst.
+       */
+      const kennzeile = document.createElement("span");
+      kennzeile.className = "lb-ortkarteKennzeile";
       const marke = document.createElement("span");
       marke.className = "lb-ortkarteUnterscheidung";
       marke.textContent = id;
-      fuss.prepend(marke);
+      const code = document.createElement("span");
+      code.className = "lb-ortkarteCode";
+      code.textContent = "Code 123-456";
+      kennzeile.append(marke, document.createTextNode(" · "), code);
+      fuss.prepend(kennzeile);
 
       const m = marke.getBoundingClientRect();
       const f = fuss.getBoundingClientRect();
@@ -720,6 +734,14 @@ test.describe("Ortsetiketten (Bogen)", () => {
         seitlichGekuerzt: marke.scrollWidth > marke.clientWidth + 0.5,
         ausDemFussGefallen: m.bottom > f.bottom + 0.5 || m.top < f.top - 0.5,
         karteUeberlauf: karte.scrollHeight > karte.clientHeight,
+        /*
+         * ⚠️ UND DIE ADRESSE MUSS GANZ DABLEIBEN. Der Unterscheider allein
+         * bewiese zu wenig: stuenden er und der Code in ZWEI Zeilen, bliebe der
+         * Adresse nur eine — und bei diesem Host faellt ihr Ende weg, also
+         * genau das, was jemand abtippt, wenn die Kamera streikt.
+         */
+        kennzeilen: fuss.querySelectorAll(".lb-ortkarteKennzeile").length,
+        adresseGekuerzt: fuss.scrollHeight > fuss.clientHeight + 0.5,
       };
     }, "V1StGXR8_Z5jdHi6B-myT");
 
@@ -727,6 +749,8 @@ test.describe("Ortsetiketten (Bogen)", () => {
     expect(befund.seitlichGekuerzt, "der Unterscheider wird seitlich gekuerzt").toBe(false);
     expect(befund.ausDemFussGefallen, "der Unterscheider liegt ausserhalb des Fusses").toBe(false);
     expect(befund.karteUeberlauf).toBe(false);
+    expect(befund.kennzeilen, "Unterscheider und Code teilen sich EINE Zeile").toBe(1);
+    expect(befund.adresseGekuerzt, "das Ende der Adresse faellt weg").toBe(false);
   });
 
   /**

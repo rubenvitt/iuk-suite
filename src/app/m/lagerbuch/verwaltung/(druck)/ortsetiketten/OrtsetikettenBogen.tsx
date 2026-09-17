@@ -171,16 +171,29 @@ export function OrtsetikettenBogen({ orte }: { orte: Ort[] }) {
                 sehr langen Host gekuerzt wird, ist dann das Ende der ADRESSE
                 und nie die Id.
               */}
-              {o.unterscheidung && (
-                <span className="lb-ortkarteUnterscheidung">{o.unterscheidung}</span>
-              )}
               {/*
+                ⚠️ EINE ZEILE FUER BEIDE, und das ist seit DRK-406 noetig
+                (Durchsicht): bis dahin trug nur die Handlager-Karte einen Code
+                und nur eine EINHEIT einen Unterscheider — sie konnten sich
+                nicht begegnen. Jetzt hat jede Karte einen Code, zwei
+                gleichnamige Einheiten also beides. Zwei Zeilen liessen der
+                Adresse nur noch eine, und bei einem langen Host fiele ihr ENDE
+                weg — das, was jemand abtippt, wenn die Kamera streikt.
+
                 ⚠️ DER CODE STEHT IM KLARTEXT AUF DER KARTE — die volle
                 Begruendung steht im Kopf dieser Datei. Kurz: der QR daneben
                 traegt ihn ohnehin, und die Zeile ist das, was ein Telefon mit
                 streikender Kamera braucht.
               */}
-              {o.code && <span className="lb-ortkarteCode">Code {o.code}</span>}
+              {(o.unterscheidung || o.code) && (
+                <span className="lb-ortkarteKennzeile">
+                  {o.unterscheidung && (
+                    <span className="lb-ortkarteUnterscheidung">{o.unterscheidung}</span>
+                  )}
+                  {o.unterscheidung && o.code ? " · " : null}
+                  {o.code && <span className="lb-ortkarteCode">Code {o.code}</span>}
+                </span>
+              )}
               {o.url}
             </span>
           </label>
