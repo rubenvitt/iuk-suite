@@ -300,6 +300,29 @@ describe("e2e-Gruppen — die Aufteilung, an der ein stiller CI-Ausfall haengt",
     // nach Fallzahl teilen.
     const ci = readFileSync(join(WURZEL, ".github/workflows/ci.yml"), "utf8");
     expect(ci).toContain("e2e/gruppen.json");
-    expect(ci).not.toMatch(/--shard=\$\{\{\s*matrix/);
+
+    /*
+     * ⚠️ GEPRUEFT WIRD DIE e2e-ZEILE, NICHT DIE GANZE DATEI — und das ist eine
+     * VERSCHAERFUNG, keine Lockerung.
+     *
+     * Hier stand `expect(ci).not.toMatch(/--shard=\$\{\{\s*matrix/)`, also ein
+     * Verbot von `--shard` IRGENDWO in der Datei. Das traf ab DRK-412 auch den
+     * Vitest-Job, der zu Recht shardet: dort gibt es keinen Dev-Server, dessen
+     * Speicher mit der Routenflaeche waechst, und jeder Shard ist ohnehin ein
+     * eigener Runner. Die Begruendung von DRK-358 gilt fuer e2e, nicht fuer
+     * jeden Aufruf mit demselben Flag.
+     *
+     * Der Ersatz ist enger am Schutzgut und faengt mehr als der alte:
+     *   * der alte sah NUR die Matrix-Form — ein hartes `--shard=1/5` an
+     *     `pnpm e2e` waere durchgegangen;
+     *   * dieser sieht JEDE Form, aber nur dort, wo sie schadet.
+     */
+    const e2eZeilen = ci
+      .split("\n")
+      .filter((z) => z.includes("pnpm e2e") || z.includes("playwright test"));
+    expect(e2eZeilen.length, "kein e2e-Aufruf im Workflow gefunden").toBeGreaterThan(0);
+    for (const z of e2eZeilen) {
+      expect(z.includes("--shard"), `e2e shardet wieder: ${z.trim()}`).toBe(false);
+    }
   });
 });
