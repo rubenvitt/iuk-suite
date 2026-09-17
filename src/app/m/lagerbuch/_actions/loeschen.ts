@@ -439,10 +439,10 @@ export async function deaktiviereElement(
         db.update(lagerorte).set({ aktiv: false }).where(eq(lagerorte.id, i)).run();
         break;
       /*
-       * ⚠️ NICHT `set({ aktiv: false })` — DER SPERRWEG LIEGT IN `ortCodes.ts`.
+       * ⚠️ NICHT `set({ aktiv: false })` — DER SPERRWEG LIEGT IN `tokenSperre.ts`.
        * Ein Ortscode, der hier gesperrt wird, muss seinen Tag bekommen wie
        * jeder andere auch; stand er hier nackt, bekaeme die Zeile spaeter den
-       * LOESCHTAG des Ortes statt des Sperrtages (Begruendung dort, DRK-406).
+       * LOESCHTAG des Ortes statt des Sperrtages (Begruendung dort, DRK-413).
        */
       case "token":
         sperreToken(db, i);
