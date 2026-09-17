@@ -2,10 +2,10 @@
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { buchungen, chargen, newId } from "../_db/schema";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { zodFehler, type ActionErgebnis } from "../_lib/actionErgebnis";
 import { handlagerOrte } from "../_lib/lesepfade/orte";
 import { verfallSchwellen, verfallStatus } from "../_lib/domain/verfall";
@@ -158,9 +158,13 @@ export async function aussondern(
 
     if (fachFehler !== null) return { ok: false, fehler: fachFehler };
 
-    revalidatePath("/m/lagerbuch/verwaltung/verfall");
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung");
+    /*
+     * ⚠️ HIER STANDEN BIS DRK-374 DREI PFADE, und `verwaltung/journal` war
+     * keiner davon — obwohl das Aussondern je Ort EINE Korrekturbuchung
+     * schreibt, die genau dort steht. Dieselbe Luecke hatte `verwaltung/
+     * lagerorte`, dessen Postenzaehlung aus eben diesen Zeilen kommt.
+     */
+    revalidiereBestand();
     return { ok: true };
   });
 }

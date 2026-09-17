@@ -8,10 +8,12 @@ import { BoxAnsicht, type EinheitOption, type ZugangZeile } from "./BoxAnsicht";
 /**
  * DIE VERWALTUNGSINSEL DER ENTNAHMEBOX — DRK-314.
  *
- * ⚠️ DIE ACTION WIRD GEMOCKT, WEIL SIE HIER IMPORTIERT WIRD (anders als bei
- * `BoxAbgabe`, wo sie als Prop hereinkommt): ein `"use server"`-Modul unter
- * jsdom zoege `next/headers` und die Datenbank mit. Was die Insel SCHICKT,
- * prueft `_actions/entnahmebox.test.ts` gegen eine echte SQLite.
+ * ⚠️ DIE ACTION WIRD GEMOCKT, WEIL SIE HIER IMPORTIERT WIRD: ein
+ * `"use server"`-Modul unter jsdom zoege `next/headers` und die Datenbank mit.
+ * Was die Insel SCHICKT, prueft `_actions/entnahmebox.test.ts` gegen eine echte
+ * SQLite. ⚠️ HIER STAND „anders als bei `BoxAbgabe`, wo sie als Prop
+ * hereinkommt" — seit DRK-375 importiert auch `_ui/BoxAbgabe.tsx` direkt, und
+ * `BoxAbgabe.test.tsx` mockt auf genau diese Weise.
  */
 vi.mock("../../../_actions/entnahmebox", () => ({
   bucheInEntnahmebox: vi.fn(async () => ({ ok: true, wert: { gebucht: 1 } })),
