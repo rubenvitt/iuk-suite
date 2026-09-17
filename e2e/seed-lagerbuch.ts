@@ -40,7 +40,7 @@ import {
   artikel, buchungen, chargen, checks, fahrzeugTemplates, geraete, lagerorte,
   lagerortVerfall, o2Flaschen, sollPositionen, tokens, newId,
 } from "@/app/m/lagerbuch/_db/schema";
-import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
+import { ENTNAHMEBOX_ID, HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
 import { AUSSONDERN_PRAEFIX, INVENTUR_PRAEFIX } from "@/app/m/lagerbuch/_lib/vorgang";
 import {
   E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
@@ -535,6 +535,75 @@ function entnahmeboxFixtures(): void {
 }
 
 /**
+ * EIGENE Zeilen fuer `lagerbuch-einraeumen.spec.ts` (DRK-381) — der Weg ZURUECK
+ * aus der Kiste in einen Schrank des Handlagers.
+ *
+ * ⚠️ EIGENE ZEILEN NEBEN `entnahmeboxFixtures`, OBWOHL BEIDE DIESELBE KISTE
+ * BETREFFEN. Die Specs laufen gegen DIESELBE Datenbank (`workers: 1`), und
+ * beide SCHREIBEN — die eine fuellt die Box, die andere leert sie. Auf
+ * geteilten Zeilen waere jede Zusicherung der einen von der Reihenfolge der
+ * anderen abhaengig: isoliert gruen, im Verbund rot. Genau die Abhaengigkeit,
+ * die `entnahmeboxFixtures` fuer sich schon ausschliesst.
+ *
+ * ⚠️ DER BESTAND LIEGT DIREKT IN DER BOX, nicht auf einer Einheit. Diese Spec
+ * misst den Rueckweg; ihn ueber den Hinweg vorzubereiten hiesse, in JEDEM Lauf
+ * zuerst die Zusicherung einer anderen Spec mitzupruefen — und bei einem
+ * Fehlschlag stuende die Ursache in der falschen Datei.
+ *
+ * ⚠️ REICHLICH BESTAND (je 40), weil die Spec ABBAUT. CI faehrt `retries: 2`
+ * gegen dieselbe Datenbank, und der Seed ist idempotent — ein knapper Vorrat
+ * waere im dritten Versuch aufgebraucht, und der Test meldete sich als „Menge
+ * nicht gedeckt", also als etwas ganz anderes.
+ *
+ * ⚠️ ZWEI CHARGEN, NICHT EINE: die Chargenwahl der Einraeumflaeche erscheint
+ * nur, wenn es mehr als eine gibt. Mit einer einzigen bliebe der Zweig
+ * ungeprueft — und zwar STILL, weil die Spec dann die Vorbelegung benutzt.
+ *
+ * ⚠️ EIN EIGENER SCHRANK ALS ZIEL. Ein geteilter waere in der Zielwahl
+ * derselbe Eintrag, den `lagerbuch-schraenke` stilllegt und reaktiviert — die
+ * Zielzeile verschwaende dann je nach Reihenfolge.
+ *
+ * ⚠️ MINDESTBESTAND 0 und ein Name ohne „Pflaster"/„Kompresse": sonst
+ * verschoebe der Artikel die Zahlen, die Bestellliste, Kennzahlen und
+ * Bestandsexport zusichern (I-14).
+ */
+function einraeumenFixtures(): void {
+  const db = getDb();
+  db.insert(lagerorte).values({
+    id: "e2e-einraeum-schrank", name: "E2E Einräum-Schrank", typ: "lager",
+    parentId: HANDLAGER_ID, sortierung: 90, zugangshinweis: null, aktiv: true,
+  }).onConflictDoNothing().run();
+
+  db.insert(artikel).values({
+    id: "e2e-einraeum-artikel", name: "E2E Einräum Rettungsdecke", einheit: "Stk.",
+    fach: "EIN-1", mindestbestand: 0, aktiv: true, kategorie: "E2E Einräumen",
+    createdAt: JETZT,
+  }).onConflictDoNothing().run();
+
+  db.insert(chargen).values([
+    { id: "e2e-einraeum-charge-alt", artikelId: "e2e-einraeum-artikel",
+      chargenNr: "E2E-EIN-ALT", verfall: "2089-02", createdAt: JETZT },
+    { id: "e2e-einraeum-charge-neu", artikelId: "e2e-einraeum-artikel",
+      chargenNr: "E2E-EIN-NEU", verfall: E2E_VERFALL_FERN, createdAt: JETZT },
+  ]).onConflictDoNothing().run();
+
+  // Idempotent ueber die Referenz: ein zweiter Seed-Lauf darf den Bestand nicht
+  // verdoppeln, und `buchungen` traegt keinen eindeutigen Index dafuer.
+  const schon = db.select().from(buchungen)
+    .where(eq(buchungen.referenz, "e2e-einraeum-seed")).get();
+  if (!schon) {
+    for (const chargeId of ["e2e-einraeum-charge-alt", "e2e-einraeum-charge-neu"] as const) {
+      db.insert(buchungen).values({
+        id: newId(), ts: JETZT, typ: "zugang", artikelId: "e2e-einraeum-artikel",
+        chargeId, lagerortId: ENTNAHMEBOX_ID, menge: 40,
+        quelleTyp: "system", quelleId: "e2e",
+        referenz: "e2e-einraeum-seed", kommentar: null,
+      }).run();
+    }
+  }
+}
+
+/**
  * Ein Artikel MIT Kategorie fuer `lagerbuch-kategorien.spec.ts` (DRK-294).
  *
  * INAKTIV und ohne Charge, und beides mit Absicht: die Artikelliste zeigt
@@ -931,6 +1000,7 @@ einheitenartFixtures();
 fahrzeugVerfallFixtures();
 aussondernFahrzeugFixtures();
 entnahmeboxFixtures();
+einraeumenFixtures();
 kategorieFixtures();
 inventurFixtures();
 verfallOrtFixtures();
