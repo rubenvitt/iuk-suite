@@ -486,6 +486,14 @@ sich der Healthcheck hier sofort statt erst nach `BACKUP_FRIST_STUNDEN` — ein 
 Ist das Volume wieder in Ordnung, räumt der nächste Lauf die Meldung von selbst ab; ein
 `docker compose restart backup` beschleunigt das nur.
 
+> ⚠️ **Auch eine von Hand nachgeholte Sicherung räumt sie ab** — seit DRK-185, und das
+> ist nicht selbstverständlich: `docker compose run --rm … einmal` läuft in einem
+> **eigenen** Container, seine Marke liegt in dessen `/tmp` und geht mit `--rm`. Der
+> Healthcheck des Dienstes vergleicht deshalb den Zeitpunkt seiner Marke mit
+> `letzter_erfolg` im gemeinsamen Stand: ist der Erfolg **neuer**, ist die Marke überholt,
+> und sie fällt bei der nächsten Probe (alle fünf Minuten). Ist sie **jünger**, bleibt es
+> rot — dann klemmt das Volume noch.
+
 ### F4 — Der Ping kommt nicht an
 
 Der Lauf ist davon **nicht** betroffen — die Sicherung liegt. Im Protokoll steht dann

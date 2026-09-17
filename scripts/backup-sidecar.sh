@@ -386,8 +386,38 @@ zustand_lesen() {
 # Lage und setzt sie beim naechsten Versuch neu, und ein behobenes Volume soll nicht an
 # einer alten Marke haengen bleiben.
 NICHT_VERMERKT="${TMPDIR:-/tmp}/backup-sidecar.nicht-vermerkt"
-nicht_vermerkt_setzen() { : >"$NICHT_VERMERKT" 2>/dev/null || true; }
+# ⚠️ MIT ZEITSTEMPEL, NICHT LEER — und das ist keine Verzierung: nur so laesst sich
+# spaeter feststellen, ob ein SPAETERER Erfolg sie ueberholt hat (siehe
+# `nicht_vermerkt_ueberholt`). Eine leere Marke aus einer aelteren Fassung bleibt
+# gueltig, sie ist dann nur nie ueberholbar.
+# ⚠️ `printf` statt `:`: bei einem SPEZIELLEN Builtin beendet ein Umlenkungsfehler die
+# Shell, und `|| true` kommt dann gar nicht mehr zum Zug (dash, gemessen an der
+# Schreibprobe). Hier faellt dieselbe Falle nicht auf, weil `/tmp` fast immer schreibbar
+# ist — fast immer ist keine Zusicherung.
+nicht_vermerkt_setzen() { printf '%s\n' "$(date +%s)" 2>/dev/null >"$NICHT_VERMERKT" || true; }
 nicht_vermerkt_loeschen() { rm -f "$NICHT_VERMERKT" 2>/dev/null || true; }
+
+# Ist die Marke durch einen NEUEREN Erfolg im gemeinsamen Stand ueberholt?
+#
+# ⚠️ DER FALL IST DER DOKUMENTIERTE WEG AUS DEM RUNBOOK (F3b), NICHT EIN RANDFALL: der
+# Dienst setzt die Marke, der Betreiber raeumt das Volume frei und faehrt die Sicherung
+# mit `docker compose run --rm … einmal` nach. Dieser Lauf schreibt seinen Erfolg in den
+# GEMEINSAMEN Stand, seine Marke liegt aber im `/tmp` SEINES Containers und geht mit
+# `--rm`. Die Marke des Dienstes bleibt damit liegen, und sein Healthcheck stuende bis zu
+# seinem naechsten planmaessigen Lauf (bis zu einem Tag) auf rot — obwohl die Sicherung
+# liegt. Zwei Signale, die sich widersprechen; dieselbe Klasse wie der ueberholte
+# Fehler-Ping, nur mit umgekehrtem Vorzeichen.
+#
+# ⚠️ STRIKT GROESSER, nicht `>=`: ein Erfolg in DERSELBEN Sekunde beweist die Reihenfolge
+# nicht, und im Zweifel bleibt die Marke stehen. Rot, das zu lange steht, kostet einen
+# Blick; gruen, das zu frueh kommt, kostet die Sicherung.
+nicht_vermerkt_ueberholt() {
+  nvu_seit="$(cat "$NICHT_VERMERKT" 2>/dev/null || echo '')"
+  nvu_erfolg="$(zustand_lesen letzter_erfolg || echo '')"
+  case "$nvu_seit" in '' | *[!0-9]*) return 1 ;; esac
+  case "$nvu_erfolg" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$nvu_erfolg" -gt "$nvu_seit" ]
+}
 
 zustand_schreiben() {
   # status meldung
@@ -1658,8 +1688,16 @@ zustand() {
   # ist dann die gefaehrlichste Auskunft von allen. Diese Zeile steht deshalb vor jedem
   # Lesen der Datei.
   if [ -f "$NICHT_VERMERKT" ]; then
-    echo "der letzte Lauf konnte seinen Stand nicht schreiben — $BACKUP_DIR voll oder nur lesend?"
-    return 1
+    # ⚠️ ES SEI DENN, EIN SPAETERER LAUF HAT IHN UEBERHOLT. Der Stand ist dann
+    # nachweislich juenger als die Marke, also nicht mehr veraltet — und genau das ist
+    # der Ausgang des dokumentierten Wiederherstellungswegs, der in einem EIGENEN
+    # Container laeuft und die Marke dieses hier nicht erreichen kann.
+    if nicht_vermerkt_ueberholt; then
+      nicht_vermerkt_loeschen
+    else
+      echo "der letzte Lauf konnte seinen Stand nicht schreiben — $BACKUP_DIR voll oder nur lesend?"
+      return 1
+    fi
   fi
   # ⚠️ UND DIE MARKE ALLEIN REICHT NICHT, WEIL SIE KEINE CONTAINERGRENZE UEBERSCHREITET.
   # `docker compose run --rm … einmal` — der dokumentierte Weg fuer Probelauf und

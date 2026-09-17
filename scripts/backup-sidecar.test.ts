@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -1339,6 +1340,67 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     const lesen = rumpfH.indexOf("zustand_lesen");
     expect(marke, "der Healthcheck kennt die Marke").toBeGreaterThan(-1);
     expect(marke, "und fragt sie VOR der Zustandsdatei ab").toBeLessThan(lesen);
+  });
+
+  it("eine Marke, die ein SPAETERER Erfolg ueberholt hat, haelt den Healthcheck nicht rot", () => {
+    // ⚠️ DER DOKUMENTIERTE WIEDERHERSTELLUNGSWEG (Runbook F3b) LAEUFT IN EINEM EIGENEN
+    // CONTAINER. Der Dienst setzt die Marke, der Betreiber raeumt das Volume frei und
+    // faehrt die Sicherung mit `docker compose run --rm … einmal` nach: dieser Lauf
+    // schreibt seinen Erfolg in den GEMEINSAMEN Stand, seine Marke liegt aber im `/tmp`
+    // SEINES Containers und geht mit `--rm`. Die Marke des Dienstes blieb damit liegen,
+    // und sein Healthcheck stand bis zu seinem naechsten planmaessigen Lauf auf rot —
+    // obwohl die Sicherung liegt. GEMESSEN am ganzen Skript, nicht am Quelltext.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-marke-"));
+    const pruefe = (markeInhalt: string, erfolgVor: number) => {
+      const tmp = path.join(kladde, "tmp");
+      const backups = path.join(kladde, "backups");
+      for (const d of [tmp, backups]) {
+        rmSync(d, { recursive: true, force: true });
+        mkdirSync(d, { recursive: true });
+      }
+      writeFileSync(path.join(tmp, "backup-sidecar.nicht-vermerkt"), markeInhalt);
+      const jetzt = Math.floor(Date.now() / 1000);
+      writeFileSync(
+        path.join(backups, ".zustand"),
+        `letzter_status=ok\nletzte_meldung=Sicherung gelegt\nletzter_erfolg=${jetzt - erfolgVor}\n`,
+      );
+      const p = spawnSync("sh", [SIDECAR, "zustand"], {
+        encoding: "utf8",
+        env: { ...process.env, TMPDIR: tmp, BACKUP_DIR: backups },
+      });
+      return {
+        code: p.status,
+        aus: `${p.stdout}${p.stderr}`,
+        markeNochDa: existsSync(path.join(tmp, "backup-sidecar.nicht-vermerkt")),
+      };
+    };
+    try {
+      const jetzt = Math.floor(Date.now() / 1000);
+      // Der Erfolg ist NEUER als die Marke: der Stand ist nicht mehr veraltet.
+      const ueberholt = pruefe(`${jetzt - 600}\n`, 60);
+      expect(ueberholt.code, "gesund, die Sicherung liegt ja").toBe(0);
+      expect(ueberholt.aus).toMatch(/ok, letzter Erfolg/);
+      expect(ueberholt.markeNochDa, "und die veraltete Marke ist weg").toBe(false);
+      // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: ist die Marke JUENGER als der
+      // Erfolg, klemmt das Volume noch — dann bleibt es rot, sonst haette diese
+      // Aenderung genau die Auskunft zerstoert, um derentwillen es die Marke gibt.
+      const frisch = pruefe(`${jetzt - 10}\n`, 60);
+      expect(frisch.code, "die Marke ist juenger als der Erfolg").toBe(1);
+      expect(frisch.aus).toMatch(/konnte seinen Stand nicht schreiben/);
+      expect(frisch.markeNochDa, "und sie bleibt liegen").toBe(true);
+      // Eine LEERE Marke stammt aus einer aelteren Fassung — sie ist nie ueberholbar und
+      // gilt weiter. Lieber rot, das zu lange steht, als gruen, das zu frueh kommt.
+      const leer = pruefe("", 60);
+      expect(leer.code, "leere Marke gilt weiter").toBe(1);
+      expect(leer.markeNochDa).toBe(true);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // ⚠️ STRIKT GROESSER: ein Erfolg in DERSELBEN Sekunde beweist die Reihenfolge nicht.
+    const rumpfU = funktionsrumpf(befehle, "nicht_vermerkt_ueberholt");
+    expect(rumpfU).toMatch(/\[ "\$nvu_erfolg" -gt "\$nvu_seit" \]/);
+    // Und die Marke traegt seither einen Zeitstempel — leer waere sie nie ueberholbar.
+    expect(befehle).toMatch(/nicht_vermerkt_setzen\(\) \{ printf '%s\\n' "\$\(date \+%s\)"/);
   });
 
   it("verlorener Besitz ist fuer den Aufrufer ein MISSERFOLG, kein stilles Weiter", () => {
