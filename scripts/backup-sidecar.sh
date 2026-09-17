@@ -318,11 +318,16 @@ letzter_erfolg=$alt"
   # werden soll. Was bliebe, waere der Schaden: EIN veralteter Gesundheitsstand, den der
   # naechste Lauf von selbst richtigstellt — kein Tarball geht verloren, keines wird
   # ueberschrieben (die Namen sind eindeutig, das Auslagern ist da laengst durch).
+  # ⚠️ AUCH HIER 1, NICHT 0 — aus demselben Grund wie oben, und ich hatte genau diese
+  # Stelle beim vorigen Commit uebersehen: veroeffentlicht ist nicht veroeffentlicht,
+  # egal an welcher der beiden Pruefungen es haengenbleibt. Eine 0 hier hiesse fuer den
+  # Erfolgspfad „hinterlegt", also ok-Ping und Exit 0 mit einem fremden, aelteren Stand
+  # in der Datei.
   if ! sperre_gehoert_uns; then
     rm -f "$tmp" 2>/dev/null || true
     warne "Die Sperre ging verloren, waehrend der Stand geschrieben wurde ($1: $2) — er
   wird NICHT veroeffentlicht."
-    return 0
+    return 1
   fi
 
   if ! mv "$tmp" "$ZUSTANDSDATEI" 2>/dev/null; then
@@ -1147,6 +1152,15 @@ schleife() {
 }
 
 # ══ Healthcheck ══════════════════════════════════════════════════════════════════════
+# Ein Byte schreiben — unter der Kennung, unter der auch gesichert wird.
+schreibprobe() {
+  if [ "$(id -u)" = "0" ] && command -v su-exec >/dev/null 2>&1; then
+    su-exec "${SUITE_USER:-1001:1001}" /bin/sh -c 'printf x 2>/dev/null >"$1"' sh "$1"
+  else
+    printf 'x' 2>/dev/null >"$1"
+  fi
+}
+
 zustand() {
   # ⚠️ ZUERST: KONNTE DER LETZTE LAUF SEIN ERGEBNIS UEBERHAUPT HINTERLEGEN? Wenn nicht,
   # ist alles, was danach in der Zustandsdatei steht, VERALTET — und ein alter `ok`-Stand
@@ -1177,8 +1191,17 @@ zustand() {
   #     der Versuch, etwas hineinzuschreiben, scheitert.
   # Und `2>/dev/null` steht VOR der Umlenkung, sonst kommt deren eigene Fehlermeldung
   # noch durch — Umlenkungen werden von links nach rechts aufgebaut.
+  # ⚠️ UND SIE LAEUFT UNTER DER KENNUNG, DIE AUCH SICHERT. Der Healthcheck geht NICHT
+  # durch `vorbereiten` und der Dienst deklariert kein `user:` — er ist also root, und
+  # root schreibt, wo uid 1001 scheitert: Rechte, eine Quota je Nutzer, oder der fuer
+  # root reservierte Rest eines vollen Dateisystems (ext4 haelt per Vorgabe 5% zurueck).
+  # Eine Probe als root haette dort „gesund" gemeldet, waehrend jeder echte Lauf — der
+  # nach `su-exec` laeuft — nichts mehr schreiben kann.
+  #
+  # Ohne root oder ohne `su-exec` (etwa in einem `run --rm`-Container ohne Vorlauf) wird
+  # direkt geprueft; das ist dann ohnehin dieselbe Kennung.
   probe="$BACKUP_DIR/.zustand.probe.$$"
-  if ! printf 'x' 2>/dev/null >"$probe"; then
+  if ! schreibprobe "$probe"; then
     rm -f "$probe" 2>/dev/null || true
     echo "$BACKUP_DIR ist nicht beschreibbar — voll oder nur lesend eingehaengt?"
     return 1

@@ -886,6 +886,23 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     const zweig = rumpfZ.slice(0, rumpfZ.indexOf("inhalt="));
     expect(zweig).toMatch(/if ! sperre_gehoert_uns; then[\s\S]*return 1/);
     expect(zweig, "kein `return 0` mehr in diesem Zweig").not.toMatch(/return 0/);
+
+    // ⚠️ UND DAS GILT FUER BEIDE PRUEFUNGEN — die zweite, unmittelbar vor dem `mv`,
+    // hatte ich beim Umstellen uebersehen und sie stand weiter auf 0. Veroeffentlicht
+    // ist nicht veroeffentlicht, egal an welcher der beiden es haengenbleibt; eine 0
+    // hier hiesse fuer den Erfolgspfad „hinterlegt", also ok-Ping und Exit 0 mit einem
+    // fremden, aelteren Stand in der Datei. GEMESSEN, indem der Besitz genau zwischen
+    // erster Pruefung und `mv` entzogen wurde: Fehler-Ping (?status=down), exit 1, der
+    // Stand des anderen Laufs unveraendert.
+    const pruefungen = (rumpfZ.match(/if ! sperre_gehoert_uns; then/g) ?? []).length;
+    expect(pruefungen, "zwei Besitzpruefungen").toBe(2);
+    const zweiter = rumpfZ.slice(rumpfZ.indexOf("inhalt="));
+    const zweiterZweig = zweiter.slice(
+      zweiter.indexOf("if ! sperre_gehoert_uns; then"),
+      zweiter.indexOf('if ! mv "$tmp"'),
+    );
+    expect(zweiterZweig).toMatch(/return 1/);
+    expect(zweiterZweig, "auch hier kein `return 0`").not.toMatch(/return 0/);
   });
 
   it("auch WAEHREND des Auslagerns wird der Besitz noch einmal geprueft", () => {
@@ -1010,7 +1027,8 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       'rm -f "$tmp" 2>/dev/null || true',
       'warne "Die Sperre ging verloren, waehrend der Stand geschrieben wurde ($1: $2) — er',
       'wird NICHT veroeffentlicht."',
-      "return 0",
+      // ⚠️ 1, nicht 0 — sonst liest der Erfolgspfad „hinterlegt" (eigener Fall oben).
+      "return 1",
     ]);
   });
 
@@ -1028,14 +1046,38 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     //     2 statt 1 geantwortet und die Rohmeldung der Shell ausgegeben.
     //   * Ein BYTE statt einer leeren Datei — auf einem randvollen tmpfs gelingt eine
     //     Datei der Laenge 0 noch (gemessen: exit 0, „ok").
-    expect(rumpfH).toMatch(/printf 'x' 2>\/dev\/null >"\$probe"/);
-    expect(rumpfH, "kein `:` als Probe").not.toMatch(/if ! : >"\$probe"/);
+    // Die Probe selbst steckt in `schreibprobe` — sie laeuft unter der Kennung, unter
+    // der auch gesichert wird (eigener Fall oben); hier zaehlt, dass `zustand` sie ruft.
+    expect(rumpfH).toMatch(/if ! schreibprobe "\$probe"; then/);
+    expect(funktionsrumpf(befehle, "schreibprobe")).toMatch(/printf 'x' 2>\/dev\/null >"\$1"/);
+    expect(befehle, "kein `:` als Probe").not.toMatch(/if ! : >"\$probe"/);
     // Aufgeraeumt wird in BEIDEN Zweigen — eine liegengebliebene Probe waere Muell im
     // Volume, das dieser Dienst sauber halten soll.
     expect((rumpfH.match(/rm -f "\$probe"/g) ?? []).length).toBe(2);
     // Und der Name faellt nicht unter das Muster der Generationen, sonst hielte die
     // Rotation ihn irgendwann fuer eine Sicherung.
     expect("\.zustand\.probe").not.toMatch(/^\[0-9\]/);
+  });
+
+  it("die Schreibprobe laeuft unter der Kennung, unter der auch gesichert wird", () => {
+    // ⚠️ DER HEALTHCHECK IST root, DER LAUF IST ES NICHT. `zustand` geht nicht durch
+    // `vorbereiten`, und der Dienst deklariert kein `user:` — also root. Root schreibt
+    // aber, wo uid 1001 scheitert: Rechte, eine Quota je Nutzer, oder der fuer root
+    // reservierte Rest eines vollen Dateisystems (ext4 haelt per Vorgabe 5% zurueck).
+    // Eine Probe als root haette dort „gesund" gemeldet, waehrend jeder echte Lauf —
+    // der nach `su-exec` laeuft — nichts mehr schreiben kann.
+    //
+    // GEMESSEN mit einem Verzeichnis, das root gehoert und fuer 1001 nicht schreibbar
+    // ist (su-exec-Attrappe ueber `setpriv`, also echter Kennungswechsel): Healthcheck
+    // rot. Gegenprobe mit einem Verzeichnis, das 1001 gehoert: gruen, keine Probedatei
+    // bleibt liegen. Und ohne `su-exec` im Pfad: direkte Probe, gruen.
+    const rumpfP = funktionsrumpf(befehle, "schreibprobe");
+    expect(rumpfP).toMatch(/id -u/);
+    expect(rumpfP).toMatch(/su-exec "\$\{SUITE_USER:-1001:1001\}"/);
+    // Der Rueckfall ist keine Nachlaessigkeit: ohne root oder ohne `su-exec` (etwa in
+    // einem `run --rm`-Container ohne Vorlauf) ist es ohnehin dieselbe Kennung.
+    expect(rumpfP).toMatch(/else\s*\n\s*printf 'x' 2>\/dev\/null >"\$1"/);
+    expect(funktionsrumpf(befehle, "zustand")).toMatch(/if ! schreibprobe "\$probe"; then/);
   });
 
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {
