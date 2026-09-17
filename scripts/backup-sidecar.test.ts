@@ -268,6 +268,38 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(sidecar).toContain("ohne_null()");
   });
 
+  it("eine unsinnige BACKUP_UHRZEIT laeuft nicht still zur falschen Zeit", () => {
+    // ⚠️ DIE RECHNUNG NIMMT JEDE ZAHL UND NORMALISIERT SIE KLAGLOS. GEMESSEN:
+    //
+    //   03:60 → Lauf um 04:00 Uhr   (eine Minute zu viel verschiebt um eine halbe Stunde)
+    //   25:00 → Ziel jenseits des Tages
+    //   99:00 → 356400s: der Rest faellt nie unter den Tagesabstand, und der Sprung um
+    //           Mitternacht wird als „Zielzeit ueberschritten" gelesen
+    //
+    // Nichts davon faellt auf: kein Tor, kein roter Healthcheck, nur ein Backup zur
+    // falschen Zeit. Nach der Pruefung faellt jeder dieser Werte auf 03:30 zurueck, LAUT.
+    const rumpfU = funktionsrumpf(befehle, "uhrzeit_pruefen");
+    expect(rumpfU).toMatch(/-gt 23/);
+    expect(rumpfU).toMatch(/-gt 59/);
+    expect(rumpfU).toMatch(/BACKUP_UHRZEIT="03:30"/);
+    // ⚠️ Ein Rueckfall auf die Vorgabe, kein Abbruch: ein Dienst, der wegen eines
+    // Tippfehlers GAR NICHT sichert, waere schlechter als einer, der zur Vorgabezeit
+    // sichert und es sagt.
+    expect(rumpfU).toMatch(/warne /);
+    expect(rumpfU, "kein exit").not.toMatch(/exit [0-9]/);
+    // Gerufen wird sie, bevor der Zeitgeber das erste Mal rechnet.
+    // ⚠️ ERST DIE EXISTENZ, DANN DIE REIHENFOLGE — und das ist hier kein Zierrat: als
+    // die Zusicherung nur `indexOf(a) < indexOf(b)` lautete, ueberlebte die Mutation
+    // „Aufruf ganz entfernt" GRUEN, weil `indexOf` dann -1 liefert und -1 kleiner als
+    // jeder Index ist. Dieselbe Sorte wertloser Zusicherung wie in Fund 12.
+    const rumpfS = funktionsrumpf(befehle, "schleife");
+    const geprueft = rumpfS.indexOf("uhrzeit_pruefen");
+    const gerechnet = rumpfS.indexOf("sekunden_bis_uhrzeit");
+    expect(geprueft, "`schleife` ruft uhrzeit_pruefen").toBeGreaterThan(-1);
+    expect(gerechnet, "`schleife` rechnet die Restzeit").toBeGreaterThan(-1);
+    expect(geprueft, "und prueft VOR der ersten Rechnung").toBeLessThan(gerechnet);
+  });
+
   it("die Uhr wird in EINER Ablesung gelesen, nicht in dreien", () => {
     // ⚠️ DREI `date`-AUFRUFE KOENNEN EINEN WECHSEL UMSPANNEN, und dann setzt sich die
     // Uhrzeit aus Feldern VERSCHIEDENER Zeitpunkte zusammen. Nachgerechnet mit einer
@@ -657,6 +689,24 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(rumpfH, "kein anlegendes touch").not.toMatch(/touch "\$SPERRVERZEICHNIS"/);
   });
 
+  it("ein Takt von 0 ist eine Leerlaufschleife und wird abgefangen", () => {
+    // ⚠️ `sleep 0` KEHRT SOFORT ZURUECK. Die Schleife prueft und `touch`t dann ohne
+    // Pause — GEMESSEN mit BACKUP_HERZSCHLAG_SEKUNDEN=0: 1423 Runden in zwei Sekunden,
+    // einen Kern voll ausgelastet und das Backup-Volume beschrieben, so lange der Lauf
+    // dauert. Ein Tippfehler in der `.env` reicht dafuer.
+    //
+    // Nach der Aenderung: Warnung, Vorgabe 60s, und die mtime der Sperre bewegt sich in
+    // zwei Sekunden nicht mehr.
+    const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
+    expect(rumpfH).toMatch(/\| \*\[!0-9\]\* \| 0\)/);
+    expect(rumpfH).toMatch(/BACKUP_HERZSCHLAG_SEKUNDEN=60/);
+    // ⚠️ Die Pruefung steht VOR dem Start des Hintergrundprozesses — der erbt den Wert
+    // beim Abspalten, eine Korrektur danach erreichte ihn nicht mehr.
+    expect(rumpfH.indexOf("BACKUP_HERZSCHLAG_SEKUNDEN=60")).toBeLessThan(
+      rumpfH.indexOf("eltern=$$"),
+    );
+  });
+
   it("die Altersgrenze hat einen BODEN am Herzschlag", () => {
     // ⚠️ Eine Grenze unterhalb des Herzschlags ist selbstwidersprüchlich: der Lauf meldet
     // sich alle BACKUP_HERZSCHLAG_SEKUNDEN, eine kleinere Grenze erklaerte ihn also
@@ -903,6 +953,26 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     );
     expect(zweiterZweig).toMatch(/return 1/);
     expect(zweiterZweig, "auch hier kein `return 0`").not.toMatch(/return 0/);
+  });
+
+  it("vor den Loeschungen am Ziel wird der Besitz erneut geprueft — auch je Datei", () => {
+    // ⚠️ `rclone lsf` IST EINE NETZANFRAGE UND KANN LANGE BLOCKIEREN. Der Zaun davor hat
+    // gemessen, wem die Sperre VOR dem Auflisten gehoerte; dazwischen liegt eine Leitung,
+    // die haengen kann. Besonders bissig zusammen mit Fund 17: faellt die Reihenfolge der
+    // Namen einmal im Jahr aus dem Tritt (Wiederholstunde), trifft die Loeschliste die
+    // frische Generation des Nachfolgers statt der aeltesten.
+    const rumpfA = funktionsrumpf(befehle, "auslagern");
+    const nachListe = rumpfA.slice(rumpfA.indexOf("rclone_ruf lsf"));
+    const vorSort = nachListe.slice(0, nachListe.indexOf("sort -r"));
+    expect(vorSort, "nach dem Auflisten, vor dem Sortieren").toMatch(/sperre_gehoert_uns/);
+    // Und in der Schleife selbst — jede Loeschung ist wieder eine Netzanfrage.
+    const schleife = nachListe.slice(nachListe.indexOf("sort -r"));
+    expect(schleife).toMatch(/if ! sperre_gehoert_uns; then[\s\S]*break/);
+    // ⚠️ `break`, nicht `return`: das ist die Subshell einer Pipe, ein `return` wuerde
+    // nur sie verlassen und die Funktion weiterlaufen lassen.
+    expect(schleife, "kein return in der Pipe-Subshell").not.toMatch(
+      /sperre_gehoert_uns; then[\s\S]{0,200}return/,
+    );
   });
 
   it("auch WAEHREND des Auslagerns wird der Besitz noch einmal geprueft", () => {

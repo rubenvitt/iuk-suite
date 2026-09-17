@@ -596,10 +596,29 @@ auslagern() {
   # feste Breite ohne Trenner — dort ist lexikografisch dasselbe wie chronologisch. `-r`
   # (neueste zuerst) und danach `tail -n +KEEP+1` ist dieselbe Mechanik wie die lokale
   # Rotation in `backup.sh`. Die Ausnahme (Wiederholstunde) steht oben bei `lsf`.
+  # ⚠️ NOCH EINMAL — DENN `rclone lsf` IST EINE NETZANFRAGE UND KANN LANGE BLOCKIEREN.
+  # Der Zaun oben hat gemessen, wem die Sperre vor dem Auflisten gehoerte; danach kommt
+  # das Loeschen, und dazwischen liegt eine Anfrage ueber eine Leitung, die haengen kann.
+  # Besonders bissig zusammen mit Fund 17: faellt die Reihenfolge der Namen einmal im
+  # Jahr aus dem Tritt (Wiederholstunde der Sommerzeit), trifft die Loeschliste die
+  # frische Generation des Nachfolgers statt der aeltesten.
+  if ! sperre_gehoert_uns; then
+    warne "Die Sperre ging waehrend des Auflistens am Ziel verloren — es wird NICHTS
+  geloescht. Das Aufraeumen ist Sache des neuen Laufs."
+    rm -f "$unsere"
+    return 1
+  fi
+
   sort -r "$unsere" \
     | tail -n +$((BACKUP_RCLONE_KEEP + 1)) \
     | while read -r alt; do
         [ -n "$alt" ] || continue
+        # Und vor JEDEM Loeschen: die Liste kann lang sein, jedes `deletefile` ist wieder
+        # eine Netzanfrage. `break` statt `return` — dies ist die Subshell einer Pipe.
+        if ! sperre_gehoert_uns; then
+          warne "  Sperre verloren — die restlichen Generationen bleiben stehen."
+          break
+        fi
         protokoll "  loesche $alt"
         rclone_ruf deletefile "$BACKUP_RCLONE_ZIEL/$alt" \
           || warne "  $alt liess sich nicht loeschen."
@@ -856,6 +875,18 @@ herzschlag_pid=""
 # `touch -c` legt nicht an (POSIX), und die Besitzpruefung davor schliesst das Fenster
 # ohnehin — beides zusammen, weil eine der beiden allein je auf die andere baute.
 herzschlag_starten() {
+  # ⚠️ EIN TAKT VON 0 IST KEIN SCHNELLER HERZSCHLAG, SONDERN EINE LEERLAUFSCHLEIFE.
+  # `sleep 0` kehrt sofort zurueck; die Schleife prueft und `touch`t dann ohne Pause.
+  # GEMESSEN mit BACKUP_HERZSCHLAG_SEKUNDEN=0: 1423 Runden in zwei Sekunden — einen Kern
+  # voll ausgelastet und das Backup-Volume beschrieben, und zwar so lange der Lauf
+  # dauert. Ein Tippfehler in der `.env` reicht dafuer.
+  case "$BACKUP_HERZSCHLAG_SEKUNDEN" in
+    '' | *[!0-9]* | 0)
+      warne "BACKUP_HERZSCHLAG_SEKUNDEN=\"$BACKUP_HERZSCHLAG_SEKUNDEN\" ist kein positiver
+  Takt — es gilt die Vorgabe 60s. (0 waere eine Leerlaufschleife, keine schnelle Meldung.)"
+      BACKUP_HERZSCHLAG_SEKUNDEN=60
+      ;;
+  esac
   eltern=$$
   marke="$meine_marke"
   (
@@ -1093,7 +1124,38 @@ sekunden_bis_uhrzeit() {
 # hinterliesse. Mit ihr endet die Schleife an ihrer naechsten Prüfstelle.
 trap 'beenden=1' TERM INT
 
+# ⚠️ EINE UNSINNIGE UHRZEIT LAEUFT STILL ZUR FALSCHEN ZEIT. Die Rechnung nimmt jede Zahl
+# und normalisiert sie klaglos; GEMESSEN:
+#
+#   03:60 → Lauf um 04:00 Uhr        (eine Minute zu viel verschiebt um eine halbe Stunde)
+#   25:00 → „Lauf um 25:00 Uhr", also ein Ziel jenseits des Tages
+#   99:00 → dasselbe, 356400s: der Rest faellt nie unter den Tagesabstand, und der
+#           Sprung um Mitternacht wird als „Zielzeit ueberschritten" gelesen
+#
+# Nichts davon faellt auf: kein Tor, kein roter Healthcheck, nur ein Backup zur falschen
+# Zeit. Deshalb hier gepruef; ein kaputter Wert faellt auf die Vorgabe zurueck, LAUT —
+# ein Dienst, der wegen eines Tippfehlers gar nicht sichert, waere schlechter.
+uhrzeit_pruefen() {
+  hh="${BACKUP_UHRZEIT%%:*}"
+  mm="${BACKUP_UHRZEIT##*:}"
+  gueltig=1
+  case "$BACKUP_UHRZEIT" in *:*) ;; *) gueltig=0 ;; esac
+  case "$hh" in '' | *[!0-9]*) gueltig=0 ;; esac
+  case "$mm" in '' | *[!0-9]*) gueltig=0 ;; esac
+  if [ "$gueltig" -eq 1 ]; then
+    hh="$(entnullen "$hh")"; mm="$(entnullen "$mm")"
+    if [ "$hh" -gt 23 ] || [ "$mm" -gt 59 ]; then gueltig=0; fi
+  fi
+  if [ "$gueltig" -eq 0 ]; then
+    warne "BACKUP_UHRZEIT=\"$BACKUP_UHRZEIT\" ist keine Uhrzeit (HH:MM, 00-23 und 00-59)
+  — es gilt die Vorgabe 03:30. Gesichert wird also, aber zu einer anderen Zeit als
+  gewuenscht."
+    BACKUP_UHRZEIT="03:30"
+  fi
+}
+
 schleife() {
+  uhrzeit_pruefen
   # Vor dem Protokoll: ab hier laeuft der Zeitgeber, und genau das vermerkt er.
   zustand_bereit_vermerken
   protokoll "Backup-Sidecar bereit."
