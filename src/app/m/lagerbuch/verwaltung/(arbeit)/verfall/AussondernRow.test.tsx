@@ -631,7 +631,8 @@ describe("Verfallsseite als Server Component", () => {
       expect(queryAll(".ant-card-head-title").map((titel) => titel.textContent)).toEqual([
         "Chargen im Handlager",
         // DRK-309: NEUTRAL — die Tabelle darunter fuehrt beide Arten.
-        "An Fahrzeugen und Taschen gemeldet",
+        // DRK-377: und seither auch die Entnahmebox, die keine Einheit ist.
+        "An Einheiten und in der Entnahmebox gemeldet",
       ]);
       /**
        * ⚠️ ZWEI `li`, NICHT DREI — und das ist seit DRK-298 die Aussage dieses
@@ -699,7 +700,7 @@ describe("Verfallsseite als Server Component", () => {
     expect(quelle).toContain("lagerortVerfallListe(db, { nurWarnend: true }, jetzt)");
 
     const insel = readFileSync(
-      join(process.cwd(), ordner, "FahrzeugVerfallTabelle.tsx"),
+      join(process.cwd(), ordner, "OrtVerfallTabelle.tsx"),
       "utf8",
     );
     expect(insel.startsWith('"use client";')).toBe(true);
