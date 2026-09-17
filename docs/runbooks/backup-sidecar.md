@@ -11,7 +11,15 @@ Sichtbarkeit im Deployment.
 > dem Tarball passiert**. Die Substanz dieses Runbooks steckt deshalb in **Abschnitt 3
 > (die .env)** und **Abschnitt 6 (Wiederherstellung)** — nicht in den Handgriffen.
 >
-> Die eine Ausnahme: der Name eines Tarballs ist sekundengenau, und zwei Läufe
+> Zwei Ausnahmen. **Erstens** rotiert `backup.sh` die lokalen Generationen nicht mehr
+> selbst, wenn der Sidecar es ruft (`BACKUP_ROTATE=0`) — der Sidecar tut es danach, und
+> zwar erst, nachdem er geprüft hat, dass die Sperre noch ihm gehört. Von Hand oder aus
+> dem alten Host-Cron aufgerufen rotiert es wie bisher. Nebenbei gilt lokal jetzt
+> dieselbe Regel wie am externen Ziel: **gelöscht wird nur, was wie eine Sicherung
+> dieses Stacks heißt** (`JJJJMMTTThhmmss.tar.gz`) — ein fremdes `.tar.gz` im selben
+> Verzeichnis bleibt liegen, statt eine Generation zu verbrauchen.
+>
+> **Zweitens:** der Name eines Tarballs ist sekundengenau, und zwei Läufe
 > unmittelbar nacheinander bekamen deshalb denselben — der zweite schrieb über den
 > ersten und meldete trotzdem Erfolg. `backup.sh` wartet jetzt auf die nächste Sekunde.
 > Sichtbar wird das nur in einem Fall: wechselt der Zeitstempel gar nicht, bricht der

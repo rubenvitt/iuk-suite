@@ -146,6 +146,16 @@ rm -rf "$work"
 # Rotation: nur die neuesten $KEEP Tarballs behalten. Wir haben gerade eines
 # geschrieben, das Glob matcht also >=1; mit nullglob AUS bleibt ein (hier
 # unmöglicher) Leermatch literal und ls scheitert harmlos, statt das CWD zu listen.
-ls -1t "$BACKUP_DIR"/*.tar.gz | tail -n +$((KEEP + 1)) | xargs -r rm -f
+#
+# ⚠️ ABSCHALTBAR, WEIL DIESES SKRIPT NICHT WISSEN KANN, OB ES NOCH ZUSTÄNDIG IST.
+# Ein Aufruf von Hand oder aus dem alten Host-Cron soll wie bisher rotieren, deshalb
+# ist 1 die Vorgabe. Der Sidecar dagegen setzt 0 und rotiert SELBST — nach seiner
+# Prüfung, ob die Sperre noch ihm gehört. Der Grund ist gemessen: hält die Maschine
+# mitten im Lauf lange genug an, übernimmt ein zweiter Lauf, legt seine Generation ab
+# — und der wiedererwachte erste löscht sie hier, bevor der Sidecar ihn stoppen kann.
+# Mit BACKUP_KEEP=1 nachgestellt: die Generation des Nachfolgers war weg.
+if [ "${BACKUP_ROTATE:-1}" = "1" ]; then
+  ls -1t "$BACKUP_DIR"/*.tar.gz | tail -n +$((KEEP + 1)) | xargs -r rm -f
+fi
 
 echo "backup: wrote $work.tar.gz"

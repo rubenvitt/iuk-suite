@@ -356,7 +356,63 @@ zustand_bereit_vermerken() {
   ( set -C; printf 'gestartet=%s\n' "$(date +%s)" >"$ZUSTANDSDATEI" ) 2>/dev/null || true
 }
 
+# ══ Lokale Rotation ══════════════════════════════════════════════════════════════════
+# ⚠️ SIE STAND FRUEHER IN `backup.sh` UND MUSSTE HIERHER, weil sie sonst VOR dem Zaun
+# laeuft: ein Lauf, der die Sperre unterwegs verloren hat, loescht dort die Generation
+# seines Nachfolgers, bevor ihn irgendetwas aufhaelt. Hier laeuft sie erst, wenn die
+# Sperre nachweislich noch unsere ist.
+#
+# Sie bekommt dabei dieselben zwei Riegel wie die Rotation am ZIEL, und das ist kein
+# Beiwerk — beide sind dort aus gemessenen Fehlern entstanden:
+#   * Nur unsere eigenen Namen (TARBALL_MUSTER). Im Backup-Volume liegen auch `.zustand`
+#     und `.lauf.sperre`; und wer `BACKUP_DIR` versehentlich eine Ebene zu hoch setzt,
+#     soll fremde Archive nicht mitreissen.
+#   * Eine 0 oder ein Unsinnswert loescht NICHTS, statt alles: `tail -n +1` faengt bei
+#     der ersten Zeile an, also auch beim gerade geschriebenen Tarball.
+lokal_rotieren() {
+  keep="${BACKUP_KEEP:-7}"
+  case "$keep" in
+    '' | *[!0-9]*)
+      warne "BACKUP_KEEP=\"$keep\" ist keine Zahl — lokal wird NICHTS geloescht."
+      return 0
+      ;;
+  esac
+  if [ "$keep" -lt 1 ]; then
+    warne "BACKUP_KEEP=$keep wuerde JEDE lokale Generation loeschen, auch die gerade
+  geschriebene — es wird NICHTS geloescht."
+    return 0
+  fi
+
+  # Nach Aenderungszeit sortiert (neueste zuerst), wie zuvor in `backup.sh`; der Filter
+  # auf den Namen entscheidet, WAS ueberhaupt als Generation zaehlt.
+  unsere="$(mktemp)"
+  ls -1t "$BACKUP_DIR" 2>/dev/null | while read -r name; do
+      [ -n "$name" ] || continue
+      case "$name" in
+        $TARBALL_MUSTER) printf '%s\n' "$name" ;;
+      esac
+    done >"$unsere"
+  tail -n +$((keep + 1)) "$unsere" | while read -r alt; do
+      [ -n "$alt" ] || continue
+      protokoll "  lokal geloescht: $alt"
+      rm -f "$BACKUP_DIR/$alt"
+    done
+  rm -f "$unsere"
+}
+
 # ══ Rueckmeldung nach aussen ═════════════════════════════════════════════════════════
+# Schema und Host, sonst nichts — Pfad, Abfrage und etwaige Zugangsdaten fallen weg.
+ping_ziel_kurz() {
+  ohne_schema="${1#*://}"
+  nur_host="${ohne_schema%%/*}"
+  # `user:pass@host` kann in einer URL stehen; alles vor dem letzten @ faellt mit weg.
+  nur_host="${nur_host##*@}"
+  case "$1" in
+    *://*) echo "${1%%://*}://$nur_host" ;;
+    *) echo "$nur_host" ;;
+  esac
+}
+
 ping_senden() {
   [ -n "$BACKUP_PING_URL" ] || return 0
   if [ "$1" = "ok" ]; then
@@ -372,7 +428,16 @@ ping_senden() {
   if curl -fsS -m 15 --retry 3 --retry-delay 5 -o /dev/null "$ziel"; then
     protokoll "Ping ($1) abgesetzt."
   else
-    warne "Ping an $ziel ist gescheitert — die Ueberwachung hat diesen Lauf NICHT gesehen."
+    # ⚠️ NUR DER HOST INS PROTOKOLL, NIE DIE GANZE URL. Beide unterstuetzten Dienste
+    # tragen ihre Kennung IM Pfad (healthchecks.io: `/<uuid>`, Uptime Kuma:
+    # `/api/push/<token>`), und die Fehler-URL kann zusaetzlich Zugangsdaten in der
+    # Abfrage fuehren. Wer diese Zeichenkette hat, kann dem Waechter „Backup gesund"
+    # melden — also genau die Zusicherung faelschen, um derentwillen es ihn gibt.
+    # Containerprotokolle liegen aber breiter als die `.env`: `docker compose logs`,
+    # jede Protokollsammlung, jeder Screenshot in einem Ticket.
+    warne "Ping an $(ping_ziel_kurz "$ziel") ist gescheitert — die Ueberwachung hat
+  diesen Lauf NICHT gesehen. (Die Kennung steht nicht im Protokoll; die vollstaendige
+  URL steht in BACKUP_PING_URL bzw. BACKUP_PING_URL_FEHLER.)"
   fi
 }
 
@@ -833,7 +898,11 @@ lauf_ungesperrt() {
   # Der Lauf scheiterte dann zwar auch — aber mit „nennt kein lesbares Tarball" und
   # einem `[: Illegal number:` davor, also mit der Diagnose des uebernaechsten Problems.
   set +e
-  { bash "$BACKUP_SKRIPT" 2>&1; echo "$?" >"$statusdatei"; } | tee "$log"
+  # ⚠️ BACKUP_ROTATE=0: die lokale Rotation macht der Sidecar SELBST, nach dem Zaun.
+  # `backup.sh` kann nicht wissen, ob die Sperre noch uns gehoert — es rotiert am Ende
+  # seines Laufs, und das liegt VOR jeder Pruefung hier. GEMESSEN mit BACKUP_KEEP=1 und
+  # einem Nachfolger, der waehrenddessen uebernimmt: dessen gueltige Generation war weg.
+  { BACKUP_ROTATE=0 bash "$BACKUP_SKRIPT" 2>&1; echo "$?" >"$statusdatei"; } | tee "$log"
   ausgang="$(cat "$statusdatei" 2>/dev/null)"
   set -e
   rm -f "$statusdatei"
@@ -883,6 +952,9 @@ lauf_ungesperrt() {
     warne "$meldung"
     return 1
   fi
+
+  # Jetzt, und keinen Schritt frueher: die Sperre ist nachweislich noch unsere.
+  lokal_rotieren
 
   if [ -n "$BACKUP_RCLONE_ZIEL" ]; then
     if auslagern "$tarball"; then

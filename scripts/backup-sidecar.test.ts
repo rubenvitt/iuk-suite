@@ -838,6 +838,49 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(marke, "und fragt sie VOR der Zustandsdatei ab").toBeLessThan(lesen);
   });
 
+  it("die lokale Rotation liegt HINTER dem Zaun, nicht in `backup.sh`", () => {
+    // ⚠️ SIE STAND IN `backup.sh` UND LIEF DAMIT VOR JEDER PRUEFUNG. Ein Lauf, der die
+    // Sperre unterwegs verloren hat, arbeitet sein `backup.sh` zu Ende — und rotiert
+    // dabei das gemeinsame Verzeichnis. GEMESSEN mit BACKUP_KEEP=1 und einem
+    // Nachfolger, der waehrenddessen seine Generation ablegt: sie war hinterher WEG.
+    // Der Zaun kam zu spaet, weil er nach `backup.sh` sitzt.
+    //
+    // Nach der Aenderung, beide Lagen gemessen: Sperre verloren → Generation des
+    // Nachfolgers bleibt · Sperre unsere, KEEP=2 → die zwei neuesten eigenen bleiben.
+    expect(befehle).toMatch(/BACKUP_ROTATE=0 bash "\$BACKUP_SKRIPT"/);
+    const rumpfL = funktionsrumpf(befehle, "lauf_ungesperrt");
+    const zaun = rumpfL.indexOf("sperre_gehoert_uns");
+    const rotieren = rumpfL.indexOf("lokal_rotieren");
+    expect(rotieren, "der Lauf rotiert selbst").toBeGreaterThan(-1);
+    expect(zaun, "und zwar NACH dem Zaun").toBeLessThan(rotieren);
+
+    // ⚠️ DIESELBEN ZWEI RIEGEL WIE AM ZIEL, und beide sind dort aus gemessenen Fehlern
+    // entstanden: nur die eigenen Namen (im Volume liegen auch `.zustand` und die
+    // Sperre), und eine 0 loescht NICHTS statt alles.
+    const rumpfR = funktionsrumpf(befehle, "lokal_rotieren");
+    expect(rumpfR).toMatch(/\$TARBALL_MUSTER\)/);
+    expect(rumpfR).toMatch(/-lt 1 \]; then[\s\S]*return 0/);
+    expect(rumpfR).toMatch(/\*\[!0-9\]\*\)[\s\S]*return 0/);
+  });
+
+  it("ein gescheiterter Ping schreibt die Kennung NICHT ins Protokoll", () => {
+    // ⚠️ WER DIE URL HAT, KANN DEM WAECHTER „BACKUP GESUND" MELDEN. Beide unterstuetzten
+    // Dienste tragen ihre Kennung IM Pfad (healthchecks.io `/<uuid>`, Uptime Kuma
+    // `/api/push/<token>`), und die Fehler-URL kann Zugangsdaten in der Abfrage fuehren.
+    // Containerprotokolle liegen breiter als die `.env`: `docker compose logs`, jede
+    // Protokollsammlung, jeder Screenshot in einem Ticket.
+    const rumpfP = funktionsrumpf(befehle, "ping_senden");
+    const warnung = rumpfP.slice(rumpfP.indexOf("warne "));
+    expect(warnung, "die Warnung nennt nur den gekuerzten Host").toMatch(
+      /ping_ziel_kurz "\$ziel"/,
+    );
+    expect(warnung, "und nicht die ganze URL").not.toMatch(/warne "Ping an \$ziel/);
+    // Schema und Host bleiben, alles andere faellt weg — inklusive `user:pass@`.
+    const rumpfK = funktionsrumpf(befehle, "ping_ziel_kurz");
+    expect(rumpfK).toMatch(/\$\{ohne_schema%%\/\*\}/);
+    expect(rumpfK).toMatch(/\$\{nur_host##\*@\}/);
+  });
+
   it("ein Erfolg, den niemand festhalten kann, wird NICHT als Erfolg gemeldet", () => {
     // ⚠️ DER RUECKGABEWERT STAND HIER UNGEPRUEFT — und das faellt nur deshalb nicht auf,
     // weil `lauf()` diese Funktion als `if`-Bedingung ruft: `set -e` ist darin
