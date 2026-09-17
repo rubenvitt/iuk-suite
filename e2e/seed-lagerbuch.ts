@@ -46,6 +46,7 @@ import {
   E2E_TOKEN_HELFER, E2E_TOKEN_CHECK, E2E_TOKEN_GERAETE, E2E_TOKEN_FAHRZEUG,
   E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
   E2E_LAST_ANZAHL, E2E_LAST_PRAEFIX,
+  E2E_ZELLENTEXT_ARTIKEL, E2E_ZELLENTEXT_KOMMENTAR,
 } from "./helpers/lagerbuch";
 
 const JETZT = new Date();
@@ -840,6 +841,42 @@ function vorgangFixtures(): void {
 }
 
 /**
+ * DRK-372 — EINE Buchung mit einem ueberlangen Kommentar, allein fuer
+ * `lagerbuch-zellentext.spec.ts`.
+ *
+ * ⚠️ DIE LAENGE IST DER GANZE FALL. Der Spec misst, dass die Freitextspalte
+ * schmaler bleibt als ihr eigener Satz — mit einem kurzen Kommentar waere die
+ * Zusicherung trivial wahr und der Lauf gruen, ohne etwas zu messen. `buchungen.
+ * kommentar` hat keine Laengengrenze; der Satz hier ist der Altbestandsfall,
+ * gegen den der Deckel gebaut ist.
+ *
+ * ⚠️ EIGENER ARTIKEL MIT EIGENEM NAMEN, wie bei `vorgangFixtures`: Playwright
+ * faehrt alle Specs in EINEM Worker gegen EINE Datei. „Warnweste" kommt in
+ * keinem anderen Seed vor — ein geteiltes Wort machte fremde Trefferzusagen
+ * rennabhaengig.
+ */
+function zellentextFixtures(): void {
+  const db = getDb();
+  db.insert(artikel).values({
+    id: "e2e-zellentext-artikel", name: E2E_ZELLENTEXT_ARTIKEL, einheit: "Stk.", fach: "ZT-1",
+    mindestbestand: 0, aktiv: true, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  db.insert(chargen).values({
+    id: "e2e-zellentext-charge", artikelId: "e2e-zellentext-artikel", chargenNr: "E2E-ZT",
+    verfall: E2E_VERFALL_FERN, createdAt: JETZT,
+  }).onConflictDoNothing().run();
+  if (!db.select().from(buchungen).where(eq(buchungen.id, "e2e-zellentext-buchung")).get()) {
+    db.insert(buchungen).values({
+      id: "e2e-zellentext-buchung", ts: JETZT, typ: "zugang",
+      artikelId: "e2e-zellentext-artikel", chargeId: "e2e-zellentext-charge",
+      lagerortId: HANDLAGER_ID, menge: 5,
+      quelleTyp: "system", quelleId: "e2e", referenz: null,
+      kommentar: E2E_ZELLENTEXT_KOMMENTAR,
+    }).run();
+  }
+}
+
+/**
  * DRK-293 — zwei Artikel allein fuer `lagerbuch-sammelbearbeitung.spec.ts`.
  *
  * INAKTIV, aus demselben Grund wie `kategorieFixtures`: nur die Artikelliste
@@ -968,6 +1005,7 @@ kategorieFixtures();
 inventurFixtures();
 verfallOrtFixtures();
 vorgangFixtures();
+zellentextFixtures();
 sammelFixtures();
 angemeldetFixtures();
 lastFixtures();

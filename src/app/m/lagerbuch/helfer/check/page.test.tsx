@@ -166,13 +166,13 @@ vi.mock("../../_ui/CheckFlow", () => ({
     flaschen: { letzterDruck: number | null }[];
     verfall: Record<string, string>;
     warn: unknown;
-    gebunden: boolean;
+    andereEinheitErreichbar: boolean;
     letzterCheckText: string | null;
   }) => (
     <div
       data-rolle="flow"
       data-fz={p.fahrzeug.id}
-      data-gebunden={String(p.gebunden)}
+      data-andere={String(p.andereEinheitErreichbar)}
       data-fz-felder={Object.keys(p.fahrzeug).sort().join(",")}
       data-soll-ids={p.soll.map((x) => String(x.id)).join(",")}
       data-soll-felder={Object.keys(p.soll[0] ?? {}).sort().join(",")}
@@ -705,14 +705,16 @@ describe("/helfer/check — der Einstieg nach dem Fahrzeug-Scan (DRK-302)", () =
   });
 
   it("sagt dem Flow, dass es kein anderes Fahrzeug gibt", async () => {
-    // `gebunden` steuert allein die zwei Auswege „Anderes Fahrzeug" im Flow
-    // (`_ui/CheckFlow.tsx`). Ohne das Prop zeigte die Seite zwar ein einziges
-    // Fahrzeug, boete am Ende aber einen Knopf in die volle Liste — der Einstieg
-    // waere genau eine Bedienung weit von seiner Begrenzung entfernt.
+    // GRUND 1 VON ZWEI (DRK-302). Das Prop steuert allein die zwei Auswege
+    // „Andere Einheit" im Flow (`_ui/CheckFlow.tsx`). Ohne es zeigte die Seite
+    // zwar ein einziges Fahrzeug, boete am Ende aber einen Knopf in die volle
+    // Liste — der Einstieg waere genau eine Bedienung weit von seiner
+    // Begrenzung entfernt. ZWEI aktive Einheiten, damit allein die Bindung
+    // entscheidet: mit einer waere die Zusicherung auf dem anderen Grund gruen.
     fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
     anFahrzeugBinden("fz-2");
     await mount(await CheckSeite(sp()));
-    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("true");
+    expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("false");
   });
 
   it("laesst ein UNGEBUNDENES Kaertchen unveraendert waehlen", async () => {
@@ -726,10 +728,41 @@ describe("/helfer/check — der Einstieg nach dem Fahrzeug-Scan (DRK-302)", () =
     expect(exists("[data-rolle='flow']")).toBe(false);
   });
 
-  it("meldet ein ungebundenes Kaertchen auch dem Flow als ungebunden", async () => {
+  /*
+   * ⚠️ KEIN WEG IM CHECK DARF IM KREIS FUEHREN — DRK-376.
+   *
+   * Die zwei Auswege des Flows zeigen auf `/helfer/check`, also auf DIESE
+   * Seite; sie sind genau dann wirkungslos, wenn `gewaehlt` oben dieselbe
+   * Einheit erneut liefert. Die drei Faelle stehen einzeln da, weil sie DREI
+   * verschiedene Gruende haben, nicht einer mit drei Gesichtern — dieselbe
+   * Aufteilung wie an der Entnahmebox (`helfer/box/page.test.tsx`).
+   */
+  it("bietet den Weg auf eine andere Einheit an, solange es eine andere gibt", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: "fz-1" })));
+    expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("true");
+  });
+
+  it("nimmt dem Flow den Weg bei GENAU EINER aktiven Einheit", async () => {
+    /*
+     * DER KERN VON DRK-376. Ohne Wahl waehlt die Seite oben wieder fz-1 — der
+     * Link laedt denselben Schirm. Kaputt sieht das nicht aus: er funktioniert,
+     * die Seite laedt, sie zeigt dasselbe, und wer davorsteht haelt den eigenen
+     * Klick fuer danebengegangen. Getroffen hat es genau die Bereitschaften mit
+     * einer einzigen aktiven Einheit.
+     */
     fahrzeuge.mockReturnValue([FZ("fz-1")]);
     await mount(await CheckSeite(sp()));
-    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("false");
+    expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("false");
+  });
+
+  it("zaehlt nur AKTIVE Einheiten — eine stillgelegte ist keine Alternative", async () => {
+    // Die Zahl kommt aus der bereits gefilterten Liste. Eine Rechnung auf der
+    // ungefilterten saehe hier zwei Einheiten und boete den Weg an, obwohl die
+    // Wahl nur eine Zeile zeigte und die Seite sofort wieder auf fz-1 faellt.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2", false)]);
+    await mount(await CheckSeite(sp()));
+    expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("false");
   });
 
   it("bindet ein ARTIKEL-Kaertchen an kein Fahrzeug", async () => {
@@ -759,7 +792,10 @@ describe("/helfer/check — der Einstieg nach dem Fahrzeug-Scan (DRK-302)", () =
     anFahrzeugBinden("fz-alt");
     await mount(await CheckSeite(sp()));
     expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-1");
-    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("false");
+    // ⚠️ KEINE ZUSICHERUNG AUF `data-andere` HIER: nach dem `aktiv`-Filter
+    // bleibt genau EINE Einheit uebrig, der Weg faellt also ohnehin aus dem
+    // zweiten Grund weg (DRK-376). Sie waere gruen, egal ob die Bindung
+    // durchgefallen ist — und genau das soll dieser Test zeigen.
   });
 
   it("faellt auf die WAHL zurueck, wenn das gebundene Fahrzeug geloescht ist", async () => {
@@ -1140,14 +1176,15 @@ describe("DRK-305 — der angemeldete Einstieg", () => {
   it("`?fz=` wählt vor und meldet den Flow als UNGEBUNDEN", async () => {
     /*
      * Der Weg vom Fahrzeugblatt („Check durchführen" an einem einzelnen
-     * Fahrzeug). Die Vorauswahl greift — aber `gebunden` bleibt falsch, damit
-     * der Flow den Ausweg „Anderes Fahrzeug" weiterhin anbietet. Genau darin
-     * unterscheidet sich dieser Einstieg vom gescannten (DRK-302).
+     * Fahrzeug). Die Vorauswahl greift — aber die Bindung bleibt aus, und weil
+     * es eine zweite aktive Einheit gibt, bietet der Flow den Ausweg „Andere
+     * Einheit" weiterhin an. Genau darin unterscheidet sich dieser Einstieg vom
+     * gescannten (DRK-302).
      */
     fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
     await mount(await CheckSeite(sp({ fz: "fz-2" })));
     expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
-    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("false");
+    expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("true");
   });
 
   it("ein stillgelegtes `?fz=` fällt auf die Wahl zurück, nicht in eine Sackgasse", async () => {
@@ -1176,7 +1213,7 @@ describe("DRK-305 — der angemeldete Einstieg", () => {
     fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
     anFahrzeugBinden("fz-2");
     await mount(await CheckSeite(sp()));
-    expect(query("[data-rolle='flow']").getAttribute("data-gebunden")).toBe("true");
+    expect(query("[data-rolle='flow']").getAttribute("data-andere")).toBe("false");
     expect(query("[data-rolle='rahmen']").getAttribute("data-etikett")).toBe(ETIKETT);
   });
 });

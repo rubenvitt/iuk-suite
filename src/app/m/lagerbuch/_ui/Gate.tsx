@@ -21,13 +21,13 @@ import s from "./helfer.module.css";
  *
  * ⚠️ ES GIBT GENAU EINEN FEHLERORT. Der Text aus `?grund=` und der
  * Rueckgabewert der Server Action erscheinen an DERSELBEN Stelle (`.gateFehler`,
- * heute `gateerr`, globals.css:126). Zwei Fehlerorte waeren zwei Zustaende, die
- * einander widersprechen koennen.
+ * heute `gateerr`, lagerbuch/src/app/globals.css:126). Zwei Fehlerorte waeren
+ * zwei Zustaende, die einander widersprechen koennen.
  *
  * ⚠️ DIE VERWALTUNGSKARTE RUFT NICHT `signIn()`. Sie ist ein LINK auf das
  * Suite-`/login` (§3.6.6, Entscheidung 15 a: „der Verwaltungs-Knopf fuehrt auf
- * das Suite-/login"). `signIn("oidc", …)` waere die naheliegende Uebernahme aus
- * `Gate.tsx:55` und in der Suite FALSCH: der Anbieter heisst dort
+ * das Suite-/login"). `signIn("oidc", …)` waere die naheliegende Uebernahme
+ * aus dem Bestand (dort Zeile 55) und in der Suite FALSCH: er heisst dort
  * **`"pocket-id"`** (`core/auth/pocketId.ts:28`) und existiert nur bei
  * gesetztem `POCKET_ID_ISSUER` (`core/auth/config.ts:76`). Auth.js meldet einen
  * unbekannten Anbieter erst zur LAUFZEIT — `pnpm build` bliebe gruen.
@@ -44,9 +44,9 @@ import s from "./helfer.module.css";
  * E2E-Umgebung ins Leere laufen liesse (`callbackUrl` wird dort nur als eigene
  * Origin angenommen).
  *
- * ⚠️ DER DEMO-LOGIN-KNOPF DES BESTANDS (`Gate.tsx:59-66`) ENTFAELLT ERSATZLOS.
+ * ⚠️ DER DEMO-LOGIN-KNOPF DES BESTANDS (dort Zeile 59-66) ENTFAELLT ERSATZLOS.
  * Die Suite-Anmeldeseite bietet ihn selbst, wenn `AUTH_DEV_LOGIN` gesetzt ist
- * (`core/auth/devLogin.ts:14`); ein zweiter Knopf im Modul waere ein zweiter
+ * (`core/auth/devLogin.ts`); ein zweiter Knopf im Modul waere ein zweiter
  * Pfad in dieselbe Sitzung, in Produktion nur durch eine BEDINGUNG stillgelegt.
  */
 

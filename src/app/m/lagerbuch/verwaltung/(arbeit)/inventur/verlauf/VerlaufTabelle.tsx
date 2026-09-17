@@ -2,6 +2,7 @@
 
 import { Table, type TableProps } from "antd";
 import Link from "next/link";
+import { Zellentext } from "@/core/tabelle";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -42,9 +43,22 @@ const SPALTEN = [
     key: "person",
   },
   {
+    /*
+     * ⚠️ EINE BREITE (DRK-372). `inventuren.kommentar` ist Freitext ohne
+     * Laengengrenze, die Tabelle faehrt `scroll={{ x: "max-content" }}` — EIN
+     * langer Satz schoebe Umfang, Positionen und Abweichungen aus dem Bild,
+     * und das Symptom fuehrt in die Irre: die Zeile sieht richtig aus, sie
+     * steht nur sehr weit rechts.
+     *
+     * Ohne `zeilen`: der Kommentar steht auf der Detailseite zwar noch einmal,
+     * dort aber in EINER Kopfzeile neben Person und Umfang — waere er hier
+     * gekuerzt, saesse der volle Text an keiner Stelle, an der er sich lesen
+     * laesst.
+     */
     title: <span style={SCHRIFT.feldname}>Kommentar</span>,
     dataIndex: "kommentar",
     key: "kommentar",
+    render: (text: string) => <Zellentext text={text} />,
   },
   {
     title: <span style={SCHRIFT.feldname}>Umfang</span>,

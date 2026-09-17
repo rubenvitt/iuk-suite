@@ -123,6 +123,26 @@ export function Entnahme({
   const [menge, setMenge] = useState(1);
   const [rueck, setRueck] = useState<Rueckmeldung | null>(null);
   const [laeuft, start] = useTransition();
+  /*
+   * DIE CHARGENLISTE ZEIGT ZUERST, WAS HIER LIEGT — DRK-397.
+   *
+   * ⚠️ DER FILTER GEHT AUF `rest`, NICHT AUF `restGesamt`, und das ist genau
+   * die Gegenrichtung zum Filter im Lesepfad (`artikelDetailHelfer`): DORT
+   * faellt heraus, was NIRGENDS mehr liegt, HIER faellt zu, was NICHT IM
+   * HANDLAGER liegt. Beide zusammen ergeben die Aufteilung, die der Schirm
+   * braucht — oben das Mitnehmbare, dahinter das Auffindbare.
+   *
+   * ⚠️ UND ES IST EIN UMSCHALTER, KEIN ZWEITER FILTER IM LESEPFAD. Die Zeile,
+   * die eine vollstaendig im RTW liegende Charge zeigt, ist die einzige
+   * Auskunft, die jemand am leeren Regalfach bekommt (DRK-297, Aufgabe 12) —
+   * sie darf ruhen, aber sie darf nicht verschwinden. Wer den Filter
+   * stattdessen serverseitig zieht, nimmt sie ersatzlos weg, und zwar still:
+   * der Schirm saehe aufgeraeumt aus und sagte nicht mehr, wo das Material ist.
+   */
+  const [zeigeOhneBestand, setZeigeOhneBestand] = useState(false);
+  const imHandlager = detail.chargen.filter((c) => c.rest > 0);
+  const ohneBestand = detail.chargen.filter((c) => c.rest <= 0);
+  const sichtbareChargen = zeigeOhneBestand ? detail.chargen : imHandlager;
 
   /*
    * DER WEG ZUR ZIELWAHL UND ZURÜCK. `returnTo` ist keine Bequemlichkeit: ohne
@@ -310,7 +330,7 @@ export function Entnahme({
 
       <div className={s.karte}>
         <div className={s.karteTitel}>Nächste Charge zuerst (FEFO)</div>
-        {detail.chargen.map((c) => (
+        {sichtbareChargen.map((c) => (
           <div className={s.zeile} key={c.id} data-rolle="charge-zeile">
             <div className={s.zeileHaupt}>
               <div style={{ font: "600 13px var(--lb-mono)" }}>Charge {c.chargenNr}</div>
@@ -372,6 +392,44 @@ export function Entnahme({
             </div>
           </div>
         ))}
+
+        {/*
+          ⚠️ EINE LEERE KARTE IST KEINE AUSKUNFT. Liegt von diesem Artikel
+          nichts im Handlager, steht hier der Satz, den die Kopfzahl („BESTAND
+          HANDLAGER 0") nur als Ziffer sagt — und zwar VOR dem Umschalter,
+          damit klar ist, warum darunter nichts steht.
+        */}
+        {sichtbareChargen.length === 0 && (
+          <div className={`${s.zeile} ${s.fussnote}`} data-rolle="charge-leer">
+            {ohneBestand.length > 0
+              ? "Im Handlager liegt von diesem Artikel nichts."
+              : "Für diesen Artikel ist keine Charge erfasst."}
+          </div>
+        )}
+
+        {/*
+          DER UMSCHALTER — DRK-397.
+          ⚠️ ER NENNT DIE ANZAHL, und das ist nicht Zierde: ohne sie ist er ein
+          Knopf, hinter dem vielleicht nichts steckt, und wer am leeren Fach
+          steht, drueckt ihn dann gar nicht erst. Mit der Zahl ist er die
+          Antwort auf „hier ist nichts — und sonst?".
+          ⚠️ `aria-expanded` STATT EINES ZWEITEN ZUSTANDSTEXTES fuer die
+          Vorleseanwendung: der Knopf deckt eine Liste auf, die im selben
+          Dokument steht.
+        */}
+        {ohneBestand.length > 0 && (
+          <button
+            type="button"
+            className={`${s.zeile} ${s.zeileKnopf} ${s.chargenUmschalter}`}
+            aria-expanded={zeigeOhneBestand}
+            onClick={() => setZeigeOhneBestand((an) => !an)}
+            data-rolle="charge-umschalter"
+          >
+            {zeigeOhneBestand
+              ? "Nur Chargen im Handlager zeigen"
+              : `Auch ${ohneBestand.length} Charge${ohneBestand.length === 1 ? "" : "n"} ohne Bestand im Handlager zeigen`}
+          </button>
+        )}
       </div>
     </div>
   );

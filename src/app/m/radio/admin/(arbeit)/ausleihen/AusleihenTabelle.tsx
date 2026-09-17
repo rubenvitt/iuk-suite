@@ -3,7 +3,7 @@
 // src/app/m/radio/admin/(arbeit)/ausleihen/AusleihenTabelle.tsx
 import { useCallback } from "react";
 import { Button, Card, DatePicker, Grid, List, Select, Tag, type TableColumnType } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import { Datentabelle, Zellentext } from "@/core/tabelle";
 import dayjs from "dayjs";
 import { usePathname, useRouter } from "next/navigation";
 import type { AusleihZeile, GeraetWahl } from "../../../_lib/lesepfade/ausleihen";
@@ -170,10 +170,21 @@ export const SPALTEN: TableColumnType<AusleihZeile>[] = [
     render: (_: unknown, z: AusleihZeile) => <StatusMarke aktiv={z.aktiv} />,
   },
   {
+    /*
+     * ⛔ DIE NOTIZ BRAUCHT EINE BREITE (DRK-372). `ZUSTANDSNOTIZ_MAX` sind 500
+     * Zeichen — eine Obergrenze ist keine Deckelung: 500 Zeichen in einer Zelle
+     * einer Tabelle mit `scroll.x: "max-content"` sind rund 500 Zeichen BREITE,
+     * und Geraet, Person und Zeitraum stehen dann ausserhalb des Bildes. Das
+     * Symptom fuehrt in die Irre: die Zeile sieht richtig aus, sie steht nur
+     * sehr weit rechts.
+     *
+     * Ohne `zeilen`: diese Liste ist die einzige Flaeche, auf der die
+     * Rueckgabenotiz ueberhaupt erscheint.
+     */
     title: "Notiz",
     key: "notiz",
     render: (_: unknown, z: AusleihZeile) => (
-      <span data-rolle="radio-leihe-notiz">{wert(z.notiz)}</span>
+      <Zellentext data-rolle="radio-leihe-notiz" text={wert(z.notiz)} />
     ),
   },
 ];

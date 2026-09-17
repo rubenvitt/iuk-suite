@@ -11,6 +11,7 @@
  * korrekt weiter.
  */
 export { Datentabelle, type DatentabelleProps } from "./Datentabelle";
+export { Zellentext, type ZellentextProps } from "./Zellentext";
 export { useEntprellt } from "./useEntprellt";
 export {
   breitenSumme,

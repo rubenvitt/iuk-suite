@@ -3,7 +3,7 @@ import { devLogin } from "./fixtures";
 import { decodeQr } from "./helpers/decode-qr";
 import {
   E2E_FAHRZEUG_ANDERES_ID, E2E_FAHRZEUG_ANDERES_NAME,
-  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG,
+  E2E_FAHRZEUG_ID, E2E_FAHRZEUG_NAME, E2E_TOKEN_FAHRZEUG, E2E_TOKEN_HELFER,
   LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl,
 } from "./helpers/lagerbuch";
 import {
@@ -33,8 +33,14 @@ import { HANDLAGER_ID } from "@/app/m/lagerbuch/_lib/konstanten";
  * ⚠️ KEIN WARMLAUF-GET NOETIG (Falle 10): diese Datei loest keinen POST aus.
  * Kein `klickeWennRuhig` (Falle 12): sie navigiert mit `goto` statt zu klicken.
  *
- * ⚠️ SIE HINTERLAESST NICHTS. Playwright faehrt alle Specs in EINEM Worker
- * gegen EINE SQLite-Datei; hier wird ausschliesslich gelesen.
+ * ⚠️ SIE HINTERLAESST FAST NICHTS. Playwright faehrt alle Specs in EINEM Worker
+ * gegen EINE SQLite-Datei; gelesen wird ausschliesslich — mit EINER Ausnahme:
+ * der Kaertchen-Test (DRK-395) loest `E2E_TOKEN_HELFER` wirklich ein und setzt
+ * damit dessen `tokens.last_used_at`. Das ist folgenlos und ausdruecklich
+ * vorgesehen: das Schema fuehrt das Feld als „reines Anzeigefeld, OHNE Einfluss
+ * auf Gueltigkeit" (`_db/schema.ts`), und Ruling A9 reserviert genau diesen
+ * Code fuer echte Einloese-Laeufe — die Codes, an deren `last_used_at` eine
+ * andere Spec haengt, sind andere (`lagerbuch-hosts.spec.ts`).
  */
 
 const PT_JE_MM = 2.83465;
@@ -176,6 +182,62 @@ test.describe("Ortsetiketten (Bogen)", () => {
     await page.goto(lagerbuchUrl(`/o/${HANDLAGER_ID}`));
     await page.waitForURL((url) => url.pathname.endsWith("/helfer"));
     await expect(page.getByText("Artikel wählen")).toBeVisible();
+  });
+
+  /**
+   * DRK-395 — DER GANZE WEG, DEN DER BETREIBER GEMELDET HAT: Karte drucken,
+   * abgemeldet scannen, am Regal stehen.
+   *
+   * ⚠️ NUR HIER TREFFEN SICH DIE BEIDEN HAELFTEN. Vitest haelt fest, WAS auf
+   * der Karte steht, und `lagerbuch-helfer.spec.ts` haelt fest, dass ein Code
+   * ohne Anmeldung einloest — aber keiner von beiden merkt, wenn die Karte den
+   * FALSCHEN Code truege. Der QR wird deshalb aus den PIXELN zurueckdekodiert
+   * und die dekodierte Adresse danach WIRKLICH aufgerufen, in einem frischen
+   * Kontext OHNE die Cookies aus `beforeEach`.
+   *
+   * ⚠️ DIE GEGENPROBE AN DER FAHRZEUGKARTE GEHOERT DAZU. Die
+   * Betreiberentscheidung gilt dem Regal, nicht den Einheiten; ein Kaertchen
+   * auf der Fahrzeugkarte oeffnete den Check dieses Fahrzeugs fuer jeden, der
+   * die Karte abfotografiert. Ohne diese Zeile wuechse die Entscheidung still
+   * mit.
+   */
+  test("mit Zugangs-Code fuehrt die Handlager-Karte abgemeldet ans Regal", async ({ page, browser }) => {
+    await page.goto(lagerbuchUrl("/verwaltung/ortsetiketten"));
+
+    /*
+     * Die Karte wird ueber IHRE ADRESSE gefunden, nicht ueber ihren Namen:
+     * „Handlager" kann auch in einem Einheitennamen stecken, `/o/handlager`
+     * nicht. Der Index wird VOR der Wahl genommen — danach traegt der Fuss
+     * die Kaertchen-Adresse und die Suche liefe ins Leere.
+     */
+    const fuesse = await page.locator(".lb-ortkarteUrl").allTextContents();
+    const index = fuesse.findIndex((u) => u.includes(`/o/${HANDLAGER_ID}`));
+    expect(index, "der Seed muss eine Handlager-Karte liefern").toBeGreaterThanOrEqual(0);
+    const karte = page.locator(".lb-ortkarte").nth(index);
+
+    await page.getByLabel("QR auf der Handlager-Karte").click();
+    await page.locator(".ant-select-item-option", { hasText: E2E_TOKEN_HELFER }).click();
+
+    const ziel = await decodeQr(await karte.locator(".lb-ortkarteQr").innerHTML());
+    expect(ziel).toBe(lagerbuchUrl(`/t/${E2E_TOKEN_HELFER}`));
+    // Der Fuss nennt denselben Zugang — abtippbar, fuer ein Telefon ohne Kamera.
+    await expect(karte.locator(".lb-ortkarteCode")).toHaveText(`Code ${E2E_TOKEN_HELFER}`);
+    await expect(karte.locator(".lb-ortkarteUrl")).toContainText(ziel);
+    await expect(karte.locator(".lb-ortkarteUrl")).not.toContainText(`/o/${HANDLAGER_ID}`);
+
+    // Die Gegenprobe: die Einheit behaelt ihre Ortsadresse.
+    const fahrzeugKarte = page.locator(".lb-ortkarte", { hasText: E2E_FAHRZEUG_NAME }).first();
+    await expect(fahrzeugKarte.locator(".lb-ortkarteUrl"))
+      .toHaveText(lagerbuchUrl(`/o/${E2E_FAHRZEUG_ID}`));
+    await expect(page.locator(".lb-ortkarteCode")).toHaveCount(1);
+
+    // Und jetzt der Scan — abgemeldet, wie am Regal.
+    const anonym = await browser.newContext();
+    const seite = await anonym.newPage();
+    await seite.goto(ziel);
+    await seite.waitForURL((url) => url.pathname.endsWith("/helfer"));
+    await expect(seite.getByText("Artikel wählen")).toBeVisible();
+    await anonym.close();
   });
 
   /**

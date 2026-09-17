@@ -14,8 +14,8 @@ import {
  * sich selbst und bleibt auch dann gruen, wenn jemand 48.5 in 48 aendert.
  */
 describe("etikettMasse", () => {
-  it("traegt die Geometrie aus globals.css:265-282 zeichengleich", () => {
-    expect(ETIKETT_BREITE_MM).toBe(48.5);          // globals.css:265,266
+  it("traegt die Geometrie der ALT-ANWENDUNG zeichengleich", () => {
+    expect(ETIKETT_BREITE_MM).toBe(48.5); // lagerbuch/src/app/globals.css:265,266
     expect(ETIKETT_HOEHE_MM).toBe(25.4);           // :266
     expect(ETIKETT_QR_MM).toBe(20);                // :268
     expect(ETIKETT_PADDING_MM).toBe(2);            // :266
@@ -29,13 +29,13 @@ describe("etikettMasse", () => {
    * falsche Raster und merkt es erst am Drucker.
    */
   it("unterscheidet den Abstand zwischen Bildschirm und Druck", () => {
-    expect(BOGEN_GAP_BILDSCHIRM_MM).toBe(2);       // globals.css:265
+    expect(BOGEN_GAP_BILDSCHIRM_MM).toBe(2); // lagerbuch/src/app/globals.css:265
     expect(BOGEN_GAP_DRUCK_MM).toBe(0);            // :279
     expect(BOGEN_GAP_BILDSCHIRM_MM).not.toBe(BOGEN_GAP_DRUCK_MM);
   });
 
   it("haelt die Abwahl am Bildschirm bei .35 — sichtbar, nicht weg", () => {
-    expect(ETIKETT_ABGEWAEHLT_OPAZITAET).toBe(0.35); // globals.css:267
+    expect(ETIKETT_ABGEWAEHLT_OPAZITAET).toBe(0.35); // :267 (Alt-App)
   });
 
   it("formatiert ohne nachlaufende Null", () => {

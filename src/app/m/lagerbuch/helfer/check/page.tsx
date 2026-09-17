@@ -206,6 +206,38 @@ export default async function CheckSeite({
     (fz ? fahrzeuge.find((f) => f.id === fz) : undefined) ??
     (fahrzeuge.length === 1 ? fahrzeuge[0] : null);
 
+  /*
+   * FUEHRT „ANDERE EINHEIT" UEBERHAUPT WOANDERSHIN? — DRK-376.
+   *
+   * Der Flow hat zwei Ausgaenge in die Wahl (Leerzustand und Abschlussschirm),
+   * und beide zeigen auf `/helfer/check` — auf DIESE Seite, deren `gewaehlt`
+   * oben dieselbe Einheit erneut liefert, sobald einer von ZWEI Gruenden gilt:
+   *
+   *   `gebunden`             — das Kaertchen zeigt auf DIESE Einheit und
+   *                            gewinnt gegen jedes `?fz=` (DRK-302).
+   *   genau EINE aktive      — die Wahl wird uebersprungen.
+   *
+   * Der erste war seit DRK-302 beruecksichtigt, der zweite nicht: dann lud der
+   * Link denselben Schirm. Das sieht nicht kaputt aus — er funktioniert, die
+   * Seite laedt, sie zeigt dasselbe —, und deshalb meldet es niemand.
+   *
+   * ⚠️ EINE ENTSCHEIDUNG FUER BEIDE AUSGAENGE, und deshalb steht sie HIER und
+   * nicht in einem der beiden Zweige des Flows: sie stellen dieselbe Frage, und
+   * zwei Rechnungen dafuer liefen beim naechsten Griff auseinander — genau das
+   * fand die zweite Codex-Runde an der Entnahmebox, weil die erste nur den
+   * Leerzustand geheilt hatte.
+   *
+   * ⚠️ DIE SEITE RECHNET, NICHT DIE INSEL. Nur sie kennt die Bindung der
+   * Sitzung und die Zahl der aktiven Einheiten; der Flow bekaeme beides nur,
+   * wenn man ihm mehr in den Payload legt, als er zeigt — gegen den ganzen
+   * Schnitt dieser Datei (Falle 15).
+   *
+   * ⚠️ NICHT DIE BINDUNG LOCKERN: sie ist eine Anzeige-Entscheidung, kein
+   * Riegel, aber sie im Vorbeigehen zu umgehen hiesse, die offene
+   * Betreiberfrage 5 zu beantworten. Geaendert wird der WEG, nicht die Wahl.
+   */
+  const andereEinheitErreichbar = gebunden === undefined && fahrzeuge.length > 1;
+
   if (fahrzeuge.length === 0) {
     return (
       <HelferRahmen aktiv="check" sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
@@ -313,10 +345,12 @@ export default async function CheckSeite({
           // „Fahrzeug". `fahrzeugListe` reicht die Art mit heraus.
           einheitenart: gewaehlt.einheitenart,
         }}
-        // Ob der Flow „Andere Einheit" ueberhaupt anbietet. Ohne diese Angabe
-        // zeigte die Seite zwar eine einzige Einheit, waere von der vollen
-        // Liste aber genau eine Bedienung entfernt (§7.9.1, DRK-302).
-        gebunden={gebunden !== undefined}
+        // Ob der Flow „Andere Einheit" ueberhaupt anbietet — und wohin der
+        // Rueckweg im Leerzustand fuehrt. Ohne diese Angabe zeigte die Seite
+        // zwar eine einzige Einheit, waere von der vollen Liste aber genau eine
+        // Bedienung entfernt (§7.9.1, DRK-302), und bei genau einer aktiven
+        // Einheit fuehrte der Weg im Kreis (DRK-376).
+        andereEinheitErreichbar={andereEinheitErreichbar}
         // DRK-305: faellt der Zugang mitten im Check aus, entscheidet diese
         // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
         // unterscheiden — diese Seite kennt sie.

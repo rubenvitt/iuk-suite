@@ -146,8 +146,8 @@ describe("redeemToken — Treffer", () => {
     // EINLOESUNG OHNE SITZUNG: der Code laeuft auf dem fremden Host durch, das
     // Cookie landet auf einer Origin, auf der es niemand benutzen kann, und die
     // Helferin steht am Regal und hat nichts. Der Satz „nicht mehr loeschbar,
-    // nur noch sperrbar" stammt aus der ALT-Anwendung (loeschen.ts:89-99, eine
-    // Herkunftsmarke — die Datei existiert im neuen Modul nicht).
+    // nur noch sperrbar" stammt aus der ALT-Anwendung (Herkunftsmarke
+    // `lagerbuch/src/actions/loeschen.ts:89-99`, hier gibt es die Datei nicht).
     //
     // Der Vorher-Wert steht ausdruecklich mit drin: ohne ihn behauptete der
     // Nachher-Wert nichts ueber DIESEN Aufruf — die Fixture koennte den Wert
