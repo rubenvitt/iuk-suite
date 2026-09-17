@@ -394,6 +394,61 @@ const EINDEUTIGES_SUFFIX = ((): Map<string, string> => {
   return eindeutig;
 })();
 
+/**
+ * MEHRDEUTIGE Suffixe — und die OBERGRENZE ihrer Kandidaten.
+ *
+ * `t/[code]/route.ts` gibt es in `m/radio` UND in `m/lagerbuch`; `_db/schema.ts`
+ * elfmal. `aufloesen` gibt solche Ziele bewusst auf: welche Datei gemeint ist,
+ * kann es nicht wissen, und die falsche zu waehlen hiesse, eine Zusage an ein
+ * fremdes Modul zu binden (siehe `EINDEUTIGES_SUFFIX`).
+ *
+ * ⚠️ EINE AUSSAGE BLEIBT TROTZDEM BEWEISBAR, und sie kostet nichts: liegt die
+ * Zeile ueber der laengsten aller Kandidatendateien, gibt es sie in KEINER von
+ * ihnen — der Anker ist veraltet, gleichgueltig welche gemeint war. Ein
+ * Fehlalarm ist damit ausgeschlossen, nicht bloss unwahrscheinlich.
+ *
+ * Gemessen (Codex-Review zu PR #183): 92 Anker ueber 22 Ziele fielen bis hierher
+ * still heraus, verteilt auf rund zwanzig Dateien — `_db/schema.ts` allein in
+ * acht, `CLAUDE.md` und `AGENTS.md` eingeschlossen. Mit der Obergrenze werden
+ * alle 92 geprueft, keiner davon rot.
+ *
+ * Der WEITERGEHENDE Vorschlag — mehrdeutige Suffixe MELDEN und damit
+ * repo-relative Pfade erzwingen — wuerde genau diese 92 Anker zu Rotmeldungen
+ * machen und ihre Umschreibung verlangen, in beiden Anweisungsdateien und in
+ * der Begruendung dieses Riegels. Das ist eine Aenderung der ANKERSYNTAX des
+ * Repos, keine am Riegel, und steht als DRK-403 auf dem Board.
+ */
+const MEHRDEUTIGE_OBERGRENZE = ((): Map<string, number> => {
+  const kandidaten = new Map<string, string[]>();
+  for (const pfad of VERFOLGT) {
+    const teile = pfad.split("/");
+    for (let i = 0; i < teile.length - 1; i++) {
+      const suffix = teile.slice(i).join("/");
+      (kandidaten.get(suffix) ?? kandidaten.set(suffix, []).get(suffix)!).push(pfad);
+    }
+  }
+  const obergrenze = new Map<string, number>();
+  for (const [suffix, pfade] of kandidaten) {
+    if (pfade.length < 2) continue;
+    const laengste = Math.max(...pfade.map((p) => zeilen(resolve(p)) ?? 0));
+    if (laengste > 0) obergrenze.set(suffix, laengste);
+  }
+  return obergrenze;
+})();
+
+/**
+ * Die Obergrenze fuer ein Ziel, das sich NICHT eindeutig aufloesen laesst —
+ * oder `null`, wenn es auch mehrdeutig nicht in diesem Repo liegt (dann ist es
+ * Alt-Anwendung oder Fremdpaket, und dazu sagt der Riegel nichts).
+ */
+export function obergrenzeVon(ziel: string): number | null {
+  for (const variante of zielVarianten(ziel)) {
+    const grenze = MEHRDEUTIGE_OBERGRENZE.get(variante);
+    if (grenze !== undefined) return grenze;
+  }
+  return null;
+}
+
 function sammleDateien(): string[] {
   return [...VERFOLGT].filter((p) => !NICHT_GELESENE_PFADE.some((r) => r.test(p)));
 }
@@ -418,9 +473,11 @@ function veralteteAnker(): { befunde: Befund[]; gepruefte: number } {
     inhalt.forEach((text, i) => {
       for (const anker of ankerAusText(text)) {
         const pfad = aufloesen(quelle, anker.ziel);
-        if (pfad === null) continue; // Alt-Anwendung, Fremdpaket — nicht pruefbar.
+        // Mehrdeutiges Suffix: die laengste Kandidatendatei ist die Obergrenze —
+        // was darueber liegt, gibt es in KEINER von ihnen.
+        const hat = pfad !== null ? (zeilen(pfad) ?? 0) : obergrenzeVon(anker.ziel);
+        if (hat === null) continue; // Alt-Anwendung, Fremdpaket — nicht pruefbar.
         gepruefte++;
-        const hat = zeilen(pfad) ?? 0;
         const fehler = spannenFehler(anker, hat);
         if (fehler !== null) {
           const spanne = anker.bis === anker.von ? `${anker.von}` : `${anker.von}-${anker.bis}`;
@@ -428,7 +485,7 @@ function veralteteAnker(): { befunde: Befund[]; gepruefte: number } {
             quelle,
             zeile: i + 1,
             anker: `${anker.ziel}:${spanne}`,
-            ziel: relative(".", pfad),
+            ziel: pfad !== null ? relative(".", pfad) : `${anker.ziel} (mehrdeutig, laengster Kandidat)`,
             grund: fehler,
           });
         }
@@ -553,6 +610,32 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
    * eine rueckwaerts laufende Spanne. Beide sind keine Spitzfindigkeit — sie
    * entstehen beim Tippen, und beide behaupten eine Zeile, die es nicht gibt.
    */
+  /**
+   * MEHRDEUTIG heisst nicht ungeprueft: die laengste Kandidatendatei ist eine
+   * Obergrenze, und was darueber liegt, gibt es in KEINER von ihnen.
+   *
+   * ⚠️ Der Fall nennt bewusst ECHTE Suffixe — hier ist die Mehrdeutigkeit der
+   * Gegenstand, und ein erfundener Name waere schlicht unbekannt. Ohne
+   * Zeilennummer sind sie fuer den Scan keine Anker (siehe den Riegel unten).
+   */
+  it("gibt ein mehrdeutiges Suffix nicht auf, sondern deckelt es", () => {
+    // `_db/schema.ts` gibt es elfmal, `t/[code]/route.ts` zweimal — `aufloesen`
+    // waehlt bewusst keine davon aus.
+    expect(aufloesen("e2e/radio-hosts.spec.ts", "_db/schema.ts")).toBeNull();
+    expect(aufloesen("e2e/radio-hosts.spec.ts", "t/[code]/route.ts")).toBeNull();
+
+    // Eine Obergrenze gibt es trotzdem, und sie ist groesser als jede einzelne
+    // Kandidatendatei sein kann.
+    const grenze = obergrenzeVon("_db/schema.ts");
+    expect(grenze).not.toBeNull();
+    expect(grenze!).toBeGreaterThan(0);
+
+    // Und die Gegenrichtung: was gar nicht im Repo liegt, hat auch keine
+    // Obergrenze — sonst faerbte der Riegel Anker in die Alt-Anwendung rot.
+    expect(obergrenzeVon("lagerbuch/src/app/globals.css")).toBeNull();
+    expect(obergrenzeVon("node_modules/vitest/package.json")).toBeNull();
+  });
+
   it("prueft beide Enden einer Spanne, nicht nur das letzte", () => {
     const anker = (von: number, bis = von) => ({ ziel: "egal.ts", von, bis });
 
