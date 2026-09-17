@@ -238,9 +238,8 @@ describe("seedLokalAufgaben — relativ statt fest", () => {
 /*
  * DER WOCHENTAG IST EINE EINGABE DES SEEDS, ALSO WIRD ER GESETZT UND NICHT ABGEWARTET.
  *
- * GEMESSEN (2026-08-27, Donnerstag): `aufgaben.spec.ts`s Faelle „Ziehbereich: die Knopfstrecke bleibt
- * bedienbar" und „Tastaturbedienung" waren rot, weil die
- * Ueberfaellig-Fixtur ihr `planDatum` auf `tagePlus(heute, -3)` trug — OHNE expliziten `planRang`,
+ * GEMESSEN (2026-08-27, Do): `aufgaben.spec.ts`s „Ziehbereich"- und „Tastaturbedienung"-Faelle
+ * waren rot, weil die Ueberfaellig-Fixtur `planDatum` auf `tagePlus(heute, -3)` trug — OHNE `planRang`,
  * also auf dem Schema-Vorgabewert 0. `heute - 3` ist der Wochenmontag GENAU DANN, wenn heute
  * Donnerstag ist; dann trug Bendix' Montag DREI Eintraege statt zwei, zwei davon auf Rang 0, und
  * der Hoch-Knopf des zweiten Eintrags war `disabled`.
@@ -331,8 +330,7 @@ describe("seedLokalAufgaben — kein Rangzusammenstoss, an KEINEM Wochentag", ()
   );
 
   /*
-   * DIE ZUSAGE, DIE DIE ZWEI PLAYWRIGHT-FAELLE VERBRAUCHEN (`e2e/aufgaben.spec.ts`,
-   * „Ziehbereich: die Knopfstrecke bleibt bedienbar" und „Tastaturbedienung"):
+   * DIE ZUSAGE, DIE `aufgaben.spec.ts`s „Ziehbereich" und „Tastaturbedienung" VERBRAUCHEN:
    * Bendix' Montag traegt GENAU ZWEI Eintraege, in dieser Reihenfolge. Die Klausel oben allein
    * liesse einen dritten Eintrag mit Rang 2 durch — der waere zusammenstossfrei und braeche
    * den Zieh-Fall trotzdem, weil dort die ersten zwei Zeilen namentlich abgelesen werden.
