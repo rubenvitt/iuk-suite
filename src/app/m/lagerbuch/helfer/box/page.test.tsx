@@ -276,8 +276,11 @@ describe("helfer/box — was die Insel bekommt", () => {
     bestandAn("fz-1", 4);
     await mount(await BoxSeite(sp({ fz: "fz-1" })));
     const insel = query("[data-rolle='abgabe']");
+    // DRK-377: `gemeldet` kommt dazu — der beim Check abgelesene Verfall. Er
+    // gehoert genau hierher: er ist das Einzige, was ueber Material mit einer
+    // geratenen Charge etwas aussagt, und der Schirm zeigt ihn als Chip.
     expect(insel.getAttribute("data-posten-felder"))
-      .toBe("artikelId,artikelName,chargen,einheit,menge");
+      .toBe("artikelId,artikelName,chargen,einheit,gemeldet,menge");
     // ⚠️ `templateId` UND `aktiv` DUERFEN NICHT MITREISEN: `fahrzeugListe`
     // fuehrt mehr Felder, als der Schirm zeigt, und alles davon laege sonst im
     // RSC-Payload — auf einem privaten Telefon, in einer Sitzung ohne Konto.

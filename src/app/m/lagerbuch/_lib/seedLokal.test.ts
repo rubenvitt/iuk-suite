@@ -16,7 +16,7 @@ import { handlagerOrte } from "./lesepfade/orte";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 import { parseCheckErgebnis } from "./checkErgebnis";
 import { heuteIso } from "./zeit";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 /**
  * ZWEI FRAGEN, DIE DIESER TEST BEANTWORTEN MUSS — und eine, die er NICHT stellt.
@@ -289,10 +289,28 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
       expect(erg.entfernt, fz.id).toBe(0);
     }
 
-    // Jede Verfallsmeldung haengt an einer aktiven Soll-Position — sonst raeumte
-    // `bereinigeVerfallOhneAktivesSoll` sie beim naechsten Sync ab.
+    /*
+     * Jede Verfallsmeldung AN EINER EINHEIT haengt an einer aktiven
+     * Soll-Position — sonst raeumte `bereinigeVerfallOhneAktivesSoll` sie beim
+     * naechsten Sync ab.
+     *
+     * ⚠️ „AN EINER EINHEIT" IST SEIT DRK-377 DER TRAGENDE TEIL DES SATZES, und
+     * vorher stand er nicht da. Bis dahin galt die Soll-Bindung fuer die ganze
+     * Tabelle; seither ist sie eine Auflage der PFLEGE und keine der ZEILE, und
+     * `bereinigeVerfallOhneAktivesSoll` fasst ausdruecklich nur Fahrzeuge an
+     * (geprueft in `schreibpfade/lagerortVerfall.test.ts`). Die Entnahmebox
+     * traegt einen gemeldeten Verfall OHNE Soll — das ist der Kern des Tickets
+     * und kein verwaister Eintrag.
+     *
+     * ⚠️ DIE ABFRAGE MUSS DESHALB UEBER `lagerorte.typ` GEHEN und nicht ueber
+     * eine Ausnahmeliste mit der Box-Id: waechst die Suite um einen zweiten
+     * Ort ohne Soll, der eine Meldung traegt, faellt dieser Test sonst mit
+     * einer Begruendung, die auf ihn nicht zutrifft.
+     */
     const verwaist = t.sqlite.prepare(
-      "select count(*) as n from lagerort_verfall v where not exists (" +
+      "select count(*) as n from lagerort_verfall v" +
+      " join lagerorte l on l.id = v.lagerort_id and l.typ = 'fahrzeug'" +
+      " where not exists (" +
       " select 1 from soll_positionen s where s.fahrzeug_id = v.lagerort_id" +
       " and s.artikel_id = v.artikel_id and s.entfernt = 0)",
     ).get() as { n: number };
@@ -388,6 +406,246 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
 
     // Und die Box haengt NEBEN dem Handlager — ihr Inhalt zaehlt dort nicht mit.
     expect(handlagerOrte(t.db)).not.toContain(ENTNAHMEBOX_ID);
+  });
+
+  it("gibt der Box auch den GEMELDETEN Verfall mit — sonst fehlt der Kernzustand", async () => {
+    /*
+     * ⚠️ DER ZUSTAND, DEN DRK-377 HERSTELLT, MUSS IM SEED SICHTBAR SEIN (Codex
+     * zu PR #194, P2). Der Seed bucht die Kompressen ueber `umlagerungVonOrt`
+     * DIREKT und nicht ueber `bucheInEntnahmebox` — er faehrt also an der
+     * Action und damit an `verfallFolgtDemMaterial` vorbei, wenn er die Regel
+     * nicht selbst ruft. Ohne sie stuende in der Kiste „—" in der Spalte
+     * „Gemeldet", die Box fehlte in der Verfallsuebersicht, und der
+     * auffaelligste Zustand des Tickets waere weder lokal noch in einem
+     * Playwright-Lauf zu sehen.
+     *
+     * ⚠️ GEPRUEFT WIRD DIE ZEILE, NICHT IHR DATUM: welchen Monat der Seed für
+     * die Kompressen meldet, haengt an `m.rot` und damit am Lauftag. Eine
+     * Zusicherung darauf prueefte den Kalender statt den Seed.
+     */
+    await seedLokalLagerbuch(t.db);
+
+    const inDerBox = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID);
+    expect(inDerBox.length, "die Box traegt mindestens eine Meldung")
+      .toBeGreaterThan(0);
+
+    // ⚠️ UND SIE STAMMT AUS EINER EINHEIT, die auch wirklich dorthin gebucht
+    // hat — eine Meldung ohne Herkunft waere eine erfundene Zahl.
+    const herkuenfte = new Set(
+      t.db.select().from(buchungen).all()
+        .filter((b) => b.lagerortId === ENTNAHMEBOX_ID && b.referenz)
+        .map((b) => b.referenz!.slice(ENTNAHMEBOX_PRAEFIX.length)),
+    );
+    for (const z of inDerBox) {
+      const ausEinheit = t.db.select().from(buchungen).all()
+        .some((b) => herkuenfte.has(b.lagerortId) && b.artikelId === z.artikelId);
+      expect(ausEinheit, z.artikelId).toBe(true);
+    }
+  });
+
+  it("traegt die Boxmeldung auch auf einer SCHON geseedeten Datenbank nach", async () => {
+    /*
+     * ⚠️ „IDEMPOTENT UND REIN ADDITIV" IST EINE ZUSAGE UEBER DEN ZWEITEN LAUF
+     * (CLAUDE.md, Codex zu PR #194, P2). Stuende der Verfallsschritt hinter dem
+     * Riegel der Boxbuchung, liefe er auf einer Datenbank, die den Vorgang
+     * schon kennt, NIE — jede bestehende Demo-Datenbank haette die Meldung also
+     * dauerhaft nicht, und niemand saehe es, weil der erste Lauf richtig ist.
+     *
+     * Der Test stellt genau diesen Zustand her: einmal seeden, die Boxmeldung
+     * wegnehmen (als waere sie nie geschrieben worden), erneut seeden.
+     */
+    await seedLokalLagerbuch(t.db);
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+    expect(t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID)).toEqual([]);
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID).length,
+      "der zweite Lauf traegt sie nach",
+    ).toBeGreaterThan(0);
+  });
+
+  it("nimmt KEINE RTW-Meldung, die NACH der Abgabe entstanden ist", async () => {
+    /*
+     * ⚠️ DIE FUENFTE KANTE (Codex zu PR #194, P2). Die drei bisherigen Proben
+     * pruefen alle die KISTE — Bestand, fehlende Meldung, nie herausgebucht —,
+     * keine von ihnen die ZEIT. `lagerort_verfall` fuehrt keine Historie: ein
+     * ECHTER RTW-Check in einer benutzten Demo-Datenbank ueberschreibt die
+     * einzige Zeile der Einheit. Der Nachtrag truege diese Beobachtung dann auf
+     * Kistenmaterial, das sie nie beschrieben hat — der Seed behauptete eine
+     * Zuordnung, die es nie gab.
+     *
+     * Migration 0013 weist dieselbe Chronologie ab; hier steht die Entsprechung.
+     */
+    await seedLokalLagerbuch(t.db);
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    // Ein spaeterer Check am RTW: die Meldung ist juenger als jede Box-Abgabe.
+    const spaeter = new Date(Date.now() + 86_400_000);
+    t.db.update(lagerortVerfall).set({ erfasstAt: spaeter })
+      .where(eq(lagerortVerfall.lagerortId, "fz-rtw-1")).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
+      "die juengere Beobachtung gehoert nicht an die Kiste",
+    ).toEqual([]);
+  });
+
+  it("erfindet KEINE Meldung fuer eine leergeraeumte Box", async () => {
+    /*
+     * ⚠️ DIE KEHRSEITE DES NACHTRAGS (Codex zu PR #194, Folgebefund zum P2).
+     * „Ausserhalb des Buchungsriegels" heisst „bei JEDEM Lauf" — und der RTW
+     * behaelt seine Meldung ja. Wer die geseedete Box einraeumt und danach
+     * erneut seedet, bekaeme sonst eine Meldung fuer eine LEERE Kiste zurueck:
+     * der Seed erfaende einen Zustand, statt einen nachzutragen. „Rein additiv"
+     * heisst nicht „egal, was inzwischen passiert ist".
+     */
+    await seedLokalLagerbuch(t.db);
+    // Die Kiste leerraeumen — wie es die Einraeumflaeche tut.
+    for (const b of t.db.select().from(buchungen).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID)) {
+      t.db.insert(buchungen).values({
+        ...b, id: `${b.id}-raus`, menge: -b.menge, referenz: null,
+      }).run();
+    }
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
+      "kein Bestand, keine Meldung",
+    ).toEqual([]);
+  });
+
+  it("SCHREIBT eine vorhandene Boxmeldung nicht um", async () => {
+    /*
+     * ⚠️ DIE DRITTE KANTE DESSELBEN NACHTRAGS (Codex zu PR #194). Der
+     * RTW-Check im Seed ist geriegelt, seine Meldung also stabil — ein ECHTER
+     * Check in einer benutzten Demo-Datenbank aendert sie aber. Ist das neue
+     * Datum frueher, gewaenne es in `uebernimmVerfall`, und die Kiste truege
+     * danach eine Beobachtung, die am RTW gemacht wurde, NACHDEM das Material
+     * ihn verlassen hat. Ein zweiter Lauf soll nachtragen, nicht umschreiben.
+     */
+    await seedLokalLagerbuch(t.db);
+    const vorher = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID);
+    expect(vorher.length, "der erste Lauf hat die Meldung gesetzt").toBeGreaterThan(0);
+
+    // Ein spaeterer Check am RTW meldet einen FRUEHEREN Monat.
+    for (const z of vorher) {
+      t.db.update(lagerortVerfall)
+        .set({ verfall: "2000-01" })
+        .where(and(
+          eq(lagerortVerfall.lagerortId, "fz-rtw-1"),
+          eq(lagerortVerfall.artikelId, z.artikelId),
+        ))
+        .run();
+    }
+
+    await seedLokalLagerbuch(t.db);
+
+    const nachher = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID);
+    expect(nachher.map((z) => z.verfall), "die Kiste behaelt ihren Stand")
+      .toEqual(vorher.map((z) => z.verfall));
+  });
+
+  it("NIMMT der Herkunftseinheit ihre Meldung nicht weg", async () => {
+    /*
+     * ⚠️ DIE FUENFTE KANTE (Codex zu PR #194), und die einzige, bei der der
+     * Nachtrag etwas LOESCHT statt etwas zu erfinden. Die drei Proben oben
+     * sagen nichts ueber den Bestand am RTW. Hat ein spaeterer Check ihn auf
+     * null gebracht, raeumte `verfallFolgtDemMaterial` mit seiner zweiten
+     * Haelfte die RTW-Meldung ab — ein Seed, der Zustand WEGNIMMT, und genau
+     * das verbietet „rein additiv".
+     *
+     * Der Nachtrag ruft deshalb `uebernimmVerfall`: ein Nachtrag kopiert, er
+     * bewegt nicht. Nur die echte Abgabe raeumt am Quellort ab.
+     */
+    await seedLokalLagerbuch(t.db);
+    const boxZeilen = t.db.select().from(buchungen).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID && z.menge > 0);
+    expect(boxZeilen.length, "der Seed hat in die Box gebucht").toBeGreaterThan(0);
+
+    const rtwMeldungen = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === "fz-rtw-1");
+    expect(rtwMeldungen.length, "der RTW traegt eine Meldung").toBeGreaterThan(0);
+
+    // Ein spaeterer Check buchte den RTW-Bestand dieser Artikel auf null …
+    for (const z of rtwMeldungen) {
+      for (const b of t.db.select().from(buchungen).all()
+        .filter((b) => b.lagerortId === "fz-rtw-1" && b.artikelId === z.artikelId
+          && b.menge > 0)) {
+        t.db.insert(buchungen).values({
+          ...b, id: `${b.id}-leer`, menge: -b.menge, referenz: "check:fz-rtw-1",
+        }).run();
+      }
+    }
+    // … und die Boxmeldung fehlt, der Nachtrag greift also.
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === "fz-rtw-1")
+        .map((z) => [z.artikelId, z.verfall]),
+      "die Meldung der Einheit bleibt stehen",
+    ).toEqual(rtwMeldungen.map((z) => [z.artikelId, z.verfall]));
+  });
+
+  it("haengt die Meldung NICHT an fremdes Material in der Kiste", async () => {
+    /*
+     * ⚠️ DIE VIERTE KANTE (Codex zu PR #194). Wer die geseedeten Kompressen
+     * einraeumt und spaeter welche aus einer ANDEREN Einheit hineinlegt, hat
+     * wieder Bestand in der Kiste und keine Meldung daran — die beiden anderen
+     * Proben sagen also beide ja. Der Nachtrag haengte dann die HEUTIGE
+     * RTW-Beobachtung an Material, das nie am RTW war.
+     *
+     * Der Beleg dagegen ist der Abgang: ist aus der Kiste je etwas
+     * herausgebucht worden, steht nicht mehr fest, dass der geseedete Beitrag
+     * noch darin liegt.
+     */
+    await seedLokalLagerbuch(t.db);
+    const boxZeilen = t.db.select().from(buchungen).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID && z.menge > 0);
+    expect(boxZeilen.length, "der Seed hat in die Box gebucht").toBeGreaterThan(0);
+
+    // Einraeumen: alles wieder heraus …
+    for (const b of boxZeilen) {
+      t.db.insert(buchungen).values({
+        ...b, id: `${b.id}-raus`, menge: -b.menge, referenz: "einraeumen:sch-1",
+      }).run();
+    }
+    // … und FREMDES Material derselben Art hinein, ohne Meldung.
+    for (const b of boxZeilen) {
+      t.db.insert(buchungen).values({
+        ...b, id: `${b.id}-fremd`, referenz: "entnahmebox:fz-ktw-1",
+      }).run();
+    }
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
+      "fremdes Material bekommt keine RTW-Meldung",
+    ).toEqual([]);
   });
 
   it("vergibt feste Codes — einen davon gesperrt", async () => {
