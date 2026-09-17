@@ -532,6 +532,51 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
       .toEqual(vorher.map((z) => z.verfall));
   });
 
+  it("NIMMT der Herkunftseinheit ihre Meldung nicht weg", async () => {
+    /*
+     * ⚠️ DIE FUENFTE KANTE (Codex zu PR #194), und die einzige, bei der der
+     * Nachtrag etwas LOESCHT statt etwas zu erfinden. Die drei Proben oben
+     * sagen nichts ueber den Bestand am RTW. Hat ein spaeterer Check ihn auf
+     * null gebracht, raeumte `verfallFolgtDemMaterial` mit seiner zweiten
+     * Haelfte die RTW-Meldung ab — ein Seed, der Zustand WEGNIMMT, und genau
+     * das verbietet „rein additiv".
+     *
+     * Der Nachtrag ruft deshalb `uebernimmVerfall`: ein Nachtrag kopiert, er
+     * bewegt nicht. Nur die echte Abgabe raeumt am Quellort ab.
+     */
+    await seedLokalLagerbuch(t.db);
+    const boxZeilen = t.db.select().from(buchungen).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID && z.menge > 0);
+    expect(boxZeilen.length, "der Seed hat in die Box gebucht").toBeGreaterThan(0);
+
+    const rtwMeldungen = t.db.select().from(lagerortVerfall).all()
+      .filter((z) => z.lagerortId === "fz-rtw-1");
+    expect(rtwMeldungen.length, "der RTW traegt eine Meldung").toBeGreaterThan(0);
+
+    // Ein spaeterer Check buchte den RTW-Bestand dieser Artikel auf null …
+    for (const z of rtwMeldungen) {
+      for (const b of t.db.select().from(buchungen).all()
+        .filter((b) => b.lagerortId === "fz-rtw-1" && b.artikelId === z.artikelId
+          && b.menge > 0)) {
+        t.db.insert(buchungen).values({
+          ...b, id: `${b.id}-leer`, menge: -b.menge, referenz: "check:fz-rtw-1",
+        }).run();
+      }
+    }
+    // … und die Boxmeldung fehlt, der Nachtrag greift also.
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === "fz-rtw-1")
+        .map((z) => [z.artikelId, z.verfall]),
+      "die Meldung der Einheit bleibt stehen",
+    ).toEqual(rtwMeldungen.map((z) => [z.artikelId, z.verfall]));
+  });
+
   it("haengt die Meldung NICHT an fremdes Material in der Kiste", async () => {
     /*
      * ⚠️ DIE VIERTE KANTE (Codex zu PR #194). Wer die geseedeten Kompressen

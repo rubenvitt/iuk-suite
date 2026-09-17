@@ -31,7 +31,7 @@ import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerun
 import { bestandJeArtikelAnOrt } from "./lesepfade/bestand";
 import { handlagerOrte } from "./lesepfade/orte";
 import { verfallFuerLagerort } from "./lesepfade/verfall";
-import { setzeVerfall, verfallFolgtDemMaterial } from "./schreibpfade/lagerortVerfall";
+import { setzeVerfall, uebernimmVerfall } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 
 /**
@@ -902,10 +902,22 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * Faelle wahr, die hier nacheinander schiefgingen, und deshalb wertlos als
    * Riegel.
    *
-   * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
-   * derselbe Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei
-   * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
-   * naechsten Griff an diesem Schreibpfad auseinander.
+   * ⚠️ `uebernimmVerfall` UND NICHT `verfallFolgtDemMaterial`: EIN NACHTRAG
+   * KOPIERT, ER BEWEGT NICHT. Die zweite Haelfte jener Funktion raeumt die
+   * Meldung am Quellort ab, sobald dort nichts mehr liegt — richtig fuer eine
+   * echte Abgabe, falsch hier. Die drei Proben oben sagen nichts ueber den
+   * Bestand am RTW; hat ein spaeterer Check ihn auf null gebracht, loeschte
+   * dieser Aufruf die RTW-Meldung, und der Seed naehme etwas weg, statt etwas
+   * nachzutragen. „Rein additiv" heisst genau das nicht.
+   *
+   * Es bleibt eine GETEILTE Funktion und kein nachgebauter Schritt — derselbe
+   * Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei Inserts zu
+   * schreiben. Nur eben die Haelfte, die hier gilt.
+   *
+   * ⚠️ `0013_box_verfall_nachtrag.sql` TRIFFT DIESELBE WAHL AUS DEMSELBEN
+   * GRUND, und die Begruendung steht dort ausgeschrieben: die Einheit ist
+   * laengst wieder bestueckt, ihre Zeile beschreibt eine Packung, die HEUTE
+   * dort liegt. Beide Nachtraege kopieren; nur die Bewegung selbst raeumt ab.
    *
    * ⚠️ ES GIBT EINEN ZWEITEN NACHTRAG, UND ER IST NICHT DERSELBE:
    * `0013_box_verfall_nachtrag.sql` traegt dieselbe Luecke auf ECHTEN
@@ -933,7 +945,7 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
     .get() !== undefined;
   if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht) {
     db.transaction((tx) => {
-      verfallFolgtDemMaterial(tx, {
+      uebernimmVerfall(tx, {
         vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
       });
     });
