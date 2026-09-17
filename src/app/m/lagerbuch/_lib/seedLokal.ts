@@ -905,7 +905,23 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
    * derselbe Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei
    * Inserts zu schreiben: was hier von Hand nachgebaut wird, laeuft beim
-   * naechsten Griff an diesem Schreibpfad auseinander. */
+   * naechsten Griff an diesem Schreibpfad auseinander.
+   *
+   * ⚠️ ES GIBT EINEN ZWEITEN NACHTRAG, UND ER IST NICHT DERSELBE:
+   * `0013_box_verfall_nachtrag.sql` traegt dieselbe Luecke auf ECHTEN
+   * Datenbanken nach, einmal beim Rollout. Auf einer Demo-Datenbank laeuft er
+   * vorher und macht diesen Block meist zum No-Op — das ist Absicht und kein
+   * Grund, einen von beiden zu streichen: die Migration laeuft EINMAL je
+   * Datenbank, dieser Block bei JEDEM `pnpm seed:lokal`. Wer nur die Migration
+   * behielte, verloere die Luecke wieder, sobald jemand die Boxmeldung von Hand
+   * loescht; wer nur diesen Block behielte, traege in Produktion nie etwas nach,
+   * weil der Seed dort nicht laeuft.
+   *
+   * ⚠️ IHRE RIEGEL STEHEN BEWUSST ANDERSHERUM. Hier darf nichts ERFUNDEN
+   * werden — der Fehlschlag waere eine Demo-Datenbank, die etwas behauptet, was
+   * nie passiert ist. Dort darf kein Warnsignal VERLOREN gehen — der Fehlschlag
+   * waere eine abgelaufene Packung ohne Hinweis. Deshalb ist diese Probe eng und
+   * jene grosszuegig; die Begruendung steht im Kopf der Migration. */
   const inDerBox = bestandJeArtikelAnOrt(db, ENTNAHMEBOX_ID).get(A.kompresse) ?? 0;
   const boxMeldung = verfallFuerLagerort(db, ENTNAHMEBOX_ID).get(A.kompresse);
   const jeHerausgebucht = db.select({ id: buchungen.id }).from(buchungen)

@@ -424,8 +424,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt dreizehn Eintraege in aufsteigender idx-Reihenfolge", () => {
-    expect(journal.entries.map((e) => e.idx)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  it("fuehrt vierzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+    expect(journal.entries.map((e) => e.idx))
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -453,6 +454,7 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         // Migrationen ist die einzige Stelle, an der eine Nummer wirklich
         // eindeutig sein MUSS.
         "0012_entnahmebox",
+        "0013_box_verfall_nachtrag",
       ]);
   });
 
