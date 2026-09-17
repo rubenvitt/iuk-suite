@@ -789,6 +789,29 @@ ping_senden() {
   diesen Lauf NICHT gesehen. (Die Kennung steht nicht im Protokoll; die vollstaendige
   URL steht in BACKUP_PING_URL bzw. BACKUP_PING_URL_FEHLER.)"
   fi
+  # ⚠️ EIN FENSTER BLEIBT OFFEN, UND ES IST BENANNT STATT WEGGEREDET. Die Pruefung oben
+  # sagt, wem die Sperre VOR dem Ruf gehoerte; der Ruf selbst ist eine Netzanfrage.
+  # GEMESSEN mit den Flags von oben gegen einen Server, der annimmt und nie antwortet:
+  #
+  #   curl: (28) Operation timed out after 15003 milliseconds
+  #   Gesamtdauer des Rufs: 75s
+  #
+  # Das sind vier Anfragen ueber 75 Sekunden — und eine spaete davon kann beim Waechter
+  # NACH der Meldung eines Nachfolgers eintreffen. Schliessen laesst sich das hier nicht:
+  # keiner der beiden unterstuetzten Dienste kennt eine Reihenfolge oder eine Generation,
+  # an der er einen ueberholten Ruf abweisen koennte; healthchecks.io hat mit `rid` nur
+  # eine Gruppierung, keine Verwerfung. Die Aufbewahrung im `.zustand` ist dagegen
+  # gezaeunt (siehe `zustand_schreiben`) — sie bleibt die massgebliche Auskunft.
+  #
+  # Was hier geht, ist die Lage SICHTBAR zu machen, statt sie still zu lassen: nach dem
+  # Ruf noch einmal fragen, und wenn die Sperre inzwischen weg ist, laut sagen, dass der
+  # Waechter jetzt einen ueberholten Stand zeigen kann.
+  if ! sperre_gehoert_uns; then
+    warne "Die Sperre ging WAEHREND des Pings ($1) verloren. Der Waechter kann dadurch
+  einen ueberholten Stand zeigen — massgeblich ist der Stand in .zustand, den nur der
+  jeweilige Eigentuemer schreibt. Der naechste planmaessige Lauf stellt den Waechter
+  richtig."
+  fi
 }
 
 # ══ Externes Ziel ════════════════════════════════════════════════════════════════════

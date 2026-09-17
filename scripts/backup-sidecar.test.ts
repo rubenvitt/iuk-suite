@@ -1854,6 +1854,88 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(funktionsrumpf(befehle, "ping_senden")).toMatch(/if ! sperre_gehoert_uns; then/);
   });
 
+  it("geht die Sperre WAEHREND des Pings verloren, wird es laut gesagt", () => {
+    // ⚠️ DAS FENSTER LAESST SICH HIER NICHT SCHLIESSEN, NUR SICHTBAR MACHEN. Die
+    // Besitzpruefung sagt, wem die Sperre VOR dem Ruf gehoerte; der Ruf selbst ist eine
+    // Netzanfrage. GEMESSEN mit den Flags des Skripts gegen einen Server, der annimmt
+    // und nie antwortet: `curl: (28) Operation timed out after 15003 milliseconds`,
+    // Gesamtdauer **75s** — vier Anfragen, und eine spaete davon kann beim Waechter NACH
+    // der Meldung eines Nachfolgers eintreffen.
+    //
+    // Abweisen kann das nur der Waechter, und keiner der beiden unterstuetzten Dienste
+    // kennt eine Reihenfolge oder Generation dafuer (healthchecks.io hat mit `rid` nur
+    // eine Gruppierung). Der `.zustand` ist dagegen gezaeunt und bleibt massgeblich.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-pingfenster-"));
+    const lauf = (verliertWaehrenddessen: boolean) => {
+      const sperre = path.join(kladde, "sperre");
+      rmSync(sperre, { recursive: true, force: true });
+      mkdirSync(path.join(sperre, "eigner.aaaa.1.000001"), { recursive: true });
+      rmSync(path.join(kladde, "pings"), { force: true });
+      writeFileSync(
+        path.join(kladde, "bin/curl"),
+        [
+          "#!/bin/sh",
+          `for a in "$@"; do case "$a" in http*) echo "$a" >>${kladde}/pings ;; esac; done`,
+          // Die Attrappe laesst die Sperre den Eigentuemer wechseln — genau waehrend des
+          // Rufs, also in dem Fenster, um das es geht.
+          ...(verliertWaehrenddessen
+            ? [
+                `rm -rf ${sperre}/eigner.aaaa.1.000001`,
+                `mkdir -p ${sperre}/eigner.bbbb.1.000001`,
+              ]
+            : []),
+          "exit 0",
+          "",
+        ].join("\n"),
+      );
+      chmodSync(path.join(kladde, "bin/curl"), 0o755);
+      const quelle = [
+        `SPERRVERZEICHNIS=${sperre}`,
+        'BACKUP_PING_URL="https://hc/uuid"',
+        'BACKUP_PING_URL_FEHLER=""',
+        ...["protokoll", "warne", "ping_ziel_kurz", "fehler_url", "sperre_gehoert_uns", "ping_senden"].map(
+          shellQuelle,
+        ),
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'meine_marke="eigner.aaaa.1.000001"',
+        "ping_senden fehler",
+      ].join("\n");
+      const p = spawnSync("dash", ["-c", quelle], {
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${path.join(kladde, "bin")}:${process.env.PATH}` },
+      });
+      return {
+        aus: p.stdout,
+        warnung: p.stderr,
+        rufe: readFileSync(path.join(kladde, "pings"), "utf8").trim(),
+      };
+    };
+    try {
+      mkdirSync(path.join(kladde, "bin"), { recursive: true });
+      const verloren = lauf(true);
+      expect(verloren.rufe, "der Ruf geht raus — er war zu dem Zeitpunkt berechtigt").toBe(
+        "https://hc/uuid/fail",
+      );
+      expect(verloren.warnung, "und die Lage wird laut gesagt").toMatch(
+        /WAEHREND des Pings[\s\S]*massgeblich ist der Stand in \.zustand/,
+      );
+      // ⚠️ Die Gegenprobe ist die Haelfte der Messung: im Normalfall darf davon NICHTS
+      // zu sehen sein, sonst warnt der Dienst bei jedem gesunden Lauf.
+      const gehalten = lauf(false);
+      expect(gehalten.rufe).toBe("https://hc/uuid/fail");
+      expect(gehalten.warnung, "ohne Verlust keine Warnung").not.toMatch(/WAEHREND des Pings/);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // Und die zweite Frage steht NACH dem Ruf — davor steht sie ohnehin schon.
+    const rumpfP = funktionsrumpf(befehle, "ping_senden");
+    const ruf = rumpfP.indexOf("curl -fsS");
+    const danach = rumpfP.indexOf("WAEHREND des Pings");
+    expect(ruf, "der Ruf steht da").toBeGreaterThan(-1);
+    expect(danach, "die zweite Frage steht da").toBeGreaterThan(-1);
+    expect(danach, "und zwar NACH dem Ruf").toBeGreaterThan(ruf);
+  });
+
   it("ein Erfolg, den niemand festhalten kann, wird NICHT als Erfolg gemeldet", () => {
     // ⚠️ DER RUECKGABEWERT STAND HIER UNGEPRUEFT — und das faellt nur deshalb nicht auf,
     // weil `lauf()` diese Funktion als `if`-Bedingung ruft: `set -e` ist darin

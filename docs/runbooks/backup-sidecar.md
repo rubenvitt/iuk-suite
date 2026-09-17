@@ -494,6 +494,26 @@ Ist das Volume wieder in Ordnung, räumt der nächste Lauf die Meldung von selbs
 > und sie fällt bei der nächsten Probe (alle fünf Minuten). Ist sie **jünger**, bleibt es
 > rot — dann klemmt das Volume noch.
 
+### F3c — „Die Sperre ging WÄHREND des Pings verloren"
+
+Der seltenste der drei Fälle, und der einzige, der **nicht** zu schließen ist. Der Lauf
+war beim Absetzen berechtigt, hat die Sperre aber während des Rufs verloren — gemessen
+dauert ein Ping mit den Flags des Sidecars bis zu **75 Sekunden** (vier Anfragen), und
+eine späte davon kann beim Wächter nach der Meldung eines Nachfolgers eintreffen.
+
+Abweisen könnte das nur der Wächter selbst, und keiner der beiden unterstützten Dienste
+kennt dafür eine Reihenfolge oder eine Generation (healthchecks.io hat mit `rid` nur eine
+Gruppierung, keine Verwerfung).
+
+> **Maßgeblich ist der Stand in `.zustand`** — den schreibt nur, wer die Sperre hält, und
+> der Healthcheck liest ihn. Der Wächter kann also kurzzeitig etwas anderes zeigen als der
+> Container; der nächste planmäßige Lauf stellt ihn richtig. Zu tun ist nichts, außer im
+> Zweifel den Healthcheck zu glauben:
+>
+> ```bash
+> docker compose exec backup /bin/sh /opt/backup/backup-sidecar.sh zustand
+> ```
+
 ### F4 — Der Ping kommt nicht an
 
 Der Lauf ist davon **nicht** betroffen — die Sicherung liegt. Im Protokoll steht dann
