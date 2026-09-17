@@ -451,6 +451,15 @@ Der Startvermerk dazu steht in der Zustandsdatei und wird **einmal** gesetzt, ni
 jedem Start aufgefrischt — sonst setzte jeder Neustart die Uhr zurück und ein Dienst, der
 öfter neu startet als er sichert, meldete sich nie als überfällig.
 
+⚠️ **Nach der Spanne erkennt man den hängenden Vorlauf an einer eigenen Meldung:** „der
+Vorlauf ist noch nicht durch (su-exec fehlt) — der Dienst ist nicht bei der Schleife".
+`su-exec` kommt aus dem `apk add`; fehlt es, steckt der Dienst noch in der Paketinstallation
+und hat nie gesichert. Der Fall wäre sonst der gefährlichste von allen: `backup_data`
+überlebt ein `up -d --force-recreate` absichtlich, im Volume liegt also noch der **`ok`-Stand
+des vorigen Containers** — gemessen meldete der Healthcheck dabei „ok, letzter Erfolg vor 0h"
+mit Exit 0, während der Paketspiegel hing. Die Behandlung ist die von F1: `docker compose logs
+backup` zeigt, woran das `apk` hängt.
+
 ### F3 — `(unhealthy)`, aber es gibt Tarballs
 
 ```bash

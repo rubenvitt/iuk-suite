@@ -1827,6 +1827,25 @@ zustand() {
   #
   # Ohne root oder ohne `su-exec` (etwa in einem `run --rm`-Container ohne Vorlauf) wird
   # direkt geprueft; das ist dann ohnehin dieselbe Kennung.
+  # ⚠️ UND ZUVOR: KANN DIE PROBE UEBERHAUPT UNTER DER RICHTIGEN KENNUNG LAUFEN? Als root
+  # ohne `su-exec` kann sie es nicht — und `su-exec` kommt aus `apk add`, also aus dem
+  # Vorlauf. Der Healthcheck laeuft aber schon davor, und nach der Anlaufspanne zaehlt
+  # jede Antwort. GEMESSEN, mit einem frischen `ok` im Volume (das ein
+  # `--force-recreate` absichtlich ueberlebt) und ohne `su-exec` im Pfad:
+  #
+  #   ok, letzter Erfolg vor 0h: Sicherung von gestern        exit 0
+  #
+  # Also GESUND, waehrend der Dienst noch im `apk` haengt und nie bei der Schleife war —
+  # und die Probe schriebe als root auch dort, wo uid 1001 scheitert (Fund 35). Ein
+  # haengender Paketspiegel saehe damit aus wie ein gesunder Dienst. Lieber rot mit einem
+  # Grund als gruen mit einer Probe, die die falsche Frage stellt.
+  #
+  # ⚠️ NUR ALS ROOT: laeuft der Container gar nicht als root, ist die direkte Probe
+  # ohnehin dieselbe Kennung, und diese Zeile darf ihr nicht in den Weg treten.
+  if [ "$(id -u)" = "0" ] && ! command -v su-exec >/dev/null 2>&1; then
+    echo "der Vorlauf ist noch nicht durch (su-exec fehlt) — der Dienst ist nicht bei der Schleife"
+    return 1
+  fi
   probe="$BACKUP_DIR/.zustand.probe.$$"
   if ! schreibprobe "$probe"; then
     rm -f "$probe" 2>/dev/null || true

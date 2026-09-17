@@ -51,6 +51,30 @@ const WURZEL = path.resolve(__dirname, "..");
 const lies = (p: string) => readFileSync(path.join(WURZEL, p), "utf8");
 
 const SIDECAR = path.join(WURZEL, "scripts/backup-sidecar.sh");
+
+/**
+ * Ein PATH, in dem `id -u` eine feste Kennung meldet — und, auf Wunsch, `su-exec` liegt.
+ *
+ * ⚠️ OHNE DAS ENTSCHEIDET DIE MASCHINE, WAS GEMESSEN WIRD. `zustand` verlangt als root
+ * ein vorhandenes `su-exec` (eigener Fall weiter unten) und meldet sonst rot. Der
+ * CI-Laeufer ist nicht root, ein Entwickler-Container schon — jeder Fall, der das ganze
+ * Skript mit `zustand` aufruft, waere hier rot und dort gruen, und zwar aus einem Grund,
+ * mit dem er nichts zu tun hat. Gemessen: genau zwei bestehende Faelle kippten so.
+ */
+const kennungsPfad = (verzeichnis: string, uid = "1000", mitSuExec = false) => {
+  const stubs = path.join(verzeichnis, `kennung-${uid}-${mitSuExec ? "mit" : "ohne"}`);
+  rmSync(stubs, { recursive: true, force: true });
+  mkdirSync(stubs, { recursive: true });
+  const ablegen = (name: string, inhalt: string) => {
+    writeFileSync(path.join(stubs, name), inhalt);
+    chmodSync(path.join(stubs, name), 0o755);
+  };
+  ablegen("id", `#!/bin/sh\n[ "$1" = "-u" ] && { echo ${uid}; exit 0; }\nexit 1\n`);
+  // Eine Attrappe, die die Kennung NICHT wechselt: hier zaehlt die Anwesenheit im PATH,
+  // der Rechteabbau selbst steckt in einem eigenen Fall.
+  if (mitSuExec) ablegen("su-exec", '#!/bin/sh\nshift\nexec "$@"\n');
+  return `${stubs}:${process.env.PATH}`;
+};
 const sidecar = lies("scripts/backup-sidecar.sh");
 const deploySh = lies("scripts/deploy.sh");
 const composeZeilen = lies("compose.yaml").split("\n");
@@ -1072,7 +1096,12 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
       const zustand = (frist: string) =>
         spawnSync("dash", [SIDECAR, "zustand"], {
           encoding: "utf8",
-          env: { ...process.env, BACKUP_DIR: kladde, BACKUP_FRIST_STUNDEN: frist },
+          env: {
+            ...process.env,
+            PATH: kennungsPfad(kladde),
+            BACKUP_DIR: kladde,
+            BACKUP_FRIST_STUNDEN: frist,
+          },
         });
       const riesigeFrist = zustand(riesig);
       expect(riesigeFrist.status, "kein Exit 2 aus der Arithmetik").toBe(0);
@@ -1486,7 +1515,7 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       );
       const p = spawnSync("sh", [SIDECAR, "zustand"], {
         encoding: "utf8",
-        env: { ...process.env, TMPDIR: tmp, BACKUP_DIR: backups },
+        env: { ...process.env, PATH: kennungsPfad(kladde), TMPDIR: tmp, BACKUP_DIR: backups },
       });
       return {
         code: p.status,
@@ -2242,6 +2271,68 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // einem `run --rm`-Container ohne Vorlauf) ist es ohnehin dieselbe Kennung.
     expect(rumpfP).toMatch(/else\s*\n\s*printf 'x' 2>\/dev\/null >"\$1"/);
     expect(funktionsrumpf(befehle, "zustand")).toMatch(/if ! schreibprobe "\$probe"; then/);
+  });
+
+  it("als root OHNE su-exec meldet der Healthcheck rot statt den alten Stand", () => {
+    // ⚠️ `su-exec` KOMMT AUS `apk add`, ALSO AUS DEM VORLAUF — der Healthcheck laeuft
+    // aber schon davor, und nach der Anlaufspanne zaehlt jede Antwort. Haengt der
+    // Paketspiegel, steht der Dienst im `apk` und war nie bei der Schleife; im Volume
+    // liegt aber noch der `ok`-Stand des vorigen Containers, den ein `--force-recreate`
+    // absichtlich ueberlebt. GEMESSEN, vorher:
+    //
+    //   ok, letzter Erfolg vor 0h: Sicherung von gestern        exit 0
+    //
+    // Also GESUND, waehrend nie eine Sicherung laufen konnte — und die Schreibprobe liefe
+    // dabei als root, also genau die Probe, die der Fall darueber aussortiert hat. Lieber
+    // rot mit einem Grund als gruen mit einer Probe, die die falsche Frage stellt.
+    //
+    // ⚠️ DIE KENNUNG STAMMT AUS EINER ATTRAPPE IM PATH, NICHT AUS DEM LAEUFER: in diesem
+    // Container ist der Test root, auf dem CI-Laeufer nicht — gemessen waere sonst je nach
+    // Maschine etwas anderes, und der Fall fiele dort still aus.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-suexec-"));
+    const pruefe = (uid: string, mitSuExec: boolean) => {
+      const backups = path.join(kladde, "backups");
+      rmSync(backups, { recursive: true, force: true });
+      mkdirSync(backups, { recursive: true });
+      const jetzt = Math.floor(Date.now() / 1000);
+      writeFileSync(
+        path.join(backups, ".zustand"),
+        `letzter_status=ok\nletzte_meldung=Sicherung von gestern\nletzter_erfolg=${jetzt - 60}\n`,
+      );
+      const p = spawnSync("sh", [SIDECAR, "zustand"], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: kennungsPfad(kladde, uid, mitSuExec),
+          TMPDIR: kladde,
+          BACKUP_DIR: backups,
+        },
+      });
+      return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+    };
+    try {
+      const ohne = pruefe("0", false);
+      expect(ohne.code, "root ohne su-exec: rot").toBe(1);
+      expect(ohne.aus).toMatch(/Vorlauf ist noch nicht durch/);
+      // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: ein Healthcheck, der von nun an
+      // IMMER rot meldete, bestuende die Zeile darueber ebenfalls.
+      const mit = pruefe("0", true);
+      expect(mit.code, "mit su-exec im Pfad: der gewohnte Weg").toBe(0);
+      expect(mit.aus).toMatch(/ok, letzter Erfolg/);
+      // ⚠️ UND DIE ZWEITE GEGENPROBE: laeuft der Container gar nicht als root, ist die
+      // direkte Probe ohnehin dieselbe Kennung — die Sperre darf ihr nicht in den Weg
+      // treten, sonst faellt `docker compose run --rm … zustand` ohne Vorlauf mit aus.
+      const nichtRoot = pruefe("1000", false);
+      expect(nichtRoot.code, "ohne root bleibt es beim direkten Weg").toBe(0);
+      expect(nichtRoot.aus).toMatch(/ok, letzter Erfolg/);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // ⚠️ UND DIE SPERRE STEHT VOR DER PROBE, nicht danach: eine Probe als root haette
+    // sonst schon geschrieben, bevor jemand merkt, dass sie die falsche Frage stellt.
+    const rumpfZ = funktionsrumpf(befehle, "zustand");
+    expect(rumpfZ.indexOf("command -v su-exec")).toBeGreaterThan(-1);
+    expect(rumpfZ.indexOf("command -v su-exec")).toBeLessThan(rumpfZ.indexOf('probe="$BACKUP_DIR'));
   });
 
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {
