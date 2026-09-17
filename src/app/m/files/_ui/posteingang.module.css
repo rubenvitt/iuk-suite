@@ -108,9 +108,14 @@
 }
 
 /*
- * Der freie Hinweistext der abgebenden Person. Er ist Fremdeingabe und kann
- * beliebig lang sein — ohne Umbruch sprengte ein Wort ohne Leerzeichen die
- * Spalte, und die Tabelle scrollte ins Nichts.
+ * Der freie Hinweistext der abgebenden Person in der KARTE unter 768px. Er ist
+ * Fremdeingabe und kann beliebig lang sein.
+ *
+ * ⚠️ IN DER TABELLE STEHT DAFUER `Zellentext` AUS `core/tabelle` (DRK-372), und
+ * das ist kein Geschmack: dort haengt der Text an einem `<span>`, und
+ * `max-width` gilt nicht fuer nicht-ersetzte Inline-Elemente (CSS 2.1 §10.4) —
+ * die Deklaration stand richtig da und der Browser verwarf sie. An einem `<p>`
+ * wirkt sie. Genau diese Haelfte war jahrelang still.
  */
 .hinweistext {
   max-width: 32ch;

@@ -3,7 +3,6 @@ import { sitzungsEtikett } from "../../_lib/zugangHerkunft";
 import { fahrzeugListe } from "../../_lib/lesepfade/fahrzeuge";
 import { boxOrt, postenAmOrt } from "../../_lib/lesepfade/entnahmebox";
 import { ENTNAHMEBOX_NAME, inDerEinheit } from "../../_lib/konstanten";
-import { bucheInEntnahmebox } from "../../_actions/entnahmebox";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { FahrzeugWahl } from "../../_ui/FahrzeugWahl";
@@ -177,7 +176,8 @@ export default async function BoxSeite({
           einheitenart: gewaehlt.einheitenart,
         }}
         posten={posten}
-        buchen={bucheInEntnahmebox}
+        // ⚠️ KEIN `buchen`-PROP MEHR (DRK-375): `_ui/BoxAbgabe.tsx` importiert
+        // `bucheInEntnahmebox` selbst — Falle 9.
         andereEinheitErreichbar={andereEinheitErreichbar}
         // DRK-305: faellt der Zugang mitten im Ausraeumen aus, entscheidet diese
         // Angabe den Rueckweg. Der Server kann die Herkunft dann nicht mehr
