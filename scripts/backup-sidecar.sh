@@ -235,9 +235,14 @@ nicht_vermerkt_loeschen() { rm -f "$NICHT_VERMERKT" 2>/dev/null || true; }
 
 zustand_schreiben() {
   # status meldung
+  # ⚠️ NICHT GESCHRIEBEN IST NICHT ERFOLGREICH — und das stand hier auf `return 0`, was
+  # genau die Pruefung entwertete, die der Aufrufer seit dem letzten Commit macht: er
+  # konnte „nicht zustaendig" nicht von „hinterlegt" unterscheiden und meldete Erfolg
+  # samt ok-Ping. Wer die Sperre verloren hat, hat nichts hinterlegt; das ist fuer
+  # `SUITE_BACKUP_CMD` und fuer den Waechter dasselbe wie ein Fehlschlag.
   if ! sperre_gehoert_uns; then
     warne "Der Stand wird NICHT geschrieben ($1: $2) — die Sperre gehoert uns nicht mehr."
-    return 0
+    return 1
   fi
   # ⚠️ ERST DEN GANZEN INHALT BAUEN, DANN EINMAL SCHREIBEN — und beides pruefen. Wie es
   # vorher dastand (`{ printf … } >"$tmp"; mv …`), gab es zwei Arten, still zu scheitern,
@@ -513,6 +518,17 @@ auslagern() {
   # beim Wiederherstellen laese sich dann nicht mehr als die Uhrzeit, zu der gesichert
   # wurde. Deshalb bleibt es bei Ortszeit; die Eindeutigkeit des Namens sichert
   # `backup.sh` ohnehin getrennt davon (es wartet auf die naechste freie Sekunde).
+  # ⚠️ ZWEITER ZAUN, WEIL DAS HOCHLADEN DAUERT. Der Zaun vor `auslagern` sagt nur, dass
+  # die Sperre uns gehoerte, ALS es losging; ein grosses Tarball ueber eine langsame
+  # Leitung ist genau die Strecke, auf der eine angehaltene Maschine ihre Sperre
+  # verliert. Danach hier weiterzurotieren hiesse, am Ziel die Generationen dessen
+  # wegzuraeumen, der inzwischen arbeitet — derselbe Schaden wie lokal, nur an der
+  # Stelle, die den Verlust des ganzen Servers abfangen soll.
+  if ! sperre_gehoert_uns; then
+    warne "Die Sperre ging waehrend des Auslagerns verloren — am Ziel wird NICHT
+  rotiert. Das Tarball ist oben; das Aufraeumen ist Sache des neuen Laufs."
+    return 1
+  fi
   protokoll "Rotation am Ziel: die neuesten $BACKUP_RCLONE_KEEP Generationen behalten"
   if ! vorhanden="$(rclone_ruf lsf "$BACKUP_RCLONE_ZIEL/" --include "$TARBALL_MUSTER")"; then
     # KEIN `return 1`: das Tarball liegt am Ziel, dieser Lauf hat also geleistet, wozu er
@@ -1121,6 +1137,34 @@ zustand() {
     echo "der letzte Lauf konnte seinen Stand nicht schreiben — $BACKUP_DIR voll oder nur lesend?"
     return 1
   fi
+  # ⚠️ UND DIE MARKE ALLEIN REICHT NICHT, WEIL SIE KEINE CONTAINERGRENZE UEBERSCHREITET.
+  # `docker compose run --rm … einmal` — der dokumentierte Weg fuer Probelauf und
+  # Rollout — laeuft in einem EIGENEN Container; seine Marke liegt in dessen `/tmp` und
+  # verschwindet mit `--rm`. Der Healthcheck laeuft im bestehenden Dienst und saehe sie
+  # nie; er meldete weiter den alten `ok`-Stand, und bei leerem BACKUP_PING_URL ist er
+  # das einzige Signal.
+  #
+  # Deshalb fragt er die Ursache direkt: laesst sich im Backup-Volume ueberhaupt noch
+  # schreiben? Das deckt beide genannten Faelle (voll, nur lesend) unabhaengig davon, in
+  # welchem Container der Lauf war. Die Probe kostet eine winzige Datei alle fuenf
+  # Minuten und raeumt sie sofort weg; ihr Name faellt bewusst nicht unter
+  # TARBALL_MUSTER, damit keine Rotation sie je fuer eine Generation haelt.
+  # ⚠️ ZWEI KLEINIGKEITEN, DIE DIE PROBE SONST WERTLOS MACHEN — beide gemessen:
+  #   * `printf` statt `:`. `:` ist ein SPEZIELLER Builtin, und ein Umlenkungsfehler bei
+  #     einem solchen beendet die Shell sofort (dash: Exit 2) — der Healthcheck haette
+  #     also mit 2 statt 1 geantwortet und die Rohmeldung der Shell ausgegeben.
+  #   * Ein BYTE statt einer leeren Datei. Auf einem vollen Dateisystem gelingt eine
+  #     Datei der Laenge 0 noch (gemessen an einem randvollen tmpfs: exit 0, „ok"); erst
+  #     der Versuch, etwas hineinzuschreiben, scheitert.
+  # Und `2>/dev/null` steht VOR der Umlenkung, sonst kommt deren eigene Fehlermeldung
+  # noch durch — Umlenkungen werden von links nach rechts aufgebaut.
+  probe="$BACKUP_DIR/.zustand.probe.$$"
+  if ! printf 'x' 2>/dev/null >"$probe"; then
+    rm -f "$probe" 2>/dev/null || true
+    echo "$BACKUP_DIR ist nicht beschreibbar — voll oder nur lesend eingehaengt?"
+    return 1
+  fi
+  rm -f "$probe" 2>/dev/null || true
   status="$(zustand_lesen letzter_status || echo '')"
   meldung="$(zustand_lesen letzte_meldung || echo '')"
   erfolg="$(zustand_lesen letzter_erfolg || echo '')"

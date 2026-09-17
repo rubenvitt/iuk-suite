@@ -838,6 +838,33 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(marke, "und fragt sie VOR der Zustandsdatei ab").toBeLessThan(lesen);
   });
 
+  it("verlorener Besitz ist fuer den Aufrufer ein MISSERFOLG, kein stilles Weiter", () => {
+    // ⚠️ DIESER ZWEIG STAND AUF `return 0` — und entwertete damit genau die Pruefung,
+    // die der Aufrufer seit dem vorigen Commit macht: er konnte „nicht zustaendig" nicht
+    // von „hinterlegt" unterscheiden, meldete Erfolg und frischte den Waechter auf gruen
+    // auf. Wer die Sperre verloren hat, hat nichts hinterlegt.
+    const rumpfZ = funktionsrumpf(befehle, "zustand_schreiben");
+    const zweig = rumpfZ.slice(0, rumpfZ.indexOf("inhalt="));
+    expect(zweig).toMatch(/if ! sperre_gehoert_uns; then[\s\S]*return 1/);
+    expect(zweig, "kein `return 0` mehr in diesem Zweig").not.toMatch(/return 0/);
+  });
+
+  it("auch WAEHREND des Auslagerns wird der Besitz noch einmal geprueft", () => {
+    // ⚠️ DER ZAUN DAVOR SAGT NUR, DASS DIE SPERRE UNS GEHOERTE, ALS ES LOSGING. Ein
+    // grosses Tarball ueber eine langsame Leitung ist genau die Strecke, auf der eine
+    // angehaltene Maschine ihre Sperre verliert — und danach am Ziel weiterzurotieren
+    // hiesse, die Generationen dessen wegzuraeumen, der inzwischen arbeitet. Und zwar
+    // an der Stelle, die den Verlust des ganzen Servers abfangen soll.
+    const rumpfA = funktionsrumpf(befehle, "auslagern");
+    const pruefung = rumpfA.indexOf("sperre_gehoert_uns");
+    const rotation = rumpfA.indexOf("Rotation am Ziel: die neuesten");
+    expect(pruefung, "auslagern prueft den Besitz").toBeGreaterThan(-1);
+    expect(pruefung, "und zwar VOR der Rotation am Ziel").toBeLessThan(rotation);
+    // Das Hochladen selbst bleibt stehen — es ist nicht zerstoerend, und das Tarball
+    // traegt einen eindeutigen Namen.
+    expect(rumpfA.indexOf("rclone_ruf copy")).toBeLessThan(pruefung);
+  });
+
   it("die lokale Rotation liegt HINTER dem Zaun, nicht in `backup.sh`", () => {
     // ⚠️ SIE STAND IN `backup.sh` UND LIEF DAMIT VOR JEDER PRUEFUNG. Ein Lauf, der die
     // Sperre unterwegs verloren hat, arbeitet sein `backup.sh` zu Ende — und rotiert
@@ -946,6 +973,30 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       'wird NICHT veroeffentlicht."',
       "return 0",
     ]);
+  });
+
+  it("der Healthcheck prueft das Volume SELBST — eine Marke ueberquert keine Containergrenze", () => {
+    // ⚠️ `docker compose run --rm … einmal` IST EIN EIGENER CONTAINER. Der dokumentierte
+    // Weg fuer Probelauf und Rollout laeuft also nicht im Dienst, und eine Marke in
+    // seinem `/tmp` verschwindet mit `--rm`. Der Healthcheck im bestehenden Dienst saehe
+    // sie nie und meldete weiter den alten `ok`-Stand; bei leerem BACKUP_PING_URL ist er
+    // das einzige Signal. Deshalb fragt er die URSACHE direkt.
+    const rumpfH = funktionsrumpf(befehle, "zustand");
+    expect(rumpfH).toMatch(/probe="\$BACKUP_DIR\/\.zustand\.probe/);
+    // ⚠️ ZWEI KLEINIGKEITEN, DIE DIE PROBE SONST WERTLOS MACHEN, beide gemessen:
+    //   * `printf` statt `:` — `:` ist ein SPEZIELLER Builtin, und ein Umlenkungsfehler
+    //     bei einem solchen beendet die Shell (dash: Exit 2). Der Healthcheck haette mit
+    //     2 statt 1 geantwortet und die Rohmeldung der Shell ausgegeben.
+    //   * Ein BYTE statt einer leeren Datei — auf einem randvollen tmpfs gelingt eine
+    //     Datei der Laenge 0 noch (gemessen: exit 0, „ok").
+    expect(rumpfH).toMatch(/printf 'x' 2>\/dev\/null >"\$probe"/);
+    expect(rumpfH, "kein `:` als Probe").not.toMatch(/if ! : >"\$probe"/);
+    // Aufgeraeumt wird in BEIDEN Zweigen — eine liegengebliebene Probe waere Muell im
+    // Volume, das dieser Dienst sauber halten soll.
+    expect((rumpfH.match(/rm -f "\$probe"/g) ?? []).length).toBe(2);
+    // Und der Name faellt nicht unter das Muster der Generationen, sonst hielte die
+    // Rotation ihn irgendwann fuer eine Sicherung.
+    expect("\.zustand\.probe").not.toMatch(/^\[0-9\]/);
   });
 
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {
