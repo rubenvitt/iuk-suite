@@ -833,10 +833,15 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
       .filter((z) => !z.includes("[ -d "));
     expect(hineingeschrieben.map((z) => z.trim())).toEqual([
       'if ! mkdir "$SPERRVERZEICHNIS/$meine_marke" 2>/dev/null; then',
-      // Der Herzschlag legt die naechste Generation an und raeumt die alte weg — auch er
-      // schreibt also nur Marken hinein, nichts anderes.
-      'mkdir "$SPERRVERZEICHNIS/$neu" 2>/dev/null || exit 0',
     ]);
+    // ⚠️ Der Herzschlag steht bewusst NICHT mehr in dieser Liste: er schlaegt die Sperre
+    // nicht ueber ihren Namen nach, sondern HAELT sie (`cd`) und legt seine naechste
+    // Generation relativ dazu an. Mit absolutem Pfad landete sie nach einer Uebernahme
+    // in der Sperre des Nachfolgers — gemessen, siehe den eigenen Fall dazu.
+    const rumpfHs = funktionsrumpf(befehle, "herzschlag_starten");
+    expect(rumpfHs, "und auch er legt nur Marken an").toMatch(
+      /mkdir "\$neu" 2>\/dev\/null \|\| exit 0/,
+    );
   });
 
   it("die Marke gilt erst, wenn sie die EINZIGE ist — sonst gehoert die Sperre jemand anderem", () => {
@@ -883,9 +888,7 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // Generation zieht die mtime der Sperre ohnehin nach, ein `touch` braucht es nicht
     // mehr — und die Rotation leistet zusaetzlich das, was `touch` nicht konnte
     // (eigener Fall: die Uebernahme einer LEBENDEN Sperre).
-    expect(funktionsrumpf(befehle, "herzschlag_starten")).toMatch(
-      /mkdir "\$SPERRVERZEICHNIS\/\$neu"/,
-    );
+    expect(funktionsrumpf(befehle, "herzschlag_starten")).toMatch(/mkdir "\$neu"/);
     expect(befehle).toContain("BACKUP_HERZSCHLAG_SEKUNDEN");
     // Er endet mit der Sperre — auch bei einem gescheiterten Lauf, denn `sperre_ablegen`
     // haengt an der EXIT-Falle.
@@ -904,11 +907,13 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // 186s alt (nicht aufgefrischt), die eigene 1s (aufgefrischt).
     const rumpfH2 = funktionsrumpf(befehle, "herzschlag_starten");
     expect(rumpfH2).toMatch(
-      /while \[ -n "\$marke" \] && \[ -d "\$SPERRVERZEICHNIS\/\$marke" \] && kill -0 "\$eltern"/,
+      /while \[ -n "\$marke" \] && \[ -d "\$marke" \] && kill -0 "\$eltern"/,
     );
     // Nach JEDEM Schlaf erneut — in der Zwischenzeit kann die Sperre den Eigentuemer
     // gewechselt haben, und die Bedingung oben hat das lange vorher geprueft.
-    expect(rumpfH2).toMatch(/sleep "\$BACKUP_HERZSCHLAG_SEKUNDEN"[\s\S]*\[ -d "\$SPERRVERZEICHNIS\/\$marke" \] \|\| exit 0/);
+    expect(rumpfH2).toMatch(
+      /sleep "\$BACKUP_HERZSCHLAG_SEKUNDEN"[\s\S]*\[ -d "\$marke" \] \|\| exit 0/,
+    );
   });
 
   it("ein Lauf, der die Sperre VERLIERT, fasst nichts Geteiltes mehr an", () => {
@@ -962,13 +967,14 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // `-c` ist POSIX und legt nicht an. Nachgemessen: derselbe Ablauf laesst den Pfad
     // frei, das naechste `mkdir` gelingt wieder.
     // ⚠️ SEIT DER ROTATION IST DIE EIGENSCHAFT STRUKTURELL STATT ERKAUFT: der
-    // Herzschlag `touch`t gar nicht mehr, er legt ein UNTERverzeichnis an. GEMESSEN:
-    // existiert die Sperre nicht, scheitert `mkdir .lauf.sperre/eigner.1.000002` mit
-    // „No such file or directory" und legt NICHTS an — die regulaere Datei aus diesem
-    // Fund kann auf diesem Weg gar nicht mehr entstehen.
+    // Herzschlag `touch`t gar nicht mehr, er legt ein UNTERverzeichnis an — und seit er
+    // die Sperre FESTHAELT (`cd`) statt sie nachzuschlagen, sogar zweifach: ist sie weg
+    // oder ersetzt, scheitert `mkdir eigner.1.000002` mit „No such file or directory"
+    // und legt NICHTS an. Die regulaere Datei aus diesem Fund kann auf diesem Weg gar
+    // nicht mehr entstehen.
     const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
     expect(rumpfH, "gar kein touch mehr").not.toMatch(/touch /);
-    expect(rumpfH).toMatch(/mkdir "\$SPERRVERZEICHNIS\/\$neu" 2>\/dev\/null \|\| exit 0/);
+    expect(rumpfH).toMatch(/mkdir "\$neu" 2>\/dev\/null \|\| exit 0/);
   });
 
   it("ein Takt von 0 ist eine Leerlaufschleife und wird abgefangen", () => {
@@ -1090,8 +1096,8 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     // genau die weg, die ohnehin gehen sollte; sein `rmdir` auf die Sperre scheitert dann
     // an der neuen. Andersherum gaebe es einen Moment ganz OHNE Marke, und in dem hielte
     // der Eigentuemer sich selbst fuer enteignet.
-    const anlegen = rumpfH.indexOf('mkdir "$SPERRVERZEICHNIS/$neu"');
-    const wegraeumen = rumpfH.indexOf('rmdir "$SPERRVERZEICHNIS/$marke"');
+    const anlegen = rumpfH.indexOf('mkdir "$neu"');
+    const wegraeumen = rumpfH.indexOf('rmdir "$marke"');
     expect(anlegen, "die neue Generation entsteht").toBeGreaterThan(-1);
     expect(wegraeumen, "die alte wird weggeraeumt").toBeGreaterThan(-1);
     expect(anlegen, "und zwar in dieser Reihenfolge").toBeLessThan(wegraeumen);
@@ -1673,6 +1679,103 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(rumpfK).toMatch(/\/proc\/sys\/kernel\/random\/uuid/);
     expect(rumpfK).toMatch(/\/dev\/urandom/);
     expect(rumpfK).toMatch(/hostname/);
+  });
+
+  it("der Herzschlag HAELT die Sperre, statt ihren Namen nachzuschlagen", () => {
+    // ⚠️ DER FUND: zwischen der Pruefung „liegt meine Marke noch da?" und dem `mkdir`
+    // der naechsten Generation passt eine ganze Uebernahme — `rmdir` plus `mkdir`, also
+    // ein Verzeichnis mit demselben NAMEN und einem anderen Inode. Mit einem ABSOLUTEN
+    // Pfad legt der alte Herzschlag seine Marke danach in die Sperre des NACHFOLGERS.
+    //
+    // Angehalten wird dafuer von AUSSEN, nicht im Skript: eine `mkdir`-Attrappe im Pfad
+    // haelt genau den Herzschlag-Ruf an (Generation 000002), die Uebernahme laeuft in
+    // diesem Moment, danach gibt die Attrappe den echten Aufruf frei. Der gemessene
+    // Ablauf ist damit unveraendert der des Skripts.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-herz-"));
+    const lauf = (quelleDerFunktion: string) => {
+      const S = path.join(kladde, "sperre");
+      rmSync(S, { recursive: true, force: true });
+      for (const f of ["angekommen", "tor"]) rmSync(path.join(kladde, f), { force: true });
+      writeFileSync(
+        path.join(kladde, "bin/mkdir"),
+        `#!/bin/sh\ncase "$*" in *eigner.aaaa.1.000002*)\n  : > ${kladde}/angekommen\n  n=0\n  while [ ! -e ${kladde}/tor ] && [ $n -lt 4000000 ]; do n=$((n + 1)); done\n  ;;\nesac\nexec /bin/mkdir "$@"\n`,
+      );
+      chmodSync(path.join(kladde, "bin/mkdir"), 0o755);
+      const quelle = [
+        quelleDerFunktion,
+        `SPERRVERZEICHNIS=${S}`,
+        'BACKUP_HERZSCHLAG_SEKUNDEN=1',
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'meine_marke="eigner.aaaa.1.000001"',
+        `/bin/mkdir "$SPERRVERZEICHNIS" "$SPERRVERZEICHNIS/$meine_marke"`,
+        "herzschlag_starten",
+        // Warten, bis der Herzschlag zwischen Pruefung und Anlegen steht.
+        `n=0; while [ ! -e ${kladde}/angekommen ] && [ $n -lt 4000000 ]; do n=$((n + 1)); done`,
+        // JETZT die Uebernahme, genau in diesem Fenster.
+        'rmdir "$SPERRVERZEICHNIS/$meine_marke"; rmdir "$SPERRVERZEICHNIS"',
+        '/bin/mkdir "$SPERRVERZEICHNIS" "$SPERRVERZEICHNIS/eigner.bbbb.1.000001"',
+        `: > ${kladde}/tor`,
+        // Dem freigegebenen Ruf Zeit lassen, danach ernten und nachsehen.
+        "n=0; while [ $n -lt 400000 ]; do n=$((n + 1)); done",
+        'kill "$herzschlag_pid" 2>/dev/null; wait "$herzschlag_pid" 2>/dev/null',
+        'ls "$SPERRVERZEICHNIS"',
+      ].join("\n");
+      return execFileSync("sh", ["-c", quelle], {
+        encoding: "utf8",
+        stdio: "pipe",
+        env: { ...process.env, PATH: `${path.join(kladde, "bin")}:${process.env.PATH}` },
+      })
+        .trim()
+        .split("\n")
+        .filter(Boolean);
+    };
+    try {
+      mkdirSync(path.join(kladde, "bin"));
+      // Ein `sleep`, das sofort zurueckkehrt — sonst braeuchte der Fall eine Sekunde je
+      // Runde. Der Takt ist hier nicht das Gemessene.
+      writeFileSync(path.join(kladde, "bin/sleep"), "#!/bin/sh\nexit 0\n");
+      chmodSync(path.join(kladde, "bin/sleep"), 0o755);
+      const echt = shellQuelle("herzschlag_starten");
+      // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: dieselbe Funktion, nur wieder mit
+      // absoluten Pfaden. Ohne sie wiese der Fall nur nach, dass gerade nichts passiert.
+      const mitAbsolutenPfaden = echt
+        .replace(/ *cd "\$SPERRVERZEICHNIS" 2>\/dev\/null \|\| exit 0\n/, "")
+        .replace(/\[ -d "\$marke" \]/g, '[ -d "$SPERRVERZEICHNIS/$marke" ]')
+        .replace(/mkdir "\$neu"/, 'mkdir "$SPERRVERZEICHNIS/$neu"')
+        .replace(/rmdir "\$marke"/, 'rmdir "$SPERRVERZEICHNIS/$marke"');
+      expect(mitAbsolutenPfaden, "die Gegenprobe unterscheidet sich wirklich").not.toBe(echt);
+      expect(mitAbsolutenPfaden).not.toMatch(/cd "\$SPERRVERZEICHNIS"/);
+
+      const alt = lauf(mitAbsolutenPfaden);
+      expect(
+        alt.filter((e) => e.startsWith("eigner.aaaa.")),
+        "mit absolutem Pfad landet die Marke in der Sperre des Nachfolgers",
+      ).not.toEqual([]);
+
+      const jetzt = lauf(echt);
+      expect(
+        jetzt,
+        "festgehalten: in der Sperre des Nachfolgers liegt NUR dessen eigene Marke",
+      ).toEqual(["eigner.bbbb.1.000001"]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // ⚠️ Die Folge waere beidseitig, und das macht sie teuer: gemessen an der Lage aus
+    // dem Fall oben meldet `sperre_gehoert_uns` fuer BEIDE Seiten „enteignet" — der
+    // Nachfolger sieht die fremde Marke, der alte Lauf die des Nachfolgers. Zwei
+    // gesunde Laeufe treten zurueck, und dazwischen liegt eine Weile, in der beide
+    // gleichzeitig `backup.sh` fahren.
+    const rumpfH = funktionsrumpf(befehle, "herzschlag_starten");
+    // ⚠️ ERST DIE EXISTENZ, DANN DER AUSSCHNITT. `indexOf` liefert sonst −1, `slice(-1)`
+    // nimmt das letzte Zeichen, und die Zusicherung darunter prueft eine Zeichenkette,
+    // die mit der Funktion nichts mehr zu tun hat — genau die Sorte wertloser Zusicherung,
+    // die dieser PR schon zweimal aufgeraeumt hat.
+    const ab = rumpfH.indexOf('cd "$SPERRVERZEICHNIS"');
+    expect(ab, "die Sperre wird festgehalten").toBeGreaterThan(-1);
+    const schleife = rumpfH.slice(ab);
+    expect(schleife, "und nichts darin wird ueber den Namen nachgeschlagen").not.toMatch(
+      /\$SPERRVERZEICHNIS\//,
+    );
   });
 
   it("die Freigabe ERNTET den Herzschlag ab und wiederholt die Raeumung", () => {

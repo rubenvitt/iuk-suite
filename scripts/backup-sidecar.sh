@@ -1201,12 +1201,36 @@ herzschlag_starten() {
   eltern=$$
   marke="$meine_marke"
   (
+    # ⚠️ DIE SPERRE WIRD FESTGEHALTEN, NICHT BEI JEDEM SCHRITT NACHGESCHLAGEN — und das
+    # ist der Unterschied zwischen „das Fenster ist schmal" und „es gibt keines".
+    #
+    # Eine Uebernahme ist `rmdir` plus `mkdir`: das Verzeichnis danach traegt denselben
+    # NAMEN und ist ein anderes. Zwischen der Pruefung unten und dem `mkdir` passt genau
+    # diese Uebernahme, und mit einem ABSOLUTEN Pfad legt der alte Herzschlag seine
+    # naechste Generation dann in die Sperre des NACHFOLGERS. GEMESSEN, genau so
+    # nachgestellt:
+    #
+    #   absolutes mkdir ins ersetzte Verzeichnis  → GELINGT, Fremdmarke liegt drin
+    #   relatives mkdir aus dem festgehaltenen    → scheitert: No such file or directory
+    #
+    # Die Folge waere teuer und beidseitig: der Nachfolger sieht eine fremde Marke und
+    # haelt sich fuer enteignet, der alte Lauf sieht die des Nachfolgers und ebenso —
+    # zwei gesunde Laeufe, die beide zuruecktreten, und dazwischen eine Weile, in der
+    # beide gleichzeitig `backup.sh` fahren. Genau das, wogegen es die Sperre gibt.
+    #
+    # Ein `cd` loest das ohne jede zusaetzliche Pruefung: der Kern haelt das INODE, nicht
+    # den Namen. Ist das Verzeichnis ersetzt, zeigt der Arbeitsplatz auf ein geloeschtes,
+    # und jedes Anlegen darin scheitert — atomar, ohne Pruefen-dann-Handeln. Ein
+    # Inode-Vergleich waere wieder nur eine Pruefung vor der Tat (siehe die drei Anlaeufe
+    # zur Sperre selbst: verengt das Fenster, schliesst es nicht).
+    cd "$SPERRVERZEICHNIS" 2>/dev/null || exit 0
     zaehler=1
-    while [ -n "$marke" ] && [ -d "$SPERRVERZEICHNIS/$marke" ] && kill -0 "$eltern" 2>/dev/null; do
+    while [ -n "$marke" ] && [ -d "$marke" ] && kill -0 "$eltern" 2>/dev/null; do
       sleep "$BACKUP_HERZSCHLAG_SEKUNDEN" || exit 0
       # Nach dem Schlaf ERNEUT pruefen: in der Zwischenzeit kann die Sperre den
       # Eigentuemer gewechselt haben, und dann ist sie nicht mehr unsere aufzufrischen.
-      [ -d "$SPERRVERZEICHNIS/$marke" ] || exit 0
+      # ⚠️ Relativ, wie alles hier drin — die Frage gilt der Sperre, die wir HALTEN.
+      [ -d "$marke" ] || exit 0
       # ⚠️ ERST DIE NEUE, DANN DIE ALTE WEG. In dieser Reihenfolge liegen kurz zwei
       # Marken da, und ein Wartender, der die AELTERE gesehen hat, raeumt genau die weg,
       # die ohnehin gehen sollte — sein anschliessendes `rmdir` auf die Sperre scheitert
@@ -1216,8 +1240,8 @@ herzschlag_starten() {
       # Das `mkdir` zieht die mtime der Sperre ohnehin nach; ein `touch` braucht es nicht.
       zaehler=$((zaehler + 1))
       neu="$(printf '%s%06d' "$MARKE_PRAEFIX" "$zaehler")"
-      mkdir "$SPERRVERZEICHNIS/$neu" 2>/dev/null || exit 0
-      rmdir "$SPERRVERZEICHNIS/$marke" 2>/dev/null || true
+      mkdir "$neu" 2>/dev/null || exit 0
+      rmdir "$marke" 2>/dev/null || true
       marke="$neu"
     done
   ) &
