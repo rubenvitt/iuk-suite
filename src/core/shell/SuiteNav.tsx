@@ -751,12 +751,40 @@ export function NavListe({
              * `Escape` LEERT DAS FELD. antds `allowClear` gibt das Kreuz fuer
              * die Maus; die Tastatur braucht ihren eigenen Weg zurueck, sonst
              * ist der einzige Ausweg aus einem Filter das Loeschen Zeichen fuer
-             * Zeichen. Kein `preventDefault`: das Feld steht im Drawer, und
-             * dessen `Escape` (schlieszen) soll erhalten bleiben — es feuert
-             * erst, wenn hier nichts mehr zu leeren ist.
+             * Zeichen.
+             *
+             * ⚠️ `stopPropagation` IST DER GANZE FIX, UND HIER STAND DAS
+             * GEGENTEIL. Der Kommentar behauptete, der `Escape` des Drawers
+             * „feuert erst, wenn hier nichts mehr zu leeren ist" — das ist
+             * falsch, und es war eine Annahme, keine Messung (Codex-Befund P2
+             * zu PR #207, danach gegen die Quelle nachgelesen).
+             *
+             * `@rc-component/portal` (`useEscKeyDown`) haengt EINEN GLOBALEN
+             * `keydown`-Hoerer an `window` und ruft daraus `onEsc` des obersten
+             * Portals; `@rc-component/drawer` macht daraus `onClose`. Der
+             * Hoerer sitzt damit NICHT am Drawer, sondern ueber allem — ohne
+             * diese Zeile leerte ein `Escape` im Schub das Feld UND schloesse
+             * den Schub, in einem Tastendruck. Genau die Geste, mit der man
+             * einen Filter zuruecknimmt, um weiterzublaettern, raeumte die
+             * Navigation weg.
+             *
+             * React ruft im synthetischen `stopPropagation` auch das native
+             * (SyntheticEvent), und React 19 haengt seine Hoerer an den
+             * Portalknoten — also UNTER `window`. Der globale Hoerer sieht das
+             * Ereignis danach nicht mehr. `preventDefault` waere das falsche
+             * Werkzeug: es sagt etwas ueber die Standardaktion, nicht ueber den
+             * Weg nach oben.
+             *
+             * ⚠️ NUR BEI GEFUELLTEM FELD. Auf einem leeren Feld ist nichts
+             * zurueckzunehmen, und dann gehoert `Escape` dem Schub — sonst
+             * naehme das Filterfeld ihm die Schlieszgeste ab, sobald der Fokus
+             * darin steht. `SuiteNav.test.tsx` misst beide Richtungen; in jsdom
+             * geht das, weil der Hoerer ein echter `window`-Hoerer ist.
              */
             onKeyDown={(e) => {
-              if (e.key === "Escape" && suche) setSuche("");
+              if (e.key !== "Escape" || !suche) return;
+              setSuche("");
+              e.stopPropagation();
             }}
             allowClear
             placeholder="Menü filtern"
