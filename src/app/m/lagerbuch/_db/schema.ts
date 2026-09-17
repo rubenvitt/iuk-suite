@@ -340,6 +340,16 @@ export const checks = sqliteTable(
  *
  * KEIN Trigger: die Tabelle ist Ist-Zustand, kein Nachweis. Der Upsert ueberschreibt,
  * ein leerer Wert LOESCHT die Zeile.
+ *
+ * ⚠️ `lagerort_id` IST NICHT MEHR ZWANGSLAEUFIG EINE EINHEIT (DRK-377). Bis dahin
+ * galt „ohne aktive Sollposition kein pflegbarer Verfall" fuer die ganze Tabelle, und
+ * daran scheiterte die Entnahmebox: sie hat ausdruecklich kein Soll und konnte einen
+ * gemeldeten Verfall deshalb gar nicht tragen — eine Meldung ging beim Umbuchen
+ * entweder verloren oder blieb an einer leeren Einheit stehen. Die Bindung ans Soll
+ * ist seither eine Auflage der PFLEGE (`verfallSetzen`, der Check) und keine der
+ * ZEILE; `bereinigeVerfallOhneAktivesSoll` fasst nur noch Einheiten an. Wer hier
+ * wieder „nur Fahrzeuge" hineinliest und danach filtert, macht abgelaufenes Material
+ * in der Kiste unsichtbar.
  */
 export const lagerortVerfall = sqliteTable(
   "lagerort_verfall",
@@ -351,6 +361,10 @@ export const lagerortVerfall = sqliteTable(
     erfasstAt: integer("erfasst_at", { mode: "timestamp" }).notNull(),
     quelleTyp: text("quelle_typ", { enum: ["token", "oidc", "system"] }).notNull(),
     quelleId: text("quelle_id").notNull(),
+    // DRK-377: Material hat diesen Ort ohne das gemeldete Datum verlassen. Haelt
+    // genau so lange wie die Zeile — ein Upsert laesst die Markierung stehen,
+    // ein sauberes Abraeumen nimmt sie mit. Begruendung in Migration 0014.
+    verwaist: integer("verwaist", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [uniqueIndex("idx_lagerort_verfall_ort_artikel").on(t.lagerortId, t.artikelId)],
 );

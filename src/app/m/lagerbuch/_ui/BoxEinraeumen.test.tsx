@@ -46,6 +46,8 @@ function posten(teil: Partial<EinraeumPosten> = {}): EinraeumPosten {
       { id: "ch-alt", chargenNr: "L-100", verfall: "2027-01", rest: 2, ampel: "gelb", text: "fällig 01/27" },
       { id: "ch-neu", chargenNr: "L-200", verfall: "2030-01", rest: 4, ampel: "gruen", text: "bis 01/30" },
     ],
+    // Der Normalfall: zu diesem Artikel liegt in der Kiste keine Meldung vor.
+    gemeldet: null,
     ...teil,
   };
 }
@@ -76,6 +78,37 @@ const KNOPF = "[data-rolle='einraeumen-buchen']";
 afterEach(async () => { await unmount(); vi.clearAllMocks(); });
 
 describe("BoxEinraeumen — was der Schirm sagt", () => {
+  it("nennt die GEMELDETE Angabe als solche — DRK-377", async () => {
+    /*
+     * ⚠️ AUF DIESEM SCHIRM ZAEHLT SIE AM MEISTEN: hier entscheidet jemand
+     * zwischen Regal und Muell. Der Fall ist genau der aus DRK-377 — die Charge
+     * ist eine Pseudo-Charge und sagt „bis 12/99", also Entwarnung, waehrend
+     * fuer dasselbe Material 05/26 gemeldet wurde. Ohne das Wort „gemeldet"
+     * stuenden zwei widersprechende Aussagen gleichrangig nebeneinander.
+     */
+    await mount(flaeche({
+      posten: [posten({
+        chargen: [{
+          id: "ch-pseudo", chargenNr: "Korrektur", verfall: "2099-12", rest: 6,
+          ampel: "gruen", text: "bis 12/99",
+        }],
+        gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
+      })],
+    }));
+
+    const zeile = query("[data-rolle='einraeum-posten']").textContent ?? "";
+    expect(zeile).toContain("bis 12/99");
+    expect(zeile).toContain("gemeldet: abgelaufen");
+  });
+
+  it("laesst den Chip weg, wo nichts gemeldet ist", async () => {
+    // Ein Chip ueber eine Auskunft, die es nicht gibt, kostet auf dem Telefon
+    // eine Zeile Platz und sagt nichts.
+    await mount(flaeche());
+    expect(query("[data-rolle='einraeum-posten']").textContent ?? "")
+      .not.toContain("gemeldet");
+  });
+
   it("nennt die Richtung UND die Art des Vorgangs", async () => {
     /*
      * ⚠️ DIE TEUERSTE FALLE DES TICKETS IST EINE SPRACHLICHE. Die Flaeche sieht

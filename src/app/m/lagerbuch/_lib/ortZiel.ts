@@ -62,6 +62,12 @@ export type EtikettOrt = { id: string; typ: "lager" | "fahrzeug" };
  * Vorbeigehen beantwortet. Hier wird also nichts gelockert; es wird nur
  * verhindert, dass die Adresse etwas anderes behauptet als der Bildschirm.
  *
+ * ⚠️ SEIT DRK-373 VERLIERT DER SCAN NICHT MEHR SPURLOS. Gewinnt die Bindung,
+ * haengt der Pfad die GESCANNTE Id als `gescannt=` an — sonst kann die
+ * Check-Seite der Person nicht sagen, dass ihr Scan eine andere Einheit meinte.
+ * Die Begruendung, warum das die Zusage von DRK-312 nicht aufweicht, steht
+ * unten an der Zeile selbst.
+ *
  * ⚠️ FUER EIN LAGER GILT DIE BINDUNG NICHT. `/helfer` ist die Artikelliste des
  * Handlagers und an keine Einheit gebunden — ein gebundenes Kaertchen erreicht
  * sie ohnehin ueber die Navigation. Hier gaebe es also nichts zu verfaelschen,
@@ -74,7 +80,77 @@ export function ortZielPfad(
   fahrzeugBindung: string | null,
 ): string {
   if (!ort || ort.typ !== "fahrzeug") return tokenZielPfad(null, null);
-  return tokenZielPfad("fahrzeug", fahrzeugBindung ?? ort.id);
+  /*
+   * ⚠️ `!fahrzeugBindung` UND NICHT `=== null` — dieselbe Falsy-Probe, die die
+   * Check-Seite fuehrt (`zugang.fahrzeugBindung ? … : undefined`). Der Typ
+   * laesst die leere Zeichenkette zu, und `fahrzeugBindungAus` kann sie heute
+   * nicht liefern; zwei Dateien, die „keine Bindung" verschieden auslegen,
+   * sind aber genau die Naht, an der Landung und Anzeige auseinanderlaufen.
+   */
+  if (!fahrzeugBindung || fahrzeugBindung === ort.id) {
+    return tokenZielPfad("fahrzeug", ort.id);
+  }
+  /*
+   * ⚠️ DER UEBERGANGENE SCAN REIST MIT — DRK-373, und das ist der EINZIGE Weg,
+   * auf dem die Check-Seite ihn ueberhaupt erfahren kann.
+   *
+   * Die Zeile darueber laesst die gescannte Id bewusst fallen: gezeigt wird die
+   * gebundene Einheit, und die Adresse soll nichts anderes behaupten
+   * (DRK-312). Genau damit war die Person aber ohne Auskunft — sie liest in der
+   * Ueberschrift den Namen IHRER Einheit und muss selbst schliessen, dass das
+   * nicht die ist, vor der sie steht. Bei „RTW 1" neben „RTW 2" merkt das
+   * niemand.
+   *
+   * ⚠️ `gescannt` WIDERSPRICHT DER ZUSAGE VON DRK-312 NICHT, ES ERFUELLT SIE
+   * GENAUER. Die Zusage lautet „die Adresse darf nicht etwas anderes behaupten
+   * als der Bildschirm". `?fz=A&gescannt=B` behauptet: gezeigt wird A, gescannt
+   * wurde B — und genau diese zwei Saetze stehen danach auf dem Bildschirm
+   * (`_ui/ScanHinweis.tsx`). Was verboten bleibt, ist ein ZWEITES `fz`: `fz`
+   * ist die Einheit, die gilt, und davon gibt es eine.
+   *
+   * ⚠️ NUR DIE ID, NIE DER NAME. Ein `&gescannt=RTW%202` waere Nutzereingabe,
+   * die als Auskunft auf dem Schirm landet — die Check-Seite loest die Id
+   * serverseitig gegen ihre Fahrzeugliste auf (CLAUDE.md, „Zugriffsschutz"),
+   * und was sie dort nicht findet, nennt sie gar nicht.
+   *
+   * ⚠️ DIE ABFRAGE WIRD GEBAUT, NICHT ANGEHAENGT — und hier stand vorher genau
+   * das Gegenteil (Codex-Befund P2 zu PR #186, nachgemessen, nicht vermutet).
+   *
+   * Es stand `${ziel}&gescannt=${encodeURIComponent(ort.id)}`: die GESCANNTE Id
+   * kodiert, die GEBUNDENE nicht — die setzt `tokenZielPfad` roh in sein
+   * `?fz=` ein. Bei einem importierten Bestand kann eine Id URL-Trennzeichen
+   * tragen (`lagerorte.id` ist kein nanoid-Vertrag), und dann ist das Ergebnis
+   * still falsch, gemessen:
+   *
+   *   fz = "rtw#1"            → /helfer/check?fz=rtw#1&gescannt=ktw-1
+   *                             → alles ab `#` ist FRAGMENT, der Server sieht
+   *                               `gescannt: null`
+   *   fz = "a&gescannt=ktw-9" → …?fz=a&gescannt=ktw-9&gescannt=ktw-1
+   *                             → zwei `gescannt`, Next reicht ein ARRAY, der
+   *                               Vergleich auf der Check-Seite trifft nie
+   *
+   * Beide Male passiert genau das, wogegen dieses Ticket geschrieben ist: der
+   * Hinweis bleibt weg, und niemand sieht es — die Seite rendert klaglos, der
+   * Check laeuft auf der richtigen Einheit, nur die Auskunft fehlt. KEIN TOR
+   * SIEHT DAS: die Pfadform ist gueltig, `typecheck` kennt keine URLs, und die
+   * Wertetests standen auf Ids ohne Trennzeichen.
+   *
+   * ⚠️ DER PFAD KOMMT WEITER VON `tokenZielPfad`, nur die Abfrage nicht. Die
+   * Route hier ein zweites Mal hinzuschreiben waere die zweite Wahrheit, gegen
+   * die diese Datei gebaut ist (`ortZiel.test.ts` riegelt es ab); die
+   * Abfrage-Parameter dagegen sind die WERTE, die diese Funktion ohnehin in der
+   * Hand hat — `URLSearchParams` kodiert beide, und das rohe `?fz=` verschwindet
+   * damit aus DIESEM Zweig.
+   *
+   * ⚠️ `tokenZielPfad` SELBST BLEIBT UNBERUEHRT, und das ist Absicht: die Datei
+   * ist ZEICHENGLEICH aus der Alt-Anwendung uebernommen (§3.1, ihr Kopf schreibt
+   * das aus), und ihr fehlendes `encodeURIComponent` trifft auch `/a/<id>` und
+   * das blosse `?fz=` — also mehr als diesen Auftrag. Das steht als eigenes
+   * Ticket auf dem Board (DRK-394), nicht als stille Ausweitung hier.
+   */
+  const ziel = tokenZielPfad("fahrzeug", fahrzeugBindung);
+  const abfrage = new URLSearchParams({ fz: fahrzeugBindung, gescannt: ort.id });
+  return `${ziel.split("?")[0]}?${abfrage}`;
 }
 
 /*

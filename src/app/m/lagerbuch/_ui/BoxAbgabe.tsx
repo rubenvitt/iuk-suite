@@ -285,6 +285,20 @@ export function BoxAbgabe({
                         {c.text}
                       </HelferChip>
                     ))}
+                    {/*
+                      DIE GEMELDETE ANGABE, UND SIE SAGT DAZU, DASS SIE EINE IST
+                      (DRK-377). Sie steht neben den Chargenchips und meint
+                      etwas anderes: die Chargen tragen, was im Buch steht,
+                      diese Angabe traegt, was jemand auf der Packung gelesen
+                      hat. Ohne das Wort „gemeldet" waeren zwei widersprechende
+                      Chips nebeneinander — „bis 12/99" und „läuft 10/26 ab" —
+                      ohne einen Hinweis, welcher wovon spricht.
+                    */}
+                    {p.gemeldet && (
+                      <HelferChip ton={ampelTon(p.gemeldet.ampel)}>
+                        gemeldet: {p.gemeldet.text}
+                      </HelferChip>
+                    )}
                   </div>
                 </div>
                 <div className={s.mengenChip}>

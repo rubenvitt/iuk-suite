@@ -19,6 +19,37 @@ on:
   # deshalb der `pull_request`-Ausloeser oben; der Nutzen liegt bei der naechsten.
   workflow_dispatch:
 
+# Ein PR, der mehrfach nachgezogen wird (`git merge origin/main`, Review-Fixes),
+# stapelt ohne das hier einen kompletten Lauf je Push in derselben Warteschlange
+# — nur der letzte Stand zaehlt, alle davor sind schon beim Start ueberholt.
+# Gemessen am 2026-09-16: 33 gleichzeitig wartende Laeufe, mehrere PRs mit ueber
+# zehn eigenen, veralteten Laeufen darunter, bei sichtbar begrenzter
+# Runner-Kapazitaet — ein einzelner PR kam ueber 25 Minuten nicht aus der
+# Warteschlange heraus, weil ueberholte Laeufe ANDERER PRs vor ihm liefen.
+#
+# `cancel-in-progress` gilt NUR fuer `pull_request` (`github.event.pull_request.number`
+# ist dann gesetzt): ein Push auf `main` stoesst `build`/`merge`/`release`/`deploy`
+# an, und ein abgebrochener Rollout mitten im `deploy`-Schritt ist schlimmer als
+# ein spaeter (siehe die Begruendung dort).
+#
+# ⚠️ DER GRUPPENSCHLUESSEL FUER `push` MUSS `github.sha` SEIN, NICHT `github.ref` —
+# Codex-Befund P1 auf diesem PR, bestaetigt. `github.ref` ist fuer JEDEN Push auf
+# main dieselbe Zeichenkette (`refs/heads/main`); GitHub haelt je Gruppe nur EINEN
+# laufenden und EINEN wartenden Lauf, und ein dritter Push in derselben Gruppe
+# ersetzt den wartenden zweiten — unabhaengig von `cancel-in-progress`, das nur den
+# LAUFENDEN schuetzt. Zwei main-Pushes kurz hintereinander haetten damit den
+# mittleren Commit nie durch `build`/`release`/`deploy` laufen lassen, obwohl
+# nichts das gemeldet haette (der Lauf verschwindet, er scheitert nicht rot). Mit
+# `github.sha` bekommt jeder Push seine eigene Gruppe, also wieder das
+# Ausgangsverhalten (jeder Commit laeuft unabhaengig durch) — nur PR-Laeufe teilen
+# sich weiterhin eine Gruppe je PR-Nummer. Die Jobs `merge`/`release`/`deploy`
+# tragen ihre eigenen, engeren Gruppen (je SHA) bereits selbst; diese hier ersetzt
+# sie nicht, sie verhindert nur, dass ein PR-Lauf einen anderen, laengst
+# ueberholten PR-Lauf ausbremst.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Kleinstmoegliches Recht als Vorgabe fuer den GITHUB_TOKEN. `checks`, `e2e`
 # und `test` brauchen nur den Checkout und erben es damit; `build` und `merge`
 # heben es fuer sich auf `packages: write` an, weil sie nach ghcr.io schreiben.
@@ -303,8 +334,28 @@ jobs:
   # auf einem alten Image fest. Nebeneffekt: der image-smoke läuft jetzt auch
   # auf arm64 wirklich, vorher wurde dort nur gebaut und nie gestartet.
   build:
-    # `version` dazu, weil die Nummer als Build-Arg ins Image geht (unten).
-    needs: [test, version]
+    # ⚠️ BEWUSST OHNE `test`, UND DAS IST KEINE LOCKERUNG — DIE ABSICHERUNG
+    # STEHT EINE STUFE WEITER UNTEN AN `merge`. Gemessen an Lauf 35187192289
+    # (DRK-407): `build` ist erst um 06:07:03 gestartet, weil `test` auf die
+    # langsamste e2e-Gruppe wartet (lagerbuch, 14:17) — und lief dann 3:26. Die
+    # standen damit rein SERIELL im kritischen Pfad, ohne dass `build` irgendetwas
+    # aus e2e liest.
+    #
+    # Auf einem PR baut dieser Job ein Image und faehrt den image-smoke; Login,
+    # Digest-Push und Artefakt-Upload tragen alle `if: github.event_name !=
+    # 'pull_request'` und sind uebersprungen. Es gibt dort also gar nichts, was
+    # ein rotes e2e verhindern muesste.
+    #
+    # Auf `main` schiebt er einen Digest nach ghcr.io — ein Blob OHNE Tag, den
+    # erst `merge` zu einem Manifest zusammenfasst. Genau deshalb traegt `merge`
+    # jetzt `test` SELBST in seinem `needs` (vorher kam es nur ueber diese Zeile
+    # hier mit): ohne das haette ein rotes e2e nach dieser Aenderung bis in
+    # `release` und `deploy` durchlaufen koennen. Wer `test` hier je wieder
+    # ergaenzt, nimmt die Beschleunigung zurueck; wer es an `merge` entfernt,
+    # nimmt die Absicherung mit.
+    #
+    # `version` bleibt, weil die Nummer als Build-Arg ins Image geht (unten).
+    needs: [version]
     strategy:
       fail-fast: false
       matrix:
@@ -431,7 +482,13 @@ jobs:
   # Führt die per-Plattform-Digests zu einer Multi-Arch-Manifest-Liste zusammen
   # und hängt erst hier die Tags (latest/sha/branch) dran.
   merge:
-    needs: [build, version]
+    # ⚠️ `test` STEHT HIER, SEIT `build` ES NICHT MEHR TRAEGT (DRK-407). Vorher
+    # kam die Absicherung transitiv ueber `build`; seit der dort entfallen ist,
+    # ist DIESE Zeile die einzige Stelle, an der ein rotes `checks`/`e2e`/
+    # `version` den Rollout aufhaelt. `merge` schmiedet aus den beiden
+    # Architektur-Digests das getaggte Manifest — ab hier wird ein Stand
+    # ausrollbar, und genau davor gehoert das Tor.
+    needs: [build, test, version]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # Zwei Laeufe DESSELBEN Commits (ein workflow_dispatch neben seinem Push-Lauf, ein

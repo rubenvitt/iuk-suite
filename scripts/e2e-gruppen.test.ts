@@ -40,6 +40,41 @@ import { join, sep } from "node:path";
  * und die ist seit DRK-358 EXPLIZIT (`e2e/gruppen.json`) statt aus der Fallzahl
  * abgeleitet. Eine Gruppe je Modul heisst: eine Zusage, keine Nebenwirkung.
  *
+ * ── WARUM LAGERBUCH DREI GRUPPEN HAT (DRK-407) ────────────────────────────
+ *
+ * „Eine Gruppe je Modul" war die Regel von DRK-358, nicht ihr Zweck. Der Zweck
+ * ist die Routenflaeche je Server — und ein Modul darf dafuer auch MEHRERE
+ * Gruppen haben, solange keine Gruppe zwei Module mischt. Genau das war noetig:
+ *
+ *   Lauf 35187192289, dieselbe CI, Gruppe fuer Gruppe gemessen:
+ *     lagerbuch        14:17   (185 Faelle, 32 Dateien)   ← 65 % des Laufs
+ *     aufgaben          9:10
+ *     files-feedback    5:03
+ *     suite-huelle      4:18
+ *     suite-verwaltung  4:04
+ *     radio             3:22
+ *     uav-zeichen       1:22
+ *
+ * Sechs Runner standen neun bis dreizehn Minuten still, waehrend lagerbuch
+ * seriell durchlief. Die Aufteilung ist nach FALLZAHL je Datei ausbalanciert
+ * (66/66/64) — grob, aber der einzige Massstab, den ein Dot-Reporter hergibt.
+ *
+ * ⚠️ DIE NUMMERN SIND EIMER, KEINE BEDEUTUNG. `lagerbuch-2` ist nicht „die
+ * Verwaltung", sondern „der zweite Eimer". Wer eine neue lagerbuch-Spec
+ * anlegt, traegt sie in den KLEINSTEN ein; welcher das ist, sagt die Fallzahl,
+ * nicht der Name. Der Waechter unten wird rot, solange sie in keinem steht —
+ * still verschwinden kann sie nicht.
+ *
+ * ⛔ UND NICHT ZURUECK ZU `--shard`: das teilt wieder nach Fallzahl ueber ALLE
+ * Module und bringt genau den Speicherausfall zurueck, den DRK-358 oben misst.
+ * Die letzte Zusicherung dieser Datei haelt das fest.
+ *
+ * `aufgaben` bleibt mit 9:10 ungeteilt und ist damit der neue Engpass. Das ist
+ * kein Versehen: die 43 seiner 48 Faelle stehen in EINER Datei, und die traegt
+ * Zustand ueber Testgrenzen hinweg (der Nachweis-Pfad aus dem Upload-Fall wird
+ * von spaeteren Faellen gelesen). Sie zu zerlegen ist echte Arbeit mit echtem
+ * Flakiness-Risiko und steht als eigenes Ticket auf dem Board.
+ *
  * ── WAS DIESER TEST HAELT ─────────────────────────────────────────────────
  *
  * Der Preis der expliziten Liste ist die vergessene Zeile: eine neue

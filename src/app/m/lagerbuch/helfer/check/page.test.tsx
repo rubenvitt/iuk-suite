@@ -191,6 +191,34 @@ vi.mock("../../_ui/CheckFlow", () => ({
     />
   ),
 }));
+/*
+ * DRK-373. `_ui/ScanHinweis.tsx` wird BEWUSST GEMOCKT — anders als
+ * `_ui/LeerZustand.tsx` daneben, und der Unterschied ist die Frage, die je
+ * gestellt wird. Hier zaehlt, WELCHE ZWEI EINHEITEN die Seite dem Hinweis
+ * reicht (und ob sie ihn ueberhaupt rendert); dass daraus ein lesbarer,
+ * eindeutiger Satz wird, ist Gegenstand von `_ui/ScanHinweis.test.tsx`. Gegen
+ * die echte Komponente muesste dieser Block den Satz nachbauen, um an die Ids
+ * zu kommen — und wuerde bei jeder Formulierungsaenderung rot.
+ *
+ * ⚠️ UND HIER STEHT BEWUSST KEIN `data-*-felder`, obwohl die Flow-Attrappe
+ * darueber eines traegt. Jenes haelt den RSC-Schnitt aus Falle 15: `CheckFlow`
+ * ist eine Client-Insel, jedes Feld mehr reist ueber die Grenze auf ein
+ * privates Telefon. `ScanHinweis` ist eine SERVER Component — nichts davon
+ * wird serialisiert, und eine Feldmengen-Zusicherung hier behauptete einen
+ * Schnitt, den es nicht zu halten gibt.
+ */
+vi.mock("../../_ui/ScanHinweis", () => ({
+  ScanHinweis: (p: {
+    gescannt: Record<string, unknown>;
+    gezeigt: Record<string, unknown>;
+  }) => (
+    <div
+      data-rolle="scan-hinweis"
+      data-gescannt={String(p.gescannt.id)}
+      data-gezeigt={String(p.gezeigt.id)}
+    />
+  ),
+}));
 vi.mock("../../_ui/FahrzeugWahl", () => ({
   FahrzeugWahl: (p: { fahrzeuge: Record<string, unknown>[] }) => (
     <div
@@ -270,7 +298,13 @@ const FLASCHE = (id: string, letzterDruck: number | null) => ({
   id, name: `O2 ${id}`, nennfuelldruckBar: 200, letzterDruck,
 });
 
-const sp = (o: Record<string, string> = {}) => ({ searchParams: Promise.resolve(o) });
+/*
+ * ⚠️ `string | string[]`, NICHT `string` — und das ist die Form, die Next
+ * WIRKLICH liefert (Codex-Befund P2 zu PR #186). Eine engere Signatur hier
+ * machte die Faelle unten unschreibbar und den Befund damit unpruefbar; genau
+ * so ist er entstanden.
+ */
+const sp = (o: Record<string, string | string[]> = {}) => ({ searchParams: Promise.resolve(o) });
 
 beforeEach(() => {
   t = migrierteTestDb("lagerbuch-checkseite-");
@@ -818,6 +852,303 @@ describe("/helfer/check — der Einstieg nach dem Fahrzeug-Scan (DRK-302)", () =
     anFahrzeugBinden("fz-2");
     await mount(await CheckSeite(sp({ fz: "fz-1" })));
     expect(umleitungen).toEqual([]);
+  });
+});
+
+describe("/helfer/check — der uebergangene Scan (DRK-373)", () => {
+  /*
+   * DIE FRAGE, DIE DIESER BLOCK BEANTWORTET: erfaehrt die Person, dass ihr Scan
+   * nicht gegolten hat? Die Bindung schlaegt den Scan seit DRK-302/DRK-312 —
+   * bis DRK-373 SCHWEIGEND. Sie las in der Ueberschrift den Namen ihrer
+   * gebundenen Einheit und musste selbst schliessen, dass das nicht die ist, vor
+   * der sie steht; bei „RTW 1" neben „RTW 2" merkt das niemand, und gezaehlt
+   * wuerde der Inhalt der einen in das Buch der anderen.
+   *
+   * ⚠️ ZWEI EINGAENGE, EINE ZUSAGE. `gescannt=` setzt die Ortsetikett-Weiche
+   * (`_lib/ortZiel.ts`), `?fz=` kann auch von Hand kommen — aus Serversicht
+   * sind beide Nutzereingabe, derselbe Vorrang gilt, also gehoert dieselbe
+   * Auskunft dazu (offene Frage 3 des Tickets). Jeder Test unten laeuft deshalb
+   * gegen BEIDE Eingaenge, wo er kann.
+   */
+
+  it("nennt beide Einheiten, wenn das Etikett einer FREMDEN gescannt wurde", async () => {
+    // Der Weg ueber `/o/<B>`: `fz` traegt die gebundene, `gescannt` die
+    // gemeinte Einheit.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    expect(hinweis.getAttribute("data-gescannt")).toBe("fz-1");
+    expect(hinweis.getAttribute("data-gezeigt")).toBe("fz-2");
+  });
+
+  it("nennt beide Einheiten auch bei einem von HAND getippten `?fz=`", async () => {
+    // Offene Frage 3: derselbe Vorrang, also dieselbe Auskunft. Ohne
+    // `gescannt=` ist `fz` selbst die gemeinte Einheit.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-1" })));
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    expect(hinweis.getAttribute("data-gescannt")).toBe("fz-1");
+    expect(hinweis.getAttribute("data-gezeigt")).toBe("fz-2");
+  });
+
+  /**
+   * ⚠️ AK 3 — WER SEIN EIGENES ETIKETT SCANNT, SIEHT NICHTS. Der Normalweg:
+   * Kaertchen an der Einheit, Etikett an derselben Einheit. Ein Hinweis hier
+   * waere nicht bloss Ballast, er waere FALSCH — und weil er den Normalfall
+   * trifft, lernte man ihn in einer Woche zu uebersehen.
+   */
+  it("schweigt, wenn das Etikett der GEBUNDENEN Einheit gescannt wurde", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    const faelle: Record<string, string>[] = [{ fz: "fz-2" }, { fz: "fz-2", gescannt: "fz-2" }];
+    for (const params of faelle) {
+      await mount(await CheckSeite(sp(params)));
+      expect(exists("[data-rolle='scan-hinweis']"), JSON.stringify(params)).toBe(false);
+      await unmount();
+    }
+  });
+
+  it("schweigt, wenn gar kein Fahrzeug verlangt wurde", async () => {
+    // Der Scan des KAERTCHENS selbst (`/t/<code>` → `?fz=<gebundene>`) und ein
+    // nackter Aufruf von `/helfer/check`: es wurde nichts uebergangen.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp()));
+    expect(exists("[data-rolle='scan-hinweis']")).toBe(false);
+  });
+
+  /**
+   * ⚠️ AK 4 — OHNE BINDUNG AENDERT SICH NICHTS. Wer ungebunden mit `?fz=`
+   * kommt, hat seine Einheit selbst gewaehlt; ihm wird nichts uebergangen, und
+   * ein Hinweis behauptete das Gegenteil.
+   *
+   * ⚠️ UND DER ZWEITE FALL IST DER TEURERE: ein ungebundenes Kaertchen mit
+   * einem `gescannt=`, das jemand selbst an die Adresse haengt. Die Bedingung
+   * MUSS an der Bindung haengen und nicht am Parameter — sonst zeigte eine
+   * gebaute URL einem Konto-Zugang einen Hinweis ueber eine Bindung, die es
+   * nicht gibt.
+   */
+  it("zeigt OHNE Bindung nichts — auch nicht mit `gescannt=`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    const faelle: Record<string, string>[] = [{ fz: "fz-1" }, { fz: "fz-1", gescannt: "fz-2" }];
+    for (const params of faelle) {
+      await mount(await CheckSeite(sp(params)));
+      expect(exists("[data-rolle='scan-hinweis']"), JSON.stringify(params)).toBe(false);
+      expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-1");
+      await unmount();
+    }
+  });
+
+  /**
+   * ⚠️ EINE EINHEIT, DIE DIE SEITE NICHT KENNT, WIRD NICHT BENANNT — und das
+   * ist die richtige Antwort statt eines halben Hinweises. AK 2 verlangt, dass
+   * die Auskunft BEIDE Einheiten beim Namen nennt; einen Namen, den die
+   * Datenbank nicht hergibt, koennte nur der Suchparameter selbst liefern —
+   * Nutzereingabe, ungeprueft auf dem Schirm. Ueber `/o/<id>` ist der Fall
+   * ohnehin unerreichbar (dort faellt ein Etikett ohne Ort vorher auf
+   * `/helfer`); ueber ein getipptes `?fz=` ist er es nicht.
+   */
+  it("schweigt bei einer erfundenen oder stillgelegten Einheit", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-alt", false)]);
+    anFahrzeugBinden("fz-2");
+    const faelle: Record<string, string>[] = [
+      { fz: "gibt-es-nicht" }, { fz: "fz-alt" }, { fz: "fz-2", gescannt: "fz-alt" },
+    ];
+    for (const params of faelle) {
+      await mount(await CheckSeite(sp(params)));
+      expect(exists("[data-rolle='scan-hinweis']"), JSON.stringify(params)).toBe(false);
+      // Und der Check laeuft trotzdem auf der gebundenen Einheit weiter.
+      expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+      await unmount();
+    }
+  });
+
+  /**
+   * ⚠️ `gescannt` SCHLAEGT `fz` BEI DER FRAGE „WAS WAR GEMEINT?" — und die
+   * Reihenfolge ist nicht beliebig. Auf dem Etikettenweg traegt `fz` bereits
+   * die GEBUNDENE Einheit; laese die Seite `fz ?? gescannt`, waere „gemeint"
+   * gleich „gebunden" und der Hinweis blieb genau auf dem Weg weg, fuer den er
+   * gebaut ist. Beide Parameter zeigen hier auf verschiedene Einheiten, und nur
+   * eine Leserichtung ergibt einen Hinweis.
+   */
+  it("liest `gescannt` als das Gemeinte, nicht `fz`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-3" })));
+    expect(query("[data-rolle='scan-hinweis']").getAttribute("data-gescannt")).toBe("fz-3");
+  });
+
+  /**
+   * ⚠️ `gescannt` DARF DEN HINWEIS NICHT ABSCHALTEN — Codex-Befund P2 zu
+   * `4bb5135`, und der Vorrang aus dem Test darueber war genau die Luecke.
+   * `gescannt ?? fz` nahm `gescannt` BEDINGUNGSLOS, obwohl beide Parameter
+   * Nutzereingabe sind: mit `?fz=B&gescannt=A` an einem Kaertchen auf A wurde
+   * „gemeint" gleich „gebunden", und der Hinweis fiel weg — obwohl B
+   * uebergangen wurde. Der Hinweis liess sich also per Adresse abschalten,
+   * und das ist der Ausgang, gegen den dieses Ticket geschrieben ist.
+   *
+   * Die Bedingung ist die FORM des echten Weges: `ortZielPfad` schreibt `fz`
+   * immer als die gebundene Einheit. Traegt `fz` etwas anderes, ist `fz` selbst
+   * die uebergangene — hier also B.
+   */
+  it("laesst sich mit `gescannt` NICHT abschalten", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-1");
+    // `fz` zeigt auf fz-2, `gescannt` auf die gebundene fz-1.
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    expect(hinweis.getAttribute("data-gescannt")).toBe("fz-2");
+    expect(hinweis.getAttribute("data-gezeigt")).toBe("fz-1");
+  });
+
+  /**
+   * ⚠️ UND ER DARF KEINE EINHEIT BENENNEN, DIE NIEMAND GESCANNT HAT — dieselbe
+   * Ursache, die teurere Haelfte. Mit `?fz=B&gescannt=C` an einem Kaertchen auf
+   * A nannte der Hinweis C, und C kam in dem Vorgang gar nicht vor: eine
+   * falsche Auskunft auf einer Datenflaeche, schlimmer als das Schweigen, das
+   * dieses Ticket behebt. Uebergangen wurde B, und B gehoert dort hin.
+   */
+  it("benennt nicht die Einheit, die ein fremdes `gescannt` behauptet", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-1");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-3" })));
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    expect(hinweis.getAttribute("data-gescannt")).toBe("fz-2");
+    expect(hinweis.getAttribute("data-gezeigt")).toBe("fz-1");
+  });
+
+  /**
+   * Ein `?gescannt=` OHNE `fz` entsteht nirgends — `ortZielPfad` schreibt immer
+   * beide — und behauptet keine uebergangene Einheit: die Adresse hat gar nicht
+   * versucht, woandershin zu fuehren. Also kein Hinweis, und der Check laeuft
+   * auf der gebundenen Einheit weiter.
+   */
+  it("schweigt bei `gescannt=` ohne `fz`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-1");
+    await mount(await CheckSeite(sp({ gescannt: "fz-2" })));
+    expect(exists("[data-rolle='scan-hinweis']")).toBe(false);
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-1");
+  });
+
+  /**
+   * ⚠️ DER HINWEIS STEHT IM RAHMEN UND VOR DEM FLOW.
+   *
+   * Im Rahmen: ausserhalb faenden die `--lb-*`-Variablen ihn nicht, und der
+   * Fehler waere STILL — eine nicht aufloesbare CSS-Variable ist gueltiges CSS
+   * und faellt auf `transparent` zurueck (Falle 2).
+   *
+   * Vor dem Flow: der Flow ist eine Client-Insel mit vier Phasen. Ein Hinweis
+   * DARIN muesste an vier Stellen stehen und faellt bei der naechsten Phase an
+   * einer davon weg; ein Hinweis DANACH stuende unter der Zaehlliste, also dort,
+   * wo im Zaehlschritt niemand mehr hinsieht.
+   */
+  it("haengt den Hinweis in den Rahmen, VOR den Flow", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
+    const rahmen = query("[data-rolle='rahmen']");
+    const hinweis = query("[data-rolle='scan-hinweis']");
+    const flow = query("[data-rolle='flow']");
+    expect(rahmen.contains(hinweis)).toBe(true);
+    expect(hinweis.contains(flow)).toBe(false);
+    // `DOCUMENT_POSITION_FOLLOWING` = 4: der Flow kommt NACH dem Hinweis.
+    expect(hinweis.compareDocumentPosition(flow) & 4).toBe(4);
+  });
+
+  /**
+   * Der Hinweis aendert an der Begrenzung NICHTS — er beschreibt sie nur. Die
+   * Seite laedt weiter genau EIN Fahrzeug, und zwar das gebundene (Falle 15,
+   * DRK-302). Ohne diese Zeile waere der naheliegendste „Komfort"-Handgriff,
+   * neben dem Hinweis auch noch die Daten der gescannten Einheit
+   * mitzuladen — und damit stuenden zwei Bestaende auf einem Schirm.
+   */
+  it("laedt trotz Hinweis nur die GEBUNDENE Einheit", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
+    for (const [name, spion] of [
+      ["sollFuerFahrzeug", sollFuer], ["geraeteFuerLagerort", geraeteFuer],
+      ["o2FlaschenFuerLagerort", flaschenFuer], ["verfallFuerLagerort", verfallFuer],
+    ] as const) {
+      expect(spion, name).toHaveBeenCalledTimes(1);
+      expect(spion, name).toHaveBeenCalledWith(t.db, "fz-2");
+    }
+  });
+
+  it("leitet auch dafuer NICHT um", async () => {
+    // §7.11 gilt unveraendert: die Adresse bleibt stehen, samt `gescannt=`.
+    // Ein `redirect()`, das den Parameter „aufraeumt", loeschte den Hinweis
+    // beim ersten Neuladen.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: "fz-1" })));
+    expect(umleitungen).toEqual([]);
+  });
+});
+
+describe("/helfer/check — der doppelte Suchparameter (Codex P2 zu PR #186)", () => {
+  /*
+   * NEXTS `searchParams` IST `string | string[] | undefined`, unabhaengig
+   * davon, was die Seite als Typ hinschreibt. Bei `?gescannt=b&gescannt=b`
+   * verglich die Seite ein ARRAY mit einer Id, traf nie, und der Hinweis
+   * verschwand STILL — der Ausgang, gegen den DRK-373 geschrieben ist.
+   *
+   * ⚠️ DIESE FAELLE SIND NUR SCHREIBBAR, WEIL `sp()` ARRAYS ANNIMMT. Mit der
+   * engeren Signatur waere der Befund typseitig unpruefbar geblieben, und genau
+   * so ist er entstanden: die Verengung verbirgt den Laufzeitwert, statt ihn zu
+   * aendern.
+   */
+
+  it("nennt beide Einheiten auch bei DOPPELTEM `gescannt`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: ["fz-1", "fz-1"] })));
+    expect(query("[data-rolle='scan-hinweis']").getAttribute("data-gescannt")).toBe("fz-1");
+  });
+
+  /**
+   * ⚠️ ZWEI VERSCHIEDENE WERTE SIND EIN WIDERSPRUCH, KEINE WAHL — dieselbe
+   * Bedeutung wie `zaehlOrtAus` (DRK-337). Den ersten zu nehmen hiesse, sich
+   * still fuer eine von zwei Anweisungen zu entscheiden, und auf dem Schirm
+   * stuende nichts, was sagt, welche. Der Hinweis benennt dann lieber nichts.
+   */
+  it("schweigt bei WIDERSPRECHENDEM `gescannt`", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2"), FZ("fz-3")]);
+    anFahrzeugBinden("fz-2");
+    await mount(await CheckSeite(sp({ fz: "fz-2", gescannt: ["fz-1", "fz-3"] })));
+    expect(exists("[data-rolle='scan-hinweis']")).toBe(false);
+    // Und der Check laeuft trotzdem auf der gebundenen Einheit weiter.
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+  });
+
+  it("waehlt bei doppeltem `?fz=` auf DENSELBEN Wert dieses Fahrzeug", async () => {
+    // Vorher fiel das still in die Wahl: das Array traf keine Id. Jetzt ist es
+    // eine Wahl — derselbe Wert zweimal ist keine Mehrdeutigkeit.
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: ["fz-2", "fz-2"] })));
+    expect(query("[data-rolle='flow']").getAttribute("data-fz")).toBe("fz-2");
+  });
+
+  it("faellt bei WIDERSPRECHENDEM `?fz=` auf die Wahl zurueck", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: ["fz-1", "fz-2"] })));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
+    expect(exists("[data-rolle='flow']")).toBe(false);
+  });
+
+  /**
+   * ⚠️ UND DER LEERE PARAMETER IST KEIN WERT. `?fz=` ergibt die leere
+   * Zeichenkette; die Seite behandelte sie sonst als „Id nicht gefunden" —
+   * dieselbe Wirkung, aber aus dem falschen Grund, und der naechste Leser sucht
+   * den Fehler in der Fahrzeugliste.
+   */
+  it("behandelt ein leeres `?fz=` wie keine Angabe", async () => {
+    fahrzeuge.mockReturnValue([FZ("fz-1"), FZ("fz-2")]);
+    await mount(await CheckSeite(sp({ fz: "" })));
+    expect(exists("[data-rolle='wahl']")).toBe(true);
   });
 });
 

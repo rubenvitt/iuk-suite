@@ -97,7 +97,21 @@
       "idx": 13,
       "version": "6",
       "when": 1789574400000,
-      "tag": "0013_ortscodes",
+      "tag": "0013_box_verfall_nachtrag",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1789578000000,
+      "tag": "0014_lagerort_verfall_verwaist",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1789581600000,
+      "tag": "0015_ortscodes",
       "breakpoints": true
     }
   ]

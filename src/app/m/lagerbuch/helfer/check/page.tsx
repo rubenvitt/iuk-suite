@@ -9,10 +9,12 @@ import { verfallFuerLagerort } from "../../_lib/lesepfade/verfall";
 import { letzterCheckZeitpunkt } from "../../_lib/lesepfade/checks";
 import { fmtDatumZeit } from "../../_lib/zeit";
 import { verfallSchwellen } from "../../_lib/domain/verfall";
+import { einWert } from "../../_lib/suchparameter";
 import { getDb } from "../../_db/client";
 import { HelferRahmen } from "../../_ui/HelferRahmen";
 import { FahrzeugWahl } from "../../_ui/FahrzeugWahl";
 import { CheckFlow } from "../../_ui/CheckFlow";
+import { ScanHinweis } from "../../_ui/ScanHinweis";
 import { LeerZustand } from "../../_ui/LeerZustand";
 
 /**
@@ -57,9 +59,45 @@ export const dynamic = "force-dynamic";
 export default async function CheckSeite({
   searchParams,
 }: {
-  searchParams: Promise<{ fz?: string }>;
+  /**
+   * `gescannt` SETZT AUSSCHLIESSLICH DIE ORTSETIKETT-WEICHE — DRK-373. Sie
+   * haengt es an, wenn ein gebundenes Kaertchen das Etikett einer ANDEREN
+   * Einheit schlaegt (`_lib/ortZiel.ts`); `fz` traegt dann die Einheit, die
+   * gilt, und `gescannt` die, die gemeint war.
+   *
+   * ⚠️ DER NAME STEHT AN ZWEI STELLEN UND WIRD AN EINER DRITTEN ZUSAMMENGEHALTEN.
+   * Ein `searchParams`-Typ verlangt einen literalen Schluessel, eine geteilte
+   * Konstante kann ihn also nicht ersetzen — benennt eine Seite ihn um, faellt
+   * das in keinem Tor auf: die Seite liest still `undefined`, der Hinweis
+   * bleibt einfach weg. `_lib/ortZiel.test.ts` liest deshalb BEIDE Dateien und
+   * vergleicht den geschriebenen Parameter mit dem gelesenen.
+   *
+   * ⚠️ `string | string[]` IST DIE WAHRHEIT, NICHT EINE VORSICHTSMASSNAHME
+   * (Codex-Befund P2 zu PR #186). Nexts `searchParams` ist
+   * `string | string[] | undefined`, und eine engere Signatur hier aendert den
+   * LAUFZEITWERT nicht — sie verbirgt ihn nur. Hier stand `gescannt?: string`,
+   * und bei `?gescannt=b&gescannt=b` verglich die Zeile unten ein ARRAY mit
+   * einer Id: sie traf nie, und der Hinweis verschwand STILL. Also genau der
+   * Ausgang, gegen den dieses Ticket geschrieben ist. `typecheck` und `build`
+   * bleiben dabei gruen; nur ein echter Abruf mit doppeltem Parameter zeigt es.
+   * `_lib/suchparameter.ts` nimmt die ganze Form entgegen, mit derselben
+   * Bedeutung, die `zaehlOrtAus` fuer den Zaehlort hat (DRK-337): derselbe Wert
+   * mehrfach ist eine Wahl, zwei verschiedene sind ein Widerspruch.
+   *
+   * ⚠️ `fz` GEHT MIT, obwohl der Befund nur `gescannt` nannte. Es trug dieselbe
+   * zu enge Angabe, und eine Datei, in der die eine Zeile die Wahrheit sagt und
+   * die Zeile darueber nicht, laedt den naechsten Leser dazu ein, `fz` fuer
+   * sicher zu halten. Die Wirkung aendert sich dabei fast nicht: ein
+   * widersprechendes `?fz=a&fz=b` faellt weiter auf die Wahl zurueck (vorher,
+   * weil das Array keine Id traf; jetzt, weil der Widerspruch keinen Wert
+   * ergibt), und ein doppeltes `?fz=a&fz=a` waehlt jetzt `a`, statt still in
+   * die Wahl zu fallen.
+   */
+  searchParams: Promise<{ fz?: string | string[]; gescannt?: string | string[] }>;
 }) {
-  const { fz } = await searchParams;
+  const roh = await searchParams;
+  const fz = einWert(roh.fz);
+  const gescannt = einWert(roh.gescannt);
   const db = getDb();
   const zugang = await requireHelferSitzung(db);
 
@@ -144,6 +182,72 @@ export default async function CheckSeite({
   const gebunden = zugang.fahrzeugBindung
     ? fahrzeuge.find((f) => f.id === zugang.fahrzeugBindung)
     : undefined;
+
+  /*
+   * DIE UEBERGANGENE EINHEIT — DRK-373, und sie ist der einzige Grund, warum
+   * diese Seite `gescannt` ueberhaupt liest.
+   *
+   * Die Bindung schlaegt den Scan (Zeile darueber, DRK-302/DRK-312). Was bis
+   * hierher fehlte, ist die AUSKUNFT darueber: die Person liest in der
+   * Ueberschrift den Namen IHRER Einheit und muss selbst schliessen, dass das
+   * nicht die ist, vor der sie steht. Bei „RTW 1" neben „RTW 2" merkt das
+   * niemand — und gezaehlt wuerde der Inhalt der einen in das Buch der anderen.
+   *
+   * ⚠️ ZWEI WEGE, EIN SATZ, und das ist Absicht (offene Frage 3 des Tickets).
+   * Ein getipptes `?fz=B` ist aus Serversicht von einem gescannten `/o/<B>`
+   * nicht zu unterscheiden (`_lib/ortZiel.ts` schreibt das aus); derselbe
+   * Vorrang gilt, also gehoert dieselbe Auskunft dazu.
+   *
+   * ⚠️ `gescannt` GILT NUR AUF DEM ETIKETTENWEG, UND DER IST AN SEINER FORM
+   * ERKENNBAR — Codex-Befund P2 zu `4bb5135`. Hier stand `gescannt ?? fz`, und
+   * die Begruendung dafuer stand schon richtig da: auf dem Etikettenweg traegt
+   * `fz` bereits die GEBUNDENE Einheit, dort ist `fz` gar nicht die gemeinte.
+   * Nur war das eine ANNAHME UEBER DIE ADRESSE und keine Bedingung — und BEIDE
+   * Parameter sind Nutzereingabe. Gemessen an einem Kaertchen auf A:
+   *
+   *   ?fz=B&gescannt=A  →  gemeint = A = gebunden  →  KEIN Hinweis,
+   *                        obwohl B uebergangen wurde. Der Hinweis liess sich
+   *                        also per Adresse ABSCHALTEN — genau der Ausgang,
+   *                        gegen den dieses Ticket geschrieben ist.
+   *   ?fz=B&gescannt=C  →  gemeint = C  →  „gescannt hast du C", und C wurde
+   *                        nie gescannt. Eine LUEGE auf einer Datenflaeche,
+   *                        und schlimmer als das Schweigen von vorher.
+   *
+   * `ortZielPfad` schreibt `{ fz: fahrzeugBindung, gescannt: ort.id }` — auf dem
+   * echten Weg ist `fz` also IMMER die gebundene Einheit. Das ist die Form, die
+   * `vomEtikettenweg` prueft. Traegt `fz` etwas anderes, ist `fz` selbst die
+   * uebergangene Einheit (der getippte Fall), und `gescannt` hat daneben nichts
+   * zu sagen: eine zweite Behauptung ueber denselben Vorgang, fuer die es keine
+   * Quelle gibt. Ein `?gescannt=` OHNE `fz` ergibt damit nichts — diese Form
+   * entsteht nirgends, und sie behauptet keine uebergangene Einheit.
+   *
+   * ⚠️ NICHT MIT EINER RECHTEPRUEFUNG VERWECHSELN. Hier wird nichts gesichert:
+   * geladen wird ohnehin nur die gebundene Einheit (Falle 15, unten), und die
+   * Bindung schlaegt den Scan unabhaengig davon. Was hier geprueft wird, ist
+   * allein, ob die AUSKUNFT wahr ist — und eine Auskunft, die die Adresse frei
+   * waehlt, ist keine.
+   *
+   * ⚠️ NUR EINE EINHEIT, DIE DIE SEITE AUCH KENNT. Die Suche laeuft ueber
+   * `fahrzeuge`, also ueber die auf `aktiv` gefilterte Liste — dieselbe Menge,
+   * gegen die `etikettOrt` (`_lib/lesepfade/ortEtiketten.ts`) ein Etikett
+   * aufloest. Eine unbekannte, stillgelegte oder geloeschte Id ergibt KEINEN
+   * Hinweis, und das ist die richtige Antwort statt eines halben: das
+   * Akzeptanzkriterium verlangt, dass die Auskunft BEIDE Einheiten beim Namen
+   * nennt, und einen Namen, den die Datenbank nicht hergibt, koennte nur der
+   * Suchparameter selbst liefern — Nutzereingabe, ungeprueft auf dem Schirm.
+   * Ueber `/o/<id>` ist der Fall ohnehin unerreichbar: dort faellt ein Etikett
+   * ohne Ort schon vorher auf `/helfer`.
+   *
+   * ⚠️ OHNE BINDUNG AENDERT SICH NICHTS. `gebunden` ist die erste Bedingung:
+   * wer ungebunden mit `?fz=` kommt, hat seine Einheit selbst gewaehlt, und es
+   * wird ihm nichts uebergangen.
+   */
+  const vomEtikettenweg = fz !== undefined && fz === gebunden?.id;
+  const gemeint = vomEtikettenweg ? gescannt ?? fz : fz;
+  const uebergangen =
+    gebunden && gemeint && gemeint !== gebunden.id
+      ? fahrzeuge.find((f) => f.id === gemeint) ?? null
+      : null;
 
   // Genau EIN aktives Fahrzeug → keine Wahl anbieten. KEIN `redirect()`: das
   // spart eine Anfrage und schreibt keinen Pfad, den jemand aeusser/innen
@@ -266,6 +370,29 @@ export default async function CheckSeite({
 
   return (
     <HelferRahmen aktiv="check" nurEntnahme={false} sitzungsetikett={etikett} laeuftAb={zugang.laeuftAb}>
+      {/*
+        ⚠️ VOR DEM FLOW UND NICHT IN IHM — DRK-373. Der Flow ist eine
+        Client-Insel mit vier Phasen, die jede ihren eigenen Kopf rendert; ein
+        Hinweis darin muesste an vier Stellen stehen und faellt bei der
+        naechsten Phase an einer davon weg (dieselbe Falle, gegen die
+        `letzterCheckZeile` dort an JEDEM Schritt steht). Hier steht er EINMAL,
+        ausserhalb der Insel — und bleibt damit ueber alle Phasenwechsel
+        stehen, also auch dann noch, wenn der Abschluss gebucht wird. Genau
+        dann zaehlt er: in diesem Moment landet der Inhalt in einem Buch.
+
+        ⚠️ DIE GANZE `fahrzeugListe`-ZEILE GEHT HINEIN, UND DAS IST KEIN
+        VERSEHEN. Jede `.map()` weiter unten haelt den RSC-Schnitt aus
+        Falle 15 — `CheckFlow` ist eine Client-Insel, jedes Feld mehr reist
+        ueber die Grenze auf ein privates Telefon. `ScanHinweis` ist eine
+        SERVER Component: hier wird nichts serialisiert, ein `.map()` waere
+        Ballast mit einer geliehenen Begruendung.
+
+        `gewaehlt` IST hier `gebunden` — `uebergangen` ist nur dann gesetzt,
+        und die `gewaehlt`-Zeile laesst die Bindung zuerst gewinnen. Die
+        Komponente bekommt trotzdem `gewaehlt` und nicht `gebunden`: sie
+        benennt, was der Schirm ZEIGT, und das ist `gewaehlt`.
+      */}
+      {uebergangen && <ScanHinweis gescannt={uebergangen} gezeigt={gewaehlt} />}
       <CheckFlow
         fahrzeug={{
           id: gewaehlt.id, name: gewaehlt.name, kennung: gewaehlt.kennung,

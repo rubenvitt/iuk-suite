@@ -213,6 +213,8 @@ export function zugangsZiele(
    * (`einheitLabels`, DRK-309) — deshalb wird sie hier benutzt und nicht ein
    * drittes Mal nachgebaut.
    */
-  const eindeutig = eindeutigeLabels(roh.map((o) => ({ id: o.id, label: o.name })));
+  // `schluessel` ist die rohe Kennung, wie im Verlauf und in der Verfallsliste
+  // (DRK-371) — nicht der Auswahlwert der Inventur.
+  const eindeutig = eindeutigeLabels(roh.map((o) => ({ schluessel: o.id, label: o.name })));
   return roh.map((o, i) => ({ ...o, name: eindeutig[i]!.label }));
 }

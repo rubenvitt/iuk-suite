@@ -162,6 +162,11 @@ const TABELLEN: Record<
     { name: "erfasst_at", typ: "integer", notnull: 1, dflt: null, pk: 0 },
     { name: "quelle_typ", typ: "text", notnull: 1, dflt: null, pk: 0 },
     { name: "quelle_id", typ: "text", notnull: 1, dflt: null, pk: 0 },
+    // DRK-377, Migration 0014. `dflt` ist "0" und nicht null: `ALTER TABLE ADD
+    // COLUMN` mit NOT NULL VERLANGT einen Default, und 0 ist zugleich die
+    // fachlich richtige Vorgabe fuer Bestandszeilen — eine 1 waere eine
+    // Behauptung ueber Material, das vor dieser Aenderung gegangen ist.
+    { name: "verwaist", typ: "integer", notnull: 1, dflt: "0", pk: 0 },
   ],
   bz_geraete: [
     { name: "id", typ: "text", notnull: 1, dflt: null, pk: 1 },
@@ -428,9 +433,9 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
     entries: { idx: number; when: number; tag: string }[];
   };
 
-  it("fuehrt vierzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
+  it("fuehrt sechzehn Eintraege in aufsteigender idx-Reihenfolge", () => {
     expect(journal.entries.map((e) => e.idx))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   });
 
   it("`when` ist STRENG monoton", () => {
@@ -458,7 +463,15 @@ describe("meta/_journal.json — die Eigenschaft, an der ein stiller Migrationsf
         // Migrationen ist die einzige Stelle, an der eine Nummer wirklich
         // eindeutig sein MUSS.
         "0012_entnahmebox",
-        "0013_ortscodes",
+        "0013_box_verfall_nachtrag",
+        "0014_lagerort_verfall_verwaist",
+        // ⚠️ DRK-406 KAM ALS 0013 UND WURDE BEIM MERGE ZUR 0015 — derselbe
+        // Fall wie DRK-314 zwei Zeilen darueber, und aus demselben Grund: die
+        // beiden Nummern lagen vorher auf `main` und damit schon in
+        // Datenbanken. Eine zweite 0013 haette denselben `idx` zweimal
+        // vergeben, und die Kette der Migrationen ist die einzige Stelle, an
+        // der eine Nummer wirklich eindeutig sein MUSS.
+        "0015_ortscodes",
       ]);
   });
 

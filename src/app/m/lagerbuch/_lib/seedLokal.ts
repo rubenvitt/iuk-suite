@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gt, lt } from "drizzle-orm";
 import type { DB } from "../_db/client";
 import {
   artikel,
@@ -28,8 +28,10 @@ import { heuteIso } from "./zeit";
 import { fefoAbbuchungImBereich, type Quelle } from "./schreibpfade/abbuchung";
 import { korrekturAufLagerort } from "./schreibpfade/korrektur";
 import { umlagerungAusBereich, umlagerungVonOrt } from "./schreibpfade/umlagerung";
+import { bestandJeArtikelAnOrt } from "./lesepfade/bestand";
 import { handlagerOrte } from "./lesepfade/orte";
-import { setzeVerfall } from "./schreibpfade/lagerortVerfall";
+import { verfallFuerLagerort } from "./lesepfade/verfall";
+import { setzeVerfall, uebernimmVerfall } from "./schreibpfade/lagerortVerfall";
 import { syncFahrzeugTemplate } from "./schreibpfade/templateSync";
 
 /**
@@ -864,6 +866,167 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
         artikelId: A.kompresse, menge: 6, vonOrt: RTW, nachLagerortId: ENTNAHMEBOX_ID,
         quelle: { quelleTyp: "token", quelleId: CODE_HELFER },
         kommentar: ENTNAHMEBOX_KOMMENTAR, referenz: REF_BOX,
+      });
+    });
+  }
+
+  /* ⚠️ UND DIE GEMELDETE VERFALLSANGABE FOLGT (DRK-377, Codex zu PR #194).
+   *
+   * Ohne diesen Aufruf faehrt der Seed an der Regel vorbei, und zwar genau an
+   * der, die das Ticket herstellt: `bucheInEntnahmebox` ruft
+   * `verfallFolgtDemMaterial`, der Block darueber aber bucht ueber
+   * `umlagerungVonOrt` DIREKT. Die Kompressen tragen am RTW eine Meldung
+   * (Abschnitt 12a, `m.rot`) — in der Kiste stuende ohne den Aufruf „—" in der
+   * Spalte „Gemeldet", und die Box fehlte in der Verfallsuebersicht. Der
+   * auffaelligste Zustand des Moduls waere lokal nicht zu sehen, und fuer
+   * jeden Playwright-Lauf ebenso wenig.
+   *
+   * ⚠️ AUSSERHALB DES BUCHUNGS-RIEGELS, UND DAS IST DER PUNKT (Codex zu
+   * PR #194, P2). Stuende er darin, liefe er auf einer Datenbank, die den
+   * Vorgang schon kennt, NIE — `pnpm seed:lokal lagerbuch` ist aber „idempotent
+   * und rein additiv" (CLAUDE.md), also muss ein zweiter Lauf genau solche
+   * Luecken nachtragen. Jede bestehende Demo-Datenbank haette die Meldung sonst
+   * dauerhaft nicht.
+   *
+   * ⚠️ ZWEI BEDINGUNGEN, UND JEDE HAT EINEN EIGENEN BEFUND HINTER SICH (Codex
+   * zu PR #194, drei Runden auf diesen Zeilen). „Ausserhalb des Riegels" heisst
+   * „bei JEDEM Lauf" — damit wird der Aufruf selbst zum Schreiber, und ein
+   * Schreiber, der bei jedem Lauf feuert, ist genau das, was „rein additiv"
+   * verbietet:
+   *
+   *   BESTAND > 0 — sonst erfindet der Nachtrag einen Zustand. Wer die
+   *   geseedete Box einraeumt und danach erneut seedet, bekaeme eine Meldung
+   *   fuer eine LEERE Kiste zurueck.
+   *
+   *   NOCH KEINE MELDUNG AN DER BOX — sonst SCHREIBT der Nachtrag um. Der
+   *   RTW-Check im Seed ist zwar geriegelt, seine Meldung also stabil; ein
+   *   ECHTER Check in einer benutzten Demo-Datenbank aendert sie aber, und ein
+   *   frueheres Datum gewaenne in `uebernimmVerfall`. Die Kiste truege danach
+   *   eine Beobachtung, die am RTW gemacht wurde, NACHDEM das Material ihn
+   *   verlassen hat.
+   *
+   *   NIE ETWAS AUS DER KISTE HERAUSGEBUCHT — sonst traegt der Nachtrag die
+   *   Meldung an FREMDES Material. Wer die geseedeten sechs Kompressen
+   *   einraeumt und spaeter welche aus einer anderen Einheit hineinlegt, hat
+   *   wieder Bestand und keine Meldung: die beiden Proben darueber sagen beide
+   *   ja, und der Nachtrag haengte die heutige RTW-Beobachtung an Material,
+   *   das nie am RTW war.
+   *
+   * ⚠️ DAS IST DIE GENAUESTE ZUORDNUNG, DIE DAS JOURNAL HERGIBT, und die Grenze
+   * gehoert hingeschrieben: eine Buchung sagt, WIEVIEL an einen Ort kam, nicht
+   * WELCHE Packung noch dort liegt. „Seit dem Seed ist nichts herausgegangen"
+   * ist der schaerfste Beleg dafuer, dass der geseedete Beitrag noch da ist —
+   * exakt ist er nicht, er ist nur nie zu grosszuegig.
+   *
+   * ⚠️ ALLE DREI PROBEN SIND ZUSTAENDE, NICHT DIE BUCHUNG. `journalGebucht`
+   * sagt nur, dass der Vorgang EINMAL stattgefunden hat — in jedem der vier
+   * Faelle wahr, die hier nacheinander schiefgingen, und deshalb wertlos als
+   * Riegel.
+   *
+   * ⚠️ `uebernimmVerfall` UND NICHT `verfallFolgtDemMaterial`: EIN NACHTRAG
+   * KOPIERT, ER BEWEGT NICHT. Die zweite Haelfte jener Funktion raeumt die
+   * Meldung am Quellort ab, sobald dort nichts mehr liegt — richtig fuer eine
+   * echte Abgabe, falsch hier. Die drei Proben oben sagen nichts ueber den
+   * Bestand am RTW; hat ein spaeterer Check ihn auf null gebracht, loeschte
+   * dieser Aufruf die RTW-Meldung, und der Seed naehme etwas weg, statt etwas
+   * nachzutragen. „Rein additiv" heisst genau das nicht.
+   *
+   * Es bleibt eine GETEILTE Funktion und kein nachgebauter Schritt — derselbe
+   * Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei Inserts zu
+   * schreiben. Nur eben die Haelfte, die hier gilt.
+   *
+   * ⚠️ `0013_box_verfall_nachtrag.sql` TRIFFT DIESELBE WAHL AUS DEMSELBEN
+   * GRUND, und die Begruendung steht dort ausgeschrieben: die Einheit ist
+   * laengst wieder bestueckt, ihre Zeile beschreibt eine Packung, die HEUTE
+   * dort liegt. Beide Nachtraege kopieren; nur die Bewegung selbst raeumt ab.
+   *
+   * ⚠️ ES GIBT EINEN ZWEITEN NACHTRAG, UND ER IST NICHT DERSELBE:
+   * `0013_box_verfall_nachtrag.sql` traegt dieselbe Luecke auf ECHTEN
+   * Datenbanken nach, einmal beim Rollout. Auf einer Demo-Datenbank laeuft er
+   * vorher und macht diesen Block meist zum No-Op — das ist Absicht und kein
+   * Grund, einen von beiden zu streichen: die Migration laeuft EINMAL je
+   * Datenbank, dieser Block bei JEDEM `pnpm seed:lokal`. Wer nur die Migration
+   * behielte, verloere die Luecke wieder, sobald jemand die Boxmeldung von Hand
+   * loescht; wer nur diesen Block behielte, traege in Produktion nie etwas nach,
+   * weil der Seed dort nicht laeuft.
+   *
+   * ⚠️ IHRE RIEGEL STEHEN BEWUSST ANDERSHERUM. Hier darf nichts ERFUNDEN
+   * werden — der Fehlschlag waere eine Demo-Datenbank, die etwas behauptet, was
+   * nie passiert ist. Dort darf kein Warnsignal VERLOREN gehen — der Fehlschlag
+   * waere eine abgelaufene Packung ohne Hinweis. Deshalb ist diese Probe eng und
+   * jene grosszuegig; die Begruendung steht im Kopf der Migration. */
+  const inDerBox = bestandJeArtikelAnOrt(db, ENTNAHMEBOX_ID).get(A.kompresse) ?? 0;
+  const boxMeldung = verfallFuerLagerort(db, ENTNAHMEBOX_ID).get(A.kompresse);
+  const jeHerausgebucht = db.select({ id: buchungen.id }).from(buchungen)
+    .where(and(
+      eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
+      eq(buchungen.artikelId, A.kompresse),
+      lt(buchungen.menge, 0),
+    ))
+    .get() !== undefined;
+  /* ⚠️ UND DIE VIERTE PROBE: DIE MELDUNG MUSS AELTER SEIN ALS DIE ABGABE
+   * (Codex zu PR #194). Die drei oben pruefen die KISTE, keine von ihnen die
+   * ZEIT. Ein echter RTW-Check in einer benutzten Demo-Datenbank ueberschreibt
+   * die einzige Zeile der Einheit — `lagerort_verfall` fuehrt keine Historie —,
+   * und der Nachtrag truege diese Beobachtung dann auf aelteres Kistenmaterial,
+   * das sie nie beschrieben hat. Dasselbe, was Migration 0013 mit ihren beiden
+   * Zeitproben abweist; hier ist der Fehlschlag eine Demo-Datenbank, die eine
+   * Zuordnung behauptet, die es nie gab.
+   *
+   * ⚠️ STRIKT `<` UND NICHT `<=`: beide Zeiten sind Sekunden, Gleichstand ist
+   * also kein Beweis fuer „davor" — derselbe Grund wie in 0013. Der Seed
+   * verliert dadurch nichts, seine Ablesung liegt echt vor der Abgabe
+   * (gemessen: alle Faelle in `seedLokal.test.ts` bleiben gruen). */
+  const aelteteBoxZugang = db.select({ ts: buchungen.ts }).from(buchungen)
+    .where(and(
+      eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
+      eq(buchungen.artikelId, A.kompresse),
+      gt(buchungen.menge, 0),
+    ))
+    .orderBy(buchungen.ts)
+    .get();
+  const meldungAelterAlsAbgabe = aelteteBoxZugang !== undefined
+    && (verfallFuerLagerort(db, RTW).get(A.kompresse)?.erfasstAt?.getTime() ?? Infinity)
+      < aelteteBoxZugang.ts.getTime();
+
+  /* ⚠️ UND DIE FUENFTE: DIE KISTENWARE MUSS VOM RTW STAMMEN (Codex zu PR #194).
+   * Die vier Proben oben pruefen Bestand, fehlende Meldung, Abgaenge und Zeit —
+   * keine davon die HERKUNFT. Liegen in der Kiste Kompressen aus einer anderen
+   * Einheit und ist der eigene Abschnitt 12d geriegelt, treffen alle vier zu,
+   * und der Nachtrag schriebe die RTW-Meldung auf fremdes Material.
+   *
+   * Migration 0013 hat genau diese Probe von Anfang an (`b.referenz =
+   * 'entnahmebox:' || lv.lagerort_id`); dem Seed hat sie gefehlt. `REF_BOX`
+   * traegt dieselbe Zeichenkette — das Praefix nennt die QUELLE, nicht das
+   * Ziel, und ist damit hier die tragende Eigenschaft.
+   *
+   * ⚠️ DIESE PROBE IST ARGUMENTIERT, NICHT GEMESSEN — und das steht hier, weil
+   * ein fehlender Test sonst wie ein vergessener aussieht. Der Fall verlangt
+   * eine Datenbank, in der `REF_BOX` fuer IRGENDEINEN Artikel existiert,
+   * waehrend die Kompressen aus einer anderen Einheit kamen. Nach einem Seed
+   * ist er nicht mehr herstellbar: `journalGebucht(REF_BOX)` ist genau dann
+   * wahr, wenn 12d gelaufen ist — und dann gibt es die Kompressen-Buchung. Und
+   * `buchungen` ist append-only, eine bestehende Zeile laesst sich weder
+   * umschreiben noch loeschen (der Trigger wirft „journal ist append-only").
+   * Erreichbar ist er nur ueber einen Nutzer, der vor dem ersten Seed
+   * IRGENDEINEN RTW-Artikel in die Kiste gibt — `bucheInEntnahmebox` schreibt
+   * dieselbe Referenz. Wer diese Probe testbar machen will, hebt die
+   * Entscheidung in eine eigene Funktion; das waere der Weg, nicht ein Test,
+   * der aus dem falschen Grund gruen ist. */
+  const vomRtwGeliefert = db.select({ id: buchungen.id }).from(buchungen)
+    .where(and(
+      eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
+      eq(buchungen.artikelId, A.kompresse),
+      gt(buchungen.menge, 0),
+      eq(buchungen.referenz, REF_BOX),
+    ))
+    .get() !== undefined;
+
+  if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht && meldungAelterAlsAbgabe
+      && vomRtwGeliefert) {
+    db.transaction((tx) => {
+      uebernimmVerfall(tx, {
+        vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
       });
     });
   }
