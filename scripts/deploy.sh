@@ -470,33 +470,42 @@ else
   if backup_skripte_neuer_als "$seit"; then
     melde "Backup-Sidecar austauschen — er liest sein Skript nur beim Start"
     # ⚠️ KEINE UNESCAPTEN BACKTICKS IN DIESEN MELDUNGEN (siehe setze_pin).
-    if docker compose up -d --force-recreate backup; then
-      # Und dann warten, bis er sich meldet — Begründung an backup_wird_gesund.
-      # 120s: das `apk add` der sieben Pakete braucht gemessen Sekunden, die
-      # Anlaufspanne des Healthchecks sind 5 Minuten. Wer den Rollout nicht so lange
-      # aufhalten will, setzt SUITE_BACKUP_GESUND_FRIST.
-      echo "  auf den Healthcheck des backup-Dienstes warten …"
-      lage_backup=0
-      backup_wird_gesund "${SUITE_BACKUP_GESUND_FRIST:-120}" || lage_backup=$?
-      case "$lage_backup" in
-        0) echo "  backup meldet sich gesund." ;;
-        2) warne "Der Dienst backup ist nach der Frist immer noch im Anlauf. Das kann an
-  einem langsamen Paketspiegel liegen und sich von selbst geben — nachsehen:
-  docker compose ps backup && docker compose logs --tail=50 backup" ;;
-        *) warne "Der Dienst backup kommt nach dem Austausch NICHT hoch — er ist weg oder
-  in der Neustartschleife. Die Suite läuft und ist geprüft, dieser Rollout wird deshalb
-  nicht zurückgerollt; es gibt aber bis auf Weiteres KEINE naechtliche Sicherung.
-  Ursache ablesen: docker compose logs --tail=50 backup" ;;
-      esac
-    else
-      warne "Der Austausch des Dienstes
+    docker compose up -d --force-recreate backup || warne "Der Austausch des Dienstes
   backup ist gescheitert. Die Suite läuft und ist geprüft — der Sidecar sichert aber bis
   zu einem Neustart nach dem ALTEN Skript. Von Hand nachholen:
   docker compose up -d --force-recreate backup"
-    fi
   else
     echo "  beide Skripte sind älter als der laufende Container — kein Austausch nötig."
   fi
+
+  # ⚠️ UND JETZT GEFRAGT, OB ER LAEUFT — UNABHAENGIG DAVON, OB DIESER SCHRITT IHN
+  # AUSGETAUSCHT HAT. Das ist die Lehre aus einem Befund: stand der Austausch im `if`,
+  # blieb ausgerechnet der wahrscheinlichste Fall ungeprueft. SCHRITT 5 (`docker compose
+  # up -d`) erzeugt den Container naemlich selbst neu, sobald sich Image oder
+  # Konfiguration geaendert haben — beim ERSTEN Rollout dieses Features und nach jeder
+  # backup-bezogenen Aenderung in der `.env`. Danach ist seine Startzeit juenger als
+  # beide Skripte, `backup_skripte_neuer_als` ist falsch, und die einzige Stelle, die
+  # gewartet haette, wurde uebersprungen: ein scheiterndes `apk add` haette den frischen
+  # Dienst in die Neustartschleife geschickt, waehrend der Rollout Erfolg meldet.
+  #
+  # Die Frage kostet im Regelfall einen `docker inspect` — ein Dienst, der seit Wochen
+  # laeuft, antwortet sofort mit `healthy`.
+  # 120s: das `apk add` der sieben Pakete braucht gemessen Sekunden, die Anlaufspanne des
+  # Healthchecks sind 5 Minuten. Wer den Rollout nicht so lange aufhalten will, setzt
+  # SUITE_BACKUP_GESUND_FRIST.
+  echo "  auf den Healthcheck des backup-Dienstes warten …"
+  lage_backup=0
+  backup_wird_gesund "${SUITE_BACKUP_GESUND_FRIST:-120}" || lage_backup=$?
+  case "$lage_backup" in
+    0) echo "  backup meldet sich gesund." ;;
+    2) warne "Der Dienst backup ist nach der Frist immer noch im Anlauf. Das kann an
+  einem langsamen Paketspiegel liegen und sich von selbst geben — nachsehen:
+  docker compose ps backup && docker compose logs --tail=50 backup" ;;
+    *) warne "Der Dienst backup kommt NICHT hoch — er ist weg oder in der
+  Neustartschleife. Die Suite läuft und ist geprüft, dieser Rollout wird deshalb nicht
+  zurückgerollt; es gibt aber bis auf Weiteres KEINE naechtliche Sicherung.
+  Ursache ablesen: docker compose logs --tail=50 backup" ;;
+  esac
 fi
 
 # ══ Schritt 9 — Ergebnis ═════════════════════════════════════════════════════════════

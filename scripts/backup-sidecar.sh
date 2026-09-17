@@ -653,10 +653,33 @@ lokal_rotieren() {
     return 0
   fi
 
-  # Nach Aenderungszeit sortiert (neueste zuerst), wie zuvor in `backup.sh`; der Filter
-  # auf den Namen entscheidet, WAS ueberhaupt als Generation zaehlt.
+  # ⚠️ NACH DEM NAMEN SORTIERT, NICHT NACH DER AENDERUNGSZEIT — und das ist die Stelle,
+  # an der `ls -1t` (wie zuvor in `backup.sh`) eine FERTIGE Generation gegen eine halb
+  # geschriebene eintauscht. Der Name traegt den Zeitpunkt in fester Breite, die
+  # Namensfolge ist also die Zeitfolge; die MTIME dagegen sagt nur, wann zuletzt
+  # geschrieben wurde — und ein ueberholter Lauf schreibt noch.
+  #
+  # GEMESSEN, mit `BACKUP_KEEP=1` und zwei Dateien im Verzeichnis: `20260101T030000`
+  # (der uebernommene Vorgaenger, waechst gerade) und `20260101T033000` (unsere, fertig).
+  # `ls -1t` stellt die WACHSENDE nach vorn, weil sie die juengste mtime hat:
+  #
+  #   vorher   „lokal geloescht: 20260101T033000.tar.gz"  → uebrig: die halbe Datei
+  #   nachher  „lokal geloescht: 20260101T030000.tar.gz"  → uebrig: unsere fertige
+  #
+  # Und weil `lokal_rotieren` VOR `auslagern` laeuft, scheiterte danach das Hochladen an
+  # einer Quelle, die es nicht mehr gibt. ⚠️ Der Zaun aus dem Kommentar unten faengt das
+  # NICHT: hier loescht der rechtmaessige Eigentuemer, alle Besitzpruefungen gehen durch.
+  # Die Reihenfolge ist das Problem, nicht die Berechtigung.
+  #
+  # ⚠️ Die eine Ecke, die der Name nicht deckt, ist die Wiederholstunde am Ende der
+  # Sommerzeit — dieselbe wie bei der Rotation am Ziel, die seit jeher nach dem Namen
+  # geht. Lokal und am Ziel raeumen damit ab jetzt nach DERSELBEN Ordnung ab; dass beide
+  # in jener Nacht dieselbe Generation zuerst verlieren, ist besser als zwei Bestaende,
+  # die auseinanderlaufen.
+  #
+  # Der Filter auf den Namen entscheidet daneben, WAS ueberhaupt als Generation zaehlt.
   unsere="$(mktemp)"
-  ls -1t "$BACKUP_DIR" 2>/dev/null | while read -r name; do
+  ls -1r "$BACKUP_DIR" 2>/dev/null | while read -r name; do
       [ -n "$name" ] || continue
       case "$name" in
         $TARBALL_MUSTER) printf '%s\n' "$name" ;;
@@ -679,6 +702,17 @@ lokal_rotieren() {
       if ! sperre_gehoert_uns; then
         warne "  Sperre verloren — die restlichen Generationen bleiben stehen."
         break
+      fi
+      # ⚠️ UND DIE GENERATION DIESES LAUFS NIE, unter keiner Sortierung. Der Riegel
+      # darueber raeumt den Regelfall; dies ist der Boden darunter, fuer den Fall, dass
+      # die Uhr zurueckspringt (NTP, Ende der Sommerzeit) und unser frischer Name damit
+      # aelter ist als ein vorhandener. Sie zu loeschen hiesse: das Hochladen gleich
+      # danach scheitert an einer Quelle, die es nicht mehr gibt — also ein Lauf, der
+      # sich selbst um sein Ergebnis bringt.
+      # Gezaehlt wird sie dabei mit: uebrig bleibt dann eine Generation MEHR als
+      # `BACKUP_KEEP`, und das ist die richtige der beiden Richtungen.
+      if [ -n "${1:-}" ] && [ "$alt" = "${1##*/}" ]; then
+        continue
       fi
       protokoll "  lokal geloescht: $alt"
       rm -f "$BACKUP_DIR/$alt"
@@ -1564,7 +1598,7 @@ lauf_ungesperrt() {
   fi
 
   # Jetzt, und keinen Schritt frueher: die Sperre ist nachweislich noch unsere.
-  lokal_rotieren
+  lokal_rotieren "$tarball"
 
   if [ -n "$BACKUP_RCLONE_ZIEL" ]; then
     if auslagern "$tarball"; then

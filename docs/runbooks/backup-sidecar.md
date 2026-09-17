@@ -305,7 +305,7 @@ docker compose run --rm backup /bin/sh /opt/backup/backup-sidecar.sh werkzeuge \
 
 # 3) Ist der Inhalt der, den man erwartet? — der Schritt, den man weglässt
 docker compose run --rm backup /bin/sh -c \
-  'tar -tzf "$(ls -1t /backups/*.tar.gz | head -1)" | head -30'
+  'tar -tzf "$(ls -1 /backups/*.tar.gz | tail -1)" | head -30'
 ```
 
 Im Tarball müssen stehen: **jede** `*.db` aus `MODULE_MIGRATIONS` und `CORE_MIGRATIONS`

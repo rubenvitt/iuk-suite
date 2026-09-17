@@ -77,6 +77,21 @@ const kennungsPfad = (verzeichnis: string, uid = "1000", mitSuExec = false) => {
 };
 const sidecar = lies("scripts/backup-sidecar.sh");
 const deploySh = lies("scripts/deploy.sh");
+
+/** Schritt 8b als Ganzes — von der Frage nach dem Container bis vor Schritt 9.
+ *  ⚠️ EIN SCHNITT FUER ALLE FAELLE HIER: drei von ihnen schnitten sich vorher je ein
+ *  eigenes Stueck heraus, und ein Umbau des Blocks liess sie nacheinander auf leere
+ *  Zeichenketten laufen — laut, aber dreimal. */
+const schritt8b = deploySh.slice(
+  deploySh.indexOf('backup_cid="$(docker compose ps -q backup'),
+  deploySh.indexOf("\n# ══ Schritt 9"),
+);
+/** Eine Funktion aus `scripts/deploy.sh`, samt schliessender Klammer. */
+const deployFunktion = (name: string) => {
+  const ab = deploySh.indexOf(`${name}() {`);
+  expect(ab, `${name} steht in scripts/deploy.sh`).toBeGreaterThan(-1);
+  return deploySh.slice(ab, deploySh.indexOf("\n}\n", ab) + 3);
+};
 const composeZeilen = lies("compose.yaml").split("\n");
 const envBeispiel = lies(".env.example");
 
@@ -1722,6 +1737,134 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     expect(schleife.slice(ab)).toMatch(/if ! sperre_gehoert_uns; then[\s\S]*break/);
   });
 
+  it("die Loeschliste folgt dem NAMEN, nicht der Aenderungszeit", () => {
+    // ⚠️ DER ZAUN AUS DEM FALL DARUEBER FAENGT DAS NICHT — hier loescht der RECHTMAESSIGE
+    // Eigentuemer, jede Besitzpruefung geht durch. Die Reihenfolge ist das Problem, nicht
+    // die Berechtigung: ein uebernommener Vorgaenger schreibt sein Tarball zu Ende (sein
+    // `backup.sh` laeuft weiter, der Zaun sitzt erst danach), und weil `ls -1t` nach der
+    // ZEIT DES LETZTEN SCHREIBENS sortiert, steht diese WACHSENDE Datei ganz vorn —
+    // obwohl ihr Name eine aeltere Generation nennt.
+    //
+    // GEMESSEN mit `BACKUP_KEEP=1`, zwei Dateien: `20260101T030000` (der uebernommene
+    // Vorgaenger, waechst) und `20260101T033000` (unsere, fertig):
+    //
+    //   ls -1t   → „lokal geloescht: 20260101T033000.tar.gz"   uebrig: die halbe Datei
+    //   ls -1r   → „lokal geloescht: 20260101T030000.tar.gz"   uebrig: unsere fertige
+    //
+    // Und weil `lokal_rotieren` VOR `auslagern` laeuft, scheiterte danach das Hochladen
+    // an einer Quelle, die es nicht mehr gibt. Der Name traegt den Zeitpunkt in fester
+    // Breite, seine Folge IST die Zeitfolge — dieselbe Ordnung wie am Ziel.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-namensfolge-"));
+    const rotiere = (eigenes: string) => {
+      const dir = path.join(kladde, "backup");
+      const sperre = path.join(kladde, "sperre");
+      for (const d of [dir, sperre]) {
+        rmSync(d, { recursive: true, force: true });
+        mkdirSync(d, { recursive: true });
+      }
+      // Der uebernommene Vorgaenger: ALTER Name, aber gerade eben geschrieben.
+      writeFileSync(path.join(dir, "20260101T030000.tar.gz"), "");
+      // Unsere fertige Generation: NEUERER Name, aeltere Aenderungszeit.
+      writeFileSync(path.join(dir, "20260101T033000.tar.gz"), "");
+      const vorhin = new Date(Date.now() - 3600_000);
+      utimesSync(path.join(dir, "20260101T033000.tar.gz"), vorhin, vorhin);
+      mkdirSync(path.join(sperre, "eigner.aaaa.1.000001"));
+      const quelle = [
+        sidecar.split("\n").find((z) => z.startsWith("TARBALL_MUSTER=")) ?? "",
+        ...[
+          "protokoll",
+          "warne",
+          "entnullen",
+          "zu_viele_ziffern",
+          "sperre_gehoert_uns",
+          "lokal_rotieren",
+        ].map(shellQuelle),
+        `BACKUP_DIR=${dir}`,
+        `SPERRVERZEICHNIS=${sperre}`,
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'meine_marke="eigner.aaaa.1.000001"',
+        "BACKUP_KEEP=1",
+        `lokal_rotieren ${eigenes}`,
+      ].join("\n");
+      execFileSync("sh", ["-c", quelle], { encoding: "utf8", stdio: "pipe" });
+      return readdirSync(dir).sort();
+    };
+    try {
+      expect(
+        rotiere(`"${path.join(kladde, "backup/20260101T033000.tar.gz")}"`),
+        "die fertige Generation bleibt, die wachsende geht",
+      ).toEqual(["20260101T033000.tar.gz"]);
+      // ⚠️ DIE SORTIERUNG ALLEIN TRAEGT DEN FALL SCHON — der Riegel darunter ist ein
+      // Boden, kein Ersatz. Ohne Argument ist das Ergebnis dasselbe.
+      expect(rotiere('""'), "auch ohne den Namen des eigenen Laufs").toEqual([
+        "20260101T033000.tar.gz",
+      ]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    const rumpfR = funktionsrumpf(befehle, "lokal_rotieren");
+    // ⚠️ `ls -1t` DARF NICHT ZURUECKKOMMEN, auch nicht als „wie in backup.sh".
+    expect(rumpfR, "nach dem Namen, nicht nach der Zeit").toMatch(/ls -1r "\$BACKUP_DIR"/);
+    expect(rumpfR).not.toMatch(/ls -1t/);
+    // Und der Aufrufer reicht seinen eigenen Tarball durch, sonst greift der Boden nie.
+    expect(funktionsrumpf(befehle, "lauf_ungesperrt")).toMatch(/lokal_rotieren "\$tarball"/);
+  });
+
+  it("die Generation DIESES Laufs wird nie geloescht, auch bei rueckwaerts laufender Uhr", () => {
+    // ⚠️ DER BODEN UNTER DER SORTIERUNG. Springt die Uhr zurueck (NTP-Korrektur, Ende der
+    // Sommerzeit), traegt unser frischer Lauf einen AELTEREN Namen als eine vorhandene
+    // Generation — und die Namensfolge, die den Fall darueber loest, zeigte dann auf uns
+    // selbst. Sie zu loeschen hiesse: das Hochladen gleich danach scheitert an einer
+    // Quelle, die es nicht mehr gibt, also ein Lauf, der sich selbst um sein Ergebnis
+    // bringt. Gezaehlt wird sie dabei mit — uebrig bleibt eine Generation MEHR als
+    // `BACKUP_KEEP`, und das ist die richtige der beiden Richtungen.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-boden-"));
+    const dir = path.join(kladde, "backup");
+    const sperre = path.join(kladde, "sperre");
+    const rotiere = (eigenes: string) => {
+      for (const d of [dir, sperre]) {
+        rmSync(d, { recursive: true, force: true });
+        mkdirSync(d, { recursive: true });
+      }
+      // Unser frischer Lauf traegt den AELTEREN Namen — die Uhr ist zurueckgesprungen.
+      writeFileSync(path.join(dir, "20260101T030000.tar.gz"), "");
+      writeFileSync(path.join(dir, "20260101T033000.tar.gz"), "");
+      mkdirSync(path.join(sperre, "eigner.aaaa.1.000001"));
+      const quelle = [
+        sidecar.split("\n").find((z) => z.startsWith("TARBALL_MUSTER=")) ?? "",
+        ...[
+          "protokoll",
+          "warne",
+          "entnullen",
+          "zu_viele_ziffern",
+          "sperre_gehoert_uns",
+          "lokal_rotieren",
+        ].map(shellQuelle),
+        `BACKUP_DIR=${dir}`,
+        `SPERRVERZEICHNIS=${sperre}`,
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'meine_marke="eigner.aaaa.1.000001"',
+        "BACKUP_KEEP=1",
+        `lokal_rotieren ${eigenes}`,
+      ].join("\n");
+      execFileSync("sh", ["-c", quelle], { encoding: "utf8", stdio: "pipe" });
+      return readdirSync(dir).sort();
+    };
+    try {
+      expect(
+        rotiere(`"${path.join(dir, "20260101T030000.tar.gz")}"`),
+        "unsere bleibt, obwohl ihr Name der aeltere ist",
+      ).toEqual(["20260101T030000.tar.gz", "20260101T033000.tar.gz"]);
+      // ⚠️ Die Gegenprobe ist die Haelfte der Messung: ohne den Boden faellt genau
+      // diese Datei, sonst hiesse „beide da" nur „es wird nie geloescht".
+      expect(rotiere('""'), "ohne den Namen greift die Sortierung wie sonst").toEqual([
+        "20260101T033000.tar.gz",
+      ]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+  });
+
   it("ein gescheiterter Ping schreibt die Kennung NICHT ins Protokoll", () => {
     // ⚠️ WER DIE URL HAT, KANN DEM WAECHTER „BACKUP GESUND" MELDEN. Beide unterstuetzten
     // Dienste tragen ihre Kennung IM Pfad (healthchecks.io `/<uuid>`, Uptime Kuma
@@ -2445,15 +2588,8 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     //
     // Dieselbe Klasse wie die Zahlenpruefungen im Sidecar, und dieselbe Reihenfolge:
     // Ziffern, Nullen weg, Laenge, Wert.
-    const quelle = deploySh.slice(
-      deploySh.indexOf("backup_wird_gesund() {"),
-      deploySh.indexOf("\n}\n", deploySh.indexOf("backup_wird_gesund() {")) + 3,
-    );
-    const block = deploySh.slice(
-      deploySh.indexOf("    if docker compose up -d --force-recreate backup; then"),
-      deploySh.indexOf("\n    fi\n", deploySh.indexOf("    if docker compose up -d --force-recreate backup; then")) +
-        "\n    fi\n".length,
-    );
+    const quelle = `${deployFunktion("backup_skripte_neuer_als")}\n${deployFunktion("backup_wird_gesund")}`;
+    const block = schritt8b;
     const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-frist-"));
     writeFileSync(
       path.join(kladde, "docker"),
@@ -2463,6 +2599,7 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
         'if [ "$1" = "compose" ] && [ "$2" = "up" ]; then exit 0; fi',
         'if [ "$1" = "inspect" ]; then',
         '  case "$3" in',
+        '    *StartedAt*) echo "2030-01-01T00:00:00Z" ;;',
         '    *State.Status*) echo running ;;',
         '    *Health*) echo "${GESUND:-healthy}" ;;',
         "  esac",
@@ -2477,7 +2614,7 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
         "bash",
         [
           "-c",
-          `set -euo pipefail\nwarne() { printf '! %s\\n' "$*" >&2; }\n${quelle}\n${block}\necho SCHRITT-9-ERREICHT`,
+          `set -euo pipefail\nmelde() { echo "== $*"; }\nwarne() { printf '! %s\\n' "$*" >&2; }\nSTACK_DIR=${kladde}\n${quelle}\n${block}\necho SCHRITT-9-ERREICHT`,
         ],
         {
           encoding: "utf8",
@@ -2528,17 +2665,31 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // ⚠️ DER HEALTHCHECK KANN DAS ERST SEIT DEM FUND DARUEBER BEANTWORTEN: solange er
     // als root ohne `su-exec` den alten `ok`-Stand aus dem ueberlebenden Volume meldete,
     // waere jedes Warten sofort mit „gesund" zurueckgekommen.
-    const quelle = deploySh.slice(
-      deploySh.indexOf("backup_wird_gesund() {"),
-      deploySh.indexOf("\n}\n", deploySh.indexOf("backup_wird_gesund() {")) + 3,
-    );
+    //
+    // ⚠️ UND SIE HAENGT NICHT AM AUSTAUSCH. Solange sie im `if` des Austauschs stand,
+    // blieb ausgerechnet der wahrscheinlichste Fall ungeprueft: SCHRITT 5 erzeugt den
+    // Container selbst neu, sobald sich Image oder Konfiguration geaendert haben — beim
+    // ERSTEN Rollout dieses Features und nach jeder backup-bezogenen Aenderung in der
+    // `.env`. Danach ist seine Startzeit juenger als beide Skripte, dieser Schritt
+    // tauscht nichts aus, und die einzige Stelle, die gewartet haette, war uebersprungen.
+    const quelle = `${deployFunktion("backup_skripte_neuer_als")}\n${deployFunktion("backup_wird_gesund")}`;
     expect(quelle, "die Warterei steht als eigene Funktion da").toContain("State.Health");
-    const block = deploySh.slice(
-      deploySh.indexOf("    if docker compose up -d --force-recreate backup; then"),
-      deploySh.indexOf("\n    fi\n", deploySh.indexOf("    if docker compose up -d --force-recreate backup; then")) +
-        "\n    fi\n".length,
-    );
-    expect(block, "und der Austausch wertet sie aus").toContain("backup_wird_gesund");
+    const block = schritt8b;
+    expect(block, "und Schritt 8b wertet sie aus").toContain("backup_wird_gesund");
+    // Die Reihenfolge im Quelltext hält, was die Messungen unten prüfen: die Warterei
+    // steht NACH dem `if`, nicht darin. Erst Existenz, dann Reihenfolge.
+    const austausch = block.indexOf("docker compose up -d --force-recreate backup");
+    const zweig = block.indexOf("kein Austausch nötig");
+    const warten = block.indexOf("backup_wird_gesund \"${SUITE_BACKUP_GESUND_FRIST");
+    for (const [wert, was] of [
+      [austausch, "der Austausch"],
+      [zweig, "der Nein-Zweig"],
+      [warten, "die Warterei"],
+    ] as const) {
+      expect(wert, `${was} steht in Schritt 8b`).toBeGreaterThan(-1);
+    }
+    expect(warten, "die Warterei steht hinter BEIDEN Zweigen").toBeGreaterThan(zweig);
+    expect(zweig, "und der Nein-Zweig hinter dem Austausch").toBeGreaterThan(austausch);
     const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-gesund-"));
     // Eine `docker`-Attrappe, die Lage und Gesundheit aus der Umgebung nimmt.
     writeFileSync(
@@ -2546,9 +2697,12 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       [
         "#!/bin/bash",
         'if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then echo "${CID-abc123}"; exit 0; fi',
-        'if [ "$1" = "compose" ] && [ "$2" = "up" ]; then exit "${UPRC:-0}"; fi',
+        'if [ "$1" = "compose" ] && [ "$2" = "up" ]; then echo AUSTAUSCH; exit "${UPRC:-0}"; fi',
         'if [ "$1" = "inspect" ]; then',
         '  case "$3" in',
+        // Vorgabe: der Container ist JUENGER als die Skripte — also der Fall, in dem
+        // dieser Schritt nichts austauscht und frueher gar nicht gewartet haette.
+        '    *StartedAt*) echo "${GESTARTET:-2030-01-01T00:00:00Z}" ;;',
         '    *State.Status*) echo "${LAGE:-running}" ;;',
         '    *Health*) echo "${GESUND:-healthy}" ;;',
         "  esac",
@@ -2558,6 +2712,13 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       ].join("\n"),
     );
     chmodSync(path.join(kladde, "docker"), 0o755);
+    // Die zwei Stack-Dateien, deren ctime `backup_skripte_neuer_als` gegen die Startzeit
+    // des Containers haelt — ohne sie liest `stat` eine 0 und es wird NIE getauscht, der
+    // Fall „Austausch scheitert" prüfte dann nichts.
+    mkdirSync(path.join(kladde, "scripts"), { recursive: true });
+    for (const name of ["backup.sh", "backup-sidecar.sh"]) {
+      writeFileSync(path.join(kladde, "scripts", name), "");
+    }
     const fahre = (umgebung: Record<string, string>) => {
       // ⚠️ Unter `set -euo pipefail` gefahren, wie im Rollout selbst — sonst misst der
       // Fall die Meldung und nicht das, worauf es ankommt: dass Schritt 9 erreicht wird.
@@ -2565,7 +2726,7 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
         "bash",
         [
           "-c",
-          `set -euo pipefail\nwarne() { printf '\\n! %s\\n' "$*" >&2; }\n${quelle}\n${block}\necho SCHRITT-9-ERREICHT`,
+          `set -euo pipefail\nmelde() { echo "== $*"; }\nwarne() { printf '\\n! %s\\n' "$*" >&2; }\nSTACK_DIR=${kladde}\n${quelle}\n${block}\necho SCHRITT-9-ERREICHT`,
         ],
         {
           encoding: "utf8",
@@ -2582,8 +2743,25 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       // Die Neustartschleife — der Fall, um dessentwillen es die Warterei gibt.
       const schleife = fahre({ GESUND: "unhealthy", LAGE: "restarting" });
       expect(schleife.aus, "die Neustartschleife wird benannt").toMatch(/NICHT hoch/);
-      // Ein verschwundener Container ist dasselbe Urteil.
-      expect(fahre({ CID: "" }).aus).toMatch(/NICHT hoch/);
+      // ⚠️ GAR KEIN backup-CONTAINER IST KEINE WARNUNG, sondern eine Auskunft — und das
+      // ist erst seit dem Umbau so: seit die Warterei hinter beiden Zweigen steht,
+      // faengt die Frage nach dem Container sie ab. Ein Stack ohne diesen Dienst soll
+      // bei jedem Rollout nicht melden, dass etwas nicht hochkommt, was es gar nicht
+      // gibt. Der Fall „Container verschwindet MITTEN im Warten" bleibt gedeckt: das
+      // ist dieselbe Rueckgabe wie die Neustartschleife eine Zeile darueber.
+      const ohneDienst = fahre({ CID: "" });
+      expect(ohneDienst.aus, "keine Warnung ohne Dienst").not.toMatch(/NICHT hoch/);
+      expect(ohneDienst.aus).toMatch(/kein laufender backup-Container/);
+      // ⚠️ UND DER FALL, UM DESSENTWILLEN DIE WARTEREI AUS DEM `if` GEWANDERT IST:
+      // Schritt 5 hat den Container schon erneuert, dieser Schritt tauscht nichts aus —
+      // gewartet wird trotzdem. Die Attrappe meldet StartedAt 2030, also juenger als
+      // jedes Skript. GEMESSEN: vorher blieb hier alles still, auch in der
+      // Neustartschleife.
+      const schon = fahre({ GESUND: "unhealthy", LAGE: "restarting" });
+      expect(schon.aus, "kein Austausch in diesem Schritt").toMatch(/kein Austausch nötig/);
+      expect(schon.aus, "und trotzdem gewartet").toMatch(/auf den Healthcheck/);
+      expect(schon.aus, "und die Lage benannt").toMatch(/NICHT hoch/);
+      expect(schon.aus, "wirklich kein `up -d`").not.toMatch(/AUSTAUSCH/);
       // ⚠️ „NOCH IM ANLAUF" IST EIN EIGENER AUSGANG, und das ist keine Feinheit: ein
       // langsamer Paketspiegel gibt sich von selbst, eine Neustartschleife nie. Ein
       // gemeinsames „nicht gesund" verschenkte genau diese Auskunft.
@@ -2592,8 +2770,12 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       expect(anlauf.aus).not.toMatch(/NICHT hoch/);
       // Ohne Healthcheck bleibt „laeuft" die einzige feststellbare Auskunft.
       expect(fahre({ GESUND: "ohne", LAGE: "running" }).aus).toMatch(/meldet sich gesund/);
-      // Und der alte Zweig bleibt, was er war.
-      expect(fahre({ UPRC: "1" }).aus).toMatch(/Austausch des Dienstes/);
+      // Und der alte Zweig bleibt, was er war — hier mit einem ALTEN Container, sonst
+      // taeuscht der Fall sich selbst: ohne Austausch gibt es auch keinen Fehlschlag.
+      expect(
+        fahre({ UPRC: "1", GESTARTET: "2000-01-01T00:00:00Z" }).aus,
+        "der gescheiterte Austausch wird benannt",
+      ).toMatch(/Austausch des Dienstes/);
       // ⚠️ DER TRAGENDE TEIL: KEINER DIESER AUSGAENGE BRICHT DEN ROLLOUT AB. Dieselbe
       // Abwaegung wie beim Austausch selbst — ein Image-Rollback machte einen kaputten
       // Backup-Dienst nicht besser, er verlaengerte nur die Stoerung.
@@ -2602,7 +2784,7 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
         { GESUND: "unhealthy", LAGE: "restarting" },
         { CID: "" },
         { GESUND: "starting", SUITE_BACKUP_GESUND_FRIST: "0" },
-        { UPRC: "1" },
+        { UPRC: "1", GESTARTET: "2000-01-01T00:00:00Z" },
       ];
       for (const umgebung of alleLagen) {
         const lauf = fahre(umgebung);
@@ -2778,17 +2960,11 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
         /WARNUNG:[\s\S]*docker compose up -d --force-recreate backup/,
       );
       // ⚠️ Die Gegenprobe ist die Hälfte der Messung: ohne den Auffangzweig beendet
-      // `set -e` das Skript genau hier — und genau das war der Befund. Seit der
-      // Austausch zusätzlich auf den Healthcheck wartet, ist dieser Zweig ein `else`
-      // statt eines `|| warne`; die Mutation nimmt deshalb das ganze `if` weg und lässt
-      // den nackten Befehl stehen — dieselbe Lage wie vor der Behebung.
+      // `set -e` das Skript genau hier — und genau das war der Befund.
       const roh = deploySh.slice(ab, bis);
-      const aufAb = roh.indexOf("    if docker compose up -d --force-recreate backup; then");
-      expect(aufAb, "der Austausch steht als `if` im Block").toBeGreaterThan(-1);
-      const aufBis = roh.indexOf("\n    fi\n", aufAb) + "\n    fi\n".length;
-      const ohne = lauf(
-        `${roh.slice(0, aufAb)}    docker compose up -d --force-recreate backup\n${roh.slice(aufBis)}`,
-      );
+      const ohneZweig = roh.replace(/ \|\| warne "Der Austausch[\s\S]*?backup"/, "");
+      expect(ohneZweig, "die Mutation greift wirklich").not.toBe(roh);
+      const ohne = lauf(ohneZweig);
       expect(ohne.code, "ohne Auffangzweig bricht der Rollout ab").toBe(1);
       expect(ohne.aus, "und Schritt 9 wird nie erreicht").not.toMatch(/SCHRITT 9 ERREICHT/);
     } finally {
