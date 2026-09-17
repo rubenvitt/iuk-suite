@@ -532,6 +532,47 @@ describe("seedLokalLagerbuch", { timeout: 20_000 }, () => {
       .toEqual(vorher.map((z) => z.verfall));
   });
 
+  it("haengt die Meldung NICHT an fremdes Material in der Kiste", async () => {
+    /*
+     * ⚠️ DIE VIERTE KANTE (Codex zu PR #194). Wer die geseedeten Kompressen
+     * einraeumt und spaeter welche aus einer ANDEREN Einheit hineinlegt, hat
+     * wieder Bestand in der Kiste und keine Meldung daran — die beiden anderen
+     * Proben sagen also beide ja. Der Nachtrag haengte dann die HEUTIGE
+     * RTW-Beobachtung an Material, das nie am RTW war.
+     *
+     * Der Beleg dagegen ist der Abgang: ist aus der Kiste je etwas
+     * herausgebucht worden, steht nicht mehr fest, dass der geseedete Beitrag
+     * noch darin liegt.
+     */
+    await seedLokalLagerbuch(t.db);
+    const boxZeilen = t.db.select().from(buchungen).all()
+      .filter((z) => z.lagerortId === ENTNAHMEBOX_ID && z.menge > 0);
+    expect(boxZeilen.length, "der Seed hat in die Box gebucht").toBeGreaterThan(0);
+
+    // Einraeumen: alles wieder heraus …
+    for (const b of boxZeilen) {
+      t.db.insert(buchungen).values({
+        ...b, id: `${b.id}-raus`, menge: -b.menge, referenz: "einraeumen:sch-1",
+      }).run();
+    }
+    // … und FREMDES Material derselben Art hinein, ohne Meldung.
+    for (const b of boxZeilen) {
+      t.db.insert(buchungen).values({
+        ...b, id: `${b.id}-fremd`, referenz: "entnahmebox:fz-ktw-1",
+      }).run();
+    }
+    t.db.delete(lagerortVerfall)
+      .where(eq(lagerortVerfall.lagerortId, ENTNAHMEBOX_ID)).run();
+
+    await seedLokalLagerbuch(t.db);
+
+    expect(
+      t.db.select().from(lagerortVerfall).all()
+        .filter((z) => z.lagerortId === ENTNAHMEBOX_ID),
+      "fremdes Material bekommt keine RTW-Meldung",
+    ).toEqual([]);
+  });
+
   it("vergibt feste Codes — einen davon gesperrt", async () => {
     const protokoll = await seedLokalLagerbuch(t.db);
 

@@ -652,6 +652,10 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     // MIT der Id: der Pfad des Einheitenblatts traegt sie, ein Pfad ohne sie
     // traefe die Seite nicht.
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    // DIE EINRAEUMSEITE liest ueber `einraeumPosten` denselben Boxinhalt —
+    // samt der gemeldeten Verfallsangabe, die jetzt an ihm haengt. Der
+    // Rueckweg frischt sie laengst auf; der Hinweg tat es nicht.
+    expect(revalidiert).toContain("/m/lagerbuch/auffuellen/box");
   });
 
   it("frischt auch die Verfallsuebersicht und die Einheitenliste auf", async () => {

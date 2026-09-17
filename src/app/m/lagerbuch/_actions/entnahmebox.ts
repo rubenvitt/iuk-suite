@@ -492,7 +492,7 @@ export async function bucheInEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ SECHS PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DES
+       * ⚠️ SIEBEN PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DES
        * URSPRUNGSTICKETS. Der dritte ist das Einheitenblatt (dessen
        * Bestandszahlen sich gerade geaendert haben), der vierte die
        * Verwaltungsuebersicht. Der Helferschirm traegt die Einheit in der URL
@@ -513,8 +513,17 @@ export async function bucheInEntnahmebox(
        * vollen Routen-Cache ab, nicht den Router-Cache im Browser: eine
        * vorgeladene oder gerade verlassene Seite kommt weiter aus ihm, bis sie
        * jemand vollstaendig neu laedt. Genau diese Annahme war die Luecke.
+       *
+       * ⚠️ UND DIE EINRAEUMSEITE GEHOERT DAZU (Codex zu PR #194): sie liest
+       * ueber `einraeumPosten` denselben Boxinhalt, den diese Action gerade
+       * veraendert hat — samt der gemeldeten Verfallsangabe, die jetzt an ihm
+       * haengt. Fehlt der Pfad, zeigt eine vorgeladene Einraeumflaeche das neu
+       * abgegebene Material gar nicht oder ohne seine Warnung, und jemand
+       * raeumt es auf einem veralteten Stand ins Regal. Der Rueckweg frischt
+       * sie laengst auf; der Hinweg tat es nicht.
        */
       revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
+      revalidatePath("/m/lagerbuch/auffuellen/box");
       revalidatePath("/m/lagerbuch/helfer/box");
       revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
       revalidatePath("/m/lagerbuch/verwaltung");

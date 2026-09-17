@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import type { DB } from "../_db/client";
 import {
   artikel,
@@ -884,10 +884,23 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    *   eine Beobachtung, die am RTW gemacht wurde, NACHDEM das Material ihn
    *   verlassen hat.
    *
-   * ⚠️ BEIDE PROBEN SIND ZUSTAENDE, NICHT DIE BUCHUNG. `journalGebucht` sagt
-   * nur, dass der Vorgang EINMAL stattgefunden hat — genau die Auskunft, die
-   * hier dreimal nicht gereicht hat. Was nachgetragen werden soll, ist eine
-   * FEHLENDE Meldung an einer GEFUELLTEN Kiste; beides steht in den Daten.
+   *   NIE ETWAS AUS DER KISTE HERAUSGEBUCHT — sonst traegt der Nachtrag die
+   *   Meldung an FREMDES Material. Wer die geseedeten sechs Kompressen
+   *   einraeumt und spaeter welche aus einer anderen Einheit hineinlegt, hat
+   *   wieder Bestand und keine Meldung: die beiden Proben darueber sagen beide
+   *   ja, und der Nachtrag haengte die heutige RTW-Beobachtung an Material,
+   *   das nie am RTW war.
+   *
+   * ⚠️ DAS IST DIE GENAUESTE ZUORDNUNG, DIE DAS JOURNAL HERGIBT, und die Grenze
+   * gehoert hingeschrieben: eine Buchung sagt, WIEVIEL an einen Ort kam, nicht
+   * WELCHE Packung noch dort liegt. „Seit dem Seed ist nichts herausgegangen"
+   * ist der schaerfste Beleg dafuer, dass der geseedete Beitrag noch da ist —
+   * exakt ist er nicht, er ist nur nie zu grosszuegig.
+   *
+   * ⚠️ ALLE DREI PROBEN SIND ZUSTAENDE, NICHT DIE BUCHUNG. `journalGebucht`
+   * sagt nur, dass der Vorgang EINMAL stattgefunden hat — in jedem der vier
+   * Faelle wahr, die hier nacheinander schiefgingen, und deshalb wertlos als
+   * Riegel.
    *
    * ⚠️ DIESELBE FUNKTION WIE DIE ACTION, nicht zwei nachgebaute Schritte —
    * derselbe Grund, aus dem der Block oben `umlagerungVonOrt` ruft statt zwei
@@ -895,7 +908,14 @@ export async function seedLokalLagerbuch(db: DB): Promise<string[]> {
    * naechsten Griff an diesem Schreibpfad auseinander. */
   const inDerBox = bestandJeArtikelAnOrt(db, ENTNAHMEBOX_ID).get(A.kompresse) ?? 0;
   const boxMeldung = verfallFuerLagerort(db, ENTNAHMEBOX_ID).get(A.kompresse);
-  if (inDerBox > 0 && !boxMeldung) {
+  const jeHerausgebucht = db.select({ id: buchungen.id }).from(buchungen)
+    .where(and(
+      eq(buchungen.lagerortId, ENTNAHMEBOX_ID),
+      eq(buchungen.artikelId, A.kompresse),
+      lt(buchungen.menge, 0),
+    ))
+    .get() !== undefined;
+  if (inDerBox > 0 && !boxMeldung && !jeHerausgebucht) {
     db.transaction((tx) => {
       verfallFolgtDemMaterial(tx, {
         vonLagerortId: RTW, nachLagerortId: ENTNAHMEBOX_ID, artikelId: A.kompresse,
