@@ -21,8 +21,14 @@ import { buildTheme } from "./theme";
  * schwaecher als jede einzelne Modul-Klasse (0,1,0). Eine fruehere Fassung
  * stand auf `:root input` (0,1,1) und ueberstimmte damit `.textfeld` im
  * Abendzettel, der bewusst auf 18px steht (zettel.module.css:628) — ein
- * Fix-Runde-1-Fund. Die einzige Ausnahme ist `.ant-select-selector`: antds
- * eigene Regel dafuer muss geschlagen werden, dafuer braucht sie `:root`.
+ * Fix-Runde-1-Fund. Die einzige Ausnahme ist das antd-Auswahlfeld: antds eigene
+ * `.ant-select`-Regel muss geschlagen werden, dafuer braucht sie `:root`.
+ *
+ * ⚠️ DIESE AUSNAHME HIESZ BIS DRK-190 `.ant-select-selector` — eine Klasse, die
+ * antd 6 nicht mehr rendert. Die Zusicherung darauf war gruen und wirkungslos.
+ * Was HIER geprueft wird, ist deshalb nur noch die halbe Frage (steht die Regel,
+ * ist sie stark genug); ob sie wirkt, misst `selektschrift.test.ts` an antds
+ * tatsaechlich erzeugtem CSS.
  */
 
 const CSS_GLOBAL = readFileSync("src/app/globals.css", "utf8");
@@ -48,14 +54,26 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
     expect(block![2]).toMatch(/font-size:\s*16px/);
   });
 
-  it("hebt .ant-select-selector ueber :root auf 16px — die einzige Stelle, die das braucht", () => {
+  it("hebt das antd-Auswahlfeld ueber :root auf 16px — die einzige Stelle, die das braucht", () => {
+    /*
+     * ⚠️ DIESE ZUSICHERUNG STAND AUF `.ant-select-selector` UND WAR JAHRELANG
+     * GRUEN, OHNE ETWAS ZU PRUEFEN (DRK-190). Die Klasse gibt es seit antd 6
+     * nicht mehr; die bewachte Regel lief ins Leere, und weil hier ein Test
+     * stand, hat sie niemand hinterfragt. Ein Regex ueber eine CSS-Datei kann
+     * das strukturell nicht sehen — er liest den Regeltext, nicht den Baum.
+     *
+     * Was hier bleibt, ist deshalb bewusst nur die halbe Frage: STEHT die
+     * Ausnahme, und ist sie stark genug? Ob sie WIRKT, beantwortet
+     * `selektschrift.test.ts`, indem es ein Auswahlfeld rendert und antds
+     * erzeugtes CSS ausliest. Wer diese Zeile aendert, aendert dort mit.
+     */
     const css = CSS_GLOBAL.replace(/\/\*[\s\S]*?\*\//g, "");
-    // Hier IST :root richtig: antds eigene `.ant-select-selector`-Regel
-    // (0,1,0) muss geschlagen werden, und es gibt kein Modul-Gegenstueck, das
-    // absichtlich darunter liegen wollte.
-    const block = /:root\s+\.ant-select-selector\s*\{([\s\S]*?)\}/.exec(css);
-    expect(block, "Regel `:root .ant-select-selector` fehlt in globals.css").not.toBeNull();
-    expect(block![1]).toMatch(/font-size:\s*16px/);
+    // Hier IST :root richtig: antds eigene `.ant-select`-Regel (0,1,0) muss
+    // geschlagen werden, und es gibt kein Modul-Gegenstueck, das absichtlich
+    // darunter liegen wollte.
+    const block = /:root\s+\.ant-select\s*\{([\s\S]*?)\}/.exec(css);
+    expect(block, "Regel `:root .ant-select` fehlt in globals.css").not.toBeNull();
+    expect(block![1]).toMatch(/--ant-select-font-size:\s*16px/);
   });
 
   it("gibt den Select-Optionen 16px (die CSS-Regel erreicht sie nicht — kein input)", () => {
@@ -129,8 +147,12 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
       for (const treffer of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
         const selektor = treffer[1];
         const koerper = treffer[2];
-        if (!/\b(input|textarea|select)\b|\.ant-select-selector/.test(selektor)) continue;
-        const groesse = /font-size:\s*(\d+)px/.exec(koerper);
+        if (!/\b(input|textarea|select)\b|\.ant-select\b/.test(selektor)) continue;
+        // `--ant-select-font-size` MIT: das Auswahlfeld traegt seine Groesze
+        // seit DRK-191 ueber diese Variable, nicht ueber ein `font-size`. Ohne
+        // die Alternative liefe der Scan an der einzigen Stelle vorbei, die er
+        // pruefen soll.
+        const groesse = /(?:--ant-select-)?font-size:\s*(\d+)px/.exec(koerper);
         if (groesse && Number(groesse[1]) < 16) {
           verstoesse.push(`${pfad}: ${selektor.trim()} -> ${groesse[1]}px`);
         }

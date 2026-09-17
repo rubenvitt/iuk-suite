@@ -884,12 +884,21 @@ Mobile Feldschrift: gilt inzwischen **suiteweit** und ohne Breakpoint. Die modul
 `app/globals.css` hält mit `input, textarea, select` eine **Untergrenze** für eigenes Markup —
 bewusst niedrig spezifisch, damit Modul-CSS sie nach oben überschreiben darf (der Abendzettel setzt
 `.textfeld` auf 18px und behält das) — und `core/theme/theme.ts` gibt den antd-Feldern
-`inputFontSize: 16`. Nur `.ant-select-selector` braucht in CSS erhöhte Spezifität, weil antd dafür
-keinen Token anbietet.
+`inputFontSize: 16`. Nur das antd-Auswahlfeld braucht in CSS erhöhte Spezifität, weil antd dafür
+keinen brauchbaren Token anbietet.
+
+⚠️ **Diese Ausnahme stand bis DRK-190 auf `.ant-select-selector` — eine Klasse, die antd 6 nicht mehr
+rendert.** Sie lief also ins Leere, und weil ein Test ihren Regeltext bewachte, hat sie niemand
+hinterfragt: die 16px-Zusage sah für jedes Auswahlfeld der Suite erfüllt aus, ohne es zu sein. Heute
+setzt `globals.css` dem Feld `--ant-select-font-size`, `--ant-select-line-height` und
+`--ant-select-font-height` (16px / 1.5 / 24px). **Alle drei gehören zusammen:** `.ant-select` trägt
+keine `height`, sondern rechnet sie aus Schrift- und Zeilenhöhe — eine gehobene Schriftgröße allein
+macht jedes Auswahlfeld 3px höher als sein Nachbarfeld.
 
 Die Begründung hat sich dabei umgedreht: früher war 16px die Abwehr gegen iOS' Auto-Zoom beim Fokus,
 seit der suiteweiten Zoom-Sperre (`app/layout.tsx`) ist es reine Lesbarkeit — ohne Zoom kann niemand
-mehr heranholen, was zu klein ist. Festgehalten in `core/theme/feldschrift.test.ts`.
+mehr heranholen, was zu klein ist. Festgehalten in `core/theme/feldschrift.test.ts` (steht die Regel)
+und `core/theme/selektschrift.test.ts` (wirkt sie — gemessen an antds erzeugtem CSS).
 
 ### 4.15 Änderungen an Actions und Queries (vollständig)
 

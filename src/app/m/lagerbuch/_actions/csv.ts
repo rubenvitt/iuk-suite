@@ -1,15 +1,13 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { revalidatePath } from "next/cache";
 import { getDb, type DB } from "../_db/client";
 import { artikel, buchungen, chargen, newId } from "../_db/schema";
 import type { ActionErgebnis } from "../_lib/actionErgebnis";
 import { parseArtikelCsv } from "../_lib/csv";
 import { CHARGE_OHNE_VERFALL, HANDLAGER_ID, PSEUDO_VERFALL } from "../_lib/konstanten";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
-
-const LISTENPFAD = "/m/lagerbuch/verwaltung/artikel";
 
 /**
  * Jede gueltige CSV-Zeile hat ihre eigene Transaktion. Ein defekter Datensatz
@@ -71,7 +69,13 @@ export async function importArtikelCsv(
       }
     }
 
-    revalidatePath(LISTENPFAD);
+    /*
+     * ⚠️ HIER STAND BIS DRK-374 EIN EINZIGER PFAD — die Artikelliste. Der
+     * Import legt Artikel an UND bucht ihren Startbestand als Korrektur; er ist
+     * damit der Schreiber, dessen alte Liste am weitesten von dem entfernt war,
+     * was er tatsaechlich aendert.
+     */
+    revalidiereBestand();
     return { ok: true, wert: { angelegt, fehler } };
   });
 }

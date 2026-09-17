@@ -45,6 +45,7 @@ vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
 }));
 
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
 import { inventurKorrektur } from "./inventur";
 
 const VIEWER = {
@@ -54,11 +55,16 @@ const VIEWER = {
   email: null,
 };
 const JETZT = new Date("2026-07-15T10:00:00Z");
+/**
+ * ⚠️ BIS DRK-374 STANDEN HIER VIER PFADE. Die Inventur schreibt Korrektur- und
+ * Umlagerungszeilen wie jeder andere Bestandsschreiber; sie nimmt seither die
+ * modulweite Liste (Sollwert woertlich in `_lib/revalidierung.test.ts`). NEBEN
+ * ihr bleibt nur der Inventurverlauf — kein Bestand, sondern die Historie der
+ * Laeufe, und die aendert allein diese Action.
+ */
 const ERFOLGS_PFADE = [
-  "/m/lagerbuch/verwaltung/inventur",
+  ...BESTANDSFLAECHEN,
   "/m/lagerbuch/verwaltung/inventur/verlauf",
-  "/m/lagerbuch/verwaltung/artikel",
-  "/m/lagerbuch/verwaltung",
 ];
 
 let t: TestDb;
