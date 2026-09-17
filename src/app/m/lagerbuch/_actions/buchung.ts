@@ -457,7 +457,11 @@ const HelferEntnahmeSchema = z.object({
 
 /**
  * DER HELFER-WEG. Einziger Aufrufer: `_ui/Entnahme.tsx` (Teil 4, §7.2) — und
- * zwar als PROP aus `a/[artikelId]/page.tsx`, nicht per Import in der Insel.
+ * zwar per DIREKTEM IMPORT in der Insel (DRK-375). Bis dahin kam sie als PROP
+ * aus `a/[artikelId]/page.tsx`; die Begruendung war eine Reihenfolge und ist
+ * abgelaufen. Falle 9 (`AGENTS.md`/`CLAUDE.md`): „Server Actions duerfen als
+ * einzige ueber die Grenze — aber direkt importiert, nicht als Prop
+ * durchgereicht."
  *
  * `requireHelferSchreibend` prueft Sitzung UND Sperrbefund (Teil 2, T25): ein
  * gesperrter Code liest im Bestand bis zu 12 Stunden weiter und darf hier auf
