@@ -1,0 +1,79 @@
+/*
+ * FREITEXT IN EINER TABELLENZELLE BRAUCHT EINE BREITE — DRK-372.
+ *
+ * Die Begründung steht in `Zellentext.tsx`; hier steht nur, was CSS davon
+ * ausführt.
+ *
+ * ⚠️ `max-width` AN EINEM NACKTEN `<span>` TUT NICHTS, und das ist die stille
+ * Hälfte dieser Regel. `max-width` gilt laut CSS 2.1 §10.4 für alles AUSSER
+ * nicht-ersetzten Inline-Elementen — ein `<span>` ohne eigenes `display` ist
+ * genau das. Die Deklaration steht dann richtig da, der Browser verwirft sie,
+ * und die Spalte wächst weiter mit ihrem längsten Satz. Genau so lag es in
+ * `files` (`.hinweistext`, `max-width: 32ch` an einem `<span>` in der Tabelle
+ * und an einem `<p>` in der Karte): in der Karte wirkte sie, in der Tabelle
+ * nie. Deshalb steht `display` HIER und nicht beim Aufrufer.
+ *
+ * ⚠️ NICHT `ellipsis: true` AN DER SPALTE. rc-table schaltet die ganze Tabelle
+ * dann auf `table-layout: fixed` (`lib/Table.js:426-442`, ausgeschrieben in
+ * `docs/design/README.md`) und verteilt ALLE Spalten gleichmäßig — das
+ * Desktop-Bild ändert sich, ohne dass irgendwo etwas überläuft. Eine Klasse an
+ * der ZELLE deckelt nur diese eine Spalte und lässt den Rest in Ruhe.
+ */
+.zellentext {
+  /*
+   * `inline-block` und nicht `block`: die Zelle trägt manchmal noch einen Chip
+   * daneben (`bz/BzListe.tsx`, Spalte „Beachtung"), und ein Block risse ihn in
+   * die nächste Zeile. Für `max-width` reicht beides gleich gut — es muss nur
+   * überhaupt ein Kasten sein.
+   */
+  display: inline-block;
+  /*
+   * 40ch ist eine LESEBREITE und liegt deshalb auf keiner Abstandsskala.
+   * In `ch` und nicht in Pixeln, weil sie an der Schrift hängt und nicht am
+   * Raster: bei 14px sind das gemessene 356px — in Sichtweite der 320px, die
+   * DRK-311 an der Geräteliste festgelegt hat —, und wo ein Modul kleiner oder
+   * größer setzt, bleibt es dieselbe Anzahl ZEICHEN statt derselben Anzahl
+   * Pixel.
+   *
+   * GEMESSEN (echter Chromium, 1280×720, derselbe 204-Zeichen-Satz in einer
+   * dreispaltigen `width: max-content`-Tabelle):
+   *
+   *   nur `max-width: 40ch` am `<span>`   Zelle 1482px   Tabelle 1637px
+   *   `.zellentext`                       Zelle  356px   Tabelle  511px
+   *
+   * Die erste Zeile ist der stille Fall von oben: die Regel steht da und wirkt
+   * nicht.
+   */
+  max-width: 40ch;
+  /*
+   * Ein Wort ohne Leerzeichen — eine lange Seriennummer, eine eingeklebte URL —
+   * sprengte den Deckel sonst trotzdem, weil es nicht umbrechen kann.
+   */
+  overflow-wrap: anywhere;
+}
+
+/*
+ * ⚠️ DIE HÖHE ZU DECKELN IST EINE ZWEITE ENTSCHEIDUNG, und sie gehört nur
+ * dorthin, wo der volle Text NOCH WOANDERS ungekürzt steht. `overflow: hidden`
+ * schneidet für das Auge ab; im DOM (und damit für eine Vorleseanwendung)
+ * bleibt der Satz vollständig, auf dem Telefon ist er trotzdem nicht zu lesen,
+ * denn `title` braucht einen Zeiger. Auf einer Nachweisfläche — Logbuch,
+ * Journal, Messungsverlauf — ist das die falsche Wahl; dort deckelt allein die
+ * Breite.
+ */
+.gekuerzt {
+  /*
+   * `-webkit-box` ist die einzige Bauform, in der `-webkit-line-clamp`
+   * greift — und sie ist ebenfalls ein Kasten, `max-width` gilt also weiter.
+   */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  /*
+   * ⚠️ FÄLLT DIE VARIABLE AUS, FÄLLT DIE DECKELUNG WEG — nicht die Breite.
+   * Der Rückfall ist damit „alles zu sehen, nur schmal", nie „still
+   * abgeschnitten". Die Zahl setzt `Zellentext` aus seiner `zeilen`-Prop.
+   */
+  -webkit-line-clamp: var(--zellentext-zeilen);
+  line-clamp: var(--zellentext-zeilen);
+  overflow: hidden;
+}

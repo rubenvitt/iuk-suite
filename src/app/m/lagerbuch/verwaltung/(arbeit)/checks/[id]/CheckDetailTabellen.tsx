@@ -10,6 +10,7 @@ import {
   nachZahl,
   trifftWert,
   werteAlsFilter,
+  Zellentext,
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
@@ -263,10 +264,19 @@ function geraeteSpalten(
       render: (zustandChip: DetailChipAnzeige) => <AnzeigeChip chip={zustandChip} />,
     },
     {
+      /*
+       * ⚠️ EINE BREITE (DRK-372). Die Bemerkung einer Geraetepruefung ist
+       * Freitext ohne Laengengrenze, die Tabelle faehrt `scroll.x:
+       * "max-content"` — EIN langer Satz macht sie beliebig breit, und das
+       * Symptom fuehrt in die Irre: die Zeile sieht richtig aus, sie steht nur
+       * sehr weit rechts. Ohne `zeilen`, weil dieses Blatt der Nachweis ist.
+       */
       title: "Bemerkung",
       dataIndex: "bemerkungText",
       key: "bemerkung",
-      render: (text: string) => <span style={SCHRIFT.neben}>{text}</span>,
+      render: (text: string) => (
+        <Zellentext text={text} style={SCHRIFT.neben} />
+      ),
     },
   ];
 }

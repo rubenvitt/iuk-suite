@@ -1,7 +1,7 @@
 "use client";
 
 import type { TableProps } from "antd";
-import { Datentabelle, type Filterwert } from "@/core/tabelle";
+import { Datentabelle, type Filterwert, Zellentext } from "@/core/tabelle";
 import type { AmpelTon } from "../../../../_lib/format";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
@@ -138,10 +138,28 @@ const LOGBUCH_SPALTEN = [
     render: (text: string) => <Chip ton="grau">{text}</Chip>,
   },
   {
+    /*
+     * ⚠️ DER KOMMENTAR BRAUCHT EINE BREITE (DRK-372). Er ist ein Nachweisfeld
+     * ohne Laengengrenze (`bz_kontrollen.kommentar`, kein `max` auf dem
+     * Schreibpfad), die Tabelle faehrt `scroll.x: "max-content"` — EIN langer
+     * Satz aus dem Altbestand macht sie beliebig breit. Das Symptom fuehrt in
+     * die Irre: die Zeile sieht richtig aus, sie steht nur sehr weit rechts.
+     *
+     * ⚠️ OHNE `zeilen`, ANDERS ALS IN DER GERAETELISTE. Dieses Logbuch IST die
+     * Stelle, an der der volle Text ungekuerzt lesbar sein muss — die Liste
+     * unter `/verwaltung/bz` kuerzt ihre Bemerkung ausdruecklich auf DIESE
+     * Flaeche hin. Eine Hoehendeckelung hier naehme der Suite den einzigen Ort,
+     * an dem der Nachweis vollstaendig zu LESEN ist (`title` braucht einen
+     * Zeiger und hilft auf dem Telefon nicht).
+     */
     title: "Kommentar",
     dataIndex: "kommentarText",
     key: "kommentar",
-    render: (text: string | null) => text ?? <span style={SCHRIFT.neben}>—</span>,
+    render: (text: string | null) => (
+      text === null
+        ? <span style={SCHRIFT.neben}>—</span>
+        : <Zellentext text={text} />
+    ),
   },
 ] satisfies TableProps<BzLogbuchAnzeigeZeile>["columns"];
 
