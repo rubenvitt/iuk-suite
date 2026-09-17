@@ -71,6 +71,32 @@ export default defineConfig({
    * Test sofort sehen und nicht hinter einem stillen zweiten Versuch.
    */
   retries: process.env.CI ? 2 : 0,
+  /*
+   * IN DER CI `list` STATT DER VORGABE `dot` — und das ist keine Geschmacksfrage,
+   * sondern die Voraussetzung dafuer, die Gruppen in `e2e/gruppen.json` nach
+   * LAUFZEIT schneiden zu koennen statt nach Fallzahl.
+   *
+   * Playwright waehlt auf `CI` von sich aus `dot`: ein Punkt je Fall, am Ende
+   * eine Summe. Damit steht im Protokoll, WIE LANGE eine Gruppe lief, aber
+   * nirgends, WELCHE Datei die Zeit verbraucht hat. DRK-407 hat die
+   * lagerbuch-Gruppen deshalb nach Fallzahl balanciert (66/66/64) — das einzige
+   * Mass, das ein Punkt hergibt — und das Ergebnis war 4:42 / 8:15 / 4:59:
+   * 75 % Spreizung bei gleicher Fallzahl. Fallzahl ist kein Mass fuer Laufzeit.
+   *
+   * ⚠️ LOKAL ZU MESSEN IST KEIN ERSATZ, und der Versuch kostet einen halben Tag:
+   * die Suite faehrt gegen `next dev` auf kaltem `.next` (Kopfkommentar am
+   * `timeout` oben) — auf einer kleineren Maschine laufen die Anmeldungen in
+   * ihre Grenze, und was dann als „Laufzeit" in der Auswertung steht, ist
+   * Ausfallzeit. Gemessen in einem 4-Kern-Container: 10 von 11 fertigen Faellen
+   * rot mit `page.waitForURL: Timeout 45000ms`. Die belastbaren Zahlen stehen
+   * dort, wo die Suite ohnehin taeglich laeuft.
+   *
+   * Der Preis ist eine Zeile Protokoll je Fall statt eines Punktes — bei der
+   * groessten Gruppe rund 190 Zeilen. Dafuer traegt jeder gruene Lauf die Zahlen
+   * fuer den naechsten Schnitt, ohne dass jemand eigens dafuer einen Lauf
+   * anstossen muss.
+   */
+  reporter: process.env.CI ? "list" : undefined,
   use: {
     baseURL: "http://portal.localtest.me:3100",
     /*
