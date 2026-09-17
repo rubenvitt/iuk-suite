@@ -711,9 +711,18 @@ describe("TokenTable — Aktionen (8-F: nur noch Sperren)", () => {
     await clickElement(knopf);
     await warte();
 
-    // ⚠️ DIE ORT-ID WANDERT, NICHT DIE TOKEN-ID. Die Action erzeugt für einen
-    // ORT neu; eine Token-Id sagte nicht, welche Karte gemeint ist.
-    expect(mocks.setzeOrtCodeZurueck.mock.calls).toEqual([[{ ortId: "rtw-1" }]]);
+    /*
+     * ⚠️ DIE ORT-ID WANDERT, NICHT DIE TOKEN-ID. Die Action erzeugt für einen
+     * ORT neu; eine Token-Id sagte nicht, welche Karte gemeint ist.
+     *
+     * ⚠️ UND DER CODE WANDERT MIT — der Riegel gegen den Wettlauf zweier
+     * Verwaltender (gefunden in der Durchsicht). Er ist der Code, der auf
+     * DIESEM Schirm stand; ohne ihn setzte die Action „den gerade aktiven"
+     * zurück und damit im Wettlauf den, den die andere Seite eben erzeugt hat.
+     * Fällt das Feld hier weg, bleibt der Server grün und die Sperre wirkungslos.
+     */
+    expect(mocks.setzeOrtCodeZurueck.mock.calls)
+      .toEqual([[{ ortId: "rtw-1", bisher: "111-111" }]]);
     expect(query("[data-testid='lb-token-neuer-code']").textContent)
       .toContain("999-999");
   });

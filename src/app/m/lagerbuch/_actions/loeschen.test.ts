@@ -1117,4 +1117,30 @@ describe("DRK-406 — Ortscodes blockieren ihre eigene Einheit nicht", () => {
       expect(zeile.aktiv).toBe(false);
     }
   });
+
+  /**
+   * ⚠️ EIN SCHON ERSETZTER CODE BEHAELT SEINEN TAG — gefunden in der
+   * Durchsicht. Das `UPDATE` beim Loeschen trifft ALLE Codes des Ortes; mit
+   * einem gemeinsamen `set` haette es das `ersetztAm` der laengst
+   * zurueckgesetzten Vorgaenger auf den LOESCHTAG ueberschrieben. Die Liste
+   * naennte dann fuer ein altes Foto einen Tag, an dem es schon lange nicht
+   * mehr galt — und genau diese Frage soll der Zeitstempel beantworten.
+   */
+  it("ueberschreibt ein frueheres Ersetzt-Datum beim Loeschen nicht", async () => {
+    const id = fahrzeugAnlegen();
+    const frueher = new Date("2026-01-02T03:04:05.000Z");
+    const verbrannt = tokenAnlegen({
+      code: "900-703", ortId: id, zielTyp: "fahrzeug", zielId: id, aktiv: false,
+    });
+    t.db.update(tokens).set({ ersetztAm: frueher }).where(eq(tokens.id, verbrannt)).run();
+    const jetzt = tokenAnlegen({ code: "900-704", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+
+    expect(t.db.select().from(tokens).where(eq(tokens.id, verbrannt)).get()!.ersetztAm)
+      .toEqual(frueher);
+    // Der bis eben aktive bekommt seinen Tag jetzt — er hatte noch keinen.
+    expect(t.db.select().from(tokens).where(eq(tokens.id, jetzt)).get()!.ersetztAm)
+      .toBeInstanceOf(Date);
+  });
 });

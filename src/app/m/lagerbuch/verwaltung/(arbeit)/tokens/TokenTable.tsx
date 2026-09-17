@@ -30,8 +30,18 @@ const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
 
 export type ZielFilter = "fahrzeug" | "artikel" | "liste";
 
-/** DRK-406: „gehört einer Karte" gegen „von Hand angelegt". */
-export type ArtFilter = "ortscode" | "altbestand";
+/**
+ * DRK-406 — DREI HERKUENFTE, nicht zwei.
+ *
+ * ⚠️ „gehoert einer Karte" gegen „von Hand angelegt" waere die naheliegende
+ * Zweiteilung und hat einen blinden Fleck, gefunden in der Durchsicht: der
+ * Code einer GELOESCHTEN Einheit hat keine `ortId` mehr (beim Loeschen muss
+ * die Bindung fallen, Fremdschluessel) und saehe damit aus wie ein laminiertes
+ * Kaertchen von Hand. Falsch waere das ausgerechnet in dem Moment, in dem
+ * jemand mit einem alten Foto am Tresen steht — also genau dann, wenn diese
+ * Spalte gebraucht wird.
+ */
+export type ArtFilter = "ortscode" | "entfallen" | "altbestand";
 
 export type TokenAnzeigeZeile = {
   id: string;
@@ -76,7 +86,10 @@ export function zielVon(z: TokenAnzeigeZeile): ZielFilter {
 }
 
 export function artVon(z: TokenAnzeigeZeile): ArtFilter {
-  return z.ortId === null ? "altbestand" : "ortscode";
+  if (z.ortId !== null) return "ortscode";
+  // `ersetztText` ueberlebt den Verlust der `ortId` und ist die einzige Spur,
+  // die einen entfallenen Ortscode noch von Altbestand unterscheidet.
+  return z.ersetztText !== null ? "entfallen" : "altbestand";
 }
 
 /**
@@ -130,6 +143,7 @@ const ZIEL_TEXT: Record<ZielFilter, string> = {
 
 const ART_TEXT: Record<ArtFilter, string> = {
   ortscode: "Ortscode",
+  entfallen: "Ort gelöscht",
   altbestand: "Von Hand angelegt",
 };
 
@@ -241,7 +255,7 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
     setNeuerCode(null);
     startTransition(async () => {
       try {
-        const ergebnis = await setzeOrtCodeZurueck({ ortId: zeile.ortId });
+        const ergebnis = await setzeOrtCodeZurueck({ ortId: zeile.ortId, bisher: zeile.code });
         if (!ergebnis.ok) {
           setFehler(ergebnis.fehler);
           return;
@@ -275,18 +289,24 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
       sorter: nachText<TokenAnzeigeZeile>((zeile) => zeile.ortName ?? ""),
       filters: [
         { text: ART_TEXT.ortscode, value: "ortscode" },
+        { text: ART_TEXT.entfallen, value: "entfallen" },
         { text: ART_TEXT.altbestand, value: "altbestand" },
       ],
       onFilter: (wert: Filterwert, zeile: TokenAnzeigeZeile) => artVon(zeile) === wert,
       render: (_wert: unknown, zeile) =>
         zeile.ortName === null ? (
           /*
-           * ⚠️ DER ALTBESTAND BEKOMMT EINEN NAMEN, KEIN „—". Ein Strich sähe
-           * nach fehlenden Daten aus und lüde dazu ein, ihn „reparieren" zu
-           * wollen. Diese Codes sind vollständig; sie gehören nur keiner Karte,
-           * und genau das sagt die Beschriftung.
+           * ⚠️ EIN NAME, KEIN „—". Ein Strich sähe nach fehlenden Daten aus und
+           * lüde dazu ein, ihn „reparieren" zu wollen. Diese Codes sind
+           * vollständig; sie gehören nur keiner Karte, und genau das sagt die
+           * Beschriftung.
+           *
+           * ⚠️ UND SIE SAGT, WELCHE VON BEIDEN ES IST. „Von Hand angelegt" an
+           * einem Code, dessen Einheit jemand gelöscht hat, wäre eine falsche
+           * Auskunft über seine Herkunft — und zwar an der Stelle, an der man
+           * sie nachschlägt.
            */
-          <Chip ton="grau" zeichen="schluessel">{ART_TEXT.altbestand}</Chip>
+          <Chip ton="grau" zeichen="schluessel">{ART_TEXT[artVon(zeile)]}</Chip>
         ) : (
           <div>
             <div>{zeile.ortName}</div>

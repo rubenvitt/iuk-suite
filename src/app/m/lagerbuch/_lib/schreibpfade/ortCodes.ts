@@ -161,12 +161,31 @@ export function stelleOrtCodeSicher(
   ort: EtikettOrtZeile,
   ausstellerSub: string,
 ): string | null {
-  const vorhanden = aktiverOrtCode(db, ort.id);
-  if (vorhanden) return vorhanden;
+  /*
+   * ⚠️ ALLE DREI ZUGRIFFE LIEGEN IM `try`, UND DAS IST DER GANZE VERTRAG —
+   * gefunden in der Durchsicht, nachdem der erste Anlauf nur das `INSERT`
+   * abgesichert hatte. Auch eine LESENDE Abfrage wirft, wenn die Datenbank
+   * gerade gesperrt ist (`SQLITE_BUSY`), und die erste stand davor. Sie ist
+   * damit der wahrscheinlichste Wurf von allen: sie laeuft unmittelbar nach dem
+   * `INSERT` der Einheit, also genau dann, wenn der Schreiber noch haelt.
+   *
+   * ⚠️ AUCH DER RUECKFALL IM `catch` IST EINE ABFRAGE und kann dasselbe tun. Ein
+   * `catch`, das selbst wirft, hebt den Vertrag auf, ohne dass es auffiele —
+   * `createFahrzeug` ruft diese Funktion ausserhalb seines eigenen `try`, und
+   * ein durchgeschlagener Wurf meldete der Bedienenden einen Fehlschlag,
+   * NACHDEM die Einheit schon stand. Der zweite Versuch legte sie ein zweites
+   * Mal an.
+   */
   try {
+    const vorhanden = aktiverOrtCode(db, ort.id);
+    if (vorhanden) return vorhanden;
     return legeAn(db, ort, ausstellerSub);
   } catch {
-    return aktiverOrtCode(db, ort.id);
+    try {
+      return aktiverOrtCode(db, ort.id);
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -248,17 +267,45 @@ export function stelleOrtCodesSicher(db: DB, ausstellerSub: string, name: string
  */
 class ZiehungErschoepft extends Error {}
 
+/**
+ * ⚠️ DER ZWEITE AUSGANG, UND ER IST KEIN FEHLER: der Code, den die Bedienende
+ * VOR SICH SIEHT, ist nicht mehr der aktive. Gefunden in der Durchsicht.
+ * Zwei Verwaltende (oder zwei Tabs) auf derselben Karte serialisiert SQLite
+ * sauber — nur sperrte der zweite Durchlauf dann den Code, den der erste
+ * gerade erzeugt hat, und die erste Oberflaeche zeigte stolz eine Zahl, die
+ * schon wieder verbrannt war. Die naechste gedruckte Karte fuehrte ins Leere.
+ */
+export class StandVeraltet extends Error {}
+
+/**
+ * ⚠️ `bisher` IST DER CODE, DEN DIE BEDIENENDE GESEHEN HAT — nicht „der
+ * aktive". Der Unterschied ist die ganze Absicht: ein `WHERE aktiv = 1` allein
+ * traefe immer irgendetwas und damit im Wettlauf das Falsche. Mit dem Code als
+ * Bedingung sperrt dieser Aufruf genau die Zeile, auf die sich die Rueckfrage
+ * im Bildschirm bezog — oder gar keine, und dann ist der Stand veraltet.
+ */
 export function setzeOrtCodeNeu(
   db: DB,
   ort: EtikettOrtZeile,
   ausstellerSub: string,
+  bisher: string,
 ): string | null {
   try {
     return db.transaction((tx) => {
-      tx.update(tokens)
+      const gesperrt = tx.update(tokens)
         .set({ aktiv: false, ersetztAm: new Date() })
-        .where(and(eq(tokens.ortId, ort.id), eq(tokens.aktiv, true))!)
+        .where(and(
+          eq(tokens.ortId, ort.id),
+          eq(tokens.aktiv, true),
+          eq(tokens.code, bisher),
+        )!)
         .run();
+      /*
+       * ⚠️ DER WURF MUSS INNERHALB DER TRANSAKTION STEHEN, sonst bleibt die
+       * halbe Arbeit stehen — dieselbe Falle wie bei `ZiehungErschoepft`
+       * darunter: better-sqlite3 rollt nur bei einem WURF zurueck.
+       */
+      if (gesperrt.changes !== 1) throw new StandVeraltet();
       const code = legeAn(tx as unknown as DB, ort, ausstellerSub);
       if (!code) throw new ZiehungErschoepft();
       return code;
@@ -266,10 +313,10 @@ export function setzeOrtCodeNeu(
   } catch (e) {
     /*
      * NUR DIESE EINE KLASSE. Jeder andere Wurf — eine verletzte Eindeutigkeit,
-     * ein Datenbankfehler — fällt an den Aufrufer durch und wird dort zu einer
-     * anderen Meldung. Ein `catch`, das alles schluckt, machte aus einem
-     * defekten Schreibpfad ein stilles „bitte erneut versuchen", das nie
-     * gelingt.
+     * ein Datenbankfehler, ein veralteter Stand — fällt an den Aufrufer durch
+     * und wird dort zu einer anderen Meldung. Ein `catch`, das alles schluckt,
+     * machte aus einem defekten Schreibpfad ein stilles „bitte erneut
+     * versuchen", das nie gelingt.
      */
     if (e instanceof ZiehungErschoepft) return null;
     throw e;

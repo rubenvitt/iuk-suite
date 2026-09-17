@@ -352,6 +352,21 @@ export async function loescheElement(
              */
             tx.update(tokens)
               .set({ aktiv: false, ortId: null, ersetztAm: new Date() })
+              .where(and(eq(tokens.ortId, i), isNull(tokens.ersetztAm))!)
+              .run();
+            /*
+             * ⚠️ ZWEI ANWEISUNGEN, UND DIE TRENNUNG IST DER AUDITWERT DER
+             * SPALTE — gefunden in der Durchsicht. Das `UPDATE` darueber trifft
+             * ALLE Codes dieses Ortes, auch die laengst zurueckgesetzten
+             * Vorgaenger; mit einem gemeinsamen `set` haette es deren
+             * `ersetztAm` auf den Loeschtag ueberschrieben. Die Liste naennte
+             * dann fuer ein altes Foto einen Tag, an dem es laengst nicht mehr
+             * galt — und genau diese Frage soll der Zeitstempel beantworten.
+             * Die erste Anweisung setzt ihn nur, wo noch keiner steht; die
+             * zweite loest die Bindung fuer alle.
+             */
+            tx.update(tokens)
+              .set({ aktiv: false, ortId: null })
               .where(eq(tokens.ortId, i))
               .run();
             // ⚠️ OHNE `eq(lagerorte.typ, "fahrzeug")`, UND DAS IST DER FIX VON

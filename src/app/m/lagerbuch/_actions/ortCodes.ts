@@ -6,7 +6,7 @@ import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { type ActionErgebnis } from "../_lib/actionErgebnis";
 import { etikettOrt } from "../_lib/lesepfade/ortEtiketten";
-import { setzeOrtCodeNeu } from "../_lib/schreibpfade/ortCodes";
+import { setzeOrtCodeNeu, StandVeraltet } from "../_lib/schreibpfade/ortCodes";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -29,8 +29,25 @@ const ORT_FEHLER = "Zu dieser Adresse gehört keine Ortskarte.";
 const CODE_FEHLER =
   "Es konnte kein freier Code erzeugt werden — bitte erneut versuchen.";
 const ZURUECKSETZEN_FEHLER = "Der Code konnte nicht neu erzeugt werden.";
+/*
+ * ⚠️ KEIN FEHLER, SONDERN EIN UEBERHOLTER STAND — gefunden in der Durchsicht.
+ * Zwei Verwaltende auf derselben Karte: der zweite Klick haette den Code
+ * gesperrt, den der erste gerade erzeugt hat. §11.7 — der abgelehnte Weg nennt
+ * den Weg, der bleibt.
+ */
+const VERALTET_FEHLER =
+  "Für diesen Ort gilt inzwischen ein anderer Code — jemand war schneller. "
+  + "Lade die Liste neu und sieh nach, bevor du erneut zurücksetzt.";
 
-const ZuruecksetzenSchema = z.object({ ortId: z.string().min(1) });
+/*
+ * ⚠️ `bisher` IST PFLICHT, und das ist der Riegel gegen den Wettlauf: die
+ * Aktion setzt nicht „den aktiven Code" zurueck, sondern GENAU DEN, der auf dem
+ * Bildschirm stand, von dem der Klick kam.
+ */
+const ZuruecksetzenSchema = z.object({
+  ortId: z.string().min(1),
+  bisher: z.string().min(1),
+});
 
 /**
  * @returns Der NEUE Code. Er wandert zurück an die Oberfläche, weil die
@@ -60,8 +77,9 @@ export async function setzeOrtCodeZurueck(
 
     let code: string | null;
     try {
-      code = setzeOrtCodeNeu(db, ort, viewer.sub);
-    } catch {
+      code = setzeOrtCodeNeu(db, ort, viewer.sub, geparst.data.bisher);
+    } catch (e) {
+      if (e instanceof StandVeraltet) return { ok: false, fehler: VERALTET_FEHLER };
       return { ok: false, fehler: ZURUECKSETZEN_FEHLER };
     }
     /*

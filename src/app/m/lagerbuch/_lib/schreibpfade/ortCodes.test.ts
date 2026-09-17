@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../../_db/testdb";
+import type { DB } from "../../_db/client";
 import { lagerorte, tokens } from "../../_db/schema";
 import { HANDLAGER_ID } from "../konstanten";
 import { TOKEN_ALPHABET, TOKEN_ZIEHUNGEN, TOKEN_ZIFFERN } from "../tokenForm";
@@ -34,7 +35,7 @@ vi.mock("nanoid", async () => {
 });
 
 import {
-  aktiverOrtCode, setzeOrtCodeNeu, stelleOrtCodeSicher, stelleOrtCodesSicher,
+  aktiverOrtCode, setzeOrtCodeNeu, StandVeraltet, stelleOrtCodeSicher, stelleOrtCodesSicher,
 } from "./ortCodes";
 import { etikettOrt } from "../lesepfade/ortEtiketten";
 
@@ -167,7 +168,7 @@ describe("die Codeform (§8.3) — unverändert, nur an der neuen Stelle", () =>
    */
   it("vergibt einen gesperrten Code nicht neu", () => {
     const alt = stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)!;
-    const neu = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
+    const neu = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER, alt);
 
     expect(neu).not.toBe(alt);
     // Die alte Zeile steht noch da, gesperrt — DAS ist, was den Wert belegt.
@@ -317,12 +318,45 @@ describe("stelleOrtCodeSicher — wirft nie, auch nicht am INSERT", () => {
   });
 });
 
+/**
+ * ⚠️ „WIRFT NIE" HEISST AUCH: KEIN LESENDER ZUGRIFF WIRFT — gefunden in der
+ * Durchsicht, nachdem ein erster Anlauf nur das `INSERT` abgesichert hatte.
+ * Auch ein `SELECT` wirft, wenn die Datenbank gerade gesperrt ist, und der
+ * erste stand ausserhalb des `try`. Er ist damit der wahrscheinlichste Wurf
+ * von allen: er laeuft unmittelbar nach dem `INSERT` der Einheit.
+ *
+ * Was daran haengt: `createFahrzeug` ruft die Funktion AUSSERHALB seines
+ * eigenen `try`, damit ein fehlgeschlagener Code die Einheit nicht zuruecknimmt
+ * — ein durchgeschlagener Wurf meldete der Bedienenden einen Fehlschlag,
+ * NACHDEM die Einheit schon stand, und der zweite Versuch legte sie doppelt an.
+ */
+describe("stelleOrtCodeSicher — auch ein werfender Lesepfad kommt nicht durch", () => {
+  function werfendeDb(wieOft: number): DB {
+    let uebrig = wieOft;
+    return new Proxy(t.db as object, {
+      get(ziel, name, empfaenger) {
+        if (name === "select" && uebrig > 0) {
+          uebrig--;
+          return () => { throw new Error("SQLITE_BUSY: database is locked"); };
+        }
+        return Reflect.get(ziel, name, empfaenger);
+      },
+    }) as DB;
+  }
+
+  it("gibt `null` zurueck, wenn schon die erste Abfrage wirft", () => {
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    // Zweimal: die Abfrage davor UND der Rueckfall im `catch`.
+    expect(stelleOrtCodeSicher(werfendeDb(2), ortVon("rtw-1"), AUSSTELLER)).toBeNull();
+  });
+});
+
 describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
   it("sperrt den alten Code, legt einen neuen an und behält die Zugehörigkeit", () => {
     einheit({ id: "rtw-1", name: "RTW 1" });
     const alt = stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER)!;
 
-    const neu = setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER)!;
+    const neu = setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER, alt)!;
 
     const zeilen = zeilenVon("rtw-1");
     expect(zeilen).toHaveLength(2);
@@ -348,7 +382,7 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
     einheit({ id: "rtw-1", name: "RTW 1" });
     const alt = stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER)!;
 
-    const neu = setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER)!;
+    const neu = setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER, alt)!;
 
     const zeilen = zeilenVon("rtw-1");
     expect(zeilen.find((z) => z.code === alt)!.ersetztAm).toBeInstanceOf(Date);
@@ -360,6 +394,33 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
    * jemand ihn von Hand gesperrt hat. Sonst verlöre der Altbestand sein
    * Reaktivieren, sobald ihn jemand einmal versehentlich sperrt.
    */
+  /**
+   * DER WETTLAUF ZWEIER VERWALTENDER — gefunden in der Durchsicht.
+   *
+   * ⚠️ SQLite SERIALISIERT SAUBER, UND GENAU DAS WAR DAS PROBLEM: beide
+   * Transaktionen liefen durch, nur sperrte die zweite den Code, den die erste
+   * gerade erzeugt hatte. Die erste Oberflaeche zeigte danach eine Zahl, die
+   * schon wieder verbrannt war — und die naechste gedruckte Karte fuehrte ins
+   * Leere. Kein Tor sieht das: es gibt keinen Fehler, nur ein falsches
+   * Ergebnis auf einem von zwei Schirmen.
+   *
+   * Nachgestellt wird der zweite Klick: er nennt den Code, den SEIN Schirm
+   * zeigte — den inzwischen gesperrten.
+   */
+  it("lehnt ab, wenn der genannte Code nicht mehr der aktive ist", () => {
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    const alt = stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER)!;
+    const neu = setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER, alt)!;
+
+    expect(() => setzeOrtCodeNeu(t.db, ortVon("rtw-1"), AUSSTELLER, alt))
+      .toThrow(StandVeraltet);
+
+    // ⚠️ UND NICHTS IST PASSIERT. Der Wurf steht INNERHALB der Transaktion,
+    // sonst bliebe der neue Code gesperrt und der Ort ohne gueltigen Code.
+    expect(aktiverOrtCode(t.db, "rtw-1")).toBe(neu);
+    expect(zeilenVon("rtw-1")).toHaveLength(2);
+  });
+
   it("markiert beim blossen Anlegen niemanden als ersetzt", () => {
     einheit({ id: "rtw-1", name: "RTW 1" });
     stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER);
@@ -368,9 +429,9 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
   });
 
   it("lässt sich mehrfach hintereinander anwenden", () => {
-    stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
-    const erste = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
-    const zweite = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER);
+    const start = stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)!;
+    const erste = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER, start)!;
+    const zweite = setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER, erste);
 
     expect(erste).not.toBe(zweite);
     expect(zeilenVon(HANDLAGER_ID)).toHaveLength(3);
@@ -388,7 +449,7 @@ describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
     const alt = stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)!;
     ziffernGenerator.mockReturnValue(alt.replace("-", ""));
 
-    expect(setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)).toBeNull();
+    expect(setzeOrtCodeNeu(t.db, ortVon(HANDLAGER_ID), AUSSTELLER, alt)).toBeNull();
 
     expect(zeilenVon(HANDLAGER_ID)).toHaveLength(1);
     expect(aktiverOrtCode(t.db, HANDLAGER_ID)).toBe(alt);
