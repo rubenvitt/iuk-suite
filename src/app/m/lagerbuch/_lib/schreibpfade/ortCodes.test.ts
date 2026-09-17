@@ -277,6 +277,46 @@ describe("stelleOrtCodesSicher — idempotent und rein additiv", () => {
   });
 });
 
+/**
+ * ⚠️ „WIRFT NIE" IST EINE ZUSAGE AN `createFahrzeug`, UND SIE HAT GEFEHLT
+ * (Durchsicht zu DRK-406). Jene Action ruft `stelleOrtCodeSicher` AUSSERHALB
+ * ihres eigenen `try` — absichtlich, damit ein fehlgeschlagener Code die
+ * bereits angelegte Einheit nicht zurücknimmt. Genau dort schlüge ein Wurf
+ * durch und bräche die Aktion ab, NACHDEM die Einheit in der Datenbank steht:
+ * die Verwaltende sähe „Einheit konnte nicht angelegt werden" und fände sie
+ * nach dem Neuladen trotzdem in der Liste.
+ */
+describe("stelleOrtCodeSicher — wirft nie, auch nicht am INSERT", () => {
+  it("gibt `null` zurück, wenn die Eindeutigkeit schon belegt ist", () => {
+    einheit({ id: "rtw-1", name: "RTW 1" });
+    // Der Ort hat bereits einen aktiven Code, aber die Zeile davor sieht ihn
+    // nicht — so verhält sich der verlorene Wettlauf zweier Anfragen.
+    t.db.insert(tokens).values({
+      id: "fremd", code: "123-123", label: "zuerst da",
+      ortId: "rtw-1", zielTyp: "fahrzeug", zielId: "rtw-1",
+      aktiv: true, createdAt: new Date(), createdBy: AUSSTELLER,
+    }).run();
+
+    /*
+     * ⚠️ UND ER GIBT DEN VORHANDENEN CODE HERAUS, nicht `null`: die Karte IST
+     * versorgt — der andere Aufruf hat sie versorgt. `null` wäre hier die
+     * Auskunft „es gibt keinen Code", und die wäre falsch.
+     */
+    expect(() => stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER)).not.toThrow();
+    expect(stelleOrtCodeSicher(t.db, ortVon("rtw-1"), AUSSTELLER)).toBe("123-123");
+    expect(zeilenVon("rtw-1")).toHaveLength(1);
+  });
+
+  it("gibt `null` zurück, wenn die Ziehung erschöpft ist", () => {
+    ziffernGenerator.mockReturnValue("111111");
+    expect(stelleOrtCodeSicher(t.db, ortVon(HANDLAGER_ID), AUSSTELLER)).toBe("111-111");
+
+    einheit({ id: "rtw-2", name: "RTW 2" });
+    expect(() => stelleOrtCodeSicher(t.db, ortVon("rtw-2"), AUSSTELLER)).not.toThrow();
+    expect(stelleOrtCodeSicher(t.db, ortVon("rtw-2"), AUSSTELLER)).toBeNull();
+  });
+});
+
 describe("setzeOrtCodeNeu — sperren und ersetzen", () => {
   it("sperrt den alten Code, legt einen neuen an und behält die Zugehörigkeit", () => {
     einheit({ id: "rtw-1", name: "RTW 1" });

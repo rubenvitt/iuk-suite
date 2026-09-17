@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { qrSvg } from "@/core/qr";
 import { moduleUrl } from "@/core/shell/moduleUrl";
 import {
-  HANDLAGER_ID, einheitLabels, einheitMeta, standortMeta, type Einheitenart,
+  einheitLabels, einheitMeta, standortMeta, type Einheitenart,
 } from "../_lib/konstanten";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
 import { stelleOrtCodesSicher } from "../_lib/schreibpfade/ortCodes";

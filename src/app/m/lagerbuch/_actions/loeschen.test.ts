@@ -222,6 +222,8 @@ function tokenAnlegen(args: {
   zielId?: string | null;
   scopeLagerortId?: string | null;
   lastUsedAt?: Date | null;
+  /** DRK-406: gesetzt = ORTSCODE, `null` = von Hand angelegter Altbestand. */
+  ortId?: string | null;
 } = {}): string {
   const id = args.id ?? newId();
   t.db.insert(tokens).values({
@@ -229,6 +231,7 @@ function tokenAnlegen(args: {
     code: args.code ?? "111-111",
     label: "Zugangs-Code",
     scopeLagerortId: args.scopeLagerortId ?? null,
+    ortId: args.ortId ?? null,
     zielTyp: args.zielTyp ?? null,
     zielId: args.zielId ?? null,
     aktiv: true,
@@ -1028,5 +1031,58 @@ describe("Fixture-Selbstpruefung", () => {
       eq(lagerortVerfall.lagerortId, fahrzeugId),
       eq(lagerortVerfall.artikelId, artikelId),
     )).get()).toMatchObject({ id: "verfall-echt" });
+  });
+});
+
+/**
+ * DRK-406 — DER ORTSCODE DARF SEINE EIGENE EINHEIT NICHT FESTHALTEN.
+ *
+ * ⚠️ DAS IST DER TEUERSTE STILLE AUSGANG DIESES TICKETS, und er wurde in der
+ * Durchsicht gefunden, nicht von einem Tor: `createFahrzeug` legt jeder neuen
+ * Einheit sofort einen Ortscode an, und der traegt `ziel_typ = "fahrzeug"` mit
+ * `ziel_id = <Einheit>` — genau das, was `pruefeLagerort` als „jemand hat ein
+ * Kaertchen darauf ausgestellt" zaehlt. Ohne den `ort_id IS NULL`-Filter waere
+ * ab dem Ticket KEINE neu angelegte Einheit mehr loeschbar, mit dem Grund
+ * „1 Zugangs-Code" — einer Entscheidung, die niemand getroffen hat.
+ *
+ * ⚠️ UND „loeschbar" MUSS AUCH DURCHLAUFEN. Auf `tokens.ort_id` liegt ein
+ * Fremdschluessel; ein `DELETE` auf die Einheit braeche mit einem
+ * Datenbankfehler ab, waehrend die Pruefung gerade gruen gesagt hat. Deshalb
+ * sperrt `loescheElement` den Ortscode und loest die Bindung — beide Haelften
+ * stehen hier, weil die eine ohne die andere schlimmer ist als keine.
+ */
+describe("DRK-406 — Ortscodes blockieren ihre eigene Einheit nicht", () => {
+  it("laesst eine Einheit loeschen, die nur ihren eigenen Ortscode traegt", async () => {
+    const id = fahrzeugAnlegen();
+    tokenAnlegen({ code: "700-700", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await pruefeLoeschbar("lagerort", id, t.db))
+      .toEqual({ ok: true, wert: { loeschbar: true } });
+  });
+
+  it("blockiert sie weiterhin, wenn ein Kaertchen VON HAND darauf zeigt", async () => {
+    const id = fahrzeugAnlegen();
+    tokenAnlegen({ code: "800-800", ortId: null, zielTyp: "fahrzeug", zielId: id });
+
+    erwarteBlockiert(await pruefeLoeschbar("lagerort", id, t.db), "1 Zugangs-Code");
+  });
+
+  it("sperrt den Ortscode beim Loeschen, statt ihn zu entfernen", async () => {
+    const id = fahrzeugAnlegen();
+    const tok = tokenAnlegen({ code: "900-700", ortId: id, zielTyp: "fahrzeug", zielId: id });
+
+    expect(await loescheElement("lagerort", id, t.db)).toEqual({ ok: true });
+
+    expect(t.db.select().from(lagerorte).where(eq(lagerorte.id, id)).get()).toBeUndefined();
+    const zeile = t.db.select().from(tokens).where(eq(tokens.id, tok)).get()!;
+    /*
+     * ⚠️ DIE ZEILE BLEIBT — Entscheidung 8-F haelt den Codewert dauerhaft
+     * belegt. Waere sie weg, liesse sich „900-700" neu ziehen, und eine alte
+     * Journalzeile stuende danach unter der Bezeichnung eines neuen Codes.
+     */
+    expect(zeile.code).toBe("900-700");
+    expect(zeile.aktiv).toBe(false);
+    // Die Bindung ist geloest — der Ort, auf den sie zeigte, gibt es nicht mehr.
+    expect(zeile.ortId).toBeNull();
   });
 });

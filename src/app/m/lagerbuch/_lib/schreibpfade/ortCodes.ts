@@ -136,12 +136,25 @@ function legeAn(db: DB, ort: EtikettOrtZeile, ausstellerSub: string): string | n
  * Aufrufer ist das Anlegen einer Einheit (`_actions/fahrzeuge.ts`): eine neue
  * Tasche hat ihren Code, bevor jemand zum ersten Mal die Ortsetiketten öffnet.
  *
- * ⚠️ SIE GIBT EINEN FEHLSCHLAG ALS `null` ZURÜCK UND WIRFT NICHT. Das ist der
+ * ⚠️ SIE GIBT JEDEN FEHLSCHLAG ALS `null` ZURÜCK UND WIRFT NIE. Das ist der
  * Unterschied, der an dieser Stelle zählt: die Einheit ist das, was jemand
  * anlegen wollte, der Code ist die Beigabe. Ein Wurf machte aus einer
  * erschöpften Ziehung — 20 Fehlversuche in einem Coderaum von 10^6 — einen
  * fehlgeschlagenen Anlegevorgang. Der Nachzug beim Öffnen der Ortsetiketten
  * holt es beim nächsten Mal.
+ *
+ * ⚠️ DER `catch` IST DIE ZWEITE HÄLFTE DIESER ZUSAGE, und er hat gefehlt
+ * (Durchsicht zu DRK-406). Ohne ihn galt „wirft nie" nur für die erschöpfte
+ * Ziehung — das `INSERT` selbst kann sehr wohl werfen: eine belegte
+ * Eindeutigkeit, wenn zwei Anfragen denselben leeren Ort sehen, oder eine
+ * gesperrte Datenbank. `createFahrzeug` ruft diese Funktion AUSSERHALB seines
+ * eigenen `try`, damit ein fehlgeschlagener Code die angelegte Einheit nicht
+ * zurücknimmt — genau dort wäre der Wurf durchgeschlagen und hätte die Aktion
+ * abgebrochen, NACHDEM die Einheit schon in der Datenbank stand.
+ *
+ * ⚠️ DER WETTLAUF-FALL WIRD DABEI RICHTIG BEANTWORTET, nicht nur geschluckt:
+ * verliert dieser Aufruf ihn, hat der andere den Code bereits angelegt. Die
+ * Karte ist versorgt; `aktiverOrtCode` gibt ihn beim nächsten Blick heraus.
  */
 export function stelleOrtCodeSicher(
   db: DB,
@@ -150,7 +163,11 @@ export function stelleOrtCodeSicher(
 ): string | null {
   const vorhanden = aktiverOrtCode(db, ort.id);
   if (vorhanden) return vorhanden;
-  return legeAn(db, ort, ausstellerSub);
+  try {
+    return legeAn(db, ort, ausstellerSub);
+  } catch {
+    return aktiverOrtCode(db, ort.id);
+  }
 }
 
 /**
@@ -178,14 +195,17 @@ export function stelleOrtCodesSicher(db: DB, ausstellerSub: string, name: string
     () => {
       let neu = 0;
       for (const ort of etikettOrte(db)) {
+        /*
+         * ⚠️ ÜBER `stelleOrtCodeSicher` UND NICHT ÜBER `legeAn` DIREKT. Jene
+         * Funktion trägt die ganze Fehlerbehandlung — vorhandener Code,
+         * erschöpfte Ziehung, Wettlauf —, und eine zweite Fassung davon hier
+         * wäre die Stelle, an der die beiden auseinanderlaufen.
+         *
+         * Gezählt wird, was NEU ist: `stelleOrtCodeSicher` gibt auch einen
+         * bereits vorhandenen Code zurück, deshalb die Abfrage davor.
+         */
         if (aktiverOrtCode(db, ort.id)) continue;
-        try {
-          if (legeAn(db, ort, ausstellerSub)) neu++;
-        } catch {
-          // Wettlauf oder erschöpfte Ziehung — beides ist hier kein Grund, die
-          // Seite abzubrechen. Die Karte zeigt dann ihre Ortsadresse, und der
-          // nächste Aufruf versucht es erneut.
-        }
+        if (stelleOrtCodeSicher(db, ort, ausstellerSub)) neu++;
       }
       return neu;
     },

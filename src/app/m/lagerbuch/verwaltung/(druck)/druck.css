@@ -8,11 +8,18 @@
  * WAS HIER AUSDRUECKLICH NICHT STEHT: `body * { visibility: hidden }`
  * (lagerbuch/src/app/globals.css:277). CSS Modules schreiben ausschliesslich KLASSENselektoren um
  * — `body *` bliebe global und leerte JEDE andere Druckseite der Suite
- * (feedback-Aushang, files-Zugangslinks; Falle 43). Die Sichtbarkeitsumkehr wird
- * ersatzlos durch die eigene Route-Gruppe ersetzt: ohne Shell gibt es nichts
- * auszublenden. Damit entfaellt auch der zweite Teil des Problems —
- * `Layout{minHeight:100vh}` (FullShell.tsx:19) bliebe unter `visibility:hidden`
- * im Fluss und erzeugte leere Folgeseiten hinter dem Bogen.
+ * (feedback-Aushang, files-Zugangslinks; Falle 43).
+ *
+ * ⚠️ WAS DIE SICHTBARKEITSUMKEHR ERSETZT, HAT SICH MIT DRK-406 GEAENDERT, die
+ * Ablehnung von `body *` nicht. Bis dahin lautete die Antwort „die eigene
+ * Route-Gruppe hat keine Shell, also gibt es nichts auszublenden". Die Shell
+ * ist seither am BILDSCHIRM wieder da, und ausgeblendet wird sie von
+ * `core/shell/shell.module.css` — mit GESCOPETEN Klassenselektoren unter
+ * `@media print` statt einer globalen Sichtbarkeitsumkehr. Der zweite Teil des
+ * Problems ist dort mitbehandelt: `minHeight` und die Polsterung am `Content`
+ * sind INLINE-Styles und werden mit `!important` ueberschrieben, statt unter
+ * `visibility: hidden` im Fluss stehen zu bleiben und leere Folgeseiten zu
+ * erzeugen.
  *
  * UND NICHT DAS files-MUSTER: `.druckbereich{position:fixed;inset:0;
  * overflow:hidden}` funktioniert dort, weil EINE Karte gedruckt wird. Der

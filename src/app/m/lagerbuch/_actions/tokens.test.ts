@@ -344,3 +344,65 @@ describe("tokenListe", () => {
     expect(revalidiert).toEqual([]);
   });
 });
+
+/**
+ * DRK-406 — EIN ZURUECKGESETZTER ORTSCODE LAESST SICH NICHT REAKTIVIEREN.
+ *
+ * ⚠️ GEFUNDEN IN DER DURCHSICHT, NICHT VON EINEM TOR. Die Liste bietet
+ * „Reaktivieren" an jeder gesperrten Zeile an — auch an einem zurueckgesetzten
+ * Ortscode, dessen Ort laengst einen neuen aktiven Code hat. Der Teilindex
+ * `idx_tokens_ort_aktiv` weist den Schreibvorgang ab (gemessen gegen SQLite:
+ * `UNIQUE constraint failed: tokens.ort_id`), und ohne die Vorpruefung faende
+ * die Verwaltende nur die allgemeine Meldung „Status konnte nicht geaendert
+ * werden" — fuer einen Zustand, der kein Fehler ist, sondern eine Absicht.
+ */
+describe("setTokenAktiv — der zurueckgesetzte Ortscode bleibt gesperrt", () => {
+  function ortscode(args: { id: string; code: string; aktiv: boolean }): void {
+    t.db.insert(tokens).values({
+      id: args.id, code: args.code, label: "Ortskarte",
+      ortId: HANDLAGER_ID, zielTyp: null, zielId: null,
+      aktiv: args.aktiv, createdAt: JETZT, createdBy: "u-admin",
+    }).run();
+  }
+
+  it("nennt den Grund, statt am Index aufzulaufen", async () => {
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: false });
+    ortscode({ id: "ort-neu", code: "333-444", aktiv: true });
+
+    const r = await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db);
+
+    expect(r.ok).toBe(false);
+    const text = (r as { fehler: string }).fehler;
+    expect(text).toContain("bereits ein neuerer Code");
+    // §11.7 — der abgelehnte Weg nennt den Weg, der bleibt.
+    expect(text).toContain("neu");
+    // ⚠️ UND KEINE DATENBANKSPRACHE: „UNIQUE constraint failed" hilft niemandem.
+    expect(text).not.toContain("UNIQUE");
+    expect(text).not.toContain("tokens");
+
+    expect(t.db.select().from(tokens).where(eq(tokens.id, "ort-alt")).get()?.aktiv)
+      .toBe(false);
+    expect(revalidiert).toEqual([]);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE, OHNE DIE DIE ZEILE DARUEBER ZU VIEL VERBOETE: hat der Ort
+   * gerade KEINEN aktiven Code — etwa weil auch der neue gesperrt wurde —, ist
+   * Reaktivieren genau das Richtige. Eine pauschale Sperre fuer Ortscodes naehme
+   * der Betreiberin den einzigen Weg zurueck.
+   */
+  it("laesst reaktivieren, solange der Ort keinen aktiven Code hat", async () => {
+    ortscode({ id: "ort-alt", code: "111-222", aktiv: false });
+
+    expect(await setTokenAktiv({ id: "ort-alt", aktiv: true }, t.db)).toEqual({ ok: true });
+    expect(t.db.select().from(tokens).where(eq(tokens.id, "ort-alt")).get()?.aktiv)
+      .toBe(true);
+  });
+
+  /** Der Altbestand hat keinen Ort — er bleibt uneingeschraenkt reaktivierbar. */
+  it("laesst den Altbestand unberuehrt", async () => {
+    tokenDirekt({ id: "alt", code: "555-666", aktiv: false });
+
+    expect(await setTokenAktiv({ id: "alt", aktiv: true }, t.db)).toEqual({ ok: true });
+  });
+});

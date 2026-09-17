@@ -278,8 +278,14 @@ export function Entnahme({
                 Ziel wählen
               </Link>
               <span id="lb-ziel-pflicht" className={s.zielPflichtHinweis}>
+                {/*
+                  ⚠️ DER SATZ ZITIERT DIE WAHL WÖRTLICH. Auf `/helfer/ziel`
+                  heißt die Zeile „Keine Einheit — Verbrauch" (DRK-309: neutral,
+                  weil eine Tasche kein Fahrzeug ist). „Kein Fahrzeug" wäre eine
+                  Beschriftung, die es auf dem nächsten Schirm nicht gibt.
+                */}
                 Ohne Ziel wird nicht gebucht — wähle die Einheit oder
-                {" „Kein Fahrzeug — Verbrauch“."}
+                {" „Keine Einheit — Verbrauch“."}
               </span>
             </div>
           ) : (

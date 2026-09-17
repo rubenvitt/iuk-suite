@@ -1,7 +1,7 @@
 "use server";
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
@@ -36,6 +36,19 @@ import { requireLagerbuchAdmin } from "../_lib/zugang";
  */
 const LISTENPFAD = "/m/lagerbuch/verwaltung/tokens";
 const STATUS_FEHLER = "Zugangs-Code-Status konnte nicht geändert werden.";
+/*
+ * ⚠️ DER EINE FALL, DEN „Status konnte nicht geändert werden" NICHT ERKLAEREN
+ * WUERDE — DRK-406, gefunden in der Durchsicht. Ein zurückgesetzter Ortscode
+ * liegt gesperrt neben dem neuen aktiven Code DESSELBEN Ortes. Wer ihn
+ * reaktiviert, verletzt `idx_tokens_ort_aktiv` („genau ein aktiver Code je
+ * Ort"), und ohne diesen Satz bekäme er die allgemeine Meldung — für einen
+ * Zustand, der kein Fehler ist, sondern eine Absicht.
+ *
+ * §11.7: der abgelehnte Weg nennt den Weg, der bleibt.
+ */
+const ORT_BESETZT_FEHLER =
+  "Für diesen Ort gilt bereits ein neuerer Code. Ein zurückgesetzter Code "
+  + "bleibt dauerhaft gesperrt — drucke die Karte mit dem aktuellen Code neu.";
 
 const AktivSchema = z.object({
   id: z.string().min(1),
@@ -51,6 +64,29 @@ export async function setTokenAktiv(
 
     const geparst = AktivSchema.safeParse(eingabe);
     if (!geparst.success) return { ok: false, fehler: "Ungültige Eingabe." };
+
+    /*
+     * ⚠️ DIE PRUEFUNG STEHT VOR DEM SCHREIBEN UND ERSETZT DEN INDEX NICHT. Der
+     * Teilindex bleibt der Riegel — er haelt auch gegen zwei gleichzeitige
+     * Anfragen. Diese Zeilen sind die ERKLAERUNG: sie machen aus einem
+     * `UNIQUE constraint failed` einen Satz, der sagt, was los ist.
+     *
+     * ⚠️ NUR BEIM REAKTIVIEREN. Sperren kann den Index nie verletzen, und eine
+     * Abfrage dafuer waere ein Zugriff, der nichts entscheidet.
+     */
+    if (geparst.data.aktiv) {
+      const zeile = db.select({ ortId: tokens.ortId })
+        .from(tokens)
+        .where(eq(tokens.id, geparst.data.id))
+        .get();
+      if (zeile?.ortId
+        && db.select({ id: tokens.id })
+          .from(tokens)
+          .where(and(eq(tokens.ortId, zeile.ortId), eq(tokens.aktiv, true))!)
+          .get()) {
+        return { ok: false, fehler: ORT_BESETZT_FEHLER };
+      }
+    }
 
     try {
       db.update(tokens)

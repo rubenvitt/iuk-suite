@@ -209,6 +209,14 @@ const HANDLAGER = {
   zielEinheitenart: null,
 } satisfies TokenAnzeigeZeile;
 
+/*
+ * ⚠️ MIT DEM ANLEGEDIALOG SIND FÜNF HILFSFUNKTIONEN ENTFALLEN (DRK-406):
+ * `oeffneNeuToken`, `portalFeldSetzen`, `zielartWaehlen`, `zielWaehlen` und
+ * `tokenFormAbsenden`. Sie bedienten ein Formular, das es nicht mehr gibt —
+ * `lint` meldete sie als unbenutzt, und eine aufbewahrte Bedienhilfe für eine
+ * entfernte Fläche liest sich beim nächsten Mal wie eine Fläche, die es noch
+ * gibt.
+ */
 const ZEILEN = [FAHRZEUG, ARTIKEL, LISTE];
 const getComputedStyleOhnePseudo = window.getComputedStyle.bind(window);
 
@@ -314,51 +322,10 @@ function knopfMitText(text: string): HTMLElement {
   return knopf;
 }
 
-async function oeffneNeuToken(): Promise<void> {
-  await clickElement(knopfMitText("Neuen Code anlegen"));
-  await warte();
-  expect(document.body.querySelector("[role='dialog']")).not.toBeNull();
-}
 
-async function portalFeldSetzen(ariaLabel: string, wert: string): Promise<void> {
-  const input = queryPortal<HTMLInputElement>(`[aria-label='${ariaLabel}']`);
-  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), "value")?.set;
-  if (!setter) throw new Error(`Kein value-Setter für ${ariaLabel}`);
-  await act(async () => {
-    setter.call(input, wert);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-}
 
-async function zielartWaehlen(text: string): Promise<void> {
-  const label = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-radio-wrapper"))
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!label) throw new Error(`Zielart fehlt: ${text}`);
-  await clickElement(label);
-  await warte();
-}
 
-async function zielWaehlen(text: string): Promise<void> {
-  const input = queryPortal<HTMLInputElement>("[aria-label='Ziel auswählen']");
-  await act(async () => {
-    input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-  });
-  await warte();
-  const option = Array.from(document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"))
-    .find((element) => (element.textContent ?? "").includes(text));
-  if (!option) throw new Error(`Zieloption fehlt: ${text}`);
-  await clickElement(option);
-  await warte();
-}
 
-async function tokenFormAbsenden(): Promise<void> {
-  const form = queryPortal<HTMLFormElement>("[data-rolle='neu-token-form']");
-  await act(async () => {
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  });
-  await warte();
-}
 
 function elementeVomTyp(
   wert: ReactNode,

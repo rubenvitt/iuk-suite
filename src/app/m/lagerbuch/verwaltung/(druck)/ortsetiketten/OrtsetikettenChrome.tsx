@@ -76,11 +76,16 @@ export function OrtsetikettenChrome({
 
             ⚠️ ER NENNT DIE FOLGE, NICHT NUR DIE ZAHL: neue Codes heisst neue
             Karten, und wer das nicht liest, klebt die alte wieder an.
+
+            ⚠️ „ORT" UND NICHT „EINHEIT", auch im Singular. Der eine fehlende
+            Code ist haeufig der des HANDLAGERS — und der ist keine Einheit,
+            sondern das Lager (`standortMeta` gibt dort „Lager"). „Für eine
+            Einheit" schickte die Suche dann auf die Fahrzeugliste.
           */}
           {neueCodes > 0 && (
             <p data-testid="lb-ort-neu" style={{ margin: 0, fontWeight: 600 }}>
               {neueCodes === 1
-                ? "Für eine Einheit ist gerade ein neuer Zugangs-Code entstanden."
+                ? "Für einen Ort ist gerade ein neuer Zugangs-Code entstanden."
                 : `Für ${neueCodes} Orte sind gerade neue Zugangs-Codes entstanden.`}
               {" "}Diese Karten musst du ausdrucken und anbringen.
             </p>
