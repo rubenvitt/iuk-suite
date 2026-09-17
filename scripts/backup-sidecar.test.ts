@@ -1635,6 +1635,69 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     );
   });
 
+  it("auch am Ziel wird das Archiv DIESES Laufs nie geloescht", () => {
+    // ⚠️ DERSELBE BODEN WIE LOKAL, UND HIER IST ER TEURER. Die Sortierung am Ziel ist
+    // lexikografisch und damit chronologisch, SOLANGE die Uhr vorwaerts geht; springt
+    // sie zurueck (NTP-Korrektur, Ende der Sommerzeit — ein Lauf in der ersten 02:30,
+    // danach einer nach der Rueckstellung), traegt das eben hochgeladene Archiv einen
+    // aelteren Namen als eine vorhandene Generation und steht damit selbst in der
+    // Loeschliste. GEMESSEN mit `BACKUP_RCLONE_KEEP=1`, unser Archiv `20260101T030000`,
+    // am Ziel liegt zusaetzlich `20260101T033000`:
+    //
+    //   vorher   GELOESCHT: 20260101T030000.tar.gz   ← genau das, was wir hochgeladen
+    //            Rueckgabe 0, also Erfolg samt Ping     haben
+    //   nachher  nichts geloescht
+    //
+    // Lokal laege die Generation in diesem Fall noch; weg waere die Kopie, die den
+    // Verlust des ganzen Servers abfangen soll. Deshalb ist die falsche Richtung hier
+    // eine Generation zu VIEL am Ziel.
+    const quelle = (eigenes: string) =>
+      [
+        sidecar.split("\n").find((z) => z.startsWith("TARBALL_MUSTER=")) ?? "",
+        ...["protokoll", "warne", "entnullen", "zu_viele_ziffern", "auslagern"].map(shellQuelle),
+        'BACKUP_RCLONE_ZIEL="fern:eimer"',
+        "BACKUP_RCLONE_KEEP=1",
+        "sperre_gehoert_uns() { return 0; }",
+        // Am Ziel liegen zwei Generationen; `copy` und `deletefile` schreiben nur mit.
+        "rclone_ruf() {",
+        '  case "$1" in',
+        "    copy) return 0 ;;",
+        '    lsf) printf "20260101T030000.tar.gz\\n20260101T033000.tar.gz\\n" ;;',
+        '    deletefile) echo "GELOESCHT: ${2##*/}" ;;',
+        "  esac",
+        "}",
+        `auslagern "/backups/${eigenes}"`,
+      ].join("\n");
+    const fahre = (eigenes: string) => {
+      const p = spawnSync("sh", ["-c", quelle(eigenes)], { encoding: "utf8" });
+      return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+    };
+    // Die Uhr ist zurueckgesprungen: unser Archiv traegt den AELTEREN Namen.
+    const rueckwaerts = fahre("20260101T030000.tar.gz");
+    expect(rueckwaerts.aus, "unser frisches Archiv bleibt am Ziel").not.toMatch(
+      /GELOESCHT: 20260101T030000/,
+    );
+    expect(rueckwaerts.code, "und der Lauf gilt weiter als gelungen").toBe(0);
+    // ⚠️ DIE GEGENPROBE IST DIE HAELFTE DER MESSUNG: eine Rotation, die gar nichts mehr
+    // loescht, bestuende die Zeile darueber ebenso — und liesse das Ziel wachsen, bis es
+    // voll ist.
+    const gewoehnlich = fahre("20260101T033000.tar.gz");
+    expect(gewoehnlich.aus, "im Normalfall faellt die aelteste wie bisher").toMatch(
+      /GELOESCHT: 20260101T030000/,
+    );
+    expect(gewoehnlich.aus, "und unsere bleibt").not.toMatch(/GELOESCHT: 20260101T033000/);
+    // Der Riegel steht in der Schleife, vor dem `deletefile` — nicht davor oder danach.
+    const rumpfA = funktionsrumpf(befehle, "auslagern");
+    const schleife = rumpfA.slice(rumpfA.indexOf("sort -r"));
+    const riegel = schleife.indexOf('if [ "$alt" = "${tarball##*/}" ]');
+    const loeschen = schleife.indexOf("rclone_ruf deletefile");
+    expect(riegel, "der Riegel steht in der Loeschschleife").toBeGreaterThan(-1);
+    expect(riegel, "und VOR dem Loeschen").toBeLessThan(loeschen);
+    // `continue`, nicht `break`: die naechste Generation darf weiter fallen.
+    expect(schleife.slice(riegel, loeschen)).toMatch(/continue/);
+    expect(schleife.slice(riegel, loeschen)).not.toMatch(/break/);
+  });
+
   it("auch WAEHREND des Auslagerns wird der Besitz noch einmal geprueft", () => {
     // ⚠️ DER ZAUN DAVOR SAGT NUR, DASS DIE SPERRE UNS GEHOERTE, ALS ES LOSGING. Ein
     // grosses Tarball ueber eine langsame Leitung ist genau die Strecke, auf der eine

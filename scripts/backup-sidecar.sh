@@ -1021,6 +1021,18 @@ auslagern() {
           warne "  Sperre verloren — die restlichen Generationen bleiben stehen."
           break
         fi
+        # ⚠️ UND NIE DAS ARCHIV DIESES LAUFS — derselbe Boden wie bei der lokalen
+        # Rotation, und hier waere er teurer. Die Sortierung ist lexikografisch und
+        # damit chronologisch, SOLANGE die Uhr vorwaerts geht; springt sie zurueck
+        # (NTP-Korrektur, Ende der Sommerzeit), traegt das eben hochgeladene Archiv
+        # einen aelteren Namen als eine vorhandene Generation und steht damit selbst in
+        # der Loeschliste. Mit `BACKUP_RCLONE_KEEP=1` raeumte dieser Lauf die frische
+        # Kopie am Ziel weg und meldete sich danach als Erfolg — genau die Kopie, die
+        # den Verlust des ganzen Servers abfangen soll. Lokal laege sie dann noch;
+        # deshalb ist die falsche Richtung hier eine Generation zu VIEL am Ziel.
+        if [ "$alt" = "${tarball##*/}" ]; then
+          continue
+        fi
         protokoll "  loesche $alt"
         rclone_ruf deletefile "$BACKUP_RCLONE_ZIEL/$alt" \
           || warne "  $alt liess sich nicht loeschen."
