@@ -4,7 +4,9 @@ import { migrierteTestDb, type TestDb } from "../../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, tokens, users } from "../../_db/schema";
 import { ENTNAHMEBOX_ID, ENTNAHMEBOX_NAME } from "../konstanten";
 import { ENTNAHMEBOX_PRAEFIX } from "../vorgang";
-import { boxInhalt, boxOrt, letzteBoxZugaenge, postenAmOrt } from "./entnahmebox";
+import {
+  boxInhalt, boxOrt, einraeumPosten, letzteBoxZugaenge, postenAmOrt,
+} from "./entnahmebox";
 
 /**
  * DER LESEPFAD DER ENTNAHMEBOX — DRK-314, gegen eine echte migrierte SQLite.
@@ -367,4 +369,50 @@ describe("letzteBoxZugaenge", () => {
       .toEqual([["A. Verwaltung", 2], ["Kärtchen RTW 1", 1]]);
   });
 
+});
+
+describe("einraeumPosten — dieselbe Faltung, zwei Felder mehr (DRK-381)", () => {
+  it("haengt Fach und Stilllegung an, ohne die Posten selbst zu veraendern", () => {
+    /*
+     * ⚠️ DIE ZUSAGE IST „DIESELBE FALTUNG", nicht „aehnliche Ergebnisse". Ein
+     * zweiter Lesepfad ueber denselben Ort waere die zweite Wahrheit darueber,
+     * was in der Kiste liegt — und die beiden liefen mit der Zeit auseinander,
+     * ohne dass ein Tor rot wird.
+     */
+    charge("ch-1", "2030-01");
+    buchen("zu-1", { charge: "ch-1", menge: 3 });
+
+    const schlank = boxInhalt(t.db, JETZT);
+    const reich = einraeumPosten(t.db, JETZT);
+
+    // Gleichheit ueber die Felder von `BoxPosten` — die beiden neuen bleiben
+    // absichtlich draussen, sonst pruefte der Vergleich sich selbst.
+    const nurBoxPosten = reich.map((p) => ({
+      artikelId: p.artikelId, artikelName: p.artikelName, einheit: p.einheit,
+      menge: p.menge, chargen: p.chargen,
+    }));
+    expect(nurBoxPosten).toEqual(schlank);
+    expect(reich[0]!.fach).toBe("A-01");
+    expect(reich[0]!.artikelAktiv).toBe(true);
+  });
+
+  it("meldet einen stillgelegten Artikel als solchen, statt ihn wegzulassen", () => {
+    // ⚠️ `postenAmOrt` FILTERT IHN AUSDRUECKLICH NICHT: ein stillgelegter
+    // Artikel, der noch in der Kiste liegt, ist genau der, ueber den jemand
+    // entscheiden muss. Das Feld sagt, DASS eine Entscheidung ansteht.
+    charge("ch-1", "2030-01");
+    buchen("zu-1", { charge: "ch-1", menge: 2 });
+    t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
+
+    expect(einraeumPosten(t.db, JETZT).map((p) => [p.artikelId, p.artikelAktiv]))
+      .toEqual([["art-1", false]]);
+  });
+
+  it("liest NUR die Kiste, nicht das Fahrzeug daneben", () => {
+    charge("ch-1", "2030-01");
+    buchen("fz", { charge: "ch-1", menge: 5, ort: "fz-1" });
+    buchen("box", { charge: "ch-1", menge: 2 });
+
+    expect(einraeumPosten(t.db, JETZT).map((p) => p.menge)).toEqual([2]);
+  });
 });

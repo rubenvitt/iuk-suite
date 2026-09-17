@@ -133,9 +133,13 @@ export function buildTheme(mode: ThemeMode): ThemeConfig {
        * 16px-Regel in `globals.css` erreicht sie nicht, deshalb hier.
        *
        * Das ist keine Doppelung: die CSS-Regel deckt das geschlossene Feld ab
-       * (ueber `.ant-select-selector`), dieser Token die offene Liste. Fuer den
-       * Selektor selbst bietet antd keinen Token an — sonst staende er hier
-       * statt in CSS.
+       * (seit DRK-190 ueber `.ant-select` selbst — `.ant-select-selector` stand
+       * hier bis dahin und wird seit antd 6 gar nicht mehr gerendert), dieser
+       * Token die offene Liste. Fuer das geschlossene Feld bietet antd keinen
+       * brauchbaren Token an: `components.Select.fontSize` kapert gemessen die
+       * GLOBALE Schriftvariable innerhalb des Feldes und laesst Zeilenhoehe und
+       * Schrifthoehe stehen — das Feld waere 3px zu hoch (Begruendung in
+       * `globals.css`). Deshalb steht es dort in CSS und nicht hier.
        *
        * 16 ist ein Wert aus antds eigener Leiter (12/14/16/20/24/30), also
        * keine dritte Skala im Sinne von docs/design/README.md:110.

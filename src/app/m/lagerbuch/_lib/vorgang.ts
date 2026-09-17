@@ -31,7 +31,7 @@
  *
  * ── WELCHES PRAEFIX EINEN EIGENEN VORGANGSTEXT BEKOMMT ────────────────────
  *
- * Sechs Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
+ * Sieben Praefixe stehen in den Daten. Die Probe ist NICHT „gibt es ein
  * Praefix?", sondern: *steht auf dem Schirm schon, was passiert ist?*
  *
  * | Praefix            | Typ                | eigener Text? | warum |
@@ -42,8 +42,9 @@
  * | `entnahme-ziel:`   | umlagerung         | nein          | „Umlagerung" ist bereits wahr und vollstaendig: Bestand wandert vom Handlager an ein Fahrzeug. Das Praefix nennt das ZIEL, nicht eine andere Art von Vorgang — und das Ziel gehoert in eine Spalte, nicht in ein Etikett. |
  * | `umlagerung:`      | umlagerung         | nein          | DRK-338, das Handumlagern zwischen zwei Orten des Handlagers. Dieselbe Antwort und derselbe Grund wie eine Zeile hoeher: das Praefix nennt das ZIEL. Seit DRK-338 fuehrt das Journal dafuer eine Spalte „Ort" — die Quelle steht in der Zeile mit dem Minus, das Ziel in der mit dem Plus. |
  * | `entnahmebox:`     | umlagerung         | nein          | DRK-314, das Ablegen in der Kiste in der Halle. Dieselbe Antwort und derselbe Grund wie die zwei Zeilen darueber: „Umlagerung" ist bereits wahr und vollstaendig, und WOHIN steht in der Spalte „Ort" — dort liest sich die Zeile mit dem Plus als „Entnahmebox". Der Kommentar ist zusaetzlich im Quelltext festgenagelt (`ENTNAHMEBOX_KOMMENTAR`, `konstanten.ts`) und steht damit wie bei `check:` bereits in der Spalte daneben. |
+ * | `einraeumen:`      | umlagerung         | nein          | DRK-381, der Weg ZURUECK: aus der Kiste in einen Schrank des Handlagers. Dieselbe Antwort und derselbe Grund wie die vier Zeilen darueber — „Umlagerung" ist bereits wahr und vollstaendig, und wohin steht in der Spalte „Ort". Auch hier ist der Kommentar festgenagelt (`ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR`, `konstanten.ts`). |
  *
- * ⚠️ `entnahmebox:` NENNT ALS EINZIGES DIESER DREI DIE QUELLE, NICHT DAS ZIEL,
+ * ⚠️ `entnahmebox:` NENNT ALS EINZIGES DIESER FUENF DIE QUELLE, NICHT DAS ZIEL,
  * und das ist kein Versehen: das Ziel ist hier eine KONSTANTE (es gibt genau
  * eine Box), ein `entnahmebox:entnahmebox` traege also null Bit. Informativ ist
  * die Einheit, aus der das Material kam — dieselbe Lesart wie bei
@@ -107,6 +108,33 @@ export const INVENTUR_PRAEFIX = "inventur:";
  * beschriebe denselben Vorgang zweimal.
  */
 export const ENTNAHMEBOX_PRAEFIX = "entnahmebox:";
+
+/**
+ * DRK-381 — der Weg ZURUECK: aus der Entnahmebox in einen Schrank des
+ * Handlagers.
+ *
+ * ⚠️ EIN EIGENES PRAEFIX UND NICHT `ENTNAHMEBOX_PRAEFIX`, obwohl beide Vorgaenge
+ * dieselbe Kiste betreffen. Der Grund steht in `lesepfade/entnahmebox.ts`:
+ * `letzteBoxZugaenge` liest „was ist zuletzt IN die Box gekommen?" ueber genau
+ * dieses Praefix (`like("entnahmebox:%")`). Ein geteiltes Praefix machte die
+ * beiden Richtungen dort ununterscheidbar — heute faengt der Mengenfilter
+ * (`menge > 0`) das noch mit ab, aber nur zufaellig: die positive Zeile des
+ * Einraeumens liegt am SCHRANK und faellt schon durch den Ortsfilter. Zwei
+ * Filter, von denen einer die Bedeutung traegt und der andere sie versehentlich
+ * mittraegt, sind genau die Sorte Zufall, die der naechste Umbau aufloest.
+ *
+ * ⚠️ ES NENNT DAS ZIEL, NICHT DIE QUELLE — umgekehrt zu `entnahmebox:` und aus
+ * demselben Grund, aus dem das dort die Quelle nennt: die jeweils andere Seite
+ * ist eine KONSTANTE. Beim Ablegen ist das Ziel immer die Box, beim Einraeumen
+ * ist die Quelle immer die Box; ein `einraeumen:entnahmebox` traege null Bit.
+ * Informativ ist der Schrank. Die tragende Eigenschaft bleibt in beiden
+ * Lesarten dieselbe: BEIDE Legs teilen den Wert.
+ *
+ * ⚠️ NICHT IN `VORGANG_ARTEN`, dieselbe Kehrseite wie bei `entnahmebox:`: die
+ * Buchung IST eine Umlagerung, ein zweites Etikett beschriebe denselben Vorgang
+ * zweimal.
+ */
+export const EINRAEUMEN_PRAEFIX = "einraeumen:";
 
 /**
  * Die Reihenfolge ist die Reihenfolge im Auswahlfeld: erst die vier

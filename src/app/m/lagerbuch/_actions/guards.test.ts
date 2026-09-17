@@ -512,6 +512,18 @@ describe("_actions/ — jede exportierte Action ist bewacht", () => {
  * beschreibt, und bestaetigt seine Regel von der anderen Seite: WO ein
  * Konflikt auftritt, sagt nichts darueber, WO die Zahlen falsch werden.
  *
+ * NACHTRAG DRK-381 (16.09.2026): `raeumeAusEntnahmebox` kommt in
+ * `entnahmebox.ts` dazu — der Weg ZURUECK, aus der Kiste in einen Schrank des
+ * Handlagers. Bewacht von `requireLagerbuchAdmin`, und der Unterschied zur
+ * Action daneben ist FACHLICH, nicht formal: in die Kiste legt die Helferin am
+ * Fahrzeug (`requireHelferSchreibend`, traegt Kaertchen UND Konto),
+ * eingeraeumt wird vom Gruppenfuehrer — dieselbe eine Stufe wie bei DRK-313.
+ * Damit traegt `entnahmebox.ts` als ERSTE Datei BEIDE Riegel nebeneinander;
+ * der Eigenschafts-Block oben prueft je Deklaration und nimmt das ohne
+ * Aenderung. Keine neue Datei, keine neue Ausnahme. Die Zaehlung steht damit
+ * auf 61 = 58 bewacht + 3 Ausnahmen, 58 = 54 + 4, in weiterhin 24
+ * Action-Dateien.
+ *
  * ⚠️ Teil 5 §6 nennt „14 Dateien mit 32 Actions" und Teil 4 E10 „4 Dateien mit
  * 5 Exporten" — BEIDE RECHNEN FALSCH, und eine Zahl, die auf einem der beiden
  * ruht, waere rot, ohne dass man wuesste, welcher Plan zu wenig geliefert hat.
@@ -554,7 +566,9 @@ describe("Zaehlung (§2.1 a)", () => {
     "check.ts": 1,
     "csv.ts": 1,
     "detail.ts": 1,
-    "entnahmebox.ts": 1,   // DRK-314, die Umlagerung in die Kiste in der Halle
+    // DRK-314 die Umlagerung IN die Kiste, DRK-381 der Weg zurueck heraus —
+    // zwei Deklarationen mit VERSCHIEDENEN Riegeln in derselben Datei.
+    "entnahmebox.ts": 2,
     "entnahmeZiel.ts": 1,   // DRK-300, nach Teil 6 dazugekommen
     "fahrzeuge.ts": 6,
     "gate.ts": 1,
@@ -606,10 +620,10 @@ describe("Zaehlung (§2.1 a)", () => {
    * Die dritte Zusicherung nennt die Dubletten NAMENTLICH: „47 gegen 44" allein
    * waere auch dann gruen, wenn es drei ganz andere Dubletten gaebe.
    */
-  it("zaehlt 60 Deklarationen, obwohl es nur 57 verschiedene Namen gibt", () => {
+  it("zaehlt 61 Deklarationen, obwohl es nur 58 verschiedene Namen gibt", () => {
     const namen = exportierteActions().map((f) => f.name);
-    expect(namen, "60 Deklarationen").toHaveLength(60);
-    expect(new Set(namen).size, "57 verschiedene Namen").toBe(57);
+    expect(namen, "61 Deklarationen").toHaveLength(61);
+    expect(new Set(namen).size, "58 verschiedene Namen").toBe(58);
 
     const doppelt = [...new Set(namen)]
       .filter((n) => namen.filter((x) => x === n).length > 1)
@@ -621,7 +635,7 @@ describe("Zaehlung (§2.1 a)", () => {
     ]);
   });
 
-  it("bewacht 57 und listet genau 3 Ausnahmen", () => {
+  it("bewacht 58 und listet genau 3 Ausnahmen", () => {
     const funde = exportierteActions();
     const ausnahmen = funde.filter((f) => AUSNAHMEN.has(f.name));
     // Das ist NICHT dieselbe Aussage wie „die Ausnahmeliste hat GENAU DREI
@@ -630,7 +644,7 @@ describe("Zaehlung (§2.1 a)", () => {
     // Namen einer echten Action faerbt beide rot; ein Eintrag mit einem Namen,
     // den es nicht gibt, nur den oberen.
     expect(ausnahmen.map((f) => `${f.datei}#${f.name}`), "genau 3 Ausnahmen").toHaveLength(3);
-    expect(funde.length - ausnahmen.length, "57 bewacht").toBe(57);
+    expect(funde.length - ausnahmen.length, "58 bewacht").toBe(58);
   });
 
   it("nennt die drei Ausnahmen namentlich und in ihren Dateien", () => {
@@ -697,7 +711,7 @@ describe("Zaehlung (§2.1 a)", () => {
    * Zeichenkettenliteral mit dem Riegelnamen als Beleg (Stripper-Regel, positive
    * Zusicherung).
    */
-  it("verteilt die 57 Riegel auf 53 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
+  it("verteilt die 58 Riegel auf 54 requireLagerbuchAdmin und 4 requireHelferSchreibend", () => {
     const bewacht = exportierteActions().filter((f) => !AUSNAHMEN.has(f.name));
     const bereinigt = (f: Fund) => ohneKommentareUndZeichenketten(f.erste);
 
@@ -718,8 +732,15 @@ describe("Zaehlung (§2.1 a)", () => {
       // ⚠️ DIE REIHENFOLGE IST DIE VON `sort()`, nicht die der Sollliste:
       // `entnahmeZiel` sortiert VOR `entnahmebox`, weil Grossbuchstaben in
       // einem `String`-Vergleich kleiner sind als Kleinbuchstaben ("Z" < "b").
+      //
+      // ⚠️ NUR `bucheInEntnahmebox`, NICHT DIE GANZE DATEI (DRK-381): daneben
+      // liegt `raeumeAusEntnahmebox` mit `requireLagerbuchAdmin`, und dass die
+      // beiden Richtungen verschiedene Riegel tragen, ist die fachliche Aussage
+      // der Datei — in die Kiste legt die Helferin, eingeraeumt wird vom
+      // Gruppenfuehrer. Wer hier die Datei statt der Deklaration eintraegt,
+      // macht den Rueckweg fuer jedes Kaertchen auf.
       "entnahmebox.ts#bucheInEntnahmebox",
     ]);
-    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(53);
+    expect(admin, "alle uebrigen tragen requireLagerbuchAdmin").toHaveLength(54);
   });
 });
