@@ -807,8 +807,13 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     // Nach der Aenderung, beide Faelle: Rueckgabe 1, der vorhandene Stand UNANGETASTET,
     // Healthcheck sofort rot. Im Normalfall unveraendert 0 und gruen.
     const rumpfZ = funktionsrumpf(befehle, "zustand_schreiben");
-    // Erst schreiben UND pruefen, dann erst `mv` — die Reihenfolge ist der Fix.
-    expect(rumpfZ).toMatch(/if ! printf '%s\\n' "\$inhalt" >"\$tmp"[\s\S]*\|\| ! mv "\$tmp"/);
+    // Erst schreiben UND pruefen, dann erst `mv` — die Reihenfolge ist der Fix. Beide
+    // Schritte haben einen eigenen Abbruchzweig, weil zwischen ihnen seit DRK-185 noch
+    // die letzte Besitzpruefung liegt (eigener Fall weiter oben).
+    const schreiben = rumpfZ.indexOf(`if ! printf '%s\\n' "$inhalt" >"$tmp"`);
+    const umbenennen = rumpfZ.indexOf('if ! mv "$tmp"');
+    expect(schreiben, "die Umlenkung wird geprueft").toBeGreaterThan(-1);
+    expect(umbenennen, "und das Umbenennen auch").toBeGreaterThan(schreiben);
     expect(rumpfZ).toMatch(/rm -f "\$tmp"[\s\S]*return 1/);
 
     // ⚠️ DIE MARKE LIEGT AUSSERHALB DES VOLUMES, und das ist ihr ganzer Zweck: laesst
@@ -831,6 +836,40 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     const lesen = rumpfH.indexOf("zustand_lesen");
     expect(marke, "der Healthcheck kennt die Marke").toBeGreaterThan(-1);
     expect(marke, "und fragt sie VOR der Zustandsdatei ab").toBeLessThan(lesen);
+  });
+
+  it("der Besitz wird unmittelbar vor dem Umbenennen NOCH EINMAL geprueft", () => {
+    // ⚠️ DAS SCHLIESST DAS FENSTER NICHT, ES VERENGT ES — und das steht hier so, weil
+    // der Unterschied in diesem Skript schon zweimal Geld gekostet hat. Zwischen der
+    // Pruefung am Anfang der Funktion und dem `mv` lagen zwei `date`-Aufrufe, ein
+    // `zustand_lesen` (`sed` plus `tail`) und ein Schreibvorgang — ein halbes Dutzend
+    // Prozessstarts. Jetzt liegt dazwischen eine Zeile.
+    //
+    // Ein echtes Fencing-Token gibt es hier nicht: bei der Sperre war `rmdir` auf einen
+    // identitaetsgebundenen Namen ein atomares Vergleiche-und-Tausche, fuer „benenne nur
+    // um, wenn das Ziel noch X ist" hat POSIX kein Gegenstueck. Der Restschaden ist EIN
+    // veralteter Gesundheitsstand, den der naechste Lauf richtigstellt.
+    const rumpfZ = funktionsrumpf(befehle, "zustand_schreiben");
+    const zeilen = rumpfZ.split("\n");
+    const letzteMv = zeilen.findIndex((z) => z.includes('mv "$tmp"'));
+    expect(letzteMv, "die Funktion benennt um").toBeGreaterThan(-1);
+    const pruefungenVorMv = zeilen
+      .slice(0, letzteMv)
+      .map((z, i) => (z.includes("sperre_gehoert_uns") ? i : -1))
+      .filter((i) => i >= 0);
+    expect(pruefungenVorMv.length, "zwei Pruefungen: am Anfang und direkt davor").toBe(2);
+    // ⚠️ Der Abstand ist der ganze Inhalt der Zusicherung. Zwischen der letzten Pruefung
+    // und dem `mv` darf nichts stehen, was forkt oder schreibt.
+    const dazwischen = zeilen
+      .slice(pruefungenVorMv[1] + 1, letzteMv)
+      .map((z) => z.trim())
+      .filter((z) => z !== "" && z !== "fi");
+    expect(dazwischen, "zwischen Pruefung und mv steht nur der Abbruchzweig").toEqual([
+      'rm -f "$tmp" 2>/dev/null || true',
+      'warne "Die Sperre ging verloren, waehrend der Stand geschrieben wurde ($1: $2) — er',
+      'wird NICHT veroeffentlicht."',
+      "return 0",
+    ]);
   });
 
   it("der Healthcheck faellt auch bei AUSBLEIBENDEN Laeufen, nicht nur bei gescheiterten", () => {

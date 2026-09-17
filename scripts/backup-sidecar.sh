@@ -271,7 +271,37 @@ letzter_erfolg=$alt"
   fi
 
   tmp="$ZUSTANDSDATEI.neu.$$"
-  if ! printf '%s\n' "$inhalt" >"$tmp" 2>/dev/null || ! mv "$tmp" "$ZUSTANDSDATEI" 2>/dev/null; then
+  if ! printf '%s\n' "$inhalt" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null || true
+    warne "Der Stand liess sich NICHT schreiben ($1: $2). Ist $BACKUP_DIR voll oder
+  nur lesend eingehaengt? Der vorhandene Stand bleibt unangetastet."
+    nicht_vermerkt_setzen
+    return 1
+  fi
+
+  # ⚠️ NOCH EINMAL, UNMITTELBAR VOR DEM UMBENENNEN — UND DAS SCHLIESST DAS FENSTER NICHT,
+  # es macht es so schmal, wie es hier geht. Zwischen der Pruefung oben und diesem `mv`
+  # lagen bisher zwei `date`-Aufrufe, ein `zustand_lesen` (`sed` plus `tail`) und ein
+  # Schreibvorgang — ein halbes Dutzend Prozessstarts. Jetzt liegt dazwischen nur noch
+  # diese eine Zeile.
+  #
+  # ⚠️ EHRLICH BENANNT: das bleibt ein Pruefen-dann-Handeln, und genau davon habe ich in
+  # diesem Skript schon zweimal gelernt, dass es das Fenster VERENGT und nicht SCHLIESST.
+  # Bei der Sperre gab es dagegen ein Mittel — `rmdir` auf einen identitaetsgebundenen
+  # Namen ist ein atomares Vergleiche-und-Tausche. Fuer „benenne nur um, wenn der Inhalt
+  # des Ziels noch X ist" gibt es in POSIX kein Gegenstueck; ein echtes Fencing-Token
+  # brauchte einen fortlaufenden Zaehler in genau dem Speicher, der hier abgesichert
+  # werden soll. Was bliebe, waere der Schaden: EIN veralteter Gesundheitsstand, den der
+  # naechste Lauf von selbst richtigstellt — kein Tarball geht verloren, keines wird
+  # ueberschrieben (die Namen sind eindeutig, das Auslagern ist da laengst durch).
+  if ! sperre_gehoert_uns; then
+    rm -f "$tmp" 2>/dev/null || true
+    warne "Die Sperre ging verloren, waehrend der Stand geschrieben wurde ($1: $2) — er
+  wird NICHT veroeffentlicht."
+    return 0
+  fi
+
+  if ! mv "$tmp" "$ZUSTANDSDATEI" 2>/dev/null; then
     rm -f "$tmp" 2>/dev/null || true
     warne "Der Stand liess sich NICHT schreiben ($1: $2). Ist $BACKUP_DIR voll oder
   nur lesend eingehaengt? Der vorhandene Stand bleibt unangetastet."
