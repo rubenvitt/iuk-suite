@@ -30,14 +30,24 @@ on:
 # `cancel-in-progress` gilt NUR fuer `pull_request` (`github.event.pull_request.number`
 # ist dann gesetzt): ein Push auf `main` stoesst `build`/`merge`/`release`/`deploy`
 # an, und ein abgebrochener Rollout mitten im `deploy`-Schritt ist schlimmer als
-# ein spaeter (siehe die Begruendung dort). Fuer `push` bleibt die Gruppe deshalb
-# ueber `github.ref` eindeutig je Commit, und `cancel-in-progress` faellt auf
-# `false` zurueck — unveraendertes Verhalten. Die Jobs `merge`/`release`/`deploy`
+# ein spaeter (siehe die Begruendung dort).
+#
+# ⚠️ DER GRUPPENSCHLUESSEL FUER `push` MUSS `github.sha` SEIN, NICHT `github.ref` —
+# Codex-Befund P1 auf diesem PR, bestaetigt. `github.ref` ist fuer JEDEN Push auf
+# main dieselbe Zeichenkette (`refs/heads/main`); GitHub haelt je Gruppe nur EINEN
+# laufenden und EINEN wartenden Lauf, und ein dritter Push in derselben Gruppe
+# ersetzt den wartenden zweiten — unabhaengig von `cancel-in-progress`, das nur den
+# LAUFENDEN schuetzt. Zwei main-Pushes kurz hintereinander haetten damit den
+# mittleren Commit nie durch `build`/`release`/`deploy` laufen lassen, obwohl
+# nichts das gemeldet haette (der Lauf verschwindet, er scheitert nicht rot). Mit
+# `github.sha` bekommt jeder Push seine eigene Gruppe, also wieder das
+# Ausgangsverhalten (jeder Commit laeuft unabhaengig durch) — nur PR-Laeufe teilen
+# sich weiterhin eine Gruppe je PR-Nummer. Die Jobs `merge`/`release`/`deploy`
 # tragen ihre eigenen, engeren Gruppen (je SHA) bereits selbst; diese hier ersetzt
 # sie nicht, sie verhindert nur, dass ein PR-Lauf einen anderen, laengst
 # ueberholten PR-Lauf ausbremst.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Kleinstmoegliches Recht als Vorgabe fuer den GITHUB_TOKEN. `checks`, `e2e`
