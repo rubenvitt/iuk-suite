@@ -381,6 +381,26 @@
   background: none; border: none; font: inherit; cursor: pointer; min-height: 56px;
 }
 .zeileKnopf:first-child { border-top: none }
+/*
+ * DER UMSCHALTER DER CHARGENLISTE — DRK-397.
+ *
+ * Er ist ein WEG und keine Handlung, trägt also dieselbe Form wie „Ändern" in
+ * der Zielzeile: Tinte und Unterstreichung, nicht Rot und keine Fläche. Rot
+ * gehört dem Buchen-Knopf darüber; zwei rote Flächen auf einem Schirm streiten
+ * um dieselbe Aufmerksamkeit (Falle 3).
+ *
+ * ⚠️ ZWEI KLASSEN IM SELEKTOR, und das ist gegen Falle 5: `.zeile` setzt
+ * `text-decoration: none`, und eine einzelne Klasse stünde mit ihr auf
+ * derselben Stufe — die Unterstreichung hinge dann an der Reihenfolge im
+ * Stylesheet und verschwände beim nächsten Umsortieren still.
+ *
+ * `min-height` bleibt beim Wert von `.zeileKnopf` (56px, Bediendichte ohne
+ * Shell) — er wird hier NICHT unterschritten.
+ */
+.zeileKnopf.chargenUmschalter {
+  justify-content: center; font-size: 14px; font-weight: 600;
+  color: var(--lb-tinte); text-decoration: underline; text-underline-offset: 3px;
+}
 
 /*
  * EINE ZEILE DER ZIELWAHL — DRK-300.

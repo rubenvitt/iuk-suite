@@ -1,7 +1,10 @@
 import { eq } from "drizzle-orm";
 import { qrSvg } from "@/core/qr";
 import { moduleUrl } from "@/core/shell/moduleUrl";
-import { einheitLabels, einheitMeta, standortMeta, type Einheitenart } from "../_lib/konstanten";
+import {
+  HANDLAGER_ID, einheitLabels, einheitMeta, standortMeta, type Einheitenart,
+} from "../_lib/konstanten";
+import { kaertchenFuehrtInsHandlager } from "../_lib/ortZiel";
 import { etikettOrte } from "../_lib/lesepfade/ortEtiketten";
 import type { DB } from "./client";
 import { artikel, tokens } from "./schema";
@@ -129,9 +132,42 @@ export type OrtEtikett = {
   /** Die volle, abtippbare Adresse — sie steht im Fuss der Karte. */
   url: string;
   qr: string;
+  /**
+   * DIE HANDLAGER-KARTE IST DIE EINZIGE, DIE EIN KAERTCHEN TRAGEN DARF —
+   * DRK-395, und deshalb sagt es der SERVER statt der Insel.
+   *
+   * ⚠️ NICHT ALS `id === HANDLAGER_ID` IN DER INSEL NACHGERECHNET. Die Insel
+   * kennt sonst eine Kennung aus der Datenbank, und die Frage „welche Karte ist
+   * das Regal?" haette zwei Antworten — eine hier und eine dort. Die zweite
+   * zieht beim naechsten Umbau niemand mit.
+   *
+   * ⚠️ UND ES IST BEWUSST NUR DER HANDLAGER. Ein Kaertchen auf der
+   * FAHRZEUG-Karte oeffnete den Check dieses Fahrzeugs fuer jeden, der die
+   * Karte abfotografiert; am Regal ist die Entnahme genau das, was dort ohnehin
+   * jeder mit einem laminierten Kaertchen tut. Wer das ausweitet, weitet die
+   * Betreiberentscheidung mit aus.
+   */
+  istHandlager: boolean;
 };
 
-export type OrtEtikettenDaten = { basis: string; orte: OrtEtikett[] };
+/**
+ * EIN ZUGANGS-KAERTCHEN, WIE ES AUF DIE HANDLAGER-KARTE PASST — DRK-395.
+ *
+ * Es traegt DENSELBEN Code wie die Kaertchen-Karte auf dem Etikettenbogen
+ * nebenan; neu ist allein, dass er auch auf die Ortskarte darf.
+ */
+export type KaertchenEtikett = { code: string; label: string; url: string; qr: string };
+
+export type OrtEtikettenDaten = {
+  basis: string;
+  orte: OrtEtikett[];
+  /**
+   * DIE WAHL, DIE DIE DRUCKENDE PERSON HAT — leer, wenn es kein passendes
+   * Kaertchen gibt. Die Insel bietet sie an; gewaehlt wird beim Drucken, nicht
+   * hier.
+   */
+  kaertchen: KaertchenEtikett[];
+};
 
 /**
  * ⚠️ DIE MENGE STEHT NICHT HIER, SONDERN IN `_lib/lesepfade/ortEtiketten.ts`,
@@ -205,17 +241,48 @@ export async function ortEtikettenDaten(db: DB): Promise<OrtEtikettenDaten> {
                            einheitenart: Einheitenart | null }) =>
     o.typ === "fahrzeug" && beschriftung.get(o.id)?.meta !== einheitMeta(o);
 
-  const orte = await Promise.all(zeilen.map(async (o) => {
-    const url = `${basis}/o/${o.id}`;
-    return {
-      id: o.id,
-      name: o.name,
-      meta: standortMeta(o),
-      unterscheidung: kollidiert(o) ? o.id : null,
-      url,
-      qr: await qrSvg(url),
-    };
-  }));
+  /**
+   * DIE KAERTCHEN, DIE AUF DIE HANDLAGER-KARTE DUERFEN — DRK-395.
+   *
+   * ⚠️ NUR AKTIVE, und hier ist das mehr als Aufraeumen: ein gesperrter Code
+   * ist gesperrt, WEIL ein laminiertes Kaertchen verschwunden ist
+   * (`_db/schema.ts`, `tokens.aktiv`). Ihn auf die Karte zu drucken hiesse, ihn
+   * auf Papier wieder auszugeben.
+   *
+   * ⚠️ UND NUR SOLCHE, DIE AUF DER ARTIKELLISTE LANDEN — ueber
+   * `kaertchenFuehrtInsHandlager`, also ueber DIESELBE Funktion, die den
+   * gescannten Code weiterleitet. Die Begruendung steht dort; kurz: ein
+   * Kaertchen mit Fahrzeugziel ergaebe am Regal ein Etikett, das den Check
+   * eines Fahrzeugs oeffnet.
+   *
+   * Nach der BEZEICHNUNG sortiert, mit `de` — das ist die Angabe, an der die
+   * druckende Person waehlt, und `localeCompare` ohne Sprache sortiert „Ü"
+   * hinter „Z".
+   */
+  const kaertchenZeilen = db.select().from(tokens).where(eq(tokens.aktiv, true)).all()
+    .filter((t) => kaertchenFuehrtInsHandlager(t.zielTyp, t.zielId))
+    .sort((a, b) => a.label.localeCompare(b.label, "de"));
 
-  return { basis, orte };
+  const [orte, kaertchen] = await Promise.all([
+    Promise.all(zeilen.map(async (o) => {
+      const url = `${basis}/o/${o.id}`;
+      return {
+        id: o.id,
+        name: o.name,
+        meta: standortMeta(o),
+        unterscheidung: kollidiert(o) ? o.id : null,
+        url,
+        qr: await qrSvg(url),
+        istHandlager: o.id === HANDLAGER_ID,
+      };
+    })),
+    Promise.all(kaertchenZeilen.map(async (t) => {
+      // Der Bindestrich ist Teil des gespeicherten Wertes (§4.7) und wandert
+      // ungefiltert in die Pixel — dieselbe Zeile wie am Etikettenbogen.
+      const url = `${basis}/t/${t.code}`;
+      return { code: t.code, label: t.label, url, qr: await qrSvg(url) };
+    })),
+  ]);
+
+  return { basis, orte, kaertchen };
 }
