@@ -173,7 +173,7 @@ test("Anleitung: die Koordination bekommt ihre eigenen Kapitel", async ({ page }
  * KEIN WAAGERECHTES SCROLLEN — DIE ZUSAGE, DIE NUR DER BROWSER GEBEN KANN.
  *
  * 360px ist die schmalste Breite, die das Modul bedienen soll (dieselbe Zahl wie der
- * 360px-Sweep in `e2e/aufgaben.spec.ts`). Geprueft werden die zwei Formen, die sie brechen
+ * 360px-Sweep in `e2e/aufgaben-breiten.spec.ts`). Geprueft werden die zwei Formen, die sie
  * koennten: die Uebersicht (Kartengitter plus Bild) und das Kapitel `aufgabe` (die vierspaltige
  * Uebergangstabelle unter dem Lebenszyklusbild).
  */

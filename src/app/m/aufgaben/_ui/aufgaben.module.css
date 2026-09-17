@@ -964,7 +964,7 @@
  * DREI SPUREN LOESEN ES, WEIL DIE MITTLERE UMBRECHEN DARF: `min-content` ist jetzt der breiteste
  * UNTEILBARE Brocken (`<Frist>` mit `white-space: nowrap`, ~150px) statt der Summe von vieren.
  * 140 + 150 + 130 + 24 = 444px — mit Reserve unter den 528px, die die schmalste Inhaltsflaeche
- * dieses Moduls je hat (768px, gemessen; s. `e2e/aufgaben.spec.ts`s Ueberlauf-Sweep).
+ * dieses Moduls je hat (768px, gemessen; s. `e2e/aufgaben-breiten.spec.ts`s Sweep).
  *
  * WAS DAS KOSTET, AUSGESCHRIEBEN: Frist und Dauer stehen innerhalb der Meta-Zelle, richten sich
  * also NICHT ueber die Zeilen hinweg aus — nur Titel, Zellanfang und Aktionsspalte tun das. Der
@@ -1712,7 +1712,7 @@
    * Umzug derselben Bauform in die Knopfzeile bringt sie in ihren Geltungsbereich.
    *
    * KEIN TOR SIEHT DAS, UND ZWAR DREIFACH: Vitest rechnet keine Zeilenboxen, der 360/390/820er
-   * Sweep in `e2e/aufgaben.spec.ts` misst UEBERLAUF (ein zu SCHMALER Knopf laeuft nirgends ueber),
+   * Sweep in `e2e/aufgaben-breiten.spec.ts` misst UEBERLAUF (ein zu SCHMALER Knopf laeuft nie ueber),
    * und ein Bildschirmabzug zeigt es nur in einer Belegung, in der die Karte diesen Knopf ueberhaupt
    * traegt (`bufdiHeuteOffen`/`bufdiWartetAufEinplanung` mit genau einer Aufgabe) — UND GENAU DIE
    * ERREICHEN DIE HEUTIGEN DEMODATEN NICHT: bei allen drei BuFDis gewinnt eine hoehere Sprosse
@@ -1754,7 +1754,7 @@
    * DIE KARTENFORM DER ZEILE UNTER 768PX (§5.3) — SEIT DEM RASTER EINE EINSPALTIGE SUBGRID STATT
    * EINER FLEX-SPALTE. Das Raster oben braucht auf 360px keine fuenf Spuren: dort steht ohnehin
    * jede Angabe untereinander, und fuenf `auto`-Spuren nebeneinander waeren derselbe Ueberlauf,
-   * gegen den der 390/820-Sweep in `e2e/aufgaben.spec.ts` geschrieben ist.
+   * gegen den der 390/820-Sweep in `e2e/aufgaben-breiten.spec.ts` geschrieben ist.
    *
    * DIE LISTE SCHALTET AUF EINE SPUR, DIE ZEILE BLEIBT `subgrid` — damit gilt die Zellenfolge der
    * Zeile unveraendert, und es gibt keine zweite Markup-Form fuer schmal.
@@ -1961,7 +1961,7 @@
  *
  * `table-layout: fixed` PLUS `overflow-wrap: anywhere` STATT EINES SCROLLKASTENS: vier Spalten
  * mit deutschen Woertern laufen bei 360px sonst ueber die Dokumentbreite hinaus, und der
- * 360px-Ueberlauf-Sweep in `e2e/aufgaben.spec.ts` misst genau das. Eine Tabelle, die ihre
+ * 360px-Fall in `e2e/aufgaben-anleitung.spec.ts` misst genau das. Eine Tabelle, die ihre
  * Spalten aus dem Inhalt rechnet, kann diese Zusage strukturell nicht halten.
  */
 .hilfeTabelle {

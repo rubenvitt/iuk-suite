@@ -18,7 +18,7 @@ import { Skizze } from "./Skizze";
  *    kennt keine Glyphenbreiten (`getComputedTextLength` gibt es dort nicht). Der Faktor 0,56 je
  *    Zeichen und Schriftgrad ist an den benutzten Groessen gemessen und eher grosszuegig — der
  *    Test faengt damit den Fall „Beschriftung deutlich zu lang", nicht „einen Punkt zu weit".
- *    Fuer das Genaue gibt es nur den Browser; die e2e-Ueberlaufsweeps in `e2e/aufgaben.spec.ts`
+ *    Fuer das Genaue nur den Browser; die Sweeps (`aufgaben-breiten`/`-anleitung.spec.ts`)
  *    messen das Dokument, nicht den Bildinhalt — diese Aussage hier besitzt sonst niemand.
  */
 

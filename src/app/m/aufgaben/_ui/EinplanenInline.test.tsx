@@ -80,8 +80,8 @@ afterEach(async () => {
 
 describe("EinplanenInline — der Termin in der Zeile", () => {
   /**
-   * DER AUSLOESER IST KEIN antd-KNOPF, UND DAS IST EINE ZUSAGE AN DEN ZAEHLRIEGEL: `e2e/
-   * aufgaben.spec.ts` laesst in `data-testid="aufgaben-flaeche"` hoechstens EINEN
+   * DER AUSLOESER IST KEIN antd-KNOPF, UND DAS IST EINE ZUSAGE AN DEN ZAEHLRIEGEL:
+   * `e2e/aufgaben-breiten.spec.ts` laesst in `data-testid="aufgaben-flaeche"` hoechstens EINEN
    * `.ant-btn-primary` zu, und diese Insel steht auf der Fuehrungskarte — also mitten in der
    * gemessenen Flaeche. Solange sie gar keinen antd-Knopf rendert, kann sie den Riegel
    * strukturell nicht reissen.

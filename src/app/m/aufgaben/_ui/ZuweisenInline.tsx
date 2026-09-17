@@ -42,7 +42,7 @@ import s from "./aufgaben.module.css";
  *    `typecheck` noch `build` noch Vitest sieht. Die Insel definiert ihre Funktionen selbst und
  *    importiert `umverteilenAction` DIREKT; hinein gehen nur serialisierbare Daten.
  *
- * ══ KEIN `type="primary"` AM AUSLOESER. Der Zaehlriegel in `e2e/aufgaben.spec.ts` misst
+ * ══ KEIN `type="primary"` AM AUSLOESER. Der Zaehlriegel in `e2e/aufgaben-breiten.spec.ts` misst
  *    `.ant-btn-primary` innerhalb von `data-testid="aufgaben-flaeche"` und laesst hoechstens einen
  *    zu; der gehoert der Fuehrungskarte (Regel P). Der Inhalt des `Popover` liegt im Portal, also
  *    ausserhalb dieser Flaeche — die Namensknoepfe darin sind ausserdem gar keine antd-Knoepfe.
