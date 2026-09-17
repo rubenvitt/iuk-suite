@@ -182,9 +182,9 @@ export default async function CheckSeite({
    *                        obwohl B uebergangen wurde. Der Hinweis liess sich
    *                        also per Adresse ABSCHALTEN — genau der Ausgang,
    *                        gegen den dieses Ticket geschrieben ist.
-   *   ?fz=B&gescannt=C  →  gemeint = C  →  „gescannt hast du C", und C wurde
-   *                        nie gescannt. Eine LUEGE auf einer Datenflaeche,
-   *                        und schlimmer als das Schweigen von vorher.
+   *   ?fz=B&gescannt=C  →  gemeint = C  →  der Hinweis nennt C, und C kam in
+   *                        dem Vorgang nie vor. Eine falsche Auskunft auf einer
+   *                        Datenflaeche, schlimmer als das Schweigen von vorher.
    *
    * `ortZielPfad` schreibt `{ fz: fahrzeugBindung, gescannt: ort.id }` — auf dem
    * echten Weg ist `fz` also IMMER die gebundene Einheit. Das ist die Form, die
@@ -196,9 +196,19 @@ export default async function CheckSeite({
    *
    * ⚠️ NICHT MIT EINER RECHTEPRUEFUNG VERWECHSELN. Hier wird nichts gesichert:
    * geladen wird ohnehin nur die gebundene Einheit (Falle 15, unten), und die
-   * Bindung schlaegt den Scan unabhaengig davon. Was hier geprueft wird, ist
-   * allein, ob die AUSKUNFT wahr ist — und eine Auskunft, die die Adresse frei
-   * waehlt, ist keine.
+   * Bindung schlaegt den Scan unabhaengig davon.
+   *
+   * ⚠️ UND ES IST EINE FORMPRUEFUNG, KEIN HERKUNFTSNACHWEIS — hier stand, es
+   * werde geprueft, „ob die AUSKUNFT wahr ist", und das war zu viel behauptet
+   * (Reviewrunde 4). `?fz=<gebunden>&gescannt=<andere>` erfuellt
+   * `vomEtikettenweg` und ist von Hand schreibbar; ein Lesezeichen auf eine
+   * frueher besuchte Check-Adresse traegt dieselbe Form ohne jede Absicht.
+   * Was diese Bedingung leistet, ist genau eines: sie verhindert, dass ein
+   * `gescannt` den Hinweis ABSCHALTET oder eine Einheit an die Stelle der
+   * uebergangenen setzt. Dass der Satz daneben nichts Unbelegbares behauptet,
+   * leistet nicht sie, sondern sein Wortlaut — `_ui/ScanHinweis.tsx` spricht
+   * deshalb von der Adresse und nicht vom Scan, mit der Abwaegung gegen einen
+   * signierten Marker in seinem Kopf.
    *
    * ⚠️ NUR EINE EINHEIT, DIE DIE SEITE AUCH KENNT. Die Suche laeuft ueber
    * `fahrzeuge`, also ueber die auf `aktiv` gefilterte Liste — dieselbe Menge,
