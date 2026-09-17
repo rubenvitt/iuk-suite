@@ -36,6 +36,27 @@ export const AUFGABEN_ZUGANG_GRUPPE = "iuk-aufgaben-nutzer";
 export const AUFGABEN_KOORDINATION_GRUPPE = "iuk-aufgaben-koordination";
 
 /**
+ * DER HOST DES MODULS — hier und nicht als Literal im Spec, seit die Faelle auf ZWEI
+ * Dateien stehen (`aufgaben.spec.ts` und `aufgaben-breiten.spec.ts`, DRK-408). Zwei
+ * Literale liefen auseinander, ohne dass ein Lauf rot wuerde: die Datei mit dem
+ * falschen Host bekaeme auf jeder Route 404 — und 404 ist in dieser Suite eine
+ * ZUGESICHERTE Antwort (die Gegenproben), also kein Signal, das auffiele.
+ */
+export const AUFGABEN_HOST = "aufgaben.localtest.me";
+
+/**
+ * EINE SITZUNG MIT BEIDEN GRUPPEN — der Wert, den jede Anmeldung auf einer
+ * Koordinationsflaeche braucht. Seit dem Quellenwechsel vom 2026-08-15 traegt die
+ * Koordinationsgruppe die Rolle, nicht mehr `personen.rolle`; Rikes geseedete Zeile
+ * ist seitdem `auftrag` (`_lib/seedLokal.ts`).
+ *
+ * ⚠️ SIE GEHOERT NICHT AN JEDE RIKE-ANMELDUNG: die Gegenproben (`/verteilen`,
+ * `/personen`, `/freigaben` fuer `auftrag`/`bufdi`) und der Erklaerseiten-Fall
+ * beweisen ihre Zusage gerade dadurch, dass sie OHNE sie laufen.
+ */
+export const AUFGABEN_KOORDINATION_SITZUNG = `${AUFGABEN_ZUGANG_GRUPPE},${AUFGABEN_KOORDINATION_GRUPPE}`;
+
+/**
  * Die zwei Zeilen fuer `webServer.env` in `playwright.config.ts`. Sie pinnen den
  * E2E-Server auf dieselben Werte, die die Konstanten oben tragen — und schirmen
  * ihn damit gegen ein abweichendes `.env.local` ab (s. Kopfkommentar).

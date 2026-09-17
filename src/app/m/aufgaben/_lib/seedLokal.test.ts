@@ -238,7 +238,8 @@ describe("seedLokalAufgaben — relativ statt fest", () => {
 /*
  * DER WOCHENTAG IST EINE EINGABE DES SEEDS, ALSO WIRD ER GESETZT UND NICHT ABGEWARTET.
  *
- * GEMESSEN (2026-08-27, Donnerstag): `e2e/aufgaben.spec.ts:1048` und `:1594` waren rot, weil die
+ * GEMESSEN (2026-08-27, Donnerstag): `aufgaben.spec.ts`s Faelle „Ziehbereich: die Knopfstrecke bleibt
+ * bedienbar" und „Tastaturbedienung" waren rot, weil die
  * Ueberfaellig-Fixtur ihr `planDatum` auf `tagePlus(heute, -3)` trug — OHNE expliziten `planRang`,
  * also auf dem Schema-Vorgabewert 0. `heute - 3` ist der Wochenmontag GENAU DANN, wenn heute
  * Donnerstag ist; dann trug Bendix' Montag DREI Eintraege statt zwei, zwei davon auf Rang 0, und
@@ -330,10 +331,11 @@ describe("seedLokalAufgaben — kein Rangzusammenstoss, an KEINEM Wochentag", ()
   );
 
   /*
-   * DIE ZUSAGE, DIE DIE ZWEI PLAYWRIGHT-FAELLE VERBRAUCHEN (`e2e/aufgaben.spec.ts:1048`, `:1594`):
+   * DIE ZUSAGE, DIE DIE ZWEI PLAYWRIGHT-FAELLE VERBRAUCHEN (`e2e/aufgaben.spec.ts`,
+   * „Ziehbereich: die Knopfstrecke bleibt bedienbar" und „Tastaturbedienung"):
    * Bendix' Montag traegt GENAU ZWEI Eintraege, in dieser Reihenfolge. Die Klausel oben allein
    * liesse einen dritten Eintrag mit Rang 2 durch — der waere zusammenstossfrei und braeche
-   * `:1048` trotzdem, weil dort die ersten zwei Zeilen namentlich abgelesen werden.
+   * den Zieh-Fall trotzdem, weil dort die ersten zwei Zeilen namentlich abgelesen werden.
    */
   it.each(SIEBEN_WOCHENTAGE)(
     "am %s traegt Bendix' Wochenmontag genau die zwei gestaffelten Materialtransport-Eintraege",

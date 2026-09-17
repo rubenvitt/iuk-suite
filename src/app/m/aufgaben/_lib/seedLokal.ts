@@ -348,8 +348,8 @@ export async function seedLokalAufgaben(db: DB): Promise<string[]> {
    * hinein und landete dort auf einem Tag, den Bendix schon belegt hat — ohne expliziten
    * `planRang`, also auf dem Schema-Vorgabewert 0, und damit im Rangzusammenstoss:
    *   · DONNERSTAG: `heute - 3` ist der Wochenmontag → drei Einträge auf Bendix' Montag, zwei
-   *     davon auf Rang 0 neben „Materialtransport Kreisverband". `e2e/aufgaben.spec.ts:1048`
-   *     und `:1594` waren an jedem Donnerstag rot (Hoch-Knopf `disabled`).
+   *     davon auf Rang 0 neben „Materialtransport Kreisverband". `aufgaben.spec.ts`s Zieh-
+   *     und Tastatur-Fall waren an jedem Donnerstag rot (Hoch-Knopf `disabled`).
    *   · FREITAG: `heute - 3` ist der Wochendienstag → Zusammenstoss mit „Eigene Fortbildung"
    *     auf Rang 0. Ein zweiter, unabhängiger Tag derselben Fehlerklasse.
    * Der Kommentar unten bei „Blutdruckmessgeräte kalibrieren" und die Fußzeile der Achse aus
