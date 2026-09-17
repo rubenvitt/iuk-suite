@@ -53,14 +53,22 @@ const STYLESHEET = "src/app/m/lagerbuch/_ui/helfer.module.css";
 
 /**
  * Kopie von `ohneKommentare()` aus `_lib/bauform.test.ts` (Regel 1 / N-5 der
- * Regeldatei fuer Teil 4). Die drei Bauform-Scans unten lesen sonst den Rohtext
- * INKLUSIVE Kommentaren — und `Entnahme.tsx` traegt in seinem Kopfkommentar
- * woertlich `_actions/buchung.ts` (das ist die Begruendung, warum die Action als
- * PROP hereinkommt) und im `catch`-Zweig woertlich das Wort „catch". Ohne
- * diesen Filter waere der Negativ-Scan auf `_actions/buchung` auf seiner
- * EIGENEN Begruendung rot, und — gefaehrlicher — der Positiv-Scan auf das
- * `try`/`catch` waere FALSCH GRUEN: er bestuende auch dann noch, wenn jemand das
- * `try`/`catch` entfernte und nur den erklaerenden Kommentar stehen liesse.
+ * Regeldatei fuer Teil 4). Die Bauform-Scans unten lesen sonst den Rohtext
+ * INKLUSIVE Kommentaren.
+ *
+ * ⚠️ HIER STAND, DER FILTER RETTE DEN NEGATIV-SCAN AUF `_actions/buchung` VOR
+ * SEINER EIGENEN BEGRUENDUNG — das galt fuer die Prop-Form und ist mit
+ * DRK-375 hinfaellig: der Scan ist jetzt POSITIV, die Insel SOLL die Action
+ * importieren. Nachgemessen gilt heute keiner der sechs Scans anders mit als
+ * ohne Filter; er ist im Augenblick wirkungslos.
+ *
+ * ⚠️ ER BLEIBT TROTZDEM, UND ZWAR FUER EINEN GEMESSENEN FALL: schreibt jemand
+ * die alte Signatur als BEISPIEL in den Kopfkommentar (`buchen:
+ * BuchungsAktion` — und der Kommentar handelt genau davon), faellt die
+ * Zusicherung „kein `buchen`-Prop mehr" auf dem Rohtext und besteht
+ * gefiltert. Das ist kein erfundener Fall: diese Datei dokumentiert eine
+ * abgeschaffte Form, also steht ihr Name dort.
+ *
  * `bauform.test.ts` exportiert die Funktion nicht, und dies ist ein anderer
  * Testkoerper — deshalb die lokale Kopie statt eines Re-Exports, wie schon in
  * `_lib/pwaIcons.test.ts`, `_lib/schreibpfade/tokenEinloesung.test.ts` und
