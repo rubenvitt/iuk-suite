@@ -2,7 +2,6 @@
 import { withAuditContext, auditActor } from "@/core/audit/server";
 
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getDb, type DB } from "../_db/client";
 import { artikel, chargen, lagerorte } from "../_db/schema";
@@ -17,7 +16,7 @@ import {
 } from "../_lib/konstanten";
 import { restJeChargeFuerArtikelAnOrt } from "../_lib/lesepfade/bestand";
 import { zugangsZiele } from "../_lib/lesepfade/orte";
-import { revalidiereHandlagerBestand } from "../_lib/revalidierung";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { umlagerungVonOrt } from "../_lib/schreibpfade/umlagerung";
 import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
@@ -459,16 +458,14 @@ export async function bucheInEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ VIER PFADE, UND DIE ERSTEN ZWEI SIND DIE BEIDEN FLAECHEN DIESES
-       * TICKETS. Der dritte ist das Einheitenblatt (dessen Bestandszahlen sich
-       * gerade geaendert haben), der vierte die Verwaltungsuebersicht. Der
-       * Helferschirm traegt die Einheit in der URL und wird deshalb mit ihr
-       * genannt — ein Pfad ohne sie traefe die Seite nicht.
+       * ⚠️ HIER STANDEN BIS DRK-374 VIER PFADE — die beiden Box-Flaechen, das
+       * Einheitenblatt und die Verwaltungsuebersicht. Die Abgabe an der Box ist
+       * eine Umlagerung und damit ein Bestandsschreiber wie jeder andere; sie
+       * nimmt deshalb die modulweite Liste. Das Einheitenblatt traegt seine
+       * Kennung in der URL und kommt ueber `lagerortId` dazu — ein Pfad ohne
+       * sie traefe die Seite nicht.
        */
-      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
-      revalidatePath("/m/lagerbuch/helfer/box");
-      revalidatePath(`/m/lagerbuch/verwaltung/fahrzeuge/${v.fahrzeugId}`);
-      revalidatePath("/m/lagerbuch/verwaltung");
+      revalidiereBestand();
       return { ok: true, wert: { gebucht } };
     },
   );
@@ -734,19 +731,26 @@ export async function raeumeAusEntnahmebox(
       if (fachFehler !== null) return { ok: false, grund: "eingabe", text: fachFehler };
 
       /*
-       * ⚠️ ZWEI LISTEN, UND SIE SIND NICHT DASSELBE. Der Handlager-Bestand
-       * dieses Artikels hat sich geaendert — dafuer steht die geteilte Liste
-       * (`_lib/revalidierung.ts`, Begruendung je Pfad dort). Die beiden
-       * Box-Flaechen darunter stehen NICHT darin: sie veralten nur bei einem
-       * Vorgang, der die Kiste betrifft, und eine Zugangsbuchung im Drawer der
-       * Verwaltung raeumte sie sonst bei jedem Wareneingang mit aus.
+       * ⚠️ HIER STANDEN BIS ZUM MERGE VON DRK-374 DREI AUFRUFE: die geteilte
+       * Liste plus die beiden Box-Flaechen einzeln, mit der ausdruecklichen
+       * Begruendung, dass die Box-Flaechen NICHT in die geteilte Liste
+       * gehoerten — „eine Zugangsbuchung im Drawer der Verwaltung raeumte sie
+       * sonst bei jedem Wareneingang mit aus".
        *
-       * ⚠️ `helfer/box` FEHLT ABSICHTLICH: dieser Schirm zeigt den Bestand
-       * EINER EINHEIT, und der aendert sich beim Einraeumen nicht.
+       * DIESE ABWAEGUNG IST MIT DRK-374 ANDERS ENTSCHIEDEN, und zwar bewusst:
+       * ein Pfad zu viel kostet einen Rerender einer ohnehin dynamischen
+       * Seite, ein Pfad zu wenig zeigt eine falsche Zahl auf einer
+       * Arbeitsflaeche — und niemand meldet ihn, weil nichts bricht. Die
+       * Kosten sind unsymmetrisch, also gewinnt die Obermenge. Ein Filter je
+       * Schreiber war ausserdem genau die Bauform, die vier Review-Befunde in
+       * Folge erzeugt hat; die Codex-Review zu PR #187 hat dafuer noch ein
+       * zweites Beispiel geliefert.
+       *
+       * Beide Box-Flaechen stehen deshalb jetzt IN der Liste — sie lesen ueber
+       * `einraeumPosten` bzw. `postenAmOrt` Buchungszeilen wie jede andere
+       * Bestandsflaeche auch.
        */
-      revalidiereHandlagerBestand(v.artikelId);
-      revalidatePath("/m/lagerbuch/auffuellen/box");
-      revalidatePath("/m/lagerbuch/verwaltung/entnahmebox");
+      revalidiereBestand();
       // Der ZIELNAME kommt aus dem Server, nicht aus der Insel: dort laege er
       // als Anzeigewert vor, und ein umbenannter Schrank stuende im Beleg noch
       // unter seinem alten Namen.

@@ -16,6 +16,7 @@ import {
   useEntprellt,
   wendeFilterAn,
   werteAlsFilter,
+  Zellentext,
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
@@ -27,7 +28,6 @@ import { Chip } from "../../../_ui/Chip";
 import { Ikone } from "../../../_ui/ikonen";
 import { Suchfeld } from "../../../_ui/Suchfeld";
 import { Trefferanzeige } from "../../../_ui/Trefferanzeige";
-import s from "../../../_ui/verwaltung.module.css";
 import type { BzAnzeigeZeile } from "./bzAnzeige";
 import { NeuBzGeraet } from "./NeuBzGeraet";
 
@@ -163,13 +163,18 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
        * Kontrolle ist ein Nachweisfeld ohne Laengengrenze, die Tabelle faehrt
        * `scroll.x: "max-content"` — ein langer Satz schoebe alle folgenden
        * Spalten aus dem Bild. Die Begruendung samt Gegenvorschlag steht an
-       * `.zellentext` in `verwaltung.module.css`; der volle Text bleibt im
-       * `title` und ungekuerzt im Logbuch des Geraeteblatts.
+       * `Zellentext` in `core/tabelle`; der volle Text bleibt im `title` und
+       * ungekuerzt im Logbuch des Geraeteblatts.
+       *
+       * ⚠️ `zeilen` IST HIER RICHTIG UND AUF DEM GERAETEBLATT FALSCH (DRK-372):
+       * eine Hoehendeckelung darf nur dort stehen, wo der volle Satz noch
+       * woanders ungekuerzt zu LESEN ist — das Logbuch ist genau dieses
+       * Woanders und deckelt deshalb allein die Breite.
        */
       render: (text: string | null) => (
         text === null
           ? <span style={SCHRIFT.neben}>—</span>
-          : <span className={s.zellentext} title={text}>{text}</span>
+          : <Zellentext text={text} zeilen={3} />
       ),
     },
     {
@@ -212,7 +217,7 @@ function spalten(zeilen: BzAnzeigeZeile[]): NonNullable<TableProps<BzAnzeigeZeil
               <Chip ton="gelb" zeichen="warnung" title={zeile.beachtungSeitText ?? undefined}>
                 beachten
               </Chip>
-              <span className={s.zellentext} title={hinweis}>{hinweis}</span>
+              <Zellentext text={hinweis} zeilen={3} />
             </Flex>
           )
       ),

@@ -15,7 +15,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Flex, Form, Input, InputNumber, Modal, type TableProps } from "antd";
-import { Datentabelle, nachText, nachZahl } from "@/core/tabelle";
+import { Datentabelle, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { SCHRIFT as KICKER_SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
 import { setSchrankAktiv, updateSchrank } from "../../../_actions/lagerorte";
@@ -292,10 +292,18 @@ function spalten(): NonNullable<TableProps<LagerortZeile>["columns"]> {
       ),
     },
     {
+      /*
+       * ⚠️ FREITEXT BRAUCHT EINE BREITE (DRK-372). `lagerorte.zugangshinweis`
+       * hat keine Laengengrenze („Schluessel beim Wachhabenden, Schrank steht
+       * hinter der Tuer rechts …"), und die Tabelle faehrt `scroll.x:
+       * "max-content"` — ein Satz schoebe die Spalten dahinter aus dem Bild.
+       * Ohne `zeilen`: diese Liste ist die einzige Flaeche, auf der der Hinweis
+       * steht.
+       */
       title: "Zugangshinweis",
       dataIndex: "zugangshinweis",
       render: (wert: string | null) => wert ? (
-        <span>{wert}</span>
+        <Zellentext text={wert} />
       ) : (
         <span style={SCHRIFT.neben}>—</span>
       ),
