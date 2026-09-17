@@ -143,7 +143,6 @@ describe("BoxAbgabe — der Schirm", () => {
           }],
           gemeldet: { verfall: "2026-05", ampel: "rot", abgelaufen: true, text: "abgelaufen" },
         })]}
-        buchen={gelungen()}
         andereEinheitErreichbar
         kontoZugang={false}
       />,
@@ -155,7 +154,7 @@ describe("BoxAbgabe — der Schirm", () => {
     // Ein Chip „gemeldet: —" waere eine Zeile ueber eine Auskunft, die es nicht
     // gibt; auf dem Telefon kostet jede davon eine Zeile Platz.
     await mount(
-      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} buchen={gelungen()} andereEinheitErreichbar kontoZugang={false} />,
+      <BoxAbgabe einheit={FAHRZEUG} posten={[posten()]} andereEinheitErreichbar kontoZugang={false} />,
     );
     expect(query("[data-rolle='box-posten']").textContent).not.toContain("gemeldet");
   });
