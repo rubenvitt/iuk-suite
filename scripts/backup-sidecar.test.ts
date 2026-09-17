@@ -83,7 +83,7 @@ const deploySh = lies("scripts/deploy.sh");
  *  eigenes Stueck heraus, und ein Umbau des Blocks liess sie nacheinander auf leere
  *  Zeichenketten laufen — laut, aber dreimal. */
 const schritt8b = deploySh.slice(
-  deploySh.indexOf('backup_cid="$(docker compose ps -q backup'),
+  deploySh.indexOf('melde "Schritt 8b:'),
   deploySh.indexOf("\n# ══ Schritt 9"),
 );
 /** Eine Funktion aus `scripts/deploy.sh`, samt schliessender Klammer. */
@@ -2850,7 +2850,16 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       path.join(kladde, "docker"),
       [
         "#!/bin/bash",
-        'if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then echo "${CID-abc123}"; exit 0; fi',
+        // ⚠️ ZWEI FRAGEN STATT EINER: `ps -q` zeigt nur LAUFENDE, `ps -q -a` auch
+        // gestoppte. Genau daran haengt der Fall darunter.
+        'if [ "$1" = "compose" ] && [ "$2" = "ps" ]; then',
+        '  case "$*" in',
+        '    *" -a"*) printf "%s" "${VORHANDEN-abc123}" ;;',
+        '    *) printf "%s" "${LAUFEND-abc123}" ;;',
+        "  esac",
+        "  echo",
+        "  exit 0",
+        "fi",
         'if [ "$1" = "compose" ] && [ "$2" = "up" ]; then echo AUSTAUSCH; exit "${UPRC:-0}"; fi',
         'if [ "$1" = "inspect" ]; then',
         '  case "$3" in',
@@ -2896,16 +2905,27 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       expect(gesund.aus).not.toMatch(/NICHT hoch|immer noch im Anlauf/);
       // Die Neustartschleife — der Fall, um dessentwillen es die Warterei gibt.
       const schleife = fahre({ GESUND: "unhealthy", LAGE: "restarting" });
-      expect(schleife.aus, "die Neustartschleife wird benannt").toMatch(/NICHT hoch/);
-      // ⚠️ GAR KEIN backup-CONTAINER IST KEINE WARNUNG, sondern eine Auskunft — und das
-      // ist erst seit dem Umbau so: seit die Warterei hinter beiden Zweigen steht,
-      // faengt die Frage nach dem Container sie ab. Ein Stack ohne diesen Dienst soll
-      // bei jedem Rollout nicht melden, dass etwas nicht hochkommt, was es gar nicht
-      // gibt. Der Fall „Container verschwindet MITTEN im Warten" bleibt gedeckt: das
-      // ist dieselbe Rueckgabe wie die Neustartschleife eine Zeile darueber.
-      const ohneDienst = fahre({ CID: "" });
-      expect(ohneDienst.aus, "keine Warnung ohne Dienst").not.toMatch(/NICHT hoch/);
-      expect(ohneDienst.aus).toMatch(/kein laufender backup-Container/);
+      expect(schleife.aus, "die Neustartschleife wird benannt").toMatch(/laeuft NICHT/);
+      // ⚠️ UND EIN GESTOPPTER CONTAINER IST DERSELBE FALL, nicht „gar keiner": `ps -q`
+      // zeigt nur laufende, `ps -q -a` findet auch ihn. Ohne das `-a` las der Rollout
+      // einen abgestuerzten Sidecar als „nichts auszutauschen" und meldete Erfolg.
+      const gestoppt = fahre({ LAUFEND: "", LAGE: "exited", GESUND: "unhealthy" });
+      expect(gestoppt.aus, "der gestoppte Container wird gefunden").toMatch(/laeuft NICHT/);
+      expect(gestoppt.aus, "und nicht als Abwesenheit gelesen").not.toMatch(
+        /gar keinen Container/,
+      );
+      // ⚠️ GAR KEIN CONTAINER IST SEIT `-a` EINE ANDERE AUSSAGE — und deshalb jetzt
+      // eine Warnung. Das ist die Ruecknahme einer eigenen Entscheidung: der leere Fall
+      // war bewusst still („ein Stack ohne diesen Dienst soll nicht bei jedem Rollout
+      // warnen"), nur meinte „leer" damals auch jeden GESTOPPTEN Container. Mit `-a`
+      // heisst leer: es gibt ueberhaupt keinen, auch keinen gestoppten — obwohl
+      // Schritt 1 die `compose.yaml` gegen das Repo geprueft und Schritt 5 den Stack
+      // hochgefahren hat. Dann ist etwas anderes kaputt als ein Skript.
+      const ohneDienst = fahre({ LAUFEND: "", VORHANDEN: "" });
+      expect(ohneDienst.aus, "auch das wird gesagt").toMatch(/gar keinen Container/);
+      expect(ohneDienst.aus, "und nicht mit dem Zustandsfall verwechselt").not.toMatch(
+        /laeuft NICHT/,
+      );
       // ⚠️ UND DER FALL, UM DESSENTWILLEN DIE WARTEREI AUS DEM `if` GEWANDERT IST:
       // Schritt 5 hat den Container schon erneuert, dieser Schritt tauscht nichts aus —
       // gewartet wird trotzdem. Die Attrappe meldet StartedAt 2030, also juenger als
@@ -2914,7 +2934,7 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       const schon = fahre({ GESUND: "unhealthy", LAGE: "restarting" });
       expect(schon.aus, "kein Austausch in diesem Schritt").toMatch(/kein Austausch nötig/);
       expect(schon.aus, "und trotzdem gewartet").toMatch(/auf den Healthcheck/);
-      expect(schon.aus, "und die Lage benannt").toMatch(/NICHT hoch/);
+      expect(schon.aus, "und die Lage benannt").toMatch(/laeuft NICHT/);
       expect(schon.aus, "wirklich kein `up -d`").not.toMatch(/AUSTAUSCH/);
       // ⚠️ „NOCH IM ANLAUF" IST EIN EIGENER AUSGANG, und das ist keine Feinheit: ein
       // langsamer Paketspiegel gibt sich von selbst, eine Neustartschleife nie. Ein
@@ -2936,7 +2956,8 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       const alleLagen: Record<string, string>[] = [
         { GESUND: "healthy" },
         { GESUND: "unhealthy", LAGE: "restarting" },
-        { CID: "" },
+        { LAUFEND: "", LAGE: "exited", GESUND: "unhealthy" },
+        { LAUFEND: "", VORHANDEN: "" },
         { GESUND: "starting", SUITE_BACKUP_GESUND_FRIST: "0" },
         { UPRC: "1", GESTARTET: "2000-01-01T00:00:00Z" },
       ];
@@ -3074,7 +3095,7 @@ describe("die Kette Repo → Server → Rollout haelt zusammen", () => {
         [
           "#!/bin/sh",
           'case "$*" in',
-          '  "compose ps -q backup") echo cid-abc ;;',
+          '  "compose ps -q -a backup") echo cid-abc ;;',
           '  "inspect -f {{.State.StartedAt}} cid-abc") echo 2020-01-01T00:00:00Z ;;',
           '  "compose up -d --force-recreate backup") echo "Attrappe: Austausch gescheitert" >&2; exit 1 ;;',
           '  *) echo "unerwartet: $*" >&2; exit 99 ;;',

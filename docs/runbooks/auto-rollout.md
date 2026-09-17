@@ -378,7 +378,12 @@ er fordert die Freigabe erneut an).
 > gedeckelt — ein Rollout, der eine Stunde auf den Backup-Dienst wartet, hat seinen
 > Zweck ohnehin verfehlt) und unterscheidet drei Ausgänge: *gesund* (still),
 > *nach der Frist immer noch im Anlauf* (kann ein langsamer Paketspiegel sein und sich von selbst geben),
-> *weg oder in der Neustartschleife* (gibt sich nie von selbst). **Zurückgerollt wird
+> *läuft nicht* — gestoppt, abgestürzt oder in der Neustartschleife (gibt sich nie von
+> selbst). ⚠️ Gefragt wird mit `docker compose ps -q **-a**`: ohne das `-a` zeigt Compose
+> nur LAUFENDE Container, ein abgestürzter Sidecar käme also als leere Antwort zurück und
+> gälte als „gar nicht da". Bleibt die Antwort auch mit `-a` leer, gibt es wirklich keinen
+> Container — auch das wird gemeldet, denn Schritt 1 hat die `compose.yaml` gegen das Repo
+> geprüft und Schritt 5 den Stack hochgefahren. **Zurückgerollt wird
 > in keinem der drei Fälle** — dieselbe Abwägung wie beim Austausch selbst.
 
 > **Was NICHT der Ausweg ist: eine dauerhaft abweichende `compose.yaml` auf dem Server.**

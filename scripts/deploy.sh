@@ -344,7 +344,9 @@ backup_wird_gesund() {
   fi
   ende=$(( $(date +%s) + frist ))
   while :; do
-    cid="$(docker compose ps -q backup 2>/dev/null || true)"
+    # `-a` aus demselben Grund wie in Schritt 8b: ein Container, der waehrend des
+    # Wartens STIRBT, soll als `exited` gelesen werden und nicht als „gar nicht da".
+    cid="$(docker compose ps -q -a backup 2>/dev/null || true)"
     [ -n "$cid" ] || return 1
     lage="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || echo "")"
     # `{{if .State.Health}}`: ohne Healthcheck gibt es den Block gar nicht, und ein
@@ -461,9 +463,24 @@ fi
 # ausgetauscht haben kann (geänderte .env, geänderte compose.yaml): dann ist seine
 # Startzeit jünger als jedes Skript, und es bleibt beim einen Austausch.
 melde "Schritt 8b: Backup-Sidecar gegen die Skripte pruefen"
-backup_cid="$(docker compose ps -q backup 2>/dev/null || true)"
+# ⚠️ `-a`, SONST IST EIN GESTOPPTER CONTAINER DASSELBE WIE GAR KEINER. `docker compose
+# ps -q` zeigt nur LAUFENDE; ein abgestürzter oder von Hand gestoppter Sidecar liefert
+# damit eine leere Antwort, und der Rollout las das als „nichts auszutauschen" und
+# meldete Erfolg — obwohl es bis auf Weiteres keine nächtliche Sicherung gibt. Mit `-a`
+# findet die Abfrage ihn, `backup_wird_gesund` liest seinen Zustand (`exited`) und sagt
+# es laut. Das ist zugleich die Rücknahme einer eigenen Entscheidung: der leere Fall war
+# bewusst still, weil „ein Stack ohne diesen Dienst soll nicht bei jedem Rollout warnen"
+# — nur ist der leere Fall JETZT ein anderer.
+backup_cid="$(docker compose ps -q -a backup 2>/dev/null || true)"
 if [ -z "$backup_cid" ]; then
-  echo "  kein laufender backup-Container — nichts auszutauschen."
+  # ⚠️ UND DAS IST KEINE HARMLOSE AUSKUNFT MEHR: nach `-a` heisst leer, dass es GAR
+  # KEINEN Container gibt, auch keinen gestoppten — obwohl Schritt 1 die `compose.yaml`
+  # des Servers byteweise gegen die des Repos geprüft hat (dort steht der Dienst) und
+  # Schritt 5 den Stack hochgefahren hat. Dann ist etwas anderes kaputt als ein Skript.
+  warne "Der Dienst backup hat gar keinen Container — auch keinen gestoppten. Die Suite
+  läuft und ist geprüft, dieser Rollout wird deshalb nicht zurückgerollt; es gibt aber
+  bis auf Weiteres KEINE naechtliche Sicherung.
+  Nachsehen: docker compose ps -a backup && docker compose up -d backup"
 else
   gestartet="$(docker inspect -f '{{.State.StartedAt}}' "$backup_cid" 2>/dev/null || true)"
   seit="$(date -d "${gestartet:-@0}" +%s 2>/dev/null || echo 0)"
@@ -501,7 +518,7 @@ else
     2) warne "Der Dienst backup ist nach der Frist immer noch im Anlauf. Das kann an
   einem langsamen Paketspiegel liegen und sich von selbst geben — nachsehen:
   docker compose ps backup && docker compose logs --tail=50 backup" ;;
-    *) warne "Der Dienst backup kommt NICHT hoch — er ist weg oder in der
+    *) warne "Der Dienst backup laeuft NICHT — gestoppt, abgestuerzt oder in der
   Neustartschleife. Die Suite läuft und ist geprüft, dieser Rollout wird deshalb nicht
   zurückgerollt; es gibt aber bis auf Weiteres KEINE naechtliche Sicherung.
   Ursache ablesen: docker compose logs --tail=50 backup" ;;
