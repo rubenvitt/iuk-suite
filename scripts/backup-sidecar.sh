@@ -258,6 +258,35 @@ vorbereiten() {
     beenden_pruefen
     exec "$@"
   fi
+  # ⚠️ DIESER SCHRITT STEHT VOR `apk`, UND ZWAR WEIL `apk` NETZ BRAUCHT. Ist dieser
+  # Dienst beim ersten `up -d` der erste, der `suite_data` mountet, gehoert `/data`
+  # root (die ausfuehrliche Begruendung steht unten bei der Schreibprobe). Steht der
+  # Paketspiegel dann gerade nicht zur Verfuegung, bricht `apk add` ab, `set -e` beendet
+  # den Vorlauf — und die Reparatur weiter unten wird NIE erreicht. GEMESSEN mit einer
+  # `apk`-Attrappe, die scheitert:
+  #
+  #   Vorlauf: Pakete nachladen (…)
+  #   ERROR: unable to select packages
+  #   Eigentuemer von /data danach: 0     ← uid 1001 darf NICHT schreiben
+  #
+  # Damit haelt eine Stoerung beim Paketspiegel des OPTIONALEN Backup-Dienstes eine
+  # frische Suite vom Start ab. Das ist die falsche Richtung: dieser Dienst darf die
+  # Suite nicht behindern (deshalb hat er ja kein `depends_on`).
+  #
+  # ⚠️ WARUM ZWEI SCHRITTE UND NICHT EINER: die eigentliche Probe unten braucht
+  # `su-exec`, und das kommt AUS `apk`. Vorher gaebe es nur den Rueckfall „direkt
+  # schreiben" — als root, und root schreibt auch in ein root-eigenes Verzeichnis. Die
+  # Probe meldete also „alles gut" und repariert nichts (Falle 35, spiegelverkehrt).
+  # Hier wird deshalb nur die eine Lage behandelt, die ohne Rechteabbau feststellbar
+  # ist: das Verzeichnis gehoert root, der Lauf aber nicht.
+  if [ -d "$DATA_DIR" ]; then
+    eigner_uid="$(stat -c %u "$DATA_DIR" 2>/dev/null || true)"
+    if [ "${eigner_uid:-}" = "0" ] && [ "${NUTZER%%:*}" != "0" ]; then
+      protokoll "$DATA_DIR gehoert root — Eigentuemer wird auf $NUTZER gesetzt, BEVOR
+  irgendetwas Netz braucht."
+      chown "$NUTZER" "$DATA_DIR" 2>/dev/null || true
+    fi
+  fi
   protokoll "Vorlauf: Pakete nachladen ($PAKETE)"
   # Ohne `--no-cache` bleibt der Index im Container-Dateisystem liegen; er nuetzt beim
   # naechsten Start nichts, weil der Container dann neu ist.

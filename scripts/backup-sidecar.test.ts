@@ -587,6 +587,51 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(ausSidecar?.[1]).toBe(ausKern?.[1]);
   });
 
+  it("der Eigentuemer von `$DATA_DIR` wird gerichtet, BEVOR irgendetwas Netz braucht", () => {
+    // ⚠️ `apk add` BRAUCHT NETZ, UND DIE REPARATUR STAND DAHINTER. Ist dieser Dienst
+    // beim ersten `up -d` der erste, der `suite_data` mountet, gehoert `/data` root;
+    // steht der Paketspiegel dann gerade nicht zur Verfuegung, bricht `apk add` ab,
+    // `set -e` beendet den Vorlauf — und die Reparatur wird nie erreicht. GEMESSEN mit
+    // einer `apk`-Attrappe, die scheitert:
+    //
+    //   Vorlauf: Pakete nachladen (…)
+    //   ERROR: unable to select packages
+    //   Eigentuemer von /data danach: 0     ← uid 1001 darf NICHT schreiben
+    //
+    // Eine Stoerung beim Paketspiegel des OPTIONALEN Backup-Dienstes hielt damit eine
+    // frische Suite vom Start ab — die falsche Richtung, denn genau dafuer hat dieser
+    // Dienst kein `depends_on`. Nach der Korrektur, dieselbe Attrappe: `/data` gehoert
+    // 1001, uid 1001 darf schreiben.
+    const rumpfV = funktionsrumpf(befehle, "vorbereiten");
+    // ⚠️ ERST DIE EXISTENZ, DANN DIE REIHENFOLGE — `indexOf` liefert sonst -1 und jede
+    // Reihenfolgepruefung wird wertlos (Fund 39).
+    const vorher = rumpfV.indexOf('stat -c %u "$DATA_DIR"');
+    const apk = rumpfV.indexOf("apk add");
+    const probe = rumpfV.indexOf('schreibprobe "$datenprobe"');
+    expect(vorher, "die apk-freie Reparatur steht im Vorlauf").toBeGreaterThan(-1);
+    expect(apk, "`apk add` steht im Vorlauf").toBeGreaterThan(-1);
+    expect(probe, "die Schreibprobe steht im Vorlauf").toBeGreaterThan(-1);
+    expect(vorher, "die Reparatur kommt VOR dem Paketnachladen").toBeLessThan(apk);
+    // ⚠️ UND DIE PROBE BLEIBT DAHINTER, das ist kein Versehen: sie braucht `su-exec`,
+    // und das kommt AUS `apk`. Vorher gaebe es nur den Rueckfall „direkt schreiben" —
+    // als root, und root schreibt auch in ein root-eigenes Verzeichnis; die Probe
+    // meldete „alles gut" und repariert nichts (Fund 35, spiegelverkehrt). Deshalb
+    // zwei Schritte: vorne die eine Lage, die ohne Rechteabbau feststellbar ist,
+    // hinten die aussagekraeftige Messung.
+    expect(probe, "die aussagekraeftige Probe bleibt NACH dem Paketnachladen").toBeGreaterThan(
+      apk,
+    );
+    // Der vordere Schritt fasst nur an, was root gehoert — sonst wuerde er bei einem
+    // namentlichen SUITE_USER bei jedem Start blind uebereignen.
+    // ⚠️ AUF DIE GANZE BEDINGUNG ZUSICHERN, NICHT AUF `= "0"` — die Mutationsprobe hat
+    // genau das aufgedeckt: `!= "0"` in der Zeile daneben enthaelt dieselbe
+    // Zeichenfolge, also ueberlebte „Bedingung entfernt" GRUEN. Dritter Fall dieser
+    // Sorte in diesem PR, nach Fund 12 und 39.
+    const vorneBis = rumpfV.slice(vorher, apk);
+    expect(vorneBis).toMatch(/\[ "\$\{eigner_uid:-\}" = "0" \]/);
+    expect(vorneBis).toMatch(/chown "\$NUTZER" "\$DATA_DIR"/);
+  });
+
   it("`einmal` durchlaeuft den Vorlauf ebenso wie `dienst`", () => {
     // ⚠️ NICHT OFFENSICHTLICH, UND DER DOKUMENTIERTE WEG HAENGT DARAN: der Probelauf und
     // `SUITE_BACKUP_CMD` rufen `docker compose run --rm backup … einmal`, und `run`
