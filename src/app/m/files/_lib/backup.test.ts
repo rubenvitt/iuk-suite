@@ -286,6 +286,17 @@ describe("scripts/backup.sh — was unveraendert bleiben muss", () => {
     expect(quelle).toContain("set -euo pipefail");
   });
 
+  it("KEEP verliert fuehrende Nullen, bevor die Rotation damit rechnet", () => {
+    // ⚠️ Fuehrende Nullen sind in Shell-Arithmetik OKTAL, mit zwei Folgen: `08` bricht
+    // `tail -n +$((KEEP + 1))` mit einem Syntaxfehler ab, `010` rechnet STILL 8 statt 10.
+    // Gemessen mit zwoelf Generationen und BACKUP_KEEP=010: vorher blieben 8, jetzt 10.
+    const i = zeileMit('KEEP="${BACKUP_KEEP:-7}"');
+    const j = zeileMit('KEEP="${KEEP#0}"');
+    const rotation = zeileMit("tail -n +$((KEEP + 1))");
+    expect(j, "entnullt wird direkt nach der Belegung").toBeGreaterThan(i);
+    expect(j, "und lange vor der Rotation").toBeLessThan(rotation);
+  });
+
   it("ist syntaktisch gueltiges bash", () => {
     // Ein Cron-Skript mit Syntaxfehler faellt sonst nachts auf, und dann fuer alle
     // vier Module gleichzeitig.

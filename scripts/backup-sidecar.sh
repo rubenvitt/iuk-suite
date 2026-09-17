@@ -47,6 +47,25 @@
 # ─────────────────────────────────────────────────────────────────────────────────────
 set -eu
 
+# ⚠️ FUEHRENDE NULLEN SIND IN SHELL-ARITHMETIK OKTAL — MIT ZWEI VERSCHIEDENEN FOLGEN,
+# und die zweite ist die teurere. Beide unter dash gemessen:
+#
+#   BACKUP_KEEP=08  → `arithmetic expression: expecting EOF`, Exit 2. Laut, aber toedlich:
+#                     eine 8 oder 9 hinter der Null ist keine gueltige Oktalziffer. Das
+#                     passiert MITTEN im Lauf, nach dem Hochladen, also ohne Stand und
+#                     ohne Ping — dieselbe Klasse wie `10#$hh` weiter unten.
+#   BACKUP_KEEP=010 → rechnet 8, gemeint waren 10. STILL. Wer zehn Generationen
+#                     aufbewahren wollte, hat acht, und nichts sagt es ihm.
+#
+# `entnullen` laeuft einmal auf jeden Zahlwert der Konfiguration, damit weder die eine
+# noch die andere Folge irgendwo unten auftauchen kann. Nicht-Zahlen (`aus`) gehen
+# unveraendert durch und werden weiterhin dort geprueft, wo sie gebraucht werden.
+entnullen() {
+  w="$1"
+  while [ "${#w}" -gt 1 ] && [ "${w#0}" != "$w" ]; do w="${w#0}"; done
+  echo "$w"
+}
+
 # ══ Konfiguration ════════════════════════════════════════════════════════════════════
 # Der Kern bleibt `scripts/backup.sh`. Diese Datei ruft es, sie ersetzt es nicht —
 # DATA_DIR, BACKUP_DIR, BLOB_DIR und BACKUP_KEEP liest weiterhin JENES Skript aus der
@@ -67,7 +86,7 @@ BACKUP_RCLONE_ZIEL="${BACKUP_RCLONE_ZIEL:-}"
 # Generationen am ZIEL. `aus` = nie etwas loeschen (dann waechst das Ziel unbegrenzt und
 # laeuft irgendwann voll — was das Backup genau dann scheitern laesst, wenn man es
 # braucht). Die Zahl darf groesser sein als BACKUP_KEEP; genau dafuer ist das Ziel da.
-BACKUP_RCLONE_KEEP="${BACKUP_RCLONE_KEEP:-30}"
+BACKUP_RCLONE_KEEP="$(entnullen "${BACKUP_RCLONE_KEEP:-30}")"
 # Optionale rclone-Konfigurationsdatei. LEER ist der dokumentierte Normalfall: rclone
 # nimmt seine Konfiguration dann aus `RCLONE_CONFIG_*`-Umgebungsvariablen, und die
 # stehen in der `.env` — dort, wo die Geheimnisse dieses Stacks ohnehin liegen, und ohne
@@ -107,10 +126,10 @@ BACKUP_PING_URL="${BACKUP_PING_URL:-}"
 BACKUP_PING_URL_FEHLER="${BACKUP_PING_URL_FEHLER:-}"
 # Ab wann der Healthcheck einen ausbleibenden Lauf als Fehler wertet. 26 Stunden lassen
 # einem taeglichen Takt zwei Stunden Luft, ohne einen ausgefallenen Tag zu verschlucken.
-BACKUP_FRIST_STUNDEN="${BACKUP_FRIST_STUNDEN:-26}"
+BACKUP_FRIST_STUNDEN="$(entnullen "${BACKUP_FRIST_STUNDEN:-26}")"
 
 # Wie lange ein Lauf auf einen anderen wartet, bevor er aufgibt (Minuten).
-BACKUP_SPERRE_FRIST_MINUTEN="${BACKUP_SPERRE_FRIST_MINUTEN:-30}"
+BACKUP_SPERRE_FRIST_MINUTEN="$(entnullen "${BACKUP_SPERRE_FRIST_MINUTEN:-30}")"
 # Ab wann eine Sperre als verwaist gilt und uebernommen werden darf (Stunden).
 #
 # ⚠️ DIESE ZAHL MISST NICHT, WIE LANGE EIN LAUF SCHON LAEUFT, SONDERN WIE LANGE NIEMAND
@@ -119,10 +138,10 @@ BACKUP_SPERRE_FRIST_MINUTEN="${BACKUP_SPERRE_FRIST_MINUTEN:-30}"
 # als diese Zahl (grosse Ablage, langsames Ziel), nach Ablauf als „verwaist" eingestuft
 # worden, und der naechste haette ihm die Sperre unter den Haenden weggenommen. GEMESSEN:
 # mit einer Sperre, deren Zeitstempel 8h zurueckliegt, startete der zweite Lauf sofort.
-BACKUP_SPERRE_ALTER_STUNDEN="${BACKUP_SPERRE_ALTER_STUNDEN:-6}"
+BACKUP_SPERRE_ALTER_STUNDEN="$(entnullen "${BACKUP_SPERRE_ALTER_STUNDEN:-6}")"
 # Takt des Herzschlags in Sekunden. Muss deutlich unter der Altersgrenze liegen, sonst
 # traegt er nicht; 60s gegen 6h ist reichlich Abstand.
-BACKUP_HERZSCHLAG_SEKUNDEN="${BACKUP_HERZSCHLAG_SEKUNDEN:-60}"
+BACKUP_HERZSCHLAG_SEKUNDEN="$(entnullen "${BACKUP_HERZSCHLAG_SEKUNDEN:-60}")"
 
 ZUSTANDSDATEI="$BACKUP_DIR/.zustand"
 SPERRVERZEICHNIS="$BACKUP_DIR/.lauf.sperre"
@@ -375,7 +394,7 @@ zustand_bereit_vermerken() {
 #   * Eine 0 oder ein Unsinnswert loescht NICHTS, statt alles: `tail -n +1` faengt bei
 #     der ersten Zeile an, also auch beim gerade geschriebenen Tarball.
 lokal_rotieren() {
-  keep="${BACKUP_KEEP:-7}"
+  keep="$(entnullen "${BACKUP_KEEP:-7}")"
   case "$keep" in
     '' | *[!0-9]*)
       warne "BACKUP_KEEP=\"$keep\" ist keine Zahl — lokal wird NICHTS geloescht."

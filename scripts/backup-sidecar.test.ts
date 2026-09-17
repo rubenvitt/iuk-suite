@@ -292,6 +292,45 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     expect(rumpfS).toMatch(/uhr_rest="\$\{uhr#\* \}"/);
   });
 
+  it("fuehrende Nullen werden entfernt, BEVOR irgendetwas damit rechnet", () => {
+    // ⚠️ DIESELBE FALLE WIE `10#$hh`, NUR AN DEN ZAHLEN DER KONFIGURATION — und sie hat
+    // ZWEI Gesichter, beide unter dash gemessen:
+    //
+    //   BACKUP_KEEP=08  → `arithmetic expression: expecting EOF`, Exit 2. Eine 8 oder 9
+    //                     hinter der Null ist keine gueltige Oktalziffer. Trifft MITTEN
+    //                     im Lauf, nach dem Hochladen: kein Stand, kein Ping.
+    //   BACKUP_KEEP=010 → rechnet 8, gemeint waren 10. STILL. Wer zehn Generationen
+    //                     aufbewahren wollte, hat acht — und nichts sagt es ihm.
+    //
+    // Das zweite ist das teurere, und der gemeldete Fund nennt nur das erste.
+    // Gegengemessen an `backup.sh` mit BACKUP_KEEP=010 und zwoelf Generationen: vorher
+    // blieben 8, jetzt 10.
+    //
+    // ⚠️ NORMALISIERT WIRD EINMAL AN DER QUELLE, nicht an jeder Rechenstelle — es gibt
+    // fuenf davon im Skript, und die naechste haette die Pruefung sonst wieder vergessen.
+    expect(befehle).toMatch(/entnullen\(\) \{/);
+    for (const v of [
+      "BACKUP_RCLONE_KEEP",
+      "BACKUP_FRIST_STUNDEN",
+      "BACKUP_SPERRE_FRIST_MINUTEN",
+      "BACKUP_SPERRE_ALTER_STUNDEN",
+      "BACKUP_HERZSCHLAG_SEKUNDEN",
+    ]) {
+      const zeile = befehle.split("\n").find((z) => z.startsWith(`${v}=`));
+      expect(zeile, `${v} wird belegt`).toBeTruthy();
+      expect(zeile, `${v} wird dabei entnullt`).toMatch(/entnullen /);
+    }
+    // Auch der Wert, den `lokal_rotieren` aus der Umgebung nimmt.
+    expect(funktionsrumpf(befehle, "lokal_rotieren")).toMatch(
+      /keep="\$\(entnullen "\$\{BACKUP_KEEP:-7\}"\)"/,
+    );
+    // ⚠️ Nicht-Zahlen muessen unveraendert durchgehen — `aus` ist ein gueltiger Wert fuer
+    // BACKUP_RCLONE_KEEP, und `drei` soll weiterhin dort auffallen, wo geprueft wird.
+    const rumpfE = funktionsrumpf(befehle, "entnullen");
+    expect(rumpfE).toMatch(/\$\{#w\}" -gt 1/);
+    expect(rumpfE).toMatch(/\$\{w#0\}" != "\$w"/);
+  });
+
   it("kein `PIPESTATUS` und kein `[[` — beides bash", () => {
     expect(befehle).not.toContain("PIPESTATUS");
     expect(befehle).not.toContain("[[");

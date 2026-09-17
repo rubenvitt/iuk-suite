@@ -21,7 +21,10 @@ BACKUP_DIR="${BACKUP_DIR:-$DATA_DIR/backups}"
 # paar hundert kB DBs: 7 Generationen sind 7x die Ablage. Wer hier hochgeht, prueft
 # den freien Platz — ein vollgelaufenes Ziel laesst das Backup genau dann scheitern,
 # wenn man es braucht.
+# ⚠️ Fuehrende Nullen sind in Shell-Arithmetik OKTAL: `08` bricht die Rotation unten mit
+# einem Syntaxfehler ab, `010` rechnet still 8 statt 10. Beide unter dash gemessen.
 KEEP="${BACKUP_KEEP:-7}"
+while [ "${#KEEP}" -gt 1 ] && [ "${KEEP#0}" != "$KEEP" ]; do KEEP="${KEEP#0}"; done
 
 # Der Ort der files-Blobs ist eine EIGENE Variable und nicht fest `$DATA_DIR/files`:
 # liegen die Blobs im eigenen benannten Volume, ist `$DATA_DIR/files` host-seitig ein
