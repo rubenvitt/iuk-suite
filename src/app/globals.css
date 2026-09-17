@@ -217,18 +217,56 @@ select {
 }
 
 /*
- * Die EINZIGE Stelle, die erhoehte Spezifitaet braucht: antd baut die
- * geschlossene Auswahl aus einem `<div class="ant-select-selector">` (0,1,0) —
- * das `input` darin ist unsichtbar und traegt die Schriftgroesse nicht. Einen
- * Token bietet antd dafuer nicht an (`Select` kennt nur `optionFontSize` fuer
- * die offene Liste, siehe theme.ts). Alles andere aus antd laeuft ueber
- * `inputFontSize` in `theme.ts` und braucht hier nichts.
+ * Die EINZIGE Stelle, die erhoehte Spezifitaet braucht — und die einzige, an der
+ * die Suite bewusst einen antd-internen Klassennamen nennt.
  *
- * Dass hier ein antd-interner Klassenname steht, ist eine bewusst eingegangene
- * Kopplung: ein antd-Major koennte ihn umbenennen, und der Bruch waere still.
+ * ⚠️ HIER STAND `:root .ant-select-selector`, UND DIESE KLASSE GIBT ES NICHT
+ * MEHR (DRK-190/DRK-191). antd 6 baut die geschlossene Auswahl nicht mehr aus
+ * einem `<div class="ant-select-selector">`; `@rc-component/select` rendert
+ * heute `.ant-select > .ant-select-content > (.ant-select-placeholder,
+ * input.ant-select-input)`. Nachgemessen ueber `extractStyle` aus
+ * `@ant-design/cssinjs` — das Markup enthaelt den alten Namen nirgends, und
+ * `grep` ueber `node_modules/antd/es/` findet ihn nur noch im `color-picker`.
+ * Die Regel lief also ins Leere, seit antd 6 da ist: **die 16px-Zusage sah fuer
+ * jedes Auswahlfeld der Suite erfuellt aus, ohne es zu sein.** Genau der stille
+ * Bruch, vor dem der alte Kommentar an dieser Stelle gewarnt hat — er ist
+ * eingetreten, und niemand hat es gemerkt, weil der bewachende Test den
+ * REGELTEXT las statt die WIRKUNG.
+ *
+ * WARUM DREI VARIABLEN UND NICHT `font-size: 16px`. antd haengt die Schrift des
+ * Auswahlfeldes an `--ant-select-font-size` (`.ant-select` selbst, 0,1,0), das
+ * innere `input` traegt `font-size: inherit`
+ * (`antd/es/select/style/select-input.js`). Ein nacktes `font-size` am Feld
+ * genuegte also — es machte das Feld aber 3px HOEHER als die Bediendichte
+ * erlaubt: `.ant-select` setzt gar keine `height`, sondern rechnet
+ * `padding-block = (height - font-height) / 2 - border`. Waechst die
+ * Schriftgroesse, ohne dass `font-height` mitwaechst, waechst die Zeilenbox und
+ * damit das ganze Feld (gemessen: 44px → 47,1px). antd loest das fuer seine
+ * eigene `-lg`-Variante ueber dasselbe Dreigespann; hier steht es genauso.
+ *
+ * DIE DREI ZAHLEN HAENGEN ANEINANDER: `font-height` MUSS `line-height` mal
+ * `font-size` sein (1.5 × 16 = 24), sonst stimmt die Hoehenrechnung oben nicht
+ * mehr. Ausgeschrieben statt `var(--ant-font-size-lg)` & Co., weil die heutige
+ * Deckungsgleichheit mit antds Vorgabe Zufall ist — dieselbe Falle, die bei
+ * `inputFontSizeLG` in `theme.ts` ausfuehrlich steht.
+ *
+ * KEIN Token statt Spezifitaet, obwohl `docs/design/README.md` das vorzieht:
+ * `components.Select.fontSize` greift daneben. Gemessen ergibt es
+ * `.iuk.ant-select-css-var { --ant-font-size: 16px }` — es kapert also die
+ * GLOBALE Schriftvariable innerhalb des Auswahlfeldes, statt die des Bauteils
+ * zu setzen, und laesst `line-height`/`font-height` unberuehrt (also wieder die
+ * 3px). `Select` kennt sonst nur `optionFontSize` fuer die offene Liste
+ * (theme.ts).
+ *
+ * `core/theme/selektschrift.test.ts` haelt das fest, und zwar an der WIRKUNG:
+ * es rendert ein Auswahlfeld mit dem Suite-Theme, zieht antds erzeugtes CSS
+ * heraus und rechnet die Variablenkette aus. Ein umbenannter Klassenname faellt
+ * dort auf, ein Regex ueber diese Datei haette ihn nie gesehen.
  */
-:root .ant-select-selector {
-  font-size: 16px;
+:root .ant-select {
+  --ant-select-font-size: 16px;
+  --ant-select-line-height: 1.5;
+  --ant-select-font-height: 24px;
 }
 
 @media print {
