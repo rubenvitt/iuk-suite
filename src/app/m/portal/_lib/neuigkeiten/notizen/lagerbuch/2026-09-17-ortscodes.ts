@@ -14,6 +14,12 @@ import { absatz, hinweis, type Releasenotiz } from "@/app/m/portal/_lib/neuigkei
  *
  * ⚠️ EIN `hinweis`, UND ER IST EINE AUFFORDERUNG, KEINE AUSKUNFT. Wer die
  * Ortsetiketten nicht einmal öffnet, hat Karten ohne Code am Fahrzeug hängen.
+ *
+ * ⚠️ DER ERSTE ABSATZ NENNT ZWEI LANDUNGEN, NICHT EINE — gefunden in der
+ * Durchsicht. „Führt direkt zum Entnehmen" stimmte nur für den Handlager: eine
+ * Einheit trägt `ziel_typ = "fahrzeug"`, und `tokenZielPfad` öffnet dafür
+ * `/helfer/check`. Für die MEISTEN Karten stand also die falsche Seite da —
+ * und wer die richtige bekommt, hält seine Karte für kaputt.
  */
 const notiz: Releasenotiz = {
   modul: "lagerbuch",
@@ -23,9 +29,9 @@ const notiz: Releasenotiz = {
   inhalt: [
     absatz(
       "Der Handlager, jedes Fahrzeug und jede Tasche haben jetzt genau einen Zugangs-Code. " +
-        "Er steht als QR auf der Karte unter „Verwaltung → Ortsetiketten“ und führt ohne " +
-        "Anmeldung direkt zum Entnehmen. Mit dem Code vom Regal kannst du nur entnehmen; " +
-        "Box und Check gehören zur Karte am Fahrzeug.",
+        "Er steht als QR auf der Karte unter „Verwaltung → Ortsetiketten“ und öffnet ohne " +
+        "Anmeldung die passende Seite: am Regal das Entnehmen, am Fahrzeug und an der Tasche " +
+        "deren Check. Mit dem Regal-Code gibt es nur das Entnehmen.",
     ),
     absatz(
       "Codes legst du nicht mehr von Hand an. Wird einer missbraucht, erzeuge ihn unter " +
