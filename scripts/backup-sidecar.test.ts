@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -1329,6 +1329,66 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
     ] as const) {
       expect(kurzeForm(url), `${url} wird gekuerzt`).toBe(erwartet);
     }
+  });
+
+  it("ein ueberholter Lauf faelscht den Waechter NICHT auf rot", () => {
+    // ⚠️ `auslagern` gibt bei verlorener Sperre 1 zurueck, und der Zweig in
+    // `lauf_ungesperrt` liest das als „Auslagern gescheitert" — mit Fehler-Ping. Steht
+    // der Nachfolger in der Zwischenzeit fertig und hat „ok" gemeldet, kippt der
+    // Nachzuegler den Waechter danach auf ROT, obwohl die juengste Sicherung liegt.
+    // `.zustand` bleibt dabei `ok`, weil dessen Schreibweg den Besitz schon prueft —
+    // zwei Signale, die sich widersprechen, und das lautere ist das falsche.
+    //
+    // Gemessen wird der ganze Ablauf mit einer `curl`-Attrappe: A belegt, verliert die
+    // Sperre, B meldet ok, A wacht auf und will Fehlschlag melden.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-ping-"));
+    try {
+      mkdirSync(path.join(kladde, "bin"));
+      writeFileSync(
+        path.join(kladde, "bin/curl"),
+        `#!/bin/sh\nfor a in "$@"; do case "$a" in http*) echo "$a" >>${kladde}/pings ;; esac; done\nexit 0\n`,
+      );
+      chmodSync(path.join(kladde, "bin/curl"), 0o755);
+      const quelle = [
+        `SPERRVERZEICHNIS=${kladde}/sperre`,
+        'BACKUP_PING_URL="https://hc-ping.com/uuid"',
+        'BACKUP_PING_URL_FEHLER=""',
+        ...["protokoll", "warne", "ping_ziel_kurz", "ping_senden", "sperre_gehoert_uns"].map(
+          shellQuelle,
+        ),
+        // A belegt die Sperre.
+        'MARKE_PRAEFIX="eigner.aaaa.1."',
+        'mkdir -p "$SPERRVERZEICHNIS"',
+        'meine_marke="${MARKE_PRAEFIX}000001"',
+        'mkdir "$SPERRVERZEICHNIS/$meine_marke"',
+        // Die Maschine haelt an; B uebernimmt, sichert und meldet ok.
+        'rm -r "$SPERRVERZEICHNIS/$meine_marke"; rmdir "$SPERRVERZEICHNIS"',
+        'mkdir "$SPERRVERZEICHNIS"; mkdir "$SPERRVERZEICHNIS/eigner.bbbb.1.000001"',
+        '( MARKE_PRAEFIX="eigner.bbbb.1."; meine_marke="eigner.bbbb.1.000001"; ping_senden ok ) >/dev/null',
+        // A wacht auf und will seinen Fehlschlag melden.
+        "ping_senden fehler >/dev/null",
+        // Gegenprobe: A haelt die Sperre wieder und meldet einen ECHTEN Fehlschlag.
+        'rm -r "$SPERRVERZEICHNIS/eigner.bbbb.1.000001"; mkdir "$SPERRVERZEICHNIS/$meine_marke"',
+        "ping_senden fehler >/dev/null",
+      ].join("\n");
+      execFileSync("sh", ["-c", quelle], {
+        encoding: "utf8",
+        stdio: "pipe",
+        env: { ...process.env, PATH: `${kladde}/bin:${process.env.PATH}` },
+      });
+      const rufe = readFileSync(path.join(kladde, "pings"), "utf8").trim().split("\n");
+      // Genau zwei: Bs ok und der ECHTE Fehlschlag danach — nicht der des Nachzueglers.
+      expect(rufe, "der ueberholte Lauf ruft NICHT an").toEqual([
+        "https://hc-ping.com/uuid",
+        "https://hc-ping.com/uuid/fail",
+      ]);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // ⚠️ Und die Pruefung sitzt in `ping_senden` selbst, nicht an den fuenf
+    // Aufrufstellen — dieselbe Entscheidung wie bei `zustand_schreiben`, damit keine
+    // kuenftige Stelle sie vergessen kann.
+    expect(funktionsrumpf(befehle, "ping_senden")).toMatch(/if ! sperre_gehoert_uns; then/);
   });
 
   it("ein Erfolg, den niemand festhalten kann, wird NICHT als Erfolg gemeldet", () => {

@@ -558,6 +558,33 @@ ping_ziel_kurz() {
 
 ping_senden() {
   [ -n "$BACKUP_PING_URL" ] || return 0
+  # ⚠️ NUR DER LAUF, DEM DIE SPERRE NOCH GEHOERT, DARF DEN WAECHTER ANFASSEN — und die
+  # Pruefung steht HIER statt an den fuenf Aufrufstellen, aus demselben Grund wie bei
+  # `zustand_schreiben`: so kann keine kuenftige Stelle sie vergessen.
+  #
+  # Der Fall ist nicht theoretisch. `auslagern` gibt bei verlorener Sperre 1 zurueck, und
+  # der Zweig darueber liest das als „Auslagern gescheitert" und meldet es. GEMESSEN, mit
+  # einem Nachfolger, der waehrend der Pause fertig geworden ist:
+  #
+  #   https://hc-ping.com/uuid        ← B: die neue Sicherung liegt, alles gut
+  #   https://hc-ping.com/uuid/fail   ← A wacht auf und meldet Fehlschlag
+  #
+  # Der Waechter steht danach auf ROT, obwohl die juengste Sicherung gelungen ist — und
+  # `.zustand` steht auf `ok`, weil dessen Schreibweg den Besitz schon prueft. Zwei
+  # Signale, die sich widersprechen, und das lautere ist das falsche. Dieselbe Klasse wie
+  # der Uptime-Kuma-Fund und wie „ein Erfolg, den niemand festhalten kann": eine
+  # Ueberwachung, die das Gegenteil behauptet, ist schlimmer als keine.
+  #
+  # ⚠️ Rueckgabe 0, nicht 1: dass hier nichts gerufen wird, ist RICHTIG und kein
+  # Fehlschlag. Der Aufrufer meldet den verlorenen Besitz ohnehin schon mit 1.
+  # ⚠️ Dass `sperre_gehoert_uns` weiter unten steht, ist unerheblich — anders als bei
+  # einer Zuweisung zaehlt bei einem Aufruf, was zur LAUFZEIT definiert ist.
+  if ! sperre_gehoert_uns; then
+    protokoll "Kein Ping ($1): die Sperre gehoert uns nicht mehr. Der Lauf, der sie jetzt
+  haelt, meldet seinen eigenen Stand — eine Meldung von hier waere eine ueber fremde
+  Arbeit."
+    return 0
+  fi
   if [ "$1" = "ok" ]; then
     ziel="$BACKUP_PING_URL"
   elif [ -n "$BACKUP_PING_URL_FEHLER" ]; then
