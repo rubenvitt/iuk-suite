@@ -110,7 +110,10 @@ function shellSkript(funktionen: string[], rumpf: string, ...argumente: string[]
   }).trimEnd();
 }
 
-const HELFER = ["protokoll", "warne", "entnullen"];
+// ⚠️ `zu_viele_ziffern` gehoert dazu, seit `zahl_oder_vorgabe` es ruft: fehlt es im
+// Ausschnitt, ist der Aufruf ein `command not found`, die Bedingung damit falsch — und
+// der Fall waere gruen, ohne irgendetwas zu pruefen. Dieselbe Falle wie bei `warne`.
+const HELFER = ["protokoll", "warne", "entnullen", "zu_viele_ziffern"];
 
 const kurzeForm = (url: string) =>
   shellSkript(["ping_ziel_kurz"], 'ping_ziel_kurz "$1"', url);
@@ -404,6 +407,13 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
       ["aus", "60"],
       ["", "60"],
       ["3 4", "60"],
+      // ⚠️ ZIFFERN ALLEIN SIND NOCH KEINE ZAHL, MIT DER DIE SHELL RECHNEN KANN. Zwanzig
+      // Ziffern bestehen die `*[!0-9]*`-Pruefung und sprengen den Ganzzahlbereich —
+      // gemessen am ganzen Skript mit `BACKUP_FRIST_STUNDEN=99999999999999999999`: der
+      // Healthcheck starb mit Exit 2 („Illegal number"), statt zu antworten.
+      ["9".repeat(20), "60"],
+      // 18 Ziffern passen immer (der groesste 64-Bit-Wert hat 19) und bleiben deshalb.
+      ["9".repeat(18), "9".repeat(18)],
     ] as const) {
       expect(zahlOderVorgabe(wert), `"${wert}" ergibt eine Zahl`).toBe(erwartet);
     }
@@ -454,6 +464,15 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
       ["03:30:45", "03:30"],
       ["abc", "03:30"],
       ["0330", "03:30"],
+      // ⚠️ ZIFFERN ALLEIN REICHEN NICHT: ein Feld aus zwanzig Ziffern besteht jede
+      // `*[!0-9]*`-Pruefung und sprengt danach den Ganzzahlbereich — der Vergleich meldet
+      // „Illegal number", wird als FALSCH gewertet, und der Unsinnswert galt als geprueft.
+      [`${"9".repeat(20)}:00`, "03:30"],
+      [`00:${"9".repeat(20)}`, "03:30"],
+      // Die Grenze liegt bei zwei Ziffern je Feld, nicht beim Zahlenbereich: `100:00`
+      // faellt schon an der Laenge, `99:00` erst an der Bereichspruefung. Beide zurueck.
+      ["100:00", "03:30"],
+      ["99:00", "03:30"],
     ] as const) {
       expect(geprueftUhrzeit(uhrzeit), `"${uhrzeit}"`).toBe(erwartet);
     }
@@ -986,6 +1005,69 @@ describe("scripts/backup-sidecar.sh — zwei Laeufe zerstoeren einander nicht", 
     expect(rumpfH, "gar kein touch mehr").not.toMatch(/touch /);
     expect(rumpfH).toMatch(/mkdir "\$neu" 2>\/dev\/null \|\| exit 0/);
   });
+
+  it("eine Zahl jenseits des Ganzzahlbereichs haelt weder Zeitgeber noch Healthcheck an", () => {
+    // ⚠️ DIE ZWEI STELLEN GEHEN GEGENLAEUFIG AUSEINANDER, und erst zusammen ergeben sie
+    // das Gegenteil des Rueckfalls:
+    //
+    //   [ "$x" -gt 23 ]   → dash: „Illegal number", Bedingung FALSCH, die Shell laeuft
+    //                       weiter — der Unsinnswert gilt damit als geprueft.
+    //   $(( x * 3600 ))   → dash bricht mit Exit 2 ab, mitten im Lauf.
+    //
+    // GEMESSEN am ganzen Skript, nicht am Helfer: der Zeitgeber stirbt, bevor je
+    // gesichert wird (mit `restart: unless-stopped` eine Neustartschleife), und der
+    // Healthcheck stirbt mit derselben Rohmeldung statt zu antworten.
+    const riesig = "9".repeat(20);
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-riesig-"));
+    try {
+      // (a) Der Zeitgeber: laeuft er noch, wenn die Zeit da ist, ihn zu toeten? `schleife`
+      // ist die Rueckseite von `dienst` — ohne `vorbereiten`, also ohne `apk`.
+      const zeitgeber = (uhrzeit: string) =>
+        spawnSync("dash", [SIDECAR, "schleife"], {
+          encoding: "utf8",
+          timeout: 2000,
+          killSignal: "SIGKILL",
+          env: { ...process.env, BACKUP_DIR: kladde, BACKUP_UHRZEIT: uhrzeit },
+        });
+      const mitUnsinn = zeitgeber(`${riesig}:00`);
+      expect(mitUnsinn.signal, "der Dienst laeuft noch, als die Zeit um ist").toBe("SIGKILL");
+      // ⚠️ Getrennt geprueft: `warne` schreibt nach stderr, `protokoll` nach stdout — aus
+      // den beiden Stroemen aneinandergehaengt liesse sich keine Reihenfolge lesen.
+      expect(mitUnsinn.stderr, "er sagt, dass der Wert keine Uhrzeit ist").toMatch(
+        /ist keine Uhrzeit/,
+      );
+      expect(mitUnsinn.stdout, "und dass die Vorgabe gilt").toMatch(/taeglich 03:30/);
+      // Die Gegenprobe: mit einer gueltigen Zeit ist es dasselbe Bild — ohne den Fall
+      // hiesse „laeuft noch" nur „irgendetwas laeuft".
+      expect(zeitgeber("03:30").signal, "gueltige Zeit ebenso").toBe("SIGKILL");
+
+      // (b) Der Healthcheck: er antwortet, statt an der Arithmetik zu sterben.
+      writeFileSync(
+        path.join(kladde, ".zustand"),
+        `letzter_status=ok\nletzte_meldung=x\nletzter_erfolg=${Math.floor(Date.now() / 1000)}\n`,
+      );
+      const zustand = (frist: string) =>
+        spawnSync("dash", [SIDECAR, "zustand"], {
+          encoding: "utf8",
+          env: { ...process.env, BACKUP_DIR: kladde, BACKUP_FRIST_STUNDEN: frist },
+        });
+      const riesigeFrist = zustand(riesig);
+      expect(riesigeFrist.status, "kein Exit 2 aus der Arithmetik").toBe(0);
+      expect(`${riesigeFrist.stdout}${riesigeFrist.stderr}`).toMatch(/ist zu gross/);
+      expect(zustand("26").status, "und der gueltige Wert bleibt unveraendert").toBe(0);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // ⚠️ Auch die beiden KEEP-Werte, die bewusst NICHT durch `zahl_oder_vorgabe` gehen
+    // (dort ist `aus` gueltig). Dort stirbt die Shell zwar nicht — die Arithmetik steht
+    // in einer Pipe, also in einer Subshell —, aber ohne die Pruefung bekaeme der
+    // Betreiber statt einer Erklaerung eine rohe Shell-Meldung.
+    for (const name of ["lokal_rotieren", "auslagern"]) {
+      expect(funktionsrumpf(befehle, name), `${name} prueft die Laenge`).toMatch(
+        /zu_viele_ziffern/,
+      );
+    }
+  }, 20_000);
 
   it("ein Takt von 0 ist eine Leerlaufschleife und wird abgefangen", () => {
     // ⚠️ `sleep 0` KEHRT SOFORT ZURUECK. Die Schleife prueft und `touch`t dann ohne

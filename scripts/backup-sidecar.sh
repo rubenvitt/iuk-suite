@@ -106,6 +106,23 @@ entnullen() {
 # wie bei `entnullen`: es gibt sechs davon, und die siebte haette es wieder vergessen).
 # `BACKUP_RCLONE_KEEP` und `BACKUP_KEEP` bleiben bewusst aussen vor — dort ist `aus` ein
 # gueltiger Wert, und beide pruefen selbst, bevor sie rechnen.
+# ⚠️ ZIFFERN ALLEIN SIND NOCH KEINE ZAHL, MIT DER DIE SHELL RECHNEN KANN — und der
+# Unterschied ist gemessen, nicht hergeleitet. Ein Wert aus zwanzig Ziffern besteht jede
+# `*[!0-9]*`-Pruefung und sprengt danach den Ganzzahlbereich; die beiden Stellen, an denen
+# er landet, gehen dabei GEGENLAEUFIG auseinander:
+#
+#   [ "$x" -gt 23 ]   → dash: „Illegal number", die Bedingung ist FALSCH, die Shell laeuft
+#                       weiter — der Unsinnswert gilt damit als geprueft.
+#   $(( x * 3600 ))   → dash bricht mit Exit 2 ab, MITTEN im Lauf.
+#
+# Zusammen ergibt das genau das Gegenteil des Rueckfalls: gemessen am ganzen Skript mit
+# `BACKUP_FRIST_STUNDEN=99999999999999999999` stirbt der Healthcheck mit Exit 2 statt zu
+# antworten, und mit einer solchen `BACKUP_UHRZEIT` der Zeitgeber, bevor je gesichert wird.
+#
+# 18 Ziffern passen immer (der groesste 64-Bit-Wert hat 19); mehr will hier ohnehin
+# niemand eingeben — 18 Stunden sind schon reichlich, 18 Ziffern Stunden sind ein Tippfehler.
+zu_viele_ziffern() { [ "${#1}" -gt 18 ]; }
+
 zahl_oder_vorgabe() {
   # $1 = Name (nur fuer die Meldung), $2 = Wert, $3 = Vorgabe,
   # $4 = `positiv`, wenn 0 ebenfalls unbrauchbar ist
@@ -114,6 +131,9 @@ zahl_oder_vorgabe() {
   case "$zov_wert" in
     '' | *[!0-9]*) zov_grund="ist keine Zahl" ;;
   esac
+  if [ -z "$zov_grund" ] && zu_viele_ziffern "$zov_wert"; then
+    zov_grund="ist zu gross"
+  fi
   if [ -z "$zov_grund" ] && [ "${4:-}" = "positiv" ] && [ "$zov_wert" -eq 0 ]; then
     zov_grund="muss groesser als 0 sein"
   fi
@@ -587,6 +607,11 @@ lokal_rotieren() {
       return 0
       ;;
   esac
+  # Ziffern allein reichen nicht (siehe `zu_viele_ziffern`).
+  if zu_viele_ziffern "$keep"; then
+    warne "BACKUP_KEEP=$keep ist zu gross — lokal wird NICHTS geloescht."
+    return 0
+  fi
   if [ "$keep" -lt 1 ]; then
     warne "BACKUP_KEEP=$keep wuerde JEDE lokale Generation loeschen, auch die gerade
   geschriebene — es wird NICHTS geloescht."
@@ -778,6 +803,14 @@ auslagern() {
       return 0
       ;;
   esac
+  # Ziffern allein reichen nicht (siehe `zu_viele_ziffern`). Hier stirbt die Shell zwar
+  # nicht — die Arithmetik steht in einer Pipe, also in einer Subshell —, aber ohne diese
+  # Zeile bekaeme der Betreiber statt einer Erklaerung eine rohe Shell-Meldung.
+  if zu_viele_ziffern "$BACKUP_RCLONE_KEEP"; then
+    warne "BACKUP_RCLONE_KEEP=$BACKUP_RCLONE_KEEP ist zu gross — am Ziel wird NICHTS
+  geloescht."
+    return 0
+  fi
   if [ "$BACKUP_RCLONE_KEEP" -lt 1 ]; then
     warne "BACKUP_RCLONE_KEEP=$BACKUP_RCLONE_KEEP wuerde JEDE Generation am Ziel loeschen,
   auch die gerade hochgeladene — es wird NICHTS geloescht. Zum Abschalten `aus` setzen."
@@ -1601,6 +1634,13 @@ uhrzeit_pruefen() {
   case "$BACKUP_UHRZEIT" in *:*:*) gueltig=0 ;; esac
   case "$hh" in '' | *[!0-9]*) gueltig=0 ;; esac
   case "$mm" in '' | *[!0-9]*) gueltig=0 ;; esac
+  # ⚠️ UND HOECHSTENS ZWEI ZIFFERN JE FELD — Ziffern allein reichen nicht. GEMESSEN mit
+  # `99999999999999999999:00`: der Vergleich unten meldet „Illegal number", wird als
+  # FALSCH gewertet, `gueltig` bleibt 1 — und der Unsinnswert erreicht den Zeitgeber, wo
+  # dash in der Arithmetik mit Exit 2 abbricht. Der Dienst kommt damit nie zu einer
+  # Sicherung, statt auf 03:30 zurueckzufallen (mit `restart: unless-stopped` eine
+  # Neustartschleife). Eine Stunde hat keine drei Ziffern, ein Feld darf also keine haben.
+  if [ "${#hh}" -gt 2 ] || [ "${#mm}" -gt 2 ]; then gueltig=0; fi
   if [ "$gueltig" -eq 1 ]; then
     hh="$(entnullen "$hh")"; mm="$(entnullen "$mm")"
     if [ "$hh" -gt 23 ] || [ "$mm" -gt 59 ]; then gueltig=0; fi
