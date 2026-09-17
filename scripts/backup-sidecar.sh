@@ -434,6 +434,17 @@ lokal_rotieren() {
 ping_ziel_kurz() {
   ohne_schema="${1#*://}"
   nur_host="${ohne_schema%%/*}"
+  # ⚠️ EIN SCHRAEGSTRICH IST NICHT DIE EINZIGE GRENZE. Eine URL ohne Pfad —
+  # `https://monitor.example?token=geheim` — hat keinen, und dann stand die ganze Abfrage
+  # samt Kennung im Protokoll. GEMESSEN: die Kuerzung liess sie unveraendert durch.
+  # Also auch an `?` und `#` abschneiden.
+  #
+  # ⚠️ DAS FRAGEZEICHEN MUSS ESCAPT WERDEN: in einer Parametererweiterung ist es ein
+  # Muster fuer EIN beliebiges Zeichen. `${x%%?*}` schnitte deshalb ALLES weg (gemessen:
+  # leere Zeichenkette) — und ein leerer Host im Protokoll waere zwar kein Leck, aber
+  # auch keine Auskunft. Die Raute ist unproblematisch.
+  nur_host="${nur_host%%\?*}"
+  nur_host="${nur_host%%#*}"
   # `user:pass@host` kann in einer URL stehen; alles vor dem letzten @ faellt mit weg.
   nur_host="${nur_host##*@}"
   case "$1" in

@@ -70,6 +70,22 @@ function funktionsrumpf(quelle: string, name: string): string {
   return quelle.slice(start, ende);
 }
 
+/**
+ * EINE Shell-Funktion aus dem Skript schneiden und in `sh` ausfuehren. ⚠️ Das Skript
+ * selbst laesst sich nicht einlesen (`source`): es startet bei jedem Aufruf seine
+ * Betriebsart. Geschnitten wird aus `sidecar`, NICHT aus `befehle` — dort fehlen die
+ * Kommentarzeilen, und eine Funktion mit entfernten Zeilen ist nicht mehr dieselbe.
+ */
+function shellAufruf(name: string, ...argumente: string[]): string {
+  const quelle = `${funktionsrumpf(sidecar, name)}\n}\n${name} "$@"`;
+  return execFileSync("sh", ["-c", quelle, "sh", ...argumente], {
+    encoding: "utf8",
+    stdio: "pipe",
+  }).trimEnd();
+}
+
+const kurzeForm = (url: string) => shellAufruf("ping_ziel_kurz", url);
+
 function tiefe(zeile: string): number {
   if (zeile.trim() === "") return -1;
   return zeile.length - zeile.trimStart().length;
@@ -1088,10 +1104,30 @@ describe("scripts/backup-sidecar.sh — was am Ziel geloescht werden darf", () =
       /ping_ziel_kurz "\$ziel"/,
     );
     expect(warnung, "und nicht die ganze URL").not.toMatch(/warne "Ping an \$ziel/);
-    // Schema und Host bleiben, alles andere faellt weg — inklusive `user:pass@`.
-    const rumpfK = funktionsrumpf(befehle, "ping_ziel_kurz");
-    expect(rumpfK).toMatch(/\$\{ohne_schema%%\/\*\}/);
-    expect(rumpfK).toMatch(/\$\{nur_host##\*@\}/);
+    // ⚠️ AB HIER WIRD GEMESSEN STATT GESCANNT. Ein Quelltext-Scan auf
+    // `${ohne_schema%%/*}` haette die Luecke, die diesen Block ausloeste, NICHT gesehen:
+    // die Zeile stand richtig da, sie deckte nur einen Fall nicht ab. Eine
+    // Zeichenkette, die eine Kennung enthaelt oder nicht, ist eine Frage an die Shell,
+    // also fragen wir sie — die Funktion wird aus dem Skript geschnitten und in `sh`
+    // ausgefuehrt.
+    for (const [url, erwartet] of [
+      // Beide unterstuetzten Dienste: Kennung im Pfad.
+      ["https://hc-ping.com/8f3a-uuid", "https://hc-ping.com"],
+      ["https://kuma.example/api/push/tok?status=up", "https://kuma.example"],
+      // ⚠️ DER FUND: eine URL OHNE Pfad. Der Schnitt am Schraegstrich greift hier nicht,
+      // und vor der Korrektur stand `https://monitor.example?token=geheim` vollstaendig
+      // im Protokoll — gemessen, nicht vermutet.
+      ["https://monitor.example?token=geheim", "https://monitor.example"],
+      ["https://monitor.example#frag", "https://monitor.example"],
+      ["https://monitor.example?a=1#f", "https://monitor.example"],
+      // Zugangsdaten vor dem Host, mit und ohne Pfad.
+      ["https://nutzer:passwort@waechter.example/ping/xyz", "https://waechter.example"],
+      ["https://nutzer:pw@host?token=x", "https://host"],
+      // Ein Port ist keine Kennung und bleibt stehen — sonst waere die Auskunft wertlos.
+      ["http://192.168.1.5:3001/api/push/tok", "http://192.168.1.5:3001"],
+    ] as const) {
+      expect(kurzeForm(url), `${url} wird gekuerzt`).toBe(erwartet);
+    }
   });
 
   it("ein Erfolg, den niemand festhalten kann, wird NICHT als Erfolg gemeldet", () => {
