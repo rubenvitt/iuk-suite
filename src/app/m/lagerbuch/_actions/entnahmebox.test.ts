@@ -2,8 +2,10 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { migrierteTestDb, type TestDb } from "../_db/testdb";
 import { artikel, buchungen, chargen, lagerorte, lagerortVerfall } from "../_db/schema";
-import { ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL } from "../_lib/konstanten";
-import { ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
+import {
+  ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR, ENTNAHMEBOX_ID, ENTNAHMEBOX_KOMMENTAR, PSEUDO_VERFALL,
+} from "../_lib/konstanten";
+import { EINRAEUMEN_PRAEFIX, ENTNAHMEBOX_PRAEFIX } from "../_lib/vorgang";
 import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
 
 /**
@@ -22,8 +24,17 @@ import { setzeVerfall } from "../_lib/schreibpfade/lagerortVerfall";
  * unter dem Handlager, zaehlt ihr Inhalt still als Handlagerbestand.
  */
 
-const { helferRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
+const { helferRiegel, adminRiegel, revalidiert, sitzung } = vi.hoisted(() => ({
   helferRiegel: vi.fn<() => Promise<unknown>>(),
+  /**
+   * DER RIEGEL DES RUECKWEGS — DRK-381, und er ist ABSICHTLICH ein anderer als
+   * `helferRiegel`. In die Kiste legt die Helferin am Fahrzeug
+   * (`requireHelferSchreibend`, traegt Kaertchen UND Konto), eingeraeumt wird
+   * vom Gruppenfuehrer (`requireLagerbuchAdmin`, also nur Konto). Zwei
+   * Attrappen halten das auseinander: eine gemeinsame liesse nicht mehr
+   * pruefen, dass ein Kaertchen den Rueckweg auf keinem Weg erreicht.
+   */
+  adminRiegel: vi.fn<() => Promise<unknown>>(),
   revalidiert: [] as string[],
   /**
    * DIE ANGEMELDETE VERWALTUNG — getrennt vom Riegel, und genau darum geht es.
@@ -69,11 +80,16 @@ vi.mock("../_lib/helferZugang", () => ({
   },
 }));
 
+vi.mock("../_lib/zugang", () => ({
+  requireLagerbuchAdmin: () => adminRiegel(),
+}));
+
 vi.mock("../_db/client", () => ({
   getDb: () => { throw new Error("getDb() im Test — jeder Aufruf uebergibt t.db"); },
 }));
 
-import { bucheInEntnahmebox } from "./entnahmebox";
+import { BESTANDSFLAECHEN } from "../_lib/revalidierung";
+import { bucheInEntnahmebox, raeumeAusEntnahmebox } from "./entnahmebox";
 
 const JETZT = new Date("2026-09-16T10:00:00Z");
 
@@ -109,11 +125,15 @@ const KONTO = {
  */
 const VERWALTUNG = KONTO.zugang;
 
+/** Der angemeldete Viewer, wie ihn `requireLagerbuchAdmin` zurueckgibt. */
+const VIEWER = { sub: "u-admin", groups: ["lagerbuch"], name: "A. Verwaltung", email: null };
+
 let t: TestDb;
 
 beforeEach(() => {
   revalidiert.length = 0;
   helferRiegel.mockResolvedValue(KAERTCHEN);
+  adminRiegel.mockResolvedValue(VIEWER);
   sitzung.konto = null;
   sitzung.beimAufloesen = null;
   t = migrierteTestDb("lagerbuch-actions-entnahmebox-");
@@ -627,9 +647,14 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
 
     expect(revalidiert).toContain("/m/lagerbuch/verwaltung/entnahmebox");
     expect(revalidiert).toContain("/m/lagerbuch/helfer/box");
-    // MIT der Id: der Pfad des Einheitenblatts traegt sie, ein Pfad ohne sie
-    // traefe die Seite nicht.
-    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/fz-1");
+    /*
+     * ⚠️ DAS EINHEITENBLATT ALS MUSTER, NICHT MIT DER ID — und die Korrektur
+     * kam aus der Codex-Review zu PR #187. Hier stand `…/fahrzeuge/fz-1`, weil
+     * nur DIESE Einheit Ware bekommen hat. Jede Fahrzeugseite zeigt aber ueber
+     * `sollFuerFahrzeug` auch den HANDLAGER-Bestand je Position, und der ist
+     * gerade gesunken — betroffen sind also alle, nicht nur `fz-1`.
+     */
+    expect(revalidiert).toContain("/m/lagerbuch/verwaltung/fahrzeuge/[id]");
   });
 
   it("laesst die Verfallsangabe stehen, AUCH wenn die Einheit dabei leer wird", async () => {
@@ -705,5 +730,385 @@ describe("bucheInEntnahmebox — die Box als Lagerort", () => {
     await bucheInEntnahmebox({ fahrzeugId: "fz-1", artikelId: "art-1", menge: 4 }, t.db);
 
     expect(verfallZeilen().map((z) => z.verfall)).toEqual(["2027-03"]);
+  });
+});
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * DER WEG ZURUECK — DRK-381.
+ *
+ * ⚠️ DIE ZUSAGE, DIE HIER HAENGT, IST DIE DES TICKETKOPFS: „das ist eine
+ * UMLAGERUNG, kein Wareneingang." Sie ist eine Aussage ueber ZWEI Zeilen mit
+ * DERSELBEN Referenz, DERSELBEN Charge und der Summe null — also genau das,
+ * was ein Mock der Schreibpfade behaupten statt messen wuerde. Deshalb laeuft
+ * auch dieser Block gegen eine echte, migrierte SQLite.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/** Ein Schrank unter dem Handlager — das uebliche Ziel des Einraeumens. */
+function schrank(id: string, name: string, aktiv = true) {
+  t.db.insert(lagerorte).values({
+    id, name, typ: "lager", parentId: "handlager", aktiv, sortierung: 0,
+  }).run();
+}
+
+/** Was in der Box liegt — `buchen()` schreibt sonst aufs Fahrzeug. */
+function inDerBox(id: string, chargeId: string, menge: number, artikelId = "art-1") {
+  buchen(id, chargeId, menge, ENTNAHMEBOX_ID, artikelId);
+}
+
+describe("raeumeAusEntnahmebox — die Umbuchung", () => {
+  it("bildet Abgang und Zugang als EIN Vorgang ab: zwei Legs, eine Referenz, eine Charge", async () => {
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 10);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 4, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg).toEqual({ ok: true, wert: { eingeraeumt: 4, ziel: "Schrank 1" } });
+
+    const zeilen = neueZeilen();
+    expect(zeilen).toHaveLength(2);
+
+    // ⚠️ NETTO NULL ueber beide Orte — Akzeptanzkriterium 2. Waere sie
+    // verletzt, entstuende Bestand aus dem Nichts: genau der Fehler, den der
+    // Zugangspfad („auffuellen") hier gemacht haette.
+    expect(zeilen.reduce((s, b) => s + b.menge, 0)).toBe(0);
+
+    const ab = zeilen.find((b) => b.lagerortId === ENTNAHMEBOX_ID)!;
+    const zu = zeilen.find((b) => b.lagerortId === "sch-1")!;
+    expect(ab.menge).toBe(-4);
+    expect(zu.menge).toBe(4);
+
+    /*
+     * ⚠️ BEIDE LEGS TRAGEN `umlagerung`, NICHT `zugang` — das ist die Falle des
+     * Tickets in einer Zusicherung. Ein `zugang` liesse den
+     * Wareneingangsbericht und den Bestellvorschlag eine Lieferung lesen, wo
+     * nur etwas umgeraeumt wurde, und die Bestellt-Markierung fiele still weg.
+     */
+    expect(ab.typ).toBe("umlagerung");
+    expect(zu.typ).toBe("umlagerung");
+
+    // DIE KLAMMER: dieselbe Referenz, und sie nennt das ZIEL.
+    expect(ab.referenz).toBe(`${EINRAEUMEN_PRAEFIX}sch-1`);
+    expect(zu.referenz).toBe(ab.referenz);
+
+    // AK3 — DIE CHARGE WANDERT MIT, und damit die Verfallsangabe.
+    expect(ab.chargeId).toBe("ch-1");
+    expect(zu.chargeId).toBe("ch-1");
+
+    expect(zu.kommentar).toBe(ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR);
+
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(6);
+    expect(bestand("sch-1", "ch-1")).toBe(4);
+  });
+
+  it("raeumt GENAU DIE gewaehlte Charge ein — auch wenn eine aeltere daneben liegt", async () => {
+    /*
+     * ⚠️ DER FALL, DEN FEFO FALSCH MACHEN WUERDE, und beim Einraeumen gibt es
+     * dafuer nicht einmal einen Rueckfall: die Kiste liegt offen vor einem, die
+     * Ampel der Charge entscheidet, ob das Teil ueberhaupt zurueck in den
+     * Schrank geht. Der Fehler waere STILL — netto bleibt null, der
+     * Handlager-Bestand stimmt, nur die Ortsangabe je Charge ist falsch.
+     */
+    schrank("sch-1", "Schrank 1");
+    charge("ch-alt", "2027-01");
+    charge("ch-neu", "2030-01");
+    inDerBox("seed-alt", "ch-alt", 5);
+    inDerBox("seed-neu", "ch-neu", 5);
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-neu", menge: 2, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(bestand("sch-1", "ch-neu")).toBe(2);
+    expect(bestand("sch-1", "ch-alt")).toBe(0);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-alt")).toBe(5);
+  });
+
+  it("erlaubt TEILMENGEN — derselbe Posten auf zwei Schraenke", async () => {
+    // Die zweite offene Frage des Tickets, als Zusicherung: eine Charge auf
+    // zwei Schraenke zu verteilen ist der Normalfall. „Ganz oder gar nicht"
+    // zwaenge zu zwei Vorgaengen fuer einen Handgriff.
+    schrank("sch-1", "Schrank 1");
+    schrank("sch-2", "Schrank 2");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 5);
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 3, zielLagerortId: "sch-1" },
+      t.db,
+    );
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 2, zielLagerortId: "sch-2" },
+      t.db,
+    );
+
+    expect(bestand("sch-1", "ch-1")).toBe(3);
+    expect(bestand("sch-2", "ch-1")).toBe(2);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(0);
+  });
+
+  it("nimmt die Handlager-WURZEL als Ziel — „Schrank noch nicht zugeordnet“", async () => {
+    // Die Wurzel ist eine ZEILE der Auswahl, kein Sonderfall: sie heisst
+    // „ich weiss den Schrank noch nicht" (`ZUGANGSZIEL_WURZEL_LABEL`).
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 2, zielLagerortId: "handlager" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(bestand("handlager", "ch-1")).toBe(2);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(0);
+  });
+
+  it("raeumt auch aus einer STILLGELEGTEN Box — sonst strandet, was darin liegt", async () => {
+    /*
+     * ⚠️ DIE GEGENRICHTUNG VERLANGT `aktiv`, DIESE NICHT, und das ist kein
+     * Widerspruch: eine stillgelegte Kiste nimmt nichts mehr AUF. Sie
+     * auszuraeumen muss gerade dann gehen — alles andere liesse ihren Inhalt
+     * fuer immer an einem Ort liegen, den weder Verfallsliste noch Inventur
+     * sehen.
+     */
+    t.db.update(lagerorte).set({ aktiv: false })
+      .where(eq(lagerorte.id, ENTNAHMEBOX_ID)).run();
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 3);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 3, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(bestand("sch-1", "ch-1")).toBe(3);
+  });
+
+  it("raeumt einen STILLGELEGTEN Artikel ein — die dritte offene Frage des Tickets", async () => {
+    /*
+     * ⚠️ ERLAUBT, NICHT VERBOTEN, und die Begruendung ist die Abwesenheit eines
+     * anderen Weges: es gibt heute keinen Schreibpfad, der aus der Kiste
+     * AUSSONDERT (`aussondernVomLagerort` haengt an der Einheitenseite). Ein
+     * Verbot liesse das Material dauerhaft in der Box — an einem Ort, den weder
+     * Verfallsliste noch Inventur sehen. Im Schrank sieht `verfallListe` es
+     * wieder; sie filtert `artikel.aktiv` ausdruecklich NICHT.
+     *
+     * Die Oberflaeche verschweigt es trotzdem nicht: `BoxEinraeumen` setzt den
+     * Chip „stillgelegt" an die Zeile.
+     */
+    schrank("sch-1", "Schrank 1");
+    t.db.update(artikel).set({ aktiv: false }).where(eq(artikel.id, "art-1")).run();
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 2, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(true);
+    expect(bestand("sch-1", "ch-1")).toBe(2);
+  });
+
+  it("schreibt die Buchung auf den angemeldeten `sub`, nie auf ein Kaertchen", async () => {
+    // ⚠️ AUCH DANN NICHT, WENN EIN GUELTIGES KAERTCHEN DANEBEN LIEGT: dieser
+    // Weg liest `requireHelferSchreibend` gar nicht. Ein Kaertchen erreicht ihn
+    // auf keinem Weg — das ist die Zusage des Riegels, nicht der Flaeche.
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    for (const b of neueZeilen()) {
+      expect(b.quelleTyp).toBe("oidc");
+      expect(b.quelleId).toBe("u-admin");
+    }
+  });
+
+  it("raeumt die Flaechen aus, die danach veraltet sind", async () => {
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 2);
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    /*
+     * ⚠️ HIER STANDEN BIS ZUM MERGE VON DRK-374 ZEHN AUSGESCHRIEBENE PFADE:
+     * die geteilte Acht aus DRK-381, plus die beiden Box-Flaechen einzeln, und
+     * `helfer/box` fehlte ausdruecklich („zeigt den Bestand EINER EINHEIT").
+     *
+     * DRK-374 entscheidet diese Abwaegung anders: die Liste ist pauschal, sie
+     * nennt JEDE Flaeche, die Artikelbestand oder Buchungszeilen zeigt, und
+     * jeder Bestandsschreiber nimmt sie ganz. Ein Pfad zu viel kostet einen
+     * Rerender, ein Pfad zu wenig eine falsche Zahl, die niemand meldet. Der
+     * Sollwert steht woertlich in `_lib/revalidierung.test.ts`; hier zaehlt
+     * nur, DASS dieser Schreiber sie nimmt und nichts daneben.
+     */
+    expect(revalidiert).toEqual([...BESTANDSFLAECHEN]);
+  });
+});
+
+describe("raeumeAusEntnahmebox — was sie ablehnt", () => {
+  it("bucht NICHTS, wenn die Menge nicht gedeckt ist — statt still zu kappen", async () => {
+    // AK4. Derselbe Unterschied zur Entnahme wie in der Gegenrichtung: eine
+    // gekappte Umlagerung liesse den Buchstand an BEIDEN Orten falsch stehen.
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 3);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 5, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    // Die Zahl UND die Einheit des Artikels — kein erfundenes „Stück".
+    expect(erg.ok === false && erg.text).toContain("nur 3 Stk");
+    expect(neueZeilen()).toHaveLength(0);
+    expect(bestand(ENTNAHMEBOX_ID, "ch-1")).toBe(3);
+  });
+
+  it("zaehlt NUR den Bestand IN DER BOX, nicht den am Fahrzeug", async () => {
+    // ⚠️ DIE DECKUNG IST ORTSGEBUNDEN. Ohne den Ortsfilter deckte Bestand, der
+    // noch auf dem Fahrzeug liegt, eine Buchung aus der Kiste — und die Box
+    // stuende danach im Minus.
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    buchen("seed-fz", "ch-1", 10, "fz-1");
+    inDerBox("seed-box", "ch-1", 1);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 4, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(neueZeilen()).toHaveLength(0);
+    expect(bestand("fz-1", "ch-1")).toBe(10);
+  });
+
+  it("lehnt eine Charge ab, die einem anderen Artikel gehoert (I5)", async () => {
+    schrank("sch-1", "Schrank 1");
+    charge("ch-fremd", "2030-01", "art-2");
+    inDerBox("seed-fremd", "ch-fremd", 9, "art-2");
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-fremd", menge: 1, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(erg.ok === false && erg.text).toContain("gehört nicht zu diesem Artikel");
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("lehnt einen STILLGELEGTEN Schrank als Ziel ab", async () => {
+    /*
+     * ⚠️ DIE QUELLE DARF STILLGELEGT SEIN, DAS ZIEL NICHT — dieselbe
+     * Festlegung wie in `bucheUmlagerung`: genau deshalb legt man einen Schrank
+     * still, um ihn auszuraeumen. Material hineinzuraeumen waere der
+     * Gegenhandgriff.
+     */
+    schrank("sch-tot", "Alter Schrank", false);
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 5);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, zielLagerortId: "sch-tot" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(erg.ok === false && erg.text).toContain("stillgelegt");
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("lehnt ein FAHRZEUG als Ziel ab — der Weg dorthin ist die Entnahme", async () => {
+    /*
+     * ⚠️ OHNE DIESE PROBE ENTSCHIEDE DER FREMDSCHLUESSEL, und der laesst jeden
+     * Lagerort durch: 'fz-1' ist eine gueltige `lagerorte.id`. Eine selbst
+     * gebaute Anfrage bestueckte damit ein Fahrzeug aus der Kiste, ohne dass
+     * eine Entnahme im Journal stuende.
+     */
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 5);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, zielLagerortId: "fz-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("lehnt die Box selbst als Ziel ab", async () => {
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 5);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1, zielLagerortId: ENTNAHMEBOX_ID },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("verlangt eine Charge — es gibt hier keinen FEFO-Rueckfall", async () => {
+    // Der Unterschied zum Hinweg, als Zusicherung: dort ist `chargeId`
+    // optional, hier Pflicht. Ein fehlendes Feld ist eine offene Entscheidung,
+    // und die bucht nicht.
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 5);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", menge: 1, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(erg.ok === false && erg.grund).toBe("eingabe");
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("verlangt ein Ziel — ein fehlendes ist keine Vorgabe auf die Wurzel", async () => {
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 5);
+
+    const erg = await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 1 },
+      t.db,
+    );
+
+    expect(erg.ok).toBe(false);
+    expect(neueZeilen()).toHaveLength(0);
+  });
+
+  it("raeumt keinen Pfad aus, wenn nichts gebucht wurde", async () => {
+    schrank("sch-1", "Schrank 1");
+    charge("ch-1", "2030-01");
+    inDerBox("seed-1", "ch-1", 1);
+
+    await raeumeAusEntnahmebox(
+      { artikelId: "art-1", chargeId: "ch-1", menge: 9, zielLagerortId: "sch-1" },
+      t.db,
+    );
+
+    expect(revalidiert).toEqual([]);
   });
 });

@@ -76,3 +76,31 @@ export function ortZielPfad(
   if (!ort || ort.typ !== "fahrzeug") return tokenZielPfad(null, null);
   return tokenZielPfad("fahrzeug", fahrzeugBindung ?? ort.id);
 }
+
+/**
+ * DARF DIESES KAERTCHEN AUF DIE HANDLAGER-KARTE? — DRK-395.
+ *
+ * ⚠️ SIE VERGLEICHT ZWEI AUFRUFE DERSELBEN FUNKTION, statt `/helfer`
+ * hinzuschreiben, und das ist der ganze Zweck: `tokenZielPfad(null, null)` IST
+ * die Definition von „landet auf der Artikelliste". Ein Literal hier waere eine
+ * zweite Wahrheit ueber denselben Pfad — und sie fiele erst auf, wenn jemand
+ * die Landung umbenennt: der Filter waere dann leer, der Ortskarten-Bogen boete
+ * kein einziges Kaertchen mehr an, und kein Tor meldete etwas.
+ *
+ * ⚠️ WARUM UEBERHAUPT GEFILTERT WIRD: ein Kaertchen mit Fahrzeug- oder
+ * Artikelziel landet woanders (`tokenZielPfad`). Auf der Handlager-Karte
+ * gedruckt ergaebe es ein Etikett, das das Regal verspricht und den
+ * Fahrzeug-Check liefert — genau die Sorte Luege, gegen die diese Datei
+ * geschrieben ist, nur auf Papier.
+ *
+ * ⚠️ SIE STEHT HIER UND NICHT IN `tokenZiel.ts`: jene Datei ist ZEICHENGLEICH
+ * aus der Alt-Anwendung uebernommen (§3.1), und ein neuer Export darin loeschte
+ * diese Zusage fuer etwas, das es dort gar nicht gibt. Dieselbe Begruendung wie
+ * fuer `ortZielPfad`.
+ */
+export function kaertchenFuehrtInsHandlager(
+  zielTyp: string | null | undefined,
+  zielId: string | null | undefined,
+): boolean {
+  return tokenZielPfad(zielTyp, zielId) === tokenZielPfad(null, null);
+}

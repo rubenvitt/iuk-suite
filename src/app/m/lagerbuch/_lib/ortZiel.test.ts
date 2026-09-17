@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { ortZielPfad } from "./ortZiel";
+import { kaertchenFuehrtInsHandlager, ortZielPfad } from "./ortZiel";
 import { tokenZielPfad } from "./tokenZiel";
 
 /**
@@ -135,5 +135,43 @@ describe("ortZielPfad — Form und Herkunft des Pfades", () => {
     const code = quelle.replace(/\/\*[\s\S]*?\*\//g, "");
     expect(code).toMatch(/\btokenZielPfad\s*\(/);
     expect(code).not.toContain("/helfer/check");
+  });
+});
+
+/**
+ * DRK-395 — welches Kaertchen auf die Handlager-Karte darf.
+ */
+describe("kaertchenFuehrtInsHandlager", () => {
+  it("nimmt ein Kaertchen ohne Ziel", () => {
+    expect(kaertchenFuehrtInsHandlager(null, null)).toBe(true);
+    expect(kaertchenFuehrtInsHandlager(undefined, undefined)).toBe(true);
+  });
+
+  it("weist ein Kaertchen mit Fahrzeug- oder Artikelziel ab", () => {
+    expect(kaertchenFuehrtInsHandlager("fahrzeug", "rtw-1")).toBe(false);
+    expect(kaertchenFuehrtInsHandlager("artikel", "art-1")).toBe(false);
+  });
+
+  /**
+   * ⚠️ DIE HALBFORM LANDET TATSAECHLICH AUF DER ARTIKELLISTE — `tokenZielPfad`
+   * faellt ohne `zielId` in seinen Rueckfall. Sie DARF also auf die Karte, und
+   * dieser Test haelt fest, dass hier nichts zusaetzlich gefiltert wird: die
+   * Frage lautet „wo landet der Scan?", nicht „wie ist die Zeile gefuellt?".
+   */
+  it("richtet sich nach der LANDUNG, nicht nach der Form der Zeile", () => {
+    expect(tokenZielPfad("artikel", null)).toBe("/helfer");
+    expect(kaertchenFuehrtInsHandlager("artikel", null)).toBe(true);
+  });
+
+  /**
+   * ⚠️ KEIN LITERAL `/helfer` IN DER FUNKTION. Ein hingeschriebener Pfad waere
+   * eine zweite Wahrheit ueber die Landung — und sie faellt still aus: der
+   * Filter liefe leer, der Ortskarten-Bogen boete kein Kaertchen mehr an, und
+   * kein Tor meldete etwas.
+   */
+  it("vergleicht gegen tokenZielPfad, statt den Pfad hinzuschreiben", () => {
+    const quelle = readFileSync("src/app/m/lagerbuch/_lib/ortZiel.ts", "utf8");
+    const code = quelle.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toContain('"/helfer"');
   });
 });

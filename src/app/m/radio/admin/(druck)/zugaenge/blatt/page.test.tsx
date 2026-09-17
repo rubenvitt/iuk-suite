@@ -471,9 +471,9 @@ describe("druck.css: die vier Verbote und die zwei Zeilen, die den QR retten", (
      * (feedback-Aushang, files-Zugangslinks). Die Sichtbarkeitsumkehr wird hier ersatzlos
      * durch die eigene Route-Group ersetzt: ohne Shell gibt es nichts auszublenden
      * (`lagerbuch/verwaltung/(druck)/druck.css:8-15`).
-     * ⚠️ DIE REGEL IST HEUTE FORT — gemessen 2026-08-26, `/usr/bin/grep -rn "body \*" src`
-     * findet sie in keinem Stylesheet mehr, und `globals.css` hat 231 Zeilen (die drei
-     * `lagerbuch`-Anker auf `globals.css:277` sind veraltet). ⛔ DIESER FALL BEWACHT DESHALB
+     * ⚠️ DIE REGEL STAND NIE IN DIESEM REPO — gemessen 2026-08-26, korrigiert DRK-192: die
+     * drei `lagerbuch`-Anker zeigen auf `lagerbuch/src/app/globals.css:277`, also in die
+     * ALT-ANWENDUNG, nicht auf die Datei hier. ⛔ DIESER FALL BEWACHT DESHALB
      * DIE RUECKKEHR DER FORM, nicht eine bestehende Zeile — genau die Rolle, die
      * `lagerbuch/verwaltung/(druck)/etiketten/druck.test.ts:148` fuer sein Modul haelt.
      * ⛔ UND ER LIEST DEN GANZEN MODULBAUM, NICHT NUR DIESE DATEI: die Fehlerklasse kann in

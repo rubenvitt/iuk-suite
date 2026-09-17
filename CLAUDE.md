@@ -5,7 +5,7 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
 
 ## Bevor du Oberfläche baust: `docs/design/` lesen
 
-`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **neunzehn Fallen, die
+`docs/design/README.md` enthält die verbindlichen Querschnittsregeln — insbesondere **zwanzig Fallen, die
 `pnpm build` nicht findet** und die je einen halben Tag kosten:
 
 1. **Compound-Zugriff auf antd in einer Server Component ergibt HTTP 500** (`Typography.Title`,
@@ -390,6 +390,35 @@ Vitest + Playwright. Eine SQLite-Datenbank **pro Modul**.
     (die `.d.ts` sagt das wörtlich) — der falsche Griff ist damit typkorrekt und fällt erst
     zur Laufzeit auf.
 
+20. **Eine eigene CSS-Regel auf einen antd-Klassennamen stirbt beim Major-Upgrade STILL — und ein
+    Test, der den REGELTEXT liest, stirbt lautlos mit** (Modul-übergreifend, DRK-190/DRK-191, gegen
+    `antd@6.6.2` und `@rc-component/select@1.10.1` gemessen — nicht vermutet). `globals.css` trug
+    die einzige bewusst eingegangene Kopplung der Suite an einen antd-internen Klassennamen,
+    `:root .ant-select-selector { font-size: 16px }`, samt Kommentar „ein antd-Major könnte ihn
+    umbenennen, und der Bruch wäre still". Genau das ist passiert: antd 6 baut das Auswahlfeld aus
+    `.ant-select > .ant-select-content > (.ant-select-placeholder, input.ant-select-input)`, die
+    alte Klasse rendert nirgends mehr. Die Regel lief ins Leere, **und die 16px-Zusage der Suite sah
+    für jedes Auswahlfeld erfüllt aus, ohne es zu sein.**
+    ⚠️ **Der Test war dabei schlimmer als kein Test.** `feldschrift.test.ts` regexte über
+    `globals.css` und fand die Regel — sie stand ja da. Ein Quelltext-Scan kann strukturell nicht
+    sehen, ob der Baum, auf den ein Selektor zielt, überhaupt existiert; er las den Regeltext, nicht
+    die Wirkung. Weil dort ein Test stand, hat die Regel über Monate niemand hinterfragt.
+    **Abhilfe, und sie kostet keinen Browser:** `renderToString` plus `extractStyle` aus
+    `@ant-design/cssinjs` geben Markup UND das für das Suite-Theme tatsächlich erzeugte CSS heraus —
+    beides in Vitest, ohne Layout. `core/theme/selektschrift.test.ts` prüft damit, dass die Klasse,
+    auf die `globals.css` zielt, wirklich gerendert wird. Wer eine Regel gegen `.ant-*` schreibt,
+    schuldet einen solchen Test dazu.
+    ⚠️ **Die zweite Hälfte ist die teurere, und sie gilt für jedes antd-Bauteil mit Bediendichte:**
+    `.ant-select` trägt **keine `height`**. Es rechnet
+    `padding-block = (height − font-height) / 2 − border` und lässt die Zeilenbox den Rest machen.
+    Wer `font-size` anhebt, ohne `line-height` und `font-height` mitzuziehen, macht jedes
+    Auswahlfeld höher als sein Nachbarfeld (gemessen: 44px → 47,1px); die drei Zahlen hängen über
+    `font-height = line-height × font-size` aneinander. **Und der naheliegende Token greift daneben:**
+    `components.Select.fontSize` ergibt gemessen `.iuk.ant-select-css-var { --ant-font-size: 16px }`
+    — es kapert die GLOBALE Schriftvariable innerhalb des Feldes, statt die des Bauteils zu setzen,
+    und lässt die anderen beiden stehen. Deshalb steht hier ausnahmsweise CSS statt eines Tokens,
+    entgegen Falle 5.
+
 Dazu: Hell/Dunkel läuft über `<html data-theme>` (Cookie-Umschalter, **nicht**
 `prefers-color-scheme`). Der Umschalter hat drei Zustände, und `auto` ist die Vorgabe — deshalb
 **zwei** Cookies: `iuk-theme-pref` trägt die Wahl (`auto|light|dark`), `iuk-theme-system` den
@@ -576,6 +605,46 @@ Traefik-Labels → Router umschwenken (nie zwei Router gleichzeitig aktiv) → 2
 **Paritätscheck beweist den Datenbank-Rundlauf, nicht die Richtigkeit der Feldzuordnung.** Ein
 konsistenter Mapping-Fehler ist paritätsgrün. Deshalb zusätzlich feldweise Stichproben gegen die
 Alt-Anwendung.
+
+## Kommentaranker — ein Name hält, eine Zeilennummer wandert
+
+Die Suite begründet in Kommentaren und verankert die Begründung an ihrer Quelle. **6027 solcher
+`datei:zeile`-Anker stehen im Repo** (gemessen 16.09.2026; `m/radio` 4253, `m/lagerbuch` 640 in 178
+Dateien) — sie sind ein tragender Teil des Gedächtnisses, und sie sind die häufigste Einzelursache
+für Fehlschlüsse bei einem Rotlauf. Ein Anker, der die Aussage nicht mehr deckt, kostet doppelt:
+erst sucht jemand an der falschen Stelle, dann hält er die Zusicherung für ungedeckt und
+„repariert" sie, indem er sie streicht. Zwei Regeln, beide billig:
+
+1. **Ein Anker in dieses Repo nennt einen NAMEN, keine Zeile.** Zusicherungs-, Symbol- oder
+   Selektorname — `_db/schema.ts`, Feld `lastUsedAt` statt `_db/schema.ts:412-413`. Eine
+   Zeilennummer wandert bei jeder Einfügung darüber, und **kein Tor sieht das**: sie steht in
+   einem Kommentar, den `typecheck` nicht liest, `lint` nicht kennt und `build` klaglos
+   mitserialisiert. Gemessen an genau diesem Beispiel: `lastUsedAt` steht heute auf `:538-540`,
+   auf `:412` steht eine Trigger-Begründung — der Anker zeigte auf eine Aussage über etwas
+   anderes.
+2. **Ein Anker in die ALT-ANWENDUNG nennt das Repository mit** — `lagerbuch/src/app/globals.css:277`,
+   nie nacktes `globals.css:277`. Dort ist die Zeilennummer richtig und stabil (das Repo ist
+   eingefroren); ambig ist der **Dateiname**. ⚠️ Dieser Fall hat schon einmal zugeschlagen: in
+   `m/radio` stand, die `lagerbuch`-Anker auf `globals.css:277` seien „veraltet (`globals.css` hat
+   231 Zeilen)". Der nackte Anker hatte sich gegen die gleichnamige Datei **dieses** Repos auflösen
+   lassen, und aus einer richtigen Herkunftsmarke wurde eine falsche Fehlmeldung.
+
+**Findest du einen veralteten Anker, ziehst du den ANKER nach — nie die Zusicherung.** Der Anker
+ist veraltet, nicht die Aussage.
+
+⚠️ **Und wer Kommentare aufräumt, hält die ZEILENZAHL der Datei** — das ist der Teil, den man erst
+merkt, wenn er weh tut. Gemessen an diesem PR: ein erster Wurf hat dieselben Kommentare nur sauber
+umgebrochen, dabei 27 Zeilen eingefügt und damit **29 fremde Anker aus vier anderen Dateien
+veraltet** — ein Kommentar-Fix, der die Fehlerklasse vervielfacht, die er beheben soll. Zeilenzahl-
+neutral formuliert (kürzer, nicht länger) kostet er nichts. Prüfen lässt sich das in einem Zug:
+`for f in $(git diff --name-only); do echo "$(( $(wc -l < "$f") - $(git show HEAD:"$f" | wc -l) ))
+$f"; done`.
+
+`src/core/kommentaranker.test.ts` riegelt die beweisbare Hälfte repo-weit ab: ein Anker, der sich
+gegen eine Datei dieses Repos auflösen lässt, muss auf eine Zeile zeigen, die es dort gibt. Er ist
+ein **Boden, keine Decke** — Drift *innerhalb* einer Datei sieht er nicht, und Anker in die
+Alt-Anwendung oder in Fremdpakete kann er nicht prüfen. `docs/` steht bewusst außerhalb: Berichte
+halten einen vergangenen Stand fest und sollen gerade nicht mitwandern.
 
 ## Tests
 

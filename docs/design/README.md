@@ -86,8 +86,9 @@ Tabellenzeilen, weil eine 56px-Zeilenaktion die Zeile sprengt." Beides ist über
 Wo eine Zeile mit 44px-Aktionen zu voll wird, ist das ein Entwurfsproblem der Zeile — kein Anlass, die Tapfläche zu unterbieten.
 
 **5. Eigenes CSS und antd-CSS treffen sich, und die Spezifität entscheidet — meist gegen dich.**
-Der Fehler ist immer still: im Quelltext steht alles richtig, die Regel matcht, sie greift nur nicht.
-Dreimal passiert, in drei verschiedenen Ausprägungen:
+Der Fehler ist immer still: im Quelltext steht alles richtig, die Regel matcht, sie greift nur nicht —
+und in der vierten Ausprägung unten matcht sie nicht einmal mehr. Bisher passiert in diesen
+Ausprägungen:
 
 - **Gleichstand, antd gewinnt durch Reihenfolge.** `.nurMobil` ist (0,1,0) — genau so viel wie
   `.ant-btn`. Bei Gleichstand entscheidet die Dokumentreihenfolge, und **antds Stylesheet kommt
@@ -107,6 +108,22 @@ hängt davon ab, wer der Gegenspieler ist.
 anbietet, ist der Token der bessere Weg als jede Spezifität (`Input.inputFontSizeLG` statt CSS).
 **Und die Erhöhung kommentieren**, sonst entfernt sie die nächste Aufräumrunde als vermeintlichen
 Ballast. Prüfen kann das nur ein echter Browser: siehe „Tests für Responsives" unten.
+
+⚠️ **Eine vierte Ausprägung, und sie ist die stillste: die Regel ist stark genug und trifft nichts
+mehr.** `globals.css` trug `:root .ant-select-selector { font-size: 16px }` samt Warnung, ein
+antd-Major könne die Klasse umbenennen. antd 6 hat genau das getan — das Auswahlfeld ist heute
+`.ant-select > .ant-select-content > (.ant-select-placeholder, input.ant-select-input)`, und die
+Regel lief ins Leere, während die 16px-Zusage der Suite für jedes Auswahlfeld erfüllt **aussah**.
+Ein Test bewachte sie, aber er regexte über `globals.css` und fand dort den Regeltext: ein
+Quelltext-Scan kann strukturell nicht sehen, ob der Baum, auf den ein Selektor zielt, überhaupt
+existiert. Weil dort ein Test stand, hat die Regel über Monate niemand hinterfragt (DRK-190/DRK-191).
+
+**Regel dazu:** wer eigenes CSS gegen einen `.ant-*`-Klassennamen schreibt, schuldet einen Test auf
+die **Wirkung**, nicht auf den Regeltext — und der braucht keinen Browser: `renderToString` plus
+`extractStyle` aus `@ant-design/cssinjs` geben Markup und das für das Suite-Theme tatsächlich
+erzeugte CSS heraus, beides in Vitest (`core/theme/selektschrift.test.ts` als Vorbild). Die
+Arbeitsteilung bleibt die von Falle 8: „die Regel steht da" gehört dem Quelltext-Scan, „sie wirkt"
+dem gerenderten CSS, „sie wirkt auf dem Schirm" dem Browser.
 
 **6. Ein WERT aus einem `"use client"`-Modul kommt in einer Server Component nicht an.**
 Falle 1 verbietet den Compound-Zugriff. Das hier ist ihre Schwester und sieht harmloser aus: eine
@@ -373,6 +390,19 @@ Angabe — jede Pixelzahl wäre erfunden. **Eine Bedingung dazu:** rc-table scha
 (`lib/Table.js:426-442`); dann verteilt es die Spalten gleichmäßig und **das Desktop-Bild ändert sich**,
 ohne dass irgendwo etwas überläuft. Wer `scroll` ergänzt, misst die Spaltenbreiten bei 1280px vorher
 und nachher — `documentElement.scrollWidth` allein würde den Unterschied nicht sehen.
+
+**Eine Spalte mit Freitext braucht eine Lesebreite — `Zellentext` aus `core/tabelle`.** `max-content`
+heißt: die Tabelle ist so breit, wie es die breiteste Zelle verlangt. Ein Kommentar, eine Bemerkung,
+eine Notiz sind Nachweisfelder ohne Längengrenze, und EIN langer Satz aus dem Altbestand schiebt damit
+alle Spalten dahinter aus dem Bild. **Das Symptom führt in die Irre:** die Zeile sieht richtig aus,
+sie steht nur sehr weit rechts. `ellipsis: true` an der Spalte ist die falsche Abhilfe (s. o.: es
+kippt die ganze Tabelle auf `table-layout: fixed`); gedeckelt wird die ZELLE. **Und `max-width`
+allein reicht dafür nicht:** es gilt nicht für nicht-ersetzte Inline-Elemente (CSS 2.1 §10.4) — an
+einem nackten `<span>` steht die Deklaration richtig da und der Browser verwirft sie, still.
+`Zellentext` bringt sein `display` deshalb selbst mit. **Die Höhe zu deckeln (`zeilen`) ist eine
+ZWEITE Entscheidung** und gehört nur in eine Übersicht, hinter der die Nachweisfläche einen Klick
+entfernt liegt: `overflow: hidden` schneidet für das Auge ab, und `title` braucht einen Zeiger, den
+ein Telefon nicht hat. Auf Logbuch, Journal und Messungsverlauf deckelt allein die Breite (DRK-372).
 
 **Eine Tabelle, die auf schmalen Geräten gar nicht sichtbar ist, braucht kein `scroll`.**
 `feedback/_ui/Verlauf.tsx` rendert beide Darstellungen ins HTML und blendet per CSS eine aus; die

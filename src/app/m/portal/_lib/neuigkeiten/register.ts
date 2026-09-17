@@ -28,6 +28,7 @@ import sauerstoffWechselhinweis from "@/app/m/portal/_lib/neuigkeiten/notizen/la
 import umlagernImHandlager from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-umlagern-im-handlager";
 import auffuellen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-auffuellen";
 import entnahmebox from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-entnahmebox";
+import entnahmeboxEinraeumen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-entnahmebox-einraeumen";
 import schranknameEindeutig from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-schrankname-eindeutig";
 import checkUndEntnahmeAngemeldet from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-check-und-entnahme-angemeldet";
 import taschenNebenFahrzeugen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-15-taschen-neben-fahrzeugen";
@@ -37,6 +38,8 @@ import aussondernJeSchrank from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbu
 import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-ortsetiketten";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
 import inventurLinkZaehlort from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-inventur-link-zaehlort";
+import chargenImHandlager from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-chargen-im-handlager";
+import codeAufDerHandlagerkarte from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-code-auf-der-handlagerkarte";
 import neuerNameSammelhaus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-16-neuer-name-sammelhaus";
 import lesbaresRotImDunkelmodus from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-28-lesbares-rot-im-dunkelmodus";
 import neuerNameIda from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-09-04-neuer-name-ida";
@@ -97,6 +100,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   umlagernImHandlager,
   auffuellen,
   entnahmebox,
+  entnahmeboxEinraeumen,
   deaktivierteArtikel,
   schranknameEindeutig,
   checkUndEntnahmeAngemeldet,
@@ -106,6 +110,8 @@ const NOTIZEN: readonly Releasenotiz[] = [
   aussondernJeSchrank,
   ortsetiketten,
   inventurLinkZaehlort,
+  chargenImHandlager,
+  codeAufDerHandlagerkarte,
   neuerNameSammelhaus,
   vonAllenGeraetenAbmelden,
   lesbaresRotImDunkelmodus,

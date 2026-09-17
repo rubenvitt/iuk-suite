@@ -6,7 +6,7 @@
  * liegt allein daran, dass dort die Klassennamen gehasht werden.
  *
  * WAS HIER AUSDRUECKLICH NICHT STEHT: `body * { visibility: hidden }`
- * (globals.css:277). CSS Modules schreiben ausschliesslich KLASSENselektoren um
+ * (lagerbuch/src/app/globals.css:277). CSS Modules schreiben ausschliesslich KLASSENselektoren um
  * — `body *` bliebe global und leerte JEDE andere Druckseite der Suite
  * (feedback-Aushang, files-Zugangslinks; Falle 43). Die Sichtbarkeitsumkehr wird
  * ersatzlos durch die eigene Route-Gruppe ersetzt: ohne Shell gibt es nichts
@@ -24,14 +24,16 @@
  * DAS DRUCK-CSS GREIFT NIE AUF `input` UND NIE AUF `.ant-*`. Eine Regel gegen
  * einen antd-internen Klassennamen waere eine Kopplung, die ein antd-Major still
  * bricht; die Suite geht sie an genau EINER Stelle bewusst ein
- * (globals.css `:root .ant-select-selector`, „der Bruch waere still").
+ * (globals.css `:root .ant-select`, „der Bruch waere still" — und er IST eingetreten:
+ * die Regel hiesz bis DRK-190 `.ant-select-selector`, eine Klasse, die antd 6 nicht
+ * mehr rendert).
  *
  * Die Millimeter sind 1:1-Pflicht 22 und stehen zugleich in
  * _lib/etikettMasse.ts; etiketten/druck.test.ts haelt beide aneinander.
  */
 
 @page {
-  margin: 8mm;                            /* globals.css:276 */
+  margin: 8mm;                            /* lagerbuch/src/app/globals.css:276 */
 }
 
 /* DIE BENANNTE SEITE DES ORTSKARTEN-BOGENS (DRK-312/DRK-388,
@@ -96,13 +98,13 @@
 }
 
 /* DAS `qrcode`-SVG BRINGT NUR EINE viewBox MIT, KEINE BREITE/HOEHE (8-I).
- * globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
+ * lagerbuch/src/app/globals.css:25-28 faengt das heute nur fuer [data-testid="qr-display"] ab.
  * Ohne diese Regel faellt der Code auf die Ersatzgroesse des Browsers zurueck
  * und wird winzig — OHNE dass ein Test anschlaegt.
  *
  * ⚠️ `flex: none` SITZT AUF DEM UMSCHLAG, NICHT AUF DEM SVG. Flexbox wirkt auf
  * die FLEX-ITEMS, und das ist hier `.lb-etikettQr` — im Bestand war es das
- * <img> selbst (globals.css:268: `.etikett img{...flex:none}`), deshalb sass es
+ * <img> selbst (lagerbuch/src/app/globals.css:268: `.etikett img{...flex:none}`), deshalb sass es
  * dort richtig. Steht es am SVG, kann der Umschlag weiter schrumpfen: ein langer
  * Artikelname draengt den QR unter 20mm. */
 .lb-etikettQr {
@@ -508,7 +510,19 @@
  * ⚠️ FETT UND EIGENE ZEILE, nicht groesser: der Fuss ist auf 6pt vermessen, und
  * ein groesserer Grad hier verschoebe die Zeilenrechnung der Klammer. Verglichen
  * werden zwei Karten nebeneinander — dafuer traegt der Fettdruck. */
-.lb-ortkarteUnterscheidung {
+/* ⚠️ ZWEI SELEKTOREN, EINE REGEL — und sie teilen sich die Messung, nicht nur
+ * das Aussehen (DRK-395). `.lb-ortkarteCode` traegt den Zugangs-Code auf der
+ * Handlager-Karte und steht an derselben Stelle im Fuss: eine eigene Regel
+ * daneben liefe der 6pt-Zeilenrechnung der Klammer beim ersten Umbau davon, und
+ * zwar still — der Fuss klammerte dann eine Zeile frueher, und was verschwaende,
+ * waere das Ende der ADRESSE.
+ *
+ * ⚠️ BEIDE KOENNEN NICHT AUF DERSELBEN KARTE STEHEN: der Unterscheider
+ * entsteht nur fuer eine EINHEIT (`kollidiert()` prueft `typ === "fahrzeug"`),
+ * der Code nur fuer den Handlager. Die dritte Fusszeile ist also nie doppelt
+ * belegt. */
+.lb-ortkarteUnterscheidung,
+.lb-ortkarteCode {
   display: block;
   font-weight: 700;
   color: #000000;
@@ -534,7 +548,7 @@
  * WARUM SIE IN DIESER DATEI STEHT UND NICHT IN EINER EIGENEN: `druck.test.ts`
  * haelt modulweit fest, dass es GENAU EINE Datei mit `@media print` gibt, und
  * dass es diese ist. Das ist keine Formalie — die Sichtbarkeitsumkehr aus
- * globals.css:277 (`body * { visibility: hidden }`) ist genau daran
+ * lagerbuch/src/app/globals.css:277 (`body * { visibility: hidden }`) ist genau daran
  * gescheitert, dass Druckregeln sich ueber mehrere Stellen verteilten und
  * gegenseitig Seiten leerten (Falle 43). Ein zweites Stylesheet hier waere der
  * erste Schritt zurueck dorthin. Aus demselben Grund stehen die

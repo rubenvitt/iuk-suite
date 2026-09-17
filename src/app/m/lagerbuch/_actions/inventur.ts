@@ -17,6 +17,7 @@ import { restJeChargeFuerArtikelImBereich, restJeChargeUndOrt } from "../_lib/le
 import { ortStamm, zaehlBereich, type OrtStammZeile } from "../_lib/lesepfade/orte";
 import { fefoAbbuchungImBereich, type Quelle, type Tx } from "../_lib/schreibpfade/abbuchung";
 import { INVENTUR_PRAEFIX } from "../_lib/vorgang";
+import { revalidiereBestand } from "../_lib/revalidierung";
 import { requireLagerbuchAdmin } from "../_lib/zugang";
 
 /**
@@ -405,10 +406,13 @@ export async function inventurKorrektur(
       return { ok: false, fehler: INVENTUR_TEXTE.buchungsFehler };
     }
 
-    revalidatePath("/m/lagerbuch/verwaltung/inventur");
+    /*
+     * Die Bestandsflaechen kommen aus der modulweiten Liste (DRK-374); der
+     * INVENTURVERLAUF steht daneben, weil er kein Bestand ist, sondern die
+     * Historie der Laeufe — die aendert nur diese Action.
+     */
+    revalidiereBestand();
     revalidatePath("/m/lagerbuch/verwaltung/inventur/verlauf");
-    revalidatePath("/m/lagerbuch/verwaltung/artikel");
-    revalidatePath("/m/lagerbuch/verwaltung");
     return { ok: true, wert: { korrigiert, inventurId } };
   });
 }
