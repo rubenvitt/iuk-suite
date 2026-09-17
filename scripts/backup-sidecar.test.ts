@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 /**
@@ -319,6 +320,54 @@ describe("scripts/backup-sidecar.sh — POSIX, nicht bash", () => {
     // Backups. Der Ersatz ist `${x#0}` und steht in `ohne_null()`.
     expect(befehle).not.toContain("10#");
     expect(sidecar).toContain("ohne_null()");
+  });
+
+  it("ein Unsinnswert laesst das GANZE Skript weiterlaufen, nicht nur den Helfer", () => {
+    // ⚠️ DIESER FALL EXISTIERT, WEIL DER FALL DARUNTER ES NICHT KONNTE. Er schneidet den
+    // Helfer samt `protokoll`/`warne` aus und fuehrt ihn aus — die Reihenfolge stimmt
+    // dabei IMMER, auch wenn sie im Skript falsch ist. Genau das war sie: die beiden
+    // Einzeiler standen bei den Signalfallen, also UNTER der Konfiguration, die sie ruft.
+    // Eine Shell-Funktion gibt es aber erst, wenn ihre Definition gelaufen ist.
+    //
+    // GEMESSEN am ganzen Skript, mit einem Tippfehler in der `.env`:
+    //
+    //   BACKUP_HERZSCHLAG_SEKUNDEN=60   → exit=1  (der erwartete Healthcheck-Ausgang)
+    //   BACKUP_HERZSCHLAG_SEKUNDEN=abc  → exit=127, „warne: not found"
+    //
+    // Also das Gegenteil dessen, wofuer der Rueckfall gebaut wurde: kein „es gilt die
+    // Vorgabe", sondern ein Dienst, der gar nicht hochkommt — mit
+    // `restart: unless-stopped` eine Neustartschleife —, und ein Healthcheck, der mit
+    // derselben Meldung stirbt.
+    const kladde = mkdtempSync(path.join(os.tmpdir(), "backup-sidecar-"));
+    try {
+      const lauf = (wert: string) => {
+        const p = spawnSync("sh", [SIDECAR, "zustand"], {
+          encoding: "utf8",
+          env: { ...process.env, BACKUP_DIR: kladde, BACKUP_HERZSCHLAG_SEKUNDEN: wert },
+        });
+        return { code: p.status, aus: `${p.stdout}${p.stderr}` };
+      };
+      const gut = lauf("60");
+      const unsinn = lauf("abc");
+      // ⚠️ DIE ZUSICHERUNG IST NICHT „exit 0": `zustand` faellt hier zu Recht mit 1 aus
+      // (kein Lauf, kein Startvermerk). Sie ist: der Unsinnswert aendert am AUSGANG
+      // nichts und nur die Meldung kommt dazu.
+      expect(unsinn.code, "kein 127 — die Funktionen sind definiert").not.toBe(127);
+      expect(unsinn.aus).not.toMatch(/not found/);
+      expect(unsinn.code, "derselbe Ausgang wie mit gueltigem Wert").toBe(gut.code);
+      expect(unsinn.aus, "und der Rueckfall wird gemeldet").toMatch(
+        /BACKUP_HERZSCHLAG_SEKUNDEN="abc" ist keine Zahl/,
+      );
+      expect(gut.aus, "ohne Unsinn steht die Warnung NICHT da").not.toMatch(/ist keine Zahl/);
+    } finally {
+      rmSync(kladde, { recursive: true, force: true });
+    }
+    // Dazu der billige Riegel, der die Ursache benennt: die Protokollzeilen stehen VOR
+    // der ersten Konfigurationszeile, die sie brauchen kann.
+    expect(befehle.indexOf("protokoll() {")).toBeGreaterThan(-1);
+    expect(befehle.indexOf("warne() {")).toBeGreaterThan(-1);
+    expect(befehle.indexOf("zahl_oder_vorgabe ")).toBeGreaterThan(befehle.indexOf("warne() {"));
+    expect(befehle.indexOf("warne() {")).toBeGreaterThan(befehle.indexOf("protokoll() {"));
   });
 
   it("eine Zahl der Konfiguration ist eine Zahl, bevor irgendetwas damit rechnet", () => {

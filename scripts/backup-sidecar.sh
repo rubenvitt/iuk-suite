@@ -47,6 +47,26 @@
 # ─────────────────────────────────────────────────────────────────────────────────────
 set -eu
 
+# ⚠️ DAS PROTOKOLL STEHT GANZ OBEN, UND DAS IST KEINE ORDNUNGSLIEBE. Eine Shell-Funktion
+# gibt es erst, wenn ihre Definition GELAUFEN ist — und die Konfiguration darunter ruft
+# `zahl_oder_vorgabe`, das im Fehlerfall `warne` braucht. Standen die beiden Zeilen wie
+# frueher erst bei den Signalfallen, war das ein Aufruf ins Leere. GEMESSEN, das ganze
+# Skript mit einem Tippfehler in der `.env`:
+#
+#   BACKUP_HERZSCHLAG_SEKUNDEN=60   → exit=1  (der erwartete Healthcheck-Ausgang)
+#   BACKUP_HERZSCHLAG_SEKUNDEN=abc  → exit=127, „warne: not found"
+#
+# Also genau das Gegenteil dessen, wofuer der Rueckfall gebaut wurde: nicht „es gilt die
+# Vorgabe", sondern ein Dienst, der gar nicht erst hochkommt — und mit
+# `restart: unless-stopped` eine Neustartschleife. Der Healthcheck stirbt mit derselben
+# Meldung, es gaebe also nicht einmal eine brauchbare Spur.
+#
+# ⚠️ EIN TEST MIT DEM AUSGESCHNITTENEN HELFER SIEHT DAS STRUKTURELL NICHT: dort werden
+# die gebrauchten Funktionen mitgeschnitten, die Reihenfolge stimmt also immer. Nur ein
+# Lauf des GANZEN Skripts zeigt es (`backup-sidecar.test.ts` tut beides).
+protokoll() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"; }
+warne() { protokoll "WARNUNG: $*" >&2; }
+
 # ⚠️ FUEHRENDE NULLEN SIND IN SHELL-ARITHMETIK OKTAL — MIT ZWEI VERSCHIEDENEN FOLGEN,
 # und die zweite ist die teurere. Beide unter dash gemessen:
 #
@@ -195,8 +215,6 @@ PAKETE="bash sqlite tar rsync rclone curl su-exec tzdata"
 # unter `set -u` sonst auf eine ungesetzte Variable liefe.
 beenden=0
 
-protokoll() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %z')" "$*"; }
-warne() { protokoll "WARNUNG: $*" >&2; }
 
 # ⚠️ DER STOPPWUNSCH UEBERLEBT KEIN `exec`. Er steht in einer VARIABLEN, und `exec`
 # ersetzt den Prozess — die neue Shell startet mit `beenden=0`. Genau dazwischen liegt
