@@ -468,8 +468,30 @@ export function obergrenzeVon(ziel: string): number | null {
   return null;
 }
 
+/**
+ * Eine verfolgte Datei, die es im Arbeitsbaum GERADE NICHT GIBT.
+ *
+ * ⚠️ DER GEWOEHNLICHE FALL, nicht der seltene: wer eine Datei loescht oder
+ * umbenennt und noch nicht `git add` gesagt hat, hat genau diesen Zustand —
+ * `git ls-files` nennt den alten Pfad weiter. Ohne diese Probe warf der Scan
+ * dort `ENOENT`, und zwar nicht als roten Fall, sondern als ABBRUCH der ganzen
+ * Datei: gemessen „Tests: no tests" statt einer Meldung. Ein Riegel, der beim
+ * Umbenennen die Suite reisst, wird abgeschaltet statt gelesen — dieselbe Lehre
+ * wie beim Verzeichnislauf, der `.env.local` einsammelte (Codex-Review zu
+ * PR #183, zwei Runden zuvor).
+ *
+ * Geprueft wird ueber `zeilen`, nicht ueber ein zweites `existsSync`: die
+ * Funktion faengt den Fehler ohnehin ab und merkt sich das Ergebnis, und zwei
+ * Wege zur selben Frage laufen irgendwann auseinander.
+ */
+function liegtImArbeitsbaum(pfad: string): boolean {
+  return zeilen(resolve(pfad)) !== null;
+}
+
 function sammleDateien(): string[] {
-  return [...VERFOLGT].filter((p) => !NICHT_GELESENE_PFADE.some((r) => r.test(p)));
+  return [...VERFOLGT]
+    .filter((p) => !NICHT_GELESENE_PFADE.some((r) => r.test(p)))
+    .filter(liegtImArbeitsbaum);
 }
 
 function istQuelle(pfad: string): boolean {
@@ -678,6 +700,24 @@ describe("Kommentaranker zeigen in eine Zeile, die es gibt", () => {
 
     // `..` ist ein echter relativer Schritt und wird NICHT abgestreift.
     expect(aufloesen(quelle, "../nichtVorhanden/probeDatei.ts")).toBeNull();
+  });
+
+  /**
+   * ⚠️ DER ZUSTAND IST ALLTAEGLICH: Datei geloescht oder umbenannt, noch kein
+   * `git add`. `git ls-files` nennt den alten Pfad weiter. Ohne die Probe warf
+   * der Scan `ENOENT` und riss die GANZE Datei mit — gemessen „Tests: no tests"
+   * statt einer Meldung, also gar kein Signal mehr.
+   */
+  it("uebergeht eine verfolgte Datei, die es im Arbeitsbaum nicht gibt", () => {
+    // Die Probe selbst, in beide Richtungen.
+    expect(liegtImArbeitsbaum("src/core/kommentaranker.test.ts")).toBe(true);
+    expect(liegtImArbeitsbaum("src/core/dieseDateiGibtEsNicht.ts")).toBe(false);
+
+    // Und die Folge: was der Scan liest, laesst sich auch lesen. Ein Pfad aus
+    // `git ls-files`, der im Arbeitsbaum fehlt, kommt hier nicht mehr an.
+    const quellen = sammleQuellen();
+    expect(quellen.length).toBeGreaterThan(500);
+    expect(quellen.filter((p) => !liegtImArbeitsbaum(p))).toEqual([]);
   });
 
   it("prueft beide Enden einer Spanne, nicht nur das letzte", () => {
