@@ -1,0 +1,77 @@
+/*
+ * DIE INVENTURKARTE — die schmale Darstellung einer Zählzeile (DRK-421).
+ *
+ * ⚠️ SIE TRÄGT KEINE EIGENE MEDIA QUERY. Ob sie zu sehen ist, entscheidet
+ * `core/tabelle/schmalkarten.module.css` an der Liste darüber; eine zweite
+ * Abfrage hier wäre ein zweiter Ort für dieselbe Zahl — genau das, wogegen
+ * „ein Breakpoint" in `docs/design/README.md` steht.
+ *
+ * ⚠️ UND SIE SETZT KEINE SCHRIFTGRÖSSE UNTER 16px AN BEDIENBAREM. Zoom ist
+ * suiteweit gesperrt; was zu klein ist, kann niemand mehr heranholen
+ * (`core/theme/feldschrift.test.ts`).
+ */
+
+.karte {
+  border: 1px solid var(--lb-linie);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--lb-flaeche, transparent);
+}
+
+.kopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.name {
+  font-size: 16px;
+  font-weight: 600;
+  /* Ein langer Artikelname bricht um, statt die Karte breiter zu machen als
+     den Schirm — eine Karte, die waagerecht scrollt, wäre die Tabelle zurück. */
+  overflow-wrap: anywhere;
+}
+
+.merkmale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--lb-stahl);
+  font-size: 14px;
+}
+
+.zahlen {
+  margin: 0;
+  color: var(--lb-stahl);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * ⚠️ DER STEPPER STEHT LINKSBÜNDIG UND ÜBER DIE VOLLE BREITE, nicht rechts wie
+ * in der Tabellenzelle. In einer Zeile mit acht Spalten ist rechtsbündig die
+ * Leseordnung der Zahlen; in einer Karte ist es nur eine Insel am Rand, die der
+ * Daumen schlechter trifft.
+ */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepper > :global(.ant-input-number) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chargen {
+  border-top: 1px solid var(--lb-linie);
+  padding-top: 8px;
+}

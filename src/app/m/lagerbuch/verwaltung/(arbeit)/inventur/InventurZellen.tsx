@@ -61,8 +61,19 @@ export const AbweichungsZelle = memo(function AbweichungsZelle({ zeile, speicher
  * Arbeitsdichte gefallen — 44px ist hier bereits die volle wie die halbe
  * Bediendichte, `small` unterbietet die Mindesttapflaeche (WCAG 2.5.5).
  */
-export const IstZelle = memo(function IstZelle({ zeile, speicher, gesperrt }: ZellenProps & {
+export const IstZelle = memo(function IstZelle({ zeile, speicher, gesperrt, className }: ZellenProps & {
   gesperrt: boolean;
+  /**
+   * Die schmale Darstellung stellt den Stepper anders: linksbündig, über die
+   * volle Kartenbreite (`inventurkarte.module.css`). Ohne Angabe bleibt es die
+   * rechtsbündige Zelle der Tabelle.
+   *
+   * ⚠️ EIN LAYOUT-HAKEN, KEIN ZWEITES BAUTEIL. Ein eigener Karten-Stepper wäre
+   * eine zweite Stelle mit denselben Grenzen, denselben Beschriftungen und
+   * derselben Sperrlogik — und die erste Abweichung fiele niemandem auf, weil
+   * beide Fassungen nie gleichzeitig zu sehen sind.
+   */
+  className?: string;
 }) {
   const zaehlung = useZaehlung(speicher, zeile.id);
   // Einmal berechnet, von Minus-Knopf, Feld und Plus-Knopf gelesen — zwei
@@ -75,8 +86,12 @@ export const IstZelle = memo(function IstZelle({ zeile, speicher, gesperrt }: Ze
     speicher.aendere((stand) => artikelSetzen(stand, zeile.id, wert ?? 0));
   }
 
-  return (
-    <Flex gap={SPACE.xs} align="center" justify="flex-end">
+  // ⚠️ EINMAL HINGESCHRIEBEN, ZWEIMAL EINGERAHMT. Zwei Fassungen der drei
+  // Bedienelemente waeren zwei Stellen mit denselben Grenzen, denselben
+  // Beschriftungen und derselben Sperrlogik — und die erste Abweichung faellt
+  // niemandem auf, weil nie beide gleichzeitig zu sehen sind.
+  const bedienung = (
+    <>
       {nurSumme ? <Chip ton="grau">je Charge</Chip> : null}
       <Button
         disabled={gesperrt || nurSumme || aktuell <= 0}
@@ -98,6 +113,14 @@ export const IstZelle = memo(function IstZelle({ zeile, speicher, gesperrt }: Ze
         onClick={() => wertSetzen(aktuell + 1)}
         icon={<Ikone name="plus" groesse={14} />}
       />
+    </>
+  );
+
+  if (className) return <div className={className}>{bedienung}</div>;
+
+  return (
+    <Flex gap={SPACE.xs} align="center" justify="flex-end">
+      {bedienung}
     </Flex>
   );
 });

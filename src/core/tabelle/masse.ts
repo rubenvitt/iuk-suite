@@ -140,11 +140,22 @@ export function scrollMasse(
   eigenes?: Scrollmass | false,
   /**
    * Breite der Spalten, die antd SELBST hinzufügt und die deshalb nicht in
-   * `columns` stehen — heute die Auswahlspalte aus `rowSelection`. Ohne sie
-   * wäre die gerechnete Gesamtbreite um genau diese Spalte zu schmal, und die
-   * letzte echte Spalte geriete unter den waagerechten Rand.
+   * `columns` stehen — die Auswahlspalte aus `rowSelection` und die
+   * Aufklappspalte aus `expandable`. Ohne sie wäre die gerechnete Gesamtbreite
+   * um genau diese Spalte zu schmal, und die letzte echte Spalte geriete unter
+   * den waagerechten Rand.
+   *
+   * ⚠️ `null` HEISST „ES GIBT EINE SOLCHE SPALTE, ABER IHRE BREITE IST
+   * UNBEKANNT" — und wird behandelt wie eine `columns`-Spalte ohne `width`:
+   * Virtualisierung aus, mit Hinweis. Eine 0 an dieser Stelle wäre die
+   * gefährlichere Antwort, weil sie eine Summe liefert, die um eine ganze
+   * Spalte danebenliegt, und im virtuellen Modus (`table-layout: fixed`) steht
+   * die letzte Spalte dann unter dem Rand. Heute trifft das die Aufklappspalte,
+   * deren Breite erst `expandable.columnWidth` festlegt (`@rc-component/table`,
+   * `hooks/useColumns/index.js`, `width: columnWidth`) — ohne die Angabe kennt
+   * sie nur antds Stylesheet, und das sieht diese Rechnung nicht.
    */
-  zusatzBreite = 0,
+  zusatzBreite: number | null = 0,
   /**
    * Wie viele Zeilen die Tabelle trägt, und ab wann sich Virtualisierung lohnt.
    * Ohne Angabe entscheidet allein `virtuell` — dann trägt der Aufrufer die
@@ -161,14 +172,18 @@ export function scrollMasse(
   }
 
   const summe = breitenSumme(spalten);
-  if (summe === null) {
+  if (summe === null || zusatzBreite === null) {
     return {
       scroll: ohneVirtuell(eigenes),
       virtuellAktiv: false,
-      hinweis:
-        "Virtuelles Scrollen verlangt eine numerische `width` an JEDER Spalte — "
-        + "sonst setzt @rc-component/table `scroll.x` still auf 1 und die Tabelle "
-        + "fällt auf ein Pixel zusammen. Virtualisierung bleibt für diese Tabelle aus.",
+      hinweis: summe === null
+        ? "Virtuelles Scrollen verlangt eine numerische `width` an JEDER Spalte — "
+          + "sonst setzt @rc-component/table `scroll.x` still auf 1 und die Tabelle "
+          + "fällt auf ein Pixel zusammen. Virtualisierung bleibt für diese Tabelle aus."
+        : "Virtuelles Scrollen verlangt auch für die Aufklappspalte eine Breite "
+          + "(`expandable.columnWidth`) — sie steht nicht in `columns`, und ohne sie "
+          + "läge die Gesamtbreite um eine ganze Spalte daneben. Virtualisierung "
+          + "bleibt für diese Tabelle aus.",
     };
   }
 

@@ -6,6 +6,8 @@ import {
   Datentabelle,
   nachText,
   nachZahl,
+  Schmalkarten,
+  TabellenVollhoehe,
   trifftWert,
   werteAlsFilter,
   type Filterwert,
@@ -22,7 +24,9 @@ import { Ikone } from "../../../_ui/ikonen";
 import { useUrlFilter } from "../../../_ui/useUrlFilter";
 import s from "../../../_ui/verwaltung.module.css";
 import { Abschlussleiste } from "./Abschlussleiste";
+import { InventurKarte } from "./InventurKarte";
 import { AbweichungsZelle, ChargenZelle, IstZelle } from "./InventurZellen";
+import { Schmalfilter } from "./Schmalfilter";
 import { Zaehlleiste } from "./Zaehlleiste";
 import { erzeugeZaehlspeicher } from "./zaehlspeicher";
 
@@ -46,6 +50,41 @@ import { erzeugeZaehlspeicher } from "./zaehlspeicher";
 function trifftKategorie(zeile: InventurZeile, wert: Filterwert): boolean {
   return inventurTrifft(zeile, { kategorien: [String(wert)], faecher: [] });
 }
+
+/**
+ * ⚠️ JEDE SPALTE TRAEGT EINE ZAHL, UND ZWAR WEIL DIE TABELLE VIRTUELL SCROLLT
+ * (DRK-421). `@rc-component/table` prueft `scroll.x` einer virtuellen Tabelle
+ * auf `typeof === "number"` und setzt sie sonst STILL auf 1 — die Tabelle
+ * fiele auf ein Pixel Breite zusammen (Falle 14). `core/tabelle/masse.ts`
+ * rechnet die Summe aus diesen Zahlen und schaltet die Virtualisierung lieber
+ * ab, als das zu liefern.
+ *
+ * ⚠️ DIE SUMME IST EINE ENTSCHEIDUNG UEBER DAS SCHREIBTISCH-BILD, nicht nur
+ * eine Voraussetzung. Sobald `scroll.y` gesetzt ist, schaltet rc-table auf
+ * `table-layout: fixed`: die Spalten stehen dann GENAU so breit, wie es hier
+ * steht, und nicht mehr so breit wie ihr Inhalt.
+ *
+ * ⚠️ `ist` IST DIE BREITESTE, UND DAS IST KEINE GROSSZUEGIGKEIT. Dort stehen
+ * drei Bedienelemente zu je 44px Mindesttapflaeche (Falle 4) nebeneinander,
+ * im Chargenmodus zusaetzlich der Chip „je Charge". Zu schmal gerechnet
+ * brechen sie um, und ein umgebrochener Stepper ist in einer Zeile mit fester
+ * Hoehe abgeschnitten.
+ *
+ * ⚠️ `aufklappen` STEHT NICHT IN `columns` — antd fuegt die Spalte aus
+ * `expandable` selbst hinzu, und ohne `columnWidth` kennt ihre Breite nur
+ * antds Stylesheet. `Datentabelle` verlangt die Zahl deshalb ausdruecklich.
+ */
+const BREITE = {
+  aufklappen: 60,
+  artikel: 230,
+  kategorie: 150,
+  fach: 110,
+  mhd: 120,
+  mindest: 80,
+  bestand: 120,
+  abweichung: 120,
+  ist: 260,
+} as const;
 
 export function InventurForm({ zeilen, ortId, orte }: {
   zeilen: InventurZeile[];
@@ -119,6 +158,18 @@ export function InventurForm({ zeilen, ortId, orte }: {
     faecher: (spaltenFilter.fach ?? []).map(String),
   }), [spaltenFilter]);
 
+  /**
+   * ⚠️ EINE QUELLE FUER DIE FACHLISTE. Der Spaltenkopf und der Schmalfilter
+   * bieten dieselben Werte an; zwei Ableitungen liefen bei der ersten
+   * Sonderbehandlung („ohne Fach", Sortierung) auseinander, und die beiden
+   * Darstellungen boeten verschiedene Filter an.
+   */
+  const fachFilter = useMemo(
+    () => werteAlsFilter(zeilen, (zeile) => zeile.fach),
+    [zeilen],
+  );
+  const faecher = useMemo(() => fachFilter.map((f) => String(f.value)), [fachFilter]);
+
   const sichtbar = useMemo(
     () => zeilen.filter((zeile) => inventurTrifft(zeile, filter)),
     [zeilen, filter],
@@ -140,12 +191,14 @@ export function InventurForm({ zeilen, ortId, orte }: {
     {
       title: "Artikel",
       dataIndex: "name",
+      width: BREITE.artikel,
       sorter: nachText<InventurZeile>((zeile) => zeile.name),
       render: (wert: string) => <span style={{ fontWeight: 600 }}>{wert}</span>,
     },
     {
       title: "Kategorie",
       dataIndex: "kategorie",
+      width: BREITE.kategorie,
       /*
        * DIE SPALTE IST MIT DEM FILTER GEKOMMEN (DRK-333) — ein Filter gehoert in
        * den Kopf der Spalte, die er betrifft, und eine Kategorie, nach der man
@@ -159,20 +212,31 @@ export function InventurForm({ zeilen, ortId, orte }: {
        * Entscheidung aus DRK-299 (`_lib/inventurFilter.ts`) und bleibt.
        */
       filters: kategorien.map((o) => ({ text: o.label, value: o.schluessel })),
+      /*
+       * ⚠️ GESTEUERT SEIT DRK-421 — der Schmalfilter schreibt in DENSELBEN
+       * Zustand. Ungesteuert fuehrt antd ihn allein; von aussen hineinzuschreiben
+       * ginge gar nicht, und die schmale Darstellung zeigte eine andere Menge
+       * als die Tabelle. Nebengewinn: `angezeigteAnzahl` kann die gezeigte
+       * Zeilenzahl jetzt ausrechnen statt `-1` zu melden (Falle 14).
+       */
+      filteredValue: spaltenFilter.kategorie ?? null,
       onFilter: (wert: Filterwert, zeile: InventurZeile) => trifftKategorie(zeile, wert),
       render: (wert: string | null) => wert ?? "—",
     },
     {
       title: "Fach",
       dataIndex: "fach",
+      width: BREITE.fach,
       sorter: nachText<InventurZeile>((zeile) => zeile.fach),
-      filters: werteAlsFilter(zeilen, (zeile) => zeile.fach),
+      filters: fachFilter,
+      filteredValue: spaltenFilter.fach ?? null,
       onFilter: trifftWert<InventurZeile>((zeile) => zeile.fach),
       render: (wert: string) => <span className={s.fach}>{wert}</span>,
     },
     {
       title: "MHD",
       dataIndex: "chargen",
+      width: BREITE.mhd,
       // `chargen[0]` ist FEFO-naechste Handlager-Charge. `2099-12` („ohne
       // Verfall") zeigt wie die Artikelliste schlicht `fmtVerfall` — dort
       // gibt es keinen Sonderfall, hier auch nicht.
@@ -186,12 +250,14 @@ export function InventurForm({ zeilen, ortId, orte }: {
     {
       title: "Min.",
       dataIndex: "mindestbestand",
+      width: BREITE.mindest,
       align: "right",
       render: (wert: number) => <span style={SCHRIFT.mono}>{wert}</span>,
     },
     {
       title: "Bestand",
       dataIndex: "bestand",
+      width: BREITE.bestand,
       align: "right",
       // Gezeigt wird „3 Stk", sortiert wird ueber die nackte Zahl.
       sorter: nachZahl<InventurZeile>((zeile) => zeile.bestand),
@@ -209,19 +275,22 @@ export function InventurForm({ zeilen, ortId, orte }: {
     {
       title: "Abweichung",
       dataIndex: "id",
+      width: BREITE.abweichung,
       render: (_wert: string, zeile) => <AbweichungsZelle zeile={zeile} speicher={speicher} />,
     },
     {
       title: "Ist",
       dataIndex: "id",
+      width: BREITE.ist,
       align: "right",
       render: (_wert: string, zeile) => (
         <IstZelle zeile={zeile} speicher={speicher} gesperrt={laeuft} />
       ),
     },
-  ], [kategorien, zeilen, speicher, laeuft]);
+  ], [kategorien, fachFilter, spaltenFilter, speicher, laeuft]);
 
   const aufklappbar = useMemo<TableProps<InventurZeile>["expandable"]>(() => ({
+    columnWidth: BREITE.aufklappen,
     // Spec §B: JEDE Zeile ist aufklappbar — auch ohne Charge, dort bleibt die
     // Ergaenzen-Zeile. Deshalb kein `rowExpandable`.
     expandedRowRender: (zeile: InventurZeile) => (
@@ -263,17 +332,58 @@ export function InventurForm({ zeilen, ortId, orte }: {
         gezeigt={sichtbar.length}
         gesamt={zeilen.length}
       />
-      <Datentabelle<InventurZeile>
-        rowKey="id"
-        aria-label="Inventur"
-        dataSource={zeilen}
-        onChange={(_seite, spaltenZustand) => setSpaltenFilter(spaltenZustand)}
-        expandable={aufklappbar}
-        locale={leertext}
-        // Den Spaltenkopf-Kicker setzt `Datentabelle` selbst, sobald `title`
-        // eine Zeichenkette ist (docs/design/README.md).
-        columns={spalten}
+      {/* Nur in der schmalen Darstellung — dort gibt es keine Spaltenkoepfe,
+          und ohne ihn gar keinen Filter (Begruendung in `Schmalfilter.tsx`). */}
+      <Schmalfilter
+        kategorien={kategorien}
+        faecher={faecher}
+        zustand={spaltenFilter}
+        onZustand={setSpaltenFilter}
       />
+      <Schmalkarten
+        zeilen={sichtbar}
+        schluessel={(zeile) => zeile.id}
+        aria-label="Inventur"
+        leertext={leertext.emptyText}
+        /* Eine Karte ohne aufgeklappte Chargen misst rund 210px. Die Zahl ist
+           nur der Platzhalter fuer noch nicht gemessene Karten; sie muss
+           plausibel sein, nicht genau. */
+        kartenHoehe={210}
+        karte={(zeile) => (
+          <InventurKarte
+            zeile={zeile}
+            speicher={speicher}
+            gesperrt={laeuft}
+            ortText={ortText}
+          />
+        )}
+      >
+        {/*
+          ⚠️ `TabellenVollhoehe` MISST HIER, ES DECKELT NICHT. Die Deckelung
+          gilt allein unter 768px (`vollhoehe.module.css`) — und dort steht die
+          Tabelle auf `display: none`, weil die Karten uebernehmen. Was bleibt,
+          ist das, wofuer sie hier gebraucht wird: die eine Messung der
+          Koerperhoehe, die `virtuell` als Zahl verlangt, und
+          `overscroll-behavior: contain` gegen das Kettenscrollen. Ein zweiter
+          Haken im Aufrufer waere eine zweite Messung derselben Sache.
+        */}
+        <TabellenVollhoehe>
+          {(koerperHoehe) => (
+            <Datentabelle<InventurZeile>
+              rowKey="id"
+              virtuell={koerperHoehe}
+              aria-label="Inventur"
+              dataSource={zeilen}
+              onChange={(_seite, spaltenZustand) => setSpaltenFilter(spaltenZustand)}
+              expandable={aufklappbar}
+              locale={leertext}
+              // Den Spaltenkopf-Kicker setzt `Datentabelle` selbst, sobald `title`
+              // eine Zeichenkette ist (docs/design/README.md).
+              columns={spalten}
+            />
+          )}
+        </TabellenVollhoehe>
+      </Schmalkarten>
       <Abschlussleiste
         zeilen={zeilen}
         speicher={speicher}

@@ -142,3 +142,34 @@ describe("scrollMasse", () => {
     expect(ergebnis.scroll).toEqual({ x: 1200 });
   });
 });
+
+describe("scrollMasse — die Aufklappspalte (DRK-421)", () => {
+  it("rechnet eine angegebene Aufklappbreite mit", () => {
+    // Wie die Auswahlspalte steht sie nicht in `columns`. Der Aufrufer reicht
+    // `auswahlBreite + expandable.columnWidth` als eine Zahl herein.
+    const ergebnis = scrollMasse([{ width: 240 }, { width: 160 }], 640, undefined, 60);
+    expect(ergebnis.scroll?.x).toBe(460);
+    expect(ergebnis.virtuellAktiv).toBe(true);
+  });
+
+  it("virtualisiert NICHT, wenn die Aufklappspalte keine Breite traegt", () => {
+    /*
+     * `null` heisst „es gibt eine solche Spalte, aber ihre Breite ist
+     * unbekannt". Eine 0 waere die stillere und schlechtere Antwort: die Summe
+     * laege um eine ganze Spalte daneben, und im virtuellen Modus
+     * (`table-layout: fixed`) geriete die letzte Spalte unter den waagerechten
+     * Rand — sichtbar nur im echten Browser.
+     */
+    const ergebnis = scrollMasse([{ width: 240 }, { width: 160 }], 640, undefined, null);
+    expect(ergebnis.virtuellAktiv).toBe(false);
+    expect(ergebnis.hinweis).toContain("expandable.columnWidth");
+    expect(ergebnis.scroll).toEqual({ x: BREITE_NACH_INHALT });
+  });
+
+  it("meldet die fehlende Spaltenbreite, wenn BEIDES fehlt", () => {
+    // Die Spaltenbreiten sind die haeufigere Ursache und der erste Schritt;
+    // zwei Hinweise nacheinander waeren eine Fehlersuche in zwei Runden.
+    const ergebnis = scrollMasse([{ width: 240 }, {}], 640, undefined, null);
+    expect(ergebnis.hinweis).toContain("JEDER Spalte");
+  });
+});
