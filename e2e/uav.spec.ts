@@ -241,6 +241,15 @@ test("Verwaltung: Liste rendert Teilnehmer ohne RSC-Fehler, Klick ins Detail (Ch
   // stehen und der Teilnehmername erschiene nie.
   const zeile = page.getByRole("link", { name: "Erika Mustermann (E2E)" });
   await expect(zeile).toBeVisible();
+  /*
+   * ⚠️ DER GREIFER BLEIBT UNGERAHMT, OBWOHL DIE ZEILE SEIT DRK-421 ZWEIMAL IM
+   * HTML STEHT (Tabelle und Karte, CSS blendet eine aus). Ein ROLLEN-Greifer
+   * loest ueber den Zugaenglichkeitsbaum auf und laesst Verborgenes aus —
+   * gemessen: ein Treffer, nicht zwei. Ihn einzurahmen naehme ihm die
+   * Anpassung und liesze ihn in einem kuenftigen 390px-Lauf ins Leere greifen.
+   * `getByLabel` und `getByText` sehen dagegen beide; die Messung und die
+   * Folgen stehen bei `breit()` in `lagerbuch-inventur.spec.ts`.
+   */
 
   await klickeWennRuhig(zeile);
   await expect(page).toHaveURL(uavUrl(`/admin/teilnehmer/${AKTIVER_TEILNEHMER_ID}`));
