@@ -84,7 +84,7 @@ export async function SuiteRahmen({
       <Layout>
         {nav.length > 0 ? (
           <Sider width={240} theme="light" className={s.sider}>
-            <Modulleiste nav={nav} />
+            <Modulleiste nav={nav} modulKey={moduleKey} />
           </Sider>
         ) : null}
         {/*

@@ -29,7 +29,7 @@ afterEach(async () => {
 
 describe("Modulleiste", () => {
   it("trägt die Abschnittsüberschriften in der Reihenfolge des ersten Auftretens", async () => {
-    await mount(<Modulleiste nav={NAV} />);
+    await mount(<Modulleiste nav={NAV} modulKey="lagerbuch" />);
     expect(queryAll('[data-testid="nav-abschnitt"]').map((a) => a.textContent)).toEqual([
       "Bestand",
       "Protokoll",
@@ -37,14 +37,14 @@ describe("Modulleiste", () => {
   });
 
   it("stellt den Eintrag ohne Abschnitt vor die erste Überschrift", async () => {
-    await mount(<Modulleiste nav={NAV} />);
+    await mount(<Modulleiste nav={NAV} modulKey="lagerbuch" />);
     const kinder = queryAll('[data-testid="nav-abschnitt"], [data-testid="nav-link"]');
     expect(kinder[0].textContent).toBe("Übersicht");
   });
 
   it("markiert die aufgerufene Seite als page", async () => {
     pathnameMock.mockReturnValue("/verwaltung/artikel");
-    await mount(<Modulleiste nav={NAV} />);
+    await mount(<Modulleiste nav={NAV} modulKey="lagerbuch" />);
     const aktiv = queryAll('[data-testid="nav-link"]').filter((l) => l.hasAttribute("aria-current"));
     expect(aktiv.length).toBe(1);
     expect(aktiv[0].getAttribute("aria-current")).toBe("page");
@@ -75,21 +75,21 @@ describe("Modulleiste", () => {
       { key: "lang", title: "Lang", href: "/verwaltung/artikel", abschnitt: "Archiv" },
     ];
     pathnameMock.mockReturnValue("/verwaltung/artikel");
-    await mount(<Modulleiste nav={UEBERLAPPEND} />);
+    await mount(<Modulleiste nav={UEBERLAPPEND} modulKey="lagerbuch" />);
     const aktiv = queryAll('[data-testid="nav-link"]').filter((l) => l.hasAttribute("aria-current"));
     expect(aktiv.length).toBe(1);
     expect(aktiv[0].textContent).toBe("Lang");
   });
 
   it("benennt sich für Screenreader", async () => {
-    await mount(<Modulleiste nav={NAV} />);
+    await mount(<Modulleiste nav={NAV} modulKey="lagerbuch" />);
     expect(query('[data-testid="modulleiste"]').getAttribute("aria-label")).toBe(
       "Modulnavigation",
     );
   });
 
   it("rendert nichts bei leerer Navigation", async () => {
-    await mount(<Modulleiste nav={[]} />);
+    await mount(<Modulleiste nav={[]} modulKey="lagerbuch" />);
     expect(queryAll('[data-testid="modulleiste"]').length).toBe(0);
   });
 });

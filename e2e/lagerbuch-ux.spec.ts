@@ -173,9 +173,13 @@ test.describe("Lagerbuch UX-Verbesserungen", () => {
     // rendert stillschweigend NICHTS (`NavIkone`), und genau das sähe kein
     // anderes Tor. Ein neuer Nav-Eintrag ohne Eintrag in `NAV_IKONEN` fällt
     // ausschließlich hier auf.
-    await expect(page.getByTestId("modulleiste").locator("svg")).toHaveCount(21, {
-      timeout: 10_000,
-    });
+    // ⚠️ AUF `nav-link` EINGEGRENZT, seit die Leiste ab `NAV_LANG_AB_EINTRAEGEN`
+    // selbst Zeichen traegt (Lupe im Filterfeld, ein Pfeil je Abschnitt, antds
+    // Loeschkreuz). Ein nacktes `locator("svg")` zaehlte sie mit — und die Zahl
+    // stimmte dann aus dem falschen Grund.
+    await expect(
+      page.getByTestId("modulleiste").getByTestId("nav-link").locator("svg"),
+    ).toHaveCount(21, { timeout: 10_000 });
   });
 
   /*

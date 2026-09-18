@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ReactElement } from "react";
+import { act } from "react";
 import {
   mount,
   unmount,
@@ -53,10 +54,22 @@ const NAV: SuiteNavItem[] = [
   { key: "vergleich", title: "Vergleich", href: "/vergleich" },
 ];
 
+/**
+ * ZWOELF EINTRAEGE — die Schwelle `NAV_LANG_AB_EINTRAEGEN`, ab der es das
+ * Filterfeld ueberhaupt gibt. `NAV` daneben bleibt kurz und traegt weiter alle
+ * Zusagen, die mit dem Filter nichts zu tun haben.
+ */
+const NAV_LANG: SuiteNavItem[] = Array.from({ length: 12 }, (_, i) => ({
+  key: `e${i}`,
+  title: `Eintrag ${i}`,
+  href: `/e${i}`,
+}));
+
 async function zeichne(props: Partial<Parameters<typeof SuiteNav>[0]> = {}) {
   await mount(
     <SuiteNav
       nav={[]}
+      modulKey="feedback"
       userName="Ruben Vitt"
       angemeldet
       profilHref="http://portal.localtest.me:3000"
@@ -428,5 +441,81 @@ describe("SuiteNav — anonym", () => {
     expect(existsPortal('[data-testid="abmelden"]')).toBe(false);
     // Und der Anmelden-Weg steht genau einmal da, nicht zusaetzlich im Drawer.
     expect(document.body.querySelectorAll('[data-testid="anmelden"]')).toHaveLength(1);
+  });
+});
+
+/**
+ * ESCAPE IM FILTERFELD — und warum das hier steht und nicht in `NavListe.test.tsx`.
+ *
+ * Der `Escape`-Hoerer des Schubs sitzt NICHT am Schub. `@rc-component/portal`
+ * (`useEscKeyDown`) haengt EINEN globalen `keydown`-Hoerer an `window` und ruft
+ * daraus `onEsc` des obersten offenen Portals; `@rc-component/drawer` macht
+ * daraus `onClose`. Gemessen werden kann das deshalb nur mit einem echten
+ * `Drawer` im Baum — und das ist diese Datei.
+ *
+ * ⚠️ JSDOM KANN DAS, ANDERS ALS BEI LAYOUTFRAGEN: ein `window`-Hoerer und die
+ * native Ereignisausbreitung sind kein Layout. Wer diese Zusage in einen
+ * Playwright-Lauf verschoebe, maesse dasselbe langsamer und seltener.
+ *
+ * DER BEFUND KAM AUS EINER REVIEW (Codex P2 zu PR #207), und der Kommentar im
+ * Quelltext behauptete bis dahin das Gegenteil: der `Escape` des Schubs feuere
+ * „erst, wenn hier nichts mehr zu leeren ist". Das war eine Annahme. Diese zwei
+ * Faelle sind die Messung.
+ */
+describe("Escape im Filterfeld des Drawers", () => {
+  async function escape(selektor: string) {
+    const feld = queryPortal(selektor);
+    await act(async () => {
+      feld.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+  }
+
+  it("leert das Feld und laeszt den Drawer offen", async () => {
+    await zeichne({ nav: NAV_LANG });
+    await click('[data-testid="menue-knopf"]');
+    expect(query('[data-testid="menue-knopf"]').getAttribute("aria-expanded")).toBe("true");
+
+    const feld = queryPortal<HTMLInputElement>('[data-testid="nav-filter-drawer"]');
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(feld),
+        "value",
+      )!.set!;
+      setter.call(feld, "Eintrag 3");
+      feld.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(queryPortal<HTMLInputElement>('[data-testid="nav-filter-drawer"]').value).toBe(
+      "Eintrag 3",
+    );
+
+    await escape('[data-testid="nav-filter-drawer"]');
+
+    expect(queryPortal<HTMLInputElement>('[data-testid="nav-filter-drawer"]').value).toBe("");
+    /*
+     * DIE EIGENTLICHE ZUSAGE. Ohne `stopPropagation` erreicht derselbe
+     * Tastendruck den `window`-Hoerer und schlieszt den Schub — die Person
+     * nimmt einen Filter zurueck, um weiterzublaettern, und die Navigation ist
+     * weg. Gemessen wird `aria-expanded` am Oeffner, nicht die Sichtbarkeit:
+     * der Inhalt steht wegen `forceRender` ohnehin im DOM, und jsdom rechnet
+     * keine Animation aus.
+     */
+    expect(query('[data-testid="menue-knopf"]').getAttribute("aria-expanded")).toBe("true");
+  });
+
+  /*
+   * DIE KEHRSEITE, UND SIE IST DER GRUND FUER DAS `!suche` IN DER BEDINGUNG:
+   * auf einem leeren Feld gibt es nichts zurueckzunehmen, und dann gehoert
+   * `Escape` dem Schub. Ein bedingungsloses `stopPropagation` naehme ihm die
+   * Schlieszgeste ab, sobald der Fokus im Filterfeld steht — und dort steht er
+   * beim Oeffnen schnell.
+   */
+  it("laeszt den Drawer schlieszen, wenn das Feld leer ist", async () => {
+    await zeichne({ nav: NAV_LANG });
+    await click('[data-testid="menue-knopf"]');
+    expect(query('[data-testid="menue-knopf"]').getAttribute("aria-expanded")).toBe("true");
+
+    await escape('[data-testid="nav-filter-drawer"]');
+
+    expect(query('[data-testid="menue-knopf"]').getAttribute("aria-expanded")).toBe("false");
   });
 });

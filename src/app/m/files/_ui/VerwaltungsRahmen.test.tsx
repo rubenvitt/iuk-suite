@@ -176,7 +176,7 @@ describe("VerwaltungsRahmen", () => {
       (await VerwaltungsRahmenGerendert()) as ReactElement,
     );
     expect(modulleisteMock).toHaveBeenCalled();
-    expect(modulleisteMock.mock.calls[0][0]).toEqual({ nav: FILES_NAV });
+    expect(modulleisteMock.mock.calls[0][0]).toEqual({ nav: FILES_NAV, modulKey: "files" });
     // Die drei Eintraege stehen im Markup, nicht nur im Aufrufprotokoll.
     expect(markup).toContain('data-anzahl="3"');
     expect(markup).toContain("files-kind");

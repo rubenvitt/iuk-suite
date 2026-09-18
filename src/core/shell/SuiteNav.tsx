@@ -1,15 +1,27 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { LoginOutlined, LogoutOutlined, MenuOutlined } from "@ant-design/icons";
-import { Avatar, Button, Drawer, Dropdown } from "antd";
+import { Avatar, Button, Drawer, Dropdown, Input } from "antd";
 import type { MenuProps } from "antd";
+// Dieselbe Zeichenfamilie wie die Navigationseintraege selbst (`navIkonen.tsx`)
+// und NICHT `@ant-design/icons`: der Pfeil sitzt neben einem Phosphor-Zeichen,
+// und zwei Strichstaerken nebeneinander sieht man.
+import { PiCaretDown, PiMagnifyingGlass } from "react-icons/pi";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/core/theme/ThemeToggle";
 import { gruppiereNav } from "@/core/shell/navAbschnitte";
+import { filtereNav, istLangeNav } from "@/core/shell/navFilter";
+import {
+  KEINE_ZUGEKLAPPT,
+  abonniereZugeklappt,
+  entpacke,
+  liesZugeklappt,
+  schreibeZugeklappt,
+} from "@/core/shell/navZustand";
 import { SCHRIFT } from "@/core/theme/schrift";
 // `NavIkone` bleibt: die Modulnavigation traegt seit dem Phosphor-Umbau je
 // Eintrag ein Zeichen. Die ICONS-Map dagegen faellt hier weg — sie bediente die
@@ -162,6 +174,45 @@ function navLinks(
 }
 
 /**
+ * DER AUFKLAPPZUSTAND, wie ihn `navGruppen` braucht — und nur so viel davon.
+ *
+ * Die Funktion bleibt damit REIN: sie bekommt die Menge der zugeklappten Titel
+ * und einen Rueckruf, sie fragt weder `localStorage` noch einen Hook. Wer
+ * nichts uebergibt, bekommt das Bild von vor dieser Aenderung — starre
+ * Ueberschriften ohne Schalter. Genau daran haengt die Zusage, dass die kurzen
+ * Navigationen der uebrigen Module unveraendert bleiben (`navFilter.ts`,
+ * `NAV_LANG_AB_EINTRAEGEN`).
+ */
+export interface NavAufklapp {
+  /** Titel der zugeklappten Abschnitte. */
+  zugeklappt: ReadonlySet<string>;
+  umschalten: (titel: string) => void;
+  /**
+   * Praefix fuer `id`/`aria-controls`. ZWEI Instanzen dieser Navigation stehen
+   * gleichzeitig im Baum (Seitenleiste und Drawer, welche man sieht entscheidet
+   * CSS) — mit demselben Praefix traegen vier Knoten dieselbe `id`, und
+   * `aria-controls` zeigt dann auf irgendeinen davon.
+   */
+  idPraefix: string;
+}
+
+/**
+ * Abschnittstitel → Teil einer `id`. Umlaute und Leerzeichen raus, damit aus
+ * „Einheiten & Geräte" kein `id`-Bruchstueck mit `&` und Leerzeichen wird.
+ * Bleibt nichts uebrig (ein Titel ganz aus Sonderzeichen), traegt der Index die
+ * Eindeutigkeit — deshalb faellt `abschnittsId` nie auf eine leere Zeichenkette.
+ */
+function abschnittsId(titel: string): string {
+  const gesaeubert = titel
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return gesaeubert || encodeURIComponent(titel);
+}
+
+/**
  * Dieselben Links, nur mit Überschriften dazwischen — geteilt zwischen der
  * Seitenleiste und dem Drawer. Eine Funktion statt zweier Abschriften, weil
  * die Aktivmarkierung an beiden Stellen dieselbe Aussage treffen muss.
@@ -181,21 +232,78 @@ function navLinks(
  * diesem Task, in JEDEM Konsumenten (Drawer wie Seitenleiste) — nicht nur in
  * dem einen, an dem der Fehler zuerst auffiel.
  */
-export function navGruppen(nav: SuiteNavItem[], pfad: string, aufKlick?: () => void) {
+export function navGruppen(
+  nav: SuiteNavItem[],
+  pfad: string,
+  aufKlick?: () => void,
+  aufklapp?: NavAufklapp,
+) {
   const gruppen = gruppiereNav(nav);
   if (gruppen.length === 1 && gruppen[0].titel === null) {
     return navLinks(nav, pfad, nav, aufKlick);
   }
-  return gruppen.map((gruppe) => (
-    <div key={gruppe.titel ?? "__ohne"} className={s.navGruppe}>
-      {gruppe.titel ? (
-        <div data-testid="nav-abschnitt" className={s.navAbschnitt} style={SCHRIFT.kicker}>
-          {gruppe.titel}
+  return gruppen.map((gruppe) => {
+    const titel = gruppe.titel;
+    if (!titel || !aufklapp) {
+      return (
+        <div key={titel ?? "__ohne"} className={s.navGruppe}>
+          {titel ? (
+            <div data-testid="nav-abschnitt" className={s.navAbschnitt} style={SCHRIFT.kicker}>
+              {titel}
+            </div>
+          ) : null}
+          {navLinks(gruppe.items, pfad, nav, aufKlick)}
         </div>
-      ) : null}
-      {navLinks(gruppe.items, pfad, nav, aufKlick)}
-    </div>
-  ));
+      );
+    }
+    const zu = aufklapp.zugeklappt.has(titel);
+    const listenId = `${aufklapp.idPraefix}-${abschnittsId(titel)}`;
+    return (
+      <div key={titel} className={s.navGruppe}>
+        {/*
+          EIN ECHTER `<button>` UND KEIN `<div onClick>`. Der Unterschied ist
+          nicht das Aussehen, sondern dass es ihn fuer Tastatur und
+          Vorleseanwendung ueberhaupt gibt: ein `div` hat keinen Tabstopp, keine
+          Rolle und reagiert auf keine Taste. `aria-expanded` sagt den Zustand
+          an, `aria-controls` nennt die Liste, um die es geht.
+
+          `type="button"` ist Pflicht und keine Foermlichkeit — die Vorgabe ist
+          `submit`, und in einem Formular schickte ein Klick auf eine
+          Abschnittsueberschrift das Formular ab.
+        */}
+        <button
+          type="button"
+          data-testid="nav-abschnitt"
+          className={`${s.navAbschnitt} ${s.navAbschnittKnopf}`}
+          style={SCHRIFT.kicker}
+          aria-expanded={!zu}
+          aria-controls={listenId}
+          onClick={() => aufklapp.umschalten(titel)}
+        >
+          <PiCaretDown
+            size={12}
+            aria-hidden
+            focusable="false"
+            className={s.navPfeil}
+            style={{ flex: "none", transform: zu ? "rotate(-90deg)" : undefined }}
+          />
+          {titel}
+        </button>
+        {/*
+          `hidden` UND NICHT `display: none` PER KLASSE, und auch kein
+          Weglassen der Kinder. `hidden` nimmt die Links aus dem Tabstopp UND
+          aus dem Vorlesebaum — eine reine CSS-Loesung liesze sie fuer die
+          Tastatur erreichbar, obwohl niemand sieht, wo der Fokus steht. Sie
+          trotzdem zu RENDERN (statt sie wegzulassen) haelt `aria-controls`
+          auf ein Element zeigend, das es gibt; ein `aria-controls` ins Leere
+          ist eine Falschaussage.
+        */}
+        <div id={listenId} hidden={zu} className={s.navGruppeLinks}>
+          {navLinks(gruppe.items, pfad, nav, aufKlick)}
+        </div>
+      </div>
+    );
+  });
 }
 
 /**
@@ -224,11 +332,14 @@ export function navGruppen(nav: SuiteNavItem[], pfad: string, aufKlick?: () => v
  */
 export function SuiteNav({
   nav,
+  modulKey,
   userName,
   angemeldet,
   profilHref,
 }: {
   nav: SuiteNavItem[];
+  /** Namensraum des gemerkten Aufklappzustands — siehe `NavListe`. */
+  modulKey: string;
   userName: string | null;
   angemeldet: boolean;
   /** Basis-URL des Portals, oder `null`, wenn es keine gibt. Siehe `profilEintrag`. */
@@ -258,13 +369,13 @@ export function SuiteNav({
     () => true, // Client
     () => false, // Server
   );
-  const pfad = usePathname();
-
   /*
    * Nur noch für den Drawer: die sichtbare Navigation liegt in der
-   * Seitenleiste (`SuiteRahmen`). Gruppiert wie dort (`navGruppen`) — für eine
-   * flache Navigation liefert `gruppiereNav` genau eine titellose Gruppe, also
-   * ändert sich hier nichts.
+   * Seitenleiste (`SuiteRahmen`). Dieselbe Komponente wie dort (`NavListe`) —
+   * sie kennt Gruppierung, Filter und Aufklappzustand, und dass beide
+   * Ausprägungen dieselbe benutzen, ist der Grund, warum sie nicht
+   * auseinanderlaufen können. `usePathname()` steht deshalb jetzt DORT und
+   * nicht mehr hier.
    *
    * DER DRAWER SCHLIESZT SICH BEIM KLICK AUF EINEN EINTRAG SELBST, und das ist
    * kein Feinschliff: `next/link` navigiert clientseitig (bewusst so, siehe
@@ -276,7 +387,9 @@ export function SuiteNav({
    * weg. `Drawer.onClose` allein reicht nicht — es feuert nur bei Maske,
    * Schlieszkreuz und Escape, nicht bei einem Klick INNERHALB des Inhalts.
    */
-  const drawerNavGruppen = navGruppen(nav, pfad, () => setOffen(false));
+  const drawerNav = (
+    <NavListe nav={nav} modulKey={modulKey} aufKlick={() => setOffen(false)} testIdZusatz="-drawer" />
+  );
 
   /*
    * Der Name steht als Gruppentitel im Menue — sichtbar, aber fuer einen
@@ -475,7 +588,7 @@ export function SuiteNav({
             {nav.length > 0 ? (
               <div className={s.drawerGruppe}>
                 <div className={s.drawerTitel}>In diesem Modul</div>
-                {drawerNavGruppen}
+                {drawerNav}
               </div>
             ) : null}
 
@@ -496,6 +609,207 @@ export function SuiteNav({
           </div>
         </Drawer>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * WELCHE ABSCHNITTE SIND ZUGEKLAPPT — der Hook ueber `navZustand.ts`.
+ *
+ * `useSyncExternalStore` und nicht `useState`: der Speicher liegt auszerhalb
+ * von React, weil die Navigation ZWEIMAL im Baum steht (Seitenleiste und
+ * Drawer). Mit zwei Komponentenzustaenden liefe die eine der anderen davon —
+ * wer im Drawer zuklappt und das Fenster breiter zieht, saehe den Abschnitt
+ * offen. Der Server-Schnappschuss ist „nichts zugeklappt", damit das
+ * Server-HTML und der erste Client-Render uebereinstimmen; der gespeicherte
+ * Stand greift erst nach der Hydration. Ein `useEffect`-Muster ergaebe
+ * dasselbe Bild und verstieszе gegen `react-hooks/set-state-in-effect`.
+ */
+function useZugeklappt(modulKey: string) {
+  const roh = useSyncExternalStore(
+    abonniereZugeklappt,
+    () => liesZugeklappt(modulKey),
+    () => KEINE_ZUGEKLAPPT,
+  );
+  const zugeklappt = useMemo(() => new Set(entpacke(roh)), [roh]);
+
+  /*
+   * GELESEN WIRD HIER NOCH EINMAL AUS DEM SPEICHER, nicht aus `zugeklappt` von
+   * oben. Der Unterschied zaehlt, weil es zwei Instanzen gibt: klappt jemand im
+   * Drawer etwas zu, waehrend die Seitenleiste denselben Rueckruf noch mit
+   * ihrem aelteren Stand in der Hand haelt, ueberschriebe der zweite Klick den
+   * ersten. Der Speicher ist die Wahrheit, die gerenderte Menge nur ihr Abbild.
+   */
+  const umschalten = useCallback(
+    (titel: string) => {
+      const naechste = new Set(entpacke(liesZugeklappt(modulKey)));
+      if (!naechste.delete(titel)) naechste.add(titel);
+      schreibeZugeklappt(modulKey, [...naechste]);
+    },
+    [modulKey],
+  );
+
+  const oeffne = useCallback(
+    (titel: string) => {
+      const naechste = new Set(entpacke(liesZugeklappt(modulKey)));
+      if (naechste.delete(titel)) schreibeZugeklappt(modulKey, [...naechste]);
+    },
+    [modulKey],
+  );
+
+  return { zugeklappt, umschalten, oeffne };
+}
+
+/**
+ * DIE MODULNAVIGATION ALS BEDIENBARE LISTE — geteilt zwischen Seitenleiste
+ * (`Modulleiste`) und Drawer (`SuiteNav`). Eine Komponente statt zweier
+ * Abschriften, aus demselben Grund wie bei `navGruppen`: die Aktivmarkierung,
+ * der Filter und der Aufklappzustand muessen an beiden Stellen dasselbe sagen.
+ *
+ * SIE GIBT EIN FRAGMENT ZURUECK, KEIN ELEMENT. Der Drawer haengt sie direkt in
+ * `.drawerGruppe`, und dessen `gap: 4px` wirkt zwischen DIREKTEN Kindern — ein
+ * Wrapper hier liesze es nur noch einmal feuern und der Abstand fiele still auf
+ * `.navGruppe`s 2px (dieselbe Kaskadenfrage, die an `navGruppen` ausgeschrieben
+ * steht und die `SuiteNav.test.tsx` am erzeugten Knoten festhaelt).
+ *
+ * ⚠️ FILTER UND SCHALTER GIBT ES ERST AB `NAV_LANG_AB_EINTRAEGEN`. Unterhalb
+ * rendert diese Komponente exakt das Markup von vorher — kein Eingabefeld,
+ * keine Knoepfe. Eine Bedienung, die eine Liste von drei Zielen verwaltet, ist
+ * teurer als die Liste.
+ */
+export function NavListe({
+  nav,
+  modulKey,
+  aufKlick,
+  testIdZusatz = "",
+}: {
+  nav: SuiteNavItem[];
+  /** Namensraum des gemerkten Aufklappzustands und der `aria-controls`-Ids. */
+  modulKey: string;
+  /** Nur der Drawer uebergibt etwas — siehe `navLinks`. */
+  aufKlick?: () => void;
+  /**
+   * Suffix fuer die testIds dieser Instanz (`""` Seitenleiste, `"-drawer"` der
+   * Drawer). ZWEI Knoten mit derselben testId waeren fuer Playwright eine
+   * Strict-Mode-Verletzung — dieselbe Ueberlegung wie beim Theme-Umschalter,
+   * der im Drawer `theme-toggle-drawer` heiszt.
+   */
+  testIdZusatz?: string;
+}) {
+  const pfad = usePathname();
+  const lang = istLangeNav(nav);
+  const [suche, setSuche] = useState("");
+  const { zugeklappt, umschalten, oeffne } = useZugeklappt(modulKey);
+
+  const gesucht = suche.trim();
+  const sichtbar = useMemo(() => (lang ? filtereNav(nav, gesucht) : nav), [lang, nav, gesucht]);
+
+  /*
+   * DER ABSCHNITT DER AUFGERUFENEN SEITE IST OFFEN — und das ist die eine
+   * Regel, die das Zuklappen ueberhaupt gefahrlos macht.
+   *
+   * Ohne sie landet, wer ein Lesezeichen oder einen Link aus dem Inhalt in
+   * einen zugeklappten Abschnitt hinein oeffnet, auf einer Seite, deren Platz
+   * in der Navigation nicht zu sehen ist — die Orientierung, die die Leiste
+   * eigentlich gibt, faellt genau dann aus, wenn man sie braucht.
+   *
+   * ⚠️ NUR BEIM PFADWECHSEL, nicht bei jedem Render. Sonst waere der Schalter
+   * des aktiven Abschnitts tot: ein Klick klappte zu, der Effekt klappte sofort
+   * wieder auf. So bleibt ein bewusstes Zuklappen stehen, solange man auf der
+   * Seite ist, und der naechste Seitenaufruf sortiert die Leiste wieder.
+   */
+  const letzterPfad = useRef<string | null>(null);
+  const aktiv = aktiverEintrag(pfad, nav);
+  const aktiverAbschnitt = aktiv
+    ? (nav.find((e) => e.key === aktiv.schluessel)?.abschnitt ?? null)
+    : null;
+  useEffect(() => {
+    if (letzterPfad.current === pfad) return;
+    letzterPfad.current = pfad;
+    if (aktiverAbschnitt) oeffne(aktiverAbschnitt);
+  }, [pfad, aktiverAbschnitt, oeffne]);
+
+  /*
+   * WAEHREND GEFILTERT WIRD, GIBT ES NICHTS AUFZUKLAPPEN: `aufklapp` bleibt
+   * `undefined`, die Ueberschriften sind wieder starr, und alle Treffer stehen
+   * offen da. Die Alternative — die Schalter stehen lassen und den Zustand
+   * ignorieren — waere eine tote Bedienung: ein Knopf, der `aria-expanded`
+   * meldet und nichts bewirkt.
+   */
+  const aufklapp: NavAufklapp | undefined =
+    lang && !gesucht ? { zugeklappt, umschalten, idPraefix: `nav${testIdZusatz}` } : undefined;
+
+  return (
+    <>
+      {lang ? (
+        <div className={s.navFilter}>
+          <Input
+            data-testid={`nav-filter${testIdZusatz}`}
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+            /*
+             * `Escape` LEERT DAS FELD. antds `allowClear` gibt das Kreuz fuer
+             * die Maus; die Tastatur braucht ihren eigenen Weg zurueck, sonst
+             * ist der einzige Ausweg aus einem Filter das Loeschen Zeichen fuer
+             * Zeichen.
+             *
+             * ⚠️ `stopPropagation` IST DER GANZE FIX, UND HIER STAND DAS
+             * GEGENTEIL. Der Kommentar behauptete, der `Escape` des Drawers
+             * „feuert erst, wenn hier nichts mehr zu leeren ist" — das ist
+             * falsch, und es war eine Annahme, keine Messung (Codex-Befund P2
+             * zu PR #207, danach gegen die Quelle nachgelesen).
+             *
+             * `@rc-component/portal` (`useEscKeyDown`) haengt EINEN GLOBALEN
+             * `keydown`-Hoerer an `window` und ruft daraus `onEsc` des obersten
+             * Portals; `@rc-component/drawer` macht daraus `onClose`. Der
+             * Hoerer sitzt damit NICHT am Drawer, sondern ueber allem — ohne
+             * diese Zeile leerte ein `Escape` im Schub das Feld UND schloesse
+             * den Schub, in einem Tastendruck. Genau die Geste, mit der man
+             * einen Filter zuruecknimmt, um weiterzublaettern, raeumte die
+             * Navigation weg.
+             *
+             * React ruft im synthetischen `stopPropagation` auch das native
+             * (SyntheticEvent), und React 19 haengt seine Hoerer an den
+             * Portalknoten — also UNTER `window`. Der globale Hoerer sieht das
+             * Ereignis danach nicht mehr. `preventDefault` waere das falsche
+             * Werkzeug: es sagt etwas ueber die Standardaktion, nicht ueber den
+             * Weg nach oben.
+             *
+             * ⚠️ NUR BEI GEFUELLTEM FELD. Auf einem leeren Feld ist nichts
+             * zurueckzunehmen, und dann gehoert `Escape` dem Schub — sonst
+             * naehme das Filterfeld ihm die Schlieszgeste ab, sobald der Fokus
+             * darin steht. `SuiteNav.test.tsx` misst beide Richtungen; in jsdom
+             * geht das, weil der Hoerer ein echter `window`-Hoerer ist.
+             */
+            onKeyDown={(e) => {
+              if (e.key !== "Escape" || !suche) return;
+              setSuche("");
+              e.stopPropagation();
+            }}
+            allowClear
+            placeholder="Menü filtern"
+            aria-label="Menü filtern"
+            /* KEIN `size` (Falle 4): `large` waere 72px, und die Vorgabe ist
+               bereits die Bediendichte der jeweiligen Huelle. */
+            prefix={<PiMagnifyingGlass size={14} aria-hidden focusable="false" />}
+          />
+          {/*
+            DIE TREFFERZAHL IST SICHTBAR UND NICHT NUR FUER VORLESEANWENDUNGEN.
+            Ein `role="status"` in einer optisch versteckten Zeile saehe niemand,
+            und genau diese Auskunft fehlt beim Filtern am meisten: ob ueberhaupt
+            noch etwas da ist. `role="status"` liest sie zusaetzlich vor, ohne den
+            Fokus aus dem Feld zu nehmen.
+          */}
+          {gesucht ? (
+            <div role="status" data-testid={`nav-filter-stand${testIdZusatz}`} className={s.navFilterStand}>
+              {sichtbar.length === 0
+                ? "Kein Eintrag passt"
+                : `${sichtbar.length} von ${nav.length} Einträgen`}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {navGruppen(sichtbar, pfad, aufKlick, aufklapp)}
     </>
   );
 }

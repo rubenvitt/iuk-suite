@@ -122,6 +122,7 @@ export async function SuiteHeader({
             der Eintrag fuehrte auf eine Seite, die sofort zum Login umleitet. */}
         <SuiteNav
           nav={nav}
+          modulKey={moduleKey}
           userName={session?.user?.name ?? null}
           angemeldet={angemeldet}
           profilHref={angemeldet ? moduleUrl("portal") : null}

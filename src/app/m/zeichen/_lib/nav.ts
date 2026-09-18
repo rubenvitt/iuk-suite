@@ -17,7 +17,7 @@ import type { SuiteNavItem } from "@/core/shell/types";
  * einem DIREKTEN Aufruf von `/katalog` auf dem Modul-Host fehlt die Aktivmarkierung, bis zum
  * ersten Klick in der Leiste.
  *
- * KEIN WURZEL-EINTRAG. `aktiverEintrag` (`core/shell/SuiteNav.tsx:99-107`) behandelt `href: "/"`
+ * KEIN WURZEL-EINTRAG. `aktiverEintrag` (`core/shell/SuiteNav.tsx`) behandelt `href: "/"`
  * als Rueckfall und markierte ihn auf jeder nicht zugeordneten Seite. `uav` traegt diesen Fall
  * mit Browser-Messung aus, `lagerbuch` weicht ihm aus — hier wird ausgewichen.
  *
