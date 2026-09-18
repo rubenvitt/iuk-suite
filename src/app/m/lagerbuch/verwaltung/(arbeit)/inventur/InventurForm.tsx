@@ -77,13 +77,19 @@ function trifftKategorie(zeile: InventurZeile, wert: Filterwert): boolean {
 const BREITE = {
   aufklappen: 60,
   artikel: 230,
-  kategorie: 150,
-  fach: 110,
-  mhd: 120,
+  kategorie: 140,
+  fach: 100,
+  mhd: 110,
   mindest: 80,
   bestand: 120,
-  abweichung: 120,
-  ist: 260,
+  abweichung: 110,
+  // ⚠️ 300 UND NICHT 260, UND DAS IST NACHGERECHNET: drei Bedienelemente
+  // (44 + 90 + 44) plus zwei Abstaende und das Zellenpolster sind schon rund
+  // 226 — im Chargenmodus kommt der Chip „je Charge" dazu. Zu schmal gerechnet
+  // bricht der Stepper um, und in einer Zeile mit fester Hoehe ist das dann
+  // abgeschnitten. Die Breite ist den Nachbarspalten ABGENOMMEN, nicht der
+  // Summe zugeschlagen: 1190 + 60 bleibt unter 1280.
+  ist: 300,
 } as const;
 
 export function InventurForm({ zeilen, ortId, orte }: {

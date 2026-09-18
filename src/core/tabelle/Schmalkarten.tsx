@@ -21,11 +21,30 @@
  * ⚠️ UND DAMIT IST EINE ZWEITE FRAGE GESTELLT, DIE MAN LEICHT ÜBERSIEHT: beide
  * Darstellungen im HTML heißt bei 600 Zeilen 600 Karten AM SCHREIBTISCH, wo sie
  * niemand sieht. Beim Feedback-Verlauf spielt das keine Rolle (dort stehen
- * Dutzende Abende), bei einer Artikelliste sehr wohl. Die Antwort steht in
- * `schmalkarten.module.css`: `content-visibility: auto` nimmt dem Browser
- * Layout, Stil und Anstrich für alles ab, was nicht im Bild ist. Was sie NICHT
- * abnimmt, ist das Rendern durch React — dafür ist der Aufrufer zuständig, und
- * bei der Inventur tut das `zaehlspeicher.ts`.
+ * Dutzende Abende), bei einer Artikelliste sehr wohl.
+ *
+ * DIE KOSTEN SIND GEMESSEN STATT GESCHÄTZT — echter Chromium, 1280×720, 612
+ * Artikel, drei Läufe, bis ein Knopf DER TABELLE bedienbar ist:
+ *
+ * ```
+ *                 DOM-Knoten     bis bedienbar
+ * mit Karten          21 041     60 / 85 / 93 ms
+ * ohne Karten            833     39 / 58 / 53 ms
+ * ```
+ *
+ * Also rund 30 ms und 20 000 Knoten für eine Darstellung, die am Schreibtisch
+ * niemand sieht. Das ist der Preis, und er ist bewusst bezahlt: die Alternative
+ * wäre, die Liste in JavaScript zu fenstern — also eine zweite Stelle, an der
+ * über Sichtbarkeit entschieden wird, neben der Media Query. Solange die Zahl
+ * so aussieht, ist das der schlechtere Tausch. Wächst sie (eine Liste mit
+ * Tausenden Zeilen, eine viel schwerere Karte), ist sie hier nachzumessen,
+ * bevor jemand etwas anderes annimmt.
+ *
+ * Was den Preis klein hält, steht in `schmalkarten.module.css`:
+ * `content-visibility: auto` nimmt dem Browser Layout, Stil und Anstrich für
+ * alles ab, was nicht im Bild ist. Was es NICHT abnimmt, ist das Rendern durch
+ * React — dafür ist der Aufrufer zuständig, und bei der Inventur tut das
+ * `zaehlspeicher.ts`.
  *
  * ⚠️ WAS SIE BEWUSST NICHT TUT: sie sortiert und filtert nicht. Die schmale
  * Darstellung hat keine Spaltenköpfe, also auch keinen Ort für einen Trichter;
