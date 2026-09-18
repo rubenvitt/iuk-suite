@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { devLogin, klickeWennRuhig } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 
@@ -42,6 +42,44 @@ const SCHRANK_ID = "e2e-inventur-schrank";
 const ORT_ARTIKEL = "E2E Inventur Ortszählung";
 /** Seedwert auf der Wurzel. Diese Zahl darf sich durch keinen Lauf aendern. */
 const AUF_DER_WURZEL = 4;
+
+/**
+ * DER BEZUG FUER GREIFER, DIE UEBER DAS DOM AUFLOESEN (DRK-421).
+ *
+ * ⚠️ SEIT DIE INVENTUR AUF DEM TELEFON KARTEN ZEIGT, STEHT JEDE ZEILE ZWEIMAL
+ * IM HTML — einmal als Tabellenzeile, einmal als Karte; die Media Query blendet
+ * eine aus. Beide tragen DIESELBEN Beschriftungen, und das ist richtig so: eine
+ * Vorleseanwendung sieht immer nur die sichtbare (`display: none` nimmt die
+ * andere aus dem Zugaenglichkeitsbaum).
+ *
+ * ⚠️ WELCHE GREIFER DAS TRIFFT, IST GEMESSEN — echter Chromium, 1280×720, eine
+ * Zeile, die in beiden Darstellungen steht:
+ *
+ * ```
+ *   getByLabel("Ist-Bestand …")        2 Treffer   ← reisst
+ *   getByText("<Artikelname>")         2 Treffer   ← reisst
+ *   getByRole("button", { name: … })   1 Treffer
+ *   getByRole("spinbutton", { name })  1 Treffer
+ * ```
+ *
+ * ⚠️ DER UNTERSCHIED IST NICHT ZUFALL, UND ER ENTSCHEIDET, WO MAN RAHMEN MUSS:
+ * ein ROLLEN-Greifer loest ueber den Zugaenglichkeitsbaum auf und laesst
+ * Verborgenes aus — er findet von selbst die Darstellung, die gerade gilt, und
+ * traegt damit bei 390px genauso wie bei 1280px. `getByLabel` und `getByText`
+ * loesen ueber das DOM auf und sehen beide. Genau daran ist dieser Fall in der
+ * CI gerissen (Lauf 35342448243, „strict mode violation").
+ *
+ * ⚠️ DESHALB WIRD HIER NUR EINGERAHMT, WAS ES BRAUCHT. Einen Rollen-Greifer
+ * einzurahmen waere nicht bloss ueberfluessig: es naehme ihm die Anpassung und
+ * liesze ihn in einem kuenftigen 390px-Lauf ins Leere greifen.
+ *
+ * ⚠️ NUR FUER ZEILEN. Kommentarfeld, Abschlussknopf, Zaehlort und die
+ * Erfolgsmeldung stehen AUSSERHALB beider Darstellungen und gibt es genau
+ * einmal — sie hier einzurahmen faende gar nichts.
+ */
+function breit(page: Page): Locator {
+  return page.locator('[data-rolle="breitansicht"]');
+}
 
 test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
   test.beforeEach(async ({ page }) => {
@@ -91,7 +129,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
 
     // 3) Aufklappen. Der Aufklappknopf ist ein eigener `Button` — antds
     //    Standardknopf misst ~17px (Falle 4).
-    const artikelFeld = page.getByLabel(`Ist-Bestand ${ARTIKEL}`, { exact: true });
+    const artikelFeld = breit(page).getByLabel(`Ist-Bestand ${ARTIKEL}`, { exact: true });
     const summeVorher = Number(await artikelFeld.inputValue());
     const aufklappen = page.getByRole("button", { name: `Chargen ${ARTIKEL} anzeigen`, exact: true });
     await expect(aufklappen).toBeVisible();
@@ -127,7 +165,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     expect(unterzeilen.filter((z) => z.h < 44 || (z.knopf && z.w < 44))).toEqual([]);
 
     // 4) Eine Charge zaehlen — relativ zum angezeigten Rest.
-    const chargeA = page.getByLabel(`Ist Charge ${CHARGE_A}`, { exact: true });
+    const chargeA = breit(page).getByLabel(`Ist Charge ${CHARGE_A}`, { exact: true });
     const restA = Number(await chargeA.inputValue());
     expect(restA, "Charge A braucht Rest, sonst gibt es nichts zu zaehlen").toBeGreaterThan(0);
     await chargeA.fill(String(restA - 1));
@@ -136,14 +174,14 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
     await expect(page.locator(`tbody tr[data-row-key='${ARTIKEL_ID}']`)).toContainText("je Charge");
 
     // 5) Eine im Regal gefundene Charge ergaenzen.
-    const menge = page.getByLabel("Menge der neuen Charge", { exact: true });
-    await page.getByLabel("MHD der neuen Charge", { exact: true }).fill(NEU_MHD);
-    await page.getByLabel("Chargennummer der neuen Charge", { exact: true }).fill(neueNr);
+    const menge = breit(page).getByLabel("Menge der neuen Charge", { exact: true });
+    await breit(page).getByLabel("MHD der neuen Charge", { exact: true }).fill(NEU_MHD);
+    await breit(page).getByLabel("Chargennummer der neuen Charge", { exact: true }).fill(neueNr);
     await menge.fill(String(NEU_MENGE));
     const ergaenzen = page.getByRole("button", { name: "Charge ergänzen", exact: true });
     await expect(ergaenzen).toBeEnabled();
     await klickeWennRuhig(ergaenzen);
-    await expect(page.locator("[data-rolle='neue-charge']")).toContainText(neueNr);
+    await expect(breit(page).locator("[data-rolle='neue-charge']")).toContainText(neueNr);
     await expect(artikelFeld).toHaveValue(String(summeVorher - 1 + NEU_MENGE));
     // Die Ergaenzen-Zeile springt auf ihre Vorgabe zurueck, nicht auf leer.
     await expect(menge).toHaveValue("1");
@@ -212,7 +250,7 @@ test.describe("Lagerbuch Inventur je Charge (DRK-299)", () => {
    */
   test("zählt einen einzelnen Schrank und bucht die Korrektur dorthin", async ({ page }) => {
     const kommentar = `E2E Schrankinventur Versuch ${test.info().retry + 1}`;
-    const feld = page.getByLabel(`Ist-Bestand ${ORT_ARTIKEL}`, { exact: true });
+    const feld = breit(page).getByLabel(`Ist-Bestand ${ORT_ARTIKEL}`, { exact: true });
 
     /*
      * 1) Der Ort steht in der URL — der Server rechnet die Zeilen dafuer.

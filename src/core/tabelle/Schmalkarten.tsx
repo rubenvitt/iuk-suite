@@ -64,6 +64,36 @@
  * React — dafür ist der Aufrufer zuständig, und bei der Inventur tut das
  * `zaehlspeicher.ts`.
  *
+ * ⚠️ WAS SIE JEDEM PLAYWRIGHT-FALL AUFERLEGT, UND ZWAR AB SOFORT: jede Zeile
+ * steht danach ZWEIMAL im HTML. Beide tragen dieselben Beschriftungen, und das
+ * ist richtig (`display: none` nimmt die verborgene aus dem
+ * Zugänglichkeitsbaum) — ein Greifer sieht sie trotzdem, wenn er über das DOM
+ * auflöst. Gemessen im echten Chromium bei 1280×720 an einer Zeile, die in
+ * beiden Darstellungen steht:
+ *
+ * ```
+ *   getByLabel("…")                    2 Treffer   ← „strict mode violation"
+ *   getByText("…")                     2 Treffer   ← dito
+ *   getByRole("button", { name: … })   1 Treffer
+ *   getByRole("spinbutton", { name })  1 Treffer
+ * ```
+ *
+ * ⚠️ DER UNTERSCHIED ENTSCHEIDET, WO MAN RAHMEN MUSS — UND WO NICHT. Ein
+ * ROLLEN-Greifer löst über den Zugänglichkeitsbaum auf und lässt Verborgenes
+ * aus; er findet von selbst die Darstellung, die gerade gilt, und trägt bei
+ * 390px genauso wie bei 1280px. `getByLabel` und `getByText` lösen über das DOM
+ * auf und sehen beide — sie brauchen `[data-rolle="breitansicht"]` oder
+ * `[data-rolle="schmalkarten"]` als Bezug. Einen Rollen-Greifer einzurahmen ist
+ * nicht bloß überflüssig: es nimmt ihm die Anpassung und lässt ihn im anderen
+ * Viewport ins Leere greifen.
+ *
+ * ⚠️ DAS IST NICHT THEORETISCH. Der erste Anlauf dieses Tickets riss genau so
+ * in der CI (Lauf 35342448243): zwei Fälle in `lagerbuch-inventur.spec.ts`, die
+ * mit der Kartenansicht inhaltlich nichts zu tun haben, meldeten „strict mode
+ * violation" an einem `getByLabel("Ist-Bestand …")`. Kein lokales Tor sieht
+ * das: Vitest hat keine Strict-Mode-Regel, und `query()` dort liefert schlicht
+ * die erste Fundstelle.
+ *
  * ⚠️ WAS SIE BEWUSST NICHT TUT: sie sortiert und filtert nicht. Die schmale
  * Darstellung hat keine Spaltenköpfe, also auch keinen Ort für einen Trichter;
  * sie zeigt, was der Aufrufer ihr gibt. Wer auf dem Telefon filtern können
