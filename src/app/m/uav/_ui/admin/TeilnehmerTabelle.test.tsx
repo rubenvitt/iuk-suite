@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
+import { act } from "react";
 import { clickElement, mount, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import { TeilnehmerTabelle, type TeilnehmerZeile } from "./TeilnehmerTabelle";
 
@@ -173,6 +174,53 @@ describe("TeilnehmerTabelle — schmale Darstellung", () => {
     const karten = queryAll('[data-rolle="schmalkarten"] > li');
     expect(karten.length).toBe(2);
     expect(karten.map((k) => k.getAttribute("data-row-key"))).toEqual(["a", "b"]);
+  });
+
+  it("filtert die Karten über die Statusleiste — und zwar über denselben Zustand", async () => {
+    /*
+     * ⚠️ CODEX-BEFUND P2 ZU PR #208, und er traf. Der Statusfilter sitzt im
+     * SPALTENKOPF; unter 768px ist die Tabelle samt Kopf ausgeblendet. Vor
+     * diesem Fall bekamen die Karten die ungefilterte Liste — wer auf dem
+     * Telefon „nur die Aktiven" sehen wollte, kam vorher ueber die waagerecht
+     * gescrollte Zeile noch an den Trichter, danach gar nicht mehr. Der
+     * Filter war also nicht bloss unbequem, er war WEG.
+     *
+     * ⚠️ jsdom wertet die Media Query nicht aus — dieser Fall besitzt deshalb
+     * „die Leiste steuert die Kartenliste", nicht „man sieht sie auf 390px".
+     */
+    await mount(
+      <TeilnehmerTabelle
+        zeilen={[
+          zeile({ id: "a", name: "Bruno", aktiv: true }),
+          zeile({ id: "b", name: "Carla", aktiv: false }),
+        ]}
+      />,
+    );
+    expect(queryAll('[data-rolle="schmalkarten"] > li').length).toBe(2);
+
+    const leiste = queryAll('[data-rolle="teilnehmer-schmalfilter"]');
+    expect(leiste.length, "ohne Leiste gibt es auf dem Telefon keinen Filter").toBe(1);
+
+    /*
+     * ⚠️ antds `Select` OEFFNET AUF `mousedown`, NICHT AUF `click`, und sein
+     * Menue haengt in einem PORTAL an `document.body` — nicht im Wirt. Beides
+     * zusammen ist der Grund, warum ein schlichtes `click` auf das Feld hier
+     * nichts tut (erst gemessen, dann geschrieben). Vorbild fuer den
+     * Portal-Griff: `feedback/_ui/Zuordnung.test.tsx`.
+     */
+    const feld = leiste[0].querySelector<HTMLElement>("input")!;
+    await act(async () => {
+      feld.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      feld.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const eintrag = [...document.querySelectorAll<HTMLElement>(".ant-select-item-option")]
+      .find((el) => el.textContent === "inaktiv");
+    expect(eintrag, "die Leiste bietet beide Zustaende an").toBeDefined();
+    await clickElement(eintrag!);
+
+    const karten = queryAll('[data-rolle="schmalkarten"] > li');
+    expect(karten.length).toBe(1);
+    expect(karten[0].getAttribute("data-row-key")).toBe("b");
   });
 
   it("zeigt den Leertext auch in der schmalen Darstellung", async () => {
