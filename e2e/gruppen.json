@@ -17,7 +17,7 @@
   },
   {
     "name": "lagerbuch-3",
-    "specs": "e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-ux.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-umlagern.spec.ts e2e/lagerbuch-ist-bestand.spec.ts"
+    "specs": "e2e/lagerbuch-ortsetiketten.spec.ts e2e/lagerbuch-verwaltung.spec.ts e2e/lagerbuch-artikel-mobil.spec.ts e2e/lagerbuch-ux.spec.ts e2e/lagerbuch-fahrzeugblatt-kennzahlen.spec.ts e2e/lagerbuch-bestand-export.spec.ts e2e/lagerbuch-entnahmebox.spec.ts e2e/lagerbuch-artikel-rollen.spec.ts e2e/lagerbuch-umlagern.spec.ts e2e/lagerbuch-ist-bestand.spec.ts e2e/lagerbuch-inventur-mobil.spec.ts"
   },
   {
     "name": "radio",

@@ -3,6 +3,24 @@
 /**
  * EINE TABELLE, DIE AUF DEM TELEFON EINE LISTE IST (DRK-421).
  *
+ * ⚠️ WARUM SIE NACH `core` DURFTE — die Regel aus `CLAUDE.md` lautet „nur was
+ * ein ZWEITES, heute belegbares Modul braucht", und sie ist dreifach erfüllt:
+ *
+ *  * `lagerbuch` — die Inventur, aus der das Ticket entstand.
+ *  * `uav` — die Teilnehmer-Übersicht. Dort stand die Not schon als Kommentar
+ *    in der Datei: der „Details"-Knopf ist eine Doppelung des Namenslinks, und
+ *    zwar ausdrücklich, „weil auf dem Telefon die Zeile waagerecht gescrollt
+ *    ist". Ein Workaround, der das Problem benennt, ist ein Beleg, den man
+ *    nicht argumentieren muss.
+ *  * `files` — und das ist der eigentliche Grund. Dort steht die Verdopplung
+ *    BEREITS: `SharesTabelle.tsx` und `PosteingangTabelle.tsx` bauen beide von
+ *    Hand `nurDesktop`/`nurMobil` samt eigener Kartenliste, jede mit ihrer
+ *    eigenen Spezifitätsbegründung. Nicht Vorrat für künftigen Bedarf also,
+ *    sondern eine eingetretene Doppelung — derselbe Maßstab, an dem die
+ *    `Datentabelle` selbst gemessen wurde. ⚠️ `files` ist mit diesem Ticket
+ *    NICHT umgestellt: dort hängt Zeilenauswahl daran (`ReadonlySet` über die
+ *    Karten hinweg), und das ist ein eigener Auftrag, keine stille Ausweitung.
+ *
  * ⚠️ WAS SIE LÖST, UND WARUM DIE BISHERIGE ANTWORT NICHT REICHT.
  * `docs/design/README.md` sagt: „antd-`Table` scrollt auf schmalen Geräten, sie
  * bricht nicht um" — eine umgebrochene Tabellenzeile ist unlesbarer als eine
