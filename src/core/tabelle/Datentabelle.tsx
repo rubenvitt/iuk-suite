@@ -134,6 +134,27 @@ export function Datentabelle<T extends object>({
     return typeof auswahl.columnWidth === "number" ? auswahl.columnWidth : 32;
   }, [rest.rowSelection]);
 
+  /**
+   * ⚠️ DIE AUFKLAPPSPALTE IST DIE ZWEITE, DIE NICHT IN `columns` STEHT — und
+   * anders als die Auswahlspalte hat sie KEINE Vorgabe, auf die man
+   * zurückfallen könnte. rc-table setzt dort schlicht
+   * `width: expandable.columnWidth` (`hooks/useColumns/index.js`); fehlt die
+   * Angabe, bleibt die Breite dem Stylesheet überlassen, und diese Rechnung
+   * sähe sie nicht. Eine 0 einzusetzen wäre die stillere und schlechtere
+   * Antwort: die Summe läge um eine ganze Spalte daneben, und im virtuellen
+   * Modus (`table-layout: fixed`) geriete die letzte Spalte unter den
+   * waagerechten Rand. `null` heißt deshalb „unbekannt", und `scrollMasse`
+   * schaltet die Virtualisierung dann lieber ab — dieselbe Entscheidung wie
+   * bei einer `columns`-Spalte ohne `width`.
+   */
+  const aufklappBreite = useMemo<number | null>(() => {
+    const aufklappen = rest.expandable;
+    if (!aufklappen) return 0;
+    return typeof aufklappen.columnWidth === "number" ? aufklappen.columnWidth : null;
+  }, [rest.expandable]);
+
+  const zusatzBreite = aufklappBreite === null ? null : auswahlBreite + aufklappBreite;
+
   const zeilenAnzahl = rest.dataSource?.length ?? 0;
 
   const masse = useMemo(
@@ -141,10 +162,10 @@ export function Datentabelle<T extends object>({
       columns as readonly MassSpalte[] | undefined,
       virtuell,
       scroll,
-      auswahlBreite,
+      zusatzBreite,
       { anzahl: zeilenAnzahl, ab: virtuellAbZeilen },
     ),
-    [columns, virtuell, scroll, auswahlBreite, zeilenAnzahl, virtuellAbZeilen],
+    [columns, virtuell, scroll, zusatzBreite, zeilenAnzahl, virtuellAbZeilen],
   );
 
   // Kein Wurf: eine Tabelle, die gewöhnlich scrollt, ist langsam — eine, die auf

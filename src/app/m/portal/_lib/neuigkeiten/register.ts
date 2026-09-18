@@ -39,6 +39,7 @@ import ortsetiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/202
 import ortscodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-ortscodes";
 import artikeletiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-artikeletiketten";
 import qrReichweite from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-qr-reichweite";
+import inventurTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-18-inventur-telefon";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -119,6 +120,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verfallInDerBox,
   ortscodes,
   artikeletiketten,
+  inventurTelefon,
   qrReichweite,
   chargeWaehlen,
   menueFiltern,

@@ -124,3 +124,62 @@ describe("TeilnehmerTabelle — Spaltenkopf", () => {
     expect(zeilenSchluessel()).toEqual(["t-inaktiv"]);
   });
 });
+
+/**
+ * DIE SCHMALE DARSTELLUNG (DRK-421).
+ *
+ * ⚠️ WAS DIESER TEST BESITZT UND WAS NICHT. Er besitzt „beide Darstellungen
+ * stehen im HTML und zeigen dieselben Daten". Er besitzt AUSDRUECKLICH NICHT
+ * „auf 390px sieht man die Karten": jsdom wertet Media Queries nicht aus, eine
+ * solche Zusicherung waere immer gruen und damit eine Luege
+ * (`docs/design/README.md`, „Tests fuer Responsives"). Die Media Query selbst
+ * haelt `core/tabelle/schmalkarten.test.ts` fest, die Wirkung ein echter
+ * Browser.
+ */
+describe("TeilnehmerTabelle — schmale Darstellung", () => {
+  it("legt Karten und Tabelle nebeneinander ins HTML", async () => {
+    await mount(<TeilnehmerTabelle zeilen={[zeile({ id: "a", name: "Bruno" })]} />);
+
+    expect(queryAll('[data-rolle="schmalkarten"]').length).toBe(1);
+    expect(queryAll('[data-rolle="breitansicht"]').length).toBe(1);
+  });
+
+  it("zeigt in der Karte Name, Code, Fortschritt und den Kopierknopf", async () => {
+    await mount(<TeilnehmerTabelle zeilen={[zeile({ id: "a", name: "Bruno", quote: 0.25 })]} />);
+    const karte = queryAll('[data-rolle="schmalkarten"] > li')[0];
+
+    // Der Name ist ein Weg, kein Text — und er traegt dieselbe Form wie in der
+    // Tabellenzelle (`ZEILENLINK`), weil es dafuer nur eine Quelle gibt.
+    const link = karte.querySelector("a");
+    expect(link?.textContent).toBe("Bruno");
+    expect(link?.getAttribute("href")).toBe("/admin/teilnehmer/a");
+    expect(link?.style.color).toBe("inherit");
+    expect(link?.style.minHeight).toBe("44px");
+
+    expect(karte.textContent).toContain("code-a");
+    expect(karte.textContent).toContain("3/12");
+    // Der eigentliche Arbeitsvorgang der Seite — er war vorher am rechten Ende
+    // einer waagerecht gescrollten Zeile.
+    expect(karte.textContent).toContain("Link kopieren");
+  });
+
+  it("bietet jede Zeile auch als Karte an", async () => {
+    await mount(
+      <TeilnehmerTabelle
+        zeilen={[zeile({ id: "a", name: "Bruno" }), zeile({ id: "b", name: "Carla" })]}
+      />,
+    );
+
+    const karten = queryAll('[data-rolle="schmalkarten"] > li');
+    expect(karten.length).toBe(2);
+    expect(karten.map((k) => k.getAttribute("data-row-key"))).toEqual(["a", "b"]);
+  });
+
+  it("zeigt den Leertext auch in der schmalen Darstellung", async () => {
+    // Ohne diesen Zweig staende auf dem Telefon gar nichts — die Tabelle mit
+    // ihrem `emptyText` ist dort ausgeblendet.
+    await mount(<TeilnehmerTabelle zeilen={[]} />);
+    expect(queryAll('[data-rolle="schmalkarten-leer"]')[0]?.textContent)
+      .toBe("Noch keine Teilnehmer angelegt.");
+  });
+});

@@ -1,0 +1,60 @@
+/*
+ * DIE TEILNEHMERKARTE — die schmale Darstellung einer Übersichtszeile
+ * (DRK-421).
+ *
+ * ⚠️ KEINE EIGENE MEDIA QUERY. Ob sie zu sehen ist, entscheidet
+ * `core/tabelle/schmalkarten.module.css` an der Liste darüber. Eine zweite
+ * Abfrage hier wäre ein zweiter Ort für den Breakpoint der Suite — und genau
+ * dagegen steht „ein Breakpoint" in `docs/design/README.md`. Dieses Modul hat
+ * daneben schon eine eigene 767.98px-Abfrage in `admin.module.css`; eine
+ * dritte wäre eine zu viel.
+ */
+
+.karte {
+  border: 1px solid var(--uav-linie, rgb(0 0 0 / 12%));
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/*
+ * ⚠️ HIER STEHEN NUR DIE KARTENEIGENEN WERTE. Farbe, Unterstreichung und die
+ * 44px Mindesthöhe trägt der Link als Inline-Stil (`ZEILENLINK` in
+ * `TeilnehmerTabelle.tsx`) — beides ist geprüft, und jsdom wendet Stylesheets
+ * nicht an: stünden sie hier, wäre die Zusicherung lautlos blind. Die
+ * Begründung steht bei der Konstante.
+ */
+.name {
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.zeile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.fortschritt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fortschritt > :global(.ant-progress) {
+  flex: 1;
+  margin: 0;
+}

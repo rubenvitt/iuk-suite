@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Button, Progress, Tag } from "antd";
 import {
@@ -9,12 +9,14 @@ import {
   nachJaNein,
   nachText,
   nachZahl,
+  Schmalkarten,
   zustandsFilter,
 } from "@/core/tabelle";
 import { datumKurz, datumZeit } from "../../_lib/datum";
 import type { ParticipantProgressDTO } from "../../_lib/typen";
 import { SCHRIFT } from "@/core/theme/schrift";
 import { SPACE } from "@/core/theme/tokens";
+import k from "./teilnehmerkarte.module.css";
 
 /**
  * Eine Übersichtszeile plus den fertigen Magic-Link-String (Fix-Runde 1,
@@ -72,6 +74,30 @@ export interface TeilnehmerZeile extends ParticipantProgressDTO {
  * nicht nötig. Die Spalten „Magic-Link" und „Aktionen" tragen keinen `sorter`: in ihnen
  * steht ein Knopf, kein Wert.
  */
+/**
+ * DER ZEILENLINK — EINE FORM, ZWEI DARSTELLUNGEN (DRK-421).
+ *
+ * ⚠️ ALS INLINE-STIL UND NICHT ALS KLASSE, und das ist hier ausnahmsweise die
+ * bessere Wahl. Die beiden Zusagen daran sind geprueft: `color: inherit` gegen
+ * Suite-Rot auf einer Datenflaeche (Falle 3) und `minHeight: 44` gegen die
+ * Untergrenze der Arbeitsdichte (WCAG 2.5.5) — beides haelt
+ * `(admin)/admin/page.test.tsx` fest. **In einem CSS-Modul koennte dieser Test
+ * sie nicht sehen:** jsdom wendet Stylesheets nicht an, `style.color` stuende
+ * leer, und die Zusicherung waere lautlos blind. Genau das ist beim ersten
+ * Anlauf passiert, als die Karte ihre eigene Klasse trug.
+ *
+ * ⚠️ UND DESHALB EINE KONSTANTE STATT ZWEIER ABSCHRIFTEN. Die Karte und die
+ * Tabellenzelle zeigen denselben Link; zwei Stellen mit denselben zwei Zahlen
+ * liefen beim ersten Umbau auseinander, und geprueft waere nur die eine.
+ */
+const ZEILENLINK: React.CSSProperties = {
+  color: "inherit",
+  textDecoration: "underline",
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 44,
+};
+
 export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
   const [kopiert, setKopiert] = useState<string | null>(null);
 
@@ -87,110 +113,166 @@ export function TeilnehmerTabelle({ zeilen }: { zeilen: TeilnehmerZeile[] }) {
     );
   }
 
+  /**
+   * DIE SCHMALE DARSTELLUNG (DRK-421) — und sie ist hier kein Zusatz, sondern
+   * die Einlösung eines Versprechens, das ein paar Zeilen weiter unten als
+   * Entschuldigung stand.
+   *
+   * ⚠️ DER „Details"-KNOPF WAR EIN WORKAROUND FUER GENAU DIESES PROBLEM. Seine
+   * Begruendung lautete woertlich: „auf dem Telefon ist die Zeile waagerecht
+   * gescrollt, und wer am rechten Ende der Zeile steht, kaeme sonst nur ueber
+   * ein Zurueckscrollen zum Ziel." Acht Spalten mit drei Bedienelementen —
+   * Namenslink, „Link kopieren", „Details" — sind genau der Fall, den
+   * `docs/design/README.md` NICHT mehr waagerecht scrollen lassen will: die
+   * Leseregel („eine umgebrochene Zeile ist unlesbarer als eine gescrollte")
+   * gilt fuer eine Tabelle, die man LIEST, und der eigentliche Arbeitsvorgang
+   * dieser Seite ist das Weitergeben des Zugangs.
+   *
+   * ⚠️ DER KNOPF BLEIBT TROTZDEM. Auf dem Telefon braucht ihn niemand mehr,
+   * aber die Tabelle beginnt schon bei 768px und scrollt auf einem Tablet im
+   * Hochformat weiterhin waagerecht. Ihn hier zu entfernen hiesse, den
+   * Zwischenbereich gegen eine Annahme einzutauschen — und der ist laut
+   * `docs/design/README.md` der Ort, an dem die Fehler sitzen, die an beiden
+   * Enden unsichtbar sind.
+   */
+  function karte(zeile: TeilnehmerZeile): ReactNode {
+    const markierung = `link-${zeile.participant.id}`;
+    return (
+      <article className={k.karte}>
+        <div className={k.kopf}>
+          <Link
+            href={`/admin/teilnehmer/${zeile.participant.id}`}
+            className={k.name}
+            style={ZEILENLINK}
+          >
+            {zeile.participant.name}
+          </Link>
+          <Tag color={zeile.participant.aktiv ? "green" : "default"}>
+            {zeile.participant.aktiv ? "aktiv" : "inaktiv"}
+          </Tag>
+        </div>
+        <p className={k.zeile}>
+          <span style={SCHRIFT.mono}>{zeile.participant.loginCode}</span>
+          <span>{`Beginn ${datumKurz(zeile.participant.beginn) || "—"}`}</span>
+        </p>
+        <div className={k.fortschritt}>
+          <Progress percent={Math.round(zeile.quote * 100)} />
+          <span>{zeile.erledigt}/{zeile.gesamt}</span>
+        </div>
+        {/* „zuletzt" statt „Letzte Aktivität": in der Tabelle erklaert der
+            Spaltenkopf die Zahl, hier muss das Wort daneben es tun. */}
+        <p className={k.zeile}>{`zuletzt ${datumZeit(zeile.participant.lastSeen) || "—"}`}</p>
+        <Button onClick={() => kopieren(zeile.magicLink, markierung)}>
+          {kopiert === markierung ? "Kopiert" : "Link kopieren"}
+        </Button>
+      </article>
+    );
+  }
+
   return (
-    <Datentabelle<TeilnehmerZeile>
-      rowKey={(zeile) => zeile.participant.id}
-      dataSource={zeilen}
-      locale={{ emptyText: "Noch keine Teilnehmer angelegt." }}
-      columns={[
-        {
-          title: "Name",
-          key: "name",
-          sorter: nachText<TeilnehmerZeile>((zeile) => zeile.participant.name),
-          render: (_: unknown, zeile: TeilnehmerZeile) => (
-            <Link
-              href={`/admin/teilnehmer/${zeile.participant.id}`}
-              style={{
-                color: "inherit",
-                textDecoration: "underline",
-                display: "inline-flex",
-                alignItems: "center",
-                minHeight: 44,
-              }}
-            >
-              {zeile.participant.name}
-            </Link>
-          ),
-        },
-        {
-          title: "Code",
-          key: "code",
-          sorter: nachText<TeilnehmerZeile>((zeile) => zeile.participant.loginCode),
-          render: (_: unknown, zeile: TeilnehmerZeile) => <span style={SCHRIFT.mono}>{zeile.participant.loginCode}</span>,
-        },
-        {
-          title: "Magic-Link",
-          key: "magicLink",
-          render: (_: unknown, zeile: TeilnehmerZeile) => (
-            <Button onClick={() => kopieren(zeile.magicLink, `link-${zeile.participant.id}`)}>
-              {kopiert === `link-${zeile.participant.id}` ? "Kopiert" : "Link kopieren"}
-            </Button>
-          ),
-        },
-        {
-          title: "Beginn",
-          key: "beginn",
-          // Ohne eingetragenen Beginn steht „—"; `null` landet aufsteigend hinten.
-          sorter: nachDatum<TeilnehmerZeile>((zeile) => zeile.participant.beginn),
-          render: (_: unknown, zeile: TeilnehmerZeile) => datumKurz(zeile.participant.beginn) || "—",
-        },
-        {
-          title: "Fortschritt",
-          key: "fortschritt",
-          // Der ANTEIL, nicht die erledigten Aufgaben: 3 von 4 ist weiter als 5 von 20.
-          sorter: nachZahl<TeilnehmerZeile>((zeile) => zeile.quote),
-          render: (_: unknown, zeile: TeilnehmerZeile) => (
-            <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, minWidth: 160 }}>
-              <Progress percent={Math.round(zeile.quote * 100)} style={{ flex: 1 }} />
-              <span>{zeile.erledigt}/{zeile.gesamt}</span>
-            </div>
-          ),
-        },
-        {
-          title: "Letzte Aktivität",
-          key: "letzteAktivitaet",
-          // Wer nie da war, traegt `null` und steht aufsteigend hinten — absteigend
-          // also vorn, und genau danach sucht man hier: wer meldet sich nicht mehr.
-          sorter: nachDatum<TeilnehmerZeile>((zeile) => zeile.participant.lastSeen),
-          render: (_: unknown, zeile: TeilnehmerZeile) => datumZeit(zeile.participant.lastSeen) || "—",
-        },
-        {
-          title: "Status",
-          key: "status",
-          /*
-           * „Nur die Aktiven" ist ein Prädikat über der Zeile und gehört deshalb in den
-           * Spaltenkopf, nicht in eine Knopfleiste darüber. `zustandsFilter` und nicht
-           * `werteAlsFilter`: `aktiv` ist ein Wahrheitswert, die zwei Wörter daneben sind
-           * Anzeige. Sortiert wird über `aktiv`, nicht über das Wort — „aktiv" steht
-           * alphabetisch zufällig richtig vor „inaktiv", und das bliebe bei einer
-           * Umbenennung still falsch.
-           */
-          sorter: nachJaNein<TeilnehmerZeile>((zeile) => zeile.participant.aktiv),
-          ...zustandsFilter<TeilnehmerZeile>([
-            { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.participant.aktiv },
-            { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.participant.aktiv },
-          ]),
-          render: (_: unknown, zeile: TeilnehmerZeile) => (
-            <Tag color={zeile.participant.aktiv ? "green" : "default"}>
-              {zeile.participant.aktiv ? "aktiv" : "inaktiv"}
-            </Tag>
-          ),
-        },
-        {
-          title: "Aktionen",
-          key: "aktionen",
-          /*
-           * Der Farbeinwand von oben trifft diesen Weg NICHT: ein `Button` traegt
-           * antds Knopffarben, nicht `colorLink`. Er steht neben dem Namenslink und
-           * ist keine Doppelung ohne Zweck — auf dem Telefon ist die Zeile
-           * waagerecht gescrollt, und wer am rechten Ende der Zeile steht, kaeme
-           * sonst nur ueber ein Zurueckscrollen zum Ziel.
-           */
-          render: (_: unknown, zeile: TeilnehmerZeile) => (
-            <Button href={`/admin/teilnehmer/${zeile.participant.id}`}>Details</Button>
-          ),
-        },
-      ]}
-    />
+    <Schmalkarten<TeilnehmerZeile>
+      zeilen={zeilen}
+      schluessel={(zeile) => zeile.participant.id}
+      aria-label="Teilnehmer"
+      leertext="Noch keine Teilnehmer angelegt."
+      kartenHoehe={230}
+      karte={karte}
+    >
+      <Datentabelle<TeilnehmerZeile>
+        rowKey={(zeile) => zeile.participant.id}
+        dataSource={zeilen}
+        locale={{ emptyText: "Noch keine Teilnehmer angelegt." }}
+        columns={[
+          {
+            title: "Name",
+            key: "name",
+            sorter: nachText<TeilnehmerZeile>((zeile) => zeile.participant.name),
+            render: (_: unknown, zeile: TeilnehmerZeile) => (
+              <Link href={`/admin/teilnehmer/${zeile.participant.id}`} style={ZEILENLINK}>
+                {zeile.participant.name}
+              </Link>
+            ),
+          },
+          {
+            title: "Code",
+            key: "code",
+            sorter: nachText<TeilnehmerZeile>((zeile) => zeile.participant.loginCode),
+            render: (_: unknown, zeile: TeilnehmerZeile) => <span style={SCHRIFT.mono}>{zeile.participant.loginCode}</span>,
+          },
+          {
+            title: "Magic-Link",
+            key: "magicLink",
+            render: (_: unknown, zeile: TeilnehmerZeile) => (
+              <Button onClick={() => kopieren(zeile.magicLink, `link-${zeile.participant.id}`)}>
+                {kopiert === `link-${zeile.participant.id}` ? "Kopiert" : "Link kopieren"}
+              </Button>
+            ),
+          },
+          {
+            title: "Beginn",
+            key: "beginn",
+            // Ohne eingetragenen Beginn steht „—"; `null` landet aufsteigend hinten.
+            sorter: nachDatum<TeilnehmerZeile>((zeile) => zeile.participant.beginn),
+            render: (_: unknown, zeile: TeilnehmerZeile) => datumKurz(zeile.participant.beginn) || "—",
+          },
+          {
+            title: "Fortschritt",
+            key: "fortschritt",
+            // Der ANTEIL, nicht die erledigten Aufgaben: 3 von 4 ist weiter als 5 von 20.
+            sorter: nachZahl<TeilnehmerZeile>((zeile) => zeile.quote),
+            render: (_: unknown, zeile: TeilnehmerZeile) => (
+              <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm, minWidth: 160 }}>
+                <Progress percent={Math.round(zeile.quote * 100)} style={{ flex: 1 }} />
+                <span>{zeile.erledigt}/{zeile.gesamt}</span>
+              </div>
+            ),
+          },
+          {
+            title: "Letzte Aktivität",
+            key: "letzteAktivitaet",
+            // Wer nie da war, traegt `null` und steht aufsteigend hinten — absteigend
+            // also vorn, und genau danach sucht man hier: wer meldet sich nicht mehr.
+            sorter: nachDatum<TeilnehmerZeile>((zeile) => zeile.participant.lastSeen),
+            render: (_: unknown, zeile: TeilnehmerZeile) => datumZeit(zeile.participant.lastSeen) || "—",
+          },
+          {
+            title: "Status",
+            key: "status",
+            /*
+             * „Nur die Aktiven" ist ein Prädikat über der Zeile und gehört deshalb in den
+             * Spaltenkopf, nicht in eine Knopfleiste darüber. `zustandsFilter` und nicht
+             * `werteAlsFilter`: `aktiv` ist ein Wahrheitswert, die zwei Wörter daneben sind
+             * Anzeige. Sortiert wird über `aktiv`, nicht über das Wort — „aktiv" steht
+             * alphabetisch zufällig richtig vor „inaktiv", und das bliebe bei einer
+             * Umbenennung still falsch.
+             */
+            sorter: nachJaNein<TeilnehmerZeile>((zeile) => zeile.participant.aktiv),
+            ...zustandsFilter<TeilnehmerZeile>([
+              { wert: "aktiv", text: "aktiv", trifft: (zeile) => zeile.participant.aktiv },
+              { wert: "inaktiv", text: "inaktiv", trifft: (zeile) => !zeile.participant.aktiv },
+            ]),
+            render: (_: unknown, zeile: TeilnehmerZeile) => (
+              <Tag color={zeile.participant.aktiv ? "green" : "default"}>
+                {zeile.participant.aktiv ? "aktiv" : "inaktiv"}
+              </Tag>
+            ),
+          },
+          {
+            title: "Aktionen",
+            key: "aktionen",
+            /*
+             * Der Farbeinwand von oben trifft diesen Weg NICHT: ein `Button` traegt
+             * antds Knopffarben, nicht `colorLink`. Er steht neben dem Namenslink und
+             * ist keine Doppelung ohne Zweck — auf dem Telefon ist die Zeile
+             * waagerecht gescrollt, und wer am rechten Ende der Zeile steht, kaeme
+             * sonst nur ueber ein Zurueckscrollen zum Ziel.
+             */
+            render: (_: unknown, zeile: TeilnehmerZeile) => (
+              <Button href={`/admin/teilnehmer/${zeile.participant.id}`}>Details</Button>
+            ),
+          },
+        ]}
+      />
+    </Schmalkarten>
   );
 }

@@ -1,0 +1,79 @@
+/*
+ * ZWEI DARSTELLUNGEN, EINE ENTSCHEIDET DAS CSS (DRK-421).
+ *
+ * Die Begründung steht in `Schmalkarten.tsx`; hier steht nur, was CSS davon
+ * ausführt. Vorbild ist `feedback/_ui/Verlauf.tsx`, das seit Langem beide
+ * Darstellungen ins HTML rendert und eine per Media Query ausblendet.
+ *
+ * ⚠️ MOBILE-FIRST: DIE SCHMALE DARSTELLUNG IST DIE BASIS. Sie steht ohne Media
+ * Query da, die Tabelle ist in der Basis `none` und kommt ab 768px. Andersherum
+ * geschrieben zeigte ein Browser ohne Media-Query-Auswertung die BREITE
+ * Darstellung — also genau die, die auf einem schmalen Schirm nicht zu bedienen
+ * ist. Dieselbe Reihenfolge wie in `shell.module.css`.
+ *
+ * ⚠️ 768px IST DER EINZIGE BREAKPOINT DER SUITE (= antds `md`,
+ * `core/shell/shell-css.test.ts`). `schmalkarten.test.ts` hält fest, dass diese
+ * Datei keine andere Zahl kennt — ein Modul, das seine Regel bei 600px
+ * schaltet, ist bei 390px nicht von einem richtigen zu unterscheiden und
+ * dazwischen kaputt (docs/design/README.md).
+ */
+
+/*
+ * ⚠️ `.nurSchmal` ERKLÄRT IN DER BASIS ABSICHTLICH NICHTS — sie besteht nur aus
+ * ihrer Regel in der Media Query.
+ *
+ * Sie hängt an mehr als der Kartenliste: am Leertext, und in der Inventur an
+ * der Filterleiste, die es ohne Spaltenköpfe sonst nirgends gäbe. Diese Flächen
+ * bringen ihr eigenes `display` mit — die Kartenliste `flex`, eine antd-`Flex`
+ * ihr `display: flex` aus `.ant-flex`. Stünde hier ein `display` (auch ein
+ * `revert`), träte es gegen jenes an: beide sind einklassig, und dann
+ * entscheidet die Reihenfolge im Stylesheet — bei antds zur Laufzeit
+ * eingespritztem CSS also nichts, worauf man bauen kann (Falle 5). Eine Klasse,
+ * die nur ausblendet, blendet nur aus.
+ */
+
+.karten {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * ⚠️ `content-visibility` IST HIER DIE VIRTUALISIERUNG DER KARTENLISTE — und
+ * zwar die, die ohne JavaScript auskommt.
+ *
+ * Beide Darstellungen liegen im HTML; bei 600 Artikeln stünden also 600 Karten
+ * im Baum, auch am Schreibtisch, wo sie niemand sieht. `auto` lässt den
+ * Browser Layout, Stil und Anstrich für alles überspringen, was gerade nicht
+ * im Bild ist — der teuerste Teil, und der einzige, den CSS überhaupt
+ * abnehmen kann. Die React-Knoten bleiben; dass sie nichts kosten, solange sie
+ * sich nicht ändern, ist Aufgabe der Aufrufer (bei der Inventur:
+ * `zaehlspeicher.ts`).
+ *
+ * ⚠️ `contain-intrinsic-size` GEHÖRT DAZU, SONST IST ES SCHÄDLICH. Ohne die
+ * Platzhaltergröße meldet eine übersprungene Karte Höhe 0, die Bildlaufleiste
+ * springt beim Scrollen, und ein Ziel weiter unten ist nicht zu treffen.
+ * `auto` davor heißt: sobald die Karte einmal gemessen wurde, gilt die ECHTE
+ * Höhe weiter, auch wenn sie später wieder übersprungen wird.
+ */
+.karte {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--tab-kartenhoehe, 160px);
+}
+
+.breit {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .nurSchmal {
+    display: none;
+  }
+
+  .breit {
+    display: block;
+  }
+}

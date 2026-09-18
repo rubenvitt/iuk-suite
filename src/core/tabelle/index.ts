@@ -12,6 +12,7 @@
  */
 export { Datentabelle, type DatentabelleProps } from "./Datentabelle";
 export { Zellentext, type ZellentextProps } from "./Zellentext";
+export { Schmalkarten, NurSchmal, type SchmalkartenProps } from "./Schmalkarten";
 export { useEntprellt } from "./useEntprellt";
 export {
   breitenSumme,
