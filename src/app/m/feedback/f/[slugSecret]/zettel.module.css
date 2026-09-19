@@ -105,7 +105,20 @@
 .seite {
   background: var(--papier);
   color: var(--tinte);
-  min-height: 100%;
+  /* `100dvh` und NICHT `100%`: der Rahmen sitzt im `<main>` aus `f/layout.tsx`,
+     und das traegt bewusst keine Hoehenangabe. Die Elternhoehe ist damit
+     unbestimmt, und ein Prozentwert faellt darauf zurueck, gar nichts zu tun —
+     `html, body { height: 100% }` aus `globals.css` reicht nur bis zu diesem
+     Wrapper. Gemessen bei 390x844: Blatt 225px, Fenster 844px, Hintergrund des
+     Dokuments transparent; darunter malte der Browser seine eigene weisse
+     Leinwand, im Dunkelmodus als harte Kante. Es traf JEDEN kurzen Zustand
+     (C, D, E, F und Danke), nicht nur einen. Still wie Falle 5, und die Zahl
+     kennt nur ein echter Browser: jsdom rechnet keine Layoutboxen.
+     `dvh` statt `svh`/`lvh`: `svh` laesst eine Luecke, sobald die Browserleiste
+     einfaehrt, `lvh` erzwingt beim Laden einen Scrollbalken. Dieselbe Bauform
+     und dieselbe Begruendung wie `.fp-seite` in
+     `src/app/m/files/_ui/files-public.css` — dort stand sie zuerst (DRK-425). */
+  min-height: 100dvh;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
