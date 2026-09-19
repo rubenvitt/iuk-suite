@@ -147,3 +147,44 @@ export function nextStatusOnAccess(
   if (status === "active" && isExpired(closesAt, now)) return "closed";
   return status;
 }
+
+/**
+ * DARF DIESER GEPLANTE ABEND JETZT FREIGEGEBEN WERDEN? — eine reine Funktion,
+ * weil dieselbe Frage an ZWEI Stellen beantwortet werden muss: die Action
+ * entscheidet sie verbindlich, die Oberfläche entscheidet sie, um den Knopf
+ * gar nicht erst anzubieten. Zwei Fassungen liefen auseinander, und der
+ * sichtbare Teil wäre der falsche gewesen.
+ *
+ * Drei Ausgänge, und die beiden Riegel haben verschiedene Gründe:
+ *
+ * `zuFrueh` — vor dem Kalendertag des Dienstes. Die Freigabe setzt den Abend
+ * auf `held`, und das heißt überall „hat stattgefunden": ein Klick auf die
+ * falsche Zeile der Jahresplanung machte den Dezembertermin im September zum
+ * gelaufenen und schlösse dabei die tatsächlich laufende Umfrage.
+ *
+ * `abgelaufen` — die Frist des Abends ist schon vorbei. `computeClosesAt`
+ * ankert am ABENDDATUM, nicht am Klick; ein vergessener Termin von letzter
+ * Woche bekäme also eine Frist in der VERGANGENHEIT, und der erste öffentliche
+ * Aufruf faltete den Bogen sofort auf `closed` (`nextStatusOnAccess`).
+ * Herausgekommen wäre: die laufende Umfrage beendet, ein toter Bogen an ihrer
+ * Stelle, und eine Bestätigung, die „ab sofort kann geantwortet werden"
+ * versprochen hat. Lieber gar nicht freigeben — absagen, löschen oder das Datum
+ * korrigieren bleiben offen.
+ *
+ * ⚠️ „Abgelaufen" ist NICHT dasselbe wie „Tag vorbei", und der Unterschied ist
+ * der Alltagsfall: wer den Bogen am Morgen nach dem Dienstabend freigibt, ist
+ * spät dran, aber innerhalb der Frist (gemessen bei 48 Stunden: bis zwei Tage
+ * Rückstand offen, ab drei tot). Genau dafür gibt es die beiden getrennten
+ * Ausgänge statt eines einzigen Datumsvergleichs.
+ */
+export type Freigabelage = "ok" | "zuFrueh" | "abgelaufen";
+
+export function freigabelage(
+  eveningDate: Date,
+  closeAfterHours: number,
+  now: Date,
+): Freigabelage {
+  if (kalendertagInZone(eveningDate) > kalendertagInZone(now)) return "zuFrueh";
+  if (isExpired(computeClosesAt(eveningDate, closeAfterHours), now)) return "abgelaufen";
+  return "ok";
+}

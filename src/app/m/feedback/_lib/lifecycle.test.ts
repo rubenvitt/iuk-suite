@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeClosesAt,
+  freigabelage,
   isExpired,
   nextStatusOnAccess,
   DEFAULT_CLOSE_AFTER_HOURS,
@@ -113,5 +114,61 @@ describe("nextStatusOnAccess", () => {
     expect(nextStatusOnAccess("draft", null, now)).toBe("draft");
     expect(nextStatusOnAccess("closed", t("2020-01-01T00:00:00Z"), now)).toBe("closed");
     expect(nextStatusOnAccess("archived", null, now)).toBe("archived");
+  });
+});
+
+/**
+ * DIE FREIGABEREGEL — zwei Riegel mit verschiedenen Gründen, und der
+ * Unterschied zwischen ihnen ist der Alltagsfall.
+ */
+describe("freigabelage", () => {
+  const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  // Ein Zeitpunkt mitten am Tag, damit der Test nicht an einer Mitternachtskante
+  // hängt: 19:30 ist die Stunde, in der freigegeben wird.
+  const jetzt = new Date("2026-09-19T17:30:00Z");
+
+  it("lehnt einen Abend VOR seinem Kalendertag ab", () => {
+    // Die Freigabe setzt den Abend auf `held`, und das heißt überall „hat
+    // stattgefunden". Ein Klick auf die falsche Zeile der Jahresplanung machte
+    // den Dezembertermin im September zum gelaufenen — und schlösse dabei die
+    // tatsächlich laufende Umfrage.
+    expect(freigabelage(tag("2026-09-20"), 48, jetzt)).toBe("zuFrueh");
+    expect(freigabelage(tag("2026-12-10"), 48, jetzt)).toBe("zuFrueh");
+  });
+
+  it("erlaubt den Abend des heutigen Tages", () => {
+    // Der Normalfall: 19:30 am Abend des Dienstes.
+    expect(freigabelage(tag("2026-09-19"), 48, jetzt)).toBe("ok");
+  });
+
+  it("ERLAUBT den Morgen danach — der Tag ist vorbei, die Frist nicht", () => {
+    /*
+     * ⚠️ Der Fall, der die beiden Riegel überhaupt nötig macht. Ein einziger
+     * Datumsvergleich hätte hier abgelehnt, obwohl der Bogen noch zwei Tage
+     * offen ist: `computeClosesAt` rechnet Tagesende plus Frist, bei 48 Stunden
+     * also bis zwei Tage Rückstand.
+     */
+    expect(freigabelage(tag("2026-09-18"), 48, jetzt)).toBe("ok");
+    expect(freigabelage(tag("2026-09-17"), 48, jetzt)).toBe("ok");
+  });
+
+  it("lehnt einen vergessenen Termin ab, dessen Frist schon vorbei ist", () => {
+    /*
+     * Sonst entstünde ein TOTER Bogen: `computeClosesAt` ankert am Abenddatum,
+     * die Frist läge also in der Vergangenheit, und der erste öffentliche
+     * Aufruf faltete ihn sofort auf `closed`. Herausgekommen wäre: die laufende
+     * Umfrage beendet, nichts an ihrer Stelle, und eine Bestätigung, die „ab
+     * sofort kann geantwortet werden" versprochen hat.
+     */
+    expect(freigabelage(tag("2026-09-16"), 48, jetzt)).toBe("abgelaufen");
+    expect(freigabelage(tag("2026-09-12"), 48, jetzt)).toBe("abgelaufen");
+  });
+
+  it("verschiebt die Grenze mit der Fristlänge der Gruppe", () => {
+    // Die Regel liest die Frist, sie rechnet nicht mit 48 als Konstante — eine
+    // Gruppe mit 7 Tagen darf einen Abend von letzter Woche noch freigeben.
+    const vorSechsTagen = tag("2026-09-13");
+    expect(freigabelage(vorSechsTagen, 48, jetzt)).toBe("abgelaufen");
+    expect(freigabelage(vorSechsTagen, 24 * 7, jetzt)).toBe("ok");
   });
 });

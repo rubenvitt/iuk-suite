@@ -9,7 +9,7 @@ import type { SurveyRow } from "../../../_db/schema";
 import { guardPage } from "../../../_lib/guardPage";
 import { cockpitZustand } from "../../../_lib/cockpit";
 import { computeDAStats, verteilungJeFrage } from "../../../_lib/aggregation";
-import { DEFAULT_CLOSE_AFTER_HOURS } from "../../../_lib/lifecycle";
+import { DEFAULT_CLOSE_AFTER_HOURS, freigabelage } from "../../../_lib/lifecycle";
 import { buildToken } from "../../../_lib/token";
 import type { Question } from "../../../_lib/questions";
 import { T } from "../../../_ui/typo";
@@ -306,6 +306,27 @@ export default async function Cockpit({
             datum: abend.evening.date,
             thema: abend.evening.topic,
             notizen: abend.evening.notes,
+            /*
+             * Die Freigaberegel wird HIER gerechnet und als Wert übergeben, nicht
+             * in der Insel nachgebaut: die Zone kennt die Fristlänge der Gruppe
+             * nicht, und eine zweite Fassung der Regel wäre genau die, die dem
+             * Anwender angezeigt wird, während `freigebenAction` nach der ersten
+             * entscheidet. Begründung beider Ausgänge an `freigabelage`.
+             *
+             * ⚠️ DIESELBE DREISTUFIGE VORRANGREGEL WIE IN DER ACTION — Umfrage,
+             * dann Gruppe, dann Vorgabe. Ein geplanter Abend trägt normalerweise
+             * keine Umfrage, aber `releaseSurveyForEvening` deckt den Fall
+             * ausdrücklich ab (ein Altbestands-Entwurf an einem von Hand auf
+             * `planned` gesetzten Abend). Läge dort eine abweichende Frist, wäre
+             * nur die Gruppenfrist zu lesen der eine Fall, in dem Knopf und
+             * Action auseinanderlaufen: abgeschaltet, obwohl der Server annähme,
+             * oder bedienbar und dann werfend.
+             */
+            lage: freigabelage(
+              abend.evening.date,
+              abend.survey?.closeAfterHours ?? stunden,
+              jetzt,
+            ),
           }))}
           /*
            * ALLE Tage der Gruppe, nicht nur die geplanten: die Vorschau im

@@ -451,6 +451,47 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(wirt.textContent).toContain("Aushang");
   });
 
+  it("LIEST DIE FRIST DER UMFRAGE, wo es eine gibt — wie die Action", async () => {
+    /*
+     * ⚠️ DER EINE FALL, IN DEM KNOPF UND ACTION AUSEINANDERLAUFEN KÖNNTEN.
+     * `freigebenAction` folgt der dreistufigen Vorrangregel (Umfrage → Gruppe →
+     * Vorgabe); rechnete die Seite nur mit der Gruppenfrist, wäre der Knopf
+     * abgeschaltet, während der Server die Freigabe annähme — oder umgekehrt
+     * bedienbar und dann werfend.
+     *
+     * Ein geplanter Abend trägt normalerweise keine Umfrage. Der Fall ist
+     * trotzdem gedeckt, weil `releaseSurveyForEvening` ihn ausdrücklich
+     * behandelt: ein Altbestands-Entwurf an einem von Hand auf `planned`
+     * gesetzten Abend.
+     */
+    const vorFuenfTagen = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+    const geplant = insertEvening(db, {
+      groupId: 1,
+      date: tag(vorFuenfTagen),
+      topic: "Altbestand",
+      notes: null,
+      participantCount: null,
+      status: "planned",
+      createdAt: new Date(0),
+    });
+    // 14 Tage Frist an der UMFRAGE — mit der Gruppenvorgabe (48 h) wäre der
+    // Abend längst abgelaufen.
+    insertSurvey(db, {
+      eveningId: geplant.id,
+      questions: JSON.stringify(FRAGEN),
+      closeAfterHours: 24 * 14,
+      createdAt: new Date(0),
+    });
+
+    const wirt = await zeichne();
+    const knopf = [...wirt.querySelectorAll("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+    )!;
+
+    expect(knopf.hasAttribute("disabled")).toBe(false);
+    expect(wirt.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(0);
+  });
+
   it("STEHT BEI GENAU EINEM LAUFENDEN ABEND — obwohl die Tabelle dann leer ist", async () => {
     /*
      * ⚠️ DER NORMALFALL DIREKT NACH DEM ERSTEN START, und er hat mich einen
