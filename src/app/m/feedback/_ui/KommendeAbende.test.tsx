@@ -434,6 +434,45 @@ describe("KommendeAbende — Abend absagen", () => {
     expect(form!.querySelector<HTMLInputElement>("input[name='id']")!.value).toBe("42");
     expect(absagenActionMock).not.toHaveBeenCalled();
   });
+
+  /**
+   * EIN GEPLANTER ABEND HAT KEINE TEILNEHMERZAHL — und sie darf hier auch nicht
+   * EINTRAGBAR sein.
+   *
+   * ⚠️ WAS OHNE DIESE ZUSICHERUNG STILL FALSCH WIRD: die Zeile reicht
+   * `teilnehmer: null` durch, und das sieht nach „leer" aus — das Feld rendert
+   * und sendet aber unabhaengig vom Wert. Wer an einem Abend, der erst in sechs
+   * Wochen ist, eine Anwesenheit eintraegt, setzt damit den NENNER der
+   * Ruecklaufquote im Voraus. Nach der Freigabe ist diese geratene Zahl von
+   * einer gezaehlten nicht mehr zu unterscheiden, und die Quote darunter ist
+   * falsch, ohne je eine Meldung zu erzeugen. „Nachtragbar, nie geraten" steht
+   * unter dem Feld — im Voraus ist jede Zahl dort geraten.
+   *
+   * Die Gegenprobe, dass dasselbe Formular OHNE `geplant` das Feld sehr wohl
+   * zeigt und mitschickt, steht bei der Zone, der es gehoert
+   * (`Verlauf.test.tsx`, Block zur Zeilenbearbeitung). Hier waere sie nicht
+   * herstellbar: `KommendeAbende` fuehrt ausschliesslich geplante Abende.
+   */
+  it("laesst im Bearbeiten-Dialog eines geplanten Abends die Teilnehmerzahl weg", async () => {
+    await mount(zone([abend({ eveningId: 42, datum: "2026-08-05", thema: "Funkübung" })]));
+
+    await clickElement(await menuepunkt("Bearbeiten"));
+
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']")!;
+    expect(form.querySelector("input[name='participantCount']")).toBeNull();
+    // Auch der Satz darunter darf nicht stehenbleiben: er erklaert ein Feld,
+    // das es hier nicht gibt, und laese sich als „traegst du spaeter nach".
+    expect(form.textContent ?? "").not.toContain("Der Nenner der Rücklaufquote");
+    /*
+     * Die drei Felder, die bleiben — ohne sie waere die Zusicherung oben auch
+     * dann gruen, wenn der Dialog gar kein Formular mehr baute. Der Fall ist
+     * nicht theoretisch: weggelassen wird das Feld ueber eine Bedingung im
+     * Rumpf, und eine zu weit gezogene Bedingung naehme den Rest mit.
+     */
+    expect(form.querySelector("input[name='date']")).not.toBeNull();
+    expect(form.querySelector("input[name='topic']")).not.toBeNull();
+    expect(form.querySelector("input[name='notes']")).not.toBeNull();
+  });
 });
 
 /*

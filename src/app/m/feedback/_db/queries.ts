@@ -15,6 +15,7 @@ import {
 } from "./schema";
 import {
   computeClosesAt,
+  kalendertagInZone,
   type EveningStatus,
   type SurveyStatus,
 } from "@/app/m/feedback/_lib/lifecycle";
@@ -197,15 +198,20 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
  *    zusammenzuführen. Übersprungen wird auch ein bereits GELAUFENER Abend:
  *    dass an jenem Tag schon Feedback erhoben wurde, ist der stärkere Befund.
  *
- *    ⚠️ VERGLICHEN WIRD DER KALENDERTAG, NICHT DER ZEITSTEMPEL, und das ist
- *    gemessen, nicht vorsichtshalber. `evenings.date` SOLL Mitternacht UTC
- *    tragen — die Zusage steht im Schema —, aber der IMPORT erzwingt sie nicht:
- *    `toNewEvening` (`scripts/import/feedback.ts`) reicht den Alt-Zeitstempel
- *    durch, und die Fixture in `scripts/import/feedback.test.ts` führt genau so
- *    einen Abend (`2026-04-16 09:24:31`). Mit `getTime()` verglichen, hätte ein
- *    geplanter Termin desselben Tages diesen Abend NICHT getroffen — zwei
- *    Abende an einem Tag, also genau das, was diese Regel verhindern soll, und
- *    still.
+ *    ⚠️ VERGLICHEN WIRD DER KALENDERTAG IN `Europe/Berlin`, nicht der
+ *    Zeitstempel und nicht der UTC-Tag — beides gemessen, nicht
+ *    vorsichtshalber. `evenings.date` SOLL Mitternacht UTC tragen, aber der
+ *    IMPORT erzwingt das nicht: `toNewEvening` (`scripts/import/feedback.ts`)
+ *    reicht den Alt-Zeitstempel durch, und die Fixture in
+ *    `scripts/import/feedback.test.ts` führt so einen Abend
+ *    (`2026-04-16 09:24:31`). Mit `getTime()` verglichen, hätte ein geplanter
+ *    Termin desselben Tages ihn nicht getroffen. Und mit dem UTC-Tag
+ *    verglichen, fiele ein Abend aus der frühen Nacht auseinander:
+ *    `2026-04-16 00:30 +0200` steht als `2026-04-15T22:30Z` in der Datenbank —
+ *    in UTC der 15., auf jedem Bildschirm der Suite der 16. Die Entdopplung
+ *    liefe dann gegen einen Tag, den niemand sieht. `kalendertagInZone`
+ *    (`_lib/lifecycle.ts`) ist dieselbe Umrechnung, die auch die Vorschau im
+ *    Planungsdialog benutzt.
  * 2. **Alles oder nichts.** Eine halb angelegte Serie wäre schlimmer als keine —
  *    niemand sieht einer Liste an, wo sie abgebrochen ist.
  *
@@ -215,17 +221,6 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
  * `serienTermine` aus und zeigt die belegten Tage dort an (`_ui/KommendeAbende.tsx`,
  * `PlanenDialog`). Eine Meldung hinterher wäre die schlechtere Auskunft.
  */
-/**
- * Der Kalendertag eines gespeicherten Abends als `YYYY-MM-DD` in UTC. Bewusst
- * UTC und nicht `Europe/Berlin`: `evenings.date` IST als Mitternacht UTC gemeint
- * (Schema), und die Oberfläche rechnet ihren Tag mit derselben Annahme
- * (`_ui/datum.ts`, `tagInZone`). Eine zweite Zeitzone an dieser Stelle machte
- * aus einer Entdopplung eine Zeitzonenfrage.
- */
-function kalendertag(datum: Date): string {
-  return datum.toISOString().slice(0, 10);
-}
-
 export function planEvenings(
   db: DB,
   input: { groupId: number; dates: Date[]; topic: string | null; now: Date },
@@ -237,12 +232,12 @@ export function planEvenings(
         .from(evenings)
         .where(eq(evenings.groupId, input.groupId))
         .all()
-        .map((r) => kalendertag(r.date)),
+        .map((r) => kalendertagInZone(r.date)),
     );
     const angelegt: EveningRow[] = [];
     let uebersprungen = 0;
     for (const date of input.dates) {
-      const tag = kalendertag(date);
+      const tag = kalendertagInZone(date);
       if (belegt.has(tag)) {
         uebersprungen += 1;
         continue;
@@ -479,6 +474,36 @@ export function createAndStartSurvey(
       .get();
     return { eveningId: eve.id, surveyId: survey.id };
   });
+}
+
+/**
+ * DIE JÜNGSTE UMFRAGE DER GRUPPE — der Abend, an dem zuletzt erhoben wurde.
+ *
+ * ⚠️ NICHT „der jüngste Abend, und dann dessen Umfrage". Genau so stand es im
+ * öffentlichen Pfad, und seit es vorausgeplante Abende gibt, war es falsch: der
+ * jüngste Abend einer Gruppe liegt dann in der ZUKUNFT und trägt keine
+ * Umfrage. Der Teilnehmer, der eben auf einen gerade abgelaufenen Bogen
+ * abgesendet hat, bekam dadurch „Zurzeit läuft keine Umfrage" statt des
+ * beendeten Bogens, den er in der Hand hatte — die stille Wirkung, gegen die
+ * jener Weg gebaut ist.
+ *
+ * Der JOIN erledigt beides in einem Zug und ist zugleich gegen den abgesagten
+ * Abend robust, der ebenfalls nie eine Umfrage trägt: gefragt ist nicht „welcher
+ * Status?", sondern „wo wurde zuletzt erhoben?".
+ */
+export function latestSurveyForGroup(
+  db: DB,
+  groupId: number,
+): { survey: SurveyRow; evening: EveningRow } | undefined {
+  return (
+    db
+      .select({ survey: surveys, evening: evenings })
+      .from(surveys)
+      .innerJoin(evenings, eq(surveys.eveningId, evenings.id))
+      .where(eq(evenings.groupId, groupId))
+      .orderBy(desc(evenings.date))
+      .get() ?? undefined
+  );
 }
 
 export function activeSurveyForGroup(

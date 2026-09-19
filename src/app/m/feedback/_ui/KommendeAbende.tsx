@@ -263,12 +263,15 @@ function AbendZeile({
       </Popconfirm>
 
       <AbendBearbeiten
+        // `geplant` blendet die Teilnehmerzahl aus. Ein blosses `teilnehmer:
+        // null` taete das NICHT — das Feld rendert unabhaengig vom Wert, und
+        // eine im Voraus eingetragene Zahl waere nach der Freigabe der Nenner
+        // der Ruecklaufquote (Begruendung bei `AbendBearbeiten`).
+        geplant
         abend={{
           eveningId: abend.eveningId,
           datum: abend.datum,
           thema: abend.thema,
-          // Ein geplanter Abend hat noch keine Teilnehmer — und das Feld dafuer
-          // zeigt `AbendBearbeiten` nur, wenn es einen Wert gibt.
           teilnehmer: null,
           notizen: abend.notizen ?? null,
         }}

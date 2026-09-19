@@ -7,8 +7,7 @@ import {
   getGroupBySlug,
   activeSurveyForGroup,
   setSurveyStatus,
-  listEvenings,
-  getSurveyByEvening,
+  latestSurveyForGroup,
 } from "../../_db/queries";
 import type { EveningRow, GroupRow, SurveyRow } from "../../_db/schema";
 import { parseToken } from "../../_lib/token";
@@ -226,12 +225,19 @@ function ohneAktiveUmfrage(
   jetzt: Date,
   abgewiesen: boolean,
 ): ReactElement {
-  const abende = listEvenings(db, group.id);
-  const letzter = abende.reduce<EveningRow | undefined>(
-    (spitze, abend) => (!spitze || abend.date > spitze.date ? abend : spitze),
-    undefined,
-  );
-  const survey = letzter ? getSurveyByEvening(db, letzter.id) : undefined;
+  /*
+   * ⚠️ „DIE JÜNGSTE UMFRAGE", NICHT „DER JÜNGSTE ABEND UND DANN SEINE UMFRAGE".
+   * Hier stand die zweite Fassung, und seit es vorausgeplante Abende gibt
+   * (DRK-426), war sie still falsch: der jüngste Abend einer planenden Gruppe
+   * liegt in der ZUKUNFT und trägt keine Umfrage. Der ganze Block darunter fiel
+   * damit aus, und wer eben abgesendet hatte, bekam „Zurzeit läuft keine
+   * Umfrage" statt des Bogens, den er in der Hand hielt. Ein abgesagter Abend
+   * hätte dasselbe bewirkt. `latestSurveyForGroup` fragt deshalb nicht nach dem
+   * Status, sondern danach, wo zuletzt erhoben wurde.
+   */
+  const juengste = latestSurveyForGroup(db, group.id);
+  const letzter = juengste?.evening;
+  const survey = juengste?.survey;
   if (letzter && survey && (survey.status === "closed" || survey.status === "archived")) {
     if (abgewiesen || frischBeendet(survey, letzter, jetzt)) {
       return beendet(survey, letzter, abgewiesen ? ZUSATZ_GESCHLOSSEN : null);

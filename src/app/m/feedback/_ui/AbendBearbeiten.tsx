@@ -45,14 +45,32 @@ export type AbendFelder = {
 
 const FELD = { display: "flex", flexDirection: "column", gap: SPACE.xs } as const;
 
+/**
+ * EIN GEPLANTER ABEND HAT KEINE TEILNEHMERZAHL, und sie darf auch nicht
+ * eintragbar sein (DRK-426).
+ *
+ * ⚠️ `teilnehmer: null` REICHT DAFÜR NICHT — das Feld rendert und sendet
+ * unabhängig vom Wert, `null` macht es nur leer. Ohne diesen Schalter könnte
+ * jemand an einem Abend, der erst in sechs Wochen ist, eine Anwesenheit
+ * eintragen; nach der Freigabe wäre sie der NENNER der Rücklaufquote und von
+ * einer gezählten Zahl nicht mehr zu unterscheiden. „Nachtragbar, nie geraten"
+ * steht unter dem Feld — im Voraus ist jede Zahl dort geraten.
+ *
+ * Weggelassen statt gesperrt: `updateEveningAction` patcht nur, was
+ * mitgeschickt wurde, ein fehlendes Feld lässt den Wert also unberührt. Ein
+ * deaktiviertes Feld wäre ein sichtbares Versprechen auf später, das die Zeile
+ * nach der Freigabe ohnehin einlöst.
+ */
 export function AbendBearbeiten({
   abend,
   offen,
   schliessen,
+  geplant = false,
 }: {
   abend: AbendFelder;
   offen: boolean;
   schliessen: () => void;
+  geplant?: boolean;
 }) {
   // Ueber `datum.ts`, nicht `toISOString()`: die Vorbelegung eines Datumsfelds
   // kippt damit nicht auf den Vortag (§4.5).
@@ -80,24 +98,28 @@ export function AbendBearbeiten({
           <span style={T.kicker}>Datum</span>
           <Input type="date" name="date" defaultValue={isoTag} required />
           <span style={T.meta}>
-            Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit.
+            {geplant
+              ? "Der Abend bleibt geplant — das Feedback gibst du weiterhin einzeln frei."
+              : "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit."}
           </span>
         </label>
         <label style={FELD}>
           <span style={T.kicker}>Thema</span>
           <Input name="topic" defaultValue={abend.thema ?? ""} placeholder="z. B. Funkübung" />
         </label>
-        <label style={FELD}>
-          <span style={T.kicker}>Teilnehmerzahl</span>
-          <Input
-            type="number"
-            name="participantCount"
-            min={0}
-            defaultValue={abend.teilnehmer?.toString() ?? ""}
-            placeholder="optional"
-          />
-          <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
-        </label>
+        {!geplant && (
+          <label style={FELD}>
+            <span style={T.kicker}>Teilnehmerzahl</span>
+            <Input
+              type="number"
+              name="participantCount"
+              min={0}
+              defaultValue={abend.teilnehmer?.toString() ?? ""}
+              placeholder="optional"
+            />
+            <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
+          </label>
+        )}
         <label style={FELD}>
           <span style={T.kicker}>Notizen</span>
           <Input name="notes" defaultValue={abend.notizen ?? ""} placeholder="optional" />

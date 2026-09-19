@@ -22,6 +22,32 @@ export const DEFAULT_CLOSE_AFTER_HOURS = 48;
 /** Einzige Stelle für die Zeitzone der Fristberechnung (Spec-Entscheidung C). */
 export const TIME_ZONE = "Europe/Berlin";
 
+/**
+ * DER KALENDERTAG EINES ZEITPUNKTS als `YYYY-MM-DD` in `Europe/Berlin` — die
+ * EINE Stelle, an der diese Umrechnung steht.
+ *
+ * ⚠️ WARUM NICHT `toISOString().slice(0, 10)`: `evenings.date` SOLL Mitternacht
+ * UTC tragen, aber der Import erzwingt das nicht (`scripts/import/feedback.ts`,
+ * `toNewEvening` reicht den Alt-Zeitstempel durch). Ein Abend, der als
+ * `2026-04-16 00:30 +0200` importiert wurde, steht als `2026-04-15T22:30Z` in
+ * der Datenbank: in UTC ist das der 15., in Berlin — und damit überall, wo die
+ * Suite ihn anzeigt — der 16. Wer hier UTC nähme, entdoppelte gegen einen Tag,
+ * den niemand sieht.
+ *
+ * Hier und nicht in `_ui/datum.ts`, obwohl dort dieselbe Formatierung steht:
+ * `_db/queries.ts` braucht sie auch, und ein Import aus `_ui` in die
+ * Datenbankschicht kehrte die Richtung um. `datum.ts` greift deshalb hierher
+ * durch — zwei Formatierer wären zwei Wahrheiten über denselben Tag.
+ *
+ * `sv-SE` ist das einzige gängige Gebietsschema, dessen Kurzformat `YYYY-MM-DD`
+ * ist — also genau das, was `<input type="date">` als `value` verlangt.
+ */
+const ISO_TAG = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE });
+
+export function kalendertagInZone(datum: Date): string {
+  return ISO_TAG.format(datum);
+}
+
 /** Y/M/D von `date`, wie sie in `timeZone` lokal gesehen werden. */
 function localDateParts(
   date: Date,

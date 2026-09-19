@@ -1,4 +1,4 @@
-import { TIME_ZONE } from "../_lib/lifecycle";
+import { kalendertagInZone, TIME_ZONE } from "../_lib/lifecycle";
 
 /**
  * ZEITANGABEN DES MODULS AN EINER STELLE (Entwurf §2.3, §4.5).
@@ -75,7 +75,14 @@ const ABENDTAG = new Intl.DateTimeFormat("de-DE", {
 
 const WOCHENTAG = new Intl.DateTimeFormat("de-DE", { timeZone: TIME_ZONE, weekday: "long" });
 
-const ISO_TAG = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE });
+/*
+ * DIE FORMATIERUNG STEHT IN `_lib/lifecycle.ts` (`kalendertagInZone`) und nicht
+ * mehr hier: seit die Entdopplung der Serienplanung denselben Tag rechnet,
+ * braucht sie auch `_db/queries.ts`, und ein Import aus `_ui` in die
+ * Datenbankschicht kehrte die Richtung um. Zwei Formatierer wären zwei
+ * Wahrheiten über denselben Tag — und die Abweichung zeigte sich erst an einem
+ * importierten Abend mit Zeitanteil.
+ */
 
 /** „Mi., 22.07." — Abenddatum in Karten, Zeilen und Überschriften. */
 export function formatDatumKurz(datum: Date): string {
@@ -136,7 +143,7 @@ export function formatZeitpunkt(datum: Date): string {
 
 /** Heute in `Europe/Berlin` als `YYYY-MM-DD` — die Vorbelegung des Datumsfelds. */
 export function heuteInZone(jetzt: Date = new Date()): string {
-  return ISO_TAG.format(jetzt);
+  return kalendertagInZone(jetzt);
 }
 
 /**
@@ -147,7 +154,7 @@ export function heuteInZone(jetzt: Date = new Date()): string {
  * den Vortag), und `evenings.date` steht als Mitternacht UTC in der Datenbank.
  */
 export function tagInZone(datum: Date): string {
-  return ISO_TAG.format(datum);
+  return kalendertagInZone(datum);
 }
 
 /**
