@@ -41,6 +41,11 @@ export const TIME_ZONE = "Europe/Berlin";
  *
  * `sv-SE` ist das einzige gängige Gebietsschema, dessen Kurzformat `YYYY-MM-DD`
  * ist — also genau das, was `<input type="date">` als `value` verlangt.
+ *
+ * ⚠️ DIESES MODUL DARF DESHALB NIE `"use client"` TRAGEN. Es wird von
+ * `_db/queries.ts` in einer Server Component gelesen; als Client-Modul markiert,
+ * käme eine Client-Referenz statt des Wertes an (CLAUDE.md, Falle 6) — HTTP 500
+ * für die ganze Seite, und weder `build` noch Vitest sehen es.
  */
 const ISO_TAG = new Intl.DateTimeFormat("sv-SE", { timeZone: TIME_ZONE });
 

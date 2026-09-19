@@ -796,6 +796,20 @@ describe("latestSurveyForGroup", () => {
     expect(latestSurveyForGroup(db, g.id)?.survey.id).not.toBe(alt.id);
   });
 
+  it("entscheidet bei ZWEI Abenden am selben Tag für die jüngere Umfrage", () => {
+    // Der Gleichstand ist selten, aber herstellbar: `planEvenings` entdoppelt
+    // nur den Planungsweg, „Feedback starten" prüft den Tag gar nicht. Ohne ein
+    // zweites Sortierkriterium entschiede die Zeilenreihenfolge von SQLite,
+    // welchen der beiden Bögen der Teilnehmer auf dem öffentlichen Zettel
+    // sieht — stumm, und von Lauf zu Lauf verschieden.
+    const g = mkGroup();
+    const zuerst = umfrage(abend(g.id, "2026-10-06").id);
+    const danach = umfrage(abend(g.id, "2026-10-06").id);
+
+    expect(latestSurveyForGroup(db, g.id)?.survey.id).toBe(danach.id);
+    expect(latestSurveyForGroup(db, g.id)?.survey.id).not.toBe(zuerst.id);
+  });
+
   it("trennt die Gruppen — ein fremder Abend mit späterem Datum zählt nicht", () => {
     // Ohne den Gruppenfilter zeigte der öffentliche Zettel einer Bereitschaft
     // das Thema einer anderen. Der Link ist login-frei, also wäre das eine

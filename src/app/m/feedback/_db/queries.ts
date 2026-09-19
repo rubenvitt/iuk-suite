@@ -490,6 +490,14 @@ export function createAndStartSurvey(
  * Der JOIN erledigt beides in einem Zug und ist zugleich gegen den abgesagten
  * Abend robust, der ebenfalls nie eine Umfrage trägt: gefragt ist nicht „welcher
  * Status?", sondern „wo wurde zuletzt erhoben?".
+ *
+ * ⚠️ ZWEITES SORTIERKRITERIUM, WEIL DAS ERSTE NICHT EINDEUTIG IST. Zwei Abende
+ * am selben Tag sind selten, aber möglich: `planEvenings` entdoppelt nur den
+ * Planungsweg, `createAndStartSurvey` prüft den Tag überhaupt nicht. Ohne
+ * `surveys.id` läge die Entscheidung, welcher der beiden Bögen dem Teilnehmer
+ * gezeigt wird, bei der Zeilenreihenfolge von SQLite — stumm und von Lauf zu
+ * Lauf verschieden. Die jüngere Umfrage gewinnt; das ist dieselbe Regel, nach
+ * der das Cockpit bei mehreren aktiven die jüngste Aktivierung führt.
  */
 export function latestSurveyForGroup(
   db: DB,
@@ -501,7 +509,7 @@ export function latestSurveyForGroup(
       .from(surveys)
       .innerJoin(evenings, eq(surveys.eveningId, evenings.id))
       .where(eq(evenings.groupId, groupId))
-      .orderBy(desc(evenings.date))
+      .orderBy(desc(evenings.date), desc(surveys.id))
       .get() ?? undefined
   );
 }

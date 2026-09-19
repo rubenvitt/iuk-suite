@@ -1406,6 +1406,43 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
   });
 
+  it("NIMMT AN EINEM GEPLANTEN ABEND KEINE TEILNEHMERZAHL an — auch mitgeschickt nicht", async () => {
+    // Die Oberfläche lässt das Feld dort weg, aber eine Zusage, die nur im
+    // Client gilt, ist keine: ein handgebauter POST trüge die Zahl ein, und
+    // nach der Freigabe wäre sie der Nenner der Rücklaufquote — von einer
+    // gezählten Zahl nicht mehr zu unterscheiden. Das Thema muss trotzdem
+    // durchgehen, sonst hätte der Riegel die ganze Bearbeitung mit erledigt.
+    const { updateEveningAction } = await loadActions();
+    const group = insertGroup(db, {
+      name: "Bereitschaft",
+      slug: "bereitschaft",
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+    const evening = insertEvening(db, {
+      groupId: group.id,
+      date: todayMidnightUtc(),
+      topic: "Kartenkunde",
+      notes: null,
+      participantCount: null,
+      status: "planned",
+      createdAt: new Date(),
+    });
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(evening.id));
+    f.set("participantCount", "18");
+    f.set("topic", "Funkübung");
+    await updateEveningAction(f);
+
+    const nachher = getEvening(db, evening.id)!;
+    expect(nachher.participantCount).toBeNull();
+    expect(nachher.topic).toBe("Funkübung");
+    expect(nachher.status).toBe("planned");
+  });
+
   it("neues Datum bei laufender Umfrage: closesAt kommt aus computeClosesAt(neuesDatum, h)", async () => {
     const { updateEveningAction } = await loadActions();
     const { survey } = seedActiveSurvey("bereitschaft", "abc12", 0, 48);
