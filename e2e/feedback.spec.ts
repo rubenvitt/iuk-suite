@@ -417,6 +417,14 @@ test("geteiltes Gerät: nach der Abgabe „Leeren Bogen öffnen“ → zweite Ab
   await page.locator("[data-absenden]").first().click();
   await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
 
+  // Die Danke-Seite sagt nur noch danke — kein Weitergabe-Abschnitt mehr. Wer
+  // das Handy reicht, ruft den Link erneut auf und landet in Zustand E.
+  await expect(page.getByRole("button", { name: "Leeren Bogen öffnen" })).toHaveCount(0);
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await expect(
+    page.getByRole("heading", { name: "Von diesem Gerät ist schon eine Rückmeldung abgegeben." }),
+  ).toBeVisible();
+
   // Das Dedup-Cookie `feedback-{surveyId}` steht jetzt. Der Knopf loescht es
   // (nativer `<form action>`, kein Client-Wrapper) und fuehrt zurueck.
   await page.getByRole("button", { name: "Leeren Bogen öffnen" }).click();
@@ -791,3 +799,68 @@ test.describe("mobil (390×844) — das Cockpit", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 });
+
+/**
+ * DER PAPIERTON LAEUFT BIS ZUR FENSTERKANTE (DRK-425).
+ *
+ * Der Rahmen `.seite` stand auf `min-height: 100%`, sass aber im `<main>` aus
+ * `f/layout.tsx`, das bewusst keine Hoehenangabe traegt: die Elternhoehe ist damit
+ * unbestimmt, und ein Prozentwert faellt darauf zurueck, gar nichts zu tun. Gemessen
+ * bei 390x844 endete der Papierton nach 225px, darunter malte der Browser seine
+ * eigene weisse Leinwand — im Hellmodus kaum zu sehen, im Dunkelmodus eine harte
+ * Kante. Es traf JEDEN kurzen Zustand (C, D, E, F und Danke), nicht nur einen.
+ *
+ * ⚠️ NUR EIN ECHTER BROWSER SIEHT DAS. jsdom rechnet keine Layoutboxen
+ * (`getBoundingClientRect()` liefert Nullen) und wertet `dvh` nicht aus, `typecheck`
+ * prueft eine gueltige Laengenangabe und `build` serialisiert sie klaglos — es gibt
+ * keinen Vitest-Fall, der diese Zusicherung tragen koennte.
+ *
+ * ZUSTAND F ist der Pruefstand, weil er der KUERZESTE ist: er braucht keinen Seed und
+ * keine Umfrage, und was bei ihm haelt, haelt bei jedem laengeren Zustand erst recht.
+ * Gemessen wird die WIRKUNG (deckt der Rahmen das Fenster?) und nicht der Regeltext —
+ * ein Quelltext-Scan ueber die CSS-Datei koennte strukturell nicht sehen, ob die Regel
+ * den Baum trifft, auf den sie zielt.
+ */
+test.describe("Abendzettel: keine weisse Flaeche unter dem Blatt", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("der Rahmen deckt das Fenster, hell wie dunkel", async ({ page }) => {
+    await page.goto(`${FEEDBACK}/f/gibtsnicht-abc12`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Dieser Link stimmt nicht." }),
+    ).toBeVisible();
+
+    const hell = await rahmenmass(page);
+    // Mit `min-height: 100%` waren es 225 von 844 — der Fall hat Zaehne.
+    expect(hell.rahmen).toBeGreaterThanOrEqual(hell.fenster);
+    // Hoehe allein genuegt nicht: ein durchsichtiger Rahmen deckt nichts.
+    expect(hell.grund).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+
+    /*
+     * Im Dunkelmodus ist die Kante sichtbar, nicht nur messbar — deshalb ueber das
+     * Attribut, das die Suite auch im Betrieb setzt (`data-theme` traegt IMMER den
+     * aufgeloesten Wert, nie `auto`).
+     */
+    await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+    const dunkel = await rahmenmass(page);
+    expect(dunkel.rahmen).toBeGreaterThanOrEqual(dunkel.fenster);
+    expect(dunkel.grund).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+    // Und es ist wirklich der Dunkelmodus, nicht zweimal dieselbe Messung.
+    expect(dunkel.grund).not.toBe(hell.grund);
+  });
+});
+
+/** Hoehe, Fensterhoehe und Hintergrund des Seitenrahmens — in einem Durchgang. */
+async function rahmenmass(page: Page) {
+  const gemessen = await page.evaluate(() => {
+    const rahmen = document.querySelector("main > div") as HTMLElement | null;
+    if (!rahmen) return null;
+    return {
+      rahmen: rahmen.getBoundingClientRect().height,
+      fenster: window.innerHeight,
+      grund: getComputedStyle(rahmen).backgroundColor,
+    };
+  });
+  expect(gemessen, "kein Seitenrahmen unter <main> gefunden").not.toBeNull();
+  return gemessen as { rahmen: number; fenster: number; grund: string };
+}

@@ -20,8 +20,8 @@ import { buildTheme } from "./theme";
  * `select`) steht bewusst OHNE `:root` in `globals.css` — Spezifitaet (0,0,1),
  * schwaecher als jede einzelne Modul-Klasse (0,1,0). Eine fruehere Fassung
  * stand auf `:root input` (0,1,1) und ueberstimmte damit `.textfeld` im
- * Abendzettel, der bewusst auf 18px steht (zettel.module.css:628) — ein
- * Fix-Runde-1-Fund. Die einzige Ausnahme ist das antd-Auswahlfeld: antds eigene
+ * Abendzettel, der bewusst auf 18px steht (`zettel.module.css`, Regel
+ * `.textfeld`) — ein Fix-Runde-1-Fund. Die einzige Ausnahme ist das antd-Auswahlfeld: antds eigene
  * `.ant-select`-Regel muss geschlagen werden, dafuer braucht sie `:root`.
  *
  * ⚠️ DIESE AUSNAHME HIESZ BIS DRK-190 `.ant-select-selector` — eine Klasse, die
@@ -163,8 +163,8 @@ describe("Feldschrift — 16px als Suite-Untergrenze", () => {
 
   it("regressiert nicht: .textfeld im Abendzettel schlaegt die globale 16px-Regel und bleibt bei 18px", () => {
     // Fix-Runde-1-Fund: `:root textarea` (0,1,1) schlug `.textfeld` (0,1,0) im
-    // Zettel und zwang das bewusst auf 18px gesetzte Feld
-    // (zettel.module.css:628) auf 16px herunter. Der Kommentar im Ur-Brief
+    // Zettel und zwang das bewusst auf 18px gesetzte Feld (`zettel.module.css`,
+    // Regel `.textfeld`) auf 16px herunter. Der Kommentar im Ur-Brief
     // behauptete das Gegenteil — er war falsch, nicht die Umsetzung.
     const css = CSS_GLOBAL.replace(/\/\*[\s\S]*?\*\//g, "");
     // Kein :root (oder sonstiger Praefix) vor textarea — sonst schlaegt die
