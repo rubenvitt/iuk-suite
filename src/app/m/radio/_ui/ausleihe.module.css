@@ -393,7 +393,7 @@
  * Geraetezeile ist kein antd-Bedienelement; `controlHeight` deckt nur die HOEHE von
  * Bedienelementen ab, und `min-width` setzt antd ohnehin nicht. Eine zweite
  * `ConfigProvider`-Ebene waere eine Client-Komponente und machte den Server-Rahmen zur
- * Client-Grenze (`AusleihRahmen.tsx:43-45`).
+ * Client-Grenze (`AusleihRahmen.tsx`, Kopf, Entscheidung E8).
  *
  * ⛔ DIE ZWEI MASSE SIND 44 UND 64, UND SONST KEINES (Spec:3724-3726). 64 traegt die
  * Geraetezeile — der Haupt-Tap mit Handschuh (Spec:3713, im Bestand 56,

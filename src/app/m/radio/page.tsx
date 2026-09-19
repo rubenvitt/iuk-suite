@@ -21,7 +21,7 @@ import s from "./_ui/ausleihe.module.css";
  * `src/app/m/radio/page.tsx` und `(ausleihe)/page.tsx` loesten BEIDE auf `/m/radio` auf —
  * eine Route-Group aendert die URL nicht, und Next lehnt das beim Build ab. Und laege `/`
  * unter `(ausleihe)/layout.tsx`, das `requireAusleihZugang` ruft, liefe die Anfrage im
- * Kreis: jene leitet bei fehlendem Cookie auf `/` um (`_lib/ausleihZugang.ts:239`).
+ * Kreis: jene leitet bei fehlendem Cookie auf `/` um (`_lib/ausleihZugang.ts`, `requireAusleihZugang`).
  *
  * ⛔ RIEGELFORM, VERBINDLICH (§3.5.5, Spec:2767): `requireRadioHost(await headers())` UND
  * `ausleihZugangOderNull(getDb())` — NIEMALS `requireAusleihZugang`. Auf DIESER Seite ist

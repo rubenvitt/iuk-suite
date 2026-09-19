@@ -78,7 +78,7 @@ export function NotizFeld({ geraetId, anmerkung, rolle }: NotizFeldProps) {
     /*
       ⛔ EIN `div` STATT `Space direction="vertical" size={8}` (`UpdateNotePanel.tsx:28`): der
       Abstand steht im Stylesheet, weil `size=` auf einem antd-Bauteil modulweit verboten ist
-      (Falle 4, durchgesetzt von `_ui/AusleihRahmen.test.tsx:196-215` ueber JEDE `.tsx` des
+      (Falle 4, durchgesetzt von `_ui/AusleihRahmen.test.tsx`, `quellDateien` ueber JEDE `.tsx` des
       Moduls — gemessen rot, als hier noch `size={8}` stand).
     */
     <div className={s.notizFeld}>

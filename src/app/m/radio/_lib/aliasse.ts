@@ -61,7 +61,7 @@
  * `radio-admin`. ⛔ `/` bedient dahinter etwas anderes als frueher (das Gate statt der
  * Bestandsliste), und ein alter, gedruckter QR mit `?token=` landet dort STILL im leeren
  * Codefeld (Bericht §1.5). Das ist entschieden und zweifach bewacht
- * (`_lib/ausleihZugang.test.ts:535-540`); die Abhilfe ist betrieblich — die gedruckten Codes
+ * (`_lib/ausleihZugang.test.ts`, Block „keine dritte Quelle“); die Abhilfe ist betrieblich — die gedruckten Codes
  * einsammeln —, nicht technisch. Ein Alias kann daran nichts richten.
  * ⚠️ UEBERHOLT AM 2026-08-28: `_lib/altToken.ts` uebersetzt `?token=` am Gate auf `/t/<code>`,
  * befristet ueber `RADIO_ALT_TOKEN_BIS`. Ohne gesetzte Variablen gilt der Absatz oben weiter.

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
  * §3.4.5 (Zeilen 2572-2614). Aeusserer Pfad `/abmelden`.
  *
  * ⚠️ ⛔ ES MUSS EIN ROUTE HANDLER SEIN, und das ist gemessen, nicht Geschmack:
- * `requireAusleihZugang` (`_lib/ausleihZugang.ts:236`) wird aus `(ausleihe)/layout.tsx`
+ * `requireAusleihZugang` (`_lib/ausleihZugang.ts`, `requireAusleihZugang`) wird aus `(ausleihe)/layout.tsx`
  * gerufen, und das ist eine SERVER COMPONENT. `cookies()` ist dort versiegelt — `delete`,
  * `set` und `clear` sind durch einen Proxy ersetzt, der WIRFT
  * (`next/dist/server/web/spec-extension/adapters/request-cookies.js:53` traegt den Satz

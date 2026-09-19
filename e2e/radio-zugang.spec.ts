@@ -179,28 +179,29 @@ import { E2E_CODE_GESPERRT, RADIO_HOST, radioUrl } from "./helpers/radio";
  * SECHS Mutationssonden — nachgezaehlt, nicht geschaetzt —, je eine Zeile im Produktcode
  * entfernt und danach ein Lauf dieser Datei. ⛔ KEINE ergab 0 rot:
  *
- *   | entfernte Zeile                                          | rot           |
- *   |----------------------------------------------------------|---------------|
- *   | `ausleihZugang.ts:181` — die `!zeile.aktiv`-Haelfte       | Fall 4, Fall 5|
- *   | `codeEinloesung.ts:64` — die `!zeile.aktiv`-Haelfte       | Fall 3        |
- *   | `_actions/ausleihe.ts:124-142` — der Schreibpfad-Riegel   | Fall 5        |
- *   | `_actions/ausleihe.ts:178` — der Name statt der Kennung   | Fall 2        |
- *   | `ausleihZugang.ts:240` — der Umweg ueber `/abmelden`      | Fall 4        |
- *   | `abmelden/route.ts:103` — die Raeumung des Cookies        | Fall 4        |
+ *   | entfernte Zeile                                                          | rot            |
+ *   |--------------------------------------------------------------------------|----------------|
+ *   | `ausleihZugang.ts`, `befund` Schritt 5 — die `!zeile.aktiv`-Haelfte      | Fall 4, Fall 5 |
+ *   | `codeEinloesung.ts`, `loeseCodeEin` — die `!zeile.aktiv`-Haelfte         | Fall 3         |
+ *   | `_actions/ausleihe.ts`, `ausleiheAnlegen`s `!schreibend.ok`-Riegel       | Fall 5         |
+ *   | `_actions/ausleihe.ts`, `ausleiheAnlegen`s `FELD_ENTLEIHER`-Lesung       | Fall 2         |
+ *   | `ausleihZugang.ts`, `requireAusleihZugang` — der Umweg ueber `/abmelden` | Fall 4         |
+ *   | `abmelden/route.ts`, das `ausleihCookieOptionen(0)`-Loeschen             | Fall 4         |
  *
  * ⚠️ DIE LETZTE STEHT NICHT IM AUFGABENBRIEF und ist trotzdem noetig: die Sonde auf
- * `ausleihZugang.ts:240` faerbt Fall 4 schon an HOP 1 — also bevor die
+ * `ausleihZugang.ts`, `requireAusleihZugang` faerbt Fall 4 schon an HOP 1 — also bevor die
  * `Max-Age=0`-Zusicherung ueberhaupt gelesen wird — und sagt ueber sie deshalb nichts.
  *
  * ⛔ EINE ABWEICHUNG VOM AUFGABENBRIEF, UND SIE IST GEMESSEN, NICHT BEHAUPTET. Der Brief
  * (`.superpowers/sdd/planteil5/briefs/T3.md`, Sonde S-T3a) erwartet, dass die
  * `!zeile.aktiv`-Haelfte in `_lib/ausleihZugang.ts` FALL 3 rot macht. Das kann sie
  * strukturell nicht: Fall 3 tippt einen gesperrten Code ins Gate-Feld, und dieser Weg laeuft
- * ueber `einloesenAmGate` → `loeseCodeEin` (`_actions/gate.ts:115`) —
+ * ueber `einloesenAmGate` (`_actions/gate.ts`) → `loeseCodeEin` —
  * `_lib/ausleihZugang.ts` liegt gar nicht auf ihm. Der Riegel, den FALL 3 bewacht, steht in
- * `_lib/schreibpfade/codeEinloesung.ts:64`; die Zeile in `ausleihZugang.ts:181` bewacht den
+ * `_lib/schreibpfade/codeEinloesung.ts`, `loeseCodeEin`s Doppeltest `!zeile || !zeile.aktiv`;
+ * die gleichlautende Zeile in `ausleihZugang.ts`, `befund` Schritt 5, bewacht den
  * LESEPFAD, und der ist Fall 4 (plus Fall 5, weil `requireAusleihSchreibend` denselben Rumpf
- * `befund` benutzt, `ausleihZugang.ts:265`). ⛔ FALL 3 IST DESHALB NICHT AUF DIE ANDERE ZEILE
+ * `befund` benutzt). ⛔ FALL 3 IST DESHALB NICHT AUF DIE ANDERE ZEILE
  * UMGEBAUT WORDEN: die Zusage aus Spec:6819 („benannte deutsche Meldung AM FELD") ist
  * genau die Gate-Meldung, und ein Umbau haette sie gegen eine Umleitungskette getauscht.
  * ⚠️ Beide Zeilen SIND bewacht — nur von den Faellen, auf deren Pfad sie liegen.
@@ -248,7 +249,7 @@ function schreibend<T>(arbeit: (db: Database.Database) => T): T {
 
 /**
  * Die Codezeile, so wie der Riegel sie sieht: ueber den PRIMAERSCHLUESSEL wird
- * nachgeschlagen (`_lib/ausleihZugang.ts:180`), hier ueber `code`, weil der Test den
+ * nachgeschlagen (`_lib/ausleihZugang.ts`, `befund` Schritt 5), hier ueber `code`, weil der Test den
  * Klartext hat und die `id` erst sucht.
  *
  * ⚠️ `aktiv` KOMMT ALS ZAHL, NICHT ALS `boolean`: Drizzles `mode: "boolean"`
@@ -429,7 +430,7 @@ test.describe("radio-Zugang", () => {
     /*
      * Die Kennung, die der Server aus dieser Anmeldung baut: `dev:${email}`
      * (`src/core/auth/config.ts:63`). Sie ist der `sub` der Suite-Sitzung und damit genau
-     * der Wert, den `_lib/ausleihZugang.ts:150` als `weg: "suite"` fuehrt.
+     * der Wert, den `_lib/ausleihZugang.ts`, `befund` Schritt 2 als `weg: "suite"` fuehrt.
      */
     const kennung = `dev:${email}`;
 
@@ -449,7 +450,7 @@ test.describe("radio-Zugang", () => {
      * „Code aktiv/gesperrt"-Messung der drei anderen Faelle, weil dieser Fall gar keinen
      * Code benutzt, und sie ist die tragende: laege ein `radio_ausleihe` im Kontext, ginge
      * `befund` zwar TROTZDEM ueber die Suite-Sitzung herein (Schritt 2 steht vor Schritt 3,
-     * `_lib/ausleihZugang.ts:148-155`) — aber der Fall koennte das nicht mehr belegen, und
+     * `_lib/ausleihZugang.ts`, `befund`) — aber der Fall koennte das nicht mehr belegen, und
      * die Zusage „ohne Code" waere unbewiesen.
      */
     const kekse = await page.context().cookies();
@@ -712,7 +713,7 @@ test.describe("radio-Zugang", () => {
      * ══════ HOP 1 — der Lesepfad weist ab, UEBER den Abmelde-Handler ══════
      *
      * ⛔ DAS IST DER RIEGEL IM LESEPFAD BEI EINEM ECHTEN ABRUF. Er sitzt im gemeinsamen
-     * Rumpf `befund`, Schritt 5 (`_lib/ausleihZugang.ts:180-181`), und ist die einzige
+     * Rumpf `befund`, Schritt 5 (`_lib/ausleihZugang.ts`, `befund` Schritt 5), und ist die einzige
      * Widerrufsmechanik des Moduls: „ein signiertes Cookie kann man nicht zurueckrufen, eine
      * Datenbankzeile schon." Ohne ihn saehe ein gesperrter Code bis zu zwoelf Stunden weiter
      * den gesamten Geraetebestand samt Entleihernamen.
@@ -724,7 +725,7 @@ test.describe("radio-Zugang", () => {
     const zuAbmelden = hop1.headers()["location"];
     /*
      * ⛔ DER BENANNTE GRUND GEHOERT DAZU. `requireAusleihZugang` unterscheidet „gesperrt" von
-     * „abgelaufen" (`_lib/ausleihZugang.ts:240`), und `_lib/gateTexte.ts:63-67` schreibt aus,
+     * „abgelaufen" (`_lib/ausleihZugang.ts`, `requireAusleihZugang`), und `_lib/gateTexte.ts:63-67` schreibt aus,
      * warum: der eine Satz sagt „unbekannt ODER gesperrt", der andere „wir wissen es genau".
      * Ein `/abmelden` ohne `?grund=` verloere die Auskunft am Gate.
      * ⛔ UND DIESE ZEILE IST DIE, DIE DEN UMWEG ERZWINGT: eine blosse Endadressen-Pruefung
@@ -796,7 +797,7 @@ test.describe("radio-Zugang", () => {
      *
      * ⛔ DAS IST DIE PROBE AUFS EXEMPEL DER RAEUMUNG, und sie ist staerker als jede
      * Kopfzeilen-Zusicherung: `requireAusleihZugang` nimmt den Umweg ueber `/abmelden` NUR,
-     * wenn ein Cookie DA WAR (`_lib/ausleihZugang.ts:239-240`, `hatteCookie`). Fehlt es,
+     * wenn ein Cookie DA WAR (`_lib/ausleihZugang.ts`, `requireAusleihZugang`, `hatteCookie`). Fehlt es,
      * geht die Umleitung unmittelbar aufs Gate — „auf einem Telefon ist das eine Runde statt
      * zwei". Landet dieser Aufruf wieder auf `/abmelden`, hat das `Max-Age=0` oben nicht
      * gewirkt, obwohl die Kopfzeile es zusagte.
@@ -837,7 +838,7 @@ test.describe("radio-Zugang", () => {
      * (Fall 4) schickte einen schon gesperrten Zugang gar nicht erst auf diese Flaeche. Was
      * Fall 5 misst, ist die Lage „das Formular steht bereits ausgefuellt, und dazwischen wird
      * gesperrt" — genau der Fall, fuer den `requireAusleihSchreibend` NICHT umleitet, sondern
-     * zurueckgibt (`_lib/ausleihZugang.ts:246-250`: ein `redirect()` „verwuerfe die
+     * zurueckgibt (`_lib/ausleihZugang.ts`, `requireAusleihZugang`s `redirect`: ein `redirect()` „verwuerfe die
      * eingetragenen Werte: der Mensch haette vier Geraete und einen Namen eingegeben und
      * faende ein leeres Formular vor").
      */

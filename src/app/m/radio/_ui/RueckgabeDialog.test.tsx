@@ -577,7 +577,7 @@ describe("radio-RueckgabeDialog: die Inline-Erneuerung (Zusage 3.10 Nr. 8)", () 
  * Kommentare weg, bevor `s.<name>` gesucht wird.
  *
  * ⛔ DRITTE KOPIE, UND SIE BRAUCHT IHRE BEGRUENDUNG: `_lib/quelltextScan.ts:61-81` exportiert
- * nichts, `_ui/AusleihRahmen.test.tsx:90-113` ist ein anderer Testkoerper. Diese Fassung ist
+ * nichts, `_ui/AusleihRahmen.test.tsx`, `ohneKommentare` ist ein anderer Testkoerper. Diese Fassung ist
  * die KURZE — ein Blockschnitt ueber die ganze Datei plus die Zeilen, die mit `//` beginnen.
  * ⚠️ SIE IST GEMESSEN GLEICHWERTIG, NICHT GERATEN: gegen die zeilenweise Fassung aus
  * `AusleihRahmen.test.tsx` ergibt sie fuer beide Portal-Quellen dieselbe Klassenmenge. Der

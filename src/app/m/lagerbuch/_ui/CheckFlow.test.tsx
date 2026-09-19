@@ -1246,6 +1246,106 @@ describe("CheckFlow — der Abschluss und seine Rueckmeldung (§7.9.4)", () => {
     expect(t).not.toContain("konnten nur");
   });
 
+  /**
+   * DRK-194 (c) — DIE FUSSNOTE HATTE EINEN ORT UND KEINEN TEST.
+   *
+   * ⛔ GETESTET WAR NUR DER CHIP DANEBEN („2 fehlt weiterhin"), und der ist die
+   * ZAHL. Die Fussnote ist die HANDLUNGSANWEISUNG — sie sagt, woran es lag (das
+   * Handlager hatte nicht genug) und was jetzt zu tun ist (der Verwaltung
+   * melden). Faellt sie weg, bleibt eine Zahl ohne Adressat stehen: die Person
+   * am Fahrzeug sieht, dass etwas fehlt, und erfaehrt nicht, dass sie es
+   * weitergeben muss.
+   *
+   * ⚠️ NICHT MIT DER NACHBARFUSSNOTE ZU VERWECHSELN („konnten nur … gebucht
+   * werden. Das Handlager war zwischenzeitlich leer"): die haengt an
+   * `nachfuellBestaetigt > nachgefuellt` und meint einen anderen Vorgang —
+   * bestaetigt, aber nicht buchbar. Diese hier haengt an `offen > 0` und meint
+   * „fehlt weiterhin". Der Fall unten haelt beide auseinander.
+   */
+  it("nennt bei offenen Teilen den Grund UND den Adressaten, nicht nur die Zahl", async () => {
+    abschluss.mockResolvedValue({
+      ok: true,
+      wert: {
+        checkId: "c1",
+        // ⛔ `nachgefuellt === nachfuellBestaetigt`: so bleibt die NACHBARfussnote
+        // stumm und der Fall misst die hiesige allein.
+        nachgefuellt: 1,
+        nachfuellBestaetigt: 1,
+        offen: 2,
+        geraeteAuffaellig: 0,
+        flaschenAuffaellig: 0,
+        flaschenNichtBewertbar: 0,
+        verfallAuffaellig: 0,
+      },
+    });
+    await mount(
+      <CheckFlow
+        kontoZugang={false}
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[GERAET]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await alleBestaetigen();
+    await click(WEITER);
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+
+    const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
+    expect(t).toContain("Das Handlager hatte nicht genug.");
+    expect(t).toContain("bitte der Verwaltung melden");
+    // Die Nachbarfussnote gehoert einem anderen Vorgang und darf hier nicht stehen.
+    expect(t).not.toContain("zwischenzeitlich leer");
+  });
+
+  it("und schweigt, wenn nichts offen bleibt", async () => {
+    /*
+     * ⚠️ DIE GEGENPROBE, ohne die der Fall darueber auch ueber einer Karte gruen
+     * waere, die den Satz IMMER zeigt. „Das Handlager hatte nicht genug" unter
+     * einem vollstaendigen Check waere eine Meldung, der jemand nachgeht — und
+     * zwar vergeblich.
+     */
+    abschluss.mockResolvedValue({
+      ok: true,
+      wert: {
+        checkId: "c1",
+        nachgefuellt: 1,
+        nachfuellBestaetigt: 1,
+        offen: 0,
+        geraeteAuffaellig: 0,
+        flaschenAuffaellig: 0,
+        flaschenNichtBewertbar: 0,
+        verfallAuffaellig: 0,
+      },
+    });
+    await mount(
+      <CheckFlow
+        kontoZugang={false}
+        fahrzeug={FZ}
+        soll={[POS()]}
+        geraete={[GERAET]}
+        flaschen={[]}
+        verfall={{}}
+        warn={WARN}
+        andereEinheitErreichbar
+        letzterCheckText={null}
+      />,
+    );
+    await alleBestaetigen();
+    await click(WEITER);
+    await click(WEITER);
+    await click(ABSCHLIESSEN);
+
+    const t = query("[data-rolle='check-ergebnis']").textContent ?? "";
+    expect(t).not.toContain("Das Handlager hatte nicht genug.");
+    expect(t).not.toContain("fehlt weiterhin");
+  });
+
   it("ohne Artikel nennt die Karte KEINE Handlager-Zahl", async () => {
     // Die Gegenseite von `hatArtikel`: ein Chip „0 aus Handlager geholt" waere
     // eine Aussage ueber Arbeit, die nie stattgefunden hat.

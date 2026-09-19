@@ -1223,11 +1223,23 @@ describe("§7.1 — die Ansichtsklasse wird nicht still unterlaufen", () => {
     // dazu — die Chip-Reihe „Liegt in" der Chargentabelle, ausgelagert in eine
     // eigene Datei, weil sie antds `Tooltip` braucht. Ihr einziger Verwender
     // ist `ArtikelDrawer.tsx`, also Verwaltung. Vierzehn Namen.
+    //
+    // NACHTRAG 19.09.2026 (DRK-201): `SeiteLaedt.tsx` kommt dazu — der
+    // Ladezustand der sechs dynamischen Detailrouten der Verwaltung. Er ist
+    // Verwaltung und nichts anderes: unter `helfer/`, `a/`, `t/`, `o/` und
+    // `auffuellen/` liegt keine Ladegrenze, und dort soll auch keine liegen.
+    // ⚠️ GERADE DIESE DATEI MUSS antd BENUTZEN DUERFEN, und das ist keine
+    // Bequemlichkeit: `<Card loading />` ist der EINZIGE RSC-sichere
+    // Ladezustand, den das Repo fuehrt. Die naheliegende Alternative
+    // `Skeleton.Button` waere ein Compound-Zugriff und in einer Server
+    // Component `undefined` — HTTP 500 genau dann, wenn der Ladezustand
+    // greifen soll. Fuenfzehn Namen.
     const VERWALTUNG = new Set([
       "Chip.tsx", "Plakette.tsx", "SeitenKopf.tsx", "Kachel.tsx",
       "Suchfeld.tsx", "Trefferanzeige.tsx", "LoeschDialog.tsx", "LoeschButton.tsx",
       "VerwaltungsRahmen.tsx", "ArtikelDrawer.tsx", "DruckRahmen.tsx",
       "KategorieEingabe.tsx", "SammelDrawer.tsx", "OrtVerteilung.tsx",
+      "SeiteLaedt.tsx",
     ]);
     //
     // NACHTRAG 16.09.2026 (DRK-313): `auffuellen/` kommt als fuenfter Ast dazu.

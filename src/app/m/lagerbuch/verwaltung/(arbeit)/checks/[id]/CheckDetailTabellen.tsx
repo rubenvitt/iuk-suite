@@ -105,7 +105,18 @@ export type CheckDetailTabellenProps = {
    * Warnung ueber ihnen. Fuenf getrennte Props laden dazu ein, den Satz spaeter
    * an vier Stellen zu pflegen und an einer zu vergessen.
    */
-  unlesbarLeertext?: string | null;
+  /**
+   * ⛔ EIN ERSATZ FUER ALLE FUENF LEERTEXTE, gespeist von ZWEI Ursachen: einem
+   * unlesbaren Ergebnis (§11.5, Zustand 27) und einem laufenden Check (DRK-196).
+   * Beide Male ist jeder Vorgabetext eine TATSACHENBEHAUPTUNG („Keine Geraete in
+   * diesem Check“), die niemand geprueft hat — und die der Meldung ueber den
+   * Tabellen widerspraeche.
+   *
+   * ⚠️ ER HIESS BIS ZUM CODEX-REVIEW ZU PR #210 `unlesbarLeertext`, also nach
+   * EINER der beiden Ursachen. Ein Name, der eine von zwei Ursachen nennt, laedt
+   * dazu ein, fuer die zweite einen zweiten Weg zu bauen.
+   */
+  ersatzLeertext?: string | null;
 };
 
 /**
@@ -354,10 +365,11 @@ export function CheckDetailTabellen({
   flaschenZeilen,
   verfallZeilen,
   nachfuellLeertext,
-  unlesbarLeertext,
+  ersatzLeertext,
 }: CheckDetailTabellenProps) {
-  // Ein unlesbares Ergebnis schlaegt JEDEN Vorgabetext — siehe `unlesbarLeertext`.
-  const leertext = (vorgabe: string) => unlesbarLeertext ?? vorgabe;
+  // ZWEI Ursachen speisen ihn (unlesbar, laufend), deshalb heisst er nach seiner
+  // ROLLE und nicht nach einer von beiden: er schlaegt JEDEN Vorgabetext.
+  const leertext = (vorgabe: string) => ersatzLeertext ?? vorgabe;
   // Zwei Spaltenlisten entstehen aus den Daten (die Filterwerte); ohne `useMemo`
   // baute jedes Rendern eine neue und zwaenge die Tabelle zur Neuberechnung.
   const geraeteListe = useMemo(() => geraeteSpalten(geraeteZeilen), [geraeteZeilen]);

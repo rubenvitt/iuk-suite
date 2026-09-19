@@ -115,7 +115,7 @@ export function GeraeteListe({ geraete }: { geraete: readonly ListenGeraet[] }) 
             ⛔ `aria-pressed` IST DIE ZUSAGE, die Klasse folgt daraus
             (`ausleihe.module.css`, `.filterknopf[aria-pressed="true"]`) — nicht umgekehrt.
             Dieselbe Anordnung wie beim `aria-current` der Fussnavigation
-            (`AusleihRahmen.tsx:172-175`).
+            (`AusleihRahmen.tsx`, der Rahmen-`div` mit `data-rolle`).
 
             ⚠️ HIER STEHEN ZWEI BINDENDE SAETZE GEGENEINANDER, UND DAS STEHT DA, STATT STILL
             ENTSCHIEDEN ZU WERDEN. `docs/design/README.md:266` verlangt „echte Radiogruppen

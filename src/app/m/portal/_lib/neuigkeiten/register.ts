@@ -2,6 +2,7 @@ import ereignisseNachvollziehen from "./notizen/portal/2026-09-06-ereignisse-nac
 import zeichenVoruebergehendPausiert from "./notizen/portal/2026-09-07-zeichen-voruebergehend-pausiert";
 import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-im-profil";
 import berichteAlsExcel from "./notizen/portal/2026-09-16-berichte-als-excel";
+import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 import anleitungJeAnsicht from "@/app/m/portal/_lib/neuigkeiten/notizen/aufgaben/2026-08-16-anleitung-je-ansicht";
@@ -41,6 +42,7 @@ import artikeletiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/
 import qrReichweite from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-qr-reichweite";
 import inventurTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-18-inventur-telefon";
 import dienstabendePlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-dienstabende-planen";
+import checksLaufend from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-19-checks-laufend";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
 import deaktivierteArtikel from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-16-deaktivierte-artikel";
@@ -121,6 +123,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   verfallInDerBox,
   ortscodes,
   artikeletiketten,
+  checksLaufend,
   inventurTelefon,
   dienstabendePlanen,
   qrReichweite,
@@ -147,6 +150,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   eigeneZeichenBauen,
   zeichenUeben,
   zeichenOhneNetz,
+  dankeSeiteNurDanke,
 ];
 
 /**
