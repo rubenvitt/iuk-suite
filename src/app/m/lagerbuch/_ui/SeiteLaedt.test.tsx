@@ -59,11 +59,11 @@ describe("lagerbuch-SeiteLaedt: die Bauform", () => {
   });
 
   /**
-   * ⛔ DIE SECHS LADEGRENZEN BENUTZEN DIESES BAUTEIL — UND NUR DIESES.
+   * ⛔ DIE SIEBEN LADEGRENZEN BENUTZEN DIESES BAUTEIL — UND NUR DIESES.
    *
    * Ohne diesen Fall waere die ganze Begruendung oben wertlos: sie steht EINMAL
    * am Bauteil, und eine `loading.tsx`, die ihr eigenes Markup mitbraechte,
-   * umginge jede Zusicherung dieser Datei, ohne dass ein Tor rot wuerde. Sechs
+   * umginge jede Zusicherung dieser Datei, ohne dass ein Tor rot wuerde. Sieben
    * handgepflegte Fassungen liefen ausserdem auseinander, und die erste, die es
    * taete, faenge niemand: ein Ladezustand steht nie lange genug auf dem
    * Schirm, als dass jemand ihn pruefte.
@@ -78,7 +78,7 @@ describe("lagerbuch-SeiteLaedt: die Bauform", () => {
       }
     })(MODUL);
 
-    expect(grenzen.length, "keine Ladegrenze gefunden — der Scan waere leer-gruen").toBe(6);
+    expect(grenzen.length, "keine Ladegrenze gefunden — der Scan waere leer-gruen").toBe(7);
 
     const abweichend: string[] = [];
     for (const pfad of grenzen) {

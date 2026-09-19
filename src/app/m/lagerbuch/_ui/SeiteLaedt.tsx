@@ -2,7 +2,7 @@ import { Card, Col, Row } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 
 /**
- * DER LADEZUSTAND DER SECHS DETAILROUTEN (DRK-201).
+ * DER LADEZUSTAND DER SIEBEN DETAILROUTEN (DRK-201).
  *
  * ⛔ WARUM ES IHN SEIT DEM 19.09.2026 GIBT, und warum die alte Entscheidung
  * NICHT falsch war, sondern nur halb: das Modul verbot `loading.tsx`
