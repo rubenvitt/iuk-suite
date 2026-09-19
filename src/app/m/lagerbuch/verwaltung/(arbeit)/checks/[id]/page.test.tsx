@@ -576,6 +576,42 @@ describe("Check-Detailseite", () => {
     expect(tabellenAus(unlesbar).ersatzLeertext).toMatch(/nicht lesbar/);
   });
 
+  /**
+   * DRK-196 — DIE VOLLZAEHLIGKEIT, einmal am Stueck statt Runde um Runde.
+   *
+   * ⚠️ DIESER FALL IST AUS EINEM EIGENEN DURCHGANG ENTSTANDEN, nicht aus einem
+   * Review: vier Runden lang hat jeder Fix den naechsten Ort freigelegt, an dem
+   * „abgeschlossen" stillschweigend vorausgesetzt war — Detailseite,
+   * Uebersichtszeile, Zeitraum, Sortierung, Teildaten. Der Seitenkopf war der
+   * letzte: dort stand woertlich „Abgeschlossen —" fuer einen laufenden Check.
+   * Ein Wort, das das Gegenteil des Zustands behauptet, daneben ein Strich, der
+   * wie ein vergessener Wert aussieht.
+   */
+  it("nennt im Kopf den Beginn, solange der Check laeuft", () => {
+    const kopfText = (check: CheckDetail) =>
+      textVon(
+        elementeVomTyp(checkDetailInhalt(check), SeitenKopf)[0].props.beschreibung as ReactNode,
+      );
+
+    /*
+     * ⚠️ `completedAt: null` GEHOERT DAZU, und das ist zum zweiten Mal dieselbe
+     * Lehre: eine Vorrichtung muss einen ERREICHBAREN Zustand herstellen. Ein
+     * `offen: true` neben einem gesetzten Abschlusszeitpunkt gibt es im
+     * Lesepfad nicht — dort ist `offen` genau `completedAt === null`. Der Kopf
+     * verzweigt deshalb am Zeitpunkt selbst: was nicht da ist, kann er nicht
+     * drucken.
+     */
+    const laufend = kopfText({ ...BASIS, offen: true, completedAt: null });
+    expect(laufend).toMatch(/läuft noch/);
+    expect(laufend, "„Abgeschlossen“ ist das Gegenteil des Zustands").not.toMatch(/Abgeschlossen/);
+    expect(laufend, "der Beginn steht da, und zwar als Zeitpunkt").toMatch(/Begonnen/);
+
+    // Die Gegenprobe: ein fertiger Check nennt weiterhin seinen Abschluss.
+    const fertig = kopfText(BASIS);
+    expect(fertig).toMatch(/Abgeschlossen/);
+    expect(fertig).not.toMatch(/läuft noch/);
+  });
+
   it("nennt einen laufenden Check MIT Daten einen Zwischenstand", () => {
     /**
      * DRK-196, Codex-Review zu PR #210 (P2) — und dieser Fall ist die Folge des

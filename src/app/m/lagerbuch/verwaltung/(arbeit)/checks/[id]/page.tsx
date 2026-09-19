@@ -137,10 +137,21 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         zurueck={{ titel: "Checks", href: "/verwaltung/checks" }}
         beschreibung={(
           <>
-            Abgeschlossen{" "}
-            {check.completedAt?.toLocaleString("de-DE", {
-              timeZone: "Europe/Berlin",
-            }) ?? "—"}{" · "}
+            {/*
+              * ⛔ DAS WORT WECHSELT MIT DEM ZUSTAND (DRK-196, eigener Durchgang
+              * nach der Codex-Review zu PR #210). „Abgeschlossen —" stand hier
+              * fuer einen laufenden Check: ein Wort, das das Gegenteil des
+              * Zustands behauptet, und daneben ein Strich, der wie ein
+              * vergessener Wert aussieht. Das war die letzte Stelle, an der
+              * „abgeschlossen" noch stillschweigend vorausgesetzt war.
+              */}
+            {check.completedAt
+              ? `Abgeschlossen ${check.completedAt.toLocaleString("de-DE", {
+                timeZone: "Europe/Berlin",
+              })}`
+              : `Begonnen ${check.startedAt.toLocaleString("de-DE", {
+                timeZone: "Europe/Berlin",
+              })}, läuft noch`}{" · "}
             {/* DRK-311: derselbe aufgeloeste Name wie in der Spalte „Wer" der
                 Historie — wer von dort hierher tippt, liest ihn wieder. Beim
                 Kaertchen ist das die Beschriftung des Zugangs, nicht eine
