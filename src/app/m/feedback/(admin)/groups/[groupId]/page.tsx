@@ -312,8 +312,21 @@ export default async function Cockpit({
              * nicht, und eine zweite Fassung der Regel wäre genau die, die dem
              * Anwender angezeigt wird, während `freigebenAction` nach der ersten
              * entscheidet. Begründung beider Ausgänge an `freigabelage`.
+             *
+             * ⚠️ DIESELBE DREISTUFIGE VORRANGREGEL WIE IN DER ACTION — Umfrage,
+             * dann Gruppe, dann Vorgabe. Ein geplanter Abend trägt normalerweise
+             * keine Umfrage, aber `releaseSurveyForEvening` deckt den Fall
+             * ausdrücklich ab (ein Altbestands-Entwurf an einem von Hand auf
+             * `planned` gesetzten Abend). Läge dort eine abweichende Frist, wäre
+             * nur die Gruppenfrist zu lesen der eine Fall, in dem Knopf und
+             * Action auseinanderlaufen: abgeschaltet, obwohl der Server annähme,
+             * oder bedienbar und dann werfend.
              */
-            lage: freigabelage(abend.evening.date, stunden, jetzt),
+            lage: freigabelage(
+              abend.evening.date,
+              abend.survey?.closeAfterHours ?? stunden,
+              jetzt,
+            ),
           }))}
           /*
            * ALLE Tage der Gruppe, nicht nur die geplanten: die Vorschau im
