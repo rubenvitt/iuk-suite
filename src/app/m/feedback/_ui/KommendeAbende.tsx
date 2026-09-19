@@ -6,6 +6,7 @@ import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Tag } from "a
 import { SPACE, TAP } from "@/core/theme/tokens";
 import { absagenAction, freigebenAction, planEveningsAction } from "../actions";
 import { RHYTHMEN, SERIE_MAX_TERMINE, serienTermine, type Rhythmus } from "../_lib/serie";
+import type { Freigabelage } from "../_lib/lifecycle";
 import { AbendBearbeiten } from "./AbendBearbeiten";
 import { formatDatumLang, formatWochentag, tagAusEingabe, tagInZone } from "./datum";
 import { T } from "./typo";
@@ -61,6 +62,14 @@ export type GeplanterAbend = {
   datum: Date;
   thema: string | null;
   notizen?: string | null;
+  /**
+   * Ob die Freigabe jetzt möglich ist — GERECHNET VON DER SEITE über
+   * `freigabelage` (`_lib/lifecycle.ts`), nicht hier noch einmal. Die Zone
+   * kennt die Fristlänge der Gruppe nicht, und eine zweite Fassung der Regel
+   * wäre die, die dem Anwender angezeigt wird, während die Action nach der
+   * ersten entscheidet.
+   */
+  lage: Freigabelage;
 };
 
 export type KommendeAbendeProps = {
@@ -157,19 +166,22 @@ function AbendZeile({
   const tag = tagInZone(abend.datum);
   const istHeute = tag === heute;
   /*
-   * ⚠️ VOR DEM TERMIN GIBT ES NICHTS FREIZUGEBEN, und das ist keine
-   * Bequemlichkeitsregel: die Freigabe setzt den Abend auf „hat
-   * stattgefunden". Ein Klick auf die falsche Zeile der Jahresplanung machte
-   * den Dezemberabend im September zum gelaufenen, schlösse dabei die
-   * tatsächlich laufende Umfrage und richtete den QR-Code auf die
-   * Dezember-Erhebung. Den Riegel zieht `freigebenAction` serverseitig; hier
-   * steht er, damit gar kein Knopf dasteht, der wirft.
+   * Die Regel selbst steht in `freigabelage` (`_lib/lifecycle.ts`) und wird von
+   * der Seite gerechnet — hier wird sie nur noch angezeigt. Der Knopf soll gar
+   * nicht erst dastehen, wo die Action wirft.
    */
-  const nochNichtSoweit = tag > heute;
+  const nochNichtSoweit = abend.lage !== "ok";
+  const grund =
+    abend.lage === "zuFrueh"
+      ? "Freigabe erst am Tag des Dienstabends"
+      : "Die Frist dieses Abends ist abgelaufen — Datum korrigieren oder Abend absagen";
   // Ein geplanter Abend, dessen Tag vorbei ist, faltet auf nichts (`EveningStatus`
   // in `_lib/lifecycle.ts`) — er bleibt stehen und wartet auf eine Entscheidung.
   // Sichtbar muss das trotzdem sein, sonst sucht niemand nach ihm.
-  const ueberfaellig = tag < heute;
+  // Die Marke nennt die FRIST, nicht bloß den Kalendertag: am Morgen nach dem
+  // Dienstabend ist der Tag vorbei, der Bogen aber noch freigebbar — „Termin
+  // vorbei" neben einem bedienbaren Knopf wäre ein Widerspruch im selben Bild.
+  const ueberfaellig = abend.lage === "abgelaufen";
 
   const ruf = (aktion: (daten: FormData) => Promise<void>) => () => {
     starte(async () => {
@@ -191,7 +203,7 @@ function AbendZeile({
           )}
           {ueberfaellig && (
             <Tag style={{ marginInlineStart: SPACE.sm }} data-testid="abend-ueberfaellig">
-              Termin vorbei
+              Frist abgelaufen
             </Tag>
           )}
         </div>
@@ -216,7 +228,7 @@ function AbendZeile({
             type="primary"
             loading={laeuft}
             disabled={nochNichtSoweit}
-            title={nochNichtSoweit ? "Freigabe erst am Tag des Dienstabends" : undefined}
+            title={nochNichtSoweit ? grund : undefined}
           >
             Feedback freigeben
           </Button>

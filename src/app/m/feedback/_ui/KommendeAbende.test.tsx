@@ -21,7 +21,10 @@ import { renderToStaticMarkup } from "react-dom/server";
  * 3. DIE MARKEN SIND DIE EINZIGE ZEITANGABE DER ZEILE. Ein geplanter Abend
  *    faltet auf nichts, wenn sein Tag vorbei ist (`EveningStatus` in
  *    `_lib/lifecycle.ts`) — er bleibt stehen und wartet auf eine Entscheidung.
- *    Ohne „Termin vorbei" sucht niemand nach ihm.
+ *    Ohne „Frist abgelaufen" sucht niemand nach ihm. ⚠️ Die Marke nennt die
+ *    FRIST, nicht den Kalendertag: am Morgen nach dem Dienstabend ist der Tag
+ *    vorbei, der Bogen aber noch freigebbar — eine Marke neben einem
+ *    bedienbaren Knopf wäre ein Widerspruch im selben Bild.
  * 4. DIE FREIGABE NENNT, WAS SIE BEENDET. „Die laufende Umfrage wird beendet"
  *    ohne Namen ist eine Warnung, die niemand prüfen kann: es gibt je Gruppe nur
  *    einen QR-Code, die Entscheidung ist also unwiderruflich und trifft einen
@@ -55,6 +58,7 @@ vi.mock("../actions", () => ({
 }));
 
 import { KommendeAbende, type GeplanterAbend } from "./KommendeAbende";
+import { freigabelage } from "../_lib/lifecycle";
 import { clickElement, mount, unmount } from "@/app/m/qr/_lib/test-dom";
 
 /** `evenings.date` ist Mitternacht UTC und meint einen Kalendertag. */
@@ -63,11 +67,19 @@ const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const HEUTE = "2026-07-25";
 
 function abend(over: Partial<Omit<GeplanterAbend, "datum">> & { datum?: string } = {}): GeplanterAbend {
+  const datum = tag(over.datum ?? "2026-08-05");
   return {
     eveningId: over.eveningId ?? 1,
-    datum: tag(over.datum ?? "2026-08-05"),
+    datum,
     thema: over.thema === undefined ? "Funkübung" : over.thema,
     notizen: over.notizen ?? null,
+    /*
+     * Vorgabe über die ECHTE Regel statt über ein Literal: sonst müsste jeder
+     * Testfall die Lage von Hand setzen, und eine Fixture mit `lage: "ok"` an
+     * einem Termin im Dezember wäre eine Lage, die es nie gibt. 48 Stunden ist
+     * die Vorgabefrist der Suite.
+     */
+    lage: over.lage ?? freigabelage(datum, 48, tag(HEUTE)),
   };
 }
 
@@ -244,14 +256,47 @@ describe("KommendeAbende — die Marken der Zeile", () => {
     expect(heute.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(0);
   });
 
-  it("markiert einen Abend mit vergangenem Datum als „Termin vorbei“", () => {
+  it("markiert einen Abend mit abgelaufener Frist als „Frist abgelaufen“", () => {
     const vorbei = zeilen(zeichne(drei))[1];
 
     expect(vorbei.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(1);
     expect(vorbei.querySelector("[data-testid='abend-ueberfaellig']")!.textContent).toBe(
-      "Termin vorbei",
+      "Frist abgelaufen",
     );
     expect(vorbei.querySelectorAll("[data-testid='abend-heute']")).toHaveLength(0);
+  });
+
+  it("MARKIERT NICHT, solange die Frist noch läuft — auch wenn der Tag vorbei ist", () => {
+    /*
+     * Der Alltagsfall, und er trennt die beiden Zeitriegel: wer den Bogen am
+     * Morgen nach dem Dienstabend freigibt, ist spät dran, aber innerhalb der
+     * Frist (bei 48 Stunden bis zwei Tage Rückstand). Eine Marke „abgelaufen"
+     * stünde hier neben einem Knopf, der funktioniert.
+     */
+    const gestern = zeilen(zeichne([abend({ datum: "2026-07-24" })]))[0];
+
+    expect(gestern.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(0);
+    const knopf = [...gestern.querySelectorAll("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+    )!;
+    expect(knopf.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("SCHALTET DEN KNOPF AB, wo die Action werfen würde — mit Grund", () => {
+    // Ein Knopf, der wirft, ist schlimmer als keiner: die Bestätigung verspricht
+    // „ab sofort kann geantwortet werden", und die Action lehnt danach ab.
+    for (const [datum, grund] of [
+      ["2026-08-05", "Freigabe erst am Tag des Dienstabends"],
+      ["2026-07-18", "Die Frist dieses Abends ist abgelaufen"],
+    ] as const) {
+      const zeile = zeilen(zeichne([abend({ datum })]))[0];
+      const knopf = [...zeile.querySelectorAll("button")].find(
+        (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+      )!;
+
+      expect(knopf.hasAttribute("disabled")).toBe(true);
+      expect(knopf.getAttribute("title")).toContain(grund);
+    }
   });
 
   it("lässt einen künftigen Abend ohne jede Marke — sie ist ein Hinweis, kein Schmuck", () => {
@@ -345,10 +390,11 @@ describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
   });
 
   it("gibt den Abend frei, auf dessen Zeile geklickt wurde — nicht den ersten", async () => {
-    // Beide in der Vergangenheit: ueberfaellige Termine bleiben freigebbar —
-    // nur in die Zukunft hinein nicht.
+    // Gestern und heute: beide innerhalb der Frist und damit freigebbar. Ein
+    // Termin von letzter Woche waere abgelaufen, sein Knopf abgeschaltet — der
+    // Test haette dann am falschen Ort gemeldet, es gebe keine zwei Knoepfe.
     await mount(
-      zone([abend({ eveningId: 11, datum: "2026-07-08" }), abend({ eveningId: 22, datum: "2026-07-22" })]),
+      zone([abend({ eveningId: 11, datum: "2026-07-24" }), abend({ eveningId: 22, datum: HEUTE })]),
     );
     const knoepfe = [...document.querySelectorAll<HTMLElement>("button")].filter(
       (b) => (b.textContent ?? "").trim() === "Feedback freigeben",

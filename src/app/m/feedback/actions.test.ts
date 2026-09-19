@@ -1001,13 +1001,13 @@ describe("planEveningsAction: eine Serie in einem Zug ansetzen", () => {
 describe("freigebenAction: aus dem Termin wird ein Dienstabend", () => {
   it("setzt den Abend auf `held`, startet die Umfrage und ankert die Frist am Abenddatum", async () => {
     const { freigebenAction } = await loadActions();
-    // ⚠️ Abend eine Woche ZURÜCK, nicht voraus: freigegeben wird erst ab dem
-    // Tag des Dienstes, ein Termin in der Zukunft ließe sich gar nicht
-    // freigeben. Die Aussage bleibt dieselbe und wird sogar schärfer — die
-    // Frist eines überfälligen Abends liegt in der VERGANGENHEIT, während
-    // „jetzt + 48h" in der Zukunft läge. Ein verwechselter Anker wäre also
-    // nicht bloß um Stunden daneben, sondern auf der falschen Seite von heute.
-    const { group, evening, date } = seedGeplanterAbend("bereitschaft", -7, 48);
+    // ⚠️ GESTERN, nicht eine Woche zurück und nicht voraus — die Freigabe hat
+    // zwei Zeitriegel, und nur dazwischen ist sie erlaubt: vor dem Tag des
+    // Dienstes gar nicht, nach Ablauf der Frist auch nicht. Der Morgen danach
+    // liegt in der Lücke, und er taugt für diese Zusicherung besser als heute:
+    // `computeClosesAt(gestern, 48)` und `computeClosesAt(heute, 48)` liegen
+    // einen vollen Tag auseinander, ein verwechselter Anker fiele also auf.
+    const { group, evening, date } = seedGeplanterAbend("bereitschaft", -1, 48);
     alsGruppenleitung("bereitschaft");
 
     const f = new FormData();
@@ -1037,6 +1037,27 @@ describe("freigebenAction: aus dem Termin wird ein Dienstabend", () => {
      */
     const { freigebenAction } = await loadActions();
     const { group, evening } = seedGeplanterAbend("bereitschaft", 7);
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await expect(freigebenAction(f)).rejects.toThrow();
+
+    expect(getEvening(db, evening.id)!.status).toBe("planned");
+    expect(activeSurveyForGroup(db, group.id)).toBeUndefined();
+  });
+
+  it("WIRFT NACH ABLAUF DER FRIST — sonst entstünde ein toter Bogen", async () => {
+    /*
+     * `computeClosesAt` ankert am ABENDDATUM, nicht am Klick. Ein vergessener
+     * Termin von letzter Woche bekäme also eine Frist in der VERGANGENHEIT, und
+     * der erste öffentliche Aufruf faltete den Bogen sofort auf `closed`.
+     * Herausgekommen wäre das Schlechteste aus beidem: die tatsächlich laufende
+     * Umfrage beendet, nichts Brauchbares an ihrer Stelle, und eine
+     * Bestätigung, die „ab sofort kann geantwortet werden" versprochen hat.
+     */
+    const { freigebenAction } = await loadActions();
+    const { group, evening } = seedGeplanterAbend("bereitschaft", -7, 48);
     alsGruppenleitung("bereitschaft");
 
     const f = new FormData();
