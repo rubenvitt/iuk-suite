@@ -169,8 +169,22 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
      */
     .orderBy(
       sql`(${checks.completedAt} is null) desc`,
+      /*
+       * ⛔ DERSELBE ZEITPUNKT WIE IM FILTER, und das ist der zweite Teil des
+       * Befunds (Codex-Review zu PR #210, P2). Ein blosses `completedAt desc`
+       * sortiert INNERHALB der offenen Gruppe gar nicht — dort ist der Wert
+       * ueberall NULL, und uebrig bleibt der `id`-Tiebreaker. Bei mehreren
+       * importierten offenen Checks stuende die Liste damit in der Reihenfolge
+       * zufaelliger Kennungen, und sobald ihre Zahl die Grenze uebersteigt,
+       * fielen die NEUEREN heraus — wieder unerreichbar ueber den einzigen
+       * Einstieg.
+       *
+       * `coalesce` beantwortet beide Gruppen mit derselben Frage: abgeschlossen
+       * nach Abschluss, laufend nach Beginn. Fuer eine abgeschlossene Zeile ist
+       * der Ausdruck zeichengleich zum vorherigen `desc(completedAt)`.
+       */
+      sql`${zeitpunkt} desc`,
       // id-Tiebreaker wie im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).
-      desc(checks.completedAt),
       desc(checks.id),
     )
     .limit(grenze + 1)
@@ -294,6 +308,20 @@ export type CheckDetail = {
    * Taucht sie nach dem Cutover auf, ist das ein eigener Posten.
    */
   offen: boolean;
+  /**
+   * ⛔ EIN LAUFENDER CHECK, DER SCHON ETWAS TRAEGT (Codex-Review zu PR #210, P2).
+   *
+   * Das Schema koppelt `completedAt` und `ergebnis` NICHT. Seit `offen` am
+   * Abschlusszeitpunkt haengt, gibt es damit eine Zeile, die beides ist: noch
+   * nicht abgeschlossen UND mit lesbarem Inhalt. Fuer die log die Seite in
+   * beide Richtungen — sie meldete „es wurde noch kein Ergebnis erfasst" und
+   * rendere die erfassten Zeilen unmittelbar darunter.
+   *
+   * ⚠️ DAS FELD SAGT NICHT „vollstaendig", sondern nur „hier steht etwas". Was
+   * davon fehlt, weiss niemand: der Check laeuft ja noch. Genau deshalb heisst
+   * es Zwischenstand und nicht Ergebnis.
+   */
+  hatZwischenstand: boolean;
   summe: CheckSummen & { verfallAuffaellig: number };
 };
 
@@ -431,6 +459,12 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     // §5.8.3 fuer die Summen beschreibt.
     unlesbar: summe.unlesbar,
     offen: c.completedAt === null,
+    // Irgendeine der fuenf Listen traegt etwas — siehe `hatZwischenstand`.
+    hatZwischenstand: positionen.length > 0
+      || artikelD.length > 0
+      || geraeteD.length > 0
+      || flaschenD.length > 0
+      || verfallD.length > 0,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den

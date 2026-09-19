@@ -225,7 +225,20 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
           type="info"
           showIcon={false}
           style={{ marginBlockEnd: SPACE.lg }}
-          title="Dieser Check läuft noch: Es wurde noch kein Ergebnis erfasst. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."
+          /*
+           * ⛔ ZWEI SAETZE, WEIL ES ZWEI LAGEN GIBT (Codex-Review zu PR #210, P2).
+           * Das Schema koppelt `completedAt` und `ergebnis` nicht: ein laufender
+           * Check KANN schon etwas tragen. Der eine Satz fuer beide log dann in
+           * die eine Richtung — er meldete „noch kein Ergebnis erfasst" und
+           * darunter standen die erfassten Zeilen.
+           *
+           * ⚠️ „Zwischenstand", NICHT „Ergebnis": was fehlt, weiss niemand, der
+           * Check laeuft ja noch. Der zweite Satz sagt deshalb nur, dass das
+           * Gezeigte nicht das Ende ist — er behauptet keine Vollstaendigkeit.
+           */
+          title={check.hatZwischenstand
+            ? "Dieser Check läuft noch. Was unten steht, ist ein Zwischenstand — er kann sich noch ändern, und was fehlt, ist damit nicht gesagt."
+            : "Dieser Check läuft noch: Es wurde noch kein Ergebnis erfasst. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."}
         />
       ) : null}
 
@@ -243,7 +256,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         * dieses Vorgangs; sie hier mitzuentscheiden hiesse, einen fremden
         * Anzeigezustand ungefragt zu aendern.
         */}
-      {check.offen ? null : (
+      {check.offen && !check.hatZwischenstand ? null : (
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={6}>
           <Kachel
@@ -303,7 +316,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
          * haengt an `completedAt`, `unlesbar` an einem vorhandenen, aber
          * kaputten Ergebnis. Sie steht hier trotzdem fest, damit niemand raet.
          */
-        ersatzLeertext={check.offen
+        ersatzLeertext={check.offen && !check.hatZwischenstand
           ? "Für diesen Check wurde noch kein Ergebnis erfasst — es gibt noch nichts zu zeigen."
           : check.unlesbar
             ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."

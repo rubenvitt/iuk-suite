@@ -30,6 +30,7 @@ const BASIS: CheckDetail = {
   altFormat: false,
   unlesbar: false,
   offen: false,
+  hatZwischenstand: false,
   summe: {
     positionen: 0,
     nachgefuellt: 0,
@@ -573,6 +574,47 @@ describe("Check-Detailseite", () => {
     const unlesbar = checkDetailInhalt({ ...BASIS, unlesbar: true });
     expect(elementeVomTyp(unlesbar, Kachel).length).toBeGreaterThan(0);
     expect(tabellenAus(unlesbar).ersatzLeertext).toMatch(/nicht lesbar/);
+  });
+
+  it("nennt einen laufenden Check MIT Daten einen Zwischenstand", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2) — und dieser Fall ist die Folge des
+     * VORIGEN Fixes. Seit `offen` am Abschlusszeitpunkt haengt (statt am
+     * Ergebnis), gibt es eine Zeile, die beides ist: nicht abgeschlossen UND
+     * mit lesbarem Inhalt. Das Schema koppelt die beiden Spalten nicht.
+     *
+     * ⛔ FUER DIE LOG DIE SEITE IN BEIDE RICHTUNGEN: sie meldete „es wurde noch
+     * kein Ergebnis erfasst" und rendere die erfassten Zeilen unmittelbar
+     * darunter. Ein Widerspruch im selben Bild, zum dritten Mal in diesem
+     * Vorgang — und jedes Mal, weil ein Zustand eingefuehrt und nicht ueberall
+     * durchgezogen wurde.
+     */
+    const mitStand = { ...gefuellterCheck(), offen: true, hatZwischenstand: true };
+    const seite = checkDetailInhalt(mitStand);
+
+    const alerts = elementeVomTyp(seite, Alert);
+    expect(alerts).toHaveLength(1);
+    expect(String(alerts[0].props.title)).toMatch(/Zwischenstand/);
+    // ⛔ UND ER BEHAUPTET NICHT MEHR, es sei nichts erfasst worden.
+    expect(String(alerts[0].props.title)).not.toMatch(/kein Ergebnis erfasst/);
+
+    /*
+     * ⚠️ WAS DA IST, BLEIBT SICHTBAR: kein Ersatztext ueber den Tabellen, und
+     * die Kacheln stehen. Sie wegzunehmen hiesse, erfasste Arbeit zu verbergen
+     * — das Gegenteil des Befunds.
+     */
+    expect(tabellenAus(seite).ersatzLeertext).toBeFalsy();
+    expect(elementeVomTyp(seite, Kachel).length).toBeGreaterThan(0);
+
+    /*
+     * ⚠️ DIE GEGENPROBE: ohne Zwischenstand bleibt es beim anderen Satz, und
+     * Kacheln wie Tabellen werden geraeumt. Ohne sie waere der Fall auch ueber
+     * einer Seite gruen, die den Unterschied gar nicht macht.
+     */
+    const ohneStand = checkDetailInhalt({ ...BASIS, offen: true });
+    expect(String(elementeVomTyp(ohneStand, Alert)[0].props.title))
+      .toMatch(/kein Ergebnis erfasst/);
+    expect(elementeVomTyp(ohneStand, Kachel)).toHaveLength(0);
   });
 
   it("haelt laufend, unlesbar und Altformat auseinander — drei Ursachen, drei Texte", () => {

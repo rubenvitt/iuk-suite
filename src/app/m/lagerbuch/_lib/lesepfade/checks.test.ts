@@ -175,6 +175,36 @@ describe("checkHistorie", () => {
   });
 
   /**
+   * DRK-196, Codex-Review zu PR #210 (P2) — die zweite Haelfte der Sortierung.
+   *
+   * ⛔ DER OFFEN-ZUERST-SCHLUESSEL ORDNET DIE OFFENEN UNTEREINANDER NICHT. Dort
+   * ist `completedAt` ueberall NULL; ein blosses `completedAt desc` als zweiter
+   * Schluessel laesst sie alle gleich aussehen, und uebrig bleibt der
+   * `id`-Tiebreaker — also die Reihenfolge zufaelliger Kennungen. Bei mehreren
+   * importierten offenen Checks stuende die Historie damit unchronologisch, und
+   * sobald ihre Zahl die Grenze uebersteigt, fielen die NEUEREN heraus.
+   *
+   * ⚠️ DIE IDs SIND HIER ABSICHTLICH GEGENLAEUFIG ZUR ZEIT gewaehlt: „chk-a" ist
+   * die aelteste und stuende bei einer reinen ID-Sortierung vorn. Nur so
+   * unterscheidet der Fall die beiden Ordnungen ueberhaupt.
+   */
+  it("ordnet mehrere laufende Checks nach ihrem Beginn, nicht nach der Kennung", () => {
+    const stunde = (h: number) => new Date(`2026-06-15T0${h}:00:00Z`);
+    for (const [id, h] of [["chk-a", 1], ["chk-b", 3], ["chk-c", 2]] as const) {
+      t.db.insert(checks).values({
+        id, fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+        startedAt: stunde(h), completedAt: null, ergebnis: null,
+      }).run();
+    }
+
+    const offene = checkHistorie(t.db, { mitOffenen: true }).zeilen
+      .filter((z) => z.completedAt === null)
+      .map((z) => z.id);
+
+    expect(offene, "juengster Beginn zuerst").toEqual(["chk-b", "chk-c", "chk-a"]);
+  });
+
+  /**
    * DRK-196, Codex-Review zu PR #210 (P2) — GEMESSEN UND BESTAETIGT.
    *
    * ⛔ DER SCHALTER WURDE VON EINEM DATUM STILL AUSGEHEBELT. Die Grenzen
