@@ -310,6 +310,12 @@ function Zeilenziel({
         {children}
       </button>
       <AbendBearbeiten
+        // Ein ABGESAGTER Abend nimmt keine Teilnehmerzahl an: an ihm war
+        // niemand. Ohne diese Zeile liesse sie sich eintragen, ueberlebte
+        // „Doch wieder ansetzen" und waere nach der Freigabe der Nenner der
+        // Ruecklaufquote (Begruendung bei `AbendBearbeiten`). Geplante Abende
+        // erreichen den Verlauf nicht, deshalb genuegen hier zwei Lagen.
+        lage={zeile.abgesagt ? "cancelled" : "held"}
         abend={zeile}
         offen={bearbeiten}
         schliessen={() => setBearbeiten(false)}
@@ -820,6 +826,12 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
       {/* Dieselbe Zeilenbearbeitung, die auch die Lagekarte oeffnet (2.4) — EIN
           Dialog, ein Satz Felder, ein Aufruf von `updateEveningAction`. */}
       <AbendBearbeiten
+        // Ein ABGESAGTER Abend nimmt keine Teilnehmerzahl an: an ihm war
+        // niemand. Ohne diese Zeile liesse sie sich eintragen, ueberlebte
+        // „Doch wieder ansetzen" und waere nach der Freigabe der Nenner der
+        // Ruecklaufquote (Begruendung bei `AbendBearbeiten`). Geplante Abende
+        // erreichen den Verlauf nicht, deshalb genuegen hier zwei Lagen.
+        lage={zeile.abgesagt ? "cancelled" : "held"}
         abend={zeile}
         offen={bearbeiten}
         schliessen={() => setBearbeiten(false)}

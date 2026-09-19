@@ -484,14 +484,16 @@ export async function updateEveningAction(formData: FormData) {
     if (formData.has("date")) patch.date = parseDate(formData.get("date"));
     if (formData.has("topic")) patch.topic = strOrNull(formData.get("topic"));
     if (formData.has("notes")) patch.notes = strOrNull(formData.get("notes"));
-    // ⚠️ AN EINEM GEPLANTEN ABEND WIRD DIE TEILNEHMERZAHL NICHT ÜBERNOMMEN,
-    // auch wenn sie mitgeschickt wurde. Die Oberfläche lässt das Feld dort weg
-    // (`_ui/AbendBearbeiten.tsx`, Prop `geplant`) — aber eine Zusage, die nur
-    // im Client gilt, ist keine: ein handgebauter POST trüge die Zahl weiter
-    // ein, und nach der Freigabe wäre sie der NENNER der Rücklaufquote,
-    // ununterscheidbar von einer gezählten. An einem Abend, der noch nicht
-    // war, ist jede Zahl dort geraten.
-    if (formData.has("participantCount") && vorher.status !== "planned") {
+    // ⚠️ NUR EIN ABEND, DER STATTGEFUNDEN HAT, NIMMT EINE TEILNEHMERZAHL AN —
+    // und „nicht geplant" ist dafür die falsche Bedingung. Sie ließ den
+    // ABGESAGTEN Abend durch, also gerade den, an dem nachweislich niemand war:
+    // die Zahl überlebte „Doch wieder ansetzen" und wäre nach der Freigabe der
+    // NENNER der Rücklaufquote gewesen, ununterscheidbar von einer gezählten.
+    //
+    // Die Oberfläche lässt das Feld in beiden Lagen weg (`_ui/AbendBearbeiten.tsx`,
+    // Prop `lage`), aber eine Zusage, die nur im Client gilt, ist keine: ein
+    // handgebauter POST trüge die Zahl weiter ein.
+    if (formData.has("participantCount") && vorher.status === "held") {
       patch.participantCount = parseCount(formData.get("participantCount"));
     }
     updateEvening(db, id, patch);

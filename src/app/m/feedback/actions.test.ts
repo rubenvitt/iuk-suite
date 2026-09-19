@@ -1443,6 +1443,38 @@ describe("updateEveningAction: Teilnehmerzahl nachtragen, Frist neu ankern", () 
     expect(nachher.status).toBe("planned");
   });
 
+  it("NIMMT AN EINEM ABGESAGTEN ABEND EBENSO KEINE an — er ist der klarere Fall", async () => {
+    // „Nicht geplant" war als Bedingung zu eng und liess genau den Abend durch,
+    // an dem nachweislich niemand war. Die Zahl überlebt „Doch wieder ansetzen"
+    // und wäre nach der Freigabe der Nenner der Rücklaufquote — eine erfundene
+    // Anwesenheit für einen Dienst, der ausgefallen ist.
+    const { updateEveningAction } = await loadActions();
+    const group = insertGroup(db, {
+      name: "Bereitschaft",
+      slug: "bereitschaft",
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+    const evening = insertEvening(db, {
+      groupId: group.id,
+      date: todayMidnightUtc(),
+      topic: "Fiel aus",
+      notes: null,
+      participantCount: null,
+      status: "cancelled",
+      createdAt: new Date(),
+    });
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("id", String(evening.id));
+    f.set("participantCount", "18");
+    await updateEveningAction(f);
+
+    expect(getEvening(db, evening.id)!.participantCount).toBeNull();
+  });
+
   it("neues Datum bei laufender Umfrage: closesAt kommt aus computeClosesAt(neuesDatum, h)", async () => {
     const { updateEveningAction } = await loadActions();
     const { survey } = seedActiveSurvey("bereitschaft", "abc12", 0, 48);

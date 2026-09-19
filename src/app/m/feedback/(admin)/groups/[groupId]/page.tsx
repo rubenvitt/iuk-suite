@@ -111,6 +111,22 @@ export default async function Cockpit({
   const abendZahl = zustand.verlauf.length + (zustand.laufend ? 1 : 0);
 
   /*
+   * ⚠️ DER LÖSCHDIALOG BRAUCHT EINE ANDERE ZAHL ALS DIE KOPFZEILE, und der
+   * Unterschied ist genau die Menge, die seit DRK-426 dazukommt. `abendZahl`
+   * oben ist eine Aussage über die HISTORIE („12 Dienstabende, Ø 2,1") — ein
+   * Termin, der erst im Dezember ist, gehört dort nicht hinein. Der Dialog
+   * dagegen kündigt an, was der Kaskadenlöschung zum Opfer fällt, und das sind
+   * ALLE Zeilen der Gruppe.
+   *
+   * Ohne diese zweite Zahl warnte eine Gruppe mit zwölf geplanten und keinem
+   * gelaufenen Abend mit „Löscht 0 Dienstabende" — und löschte zwölf. Der
+   * Kommentar an `rueckmeldungenGesamt` sagt es für seine Zahl schon: eine
+   * behauptete Zahl ist in einem Dialog, der unwiderruflich löscht, die
+   * schlimmste Stelle für eine Schätzung.
+   */
+  const abendZahlGesamt = abendZahl + zustand.geplant.length;
+
+  /*
    * DIE ZEILEN DES VERLAUFS (§2.5). Sie entstehen HIER und nicht in `Verlauf.tsx`:
    * die Zone ist eine Client-Komponente (Funktions-Props in `columns[].render`,
    * `Dropdown`-`items`, `Popconfirm`-Handler) und sieht keine Datenbank. Was über
@@ -318,7 +334,7 @@ export default async function Cockpit({
             istAdmin={istAdmin}
             leitung={leitung}
             verzeichnisAktiv={verzeichnis?.status === "ok"}
-            abende={abendZahl}
+            abende={abendZahlGesamt}
             rueckmeldungen={rueckmeldungenGesamt}
           />
         </div>

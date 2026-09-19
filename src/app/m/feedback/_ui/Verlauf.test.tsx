@@ -751,3 +751,46 @@ describe("Verlauf — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Le
     expect(reihenfolge()).toEqual(["2"]);
   });
 });
+
+/*
+ * EIN ABGESAGTER ABEND NIMMT KEINE TEILNEHMERZAHL an — und anders als der
+ * geplante erreicht er den VERLAUF, also diese Zone. Der erste Wurf des Riegels
+ * deckte nur „geplant" und liess damit genau den Abend durch, an dem
+ * nachweislich niemand war; nach „Doch wieder ansetzen" und der Freigabe waere
+ * die Zahl der Nenner der Ruecklaufquote geworden.
+ */
+describe("Verlauf — Bearbeiten eines abgesagten Abends", () => {
+  it("laesst die Teilnehmerzahl weg, zeigt sie bei einem gelaufenen Abend aber", async () => {
+    const felder = async (abgesagt: boolean) => {
+      await mount(
+        <Verlauf groupId={1} zeilen={[zeile({ eveningId: 7, abgesagt })]} heute="2026-08-01" />,
+      );
+      const menue = [...document.querySelectorAll<HTMLElement>("button")].find(
+        (b) => (b.textContent ?? "").trim() === "…",
+      );
+      if (!menue) throw new Error("Kein Aktionsmenue");
+      await clickElement(menue);
+      const eintrag = [...document.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+        (e) => (e.textContent ?? "").trim() === "Bearbeiten",
+      );
+      if (!eintrag) throw new Error("Kein Menuepunkt „Bearbeiten“");
+      await clickElement(eintrag);
+      const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']");
+      if (!form) throw new Error("Kein Bearbeiten-Formular");
+      return form;
+    };
+
+    const abgesagt = await felder(true);
+    expect(abgesagt.querySelector("input[name='participantCount']")).toBeNull();
+    // Die Gegenprobe gehoert dazu: ohne sie waere der Test auch ueber einem
+    // Formular gruen, das das Feld gar nicht mehr kennt.
+    expect(abgesagt.querySelector("input[name='topic']")).not.toBeNull();
+    await unmount();
+    document.body.replaceChildren();
+
+    const gelaufen = await felder(false);
+    expect(gelaufen.querySelector("input[name='participantCount']")).not.toBeNull();
+    await unmount();
+    document.body.replaceChildren();
+  });
+});

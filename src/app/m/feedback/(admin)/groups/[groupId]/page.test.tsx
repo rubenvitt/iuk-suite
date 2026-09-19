@@ -87,6 +87,15 @@ vi.mock("../../../actions", () => ({
   createEveningAction: vi.fn(),
   deleteEveningAction: vi.fn(),
   updateEveningAction: vi.fn(),
+  wiederAnsetzenAction: vi.fn(),
+  // Zone „Kommende Abende" braucht diese drei. ⚠️ Sie fehlten hier, ohne dass
+  // ein Test rot wurde: die Zone rendert ihre Zeilen erst, wenn es geplante
+  // Abende GIBT, und bis dahin wird der Import nie ausgewertet. Ein fehlender
+  // Eintrag faellt also nicht beim Bau der Zone auf, sondern beim ersten Test
+  // mit Inhalt — hier.
+  planEveningsAction: vi.fn(),
+  freigebenAction: vi.fn(),
+  absagenAction: vi.fn(),
   // Zone e (Einstellungen) braucht diese vier — ohne sie ist der Import
   // `undefined` und die Zone wirft beim Rendern.
   updateGroupAction: vi.fn(),
@@ -493,6 +502,57 @@ describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
 
     expect(document.body.textContent).toContain(
       "Löscht 2 Dienstabende und 3 Rückmeldungen unwiderruflich.",
+    );
+    await unmount();
+    document.body.replaceChildren();
+  });
+
+  it("ZAEHLT DIE VORAUSGEPLANTEN ABENDE MIT — die Kaskade nimmt sie mit", async () => {
+    /*
+     * Die Kopfzeile und dieser Dialog brauchen VERSCHIEDENE Zahlen, und das ist
+     * der Fall, an dem es auffaellt: die Kopfzeile ist eine Aussage ueber die
+     * Historie („2 Dienstabende erfasst"), der Dialog kuendigt an, was
+     * unwiderruflich verschwindet. Geplante Abende gehoeren nicht in die erste
+     * und sehr wohl in die zweite — `evenings` haengt per `ON DELETE cascade`
+     * an der Gruppe.
+     *
+     * Ohne diese Unterscheidung warnte eine Gruppe mit zwoelf geplanten und
+     * keinem gelaufenen Abend mit „Loescht 0 Dienstabende" und loeschte zwoelf.
+     */
+    abend("2026-07-22", [2, 3]); // 2 Rueckmeldungen
+    abend("2026-07-15", [1]); // 1 Rueckmeldung
+    for (const datum of ["2026-10-06", "2026-10-20"]) {
+      insertEvening(db, {
+        groupId: 1,
+        date: tag(datum),
+        topic: `Geplant ${datum}`,
+        notes: null,
+        participantCount: null,
+        status: "planned",
+        createdAt: tag("2026-07-22"),
+      });
+    }
+    guardPageMock.mockResolvedValue({
+      viewer: { sub: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
+      db,
+      memberIds: [1],
+    });
+    const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
+
+    await mount(element);
+    // Die Kopfzeile bleibt bei der Historie — sonst waere die Trennung nur
+    // verschoben und der Ø-Satz spraeche ueber Abende, die es noch nicht gab.
+    expect(document.body.textContent).toContain("2 Dienstabende erfasst");
+
+    await clickElement(query(".ant-collapse-header"));
+    const knopf = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Gruppe löschen",
+    );
+    if (!knopf) throw new Error("Kein Knopf „Gruppe löschen“");
+    await clickElement(knopf);
+
+    expect(document.body.textContent).toContain(
+      "Löscht 4 Dienstabende und 3 Rückmeldungen unwiderruflich.",
     );
     await unmount();
     document.body.replaceChildren();

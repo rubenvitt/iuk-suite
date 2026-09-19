@@ -269,6 +269,16 @@ export function updateEvening(
   id: number,
   patch: Partial<{ date: Date; topic: string | null; notes: string | null; participantCount: number | null; status: EveningStatus }>,
 ): void {
+  /*
+   * ⚠️ EIN LEERER PATCH IST EIN NICHTSTUN, KEIN FEHLER — und ohne diesen
+   * Ausstieg ein HTTP 500. Drizzle wirft bei `set({})` „No values to set", und
+   * der Fall ist seit dem Teilnehmerzahl-Riegel erreichbar: schickt ein
+   * Formular AUSSCHLIESSLICH `participantCount` und ist der Abend nicht
+   * `held`, verwirft `updateEveningAction` das einzige Feld und übergibt ein
+   * leeres Objekt. Gefunden von der Zusicherung zum abgesagten Abend, nicht im
+   * Betrieb — im Betrieb hätte es eine Fehlerseite gegeben.
+   */
+  if (Object.keys(patch).length === 0) return;
   db.update(evenings).set(patch).where(eq(evenings.id, id)).run();
 }
 export function deleteEvening(db: DB, id: number): void {
