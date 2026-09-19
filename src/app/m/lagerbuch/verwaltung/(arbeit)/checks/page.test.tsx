@@ -485,6 +485,35 @@ describe("Checks-Seite", () => {
   });
 
   /**
+   * DRK-196, Codex-Review zu PR #210 (P2) — UND ES IST DERSELBE BEFUND EINE
+   * EBENE HOEHER. Auf der Detailseite gewinnt `unlesbar` seit einer Runde; die
+   * Uebersicht hatte die Reihenfolge noch andersherum und sagte fuer dieselbe
+   * Zeile „noch keine". Sie verschwieg damit den Schaden, den das Detail
+   * darunter ausdruecklich meldet.
+   *
+   * ⛔ `completedAt IS NULL` UND EIN KAPUTTES `ergebnis` SCHLIESSEN EINANDER
+   * NICHT AUS: das eine kommt aus dem Schema, das andere aus dem Parser, und
+   * die Spalten sind nicht gekoppelt. Ein Import stellt genau diese Zeile her.
+   */
+  it("nennt ein kaputtes Ergebnis auch dann unlesbar, wenn der Check noch laeuft", () => {
+    checkEintragen({ id: "check-offen-kaputt", completedAt: null, ergebnis: "{kein json" });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.positionenText).toBe("unlesbar");
+    /*
+     * ⚠️ DIE UEBRIGEN SPALTEN BLEIBEN BEIM LAUFENDEN CHECK, und das ist kein
+     * Widerspruch: der Check LAEUFT ja noch — nur ueber die erfassten Zahlen
+     * sagt die eine Spalte jetzt die Wahrheit statt „noch keine". Der graue
+     * Chip behauptet nichts ueber das Ergebnis; er haelt hier ausserdem den
+     * vorbestehenden gruenen „vollständig"-Chip der unlesbaren Zeile fern.
+     */
+    expect(zeile.ergebnisChips.map((chip) => chip.text)).toEqual(["läuft noch"]);
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+    expect(istRekursivJsonSicher(zeile)).toBe(true);
+  });
+
+  /**
    * ⚠️ DIE GEGENPROBE ZUM SCHALTER SELBST: er darf die abgeschlossenen Checks
    * nicht ERSETZEN, sondern nur ergaenzen. Ein `mitOffenen`, das versehentlich
    * auf „nur offene" filterte, waere mit den zwei Faellen darueber gruen.

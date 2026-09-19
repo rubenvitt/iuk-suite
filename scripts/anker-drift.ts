@@ -201,10 +201,20 @@ function main(): void {
       // Melder so wenig wie der Riegel (`kommentaranker.ts`, Kopf, Punkt 2).
       if (pfad === null) continue;
       const ziel = relative(WURZEL, pfad);
-      // Ein Anker auf die eigene Datei bewegt sich mit ihr; dort ist „damals
-      // gleich heute" ohne Aussagekraft.
-      if (ziel === quelle) continue;
-
+      /*
+       * ⛔ EIN ANKER AUF DIE EIGENE DATEI WIRD MITGEPRUEFT, und hier stand
+       * ein `continue` mit der Begruendung, er „bewege sich mit ihr" (Codex-
+       * Review zu PR #210, P2). Das war ein Denkfehler: der Anker nennt eine
+       * ZAHL, keine Entfernung. Wer zehn Zeilen über dem Ziel einfügt,
+       * verschiebt das Ziel und laesst die Zahl stehen — genau die Drift, die
+       * dieser Melder sucht. Und `git blame` traegt den Commit der
+       * KOMMENTARZEILE auch dann richtig, wenn die Zeile selbst gewandert ist;
+       * an die Spanne von damals kommt der Vergleich also heran.
+       *
+       * ⚠️ DAS IST KEIN RANDFALL. Ein Kommentar verweist am haeufigsten auf
+       * seinen eigenen Nachbarn, und die Ausnahme nahm diese Haelfte still aus
+       * der Zaehlung — der Bericht sah vollstaendig aus und war es nicht.
+       */
       const sha = blame.get(zeile);
       if (sha === undefined) {
         ohneBlame++;

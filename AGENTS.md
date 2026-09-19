@@ -676,7 +676,7 @@ die Ankerzeile schrieb, und die zitierte Spanne dort gegen `HEAD` halten. **Bewu
 gemessen stehen 4214 Zeilenanker in `m/radio` und 595 in `m/lagerbuch`, ein hartes Tor wäre am
 ersten Tag rot und würde abgeschaltet statt gelesen. Ein Treffer ist ein **Verdacht, kein Urteil**:
 der Anker darf mitgewandert sein, wenn jemand ihn nachgezogen hat. Erster Lauf über `m/lagerbuch`:
-88 Verdachte aus 328 vergleichbaren Ankern. Die Abhilfe ist nie die neue Zahl, sondern die
+97 Verdachte aus 347 vergleichbaren Ankern. Die Abhilfe ist nie die neue Zahl, sondern die
 Namensform.
 
 ## Tests

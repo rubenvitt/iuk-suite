@@ -164,16 +164,28 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
      * gezaehlt worden zu sein. Fuer `unlesbar` stand das Wort hier schon; fuer
      * den laufenden Check fehlte es (Codex-Review zu PR #210, P2).
      */
-    positionenText: zeile.completedAt === null
-      /*
-       * ⚠️ EINE ERFASSTE ZAHL BLEIBT EINE ZAHL (Codex-Review zu PR #210). Ein
-       * laufender Check KANN schon Positionen tragen; „noch keine" waere dann
-       * genauso falsch wie vorher die `0`, nur in die andere Richtung. Dass der
-       * Wert vorlaeufig ist, sagt der Chip „läuft noch" in der Spalte daneben —
-       * die Zahl muss es nicht ein zweites Mal sagen.
-       */
-      ? (zeile.positionen > 0 ? String(zeile.positionen) : "noch keine")
-      : zeile.unlesbar ? "unlesbar" : String(zeile.positionen),
+    /*
+     * ⛔ `unlesbar` ZUERST, UND ZWAR VOR DEM LAUFENDEN CHECK (Codex-Review zu
+     * PR #210, P2). Die beiden schliessen einander NICHT aus: `unlesbar` kommt
+     * aus dem Parser (ein geschriebener, aber kaputter Rohwert), `completedAt`
+     * aus dem Schema, und die zwei Spalten sind nicht gekoppelt. Stand die
+     * Laufend-Pruefung vorn, sagte die Zeile „noch keine" — sie verschwieg
+     * damit den Schaden, den die Detailseite eine Ebene tiefer ausdruecklich
+     * meldet. Dieselbe Reihenfolge und derselbe Satz wie dort: WAS DIE LEERE
+     * ERKLAERT, STEHT DARIN.
+     */
+    positionenText: zeile.unlesbar
+      ? "unlesbar"
+      : zeile.completedAt === null
+        /*
+         * ⚠️ EINE ERFASSTE ZAHL BLEIBT EINE ZAHL (Codex-Review zu PR #210). Ein
+         * laufender Check KANN schon Positionen tragen; „noch keine" waere dann
+         * genauso falsch wie vorher die `0`, nur in die andere Richtung. Dass der
+         * Wert vorlaeufig ist, sagt der Chip „läuft noch" in der Spalte daneben —
+         * die Zahl muss es nicht ein zweites Mal sagen.
+         */
+        ? (zeile.positionen > 0 ? String(zeile.positionen) : "noch keine")
+        : String(zeile.positionen),
   };
 }
 
