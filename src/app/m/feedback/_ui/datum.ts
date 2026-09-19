@@ -77,7 +77,7 @@ const WOCHENTAG = new Intl.DateTimeFormat("de-DE", { timeZone: TIME_ZONE, weekda
 
 /*
  * DIE FORMATIERUNG STEHT IN `_lib/lifecycle.ts` (`kalendertagInZone`) und nicht
- * mehr hier: seit die Entdopplung der Serienplanung denselben Tag rechnet,
+ * mehr hier: seit die Entdopplung der Abendplanung denselben Tag rechnet,
  * braucht sie auch `_db/queries.ts`, und ein Import aus `_ui` in die
  * Datenbankschicht kehrte die Richtung um. Zwei Formatierer wären zwei
  * Wahrheiten über denselben Tag — und die Abweichung zeigte sich erst an einem

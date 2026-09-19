@@ -348,11 +348,9 @@ const NORD_ABENDE: Abendprofil[] = [
  * zu unterscheiden. Erst mit ihnen sind Freigabe und Absage eines geplanten
  * Abends lokal überhaupt erreichbar.
  *
- * BEWUSST ÜBER `insertEvening` STATT `planEvenings`: die Serienfunktion trägt
- * EIN Thema für alle Termine und legt ausschliesslich `planned` an — hier hat
- * jeder Abend sein eigenes Thema, und der abgesagte gehört in dieselbe
- * Schleife. Die Serienrechnung selbst prüft `serie.test.ts` ohne Datenbank; sie
- * hier nachzubilden bewiese nichts und bände den Seed an eine zweite Form.
+ * BEWUSST ÜBER `insertEvening` STATT `planEvenings`: jene trägt EIN Thema für
+ * alle Termine und legt ausschliesslich `planned` an — hier hat jeder Abend
+ * sein eigenes Thema, und der abgesagte gehört in dieselbe Schleife.
  */
 const NORD_TERMINE: Terminprofil[] = [
   {

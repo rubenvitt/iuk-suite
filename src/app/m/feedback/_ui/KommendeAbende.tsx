@@ -2,10 +2,9 @@
 
 import { useMemo, useState, useTransition } from "react";
 import type { CSSProperties } from "react";
-import { Button, Card, Dropdown, Input, Modal, Popconfirm, Select, Tag } from "antd";
+import { Button, Card, Dropdown, Input, Modal, Popconfirm, Tag } from "antd";
 import { SPACE, TAP } from "@/core/theme/tokens";
 import { absagenAction, freigebenAction, planEveningsAction } from "../actions";
-import { RHYTHMEN, SERIE_MAX_TERMINE, serienTermine, type Rhythmus } from "../_lib/serie";
 import type { Freigabelage } from "../_lib/lifecycle";
 import { AbendBearbeiten } from "./AbendBearbeiten";
 import { formatDatumLang, formatWochentag, tagAusEingabe, tagInZone } from "./datum";
@@ -28,15 +27,15 @@ import { T } from "./typo";
  * das in die Karte gewandert, hätte entweder die Karte ihre Zusicherungen
  * verloren oder die Knöpfe ihre Rückmeldung.
  *
- * ⚠️ DIE VORSCHAU IM PLANUNGSDIALOG IST KEIN SCHMUCK, sondern der Ersatz für
- * eine Rückmeldung nach dem Absenden. `planEveningsAction` kommt ohne
- * Formularzustand aus (§4.4 nennt genau drei Formulare mit Feldfehlern, dieses
- * ist keins davon) — eine Meldung „12 angelegt, 2 übersprungen" gäbe es also
- * erst nach dem Klick, wenn die Entscheidung gefallen ist. Stattdessen rechnet
- * der Dialog dieselbe Liste mit DERSELBEN Funktion (`serienTermine`) vorher aus
- * und markiert die Termine, an denen schon ein Abend steht. Eine zweite,
- * nachgebaute Rechnung im Client wäre die eine Stelle, an der Vorschau und
- * Ergebnis auseinanderlaufen könnten.
+ * ⚠️ DER HINWEIS „STEHT SCHON" IM PLANUNGSDIALOG IST KEIN SCHMUCK, sondern der
+ * Ersatz für eine Rückmeldung nach dem Absenden. `planEveningsAction` kommt
+ * ohne Formularzustand aus (§4.4 nennt genau drei Formulare mit Feldfehlern,
+ * dieses ist keins davon), und `planEvenings` überspringt einen belegten Tag
+ * still. Ohne den Hinweis schlösse sich der Dialog, und es wäre nichts
+ * passiert. Deshalb prüft der Dialog den Tag vorher und sperrt den Knopf.
+ *
+ * Eine Serienplanung (Takt, Enddatum) gab es hier einmal; sie ist wieder weg —
+ * eingetragen wird immer genau ein Abend.
  */
 
 const KARTE = {
@@ -78,7 +77,8 @@ export type KommendeAbendeProps = {
   abende: GeplanterAbend[];
   /**
    * Alle belegten Kalendertage der Gruppe als `YYYY-MM-DD`, auch die
-   * vergangenen. Nur dafür da, die Vorschau ehrlich zu machen.
+   * vergangenen. Nur dafür da, einen schon belegten Tag vor dem Absenden zu
+   * erkennen.
    */
   belegteTage: string[];
   /** `YYYY-MM-DD` in Europe/Berlin, von der Seite gerechnet (§4.5). */
@@ -108,14 +108,14 @@ export function KommendeAbende({
         styles={KARTE}
         extra={
           <Button type="text" onClick={() => setPlanen(true)}>
-            Dienstabende planen
+            Dienstabend planen
           </Button>
         }
       >
         {abende.length === 0 ? (
           <p style={{ ...T.meta, margin: 0 }}>
-            Noch nichts geplant. Du kannst die Abende eines ganzen Jahres im Voraus eintragen —
-            das Feedback gibst du dann an jedem Abend einzeln frei.
+            Noch nichts geplant. Du kannst kommende Dienstabende im Voraus eintragen — das
+            Feedback gibst du dann an jedem Abend einzeln frei.
           </p>
         ) : (
           <div>
@@ -312,9 +312,9 @@ function AbendZeile({
 }
 
 /**
- * Der Planungsdialog. Vier Eingaben, kein `useActionState` — dieselbe Begründung
- * wie beim `NachtragenDialog` (§4.4): beide Daten sind `<input type="date">`,
- * der Takt ist eine Auswahl mit festen Werten.
+ * Der Planungsdialog. Zwei Eingaben, kein `useActionState` — dieselbe
+ * Begründung wie beim `NachtragenDialog` (§4.4): das Datum ist ein
+ * `<input type="date">`, das Thema ist frei.
  *
  * GESCHLOSSEN WIRD NACH DER ACTION, nicht im `onSubmit`: `destroyOnHidden` baut
  * das Formular sonst mitten im Absenden aus.
@@ -332,28 +332,20 @@ function PlanenDialog({
   offen: boolean;
   schliessen: () => void;
 }) {
-  const [start, setStart] = useState(heute);
-  const [bis, setBis] = useState("");
-  const [rhythmus, setRhythmus] = useState<Rhythmus>("zweiwochen");
+  const [datum, setDatum] = useState(heute);
 
   const belegt = useMemo(() => new Set(belegteTage), [belegteTage]);
-  const vorschau = useMemo(() => {
-    const ab = tagAusEingabe(start);
-    if (ab === null) return [];
-    return serienTermine(ab, tagAusEingabe(bis), rhythmus).map((termin) => {
-      const iso = tagInZone(termin);
-      return { termin, iso, schonDa: belegt.has(iso) };
-    });
-  }, [start, bis, rhythmus, belegt]);
-
-  const neue = vorschau.filter((v) => !v.schonDa).length;
-  const gedeckelt = vorschau.length === SERIE_MAX_TERMINE;
+  // Der Browser liefert `YYYY-MM-DD` — dieselbe Form wie `belegteTage`, die
+  // die Seite in Europe/Berlin rechnet. `tagAusEingabe` hält eine halb
+  // getippte Eingabe draußen, damit sie nicht als „frei" durchgeht.
+  const tag = tagAusEingabe(datum);
+  const schonDa = tag !== null && belegt.has(datum);
 
   return (
     <Modal
       open={offen}
       onCancel={schliessen}
-      title="Dienstabende planen"
+      title="Dienstabend planen"
       footer={null}
       destroyOnHidden
     >
@@ -368,84 +360,34 @@ function PlanenDialog({
       >
         <input type="hidden" name="groupId" value={groupId} />
         <p style={{ ...T.meta, margin: 0 }}>
-          Die Abende werden nur eingetragen. Das Feedback gibst du an jedem Abend einzeln frei —
-          es kann immer nur eines laufen.
+          Der Abend wird nur eingetragen. Das Feedback gibst du am Abend selbst frei — es kann
+          immer nur eines laufen.
         </p>
 
         <label style={FELD}>
-          <span style={T.kicker}>Erster Abend</span>
+          <span style={T.kicker}>Datum</span>
           <Input
             type="date"
             name="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
+            value={datum}
+            onChange={(e) => setDatum(e.target.value)}
             required
           />
         </label>
 
         <label style={FELD}>
-          <span style={T.kicker}>Rhythmus</span>
-          {/*
-           * `Select` statt `<select>`: die Suite gibt antd-Feldern ihre
-           * Bediendichte über das Theme, ein nacktes Auswahlfeld stünde daneben.
-           * Der Wert reist über ein verborgenes Feld ins FormData, weil antds
-           * `Select` kein `name` an ein Formularelement hängt.
-           */}
-          <Select
-            value={rhythmus}
-            onChange={(wert: Rhythmus) => setRhythmus(wert)}
-            options={RHYTHMEN.map((r) => ({ value: r.wert, label: r.text }))}
-            aria-label="Rhythmus"
-          />
-          <input type="hidden" name="rhythmus" value={rhythmus} />
+          <span style={T.kicker}>Thema</span>
+          <Input name="topic" placeholder="optional" />
         </label>
 
-        {rhythmus !== "einmalig" && (
-          <label style={FELD}>
-            <span style={T.kicker}>Bis einschließlich</span>
-            <Input
-              type="date"
-              name="bis"
-              value={bis}
-              min={start}
-              onChange={(e) => setBis(e.target.value)}
-              required
-            />
-          </label>
+        {schonDa && (
+          <p style={{ ...T.meta, margin: 0 }} data-testid="planen-steht-schon">
+            Am {formatWochentag(tag)}, {formatDatumLang(tag)} steht schon ein Abend.
+          </p>
         )}
 
-        <label style={FELD}>
-          <span style={T.kicker}>Thema</span>
-          <Input name="topic" placeholder="optional, gilt für alle Termine" />
-        </label>
-
-        <div data-testid="planen-vorschau">
-          <p style={{ ...T.meta, margin: 0 }}>
-            {neue === 1 ? "1 Abend wird angelegt" : `${neue} Abende werden angelegt`}
-            {vorschau.length > neue && ` · ${vorschau.length - neue} stehen schon`}
-            {/*
-             * „höchstens", nicht „mehr als … gehen nicht": an der Obergrenze ist
-             * von aussen NICHT zu sehen, ob `serienTermine` etwas abgeschnitten
-             * hat — eine Serie, die genau hineinpasst, sieht identisch aus. Der
-             * Satz nennt deshalb die Regel und behauptet keinen Verlust. Den
-             * AUSWEG nennt er trotzdem, denn wer hier landet, will mehr: die
-             * Liste darunter zeigt ja, wo sie endet.
-             */}
-            {gedeckelt &&
-              ` · höchstens ${SERIE_MAX_TERMINE} Termine in einem Zug — den Rest in einem zweiten Durchgang`}
-          </p>
-          <ul style={{ ...T.meta, margin: `${SPACE.xs}px 0 0`, paddingInlineStart: 18 }}>
-            {vorschau.map((v) => (
-              <li key={v.iso} data-testid="vorschau-termin">
-                {formatWochentag(v.termin)}, {formatDatumLang(v.termin)}
-                {v.schonDa && " — steht schon"}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <Button type="primary" htmlType="submit" disabled={neue === 0}>
-          {neue === 1 ? "Abend eintragen" : "Abende eintragen"}
+        <Button type="primary" htmlType="submit" disabled={tag === null || schonDa}>
+          Abend eintragen
         </Button>
       </form>
     </Modal>

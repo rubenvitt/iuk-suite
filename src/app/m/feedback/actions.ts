@@ -43,7 +43,6 @@ import {
   DEFAULT_CLOSE_AFTER_HOURS,
   type SurveyStatus,
 } from "./_lib/lifecycle";
-import { serienTermine, istRhythmus, type Rhythmus } from "./_lib/serie";
 import { RateLimiter, clientIpAus } from "@/core/ratelimit";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
@@ -516,35 +515,36 @@ export async function updateEveningAction(formData: FormData) {
   });
 }
 /**
- * DIENSTABENDE VORAUS PLANEN — einzeln oder als Serie (DRK-426).
+ * EINEN DIENSTABEND VORAUS EINTRAGEN (DRK-426).
  *
  * KEIN `useActionState`, und das ist dieselbe Entscheidung wie beim Nachtragen:
  * §4.4 nennt genau drei Formulare mit Feldfehlern, und dieses ist keins davon.
- * Beide Daten sind `<input type="date">` und damit vom Browser geprüft, der
- * Takt kommt aus einer Auswahl mit festen Werten.
+ * Das Datum ist ein `<input type="date">` und damit vom Browser geprüft.
  *
- * WAS DIE OBERFLÄCHE STATTDESSEN TUT: sie rechnet dieselbe Liste vor dem
- * Absenden aus und zeigt sie an — mitsamt den Terminen, an denen schon ein
- * Abend steht. Eine Rückmeldung „12 angelegt, 2 übersprungen" hinterher wäre
- * die schlechtere Auskunft: sie kommt, wenn die Entscheidung gefallen ist.
+ * Eine Serienplanung (Takt, Enddatum, Vorschau) gab es hier einmal; sie ist
+ * auf Wunsch des Betreibers wieder weg — angelegt wird immer genau ein Abend.
+ * Wer mehrere Abende einträgt, öffnet den Dialog mehrmals; so wird jeder
+ * Termin einzeln angesehen, statt als Teil einer Liste durchzurutschen.
  *
- * Die Prüfung des Takts GLAUBT DEM FORMULAR NICHT (`istRhythmus`). `rhythmus`
- * landet zwar nur in einer Rechnung und nie in der Datenbank, aber ein
- * unbekannter Wert liefe sonst in den Vorgabezweig von `serienTermine` und
- * legte still einen einzelnen Abend an, wo eine Serie erwartet wurde.
+ * WAS DIE OBERFLÄCHE STATTDESSEN TUT: sie sagt vor dem Absenden, ob an diesem
+ * Tag schon ein Abend steht, und sperrt dann den Knopf. `planEvenings`
+ * überspringt einen belegten Tag ohnehin — ein Absenden, das still nichts
+ * anlegt, sähe aber aus wie ein Fehler der Anwendung.
+ *
+ * `planEvenings` nimmt weiterhin eine LISTE: Entdopplung und Transaktion
+ * gehören der Datenbankschicht, gleich wie viele Termine hereinkommen.
+ * Hier ist es immer genau einer.
  */
 export async function planEveningsAction(formData: FormData): Promise<void> {
   const groupId = num(formData.get("groupId"));
   const { db, viewer } = await guardGroup(groupId);
   return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
-    const rhythmusRoh = String(formData.get("rhythmus") ?? "");
-    if (!istRhythmus(rhythmusRoh)) throw new Error("Unbekannter Rhythmus");
-    const rhythmus: Rhythmus = rhythmusRoh;
-    const start = parseDate(formData.get("date"));
-    const bisRoh = String(formData.get("bis") ?? "").trim();
+    // `parseDate` wirft bei leerer oder kaputter Eingabe, bevor etwas
+    // geschrieben wird, und liefert Mitternacht UTC wie `evenings.date`.
+    const datum = parseDate(formData.get("date"));
     planEvenings(db, {
       groupId,
-      dates: serienTermine(start, bisRoh === "" ? null : parseDate(bisRoh), rhythmus),
+      dates: [datum],
       topic: strOrNull(formData.get("topic")),
       now: new Date(),
     });

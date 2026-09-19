@@ -927,7 +927,7 @@ function seedGeplanterAbend(slug: string, tageVoraus = 7, closeAfterHours: numbe
   return { group, evening, date };
 }
 
-describe("planEveningsAction: eine Serie in einem Zug ansetzen", () => {
+describe("planEveningsAction: einen Abend im Voraus eintragen", () => {
   function seedGroup(slug: string) {
     return insertGroup(db, {
       name: slug,
@@ -941,48 +941,59 @@ describe("planEveningsAction: eine Serie in einem Zug ansetzen", () => {
     const f = new FormData();
     f.set("groupId", String(groupId));
     f.set("date", "2026-10-06");
-    f.set("bis", "2026-10-27");
-    f.set("rhythmus", "woche");
     f.set("topic", "Funkübung");
     for (const [k, v] of Object.entries(over)) f.set(k, v);
     return f;
   }
 
-  it("legt die ganze Serie als geplante Abende an und revalidiert das Cockpit", async () => {
+  it("legt genau einen geplanten Abend an und revalidiert das Cockpit", async () => {
     const { planEveningsAction } = await loadActions();
     const g = seedGroup("bereitschaft");
     alsGruppenleitung("bereitschaft");
 
     await planEveningsAction(planForm(g.id));
 
-    // `listEvenings` liefert absteigend — vier Dienstage im Wochentakt.
     const abende = listEvenings(db, g.id);
-    expect(abende.map((e) => e.date.toISOString().slice(0, 10))).toEqual([
-      "2026-10-27",
-      "2026-10-20",
-      "2026-10-13",
-      "2026-10-06",
-    ]);
-    expect(abende.every((e) => e.status === "planned")).toBe(true);
-    expect(abende.every((e) => e.topic === "Funkübung")).toBe(true);
+    expect(abende.map((e) => e.date.toISOString().slice(0, 10))).toEqual(["2026-10-06"]);
+    expect(abende[0].status).toBe("planned");
+    expect(abende[0].topic).toBe("Funkübung");
     // Keine Umfrage: der QR-Code der Gruppe darf nicht schon Wochen vorher auf
     // eine Erhebung zeigen — freigegeben wird am Abend selbst.
-    expect(abende.every((e) => getSurveyByEvening(db, e.id) === undefined)).toBe(true);
+    expect(getSurveyByEvening(db, abende[0].id)).toBeUndefined();
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
   });
 
-  it("wirft bei unbekanntem Rhythmus und legt dabei nichts an", async () => {
-    // Die Action glaubt dem Formular nicht. Ein unbekannter Wert liefe sonst in
-    // den Vorgabezweig von `serienTermine` und legte still EINEN einzelnen
-    // Abend an, wo eine Jahresplanung erwartet wurde — und das sähe aus, als
-    // sei sie durchgelaufen.
+  it("ignoriert Serienfelder eines alten Formulars — es bleibt bei einem Abend", async () => {
+    // Ein Browser mit einer Seite von vor dem Rückbau schickt noch `bis` und
+    // `rhythmus`. Beides darf nichts mehr bewirken.
     const { planEveningsAction } = await loadActions();
     const g = seedGroup("bereitschaft");
     alsGruppenleitung("bereitschaft");
 
-    await expect(
-      planEveningsAction(planForm(g.id, { rhythmus: "jeden-zweiten-donnerstag" })),
-    ).rejects.toThrow();
+    await planEveningsAction(planForm(g.id, { bis: "2026-10-27", rhythmus: "woche" }));
+
+    expect(listEvenings(db, g.id)).toHaveLength(1);
+  });
+
+  it("legt an einem schon belegten Tag keinen zweiten Abend an", async () => {
+    const { planEveningsAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    await planEveningsAction(planForm(g.id));
+    await planEveningsAction(planForm(g.id, { topic: "Doppelt" }));
+
+    const abende = listEvenings(db, g.id);
+    expect(abende).toHaveLength(1);
+    expect(abende[0].topic).toBe("Funkübung");
+  });
+
+  it("wirft ohne Datum und legt dabei nichts an", async () => {
+    const { planEveningsAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(planEveningsAction(planForm(g.id, { date: "" }))).rejects.toThrow();
 
     expect(listEvenings(db, g.id)).toEqual([]);
     expect(revalidatePathMock).not.toHaveBeenCalled();
