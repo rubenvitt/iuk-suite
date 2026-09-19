@@ -694,6 +694,47 @@ describe("Check-Detailseite", () => {
     expect(ton({ unlesbar: true })).toBe("warning");
   });
 
+  it("laesst bei laufend UND unlesbar den kaputten Wert erklaeren, nicht die Uhr", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2). Der erste Wurf hielt die beiden
+     * Zustaende fuer unvereinbar und fragte `offen` zuerst ab. Sie sind es
+     * nicht: `unlesbar` heisst „ein Rohwert steht da und ist kaputt"
+     * (`checkErgebnis.ts`, `unlesbar()`), `offen` heisst `completedAt IS NULL`
+     * — und das Schema koppelt die beiden Spalten nicht. Ein laufender Check
+     * mit beschaedigtem Zwischenstand traegt beide Merkmale.
+     *
+     * ⛔ WAS DIE LEERE ERKLAERT, GEWINNT. Dass ein Check laeuft, macht keine
+     * Liste leer — ein lesbarer Zwischenstand stuende da. Dass sein Ergebnis
+     * kaputt ist, macht sie leer. Mit der alten Reihenfolge stand unter einer
+     * Meldung „beschaedigtes Ergebnis" in jeder Tabelle „noch nichts erfasst".
+     */
+    const beides = checkDetailInhalt({ ...BASIS, offen: true, unlesbar: true });
+
+    expect(tabellenAus(beides).ersatzLeertext).toMatch(/nicht lesbar/);
+    expect(tabellenAus(beides).ersatzLeertext).not.toMatch(/noch nichts erfasst/);
+
+    /*
+     * ⚠️ BEIDE MELDUNGEN STEHEN WEITER DA — es sind zwei Tatsachen, nicht zwei
+     * Kandidaten fuer eine. Nur die zweite tritt zurueck: sie darf die Leere
+     * nicht ein zweites Mal und mit dem falschen Grund erklaeren.
+     */
+    const meldungen = elementeVomTyp(beides, Alert).map((a) => String(a.props.title));
+    expect(meldungen).toHaveLength(2);
+    expect(meldungen[0]).toMatch(/^Ergebnis unlesbar/);
+    expect(meldungen[1]).toMatch(/läuft noch/);
+    expect(meldungen[1]).not.toMatch(/kein Ergebnis erfasst/);
+
+    /*
+     * GEGENPROBE, sonst waere der Fall auch ueber einer Seite gruen, die
+     * `offen` gar nicht mehr kennt: ohne `unlesbar` bleibt der laufende Check
+     * bei seinem eigenen Text.
+     */
+    const nurLaufend = checkDetailInhalt({ ...BASIS, offen: true });
+    expect(tabellenAus(nurLaufend).ersatzLeertext).toMatch(/noch nichts erfasst/);
+    expect(String(elementeVomTyp(nurLaufend, Alert)[0].props.title))
+      .toMatch(/kein Ergebnis erfasst/);
+  });
+
   it("haelt Altformat und unlesbar auseinander — je eine Meldung, nie beide", () => {
     // Zwei Ursachen, zwei Texte. Sie schliessen einander aus (V1 kann nicht
     // unlesbar sein), und keiner der beiden erklaert den anderen: „alt" heisst

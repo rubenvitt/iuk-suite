@@ -227,9 +227,14 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         * HTTP 500 schon beim Import. Der Riegel in `page.test.tsx` scannt diese
         * Datei im Quelltext; auch ein Kommentar darf den Paketnamen nicht nennen.
         *
-        * ⚠️ DIE DREI SCHLIESSEN EINANDER NICHT AUS, und deshalb steht hier kein
-        * `else`: ein offener Check ist nie `unlesbar` (die Abgrenzung sitzt im
-        * Parser), aber die Reihenfolge der Meldungen soll nicht davon abhaengen.
+        * ⛔ DIE DREI SCHLIESSEN EINANDER NICHT AUS — UND `offen` UND `unlesbar`
+        * SCHON GAR NICHT (Codex-Review zu PR #210, P2). Hier stand das Gegenteil,
+        * und es war nachweislich falsch: `unlesbar` haengt am Parser
+        * (`checkErgebnis.ts`, `unlesbar()` — ein GESCHRIEBENER, aber kaputter
+        * Rohwert), `offen` an `completedAt`, und das Schema koppelt die beiden
+        * Spalten nicht. Ein laufender Check, dessen Zwischenstand beschaedigt
+        * geschrieben wurde, traegt beide. Deshalb kein `else` — und deshalb
+        * unten eine Reihenfolge, wo eine noetig ist.
         */}
       {check.offen ? (
         <Alert
@@ -247,9 +252,19 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
            * Check laeuft ja noch. Der zweite Satz sagt deshalb nur, dass das
            * Gezeigte nicht das Ende ist — er behauptet keine Vollstaendigkeit.
            */
-          title={check.hatZwischenstand
-            ? "Dieser Check läuft noch. Was unten steht, ist ein Zwischenstand — er kann sich noch ändern, und was fehlt, ist damit nicht gesagt."
-            : "Dieser Check läuft noch: Es wurde noch kein Ergebnis erfasst. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."}
+          /*
+           * ⛔ IM ZUSAMMENTREFFEN MIT `unlesbar` DARF HIER NICHT STEHEN, DIE
+           * LISTEN SEIEN LEER, WEIL NOCH NICHTS ERFASST WURDE: erfasst wurde
+           * etwas, es ist nur nicht mehr lesbar — und die Meldung darueber sagt
+           * das gerade. Zwei Meldungen mit zwei Gruenden fuer dieselbe Leere
+           * sind eine zu viel; diese tritt deshalb einen Schritt zurueck und
+           * sagt nur noch, was NUR sie weiss.
+           */
+          title={check.unlesbar
+            ? "Dieser Check läuft noch. Was von ihm erfasst wurde, sagt die Meldung darüber — lesbar ist es nicht."
+            : check.hatZwischenstand
+              ? "Dieser Check läuft noch. Was unten steht, ist ein Zwischenstand — er kann sich noch ändern, und was fehlt, ist damit nicht gesagt."
+              : "Dieser Check läuft noch: Es wurde noch kein Ergebnis erfasst. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."}
         />
       ) : null}
 
@@ -261,11 +276,12 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         * Nullzustand, gegen den der Vorgang ueberhaupt antrat — nur eine Zeile
         * tiefer. Vier Nullen wegzulassen sagt mehr als vier Nullen zu zeigen.
         *
-        * ⚠️ FUER `unlesbar` BLEIBEN SIE STEHEN, und das ist kein Versehen: dort
-        * WURDE gezaehlt, der Wert ist nur nicht mehr lesbar. Ob die Nullen auch
-        * dort besser wegfielen, ist eine eigene Frage an §11.5 und nicht die
-        * dieses Vorgangs; sie hier mitzuentscheiden hiesse, einen fremden
-        * Anzeigezustand ungefragt zu aendern.
+        * ⚠️ FUER EINEN ABGESCHLOSSENEN `unlesbar`-CHECK BLEIBEN SIE STEHEN, und
+        * das ist kein Versehen: dort WURDE gezaehlt, der Wert ist nur nicht mehr
+        * lesbar. Ob die Nullen auch dort besser wegfielen, ist eine eigene Frage
+        * an §11.5 und nicht die dieses Vorgangs. ⚠️ Traegt ein LAUFENDER Check
+        * beides, gewinnt die Bedingung hier — die Nullen fallen weg. Das ist
+        * richtig herum: bei ihm steht nicht einmal fest, ob noch gezaehlt wird.
         */}
       {check.offen && !check.hatZwischenstand ? null : (
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
@@ -323,9 +339,18 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
          * „Keine Geraete in diesem Check." Das ist genau die luegende Null, die
          * der Vorgang abschaffen sollte, nur eine Zeile tiefer.
          *
-         * ⛔ DIE REIHENFOLGE IST EGAL, WEIL SIE SICH AUSSCHLIESSEN: `offen`
-         * haengt an `completedAt`, `unlesbar` an einem vorhandenen, aber
-         * kaputten Ergebnis. Sie steht hier trotzdem fest, damit niemand raet.
+         * ⛔ DIE REIHENFOLGE IST NICHT EGAL, UND DER ERSTE WURF HATTE SIE
+         * FALSCH HERUM (Codex-Review zu PR #210, P2). Hier stand, die beiden
+         * schloessen einander aus — sie tun es nicht: `offen` haengt an
+         * `completedAt`, `unlesbar` an einem vorhandenen, aber kaputten
+         * Ergebnis, und das Schema koppelt die Spalten nicht. Mit `offen`
+         * zuerst sagte die Tabelle eines laufenden Checks mit beschaedigtem
+         * Zwischenstand „noch nichts erfasst", waehrend die Meldung darueber
+         * gerade das Gegenteil meldete.
+         *
+         * ⛔ `unlesbar` GEWINNT, WEIL ES DIE LEERE ERKLAERT. Dass ein Check
+         * laeuft, macht eine Liste nicht leer — ein lesbarer Zwischenstand
+         * stuende ja da. Dass sein Ergebnis beschaedigt ist, macht sie leer.
          */
         /*
          * ⛔ OHNE `hatZwischenstand`-BEDINGUNG, und das ist die Behebung eines
@@ -340,10 +365,10 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
          * NICHT", NIE EIN „KEINS". Eine Tabelle mit Zeilen zeigt sie; eine
          * ohne sagt, dass dort noch nichts steht.
          */
-        ersatzLeertext={check.offen
-          ? "Für diesen laufenden Check ist hier noch nichts erfasst — ob noch etwas kommt, steht nicht fest."
-          : check.unlesbar
-            ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
+        ersatzLeertext={check.unlesbar
+          ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
+          : check.offen
+            ? "Für diesen laufenden Check ist hier noch nichts erfasst — ob noch etwas kommt, steht nicht fest."
             : null}
       />
     </>
