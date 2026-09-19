@@ -229,6 +229,21 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         />
       ) : null}
 
+      {/**
+        * ⛔ KEINE KACHELN FUER EINEN LAUFENDEN CHECK (Codex-Review zu PR #210, P2).
+        * „0 geprüfte Positionen" ist eine ZAHL, und eine Zahl ist eine Aussage:
+        * sie behauptet, gezaehlt worden zu sein. Unter einer Meldung, die gerade
+        * sagt, es sei noch nichts erfasst worden, ist das derselbe luegende
+        * Nullzustand, gegen den der Vorgang ueberhaupt antrat — nur eine Zeile
+        * tiefer. Vier Nullen wegzulassen sagt mehr als vier Nullen zu zeigen.
+        *
+        * ⚠️ FUER `unlesbar` BLEIBEN SIE STEHEN, und das ist kein Versehen: dort
+        * WURDE gezaehlt, der Wert ist nur nicht mehr lesbar. Ob die Nullen auch
+        * dort besser wegfielen, ist eine eigene Frage an §11.5 und nicht die
+        * dieses Vorgangs; sie hier mitzuentscheiden hiesse, einen fremden
+        * Anzeigezustand ungefragt zu aendern.
+        */}
+      {check.offen ? null : (
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={6}>
           <Kachel
@@ -258,6 +273,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
           />
         </Col>
       </Row>
+      )}
 
       {/**
         * ⚠️ Die Leertexte gehoeren zur Meldung oben. Jeder von ihnen BEHAUPTET
@@ -276,9 +292,22 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         nachfuellLeertext={check.altFormat
           ? "Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten."
           : "Keine Einzelposition erfasst."}
-        unlesbarLeertext={check.unlesbar
-          ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
-          : null}
+        /*
+         * ⚠️ ZWEI URSACHEN, ZWEI TEXTE, EIN SLOT (Codex-Review zu PR #210, P2).
+         * Der laufende Check hatte bis dahin KEINEN — die Meldung oben sagte
+         * „noch kein Ergebnis erfasst", und darunter behaupteten die Tabellen
+         * „Keine Geraete in diesem Check." Das ist genau die luegende Null, die
+         * der Vorgang abschaffen sollte, nur eine Zeile tiefer.
+         *
+         * ⛔ DIE REIHENFOLGE IST EGAL, WEIL SIE SICH AUSSCHLIESSEN: `offen`
+         * haengt an `completedAt`, `unlesbar` an einem vorhandenen, aber
+         * kaputten Ergebnis. Sie steht hier trotzdem fest, damit niemand raet.
+         */
+        ersatzLeertext={check.offen
+          ? "Für diesen Check wurde noch kein Ergebnis erfasst — es gibt noch nichts zu zeigen."
+          : check.unlesbar
+            ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
+            : null}
       />
     </>
   );

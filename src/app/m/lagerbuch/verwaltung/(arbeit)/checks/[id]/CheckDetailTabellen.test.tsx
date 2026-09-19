@@ -230,7 +230,7 @@ describe("CheckDetailTabellen", () => {
         flaschenZeilen={[]}
         verfallZeilen={[]}
         nachfuellLeertext="Keine Einzelposition erfasst."
-        unlesbarLeertext={SATZ}
+        ersatzLeertext={SATZ}
       />,
     );
 

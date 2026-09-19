@@ -483,7 +483,7 @@ describe("Check-Detailseite", () => {
     // „Keine Geraete in diesem Check." ist eine Tatsachenbehauptung, die hier
     // niemand pruefen konnte — genauso wenig wie „Keine Einzelposition
     // erfasst.". EIN Text fuer alle fuenf, weil es EINE Ursache ist.
-    expect(tabellenAus(seite).unlesbarLeertext).toMatch(/nicht lesbar/i);
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/nicht lesbar/i);
   });
 
   it("nimmt bei unlesbarem Ergebnis ALLEN fuenf Tabellen die Tatsachenbehauptung", () => {
@@ -496,17 +496,17 @@ describe("Check-Detailseite", () => {
      * `nachfuellLeertext` geaendert hat, gilt fuer sie wortgleich.
      */
     const unlesbar = tabellenAus(checkDetailInhalt({ ...BASIS, unlesbar: true }));
-    expect(unlesbar.unlesbarLeertext).toBeTruthy();
+    expect(unlesbar.ersatzLeertext).toBeTruthy();
 
     // Die Gegenprobe: ein lesbarer Check bekommt KEINE Ueberschreibung, seine
     // Tabellen sagen weiter „Keine Geraete in diesem Check." — was dort ja auch
     // stimmt.
-    expect(tabellenAus(checkDetailInhalt(BASIS)).unlesbarLeertext).toBeFalsy();
+    expect(tabellenAus(checkDetailInhalt(BASIS)).ersatzLeertext).toBeFalsy();
     // Und das Altformat behaelt seinen eigenen, anderen Nachfuell-Text.
     const alt = tabellenAus(checkDetailInhalt({
       ...BASIS, altFormat: true, summe: { ...BASIS.summe, altFormat: true },
     }));
-    expect(alt.unlesbarLeertext).toBeFalsy();
+    expect(alt.ersatzLeertext).toBeFalsy();
     expect(alt.nachfuellLeertext).toMatch(/alten Format/);
   });
 
@@ -538,6 +538,41 @@ describe("Check-Detailseite", () => {
     // ⚠️ Und erst recht nicht `error` (§6.6.5): `colorError === colorPrimary`.
     expect(alerts[0].props.type).not.toBe("error");
     expect(String(alerts[0].props.title)).toMatch(/^Dieser Check läuft noch/);
+  });
+
+  it("widerspricht sich bei einem laufenden Check nicht selbst", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2). Die Meldung allein reichte nicht:
+     * darunter standen weiter „0 geprüfte Positionen" und „Keine Geräte in
+     * diesem Check." — TATSACHENBEHAUPTUNGEN, die niemand geprueft hat, direkt
+     * unter dem Satz, es sei noch nichts erfasst worden. Das ist derselbe
+     * luegende Nullzustand, gegen den der Vorgang antrat, nur eine Zeile tiefer.
+     */
+    const seite = checkDetailInhalt({ ...BASIS, offen: true });
+
+    // Keine Kachel: eine Zahl behauptet, gezaehlt worden zu sein.
+    expect(elementeVomTyp(seite, Kachel)).toHaveLength(0);
+    // Und ein Ersatztext fuer ALLE fuenf Tabellen, der nichts behauptet.
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/noch kein Ergebnis erfasst/);
+
+    /*
+     * ⚠️ DIE GEGENPROBE, ohne die der Fall die Seite auch fuer JEDEN Check
+     * leerraeumen koennte: ein gewoehnlicher Check behaelt seine Kacheln und
+     * bekommt keinen Ersatztext.
+     */
+    const normal = checkDetailInhalt(gefuellterCheck());
+    expect(elementeVomTyp(normal, Kachel).length).toBeGreaterThan(0);
+    expect(tabellenAus(normal).ersatzLeertext).toBeFalsy();
+
+    /*
+     * ⛔ UND DER NACHBARZUSTAND BLEIBT UNANGETASTET: `unlesbar` behaelt seine
+     * Kacheln — dort WURDE gezaehlt, der Wert ist nur nicht mehr lesbar. Ohne
+     * diese Zeile raeumte eine spaetere „Vereinheitlichung" einen fremden
+     * Anzeigezustand mit weg.
+     */
+    const unlesbar = checkDetailInhalt({ ...BASIS, unlesbar: true });
+    expect(elementeVomTyp(unlesbar, Kachel).length).toBeGreaterThan(0);
+    expect(tabellenAus(unlesbar).ersatzLeertext).toMatch(/nicht lesbar/);
   });
 
   it("haelt laufend, unlesbar und Altformat auseinander — drei Ursachen, drei Texte", () => {
