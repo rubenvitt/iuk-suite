@@ -309,12 +309,24 @@ export default async function Cockpit({
         />
 
         {/*
-         * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld. In
-         * der Betriebsart „Einrichtung" entfällt sie VOLLSTÄNDIG: ein leeres Fach
-         * ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort die
-         * Schrittzeile.
+         * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld.
+         * Sie entfällt VOLLSTÄNDIG, solange sie nichts zu zeigen hat: ein leeres
+         * Fach ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort
+         * die Schrittzeile.
+         *
+         * ⚠️ DIE BEDINGUNG PRÜFT DIE LEERE SELBST, NICHT MEHR `!einrichtung` —
+         * und der Unterschied war eine Sackgasse. Bis DRK-426 waren beide
+         * dasselbe: „Einrichtung" hieß „gar kein Abend", also auch kein
+         * Verlaufseintrag. Seit ein ABGESAGTER Abend in den Verlauf gehört,
+         * aber nicht als stattgefunden zählt, laufen sie auseinander: eine
+         * Gruppe, deren einziger geplanter Termin abgesagt wurde, steht in
+         * „Einrichtung" UND hat eine Verlaufszeile. Mit der alten Bedingung
+         * verschwand die Zeile vom Bildschirm — und mit ihr „Doch wieder
+         * ansetzen", das einzige Mittel, die Absage zurückzunehmen. Der Tag
+         * blieb dabei für die Planung belegt, weil die Zeile ja noch da war.
+         * Ein Zustand, aus dem die Oberfläche nicht mehr herausführt.
          */}
-        {!einrichtung && (
+        {verlaufZeilen.length > 0 && (
           <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
         )}
 

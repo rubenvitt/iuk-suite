@@ -450,6 +450,37 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(wirt.textContent).toContain("feedback.iuk-ue.de/f/");
     expect(wirt.textContent).toContain("Aushang");
   });
+
+  it("STEHT TROTZ EINRICHTUNG, sobald ein abgesagter Abend darin liegt", async () => {
+    /*
+     * ⚠️ DIE SACKGASSE, GEGEN DIE DIESE ZUSICHERUNG STEHT. Bis DRK-426 waren
+     * „Einrichtung" und „der Verlauf ist leer" dasselbe. Seit ein ABGESAGTER
+     * Abend in den Verlauf gehoert, aber nicht als stattgefunden zaehlt, nicht
+     * mehr: eine Gruppe, deren einziger geplanter Termin abgesagt wurde, steht
+     * in der Einrichtung UND hat eine Verlaufszeile.
+     *
+     * Mit `!einrichtung` als Bedingung verschwand diese Zeile vom Bildschirm —
+     * und mit ihr „Doch wieder ansetzen", das einzige Mittel, die Absage
+     * zurueckzunehmen. Der Tag blieb fuer die Planung belegt, weil die Zeile ja
+     * noch existierte. Aus diesem Zustand fuehrte die Oberflaeche nicht heraus.
+     */
+    insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-12-10"),
+      topic: "Faellt aus",
+      notes: null,
+      participantCount: null,
+      status: "cancelled",
+      createdAt: tag("2026-07-22"),
+    });
+
+    const wirt = await zeichne();
+
+    expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(1);
+    expect(wirt.textContent).toContain("Abgesagt");
+    // Die Lagekarte bleibt dabei in der Einrichtung: stattgefunden hat nichts.
+    expect(wirt.textContent).toContain("ERSTER SCHRITT");
+  });
 });
 
 /**
