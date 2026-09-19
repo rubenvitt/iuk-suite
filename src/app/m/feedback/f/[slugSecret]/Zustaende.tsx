@@ -48,12 +48,34 @@ const KICKER = "Rückmeldung zum Dienstabend";
 export function Huelle({
   titel,
   gross = false,
+  fuellt = false,
+  vorTitel,
   kopf,
   children,
 }: {
   titel: string;
   /** "Danke." steht auch mobil auf t6 (32px, -0.02em) — Entwurf 3.3. */
   gross?: boolean;
+  /**
+   * Das Blatt reicht bis zur Unterkante, statt nach dem Text aufzuhoeren.
+   *
+   * NUR fuer kurze Zustaende gedacht und heute allein von der Danke-Seite
+   * gesetzt: dort steht ein Absatz auf einem Schirm, und die Tonwertkante
+   * zwischen Blatt und Papier lag mitten im Bild — hell kaum zu sehen, dunkel
+   * (`--blatt` #1b1e22 auf `--papier` #101214) deutlich. Ab 600px ist das Blatt
+   * eine KARTE mit Rand und Schatten; dort nimmt die Regel sich selbst
+   * zurueck, sonst waere die Karte fensterhoch.
+   */
+  fuellt?: boolean;
+  /**
+   * Ein Zeichen UEBER der Ueberschrift, innerhalb des Kopfes.
+   *
+   * Eigener Steckplatz und nicht einfach als erstes `children`: dort landete es
+   * UNTER der Ueberschrift, und ein Haken zwischen "Danke." und dem Satz
+   * darunter liest sich als Aufzaehlungszeichen, nicht als Geste. Die Reihenfolge
+   * Zeichen -> Ueberschrift -> Satz ist der Punkt.
+   */
+  vorTitel?: ReactNode;
   kopf?: ReactNode;
   children?: ReactNode;
 }) {
@@ -62,12 +84,13 @@ export function Huelle({
       {/* Fahne: 3px Suite-Rot, randlos am Oberrand. Reine Marke, kein Inhalt —
           deshalb `aria-hidden`. Eine der genau ZWEI Stellen mit #c8000f. */}
       <div className={s.fahne} aria-hidden="true" />
-      <div className={s.blatt}>
+      <div className={fuellt ? `${s.blatt} ${s.fuellt}` : s.blatt}>
         <header className={`${s.kopf} ${s.aufbau}`}>
           <p className={s.kicker}>
             {KICKER}
             <span className={s.wortzeichen}>IDA</span>
           </p>
+          {vorTitel}
           <h1 className={gross ? `${s.titel} ${s.gross}` : s.titel}>{titel}</h1>
           {kopf}
         </header>
@@ -80,6 +103,47 @@ export function Huelle({
 /** Der Textkoerper eines Zustands — ein Block, damit der Aufbau mitspielt. */
 function Block({ children }: { children: ReactNode }) {
   return <div className={`${s.zustand} ${s.aufbau}`}>{children}</div>;
+}
+
+/**
+ * DAS ZEICHEN DER DANKE-SEITE — ein Haken im Ring, in derselben Tinte wie der
+ * Text.
+ *
+ * INLINE-SVG UND KEIN ZEICHENPAKET, und das ist hier keine Vorliebe: auf dieser
+ * Route gibt es kein antd (das Route-JS-Budget liegt unter 15 KB gz), und ein
+ * Import aus `@ant-design/icons` ergaebe in einer Server Component ohnehin HTTP
+ * 500 — schon beim Import, nicht beim Rendern (Falle 7 in CLAUDE.md). Markup
+ * kostet dagegen kein Byte JavaScript und rendert auch ohne.
+ *
+ * ⚠️ KEIN ROT UND KEIN GRUEN. Rot hat auf dieser Route ein Budget von GENAU
+ * zwei Stellen (Fahne, Wortzeichen) — `Zettel.test.tsx` zaehlt sie —, und Gruen
+ * waere die Gegenfarbe der Notenskala: ein gruener Haken neben einem Bogen, auf
+ * dem Farbe „Note" bedeutet, behauptete eine Bewertung. Das Zeichen bleibt
+ * deshalb im Hairline-Vokabular des Blattes: Ring in `--linie-stark` auf
+ * `--tint`, Haken in `--graphit`.
+ *
+ * ⚠️ UND ES IST KEIN STEMPEL. Der Entwurf hat den Stempel ausdruecklich
+ * verworfen ("Stempel widerspricht der eigenen Strenge", Jury-Zeile 9) — ein
+ * schraeg gesetztes Siegel ist genau die Editorial-Schablone, die dieselbe Jury
+ * an drei Stellen gestrichen hat.
+ *
+ * `aria-hidden`, weil die Aussage schon zweimal dasteht: in der Ueberschrift
+ * ("Danke.") und im Satz darunter. Eine Vorleseanwendung soll sie nicht ein
+ * drittes Mal hoeren.
+ */
+export function DankeZeichen() {
+  return (
+    <svg
+      className={s.dankeZeichen}
+      viewBox="0 0 52 52"
+      role="presentation"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle className={s.dankeRing} cx="26" cy="26" r="25" />
+      <path className={s.dankeHaken} d="M16.5 27 L23 33.5 L36 19" />
+    </svg>
+  );
 }
 
 /**
@@ -197,8 +261,9 @@ export function ZustandD({
  * Ersetzt die stumme Weiterleitung nach `/thanks`. Handys werden in einer Gruppe
  * herumgegeben; die 24-Stunden-Cookie-Sperre machte die zweite Abgabe unmoeglich
  * und sagte kein Wort dazu. Der Knopf ist hier die Hauptaktion und deshalb
- * gefuellt (in der Danke-Seite ist er ein Sekundaerknopf, dort ist Danke die
- * Hauptsache).
+ * gefuellt. Es ist zugleich der EINZIGE Weg zum leeren Bogen: die Danke-Seite
+ * bietet ihn nicht mehr an (sie sagt nur noch danke), und wer das Handy
+ * weiterreicht, landet mit dem naechsten Aufruf genau hier.
  */
 export function ZustandE({ slugSecret, surveyId }: { slugSecret: string; surveyId: number }) {
   return (
@@ -234,37 +299,6 @@ export function ZustandF() {
 }
 
 /**
- * Der Weitergabe-Abschnitt der Danke-Seite (Entwurf 3.2 B): Haarlinie, 32px
- * Abstand, Kicker, Satz, Sekundaerknopf. Er steht UNBEDINGT da, nicht nur wenn
- * ein Cookie oder eine aktive Umfrage gefunden wurde — auf einem geteilten Handy
- * ist die naechste Person der Regelfall, nicht die Ausnahme.
- *
- * `surveyId` ist deshalb optional. Ohne aktive Umfrage (die Frist kann zwischen
- * dem Absenden und dieser Seite ablaufen — Lazy-Auto-Close) gibt es kein Cookie
- * freizugeben: `page.tsx` liest es nur im aktiven Zweig, und ohne Umfrage rendert
- * es ohnehin Zustand C. Der Weg zum leeren Bogen ist dann eine gewoehnliche
- * Navigation — sichtbar gleich, ohne Action, und ohne JavaScript bedienbar.
- */
-export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surveyId?: number }) {
-  return (
-    <section className={s.weitergabe}>
-      <p className={s.sektionKicker}>Handy wandert weiter?</p>
-      <p className={s.text}>
-        Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst
-        du einen leeren Bogen öffnen.
-      </p>
-      {surveyId === undefined ? (
-        <a className={`${s.knopf} ${s.knopfUmriss} ${s.knopfLink}`} href={`/f/${slugSecret}`}>
-          Leeren Bogen öffnen
-        </a>
-      ) : (
-        <LeererBogen slugSecret={slugSecret} surveyId={surveyId} umriss />
-      )}
-    </section>
-  );
-}
-
-/**
  * Der Knopf, der das Geraet freigibt.
  *
  * Die Action wird GEBUNDEN und unveraendert als `action` uebergeben — nur so
@@ -273,18 +307,10 @@ export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surve
  * Funktion `action="javascript:throw …"`, und dieser Bruch ist fuer Typecheck
  * und Build unsichtbar.
  */
-function LeererBogen({
-  slugSecret,
-  surveyId,
-  umriss = false,
-}: {
-  slugSecret: string;
-  surveyId: number;
-  umriss?: boolean;
-}) {
+function LeererBogen({ slugSecret, surveyId }: { slugSecret: string; surveyId: number }) {
   return (
     <form action={releaseDeviceAction.bind(null, slugSecret, surveyId)}>
-      <button type="submit" className={umriss ? `${s.knopf} ${s.knopfUmriss}` : s.knopf}>
+      <button type="submit" className={s.knopf}>
         Leeren Bogen öffnen
       </button>
     </form>

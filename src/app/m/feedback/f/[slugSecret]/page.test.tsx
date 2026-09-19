@@ -622,19 +622,57 @@ describe("Zustand F — dieser Link stimmt nicht", () => {
 });
 
 describe("Danke-Seite (Zustand B)", () => {
-  it("zeigt „Danke.“, die anonyme Bestaetigung und den Weitergabe-Abschnitt", async () => {
+  it("sagt danke — und sonst nichts", async () => {
     const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
-    const gelesen = text(await danke(token));
+    const markup = await danke(token);
+    const gelesen = text(markup);
     expect(gelesen).toContain("Danke.");
     expect(gelesen).toContain("Deine Rückmeldung ist eingegangen — anonym.");
-    expect(gelesen).toContain("Handy wandert weiter?");
-    expect(gelesen).toContain(
-      "Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. " +
-        "Für die nächste Person kannst du einen leeren Bogen öffnen.",
-    );
-    expect(await danke(token)).toMatch(
-      /<button[^>]*type="submit"[^>]*>Leeren Bogen öffnen<\/button>/,
-    );
+    /*
+     * Der Weitergabe-Abschnitt ist weg (2026-09). Er erklaerte der abgebenden
+     * Person eine Mechanik, die nicht ihr Problem ist, und machte aus einem
+     * Schlusspunkt eine weitere Aufgabe. Negativ gepruefte Zeichenketten, weil
+     * genau das hier die Zusage ist: die Seite endet nach dem Dank.
+     */
+    expect(gelesen).not.toContain("Handy wandert weiter?");
+    expect(gelesen).not.toContain("Leeren Bogen öffnen");
+    expect(markup).not.toContain("<form");
+  });
+
+  /*
+   * DAS ZEICHEN IST MARKUP, KEIN ZEICHENPAKET — und das ist der Punkt, der hier
+   * still bricht. Ein `@ant-design/icons`-Import ergaebe in dieser Server
+   * Component HTTP 500 schon beim IMPORT (Falle 7), und `"use client"` behoebe
+   * das nicht, sondern machte es leise. Die Route fuehrt ausserdem gar kein antd
+   * (Route-JS-Budget < 15 KB gz, `layout.test.tsx`).
+   *
+   * Geprueft wird hier die WIRKUNG im Server-HTML: das Zeichen steht wirklich
+   * dort. Den Import bewacht `src/core/shell/icons.test.ts` ohnehin repo-weit
+   * ueber `src` — eine zweite Zusicherung daneben waere eine Kopie, und Kopien
+   * driften.
+   */
+  it("traegt ein Zeichen als Inline-SVG — und gibt ihm keine dritte Stimme", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const markup = await danke(token);
+    expect(markup).toContain("<svg");
+    // Dekor: "Danke." und der Satz darunter sagen es schon zweimal.
+    expect(markup).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  /*
+   * ROT HAT AUF DIESER ROUTE EIN BUDGET VON GENAU ZWEI STELLEN (Fahne,
+   * Wortzeichen) — `Zettel.test.tsx` zaehlt sie im Stylesheet. Was der Zaehler
+   * NICHT sieht, ist eine Farbe, die im Markup steht statt im Stylesheet: ein
+   * `fill="#c8000f"` am SVG kaeme durch. Und Gruen waere die zweite Falle: auf
+   * einem Bogen, auf dem Farbe "Note" bedeutet, behauptete ein gruener Haken
+   * eine Bewertung.
+   */
+  it("faerbt das Zeichen weder rot noch gruen — es traegt gar keine Farbe im Markup", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const markup = await danke(token);
+    const svg = markup.slice(markup.indexOf("<svg"), markup.indexOf("</svg>"));
+    expect(svg).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(svg).not.toMatch(/\b(fill|stroke)="(?!none)[a-z]/i);
   });
 
   it("zeigt keine Antworten mehr auf dem Schirm — das Handy wandert weiter", async () => {
@@ -650,29 +688,20 @@ describe("Danke-Seite (Zustand B)", () => {
   });
 
   /*
-   * DER WEITERGABE-ABSCHNITT IST UNBEDINGT (Entwurf 3.2 B). Er hing an einer
-   * aktiven Umfrage — und genau dieser Weg loest das Problem des geteilten
-   * Handys. Der Zustand ist erreichbar: die Frist kann zwischen dem Absenden und
-   * dem Rendern dieser Seite ablaufen (Lazy-Auto-Close aus `lifecycle.ts`), und
-   * dann stand die naechste Person vor einer Danke-Seite ohne jeden Ausweg.
+   * Die Seite haengt an keiner aktiven Umfrage mehr — sie fragt gar keine mehr
+   * ab. Frueher tat sie es fuer den Weitergabe-Knopf, und die Frist kann
+   * zwischen dem Absenden und dem Rendern ablaufen (Lazy-Auto-Close aus
+   * `lifecycle.ts`); der Dank haette dann anders ausgesehen als eine Sekunde
+   * vorher. Beide Faelle Zeichen fuer Zeichen gleich, das ist die Zusage.
    */
-  it("stellt den Weitergabe-Abschnitt auch OHNE aktive Umfrage hin", async () => {
-    const { token } = seedUmfrage({
-      slug: "bereitschaft",
+  it("sieht ohne aktive Umfrage genauso aus", async () => {
+    const mitUmfrage = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const ohneUmfrage = seedUmfrage({
+      slug: "jugend",
       secret: "abc12",
       aktivieren: false,
     });
-    const markup = await danke(token);
-    const gelesen = text(markup);
-    expect(gelesen).toContain("Handy wandert weiter?");
-    expect(gelesen).toContain("Leeren Bogen öffnen");
-    /*
-     * Ohne aktive Umfrage gibt es kein Cookie freizugeben (`page.tsx` liest es
-     * nur im aktiven Zweig) — der Weg zum leeren Bogen ist dann eine gewoehnliche
-     * Navigation. Kein Knopf, der eine Action ohne Umfrage-Id ruft.
-     */
-    expect(markup).toContain(`href="/f/${token}"`);
-    expect(markup).not.toMatch(/<button[^>]*>Leeren Bogen öffnen<\/button>/);
+    expect(await danke(ohneUmfrage.token)).toBe(await danke(mitUmfrage.token));
   });
 });
 
@@ -704,7 +733,7 @@ describe("Gemeinsame Huelle aller Zustaende", () => {
     expect(quelle("./Zustaende.tsx")).toContain("s.fahne");
   });
 
-  it("bleibt serverseitig — die Weitergabe braucht kein JavaScript", async () => {
+  it("bleibt serverseitig — kein Zustand braucht JavaScript", async () => {
     for (const datei of ["./page.tsx", "./thanks/page.tsx", "./Zustaende.tsx"]) {
       expect(quelle(datei)).not.toMatch(/^\s*["']use client["']/m);
     }

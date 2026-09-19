@@ -1,7 +1,7 @@
 import { getDb } from "../../../_db/client";
-import { getGroupBySlug, activeSurveyForGroup } from "../../../_db/queries";
+import { getGroupBySlug } from "../../../_db/queries";
 import { parseToken } from "../../../_lib/token";
-import { Huelle, Weitergabe, ZustandF } from "../Zustaende";
+import { DankeZeichen, Huelle, ZustandF } from "../Zustaende";
 import s from "../zettel.module.css";
 
 /**
@@ -12,8 +12,13 @@ import s from "../zettel.module.css";
  * 1. KEINE Antworten auf dem Schirm. Das Handy wandert weiter — was hier stehen
  *    bliebe, laese die naechste Person. Deshalb wird hier nichts aus `responses`
  *    geholt, nicht einmal zum Bestaetigen.
- * 2. Der Weitergabe-Abschnitt steht unbedingt da, nicht nur bei vorhandenem
- *    Cookie: auf einem geteilten Geraet ist die naechste Person der Regelfall.
+ * 2. NUR danke, sonst nichts. Der Weitergabe-Abschnitt ("Handy wandert weiter?"
+ *    samt "Leeren Bogen oeffnen") stand hier bis 2026-09; er erklaerte der
+ *    abgebenden Person eine Mechanik, die nicht ihr Problem ist, und machte aus
+ *    einem Schlusspunkt eine weitere Aufgabe. Der Weg zum leeren Bogen ist
+ *    dadurch nicht verloren: wer das Handy weiterreicht, bekommt beim naechsten
+ *    Aufruf `ZustandE` mit demselben Knopf — an der Stelle, an der er gebraucht
+ *    wird.
  */
 export default async function ThanksPage({
   params,
@@ -26,21 +31,11 @@ export default async function ThanksPage({
   const db = getDb();
   const group = getGroupBySlug(db, parsed.slug);
   if (!group || group.secret !== parsed.secret) return <ZustandF />;
-  /*
-   * Die Umfrage-Id, WENN es eine aktive gibt: das Cookie heisst `feedback-${id}`,
-   * und nur mit ihr kann `releaseDeviceAction` es loeschen. Fehlt sie (die Frist
-   * kann zwischen dem Absenden und dieser Seite ablaufen), bleibt der Abschnitt
-   * trotzdem stehen und fuehrt per Link auf das Formular — genau dieser Weg loest
-   * das Problem des geteilten Handys, und ohne aktive Umfrage gibt es dort auch
-   * nichts freizugeben.
-   */
-  const active = activeSurveyForGroup(db, group.id);
 
   return (
-    <Huelle titel="Danke." gross>
-      <div className={s.zustand}>
+    <Huelle titel="Danke." gross fuellt vorTitel={<DankeZeichen />}>
+      <div className={`${s.zustand} ${s.aufbau}`}>
         <p className={s.text}>Deine Rückmeldung ist eingegangen — anonym.</p>
-        <Weitergabe slugSecret={slugSecret} surveyId={active?.survey.id} />
       </div>
     </Huelle>
   );
