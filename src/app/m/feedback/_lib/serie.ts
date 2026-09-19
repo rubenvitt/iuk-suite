@@ -37,12 +37,24 @@
 export type Rhythmus = "einmalig" | "woche" | "zweiwochen" | "vierwochen" | "monatsWochentag";
 
 /**
- * Obergrenze für eine Serie. Fünfzig Termine sind knapp ein Jahr im
- * Wochentakt — mehr plant niemand in einem Zug, und die Grenze hält eine
- * Fehleingabe („bis 2099") davon ab, die Datenbank mit 4000 Abenden zu füllen,
- * die anschließend einzeln gelöscht werden müssten.
+ * Obergrenze für eine Serie — und sie muss ein GANZES JAHR IM WOCHENTAKT
+ * fassen, weil genau das die Zusage der Oberfläche ist („die Dienstabende eines
+ * ganzen Jahres vorab eintragen").
+ *
+ * ⚠️ HIER STANDEN 50, MIT DER BEGRÜNDUNG „knapp ein Jahr im Wochentakt". Das
+ * war schlicht falsch gerechnet: ein Kalenderjahr enthält 53 Wochentermine
+ * (gemessen für 2026, 2027 und das Schaltjahr 2028 — die Zahl ist stabil, weil
+ * 365/7 = 52,14 und der Startpunkt den Rest entscheidet). Die Serie wäre also
+ * bei Dezember-Mitte still abgebrochen, während der Dialog daneben eine
+ * vollständige Jahresplanung versprach.
+ *
+ * 60 statt 53, damit auch ein Jahr plus Anlauf hineinpasst. Die Grenze bleibt
+ * nötig: sie hält eine Fehleingabe („bis 2099") davon ab, die Datenbank mit
+ * tausenden Abenden zu füllen, die anschließend einzeln gelöscht werden
+ * müssten. Im Normalfall greift sie jetzt nicht mehr, und wo sie greift, nennt
+ * die Vorschau sie samt Ausweg.
  */
-export const SERIE_MAX_TERMINE = 50;
+export const SERIE_MAX_TERMINE = 60;
 
 const TAG_MS = 86_400_000;
 

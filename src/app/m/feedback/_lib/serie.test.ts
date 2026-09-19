@@ -127,6 +127,32 @@ describe("serienTermine", () => {
       expect(serie("2026-09-08", "2026-09-01", "monatsWochentag")).toEqual(["2026-09-08"]);
     });
 
+    it("FASST EIN GANZES JAHR IM WOCHENTAKT — das ist die Zusage der Oberfläche", () => {
+      /*
+       * ⚠️ DIE ZAHL, DIE ICH FALSCH IM KOPF HATTE. Ein Kalenderjahr enthält 53
+       * Wochentermine, nicht „knapp 50": 365/7 = 52,14, und der Startpunkt
+       * entscheidet den Rest. Mit der alten Grenze brach die Jahresplanung
+       * still Mitte Dezember ab, während der Dialog daneben ein ganzes Jahr
+       * versprach — die Vorschau zeigte die gekürzte Liste, und niemand rechnet
+       * beim Lesen nach, ob der 24. und der 31. fehlen.
+       */
+      const jahr = serienTermine(tag("2027-01-01"), tag("2027-12-31"), "woche");
+
+      expect(jahr).toHaveLength(53);
+      expect(jahr.length).toBeLessThanOrEqual(SERIE_MAX_TERMINE);
+      expect(tage(jahr).at(-1)).toBe("2027-12-31");
+    });
+
+    it("fasst ein Jahr auch in den anderen Takten", () => {
+      // Die Gegenprobe zur Zahl oben: der Wochentakt ist der dichteste Fall,
+      // alle anderen müssen erst recht hineinpassen.
+      for (const takt of ["zweiwochen", "vierwochen", "monatsWochentag"] as const) {
+        const jahr = serienTermine(tag("2027-01-05"), tag("2027-12-31"), takt);
+        expect(jahr.length).toBeLessThan(SERIE_MAX_TERMINE);
+        expect(jahr.length).toBeGreaterThan(0);
+      }
+    });
+
     it("deckelt jede Serie bei SERIE_MAX_TERMINE", () => {
       // „bis 2099" ist eine Fehleingabe, keine Planung.
       const woechentlich = serienTermine(tag("2026-01-06"), tag("2099-12-31"), "woche");

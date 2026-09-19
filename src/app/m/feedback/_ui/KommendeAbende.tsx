@@ -415,9 +415,12 @@ function PlanenDialog({
              * „höchstens", nicht „mehr als … gehen nicht": an der Obergrenze ist
              * von aussen NICHT zu sehen, ob `serienTermine` etwas abgeschnitten
              * hat — eine Serie, die genau hineinpasst, sieht identisch aus. Der
-             * Satz nennt deshalb die Regel und behauptet keinen Verlust.
+             * Satz nennt deshalb die Regel und behauptet keinen Verlust. Den
+             * AUSWEG nennt er trotzdem, denn wer hier landet, will mehr: die
+             * Liste darunter zeigt ja, wo sie endet.
              */}
-            {gedeckelt && ` · höchstens ${SERIE_MAX_TERMINE} Termine in einem Zug`}
+            {gedeckelt &&
+              ` · höchstens ${SERIE_MAX_TERMINE} Termine in einem Zug — den Rest in einem zweiten Durchgang`}
           </p>
           <ul style={{ ...T.meta, margin: `${SPACE.xs}px 0 0`, paddingInlineStart: 18 }}>
             {vorschau.map((v) => (
