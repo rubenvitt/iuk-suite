@@ -458,6 +458,33 @@ describe("Checks-Seite", () => {
   });
 
   /**
+   * DRK-196, Codex-Review zu PR #210 — EINE ERFASSTE ZAHL BLEIBT EINE ZAHL.
+   *
+   * ⛔ Der Fall darueber zeigt „noch keine" fuer einen laufenden Check OHNE
+   * Inhalt. Ein laufender Check KANN aber schon Positionen tragen; „noch keine"
+   * waere dort genauso falsch wie vorher die `0`, nur in die andere Richtung.
+   * Dass der Wert vorlaeufig ist, sagt der Chip daneben.
+   */
+  it("zeigt bei einem laufenden Check mit Inhalt die erfasste Zahl", () => {
+    checkEintragen({
+      id: "check-offen-inhalt",
+      completedAt: null,
+      ergebnis: JSON.stringify({
+        version: 2,
+        positionen: [{ sollPositionId: "sp1", artikelId: "a1", soll: 2, ist: 1 }],
+        artikel: [], geraete: [], flaschen: [], verfall: [],
+      }),
+    });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.positionenText).toBe("1");
+    // Der Zustand steht trotzdem in der Zeile — nur eben nicht in dieser Spalte.
+    expect(zeile.ergebnisChips.map((chip) => chip.text)).toEqual(["läuft noch"]);
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+  });
+
+  /**
    * ⚠️ DIE GEGENPROBE ZUM SCHALTER SELBST: er darf die abgeschlossenen Checks
    * nicht ERSETZEN, sondern nur ergaenzen. Ein `mitOffenen`, das versehentlich
    * auf „nur offene" filterte, waere mit den zwei Faellen darueber gruen.

@@ -327,8 +327,21 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
          * haengt an `completedAt`, `unlesbar` an einem vorhandenen, aber
          * kaputten Ergebnis. Sie steht hier trotzdem fest, damit niemand raet.
          */
-        ersatzLeertext={check.offen && !check.hatZwischenstand
-          ? "Für diesen Check wurde noch kein Ergebnis erfasst — es gibt noch nichts zu zeigen."
+        /*
+         * ⛔ OHNE `hatZwischenstand`-BEDINGUNG, und das ist die Behebung eines
+         * Denkfehlers (Codex-Review zu PR #210): ein Leertext rendert NUR auf
+         * einer LEEREN Tabelle. Ihn an „gar nichts erfasst" zu knuepfen hiess,
+         * dass bei einem Zwischenstand in EINER Liste die uebrigen vier wieder
+         * ihre Tatsachenbehauptung zeigten („Keine Geräte in diesem Check") —
+         * neben einer Meldung, die gerade sagt, was fehle sei nicht gesagt.
+         *
+         * ⛔ DER SATZ DAHINTER, und er gilt fuer die ganze Seite: FUER EINEN
+         * LAUFENDEN CHECK IST JEDER WERT VORLAEUFIG UND JEDE LEERE EIN „NOCH
+         * NICHT", NIE EIN „KEINS". Eine Tabelle mit Zeilen zeigt sie; eine
+         * ohne sagt, dass dort noch nichts steht.
+         */
+        ersatzLeertext={check.offen
+          ? "Für diesen laufenden Check ist hier noch nichts erfasst — ob noch etwas kommt, steht nicht fest."
           : check.unlesbar
             ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
             : null}

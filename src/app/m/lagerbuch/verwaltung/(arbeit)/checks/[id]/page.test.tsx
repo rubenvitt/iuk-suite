@@ -554,7 +554,7 @@ describe("Check-Detailseite", () => {
     // Keine Kachel: eine Zahl behauptet, gezaehlt worden zu sein.
     expect(elementeVomTyp(seite, Kachel)).toHaveLength(0);
     // Und ein Ersatztext fuer ALLE fuenf Tabellen, der nichts behauptet.
-    expect(tabellenAus(seite).ersatzLeertext).toMatch(/noch kein Ergebnis erfasst/);
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/noch nichts erfasst/);
 
     /*
      * ⚠️ DIE GEGENPROBE, ohne die der Fall die Seite auch fuer JEDEN Check
@@ -635,12 +635,25 @@ describe("Check-Detailseite", () => {
     expect(String(alerts[0].props.title)).not.toMatch(/kein Ergebnis erfasst/);
 
     /*
-     * ⚠️ WAS DA IST, BLEIBT SICHTBAR: kein Ersatztext ueber den Tabellen, und
-     * die Kacheln stehen. Sie wegzunehmen hiesse, erfasste Arbeit zu verbergen
-     * — das Gegenteil des Befunds.
+     * ⚠️ WAS DA IST, BLEIBT SICHTBAR: die Kacheln stehen. Sie wegzunehmen hiesse,
+     * erfasste Arbeit zu verbergen — das Gegenteil des Befunds.
      */
-    expect(tabellenAus(seite).ersatzLeertext).toBeFalsy();
     expect(elementeVomTyp(seite, Kachel).length).toBeGreaterThan(0);
+
+    /*
+     * ⛔ UND DIE LEEREN ABSCHNITTE BLEIBEN TROTZDEM VORLAEUFIG. Hier stand bis
+     * zur naechsten Reviewrunde `toBeFalsy()` — also: sobald IRGENDEINE Liste
+     * etwas traegt, bekommen die uebrigen wieder ihre Tatsachenbehauptung
+     * („Keine Geräte in diesem Check"). Das widersprach der Meldung darueber,
+     * die gerade sagt, was fehle sei nicht gesagt.
+     *
+     * Ein Leertext rendert NUR auf einer leeren Tabelle — ihn immer zu setzen
+     * ist deshalb genau die abschnittsweise Antwort: volle Tabellen zeigen ihre
+     * Zeilen, leere sagen „noch nichts". Der Satz dahinter gilt der ganzen
+     * Seite: fuer einen laufenden Check ist jeder Wert vorlaeufig und jede
+     * Leere ein „noch nicht", nie ein „keins".
+     */
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/noch nichts erfasst/);
 
     /*
      * ⚠️ DIE GEGENPROBE: ohne Zwischenstand bleibt es beim anderen Satz, und

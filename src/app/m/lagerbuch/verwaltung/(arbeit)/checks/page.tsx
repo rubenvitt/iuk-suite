@@ -165,7 +165,14 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
      * den laufenden Check fehlte es (Codex-Review zu PR #210, P2).
      */
     positionenText: zeile.completedAt === null
-      ? "noch keine"
+      /*
+       * ⚠️ EINE ERFASSTE ZAHL BLEIBT EINE ZAHL (Codex-Review zu PR #210). Ein
+       * laufender Check KANN schon Positionen tragen; „noch keine" waere dann
+       * genauso falsch wie vorher die `0`, nur in die andere Richtung. Dass der
+       * Wert vorlaeufig ist, sagt der Chip „läuft noch" in der Spalte daneben —
+       * die Zahl muss es nicht ein zweites Mal sagen.
+       */
+      ? (zeile.positionen > 0 ? String(zeile.positionen) : "noch keine")
       : zeile.unlesbar ? "unlesbar" : String(zeile.positionen),
   };
 }

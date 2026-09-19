@@ -459,12 +459,24 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     // §5.8.3 fuer die Summen beschreibt.
     unlesbar: summe.unlesbar,
     offen: c.completedAt === null,
-    // Irgendeine der fuenf Listen traegt etwas — siehe `hatZwischenstand`.
+    /*
+     * ⚠️ DIE SUMMEN ZAEHLEN MIT, UND DAS IST NICHT REDUNDANT (Codex-Review zu
+     * PR #210). Das ALTE Format (V1) traegt keine Positionsdetails — `leer`
+     * macht dort alle fuenf Listen leer —, seine SUMMEN koennen aber sehr wohl
+     * von null verschieden sein. Ohne den zweiten Block hielte die Seite einen
+     * laufenden Altformat-Check fuer voellig leer und meldete „es wurde noch
+     * kein Ergebnis erfasst", waehrend die Altformat-Meldung daneben sagt, die
+     * Summen seien vollstaendig. Zwei Meldungen, ein Widerspruch.
+     */
     hatZwischenstand: positionen.length > 0
       || artikelD.length > 0
       || geraeteD.length > 0
       || flaschenD.length > 0
-      || verfallD.length > 0,
+      || verfallD.length > 0
+      || summe.positionen > 0
+      || summe.nachgefuellt > 0
+      || summe.korrigiert > 0
+      || summe.offen > 0,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den

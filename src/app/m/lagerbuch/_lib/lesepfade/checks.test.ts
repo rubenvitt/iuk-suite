@@ -613,6 +613,41 @@ describe("checkDetail — ein UNLESBARES ergebnis (§11.5, 27)", () => {
     })).offen).toBe(false);
   });
 
+  /**
+   * DRK-196, Codex-Review zu PR #210 — DAS ALTFORMAT TRAEGT KEINE LISTEN, ABER
+   * SUMMEN.
+   *
+   * ⛔ `leer` macht fuer V1 alle fuenf Detaillisten leer — richtig, es gibt dort
+   * keine Positionsdetails. Ein `hatZwischenstand`, das NUR die Listen zaehlt,
+   * haelt einen laufenden Altformat-Check damit fuer voellig leer und laesst die
+   * Seite „es wurde noch kein Ergebnis erfasst" melden — waehrend die
+   * Altformat-Meldung daneben sagt, die Summen seien vollstaendig.
+   */
+  it("erkennt einen Zwischenstand auch im ALTEN Format, wo es keine Listen gibt", () => {
+    t.db.insert(checks).values({
+      id: "chk-alt-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: null,
+      ergebnis: JSON.stringify([{ fehlt: 3, gebucht: 1 }]),
+    }).run();
+    const d = checkDetail(t.db, "chk-alt-offen", NOW)!;
+
+    expect(d.altFormat).toBe(true);
+    expect(d.offen).toBe(true);
+    expect(d.positionen, "V1 traegt keine Positionsdetails").toEqual([]);
+    expect(d.hatZwischenstand, "die Summen sind der Zwischenstand").toBe(true);
+
+    /*
+     * ⚠️ DIE GEGENPROBE: ein laufender Check mit einem LEEREN V1-Ergebnis hat
+     * auch in den Summen nichts — der bleibt ohne Zwischenstand. Ohne sie hiesse
+     * der Fall nur „Altformat ist immer ein Zwischenstand".
+     */
+    t.db.insert(checks).values({
+      id: "chk-alt-offen-leer", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: null, ergebnis: JSON.stringify([]),
+    }).run();
+    expect(checkDetail(t.db, "chk-alt-offen-leer", NOW)!.hatZwischenstand).toBe(false);
+  });
+
   it("meldet NICHT unlesbar fuer das ALTE Format — das hat sein eigenes Signal", () => {
     const d = checkMit("chk-alt-lesbar", JSON.stringify([{ fehlt: 3, gebucht: 1 }]));
     expect(d.altFormat).toBe(true);
