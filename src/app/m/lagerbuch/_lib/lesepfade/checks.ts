@@ -241,10 +241,29 @@ export type CheckDetail = {
    * Seed und der Datenimport aus der Alt-Anwendung — nach dem Cutover ist das
    * also keine hypothetische Zeile.
    *
-   * ⚠️ GEPRUEFT WIRD `ergebnis`, NICHT `completedAt`: das Feld beantwortet
-   * „steht hier etwas?", und genau daran haengt die leere Liste darunter. Das
-   * Schema fuehrt beide gemeinsam (§4.4); die Liste daneben filtert ueber
-   * `completedAt`, weil sie danach auch sortiert.
+   * ⛔ GEPRUEFT WIRD `completedAt`, NICHT `ergebnis` — UND DER ERSTE WURF HATTE
+   * ES FALSCH HERUM (Codex-Review zu PR #210, P2; nachgemessen).
+   *
+   * Die Begruendung damals lautete „das Feld beantwortet, ob hier etwas steht,
+   * und daran haengt die leere Liste darunter; das Schema fuehrt beide ohnehin
+   * gemeinsam". Der letzte Halbsatz ist eine Annahme, keine Zusage: das Schema
+   * ERLAUBT eine abgeschlossene Zeile mit leerem `ergebnis`. Fuer die zeigte
+   * die Seite dann einen Abschlusszeitpunkt UND „Dieser Check laeuft noch" —
+   * nebeneinander, im selben Bild. Ein Widerspruch auf dem Schirm ist teurer
+   * als die „0 Positionen", gegen die der Vorgang ueberhaupt antrat.
+   *
+   * ⚠️ UND DIE ZWEITE HAELFTE WIEGT SCHWERER: die Liste daneben filtert ueber
+   * `completedAt`. Zwei Flaechen mit zwei Diskriminatoren fuer DIESELBE Frage
+   * laufen auseinander, sobald die beiden Felder es tun — genau die Sorte
+   * Inkonsistenz, die erst auffaellt, wenn jemand sie in der Hand hat.
+   * `completedAt IS NULL` ist ausserdem die Form, die §4.4 nennt.
+   *
+   * ⚠️ WAS DAMIT NICHT ABGEDECKT IST, ausgeschrieben statt verschwiegen: eine
+   * ABGESCHLOSSENE Zeile mit leerem `ergebnis` zeigt weiterhin „0 Positionen"
+   * ohne Meldung. Sie entsteht aus dem Modul heraus nicht, und einen vierten
+   * Zustand dafuer zu erfinden waere Overbuild — sie ist weder offen noch
+   * unlesbar noch altes Format, sondern abgeschlossen ohne erfasstes Ergebnis.
+   * Taucht sie nach dem Cutover auf, ist das ein eigener Posten.
    */
   offen: boolean;
   summe: CheckSummen & { verfallAuffaellig: number };
@@ -383,7 +402,7 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     // hier waere eine zweite Wahrheit ueber dasselbe JSON — genau der Bruch, den
     // §5.8.3 fuer die Summen beschreibt.
     unlesbar: summe.unlesbar,
-    offen: c.ergebnis === null,
+    offen: c.completedAt === null,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den

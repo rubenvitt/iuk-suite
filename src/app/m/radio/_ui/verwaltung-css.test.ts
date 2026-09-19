@@ -18,7 +18,7 @@ import { ohneKommentare } from "../_lib/quelltextScan";
  * dem Bestand schreibt, schuldet die Mutation, die sie rot macht — oder die Sonde daneben."
  *
  * ⛔ DAS SCHWESTERBLATT FUEHRT DENSELBEN WAECHTER SEIT PLANTEIL 3, und sein Kommentar hat
- * diesen Fall woertlich vorhergesagt: `_ui/AusleihRahmen.test.tsx:36-39` („Eine gemeinsame
+ * diesen Fall woertlich vorhergesagt: `_ui/AusleihRahmen.test.tsx`, `STYLESHEET_LESER` („Eine gemeinsame
  * Liste waere in dem Moment rot-by-construction, in dem A19/A20 eine Flaeche mit einem
  * zweiten Modul-Stylesheet anlegen"). Der Klassenscan dort ist `:231-246`; dieser hier ist
  * seine zweite abgeleitete Menge, kein Umbau der ersten.

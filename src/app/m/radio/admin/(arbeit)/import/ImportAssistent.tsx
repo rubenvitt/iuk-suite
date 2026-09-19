@@ -89,7 +89,7 @@ import type { HochladenAntwort } from "./hochladen/route";
  * ⛔ KEIN `size=` — Falle 4 (die Verwaltung laeuft seit dem 2026-08-28 auf
  * `SCHREIBTISCHDICHTE`, `controlHeight: 32`, `src/core/theme/theme.ts`; das Mass kommt aus
  * der Dichte und nie aus einem `size` am Bauteil), modulweit durchgesetzt von
- * `_ui/AusleihRahmen.test.tsx:202-220`. Damit entfallen `Space size="large"`/`size="middle"`
+ * `_ui/AusleihRahmen.test.tsx`, `quellDateien`. Damit entfallen `Space size="large"`/`size="middle"`
  * (`ImportWizard.tsx:138`, `:169`, `:295`) und ⛔ das `size="small"` an der Vorschautabelle
  * (`:305`) — Platz schafft dort das waagerechte Scrollen.
  *

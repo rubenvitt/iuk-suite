@@ -21,7 +21,7 @@ import s from "../../_ui/ausleihe.module.css";
  * sie auf denselben Pfad auf wie das Gate (`src/app/m/radio/page.tsx`), was Next beim Build
  * ablehnt — und ein `(ausleihe)/layout.tsx` mit Riegel ueber `/` liefe im Kreis, weil
  * `requireAusleihZugang` bei fehlendem Cookie auf `/` umleitet
- * (`_lib/ausleihZugang.ts:270-275`). Bindend ist die Routenkarte aus Kapitel 1 §1.2.1
+ * (`_lib/ausleihZugang.ts`, `requireAusleihZugang`). Bindend ist die Routenkarte aus Kapitel 1 §1.2.1
  * (Spec:273-284), zugesichert in `_lib/routen.test.ts`.
  *
  * ⛔ DER RIEGEL IST DIE ERSTE ANWEISUNG, obwohl `(ausleihe)/layout.tsx` ihn ebenfalls ruft

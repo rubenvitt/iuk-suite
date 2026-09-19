@@ -389,7 +389,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      * §4.2 (Spec:3374-3384) nennt „Wortmarke + Sitzungsetikett" in einem Atemzug; bis
      * hierher bewachte kein Fall die Wortmarke (Sonde P3 des Reviews: die Zeile ersatzlos
      * entfernt, 397 Faelle blieben gruen). Sie traegt zugleich Last in der L10-Begruendung
-     * (`AusleihRahmen.tsx:22-24`, „Er ist ausdruecklich NICHT die Wortmarke") — die
+     * (`AusleihRahmen.tsx`, Kopf, `L10`, „Er ist ausdruecklich NICHT die Wortmarke") — die
      * Unterscheidung ist erst dann eine, wenn die Wortmarke auch da ist.
      * ⚠️ Der Anker ist umlautfrei (Global Constraints): „Funkger", nicht das ganze Wort.
      */
@@ -530,7 +530,7 @@ describe("radio-AusleihRahmen: der Weg in die Verwaltung (L3)", () => {
       const link = query(VERWALTUNGSLINK);
       /*
        * ⛔ DER AEUSSERE PFAD, NICHT `/m/radio/admin` — ein innerer wuerde auf dem
-       * Modul-Host doppelt praefixiert (`AusleihRahmen.tsx:69-71`, gemessen in
+       * Modul-Host doppelt praefixiert (`AusleihRahmen.tsx`, `FUSSNAV`, gemessen in
        * `lagerbuch/_ui/HelferRahmen.tsx:37-40`).
        */
       expect(link.getAttribute("href")).toBe("/admin");

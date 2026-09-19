@@ -500,30 +500,47 @@ describe("checkDetail — ein UNLESBARES ergebnis (§11.5, 27)", () => {
     expect(d.summe.positionen).toBe(0);
   });
 
-  it("meldet NICHT unlesbar fuer einen OFFENEN Check ohne ergebnis", () => {
-    // `completed_at IS NULL` ist eine vorgesehene Bauform (§4.4), und der
-    // lokale Seed legt sie an. „Noch nichts geschrieben" ist kein Lesefehler.
-    expect(checkMit("chk-offen", null).unlesbar).toBe(false);
+  it("meldet NICHT unlesbar fuer ein leeres ergebnis", () => {
+    // „Noch nichts geschrieben" ist kein Lesefehler.
+    // ⚠️ DIESER FALL HIESS BIS ZUM CODEX-REVIEW ZU PR #210 „fuer einen OFFENEN
+    // Check" — und das war irrefuehrend: `checkMit` setzt `completedAt` auf
+    // NOW, die Zeile ist also ABGESCHLOSSEN und nur ohne Ergebnis. Der Name
+    // behauptete einen Zustand, den die Vorrichtung gar nicht herstellt.
+    expect(checkMit("chk-ohne-ergebnis", null).unlesbar).toBe(false);
   });
 
-  it("meldet ihn stattdessen als OFFEN — der dritte Zustand, nicht der zweite", () => {
-    /**
-     * DRK-196. Der Fall darueber haelt fest, was der Zustand NICHT ist; ohne
-     * diesen hier blieb offen, was er dann IST — und die Seite zeigte „0
-     * Positionen", also dasselbe wie fuer einen abgeschlossenen Check, bei dem
-     * wirklich nichts zu tun war.
-     */
-    const offen = checkMit("chk-offen-2", null);
+  /**
+   * DRK-196 — DER OFFENE ZUSTAND HAENGT AN `completedAt`, NICHT AN `ergebnis`.
+   *
+   * ⛔ DER ERSTE WURF HATTE ES FALSCH HERUM (Codex-Review zu PR #210, P2), und
+   * DIESER FALL HAT DEN FEHLER ZEMENTIERT STATT IHN ZU FANGEN: er lief ueber
+   * `checkMit`, und das setzt `completedAt` auf NOW. Er sicherte damit
+   * `offen: true` fuer eine Zeile MIT Abschlusszeitpunkt zu — und die
+   * Detailseite haette dafuer beides nebeneinander gezeigt, den Zeitpunkt und
+   * „Dieser Check laeuft noch". Ein gruener Test, der die falsche Bedeutung
+   * festhaelt, ist teurer als keiner.
+   *
+   * ⚠️ DIE VORRICHTUNG IST DESHALB EINE EIGENE: eine Zeile OHNE `completedAt`
+   * laesst sich mit `checkMit` gar nicht bauen.
+   */
+  it("meldet OFFEN genau dann, wenn die Abschlusszeit fehlt", () => {
+    t.db.insert(checks).values({
+      id: "chk-echt-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: null, ergebnis: null,
+    }).run();
+    const offen = checkDetail(t.db, "chk-echt-offen", NOW)!;
     expect(offen.offen).toBe(true);
     expect(offen.unlesbar).toBe(false);
     expect(offen.altFormat).toBe(false);
 
     /*
-     * ⚠️ DIE GEGENPROBE IN BEIDE RICHTUNGEN, sonst ist `offen: true` nur eine
-     * umbenannte Leerheit: ein zerstoertes Ergebnis ist NICHT offen (dort steht
-     * etwas, es ist nur nicht lesbar), und ein leerer, aber gueltiger Check
-     * auch nicht (dort steht ausdruecklich „nichts zu tun").
+     * ⛔ DIE GEGENPROBE, DIE DEN P2 FAENGT: abgeschlossen, aber ohne Ergebnis.
+     * Das Schema ERLAUBT diese Form — sie ist nicht offen, und die Seite darf
+     * neben dem Abschlusszeitpunkt nicht „laeuft noch" behaupten.
      */
+    expect(checkMit("chk-fertig-ohne-ergebnis", null).offen).toBe(false);
+
+    // Und die beiden Nachbarzustaende sind es ebenso wenig.
     expect(checkMit("chk-kaputt-2", "{nicht json").offen).toBe(false);
     expect(checkMit("chk-leer-2", JSON.stringify({
       version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],

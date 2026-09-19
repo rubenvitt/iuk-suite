@@ -26,7 +26,7 @@ import { createElement } from "react";
  * Dauerfaelle stehen in `e2e/radio-zugang.spec.ts` (Kopf `:21-23`).
  * ⚠️ ZWEI GRENZEN BLEIBEN, damit dieser Absatz nicht das naechste zu grosse Wort wird:
  * ⬜ A-L9 ist als GANZES nicht geschlossen — die Host-Schleife ueber zwei Hosts (T4,
- * `_lib/bauform.test.ts:654`), der `abgelaufen`-Zweig von `_lib/ausleihZugang.ts:274` (in KEINEM
+ * `_lib/bauform.test.ts:654`), der `abgelaufen`-Zweig von `_lib/ausleihZugang.ts`, `requireAusleihZugang` (in KEINEM
  * der vier Faelle bei einem echten Abruf gemessen; in `e2e/radio-zugang.spec.ts` kommt das Wort
  * nur in zwei KOMMENTARzeilen vor, `:380` und `:725` — nachgezaehlt, nicht geschaetzt), `/sw.js`
  * und `/api/health/radio` (T4/T5) und der Personenriegel im `(druck)`-Zweig (⬜ V-L14, T5)
@@ -95,7 +95,7 @@ describe("die Huelle des Ausleih-Zweigs", () => {
     /*
      * ⛔ DER WURF IST DER ERWARTETE AUSGANG (Bauform-Zulaessigkeitstafel Zeile 6):
      * `requireAusleihZugang` leitet ueber einen geworfenen `redirect()`-Sentinel um
-     * (`_lib/ausleihZugang.ts:270-275`). Ein `try`/`catch` in `layout.tsx` verschluckte ihn,
+     * (`_lib/ausleihZugang.ts`, `requireAusleihZugang`). Ein `try`/`catch` in `layout.tsx` verschluckte ihn,
      * die Weiterleitung faende STILL nicht statt, und der Zweig rendert fuer eine Person
      * ohne Zugang weiter. Genau diese Zusage traegt der Quelltext-Scan NICHT — er sieht die
      * Zeile, nicht ihren Ausgang.

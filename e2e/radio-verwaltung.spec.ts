@@ -1715,7 +1715,7 @@ test.describe("radio-Verwaltung", () => {
    * lieferte `grep -rl "gate-admin\|Zur Verwaltung" e2e/` KEINEN Treffer: von der Kette
    * „angemeldeter Verwalter -> Wurzel -> sichtbarer Weg -> `/admin` mit 200" war kein einziges
    * Glied in einem echten Abruf gemessen. Die Einzelteile waren es sehr wohl:
-   * `AusleihRahmen.test.tsx:462-580` mockt das Praedikat und prueft das Markup, `V-L3 B/C`
+   * `AusleihRahmen.test.tsx`, Block „der Weg in die Verwaltung“ mockt das Praedikat und prueft das Markup, `V-L3 B/C`
    * oben pruefen den Riegel an `/admin`. ⛔ WAS DAZWISCHEN LIEGT, KANN KEINER VON BEIDEN
    * SEHEN: dass die Weiche auf der Wurzel (`src/app/m/radio/page.tsx:75`) die verwaltende
    * Person ueberhaupt DORTHIN schickt, wo der Link steht, und dass Praedikat,
@@ -1739,14 +1739,14 @@ test.describe("radio-Verwaltung", () => {
    * 2026-08-27. Gemessen am 2026-08-28, jede zurueckgenommen; waehrend jedes Sondenfensters
    * lief NUR der genannte Playwright-Fall.
    *
-   *   S-L6a  `_ui/AusleihRahmen.tsx:228`, die Bedingung entfernt: `{darfVerwalten ? (`
+   *   S-L6a  `_ui/AusleihRahmen.tsx`, der `darfVerwalten`-Zweig, die Bedingung entfernt: `{darfVerwalten ? (`
    *          -> `{true ? (`                    -> **1 rot**: L6 C, der anonyme Ausleiher sieht
    *                                              den Verwaltungsweg. L6 A/B bleiben gruen —
    *                                              die Sonde macht den Link WEITER, nicht enger.
    *   S-L6b  `_lib/ausleihZugang.ts`, Zuweisung `darfVerwalten`, das Praedikat auf die
    *          obere Stufe verengt: `istRadioVerwaltung` -> `istRadioAdmin`
-   *          ⚠️ DIE SONDE IST MIT DRK-202 UMGEZOGEN und stand bis dahin auf
-   *          `_ui/AusleihRahmen.tsx:169`. Dort gibt es das Praedikat nicht mehr — die
+   *          ⚠️ DIE SONDE IST MIT DRK-202 UMGEZOGEN und stand bis dahin im
+   *          Rahmen selbst. Dort gibt es das Praedikat nicht mehr — die
    *          Stufe wird seither EINMAL im Zugangspraedikat ausgewertet und reist in
    *          `AusleihZugang` mit. Die Sonde als Zeilennummer stehen zu lassen hiesse,
    *          eine Mutation zu beschreiben, die sich nicht mehr vornehmen laesst.
