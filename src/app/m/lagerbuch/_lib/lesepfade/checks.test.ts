@@ -129,6 +129,51 @@ describe("checkHistorie", () => {
     expect(checkHistorie(t.db).zeilen[0].wer).toBe("111-111");
   });
 
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P1) — GEMESSEN UND BESTAETIGT.
+   *
+   * ⛔ DER SCHALTER ALLEIN REICHTE NICHT, und der Grund ist die Reihenfolge:
+   * SQLite sortiert NULLs bei `DESC` nach HINTEN (diese Datei schreibt das
+   * weiter unten selbst aus, am Fall zu `letzterCheckZeitpunkt`). Die offenen
+   * Zeilen standen damit hinter JEDEM abgeschlossenen Check — und `limit(grenze
+   * + 1)` schnitt sie ab, bevor sie je gemappt wurden.
+   *
+   * ⚠️ DIE FOLGE WAR GENAU DAS, WAS DER SCHALTER VERHINDERN SOLLTE: ab
+   * `grenze + 1` abgeschlossenen Checks war ein offener Check ueber die
+   * Oberflaeche NICHT MEHR ERREICHBAR, obwohl der Schalter gesetzt war. Diese
+   * Liste ist der einzige Link auf die Detailseite; damit waeren die
+   * importierten Zeilen dauerhaft unsichtbar gewesen — eine Lage, die mit
+   * kleinem Seed gruen ist und erst im Betrieb auftritt.
+   */
+  it("holt offene Checks VOR die Grenze, nicht hinter sie", () => {
+    // Drei abgeschlossene Zeilen und eine offene, bei `grenze: 2`. Ohne die
+    // Sortierung faellt die offene heraus — mit ihr steht sie vorn.
+    for (const [i, id] of ["chk-a", "chk-b", "chk-c"].entries()) {
+      t.db.insert(checks).values({
+        id, fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "111-111",
+        startedAt: new Date(NOW.getTime() - i * 1000),
+        completedAt: new Date(NOW.getTime() - i * 1000),
+        ergebnis: JSON.stringify(V2),
+      }).run();
+    }
+    t.db.insert(checks).values({
+      id: "chk-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "111-111",
+      startedAt: NOW, completedAt: null, ergebnis: null,
+    }).run();
+
+    const mit = checkHistorie(t.db, { mitOffenen: true, grenze: 2 }).zeilen.map((z) => z.id);
+    expect(mit, "der offene Check faellt hinter die Grenze").toContain("chk-offen");
+
+    /*
+     * ⚠️ DIE GEGENPROBE, damit die Sortierung nicht die andere Haelfte kaputt
+     * macht: ohne Schalter bleibt die Liste rein abgeschlossen, und die Grenze
+     * gilt weiter.
+     */
+    const ohne = checkHistorie(t.db, { grenze: 2 }).zeilen.map((z) => z.id);
+    expect(ohne).not.toContain("chk-offen");
+    expect(ohne).toHaveLength(2);
+  });
+
   it("filtert nach Fahrzeug und Zeitraum", () => {
     expect(checkHistorie(t.db, { fahrzeugId: "rtw-1" }).zeilen).toHaveLength(1);
     expect(checkHistorie(t.db, { fahrzeugId: "gibtsnicht" }).zeilen).toHaveLength(0);

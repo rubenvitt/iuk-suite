@@ -19,7 +19,7 @@
  * Summe. Das ist die eine Stelle, an der Uebersicht und Detail auseinandergehen
  * duerfen — und sie geht in die SICHERE Richtung: das Detail weiss mehr.
  */
-import { and, desc, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte, sql, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
 import type { DB } from "../../_db/client";
 import { quelleAufloeser } from "../../_db/quelle";
@@ -118,8 +118,33 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
     .select()
     .from(checks)
     .where(conds.length > 0 ? and(...conds) : undefined)
-    // id-Tiebreaker wie im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).
-    .orderBy(desc(checks.completedAt), desc(checks.id))
+    /*
+     * ⛔ OFFENE ZEILEN ZUERST — UND DAS IST KEINE ANZEIGEVORLIEBE, SONDERN DIE
+     * BEDINGUNG DAFUER, DASS DER SCHALTER UEBERHAUPT ETWAS TUT (Codex-Review zu
+     * PR #210, P1; gemessen in `checks.test.ts`).
+     *
+     * SQLite sortiert NULLs bei `DESC` nach HINTEN. Ohne diesen ersten
+     * Sortierschluessel standen die offenen Checks also hinter JEDEM
+     * abgeschlossenen — und `limit` darunter schnitt sie ab, bevor sie je
+     * gemappt wurden. Ab `grenze + 1` abgeschlossenen Checks war ein offener
+     * damit UNERREICHBAR, obwohl `mitOffenen` gesetzt war; diese Liste ist der
+     * einzige Link auf die Detailseite. Mit kleinem Seed gruen, im Betrieb
+     * kaputt — genau die Klasse, die erst nach dem Cutover auffiele.
+     *
+     * ⚠️ UNBEDINGT UND NICHT NUR BEI `mitOffenen`: ohne den Schalter enthaelt
+     * die Menge gar keine NULLs, der Schluessel ist dort also wirkungslos. Eine
+     * bedingte Sortierung waere zwei Abfrageformen fuer eine Frage — und die
+     * seltener gefahrene veraltet.
+     *
+     * Fachlich liest es sich ebenso: ein laufender Check ist der aktuellste
+     * Vorgang am Fahrzeug, nicht der aelteste.
+     */
+    .orderBy(
+      sql`(${checks.completedAt} is null) desc`,
+      // id-Tiebreaker wie im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).
+      desc(checks.completedAt),
+      desc(checks.id),
+    )
     .limit(grenze + 1)
     .all();
 
