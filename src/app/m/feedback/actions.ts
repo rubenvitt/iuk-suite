@@ -38,6 +38,7 @@ import { generateSecret } from "./_lib/token";
 import { coerceAnswer, isRatingType, type Question } from "./_lib/questions";
 import {
   computeClosesAt,
+  kalendertagInZone,
   nextStatusOnAccess,
   DEFAULT_CLOSE_AFTER_HOURS,
   type SurveyStatus,
@@ -578,6 +579,28 @@ export async function freigebenAction(formData: FormData): Promise<void> {
     // einem gelaufenen Abend bleibt `activateSurveyAction` — der legt keine
     // Umfrage an, sondern startet eine, die es schon gibt.
     if (eve.status !== "planned") throw new Error("Nur geplante Abende freigeben");
+    /*
+     * ⚠️ UND NICHT VOR DEM TERMIN. Die Freigabe setzt den Abend auf `held`, und
+     * `held` heißt überall in diesem Modul „hat stattgefunden": das Cockpit
+     * zählt ihn als erfassten Dienstabend, die Einstiegsübersicht als „letzter
+     * Abend", die Excel-Mappe als Zeile der Auswertung. Ein Klick auf die
+     * falsche Zeile der Jahresplanung — und der Dezemberabend gilt im September
+     * als gelaufen, während die tatsächlich laufende Umfrage dabei geschlossen
+     * wird und der öffentliche QR-Code auf die Dezember-Erhebung zeigt. Die
+     * Rückmeldungen des heutigen Abends landeten dann unter einem Datum, an dem
+     * noch niemand da war.
+     *
+     * Verglichen wird der KALENDERTAG in `Europe/Berlin`, nicht der Zeitpunkt:
+     * freigegeben wird um 19:30 am Tag des Dienstes, und `evenings.date` trägt
+     * Mitternacht. Dieselbe Umrechnung wie überall (`kalendertagInZone`).
+     *
+     * Ein Abend, der FRÜHER stattfindet als geplant, ist kein Sonderfall dieser
+     * Regel, sondern ein verschobener Termin — das Datum ändert die
+     * Zeilenbearbeitung, und danach ist die Freigabe offen.
+     */
+    if (kalendertagInZone(eve.date) > kalendertagInZone(new Date())) {
+      throw new Error("Freigabe erst am Tag des Dienstabends");
+    }
     const group = getGroup(db, eve.groupId)!;
     const survey = getSurveyByEvening(db, eveningId);
     const hours = survey?.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;

@@ -303,8 +303,15 @@ describe("KommendeAbende — ein Abend ohne Thema", () => {
  * der Warnung im Fall, in dem es sie gibt.
  */
 describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
+  /*
+   * ⚠️ DER ABEND MUSS HEUTE SEIN. Freigegeben wird erst ab dem Tag des
+   * Dienstes — vorher ist der Knopf abgeschaltet, weil die Freigabe den Abend
+   * auf „hat stattgefunden" setzt. Ein Termin im August (die Vorgabe von
+   * `abend()`) haette hier also gar keinen bedienbaren Knopf ergeben, und der
+   * Test haette am falschen Ort gemeldet, es gebe keine Bestaetigung.
+   */
   async function bestaetigung(laufendesThema: string | null): Promise<HTMLElement> {
-    await mount(zone([abend({ eveningId: 42 })], { laufendesThema }));
+    await mount(zone([abend({ eveningId: 42, datum: HEUTE })], { laufendesThema }));
     await clickElement(knopf("Feedback freigeben"));
     const dialog = document.querySelector<HTMLElement>(".ant-popconfirm");
     if (!dialog) throw new Error("Keine Bestätigung");
@@ -338,8 +345,10 @@ describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
   });
 
   it("gibt den Abend frei, auf dessen Zeile geklickt wurde — nicht den ersten", async () => {
+    // Beide in der Vergangenheit: ueberfaellige Termine bleiben freigebbar —
+    // nur in die Zukunft hinein nicht.
     await mount(
-      zone([abend({ eveningId: 11, datum: "2026-08-05" }), abend({ eveningId: 22, datum: "2026-08-19" })]),
+      zone([abend({ eveningId: 11, datum: "2026-07-08" }), abend({ eveningId: 22, datum: "2026-07-22" })]),
     );
     const knoepfe = [...document.querySelectorAll<HTMLElement>("button")].filter(
       (b) => (b.textContent ?? "").trim() === "Feedback freigeben",

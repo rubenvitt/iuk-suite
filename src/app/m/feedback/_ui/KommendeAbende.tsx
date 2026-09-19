@@ -154,11 +154,22 @@ function AbendZeile({
   const [absagen, setAbsagen] = useState(false);
   const [laeuft, starte] = useTransition();
 
-  const istHeute = tagInZone(abend.datum) === heute;
+  const tag = tagInZone(abend.datum);
+  const istHeute = tag === heute;
+  /*
+   * ⚠️ VOR DEM TERMIN GIBT ES NICHTS FREIZUGEBEN, und das ist keine
+   * Bequemlichkeitsregel: die Freigabe setzt den Abend auf „hat
+   * stattgefunden". Ein Klick auf die falsche Zeile der Jahresplanung machte
+   * den Dezemberabend im September zum gelaufenen, schlösse dabei die
+   * tatsächlich laufende Umfrage und richtete den QR-Code auf die
+   * Dezember-Erhebung. Den Riegel zieht `freigebenAction` serverseitig; hier
+   * steht er, damit gar kein Knopf dasteht, der wirft.
+   */
+  const nochNichtSoweit = tag > heute;
   // Ein geplanter Abend, dessen Tag vorbei ist, faltet auf nichts (`EveningStatus`
   // in `_lib/lifecycle.ts`) — er bleibt stehen und wartet auf eine Entscheidung.
   // Sichtbar muss das trotzdem sein, sonst sucht niemand nach ihm.
-  const ueberfaellig = tagInZone(abend.datum) < heute;
+  const ueberfaellig = tag < heute;
 
   const ruf = (aktion: (daten: FormData) => Promise<void>) => () => {
     starte(async () => {
@@ -189,6 +200,7 @@ function AbendZeile({
 
       <div style={{ display: "flex", alignItems: "center", gap: SPACE.sm }}>
         <Popconfirm
+          disabled={nochNichtSoweit}
           title="Feedback jetzt freigeben?"
           description={
             laufendesThema === null
@@ -200,7 +212,12 @@ function AbendZeile({
           okButtonProps={{ loading: laeuft }}
           onConfirm={ruf(freigebenAction)}
         >
-          <Button type="primary" loading={laeuft}>
+          <Button
+            type="primary"
+            loading={laeuft}
+            disabled={nochNichtSoweit}
+            title={nochNichtSoweit ? "Freigabe erst am Tag des Dienstabends" : undefined}
+          >
             Feedback freigeben
           </Button>
         </Popconfirm>

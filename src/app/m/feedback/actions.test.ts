@@ -1001,11 +1001,13 @@ describe("planEveningsAction: eine Serie in einem Zug ansetzen", () => {
 describe("freigebenAction: aus dem Termin wird ein Dienstabend", () => {
   it("setzt den Abend auf `held`, startet die Umfrage und ankert die Frist am Abenddatum", async () => {
     const { freigebenAction } = await loadActions();
-    // Abend eine Woche voraus: eine Frist „jetzt + 48h" läge davor und wäre
-    // sofort sichtbar falsch — derselbe Fund wie bei `activateSurveyAction`,
-    // nur an der Stelle, an der Ansetzen und Freigeben am weitesten
-    // auseinanderliegen.
-    const { group, evening, date } = seedGeplanterAbend("bereitschaft", 7, 48);
+    // ⚠️ Abend eine Woche ZURÜCK, nicht voraus: freigegeben wird erst ab dem
+    // Tag des Dienstes, ein Termin in der Zukunft ließe sich gar nicht
+    // freigeben. Die Aussage bleibt dieselbe und wird sogar schärfer — die
+    // Frist eines überfälligen Abends liegt in der VERGANGENHEIT, während
+    // „jetzt + 48h" in der Zukunft läge. Ein verwechselter Anker wäre also
+    // nicht bloß um Stunden daneben, sondern auf der falschen Seite von heute.
+    const { group, evening, date } = seedGeplanterAbend("bereitschaft", -7, 48);
     alsGruppenleitung("bereitschaft");
 
     const f = new FormData();
@@ -1021,6 +1023,43 @@ describe("freigebenAction: aus dem Termin wird ein Dienstabend", () => {
     // Und ausdrücklich NICHT ab dem Klickzeitpunkt.
     expect(laufend.survey.closesAt).not.toEqual(computeClosesAt(todayMidnightUtc(), 48));
     expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("WIRFT VOR DEM TERMIN — ein Dezemberabend wird im September nicht gelaufen", async () => {
+    /*
+     * Die Freigabe setzt den Abend auf `held`, und `held` heißt überall in
+     * diesem Modul „hat stattgefunden": das Cockpit zählt ihn als erfassten
+     * Dienstabend, die Übersicht als „letzter Abend", die Excel-Mappe als
+     * Zeile der Auswertung. Ein Klick auf die falsche Zeile der Jahresplanung
+     * hätte also die Historie verfälscht UND die tatsächlich laufende Umfrage
+     * geschlossen — der QR-Code im Gerätehaus zeigte danach auf die Erhebung
+     * eines Abends, der noch gar nicht war.
+     */
+    const { freigebenAction } = await loadActions();
+    const { group, evening } = seedGeplanterAbend("bereitschaft", 7);
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await expect(freigebenAction(f)).rejects.toThrow();
+
+    expect(getEvening(db, evening.id)!.status).toBe("planned");
+    expect(activeSurveyForGroup(db, group.id)).toBeUndefined();
+  });
+
+  it("gibt AM Tag des Termins frei — die Grenze ist einschließlich", async () => {
+    // Die Gegenprobe zum Riegel darüber, und sie ist der eigentliche Normalfall:
+    // freigegeben wird um 19:30 am Abend des Dienstes. Ein Vergleich, der den
+    // Tag selbst ausschlösse, hätte das Feature unbenutzbar gemacht.
+    const { freigebenAction } = await loadActions();
+    const { evening } = seedGeplanterAbend("bereitschaft", 0);
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await freigebenAction(f);
+
+    expect(getEvening(db, evening.id)!.status).toBe("held");
   });
 
   it("wirft für einen Abend, der schon gelaufen ist", async () => {
@@ -1105,7 +1144,8 @@ describe("absagenAction / wiederAnsetzenAction", () => {
     // Prüfung würde er wieder zum Termin — die laufende Umfrage bliebe stehen
     // und hinge an einem Abend, der laut Liste erst noch kommt.
     const { freigebenAction, absagenAction } = await loadActions();
-    const { group, evening } = seedGeplanterAbend("bereitschaft");
+    // Heute, sonst verweigert `freigebenAction` die Vorbereitung dieses Tests.
+    const { group, evening } = seedGeplanterAbend("bereitschaft", 0);
     alsGruppenleitung("bereitschaft");
 
     const f = new FormData();

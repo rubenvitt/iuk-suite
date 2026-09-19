@@ -100,6 +100,14 @@ export function toNewEvening(row: SourceEveningRow): schema.NewEveningRow {
     topic: row.topic ?? null,
     notes: row.notes ?? null,
     participantCount: row.participant_count ?? null,
+    // ⚠️ AUSDRÜCKLICH `held`, nicht der Spaltenvorgabewert. Der Import ist ein
+    // UPSERT (`onConflictDoUpdate` mit genau diesem Objekt): was hier fehlt,
+    // wird beim Wiederholungslauf NICHT überschrieben. Träfe eine importierte
+    // Abendkennung auf eine Zeile, die zwischenzeitlich `planned` oder
+    // `cancelled` geworden ist, behielte sie diesen Wert — und der Abend fiele
+    // still aus jeder Auswertung, die nur `held` zählt. Alle Abende der
+    // Alt-Anwendung haben stattgefunden; sie kennt keinen anderen Zustand.
+    status: "held",
     createdAt: tsToDate(row.created_at),
   };
 }
@@ -198,6 +206,11 @@ export function eveningParityView(r: schema.NewEveningRow | schema.EveningRow) {
     topic: r.topic ?? null,
     notes: r.notes ?? null,
     participantCount: r.participantCount ?? null,
+    // Gehört in die Parität wie jede andere persistierte Spalte — sonst ist der
+    // Rundlauf-Beweis genau um dieses Feld schmaler, als er aussieht, und meldet
+    // Erfolg über eine Zeile, deren Zustand nicht der importierte ist. Dieselbe
+    // Form wie bei `surveyParityView`, das `status` schon immer mitführt.
+    status: r.status ?? "held",
     createdAt: tsSeconds(r.createdAt),
   };
 }
