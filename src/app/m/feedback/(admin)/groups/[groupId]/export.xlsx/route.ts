@@ -105,11 +105,29 @@ export async function GET(_req: Request, { params }: { params: Promise<{ groupId
   return auditDelivery("feedback", "export", "group_export", auditActor(viewer), async (target) => {
     target(String(group.id));
 
-    // Aufsteigend (Entscheidung 3) — eigene Sortierung, nicht die `ORDER BY
-    // date DESC` der Abfrage: die Richtung ist hier fachlich tragend.
-    const abende = [...listEvenings(db, id)].sort(
-      (a, b) => a.date.getTime() - b.date.getTime(),
-    );
+    /*
+     * NUR ABENDE, DIE STATTGEFUNDEN HABEN. Die Mappe ist die Zusammenfassung des
+     * ERHOBENEN — ihr Blatt heißt „Dienstabende" und trägt Rückmeldungen,
+     * Teilnehmerzahlen und Fragenmittelwerte.
+     *
+     * ⚠️ `listEvenings` liefert seit DRK-426 auch GEPLANTE und ABGESAGTE Zeilen.
+     * Eine Jahresplanung hätte damit auf einen Schlag dutzende Zeilen in die
+     * Mappe geschrieben, jede mit null Rückmeldungen und ohne eine Spalte, die
+     * sie von einem Abend unterscheidet, den schlicht niemand bewertet hat —
+     * und dieselbe Zahl stünde in den Kopfdaten als Menge der erfassten Abende.
+     * Eine Auswertung, die künftige Termine mitzählt, ist keine.
+     *
+     * Der abgesagte Abend fällt aus demselben Grund heraus: er ist im VERLAUF
+     * sichtbar (dort erklärt er die Lücke), hier wäre er eine Zeile mit Nullen.
+     * Wer ihn in der Mappe haben will, braucht zuerst eine Zustandsspalte —
+     * ohne sie ist das Weglassen ehrlicher als das Mitzählen.
+     *
+     * Aufsteigend (Entscheidung 3) — eigene Sortierung, nicht die `ORDER BY
+     * date DESC` der Abfrage: die Richtung ist hier fachlich tragend.
+     */
+    const abende = listEvenings(db, id)
+      .filter((abend) => abend.status === "held")
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
 
     /*
      * DIE SPALTENVEREINIGUNG. Schlüssel ist `id|type`, NICHT die Frage-ID allein.

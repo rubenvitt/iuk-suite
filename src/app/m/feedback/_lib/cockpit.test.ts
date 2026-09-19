@@ -400,6 +400,41 @@ describe("cockpitZustand — vorausgeplante Abende zaehlen nicht als Abend", () 
     expect(z.geplant).toEqual([]);
   });
 
+  it("ein abgesagter Abend in der ZUKUNFT wird nicht zum letzten stattgefundenen", () => {
+    /*
+     * Der Fall, der die Einstiegsuebersicht still falsch gemacht hat: `verlauf`
+     * sortiert absteigend und enthaelt die Absage. Wer im September einen
+     * Termin im Dezember absagt, hebt ihn damit an die Spitze — die Karte
+     * meldete „letzter Abend 10.12." und sortierte die Gruppe nach einem Datum
+     * in der Zukunft. Fuer den Verlauf gehoert die Absage hinein, fuer diese
+     * Frage ist sie genau der Abend, der nicht war.
+     */
+    const g = mkGroup();
+    const abgesagt = mkAbend(g.id, "2026-12-10", { abend: "cancelled" });
+    const gelaufen = mkAbend(g.id, "2026-09-15", { status: "closed", antworten: 3 });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.letzterStattgefundener?.evening.id).toBe(gelaufen.evening.id);
+    expect(z.letzterStattgefundener?.evening.id).not.toBe(abgesagt.evening.id);
+    // Im Verlauf steht die Absage weiterhin ganz oben — beide Aussagen gelten
+    // nebeneinander, und genau deshalb sind es zwei Felder.
+    expect(z.verlauf[0]?.evening.id).toBe(abgesagt.evening.id);
+  });
+
+  it("nimmt als letzten stattgefundenen auch einen Abend OHNE Rueckmeldung", () => {
+    // Abgrenzung zu `letzterAbend`: der verlangt zusaetzlich einen
+    // geschlossenen Bogen mit mindestens einer Rueckmeldung, weil er eine NOTE
+    // traegt. Ein Abend, den niemand bewertet hat, hat trotzdem stattgefunden —
+    // sonst meldete die Uebersicht „noch kein Abend" fuer eine Gruppe, die sich
+    // seit Monaten trifft.
+    const g = mkGroup();
+    const ohneEcho = mkAbend(g.id, "2026-09-15", { status: "closed", antworten: 0 });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.letzterStattgefundener?.evening.id).toBe(ohneEcho.evening.id);
+    expect(z.letzterAbend).toBeNull();
+  });
+
   it("ein abgesagter Abend ZAEHLT aber nicht als Abend — Einrichtung bleibt Einrichtung", () => {
     // Die Historie und die Zaehlung sind zwei verschiedene Fragen. Fuer den
     // Verlauf gehoert der abgesagte Abend hinein (Test darueber); fuer „hat

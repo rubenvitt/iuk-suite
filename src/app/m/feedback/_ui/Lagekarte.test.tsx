@@ -155,6 +155,7 @@ function zustand(over: Partial<CockpitZustand> = {}): CockpitZustand {
     weitereAktive: over.weitereAktive ?? [],
     verlauf: over.verlauf ?? [],
     geplant: over.geplant ?? [],
+    letzterStattgefundener: over.letzterStattgefundener ?? null,
     letzterAbend: over.letzterAbend ?? null,
     altbestand: over.altbestand ?? [],
     letzteTeilnehmerzahl: over.letzteTeilnehmerzahl ?? null,

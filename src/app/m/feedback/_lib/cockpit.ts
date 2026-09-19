@@ -92,6 +92,23 @@ export type CockpitZustand = {
    * dieses Zustands, denn sie zeigt nach vorn; alle anderen blicken zurück.
    */
   geplant: AbendLage[];
+  /**
+   * Der jüngste Abend, der STATTGEFUNDEN hat und nicht mehr läuft — die Antwort
+   * auf „wann war diese Gruppe zuletzt zusammen?".
+   *
+   * ⚠️ NICHT `verlauf[0]`, und das ist der Unterschied, der die Übersicht
+   * still falsch gemacht hat: `verlauf` sortiert absteigend und enthält seit
+   * DRK-426 auch ABGESAGTE Abende. Wer im September einen Termin im Dezember
+   * absagt, hebt ihn damit an die Spitze — die Einstiegskarte meldete „letzter
+   * Abend 10.12." und sortierte die Gruppe nach einem Datum in der Zukunft.
+   * Für den Verlauf gehört die Absage hinein (sie erklärt die Lücke), für
+   * diese Frage ist sie genau der Abend, der nicht war.
+   *
+   * ⚠️ AUCH NICHT `letzterAbend`: der verlangt zusätzlich eine Rückmeldung und
+   * einen geschlossenen Bogen, weil er eine NOTE trägt. Ein Abend, den niemand
+   * bewertet hat, hat trotzdem stattgefunden.
+   */
+  letzterStattgefundener: AbendLage | null;
   /** Teilnehmerzahl des jüngsten Abends — Vorbelegung des Startformulars (§2.3). */
   letzteTeilnehmerzahl: number | null;
 };
@@ -131,6 +148,7 @@ export function cockpitZustand(db: DB, groupId: number, now: Date): CockpitZusta
     .sort((a, b) => a.evening.date.getTime() - b.evening.date.getTime());
 
   const verlauf = gelaufen.filter((x) => x.evening.id !== laufend?.evening.id);
+  const letzterStattgefundener = verlauf.find((x) => x.evening.status === "held") ?? null;
   const letzterAbend =
     verlauf.find(
       (x) => (x.effektiv === "closed" || x.effektiv === "archived") && x.responseCount >= 1,
@@ -155,6 +173,7 @@ export function cockpitZustand(db: DB, groupId: number, now: Date): CockpitZusta
     letzterAbend,
     altbestand,
     geplant,
+    letzterStattgefundener,
     letzteTeilnehmerzahl: stattgefunden[0]?.evening.participantCount ?? null,
   };
 }

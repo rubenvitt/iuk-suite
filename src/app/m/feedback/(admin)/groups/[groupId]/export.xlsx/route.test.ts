@@ -158,6 +158,43 @@ describe("GET groups/[groupId]/export.xlsx — eine Zeile je Dienstabend", () =>
     expect(daten.map((z) => z[0])).toEqual(["2026-04-01", "2026-05-06"]);
   });
 
+  it("LAESST GEPLANTE UND ABGESAGTE ABENDE WEG — die Mappe fasst Erhobenes zusammen", async () => {
+    /*
+     * Ohne diesen Filter hätte eine Jahresplanung auf einen Schlag dutzende
+     * Zeilen in die Mappe geschrieben, jede mit null Rückmeldungen — und die
+     * Kopfdaten meldeten sie als Menge der erfassten Abende. Es gibt in diesem
+     * Blatt keine Zustandsspalte: eine solche Zeile ist von einem Abend, den
+     * schlicht niemand bewertet hat, nicht zu unterscheiden.
+     *
+     * Beide Lagen zusammen in EINEM Fall, weil der Filter beide über dieselbe
+     * Bedingung trifft — zwei Tests prüften hier zweimal dieselbe Zeile Code.
+     */
+    const g = gruppe();
+    abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 1 }]);
+    for (const [datum, status] of [
+      ["2026-12-08", "planned"],
+      ["2026-05-06", "cancelled"],
+    ] as const) {
+      insertEvening(db, {
+        groupId: g.id,
+        date: tag(datum),
+        topic: `Nicht erhoben ${datum}`,
+        notes: null,
+        participantCount: null,
+        status,
+        createdAt: tag("2026-04-01"),
+      });
+    }
+
+    const daten = (await exportiere(g.id)).slice(1);
+
+    expect(daten).toHaveLength(1);
+    expect(daten[0][0]).toBe("2026-04-01");
+    // Die Kopfdaten zählen dieselbe Menge — sonst widerspräche sich die Mappe
+    // in sich selbst.
+    expect(await kopfdaten(g.id)).toEqual([["Gruppe", "Bereitschaft"], ["Dienstabende", 1]]);
+  });
+
   it("vereinigt die Fragespalten über ALLE Abende — kein Bogen verschiebt die Spalten", async () => {
     const g = gruppe();
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 1, q2: 2 }]);
