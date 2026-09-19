@@ -19,7 +19,7 @@ import {
   getSurveyByEvening,
   getEvening,
   activeSurveyForGroup,
-  latestSurveyForGroup,
+  latestEveningForGroup,
   insertResponse,
   listResponses,
   upsertKnownUser,
@@ -741,7 +741,7 @@ describe("createAndStartSurvey", () => {
  * nie eine Umfrage tragen (geplant, abgesagt), plus die Gruppentrennung und der
  * Leerfall.
  */
-describe("latestSurveyForGroup", () => {
+describe("latestEveningForGroup", () => {
   const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
   const abend = (groupId: number, iso: string, status: EveningStatus = "held") =>
     insertEvening(db, {
@@ -756,58 +756,81 @@ describe("latestSurveyForGroup", () => {
   const umfrage = (eveningId: number) =>
     insertSurvey(db, { eveningId, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
 
-  it("liefert die Umfrage des jüngsten Abends, DER EINE HAT — ein geplanter Zukunftsabend gewinnt nicht", () => {
-    // Der Kern des Fehlers, und er braucht beide Abende: ohne den geplanten
-    // wäre die Zusicherung auch mit „jüngster Abend, dann seine Umfrage" grün.
+  /*
+   * ⚠️ DIESE ABFRAGE BEANTWORTET „VON WELCHEM ABEND KOMMT DER SCANNER?" — nicht
+   * „wo wurde zuletzt erhoben?". Der Unterschied ist der ganze Punkt, und er
+   * hat mich einen roten e2e-Lauf gekostet:
+   *
+   * • Ein NACHGETRAGENER Abend ohne Umfrage SOLL gewinnen. Steht der nächste
+   *   Dienstabend schon im Kalender, ist „die Umfrage zu DIESEM Abend ist
+   *   beendet" die falsche Auskunft — der öffentliche Zettel gehört dann auf
+   *   Zustand C. Genau das prüft `e2e/feedback.spec.ts`, „zwischen zwei
+   *   Abenden dagegen Zustand C".
+   * • Ein VORAUSGEPLANTER Abend darf NICHT gewinnen, sonst kapert ein Termin im
+   *   Dezember den Zettel und wer eben abgesendet hat, sieht seinen Bogen nicht
+   *   mehr.
+   *
+   * Eine Fassung, die stattdessen die jüngste UMFRAGE suchte, heilte den
+   * zweiten Fall und nahm den ersten mit.
+   */
+  it("nimmt den jüngsten Abend, der STATTGEFUNDEN hat — ein geplanter gewinnt nicht", () => {
     const g = mkGroup();
     const gelaufen = abend(g.id, "2026-10-06");
-    const s = umfrage(gelaufen.id);
+    umfrage(gelaufen.id);
     abend(g.id, "2026-10-20", "planned");
 
-    const treffer = latestSurveyForGroup(db, g.id);
-
-    expect(treffer?.survey.id).toBe(s.id);
-    // Und der Abend DAZU, nicht irgendeiner: der Zettel nennt Thema und Datum
-    // des Abends, den die Person bewertet hat.
-    expect(treffer?.evening.id).toBe(gelaufen.id);
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(gelaufen.id);
   });
 
   it("übergeht ebenso einen ABGESAGTEN Abend mit späterem Datum", () => {
-    // Dieselbe Lücke aus der anderen Richtung, und sie gab es schon vor der
-    // Vorausplanung: ein abgesagter Abend trägt nie eine Umfrage. Wer nur den
-    // geplanten Fall abdeckt, repariert die Hälfte.
+    // Von einem ausgefallenen Dienst scannt niemand — dieselbe Begründung wie
+    // beim geplanten, nur aus der anderen Richtung.
     const g = mkGroup();
     const gelaufen = abend(g.id, "2026-10-06");
-    const s = umfrage(gelaufen.id);
+    umfrage(gelaufen.id);
     abend(g.id, "2026-10-13", "cancelled");
 
-    expect(latestSurveyForGroup(db, g.id)?.survey.id).toBe(s.id);
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(gelaufen.id);
   });
 
-  it("nimmt unter mehreren Umfragen die des jüngsten Abends", () => {
-    // Die Abfrage soll nicht „irgendeine" liefern: ohne die Sortierung über
-    // `evenings.date` käme die zuerst eingefügte Zeile zurück — hier der
-    // ältere Abend, und der Zettel nennte ein Thema von vorletzter Woche.
+  it("NIMMT einen nachgetragenen Abend OHNE Umfrage — der ist der dokumentierte Fall", () => {
+    // Die Gegenprobe zu den beiden darüber, und die teuerste: ohne sie wäre
+    // eine Abfrage grün, die einfach „den jüngsten Abend mit Umfrage" nimmt —
+    // und die nähme dem öffentlichen Zettel seinen Zustand C zwischen zwei
+    // Abenden.
     const g = mkGroup();
-    const alt = umfrage(abend(g.id, "2026-09-29").id);
-    const neu = umfrage(abend(g.id, "2026-10-06").id);
+    umfrage(abend(g.id, "2026-10-06").id);
+    const nachgetragen = abend(g.id, "2026-10-13");
 
-    expect(latestSurveyForGroup(db, g.id)?.survey.id).toBe(neu.id);
-    expect(latestSurveyForGroup(db, g.id)?.survey.id).not.toBe(alt.id);
+    const treffer = latestEveningForGroup(db, g.id);
+
+    expect(treffer?.id).toBe(nachgetragen.id);
+    expect(getSurveyByEvening(db, treffer!.id)).toBeUndefined();
   });
 
-  it("entscheidet bei ZWEI Abenden am selben Tag für die jüngere Umfrage", () => {
+  it("nimmt unter mehreren Abenden den jüngsten", () => {
+    // Ohne die Sortierung über `evenings.date` käme die zuerst eingefügte Zeile
+    // zurück, und der Zettel nennte ein Thema von vorletzter Woche.
+    const g = mkGroup();
+    const alt = abend(g.id, "2026-09-29");
+    const neu = abend(g.id, "2026-10-06");
+
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(neu.id);
+    expect(latestEveningForGroup(db, g.id)?.id).not.toBe(alt.id);
+  });
+
+  it("entscheidet bei ZWEI Abenden am selben Tag für die jüngere Zeile", () => {
     // Der Gleichstand ist selten, aber herstellbar: `planEvenings` entdoppelt
     // nur den Planungsweg, „Feedback starten" prüft den Tag gar nicht. Ohne ein
     // zweites Sortierkriterium entschiede die Zeilenreihenfolge von SQLite,
-    // welchen der beiden Bögen der Teilnehmer auf dem öffentlichen Zettel
-    // sieht — stumm, und von Lauf zu Lauf verschieden.
+    // welchen der beiden Bögen der Teilnehmer sieht — stumm, und von Lauf zu
+    // Lauf verschieden.
     const g = mkGroup();
-    const zuerst = umfrage(abend(g.id, "2026-10-06").id);
-    const danach = umfrage(abend(g.id, "2026-10-06").id);
+    const zuerst = abend(g.id, "2026-10-06");
+    const danach = abend(g.id, "2026-10-06");
 
-    expect(latestSurveyForGroup(db, g.id)?.survey.id).toBe(danach.id);
-    expect(latestSurveyForGroup(db, g.id)?.survey.id).not.toBe(zuerst.id);
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(danach.id);
+    expect(latestEveningForGroup(db, g.id)?.id).not.toBe(zuerst.id);
   });
 
   it("trennt die Gruppen — ein fremder Abend mit späterem Datum zählt nicht", () => {
@@ -816,26 +839,25 @@ describe("latestSurveyForGroup", () => {
     // Auskunft über eine fremde Gruppe an jeden, der scannt.
     const a = mkGroup("A", "a");
     const b = mkGroup("B", "b");
-    const eigene = umfrage(abend(a.id, "2026-10-06").id);
-    umfrage(abend(b.id, "2026-10-20").id);
+    const eigene = abend(a.id, "2026-10-06");
+    abend(b.id, "2026-10-20");
 
-    expect(latestSurveyForGroup(db, a.id)?.survey.id).toBe(eigene.id);
-    expect(latestSurveyForGroup(db, a.id)?.evening.groupId).toBe(a.id);
+    expect(latestEveningForGroup(db, a.id)?.id).toBe(eigene.id);
+    expect(latestEveningForGroup(db, a.id)?.groupId).toBe(a.id);
   });
 
   it("liefert `undefined`, wenn die Gruppe NUR geplante Abende hat", () => {
     // Der ehrliche Leerfall — und genau der, den die Seite als „zurzeit läuft
-    // keine Umfrage" anzeigen SOLL. Stünde hier `null` statt `undefined`,
-    // liefe der Zweig in page.tsx auf der falschen Seite der Abfrage.
+    // keine Umfrage" anzeigen SOLL.
     const g = mkGroup();
     abend(g.id, "2026-10-06", "planned");
     abend(g.id, "2026-10-13", "planned");
 
-    expect(latestSurveyForGroup(db, g.id)).toBeUndefined();
+    expect(latestEveningForGroup(db, g.id)).toBeUndefined();
   });
 
   it("liefert `undefined` für eine Gruppe ganz ohne Abende", () => {
-    expect(latestSurveyForGroup(db, mkGroup().id)).toBeUndefined();
+    expect(latestEveningForGroup(db, mkGroup().id)).toBeUndefined();
   });
 });
 

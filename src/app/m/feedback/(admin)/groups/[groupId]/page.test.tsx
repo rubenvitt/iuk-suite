@@ -451,6 +451,43 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(wirt.textContent).toContain("Aushang");
   });
 
+  it("STEHT BEI GENAU EINEM LAUFENDEN ABEND — obwohl die Tabelle dann leer ist", async () => {
+    /*
+     * ⚠️ DER NORMALFALL DIREKT NACH DEM ERSTEN START, und er hat mich einen
+     * roten e2e-Lauf gekostet. Die Zone ist nicht nur eine Tabelle: ihre
+     * Kopfzeile traegt „Trend", „Excel (alle Abende)" und „Abend ohne Feedback
+     * nachtragen". Der laufende Abend ist aus `verlauf` ausgenommen — eine
+     * Gruppe mit genau einem, gerade laufenden Abend hat dort also NICHTS, und
+     * eine Bedingung, die nur auf die Leere sieht, nimmt ihr alle drei Wege.
+     */
+    const laufend = insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-07-22"),
+      topic: "Läuft gerade",
+      notes: null,
+      participantCount: 20,
+      createdAt: tag("2026-07-22"),
+    });
+    const survey = insertSurvey(db, {
+      eveningId: laufend.id,
+      questions: JSON.stringify(FRAGEN),
+      closeAfterHours: 48,
+      createdAt: tag("2026-07-22"),
+    });
+    // Frist weit in der Zukunft, damit `nextStatusOnAccess` nicht faltet.
+    setSurveyStatus(db, survey.id, "active", {
+      activatedAt: tag("2026-07-22"),
+      closesAt: new Date("2099-01-01T00:00:00Z"),
+    });
+
+    const wirt = await zeichne();
+
+    expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(1);
+    expect(wirt.textContent).toContain("Abend ohne Feedback nachtragen");
+    // Und der Leertext steht dort, weil die Tabelle wirklich leer ist.
+    expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende.");
+  });
+
   it("ZAEHLT ABGESAGTE ABENDE NICHT als erfasste Dienstabende", async () => {
     // „N Dienstabende erfasst" ist eine Aussage darueber, was stattgefunden
     // hat. Ein ausgefallener Dienst erhoehte die Zahl, ohne dass jemand da war —

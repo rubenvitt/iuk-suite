@@ -487,39 +487,37 @@ export function createAndStartSurvey(
 }
 
 /**
- * DIE JÜNGSTE UMFRAGE DER GRUPPE — der Abend, an dem zuletzt erhoben wurde.
+ * DER JÜNGSTE ABEND, VON DEM EIN SCANNER KOMMEN KANN.
  *
- * ⚠️ NICHT „der jüngste Abend, und dann dessen Umfrage". Genau so stand es im
- * öffentlichen Pfad, und seit es vorausgeplante Abende gibt, war es falsch: der
- * jüngste Abend einer Gruppe liegt dann in der ZUKUNFT und trägt keine
- * Umfrage. Der Teilnehmer, der eben auf einen gerade abgelaufenen Bogen
- * abgesendet hat, bekam dadurch „Zurzeit läuft keine Umfrage" statt des
- * beendeten Bogens, den er in der Hand hatte — die stille Wirkung, gegen die
- * jener Weg gebaut ist.
+ * Der öffentliche Zettel beantwortet mit dieser Zeile die Frage „von welchem
+ * Abend kommt die Person, die gerade scannt?" — und erst DANACH, ob es zu jenem
+ * Abend eine beendete Umfrage gibt. Die Reihenfolge ist tragend und steht so in
+ * `e2e/feedback.spec.ts` („zwischen zwei Abenden dagegen Zustand C"): steht der
+ * nächste Dienstabend schon im Kalender und trägt noch keine Umfrage, ist „die
+ * Umfrage zu DIESEM Abend ist beendet" die falsche Auskunft. Dann gehört dort
+ * „zurzeit läuft keine Umfrage" hin.
  *
- * Der JOIN erledigt beides in einem Zug und ist zugleich gegen den abgesagten
- * Abend robust, der ebenfalls nie eine Umfrage trägt: gefragt ist nicht „welcher
- * Status?", sondern „wo wurde zuletzt erhoben?".
+ * ⚠️ DESHALB IST DAS HIER KEINE SUCHE NACH DER JÜNGSTEN UMFRAGE. Eine solche
+ * Fassung stand hier kurzzeitig und war die naheliegende Antwort auf den
+ * richtigen Befund, dass ein VORAUSGEPLANTER Abend den Zettel kapert. Sie
+ * heilte den einen Fall und nahm dabei den anderen mit — den nachgetragenen
+ * Abend ohne Erhebung, der genau diese Wirkung haben SOLL.
  *
- * ⚠️ ZWEITES SORTIERKRITERIUM, WEIL DAS ERSTE NICHT EINDEUTIG IST. Zwei Abende
- * am selben Tag sind selten, aber möglich: `planEvenings` entdoppelt nur den
- * Planungsweg, `createAndStartSurvey` prüft den Tag überhaupt nicht. Ohne
- * `surveys.id` läge die Entscheidung, welcher der beiden Bögen dem Teilnehmer
- * gezeigt wird, bei der Zeilenreihenfolge von SQLite — stumm und von Lauf zu
- * Lauf verschieden. Die jüngere Umfrage gewinnt; das ist dieselbe Regel, nach
- * der das Cockpit bei mehreren aktiven die jüngste Aktivierung führt.
+ * Ausgeschlossen sind `planned` und `cancelled`, und nur die: von einem Termin,
+ * der erst noch kommt, scannt niemand, und von einem ausgefallenen Dienst auch
+ * nicht. Ein `held`-Abend ohne Umfrage ist dagegen der dokumentierte Fall.
+ *
+ * `surveys.id` als zweites Kriterium gibt es hier nicht zu holen — bei zwei
+ * Abenden am selben Tag entscheidet die jüngere ZEILE (`evenings.id`), damit
+ * die Auswahl nicht der Zeilenreihenfolge von SQLite überlassen bleibt.
  */
-export function latestSurveyForGroup(
-  db: DB,
-  groupId: number,
-): { survey: SurveyRow; evening: EveningRow } | undefined {
+export function latestEveningForGroup(db: DB, groupId: number): EveningRow | undefined {
   return (
     db
-      .select({ survey: surveys, evening: evenings })
-      .from(surveys)
-      .innerJoin(evenings, eq(surveys.eveningId, evenings.id))
-      .where(eq(evenings.groupId, groupId))
-      .orderBy(desc(evenings.date), desc(surveys.id))
+      .select()
+      .from(evenings)
+      .where(and(eq(evenings.groupId, groupId), inArray(evenings.status, ["held"])))
+      .orderBy(desc(evenings.date), desc(evenings.id))
       .get() ?? undefined
   );
 }

@@ -328,19 +328,31 @@ export default async function Cockpit({
          * Fach ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort
          * die Schrittzeile.
          *
-         * ⚠️ DIE BEDINGUNG PRÜFT DIE LEERE SELBST, NICHT MEHR `!einrichtung` —
-         * und der Unterschied war eine Sackgasse. Bis DRK-426 waren beide
-         * dasselbe: „Einrichtung" hieß „gar kein Abend", also auch kein
-         * Verlaufseintrag. Seit ein ABGESAGTER Abend in den Verlauf gehört,
-         * aber nicht als stattgefunden zählt, laufen sie auseinander: eine
-         * Gruppe, deren einziger geplanter Termin abgesagt wurde, steht in
-         * „Einrichtung" UND hat eine Verlaufszeile. Mit der alten Bedingung
-         * verschwand die Zeile vom Bildschirm — und mit ihr „Doch wieder
-         * ansetzen", das einzige Mittel, die Absage zurückzunehmen. Der Tag
-         * blieb dabei für die Planung belegt, weil die Zeile ja noch da war.
-         * Ein Zustand, aus dem die Oberfläche nicht mehr herausführt.
+         * ⚠️ ZWEI BEDINGUNGEN, UND JEDE HAT IHREN EIGENEN FALL — eine allein
+         * war zweimal falsch, in beide Richtungen:
+         *
+         * • `!einrichtung` ALLEIN reichte nicht. Bis DRK-426 hieß „Einrichtung"
+         *   gleichbedeutend „gar kein Abend", also auch kein Verlaufseintrag.
+         *   Seit ein ABGESAGTER Abend in den Verlauf gehört, aber nicht als
+         *   stattgefunden zählt, laufen die beiden auseinander: eine Gruppe,
+         *   deren einziger geplanter Termin abgesagt wurde, steht in
+         *   „Einrichtung" UND hat eine Zeile. Die verschwand vom Bildschirm,
+         *   und mit ihr „Doch wieder ansetzen" — das einzige Mittel, die Absage
+         *   zurückzunehmen, während der Tag für die Planung belegt blieb.
+         *
+         * • DIE LEERE ALLEIN REICHT EBENSO WENIG, und das hat ein roter
+         *   e2e-Lauf gezeigt: die Zone ist nicht nur eine Tabelle. Ihre
+         *   Kopfzeile trägt „Trend", „Excel (alle Abende)" und „Abend ohne
+         *   Feedback nachtragen". Eine Gruppe mit GENAU EINEM Abend, dessen
+         *   Umfrage gerade läuft, hat einen leeren `verlauf` (der laufende
+         *   Abend ist dort ausgenommen) — und verlor damit alle drei Wege.
+         *   Das ist der Normalfall direkt nach dem ersten Start.
+         *
+         * Der gemeinsame Nenner bleibt §4.3 („ein leeres Fach ist schlimmer als
+         * kein Fach"): verborgen wird die Zone nur, solange die Gruppe NOCH
+         * NICHTS HAT — weder einen gelaufenen Abend noch eine Zeile.
          */}
-        {verlaufZeilen.length > 0 && (
+        {(!einrichtung || verlaufZeilen.length > 0) && (
           <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
         )}
 

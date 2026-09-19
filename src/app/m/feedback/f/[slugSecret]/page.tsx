@@ -7,7 +7,8 @@ import {
   getGroupBySlug,
   activeSurveyForGroup,
   setSurveyStatus,
-  latestSurveyForGroup,
+  latestEveningForGroup,
+  getSurveyByEvening,
 } from "../../_db/queries";
 import type { EveningRow, GroupRow, SurveyRow } from "../../_db/schema";
 import { parseToken } from "../../_lib/token";
@@ -226,18 +227,24 @@ function ohneAktiveUmfrage(
   abgewiesen: boolean,
 ): ReactElement {
   /*
-   * ⚠️ „DIE JÜNGSTE UMFRAGE", NICHT „DER JÜNGSTE ABEND UND DANN SEINE UMFRAGE".
-   * Hier stand die zweite Fassung, und seit es vorausgeplante Abende gibt
-   * (DRK-426), war sie still falsch: der jüngste Abend einer planenden Gruppe
-   * liegt in der ZUKUNFT und trägt keine Umfrage. Der ganze Block darunter fiel
-   * damit aus, und wer eben abgesendet hatte, bekam „Zurzeit läuft keine
-   * Umfrage" statt des Bogens, den er in der Hand hielt. Ein abgesagter Abend
-   * hätte dasselbe bewirkt. `latestSurveyForGroup` fragt deshalb nicht nach dem
-   * Status, sondern danach, wo zuletzt erhoben wurde.
+   * ERST DER ABEND, DANN SEINE UMFRAGE — die Reihenfolge ist tragend, und zwar
+   * in BEIDE Richtungen (DRK-426):
+   *
+   * • Ein Abend ohne Umfrage führt bewusst zu Zustand C. Steht der nächste
+   *   Dienstabend schon im Kalender, ist „die Umfrage zu DIESEM Abend ist
+   *   beendet" die falsche Auskunft — der Abend, von dem der Scanner kommt, ist
+   *   nicht der geschlossene. Das ist die Zusage des e2e-Falls „zwischen zwei
+   *   Abenden dagegen Zustand C".
+   * • Ein VORAUSGEPLANTER Abend darf diese Rolle aber nicht übernehmen, sonst
+   *   kapert ein Termin im Dezember den Zettel und wer eben abgesendet hat,
+   *   bekommt „zurzeit läuft keine Umfrage" statt seines Bogens.
+   *
+   * `latestEveningForGroup` trennt genau das: es nimmt den jüngsten Abend, der
+   * stattgefunden hat, und lässt `planned`/`cancelled` aus — von einem Termin,
+   * der erst kommt, scannt niemand.
    */
-  const juengste = latestSurveyForGroup(db, group.id);
-  const letzter = juengste?.evening;
-  const survey = juengste?.survey;
+  const letzter = latestEveningForGroup(db, group.id);
+  const survey = letzter ? getSurveyByEvening(db, letzter.id) : undefined;
   if (letzter && survey && (survey.status === "closed" || survey.status === "archived")) {
     if (abgewiesen || frischBeendet(survey, letzter, jetzt)) {
       return beendet(survey, letzter, abgewiesen ? ZUSATZ_GESCHLOSSEN : null);
