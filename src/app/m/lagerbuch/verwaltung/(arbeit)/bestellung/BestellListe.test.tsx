@@ -292,6 +292,37 @@ describe("BestellListe", () => {
     expect(text).not.toContain("SQLITE intern und geheim");
   });
 
+  /**
+   * DRK-194 (a) — DER LEERTEXT HATTE EINEN ORT UND KEINEN TEST.
+   *
+   * ⛔ ER IST DER EINZIGE FALL, IN DEM DIE SEITE NICHTS ZEIGT, und gerade deshalb
+   * braucht er einen: eine leere Tabelle ohne Text sieht aus wie eine, die noch
+   * laedt oder die einen Fehler verschluckt hat. Der Satz sagt beides nicht —
+   * er sagt, dass NICHTS ZU BESTELLEN IST, und das ist eine Auskunft.
+   *
+   * ⚠️ GEPRUEFT WIRD DER GERENDERTE TEXT, NICHT DIE PROP. Ein `locale={{ emptyText }}`
+   * an der falschen Stelle — etwa an einer inneren Tabelle statt an der
+   * `Datentabelle` — waere typkorrekt und stuende nie auf dem Schirm. Dieselbe
+   * Richtung wie der Scrollvertrag darunter: geprueft wird die Wirkung am DOM.
+   */
+  it("sagt bei leerem Vorschlag, dass nichts zu bestellen ist", async () => {
+    await mount(<BestellListe zeilen={[]} />);
+
+    expect(queryAll("tbody tr[data-row-key]")).toHaveLength(0);
+    expect(document.body.textContent)
+      .toContain("Kein Unterbestand und keine offene Bestellmarkierung.");
+
+    /*
+     * ⚠️ DIE GEGENPROBE, ohne die der Fall auch ueber einem Rahmen gruen waere, der
+     * den Satz IMMER zeigt: mit Zeilen darf er nicht dastehen. „Kein Unterbestand"
+     * neben drei Unterbestaenden waere die teuerste Sorte 200.
+     */
+    await unmount();
+    await mount(<BestellListe zeilen={ZEILEN} />);
+    expect(document.body.textContent)
+      .not.toContain("Kein Unterbestand und keine offene Bestellmarkierung.");
+  });
+
   it("verriegelt pagination und den horizontalen Scrollvertrag", async () => {
     const elf = Array.from({ length: 11 }, (_, index) => ({
       ...OFFEN,

@@ -252,6 +252,50 @@ function checkFixtures(): void {
     }),
   }).onConflictDoNothing().run();
 
+  /**
+   * DER VOLLSTAENDIGE CHECK — alle fuenf Abschnitte der Detailseite belegt (DRK-197).
+   *
+   * ⚠️ WARUM ER GEBRAUCHT WIRD, obwohl `e2e-check-lesbar` daneben steht: jener
+   * traegt AUSSCHLIESSLICH Artikel. Geraete, Sauerstoff und Verfall sind dort
+   * leer, und damit war der groesste Teil der dichtesten Verwaltungsseite nie
+   * ECHT gerendert. Die Seite ist eine Server Component ohne Insel — genau die
+   * Klasse, fuer die `build`, `typecheck` und Vitest die schlimmsten Fehler
+   * strukturell nicht sehen (Compound-Zugriff auf antd, Zeichenimport: HTTP 500
+   * schon beim Import). Ein gruener DOM-Test beweist dort nichts.
+   *
+   * ⚠️ JEDER ABSCHNITT TRAEGT EINEN AUFFAELLIGEN WERT, nicht einen ruhigen: eine
+   * Zeile, die nichts zu melden hat, rendert in mehreren Abschnitten gar nichts
+   * — der Fall waere dann gruen, ohne etwas gesehen zu haben.
+   *
+   * ⚠️ `e2e-geraet` LIEGT AN EINEM ANDEREN FAHRZEUG, und das ist hier richtig:
+   * das Ergebnis ist ein SCHNAPPSCHUSS, die Seite loest den Namen aus dem Stamm
+   * auf und prueft die heutige Zugehoerigkeit nicht. Ein zusaetzliches Geraet an
+   * `e2e-fahrzeug` taeuchte dagegen in fremden Geraetelisten auf und veraenderte
+   * Zusicherungen, die mit diesem Vorgang nichts zu tun haben.
+   */
+  const VOR_FUENF_STUNDEN = new Date(JETZT.getTime() - 5 * 3_600_000);
+  db.insert(checks).values({
+    id: "e2e-check-voll", fahrzeugId: "e2e-fahrzeug", quelleTyp: "token",
+    quelleId: E2E_TOKEN_CHECK, startedAt: VOR_FUENF_STUNDEN, completedAt: VOR_FUENF_STUNDEN,
+    ergebnis: JSON.stringify({
+      version: 2,
+      positionen: [{ sollPositionId: "e2e-soll", artikelId: "e2e-check-artikel", soll: 5, ist: 2 }],
+      artikel: [{
+        artikelId: "e2e-check-artikel", positionen: 1, sollSumme: 5, istSumme: 2,
+        recordedVorher: 2, korrektur: 0,
+        // Gewuenscht 3, gebucht 1 -> „nachgefuellt 1" UND „fehlt weiterhin 2".
+        nachfuellGewuenscht: 3, nachfuellGebucht: 1,
+      }],
+      geraete: [{
+        geraetId: "e2e-geraet", vorhanden: false, zustand: "Defekt",
+        bemerkung: "E2E Riss im Gurt",
+      }],
+      // 40 von 300 bar — deutlich unter jeder Wechselschwelle.
+      flaschen: [{ flascheId: "e2e-o2", druckBar: 40, nennfuelldruckBar: 300 }],
+      verfall: [{ artikelId: "e2e-verfall-artikel", verfall: "2020-01", abgelaufen: true }],
+    }),
+  }).onConflictDoNothing().run();
+
   // Der Zustand selbst: KEIN JSON. Genau das, was `parseCheckErgebnis` mit
   // `unlesbar: true` beantwortet — und was vorher als „0 Positionen" durchging.
   db.insert(checks).values({
