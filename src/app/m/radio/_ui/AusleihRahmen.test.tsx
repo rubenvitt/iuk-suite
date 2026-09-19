@@ -15,27 +15,21 @@ const beendenMock = vi.hoisted(() => vi.fn());
 vi.mock("../_actions/sitzung", () => ({ beenden: beendenMock }));
 
 /**
- * L3 — ⛔ NUR `viewerOderNull` IST ERSETZT, `istRadioVerwaltung` LAEUFT ECHT.
+ * ⚠️ HIER STAND EIN TEILMOCK AUF `_lib/zugang`, UND ER IST MIT DRK-202 WEGGEFALLEN.
  *
- * `viewerOderNull` ist die einzige Stelle des Rahmens mit IO: sie ruft `auth()` und
- * braeuchte sonst eine Sitzung. Das PRAEDIKAT dagegen muss echt bleiben — waere es
- * mitgemockt, maesse der Updater-Fall unten die Attrappe und nicht die
- * Betreiberentscheidung vom 2026-08-27 („der Link zeigt sich BEIDEN Stufen").
- * Dieselbe Teilmocken-Bauform wie `_lib/ausleihZugang.test.ts:55`
- * (`vi.mock("./host", async (echt) => …)`) und `(ausleihe)/geraete/page.test.tsx:100-103`.
- * ⚠️ Hier stand bis zur Fix-Runde 1 zu L3 `_lib/host.test.ts` als Vorbild — jene Datei
- * kennt weder einen Teilmock noch `_lib/zugang` (ihr einziges `vi.mock` ist ein VOLLmock
- * auf `next/navigation`, `:7`). Gemessen, REVIEW-L3 Fund 3.
+ * Der Rahmen holte die Verwaltungsstufe bis dahin selbst ein — `viewerOderNull()` war
+ * seine einzige Stelle mit IO und musste deshalb ersetzt werden, waehrend das Praedikat
+ * daneben echt laufen musste. Seit die Stufe in `AusleihZugang` mitreist, macht er
+ * ueberhaupt kein IO mehr: die Faelle unten setzen `darfVerwalten` schlicht an der
+ * Vorrichtung.
+ *
+ * ⛔ DIE BETREIBERENTSCHEIDUNG VOM 2026-08-27 („der Weg zeigt sich BEIDEN Stufen") wird
+ * damit NICHT MEHR HIER gemessen, sondern in `_lib/ausleihZugang.test.ts`, wo das
+ * Praedikat jetzt ausgewertet wird. Ein Umzug ohne die Faelle waere ein stiller Verlust.
  */
-const viewerMock = vi.hoisted(() => vi.fn());
-vi.mock("../_lib/zugang", async (echt) => ({
-  ...(await echt<typeof import("../_lib/zugang")>()),
-  viewerOderNull: viewerMock,
-}));
 
 import { mount, hydrate, unmount, query, queryAll, exists } from "@/app/m/qr/_lib/test-dom";
 import type { AusleihZugang } from "../_lib/ausleihZugang";
-import { istRadioAdmin, type RadioViewer } from "../_lib/zugang";
 import { AusleihRahmen } from "./AusleihRahmen";
 
 const QUELLE = "src/app/m/radio/_ui/AusleihRahmen.tsx";
@@ -120,13 +114,25 @@ const ZUGANG_CODE: AusleihZugang = {
   bezeichnung: "Aufsteller Wache",
   laeuftAb: new Date(Date.now() + 6 * 3600_000),
 };
-const ZUGANG_SUITE: AusleihZugang = { weg: "suite", sub: "pid-1", name: "Rita Roth" };
+const ZUGANG_SUITE: AusleihZugang = {
+  weg: "suite", sub: "pid-1", name: "Rita Roth", darfVerwalten: false,
+};
+/**
+ * Derselbe Weg MIT Verwaltungsstufe (DRK-202). Seit die Stufe in `AusleihZugang`
+ * mitreist, ist sie eine Eingabe des Rahmens und keine Auskunft, die er selbst
+ * einholt — die Faelle unten setzen sie deshalb hier statt ueber einen Mock.
+ */
+const ZUGANG_SUITE_VERWALTUNG: AusleihZugang = {
+  weg: "suite", sub: "pid-1", name: "Rita Roth", darfVerwalten: true,
+};
 /**
  * Der Suite-Weg OHNE Anzeigenamen — `name` ist dort `string | null`
  * (`_lib/ausleihZugang.ts:61-63`). Der Rueckfall ist die Anzeigeentscheidung aus
  * `AusleihRahmen.tsx:107-110`, und ohne diesen Zugang erreicht ihn kein Fall.
  */
-const ZUGANG_SUITE_OHNE_NAMEN: AusleihZugang = { weg: "suite", sub: "pid-1", name: null };
+const ZUGANG_SUITE_OHNE_NAMEN: AusleihZugang = {
+  weg: "suite", sub: "pid-1", name: null, darfVerwalten: false,
+};
 
 /**
  * Kopie von `ohneKommentare()` aus `src/app/m/radio/_lib/quelltextScan.ts:61-81`.
@@ -228,14 +234,11 @@ const zuruecksetzen = () => {
 beforeEach(() => {
   delete process.env.SUITE_ADMIN_GROUP_RADIO;
   delete process.env.SUITE_UPDATER_GROUP_RADIO;
-  // Der Regelfall dieser Datei ist die ANONYME Ausleihflaeche: keine Suite-Sitzung.
-  viewerMock.mockResolvedValue(null);
 });
 
 afterEach(async () => {
   await unmount();
   beendenMock.mockClear();
-  viewerMock.mockReset();
 });
 
 describe("radio-AusleihRahmen: die Bauform", () => {
@@ -386,7 +389,7 @@ describe("radio-AusleihRahmen: das Sitzungsetikett kommt vom RIEGEL", () => {
      * §4.2 (Spec:3374-3384) nennt „Wortmarke + Sitzungsetikett" in einem Atemzug; bis
      * hierher bewachte kein Fall die Wortmarke (Sonde P3 des Reviews: die Zeile ersatzlos
      * entfernt, 397 Faelle blieben gruen). Sie traegt zugleich Last in der L10-Begruendung
-     * (`AusleihRahmen.tsx:23-25`, „Er ist ausdruecklich NICHT die Wortmarke") — die
+     * (`AusleihRahmen.tsx`, Kopf, `L10`, „Er ist ausdruecklich NICHT die Wortmarke") — die
      * Unterscheidung ist erst dann eine, wenn die Wortmarke auch da ist.
      * ⚠️ Der Anker ist umlautfrei (Global Constraints): „Funkger", nicht das ganze Wort.
      */
@@ -508,53 +511,31 @@ describe("radio-AusleihRahmen: die Ablaufgrenze rechnet der RAHMEN (§4.2)", () 
  */
 describe("radio-AusleihRahmen: der Weg in die Verwaltung (L3)", () => {
   const VERWALTUNGSLINK = "[data-rolle='radio-verwaltungslink']";
-  const person = (groups: string[]): RadioViewer => ({ sub: "pid-7", name: "V. Person", groups });
 
-  it("die Admin-Stufe sieht den Weg", async () => {
-    /*
-     * ⛔ DIE UPDATER-STUFE IST ABSICHTLICH OFFEN GESETZT, und der Viewer steht trotzdem
-     * NICHT in ihr. Ohne das truege der Fall nicht, was sein Name sagt: bei geschlossener
-     * Updater-Stufe waere `istRadioUpdater` fuer JEDEN Viewer `false`, und ein Rahmen, der
-     * versehentlich nur die Admin-Gruppe kennte, saehe genauso aus
-     * (dieselbe Richtung wie `_lib/zugang.test.ts:549-563`).
+  it("wer die Stufe mitbringt, sieht den Weg", async () => {
+    /**
+     * ⚠️ SEIT DRK-202 MISST DIESER FALL DIE ANZEIGE, NICHT MEHR DAS PRAEDIKAT. Der
+     * Rahmen holt die Stufe nicht mehr selbst ein — sie reist in `AusleihZugang` mit,
+     * ausgewertet an der einen Stelle, an der die Gruppen ohnehin vorliegen. Dass BEIDE
+     * Stufen sie bekommen (Betreiberentscheidung 2026-08-27), ist damit eine Zusage von
+     * `_lib/ausleihZugang.ts` und wird dort gemessen; hier bleibt die Frage, ob der
+     * Rahmen aus der Stufe den Link macht.
      */
     try {
-      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
-      viewerMock.mockResolvedValue(person(["iuk-radio-admin"]));
       await mount(
-        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
+        await AusleihRahmen({
+          aktiv: "uebersicht", zugang: ZUGANG_SUITE_VERWALTUNG, children: <p />,
+        }),
       );
       const link = query(VERWALTUNGSLINK);
       /*
        * ⛔ DER AEUSSERE PFAD, NICHT `/m/radio/admin` — ein innerer wuerde auf dem
-       * Modul-Host doppelt praefixiert (`AusleihRahmen.tsx:70-72`, gemessen in
+       * Modul-Host doppelt praefixiert (`AusleihRahmen.tsx`, `FUSSNAV`, gemessen in
        * `lagerbuch/_ui/HelferRahmen.tsx:37-40`).
        */
       expect(link.getAttribute("href")).toBe("/admin");
       expect(link.tagName, "ein Anker, kein Knopf").toBe("A");
       expect(link.textContent?.trim(), "ein Zeichen allein traegt nicht").not.toBe("");
-    } finally {
-      zuruecksetzen();
-    }
-  });
-
-  it("die Updater-Stufe sieht ihn ebenfalls — das ist der Sinn der Entscheidung", async () => {
-    /*
-     * ⛔ DER TRAGENDE FALL, und zugleich die Gegenprobe gegen die naheliegende
-     * Fehlbauform „der Link haengt an `istRadioAdmin`": die erste Zusicherung haelt fest,
-     * dass diese Person die ADMIN-Stufe NICHT hat, die zweite, dass sie den Weg trotzdem
-     * sieht. ⛔ `admin` bleibt dabei strikt strenger als `updater`; hier waechst nichts
-     * zusammen, der Rahmen fragt nur die schwaechere der drei Fragen.
-     */
-    try {
-      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
-      viewerMock.mockResolvedValue(person(["eine-updater-gruppe"]));
-      await mount(
-        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
-      );
-      expect(istRadioAdmin(person(["eine-updater-gruppe"])), "sonst misst der Fall die Admin-Stufe")
-        .toBe(false);
-      expect(query(VERWALTUNGSLINK).getAttribute("href")).toBe("/admin");
     } finally {
       zuruecksetzen();
     }
@@ -574,28 +555,20 @@ describe("radio-AusleihRahmen: der Weg in die Verwaltung (L3)", () => {
      * in einen TypeError statt in ein `false` (`_lib/zugang.test.ts:610-620`).
      */
     try {
-      viewerMock.mockResolvedValue(null);
       await mount(
         await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
       );
-      expect(exists(VERWALTUNGSLINK), "geschlossene Updater-Stufe").toBe(false);
-
-      await unmount();
-      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
-      await mount(
-        await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
-      );
-      expect(exists(VERWALTUNGSLINK), "offene Updater-Stufe").toBe(false);
+      expect(exists(VERWALTUNGSLINK), "anonym ueber den Aufsteller-Code").toBe(false);
 
       /*
-       * ⛔ UND DIE DRITTE LAGE, die weder anonym noch berechtigt ist: eine ANGEMELDETE
+       * ⛔ UND DIE ZWEITE LAGE, die weder anonym noch berechtigt ist: eine ANGEMELDETE
        * Person OHNE jede Stufe. Ohne sie bliebe der Fall auch ueber einem Rahmen gruen,
        * der schlicht auf „ist da eine Sitzung?" prueft statt auf die Rechtestufe —
-       * `zugang.weg === "suite"` steht in dieser Datei zwei Zeilen ueber dem Praedikat und
-       * ist der naheliegende Fehlgriff.
+       * `zugang.weg === "suite"` steht in der Quelle unmittelbar neben der Stufe und ist
+       * der naheliegende Fehlgriff. ⚠️ Seit DRK-202 ist er sogar der HALBE Ausdruck; umso
+       * noetiger, dass ein Fall die andere Haelfte einfordert.
        */
       await unmount();
-      viewerMock.mockResolvedValue(person(["irgendeine-andere"]));
       await mount(
         await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_SUITE, children: <p /> }),
       );
@@ -605,21 +578,50 @@ describe("radio-AusleihRahmen: der Weg in die Verwaltung (L3)", () => {
     }
   });
 
-  it("haengt am Praedikat und NICHT am Zugangsweg — auch der Code-Zugang zeigt ihn", async () => {
+  it("der Code-Zugang kann gar keine Stufe tragen — die Vereinigung laesst es nicht zu", () => {
+    /**
+     * ⚠️ DIESER FALL HAT MIT DRK-202 SEINE AUSSAGE GEWECHSELT, und die Herkunft gehoert
+     * festgehalten. Bis dahin hiess er „haengt am Praedikat und NICHT am Zugangsweg —
+     * auch der Code-Zugang zeigt ihn" und stellte dafuer eine Kombination her, die es im
+     * Betrieb NICHT GIBT: einen Code-Zugang samt angemeldeter Admin-Person. `befund`
+     * prueft die Suite-Sitzung in SCHRITT 2, also VOR dem Cookie — wer eine Sitzung hat,
+     * bekommt `weg: "suite"`, nie `weg: "code"`. Der alte Fall mockte `viewerOderNull`
+     * gegen genau diese Reihenfolge und mass damit einen unerreichbaren Zustand; sein
+     * eigener Kommentar sagte es bereits („ohne Suite-Sitzung gibt `viewerOderNull()`
+     * `null`").
+     *
+     * ⛔ DIE SORGE DAHINTER BLEIBT RICHTIG UND IST JETZT STAERKER ABGEDECKT: sie galt
+     * einem spaeteren Leser, der `zugang.weg === "suite"` als vermeintlich fehlende
+     * Bedingung ergaenzt und damit eine Berechtigte ausblendet. Seit DRK-202 ist das
+     * keine Frage der Disziplin mehr, sondern der Bauform — `weg: "code"` TRAEGT KEIN
+     * STUFENFELD. Wer dort eine Stufe behaupten will, bekommt `pnpm typecheck` rot, statt
+     * nur diesen Fall. Ein Verbot, das sich nicht mehr hinschreiben laesst, ist besser
+     * als eines, das gemessen wird.
+     *
+     * ⚠️ VERHALTENSGLEICH, und das ist der Grund, warum der Tausch keine Regression ist:
+     * bei `weg: "code"` gab `viewerOderNull()` schon vorher `null`, der Link war also
+     * auch bisher unsichtbar. Geaendert hat sich, WORAN es liegt, nicht WAS man sieht.
+     */
+    const codeZugang: AusleihZugang = ZUGANG_CODE;
+    expect(codeZugang.weg).toBe("code");
+    // @ts-expect-error `darfVerwalten` gibt es am Code-Zweig nicht — genau das ist die Zusage.
+    expect(codeZugang.darfVerwalten).toBeUndefined();
+  });
+
+  it("die anonyme Flaeche zeigt ihn auch dann nicht, wenn eine Stufe offen steht", async () => {
     /*
-     * ⛔ DIE GEGENPROBE ZUR AUFLAGE 2 („der Link haengt am Praedikat, nicht am Riegel") in
-     * ihrer hier drohenden Gestalt: ein spaeterer Leser sieht `zugang.weg === "suite"` an
-     * der Zeile darueber und ergaenzt es als vermeintlich fehlende Bedingung. Das blendete
-     * genau die Verwalterin aus, die am Aufsteller steht und ueber den QR-Code hereinkam —
-     * die Luecke, die L3 schliessen soll. Das Praedikat schliesst den Fall bereits ein:
-     * ohne Suite-Sitzung gibt `viewerOderNull()` `null`.
+     * ⛔ DIE VERHALTENSHAELFTE ZUM TYPFALL DARUEBER, und sie bleibt noetig: dass das Feld
+     * fehlt, sagt noch nicht, dass der Rahmen daraus das Richtige macht. Ein Rahmen, der
+     * bei fehlendem Feld auf einen Rueckfall liefe, bestuende den Fall oben und waere hier
+     * rot. Die offene Updater-Stufe ist Absicht — sie schliesst aus, dass der Link nur
+     * deshalb fehlt, weil ueberhaupt keine Stufe konfiguriert ist.
      */
     try {
-      viewerMock.mockResolvedValue(person(["iuk-radio-admin"]));
+      process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
       await mount(
         await AusleihRahmen({ aktiv: "uebersicht", zugang: ZUGANG_CODE, children: <p /> }),
       );
-      expect(exists(VERWALTUNGSLINK)).toBe(true);
+      expect(exists(VERWALTUNGSLINK)).toBe(false);
     } finally {
       zuruecksetzen();
     }

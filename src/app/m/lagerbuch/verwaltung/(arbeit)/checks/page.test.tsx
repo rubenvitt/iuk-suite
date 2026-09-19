@@ -405,13 +405,143 @@ describe("Checks-Seite", () => {
     }]);
   });
 
-  it("zeigt einen Check ohne Abschlusszeit als Gedankenstrich statt als Datum", () => {
+  /**
+   * DRK-196 — DIESER FALL HAT SEINE AUSSAGE GEWECHSELT, und das gehoert
+   * dokumentiert statt still ersetzt. Bis hierher stand er auf „zeigt einen
+   * Check ohne Abschlusszeit als Gedankenstrich statt als Datum" und hielt
+   * damit die alte Entscheidung fest. Sie ist gefallen: ein Gedankenstrich
+   * liest sich wie ein FEHLENDER WERT — als haette jemand vergessen, das Datum
+   * zu erfassen —, nicht wie ein laufender Vorgang. Die Liste heisst
+   * „abgeschlossene Checks", ihr Leertext sagt das woertlich, und eine offene
+   * Zeile gehoert deshalb standardmaessig nicht hinein.
+   */
+  it("laesst einen laufenden Check aus der Liste — er ist nicht abgeschlossen", () => {
     checkEintragen({ id: "check-offen", completedAt: null });
 
-    const zeile = tabelleAus(checksInhalt(t.db, {})).zeilen[0];
+    expect(tabelleAus(checksInhalt(t.db, {})).zeilen).toEqual([]);
+  });
 
-    expect(zeile.abgeschlossenText).toBe("—");
+  it("zeigt ihn mit gesetztem Schalter, und zwar als laufend benannt", () => {
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+    // Der Rohwert bleibt leer — daran sortiert die Spalte, und „laeuft noch"
+    // ist kein Zeitpunkt.
+    expect(zeile.abgeschlossenIso).toBeNull();
     expect(istRekursivJsonSicher(zeile)).toBe(true);
+  });
+
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P2). Die Detailseite widersprach sich
+   * nicht mehr — die UEBERSICHT schon: dieselbe Zeile sagte in der einen Spalte
+   * „läuft noch" und in der naechsten gruen „vollständig", dazu „0" Positionen.
+   *
+   * ⛔ DER GRUENE CHIP ENTSTEHT DURCH EINEN RUECKFALL, nicht durch eine Aussage:
+   * bei einem laufenden Check sind ALLE Zaehler 0, es wird kein einziger Chip
+   * geschoben, und die Schlusszeile setzt „vollständig". Wer nur die Zaehler
+   * liest, sieht den Fehler nicht.
+   */
+  it("nennt einen laufenden Check in JEDER Spalte laufend — nie vollständig", () => {
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+    expect(zeile.positionenText).toBe("noch keine");
+    expect(zeile.ergebnisChips.map((chip) => chip.text)).toEqual(["läuft noch"]);
+    // ⚠️ `grau`, nicht `ok`: ein laufender Check ist kein Befund — und erst
+    // recht keine gruene Erfolgsmeldung.
+    expect(zeile.ergebnisChips[0].ton).toBe("grau");
+    expect(istRekursivJsonSicher(zeile)).toBe(true);
+  });
+
+  /**
+   * DRK-196, Codex-Review zu PR #210 — EINE ERFASSTE ZAHL BLEIBT EINE ZAHL.
+   *
+   * ⛔ Der Fall darueber zeigt „noch keine" fuer einen laufenden Check OHNE
+   * Inhalt. Ein laufender Check KANN aber schon Positionen tragen; „noch keine"
+   * waere dort genauso falsch wie vorher die `0`, nur in die andere Richtung.
+   * Dass der Wert vorlaeufig ist, sagt der Chip daneben.
+   */
+  it("zeigt bei einem laufenden Check mit Inhalt die erfasste Zahl", () => {
+    checkEintragen({
+      id: "check-offen-inhalt",
+      completedAt: null,
+      ergebnis: JSON.stringify({
+        version: 2,
+        positionen: [{ sollPositionId: "sp1", artikelId: "a1", soll: 2, ist: 1 }],
+        artikel: [], geraete: [], flaschen: [], verfall: [],
+      }),
+    });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.positionenText).toBe("1");
+    // Der Zustand steht trotzdem in der Zeile — nur eben nicht in dieser Spalte.
+    expect(zeile.ergebnisChips.map((chip) => chip.text)).toEqual(["läuft noch"]);
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+  });
+
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P2) — UND ES IST DERSELBE BEFUND EINE
+   * EBENE HOEHER. Auf der Detailseite gewinnt `unlesbar` seit einer Runde; die
+   * Uebersicht hatte die Reihenfolge noch andersherum und sagte fuer dieselbe
+   * Zeile „noch keine". Sie verschwieg damit den Schaden, den das Detail
+   * darunter ausdruecklich meldet.
+   *
+   * ⛔ `completedAt IS NULL` UND EIN KAPUTTES `ergebnis` SCHLIESSEN EINANDER
+   * NICHT AUS: das eine kommt aus dem Schema, das andere aus dem Parser, und
+   * die Spalten sind nicht gekoppelt. Ein Import stellt genau diese Zeile her.
+   */
+  it("nennt ein kaputtes Ergebnis auch dann unlesbar, wenn der Check noch laeuft", () => {
+    checkEintragen({ id: "check-offen-kaputt", completedAt: null, ergebnis: "{kein json" });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.positionenText).toBe("unlesbar");
+    /*
+     * ⚠️ DIE UEBRIGEN SPALTEN BLEIBEN BEIM LAUFENDEN CHECK, und das ist kein
+     * Widerspruch: der Check LAEUFT ja noch — nur ueber die erfassten Zahlen
+     * sagt die eine Spalte jetzt die Wahrheit statt „noch keine". Der graue
+     * Chip behauptet nichts ueber das Ergebnis; er haelt hier ausserdem den
+     * vorbestehenden gruenen „vollständig"-Chip der unlesbaren Zeile fern.
+     */
+    expect(zeile.ergebnisChips.map((chip) => chip.text)).toEqual(["läuft noch"]);
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+    expect(istRekursivJsonSicher(zeile)).toBe(true);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUM SCHALTER SELBST: er darf die abgeschlossenen Checks
+   * nicht ERSETZEN, sondern nur ergaenzen. Ein `mitOffenen`, das versehentlich
+   * auf „nur offene" filterte, waere mit den zwei Faellen darueber gruen.
+   */
+  it("der Schalter weitet die Liste, er tauscht sie nicht aus", () => {
+    checkEintragen({ id: "check-fertig" });
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    const ohne = tabelleAus(checksInhalt(t.db, {})).zeilen.map((z) => z.id);
+    const mit = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen.map((z) => z.id);
+
+    expect(ohne).toEqual(["check-fertig"]);
+    expect(mit).toHaveLength(2);
+    expect(mit).toContain("check-fertig");
+    expect(mit).toContain("check-offen");
+  });
+
+  /**
+   * ⚠️ GENAU `"1"`, NICHT „irgendein Wert ist wahr". Ein `?offen=0` aus einem
+   * kopierten Link setzte den Schalter sonst, statt ihn zu loeschen — und die
+   * Adresszeile sagte dann das Gegenteil dessen, was die Liste zeigt.
+   */
+  it("nimmt nur die Eins als gesetzten Schalter", () => {
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    expect(tabelleAus(checksInhalt(t.db, { offen: "0" })).zeilen).toEqual([]);
+    expect(tabelleAus(checksInhalt(t.db, { offen: "true" })).zeilen).toEqual([]);
+    expect(tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen).toHaveLength(1);
   });
 
   it("normalisiert ungültige Grenzen vor der Client-Insel und ignoriert sie beim Lesen", () => {

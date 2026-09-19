@@ -137,10 +137,21 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         zurueck={{ titel: "Checks", href: "/verwaltung/checks" }}
         beschreibung={(
           <>
-            Abgeschlossen{" "}
-            {check.completedAt?.toLocaleString("de-DE", {
-              timeZone: "Europe/Berlin",
-            }) ?? "—"}{" · "}
+            {/*
+              * ⛔ DAS WORT WECHSELT MIT DEM ZUSTAND (DRK-196, eigener Durchgang
+              * nach der Codex-Review zu PR #210). „Abgeschlossen —" stand hier
+              * fuer einen laufenden Check: ein Wort, das das Gegenteil des
+              * Zustands behauptet, und daneben ein Strich, der wie ein
+              * vergessener Wert aussieht. Das war die letzte Stelle, an der
+              * „abgeschlossen" noch stillschweigend vorausgesetzt war.
+              */}
+            {check.completedAt
+              ? `Abgeschlossen ${check.completedAt.toLocaleString("de-DE", {
+                timeZone: "Europe/Berlin",
+              })}`
+              : `Begonnen ${check.startedAt.toLocaleString("de-DE", {
+                timeZone: "Europe/Berlin",
+              })}, läuft noch`}{" · "}
             {/* DRK-311: derselbe aufgeloeste Name wie in der Spalte „Wer" der
                 Historie — wer von dort hierher tippt, liest ihn wieder. Beim
                 Kaertchen ist das die Beschriftung des Zugangs, nicht eine
@@ -165,7 +176,23 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
           type="warning"
           showIcon={false}
           style={{ marginBlockEnd: SPACE.lg }}
-          title="Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten; die Summen unten sind vollständig."
+          /*
+           * ⛔ „VOLLSTÄNDIG" NUR FÜR EINEN ABGESCHLOSSENEN ALTCHECK
+           * (Codex-Review zu PR #210, P2). Der Halbsatz ist der eigentliche
+           * Inhalt dieser Meldung — er sagt, dass das Fehlende NUR die
+           * Einzelpositionen sind. Für einen laufenden Altcheck ist er eine
+           * Zusage, die niemand geben kann: die Summen können noch wachsen.
+           * Nebeneinander standen dann zwei Meldungen, von denen eine die
+           * Zahlen für fertig erklärte und die andere für vorläufig.
+           *
+           * ⚠️ Der Ersatz sagt WENIGER, nicht das Gegenteil: dass die Summen
+           * vorläufig sind, steht in der Meldung darunter und gehört nicht
+           * zweimal hin. Diese hier bleibt bei ihrer einen Tatsache — dem
+           * Format.
+           */
+          title={check.offen
+            ? "Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten — unten stehen nur die Summen."
+            : "Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten; die Summen unten sind vollständig."}
         />
       ) : null}
 
@@ -197,6 +224,82 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         />
       ) : null}
 
+      {/**
+        * DRK-196 — DER DRITTE GRUND FUER LEERE LISTEN, UND DER EINZIGE, DER
+        * KEIN AUSFALL IST. Ein Check ohne Ergebnis ist ein vom Schema
+        * vorgesehener Zustand (§4.4): es wurde noch nichts geschrieben. Ohne
+        * diese Meldung zeigt die Seite dafuer „0 Positionen" und sieht damit aus
+        * wie ein abgeschlossener Check, bei dem nichts zu tun war — dieselbe
+        * luegende 200 wie beim Nachbarn darueber, nur aus anderer Ursache.
+        *
+        * ⛔ `type="info"`, NICHT `type="warning"` WIE DIE BEIDEN DARUEBER: jene
+        * melden einen Ausfall oder eine Einschraenkung, dieser meldet einen
+        * normalen Zwischenstand. Eine Warnfarbe machte aus „laeuft noch" einen
+        * Befund, dem jemand nachgeht. ⛔ Und erst recht kein `type="error"`
+        * (§6.6.5): `colorError` ist `colorPrimary` ist `#c8000f`.
+        *
+        * ⚠️ KEIN Icon, aus demselben Grund wie oben — diese Seite ist eine
+        * Server Component ohne Insel, und das antd-Zeichenpaket ergaebe hier
+        * HTTP 500 schon beim Import. Der Riegel in `page.test.tsx` scannt diese
+        * Datei im Quelltext; auch ein Kommentar darf den Paketnamen nicht nennen.
+        *
+        * ⛔ DIE DREI SCHLIESSEN EINANDER NICHT AUS — UND `offen` UND `unlesbar`
+        * SCHON GAR NICHT (Codex-Review zu PR #210, P2). Hier stand das Gegenteil,
+        * und es war nachweislich falsch: `unlesbar` haengt am Parser
+        * (`checkErgebnis.ts`, `unlesbar()` — ein GESCHRIEBENER, aber kaputter
+        * Rohwert), `offen` an `completedAt`, und das Schema koppelt die beiden
+        * Spalten nicht. Ein laufender Check, dessen Zwischenstand beschaedigt
+        * geschrieben wurde, traegt beide. Deshalb kein `else` — und deshalb
+        * unten eine Reihenfolge, wo eine noetig ist.
+        */}
+      {check.offen ? (
+        <Alert
+          type="info"
+          showIcon={false}
+          style={{ marginBlockEnd: SPACE.lg }}
+          /*
+           * ⛔ ZWEI SAETZE, WEIL ES ZWEI LAGEN GIBT (Codex-Review zu PR #210, P2).
+           * Das Schema koppelt `completedAt` und `ergebnis` nicht: ein laufender
+           * Check KANN schon etwas tragen. Der eine Satz fuer beide log dann in
+           * die eine Richtung — er meldete „noch kein Ergebnis erfasst" und
+           * darunter standen die erfassten Zeilen.
+           *
+           * ⚠️ „Zwischenstand", NICHT „Ergebnis": was fehlt, weiss niemand, der
+           * Check laeuft ja noch. Der zweite Satz sagt deshalb nur, dass das
+           * Gezeigte nicht das Ende ist — er behauptet keine Vollstaendigkeit.
+           */
+          /*
+           * ⛔ IM ZUSAMMENTREFFEN MIT `unlesbar` DARF HIER NICHT STEHEN, DIE
+           * LISTEN SEIEN LEER, WEIL NOCH NICHTS ERFASST WURDE: erfasst wurde
+           * etwas, es ist nur nicht mehr lesbar — und die Meldung darueber sagt
+           * das gerade. Zwei Meldungen mit zwei Gruenden fuer dieselbe Leere
+           * sind eine zu viel; diese tritt deshalb einen Schritt zurueck und
+           * sagt nur noch, was NUR sie weiss.
+           */
+          title={check.unlesbar
+            ? "Dieser Check läuft noch. Was von ihm erfasst wurde, sagt die Meldung darüber — lesbar ist es nicht."
+            : check.hatZwischenstand
+              ? "Dieser Check läuft noch. Was unten steht, ist ein Zwischenstand — er kann sich noch ändern, und was fehlt, ist damit nicht gesagt."
+              : "Dieser Check läuft noch: Es wurde noch kein Ergebnis erfasst. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."}
+        />
+      ) : null}
+
+      {/**
+        * ⛔ KEINE KACHELN FUER EINEN LAUFENDEN CHECK (Codex-Review zu PR #210, P2).
+        * „0 geprüfte Positionen" ist eine ZAHL, und eine Zahl ist eine Aussage:
+        * sie behauptet, gezaehlt worden zu sein. Unter einer Meldung, die gerade
+        * sagt, es sei noch nichts erfasst worden, ist das derselbe luegende
+        * Nullzustand, gegen den der Vorgang ueberhaupt antrat — nur eine Zeile
+        * tiefer. Vier Nullen wegzulassen sagt mehr als vier Nullen zu zeigen.
+        *
+        * ⚠️ FUER EINEN ABGESCHLOSSENEN `unlesbar`-CHECK BLEIBEN SIE STEHEN, und
+        * das ist kein Versehen: dort WURDE gezaehlt, der Wert ist nur nicht mehr
+        * lesbar. Ob die Nullen auch dort besser wegfielen, ist eine eigene Frage
+        * an §11.5 und nicht die dieses Vorgangs. ⚠️ Traegt ein LAUFENDER Check
+        * beides, gewinnt die Bedingung hier — die Nullen fallen weg. Das ist
+        * richtig herum: bei ihm steht nicht einmal fest, ob noch gezaehlt wird.
+        */}
+      {check.offen && !check.hatZwischenstand ? null : (
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={6}>
           <Kachel
@@ -226,6 +329,7 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
           />
         </Col>
       </Row>
+      )}
 
       {/**
         * ⚠️ Die Leertexte gehoeren zur Meldung oben. Jeder von ihnen BEHAUPTET
@@ -244,9 +348,44 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         nachfuellLeertext={check.altFormat
           ? "Dieser Check stammt aus dem alten Format — Einzelpositionen sind darin nicht enthalten."
           : "Keine Einzelposition erfasst."}
-        unlesbarLeertext={check.unlesbar
+        /*
+         * ⚠️ ZWEI URSACHEN, ZWEI TEXTE, EIN SLOT (Codex-Review zu PR #210, P2).
+         * Der laufende Check hatte bis dahin KEINEN — die Meldung oben sagte
+         * „noch kein Ergebnis erfasst", und darunter behaupteten die Tabellen
+         * „Keine Geraete in diesem Check." Das ist genau die luegende Null, die
+         * der Vorgang abschaffen sollte, nur eine Zeile tiefer.
+         *
+         * ⛔ DIE REIHENFOLGE IST NICHT EGAL, UND DER ERSTE WURF HATTE SIE
+         * FALSCH HERUM (Codex-Review zu PR #210, P2). Hier stand, die beiden
+         * schloessen einander aus — sie tun es nicht: `offen` haengt an
+         * `completedAt`, `unlesbar` an einem vorhandenen, aber kaputten
+         * Ergebnis, und das Schema koppelt die Spalten nicht. Mit `offen`
+         * zuerst sagte die Tabelle eines laufenden Checks mit beschaedigtem
+         * Zwischenstand „noch nichts erfasst", waehrend die Meldung darueber
+         * gerade das Gegenteil meldete.
+         *
+         * ⛔ `unlesbar` GEWINNT, WEIL ES DIE LEERE ERKLAERT. Dass ein Check
+         * laeuft, macht eine Liste nicht leer — ein lesbarer Zwischenstand
+         * stuende ja da. Dass sein Ergebnis beschaedigt ist, macht sie leer.
+         */
+        /*
+         * ⛔ OHNE `hatZwischenstand`-BEDINGUNG, und das ist die Behebung eines
+         * Denkfehlers (Codex-Review zu PR #210): ein Leertext rendert NUR auf
+         * einer LEEREN Tabelle. Ihn an „gar nichts erfasst" zu knuepfen hiess,
+         * dass bei einem Zwischenstand in EINER Liste die uebrigen vier wieder
+         * ihre Tatsachenbehauptung zeigten („Keine Geräte in diesem Check") —
+         * neben einer Meldung, die gerade sagt, was fehle sei nicht gesagt.
+         *
+         * ⛔ DER SATZ DAHINTER, und er gilt fuer die ganze Seite: FUER EINEN
+         * LAUFENDEN CHECK IST JEDER WERT VORLAEUFIG UND JEDE LEERE EIN „NOCH
+         * NICHT", NIE EIN „KEINS". Eine Tabelle mit Zeilen zeigt sie; eine
+         * ohne sagt, dass dort noch nichts steht.
+         */
+        ersatzLeertext={check.unlesbar
           ? "Das Ergebnis dieses Checks ist nicht lesbar — was erfasst wurde, lässt sich nicht sagen."
-          : null}
+          : check.offen
+            ? "Für diesen laufenden Check ist hier noch nichts erfasst — ob noch etwas kommt, steht nicht fest."
+            : null}
       />
     </>
   );

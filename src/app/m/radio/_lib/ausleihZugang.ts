@@ -7,7 +7,7 @@ import type { DB } from "../_db/client";
 import { zugangscodes } from "../_db/schema";
 import { AUSLEIH_COOKIE, verifyAusleihSitzung } from "./ausleihSitzung";
 import { requireRadioHost } from "./host";
-import { viewerAusSession } from "./zugang";
+import { istRadioVerwaltung, viewerAusSession } from "./zugang";
 
 /**
  * DAS ZUGANGSPRAEDIKAT DER AUSLEIHE (Spec 1 §3.5, Zeilen 2632-2786).
@@ -65,7 +65,7 @@ import { viewerAusSession } from "./zugang";
  */
 export type AusleihZugang =
   | { weg: "code"; codeId: string; bezeichnung: string; laeuftAb: Date }
-  | { weg: "suite"; sub: string; name: string | null };
+  | { weg: "suite"; sub: string; name: string | null; darfVerwalten: boolean };
 
 /**
  * Die zwei Gruende, mit denen eine schreibende Ausleih-Action abgewiesen wird.
@@ -152,7 +152,41 @@ async function befund(db: DB): Promise<Befund> {
    */
   const viewer = viewerAusSession(await auth());
   if (viewer) {
-    return { ok: true, zugang: { weg: "suite", sub: viewer.sub, name: viewer.name } };
+    /*
+     * ⛔ DIE VERWALTUNGSSTUFE WIRD HIER AUSGEWERTET UND MITGEFUEHRT (DRK-202) —
+     * sie ist KEINE zweite Auskunft, sondern dieselbe, nur nicht weggeworfen.
+     *
+     * WAS VORHER GESCHAH: diese Zeile las `auth()` unbedingt und reichte danach
+     * nur `{ sub, name }` weiter; die GRUPPEN fielen weg. `_ui/AusleihRahmen.tsx`
+     * brauchte sie fuer den /admin-Link und holte sie mit `viewerOderNull()` ein
+     * ZWEITES Mal — auf jedem Ausleihaufruf, auch dem anonymen Kiosk-Weg.
+     *
+     * ⛔ EINE `cache()`-HUELLE HAETTE DAS NICHT BEHOBEN, und das ist gemessen,
+     * nicht vermutet: `core/auth/index.ts` exportiert `auth` ohne Huelle, und
+     * `grep -rn "cache" src/core/auth/` liefert null Treffer. Es gibt nichts,
+     * worauf man sich berufen koennte.
+     *
+     * ⚠️ DAS NICHT-WERFENDE PRAEDIKAT, NIE `requireRadioVerwaltung()`: hier
+     * entsteht eine SICHTBARKEITSauskunft, kein Riegel. Ein werfender Aufruf an
+     * dieser Stelle schickte jeden anonymen Scan nach `/login`, bevor die
+     * Geraeteliste je erschiene (NS-Z6). Durchgesetzt von `riegel.test.ts`
+     * Klausel (i) fuer die Flaeche und von Auflage 5 hier.
+     *
+     * ⚠️ AUFLAGE 5 BLEIBT UNBERUEHRT (Spec:2729-2736): fuer `weg: "suite"` wird
+     * weiterhin KEINE Gruppe VERLANGT. `darfVerwalten` entscheidet nichts ueber
+     * den Zugang — es beantwortet allein, ob ein Verwaltungsweg ANGEZEIGT wird.
+     * Wer das je zu einer Bedingung des Zugangs macht, bricht die Zusage, dass
+     * derselbe Vorgang ohne jede Anmeldung per QR-Code erlaubt ist.
+     */
+    return {
+      ok: true,
+      zugang: {
+        weg: "suite",
+        sub: viewer.sub,
+        name: viewer.name,
+        darfVerwalten: istRadioVerwaltung(viewer),
+      },
+    };
   }
 
   // SCHRITT 3 — kein Cookie: es gibt nichts zu raeumen (Spec:2409).

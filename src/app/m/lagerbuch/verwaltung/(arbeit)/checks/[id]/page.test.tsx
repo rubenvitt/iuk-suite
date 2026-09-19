@@ -29,6 +29,8 @@ const BASIS: CheckDetail = {
   verfall: [],
   altFormat: false,
   unlesbar: false,
+  offen: false,
+  hatZwischenstand: false,
   summe: {
     positionen: 0,
     nachgefuellt: 0,
@@ -482,7 +484,7 @@ describe("Check-Detailseite", () => {
     // „Keine Geraete in diesem Check." ist eine Tatsachenbehauptung, die hier
     // niemand pruefen konnte — genauso wenig wie „Keine Einzelposition
     // erfasst.". EIN Text fuer alle fuenf, weil es EINE Ursache ist.
-    expect(tabellenAus(seite).unlesbarLeertext).toMatch(/nicht lesbar/i);
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/nicht lesbar/i);
   });
 
   it("nimmt bei unlesbarem Ergebnis ALLEN fuenf Tabellen die Tatsachenbehauptung", () => {
@@ -495,17 +497,17 @@ describe("Check-Detailseite", () => {
      * `nachfuellLeertext` geaendert hat, gilt fuer sie wortgleich.
      */
     const unlesbar = tabellenAus(checkDetailInhalt({ ...BASIS, unlesbar: true }));
-    expect(unlesbar.unlesbarLeertext).toBeTruthy();
+    expect(unlesbar.ersatzLeertext).toBeTruthy();
 
     // Die Gegenprobe: ein lesbarer Check bekommt KEINE Ueberschreibung, seine
     // Tabellen sagen weiter „Keine Geraete in diesem Check." — was dort ja auch
     // stimmt.
-    expect(tabellenAus(checkDetailInhalt(BASIS)).unlesbarLeertext).toBeFalsy();
+    expect(tabellenAus(checkDetailInhalt(BASIS)).ersatzLeertext).toBeFalsy();
     // Und das Altformat behaelt seinen eigenen, anderen Nachfuell-Text.
     const alt = tabellenAus(checkDetailInhalt({
       ...BASIS, altFormat: true, summe: { ...BASIS.summe, altFormat: true },
     }));
-    expect(alt.unlesbarLeertext).toBeFalsy();
+    expect(alt.ersatzLeertext).toBeFalsy();
     expect(alt.nachfuellLeertext).toMatch(/alten Format/);
   });
 
@@ -514,6 +516,256 @@ describe("Check-Detailseite", () => {
     // nichts zu melden hatte, ist ein gueltiger Zustand und bekommt KEINE
     // Warnung. `BASIS` ist genau das — leere Listen, `unlesbar: false`.
     expect(elementeVomTyp(checkDetailInhalt(BASIS), Alert)).toHaveLength(0);
+  });
+
+  it("kennzeichnet einen laufenden Check, statt 0 Positionen zu behaupten", () => {
+    /**
+     * DRK-196 — DIE DRITTE URSACHE FUER LEERE LISTEN. Ein Check ohne Ergebnis
+     * ist ein vom Schema vorgesehener Zustand (§4.4), kein Ausfall. Ohne diese
+     * Meldung zeigt die Seite „0 Positionen" und sieht damit aus wie ein
+     * abgeschlossener Check, bei dem nichts zu tun war — dieselbe luegende 200
+     * wie bei Zustand 27, nur aus anderer Ursache.
+     */
+    const seite = checkDetailInhalt({ ...BASIS, offen: true });
+
+    const alerts = elementeVomTyp(seite, Alert);
+    expect(alerts).toHaveLength(1);
+    /*
+     * ⛔ `info`, NICHT `warning`: die beiden Nachbarmeldungen melden einen
+     * Ausfall bzw. eine Einschraenkung, diese einen normalen Zwischenstand.
+     * Eine Warnfarbe machte aus „laeuft noch" einen Befund, dem jemand nachgeht.
+     */
+    expect(alerts[0].props).toMatchObject({ type: "info", showIcon: false });
+    // ⚠️ Und erst recht nicht `error` (§6.6.5): `colorError === colorPrimary`.
+    expect(alerts[0].props.type).not.toBe("error");
+    expect(String(alerts[0].props.title)).toMatch(/^Dieser Check läuft noch/);
+  });
+
+  it("widerspricht sich bei einem laufenden Check nicht selbst", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2). Die Meldung allein reichte nicht:
+     * darunter standen weiter „0 geprüfte Positionen" und „Keine Geräte in
+     * diesem Check." — TATSACHENBEHAUPTUNGEN, die niemand geprueft hat, direkt
+     * unter dem Satz, es sei noch nichts erfasst worden. Das ist derselbe
+     * luegende Nullzustand, gegen den der Vorgang antrat, nur eine Zeile tiefer.
+     */
+    const seite = checkDetailInhalt({ ...BASIS, offen: true });
+
+    // Keine Kachel: eine Zahl behauptet, gezaehlt worden zu sein.
+    expect(elementeVomTyp(seite, Kachel)).toHaveLength(0);
+    // Und ein Ersatztext fuer ALLE fuenf Tabellen, der nichts behauptet.
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/noch nichts erfasst/);
+
+    /*
+     * ⚠️ DIE GEGENPROBE, ohne die der Fall die Seite auch fuer JEDEN Check
+     * leerraeumen koennte: ein gewoehnlicher Check behaelt seine Kacheln und
+     * bekommt keinen Ersatztext.
+     */
+    const normal = checkDetailInhalt(gefuellterCheck());
+    expect(elementeVomTyp(normal, Kachel).length).toBeGreaterThan(0);
+    expect(tabellenAus(normal).ersatzLeertext).toBeFalsy();
+
+    /*
+     * ⛔ UND DER NACHBARZUSTAND BLEIBT UNANGETASTET: `unlesbar` behaelt seine
+     * Kacheln — dort WURDE gezaehlt, der Wert ist nur nicht mehr lesbar. Ohne
+     * diese Zeile raeumte eine spaetere „Vereinheitlichung" einen fremden
+     * Anzeigezustand mit weg.
+     */
+    const unlesbar = checkDetailInhalt({ ...BASIS, unlesbar: true });
+    expect(elementeVomTyp(unlesbar, Kachel).length).toBeGreaterThan(0);
+    expect(tabellenAus(unlesbar).ersatzLeertext).toMatch(/nicht lesbar/);
+  });
+
+  /**
+   * DRK-196 — DIE VOLLZAEHLIGKEIT, einmal am Stueck statt Runde um Runde.
+   *
+   * ⚠️ DIESER FALL IST AUS EINEM EIGENEN DURCHGANG ENTSTANDEN, nicht aus einem
+   * Review: vier Runden lang hat jeder Fix den naechsten Ort freigelegt, an dem
+   * „abgeschlossen" stillschweigend vorausgesetzt war — Detailseite,
+   * Uebersichtszeile, Zeitraum, Sortierung, Teildaten. Der Seitenkopf war der
+   * letzte: dort stand woertlich „Abgeschlossen —" fuer einen laufenden Check.
+   * Ein Wort, das das Gegenteil des Zustands behauptet, daneben ein Strich, der
+   * wie ein vergessener Wert aussieht.
+   */
+  it("nennt im Kopf den Beginn, solange der Check laeuft", () => {
+    const kopfText = (check: CheckDetail) =>
+      textVon(
+        elementeVomTyp(checkDetailInhalt(check), SeitenKopf)[0].props.beschreibung as ReactNode,
+      );
+
+    /*
+     * ⚠️ `completedAt: null` GEHOERT DAZU, und das ist zum zweiten Mal dieselbe
+     * Lehre: eine Vorrichtung muss einen ERREICHBAREN Zustand herstellen. Ein
+     * `offen: true` neben einem gesetzten Abschlusszeitpunkt gibt es im
+     * Lesepfad nicht — dort ist `offen` genau `completedAt === null`. Der Kopf
+     * verzweigt deshalb am Zeitpunkt selbst: was nicht da ist, kann er nicht
+     * drucken.
+     */
+    const laufend = kopfText({ ...BASIS, offen: true, completedAt: null });
+    expect(laufend).toMatch(/läuft noch/);
+    expect(laufend, "„Abgeschlossen“ ist das Gegenteil des Zustands").not.toMatch(/Abgeschlossen/);
+    expect(laufend, "der Beginn steht da, und zwar als Zeitpunkt").toMatch(/Begonnen/);
+
+    // Die Gegenprobe: ein fertiger Check nennt weiterhin seinen Abschluss.
+    const fertig = kopfText(BASIS);
+    expect(fertig).toMatch(/Abgeschlossen/);
+    expect(fertig).not.toMatch(/läuft noch/);
+  });
+
+  it("nennt einen laufenden Check MIT Daten einen Zwischenstand", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2) — und dieser Fall ist die Folge des
+     * VORIGEN Fixes. Seit `offen` am Abschlusszeitpunkt haengt (statt am
+     * Ergebnis), gibt es eine Zeile, die beides ist: nicht abgeschlossen UND
+     * mit lesbarem Inhalt. Das Schema koppelt die beiden Spalten nicht.
+     *
+     * ⛔ FUER DIE LOG DIE SEITE IN BEIDE RICHTUNGEN: sie meldete „es wurde noch
+     * kein Ergebnis erfasst" und rendere die erfassten Zeilen unmittelbar
+     * darunter. Ein Widerspruch im selben Bild, zum dritten Mal in diesem
+     * Vorgang — und jedes Mal, weil ein Zustand eingefuehrt und nicht ueberall
+     * durchgezogen wurde.
+     */
+    const mitStand = { ...gefuellterCheck(), offen: true, hatZwischenstand: true };
+    const seite = checkDetailInhalt(mitStand);
+
+    const alerts = elementeVomTyp(seite, Alert);
+    expect(alerts).toHaveLength(1);
+    expect(String(alerts[0].props.title)).toMatch(/Zwischenstand/);
+    // ⛔ UND ER BEHAUPTET NICHT MEHR, es sei nichts erfasst worden.
+    expect(String(alerts[0].props.title)).not.toMatch(/kein Ergebnis erfasst/);
+
+    /*
+     * ⚠️ WAS DA IST, BLEIBT SICHTBAR: die Kacheln stehen. Sie wegzunehmen hiesse,
+     * erfasste Arbeit zu verbergen — das Gegenteil des Befunds.
+     */
+    expect(elementeVomTyp(seite, Kachel).length).toBeGreaterThan(0);
+
+    /*
+     * ⛔ UND DIE LEEREN ABSCHNITTE BLEIBEN TROTZDEM VORLAEUFIG. Hier stand bis
+     * zur naechsten Reviewrunde `toBeFalsy()` — also: sobald IRGENDEINE Liste
+     * etwas traegt, bekommen die uebrigen wieder ihre Tatsachenbehauptung
+     * („Keine Geräte in diesem Check"). Das widersprach der Meldung darueber,
+     * die gerade sagt, was fehle sei nicht gesagt.
+     *
+     * Ein Leertext rendert NUR auf einer leeren Tabelle — ihn immer zu setzen
+     * ist deshalb genau die abschnittsweise Antwort: volle Tabellen zeigen ihre
+     * Zeilen, leere sagen „noch nichts". Der Satz dahinter gilt der ganzen
+     * Seite: fuer einen laufenden Check ist jeder Wert vorlaeufig und jede
+     * Leere ein „noch nicht", nie ein „keins".
+     */
+    expect(tabellenAus(seite).ersatzLeertext).toMatch(/noch nichts erfasst/);
+
+    /*
+     * ⚠️ DIE GEGENPROBE: ohne Zwischenstand bleibt es beim anderen Satz, und
+     * Kacheln wie Tabellen werden geraeumt. Ohne sie waere der Fall auch ueber
+     * einer Seite gruen, die den Unterschied gar nicht macht.
+     */
+    const ohneStand = checkDetailInhalt({ ...BASIS, offen: true });
+    expect(String(elementeVomTyp(ohneStand, Alert)[0].props.title))
+      .toMatch(/kein Ergebnis erfasst/);
+    expect(elementeVomTyp(ohneStand, Kachel)).toHaveLength(0);
+  });
+
+  it("haelt laufend, unlesbar und Altformat auseinander — drei Ursachen, drei Texte", () => {
+    /**
+     * DRK-196, und das ist der eigentliche Posten des Vorgangs: beim Nachbau von
+     * Zustand 27 war die naheliegende Definition „jeder Lesefehler mit leerem
+     * Wert" — die haette `ergebnis IS NULL` eingezogen und JEDEM laufenden Check
+     * „Ergebnis unlesbar" angezeigt. Aus einer Luege waeren zwei geworden.
+     */
+    const text = (eigenschaften: Partial<typeof BASIS>) =>
+      String(elementeVomTyp(checkDetailInhalt({ ...BASIS, ...eigenschaften }), Alert)[0]
+        ?.props.title ?? "");
+
+    const laufend = text({ offen: true });
+    const unlesbar = text({ unlesbar: true });
+
+    // Kein Text erklaert den anderen, und keiner nennt die fremde Ursache.
+    expect(laufend).not.toMatch(/unlesbar|beschädigt/i);
+    expect(unlesbar).not.toMatch(/läuft noch/i);
+    expect(laufend).not.toBe(unlesbar);
+
+    // ⚠️ DIE TONART TRENNT SIE EBENFALLS, und das ist die Haelfte, die eine
+    // reine Textpruefung durchliesse: derselbe Satz in Warnfarbe waere wieder
+    // ein Befund. Ein laufender Check ist keiner.
+    const ton = (eigenschaften: Partial<typeof BASIS>) =>
+      elementeVomTyp(checkDetailInhalt({ ...BASIS, ...eigenschaften }), Alert)[0]?.props.type;
+    expect(ton({ offen: true })).toBe("info");
+    expect(ton({ unlesbar: true })).toBe("warning");
+  });
+
+  it("nimmt dem Altformat-Satz die Vollstaendigkeit, solange der Check laeuft", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2). Ein importierter Altcheck kann
+     * laufen: `altFormat` kommt aus dem Ergebnisformat, `offen` aus
+     * `completedAt IS NULL` — unabhaengige Spalten, beide Meldungen rendern.
+     * Der Altformat-Satz endete auf „die Summen unten sind vollstaendig", die
+     * Meldung darunter erklaerte dieselben Zahlen fuer vorlaeufig. Zwei
+     * Meldungen, ein Widerspruch, im selben Bild.
+     *
+     * ⚠️ DER ERSATZ SAGT WENIGER, NICHT DAS GEGENTEIL. „Vorlaeufig" steht
+     * schon darunter; hier gehoert es nicht ein zweites Mal hin.
+     */
+    const altUndOffen = { ...BASIS, altFormat: true, offen: true,
+      summe: { ...BASIS.summe, altFormat: true, positionen: 4 }, hatZwischenstand: true };
+    const meldungen = elementeVomTyp(checkDetailInhalt(altUndOffen), Alert)
+      .map((a) => String(a.props.title));
+
+    expect(meldungen).toHaveLength(2);
+    expect(meldungen[0]).toMatch(/alten Format/);
+    expect(meldungen[0]).not.toMatch(/vollständig/);
+    expect(meldungen[1]).toMatch(/l\u00e4uft noch/);
+
+    /*
+     * GEGENPROBE: fuer den ABGESCHLOSSENEN Altcheck bleibt die Zusage stehen.
+     * Sie ist der eigentliche Inhalt der Meldung — sie sagt, dass das Fehlende
+     * NUR die Einzelpositionen sind. Ohne diese Haelfte waere der Fall auch
+     * ueber einer Seite gruen, die den Satz ganz gestrichen hat.
+     */
+    const nurAlt = checkDetailInhalt({ ...BASIS, altFormat: true,
+      summe: { ...BASIS.summe, altFormat: true } });
+    expect(String(elementeVomTyp(nurAlt, Alert)[0].props.title)).toMatch(/vollständig/);
+  });
+
+  it("laesst bei laufend UND unlesbar den kaputten Wert erklaeren, nicht die Uhr", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2). Der erste Wurf hielt die beiden
+     * Zustaende fuer unvereinbar und fragte `offen` zuerst ab. Sie sind es
+     * nicht: `unlesbar` heisst „ein Rohwert steht da und ist kaputt"
+     * (`checkErgebnis.ts`, `unlesbar()`), `offen` heisst `completedAt IS NULL`
+     * — und das Schema koppelt die beiden Spalten nicht. Ein laufender Check
+     * mit beschaedigtem Zwischenstand traegt beide Merkmale.
+     *
+     * ⛔ WAS DIE LEERE ERKLAERT, GEWINNT. Dass ein Check laeuft, macht keine
+     * Liste leer — ein lesbarer Zwischenstand stuende da. Dass sein Ergebnis
+     * kaputt ist, macht sie leer. Mit der alten Reihenfolge stand unter einer
+     * Meldung „beschaedigtes Ergebnis" in jeder Tabelle „noch nichts erfasst".
+     */
+    const beides = checkDetailInhalt({ ...BASIS, offen: true, unlesbar: true });
+
+    expect(tabellenAus(beides).ersatzLeertext).toMatch(/nicht lesbar/);
+    expect(tabellenAus(beides).ersatzLeertext).not.toMatch(/noch nichts erfasst/);
+
+    /*
+     * ⚠️ BEIDE MELDUNGEN STEHEN WEITER DA — es sind zwei Tatsachen, nicht zwei
+     * Kandidaten fuer eine. Nur die zweite tritt zurueck: sie darf die Leere
+     * nicht ein zweites Mal und mit dem falschen Grund erklaeren.
+     */
+    const meldungen = elementeVomTyp(beides, Alert).map((a) => String(a.props.title));
+    expect(meldungen).toHaveLength(2);
+    expect(meldungen[0]).toMatch(/^Ergebnis unlesbar/);
+    expect(meldungen[1]).toMatch(/läuft noch/);
+    expect(meldungen[1]).not.toMatch(/kein Ergebnis erfasst/);
+
+    /*
+     * GEGENPROBE, sonst waere der Fall auch ueber einer Seite gruen, die
+     * `offen` gar nicht mehr kennt: ohne `unlesbar` bleibt der laufende Check
+     * bei seinem eigenen Text.
+     */
+    const nurLaufend = checkDetailInhalt({ ...BASIS, offen: true });
+    expect(tabellenAus(nurLaufend).ersatzLeertext).toMatch(/noch nichts erfasst/);
+    expect(String(elementeVomTyp(nurLaufend, Alert)[0].props.title))
+      .toMatch(/kein Ergebnis erfasst/);
   });
 
   it("haelt Altformat und unlesbar auseinander — je eine Meldung, nie beide", () => {

@@ -335,6 +335,79 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
   });
 
+  /**
+   * DRK-197 — DIE SEITE ALS GANZES, NICHT NUR EIN ZUSTAND.
+   *
+   * ⛔ WARUM E2E UND NICHT VITEST: `/verwaltung/checks/[id]` ist eine Server
+   * Component OHNE Insel. Für diese Klasse schreibt `CLAUDE.md` aus, dass
+   * `build`, `typecheck` und Vitest die schlimmsten Fehler strukturell NICHT
+   * sehen — ein Compound-Zugriff auf antd oder ein Zeichenimport ergibt HTTP
+   * 500, und zwar schon beim Import, nicht beim Rendern. Ein grüner DOM-Test
+   * beweist nicht, dass die Seite überhaupt antwortet.
+   *
+   * ⛔ JE ABSCHNITT EIN UNTERSCHEIDENDES MERKMAL, nicht eine Gesamtzahl. Eine
+   * Zusicherung auf „fünf Karten" wäre auch dann grün, wenn vier davon leer
+   * blieben; geprüft wird deshalb je Abschnitt ein Wert, den NUR dieser
+   * Abschnitt zeigen kann.
+   *
+   * ⚠️ DER FALL LEBT IN DIESER DATEI UND NICHT IN EINER NEUEN: `_actions/
+   * guards.test.ts` zählt die Einträge des e2e-Verzeichnisses hart ab.
+   */
+  test("die volle Detailseite rendert alle fünf Abschnitte und ihre Kennzahlen", async ({
+    page,
+  }) => {
+    const antwort = await page.goto(lagerbuchUrl("/verwaltung/checks/e2e-check-voll"));
+
+    // Erst der Status — ein 500 aus einer RSC-Falle ginge sonst als „Text nicht
+    // gefunden" durch und sähe wie ein Textfehler aus.
+    expect(antwort?.status(), "die Seite muss ausliefern, nicht in eine RSC-Falle laufen").toBe(200);
+    await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
+
+    // Und KEINE der drei Ausnahmemeldungen: dieser Check ist vollständig,
+    // lesbar und abgeschlossen.
+    await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
+    await expect(page.getByText("Dieser Check läuft noch")).toHaveCount(0);
+    await expect(page.getByText("alten Format")).toHaveCount(0);
+
+    // Die vier Kacheln, mit ihren Zahlen — 5 soll / 2 ist, 3 gewünscht / 1 gebucht.
+    const kachel = (beschriftung: string) =>
+      page.locator(".ant-card", { hasText: beschriftung }).first();
+    await expect(kachel("geprüfte Positionen")).toContainText("1");
+    await expect(kachel("nachgefüllt")).toContainText("1");
+    await expect(kachel("fehlt weiterhin")).toContainText("2");
+
+    // Abgleich: der geseedete Artikel mit seiner Differenz.
+    const abgleich = page.locator(".ant-card", { hasText: "Abgleich" }).first();
+    await expect(abgleich).toContainText("E2E Check Kompressen steril 10x10cm");
+
+    // Nachfüllung je Fach: das Fachlabel aus der Soll-Position.
+    await expect(page.locator(".ant-card", { hasText: "Nachfüllung" }).first())
+      .toContainText("E2E Fach");
+
+    // Geräte: Name UND Bemerkung — die Bemerkung kann nur aus diesem Abschnitt
+    // kommen und belegt, dass die Zeile wirklich aufgelöst wurde.
+    const geraete = page.locator(".ant-card", { hasText: "Geräte" }).first();
+    await expect(geraete).toContainText("E2E Spineboard");
+    await expect(geraete).toContainText("E2E Riss im Gurt");
+
+    // Sauerstoff: die Flasche und ihr gemessener Druck.
+    const sauerstoff = page.locator(".ant-card", { hasText: "Sauerstoff" }).first();
+    await expect(sauerstoff).toContainText("E2E O2 300");
+    await expect(sauerstoff).toContainText("40");
+
+    /*
+     * Verfall: der abgelaufene Artikel.
+     *
+     * ⚠️ DIE ÜBERSCHRIFT TRÄGT DEN VORBEHALT MIT („gegen heute gerechnet",
+     * §5.6.3) — die Ampel rechnet gegen HEUTE und nicht gegen den
+     * Check-Zeitpunkt. Sie ist deshalb Teil der Zusicherung: fiele sie weg,
+     * läse sich die Spalte wie ein Stand von damals.
+     */
+    const verfall = page.locator(".ant-card", { hasText: "Verfall" }).first();
+    await expect(verfall).toContainText("E2E Verfall NaCl");
+    await expect(verfall).toContainText("gegen heute gerechnet");
+  });
+
   test("die Übersicht kennzeichnet die Zeile, statt eine ruhige 0 zu zeigen", async ({ page }) => {
     // §11.5:10332 spricht von der ZEILE. `/verwaltung/checks` ist die Fläche, auf
     // der jemand nach Auffälligkeiten sucht — dort ist die 0 das Irreführende.

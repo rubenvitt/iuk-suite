@@ -124,7 +124,7 @@ export function GeraeteZeile({ geraet }: { geraet: ZeilenGeraet }) {
    * Trennerform stehen dort einmal (`AUSWAHL_PARAMETER`, `auswahlSchreiben`), damit die
    * Uebersicht und die Ausleihseite (A19) dieselbe URL meinen (`_lib/auswahl.ts:55-61`).
    * ⛔ AEUSSERER PFAD, kein `/m/radio/...` — der wuerde auf dem Modul-Host doppelt
-   * praefixiert (`AusleihRahmen.tsx:70-72`).
+   * praefixiert (`AusleihRahmen.tsx`, `FUSSNAV`).
    */
   return (
     <Link

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, DatePicker, Flex, Select } from "antd";
+import { Button, Checkbox, DatePicker, Flex, Select } from "antd";
 import dayjs from "dayjs";
 import { SPACE } from "@/core/theme/tokens";
 import { einheitenartLabel, einheitLabels, type Einheitenart } from "../../../_lib/konstanten";
@@ -32,12 +32,15 @@ export function ChecksFilter({
   fz,
   von,
   bis,
+  mitOffenen,
   fahrzeuge,
   hinweise,
 }: {
   fz: string;
   von: string;
   bis: string;
+  /** DRK-196 — „auch laufende Checks zeigen". Vorgabe aus. */
+  mitOffenen: boolean;
   fahrzeuge: {
     id: string; name: string; kennung: string | null;
     /**
@@ -50,10 +53,15 @@ export function ChecksFilter({
   hinweise: string[];
 }) {
   const setzen = useUrlFilter();
-  const schreibe = (teil: Partial<{ fz: string; von: string; bis: string }>) => {
-    setzen({ fz, von, bis, ...teil });
+  // DRK-196: der Schalter reist in JEDEM Patch mit. Fehlte er hier, loeschte
+  // ihn die naechste Zielwahl still — `useUrlFilter` entfernt jeden leeren Wert.
+  const offen = mitOffenen ? "1" : "";
+  const schreibe = (
+    teil: Partial<{ fz: string; von: string; bis: string; offen: string }>,
+  ) => {
+    setzen({ fz, von, bis, offen, ...teil });
   };
-  const hatFilter = Boolean(fz || von || bis || hinweise.length > 0);
+  const hatFilter = Boolean(fz || von || bis || mitOffenen || hinweise.length > 0);
   // ⚠️ Wo auch die Art nicht trennt, trennt die ID (Reviewrunde 16):
   // zwei Taschen duerfen gleich heissen und beide ohne Kennung sein.
   const einheitBeschriftung = einheitLabels(fahrzeuge);
@@ -115,6 +123,21 @@ export function ChecksFilter({
             bis: datum ? datum.format("YYYY-MM-DD") : "",
           })}
         />
+        {/*
+          * DRK-196 — DER WEG ZU DEN LAUFENDEN CHECKS. Diese Liste ist der
+          * einzige Link auf die Detailseite; ohne den Schalter waeren
+          * importierte offene Checks ueber die Oberflaeche gar nicht mehr
+          * erreichbar.
+          *
+          * ⛔ KEIN `size` (Falle 4): die Arbeitsdichte steht im Theme, und ein
+          * `size` hier unterboete die Mindesttapflaeche.
+          */}
+        <Checkbox
+          checked={mitOffenen}
+          onChange={(e) => schreibe({ offen: e.target.checked ? "1" : "" })}
+        >
+          Laufende Checks zeigen
+        </Checkbox>
         {hatFilter ? (
           <Button onClick={() => setzen({})}>Zurücksetzen</Button>
         ) : null}

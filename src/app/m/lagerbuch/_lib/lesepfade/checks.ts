@@ -19,7 +19,7 @@
  * Summe. Das ist die eine Stelle, an der Uebersicht und Detail auseinandergehen
  * duerfen — und sie geht in die SICHERE Richtung: das Detail weiss mehr.
  */
-import { and, desc, eq, gte, isNotNull, lte, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
 import type { DB } from "../../_db/client";
 import { quelleAufloeser } from "../../_db/quelle";
@@ -33,7 +33,29 @@ import { chargeText } from "../format";
 import { CHECK_GRENZE } from "../grenzen";
 import type { Leser } from "./bestand";
 
-export type CheckFilter = { fahrzeugId?: string; von?: Date; bis?: Date; grenze?: number };
+/**
+ * ⚠️ `mitOffenen` IST EINE ANZEIGEENTSCHEIDUNG, KEINE BERECHTIGUNG (DRK-196).
+ * Ein Check mit `completedAt IS NULL` ist ein vom Schema vorgesehener Zustand
+ * (§4.4) — einer, an dem noch nichts geschrieben wurde. Aus dem Modul heraus
+ * entsteht er NIE (`_actions/check.ts` schreibt immer ein vollstaendiges
+ * Ergebnis); die zwei Wege sind der lokale Seed und der Datenimport aus der
+ * Alt-Anwendung. Nach dem Cutover ist das also keine hypothetische Zeile mehr.
+ *
+ * ⛔ DIE VORGABE IST `false`, UND ZWAR HIER UND NICHT AN DER AUFRUFSTELLE: die
+ * Liste heisst „abgeschlossene Checks", ihr Leertext sagt das woertlich, und
+ * eine offene Zeile stand darin bisher nur mit einem Gedankenstrich in der
+ * Abschlussspalte — das liest sich wie ein FEHLENDER WERT, nicht wie ein
+ * laufender Vorgang. Wer den Parameter vergisst, bekommt damit die Bedeutung,
+ * die der Text daneben ohnehin behauptet.
+ *
+ * ⚠️ UND DESHALB IST ES EIN SCHALTER UND KEIN FESTER AUSSCHLUSS: `/verwaltung/
+ * checks` ist der EINZIGE Link auf `/verwaltung/checks/[id]` (gemessen, es gibt
+ * keinen zweiten Einstieg im Modul). Ein harter Filter machte die importierten
+ * Zeilen unerreichbar und den Offen-Zustand der Detailseite zu totem Code.
+ */
+export type CheckFilter = {
+  fahrzeugId?: string; von?: Date; bis?: Date; grenze?: number; mitOffenen?: boolean;
+};
 
 export type CheckHistorieZeile = CheckSummen & {
   id: string; fahrzeugId: string; fahrzeugName: string; completedAt: Date | null;
@@ -82,15 +104,89 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
   const wechselGrenze = wechselGrenzeNachschlag(db);
   const conds: SQL[] = [];
   if (f.fahrzeugId) conds.push(eq(checks.fahrzeugId, f.fahrzeugId));
-  if (f.von) conds.push(gte(checks.completedAt, f.von));
-  if (f.bis) conds.push(lte(checks.completedAt, f.bis));
+  /*
+   * ⛔ DER ZEITRAUM MISST `completedAt` ODER, WO DAS FEHLT, `startedAt`
+   * (Codex-Review zu PR #210, P2; gemessen in `checks.test.ts`).
+   *
+   * Ein nacktes `completedAt >= von` schliesst NULL aus — SQL vergleicht NULL
+   * mit nichts. Sobald also ein Datum gesetzt war, verschwanden die laufenden
+   * Checks WIEDER, und der Schalter daneben tat still nichts. Das ist dieselbe
+   * Unerreichbarkeit wie bei der Grenze, nur mit einem anderen Ausloeser — und
+   * sie faellt noch weniger auf, weil der Schalter ja sichtbar gesetzt ist.
+   *
+   * ⚠️ `coalesce` UND NICHT EIN ZWEITER ZWEIG JE GRENZE: „wann war dieser
+   * Check?" ist EINE Frage, und ein laufender Check beantwortet sie mit seinem
+   * Beginn. Zwei `or`-Verschachtelungen sagten dasselbe in vier Zeilen und
+   * liefen beim naechsten Filter auseinander.
+   *
+   * ⚠️ FUER EINE ABGESCHLOSSENE ZEILE AENDERT SICH NICHTS: `coalesce` gibt dort
+   * `completedAt` zurueck, der Ausdruck ist also zeichengleich zum alten.
+   */
+  /*
+   * ⚠️ DIE SEKUNDEN WERDEN HIER VON HAND GERECHNET, und das ist kein Umweg,
+   * sondern der Preis des rohen Ausdrucks: `gte(checks.completedAt, …)` kennt
+   * die Abbildung der SPALTE und wandelt ein `Date` selbst um; ein `sql`-Stueck
+   * kennt sie nicht und versuchte, das `Date` direkt zu binden — „SQLite3 can
+   * only bind numbers, strings, bigints, buffers, and null", gemessen.
+   * `mode: "timestamp"` legt beide Spalten als UNIX-SEKUNDEN ab (§5.14.4).
+   */
+  const sekunden = (d: Date) => Math.floor(d.getTime() / 1000);
+  const zeitpunkt = sql`coalesce(${checks.completedAt}, ${checks.startedAt})`;
+  if (f.von) conds.push(sql`${zeitpunkt} >= ${sekunden(f.von)}`);
+  if (f.bis) conds.push(sql`${zeitpunkt} <= ${sekunden(f.bis)}`);
+  /*
+   * DRK-196 — der Ausschluss steht VOR der Grenze, nicht hinter ihr. Ein Filter
+   * erst auf den 50 geholten Zeilen lieferte weniger als 50 abgeschlossene und
+   * meldete trotzdem „mehr vorhanden" — die Deckelzeile daneben zaehlte dann
+   * eine Menge, die so nie auf dem Schirm stand.
+   */
+  if (!f.mitOffenen) conds.push(isNotNull(checks.completedAt));
 
   const rows = db
     .select()
     .from(checks)
     .where(conds.length > 0 ? and(...conds) : undefined)
-    // id-Tiebreaker wie im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).
-    .orderBy(desc(checks.completedAt), desc(checks.id))
+    /*
+     * ⛔ OFFENE ZEILEN ZUERST — UND DAS IST KEINE ANZEIGEVORLIEBE, SONDERN DIE
+     * BEDINGUNG DAFUER, DASS DER SCHALTER UEBERHAUPT ETWAS TUT (Codex-Review zu
+     * PR #210, P1; gemessen in `checks.test.ts`).
+     *
+     * SQLite sortiert NULLs bei `DESC` nach HINTEN. Ohne diesen ersten
+     * Sortierschluessel standen die offenen Checks also hinter JEDEM
+     * abgeschlossenen — und `limit` darunter schnitt sie ab, bevor sie je
+     * gemappt wurden. Ab `grenze + 1` abgeschlossenen Checks war ein offener
+     * damit UNERREICHBAR, obwohl `mitOffenen` gesetzt war; diese Liste ist der
+     * einzige Link auf die Detailseite. Mit kleinem Seed gruen, im Betrieb
+     * kaputt — genau die Klasse, die erst nach dem Cutover auffiele.
+     *
+     * ⚠️ UNBEDINGT UND NICHT NUR BEI `mitOffenen`: ohne den Schalter enthaelt
+     * die Menge gar keine NULLs, der Schluessel ist dort also wirkungslos. Eine
+     * bedingte Sortierung waere zwei Abfrageformen fuer eine Frage — und die
+     * seltener gefahrene veraltet.
+     *
+     * Fachlich liest es sich ebenso: ein laufender Check ist der aktuellste
+     * Vorgang am Fahrzeug, nicht der aelteste.
+     */
+    .orderBy(
+      sql`(${checks.completedAt} is null) desc`,
+      /*
+       * ⛔ DERSELBE ZEITPUNKT WIE IM FILTER, und das ist der zweite Teil des
+       * Befunds (Codex-Review zu PR #210, P2). Ein blosses `completedAt desc`
+       * sortiert INNERHALB der offenen Gruppe gar nicht — dort ist der Wert
+       * ueberall NULL, und uebrig bleibt der `id`-Tiebreaker. Bei mehreren
+       * importierten offenen Checks stuende die Liste damit in der Reihenfolge
+       * zufaelliger Kennungen, und sobald ihre Zahl die Grenze uebersteigt,
+       * fielen die NEUEREN heraus — wieder unerreichbar ueber den einzigen
+       * Einstieg.
+       *
+       * `coalesce` beantwortet beide Gruppen mit derselben Frage: abgeschlossen
+       * nach Abschluss, laufend nach Beginn. Fuer eine abgeschlossene Zeile ist
+       * der Ausdruck zeichengleich zum vorherigen `desc(completedAt)`.
+       */
+      sql`${zeitpunkt} desc`,
+      // id-Tiebreaker wie im Journal: `completedAt` sind UNIX-SEKUNDEN (§5.14.4).
+      desc(checks.id),
+    )
     .limit(grenze + 1)
     .all();
 
@@ -171,6 +267,61 @@ export type CheckDetail = {
    * noch keins. Die Abgrenzung sitzt im Parser (`checkErgebnis.ts`).
    */
   unlesbar: boolean;
+  /**
+   * DRK-196 — DER CHECK HAT NOCH KEIN ERGEBNIS, und das ist KEIN Fehler.
+   *
+   * ⚠️ DIE DRITTE URSACHE NEBEN `altFormat` UND `unlesbar`, und die drei
+   * auseinanderzuhalten ist der ganze Punkt: `altFormat` heisst „vollstaendig,
+   * aber ohne Positionsdetails", `unlesbar` heisst „beschaedigt", und `offen`
+   * heisst „noch nichts geschrieben" (§4.4, `completed_at IS NULL`). Ohne
+   * dieses Feld zeigt die Seite dafuer „0 Positionen" — also dasselbe wie fuer
+   * einen abgeschlossenen Check, bei dem wirklich nichts zu tun war. Genau der
+   * luegende 200, den §11.5 fuer die Nachbarlage ausschliesst.
+   *
+   * ⚠️ AUS DEM MODUL HERAUS ENTSTEHT DER ZUSTAND NIE (`_actions/check.ts`
+   * schreibt immer ein vollstaendiges Ergebnis). Die zwei Wege sind der lokale
+   * Seed und der Datenimport aus der Alt-Anwendung — nach dem Cutover ist das
+   * also keine hypothetische Zeile.
+   *
+   * ⛔ GEPRUEFT WIRD `completedAt`, NICHT `ergebnis` — UND DER ERSTE WURF HATTE
+   * ES FALSCH HERUM (Codex-Review zu PR #210, P2; nachgemessen).
+   *
+   * Die Begruendung damals lautete „das Feld beantwortet, ob hier etwas steht,
+   * und daran haengt die leere Liste darunter; das Schema fuehrt beide ohnehin
+   * gemeinsam". Der letzte Halbsatz ist eine Annahme, keine Zusage: das Schema
+   * ERLAUBT eine abgeschlossene Zeile mit leerem `ergebnis`. Fuer die zeigte
+   * die Seite dann einen Abschlusszeitpunkt UND „Dieser Check laeuft noch" —
+   * nebeneinander, im selben Bild. Ein Widerspruch auf dem Schirm ist teurer
+   * als die „0 Positionen", gegen die der Vorgang ueberhaupt antrat.
+   *
+   * ⚠️ UND DIE ZWEITE HAELFTE WIEGT SCHWERER: die Liste daneben filtert ueber
+   * `completedAt`. Zwei Flaechen mit zwei Diskriminatoren fuer DIESELBE Frage
+   * laufen auseinander, sobald die beiden Felder es tun — genau die Sorte
+   * Inkonsistenz, die erst auffaellt, wenn jemand sie in der Hand hat.
+   * `completedAt IS NULL` ist ausserdem die Form, die §4.4 nennt.
+   *
+   * ⚠️ WAS DAMIT NICHT ABGEDECKT IST, ausgeschrieben statt verschwiegen: eine
+   * ABGESCHLOSSENE Zeile mit leerem `ergebnis` zeigt weiterhin „0 Positionen"
+   * ohne Meldung. Sie entsteht aus dem Modul heraus nicht, und einen vierten
+   * Zustand dafuer zu erfinden waere Overbuild — sie ist weder offen noch
+   * unlesbar noch altes Format, sondern abgeschlossen ohne erfasstes Ergebnis.
+   * Taucht sie nach dem Cutover auf, ist das ein eigener Posten.
+   */
+  offen: boolean;
+  /**
+   * ⛔ EIN LAUFENDER CHECK, DER SCHON ETWAS TRAEGT (Codex-Review zu PR #210, P2).
+   *
+   * Das Schema koppelt `completedAt` und `ergebnis` NICHT. Seit `offen` am
+   * Abschlusszeitpunkt haengt, gibt es damit eine Zeile, die beides ist: noch
+   * nicht abgeschlossen UND mit lesbarem Inhalt. Fuer die log die Seite in
+   * beide Richtungen — sie meldete „es wurde noch kein Ergebnis erfasst" und
+   * rendere die erfassten Zeilen unmittelbar darunter.
+   *
+   * ⚠️ DAS FELD SAGT NICHT „vollstaendig", sondern nur „hier steht etwas". Was
+   * davon fehlt, weiss niemand: der Check laeuft ja noch. Genau deshalb heisst
+   * es Zwischenstand und nicht Ergebnis.
+   */
+  hatZwischenstand: boolean;
   summe: CheckSummen & { verfallAuffaellig: number };
 };
 
@@ -307,6 +458,25 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     // hier waere eine zweite Wahrheit ueber dasselbe JSON — genau der Bruch, den
     // §5.8.3 fuer die Summen beschreibt.
     unlesbar: summe.unlesbar,
+    offen: c.completedAt === null,
+    /*
+     * ⚠️ DIE SUMMEN ZAEHLEN MIT, UND DAS IST NICHT REDUNDANT (Codex-Review zu
+     * PR #210). Das ALTE Format (V1) traegt keine Positionsdetails — `leer`
+     * macht dort alle fuenf Listen leer —, seine SUMMEN koennen aber sehr wohl
+     * von null verschieden sein. Ohne den zweiten Block hielte die Seite einen
+     * laufenden Altformat-Check fuer voellig leer und meldete „es wurde noch
+     * kein Ergebnis erfasst", waehrend die Altformat-Meldung daneben sagt, die
+     * Summen seien vollstaendig. Zwei Meldungen, ein Widerspruch.
+     */
+    hatZwischenstand: positionen.length > 0
+      || artikelD.length > 0
+      || geraeteD.length > 0
+      || flaschenD.length > 0
+      || verfallD.length > 0
+      || summe.positionen > 0
+      || summe.nachgefuellt > 0
+      || summe.korrigiert > 0
+      || summe.offen > 0,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den

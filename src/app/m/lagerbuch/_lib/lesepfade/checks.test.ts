@@ -129,6 +129,117 @@ describe("checkHistorie", () => {
     expect(checkHistorie(t.db).zeilen[0].wer).toBe("111-111");
   });
 
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P1) — GEMESSEN UND BESTAETIGT.
+   *
+   * ⛔ DER SCHALTER ALLEIN REICHTE NICHT, und der Grund ist die Reihenfolge:
+   * SQLite sortiert NULLs bei `DESC` nach HINTEN (diese Datei schreibt das
+   * weiter unten selbst aus, am Fall zu `letzterCheckZeitpunkt`). Die offenen
+   * Zeilen standen damit hinter JEDEM abgeschlossenen Check — und `limit(grenze
+   * + 1)` schnitt sie ab, bevor sie je gemappt wurden.
+   *
+   * ⚠️ DIE FOLGE WAR GENAU DAS, WAS DER SCHALTER VERHINDERN SOLLTE: ab
+   * `grenze + 1` abgeschlossenen Checks war ein offener Check ueber die
+   * Oberflaeche NICHT MEHR ERREICHBAR, obwohl der Schalter gesetzt war. Diese
+   * Liste ist der einzige Link auf die Detailseite; damit waeren die
+   * importierten Zeilen dauerhaft unsichtbar gewesen — eine Lage, die mit
+   * kleinem Seed gruen ist und erst im Betrieb auftritt.
+   */
+  it("holt offene Checks VOR die Grenze, nicht hinter sie", () => {
+    // Drei abgeschlossene Zeilen und eine offene, bei `grenze: 2`. Ohne die
+    // Sortierung faellt die offene heraus — mit ihr steht sie vorn.
+    for (const [i, id] of ["chk-a", "chk-b", "chk-c"].entries()) {
+      t.db.insert(checks).values({
+        id, fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "111-111",
+        startedAt: new Date(NOW.getTime() - i * 1000),
+        completedAt: new Date(NOW.getTime() - i * 1000),
+        ergebnis: JSON.stringify(V2),
+      }).run();
+    }
+    t.db.insert(checks).values({
+      id: "chk-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "111-111",
+      startedAt: NOW, completedAt: null, ergebnis: null,
+    }).run();
+
+    const mit = checkHistorie(t.db, { mitOffenen: true, grenze: 2 }).zeilen.map((z) => z.id);
+    expect(mit, "der offene Check faellt hinter die Grenze").toContain("chk-offen");
+
+    /*
+     * ⚠️ DIE GEGENPROBE, damit die Sortierung nicht die andere Haelfte kaputt
+     * macht: ohne Schalter bleibt die Liste rein abgeschlossen, und die Grenze
+     * gilt weiter.
+     */
+    const ohne = checkHistorie(t.db, { grenze: 2 }).zeilen.map((z) => z.id);
+    expect(ohne).not.toContain("chk-offen");
+    expect(ohne).toHaveLength(2);
+  });
+
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P2) — die zweite Haelfte der Sortierung.
+   *
+   * ⛔ DER OFFEN-ZUERST-SCHLUESSEL ORDNET DIE OFFENEN UNTEREINANDER NICHT. Dort
+   * ist `completedAt` ueberall NULL; ein blosses `completedAt desc` als zweiter
+   * Schluessel laesst sie alle gleich aussehen, und uebrig bleibt der
+   * `id`-Tiebreaker — also die Reihenfolge zufaelliger Kennungen. Bei mehreren
+   * importierten offenen Checks stuende die Historie damit unchronologisch, und
+   * sobald ihre Zahl die Grenze uebersteigt, fielen die NEUEREN heraus.
+   *
+   * ⚠️ DIE IDs SIND HIER ABSICHTLICH GEGENLAEUFIG ZUR ZEIT gewaehlt: „chk-a" ist
+   * die aelteste und stuende bei einer reinen ID-Sortierung vorn. Nur so
+   * unterscheidet der Fall die beiden Ordnungen ueberhaupt.
+   */
+  it("ordnet mehrere laufende Checks nach ihrem Beginn, nicht nach der Kennung", () => {
+    const stunde = (h: number) => new Date(`2026-06-15T0${h}:00:00Z`);
+    for (const [id, h] of [["chk-a", 1], ["chk-b", 3], ["chk-c", 2]] as const) {
+      t.db.insert(checks).values({
+        id, fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+        startedAt: stunde(h), completedAt: null, ergebnis: null,
+      }).run();
+    }
+
+    const offene = checkHistorie(t.db, { mitOffenen: true }).zeilen
+      .filter((z) => z.completedAt === null)
+      .map((z) => z.id);
+
+    expect(offene, "juengster Beginn zuerst").toEqual(["chk-b", "chk-c", "chk-a"]);
+  });
+
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P2) — GEMESSEN UND BESTAETIGT.
+   *
+   * ⛔ DER SCHALTER WURDE VON EINEM DATUM STILL AUSGEHEBELT. Die Grenzen
+   * verglichen `completedAt`, und SQL vergleicht NULL mit nichts — sobald also
+   * ein Zeitraum gesetzt war, verschwanden die laufenden Checks WIEDER. Das ist
+   * dieselbe Unerreichbarkeit wie bei der Mengengrenze, nur mit anderem
+   * Ausloeser, und sie faellt noch weniger auf: der Schalter steht ja sichtbar.
+   */
+  it("laesst einen laufenden Check auch mit gesetztem Zeitraum stehen", () => {
+    const BEGONNEN = new Date("2026-06-15T08:00:00Z");
+    t.db.insert(checks).values({
+      id: "chk-offen-zeit", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: BEGONNEN, completedAt: null, ergebnis: null,
+    }).run();
+
+    const imFenster = checkHistorie(t.db, {
+      mitOffenen: true,
+      von: new Date("2026-06-15T00:00:00Z"),
+      bis: new Date("2026-06-16T00:00:00Z"),
+    }).zeilen.map((z) => z.id);
+    expect(imFenster, "der Zeitraum misst den Beginn, wenn kein Abschluss da ist")
+      .toContain("chk-offen-zeit");
+
+    /*
+     * ⚠️ DIE GEGENPROBE, ohne die der Fall nur „NULL faellt immer durch" hiesse:
+     * liegt der BEGINN ausserhalb, bleibt die Zeile draussen. Der Zeitraum
+     * bleibt also ein Filter und wird nicht zur Ausnahme fuer offene Zeilen.
+     */
+    const davor = checkHistorie(t.db, {
+      mitOffenen: true,
+      von: new Date("2026-07-01T00:00:00Z"),
+    }).zeilen.map((z) => z.id);
+    expect(davor).not.toContain("chk-offen-zeit");
+  });
+
   it("filtert nach Fahrzeug und Zeitraum", () => {
     expect(checkHistorie(t.db, { fahrzeugId: "rtw-1" }).zeilen).toHaveLength(1);
     expect(checkHistorie(t.db, { fahrzeugId: "gibtsnicht" }).zeilen).toHaveLength(0);
@@ -455,11 +566,86 @@ describe("checkDetail — ein UNLESBARES ergebnis (§11.5, 27)", () => {
     expect(d.summe.positionen).toBe(0);
   });
 
-  it("meldet NICHT unlesbar fuer einen OFFENEN Check ohne ergebnis", () => {
-    // `completed_at IS NULL` ist eine vorgesehene Bauform (§4.4), und
-    // `seedLokal.ts:523-526` legt sie an. „Noch nichts geschrieben" ist kein
-    // Lesefehler.
-    expect(checkMit("chk-offen", null).unlesbar).toBe(false);
+  it("meldet NICHT unlesbar fuer ein leeres ergebnis", () => {
+    // „Noch nichts geschrieben" ist kein Lesefehler.
+    // ⚠️ DIESER FALL HIESS BIS ZUM CODEX-REVIEW ZU PR #210 „fuer einen OFFENEN
+    // Check" — und das war irrefuehrend: `checkMit` setzt `completedAt` auf
+    // NOW, die Zeile ist also ABGESCHLOSSEN und nur ohne Ergebnis. Der Name
+    // behauptete einen Zustand, den die Vorrichtung gar nicht herstellt.
+    expect(checkMit("chk-ohne-ergebnis", null).unlesbar).toBe(false);
+  });
+
+  /**
+   * DRK-196 — DER OFFENE ZUSTAND HAENGT AN `completedAt`, NICHT AN `ergebnis`.
+   *
+   * ⛔ DER ERSTE WURF HATTE ES FALSCH HERUM (Codex-Review zu PR #210, P2), und
+   * DIESER FALL HAT DEN FEHLER ZEMENTIERT STATT IHN ZU FANGEN: er lief ueber
+   * `checkMit`, und das setzt `completedAt` auf NOW. Er sicherte damit
+   * `offen: true` fuer eine Zeile MIT Abschlusszeitpunkt zu — und die
+   * Detailseite haette dafuer beides nebeneinander gezeigt, den Zeitpunkt und
+   * „Dieser Check laeuft noch". Ein gruener Test, der die falsche Bedeutung
+   * festhaelt, ist teurer als keiner.
+   *
+   * ⚠️ DIE VORRICHTUNG IST DESHALB EINE EIGENE: eine Zeile OHNE `completedAt`
+   * laesst sich mit `checkMit` gar nicht bauen.
+   */
+  it("meldet OFFEN genau dann, wenn die Abschlusszeit fehlt", () => {
+    t.db.insert(checks).values({
+      id: "chk-echt-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: null, ergebnis: null,
+    }).run();
+    const offen = checkDetail(t.db, "chk-echt-offen", NOW)!;
+    expect(offen.offen).toBe(true);
+    expect(offen.unlesbar).toBe(false);
+    expect(offen.altFormat).toBe(false);
+
+    /*
+     * ⛔ DIE GEGENPROBE, DIE DEN P2 FAENGT: abgeschlossen, aber ohne Ergebnis.
+     * Das Schema ERLAUBT diese Form — sie ist nicht offen, und die Seite darf
+     * neben dem Abschlusszeitpunkt nicht „laeuft noch" behaupten.
+     */
+    expect(checkMit("chk-fertig-ohne-ergebnis", null).offen).toBe(false);
+
+    // Und die beiden Nachbarzustaende sind es ebenso wenig.
+    expect(checkMit("chk-kaputt-2", "{nicht json").offen).toBe(false);
+    expect(checkMit("chk-leer-2", JSON.stringify({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    })).offen).toBe(false);
+  });
+
+  /**
+   * DRK-196, Codex-Review zu PR #210 — DAS ALTFORMAT TRAEGT KEINE LISTEN, ABER
+   * SUMMEN.
+   *
+   * ⛔ `leer` macht fuer V1 alle fuenf Detaillisten leer — richtig, es gibt dort
+   * keine Positionsdetails. Ein `hatZwischenstand`, das NUR die Listen zaehlt,
+   * haelt einen laufenden Altformat-Check damit fuer voellig leer und laesst die
+   * Seite „es wurde noch kein Ergebnis erfasst" melden — waehrend die
+   * Altformat-Meldung daneben sagt, die Summen seien vollstaendig.
+   */
+  it("erkennt einen Zwischenstand auch im ALTEN Format, wo es keine Listen gibt", () => {
+    t.db.insert(checks).values({
+      id: "chk-alt-offen", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: null,
+      ergebnis: JSON.stringify([{ fehlt: 3, gebucht: 1 }]),
+    }).run();
+    const d = checkDetail(t.db, "chk-alt-offen", NOW)!;
+
+    expect(d.altFormat).toBe(true);
+    expect(d.offen).toBe(true);
+    expect(d.positionen, "V1 traegt keine Positionsdetails").toEqual([]);
+    expect(d.hatZwischenstand, "die Summen sind der Zwischenstand").toBe(true);
+
+    /*
+     * ⚠️ DIE GEGENPROBE: ein laufender Check mit einem LEEREN V1-Ergebnis hat
+     * auch in den Summen nichts — der bleibt ohne Zwischenstand. Ohne sie hiesse
+     * der Fall nur „Altformat ist immer ein Zwischenstand".
+     */
+    t.db.insert(checks).values({
+      id: "chk-alt-offen-leer", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: NOW, completedAt: null, ergebnis: JSON.stringify([]),
+    }).run();
+    expect(checkDetail(t.db, "chk-alt-offen-leer", NOW)!.hatZwischenstand).toBe(false);
   });
 
   it("meldet NICHT unlesbar fuer das ALTE Format — das hat sein eigenes Signal", () => {

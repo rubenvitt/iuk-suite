@@ -23,9 +23,33 @@ type CheckSuchparameter = {
   fz?: string;
   von?: string;
   bis?: string;
+  /**
+   * DRK-196 — „auch laufende Checks zeigen". `"1"` oder nichts; jeder andere
+   * Wert zaehlt als nichts. Eine Zeichenkette und kein Boolescher Wert, weil
+   * der Filter ueber die Adresszeile laeuft (`useUrlFilter`).
+   */
+  offen?: string;
 };
 
 function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
+  /*
+   * ⛔ EIN LAUFENDER CHECK IST NICHT „vollständig" (DRK-196, Codex-Review zu
+   * PR #210, P2). Ohne diesen Zweig faellt er durch die ganze Kette: alle
+   * Zaehler sind 0, kein einziger Chip wird geschoben, und der Rueckfall unten
+   * setzt den GRUENEN „vollständig"-Chip. Die Zeile saegte dann in der einen
+   * Spalte „läuft noch" und in der naechsten gruen „vollständig" — derselbe
+   * Widerspruch wie auf der Detailseite, nur eine Ebene hoeher.
+   *
+   * ⚠️ `zeile.completedAt`, NICHT `zeile.offen`: letzteres ist eine ZAHL (die
+   * weiterhin fehlenden Teile), kein Merkmal des Zustands. Die Namensgleichheit
+   * ist eine Falle, und sie steht hier ausgeschrieben, damit niemand sie stellt.
+   *
+   * ⚠️ `grau`, nicht `gelb`: ein laufender Check ist kein Befund, dem jemand
+   * nachgeht — dieselbe Entscheidung wie beim `info`-Ton der Detailseite.
+   */
+  if (zeile.completedAt === null) {
+    return [{ schluessel: "laeuft", text: "läuft noch", ton: "grau", zeichen: null }];
+  }
   const chips: CheckErgebnisChip[] = [];
   if (zeile.nachgefuellt > 0) {
     chips.push({
@@ -90,9 +114,21 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
     fahrzeugName: zeile.fahrzeugName,
     fahrzeugKennung: zeile.fahrzeugKennung,
     fahrzeugEinheitenart: zeile.fahrzeugEinheitenart,
+    /*
+     * ⚠️ „läuft noch" STATT EINES GEDANKENSTRICHS (DRK-196). Ein Strich liest
+     * sich wie ein fehlender Wert — als haette jemand vergessen, das Datum zu
+     * erfassen. Der Zustand ist aber ein anderer: der Check hat noch KEIN
+     * Ergebnis (`ergebnis IS NULL`, §4.4), und das ist vom Schema vorgesehen.
+     *
+     * ⛔ NICHT „unvollständig" UND NICHT „fehlerhaft": das sind die Woerter der
+     * beiden ANDEREN Ursachen (`altFormat`, „unlesbar"), und drei Lagen unter
+     * zwei Woertern zu fuehren ist genau die Vermischung, die der Vorgang
+     * verhindern soll. Die Zeile erscheint ohnehin nur mit eingeschaltetem
+     * Schalter, ist hier also nie eine Ueberraschung.
+     */
     abgeschlossenText: zeile.completedAt?.toLocaleString("de-DE", {
       timeZone: "Europe/Berlin",
-    }) ?? "—",
+    }) ?? "läuft noch",
     /**
      * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
      * `abgeschlossenText` ist „14.9.2026, 08:12:00" und ordnete als Zeichenkette
@@ -123,7 +159,33 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
      * der fertige Text — `CheckAnzeigeZeile` bekommt kein `unlesbar`-Flag, die
      * DTO-Zusicherung der Seite bleibt damit unverändert.
      */
-    positionenText: zeile.unlesbar ? "unlesbar" : String(zeile.positionen),
+    /*
+     * ⚠️ DREI FAELLE, DREI TEXTE. Eine `0` ist eine Aussage — sie behauptet,
+     * gezaehlt worden zu sein. Fuer `unlesbar` stand das Wort hier schon; fuer
+     * den laufenden Check fehlte es (Codex-Review zu PR #210, P2).
+     */
+    /*
+     * ⛔ `unlesbar` ZUERST, UND ZWAR VOR DEM LAUFENDEN CHECK (Codex-Review zu
+     * PR #210, P2). Die beiden schliessen einander NICHT aus: `unlesbar` kommt
+     * aus dem Parser (ein geschriebener, aber kaputter Rohwert), `completedAt`
+     * aus dem Schema, und die zwei Spalten sind nicht gekoppelt. Stand die
+     * Laufend-Pruefung vorn, sagte die Zeile „noch keine" — sie verschwieg
+     * damit den Schaden, den die Detailseite eine Ebene tiefer ausdruecklich
+     * meldet. Dieselbe Reihenfolge und derselbe Satz wie dort: WAS DIE LEERE
+     * ERKLAERT, STEHT DARIN.
+     */
+    positionenText: zeile.unlesbar
+      ? "unlesbar"
+      : zeile.completedAt === null
+        /*
+         * ⚠️ EINE ERFASSTE ZAHL BLEIBT EINE ZAHL (Codex-Review zu PR #210). Ein
+         * laufender Check KANN schon Positionen tragen; „noch keine" waere dann
+         * genauso falsch wie vorher die `0`, nur in die andere Richtung. Dass der
+         * Wert vorlaeufig ist, sagt der Chip „läuft noch" in der Spalte daneben —
+         * die Zahl muss es nicht ein zweites Mal sagen.
+         */
+        ? (zeile.positionen > 0 ? String(zeile.positionen) : "noch keine")
+        : String(zeile.positionen),
   };
 }
 
@@ -150,13 +212,24 @@ export function checksInhalt(
   const zeitraum = zeitraumAus(suchparameter.von, suchparameter.bis);
   const von = zeitraum.von ? suchparameter.von?.trim() ?? "" : "";
   const bis = zeitraum.bis ? suchparameter.bis?.trim() ?? "" : "";
+  // DRK-196: genau `"1"`, nicht „irgendein Wert ist wahr" — ein `?offen=0` aus
+  // einem kopierten Link setzte den Schalter sonst, statt ihn zu loeschen.
+  const mitOffenen = suchparameter.offen === "1";
   const historie = checkHistorie(db, {
     fahrzeugId: fz || undefined,
     von: zeitraum.von,
     bis: zeitraum.bis,
     grenze: CHECK_GRENZE,
+    mitOffenen,
   });
   const zeilen = historie.zeilen.map(anzeigeZeile);
+  /*
+   * ⚠️ DER SCHALTER ZAEHLT HIER NICHT MIT (DRK-196). `hatFilter` entscheidet
+   * allein den Leertext „passt zu Einheit und Zeitraum" — und ein eingeschalteter
+   * Offen-Schalter schraenkt nichts ein, er WEITET. Zaehlte er mit, stuende bei
+   * leerer Liste „Kein Check passt zu Einheit und Zeitraum", obwohl weder das
+   * eine noch das andere gesetzt ist.
+   */
   const hatFilter = Boolean(fz || von || bis);
 
   return (
@@ -169,6 +242,7 @@ export function checksInhalt(
         fz={fz}
         von={von}
         bis={bis}
+        mitOffenen={mitOffenen}
         fahrzeuge={fahrzeuge}
         hinweise={zeitraum.hinweise}
       />

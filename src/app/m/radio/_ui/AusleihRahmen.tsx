@@ -4,7 +4,6 @@ import { moduleUrl } from "@/core/shell/moduleUrl";
 import { beenden } from "../_actions/sitzung";
 import { uhrzeit } from "../_lib/anzeige";
 import type { AusleihZugang } from "../_lib/ausleihZugang";
-import { istRadioVerwaltung, viewerOderNull } from "../_lib/zugang";
 import { Ikone, type IkonName } from "./ikonen";
 import { Restzeit } from "./Restzeit";
 import s from "./ausleihe.module.css";
@@ -84,17 +83,26 @@ const FUSSNAV: readonly { schluessel: AusleihAbschnitt; href: string; text: stri
 export type AusleihAbschnitt = "uebersicht" | "ausleihen" | "rueckgabe";
 
 /**
- * ⚠️ SEIT L3 `async`, UND DAS IST DER PREIS VON WEG (a) (Bericht §2.10): der Rahmen fragt
- * die Rechtestufe SELBST, statt sie sich als Prop reichen zu lassen. In RSC ist eine
- * `async`-Komponente zulaessig; die drei Aufrufer (`(ausleihe)/geraete/page.tsx:106`,
- * `ausleihen/page.tsx:139`, `rueckgabe/page.tsx:92`) brauchen dafuer keine Zeile.
- * ⛔ WARUM NICHT DER PROP-WEG (b): eine vierte Ausleihflaeche kann eine Prop VERGESSEN,
- * und der Ausfall waere still — der Link fehlte einfach. Eine Frage, die der Rahmen selbst
- * stellt, kann niemand vergessen. Der Bestand hat die Stelle ohnehin so benannt
- * (`_lib/zugang.ts:84-85`: „ab L3 fuer den /admin-Link der Ausleihflaeche", Einzahl).
- * ⚠️ FOLGE FUER TESTS: `mount(<AusleihRahmen …/>)` treibt eine `async`-Komponente nicht an
- * (react-dom rendert kein Promise). Die Hauspraezedenz ist der direkte Aufruf mit
- * anschliessendem Mount (`lagerbuch/page.test.tsx:139`, `(ausleihe)/geraete/page.test.tsx:17-22`).
+ * ⚠️ `async` OHNE EIGENES IO — UND DAS IST SEIT DRK-202 DER GANZE PUNKT.
+ *
+ * Bis dahin stand hier, der Rahmen frage die Rechtestufe SELBST, statt sie sich reichen
+ * zu lassen (L3, Weg (a) des Berichts §2.10). Die Begruendung dafuer war, dass eine
+ * vierte Ausleihflaeche eine Prop VERGESSEN koennte und der Ausfall still waere — der
+ * Link fehlte einfach. Sie hat sich erledigt, ohne dass die Sorge zurueckkehrt: die
+ * Stufe steht jetzt in `AusleihZugang`, und `zugang` ist eine PFLICHT-Prop. Vergessen
+ * kann sie niemand, `pnpm typecheck` laesst es nicht zu.
+ *
+ * ⛔ GEWONNEN IST DIE ZWEITE `auth()`-LESUNG JE RENDERVORGANG. Sie lief auf JEDEM
+ * Ausleihaufruf, auch dem anonymen Kiosk-Weg, und eine `cache()`-Huelle haette sie nicht
+ * eingespart (gemessen: `core/auth` exportiert `auth` ohne Huelle).
+ *
+ * ⚠️ DIE FUNKTION BLEIBT `async`, obwohl sie nichts mehr erwartet: die drei Aufrufer
+ * (`(ausleihe)/geraete/page.tsx`, `ausleihen/page.tsx`, `rueckgabe/page.tsx`) rufen sie
+ * mit `await`, und sie synchron zu machen waere eine Aenderung an drei fremden Dateien
+ * ohne Gegenwert.
+ * ⚠️ FOLGE FUER TESTS, unveraendert: `mount(<AusleihRahmen …/>)` treibt eine
+ * `async`-Komponente nicht an (react-dom rendert kein Promise). Die Hauspraezedenz ist
+ * der direkte Aufruf mit anschliessendem Mount.
  */
 export async function AusleihRahmen({
   aktiv,
@@ -158,15 +166,21 @@ export async function AusleihRahmen({
    * ⛔ Deshalb `istRadioVerwaltung` — das DRITTE Praedikat neben den zweien, kein `||` in
    * einem von ihnen (`_lib/zugang.ts:299-302`).
    *
-   * ⚠️ DER PREIS IST DIE ZWEITE `auth()`-LESUNG, NICHT DIE ERSTE (Fix-Runde 1 zu L3,
-   * REVIEW-L3 Fund 1): `_lib/ausleihZugang.ts:148` liest sie unbedingt und VOR dem
-   * Cookie-Zweig — auf JEDEM Ausleihaufruf, auch dem anonymen Kiosk-Weg — und wirft den
-   * Viewer SAMT GRUPPEN weg (`:149-150` reicht nur `{ sub, name }` weiter). ⛔ Eine
-   * `cache()`-Huelle um `viewerOderNull` behebt das nicht: jene Zeile ruft `auth()` DIREKT,
-   * und `src/core/auth/index.ts:11` memoisiert nichts (gemessen). ⬜ Der billigere Weg
-   * waere, `AusleihZugang` das fertige Praedikat mitzufuehren — eigener Posten, nicht L3.
+   * ✅ DIE ZWEITE `auth()`-LESUNG IST WEG (DRK-202, der eigene Posten aus Fix-Runde 1 zu
+   * L3). Hier stand `istRadioVerwaltung(await viewerOderNull())` — die ZWEITE Lesung im
+   * selben Rendervorgang, weil `ausleihZugang.ts` die erste unbedingt fuehrte und den
+   * Viewer samt GRUPPEN wegwarf. Eine `cache()`-Huelle haette das nicht behoben: `auth`
+   * wird in `core/auth` ohne Huelle exportiert und memoisiert nichts (gemessen). Das
+   * Praedikat wird jetzt EINMAL dort ausgewertet, wo die Gruppen ohnehin vorliegen, und
+   * reist in `AusleihZugang` mit.
+   *
+   * ⚠️ `weg: "code"` TRAEGT DAS FELD BEWUSST NICHT, und das ist keine Sparsamkeit,
+   * sondern die Aussage der Vereinigung: die Suite-Sitzung wird VOR dem Cookie geprueft
+   * (Auflage 2). Wer ueber den Code hereinkommt, hat also keine Sitzung — eine
+   * Verwaltungsstufe kann es dort nicht geben, und ein `darfVerwalten: false` daneben
+   * behauptete, die Frage sei gestellt und verneint worden.
    */
-  const darfVerwalten = istRadioVerwaltung(await viewerOderNull());
+  const darfVerwalten = zugang.weg === "suite" && zugang.darfVerwalten;
 
   return (
     <div className={s.rahmen} data-rolle="radio-ausleih-rahmen">

@@ -256,6 +256,9 @@ describe("das Gate an /", () => {
       weg: "suite",
       sub: "u-1",
       name: "Anna",
+      // DRK-202: die Stufe reist mit, spielt an dieser Weiche aber keine Rolle —
+      // `page.tsx` schickt JEDE Suite-Sitzung weiter, unabhaengig von ihr.
+      darfVerwalten: false,
     });
 
     await expect(rendere()).rejects.toThrow("NEXT_REDIRECT");
