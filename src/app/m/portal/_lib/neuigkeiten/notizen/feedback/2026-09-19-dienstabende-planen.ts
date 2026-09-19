@@ -1,7 +1,7 @@
 // Stilregeln für Notizen: CLAUDE.md, Abschnitt „Release Notes".
 // Zwei Absätze, weil der zweite eine Einschränkung nennt, die man kennen muss:
-// Planen ist nicht Starten. Ohne diesen Satz klickt jemand im September zwölf
-// Termine zusammen und wartet auf Rückmeldungen, die niemand geben kann.
+// Planen ist nicht Starten. Ohne diesen Satz trägt jemand im September zwölf
+// Termine ein und wartet auf Rückmeldungen, die niemand geben kann.
 import { absatz, type Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
 const notiz: Releasenotiz = {
@@ -11,9 +11,8 @@ const notiz: Releasenotiz = {
   titel: "Dienstabende im Voraus planen",
   inhalt: [
     absatz(
-      "Du kannst die Dienstabende eines ganzen Jahres vorab eintragen — einzeln oder als " +
-        "Serie, etwa alle zwei Wochen oder monatlich am gleichen Wochentag. Der Weg ist " +
-        "„Kommende Abende“ → „Dienstabende planen“.",
+      "Du kannst kommende Dienstabende vorab eintragen, jeden einzeln mit Datum und Thema. " +
+        "Der Weg ist „Kommende Abende“ → „Dienstabend planen“.",
     ),
     absatz(
       "Das Feedback startet damit noch nicht. Du gibst es an jedem Abend einzeln frei; ein " +

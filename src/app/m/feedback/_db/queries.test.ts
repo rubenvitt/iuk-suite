@@ -433,7 +433,7 @@ describe("planEvenings", () => {
 
   it("ist idempotent: dieselbe Liste zweimal ergibt beim zweiten Mal 0 Abende", () => {
     // Der Alltagsfall, nicht der Grenzfall: der Browser lädt nach dem Absenden
-    // neu, oder jemand plant im Februar dieselbe Jahresserie nach.
+    // neu, oder zwei Leute tragen dieselben Abende ein.
     const g = mkGroup();
     const isoTage = ["2026-10-06", "2026-10-13", "2026-10-20"];
     plane(g.id, isoTage);

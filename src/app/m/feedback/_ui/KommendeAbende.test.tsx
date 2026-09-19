@@ -29,10 +29,10 @@ import { renderToStaticMarkup } from "react-dom/server";
  *    ohne Namen ist eine Warnung, die niemand prüfen kann: es gibt je Gruppe nur
  *    einen QR-Code, die Entscheidung ist also unwiderruflich und trifft einen
  *    Abend, den man beim Freigeben gerade nicht ansieht.
- * 5. DIE VORSCHAU IST DER ERSATZ FÜR EINE RÜCKMELDUNG. `planEveningsAction`
- *    kommt ohne Formularzustand aus; ein „12 angelegt, 2 übersprungen" gäbe es
- *    erst NACH dem Klick, wenn die Entscheidung gefallen ist. Die Zahl im Dialog
- *    ist damit die einzige Stelle, an der jemand sie noch prüfen kann.
+ * 5. „STEHT SCHON" IST DER ERSATZ FÜR EINE RÜCKMELDUNG. `planEveningsAction`
+ *    kommt ohne Formularzustand aus, und ein belegter Tag wird still
+ *    übersprungen. Der Dialog muss das VOR dem Absenden sagen und den Knopf
+ *    sperren — sonst schließt er sich, und es ist nichts passiert.
  */
 
 const { absagenActionMock, freigebenActionMock, planEveningsActionMock, updateEveningActionMock } =
@@ -135,16 +135,11 @@ async function tippe(feld: HTMLInputElement, wert: string): Promise<void> {
 /** Der Planungsdialog, geöffnet über den einzigen Weg, den die Zone anbietet. */
 async function planungOeffnen(belegteTage: string[] = []): Promise<HTMLFormElement> {
   await mount(zone([], { belegteTage }));
-  await clickElement(knopf("Dienstabende planen"));
+  await clickElement(knopf("Dienstabend planen"));
   const form = document.querySelector<HTMLFormElement>("form[data-testid='abende-planen']");
   if (!form) throw new Error("Kein Planungsformular");
   return form;
 }
-
-const vorschauTermine = (): string[] =>
-  [...document.querySelectorAll<HTMLElement>("[data-testid='vorschau-termin']")].map(
-    (li) => li.textContent ?? "",
-  );
 
 afterEach(async () => {
   await unmount();
@@ -169,17 +164,17 @@ describe("KommendeAbende — leer ist ein Zustand, keine Sackgasse", () => {
     expect(zeilen(wirt)).toHaveLength(0);
     expect(wirt.textContent).toContain("Noch nichts geplant.");
     expect(wirt.textContent).toContain(
-      "Du kannst die Abende eines ganzen Jahres im Voraus eintragen",
+      "Du kannst kommende Dienstabende im Voraus eintragen",
     );
   });
 
-  it("lässt „Dienstabende planen“ auch ohne einen einzigen Abend erreichbar", () => {
+  it("lässt „Dienstabend planen“ auch ohne einen einzigen Abend erreichbar", () => {
     const wirt = zeichne([]);
     const beschriftungen = [...wirt.querySelectorAll<HTMLElement>("button")].map((b) =>
       (b.textContent ?? "").trim(),
     );
 
-    expect(beschriftungen).toContain("Dienstabende planen");
+    expect(beschriftungen).toContain("Dienstabend planen");
   });
 
   it("trägt den Knopf auch dann, wenn die Liste voll ist — er wandert nicht mit", () => {
@@ -188,7 +183,7 @@ describe("KommendeAbende — leer ist ein Zustand, keine Sackgasse", () => {
       (b.textContent ?? "").trim(),
     );
 
-    expect(beschriftungen).toContain("Dienstabende planen");
+    expect(beschriftungen).toContain("Dienstabend planen");
   });
 });
 
@@ -318,8 +313,8 @@ describe("KommendeAbende — die Marken der Zeile", () => {
 /*
  * Ohne Thema steht die zweite Zeile sonst LEER da — und eine leere Zeile liest
  * sich wie ein Ladefehler, nicht wie eine Angabe, die es nicht gibt. Der Abend
- * ist trotzdem vollständig: ein Thema ist optional, und die Planung eines ganzen
- * Jahres legt fast immer Termine ohne eines an.
+ * ist trotzdem vollständig: ein Thema ist optional, und wer weit im Voraus
+ * plant, kennt es oft noch nicht.
  */
 describe("KommendeAbende — ein Abend ohne Thema", () => {
   it("schreibt „Ohne Thema“ statt einer leeren Zeile", () => {
@@ -531,93 +526,49 @@ describe("KommendeAbende — Abend absagen", () => {
 });
 
 /*
- * DIE VORSCHAU IM PLANUNGSDIALOG IST KEIN SCHMUCK. `planEveningsAction` kommt
- * ohne Formularzustand aus — eine Meldung „12 angelegt, 2 übersprungen" gäbe es
- * also erst NACH dem Klick, wenn die Entscheidung gefallen ist. Die Liste im
- * Dialog ist damit die einzige Stelle, an der jemand die Serie noch prüfen kann,
- * bevor fünfzig Abende in der Datenbank stehen.
- *
- * Sie rechnet mit DERSELBEN Funktion wie die Action (`serienTermine`); geprüft
- * wird hier nicht die Kalenderrechnung (das tut `_lib/serie.test.ts` ohne zu
- * rendern), sondern dass der Dialog sie überhaupt zeigt und die belegten Tage
- * ehrlich abzieht.
+ * „STEHT SCHON" IM PLANUNGSDIALOG IST KEIN SCHMUCK. `planEveningsAction` kommt
+ * ohne Formularzustand aus, und `planEvenings` überspringt einen belegten Tag
+ * still. Ohne den Hinweis schlösse sich der Dialog nach dem Klick, und es wäre
+ * nichts passiert — das sieht aus wie ein Fehler der Anwendung.
  */
-describe("KommendeAbende — die Vorschau im Planungsdialog", () => {
-  /** 25.07. + zwei Wochen + zwei Wochen — die Serie, mit der hier gerechnet wird. */
-  const SERIE = ["2026-07-25", "2026-08-08", "2026-08-22"];
+describe("KommendeAbende — der Planungsdialog", () => {
+  const hinweis = () => document.querySelector("[data-testid='planen-steht-schon']");
 
-  async function serieEinstellen(form: HTMLFormElement): Promise<void> {
-    // Der Start steht auf „heute" (§4.5), der Rhythmus auf „alle zwei Wochen";
-    // gesetzt werden muss nur das Ende.
-    const start = form.querySelector<HTMLInputElement>("input[name='date']")!;
-    expect(start.value).toBe(HEUTE);
-    expect(form.querySelector<HTMLInputElement>("input[name='rhythmus']")!.value).toBe(
-      "zweiwochen",
-    );
-    await tippe(form.querySelector<HTMLInputElement>("input[name='bis']")!, "2026-08-22");
-  }
-
-  it("zeigt jeden Termin der Serie einzeln, nicht nur ihre Zahl", async () => {
+  it("fragt nach genau einem Datum — kein Takt, kein Enddatum", async () => {
     const form = await planungOeffnen();
-    // Ohne „bis" ist die Serie der Starttermin allein — die Liste steht trotzdem
-    // schon da, sonst erschiene sie erst nach der dritten Eingabe.
-    expect(vorschauTermine()).toHaveLength(1);
 
-    await serieEinstellen(form);
-    const termine = vorschauTermine();
-
-    expect(termine).toHaveLength(3);
-    expect(termine[0]).toContain("25.07.2026");
-    expect(termine[1]).toContain("08.08.2026");
-    expect(termine[2]).toContain("22.08.2026");
-    expect(document.querySelector("[data-testid='planen-vorschau']")!.textContent).toContain(
-      "3 Abende werden angelegt",
-    );
-  });
-
-  it("weist einen schon belegten Tag aus und zählt ihn NICHT als anzulegend", async () => {
-    const form = await planungOeffnen(["2026-08-08"]);
-    await serieEinstellen(form);
-
-    const termine = vorschauTermine();
-    expect(termine).toHaveLength(3);
-    expect(termine[1]).toContain("steht schon");
-    expect(termine[0]).not.toContain("steht schon");
-    expect(termine[2]).not.toContain("steht schon");
-
-    const zusammenfassung = document.querySelector("[data-testid='planen-vorschau']")!.textContent ?? "";
-    expect(zusammenfassung).toContain("2 Abende werden angelegt");
-    expect(zusammenfassung).toContain("1 stehen schon");
-    expect(knopf("Abende eintragen").hasAttribute("disabled")).toBe(false);
-  });
-
-  it("sperrt das Absenden, wenn JEDER Termin der Serie schon steht", async () => {
-    const form = await planungOeffnen(SERIE);
-    await serieEinstellen(form);
-
-    expect(vorschauTermine().filter((t) => t.includes("steht schon"))).toHaveLength(3);
-    expect(document.querySelector("[data-testid='planen-vorschau']")!.textContent).toContain(
-      "0 Abende werden angelegt",
-    );
-    // Ein Knopf, der nichts anzulegen hätte, ist kein Knopf — er legte sonst
-    // lautlos nichts an, und das sieht aus wie ein Fehler der Anwendung.
-    expect(knopf("Abende eintragen").hasAttribute("disabled")).toBe(true);
-  });
-
-  it("bildet den Singular, wenn genau ein Abend angelegt würde", async () => {
-    const form = await planungOeffnen(["2026-07-25", "2026-08-08"]);
-    await serieEinstellen(form);
-
-    expect(document.querySelector("[data-testid='planen-vorschau']")!.textContent).toContain(
-      "1 Abend wird angelegt",
-    );
+    // Der Start steht auf „heute" (§4.5).
+    expect(form.querySelector<HTMLInputElement>("input[name='date']")!.value).toBe(HEUTE);
+    expect(form.querySelector("input[name='topic']")).not.toBeNull();
+    expect(form.querySelector("input[name='bis']")).toBeNull();
+    expect(form.querySelector("input[name='rhythmus']")).toBeNull();
     expect(knopf("Abend eintragen").hasAttribute("disabled")).toBe(false);
   });
 
-  it("schickt `groupId` und den Rhythmus als Wert mit — antds `Select` trägt kein `name`", async () => {
+  it("sagt, wenn an dem Tag schon ein Abend steht, und sperrt das Absenden", async () => {
+    const form = await planungOeffnen(["2026-08-08"]);
+    expect(hinweis()).toBeNull();
+
+    await tippe(form.querySelector<HTMLInputElement>("input[name='date']")!, "2026-08-08");
+
+    expect(hinweis()!.textContent).toContain("08.08.2026");
+    expect(hinweis()!.textContent).toContain("steht schon ein Abend");
+    expect(knopf("Abend eintragen").hasAttribute("disabled")).toBe(true);
+  });
+
+  it("gibt den Knopf wieder frei, sobald ein freier Tag gewählt ist", async () => {
+    const form = await planungOeffnen([HEUTE]);
+    expect(knopf("Abend eintragen").hasAttribute("disabled")).toBe(true);
+
+    await tippe(form.querySelector<HTMLInputElement>("input[name='date']")!, "2026-08-01");
+
+    expect(hinweis()).toBeNull();
+    expect(knopf("Abend eintragen").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("schickt `groupId` mit", async () => {
     const form = await planungOeffnen();
 
     expect(form.querySelector<HTMLInputElement>("input[name='groupId']")!.value).toBe("7");
-    expect(form.querySelector("input[name='rhythmus']")).not.toBeNull();
   });
 });

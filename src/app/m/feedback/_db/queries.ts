@@ -186,14 +186,14 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
 }
 
 /**
- * EINE SERIE IN EINER TRANSAKTION — und sie überspringt, was schon dasteht.
+ * GEPLANTE ABENDE IN EINER TRANSAKTION — überspringt, was schon dasteht.
  *
- * Die Termine rechnet `_lib/serie.ts` aus; hier kommt die fertige Liste an. Zwei
+ * Die Oberfläche reicht heute genau einen Termin herein (`planEveningsAction`). Zwei
  * Dinge entscheidet diese Funktion, und beide nur hier:
  *
  * 1. **Ein Datum, an dem die Gruppe schon einen Abend hat, wird ausgelassen.**
- *    Eine Jahresplanung wird zweimal abgeschickt (der Browser lädt neu, jemand
- *    plant im Februar nach) — ohne diese Regel stünde jeder Abend doppelt im
+ *    Ein Formular wird zweimal abgeschickt (der Browser lädt neu, zwei Leute
+ *    tragen denselben Abend ein) — ohne diese Regel stünde er doppelt im
  *    Verlauf, und zwei Auswertungen desselben Dienstabends sind nicht wieder
  *    zusammenzuführen. Übersprungen wird auch ein bereits GELAUFENER Abend:
  *    dass an jenem Tag schon Feedback erhoben wurde, ist der stärkere Befund.
@@ -212,13 +212,13 @@ export function setEveningStatus(db: DB, id: number, status: EveningStatus): voi
  *    liefe dann gegen einen Tag, den niemand sieht. `kalendertagInZone`
  *    (`_lib/lifecycle.ts`) ist dieselbe Umrechnung, die auch die Vorschau im
  *    Planungsdialog benutzt.
- * 2. **Alles oder nichts.** Eine halb angelegte Serie wäre schlimmer als keine —
- *    niemand sieht einer Liste an, wo sie abgebrochen ist.
+ * 2. **Alles oder nichts.** Eine halb angelegte Liste wäre schlimmer als keine —
+ *    niemand sieht ihr an, wo sie abgebrochen ist.
  *
  * `uebersprungen` kommt zurück, damit ein Aufrufer die Auslassung ÜBERHAUPT
  * bemerken kann — heute liest es der Test, der sie festhält. Die OBERFLÄCHE
- * braucht es nicht: sie rechnet dieselbe Liste vor dem Absenden mit
- * `serienTermine` aus und zeigt die belegten Tage dort an (`_ui/KommendeAbende.tsx`,
+ * braucht es nicht: sie prüft den Tag vor dem Absenden gegen die belegten
+ * Tage der Gruppe und sperrt den Knopf (`_ui/KommendeAbende.tsx`,
  * `PlanenDialog`). Eine Meldung hinterher wäre die schlechtere Auskunft.
  */
 export function planEvenings(
@@ -242,8 +242,8 @@ export function planEvenings(
         uebersprungen += 1;
         continue;
       }
-      // Innerhalb EINES Aufrufs doppelte Termine zählen ebenso: `serienTermine`
-      // liefert keine, aber diese Funktion verlässt sich nicht darauf.
+      // Innerhalb EINES Aufrufs doppelte Termine zählen ebenso — die Action
+      // reicht keine herein, aber diese Funktion verlässt sich nicht darauf.
       belegt.add(tag);
       angelegt.push(
         tx
