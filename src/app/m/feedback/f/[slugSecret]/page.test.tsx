@@ -639,6 +639,42 @@ describe("Danke-Seite (Zustand B)", () => {
     expect(markup).not.toContain("<form");
   });
 
+  /*
+   * DAS ZEICHEN IST MARKUP, KEIN ZEICHENPAKET — und das ist der Punkt, der hier
+   * still bricht. Ein `@ant-design/icons`-Import ergaebe in dieser Server
+   * Component HTTP 500 schon beim IMPORT (Falle 7), und `"use client"` behoebe
+   * das nicht, sondern machte es leise. Die Route fuehrt ausserdem gar kein antd
+   * (Route-JS-Budget < 15 KB gz, `layout.test.tsx`).
+   *
+   * Geprueft wird hier die WIRKUNG im Server-HTML: das Zeichen steht wirklich
+   * dort. Den Import bewacht `src/core/shell/icons.test.ts` ohnehin repo-weit
+   * ueber `src` — eine zweite Zusicherung daneben waere eine Kopie, und Kopien
+   * driften.
+   */
+  it("traegt ein Zeichen als Inline-SVG — und gibt ihm keine dritte Stimme", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const markup = await danke(token);
+    expect(markup).toContain("<svg");
+    // Dekor: "Danke." und der Satz darunter sagen es schon zweimal.
+    expect(markup).toMatch(/<svg[^>]*aria-hidden="true"/);
+  });
+
+  /*
+   * ROT HAT AUF DIESER ROUTE EIN BUDGET VON GENAU ZWEI STELLEN (Fahne,
+   * Wortzeichen) — `Zettel.test.tsx` zaehlt sie im Stylesheet. Was der Zaehler
+   * NICHT sieht, ist eine Farbe, die im Markup steht statt im Stylesheet: ein
+   * `fill="#c8000f"` am SVG kaeme durch. Und Gruen waere die zweite Falle: auf
+   * einem Bogen, auf dem Farbe "Note" bedeutet, behauptete ein gruener Haken
+   * eine Bewertung.
+   */
+  it("faerbt das Zeichen weder rot noch gruen — es traegt gar keine Farbe im Markup", async () => {
+    const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const markup = await danke(token);
+    const svg = markup.slice(markup.indexOf("<svg"), markup.indexOf("</svg>"));
+    expect(svg).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+    expect(svg).not.toMatch(/\b(fill|stroke)="(?!none)[a-z]/i);
+  });
+
   it("zeigt keine Antworten mehr auf dem Schirm — das Handy wandert weiter", async () => {
     const { token, survey, evening } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
     insertResponse(db, survey.id, { q1: 2, q9: "Mein geheimer Satz" }, evening.date);

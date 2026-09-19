@@ -148,6 +148,50 @@
   }
 }
 
+/*
+ * Nur fuer KURZE Zustaende (heute allein die Danke-Seite): das Blatt reicht bis
+ * zur Unterkante, statt nach dem Text aufzuhoeren. Sonst laege die Tonwertkante
+ * zwischen `--blatt` und `--papier` mitten im Bild — hell kaum zu sehen, dunkel
+ * (#1b1e22 auf #101214) deutlich.
+ *
+ * `100dvh` minus der Fahne, und `dvh` aus demselben Grund wie bei `.seite`:
+ * `svh` liesse eine Luecke, sobald die Browserleiste einfaehrt, `lvh` erzwaenge
+ * beim Laden einen Scrollbalken.
+ */
+.fuellt {
+  min-height: calc(100dvh - 3px);
+}
+
+/*
+ * Und der Block steht dann GESETZT statt oben zu kleben: ein Absatz am oberen
+ * Rand von 844px Blatt liest sich wie ein Abbruch, nicht wie ein Schluss.
+ *
+ * ⚠️ BEWUSST KEINE ZENTRIERUNG (`justify-content: center` war der erste Wurf
+ * und wurde am Bild verworfen): sie schiebt den Kicker samt Wortzeichen in die
+ * Mitte, und die 3px-Fahne steht dann verwaist ueber rund 280px Leere — der
+ * Briefkopf gehoert nach oben, nicht in die Seitenmitte. Ein gesetzter Abstand
+ * haelt ihn oben und gibt dem Block trotzdem Luft.
+ *
+ * Die Zahl waechst mit dem Schirm, ist aber gedeckelt: auf einem hohen Telefon
+ * soll der Block atmen, auf einem niedrigen Fenster darf er nicht nach unten
+ * aus dem Bild wandern.
+ */
+.fuellt .kopf {
+  padding-top: min(14dvh, 132px);
+}
+
+/* Ab hier ist das Blatt eine Karte mit Rand, Radius und Schatten — eine
+   fensterhohe, in sich zentrierte Karte waere das Gegenteil der Absicht. */
+@media (min-width: 600px) {
+  .fuellt {
+    min-height: 0;
+  }
+
+  .fuellt .kopf {
+    padding-top: 28px;
+  }
+}
+
 /* ---------- Kopf ---------- */
 
 .kopf {
@@ -1022,6 +1066,56 @@
   color: var(--tinte);
 }
 
+/* ---------- Danke: das Zeichen ---------- */
+
+/*
+ * Der Haken im Ring (`DankeZeichen` in `Zustaende.tsx`). Masse und Farben
+ * stehen im Hairline-Vokabular des Blattes — kein Rot (Budget: genau zwei
+ * Stellen) und kein Gruen (das waere eine Aussage ueber die Notenskala).
+ */
+.dankeZeichen {
+  display: block;
+  width: 52px;
+  height: 52px;
+  /* Es steht zwischen Kicker und Ueberschrift: oben Luft, unten der Abstand,
+     den `.titel` ohnehin mitbringt (12px) — deshalb hier nur 16px. */
+  margin: 22px 0 16px;
+}
+
+.dankeRing {
+  fill: var(--tint);
+  stroke: var(--linie-stark);
+  stroke-width: 1;
+}
+
+/*
+ * Der Haken ZEICHNET sich, statt da zu sein: 420ms, und der Verzug von 240ms
+ * setzt ihn hinter den Aufbau des Blocks (`.aufbau`, 320ms) — zwei Bewegungen
+ * gleichzeitig lesen sich als Zucken, nacheinander als Geste.
+ *
+ * `stroke-dasharray` reicht mit 48 ueber die Pfadlaenge (~29) hinaus; eine zu
+ * knappe Zahl liesse den Haken unfertig stehen, eine zu grosse verschiebt nur
+ * den Beginn der Bewegung. `both` haelt ihn waehrend des Verzugs ungezeichnet.
+ */
+.dankeHaken {
+  fill: none;
+  stroke: var(--graphit);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 48;
+  animation: hakenZiehen 420ms cubic-bezier(0.65, 0, 0.35, 1) 240ms both;
+}
+
+@keyframes hakenZiehen {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 /*
  * "Danke." steht auf t6, auch mobil (§3.3): die Danke-Seite hat keine
  * konkurrierende Zeile, dort darf die Ueberschrift den Schirm tragen. Die Regel
@@ -1134,6 +1228,14 @@
 
   .strich {
     transition-duration: 1ms;
+  }
+
+  /* Hier reicht `animation-duration` NICHT: der Verzug von 240ms haelt den
+     Haken solange ungezeichnet (`both`), er erschiene also verspaetet statt
+     sofort. Deshalb beides. */
+  .dankeHaken {
+    animation-duration: 1ms;
+    animation-delay: 0s;
   }
 
   /* Keine Pulse (§3.5) — die Zeile bleibt einfach ruhig. */

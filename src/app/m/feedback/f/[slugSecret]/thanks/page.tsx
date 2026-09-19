@@ -1,7 +1,7 @@
 import { getDb } from "../../../_db/client";
 import { getGroupBySlug } from "../../../_db/queries";
 import { parseToken } from "../../../_lib/token";
-import { Huelle, ZustandF } from "../Zustaende";
+import { DankeZeichen, Huelle, ZustandF } from "../Zustaende";
 import s from "../zettel.module.css";
 
 /**
@@ -33,8 +33,8 @@ export default async function ThanksPage({
   if (!group || group.secret !== parsed.secret) return <ZustandF />;
 
   return (
-    <Huelle titel="Danke." gross>
-      <div className={s.zustand}>
+    <Huelle titel="Danke." gross fuellt vorTitel={<DankeZeichen />}>
+      <div className={`${s.zustand} ${s.aufbau}`}>
         <p className={s.text}>Deine Rückmeldung ist eingegangen — anonym.</p>
       </div>
     </Huelle>

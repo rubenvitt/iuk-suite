@@ -48,12 +48,34 @@ const KICKER = "Rückmeldung zum Dienstabend";
 export function Huelle({
   titel,
   gross = false,
+  fuellt = false,
+  vorTitel,
   kopf,
   children,
 }: {
   titel: string;
   /** "Danke." steht auch mobil auf t6 (32px, -0.02em) — Entwurf 3.3. */
   gross?: boolean;
+  /**
+   * Das Blatt reicht bis zur Unterkante, statt nach dem Text aufzuhoeren.
+   *
+   * NUR fuer kurze Zustaende gedacht und heute allein von der Danke-Seite
+   * gesetzt: dort steht ein Absatz auf einem Schirm, und die Tonwertkante
+   * zwischen Blatt und Papier lag mitten im Bild — hell kaum zu sehen, dunkel
+   * (`--blatt` #1b1e22 auf `--papier` #101214) deutlich. Ab 600px ist das Blatt
+   * eine KARTE mit Rand und Schatten; dort nimmt die Regel sich selbst
+   * zurueck, sonst waere die Karte fensterhoch.
+   */
+  fuellt?: boolean;
+  /**
+   * Ein Zeichen UEBER der Ueberschrift, innerhalb des Kopfes.
+   *
+   * Eigener Steckplatz und nicht einfach als erstes `children`: dort landete es
+   * UNTER der Ueberschrift, und ein Haken zwischen "Danke." und dem Satz
+   * darunter liest sich als Aufzaehlungszeichen, nicht als Geste. Die Reihenfolge
+   * Zeichen -> Ueberschrift -> Satz ist der Punkt.
+   */
+  vorTitel?: ReactNode;
   kopf?: ReactNode;
   children?: ReactNode;
 }) {
@@ -62,12 +84,13 @@ export function Huelle({
       {/* Fahne: 3px Suite-Rot, randlos am Oberrand. Reine Marke, kein Inhalt —
           deshalb `aria-hidden`. Eine der genau ZWEI Stellen mit #c8000f. */}
       <div className={s.fahne} aria-hidden="true" />
-      <div className={s.blatt}>
+      <div className={fuellt ? `${s.blatt} ${s.fuellt}` : s.blatt}>
         <header className={`${s.kopf} ${s.aufbau}`}>
           <p className={s.kicker}>
             {KICKER}
             <span className={s.wortzeichen}>IDA</span>
           </p>
+          {vorTitel}
           <h1 className={gross ? `${s.titel} ${s.gross}` : s.titel}>{titel}</h1>
           {kopf}
         </header>
@@ -80,6 +103,47 @@ export function Huelle({
 /** Der Textkoerper eines Zustands — ein Block, damit der Aufbau mitspielt. */
 function Block({ children }: { children: ReactNode }) {
   return <div className={`${s.zustand} ${s.aufbau}`}>{children}</div>;
+}
+
+/**
+ * DAS ZEICHEN DER DANKE-SEITE — ein Haken im Ring, in derselben Tinte wie der
+ * Text.
+ *
+ * INLINE-SVG UND KEIN ZEICHENPAKET, und das ist hier keine Vorliebe: auf dieser
+ * Route gibt es kein antd (das Route-JS-Budget liegt unter 15 KB gz), und ein
+ * Import aus `@ant-design/icons` ergaebe in einer Server Component ohnehin HTTP
+ * 500 — schon beim Import, nicht beim Rendern (Falle 7 in CLAUDE.md). Markup
+ * kostet dagegen kein Byte JavaScript und rendert auch ohne.
+ *
+ * ⚠️ KEIN ROT UND KEIN GRUEN. Rot hat auf dieser Route ein Budget von GENAU
+ * zwei Stellen (Fahne, Wortzeichen) — `Zettel.test.tsx` zaehlt sie —, und Gruen
+ * waere die Gegenfarbe der Notenskala: ein gruener Haken neben einem Bogen, auf
+ * dem Farbe „Note" bedeutet, behauptete eine Bewertung. Das Zeichen bleibt
+ * deshalb im Hairline-Vokabular des Blattes: Ring in `--linie-stark` auf
+ * `--tint`, Haken in `--graphit`.
+ *
+ * ⚠️ UND ES IST KEIN STEMPEL. Der Entwurf hat den Stempel ausdruecklich
+ * verworfen ("Stempel widerspricht der eigenen Strenge", Jury-Zeile 9) — ein
+ * schraeg gesetztes Siegel ist genau die Editorial-Schablone, die dieselbe Jury
+ * an drei Stellen gestrichen hat.
+ *
+ * `aria-hidden`, weil die Aussage schon zweimal dasteht: in der Ueberschrift
+ * ("Danke.") und im Satz darunter. Eine Vorleseanwendung soll sie nicht ein
+ * drittes Mal hoeren.
+ */
+export function DankeZeichen() {
+  return (
+    <svg
+      className={s.dankeZeichen}
+      viewBox="0 0 52 52"
+      role="presentation"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle className={s.dankeRing} cx="26" cy="26" r="25" />
+      <path className={s.dankeHaken} d="M16.5 27 L23 33.5 L36 19" />
+    </svg>
+  );
 }
 
 /**

@@ -137,7 +137,7 @@ src/app/m/feedback/f/[slugSecret]/zettel.module.css — die komplette Optik
 src/app/m/feedback/f/[slugSecret]/thanks/page.tsx   (Server) — nur Danke (Weitergabe entfallen, §3.2 B)
 src/app/m/feedback/actions.ts                       — submitResponseAction (Rückgabe statt throw), releaseDeviceAction, Limiter
 ```
-Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit ist die Compound-Falle in Server Components strukturell ausgeschlossen. Keine Animationsbibliothek, keine Icons, keine Bilder.
+Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit ist die Compound-Falle in Server Components strukturell ausgeschlossen. Keine Animationsbibliothek, keine Icons, keine Bilder. *(Praezisiert 19.09.2026: gemeint ist ein Zeichen- oder Bild-PAKET und eine Bilddatei — beides kostet Bytes und, im Fall von `@ant-design/icons`, in einer Server Component HTTP 500. Ein Inline-SVG im Markup ist davon nicht beruehrt und seit diesem Tag auf der Danke-Seite in Gebrauch, siehe §3.2 B.)*
 
 ### 3.2 Screenflow
 
@@ -172,7 +172,17 @@ Dieser Preis ist im Betrieb der größere. Ein Absenden-Knopf **mitten im Bogen*
 (c) der **Serif-Einleitungssatz** „Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz." — die Freiwilligkeit steht schon am Fuß des Abschluss-Blocks, unmittelbar über denselben Zeilen, und zweimal gesagt wird sie nicht glaubhafter.
 Bewusst geblieben ist „Schreib nichts, woran man dich erkennt." — der Satz sagt etwas, das nichts anderes sagt. **Was die Kurzzusage nicht mehr trägt:** das Siegel nannte zwei Dinge, was gespeichert wird *und* was die Gruppenleitung zu sehen bekommt („Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person"). Der kurze Satz deckt nur das Erste ab; `shuffleStable` mischt die Leseordnung weiterhin, der Bogen behauptet es nur nicht mehr. Mit dem Siegel ist auch `ZettelProps.siegel` entfallen — die Kopplung „dieser Text ist eine Zusage über Server-Verhalten" steht jetzt als Kommentar an `KURZZUSAGE` in `Zettel.tsx`.
 
-**B — DANKE** (`/f/{slugSecret}/thanks`): Serif „Danke." (`t6`), darunter `t2` „Deine Rückmeldung ist eingegangen — anonym." Keine Antworten mehr auf dem Schirm (das Handy wandert weiter). **Danach nichts mehr** — keine Haarlinie, kein Kicker, kein Knopf. Die Seite fragt auch keine aktive Umfrage mehr ab.
+**B — DANKE** (`/f/{slugSecret}/thanks`): Kicker und Wortzeichen wie überall, darunter das **Zeichen** (52px, Haken im Ring), dann Serif „Danke." (`t6`), dann `t2` „Deine Rückmeldung ist eingegangen — anonym." Keine Antworten mehr auf dem Schirm (das Handy wandert weiter). **Danach nichts mehr** — keine Haarlinie, kein weiterer Text, kein Knopf. Die Seite fragt auch keine aktive Umfrage mehr ab. Das Blatt reicht bis zur Fensterunterkante, und der Block steht gesetzt statt am oberen Rand (`min(14dvh, 132px)`); ab 600px ist das Blatt wie überall eine Karte und beides nimmt sich zurück.
+
+*Revision — das Zeichen auf der Danke-Seite (Stand 19.09.2026, umgesetzt):* Die Seite trug nach dem Wegfall des Weitergabe-Blocks einen Absatz am oberen Rand eines sonst leeren Schirms — richtig, aber unfertig. Sie bekommt deshalb ein Zeichen und eine gesetzte Komposition.
+
+**Drei Festlegungen, die nicht Geschmack sind:**
+
+1. **Kein Rot und kein Grün.** Rot hat auf dieser Route ein Budget von genau zwei Stellen (Fahne, Wortzeichen) und wird gezählt; Grün wäre die Gegenfarbe der Notenskala — ein grüner Haken neben einem Bogen, auf dem Farbe „Note" bedeutet, behauptete eine Bewertung. Das Zeichen bleibt im Hairline-Vokabular: Ring in `--linie-stark` auf `--tint`, Haken in `--graphit`.
+2. **Kein Stempel.** Jury-Zeile 9 hat ihn verworfen („Stempel widerspricht der eigenen Strenge"), und daran ändert diese Revision nichts — ein schräg gesetztes Siegel ist genau die Editorial-Schablone, die dieselbe Jury an drei Stellen gestrichen hat.
+3. **Das Zeichen steht ÜBER der Überschrift**, nicht zwischen ihr und dem Satz. Dazwischen liest es sich als Aufzählungszeichen; davor als Geste. Der Kopf hat dafür einen eigenen Steckplatz bekommen.
+
+**Verworfen und hier festgehalten, damit es nicht zweimal probiert wird:** die Komposition senkrecht zu zentrieren (`justify-content: center`). Am Bild geprüft — sie schiebt den Kicker samt Wortzeichen in die Seitenmitte, und die 3px-Fahne steht dann verwaist über rund 280px Leere. Der Briefkopf gehört nach oben.
 
 *Revision — der Weitergabe-Block ist entfallen (Stand 19.09.2026, umgesetzt):* Zustand B trug bis dahin unter einer Haarlinie den Kicker „HANDY WANDERT WEITER?", den Satz „Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst du einen leeren Bogen öffnen." und einen Sekundärknopf (Umriss) **„Leeren Bogen öffnen"** → `releaseDeviceAction`. Begründung damals: auf einem geteilten Handy ist die nächste Person der Regelfall, nicht die Ausnahme, deshalb stand der Block **unbedingt** da (und `thanks/page.tsx` holte dafür die aktive Umfrage, um die Cookie-Id zu kennen; ohne sie führte ein `<a href>` aufs Formular).
 
