@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { kuerzen, spanne } from "./anker-drift";
+import { blameZeilen, kuerzen, spanne } from "./anker-drift";
 
 /**
  * DIE NORMALISIERUNG IST DAS GANZE WERKZEUG (DRK-204).
@@ -80,5 +80,34 @@ describe("kuerzen haelt den Bericht lesbar", () => {
     const gekuerzt = kuerzen(lang);
     expect(gekuerzt).toHaveLength(96);
     expect(gekuerzt.endsWith("…")).toBe(true);
+  });
+});
+
+describe("blameZeilen trennt Commits von Nicht-Commits", () => {
+  const KOPF = (sha: string, zeile: number) => `${sha} ${zeile} ${zeile} 1\nauthor Wer\n`;
+  const ECHT = "a".repeat(40);
+  const NULLEN = "0".repeat(40);
+
+  it("liest die Zeilennummer und ihren Commit", () => {
+    expect(blameZeilen(KOPF(ECHT, 7)).get(7)).toBe(ECHT);
+  });
+
+  /**
+   * ⛔ DER FALL, DER DEN MELDER BLIND MACHTE (Codex-Review zu PR #210).
+   * `git blame` setzt vierzig Nullen fuer jede Zeile, die im Arbeitsbaum steht
+   * und noch nirgends festgeschrieben ist — also fuer GENAU die Zeilen, die
+   * jemand gerade aufgeraeumt hat. Galten sie als Commit, scheiterte `git show`
+   * darauf, und der Anker fiel STILL heraus statt als „ohne blame" gezaehlt zu
+   * werden. Ein Werkzeug, das im Regelfall seiner Benutzung schweigt, ist
+   * schlimmer als keines.
+   */
+  it("uebergeht die Nullen — eine ungespeicherte Zeile hat keinen Commit", () => {
+    expect(blameZeilen(KOPF(NULLEN, 7)).has(7)).toBe(false);
+  });
+
+  it("und nimmt aus derselben Ausgabe die echten Zeilen trotzdem mit", () => {
+    const beides = blameZeilen(KOPF(NULLEN, 7) + KOPF(ECHT, 8));
+    expect(beides.has(7)).toBe(false);
+    expect(beides.get(8)).toBe(ECHT);
   });
 });

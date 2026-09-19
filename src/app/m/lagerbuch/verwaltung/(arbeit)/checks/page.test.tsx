@@ -434,6 +434,30 @@ describe("Checks-Seite", () => {
   });
 
   /**
+   * DRK-196, Codex-Review zu PR #210 (P2). Die Detailseite widersprach sich
+   * nicht mehr — die UEBERSICHT schon: dieselbe Zeile sagte in der einen Spalte
+   * „läuft noch" und in der naechsten gruen „vollständig", dazu „0" Positionen.
+   *
+   * ⛔ DER GRUENE CHIP ENTSTEHT DURCH EINEN RUECKFALL, nicht durch eine Aussage:
+   * bei einem laufenden Check sind ALLE Zaehler 0, es wird kein einziger Chip
+   * geschoben, und die Schlusszeile setzt „vollständig". Wer nur die Zaehler
+   * liest, sieht den Fehler nicht.
+   */
+  it("nennt einen laufenden Check in JEDER Spalte laufend — nie vollständig", () => {
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+    expect(zeile.positionenText).toBe("noch keine");
+    expect(zeile.ergebnisChips.map((chip) => chip.text)).toEqual(["läuft noch"]);
+    // ⚠️ `grau`, nicht `ok`: ein laufender Check ist kein Befund — und erst
+    // recht keine gruene Erfolgsmeldung.
+    expect(zeile.ergebnisChips[0].ton).toBe("grau");
+    expect(istRekursivJsonSicher(zeile)).toBe(true);
+  });
+
+  /**
    * ⚠️ DIE GEGENPROBE ZUM SCHALTER SELBST: er darf die abgeschlossenen Checks
    * nicht ERSETZEN, sondern nur ergaenzen. Ein `mitOffenen`, das versehentlich
    * auf „nur offene" filterte, waere mit den zwei Faellen darueber gruen.

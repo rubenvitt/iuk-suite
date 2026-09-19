@@ -19,7 +19,7 @@
  * Summe. Das ist die eine Stelle, an der Uebersicht und Detail auseinandergehen
  * duerfen — und sie geht in die SICHERE Richtung: das Detail weiss mehr.
  */
-import { and, desc, eq, gte, isNotNull, lte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql, type SQL } from "drizzle-orm";
 import { artikel, checks, geraete, lagerorte, o2Flaschen, sollPositionen } from "../../_db/schema";
 import type { DB } from "../../_db/client";
 import { quelleAufloeser } from "../../_db/quelle";
@@ -104,8 +104,36 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
   const wechselGrenze = wechselGrenzeNachschlag(db);
   const conds: SQL[] = [];
   if (f.fahrzeugId) conds.push(eq(checks.fahrzeugId, f.fahrzeugId));
-  if (f.von) conds.push(gte(checks.completedAt, f.von));
-  if (f.bis) conds.push(lte(checks.completedAt, f.bis));
+  /*
+   * ⛔ DER ZEITRAUM MISST `completedAt` ODER, WO DAS FEHLT, `startedAt`
+   * (Codex-Review zu PR #210, P2; gemessen in `checks.test.ts`).
+   *
+   * Ein nacktes `completedAt >= von` schliesst NULL aus — SQL vergleicht NULL
+   * mit nichts. Sobald also ein Datum gesetzt war, verschwanden die laufenden
+   * Checks WIEDER, und der Schalter daneben tat still nichts. Das ist dieselbe
+   * Unerreichbarkeit wie bei der Grenze, nur mit einem anderen Ausloeser — und
+   * sie faellt noch weniger auf, weil der Schalter ja sichtbar gesetzt ist.
+   *
+   * ⚠️ `coalesce` UND NICHT EIN ZWEITER ZWEIG JE GRENZE: „wann war dieser
+   * Check?" ist EINE Frage, und ein laufender Check beantwortet sie mit seinem
+   * Beginn. Zwei `or`-Verschachtelungen sagten dasselbe in vier Zeilen und
+   * liefen beim naechsten Filter auseinander.
+   *
+   * ⚠️ FUER EINE ABGESCHLOSSENE ZEILE AENDERT SICH NICHTS: `coalesce` gibt dort
+   * `completedAt` zurueck, der Ausdruck ist also zeichengleich zum alten.
+   */
+  /*
+   * ⚠️ DIE SEKUNDEN WERDEN HIER VON HAND GERECHNET, und das ist kein Umweg,
+   * sondern der Preis des rohen Ausdrucks: `gte(checks.completedAt, …)` kennt
+   * die Abbildung der SPALTE und wandelt ein `Date` selbst um; ein `sql`-Stueck
+   * kennt sie nicht und versuchte, das `Date` direkt zu binden — „SQLite3 can
+   * only bind numbers, strings, bigints, buffers, and null", gemessen.
+   * `mode: "timestamp"` legt beide Spalten als UNIX-SEKUNDEN ab (§5.14.4).
+   */
+  const sekunden = (d: Date) => Math.floor(d.getTime() / 1000);
+  const zeitpunkt = sql`coalesce(${checks.completedAt}, ${checks.startedAt})`;
+  if (f.von) conds.push(sql`${zeitpunkt} >= ${sekunden(f.von)}`);
+  if (f.bis) conds.push(sql`${zeitpunkt} <= ${sekunden(f.bis)}`);
   /*
    * DRK-196 — der Ausschluss steht VOR der Grenze, nicht hinter ihr. Ein Filter
    * erst auf den 50 geholten Zeilen lieferte weniger als 50 abgeschlossene und

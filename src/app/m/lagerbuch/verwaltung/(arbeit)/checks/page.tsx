@@ -32,6 +32,24 @@ type CheckSuchparameter = {
 };
 
 function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
+  /*
+   * ⛔ EIN LAUFENDER CHECK IST NICHT „vollständig" (DRK-196, Codex-Review zu
+   * PR #210, P2). Ohne diesen Zweig faellt er durch die ganze Kette: alle
+   * Zaehler sind 0, kein einziger Chip wird geschoben, und der Rueckfall unten
+   * setzt den GRUENEN „vollständig"-Chip. Die Zeile saegte dann in der einen
+   * Spalte „läuft noch" und in der naechsten gruen „vollständig" — derselbe
+   * Widerspruch wie auf der Detailseite, nur eine Ebene hoeher.
+   *
+   * ⚠️ `zeile.completedAt`, NICHT `zeile.offen`: letzteres ist eine ZAHL (die
+   * weiterhin fehlenden Teile), kein Merkmal des Zustands. Die Namensgleichheit
+   * ist eine Falle, und sie steht hier ausgeschrieben, damit niemand sie stellt.
+   *
+   * ⚠️ `grau`, nicht `gelb`: ein laufender Check ist kein Befund, dem jemand
+   * nachgeht — dieselbe Entscheidung wie beim `info`-Ton der Detailseite.
+   */
+  if (zeile.completedAt === null) {
+    return [{ schluessel: "laeuft", text: "läuft noch", ton: "grau", zeichen: null }];
+  }
   const chips: CheckErgebnisChip[] = [];
   if (zeile.nachgefuellt > 0) {
     chips.push({
@@ -141,7 +159,14 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
      * der fertige Text — `CheckAnzeigeZeile` bekommt kein `unlesbar`-Flag, die
      * DTO-Zusicherung der Seite bleibt damit unverändert.
      */
-    positionenText: zeile.unlesbar ? "unlesbar" : String(zeile.positionen),
+    /*
+     * ⚠️ DREI FAELLE, DREI TEXTE. Eine `0` ist eine Aussage — sie behauptet,
+     * gezaehlt worden zu sein. Fuer `unlesbar` stand das Wort hier schon; fuer
+     * den laufenden Check fehlte es (Codex-Review zu PR #210, P2).
+     */
+    positionenText: zeile.completedAt === null
+      ? "noch keine"
+      : zeile.unlesbar ? "unlesbar" : String(zeile.positionen),
   };
 }
 

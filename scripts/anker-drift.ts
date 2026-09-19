@@ -86,12 +86,34 @@ function git(...argumente: string[]): string | null {
  */
 function blameJeZeile(pfad: string): Map<number, string> {
   const roh = git("blame", "--porcelain", "--", pfad);
+  return roh === null ? new Map() : blameZeilen(roh);
+}
+
+/**
+ * Die reine Haelfte davon: aus der `--porcelain`-Ausgabe die Zuordnung
+ * Zeile → Commit. Ausgelagert, weil nur sie pruefbar ist — der Aufruf daneben
+ * startet `git`.
+ */
+export function blameZeilen(roh: string): Map<number, string> {
   const zuordnung = new Map<number, string>();
-  if (roh === null) return zuordnung;
   for (const zeile of roh.split("\n")) {
     // Kopfzeile einer Gruppe: `<sha> <alt> <neu> [<anzahl>]`.
     const treffer = /^([0-9a-f]{40}) \d+ (\d+)(?: \d+)?$/.exec(zeile);
-    if (treffer !== null) zuordnung.set(Number(treffer[2]), treffer[1]);
+    if (treffer === null) continue;
+    /*
+     * ⛔ VIERZIG NULLEN SIND KEIN COMMIT, SONDERN „NOCH NICHT EINGECHECKT"
+     * (Codex-Review zu PR #210). `git blame` setzt sie fuer jede Zeile, die im
+     * Arbeitsbaum steht und noch nirgends festgeschrieben ist.
+     *
+     * ⚠️ DER MELDER WAR DAMIT BLIND, GENAU WENN MAN IHN BRAUCHT: die Regex nahm
+     * die Nullen als echten Commit, `git show 0000…:<pfad>` scheiterte, und der
+     * Anker fiel STILL heraus — nicht einmal unter `ohneBlame` gezaehlt. Wer
+     * nach einem Aufraeumen prueft, ob seine frisch geaenderten Anker sitzen,
+     * bekam also einen Bericht, der ausgerechnet DIESE ausliess. Ein Werkzeug,
+     * das im Regelfall seiner Benutzung schweigt, ist schlimmer als keines.
+     */
+    if (/^0{40}$/.test(treffer[1])) continue;
+    zuordnung.set(Number(treffer[2]), treffer[1]);
   }
   return zuordnung;
 }

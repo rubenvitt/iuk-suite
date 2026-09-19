@@ -174,6 +174,42 @@ describe("checkHistorie", () => {
     expect(ohne).toHaveLength(2);
   });
 
+  /**
+   * DRK-196, Codex-Review zu PR #210 (P2) — GEMESSEN UND BESTAETIGT.
+   *
+   * ⛔ DER SCHALTER WURDE VON EINEM DATUM STILL AUSGEHEBELT. Die Grenzen
+   * verglichen `completedAt`, und SQL vergleicht NULL mit nichts — sobald also
+   * ein Zeitraum gesetzt war, verschwanden die laufenden Checks WIEDER. Das ist
+   * dieselbe Unerreichbarkeit wie bei der Mengengrenze, nur mit anderem
+   * Ausloeser, und sie faellt noch weniger auf: der Schalter steht ja sichtbar.
+   */
+  it("laesst einen laufenden Check auch mit gesetztem Zeitraum stehen", () => {
+    const BEGONNEN = new Date("2026-06-15T08:00:00Z");
+    t.db.insert(checks).values({
+      id: "chk-offen-zeit", fahrzeugId: "rtw-1", quelleTyp: "token", quelleId: "1",
+      startedAt: BEGONNEN, completedAt: null, ergebnis: null,
+    }).run();
+
+    const imFenster = checkHistorie(t.db, {
+      mitOffenen: true,
+      von: new Date("2026-06-15T00:00:00Z"),
+      bis: new Date("2026-06-16T00:00:00Z"),
+    }).zeilen.map((z) => z.id);
+    expect(imFenster, "der Zeitraum misst den Beginn, wenn kein Abschluss da ist")
+      .toContain("chk-offen-zeit");
+
+    /*
+     * ⚠️ DIE GEGENPROBE, ohne die der Fall nur „NULL faellt immer durch" hiesse:
+     * liegt der BEGINN ausserhalb, bleibt die Zeile draussen. Der Zeitraum
+     * bleibt also ein Filter und wird nicht zur Ausnahme fuer offene Zeilen.
+     */
+    const davor = checkHistorie(t.db, {
+      mitOffenen: true,
+      von: new Date("2026-07-01T00:00:00Z"),
+    }).zeilen.map((z) => z.id);
+    expect(davor).not.toContain("chk-offen-zeit");
+  });
+
   it("filtert nach Fahrzeug und Zeitraum", () => {
     expect(checkHistorie(t.db, { fahrzeugId: "rtw-1" }).zeilen).toHaveLength(1);
     expect(checkHistorie(t.db, { fahrzeugId: "gibtsnicht" }).zeilen).toHaveLength(0);
