@@ -87,6 +87,15 @@ vi.mock("../../../actions", () => ({
   createEveningAction: vi.fn(),
   deleteEveningAction: vi.fn(),
   updateEveningAction: vi.fn(),
+  wiederAnsetzenAction: vi.fn(),
+  // Zone „Kommende Abende" braucht diese drei. ⚠️ Sie fehlten hier, ohne dass
+  // ein Test rot wurde: die Zone rendert ihre Zeilen erst, wenn es geplante
+  // Abende GIBT, und bis dahin wird der Import nie ausgewertet. Ein fehlender
+  // Eintrag faellt also nicht beim Bau der Zone auf, sondern beim ersten Test
+  // mit Inhalt — hier.
+  planEveningsAction: vi.fn(),
+  freigebenAction: vi.fn(),
+  absagenAction: vi.fn(),
   // Zone e (Einstellungen) braucht diese vier — ohne sie ist der Import
   // `undefined` und die Zone wirft beim Rendern.
   updateGroupAction: vi.fn(),
@@ -441,6 +450,100 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(wirt.textContent).toContain("feedback.iuk-ue.de/f/");
     expect(wirt.textContent).toContain("Aushang");
   });
+
+  it("STEHT BEI GENAU EINEM LAUFENDEN ABEND — obwohl die Tabelle dann leer ist", async () => {
+    /*
+     * ⚠️ DER NORMALFALL DIREKT NACH DEM ERSTEN START, und er hat mich einen
+     * roten e2e-Lauf gekostet. Die Zone ist nicht nur eine Tabelle: ihre
+     * Kopfzeile traegt „Trend", „Excel (alle Abende)" und „Abend ohne Feedback
+     * nachtragen". Der laufende Abend ist aus `verlauf` ausgenommen — eine
+     * Gruppe mit genau einem, gerade laufenden Abend hat dort also NICHTS, und
+     * eine Bedingung, die nur auf die Leere sieht, nimmt ihr alle drei Wege.
+     */
+    const laufend = insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-07-22"),
+      topic: "Läuft gerade",
+      notes: null,
+      participantCount: 20,
+      createdAt: tag("2026-07-22"),
+    });
+    const survey = insertSurvey(db, {
+      eveningId: laufend.id,
+      questions: JSON.stringify(FRAGEN),
+      closeAfterHours: 48,
+      createdAt: tag("2026-07-22"),
+    });
+    // Frist weit in der Zukunft, damit `nextStatusOnAccess` nicht faltet.
+    setSurveyStatus(db, survey.id, "active", {
+      activatedAt: tag("2026-07-22"),
+      closesAt: new Date("2099-01-01T00:00:00Z"),
+    });
+
+    const wirt = await zeichne();
+
+    expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(1);
+    expect(wirt.textContent).toContain("Abend ohne Feedback nachtragen");
+    // Und der Leertext steht dort, weil die Tabelle wirklich leer ist.
+    expect(wirt.textContent).toContain("Noch keine vergangenen Dienstabende.");
+  });
+
+  it("ZAEHLT ABGESAGTE ABENDE NICHT als erfasste Dienstabende", async () => {
+    // „N Dienstabende erfasst" ist eine Aussage darueber, was stattgefunden
+    // hat. Ein ausgefallener Dienst erhoehte die Zahl, ohne dass jemand da war —
+    // und im Notenfenster belegte er einen der sechs Plaetze, weil
+    // `fensterMittel` erst schneidet und dann die leeren Noten wegwirft.
+    abend("2026-07-22", [2, 2]);
+    insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-08-05"),
+      topic: "Faellt aus",
+      notes: null,
+      participantCount: null,
+      status: "cancelled",
+      createdAt: tag("2026-07-22"),
+    });
+
+    const wirt = await zeichne();
+
+    expect(wirt.textContent).toContain("1 Dienstabend erfasst");
+    // Der Ø steht trotzdem da: die Absage hat den bewerteten Abend nicht aus
+    // dem Fenster gedraengt.
+    expect(wirt.textContent).toContain("2,0");
+    // Und die Zeile ist sichtbar geblieben.
+    expect(wirt.textContent).toContain("Abgesagt");
+  });
+
+  it("STEHT TROTZ EINRICHTUNG, sobald ein abgesagter Abend darin liegt", async () => {
+    /*
+     * ⚠️ DIE SACKGASSE, GEGEN DIE DIESE ZUSICHERUNG STEHT. Bis DRK-426 waren
+     * „Einrichtung" und „der Verlauf ist leer" dasselbe. Seit ein ABGESAGTER
+     * Abend in den Verlauf gehoert, aber nicht als stattgefunden zaehlt, nicht
+     * mehr: eine Gruppe, deren einziger geplanter Termin abgesagt wurde, steht
+     * in der Einrichtung UND hat eine Verlaufszeile.
+     *
+     * Mit `!einrichtung` als Bedingung verschwand diese Zeile vom Bildschirm —
+     * und mit ihr „Doch wieder ansetzen", das einzige Mittel, die Absage
+     * zurueckzunehmen. Der Tag blieb fuer die Planung belegt, weil die Zeile ja
+     * noch existierte. Aus diesem Zustand fuehrte die Oberflaeche nicht heraus.
+     */
+    insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-12-10"),
+      topic: "Faellt aus",
+      notes: null,
+      participantCount: null,
+      status: "cancelled",
+      createdAt: tag("2026-07-22"),
+    });
+
+    const wirt = await zeichne();
+
+    expect(wirt.querySelectorAll("[data-testid='verlauf-kopf']")).toHaveLength(1);
+    expect(wirt.textContent).toContain("Abgesagt");
+    // Die Lagekarte bleibt dabei in der Einrichtung: stattgefunden hat nichts.
+    expect(wirt.textContent).toContain("ERSTER SCHRITT");
+  });
 });
 
 /**
@@ -493,6 +596,57 @@ describe("Zone e — Einstellungen haengt an der Seite (§2.6)", () => {
 
     expect(document.body.textContent).toContain(
       "Löscht 2 Dienstabende und 3 Rückmeldungen unwiderruflich.",
+    );
+    await unmount();
+    document.body.replaceChildren();
+  });
+
+  it("ZAEHLT DIE VORAUSGEPLANTEN ABENDE MIT — die Kaskade nimmt sie mit", async () => {
+    /*
+     * Die Kopfzeile und dieser Dialog brauchen VERSCHIEDENE Zahlen, und das ist
+     * der Fall, an dem es auffaellt: die Kopfzeile ist eine Aussage ueber die
+     * Historie („2 Dienstabende erfasst"), der Dialog kuendigt an, was
+     * unwiderruflich verschwindet. Geplante Abende gehoeren nicht in die erste
+     * und sehr wohl in die zweite — `evenings` haengt per `ON DELETE cascade`
+     * an der Gruppe.
+     *
+     * Ohne diese Unterscheidung warnte eine Gruppe mit zwoelf geplanten und
+     * keinem gelaufenen Abend mit „Loescht 0 Dienstabende" und loeschte zwoelf.
+     */
+    abend("2026-07-22", [2, 3]); // 2 Rueckmeldungen
+    abend("2026-07-15", [1]); // 1 Rueckmeldung
+    for (const datum of ["2026-10-06", "2026-10-20"]) {
+      insertEvening(db, {
+        groupId: 1,
+        date: tag(datum),
+        topic: `Geplant ${datum}`,
+        notes: null,
+        participantCount: null,
+        status: "planned",
+        createdAt: tag("2026-07-22"),
+      });
+    }
+    guardPageMock.mockResolvedValue({
+      viewer: { sub: "admin-1", groups: ["da-feedback-admin"], fachgruppen: [] },
+      db,
+      memberIds: [1],
+    });
+    const element = await Cockpit({ params: Promise.resolve({ groupId: "1" }) });
+
+    await mount(element);
+    // Die Kopfzeile bleibt bei der Historie — sonst waere die Trennung nur
+    // verschoben und der Ø-Satz spraeche ueber Abende, die es noch nicht gab.
+    expect(document.body.textContent).toContain("2 Dienstabende erfasst");
+
+    await clickElement(query(".ant-collapse-header"));
+    const knopf = [...document.querySelectorAll<HTMLElement>("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Gruppe löschen",
+    );
+    if (!knopf) throw new Error("Kein Knopf „Gruppe löschen“");
+    await clickElement(knopf);
+
+    expect(document.body.textContent).toContain(
+      "Löscht 4 Dienstabende und 3 Rückmeldungen unwiderruflich.",
     );
     await unmount();
     document.body.replaceChildren();

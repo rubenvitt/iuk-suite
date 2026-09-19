@@ -19,6 +19,9 @@ import {
   insertEvening,
   updateEvening,
   deleteEvening,
+  setEveningStatus,
+  planEvenings,
+  releaseSurveyForEvening,
   setSurveyStatus,
   activateSurvey,
   createAndStartSurvey,
@@ -35,10 +38,12 @@ import { generateSecret } from "./_lib/token";
 import { coerceAnswer, isRatingType, type Question } from "./_lib/questions";
 import {
   computeClosesAt,
+  kalendertagInZone,
   nextStatusOnAccess,
   DEFAULT_CLOSE_AFTER_HOURS,
   type SurveyStatus,
 } from "./_lib/lifecycle";
+import { serienTermine, istRhythmus, type Rhythmus } from "./_lib/serie";
 import { RateLimiter, clientIpAus } from "@/core/ratelimit";
 import { FEHLER_PARAMETER, JS_FELD } from "./_lib/absenden";
 import { getDirectory, type DirectoryResult } from "@/core/directory";
@@ -480,7 +485,16 @@ export async function updateEveningAction(formData: FormData) {
     if (formData.has("date")) patch.date = parseDate(formData.get("date"));
     if (formData.has("topic")) patch.topic = strOrNull(formData.get("topic"));
     if (formData.has("notes")) patch.notes = strOrNull(formData.get("notes"));
-    if (formData.has("participantCount")) {
+    // ⚠️ NUR EIN ABEND, DER STATTGEFUNDEN HAT, NIMMT EINE TEILNEHMERZAHL AN —
+    // und „nicht geplant" ist dafür die falsche Bedingung. Sie ließ den
+    // ABGESAGTEN Abend durch, also gerade den, an dem nachweislich niemand war:
+    // die Zahl überlebte „Doch wieder ansetzen" und wäre nach der Freigabe der
+    // NENNER der Rücklaufquote gewesen, ununterscheidbar von einer gezählten.
+    //
+    // Die Oberfläche lässt das Feld in beiden Lagen weg (`_ui/AbendBearbeiten.tsx`,
+    // Prop `lage`), aber eine Zusage, die nur im Client gilt, ist keine: ein
+    // handgebauter POST trüge die Zahl weiter ein.
+    if (formData.has("participantCount") && vorher.status === "held") {
       patch.participantCount = parseCount(formData.get("participantCount"));
     }
     updateEvening(db, id, patch);
@@ -501,6 +515,133 @@ export async function updateEveningAction(formData: FormData) {
     revalidate();
   });
 }
+/**
+ * DIENSTABENDE VORAUS PLANEN — einzeln oder als Serie (DRK-426).
+ *
+ * KEIN `useActionState`, und das ist dieselbe Entscheidung wie beim Nachtragen:
+ * §4.4 nennt genau drei Formulare mit Feldfehlern, und dieses ist keins davon.
+ * Beide Daten sind `<input type="date">` und damit vom Browser geprüft, der
+ * Takt kommt aus einer Auswahl mit festen Werten.
+ *
+ * WAS DIE OBERFLÄCHE STATTDESSEN TUT: sie rechnet dieselbe Liste vor dem
+ * Absenden aus und zeigt sie an — mitsamt den Terminen, an denen schon ein
+ * Abend steht. Eine Rückmeldung „12 angelegt, 2 übersprungen" hinterher wäre
+ * die schlechtere Auskunft: sie kommt, wenn die Entscheidung gefallen ist.
+ *
+ * Die Prüfung des Takts GLAUBT DEM FORMULAR NICHT (`istRhythmus`). `rhythmus`
+ * landet zwar nur in einer Rechnung und nie in der Datenbank, aber ein
+ * unbekannter Wert liefe sonst in den Vorgabezweig von `serienTermine` und
+ * legte still einen einzelnen Abend an, wo eine Serie erwartet wurde.
+ */
+export async function planEveningsAction(formData: FormData): Promise<void> {
+  const groupId = num(formData.get("groupId"));
+  const { db, viewer } = await guardGroup(groupId);
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    const rhythmusRoh = String(formData.get("rhythmus") ?? "");
+    if (!istRhythmus(rhythmusRoh)) throw new Error("Unbekannter Rhythmus");
+    const rhythmus: Rhythmus = rhythmusRoh;
+    const start = parseDate(formData.get("date"));
+    const bisRoh = String(formData.get("bis") ?? "").trim();
+    planEvenings(db, {
+      groupId,
+      dates: serienTermine(start, bisRoh === "" ? null : parseDate(bisRoh), rhythmus),
+      topic: strOrNull(formData.get("topic")),
+      now: new Date(),
+    });
+    revalidate();
+  });
+}
+
+/**
+ * FEEDBACK FÜR EINEN GEPLANTEN ABEND FREIGEBEN (DRK-426).
+ *
+ * Das Gegenstück zu `startFeedbackAction`: dort entsteht der Abend im selben
+ * Moment, hier steht er seit Wochen. Wie dort schließt der Schritt die laufende
+ * Umfrage der Gruppe — der QR-Code hängt an der Gruppe, es kann immer nur eine
+ * geben (Begründung bei `schliesseAktiveDerGruppe`, `_db/queries.ts`).
+ *
+ * Die Stundenzahl folgt derselben dreistufigen Vorrangregel wie überall
+ * (Umfrage → Gruppe → Vorgabe), obwohl ein geplanter Abend im Normalfall noch
+ * gar keine Umfrage trägt: die Ausnahme kostet eine Zeile und hält die Regel an
+ * allen vier Stellen gleich.
+ */
+export async function freigebenAction(formData: FormData): Promise<void> {
+  const eveningId = num(formData.get("eveningId"));
+  const { db, viewer } = await guardGroup(await groupIdOfEvening(eveningId));
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    const eve = getEvening(db, eveningId)!;
+    // DIESELBE PRÜFUNG DER AUSGANGSLAGE wie bei `absagenAction`, und aus einem
+    // handfesteren Grund: ohne sie ließe sich über ein nachgebautes Formular die
+    // Umfrage eines LÄNGST GELAUFENEN Abends wieder öffnen. Sie würde die
+    // aktuell laufende schließen, der QR-Code zeigte auf eine Erhebung von
+    // vorletztem Monat, und die Rückmeldungen des Abends landeten an einem
+    // Datum, an dem sie niemand sucht. Der Altbestands-Weg für einen Entwurf an
+    // einem gelaufenen Abend bleibt `activateSurveyAction` — der legt keine
+    // Umfrage an, sondern startet eine, die es schon gibt.
+    if (eve.status !== "planned") throw new Error("Nur geplante Abende freigeben");
+    /*
+     * ⚠️ UND NICHT VOR DEM TERMIN. Die Freigabe setzt den Abend auf `held`, und
+     * `held` heißt überall in diesem Modul „hat stattgefunden": das Cockpit
+     * zählt ihn als erfassten Dienstabend, die Einstiegsübersicht als „letzter
+     * Abend", die Excel-Mappe als Zeile der Auswertung. Ein Klick auf die
+     * falsche Zeile der Jahresplanung — und der Dezemberabend gilt im September
+     * als gelaufen, während die tatsächlich laufende Umfrage dabei geschlossen
+     * wird und der öffentliche QR-Code auf die Dezember-Erhebung zeigt. Die
+     * Rückmeldungen des heutigen Abends landeten dann unter einem Datum, an dem
+     * noch niemand da war.
+     *
+     * Verglichen wird der KALENDERTAG in `Europe/Berlin`, nicht der Zeitpunkt:
+     * freigegeben wird um 19:30 am Tag des Dienstes, und `evenings.date` trägt
+     * Mitternacht. Dieselbe Umrechnung wie überall (`kalendertagInZone`).
+     *
+     * Ein Abend, der FRÜHER stattfindet als geplant, ist kein Sonderfall dieser
+     * Regel, sondern ein verschobener Termin — das Datum ändert die
+     * Zeilenbearbeitung, und danach ist die Freigabe offen.
+     */
+    if (kalendertagInZone(eve.date) > kalendertagInZone(new Date())) {
+      throw new Error("Freigabe erst am Tag des Dienstabends");
+    }
+    const group = getGroup(db, eve.groupId)!;
+    const survey = getSurveyByEvening(db, eveningId);
+    const hours = survey?.closeAfterHours ?? group.closeAfterHours ?? DEFAULT_CLOSE_AFTER_HOURS;
+    releaseSurveyForEvening(db, { eveningId, closeAfterHours: hours, now: new Date() });
+    revalidate();
+  });
+}
+
+/**
+ * EINEN GEPLANTEN ABEND ABSAGEN — und die Rücknahme dazu.
+ *
+ * ZWEI ACTIONS STATT EINER MIT `status`-FELD, und das ist kein Stilpunkt: ein
+ * allgemeiner Statussetzer nähme aus einem manipulierten Formular auch `held`
+ * entgegen und erzeugte damit den einen Zustand, den es nicht geben darf — ein
+ * Abend, der als gelaufen gilt und keine Umfrage hat, ist von einem
+ * nachgetragenen nicht mehr zu unterscheiden. Freigeben ist deshalb
+ * ausschließlich `freigebenAction`, und die legt die Umfrage mit an.
+ *
+ * Beide prüfen die AUSGANGSLAGE. Ohne das machte ein zweiter Klick auf einen
+ * inzwischen freigegebenen Abend ihn wieder zum Termin — die laufende Umfrage
+ * bliebe stehen und hinge an einem Abend, der laut Liste erst noch kommt.
+ */
+export async function absagenAction(formData: FormData): Promise<void> {
+  const id = num(formData.get("eveningId"));
+  const { db, viewer } = await guardGroup(await groupIdOfEvening(id));
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    if (getEvening(db, id)!.status !== "planned") throw new Error("Nur geplante Abende absagen");
+    setEveningStatus(db, id, "cancelled");
+    revalidate();
+  });
+}
+export async function wiederAnsetzenAction(formData: FormData): Promise<void> {
+  const id = num(formData.get("eveningId"));
+  const { db, viewer } = await guardGroup(await groupIdOfEvening(id));
+  return withAuditContext({ actor: auditActor(viewer) }, async (): Promise<void> => {
+    if (getEvening(db, id)!.status !== "cancelled") throw new Error("Nur abgesagte Abende ansetzen");
+    setEveningStatus(db, id, "planned");
+    revalidate();
+  });
+}
+
 export async function deleteEveningAction(formData: FormData) {
   const id = num(formData.get("id"));
   const { db, viewer } = await guardGroup(await groupIdOfEvening(id));

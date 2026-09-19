@@ -451,6 +451,114 @@ describe("Abgrenzung C/D — D nur solange der Schluss frisch ist", () => {
 });
 
 /**
+ * D ÜBERLEBT EINEN VORAUSGEPLANTEN ABEND (DRK-426).
+ *
+ * ⚠️ DIE REGRESSION, DIE DIESEN BLOCK NÖTIG MACHT, WAR NICHT IN DIESER DATEI ZU
+ * SEHEN. Der Zustand hing an „der jüngste Abend der Gruppe, und dann dessen
+ * Umfrage" — solange eine Gruppe nur gelaufene Abende hatte, war das dasselbe
+ * wie „die jüngste Umfrage". Seit sie ihr Jahr im Voraus planen kann, ist der
+ * jüngste Abend einer in der ZUKUNFT; er trägt keine Umfrage, der ganze
+ * D-Zweig fiel aus, und die Seite antwortete mit C.
+ *
+ * Das ist die teuerste Stille dieser Route: die Person hat gerade acht Noten
+ * abgeschickt und liest „Zurzeit läuft keine Umfrage" — also genau die
+ * Auskunft, gegen die D gebaut ist. Kein Fehler, keine Meldung, nur eine
+ * Antwort über einen anderen Abend als den, den sie in der Hand hält.
+ *
+ * Geseedet wird deshalb DIESELBE Lage wie oben, nur mit einem zusätzlichen
+ * geplanten Abend — die Zusicherung ist damit genau die Regression und nichts
+ * sonst.
+ */
+describe("Abgrenzung C/D — ein vorausgeplanter Abend darf D nicht verdraengen", () => {
+  /** Der Abend, den die Gruppe fuer in zwei Wochen eingetragen hat: keine Umfrage. */
+  function planeVoraus(groupId: number, tageVoraus = 14) {
+    return insertEvening(db, {
+      groupId,
+      date: mitternachtUtc(-tageVoraus),
+      topic: "Kartenkunde im Herbst",
+      notes: null,
+      participantCount: null,
+      status: "planned",
+      createdAt: new Date(),
+    });
+  }
+
+  it("zeigt weiter den beendeten Bogen, obwohl ein geplanter Abend spaeter liegt", async () => {
+    const { token, group, survey } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 2,
+      hours: 9,
+      topic: "Funk-Übung: Sprechgruppen",
+    });
+    /*
+     * ⚠️ DER BOGEN MUSS GESCHLOSSEN IN DER ZEILE STEHEN, nicht nur abgelaufen.
+     * Steht er noch auf `active`, greift `activeSurveyForGroup` — die Seite
+     * antwortet dann aus dem Lazy-Auto-Close heraus und betritt
+     * `ohneAktiveUmfrage` GAR NICHT. Der Test waere gruen, ohne die Regression
+     * je zu beruehren: der Zustand, den er zu bewachen vorgibt, kaeme aus einem
+     * anderen Zweig. Geschlossen wird darum gestern um 09:00 — der Regelfall
+     * nach Fristende, und damit innerhalb des D-Fensters.
+     */
+    setSurveyStatus(db, survey.id, "closed", {
+      closedAt: new Date(mitternachtUtc(1).getTime() + 9 * 3600_000),
+    });
+    planeVoraus(group.id);
+
+    const gelesen = text(await seite(token));
+    expect(gelesen).toContain("Die Umfrage zu diesem Abend ist beendet.");
+    // Der richtige Zettel: das Thema des GELAUFENEN Abends, nicht das des
+    // geplanten — ein Test nur auf den D-Satz liesse auch die Verwechslung durch.
+    expect(gelesen).toContain("Funk-Übung: Sprechgruppen");
+    expect(gelesen).not.toContain("Kartenkunde im Herbst");
+    expect(gelesen).not.toContain("Zurzeit läuft keine Umfrage.");
+  });
+
+  it("beantwortet `?fehler=geschlossen` auch dann mit D — der Weg ohne JavaScript", async () => {
+    // Die Lage, in der die Regression am meisten kostet: der Bogen ist laengst
+    // um, jemand sendet ohne JavaScript ab, die Action weist ab und leitet
+    // hierher um. Ueber den alten Weg traf die Umleitung auf den geplanten
+    // Abend, C schlug zu, und der Zusatz „konnte nicht mehr gespeichert
+    // werden" — die einzige ehrliche Auskunft ueber die abgegebenen Noten —
+    // erschien gar nicht.
+    const { token, group, survey } = seedUmfrage({
+      slug: "bereitschaft",
+      secret: "abc12",
+      tageZurueck: 21,
+      hours: 9,
+      topic: "Funk-Übung: Sprechgruppen",
+    });
+    setSurveyStatus(db, survey.id, "closed", {
+      closedAt: new Date(mitternachtUtc(20).getTime() + 9 * 3600_000),
+    });
+    planeVoraus(group.id);
+
+    const gelesen = text(await seite(token, "geschlossen"));
+    expect(gelesen).toContain("Die Umfrage zu diesem Abend ist beendet.");
+    expect(gelesen).toContain("Deine Rückmeldung konnte nicht mehr gespeichert werden.");
+    expect(gelesen).toContain("Funk-Übung: Sprechgruppen");
+  });
+
+  /*
+   * Die Gegenprobe, ohne die der Block zu viel verspraeche: ein geplanter Abend
+   * macht aus C nicht D. Hat die Gruppe NIE erhoben, bleibt die ehrliche
+   * Auskunft „zurzeit laeuft keine Umfrage" — samt der Zusage, dass der Aushang
+   * gueltig bleibt.
+   */
+  it("zeigt C, wenn die Gruppe nur geplante Abende hat und nie erhoben wurde", async () => {
+    const group = seedGruppe("bereitschaft", "abc12");
+    planeVoraus(group.id);
+
+    const gelesen = text(await seite("bereitschaft-abc12"));
+    expect(gelesen).toContain("Zurzeit läuft keine Umfrage.");
+    expect(gelesen).toContain("Der QR-Code bleibt gültig");
+    // Und kein Wort ueber den geplanten Abend: er ist noch nicht freigegeben,
+    // ein genanntes Thema laese sich als „hier kannst du jetzt antworten".
+    expect(gelesen).not.toContain("Kartenkunde im Herbst");
+  });
+});
+
+/**
  * DIE FEHLERPFADE OHNE JAVASCRIPT (Entwurf 3.8).
  *
  * Ohne JavaScript ist die Abgabe ein nativer POST, und der Rueckgabewert der

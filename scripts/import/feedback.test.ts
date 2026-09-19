@@ -213,7 +213,13 @@ describe("toNew* Mapping", () => {
     });
   });
 
-  it("toNewEvening mappt id/groupId/date/topic/notes/participantCount/createdAt 1:1", () => {
+  it("toNewEvening mappt 1:1 — und setzt `status` AUSDRÜCKLICH auf `held`", () => {
+    // ⚠️ Der Vorgabewert der Spalte reicht hier nicht: der Import ist ein
+    // UPSERT, und was im Objekt fehlt, bleibt beim Wiederholungslauf
+    // unangetastet. Eine Abendkennung, die zwischenzeitlich `planned` oder
+    // `cancelled` geworden ist, behielte den Wert — und der Abend fiele still
+    // aus jeder Auswertung, die nur `held` zählt. Die Alt-Anwendung kennt
+    // keinen anderen Zustand; alle ihre Abende haben stattgefunden.
     const sourceDb = buildSourceDb();
     const source = readSource(sourceDb);
     sourceDb.close();
@@ -226,6 +232,7 @@ describe("toNew* Mapping", () => {
       topic: "Erste Hilfe",
       notes: "gut angenommen",
       participantCount: 12,
+      status: "held",
       createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
     });
 
@@ -239,6 +246,7 @@ describe("toNew* Mapping", () => {
       topic: null,
       notes: null,
       participantCount: null,
+      status: "held",
       createdAt: new Date(normalizeTimestamp("2026-04-09 07:24:28") * 1000),
     });
   });

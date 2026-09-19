@@ -62,6 +62,9 @@ function mkAbend(
     antworten?: number;
     teilnehmer?: number | null;
     activatedAt?: Date;
+    // Die Lage des ABENDS, nicht die seiner Umfrage — zwei getrennte Achsen
+    // (Kopf von `_db/schema.ts`). Vorgabe `held`, wie in der Datenbank.
+    abend?: "planned" | "held" | "cancelled";
   } = {},
 ) {
   const date = tag(datum);
@@ -71,6 +74,7 @@ function mkAbend(
     topic: `Thema ${datum}`,
     notes: null,
     participantCount: opts.teilnehmer ?? 20,
+    status: opts.abend ?? "held",
     createdAt: NOW,
   });
   if (!opts.status) return { evening, survey: null };
@@ -323,5 +327,128 @@ describe("cockpitZustand — Falten, Reihenfolge, Nebenlagen", () => {
 
     expect(z.belegung).toBe("A");
     expect(z.laufend).toBeNull();
+  });
+});
+
+/**
+ * DIE TRENNLINIE `gelaufen` (Entscheidung 5, DRK-426). Ein vorausgeplanter
+ * Abend ist ein Termin, kein Dienstabend: er hat nicht stattgefunden, trägt
+ * keine Erhebung und darf in keiner der Rückschau-Rechnungen mitzählen. Jede
+ * der vier Zusagen hier bricht still — die Seite rendert weiter, sie sagt nur
+ * etwas Falsches.
+ */
+describe("cockpitZustand — vorausgeplante Abende zaehlen nicht als Abend", () => {
+  it("ein geplanter Abend steht in `geplant`, aufsteigend, und NICHT im Verlauf", () => {
+    const g = mkGroup();
+    const gelaufen = mkAbend(g.id, "2026-07-15", { status: "closed", antworten: 3 });
+    // Einfuegereihenfolge bewusst verkehrt: der fernere Termin zuerst.
+    const spaet = mkAbend(g.id, "2026-09-02", { abend: "planned" });
+    const frueh = mkAbend(g.id, "2026-08-05", { abend: "planned" });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    // Die einzige Liste dieses Zustands, die nach VORN zeigt — der naechste
+    // Termin zuerst. In der Ordnung des Verlaufs (absteigend) stuende der
+    // fernste Termin oben, und „als naechstes" waere die letzte Zeile.
+    expect(z.geplant.map((x) => x.evening.id)).toEqual([frueh.evening.id, spaet.evening.id]);
+    // Der Verlauf ist die Historie („Noch keine VERGANGENEN Dienstabende") und
+    // sortiert absteigend: ein Termin im September stuende dort ganz oben im
+    // Rueckblick.
+    expect(z.verlauf.map((x) => x.evening.id)).toEqual([gelaufen.evening.id]);
+  });
+
+  it("ein geplanter Abend allein laesst modus `einrichtung` und Belegung A", () => {
+    // `modus`/`belegung` beantworten „hat diese Gruppe ueberhaupt schon einen
+    // Abend?". Ein einziger vorausgeplanter Termin holte die Gruppe sonst aus
+    // der Einrichtung heraus, und die Karte zeigte „NAECHSTER SCHRITT", obwohl
+    // nie Feedback erhoben wurde.
+    const g = mkGroup();
+    mkAbend(g.id, "2026-08-05", { abend: "planned" });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.modus).toBe("einrichtung");
+    expect(z.belegung).toBe("A");
+    expect(z.laufend).toBeNull();
+    expect(z.verlauf).toEqual([]);
+    expect(z.letzterAbend).toBeNull();
+    expect(z.geplant).toHaveLength(1);
+  });
+
+  it("letzteTeilnehmerzahl liest den geplanten Zukunftsabend nicht", () => {
+    const g = mkGroup();
+    mkAbend(g.id, "2026-07-20", { status: "closed", antworten: 1, teilnehmer: 17 });
+    // Der geplante Abend ist der JUENGSTE der Liste und traegt bewusst eine
+    // unterscheidbare Zahl: ohne die Trennlinie kaeme sie als Vorbelegung des
+    // Startformulars zurueck — eine Teilnehmerzahl aus der Zukunft.
+    mkAbend(g.id, "2026-09-02", { abend: "planned", teilnehmer: 99 });
+
+    expect(cockpitZustand(db, g.id, NOW).letzteTeilnehmerzahl).toBe(17);
+  });
+
+  it("ein abgesagter Abend bleibt im Verlauf", () => {
+    // Er ist der einzige Beleg dafuer, dass die Luecke im Notenverlauf kein
+    // Vergessen war: „am 5. August war kein Dienst" ist eine Auskunft, eine
+    // fehlende Zeile ist keine.
+    const g = mkGroup();
+    const abgesagt = mkAbend(g.id, "2026-08-05", { abend: "cancelled" });
+    const gelaufen = mkAbend(g.id, "2026-07-15", { status: "closed", antworten: 3 });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.verlauf.map((x) => x.evening.id)).toEqual([
+      abgesagt.evening.id,
+      gelaufen.evening.id,
+    ]);
+    expect(z.geplant).toEqual([]);
+  });
+
+  it("ein abgesagter Abend in der ZUKUNFT wird nicht zum letzten stattgefundenen", () => {
+    /*
+     * Der Fall, der die Einstiegsuebersicht still falsch gemacht hat: `verlauf`
+     * sortiert absteigend und enthaelt die Absage. Wer im September einen
+     * Termin im Dezember absagt, hebt ihn damit an die Spitze — die Karte
+     * meldete „letzter Abend 10.12." und sortierte die Gruppe nach einem Datum
+     * in der Zukunft. Fuer den Verlauf gehoert die Absage hinein, fuer diese
+     * Frage ist sie genau der Abend, der nicht war.
+     */
+    const g = mkGroup();
+    const abgesagt = mkAbend(g.id, "2026-12-10", { abend: "cancelled" });
+    const gelaufen = mkAbend(g.id, "2026-09-15", { status: "closed", antworten: 3 });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.letzterStattgefundener?.evening.id).toBe(gelaufen.evening.id);
+    expect(z.letzterStattgefundener?.evening.id).not.toBe(abgesagt.evening.id);
+    // Im Verlauf steht die Absage weiterhin ganz oben — beide Aussagen gelten
+    // nebeneinander, und genau deshalb sind es zwei Felder.
+    expect(z.verlauf[0]?.evening.id).toBe(abgesagt.evening.id);
+  });
+
+  it("nimmt als letzten stattgefundenen auch einen Abend OHNE Rueckmeldung", () => {
+    // Abgrenzung zu `letzterAbend`: der verlangt zusaetzlich einen
+    // geschlossenen Bogen mit mindestens einer Rueckmeldung, weil er eine NOTE
+    // traegt. Ein Abend, den niemand bewertet hat, hat trotzdem stattgefunden —
+    // sonst meldete die Uebersicht „noch kein Abend" fuer eine Gruppe, die sich
+    // seit Monaten trifft.
+    const g = mkGroup();
+    const ohneEcho = mkAbend(g.id, "2026-09-15", { status: "closed", antworten: 0 });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.letzterStattgefundener?.evening.id).toBe(ohneEcho.evening.id);
+    expect(z.letzterAbend).toBeNull();
+  });
+
+  it("ein abgesagter Abend ZAEHLT aber nicht als Abend — Einrichtung bleibt Einrichtung", () => {
+    // Die Historie und die Zaehlung sind zwei verschiedene Fragen. Fuer den
+    // Verlauf gehoert der abgesagte Abend hinein (Test darueber); fuer „hat
+    // diese Gruppe schon einen Dienstabend gehabt?" ist er genau der, der es
+    // nicht war. Sonst stuende eine Gruppe, deren einziger Termin ausfiel, auf
+    // „NAECHSTER SCHRITT", ohne je Feedback erhoben zu haben.
+    const g = mkGroup();
+    mkAbend(g.id, "2026-08-05", { abend: "cancelled", teilnehmer: 17 });
+    const z = cockpitZustand(db, g.id, NOW);
+
+    expect(z.modus).toBe("einrichtung");
+    expect(z.belegung).toBe("A");
+    // Und seine Teilnehmerzahl ist keine Vorbelegung: an einem abgesagten Abend
+    // war niemand.
+    expect(z.letzteTeilnehmerzahl).toBeNull();
   });
 });

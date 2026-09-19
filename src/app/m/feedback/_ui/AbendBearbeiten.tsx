@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Input, Modal } from "antd";
 import { SPACE } from "@/core/theme/tokens";
+import type { EveningStatus } from "../_lib/lifecycle";
 import { updateEveningAction } from "../actions";
 import { T } from "./typo";
 import { tagInZone } from "./datum";
@@ -45,14 +46,36 @@ export type AbendFelder = {
 
 const FELD = { display: "flex", flexDirection: "column", gap: SPACE.xs } as const;
 
+/**
+ * NUR EIN ABEND, DER STATTGEFUNDEN HAT, TRÄGT EINE TEILNEHMERZAHL (DRK-426).
+ *
+ * `lage` ist deshalb die Lebenslage des Abends und kein Schalter: die Regel
+ * betrifft ZWEI Zustände, und ein `geplant`-Boolean hat den zweiten prompt
+ * übersehen. Ein abgesagter Abend ist der Fall, an dem eine Anwesenheitszahl
+ * nicht nur geraten, sondern nachweislich falsch wäre — an ihm war niemand.
+ * Nach „Doch wieder ansetzen" und der Freigabe überlebt sie und wird zum
+ * Nenner der Rücklaufquote.
+ *
+ * ⚠️ `teilnehmer: null` REICHT DAFÜR NICHT — das Feld rendert und sendet
+ * unabhängig vom Wert, `null` macht es nur leer. „Nachtragbar, nie geraten"
+ * steht unter dem Feld; vor dem Abend ist jede Zahl dort geraten.
+ *
+ * Weggelassen statt gesperrt: `updateEveningAction` patcht nur, was
+ * mitgeschickt wurde, ein fehlendes Feld lässt den Wert also unberührt. Ein
+ * deaktiviertes Feld wäre ein sichtbares Versprechen auf später, das die Zeile
+ * nach der Freigabe ohnehin einlöst. ⚠️ Die Oberfläche ist dabei nur die
+ * Hälfte — den verbindlichen Riegel zieht `updateEveningAction` serverseitig.
+ */
 export function AbendBearbeiten({
   abend,
   offen,
   schliessen,
+  lage = "held",
 }: {
   abend: AbendFelder;
   offen: boolean;
   schliessen: () => void;
+  lage?: EveningStatus;
 }) {
   // Ueber `datum.ts`, nicht `toISOString()`: die Vorbelegung eines Datumsfelds
   // kippt damit nicht auf den Vortag (§4.5).
@@ -80,24 +103,28 @@ export function AbendBearbeiten({
           <span style={T.kicker}>Datum</span>
           <Input type="date" name="date" defaultValue={isoTag} required />
           <span style={T.meta}>
-            Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit.
+            {lage === "held"
+              ? "Ein anderes Datum verschiebt die Frist einer laufenden Umfrage mit."
+              : "Das Feedback gibst du weiterhin am Abend selbst frei."}
           </span>
         </label>
         <label style={FELD}>
           <span style={T.kicker}>Thema</span>
           <Input name="topic" defaultValue={abend.thema ?? ""} placeholder="z. B. Funkübung" />
         </label>
-        <label style={FELD}>
-          <span style={T.kicker}>Teilnehmerzahl</span>
-          <Input
-            type="number"
-            name="participantCount"
-            min={0}
-            defaultValue={abend.teilnehmer?.toString() ?? ""}
-            placeholder="optional"
-          />
-          <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
-        </label>
+        {lage === "held" && (
+          <label style={FELD}>
+            <span style={T.kicker}>Teilnehmerzahl</span>
+            <Input
+              type="number"
+              name="participantCount"
+              min={0}
+              defaultValue={abend.teilnehmer?.toString() ?? ""}
+              placeholder="optional"
+            />
+            <span style={T.meta}>Der Nenner der Rücklaufquote — nachtragbar, nie geraten.</span>
+          </label>
+        )}
         <label style={FELD}>
           <span style={T.kicker}>Notizen</span>
           <Input name="notes" defaultValue={abend.notizen ?? ""} placeholder="optional" />

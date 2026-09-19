@@ -13,18 +13,20 @@ import { DEFAULT_CLOSE_AFTER_HOURS } from "../../../_lib/lifecycle";
 import { buildToken } from "../../../_lib/token";
 import type { Question } from "../../../_lib/questions";
 import { T } from "../../../_ui/typo";
-import { formatDatumKurz, heuteInZone } from "../../../_ui/datum";
+import { formatDatumKurz, heuteInZone, tagInZone } from "../../../_ui/datum";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../../../_lib/noten";
 import { Notenpille } from "../../../_ui/Noten";
 import { Lagekarte } from "../../../_ui/Lagekarte";
 import { Teilnahme, teilnahmeUrlAus } from "../../../_ui/Teilnahme";
 import { Verlauf, type VerlaufZeile } from "../../../_ui/Verlauf";
+import { KommendeAbende } from "../../../_ui/KommendeAbende";
 import { EinstellungenPanel } from "../../../_ui/EinstellungenPanel";
 import type { ZuordnungPerson } from "../../../_ui/Zuordnung";
 import { getDirectory } from "@/core/directory";
 import { leitungAus } from "../../../_lib/personen";
 import { accessibleGroupFilter, isFeedbackAdmin } from "../../../_lib/access";
 import { einstiegZiel } from "../../../_lib/einstieg";
+import { thema } from "../../../_lib/thema";
 
 /**
  * DAS COCKPIT (Entwurf §2.1). Die einzige Arbeitsseite des Moduls.
@@ -106,7 +108,31 @@ export default async function Cockpit({
    * Arbeit, sondern die Chance, dass Kopfzeile und Tabelle verschiedene
    * Durchschnitte zeigen.
    */
-  const abendZahl = zustand.verlauf.length + (zustand.laufend ? 1 : 0);
+  /*
+   * ⚠️ ABGESAGTE ABENDE ZAEHLEN HIER NICHT MIT. „N Dienstabende erfasst" ist
+   * eine Aussage darueber, was stattgefunden hat; ein ausgefallener Dienst
+   * erhoehte die Zahl, ohne dass jemand da war. Im Verlauf steht er trotzdem —
+   * dort erklaert er die Luecke.
+   */
+  const gezaehlt = zustand.verlauf.filter((x) => x.evening.status !== "cancelled");
+  const abendZahl = gezaehlt.length + (zustand.laufend ? 1 : 0);
+
+  /*
+   * ⚠️ DER LÖSCHDIALOG BRAUCHT EINE ANDERE ZAHL ALS DIE KOPFZEILE, und der
+   * Unterschied ist genau die Menge, die seit DRK-426 dazukommt. `abendZahl`
+   * oben ist eine Aussage über die HISTORIE („12 Dienstabende, Ø 2,1") — ein
+   * Termin, der erst im Dezember ist, gehört dort nicht hinein. Der Dialog
+   * dagegen kündigt an, was der Kaskadenlöschung zum Opfer fällt, und das sind
+   * ALLE Zeilen der Gruppe.
+   *
+   * Ohne diese zweite Zahl warnte eine Gruppe mit zwölf geplanten und keinem
+   * gelaufenen Abend mit „Löscht 0 Dienstabende" — und löschte zwölf. Der
+   * Kommentar an `rueckmeldungenGesamt` sagt es für seine Zahl schon: eine
+   * behauptete Zahl ist in einem Dialog, der unwiderruflich löscht, die
+   * schlimmste Stelle für eine Schätzung.
+   */
+  const abendZahlGesamt =
+    zustand.verlauf.length + (zustand.laufend ? 1 : 0) + zustand.geplant.length;
 
   /*
    * DIE ZEILEN DES VERLAUFS (§2.5). Sie entstehen HIER und nicht in `Verlauf.tsx`:
@@ -137,13 +163,22 @@ export default async function Cockpit({
       avgSchulnote: stats?.avgSchulnote ?? null,
       hasLegacyScale: stats?.hasLegacyScale ?? false,
       entwurf: abend.effektiv === "draft",
+      // Ohne diese Marke waere ein abgesagter Abend von einem nachgetragenen
+      // nicht zu unterscheiden: beide haben keine Umfrage und keine Note.
+      abgesagt: abend.evening.status === "cancelled",
     };
   });
 
   // Die Kontextzeile liest DIESELBEN Zahlen wie die Zone — kein zweiter Durchlauf
   // durch `computeDAStats` und damit keine Chance, dass Kopfzeile und Tabelle
   // verschiedene Durchschnitte zeigen.
-  const letzteNoten = verlaufZeilen.slice(0, OE_FENSTER).map((z) => z.avgSchulnote);
+  // Dasselbe Fenster wie in der Zone (`_ui/Verlauf.tsx`, `bewertbar`), und aus
+  // demselben Grund: `fensterMittel` schneidet vor dem Filtern, eine Absage
+  // draengte sonst einen bewerteten Abend heraus.
+  const letzteNoten = verlaufZeilen
+    .filter((z) => !z.abgesagt)
+    .slice(0, OE_FENSTER)
+    .map((z) => z.avgSchulnote);
 
   /*
    * DIE ZAHLEN DES LOESCHDIALOGS (§4.6). Gerechnet aus DERSELBEN Liste, die die
@@ -252,12 +287,72 @@ export default async function Cockpit({
         </Row>
 
         {/*
-         * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld. In
-         * der Betriebsart „Einrichtung" entfällt sie VOLLSTÄNDIG: ein leeres Fach
-         * ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort die
-         * Schrittzeile.
+         * ZONE „KOMMENDE ABENDE" (DRK-426), volle Breite zwischen Lage und
+         * Historie — sie ist die einzige Liste der Seite, die nach vorn schaut.
+         *
+         * SIE ENTFAELLT NICHT IN DER BETRIEBSART „EINRICHTUNG", anders als der
+         * Verlauf direkt darunter. Der Grund ist derselbe, aus dem der Verlauf
+         * dort entfaellt (§4.3, „ein leeres Fach ist schlimmer als kein Fach"),
+         * nur mit umgekehrtem Ergebnis: eine Gruppe, die noch nie Feedback
+         * erhoben hat, KANN bereits ihr Jahr geplant haben — dann ist die Zone
+         * nicht leer, sondern das Einzige, was auf der Seite steht. Und ist sie
+         * doch leer, traegt sie den einen Satz, der erklaert, wozu sie da ist;
+         * ohne ihn gaebe es keinen Weg zur Planung.
          */}
-        {!einrichtung && (
+        <KommendeAbende
+          groupId={id}
+          abende={zustand.geplant.map((abend) => ({
+            eveningId: abend.evening.id,
+            datum: abend.evening.date,
+            thema: abend.evening.topic,
+            notizen: abend.evening.notes,
+          }))}
+          /*
+           * ALLE Tage der Gruppe, nicht nur die geplanten: die Vorschau im
+           * Dialog soll auch sagen „an dem Tag war schon ein Dienstabend".
+           * `tagInZone` und nicht `toISOString()` — sonst kippt der Vergleich
+           * zwischen 00:00 und 02:00 Ortszeit auf den Vortag (§4.5).
+           */
+          belegteTage={[...zustand.geplant, ...zustand.verlauf, ...(zustand.laufend ? [zustand.laufend] : [])].map(
+            (abend) => tagInZone(abend.evening.date),
+          )}
+          heute={heuteInZone(jetzt)}
+          laufendesThema={
+            zustand.laufend ? thema(zustand.laufend.evening.topic, "ohne Thema") : null
+          }
+        />
+
+        {/*
+         * ZONE d — VERLAUF (§2.1 Punkt 3), volle Breite unter dem Arbeitsfeld.
+         * Sie entfällt VOLLSTÄNDIG, solange sie nichts zu zeigen hat: ein leeres
+         * Fach ist schlimmer als kein Fach (§4.3), und die Lagekarte trägt dort
+         * die Schrittzeile.
+         *
+         * ⚠️ ZWEI BEDINGUNGEN, UND JEDE HAT IHREN EIGENEN FALL — eine allein
+         * war zweimal falsch, in beide Richtungen:
+         *
+         * • `!einrichtung` ALLEIN reichte nicht. Bis DRK-426 hieß „Einrichtung"
+         *   gleichbedeutend „gar kein Abend", also auch kein Verlaufseintrag.
+         *   Seit ein ABGESAGTER Abend in den Verlauf gehört, aber nicht als
+         *   stattgefunden zählt, laufen die beiden auseinander: eine Gruppe,
+         *   deren einziger geplanter Termin abgesagt wurde, steht in
+         *   „Einrichtung" UND hat eine Zeile. Die verschwand vom Bildschirm,
+         *   und mit ihr „Doch wieder ansetzen" — das einzige Mittel, die Absage
+         *   zurückzunehmen, während der Tag für die Planung belegt blieb.
+         *
+         * • DIE LEERE ALLEIN REICHT EBENSO WENIG, und das hat ein roter
+         *   e2e-Lauf gezeigt: die Zone ist nicht nur eine Tabelle. Ihre
+         *   Kopfzeile trägt „Trend", „Excel (alle Abende)" und „Abend ohne
+         *   Feedback nachtragen". Eine Gruppe mit GENAU EINEM Abend, dessen
+         *   Umfrage gerade läuft, hat einen leeren `verlauf` (der laufende
+         *   Abend ist dort ausgenommen) — und verlor damit alle drei Wege.
+         *   Das ist der Normalfall direkt nach dem ersten Start.
+         *
+         * Der gemeinsame Nenner bleibt §4.3 („ein leeres Fach ist schlimmer als
+         * kein Fach"): verborgen wird die Zone nur, solange die Gruppe NOCH
+         * NICHTS HAT — weder einen gelaufenen Abend noch eine Zeile.
+         */}
+        {(!einrichtung || verlaufZeilen.length > 0) && (
           <Verlauf groupId={id} zeilen={verlaufZeilen} heute={heuteInZone(jetzt)} />
         )}
 
@@ -277,7 +372,7 @@ export default async function Cockpit({
             istAdmin={istAdmin}
             leitung={leitung}
             verzeichnisAktiv={verzeichnis?.status === "ok"}
-            abende={abendZahl}
+            abende={abendZahlGesamt}
             rueckmeldungen={rueckmeldungenGesamt}
           />
         </div>

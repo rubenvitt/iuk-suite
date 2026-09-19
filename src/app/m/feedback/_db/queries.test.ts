@@ -9,12 +9,17 @@ import {
   insertGroup,
   insertEvening,
   listEvenings,
+  planEvenings,
+  setEveningStatus,
+  releaseSurveyForEvening,
   insertSurvey,
   activateSurvey,
   createAndStartSurvey,
   getSurvey,
+  getSurveyByEvening,
   getEvening,
   activeSurveyForGroup,
+  latestEveningForGroup,
   insertResponse,
   listResponses,
   upsertKnownUser,
@@ -23,7 +28,7 @@ import {
   listGroupMembers,
 } from "./queries";
 import { parseFachgruppen } from "@/core/auth/fachgruppen";
-import { computeClosesAt } from "@/app/m/feedback/_lib/lifecycle";
+import { computeClosesAt, type EveningStatus } from "@/app/m/feedback/_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
 type DB = ReturnType<typeof drizzle<typeof schema>>;
@@ -285,6 +290,301 @@ describe("listEvenings — Datum absteigend", () => {
   });
 });
 
+/**
+ * VORAUSGEPLANTE ABENDE (DRK-426). Jeder Fall hier ist einer, der still falsch
+ * wird: ein doppelt angelegter Dienstabend trägt zwei Auswertungen, die
+ * nachträglich nicht mehr zusammenzuführen sind, und ein ausgelassener Termin
+ * ist ohne `uebersprungen` ein Verlust, den niemand sieht.
+ */
+describe("planEvenings", () => {
+  const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const NOW = new Date("2026-09-01T18:00:00Z");
+  const plane = (groupId: number, isoTage: string[], topic: string | null = "Funkübung") =>
+    planEvenings(db, { groupId, dates: isoTage.map(tag), topic, now: NOW });
+
+  it("legt mehrere Abende als `planned` an — mit Thema, ohne Umfrage", () => {
+    const g = mkGroup();
+    const { angelegt, uebersprungen } = plane(g.id, ["2026-10-06", "2026-10-13", "2026-10-20"]);
+
+    expect(uebersprungen).toBe(0);
+    expect(angelegt.map((e) => e.date.toISOString().slice(0, 10))).toEqual([
+      "2026-10-06",
+      "2026-10-13",
+      "2026-10-20",
+    ]);
+    // `planned`, nicht `held`: an diesem Abend war noch kein Dienst. Stünde er
+    // auf `held`, wäre er von einem nachgetragenen Abend nicht zu unterscheiden.
+    expect(angelegt.every((e) => e.status === "planned")).toBe(true);
+    expect(angelegt.every((e) => e.topic === "Funkübung")).toBe(true);
+    // KEINE Umfrage: der gedruckte QR-Code der Gruppe gilt für einen geplanten
+    // Abend nicht, freigegeben wird am Abend selbst.
+    expect(angelegt.every((e) => getSurveyByEvening(db, e.id) === undefined)).toBe(true);
+    // Und keine Teilnehmerzahl: der Nenner ist erst am Abend bekannt.
+    expect(angelegt.every((e) => e.participantCount === null)).toBe(true);
+    expect(listEvenings(db, g.id)).toHaveLength(3);
+  });
+
+  /**
+   * Der Kern der Auslassregel: entscheidend ist, DASS an jenem Tag ein Abend
+   * steht, nicht in welcher Lage. Ein gelaufener Abend ist der stärkste Grund
+   * (dort wurde bereits Feedback erhoben), ein abgesagter der unscheinbarste —
+   * würde er überschrieben, verschwände die Auskunft „an dem Tag war kein
+   * Dienst" hinter einem neuen Termin.
+   */
+  it("überspringt ein belegtes Datum, gleich welchen Status der Abend dort trägt", () => {
+    const g = mkGroup();
+    const bestand = [
+      { iso: "2026-10-06", status: "held" as const },
+      { iso: "2026-10-13", status: "planned" as const },
+      { iso: "2026-10-20", status: "cancelled" as const },
+    ];
+    for (const b of bestand) {
+      insertEvening(db, { groupId: g.id, date: tag(b.iso), topic: "Bestand", notes: null, participantCount: null, status: b.status, createdAt: new Date(0) });
+    }
+
+    const { angelegt, uebersprungen } = plane(g.id, [
+      ...bestand.map((b) => b.iso),
+      "2026-10-27",
+    ]);
+
+    expect(uebersprungen).toBe(3);
+    expect(angelegt.map((e) => e.date.toISOString().slice(0, 10))).toEqual(["2026-10-27"]);
+    // Die drei bestehenden Abende bleiben, wie sie waren — überspringen heißt
+    // nicht anfassen.
+    expect(listEvenings(db, g.id).map((e) => e.status).sort()).toEqual([
+      "cancelled",
+      "held",
+      "planned",
+      "planned",
+    ]);
+    expect(listEvenings(db, g.id).filter((e) => e.topic === "Bestand")).toHaveLength(3);
+  });
+
+  it("überspringt auch einen Altbestands-Abend MIT Uhrzeit — verglichen wird der Kalendertag", () => {
+    // ⚠️ DAS IST DER FALL, DER DIE REGEL FAST GEKOSTET HÄTTE. `evenings.date`
+    // SOLL Mitternacht UTC tragen, aber der Import erzwingt das nicht: er reicht
+    // den Alt-Zeitstempel durch, und die Fixture in
+    // `scripts/import/feedback.test.ts` führt genau so einen Abend. Würde hier
+    // über `getTime()` verglichen, stünden nach der Planung zwei Abende an
+    // einem Tag — still, und nicht mehr zusammenzuführen.
+    const g = mkGroup();
+    insertEvening(db, {
+      groupId: g.id,
+      date: new Date("2026-04-16T07:24:31.000Z"),
+      topic: "Aus dem Import",
+      notes: null,
+      participantCount: null,
+      status: "held",
+      createdAt: new Date(0),
+    });
+
+    const { angelegt, uebersprungen } = plane(g.id, ["2026-04-16", "2026-04-23"]);
+
+    expect(uebersprungen).toBe(1);
+    expect(angelegt.map((e) => e.date.toISOString().slice(0, 10))).toEqual(["2026-04-23"]);
+    expect(listEvenings(db, g.id)).toHaveLength(2);
+  });
+
+  it("überspringt einen Abend aus der frühen NACHT — gerechnet wird der Berliner Tag, nicht der UTC-Tag", () => {
+    // ⚠️ DIE ZWEITE HÄLFTE DERSELBEN REGEL, und sie ist stiller als die erste:
+    // der Kalendertag allein genügt nicht, es muss der Kalendertag in
+    // `Europe/Berlin` sein. `2026-04-16 00:30 +0200` steht als
+    // `2026-04-15T22:30Z` in der Datenbank — in UTC der 15., auf jedem
+    // Bildschirm der Suite der 16. Rechnete die Entdopplung in UTC, träfe der
+    // geplante Termin für den 16. diesen Abend NICHT: zwei Abende an einem Tag,
+    // zwei Auswertungen, nachträglich nicht mehr zusammenzuführen — und die
+    // Oberfläche zeigte beide unter demselben Datum, ohne dass jemand die
+    // Ursache sähe. Der Test unterscheidet damit genau das, was
+    // `kalendertagInZone` (`_lib/lifecycle.ts`) von `toISOString().slice(0, 10)`
+    // trennt; die vorige Zusicherung hier wäre in BEIDEN Fassungen grün.
+    const g = mkGroup();
+    insertEvening(db, {
+      groupId: g.id,
+      date: new Date("2026-04-15T22:30:00.000Z"),
+      topic: "Aus dem Import, kurz nach Mitternacht",
+      notes: null,
+      participantCount: null,
+      status: "held",
+      createdAt: new Date(0),
+    });
+
+    const { angelegt, uebersprungen } = plane(g.id, ["2026-04-16", "2026-04-23"]);
+
+    expect(uebersprungen).toBe(1);
+    expect(angelegt.map((e) => e.date.toISOString().slice(0, 10))).toEqual(["2026-04-23"]);
+    // Zwei Zeilen, nicht drei: der 16. steht genau einmal in der Gruppe.
+    expect(listEvenings(db, g.id)).toHaveLength(2);
+  });
+
+  it("ein Abend desselben Tages in einer ANDEREN Gruppe hält nicht auf", () => {
+    // Die Belegung wird je Gruppe gerechnet. Ohne den Gruppenfilter plante die
+    // erste Bereitschaft, die einen Dienstag belegt, ihn für alle anderen weg.
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    insertEvening(db, { groupId: b.id, date: tag("2026-10-06"), topic: null, notes: null, participantCount: null, status: "planned", createdAt: new Date(0) });
+
+    const { angelegt, uebersprungen } = plane(a.id, ["2026-10-06"]);
+
+    expect(uebersprungen).toBe(0);
+    expect(angelegt).toHaveLength(1);
+    expect(angelegt[0].groupId).toBe(a.id);
+    expect(listEvenings(db, b.id)).toHaveLength(1);
+  });
+
+  it("ist idempotent: dieselbe Liste zweimal ergibt beim zweiten Mal 0 Abende", () => {
+    // Der Alltagsfall, nicht der Grenzfall: der Browser lädt nach dem Absenden
+    // neu, oder jemand plant im Februar dieselbe Jahresserie nach.
+    const g = mkGroup();
+    const isoTage = ["2026-10-06", "2026-10-13", "2026-10-20"];
+    plane(g.id, isoTage);
+
+    const zweiter = plane(g.id, isoTage);
+
+    expect(zweiter.angelegt).toEqual([]);
+    expect(zweiter.uebersprungen).toBe(3);
+    expect(listEvenings(db, g.id)).toHaveLength(3);
+  });
+});
+
+/**
+ * FREIGEBEN — der dritte Weg in „eine Umfrage läuft". Er ist der einzige, bei
+ * dem Abend und Klick Tage auseinanderliegen können, und deshalb der einzige,
+ * an dem sich ein Frist-Anker am Klickzeitpunkt nicht von selbst verrät.
+ */
+describe("releaseSurveyForEvening", () => {
+  const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const ABEND = tag("2026-10-06");
+  // 19:30 desselben Tages: so spät, wie eine Bereitschaft tatsächlich freigibt.
+  const NOW = new Date("2026-10-06T19:30:00Z");
+  const geplanterAbend = (groupId: number, date = ABEND) =>
+    insertEvening(db, { groupId, date, topic: "Kartenkunde", notes: null, participantCount: null, status: "planned", createdAt: new Date(0) });
+  const anzahlUmfragen = (eveningId: number): number =>
+    (
+      sqlite
+        .prepare("SELECT COUNT(*) AS c FROM surveys WHERE evening_id = ?")
+        .get(eveningId) as { c: number }
+    ).c;
+
+  it("legt eine aktive Umfrage an, setzt den Abend auf `held` und ankert die Frist am Abenddatum", () => {
+    const g = mkGroup();
+    const eve = geplanterAbend(g.id);
+
+    const survey = releaseSurveyForEvening(db, {
+      eveningId: eve.id,
+      closeAfterHours: 48,
+      now: NOW,
+    });
+
+    expect(survey.eveningId).toBe(eve.id);
+    expect(survey.status).toBe("active");
+    expect(survey.activatedAt).toEqual(NOW);
+    expect(survey.closedAt).toBeNull();
+    expect(JSON.parse(survey.questions)).toHaveLength(STANDARD_QUESTIONS.length);
+    // Die Frist kommt aus dem ABENDDATUM, nicht aus „jetzt". Bei einem vorab
+    // geplanten Abend ist das der ganze Punkt: freigegeben wird um 19:30,
+    // geschlossen wird nach dem Abend.
+    expect(survey.closesAt).toEqual(computeClosesAt(ABEND, 48));
+    expect(survey.closesAt!.getTime()).not.toBe(NOW.getTime() + 48 * 3600_000);
+    // Der Abend gilt jetzt als gelaufen — und er hat die Umfrage dazu. Beides
+    // in einer Transaktion, sonst wäre er von einem nachgetragenen Abend ohne
+    // Erhebung nicht mehr zu unterscheiden.
+    expect(getEvening(db, eve.id)!.status).toBe("held");
+    expect(countActive(g.id)).toBe(1);
+  });
+
+  it("schließt die laufende Umfrage DERSELBEN Gruppe und lässt eine fremde in Ruhe", () => {
+    // Der öffentliche Zugang hängt an der GRUPPE (`/f/{slug}-{secret}`): zwei
+    // aktive Umfragen derselben Gruppe machen den gedruckten QR-Code
+    // mehrdeutig. Über Gruppengrenzen hinweg gibt es diese Kopplung nicht.
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    const laufendA = createAndStartSurvey(db, { groupId: a.id, date: tag("2026-09-29"), topic: null, notes: null, participants: null, closeAfterHours: 240, now: new Date("2026-09-29T19:00:00Z") });
+    const laufendB = createAndStartSurvey(db, { groupId: b.id, date: tag("2026-09-30"), topic: null, notes: null, participants: null, closeAfterHours: 240, now: new Date("2026-09-30T19:00:00Z") });
+
+    releaseSurveyForEvening(db, { eveningId: geplanterAbend(a.id).id, closeAfterHours: 48, now: NOW });
+
+    const vorherA = getSurvey(db, laufendA.surveyId)!;
+    expect(vorherA.status).toBe("closed");
+    expect(vorherA.closedAt).toEqual(NOW);
+    expect(countActive(a.id)).toBe(1);
+    expect(getSurvey(db, laufendB.surveyId)!.status).toBe("active");
+    expect(getSurvey(db, laufendB.surveyId)!.closedAt).toBeNull();
+    expect(activeSurveyForGroup(db, b.id)!.survey.id).toBe(laufendB.surveyId);
+  });
+
+  it("aktiviert eine SCHON VORHANDENE Umfrage des Abends, statt eine zweite anzulegen", () => {
+    // `idx_surveys_evening` ist UNIQUE — ein blindes `insert` wäre kein
+    // Schönheitsfehler, sondern ein Laufzeitfehler mitten in der Freigabe. Der
+    // Fall entsteht bei einem Altbestands-Entwurf an einem von Hand auf
+    // `planned` gesetzten Abend.
+    const g = mkGroup();
+    const eve = geplanterAbend(g.id);
+    const entwurf = insertSurvey(db, { eveningId: eve.id, questions: "[]", closeAfterHours: 24, createdAt: new Date(0) });
+
+    const survey = releaseSurveyForEvening(db, {
+      eveningId: eve.id,
+      closeAfterHours: 24,
+      now: NOW,
+    });
+
+    expect(survey.id).toBe(entwurf.id);
+    expect(anzahlUmfragen(eve.id)).toBe(1);
+    expect(survey.status).toBe("active");
+    expect(survey.closesAt).toEqual(computeClosesAt(ABEND, 24));
+    expect(getEvening(db, eve.id)!.status).toBe("held");
+  });
+
+  it("eine zweite Freigabe desselben Abends beendet ihn nicht", () => {
+    // Doppelklick oder Neuladen: danach läuft die Umfrage weiter und trägt
+    // keinen Schlusszeitstempel. Geprüft ist das ERGEBNIS — dass die
+    // Geschwister-Schließung die eigene Umfrage ausnimmt (`ausser`), ist daran
+    // nicht abzulesen, weil das anschließende Update denselben Zustand
+    // schriebe; die Ausnahme spart den Umweg, sie ist hier nicht bewiesen.
+    const g = mkGroup();
+    const eve = geplanterAbend(g.id);
+    releaseSurveyForEvening(db, { eveningId: eve.id, closeAfterHours: 48, now: NOW });
+
+    const erneut = releaseSurveyForEvening(db, {
+      eveningId: eve.id,
+      closeAfterHours: 48,
+      now: new Date("2026-10-06T19:45:00Z"),
+    });
+
+    expect(erneut.status).toBe("active");
+    expect(erneut.closedAt).toBeNull();
+    expect(countActive(g.id)).toBe(1);
+  });
+});
+
+describe("setEveningStatus", () => {
+  it("setzt genau den einen Abend", () => {
+    // Ein Statussetzer, der breiter trifft als er soll, sagt eine ganze Serie
+    // ab — und das fällt erst auf, wenn jemand den Verlauf durchsieht.
+    const g = mkGroup();
+    const a = insertEvening(db, { groupId: g.id, date: new Date("2026-10-06T00:00:00Z"), topic: null, notes: null, participantCount: null, status: "planned", createdAt: new Date(0) });
+    const b = insertEvening(db, { groupId: g.id, date: new Date("2026-10-13T00:00:00Z"), topic: null, notes: null, participantCount: null, status: "planned", createdAt: new Date(0) });
+    const fremd = mkGroup("B", "b");
+    const c = insertEvening(db, { groupId: fremd.id, date: new Date("2026-10-06T00:00:00Z"), topic: null, notes: null, participantCount: null, status: "planned", createdAt: new Date(0) });
+
+    setEveningStatus(db, a.id, "cancelled");
+
+    expect(getEvening(db, a.id)!.status).toBe("cancelled");
+    expect(getEvening(db, b.id)!.status).toBe("planned");
+    expect(getEvening(db, c.id)!.status).toBe("planned");
+  });
+
+  it("setzt einen abgesagten Abend wieder auf `planned` zurück", () => {
+    // Die Rücknahme muss genauso funktionieren wie das Absagen — sonst bliebe
+    // eine versehentliche Absage stehen und der Termin müsste neu geplant
+    // werden, samt neuer Zeile im Verlauf.
+    const g = mkGroup();
+    const e = insertEvening(db, { groupId: g.id, date: new Date("2026-10-06T00:00:00Z"), topic: null, notes: null, participantCount: null, status: "planned", createdAt: new Date(0) });
+    setEveningStatus(db, e.id, "cancelled");
+    setEveningStatus(db, e.id, "planned");
+    expect(getEvening(db, e.id)!.status).toBe("planned");
+  });
+});
+
 describe("activateSurvey — max. 1 aktive pro Gruppe", () => {
   it("schließt andere aktive Umfragen derselben Gruppe", () => {
     const g = mkGroup();
@@ -421,6 +721,143 @@ describe("createAndStartSurvey", () => {
     expect(after.status).toBe("draft");
     expect(after.closedAt).toBeNull();
     expect(after.activatedAt).toBeNull();
+  });
+});
+
+/**
+ * DIE JÜNGSTE UMFRAGE EINER GRUPPE — die Abfrage hinter dem öffentlichen
+ * Zettel, wenn gerade nichts läuft (DRK-426).
+ *
+ * ⚠️ JEDER FALL HIER IST EINER, DER STILL DIE FALSCHE SEITE ZEIGT. Der Weg
+ * hieß früher „der jüngste Abend, und dann dessen Umfrage"; seit es
+ * vorausgeplante Abende gibt, ist der jüngste Abend einer planenden Gruppe
+ * einer in der ZUKUNFT und trägt keine Umfrage. Wer eben acht Noten auf einen
+ * gerade abgelaufenen Bogen abgeschickt hat, bekam dann „Zurzeit läuft keine
+ * Umfrage" statt des Bogens, den er in der Hand hielt — kein Fehler, keine
+ * Meldung, nur eine Auskunft über etwas anderes.
+ *
+ * Gefragt ist deshalb nicht „welchen Status hat der letzte Abend?", sondern
+ * „wo wurde zuletzt erhoben?". Die Fälle unten sind die beiden Abendlagen, die
+ * nie eine Umfrage tragen (geplant, abgesagt), plus die Gruppentrennung und der
+ * Leerfall.
+ */
+describe("latestEveningForGroup", () => {
+  const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const abend = (groupId: number, iso: string, status: EveningStatus = "held") =>
+    insertEvening(db, {
+      groupId,
+      date: tag(iso),
+      topic: iso,
+      notes: null,
+      participantCount: null,
+      status,
+      createdAt: new Date(0),
+    });
+  const umfrage = (eveningId: number) =>
+    insertSurvey(db, { eveningId, questions: "[]", closeAfterHours: null, createdAt: new Date(0) });
+
+  /*
+   * ⚠️ DIESE ABFRAGE BEANTWORTET „VON WELCHEM ABEND KOMMT DER SCANNER?" — nicht
+   * „wo wurde zuletzt erhoben?". Der Unterschied ist der ganze Punkt, und er
+   * hat mich einen roten e2e-Lauf gekostet:
+   *
+   * • Ein NACHGETRAGENER Abend ohne Umfrage SOLL gewinnen. Steht der nächste
+   *   Dienstabend schon im Kalender, ist „die Umfrage zu DIESEM Abend ist
+   *   beendet" die falsche Auskunft — der öffentliche Zettel gehört dann auf
+   *   Zustand C. Genau das prüft `e2e/feedback.spec.ts`, „zwischen zwei
+   *   Abenden dagegen Zustand C".
+   * • Ein VORAUSGEPLANTER Abend darf NICHT gewinnen, sonst kapert ein Termin im
+   *   Dezember den Zettel und wer eben abgesendet hat, sieht seinen Bogen nicht
+   *   mehr.
+   *
+   * Eine Fassung, die stattdessen die jüngste UMFRAGE suchte, heilte den
+   * zweiten Fall und nahm den ersten mit.
+   */
+  it("nimmt den jüngsten Abend, der STATTGEFUNDEN hat — ein geplanter gewinnt nicht", () => {
+    const g = mkGroup();
+    const gelaufen = abend(g.id, "2026-10-06");
+    umfrage(gelaufen.id);
+    abend(g.id, "2026-10-20", "planned");
+
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(gelaufen.id);
+  });
+
+  it("übergeht ebenso einen ABGESAGTEN Abend mit späterem Datum", () => {
+    // Von einem ausgefallenen Dienst scannt niemand — dieselbe Begründung wie
+    // beim geplanten, nur aus der anderen Richtung.
+    const g = mkGroup();
+    const gelaufen = abend(g.id, "2026-10-06");
+    umfrage(gelaufen.id);
+    abend(g.id, "2026-10-13", "cancelled");
+
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(gelaufen.id);
+  });
+
+  it("NIMMT einen nachgetragenen Abend OHNE Umfrage — der ist der dokumentierte Fall", () => {
+    // Die Gegenprobe zu den beiden darüber, und die teuerste: ohne sie wäre
+    // eine Abfrage grün, die einfach „den jüngsten Abend mit Umfrage" nimmt —
+    // und die nähme dem öffentlichen Zettel seinen Zustand C zwischen zwei
+    // Abenden.
+    const g = mkGroup();
+    umfrage(abend(g.id, "2026-10-06").id);
+    const nachgetragen = abend(g.id, "2026-10-13");
+
+    const treffer = latestEveningForGroup(db, g.id);
+
+    expect(treffer?.id).toBe(nachgetragen.id);
+    expect(getSurveyByEvening(db, treffer!.id)).toBeUndefined();
+  });
+
+  it("nimmt unter mehreren Abenden den jüngsten", () => {
+    // Ohne die Sortierung über `evenings.date` käme die zuerst eingefügte Zeile
+    // zurück, und der Zettel nennte ein Thema von vorletzter Woche.
+    const g = mkGroup();
+    const alt = abend(g.id, "2026-09-29");
+    const neu = abend(g.id, "2026-10-06");
+
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(neu.id);
+    expect(latestEveningForGroup(db, g.id)?.id).not.toBe(alt.id);
+  });
+
+  it("entscheidet bei ZWEI Abenden am selben Tag für die jüngere Zeile", () => {
+    // Der Gleichstand ist selten, aber herstellbar: `planEvenings` entdoppelt
+    // nur den Planungsweg, „Feedback starten" prüft den Tag gar nicht. Ohne ein
+    // zweites Sortierkriterium entschiede die Zeilenreihenfolge von SQLite,
+    // welchen der beiden Bögen der Teilnehmer sieht — stumm, und von Lauf zu
+    // Lauf verschieden.
+    const g = mkGroup();
+    const zuerst = abend(g.id, "2026-10-06");
+    const danach = abend(g.id, "2026-10-06");
+
+    expect(latestEveningForGroup(db, g.id)?.id).toBe(danach.id);
+    expect(latestEveningForGroup(db, g.id)?.id).not.toBe(zuerst.id);
+  });
+
+  it("trennt die Gruppen — ein fremder Abend mit späterem Datum zählt nicht", () => {
+    // Ohne den Gruppenfilter zeigte der öffentliche Zettel einer Bereitschaft
+    // das Thema einer anderen. Der Link ist login-frei, also wäre das eine
+    // Auskunft über eine fremde Gruppe an jeden, der scannt.
+    const a = mkGroup("A", "a");
+    const b = mkGroup("B", "b");
+    const eigene = abend(a.id, "2026-10-06");
+    abend(b.id, "2026-10-20");
+
+    expect(latestEveningForGroup(db, a.id)?.id).toBe(eigene.id);
+    expect(latestEveningForGroup(db, a.id)?.groupId).toBe(a.id);
+  });
+
+  it("liefert `undefined`, wenn die Gruppe NUR geplante Abende hat", () => {
+    // Der ehrliche Leerfall — und genau der, den die Seite als „zurzeit läuft
+    // keine Umfrage" anzeigen SOLL.
+    const g = mkGroup();
+    abend(g.id, "2026-10-06", "planned");
+    abend(g.id, "2026-10-13", "planned");
+
+    expect(latestEveningForGroup(db, g.id)).toBeUndefined();
+  });
+
+  it("liefert `undefined` für eine Gruppe ganz ohne Abende", () => {
+    expect(latestEveningForGroup(db, mkGroup().id)).toBeUndefined();
   });
 });
 

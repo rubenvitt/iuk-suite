@@ -179,6 +179,22 @@
     "kind": "context",
     "via": "updateEveningAction"
   },
+  "src/app/m/feedback/actions.ts#planEveningsAction": {
+    "kind": "context",
+    "via": "planEveningsAction"
+  },
+  "src/app/m/feedback/actions.ts#freigebenAction": {
+    "kind": "context",
+    "via": "freigebenAction"
+  },
+  "src/app/m/feedback/actions.ts#absagenAction": {
+    "kind": "context",
+    "via": "absagenAction"
+  },
+  "src/app/m/feedback/actions.ts#wiederAnsetzenAction": {
+    "kind": "context",
+    "via": "wiederAnsetzenAction"
+  },
   "src/app/m/feedback/actions.ts#deleteEveningAction": {
     "kind": "context",
     "via": "deleteEveningAction"

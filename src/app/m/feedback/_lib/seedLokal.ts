@@ -17,6 +17,7 @@ import { buildToken } from "@/app/m/feedback/_lib/token";
 import {
   computeClosesAt,
   DEFAULT_CLOSE_AFTER_HOURS,
+  type EveningStatus,
 } from "@/app/m/feedback/_lib/lifecycle";
 
 /**
@@ -134,6 +135,26 @@ interface Abendprofil {
   offen?: boolean;
 }
 
+/**
+ * Ein Abend OHNE Erhebung: vorausgeplant oder abgesagt. EIGENER TYP statt eines
+ * Flags an `Abendprofil` — dort hängt jedes Feld (Basisnoten, Antworten, Texte,
+ * Teilnehmerzahl) an einer Umfrage, die es hier gerade nicht gibt; ein optional
+ * gemachtes `Abendprofil` liesse sich auch mit Antworten und Status `planned`
+ * ausfüllen, und dieser Widerspruch fiele erst in der Oberfläche auf.
+ *
+ * `held` ist deshalb ausgeschlossen: ein gelaufener Abend entsteht oben, samt
+ * Umfrage. Ohne `Exclude` wäre "held" hier typkorrekt und ergäbe eine Zeile,
+ * die behauptet, an jenem Abend sei Dienst gewesen, ohne eine einzige
+ * Rückmeldung — die Rücklaufquote im Cockpit läse sich als 0 %.
+ */
+interface Terminprofil {
+  /** Tage AB heute. Negativ ist Vergangenheit — der abgesagte Abend. */
+  inTagen: number;
+  thema: string;
+  notizen: string | null;
+  status: Exclude<EveningStatus, "held">;
+}
+
 /** Mitternacht UTC von heute minus `tage` — reines Kalenderdatum wie im Schema. */
 function abendDatum(jetzt: Date, tage: number): Date {
   return new Date(
@@ -144,8 +165,14 @@ function abendDatum(jetzt: Date, tage: number): Date {
 function seedGruppe(
   db: BetterSQLite3Database<typeof schema>,
   jetzt: Date,
-  opts: { name: string; slug: string; secret: string; abende: Abendprofil[] },
-): { gruppe: GroupRow; antworten: number } {
+  opts: {
+    name: string;
+    slug: string;
+    secret: string;
+    abende: Abendprofil[];
+    termine?: Terminprofil[];
+  },
+): { gruppe: GroupRow; antworten: number; geplant: number } {
   const gruppe = insertGroup(db, {
     name: opts.name,
     slug: opts.slug,
@@ -206,7 +233,31 @@ function seedGruppe(
     antwortenGesamt += profil.antworten;
   }
 
-  return { gruppe, antworten: antwortenGesamt };
+  // Die Abende ohne Erhebung, NACH der Historie. Die Reihenfolge ist
+  // gleichgültig (`listEvenings` sortiert nach Datum), das Fehlen der Umfrage
+  // ist es nicht: ein geplanter Abend mit Umfrage wäre ein Widerspruch — die
+  // Erhebung entsteht erst bei der Freigabe (`releaseSurveyForEvening`).
+  let geplant = 0;
+  for (const termin of opts.termine ?? []) {
+    insertEvening(db, {
+      groupId: gruppe.id,
+      date: abendDatum(jetzt, -termin.inTagen),
+      topic: termin.thema,
+      notes: termin.notizen,
+      // Keine Teilnehmerzahl: die stammt aus der Anwesenheitsliste und gibt es
+      // vor dem Abend nicht. Eine vorab eingetragene Zahl wäre eine Schätzung,
+      // die im Cockpit wie eine Zählung aussähe.
+      participantCount: null,
+      status: termin.status,
+      // JETZT, nicht das Abenddatum: bei einem künftigen Termin läge `createdAt`
+      // sonst in der Zukunft, und die Zeile behauptete, sie sei nach dem
+      // Seed-Lauf entstanden.
+      createdAt: jetzt,
+    });
+    if (termin.status === "planned") geplant += 1;
+  }
+
+  return { gruppe, antworten: antwortenGesamt, geplant };
 }
 
 /**
@@ -292,10 +343,62 @@ const NORD_ABENDE: Abendprofil[] = [
 ];
 
 /**
+ * ANGESETZT, ABER NOCH NICHT GELAUFEN — ohne diese Termine steht die Zone der
+ * kommenden Abende lokal leer, und eine leere Zone ist von einer kaputten nicht
+ * zu unterscheiden. Erst mit ihnen sind Freigabe und Absage eines geplanten
+ * Abends lokal überhaupt erreichbar.
+ *
+ * BEWUSST ÜBER `insertEvening` STATT `planEvenings`: die Serienfunktion trägt
+ * EIN Thema für alle Termine und legt ausschliesslich `planned` an — hier hat
+ * jeder Abend sein eigenes Thema, und der abgesagte gehört in dieselbe
+ * Schleife. Die Serienrechnung selbst prüft `serie.test.ts` ohne Datenbank; sie
+ * hier nachzubilden bewiese nichts und bände den Seed an eine zweite Form.
+ */
+const NORD_TERMINE: Terminprofil[] = [
+  {
+    inTagen: 7,
+    thema: "Kartenkunde und Navigation",
+    notizen: null,
+    status: "planned",
+  },
+  {
+    inTagen: 21,
+    thema: "Technik im Einsatz: Stromerzeuger",
+    notizen: "Raum und Ausbilder stehen noch nicht fest.",
+    status: "planned",
+  },
+  {
+    inTagen: 35,
+    thema: "Jahresrückblick und Planung",
+    notizen: null,
+    status: "planned",
+  },
+  {
+    // ABGESAGT UND IN DER VERGANGENHEIT, zwischen zwei gelaufenen Abenden
+    // (105 und 70 Tage her). Der Fall, den die Historie zeigen muss, statt ihn
+    // zu löschen — die Begründung dafür steht bei `evenings` in `_db/schema.ts`.
+    // Am Rand der Liste wäre er der unauffälligste Platz; mitten im Verlauf
+    // sieht man, ob die Darstellung ihn von einem Abend ohne Rücklauf
+    // unterscheidet.
+    inTagen: -91,
+    thema: "Zusammenarbeit mit der Feuerwehr",
+    notizen: "Wegen Sturmwarnung abgesagt.",
+    status: "cancelled",
+  },
+];
+
+/**
  * Ausbildungsgruppe San-A: drei Abende, ALLE geschlossen. Damit gibt es lokal
  * auch eine Gruppe OHNE offene Umfrage — der Zustand, in dem das Cockpit
  * "Feedback starten" anbietet statt QR und Rücklauf. Der mittlere Abend ist ein
  * Ausreißer nach unten, damit die Trendlinie nicht bloß monoton fällt.
+ *
+ * ⚠️ UND SIE BEKOMMT ABSICHTLICH KEINE GEPLANTEN ABENDE (kein `termine` beim
+ * Aufruf von `seedGruppe`). „Noch nichts geplant" ist ein eigener Zustand der
+ * Oberfläche, und er ist der einzige, den man nicht sieht, wenn ihn keine
+ * Gruppe trägt. Wer hier Termine nachträgt, nimmt die einzige Gruppe weg, an
+ * der die leere Form lokal zu prüfen ist — dann braucht es vorher eine dritte
+ * Gruppe.
  */
 const AUSBILDUNG_ABENDE: Abendprofil[] = [
   {
@@ -358,17 +461,24 @@ export async function seedLokalFeedback(
   if (getGroupBySlug(db, NORD_SLUG)) {
     zeilen.push(`feedback: Gruppe ${NORD_NAME} (${NORD_SLUG}) war schon da — übersprungen.`);
   } else {
-    const { gruppe, antworten } = seedGruppe(db, jetzt, {
+    const { gruppe, antworten, geplant } = seedGruppe(db, jetzt, {
       name: NORD_NAME,
       slug: NORD_SLUG,
       secret: NORD_SECRET,
       abende: NORD_ABENDE,
+      termine: NORD_TERMINE,
     });
     insertUserGroup(db, NORD_DEV_USER_ID, gruppe.id);
+    // Die Tage ausgeschrieben, nicht nur die Anzahl: wer die Zone prüft, will
+    // wissen, ob ein Termin nah genug liegt, um ihn heute freizugeben.
+    const geplanteTage = NORD_TERMINE.filter((t) => t.status === "planned")
+      .map((t) => t.inTagen)
+      .join(", ");
     zeilen.push(
       `feedback: Gruppe ${NORD_NAME} (id ${gruppe.id}) angelegt — ${NORD_ABENDE.length} Abende über ${NORD_ABENDE[0].vorTagen} Tage, ${antworten} Antworten, jüngster Abend OFFEN.`,
       `feedback: offener Bogen — http://feedback.localtest.me:3000/f/${buildToken(NORD_SLUG, NORD_SECRET)}`,
       `feedback: Cockpit — http://feedback.localtest.me:3000/groups/${gruppe.id} · Trend — /groups/${gruppe.id}/trend`,
+      `feedback: ${geplant} vorausgeplante Abende (in ${geplanteTage} Tagen) unter „Kommende Abende" und ein abgesagter Abend im Verlauf — ${AUSBILDUNG_NAME} hat bewusst keine.`,
     );
   }
 

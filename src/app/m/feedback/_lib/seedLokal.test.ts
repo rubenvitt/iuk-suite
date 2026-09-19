@@ -36,12 +36,20 @@ beforeEach(() => {
 });
 afterEach(() => sqlite.close());
 
-/** Alle Antworten einer Gruppe, nach Abend (neuester zuerst, wie listEvenings). */
+/**
+ * Alle Antworten einer Gruppe, nach Abend (neuester zuerst, wie listEvenings).
+ *
+ * NUR die GELAUFENEN Abende: seit der Seed auch vorausgeplante und abgesagte
+ * anlegt, hat nicht mehr jeder Abend eine Umfrage. Das `!` darunter risse sonst
+ * in jedem Test, der eigentlich etwas ganz anderes prüft.
+ */
 function abendeMitAntworten(groupId: number) {
-  return listEvenings(db, groupId).map((abend) => {
-    const umfrage = getSurveyByEvening(db, abend.id)!;
-    return { abend, umfrage, antworten: listResponses(db, umfrage.id) };
-  });
+  return listEvenings(db, groupId)
+    .filter((abend) => abend.status === "held")
+    .map((abend) => {
+      const umfrage = getSurveyByEvening(db, abend.id)!;
+      return { abend, umfrage, antworten: listResponses(db, umfrage.id) };
+    });
 }
 
 describe("seedLokalFeedback", () => {
@@ -62,9 +70,11 @@ describe("seedLokalFeedback", () => {
     // Nicht nur die Gruppenzahl: ein Gate nur auf `groups` ließe Abende und
     // Antworten beim zweiten Lauf still ein zweites Mal entstehen.
     expect(antwortenNachher).toEqual(antwortenVorher);
+    // Acht gelaufene Abende plus die vier ohne Erhebung (drei geplante, ein
+    // abgesagter) — ein zweiter Lauf legt keinen davon noch einmal an.
     expect(
       listGroups(db).flatMap((g) => listEvenings(db, g.id)).length,
-    ).toBe(8);
+    ).toBe(12);
   });
 
   it("ergänzt den Boot-Seed, ohne dessen Gruppen oder Zuordnung zu berühren", async () => {
@@ -103,8 +113,10 @@ describe("seedLokalFeedback", () => {
 
     const offen = activeSurveyForGroup(db, nord.id);
     expect(offen).toBeTruthy();
-    // Der offene Bogen gehört zum JÜNGSTEN Abend der Gruppe.
-    expect(offen!.evening.id).toBe(listEvenings(db, nord.id)[0].id);
+    // Der offene Bogen gehört zum jüngsten GELAUFENEN Abend — nicht zum ersten
+    // aus `listEvenings`: das sortiert absteigend nach Datum, und seit es
+    // vorausgeplante Termine gibt, stehen die künftigen Abende davor.
+    expect(offen!.evening.id).toBe(abendeMitAntworten(nord.id)[0].abend.id);
 
     // Die Ausbildungsgruppe hat bewusst KEINE offene Umfrage — der Zustand, in
     // dem das Cockpit "Feedback starten" anbietet.
@@ -212,6 +224,48 @@ describe("seedLokalFeedback", () => {
       (juengster.abend.date.getTime() - aeltester.abend.date.getTime()) / 86_400_000;
     expect(tage).toBeGreaterThanOrEqual(120);
     expect(tage).toBeLessThanOrEqual(180);
+  });
+
+  /**
+   * Der Grund, warum es diese Termine gibt: ohne sie steht die Zone der
+   * kommenden Abende lokal leer, und eine leere Zone ist von einer kaputten
+   * nicht zu unterscheiden. Geprüft wird beides — dass „Bereitschaft Nord" sie
+   * trägt UND dass „Ausbildungsgruppe San-A" sie NICHT trägt: „noch nichts
+   * geplant" ist ein eigener Zustand der Oberfläche, den sonst keine Gruppe
+   * zeigt.
+   */
+  it("plant bei „Bereitschaft Nord“ Abende voraus — und führt einen abgesagten", async () => {
+    await seedLokalFeedback(db);
+    const nord = getGroupBySlug(db, NORD_SLUG)!;
+    const jetzt = Date.now();
+    const abende = listEvenings(db, nord.id);
+
+    const geplant = abende.filter((a) => a.status === "planned");
+    expect(geplant.length).toBeGreaterThanOrEqual(3);
+    for (const abend of geplant) {
+      // In der ZUKUNFT. Ein geplanter Abend, dessen Datum vorbei ist, ist der
+      // Sonderfall, der auf eine Entscheidung wartet (`lifecycle.ts`,
+      // `EveningStatus`) — als Seed-Normalfall wäre er irreführend.
+      expect(abend.date.getTime()).toBeGreaterThan(jetzt);
+      expect(abend.topic).toBeTruthy();
+      // Weder Erhebung noch Teilnehmerzahl: beides entsteht erst bei der
+      // Freigabe. Eine Umfrage an einem geplanten Abend wäre ein Bogen, den
+      // niemand freigegeben hat.
+      expect(getSurveyByEvening(db, abend.id)).toBeUndefined();
+      expect(abend.participantCount).toBeNull();
+    }
+
+    const abgesagt = abende.filter((a) => a.status === "cancelled");
+    expect(abgesagt).toHaveLength(1);
+    expect(abgesagt[0].date.getTime()).toBeLessThan(jetzt);
+    expect(getSurveyByEvening(db, abgesagt[0].id)).toBeUndefined();
+
+    const ausbildung = getGroupBySlug(db, AUSBILDUNG_SLUG)!;
+    expect(listEvenings(db, ausbildung.id).map((a) => a.status)).toEqual([
+      "held",
+      "held",
+      "held",
+    ]);
   });
 
   /**

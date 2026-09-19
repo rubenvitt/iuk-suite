@@ -41,6 +41,7 @@ import ortscodes from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09
 import artikeletiketten from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-artikeletiketten";
 import qrReichweite from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-qr-reichweite";
 import inventurTelefon from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-18-inventur-telefon";
+import dienstabendePlanen from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-dienstabende-planen";
 import checksLaufend from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-19-checks-laufend";
 import chargeWaehlen from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-charge-waehlen";
 import menueFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/lagerbuch/2026-09-17-menue-filtern";
@@ -124,6 +125,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   artikeletiketten,
   checksLaufend,
   inventurTelefon,
+  dienstabendePlanen,
   qrReichweite,
   chargeWaehlen,
   menueFiltern,

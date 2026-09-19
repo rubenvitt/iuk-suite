@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import {
@@ -13,7 +13,12 @@ import {
   type SurveyRow,
   type ResponseRow,
 } from "./schema";
-import { computeClosesAt, type SurveyStatus } from "@/app/m/feedback/_lib/lifecycle";
+import {
+  computeClosesAt,
+  kalendertagInZone,
+  type EveningStatus,
+  type SurveyStatus,
+} from "@/app/m/feedback/_lib/lifecycle";
 import { STANDARD_QUESTIONS } from "@/app/m/feedback/_lib/questions";
 
 type DB = BetterSQLite3Database<typeof schema>;
@@ -172,15 +177,108 @@ export function getEvening(db: DB, id: number): EveningRow | undefined {
 }
 export function insertEvening(
   db: DB,
-  v: { groupId: number; date: Date; topic: string | null; notes: string | null; participantCount: number | null; createdAt: Date },
+  v: { groupId: number; date: Date; topic: string | null; notes: string | null; participantCount: number | null; createdAt: Date; status?: EveningStatus },
 ): EveningRow {
   return db.insert(evenings).values(v).returning().get();
+}
+export function setEveningStatus(db: DB, id: number, status: EveningStatus): void {
+  db.update(evenings).set({ status }).where(eq(evenings.id, id)).run();
+}
+
+/**
+ * EINE SERIE IN EINER TRANSAKTION — und sie überspringt, was schon dasteht.
+ *
+ * Die Termine rechnet `_lib/serie.ts` aus; hier kommt die fertige Liste an. Zwei
+ * Dinge entscheidet diese Funktion, und beide nur hier:
+ *
+ * 1. **Ein Datum, an dem die Gruppe schon einen Abend hat, wird ausgelassen.**
+ *    Eine Jahresplanung wird zweimal abgeschickt (der Browser lädt neu, jemand
+ *    plant im Februar nach) — ohne diese Regel stünde jeder Abend doppelt im
+ *    Verlauf, und zwei Auswertungen desselben Dienstabends sind nicht wieder
+ *    zusammenzuführen. Übersprungen wird auch ein bereits GELAUFENER Abend:
+ *    dass an jenem Tag schon Feedback erhoben wurde, ist der stärkere Befund.
+ *
+ *    ⚠️ VERGLICHEN WIRD DER KALENDERTAG IN `Europe/Berlin`, nicht der
+ *    Zeitstempel und nicht der UTC-Tag — beides gemessen, nicht
+ *    vorsichtshalber. `evenings.date` SOLL Mitternacht UTC tragen, aber der
+ *    IMPORT erzwingt das nicht: `toNewEvening` (`scripts/import/feedback.ts`)
+ *    reicht den Alt-Zeitstempel durch, und die Fixture in
+ *    `scripts/import/feedback.test.ts` führt so einen Abend
+ *    (`2026-04-16 09:24:31`). Mit `getTime()` verglichen, hätte ein geplanter
+ *    Termin desselben Tages ihn nicht getroffen. Und mit dem UTC-Tag
+ *    verglichen, fiele ein Abend aus der frühen Nacht auseinander:
+ *    `2026-04-16 00:30 +0200` steht als `2026-04-15T22:30Z` in der Datenbank —
+ *    in UTC der 15., auf jedem Bildschirm der Suite der 16. Die Entdopplung
+ *    liefe dann gegen einen Tag, den niemand sieht. `kalendertagInZone`
+ *    (`_lib/lifecycle.ts`) ist dieselbe Umrechnung, die auch die Vorschau im
+ *    Planungsdialog benutzt.
+ * 2. **Alles oder nichts.** Eine halb angelegte Serie wäre schlimmer als keine —
+ *    niemand sieht einer Liste an, wo sie abgebrochen ist.
+ *
+ * `uebersprungen` kommt zurück, damit ein Aufrufer die Auslassung ÜBERHAUPT
+ * bemerken kann — heute liest es der Test, der sie festhält. Die OBERFLÄCHE
+ * braucht es nicht: sie rechnet dieselbe Liste vor dem Absenden mit
+ * `serienTermine` aus und zeigt die belegten Tage dort an (`_ui/KommendeAbende.tsx`,
+ * `PlanenDialog`). Eine Meldung hinterher wäre die schlechtere Auskunft.
+ */
+export function planEvenings(
+  db: DB,
+  input: { groupId: number; dates: Date[]; topic: string | null; now: Date },
+): { angelegt: EveningRow[]; uebersprungen: number } {
+  return db.transaction((tx) => {
+    const belegt = new Set(
+      tx
+        .select({ date: evenings.date })
+        .from(evenings)
+        .where(eq(evenings.groupId, input.groupId))
+        .all()
+        .map((r) => kalendertagInZone(r.date)),
+    );
+    const angelegt: EveningRow[] = [];
+    let uebersprungen = 0;
+    for (const date of input.dates) {
+      const tag = kalendertagInZone(date);
+      if (belegt.has(tag)) {
+        uebersprungen += 1;
+        continue;
+      }
+      // Innerhalb EINES Aufrufs doppelte Termine zählen ebenso: `serienTermine`
+      // liefert keine, aber diese Funktion verlässt sich nicht darauf.
+      belegt.add(tag);
+      angelegt.push(
+        tx
+          .insert(evenings)
+          .values({
+            groupId: input.groupId,
+            date,
+            topic: input.topic,
+            notes: null,
+            participantCount: null,
+            status: "planned",
+            createdAt: input.now,
+          })
+          .returning()
+          .get(),
+      );
+    }
+    return { angelegt, uebersprungen };
+  });
 }
 export function updateEvening(
   db: DB,
   id: number,
-  patch: Partial<{ date: Date; topic: string | null; notes: string | null; participantCount: number | null }>,
+  patch: Partial<{ date: Date; topic: string | null; notes: string | null; participantCount: number | null; status: EveningStatus }>,
 ): void {
+  /*
+   * ⚠️ EIN LEERER PATCH IST EIN NICHTSTUN, KEIN FEHLER — und ohne diesen
+   * Ausstieg ein HTTP 500. Drizzle wirft bei `set({})` „No values to set", und
+   * der Fall ist seit dem Teilnehmerzahl-Riegel erreichbar: schickt ein
+   * Formular AUSSCHLIESSLICH `participantCount` und ist der Abend nicht
+   * `held`, verwirft `updateEveningAction` das einzige Feld und übergibt ein
+   * leeres Objekt. Gefunden von der Zusicherung zum abgesagten Abend, nicht im
+   * Betrieb — im Betrieb hätte es eine Fehlerseite gegeben.
+   */
+  if (Object.keys(patch).length === 0) return;
   db.update(evenings).set(patch).where(eq(evenings.id, id)).run();
 }
 export function deleteEvening(db: DB, id: number): void {
@@ -209,9 +307,55 @@ export function setSurveyStatus(
 }
 
 /**
+ * DIE INVARIANTE „HÖCHSTENS EINE AKTIVE UMFRAGE JE GRUPPE" — an EINER Stelle.
+ *
+ * Sie ist nicht verhandelbar, und der Grund steht nicht in der Datenbank,
+ * sondern auf dem Papier: der öffentliche Zugang hängt an der GRUPPE
+ * (`/f/{slug}-{secret}`), nicht am Abend. `activeSurveyForGroup` löst ihn per
+ * `.get()` auf — bei zwei aktiven Umfragen liefert das stumm eine beliebige,
+ * und der gedruckte QR-Code im Gerätehaus zeigte auf die falsche Erhebung.
+ *
+ * ⚠️ EIN DATENBANKSEITIGER RIEGEL IST NICHT MÖGLICH: `surveys` trägt kein
+ * `group_id`, der Gruppenbezug hängt an `evenings`. Die Invariante lebt deshalb
+ * in Code — und damit in GENAU DIESER Funktion. Vorher stand ihr Rezept in zwei
+ * Fassungen nebeneinander (einmal als Schleife, einmal als `inArray`), und die
+ * dritte Aufrufstelle („einen geplanten Abend freigeben") hätte eine vierte
+ * daraus gemacht. Wer sie nachbaut, hat sie zweimal — und die zweite ist die
+ * ungetestete.
+ *
+ * `ausser` nimmt die Umfrage aus, die gerade aktiv WERDEN soll; beim Anlegen
+ * einer neuen gibt es sie noch nicht, dort steht `null`.
+ */
+function schliesseAktiveDerGruppe(
+  tx: DB,
+  groupId: number,
+  now: Date,
+  ausser: number | null,
+): void {
+  const groupEveningIds = tx
+    .select({ id: evenings.id })
+    .from(evenings)
+    .where(eq(evenings.groupId, groupId))
+    .all()
+    .map((r) => r.id);
+  // Ohne diesen Ausstieg liefe ein leeres `IN ()` in die Abfrage.
+  if (groupEveningIds.length === 0) return;
+  tx.update(surveys)
+    .set({ status: "closed", closedAt: now })
+    .where(
+      and(
+        eq(surveys.status, "active"),
+        inArray(surveys.eveningId, groupEveningIds),
+        ...(ausser === null ? [] : [ne(surveys.id, ausser)]),
+      ),
+    )
+    .run();
+}
+
+/**
  * Aktiviert eine Umfrage und schließt in derselben Transaktion alle anderen
  * aktiven Umfragen derselben Gruppe (Invariante „max. 1 aktiv pro Gruppe",
- * store.go:99-108). Gruppenbezug via evening.group_id.
+ * store.go:99-108 der Alt-Anwendung). Gruppenbezug via evening.group_id.
  */
 export function activateSurvey(db: DB, surveyId: number, closesAt: Date, now: Date): void {
   db.transaction((tx) => {
@@ -219,19 +363,7 @@ export function activateSurvey(db: DB, surveyId: number, closesAt: Date, now: Da
     if (!target) throw new Error("survey not found");
     const eve = tx.select().from(evenings).where(eq(evenings.id, target.eveningId)).get();
     if (!eve) throw new Error("evening not found");
-    // Andere aktive Umfragen derselben Gruppe schließen.
-    const sameGroupEvenings = tx
-      .select({ id: evenings.id })
-      .from(evenings)
-      .where(eq(evenings.groupId, eve.groupId))
-      .all()
-      .map((r) => r.id);
-    for (const eid of sameGroupEvenings) {
-      const s = tx.select().from(surveys).where(eq(surveys.eveningId, eid)).get();
-      if (s && s.id !== surveyId && s.status === "active") {
-        tx.update(surveys).set({ status: "closed", closedAt: now }).where(eq(surveys.id, s.id)).run();
-      }
-    }
+    schliesseAktiveDerGruppe(tx, eve.groupId, now, surveyId);
     tx.update(surveys)
       .set({ status: "active", activatedAt: now, closesAt, closedAt: null })
       .where(eq(surveys.id, surveyId))
@@ -240,12 +372,71 @@ export function activateSurvey(db: DB, surveyId: number, closesAt: Date, now: Da
 }
 
 /**
+ * EINEN GEPLANTEN ABEND FREIGEBEN — der dritte Weg in denselben Zustand.
+ *
+ * Er unterscheidet sich von `createAndStartSurvey` nur darin, dass der Abend
+ * schon dasteht, und von `activateSurvey` darin, dass die Umfrage noch nicht
+ * existiert. Beides wird hier erledigt, und zwar in EINER Transaktion: ein
+ * Abend, der auf `held` steht, aber keine Umfrage bekommen hat, wäre von einem
+ * nachgetragenen Abend nicht mehr zu unterscheiden.
+ *
+ * Die Frist ankert am ABENDDATUM (`computeClosesAt`), nicht am Klick — genau
+ * wie überall sonst. Bei einem vorab geplanten Abend ist das der ganze Punkt:
+ * freigegeben wird um 19:30, geschlossen wird nach dem Abend.
+ *
+ * Trägt der Abend wider Erwarten schon eine Umfrage (Altbestands-Entwurf an
+ * einem von Hand auf `planned` gesetzten Abend), wird SIE aktiviert statt einer
+ * zweiten — `idx_surveys_evening` ist UNIQUE, ein blindes `insert` wäre ein
+ * Laufzeitfehler mitten in der Freigabe.
+ */
+export function releaseSurveyForEvening(
+  db: DB,
+  input: { eveningId: number; closeAfterHours: number; now: Date },
+): SurveyRow {
+  return db.transaction((tx) => {
+    const eve = tx.select().from(evenings).where(eq(evenings.id, input.eveningId)).get();
+    if (!eve) throw new Error("evening not found");
+    const vorhanden = tx.select().from(surveys).where(eq(surveys.eveningId, eve.id)).get();
+    const closesAt = computeClosesAt(eve.date, input.closeAfterHours);
+
+    // Reihenfolge wie in `createAndStartSurvey`: erst die Geschwister schließen.
+    schliesseAktiveDerGruppe(tx, eve.groupId, input.now, vorhanden?.id ?? null);
+
+    const survey = vorhanden
+      ? tx
+          .update(surveys)
+          .set({ status: "active", activatedAt: input.now, closesAt, closedAt: null })
+          .where(eq(surveys.id, vorhanden.id))
+          .returning()
+          .get()
+      : tx
+          .insert(surveys)
+          .values({
+            eveningId: eve.id,
+            status: "active",
+            questions: JSON.stringify(STANDARD_QUESTIONS),
+            closeAfterHours: input.closeAfterHours,
+            activatedAt: input.now,
+            closesAt,
+            closedAt: null,
+            createdAt: input.now,
+          })
+          .returning()
+          .get();
+
+    tx.update(evenings).set({ status: "held" }).where(eq(evenings.id, eve.id)).run();
+    return survey;
+  });
+}
+
+/**
  * Anlegen IST Starten: Abend und aktive Umfrage entstehen in EINER Transaktion.
- * Schließt dabei alle aktiven Umfragen derselben Gruppe (Invariante „max. 1 aktiv
- * pro Gruppe"). Ein DB-seitiger Riegel ist nicht möglich, weil `surveys` kein
- * group_id trägt — der Gruppenbezug hängt an `evenings`. Bei zwei aktiven
- * Umfragen liefert `activeSurveyForGroup` per `.get()` stumm eine beliebige,
- * der gedruckte QR-Code zeigte dann auf die falsche Erhebung.
+ * Schließt dabei alle aktiven Umfragen derselben Gruppe — die Invariante und
+ * ihre Begründung stehen bei `schliesseAktiveDerGruppe`, nicht hier und nicht
+ * ein zweites Mal.
+ *
+ * Der Abend entsteht auf `held`: „Feedback starten" heißt, dass der Dienstabend
+ * JETZT läuft. Ein im Voraus angesetzter Abend kommt über `planEvenings`.
  */
 export function createAndStartSurvey(
   db: DB,
@@ -268,6 +459,7 @@ export function createAndStartSurvey(
         topic: input.topic,
         notes: input.notes,
         participantCount: input.participants,
+        status: "held",
         createdAt: input.now,
       })
       .returning()
@@ -275,16 +467,7 @@ export function createAndStartSurvey(
     // Reihenfolge ist tragend: erst die Geschwister schließen, dann die neue
     // Umfrage einfügen — sonst schließt dieser Schritt sie gleich mit.
     // Nur `active` wird angefasst; `draft`/`archived` aus dem Altbestand bleiben.
-    const groupEveningIds = tx
-      .select({ id: evenings.id })
-      .from(evenings)
-      .where(eq(evenings.groupId, input.groupId))
-      .all()
-      .map((r) => r.id);
-    tx.update(surveys)
-      .set({ status: "closed", closedAt: input.now })
-      .where(and(eq(surveys.status, "active"), inArray(surveys.eveningId, groupEveningIds)))
-      .run();
+    schliesseAktiveDerGruppe(tx, input.groupId, input.now, null);
     const survey = tx
       .insert(surveys)
       .values({
@@ -301,6 +484,42 @@ export function createAndStartSurvey(
       .get();
     return { eveningId: eve.id, surveyId: survey.id };
   });
+}
+
+/**
+ * DER JÜNGSTE ABEND, VON DEM EIN SCANNER KOMMEN KANN.
+ *
+ * Der öffentliche Zettel beantwortet mit dieser Zeile die Frage „von welchem
+ * Abend kommt die Person, die gerade scannt?" — und erst DANACH, ob es zu jenem
+ * Abend eine beendete Umfrage gibt. Die Reihenfolge ist tragend und steht so in
+ * `e2e/feedback.spec.ts` („zwischen zwei Abenden dagegen Zustand C"): steht der
+ * nächste Dienstabend schon im Kalender und trägt noch keine Umfrage, ist „die
+ * Umfrage zu DIESEM Abend ist beendet" die falsche Auskunft. Dann gehört dort
+ * „zurzeit läuft keine Umfrage" hin.
+ *
+ * ⚠️ DESHALB IST DAS HIER KEINE SUCHE NACH DER JÜNGSTEN UMFRAGE. Eine solche
+ * Fassung stand hier kurzzeitig und war die naheliegende Antwort auf den
+ * richtigen Befund, dass ein VORAUSGEPLANTER Abend den Zettel kapert. Sie
+ * heilte den einen Fall und nahm dabei den anderen mit — den nachgetragenen
+ * Abend ohne Erhebung, der genau diese Wirkung haben SOLL.
+ *
+ * Ausgeschlossen sind `planned` und `cancelled`, und nur die: von einem Termin,
+ * der erst noch kommt, scannt niemand, und von einem ausgefallenen Dienst auch
+ * nicht. Ein `held`-Abend ohne Umfrage ist dagegen der dokumentierte Fall.
+ *
+ * `surveys.id` als zweites Kriterium gibt es hier nicht zu holen — bei zwei
+ * Abenden am selben Tag entscheidet die jüngere ZEILE (`evenings.id`), damit
+ * die Auswahl nicht der Zeilenreihenfolge von SQLite überlassen bleibt.
+ */
+export function latestEveningForGroup(db: DB, groupId: number): EveningRow | undefined {
+  return (
+    db
+      .select()
+      .from(evenings)
+      .where(and(eq(evenings.groupId, groupId), inArray(evenings.status, ["held"])))
+      .orderBy(desc(evenings.date), desc(evenings.id))
+      .get() ?? undefined
+  );
 }
 
 export function activeSurveyForGroup(

@@ -94,6 +94,7 @@ function zeile(
     avgSchulnote: over.avgSchulnote === undefined ? 2.4 : over.avgSchulnote,
     hasLegacyScale: over.hasLegacyScale ?? false,
     entwurf: over.entwurf ?? false,
+    abgesagt: over.abgesagt ?? false,
   };
 }
 
@@ -748,5 +749,101 @@ describe("Verlauf — Spaltenkopf: Sortierung ueber den Rohwert, Filter statt Le
 
     await filterWaehlen("Zustand", "Entwurf (Altbestand)");
     expect(reihenfolge()).toEqual(["2"]);
+  });
+});
+
+/*
+ * EIN ABGESAGTER ABEND NIMMT KEINE TEILNEHMERZAHL an — und anders als der
+ * geplante erreicht er den VERLAUF, also diese Zone. Der erste Wurf des Riegels
+ * deckte nur „geplant" und liess damit genau den Abend durch, an dem
+ * nachweislich niemand war; nach „Doch wieder ansetzen" und der Freigabe waere
+ * die Zahl der Nenner der Ruecklaufquote geworden.
+ */
+describe("Verlauf — Bearbeiten eines abgesagten Abends", () => {
+  it("laesst die Teilnehmerzahl weg, zeigt sie bei einem gelaufenen Abend aber", async () => {
+    const felder = async (abgesagt: boolean) => {
+      await mount(
+        <Verlauf groupId={1} zeilen={[zeile({ eveningId: 7, abgesagt })]} heute="2026-08-01" />,
+      );
+      const menue = [...document.querySelectorAll<HTMLElement>("button")].find(
+        (b) => (b.textContent ?? "").trim() === "…",
+      );
+      if (!menue) throw new Error("Kein Aktionsmenue");
+      await clickElement(menue);
+      const eintrag = [...document.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+        (e) => (e.textContent ?? "").trim() === "Bearbeiten",
+      );
+      if (!eintrag) throw new Error("Kein Menuepunkt „Bearbeiten“");
+      await clickElement(eintrag);
+      const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']");
+      if (!form) throw new Error("Kein Bearbeiten-Formular");
+      return form;
+    };
+
+    const abgesagt = await felder(true);
+    expect(abgesagt.querySelector("input[name='participantCount']")).toBeNull();
+    // Die Gegenprobe gehoert dazu: ohne sie waere der Test auch ueber einem
+    // Formular gruen, das das Feld gar nicht mehr kennt.
+    expect(abgesagt.querySelector("input[name='topic']")).not.toBeNull();
+    await unmount();
+    document.body.replaceChildren();
+
+    const gelaufen = await felder(false);
+    expect(gelaufen.querySelector("input[name='participantCount']")).not.toBeNull();
+    await unmount();
+    document.body.replaceChildren();
+  });
+});
+
+/*
+ * ABGESAGTE ABENDE STEHEN IN DER TABELLE UND NICHT IN DER RECHNUNG.
+ *
+ * `fensterMittel` schneidet zuerst auf sechs Eintraege und wirft die leeren
+ * Noten DANACH weg — eine Absage haette dort also einen Platz belegt und einen
+ * bewerteten Abend aus dem Fenster gedraengt. Bei sechs Absagen in Folge waere
+ * der Ø ganz verschwunden, obwohl darunter sechs bewertete Abende stehen.
+ */
+describe("Verlauf — abgesagte Abende zaehlen nicht ins Notenfenster", () => {
+  const tage = (n: number) => `2026-08-${String(n).padStart(2, "0")}`;
+
+  it("draengt mit sechs Absagen die bewerteten Abende NICHT aus dem Ø", async () => {
+    const absagen = [20, 19, 18, 17, 16, 15].map((t) =>
+      zeile({ eveningId: t, datum: tage(t), abgesagt: true, surveyId: null, avgSchulnote: null }),
+    );
+    const bewertet = [10, 9].map((t) =>
+      zeile({ eveningId: t, datum: tage(t), avgSchulnote: 2 }),
+    );
+    await mount(<Verlauf groupId={1} zeilen={[...absagen, ...bewertet]} heute="2026-08-21" />);
+
+    const kopf = document.querySelector("[data-testid='verlauf-kopf']")!;
+    // Ohne den Filter stuende hier gar kein Ø: die sechs Absagen haetten das
+    // ganze Fenster belegt.
+    expect(kopf.textContent ?? "").toContain("2,0");
+    // Und die Absagen bleiben sichtbar — sie erklaeren die Luecke.
+    expect(document.body.textContent ?? "").toContain("Abgesagt");
+    await unmount();
+    document.body.replaceChildren();
+  });
+
+  it("laesst einen Abend OHNE Rueckmeldung im Fenster — den gab es", async () => {
+    // Abgrenzung: nur die Absage faellt heraus. Ein stattgefundener Abend, den
+    // niemand bewertet hat, zaehlt weiter mit — das ist die bestehende Zusage
+    // von `fensterMittel`, und sie darf dieser Filter nicht mit abraeumen.
+    await mount(
+      <Verlauf
+        groupId={1}
+        zeilen={[
+          zeile({ eveningId: 1, datum: tage(20), avgSchulnote: null, rueckmeldungen: 0 }),
+          zeile({ eveningId: 2, datum: tage(19), avgSchulnote: 4 }),
+        ]}
+        heute="2026-08-21"
+      />,
+    );
+
+    const kopf = document.querySelector("[data-testid='verlauf-kopf']")!;
+    expect(kopf.textContent ?? "").toContain("4,0");
+    expect(kopf.textContent ?? "").toContain("1 Abend");
+    await unmount();
+    document.body.replaceChildren();
   });
 });

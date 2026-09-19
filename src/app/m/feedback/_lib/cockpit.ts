@@ -33,6 +33,30 @@ type DB = BetterSQLite3Database<typeof schema>;
  *    aus der alten Oberfläche) darf die Führung der Seite nicht kapern: er
  *    erscheint in `altbestand` und damit ausschließlich als Verlaufszeile. Die
  *    Lagekarte bleibt in A/B.
+ * 5. EIN GEPLANTER ABEND ZÄHLT NIRGENDWO ALS ABEND. Er ist aus jeder der vier
+ *    Entscheidungen oben herausgerechnet, und zwar an genau einer Stelle
+ *    (`gelaufen`). Warum das nötig ist, sieht man an drei Stellen, die sonst
+ *    still falsch werden:
+ *    — `modus`/`belegung` hängen an „hat diese Gruppe überhaupt schon einen
+ *      Abend?". Ein einziger vorausgeplanter Termin holte die Gruppe aus der
+ *      Einrichtung heraus und ließe die Karte „NÄCHSTER SCHRITT" zeigen, obwohl
+ *      noch nie Feedback erhoben wurde.
+ *    — `verlauf` ist die Historie („Noch keine VERGANGENEN Dienstabende"). Die
+ *      Liste sortiert absteigend, ein Termin im Dezember stünde also ganz oben
+ *      im Rückblick.
+ *    — `letzteTeilnehmerzahl` liest den JÜNGSTEN Abend als Vorbelegung des
+ *      Startformulars. Mit einem geplanten Abend in der Liste wäre das ein
+ *      Abend in der ZUKUNFT, und der trägt nie eine Teilnehmerzahl.
+ *    Ein ABGESAGTER Abend gehört in die HISTORIE, aber nicht in die Zählung.
+ *    Das sind zwei verschiedene Fragen, und deshalb gibt es zwei Listen:
+ *    `gelaufen` (alles, was nicht mehr bevorsteht) trägt den Verlauf — ohne den
+ *    abgesagten Abend wäre die Lücke im Notenverlauf von einem vergessenen
+ *    Abend nicht zu unterscheiden. `stattgefunden` (nur `held`) beantwortet
+ *    „hat diese Gruppe schon einen Dienstabend gehabt?", und da ist ein
+ *    abgesagter Abend genau der, der es nicht war: eine Gruppe, deren einziger
+ *    Termin ausfiel, stünde sonst auf „NÄCHSTER SCHRITT", obwohl sie noch nie
+ *    Feedback erhoben hat, und `letzteTeilnehmerzahl` läse eine Teilnehmerzahl
+ *    aus einem Abend ohne Teilnehmer.
  */
 
 /** Die Belegungen der Lagekarte. E ist bewusst keine — siehe `altbestand`. */
@@ -63,6 +87,28 @@ export type CockpitZustand = {
   letzterAbend: AbendLage | null;
   /** Entwürfe aus dem Altbestand (§2.2, Belegung E). */
   altbestand: AbendLage[];
+  /**
+   * Vorausgeplante Abende, AUFSTEIGEND — der nächste zuerst. Als einzige Liste
+   * dieses Zustands, denn sie zeigt nach vorn; alle anderen blicken zurück.
+   */
+  geplant: AbendLage[];
+  /**
+   * Der jüngste Abend, der STATTGEFUNDEN hat und nicht mehr läuft — die Antwort
+   * auf „wann war diese Gruppe zuletzt zusammen?".
+   *
+   * ⚠️ NICHT `verlauf[0]`, und das ist der Unterschied, der die Übersicht
+   * still falsch gemacht hat: `verlauf` sortiert absteigend und enthält seit
+   * DRK-426 auch ABGESAGTE Abende. Wer im September einen Termin im Dezember
+   * absagt, hebt ihn damit an die Spitze — die Einstiegskarte meldete „letzter
+   * Abend 10.12." und sortierte die Gruppe nach einem Datum in der Zukunft.
+   * Für den Verlauf gehört die Absage hinein (sie erklärt die Lücke), für
+   * diese Frage ist sie genau der Abend, der nicht war.
+   *
+   * ⚠️ AUCH NICHT `letzterAbend`: der verlangt zusätzlich eine Rückmeldung und
+   * einen geschlossenen Bogen, weil er eine NOTE trägt. Ein Abend, den niemand
+   * bewertet hat, hat trotzdem stattgefunden.
+   */
+  letzterStattgefundener: AbendLage | null;
   /** Teilnehmerzahl des jüngsten Abends — Vorbelegung des Startformulars (§2.3). */
   letzteTeilnehmerzahl: number | null;
 };
@@ -93,7 +139,16 @@ export function cockpitZustand(db: DB, groupId: number, now: Date): CockpitZusta
   const laufend = aktive[0] ?? null;
   const weitereAktive = aktive.slice(1);
 
-  const verlauf = alle.filter((x) => x.evening.id !== laufend?.evening.id);
+  // Die eine Trennlinie aus Entscheidung 5. Alles darunter rechnet mit
+  // `gelaufen`, nie wieder mit `alle`.
+  const gelaufen = alle.filter((x) => x.evening.status !== "planned");
+  const stattgefunden = gelaufen.filter((x) => x.evening.status === "held");
+  const geplant = alle
+    .filter((x) => x.evening.status === "planned")
+    .sort((a, b) => a.evening.date.getTime() - b.evening.date.getTime());
+
+  const verlauf = gelaufen.filter((x) => x.evening.id !== laufend?.evening.id);
+  const letzterStattgefundener = verlauf.find((x) => x.evening.status === "held") ?? null;
   const letzterAbend =
     verlauf.find(
       (x) => (x.effektiv === "closed" || x.effektiv === "archived") && x.responseCount >= 1,
@@ -105,18 +160,20 @@ export function cockpitZustand(db: DB, groupId: number, now: Date): CockpitZusta
     ? laufend.responseCount === 0
       ? "C"
       : "D"
-    : alle.length === 0
+    : stattgefunden.length === 0
       ? "A"
       : "B";
 
   return {
     belegung,
-    modus: alle.length === 0 ? "einrichtung" : "betrieb",
+    modus: stattgefunden.length === 0 ? "einrichtung" : "betrieb",
     laufend,
     weitereAktive,
     verlauf,
     letzterAbend,
     altbestand,
-    letzteTeilnehmerzahl: alle[0]?.evening.participantCount ?? null,
+    geplant,
+    letzterStattgefundener,
+    letzteTeilnehmerzahl: stattgefunden[0]?.evening.participantCount ?? null,
   };
 }

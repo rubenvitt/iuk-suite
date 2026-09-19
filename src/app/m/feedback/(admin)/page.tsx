@@ -61,7 +61,14 @@ export default async function FeedbackEinstieg() {
   const karten = gruppen
     .map((gruppe) => {
       const zustand = cockpitZustand(db, gruppe.id, jetzt);
-      const juengster = zustand.laufend ?? zustand.verlauf[0] ?? null;
+      /*
+       * ⚠️ `letzterStattgefundener` UND NICHT `verlauf[0]`: der Verlauf enthält
+       * seit DRK-426 auch abgesagte Abende, und ein im September abgesagter
+       * Dezembertermin stünde dort ganz oben. Die Karte meldete dann „letzter
+       * Abend 10.12." und die Sortierung schöbe die Gruppe nach vorn — beides
+       * auf ein Datum, an dem nichts war. Begründung am Feld selbst.
+       */
+      const juengster = zustand.laufend ?? zustand.letzterStattgefundener;
       /**
        * Die Note kommt vom letzten AUSGEWERTETEN Abend (§2.7: geschlossen und
        * mindestens eine Rückmeldung) — nie von der laufenden Umfrage. Eine
@@ -91,7 +98,9 @@ export default async function FeedbackEinstieg() {
               frist: laufend.survey.closesAt ? formatZeitpunkt(laufend.survey.closesAt) : null,
             }
           : null,
-        letzterAbend: zustand.verlauf[0] ? formatTagMonat(zustand.verlauf[0].evening.date) : null,
+        letzterAbend: zustand.letzterStattgefundener
+          ? formatTagMonat(zustand.letzterStattgefundener.evening.date)
+          : null,
         note,
       };
       return { karte, laufend: laufend !== null, sortiert: juengster?.evening.date.getTime() ?? 0 };
