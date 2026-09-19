@@ -176,7 +176,23 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
           type="warning"
           showIcon={false}
           style={{ marginBlockEnd: SPACE.lg }}
-          title="Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten; die Summen unten sind vollständig."
+          /*
+           * ⛔ „VOLLSTÄNDIG" NUR FÜR EINEN ABGESCHLOSSENEN ALTCHECK
+           * (Codex-Review zu PR #210, P2). Der Halbsatz ist der eigentliche
+           * Inhalt dieser Meldung — er sagt, dass das Fehlende NUR die
+           * Einzelpositionen sind. Für einen laufenden Altcheck ist er eine
+           * Zusage, die niemand geben kann: die Summen können noch wachsen.
+           * Nebeneinander standen dann zwei Meldungen, von denen eine die
+           * Zahlen für fertig erklärte und die andere für vorläufig.
+           *
+           * ⚠️ Der Ersatz sagt WENIGER, nicht das Gegenteil: dass die Summen
+           * vorläufig sind, steht in der Meldung darunter und gehört nicht
+           * zweimal hin. Diese hier bleibt bei ihrer einen Tatsache — dem
+           * Format.
+           */
+          title={check.offen
+            ? "Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten — unten stehen nur die Summen."
+            : "Dieser Check stammt aus dem alten Format. Die Einzelpositionen sind darin nicht enthalten; die Summen unten sind vollständig."}
         />
       ) : null}
 

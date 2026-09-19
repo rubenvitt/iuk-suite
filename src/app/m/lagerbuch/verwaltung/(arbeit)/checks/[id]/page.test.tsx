@@ -694,6 +694,39 @@ describe("Check-Detailseite", () => {
     expect(ton({ unlesbar: true })).toBe("warning");
   });
 
+  it("nimmt dem Altformat-Satz die Vollstaendigkeit, solange der Check laeuft", () => {
+    /**
+     * DRK-196, Codex-Review zu PR #210 (P2). Ein importierter Altcheck kann
+     * laufen: `altFormat` kommt aus dem Ergebnisformat, `offen` aus
+     * `completedAt IS NULL` — unabhaengige Spalten, beide Meldungen rendern.
+     * Der Altformat-Satz endete auf „die Summen unten sind vollstaendig", die
+     * Meldung darunter erklaerte dieselben Zahlen fuer vorlaeufig. Zwei
+     * Meldungen, ein Widerspruch, im selben Bild.
+     *
+     * ⚠️ DER ERSATZ SAGT WENIGER, NICHT DAS GEGENTEIL. „Vorlaeufig" steht
+     * schon darunter; hier gehoert es nicht ein zweites Mal hin.
+     */
+    const altUndOffen = { ...BASIS, altFormat: true, offen: true,
+      summe: { ...BASIS.summe, altFormat: true, positionen: 4 }, hatZwischenstand: true };
+    const meldungen = elementeVomTyp(checkDetailInhalt(altUndOffen), Alert)
+      .map((a) => String(a.props.title));
+
+    expect(meldungen).toHaveLength(2);
+    expect(meldungen[0]).toMatch(/alten Format/);
+    expect(meldungen[0]).not.toMatch(/vollständig/);
+    expect(meldungen[1]).toMatch(/l\u00e4uft noch/);
+
+    /*
+     * GEGENPROBE: fuer den ABGESCHLOSSENEN Altcheck bleibt die Zusage stehen.
+     * Sie ist der eigentliche Inhalt der Meldung — sie sagt, dass das Fehlende
+     * NUR die Einzelpositionen sind. Ohne diese Haelfte waere der Fall auch
+     * ueber einer Seite gruen, die den Satz ganz gestrichen hat.
+     */
+    const nurAlt = checkDetailInhalt({ ...BASIS, altFormat: true,
+      summe: { ...BASIS.summe, altFormat: true } });
+    expect(String(elementeVomTyp(nurAlt, Alert)[0].props.title)).toMatch(/vollständig/);
+  });
+
   it("laesst bei laufend UND unlesbar den kaputten Wert erklaeren, nicht die Uhr", () => {
     /**
      * DRK-196, Codex-Review zu PR #210 (P2). Der erste Wurf hielt die beiden
