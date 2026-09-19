@@ -180,7 +180,7 @@
  * EINER Klasse heisst, dass die naechste Massaenderung an der einen die andere still mitzieht.
  * ⛔ UND SIE IST KEIN 1:1-WERT, SONDERN EIN ERSATZ: im Bestand kommt der Abstand aus
  * `Space direction="vertical" size="middle"` (`ImportWizard.tsx:169`) — `size=` ist im Modul
- * verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:196-214`). ⛔ DIE 16 PX SIND NACHGESCHLAGEN
+ * verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:202-220`). ⛔ DIE 16 PX SIND NACHGESCHLAGEN
  * UND NICHT GESCHAETZT: `antd/es/space/style/index.js:73` setzt `spaceGapMiddleSize` auf
  * `token.padding`, `antd/es/theme/util/alias.js:98` bildet `padding` auf `size` ab, und
  * `antd/es/theme/themes/shared/genSizeMapToken.js:17` rechnet `sizeUnit * sizeStep` = 4 * 4
@@ -291,7 +291,7 @@
  * Das Notizfeld (`UpdateNotePanel.tsx:28`, `style={{ width: '100%' }}`).
  *
  * ⛔ DER ABSTAND VON 8 STEHT HIER UND NICHT ALS `size={8}` AM BAUTEIL: `size=` ist auf jedem
- * antd-Bauteil dieses Moduls verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:196-215`).
+ * antd-Bauteil dieses Moduls verboten (Falle 4, `_ui/AusleihRahmen.test.tsx:202-221`).
  */
 .notizFeld {
   display: flex;

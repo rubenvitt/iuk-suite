@@ -172,7 +172,7 @@ const ERWARTETE_SITZUNG_SEKUNDEN = Number(RADIO_ENV.RADIO_AUSLEIH_SITZUNG_STUNDE
  * ⛔ WARUM ES DIE VERBLEIB-ZUSICHERUNG UEBERHAUPT GIBT, und sie ist die tragende Haelfte
  * von Zusage 3: `page.goto` FOLGT Umleitungen und liefert die Antwort des LETZTEN
  * Dokuments. Wiese der `(ausleihe)`-Riegel die Sitzung ab und leitete auf `/` um
- * (`src/app/m/radio/_lib/ausleihZugang.ts:239`, Datei 267 Zeilen — der Umweg bei fehlendem
+ * (`src/app/m/radio/_lib/ausleihZugang.ts:273`, Datei 308 Zeilen — der Umweg bei fehlendem
  * Cookie), lieferte `status()` die **200 des Gates** — und die Station bliebe gruen, obwohl
  * sie nie gerendert hat. Ein so eingesammelter Statuscode ist genau das, was die
  * Bauform-Zulaessigkeitstafel Nr. 22 „Folgewirkung statt Antwort" nennt. ⛔ Erst Status UND

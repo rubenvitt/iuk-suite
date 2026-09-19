@@ -18,7 +18,7 @@ import { ohneKommentare } from "../_lib/quelltextScan";
  * dem Bestand schreibt, schuldet die Mutation, die sie rot macht — oder die Sonde daneben."
  *
  * ⛔ DAS SCHWESTERBLATT FUEHRT DENSELBEN WAECHTER SEIT PLANTEIL 3, und sein Kommentar hat
- * diesen Fall woertlich vorhergesagt: `_ui/AusleihRahmen.test.tsx:42-45` („Eine gemeinsame
+ * diesen Fall woertlich vorhergesagt: `_ui/AusleihRahmen.test.tsx:36-39` („Eine gemeinsame
  * Liste waere in dem Moment rot-by-construction, in dem A19/A20 eine Flaeche mit einem
  * zweiten Modul-Stylesheet anlegen"). Der Klassenscan dort ist `:231-246`; dieser hier ist
  * seine zweite abgeleitete Menge, kein Umbau der ersten.
@@ -108,7 +108,9 @@ describe("radio-verwaltung.module.css: die drei Zusicherungen seines Kopfes", ()
     /*
      * Falle 2 in ihrer stillsten Gestalt: `s.tippfehler` ist `undefined`, das Element rendert
      * ohne Klasse, und weder `typecheck` noch `lint` noch `build` sagen ein Wort — die Linie
-     * verschwindet einfach. Vorbild `_ui/AusleihRahmen.test.tsx:231-246`.
+     * verschwindet einfach. Vorbild `_ui/AusleihRahmen.test.tsx`, Fall „nennt nur
+     * Klassen, die ausleihe.module.css DEKLARIERT" — NAMENSFORM statt Zeile, weil
+     * jene Datei sich bewegt (DRK-202/DRK-204).
      */
     const gescannt = quellDateien(MODUL);
     expect(gescannt.length, "der Walker hat den Modulbaum nicht gelesen").toBeGreaterThanOrEqual(

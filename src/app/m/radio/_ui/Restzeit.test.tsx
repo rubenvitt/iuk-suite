@@ -106,7 +106,7 @@ describe("radio-Restzeit: die Anzeige", () => {
      * geschrieben ist — bei der, die beim Ausfuellen ablaeuft.
      *
      * ⚠️ ER IST EINE ANZEIGE, KEIN RIEGEL. Der Riegel ist `requireAusleihSchreibend` in
-     * der Action (`_lib/ausleihZugang.ts:262`).
+     * der Action (`_lib/ausleihZugang.ts:296`).
      */
     vi.useFakeTimers();
     await mount(

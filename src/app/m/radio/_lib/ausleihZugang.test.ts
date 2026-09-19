@@ -253,7 +253,7 @@ describe("radio-Ausleihzugang: die zwei Wege, und wer wen schlaegt", () => {
     cookieWert = await createAusleihSitzung({ codeId: "zc-gesperrt" });
     sitzung = SUITE_SITZUNG; // `id`, nicht `sub` — Kommentar oben
     const z = await ausleihZugangOderNull(db as never);
-    expect(z).toEqual({ weg: "suite", sub: "s-1", name: "Anna" });
+    expect(z).toEqual({ weg: "suite", sub: "s-1", name: "Anna", darfVerwalten: false });
   });
 
   it("Weg 2 kostet keinen Datenbankzugriff", async () => {
@@ -299,6 +299,79 @@ describe("radio-Ausleihzugang: die zwei Wege, und wer wen schlaegt", () => {
       weg: "suite",
       sub: "s-1",
       name: null,
+      // DRK-202: die Stufe steht daneben und entscheidet NICHTS ueber den Zugang —
+      // diese Person hat keine, und bekommt den Weg trotzdem.
+      darfVerwalten: false,
+    });
+  });
+
+  /**
+   * ⛔ DIE VERWALTUNGSSTUFE REIST MIT — UND SIE IST KEINE ZUGANGSBEDINGUNG (DRK-202).
+   *
+   * Sie wurde bis dahin von `_ui/AusleihRahmen.tsx` selbst eingeholt, mit einer ZWEITEN
+   * `auth()`-Lesung im selben Rendervorgang: die erste stand hier, reichte aber nur
+   * `{ sub, name }` weiter und warf die Gruppen weg. Seither wird das Praedikat an
+   * dieser einen Stelle ausgewertet, an der die Gruppen ohnehin vorliegen.
+   *
+   * ⛔ DAMIT WANDERT AUCH DIE BETREIBERENTSCHEIDUNG VOM 2026-08-27 HIERHER („der Weg
+   * zeigt sich BEIDEN Stufen"). Sie wurde vorher am Rahmen gemessen; dort ist sie jetzt
+   * nicht mehr messbar, weil er die Stufe nur noch anzeigt. Ein Umzug ohne die Faelle
+   * waere ein stiller Verlust — genau die Sorte, gegen die die Vorgaenge hier stehen.
+   */
+  describe("die Verwaltungsstufe reist mit, ohne den Zugang zu entscheiden", () => {
+    const mitGruppen = (groups: string[]) => ({ user: { id: "s-1", name: "V.", groups } });
+
+    it("die Admin-Stufe kommt als darfVerwalten durch", async () => {
+      /*
+       * ⛔ DIE UPDATER-STUFE STEHT ABSICHTLICH OFFEN, und die Person ist trotzdem NICHT
+       * in ihr. Ohne das truege der Fall nicht, was sein Name sagt: bei geschlossener
+       * Updater-Stufe waere `istRadioUpdater` fuer JEDEN `false`, und eine Auswertung,
+       * die versehentlich nur die Admin-Gruppe kennte, saehe genauso aus.
+       */
+      try {
+        process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+        sitzung = mitGruppen(["iuk-radio-admin"]);
+        const z = await ausleihZugangOderNull(db as never);
+        expect(z).toMatchObject({ weg: "suite", darfVerwalten: true });
+      } finally {
+        delete process.env.SUITE_UPDATER_GROUP_RADIO;
+      }
+    });
+
+    it("die Updater-Stufe ebenfalls — das ist der Sinn der Entscheidung", async () => {
+      /*
+       * ⛔ DER TRAGENDE FALL, und zugleich die Gegenprobe gegen die naheliegende
+       * Fehlbauform „die Stufe haengt an `istRadioAdmin`": SECHS der zehn
+       * Verwaltungsseiten stehen dem Updater offen, `/admin` selbst eingeschlossen.
+       * Haengt sie an der Admin-Stufe, bliebe er ohne sichtbaren Weg auf eine Seite, die
+       * er vollberechtigt oeffnet.
+       */
+      try {
+        process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+        sitzung = mitGruppen(["eine-updater-gruppe"]);
+        const z = await ausleihZugangOderNull(db as never);
+        expect(z).toMatchObject({ weg: "suite", darfVerwalten: true });
+      } finally {
+        delete process.env.SUITE_UPDATER_GROUP_RADIO;
+      }
+    });
+
+    it("eine Sitzung OHNE jede Stufe bekommt den Zugang, aber nicht die Stufe", async () => {
+      /*
+       * ⛔ AUFLAGE 5 UND DIE GEGENPROBE IN EINEM (Spec:2729-2736): `ok` haengt NICHT an
+       * `darfVerwalten`. Wer das je koppelt, sperrt genau die Personen aus, fuer die die
+       * Ausleihe absichtlich anonym ist — derselbe Vorgang ist ohne jede Anmeldung per
+       * QR-Code erlaubt. Und ohne diesen Fall waere ein konstantes `darfVerwalten: true`
+       * ueber den beiden Faellen darueber gruen.
+       */
+      try {
+        process.env.SUITE_UPDATER_GROUP_RADIO = "eine-updater-gruppe";
+        sitzung = mitGruppen(["irgendeine-andere"]);
+        const z = await ausleihZugangOderNull(db as never);
+        expect(z).toMatchObject({ weg: "suite", darfVerwalten: false });
+      } finally {
+        delete process.env.SUITE_UPDATER_GROUP_RADIO;
+      }
     });
   });
 

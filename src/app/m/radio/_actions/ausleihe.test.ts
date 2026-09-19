@@ -108,7 +108,7 @@ beforeEach(() => {
    * traegt einen FREMDSCHLUESSEL auf `zugangscodes(id)` (`_db/schema.ts:230`), und
    * `openModuleDatabase` setzt `foreign_keys = ON` (`src/core/db/index.ts:19`). Ein Zugang
    * ueber den Code OHNE die zugehoerige Zeile gibt es im Betrieb nicht — `befund` schlaegt sie
-   * bei JEDEM Aufruf nach (`_lib/ausleihZugang.ts:180-181`). ⚠️ Gemessen am 2026-08-23: ohne
+   * bei JEDEM Aufruf nach (`_lib/ausleihZugang.ts:214-215`). ⚠️ Gemessen am 2026-08-23: ohne
    * sie scheitert jede Ausleihe am FK und `bucheAusleihe` faltet den Fehler auf `unbekannt`
    * (`_db/leihen.ts:613-624`) — der Fall waere rot mit einer Meldung, die auf die falsche
    * Ursache zeigt.
@@ -151,7 +151,10 @@ function zugangUeberCode(codeId = "zc-1"): RiegelErgebnis {
 
 /** Der Suite-Weg — dieselbe Flaeche, andere Herkunft (§3.6.3 Punkt 3). */
 function zugangUeberSuite(): RiegelErgebnis {
-  return { ok: true, zugang: { weg: "suite", sub: "sub-anna", name: "Anna Beispiel" } };
+  return {
+    ok: true,
+    zugang: { weg: "suite", sub: "sub-anna", name: "Anna Beispiel", darfVerwalten: false },
+  };
 }
 
 function geraet(id: string, issi: string, werte: Partial<typeof devices.$inferInsert> = {}) {

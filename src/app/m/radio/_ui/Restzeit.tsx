@@ -91,11 +91,11 @@ export function Restzeit({
      * `rest > 0`, also auch beim ersten Mounten, und ueberstimmt damit ein
      * `abgelaufenInitial={true}`, sobald der Client `laeuftAb` in der Zukunft sieht.
      * Bei richtig gehenden Uhren ist das nicht erreichbar: der Server rechnet BEIDE Werte
-     * aus DERSELBEN Uhr (`AusleihRahmen.tsx:147`), `true` heisst dort `laeuftAb <= jetzt`,
+     * aus DERSELBEN Uhr (`AusleihRahmen.tsx:155`), `true` heisst dort `laeuftAb <= jetzt`,
      * und ein spaeterer Client faellt in den `vorwaerts`-Zweig oben (`:85-88`). Erreichbar
      * ist es allein bei NACHGEHENDER Client-Uhr; dann verschwindet der Ablaufsatz
      * voruebergehend und kehrt nach `rest` zurueck. Rein anzeigend und selbstheilend — der
-     * Riegel ist `requireAusleihSchreibend` in der Action (`_lib/ausleihZugang.ts:262`),
+     * Riegel ist `requireAusleihSchreibend` in der Action (`_lib/ausleihZugang.ts:296`),
      * nicht diese Insel.
      */
     const zurueck = setTimeout(() => setAbgelaufen(false), 0);

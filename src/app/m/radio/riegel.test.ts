@@ -1481,3 +1481,101 @@ describe("(h) wer die Codeliste im Klartext liest, traegt die Admin-Stufe", () =
  * Planteil 5 selbst anlegt, und `import/hochladen` (POST-only) — die Vollzaehligkeitstafel
  * dazu fuehrt der Planteil, nicht diese Datei.
  */
+
+/**
+ * ⛔ KLAUSEL (i) — EINE `_ui/`-DATEI NENNT NUR NICHT-WERFENDE ZUGANGSNAMEN (DRK-203).
+ *
+ * DIE LUECKE, DIE SIE SCHLIESST, IST STRUKTURELL UND NICHT GRADUELL: Klausel (f)
+ * oben beschreibt ihre Menge woertlich als „jede `page.tsx`/`layout.tsx`" — eine
+ * Datei unter `_ui/` ist keines von beiden und faellt damit aus JEDER Klausel
+ * dieser Datei heraus. Wer dort kuenftig `requireRadioVerwaltung()` statt des
+ * nicht-werfenden `istRadioVerwaltung()` setzte, bekaeme kein rotes Tor —
+ * obwohl genau das die anonyme Ausleihflaeche vom Aufsteller-QR nach `/login`
+ * schickte, BEVOR die Geraeteliste je erschiene (NS-Z6). Dieselbe Wirkung, die
+ * Klausel (f) fuer die Flaechen daneben abgeraeumt hat.
+ *
+ * ⚠️ DER BUCHSTABE WEICHT VOM VORGANG AB, und das ist kein Versehen: DRK-203
+ * schlug „(h)" vor und ist AELTER als die heutige Klausel (h) („wer die
+ * Codeliste im Klartext liest, traegt die Admin-Stufe"). Zwei Klauseln unter
+ * einem Buchstaben waeren genau die Mehrdeutigkeit, gegen die diese Datei sonst
+ * antritt.
+ *
+ * ⛔ DIE MENGE IST `_ui/` GANZ, NICHT „`_ui/`-DATEIEN, DIE `_lib/zugang`
+ * IMPORTIEREN" — und der Unterschied ist der ganze Wert der Klausel. Ein Filter
+ * auf den heutigen Import haette sich mit DRK-202 selbst entschaerft: jener
+ * Vorgang nimmt `AusleihRahmen.tsx` genau diesen Import ab (die Verwaltungsstufe
+ * reist seither in `AusleihZugang` mit), und uebrig bliebe eine Klausel ueber
+ * einer fast leeren Menge. Verboten ist der NAME, nicht der Import — wer einen
+ * werfenden Riegel neu einfuehrt, schreibt ihn hin, und genau da greift sie.
+ *
+ * ⚠️ WAS SIE NICHT IST: eine Absicherung. Sichtbarkeit ist kein Riegel, und
+ * alle zwoelf Verwaltungsflaechen tragen ihren eigenen als erste Anweisung
+ * (§2.7). Diese Klausel bewacht die GEGENrichtung — dass auf einer anonym
+ * erreichbaren Flaeche kein Riegel steht, der dort nicht hingehoert.
+ */
+const UI_WURZEL = `${MODUL}/_ui`;
+
+/**
+ * Die werfenden Namen, die unter `_ui/` nichts zu suchen haben — dieselben, die
+ * Klausel (c) fuer Route Handler abweist, plus die zwei Ausleihformen.
+ * `requireAusleihZugang` leitet um, `requireAusleihSchreibend` gibt ein Ergebnis
+ * zurueck, das auf einer Anzeigeflaeche niemand prueft (Bauform-Zulaessigkeits-
+ * tafel Zeile 10) — beide sind hier die falsche Gestalt.
+ */
+const WERFENDE_ZUGANGSNAMEN = [
+  "requireRadioAdmin",
+  "requireRadioVerwaltung",
+  "requireRadioHost",
+  "requireAusleihZugang",
+  "requireAusleihSchreibend",
+];
+
+describe("(i) keine _ui/-Datei nennt einen werfenden Zugangsnamen", () => {
+  const UI_DATEIEN = () => quellDateien(UI_WURZEL);
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUR MENGE, ohne die der Fall darunter leer-gruen waere:
+   * ein `_ui/` ohne Dateien — umbenannt, verschoben, oder `quellDateien` an
+   * einer Wurzel, die es nicht gibt — liefert `[]`, und eine Verbotspruefung
+   * ueber `[]` ist fuer jedes Verbot wahr. Die Untergrenze steht bewusst unter
+   * dem gemessenen Stand (15 Nicht-Testdateien am 19.09.2026); sie soll einen
+   * ABGERISSENEN Scan fangen, nicht jedes Aufraeumen rot faerben.
+   */
+  it("der Scan sieht das Verzeichnis ueberhaupt", () => {
+    expect(UI_DATEIEN().length, "_ui/ leer — der Scan waere leer-gruen")
+      .toBeGreaterThanOrEqual(10);
+  });
+
+  /**
+   * ⚠️ UND DIE GEGENPROBE ZUM MUSTER SELBST. Die Zusicherung darunter ist ein
+   * VERBOT: sie ist gruen, solange sie nichts findet — also auch dann, wenn die
+   * Regex nichts finden KANN. Ein vertipptes Muster faerbte sie nie rot, und
+   * niemand merkte es. Hier wird an einem erfundenen Rumpf gemessen, dass jeder
+   * einzelne Name wirklich trifft.
+   */
+  it("das Muster trifft jeden der fuenf Namen", () => {
+    for (const name of WERFENDE_ZUGANGSNAMEN) {
+      const probe = bereinigt(`export function Insel() { await ${name}(); }`);
+      expect(
+        new RegExp(`\\b${name}\\s*\\(`).test(probe),
+        `${name} wird vom eigenen Muster nicht getroffen`,
+      ).toBe(true);
+    }
+  });
+
+  it("keine nennt einen werfenden Riegel — der Aufsteller-QR bliebe sonst am Login haengen", () => {
+    const verstoesse: string[] = [];
+    for (const pfad of UI_DATEIEN()) {
+      const q = bereinigt(readFileSync(pfad, "utf8"));
+      const kurz = kurzPfad(pfad);
+      for (const name of WERFENDE_ZUGANGSNAMEN) {
+        if (new RegExp(`\\b${name}\\s*\\(`).test(q)) {
+          verstoesse.push(
+            `${kurz}: nennt ${name}( — auf einer _ui/-Flaeche die falsche Gestalt (NS-Z6, DRK-203)`,
+          );
+        }
+      }
+    }
+    expect(verstoesse).toEqual([]);
+  });
+});

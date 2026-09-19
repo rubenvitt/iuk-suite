@@ -104,7 +104,9 @@ const ZUGANG_CODE = {
   bezeichnung: "Aufsteller Wache",
   laeuftAb: new Date("2026-06-14T20:00:00Z"),
 };
-const ZUGANG_SUITE = { weg: "suite" as const, sub: "pid-1", name: "Rita Roth" };
+const ZUGANG_SUITE = {
+  weg: "suite" as const, sub: "pid-1", name: "Rita Roth", darfVerwalten: false,
+};
 
 /** Der Ausleihzeitpunkt der Fixtures: 14.06.2026, 09:12 in Berlin (dort UTC+2). */
 const AUSGELIEHEN_AM = new Date("2026-06-14T07:12:00Z");

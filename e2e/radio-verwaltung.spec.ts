@@ -1739,12 +1739,17 @@ test.describe("radio-Verwaltung", () => {
    * 2026-08-27. Gemessen am 2026-08-28, jede zurueckgenommen; waehrend jedes Sondenfensters
    * lief NUR der genannte Playwright-Fall.
    *
-   *   S-L6a  `_ui/AusleihRahmen.tsx:214`, die Bedingung entfernt: `{darfVerwalten ? (`
+   *   S-L6a  `_ui/AusleihRahmen.tsx:228`, die Bedingung entfernt: `{darfVerwalten ? (`
    *          -> `{true ? (`                    -> **1 rot**: L6 C, der anonyme Ausleiher sieht
    *                                              den Verwaltungsweg. L6 A/B bleiben gruen —
    *                                              die Sonde macht den Link WEITER, nicht enger.
-   *   S-L6b  `_ui/AusleihRahmen.tsx:169`, das Praedikat auf die obere Stufe verengt:
-   *          `istRadioVerwaltung` -> `istRadioAdmin` (samt Import)
+   *   S-L6b  `_lib/ausleihZugang.ts`, Zuweisung `darfVerwalten`, das Praedikat auf die
+   *          obere Stufe verengt: `istRadioVerwaltung` -> `istRadioAdmin`
+   *          ⚠️ DIE SONDE IST MIT DRK-202 UMGEZOGEN und stand bis dahin auf
+   *          `_ui/AusleihRahmen.tsx:169`. Dort gibt es das Praedikat nicht mehr — die
+   *          Stufe wird seither EINMAL im Zugangspraedikat ausgewertet und reist in
+   *          `AusleihZugang` mit. Die Sonde als Zeilennummer stehen zu lassen hiesse,
+   *          eine Mutation zu beschreiben, die sich nicht mehr vornehmen laesst.
    *                                          -> **1 rot**: L6 B. L6 A bleibt gruen — genau die
    *                                              Asymmetrie, die die Betreiberentscheidung
    *                                              beschreibt.

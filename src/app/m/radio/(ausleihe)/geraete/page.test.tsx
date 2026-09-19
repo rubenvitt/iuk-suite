@@ -239,7 +239,7 @@ describe("die Uebersicht an /geraete", () => {
      * WIRKUNG ihres Fehlens: ohne den Riegel rendert die Seite, statt abzubrechen.
      *
      * ⚠️ DER WURF IST DER ERWARTETE AUSGANG: `requireAusleihZugang` leitet ueber einen
-     * geworfenen `redirect()`-Sentinel um (`_lib/ausleihZugang.ts:236-241`). Ein `try`/
+     * geworfenen `redirect()`-Sentinel um (`_lib/ausleihZugang.ts:270-275`). Ein `try`/
      * `catch` in `page.tsx` verschluckte ihn, und die Weiterleitung faende STILL nicht statt
      * (Bauform-Zulaessigkeitstafel Zeile 6).
      */
