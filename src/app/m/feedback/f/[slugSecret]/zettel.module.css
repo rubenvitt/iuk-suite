@@ -1048,13 +1048,6 @@
   background: var(--linie-stark);
 }
 
-/* Weitergabe-Abschnitt der Danke-Seite: Haarlinie, dann 32px (§3.2 B). */
-.weitergabe {
-  margin-top: 32px;
-  padding-top: 32px;
-  border-top: 1px solid var(--linie);
-}
-
 /* ---------- Bewegung ---------- */
 
 /*

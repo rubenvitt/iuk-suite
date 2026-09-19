@@ -622,19 +622,21 @@ describe("Zustand F — dieser Link stimmt nicht", () => {
 });
 
 describe("Danke-Seite (Zustand B)", () => {
-  it("zeigt „Danke.“, die anonyme Bestaetigung und den Weitergabe-Abschnitt", async () => {
+  it("sagt danke — und sonst nichts", async () => {
     const { token } = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
-    const gelesen = text(await danke(token));
+    const markup = await danke(token);
+    const gelesen = text(markup);
     expect(gelesen).toContain("Danke.");
     expect(gelesen).toContain("Deine Rückmeldung ist eingegangen — anonym.");
-    expect(gelesen).toContain("Handy wandert weiter?");
-    expect(gelesen).toContain(
-      "Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. " +
-        "Für die nächste Person kannst du einen leeren Bogen öffnen.",
-    );
-    expect(await danke(token)).toMatch(
-      /<button[^>]*type="submit"[^>]*>Leeren Bogen öffnen<\/button>/,
-    );
+    /*
+     * Der Weitergabe-Abschnitt ist weg (2026-09). Er erklaerte der abgebenden
+     * Person eine Mechanik, die nicht ihr Problem ist, und machte aus einem
+     * Schlusspunkt eine weitere Aufgabe. Negativ gepruefte Zeichenketten, weil
+     * genau das hier die Zusage ist: die Seite endet nach dem Dank.
+     */
+    expect(gelesen).not.toContain("Handy wandert weiter?");
+    expect(gelesen).not.toContain("Leeren Bogen öffnen");
+    expect(markup).not.toContain("<form");
   });
 
   it("zeigt keine Antworten mehr auf dem Schirm — das Handy wandert weiter", async () => {
@@ -650,29 +652,20 @@ describe("Danke-Seite (Zustand B)", () => {
   });
 
   /*
-   * DER WEITERGABE-ABSCHNITT IST UNBEDINGT (Entwurf 3.2 B). Er hing an einer
-   * aktiven Umfrage — und genau dieser Weg loest das Problem des geteilten
-   * Handys. Der Zustand ist erreichbar: die Frist kann zwischen dem Absenden und
-   * dem Rendern dieser Seite ablaufen (Lazy-Auto-Close aus `lifecycle.ts`), und
-   * dann stand die naechste Person vor einer Danke-Seite ohne jeden Ausweg.
+   * Die Seite haengt an keiner aktiven Umfrage mehr — sie fragt gar keine mehr
+   * ab. Frueher tat sie es fuer den Weitergabe-Knopf, und die Frist kann
+   * zwischen dem Absenden und dem Rendern ablaufen (Lazy-Auto-Close aus
+   * `lifecycle.ts`); der Dank haette dann anders ausgesehen als eine Sekunde
+   * vorher. Beide Faelle Zeichen fuer Zeichen gleich, das ist die Zusage.
    */
-  it("stellt den Weitergabe-Abschnitt auch OHNE aktive Umfrage hin", async () => {
-    const { token } = seedUmfrage({
-      slug: "bereitschaft",
+  it("sieht ohne aktive Umfrage genauso aus", async () => {
+    const mitUmfrage = seedUmfrage({ slug: "bereitschaft", secret: "abc12" });
+    const ohneUmfrage = seedUmfrage({
+      slug: "jugend",
       secret: "abc12",
       aktivieren: false,
     });
-    const markup = await danke(token);
-    const gelesen = text(markup);
-    expect(gelesen).toContain("Handy wandert weiter?");
-    expect(gelesen).toContain("Leeren Bogen öffnen");
-    /*
-     * Ohne aktive Umfrage gibt es kein Cookie freizugeben (`page.tsx` liest es
-     * nur im aktiven Zweig) — der Weg zum leeren Bogen ist dann eine gewoehnliche
-     * Navigation. Kein Knopf, der eine Action ohne Umfrage-Id ruft.
-     */
-    expect(markup).toContain(`href="/f/${token}"`);
-    expect(markup).not.toMatch(/<button[^>]*>Leeren Bogen öffnen<\/button>/);
+    expect(await danke(ohneUmfrage.token)).toBe(await danke(mitUmfrage.token));
   });
 });
 
@@ -704,7 +697,7 @@ describe("Gemeinsame Huelle aller Zustaende", () => {
     expect(quelle("./Zustaende.tsx")).toContain("s.fahne");
   });
 
-  it("bleibt serverseitig — die Weitergabe braucht kein JavaScript", async () => {
+  it("bleibt serverseitig — kein Zustand braucht JavaScript", async () => {
     for (const datei of ["./page.tsx", "./thanks/page.tsx", "./Zustaende.tsx"]) {
       expect(quelle(datei)).not.toMatch(/^\s*["']use client["']/m);
     }

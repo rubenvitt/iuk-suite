@@ -90,7 +90,7 @@ test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
   // clearCookies, sonst leitet /login einen bereits angemeldeten Nutzer sofort
   // auf "/" um (src/app/login/page.tsx: `if (session?.user) redirect("/")`)
   // und die zweite devLogin-Anmeldung liefe nicht durchs Formular — dasselbe
-  // Muster wie lagerbuch-etiketten.spec.ts:152, feedback.spec.ts:524/749 und
+  // Muster wie lagerbuch-etiketten.spec.ts:152, feedback.spec.ts:532/757 und
   // files-fileshare.spec.ts:499.
   await page.context().clearCookies();
   /*

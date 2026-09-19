@@ -197,8 +197,9 @@ export function ZustandD({
  * Ersetzt die stumme Weiterleitung nach `/thanks`. Handys werden in einer Gruppe
  * herumgegeben; die 24-Stunden-Cookie-Sperre machte die zweite Abgabe unmoeglich
  * und sagte kein Wort dazu. Der Knopf ist hier die Hauptaktion und deshalb
- * gefuellt (in der Danke-Seite ist er ein Sekundaerknopf, dort ist Danke die
- * Hauptsache).
+ * gefuellt. Es ist zugleich der EINZIGE Weg zum leeren Bogen: die Danke-Seite
+ * bietet ihn nicht mehr an (sie sagt nur noch danke), und wer das Handy
+ * weiterreicht, landet mit dem naechsten Aufruf genau hier.
  */
 export function ZustandE({ slugSecret, surveyId }: { slugSecret: string; surveyId: number }) {
   return (
@@ -234,37 +235,6 @@ export function ZustandF() {
 }
 
 /**
- * Der Weitergabe-Abschnitt der Danke-Seite (Entwurf 3.2 B): Haarlinie, 32px
- * Abstand, Kicker, Satz, Sekundaerknopf. Er steht UNBEDINGT da, nicht nur wenn
- * ein Cookie oder eine aktive Umfrage gefunden wurde — auf einem geteilten Handy
- * ist die naechste Person der Regelfall, nicht die Ausnahme.
- *
- * `surveyId` ist deshalb optional. Ohne aktive Umfrage (die Frist kann zwischen
- * dem Absenden und dieser Seite ablaufen — Lazy-Auto-Close) gibt es kein Cookie
- * freizugeben: `page.tsx` liest es nur im aktiven Zweig, und ohne Umfrage rendert
- * es ohnehin Zustand C. Der Weg zum leeren Bogen ist dann eine gewoehnliche
- * Navigation — sichtbar gleich, ohne Action, und ohne JavaScript bedienbar.
- */
-export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surveyId?: number }) {
-  return (
-    <section className={s.weitergabe}>
-      <p className={s.sektionKicker}>Handy wandert weiter?</p>
-      <p className={s.text}>
-        Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst
-        du einen leeren Bogen öffnen.
-      </p>
-      {surveyId === undefined ? (
-        <a className={`${s.knopf} ${s.knopfUmriss} ${s.knopfLink}`} href={`/f/${slugSecret}`}>
-          Leeren Bogen öffnen
-        </a>
-      ) : (
-        <LeererBogen slugSecret={slugSecret} surveyId={surveyId} umriss />
-      )}
-    </section>
-  );
-}
-
-/**
  * Der Knopf, der das Geraet freigibt.
  *
  * Die Action wird GEBUNDEN und unveraendert als `action` uebergeben — nur so
@@ -273,18 +243,10 @@ export function Weitergabe({ slugSecret, surveyId }: { slugSecret: string; surve
  * Funktion `action="javascript:throw …"`, und dieser Bruch ist fuer Typecheck
  * und Build unsichtbar.
  */
-function LeererBogen({
-  slugSecret,
-  surveyId,
-  umriss = false,
-}: {
-  slugSecret: string;
-  surveyId: number;
-  umriss?: boolean;
-}) {
+function LeererBogen({ slugSecret, surveyId }: { slugSecret: string; surveyId: number }) {
   return (
     <form action={releaseDeviceAction.bind(null, slugSecret, surveyId)}>
-      <button type="submit" className={umriss ? `${s.knopf} ${s.knopfUmriss}` : s.knopf}>
+      <button type="submit" className={s.knopf}>
         Leeren Bogen öffnen
       </button>
     </form>

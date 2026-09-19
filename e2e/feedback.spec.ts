@@ -417,6 +417,14 @@ test("geteiltes Gerät: nach der Abgabe „Leeren Bogen öffnen“ → zweite Ab
   await page.locator("[data-absenden]").first().click();
   await page.waitForURL(`${FEEDBACK}/f/${DEMO_TOKEN}/thanks`);
 
+  // Die Danke-Seite sagt nur noch danke — kein Weitergabe-Abschnitt mehr. Wer
+  // das Handy reicht, ruft den Link erneut auf und landet in Zustand E.
+  await expect(page.getByRole("button", { name: "Leeren Bogen öffnen" })).toHaveCount(0);
+  await page.goto(`${FEEDBACK}/f/${DEMO_TOKEN}`);
+  await expect(
+    page.getByRole("heading", { name: "Von diesem Gerät ist schon eine Rückmeldung abgegeben." }),
+  ).toBeVisible();
+
   // Das Dedup-Cookie `feedback-{surveyId}` steht jetzt. Der Knopf loescht es
   // (nativer `<form action>`, kein Client-Wrapper) und fuehrt zurueck.
   await page.getByRole("button", { name: "Leeren Bogen öffnen" }).click();

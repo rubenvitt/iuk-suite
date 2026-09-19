@@ -174,7 +174,7 @@ test.describe("Etikettenbogen", () => {
     // clearCookies laeuft die zweite devLogin-Anmeldung nicht ein zweites Mal
     // durchs Formular, weil /login einen angemeldeten Nutzer sofort auf "/"
     // umleitet (src/app/login/page.tsx: `if (session?.user) redirect("/")`) —
-    // dasselbe Muster wie feedback.spec.ts:522/747 und files-fileshare.spec.ts:499.
+    // dasselbe Muster wie feedback.spec.ts:530/755 und files-fileshare.spec.ts:499.
     await page.context().clearCookies();
     await devLogin(page, { host: LAGERBUCH_HOST, groups: "" }); // angemeldet, aber ohne Gruppe
 
