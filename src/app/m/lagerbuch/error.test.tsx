@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { mount, unmount, query, exists, clickElement } from "@/app/m/qr/_lib/test-dom";
 import Fehlergrenze from "./error";
 import { FEHLER_TITEL, FEHLER_ERNEUT, FEHLER_ZURUECK } from "./_lib/zustandTexte";
@@ -120,33 +120,63 @@ describe("error.tsx — die Modul-Fehlergrenze (§11.2, §12.2)", () => {
    * Suite-404 die richtige und bereits gehaertete Form — ihr zweiter Absatz ist
    * woertlich fuer den Fall „darfst du nicht sehen" geschrieben.
    */
-  it("legt weder not-found.tsx noch loading.tsx noch global-error.tsx an", () => {
+  it("legt weder not-found.tsx noch global-error.tsx an", () => {
     const eintraege = readdirSync(__dirname);
     expect(eintraege).not.toContain("not-found.tsx");
-    expect(eintraege).not.toContain("loading.tsx");
     expect(eintraege).not.toContain("global-error.tsx");
+    // Auch an der WURZEL gibt es keine Ladegrenze: `/verwaltung` selbst ist
+    // kein Detailaufruf, und eine Grenze ueber dem ganzen Modul legte sich auch
+    // ueber die Helferflaechen (der Fall unten zaehlt die erlaubten Orte ab).
+    expect(eintraege).not.toContain("loading.tsx");
+  });
 
-    /*
-     * ⚠️ DIE VORGABE LAUTET „keine `loading.tsx`, IN KEINER ROUTE" — der Scan
-     * oben liest genau EIN Verzeichnis und deckte damit einen Bruchteil seiner
-     * eigenen Aussage. Ein Riegel, der Deckung vortaeuscht, ist schlechter als
-     * keiner. Deshalb zusaetzlich rekursiv ueber den ganzen Modulbaum, nach dem
-     * fertigen Muster von `verwaltung/(druck)/etiketten/druck.test.ts#alleCss`.
-     *
-     * NUR `loading.tsx` wird rekursiv gesucht: `not-found.tsx` und
-     * `global-error.tsx` sind von Entscheidung 36 (b) her WURZEL-Fragen — eine
-     * `not-found.tsx` in einem Unterverzeichnis waere eine andere Entscheidung
-     * und ist hier nicht verboten. Rekursiv zu verbieten, was die Entscheidung
-     * nicht sagt, waere die entgegengesetzte Falschaussage.
-     */
+  /**
+   * ⛔ DIE ENTSCHEIDUNG GEGEN `loading.tsx` IST AM 19.09.2026 GEFALLEN (DRK-201,
+   * Betreiberentscheidung) — UND DIESER FALL IST NICHT GESTRICHEN, SONDERN
+   * UMGEDREHT. Hier stand „loading.tsx irgendwo unter m/lagerbuch/ -> []", mit
+   * der Begruendung: „alle Einstiegsseiten sind `force-dynamic`; jede Navigation
+   * wartet in BEIDEN WELTEN auf denselben Server-Rundlauf. Eine Ladegrenze
+   * kuerzte nichts ab, sondern erzeugte eine zweite Anmutung."
+   *
+   * ⚠️ DER ERSTE HALBSATZ GILT NUR IN EINER DER BEIDEN WELTEN. Vorabladen
+   * findet ausschliesslich in PRODUKTION statt; dort wird eine dynamische Route
+   * mit `loading.tsx` partiell vorabgeladen und die Adresse wechselt SOFORT.
+   * Ohne sie bekommt der Anwender bis zur fertigen Seite gar nichts — keine
+   * Adresse, keinen Ladezustand, keine Rueckmeldung.
+   *
+   * ⛔ EINE LISTE UND KEIN FREIBRIEF, und das ist der ganze Grund, warum der
+   * Fall bleibt: „nicht mehr verboten" waere die Einladung, die naechste
+   * Ladegrenze irgendwohin zu legen. Erlaubt sind GENAU die sechs dynamischen
+   * Detailrouten. Eine `loading.tsx` ueber einer LISTE waere etwas anderes —
+   * dort steht kein Einzelobjekt, auf das jemand geklickt hat, und die zweite
+   * Anmutung haette dann tatsaechlich keinen Gegenwert.
+   *
+   * ⚠️ `toEqual` AUF DER SORTIERTEN LISTE, nicht `toContain` je Eintrag: nur so
+   * faellt auch eine ZUSAETZLICHE Datei auf. Mit sechs Einzelpruefungen waere
+   * eine siebte still erlaubt — genau die Deckungsluecke, die die alte Fassung
+   * dieses Falls an sich selbst hatte (ein Verzeichnis statt des Baums).
+   */
+  it("erlaubt eine Ladegrenze GENAU auf den sechs Detailrouten", () => {
     const gefunden: string[] = [];
     (function suche(dir: string): void {
       for (const eintrag of readdirSync(dir)) {
         const pfad = join(dir, eintrag);
         if (statSync(pfad).isDirectory()) suche(pfad);
-        else if (eintrag === "loading.tsx") gefunden.push(pfad);
+        else if (eintrag === "loading.tsx") gefunden.push(relative(__dirname, pfad));
       }
     })(__dirname);
-    expect(gefunden, "loading.tsx irgendwo unter m/lagerbuch/").toEqual([]);
+
+    expect(
+      gefunden.sort(),
+      "Eine Ladegrenze gehoert auf eine dynamische DETAILroute, nicht auf eine Liste "
+        + "(DRK-201). Kommt eine neue Detailroute dazu, gehoert sie in diese Liste.",
+    ).toEqual([
+      "verwaltung/(arbeit)/bz/[id]/loading.tsx",
+      "verwaltung/(arbeit)/checks/[id]/loading.tsx",
+      "verwaltung/(arbeit)/fahrzeuge/[id]/loading.tsx",
+      "verwaltung/(arbeit)/geraete/[id]/loading.tsx",
+      "verwaltung/(arbeit)/sauerstoff/[id]/loading.tsx",
+      "verwaltung/(arbeit)/vorlagen/[id]/loading.tsx",
+    ]);
   });
 });
