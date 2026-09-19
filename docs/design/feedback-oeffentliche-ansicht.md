@@ -36,6 +36,14 @@ als Marke — drei Versalien brauchen mehr Luft als ein neunbuchstabiges Wort in
 Gilt für die Wortzeichen am Bildschirm (`zettel.module.css` und `files-public.css`); das Wortzeichen
 der Aushang-Druckansicht steht in `docs/design/feedback-admin.md`, §3.5.
 
+**Weitergabe-Block der Danke-Seite (entfallen 19.09.2026):** Zustand B trägt **nur noch** „Danke."
+und die anonyme Bestätigung. Der Abschnitt „HANDY WANDERT WEITER?" samt Satz und Sekundärknopf
+„Leeren Bogen öffnen" ist **absichtlich entfernt** — er erklärte der gerade abgebenden Person eine
+Mechanik, die nicht ihr Problem ist, und machte aus einem Schlusspunkt eine weitere Aufgabe. Der Weg
+zum leeren Bogen ist damit nicht verloren, sondern **einmal** vorhanden: Zustand E. §3.1 und §3.2 sind
+entsprechend nachgezogen; wer die Spezifikation liest, ohne diese Zeile zu sehen, baut den Block
+wieder ein.
+
 **Zielgruppe dieses Dokuments:** wer die Route `/f/**` baut oder ändert. Was daran modulübergreifend
 gilt, steht in `docs/design/README.md`.
 
@@ -106,12 +114,12 @@ Entwurf 1 tut es und sein Juror nennt das die wahrscheinlichste Ablehnung; Entwu
 | 6 | **Serif-Fragetext 17px/400 zu zart** (Juror 2) | Fragetext ist **Geist Sans 18px/500**. Die Serif trägt nur H1/Thema und „Danke." (der Einleitungssatz der Freitextsektion ist entfallen). |
 | 7 | **Körnung über den Notenchips senkt den Kontrast** (Juror 3, `mix-blend-mode: multiply`) | Entfällt mit der Körnung. Die geprüften Kontrastwerte gelten damit unverändert. |
 | 8 | **„keine IP-Kennung" ist ein Versprechen, das der Code halten muss** (Juror 2+3) | Der Siegeltext ist an konkrete Backend-Änderungen gebunden (Zeitstempel, Leseordnung — siehe Spezifikation §9). Zwei zugelassene Wortlaute, je nachdem ob die Änderungen landen. Kein Satz ohne Deckung. |
-| 9 | **Stempel widerspricht der eigenen Strenge** (Juror 1) | Entfällt. Die Danke-Seite trägt nur Serif-„Danke.", eine Haarlinie und den Weitergabe-Block. |
+| 9 | **Stempel widerspricht der eigenen Strenge** (Juror 1) | Entfällt. Die Danke-Seite trägt nur Serif-„Danke.", eine Haarlinie und den Weitergabe-Block. *(Der Weitergabe-Block ist am 19.09.2026 entfallen — siehe §3.2 B. Damit bleibt hier allein das „Danke.")* |
 | 10 | **Nur für `schulnote` gültig** (Risiko 8 des Entwurfs, bestätigt: `questions.ts` kennt `stars` mit `ratingScale` 5 für importierte Alt-Umfragen) | Ein Zweig, kein zweites Design: bei `stars` fünf Chips, Ziffern 1–5, dieselbe Rampe auf fünf Stufen abgetastet, Ankerwörter „1 sehr gut / 5 mangelhaft", keine sechste Spalte. |
 
 ### Drei Funde aus dem Code, die keine Jury gesehen hat — und die den Entwurf sonst live brechen
 
-1. **Der 24-Stunden-Cookie macht die Handy-Weitergabe unmöglich.** `actions.ts` setzt nach dem Absenden `feedback-${survey.id}` (`httpOnly`, `maxAge: 86400`, `path: "/"`), und `f/[slugSecret]/page.tsx` leitet bei vorhandenem Cookie **stumm nach `/thanks`** um. Die zweite Person am weitergegebenen Handy sieht also kein Formular, sondern eine Danke-Seite — die vom Auftraggeber verlangte Funktion ist im Ist-Code tot. Weil der Cookie `httpOnly` ist, kann kein Client-JS ihn löschen. Lösung: Server Action `releaseDeviceAction(slugSecret)`, die `cookies().set(name, "", { maxAge: 0, path: "/" })` schreibt und zurück aufs Formular leitet; sie hängt am Knopf „Leeren Bogen für die nächste Person" (Danke-Seite) und am neuen Zustand „Von diesem Gerät wurde schon abgestimmt".
+1. **Der 24-Stunden-Cookie macht die Handy-Weitergabe unmöglich.** `actions.ts` setzt nach dem Absenden `feedback-${survey.id}` (`httpOnly`, `maxAge: 86400`, `path: "/"`), und `f/[slugSecret]/page.tsx` leitet bei vorhandenem Cookie **stumm nach `/thanks`** um. Die zweite Person am weitergegebenen Handy sieht also kein Formular, sondern eine Danke-Seite — die vom Auftraggeber verlangte Funktion ist im Ist-Code tot. Weil der Cookie `httpOnly` ist, kann kein Client-JS ihn löschen. Lösung: Server Action `releaseDeviceAction(slugSecret)`, die `cookies().set(name, "", { maxAge: 0, path: "/" })` schreibt und zurück aufs Formular leitet; sie hängt am Knopf „Leeren Bogen für die nächste Person" (Danke-Seite) und am neuen Zustand „Von diesem Gerät wurde schon abgestimmt". *(Seit 19.09.2026 nur noch am Zustand E — §3.2 B.)*
 2. **Die 500-Zeichen-Grenze existiert serverseitig nicht.** `coerceAnswer` gibt für `type: "text"` unbegrenzt `String(raw)` zurück; `maxLength` am Feld ist umgehbar. Fix: in `coerceAnswer` auf `String(raw).trim().slice(0, 500)` kappen.
 3. **`evening.topic` ist nullable** (`schema.ts`: `topic: text("topic")`). Alle drei Entwürfe machen das Thema zur H1. Fallback: ohne Thema lautet die H1 „Dienstabend am 22. Juli" und die Metazeile trägt nur Gruppe und Uhrzeit.
 
@@ -126,7 +134,7 @@ src/app/m/feedback/f/layout.tsx            (Server) — Hülle, full bleed; maxW
 src/app/m/feedback/f/[slugSecret]/page.tsx (Server) — Token, Lifecycle, Zustände, Kopf, Siegeltext
 src/app/m/feedback/f/[slugSecret]/Zettel.tsx        ("use client") — EINE Komponente: Matrix, Freitexte, Navigator, Draft
 src/app/m/feedback/f/[slugSecret]/zettel.module.css — die komplette Optik
-src/app/m/feedback/f/[slugSecret]/thanks/page.tsx   (Server) — Danke + Weitergabe
+src/app/m/feedback/f/[slugSecret]/thanks/page.tsx   (Server) — nur Danke (Weitergabe entfallen, §3.2 B)
 src/app/m/feedback/actions.ts                       — submitResponseAction (Rückgabe statt throw), releaseDeviceAction, Limiter
 ```
 Kein antd-Import auf dieser Route (auch nicht in der Client Component) — damit ist die Compound-Falle in Server Components strukturell ausgeschlossen. Keine Animationsbibliothek, keine Icons, keine Bilder.
@@ -164,7 +172,11 @@ Dieser Preis ist im Betrieb der größere. Ein Absenden-Knopf **mitten im Bogen*
 (c) der **Serif-Einleitungssatz** „Alles hier ist freiwillig. Ein Halbsatz hilft uns mehr als ein voller Absatz." — die Freiwilligkeit steht schon am Fuß des Abschluss-Blocks, unmittelbar über denselben Zeilen, und zweimal gesagt wird sie nicht glaubhafter.
 Bewusst geblieben ist „Schreib nichts, woran man dich erkennt." — der Satz sagt etwas, das nichts anderes sagt. **Was die Kurzzusage nicht mehr trägt:** das Siegel nannte zwei Dinge, was gespeichert wird *und* was die Gruppenleitung zu sehen bekommt („Durchschnitte und die Texte in zufälliger Reihenfolge, nie eine Person"). Der kurze Satz deckt nur das Erste ab; `shuffleStable` mischt die Leseordnung weiterhin, der Bogen behauptet es nur nicht mehr. Mit dem Siegel ist auch `ZettelProps.siegel` entfallen — die Kopplung „dieser Text ist eine Zusage über Server-Verhalten" steht jetzt als Kommentar an `KURZZUSAGE` in `Zettel.tsx`.
 
-**B — DANKE** (`/f/{slugSecret}/thanks`): Serif „Danke." (`t6`), darunter `t2` „Deine Rückmeldung ist eingegangen — anonym." Keine Antworten mehr auf dem Schirm (das Handy wandert weiter). Haarlinie, 32px Abstand, dann: Kicker „HANDY WANDERT WEITER?", Satz „Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst du einen leeren Bogen öffnen.", Sekundärknopf (Umriss) **„Leeren Bogen öffnen"** → `releaseDeviceAction` (löscht Cookie + sessionStorage-Draft, leitet aufs Formular).
+**B — DANKE** (`/f/{slugSecret}/thanks`): Serif „Danke." (`t6`), darunter `t2` „Deine Rückmeldung ist eingegangen — anonym." Keine Antworten mehr auf dem Schirm (das Handy wandert weiter). **Danach nichts mehr** — keine Haarlinie, kein Kicker, kein Knopf. Die Seite fragt auch keine aktive Umfrage mehr ab.
+
+*Revision — der Weitergabe-Block ist entfallen (Stand 19.09.2026, umgesetzt):* Zustand B trug bis dahin unter einer Haarlinie den Kicker „HANDY WANDERT WEITER?", den Satz „Deine Antwort ist gespeichert und lässt sich nicht mehr ändern. Für die nächste Person kannst du einen leeren Bogen öffnen." und einen Sekundärknopf (Umriss) **„Leeren Bogen öffnen"** → `releaseDeviceAction`. Begründung damals: auf einem geteilten Handy ist die nächste Person der Regelfall, nicht die Ausnahme, deshalb stand der Block **unbedingt** da (und `thanks/page.tsx` holte dafür die aktive Umfrage, um die Cookie-Id zu kennen; ohne sie führte ein `<a href>` aufs Formular).
+
+Der Block ist **absichtlich entfernt** und gehört nicht zurück. Er erklärte der gerade abgebenden Person eine Mechanik, die nicht ihr Problem ist, und machte aus einem Schlusspunkt eine weitere Aufgabe — auf der einen Seite der Route, die nichts mehr will. **Verloren geht dabei nichts:** wer das Handy weiterreicht, ruft den Link erneut auf und bekommt **Zustand E** mit demselben Knopf, dort ohnehin schon die Hauptaktion. Der Knopf stand also an zwei Orten und steht jetzt an dem, an dem er gebraucht wird; `releaseDeviceAction` und die 24-Stunden-Cookie-Sperre sind unverändert. Der Preis ist benannt: wer nach der Abgabe **dasselbe** Gerät weitergibt, ohne dass die nächste Person den Link neu aufruft, sieht keinen Hinweis mehr auf den leeren Bogen — dieser Fall existiert nicht, weil ohne neuen Aufruf auch kein Bogen erscheint.
 
 **C — „ZURZEIT LÄUFT KEINE UMFRAGE"**: gleiche Hülle, gleicher Kopf-Rhythmus, keine Matrix. H1 Serif „Zurzeit läuft keine Umfrage." · `t2`: „Für die Bereitschaft Musterstadt ist gerade kein Dienstabend freigegeben. Der QR-Code bleibt gültig — probier es am Ende des nächsten Abends noch einmal." · Sekundärknopf „Neu laden" (`<a href>` auf dieselbe URL, funktioniert ohne JS). Kein Rot, kein Warndreieck.
 
