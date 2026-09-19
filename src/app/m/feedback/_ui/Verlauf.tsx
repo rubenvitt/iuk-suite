@@ -112,15 +112,30 @@ export function Verlauf({ groupId, zeilen, heute }: VerlaufProps) {
   const sortiert = [...zeilen].sort((a, b) => b.datum.getTime() - a.datum.getTime());
 
   /*
+   * ⚠️ DAS NOTENFENSTER LAEUFT UEBER ABENDE, DIE ES GAB — abgesagte zaehlen
+   * nicht mit. `fensterMittel` schneidet zuerst auf `NOTEN_FENSTER` und filtert
+   * die leeren Noten DANACH heraus; eine Absage haette dort also einen Platz
+   * belegt und einen echten Abend aus dem Fenster gedraengt. Bei sechs
+   * abgesagten Terminen in Folge waere der Ø ganz verschwunden, obwohl
+   * darunter sechs bewertete Abende stehen.
+   *
+   * Die ZEILEN behalten die Absage (sie erklaert die Luecke im Verlauf) — nur
+   * die Rechnung nicht. Ein Abend ohne Rueckmeldung bleibt dagegen drin: den
+   * gab es, er wurde nur nicht bewertet, und dass das Fenster ihn mitzaehlt,
+   * ist die bestehende Zusage von `fensterMittel`.
+   */
+  const bewertbar = sortiert.filter((z) => !z.abgesagt);
+
+  /*
    * Der Ø der Kopfzeile und der Funke lesen DASSELBE Fenster (`fensterMittel`
    * aus `_lib/noten.ts`) wie die Kontextzeile der Kopfzone (§4.2). Zwei
    * Rechnungen waeren zwei Fenster, und niemand wuerde merken, dass die eine
    * Zeile fuenf und die andere sechs Abende mittelt.
    */
-  const mittel = fensterMittel(sortiert.map((z) => z.avgSchulnote));
+  const mittel = fensterMittel(bewertbar.map((z) => z.avgSchulnote));
   // Der Funke laeuft chronologisch: AELTESTER links. `slice` vor `reverse`,
   // damit es dasselbe Fenster ist wie beim Ø.
-  const funkenNoten = sortiert
+  const funkenNoten = bewertbar
     .slice(0, NOTEN_FENSTER)
     .map((z) => z.avgSchulnote)
     .filter((n): n is number => n !== null)

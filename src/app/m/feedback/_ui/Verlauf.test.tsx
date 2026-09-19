@@ -794,3 +794,56 @@ describe("Verlauf — Bearbeiten eines abgesagten Abends", () => {
     document.body.replaceChildren();
   });
 });
+
+/*
+ * ABGESAGTE ABENDE STEHEN IN DER TABELLE UND NICHT IN DER RECHNUNG.
+ *
+ * `fensterMittel` schneidet zuerst auf sechs Eintraege und wirft die leeren
+ * Noten DANACH weg — eine Absage haette dort also einen Platz belegt und einen
+ * bewerteten Abend aus dem Fenster gedraengt. Bei sechs Absagen in Folge waere
+ * der Ø ganz verschwunden, obwohl darunter sechs bewertete Abende stehen.
+ */
+describe("Verlauf — abgesagte Abende zaehlen nicht ins Notenfenster", () => {
+  const tage = (n: number) => `2026-08-${String(n).padStart(2, "0")}`;
+
+  it("draengt mit sechs Absagen die bewerteten Abende NICHT aus dem Ø", async () => {
+    const absagen = [20, 19, 18, 17, 16, 15].map((t) =>
+      zeile({ eveningId: t, datum: tage(t), abgesagt: true, surveyId: null, avgSchulnote: null }),
+    );
+    const bewertet = [10, 9].map((t) =>
+      zeile({ eveningId: t, datum: tage(t), avgSchulnote: 2 }),
+    );
+    await mount(<Verlauf groupId={1} zeilen={[...absagen, ...bewertet]} heute="2026-08-21" />);
+
+    const kopf = document.querySelector("[data-testid='verlauf-kopf']")!;
+    // Ohne den Filter stuende hier gar kein Ø: die sechs Absagen haetten das
+    // ganze Fenster belegt.
+    expect(kopf.textContent ?? "").toContain("2,0");
+    // Und die Absagen bleiben sichtbar — sie erklaeren die Luecke.
+    expect(document.body.textContent ?? "").toContain("Abgesagt");
+    await unmount();
+    document.body.replaceChildren();
+  });
+
+  it("laesst einen Abend OHNE Rueckmeldung im Fenster — den gab es", async () => {
+    // Abgrenzung: nur die Absage faellt heraus. Ein stattgefundener Abend, den
+    // niemand bewertet hat, zaehlt weiter mit — das ist die bestehende Zusage
+    // von `fensterMittel`, und sie darf dieser Filter nicht mit abraeumen.
+    await mount(
+      <Verlauf
+        groupId={1}
+        zeilen={[
+          zeile({ eveningId: 1, datum: tage(20), avgSchulnote: null, rueckmeldungen: 0 }),
+          zeile({ eveningId: 2, datum: tage(19), avgSchulnote: 4 }),
+        ]}
+        heute="2026-08-21"
+      />,
+    );
+
+    const kopf = document.querySelector("[data-testid='verlauf-kopf']")!;
+    expect(kopf.textContent ?? "").toContain("4,0");
+    expect(kopf.textContent ?? "").toContain("1 Abend");
+    await unmount();
+    document.body.replaceChildren();
+  });
+});

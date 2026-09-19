@@ -108,7 +108,14 @@ export default async function Cockpit({
    * Arbeit, sondern die Chance, dass Kopfzeile und Tabelle verschiedene
    * Durchschnitte zeigen.
    */
-  const abendZahl = zustand.verlauf.length + (zustand.laufend ? 1 : 0);
+  /*
+   * ⚠️ ABGESAGTE ABENDE ZAEHLEN HIER NICHT MIT. „N Dienstabende erfasst" ist
+   * eine Aussage darueber, was stattgefunden hat; ein ausgefallener Dienst
+   * erhoehte die Zahl, ohne dass jemand da war. Im Verlauf steht er trotzdem —
+   * dort erklaert er die Luecke.
+   */
+  const gezaehlt = zustand.verlauf.filter((x) => x.evening.status !== "cancelled");
+  const abendZahl = gezaehlt.length + (zustand.laufend ? 1 : 0);
 
   /*
    * ⚠️ DER LÖSCHDIALOG BRAUCHT EINE ANDERE ZAHL ALS DIE KOPFZEILE, und der
@@ -124,7 +131,8 @@ export default async function Cockpit({
    * behauptete Zahl ist in einem Dialog, der unwiderruflich löscht, die
    * schlimmste Stelle für eine Schätzung.
    */
-  const abendZahlGesamt = abendZahl + zustand.geplant.length;
+  const abendZahlGesamt =
+    zustand.verlauf.length + (zustand.laufend ? 1 : 0) + zustand.geplant.length;
 
   /*
    * DIE ZEILEN DES VERLAUFS (§2.5). Sie entstehen HIER und nicht in `Verlauf.tsx`:
@@ -164,7 +172,13 @@ export default async function Cockpit({
   // Die Kontextzeile liest DIESELBEN Zahlen wie die Zone — kein zweiter Durchlauf
   // durch `computeDAStats` und damit keine Chance, dass Kopfzeile und Tabelle
   // verschiedene Durchschnitte zeigen.
-  const letzteNoten = verlaufZeilen.slice(0, OE_FENSTER).map((z) => z.avgSchulnote);
+  // Dasselbe Fenster wie in der Zone (`_ui/Verlauf.tsx`, `bewertbar`), und aus
+  // demselben Grund: `fensterMittel` schneidet vor dem Filtern, eine Absage
+  // draengte sonst einen bewerteten Abend heraus.
+  const letzteNoten = verlaufZeilen
+    .filter((z) => !z.abgesagt)
+    .slice(0, OE_FENSTER)
+    .map((z) => z.avgSchulnote);
 
   /*
    * DIE ZAHLEN DES LOESCHDIALOGS (§4.6). Gerechnet aus DERSELBEN Liste, die die

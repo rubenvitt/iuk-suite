@@ -451,6 +451,32 @@ describe("Zone d — VERLAUF, verdrahtet", () => {
     expect(wirt.textContent).toContain("Aushang");
   });
 
+  it("ZAEHLT ABGESAGTE ABENDE NICHT als erfasste Dienstabende", async () => {
+    // „N Dienstabende erfasst" ist eine Aussage darueber, was stattgefunden
+    // hat. Ein ausgefallener Dienst erhoehte die Zahl, ohne dass jemand da war —
+    // und im Notenfenster belegte er einen der sechs Plaetze, weil
+    // `fensterMittel` erst schneidet und dann die leeren Noten wegwirft.
+    abend("2026-07-22", [2, 2]);
+    insertEvening(db, {
+      groupId: 1,
+      date: tag("2026-08-05"),
+      topic: "Faellt aus",
+      notes: null,
+      participantCount: null,
+      status: "cancelled",
+      createdAt: tag("2026-07-22"),
+    });
+
+    const wirt = await zeichne();
+
+    expect(wirt.textContent).toContain("1 Dienstabend erfasst");
+    // Der Ø steht trotzdem da: die Absage hat den bewerteten Abend nicht aus
+    // dem Fenster gedraengt.
+    expect(wirt.textContent).toContain("2,0");
+    // Und die Zeile ist sichtbar geblieben.
+    expect(wirt.textContent).toContain("Abgesagt");
+  });
+
   it("STEHT TROTZ EINRICHTUNG, sobald ein abgesagter Abend darin liegt", async () => {
     /*
      * ⚠️ DIE SACKGASSE, GEGEN DIE DIESE ZUSICHERUNG STEHT. Bis DRK-426 waren
