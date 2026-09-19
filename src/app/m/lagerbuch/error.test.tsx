@@ -152,11 +152,19 @@ describe("error.tsx — die Modul-Fehlergrenze (§11.2, §12.2)", () => {
    * Anmutung haette dann tatsaechlich keinen Gegenwert.
    *
    * ⚠️ `toEqual` AUF DER SORTIERTEN LISTE, nicht `toContain` je Eintrag: nur so
-   * faellt auch eine ZUSAETZLICHE Datei auf. Mit sechs Einzelpruefungen waere
-   * eine siebte still erlaubt — genau die Deckungsluecke, die die alte Fassung
+   * faellt auch eine ZUSAETZLICHE Datei auf. Mit sieben Einzelpruefungen waere
+   * eine achte still erlaubt — genau die Deckungsluecke, die die alte Fassung
    * dieses Falls an sich selbst hatte (ein Verzeichnis statt des Baums).
+   *
+   * ⚠️ DIE LISTE STAND ZUERST AUF SECHS, UND SIE WAR UNVOLLSTAENDIG
+   * (Codex-Review zu PR #210, P2): `inventur/verlauf/[id]` liegt eine Ebene
+   * tiefer als die anderen und fiel beim Aufzaehlen von Hand heraus. Der Scan
+   * liest den Baum — die LISTE war der Fehler, nicht der Scan.
+   *
+   * ⚠️ `bz/[id]/kontrolle` braucht KEINE eigene: eine `loading.tsx` deckt
+   * ihr Segment UND alles darunter, und `bz/[id]/loading.tsx` steht darueber.
    */
-  it("erlaubt eine Ladegrenze GENAU auf den sechs Detailrouten", () => {
+  it("erlaubt eine Ladegrenze GENAU auf den sieben Detailrouten", () => {
     const gefunden: string[] = [];
     (function suche(dir: string): void {
       for (const eintrag of readdirSync(dir)) {
@@ -175,6 +183,7 @@ describe("error.tsx — die Modul-Fehlergrenze (§11.2, §12.2)", () => {
       "verwaltung/(arbeit)/checks/[id]/loading.tsx",
       "verwaltung/(arbeit)/fahrzeuge/[id]/loading.tsx",
       "verwaltung/(arbeit)/geraete/[id]/loading.tsx",
+      "verwaltung/(arbeit)/inventur/verlauf/[id]/loading.tsx",
       "verwaltung/(arbeit)/sauerstoff/[id]/loading.tsx",
       "verwaltung/(arbeit)/vorlagen/[id]/loading.tsx",
     ]);
