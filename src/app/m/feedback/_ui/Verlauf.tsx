@@ -11,7 +11,12 @@ import {
   zustandsFilter,
 } from "@/core/tabelle";
 import { SPACE, TAP } from "@/core/theme/tokens";
-import { activateSurveyAction, createEveningAction, deleteEveningAction } from "../actions";
+import {
+  activateSurveyAction,
+  createEveningAction,
+  deleteEveningAction,
+  wiederAnsetzenAction,
+} from "../actions";
 import { NOTEN_FENSTER, fensterMittel, notenSatz } from "../_lib/noten";
 import { Altbestandsfussnote, Notenfunke, Notenpille } from "./Noten";
 import { AbendBearbeiten } from "./AbendBearbeiten";
@@ -83,6 +88,13 @@ export type VerlaufZeile = {
   hasLegacyScale: boolean;
   /** Altbestands-Entwurf (§2.2, Belegung E) — nie in der Lagekarte, nur hier. */
   entwurf: boolean;
+  /**
+   * Angesetzt und ausgefallen (DRK-426). Er STEHT hier und wird nicht geloescht:
+   * ohne ihn ist die Luecke im Notenverlauf von einem vergessenen Abend nicht zu
+   * unterscheiden. Ohne die Marke waere er wiederum von einem nachgetragenen
+   * Abend nicht zu unterscheiden — beide tragen keine Umfrage und keine Note.
+   */
+  abgesagt: boolean;
 };
 
 export type VerlaufProps = {
@@ -410,16 +422,14 @@ function BreiteTabelle({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZe
            */
           ...zustandsFilter<VerlaufZeile>([
             { wert: "entwurf", text: "Entwurf (Altbestand)", trifft: (z) => z.entwurf },
-            { wert: "ohne", text: "Ohne Vermerk", trifft: (z) => !z.entwurf },
+            { wert: "abgesagt", text: "Abgesagt", trifft: (z) => z.abgesagt },
+            { wert: "ohne", text: "Ohne Vermerk", trifft: (z) => !z.entwurf && !z.abgesagt },
           ]),
           // Nur belegt, wenn es etwas zu sagen gibt: ein „abgeschlossen" in jeder
           // Zeile ist Rauschen, das den einen abweichenden Fall verdeckt.
-          render: (_, z) =>
-            z.entwurf ? (
-              <Tag bordered={false} style={T.meta}>
-                Entwurf (Altbestand)
-              </Tag>
-            ) : null,
+          // Die beiden Vermerke schliessen einander aus: ein abgesagter Abend
+          // bekommt nie eine Umfrage und kann deshalb kein Entwurf sein.
+          render: (_, z) => <Zustandsvermerk zeile={z} />,
         },
         {
           title: "Aktion",
@@ -545,11 +555,7 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
               </span>
               <Ruecklauf zeile={z} ohneBalken />
             </span>
-            {z.entwurf && (
-              <Tag bordered={false} style={T.meta}>
-                Entwurf (Altbestand)
-              </Tag>
-            )}
+            <Zustandsvermerk zeile={z} />
             {z.hasLegacyScale && <Altbestandsfussnote />}
           </Zeilenziel>
           {/*
@@ -579,6 +585,34 @@ function SchmaleListe({ groupId, zeilen }: { groupId: number; zeilen: VerlaufZei
 // ---------------------------------------------------------------------------
 
 /** §4.3, wortgenau. Keine Illustration, kein zweiter Startaufruf. */
+/**
+ * DER VERMERK EINER ZEILE — eine Stelle fuer beide Darstellungen, aus demselben
+ * Grund wie `Zeilenziel`: zwei Kopien sind der Weg, auf dem ein dritter Zustand
+ * nur in einer von beiden ankommt.
+ *
+ * Kein `danger`, kein Rot, auch nicht fuer „Abgesagt" — §4.9 haelt Rot in diesem
+ * Modul fuer die Note 6 frei, und `theme.ts` setzt `colorError === colorPrimary`
+ * (CLAUDE.md, Falle 3). Ein abgesagter Abend ist ohnehin keine Stoerung, sondern
+ * eine Auskunft.
+ */
+function Zustandsvermerk({ zeile }: { zeile: VerlaufZeile }) {
+  if (zeile.abgesagt) {
+    return (
+      <Tag bordered={false} style={T.meta}>
+        Abgesagt
+      </Tag>
+    );
+  }
+  if (zeile.entwurf) {
+    return (
+      <Tag bordered={false} style={T.meta}>
+        Entwurf (Altbestand)
+      </Tag>
+    );
+  }
+  return null;
+}
+
 const LEER_TEXT = "Noch keine vergangenen Dienstabende.";
 
 /**
@@ -697,6 +731,17 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
       await deleteEveningAction(daten);
     });
 
+  // Die Ruecknahme einer Absage. Sie steht HIER und nicht bei den kommenden
+  // Abenden, weil ein abgesagter Abend dort gar nicht mehr auftaucht — er ist
+  // Historie, bis jemand ihn zurueckholt. Kein `Popconfirm`: der Schritt nimmt
+  // nichts weg, er stellt einen Termin wieder her.
+  const wiederAnsetzen = () =>
+    starte(async () => {
+      const daten = new FormData();
+      daten.set("eveningId", String(zeile.eveningId));
+      await wiederAnsetzenAction(daten);
+    });
+
   return (
     <>
       <Dropdown
@@ -704,6 +749,9 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
         menu={{
           items: [
             { key: "bearbeiten", label: "Bearbeiten", onClick: () => setBearbeiten(true) },
+            ...(zeile.abgesagt
+              ? [{ key: "ansetzen", label: "Doch wieder ansetzen", onClick: wiederAnsetzen }]
+              : []),
             { key: "loeschen", label: "Löschen", onClick: () => setOffen(true) },
           ],
         }}
@@ -720,7 +768,8 @@ function AbendMenue({ zeile }: { zeile: VerlaufZeile }) {
            * NACHHER PASST DER KNOPF NICHT IN SEINEN CONTAINER, ER RAGT HERAUS —
            * und das ist gemessen, kein Uebersehen: ohne `size` faellt der Knopf
            * auf antds `controlHeight` (56) zurueck, `minWidth: TAP` erzwingt
-           * dieselben 56px in der Breite. Der umgebende Container in Zeile 488
+           * dieselben 56px in der Breite. Der umgebende Container (`SchmaleListe`,
+           * das `<span>` um `AbendMenue`)
            * bleibt bei 44px (eigene `getBoundingClientRect`-Messung), der Knopf
            * also 56×56 in einem 44px-Rahmen — 6px Ueberstand je Seite. Das
            * bleibt folgenlos, weil die Zeile ein Flex-Container mit

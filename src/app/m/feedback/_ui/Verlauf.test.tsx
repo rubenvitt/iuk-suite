@@ -94,6 +94,7 @@ function zeile(
     avgSchulnote: over.avgSchulnote === undefined ? 2.4 : over.avgSchulnote,
     hasLegacyScale: over.hasLegacyScale ?? false,
     entwurf: over.entwurf ?? false,
+    abgesagt: over.abgesagt ?? false,
   };
 }
 

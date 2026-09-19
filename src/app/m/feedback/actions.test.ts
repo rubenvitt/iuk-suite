@@ -11,6 +11,7 @@ import {
   activateSurvey,
   activeSurveyForGroup,
   getSurvey,
+  getSurveyByEvening,
   getGroup,
   getEvening,
   listEvenings,
@@ -894,6 +895,264 @@ describe("beendeFeedbackAction: der geplante Schluss-Schritt", () => {
     f.set("surveyId", String(fremd.survey.id));
     await expect(beendeFeedbackAction(f)).rejects.toThrow();
     expect(getSurvey(db, fremd.survey.id)!.status).toBe("active");
+  });
+});
+
+/**
+ * DIENSTABENDE VORAUS PLANEN UND AM ABEND FREIGEBEN (DRK-426). Vier Actions,
+ * die zusammen EINEN Zustand verhindern müssen: ein Abend, der als gelaufen
+ * gilt und keine Umfrage hat. Von einem nachgetragenen Abend wäre er nicht
+ * mehr zu unterscheiden, und die Auswertung zählte ihn als Abend ohne
+ * Rücklauf.
+ */
+/** Gruppe + ein vorausgeplanter Abend (`planned`), ohne Umfrage. */
+function seedGeplanterAbend(slug: string, tageVoraus = 7, closeAfterHours: number | null = 48) {
+  const group = insertGroup(db, {
+    name: slug,
+    slug,
+    secret: "abc12",
+    closeAfterHours,
+    createdAt: new Date(),
+  });
+  const date = new Date(todayMidnightUtc().getTime() + tageVoraus * 86400_000);
+  const evening = insertEvening(db, {
+    groupId: group.id,
+    date,
+    topic: "Kartenkunde",
+    notes: null,
+    participantCount: null,
+    status: "planned",
+    createdAt: new Date(),
+  });
+  return { group, evening, date };
+}
+
+describe("planEveningsAction: eine Serie in einem Zug ansetzen", () => {
+  function seedGroup(slug: string) {
+    return insertGroup(db, {
+      name: slug,
+      slug,
+      secret: "abc12",
+      closeAfterHours: null,
+      createdAt: new Date(),
+    });
+  }
+  function planForm(groupId: number, over: Record<string, string> = {}): FormData {
+    const f = new FormData();
+    f.set("groupId", String(groupId));
+    f.set("date", "2026-10-06");
+    f.set("bis", "2026-10-27");
+    f.set("rhythmus", "woche");
+    f.set("topic", "Funkübung");
+    for (const [k, v] of Object.entries(over)) f.set(k, v);
+    return f;
+  }
+
+  it("legt die ganze Serie als geplante Abende an und revalidiert das Cockpit", async () => {
+    const { planEveningsAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    await planEveningsAction(planForm(g.id));
+
+    // `listEvenings` liefert absteigend — vier Dienstage im Wochentakt.
+    const abende = listEvenings(db, g.id);
+    expect(abende.map((e) => e.date.toISOString().slice(0, 10))).toEqual([
+      "2026-10-27",
+      "2026-10-20",
+      "2026-10-13",
+      "2026-10-06",
+    ]);
+    expect(abende.every((e) => e.status === "planned")).toBe(true);
+    expect(abende.every((e) => e.topic === "Funkübung")).toBe(true);
+    // Keine Umfrage: der QR-Code der Gruppe darf nicht schon Wochen vorher auf
+    // eine Erhebung zeigen — freigegeben wird am Abend selbst.
+    expect(abende.every((e) => getSurveyByEvening(db, e.id) === undefined)).toBe(true);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("wirft bei unbekanntem Rhythmus und legt dabei nichts an", async () => {
+    // Die Action glaubt dem Formular nicht. Ein unbekannter Wert liefe sonst in
+    // den Vorgabezweig von `serienTermine` und legte still EINEN einzelnen
+    // Abend an, wo eine Jahresplanung erwartet wurde — und das sähe aus, als
+    // sei sie durchgelaufen.
+    const { planEveningsAction } = await loadActions();
+    const g = seedGroup("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(
+      planEveningsAction(planForm(g.id, { rhythmus: "jeden-zweiten-donnerstag" })),
+    ).rejects.toThrow();
+
+    expect(listEvenings(db, g.id)).toEqual([]);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("eine fremde Gruppe wirft", async () => {
+    const { planEveningsAction } = await loadActions();
+    const fremd = seedGroup("jugendrotkreuz");
+    alsGruppenleitung("bereitschaft");
+
+    await expect(planEveningsAction(planForm(fremd.id))).rejects.toThrow();
+    expect(listEvenings(db, fremd.id)).toEqual([]);
+  });
+});
+
+describe("freigebenAction: aus dem Termin wird ein Dienstabend", () => {
+  it("setzt den Abend auf `held`, startet die Umfrage und ankert die Frist am Abenddatum", async () => {
+    const { freigebenAction } = await loadActions();
+    // Abend eine Woche voraus: eine Frist „jetzt + 48h" läge davor und wäre
+    // sofort sichtbar falsch — derselbe Fund wie bei `activateSurveyAction`,
+    // nur an der Stelle, an der Ansetzen und Freigeben am weitesten
+    // auseinanderliegen.
+    const { group, evening, date } = seedGeplanterAbend("bereitschaft", 7, 48);
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await freigebenAction(f);
+
+    expect(getEvening(db, evening.id)!.status).toBe("held");
+    const laufend = activeSurveyForGroup(db, group.id)!;
+    expect(laufend.evening.id).toBe(evening.id);
+    expect(laufend.survey.status).toBe("active");
+    expect(laufend.survey.closeAfterHours).toBe(48);
+    expect(laufend.survey.closesAt).toEqual(computeClosesAt(date, 48));
+    // Und ausdrücklich NICHT ab dem Klickzeitpunkt.
+    expect(laufend.survey.closesAt).not.toEqual(computeClosesAt(todayMidnightUtc(), 48));
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+  });
+
+  it("wirft für einen Abend, der schon gelaufen ist", async () => {
+    // Der Riegel gegen das Wiederöffnen: ohne ihn ließe sich über ein
+    // nachgebautes Formular die Umfrage eines längst gelaufenen Abends wieder
+    // aufmachen. Sie schlösse dabei die gerade laufende — der QR-Code im
+    // Gerätehaus zeigte danach auf eine Erhebung von vorletztem Monat, und die
+    // Rückmeldungen des heutigen Abends landeten an einem Datum, an dem sie
+    // niemand sucht.
+    const { freigebenAction } = await loadActions();
+    const { group, survey: laufende } = seedActiveSurvey("bereitschaft", "abc12");
+    const alt = insertEvening(db, {
+      groupId: group.id,
+      date: new Date(todayMidnightUtc().getTime() - 60 * 86400_000),
+      topic: "Vorletzter Monat",
+      notes: null,
+      participantCount: null,
+      createdAt: new Date(),
+    });
+    const alteUmfrage = insertSurvey(db, {
+      eveningId: alt.id,
+      questions: JSON.stringify(STANDARD_QUESTIONS),
+      closeAfterHours: 48,
+      createdAt: new Date(),
+    });
+    setSurveyStatus(db, alteUmfrage.id, "closed", { closedAt: new Date() });
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(alt.id));
+    await expect(freigebenAction(f)).rejects.toThrow();
+
+    expect(getEvening(db, alt.id)!.status).toBe("held");
+    expect(getSurvey(db, alteUmfrage.id)!.status).toBe("closed");
+    expect(activeSurveyForGroup(db, group.id)!.survey.id).toBe(laufende.id);
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("eine fremde Gruppe wirft — und der Abend bleibt ein Termin", async () => {
+    const { freigebenAction } = await loadActions();
+    const fremd = seedGeplanterAbend("jugendrotkreuz");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(fremd.evening.id));
+    await expect(freigebenAction(f)).rejects.toThrow();
+
+    expect(getEvening(db, fremd.evening.id)!.status).toBe("planned");
+    expect(getSurveyByEvening(db, fremd.evening.id)).toBeUndefined();
+    expect(activeSurveyForGroup(db, fremd.group.id)).toBeUndefined();
+  });
+});
+
+/**
+ * ABSAGEN UND WIEDER ANSETZEN — zwei Actions statt einer mit `status`-Feld, und
+ * beide prüfen die AUSGANGSLAGE. Das ist der Riegel: ein allgemeiner
+ * Statussetzer nähme aus einem manipulierten Formular auch `held` entgegen und
+ * erzeugte genau den Zustand, den es nicht geben darf — ein Abend, der als
+ * gelaufen gilt, aber keine Umfrage hat.
+ */
+describe("absagenAction / wiederAnsetzenAction", () => {
+  it("sagt einen geplanten Abend ab und setzt ihn wieder an", async () => {
+    const { absagenAction, wiederAnsetzenAction } = await loadActions();
+    const { evening } = seedGeplanterAbend("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await absagenAction(f);
+    expect(getEvening(db, evening.id)!.status).toBe("cancelled");
+    // Der Abend BLEIBT stehen: „an dem Tag war kein Dienst" ist eine Auskunft,
+    // eine fehlende Zeile ist keine.
+    expect(listEvenings(db, evening.groupId)).toHaveLength(1);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/m/feedback", "layout");
+
+    await wiederAnsetzenAction(f);
+    expect(getEvening(db, evening.id)!.status).toBe("planned");
+  });
+
+  it("absagenAction wirft bei einem Abend, der nicht mehr geplant ist", async () => {
+    // Der zweite Klick auf einen inzwischen freigegebenen Abend. Ohne die
+    // Prüfung würde er wieder zum Termin — die laufende Umfrage bliebe stehen
+    // und hinge an einem Abend, der laut Liste erst noch kommt.
+    const { freigebenAction, absagenAction } = await loadActions();
+    const { group, evening } = seedGeplanterAbend("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await freigebenAction(f);
+
+    await expect(absagenAction(f)).rejects.toThrow();
+    expect(getEvening(db, evening.id)!.status).toBe("held");
+    expect(activeSurveyForGroup(db, group.id)!.evening.id).toBe(evening.id);
+  });
+
+  it("wiederAnsetzenAction wirft bei einem Abend, der nicht abgesagt ist", async () => {
+    // Die Gegenrichtung desselben Riegels: „wieder ansetzen" ist die Rücknahme
+    // einer Absage, kein zweiter Weg, einen gelaufenen Abend umzuwidmen.
+    const { wiederAnsetzenAction } = await loadActions();
+    const { evening } = seedGeplanterAbend("bereitschaft");
+    alsGruppenleitung("bereitschaft");
+
+    const f = new FormData();
+    f.set("eveningId", String(evening.id));
+    await expect(wiederAnsetzenAction(f)).rejects.toThrow();
+    expect(getEvening(db, evening.id)!.status).toBe("planned");
+  });
+
+  it("beide werfen für eine fremde Gruppe", async () => {
+    const { absagenAction, wiederAnsetzenAction } = await loadActions();
+    const geplant = seedGeplanterAbend("jugendrotkreuz");
+    const abgesagt = insertEvening(db, {
+      groupId: geplant.group.id,
+      date: new Date(todayMidnightUtc().getTime() + 14 * 86400_000),
+      topic: null,
+      notes: null,
+      participantCount: null,
+      status: "cancelled",
+      createdAt: new Date(),
+    });
+    alsGruppenleitung("bereitschaft");
+
+    const a = new FormData();
+    a.set("eveningId", String(geplant.evening.id));
+    await expect(absagenAction(a)).rejects.toThrow();
+    const b = new FormData();
+    b.set("eveningId", String(abgesagt.id));
+    await expect(wiederAnsetzenAction(b)).rejects.toThrow();
+
+    expect(getEvening(db, geplant.evening.id)!.status).toBe("planned");
+    expect(getEvening(db, abgesagt.id)!.status).toBe("cancelled");
   });
 });
 

@@ -1,0 +1,529 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, type ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+/**
+ * ZONE „KOMMENDE ABENDE" (DRK-426).
+ *
+ * Die einzige Liste der Gruppenseite, die nach VORN schaut. Alles andere dort —
+ * Lagekarte, Verlauf, letzter Abend — beantwortet „was war". Daraus folgen die
+ * Zusagen, die hier bewacht werden, und alle fünf brechen still:
+ *
+ * 1. LEER IST KEINE SACKGASSE. Eine Gruppe, die noch nichts geplant hat, sieht
+ *    genau diese eine Zone — und wenn sie dann nur „nichts geplant" sagt und
+ *    keinen Weg zur Planung trägt, gibt es auf der ganzen Seite keinen.
+ * 2. DIE ORDNUNG GEHÖRT HIER NICHT DER KOMPONENTE. Genau umgekehrt zum
+ *    `Verlauf`, der selbst sortiert: `_lib/cockpit.ts` liefert `geplant`
+ *    aufsteigend, und die Zone reicht das unverändert durch. Eine zweite
+ *    Sortierung hier wäre eine zweite Wahrheit — deshalb wird geprüft, dass
+ *    KEINE stattfindet.
+ * 3. DIE MARKEN SIND DIE EINZIGE ZEITANGABE DER ZEILE. Ein geplanter Abend
+ *    faltet auf nichts, wenn sein Tag vorbei ist (`EveningStatus` in
+ *    `_lib/lifecycle.ts`) — er bleibt stehen und wartet auf eine Entscheidung.
+ *    Ohne „Termin vorbei" sucht niemand nach ihm.
+ * 4. DIE FREIGABE NENNT, WAS SIE BEENDET. „Die laufende Umfrage wird beendet"
+ *    ohne Namen ist eine Warnung, die niemand prüfen kann: es gibt je Gruppe nur
+ *    einen QR-Code, die Entscheidung ist also unwiderruflich und trifft einen
+ *    Abend, den man beim Freigeben gerade nicht ansieht.
+ * 5. DIE VORSCHAU IST DER ERSATZ FÜR EINE RÜCKMELDUNG. `planEveningsAction`
+ *    kommt ohne Formularzustand aus; ein „12 angelegt, 2 übersprungen" gäbe es
+ *    erst NACH dem Klick, wenn die Entscheidung gefallen ist. Die Zahl im Dialog
+ *    ist damit die einzige Stelle, an der jemand sie noch prüfen kann.
+ */
+
+const { absagenActionMock, freigebenActionMock, planEveningsActionMock, updateEveningActionMock } =
+  vi.hoisted(() => ({
+    absagenActionMock: vi.fn(),
+    freigebenActionMock: vi.fn(),
+    planEveningsActionMock: vi.fn(),
+    updateEveningActionMock: vi.fn(),
+  }));
+
+/*
+ * Die Actions liegen hinter `"use server"` und ziehen Datenbank und `next/*`
+ * nach — hier interessiert nur, DASS die richtige mit dem richtigen Schlüssel
+ * gerufen wird. `updateEveningAction` gehört nicht der Zone, sondern der
+ * `AbendBearbeiten`-Insel, die jede Zeile mitbringt: ohne sie im Mock zöge der
+ * echte Modulkörper an.
+ */
+vi.mock("../actions", () => ({
+  absagenAction: absagenActionMock,
+  freigebenAction: freigebenActionMock,
+  planEveningsAction: planEveningsActionMock,
+  updateEveningAction: updateEveningActionMock,
+}));
+
+import { KommendeAbende, type GeplanterAbend } from "./KommendeAbende";
+import { clickElement, mount, unmount } from "@/app/m/qr/_lib/test-dom";
+
+/** `evenings.date` ist Mitternacht UTC und meint einen Kalendertag. */
+const tag = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+const HEUTE = "2026-07-25";
+
+function abend(over: Partial<Omit<GeplanterAbend, "datum">> & { datum?: string } = {}): GeplanterAbend {
+  return {
+    eveningId: over.eveningId ?? 1,
+    datum: tag(over.datum ?? "2026-08-05"),
+    thema: over.thema === undefined ? "Funkübung" : over.thema,
+    notizen: over.notizen ?? null,
+  };
+}
+
+const zone = (
+  abende: GeplanterAbend[],
+  extra: { belegteTage?: string[]; laufendesThema?: string | null } = {},
+) => (
+  <KommendeAbende
+    groupId={7}
+    abende={abende}
+    belegteTage={extra.belegteTage ?? []}
+    heute={HEUTE}
+    laufendesThema={extra.laufendesThema ?? null}
+  />
+);
+
+function zeichne(
+  abende: GeplanterAbend[],
+  extra: { belegteTage?: string[]; laufendesThema?: string | null } = {},
+): HTMLElement {
+  const wirt = document.createElement("div");
+  wirt.innerHTML = renderToStaticMarkup(zone(abende, extra) as ReactElement);
+  return wirt;
+}
+
+const zeilen = (wirt: HTMLElement): HTMLElement[] => [
+  ...wirt.querySelectorAll<HTMLElement>("[data-testid='kommender-abend']"),
+];
+
+/** Knöpfe im GANZEN Dokument: Modal, Dropdown und Popconfirm hängen im Portal. */
+function knopf(beschriftung: string, wurzel: ParentNode = document): HTMLElement {
+  const treffer = [...wurzel.querySelectorAll<HTMLElement>("button")].find(
+    (b) => (b.textContent ?? "").trim() === beschriftung,
+  );
+  if (!treffer) throw new Error(`Kein Knopf „${beschriftung}“`);
+  return treffer;
+}
+
+/**
+ * React hängt an den value-Setter der Eingabe einen eigenen Tracker; eine
+ * direkte Zuweisung läse er als „unverändert". `fill` aus dem Harness sucht im
+ * Mount-Wirt — der Planungsdialog hängt aber (antd `Modal`) im Portal, also
+ * dasselbe Muster mit einem Element statt einem Selektor.
+ */
+async function tippe(feld: HTMLInputElement, wert: string): Promise<void> {
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(feld), "value")!.set!;
+  await act(async () => {
+    setter.call(feld, wert);
+    feld.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+/** Der Planungsdialog, geöffnet über den einzigen Weg, den die Zone anbietet. */
+async function planungOeffnen(belegteTage: string[] = []): Promise<HTMLFormElement> {
+  await mount(zone([], { belegteTage }));
+  await clickElement(knopf("Dienstabende planen"));
+  const form = document.querySelector<HTMLFormElement>("form[data-testid='abende-planen']");
+  if (!form) throw new Error("Kein Planungsformular");
+  return form;
+}
+
+const vorschauTermine = (): string[] =>
+  [...document.querySelectorAll<HTMLElement>("[data-testid='vorschau-termin']")].map(
+    (li) => li.textContent ?? "",
+  );
+
+afterEach(async () => {
+  await unmount();
+  absagenActionMock.mockReset();
+  freigebenActionMock.mockReset();
+  planEveningsActionMock.mockReset();
+  updateEveningActionMock.mockReset();
+});
+
+/*
+ * Die Zone entfällt anders als der Verlauf NICHT in der Betriebsart
+ * „Einrichtung": eine Gruppe ohne je erhobenes Feedback kann ihr Jahr längst
+ * geplant haben. Ist sie dann doch leer, ist sie das Einzige, was auf der Seite
+ * steht — und der Knopf ist der einzige Weg zur Planung, den es überhaupt gibt.
+ * Ein Leerzustand ohne ihn wäre die teuerste Art von Sackgasse: eine, die
+ * aussieht, als sei alles in Ordnung.
+ */
+describe("KommendeAbende — leer ist ein Zustand, keine Sackgasse", () => {
+  it("erklärt, wozu die Zone da ist, statt eine leere Liste zu zeigen", () => {
+    const wirt = zeichne([]);
+
+    expect(zeilen(wirt)).toHaveLength(0);
+    expect(wirt.textContent).toContain("Noch nichts geplant.");
+    expect(wirt.textContent).toContain(
+      "Du kannst die Abende eines ganzen Jahres im Voraus eintragen",
+    );
+  });
+
+  it("lässt „Dienstabende planen“ auch ohne einen einzigen Abend erreichbar", () => {
+    const wirt = zeichne([]);
+    const beschriftungen = [...wirt.querySelectorAll<HTMLElement>("button")].map((b) =>
+      (b.textContent ?? "").trim(),
+    );
+
+    expect(beschriftungen).toContain("Dienstabende planen");
+  });
+
+  it("trägt den Knopf auch dann, wenn die Liste voll ist — er wandert nicht mit", () => {
+    const wirt = zeichne([abend()]);
+    const beschriftungen = [...wirt.querySelectorAll<HTMLElement>("button")].map((b) =>
+      (b.textContent ?? "").trim(),
+    );
+
+    expect(beschriftungen).toContain("Dienstabende planen");
+  });
+});
+
+/*
+ * ⚠️ HIER SORTIERT DIE KOMPONENTE ABSICHTLICH NICHT — genau umgekehrt zum
+ * `Verlauf`, der es tut. Die Ordnung entsteht in `_lib/cockpit.ts`
+ * (`geplant`, aufsteigend); eine zweite Sortierung in der Zone wäre eine zweite
+ * Wahrheit, die beim nächsten Wechsel der Regel lautlos auseinanderliefe.
+ *
+ * Geprüft wird mit einer ABSICHTLICH UNSORTIERTEN Eingabe: käme sie schon
+ * sortiert herein, wäre die Zusicherung mit und ohne Sortierung erfüllt und
+ * sagte nichts aus.
+ */
+describe("KommendeAbende — die Ordnung kommt von der Seite, nicht von hier", () => {
+  const durcheinander = [
+    abend({ eveningId: 3, datum: "2026-09-02", thema: "Kartenkunde" }),
+    abend({ eveningId: 1, datum: "2026-08-05", thema: "Funkübung" }),
+    abend({ eveningId: 2, datum: "2026-08-19", thema: "Erste Hilfe" }),
+  ];
+
+  it("zeigt die Abende in der Reihenfolge, in der sie hereingereicht werden", () => {
+    const texte = zeilen(zeichne(durcheinander)).map((z) => z.textContent ?? "");
+
+    expect(texte).toHaveLength(3);
+    // Datum UND Thema: nach Datum wäre die Liste sonst 05.08./19.08./02.09.,
+    // die Zusicherung fiele also auch dann, wenn nur eines von beiden stimmte.
+    expect(texte[0]).toContain("02.09.2026");
+    expect(texte[0]).toContain("Kartenkunde");
+    expect(texte[1]).toContain("05.08.2026");
+    expect(texte[1]).toContain("Funkübung");
+    expect(texte[2]).toContain("19.08.2026");
+    expect(texte[2]).toContain("Erste Hilfe");
+  });
+
+  it("lässt die übergebene Liste unberührt — sie gehört der Seite", () => {
+    const eingabe = [...durcheinander];
+    zeichne(eingabe);
+
+    expect(eingabe.map((a) => a.eveningId)).toEqual([3, 1, 2]);
+  });
+});
+
+/*
+ * Ein geplanter Abend, dessen Tag vorbei ist, faltet auf nichts — er bleibt
+ * stehen und wartet auf eine Entscheidung (freigeben oder absagen). Die Marke
+ * ist die einzige Stelle, an der das sichtbar wird; ohne sie liest sich die
+ * Zeile wie jeder andere kommende Abend, und niemand sucht nach ihr.
+ *
+ * Der Vergleich läuft über `tagInZone` gegen den von der Seite gerechneten Tag
+ * (§4.5) und nicht über `Date.now()`: sonst hinge das Ergebnis an der Zone des
+ * Servers und kippte zwischen 00:00 und 02:00 Ortszeit auf den Vortag.
+ */
+describe("KommendeAbende — die Marken der Zeile", () => {
+  const drei = [
+    abend({ eveningId: 1, datum: HEUTE, thema: "Heute Abend" }),
+    abend({ eveningId: 2, datum: "2026-07-18", thema: "Letzte Woche" }),
+    abend({ eveningId: 3, datum: "2026-08-05", thema: "Nächsten Monat" }),
+  ];
+
+  it("markiert den Abend des heutigen Tages mit „heute“", () => {
+    const [heute] = zeilen(zeichne(drei));
+
+    expect(heute.querySelectorAll("[data-testid='abend-heute']")).toHaveLength(1);
+    expect(heute.querySelector("[data-testid='abend-heute']")!.textContent).toBe("heute");
+    expect(heute.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(0);
+  });
+
+  it("markiert einen Abend mit vergangenem Datum als „Termin vorbei“", () => {
+    const vorbei = zeilen(zeichne(drei))[1];
+
+    expect(vorbei.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(1);
+    expect(vorbei.querySelector("[data-testid='abend-ueberfaellig']")!.textContent).toBe(
+      "Termin vorbei",
+    );
+    expect(vorbei.querySelectorAll("[data-testid='abend-heute']")).toHaveLength(0);
+  });
+
+  it("lässt einen künftigen Abend ohne jede Marke — sie ist ein Hinweis, kein Schmuck", () => {
+    const kuenftig = zeilen(zeichne(drei))[2];
+
+    expect(kuenftig.querySelectorAll("[data-testid='abend-heute']")).toHaveLength(0);
+    expect(kuenftig.querySelectorAll("[data-testid='abend-ueberfaellig']")).toHaveLength(0);
+  });
+
+  it("nennt Wochentag und Datum ausgeschrieben — nie ISO (§4.7)", () => {
+    const text = zeilen(zeichne([abend({ datum: "2026-08-05" })]))[0].textContent ?? "";
+
+    expect(text).toContain("Mittwoch");
+    expect(text).toContain("05.08.2026");
+    expect(text).not.toContain("2026-08-05");
+  });
+});
+
+/*
+ * Ohne Thema steht die zweite Zeile sonst LEER da — und eine leere Zeile liest
+ * sich wie ein Ladefehler, nicht wie eine Angabe, die es nicht gibt. Der Abend
+ * ist trotzdem vollständig: ein Thema ist optional, und die Planung eines ganzen
+ * Jahres legt fast immer Termine ohne eines an.
+ */
+describe("KommendeAbende — ein Abend ohne Thema", () => {
+  it("schreibt „Ohne Thema“ statt einer leeren Zeile", () => {
+    const text = zeilen(zeichne([abend({ thema: null })]))[0].textContent ?? "";
+
+    expect(text).toContain("Ohne Thema");
+  });
+
+  it("zeigt ein vorhandenes Thema unverändert", () => {
+    const text = zeilen(zeichne([abend({ thema: "Erste Hilfe" })]))[0].textContent ?? "";
+
+    expect(text).toContain("Erste Hilfe");
+    expect(text).not.toContain("Ohne Thema");
+  });
+});
+
+/*
+ * FREIGEBEN IST UNWIDERRUFLICH UND TRIFFT ETWAS, DAS MAN GERADE NICHT ANSIEHT.
+ * Es gibt je Gruppe nur einen QR-Code; eine laufende Umfrage wird dabei beendet.
+ * Deshalb muss die Bestätigung sie beim NAMEN nennen — „die laufende Umfrage
+ * wird beendet" ist eine Warnung, die niemand prüfen kann, und wer sie nicht
+ * prüfen kann, klickt sie weg.
+ *
+ * Die Gegenprobe gehört dazu: läuft nichts, darf der Satz auch nicht dastehen —
+ * eine Warnung vor einer Folge, die es nicht gibt, kostet die Glaubwürdigkeit
+ * der Warnung im Fall, in dem es sie gibt.
+ */
+describe("KommendeAbende — Feedback freigeben (§4.6)", () => {
+  async function bestaetigung(laufendesThema: string | null): Promise<HTMLElement> {
+    await mount(zone([abend({ eveningId: 42 })], { laufendesThema }));
+    await clickElement(knopf("Feedback freigeben"));
+    const dialog = document.querySelector<HTMLElement>(".ant-popconfirm");
+    if (!dialog) throw new Error("Keine Bestätigung");
+    return dialog;
+  }
+
+  it("nennt das Thema der laufenden Umfrage, die dabei beendet wird", async () => {
+    const text = (await bestaetigung("Kartenkunde")).textContent ?? "";
+
+    expect(text).toContain("Kartenkunde");
+    expect(text).toContain("wird dabei beendet");
+    expect(text).toContain("es gibt je Gruppe nur einen QR-Code");
+  });
+
+  it("warnt nicht vor dem Beenden, wenn gar nichts läuft", async () => {
+    const text = (await bestaetigung(null)).textContent ?? "";
+
+    expect(text).toContain("Ab sofort kann über den QR-Code der Gruppe geantwortet werden.");
+    expect(text).not.toContain("wird dabei beendet");
+  });
+
+  it("gibt erst nach der Bestätigung frei, mit der Kennung des Abends", async () => {
+    const dialog = await bestaetigung("Kartenkunde");
+    expect(freigebenActionMock).not.toHaveBeenCalled();
+
+    await clickElement(knopf("Freigeben", dialog));
+
+    expect(freigebenActionMock).toHaveBeenCalledTimes(1);
+    const daten = freigebenActionMock.mock.calls[0][0] as FormData;
+    expect(daten.get("eveningId")).toBe("42");
+  });
+
+  it("gibt den Abend frei, auf dessen Zeile geklickt wurde — nicht den ersten", async () => {
+    await mount(
+      zone([abend({ eveningId: 11, datum: "2026-08-05" }), abend({ eveningId: 22, datum: "2026-08-19" })]),
+    );
+    const knoepfe = [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (b) => (b.textContent ?? "").trim() === "Feedback freigeben",
+    );
+    expect(knoepfe).toHaveLength(2);
+
+    await clickElement(knoepfe[1]);
+    const dialog = document.querySelector<HTMLElement>(".ant-popconfirm")!;
+    await clickElement(knopf("Freigeben", dialog));
+
+    expect((freigebenActionMock.mock.calls[0][0] as FormData).get("eveningId")).toBe("22");
+  });
+});
+
+/*
+ * ABSAGEN liegt im „…"-Menü und nicht als eigener Knopf in der Zeile: die Zeile
+ * hat GENAU EINE Hauptaktion (freigeben), und zwei gleich große Knöpfe
+ * nebeneinander machen die Entscheidung zur Suchaufgabe. Geprüft wird der Weg
+ * über das Menü mit, weil der Menüpunkt sonst genau der Fall wäre, der schlimmer
+ * ist als ein fehlender: sichtbar, bedienbar, wirkungslos.
+ */
+describe("KommendeAbende — Abend absagen", () => {
+  async function menuepunkt(beschriftung: string, welche = 0): Promise<HTMLElement> {
+    const punkte = [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (b) => (b.textContent ?? "").trim() === "…",
+    );
+    if (punkte.length === 0) throw new Error("Kein Aktionsmenü in der Zeile");
+    await clickElement(punkte[welche]);
+    const eintrag = [...document.querySelectorAll<HTMLElement>(".ant-dropdown-menu-item")].find(
+      (e) => (e.textContent ?? "").trim() === beschriftung,
+    );
+    if (!eintrag) throw new Error(`Kein Menüpunkt „${beschriftung}“`);
+    return eintrag;
+  }
+
+  /**
+   * DER MENÜPUNKT SAGT NOCH NICHTS AB, er fragt. Das ist der Punkt dieses
+   * Blocks: ein Fehlklick in einem Dropdown ist billig, und die Rücknahme liegt
+   * in einer anderen Zone (im Verlauf, „Doch wieder ansetzen") — wer sie sucht,
+   * muss erst begreifen, wohin der Abend verschwunden ist.
+   */
+  async function bestaetigeAbsage(welche = 0): Promise<HTMLElement> {
+    await clickElement(await menuepunkt("Abend absagen", welche));
+    const dialog = document.querySelector<HTMLElement>(".ant-popconfirm");
+    if (!dialog) throw new Error("Keine Bestätigung");
+    return dialog;
+  }
+
+  it("fragt erst nach und ruft `absagenAction` dann mit der Kennung des Abends", async () => {
+    await mount(zone([abend({ eveningId: 42 })]));
+
+    const dialog = await bestaetigeAbsage();
+    expect(absagenActionMock).not.toHaveBeenCalled();
+    expect(dialog.textContent ?? "").toContain("bleibt im Verlauf stehen");
+
+    await clickElement(knopf("Absagen", dialog));
+
+    expect(absagenActionMock).toHaveBeenCalledTimes(1);
+    expect((absagenActionMock.mock.calls[0][0] as FormData).get("eveningId")).toBe("42");
+    // Absagen ist NICHT Freigeben — ein vertauschter Aufruf wäre der teuerste
+    // Fehler dieser Zeile und sähe im Markup identisch aus.
+    expect(freigebenActionMock).not.toHaveBeenCalled();
+  });
+
+  it("sagt nichts ab, wenn die Rückfrage abgebrochen wird", async () => {
+    await mount(zone([abend({ eveningId: 42 })]));
+
+    const dialog = await bestaetigeAbsage();
+    await clickElement(knopf("Abbrechen", dialog));
+
+    expect(absagenActionMock).not.toHaveBeenCalled();
+  });
+
+  it("sagt den Abend ab, dessen Menü geöffnet wurde", async () => {
+    await mount(
+      zone([abend({ eveningId: 11, datum: "2026-08-05" }), abend({ eveningId: 22, datum: "2026-08-19" })]),
+    );
+
+    const dialog = await bestaetigeAbsage(1);
+    await clickElement(knopf("Absagen", dialog));
+
+    expect((absagenActionMock.mock.calls[0][0] as FormData).get("eveningId")).toBe("22");
+  });
+
+  it("öffnet über denselben Weg die Zeilenbearbeitung, ohne etwas abzusagen", async () => {
+    await mount(zone([abend({ eveningId: 42, datum: "2026-08-05", thema: "Funkübung" })]));
+
+    await clickElement(await menuepunkt("Bearbeiten"));
+
+    const form = document.querySelector<HTMLFormElement>("form[data-testid='abend-bearbeiten']");
+    expect(form).not.toBeNull();
+    expect(form!.querySelector<HTMLInputElement>("input[name='id']")!.value).toBe("42");
+    expect(absagenActionMock).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * DIE VORSCHAU IM PLANUNGSDIALOG IST KEIN SCHMUCK. `planEveningsAction` kommt
+ * ohne Formularzustand aus — eine Meldung „12 angelegt, 2 übersprungen" gäbe es
+ * also erst NACH dem Klick, wenn die Entscheidung gefallen ist. Die Liste im
+ * Dialog ist damit die einzige Stelle, an der jemand die Serie noch prüfen kann,
+ * bevor fünfzig Abende in der Datenbank stehen.
+ *
+ * Sie rechnet mit DERSELBEN Funktion wie die Action (`serienTermine`); geprüft
+ * wird hier nicht die Kalenderrechnung (das tut `_lib/serie.test.ts` ohne zu
+ * rendern), sondern dass der Dialog sie überhaupt zeigt und die belegten Tage
+ * ehrlich abzieht.
+ */
+describe("KommendeAbende — die Vorschau im Planungsdialog", () => {
+  /** 25.07. + zwei Wochen + zwei Wochen — die Serie, mit der hier gerechnet wird. */
+  const SERIE = ["2026-07-25", "2026-08-08", "2026-08-22"];
+
+  async function serieEinstellen(form: HTMLFormElement): Promise<void> {
+    // Der Start steht auf „heute" (§4.5), der Rhythmus auf „alle zwei Wochen";
+    // gesetzt werden muss nur das Ende.
+    const start = form.querySelector<HTMLInputElement>("input[name='date']")!;
+    expect(start.value).toBe(HEUTE);
+    expect(form.querySelector<HTMLInputElement>("input[name='rhythmus']")!.value).toBe(
+      "zweiwochen",
+    );
+    await tippe(form.querySelector<HTMLInputElement>("input[name='bis']")!, "2026-08-22");
+  }
+
+  it("zeigt jeden Termin der Serie einzeln, nicht nur ihre Zahl", async () => {
+    const form = await planungOeffnen();
+    // Ohne „bis" ist die Serie der Starttermin allein — die Liste steht trotzdem
+    // schon da, sonst erschiene sie erst nach der dritten Eingabe.
+    expect(vorschauTermine()).toHaveLength(1);
+
+    await serieEinstellen(form);
+    const termine = vorschauTermine();
+
+    expect(termine).toHaveLength(3);
+    expect(termine[0]).toContain("25.07.2026");
+    expect(termine[1]).toContain("08.08.2026");
+    expect(termine[2]).toContain("22.08.2026");
+    expect(document.querySelector("[data-testid='planen-vorschau']")!.textContent).toContain(
+      "3 Abende werden angelegt",
+    );
+  });
+
+  it("weist einen schon belegten Tag aus und zählt ihn NICHT als anzulegend", async () => {
+    const form = await planungOeffnen(["2026-08-08"]);
+    await serieEinstellen(form);
+
+    const termine = vorschauTermine();
+    expect(termine).toHaveLength(3);
+    expect(termine[1]).toContain("steht schon");
+    expect(termine[0]).not.toContain("steht schon");
+    expect(termine[2]).not.toContain("steht schon");
+
+    const zusammenfassung = document.querySelector("[data-testid='planen-vorschau']")!.textContent ?? "";
+    expect(zusammenfassung).toContain("2 Abende werden angelegt");
+    expect(zusammenfassung).toContain("1 stehen schon");
+    expect(knopf("Abende eintragen").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("sperrt das Absenden, wenn JEDER Termin der Serie schon steht", async () => {
+    const form = await planungOeffnen(SERIE);
+    await serieEinstellen(form);
+
+    expect(vorschauTermine().filter((t) => t.includes("steht schon"))).toHaveLength(3);
+    expect(document.querySelector("[data-testid='planen-vorschau']")!.textContent).toContain(
+      "0 Abende werden angelegt",
+    );
+    // Ein Knopf, der nichts anzulegen hätte, ist kein Knopf — er legte sonst
+    // lautlos nichts an, und das sieht aus wie ein Fehler der Anwendung.
+    expect(knopf("Abende eintragen").hasAttribute("disabled")).toBe(true);
+  });
+
+  it("bildet den Singular, wenn genau ein Abend angelegt würde", async () => {
+    const form = await planungOeffnen(["2026-07-25", "2026-08-08"]);
+    await serieEinstellen(form);
+
+    expect(document.querySelector("[data-testid='planen-vorschau']")!.textContent).toContain(
+      "1 Abend wird angelegt",
+    );
+    expect(knopf("Abend eintragen").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("schickt `groupId` und den Rhythmus als Wert mit — antds `Select` trägt kein `name`", async () => {
+    const form = await planungOeffnen();
+
+    expect(form.querySelector<HTMLInputElement>("input[name='groupId']")!.value).toBe("7");
+    expect(form.querySelector("input[name='rhythmus']")).not.toBeNull();
+  });
+});

@@ -1,5 +1,6 @@
 export { auditOutbox } from "@/core/audit/_db/schema";
 import { sql } from "drizzle-orm";
+import type { EveningStatus } from "@/app/m/feedback/_lib/lifecycle";
 import {
   sqliteTable,
   text,
@@ -25,6 +26,31 @@ export const groups = sqliteTable(
   (t) => [uniqueIndex("idx_groups_slug").on(t.slug)],
 );
 
+/**
+ * DER DIENSTABEND IST DIE ERSTE KLASSE, die Umfrage hängt daran — nicht
+ * umgekehrt. Deshalb trägt der ABEND seine Lebenslage, nicht die Umfrage:
+ *
+ * * `planned` — im Voraus angesetzt, noch ohne Umfrage. Der QR-Code gilt für
+ *   ihn nicht; freigegeben wird am Abend selbst.
+ * * `held` — hat stattgefunden. Das ist die Lage jedes Abends, der über
+ *   „Feedback starten" entsteht, und die jedes nachgetragenen Abends.
+ * * `cancelled` — war angesetzt und fiel aus. BLEIBT STEHEN, statt gelöscht zu
+ *   werden: „am 3. November war kein Dienst" ist eine Auskunft, eine fehlende
+ *   Zeile ist keine.
+ *
+ * ⚠️ DER NAHELIEGENDE WEG WÄRE `surveys.status = 'draft'` GEWESEN — es gibt
+ * sogar noch einen „Jetzt starten"-Knopf dafür (`_ui/Verlauf.tsx`,
+ * `StartenKnopf`). Zwei Gründe dagegen, und der zweite wiegt schwerer:
+ * `draft` weist der Verlauf ausdrücklich als ALTBESTAND aus (Import und alte
+ * Oberfläche), ein geplanter Abend stünde dort als Fremdkörper; und ein
+ * geplanter Termin, der noch gar keine Erhebung hat, ist keine halbfertige
+ * Umfrage. Hinge die Terminplanung an `surveys`, wäre eine spätere
+ * Dienstabendverwaltung (Anwesenheit, Ort, Ausbilder) eine Eigenschaft der
+ * Feedback-Erhebung — genau verkehrt herum. Sie ergänzt hier Spalten.
+ *
+ * `held` ist die Vorgabe, weil jede BESTEHENDE Zeile einen vergangenen Abend
+ * meint: der Altbestand wandert damit ohne Rückrechnung in die richtige Lage.
+ */
 export const evenings = sqliteTable(
   "evenings",
   {
@@ -37,9 +63,16 @@ export const evenings = sqliteTable(
     topic: text("topic"),
     notes: text("notes"),
     participantCount: integer("participant_count"),
+    // `$type` statt nacktem `string`: sonst nähme `insertEvening` jede
+    // Zeichenkette entgegen und der CHECK der Datenbank wäre die erste Instanz,
+    // die es merkt — zur Laufzeit, mitten in einer Transaktion.
+    status: text("status").$type<EveningStatus>().notNull().default("held"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
-  (t) => [index("idx_evenings_group_date").on(t.groupId, t.date)],
+  (t) => [
+    index("idx_evenings_group_date").on(t.groupId, t.date),
+    check("evenings_status_check", sql`${t.status} IN ('planned','held','cancelled')`),
+  ],
 );
 
 // Genau eine Umfrage pro Dienstabend (UNIQUE evening_id). `questions` ist ein

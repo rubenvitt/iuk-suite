@@ -3,8 +3,8 @@ import { users } from "../_db/schema";
 import type { Viewer } from "./zugang";
 
 /**
- * Bauform 1:1 aus `m/feedback/_db/queries.ts:83` (upsertKnownUser), Semantik 1:1
- * aus `lagerbuch/src/auth.ts:18-27`.
+ * Bauform 1:1 aus `m/feedback/_db/queries.ts`, `upsertKnownUser`; Semantik 1:1
+ * aus `lagerbuch/src/auth.ts:18-27` der Alt-Anwendung.
  *
  * ⚠️ `import type { Viewer }` — NICHT als Wert. `zugang.ts` importiert
  * `merkeNutzer` von hier; ein Wert-Import in dieser Richtung erzeugte einen

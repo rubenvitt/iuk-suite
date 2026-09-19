@@ -116,6 +116,7 @@ function lage(over: {
       topic: over.topic === undefined ? "Erste Hilfe Auffrischung" : over.topic,
       notes: null,
       participantCount: over.teilnehmer === undefined ? 20 : over.teilnehmer,
+      status: "held",
       createdAt: JETZT,
     },
     survey: {
@@ -153,6 +154,7 @@ function zustand(over: Partial<CockpitZustand> = {}): CockpitZustand {
     laufend,
     weitereAktive: over.weitereAktive ?? [],
     verlauf: over.verlauf ?? [],
+    geplant: over.geplant ?? [],
     letzterAbend: over.letzterAbend ?? null,
     altbestand: over.altbestand ?? [],
     letzteTeilnehmerzahl: over.letzteTeilnehmerzahl ?? null,

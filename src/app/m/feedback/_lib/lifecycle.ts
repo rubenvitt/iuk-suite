@@ -1,5 +1,22 @@
 export type SurveyStatus = "draft" | "active" | "closed" | "archived";
 
+/**
+ * Die Lebenslage eines DIENSTABENDS — nicht die seiner Umfrage. Die Begründung,
+ * warum das zwei getrennte Achsen sind, steht im Kopf von `_db/schema.ts` bei
+ * `evenings`; kurz: der Abend ist die erste Klasse, die Erhebung hängt daran.
+ *
+ * ⚠️ HIER GIBT ES KEIN GEGENSTÜCK ZU `nextStatusOnAccess`, und das ist Absicht.
+ * Eine Umfrage faltet beim Zugriff von `active` auf `closed`, weil ihre Frist
+ * verstrichen ist — ein geplanter Abend, dessen Datum vorbei ist, faltet auf
+ * NICHTS. Ob an jenem Abend Dienst war, weiß der Kalender nicht, nur ein
+ * Mensch: freigegeben, abgesagt, oder schlicht vergessen. Ein automatisches
+ * „ist wohl gelaufen" trüge eine Behauptung in die Historie, und ein
+ * automatisches „war wohl abgesagt" löschte einen Abend, den es gab.
+ * Ein vergangener geplanter Abend bleibt deshalb sichtbar stehen und wartet auf
+ * eine Entscheidung.
+ */
+export type EveningStatus = "planned" | "held" | "cancelled";
+
 export const DEFAULT_CLOSE_AFTER_HOURS = 48;
 
 /** Einzige Stelle für die Zeitzone der Fristberechnung (Spec-Entscheidung C). */
