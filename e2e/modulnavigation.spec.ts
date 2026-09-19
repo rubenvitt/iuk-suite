@@ -90,8 +90,10 @@ test("ein Modul ohne Navigation bekommt keine Leiste", async ({ page }) => {
   // clearCookies, sonst leitet /login einen bereits angemeldeten Nutzer sofort
   // auf "/" um (src/app/login/page.tsx: `if (session?.user) redirect("/")`)
   // und die zweite devLogin-Anmeldung liefe nicht durchs Formular — dasselbe
-  // Muster wie lagerbuch-etiketten.spec.ts:152, feedback.spec.ts:532/757 und
-  // files-fileshare.spec.ts:499.
+  // Muster in lagerbuch-etiketten.spec.ts, Fall „antwortet ohne Lagerbuch-Gruppe
+  // genau wie eine Arbeitsseite", in feedback.spec.ts, Faelle „IDOR-Guard:
+  // groupleader ohne Zuordnung …" und „Gruppenleiter: der Einstieg landet …",
+  // und in files-fileshare.spec.ts, Fall „5 — entsperrt laedt der Download …".
   await page.context().clearCookies();
   /*
    * `gamma` und nicht mehr `portal`. Hier stand bis zu den Release Notes das
