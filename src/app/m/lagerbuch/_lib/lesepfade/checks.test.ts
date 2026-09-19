@@ -456,10 +456,33 @@ describe("checkDetail — ein UNLESBARES ergebnis (§11.5, 27)", () => {
   });
 
   it("meldet NICHT unlesbar fuer einen OFFENEN Check ohne ergebnis", () => {
-    // `completed_at IS NULL` ist eine vorgesehene Bauform (§4.4), und
-    // `seedLokal.ts:523-526` legt sie an. „Noch nichts geschrieben" ist kein
-    // Lesefehler.
+    // `completed_at IS NULL` ist eine vorgesehene Bauform (§4.4), und der
+    // lokale Seed legt sie an. „Noch nichts geschrieben" ist kein Lesefehler.
     expect(checkMit("chk-offen", null).unlesbar).toBe(false);
+  });
+
+  it("meldet ihn stattdessen als OFFEN — der dritte Zustand, nicht der zweite", () => {
+    /**
+     * DRK-196. Der Fall darueber haelt fest, was der Zustand NICHT ist; ohne
+     * diesen hier blieb offen, was er dann IST — und die Seite zeigte „0
+     * Positionen", also dasselbe wie fuer einen abgeschlossenen Check, bei dem
+     * wirklich nichts zu tun war.
+     */
+    const offen = checkMit("chk-offen-2", null);
+    expect(offen.offen).toBe(true);
+    expect(offen.unlesbar).toBe(false);
+    expect(offen.altFormat).toBe(false);
+
+    /*
+     * ⚠️ DIE GEGENPROBE IN BEIDE RICHTUNGEN, sonst ist `offen: true` nur eine
+     * umbenannte Leerheit: ein zerstoertes Ergebnis ist NICHT offen (dort steht
+     * etwas, es ist nur nicht lesbar), und ein leerer, aber gueltiger Check
+     * auch nicht (dort steht ausdruecklich „nichts zu tun").
+     */
+    expect(checkMit("chk-kaputt-2", "{nicht json").offen).toBe(false);
+    expect(checkMit("chk-leer-2", JSON.stringify({
+      version: 2, positionen: [], artikel: [], geraete: [], flaschen: [], verfall: [],
+    })).offen).toBe(false);
   });
 
   it("meldet NICHT unlesbar fuer das ALTE Format — das hat sein eigenes Signal", () => {

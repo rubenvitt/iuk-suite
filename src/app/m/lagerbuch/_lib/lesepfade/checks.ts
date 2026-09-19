@@ -33,7 +33,29 @@ import { chargeText } from "../format";
 import { CHECK_GRENZE } from "../grenzen";
 import type { Leser } from "./bestand";
 
-export type CheckFilter = { fahrzeugId?: string; von?: Date; bis?: Date; grenze?: number };
+/**
+ * ⚠️ `mitOffenen` IST EINE ANZEIGEENTSCHEIDUNG, KEINE BERECHTIGUNG (DRK-196).
+ * Ein Check mit `completedAt IS NULL` ist ein vom Schema vorgesehener Zustand
+ * (§4.4) — einer, an dem noch nichts geschrieben wurde. Aus dem Modul heraus
+ * entsteht er NIE (`_actions/check.ts` schreibt immer ein vollstaendiges
+ * Ergebnis); die zwei Wege sind der lokale Seed und der Datenimport aus der
+ * Alt-Anwendung. Nach dem Cutover ist das also keine hypothetische Zeile mehr.
+ *
+ * ⛔ DIE VORGABE IST `false`, UND ZWAR HIER UND NICHT AN DER AUFRUFSTELLE: die
+ * Liste heisst „abgeschlossene Checks", ihr Leertext sagt das woertlich, und
+ * eine offene Zeile stand darin bisher nur mit einem Gedankenstrich in der
+ * Abschlussspalte — das liest sich wie ein FEHLENDER WERT, nicht wie ein
+ * laufender Vorgang. Wer den Parameter vergisst, bekommt damit die Bedeutung,
+ * die der Text daneben ohnehin behauptet.
+ *
+ * ⚠️ UND DESHALB IST ES EIN SCHALTER UND KEIN FESTER AUSSCHLUSS: `/verwaltung/
+ * checks` ist der EINZIGE Link auf `/verwaltung/checks/[id]` (gemessen, es gibt
+ * keinen zweiten Einstieg im Modul). Ein harter Filter machte die importierten
+ * Zeilen unerreichbar und den Offen-Zustand der Detailseite zu totem Code.
+ */
+export type CheckFilter = {
+  fahrzeugId?: string; von?: Date; bis?: Date; grenze?: number; mitOffenen?: boolean;
+};
 
 export type CheckHistorieZeile = CheckSummen & {
   id: string; fahrzeugId: string; fahrzeugName: string; completedAt: Date | null;
@@ -84,6 +106,13 @@ export function checkHistorie(db: DB, f: CheckFilter = {}): CheckHistorie {
   if (f.fahrzeugId) conds.push(eq(checks.fahrzeugId, f.fahrzeugId));
   if (f.von) conds.push(gte(checks.completedAt, f.von));
   if (f.bis) conds.push(lte(checks.completedAt, f.bis));
+  /*
+   * DRK-196 — der Ausschluss steht VOR der Grenze, nicht hinter ihr. Ein Filter
+   * erst auf den 50 geholten Zeilen lieferte weniger als 50 abgeschlossene und
+   * meldete trotzdem „mehr vorhanden" — die Deckelzeile daneben zaehlte dann
+   * eine Menge, die so nie auf dem Schirm stand.
+   */
+  if (!f.mitOffenen) conds.push(isNotNull(checks.completedAt));
 
   const rows = db
     .select()
@@ -171,6 +200,28 @@ export type CheckDetail = {
    * noch keins. Die Abgrenzung sitzt im Parser (`checkErgebnis.ts`).
    */
   unlesbar: boolean;
+  /**
+   * DRK-196 — DER CHECK HAT NOCH KEIN ERGEBNIS, und das ist KEIN Fehler.
+   *
+   * ⚠️ DIE DRITTE URSACHE NEBEN `altFormat` UND `unlesbar`, und die drei
+   * auseinanderzuhalten ist der ganze Punkt: `altFormat` heisst „vollstaendig,
+   * aber ohne Positionsdetails", `unlesbar` heisst „beschaedigt", und `offen`
+   * heisst „noch nichts geschrieben" (§4.4, `completed_at IS NULL`). Ohne
+   * dieses Feld zeigt die Seite dafuer „0 Positionen" — also dasselbe wie fuer
+   * einen abgeschlossenen Check, bei dem wirklich nichts zu tun war. Genau der
+   * luegende 200, den §11.5 fuer die Nachbarlage ausschliesst.
+   *
+   * ⚠️ AUS DEM MODUL HERAUS ENTSTEHT DER ZUSTAND NIE (`_actions/check.ts`
+   * schreibt immer ein vollstaendiges Ergebnis). Die zwei Wege sind der lokale
+   * Seed und der Datenimport aus der Alt-Anwendung — nach dem Cutover ist das
+   * also keine hypothetische Zeile.
+   *
+   * ⚠️ GEPRUEFT WIRD `ergebnis`, NICHT `completedAt`: das Feld beantwortet
+   * „steht hier etwas?", und genau daran haengt die leere Liste darunter. Das
+   * Schema fuehrt beide gemeinsam (§4.4); die Liste daneben filtert ueber
+   * `completedAt`, weil sie danach auch sortiert.
+   */
+  offen: boolean;
   summe: CheckSummen & { verfallAuffaellig: number };
 };
 
@@ -307,6 +358,7 @@ export function checkDetail(db: DB, id: string, now: Date = new Date()): CheckDe
     // hier waere eine zweite Wahrheit ueber dasselbe JSON — genau der Bruch, den
     // §5.8.3 fuer die Summen beschreibt.
     unlesbar: summe.unlesbar,
+    offen: c.ergebnis === null,
     summe: {
       ...summe,
       // Die beiden Flaschenzaehler UEBERSCHREIBEN die Summe: das Detail hat den

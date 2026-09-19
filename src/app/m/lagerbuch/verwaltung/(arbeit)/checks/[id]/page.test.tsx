@@ -29,6 +29,7 @@ const BASIS: CheckDetail = {
   verfall: [],
   altFormat: false,
   unlesbar: false,
+  offen: false,
   summe: {
     positionen: 0,
     nachgefuellt: 0,
@@ -514,6 +515,57 @@ describe("Check-Detailseite", () => {
     // nichts zu melden hatte, ist ein gueltiger Zustand und bekommt KEINE
     // Warnung. `BASIS` ist genau das — leere Listen, `unlesbar: false`.
     expect(elementeVomTyp(checkDetailInhalt(BASIS), Alert)).toHaveLength(0);
+  });
+
+  it("kennzeichnet einen laufenden Check, statt 0 Positionen zu behaupten", () => {
+    /**
+     * DRK-196 — DIE DRITTE URSACHE FUER LEERE LISTEN. Ein Check ohne Ergebnis
+     * ist ein vom Schema vorgesehener Zustand (§4.4), kein Ausfall. Ohne diese
+     * Meldung zeigt die Seite „0 Positionen" und sieht damit aus wie ein
+     * abgeschlossener Check, bei dem nichts zu tun war — dieselbe luegende 200
+     * wie bei Zustand 27, nur aus anderer Ursache.
+     */
+    const seite = checkDetailInhalt({ ...BASIS, offen: true });
+
+    const alerts = elementeVomTyp(seite, Alert);
+    expect(alerts).toHaveLength(1);
+    /*
+     * ⛔ `info`, NICHT `warning`: die beiden Nachbarmeldungen melden einen
+     * Ausfall bzw. eine Einschraenkung, diese einen normalen Zwischenstand.
+     * Eine Warnfarbe machte aus „laeuft noch" einen Befund, dem jemand nachgeht.
+     */
+    expect(alerts[0].props).toMatchObject({ type: "info", showIcon: false });
+    // ⚠️ Und erst recht nicht `error` (§6.6.5): `colorError === colorPrimary`.
+    expect(alerts[0].props.type).not.toBe("error");
+    expect(String(alerts[0].props.title)).toMatch(/^Dieser Check läuft noch/);
+  });
+
+  it("haelt laufend, unlesbar und Altformat auseinander — drei Ursachen, drei Texte", () => {
+    /**
+     * DRK-196, und das ist der eigentliche Posten des Vorgangs: beim Nachbau von
+     * Zustand 27 war die naheliegende Definition „jeder Lesefehler mit leerem
+     * Wert" — die haette `ergebnis IS NULL` eingezogen und JEDEM laufenden Check
+     * „Ergebnis unlesbar" angezeigt. Aus einer Luege waeren zwei geworden.
+     */
+    const text = (eigenschaften: Partial<typeof BASIS>) =>
+      String(elementeVomTyp(checkDetailInhalt({ ...BASIS, ...eigenschaften }), Alert)[0]
+        ?.props.title ?? "");
+
+    const laufend = text({ offen: true });
+    const unlesbar = text({ unlesbar: true });
+
+    // Kein Text erklaert den anderen, und keiner nennt die fremde Ursache.
+    expect(laufend).not.toMatch(/unlesbar|beschädigt/i);
+    expect(unlesbar).not.toMatch(/läuft noch/i);
+    expect(laufend).not.toBe(unlesbar);
+
+    // ⚠️ DIE TONART TRENNT SIE EBENFALLS, und das ist die Haelfte, die eine
+    // reine Textpruefung durchliesse: derselbe Satz in Warnfarbe waere wieder
+    // ein Befund. Ein laufender Check ist keiner.
+    const ton = (eigenschaften: Partial<typeof BASIS>) =>
+      elementeVomTyp(checkDetailInhalt({ ...BASIS, ...eigenschaften }), Alert)[0]?.props.type;
+    expect(ton({ offen: true })).toBe("info");
+    expect(ton({ unlesbar: true })).toBe("warning");
   });
 
   it("haelt Altformat und unlesbar auseinander — je eine Meldung, nie beide", () => {

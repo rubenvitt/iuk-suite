@@ -23,6 +23,12 @@ type CheckSuchparameter = {
   fz?: string;
   von?: string;
   bis?: string;
+  /**
+   * DRK-196 — „auch laufende Checks zeigen". `"1"` oder nichts; jeder andere
+   * Wert zaehlt als nichts. Eine Zeichenkette und kein Boolescher Wert, weil
+   * der Filter ueber die Adresszeile laeuft (`useUrlFilter`).
+   */
+  offen?: string;
 };
 
 function ergebnisChips(zeile: CheckHistorieZeile): CheckErgebnisChip[] {
@@ -90,9 +96,21 @@ function anzeigeZeile(zeile: CheckHistorieZeile): CheckAnzeigeZeile {
     fahrzeugName: zeile.fahrzeugName,
     fahrzeugKennung: zeile.fahrzeugKennung,
     fahrzeugEinheitenart: zeile.fahrzeugEinheitenart,
+    /*
+     * ⚠️ „läuft noch" STATT EINES GEDANKENSTRICHS (DRK-196). Ein Strich liest
+     * sich wie ein fehlender Wert — als haette jemand vergessen, das Datum zu
+     * erfassen. Der Zustand ist aber ein anderer: der Check hat noch KEIN
+     * Ergebnis (`ergebnis IS NULL`, §4.4), und das ist vom Schema vorgesehen.
+     *
+     * ⛔ NICHT „unvollständig" UND NICHT „fehlerhaft": das sind die Woerter der
+     * beiden ANDEREN Ursachen (`altFormat`, „unlesbar"), und drei Lagen unter
+     * zwei Woertern zu fuehren ist genau die Vermischung, die der Vorgang
+     * verhindern soll. Die Zeile erscheint ohnehin nur mit eingeschaltetem
+     * Schalter, ist hier also nie eine Ueberraschung.
+     */
     abgeschlossenText: zeile.completedAt?.toLocaleString("de-DE", {
       timeZone: "Europe/Berlin",
-    }) ?? "—",
+    }) ?? "läuft noch",
     /**
      * ⚠️ DER ROHWERT REIST MIT, WEIL DIE SPALTE DANACH SORTIERT.
      * `abgeschlossenText` ist „14.9.2026, 08:12:00" und ordnete als Zeichenkette
@@ -150,13 +168,24 @@ export function checksInhalt(
   const zeitraum = zeitraumAus(suchparameter.von, suchparameter.bis);
   const von = zeitraum.von ? suchparameter.von?.trim() ?? "" : "";
   const bis = zeitraum.bis ? suchparameter.bis?.trim() ?? "" : "";
+  // DRK-196: genau `"1"`, nicht „irgendein Wert ist wahr" — ein `?offen=0` aus
+  // einem kopierten Link setzte den Schalter sonst, statt ihn zu loeschen.
+  const mitOffenen = suchparameter.offen === "1";
   const historie = checkHistorie(db, {
     fahrzeugId: fz || undefined,
     von: zeitraum.von,
     bis: zeitraum.bis,
     grenze: CHECK_GRENZE,
+    mitOffenen,
   });
   const zeilen = historie.zeilen.map(anzeigeZeile);
+  /*
+   * ⚠️ DER SCHALTER ZAEHLT HIER NICHT MIT (DRK-196). `hatFilter` entscheidet
+   * allein den Leertext „passt zu Einheit und Zeitraum" — und ein eingeschalteter
+   * Offen-Schalter schraenkt nichts ein, er WEITET. Zaehlte er mit, stuende bei
+   * leerer Liste „Kein Check passt zu Einheit und Zeitraum", obwohl weder das
+   * eine noch das andere gesetzt ist.
+   */
   const hatFilter = Boolean(fz || von || bis);
 
   return (
@@ -169,6 +198,7 @@ export function checksInhalt(
         fz={fz}
         von={von}
         bis={bis}
+        mitOffenen={mitOffenen}
         fahrzeuge={fahrzeuge}
         hinweise={zeitraum.hinweise}
       />

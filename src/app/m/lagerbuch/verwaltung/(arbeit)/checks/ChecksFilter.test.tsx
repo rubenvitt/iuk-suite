@@ -61,7 +61,7 @@ afterEach(async () => {
 describe("ChecksFilter", () => {
   it("ist eine Client-Insel mit zwei unabhängigen DatePickern und keinem RangePicker", async () => {
     await mount(
-      <ChecksFilter fz="" von="" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
+      <ChecksFilter fz="" von="" bis="" mitOffenen={false} fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
 
     expect(queryAll(".ant-picker")).toHaveLength(2);
@@ -108,7 +108,7 @@ describe("ChecksFilter", () => {
     })).toBe(false);
 
     await mount(
-      <ChecksFilter fz="" von="" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
+      <ChecksFilter fz="" von="" bis="" mitOffenen={false} fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
     const auswahl = query<HTMLInputElement>("[aria-label='Einheit']");
     await act(async () => {
@@ -146,6 +146,7 @@ describe("ChecksFilter", () => {
         fz=""
         von=""
         bis=""
+        mitOffenen={false}
         fahrzeuge={[]}
         hinweise={["Das Datum in der Adresse ist ungültig und wurde ignoriert."]}
       />,
@@ -163,6 +164,7 @@ describe("ChecksFilter", () => {
         fz=""
         von=""
         bis=""
+        mitOffenen={false}
         fahrzeuge={[]}
         hinweise={["Das Datum in der Adresse ist ungültig und wurde ignoriert."]}
       />,
@@ -178,7 +180,7 @@ describe("ChecksFilter", () => {
 
   it("schreibt eine Fahrzeugauswahl mit den übrigen Filterwerten in die URL", async () => {
     await mount(
-      <ChecksFilter fz="" von="2026-08-01" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
+      <ChecksFilter fz="" von="2026-08-01" bis="" mitOffenen={false} fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
     const auswahl = query<HTMLInputElement>("[aria-label='Einheit']");
     await act(async () => {
@@ -197,6 +199,53 @@ describe("ChecksFilter", () => {
     );
   });
 
+  it("schreibt den Schalter für laufende Checks in die URL", async () => {
+    /**
+     * DRK-196 — DER EINZIGE WEG ZU EINEM LAUFENDEN CHECK. Diese Liste ist der
+     * einzige Link auf die Detailseite; ohne den Schalter waeren importierte
+     * offene Checks ueber die Oberflaeche gar nicht mehr erreichbar.
+     */
+    window.history.replaceState({}, "", "/verwaltung/checks");
+    await mount(
+      <ChecksFilter fz="" von="" bis="" mitOffenen={false} fahrzeuge={FAHRZEUGE} hinweise={[]} />,
+    );
+    const schalter = query<HTMLInputElement>(".ant-checkbox-input");
+    await clickElement(schalter);
+
+    expect(mocks.replace).toHaveBeenCalledWith(
+      "/verwaltung/checks?offen=1",
+      { scroll: false },
+    );
+  });
+
+  it("nimmt den Schalter bei jedem anderen Filterschritt mit", async () => {
+    /**
+     * ⚠️ DIE HAELFTE, DIE EINE REINE KLICKPRUEFUNG DURCHLIESSE: `useUrlFilter`
+     * entfernt jeden LEEREN Wert aus der Adresse. Faehrt der Schalter nicht in
+     * jedem Patch mit, loescht ihn die naechste Zielwahl still — die Liste
+     * springt dann ohne Zutun auf „nur abgeschlossene" zurueck.
+     */
+    window.history.replaceState({}, "", "/verwaltung/checks?offen=1");
+    await mount(
+      <ChecksFilter fz="" von="" bis="" mitOffenen fahrzeuge={FAHRZEUGE} hinweise={[]} />,
+    );
+    const auswahl = query<HTMLInputElement>("[aria-label='Einheit']");
+    await act(async () => {
+      auswahl.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await warte();
+    const option = Array.from(
+      document.body.querySelectorAll<HTMLElement>(".ant-select-item-option"),
+    ).find((element) => (element.textContent ?? "").includes("RTW 1"));
+    if (!option) throw new Error("Fahrzeugoption RTW 1 fehlt");
+    await clickElement(option);
+
+    expect(mocks.replace).toHaveBeenCalledWith(
+      "/verwaltung/checks?offen=1&fz=rtw-1",
+      { scroll: false },
+    );
+  });
+
   it("setzt alle URL-Filter über einen echten sichtbaren Button zurück", async () => {
     window.history.replaceState(
       {},
@@ -208,6 +257,7 @@ describe("ChecksFilter", () => {
         fz="rtw-1"
         von="2026-08-01"
         bis="2026-08-07"
+        mitOffenen={false}
         fahrzeuge={FAHRZEUGE}
         hinweise={[]}
       />,
@@ -223,7 +273,7 @@ describe("ChecksFilter", () => {
 
   it("blendet den Reset ohne wirksamen Filter aus", async () => {
     await mount(
-      <ChecksFilter fz="" von="" bis="" fahrzeuge={FAHRZEUGE} hinweise={[]} />,
+      <ChecksFilter fz="" von="" bis="" mitOffenen={false} fahrzeuge={FAHRZEUGE} hinweise={[]} />,
     );
 
     expect(queryAll("button").some((button) => button.textContent === "Zurücksetzen"))

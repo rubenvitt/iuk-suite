@@ -405,13 +405,63 @@ describe("Checks-Seite", () => {
     }]);
   });
 
-  it("zeigt einen Check ohne Abschlusszeit als Gedankenstrich statt als Datum", () => {
+  /**
+   * DRK-196 — DIESER FALL HAT SEINE AUSSAGE GEWECHSELT, und das gehoert
+   * dokumentiert statt still ersetzt. Bis hierher stand er auf „zeigt einen
+   * Check ohne Abschlusszeit als Gedankenstrich statt als Datum" und hielt
+   * damit die alte Entscheidung fest. Sie ist gefallen: ein Gedankenstrich
+   * liest sich wie ein FEHLENDER WERT — als haette jemand vergessen, das Datum
+   * zu erfassen —, nicht wie ein laufender Vorgang. Die Liste heisst
+   * „abgeschlossene Checks", ihr Leertext sagt das woertlich, und eine offene
+   * Zeile gehoert deshalb standardmaessig nicht hinein.
+   */
+  it("laesst einen laufenden Check aus der Liste — er ist nicht abgeschlossen", () => {
     checkEintragen({ id: "check-offen", completedAt: null });
 
-    const zeile = tabelleAus(checksInhalt(t.db, {})).zeilen[0];
+    expect(tabelleAus(checksInhalt(t.db, {})).zeilen).toEqual([]);
+  });
 
-    expect(zeile.abgeschlossenText).toBe("—");
+  it("zeigt ihn mit gesetztem Schalter, und zwar als laufend benannt", () => {
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    const zeile = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen[0];
+
+    expect(zeile.abgeschlossenText).toBe("läuft noch");
+    // Der Rohwert bleibt leer — daran sortiert die Spalte, und „laeuft noch"
+    // ist kein Zeitpunkt.
+    expect(zeile.abgeschlossenIso).toBeNull();
     expect(istRekursivJsonSicher(zeile)).toBe(true);
+  });
+
+  /**
+   * ⚠️ DIE GEGENPROBE ZUM SCHALTER SELBST: er darf die abgeschlossenen Checks
+   * nicht ERSETZEN, sondern nur ergaenzen. Ein `mitOffenen`, das versehentlich
+   * auf „nur offene" filterte, waere mit den zwei Faellen darueber gruen.
+   */
+  it("der Schalter weitet die Liste, er tauscht sie nicht aus", () => {
+    checkEintragen({ id: "check-fertig" });
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    const ohne = tabelleAus(checksInhalt(t.db, {})).zeilen.map((z) => z.id);
+    const mit = tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen.map((z) => z.id);
+
+    expect(ohne).toEqual(["check-fertig"]);
+    expect(mit).toHaveLength(2);
+    expect(mit).toContain("check-fertig");
+    expect(mit).toContain("check-offen");
+  });
+
+  /**
+   * ⚠️ GENAU `"1"`, NICHT „irgendein Wert ist wahr". Ein `?offen=0` aus einem
+   * kopierten Link setzte den Schalter sonst, statt ihn zu loeschen — und die
+   * Adresszeile sagte dann das Gegenteil dessen, was die Liste zeigt.
+   */
+  it("nimmt nur die Eins als gesetzten Schalter", () => {
+    checkEintragen({ id: "check-offen", completedAt: null });
+
+    expect(tabelleAus(checksInhalt(t.db, { offen: "0" })).zeilen).toEqual([]);
+    expect(tabelleAus(checksInhalt(t.db, { offen: "true" })).zeilen).toEqual([]);
+    expect(tabelleAus(checksInhalt(t.db, { offen: "1" })).zeilen).toHaveLength(1);
   });
 
   it("normalisiert ungültige Grenzen vor der Client-Insel und ignoriert sie beim Lesen", () => {

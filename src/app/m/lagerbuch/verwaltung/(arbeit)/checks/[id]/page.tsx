@@ -197,6 +197,38 @@ export function checkDetailInhalt(check: CheckDetail): ReactNode {
         />
       ) : null}
 
+      {/**
+        * DRK-196 — DER DRITTE GRUND FUER LEERE LISTEN, UND DER EINZIGE, DER
+        * KEIN AUSFALL IST. Ein Check ohne Ergebnis ist ein vom Schema
+        * vorgesehener Zustand (§4.4): es wurde noch nichts geschrieben. Ohne
+        * diese Meldung zeigt die Seite dafuer „0 Positionen" und sieht damit aus
+        * wie ein abgeschlossener Check, bei dem nichts zu tun war — dieselbe
+        * luegende 200 wie beim Nachbarn darueber, nur aus anderer Ursache.
+        *
+        * ⛔ `type="info"`, NICHT `type="warning"` WIE DIE BEIDEN DARUEBER: jene
+        * melden einen Ausfall oder eine Einschraenkung, dieser meldet einen
+        * normalen Zwischenstand. Eine Warnfarbe machte aus „laeuft noch" einen
+        * Befund, dem jemand nachgeht. ⛔ Und erst recht kein `type="error"`
+        * (§6.6.5): `colorError` ist `colorPrimary` ist `#c8000f`.
+        *
+        * ⚠️ KEIN Icon, aus demselben Grund wie oben — diese Seite ist eine
+        * Server Component ohne Insel, und das antd-Zeichenpaket ergaebe hier
+        * HTTP 500 schon beim Import. Der Riegel in `page.test.tsx` scannt diese
+        * Datei im Quelltext; auch ein Kommentar darf den Paketnamen nicht nennen.
+        *
+        * ⚠️ DIE DREI SCHLIESSEN EINANDER NICHT AUS, und deshalb steht hier kein
+        * `else`: ein offener Check ist nie `unlesbar` (die Abgrenzung sitzt im
+        * Parser), aber die Reihenfolge der Meldungen soll nicht davon abhaengen.
+        */}
+      {check.offen ? (
+        <Alert
+          type="info"
+          showIcon={false}
+          style={{ marginBlockEnd: SPACE.lg }}
+          title="Dieser Check läuft noch: Es wurde noch kein Ergebnis erfasst. Die Listen und Summen unten sind deshalb leer — das heißt nicht, dass nichts zu tun war."
+        />
+      ) : null}
+
       <Row gutter={[SPACE.md, SPACE.md]} style={{ marginBlockEnd: SPACE.xl }}>
         <Col xs={24} md={6}>
           <Kachel
