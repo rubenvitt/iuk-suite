@@ -670,6 +670,15 @@ ein **Boden, keine Decke** — Drift *innerhalb* einer Datei sieht er nicht, und
 Alt-Anwendung oder in Fremdpakete kann er nicht prüfen. `docs/` steht bewusst außerhalb: Berichte
 halten einen vergangenen Stand fest und sollen gerade nicht mitwandern.
 
+Die **andere** Hälfte — Drift *innerhalb* einer Datei — meldet `pnpm anker:drift [pfad]` (DRK-204).
+Es ist der Prüflauf von Hand, ausgeführt statt beschrieben: über `git blame` den Commit finden, der
+die Ankerzeile schrieb, und die zitierte Spanne dort gegen `HEAD` halten. **Bewusst kein Tor** —
+gemessen stehen 4214 Zeilenanker in `m/radio` und 595 in `m/lagerbuch`, ein hartes Tor wäre am
+ersten Tag rot und würde abgeschaltet statt gelesen. Ein Treffer ist ein **Verdacht, kein Urteil**:
+der Anker darf mitgewandert sein, wenn jemand ihn nachgezogen hat. Erster Lauf über `m/lagerbuch`:
+88 Verdachte aus 328 vergleichbaren Ankern. Die Abhilfe ist nie die neue Zahl, sondern die
+Namensform.
+
 ## Tests
 
 `pnpm typecheck` · `pnpm lint` (Fehler blockieren die CI, Warnungen nicht) · `pnpm vitest run` ·
