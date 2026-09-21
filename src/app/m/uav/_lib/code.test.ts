@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CODE_ALPHABET, codeNormalisieren, loginCodeErzeugen } from "./code";
+import { CODE_ALPHABET, codeFormatGueltig, codeNormalisieren, loginCodeErzeugen } from "./code";
 
 describe("codeNormalisieren — identisch zur Alt-Anwendung", () => {
   it.each([
@@ -23,4 +23,24 @@ describe("loginCodeErzeugen", () => {
   it("ist ein Fixpunkt der Normalisierung", () => {
     for (let i = 0; i < 50; i++) { const c = loginCodeErzeugen(); expect(codeNormalisieren(c)).toBe(c); }
   });
+});
+
+describe("codeFormatGueltig (DRK-287)", () => {
+  it("nimmt jeden erzeugten Code und die festen Seed-Codes an", () => {
+    for (let i = 0; i < 200; i++) expect(codeFormatGueltig(loginCodeErzeugen())).toBe(true);
+    expect(codeFormatGueltig("E2ETEST1")).toBe(true);
+    expect(codeFormatGueltig("E2EGESP2")).toBe(true);
+  });
+  it("nimmt einen abgetippten Code nach der Normalisierung an", () => {
+    expect(codeFormatGueltig(codeNormalisieren(" e2et-est1 "))).toBe(true);
+  });
+  it.each([
+    ["", "leer"],
+    ["ABCDEFG", "zu kurz"],
+    ["ABCDEFGHJ", "zu lang"],
+    ["ABCDEFG!", "fremdes Zeichen"],
+    ["ABCDEFGI", "I ist nicht im Alphabet"],
+    ["abcdefgh", "nicht normalisiert"],
+    ["A".repeat(1024), "überlang"],
+  ])("%j (%s) → false", (code) => expect(codeFormatGueltig(code)).toBe(false));
 });
