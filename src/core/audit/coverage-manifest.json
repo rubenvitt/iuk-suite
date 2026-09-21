@@ -371,6 +371,10 @@
     "kind": "context",
     "via": "raeumeAusEntnahmebox"
   },
+  "src/app/m/lagerbuch/_actions/ruecklauf.ts#bucheRuecklauf": {
+    "kind": "context",
+    "via": "bucheRuecklauf"
+  },
   "src/app/m/lagerbuch/_actions/bestellung.ts#markiereBestellt": {
     "kind": "context",
     "via": "markiereBestellt"

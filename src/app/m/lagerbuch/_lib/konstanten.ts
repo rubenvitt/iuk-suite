@@ -140,6 +140,18 @@ export const ENTNAHMEBOX_KOMMENTAR = "In die Entnahmebox gelegt";
  */
 export const ENTNAHMEBOX_EINRAEUMEN_KOMMENTAR = "Aus der Entnahmebox eingeräumt";
 
+/**
+ * DER KOMMENTAR DES RUECKLAUFS — DRK-366, von der Einheit direkt in einen
+ * Schrank.
+ *
+ * ⚠️ FESTGENAGELT, aus demselben Grund wie die beiden darueber: die
+ * Journalspalte „Kommentar" sagt damit schon, was passiert ist, und das Praefix
+ * `ruecklauf:` braucht kein zweites Etikett. NEUTRAL, ohne die Art der Einheit
+ * — dieselbe Begruendung wie bei `ENTNAHMEBOX_KOMMENTAR`: die Art ist
+ * korrigierbar, das Journal nicht.
+ */
+export const RUECKLAUF_KOMMENTAR = "Zurück ins Handlager gebucht";
+
 export const CHARGE_KORREKTUR = "Korrektur";
 export const CHARGE_INVENTUR = "Inventur";
 export const CHARGE_OHNE_VERFALL = "ohne Verfall";

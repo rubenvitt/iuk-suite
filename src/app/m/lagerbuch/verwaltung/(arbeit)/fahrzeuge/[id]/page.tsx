@@ -17,6 +17,7 @@ import {
   templateListeAktiv,
 } from "../../../../_lib/lesepfade/fahrzeuge";
 import { verfallFuerLagerort } from "../../../../_lib/lesepfade/verfall";
+import { zugangsZiele } from "../../../../_lib/lesepfade/orte";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { einheitenartLabel, inDerEinheit } from "../../../../_lib/konstanten";
 import { Chip } from "../../../../_ui/Chip";
@@ -371,6 +372,9 @@ export function fahrzeugInhalt(db: DB, id: string, jetzt: Date): ReactNode {
           lagerortId={fahrzeug.id}
           eintraege={verfall}
           einheitenart={fahrzeug.einheitenart}
+          // DRK-366 — dieselbe Liste, die die Action prüft: die Seite bietet
+          // nichts an, was die Buchung danach verwirft.
+          ruecklaufZiele={zugangsZiele(db).map(({ id, name }) => ({ id, name }))}
         />
       </Card>
     </>

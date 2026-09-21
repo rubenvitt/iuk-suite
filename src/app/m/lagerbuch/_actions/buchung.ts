@@ -305,9 +305,9 @@ export async function bucheEntnahme(
  * Zusage „die Summe ueber den Handlager aendert sich nicht" ist damit durch
  * KONSTRUKTION wahr und nicht durch eine Pruefung, die der naechste Umbau
  * vergisst. Ein Fahrzeug ist hier weder Quelle noch Ziel: Material ans
- * Fahrzeug geht ueber `bucheEntnahme` mit Ziel-Fahrzeug, zurueck kommt es
- * heute ueber den Fahrzeug-Check. Fahrzeug -> Schrank ist eine eigene
- * fachliche Entscheidung und steht als DRK-366 auf dem Board.
+ * Fahrzeug geht ueber `bucheEntnahme` mit Ziel-Fahrzeug, zurueck ueber die
+ * Entnahmebox oder `bucheRuecklauf` (DRK-366, `_actions/ruecklauf.ts`) — ein
+ * eigener Vorgang, weil er die Handlager-Summe aendert.
  *
  * ⚠️ DIE QUELLE DARF STILLGELEGT SEIN, DAS ZIEL NICHT. Genau deshalb legt man
  * einen Schrank still: um ihn auszuraeumen. Ein stillgelegter Ort als ZIEL
@@ -682,8 +682,8 @@ export async function bucheEntnahmeHelfer(
  *    denselben Vorgang doppelt gefuehrt aussehen.
  *  * Gegenueber der Entnahme mit Ziel-Fahrzeug: DIE RICHTUNG IST UMGEKEHRT.
  *    Dort verlaesst Material das Handlager, hier kommt es hinein. Ein Fahrzeug
- *    ist hier weder Quelle noch Ziel; Fahrzeug -> Schrank steht als DRK-366 auf
- *    dem Board, die Entnahmebox als DRK-314.
+ *    ist hier weder Quelle noch Ziel; Fahrzeug -> Schrank ist `bucheRuecklauf`
+ *    (DRK-366), die Entnahmebox DRK-314.
  *
  * ⚠️ DER RIEGEL IST `requireLagerbuchAdmin()`, UND DAS IST DIE ANTWORT AUF DIE
  * OFFENE FRAGE „GF" (DRK-313, Betreiberentscheidung im Ticket): GF ist das
