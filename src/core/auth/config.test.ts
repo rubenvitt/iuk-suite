@@ -18,6 +18,13 @@ vi.mock("@/core/auth/refresh", () => ({ tokenAuffrischen: auffrischenMock }));
 const { widerrufenMock } = vi.hoisted(() => ({ widerrufenMock: vi.fn() }));
 vi.mock("@/core/konto/widerruf", () => ({ istWiderrufen: widerrufenMock }));
 
+/** Das Protokoll als Spion: der Uebergang nach `invalid_grant` muss eine Person nennen (DRK-284). */
+const { auditMock } = vi.hoisted(() => ({ auditMock: vi.fn() }));
+vi.mock("@/core/audit/server", async (original) => ({
+  ...(await original<typeof import("@/core/audit/server")>()),
+  auditEvent: auditMock,
+}));
+
 import { authConfig } from "@/core/auth/config";
 
 /**
@@ -33,6 +40,7 @@ beforeEach(() => {
   auffrischenMock.mockImplementation(async (token: unknown) => token);
   widerrufenMock.mockReset();
   widerrufenMock.mockReturnValue(false);
+  auditMock.mockReset();
 });
 
 const jwtCallback = (request: NextRequest | undefined) => {
@@ -277,7 +285,7 @@ describe("authConfig — session-Callback", () => {
     expect(sitzung.user.id).toBe("u-1");
   });
 
-  it("reicht den Fehler an den Client durch — daran haengt der SessionGuard", async () => {
+  it("reicht einen Fehlervermerk durch — RefreshTokenError kommt seit DRK-284 nie hier an", async () => {
     const sitzung = (await bauen({ error: "RefreshTokenError" })) as { error?: string };
     expect(sitzung.error).toBe("RefreshTokenError");
   });
@@ -399,5 +407,70 @@ describe("authConfig — Sitzungswiderruf", () => {
     widerrufenMock.mockReturnValue(true);
     await jwtCallback(anfrage)({ token: { sub: "s-5", angemeldetSeit: 1 } } as never);
     expect(auffrischenMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * DRK-284: ein ENDGUELTIG gescheiterter Refresh (`invalid_grant`) ist ein
+ * Widerruf durch den Identitaetsanbieter und muss serverseitig genauso wirken
+ * wie der lokale Widerruf oben — `null`, also keine Sitzung auf irgendeinem Weg.
+ * Vorher blieb das Token samt alten Gruppen stehen, nur `error` wurde gesetzt,
+ * und jeder Guard, der `session.user.groups` las, liess weiter durch.
+ */
+describe("authConfig — endgueltiger Refresh-Fehler", () => {
+  const altesToken = {
+    sub: "s-9",
+    angemeldetSeit: 1_000,
+    groups: ["uav-training-admin", "suite-admin"],
+    fachgruppen: ["fg"],
+    expiresAt: 1_000,
+    refreshToken: "rt-alt",
+  };
+
+  it("verwirft die Sitzung, wenn die Erneuerung gerade endgueltig scheitert", async () => {
+    auffrischenMock.mockImplementationOnce(async (token: Record<string, unknown>) => ({
+      ...token,
+      error: "RefreshTokenError",
+      refreshFailedAt: undefined,
+    }));
+    const token = await jwtCallback(anfrage)({ token: { ...altesToken } } as never);
+    expect(token).toBeNull();
+    // Protokolliert mit Person — spaeter waere die Abweisung nur noch anonym.
+    expect(auditMock).toHaveBeenCalledTimes(1);
+    expect(auditMock).toHaveBeenCalledWith(
+      expect.objectContaining({ module: "konto", action: "session_revoke", objectType: "idp_refresh" }),
+      expect.objectContaining({ kind: "user", id: "s-9" }),
+    );
+  });
+
+  it("verwirft ein schon als endgueltig gescheitert markiertes Token beim naechsten Aufruf", async () => {
+    // Das Cookie, das ein aelterer Stand geschrieben hat — oder das jemand
+    // nach dem Fehlschlag aufbewahrt. Die Gruppen darin gelten nicht mehr.
+    const token = await jwtCallback(anfrage)({
+      token: { ...altesToken, error: "RefreshTokenError" },
+    } as never);
+    expect(token).toBeNull();
+  });
+
+  it("verwirft es auch auf dem RSC-Pfad — ohne dort eine Erneuerung anzustossen", async () => {
+    const token = await jwtCallback(undefined)({
+      token: { ...altesToken, error: "RefreshTokenError" },
+    } as never);
+    expect(token).toBeNull();
+    expect(auditMock).not.toHaveBeenCalled();
+    // Kein Umlauf zu Pocket ID fuer eine Sitzung, die ohnehin stirbt — und auf
+    // dem RSC-Pfad ohnehin nie (Rotation ohne Gnadenfrist, siehe `refresh.ts`).
+    expect(auffrischenMock).not.toHaveBeenCalled();
+  });
+
+  it("duldet einen transienten Fehlschlag weiter — Gruppen bleiben, Sitzung lebt", async () => {
+    auffrischenMock.mockImplementationOnce(async (token: Record<string, unknown>) => ({
+      ...token,
+      refreshFailedAt: 5_000,
+    }));
+    const token = await jwtCallback(anfrage)({ token: { ...altesToken } } as never);
+    expect(token).not.toBeNull();
+    expect(token?.groups).toEqual(altesToken.groups);
+    expect(token?.refreshFailedAt).toBe(5_000);
   });
 });
