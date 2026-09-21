@@ -143,7 +143,7 @@ export type CodeZeile = {
  * aufzuloesen.
  *
  * ⚠️ DIESELBEN ZWOELF ZEILEN STEHEN AUSSERDEM IN `_lib/lesepfade/ereignisse.ts:171-183` UND
- * IN `_lib/lesepfade/geraete.ts:601-611` — mit dieser hier sind es DREI. Das ist bewusst so
+ * IN `_lib/lesepfade/geraete.ts:680-690` — mit dieser hier sind es DREI. Das ist bewusst so
  * gelassen und keine Nachlaessigkeit: eine gemeinsame Datei waere ein fuenfter Baustein in
  * einer Aufgabe, die vier vorsieht (die Begruendung steht seit V7 an der ersten Kopie,
  * `_lib/lesepfade/ereignisse.ts:165-170`), und die Wiederholung ist mechanisch — alle drei
@@ -153,7 +153,7 @@ export type CodeZeile = {
  * `_lib/lesepfade/ereignisse.ts:165` sagte „EIN ZWEITES MAL" und meinte damit zwei; sie nennt
  * jetzt beide Nachbarn. ⛔ NUR DIESE EINE STELLE TRUG DIE ZAHL — gemessen mit
  * `/usr/bin/grep -n "ZWEITES MAL" _lib/lesepfade/geraete.ts` → kein Treffer am Kopf von
- * `nutzernamen` (`geraete.ts:592-599`), REVIEW-V20s N3 nennt faelschlich beide Kopien.
+ * `nutzernamen` (`geraete.ts:671-678`), REVIEW-V20s N3 nennt faelschlich beide Kopien.
  *
  * ⛔ UND WARUM DIE AUFLOESUNG HIER UEBERHAUPT ETWAS KAUFT, anders als bei den per CSV
  * importierten Ereigniszeilen: `gesperrt_von` traegt den `sub` einer LEBENDEN Suite-Sitzung

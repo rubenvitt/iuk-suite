@@ -35,7 +35,7 @@ import s from "../../../_ui/verwaltung.module.css";
  * OBEN in der Tabelle, und das Feld ist leer.
  *
  * ⛔ DIE ZWEI FEHLERTEXTE STEHEN NICHT HIER, SONDERN IN DER ACTION („Diese Version existiert
- * bereits" `admin/actions.ts:136` woertlich `SoftwareVersionsPage.tsx:37`; „Version konnte
+ * bereits" `admin/actions.ts:148` woertlich `SoftwareVersionsPage.tsx:37`; „Version konnte
  * nicht angelegt werden" `:137` woertlich `:38`). Zwei Fassungen desselben Satzes ohne
  * Waechter laufen beim ersten Umbau auseinander — die Flaeche zeigt, was der Server sagt.
  */
@@ -49,7 +49,7 @@ import s from "../../../_ui/verwaltung.module.css";
  *
  * ⚠️ EIGENE LISTE NEBEN DER DER TABELLE, aus demselben Grund, aus dem diese Datei ueberhaupt
  * eine eigene ist (Vorabscan-Fund **F22**): die zwei teilen keinen Zustand. ⛔ KEIN SATZ STEHT
- * ZWEIMAL — die zwei FEHLERtexte dieser Flaeche stehen ohnehin in `admin/actions.ts:136`/`:137`
+ * ZWEIMAL — die zwei FEHLERtexte dieser Flaeche stehen ohnehin in `admin/actions.ts:148`/`:149`
  * und kommen als `Ergebnis.fehler` herueber.
  */
 const NEUVERSION_TEXTE = {

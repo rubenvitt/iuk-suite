@@ -65,7 +65,7 @@ export const FILTER_LISTEN = [
 /**
  * Die DREI Schalter (`deviceRepo.ts:186-188`). ⛔ Sie filtern NUR, wenn sie wahr sind —
  * „nicht ausleihbar" ist in dieser Maske nicht ausdrueckbar, und der Suite-Lesepfad
- * schreibt denselben Satz aus (`_lib/lesepfade/geraete.ts:491-493`).
+ * schreibt denselben Satz aus (`_lib/lesepfade/geraete.ts:544-546`).
  */
 export const FILTER_SCHALTER = ["ausleihbar", "alamos", "hatAbweichung"] as const;
 
@@ -118,7 +118,6 @@ export const LEERE_FILTER: GeraetFilterWerte = {
 export type GeraeteSuchWerte = {
   q: string;
   sf: string[];
-  seite: number;
   /** `schluessel:asc|desc`, oder leer. `sortierungLesen` zerlegt sie wieder. */
   sortierung: string;
   filter: GeraetFilterWerte;
@@ -134,9 +133,21 @@ export type RohSuchparameter = Record<string, string | string[] | undefined>;
  * Suchbegriff `a,b` — gueltiges JavaScript, falsche Suche, kein Tor.
  */
 function skalar(wert: string | string[] | undefined): string {
-  if (Array.isArray(wert)) return wert[0]?.trim() ?? "";
-  return wert?.trim() ?? "";
+  const roh = Array.isArray(wert) ? wert[0] : wert;
+  return roh?.trim().slice(0, SUCHPARAMETER_MAX_ZEICHEN) ?? "";
 }
+
+/**
+ * Die Hoechstlaenge eines einzelnen Suchparameters (DRK-335).
+ *
+ * ⛔ SIE WIRKT AN ZWEI STELLEN, UND DAS IST DER PUNKT: die Seite kuerzt hier, und die
+ * Nachlade-Actions (`_lib/nachladen.ts`) weisen laengere Werte ab. Stuende die Grenze nur in
+ * der Action, naehme die Seite einen Wert an, den jeder Nachschlag ablehnt — die Tabelle
+ * stuende dann auf der ersten Portion und meldete dauerhaft einen Fehler (DRK-331,
+ * Reviewbefund). Weil jeder Wert, den die Insel zurueckschickt, aus DIESER Faltung stammt,
+ * kann er die Grenze nicht ueberschreiten.
+ */
+export const SUCHPARAMETER_MAX_ZEICHEN = 1000;
 
 /** Kommagetrennt lesen, trimmen, Leerglieder wegwerfen. */
 function liste(wert: string | string[] | undefined): string[] {
@@ -162,7 +173,7 @@ function schalter(wert: string | string[] | undefined): boolean {
  * ⛔ EIN UNBEKANNTER SCHLUESSEL ERGIBT DIE LEERE SORTIERUNG (Entscheidung E-V9,
  * `.superpowers/sdd/planteil4/briefs/KOPF.md:708-733`). Der Lesepfad selbst faellt bei einem
  * unbekannten Schluessel still auf `desc(createdAt)` zurueck
- * (`_lib/lesepfade/geraete.ts:504-511`) — gefaehrlich ist er also nicht, aber er hat in der
+ * (`_lib/lesepfade/geraete.ts:557-568`) — gefaehrlich ist er also nicht, aber er hat in der
  * Adresszeile nichts verloren: dort behauptete er eine Sortierung, die die Tabelle nicht hat.
  */
 export function sortierungZeichenkette(schluessel: unknown, richtung: unknown): string {
@@ -188,7 +199,7 @@ export function sortierungLesen(
  *
  * ⛔ DIE SUCHFELDER WERDEN NICHT GEFILTERT, UND DAS IST DER GEGENLAEUFIGE POSTEN DIESER
  * DATEI. Der Lesepfad fuehrt einen Sicherheitszweig: sind ALLE angeforderten Felder
- * unbekannt, liefert die Abfrage KEINE Zeile (`_lib/lesepfade/geraete.ts:465-471`, 1:1 zu
+ * unbekannt, liefert die Abfrage KEINE Zeile (`_lib/lesepfade/geraete.ts:518-524`, 1:1 zu
  * `deviceRepo.ts:168-172`, „never interpolate unknown names into SQL") — waehrend eine LEERE
  * Liste die sieben Vorgabefelder bedeutet (`:458`). Wer hier unbekannte Felder wegwuerfe,
  * drehte „alle unbekannt ⇒ keine Zeile" in „alle unbekannt ⇒ alle Zeilen".
@@ -200,9 +211,6 @@ export function geraeteParameterAus(roh: RohSuchparameter): {
   const q = skalar(roh.q);
   const sfRoh = liste(roh.sf);
   const sf = sfRoh.length ? sfRoh : [...SUCHFELDER_VORGABE];
-
-  const seiteZahl = Number.parseInt(skalar(roh.seite), 10);
-  const seite = Number.isFinite(seiteZahl) && seiteZahl >= 1 ? seiteZahl : 1;
 
   const sortierung = (() => {
     const gelesen = sortierungLesen(skalar(roh.sortierung));
@@ -227,7 +235,7 @@ export function geraeteParameterAus(roh: RohSuchparameter): {
     hatAbweichung: schalter(roh.hatAbweichung),
   };
 
-  const werte: GeraeteSuchWerte = { q, sf, seite, sortierung, filter: filterWerte };
+  const werte: GeraeteSuchWerte = { q, sf, sortierung, filter: filterWerte };
 
   const filter: GeraetFilter = {
     q: q || undefined,
@@ -247,7 +255,8 @@ export function geraeteParameterAus(roh: RohSuchparameter): {
     alamos: filterWerte.alamos || undefined,
     hatAbweichung: filterWerte.hatAbweichung || undefined,
     sortierung: sortierung || undefined,
-    seite,
+    // ⛔ KEINE `seite` MEHR (DRK-335): die Flaeche laedt beim Scrollen nach, statt zu
+    // blaettern. Ein alter Link mit `?seite=3` zeigt die erste Portion.
     seitenGroesse: SEITEN_GROESSE,
   };
 
@@ -278,11 +287,13 @@ export function suchparameterZu(werte: GeraeteSuchWerte): Record<string, string>
      * Adresszeile nichts sagt. Die sieben Vorgabefelder bei jedem Klick mitzuschreiben
      * machte aus jeder Adresse eine Zeile Rauschen, und „alle Haken weg" heisst im
      * Bestand ohnehin dasselbe wie „Vorgabe" (`deviceRepo.ts:162`,
-     * `_lib/lesepfade/geraete.ts:458`).
+     * `_lib/lesepfade/geraete.ts:511`).
      */
     sf: sindVorgabefelder(werte.sf) ? "" : werte.sf.join(","),
-    // Seite 1 ist die Vorgabe und gehoert nicht in die Adresszeile.
-    seite: werte.seite > 1 ? String(werte.seite) : "",
+    // ⛔ IMMER LEER, ALSO IMMER GELOESCHT (DRK-335): die Liste blaettert nicht mehr. Ein alter
+    // Link mit `?seite=3` verlöre den Parameter sonst nie — er stuende nach jedem Filterwechsel
+    // weiter in der Adresszeile und behauptete eine Seite, die es nicht gibt.
+    seite: "",
     sortierung: werte.sortierung,
     updateStand: f.updateStand,
     status: f.status.join(","),
@@ -356,8 +367,8 @@ export type AusleihenFilterWerte = {
   bis: string;
 };
 
-/** Die Anzeigewerte der Flaeche: der Filter plus die Seitenzahl. */
-export type AusleihenSuchWerte = AusleihenFilterWerte & { seite: number };
+/** Die Anzeigewerte der Flaeche — seit DRK-335 ohne Seitenzahl, genau der Filter. */
+export type AusleihenSuchWerte = AusleihenFilterWerte;
 
 /** Der leere Filter — der Zustand des Zuruecksetzen-Knopfes. */
 export const LEERER_AUSLEIHEN_FILTER: AusleihenFilterWerte = { geraet: "", von: "", bis: "" };
@@ -513,10 +524,7 @@ export function ausleihenParameterAus(roh: RohSuchparameter): {
   const von = istKalendertag(vonRoh) ? vonRoh : "";
   const bis = istKalendertag(bisRoh) ? bisRoh : "";
 
-  const seiteZahl = Number.parseInt(skalar(roh.seite), 10);
-  const seite = Number.isFinite(seiteZahl) && seiteZahl >= 1 ? seiteZahl : 1;
-
-  const werte: AusleihenSuchWerte = { geraet, von, bis, seite };
+  const werte: AusleihenSuchWerte = { geraet, von, bis };
 
   const parameter: AusleihenParameter = {
     // ⛔ `|| undefined`, NICHT `?? undefined`: die Datenfunktion prueft auf WAHRHEIT
@@ -525,7 +533,6 @@ export function ausleihenParameterAus(roh: RohSuchparameter): {
     geraeteId: geraet || undefined,
     von: von ? tagesGrenzen(von).von : undefined,
     bis: bis ? tagesGrenzen(bis).bis : undefined,
-    seite,
   };
 
   return { werte, parameter };
@@ -547,7 +554,7 @@ export function ausleihenSuchparameterZu(werte: AusleihenSuchWerte): Record<stri
     geraet: werte.geraet,
     von: werte.von,
     bis: werte.bis,
-    // Seite 1 ist die Vorgabe und gehoert nicht in die Adresszeile.
-    seite: werte.seite > 1 ? String(werte.seite) : "",
+    // ⛔ Immer leer, also immer geloescht — derselbe Grund wie bei `suchparameterZu` (DRK-335).
+    seite: "",
   };
 }

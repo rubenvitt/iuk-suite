@@ -166,7 +166,7 @@ function text(rolle: string): string {
  *
  * ⛔ UEBER `closest(".ant-alert")` UND NICHT UEBER DEN GRIFF SELBST: der Griff sitzt am
  * inneren `<span>` der `message` — dieselbe Form wie `UpdateSuche.tsx:229-233` —, damit
- * `text("radio-import-hinweis")` und der Playwright-Fall (`e2e/radio-verwaltung.spec.ts:1033`)
+ * `text("radio-import-hinweis")` und der Playwright-Fall (`e2e/radio-verwaltung.spec.ts:1123`)
  * den blanken Satz lesen und nicht das Zeichen daneben. Der TON haengt am aeusseren Kasten.
  */
 function hinweisKasten(): string {
@@ -198,7 +198,7 @@ async function legeDateiAb(name = "geraete.csv"): Promise<void> {
  *
  * ⛔ `mousedown` AUF DER HUELLE, NICHT `click` AUF DEM FELD — gemessen im Haus
  * (`src/app/m/aufgaben/_ui/testFelder.ts:56-59`, uebernommen in
- * `admin/(arbeit)/ausleihen/AusleihenTabelle.test.tsx:178-215`): rc-select oeffnet am
+ * `admin/(arbeit)/ausleihen/AusleihenTabelle.test.tsx:184-221`): rc-select oeffnet am
  * `onMouseDown` seines Wrapper-`<div>`.
  *
  * ⛔ DIE OPTIONSSUCHE IST AUF DAS OFFENE PORTAL EINGESCHRAENKT, und das ist hier PFLICHT und
@@ -518,7 +518,7 @@ describe("radio-Import: die vier Schritte", () => {
      * ⛔ ENTSCHEIDUNG E6 (`Spec:3754-3776`), dieselbe Linie wie `NotizFeld.tsx:35-38` und
      * `UpdateSuche.tsx`: kein Toast — „der Fehlertext kommt aus der Action". Ein hier
      * eingesetzter Ersatztext verdeckte genau die Meldung, die dem Bedienenden sagt, WAS
-     * fehlt; „ISSI-Spalte muss zugeordnet sein" (`admin/actions.ts:141`, 1:1
+     * fehlt; „ISSI-Spalte muss zugeordnet sein" (`admin/actions.ts:153`, 1:1
      * `ImportWizard.tsx:109`) ist die, die es am haeufigsten ist.
      */
     schreibenMock.mockResolvedValue({ ok: false, fehler: "ISSI-Spalte muss zugeordnet sein" });

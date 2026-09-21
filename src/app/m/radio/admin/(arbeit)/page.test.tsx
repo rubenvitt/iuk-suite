@@ -226,7 +226,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
      * 1:1 aus `radio-admin/client/src/features/dashboard/Dashboard.tsx:27-53`: „Geräte
      * gesamt" · „Aktuell" · „Veraltet" · „Unbekannt". Die Zahlen kommen aus
      * `geraeteKennzahlen` — EINE Abfrage mit `GROUP BY` statt vier Rundlaeufen
-     * (`_lib/lesepfade/geraete.ts:678-684`, `Spec:4780-4784`).
+     * (`_lib/lesepfade/geraete.ts:757-763`, `Spec:4780-4784`).
      */
     sechsVeraltete();
     expect(kennzahlen(await seite())).toEqual([
@@ -341,7 +341,7 @@ describe("die Verwaltungsuebersicht an /admin", () => {
     /*
      * 1:1 aus `Dashboard.tsx:21` (`{ page: 1, pageSize: 5, updateStatus: 'veraltet' }`) —
      * ⛔ OHNE eigene Sortierangabe, damit die Vorgabe `desc(createdAt)` des Lesepfads greift
-     * (`_lib/lesepfade/geraete.ts:505`). „Juengste" heisst genau das.
+     * (`_lib/lesepfade/geraete.ts`, Vorgabe der Ordnung in `geraeteListe`). „Juengste" heisst das.
      *
      * ⛔ DER TITEL FAELLT ZURUECK: `rufname || opta || issi` (`Dashboard.tsx:94`), und alle
      * drei Stufen kommen in dieser Liste vor. Darunter die ISSI-Zeile (`Dashboard.tsx:95`).

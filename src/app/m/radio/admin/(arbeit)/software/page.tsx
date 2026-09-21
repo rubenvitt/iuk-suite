@@ -52,7 +52,7 @@ import { UpdateSuche } from "./UpdateSuche";
  *
  * ⛔ DER FORTSCHRITT BLEIBT AUF DIESER FLAECHE — „Weitere Auswertungen entstehen nicht"
  * (`Spec:4793-4794`). `gesamt` und `aufZiel` kommen aus EINER Abfrage mit `GROUP BY`
- * (`geraeteKennzahlen`, `_lib/lesepfade/geraete.ts:678`) und nicht aus zwei Rundlaeufen mit
+ * (`geraeteKennzahlen`, `_lib/lesepfade/geraete.ts:757`) und nicht aus zwei Rundlaeufen mit
  * `pageSize: 1`, wie es der Bestand tat (`UpdateMode.tsx:30-33`; `Spec:4780-4784` nennt den
  * Grund: „Die vier Rundlaeufe waren eine Folge der HTTP-Grenze, nicht der Fachlichkeit").
  * ⚠️ `aufZiel` IST `geraeteKennzahlen.aktuell` — derselbe SQL-Ausdruck, den der Bestand als
@@ -82,7 +82,7 @@ export default async function RadioSoftwareSeite({
 
   const roh = (await searchParams).q;
   /* Ein mehrfach gesetzter Parameter kommt als Feld — dieselbe Faltung wie in
-     `geraeteParameterAus` (`_lib/suchparameter.ts:196`). */
+     `geraeteParameterAus` (`_lib/suchparameter.ts:207`). */
   const suchtext = (Array.isArray(roh) ? roh[0] : roh)?.trim() ?? "";
 
   const db = getDb();

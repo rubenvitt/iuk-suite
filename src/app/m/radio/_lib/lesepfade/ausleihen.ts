@@ -7,7 +7,15 @@
 // das zieht `better-sqlite3` und `node:fs` (`src/core/db/index.ts:2-4`). Ein Wert-Import ist die
 // Klasse, die `build` MAL faengt und mal nicht — und im Zweifel erst im echten Abruf.
 import type { DB } from "../../_db/client";
-import { geraeteMitLeihen, leihhistorie, type GeraetMitLeihe, type LeihZeile } from "../../_db/leihen";
+import {
+  geraeteMitLeihen,
+  leihhistorie,
+  type GeraetMitLeihe,
+  type LeihCursor,
+  type LeihZeile,
+} from "../../_db/leihen";
+
+export type { LeihCursor };
 
 /**
  * DIE AUSLEIHENLISTE DER VERWALTUNG (Planteil 4, Aufgabe V7).
@@ -87,6 +95,8 @@ export type AusleihenParameter = {
   geraeteId?: string;
   von?: Date;
   bis?: Date;
+  /** Die Schluesselposition des Nachladens (DRK-335); gesetzt, gilt `seite` nicht. */
+  cursor?: LeihCursor;
 };
 
 /** Der Umschlag der Antwort — 1:1 die Form der Datenfunktion, mit der Zeile dieser Datei. */
@@ -111,6 +121,8 @@ export type AusleihenSeite = {
    * Zuruecksetzen auf Seite 1.
    */
   seitenGroesse: number;
+  /** Die Position hinter der letzten Zeile — `null`, wenn keine weitere folgt (DRK-335). */
+  naechsterCursor: LeihCursor | null;
 };
 
 /**
@@ -123,12 +135,13 @@ export function ausleihenListe(db: DB, p: AusleihenParameter): AusleihenSeite {
     geraeteId: p.geraeteId,
     von: p.von,
     bis: p.bis,
+    cursor: p.cursor,
     // `Number` ist die ganze Umwandlung, und die unbrauchbaren Werte laufen GEMESSEN ueber
     // ZWEI VERSCHIEDENE WAECHTER der Datenfunktion, nicht ueber einen: ein FEHLENDER oder ein
     // unsinniger Suchparameter wird `NaN` und faellt in `ganzzahlOderVorgabe` auf die Vorgabe
-    // zurueck (`_db/leihen.ts:834-836`). Ein LEERER wird `Number("")` === 0 — `Number.isFinite(0)`
-    // ist wahr, die Vorgabe greift also NICHT, und gehoben wird die 0 erst von der Untergrenze
-    // `Math.max(1, ...)` (`_db/leihen.ts:887`). Beide enden auf der ersten Seite. Die Grenzen
+    // zurueck (`_db/leihen.ts`, `ganzzahlOderVorgabe`). Ein LEERER wird `Number("")` === 0 —
+    // `Number.isFinite(0)` ist wahr, die Vorgabe greift NICHT, gehoben wird die 0 erst von der
+    // Untergrenze `Math.max(1, ...)` in `leihhistorie`. Beide enden auf der ersten Seite. Die Grenzen
     // stehen dort und nicht hier, weil „eine Regel, die nur im Client steht, keine Regel ist"
     // (`Spec:3583-3585`).
     seite: Number(p.seite),

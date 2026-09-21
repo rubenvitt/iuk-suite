@@ -81,11 +81,15 @@ export default async function RadioAusleihenSeite({
   return (
     <>
       <h1 className={s.titel}>Ausleihen</h1>
+      {/*
+        Die ERSTE Portion; weitere holt die Insel beim Scrollen ueber `ausleihenNachladenAction`
+        (DRK-335). Die Position ist zwei Zahlen bzw. Zeichenketten und darf ohne Umwandlung
+        ueber die Grenze.
+      */}
       <AusleihenTabelle
         zeilen={seite.zeilen}
         gesamt={seite.gesamt}
-        seite={seite.seite}
-        seitenGroesse={seite.seitenGroesse}
+        naechsterCursor={seite.naechsterCursor}
         filter={{ geraet: werte.geraet, von: werte.von, bis: werte.bis }}
         geraete={geraete}
       />

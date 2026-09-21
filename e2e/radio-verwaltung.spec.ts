@@ -1,4 +1,9 @@
+import { registerAuditFunctions } from "@/core/audit/context";
 import { test, expect } from "@playwright/test";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import { like } from "drizzle-orm";
+import { devices } from "@/app/m/radio/_db/schema";
 import { devLogin, klickeWennRuhig } from "./fixtures";
 import {
   E2E_CODE_AKTIV,
@@ -368,8 +373,8 @@ test.describe("radio-Verwaltung", () => {
       "antds Vorgabe-Blaetterung ist an — Regime B verlangt pagination={false} (Sonde S-V13d)",
     ).toHaveCount(0);
     await expect(
-      page.locator('[data-rolle="radio-blaetterung"]'),
-      "die URL-schreibende Blaetterung der Insel fehlt",
+      page.locator('[data-rolle="radio-nachladen"]'),
+      "der Nachlade-Fuss der Insel fehlt (DRK-335)",
     ).toHaveCount(1);
 
     /*
@@ -391,6 +396,91 @@ test.describe("radio-Verwaltung", () => {
      */
     await expect(page).toHaveURL(/^http:\/\/radio\.localtest\.me:3100\/admin\/geraete\?/);
     expect(new URL(page.url()).searchParams.get("ausleihbar")).toBe("1");
+  });
+
+  test("DRK-335: /admin/geraete laedt beim Scrollen die naechste Portion nach", async ({ page }) => {
+    /*
+     * ⛔ NUR HIER IST DAS NACHLADEN WIRKLICH GEMESSEN. Vitest prueft die Verdrahtung mit einem
+     * Beobachter-Stummel, aber es kennt weder Layoutboxen (kommt die Wache ueberhaupt in
+     * Sicht?) noch eine RSC-Grenze (kommt die Action als Action an?) noch die echte Faltung
+     * der Parameter auf dem Server.
+     *
+     * ⛔ FUENFUNDZWANZIG GERAETE MIT EIGENEM NAMEN, gefiltert ueber die Suche: der Seed hat
+     * acht, eine Portion sind zwanzig. Die Suche grenzt den Fall vom Seed ab, und
+     * `workers: 1` (`playwright.config.ts`) haelt ihn von den uebrigen Faellen fern; geraeumt
+     * wird im `finally`.
+     *
+     * ⛔ SORTIERT NACH EINER SPALTE MIT LEEREN WERTEN, ABSTEIGEND — der Fall, an dem eine
+     * naive Schluesselbedingung den leeren Schwanz still verschluckt (`hinterPosition` in
+     * `_lib/lesepfade/geraete.ts`). Jedes dritte Geraet hat keinen Lagerort.
+     */
+    const DB_PFAD = "./.data/e2e/radio.db";
+    const PRAEFIX = "E2E Nachladen";
+    const sqlite = new Database(DB_PFAD);
+    registerAuditFunctions(sqlite);
+    sqlite.pragma("busy_timeout = 5000");
+    const db = drizzle(sqlite);
+    const jetzt = new Date();
+    try {
+      db.insert(devices)
+        .values(
+          Array.from({ length: 25 }, (_, i) => {
+            const nr = String(i + 1).padStart(2, "0");
+            return {
+              id: `e2e-nachladen-${nr}`,
+              issi: `99335${nr}`,
+              rufname: `${PRAEFIX} ${nr}`,
+              location: i % 3 === 0 ? null : `Regal ${String(i % 4)}`,
+              createdAt: jetzt,
+              updatedAt: jetzt,
+            };
+          }),
+        )
+        .run();
+
+      await devLogin(page, { host: RADIO_HOST, groups: RADIO_ADMIN_GRUPPE });
+
+      /*
+       * ⛔ DIE ANTWORT DES NACHSCHLAGS WIRD GEPRUEFT, nicht nur der spaetere Zustand (Falle 10,
+       * zweite Testregel). Eine Server Action ist ein POST mit dem Kopf `next-action`; eine
+       * abgelehnte oder abgebrochene Antwort liefe sonst still ins Zeitbudget.
+       * Registriert VOR dem Aufruf: steht die Wache schon beim Laden im Vorlauf des
+       * Beobachters, geht der Nachschlag ohne jedes Scrollen los.
+       */
+      const nachschlag = page.waitForResponse(
+        (r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined,
+      );
+      const antwort = await page.goto(
+        radioUrl(`/admin/geraete?q=${encodeURIComponent(PRAEFIX)}&sortierung=lagerort:desc`),
+      );
+      expect(antwort?.status()).toBe(200);
+      await expect(page.locator("table thead th").first()).toBeVisible();
+
+      await page.locator('[data-rolle="radio-nachladen-wache"]').scrollIntoViewIfNeeded();
+      expect((await nachschlag).status(), "der Nachschlag wurde abgelehnt").toBe(200);
+
+      await expect(
+        page.locator('[data-rolle="radio-nachladen-stand"]'),
+        "nach dem Nachschlag steht nicht die ganze Menge da",
+      ).toHaveText("25 Geräte");
+      /*
+       * ⚠️ `[data-row-key]` UND NICHT `tbody tr`: der Greifer traegt auch dann, wenn die
+       * Tabelle eines Tages virtualisiert (Falle 14).
+       */
+      const schluessel = await page.locator("table [data-row-key]").evaluateAll((zeilen) =>
+        zeilen.map((z) => z.getAttribute("data-row-key")),
+      );
+      expect(schluessel, "eine Zeile fehlt oder steht doppelt").toHaveLength(25);
+      expect(new Set(schluessel).size).toBe(25);
+      // Absteigend stehen die Geraete OHNE Lagerort am Ende — auch hinter der Position.
+      const ohneOrt = Array.from({ length: 25 }, (_, i) => i)
+        .filter((i) => i % 3 === 0)
+        .map((i) => `e2e-nachladen-${String(i + 1).padStart(2, "0")}`);
+      expect(new Set(schluessel.slice(-ohneOrt.length))).toEqual(new Set(ohneOrt));
+    } finally {
+      db.delete(devices).where(like(devices.id, "e2e-nachladen-%")).run();
+      sqlite.close();
+    }
   });
 
   test("eine Geraetezeile zeigt ihren formatierten Wert, nicht das Rohfeld", async ({ page }) => {
@@ -595,7 +685,7 @@ test.describe("radio-Verwaltung", () => {
      * sind. ⬜ **Der Rest bleibt offen; Eigentuemer: Generalprobe.**
      *
      * ⛔ WAS NUR HIER MESSBAR IST, UND WARUM DER FALL NICHT WEGKUERZBAR IST: `notizAnfuegenAction`
-     * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:677`). ⛔ OB NEXT
+     * stoesst `revalidatePath` auf genau diese Seite an (`admin/actions.ts:689`). ⛔ OB NEXT
      * DIE INSEL DABEI AN ORT UND STELLE NEU RENDERT ODER SIE NEU AUFBAUT, ist in Vitest
      * strukturell nicht zu sehen — es gibt dort keinen Server. Beide Wege muessen dieselbe
      * Zusage halten, und genau das misst dieser Abschnitt.

@@ -133,8 +133,8 @@ const VERSIONEN_TEXTE = {
    * Vorlesesoftware aus einer Flaeche zwei Themen.
    */
   tabelleName: "Softwareversionen",
-  /** Die leere Liste — eine Zutat der Suite (Hausform `ausleihen/AusleihenTabelle.tsx:359-360`,
-   *  `geraete/GeraeteTabelle.tsx:481-482`); der Bestand zeigt antds englisches „No data". */
+  /** Die leere Liste — eine Zutat der Suite (Hausform `ausleihen/AusleihenTabelle.tsx:334-335`,
+   *  `geraete/GeraeteTabelle.tsx:451-452`); der Bestand zeigt antds englisches „No data". */
   leer: "Keine Version angelegt",
 } as const;
 
