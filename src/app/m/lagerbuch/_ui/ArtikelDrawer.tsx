@@ -537,28 +537,28 @@ export function ArtikelDrawer({
       onClose={onSchliessen}
       title={detail?.artikel.name ?? "Artikeldetails"}
       /*
-       * 880 STATT 520 — und die Zahl kommt aus einer Messung, nicht aus dem
-       * Gefuehl (13.09.2026, echter Chromium, `e2e/flyin-breite.spec.ts`).
+       * 1120 STATT 880 STATT 520 — beide Sprünge kommen aus einer Messung.
        *
-       * Bei 520 px war der Inhalt dieser Schublade 1862 px hoch. Auf einem
-       * 1280x720-Schirm sind davon 663 px zu sehen — ein Drittel. Wer eine
-       * Entnahme buchen wollte, scrollte an Stammdaten und Zugang vorbei,
-       * waehrend links 760 px abgedunkelter Hintergrund brachlagen. Genau das
-       * meint die Gespraechsnotiz mit „nicht weit genug bei geringer
-       * Aufloesung": nicht abgeschnitten, sondern zu schmal fuer den Platz,
-       * der da ist.
+       * 520 → 880 (13.09.2026, `e2e/flyin-breite.spec.ts`): bei 520 px war
+       * der Inhalt 1862 px hoch, auf 1280x720 davon ein Drittel zu sehen,
+       * während links 760 px abgedunkelter Hintergrund brachlagen.
        *
-       * Breiter allein haette wenig geholfen — eine breitere Spalte ist
+       * 880 → 1120 (21.09.2026): die beiden Tabellen unten fahren
+       * `scroll.x: "max-content"`. Schon die Seed-Daten brauchten für die
+       * Chargen 691 px; der Platz darin war 798 px — echte Chargen mit
+       * mehreren Orten und Buchungen mit Kommentar liefen darüber hinaus und
+       * brachten je Tabelle einen eigenen waagerechten Scrollbalken mit.
+       *
+       * Breiter allein hätte wenig geholfen — eine breitere Spalte ist
        * immer noch EINE Spalte. Die Zahl wirkt erst zusammen mit dem
        * `buchungsspalten`-Raster weiter unten, das die beiden Buchungs-
-       * formulare ab genug Breite nebeneinander legt. Zusammen: 1862 px auf
-       * 1409 px bei gleicher Fensterhoehe.
+       * formulare ab genug Breite nebeneinander legt.
        *
-       * ⛔ KEIN `size="large"` (das waeren antds 736) und keine nackte Zahl:
-       * `flyinBreite` deckelt auf 92 vw, sonst waechst die Schublade aus dem
-       * Bild — bei 520 tat sie das unter 520 px Fensterbreite schon.
+       * ⛔ KEIN `size="large"` (das wären antds 736) und keine nackte Zahl:
+       * `flyinBreite` deckelt auf 92 vw — auf 1280 px bleiben damit 160 px
+       * Hintergrund, auf 1024 px greift der Deckel.
        */
-      size={flyinBreite(880)}
+      size={flyinBreite(1120)}
       rootClassName={styles.modul}
       destroyOnHidden
     >
@@ -574,7 +574,7 @@ export function ArtikelDrawer({
       {!detail ? (
         <div style={SCHRIFT.neben}>Artikeldetails werden geladen …</div>
       ) : (
-        <div style={{ display: "grid", gap: 20 }}>
+        <div className={styles.artikelRaster}>
           <ArtikelKopf
             detail={detail}
             mindestbestand={mindestbestand ?? detail.artikel.mindestbestand}
@@ -605,7 +605,7 @@ export function ArtikelDrawer({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
                 gap: 12,
               }}
             >
