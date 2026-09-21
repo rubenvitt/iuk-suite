@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "@playwright/test"; import { E2E_PORT } from "./helpers/ports";
 
 /**
  * DIE GRUPPEN-HÄKCHEN DES ENTWICKLUNGS-LOGINS.
@@ -14,7 +14,7 @@ import { test, expect } from "@playwright/test";
  * Umstellung seines Vertrags.
  */
 
-const LOGIN = "http://portal.localtest.me:3100/login?callbackUrl=%2F";
+const LOGIN = `http://portal.localtest.me:${E2E_PORT}/login?callbackUrl=%2F`;
 
 /** Wie in `fixtures.ts`: erst hydriert klicken, sonst fällt das Formular auf ein natives GET durch. */
 async function oeffneLogin(page: import("@playwright/test").Page) {

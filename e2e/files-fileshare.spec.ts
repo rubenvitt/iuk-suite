@@ -5,7 +5,7 @@ import { inflateRawSync } from "node:zlib";
 // LESER auf die E2E-Datenbank, kein zweiter Schreibweg neben dem Server.
 import DatenbankLeser from "better-sqlite3";
 
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, E2E_PORT } from "./fixtures";
 import { setzeAvModus } from "./helpers/avModus";
 
 /**
@@ -48,7 +48,7 @@ import { setzeAvModus } from "./helpers/avModus";
  */
 
 const VERWALTUNG = "files.localtest.me";
-const V = `http://${VERWALTUNG}:3100`;
+const V = `http://${VERWALTUNG}:${E2E_PORT}`;
 
 /** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
 const GRUPPE = "iuk-files-admin";
@@ -1081,7 +1081,7 @@ async function legeAbgabelinkAn(page: Page, name: string): Promise<string> {
   expect(adresse, "die einmalige Ausgabe muss die Adresse tragen").toBeTruthy();
   // Der Erzeugungshost ist `files.…`, die Nutzlast muss `drop.…` tragen
   // (Analyse-Falle 17) — sonst laeuft die Abgabe unten in eine 404.
-  expect(adresse!).toContain(`${INBOX}:3100/u/`);
+  expect(adresse!).toContain(`${INBOX}:${E2E_PORT}/u/`);
   return adresse!;
 }
 

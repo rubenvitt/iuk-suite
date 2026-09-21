@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import { AUFGABEN_KOORDINATION_GRUPPE, AUFGABEN_ZUGANG_GRUPPE } from "./helpers/aufgaben";
 
 const HOST = "aufgaben.localtest.me";
@@ -110,7 +110,7 @@ test("Anleitung: jedes Kapitel einer BuFDi rendert — Skizze, Schritte, Grenzen
   });
 
   for (const kapitel of BUFDI_KAPITEL) {
-    const antwort = await page.goto(`http://${HOST}:3100/hilfe/${kapitel.pfad}`);
+    const antwort = await page.goto(`http://${HOST}:${E2E_PORT}/hilfe/${kapitel.pfad}`);
     expect(antwort?.status(), kapitel.pfad).toBe(200);
     // Erst die Seite fertig werden lassen, dann weiterblaettern (s. Kommentar oben).
     await page.waitForLoadState("networkidle");

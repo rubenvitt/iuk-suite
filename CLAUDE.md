@@ -696,6 +696,13 @@ außerhalb dieser Umgebung fährt, prüft den Exit-Code** — nicht die Meldung,
 Für DOM-Verhalten gibt es ein etabliertes Harness: `src/app/m/qr/_lib/test-dom.tsx`
 (`mount`/`fill`/`click`/`query`/`submitForm`) — kein zweites erfinden.
 
+**E2E-Ports gehören der Arbeitskopie** (DRK-346, `e2e/helpers/ports.ts`): Hauptcheckout und CI
+fahren 3100/3101/3102/3310, jeder Worktree einen festen Block aus seinem Pfad (4100–4990, +1 PWA,
++2 Umfragen, +3 Fake-clamd). In Specs steht deshalb nie ein Portliteral, sondern `E2E_PORT` bzw.
+`E2E_PORTS` aus `./fixtures`. Ist ein Port belegt, bricht die Konfiguration mit PID und
+**Arbeitsverzeichnis** des Halters ab — steht dort „FREMDE Arbeitskopie", **nicht beenden**, sondern
+warten oder `E2E_PORT=<web-port>` setzen (Ausweg auch, wenn zwei Worktrees im selben Block landen).
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

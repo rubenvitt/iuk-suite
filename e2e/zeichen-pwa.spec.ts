@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORTS } from "./fixtures";
 
 test.skip(ZEICHEN_PAUSIERT, "Taktische Zeichen ist voruebergehend gesperrt");
 
@@ -30,9 +30,9 @@ test.skip(ZEICHEN_PAUSIERT, "Taktische Zeichen ist voruebergehend gesperrt");
  * `ZEICHEN_SW=1` in `webServer.env` derselben Config.
  */
 
-const ZEICHEN = "http://zeichen.localtest.me:3101";
+const ZEICHEN = `http://zeichen.localtest.me:${E2E_PORTS.pwa}`;
 const HOST = "zeichen.localtest.me";
-const PORT = 3101;
+const PORT = E2E_PORTS.pwa;
 
 /**
  * Name aus `_lib/sw-quelle.ts` (Aufgabe 9). Bewusst dupliziert statt importiert:
@@ -153,7 +153,7 @@ test("der Modul-Host liefert Manifest, Icon und Worker — mit use-credentials",
   // Gegenprobe auf einem fremden Suite-Host: dort gibt es das alles nicht — der
   // Pfad rewritet ins Portal. `request` (ohne Sitzung) statt `page.request`:
   // gemessen antwortet der Portal-Host anonym mit dem Login, nie mit JavaScript.
-  const fremd = await request.get("http://portal.localtest.me:3101/sw.js");
+  const fremd = await request.get(`http://portal.localtest.me:${E2E_PORTS.pwa}/sw.js`);
   expect(fremd.headers()["content-type"] ?? "").not.toContain("javascript");
 });
 

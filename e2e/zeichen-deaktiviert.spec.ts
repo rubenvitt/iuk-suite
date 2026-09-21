@@ -1,11 +1,11 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, E2E_PORT } from "./fixtures";
 import { ZEICHEN_PAUSIERT } from "../src/app/m/zeichen/_lib/verfuegbarkeit";
 
 test.skip(!ZEICHEN_PAUSIERT, "Die App ist wieder freigegeben");
 
-const ZEICHEN = "http://zeichen.localtest.me:3100";
-const PORTAL = "http://portal.localtest.me:3100";
+const ZEICHEN = `http://zeichen.localtest.me:${E2E_PORT}`;
+const PORTAL = `http://portal.localtest.me:${E2E_PORT}`;
 const MELDUNG = "Taktische Zeichen ist vorübergehend nicht verfügbar.";
 const PFADE = [
   ZEICHEN + "/",
@@ -16,7 +16,7 @@ const PFADE = [
   PORTAL + "/m/zeichen",
   PORTAL + "/m/zeichen/katalog",
   PORTAL + "/m/zeichen/api/merkliste",
-  "http://qr.localtest.me:3100/m/zeichen/katalog",
+  `http://qr.localtest.me:${E2E_PORT}/m/zeichen/katalog`,
 ];
 
 async function pruefeSperre(request: APIRequestContext) {
@@ -59,5 +59,5 @@ test("liefert den Abraeum-Worker ohne Sitzung und laesst andere Module erreichba
     expect(worker).toContain("caches.delete(n)");
     expect(worker).not.toContain('addEventListener("fetch"');
   }
-  expect((await request.get("http://qr.localtest.me:3100/")).status()).toBe(200);
+  expect((await request.get(`http://qr.localtest.me:${E2E_PORT}/`)).status()).toBe(200);
 });

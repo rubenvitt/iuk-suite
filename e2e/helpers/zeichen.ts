@@ -1,4 +1,4 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test"; import { E2E_PORT } from "./ports";
 
 /**
  * DIE EINE QUELLE fuer Host, Admin-Gruppe, Port, Anker-Id und Warmlauf der
@@ -26,8 +26,8 @@ export const ZEICHEN_HOST = "zeichen.localtest.me";
  */
 export const FREMDER_HOST = "feedback.localtest.me";
 
-/** Derselbe Port wie in `playwright.config.ts` (`next dev -p 3100`). */
-export const ZEICHEN_PORT = 3100;
+/** Derselbe Port wie in `playwright.config.ts` — Hauptcheckout 3100, Worktree eigener Block (DRK-346). */
+export const ZEICHEN_PORT = E2E_PORT;
 
 /**
  * Die Gruppe, die die kuratierten Lernsets pflegen darf. Registry-Vorgabe aus

@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { inboxFiles, shareFiles, shares, zugangslinks } from "@/app/m/files/_db/schema";
 import { bcryptHash } from "@/app/m/files/_lib/passwort";
 import { erzeugeToken, tokenHash } from "@/app/m/files/_lib/token";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 
 /**
  * DIE MOBIL-ABNAHME DES MODULS `files` BEI 390, 834 UND 1280 (Plan T48).
@@ -117,9 +117,9 @@ import { devLogin } from "./fixtures";
  */
 
 const VERWALTUNG = "files.localtest.me";
-const V = `http://${VERWALTUNG}:3100`;
+const V = `http://${VERWALTUNG}:${E2E_PORT}`;
 const INBOX = "drop.localtest.me";
-const I = `http://${INBOX}:3100`;
+const I = `http://${INBOX}:${E2E_PORT}`;
 
 /** Die Modulgruppe aus dem Registry-Eintrag (`adminGroups: ["iuk-files-admin"]`). */
 const GRUPPE = "iuk-files-admin";

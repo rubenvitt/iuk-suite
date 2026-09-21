@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 
 test("portal und Kopfumschalter blenden Apps ohne passende Pocket-ID-Gruppe aus", async ({
   page,
@@ -32,7 +32,7 @@ test("admin can create a service", async ({ page }) => {
   await page.getByLabel("name").fill("Neuer Dienst");
   await page.getByLabel("url").fill("https://neu.iuk-ue.de");
   await page.getByRole("button", { name: /anlegen|create/i }).click();
-  await page.goto("http://portal.localtest.me:3100/");
+  await page.goto(`http://portal.localtest.me:${E2E_PORT}/`);
   await expect(page.getByText("Neuer Dienst")).toBeVisible();
 });
 
@@ -89,7 +89,7 @@ test("die Kachelkante steht in Ruhe auf --iuk-linie und im Hover auf --iuk-marke
   context,
 }) => {
   await context.addCookies([
-    { name: "iuk-theme", value: "light", url: "http://portal.localtest.me:3100" },
+    { name: "iuk-theme", value: "light", url: `http://portal.localtest.me:${E2E_PORT}` },
   ]);
   await devLogin(page, { host: "portal.localtest.me", groups: "" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST } from "./helpers/lagerbuch";
 
 /**
@@ -176,7 +176,7 @@ test("mobil: die Modulnavigation steht nicht im Weg", async ({ page }) => {
    * `qr` statt `portal`, weil `portal` den `nav`-Slot nicht befuellt — dort
    * gaebe es nichts zu verbergen. Anonym erreichbar (`requiresAuth: false`).
    */
-  await page.goto("http://qr.localtest.me:3100/");
+  await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
   await expect(page.getByTestId("modulleiste")).toBeHidden();
   const gesamt = await page.evaluate(
     () => document.querySelector('[data-testid="suite-header"]')!.getBoundingClientRect().bottom,
@@ -219,7 +219,7 @@ test("mobil: abmelden haengt am Nutzermenue, nicht mehr im Drawer", async ({ pag
 test("mobil: anonym steht der Anmelden-Weg in der Kopfzeile", async ({ page }) => {
   // `qr` ist `requiresAuth: false` — die einzige Modulseite, die sich ohne
   // Sitzung ueberhaupt aufrufen laesst.
-  await page.goto("http://qr.localtest.me:3100/");
+  await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
   await expect(page.getByTestId("anmelden")).toBeVisible();
   await expect(page.getByTestId("nutzermenue")).toHaveCount(0);
 
@@ -365,7 +365,7 @@ test.describe("Desktop — was ohne Drawer erreichbar sein muss", () => {
     // Anonym gibt es keinen Avatar (`userName` ist null) und ab 768px auch
     // keinen Drawer — ohne diesen Knopf haette ein abgemeldeter Besucher auf
     // dem Desktop gar keinen Anmeldeweg in der Oberflaeche.
-    await page.goto("http://qr.localtest.me:3100/");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
     await expect(page.getByTestId("menue-knopf")).toBeHidden();
     await page.getByTestId("anmelden").click();
     await expect(page).toHaveURL(/\/login/);
@@ -465,7 +465,7 @@ test.describe("Modulnavigation am laufenden Server", () => {
      *
      * `qr` braucht keine Anmeldung (`requiresAuth: false`).
      */
-    await page.goto("http://qr.localtest.me:3100/wifi");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/wifi`);
     const nav = page.locator('[data-testid="modulleiste"]');
     await expect(nav.locator('a[aria-current="page"]')).toHaveCount(0);
     await expect(nav.locator('a[aria-current="true"]')).toHaveText("Generator");
@@ -822,7 +822,7 @@ test.describe("Wirkungsnachweis Navigation und Dichte — Desktop 1280x720", () 
     expect(arbeit).toBeGreaterThanOrEqual(44);
     expect(arbeit).toBeLessThan(56);
 
-    await page.goto("http://qr.localtest.me:3100/");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
     const einsatz = (
       await page.locator(".ant-layout-content button.ant-btn").first().boundingBox()
     )!.height;
@@ -883,7 +883,7 @@ test.describe("Schmalstes Geraet (320px)", () => {
   }) => {
     // `qr` ist `requiresAuth: false` — dieselbe Begruendung wie beim
     // 390px-Lauf oben.
-    await page.goto("http://qr.localtest.me:3100/");
+    await page.goto(`http://qr.localtest.me:${E2E_PORT}/`);
     await expect(page.getByTestId("anmelden")).toBeVisible();
 
     const quer = await page.evaluate(() => ({

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin, klickeWennRuhig } from "./fixtures";
+import { devLogin, klickeWennRuhig, E2E_PORTS } from "./fixtures";
 
 /**
  * DER EINZIGE BEWEIS FÜR DEN EINGESCHALTETEN ZWEIG.
@@ -52,11 +52,11 @@ test("Arbeitsfläche: das Skript lädt und setup() kommt mit der Workspace-ID an
   page,
 }) => {
   await skriptAbfangen(page);
-  await devLogin(page, { host: "portal.localtest.me", port: 3102 });
+  await devLogin(page, { host: "portal.localtest.me", port: E2E_PORTS.umfragen });
 
   // ⚠️ Zuerst der Status: ein HTTP 500 aus Falle 6/7 wäre sonst nur ein
   // fehlendes Skript-Element, und die Meldung zeigte auf die falsche Ursache.
-  const antwort = await page.goto("http://portal.localtest.me:3102/");
+  const antwort = await page.goto(`http://portal.localtest.me:${E2E_PORTS.umfragen}/`);
   expect(antwort?.status(), "Arbeitsfläche antwortet").toBe(200);
 
   await expect
@@ -73,8 +73,8 @@ test("weicher Seitenwechsel meldet sich — sonst feuert eine Umfrage nur einmal
   page,
 }) => {
   await skriptAbfangen(page);
-  await devLogin(page, { host: "portal.localtest.me", port: 3102 });
-  await page.goto("http://portal.localtest.me:3102/");
+  await devLogin(page, { host: "portal.localtest.me", port: E2E_PORTS.umfragen });
+  await page.goto(`http://portal.localtest.me:${E2E_PORTS.umfragen}/`);
   await expect.poll(() => aufrufe(page)).toContainEqual(["setup", expect.anything()]);
 
   // Ein Klick im Portal, nicht `goto`: nur der weiche Wechsel ist der Fall, den
@@ -90,14 +90,14 @@ test("weicher Seitenwechsel meldet sich — sonst feuert eine Umfrage nur einmal
 test.describe("Flächen, die frei bleiben", () => {
   test("Kiosk trägt kein Umfragen-Skript", async ({ page }) => {
     await skriptAbfangen(page);
-    const antwort = await page.goto("http://kioskdemo.localtest.me:3102/");
+    const antwort = await page.goto(`http://kioskdemo.localtest.me:${E2E_PORTS.umfragen}/`);
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('script[src*="formbricks"]')).toHaveCount(0);
   });
 
   test("die schmale Ansicht (QR-Codes) trägt kein Umfragen-Skript", async ({ page }) => {
     await skriptAbfangen(page);
-    const antwort = await page.goto("http://qr.localtest.me:3102/");
+    const antwort = await page.goto(`http://qr.localtest.me:${E2E_PORTS.umfragen}/`);
     expect(antwort?.status()).toBe(200);
     await expect(page.locator('script[src*="formbricks"]')).toHaveCount(0);
   });
@@ -226,9 +226,9 @@ test.describe("Hell/Dunkel", () => {
 
   test("die Umfragenfarben folgen dem Umschalter — ohne Neuladen", async ({ page }) => {
     await skriptAbfangen(page);
-    await devLogin(page, { host: "portal.localtest.me", port: 3102 });
+    await devLogin(page, { host: "portal.localtest.me", port: E2E_PORTS.umfragen });
 
-    const antwort = await page.goto("http://portal.localtest.me:3102/");
+    const antwort = await page.goto(`http://portal.localtest.me:${E2E_PORTS.umfragen}/`);
     expect(antwort?.status(), "Arbeitsfläche antwortet").toBe(200);
     await expect
       .poll(() => aufrufe(page), { message: "setup() wurde gerufen" })

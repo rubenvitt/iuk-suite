@@ -1,19 +1,19 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 
 test("anonymous beta host renders minimal shell WITH suite header", async ({ page }) => {
   // BEWUSSTE AENDERUNG (Suite-Chrome): `minimal` hatte vorher keine Kopfzeile.
   // Wer in einem minimal-Modul sasz, kam ohne Adressleiste in kein anderes.
   // Anonym zeigt der Drawer keine Modulliste, sondern Anmelden — geprueft in
   // src/core/shell/SuiteNav.test.tsx.
-  await page.goto("http://beta.localtest.me:3100/");
+  await page.goto(`http://beta.localtest.me:${E2E_PORT}/`);
   await expect(page.getByTestId("minimal-shell")).toBeVisible();
   await expect(page.getByTestId("beta-content")).toBeVisible();
   await expect(page.getByTestId("suite-header")).toBeVisible();
 });
 
 test("kiosk host renders fullscreen, no chrome", async ({ page }) => {
-  await page.goto("http://kioskdemo.localtest.me:3100/");
+  await page.goto(`http://kioskdemo.localtest.me:${E2E_PORT}/`);
   await expect(page.getByTestId("kiosk-shell")).toBeVisible();
   await expect(page.getByTestId("suite-header")).toHaveCount(0);
 });
@@ -21,7 +21,7 @@ test("kiosk host renders fullscreen, no chrome", async ({ page }) => {
 test("alpha requires the alpha-users group", async ({ page }) => {
   // logged in WITHOUT the group -> forbidden
   await devLogin(page, { host: "portal.localtest.me", groups: "" });
-  const res = await page.goto("http://alpha.localtest.me:3100/");
+  const res = await page.goto(`http://alpha.localtest.me:${E2E_PORT}/`);
   expect(res?.status()).toBe(403);
 });
 
@@ -32,7 +32,7 @@ test("SSO: one login serves alpha + gamma; switcher reflects groups", async ({ p
   await expect(page.getByTestId("suite-header")).toBeVisible();
   // cross to gamma host (auth-required, no group) WITHOUT logging in again — proves the cookie
   // set on .localtest.me carries the session across subdomains
-  await page.goto("http://gamma.localtest.me:3100/");
+  await page.goto(`http://gamma.localtest.me:${E2E_PORT}/`);
   await expect(page.getByTestId("gamma-content")).toBeVisible();
   await expect(page.getByTestId("suite-header")).toBeVisible();
   // switcher contains Alpha (group present)

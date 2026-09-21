@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import {
   AUFGABEN_HOST,
   AUFGABEN_KOORDINATION_SITZUNG,
@@ -68,7 +68,7 @@ for (const vp of [
         email: "rike@localtest.me",
         callbackPath: "/verteilen",
       });
-      const res = await page.goto(`http://${HOST}:3100/verteilen?ansicht=brett`);
+      const res = await page.goto(`http://${HOST}:${E2E_PORT}/verteilen?ansicht=brett`);
       expect(res?.status()).toBe(200);
       await expect(page.locator("[data-rolle='brett']")).toBeVisible();
 
@@ -273,7 +273,7 @@ for (const vp of [
           email: seite.email,
           callbackPath: seite.pfad,
         });
-        const antwort = await page.goto(`http://${HOST}:3100${seite.pfad}`);
+        const antwort = await page.goto(`http://${HOST}:${E2E_PORT}${seite.pfad}`);
         expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
         await expect(page.getByRole("heading", { name: seite.titel, level: 1 })).toBeVisible();
         await page.waitForLoadState("networkidle");
@@ -340,7 +340,7 @@ test.describe("Kein waagerechtes Scrollen bei 360px — die drei Einstiege und d
         email: seite.email,
         callbackPath: seite.pfad,
       });
-      const antwort = await page.goto(`http://${HOST}:3100${seite.pfad}`);
+      const antwort = await page.goto(`http://${HOST}:${E2E_PORT}${seite.pfad}`);
       expect(antwort?.status(), `${seite.pfad}: HTTP`).toBe(200);
       await expect(page.getByRole("heading", { name: seite.titel, level: 1 })).toBeVisible();
       await page.waitForLoadState("networkidle");
@@ -388,7 +388,7 @@ for (const rolle of [
       email: rolle.email,
       callbackPath: "/",
     });
-    const antwort = await page.goto(`http://${HOST}:3100/`);
+    const antwort = await page.goto(`http://${HOST}:${E2E_PORT}/`);
     expect(antwort?.status(), "die Karte darf die Seite nicht auf 500 werfen").toBe(200);
     await expect(page.getByRole("heading", { name: rolle.titel, level: 1 })).toBeVisible();
 

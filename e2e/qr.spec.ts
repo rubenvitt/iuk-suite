@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { test, expect, type Page, type TestInfo } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, E2E_PORT } from "./fixtures";
 import { decodeQr, decodeQrPng } from "./helpers/decode-qr";
 import { TAP, TAP_XL } from "@/core/theme/tokens";
 
@@ -10,7 +10,7 @@ import { TAP, TAP_XL } from "@/core/theme/tokens";
  * auf, wenn der Code den falschen Inhalt traegt.
  */
 
-const QR = "http://qr.localtest.me:3100";
+const QR = `http://qr.localtest.me:${E2E_PORT}`;
 
 /**
  * `QrDisplay` erzeugt das SVG in einem Effekt; bis die Promise aufloest, ist die
@@ -507,7 +507,7 @@ test("Bedienelemente bleiben mit Handschuhen treffbar", async ({ page }) => {
   // theme.test.ts noch getDesignToken das können — antds getDesignToken
   // verarbeitet `config.components` gar nicht, und Radio/Checkbox leiten ihre
   // Größe nicht aus controlHeight ab (siehe theme.ts).
-  await page.goto("http://qr.localtest.me:3100/wifi");
+  await page.goto(`http://qr.localtest.me:${E2E_PORT}/wifi`);
 
   // SSID-Feld und Erzeugen-Knopf tragen `size="large"` und rendern damit
   // `controlHeightLG` (= TAP_XL = 72), nicht die einfache Tap-Höhe — gegen

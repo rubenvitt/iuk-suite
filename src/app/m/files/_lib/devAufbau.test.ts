@@ -3,7 +3,7 @@ import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import konfigImport from "../../../../../playwright.config";
-import { AV_MODUS_DATEI, AV_MODI, setzeAvModus } from "../../../../../e2e/helpers/avModus";
+import { AV_MODUS_DATEI, AV_MODI, setzeAvModus } from "../../../../../e2e/helpers/avModus"; import { E2E_PORTS, HAUPTCHECKOUT_PORTS } from "../../../../../e2e/helpers/ports";
 import { ZAHL_NAMEN, grenzenFehler } from "./grenzen";
 import { validateFilesHosts } from "./hostRolle";
 
@@ -43,7 +43,7 @@ const E2E_WERTE = {
   FILES_AV_MAX_BYTES: "12582912",
   FILES_MAX_ABLAUF_TAGE: "7",
   FILES_AV_HOST: "127.0.0.1",
-  FILES_AV_PORT: "3310",
+  FILES_AV_PORT: String(E2E_PORTS.clamd),
   FILES_AV_TIMEOUT_MS: "2000",
   FILES_AV_VERSUCHE: "2",
   FILES_AV_WIEDERHOLUNG_SEKUNDEN: "1",
@@ -55,8 +55,8 @@ const E2E_WERTE = {
 /** Der woertliche Wert aus Spec §3.4 — Index 0 ist `files.localtest.me`. */
 const HOSTS = "files.localtest.me,drop.localtest.me";
 
-/** Der Fake-clamd lauscht auf diesem Port; Playwright wartet darauf. */
-const FAKE_PORT = 3310;
+/** Der Fake-clamd lauscht auf diesem Port (Hauptcheckout 3310, Worktree eigener Block, DRK-346). */
+const FAKE_PORT = E2E_PORTS.clamd;
 
 interface EintragSicht {
   readonly command: string;
@@ -221,8 +221,8 @@ describe(".env.example — die Dev-Zeilen und die Asymmetrie der beiden SUITE_*-
   });
 
   it("traegt jede der elf Dev-Zahlen als kommentierte Zeile mit demselben Wert wie E2E", () => {
-    for (const [name, wert] of Object.entries(E2E_WERTE)) {
-      expect(envZeilen, `.env.example fuehrt ${name}`).toContain(`# ${name}=${wert}`);
+    for (const [name, wert] of Object.entries(E2E_WERTE)) { // Port: `pnpm dev:av` kennt keinen Worktree-Block (DRK-346).
+      expect(envZeilen, `.env.example fuehrt ${name}`).toContain(`# ${name}=${name === "FILES_AV_PORT" ? HAUPTCHECKOUT_PORTS.clamd : wert}`);
     }
   });
 
@@ -242,5 +242,31 @@ describe(".env.example — die Dev-Zeilen und die Asymmetrie der beiden SUITE_*-
     expect(block, "derselbe Block stellt SUITE_HOST_FILES gegenueber").toBeDefined();
     expect(block).toMatch(/bricht den Boot ab/);
     expect(block).toMatch(/zurücknehmen|zurueckziehen|Cutover/);
+  });
+});
+
+/*
+ * DIE EINE ECHTE INVARIANTE DES FAKE-SCANNERS (DRK-346): vier Felder der
+ * Konfiguration müssen dieselbe Zahl tragen. Bis DRK-346 taten sie das nur, weil
+ * überall `3310` stand; seit der Port je Arbeitskopie wandert, prüft dieser Fall
+ * die Felder GEGENEINANDER statt gegen eine Zahl — sonst bliebe er grün, wenn
+ * eines der vier die gemeinsame Quelle verlässt und die anderen nicht.
+ */
+describe("playwright.config.ts — Fake-Scanner und beide Module meinen denselben Port", () => {
+  it("port des Fakes = PORT in seiner env = FILES_AV_PORT = AUFGABEN_AV_PORT", () => {
+    const fake = suche("scripts/fake-clamd.mjs");
+    const next = suche("next dev");
+    const erwartet = String(fake.port);
+    expect(fake.env?.PORT).toBe(erwartet);
+    expect(next.env?.FILES_AV_PORT).toBe(erwartet);
+    expect(next.env?.AUFGABEN_AV_PORT).toBe(erwartet);
+  });
+
+  it("next dev lauscht auf dem Port aus baseURL und url", () => {
+    const next = suche("next dev");
+    const port = new URL(String(konfigImport.use?.baseURL)).port;
+    expect(next.env?.PORT).toBe(port);
+    expect(next.command).toContain(`next dev -p ${port}`);
+    expect(new URL(String(next.url)).port).toBe(port);
   });
 });
