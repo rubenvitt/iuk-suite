@@ -34,7 +34,7 @@ import { ladeShare, type CookieLeser } from "../../../_db/queries";
 import { protokolliereDownload, zaehleDownload } from "../../../_db/zaehler";
 import type { AvStatus } from "../../../_lib/av";
 import { rolleOderNull } from "../../../_lib/hostRolle";
-import { BlobFehlt, lieseStrom } from "../../../_lib/storage";
+import { BlobFehlt, GroesseAbweichend, lieseStrom } from "../../../_lib/storage";
 import { ZIP_AUSSCHLUSS_MELDUNGEN, dispositionKopfzeile } from "../../../_lib/zip";
 
 /**
@@ -179,6 +179,18 @@ export async function GET(
     if (datei === null) return zustand(404, NICHT_GEFUNDEN);
     target(datei.id);
 
+    // DRK-289, VOR dem Zaehlschritt: die Pruefkette hat den Blob gerade gemessen.
+    // Weicht er von der beim Abschluss geprueften Groesse ab, ist er nicht mehr
+    // die Datei, fuer die der Scanner gesprochen hat — und eine Ablehnung soll
+    // keinen Download verbrauchen.
+    if (datei.gemesseneGroesse !== datei.groesse) {
+      console.error(
+        `[files] share ${share.id}/${datei.id}: Spalte size=${datei.groesse}, ` +
+          `gemessen=${String(datei.gemesseneGroesse)} — nicht ausgeliefert`,
+      );
+      return zustand(409, "Diese Datei hat sich nach der Virenprüfung verändert und wird nicht ausgeliefert.");
+    }
+
     const db = getDb();
 
     // DER LETZTE SCHRITT VOR DEM ERSTEN BYTE (§7.5). Die Entscheidung ist die
@@ -192,7 +204,10 @@ export async function GET(
     let strom: Readable;
     let bytes: number;
     try {
-      ({ strom, bytes } = await lieseStrom({ art: "share", shareId: share.id, fileId: datei.id }));
+      ({ strom, bytes } = await lieseStrom(
+        { art: "share", shareId: share.id, fileId: datei.id },
+        { erwarteteBytes: datei.groesse },
+      ));
     } catch (fehler) {
       // Die Prüfkette hat den Blob schon gemessen; hierher kommt nur, wer ihn
       // zwischen Messung und Auslieferung verliert (Aufräum-Lauf, Handbetrieb).
@@ -200,17 +215,10 @@ export async function GET(
       // der Zähler VOR dem Byte steht — die Richtung ist gewollt (§7.5) und darf
       // nicht „repariert" werden, indem der Zähler hinter das Öffnen wandert.
       if (fehler instanceof BlobFehlt) return zustand(404, "Diese Datei ist nicht auffindbar.");
+      // Die zweite Linie hinter der Pruefung oben — fuer eine Aenderung zwischen
+      // Messung und Oeffnen (DRK-289).
+      if (fehler instanceof GroesseAbweichend) return zustand(409, "Diese Datei hat sich nach der Virenprüfung verändert und wird nicht ausgeliefert.");
       throw fehler;
-    }
-
-    if (bytes !== datei.groesse) {
-      // Ausgeliefert wird die WIRKLICHKEIT (§5.4): ein falsches `Content-Length`
-      // bricht den Download beim Empfänger ab, und der Fehler wäre dann bei ihm
-      // sichtbar statt hier im Log.
-      console.warn(
-        `[files] Groessenabweichung bei share ${share.id}/${datei.id}: ` +
-          `Spalte size=${datei.groesse}, gemessen=${bytes} Bytes — ausgeliefert wird die gemessene Zahl.`,
-      );
     }
 
     return new Response(Readable.toWeb(strom) as unknown as ReadableStream<Uint8Array>, {

@@ -228,7 +228,24 @@ export function authConfig(request: NextRequest | undefined): NextAuthConfig {
          */
         if (istWiderrufen(token.sub, token.angemeldetSeit)) return null;
 
-        return tokenAuffrischen(token, { darfSchreiben: request !== undefined });
+        /*
+         * DER WIDERRUF DURCH DEN IDENTITAETSANBIETER (DRK-284) — derselbe Ausgang.
+         * `RefreshTokenError` heisst: Pocket ID hat `invalid_grant` geantwortet
+         * (oder es gibt kein Refresh-Token). Bliebe das Token stehen, truegen
+         * Proxy und jeder Guard die ALTEN Gruppen weiter, bis zu 30 Tage lang;
+         * der Vermerk allein erreicht nur einen kooperierenden Browser. Deshalb
+         * `null` — vorher fuer ein schon markiertes Cookie (kein Umlauf zu
+         * Pocket ID, auch nicht auf dem RSC-Pfad), danach fuer den Fehlschlag,
+         * der gerade passiert ist. Ein TRANSIENTER Fehlschlag setzt nur
+         * `refreshFailedAt` und kommt hier unveraendert durch.
+         */
+        if (token.error === "RefreshTokenError") return null;
+        const aufgefrischt = await tokenAuffrischen(token, { darfSchreiben: request !== undefined });
+        if (aufgefrischt.error !== "RefreshTokenError") return aufgefrischt;
+        // Einmal, beim Uebergang — danach ist das Cookie geloescht, und jede weitere
+        // Abweisung erschiene im Protokoll nur noch anonym.
+        auditEvent({ module: "konto", action: "session_revoke", objectType: "idp_refresh", result: "success", origin: "server" }, auditActor({ id: token.sub, name: token.name }));
+        return null;
       },
       session({ session, token }) {
         const groups = (token.groups as string[]) ?? [];

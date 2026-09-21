@@ -67,17 +67,17 @@ export async function einloesenAmGate(
   /*
    * Der Buendelungsschluessel des Fehlerzaehlers — OHNE Zwischenschicht (Spec:3033-3035):
    * `radio` ruft `clientIpAus` unmittelbar an der Aufrufstelle, `lagerbuch`s
-   * `_lib/absender.ts` wird hier NICHT nachgebaut (`_lib/gateSchranke.ts:53-56`).
+   * `_lib/absender.ts` wird hier NICHT nachgebaut (`_lib/gateSchranke.ts`, Kopf).
    * Einmal ermittelt, zweimal benutzt — Schritt 2 und Schritt 6.
    */
   const absender = clientIpAus(await headers());
 
   /*
-   * SCHRITT 2 — gesperrt? OHNE Datenbankzugriff. DIESER Schritt schuetzt die Datenbank,
-   * nicht der Absender-Eimer: wer den Absenderschluessel rotiert, startet jeden Versuch mit
-   * leerem Eimer und bekaeme so oder so genau einen Lookup. Gedeckelt wird das
-   * ausschliesslich durch die beiden MODULWEITEN Zaehler, und die lesen ihre Sperrzeit VOR
-   * jedem Datenbankzugriff (`_lib/gateSchranke.ts:165-169`).
+   * SCHRITT 2 — gesperrt? OHNE Datenbankzugriff. Seit DRK-291 ist eine WOHLGEFORMTE
+   * Eingabe nie gesperrt: ein richtiger Code kommt auch waehrend einer Sperre herein, und
+   * der Coderaum (140 bit) traegt die Abwehr, nicht die Sperre. Gesperrt wird nur noch, was
+   * gar kein Code sein kann — deshalb bekommt die Schranke die ROHE Eingabe
+   * (`_lib/gateSchranke.ts`, `gateGesperrt`).
    *
    * Und es wird hier KEIN Fehlversuch gebucht: sonst verlaengerte jeder Versuch waehrend
    * der Sperre die Sperre, und ein Funkraum, der es zweimal probiert, kaeme nie wieder
@@ -88,7 +88,7 @@ export async function einloesenAmGate(
    * `?? undefined` ist deshalb der Typuebergang und kein Rueckfalltext — einen solchen gibt
    * es hier ausdruecklich nicht (Spec:2396-2398).
    */
-  const sperrSekunden = gateGesperrt(absender);
+  const sperrSekunden = gateGesperrt(absender, { eingabe: String(formData.get("code") ?? "") });
   if (sperrSekunden !== null) {
     return { fehler: gateMeldung("zuviele", sperrSekunden) ?? undefined };
   }
@@ -105,7 +105,7 @@ export async function einloesenAmGate(
    * TEXTPOSITIONEN der vier Riegel. In `loeseCodeEin(normalisiereCode(x), …)` steht
    * `loeseCodeEin(` textlich VOR `normalisiereCode(` — der Scan meldete dann „Einloesung
    * steht VOR normalisieren" fuer eine Datei, die sachlich richtig ist (Spec:2264-2268;
-   * dieselbe Form traegt `lagerbuch/_actions/gate.ts:71`).
+   * dieselbe Form traegt `lagerbuch/_actions/gate.ts`, SCHRITT 3).
    */
   const code = normalisiereCode(String(formData.get("code") ?? ""));
 
@@ -119,7 +119,7 @@ export async function einloesenAmGate(
     auditDenied("radio");
     /*
      * SCHRITT 6 — erst JETZT wird gebucht. Die drei Zaehler liegen HINTER der Codepruefung
-     * und zaehlen NUR Fehlversuche (`_lib/gateSchranke.ts:179-191`). „unbekannt" und
+     * und zaehlen NUR Fehlversuche (`_lib/gateSchranke.ts`, `gateFehlversuchBuchen`). „unbekannt" und
      * „gesperrt" sind von aussen nicht unterscheidbar; beide bekommen denselben Satz
      * (Spec:2334-2336).
      */
@@ -131,7 +131,7 @@ export async function einloesenAmGate(
    * SCHRITT 5 — Erfolg, und er verbraucht KEIN BUDGET. Bei `radio` ist „ein Funkraum voller
    * Personen, die denselben Aufsteller nacheinander scannen, teilen sich einen Uplink und
    * damit einen Absenderschluessel" der REGELFALL, nicht der Randfall
-   * (`_lib/gateSchranke.ts:185-189`); hundert erfolgreiche Einloesungen in Folge schliessen
+   * (`_lib/gateSchranke.ts`, `gateFehlversuchBuchen`); hundert erfolgreiche Einloesungen in Folge schliessen
    * das Gate nicht.
    *
    * `ausleihCookieOptionen` fuehrt KEIN `domain` — das Cookie ist host-only

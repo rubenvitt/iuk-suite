@@ -8,6 +8,7 @@ import {
   insertGroup,
   insertEvening,
   insertResponse,
+  insertUserGroup,
   insertSurvey,
 } from "@/app/m/feedback/_db/queries";
 import type { Question } from "@/app/m/feedback/_lib/questions";
@@ -114,7 +115,7 @@ beforeEach(() => {
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });
   authMock.mockReset();
   authMock.mockResolvedValue({
-    user: { id: "leitung-1", groups: [], fachgruppen: ["bereitschaft"] },
+    user: { id: "leitung-1", groups: ["da-feedback-gl"], fachgruppen: ["bereitschaft"] },
   });
 });
 afterEach(() => sqlite.close());
@@ -372,7 +373,7 @@ describe("GET groups/[groupId]/export.xlsx — der Guard", () => {
     const g = gruppe();
     abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 2 }]);
     authMock.mockResolvedValue({
-      user: { id: "fremd-1", groups: [], fachgruppen: ["andere-gruppe"] },
+      user: { id: "fremd-1", groups: ["da-feedback-gl"], fachgruppen: ["andere-gruppe"] },
     });
 
     const res = await hole(g.id);
@@ -383,5 +384,71 @@ describe("GET groups/[groupId]/export.xlsx — der Guard", () => {
     const g = gruppe();
     authMock.mockResolvedValue(null);
     expect((await hole(g.id)).status).toBe(404);
+  });
+});
+
+/*
+ * DRK-290: DER MODULZUGANG GILT AUCH FÜR DEN DIREKTEN ABRUF — siehe den
+ * gleichnamigen Block im Abend-Export daneben.
+ */
+describe("GET groups/[groupId]/export.xlsx — Modulzugang vor Objektzuordnung (DRK-290)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  function als(groups: string[], fachgruppen: string[]): void {
+    authMock.mockResolvedValue({ user: { id: "leitung-1", groups, fachgruppen } });
+  }
+  function seed() {
+    const g = gruppe();
+    abend(g.id, "2026-04-01", BOGEN_A, [{ q1: 2 }]);
+    return g;
+  }
+
+  it("NEGATIV: groups=[] mit lokaler Zuordnung und leerem Claim → 404", async () => {
+    const g = seed();
+    insertUserGroup(db, "leitung-1", g.id);
+    als([], []);
+    expect((await hole(g.id)).status).toBe(404);
+  });
+
+  it("NEGATIV: groups=[] mit passendem fachgruppen-Claim → 404", async () => {
+    const g = seed();
+    als([], ["bereitschaft"]);
+    expect((await hole(g.id)).status).toBe(404);
+  });
+
+  it("NEGATIV: Zugangsgruppe ohne Objektzuordnung → 404", async () => {
+    const g = seed();
+    als(["da-feedback-gl"], []);
+    expect((await hole(g.id)).status).toBe(404);
+  });
+
+  it("POSITIV: Zugangsgruppe plus lokale Zuordnung → 200", async () => {
+    const g = seed();
+    insertUserGroup(db, "leitung-1", g.id);
+    als(["da-feedback-gl"], []);
+    expect((await hole(g.id)).status).toBe(200);
+  });
+
+  it("POSITIV: Zugangsgruppe plus passender Claim → 200", async () => {
+    const g = seed();
+    als(["da-feedback-gl"], ["bereitschaft"]);
+    expect((await hole(g.id)).status).toBe(200);
+  });
+
+  it("POSITIV: Feedback-Admin ohne Zuordnung → 200", async () => {
+    const g = seed();
+    als(["da-feedback-admin"], []);
+    expect((await hole(g.id)).status).toBe(200);
+  });
+
+  it("umbenannte Zugangsgruppe trägt, die Vorgabegruppe nicht mehr", async () => {
+    vi.stubEnv("SUITE_ACCESS_GROUP_FEEDBACK", "gruppenleiter,da_feedback_admin");
+    vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK", "da_feedback_admin");
+    const g = seed();
+    insertUserGroup(db, "leitung-1", g.id);
+    als(["da-feedback-gl"], []);
+    expect((await hole(g.id)).status).toBe(404);
+    als(["gruppenleiter"], []);
+    expect((await hole(g.id)).status).toBe(200);
   });
 });

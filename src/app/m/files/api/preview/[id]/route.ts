@@ -33,7 +33,7 @@ import { Readable } from "node:stream";
 import { rolleOderNull } from "../../../_lib/hostRolle";
 import { grenzen } from "../../../_lib/grenzen";
 import type { ErlaubterMimeTyp } from "../../../_lib/mime";
-import { BlobFehlt, lieseStrom, type BlobZiel } from "../../../_lib/storage";
+import { BlobFehlt, GroesseAbweichend, lieseStrom, type BlobZiel } from "../../../_lib/storage";
 import { ladeShare, type ShareDatei } from "../../../_db/queries";
 
 /**
@@ -140,7 +140,8 @@ type AblehnungsGrund =
   | "datei-nicht-gefunden"
   | "datei-nicht-gewaehlt"
   | "typ-nicht-vorschaufaehig"
-  | "zu-gross-fuer-vorschau";
+  | "zu-gross-fuer-vorschau"
+  | "datei-veraendert";
 
 function ablehnung(status: number, grund: AblehnungsGrund, meldung: string): Response {
   return Response.json(
@@ -232,8 +233,12 @@ function aufUtf8GrenzeZurueck(bytes: Uint8Array): Uint8Array {
  * in **jedem** Ausgang — sonst leckt ein File-Descriptor je abgebrochener
  * Vorschau.
  */
-async function lieseKopf(ziel: BlobZiel, maxBytes: number): Promise<Uint8Array> {
-  const { strom } = await lieseStrom(ziel);
+async function lieseKopf(
+  ziel: BlobZiel,
+  maxBytes: number,
+  erwarteteBytes: number,
+): Promise<Uint8Array> {
+  const { strom } = await lieseStrom(ziel, { erwarteteBytes });
   const stuecke: Buffer[] = [];
   let gelesen = 0;
   try {
@@ -354,11 +359,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // `vollstaendig` bejaht und `blobFehlt` verneint. Der Rückfall steht für den
   // Typ, nicht für den Fall.
   const laenge = datei.gemesseneGroesse ?? datei.groesse;
+  // DRK-289: gelesen wird nur die beim Abschluss gepruefte Groesse. Die
+  // Messung oben kann davon abweichen; dann wirft `lieseStrom` VOR dem ersten Byte.
+  const geprueft = datei.groesse;
   const istText = TEXT_TYPEN.includes(typ);
 
   try {
     if (istText) {
-      const roh = await lieseKopf(ziel, Math.min(laenge, grenze));
+      const roh = await lieseKopf(ziel, Math.min(laenge, grenze), geprueft);
       if (laenge <= grenze) {
         return new Response(new Uint8Array(roh), {
           headers: {
@@ -400,7 +408,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       );
     }
 
-    const { strom, bytes } = await lieseStrom(ziel);
+    const { strom, bytes } = await lieseStrom(ziel, { erwarteteBytes: geprueft });
     // Bricht der Abrufer ab, wird der Lesestrom geschlossen — sonst bleibt je
     // abgebrochener Vorschau ein File-Descriptor offen. Derselbe Grund wie beim
     // ZIP-Weg, nur ohne dessen Archiv-Apparat.
@@ -420,6 +428,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // wird 404, nicht 500.
     if (fehler instanceof BlobFehlt) {
       return ablehnung(404, "datei-nicht-gefunden", "Diese Datei ist nicht auffindbar.");
+    }
+    if (fehler instanceof GroesseAbweichend) {
+      console.error(`[files] Vorschau ${datei.id}: Groesse nach der Pruefung veraendert`, fehler);
+      return ablehnung(
+        409,
+        "datei-veraendert",
+        "Diese Datei hat sich nach der Virenprüfung verändert und wird nicht angezeigt.",
+      );
     }
     throw fehler;
   }

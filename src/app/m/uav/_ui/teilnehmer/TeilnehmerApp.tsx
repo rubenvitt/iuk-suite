@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Identity } from "../../_lib/sitzung";
 import { api } from "../offline/client";
+import { IDENTITY_SESSION_KEY, besitzerFuer, localStore } from "../offline/localStore";
 import { syncEngine } from "../offline/syncEngine";
 import { useFortschritt } from "./useFortschritt";
 import { useKatalog } from "./useKatalog";
@@ -12,7 +13,7 @@ import { TaskDetail } from "./TaskDetail";
 import { SyncStatus } from "./SyncStatus";
 import styles from "./uav.module.css";
 
-const IDENTITY_KEY = "uav-identity";
+const IDENTITY_KEY = IDENTITY_SESSION_KEY;
 
 /**
  * Zuletzt per `api.me()` bestätigte Identität, sitzungsweit gecacht — NICHT
@@ -59,8 +60,13 @@ function identitaetCachen(identity: Identity): void {
  * Aufgabe, Zielanzahl, „nicht anwendbar", die Liste der Durchführungen und das
  * Erfassungsformular. Das ist nicht nur Ton, sondern nötig: auf einem GETEILTEN
  * Tablet steht im `localStorage` noch der Fortschritt der zuletzt angemeldeten
- * Person (`useFortschritt`, Alt-Key `drk-drohnen-fortschritt`) — ohne diese
- * Weiche zeigte die anonyme Ansicht deren Zähler.
+ * Person (`useFortschritt`) — ohne diese Weiche zeigte die anonyme Ansicht
+ * deren Zähler.
+ *
+ * WESSEN Speicher gezeigt und synchronisiert wird, entscheidet seit DRK-286 der
+ * Besitzer (`besitzerFuer`): das bestätigte Teilnehmerkonto, offline das zuletzt
+ * bestätigte Konto dieses Browsers, sonst die anonyme Erfassung. Vorher lag der
+ * Fortschritt geräteweit, und nach dem Login von B sah B den Stand von A.
  */
 export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
   const router = useRouter();
@@ -68,6 +74,9 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
   const aktiv = ansicht === "aufgabe" ? searchParams.get("id") : null;
 
   const [identity, setIdentity] = useState<Identity | null>(() => identitaetAusCache());
+  // Erhöht, wenn der Server meldet, dass das Cookie inzwischen einem anderen
+  // Konto gehört (`konto_gewechselt`) — dann wird `me()` erneut gefragt.
+  const [meRunde, setMeRunde] = useState(0);
 
   useEffect(() => {
     let abgebrochen = false;
@@ -75,8 +84,12 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
       .me()
       .then((id) => {
         if (abgebrochen) return;
-        setIdentity(id);
+        // ZUERST binden (Konto merken, anonyme Erfassung und Alt-Keys
+        // übergeben), DANN die Identität setzen — der erste Render mit dem
+        // neuen Besitzer liest so bereits den übergebenen Stand.
+        localStore.kontoBestaetigt(id);
         identitaetCachen(id);
+        setIdentity(id);
       })
       .catch(() => {
         // Offline/Netzfehler: vorhandenen (gecachten) Stand nicht verwerfen.
@@ -84,7 +97,7 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
     return () => {
       abgebrochen = true;
     };
-  }, []);
+  }, [meRunde]);
 
   // Nur für eine BESTÄTIGTE Teilnehmer-Identität starten: sonst würde ein
   // 401 von `/api/sync` (anon/admin) den Status auf „fehler" setzen, und der
@@ -92,9 +105,10 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
   // Anmelde-Hinweis-Bildschirm, wo nie etwas synchronisiert werden soll.
   useEffect(() => {
     if (identity?.kind !== "participant") return;
-    return syncEngine.start();
+    return syncEngine.start(identity.id, () => setMeRunde((n) => n + 1));
   }, [identity]);
 
+  const besitzer = besitzerFuer(identity);
   const katalog = useKatalog();
   const {
     speicherfehler,
@@ -103,7 +117,7 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
     durchfuehrungEntfernen,
     zielanzahlSetzen,
     nichtAnwendbarSetzen,
-  } = useFortschritt(katalog, identity);
+  } = useFortschritt(katalog, besitzer);
 
   const heute = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const aufgabe = aktiv ? katalog.find((a) => a.id === aktiv) ?? null : null;
@@ -135,6 +149,10 @@ export function TeilnehmerApp({ ansicht }: { ansicht: "start" | "aufgabe" }) {
 
       {aufgabe && aufgabeFortschritt ? (
         <TaskDetail
+          // Neu mounten bei Besitzerwechsel: das Formular hält die Namen der
+          // letzten Eingabe im eigenen State (DRK-286).
+          key={besitzer}
+          besitzer={besitzer}
           aufgabe={aufgabe}
           fortschritt={aufgabeFortschritt}
           heute={heute}

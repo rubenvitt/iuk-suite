@@ -71,19 +71,42 @@ function ohneKommentare(quelle: string): string {
 const stand = vi.hoisted(() => ({
   kopf: new Headers(),
   cookies: [] as { name: string; wert: string; opt: Record<string, unknown> }[],
+  /** Was der Browser MITSCHICKT — `cookies().get` liest hier, `set` schreibt nach `cookies`. */
+  eingehend: {} as Record<string, string>,
   umleitungen: [] as string[],
 }));
 
 const { gateGesperrt, gateFehlversuchBuchen, redeemToken, getDb } = vi.hoisted(() => ({
-  gateGesperrt: vi.fn<(absender: string) => number | null>(),
-  gateFehlversuchBuchen: vi.fn<(absender: string) => void>(),
+  gateGesperrt: vi.fn<(absender: string, anfrage?: { merkmal: string | null }) => number | null>(),
+  gateFehlversuchBuchen: vi.fn<(absender: string, anfrage?: { merkmal: string | null }) => void>(),
   redeemToken: vi.fn<(code: string, db: unknown) => Promise<unknown>>(),
   getDb: vi.fn<() => unknown>(),
+}));
+
+/**
+ * DRK-291 — das Merkmal „bekanntes Gerät" ist GEMOCKT: seine Signatur und
+ * Unterscheidung prüft `_lib/gateSchranke.zugang.test.ts`. Diese Datei hält nur,
+ * dass die Action es aus den Cookies DIESER Anfrage liest, Prüfung und Buchung
+ * dasselbe `{ merkmal }` bekommen und das Gerätecookie allein im Erfolgsfall kommt.
+ */
+const merkmal = vi.hoisted(() => ({
+  gateMerkmal: vi.fn<(lies: (name: string) => string | undefined) => Promise<string | null>>(),
+  geraetCookieWert: vi.fn<(bisher: string | undefined) => Promise<string>>(),
+  GERAET_OPT: { marke: "geraet-optionen", path: "/", httpOnly: true, maxAge: 4711 },
+}));
+
+vi.mock("../_lib/gateSchrankeMerkmal", () => ({
+  GERAET_COOKIE: "lagerbuch_geraet",
+  gateMerkmal: merkmal.gateMerkmal,
+  geraetCookieWert: merkmal.geraetCookieWert,
+  geraetCookieOptionen: () => merkmal.GERAET_OPT,
 }));
 
 vi.mock("next/headers", () => ({
   headers: async () => stand.kopf,
   cookies: async () => ({
+    get: (name: string) =>
+      name in stand.eingehend ? { name, value: stand.eingehend[name]! } : undefined,
     set: (name: string, wert: string, opt: Record<string, unknown>) => {
       stand.cookies.push({ name, wert, opt });
     },
@@ -121,12 +144,15 @@ function form(felder: Record<string, string>): FormData {
 
 beforeEach(() => {
   stand.cookies.length = 0;
+  stand.eingehend = {};
   stand.umleitungen.length = 0;
   stand.kopf = new Headers({ host: "lagerbuch.localtest.me" });
   gateGesperrt.mockReset().mockReturnValue(null);
   gateFehlversuchBuchen.mockReset();
   redeemToken.mockReset();
   getDb.mockReset().mockReturnValue(DB_HANDLE);
+  merkmal.gateMerkmal.mockReset().mockResolvedValue(null);
+  merkmal.geraetCookieWert.mockReset().mockResolvedValue("geraet.jwt");
 });
 afterEach(() => { vi.clearAllMocks(); });
 
@@ -154,6 +180,7 @@ describe("einloesenAmGate — Schritt 1: der Host-Riegel WIRFT, und er steht gan
     await expect(einloesenAmGate({}, form({ code: "482-137" }))).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(gateGesperrt).not.toHaveBeenCalled();
+    expect(merkmal.gateMerkmal).not.toHaveBeenCalled();
     expect(getDb).not.toHaveBeenCalled();
     expect(redeemToken).not.toHaveBeenCalled();
     expect(gateFehlversuchBuchen).not.toHaveBeenCalled();
@@ -175,6 +202,7 @@ describe("einloesenAmGate — Schritt 2: gesperrt, OHNE Datenbankzugriff", () =>
     expect(r.fehler).toBe("Zu viele Fehlversuche. Bitte in 42 Sekunden erneut versuchen.");
     expect(redeemToken).not.toHaveBeenCalled();
     expect(getDb).not.toHaveBeenCalled();
+    expect(stand.cookies).toEqual([]);
   });
 
   it("bucht bei einer laufenden Sperre KEINEN weiteren Fehlversuch", async () => {
@@ -204,8 +232,8 @@ describe("einloesenAmGate — der Absenderschluessel: einmal ermittelt, zweimal 
 
     await einloesenAmGate({}, form({ code: "000-000" }));
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4");
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4");
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
   });
 });
 
@@ -253,7 +281,8 @@ describe("einloesenAmGate — Schritt 5: Erfolg", () => {
 
     await expect(einloesenAmGate({}, form({ code: "482-137" }))).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(stand.cookies).toHaveLength(1);
+    // Zwei Cookies: die Sitzung und das Merkmal „bekanntes Gerät" (DRK-291).
+    expect(stand.cookies.map((c) => c.name)).toEqual(["helfer_session", "lagerbuch_geraet"]);
     expect(stand.cookies[0]?.name).toBe("helfer_session");
     expect(stand.cookies[0]?.wert).toBe("jwt.x.y");
     // ⚠️ `maxAge` ist NICHT schmueckendes Beiwerk: `helferCookieOptionen(0)` ist
@@ -263,6 +292,11 @@ describe("einloesenAmGate — Schritt 5: Erfolg", () => {
     expect(stand.cookies[0]?.opt.maxAge).toBe(helferGueltigkeitSekunden());
     expect(stand.cookies[0]?.opt.maxAge as number).toBeGreaterThan(0);
     expect(stand.cookies[0]?.opt.httpOnly).toBe(true);
+    // Das Gerätecookie trägt den Wert und die Optionen aus `gateSchrankeMerkmal`
+    // — ohne vorhandenes Merkmal wird eine NEUE Kennung ausgestellt.
+    expect(stand.cookies[1]?.wert).toBe("geraet.jwt");
+    expect(stand.cookies[1]?.opt).toBe(merkmal.GERAET_OPT);
+    expect(merkmal.geraetCookieWert).toHaveBeenCalledWith(undefined);
     expect(stand.umleitungen).toEqual(["/helfer/check?fz=fz-1"]);
   });
 
@@ -306,7 +340,8 @@ describe("einloesenAmGate — Schritt 5: Erfolg", () => {
       await expect(einloesenAmGate({}, form({ code: "482-137" }))).rejects.toThrow("NEXT_REDIRECT");
     }
 
-    expect(stand.cookies).toHaveLength(5);
+    expect(stand.cookies.filter((c) => c.name === "helfer_session")).toHaveLength(5);
+    expect(stand.cookies.filter((c) => c.name === "lagerbuch_geraet")).toHaveLength(5);
     expect(gateFehlversuchBuchen).not.toHaveBeenCalled();
   });
 
@@ -517,5 +552,42 @@ describe("einloesenAmGate — die Landung haengt am Ort (DRK-417)", () => {
       .rejects.toThrow("NEXT_REDIRECT");
 
     expect(stand.umleitungen).toEqual(["/a/art-9"]);
+  });
+});
+
+/**
+ * DRK-291 — PRÜFUNG UND BUCHUNG AUF DERSELBEN GRUPPE. Ein bekanntes Gerät zählt
+ * in eigene Eimer; läse die Sperre dort und buchte der Fehlversuch bei den
+ * Unbekannten (oder umgekehrt), sperrte sich keiner der beiden je selbst.
+ */
+describe("einloesenAmGate — das Merkmal „bekanntes Gerät\" (DRK-291)", () => {
+  it("liest das Merkmal aus DEN COOKIES DIESER ANFRAGE und reicht es an Prüfung UND Buchung", async () => {
+    stand.kopf = new Headers({ host: "lagerbuch.localtest.me", "cf-connecting-ip": "1.2.3.4" });
+    stand.eingehend = { lagerbuch_geraet: "alt.jwt" };
+    // Die Attrappe antwortet nur, wenn der Leser wirklich das Gerätecookie
+    // der Anfrage liefert — ein festes `null` im Aufrufer fiele hier auf.
+    merkmal.gateMerkmal.mockImplementation(async (lies) =>
+      lies("lagerbuch_geraet") === "alt.jwt" ? "geraet:abc" : null);
+    redeemToken.mockResolvedValue({ ok: false });
+
+    await einloesenAmGate({}, form({ code: "000-000" }));
+
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
+    expect(gateFehlversuchBuchen.mock.calls[0]?.[1]).toEqual(gateGesperrt.mock.calls[0]?.[1]);
+    // Misserfolg: KEIN Gerätecookie — das Merkmal gibt es nur für einen richtigen Code.
+    expect(stand.cookies).toEqual([]);
+  });
+
+  it("ein vorhandenes Merkmal behält seine Kennung — der bisherige Wert geht an `geraetCookieWert`", async () => {
+    stand.eingehend = { lagerbuch_geraet: "alt.jwt" };
+    redeemToken.mockResolvedValue({
+      ok: true, cookieValue: "jwt", tokenId: "tk1", zielTyp: null, zielId: null,
+    });
+
+    await expect(einloesenAmGate({}, form({ code: "482-137" }))).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(merkmal.geraetCookieWert).toHaveBeenCalledWith("alt.jwt");
+    expect(stand.cookies.find((c) => c.name === "lagerbuch_geraet")?.wert).toBe("geraet.jwt");
   });
 });

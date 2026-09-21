@@ -1,12 +1,12 @@
 "use server";
 import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
-
 import { logoutActor } from "../_lib/audit";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "../_lib/host";
 import { absenderAus } from "../_lib/absender";
 import { gateGesperrt, gateFehlversuchBuchen } from "../_lib/gateSchranke";
+import { GERAET_COOKIE, gateMerkmal, geraetCookieOptionen, geraetCookieWert } from "../_lib/gateSchrankeMerkmal";
 import { gateMeldung } from "../_lib/gateTexte";
 import { normalisiereCode } from "../_lib/code";
 import {
@@ -57,9 +57,9 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
   requireLagerbuchHost(kopf);
 
   const absender = absenderAus(kopf);   // §3.5.2 — einmal ermittelt, zweimal benutzt
-
-  // SCHRITT 2 — Sperre, OHNE Datenbankzugriff, ohne Buchung.
-  const sperrSekunden = gateGesperrt(absender);
+  const keks = await cookies();
+  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value) };   // DRK-291, §3.5.3a
+  const sperrSekunden = gateGesperrt(absender, anfrage);   // SCHRITT 2 — ohne DB, ohne Buchung
   if (sperrSekunden !== null) {
     return {
       ok: false,
@@ -74,7 +74,7 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
   //
   // ⚠️ SIE STEHT ALS EIGENE ANWEISUNG DA, NICHT INLINE IM EINLOESEAUFRUF, und
   // das ist keine Formatierungsfrage: der Reihenfolge-Scan aus T64
-  // (`_lib/bauform.test.ts:865`, Betreiberentscheidung B2) vergleicht die
+  // (`_lib/bauform.test.ts`, Riegelreihenfolge, Entscheidung B2) vergleicht die
   // TEXTPOSITIONEN der vier Riegel. In `redeemToken(normalisiereCode(x), …)`
   // steht `redeemToken(` textlich VOR `normalisiereCode(` — der Scan meldet
   // dann „Einloesung steht VOR normalisieren" fuer eine Datei, die sachlich
@@ -87,8 +87,8 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
 
   if (!res.ok) {
     auditDenied("lagerbuch");
-    // SCHRITT 6 — erst jetzt buchen.
-    gateFehlversuchBuchen(absender);
+    // SCHRITT 6 — erst jetzt buchen, in die Gruppe derselben Anfrage.
+    gateFehlversuchBuchen(absender, anfrage);
     return {
       ok: false,
       grund: "gesperrt",
@@ -97,11 +97,11 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
   }
 
   // SCHRITT 5 — Erfolg, KEIN Budgetverbrauch, KEIN Redirect.
-  (await cookies()).set(
-    HELFER_COOKIE,
-    res.cookieValue,
-    helferCookieOptionen(helferGueltigkeitSekunden()),
-  );
+  keks.set(HELFER_COOKIE, res.cookieValue, helferCookieOptionen(helferGueltigkeitSekunden()));
+  // Das Geraetemerkmal (DRK-291): wer hier erneuert, ist ab jetzt ein bekanntes
+  // Geraet — auch dann, wenn er mit einer abgelaufenen Sitzung ohne Geraetecookie
+  // kam. Eine vorhandene Kennung bleibt erhalten.
+  keks.set(GERAET_COOKIE, await geraetCookieWert(keks.get(GERAET_COOKIE)?.value), geraetCookieOptionen());
   auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
   return { ok: true, wert: null };
 }

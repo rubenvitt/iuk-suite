@@ -1,8 +1,9 @@
 import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { lagerbuchHostOderNull } from "../../_lib/host";
 import { absenderAus } from "../../_lib/absender";
 import { gateGesperrt, gateFehlversuchBuchen } from "../../_lib/gateSchranke";
+import { GERAET_COOKIE, gateMerkmal, geraetCookieOptionen, geraetCookieWert } from "../../_lib/gateSchrankeMerkmal";
 import { normalisiereCode } from "../../_lib/code";
 import { sanitizeReturnTo } from "../../_lib/returnTo";
 import { ortcodeZielPfad } from "../../_lib/ortZiel";
@@ -54,11 +55,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   };
 
   const absender = absenderAus(kopf);                                // §3.5.2, einmal ermittelt
+  const keks = new NextRequest(req).cookies;
+  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value) };   // DRK-291
 
   // SCHRITT 2 — gesperrt? OHNE Datenbankzugriff. Die Sekundenzahl wird NICHT
-  // mitgegeben: das Gate liest sie selbst aus derselben Schranke, mit denselben
-  // Absender-Kopfzeilen (§7.2.4, §3.9).
-  if (gateGesperrt(absender) !== null) return zumGate("zuviele");
+  // mitgegeben: das Gate liest sie selbst aus derselben Schranke (§7.2.4, §3.9).
+  if (gateGesperrt(absender, anfrage) !== null) return zumGate("zuviele");
 
   // SCHRITT 3 — normalisieren. `redeemToken` normalisiert NICHT selbst
   // (`_lib/schreibpfade/tokenEinloesung.ts`), und ein Aufruf ohne
@@ -86,7 +88,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
   // unterscheidbar; das Gate zeigt fuer beide denselben Satz (§3.9).
   if (!res.ok) {
     auditDenied("lagerbuch");
-    gateFehlversuchBuchen(absender);
+    gateFehlversuchBuchen(absender, anfrage);
     return zumGate("code");
   }
 
@@ -103,6 +105,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ code: string }>
    */
   const antw = antwort(returnTo ?? ortcodeZielPfad(res.ortId, res.zielTyp, res.zielId));
   antw.cookies.set(HELFER_COOKIE, res.cookieValue, helferCookieOptionen(helferGueltigkeitSekunden()));
+  antw.cookies.set(GERAET_COOKIE, await geraetCookieWert(keks.get(GERAET_COOKIE)?.value), geraetCookieOptionen());
   auditEvent({ module: "lagerbuch", action: "sign_in", objectType: "session", result: "success", origin: "server" }, auditAccessActor("lagerbuch", res.tokenId));
   return antw;
 }

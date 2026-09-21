@@ -5,9 +5,16 @@ import { nanoid } from "nanoid";
 import { RateLimiter, clientIpAus } from "@/core/ratelimit";
 import { getDb } from "../../../../_db/client";
 import { inboxFiles, zugangslinks } from "../../../../_db/schema";
-import { verbucheAbgabe } from "../../../../_db/zaehler";
+import {
+  behalteAbschnittVor,
+  belegeDateiplatz,
+  gibAbschnittFrei,
+  unterBudgetRiegel,
+  wandleInVerbrauchUm,
+} from "../../../../_lib/abgabeBudget";
 import { reiheAvEin } from "../../../../_lib/av";
 import {
+  FILES_CHUNK_BYTES,
   FILES_FEHLVERSUCHE_PRO_MIN,
   FILES_HINWEIS_MAX_ZEICHEN,
   grenzen,
@@ -18,12 +25,16 @@ import { istSchreibbareKategorie } from "../../../../_lib/kategorien";
 import { MIME_PRAEFIX_BYTES, pruefeInhaltstyp } from "../../../../_lib/mime";
 import {
   AblageNichtSchreibbar,
+  BereitsAbgeschlossen,
+  BlobFehlt,
   GroesseUeberschritten,
   KeinPlatz,
+  SchreibbesitzBelegt,
   abschliesse,
   fortschritt,
   kopfBytes,
   loesche,
+  mitSchreibbesitz,
   schreibeStrom,
   type BlobZiel,
 } from "../../../../_lib/storage";
@@ -251,6 +262,17 @@ async function* koerperStrom(anfrage: Request): AsyncGenerator<Uint8Array> {
   }
 }
 
+/**
+ * Die angekuendigte Rumpflaenge, falls der Client sie nennt — nur als OBERGRENZE
+ * des Vorbehalts (DRK-288): ein Chunk haelt dann nicht mehr Budget fest, als er
+ * schreiben will, und parallele Abgaben am Ende des Kontingents verdraengen sich
+ * nicht mit Luftbuchungen. Durchgesetzt wird weiter beim ZAEHLEN; eine falsche
+ * Angabe kann also nur die eigene Anfrage scheitern lassen.
+ */
+function angekuendigteBytes(anfrage: Request): number | null {
+  return ganzzahlOderNull(anfrage.headers.get("content-length"));
+}
+
 /** Was die Stufen 2 und 3 vom aufgeloesten Abgabelink brauchen. */
 type Link = {
   id: string;
@@ -358,12 +380,13 @@ export async function PUT(
 
   // --- Stufe 2: Mengenbudget je Token, Vorpruefung -------------------------
   // Ist ueberhaupt nichts mehr frei, endet die Anfrage HIER — vor dem Chunk-Weg
-  // und damit ohne Zeile, die danach jemand wegraeumen muesste. Die feinere
-  // Grenze („dieser Chunk sprengt den Rest") sitzt weiter unten am Schreibstrom,
-  // die verbindliche Entscheidung erst in `schliesseAb`.
+  // und damit ohne Zeile, die danach jemand wegraeumen muesste. Verbindlich
+  // entscheiden erst `belegeDateiplatz` (Dateiplatz, erster Chunk) und
+  // `behalteAbschnittVor` (Bytes, jeder Chunk), die auch offene Abgaben
+  // mitzaehlen (DRK-288); diese Vorschau kennt nur `verbraucht_*`.
   //
-  // ASYMMETRIE, benannt statt uebersehen: die beiden Kontingent-Ausgaenge INNEN
-  // (`aufSchreibfehler`, `schliesseAb`) raeumen Blob UND Zeile weg, dieser hier
+  // ASYMMETRIE, benannt statt uebersehen: die Kontingent-Ausgaenge INNEN
+  // (Vorbehalt, `aufSchreibfehler`, `schliesseAb`) raeumen Blob UND Zeile weg, dieser hier
   // kann das nicht — er kennt die Zeile nicht, weil er vor ihrer Aufloesung
   // liegt. Trifft er einen SPAETEREN Chunk, bleiben Zeile und `.part` einer
   // halben Abgabe stehen; das ist dieselbe Form, die der 507-Weg absichtlich
@@ -446,35 +469,69 @@ async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Resp
   // dastehen und nicht als Zufall der Zeilenreihenfolge gelesen werden.
   const g = grenzen();
 
-  // DIE ENGERE DER BEIDEN GRENZEN begrenzt den Schreibstrom — und welche das ist,
-  // entscheidet auch den Namen der Ablehnung. `schreibeStrom` zaehlt beim
-  // Anhaengen die schon liegenden Bytes mit, die Schranke gilt also fuer die
-  // GANZE Datei und nicht je Chunk.
-  //
-  // Warum ueberhaupt hier und nicht erst bei der Buchung: sonst schriebe ein
-  // Handyvideo erst seine vollen 200 MiB, bevor jemand feststellt, dass es in ein
-  // Restbudget von 10 MiB nie passt (§8.4: „bricht frueh ab, statt Bytes zu
-  // schreiben, die nicht passen"). Der Abbruch faellt in `aufSchreibfehler` und
-  // wird dort ueber `budgetIstEnger` als 429 statt als 413 benannt: „zu gross"
-  // waere fuer ein erschoepftes Kontingent die falsche Auskunft, weil dieselbe
-  // Datei nach dem Aufstocken durchgeht.
-  const budgetIstEnger = link.restBytes < g.maxDateiBytes;
-  const schreibGrenze = budgetIstEnger ? link.restBytes : g.maxDateiBytes;
+  // DER SCHREIBBESITZ UMSCHLIESST ALLES, was die Datei beruehrt (DRK-289):
+  // Offen-Pruefung, Offset, Schreiben, Typpruefung, Abschluss UND die
+  // Fehlerbehandlung. Ohne ihn passierten zwei ueberlappende Folgeanfragen
+  // beide die Offset-Pruefung; die eine hielt ihren Deskriptor ueber einen
+  // verzoegerten Rumpf offen, die andere schloss ab, und nach dem sauberen Scan
+  // wuchs der freigegebene Blob weiter. Die Fehlerbehandlung liegt INNEN, weil
+  // ihr `verwirf` sonst die Zwischendatei einer Folgeanfrage mitnaehme, die den
+  // Besitz schon uebernommen hat.
+  try {
+    return await mitSchreibbesitz(ziel, async () => {
+      // Die Offen-Pruefung ERNEUT, jetzt unter dem Besitz: `hole` oben lief
+      // davor, und dazwischen darf eine andere Anfrage abgeschlossen haben. Ohne
+      // diese Zeile begaenne eine Folgeanfrage mit `ab=0` eine neue
+      // Zwischendatei neben dem schon geprueften Blob.
+      if (id !== null) {
+        const nochOffen = hole(id, tokenId);
+        if (nochOffen instanceof Response) return nochOffen;
+      }
+      return await byteWeg(anfrage, suche, ziel, zeile, tokenId, ab, ende, jetzt, g);
+    });
+  } catch (grund) {
+    if (grund instanceof SchreibbesitzBelegt) {
+      // Dieselbe Antwort wie bei EEXIST unten: der Client uebernimmt den Stand
+      // und setzt fort, sobald die laufende Anfrage durch ist.
+      const stand = await fortschritt(ziel).catch(() => 0);
+      return fehler(409, "offset", "Für diese Abgabe läuft bereits eine Übertragung.", {
+        erwartetesAb: stand,
+      });
+    }
+    throw grund;
+  }
+}
 
-  // EIN Riegel um den GANZEN Byte-Weg, nicht nur um das Schreiben. Vier Aufrufe
+/** Der Byte-Weg einer Anfrage — ausschliesslich im Schreibbesitz aufgerufen. */
+async function byteWeg(
+  anfrage: Request,
+  suche: URLSearchParams,
+  ziel: BlobZiel,
+  zeile: Zeile,
+  tokenId: string,
+  ab: number,
+  ende: boolean,
+  jetzt: Date,
+  g: ReturnType<typeof grenzen>,
+): Promise<Response> {
+  // Welche Grenze den Schreibstrom begrenzt hat, entscheidet den Namen der
+  // Ablehnung — geworfen wird in jedem Fall `GroesseUeberschritten`. Belegt wird
+  // die Variable erst, wenn der Vorbehalt steht (unten).
+  let grenzArt: GrenzArt = "datei";
+
+  // EIN `try` um den GANZEN Byte-Weg, nicht nur um das Schreiben. Vier Aufrufe
   // in `_lib/storage.ts` koennen dieselben Fehlerklassen aus §5.4 werfen:
   // `fortschritt` (stat → EACCES/EROFS), `schreibeStrom` (open/write → ENOSPC,
   // EACCES, EEXIST), `kopfBytes` (open) und `abschliesse` (rename → ENOSPC).
-  // Lag der Riegel nur um `schreibeStrom`, wurde aus einem vollen Volume beim
-  // `rename` ein 500 mit leerem Rumpf — und die Zwischendatei blieb liegen, wo
-  // sie unter der Standardkonfiguration niemand mehr abholt (`_lib/aufraeumen.ts`
-  // fuehrt fuer unvollstaendige `inbox_files` keine Frist).
+  // Lag das `try` nur um `schreibeStrom`, wurde aus einem vollen Volume beim
+  // `rename` ein 500 mit leerem Rumpf — und die Zwischendatei blieb liegen, bis
+  // der Aufraeum-Lauf sie nach `FILES_UPLOAD_VERFALL_STUNDEN` abholt.
   try {
     // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter Zustand, der
     // auseinanderlaufen kann (§7.1 Schritt 3).
     const bisher = await fortschritt(ziel);
     // GENAU die Laenge, in BEIDE Richtungen: ein kleineres `ab` haenge zusammen
-    // mit `anhaengen: ab > 0` die Bytes trotzdem hinten an und verdorbe den Blob
+    // mit `anhaengen` die Bytes trotzdem hinten an und verdorbe den Blob
     // still — die Magic-Byte-Pruefung saehe nichts davon, weil sie nur den Kopf
     // liest.
     if (bisher !== ab) {
@@ -486,12 +543,44 @@ async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Resp
       );
     }
 
-    const { bytes } = await schreibeStrom(ziel, koerperStrom(anfrage), {
-      maxBytes: schreibGrenze,
-      // `anhaengen: false` oeffnet mit `wx` — nur so sieht ein zweiter Starter
-      // auf dasselbe Ziel EEXIST statt verschraenkter Bytes (§5.3).
-      anhaengen: ab > 0,
-    });
+    // DER VORBEHALT, VOR dem ersten Byte (DRK-288). Er rechnet alle anderen
+    // offenen Abgaben des Links mit — ihre liegenden Bytes und die Obergrenzen
+    // ihrer gerade laufenden Chunks — und haelt fuer DIESEN Chunk hoechstens
+    // `FILES_CHUNK_BYTES` fest. Vorher sah jede Anfrage dasselbe unverbrauchte
+    // Restbudget, weil offene Abgaben nirgends zaehlten.
+    //
+    // Warum die Grenze VOR dem Schreiben sitzt und nicht erst bei der Buchung:
+    // sonst schriebe ein Handyvideo erst seine vollen 200 MiB, bevor jemand
+    // feststellt, dass es in ein Restbudget von 10 MiB nie passt (§8.4: „bricht
+    // frueh ab, statt Bytes zu schreiben, die nicht passen").
+    const vorbehalt = await behalteAbschnittVor(
+      getDb(),
+      tokenId,
+      zeile.id,
+      bisher,
+      angekuendigteBytes(anfrage),
+    );
+    if (!vorbehalt.ok) {
+      await verwirf(ziel, zeile.id);
+      return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
+    }
+    grenzArt = g.maxDateiBytes <= vorbehalt.obergrenze ? "datei" : vorbehalt.bindend;
+
+    let bytes: number;
+    try {
+      ({ bytes } = await schreibeStrom(ziel, koerperStrom(anfrage), {
+        maxBytes: Math.min(g.maxDateiBytes, vorbehalt.obergrenze),
+        // IMMER anhaengen: die Exklusivitaet traegt seit DRK-289 der
+        // Schreibbesitz, nicht mehr `wx`, und der Offset ist oben geprueft. `wx`
+        // machte aus einer LEEREN Zwischendatei eine 409-Schleife.
+        anhaengen: true,
+      }));
+    } finally {
+      // In JEDEM Ausgang, genau hier: ab jetzt zaehlt die Datei mit der Laenge
+      // ihrer Zwischendatei, und die steht fest. Ein vergessener Vorbehalt hielte
+      // bis zum Neustart Budget fest.
+      await gibAbschnittFrei(tokenId, zeile.id);
+    }
 
     // §6.6, die ZWEITE Linie. Im Normalbetrieb unerreichbar, weil Pruefung 3 aus
     // §9.4 `FILES_MAX_DATEI_BYTES <= FILES_AV_MAX_BYTES` beim Start erzwingt —
@@ -513,12 +602,15 @@ async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Resp
     // `return await`, nicht `return`: ein blosses `return` eines Promise verlaesst
     // das `try` VOR seiner Ablehnung — der `catch` saehe die Fehler des letzten
     // Chunks nie, und genau die (rename auf vollem Volume) sind der Grund fuer
-    // diesen Riegel.
+    // dieses `try`.
     return await schliesseAb(ziel, zeile, tokenId, suche.get("typ"), bytes, jetzt);
   } catch (grund) {
-    return await aufSchreibfehler(grund, ziel, zeile.id, g.maxDateiBytes, budgetIstEnger);
+    return await aufSchreibfehler(grund, ziel, zeile.id, g.maxDateiBytes, grenzArt);
   }
 }
+
+/** Welche Grenze den Schreibstrom begrenzt hat: Datei, Kontingent oder Abschnitt. */
+type GrenzArt = "datei" | "budget" | "abschnitt";
 
 /** Was der Chunk-Weg von der Zeile braucht — und ausdruecklich nicht mehr. */
 type Zeile = { id: string; dateiname: string };
@@ -526,9 +618,9 @@ type Zeile = { id: string; dateiname: string };
 /**
  * Der ERSTE Chunk: Metadaten pruefen, DANN die Zeile anlegen. Die Reihenfolge
  * traegt eine Zusage — eine abgelehnte Kategorie oder ein zu langer Hinweis
- * hinterlaesst KEINE halbe Zeile. Fuer `inbox_files` gibt es unter der
- * Standardkonfiguration keine Verfallsfrist (`FILES_INBOX_AUFBEWAHRUNG_TAGE` hat
- * bewusst keine Vorbelegung), eine Waise holte also niemand mehr ab.
+ * hinterlaesst KEINE halbe Zeile — und belegt damit auch keinen Dateiplatz des
+ * Kontingents (DRK-288). Eine offene Zeile verfaellt nach
+ * `FILES_UPLOAD_VERFALL_STUNDEN` (`_lib/aufraeumen.ts`, `offeneAbgabeVerfallen`).
  */
 function eroeffne(
   suche: URLSearchParams,
@@ -568,27 +660,29 @@ function eroeffne(
   }
 
   const id = nanoid(10);
-  getDb()
-    .insert(inboxFiles)
-    .values({
-      id,
-      tokenId,
-      dateiname,
-      kategorie,
-      hinweis,
-      // NULL bis zum letzten Chunk: gespeichert wird der FESTGESTELLTE Typ, und
-      // festgestellt ist er erst, wenn alle Bytes liegen (§8.5).
-      mimeType: null,
-      size: 0,
-      // Durch `ipKuerzen`, an JEDER Schreibstelle einer Absenderadresse (§4.5).
-      // Der Zaehler oben arbeitet dagegen mit der VOLLEN Adresse im
-      // Prozessspeicher und schreibt sie nie.
-      clientIpUnbestaetigt: ipKuerzen(clientIpAus(anfrage.headers)),
-      empfangenAt: jetzt,
-      bytesVollstaendigAt: null,
-      avStatus: "scanning",
-    })
-    .run();
+  // DER DATEIPLATZ WIRD HIER BELEGT, nicht erst beim Abschluss (DRK-288): Zaehlen
+  // und Anlegen in einer Transaktion. Vorher sah jede neue Abgabe dasselbe
+  // unverbrauchte Kontingent, und ein Link mit einem Platz hielt beliebig viele
+  // offene Dateien.
+  const belegt = belegeDateiplatz(getDb(), tokenId, {
+    id,
+    tokenId,
+    dateiname,
+    kategorie,
+    hinweis,
+    // NULL bis zum letzten Chunk: gespeichert wird der FESTGESTELLTE Typ, und
+    // festgestellt ist er erst, wenn alle Bytes liegen (§8.5).
+    mimeType: null,
+    size: 0,
+    // Durch `ipKuerzen`, an JEDER Schreibstelle einer Absenderadresse (§4.5).
+    // Der Zaehler oben arbeitet dagegen mit der VOLLEN Adresse im
+    // Prozessspeicher und schreibt sie nie.
+    clientIpUnbestaetigt: ipKuerzen(clientIpAus(anfrage.headers)),
+    empfangenAt: jetzt,
+    bytesVollstaendigAt: null,
+    avStatus: "scanning",
+  });
+  if (!belegt) return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
 
   return { id, dateiname };
 }
@@ -649,39 +743,40 @@ async function schliesseAb(
     return fehler(415, "typ-nicht-erlaubt", befund.meldung);
   }
 
-  // Die GEMESSENE Bytezahl, nicht die des Schreibvorgangs: `abschliesse` liest
-  // die Laenge der Zwischendatei unmittelbar vor dem `rename`.
-  const { bytes: endgueltig } = await abschliesse(ziel);
-
-  // DIE BUCHUNG — und ERST hier faellt die Entscheidung ueber das Budget. Sie ist
-  // ein einzelnes `UPDATE` mit Bedingung, und was sie entscheidet, ist die Zahl
-  // betroffener Zeilen (§8.4, `_db/zaehler.ts`).
-  //
-  // NULL Zeilen heisst: zwischen der Vorpruefung in `PUT` und dieser Zeile hat
-  // eine ANDERE Abgabe desselben Tokens das Restbudget aufgebraucht. Die Bytes
-  // liegen dann schon — der benannte Wettlauf. Also gehen Blob UND Zeile weg;
-  // ohne diesen Zweig bliebe ein stiller Waise liegen, den nur der Bericht ueber
-  // verwaiste Blobs (§7.6) je gefunden haette.
-  //
-  // Gebucht wird NACH der Typpruefung: eine abgelehnte Datei darf kein Kontingent
-  // kosten.
-  if (!verbucheAbgabe(getDb(), tokenId, endgueltig)) {
+  // UMBENENNEN UND BUCHEN unter dem Budget-Riegel des Links (DRK-288): zwischen
+  // `rename` und Buchung zaehlte die Datei sonst weder als offen (die
+  // Zwischendatei ist weg) noch als verbraucht — ein paralleler Vorbehalt saehe
+  // genau in diesem Fenster zu viel Platz.
+  const ergebnis = await unterBudgetRiegel(tokenId, async () => {
+    // Die GEMESSENE Bytezahl, nicht die des Schreibvorgangs: `abschliesse` liest
+    // die Laenge der Zwischendatei unmittelbar vor dem `rename`.
+    const { bytes: endgueltig } = await abschliesse(ziel);
+    // DIE UMWANDLUNG: `verbraucht_*` hochzaehlen UND die Zeile abschliessen, in
+    // EINER Transaktion (`_lib/abgabeBudget.ts`). Der Dateiplatz war seit dem
+    // ersten Chunk belegt, die Bytes seit jedem Chunk vorbehalten — hier wird
+    // daraus Verbrauch, ohne dass die Datei dazwischen doppelt oder gar nicht
+    // zaehlt. Gebucht wird NACH der Typpruefung: eine abgelehnte Datei darf kein
+    // Kontingent kosten.
+    //
+    // `false` heisst: das Budget wurde seit dem Vorbehalt gesenkt, oder die Zeile
+    // ist nicht mehr offen. Dann ist nichts gebucht, und Blob UND Zeile gehen —
+    // ohne diesen Zweig bliebe ein stiller Waise liegen.
+    //
+    // Der FESTGESTELLTE Typ, nie die Deklaration (§8.5). Aus dem Durchschlupf
+    // von `drop` — HTML-Inhalt in `evil.html`, deklariert als `image/png` —
+    // wuerde sonst gespeicherter XSS im Cookie-Scope der ganzen Suite.
+    const umgewandelt = wandleInVerbrauchUm(getDb(), tokenId, zeile.id, {
+      bytes: endgueltig,
+      mimeType: befund.typ,
+      jetzt,
+    });
+    return { endgueltig, umgewandelt };
+  });
+  if (!ergebnis.umgewandelt) {
     await verwirf(ziel, zeile.id);
     return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
   }
-
-  getDb()
-    .update(inboxFiles)
-    .set({
-      size: endgueltig,
-      // Der FESTGESTELLTE Typ, nie die Deklaration (§8.5). Aus dem Durchschlupf
-      // von `drop` — HTML-Inhalt in `evil.html`, deklariert als `image/png` —
-      // wuerde hier gespeicherter XSS im Cookie-Scope der ganzen Suite.
-      mimeType: befund.typ,
-      bytesVollstaendigAt: jetzt,
-    })
-    .where(eq(inboxFiles.id, zeile.id))
-    .run();
+  const { endgueltig } = ergebnis;
 
   // Erst JETZT ist die Zeile Teil der Warteschlange (`bytes_vollstaendig_at IS
   // NOT NULL`); dieser Aufruf zieht sie nur vor den naechsten Takt und tut ohne
@@ -706,24 +801,41 @@ async function aufSchreibfehler(
   ziel: BlobZiel,
   inboxFileId: string,
   maxDateiBytes: number,
-  budgetIstEnger: boolean,
+  grenzArt: GrenzArt,
 ): Promise<Response> {
   if (grund instanceof GroesseUeberschritten) {
     // ENDGUELTIG: diese Datei passt nie — weder in die Dateigrenze noch in das,
-    // was vom Kontingent uebrig ist. Blob UND Zeile gehen, sonst bleibt unter der
-    // Standardkonfiguration eine Waise ohne Frist zurueck.
+    // was vom Kontingent uebrig ist. Blob UND Zeile gehen — die Zeile haelt sonst
+    // bis zu ihrem Verfall einen Dateiplatz des Links (DRK-288).
     await verwirf(ziel, inboxFileId);
-    // WELCHE der beiden Grenzen gerissen wurde, weiss nur der Aufrufer: geworfen
-    // wird immer dieselbe Klasse, und `schreibGrenze` war das Minimum aus beiden.
-    // Ein 413 „zu gross" bei erschoepftem Kontingent waere die falsche Auskunft —
-    // dieselbe Datei geht nach dem Aufstocken durch.
-    return budgetIstEnger
-      ? fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT)
-      : fehler(
-          413,
-          "zu-gross",
-          `Die Datei ist größer als erlaubt (Grenze: ${maxDateiBytes} Bytes).`,
-        );
+    // WELCHE Grenze gerissen wurde, weiss nur der Aufrufer: geworfen wird immer
+    // dieselbe Klasse. Ein 413 „zu gross" bei erschoepftem Kontingent waere die
+    // falsche Auskunft — dieselbe Datei geht nach dem Aufstocken durch.
+    if (grenzArt === "budget") return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
+    if (grenzArt === "abschnitt") {
+      // Ein Chunk ueber `FILES_CHUNK_BYTES` — der Client dieser Suite schickt
+      // keinen; die Grenze ist die Groesse des Vorbehalts (DRK-288).
+      return fehler(
+        413,
+        "zu-gross",
+        `Ein Abschnitt darf höchstens ${FILES_CHUNK_BYTES} Bytes groß sein.`,
+      );
+    }
+    return fehler(413, "zu-gross", `Die Datei ist größer als erlaubt (Grenze: ${maxDateiBytes} Bytes).`);
+  }
+
+  if (grund instanceof BlobFehlt) {
+    // Die Zwischendatei ist unter dem laufenden Vorgang verschwunden — die
+    // Verwaltung hat die offene Abgabe entfernt. Kein 500: die Abgabe ist weg.
+    return fehler(404, "unbekannt", "Diese Abgabe ist nicht (mehr) offen.");
+  }
+
+  if (grund instanceof BereitsAbgeschlossen) {
+    // Die Zeile ist offen, der Blob liegt aber schon da — ein Abschluss, der
+    // zwischen `rename` und Zeilenupdate abbrach. Dieser Blob ist nie geprueft
+    // worden, und ersetzt wird er nicht (DRK-289): die Abgabe ist verloren.
+    await verwirf(ziel, inboxFileId);
+    return fehler(404, "unbekannt", "Diese Abgabe ist nicht (mehr) offen.");
   }
 
   if (grund instanceof KeinPlatz) {

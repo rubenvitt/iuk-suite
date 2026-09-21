@@ -3,22 +3,25 @@
 import { useState, type FormEvent } from "react";
 import { datumKurz } from "../../_lib/datum";
 import type { Durchfuehrung } from "../offline/progress";
+import { teamSchluessel } from "../offline/localStore";
 import { useLocalStorage } from "./useFortschritt";
 import styles from "./uav.module.css";
 
 type Props = {
   onAdd: (eintrag: Omit<Durchfuehrung, "id">) => void;
   heute: string;
+  /** Besitzer des Speichers (DRK-286) — die Vorbelegung trägt Namen und ist persönlich. */
+  besitzer: string;
 };
 
 type Team = { drohnensteuerer: string; luftraumbeobachter: string };
 const LEERES_TEAM: Team = { drohnensteuerer: "", luftraumbeobachter: "" };
 
 /** Port aus uav-praxis/src/components/DurchfuehrungForm.tsx. */
-export function DurchfuehrungForm({ onAdd, heute }: Props) {
+export function DurchfuehrungForm({ onAdd, heute, besitzer }: Props) {
   // Zuletzt erfasstes Team aufgaben- und sitzungsübergreifend merken, damit die
   // beiden Namensfelder beim nächsten Eintrag bereits vorbelegt sind.
-  const [letztesTeam, setLetztesTeam] = useLocalStorage<Team>("df:letztes-team", LEERES_TEAM);
+  const [letztesTeam, setLetztesTeam] = useLocalStorage<Team>(teamSchluessel(besitzer), LEERES_TEAM);
   const [datum, setDatum] = useState(heute);
   const [drohnensteuerer, setDrohnensteuerer] = useState(letztesTeam.drohnensteuerer);
   const [luftraumbeobachter, setLuftraumbeobachter] = useState(letztesTeam.luftraumbeobachter);

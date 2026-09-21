@@ -469,7 +469,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
      * knapp AUSSERHALB. Ohne ihn hat Eigenschaft 1 aus A3 keinen Waechter.
      *
      * `gateGesperrt` ist genau deshalb ohne Datenbankzugriff gebaut
-     * (`_lib/gateSchranke.ts:165-169`, „UND SIE IST ES, DIE DEN DATENBANKZUGRIFF SCHUETZT"):
+     * (`_lib/gateSchranke.ts`, `gateGesperrt`, „UND SIE IST ES, DIE DEN DATENBANKZUGRIFF SCHUETZT"):
      * sie SCHUETZT den Zugriff. Faellt ein `getDb()` davor, ist der Deckel wirkungslos — und
      * still. ⚠️ Der Reihenfolge-Fall oben faengt das NICHT: `getDb(` ist keiner seiner vier
      * Riegel.
@@ -516,7 +516,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
     /*
      * ⛔ UND SIE LEITET NICHT UM. Das ist ihr ganzer Zweck: die Seite bleibt stehen, die
      * eingetragenen Werte bleiben stehen (Spec:2563-2567,
-     * `lagerbuch/_actions/sitzung.ts:42-44`). Ein `redirect()` hier verwuerfe genau das,
+     * `lagerbuch/_actions/sitzung.ts`, „SIE LEITET NICHT UM"). Ein `redirect()` hier verwuerfe genau das,
      * wogegen die Funktion gebaut ist.
      */
     expect(erneuernKoerper, "erneuereSitzung darf nicht umleiten").not.toMatch(/\bredirect\s*\(/);

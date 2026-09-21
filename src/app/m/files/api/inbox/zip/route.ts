@@ -87,7 +87,7 @@ function nichtGefunden(): Response {
  * Grund: ein sechster Wert kommt gar nicht erst in die Zeile, also ist der
  * Fremdwert nur ueber ein abgeschaltetes Constraint herstellbar — ein Test, der
  * die Datenbank dafuer entschaerfen muss, belegt die Unerreichbarkeit und nicht
- * das Verhalten. Der Zwilling steht in `api/inbox/[id]/route.ts:91` und in
+ * das Verhalten. Der Zwilling steht in `api/inbox/[id]/route.ts` (`alsAvStatus`) und in
  * `_db/queries.ts:245`; die gemeinsame Fassung gehoerte nach `_lib/av.ts`, das
  * hier eine fremde Datei ist.
  */
@@ -181,10 +181,11 @@ function fuegeEin(
  * Namen uebergibt (`download/[id]/zip/route.ts:186-189`). IDs stehen in dieser
  * Liste nur dort, wo es keinen Namen gibt: fuer eine fremde `id` aus `?ids=`.
  */
-async function blobVorhanden(id: string): Promise<boolean> {
+async function blobVorhanden(id: string, gepruefteBytes: number): Promise<boolean> {
   try {
-    await groesse({ art: "inbox", inboxFileId: id });
-    return true;
+    // DRK-289: nur die beim Abschluss gepruefte Groesse zaehlt als „vorhanden".
+    // Ein veraenderter Blob ist nicht die Datei, fuer die der Scanner sprach.
+    return (await groesse({ art: "inbox", inboxFileId: id })) === gepruefteBytes;
   } catch (fehler) {
     if (fehler instanceof BlobFehlt || fehler instanceof UngueltigeId) return false;
     throw fehler;
@@ -236,6 +237,7 @@ export async function GET(req: Request): Promise<Response> {
         dateiname: inboxFiles.dateiname,
         avStatus: inboxFiles.avStatus,
         bytesVollstaendigAt: inboxFiles.bytesVollstaendigAt,
+        size: inboxFiles.size,
       })
       .from(inboxFiles)
       .where(inArray(inboxFiles.id, ids))
@@ -245,7 +247,9 @@ export async function GET(req: Request): Promise<Response> {
       dateiname: string;
       avStatus: string;
       bytesVollstaendigAt: Date | null;
+      size: number;
     }[];
+    const gepruefteGroesse = new Map(zeilen.map((z) => [z.id, z.size]));
 
     const gefunden = new Set(zeilen.map((z) => z.id));
     // Eine unbekannte oder fremde ID reisst die Auswahl NICHT mit: eine 404 fuer
@@ -261,7 +265,7 @@ export async function GET(req: Request): Promise<Response> {
       if (
         zeile.bytesVollstaendigAt !== null &&
         avStatus === "clean" &&
-        !(await blobVorhanden(zeile.id))
+        !(await blobVorhanden(zeile.id, zeile.size))
       ) {
         nichtGefundeneIds.push(zeile.dateiname);
         continue;
@@ -340,7 +344,12 @@ export async function GET(req: Request): Promise<Response> {
       try {
         for (const eintrag of plan.eintraege) {
           if (req.signal.aborted) break;
-          const { strom } = await lieseStrom({ art: "inbox", inboxFileId: eintrag.id });
+          // Die zweite Linie (DRK-289): weicht die Groesse jetzt ab, wirft
+          // `lieseStrom`, und das Archiv bricht ab, statt fremde Bytes zu tragen.
+          const { strom } = await lieseStrom(
+            { art: "inbox", inboxFileId: eintrag.id },
+            { erwarteteBytes: gepruefteGroesse.get(eintrag.id) ?? -1 },
+          );
           // VOR dem `await`: kam der Abbruch waehrend des Oeffnens, ist der
           // Deskriptor sonst in keiner Liste, und nichts schliesst ihn mehr.
           geoeffnet.push(strom);

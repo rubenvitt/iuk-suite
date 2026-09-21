@@ -49,7 +49,9 @@ const ENV_VORGABE: Record<string, string> = {
   FILES_MAX_ABLAUF_TAGE: "7",
 };
 
-const { grenzenUeberschreibung, storungAmSchreiben, storungAmAbschluss, auditDeniedMock } = vi.hoisted(() => ({
+const { grenzenUeberschreibung, storungAmSchreiben, storungAmAbschluss, auditDeniedMock, schreibBeobachtung } = vi.hoisted(() => ({
+  /** Wie oft ein Schreibstrom seinen Rumpf zu LESEN begann — also nach `open` (DRK-289). */
+  schreibBeobachtung: { lesend: 0 },
   grenzenUeberschreibung: { wert: null as Partial<Grenzen> | null },
   storungAmSchreiben: { art: null as null | "kein-platz" | "nicht-schreibbar" },
   storungAmAbschluss: { art: null as null | "kein-platz" },
@@ -94,7 +96,14 @@ vi.mock("../../../../_lib/storage", async (original) => {
   return {
     ...echt,
     schreibeStrom: async (...args: Parameters<typeof echt.schreibeStrom>) => {
-      const ergebnis = await echt.schreibeStrom(...args);
+      const [ziel, quelle, opts] = args;
+      // Der Generator-Rumpf laeuft erst beim ersten `next()` — und das ruft
+      // `schreibeStrom` erst, NACHDEM es die Zwischendatei geoeffnet hat.
+      const beobachtet = (async function* () {
+        schreibBeobachtung.lesend += 1;
+        yield* quelle;
+      })();
+      const ergebnis = await echt.schreibeStrom(ziel, beobachtet, opts);
       if (storungAmSchreiben.art === "kein-platz") {
         throw new echt.KeinPlatz("[files] kein Platz in der Ablage (Vorrichtung)");
       }
@@ -504,7 +513,7 @@ describe("PUT /api/u/[token]/upload — Punkt 2: der Chunk-Weg", () => {
    * entfernter EEXIST-Zweig in `aufSchreibfehler` (dann faellt der Fehler in den
    * `throw` am Ende und wird ein unbehandelter 500).
    */
-  it("meldet einen zweiten Starter auf dasselbe Ziel als 409 statt als 500", async () => {
+  it("ein Chunk bei 0 nach einem LEEREN ersten setzt fort, statt in eine 409-Schleife zu laufen (DRK-289)", async () => {
     const { token } = neuerLink();
     const erster = await put({
       token,
@@ -515,14 +524,13 @@ describe("PUT /api/u/[token]/upload — Punkt 2: der Chunk-Weg", () => {
     const { id } = await koerperVon(erster);
     expect(statSync(`${blobPfad(id!)}.part`).size).toBe(0);
 
+    // Bis DRK-289: `wx` → EEXIST → 409 mit `erwartetesAb: 0` — und der Client
+    // schickte wieder 0. Gleichzeitige Starter haelt jetzt der Schreibbesitz ab
+    // (Block „DRK-289: exklusiver Schreibbesitz").
     const zweiter = await put({ token, koerper: PNG(), frage: { id, ab: 0 } });
 
-    expect(zweiter.status).toBe(409);
-    const koerper = await koerperVon(zweiter);
-    expect(koerper.code).toBe("offset");
-    expect(koerper.erwartetesAb).toBe(0);
-    // Nichts angehaengt — das ist der ganze Punkt von `wx`.
-    expect(statSync(`${blobPfad(id!)}.part`).size).toBe(0);
+    expect(zweiter.status).toBe(200);
+    expect(statSync(`${blobPfad(id!)}.part`).size).toBe(PNG().byteLength);
   });
 
   it("laesst die unvollstaendige Zeile mit `bytes_vollstaendig_at = NULL` stehen", async () => {
@@ -926,26 +934,17 @@ describe("PUT /api/u/[token]/upload — T50 Punkt 1: Mengenbudget", () => {
 
 describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
   /**
-   * DER WETTLAUF AUS §8.4, ohne Mock nachgestellt. Er ist nur erreichbar, wenn
-   * das Restbudget ZWISCHEN Vorpruefung und Buchung schrumpft — genau das tut
-   * hier die dazwischen liegende zweite Abgabe:
+   * DER WETTLAUF AUS §8.4 — bis DRK-288 war er der REGELFALL: offene Abgaben
+   * zaehlten nicht, und eine zweite Abgabe verbrauchte das Budget, auf das die
+   * erste schon Bytes gelegt hatte:
    *
-   *   Datei A, Chunk 1 (20 Bytes, ohne `ende`)  → Vorpruefung sieht 100 Bytes frei
-   *   Datei B, eine Anfrage (90 Bytes)          → gebucht, es bleiben 10 Bytes
-   *   Datei A, letzter Chunk (LEERER Rumpf)     → Vorpruefung sieht 10 Bytes frei
-   *                                               und der Schreibstrom prueft
-   *                                               nichts, weil kein Byte kommt;
-   *                                               erst die Buchung ueber die
-   *                                               GEMESSENEN 20 Bytes scheitert.
+   *   Datei A, Chunk 1 (20 Bytes, ohne `ende`)  → belegt 1 Platz und 20 Bytes
+   *   Datei B, eine Anfrage (90 Bytes)          → JETZT 429: 20 + 90 > 100
    *
-   * Der leere letzte Chunk ist tragend: mit auch nur einem Byte griffe die
-   * Vorpruefung, und der Test liefe in den Zweig von Punkt 1 statt in diesen.
-   *
-   * MUTATION: den Rueckabwicklungszweig entfernen (Rueckgabewert von
-   * `verbucheAbgabe` ignorieren) — dann steht Datei A als geprueft-und-scannend
-   * in der Liste, obwohl sie nie ins Budget passte.
+   * Frueher wurde B gebucht und A beim Abschluss verworfen — die Datei, die
+   * zuerst kam, verlor. Jetzt verliert die, die nicht mehr passt.
    */
-  it("raeumt Blob UND Zeile weg, wenn die Buchung null Zeilen trifft — kein stiller Waise", async () => {
+  it("offene Bytes zählen: die zweite Abgabe passt nicht mehr, die erste schließt ab (DRK-288)", async () => {
     const { id: tokenId, token } = neuerLink({ budgetDateien: 100, budgetBytes: 100 });
 
     const ersterChunk = await put({ token, koerper: PNG(12), frage: { ab: 0, name: "a.png" } });
@@ -953,9 +952,32 @@ describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
     const { id: idA } = await koerperVon(ersterChunk);
 
     const dazwischen = await abgabe(token, PNG(82), { name: "b.png" });
-    expect(dazwischen.status).toBe(200);
-    const { id: idB } = await koerperVon(dazwischen);
-    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 90 });
+    expect(dazwischen.status).toBe(429);
+    expect((await koerperVon(dazwischen)).code).toBe("kontingent");
+    expect(inboxZeilen().map((z) => z.id)).toEqual([idA]);
+
+    const letzterChunk = await put({
+      token,
+      koerper: new Uint8Array(),
+      frage: { id: idA, ab: 20, ende: 1, typ: "image/png" },
+    });
+    expect(letzterChunk.status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 20 });
+  });
+
+  /**
+   * Wird das Budget ZWISCHEN den Chunks unter das gesenkt, was schon liegt (hier
+   * per SQL, wie ein Eingriff in die Datenbank), passt die Datei nie mehr. Dann
+   * gehen Blob UND Zeile — und damit ihr Dateiplatz. Die Umwandlung selbst, die
+   * dann null Zeilen trifft, prueft `_lib/abgabeBudget.test.ts` ohne HTTP: ueber
+   * die Route ist sie nur in einem Wettlauf erreichbar.
+   */
+  it("raeumt Blob UND Zeile weg, wenn die Datei nicht mehr ins Budget passt — kein stiller Waise", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 100, budgetBytes: 100 });
+
+    const ersterChunk = await put({ token, koerper: PNG(12), frage: { ab: 0, name: "a.png" } });
+    const { id: idA } = await koerperVon(ersterChunk);
+    sqlite.prepare("UPDATE zugangslinks SET budget_bytes = 19 WHERE id = ?").run(tokenId);
 
     const letzterChunk = await put({
       token,
@@ -966,18 +988,12 @@ describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
     expect(letzterChunk.status).toBe(429);
     expect((await koerperVon(letzterChunk)).code).toBe("kontingent");
     // Von Datei A ist NICHTS mehr da — weder Blob noch Zwischendatei noch Zeile.
-    expect(inboxDateien()).toEqual([idB]);
-    expect(inboxZeilen().map((z) => z.id)).toEqual([idB]);
-    // Und das Budget steht unveraendert auf dem Stand von Datei B: das `UPDATE`
-    // hat wirklich nicht gegriffen, statt zu greifen und zurueckgedreht zu werden.
-    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 90 });
-    // Kein Scan fuer eine Datei, die es nicht mehr gibt (der eine Aufruf gehoert B).
-    expect(reiheAvEinMock).toHaveBeenCalledTimes(1);
-    expect(reiheAvEinMock).not.toHaveBeenCalledWith({ art: "inbox", inboxFileId: idA });
+    expect(inboxDateien()).toEqual([]);
+    expect(inboxZeilen()).toEqual([]);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 0, verbraucht_bytes: 0 });
+    expect(reiheAvEinMock).not.toHaveBeenCalled();
   });
 });
-
-// --- T50 Punkte 3 und 5: die IP-Notbremse und die Reihenfolge ---------------
 
 describe("PUT /api/u/[token]/upload — T50 Punkte 3+5: Notbremse zuletzt", () => {
   /**
@@ -1120,5 +1136,304 @@ describe("POST /api/u/[token]/upload — T50 Punkte 4+6: der Altweg", () => {
     const { antwort } = await post({ token, host: "fremd.example" });
 
     expect(antwort.status).toBe(404);
+  });
+});
+
+// --- DRK-289: exklusiver Schreibbesitz je Datei --------------------------------
+
+/**
+ * Ein Rumpf, dessen Ende der TEST bestimmt — die Lage aus dem Befund: Anfrage A
+ * passiert Offen- und Offset-Pruefung, oeffnet die Zwischendatei und haelt ihren
+ * Rumpf offen, waehrend Anfrage B abschliessen will.
+ */
+function gehaltenerRumpf(erstes: Uint8Array | null): {
+  strom: ReadableStream<Uint8Array>;
+  weiter: (stueck: Uint8Array) => void;
+  ende: () => void;
+  brichAb: () => void;
+} {
+  let steuer!: ReadableStreamDefaultController<Uint8Array>;
+  const strom = new ReadableStream<Uint8Array>({
+    start(c) {
+      steuer = c;
+      if (erstes !== null) c.enqueue(erstes);
+    },
+  });
+  return {
+    strom,
+    weiter: (stueck) => steuer.enqueue(stueck),
+    ende: () => steuer.close(),
+    brichAb: () => steuer.error(new Error("Verbindung abgebrochen (Vorrichtung)")),
+  };
+}
+
+async function putStrom(token: string, frage: Frage, strom: ReadableStream<Uint8Array>): Promise<Response> {
+  const { PUT } = await import("./route");
+  const suche = new URLSearchParams();
+  for (const [name, wert] of Object.entries(frage)) {
+    if (wert !== undefined) suche.set(name, String(wert));
+  }
+  const anfrage = new Request(
+    `http://${INBOX_HOST}/m/files/api/u/${encodeURIComponent(token)}/upload?${suche.toString()}`,
+    {
+      method: "PUT",
+      headers: { "x-forwarded-host": INBOX_HOST, "cf-connecting-ip": neueIp() },
+      body: strom,
+      // Node verlangt fuer einen Strom-Rumpf die Halbduplex-Angabe.
+      duplex: "half",
+    } as RequestInit & { duplex: "half" },
+  );
+  return PUT(anfrage, { params: Promise.resolve({ token }) });
+}
+
+/** Wartet, bis A seine ersten Bytes wirklich in die Zwischendatei geschrieben hat. */
+async function warteAufZwischendatei(id: string, bytes: number): Promise<void> {
+  await vi.waitFor(() => {
+    expect(statSync(`${blobPfad(id)}.part`).size).toBe(bytes);
+  });
+}
+
+describe("PUT /api/u/[token]/upload — DRK-289: exklusiver Schreibbesitz", () => {
+  it("A hält den Append offen: B schließt NICHT ab, und es entsteht kein prüfbarer Blob", async () => {
+    const link = neuerLink();
+    const erst = await koerperVon(
+      await put({ token: link.token, koerper: PNG(7), frage: { ab: 0, name: "foto.png" } }),
+    );
+    expect(erst.empfangen).toBe(15);
+    const id = erst.id as string;
+
+    // A oeffnet die Zwischendatei und wartet auf seinen Rumpf, OHNE schon ein
+    // Byte geschrieben zu haben — der Offset bleibt also fuer B unveraendert.
+    const a = gehaltenerRumpf(null);
+    const vorher = schreibBeobachtung.lesend;
+    const antwortA = putStrom(link.token, { ab: 15, id }, a.strom);
+    await vi.waitFor(() => expect(schreibBeobachtung.lesend).toBe(vorher + 1));
+
+    // B: derselbe, noch unveraenderte Offset, `ende=1`, leerer Rumpf — genau
+    // der Ablauf aus dem Befund. Vorher: 200, `rename`, Zeile vollstaendig.
+    const b = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 15, id, ende: 1, typ: "image/png" },
+    });
+    expect(b.status).toBe(409);
+    expect((await koerperVon(b)).code).toBe("offset");
+    expect(existsSync(blobPfad(id))).toBe(false);
+    expect(inboxZeilen()[0]?.bytes_vollstaendig_at).toBeNull();
+    expect(reiheAvEinMock).not.toHaveBeenCalled();
+
+    // A schreibt weiter und endet OHNE `ende=1` — seine Bytes landen in der
+    // Zwischendatei, nicht in einem geprueften Blob.
+    a.weiter(new Uint8Array(21).fill(0x43));
+    a.ende();
+    const nachA = await koerperVon(await antwortA);
+    expect(nachA).toMatchObject({ empfangen: 36, fertig: false });
+
+    // Erst JETZT schliesst B ab — und die Zeile traegt exakt die Bytes, die
+    // danach vorliegen und gescannt werden.
+    const b2 = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 36, id, ende: 1, typ: "image/png" },
+    });
+    expect(b2.status).toBe(200);
+    expect(inboxZeilen()[0]?.size).toBe(36);
+    expect(statSync(blobPfad(id)).size).toBe(36);
+  });
+
+  it("nach dem Abschluss verändert weder eine alte noch eine neue Anfrage den Blob", async () => {
+    const link = neuerLink();
+    const erst = await koerperVon(
+      await put({ token: link.token, koerper: PNG(7), frage: { ab: 0, name: "foto.png" } }),
+    );
+    const id = erst.id as string;
+    const fertig = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 15, id, ende: 1, typ: "image/png" },
+    });
+    expect(fertig.status).toBe(200);
+
+    // Ein Neubeginn bei 0 (er oeffnete frueher mit `wx` eine NEUE
+    // Zwischendatei und ersetzte beim Abschluss den geprueften Blob) und ein
+    // Anhaengen an der alten Laenge — beide 404, der Blob bleibt, wie er ist.
+    for (const ab of [0, 15]) {
+      const spaet = await put({
+        token: link.token,
+        koerper: new Uint8Array(21).fill(0x44),
+        frage: { ab, id, ende: 1, typ: "image/png" },
+      });
+      expect(spaet.status).toBe(404);
+    }
+    expect(statSync(blobPfad(id)).size).toBe(15);
+    expect(existsSync(`${blobPfad(id)}.part`)).toBe(false);
+  });
+
+  it("bricht der erste Chunk vor dem ersten Byte ab, lässt sich die Abgabe bei 0 fortsetzen", async () => {
+    // Zurueck bleibt eine LEERE Zwischendatei. Vorher oeffnete der naechste
+    // Versuch sie mit `wx`, bekam EEXIST und antwortete 409 mit „erwartet 0" —
+    // eine Schleife ohne Ausgang.
+    const { token } = neuerLink();
+    const a = gehaltenerRumpf(null);
+    const vorher = schreibBeobachtung.lesend;
+    const antwortA = putStrom(token, { ab: 0, name: "foto.png" }, a.strom);
+    await vi.waitFor(() => expect(schreibBeobachtung.lesend).toBe(vorher + 1));
+    const id = inboxZeilen()[0]?.id as string;
+    a.brichAb();
+    await antwortA.catch(() => undefined);
+    expect(statSync(`${blobPfad(id)}.part`).size).toBe(0);
+
+    const neu = await put({
+      token,
+      koerper: PNG(7),
+      frage: { ab: 0, id, ende: 1, typ: "image/png" },
+    });
+    expect(neu.status).toBe(200);
+  });
+
+  it("gibt den Besitz frei, wenn A abbricht — B setzt am gemessenen Stand fort", async () => {
+    const link = neuerLink();
+    const erst = await koerperVon(
+      await put({ token: link.token, koerper: PNG(7), frage: { ab: 0, name: "foto.png" } }),
+    );
+    const id = erst.id as string;
+
+    const a = gehaltenerRumpf(Uint8Array.from([0x42]));
+    const antwortA = putStrom(link.token, { ab: 15, id }, a.strom);
+    await warteAufZwischendatei(id, 16);
+    a.brichAb();
+    await antwortA.catch(() => undefined);
+
+    const weiter = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 16, id, ende: 1, typ: "image/png" },
+    });
+    expect(weiter.status).toBe(200);
+    expect(inboxZeilen()[0]?.size).toBe(16);
+  });
+});
+
+// --- DRK-288: offene Abgaben zaehlen aufs Kontingent -------------------------
+
+/** Ein Prozessneustart, soweit er diesen Weg betrifft: der Prozessspeicher ist leer. */
+function simuliereNeustart(): void {
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for("iuk.files.abgabeBudget")];
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for("iuk.files.schreibbesitz")];
+}
+
+/** Der erste Chunk einer Abgabe, OHNE `ende` — sie bleibt offen. */
+function oeffne(token: string, bytes: number, name = "a.png"): Promise<Response> {
+  return put({ token, koerper: PNG(bytes - 8), frage: { ab: 0, name } });
+}
+
+describe("PUT /api/u/[token]/upload — DRK-288: Kontingent für offene Abgaben", () => {
+  it("der Befund: 1 Datei / 32 Byte, drei offene erste Chunks à 16 Byte — nur der erste geht durch", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 32 });
+
+    const antworten = [];
+    for (const name of ["a.png", "b.png", "c.png"]) antworten.push(await oeffne(token, 16, name));
+
+    expect(antworten.map((a) => a.status)).toEqual([200, 429, 429]);
+    for (const a of antworten.slice(1)) expect((await koerperVon(a)).code).toBe("kontingent");
+    // Die abgewiesenen hinterlassen weder Zeile noch Bytes.
+    expect(inboxZeilen()).toHaveLength(1);
+    expect(inboxDateien()).toHaveLength(1);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 0, verbraucht_bytes: 0 });
+  });
+
+  it("parallel dasselbe: von zwei gleichzeitigen Eröffnungen belegt genau eine den Platz", async () => {
+    const { token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    const stati = (await Promise.all([oeffne(token, 16, "a.png"), oeffne(token, 16, "b.png")])).map(
+      (a) => a.status,
+    );
+
+    expect(stati.sort()).toEqual([200, 429]);
+    expect(inboxZeilen()).toHaveLength(1);
+  });
+
+  it("offene BYTES zählen: eine zweite Datei bekommt nur, was die erste übrig lässt — auch nach einem Neustart", async () => {
+    const { token } = neuerLink({ budgetDateien: 5, budgetBytes: 32 });
+    expect((await oeffne(token, 20, "a.png")).status).toBe(200);
+
+    simuliereNeustart();
+
+    const zuViel = await oeffne(token, 16, "b.png");
+    expect(zuViel.status).toBe(429);
+    expect((await koerperVon(zuViel)).code).toBe("kontingent");
+    // Der Platz der abgewiesenen Datei ist wieder frei, ihre Bytes sind weg.
+    expect(inboxZeilen()).toHaveLength(1);
+
+    expect((await oeffne(token, 12, "c.png")).status).toBe(200);
+  });
+
+  it("der Folgechunk einer offenen Datei zählt ihre eigenen Bytes nicht doppelt", async () => {
+    const { token } = neuerLink({ budgetDateien: 1, budgetBytes: 32 });
+    const { id } = await koerperVon(await oeffne(token, 16));
+
+    const weiter = await put({
+      token,
+      koerper: new Uint8Array(16).fill(0x42),
+      frage: { ab: 16, id, ende: 1, typ: "image/png" },
+    });
+
+    expect(weiter.status).toBe(200);
+    expect((await koerperVon(weiter)).empfangen).toBe(32);
+  });
+
+  it("ein laufender Chunk hält seinen Vorbehalt — eine parallele Abgabe sieht ihn, und danach ist er frei", async () => {
+    const { token } = neuerLink({ budgetDateien: 5, budgetBytes: 32 });
+    const { id } = await koerperVon(await oeffne(token, 16));
+
+    // A: ein Folgechunk, dessen Rumpf der Test haelt. Sein Vorbehalt reicht bis
+    // an das Budget (16 + min(4 MiB, 16) = 32).
+    const a = gehaltenerRumpf(null);
+    const vorher = schreibBeobachtung.lesend;
+    const antwortA = putStrom(token, { ab: 16, id }, a.strom);
+    await vi.waitFor(() => expect(schreibBeobachtung.lesend).toBe(vorher + 1));
+
+    const waehrend = await oeffne(token, 9, "b.png");
+    expect(waehrend.status).toBe(429);
+
+    // A schreibt nur 4 Bytes — nach seinem Ende zaehlt die LAENGE, nicht mehr
+    // der Vorbehalt, und fuer B bleiben 12.
+    a.weiter(new Uint8Array(4).fill(0x43));
+    a.ende();
+    expect((await koerperVon(await antwortA)).empfangen).toBe(20);
+
+    expect((await oeffne(token, 12, "b.png")).status).toBe(200);
+  });
+
+  it("Abschluss wandelt um: der Platz zählt einmal, als Verbrauch", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    expect((await abgabe(token, PNG(8))).status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 16 });
+    expect((await oeffne(token, 16, "b.png")).status).toBe(429);
+  });
+
+  it("eine abgelehnte Datei gibt ihren Platz genau einmal frei", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    // 415 beim Abschluss: Zeile und Bytes gehen, der Platz ist wieder frei.
+    const abgelehnt = await abgabe(token, UNBEKANNT, { name: "x.bin", typ: "" });
+    expect(abgelehnt.status).toBe(415);
+    expect(inboxZeilen()).toHaveLength(0);
+
+    expect((await abgabe(token, PNG(8))).status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 16 });
+  });
+
+  it("ein Abschnitt über FILES_CHUNK_BYTES wird benannt abgewiesen, nicht als Kontingent", async () => {
+    const { token } = neuerLink({ budgetDateien: 1, budgetBytes: 100 * 1024 * 1024 });
+    const riesig = new Uint8Array(4 * 1024 * 1024 + 1);
+    riesig.set(PNG(0));
+
+    const antwort = await put({ token, koerper: riesig, frage: { ab: 0, name: "gross.png" } });
+
+    expect(antwort.status).toBe(413);
+    expect((await koerperVon(antwort)).code).toBe("zu-gross");
+    expect(inboxZeilen()).toHaveLength(0);
   });
 });

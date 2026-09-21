@@ -80,6 +80,7 @@ import {
   abschliesse,
   groesse,
   loesche,
+  mitSchreibbesitz,
   schreibeStrom,
   type BlobZiel,
 } from "@/app/m/files/_lib/storage";
@@ -498,10 +499,14 @@ async function stelleBlobSicher(ziel: BlobZiel, inhalt: Uint8Array): Promise<num
   const vorhanden = await groesseOderNull(ziel);
   if (vorhanden !== null) return vorhanden;
 
-  await loesche(ziel);
-  await schreibeStrom(ziel, einStueck(inhalt), { maxBytes: SEED_BLOB_MAX_BYTES });
-  const { bytes } = await abschliesse(ziel);
-  return bytes;
+  // Derselbe Schreibbesitz wie in den Upload-Wegen: ohne ihn weist die Ablage
+  // jeden Schreibzugriff laut ab (DRK-289).
+  return mitSchreibbesitz(ziel, async () => {
+    await loesche(ziel);
+    await schreibeStrom(ziel, einStueck(inhalt), { maxBytes: SEED_BLOB_MAX_BYTES });
+    const { bytes } = await abschliesse(ziel);
+    return bytes;
+  });
 }
 
 // ---------------------------------------------------------------------------

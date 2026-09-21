@@ -100,16 +100,16 @@ export async function GET(req: Request, ctx: RouteKontext) {
     return antwort(suche ? `/?${suche}` : "/");
   };
 
-  // Ohne Zwischenschicht (Spec:3033-3035, `_lib/gateSchranke.ts:53-56`). Einmal ermittelt,
+  // Ohne Zwischenschicht (Spec:3033-3035, `_lib/gateSchranke.ts`, Kopf: „KEINE ZWISCHENSCHICHT"). Einmal ermittelt,
   // zweimal benutzt — Schritt 2 und Schritt 6.
   const absender = clientIpAus(kopf);
 
   /*
    * SCHRITT 2 — gesperrt? OHNE Datenbankzugriff, und ohne hier zu buchen: sonst
    * verlaengerte jeder Versuch waehrend der Sperre die Sperre
-   * (`_lib/gateSchranke.ts:141-176`).
+   * (`_lib/gateSchranke.ts`, `gateGesperrt`). Eine wohlgeformte Eingabe ist nie gesperrt (DRK-291).
    */
-  if (gateGesperrt(absender) !== null) return zumGate("zuviele");
+  if (gateGesperrt(absender, { eingabe: code }) !== null) return zumGate("zuviele");
 
   /*
    * SCHRITT 3 — normalisieren. `loeseCodeEin` normalisiert NICHT selbst
@@ -142,7 +142,7 @@ export async function GET(req: Request, ctx: RouteKontext) {
    * SCHRITT 5 — Erfolg. KEIN Budgetverbrauch: ein richtiger Code kostet nichts, sonst
    * sperrte sich ein Funkraum voller Personen an DEMSELBEN Aufsteller mit RICHTIGEN Codes
    * selbst aus — bei `radio` der Regelfall, nicht der Randfall
-   * (`_lib/gateSchranke.ts:185-189`).
+   * (`_lib/gateSchranke.ts`, `gateFehlversuchBuchen`).
    *
    * ⛔ DAS COOKIE LIEGT AUF DERSELBEN ANTWORT, DIE DEN 303 TRAEGT (Spec:2298-2302,
    * Bauform-Zulaessigkeitstafel Zeile 2). Zwei getrennte Antworten waeren ein Cookie, das

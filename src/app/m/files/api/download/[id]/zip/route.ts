@@ -226,11 +226,18 @@ export async function GET(
      */
     const kandidaten: ZipKandidat[] = [];
     const ohneBlob: string[] = [];
+    const gepruefteGroesse = new Map<string, number>();
     for (const datei of inhalt.dateien) {
-      if (datei.blobFehlt) {
+      // DRK-289: ein Blob, der nicht mehr die beim Abschluss gepruefte Groesse
+      // hat, ist nicht die Datei, fuer die der Scanner gesprochen hat. Er geht
+      // in die Fehlliste wie ein fehlender, VOR dem ersten Byte.
+      const veraendert =
+        datei.vollstaendig && !datei.blobFehlt && datei.gemesseneGroesse !== datei.groesse;
+      if (datei.blobFehlt || veraendert) {
         ohneBlob.push(datei.dateiname);
         continue;
       }
+      gepruefteGroesse.set(datei.id, datei.groesse);
       kandidaten.push({
         id: datei.id,
         name: datei.dateiname,
@@ -292,11 +299,12 @@ export async function GET(
         }
         for (const eintrag of plan.eintraege) {
           if (req.signal.aborted) break;
-          const { strom } = await lieseStrom({
-            art: "share",
-            shareId: share.id,
-            fileId: eintrag.id,
-          });
+          // Die zweite Linie (DRK-289): weicht die Groesse jetzt ab, wirft
+          // `lieseStrom`, und das Archiv bricht ab, statt fremde Bytes zu tragen.
+          const { strom } = await lieseStrom(
+            { art: "share", shareId: share.id, fileId: eintrag.id },
+            { erwarteteBytes: gepruefteGroesse.get(eintrag.id) ?? -1 },
+          );
           laufenderStrom = strom;
           try {
             await fuegeEin(archiv, strom, eintrag.eintragsname, req.signal);

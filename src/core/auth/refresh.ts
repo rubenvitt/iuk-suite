@@ -236,9 +236,9 @@ function geteilterAustausch(
  * Drei Ausgaenge statt zwei:
  *   Erfolg          -> neue Token, `error` und `refreshFailedAt` geloescht,
  *                      Gruppen aus dem neuen `id_token`
- *   Endgueltig tot  -> `error: "RefreshTokenError"`, `refreshFailedAt`
- *                      geloescht (nur bei 400/401 + `invalid_grant`) -> der
- *                      SessionGuard uebernimmt
+ *   Endgueltig tot  -> `error: "RefreshTokenError"` (nur bei 400/401 +
+ *                      `invalid_grant`) -> `config.ts` verwirft daraufhin die
+ *                      ganze Sitzung serverseitig (DRK-284)
  *   Transient       -> Token UNVERAENDERT zurueck, nur `refreshFailedAt`
  *                      gesetzt. Die Suite nutzt den Access-Token nirgends fuer
  *                      Ressourcenzugriffe (Autorisierung laeuft ueber
@@ -257,8 +257,8 @@ export async function tokenAuffrischen(token: JWT, optionen: AuffrischOptionen):
 
   const jetztMs = jetzt();
 
-  // Einmal endgueltig gescheitert heisst: nicht weiter anklopfen. Der
-  // SessionGuard raeumt die Sitzung ab; jeder weitere Versuch waere ein
+  // Einmal endgueltig gescheitert heisst: nicht weiter anklopfen. `config.ts`
+  // verwirft die Sitzung ohnehin; jeder weitere Versuch waere ein
   // Reuse-Versuch gegen ein Token, das Pocket ID bereits widerrufen hat.
   if (token.error === "RefreshTokenError") return token;
   if (typeof token.expiresAt !== "number") return token;

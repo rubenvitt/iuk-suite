@@ -75,8 +75,8 @@ function ohneKommentare(quelle: string): string {
  * Zeitpunkt noch in der temporalen Totzone.
  */
 const { gateGesperrt, gateFehlversuchBuchen, redeemToken, getDb } = vi.hoisted(() => ({
-  gateGesperrt: vi.fn<(absender: string) => number | null>(),
-  gateFehlversuchBuchen: vi.fn<(absender: string) => void>(),
+  gateGesperrt: vi.fn<(absender: string, anfrage?: { merkmal: string | null }) => number | null>(),
+  gateFehlversuchBuchen: vi.fn<(absender: string, anfrage?: { merkmal: string | null }) => void>(),
   redeemToken: vi.fn<(code: string, db: unknown) => Promise<unknown>>(),
   getDb: vi.fn<() => unknown>(),
 }));
@@ -87,6 +87,24 @@ vi.mock("../../_lib/gateSchranke", () => ({ gateGesperrt, gateFehlversuchBuchen 
 // stumm — er schneidet den Funktionskoerper anhand von `redeemToken(`.
 vi.mock("../../_lib/schreibpfade/tokenEinloesung", () => ({ redeemToken }));
 vi.mock("../../_db/client", () => ({ getDb }));
+
+/**
+ * DRK-291 — das Merkmal „bekanntes Gerät" ist GEMOCKT, wie in
+ * `_actions/gate.test.ts`: Signatur und Unterscheidung prüft
+ * `_lib/gateSchranke.zugang.test.ts`, hier zählt allein die Verdrahtung. Die
+ * Optionen sind echte Cookie-Attribute, weil `NextResponse` sie serialisiert;
+ * `Max-Age=4711` macht das Gerätecookie im `Set-Cookie` unverwechselbar.
+ */
+const merkmal = vi.hoisted(() => ({
+  gateMerkmal: vi.fn<(lies: (name: string) => string | undefined) => Promise<string | null>>(),
+  geraetCookieWert: vi.fn<(bisher: string | undefined) => Promise<string>>(),
+}));
+vi.mock("../../_lib/gateSchrankeMerkmal", () => ({
+  GERAET_COOKIE: "lagerbuch_geraet",
+  gateMerkmal: merkmal.gateMerkmal,
+  geraetCookieWert: merkmal.geraetCookieWert,
+  geraetCookieOptionen: () => ({ path: "/", httpOnly: true, sameSite: "lax", maxAge: 4711 }),
+}));
 
 import { GET } from "./route";
 
@@ -147,6 +165,8 @@ beforeEach(() => {
   // die Regel nennen, die fehlt, nicht den Folgefehler.
   redeemToken.mockReset().mockResolvedValue({ ok: false });
   getDb.mockReset().mockReturnValue(DB_HANDLE);
+  merkmal.gateMerkmal.mockReset().mockResolvedValue(null);
+  merkmal.geraetCookieWert.mockReset().mockResolvedValue("geraet.jwt");
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -168,6 +188,7 @@ describe("/t/<code> — Schritt 1: Host", () => {
 
     expect(r.status).toBe(404);
     expect(gateGesperrt).not.toHaveBeenCalled();
+    expect(merkmal.gateMerkmal).not.toHaveBeenCalled();
     expect(getDb).not.toHaveBeenCalled();
     expect(redeemToken).not.toHaveBeenCalled();
     expect(gateFehlversuchBuchen).not.toHaveBeenCalled();
@@ -277,7 +298,17 @@ describe("/t/<code> — Schritt 5: Erfolg", () => {
     expect(r.status).toBe(303);
     expect(r.headers.get("Location")).toBe("/helfer/check?fz=fz-1");
 
-    const cookie = r.headers.get("set-cookie") ?? "";
+    // Zwei `Set-Cookie` auf DERSELBEN Antwort: die Sitzung und das Merkmal
+    // „bekanntes Gerät" (DRK-291). Geprüft wird jedes für sich — auf dem
+    // zusammengefügten Kopf träfe `Max-Age=…` sonst das falsche.
+    const alle = r.headers.getSetCookie();
+    expect(alle.map((c) => c.split("=")[0])).toEqual(["helfer_session", "lagerbuch_geraet"]);
+    const geraet = alle[1] ?? "";
+    expect(geraet).toContain("lagerbuch_geraet=geraet.jwt");
+    expect(geraet).toContain("Max-Age=4711");
+    expect(merkmal.geraetCookieWert).toHaveBeenCalledWith(undefined);
+
+    const cookie = alle[0] ?? "";
     expect(cookie).toContain("helfer_session=jwt.x.y");
     expect(cookie).toContain("Path=/");
     expect(cookie).toContain("HttpOnly");
@@ -366,9 +397,9 @@ describe("/t/<code> — Schritt 6: Misserfolg", () => {
     );
 
     expect(gateGesperrt).toHaveBeenCalledTimes(1);
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7");   // `absender.ts:48-51`
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7");
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith(gateGesperrt.mock.calls[0]![0]);
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: null });   // `absender.ts:48-51`
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: null });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith(...gateGesperrt.mock.calls[0]!);
   });
 
   it("nimmt `returnTo` auch in die Misserfolgs-Gate-URL mit", async () => {
@@ -378,6 +409,37 @@ describe("/t/<code> — Schritt 6: Misserfolg", () => {
     redeemToken.mockResolvedValue({ ok: false });
     const r = await GET(anfrage("/t/000-000?returnTo=%2Fa%2Fart-9"), ctx("000-000"));
     expect(r.headers.get("Location")).toBe("/?returnTo=%2Fa%2Fart-9&grund=code");
+  });
+});
+
+describe("/t/<code> — das Merkmal „bekanntes Gerät\" (DRK-291)", () => {
+  it("liest das Merkmal aus dem `Cookie`-Kopf DIESER Anfrage und reicht es an Prüfung UND Buchung", async () => {
+    // Läse die Sperre im Eimer des Geräts und buchte der Fehlversuch bei den
+    // Unbekannten (oder umgekehrt), sperrte sich keiner der beiden je selbst.
+    merkmal.gateMerkmal.mockImplementation(async (lies) =>
+      lies("lagerbuch_geraet") === "alt.jwt" ? "geraet:abc" : null);
+    redeemToken.mockResolvedValue({ ok: false });
+
+    const r = await GET(
+      anfrage("/t/000-000", "lagerbuch.localtest.me", {
+        "cf-connecting-ip": "203.0.113.7", cookie: "lagerbuch_geraet=alt.jwt",
+      }),
+      ctx("000-000"),
+    );
+
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: "geraet:abc" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:203.0.113.7", { merkmal: "geraet:abc" });
+    expect(gateFehlversuchBuchen.mock.calls[0]?.[1]).toEqual(gateGesperrt.mock.calls[0]?.[1]);
+    // Misserfolg: KEIN Gerätecookie — das Merkmal gibt es nur für einen richtigen Code.
+    expect(r.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("ein vorhandenes Merkmal behält seine Kennung — der bisherige Wert geht an `geraetCookieWert`", async () => {
+    redeemToken.mockResolvedValue(TREFFER);
+
+    await GET(anfrage("/t/482-137", "lagerbuch.localtest.me", { cookie: "lagerbuch_geraet=alt.jwt" }), ctx("482-137"));
+
+    expect(merkmal.geraetCookieWert).toHaveBeenCalledWith("alt.jwt");
   });
 });
 
