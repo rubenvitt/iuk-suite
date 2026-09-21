@@ -171,39 +171,122 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
 });
 
 /*
- * ⚠️ JE ARTIKEL, NICHT NUR DER ERSTE: der Überlauf wuchs mit den Daten der
- * Tabellen und war je Zeile verschieden breit — der erste Seed-Artikel hat
- * weder Chargen noch Buchungen und lief bei 800 px gar nicht über. Wer nur
- * ihn öffnet, prüft den einen Fall, in dem der Defekt nicht auftritt.
+ * ⚠️ EIN EIGENER ARTIKEL MIT CHARGE UND BUCHUNG, NICHT DIE SEED-ZEILEN: der
+ * Überlauf wuchs mit den Daten der beiden Tabellen — ein Artikel ohne
+ * Chargen und Buchungen lief bei 800 px gar nicht über. Ein Test, der
+ * Seed-Zeilen öffnet, erbt deren Belegung aus allen vorher gelaufenen
+ * Dateien (`docs/design/README.md`, „Ein e2e-Test darf seinen Zustand nicht
+ * vom Seed erben") und bliebe grün, sobald die zufällig leer sind.
+ *
+ * Die lange Chargennummer macht die Tabellen breit genug, um den Defekt an
+ * JEDER der drei Breiten auszulösen; `erwarteBreiteTabelle` belegt das,
+ * damit die Zusicherung nicht still trivial wahr wird.
+ *
+ * Der Versuchszähler steht im Namen, weil CI mit `retries: 2` gegen DIESELBE
+ * Datenbank fährt (Vorbild `e2e/lagerbuch-umlagern.spec.ts`).
  */
-test("Artikeldetails: kein waagerechter Überlauf, auch mit Chargen und Buchungen", async ({ page }) => {
+test("Artikeldetails: kein waagerechter Überlauf mit Chargen und Buchungen", async ({ page }) => {
   test.setTimeout(180_000);
+  const versuch = test.info().retry;
+  const artikelName = `E2E Flyin-Breite Versuch ${versuch}`;
+  const chargenNr = `E2E-FLYIN-BREITE-LANGE-CHARGENNUMMER-${versuch}`;
   await devLogin(page, {
     host: LAGERBUCH_HOST,
     groups: LAGERBUCH_ADMIN_GRUPPE,
     callbackPath: "/verwaltung",
   });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(lagerbuchUrl("/verwaltung/artikel"));
+  await expect(page.getByTestId("lb-excel")).toBeVisible();
+
+  // ── Artikel anlegen ──────────────────────────────────────────────────
+  await klickeWennRuhig(page.getByRole("button", { name: "Neuer Artikel" }));
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name").fill(artikelName);
+  await dialog.getByLabel("Fach").fill("E2E-FB");
+  await dialog.getByLabel("Einheit").fill("Stk.");
+  const anlegen = serverActionAntwort(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Anlegen" }));
+  expect((await anlegen).ok(), "Artikel anlegen: Server Action").toBe(true);
+
+  // ── Zugang buchen: erzeugt Charge UND Buchung ────────────────────────
+  await oeffneArtikel(page, artikelName);
+  const zugangForm = page.locator('form[data-rolle="zugang-form"]');
+  await zugangForm.getByLabel("Zugangsmenge").fill("7");
+  await zugangForm.getByLabel("Chargennummer").fill(chargenNr);
+  await klickeWennRuhig(page.getByRole("combobox", { name: "Wohin", exact: true }));
+  await page.locator(".ant-select-dropdown:not(.ant-select-dropdown-hidden)")
+    .locator(".ant-select-item-option", { hasText: "Handlager" })
+    .first()
+    .click();
+  const verfall = zugangForm.getByLabel("Verfallsmonat");
+  await verfall.click();
+  await verfall.fill("2090-06");
+  await page.keyboard.press("Enter");
+  // Panel über eine inerte Überschrift schließen, nicht über `Escape` —
+  // das ist bei antds Picker ein Abbruch (Vorbild `lagerbuch-umlagern.spec.ts`).
+  await page.getByRole("heading", { name: "Zugang buchen" }).click();
+  const zugang = serverActionAntwort(page);
+  await klickeWennRuhig(page.getByRole("button", { name: "Zugang buchen" }));
+  expect((await zugang).ok(), "Zugang buchen: Server Action").toBe(true);
+  await expect(
+    page.getByRole("table", { name: "Chargen" }).locator("[data-row-key]"),
+  ).toContainText(chargenNr);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".ant-drawer-right.ant-drawer-open")).toHaveCount(0);
+
+  // ── Messen, je Breite frisch geöffnet ────────────────────────────────
   for (const breite of [1280, 800, 390]) {
     await page.setViewportSize({ width: breite, height: 800 });
-    await page.goto(lagerbuchUrl("/verwaltung/artikel"));
-    await expect(page.getByTestId("lb-excel")).toBeVisible();
-    const anzahl = Math.min(await page.locator("[data-row-key]").count(), 6);
-    expect(anzahl, "keine Artikelzeilen im Seed").toBeGreaterThan(0);
-    for (let zeile = 0; zeile < anzahl; zeile++) {
-      // Die Hülle bricht nach `load` noch um (CLAUDE.md, Falle 12).
-      await klickeWennRuhig(page.locator("[data-row-key]").nth(zeile));
-      const schublade = page.locator(".ant-drawer-right.ant-drawer-open");
-      // Erst wenn die Tabellen stehen, hat die Rasterspur ihre volle Breite.
-      await expect(schublade.getByText("Letzte Buchungen")).toBeVisible();
-      await page.waitForTimeout(300);
-      const mass = await vermesseSchublade(page);
-      expect(mass, `keine offene Schublade (Zeile ${zeile}, ${breite} px)`).not.toBeNull();
-      erwarteKeinenQuerueberlauf(mass!, `in Zeile ${zeile} bei ${breite} px`);
-      await page.keyboard.press("Escape");
-      await expect(schublade).toHaveCount(0);
-    }
+    await oeffneArtikel(page, artikelName, chargenNr);
+    const mass = await vermesseSchublade(page);
+    expect(mass, `keine offene Schublade bei ${breite} px`).not.toBeNull();
+    await erwarteBreiteTabelle(page, mass!, breite);
+    erwarteKeinenQuerueberlauf(mass!, `bei ${breite} px`);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".ant-drawer-right.ant-drawer-open")).toHaveCount(0);
   }
 });
+
+function serverActionAntwort(page: Page) {
+  // Nicht an der Aufrufstelle `await`-en: gelauscht wird vor dem Klick
+  // (CLAUDE.md, Falle 10, zweite Testregel).
+  return page.waitForResponse(
+    (r) => r.request().method() === "POST" && r.request().headers()["next-action"] !== undefined,
+    { timeout: 60_000 },
+  );
+}
+
+/** Über die Suche, nie über Bildlauf — die Tabelle virtualisiert (Falle 14). */
+async function oeffneArtikel(page: Page, name: string, charge?: string) {
+  await page.getByRole("searchbox").fill(name);
+  await klickeWennRuhig(page.getByRole("button", { name, exact: true }));
+  const schublade = page.locator(".ant-drawer-right.ant-drawer-open");
+  // Erst wenn die Tabellen Daten tragen, hat die Rasterspur ihre volle Breite.
+  await expect(schublade.getByRole("table", { name: "Chargen" })).toContainText(charge ?? "");
+  await page.waitForTimeout(300);
+}
+
+/**
+ * Die Gegenprobe: unter 1000 px ist die Chargentabelle breiter als der
+ * Platz in ihrem Abschnitt (Sichtbreite minus 48 px Schubladen- und 34 px
+ * Abschnittsrand) — sie MUSS also in sich scrollen. Ohne das wäre „kein
+ * Überlauf" auch dann wahr, wenn die Daten den Defekt nicht auslösen können.
+ */
+async function erwarteBreiteTabelle(
+  page: Page,
+  mass: NonNullable<Awaited<ReturnType<typeof vermesseSchublade>>>,
+  breite: number,
+) {
+  const tabelle = await page.getByRole("table", { name: "Chargen" }).evaluate(
+    (el) => el.getBoundingClientRect().width,
+  );
+  expect(tabelle, `Chargentabelle bei ${breite} px`).toBeGreaterThan(0);
+  if (breite < 1000) {
+    expect(tabelle, `Chargentabelle muss bei ${breite} px breiter sein als ihr Platz`)
+      .toBeGreaterThan(mass.sichtBreite - 48 - 34);
+  }
+}
 
 test("uav-Katalog: die Aufgaben-Schublade passt ins Fenster", async ({ page }) => {
   await devLogin(page, {
