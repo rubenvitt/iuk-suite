@@ -30,11 +30,13 @@ import { GeraeteTabelle } from "./GeraeteTabelle";
  * Ableitung derselben Aussage ist die, die auseinanderlaeuft.
  * ⛔ UND SIE SIND EINE ANZEIGE-ENTSCHEIDUNG, KEINE SPERRE — die Sperre ist
  * `requireRadioAdmin()` als erste Anweisung von `geraetAnlegenAction`
- * (`admin/actions.ts:447`) und der eigene Riegel von `geraete/export/route.ts` (V22).
+ * (`admin/actions.ts:459`) und der eigene Riegel von `geraete/export/route.ts` (V22).
  *
  * ⛔ EINE INSEL, EINE GRENZE (Entscheidung E-V6): alles ab der Werkzeugleiste liegt in
  * `GeraeteTabelle.tsx`. Diese Datei reicht ausschliesslich VORFORMATIERTE, serialisierbare
- * Werte hinueber — keine Funktion, kein `Date` (`Spec:4536-4539`).
+ * Werte hinueber — keine Funktion, kein `Date` (`Spec:4536-4539`). Seit DRK-335 ist das die
+ * ERSTE Portion samt Position (`naechsterCursor`: roher Sortierwert und Kennung); weitere
+ * holt die Insel ueber `geraeteNachladenAction`.
  */
 
 /**
@@ -65,8 +67,7 @@ export default async function RadioGeraeteSeite({
       <GeraeteTabelle
         zeilen={seite.zeilen}
         gesamt={seite.gesamt}
-        seite={seite.seite}
-        seitenGroesse={seite.seitenGroesse}
+        naechsterCursor={seite.naechsterCursor}
         sortierung={werte.sortierung || null}
         filter={werte.filter}
         suchtext={werte.q}

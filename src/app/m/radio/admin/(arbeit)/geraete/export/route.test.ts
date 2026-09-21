@@ -382,8 +382,8 @@ describe("GET /admin/geraete/export — die Bauform, die kein Typ haelt", () => 
      * ausser diesem Fall saehe das Verschwinden der Zeile.
      *
      * ⛔ UEBER `ohneKommentare`, NICHT UEBER DEN ROHEN TEXT: sonst bliebe eine
-     * AUSKOMMENTIERTE Zeile gruen — dieselbe Hausform wie `../GeraeteTabelle.test.tsx:821-822`,
-     * `../../ausleihen/AusleihenTabelle.test.tsx:631-632` und
+     * AUSKOMMENTIERTE Zeile gruen — dieselbe Hausform wie `../GeraeteTabelle.test.tsx:879-880`,
+     * `../../ausleihen/AusleihenTabelle.test.tsx:665-666` und
      * `../../software/UpdateSuche.test.tsx:650-651` (⚠️ jene liegt unter `software/`, nicht
      * unter `update/`).
      */

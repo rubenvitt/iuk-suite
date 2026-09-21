@@ -44,7 +44,13 @@ import { dirname, join, normalize } from "node:path";
  * mounted` — gemessen beim ersten Lauf dieser Aufgabe: 4 von 15 Faellen rot, alle mit dieser
  * Meldung. Die Insel schreibt ihre Blaetterung und ihren Filter ueber `router.replace`.
  */
-const { replaceMock } = vi.hoisted(() => ({ replaceMock: vi.fn() }));
+const { replaceMock, nachladenMock } = vi.hoisted(() => ({
+  replaceMock: vi.fn(),
+  nachladenMock: vi.fn(),
+}));
+// ⛔ Die Insel importiert die Nachschlag-Action DIREKT (DRK-335); ohne Ersatz zoege der Test
+// die ganze `"use server"`-Datei samt Datenbank und Riegel in jsdom.
+vi.mock("../../actions", () => ({ ausleihenNachladenAction: nachladenMock }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceMock, push: vi.fn() }),
   usePathname: () => "/admin/ausleihen",
@@ -116,8 +122,7 @@ function props(teil: Partial<Parameters<typeof AusleihenTabelle>[0]> = {}) {
   return {
     zeilen: [zeile()],
     gesamt: 1,
-    seite: 1,
-    seitenGroesse: 20,
+    naechsterCursor: null,
     filter: { geraet: "", von: "", bis: "" },
     geraete: [{ id: "g-1", rufname: "41/12" }],
     ...teil,
@@ -164,6 +169,7 @@ function texte(rolle: string): string[] {
  */
 beforeEach(() => {
   replaceMock.mockReset();
+  nachladenMock.mockReset();
   /*
    * ⛔ UND DIE ADRESSZEILE GEHOERT EBENSO ZURUECKGESETZT. `schreibeUrl` liest den BESTAND aus
    * `window.location.search` (`AusleihenTabelle.tsx`, „Er legt IMMER den vollstaendigen Patch
@@ -319,20 +325,75 @@ describe("radio-Ausleihen: die sieben Spalten", () => {
   });
 });
 
-describe("radio-Ausleihen: Blaetterung und Filter", () => {
-  it("die Blaetterung rechnet mit der Seitengroesse aus den Props", async () => {
+describe("radio-Ausleihen: Nachladen und Filter", () => {
+  it("der Stand nennt die GEFILTERTE Gesamtzahl, nicht die geladene Portion", async () => {
     /*
-     * ⛔ DIE ZWEITE UNGEPRUEFTE 1:1-UNTERGRENZE (`VORABSCAN.md:665`: `gesamt` und die
-     * Seitengroesse). `gesamt` ist die GEFILTERTE Menge, nicht die Seite (`_db/leihen.ts`,
-     * dasselbe `where` wie die Zeilenabfrage) — rechnete die Blaetterung mit der Zeilenzahl
-     * der Seite, stuende auf jeder vollen Seite „Seite 1 von 1".
+     * `gesamt` ist die GEFILTERTE Menge (`_db/leihen.ts`, dasselbe `where` wie die
+     * Zeilenabfrage, ohne die Position) — rechnete der Stand mit den geladenen Zeilen, stuende
+     * auf jeder ersten Portion „20 Ausleihen", auch bei 45.
      */
-    await mount(<AusleihenTabelle {...props({ gesamt: 45, seite: 2, seitenGroesse: 20 })} />);
+    await mount(
+      <AusleihenTabelle
+        {...props({ gesamt: 45, naechsterCursor: { ausgeliehen: 1_780_000_000, id: "l-1" } })}
+      />,
+    );
 
-    expect(texte("radio-blaetterung-text")).toEqual(["Seite 2 von 3 · 45 Ausleihen"]);
+    expect(texte("radio-nachladen-stand")).toEqual([
+      "1 von 45 Ausleihen geladen – weitere beim Scrollen",
+    ]);
   });
 
-  it("eine Filteraenderung schreibt die Adresszeile und setzt auf Seite 1 zurueck", async () => {
+  it("laedt beim Scrollen nach — mit dem Filter der Seite und ihrer Position (DRK-335)", async () => {
+    /*
+     * ⛔ DER NACHSCHLAG BEKOMMT DEN FILTER IN ADRESSZEILEN-FORM, damit die Action ihn mit
+     * derselben Faltung liest wie die Seite. Die Logik des Hooks steht in
+     * `_ui/Nachladen.test.tsx`; hier geht es um die Anbindung dieser Insel.
+     */
+    let melden: (() => void) | null = null;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(rueckruf: IntersectionObserverCallback) {
+          melden = () =>
+            rueckruf(
+              [{ isIntersecting: true } as IntersectionObserverEntry],
+              this as unknown as IntersectionObserver,
+            );
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    nachladenMock.mockResolvedValue({
+      ok: true,
+      zeilen: [zeile({ id: "l-2", entleiher: "Berta Nachgeladen" })],
+      cursor: null,
+      gesamt: 2,
+    });
+    await mount(
+      <AusleihenTabelle
+        {...props({
+          gesamt: 2,
+          naechsterCursor: { ausgeliehen: 1_780_000_000, id: "l-1" },
+          filter: { geraet: "g-1", von: "2026-06-01", bis: "" },
+        })}
+      />,
+    );
+    await act(async () => melden?.());
+    await act(async () => {
+      await new Promise((fertig) => setTimeout(fertig, 0));
+    });
+
+    expect(nachladenMock).toHaveBeenCalledWith({
+      parameter: { geraet: "g-1", von: "2026-06-01", bis: "", seite: "" },
+      cursor: { ausgeliehen: 1_780_000_000, id: "l-1" },
+    });
+    expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Anna Beispiel", "Berta Nachgeladen"]);
+    expect(texte("radio-nachladen-stand")).toEqual(["2 Ausleihen"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("eine Filteraenderung schreibt die Adresszeile und loescht eine alte Seitenzahl", async () => {
     /*
      * ⛔ DER GANZE URL-SCHREIBWEG DER INSEL WAR UNBEWACHT (Schlusspruefung V16, Fund 1):
      * `replaceMock` wurde angelegt und eingehaengt, aber in keinem Fall zugesichert. Zwei
@@ -340,50 +401,24 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
      * gedreht — liessen das GANZE Modul gruen (62 Dateien, 882 Faelle). Bauform 1:1 aus
      * `GeraeteTabelle.test.tsx` („ein gesetzter Filter landet in der URL").
      *
-     * ⛔ DER FALL MUSS MIT `seite: 3` MONTIEREN UND NICHT MIT DER VORBELEGUNG, und das ist
-     * gemessen, nicht vermutet: `ausleihenSuchparameterZu` faltet die Seite 1 zur LEEREN
-     * Zeichenkette (`_lib/suchparameter.ts`, „Seite 1 ist die Vorgabe"), und `angewandt`
-     * loescht leere Schluessel. Auf der Vorbelegung schrieben die richtige Fassung und die
-     * Fehlform `{ ...naechster, seite }` DIESELBE Adresse — der Fall waere 0 rot by
-     * construction, genau die Klasse aus Ruling R-V11-1.
+     * ⛔ SEIT DRK-335 BLAETTERT DIE LISTE NICHT MEHR — die Adresszeile traegt deshalb eine
+     * ALTE Seitenzahl, wie ein gespeicherter Link sie hat. Sie muss beim Schreiben
+     * verschwinden; bliebe sie stehen, behauptete die Adresse eine Seite, die es nicht gibt.
      *
      * ⛔ `toHaveBeenCalledTimes(1)` AUF `replaceMock` IST DIE HAELFTE, DIE `push` FAENGT: der
      * Ersatz reicht fuer `push` ein frisch gebautes `vi.fn()` heraus, das niemand abgreift —
      * eine Insel, die `push` benutzte, liesse den Zaehler hier auf 0 fallen
      * (`AusleihenTabelle.tsx`: „`replace`, NICHT `push`").
      */
-    await mount(<AusleihenTabelle {...props({ seite: 3, gesamt: 100 })} />);
+    window.history.replaceState({}, "", "/admin/ausleihen?seite=3");
+    await mount(<AusleihenTabelle {...props({ gesamt: 100 })} />);
     await waehleGeraet("41/12");
 
     expect(replaceMock, "der Filter hat die URL nicht geschrieben").toHaveBeenCalledTimes(1);
     const { pfad, abfrage } = geschriebenesZiel();
     expect(pfad, "die Insel schreibt einen fremden Pfad").toBe("/admin/ausleihen");
     expect(abfrage.get("geraet"), "der gewaehlte Filter steht nicht in der Adresszeile").toBe("g-1");
-    expect(abfrage.get("seite"), "die Filteraenderung bleibt auf der alten Seite stehen").toBe(null);
-  });
-
-  it("die Blaetterung schreibt die Adresszeile, ohne den Filter zu verlieren", async () => {
-    /*
-     * ⛔ DIE ZWEITE HAELFTE DESSELBEN SCHREIBWEGS. `schreibeUrl({ ...stand, seite })` traegt
-     * den bestehenden Filter mit; ein Blaettern, das ihn fallen liesse, spraenge auf Seite 2
-     * der UNGEFILTERTEN Liste — und die Zeilen darunter waeren stillschweigend andere.
-     *
-     * ⛔ UND DIE SEITE MUSS HIER STEHENBLEIBEN, sie ist die Aussage: die Ruecksetzung aus dem
-     * Fall darueber gilt fuer die FILTER-Aenderung, nicht fuer die Blaetterung.
-     */
-    await mount(
-      <AusleihenTabelle
-        {...props({ gesamt: 45, seite: 1, filter: { geraet: "g-1", von: "2026-06-01", bis: "" } })}
-      />,
-    );
-    await click('[data-rolle="radio-blaettern-vor"]');
-
-    expect(replaceMock, "die Blaetterung hat die URL nicht geschrieben").toHaveBeenCalledTimes(1);
-    const { pfad, abfrage } = geschriebenesZiel();
-    expect(pfad).toBe("/admin/ausleihen");
-    expect(abfrage.get("seite"), "die Blaetterung blaettert nicht").toBe("2");
-    expect(abfrage.get("geraet"), "die Blaetterung verliert den Geraetefilter").toBe("g-1");
-    expect(abfrage.get("von"), "die Blaetterung verliert den Zeitraum").toBe("2026-06-01");
+    expect(abfrage.get("seite"), "die alte Seitenzahl steht noch in der Adresszeile").toBe(null);
   });
 
   it("der Zuruecksetzen-Knopf leert JEDEN Filterwert in der Adresszeile", async () => {
@@ -393,7 +428,7 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
      * Literal von Hand hinschrieb — „der leere Filter" stand an zwei Stellen, und keine
      * Messung hielt sie zusammen.
      *
-     * ⛔ DREI GESETZTE WERTE UND EINE SEITE GROESSER EINS: ein Zuruecksetzen, das nur den
+     * ⛔ DREI GESETZTE WERTE UND EINE ALTE SEITENZAHL: ein Zuruecksetzen, das nur den
      * Geraetefilter loeschte, bestuende ein Fixture mit nur einem gesetzten Wert. Das Ziel ist
      * die NACKTE Adresse — `ausleihenSuchparameterZu` fuehrt alle vier Schluessel als leere
      * Zeichenkette, und `angewandt` loescht genau die.
@@ -406,9 +441,9 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
      * `ausleihenSuchparameterZu`, das die leeren Schluessel WEGLIESSE, blieb hier gruen
      * (Sonde vor dem Fix: 18 passed, 0 rot). ⛔ UND DIE VIER SCHLUESSELNAMEN SIND DIE DES
      * LESEWEGS, nicht des Schreibewegs: `page.tsx:76` reicht `await searchParams` an
-     * `ausleihenParameterAus` (`_lib/suchparameter.ts:505-519`, `roh.geraet` · `roh.von` ·
-     * `roh.bis` · `roh.seite`), und `page.tsx:87-89` baut daraus genau die Props dieses
-     * Falls. Die Adresszeile hier ist also die Lage, die der Server herstellt.
+     * `ausleihenParameterAus` (`_lib/suchparameter.ts`, `roh.geraet` · `roh.von` · `roh.bis`;
+     * `seite` liest er seit DRK-335 nicht mehr), und `page.tsx` baut daraus (`filter={…}`) die
+     * Props dieses Falls. Die Adresszeile hier ist also die Lage, die der Server herstellt.
      */
     window.history.replaceState(
       {},
@@ -418,7 +453,6 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
     await mount(
       <AusleihenTabelle
         {...props({
-          seite: 2,
           gesamt: 45,
           filter: { geraet: "g-1", von: "2026-06-01", bis: "2026-06-30" },
         })}
@@ -671,17 +705,17 @@ describe("radio-Ausleihen: die Bauform der Insel und ihrer Seite", () => {
     expect(quelle, "ein Date in der Seite").not.toMatch(/\bnew Date\(/);
   });
 
-  it("die Seite erbt die Seitengroesse und schreibt sie nicht selbst hin", () => {
+  it("die Seite schreibt die Portionsgroesse nicht selbst hin und reicht die Position durch", () => {
     /*
      * ⛔ DIE ZWANZIG STEHT IM LESEPFAD (`_lib/lesepfade/ausleihen.ts`,
-     * `AUSLEIHEN_SEITENGROESSE`, 1:1 `LoanList.tsx:8`). Schriebe die Seite sie ein zweites Mal
-     * hin, zeigte die Blaetterung eine andere Zahl an, als die Abfrage benutzt hat — und die
-     * naechste Aenderung korrigierte nur eine der beiden.
+     * `AUSLEIHEN_SEITENGROESSE`, 1:1 `LoanList.tsx:8`) und in keiner zweiten Stelle — auch der
+     * Nachschlag liest sie von dort (DRK-335). Ohne die Position bekaeme die Insel eine erste
+     * Portion und koennte nie weiterladen.
      */
     const quelle = ohneKommentare(readFileSync(QUELLE_SEITE, "utf8"));
-    expect(quelle, "die Seite schreibt die Seitengroesse selbst hin").not.toMatch(/\b20\b/);
-    expect(quelle, "die Seitengroesse erreicht die Insel nicht").toMatch(
-      /seitenGroesse=\{seite\.seitenGroesse\}/,
+    expect(quelle, "die Seite schreibt die Portionsgroesse selbst hin").not.toMatch(/\b20\b/);
+    expect(quelle, "die Position erreicht die Insel nicht").toMatch(
+      /naechsterCursor=\{seite\.naechsterCursor\}/,
     );
   });
 });

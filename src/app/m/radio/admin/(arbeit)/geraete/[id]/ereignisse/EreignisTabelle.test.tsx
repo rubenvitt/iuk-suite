@@ -128,7 +128,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
      * Grund, den `_lib/lesepfade/ereignisse.test.ts:351-353` fuer den Lesepfad ausschreibt.
      *
      * ⛔ UND DIE INSEL TRAEGT IHREN EIGENEN RUECKFALL, obwohl der Lesepfad bereits faltet
-     * (`_lib/lesepfade/ereignisse.ts`, `wertText`). Das ist die Hausform: `GeraeteTabelle.tsx:70`
+     * (`_lib/lesepfade/ereignisse.ts`, `wertText`). Das ist die Hausform: `GeraeteTabelle.tsx:73`
      * fuehrt dieselbe Konstante ein zweites Mal. Der Grund ist die Grenze — was ueber die
      * Props hereinkommt, ist der Vertrag DIESER Datei, und die leere Zeichenkette ist der
      * Wert, den `toEventValue` fuer ein geleertes Feld herausgibt
@@ -338,7 +338,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
      * Sonst sieht die Seite kaputt aus: ein Tabellenkopf ueber nichts liest sich wie ein
      * Ladefehler, nicht wie „hier ist nichts passiert". ⛔ DIE TABELLE WIRD GAR NICHT ERST
      * GEBAUT — `locale={{ emptyText }}` liesse ihre Huelle stehen (die Form, die
-     * `GeraeteTabelle.tsx:487` fuehrt, weil dort eine Suche mit Filtern darueber steht und
+     * `GeraeteTabelle.tsx:457` fuehrt, weil dort eine Suche mit Filtern darueber steht und
      * die Spalten die Auskunft geben, WONACH gesucht wurde). Hier gibt es weder Suche noch
      * Filter, also traegt der Kopf keine Auskunft.
      *

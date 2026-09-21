@@ -239,7 +239,7 @@ export function handlerDatei(alt: string): string {
  *
  * ⛔ DER GRUND IST NICHT „DIE NAMEN SIND ANDERE", SONDERN DER TEILFILTER — die teurere
  * Haelfte, und sie ist gemessen. Bei `/devices` sind `q` und `status` ZEICHENGLEICH mit den
- * Parametern der Suite-Geraeteliste (`_lib/suchparameter.ts:200`, `:219` ueber
+ * Parametern der Suite-Geraeteliste (`_lib/suchparameter.ts:211`, `:227` ueber
  * `FILTER_LISTEN:56-64`), `location` und `updateStatus` aber NICHT — die Suite fuehrt sie als
  * `lagerort` (`:220`) und `updateStand` (`:212`). Ein durchgereichter Query wendete also EINEN
  * TEIL der Kriterien an und liesse den anderen still fallen: die Liste zeigte MEHR Zeilen als
@@ -247,7 +247,7 @@ export function handlerDatei(alt: string): string {
  * eine sichtbar UNgefilterte Liste. „Laut ist besser als still" (`CLAUDE.md`, Falle 7).
  * ⚠️ Bei den anderen zwei trifft kein einziger Name: `/loan?deviceIds=` gegen
  * `/ausleihen?geraete=` (`_lib/auswahl.ts:61`), `/admin/history?deviceId=&from=&to=` gegen
- * `/admin/ausleihen?geraet=&von=&bis=` (`_lib/suchparameter.ts:509-512`).
+ * `/admin/ausleihen?geraet=&von=&bis=` (`_lib/suchparameter.ts:520-523`).
  *
  * ⚠️ DAS IST DIESELBE ANTWORT WIE FUER DEN GEDRUCKTEN ALT-QR mit `?token=` auf `/`
  * (Kopf dieser Datei, Bericht §1.5): der Parameter verfaellt, die Abhilfe ist betrieblich —

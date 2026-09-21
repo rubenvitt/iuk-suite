@@ -227,7 +227,7 @@ describe("POST /admin/import/hochladen — der Riegel, alles IN der Route (B11)"
      *
      * ⚠️ DER STATUS BLEIBT 200 UND WIRD NICHT ZU 400 WIE IM BESTAND (`import.ts:21`, `:28`).
      * Der Grund ist die Hausform: die Suite reicht Schreib- und Lesefehler als
-     * `{ ok: false, fehler }` durch (`_lib/csv/einlesen.ts:58-67`, `admin/actions.ts:86`),
+     * `{ ok: false, fehler }` durch (`_lib/csv/einlesen.ts:58-67`, `admin/actions.ts:98`),
      * und ein 404/403-freier Fehlercode auf diesem Weg waere die einzige Stelle des Moduls,
      * an der ein Fachfehler als HTTP-Fehler erscheint.
      */

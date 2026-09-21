@@ -145,7 +145,7 @@ const CODE_TEXTE = {
   anlegen: "Anlegen",
   /** Der zugaengliche Name der Tabelle. ⚠️ Nicht wortgleich mit der Ueberschrift der Seite. */
   tabelleName: "Ausgestellte Zugänge",
-  /** Die leere Liste — Hausform (`ausleihen/AusleihenTabelle.tsx:359-360`). */
+  /** Die leere Liste — Hausform (`ausleihen/AusleihenTabelle.tsx:334-335`). */
   leer: "Kein Zugang ausgestellt",
   /**
    * ⛔ DIE ZWEI FEHLERTEXTE SIND HAUSTEXTE UND KEINE SERVERTEXTE. Es gibt hier kein

@@ -58,6 +58,7 @@ import tabellenSortierenFiltern from "@/app/m/portal/_lib/neuigkeiten/notizen/po
 import vonAllenGeraetenAbmelden from "@/app/m/portal/_lib/neuigkeiten/notizen/portal/2026-08-14-von-allen-geraeten-abmelden";
 import alteQrCodesGeltenWeiter from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-alte-qr-codes-gelten-weiter";
 import funkInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-08-28-funk-in-der-suite";
+import listenNachladen from "@/app/m/portal/_lib/neuigkeiten/notizen/radio/2026-09-21-listen-nachladen";
 import drohnentrainingInDerSuite from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-drohnentraining-in-der-suite";
 import fortschrittZaehltDurchfuehrungen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-fortschritt-zaehlt-durchfuehrungen";
 import katalogOhneCodeAnsehen from "@/app/m/portal/_lib/neuigkeiten/notizen/uav/2026-08-29-katalog-ohne-code-ansehen";
@@ -144,6 +145,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   listenAufDemTelefon,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
+  listenNachladen,
   drohnentrainingInDerSuite,
   katalogOhneCodeAnsehen,
   trainingsansichtOhneSuiteLeiste,

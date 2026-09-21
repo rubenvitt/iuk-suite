@@ -89,12 +89,16 @@ const INSEL_SOLL = [
  * initialisiert — gemessen: `ReferenceError: Cannot access 'anlegenMock' before
  * initialization`, und die ganze Datei faellt aus, nicht ein Fall.
  */
-const { anlegenMock, replaceMock, pushMock } = vi.hoisted(() => ({
+const { anlegenMock, nachladenMock, replaceMock, pushMock } = vi.hoisted(() => ({
   anlegenMock: vi.fn(),
+  nachladenMock: vi.fn(),
   replaceMock: vi.fn(),
   pushMock: vi.fn(),
 }));
-vi.mock("../../actions", () => ({ geraetAnlegenAction: anlegenMock }));
+vi.mock("../../actions", () => ({
+  geraetAnlegenAction: anlegenMock,
+  geraeteNachladenAction: nachladenMock,
+}));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceMock, push: pushMock }),
   usePathname: () => "/admin/geraete",
@@ -163,8 +167,7 @@ function eigenschaften(teil: Partial<GeraeteTabelleProps> = {}): GeraeteTabelleP
   return {
     zeilen: [zeile()],
     gesamt: 1,
-    seite: 1,
-    seitenGroesse: 20,
+    naechsterCursor: null,
     sortierung: null,
     filter: LEERE_FILTER,
     suchtext: "",
@@ -189,6 +192,7 @@ beforeEach(() => {
   replaceMock.mockReset();
   pushMock.mockReset();
   anlegenMock.mockReset();
+  nachladenMock.mockReset();
   window.localStorage.clear();
 });
 
@@ -419,11 +423,82 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
     expect(new URLSearchParams(ziel.split("?")[1]).get("ausleihbar")).toBe("1");
   });
 
+  it("laedt beim Scrollen nach — mit Filter, Sortierung und Position der Seite (DRK-335)", async () => {
+    /*
+     * ⛔ DER NACHSCHLAG BEKOMMT DIE SUCHPARAMETER IN ADRESSZEILEN-FORM (`suchparameterZu`),
+     * damit die Action sie mit DERSELBEN Faltung liest wie die Seite. Die Logik des Hooks
+     * steht in `_ui/Nachladen.test.tsx`; hier geht es um die Anbindung dieser Insel.
+     * ⚠️ Vitest rendert den MOBILEN Zweig — der Fuss steht deshalb unter BEIDEN Zweigen.
+     */
+    let melden: (() => void) | null = null;
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(rueckruf: IntersectionObserverCallback) {
+          melden = () =>
+            rueckruf(
+              [{ isIntersecting: true } as IntersectionObserverEntry],
+              this as unknown as IntersectionObserver,
+            );
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    nachladenMock.mockResolvedValue({
+      ok: true,
+      zeilen: [zeile({ id: "g-2", rufname: "Florian 2" })],
+      cursor: null,
+      gesamt: 2,
+    });
+    await mount(
+      <GeraeteTabelle
+        {...eigenschaften({
+          gesamt: 2,
+          naechsterCursor: { wert: "Florian 1", id: "g-1" },
+          sortierung: "rufname:asc",
+          suchtext: "Florian",
+          filter: { ...LEERE_FILTER, status: ["Einsatzbereit"] },
+        })}
+      />,
+    );
+    expect(query('[data-rolle="radio-nachladen-stand"]').textContent).toBe(
+      "1 von 2 Geräten geladen – weitere beim Scrollen",
+    );
+
+    await act(async () => melden?.());
+    await act(async () => {
+      await new Promise((fertig) => setTimeout(fertig, 0));
+    });
+
+    expect(nachladenMock).toHaveBeenCalledTimes(1);
+    const anfrage = nachladenMock.mock.calls[0]![0] as {
+      parameter: Record<string, string>;
+      cursor: unknown;
+    };
+    expect(anfrage.cursor).toEqual({ wert: "Florian 1", id: "g-1" });
+    // `toEqual`, nicht `toMatchObject`: fiele ein Schluessel heraus, liefe der Nachschlag
+    // gegen eine andere Treffermenge — und genau das soll hier auffallen.
+    expect(anfrage.parameter).toEqual({
+      ...Object.fromEntries(Object.keys(anfrage.parameter).map((k) => [k, ""])),
+      q: "Florian",
+      sortierung: "rufname:asc",
+      status: "Einsatzbereit",
+    });
+    expect(Object.keys(anfrage.parameter).sort()).toEqual([
+      "alamos", "ausleihbar", "funktion", "geraeteFunktionen", "geraeteTyp", "hatAbweichung",
+      "hersteller", "lagerort", "q", "seite", "sf", "sortierung", "status", "updateStand",
+    ]);
+    expect(document.body.textContent).toContain("Florian 2");
+    expect(query('[data-rolle="radio-nachladen-stand"]').textContent).toBe("2 Geräte");
+    vi.unstubAllGlobals();
+  });
+
   it("der Anlegen-Knopf fehlt, wenn darfAnlegen falsch ist", async () => {
     /*
      * 1:1 aus `DeviceList.tsx:150` (`{isAdmin && (…)}`). ⛔ UND ES IST EINE
      * ANZEIGE-ENTSCHEIDUNG, KEINE SPERRE: die Sperre ist `requireRadioAdmin()` als erste
-     * Anweisung von `geraetAnlegenAction` (`admin/actions.ts:447`). Wer diesen Fall fuer den
+     * Anweisung von `geraetAnlegenAction` (`admin/actions.ts:459`). Wer diesen Fall fuer den
      * Riegel haelt, hat die Luecke gebaut, gegen die der Riegel steht.
      */
     await mount(<GeraeteTabelle {...eigenschaften({ darfAnlegen: false, darfExportieren: false })} />);
@@ -481,17 +556,6 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
       warndreieck.closest(".ant-tag"),
       "das Warndreieck steht ausserhalb der Marke",
     ).not.toBeNull();
-
-    /*
-     * ⛔ DIE BLAETTERUNG BLEIBT NACKT, UND DAS IST EINE ENTSCHEIDUNG: `_ui/verwaltungIkonen.tsx`
-     * fuehrt nur `pfeil-links`; ein Pfeil an „Zurück" neben einem nackten „Weiter" waere
-     * schiefer als keiner. Faellt die Zusicherung eines Tages, gehoert der Gegenpfeil in die
-     * Zeichenquelle — nicht ein einzelner Pfeil an einen der beiden Knoepfe.
-     */
-    expect(
-      query('[data-rolle="radio-blaettern-zurueck"]').querySelector("[data-zeichen]"),
-      "die Blaetterung hat ein halbes Pfeilpaar bekommen",
-    ).toBeNull();
   });
 
   it("der Filter-Anwenden-Knopf traegt den Haken", async () => {
@@ -569,7 +633,7 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
      */
     /*
      * ⛔ ZWEIMAL, NICHT „IRGENDWO" — UND DAS IST DIE TRAGENDE HAELFTE DIESES FALLES. Die
-     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx:505-508`)
+     * Zieladresse steht an ZWEI Stellen: `onRow` am Tabellenzweig (`GeraeteTabelle.tsx:475-478`)
      * und `onClick` an der Karte des mobilen Zweigs (`:517`). Ein `toMatch` allein fand den
      * mobilen Treffer und blieb gruen, wenn der GANZE `onRow`-Block verschwand — gemessen in
      * der Schlusspruefung (`.superpowers/sdd/planteil4/REVIEW-V13.md:98`, Fund W2: Block
@@ -711,7 +775,7 @@ describe("radio-Geraeteliste: der Anlegen-Dialog", () => {
 
   it("zeigt bei ok:false den Satz DER ACTION und bleibt offen", async () => {
     /*
-     * ⛔ DER TEXT KOMMT AUS DER ACTION (`admin/actions.ts:131-132`), NICHT AUS EINER ZWEITEN
+     * ⛔ DER TEXT KOMMT AUS DER ACTION (`admin/actions.ts:143-144`), NICHT AUS EINER ZWEITEN
      * LISTE IM DIALOG. Deshalb steht hier ein Satz, den der Dialog selbst nirgends kennt —
      * und ausdruecklich NICHT „ISSI ist erforderlich": sonst koennte der Fall auch dann gruen
      * sein, wenn er in Wahrheit den Pflichtfeldzweig gemessen hat.

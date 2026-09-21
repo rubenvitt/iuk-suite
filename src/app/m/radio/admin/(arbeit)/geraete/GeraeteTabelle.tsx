@@ -2,10 +2,11 @@
 
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.tsx
 import { useCallback, useState, useSyncExternalStore } from "react";
-import { Button, Card, Tag, type TableProps } from "antd";
+import { Card, Tag, type TableProps } from "antd";
 import { Datentabelle, Schmalkarten } from "@/core/tabelle";
 import { usePathname, useRouter } from "next/navigation";
-import type { GeraetZeile, Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
+import type { GeraetCursor, GeraetZeile, Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
+import { GERAETE_NACHLADE_FEHLER } from "../../../_lib/nachladen";
 import type { UpdateStand } from "../../../_lib/updateStand";
 import {
   angewandt,
@@ -15,8 +16,10 @@ import {
   type GeraetFilterWerte,
   type GeraeteSuchWerte,
 } from "../../../_lib/suchparameter";
+import { NachladeFuss, useNachladen } from "../../../_ui/Nachladen";
 import s from "../../../_ui/verwaltung.module.css";
 import { VIkone } from "../../../_ui/verwaltungIkonen";
+import { geraeteNachladenAction } from "../../actions";
 import { FilterSchublade } from "./FilterSchublade";
 import { GeraeteWerkzeugleiste } from "./GeraeteWerkzeugleiste";
 import { NeuGeraetModal } from "./NeuGeraetModal";
@@ -48,19 +51,19 @@ import type { SpaltenOption } from "./SpaltenWahl";
  * `render`-Funktion ist dort ein gewoehnlicher Wert. Der Waechter dagegen ist der
  * Playwright-Fall aus `Spec:4878` — Eigentuemer Aufgabe V23.
  *
- * ⛔ REGIME B: Blaetterung, Sortierung und die zehn Filter laufen ueber die URL — die
- * Blaetterung ist eine eigene, URL-schreibende Komponente. Vorbild
+ * ⛔ REGIME B: Sortierung und die zehn Filter laufen ueber die URL. Seit DRK-335 blaettert die
+ * Liste nicht mehr, sie laedt beim Scrollen nach (`_ui/Nachladen.tsx`) — Vorbild
  * `lagerbuch/verwaltung/(arbeit)/journal/{page,JournalFilter,JournalTable}.tsx`.
  *
  * ⛔ **DIE SECHS `sorter` BLEIBEN `true` UND WERDEN KEINE VERGLEICHSFUNKTIONEN AUS
  * `@/core/tabelle`.** `sorter: true` heisst bei antd „diese Spalte ist sortierbar, ICH sortiere
  * nicht" — das Ereignis geht an `onChange` und von dort in die Adresszeile, gesortiert wird in
  * SQL ueber den ganzen Bestand. Ein `nachText(…)` an derselben Stelle ordnete zusaetzlich die
- * gerade sichtbaren zwanzig Zeilen um: zwei Ordnungen auf einer Tabelle, und die sichtbare
+ * gerade GELADENEN Zeilen um: zwei Ordnungen auf einer Tabelle, und die sichtbare
  * waere die falsche. ⛔ AUS DEMSELBEN GRUND KEIN `filters` IM SPALTENKOPF — die zehn Filter
  * liegen in der `FilterSchublade` und treffen die ABFRAGE; ein Spaltenfilter durchsuchte nur
- * die geladene Seite (die Grenze steht ausgeschrieben an `werteAlsFilter`,
- * `src/core/tabelle/spaltenfilter.ts`).
+ * die geladenen Zeilen (die Grenze an `werteAlsFilter`, `src/core/tabelle/spaltenfilter.ts`)
+ * — und liesse er wenige stehen, zoege die Wache darunter den ganzen Bestand nach.
  *
  * ⛔ DIE TABELLE IST SEIT DER UMSTELLUNG AUF `@/core/tabelle` EINE `Datentabelle` — derselbe
  * antd-`Table` mit den Vorgaben der Suite. `pagination={false}` und
@@ -71,7 +74,7 @@ import type { SpaltenOption } from "./SpaltenWahl";
  * steht gemessen in `_lib/nav.test.ts:135-150`: ein innerer Pfad fuehrte auf dem
  * Verwaltungshost auf `/m/radio/m/radio/...` — 404, und typecheck wie lint bleiben gruen.
  * ⚠️ NICHT ZU VERWECHSELN mit `revalidatePath`, das die INNERE Form braucht
- * (`admin/actions.ts:179-182`) — es adressiert den Router-Cache, nicht die Adresszeile.
+ * (`admin/actions.ts:191-194`) — es adressiert den Router-Cache, nicht die Adresszeile.
  */
 
 /** Eine Spaltendefinition: Schluessel, Etikett fuer die Auswahl, antd-Spalte. */
@@ -332,10 +335,12 @@ const SPALTEN_OPTIONEN: SpaltenOption[] = COLUMN_DEFS.map((d) => ({
 }));
 
 export type GeraeteTabelleProps = {
+  /** Die ERSTE Portion; weitere laedt die Insel beim Scrollen nach (DRK-335). */
   zeilen: GeraetZeile[];
+  /** Die GEFILTERTE Menge, nicht die Portion — der Stand unter der Liste nennt sie. */
   gesamt: number;
-  seite: number;
-  seitenGroesse: number;
+  /** Die Position hinter der ersten Portion — `null`, wenn keine weitere folgt. */
+  naechsterCursor: GeraetCursor | null;
   sortierung: string | null;
   filter: GeraetFilterWerte;
   /**
@@ -355,61 +360,10 @@ export type GeraeteTabelleProps = {
   darfExportieren: boolean;
 };
 
-/**
- * DIE BLAETTERUNG — eine eigene, URL-schreibende Komponente (Regime B).
- *
- * ⛔ KEIN GROESSENWECHSLER (1:1 `DeviceList.tsx:168`, `showSizeChanger: false`) und kein
- * `size` (Falle 4).
- */
-function Blaetterung({
-  seite,
-  gesamt,
-  seitenGroesse,
-  aufSeite,
-}: {
-  seite: number;
-  gesamt: number;
-  seitenGroesse: number;
-  aufSeite: (naechste: number) => void;
-}) {
-  const seiten = Math.max(1, Math.ceil(gesamt / seitenGroesse));
-  return (
-    <div className={s.blaetterung} data-rolle="radio-blaetterung">
-      <span className={s.blaetterungText}>
-        Seite {seite} von {seiten} · {gesamt} Geräte
-      </span>
-      {/*
-        ⛔ antd-`Button` UND KEIN NACKTES `<button>`: antd 6 ist das Design-System der Suite
-        (`CLAUDE.md`), und ein handzurueckgesetzter Knopf braeuchte ein `background`, das
-        `_ui/verwaltung-css.test.ts:158-165` zu Recht als verdrahteten Flaechenwert meldet
-        (gemessen: `background: none` faerbte den Waechter rot). ⛔ OHNE `size` — Falle 4.
-        ⚠️ UND OHNE ZEICHEN, ANDERS ALS DIE UEBRIGEN KNOEPFE DIESER FLAECHE: die Blaetterung
-        braucht ZWEI Pfeile, und `_ui/verwaltungIkonen.tsx` fuehrt heute nur `pfeil-links`.
-        Ein Pfeil an „Zurück" neben einem nackten „Weiter" waere schiefer als keiner.
-      */}
-      <Button
-        data-rolle="radio-blaettern-zurueck"
-        disabled={seite <= 1}
-        onClick={() => aufSeite(seite - 1)}
-      >
-        Zurück
-      </Button>
-      <Button
-        data-rolle="radio-blaettern-vor"
-        disabled={seite >= seiten}
-        onClick={() => aufSeite(seite + 1)}
-      >
-        Weiter
-      </Button>
-    </div>
-  );
-}
-
 export function GeraeteTabelle({
-  zeilen,
+  zeilen: ersteZeilen,
   gesamt,
-  seite,
-  seitenGroesse,
+  naechsterCursor,
   sortierung,
   filter,
   suchtext,
@@ -450,12 +404,28 @@ export function GeraeteTabelle({
   const stand: GeraeteSuchWerte = {
     q: suchtext,
     sf: suchfelder,
-    seite,
     sortierung: sortierung ?? "",
     filter,
   };
 
-  /* ⛔ JEDE AENDERUNG AN SUCHE ODER FILTER SETZT AUF SEITE 1 ZURUECK — 1:1 `DeviceList.tsx:71`, `:92`. */
+  /*
+   * ⛔ DER NACHSCHLAG FAEHRT DENSELBEN FILTER UND DIESELBE SORTIERUNG WIE DIE ERSTE PORTION:
+   * die Action faltet genau diese Adresszeilen-Form mit `geraeteParameterAus`, wie die Seite es
+   * tat. Die Position gilt nur unter dieser Sortierung — wechselt sie, laedt die Seite neu, und
+   * der Hook verwirft Stand und laufende Antwort. So beginnt jede Aenderung an Suche, Filter
+   * oder Sortierung wieder bei der ersten Portion — die Form, die `DeviceList.tsx:71`, `:92`
+   * mit „zurueck auf Seite 1" hatte.
+   */
+  const nachladen = useNachladen<GeraetZeile, GeraetCursor>({
+    ersteZeilen,
+    ersterCursor: naechsterCursor,
+    gesamt,
+    parameter: suchparameterZu(stand),
+    aktion: geraeteNachladenAction,
+    fehlerText: GERAETE_NACHLADE_FEHLER,
+  });
+  const zeilen = nachladen.zeilen;
+
   const gelesen = sortierungLesen(stand.sortierung);
   const spaltenSortierung = (schluessel: string): "descend" | "ascend" | null => {
     if (gelesen?.schluessel !== schluessel) return null;
@@ -478,8 +448,8 @@ export function GeraeteTabelle({
         filter={filter}
         darfAnlegen={darfAnlegen}
         darfExportieren={darfExportieren}
-        aufSuchtext={(q) => schreibeUrl({ ...stand, q, seite: 1 })}
-        aufSuchfelder={(sf) => schreibeUrl({ ...stand, sf, seite: 1 })}
+        aufSuchtext={(q) => schreibeUrl({ ...stand, q})}
+        aufSuchfelder={(sf) => schreibeUrl({ ...stand, sf})}
         aufSpalten={merkeSpaltenAuswahl}
         aufFilterOeffnen={() => setFilterOffen(true)}
         aufAnlegen={() => setAnlegenOffen(true)}
@@ -541,12 +511,11 @@ export function GeraeteTabelle({
         )}
       >
         {/*
-          ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der
-          `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Die Begruendung gilt
-          unveraendert: die Blaetterung laeuft ueber die URL (Regime B, antd-Zuordnung
-          `.superpowers/sdd/planteil4/briefs/KOPF.md:1053`), und eine zweite, rein
-          clientseitige Blaetterung ueber den bereits geschnittenen zwanzig Zeilen waere
-          schlicht falsch.
+          ⛔ KEINE BLAETTERUNG, KEIN `scroll` UND KEIN `virtuell` HIER — die ersten zwei sind
+          die Vorgabe der `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Nachgeladen
+          wird ueber die Wache unter der Liste (`_ui/Nachladen.tsx`); eine clientseitige
+          Blaetterung ueber den geladenen Zeilen waere schlicht falsch, und `virtuell` machte
+          die Tabelle zum eigenen Scroller, an dem die Wache nie in Sicht kaeme (Falle 16).
         */}
         <Datentabelle<GeraetZeile>
           rowKey="id"
@@ -564,8 +533,7 @@ export function GeraeteTabelle({
             const einzeln = Array.isArray(sortierer) ? sortierer[0] : sortierer;
             schreibeUrl({
               ...stand,
-              sortierung: sortierungZeichenkette(einzeln?.columnKey, einzeln?.order),
-              seite: 1,
+              sortierung: sortierungZeichenkette(einzeln?.columnKey, einzeln?.order)
             });
           }}
           onRow={(zeile) => ({
@@ -575,11 +543,9 @@ export function GeraeteTabelle({
         />
       </Schmalkarten>
 
-      <Blaetterung
-        seite={seite}
-        gesamt={gesamt}
-        seitenGroesse={seitenGroesse}
-        aufSeite={(naechste) => schreibeUrl({ ...stand, seite: naechste })}
+      <NachladeFuss
+        nachladen={nachladen}
+        woerter={{ einzahl: "Gerät", mehrzahl: "Geräte", dativ: "Geräten" }}
       />
 
       {/*
@@ -596,7 +562,7 @@ export function GeraeteTabelle({
           aufSchliessen={() => setFilterOffen(false)}
           aufAnwenden={(naechste) => {
             setFilterOffen(false);
-            schreibeUrl({ ...stand, filter: naechste, seite: 1 });
+            schreibeUrl({ ...stand, filter: naechste});
           }}
         />
       )}

@@ -156,7 +156,7 @@ const BEISPIEL_ID = "g-1";
  * ⛔ DESHALB STEHT DIE SOLLTAFEL HIER UND UNABHAENGIG, und sie ist die eigentliche Zusicherung
  * dieser Aufgabe: welcher Alt-Pfad auf welchen Neu-Pfad zeigt, ist eine ENTSCHEIDUNG (die
  * Begruendung je Zeile steht in `_lib/aliasse.ts`), keine Ableitung. Hausform:
- * `admin/actions.test.ts:683-690` haelt `SOLL_ADMIN_SEITEN` genauso ausgeschrieben gegen die
+ * `admin/actions.test.ts:692-699` haelt `SOLL_ADMIN_SEITEN` genauso ausgeschrieben gegen die
  * gefundene Menge.
  *
  * ⚠️ Wer hier etwas aendert, aendert die Zusage — nicht den Test. Die Reihenfolge ist

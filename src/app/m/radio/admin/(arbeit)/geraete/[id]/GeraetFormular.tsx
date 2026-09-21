@@ -249,7 +249,7 @@ export function baueGeaenderteFelder(
  * Zeichen auf einer Datenflaeche saehe aus wie eine Primaeraktion.
  *
  * ⚠️ ZWEITE KOPIE, BENANNT STATT STILL: dieselbe Zuordnung steht in
- * `admin/(arbeit)/geraete/GeraeteTabelle.tsx:82-92`. Sie von dort zu importieren zoege die
+ * `admin/(arbeit)/geraete/GeraeteTabelle.tsx:85-95`. Sie von dort zu importieren zoege die
  * ganze Tabelleninsel in das Bundle dieser Seite. ⬜ **V14-L1** — sie in `_lib/geraeteFelder.ts`
  * zusammenzulegen ist ein ClickUp-Board-Posten, kein Bauwert in diesem Fenster (dieselbe
  * Behandlung wie ⬜ V-L9).
@@ -290,7 +290,7 @@ export type GeraetFormularProps = {
    * `Combobox allowCreate` ueber `useSoftwareVersions()` (`DeviceFields.tsx:152-160`), und ein
    * ersatzloses Weglassen waere ein stiller Verlust an einem Feld. Der Praezedenzfall steht
    * eine Ebene hoeher: Insel 1 fuehrt mit `suchtext` und `suchfelder` ebenfalls zwei Props, die
-   * die Tafel nicht nennt (`admin/(arbeit)/geraete/page.tsx:72-73`). Freitext bleibt moeglich
+   * die Tafel nicht nennt (`admin/(arbeit)/geraete/page.tsx:73-74`). Freitext bleibt moeglich
    * — eine neu getippte Version registriert die Action selbst
    * (`admin/actions.ts`, `registriereVersion`).
    */
@@ -367,13 +367,13 @@ export function GeraetFormular({ geraet, rolle, vorschlaege, versionen }: Geraet
   /*
    * ⛔ DIE APPEND-ONLY-SPALTE WIRD NACHGEZOGEN, WENN DER SERVER SIE FORTGESCHRIEBEN HAT.
    * `NotizFeld` haengt ueber `notizAnfuegenAction` an und stoesst danach `revalidatePath` auf
-   * genau diese Seite an (`admin/actions.ts:677`); die Seite reicht das frische `geraet`
+   * genau diese Seite an (`admin/actions.ts:689`); die Seite reicht das frische `geraet`
    * herein. ⛔ ANTDS `Form` UEBERNIMMT GEAENDERTE `initialValues` BEI EINEM NEU-RENDERN NICHT
    * (gemessen: der Fall „eine angehaengte Anmerkung ueberlebt ein spaeteres Speichern des
    * Formulars" war ohne diese Zeile rot) — ohne den Abgleich traegt das Feld weiter den Stand
    * VOR dem Anhaengen, `baueGeaenderteFelder` macht daraus einen Patcheintrag (`:225`), und der
    * Server schreibt ihn fuer die Admin-Stufe ungefiltert (`_lib/rollen.ts:105`,
-   * `admin/actions.ts:534`). Die soeben angehaengte Zeile waere weg, still, auf einer
+   * `admin/actions.ts:546`). Die soeben angehaengte Zeile waere weg, still, auf einer
    * ausdruecklich append-only gefuehrten Spalte (`_db/schema.ts:56-59`).
    *
    * ⛔ NUR DIESES EINE FELD, UND DAS IST DER GANZE UNTERSCHIED ZU EINEM `key` AN DER INSEL: ein

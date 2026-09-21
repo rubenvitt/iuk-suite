@@ -224,7 +224,7 @@ type Spaltenwahl = Partial<Record<ImportierbaresFeld, string>>;
 /** Die gelesene Datei — die Erfolgshaelfte der Handlerantwort, ABGELEITET statt abgeschrieben. */
 type Gelesen = Omit<Extract<HochladenAntwort, { ok: true }>, "ok">;
 
-/** Die Bilanz eines Laufs — `ImportBilanz` aus `admin/actions.ts:117`, hier ohne Importzwang. */
+/** Die Bilanz eines Laufs — `ImportBilanz` aus `admin/actions.ts:129`, hier ohne Importzwang. */
 type Bilanz = { zusammenfassung: Zusammenfassung; zeilen: KlassifizierteZeile[] };
 
 /**

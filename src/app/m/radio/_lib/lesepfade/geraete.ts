@@ -178,7 +178,7 @@ export type GeraetDetail = GeraetZeile & {
    *    Gedankenstrich belegt den Datumswaehler bei JEDEM Geraet ohne Tag.
    *
    * Dass die Werte hier herum liegen und nicht andersherum, haelt der Fall „traegt die
-   * Akte-Felder, die die Listenzeile NICHT hat" fest (`_lib/lesepfade/geraete.test.ts:674`
+   * Akte-Felder, die die Listenzeile NICHT hat" fest (`_lib/lesepfade/geraete.test.ts:778`
    * gegen `:677`; ⚠️ das Paar stand seit V6 um EINS daneben — es traf `hiorgId` und
    * `updateStand` — und ist in V17 richtiggestellt). Nicht halten kann er die Beschriftung.
    */
@@ -396,14 +396,67 @@ export type GeraetFilter = {
   seite?: number;
   /** Vorgabe 25, Deckel 200 (`deviceRepo.ts:193`); die Flaeche schickt 20 (`DeviceList.tsx:28`). */
   seitenGroesse?: number;
+  /**
+   * DIE SCHLUESSELPOSITION DES NACHLADENS (DRK-335) — gesetzt, gilt `seite` nicht. Sie gilt
+   * nur zusammen mit DERSELBEN `sortierung`, unter der sie entstand; die Insel schickt beide
+   * gemeinsam und verwirft eine Antwort, deren Filter nicht mehr gilt.
+   */
+  cursor?: GeraetCursor;
 };
+
+/**
+ * Die Position hinter einer Zeile der Geraeteliste: der ROHE Sortierwert und die Kennung.
+ *
+ * ⛔ `wert` DARF `null` SEIN, UND DAS IST DER GANZE UNTERSCHIED ZUM JOURNAL DES LAGERBUCHS.
+ * Dort ist die Ordnung fest und die Spalte nie leer; hier sind fuenf der sortierbaren Spalten
+ * nullable (`rufname`, `status`, `location`, `softwareVersion`, `lastUpdatedAt`). Die Bedingung
+ * dafuer steht an `hinterPosition`.
+ *
+ * ⛔ ROH, NICHT ANZEIGEFERTIG: bei `createdAt` die Sekundenzahl der Spalte, beim Update-Stand
+ * das Wort aus dem CASE-Ausdruck. Verglichen wird in SQL gegen genau den Ausdruck, aus dem der
+ * Wert kam.
+ */
+export type GeraetCursor = { wert: string | number | null; id: string };
 
 export type GeraeteSeite = {
   zeilen: GeraetZeile[];
   gesamt: number;
   seite: number;
   seitenGroesse: number;
+  /** Die Position hinter der letzten Zeile — `null`, wenn keine weitere folgt (DRK-335). */
+  naechsterCursor: GeraetCursor | null;
 };
+
+/**
+ * „Hinter der Position" fuer eine Ordnung `ausdruck RICHTUNG, id RICHTUNG` (DRK-335).
+ *
+ * ⛔ SQLITE ORDNET NULL ALS KLEINSTEN WERT: aufsteigend stehen die leeren Zeilen VORN,
+ * absteigend HINTEN. Und jeder Vergleich mit NULL ist NULL, also im WHERE falsch. Die
+ * naheliegende Bedingung `ausdruck > :wert OR (ausdruck = :wert AND id > :id)` verschluckt
+ * deshalb still:
+ *   - absteigend den ganzen leeren Schwanz — die Liste meldet „keine weiteren", obwohl die
+ *     Geraete ohne Lagerort noch fehlen;
+ *   - aufsteigend alles, sobald die Position selbst auf einer leeren Zeile steht.
+ * Kein Tor sieht das; es sieht aus wie eine vollstaendige Liste. Die vier Faelle stehen
+ * deshalb einzeln da.
+ */
+function hinterPosition(
+  ausdruck: SQLiteColumn | SQL<unknown>,
+  absteigend: boolean,
+  c: GeraetCursor,
+): SQL {
+  const id = devices.id;
+  if (c.wert === null) {
+    return absteigend
+      ? // Leer steht am Ende: dahinter nur noch leere Zeilen mit kleinerer Kennung.
+        sql`(${ausdruck} IS NULL AND ${id} < ${c.id})`
+      : // Leer steht am Anfang: dahinter die uebrigen leeren UND alle gefuellten.
+        sql`(${ausdruck} IS NOT NULL OR ${id} > ${c.id})`;
+  }
+  return absteigend
+    ? sql`(${ausdruck} < ${c.wert} OR (${ausdruck} = ${c.wert} AND ${id} < ${c.id}) OR ${ausdruck} IS NULL)`
+    : sql`(${ausdruck} > ${c.wert} OR (${ausdruck} = ${c.wert} AND ${id} > ${c.id}))`;
+}
 
 /** Aus einer Datenbankzeile die vorformatierte Listenzeile. */
 function zuZeile(d: Geraet, stand: UpdateStand, abweichung: boolean): GeraetZeile {
@@ -502,28 +555,54 @@ export function geraeteListe(db: DB, p: GeraetFilter): GeraeteSeite {
 
   // ⛔ VORGABESORTIERUNG IST `desc(createdAt)`, NICHT `rufname` (`deviceRepo.ts:195`). Ein
   // unbekannter Schluessel laesst sie stehen — kein Fehler, keine Interpolation (`:196-201`).
-  let ordnung: SQL = desc(devices.createdAt);
+  let ausdruck: SQLiteColumn | SQL<unknown> = devices.createdAt;
+  let absteigend = true;
   if (p.sortierung) {
     const [feld, richtung] = p.sortierung.split(":");
     const spalte: SQLiteColumn | SQL<UpdateStand> | undefined =
       feld === "updateStand" ? standAusdruck : feld ? SORTIERBAR[feld] : undefined;
-    if (spalte) ordnung = richtung === "desc" ? desc(spalte) : asc(spalte);
+    if (spalte) {
+      ausdruck = spalte;
+      absteigend = richtung === "desc";
+    }
   }
+  const richtung = absteigend ? desc : asc;
 
   const gesamtZeile = db.select({ c: count() }).from(devices).where(wo).get();
   const gesamt = gesamtZeile?.c ?? 0;
 
-  const zeilen = db
-    .select({ d: devices, stand: standAusdruck, abweichung: ABWEICHUNG_ZAHL })
-    .from(devices)
-    .where(wo)
-    .orderBy(ordnung)
-    .limit(seitenGroesse)
-    .offset((seite - 1) * seitenGroesse)
-    .all()
-    .map((r) => zuZeile(r.d, r.stand, r.abweichung !== 0));
+  // ⛔ DIE POSITION WIRKT NUR AUF DIE ZEILEN — `gesamt` nennt die ganze gefilterte Menge.
+  const woZeilen = p.cursor ? and(wo, hinterPosition(ausdruck, absteigend, p.cursor)) : wo;
 
-  return { zeilen, gesamt, seite, seitenGroesse };
+  const roh = db
+    .select({
+      d: devices,
+      stand: standAusdruck,
+      abweichung: ABWEICHUNG_ZAHL,
+      // Der rohe Sortierwert fuer die Position — `sql`, damit Drizzle `createdAt` nicht in
+      // ein `Date` umwandelt.
+      sortwert: sql<string | number | null>`${ausdruck}`,
+    })
+    .from(devices)
+    .where(woZeilen)
+    // ⚠️ `id` ALS ZWEITES KRITERIUM IST SEIT DRK-335 DA und weicht damit vom Bestand ab
+    // (`deviceRepo.ts:195-201` sortiert nach einer Spalte allein). Ohne es haetten Geraete mit
+    // demselben Status keine feste Reihenfolge, und die Position liefe ueber sie hinweg oder
+    // zweimal ueber sie.
+    .orderBy(richtung(ausdruck), richtung(devices.id))
+    // Eine Zeile mehr lesen, als geliefert wird: „folgt noch etwas?" ohne zweite Abfrage.
+    .limit(seitenGroesse + 1)
+    .offset(p.cursor ? 0 : (seite - 1) * seitenGroesse)
+    .all();
+
+  const geliefert = roh.slice(0, seitenGroesse);
+  const letzte = geliefert.at(-1);
+  const naechsterCursor =
+    roh.length > seitenGroesse && letzte ? { wert: letzte.sortwert, id: letzte.d.id } : null;
+
+  const zeilen = geliefert.map((r) => zuZeile(r.d, r.stand, r.abweichung !== 0));
+
+  return { zeilen, gesamt, seite, seitenGroesse, naechsterCursor };
 }
 
 /**
@@ -538,7 +617,7 @@ export function geraeteListe(db: DB, p: GeraetFilter): GeraeteSeite {
  * updateStatus }`).
  *
  * ⛔ `GeraetZeile` WIRD DAFUER NICHT VERBREITERT. Sie fuehrt genau die zwanzig Felder aus
- * `Spec:4542-4553`, und `_lib/lesepfade/geraete.test.ts:682` misst den Feldsatz einer ECHTEN
+ * `Spec:4542-4553`, und `_lib/lesepfade/geraete.test.ts:786` misst den Feldsatz einer ECHTEN
  * Zeile exakt. Der Update-Modus bekommt deshalb eine EIGENE Projektion — dieselbe Form, in der
  * `GeraetDetail` (`:139`) und `GeraetFormWerte` (`:705`) danebenstehen.
  *
@@ -755,7 +834,7 @@ export function geraeteFuerExport(db: DB): Geraet[] {
  * Projektionstyp, nicht ein breiterer erster.
  *
  * ⛔ DER FELDSATZ IST ABGELEITET, NICHT ABGESCHRIEBEN — dieselbe Begruendung wie bei
- * `SchreibbaresGeraetFeld` (`src/app/m/radio/admin/actions.ts:100-104`): eine handgepflegte
+ * `SchreibbaresGeraetFeld` (`src/app/m/radio/admin/actions.ts:112-116`): eine handgepflegte
  * Liste ist die Stelle, an der eine neue Spalte still unschreibbar bleibt. Was hier fehlt, ist
  * genau der Schluessel und die vier Auditspalten (`_db/schema.ts:19-65`).
  *
@@ -778,7 +857,7 @@ export type GeraetFormWerte = Omit<
  * braucht die aufgeloesten Namen und die vorformatierten Zeitpunkte, das Formular den Rohwert.
  * Die zwei Sichten in EINE zu falten hiesse, `GeraetDetail` zu verbreitern — was die ⬜ oben
  * ausdruecklich verbietet, weil `Spec:4542-4553` seinen Feldsatz abschliessend aufzaehlt und
- * `geraete.test.ts:680-715` ihn misst.
+ * `geraete.test.ts:784-819` ihn misst.
  *
  * ⛔ NAMENTLICH GESETZT, NICHT ueber einen Rest-Operator: `alamos_integrated` und `loanable`
  * sind zwei 0/1-Integer, die sich verwechseln lassen, ohne dass es auffaellt (`_db/schema.ts:50`, `:55`).

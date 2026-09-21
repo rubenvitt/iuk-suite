@@ -6,7 +6,8 @@ import { Button, Card, DatePicker, Select, Tag, type TableColumnType } from "ant
 import { Datentabelle, Schmalkarten, Zellentext } from "@/core/tabelle";
 import dayjs from "dayjs";
 import { usePathname, useRouter } from "next/navigation";
-import type { AusleihZeile, GeraetWahl } from "../../../_lib/lesepfade/ausleihen";
+import type { AusleihZeile, GeraetWahl, LeihCursor } from "../../../_lib/lesepfade/ausleihen";
+import { AUSLEIHEN_NACHLADE_FEHLER } from "../../../_lib/nachladen";
 import {
   angewandt,
   ausleihenSuchparameterZu,
@@ -15,7 +16,9 @@ import {
   type AusleihenFilterWerte,
   type AusleihenSuchWerte,
 } from "../../../_lib/suchparameter";
+import { NachladeFuss, useNachladen } from "../../../_ui/Nachladen";
 import s from "../../../_ui/verwaltung.module.css";
+import { ausleihenNachladenAction } from "../../actions";
 
 /**
  * INSEL 2 — DIE AUSLEIHENLISTE DER VERWALTUNG (`Spec:4498-4506`, §5.9; Aufgabe V16).
@@ -40,23 +43,24 @@ import s from "../../../_ui/verwaltung.module.css";
  * das zieht `drizzle-orm` und `better-sqlite3` (`_lib/csv/klassifizieren.ts:6-9`: „weder
  * `typecheck` noch `lint` noch `build` saehen es").
  *
- * ⛔ SECHS PROPS, NICHT DREI — UND DAS IST EINE BENANNTE ABWEICHUNG VON `Spec:4504`. Die Spec
+ * ⛔ FUENF PROPS, NICHT DREI — UND DAS IST EINE BENANNTE ABWEICHUNG VON `Spec:4504`. Die Spec
  * schliesst den Vertrag bei `{ zeilen, gesamt, seite }`; die Betreiberentscheidung ⬜ **V-L11**
  * vom 2026-08-24 (`.superpowers/sdd/planteil4/progress.md`, Abschnitt „✅ V-L11": „Beides.")
  * verlangt einen Filter nach Geraet UND Zeitraum, und der Dreiervertrag kann ihn nicht tragen
- * (Vorabscan-Fund F3, `.superpowers/sdd/planteil4/VORABSCAN.md:126-150`). Dazu kommt
- * `seitenGroesse`, weil die Blaetterung dieselbe Zahl anzeigen muss, die die Abfrage benutzt
- * hat. ⛔ ALLE SECHS SIND SKALAR ODER EINE LISTE SKALARER WERTE.
+ * (Vorabscan-Fund F3, `.superpowers/sdd/planteil4/VORABSCAN.md:126-150`). Seit DRK-335 ersetzt
+ * die Position der naechsten Portion (`naechsterCursor`) die Seitenzahl: die Liste laedt beim
+ * Scrollen nach, statt zu blaettern. ⛔ ALLE FUENF SIND SKALAR ODER SKALARE WERTE IN LISTE
+ * UND OBJEKT — die Position sind zwei Zahlen bzw. Zeichenketten, kein `Date`.
  *
- * ⛔ FILTER UND BLAETTERUNG LIEGEN IN DERSELBEN INSEL, weil hier der EINE Schreibweg in die
- * Adresszeile liegt (Vorbild `geraete/GeraeteTabelle.tsx`). Zwei unabhaengige Schreiber
- * derselben Adresse haetten keinen Eigentuemer fuer das Zuruecksetzen auf Seite 1.
+ * ⛔ FILTER UND NACHLADEN LIEGEN IN DERSELBEN INSEL: der Nachschlag muss den Filter fahren,
+ * den die Filterleiste in die Adresszeile schreibt, und seine Antwort verwerfen, sobald dieser
+ * Filter nicht mehr gilt (`_ui/Nachladen.tsx`).
  *
  * ⛔ DIE 1:1-UNTERGRENZE BLEIBT UNANGETASTET (Auflage aus derselben Entscheidung: „die
  * Grundliste, ihre Sortierung und ihre Spalten bleiben, wie der Bestand sie hat; der Filter
  * kommt HINZU"): sieben Spalten in ihrer Reihenfolge (`LoanList.tsx:15-47`), feste Sortierung
- * `desc(borrowedAt)` ohne Sortierpfeil (`loanRepo.ts:153`), Seitengroesse zwanzig ohne
- * Groessenwechsler (`LoanList.tsx:8`, `:66`).
+ * `desc(borrowedAt)` ohne Sortierpfeil (`loanRepo.ts:153`; seit DRK-335 mit `id` als zweitem
+ * Kriterium), Portionen zu zwanzig ohne Groessenwechsler (`LoanList.tsx:8`, `:66`).
  *
  * ⛔ KEIN `size` (Falle 4): die Verwaltung laeuft seit dem 2026-08-28 auf `SCHREIBTISCHDICHTE`
  * mit `controlHeight: 32` (`core/theme/theme.ts`), auch auf dem Telefon. Platz schafft das
@@ -112,10 +116,11 @@ function StatusMarke({ aktiv }: { aktiv: boolean }) {
  * DIE SIEBEN SPALTEN, 1:1 AUS `LoanList.tsx:15-47` — in dieser Reihenfolge.
  *
  * ⛔ **KEINE TRAEGT EINEN `sorter` ODER EIN `filters`, UND DAS BLEIBT AUCH NACH DER
- * UMSTELLUNG AUF `@/core/tabelle` SO** — der Grund ist die SERVERSEITIGE Blaetterung, nicht
+ * UMSTELLUNG AUF `@/core/tabelle` SO** — der Grund ist das SERVERSEITIGE Portionieren, nicht
  * fehlende Lust. `leihhistorie` sortiert IMMER `desc(borrowedAt)`, ohne Parameter (1:1
- * `loanRepo.ts:153`), und schneidet auf zwanzig Zeilen; ein `sorter` ordnete nur die gerade
- * sichtbare SEITE um, ein Spaltenfilter durchsuchte nur sie. Beides sieht aus wie eine
+ * `loanRepo.ts:153`), und liefert Portionen zu zwanzig; ein `sorter` ordnete nur die gerade
+ * GELADENEN Zeilen um, ein Spaltenfilter durchsuchte nur sie — und liesse er wenige stehen,
+ * zoege die Wache darunter den ganzen Bestand nach (DRK-335). Beides sieht aus wie eine
  * Aussage ueber den ganzen Bestand und ist eine ueber zwanzig Zeilen — genau die Grenze, die
  * `werteAlsFilter` in `src/core/tabelle/spaltenfilter.ts` ausdruecklich nennt.
  * ⛔ DESHALB BLEIBT AUCH DIE FILTERLEISTE UEBER DER TABELLE STEHEN: sie filtert die ABFRAGE
@@ -190,11 +195,12 @@ export const SPALTEN: TableColumnType<AusleihZeile>[] = [
 ];
 
 export type AusleihenTabelleProps = {
+  /** Die ERSTE Portion; weitere laedt die Insel beim Scrollen nach (DRK-335). */
   zeilen: AusleihZeile[];
-  /** ⛔ Die GEFILTERTE Menge, nicht die Seite — die Blaetterung haengt an dieser Zahl. */
+  /** ⛔ Die GEFILTERTE Menge, nicht die Portion — der Stand unter der Liste nennt sie. */
   gesamt: number;
-  seite: number;
-  seitenGroesse: number;
+  /** Die Position hinter der ersten Portion — `null`, wenn keine weitere folgt. */
+  naechsterCursor: LeihCursor | null;
   filter: AusleihenFilterWerte;
   /** ⛔ Nur Geraete, die ueberhaupt eine Leihzeile haben — die Begruendung steht in `_db/leihen.ts`. */
   geraete: GeraetWahl[];
@@ -278,53 +284,10 @@ function Filterleiste({
   );
 }
 
-/**
- * DIE BLAETTERUNG — eine eigene, URL-schreibende Komponente (Regime B), zeichengleich zur
- * Form der Geraeteliste (`geraete/GeraeteTabelle.tsx`).
- *
- * ⛔ KEIN GROESSENWECHSLER (1:1 `LoanList.tsx:66`, `showSizeChanger: false`) und kein `size`
- * (Falle 4).
- */
-function Blaetterung({
-  seite,
-  gesamt,
-  seitenGroesse,
-  aufSeite,
-}: {
-  seite: number;
-  gesamt: number;
-  seitenGroesse: number;
-  aufSeite: (naechste: number) => void;
-}) {
-  const seiten = Math.max(1, Math.ceil(gesamt / seitenGroesse));
-  return (
-    <div className={s.blaetterung} data-rolle="radio-blaetterung">
-      <span className={s.blaetterungText} data-rolle="radio-blaetterung-text">
-        Seite {seite} von {seiten} · {gesamt} Ausleihen
-      </span>
-      <Button
-        data-rolle="radio-blaettern-zurueck"
-        disabled={seite <= 1}
-        onClick={() => aufSeite(seite - 1)}
-      >
-        Zurück
-      </Button>
-      <Button
-        data-rolle="radio-blaettern-vor"
-        disabled={seite >= seiten}
-        onClick={() => aufSeite(seite + 1)}
-      >
-        Weiter
-      </Button>
-    </div>
-  );
-}
-
 export function AusleihenTabelle({
-  zeilen,
+  zeilen: ersteZeilen,
   gesamt,
-  seite,
-  seitenGroesse,
+  naechsterCursor,
   filter,
   geraete,
 }: AusleihenTabelleProps) {
@@ -351,15 +314,27 @@ export function AusleihenTabelle({
     [router, pfad],
   );
 
-  const stand: AusleihenSuchWerte = { ...filter, seite };
+  /*
+   * ⛔ DER NACHSCHLAG FAEHRT DENSELBEN FILTER WIE DIE ERSTE PORTION: die Action faltet genau
+   * diese Adresszeilen-Form mit `ausleihenParameterAus`, wie die Seite es tat.
+   */
+  const nachladen = useNachladen<AusleihZeile, LeihCursor>({
+    ersteZeilen,
+    ersterCursor: naechsterCursor,
+    gesamt,
+    parameter: ausleihenSuchparameterZu(filter),
+    aktion: ausleihenNachladenAction,
+    fehlerText: AUSLEIHEN_NACHLADE_FEHLER,
+  });
+  const zeilen = nachladen.zeilen;
 
   return (
     <div data-rolle="radio-ausleihen-flaeche">
       <Filterleiste
         filter={filter}
         geraete={geraete}
-        /* ⛔ JEDE AENDERUNG AM FILTER SETZT AUF SEITE 1 ZURUECK — 1:1 `DeviceList.tsx:71`, `:92`. */
-        aufFilter={(naechster) => schreibeUrl({ ...naechster, seite: 1 })}
+        /* Eine Filteraenderung laedt die Seite neu; die Insel beginnt dann mit der ersten Portion. */
+        aufFilter={schreibeUrl}
       />
 
       {/*
@@ -404,10 +379,11 @@ export function AusleihenTabelle({
         )}
       >
         {/*
-          ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der
-          `Datentabelle`. Die Blaetterung laeuft ueber die URL (Regime B); eine
-          zweite, rein clientseitige ueber den bereits geschnittenen zwanzig
-          Zeilen waere schlicht falsch.
+          ⛔ KEINE BLAETTERUNG, KEIN `scroll` UND KEIN `virtuell` HIER — die ersten zwei sind
+          die Vorgabe der `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Nachgeladen
+          wird ueber die Wache unter der Liste (`_ui/Nachladen.tsx`); eine clientseitige
+          Blaetterung ueber den geladenen Zeilen waere schlicht falsch, und `virtuell` machte
+          die Tabelle zum eigenen Scroller, an dem die Wache nie in Sicht kaeme (Falle 16).
         */}
         <Datentabelle<AusleihZeile>
           rowKey="id"
@@ -418,11 +394,9 @@ export function AusleihenTabelle({
         />
       </Schmalkarten>
 
-      <Blaetterung
-        seite={seite}
-        gesamt={gesamt}
-        seitenGroesse={seitenGroesse}
-        aufSeite={(naechste) => schreibeUrl({ ...stand, seite: naechste })}
+      <NachladeFuss
+        nachladen={nachladen}
+        woerter={{ einzahl: "Ausleihe", mehrzahl: "Ausleihen", dativ: "Ausleihen" }}
       />
     </div>
   );

@@ -453,6 +453,110 @@ describe("geraeteListe — Sortierung und Blaetterung", () => {
   });
 });
 
+describe("geraeteListe — die Schluesselposition des Nachladens (DRK-335)", () => {
+  /**
+   * Neun Geraete mit LEEREN Sortierwerten und GLEICHSTAENDEN. Beides ist, woran eine
+   * Schluesselposition scheitert: SQLite ordnet NULL als kleinsten Wert, und jeder Vergleich
+   * mit NULL ist im WHERE falsch — die naheliegende Bedingung verschluckt den leeren Schwanz
+   * still, und die Liste meldet trotzdem „keine weiteren".
+   */
+  function bestand(): void {
+    db.insert(softwareVersions).values(version("FW 2", true)).run();
+    const tag = (t: number) => new Date(Date.UTC(2026, 0, t));
+    lege(
+      { id: "a", rufname: "Anton", status: "Defekt", location: null, softwareVersion: "FW 2", createdAt: tag(1) },
+      { id: "b", rufname: null, status: "Defekt", location: "Halle", softwareVersion: null, createdAt: tag(1) },
+      { id: "c", rufname: "Berta", status: null, location: "Halle", softwareVersion: "FW 1", createdAt: tag(2) },
+      { id: "d", rufname: null, status: "Einsatzbereit", location: null, softwareVersion: "FW 2", lastUpdatedAt: "2026-05-01", createdAt: tag(3) },
+      { id: "e", rufname: "Anton", status: "Einsatzbereit", location: "Keller", softwareVersion: null, createdAt: tag(3) },
+      { id: "f", rufname: "Caesar", status: null, location: null, softwareVersion: "FW 1", lastUpdatedAt: "2026-04-01", createdAt: tag(4) },
+      { id: "g", rufname: null, status: "Defekt", location: "Keller", softwareVersion: "FW 2", createdAt: tag(5) },
+      { id: "h", rufname: "Dora", status: "Einsatzbereit", location: "Halle", softwareVersion: "FW 1", createdAt: tag(5) },
+      { id: "i", rufname: "Berta", status: null, location: null, softwareVersion: null, createdAt: tag(6) },
+    );
+  }
+
+  /** Die Liste in Portionen zu ZWEI durchlaufen, wie die Insel es beim Scrollen tut. */
+  function inPortionen(p: GeraetFilter): string[] {
+    const gesehen: string[] = [];
+    let seite = geraeteListe(db, { ...p, seitenGroesse: 2 });
+    gesehen.push(...seite.zeilen.map((z) => z.id));
+    for (let runde = 0; seite.naechsterCursor && runde < 20; runde++) {
+      seite = geraeteListe(db, { ...p, seitenGroesse: 2, cursor: seite.naechsterCursor });
+      gesehen.push(...seite.zeilen.map((z) => z.id));
+    }
+    return gesehen;
+  }
+
+  const SORTIERUNGEN = [
+    undefined,
+    ...SORTIER_SCHLUESSEL.flatMap((k) => [`${k}:asc`, `${k}:desc`]),
+  ];
+
+  it.each(SORTIERUNGEN)("liefert unter %s jede Zeile genau einmal, in der Ordnung der Seite", (sortierung) => {
+    /*
+     * ⛔ DER VERGLEICH IST DIE LISTE IN EINEM STUECK, nicht eine hingeschriebene Folge: was
+     * die Seite in einer Abfrage ordnet, muss das Nachladen in Portionen genauso ergeben —
+     * fuer JEDE der acht Spalten und beide Richtungen, auch die mit leeren Werten.
+     */
+    bestand();
+    const amStueck = ids({ sortierung, seitenGroesse: 200 });
+    expect(amStueck).toHaveLength(9);
+    expect(inPortionen({ sortierung })).toEqual(amStueck);
+  });
+
+  it("die leeren Werte stehen aufsteigend vorn und absteigend hinten — wie ohne Position", () => {
+    bestand();
+    const auf = ids({ sortierung: "lagerort:asc", seitenGroesse: 200 });
+    const ab = ids({ sortierung: "lagerort:desc", seitenGroesse: 200 });
+    const leer = ["a", "d", "f", "i"];
+    expect(new Set(auf.slice(0, 4))).toEqual(new Set(leer));
+    expect(new Set(ab.slice(-4))).toEqual(new Set(leer));
+  });
+
+  it("die Kennung entscheidet Gleichstaende, damit die Position eindeutig ist", () => {
+    bestand();
+    // Drei Geraete tragen „Defekt": a, b, g — aufsteigend nach Kennung.
+    expect(ids({ sortierung: "status:asc", status: ["Defekt"], seitenGroesse: 200 })).toEqual([
+      "a",
+      "b",
+      "g",
+    ]);
+    expect(ids({ sortierung: "status:desc", status: ["Defekt"], seitenGroesse: 200 })).toEqual([
+      "g",
+      "b",
+      "a",
+    ]);
+  });
+
+  it("die Position wirkt nur auf die Zeilen, gesamt bleibt die gefilterte Menge", () => {
+    bestand();
+    const erste = geraeteListe(db, { sortierung: "rufname:asc", seitenGroesse: 2 });
+    expect(erste.naechsterCursor).not.toBeNull();
+    const zweite = geraeteListe(db, {
+      sortierung: "rufname:asc",
+      seitenGroesse: 2,
+      cursor: erste.naechsterCursor!,
+    });
+    expect(zweite.gesamt).toBe(9);
+  });
+
+  it("die letzte Portion traegt keine Position — sonst liefe ein leerer Abruf hinterher", () => {
+    bestand();
+    expect(geraeteListe(db, { seitenGroesse: 9 }).naechsterCursor).toBeNull();
+    expect(geraeteListe(db, { seitenGroesse: 8 }).naechsterCursor).not.toBeNull();
+  });
+
+  it("der Filter gilt auch hinter der Position", () => {
+    bestand();
+    expect(inPortionen({ status: ["Defekt"], sortierung: "rufname:desc" }).sort()).toEqual([
+      "a",
+      "b",
+      "g",
+    ]);
+  });
+});
+
 describe("der Kopplungsfall aus E-V8", () => {
   it("der SQL-Ausdruck der Liste und berechneUpdateStand stimmen ueber alle vier Eingabelagen ueberein", () => {
     /*
@@ -615,9 +719,9 @@ describe("geraet — die Geraeteakte", () => {
      * ⛔ DIE ZWEITE HAELFTE DES NAMENS WIRD GEMESSEN, NICHT NUR BEHAUPTET. Die drei
      * `null`-Zusicherungen gelten unabhaengig davon, ob `users` gefragt wurde — sie allein machten
      * den Fall zu einem Waechter, der seinen Namen nicht haelt (Fix-Runde 1 zu V6, Fund 1): die
-     * Sonde auf `geraete.ts:604` ergab OHNE die Zaehlung unten 0 rot, MIT ihr 1 rot. Gezaehlt wird
+     * Sonde auf `geraete.ts:683` ergab OHNE die Zaehlung unten 0 rot, MIT ihr 1 rot. Gezaehlt wird
      * deshalb, wie oft eine Anweisung ueber `users` vorbereitet wird, waehrend `geraet` laeuft —
-     * dieselbe Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:515-528`).
+     * dieselbe Technik wie in „zaehlt in EINER Abfrage…" (`geraete.test.ts:619-632`).
      */
     lege({ id: "a" });
 
@@ -787,7 +891,7 @@ describe("geraetFormWerte", () => {
   it("traegt genau die zwanzig schreibbaren Felder plus id und updateStand", () => {
     /*
      * ⛔ EXAKTER FELDSATZABGLEICH AN EINER ECHTEN ZEILE, wie beim Feldsatz von `GeraetZeile`
-     * (`geraete.test.ts:680-715`): der Waechter dagegen, dass eine Auditspalte
+     * (`geraete.test.ts:784-819`): der Waechter dagegen, dass eine Auditspalte
      * (`createdBy`, `updatedBy`, `createdAt`, `updatedAt`) in das Formular wandert. Gegen den
      * TYP allein waere das nicht pruefbar — ein Typ hat zur Laufzeit keine Felder.
      *

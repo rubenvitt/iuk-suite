@@ -112,7 +112,7 @@ export const EREIGNIS_GRENZE = 200;
  * Die Leerwertform dieses Moduls. ⚠️ SIE IST HIER EINE BENANNTE WAHL UND KEIN PORT: der
  * Alt-Endpunkt hat gemessen keinen Konsumenten, es gibt also keine Alt-Darstellung eines leeren
  * Wertes zum Abschreiben. Dieselbe Form fuehren `_db/leihen.ts` (`ZURUECK_OFFEN`, 1:1 aus
- * `radio-admin/client/src/utils/format.ts:2-4`) und `_lib/lesepfade/geraete.ts:434`
+ * `radio-admin/client/src/utils/format.ts:2-4`) und `_lib/lesepfade/geraete.ts:487`
  * (`letztesUpdateText`).
  */
 const LEER = "—";
@@ -175,7 +175,7 @@ export type EreignisZeile = {
  * RANDFALL — jede per CSV importierte Historie traegt `changed_by` durchgehend als `null`
  * (`_db/schema.ts:133`, nullable), die leere Eingabe ist also der Normalfall dieser Flaeche.
  *
- * ⚠️ DIESELBEN ZWOELF ZEILEN STEHEN NOCH ZWEIMAL: `_lib/lesepfade/geraete.ts:601-611` (V7)
+ * ⚠️ DIESELBEN ZWOELF ZEILEN STEHEN NOCH ZWEIMAL: `_lib/lesepfade/geraete.ts:680-690` (V7)
  * und `_lib/lesepfade/codes.ts:149-161` (V20). Das ist bewusst so gelassen: eine gemeinsame
  * Datei waere ein fuenfter Baustein in einer Aufgabe, die vier vorsieht, und die Wiederholung
  * ist mechanisch — alle drei Fassungen bilden denselben Alt-Rumpf ab und haben keinen eigenen

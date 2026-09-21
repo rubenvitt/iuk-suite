@@ -9,6 +9,7 @@ import {
 import {
   LEERE_FILTER,
   SEITEN_GROESSE,
+  SUCHPARAMETER_MAX_ZEICHEN,
   angewandt,
   geraeteParameterAus,
   sortierungLesen,
@@ -121,7 +122,7 @@ describe("radio-suchparameter: der Vertrag der Geraeteliste", () => {
      * ⛔ DIE ZWEITE VERTEIDIGUNGSLINIE VOR DEM LESEPFAD (Entscheidung E-V9,
      * `.superpowers/sdd/planteil4/briefs/KOPF.md:708-733`). Der Lesepfad selbst laesst
      * einen unbekannten Schluessel still auf die Vorgabe `desc(createdAt)` fallen
-     * (`_lib/lesepfade/geraete.ts:504-511`, 1:1 zu `deviceRepo.ts:196-201`) — er ist also
+     * (`_lib/lesepfade/geraete.ts:557-568`, 1:1 zu `deviceRepo.ts:196-201`) — er ist also
      * nicht gefaehrlich, aber er ist auch nichts, was in der Adresszeile stehen bleiben
      * soll. Wer ihn durchreichte, zeigte in der URL eine Sortierung an, die die Tabelle
      * nicht hat.
@@ -147,7 +148,7 @@ describe("radio-suchparameter: der Vertrag der Geraeteliste", () => {
   it("unbekannte Suchfelder werden DURCHGEREICHT, nicht weggeworfen", () => {
     /*
      * ⛔ HIER LAEUFT DER VERTRAG GEGENLAEUFIG ZUR SORTIERUNG, UND DAS IST GEMESSEN.
-     * `_lib/lesepfade/geraete.ts:456-472` (1:1 zu `deviceRepo.ts:159-173`) fuehrt einen
+     * `_lib/lesepfade/geraete.ts:509-525` (1:1 zu `deviceRepo.ts:159-173`) fuehrt einen
      * SICHERHEITSZWEIG: sind ALLE angeforderten Felder unbekannt, liefert die Abfrage
      * KEINE Zeile (`sql\`0\``) — „never interpolate unknown names into SQL". Eine LEERE
      * Feldliste bedeutet dagegen etwas voellig anderes: die sieben Vorgabefelder
@@ -174,7 +175,7 @@ describe("radio-suchparameter: der Vertrag der Geraeteliste", () => {
   it("die drei Schalter filtern NUR, wenn sie wahr sind", () => {
     /*
      * ⛔ 1:1 aus `deviceRepo.ts:186-188` (`if (params.loanable) ...`), im Suite-Lesepfad
-     * ausgeschrieben als `_lib/lesepfade/geraete.ts:491-493`: „nicht ausleihbar" ist in
+     * ausgeschrieben als `_lib/lesepfade/geraete.ts:544-546`: „nicht ausleihbar" ist in
      * dieser Maske NICHT ausdrueckbar. Ein `false`, das den Lesepfad erreichte, waere
      * heute wirkungslos — und genau deshalb der stille Fehler von morgen, wenn jemand
      * dort `!== undefined` schreibt.
@@ -191,18 +192,70 @@ describe("radio-suchparameter: der Vertrag der Geraeteliste", () => {
     expect(an.werte.filter.ausleihbar).toBe(true);
   });
 
-  it("die Seite ist eins-basiert und faellt nie unter eins", () => {
+  it("eine Seitenzahl aus einem alten Link erreicht den Lesepfad nicht (DRK-335)", () => {
     /*
-     * `DeviceList.tsx:126` (`page: pagination.current ?? 1`). Ein `seite=0` oder
-     * `seite=abc` aus einer von Hand getippten Adresszeile darf keinen negativen
-     * `OFFSET` erzeugen — der Lesepfad rechnet `(seite - 1) * seitenGroesse`
-     * (`_lib/lesepfade/geraete.ts:521`).
+     * Seit DRK-335 laedt die Liste beim Scrollen nach; die Seite liest immer die ERSTE
+     * Portion. Ein gespeicherter Link mit `?seite=3` darf deshalb keinen `OFFSET` mehr
+     * erzeugen — sonst begaenne die Liste mitten im Bestand, und nichts zeigte, dass davor
+     * etwas fehlt.
      */
-    expect(geraeteParameterAus({}).werte.seite).toBe(1);
-    expect(geraeteParameterAus({ seite: "3" }).werte.seite).toBe(3);
-    expect(geraeteParameterAus({ seite: "0" }).werte.seite).toBe(1);
-    expect(geraeteParameterAus({ seite: "abc" }).werte.seite).toBe(1);
-    expect(geraeteParameterAus({ seite: "-4" }).werte.seite).toBe(1);
+    const { werte, filter } = geraeteParameterAus({ seite: "3", q: "Ruf" });
+    expect(filter.seite).toBeUndefined();
+    expect(Object.keys(werte)).not.toContain("seite");
+    // Und der Patch LOESCHT sie: sonst stuende sie nach jedem Filterwechsel weiter da.
+    expect(suchparameterZu(werte).seite).toBe("");
+    expect(angewandt(new URLSearchParams("seite=3&q=Ruf"), suchparameterZu(werte)).has("seite"))
+      .toBe(false);
+  });
+
+  it("der Patch ergibt beim erneuten Lesen denselben Filter — der Nachschlag faehrt ihn", () => {
+    /*
+     * ⛔ DAS IST DIE ZUSAGE, AUF DER DAS NACHLADEN STEHT (DRK-335): die Insel schickt
+     * `suchparameterZu(werte)` an `geraeteNachladenAction`, und die faltet es mit
+     * `geraeteParameterAus` — wie die Seite die Adresszeile. Ergaebe der Rundlauf einen
+     * anderen Filter, blaetterte die Liste ab der zweiten Portion durch eine ANDERE
+     * Treffermenge, und keine Meldung wiese darauf hin.
+     */
+    const roh = {
+      q: "  Ruf 41 ",
+      sf: "rufname,issi",
+      sortierung: "lagerort:desc",
+      updateStand: "veraltet",
+      status: "Defekt, Wartung",
+      lagerort: "Halle",
+      geraeteTyp: "MTP3550",
+      funktion: "HRT",
+      hersteller: "Motorola",
+      geraeteFunktionen: "TMO,DMO",
+      ausleihbar: "1",
+      alamos: "1",
+      hatAbweichung: "1",
+    };
+    const erste = geraeteParameterAus(roh);
+    const zweite = geraeteParameterAus(suchparameterZu(erste.werte));
+    expect(zweite.filter).toEqual(erste.filter);
+
+    const leer = geraeteParameterAus({});
+    expect(geraeteParameterAus(suchparameterZu(leer.werte)).filter).toEqual(leer.filter);
+
+    // Schluessel, die die Insel NICHT fuehrt, duerfen den Filter der Seite nicht aendern —
+    // sonst liefe der Nachschlag gegen eine andere Treffermenge als die erste Portion.
+    const fremd = geraeteParameterAus({ ...roh, seite: "5", seitenGroesse: "1000", unbekannt: "x" });
+    expect(geraeteParameterAus(suchparameterZu(fremd.werte)).filter).toEqual(fremd.filter);
+  });
+
+  it("ein ueberlanger Parameter wird beim Lesen gekuerzt, nicht erst im Nachschlag abgewiesen", () => {
+    /*
+     * ⛔ DIE GRENZE DER ACTION MUSS DIE SEITE AUCH ANWENDEN (DRK-331, Reviewbefund). Sonst
+     * naehme die Seite einen Wert an, den jeder Nachschlag abweist, und die Liste stuende
+     * dauerhaft mit einer Fehlermeldung auf der ersten Portion.
+     */
+    const lang = "x".repeat(SUCHPARAMETER_MAX_ZEICHEN + 50);
+    const { werte } = geraeteParameterAus({ q: lang, status: lang });
+    for (const wert of Object.values(suchparameterZu(werte))) {
+      expect(wert.length).toBeLessThanOrEqual(SUCHPARAMETER_MAX_ZEICHEN);
+    }
+    expect(werte.q).toHaveLength(SUCHPARAMETER_MAX_ZEICHEN);
   });
 
   it("die Listenfilter kommen kommagetrennt und getrimmt an", () => {
@@ -366,11 +419,17 @@ describe("radio-suchparameter: der Vertrag der Ausleihenliste (V-L11)", () => {
     expect(werte.bis).toBe("");
   });
 
-  it("die Seitenzahl faellt bei jedem unbrauchbaren Wert auf eins", () => {
-    expect(ausleihenParameterAus({ seite: "3" }).werte.seite).toBe(3);
-    for (const wert of ["0", "-2", "zwei", "", undefined]) {
-      expect(ausleihenParameterAus({ seite: wert }).werte.seite, `Seite aus ${wert}`).toBe(1);
-    }
+  it("eine Seitenzahl aus einem alten Link erreicht den Lesepfad nicht (DRK-335)", () => {
+    const { werte, parameter } = ausleihenParameterAus({ seite: "3", geraet: "g-1" });
+    expect(Object.keys(parameter)).not.toContain("seite");
+    expect(Object.keys(werte)).not.toContain("seite");
+  });
+
+  it("der Patch ergibt beim erneuten Lesen denselben Filter — der Nachschlag faehrt ihn", () => {
+    // Dieselbe Zusage wie bei der Geraeteliste oben, fuer `ausleihenNachladenAction`.
+    const erste = ausleihenParameterAus({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER });
+    const zweite = ausleihenParameterAus(ausleihenSuchparameterZu(erste.werte));
+    expect(zweite.parameter).toEqual(erste.parameter);
   });
 
   it("die Seitengroesse steht im Lesepfad und NICHT in diesem Vertrag", () => {
@@ -395,12 +454,16 @@ describe("radio-suchparameter: der Vertrag der Ausleihenliste (V-L11)", () => {
      * BESTEHENDE Adresszeile. Ein Patch, der nur die gesetzten Werte fuehrt, liesse den
      * geleerten Filter dort stehen.
      */
-    expect(
-      ausleihenSuchparameterZu({ geraet: "", von: "", bis: "", seite: 1 }),
-    ).toEqual({ geraet: "", von: "", bis: "", seite: "" });
+    // `seite` ist IMMER leer: ein alter Parameter wird beim Schreiben geloescht (DRK-335).
+    expect(ausleihenSuchparameterZu({ geraet: "", von: "", bis: "" })).toEqual({
+      geraet: "",
+      von: "",
+      bis: "",
+      seite: "",
+    });
 
     expect(
-      ausleihenSuchparameterZu({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER, seite: 4 }),
-    ).toEqual({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER, seite: "4" });
+      ausleihenSuchparameterZu({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER }),
+    ).toEqual({ geraet: "g-1", von: TAG_SOMMER, bis: TAG_WINTER, seite: "" });
   });
 });

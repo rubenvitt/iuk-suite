@@ -196,8 +196,8 @@
   color: var(--iuk-gedaempft);
 }
 
-/* Die URL-schreibende Blaetterung (Regime B) — sie ersetzt antds `pagination`. */
-.blaetterung {
+/* Der Fuss des Nachladens beim Scrollen (DRK-335) — er ersetzt die Blaetterung. */
+.nachladen {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -206,7 +206,14 @@
   margin-block-start: 12px;
 }
 
-.blaetterungText {
+.nachladenFehler {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nachladenStand {
   color: var(--iuk-gedaempft);
 }
 

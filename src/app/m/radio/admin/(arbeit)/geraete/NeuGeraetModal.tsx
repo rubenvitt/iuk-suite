@@ -42,7 +42,7 @@ import s from "../../../_ui/verwaltung.module.css";
  * keinen Aufruf von `message.*` oder `App.useApp()`. ⚠️ Damit entfaellt auch das
  * „Gerät angelegt" aus `DeviceFormModal.tsx:73` — benannte Abweichung. Der FEHLER steht
  * dafuer am Ort der Aktion, und sein Text kommt aus der Action selbst
- * (`admin/actions.ts:131-132`), nicht aus einer zweiten Liste hier.
+ * (`admin/actions.ts:143-144`), nicht aus einer zweiten Liste hier.
  */
 
 /**
