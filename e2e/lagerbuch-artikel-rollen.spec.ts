@@ -69,7 +69,25 @@ test.describe("Tabellen-Semantik der virtualisierten Artikeltabelle (DRK-336)", 
     // nimmt ihn dort weg und setzt ihn hierher; stünde er an beiden, träfe
     // eine Vorleseanwendung zwei gleich benannte Tabellen nebeneinander.
     await expect(koerper).toHaveAttribute("aria-label", TABELLENNAME);
-    await expect(page.getByLabel(TABELLENNAME)).toHaveCount(1);
+    /*
+     * ⚠️ ÜBER DIE ROLLE, NICHT ÜBER DIE BESCHRIFTUNG (DRK-451). Die Aussage ist
+     * unverändert — „eine Vorleseanwendung trifft GENAU EINE so benannte
+     * Tabelle" —, aber der Greifer musste wechseln: seit die Artikelliste eine
+     * `Kartentabelle` ist, trägt auch die Kartenliste daneben denselben Namen.
+     * Das ist richtig so (ohne ihn hätte die schmale Darstellung gar keinen),
+     * und es ist ungefährlich, weil immer nur eine der beiden im
+     * Zugänglichkeitsbaum steht — die andere ist `display: none`.
+     *
+     * ⚠️ NUR SIEHT `getByLabel` DAS NICHT. Gemessen im echten Chromium an einer
+     * Seite mit einem verborgenen und einem sichtbaren Knoten desselben Namens:
+     *
+     *     getByLabel("…")                  2 Treffer   ← zählt Verborgenes mit
+     *     getByRole("table", { name })     1 Treffer   ← löst über den Baum auf
+     *
+     * `getByLabel` hätte hier also ab sofort 2 gemeldet und damit die Umstellung
+     * als Regression ausgewiesen, obwohl kein Mensch je zwei Tabellen hört.
+     */
+    await expect(page.getByRole("table", { name: TABELLENNAME })).toHaveCount(1);
 
     // Die Gesamtzahl der Liste — nicht die Zahl der Knoten im Baum. Das ist der
     // ganze Zweck von `aria-rowcount`.

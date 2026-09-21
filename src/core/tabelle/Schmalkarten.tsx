@@ -94,6 +94,22 @@
  * das: Vitest hat keine Strict-Mode-Regel, und `query()` dort liefert schlicht
  * die erste Fundstelle.
  *
+ * ⚠️ UND DESHALB HEISST DER SCHLÜSSEL AN DER KARTE `data-karte-key`, NICHT
+ * `data-row-key` (DRK-451). Die Karte trug ihn zuerst unter demselben Namen wie
+ * die Tabellenzeile — spiegelbildlich gedacht, und in der Wirkung der teuerste
+ * Namensgleichklang des Repos: `[data-row-key]` ist DER Zeilengreifer dieser
+ * e2e-Suite (rund fünfzehn Fundstellen), und mit der Umstellung von vierzig
+ * Tabellen hätte jede davon plötzlich zwei Knoten getroffen. Zwei Ausgänge,
+ * beide unangenehm: eine Aktion reißt mit „strict mode violation", eine Messung
+ * trifft die VERBORGENE Karte und liest eine leere Zeichenkette — `innerText()`
+ * gibt für `display: none` nichts zurück, und ein `match(...)!` daneben wirft
+ * dann an einer Stelle, die mit Karten nichts zu tun hat.
+ *
+ * Ein eigener Name macht die Unterscheidung mechanisch statt disziplinarisch:
+ * `[data-row-key]` heißt wieder eindeutig „Tabellenzeile", ohne dass fünfzehn
+ * Fundstellen davon wissen müssen. Wer die Karte greifen will, nimmt
+ * `[data-rolle="schmalkarten"]` als Rahmen — so wie die Fälle es ohnehin tun.
+ *
  * ⚠️ WAS SIE BEWUSST NICHT TUT: sie sortiert und filtert nicht. Die schmale
  * Darstellung hat keine Spaltenköpfe, also auch keinen Ort für einen Trichter;
  * sie zeigt, was der Aufrufer ihr gibt. Wer auf dem Telefon filtern können
@@ -187,7 +203,7 @@ export function Schmalkarten<T>({
           style={{ "--tab-kartenhoehe": `${kartenHoehe}px` } as React.CSSProperties}
         >
           {zeilen.map((zeile) => (
-            <li key={schluessel(zeile)} className={stil.karte} data-row-key={schluessel(zeile)}>
+            <li key={schluessel(zeile)} className={stil.karte} data-karte-key={schluessel(zeile)}>
               {karte(zeile)}
             </li>
           ))}

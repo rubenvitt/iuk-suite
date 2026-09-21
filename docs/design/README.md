@@ -423,6 +423,16 @@ man über die waagerecht gescrollte Zeile noch an den Trichter, danach gar nicht
 genau das zweimal passiert und wurde zweimal einzeln nachgebessert; deshalb steckt sie jetzt im
 Bauteil und nicht im Aufrufer.
 
+⚠️ **Die Karte trägt ihren Schlüssel als `data-karte-key`, die Tabellenzeile als `data-row-key`** —
+und der getrennte Name ist der Grund, warum die Umstellung von vierzig Tabellen die e2e-Suite nicht
+umgeschrieben hat. Beide Darstellungen stehen gleichzeitig im DOM; hießen die Schlüssel gleich, träfe
+jeder `[data-row-key]`-Greifer (rund fünfzehn in `e2e/`) plötzlich zwei Knoten. **Für Greifer gilt
+weiter die Tabelle aus `Schmalkarten.tsx`:** `getByRole` löst über den Zugänglichkeitsbaum auf und
+lässt Verborgenes aus; `getByLabel`, `getByText` und `getByTestId` lösen über das DOM auf und sehen
+beide. Gemessen im echten Chromium an einem verborgenen und einem sichtbaren Knoten desselben
+Namens: `getByLabel` → 2, `getByRole(…, { name })` → 1. Wer eine Zusicherung auf „genau eine so
+benannte Tabelle" schreibt, nimmt deshalb die ROLLE.
+
 **Eine Karte ist nicht die Zeile hochkant.** Acht Spalten untereinander sind kein Fortschritt
 gegenüber acht Spalten nebeneinander. `karte={{ titel, kennzeichen, aus }}` entscheidet, was auf 390px
 zählt; leergelassene Felder fallen von selbst weg. Wo die Karte mehr sein muss als ihre Zeile — ein

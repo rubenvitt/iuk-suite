@@ -173,7 +173,12 @@ describe("TeilnehmerTabelle — schmale Darstellung", () => {
 
     const karten = queryAll('[data-rolle="schmalkarten"] > li');
     expect(karten.length).toBe(2);
-    expect(karten.map((k) => k.getAttribute("data-row-key"))).toEqual(["a", "b"]);
+    // ⚠️ `data-karte-key`, NICHT `data-row-key` (DRK-451): die Karte trug den
+    // Schluessel zuerst unter demselben Namen wie die Tabellenzeile. Das hat
+    // jeden `[data-row-key]`-Greifer der e2e-Suite doppeldeutig gemacht, sobald
+    // vierzig Tabellen auf Karten umgestellt waren — deshalb heisst er an der
+    // Karte jetzt anders. Begruendung im Kopf von `Schmalkarten.tsx`.
+    expect(karten.map((k) => k.getAttribute("data-karte-key"))).toEqual(["a", "b"]);
   });
 
   it("filtert die Karten über die Statusleiste — und zwar über denselben Zustand", async () => {
@@ -220,7 +225,7 @@ describe("TeilnehmerTabelle — schmale Darstellung", () => {
 
     const karten = queryAll('[data-rolle="schmalkarten"] > li');
     expect(karten.length).toBe(1);
-    expect(karten[0].getAttribute("data-row-key")).toBe("b");
+    expect(karten[0].getAttribute("data-karte-key")).toBe("b");
   });
 
   it("zeigt den Leertext auch in der schmalen Darstellung", async () => {

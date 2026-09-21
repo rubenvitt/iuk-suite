@@ -56,7 +56,7 @@ describe("Kartentabelle", () => {
       />,
     );
     expect(queryAll(`${KARTEN} > li`)).toHaveLength(2);
-    expect(query(`${KARTEN} > li[data-row-key="a"]`)).toBeTruthy();
+    expect(query(`${KARTEN} > li[data-karte-key="a"]`)).toBeTruthy();
   });
 
   it("macht den Spaltentitel zur Beschriftung und den Zellinhalt zum Wert", async () => {
@@ -69,7 +69,7 @@ describe("Kartentabelle", () => {
         leer={{ nichts: "Nichts da." }}
       />,
     );
-    const erste = query(`${KARTEN} > li[data-row-key="a"]`);
+    const erste = query(`${KARTEN} > li[data-karte-key="a"]`);
     expect(erste.textContent).toContain("Mullbinde");
     const paare = Array.from(erste.querySelectorAll("dt")).map((dt) => dt.textContent);
     expect(paare).toEqual(["Fach", "Status"]);
@@ -91,7 +91,7 @@ describe("Kartentabelle", () => {
         leer={{ nichts: "Nichts da." }}
       />,
     );
-    const zweite = query(`${KARTEN} > li[data-row-key="b"]`);
+    const zweite = query(`${KARTEN} > li[data-karte-key="b"]`);
     expect(Array.from(zweite.querySelectorAll("dt")).map((dt) => dt.textContent))
       .toEqual(["Status"]);
   });
@@ -247,7 +247,7 @@ describe("Kartentabelle", () => {
     );
     const karten = queryAll(`${KARTEN} > li`);
     expect(karten).toHaveLength(1);
-    expect(karten[0]?.getAttribute("data-row-key")).toBe("a");
+    expect(karten[0]?.getAttribute("data-karte-key")).toBe("a");
   });
 
   it("sortiert die Karten aus dem übernommenen Zustand", async () => {
@@ -262,7 +262,7 @@ describe("Kartentabelle", () => {
         onSortierung={() => {}}
       />,
     );
-    expect(queryAll(`${KARTEN} > li`).map((li) => li.getAttribute("data-row-key")))
+    expect(queryAll(`${KARTEN} > li`).map((li) => li.getAttribute("data-karte-key")))
       .toEqual(["b", "a"]);
   });
 
@@ -283,7 +283,7 @@ describe("Kartentabelle", () => {
         onRow={(zeile) => ({ onClick: () => geoeffnet(zeile.id) })}
       />,
     );
-    const knopf = query(`${KARTEN} > li[data-row-key="a"] [data-rolle="kartentitel"]`);
+    const knopf = query(`${KARTEN} > li[data-karte-key="a"] [data-rolle="kartentitel"]`);
     expect(knopf.tagName).toBe("BUTTON");
     await clickElement(knopf);
     expect(geoeffnet).toHaveBeenCalledWith("a");
@@ -322,7 +322,7 @@ describe("Kartentabelle", () => {
         onRow={(zeile) => ({ onClick: () => geoeffnet(zeile.id) })}
       />,
     );
-    const loeschen = query(`${KARTEN} > li[data-row-key="a"] button.ant-btn`);
+    const loeschen = query(`${KARTEN} > li[data-karte-key="a"] button.ant-btn`);
     await clickElement(loeschen);
     expect(gedrueckt).toHaveBeenCalled();
     expect(geoeffnet).not.toHaveBeenCalled();
@@ -338,7 +338,7 @@ describe("Kartentabelle", () => {
         leer={{ nichts: "Nichts da." }}
       />,
     );
-    const erste = query(`${KARTEN} > li[data-row-key="a"]`);
+    const erste = query(`${KARTEN} > li[data-karte-key="a"]`);
     expect(Array.from(erste.querySelectorAll("dt")).map((dt) => dt.textContent))
       .not.toContain("Aktionen");
     expect(erste.textContent).toContain("Löschen");
@@ -355,7 +355,7 @@ describe("Kartentabelle", () => {
         karte={(zeile) => <b>{`eigen-${zeile.id}`}</b>}
       />,
     );
-    expect(query(`${KARTEN} > li[data-row-key="a"]`).textContent).toBe("eigen-a");
+    expect(query(`${KARTEN} > li[data-karte-key="a"]`).textContent).toBe("eigen-a");
   });
 
   /*
@@ -375,7 +375,7 @@ describe("Kartentabelle", () => {
         rowSelection={{ selectedRowKeys: ["b"], onChange: gewaehlt }}
       />,
     );
-    const kreuz = query(`${KARTEN} > li[data-row-key="a"] input[type="checkbox"]`);
+    const kreuz = query(`${KARTEN} > li[data-karte-key="a"] input[type="checkbox"]`);
     await clickElement(kreuz);
     expect(gewaehlt.mock.calls[0]?.[0]).toEqual(["b", "a"]);
   });

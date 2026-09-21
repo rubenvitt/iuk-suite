@@ -172,12 +172,16 @@ describe("LagerorteListe", () => {
   it("zeigt jeden Schrank in der gepflegten Reihenfolge", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
     /*
-     * ⚠️ EINGERAHMT AUF DIE BREITE DARSTELLUNG (DRK-451). Seit diese Liste eine
-     * `Kartentabelle` ist, traegt `data-row-key` ZWEI Knoten je Zeile — das
-     * `<li>` der Karte und das `<tr>` der Tabelle. jsdom wertet die Media Query
-     * nicht aus, also stehen beide da, und die Reihenfolge kaeme als
-     * „1, gf, alt, 1, gf, alt" heraus. Die Aussage bleibt dieselbe: die
-     * gepflegte Reihenfolge, einmal.
+     * ⚠️ `[data-row-key]` MEINT DIE TABELLENZEILE, UND ZWAR WIEDER EINDEUTIG.
+     * Seit diese Liste eine `Kartentabelle` ist, steht jede Zeile zweimal im
+     * Baum — als `<tr>` und als Karte —, und jsdom wertet die Media Query nicht
+     * aus, beide sind also da. Die Karte trägt ihren Schlüssel aber unter
+     * `data-karte-key` (Begründung im Kopf von `Schmalkarten.tsx`): genau
+     * damit dieser Greifer hier, und die rund fünfzehn gleichartigen in der
+     * e2e-Suite, weiter das meinen, was sie immer gemeint haben.
+     *
+     * Der Rahmen steht trotzdem — er kostet nichts und sagt, welche der beiden
+     * Darstellungen dieser Fall misst.
      */
     const namen = queryAll('[data-rolle="breitansicht"] [data-row-key]')
       .map((tr) => tr.getAttribute("data-row-key"));

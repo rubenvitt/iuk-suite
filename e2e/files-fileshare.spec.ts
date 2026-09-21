@@ -1047,10 +1047,27 @@ test("9 — fail-closed auf den drei Freigabe-Lesewegen: `error` UND `scanning` 
    */
   await page.goto(`${V}/shares/${shareId}`);
   await expect(page.getByTestId("files-share-detail")).toBeVisible();
-  await expect(page.getByText("Prüfung nicht möglich").first()).toBeVisible();
-  await expect(page.getByTestId(`files-detail-av-wiederholen-${idB}`)).toBeVisible();
-  await expect(page.getByTestId(`files-detail-av-wiederholen-${idC}`)).toBeVisible();
-  await expect(page.getByTestId(`files-detail-av-wiederholen-${idA}`)).toHaveCount(0);
+  /*
+   * ⚠️ EINGERAHMT AUF DIE BREITE DARSTELLUNG (DRK-451). Die Dateiliste einer
+   * Freigabe ist seit der Umstellung eine `Kartentabelle`: jede Zeile steht
+   * ZWEIMAL im DOM — als Tabellenzeile und als Karte —, und welche davon zu
+   * sehen ist, entscheidet allein die Media Query.
+   *
+   * ⚠️ DAS TRIFFT `getByText` UND `getByTestId`, ABER NICHT `getByRole`.
+   * Ein Rollen-Greifer loest ueber den Zugaenglichkeitsbaum auf und laesst das
+   * Verborgene aus; diese beiden loesen ueber das DOM auf und sehen beide.
+   * Gemessen an genau dieser Stelle (CI-Lauf 35657983189, Gruppe
+   * `files-feedback`): `.first()` fand den span der KARTE — bei 1280px
+   * `display: none` —, und die Zusicherung las „resolved to \u003cspan\u003e … unexpected
+   * value hidden". Die drei Zeilen darunter waeren als Naechstes an einer
+   * „strict mode violation" gerissen, weil ihr Testkennzeichen dann zweimal
+   * trifft.
+   */
+  const breit = page.locator('[data-rolle="breitansicht"]');
+  await expect(breit.getByText("Prüfung nicht möglich").first()).toBeVisible();
+  await expect(breit.getByTestId(`files-detail-av-wiederholen-${idB}`)).toBeVisible();
+  await expect(breit.getByTestId(`files-detail-av-wiederholen-${idC}`)).toBeVisible();
+  await expect(breit.getByTestId(`files-detail-av-wiederholen-${idA}`)).toHaveCount(0);
 });
 
 /**
