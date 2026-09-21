@@ -242,20 +242,26 @@ describe("anfangsSortierung", () => {
    * diesen Startwert stünde jede Tabelle mit Anfangssortierung still
    * unsortiert da. Sieben Tabellen dieser Suite sind betroffen.
    */
+  /*
+   * ⚠️ OHNE `title` — `anfangsSortierung` nimmt `AnzeigeSpalte`, und die kennt
+   * das Feld nicht. Es hier trotzdem zu schreiben ist kein harmloser Zusatz:
+   * TypeScript lehnt ueberschuessige Eigenschaften eines Objektliterals ab, und
+   * fuer diese Rechnung traegt der Titel ohnehin nichts bei.
+   */
   it("liest den Startwert aus `defaultSortOrder`", () => {
     expect(anfangsSortierung<Zeile>([
-      { title: "Artikel", dataIndex: "name" },
-      { title: "Fach", dataIndex: "fach", defaultSortOrder: "descend" },
+      { dataIndex: "name" },
+      { dataIndex: "fach", defaultSortOrder: "descend" },
     ])).toEqual({ spalte: "fach", richtung: "descend" });
   });
 
   it("bleibt leer, wenn keine Spalte einen Startwert nennt", () => {
-    expect(anfangsSortierung<Zeile>([{ title: "Artikel", dataIndex: "name" }])).toEqual({});
+    expect(anfangsSortierung<Zeile>([{ dataIndex: "name" }])).toEqual({});
   });
 
   it("steigt auch dafür in gruppierte Spaltenköpfe ab", () => {
     expect(anfangsSortierung<Zeile>([
-      { title: "Lager", children: [{ title: "Fach", dataIndex: "fach", defaultSortOrder: "ascend" }] },
+      { children: [{ dataIndex: "fach", defaultSortOrder: "ascend" }] },
     ])).toEqual({ spalte: "fach", richtung: "ascend" });
   });
 });

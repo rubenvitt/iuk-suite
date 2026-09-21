@@ -79,23 +79,6 @@ const INSEL_SOLL = ["AusleihenTabelle.tsx"];
 import { act } from "react";
 import {
 
-/**
- * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
- *
- * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
- * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
- * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
- * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
- * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
- *
- * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
- * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
- * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
- *
- * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
- * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
- */
-const BREIT = '[data-rolle="breitansicht"]';
 
   click,
   clickElement,
@@ -170,7 +153,7 @@ function Zellen({ z }: { z: AusleihZeile }) {
 
 /** Der Text jeder Zelle einer Rolle, ohne Randleerraum. */
 function texte(rolle: string): string[] {
-  return queryAll(`${BREIT} [data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
+  return queryAll(`[data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
 }
 
 /**
@@ -473,9 +456,19 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
 
   it("der mobile Zweig traegt Rufname, Status, Entleiher und die Ausleihzeit", async () => {
     /*
-     * ⛔ ER WANDERT MIT (`LoanList.tsx:86-…`), IN DERSELBEN INSEL: `Grid.useBreakpoint()` ist
-     * ein Client-Hook und `renderItem` waere Falle 9. In jsdom ist er der gerenderte Zweig
-     * (Kopf dieser Datei) — deshalb ist er hier ueberhaupt messbar.
+     * ⛔ ER WANDERT MIT (`LoanList.tsx:86-…`), IN DERSELBEN INSEL.
+     *
+     * ⚠️ SEIT DRK-451 IST ER NICHT MEHR DER EINZIGE GERENDERTE ZWEIG. Hier stand
+     * „in jsdom ist er der gerenderte Zweig" — das galt, solange
+     * `Grid.useBreakpoint()` umschaltete und in jsdom `md` falsch meldete. Die
+     * Umschaltung ist jetzt CSS (`Schmalkarten`), also stehen BEIDE
+     * Darstellungen im Baum, und jsdom wertet die Media Query nicht aus.
+     *
+     * Die `radio-leihe-mobil-*`-Marken gibt es nur auf der Karte, die sind
+     * eindeutig. `radio-leihe-status` dagegen traegt die Statusmarke in BEIDEN
+     * Zweigen — sie wird deshalb auf die Kartenliste eingerahmt. Ohne das
+     * zaehlte der Fall, wie viele Darstellungen es gibt, statt was die Karte
+     * traegt.
      */
     await mount(
       <AusleihenTabelle
@@ -483,8 +476,12 @@ describe("radio-Ausleihen: Blaetterung und Filter", () => {
       />,
     );
 
+    const KARTEN = '[data-rolle="schmalkarten"]';
     expect(texte("radio-leihe-mobil-name")).toEqual(["41/12"]);
-    expect(texte("radio-leihe-status")).toEqual(["Zurückgegeben"]);
+    expect(
+      queryAll(`${KARTEN} [data-rolle="radio-leihe-status"]`)
+        .map((el) => (el.textContent ?? "").trim()),
+    ).toEqual(["Zurückgegeben"]);
     expect(texte("radio-leihe-mobil-entleiher")).toEqual(["Anna Beispiel"]);
     expect(texte("radio-leihe-mobil-ausgeliehen")).toEqual(["Ausgeliehen: 14.06.2026, 09:12"]);
     expect(texte("radio-leihe-mobil-zurueck")).toEqual(["Zurückgegeben: 15.06.2026, 08:00"]);
