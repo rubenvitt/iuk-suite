@@ -19,7 +19,7 @@
  * OHNE JEDEN KOPF ein KONSTANTER Wert: alle kopflosen Aufrufer teilen sich EINEN
  * Eimer. Das ist der sichere Ausfallmodus — er kann nur zu STRENG sein, nie zu
  * lasch. Fuenf FEHLVERSUCHE pro Minute fuer alle direkt Anfragenden zusammen;
- * ein richtiger Code funktioniert dabei immer (§3.5.3).
+ * ein bekanntes Geraet zaehlt davon getrennt (§3.5.3a, DRK-291).
  *
  * Der Praefix `cf:` trennt die Namensraeume: ohne ihn koennte ein gefaelschter
  * `cf-connecting-ip: direkt` den Sammel-Eimer der kopflosen Aufrufer mitbenutzen

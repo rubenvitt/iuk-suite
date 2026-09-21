@@ -81,12 +81,13 @@ const stand = vi.hoisted(() => ({
     wert?: string;
     opt?: Record<string, unknown>;
   }[],
+  eingehend: {} as Record<string, string>,   // was der Browser mitschickt (`cookies().get`)
   umleitungen: [] as string[],
 }));
 
 const { gateGesperrt, gateFehlversuchBuchen, redeemToken, getDb } = vi.hoisted(() => ({
-  gateGesperrt: vi.fn<(absender: string) => number | null>(),
-  gateFehlversuchBuchen: vi.fn<(absender: string) => void>(),
+  gateGesperrt: vi.fn<(absender: string, anfrage?: { merkmal: string | null }) => number | null>(),
+  gateFehlversuchBuchen: vi.fn<(absender: string, anfrage?: { merkmal: string | null }) => void>(),
   redeemToken: vi.fn<(code: string, db: unknown) => Promise<unknown>>(),
   getDb: vi.fn<() => unknown>(),
 }));
@@ -108,18 +109,17 @@ const { gateGesperrt, gateFehlversuchBuchen, redeemToken, getDb } = vi.hoisted((
 vi.mock("next/headers", () => ({
   headers: async () => stand.kopf,
   cookies: async () => ({
+    get: (name: string) => (name in stand.eingehend ? { name, value: stand.eingehend[name]! } : undefined),
     set: (name: string, wert: string, opt: Record<string, unknown>) => {
       stand.cookieOps.push({ art: "set", name, wert, opt });
     },
-    delete: (name: string, opt?: Record<string, unknown>) => {
-      stand.cookieOps.push({ art: "delete", name, opt });
-    },
+    delete: (name: string, opt?: Record<string, unknown>) => { stand.cookieOps.push({ art: "delete", name, opt }); },
   }),
 }));
 
 // `redirect()` und `notFound()` WERFEN in der echten Laufzeit einen
 // Next-internen Fehler. Fuer die Unit-Aussage genuegt ein erkennbarer Wurf —
-// dieselbe Form wie in `_lib/host.test.ts:5-7` und `_actions/gate.test.ts:96`.
+// dieselbe Form wie in `_lib/host.test.ts:5-7` und `_actions/gate.test.ts` (`next/navigation`-Mock).
 vi.mock("next/navigation", () => ({
   redirect: (ziel: string) => { stand.umleitungen.push(ziel); throw new Error("NEXT_REDIRECT"); },
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
@@ -127,10 +127,27 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("../_lib/gateSchranke", () => ({ gateGesperrt, gateFehlversuchBuchen }));
 // ⚠️ N-3: `redeemToken` traegt hier seinen ECHTEN Namen. Ein Alias machte den
-// Reihenfolge-Scan aus T64 (`_lib/bauform.test.ts:865`) ueber diese Datei still
+// Reihenfolge-Scan aus T64 (`_lib/bauform.test.ts`) ueber diese Datei still
 // stumm — er sucht `\bredeemToken\s*\(`.
 vi.mock("../_lib/schreibpfade/tokenEinloesung", () => ({ redeemToken }));
 vi.mock("../_db/client", () => ({ getDb }));
+
+/**
+ * DRK-291 — das Merkmal „bekanntes Gerät" ist GEMOCKT, wie in
+ * `_actions/gate.test.ts`: Signatur und Unterscheidung prüft
+ * `_lib/gateSchranke.zugang.test.ts`, hier zählt allein die Verdrahtung.
+ */
+const merkmal = vi.hoisted(() => ({
+  gateMerkmal: vi.fn<(lies: (name: string) => string | undefined) => Promise<string | null>>(),
+  geraetCookieWert: vi.fn<(bisher: string | undefined) => Promise<string>>(),
+  GERAET_OPT: { marke: "geraet-optionen", path: "/", httpOnly: true, maxAge: 4711 },
+}));
+vi.mock("../_lib/gateSchrankeMerkmal", () => ({
+  GERAET_COOKIE: "lagerbuch_geraet",
+  gateMerkmal: merkmal.gateMerkmal,
+  geraetCookieWert: merkmal.geraetCookieWert,
+  geraetCookieOptionen: () => merkmal.GERAET_OPT,
+}));
 
 import { erneuereSitzung, beenden } from "./sitzung";
 
@@ -153,12 +170,15 @@ const TREFFER = {
 
 beforeEach(() => {
   stand.cookieOps.length = 0;
+  stand.eingehend = {};
   stand.umleitungen.length = 0;
   stand.kopf = new Headers({ host: "lagerbuch.localtest.me" });
   gateGesperrt.mockReset().mockReturnValue(null);
   gateFehlversuchBuchen.mockReset();
   redeemToken.mockReset();
   getDb.mockReset().mockReturnValue(DB_HANDLE);
+  merkmal.gateMerkmal.mockReset().mockResolvedValue(null);
+  merkmal.geraetCookieWert.mockReset().mockResolvedValue("geraet.jwt");
 });
 afterEach(() => { vi.clearAllMocks(); });
 
@@ -177,6 +197,7 @@ describe("erneuereSitzung — Schritt 1: der Host-Riegel WIRFT, und er steht gan
     await expect(erneuereSitzung("482-137")).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(gateGesperrt).not.toHaveBeenCalled();
+    expect(merkmal.gateMerkmal).not.toHaveBeenCalled();
     expect(getDb).not.toHaveBeenCalled();
     expect(redeemToken).not.toHaveBeenCalled();
     expect(gateFehlversuchBuchen).not.toHaveBeenCalled();
@@ -231,8 +252,8 @@ describe("erneuereSitzung — der Absenderschluessel: einmal ermittelt, zweimal 
 
     await erneuereSitzung("000-000");
 
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4");
-    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4");
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: null });
   });
 });
 
@@ -291,7 +312,8 @@ describe("erneuereSitzung — Schritt 5: Erfolg, und die Seite bleibt stehen", (
 
     expect(r).toStrictEqual({ ok: true, wert: null });
     expect(stand.umleitungen).toEqual([]);
-    expect(stand.cookieOps).toHaveLength(1);
+    // Zwei Cookies: die Sitzung und das Merkmal „bekanntes Gerät" (DRK-291).
+    expect(stand.cookieOps.map((c) => c.name)).toEqual(["helfer_session", "lagerbuch_geraet"]);
     expect(stand.cookieOps[0]?.art).toBe("set");
     expect(stand.cookieOps[0]?.name).toBe("helfer_session");
     expect(stand.cookieOps[0]?.wert).toBe("jwt.neu");
@@ -299,6 +321,10 @@ describe("erneuereSitzung — Schritt 5: Erfolg, und die Seite bleibt stehen", (
     expect(stand.cookieOps[0]?.opt?.maxAge as number).toBeGreaterThan(0);
     expect(stand.cookieOps[0]?.opt?.httpOnly).toBe(true);
     expect(stand.cookieOps[0]?.opt?.path).toBe("/");
+    expect(stand.cookieOps[1]?.art).toBe("set");
+    expect(stand.cookieOps[1]?.wert).toBe("geraet.jwt");
+    expect(stand.cookieOps[1]?.opt).toBe(merkmal.GERAET_OPT);
+    expect(merkmal.geraetCookieWert).toHaveBeenCalledWith(undefined);
   });
 
   it("verbraucht KEIN Budget — fuenf Erneuerungen in Folge schliessen das Gate nicht", async () => {
@@ -310,7 +336,8 @@ describe("erneuereSitzung — Schritt 5: Erfolg, und die Seite bleibt stehen", (
 
     for (let i = 0; i < 5; i++) await erneuereSitzung("482-137");
 
-    expect(stand.cookieOps).toHaveLength(5);
+    expect(stand.cookieOps.filter((c) => c.name === "helfer_session")).toHaveLength(5);
+    expect(stand.cookieOps.filter((c) => c.name === "lagerbuch_geraet")).toHaveLength(5);
     expect(gateFehlversuchBuchen).not.toHaveBeenCalled();
   });
 });
@@ -354,6 +381,35 @@ describe("erneuereSitzung — Schritt 6: Misserfolg ist ein RUECKGABEWERT", () =
     if (beiSperre.ok || beiFalschemCode.ok) throw new Error("unerwartet ok");
     expect(darfErneuern(beiSperre.grund)).toBe(false);
     expect(darfErneuern(beiFalschemCode.grund)).toBe(false);
+  });
+});
+
+describe("erneuereSitzung — das Merkmal „bekanntes Gerät\" (DRK-291)", () => {
+  it("liest das Merkmal aus DEN COOKIES DIESER ANFRAGE und reicht es an Prüfung UND Buchung", async () => {
+    // Wer erneuert, trägt fast immer das Merkmal. Läse die Sperre in seinem
+    // Eimer und buchte der Fehlversuch bei den Unbekannten, sperrte er sich nie.
+    stand.kopf = new Headers({ host: "lagerbuch.localtest.me", "cf-connecting-ip": "1.2.3.4" });
+    stand.eingehend = { lagerbuch_geraet: "alt.jwt" };
+    merkmal.gateMerkmal.mockImplementation(async (lies) =>
+      lies("lagerbuch_geraet") === "alt.jwt" ? "geraet:abc" : null);
+    redeemToken.mockResolvedValue({ ok: false });
+
+    await erneuereSitzung("000-000");
+
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
+    expect(gateFehlversuchBuchen).toHaveBeenCalledWith("cf:1.2.3.4", { merkmal: "geraet:abc" });
+    expect(gateFehlversuchBuchen.mock.calls[0]?.[1]).toEqual(gateGesperrt.mock.calls[0]?.[1]);
+    // Misserfolg: KEIN Gerätecookie.
+    expect(stand.cookieOps).toEqual([]);
+  });
+
+  it("ein vorhandenes Merkmal behält seine Kennung — der bisherige Wert geht an `geraetCookieWert`", async () => {
+    stand.eingehend = { lagerbuch_geraet: "alt.jwt" };
+    redeemToken.mockResolvedValue(TREFFER);
+
+    await erneuereSitzung("482-137");
+
+    expect(merkmal.geraetCookieWert).toHaveBeenCalledWith("alt.jwt");
   });
 });
 
@@ -435,7 +491,7 @@ describe("_actions/sitzung.ts — Bauform", () => {
   /**
    * Der Rumpf einer Action, ohne Kommentare, ab der Zeile NACH der
    * schliessenden Signaturklammer — zeichengleich zu
-   * `_actions/gate.test.ts:379`.
+   * `_actions/gate.test.ts`, `rumpfDerAction`.
    *
    * ⚠️ DIE KLAMMERTIEFE WIRD MITGEZAEHLT, wie in `_actions/guards.test.ts:98`:
    * ein naives „erste Zeile, die auf `{` endet" naehme bei einer mehrzeiligen

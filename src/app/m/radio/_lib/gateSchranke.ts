@@ -1,5 +1,6 @@
 import { RateLimiter } from "@/core/ratelimit";
 import { grenzen } from "./grenzen";
+import { istCodeForm, normalisiereCode } from "./code";
 
 /**
  * DIE GATE-SCHRANKE DES MODULS `radio` — drei Zaehler, und sie zaehlen NUR
@@ -38,11 +39,11 @@ import { grenzen } from "./grenzen";
  * NICHT belegt, dass der Befund behoben ist … Belegt ist die Reparatur erst mit P6" —
  * P1 und P6 sind offen).
  *
- * ⛔ DIESE DATEI SETZT KEINE DER BEIDEN ANTWORTEN VORAUS, und sie muss es nicht: der
- * Absender-Eimer ist so oder so nur die Bequemlichkeitsgrenze, und die beiden
- * modulweiten Zaehler haengen an Modulkonstanten, die keine Antwort auf A-L12 aendert.
- * Kollabiert der Absenderschluessel, sind sie die einzige Schranke; kollabiert er nicht,
- * sind sie die Kappe gegen Rotation. Beide Male tragen sie.
+ * ⛔ SEIT DRK-291 SETZT DIESE DATEI KEINE DER BEIDEN ANTWORTEN MEHR VORAUS, weil keine Sperre
+ * mehr eine WOHLGEFORMTE Eingabe trifft (`gateGesperrt`): die Abwehr ist der Coderaum
+ * (140 bit), die Zaehler sind die Notbremse fuer Eingaben, die nie ein Code sein koennen.
+ * Kollabiert der Absenderschluessel (A-L12), sperrt ein Klopfer damit hoechstens Muell aus,
+ * nie einen richtigen Code — vorher sperrte er nach fuenf Fehlversuchen den ganzen Funkraum.
  *
  * ⬜ A-L6 — eine Abhilfe fuer den Egress-IP-Kollaps ist als Bauplan beschrieben, NICHT
  * gebaut: `.superpowers/sdd/VORARBEIT-selfhop.md`; sie hat selbst zwei offene
@@ -85,51 +86,47 @@ const g = grenzen();
 const proAbsender = new RateLimiter({ windowMs: 60_000, max: g.gateProAbsenderProMin });
 
 /**
- * Modulweit ueber die Minute, gegen Rotation des Absenderschluessels — die BURST-Kappe,
- * nicht die eigentliche Abwehr (das ist `gateStunde`).
- * 30 = sechs Absender-Budgets (Spec:3007).
- * Env: RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN, Vorgabe 30 (`./grenzen.ts:86`).
+ * Modulweit ueber die Minute (30 = sechs Absender-Budgets, Spec:3007) und ueber die
+ * Stunde (300 = 5/min x 60, Spec:3008-3009).
+ * Env: RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_MIN, RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE.
  *
- * WARUM EINE MODULWEITE MINUTENSPERRE VERTRETBAR IST, obwohl sie alle trifft: sie kann
- * nur Fehleingaben verzoegern. Der Budgetverbrauch liegt HINTER der Codepruefung — ein
- * RICHTIGER Code wird eingeloest, auch waehrend die Sperre laeuft (§3.7.3,
- * Spec:3037-3054). Der Sprengradius ist damit genau: „wer sich vertippt, wartet bis zu
- * eine Minute".
+ * ⛔ SEIT DRK-291 SPERREN SIE KEINEN RICHTIGEN CODE MEHR. Vorher stand ihre Sperrzeit VOR
+ * jeder Codesuche, und 31 Fehlversuche aus sieben Absendern sperrten eine Minute lang,
+ * 301 in der Stunde eine ganze Stunde lang JEDEN Aufsteller-Scan — obwohl diese Datei und
+ * die Spec zusagten, ein richtiger Code komme „auch waehrend laufender Sperre" herein.
+ * Jetzt gatet `gateGesperrt` nur noch Eingaben, die gar kein Code sein koennen.
+ *
+ * WARUM DAS HIER SICHER IST UND IN `lagerbuch` NICHT: 28 Zeichen Crockford-Base32 sind
+ * 140 bit (`_lib/code.ts`). Rechnung B der Spec (§3.7.1): selbst ungebremst, bei 10^6
+ * Versuchen je Sekunde und 1.000 gueltigen Codes, 2,2 × 10^25 Jahre bis zum Treffer. Die
+ * Codesuche selbst ist eine Gleichheitssuche auf dem `UNIQUE`-Index von
+ * `zugangscodes.code` — billiger als die Anfrage, die sie ausloest.
+ * ⚠️ BEWUSSTER REST: die ZAHL solcher Suchen ist damit nicht mehr gedeckelt. Eine Kappe fuer
+ * wohlgeformte Eingaben haette einen Schluessel, den niemand rotieren kann — also wieder
+ * genau den Hebel, mit dem jeder Unangemeldete die Ausleihe fuer alle sperrt. Last erzeugen
+ * kann ein Angreifer auf jeder oeffentlichen Route; Volumenschutz gehoert vor den Prozess
+ * (Cloudflare/Traefik), nicht in einen Zaehler, der richtige Codes abweist. `lagerbuch` hat 10^6
+ * Codes und braucht die Sperre vor der Suche; dort traegt ein Geraetemerkmal die
+ * Verfuegbarkeit (`lagerbuch/_lib/gateSchrankeMerkmal.ts`).
  */
 const gateMinute = new RateLimiter({ windowMs: 60_000, max: g.gateGesamtProMin });
-
-/**
- * Modulweit ueber die Stunde — DER tragende Zaehler (Spec:3008-3009).
- * 300 = 5/min x 60. Die Zahl ist nicht gegriffen: sie stellt genau die Zusage WIEDER
- * HER, die das Per-Absender-Limit nur unter der Annahme einer wahrhaftigen
- * Absenderadresse je hatte. Der schlimmste Fall nach dieser Spec (unbegrenzte Rotation)
- * ist damit nicht schlechter als der beste Fall unter jener Annahme (ein Absender).
- * Env: RADIO_GATE_FEHLVERSUCHE_GESAMT_PRO_STUNDE, Vorgabe 300 (`./grenzen.ts:91`).
- */
 const gateStunde = new RateLimiter({ windowMs: 3_600_000, max: g.gateGesamtProStunde });
 
 /**
- * DIE LESBARE SPERRZEIT — der Speicher, ohne den `gateGesperrt` gar nicht geht.
- * Schluessel → Zeitpunkt in ms, bis zu dem dieser Eimer als erschoepft gilt.
- *
- * `RateLimiter.check()` prueft und BUCHT in einem Zug (`src/core/ratelimit.ts:26-37`);
- * ein reines Nachsehen gibt es dort nicht. Deshalb merkt sich diese Datei jedes `false`
- * selbst, und `gateGesperrt` liest nur noch diese Zahl — ohne zu buchen.
- *
- * ⚠️ Wuerde erst NACH der Codepruefung gebucht und dabei nur die MELDUNG umgeschaltet,
- * liefe die Codepruefung selbst unbegrenzt weiter — der Deckel aenderte dann die
- * Fehlermeldung und nicht den Angriff.
+ * DIE LESBARE SPERRZEIT — Schluessel → Zeitpunkt in ms, bis zu dem dieser Eimer als
+ * erschoepft gilt. `RateLimiter.check()` prueft und BUCHT in einem Zug
+ * (`src/core/ratelimit.ts`, `check`); ein reines Nachsehen gibt es dort nicht. Deshalb
+ * merkt sich diese Datei jedes `false` selbst, und `gateGesperrt` liest nur diese Zahl.
  */
 const gesperrtBis = new Map<string, number>();
 
-/**
- * Die beiden modulweiten Schluessel sind Konstanten DIESER Datei und gehen keinen
- * Aufrufer etwas an — deshalb nimmt keine der beiden Funktionen sie entgegen
- * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:69-73`). Genau darin liegt die Abwehr: ein
- * Schluessel, den kein Angreifer setzt, ist einer, den er nicht rotieren kann.
- */
+/** Konstanten DIESER Datei — ein Schluessel, den kein Aufrufer setzt, ist einer, den
+ *  niemand rotieren kann. */
 const MODULWEIT_MIN = "modul:minute";
 const MODULWEIT_STD = "modul:stunde";
+
+/** Was eine Anfrage ueber sich mitbringt: die ROHE Eingabe, so wie sie ankam. */
+export type GateAnfrage = { eingabe?: string };
 
 function restMs(schluessel: string, jetzt: number): number {
   const bis = gesperrtBis.get(schluessel);
@@ -139,36 +136,20 @@ function restMs(schluessel: string, jetzt: number): number {
 }
 
 /**
- * SCHRITT 2 der Reihenfolge aus §3.3.1. LIEST NUR — bucht nichts und oeffnet nichts.
+ * SCHRITT 2 der Reihenfolge aus §3.3.1. LIEST NUR — bucht nichts, oeffnet nichts, kein
+ * Datenbankzugriff (Quelltext-Scan in `gateSchranke.test.ts`).
  *
- * Rueckgabe: die verbleibenden SEKUNDEN, aufgerundet und MINDESTENS 1, wenn einer der
- * drei Eimer gesperrt ist; sonst `null`. NIE 0 (Spec:3020-3021): ein
- * `if (gateGesperrt(…))` waere sonst in der letzten Sekunde still falsch. Die Aufrufer
- * (A9, A10, A11) pruefen trotzdem ausdruecklich gegen `null` — die Zusage steht im Typ,
- * nicht in der Wahrheitswertumwandlung.
- *
- * ⚠️ WO „NIE 0" WIRKLICH HAENGT — im Waechter `ms > 0`, NICHT im `Math.max(1, …)`-Mantel
- * eine Zeile weiter unten. `ms` ist eine ganzzahlige Millisekundendifferenz (`restMs`
- * rechnet zwei `Date.now()`-Werte gegeneinander, `:134-139`) und durch diesen Waechter
- * mindestens 1; `Math.ceil(1 / 1000)` ist bereits 1. Der Mantel ist damit HEUTE
- * unerreichbar — gemessen (Fund K2 aus `REVIEW-A3.md`: ohne ihn bleiben alle Faelle
- * gruen, mit `Math.floor` statt `Math.ceil` wird „gateGesperrt liefert nie 0" rot). Er
- * bleibt trotzdem stehen: er ist Bauform 1:1 aus dem Vorbild
- * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:109`) und die Rueckfallsicherung fuer den
- * Tag, an dem `ms` aus einer nicht-ganzzahligen Quelle kaeme. Wer die Zusage „nie 0"
- * aendern will, aendert den Waechter, nicht den Mantel.
- *
- * Zurueck kommt die GROESSTE der drei Restzeiten: wer den Stundendeckel gerissen hat,
- * soll nicht „noch 12 Sekunden" lesen. Diese Zahl ist das *n* aus dem Text zu
- * `grund=zuviele` (A5).
- *
- * ⚠️ UND SIE IST ES, DIE DEN DATENBANKZUGRIFF SCHUETZT, nicht der Absender-Eimer
- * (Spec:3013-3019): wer den Absenderschluessel rotiert, startet jeden Versuch mit LEEREM
- * Absender-Eimer und bekaeme so oder so genau einen Lookup. Gedeckelt wird das
- * ausschliesslich durch `gateMinute` und `gateStunde` — und die lesen ihre Sperrzeit
- * hier, VOR jedem Lookup.
+ * ⛔ EINE WOHLGEFORMTE EINGABE IST NIE GESPERRT (DRK-291). Sie koennte ein Code sein, und
+ * ein richtiger Code kommt herein — auch hinter einem geteilten Uplink, auch waehrend
+ * eines Angriffs. Deshalb normalisiert diese Funktion die rohe Eingabe SELBST: sie steht
+ * vor `normalisiereCode` an der Aufrufstelle (Reihenfolge-Scan in `_lib/bauform.test.ts`),
+ * und `normalisiereCode`/`istCodeForm` sind rein.
+ * Fuer alles andere gilt die groesste der drei Restzeiten, nie 0 (Spec:3020-3021): die
+ * Aufrufer pruefen gegen `null`. Ohne `eingabe` (die Gate-Seite, die nur die Sekundenzahl
+ * fuer `grund=zuviele` braucht) antwortet sie wie fuer Muell — die vorsichtige Zahl.
  */
-export function gateGesperrt(absender: string): number | null {
+export function gateGesperrt(absender: string, anfrage: GateAnfrage = {}): number | null {
+  if (anfrage.eingabe !== undefined && istCodeForm(normalisiereCode(anfrage.eingabe))) return null;
   const jetzt = Date.now();
   const ms = Math.max(restMs(absender, jetzt),
                       restMs(MODULWEIT_MIN, jetzt), restMs(MODULWEIT_STD, jetzt));
@@ -176,41 +157,21 @@ export function gateGesperrt(absender: string): number | null {
 }
 
 /**
- * SCHRITT 6: ein FEHLVERSUCH wird gebucht — NIE ein Erfolg (§3.7.3, Spec:3037-3054).
- * Genau das macht den modulweiten Deckel vertretbar: wuerden Erfolge mitzaehlen, waere
- * ein modulweites Limit ein Ausfall der Ausgabe. So ist der Sprengradius scharf
- * umrissen — ein richtiger Code funktioniert immer, auch waehrend eines Angriffs und
- * auch waehrend laufender Sperre; wer sich vertippt, wird vertroestet.
+ * SCHRITT 6: ein FEHLVERSUCH wird gebucht — NIE ein Erfolg (§3.7.3). Fuer `radio` ist das
+ * der Regelfall: ein Funkraum voller Personen, die denselben Aufsteller scannen, teilt
+ * sich einen Uplink; `feedback` hat genau diesen Fehler schon produktiv erlitten
+ * (`src/app/m/files/api/u/[token]/upload/route.ts` schreibt den Vorfall aus).
  *
- * ⛔ FUER `radio` IST DAS KEIN RANDFALL, SONDERN DER REGELFALL: ein Funkraum voller
- * Personen, die denselben Aufsteller nacheinander scannen, teilt sich einen Uplink und
- * damit einen Absenderschluessel. Genau dieser Fehler ist in dieser Suite bereits
- * produktiv eingetreten (`feedback`, 15 Ehrenamtliche aus einem Vereins-WLAN;
- * `src/app/m/files/api/u/[token]/upload/route.ts:140-149` schreibt den Vorfall aus).
- * Es gibt hier deshalb KEINEN Erfolgsweg und keine Ruecksetzfunktion — nur diese eine
- * schreibende Funktion.
+ * Gebucht wird weiterhin JEDER Fehlversuch, auch ein wohlgeformter: die Zaehler sind die
+ * Notbremse fuer Muell-Eingaben und bleiben eine Messgroesse fuer Klopfen.
  *
- * DIE KETTE IST KURZSCHLIESSEND — und zwar an JEDER Stufe (Absender, Minute, Stunde)
- * gegen dieselbe FESTE Deadline, die auch `gateGesperrt` liest (`restMs`/`gesperrtBis`),
- * NIE gegen den Rueckgabewert von `RateLimiter.check()` allein (Spec:3022-3028). Der
- * Unterschied ist keine Kosmetik: `check()` ist ein GLEITENDES Fenster
- * (`src/core/ratelimit.ts:26-37`). Liegt der AELTESTE der Treffer, die zu einer Sperre
- * fuehrten, VOR dem Treffer, der sie AUSGELOEST hat (das ist der Normalfall bei mehr als
- * einem Treffer), oeffnet das gleitende Fenster FRUEHER als die feste Deadline ablaeuft.
- * Fragte der Kurzschluss in dieser Luecke erneut nur `check()`, bekaeme er „erlaubt"
- * zurueck — waehrend `gateGesperrt` fuer denselben Schluessel weiterhin „gesperrt"
- * meldet — und liesse den Fehlversuch bis zur naechsten Stufe durchfallen. Genau dort
- * wuerde ein laengst gesperrter Absender das naechste Budget mitverbrauchen: ein
- * einzelner, bereits gesperrter Klopfer legte die Ausgabe fuer alle lahm (bei der
- * Minutenbremse sogar fuer eine ganze STUNDE, nicht nur eine Minute). Deshalb fragt jede
- * Stufe ZUERST ihre eigene feste Deadline; nur wenn die frei ist, befragt sie ihren
- * `RateLimiter`.
- *
- * ⚠️ DERSELBE KURZSCHLUSS VERHINDERT DIE SELBSTVERLAENGERNDE SPERRE: ohne ihn schoebe
- * jeder weitere Klopfer die Deadline nach vorn, und die Sperre endete nie.
- *
- * Jedes `false` schreibt die FENSTERLAENGE als Sperrzeit fort — bewusst konservativ: es
- * laeuft dann die Sperre ab, nicht der gleitende Eimer.
+ * DIE KETTE IST KURZSCHLIESSEND, an JEDER Stufe gegen dieselbe FESTE Deadline, die auch
+ * `gateGesperrt` liest — nie gegen `RateLimiter.check()` allein (Spec:3022-3028):
+ * `check()` ist ein gleitendes Fenster und oeffnet frueher, als die Deadline ablaeuft; ein
+ * laengst gesperrter Klopfer verbrauchte sonst das naechste Budget mit.
+ * ⚠️ DERSELBE KURZSCHLUSS VERHINDERT DIE SELBSTVERLAENGERNDE SPERRE: eine Anfrage waehrend
+ * laufender Sperre schiebt keine Deadline nach vorn. Jedes `false` schreibt die
+ * FENSTERLAENGE als Sperrzeit fort.
  */
 export function gateFehlversuchBuchen(absender: string): void {
   const jetzt = Date.now();
@@ -226,25 +187,9 @@ export function gateFehlversuchBuchen(absender: string): void {
 }
 
 /*
- * ⬜ EIN OFFENER POSTEN, UND ER STEHT HIER, DAMIT MAN IHN WIEDERFINDET (Fund K3 aus
- * `.superpowers/sdd/planteil3/REVIEW-A3.md`, in Fix-Runde 1 mit Begruendung verworfen).
- *
- * DIE SACHE: die drei Sperrdauern, die `gateFehlversuchBuchen` fortschreibt, wiederholen
- * die `windowMs` der drei Zaehler als LITERALE ZAHL — `:219` gegen `:85`, `:222` gegen
- * `:99`, `:225` gegen `:109`. Die Kopplung ist gewollt („jedes `false` schreibt die
- * FENSTERLAENGE als Sperrzeit fort", `:212-213`), aber sie ist NIRGENDS erzwungen: wer
- * eine Fensterlaenge aendert und die Sperrzeit stehen laesst, entkoppelt still die feste
- * Deadline vom gleitenden Fenster — und genau dieser Gleichlauf ist Eigenschaft 3 der
- * Spec (Spec:3022-3028, `docs/superpowers/specs/2026-08-17-radio-modul-design.md`). Kein
- * Tor faerbt sich davon; die Faelle dieser Datei pruefen beide Zahlen nur gemeinsam.
- *
- * WARUM SIE TROTZDEM SO STEHT: das Vorbild macht es zeichengleich
- * (`src/app/m/lagerbuch/_lib/gateSchranke.ts:151-157` gegen `:26`, `:42`, `:52`), und A3
- * bindet auf „Bauform 1:1" mit diesem Vorbild. Eine benannte Konstante NUR hier liesse
- * die beiden Dateien auseinanderdriften — genau das, wovor die Pruefung bei diesem Fund
- * selbst gewarnt hat.
- *
- * ⛔ DER POSTEN IST DESHALB EIN GEMEINSAMER: `radio`s und `lagerbuch`s `gateSchranke.ts`
- * zusammen ueberarbeiten, drei benannte Konstanten je Datei, oder die Sperrzeit aus dem
- * `RateLimiter` selbst lesen. Nicht einzeln.
+ * ⬜ EIN OFFENER POSTEN (Fund K3 aus `.superpowers/sdd/planteil3/REVIEW-A3.md`): die drei
+ * Sperrdauern in `gateFehlversuchBuchen` wiederholen die `windowMs` der drei Zaehler als
+ * LITERALE ZAHL. Die Kopplung ist gewollt, aber nirgends erzwungen. Ein gemeinsamer Posten
+ * mit `lagerbuch/_lib/gateSchranke.ts` (dort seit DRK-291 in `bucheKette` gebuendelt, die
+ * Zahlen stehen aber auch dort literal) — nicht einzeln loesen.
  */
