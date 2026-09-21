@@ -23,6 +23,21 @@ import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/
  * `artikelMitBestand` in `seed-lagerbuch.ts`. Dass der RICHTIGE Bestand ankommt,
  * halten `SollEditor.test.tsx` und `page.test.tsx` fest; hier geht es um Groesse
  * und Erreichbarkeit.
+ *
+ * ⚠️ DIE REIHENFOLGEABHÄNGIGKEIT BEWEGT DIE MESSUNG NICHT (DRK-360). Die Ziffer
+ * steht in `tabular-nums`; „0 Stk." gegen „3 Stk." macht an der Tabellenbreite
+ * gemessen 1px (753 gegen 754) — bei 191px Reserve zur Kante, s. `BREITEN`.
+ */
+/**
+ * ⚠️ 834PX IST NICHT BELIEBIG: es ist die einzige der drei Breiten, an der die
+ * Seitenleiste STEHT (ab 768px) und die Tabelle trotzdem in sich scrollen muss.
+ * Die Reserve ist groß — gemessen in 38 Läufen auf `main` (2026-09-15 bis
+ * 2026-09-21), ausnahmslos: 753/754px Inhalt in 562px Kasten.
+ *
+ * DRK-360 hielt die Breite für „exakt auf der Kante" (802 auf 802). Das war die
+ * Messung VOR der Hydration, als der Inhalt noch unter der Leiste lag — heute
+ * fängt `warteAufSpaltenaufteilung` genau diesen Zustand ab. Wer hier wieder
+ * 802/802 sieht, sucht dort, nicht an der Breite und nicht im Seed.
  */
 const BREITEN = [
   { name: "Telefon", width: 390, height: 844 },
@@ -175,7 +190,12 @@ test.describe("Ist-Bestand im Fahrzeugblatt", () => {
       expect(mass.scroller!.rechts).toBeLessThanOrEqual(mass.fenster);
       if (breite.width < 1280) {
         // Schmal: die Tabelle ist breiter als ihr Kasten und scrollt IN SICH.
-        expect(mass.scroller!.scrollWidth).toBeGreaterThan(mass.scroller!.clientWidth);
+        expect(
+          mass.scroller!.scrollWidth,
+          `Die Soll-Tabelle scrollt bei ${breite.width}px nicht in sich `
+          + `(${mass.scroller!.scrollWidth} auf ${mass.scroller!.clientWidth}px) — `
+          + "steht der Kasten bei 802px, lag der Inhalt noch unter der Leiste",
+        ).toBeGreaterThan(mass.scroller!.clientWidth);
       }
 
       // UND DIE SEITE SELBST LAEUFT NICHT WAAGERECHT UEBER (DRK-322).
