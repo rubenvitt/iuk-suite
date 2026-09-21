@@ -17,6 +17,7 @@ import type { AmpelTon } from "../../../../_lib/format";
 import type { ChargeZeile } from "../../../../_lib/lesepfade/artikel";
 import { inDerEinheit, type Einheitenart } from "../../../../_lib/konstanten";
 import { AussondernDialog } from "./AussondernDialog";
+import { RuecklaufDialog, type RuecklaufZiel } from "./RuecklaufDialog";
 import { Chip } from "../../../../_ui/Chip";
 import { monatAusPicker } from "../../../../_ui/monat";
 import { useVerfallStand } from "./useVerfallStand";
@@ -45,9 +46,12 @@ export function VerfallEditor({
   lagerortId,
   eintraege,
   einheitenart,
+  ruecklaufZiele,
 }: {
   lagerortId: string;
   eintraege: VerfallAnzeigeZeile[];
+  /** DRK-366 — wohin der Rücklauf bucht: Handlager-Wurzel plus aktive Schränke. */
+  ruecklaufZiele: RuecklaufZiel[];
   /**
    * DRK-309 — die Tabelle heisst nach der Art der Einheit, deren Verfall sie
    * zeigt. ⚠️ Fuer ein Fahrzeug bleibt der Name WORTGLEICH („Verfall im
@@ -179,6 +183,9 @@ export function VerfallEditor({
       title: "Aktion",
       key: "aussondern",
       render: (_wert: unknown, eintrag) => (
+        // DRK-366: der Rücklauf steht daneben, weil er dieselbe Frage
+        // beantwortet — was verlässt die Einheit? — nur ohne zu vernichten.
+        <div style={{ display: "flex", flexWrap: "wrap", gap: SPACE.sm }}>
         <AussondernDialog
           lagerortId={lagerortId}
           artikelId={eintrag.artikelId}
@@ -209,6 +216,20 @@ export function VerfallEditor({
            */
           schreibe={(aktion) => schreibe(eintrag.artikelId, undefined, aktion)}
         />
+        <RuecklaufDialog
+          fahrzeugId={lagerortId}
+          artikelId={eintrag.artikelId}
+          artikelName={eintrag.artikelName}
+          einheit={eintrag.einheit}
+          chargen={eintrag.chargen}
+          ziele={ruecklaufZiele}
+          einheitenart={einheitenart}
+          gesperrt={laeuft}
+          // Derselbe Trichter wie beim Aussondern und aus demselben Grund: ob
+          // die Verfallsangabe fällt, entscheidet die Transaktion.
+          schreibe={(aktion) => schreibe(eintrag.artikelId, undefined, aktion)}
+        />
+        </div>
       ),
     },
   ];

@@ -13,7 +13,7 @@
   },
   {
     "name": "lagerbuch-2",
-    "specs": "e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-fahrzeug-kaertchen.spec.ts e2e/lagerbuch-verfall-fahrzeug.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-schraenke.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-kategorien.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts"
+    "specs": "e2e/lagerbuch-checklisten.spec.ts e2e/lagerbuch-mobil.spec.ts e2e/lagerbuch-fahrzeug-kaertchen.spec.ts e2e/lagerbuch-verfall-fahrzeug.spec.ts e2e/lagerbuch-hosts.spec.ts e2e/lagerbuch-schraenke.spec.ts e2e/lagerbuch-inventur.spec.ts e2e/lagerbuch-auffuellen.spec.ts e2e/lagerbuch-verfall-ortswahl.spec.ts e2e/lagerbuch-kategorien.spec.ts e2e/lagerbuch-aussondern-fahrzeug.spec.ts e2e/lagerbuch-ruecklauf.spec.ts"
   },
   {
     "name": "lagerbuch-3",
