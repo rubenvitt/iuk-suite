@@ -370,9 +370,9 @@ export function UploadInsel({
 
     void (async () => {
       // NACHEINANDER und nicht gleichzeitig: der Server fuehrt den Fortschritt
-      // als LAENGE der Zwischendatei, und mehrere parallele Schreiber auf
-      // dieselbe Ablage sind genau der Fall, den `wx` (`storage.ts`) meldet
-      // statt zu verschraenken. Der Engpass ist ohnehin die Leitung.
+      // als LAENGE der Zwischendatei, und einen zweiten Schreiber auf dieselbe
+      // Datei weist der Schreibbesitz (`storage.ts`) mit 409 ab, statt Bytes zu
+      // verschraenken. Der Engpass ist ohnehin die Leitung.
       for (const p of paare) {
         if (p.datei === undefined) {
           setzeEintrag(p.fileId, (e) => ({ ...e, zustand: "fehler" }));

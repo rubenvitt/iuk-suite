@@ -22,7 +22,7 @@ import { withAuditContext } from "@/core/audit/server";
 
 import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 
 import { getModule, prodHostsFor } from "@/core/registry";
 
@@ -39,10 +39,19 @@ import {
   type Aufraeumzahlen,
   type Aufraeumplan,
   type DateiKandidat,
+  type InboxKandidat,
 } from "./aufraeumen";
 import { grenzen, grenzenFehler, type Grenzen } from "./grenzen";
 import { validateFilesHosts } from "./hostRolle";
-import { fortschritt, loesche, loescheShareVerzeichnis, pruefeAblage, type BlobZiel } from "./storage";
+import {
+  SchreibbesitzBelegt,
+  fortschritt,
+  loesche,
+  loescheShareVerzeichnis,
+  mitSchreibbesitz,
+  pruefeAblage,
+  type BlobZiel,
+} from "./storage";
 import { starteAvArbeiter } from "./av";
 
 /**
@@ -263,7 +272,7 @@ export async function fuehreAufraeumLaufAus(
   let fehler: string | null = null;
 
   try {
-    const { plan, dateien } = await ladeUndPlane(g, gestartet, trockenlauf);
+    const { plan, dateien, inbox } = await ladeUndPlane(g, gestartet, trockenlauf);
     /*
      * Die Zahlen stammen aus dem PLAN, nicht aus der Ausfuehrung — im
      * Trockenlauf gibt es keine Ausfuehrung, und nur so ist die Vorschau mit dem
@@ -273,7 +282,7 @@ export async function fuehreAufraeumLaufAus(
      * wurde.
      */
     zahlen = plan.zahlen;
-    partsGeloescht = await fuehreLoeschungAus(plan, dateien);
+    partsGeloescht = await fuehreLoeschungAus(plan, dateien, inbox);
   } catch (grund) {
     fehler = grund instanceof Error ? grund.message : String(grund);
     // Laut, weil ein stumm gescheitertes Aufraeumen sich erst meldet, wenn das
@@ -312,7 +321,7 @@ async function ladeUndPlane(
   g: Grenzen,
   now: Date,
   trockenlauf: boolean,
-): Promise<{ plan: Aufraeumplan; dateien: DateiKandidat[] }> {
+): Promise<{ plan: Aufraeumplan; dateien: DateiKandidat[]; inbox: InboxKandidat[] }> {
   const bank = getDb();
 
   const kandidatenShares = bank
@@ -367,16 +376,27 @@ async function ladeUndPlane(
     .all();
 
   /*
-   * Ohne gesetzte Frist wird die Inbox GAR NICHT abgefragt. `inboxVerfallen`
-   * antwortete zwar ebenfalls `false`, aber eine Abfrage ohne Grenze laedt bei
-   * jedem Takt den ganzen Posteingang — und „nicht gesetzt heisst keine Frist"
-   * (§7.6) soll auch als Arbeitsersparnis sichtbar sein.
+   * Ohne gesetzte Frist wird die abgeschlossene Inbox GAR NICHT abgefragt.
+   * `inboxVerfallen` antwortete zwar ebenfalls `false`, aber eine Abfrage ohne
+   * Grenze laedt bei jedem Takt den ganzen Posteingang — und „nicht gesetzt
+   * heisst keine Frist" (§7.6) soll auch als Arbeitsersparnis sichtbar sein.
+   *
+   * OFFENE Abgaben dagegen immer (DRK-288): ihre Lebensdauer ist technisch und
+   * hat eine Vorbelegung. Superset der Regel wie oben — entschieden wird in
+   * `offeneAbgabeVerfallen`.
    */
-  const inbox =
+  const inboxSpalten = {
+    id: inboxFiles.id,
+    size: inboxFiles.size,
+    empfangenAt: inboxFiles.empfangenAt,
+    tokenId: inboxFiles.tokenId,
+    bytesVollstaendigAt: inboxFiles.bytesVollstaendigAt,
+  };
+  const abgeschlosseneInbox =
     g.inboxAufbewahrungTage === null
       ? []
       : bank
-          .select({ id: inboxFiles.id, size: inboxFiles.size, empfangenAt: inboxFiles.empfangenAt })
+          .select(inboxSpalten)
           .from(inboxFiles)
           .where(
             lte(
@@ -387,6 +407,19 @@ async function ladeUndPlane(
             ),
           )
           .all();
+  const offeneInbox = bank
+    .select(inboxSpalten)
+    .from(inboxFiles)
+    .where(
+      and(
+        isNull(inboxFiles.bytesVollstaendigAt),
+        isNotNull(inboxFiles.tokenId),
+        lte(inboxFiles.empfangenAt, new Date(now.getTime() - g.uploadVerfallStunden * MS_PRO_STUNDE)),
+      ),
+    )
+    .all();
+  const schonDa = new Set(abgeschlosseneInbox.map((z) => z.id));
+  const inbox = [...abgeschlosseneInbox, ...offeneInbox.filter((z) => !schonDa.has(z.id))];
 
   const plan = planeAufraeumen({
     now,
@@ -407,7 +440,7 @@ async function ladeUndPlane(
     blobVerzeichnisse: await ablageWurzelListe(),
   });
 
-  return { plan, dateien };
+  return { plan, dateien, inbox };
 }
 
 /**
@@ -447,7 +480,11 @@ async function ablageWurzelListe(): Promise<string[]> {
  * `loesche`, das meldet, was es entfernt hat; das ist eine Aenderung an
  * `_lib/storage.ts` und gehoert nicht in diesen Task.
  */
-async function fuehreLoeschungAus(plan: Aufraeumplan, dateien: DateiKandidat[]): Promise<number> {
+async function fuehreLoeschungAus(
+  plan: Aufraeumplan,
+  dateien: DateiKandidat[],
+  inbox: InboxKandidat[],
+): Promise<number> {
   // Im Trockenlauf ist jede Liste leer — die Wache hier ist trotzdem richtig:
   // sie macht „ein Trockenlauf loescht nichts" unabhaengig davon, ob die Form
   // des Plans das eines Tages noch traegt.
@@ -470,12 +507,25 @@ async function fuehreLoeschungAus(plan: Aufraeumplan, dateien: DateiKandidat[]):
     bank.delete(shares).where(inArray(shares.id, [...plan.loeschen.shareIds])).run();
   }
 
-  // 2. Einzelne verfallene Uploads an UEBERLEBENDEN Shares.
+  // 2. Einzelne verfallene Uploads an UEBERLEBENDEN Shares — je Datei im
+  //    Schreibbesitz (DRK-289): ein gerade laufender Chunk behielte sonst einen
+  //    Deskriptor auf eine geloeschte Zwischendatei. Belegt → diesmal nicht;
+  //    der naechste Lauf holt sie. Unter dem Besitz wird erneut geprueft, ob die
+  //    Datei noch offen ist — sonst naehme der Lauf eine eben fertig gewordene mit.
   for (const ziel of plan.loeschen.parts) {
-    if (await entferneBytes(ziel)) parts += 1;
-  }
-  if (plan.loeschen.dateiIds.length > 0) {
-    bank.delete(shareFiles).where(inArray(shareFiles.id, [...plan.loeschen.dateiIds])).run();
+    if (ziel.art !== "share") continue;
+    const weg = await imBesitzOderNicht(ziel, async () => {
+      const nochOffen = bank
+        .select({ id: shareFiles.id })
+        .from(shareFiles)
+        .where(and(eq(shareFiles.id, ziel.fileId), isNull(shareFiles.bytesVollstaendigAt)))
+        .get();
+      if (nochOffen === undefined) return false;
+      const lagDa = await entferneBytes(ziel);
+      bank.delete(shareFiles).where(eq(shareFiles.id, ziel.fileId)).run();
+      return lagDa;
+    });
+    if (weg) parts += 1;
   }
 
   // 3. Audit-Logzeilen — ohne Bytes, mit eigener Frist.
@@ -483,15 +533,46 @@ async function fuehreLoeschungAus(plan: Aufraeumplan, dateien: DateiKandidat[]):
     bank.delete(downloadLogs).where(inArray(downloadLogs.id, [...plan.loeschen.logzeilenIds])).run();
   }
 
-  // 4. Inbox.
+  // 4. Inbox — abgeschlossene nach ihrer Aufbewahrung, offene nach ihrer
+  //    Lebensdauer (DRK-288). Je Datei im Schreibbesitz, wie oben; unter ihm
+  //    zaehlt der Zustand, den der PLAN sah: eine als offen verplante Abgabe, die
+  //    inzwischen abgeschlossen ist, bleibt. Mit der Zeile geht der Dateiplatz
+  //    des Links — genau einmal, weil es keinen Zaehler dafuer gibt.
+  const warOffen = new Map(inbox.map((z) => [z.id, z.bytesVollstaendigAt === null]));
   for (const id of plan.loeschen.inboxIds) {
-    if (await entferneBytes({ art: "inbox", inboxFileId: id })) parts += 1;
-  }
-  if (plan.loeschen.inboxIds.length > 0) {
-    bank.delete(inboxFiles).where(inArray(inboxFiles.id, [...plan.loeschen.inboxIds])).run();
+    const ziel: BlobZiel = { art: "inbox", inboxFileId: id };
+    const offenVerplant = warOffen.get(id) === true;
+    const weg = await imBesitzOderNicht(ziel, async () => {
+      if (offenVerplant) {
+        const nochOffen = bank
+          .select({ id: inboxFiles.id })
+          .from(inboxFiles)
+          .where(and(eq(inboxFiles.id, id), isNull(inboxFiles.bytesVollstaendigAt)))
+          .get();
+        if (nochOffen === undefined) return false;
+      }
+      const lagDa = await entferneBytes(ziel);
+      bank.delete(inboxFiles).where(eq(inboxFiles.id, id)).run();
+      return lagDa;
+    });
+    if (weg) parts += 1;
   }
 
   return parts;
+}
+
+/**
+ * `arbeit` im Schreibbesitz der Datei — oder gar nicht, wenn gerade ein Upload
+ * sie haelt (DRK-289). `false` heisst dann „diesmal nicht"; der naechste Lauf
+ * holt sie.
+ */
+async function imBesitzOderNicht(ziel: BlobZiel, arbeit: () => Promise<boolean>): Promise<boolean> {
+  try {
+    return await mitSchreibbesitz(ziel, arbeit);
+  } catch (grund) {
+    if (grund instanceof SchreibbesitzBelegt) return false;
+    throw grund;
+  }
 }
 
 /** Loescht Blob UND Zwischendatei; liefert, ob eine `.part` dalag. */

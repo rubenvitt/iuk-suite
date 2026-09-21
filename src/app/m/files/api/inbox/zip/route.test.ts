@@ -63,7 +63,7 @@ vi.mock("@/app/m/files/_lib/storage", async (echt) => {
   const { Readable: Strom } = await import("node:stream");
   return {
     ...modul,
-    lieseStrom: async (ziel: Parameters<typeof modul.lieseStrom>[0]) => {
+    lieseStrom: async (...args: Parameters<typeof modul.lieseStrom>) => {
       if (steuerung.stockend) {
         let gesendet = false;
         const strom = new Strom({
@@ -80,7 +80,7 @@ vi.mock("@/app/m/files/_lib/storage", async (echt) => {
         geoeffneteStroeme.push(strom);
         return { strom, bytes: 64 };
       }
-      const ergebnis = await modul.lieseStrom(ziel);
+      const ergebnis = await modul.lieseStrom(...args);
       geoeffneteStroeme.push(ergebnis.strom);
       return ergebnis;
     },
@@ -167,7 +167,12 @@ async function legeInboxDatei(vorgabe: Vorgabe): Promise<void> {
 
   if (vorgabe.ohneBlob) return;
   // Echte Bytes ueber die echte Ablage — der Streamer oeffnet sie spaeter.
-  const { schreibeStrom, abschliesse } = await import("@/app/m/files/_lib/storage");
+  // Beide nur im Schreibbesitz (DRK-289) — dieselbe Naht wie in den Upload-Wegen.
+  const ablage = await import("@/app/m/files/_lib/storage");
+  const schreibeStrom: typeof ablage.schreibeStrom = (z, q, o) =>
+    ablage.mitSchreibbesitz(z, () => ablage.schreibeStrom(z, q, o));
+  const abschliesse: typeof ablage.abschliesse = (z) =>
+    ablage.mitSchreibbesitz(z, () => ablage.abschliesse(z));
   const ziel = { art: "inbox", inboxFileId: vorgabe.id } as const;
   // `schreibeStrom` will ein ASYNCHRONES Iterable — ein Array laeuft zur
   // Laufzeit zwar durch `for await`, ist dem Typ nach aber keins.

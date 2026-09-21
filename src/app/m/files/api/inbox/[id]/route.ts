@@ -38,7 +38,7 @@ import { inboxFiles } from "../../../_db/schema";
 import { AV_STATUS, istFreigegeben, type AvStatus } from "../../../_lib/av";
 import { requireFilesAccess } from "../../../_lib/access";
 import { rolleOderNull } from "../../../_lib/hostRolle";
-import { BlobFehlt, UngueltigeId, lieseStrom } from "../../../_lib/storage";
+import { BlobFehlt, GroesseAbweichend, UngueltigeId, lieseStrom } from "../../../_lib/storage";
 import { dispositionKopfzeile } from "../../../_lib/zip";
 
 /**
@@ -135,8 +135,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     let strom;
     let bytes;
     try {
-      ({ strom, bytes } = await lieseStrom({ art: "inbox", inboxFileId: zeile.id }));
+      ({ strom, bytes } = await lieseStrom(
+        { art: "inbox", inboxFileId: zeile.id },
+        { erwarteteBytes: zeile.size },
+      ));
     } catch (fehler) {
+      if (fehler instanceof GroesseAbweichend) {
+        // DRK-289: die Freigabe des Scanners gilt fuer die Bytes, die beim
+        // Abschluss gemessen wurden. Eine andere Groesse ist eine andere Datei —
+        // ausgeliefert wird NICHTS, und der Betreiber erfaehrt es laut.
+        console.error(`[files] inbox ${zeile.id}: Groesse nach der Pruefung veraendert`, fehler);
+        return text("Diese Datei hat sich nach der Virenprüfung verändert und wird nicht ausgeliefert.", 409);
+      }
       // §5.4: eine fehlende Datei ist ein belegter REGELzustand (Waisen in beide
       // Richtungen) — die Alt-App lieferte dort 500. `UngueltigeId` steht daneben,
       // weil ein Import eine Zeile mit einer ID hinterlassen kann, die keine
@@ -145,15 +155,6 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         return text("Zu diesem Eintrag sind keine Daten mehr vorhanden.", 404);
       }
       throw fehler;
-    }
-
-    if (bytes !== zeile.size) {
-      // §5.4: ausgeliefert wird die TATSAECHLICHE Groesse — ein falsches
-      // `Content-Length` bricht den Download beim Client ab, und der Fehler waere
-      // dann beim Empfaenger sichtbar statt hier im Log.
-      console.warn(
-        `[files] inbox ${zeile.id}: size-Spalte ${zeile.size}, gemessen ${bytes} — ausgeliefert wird die gemessene Groesse`,
-      );
     }
 
     const typ = zeile.mimeType !== null && MIME_MUSTER.test(zeile.mimeType) ? zeile.mimeType : OHNE_TYP;

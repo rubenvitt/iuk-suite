@@ -73,22 +73,26 @@ export type DateiKandidat = Pick<
 export type LogKandidat = Pick<DownloadLogRow, "id" | "shareId" | "downloadedAt">;
 
 /**
- * OHNE `bytesVollstaendigAt` — und das ist eine offene Beauftragung, keine
- * Entscheidung dieser Datei. Die Spalte EXISTIERT (`_db/schema.ts:194`, §4.6 sagt
- * „wie §4.4"), aber die Regeltabelle §7.6 kennt fuer die Inbox nur die fachliche
- * Frist, und §4.4 formuliert den Verfall ueber `created_at` — eine Spalte, die
- * `inbox_files` nicht hat. Eine sechste Regel hier waere kein Detail, sondern die
- * Umkehrung einer ausdruecklichen Zusage: `FILES_INBOX_AUFBEWAHRUNG_TAGE` hat
- * BEWUSST keine Vorbelegung (`grenzen.ts:120`, „nicht gesetzt heisst keine
- * Frist"), und fuer `inbox_files` gibt es keine geschriebene Import-Zusage wie
- * fuer `share_files` (§4.2, Spec-Zeile 84). `empfangen_at` importierter Zeilen ist
- * die Quell-`mtime` und damit alt — eine Verfallsregel ueber diese Spalte loeschte
- * unter STANDARDkonfiguration Altbestand.
+ * Zwei Regeln fuer die Inbox, und sie sind bewusst getrennt:
  *
- * Der Preis, ehrlich benannt: ein abgebrochener anonymer Chunk-Upload hinterlaesst
- * Zeile und `inbox/<id>.part` dauerhaft, solange die Frist nicht gesetzt ist.
+ * - `inboxVerfallen` ist die FACHLICHE Frist fuer abgeschlossene Abgaben
+ *   (`FILES_INBOX_AUFBEWAHRUNG_TAGE`, ohne Vorbelegung — „nicht gesetzt heisst
+ *   keine Frist", `grenzen.ts`). Sie bleibt, wie sie war.
+ * - `offeneAbgabeVerfallen` ist die TECHNISCHE Lebensdauer einer nie
+ *   abgeschlossenen Abgabe (DRK-288): `FILES_UPLOAD_VERFALL_STUNDEN`, dieselbe
+ *   Zahl wie fuer unvollstaendige Uploads einer Freigabe. Ohne sie hielte eine
+ *   abgebrochene Abgabe Zeile, Zwischendatei UND einen Dateiplatz des
+ *   Abgabelinks dauerhaft — das Kontingent zaehlt offene Abgaben seit DRK-288 mit.
+ *
+ * Die zweite Regel trifft nur Zeilen MIT `token_id`: der importierte Altbestand
+ * von `drop` fuehrt `token_id = NULL` (`_db/schema.ts`, `inboxFiles`), und sein
+ * `empfangen_at` ist die Quell-`mtime` — eine Frist ueber diese Spalte loeschte
+ * sonst unter Standardkonfiguration Altbestand.
  */
-export type InboxKandidat = Pick<InboxFileRow, "id" | "size" | "empfangenAt">;
+export type InboxKandidat = Pick<
+  InboxFileRow,
+  "id" | "size" | "empfangenAt" | "tokenId" | "bytesVollstaendigAt"
+>;
 
 export interface AufraeumEingabe {
   /** Die EINE Uhr des Laufs, vom Aufrufer gestellt. */
@@ -185,7 +189,7 @@ const STUNDEN_PRO_TAG = 24;
 
 /**
  * Die FORM einer Share-ID: `nanoid(10)`. Dieselbe wie `ID_MUSTER` in
- * `_lib/storage.ts:26` und bewusst eine zweite Kopie — dort ist sie privat, weil
+ * `_lib/storage.ts` (`ID_MUSTER`) und bewusst eine zweite Kopie — dort ist sie privat, weil
  * das PRUEFEN von IDs Sache der Ablage ist, und ein Export nur fuer diese Datei
  * machte aus einem strukturellen Guard eine geteilte Konstante. Damit die Kopie
  * nicht auseinanderlaeuft, vergleicht `aufraeumen.test.ts` beide Literale im
@@ -193,8 +197,8 @@ const STUNDEN_PRO_TAG = 24;
  *
  * WARUM DIE FORM UEBERHAUPT ZAEHLT: in der Ablagewurzel liegen neben den
  * Share-Verzeichnissen planmaessig Eintraege, die keine `shares`-Zeile haben und
- * nie eine bekommen — `inbox/` (das anonyme Postfach, `storage.ts:120-126`) und im
- * Fehlerfall eine liegen gebliebene `.ablage-probe` (`storage.ts:365`). „Kein
+ * nie eine bekommen — `inbox/` (das anonyme Postfach, `storage.ts`, `pfadFuer`) und im
+ * Fehlerfall eine liegen gebliebene `.ablage-probe` (`storage.ts`, `pruefeAblage`). „Kein
  * Share" allein machte daraus zwei dauerhafte Phantomeintraege im
  * Betreiber-Bericht, und wer ihn befolgt, loescht mit `inbox` das GANZE Postfach —
  * genau die Klasse, die §7.6 „der teuerste denkbare Fehler" nennt. Die
@@ -275,6 +279,20 @@ export function inboxVerfallen(
   return vorSchwelle(datei.empfangenAt, now, tage * STUNDEN_PRO_TAG);
 }
 
+/**
+ * `bytes_vollstaendig_at IS NULL AND token_id IS NOT NULL AND empfangen_at < now −
+ * FILES_UPLOAD_VERFALL_STUNDEN` — die Lebensdauer einer offenen Abgabe (DRK-288).
+ */
+export function offeneAbgabeVerfallen(
+  datei: InboxKandidat,
+  now: Date,
+  fristen: Aufraeumfristen,
+): boolean {
+  if (datei.bytesVollstaendigAt !== null) return false;
+  if (datei.tokenId === null) return false;
+  return vorSchwelle(datei.empfangenAt, now, fristen.uploadVerfallStunden);
+}
+
 const LEERE_LISTE: Loeschliste = {
   shareIds: [],
   dateiIds: [],
@@ -305,7 +323,9 @@ export function planeAufraeumen(eingabe: AufraeumEingabe): Aufraeumplan {
   );
 
   const verfalleneLogzeilen = eingabe.logzeilen.filter((z) => logzeileVerfallen(z, now, fristen));
-  const verfalleneInbox = eingabe.inbox.filter((d) => inboxVerfallen(d, now, fristen));
+  const verfalleneInbox = eingabe.inbox.filter(
+    (d) => inboxVerfallen(d, now, fristen) || offeneAbgabeVerfallen(d, now, fristen),
+  );
 
   // Referenz sind ALLE bekannten Shares, nicht die Ueberlebenden: sonst waere das
   // Verzeichnis jedes gerade geloeschten Shares eine „Waise", die Zahl stiege mit

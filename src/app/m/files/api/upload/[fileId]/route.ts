@@ -1,5 +1,5 @@
 import { withAuditContext, auditActor } from "@/core/audit/server";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "../../../_db/client";
 import { shareFiles, shares } from "../../../_db/schema";
@@ -10,13 +10,17 @@ import { rolleOderNull } from "../../../_lib/hostRolle";
 import { MIME_PRAEFIX_BYTES, pruefeInhaltstyp } from "../../../_lib/mime";
 import {
   AblageNichtSchreibbar,
+  BereitsAbgeschlossen,
+  BlobFehlt,
   GroesseUeberschritten,
   KeinPlatz,
+  SchreibbesitzBelegt,
   UngueltigeId,
   abschliesse,
   fortschritt,
   kopfBytes,
   loesche,
+  mitSchreibbesitz,
   schreibeStrom,
   type BlobZiel,
 } from "../../../_lib/storage";
@@ -103,6 +107,69 @@ function merkeAbbruch(fileId: string): void {
     if (aeltester !== undefined) abgebrochen.delete(aeltester);
   }
 }
+
+/**
+ * VORGEMERKTE ABBRUECHE (DRK-289). Kommt ein `DELETE`, waehrend ein Chunk die
+ * Datei im Schreibbesitz haelt, darf er nicht warten (ein langsamer Rumpf haelt
+ * ihn beliebig lange) und nicht an ihm vorbei loeschen (der offene Deskriptor
+ * schriebe weiter). Er merkt den Abbruch deshalb vor, und der BESITZER fuehrt ihn
+ * aus — vor dem Abschluss und vor jeder Erfolgsantwort. Ohne diese Marke wuerde
+ * eine im letzten Chunk abgebrochene Datei trotzdem fertig und herunterladbar:
+ * die Upload-Insel bricht ihren laufenden `fetch` nicht ab.
+ *
+ * Kein zweiter Zustand der Datei: die Marke ist ein Auftrag, der beim naechsten
+ * Besitzer verbraucht wird. Nach einem Neustart ist sie weg — dann steht die
+ * Zeile ohne Bytes da und verfaellt wie jede andere (§4.4).
+ */
+const abbruchVorgemerkt = new Set<string>();
+
+function merkeAbbruchVor(fileId: string): void {
+  abbruchVorgemerkt.add(fileId);
+  if (abbruchVorgemerkt.size > ABBRUCH_GEDAECHTNIS) {
+    const aeltester = abbruchVorgemerkt.values().next().value;
+    if (aeltester !== undefined) abbruchVorgemerkt.delete(aeltester);
+  }
+}
+
+/**
+ * Der Abbruch selbst — AUSSCHLIESSLICH im Schreibbesitz aufgerufen, und nur fuer
+ * eine noch offene Zeile. Zwischendatei weg, Zeile weg, `shares.type` neu.
+ */
+async function brichUnvollstaendigAb(zeile: Zeile): Promise<void> {
+  const db = getDb();
+  // `loesche` ist idempotent und nimmt Ziel UND Zwischendatei mit; fuer eine
+  // unvollstaendige Zeile existiert nur die Zwischendatei.
+  await loesche(zielFuer(zeile));
+  db.delete(shareFiles).where(eq(shareFiles.id, zeile.id)).run();
+
+  // DIESELBE Regel wie beim Anlegen (T26 Punkt 5), nicht eine zweite: eine
+  // verbleibende Datei → „file", mehrere → „folder". Ohne diesen Schritt zeigte
+  // ein Share nach einem abgebrochenen zweiten Upload dauerhaft „Ordner" bei
+  // einer Datei. Der Abbruch ist die EINZIGE Stelle, an der die Zahl nach dem
+  // Anlegen noch sinkt.
+  const rest =
+    db
+      .select({ anzahl: sql<number>`count(*)` })
+      .from(shareFiles)
+      .where(eq(shareFiles.shareId, zeile.shareId))
+      .get()?.anzahl ?? 0;
+  db.update(shares)
+    .set({ type: rest > 1 ? "folder" : "file" })
+    .where(eq(shares.id, zeile.shareId))
+    .run();
+
+  abbruchVorgemerkt.delete(zeile.id);
+  merkeAbbruch(zeile.id);
+}
+
+/** Der vorgemerkte Abbruch, falls es einen gibt — `true` heisst: ausgefuehrt. */
+async function fuehreVorgemerktenAbbruchAus(zeile: Zeile): Promise<boolean> {
+  if (!abbruchVorgemerkt.has(zeile.id)) return false;
+  await brichUnvollstaendigAb(zeile);
+  return true;
+}
+
+const ABGEBROCHEN_ANTWORT = { fehler: "Der Upload dieser Datei wurde abgebrochen." };
 
 // --- Antworten -------------------------------------------------------------
 
@@ -221,9 +288,18 @@ async function ausFehler(fehler: unknown, ziel: BlobZiel | null): Promise<Respon
     console.error("[files][upload] Zeile mit unbrauchbarer ID", fehler);
     return nichtGefunden();
   }
-  if (errnoCode(fehler) === "EEXIST") {
-    // Ein ZWEITER Starter auf dasselbe Ziel. `wx` meldet den Konflikt, statt
-    // Bytes zu verschraenken (`storage.ts:196-201`); die Antwort ist dieselbe
+  if (fehler instanceof BlobFehlt) {
+    // Die Zwischendatei ist unter dem laufenden Vorgang verschwunden (Abbruch
+    // aus der Verwaltung). Kein 500 — der Upload ist weg.
+    return nichtGefunden();
+  }
+  if (fehler instanceof BereitsAbgeschlossen) {
+    return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
+  }
+  if (errnoCode(fehler) === "EEXIST" || fehler instanceof SchreibbesitzBelegt) {
+    // Ein ZWEITER Starter auf dasselbe Ziel — oder, seit DRK-289, eine zweite
+    // Anfrage, waehrend die erste die Datei noch haelt. `wx` meldet den Konflikt, statt
+    // Bytes zu verschraenken (`storage.ts`, `schreibeStrom`); die Antwort ist dieselbe
     // wie bei einem falschen Offset, damit der Client denselben Weg geht.
     const stand = ziel === null ? 0 : await fortschritt(ziel).catch(() => 0);
     return json(409, {
@@ -269,103 +345,138 @@ export async function PUT(
 
     const ziel = zielFuer(zeile);
 
+    // Der Schreibbesitz umschliesst den GANZEN Byte-Weg samt Fehlerbehandlung
+    // (DRK-289) — dieselbe Mechanik wie im anonymen Abgabeweg. `ausFehler` raeumt
+    // bei ENOSPC auf und muss das INNEN tun: aussen naehme es die Zwischendatei
+    // einer Anfrage mit, die den Besitz schon uebernommen hat.
     try {
-      // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter
-      // Mechanismus (§7.1 Schritt 3).
-      const stand = await fortschritt(ziel);
-      if (ab !== stand) {
-        return json(409, {
-          fehler: "Der Offset passt nicht zum Stand dieser Datei.",
-          erwartetesOffsetBytes: stand,
-        });
-      }
+      return await mitSchreibbesitz(ziel, async (): Promise<Response> => {
+        try {
+          // Unter dem Besitz ERNEUT: eine andere Anfrage kann die Datei zwischen
+          // `ladeZeile` oben und hier abgeschlossen oder abgebrochen haben.
+          const nochOffen = ladeZeile(fileId);
+          if (nochOffen === undefined) return nichtGefunden();
+          if (nochOffen.bytesVollstaendigAt !== null) {
+            return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
+          }
+          if (await fuehreVorgemerktenAbbruchAus(nochOffen)) return json(404, ABGEBROCHEN_ANTWORT);
 
-      const g = grenzen();
+          // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter
+          // Mechanismus (§7.1 Schritt 3).
+          const stand = await fortschritt(ziel);
+          if (ab !== stand) {
+            return json(409, {
+              fehler: "Der Offset passt nicht zum Stand dieser Datei.",
+              erwartetesOffsetBytes: stand,
+            });
+          }
 
-      // `anhaengen: false` NUR fuer den ersten Chunk: er oeffnet mit `wx` und
-      // laesst einen zweiten Starter auf dasselbe Ziel als EEXIST auflaufen
-      // statt in verschraenkten Bytes (`storage.ts:196-201`).
-      const { bytes } = await schreibeStrom(ziel, stromAus(req), {
-        maxBytes: g.maxDateiBytes,
-        anhaengen: ab > 0,
-      });
+          const g = grenzen();
 
-      // §6.6, die ZWEITE Linie: oberhalb der scanbaren Groesse wird BENANNT
-      // abgelehnt, nicht angenommen und dauerhaft `unscanned` gesetzt — das waere
-      // eine Datei, die fail-closed nie herunterladbar ist, eine Sackgasse mit
-      // Bytes darin. Im Normalbetrieb ist der Zweig unerreichbar, weil §9.4
-      // Pruefung 3 `FILES_MAX_DATEI_BYTES <= FILES_AV_MAX_BYTES` erzwingt und
-      // damit die Grenze oben zuerst greift.
-      if (bytes > g.avMaxBytes) {
-        await loesche(ziel);
-        return json(413, {
-          fehler:
-            `Datei zu gross fuer die Virenpruefung: hoechstens ${g.avMaxBytes} Bytes ` +
-            `(FILES_AV_MAX_BYTES, Einheit: Bytes).`,
-          grenzeBytes: g.avMaxBytes,
-        });
-      }
+          // IMMER anhaengen, auch beim ersten Chunk: die Exklusivitaet traegt seit
+          // DRK-289 der Schreibbesitz, nicht mehr `wx`, und der Offset ist oben
+          // gegen die Laenge geprueft. `wx` machte aus einer LEEREN
+          // Zwischendatei (Abbruch vor dem ersten Byte) eine 409-Schleife:
+          // EEXIST, erwartet 0, erneut EEXIST.
+          const { bytes } = await schreibeStrom(ziel, stromAus(req), {
+            maxBytes: g.maxDateiBytes,
+            anhaengen: true,
+          });
 
-      if (!ende) return json(200, { empfangeneBytes: bytes });
+          // §6.6, die ZWEITE Linie: oberhalb der scanbaren Groesse wird BENANNT
+          // abgelehnt, nicht angenommen und dauerhaft `unscanned` gesetzt — das waere
+          // eine Datei, die fail-closed nie herunterladbar ist, eine Sackgasse mit
+          // Bytes darin. Im Normalbetrieb ist der Zweig unerreichbar, weil §9.4
+          // Pruefung 3 `FILES_MAX_DATEI_BYTES <= FILES_AV_MAX_BYTES` erzwingt und
+          // damit die Grenze oben zuerst greift.
+          if (bytes > g.avMaxBytes) {
+            await loesche(ziel);
+            return json(413, {
+              fehler:
+                `Datei zu gross fuer die Virenpruefung: hoechstens ${g.avMaxBytes} Bytes ` +
+                `(FILES_AV_MAX_BYTES, Einheit: Bytes).`,
+              grenzeBytes: g.avMaxBytes,
+            });
+          }
 
-      // Die Magic-Byte-Pruefung liegt ZWISCHEN Schreiben und Umbenennen (§8.5):
-      // sie liest Bytes, die in frueheren Anfragen angekommen sind, und ihr
-      // Fehlschlag darf das Ziel nie entstehen lassen.
-      const befund = pruefeInhaltstyp({
-        praefix: await kopfBytes(ziel, MIME_PRAEFIX_BYTES),
-        gesamtGroesse: bytes,
-        deklariert: req.headers.get(DEKLARATION_KOPF),
-        dateiname: zeile.filename,
-      });
-      if (!befund.ok) {
-        // Zwischendatei weg, Zeile bleibt unvollstaendig: der Client kann den
-        // Upload mit einer anderen Datei neu beginnen (§7.1, §8.2).
-        await loesche(ziel);
-        return json(415, { fehler: befund.meldung, grund: befund.grund });
-      }
+          // Kam waehrend dieses Chunks ein Abbruch, fuehrt ihn der Besitzer jetzt
+          // aus — vor jeder Erfolgsantwort und vor allem vor dem Abschluss.
+          if (await fuehreVorgemerktenAbbruchAus(nochOffen)) return json(404, ABGEBROCHEN_ANTWORT);
 
-      // Der EINE Moment, in dem der Blob entsteht — atomar, im selben Verzeichnis.
-      const { bytes: gemessen } = await abschliesse(ziel);
+          if (!ende) return json(200, { empfangeneBytes: bytes });
 
-      const db = getDb();
-      db.update(shareFiles)
-        .set({
-          // Die Laenge der DATEI (aus `abschliesse`), nicht der Zaehler der
-          // Schreibfunktion und erst recht keine Selbstauskunft des Clients
-          // (Analyse E20 b). Laufen beide auseinander, braeche ein falsches
-          // `Content-Length` den Download beim Empfaenger ab (§5.4).
-          size: gemessen,
-          // Der FESTGESTELLTE Typ ersetzt den Platzhalter aus `anlegenAction`.
-          mimeType: befund.typ,
-          bytesVollstaendigAt: new Date(),
-        })
-        .where(eq(shareFiles.id, zeile.id))
-        .run();
+          // Die Magic-Byte-Pruefung liegt ZWISCHEN Schreiben und Umbenennen (§8.5):
+          // sie liest Bytes, die in frueheren Anfragen angekommen sind, und ihr
+          // Fehlschlag darf das Ziel nie entstehen lassen.
+          const befund = pruefeInhaltstyp({
+            praefix: await kopfBytes(ziel, MIME_PRAEFIX_BYTES),
+            gesamtGroesse: bytes,
+            deklariert: req.headers.get(DEKLARATION_KOPF),
+            dateiname: zeile.filename,
+          });
+          if (!befund.ok) {
+            // Zwischendatei weg, Zeile bleibt unvollstaendig: der Client kann den
+            // Upload mit einer anderen Datei neu beginnen (§7.1, §8.2).
+            await loesche(ziel);
+            return json(415, { fehler: befund.meldung, grund: befund.grund });
+          }
 
-      // NEU SUMMIERT, nicht erhoeht: ein Inkrement waere nach jedem Abbruch,
-      // jedem Neuversuch und jedem Import um genau die Faelle daneben, die man
-      // nicht sieht. Gezaehlt werden ausschliesslich VOLLSTAENDIGE Zeilen (§4.4).
-      db.update(shares)
-        .set({
-          totalSize: sql`(SELECT COALESCE(SUM(${shareFiles.size}), 0) FROM ${shareFiles}
-                          WHERE ${shareFiles.shareId} = ${zeile.shareId}
-                            AND ${shareFiles.bytesVollstaendigAt} IS NOT NULL)`,
-        })
-        .where(eq(shares.id, zeile.shareId))
-        .run();
+          // Der EINE Moment, in dem der Blob entsteht — atomar, im selben Verzeichnis.
+          const { bytes: gemessen } = await abschliesse(ziel);
 
-      // Die Zeile steht schon als `scanning` in der Datenbank und ist damit
-      // bereits Teil der Warteschlange; dieser Aufruf zieht sie nur VOR den
-      // naechsten Takt (§6.4). Ohne laufenden Arbeiter tut er nichts.
-      reiheAvEin(ziel);
+          const db = getDb();
+          const abgeschlossen = db
+            .update(shareFiles)
+            .set({
+              // Die Laenge der DATEI (aus `abschliesse`), nicht der Zaehler der
+              // Schreibfunktion und erst recht keine Selbstauskunft des Clients
+              // (Analyse E20 b). Laufen beide auseinander, braeche ein falsches
+              // `Content-Length` den Download beim Empfaenger ab (§5.4).
+              size: gemessen,
+              // Der FESTGESTELLTE Typ ersetzt den Platzhalter aus `anlegenAction`.
+              mimeType: befund.typ,
+              bytesVollstaendigAt: new Date(),
+            })
+            // Genau EINMAL (DRK-289): gegen diese Groesse prueft jeder Leseweg.
+            .where(and(eq(shareFiles.id, zeile.id), isNull(shareFiles.bytesVollstaendigAt)))
+            .run();
+          if (abgeschlossen.changes !== 1) {
+            // Die Zeile ist inzwischen weg (Freigabe geloescht, Aufraeum-Lauf):
+            // der Blob haette keine Zeile mehr.
+            await loesche(ziel);
+            return nichtGefunden();
+          }
 
-      return json(200, {
-        fertig: true,
-        groesseBytes: gemessen,
-        mimeTyp: befund.typ,
-        abweichungen: befund.abweichungen,
+          // NEU SUMMIERT, nicht erhoeht: ein Inkrement waere nach jedem Abbruch,
+          // jedem Neuversuch und jedem Import um genau die Faelle daneben, die man
+          // nicht sieht. Gezaehlt werden ausschliesslich VOLLSTAENDIGE Zeilen (§4.4).
+          db.update(shares)
+            .set({
+              totalSize: sql`(SELECT COALESCE(SUM(${shareFiles.size}), 0) FROM ${shareFiles}
+                              WHERE ${shareFiles.shareId} = ${zeile.shareId}
+                                AND ${shareFiles.bytesVollstaendigAt} IS NOT NULL)`,
+            })
+            .where(eq(shares.id, zeile.shareId))
+            .run();
+
+          // Die Zeile steht schon als `scanning` in der Datenbank und ist damit
+          // bereits Teil der Warteschlange; dieser Aufruf zieht sie nur VOR den
+          // naechsten Takt (§6.4). Ohne laufenden Arbeiter tut er nichts.
+          reiheAvEin(ziel);
+
+          return json(200, {
+            fertig: true,
+            groesseBytes: gemessen,
+            mimeTyp: befund.typ,
+            abweichungen: befund.abweichungen,
+          });
+        } catch (fehler) {
+          return await ausFehler(fehler, ziel);
+        }
       });
     } catch (fehler) {
+      // Hierher kommt nur noch `SchreibbesitzBelegt` (→ 409) oder ein
+      // unerwarteter Wurf, den `ausFehler` unveraendert weiterreicht.
       return ausFehler(fehler, ziel);
     }
   });
@@ -429,33 +540,33 @@ export async function DELETE(
     }
 
     try {
-      // `loesche` ist idempotent und nimmt Ziel UND Zwischendatei mit; fuer eine
-      // unvollstaendige Zeile existiert nur die Zwischendatei.
-      await loesche(zielFuer(zeile));
+      // Im Schreibbesitz (DRK-289): ein Abbruch waehrend eines laufenden Chunks
+      // loeschte sonst die Zwischendatei unter dessen offenem Deskriptor weg.
+      const weg = await mitSchreibbesitz(zielFuer(zeile), async () => {
+        // Der Zustand ERNEUT, jetzt unter dem Besitz: ist die Datei inzwischen
+        // fertig geworden, naehme `loesche` den geprueften Blob mit.
+        const jetzt = ladeZeile(zeile.id);
+        if (jetzt === undefined) return "fehlt" as const;
+        if (jetzt.bytesVollstaendigAt !== null) return "fertig" as const;
+        await brichUnvollstaendigAb(jetzt);
+        return "weg" as const;
+      });
+      // Ein paralleler Abbruch war schneller — fuer den Client derselbe Ausgang.
+      if (weg === "fehlt") return new Response(null, { status: 204 });
+      if (weg === "fertig") {
+        return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
+      }
     } catch (fehler) {
+      if (fehler instanceof SchreibbesitzBelegt) {
+        // Ein Chunk haelt die Datei gerade: der Abbruch wird VORGEMERKT und vom
+        // Besitzer ausgefuehrt, bevor er abschliesst oder Erfolg meldet. 202 —
+        // angenommen, nicht schon ausgefuehrt.
+        merkeAbbruchVor(zeile.id);
+        return new Response(null, { status: 202 });
+      }
       return ausFehler(fehler, zielFuer(zeile));
     }
 
-    const db = getDb();
-    db.delete(shareFiles).where(eq(shareFiles.id, zeile.id)).run();
-
-    // DIESELBE Regel wie beim Anlegen (T26 Punkt 5), nicht eine zweite: eine
-    // verbleibende Datei → „file", mehrere → „folder". Ohne diesen Schritt zeigte
-    // ein Share nach einem abgebrochenen zweiten Upload dauerhaft „Ordner" bei
-    // einer Datei. Der Abbruch ist die EINZIGE Stelle, an der die Zahl nach dem
-    // Anlegen noch sinkt.
-    const rest =
-      db
-        .select({ anzahl: sql<number>`count(*)` })
-        .from(shareFiles)
-        .where(eq(shareFiles.shareId, zeile.shareId))
-        .get()?.anzahl ?? 0;
-    db.update(shares)
-      .set({ type: rest > 1 ? "folder" : "file" })
-      .where(eq(shares.id, zeile.shareId))
-      .run();
-
-    merkeAbbruch(zeile.id);
     return new Response(null, { status: 204 });
   });
 }

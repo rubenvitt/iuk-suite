@@ -45,7 +45,15 @@ import { registerAuditFunctions } from "@/core/audit/context";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import net from "node:net";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1195,4 +1203,63 @@ describe("AV-Warteschlange (T17) — die Warteschlange IST die Datenbank", () =>
     expect(ausfaelle).toEqual([]);
     await lauscher.stoppe();
   }, 20000);
+
+  // --- DRK-289: das Ergebnis gilt fuer EINE Dateigeneration ------------------
+
+  /** Legt den Blob einer Inbox-Zeile mit `bytes` Bytes an (die Zeile traegt `size = 10`). */
+  function legeInboxBlob(id: string, bytes: number): string {
+    const pfad = scanPfad({ art: "inbox", inboxFileId: id });
+    mkdirSync(dirname(pfad), { recursive: true });
+    writeFileSync(pfad, Buffer.alloc(bytes, 0x41));
+    return pfad;
+  }
+
+  it("DRK-289: weicht der Blob schon VOR dem Scan von der geprüften Größe ab, wird er gar nicht erst gescannt — `error`, nie `clean`", async () => {
+    const lauscher = await scannerOk();
+    setzeQueueEnv(lauscher.port);
+    legeInboxDatei("GgggggggG1", 1000);
+    legeInboxBlob("GgggggggG1", 25);
+    const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const befunde = await arbeiteAvWarteschlangeAb(db);
+
+    expect(befunde.map((b) => b.status)).toEqual(["error"]);
+    expect(liesInbox("GgggggggG1").av_status).toBe("error");
+    expect(lauscher.roh()).toBe("");
+    fehler.mockRestore();
+    await lauscher.stoppe();
+  }, 15000);
+
+  it("DRK-289: wächst der Blob WÄHREND des Scans, wird aus dem OK des Scanners keine Freigabe", async () => {
+    // Der Fake haengt Bytes an, BEVOR er antwortet — genau das Fenster zwischen
+    // `zSCAN` und dem Schreiben des Ergebnisses.
+    const lauscher = await lausche((kommando, v) => {
+      const pfad = kommando.slice("zSCAN ".length);
+      appendFileSync(pfad, "nachgeschoben");
+      v.end(`${pfad}: OK\0`);
+    });
+    setzeQueueEnv(lauscher.port);
+    legeInboxDatei("HhhhhhhhH1", 1000);
+    legeInboxBlob("HhhhhhhhH1", 10);
+    const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const befunde = await arbeiteAvWarteschlangeAb(db);
+
+    expect(befunde.map((b) => b.status)).toEqual(["error"]);
+    expect(liesInbox("HhhhhhhhH1").av_status).toBe("error");
+    fehler.mockRestore();
+    await lauscher.stoppe();
+  }, 15000);
+
+  it("DRK-289: stimmt die Größe, bleibt es bei `clean` (Gegenprobe)", async () => {
+    const lauscher = await scannerOk();
+    setzeQueueEnv(lauscher.port);
+    legeInboxDatei("IiiiiiiiI1", 1000);
+    legeInboxBlob("IiiiiiiiI1", 10);
+
+    const befunde = await arbeiteAvWarteschlangeAb(db);
+
+    expect(befunde.map((b) => b.status)).toEqual(["clean"]);
+    await lauscher.stoppe();
+  }, 15000);
 });

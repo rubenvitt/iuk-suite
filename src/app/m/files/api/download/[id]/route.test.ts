@@ -141,7 +141,12 @@ async function legeDatei(vorgabe: DateiVorgabe) {
     .run();
 
   if (vorgabe.mitBlob ?? vollstaendig) {
-    const { schreibeStrom, abschliesse } = await import("@/app/m/files/_lib/storage");
+    // Beide nur im Schreibbesitz (DRK-289) — dieselbe Naht wie in den Upload-Wegen.
+    const ablage = await import("@/app/m/files/_lib/storage");
+    const schreibeStrom: typeof ablage.schreibeStrom = (z, q, o) =>
+      ablage.mitSchreibbesitz(z, () => ablage.schreibeStrom(z, q, o));
+    const abschliesse: typeof ablage.abschliesse = (z) =>
+      ablage.mitSchreibbesitz(z, () => ablage.abschliesse(z));
     const ziel = { art: "share", shareId: vorgabe.shareId, fileId: vorgabe.id } as const;
     async function* quelle() {
       yield new Uint8Array(inhalt);
@@ -464,12 +469,13 @@ describe("Auslieferung (§7.7): Kopfzeilen und Bytes", () => {
     expect(res.headers.get("content-length")).toBe(String(inhalt.byteLength));
   });
 
-  it("weicht `size` von der Wirklichkeit ab, gilt die WIRKLICHKEIT — und die Abweichung wird geloggt (§5.4)", async () => {
-    const warnung = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("weicht der Blob von der geprüften Größe ab, geht KEIN Byte hinaus — und kein Download wird verbraucht (DRK-289)", async () => {
+    // Bis DRK-289 galt hier „die WIRKLICHKEIT wird ausgeliefert, die Abweichung
+    // geloggt" (§5.4). Genau das war der letzte Schritt des Angriffs: ein nach
+    // dem sauberen Scan gewachsener Blob ging mit der Freigabe des kleineren
+    // hinaus. Die Freigabe gilt fuer die beim Abschluss gemessene Groesse.
+    const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
     await legeShare({ id: "share00001" });
-    // Die Spalte behauptet 999 Bytes, auf der Platte liegen 17. Ein falsches
-    // `Content-Length` bricht den Download beim Empfänger ab — der Fehler wäre
-    // dann bei IHM sichtbar statt im Log.
     const inhalt = await legeDatei({
       id: "datei00001",
       shareId: "share00001",
@@ -478,12 +484,13 @@ describe("Auslieferung (§7.7): Kopfzeilen und Bytes", () => {
     expect(inhalt.byteLength).not.toBe(999);
 
     const res = await ruf("share00001", { file: "datei00001" });
-    expect(res.headers.get("content-length")).toBe(String(inhalt.byteLength));
-    expect(Buffer.from(await res.arrayBuffer()).byteLength).toBe(inhalt.byteLength);
-    expect(warnung).toHaveBeenCalled();
-    const meldung = warnung.mock.calls.map((c) => c.join(" ")).join(" | ");
+    expect(res.status).toBe(409);
+    expect(res.headers.get("content-disposition")).toBeNull();
+    expect(await res.text()).toContain("verändert");
+    const meldung = fehler.mock.calls.map((c) => c.join(" ")).join(" | ");
     expect(meldung).toContain("999");
     expect(meldung).toContain("datei00001");
+    expect(await downloadCount("share00001")).toBe(0);
   });
 
   it("kein `Accept-Ranges` — und ein `Range` bekommt die GANZE Datei mit 200, kein 206", async () => {

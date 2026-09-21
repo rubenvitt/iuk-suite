@@ -114,7 +114,12 @@ async function legeAbgabe(vorgabe: {
 }): Promise<void> {
   const { getDb } = await import("@/app/m/files/_db/client");
   const { inboxFiles } = await import("@/app/m/files/_db/schema");
-  const { schreibeStrom, abschliesse } = await import("@/app/m/files/_lib/storage");
+  // Beide nur im Schreibbesitz (DRK-289) — dieselbe Naht wie in den Upload-Wegen.
+  const ablage = await import("@/app/m/files/_lib/storage");
+  const schreibeStrom: typeof ablage.schreibeStrom = (z, q, o) =>
+    ablage.mitSchreibbesitz(z, () => ablage.schreibeStrom(z, q, o));
+  const abschliesse: typeof ablage.abschliesse = (z) =>
+    ablage.mitSchreibbesitz(z, () => ablage.abschliesse(z));
 
   const bytes = Buffer.from(vorgabe.inhalt, "utf8");
   const ziel = { art: "inbox", inboxFileId: vorgabe.id } as const;

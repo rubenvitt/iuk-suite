@@ -576,6 +576,66 @@ describe("Ein Aufraeum-Lauf", () => {
     expect(existsSync(join(ABLAGE, "inbox", INBOX_ALT))).toBe(true);
   });
 
+  it("räumt offene Abgaben nach ihrer Lebensdauer ab — ohne Inbox-Frist, und nie unter einem laufenden Upload (DRK-288)", async () => {
+    const jetzt = new Date();
+    const bank = await db();
+    const { zugangslinks, inboxFiles } = await tabellen();
+    bank
+      .insert(zugangslinks)
+      .values({
+        id: "LinkAAAA01",
+        name: "Übung",
+        tokenStart: "dz-abcd",
+        tokenHash: "hash-1",
+        createdAt: new Date(jetzt.getTime() - 3 * TAG),
+        createdBy: "test",
+        expiresAt: new Date(jetzt.getTime() + TAG),
+        budgetDateien: 1,
+        budgetBytes: 1024,
+      })
+      .run();
+    const offen = (id: string, alterMs: number) => ({
+      id,
+      tokenId: "LinkAAAA01",
+      dateiname: `${id}.png`,
+      size: 0,
+      empfangenAt: new Date(jetzt.getTime() - alterMs),
+      bytesVollstaendigAt: null,
+      avStatus: "scanning",
+    });
+    bank
+      .insert(inboxFiles)
+      .values([
+        offen("offenAlt01", 2 * TAG),
+        offen("offenJung1", 60 * 60 * 1000),
+        offen("offenBelgt", 2 * TAG),
+      ])
+      .run();
+    mkdirSync(join(ABLAGE, "inbox"), { recursive: true });
+    for (const id of ["offenAlt01", "offenJung1", "offenBelgt"]) {
+      writeFileSync(join(ABLAGE, "inbox", `${id}.part`), "p".repeat(16));
+    }
+
+    // `offenBelgt` haelt gerade ein Upload — der Lauf darf sie nicht anfassen.
+    const { mitSchreibbesitz } = await import("./storage");
+    let freigeben!: () => void;
+    const gehalten = mitSchreibbesitz(
+      { art: "inbox", inboxFileId: "offenBelgt" },
+      () => new Promise<void>((w) => (freigeben = w)),
+    );
+
+    const ergebnis = await fuehreAufraeumLaufAus();
+    freigeben();
+    await gehalten;
+
+    expect(ergebnis.fehler).toBeNull();
+    const rest = bank.select({ id: inboxFiles.id }).from(inboxFiles).all().map((z) => z.id).sort();
+    expect(rest).toEqual(["offenBelgt", "offenJung1"]);
+    expect(existsSync(join(ABLAGE, "inbox", "offenAlt01.part"))).toBe(false);
+    expect(existsSync(join(ABLAGE, "inbox", "offenJung1.part"))).toBe(true);
+    expect(existsSync(join(ABLAGE, "inbox", "offenBelgt.part"))).toBe(true);
+  });
+
   it("laeuft auf einem leeren Bestand durch, ohne etwas zu behaupten", async () => {
     const ergebnis = await fuehreAufraeumLaufAus();
     expect(ergebnis.fehler).toBeNull();

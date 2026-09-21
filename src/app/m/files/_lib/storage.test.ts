@@ -121,10 +121,14 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 import {
   AblageNichtSchreibbar,
+  BereitsAbgeschlossen,
   BlobFehlt,
+  GroesseAbweichend,
+  OhneSchreibbesitz,
+  SchreibbesitzBelegt,
   GroesseUeberschritten,
   KeinPlatz,
-  abschliesse,
+  abschliesse as abschliesseRoh,
   fortschritt,
   groesse,
   kopfBytes,
@@ -132,10 +136,20 @@ import {
   loesche,
   loescheShareVerzeichnis,
   pruefeAblage,
+  mitSchreibbesitz,
   scanPfad,
-  schreibeStrom,
+  schreibeStrom as schreibeStromRoh,
   type BlobZiel,
 } from "./storage";
+
+/**
+ * Beide Schreibfunktionen verlangen den Schreibbesitz (DRK-289). Die Tests hier
+ * pruefen ihr Verhalten IM Besitz; was ohne ihn geschieht, steht im Block
+ * „Schreibbesitz" weiter unten, dort gegen die rohen Funktionen.
+ */
+const schreibeStrom: typeof schreibeStromRoh = (z, q, o) =>
+  mitSchreibbesitz(z, () => schreibeStromRoh(z, q, o));
+const abschliesse: typeof abschliesseRoh = (z) => mitSchreibbesitz(z, () => abschliesseRoh(z));
 
 /** 10 Zeichen aus dem nanoid-`urlAlphabet`, wie sie die DB liefert. */
 const SHARE = "aB3_x-9Qw1";
@@ -233,7 +247,7 @@ describe("Pfadschema — ein Pfad entsteht nur aus DB-IDs", () => {
   for (const [name, schlecht] of schlechteZiele) {
     it(`prüft auch auf den asynchronen Wegen, und zwar VOR jedem Dateizugriff — ${name}`, async () => {
       await expect(groesse(schlecht)).rejects.toThrow();
-      await expect(lieseStrom(schlecht)).rejects.toThrow();
+      await expect(lieseStrom(schlecht, { erwarteteBytes: 0 })).rejects.toThrow();
       await expect(loesche(schlecht)).rejects.toThrow();
       await expect(fortschritt(schlecht)).rejects.toThrow();
       await expect(abschliesse(schlecht)).rejects.toThrow();
@@ -338,7 +352,7 @@ describe("maxBytes wird beim Zählen durchgesetzt", () => {
 
 describe("lieseStrom und groesse — Fehlendes ist BlobFehlt, nicht ENOENT", () => {
   it("wirft BlobFehlt statt eines durchgereichten ENOENT", async () => {
-    await expect(lieseStrom(shareZiel)).rejects.toBeInstanceOf(BlobFehlt);
+    await expect(lieseStrom(shareZiel, { erwarteteBytes: 0 })).rejects.toBeInstanceOf(BlobFehlt);
     await expect(groesse(shareZiel)).rejects.toBeInstanceOf(BlobFehlt);
     await expect(groesse(inboxZiel)).rejects.toBeInstanceOf(BlobFehlt);
   });
@@ -348,7 +362,7 @@ describe("lieseStrom und groesse — Fehlendes ist BlobFehlt, nicht ENOENT", () 
     await abschliesse(shareZiel);
 
     expect(await groesse(shareZiel)).toBe(10);
-    const { strom, bytes } = await lieseStrom(shareZiel);
+    const { strom, bytes } = await lieseStrom(shareZiel, { erwarteteBytes: 10 });
     expect(bytes).toBe(10);
     expect(await lese(strom)).toBe("Hallo Welt");
   });
@@ -360,7 +374,7 @@ describe("lieseStrom und groesse — Fehlendes ist BlobFehlt, nicht ENOENT", () 
     // Ziel fehlt" IST der Regelzustand des chunked Wegs, und `lieseStrom` liest sein
     // `bytes` aus einem eigenen `stat`. Ein Rückfall auf die `.part` lieferte einen
     // Download halber Bytes mit 200.
-    await expect(lieseStrom(shareZiel)).rejects.toBeInstanceOf(BlobFehlt);
+    await expect(lieseStrom(shareZiel, { erwarteteBytes: 0 })).rejects.toBeInstanceOf(BlobFehlt);
   });
 });
 
@@ -702,5 +716,76 @@ describe("der Pfad, der das Modul verlässt, ist absolut (§6.4/§6.5)", () => {
     process.env.DATA_DIR = "./.data";
     expect(isAbsolute(scanPfad(shareZiel))).toBe(true);
     expect(isAbsolute(scanPfad(inboxZiel))).toBe(true);
+  });
+});
+
+describe("Schreibbesitz — exklusiv je Datei, und nur für den, der ihn hält (DRK-289)", () => {
+  it("ohne Besitz schreibt und schließt niemand ab — laut, nicht still", async () => {
+    await expect(schreibeStromRoh(shareZiel, quelle("x"), { maxBytes: 10 })).rejects.toBeInstanceOf(
+      OhneSchreibbesitz,
+    );
+    await expect(abschliesseRoh(shareZiel)).rejects.toBeInstanceOf(OhneSchreibbesitz);
+    expect(existsSync(teilPfad)).toBe(false);
+  });
+
+  it("hält ein ANDERER die Datei, besteht ein Aufrufer ohne eigenen Besitz die Prüfung trotzdem nicht", async () => {
+    let freigeben!: () => void;
+    const gehalten = mitSchreibbesitz(
+      shareZiel,
+      () => new Promise<void>((weiter) => (freigeben = weiter)),
+    );
+    await expect(schreibeStromRoh(shareZiel, quelle("x"), { maxBytes: 10 })).rejects.toBeInstanceOf(
+      OhneSchreibbesitz,
+    );
+    freigeben();
+    await gehalten;
+  });
+
+  it("ein zweiter Besitzer wird sofort abgewiesen, nicht vertröstet — und danach ist die Datei wieder frei", async () => {
+    let freigeben!: () => void;
+    const erster = mitSchreibbesitz(shareZiel, () => new Promise<void>((w) => (freigeben = w)));
+    await expect(mitSchreibbesitz(shareZiel, async () => "zweiter")).rejects.toBeInstanceOf(
+      SchreibbesitzBelegt,
+    );
+    // Ein anderes Ziel ist davon unberuehrt.
+    await expect(mitSchreibbesitz(inboxZiel, async () => "anderes")).resolves.toBe("anderes");
+    freigeben();
+    await erster;
+    await expect(mitSchreibbesitz(shareZiel, async () => "danach")).resolves.toBe("danach");
+  });
+
+  it("gibt den Besitz auch nach einem Wurf frei", async () => {
+    await expect(
+      mitSchreibbesitz(shareZiel, async () => {
+        throw new Error("Absicht");
+      }),
+    ).rejects.toThrow("Absicht");
+    await expect(mitSchreibbesitz(shareZiel, async () => "frei")).resolves.toBe("frei");
+  });
+
+  it("abschliesse ersetzt nie ein schon bestehendes Ziel", async () => {
+    await schreibeStrom(shareZiel, quelle("geprueft"), { maxBytes: 1024 });
+    await abschliesse(shareZiel);
+    await schreibeStrom(shareZiel, quelle("untergeschoben"), { maxBytes: 1024 });
+    await expect(abschliesse(shareZiel)).rejects.toBeInstanceOf(BereitsAbgeschlossen);
+    expect(readFileSync(zielPfad, "utf8")).toBe("geprueft");
+  });
+});
+
+describe("lieseStrom liefert nur die geprüfte Größe (DRK-289)", () => {
+  it("wirft GroesseAbweichend VOR dem ersten Byte, wenn der Blob gewachsen ist", async () => {
+    await schreibeStrom(shareZiel, quelle("Hallo"), { maxBytes: 1024 });
+    await abschliesse(shareZiel);
+    const fehler = await lieseStrom(shareZiel, { erwarteteBytes: 3 }).catch((f: unknown) => f);
+    expect(fehler).toBeInstanceOf(GroesseAbweichend);
+    expect(fehler).toMatchObject({ erwartet: 3, gemessen: 5 });
+  });
+
+  it("liefert eine leere Datei als leeren Strom", async () => {
+    await schreibeStrom(shareZiel, quelle(), { maxBytes: 1024 });
+    await abschliesse(shareZiel);
+    const { strom, bytes } = await lieseStrom(shareZiel, { erwarteteBytes: 0 });
+    expect(bytes).toBe(0);
+    expect(await lese(strom)).toBe("");
   });
 });

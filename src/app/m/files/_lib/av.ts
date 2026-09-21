@@ -23,7 +23,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { scanne as scanneKern, type AvErgebnis } from "@/core/av/scanner";
 
 import { grenzen, type Grenzen } from "./grenzen";
-import { scanPfad, type BlobZiel } from "./storage";
+import { BlobFehlt, groesse, scanPfad, type BlobZiel } from "./storage";
 
 /**
  * EINE Konstante für BEIDE Tabellen (`share_files` und `inbox_files`, §4.6).
@@ -148,6 +148,12 @@ interface Auftrag {
   readonly ziel: BlobZiel;
   /** Annahmezeit in Millisekunden — die Sortierschluessel beider Tabellen. */
   readonly empfangen: number;
+  /**
+   * Die beim Abschluss GEMESSENE Groesse aus der Zeile — die Dateigeneration, an
+   * die das Ergebnis gebunden wird (DRK-289). Jeder Leseweg prueft vor der
+   * Auslieferung gegen dieselbe Zahl.
+   */
+  readonly size: number;
 }
 
 /**
@@ -216,7 +222,12 @@ async function mitPlatz<T>(parallel: number, arbeit: () => Promise<T>): Promise<
 function auftraege(db: FilesDb, t: Tabellen): Auftrag[] {
   const { shareFiles, inboxFiles } = t;
   const ausShares = db
-    .select({ id: shareFiles.id, shareId: shareFiles.shareId, zeit: shareFiles.createdAt })
+    .select({
+      id: shareFiles.id,
+      shareId: shareFiles.shareId,
+      zeit: shareFiles.createdAt,
+      size: shareFiles.size,
+    })
     .from(shareFiles)
     .where(and(eq(shareFiles.avStatus, "scanning"), isNotNull(shareFiles.bytesVollstaendigAt)))
     .all()
@@ -226,10 +237,11 @@ function auftraege(db: FilesDb, t: Tabellen): Auftrag[] {
         id: z.id,
         ziel: { art: "share", shareId: z.shareId, fileId: z.id },
         empfangen: z.zeit.getTime(),
+        size: z.size,
       }),
     );
   const ausInbox = db
-    .select({ id: inboxFiles.id, zeit: inboxFiles.empfangenAt })
+    .select({ id: inboxFiles.id, zeit: inboxFiles.empfangenAt, size: inboxFiles.size })
     .from(inboxFiles)
     .where(and(eq(inboxFiles.avStatus, "scanning"), isNotNull(inboxFiles.bytesVollstaendigAt)))
     .all()
@@ -239,6 +251,7 @@ function auftraege(db: FilesDb, t: Tabellen): Auftrag[] {
         id: z.id,
         ziel: { art: "inbox", inboxFileId: z.id },
         empfangen: z.zeit.getTime(),
+        size: z.size,
       }),
     );
 
@@ -332,12 +345,25 @@ function schreibe(
       ? db
           .update(shareFiles)
           .set({ avStatus: status, avGeprueftAt: jetzt })
-          .where(and(eq(shareFiles.id, auftrag.id), eq(shareFiles.avStatus, "scanning")))
+          .where(
+            and(
+              eq(shareFiles.id, auftrag.id),
+              eq(shareFiles.avStatus, "scanning"),
+              // Das Ergebnis gilt fuer DIESE Generation (DRK-289).
+              eq(shareFiles.size, auftrag.size),
+            ),
+          )
           .run()
       : db
           .update(inboxFiles)
           .set({ avStatus: status, avGeprueftAt: jetzt })
-          .where(and(eq(inboxFiles.id, auftrag.id), eq(inboxFiles.avStatus, "scanning")))
+          .where(
+            and(
+              eq(inboxFiles.id, auftrag.id),
+              eq(inboxFiles.avStatus, "scanning"),
+              eq(inboxFiles.size, auftrag.size),
+            ),
+          )
           .run();
 
   if (treffer.changes === 0) {
@@ -372,6 +398,35 @@ function ergebnisGrund(ergebnis: AvErgebnis): string {
   return "";
 }
 
+/**
+ * Hat der Blob noch die Groesse, die beim Abschluss gemessen wurde? (DRK-289)
+ *
+ * Gefragt wird VOR und NACH dem Scan. Davor, weil ein veraenderter Blob gar nicht
+ * erst gescannt werden soll — sein Ergebnis gaelte fuer eine Datei, die die Zeile
+ * nicht beschreibt. Danach, weil zwischen `zSCAN` und dem Schreiben des Ergebnisses
+ * Zeit vergeht: ein `clean` fuer Bytes, die danach gewachsen sind, waere genau die
+ * Freigabe ohne Dateigeneration, gegen die DRK-289 steht. Eine Abweichung ist
+ * `error` — fail-closed, und der Wiederholen-Knopf fuehrt ueber dieselbe Pruefung.
+ */
+async function generationStimmt(auftrag: Auftrag): Promise<boolean> {
+  try {
+    return (await groesse(auftrag.ziel)) === auftrag.size;
+  } catch (fehler) {
+    // Ein fehlender Blob ist KEINE Abweichung im Sinne dieser Pruefung: den
+    // meldet clamd selbst als `error`, und dieser Weg soll ihn nicht umbenennen.
+    if (fehler instanceof BlobFehlt) return true;
+    // Alles andere (EACCES, eine verdorbene ID) ist KEINE Bestaetigung — und ein
+    // Wurf braeche die Zusage „eine Runde settelt immer". Also fail-closed, laut.
+    console.error(`[files][av] Groesse von ${auftrag.tabelle}/${auftrag.id} nicht messbar:`, fehler);
+    return false;
+  }
+}
+
+const GENERATION_ABWEICHEND: AvErgebnis = {
+  art: "error",
+  grund: "Blob weicht von der beim Abschluss gemessenen Groesse ab",
+};
+
 /** Prozessweiter gegenseitiger Ausschluss je Zeile — Takt und Sofortscan treffen sich hier. */
 const inArbeit = new Set<string>();
 
@@ -385,9 +440,20 @@ async function verarbeite(
   if (inArbeit.has(schluessel)) return null;
   inArbeit.add(schluessel);
   try {
-    const ergebnis = await mitPlatz(g.avParallel, () =>
-      scanneMitWiederholung(auftrag.ziel, g.avVersuche, g.avWiederholungSekunden * 1000),
-    );
+    const ergebnis = await mitPlatz(g.avParallel, async (): Promise<AvErgebnis> => {
+      if (!(await generationStimmt(auftrag))) return GENERATION_ABWEICHEND;
+      const befund = await scanneMitWiederholung(
+        auftrag.ziel,
+        g.avVersuche,
+        g.avWiederholungSekunden * 1000,
+      );
+      // Ein Fund bleibt ein Fund, gleich was danach geschah; nur eine FREIGABE
+      // muss sich auf unveraenderte Bytes beziehen.
+      if (befund.art === "clean" && !(await generationStimmt(auftrag))) {
+        return GENERATION_ABWEICHEND;
+      }
+      return befund;
+    });
     return schreibe(db, t, auftrag, ergebnis, g.avVersuche);
   } finally {
     inArbeit.delete(schluessel);

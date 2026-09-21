@@ -6,6 +6,7 @@ import {
   uploadVerfallen,
   logzeileVerfallen,
   inboxVerfallen,
+  offeneAbgabeVerfallen,
   planeAufraeumen,
   type Aufraeumfristen,
   type AufraeumEingabe,
@@ -70,7 +71,15 @@ function logzeile(teil: Partial<LogEingabe> & Pick<LogEingabe, "id" | "shareId">
 }
 
 function inboxDatei(teil: Partial<InboxEingabe> & Pick<InboxEingabe, "id">): InboxEingabe {
-  return { size: 2000, empfangenAt: vor(STUNDE), ...teil };
+  // Vorgabe: eine ABGESCHLOSSENE Abgabe eines Links — die Lage der fachlichen
+  // Frist. Offene Abgaben (DRK-288) setzen `bytesVollstaendigAt: null` selbst.
+  return {
+    size: 2000,
+    empfangenAt: vor(STUNDE),
+    tokenId: "LinkAAAA01",
+    bytesVollstaendigAt: vor(STUNDE),
+    ...teil,
+  };
 }
 
 /**
@@ -79,7 +88,7 @@ function inboxDatei(teil: Partial<InboxEingabe> & Pick<InboxEingabe, "id">): Inb
  * meist im Zusammenspiel (die Logzeile eines geloeschten Shares, die
  * unvollstaendige Datei IN einem geloeschten Share).
  *
- * Alle IDs sind zehnzeichig wie `nanoid(10)` (`_lib/storage.ts:26`) — mit
+ * Alle IDs sind zehnzeichig wie `nanoid(10)` (`_lib/storage.ts`, `ID_MUSTER`) — mit
  * kuerzeren IDs waere ein spaeterer Pfadbau im Test gruen und in Produktion
  * rot.
  */
@@ -400,7 +409,7 @@ describe("Regel 6: verwaiste Blobs werden BERICHTET, nicht geloescht", () => {
 
   it("meldet `inbox` und eine liegen gebliebene `.ablage-probe` NICHT", () => {
     // Beide liegen planmaessig in derselben Wurzel wie die Share-Verzeichnisse
-    // (`storage.ts:120-126` und `:365`) und bekommen NIE eine `shares`-Zeile.
+    // (`storage.ts`, `pfadFuer` und `pruefeAblage`) und bekommen NIE eine `shares`-Zeile.
     // Waeren sie im Bericht, stuenden dort zwei dauerhafte Phantomeintraege — und
     // wer den Bericht befolgt, loescht mit `inbox` das ganze anonyme Postfach.
     const plan = planeAufraeumen(lage());
@@ -520,5 +529,59 @@ describe("Die Datei hat keine Uhr und kein Dateisystem", () => {
     // HTTP 500 fuer die ganze Seite, und Vitest kann das strukturell nicht
     // sehen (`docs/design/README.md:87-103`).
     expect(quelle).not.toMatch(/^\s*"use client"/m);
+  });
+});
+
+describe("offene Abgaben verfallen nach ihrer eigenen Lebensdauer (DRK-288)", () => {
+  const leer = (): AufraeumEingabe => ({
+    now: JETZT,
+    fristen: FRISTEN,
+    shares: [],
+    dateien: [],
+    logzeilen: [],
+    inbox: [],
+    alleShareIds: [],
+    blobVerzeichnisse: [],
+  });
+
+  it("eine offene Abgabe eines Links verfällt nach FILES_UPLOAD_VERFALL_STUNDEN — auch OHNE Inbox-Frist", () => {
+    const offen = inboxDatei({ id: "OffenAAA01", bytesVollstaendigAt: null, empfangenAt: vor(25 * STUNDE) });
+    expect(FRISTEN.inboxAufbewahrungTage).toBeNull();
+    expect(offeneAbgabeVerfallen(offen, JETZT, FRISTEN)).toBe(true);
+    const plan = planeAufraeumen({ ...leer(), inbox: [offen] });
+    expect(plan.loeschen.inboxIds).toEqual(["OffenAAA01"]);
+    expect(plan.zahlen.inboxGeloescht).toBe(1);
+  });
+
+  it("vor Ablauf der Lebensdauer bleibt sie", () => {
+    const offen = inboxDatei({ id: "OffenAAA02", bytesVollstaendigAt: null, empfangenAt: vor(23 * STUNDE) });
+    expect(offeneAbgabeVerfallen(offen, JETZT, FRISTEN)).toBe(false);
+  });
+
+  it("eine ABGESCHLOSSENE Abgabe fällt nicht unter diese Regel — ohne Inbox-Frist bleibt sie für immer", () => {
+    const fertig = inboxDatei({ id: "FertigAA01", empfangenAt: vor(400 * TAG) });
+    expect(offeneAbgabeVerfallen(fertig, JETZT, FRISTEN)).toBe(false);
+    expect(planeAufraeumen({ ...leer(), inbox: [fertig] }).loeschen.inboxIds).toEqual([]);
+  });
+
+  it("der Altbestand ohne `token_id` fällt nie darunter, auch offen und uralt", () => {
+    const alt = inboxDatei({
+      id: "AltbestA01",
+      tokenId: null,
+      bytesVollstaendigAt: null,
+      empfangenAt: vor(400 * TAG),
+    });
+    expect(offeneAbgabeVerfallen(alt, JETZT, FRISTEN)).toBe(false);
+  });
+
+  it("der Trockenlauf zählt sie, löscht sie aber nicht", () => {
+    const offen = inboxDatei({ id: "OffenAAA03", bytesVollstaendigAt: null, empfangenAt: vor(25 * STUNDE) });
+    const plan = planeAufraeumen({
+      ...leer(),
+      fristen: { ...FRISTEN, aufraeumenTrockenlauf: true },
+      inbox: [offen],
+    });
+    expect(plan.zahlen.inboxGeloescht).toBe(1);
+    expect(plan.loeschen.inboxIds).toEqual([]);
   });
 });

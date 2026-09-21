@@ -1,5 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
+import type { RunResult } from "better-sqlite3";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import { clientIpAus } from "@/core/ratelimit";
 import { ipKuerzen } from "../_lib/ip";
 import * as schema from "./schema";
@@ -47,6 +49,14 @@ import { downloadLogs, shares, zugangslinks } from "./schema";
 type DB = BetterSQLite3Database<typeof schema>;
 
 /**
+ * Die Datenbank ODER eine laufende Transaktion darauf. `verbucheAbgabe` läuft
+ * seit DRK-288 innerhalb der Transaktion, die zugleich die Zeile abschließt
+ * (`_lib/abgabeBudget.ts`, `wandleInVerbrauchUm`) — die Bedingung bleibt dabei
+ * HIER, als eine Fassung, nicht als zweite daneben.
+ */
+type Schreiber = BaseSQLiteDatabase<"sync", RunResult, typeof schema>;
+
+/**
  * Verbraucht EINEN Download des Shares. `true` = ausliefern, `false` = 410.
  *
  * Ein ZIP des ganzen Shares ist genau EIN Download, also genau EIN Aufruf —
@@ -85,7 +95,7 @@ export function zaehleDownload(db: DB, shareId: string): boolean {
  * Das Budget liegt in `files.db` und nicht in einer `Map` im Prozessspeicher:
  * dort wäre es nach jedem Neustart weg und bei mehreren Instanzen wirkungslos.
  */
-export function verbucheAbgabe(db: DB, tokenId: string, bytes: number): boolean {
+export function verbucheAbgabe(db: Schreiber, tokenId: string, bytes: number): boolean {
   // Eine negative Bytezahl wäre eine RÜCKERSTATTUNG (`verbraucht_bytes + (−n)`):
   // ein Aufrufer mit kaputter Größenmessung könnte damit das Budget beliebig oft
   // auffüllen. Laut statt still — der Wert kommt aus einer Messung, nicht aus

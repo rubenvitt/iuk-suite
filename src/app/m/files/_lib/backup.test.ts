@@ -49,7 +49,7 @@ function zeileMit(teil: string): number {
  * Der `.part`-Suffix wird NICHT hier hartkodiert, sondern aus `_lib/storage.ts` gelesen.
  * Sonst waere ein Umbenennen dort selbstkonsistent: Ablage und Ausschlussregel truegen
  * verschiedene Suffixe, halbe Uploads landeten im Backup, und beide Tests blieben gruen.
- * storage.ts:28-34 nennt `scripts/backup.sh` als Gegenstueck — die Kopplung ist echt.
+ * storage.ts (`TEIL_SUFFIX`) nennt `scripts/backup.sh` als Gegenstueck — die Kopplung ist echt.
  * Gelesen als Text, weil `TEIL_SUFFIX` dort absichtlich nicht exportiert ist.
  */
 function teilSuffixAusStorage(): string {
