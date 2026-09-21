@@ -477,12 +477,18 @@ describe("radio-Geraeteliste: die Insel im DOM", () => {
       cursor: unknown;
     };
     expect(anfrage.cursor).toEqual({ wert: "Florian 1", id: "g-1" });
-    expect(anfrage.parameter).toMatchObject({
+    // `toEqual`, nicht `toMatchObject`: fiele ein Schluessel heraus, liefe der Nachschlag
+    // gegen eine andere Treffermenge — und genau das soll hier auffallen.
+    expect(anfrage.parameter).toEqual({
+      ...Object.fromEntries(Object.keys(anfrage.parameter).map((k) => [k, ""])),
       q: "Florian",
       sortierung: "rufname:asc",
       status: "Einsatzbereit",
     });
-    expect(anfrage.parameter.seite ?? "", "eine Seitenzahl reist mit").toBe("");
+    expect(Object.keys(anfrage.parameter).sort()).toEqual([
+      "alamos", "ausleihbar", "funktion", "geraeteFunktionen", "geraeteTyp", "hatAbweichung",
+      "hersteller", "lagerort", "q", "seite", "sf", "sortierung", "status", "updateStand",
+    ]);
     expect(document.body.textContent).toContain("Florian 2");
     expect(query('[data-rolle="radio-nachladen-stand"]').textContent).toBe("2 Geräte");
     vi.unstubAllGlobals();

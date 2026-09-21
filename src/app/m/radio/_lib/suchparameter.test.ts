@@ -237,6 +237,11 @@ describe("radio-suchparameter: der Vertrag der Geraeteliste", () => {
 
     const leer = geraeteParameterAus({});
     expect(geraeteParameterAus(suchparameterZu(leer.werte)).filter).toEqual(leer.filter);
+
+    // Schluessel, die die Insel NICHT fuehrt, duerfen den Filter der Seite nicht aendern —
+    // sonst liefe der Nachschlag gegen eine andere Treffermenge als die erste Portion.
+    const fremd = geraeteParameterAus({ ...roh, seite: "5", seitenGroesse: "1000", unbekannt: "x" });
+    expect(geraeteParameterAus(suchparameterZu(fremd.werte)).filter).toEqual(fremd.filter);
   });
 
   it("ein ueberlanger Parameter wird beim Lesen gekuerzt, nicht erst im Nachschlag abgewiesen", () => {
