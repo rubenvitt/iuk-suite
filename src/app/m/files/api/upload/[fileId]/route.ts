@@ -108,6 +108,69 @@ function merkeAbbruch(fileId: string): void {
   }
 }
 
+/**
+ * VORGEMERKTE ABBRUECHE (DRK-289). Kommt ein `DELETE`, waehrend ein Chunk die
+ * Datei im Schreibbesitz haelt, darf er nicht warten (ein langsamer Rumpf haelt
+ * ihn beliebig lange) und nicht an ihm vorbei loeschen (der offene Deskriptor
+ * schriebe weiter). Er merkt den Abbruch deshalb vor, und der BESITZER fuehrt ihn
+ * aus — vor dem Abschluss und vor jeder Erfolgsantwort. Ohne diese Marke wuerde
+ * eine im letzten Chunk abgebrochene Datei trotzdem fertig und herunterladbar:
+ * die Upload-Insel bricht ihren laufenden `fetch` nicht ab.
+ *
+ * Kein zweiter Zustand der Datei: die Marke ist ein Auftrag, der beim naechsten
+ * Besitzer verbraucht wird. Nach einem Neustart ist sie weg — dann steht die
+ * Zeile ohne Bytes da und verfaellt wie jede andere (§4.4).
+ */
+const abbruchVorgemerkt = new Set<string>();
+
+function merkeAbbruchVor(fileId: string): void {
+  abbruchVorgemerkt.add(fileId);
+  if (abbruchVorgemerkt.size > ABBRUCH_GEDAECHTNIS) {
+    const aeltester = abbruchVorgemerkt.values().next().value;
+    if (aeltester !== undefined) abbruchVorgemerkt.delete(aeltester);
+  }
+}
+
+/**
+ * Der Abbruch selbst — AUSSCHLIESSLICH im Schreibbesitz aufgerufen, und nur fuer
+ * eine noch offene Zeile. Zwischendatei weg, Zeile weg, `shares.type` neu.
+ */
+async function brichUnvollstaendigAb(zeile: Zeile): Promise<void> {
+  const db = getDb();
+  // `loesche` ist idempotent und nimmt Ziel UND Zwischendatei mit; fuer eine
+  // unvollstaendige Zeile existiert nur die Zwischendatei.
+  await loesche(zielFuer(zeile));
+  db.delete(shareFiles).where(eq(shareFiles.id, zeile.id)).run();
+
+  // DIESELBE Regel wie beim Anlegen (T26 Punkt 5), nicht eine zweite: eine
+  // verbleibende Datei → „file", mehrere → „folder". Ohne diesen Schritt zeigte
+  // ein Share nach einem abgebrochenen zweiten Upload dauerhaft „Ordner" bei
+  // einer Datei. Der Abbruch ist die EINZIGE Stelle, an der die Zahl nach dem
+  // Anlegen noch sinkt.
+  const rest =
+    db
+      .select({ anzahl: sql<number>`count(*)` })
+      .from(shareFiles)
+      .where(eq(shareFiles.shareId, zeile.shareId))
+      .get()?.anzahl ?? 0;
+  db.update(shares)
+    .set({ type: rest > 1 ? "folder" : "file" })
+    .where(eq(shares.id, zeile.shareId))
+    .run();
+
+  abbruchVorgemerkt.delete(zeile.id);
+  merkeAbbruch(zeile.id);
+}
+
+/** Der vorgemerkte Abbruch, falls es einen gibt — `true` heisst: ausgefuehrt. */
+async function fuehreVorgemerktenAbbruchAus(zeile: Zeile): Promise<boolean> {
+  if (!abbruchVorgemerkt.has(zeile.id)) return false;
+  await brichUnvollstaendigAb(zeile);
+  return true;
+}
+
+const ABGEBROCHEN_ANTWORT = { fehler: "Der Upload dieser Datei wurde abgebrochen." };
+
 // --- Antworten -------------------------------------------------------------
 
 function json(status: number, koerper: Record<string, unknown>): Response {
@@ -296,6 +359,7 @@ export async function PUT(
           if (nochOffen.bytesVollstaendigAt !== null) {
             return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
           }
+          if (await fuehreVorgemerktenAbbruchAus(nochOffen)) return json(404, ABGEBROCHEN_ANTWORT);
 
           // Der Fortschritt IST die Laenge der Zwischendatei — kein zweiter
           // Mechanismus (§7.1 Schritt 3).
@@ -309,12 +373,14 @@ export async function PUT(
 
           const g = grenzen();
 
-          // `anhaengen: false` NUR fuer den ersten Chunk: er oeffnet mit `wx` und
-          // laesst einen zweiten Starter auf dasselbe Ziel als EEXIST auflaufen
-          // statt in verschraenkten Bytes (`storage.ts`, `schreibeStrom`).
+          // IMMER anhaengen, auch beim ersten Chunk: die Exklusivitaet traegt seit
+          // DRK-289 der Schreibbesitz, nicht mehr `wx`, und der Offset ist oben
+          // gegen die Laenge geprueft. `wx` machte aus einer LEEREN
+          // Zwischendatei (Abbruch vor dem ersten Byte) eine 409-Schleife:
+          // EEXIST, erwartet 0, erneut EEXIST.
           const { bytes } = await schreibeStrom(ziel, stromAus(req), {
             maxBytes: g.maxDateiBytes,
-            anhaengen: ab > 0,
+            anhaengen: true,
           });
 
           // §6.6, die ZWEITE Linie: oberhalb der scanbaren Groesse wird BENANNT
@@ -332,6 +398,10 @@ export async function PUT(
               grenzeBytes: g.avMaxBytes,
             });
           }
+
+          // Kam waehrend dieses Chunks ein Abbruch, fuehrt ihn der Besitzer jetzt
+          // aus — vor jeder Erfolgsantwort und vor allem vor dem Abschluss.
+          if (await fuehreVorgemerktenAbbruchAus(nochOffen)) return json(404, ABGEBROCHEN_ANTWORT);
 
           if (!ende) return json(200, { empfangeneBytes: bytes });
 
@@ -469,21 +539,16 @@ export async function DELETE(
       });
     }
 
-    const db = getDb();
     try {
       // Im Schreibbesitz (DRK-289): ein Abbruch waehrend eines laufenden Chunks
       // loeschte sonst die Zwischendatei unter dessen offenem Deskriptor weg.
-      // Belegt → 409 wie beim Upload; der Client wiederholt den Abbruch.
       const weg = await mitSchreibbesitz(zielFuer(zeile), async () => {
         // Der Zustand ERNEUT, jetzt unter dem Besitz: ist die Datei inzwischen
         // fertig geworden, naehme `loesche` den geprueften Blob mit.
         const jetzt = ladeZeile(zeile.id);
         if (jetzt === undefined) return "fehlt" as const;
         if (jetzt.bytesVollstaendigAt !== null) return "fertig" as const;
-        // `loesche` ist idempotent und nimmt Ziel UND Zwischendatei mit; fuer eine
-        // unvollstaendige Zeile existiert nur die Zwischendatei.
-        await loesche(zielFuer(zeile));
-        db.delete(shareFiles).where(eq(shareFiles.id, zeile.id)).run();
+        await brichUnvollstaendigAb(jetzt);
         return "weg" as const;
       });
       // Ein paralleler Abbruch war schneller — fuer den Client derselbe Ausgang.
@@ -492,26 +557,16 @@ export async function DELETE(
         return json(409, { fehler: "Diese Datei ist bereits vollstaendig uebertragen." });
       }
     } catch (fehler) {
+      if (fehler instanceof SchreibbesitzBelegt) {
+        // Ein Chunk haelt die Datei gerade: der Abbruch wird VORGEMERKT und vom
+        // Besitzer ausgefuehrt, bevor er abschliesst oder Erfolg meldet. 202 —
+        // angenommen, nicht schon ausgefuehrt.
+        merkeAbbruchVor(zeile.id);
+        return new Response(null, { status: 202 });
+      }
       return ausFehler(fehler, zielFuer(zeile));
     }
 
-    // DIESELBE Regel wie beim Anlegen (T26 Punkt 5), nicht eine zweite: eine
-    // verbleibende Datei → „file", mehrere → „folder". Ohne diesen Schritt zeigte
-    // ein Share nach einem abgebrochenen zweiten Upload dauerhaft „Ordner" bei
-    // einer Datei. Der Abbruch ist die EINZIGE Stelle, an der die Zahl nach dem
-    // Anlegen noch sinkt.
-    const rest =
-      db
-        .select({ anzahl: sql<number>`count(*)` })
-        .from(shareFiles)
-        .where(eq(shareFiles.shareId, zeile.shareId))
-        .get()?.anzahl ?? 0;
-    db.update(shares)
-      .set({ type: rest > 1 ? "folder" : "file" })
-      .where(eq(shares.id, zeile.shareId))
-      .run();
-
-    merkeAbbruch(zeile.id);
     return new Response(null, { status: 204 });
   });
 }

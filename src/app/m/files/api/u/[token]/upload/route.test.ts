@@ -513,7 +513,7 @@ describe("PUT /api/u/[token]/upload — Punkt 2: der Chunk-Weg", () => {
    * entfernter EEXIST-Zweig in `aufSchreibfehler` (dann faellt der Fehler in den
    * `throw` am Ende und wird ein unbehandelter 500).
    */
-  it("meldet einen zweiten Starter auf dasselbe Ziel als 409 statt als 500", async () => {
+  it("ein Chunk bei 0 nach einem LEEREN ersten setzt fort, statt in eine 409-Schleife zu laufen (DRK-289)", async () => {
     const { token } = neuerLink();
     const erster = await put({
       token,
@@ -524,14 +524,13 @@ describe("PUT /api/u/[token]/upload — Punkt 2: der Chunk-Weg", () => {
     const { id } = await koerperVon(erster);
     expect(statSync(`${blobPfad(id!)}.part`).size).toBe(0);
 
+    // Bis DRK-289: `wx` → EEXIST → 409 mit `erwartetesAb: 0` — und der Client
+    // schickte wieder 0. Gleichzeitige Starter haelt jetzt der Schreibbesitz ab
+    // (Block „DRK-289: exklusiver Schreibbesitz").
     const zweiter = await put({ token, koerper: PNG(), frage: { id, ab: 0 } });
 
-    expect(zweiter.status).toBe(409);
-    const koerper = await koerperVon(zweiter);
-    expect(koerper.code).toBe("offset");
-    expect(koerper.erwartetesAb).toBe(0);
-    // Nichts angehaengt — das ist der ganze Punkt von `wx`.
-    expect(statSync(`${blobPfad(id!)}.part`).size).toBe(0);
+    expect(zweiter.status).toBe(200);
+    expect(statSync(`${blobPfad(id!)}.part`).size).toBe(PNG().byteLength);
   });
 
   it("laesst die unvollstaendige Zeile mit `bytes_vollstaendig_at = NULL` stehen", async () => {
@@ -1268,6 +1267,28 @@ describe("PUT /api/u/[token]/upload — DRK-289: exklusiver Schreibbesitz", () =
     }
     expect(statSync(blobPfad(id)).size).toBe(15);
     expect(existsSync(`${blobPfad(id)}.part`)).toBe(false);
+  });
+
+  it("bricht der erste Chunk vor dem ersten Byte ab, lässt sich die Abgabe bei 0 fortsetzen", async () => {
+    // Zurueck bleibt eine LEERE Zwischendatei. Vorher oeffnete der naechste
+    // Versuch sie mit `wx`, bekam EEXIST und antwortete 409 mit „erwartet 0" —
+    // eine Schleife ohne Ausgang.
+    const { token } = neuerLink();
+    const a = gehaltenerRumpf(null);
+    const vorher = schreibBeobachtung.lesend;
+    const antwortA = putStrom(token, { ab: 0, name: "foto.png" }, a.strom);
+    await vi.waitFor(() => expect(schreibBeobachtung.lesend).toBe(vorher + 1));
+    const id = inboxZeilen()[0]?.id as string;
+    a.brichAb();
+    await antwortA.catch(() => undefined);
+    expect(statSync(`${blobPfad(id)}.part`).size).toBe(0);
+
+    const neu = await put({
+      token,
+      koerper: PNG(7),
+      frage: { ab: 0, id, ende: 1, typ: "image/png" },
+    });
+    expect(neu.status).toBe(200);
   });
 
   it("gibt den Besitz frei, wenn A abbricht — B setzt am gemessenen Stand fort", async () => {

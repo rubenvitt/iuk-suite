@@ -508,11 +508,11 @@ async function byteWeg(
   // die Variable erst, wenn der Vorbehalt steht (unten).
   let grenzArt: GrenzArt = "datei";
 
-  // EIN Riegel um den GANZEN Byte-Weg, nicht nur um das Schreiben. Vier Aufrufe
+  // EIN `try` um den GANZEN Byte-Weg, nicht nur um das Schreiben. Vier Aufrufe
   // in `_lib/storage.ts` koennen dieselben Fehlerklassen aus §5.4 werfen:
   // `fortschritt` (stat → EACCES/EROFS), `schreibeStrom` (open/write → ENOSPC,
   // EACCES, EEXIST), `kopfBytes` (open) und `abschliesse` (rename → ENOSPC).
-  // Lag der Riegel nur um `schreibeStrom`, wurde aus einem vollen Volume beim
+  // Lag das `try` nur um `schreibeStrom`, wurde aus einem vollen Volume beim
   // `rename` ein 500 mit leerem Rumpf — und die Zwischendatei blieb liegen, bis
   // der Aufraeum-Lauf sie nach `FILES_UPLOAD_VERFALL_STUNDEN` abholt.
   try {
@@ -520,7 +520,7 @@ async function byteWeg(
     // auseinanderlaufen kann (§7.1 Schritt 3).
     const bisher = await fortschritt(ziel);
     // GENAU die Laenge, in BEIDE Richtungen: ein kleineres `ab` haenge zusammen
-    // mit `anhaengen: ab > 0` die Bytes trotzdem hinten an und verdorbe den Blob
+    // mit `anhaengen` die Bytes trotzdem hinten an und verdorbe den Blob
     // still — die Magic-Byte-Pruefung saehe nichts davon, weil sie nur den Kopf
     // liest.
     if (bisher !== ab) {
@@ -553,9 +553,10 @@ async function byteWeg(
     try {
       ({ bytes } = await schreibeStrom(ziel, koerperStrom(anfrage), {
         maxBytes: Math.min(g.maxDateiBytes, vorbehalt.obergrenze),
-        // `anhaengen: false` oeffnet mit `wx` — nur so sieht ein zweiter Starter
-        // auf dasselbe Ziel EEXIST statt verschraenkter Bytes (§5.3).
-        anhaengen: ab > 0,
+        // IMMER anhaengen: die Exklusivitaet traegt seit DRK-289 der
+        // Schreibbesitz, nicht mehr `wx`, und der Offset ist oben geprueft. `wx`
+        // machte aus einer LEEREN Zwischendatei eine 409-Schleife.
+        anhaengen: true,
       }));
     } finally {
       // In JEDEM Ausgang, genau hier: ab jetzt zaehlt die Datei mit der Laenge
@@ -584,7 +585,7 @@ async function byteWeg(
     // `return await`, nicht `return`: ein blosses `return` eines Promise verlaesst
     // das `try` VOR seiner Ablehnung — der `catch` saehe die Fehler des letzten
     // Chunks nie, und genau die (rename auf vollem Volume) sind der Grund fuer
-    // diesen Riegel.
+    // dieses `try`.
     return await schliesseAb(ziel, zeile, tokenId, suche.get("typ"), bytes, jetzt);
   } catch (grund) {
     return await aufSchreibfehler(grund, ziel, zeile.id, g.maxDateiBytes, grenzArt);

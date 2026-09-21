@@ -312,12 +312,12 @@ async function laengeOderNull(pfad: string): Promise<number | null> {
  * und beim Anhaengen zaehlen die bereits liegenden Bytes mit, sonst unterlaufen viele
  * kleine Chunks die Grenze.
  *
- * **Fuer den Aufrufer verbindlich (§5.3):** der ERSTE Chunk eines Uploads ruft
- * `anhaengen: false` und bekommt damit `wx` — nur so sieht ein zweiter Starter auf dasselbe
- * Ziel `EEXIST` statt verschraenkter Bytes (der Gegenfall ist in `drop` gemessen: vier
- * gleichzeitige Uploads gleichen Namens → vier 200, ZWEI Dateien). `anhaengen: true` ist
- * ausschliesslich der FOLGEchunk; es oeffnet mit `a` und legte eine fehlende Zwischendatei
- * auch neu an, kann die Exklusivitaet also nicht tragen. Die Wache dagegen liegt beim
+ * **Die Exklusivitaet traegt seit DRK-289 der Schreibbesitz**, nicht mehr der Modus (§5.3:
+ * in `drop` gemessen, vier gleichzeitige Uploads gleichen Namens → vier 200, ZWEI Dateien).
+ * Die Upload-Wege oeffnen deshalb immer mit `anhaengen: true` (`a`, legt eine fehlende
+ * Zwischendatei neu an); `wx` (`anhaengen: false`) machte aus einer LEEREN Zwischendatei eine
+ * 409-Schleife. `wx` bleibt fuer Schreiber, die eine Datei in EINEM Zug anlegen (Seed),
+ * als zweite Linie gegen einen liegen gebliebenen Rest. Die Wache dagegen liegt beim
  * Aufrufer: `ab` gegen die aktuelle Laenge (`fortschritt`) pruefen und sonst 409 (§7.1) —
  * und zwar IM Schreibbesitz (`mitSchreibbesitz`), ohne den diese Funktion laut abbricht.
  *
