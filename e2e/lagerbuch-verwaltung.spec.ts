@@ -320,8 +320,20 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
     expect(antwort?.status()).toBe(200);
     await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
     await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
-    // Die leeren Tabellen sagen weiter, was sie sagen dürfen — hier stimmt es ja.
-    await expect(page.getByText("Keine Geräte in diesem Check.")).toBeVisible();
+    /*
+     * Die leeren Tabellen sagen weiter, was sie sagen dürfen — hier stimmt es ja.
+     *
+     * ⚠️ GERAHMT AUF DIE BREITE DARSTELLUNG, SONST SIND ES ZWEI KNOTEN
+     * (DRK-451): seit der Kartenumstellung steht derselbe Leertext zweimal im
+     * Baum — einmal als `<p data-rolle="schmalkarten-leer">` für die
+     * Kartenliste, einmal als `<td>` der Tabelle. Beide sagen dasselbe, und
+     * genau deshalb reisst ein ungerahmtes `getByText` an einer „strict mode
+     * violation". Ein `.first()` waere hier die falsche Abhilfe: es griffe den
+     * Knoten, der bei 1280px auf `display: none` steht.
+     */
+    await expect(
+      page.locator("[data-rolle='breitansicht']").getByText("Keine Geräte in diesem Check."),
+    ).toBeVisible();
   });
 
   test("ein gefüllter lesbarer Check bekommt KEINE solche Warnung", async ({ page }) => {
@@ -329,8 +341,20 @@ test.describe("lagerbuch — Check-Detail benennt ein unlesbares Ergebnis (§11.
 
     expect(antwort?.status()).toBe(200);
     await expect(page.getByText(/server-side exception/i)).toHaveCount(0);
-    // Die Seite ist da (der Abgleich des geseedeten Artikels steht drin) …
-    await expect(page.getByText("E2E Check Kompressen steril 10x10cm").first()).toBeVisible();
+    /*
+     * Die Seite ist da (der Abgleich des geseedeten Artikels steht drin) …
+     *
+     * ⚠️ `.first()` STAND HIER UND WAR AB DER KARTENUMSTELLUNG FALSCH
+     * (DRK-451). Der Name steht jetzt zweimal da, und der ERSTE Treffer ist
+     * der Kartentitel — Karten rendern vor der Tabelle und sind bei 1280px
+     * verborgen. Playwright meldete das als `Received: hidden`, also als
+     * fehlende Seite statt als verfehlten Greifer. Gerahmt trifft es wieder
+     * die Darstellung, die hier gemeint ist.
+     */
+    await expect(
+      page.locator("[data-rolle='breitansicht']")
+        .getByText("E2E Check Kompressen steril 10x10cm").first(),
+    ).toBeVisible();
     // … und sagt nichts von unlesbar.
     await expect(page.getByText("Ergebnis unlesbar")).toHaveCount(0);
   });
