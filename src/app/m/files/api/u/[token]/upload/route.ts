@@ -262,6 +262,17 @@ async function* koerperStrom(anfrage: Request): AsyncGenerator<Uint8Array> {
   }
 }
 
+/**
+ * Die angekuendigte Rumpflaenge, falls der Client sie nennt — nur als OBERGRENZE
+ * des Vorbehalts (DRK-288): ein Chunk haelt dann nicht mehr Budget fest, als er
+ * schreiben will, und parallele Abgaben am Ende des Kontingents verdraengen sich
+ * nicht mit Luftbuchungen. Durchgesetzt wird weiter beim ZAEHLEN; eine falsche
+ * Angabe kann also nur die eigene Anfrage scheitern lassen.
+ */
+function angekuendigteBytes(anfrage: Request): number | null {
+  return ganzzahlOderNull(anfrage.headers.get("content-length"));
+}
+
 /** Was die Stufen 2 und 3 vom aufgeloesten Abgabelink brauchen. */
 type Link = {
   id: string;
@@ -374,8 +385,8 @@ export async function PUT(
   // `behalteAbschnittVor` (Bytes, jeder Chunk), die auch offene Abgaben
   // mitzaehlen (DRK-288); diese Vorschau kennt nur `verbraucht_*`.
   //
-  // ASYMMETRIE, benannt statt uebersehen: die beiden Kontingent-Ausgaenge INNEN
-  // (`aufSchreibfehler`, `schliesseAb`) raeumen Blob UND Zeile weg, dieser hier
+  // ASYMMETRIE, benannt statt uebersehen: die Kontingent-Ausgaenge INNEN
+  // (Vorbehalt, `aufSchreibfehler`, `schliesseAb`) raeumen Blob UND Zeile weg, dieser hier
   // kann das nicht — er kennt die Zeile nicht, weil er vor ihrer Aufloesung
   // liegt. Trifft er einen SPAETEREN Chunk, bleiben Zeile und `.part` einer
   // halben Abgabe stehen; das ist dieselbe Form, die der 507-Weg absichtlich
@@ -542,7 +553,13 @@ async function byteWeg(
     // sonst schriebe ein Handyvideo erst seine vollen 200 MiB, bevor jemand
     // feststellt, dass es in ein Restbudget von 10 MiB nie passt (§8.4: „bricht
     // frueh ab, statt Bytes zu schreiben, die nicht passen").
-    const vorbehalt = await behalteAbschnittVor(getDb(), tokenId, zeile.id, bisher);
+    const vorbehalt = await behalteAbschnittVor(
+      getDb(),
+      tokenId,
+      zeile.id,
+      bisher,
+      angekuendigteBytes(anfrage),
+    );
     if (!vorbehalt.ok) {
       await verwirf(ziel, zeile.id);
       return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);

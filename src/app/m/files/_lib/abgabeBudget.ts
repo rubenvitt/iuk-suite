@@ -159,6 +159,7 @@ export async function behalteAbschnittVor(
   tokenId: string,
   inboxFileId: string,
   bisher: number,
+  angekuendigt: number | null = null,
 ): Promise<Abschnitt> {
   return unterBudgetRiegel(tokenId, async () => {
     const z = zustandFuer(tokenId);
@@ -185,7 +186,11 @@ export async function behalteAbschnittVor(
     // `frei` ist, was DIESE Datei insgesamt noch haben darf — ihre schon
     // liegenden Bytes eingeschlossen.
     if (frei < bisher) return { ok: false };
-    const nachAbschnitt = bisher + FILES_CHUNK_BYTES;
+    // Ein Chunk haelt nie mehr als `FILES_CHUNK_BYTES` fest — und nie mehr, als
+    // er ankuendigt: sonst verdraengten sich parallele Abgaben am Ende des
+    // Kontingents mit Luftbuchungen und bekaemen ein endgueltiges 429 fuer Bytes,
+    // die gar niemand schreibt.
+    const nachAbschnitt = bisher + Math.min(FILES_CHUNK_BYTES, angekuendigt ?? FILES_CHUNK_BYTES);
     const obergrenze = Math.min(frei, nachAbschnitt);
     z.imFlug.set(inboxFileId, obergrenze);
     return { ok: true, obergrenze, bindend: obergrenze < nachAbschnitt ? "budget" : "abschnitt" };

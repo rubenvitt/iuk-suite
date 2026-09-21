@@ -112,6 +112,16 @@ describe("behalteAbschnittVor", () => {
     await gibAbschnittFrei(LINK, "Datei00002");
   });
 
+  it("hält nie mehr fest, als der Chunk ankündigt", async () => {
+    belegeDateiplatz(db, LINK, zeile("Datei00001"));
+    expect(await behalteAbschnittVor(db, LINK, "Datei00001", 5, 10)).toEqual({
+      ok: true,
+      obergrenze: 15,
+      bindend: "abschnitt",
+    });
+    await gibAbschnittFrei(LINK, "Datei00001");
+  });
+
   it("weist ab, wenn schon die liegenden Bytes nicht mehr ins Budget passen", async () => {
     belegeDateiplatz(db, LINK, zeile("Datei00001"));
     expect(await behalteAbschnittVor(db, LINK, "Datei00001", 101)).toEqual({ ok: false });
