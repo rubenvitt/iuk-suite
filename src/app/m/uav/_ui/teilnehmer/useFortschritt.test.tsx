@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { Identity } from "../../_lib/sitzung";
 import type { TaskDTO } from "../../_lib/typen";
-import { localStore } from "../offline/localStore";
+import { ANONYM, personenSpeicher } from "../offline/localStore";
 import { useFortschritt } from "./useFortschritt";
 import { click, mount, unmount } from "@/app/m/qr/_lib/test-dom";
 
@@ -20,10 +19,11 @@ const KATALOG: TaskDTO[] = [
   { id: "1-1", teil: 1, nummer: "1.1", titel: "t", lernziel: "", schritte: [], durchfuehrungshinweise: [], sicherheitshinweise: [], zielanzahlDefault: 2, sortOrder: 0, aktiv: true },
 ];
 
-function Harness({ identity }: { identity: Identity | null }) {
-  const { durchfuehrungHinzufuegen, zielanzahlSetzen } = useFortschritt(KATALOG, identity);
+function Harness({ besitzer }: { besitzer: string }) {
+  const { durchfuehrungHinzufuegen, zielanzahlSetzen, fortschritt } = useFortschritt(KATALOG, besitzer);
   return (
     <div>
+      <output>{fortschritt["1-1"]?.durchfuehrungen.map((d) => d.drohnensteuerer).join(",")}</output>
       <button
         type="button"
         onClick={() =>
@@ -45,18 +45,18 @@ afterEach(async () => {
 });
 
 describe("useFortschritt — Queue unabhängig von der Identität", () => {
-  it("queued eine Execution-Mutation auch ohne bestätigte Identität (identity === null)", async () => {
-    await mount(<Harness identity={null} />);
+  it("queued eine Execution-Mutation auch ohne bestätigte Identität (anonymer Speicher)", async () => {
+    await mount(<Harness besitzer={ANONYM} />);
     await click("button");
-    const queue = localStore.queueLesen();
+    const queue = personenSpeicher(ANONYM).queueLesen();
     expect(queue).toHaveLength(1);
     expect(queue[0]).toMatchObject({ art: "execution", daten: { taskId: "1-1" } });
   });
 
   it("queued eine TaskStatus-Mutation auch ohne bestätigte Identität", async () => {
-    await mount(<Harness identity={null} />);
+    await mount(<Harness besitzer={ANONYM} />);
     await click('button:nth-of-type(2)');
-    const queue = localStore.queueLesen();
+    const queue = personenSpeicher(ANONYM).queueLesen();
     expect(queue).toHaveLength(1);
     expect(queue[0]).toMatchObject({ art: "taskStatus", daten: { taskId: "1-1", zielanzahl: 5 } });
   });
@@ -83,17 +83,42 @@ describe("useFortschritt — Erfassung ohne crypto.randomUUID (Secure-Context-Fa
     const original = globalThis.crypto;
     Object.defineProperty(globalThis, "crypto", { value: {}, configurable: true });
     try {
-      await mount(<Harness identity={null} />);
+      await mount(<Harness besitzer={ANONYM} />);
       await click("button");
     } finally {
       Object.defineProperty(globalThis, "crypto", { value: original, configurable: true });
     }
-    const queue = localStore.queueLesen();
+    const queue = personenSpeicher(ANONYM).queueLesen();
     expect(queue).toHaveLength(1);
     expect(queue[0]).toMatchObject({ art: "execution", daten: { taskId: "1-1" } });
     // `randomId()`s Fallback bleibt UUID-v4-förmig — ein Verbraucher darf am
     // Format nicht unterscheiden können, ob crypto.randomUUID verfügbar war.
     const id = (queue[0] as { daten: { id: string } }).daten.id;
     expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});
+
+/**
+ * DRK-286: der Hook ist an EINEN Besitzer gebunden. Wechselt er (Login von B
+ * nach A auf demselben Gerät), zeigt der nächste Render Bs Speicher — nichts
+ * von A bleibt im State —, und Schreibvorgänge landen nur noch bei B.
+ */
+describe("useFortschritt — Besitzerwechsel", () => {
+  it("zeigt nach dem Wechsel von A auf B nur Bs Stand und schreibt nur noch unter B", async () => {
+    personenSpeicher("a").fortschrittSchreiben({
+      schemaVersion: 1,
+      fortschritt: { "1-1": { zielanzahl: 2, nichtAnwendbar: false, durchfuehrungen: [{ id: "a-1", datum: "2026-08-01", drohnensteuerer: "Anna", luftraumbeobachter: "Alf" }] } },
+    });
+    await mount(<Harness besitzer="a" />);
+    expect(document.querySelector("output")?.textContent).toBe("Anna");
+    await unmount();
+
+    await mount(<Harness besitzer="b" />);
+    expect(document.querySelector("output")?.textContent).toBe("");
+    await click("button");
+    expect(personenSpeicher("b").queueLesen()).toHaveLength(1);
+    expect(personenSpeicher("a").queueLesen()).toHaveLength(0);
+    expect(personenSpeicher("a").fortschrittLesen()["1-1"].durchfuehrungen.map((d) => d.id)).toEqual(["a-1"]);
+    expect(personenSpeicher("b").fortschrittLesen()["1-1"].durchfuehrungen.map((d) => d.drohnensteuerer)).toEqual(["A"]);
   });
 });

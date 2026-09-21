@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { testDb, type TestDb } from "./testDb";
 import * as q from "./queries";
+import { eq } from "drizzle-orm";
 import { executions, taskStatus } from "../_db/schema";
 
 function grund(db: TestDb) {
@@ -42,6 +43,57 @@ describe("sync", () => {
   it("liefert den vollen Snapshot mit serverTime", () => {
     const s = q.sync(db, pid, { since: null, executions: [], taskStatus: [] });
     expect(s).toEqual({ executions: [], taskStatus: [], serverTime: expect.any(String) });
+  });
+});
+
+/**
+ * DRK-285: die Execution-ID ist global (Primärschlüssel), der Konfliktpfad des
+ * UPSERT fand eine FREMDE Zeile allein über die ID und überschrieb sie — die
+ * ID-Kenntnis (z. B. vom geteilten Tablet) war die ganze Schreibberechtigung.
+ */
+describe("sync — fremde Execution-IDs (DRK-285)", () => {
+  let db: TestDb; let a: string; let b: string;
+  const eigene = { id: "a-1", taskId: "1-1", datum: "2026-08-10", drohnensteuerer: "Ada", luftraumbeobachter: "Bea" };
+  beforeEach(() => {
+    db = testDb(); a = grund(db).id; b = q.teilnehmerAnlegen(db, "Bob", null).id;
+    q.sync(db, a, { since: null, executions: [eigene], taskStatus: [] });
+  });
+  const zeileVonA = () => db.select().from(executions).where(eq(executions.id, "a-1")).get();
+
+  it("B kann As bestehende ID weder ändern noch per deletedAt löschen — A bleibt bytegleich", () => {
+    const vorher = zeileVonA();
+    expect(() => q.sync(db, b, { since: null, executions: [{ ...eigene, datum: "2030-01-01", drohnensteuerer: "Mallory" }], taskStatus: [] }))
+      .toThrow(q.FremdeDurchfuehrung);
+    expect(() => q.sync(db, b, { since: null, executions: [{ ...eigene, deletedAt: "2026-09-01T00:00:00.000Z" }], taskStatus: [] }))
+      .toThrow(q.FremdeDurchfuehrung);
+    expect(zeileVonA()).toEqual(vorher);
+    expect(q.fortschritt(db, b).executions).toEqual([]);
+  });
+
+  it("gemischter Batch: nichts wird angewendet, alle fremden IDs werden genannt", () => {
+    let fehler: unknown;
+    try {
+      q.sync(db, b, {
+        since: null,
+        executions: [{ ...eigene, id: "b-neu" }, { ...eigene, deletedAt: "2026-09-01T00:00:00.000Z" }],
+        taskStatus: [{ taskId: "1-1", zielanzahl: 7, nichtAnwendbar: false, updatedAt: "2026-09-01T00:00:00.000Z" }],
+      });
+    } catch (e) { fehler = e; }
+    expect(fehler).toBeInstanceOf(q.FremdeDurchfuehrung);
+    expect((fehler as InstanceType<typeof q.FremdeDurchfuehrung>).ids).toEqual(["a-1"]);
+    // Alles-oder-nichts: auch Bs eigener neuer Eintrag und sein TaskStatus sind zurückgerollt.
+    expect(q.fortschritt(db, b)).toMatchObject({ executions: [], taskStatus: [] });
+    expect(zeileVonA()?.deletedAt).toBeNull();
+  });
+
+  it("eigene Updates, Tombstones, neue Einträge und ein konfliktfreier Retry funktionieren weiter", () => {
+    q.sync(db, a, { since: null, executions: [{ ...eigene, luftraumbeobachter: "Cleo" }, { ...eigene, id: "a-2" }], taskStatus: [] });
+    q.sync(db, a, { since: null, executions: [{ ...eigene, luftraumbeobachter: "Cleo" }, { ...eigene, id: "a-2" }], taskStatus: [] });
+    q.sync(db, a, { since: null, executions: [{ ...eigene, id: "a-2", deletedAt: "2026-09-01T00:00:00.000Z" }], taskStatus: [] });
+    const snap = q.fortschritt(db, a);
+    expect(snap.executions.map((e) => [e.id, e.luftraumbeobachter, e.deletedAt ?? null])).toEqual([
+      ["a-1", "Cleo", null], ["a-2", "Bea", "2026-09-01T00:00:00.000Z"],
+    ]);
   });
 });
 
