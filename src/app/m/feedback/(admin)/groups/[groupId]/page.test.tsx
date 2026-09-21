@@ -170,7 +170,7 @@ beforeEach(() => {
   // Seite daran die Breadcrumb entscheidet — mit dieser Belegung traegt sie
   // keine (der Einstieg leitete sofort wieder hierher).
   guardPageMock.mockResolvedValue({
-    viewer: { sub: "u1", groups: [], fachgruppen: [] },
+    viewer: { sub: "u1", groups: ["da-feedback-gl"], fachgruppen: [] },
     db,
     memberIds: [1],
   });
@@ -852,7 +852,7 @@ describe("Kopfzone — Rückweg nur, wenn der Einstieg nicht zurueckleitet (§4.
   it("zeigt ihn ab zwei Gruppen mit dem Ziel Gruppen aufs Cockpit", async () => {
     const zweite = zweiteGruppe();
     guardPageMock.mockResolvedValue({
-      viewer: { sub: "u1", groups: [], fachgruppen: [] },
+      viewer: { sub: "u1", groups: ["da-feedback-gl"], fachgruppen: [] },
       db,
       memberIds: [1, zweite.id],
     });

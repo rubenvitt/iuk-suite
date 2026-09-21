@@ -9,6 +9,7 @@ import {
   insertEvening,
   insertSurvey,
   insertResponse,
+  insertUserGroup,
 } from "@/app/m/feedback/_db/queries";
 import { shuffleStable } from "@/app/m/feedback/_lib/aggregation";
 import type { Question } from "@/app/m/feedback/_lib/questions";
@@ -77,7 +78,7 @@ beforeEach(() => {
   migrate(db, { migrationsFolder: "src/app/m/feedback/_db/migrations" });
   authMock.mockReset();
   authMock.mockResolvedValue({
-    user: { id: "leitung-1", groups: [], fachgruppen: ["bereitschaft"] },
+    user: { id: "leitung-1", groups: ["da-feedback-gl"], fachgruppen: ["bereitschaft"] },
   });
 });
 afterEach(() => sqlite.close());
@@ -230,5 +231,77 @@ describe("GET export.xlsx — was der Formatwechsel ändert (DRK-186)", () => {
 
     const daten = (await exportiere(group.id, evening.id)).slice(1);
     expect(daten[0][2]).toBe('=HYPERLINK("http://boese","hier")');
+  });
+});
+
+/*
+ * DRK-290: DER MODULZUGANG GILT AUCH FÜR DEN DIREKTEN ABRUF.
+ *
+ * Ein gespeicherter Export-Link ruft kein Layout auf — vorher genügte hier die
+ * Objektzuordnung, und eine ehemalige Gruppenleitung mit entzogener Modulgruppe
+ * bekam die Rückmeldungen weiter ausgeliefert. Jetzt verlangt der Abruf die
+ * Zugangs- oder Admin-Gruppe des Moduls UND (außer beim Admin) die Zuordnung.
+ */
+describe("GET export.xlsx — Modulzugang vor Objektzuordnung (DRK-290)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function status(groupId: number, eveningId: number): Promise<number> {
+    const { GET } = await import("./route");
+    const res = await GET(new Request("http://localhost:3000/export.xlsx"), {
+      params: Promise.resolve({ groupId: String(groupId), eveningId: String(eveningId) }),
+    });
+    return res.status;
+  }
+  function als(groups: string[], fachgruppen: string[]): void {
+    authMock.mockResolvedValue({ user: { id: "leitung-1", groups, fachgruppen } });
+  }
+
+  it("NEGATIV: groups=[] mit lokaler Zuordnung und leerem Claim → 404", async () => {
+    const { group, evening } = seedImportierterAbend();
+    insertUserGroup(db, "leitung-1", group.id);
+    als([], []);
+    expect(await status(group.id, evening.id)).toBe(404);
+  });
+
+  it("NEGATIV: groups=[] mit passendem fachgruppen-Claim → 404", async () => {
+    const { group, evening } = seedImportierterAbend();
+    als([], ["bereitschaft"]);
+    expect(await status(group.id, evening.id)).toBe(404);
+  });
+
+  it("NEGATIV: Zugangsgruppe ohne Objektzuordnung → 404", async () => {
+    const { group, evening } = seedImportierterAbend();
+    als(["da-feedback-gl"], []);
+    expect(await status(group.id, evening.id)).toBe(404);
+  });
+
+  it("POSITIV: Zugangsgruppe plus lokale Zuordnung → 200", async () => {
+    const { group, evening } = seedImportierterAbend();
+    insertUserGroup(db, "leitung-1", group.id);
+    als(["da-feedback-gl"], []);
+    expect(await status(group.id, evening.id)).toBe(200);
+  });
+
+  it("POSITIV: Zugangsgruppe plus passender Claim → 200", async () => {
+    const { group, evening } = seedImportierterAbend();
+    als(["da-feedback-gl"], ["bereitschaft"]);
+    expect(await status(group.id, evening.id)).toBe(200);
+  });
+
+  it("POSITIV: Feedback-Admin ohne Zuordnung → 200", async () => {
+    const { group, evening } = seedImportierterAbend();
+    als(["da-feedback-admin"], []);
+    expect(await status(group.id, evening.id)).toBe(200);
+  });
+
+  it("umbenannte Zugangsgruppe trägt, die Vorgabegruppe nicht mehr", async () => {
+    vi.stubEnv("SUITE_ACCESS_GROUP_FEEDBACK", "gruppenleiter,da_feedback_admin");
+    vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK", "da_feedback_admin");
+    const { group, evening } = seedImportierterAbend();
+    insertUserGroup(db, "leitung-1", group.id);
+    als(["da-feedback-gl"], []);
+    expect(await status(group.id, evening.id)).toBe(404);
+    als(["gruppenleiter"], []);
+    expect(await status(group.id, evening.id)).toBe(200);
   });
 });

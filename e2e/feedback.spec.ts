@@ -772,6 +772,32 @@ test("Gruppenleiter: der Einstieg landet in der eigenen Gruppe, die fremde bleib
   expect(res?.status()).toBe(404);
 });
 
+/**
+ * DRK-290: DER EXPORT-LINK LÄUFT OHNE LAYOUT — und verlangt trotzdem den
+ * Modulzugang. Dieselbe Person (`gl@localtest.me`, per Seed auf „Demo Jugend"
+ * zugeordnet) holt die Mappe einmal MIT und einmal OHNE Zugangsgruppe. Ohne
+ * ist die `user_groups`-Zeile allein kein Zugang mehr: 404, keine Rückmeldung.
+ * Geprüft wird die Antwort des echten Abrufs, nicht eine spätere Seite (Falle 10).
+ */
+test("Export-Link: die Zuordnung allein reicht ohne Modulgruppe nicht mehr", async ({ page }) => {
+  await devLogin(page, {
+    host: "feedback.localtest.me",
+    email: "gl@localtest.me",
+    groups: "da-feedback-gl",
+    callbackPath: "/",
+  });
+  await page.waitForURL(/\/groups\/\d+$/);
+  const id = page.url().match(/\/groups\/(\d+)$/)![1];
+  const mitZugang = await page.request.get(`${FEEDBACK}/groups/${id}/export.xlsx`);
+  expect(mitZugang.status()).toBe(200);
+
+  await page.context().clearCookies();
+  await devLogin(page, { host: "feedback.localtest.me", email: "gl@localtest.me", groups: "" });
+  const ohneZugang = await page.request.get(`${FEEDBACK}/groups/${id}/export.xlsx`);
+  expect(ohneZugang.status()).toBe(404);
+  expect(ohneZugang.headers()["content-type"] ?? "").not.toContain("spreadsheetml");
+});
+
 test.describe("mobil (390×844) — das Cockpit", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
