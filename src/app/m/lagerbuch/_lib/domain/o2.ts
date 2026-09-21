@@ -106,15 +106,15 @@ export function wechselGrenzeBar(nennfuelldruckBar: number, wechselAbProzent: nu
 /**
  * Prozent + Ampel + Wechselhinweis.
  *
- * ⚠️ DER VERGLEICH AN DER ROTEN KANTE LAEUFT GANZZAHLIG UEBER KREUZ, NICHT
- * UEBER `prozent` (DRK-308). `fuellstandProzent` RUNDET, und an der Kante
- * entschiede damit die Rundung ueber den Hinweis: 52,5 bar von 210 bar runden
- * auf 25 % und saehen aus wie genau der Grenzwert. `druck * 100` gegen
- * `grenze * nenn` ist dieselbe Ungleichung ohne Division, ohne Fliesskomma und
- * ohne Rundung.
- *
- * ⚠️ NUR AN DER ROTEN. Die gelbe Kante rundet weiter — sie ist Bestand und
- * nicht Gegenstand dieses Auftrags; die Begruendung steht im Rumpf.
+ * ⚠️ BEIDE KANTEN VERGLEICHEN GANZZAHLIG ÜBER KREUZ, NICHT ÜBER `prozent`
+ * (rot seit DRK-308, gelb seit DRK-356). `fuellstandProzent` RUNDET, und an der
+ * Kante entschiede damit die Rundung statt des Messwerts: 52,5 bar von 210 bar
+ * runden auf 25 % und sähen aus wie genau der Grenzwert; 104 bar von 210 sind
+ * 49,52 %, runden auf 50 und waren bis DRK-356 grün statt gelb. `druck * 100`
+ * gegen `grenze * nenn` ist dieselbe Ungleichung ohne Division, ohne
+ * Fließkomma und ohne Rundung. Die Anzeige darf deshalb an einer Kante eine
+ * Zahl nennen, die nach der anderen Stufe aussieht („50 %" in Gelb) — sie ist
+ * Anzeige, die Ampel ist Entscheidung.
  *
  * ⚠️ „BEI ERREICHEN" HEISST `<=`, UND DAS IST EINE AENDERUNG (DRK-308). Bis
  * dahin galt `prozent < 25`: genau 25 % waren GELB. Das Akzeptanzkriterium sagt
@@ -142,23 +142,11 @@ export function o2Status(
     };
   }
 
-  // ⚠️ DIE ZWEI KANTEN RECHNEN ABSICHTLICH VERSCHIEDEN, und das ist kein
-  // Versehen (DRK-308, vierte Reviewrunde).
-  //
-  // ROT ist die Kante, die dieses Ticket anfasst: sie ist konfigurierbar, ihre
-  // Zahl steht ausgeschrieben in der Oberflaeche und auf dem Druckbogen, und
-  // eine Rundung entschiede dort ueber den Hinweis. Sie rechnet exakt.
-  //
-  // GELB ist Bestand — nicht konfigurierbar, nicht Gegenstand des Auftrags. Sie
-  // rechnet weiter ueber die GERUNDETE Prozentzahl, weil die Umstellung sonst
-  // still Faelle verschoebe, die niemand geprueft hat: 104 bar von 210 sind
-  // 49,52 % und runden auf 50 — bisher gruen, exakt gerechnet gelb. Der Umbau
-  // dieses PRs ist fuer alles ausser der roten Kante ADDITIV, und das bleibt er.
-  // Dass die Rundung hier ueberhaupt entscheidet, ist ein eigener Befund und
-  // steht als eigenes Ticket auf dem Board.
+  // Rot schließt die Kante ein („bei Erreichen", `<=`), gelb nicht („unter
+  // 50 %", `<`): genau 50,0 % sind grün.
   let ampel: Ampel;
   if (druckBar * 100 <= wechselAbProzent * nennfuelldruckBar) ampel = "rot";
-  else if (prozent < O2_AMPEL_GELB_PROZENT) ampel = "gelb";
+  else if (druckBar * 100 < O2_AMPEL_GELB_PROZENT * nennfuelldruckBar) ampel = "gelb";
   else ampel = "gruen";
 
   const rot = ampel === "rot";
