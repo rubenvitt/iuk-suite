@@ -210,6 +210,22 @@ describe("SuiteNav — angemeldet", () => {
     expect(existsPortal('[data-testid="nutzername"]')).toBe(false);
   });
 
+  it("zeigt das Profilbild aus Pocket ID im Avatar, sonst die Initialen", async () => {
+    /*
+     * Das Bild ist Zierde: der Name steht im `aria-label` des Knopfes, deshalb
+     * `alt=""` — sonst sagte ein Screenreader den Namen zweimal an.
+     */
+    await zeichne({ userBild: "https://id.example/api/users/u1/profile-picture.png" });
+    const bild = query('[data-testid="nutzermenue"] img');
+    expect(bild.getAttribute("src")).toBe("https://id.example/api/users/u1/profile-picture.png");
+    expect(bild.getAttribute("alt")).toBe("");
+    await unmount();
+
+    await zeichne({ userBild: null });
+    expect(exists('[data-testid="nutzermenue"] img')).toBe(false);
+    expect(query('[data-testid="nutzermenue"]').textContent).toContain("RV");
+  });
+
   it("zeigt die Modulnavigation im Drawer, wenn das Modul welche uebergibt", async () => {
     // Mobil ist der Drawer der einzige Ort, an dem sie steht — die sichtbare
     // zweite Zeile (`Modulnav`) ist dort ausgeblendet.

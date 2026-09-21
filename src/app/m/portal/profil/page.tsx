@@ -31,6 +31,7 @@ export default async function ProfilPage() {
         name={session.user.name ?? null}
         email={session.user.email ?? null}
         kennung={session.user.id ?? null}
+        bild={session.user.image ?? null}
         gruppen={session.user.groups ?? []}
         fachgruppen={session.user.fachgruppen ?? []}
         angemeldetSeit={session.angemeldetSeit ?? null}
