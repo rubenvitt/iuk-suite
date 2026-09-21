@@ -139,7 +139,7 @@ export const GERAETE_MODI = ["TMO", "DMO", "REP", "GAT"] as const;
  *
  * ⛔ SIE SIND EINE ANZEIGE-OPTIONSLISTE UND KEINE SCHEMAGRENZE: weder der Alt-Bestand noch die
  * Suite begrenzen die Spalte serverseitig auf sie (`radio-admin/shared/src/schemas.ts:50-99`;
- * `admin/actions.ts:92-96` schreibt denselben Befund aus, und der Alt-Kommentar
+ * `admin/actions.ts:104-108` schreibt denselben Befund aus, und der Alt-Kommentar
  * `constants.ts:7-9` sagt es woertlich: „the `status` field is NOT constrained to these values
  * at the schema level"). Wer daraus einen Riegel machte, verlore jeden im Bestand gewachsenen
  * Wert beim naechsten Speichern.

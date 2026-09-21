@@ -747,6 +747,14 @@
     "kind": "context",
     "via": "importSchreibenAction"
   },
+  "src/app/m/radio/admin/actions.ts#geraeteNachladenAction": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
+  "src/app/m/radio/admin/actions.ts#ausleihenNachladenAction": {
+    "kind": "excluded",
+    "reason": "Read/search/revalidation only; the existing authorization guard still logs denial."
+  },
   "src/app/m/radio/admin/devices/[id]/route.ts#GET": {
     "kind": "excluded",
     "reason": "Read-only lookup, health, discovery or legacy redirect; no business mutation or export."

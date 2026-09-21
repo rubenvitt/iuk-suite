@@ -36,7 +36,7 @@ const SELBST = join(MODUL, "admin/actions.test.ts");
 const DATEI = join(MODUL, "admin/actions.ts");
 
 /**
- * ⛔ HEUTE NEUN — EXAKT, nicht „mindestens". Die Begruendung ist zeichengleich die von
+ * ⛔ HEUTE ELF — EXAKT, nicht „mindestens". Die Begruendung ist zeichengleich die von
  * `HANDLER_ANZAHL` in `riegel.test.ts:65-77`: `laenge >= 0` ist fuer JEDE Liste wahr, es
  * gaebe also keine Mutation, die einen `>=`-Fall rot macht — und ueber einer leeren oder
  * geschrumpften Menge waere jeder Fall darunter LEER-GRUEN. Das ist die NT11-Fehlerklasse.
@@ -53,8 +53,11 @@ const DATEI = join(MODUL, "admin/actions.ts");
  *   V18 legt `import/hochladen/route.ts` an — ⛔ ein Route HANDLER,
  *       keine Action; diese Zahl bewegt sich dabei NICHT             -> 9
  *   eine ZEHNTE Action ist eine ENTSCHEIDUNG und keine Zeile im Diff -> bewusst anheben
+ *   DRK-335 legt die zwei LESENDEN Nachschlag-Actions des Nachladens beim Scrollen an
+ *       (`geraeteNachladenAction`, `ausleihenNachladenAction`), beide auf der
+ *       Verwaltungs-Stufe ihrer Seiten                              -> 11
  */
-const ACTION_ANZAHL = 9;
+const ACTION_ANZAHL = 11;
 
 /**
  * DIE AUFRUFTABELLE AUS §5.4, NAMENTLICH — `Spec:4655-4664`, um `importVorschauAction`
@@ -79,7 +82,13 @@ const ADMIN_ACTIONS = [
   "importSchreibenAction",
 ] as const;
 
-const VERWALTUNGS_ACTIONS = ["geraetAendernAction", "notizAnfuegenAction"] as const;
+const VERWALTUNGS_ACTIONS = [
+  "geraetAendernAction",
+  "notizAnfuegenAction",
+  // DRK-335: die Nachschlaege der Geraete- und der Ausleihenliste — dieselbe Stufe wie die Seiten.
+  "geraeteNachladenAction",
+  "ausleihenNachladenAction",
+] as const;
 
 const RIEGEL_ADMIN = /\brequireRadioAdmin\s*\(/;
 const RIEGEL_VERWALTUNG = /\brequireRadioVerwaltung\s*\(/;
@@ -124,7 +133,7 @@ function alleModulDateien(wurzel: string = MODUL): string[] {
   for (const eintrag of readdirSync(wurzel)) {
     const pfad = join(wurzel, eintrag);
     if (statSync(pfad).isDirectory()) {
-      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N1): admin/actions.test.ts:131 wirft SQL/JSON weg.
+      // KEINE Ausnahme mehr (V11 Fix-Runde 2, N1): admin/actions.test.ts:140 wirft SQL/JSON weg.
       treffer.push(...alleModulDateien(pfad));
       continue;
     }
@@ -320,7 +329,7 @@ function riegelVerstoesse(text: string): string[] {
 }
 
 describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
-  it("die Datei existiert und fuehrt GENAU NEUN exportierte Actions", () => {
+  it("die Datei existiert und fuehrt GENAU ELF exportierte Actions", () => {
     /*
      * ⛔ DIE EXISTENZPFLICHT UND DIE EXAKTE ZAHL IN EINEM FALL. Ohne sie liefe alles darunter
      * ueber einer leeren Menge gruen und bewachte nichts. Begruendung der Zahl und der
@@ -414,7 +423,7 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
     expect(verstoesse).toEqual([]);
   });
 
-  it("die sieben Admin-Actions nennen requireRadioAdmin, die zwei uebrigen requireRadioVerwaltung", () => {
+  it("die sieben Admin-Actions nennen requireRadioAdmin, die vier uebrigen requireRadioVerwaltung", () => {
     /*
      * ⛔ NAMENTLICH JE ACTION, UND ZWEI `toBe` STATT EINEM. Die Zuordnung steht in
      * `Spec:4655-4664` (um `importVorschauAction` gekuerzt, E-V16); ein pfad- oder
@@ -480,7 +489,7 @@ describe("radio-admin/actions: die Aufruftabelle aus Spec 1 §5.4", () => {
     const aufAdmin = [...ersteVon.values()].filter((e) => RIEGEL_ADMIN.test(e)).length;
     const aufVerwaltung = [...ersteVon.values()].filter((e) => RIEGEL_VERWALTUNG.test(e)).length;
     expect(aufAdmin, "SIEBEN Actions auf der Admin-Stufe (Spec:4655-4664)").toBe(7);
-    expect(aufVerwaltung, "ZWEI Actions auf der Verwaltungs-Stufe (Spec:4655-4664)").toBe(2);
+    expect(aufVerwaltung, "VIER Actions auf der Verwaltungs-Stufe (Spec:4655-4664, DRK-335)").toBe(4);
   });
 });
 

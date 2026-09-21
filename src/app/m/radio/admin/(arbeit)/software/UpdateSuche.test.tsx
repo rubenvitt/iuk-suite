@@ -291,7 +291,7 @@ describe("radio-Update-Modus: Zielversion und Fortschritt", () => {
      * ueberhaupt nur, weil `virtual={false}` gesetzt ist (`UpdateSuche.tsx` am Feld,
      * derselbe Grund wie in `_ui/EntleiherFeld.tsx`) — jsdom kennt keine Elementhoehen.
      * ⛔ AUFGEKLAPPT WIRD UEBER `mousedown` AUF DER HUELLE, nicht ueber einen Klick auf das
-     * `input`: dieselbe Hausform wie `ausleihen/AusleihenTabelle.test.tsx:200-203`.
+     * `input`: dieselbe Hausform wie `ausleihen/AusleihenTabelle.test.tsx:206-209`.
      *
      * ⛔ `toEqual` UND NICHT `toContain`: eine Fassung, die eine feste Liste hinschreibt oder
      * eine fremde Quelle anzapft, bestuende ein Enthaltensein.

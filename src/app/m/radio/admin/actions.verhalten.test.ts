@@ -86,6 +86,8 @@ let testDb: ReturnType<typeof drizzle<typeof schema>> | null = null;
 vi.mock("../_db/client", () => ({ getDb: () => testDb }));
 
 import {
+  ausleihenNachladenAction,
+  geraeteNachladenAction,
   geraetAendernAction,
   geraetAnlegenAction,
   geraetLoeschenAction,
@@ -1196,5 +1198,127 @@ describe("importSchreibenAction", () => {
     if (!vorschau.ok || !geschrieben.ok) return;
     expect(vorschau.zusammenfassung).toEqual(geschrieben.zusammenfassung);
     expect(geraeteZeilen(), "der Schreiblauf hat NACH der Vorschau nichts angelegt").toHaveLength(1);
+  });
+});
+
+describe("die zwei Nachschlag-Actions (DRK-335)", () => {
+  /** Einundzwanzig Geraete — eins mehr als eine Portion, damit es eine zweite gibt. */
+  function einundzwanzigGeraete(): void {
+    for (let i = 1; i <= 21; i++) {
+      const nr = String(i).padStart(2, "0");
+      geraet({ id: `g-${nr}`, issi: `10000${nr}`, rufname: `Ruf ${nr}` });
+    }
+  }
+
+  it("die Geraeteliste liefert die zweite Portion unter DERSELBEN Sortierung", async () => {
+    einundzwanzigGeraete();
+    const antwort = await geraeteNachladenAction({
+      parameter: { sortierung: "rufname:asc" },
+      cursor: { wert: "Ruf 20", id: "g-20" },
+    });
+    expect(antwort).toMatchObject({ ok: true, cursor: null, gesamt: 21 });
+    if (!antwort.ok) return;
+    expect(antwort.zeilen.map((z) => z.id)).toEqual(["g-21"]);
+  });
+
+  it("die Geraeteliste faehrt den Filter aus den Parametern mit", async () => {
+    einundzwanzigGeraete();
+    geraet({ id: "g-defekt", issi: "2000001", rufname: "Ruf 99", status: "Defekt" });
+    const antwort = await geraeteNachladenAction({
+      parameter: { sortierung: "rufname:asc", status: "Defekt" },
+      cursor: { wert: "Ruf 00", id: "g-00" },
+    });
+    expect(antwort.ok && antwort.zeilen.map((z) => z.id)).toEqual(["g-defekt"]);
+    expect(antwort.ok && antwort.gesamt, "gesamt zaehlt die GEFILTERTE Menge").toBe(1);
+  });
+
+  it("die Portionsgroesse kommt NICHT aus der Eingabe", async () => {
+    /*
+     * ⛔ `better-sqlite3` ist synchron; wer die Groesse waehlen duerfte, laedt mit einem
+     * Aufruf den ganzen Bestand und haelt die GANZE Suite an.
+     */
+    einundzwanzigGeraete();
+    const antwort = await geraeteNachladenAction({
+      parameter: { seitenGroesse: "1000", seite: "1" },
+      cursor: { wert: 9_999_999_999, id: "zzz" },
+    });
+    expect(antwort.ok && antwort.zeilen).toHaveLength(20);
+  });
+
+  it("eine unbrauchbare Eingabe ergibt den festen Satz, keinen Wurf", async () => {
+    for (const anfrage of [
+      null,
+      { parameter: { q: 5 }, cursor: { wert: null, id: "g-1" } },
+      { parameter: {}, cursor: { wert: {}, id: "g-1" } },
+      { parameter: {}, cursor: { wert: null, id: "" } },
+      { parameter: { q: "x".repeat(5000) }, cursor: { wert: null, id: "g-1" } },
+    ]) {
+      const antwort = await geraeteNachladenAction(anfrage as never);
+      expect(antwort, JSON.stringify(anfrage)?.slice(0, 60)).toEqual({
+        ok: false,
+        fehler: "Weitere Geräte konnten nicht geladen werden.",
+      });
+    }
+  });
+
+  it("die Ausleihenliste liefert die Leihen hinter der Position", async () => {
+    geraet({ id: "g-1", issi: "3000001" });
+    const zeit = (tag: number) => new Date(`2026-06-${String(tag).padStart(2, "0")}T08:00:00Z`);
+    for (const tag of [1, 2, 3]) {
+      db.insert(loans)
+        .values({
+          id: `l-${tag}`,
+          deviceId: "g-1",
+          snapshotCallSign: "Ruf g-1",
+          borrowerName: `Tag ${tag}`,
+          borrowedAt: zeit(tag),
+          returnedAt: zeit(tag),
+          createdAt: zeit(tag),
+          updatedAt: zeit(tag),
+        })
+        .run();
+    }
+    const antwort = await ausleihenNachladenAction({
+      parameter: { geraet: "g-1" },
+      cursor: { ausgeliehen: Math.floor(zeit(2).getTime() / 1000), id: "l-2" },
+    });
+    expect(antwort).toMatchObject({ ok: true, cursor: null, gesamt: 3 });
+    expect(antwort.ok && antwort.zeilen.map((z) => z.entleiher)).toEqual(["Tag 1"]);
+  });
+
+  it("die Ausleihenliste weist eine Position ohne ganze Sekundenzahl ab", async () => {
+    const antwort = await ausleihenNachladenAction({
+      parameter: {},
+      cursor: { ausgeliehen: 1.5, id: "l-1" },
+    });
+    expect(antwort).toEqual({
+      ok: false,
+      fehler: "Weitere Ausleihen konnten nicht geladen werden.",
+    });
+  });
+
+  it("beide pruefen die Berechtigung selbst — ohne Gruppe kommt keine Zeile heraus", async () => {
+    /*
+     * ⛔ EINE ACTION IST EIN EIGENER EINSTIEGSPUNKT (`CLAUDE.md`, „Zugriffsschutz"). Ohne den
+     * Riegel waere die Geraeteliste fuer jeden lesbar, der die Kennung der Action kennt.
+     */
+    einundzwanzigGeraete();
+    sitzung = { user: { id: "sub-fremd", name: "Frida Fremd", groups: ["andere-gruppe"] } };
+    await expect(
+      geraeteNachladenAction({ parameter: {}, cursor: { wert: null, id: "g-01" } }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(
+      ausleihenNachladenAction({ parameter: {}, cursor: { ausgeliehen: 0, id: "l-1" } }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("die Updater-Stufe darf nachladen — dieselbe Stufe wie die Seiten", async () => {
+    einundzwanzigGeraete();
+    sitzung = UPDATER_SITZUNG;
+    const antwort = await geraeteNachladenAction({
+      parameter: { sortierung: "rufname:asc" },
+      cursor: { wert: "Ruf 20", id: "g-20" },
+    });
+    expect(antwort.ok).toBe(true);
   });
 });

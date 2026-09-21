@@ -1440,7 +1440,7 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
 
     const seite = leihhistorie(db, { seite: 1, seitenGroesse: 25 });
     expect(Object.keys(seite).sort()).toEqual(
-      ["zeilen", "gesamt", "seite", "seitenGroesse"].sort(),
+      ["zeilen", "gesamt", "seite", "seitenGroesse", "naechsterCursor"].sort(),
     );
     expect(Object.keys(seite.zeilen[0]!).sort()).toEqual([...FELDER_LEIHZEILE].sort());
     expect(seite.zeilen[0]?.notiz).toBe("Akku leer");
@@ -1450,6 +1450,72 @@ describe("radio-leihen: die Leihhistorie der Verwaltung", () => {
         `${verboten} reist in die Verwaltungsliste mit`,
       ).not.toContain(verboten);
     }
+  });
+});
+
+describe("radio-leihen: die Schluesselposition der Leihhistorie (DRK-335)", () => {
+  /**
+   * Sieben zurueckgegebene Leihen, drei davon in DERSELBEN Sekunde — der Fall, an dem eine
+   * Position ohne zweites Kriterium Zeilen doppelt liefert oder ueberspringt.
+   */
+  function bestand(): void {
+    geraet({ id: "p-1", issi: "5000001" });
+    const sekunde = (t: number) => new Date(Date.UTC(2026, 5, t, 8));
+    const tage = [1, 2, 2, 2, 3, 4, 5];
+    tage.forEach((tag, i) => {
+      leihe({
+        id: `l-${i}`,
+        deviceId: "p-1",
+        borrowerName: `Leihe ${i}`,
+        borrowedAt: sekunde(tag),
+        returnedAt: sekunde(tag + 1),
+      });
+    });
+  }
+
+  it("liefert in Portionen dieselbe Folge wie in einem Stueck", () => {
+    bestand();
+    const amStueck = leihhistorie(db, { seite: 1, seitenGroesse: 100 }).zeilen.map((z) => z.id);
+    expect(amStueck).toHaveLength(7);
+
+    const gesehen: string[] = [];
+    let seite = leihhistorie(db, { seite: 1, seitenGroesse: 2 });
+    gesehen.push(...seite.zeilen.map((z) => z.id));
+    for (let runde = 0; seite.naechsterCursor && runde < 10; runde++) {
+      seite = leihhistorie(db, { seite: 1, seitenGroesse: 2, cursor: seite.naechsterCursor });
+      gesehen.push(...seite.zeilen.map((z) => z.id));
+      expect(seite.gesamt, "gesamt zaehlt die ganze Menge, nicht den Rest").toBe(7);
+    }
+    expect(gesehen).toEqual(amStueck);
+  });
+
+  it("die Kennung entscheidet Gleichstaende absteigend", () => {
+    bestand();
+    const ids = leihhistorie(db, { seite: 1, seitenGroesse: 100 }).zeilen.map((z) => z.id);
+    // l-1, l-2, l-3 tragen dieselbe Sekunde.
+    expect(ids.slice(3, 6)).toEqual(["l-3", "l-2", "l-1"]);
+  });
+
+  it("mit Position gilt die Seitenzahl nicht", () => {
+    bestand();
+    const erste = leihhistorie(db, { seite: 1, seitenGroesse: 2 });
+    const mitBeidem = leihhistorie(db, {
+      seite: 3,
+      seitenGroesse: 2,
+      cursor: erste.naechsterCursor!,
+    });
+    const nurPosition = leihhistorie(db, {
+      seite: 1,
+      seitenGroesse: 2,
+      cursor: erste.naechsterCursor!,
+    });
+    expect(mitBeidem.zeilen.map((z) => z.id)).toEqual(nurPosition.zeilen.map((z) => z.id));
+  });
+
+  it("die letzte Portion traegt keine Position", () => {
+    bestand();
+    expect(leihhistorie(db, { seite: 1, seitenGroesse: 7 }).naechsterCursor).toBeNull();
+    expect(leihhistorie(db, { seite: 1, seitenGroesse: 6 }).naechsterCursor).not.toBeNull();
   });
 });
 

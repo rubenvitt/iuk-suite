@@ -22,9 +22,21 @@ import { haengeNotizAn } from "../_lib/notiz";
 import { filterSchreibbareFelder } from "../_lib/rollen";
 import type { RadioRolle } from "../_lib/rollen";
 import { requireRadioAdmin, requireRadioVerwaltung } from "../_lib/zugang";
+import { ausleihenListe, type AusleihZeile, type LeihCursor } from "../_lib/lesepfade/ausleihen";
+import { geraeteListe, type GeraetCursor, type GeraetZeile } from "../_lib/lesepfade/geraete";
+import {
+  AUSLEIHEN_NACHLADE_FEHLER,
+  GERAETE_NACHLADE_FEHLER,
+  geraetCursorLesen,
+  leihCursorLesen,
+  parameterLesen,
+  type NachladeAntwort,
+} from "../_lib/nachladen";
+import { ausleihenParameterAus, geraeteParameterAus } from "../_lib/suchparameter";
 
 /**
- * DIE NEUN SERVER ACTIONS DER VERWALTUNG (Spec 1 §5.8,
+ * DIE ELF SERVER ACTIONS DER VERWALTUNG — neun schreibende und seit DRK-335 zwei lesende
+ * Nachschlag-Actions ganz unten (Spec 1 §5.8,
  * `docs/superpowers/specs/2026-08-17-radio-modul-design.md:4647-4666`).
  *
  * ⛔ `"use server";` STEHT IN ZEILE 1, OHNE PFADKOMMENTAR DAVOR — dieselbe Hausform wie
@@ -1053,4 +1065,60 @@ export async function importSchreibenAction(
     revalidatePath(VERSIONSLISTE);
     return { ok: true, zusammenfassung, zeilen: klassifiziert };
   });
+}
+
+/**
+ * DIE NAECHSTE PORTION DER GERAETELISTE (DRK-335) — eine der zwei LESENDEN Actions dieser
+ * Datei; sie schreibt nichts und ruft deshalb kein `revalidatePath`.
+ *
+ * ⛔ DIE BERECHTIGUNG WIRD HIER ERNEUT GEPRUEFT, nicht von der Seite geerbt. Eine Action ist
+ * ein eigener Einstiegspunkt, von aussen aufrufbar, egal welche Seite sie eingebaut hat
+ * (`CLAUDE.md`, „Zugriffsschutz"). Die STUFE ist die der Seite (`geraete/page.tsx`): die
+ * Geraeteliste sieht auch eine Updater-Person.
+ *
+ * ⛔ DIE PORTIONSGROESSE KOMMT NICHT AUS DER EINGABE, sondern aus der Faltung
+ * (`SEITEN_GROESSE`). `better-sqlite3` ist synchron; wer die Groesse waehlen duerfte, laedt
+ * mit einem Aufruf den ganzen Bestand und haelt die GANZE Suite an.
+ */
+export async function geraeteNachladenAction(anfrage: {
+  parameter: Record<string, string>;
+  cursor: GeraetCursor;
+}): Promise<NachladeAntwort<GeraetZeile, GeraetCursor>> {
+  await requireRadioVerwaltung();
+  // Von aussen kommt, was der Aufrufer schickt — der Typ an der Signatur prueft nichts.
+  const roh = (anfrage ?? {}) as { parameter?: unknown; cursor?: unknown };
+  const parameter = parameterLesen(roh.parameter);
+  const cursor = geraetCursorLesen(roh.cursor);
+  if (!parameter || !cursor) return { ok: false, fehler: GERAETE_NACHLADE_FEHLER };
+  try {
+    const seite = geraeteListe(getDb(), { ...geraeteParameterAus(parameter).filter, cursor });
+    return { ok: true, zeilen: seite.zeilen, cursor: seite.naechsterCursor, gesamt: seite.gesamt };
+  } catch {
+    return { ok: false, fehler: GERAETE_NACHLADE_FEHLER };
+  }
+}
+
+/**
+ * DIE NAECHSTE PORTION DER AUSLEIHENLISTE (DRK-335) — dieselbe Form wie
+ * `geraeteNachladenAction` darueber, mit derselben Stufe wie `ausleihen/page.tsx`.
+ */
+export async function ausleihenNachladenAction(anfrage: {
+  parameter: Record<string, string>;
+  cursor: LeihCursor;
+}): Promise<NachladeAntwort<AusleihZeile, LeihCursor>> {
+  await requireRadioVerwaltung();
+  // Von aussen kommt, was der Aufrufer schickt — der Typ an der Signatur prueft nichts.
+  const roh = (anfrage ?? {}) as { parameter?: unknown; cursor?: unknown };
+  const parameter = parameterLesen(roh.parameter);
+  const cursor = leihCursorLesen(roh.cursor);
+  if (!parameter || !cursor) return { ok: false, fehler: AUSLEIHEN_NACHLADE_FEHLER };
+  try {
+    const seite = ausleihenListe(getDb(), {
+      ...ausleihenParameterAus(parameter).parameter,
+      cursor,
+    });
+    return { ok: true, zeilen: seite.zeilen, cursor: seite.naechsterCursor, gesamt: seite.gesamt };
+  } catch {
+    return { ok: false, fehler: AUSLEIHEN_NACHLADE_FEHLER };
+  }
 }

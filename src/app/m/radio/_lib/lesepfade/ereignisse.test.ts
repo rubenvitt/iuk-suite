@@ -432,7 +432,7 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
      * dafuer mit `changedByName: null` (`radio-admin/server/src/routes/devices.ts:77`) — und
      * er hat gemessen keinen Konsumenten, der zeigte, wie das aussieht. Der Gedankenstrich
      * ist die Leerwertform dieses Moduls (`_db/leihen.ts`, `ZURUECK_OFFEN`;
-     * `_lib/lesepfade/geraete.ts:434`, `letztesUpdateText`), also eine BENANNTE Wahl.
+     * `_lib/lesepfade/geraete.ts:487`, `letztesUpdateText`), also eine BENANNTE Wahl.
      *
      * Der Fall ist kein Randfall: jede Zeile aus dem CSV-Import traegt den Urheber nicht.
      */
@@ -494,7 +494,7 @@ describe("ereignisseFuerGeraet — die Aenderungshistorie eines Geraets", () => 
      * ⛔ DIE LEERE EINGABE FRAEGT DIE DATENBANK NICHT — sonst entstuende das ungueltige
      * `IN ()`, das SQLite zurueckweist. Der Alt-Kommentar nennt genau diesen Grund
      * (`radio-admin/server/src/repos/userRepo.ts:25-26`), und dieselbe Vorkehrung traegt
-     * `_lib/lesepfade/geraete.ts:601-611`.
+     * `_lib/lesepfade/geraete.ts:680-690`.
      *
      * ⚠️ HIER IST ES KEIN RANDFALL: eine per CSV importierte Historie traegt `changed_by`
      * durchgehend als `null` — die leere Eingabe ist der Normalfall dieser Flaeche, nicht ihr

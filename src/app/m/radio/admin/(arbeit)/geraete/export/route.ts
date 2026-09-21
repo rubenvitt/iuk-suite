@@ -50,7 +50,7 @@ import { geraeteFuerExport } from "../../../../_lib/lesepfade/geraete";
  * ⛔ ALLE GERAETE, `desc(createdAt)`, KEIN `loanable`-FILTER (`deviceRepo.ts:62-65`,
  * „All devices, newest-first. Backs the full CSV export"). Der Filter waere hier der Fehler
  * und ist der Gegenfall zu `geraeteMitLeihstand` (`deviceRepo.ts:53-59`), wo sein Fehlen der
- * Fehler waere. Die Begruendung steht ausgeschrieben in `_lib/lesepfade/geraete.ts:726-739`.
+ * Fehler waere. Die Begruendung steht ausgeschrieben in `_lib/lesepfade/geraete.ts:805-818`.
  *
  * ⛔ DER RUMPF WIRD NICHT HIER GEBAUT. BOM, `;`, die neunzehn Kopfzeilen und die
  * Zellmaskierung stehen in `_lib/csv/spalten.ts:296-306` (`baueExportCsv`) — dieselbe

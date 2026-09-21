@@ -424,7 +424,7 @@ describe("codesListe — die Zeilen der Zugangsverwaltung", () => {
      * spart bei JEDER Antwort dieser Flaeche einen Rundlauf — solange kein Zugang gesperrt
      * ist, ist die `sub`-Liste leer, und das ist hier der Normalfall, nicht der Randfall. Sie
      * steht wortgleich in den zwei Schwesterkopien
-     * (`_lib/lesepfade/ereignisse.ts:171-183`, `_lib/lesepfade/geraete.ts:601-611`). ⚠️ Wer
+     * (`_lib/lesepfade/ereignisse.ts:171-183`, `_lib/lesepfade/geraete.ts:680-690`). ⚠️ Wer
      * einen Waechter fuer sie will, braeuchte eine Zaehlung der Abfragen — die gibt es in
      * diesem Modul nicht, und sie hier zu erfinden waere ein Baustein mehr als die Aufgabe
      * fuehrt. ⬜ Ohne Eigentuemer in diesem Fenster; benannt statt verschwiegen.

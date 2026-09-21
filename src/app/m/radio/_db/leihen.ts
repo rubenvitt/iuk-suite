@@ -786,7 +786,26 @@ export type LeihhistorieFilter = {
   seite: number;
   /** Vorgabe `SEITENGROESSE_VORGABE`, Deckel `SEITENGROESSE_MAX`. */
   seitenGroesse: number;
+  /**
+   * DIE SCHLUESSELPOSITION, AB DER WEITERGELESEN WIRD (DRK-335) — gesetzt, gilt `seite` nicht.
+   *
+   * ⛔ KEIN OFFSET FUER DAS NACHLADEN: kommt waehrend des Scrollens eine Leihe dazu, rutschte
+   * mit `OFFSET` die ganze Liste um eins, und eine Zeile erschiene doppelt oder gar nicht. Die
+   * Position `(borrowedAt, id)` der zuletzt gelieferten Zeile bleibt richtig, egal was
+   * inzwischen geschrieben wurde. Vorbild: `journalEintraege` im Lagerbuch (DRK-331).
+   */
+  cursor?: LeihCursor;
 };
+
+/**
+ * Die Position hinter einer Zeile der Leihhistorie.
+ *
+ * ⛔ `ausgeliehen` IST DER ROHE SPALTENWERT (Sekunden), KEIN `Date` und kein Anzeigetext: er
+ * reist ueber die Client-Grenze zur Insel und von dort ueber eine Server Action zurueck — eine
+ * Zahl verhaelt sich auf beiden Wegen gleich, und verglichen wird sie in SQL gegen genau die
+ * Spalte, aus der sie kam.
+ */
+export type LeihCursor = { ausgeliehen: number; id: string };
 
 /**
  * Eine Zeile der Verwaltungs-Ausleihenliste: die SIEBEN Spalten der Alt-Liste
@@ -836,6 +855,8 @@ export type LeihhistorieSeite = {
   seite: number;
   /** ⛔ DER GEDECKELTE Wert, nicht der hereingereichte — siehe `leihhistorie`. */
   seitenGroesse: number;
+  /** Die Position hinter der letzten gelieferten Zeile — `null`, wenn keine weitere folgt. */
+  naechsterCursor: LeihCursor | null;
 };
 
 /**
@@ -955,14 +976,26 @@ export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
   if (f.bis !== undefined) bedingungen.push(lte(loans.borrowedAt, f.bis));
   const wo = bedingungen.length > 0 ? and(...bedingungen) : undefined;
 
+  // ⛔ DIE SCHLUESSELBEDINGUNG GILT NUR FUER DIE ZEILEN, NICHT FUER `gesamt` — die Zahl nennt
+  // die ganze gefilterte Menge, nicht den Rest hinter der Position. Sie passt zur Ordnung
+  // `borrowedAt DESC, id DESC`: „dahinter" ist das KLEINERE Paar. Roh in SQL, weil der Wert die
+  // rohe Spaltenzahl ist — `lt(loans.borrowedAt, …)` erwartete ein `Date`.
+  const hinter = f.cursor
+    ? sql`(${loans.borrowedAt} < ${f.cursor.ausgeliehen} OR (${loans.borrowedAt} = ${f.cursor.ausgeliehen} AND ${loans.id} < ${f.cursor.id}))`
+    : undefined;
+  const woZeilen = hinter ? and(wo, hinter) : wo;
+
   // ⛔ DASSELBE `where` WIE DIE ZEILENABFRAGE (`loanRepo.ts:146`). `gesamt` zaehlt die
   // GEFILTERTE Menge, nicht die Seite und nicht die Tabelle — die Blaetterung der Flaeche
   // haengt an dieser Zahl.
   const gesamtZeile = db.select({ anzahl: count() }).from(loans).where(wo).get();
 
-  const zeilen = db
+  const roh = db
     .select({
       id: loans.id,
+      // Der rohe Spaltenwert fuer die Schluesselposition — `sql` statt der Spalte, damit
+      // Drizzle ihn nicht in ein `Date` umwandelt.
+      ausgeliehenRoh: sql<number>`${loans.borrowedAt}`,
       // Der unveraenderliche Anzeige-Schnappschuss, kein Join auf `devices`.
       rufname: loans.snapshotCallSign,
       geraetetyp: loans.snapshotDeviceType,
@@ -972,15 +1005,29 @@ export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
       notiz: loans.returnNote,
     })
     .from(loans)
-    .where(wo)
-    .orderBy(desc(loans.borrowedAt))
-    .limit(seitenGroesse)
+    .where(woZeilen)
+    // ⚠️ `id` ALS ZWEITES KRITERIUM IST SEIT DRK-335 DA und weicht damit vom Bestand ab
+    // (`loanRepo.ts:153` sortiert allein nach `borrowedAt`). Ohne es haetten zwei Leihen
+    // derselben Sekunde keine feste Reihenfolge, und die Schluesselposition liefe ueber sie
+    // hinweg oder zweimal ueber sie.
+    .orderBy(desc(loans.borrowedAt), desc(loans.id))
+    // EINE ZEILE MEHR LESEN, als geliefert wird — so ist „folgt noch etwas?" ohne zweite
+    // Abfrage beantwortet.
+    .limit(seitenGroesse + 1)
     // ⛔ DIE 1 IST DIE BASIS DER 1-INDIZIERUNG, KEIN VORGABEWERT — zeichengleich zum Bestand
     // (`loanRepo.ts:155`: `.offset((page - 1) * pageSize)`). Bewacht vom Fall „die zweite
-    // Seite traegt die naechsten Zeilen" (`_db/leihen.test.ts`).
-    .offset((seite - 1) * seitenGroesse)
-    .all()
-    .map((z) => ({
+    // Seite traegt die naechsten Zeilen" (`_db/leihen.test.ts`). Mit Position faellt er weg.
+    .offset(f.cursor ? 0 : (seite - 1) * seitenGroesse)
+    .all();
+
+  const geliefert = roh.slice(0, seitenGroesse);
+  const letzte = geliefert.at(-1);
+  const naechsterCursor =
+    roh.length > seitenGroesse && letzte
+      ? { ausgeliehen: letzte.ausgeliehenRoh, id: letzte.id }
+      : null;
+
+  const zeilen = geliefert.map((z) => ({
       id: z.id,
       rufname: z.rufname,
       geraetetyp: z.geraetetyp,
@@ -994,7 +1041,7 @@ export function leihhistorie(db: DB, f: LeihhistorieFilter): LeihhistorieSeite {
       notiz: z.notiz,
     }));
 
-  return { zeilen, gesamt: gesamtZeile?.anzahl ?? 0, seite, seitenGroesse };
+  return { zeilen, gesamt: gesamtZeile?.anzahl ?? 0, seite, seitenGroesse, naechsterCursor };
 }
 
 /** Ein Geraet, wie es im Auswahlfeld der Verwaltungs-Ausleihenliste steht. */

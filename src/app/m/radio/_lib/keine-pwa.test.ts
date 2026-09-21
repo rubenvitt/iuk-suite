@@ -224,7 +224,8 @@ const VERBOTE_ANZAHL = 5;
  * hier NICHT mit, und `src/core/theme/Schreibtischdichte.tsx` liegt ausserhalb von `MODUL`.
  */
 // Suite audit: _lib/audit.ts adds verified shared-access attribution (110 + 1).
-const QUELLDATEIEN_ANZAHL = 111;
+// DRK-335: Nachladen beim Scrollen — `_lib/nachladen.ts` und `_ui/Nachladen.tsx` (111 + 2).
+const QUELLDATEIEN_ANZAHL = 113;
 
 /**
  * Alle `.ts`/`.tsx`-Dateien unter `src/app/m/radio`, rekursiv, OHNE Testdateien.

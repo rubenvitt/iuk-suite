@@ -196,7 +196,7 @@ export function GeraeteWerkzeugleiste({
         {/*
           ⛔ EINE ANZEIGE-ENTSCHEIDUNG, KEINE SPERRE (1:1 `DeviceList.tsx:150`,
           `{isAdmin && …}`): die Sperren sind `requireRadioAdmin()` in `geraetAnlegenAction`
-          (`admin/actions.ts:447`) und der eigene Riegel von `geraete/export/route.ts` (V22).
+          (`admin/actions.ts:459`) und der eigene Riegel von `geraete/export/route.ts` (V22).
         */}
         {darfExportieren && (
           <Button

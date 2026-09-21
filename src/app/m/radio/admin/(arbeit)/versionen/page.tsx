@@ -63,7 +63,7 @@ import { VersionenTabelle } from "./VersionenTabelle";
  *
  * ⚠️ DIE TEXTE DER INSEL STEHEN NICHT HIER: sie leben in `VERSIONEN_TEXTE`
  * (`VersionenTabelle.tsx`) und `NEUVERSION_TEXTE` (`NeuVersion.tsx`) bzw. kommen als `fehler`
- * aus `admin/actions.ts:136`/`:137`. ⛔ DREI LISTEN, JE DATEI EINE, und der Grund ist zweimal
+ * aus `admin/actions.ts:148`/`:149`. ⛔ DREI LISTEN, JE DATEI EINE, und der Grund ist zweimal
  * ein anderer: gegen die INSEL trennt die RSC-Grenze (eine gemeinsame Liste muesste in einer
  * Datei ohne Bauform-Direktive liegen — moeglich, aber eine Datei mehr, als diese Aufgabe
  * fuehrt), und INNERHALB der Insel trennt Vorabscan-Fund **F22**: `NeuVersion.tsx` teilt mit
