@@ -267,11 +267,51 @@ describe("Kartentabelle", () => {
   });
 
   /*
-   * ⚠️ DER TITEL IST DIE TASTATUR-STATION DER KARTE. Eine ganze Fläche mit
-   * `role="button"` zu versehen wäre der naheliegende Weg und der falsche —
-   * Begründung im Kopf von `Spaltenkarte.tsx`.
+   * ⚠️ DER FALL, DER DIESE ZUSICHERUNG ERZWUNGEN HAT. Hier machte die Karte den
+   * Titel zum Knopf, sobald die Zeile klickbar war — „ein Ziel, ein Name, eine
+   * Tab-Station". Rendert die Titelspalte aber SELBST ein Bedienelement (die
+   * Artikelliste tut das: ein `Button`, der die Schublade öffnet), ergibt das
+   * `<button><button>`. Das ist ungültiges HTML; der Browser bricht die
+   * Verschachtelung beim Parsen auf, Server-HTML und Client-Baum gehen
+   * auseinander, und React verwirft den ganzen Teilbaum.
+   *
+   * ⚠️ DIE FOLGE MELDET SICH WOANDERS, und das ist der teure Teil: gemessen in
+   * CI-Lauf 35657983189 riss der Excel-Export der Artikelliste — er lieferte
+   * alle 217 Zeilen statt der einen gesuchten, weil die Hydration den Zustand
+   * verworfen hatte. Kein lokales Tor sah das: `typecheck` kennt keine
+   * HTML-Verschachtelung, und in jsdom bleibt die Struktur stehen.
+   *
+   * Der Fall prüft deshalb die STRUKTUR, nicht die Meldung: kein Bedienelement
+   * dieser Karte steckt in einem anderen.
    */
-  it("macht den Titel zum Knopf, sobald die Zeile klickbar ist", async () => {
+  it("steckt kein Bedienelement in ein anderes, auch nicht den Titel", async () => {
+    const geoeffnet = vi.fn();
+    await mount(
+      <Kartentabelle<Zeile>
+        aria-label="Artikel"
+        rowKey="id"
+        // Die Titelspalte rendert selbst einen Knopf — wie in der Artikelliste.
+        columns={[
+          { title: "Artikel", key: "name", render: (_w, z) => <Button>{z.name}</Button> },
+          ...SPALTEN.slice(1),
+        ]}
+        dataSource={ZEILEN}
+        leer={{ nichts: "Nichts da." }}
+        onRow={(zeile) => ({ onClick: () => geoeffnet(zeile.id) })}
+      />,
+    );
+    const karte = query(`${KARTEN} > li[data-karte-key="a"]`);
+    expect(karte.querySelectorAll("button button")).toHaveLength(0);
+    expect(karte.querySelectorAll("a button, button a")).toHaveLength(0);
+    // Der Knopf der Spalte ist weiterhin da und tut weiterhin das Seine.
+    expect(karte.querySelectorAll("button.ant-btn").length).toBeGreaterThan(0);
+  });
+
+  /*
+   * Der Zeilenklick bleibt trotzdem: er ist der Komfortweg auf dem Telefon,
+   * nur eben ohne zusätzliches Bedienelement.
+   */
+  it("löst den Zeilenklick über die Fläche der Karte aus", async () => {
     const geoeffnet = vi.fn();
     await mount(
       <Kartentabelle<Zeile>
@@ -283,23 +323,8 @@ describe("Kartentabelle", () => {
         onRow={(zeile) => ({ onClick: () => geoeffnet(zeile.id) })}
       />,
     );
-    const knopf = query(`${KARTEN} > li[data-karte-key="a"] [data-rolle="kartentitel"]`);
-    expect(knopf.tagName).toBe("BUTTON");
-    await clickElement(knopf);
+    await clickElement(query(`${KARTEN} > li[data-karte-key="a"] article`));
     expect(geoeffnet).toHaveBeenCalledWith("a");
-  });
-
-  it("lässt den Titel ein nackter Text, wenn die Zeile nichts auslöst", async () => {
-    await mount(
-      <Kartentabelle<Zeile>
-        aria-label="Artikel"
-        rowKey="id"
-        dataSource={ZEILEN}
-        columns={SPALTEN}
-        leer={{ nichts: "Nichts da." }}
-      />,
-    );
-    expect(document.querySelector(`${KARTEN} [data-rolle="kartentitel"]`)).toBeNull();
   });
 
   /*

@@ -7,20 +7,39 @@
  * noch. Die Aufteilung ist dieselbe wie zwischen `masse.ts` und
  * `Datentabelle.tsx`: die Entscheidung ist prüfbar, ohne etwas zu rendern.
  *
- * ⚠️ DIE KARTE IST NICHT SELBST EIN KNOPF, AUCH WENN SIE SICH ANFÜHLT WIE
- * EINER. Eine ganze Fläche mit `role="button"` zu versehen ist der naheliegende
- * Weg und der falsche: die Karte enthält eigene Knöpfe und Links, und ein
- * Knopf im Knopf ist für die Tastatur nicht mehr aufzulösen — die inneren
- * Ziele verschwinden aus der Tab-Reihenfolge oder lösen beim Drücken beides
- * aus. Stattdessen trägt der TITEL den Knopf: ein Ziel, ein Name, eine
- * Tab-Station. Die Fläche daneben nimmt den Tipp entgegen, weil das auf dem
- * Telefon erwartet wird — für Maus und Finger ein Komfort, für die Tastatur
- * nichts, was fehlen würde.
+ * ⚠️ DIE KARTE FÜGT KEIN EIGENES BEDIENELEMENT HINZU — WEDER ALS FLÄCHE NOCH
+ * AM TITEL. Beides war im ersten Anlauf da, und beides war falsch:
  *
- * ⚠️ UND DESHALB DIE WEICHE IN `aufFlaeche`. Ein Klick auf einen Knopf INNEN
- * blubbert bis zur Karte; ohne Probe öffnete jedes „Löschen" zusätzlich die
- * Detailansicht. Geprüft wird auf das nächste bedienbare Element — nicht auf
- * einen Klassennamen, der bei einem antd-Sprung still anders heißt.
+ * Eine ganze Fläche mit `role="button"` zu versehen ist der naheliegende Weg
+ * und der schlechtere: die Karte enthält eigene Knöpfe und Links, und ein
+ * bedienbares Element im bedienbaren Element ist für eine Vorleseanwendung
+ * nicht mehr aufzulösen.
+ *
+ * ⚠️ DEN TITEL ZUM KNOPF ZU MACHEN IST DIESELBE FALLE IN LEISER — UND SIE HAT
+ * ZUGESCHLAGEN. Genau das stand hier, mit der Begründung „ein Ziel, ein Name,
+ * eine Tab-Station". Nur rendert die Titelspalte in dieser Suite regelmäßig
+ * selbst schon ein Bedienelement: die Artikelliste einen antd-`Button`, der
+ * die Schublade öffnet. Daraus wurde `<button><button>`, und das ist nicht
+ * bloß unschön, sondern **ungültiges HTML**: der Browser bricht die
+ * Verschachtelung beim Parsen auf, das Server-HTML und der Client-Baum gehen
+ * auseinander, und React verwirft den GANZEN Teilbaum („Hydration failed …").
+ * Gemessen in CI-Lauf 35657983189: 25 Hydrationsfehler auf der Artikelseite,
+ * und in deren Folge riss der Export — die Suche erreichte ihn nicht mehr, er
+ * lieferte alle 217 Zeilen statt der einen gesuchten. **Der Fehler meldet sich
+ * also an einer Stelle, die mit Karten nichts zu tun hat.**
+ *
+ * ⚠️ WAS DIE TASTATUR STATTDESSEN HAT, und warum das genügt: dieselbe
+ * Titelspalte. Wo eine Zeile anklickbar ist, führt in dieser Suite ohnehin ein
+ * Link oder Knopf IN der Zeile zum selben Ziel (`onRow`-Klick ist der Komfort,
+ * nicht der einzige Weg) — heute belegbar an der einzigen umgestellten
+ * Tabelle mit Zeilenklick. Ein zweites Ziel danebenzusetzen verdoppelt nur die
+ * Tab-Stationen. Die Fläche nimmt den Tipp weiterhin entgegen, weil das auf
+ * dem Telefon erwartet wird.
+ *
+ * ⚠️ UND DESHALB BLEIBT DIE WEICHE IN `aufFlaeche`. Ein Klick auf einen Knopf
+ * INNEN blubbert bis zur Karte; ohne Probe öffnete jedes „Löschen" zusätzlich
+ * die Detailansicht. Geprüft wird auf das nächste bedienbare Element — nicht
+ * auf einen Klassennamen, der bei einem antd-Sprung still anders heißt.
  */
 
 import type { Key, ReactNode } from "react";
@@ -37,7 +56,7 @@ export type SpaltenkarteProps<T> = {
   zeile: T;
   /** Die Position in der angezeigten Liste — `render` bekommt sie als dritten Wert. */
   index: number;
-  /** Der Name dieser Zeile für Hilfstechnik (Kreuzchen, Titelknopf). */
+  /** Der Name dieser Zeile für Hilfstechnik — heute das Kreuzchen der Auswahl. */
   name: string;
   /** Gesetzt, wenn ein Tipp auf die Karte etwas auslöst. */
   onKlick?: (ereignis: React.MouseEvent<HTMLElement>) => void;
@@ -57,10 +76,10 @@ export function Spaltenkarte<T>({
 
   function aufFlaeche(ereignis: React.MouseEvent<HTMLElement>): void {
     if (!onKlick) return;
-    const ziel = (ereignis.target as HTMLElement).closest(BEDIENBAR);
-    // Der Titelknopf IST die Karte — er trägt den Namen, den eine Tastatur
-    // braucht, und darf deshalb als einziger durch.
-    if (ziel && ziel.getAttribute("data-rolle") !== "kartentitel") return;
+    // Alles Bedienbare behält seinen eigenen Klick; die Fläche daneben ist der
+    // Komfortweg. (Hier stand eine Ausnahme für einen Titelknopf — den gibt es
+    // nicht mehr, Begründung im Kopf.)
+    if ((ereignis.target as HTMLElement).closest(BEDIENBAR)) return;
     onKlick(ereignis);
   }
 
@@ -75,17 +94,12 @@ export function Spaltenkarte<T>({
           />
         ) : null}
         {/*
-          ⚠️ DER TITEL IST EIN KNOPF ODER EIN NACKTER TEXT — nie ein Knopf ohne
-          Wirkung. Ein Knopf, der nichts tut, ist eine Tab-Station, die einen
-          Tastaturnutzer kostet, ohne ihm etwas zu geben.
+          ⚠️ IMMER EIN NACKTER TEXT, NIE EIN KNOPF. Was die Titelspalte selbst
+          rendert — ein Link, ein `Button` —, kommt hier unverändert durch und
+          bleibt bedienbar; ein Knopf DARUM ergäbe `<button><button>` und damit
+          ungültiges HTML (Begründung im Kopf).
         */}
-        {onKlick ? (
-          <button type="button" data-rolle="kartentitel" className={stil.titelKnopf}>
-            {titel}
-          </button>
-        ) : (
-          <span className={stil.titel}>{titel}</span>
-        )}
+        <span className={stil.titel}>{titel}</span>
         {aufbau.kennzeichen.length > 0 ? (
           <span className={stil.kennzeichen}>
             {aufbau.kennzeichen.map((fach) => (

@@ -40,12 +40,14 @@
 }
 
 /*
- * Titel und Titelknopf teilen ihr Aussehen — nur der eine ist bedienbar. Die
- * Gemeinsamkeit steht hier, damit eine Tabelle mit Zeilenklick und eine ohne
- * nicht verschieden aussehen.
+ * ⚠️ DER TITEL IST EIN TEXT, KEIN BEDIENELEMENT — auch dann nicht, wenn die
+ * Zeile anklickbar ist. Hier stand einmal ein `.titelKnopf` daneben; er ergab
+ * `<button><button>`, sobald die Titelspalte selbst einen Knopf rendert, und
+ * das ist ungültiges HTML mit Hydrationsbruch als Folge (Begründung im Kopf von
+ * `Spaltenkarte.tsx`). Was die Spalte an Bedienbarem mitbringt, steht drin und
+ * bringt sein eigenes Aussehen mit.
  */
-.titel,
-.titelKnopf {
+.titel {
   font-size: 16px;
   font-weight: 600;
   /* Ein langer Name bricht um, statt die Karte breiter zu machen als den
@@ -54,24 +56,6 @@
   text-align: start;
   flex: 1 1 auto;
   min-width: 0;
-}
-
-/*
- * ⚠️ DER KNOPF WIRD AUF EINEN TEXT ZURÜCKGEBAUT, NICHT GESTALTET. Er ist die
- * Tastatur-Station der Karte (Begründung in `Spaltenkarte.tsx`); auszusehen wie
- * ein Knopf hätte er keinen Anlass, denn die ganze Karte reagiert. Was bleibt,
- * ist der Fokusring — und der bleibt ausdrücklich: ohne ihn wäre die Station
- * unsichtbar, und genau die Leute, für die sie existiert, fänden sie nicht.
- */
-.titelKnopf {
-  appearance: none;
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font-family: inherit;
-  color: inherit;
-  cursor: pointer;
 }
 
 .kennzeichen {

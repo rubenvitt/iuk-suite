@@ -71,15 +71,12 @@ describe("spaltenkarte.module.css", () => {
   });
 
   /*
-   * ⚠️ DER FOKUSRING BLEIBT. Der Titelknopf ist die Tastatur-Station der Karte
-   * (Begründung im Kopf von `Spaltenkarte.tsx`); er wird auf einen Text
-   * zurückgebaut, damit er nicht wie ein Knopf aussieht — aber ein
-   * `outline: none` dabei nähme genau den Leuten die Orientierung, für die die
-   * Station überhaupt existiert.
+   * ⚠️ DIE KARTE NIMMT NIEMANDEM DEN FOKUSRING. Sie fügt selbst kein
+   * Bedienelement hinzu; was die Spalten an Links und Knöpfen mitbringen, ist
+   * das einzige Bedienbare darin — und ein `outline: none` von hier aus träfe
+   * genau die.
    */
-  it("nimmt dem Titelknopf sein Aussehen, nicht seinen Fokusring", () => {
-    const knopf = CSS.slice(CSS.indexOf(".titelKnopf {"));
-    expect(knopf).toMatch(/appearance:\s*none/);
+  it("schaltet nirgends den Fokusring ab", () => {
     expect(CSS).not.toMatch(/outline:\s*(none|0)/);
   });
 
