@@ -59,15 +59,15 @@ describe("o2Status — die Kante des Wechselhinweises", () => {
     expect(knappDarunter.ampel).toBe("rot");
   });
 
-  it("⚠️ die GELBE Kante bleibt unveraendert — sie rundet weiter (DRK-308)", () => {
-    // 104 bar von 210 sind 49,52 % und runden auf 50. Nach der gerundeten Regel
-    // ist das GRUEN, exakt gerechnet waere es gelb. Die rote Kante rechnet in
-    // diesem PR exakt, die gelbe NICHT: sie ist Bestand, nicht konfigurierbar
-    // und nicht Gegenstand des Auftrags — eine Umstellung verschoebe still
-    // Faelle, die niemand geprueft hat.
+  it("die GELBE Kante entscheidet ebenfalls exakt, nicht über die Rundung (DRK-356)", () => {
+    // 104 bar von 210 sind 49,52 % und runden auf 50. Die Anzeige sagt „50 %",
+    // die Ampel sagt gelb — „unter 50 %" gilt wörtlich, wie an der roten Kante
+    // „25 %" bei 53 bar von 210 gelb ist. Bis DRK-356 war dieser Fall grün.
     expect(o2Status(104, 210).prozent).toBe(50);
-    expect(o2Status(104, 210).ampel).toBe("gruen");
-    // Die rote Kante derselben Flasche rechnet dagegen exakt (52 statt 53 bar).
+    expect(o2Status(104, 210).ampel).toBe("gelb");
+    // 105 bar von 210 sind genau 50,0 %: die Kante selbst bleibt grün.
+    expect(o2Status(105, 210).ampel).toBe("gruen");
+    // Die rote Kante derselben Flasche rechnet ebenso (52 statt 53 bar).
     expect(o2Status(52, 210).ampel).toBe("rot");
     expect(o2Status(53, 210).ampel).toBe("gelb");
   });
