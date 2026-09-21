@@ -136,7 +136,7 @@ export default async function RadioGatePage({
    *
    * ⛔ SIE LIEST NUR UND BUCHT NICHTS. Ein `gateFehlversuchBuchen` an dieser Stelle machte
    * das blosse Neuladen des Gates zu einem Fehlversuch, und eine gesperrte Person kaeme
-   * durch Warten nie wieder herein (`_lib/gateSchranke.ts:215-222` bucht nur auf dem
+   * durch Warten nie wieder herein (`_lib/gateSchranke.ts`, `gateFehlversuchBuchen`, bucht nur auf dem
    * Fehlerpfad des Einloesens).
    *
    * ⛔ NUR BEI `grund === "zuviele"`. `gateMeldung` ignoriert `sperrSekunden` fuer jeden

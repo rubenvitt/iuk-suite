@@ -27,7 +27,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  * ERST DEN (max+1)-TEN AUFRUF, NICHT DEN max-TEN. `src/core/ratelimit.ts:29-30` prueft
  * `if (recent.length >= this.max)`, und `recent` enthaelt den LAUFENDEN Aufruf noch
  * nicht — Aufruf Nr. N sieht `N-1`. Und `gateFehlversuchBuchen` schreibt `gesperrtBis`
- * NUR im `false`-Zweig (`lagerbuch/_lib/gateSchranke.ts:151-157`); ohne dieses eine
+ * NUR im `false`-Zweig (`lagerbuch/_lib/gateSchranke.ts`, `bucheKette`); ohne dieses eine
  * `false` bleibt die Map leer und `gateGesperrt` liefert `null`.
  *
  * ⛔ FOLGE, UND SIE IST DER GRUND FUER JEDE 6 / 31 / 301 UNTEN: eine Sperre entsteht bei
@@ -147,7 +147,7 @@ describe("radio-Gate-Schranke: die zwei modulweiten Zaehler — DIE Abwehr", () 
      * ⛔ DIE 31. BUCHUNG IST DIE, DIE SPERRT, und sie kommt von einem SIEBTEN Absender:
      * `RateLimiter.check` verweigert erst den (max+1)-ten (Kopfkommentar oben). Ein
      * sechster Versuch eines der ersten sechs Absender taugt dafuer NICHT — er wuerde am
-     * Absender-Eimer kurzschliessen (`gateSchranke.ts:218-219`) und den modulweiten Zaehler
+     * Absender-Eimer kurzschliessen (`gateFehlversuchBuchen`, Stufe Absender) und den modulweiten Zaehler
      * gar nicht erst erreichen.
      *
      * ⛔ WER DEN ABSENDER ROTIERT, KOMMT AN DIESEM ZAEHLER NICHT VORBEI — sein Schluessel
@@ -183,7 +183,7 @@ describe("radio-Gate-Schranke: die zwei modulweiten Zaehler — DIE Abwehr", () 
      * Runde 31 Buchungen von sieben rotierenden Absendern — sechs mal fuenf = 30 gehen
      * bis in `gateMinute` durch, die 31. sieht `30 >= 30`, gibt `false` und sperrt
      * MODULWEIT_MIN fuer 60_000 ms. ⚠️ Genau diese 31. Buchung erreicht `gateStunde`
-     * NICHT (`gateSchranke.ts:222` kehrt im `false`-Zweig zurueck) — je Runde kommen
+     * NICHT (`gateFehlversuchBuchen`, Stufe Minute, kehrt im `false`-Zweig zurueck) — je Runde kommen
      * also 30 Treffer im Stundeneimer an, nach zehn Runden 300.
      *
      * ⛔ 61_000 MS RUNDENABSTAND, DAMIT DIE MINUTENSPERRE JEDESMAL WIRKLICH ABLAEUFT:
@@ -272,7 +272,7 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
   it("waehrend einer Sperre wird kein weiterer Fehlversuch gebucht", async () => {
     /*
      * Die SELBSTVERLAENGERNDE SPERRE, gegen die `restMs(...) > 0 -> return` steht
-     * (Vorbild `lagerbuch/_lib/gateSchranke.ts:150`). Ohne diese Zeile schoebe jeder
+     * (Vorbild `lagerbuch/_lib/gateSchranke.ts`, `bucheKette`). Ohne diese Zeile schoebe jeder
      * weitere Klopfer die Deadline nach vorn, und die Sperre endete nie.
      *
      * ⛔ DIE SPERRE MUSS BEI t=0 ENTSTEHEN, NICHT ERST BEIM HAEMMERN. Mit nur FUENF
@@ -312,7 +312,7 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
      * und danach einen Unschuldigen pruefen —, faerbt die Mutation NICHT: bei stehender
      * Uhr gibt es die Luecke gar nicht. `check()` sieht dort unveraendert fuenf Treffer
      * und liefert weiter `false`; die Buchung bleibt am `false`-Zweig samt seinem `return`
-     * haengen (`gateSchranke.ts:219`) und erreicht den modulweiten Zaehler nie — mit
+     * haengen (`gateFehlversuchBuchen`, Stufe Absender) und erreicht den modulweiten Zaehler nie — mit
      * Kurzschluss wie ohne. Gemessen: S-A3c in der Planfassung ergab 1 rot statt 2, und
      * dieser Fall war KEINER der roten. Ein Fall, den keine Mutation faerbt, prueft nicht,
      * was er zu pruefen vorgibt.
@@ -364,7 +364,7 @@ describe("radio-Gate-Schranke: die vier Eigenschaften aus Spec:3013-3031", () =>
 
   it("liefert die GROESSTE der drei Restzeiten", async () => {
     /*
-     * Spec (Vorbild `lagerbuch/_lib/gateSchranke.ts:92-93`): „wer den Stundendeckel
+     * Spec (Vorbild `lagerbuch/_lib/gateSchranke.ts`, `gateGesperrt`): „wer den Stundendeckel
      * gerissen hat, soll nicht ‚noch 12 Sekunden' lesen." Die Zahl ist das `n` aus dem
      * Text zu `grund=zuviele` (A5) — eine zu kleine Zahl macht daraus eine falsche Zusage
      * an den Menschen vor dem Aufsteller.

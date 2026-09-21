@@ -81,7 +81,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
    */
   requireRadioHost(await headers());
 
-  // Ohne Zwischenschicht (Spec:3033-3035, `_lib/gateSchranke.ts:53-56`). Einmal ermittelt,
+  // Ohne Zwischenschicht (Spec:3033-3035, `_lib/gateSchranke.ts`, Kopf: „KEINE ZWISCHENSCHICHT"). Einmal ermittelt,
   // zweimal benutzt — Schritt 2 und Schritt 6.
   const absender = clientIpAus(await headers());
 
@@ -98,7 +98,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
    * ausgeliefert wuerde. `_lib/bauform.test.ts` („kein Rueckfalltext hinter gateMeldung")
    * verbietet die Form modulweit, mit zwei Reichweiten.
    */
-  const sperrSekunden = gateGesperrt(absender);
+  const sperrSekunden = gateGesperrt(absender, { eingabe: rohCode });   // DRK-291: wohlgeformt → nie gesperrt
   if (sperrSekunden !== null) {
     return { ok: false, text: gateMeldung("zuviele", sperrSekunden)! };
   }
