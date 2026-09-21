@@ -608,7 +608,7 @@ describe("checkAbschluss — Flaschen", () => {
 
   it("eine Flasche OHNE Nennfuelldruck ist NICHT BEWERTBAR, nicht ‚niedrig' (§5.12, NEU)", async () => {
     // `fuellstandProzent` gibt bei nennfuelldruck <= 0 eine 0 zurueck
-    // (o2.ts:28), und `o2Status` macht daraus ampel "rot", niedrig true. Die
+    // (in `o2.ts`), und `o2Status` macht daraus ampel "rot", niedrig true. Die
     // Flasche erschiene als niedrig, obwohl sie schlicht nicht bewertbar ist —
     // und die Helferin liefe los, um eine VOLLE Flasche zu tauschen.
     const r = await checkAbschluss({

@@ -312,7 +312,7 @@ export async function checkAbschluss(
 
         // §5.12, §7.9.4 (NEU): eine Flasche OHNE bekannten Nennfuelldruck ist
         // NICHT BEWERTBAR, nicht „niedrig". `fuellstandProzent` gibt bei
-        // `nennfuelldruckBar <= 0` eine 0 zurueck (o2.ts:28), und `o2Status` macht
+        // `nennfuelldruckBar <= 0` eine 0 zurueck (in `o2.ts`), und `o2Status` macht
         // daraus ampel "rot" mit `niedrig: true` — die Flasche erschiene als
         // niedrig, obwohl sie schlicht nicht bewertbar ist, UND DIE HELFERIN
         // LIEFE LOS, UM EINE VOLLE FLASCHE ZU TAUSCHEN.
