@@ -2029,9 +2029,9 @@ genau die hier vorgeschriebene Bauform abgeleitet: „Deshalb liegt dieser Zähl
 Token-Auflösung: er wird nur angefasst, wenn kein gültiges Token vorlag" (`:147-149`).
 
 **Und erst dadurch ist der globale Deckel überhaupt vertretbar.** Würden Erfolge mitzählen, wäre
-ein modulweites Limit ein Ausfall der Ausgabe. So ist der Sprengradius scharf umrissen: **ein
-richtiger Code funktioniert immer**, auch während eines Angriffs; wer sich vertippt, wird
-vertröstet. Die beiden Hälften — „nur Fehlversuche" und „modulweiter Deckel" — sind deshalb nicht
+ein modulweites Limit ein Ausfall der Ausgabe. ⚠️ Die hier ursprünglich stehende Zusage „ein
+richtiger Code funktioniert immer, auch während eines Angriffs" hielt der Bau nicht ein — Schritt 2
+sperrt vor der Codesuche. Was stattdessen gilt, steht in §3.5.3a (DRK-291). Die beiden Hälften — „nur Fehlversuche" und „modulweiter Deckel" — sind deshalb nicht
 zwei Maßnahmen, sondern eine.
 
 **Warum Schritt 2 nicht entfallen darf — und warum er zugleich den DB-Zugriff schützt.**
@@ -2073,6 +2073,45 @@ mit allen anderen Modulen: **jeder Suite-Deploy setzt das Gate-Budget zurück**,
 lagerbuch-Deploy — das sind spürbar mehr Gelegenheiten als früher. Zweitens: gäbe es je mehr als
 eine Instanz, wäre der modulweite Deckel je Instanz einer. `compose.yaml` hat kein
 `deploy:`/`replicas:`; wer skaliert, muss diese Voraussetzung zuerst auflösen.
+
+#### 3.5.3a Nachtrag DRK-291 (21.09.2026): die Zusage oben war falsch — und was jetzt gilt
+
+**Die Zusage „ein richtiger Code funktioniert immer" hat der Bau nie eingelöst.** Schritt 2 liest die
+modulweite Sperre **vor** der Codesuche, auf allen drei Gate-Flächen. 31 Fehlversuche aus sieben
+Absendern (je fünf, also unter der Absendergrenze) sperrten eine Minute lang, 301 in der Stunde eine
+ganze Stunde lang **jeden** — auch richtige Codes, auch aus einem unbelasteten Netz, auch die
+Erneuerung. Blue-Team-Befund vom 06.09.2026.
+
+**Die Schranke darf trotzdem nicht hinter die Codesuche, und das ist Rechnung, keine Vorsicht.** Der
+Coderaum ist 10⁶, der Absenderschlüssel ist nach D6 fälschbar. Ohne modulweite Vorprüfung rät ein
+Angreifer ungebremst; der erste Treffer liegt bei rund 10⁶/K Versuchen (K = aktive Codes, D5 offen):
+
+| Angriff | Versuche/Tag | K = 10 | K = 30 | K = 100 |
+|---|---|---|---|---|
+| Stundendeckel 300/h (heute) | 7.200 | ~13 Tage | ~4,5 Tage | ~1,4 Tage |
+| echte IPs à 5/min, 10 Quellen | 72.000 | ~1,3 Tage | ~11 h | ~3,3 h |
+| echte IPs à 5/min, 100 Quellen | 720.000 | ~3 h | ~1,1 h | ~20 min |
+| gefälschter Absender, ein Rechner, 50/s | 4,3 Mio. | ~30 min | ~11 min | ~3 min |
+
+**Betreiberentscheidung (Variante C): zwei Gruppen von Eimern.** Ein Gerät, das schon einmal mit
+richtigem Code hereinkam, trägt ein signiertes Merkmal — das Gerätecookie `lagerbuch_geraet` (ein
+Jahr, nach jeder erfolgreichen Einlösung gesetzt) oder eine echte, auch abgelaufene Helfer-Sitzung
+(bis 30 Tage nach Ablauf). Es zählt dann in **eigene** Eimer: je Merkmal 5/min, dazu zwei eigene
+modulweite (30/min, 300/h). Unbekannte zählen wie bisher je Absender und modulweit. Ein Unbekannter
+füllt nur die Eimer der Unbekannten. Das Merkmal ist kein Zugang — es entscheidet nur, in welchen
+Eimer eine Anfrage fällt; ein richtiger Code bleibt Pflicht.
+
+**Der bewusste Rest:** ein **neues** Gerät, das genau während eines Angriffs zum ersten Mal scannt,
+bleibt gesperrt, bis die Sperre abläuft. Das ist bei sechs Ziffern ohne längere Codes nicht
+auflösbar; längere Codes (Neudruck der Etiketten) sind ein eigenes Ticket.
+**Der Preis:** wer ein Merkmal hat — also schon einmal einen richtigen Code kannte, etwa von einem
+abfotografierten Etikett —, rät zusätzlich im Budget der Bekannten; die Obergrenze aller Fehlversuche
+verdoppelt sich für genau diesen Personenkreis (600/h statt 300/h), und nur er kann die Bekannten
+aussperren.
+
+**Unverändert:** Schritt 2 bucht nichts, und der Kurzschluss gegen die feste Deadline lässt keine
+abgewiesene oder während der Sperre gebuchte Anfrage die Sperre verlängern
+(`_lib/gateSchranke.zugang.test.ts` hält das fest, samt der Zugänge auf allen drei Flächen).
 
 #### 3.5.4 Ändert das etwas an `core`? Nein — und das ist die Antwort auf die Frage im Auftrag
 

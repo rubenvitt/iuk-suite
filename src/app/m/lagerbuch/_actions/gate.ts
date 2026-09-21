@@ -1,11 +1,11 @@
 "use server";
 import { auditEvent, auditAccessActor, auditDenied } from "@/core/audit/server";
-
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "../_lib/host";
 import { absenderAus } from "../_lib/absender";
 import { gateGesperrt, gateFehlversuchBuchen } from "../_lib/gateSchranke";
+import { GERAET_COOKIE, gateMerkmal, geraetCookieOptionen, geraetCookieWert } from "../_lib/gateSchrankeMerkmal";
 import { gateMeldung } from "../_lib/gateTexte";
 import { normalisiereCode } from "../_lib/code";
 import { sanitizeReturnTo } from "../_lib/returnTo";
@@ -51,17 +51,17 @@ export async function einloesenAmGate(
 
   const returnTo = sanitizeReturnTo(String(formData.get("returnTo") ?? ""));
   const absender = absenderAus(kopf);   // §3.5.2 — einmal ermittelt, zweimal benutzt
+  const keks = await cookies();
+  // DRK-291: ein bekanntes Geraet zaehlt in eigene Eimer (`gateSchrankeMerkmal.ts`).
+  const anfrage = { merkmal: await gateMerkmal((n) => keks.get(n)?.value) };
 
-  // SCHRITT 2 — gesperrt? OHNE Datenbankzugriff. DIESER Schritt schuetzt die
-  // Datenbank, nicht der Absender-Eimer: wer den Absenderschluessel rotiert,
-  // startet jeden Versuch mit leerem Eimer und bekaeme so oder so genau einen
-  // Lookup. Gedeckelt wird das ausschliesslich durch die beiden modulweiten
-  // Zaehler, und die lesen ihre Sperrzeit VOR jedem DB-Zugriff (§3.5.3).
-  //
-  // Und es wird hier KEIN Fehlversuch gebucht: sonst verlaengerte jeder Versuch
-  // waehrend der Sperre die Sperre, und eine Bereitschaft, die es zweimal
-  // probiert, kaeme nie wieder herein.
-  const sperrSekunden = gateGesperrt(absender);
+  // SCHRITT 2 — gesperrt? OHNE Datenbankzugriff, VOR der Codesuche (§3.5.3): der
+  // Absender-Eimer ist rotierbar, gedeckelt wird die Codesuche durch die
+  // modulweiten Zaehler der Gruppe dieser Anfrage. Ein richtiger Code von einem
+  // UNBEKANNTEN Geraet wartet waehrend einer modulweiten Sperre — der bewusste
+  // Rest aus §3.5.3a. KEINE Buchung hier — sonst verlaengerte jeder Versuch
+  // waehrend der Sperre die Sperre.
+  const sperrSekunden = gateGesperrt(absender, anfrage);
   if (sperrSekunden !== null) {
     return { fehler: gateMeldung("zuviele", sperrSekunden) ?? undefined };
   }
@@ -79,7 +79,7 @@ export async function einloesenAmGate(
     auditDenied("lagerbuch");
     // SCHRITT 6 — erst JETZT wird gebucht. Die drei Zaehler liegen HINTER der
     // Codepruefung und zaehlen NUR Fehlversuche (§3.5.3).
-    gateFehlversuchBuchen(absender);
+    gateFehlversuchBuchen(absender, anfrage);
     return { fehler: gateMeldung("code", null) ?? undefined };
   }
 
@@ -90,11 +90,11 @@ export async function einloesenAmGate(
   // und genau diese Eigenschaft laesst die Sitzungen den Cutover ueberleben,
   // SOFERN `SUITE_HOST_LAGERBUCH` zeichengleich die heutige APP_BASE_URL ist
   // (Runbook-Eingabe R1, §7.4.1).
-  (await cookies()).set(
-    HELFER_COOKIE,
-    res.cookieValue,
-    helferCookieOptionen(helferGueltigkeitSekunden()),
-  );
+  keks.set(HELFER_COOKIE, res.cookieValue, helferCookieOptionen(helferGueltigkeitSekunden()));
+  // Ab jetzt ein bekanntes Geraet (DRK-291) — auch fuer die naechste Schicht;
+  // es zaehlt dann nicht mehr in die Eimer der Unbekannten (§3.5.3a).
+  // Eine vorhandene Kennung bleibt, sonst begaenne das Geraet mit frischem Budget.
+  keks.set(GERAET_COOKIE, await geraetCookieWert(keks.get(GERAET_COOKIE)?.value), geraetCookieOptionen());
 
   /*
    * AEUSSERER Pfad. Ein ausdrueckliches `returnTo` (Deep-Link) hat Vorrang;

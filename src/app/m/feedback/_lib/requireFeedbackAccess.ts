@@ -1,11 +1,10 @@
 import { auditDenied, auditActor, auditLoginRequired } from "@/core/audit/server";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/core/auth";
-import { getModule, requiredGroupsFor } from "@/core/registry";
 import { getDb } from "../_db/client";
 import { upsertKnownUser } from "../_db/queries";
 import { viewerFromSession } from "./viewer";
-import { isFeedbackAdmin, type Viewer } from "./access";
+import { hatFeedbackVerwaltungszugang, type Viewer } from "./access";
 
 /**
  * DER AUTH-BACKSTOP DES MODULS — EINE Stelle, zwei Layouts (Entwurf §3.5).
@@ -30,22 +29,23 @@ import { isFeedbackAdmin, type Viewer } from "./access";
  * (idempotent auf `userId`).
  */
 export async function requireFeedbackAccess(): Promise<Viewer> {
-  const mod = getModule("feedback");
   const session = await auth();
   const viewer = viewerFromSession(session);
   if (!viewer) { auditLoginRequired("feedback"); redirect(`/login?callbackUrl=${encodeURIComponent("/m/feedback")}`); }
 
   /*
-   * `requiredGroupsFor` statt `mod.requiredGroups`: DIESE Zeile ist der einzige
-   * Ort, an dem die Zugangsgruppen des Moduls durchgesetzt werden (die Middleware
-   * kann es nicht, siehe oben). Läse sie das Registry-Feld direkt, wäre
-   * `SUITE_ACCESS_GROUP_FEEDBACK` genau hier wirkungslos — und die Gruppenleitung
+   * DAS PRÄDIKAT LIEGT SEIT DRK-290 IN `access.ts` (`hatFeedbackVerwaltungszugang`),
+   * und zwar deshalb, weil dieser Riegel eben NICHT der einzige Ort sein darf, an
+   * dem die Zugangsgruppen gelten: ein Export-Link und eine Server Action laufen
+   * ohne Layout. `assertGroupAccess` fragt dasselbe Prädikat vor jeder
+   * Objektfreigabe — Layout und direkte Schnittstelle können nicht mehr
+   * auseinanderlaufen. Es liest `requiredGroupsFor`, nicht `mod.requiredGroups`:
+   * sonst wäre `SUITE_ACCESS_GROUP_FEEDBACK` wirkungslos, und die Gruppenleitung
    * einer Instanz, deren SSO-Gruppen anders heißen als die Vorgabewerte, bekäme
    * einen 404 statt ihres Cockpits. Genau so entstand der Befund vor dem Cutover.
+   * Ohne Treffer 404 (verrät die Route nicht), mit Protokollzeile.
    */
-  const hasAccess =
-    isFeedbackAdmin(viewer) ||
-    viewer.groups.some((g) => requiredGroupsFor(mod).includes(g));
+  const hasAccess = hatFeedbackVerwaltungszugang(viewer);
   if (!hasAccess) { auditDenied("feedback", auditActor(viewer)); notFound(); }
 
   upsertKnownUser(getDb(), {

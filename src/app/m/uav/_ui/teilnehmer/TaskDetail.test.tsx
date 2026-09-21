@@ -48,6 +48,7 @@ function rendern(aufgabe: TaskDTO, fortschritt: AufgabenFortschritt, nurLesen = 
       aufgabe={aufgabe}
       fortschritt={fortschritt}
       heute="2026-08-29"
+      besitzer="p1"
       nurLesen={nurLesen}
       onAdd={vi.fn()}
       onRemove={vi.fn()}

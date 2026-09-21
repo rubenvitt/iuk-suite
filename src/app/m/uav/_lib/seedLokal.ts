@@ -87,6 +87,9 @@ interface LokalerTeilnehmer {
 export const LOKALE_TEILNEHMER: LokalerTeilnehmer[] = [
   { id: "seed-uav-teilnehmer-aktiv", name: "Erika Mustermann (E2E)", loginCode: "E2ETEST1", aktiv: true, beginn: "2026-01-05" },
   { id: "seed-uav-teilnehmer-inaktiv", name: "Max Gesperrt (E2E)", loginCode: "E2EGESP2", aktiv: false, beginn: null },
+  // Zweite AKTIVE Person für den Kontowechsel auf einem geteilten Gerät (DRK-286,
+  // `e2e/uav.spec.ts`) — bewusst ohne Durchführungen: was sie sieht, gehört jemand anderem.
+  { id: "seed-uav-teilnehmer-zweit", name: "Zora Zweit (E2E)", loginCode: "E2ETEST3", aktiv: true, beginn: null },
 ];
 
 interface LokaleDurchfuehrung {
@@ -190,5 +193,6 @@ export async function seedLokalUav(db: UavDb): Promise<string[]> {
     `uav: ${durchfuehrungenAngelegt} Durchführungen angelegt, ${LOKALE_DURCHFUEHRUNGEN.length - durchfuehrungenAngelegt} bereits vorhanden.`,
     "uav: http://uav.localtest.me:3000/login?code=E2ETEST1 — aktiver Teilnehmer (Erika Mustermann).",
     "uav: http://uav.localtest.me:3000/login?code=E2EGESP2 — gesperrter Teilnehmer, Login schlägt fehl.",
+    "uav: http://uav.localtest.me:3000/login?code=E2ETEST3 — zweiter aktiver Teilnehmer (Zora Zweit), ohne Durchführungen.",
   ];
 }

@@ -43,7 +43,7 @@ export const UAV_PORT = 3100;
 export const UAV_ADMIN_GRUPPE = "uav-training-admin";
 
 /**
- * DIE ZWEI CODES, DIE DER LOKALE SEED ANLEGT — `_lib/seedLokal.ts:87-90`
+ * DIE CODES, DIE DER LOKALE SEED ANLEGT — `_lib/seedLokal.ts`
  * (`LOKALE_TEILNEHMER`), der ueber `scripts/seed-lokal.ts uav` VOR `next dev`
  * laeuft (`playwright.config.ts`).
  *
@@ -56,6 +56,8 @@ export const UAV_ADMIN_GRUPPE = "uav-training-admin";
  */
 export const E2E_CODE_AKTIV = "E2ETEST1";
 export const E2E_CODE_INAKTIV = "E2EGESP2";
+/** Zweite AKTIVE Person, ohne Durchführungen — für den Kontowechsel (DRK-286). */
+export const E2E_CODE_ZWEIT = "E2ETEST3";
 
 /**
  * Die eine Gruppenzeile fuer `webServer.env`.

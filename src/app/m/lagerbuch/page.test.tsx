@@ -69,8 +69,15 @@ const VIEWER = { sub: "u1", groups: [] as string[], name: null, email: null };
 
 let kopfzeilen = new Headers({ host: HOST });
 const umleitungen: string[] = [];
+/** Was der Browser mitschickt — die Seite liest daraus das Merkmal (DRK-291). */
+let eingehend: Record<string, string> = {};
 
-vi.mock("next/headers", () => ({ headers: async () => kopfzeilen }));
+vi.mock("next/headers", () => ({
+  headers: async () => kopfzeilen,
+  cookies: async () => ({
+    get: (name: string) => (name in eingehend ? { name, value: eingehend[name]! } : undefined),
+  }),
+}));
 vi.mock("next/navigation", () => ({
   redirect: (ziel: string) => { umleitungen.push(ziel); throw new Error("NEXT_REDIRECT"); },
   notFound: () => { throw new Error("NEXT_NOT_FOUND"); },
@@ -98,6 +105,9 @@ vi.mock("./_lib/gateSchranke", () => ({
   gateGesperrt: vi.fn(),
   gateFehlversuchBuchen: vi.fn(() => { throw new Error("Die Gate-SEITE darf NICHT buchen"); }),
 }));
+// DRK-291: die Seite fragt die Schranke in DERSELBEN Gruppe wie die abgewiesene
+// Anfrage. Das Merkmal selbst prüft `_lib/gateSchranke.zugang.test.ts`.
+vi.mock("./_lib/gateSchrankeMerkmal", () => ({ gateMerkmal: vi.fn() }));
 
 /*
  * Die Insel wird durch eine Attrappe ersetzt, die ihre drei Props als Attribute
@@ -124,12 +134,15 @@ import {
   viewerOderNull, istLagerbuchAdmin, adminLandingPfad, verwaltungsZiel,
 } from "./_lib/zugang";
 import { gateGesperrt, gateFehlversuchBuchen } from "./_lib/gateSchranke";
+import { gateMerkmal } from "./_lib/gateSchrankeMerkmal";
 import GatePage from "./page";
 import { mount, unmount, query } from "@/app/m/qr/_lib/test-dom";
 
 beforeEach(() => {
   kopfzeilen = new Headers({ host: HOST });
   umleitungen.length = 0;
+  eingehend = {};
+  vi.mocked(gateMerkmal).mockResolvedValue(null);
   vi.mocked(viewerOderNull).mockResolvedValue(null);
   vi.mocked(istLagerbuchAdmin).mockReturnValue(false);
   vi.mocked(adminLandingPfad).mockImplementation((r) => (r ? `ADMIN:${r}` : "ADMIN:/verwaltung"));
@@ -294,9 +307,20 @@ describe("Gate-Seite — der gelesene Fehlerparameter (Falle 60)", () => {
     kopfzeilen = new Headers({ host: HOST, "cf-connecting-ip": "203.0.113.9" });
     vi.mocked(gateGesperrt).mockReturnValue(7);
     await rendere({ grund: "zuviele" });
-    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.9");
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.9", { merkmal: null });
     expect(query("[data-rolle='gate']").getAttribute("data-meldung"))
       .toBe("Zu viele Fehlversuche. Bitte in 7 Sekunden erneut versuchen.");
+  });
+
+  it("fragt die Schranke in der Gruppe des MERKMALS aus den Cookies dieser Anfrage (DRK-291)", async () => {
+    // Ein bekanntes Gerät zählt in eigene Eimer. Fragte die Seite die Gruppe der
+    // Unbekannten, zeigte sie ihm eine Sperre, die für es gar nicht gilt.
+    kopfzeilen = new Headers({ host: HOST, "cf-connecting-ip": "203.0.113.9" });
+    eingehend = { lagerbuch_geraet: "alt.jwt" };
+    vi.mocked(gateMerkmal).mockImplementation(async (lies) =>
+      lies("lagerbuch_geraet") === "alt.jwt" ? "geraet:abc" : null);
+    await rendere({ grund: "zuviele" });
+    expect(gateGesperrt).toHaveBeenCalledWith("cf:203.0.113.9", { merkmal: "geraet:abc" });
   });
 
   it("ist die Sperre inzwischen abgelaufen, kommt der Satz OHNE Zahl", async () => {

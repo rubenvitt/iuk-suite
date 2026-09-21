@@ -3037,7 +3037,7 @@ Gate-Rolle und einen Aufrufweg.
 ### 3.7.3 Nur Fehlversuche werden gebucht — und das ist der teuerste Satz
 
 **Der Budgetverbrauch liegt HINTER der Codeprüfung. Ein richtiger Code kostet nichts, auch nicht
-während einer laufenden Sperre.** Genau das macht einen modulweiten Deckel überhaupt vertretbar:
+während einer laufenden Sperre** (⚠️ gebaut war das erst mit DRK-291, §3.7.3a). Genau das macht einen modulweiten Deckel überhaupt vertretbar:
 zählten Erfolge mit, wäre ein modulweites Limit ein **Ausfall der Ausleihe**. So ist der Sprengradius
 scharf umrissen — wer sich vertippt, wartet bis zu eine Minute; wer richtig scannt, kommt herein.
 
@@ -3052,6 +3052,34 @@ Uplink verbrauchte ihre fünf Versuche mit **erfolgreichen** Scans; derselbe Feh
 nacheinander **denselben** Aufsteller scannen, teilt sich **einen** Uplink und damit **einen**
 Absenderschlüssel. Wäre der Verbrauch vor der Prüfung, schlösse sich das Gate nach dem fünften
 richtigen Scan.
+
+### 3.7.3a Nachtrag DRK-291 (21.09.2026): die Zusage oben hielt der Bau nicht — jetzt schon
+
+**Der Satz „ein richtiger Code kostet nichts, auch nicht während einer laufenden Sperre" stimmte für
+den Budgetverbrauch, aber nicht für die Sperre.** Alle drei Gate-Flächen lasen die Sperrzeit **vor**
+der Codesuche: 31 Fehlversuche aus sieben Absendern sperrten eine Minute lang, 301 in der Stunde eine
+Stunde lang jeden Aufsteller-Scan, jede Handeingabe und jede Erneuerung. Fiel der
+Absenderschlüssel nach A-L12 für alle zusammen, genügten fünf Fehlversuche für den ganzen Funkraum.
+
+**Was jetzt gilt: eine wohlgeformte Eingabe ist nie gesperrt.** `gateGesperrt` bekommt die rohe
+Eingabe; besteht sie nach `normalisiereCode` die `istCodeForm`-Prüfung, gibt es keine Sperre — weder
+modulweit noch je Absender. Gesperrt wird nur noch, was gar kein Code sein kann. Fehlversuche werden
+unverändert gebucht.
+
+**Warum das hier sicher ist und in `lagerbuch` nicht:** Rechnung B (§3.7.1) — 140 bit halten auch
+ohne jede Schranke (2,2 × 10²⁵ Jahre bei 10⁶ Versuchen/s und 1.000 gültigen Codes). Die Codesuche
+ist eine Gleichheitssuche auf dem `UNIQUE`-Index von `zugangscodes.code` und billiger als die Anfrage,
+die sie auslöst. **Bewusster Rest:** die Zahl dieser Suchen ist damit nicht mehr gedeckelt. Eine Kappe
+für wohlgeformte Eingaben hätte einen unrotierbaren Schlüssel und wäre wieder genau der Hebel, mit dem
+jeder Unangemeldete die Ausleihe für alle sperrt; Volumenschutz gehört vor den Prozess (Cloudflare,
+Traefik), nicht in einen Zähler, der richtige Codes abweist. `lagerbuch` hat 10⁶ Codes und braucht die Sperre vor der Suche; dort trägt ein
+Gerätemerkmal die Verfügbarkeit (lagerbuch-Spec §3.5.3a). Eine zusätzliche Ausnahme für eine
+bestehende Sitzung wäre hier wirkungslos und entfällt: wer erneuert, gibt ohnehin einen
+wohlgeformten Code ein.
+
+**Unverändert:** abgewiesene oder während der Sperre gebuchte Anfragen verlängern die Sperre nicht
+(Kurzschluss gegen die feste Deadline, §3.7.2 Eigenschaft 3); `_lib/gateSchranke.zugang.test.ts`
+hält das und die Zugänge auf allen drei Flächen fest.
 
 ### 3.7.4 Die CWE-348-Umstellung: Voraussetzung, aber keine Abhängigkeit
 

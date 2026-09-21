@@ -244,16 +244,39 @@ export function fortschritt(db: UavDb, participantId: string): ProgressSnapshot 
 }
 
 /**
+ * Eine Execution-ID im Sync-Body gehört einer ANDEREN Person (DRK-285). Die ID
+ * ist global — ohne diese Prüfung war ihre Kenntnis die ganze Schreibberechtigung.
+ * Die Route antwortet darauf mit 409 und nennt die IDs, damit der Client sie aus
+ * seiner Queue nehmen kann, statt sie ewig erneut zu schicken.
+ */
+export class FremdeDurchfuehrung extends Error {
+  readonly code = "fremde_durchfuehrung";
+  constructor(readonly ids: string[]) {
+    super("Durchführung gehört einer anderen Person");
+    this.name = "FremdeDurchfuehrung";
+  }
+}
+
+/**
  * Wendet die Mutationen idempotent an (Execution-PK = client-UUID;
  * Tombstones via deletedAt; TaskStatus last-write-wins per updatedAt) und
  * liefert den autoritativen Snapshot. participantId stammt IMMER aus dem
  * Aufruf, nie aus dem Request-Body.
+ *
+ * Konfliktupdate NUR auf eine eigene Zeile (DRK-285): die Eigentümerbedingung
+ * steht im selben Statement (`setWhere`), ist also atomar. Trifft der Konflikt
+ * eine fremde Zeile, ändert das Statement nichts (`changes === 0`). Semantik:
+ * ALLES ODER NICHTS — enthält der Batch auch nur eine fremde ID, wird die ganze
+ * Transaktion zurückgerollt (auch eigene Einträge und TaskStatus desselben
+ * Batches) und `FremdeDurchfuehrung` mit ALLEN fremden IDs geworfen. So gibt es
+ * keine Teil-Quittung, die der Client als Erfolg für den Batch lesen könnte.
  */
 export function sync(db: UavDb, participantId: string, req: SyncRequest): ProgressSnapshot {
   const ts = jetzt();
   db.transaction((tx) => {
+    const fremd: string[] = [];
     for (const e of req.executions) {
-      tx.insert(executions).values({
+      const ergebnis = tx.insert(executions).values({
         id: e.id,
         participantId,
         taskId: e.taskId,
@@ -271,8 +294,11 @@ export function sync(db: UavDb, participantId: string, req: SyncRequest): Progre
           luftraumbeobachter: sql`excluded.luftraumbeobachter`,
           deletedAt: sql`excluded.deleted_at`,
         },
+        setWhere: sql`${executions.participantId} = excluded.participant_id`,
       }).run();
+      if (ergebnis.changes === 0) fremd.push(e.id);
     }
+    if (fremd.length > 0) throw new FremdeDurchfuehrung(fremd);
     for (const s of req.taskStatus) {
       tx.insert(taskStatus).values({
         participantId,

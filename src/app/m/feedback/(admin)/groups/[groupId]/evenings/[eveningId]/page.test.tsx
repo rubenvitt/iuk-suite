@@ -48,7 +48,7 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
 
 /** Gruppenleitung von „bereitschaft" — `memberGroupIdsFor` loest den Slug auf. */
 const alsLeitung = (slug: string) =>
-  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: [], fachgruppen: [slug] } });
+  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: ["da-feedback-gl"], fachgruppen: [slug] } });
 
 function gruppe(slug: string) {
   return insertGroup(db, {

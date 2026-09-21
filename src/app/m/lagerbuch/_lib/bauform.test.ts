@@ -1397,7 +1397,7 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
    * bis hierher kein mechanisches Netz — nur drei voneinander unabhaengige,
    * mock-basierte Unit-Testsaetze. Genau die Konstellation, in der die dritte
    * Kopie die Reihenfolge verliert und kein Gate es sieht.
-   * `_lib/gateSchranke.ts:119-124` benennt diesen Fehler als in DIESER Suite
+   * `_lib/gateSchranke.ts` (`gateFehlversuchBuchen`) benennt diesen Fehler als in DIESER Suite
    * bereits produktiv eingetreten (feedback, 15 Ehrenamtliche aus einem
    * Vereins-WLAN).
    *
@@ -1565,7 +1565,7 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
 
   it("kein Datenbankzugriff VOR der Sperre", () => {
     // Die Sperre ist genau deshalb ohne Datenbankzugriff gebaut
-    // (`gateSchranke.ts:83-104`, „LIEST NUR"): sie SCHUETZT den Zugriff. Faellt
+    // (`gateSchranke.ts`, `gateGesperrt`, „LIEST NUR"): sie SCHUETZT den Zugriff. Faellt
     // ein `getDb()` davor, ist der Deckel wirkungslos — und still.
     //
     // Fehlt `gateGesperrt(` im Abschnitt ganz, meldet das Test 1 als „Riegel
@@ -1583,7 +1583,7 @@ describe("B2 / Befund 15 — die Riegelreihenfolge der drei Gate-Flaechen", () =
   });
 
   it("kein Buchen VOR der Einloesung — die Bedingtheit haelt dieses Netz NICHT", () => {
-    // §3.9 / `gateSchranke.ts:113-126`: gebucht wird ein FEHLVERSUCH, nie ein
+    // §3.9 / `gateSchranke.ts`, `gateFehlversuchBuchen`: gebucht wird ein FEHLVERSUCH, nie ein
     // Erfolg. Liegt `gateFehlversuchBuchen()` vor `redeemToken()`, verbraucht
     // eine Bereitschaft hinter einem gemeinsamen Uplink ihre fuenf Versuche mit
     // ERFOLGREICHEN Scans — der Fehler, den der Alt-Bestand heute hat

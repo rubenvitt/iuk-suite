@@ -6,7 +6,7 @@ import { getDb } from "../../_db/client";
 import { auditOutbox } from "../../_db/schema";
 import { hostAbweisung } from "../../_lib/hostRiegel";
 import { identitaetAus } from "../../_lib/identitaet";
-import { sync } from "../../_lib/queries";
+import { FremdeDurchfuehrung, sync } from "../../_lib/queries";
 import { syncSchema } from "../../_lib/syncSchema";
 
 export const dynamic = "force-dynamic";
@@ -55,8 +55,23 @@ export async function POST(req: Request) {
   if (!body.ok) return body.response;
   const parsed = syncSchema.safeParse(body.body);
   if (!parsed.success) return fehler(400, "validation_error", parsed.error.message);
+  // DRK-286: der Client sendet den Speicher EINES Kontos. Gehört das Cookie
+  // inzwischen jemand anderem (Login in einem anderen Tab, verspäteter Lauf),
+  // darf dieser Stand nicht unter der neuen Person landen.
+  if (parsed.data.teilnehmerId !== undefined && parsed.data.teilnehmerId !== identitaet.id) {
+    return fehler(409, "konto_gewechselt", "Die Sitzung gehört inzwischen einem anderen Konto");
+  }
   const pending = db.select({ count: count() }).from(auditOutbox).get();
   const newEvents = parsed.data.executions.length + parsed.data.taskStatus.length;
   if (!pending || pending.count + newEvents > SYNC_MAX_PENDING_AUDIT_EVENTS) return fehler(503, "audit_backpressure", "Sync vorübergehend nicht verfügbar");
-  return withAuditContext({ actor: auditParticipantActor(identitaet.id) }, () => NextResponse.json(sync(db, identitaet.id, parsed.data)));
+  const actor = auditParticipantActor(identitaet.id);
+  try {
+    return withAuditContext({ actor }, () => NextResponse.json(sync(db, identitaet.id, parsed.data)));
+  } catch (e) {
+    // DRK-285: fremde Execution-ID → nichts angewendet (Transaktion zurückgerollt),
+    // 409 statt Erfolgsquittung; die IDs gehen zurück, damit der Client sie verwirft.
+    if (!(e instanceof FremdeDurchfuehrung)) throw e;
+    auditDenied("uav", actor, "executions");
+    return NextResponse.json({ error: { code: e.code, message: e.message, ids: e.ids } }, { status: 409 });
+  }
 }

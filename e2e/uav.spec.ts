@@ -3,6 +3,7 @@ import { devLogin, klickeWennRuhig, wechsleAnmeldung } from "./fixtures";
 import {
   E2E_CODE_AKTIV,
   E2E_CODE_INAKTIV,
+  E2E_CODE_ZWEIT,
   UAV_ADMIN_GRUPPE,
   UAV_HOST,
   fremdUrl,
@@ -373,4 +374,78 @@ test("Erfassung offline → online → in der Verwaltung sichtbar (Check 7)", as
   // string: …Vorflugkontrolle3/3", Match verweigert). `getByText(…, { exact:
   // true })`, auf den genauen Zähler-Span skaliert, ist robust dagegen.
   await expect(zeile11.getByText(`${vorher + 1}/${ziel}`, { exact: true })).toBeVisible();
+});
+
+/**
+ * DRK-286 — Kontowechsel A → B im SELBEN Browser (geteiltes Tablet), gegen den
+ * echten Server. A hat synchronisierte Durchführungen (Seed) und eine offene,
+ * die nie beim Server ankam; dann meldet sich B mit dem eigenen Code an.
+ * Zugesichert wird, was eine Person sieht und was über die Leitung geht —
+ * nicht, welche Schlüssel im Speicher stehen.
+ *
+ * Die offene Durchführung entsteht über ein per `page.route` abgewiesenes
+ * `POST /api/sync`. Ein Service Worker steht dem nicht im Weg: auf Port 3100
+ * gibt es keinen (kein sicherer Kontext, `playwright.config.ts`), und der
+ * Worker beantwortet `/api/` ohnehin nie (`_lib/sw-quelle.ts`).
+ */
+test.describe("Kontowechsel auf einem geteilten Gerät (DRK-286)", () => {
+  test("B sieht nichts von A, sendet nichts von A, und A findet die offene Arbeit wieder", async ({ page }) => {
+    const offen = `Offen ${Date.now()}`;
+    const istSync = (url: string) => new URL(url).pathname === "/api/sync";
+    // EINE Referenz für route UND unroute — `unroute` vergleicht den Matcher per Identität.
+    const syncMatcher = (url: URL) => istSync(url.href);
+
+    // ── A arbeitet ─────────────────────────────────────────────────────────
+    await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
+    await page.waitForURL((url) => url.pathname !== "/login");
+    const ersterSync = page.waitForResponse((r) => istSync(r.url()) && r.request().method() === "POST");
+    await page.goto(uavUrl("/aufgabe?id=1-1"));
+    expect((await ersterSync).status()).toBe(200);
+    // Seed-Durchführung von A (`_lib/seedLokal.ts`, `LOKALE_DURCHFUEHRUNGEN`).
+    await expect(page.getByText("Klaus Beobachter / Erika Mustermann")).toBeVisible();
+
+    // Eine Durchführung, die den Server nie erreicht: jeder Sync wird abgewiesen.
+    await page.route(syncMatcher, (route) => route.abort());
+    await page.getByLabel("Drohnensteuerer").fill(offen);
+    await page.getByLabel("Luftraumbeobachter").fill("Adele Offen");
+    await page.getByRole("button", { name: "Durchführung hinzufügen" }).click();
+    await expect(page.getByText(`${offen} / Adele Offen`)).toBeVisible();
+
+    // ── B meldet sich im selben Browser an ────────────────────────────────
+    await page.goto(uavUrl(`/login?code=${E2E_CODE_ZWEIT}`));
+    await page.waitForURL((url) => url.pathname !== "/login");
+    await page.unroute(syncMatcher);
+
+    const syncBodies: { teilnehmerId?: string; executions: { id: string; drohnensteuerer: string; luftraumbeobachter: string }[] }[] = [];
+    page.on("request", (r) => {
+      if (istSync(r.url()) && r.method() === "POST") syncBodies.push(r.postDataJSON());
+    });
+    const syncVonB = page.waitForResponse((r) => istSync(r.url()) && r.request().method() === "POST");
+    await page.goto(uavUrl("/aufgabe?id=1-1"));
+    expect((await syncVonB).status()).toBe(200);
+
+    await expect(page.getByText(/^Durchführungen 0 \/ \d+$/)).toBeVisible();
+    const text = (await page.locator("body").textContent()) ?? "";
+    for (const fremd of ["Erika Mustermann", "Klaus Beobachter", offen, "Adele Offen"]) expect(text).not.toContain(fremd);
+    await expect(page.getByLabel("Drohnensteuerer")).toHaveValue("");
+    await expect(page.getByLabel("Luftraumbeobachter")).toHaveValue("");
+
+    expect(syncBodies.length).toBeGreaterThan(0);
+    for (const body of syncBodies) {
+      expect(body.teilnehmerId).toBe("seed-uav-teilnehmer-zweit");
+      expect(body.executions).toEqual([]);
+    }
+
+    // ── A kommt zurück: die offene Arbeit ist noch da und geht unter A raus ─
+    await page.goto(uavUrl(`/login?code=${E2E_CODE_AKTIV}`));
+    await page.waitForURL((url) => url.pathname !== "/login");
+    const syncVonA = page.waitForResponse(
+      (r) => istSync(r.url()) && r.request().method() === "POST" && (r.request().postData() ?? "").includes(offen),
+    );
+    await page.goto(uavUrl("/aufgabe?id=1-1"));
+    const antwortA = await syncVonA;
+    expect(antwortA.status()).toBe(200);
+    expect(antwortA.request().postDataJSON().teilnehmerId).toBe(AKTIVER_TEILNEHMER_ID);
+    await expect(page.getByText(`${offen} / Adele Offen`)).toBeVisible();
+  });
 });

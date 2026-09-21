@@ -37,8 +37,8 @@ describe("absenderAus", () => {
 
   it("faellt ohne beide Koepfe auf EINEN konstanten Sammelschluessel", () => {
     // Der sichere Ausfallmodus: alle kopflosen Aufrufer teilen sich EINEN Eimer.
-    // Er kann nur zu STRENG sein, nie zu lasch — und ein richtiger Code
-    // funktioniert dabei immer, weil nur Fehlversuche buchen (§3.5.3).
+    // Er kann nur zu STRENG sein, nie zu lasch — und es
+    // buchen nur Fehlversuche; ein bekanntes Geraet zaehlt getrennt (§3.5.3a).
     expect(absenderAus(kopf({}))).toBe("direkt");
     expect(absenderAus(kopf({ "cf-connecting-ip": "" }))).toBe("direkt");
     expect(absenderAus(kopf({ "cf-connecting-ip": "   " }))).toBe("direkt");

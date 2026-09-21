@@ -1,11 +1,11 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requireLagerbuchHost } from "./_lib/host";
-import {
-  viewerOderNull, istLagerbuchAdmin, adminLandingPfad, verwaltungsZiel,
-} from "./_lib/zugang";
+import { viewerOderNull, istLagerbuchAdmin, adminLandingPfad, verwaltungsZiel }
+  from "./_lib/zugang";
 import { absenderAus } from "./_lib/absender";
 import { gateGesperrt } from "./_lib/gateSchranke";
+import { gateMerkmal } from "./_lib/gateSchrankeMerkmal";
 import { gateMeldung } from "./_lib/gateTexte";
 import { sanitizeReturnTo } from "./_lib/returnTo";
 import { OeffentlicherRahmen } from "./_ui/OeffentlicherRahmen";
@@ -54,7 +54,8 @@ export default async function GatePage({
   // das Neuladen des Gates zu einem Fehlversuch, und eine gesperrte Person kaeme
   // durch blosses Warten nie wieder herein. Der Aufruf steht HINTER dem
   // Host-Riegel und ohne Datenbankzugriff (§3.5.3).
-  const sperrSekunden = gateGesperrt(absenderAus(kopf));
+  const keks = await cookies();   // DRK-291: dieselbe Gruppe wie die abgewiesene Anfrage
+  const sperrSekunden = gateGesperrt(absenderAus(kopf), { merkmal: await gateMerkmal((n) => keks.get(n)?.value) });
   const meldung = gateMeldung(grund, sperrSekunden);   // §3.9 — die EINE Textquelle
 
   const sauber = sanitizeReturnTo(returnTo);
