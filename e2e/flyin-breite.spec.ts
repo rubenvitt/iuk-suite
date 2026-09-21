@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { devLogin } from "./fixtures";
+import { devLogin, klickeWennRuhig } from "./fixtures";
 import { LAGERBUCH_ADMIN_GRUPPE, LAGERBUCH_HOST, lagerbuchUrl } from "./helpers/lagerbuch";
 import { RADIO_ADMIN_GRUPPE, RADIO_HOST, radioUrl } from "./helpers/radio";
 import { UAV_ADMIN_GRUPPE, UAV_HOST, uavUrl } from "./helpers/uav";
@@ -59,6 +59,8 @@ async function vermesseSchublade(page: Page) {
       schliessenLinks: Math.round(schliessen.getBoundingClientRect().left),
       inhaltHoehe: inhalt.scrollHeight,
       sichtHoehe: inhalt.clientHeight,
+      inhaltBreite: inhalt.scrollWidth,
+      sichtBreite: inhalt.clientWidth,
     };
   });
 }
@@ -81,7 +83,28 @@ async function erwarteImBild(page: Page, breiten: readonly number[]) {
     expect(mass!.linkeKante, `linke Kante bei ${breite} px`).toBeGreaterThanOrEqual(0);
     expect(mass!.schliessenLinks, `Schliessen-Knopf bei ${breite} px`).toBeGreaterThan(0);
     expect(mass!.breite, `Breite bei ${breite} px`).toBeLessThanOrEqual(breite);
+    erwarteKeinenQuerueberlauf(mass!, `bei ${breite} px`);
   }
+}
+
+/**
+ * DIE ZWEITE ZUSAGE: der INHALT passt in die Schublade — kein waagerechter
+ * Scrollbalken am Schubladenkörper.
+ *
+ * Kante und Knopf zu prüfen reichte nicht: gemessen am 21.09.2026 stand die
+ * Artikelschublade sauber im Bild, während ihr Inhalt 749 px auf 736 px
+ * Sichtbreite (800 px Fenster) und bis zu 749 px auf 359 px (390 px Fenster)
+ * trug. Ursache war eine `auto`-Rasterspur, die eine `max-content`-Tabelle
+ * aufzog (`.artikelRaster` in `lagerbuch/_ui/verwaltung.module.css`). Eine
+ * Tabelle darf in sich scrollen; die Schublade als Ganzes nicht.
+ */
+function erwarteKeinenQuerueberlauf(
+  mass: NonNullable<Awaited<ReturnType<typeof vermesseSchublade>>>,
+  wo: string,
+) {
+  expect(mass.inhaltBreite, `waagerechter Überlauf ${wo}`).toBeLessThanOrEqual(
+    mass.sichtBreite + 1,
+  );
 }
 
 test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async ({ page }) => {
@@ -145,6 +168,41 @@ test("Artikeldetails: passt ins Fenster und nutzt den Platz, der da ist", async 
   expect(weit!.breite).toBeLessThan(1280);
 
   await erwarteImBild(page, BREITEN);
+});
+
+/*
+ * ⚠️ JE ARTIKEL, NICHT NUR DER ERSTE: der Überlauf wuchs mit den Daten der
+ * Tabellen und war je Zeile verschieden breit — der erste Seed-Artikel hat
+ * weder Chargen noch Buchungen und lief bei 800 px gar nicht über. Wer nur
+ * ihn öffnet, prüft den einen Fall, in dem der Defekt nicht auftritt.
+ */
+test("Artikeldetails: kein waagerechter Überlauf, auch mit Chargen und Buchungen", async ({ page }) => {
+  test.setTimeout(180_000);
+  await devLogin(page, {
+    host: LAGERBUCH_HOST,
+    groups: LAGERBUCH_ADMIN_GRUPPE,
+    callbackPath: "/verwaltung",
+  });
+  for (const breite of [1280, 800, 390]) {
+    await page.setViewportSize({ width: breite, height: 800 });
+    await page.goto(lagerbuchUrl("/verwaltung/artikel"));
+    await expect(page.getByTestId("lb-excel")).toBeVisible();
+    const anzahl = Math.min(await page.locator("[data-row-key]").count(), 6);
+    expect(anzahl, "keine Artikelzeilen im Seed").toBeGreaterThan(0);
+    for (let zeile = 0; zeile < anzahl; zeile++) {
+      // Die Hülle bricht nach `load` noch um (CLAUDE.md, Falle 12).
+      await klickeWennRuhig(page.locator("[data-row-key]").nth(zeile));
+      const schublade = page.locator(".ant-drawer-right.ant-drawer-open");
+      // Erst wenn die Tabellen stehen, hat die Rasterspur ihre volle Breite.
+      await expect(schublade.getByText("Letzte Buchungen")).toBeVisible();
+      await page.waitForTimeout(300);
+      const mass = await vermesseSchublade(page);
+      expect(mass, `keine offene Schublade (Zeile ${zeile}, ${breite} px)`).not.toBeNull();
+      erwarteKeinenQuerueberlauf(mass!, `in Zeile ${zeile} bei ${breite} px`);
+      await page.keyboard.press("Escape");
+      await expect(schublade).toHaveCount(0);
+    }
+  }
 });
 
 test("uav-Katalog: die Aufgaben-Schublade passt ins Fenster", async ({ page }) => {

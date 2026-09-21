@@ -94,18 +94,18 @@
  * Spalte zurueck.
  *
  * 320px als Untergrenze: darunter wird aus dem Formular eine Kolonne aus
- * Einzeilern. Gemessen bei 880 px Schubladenbreite ergeben sich zwei
- * Spalten zu je 386 px.
+ * Einzeilern. Gemessen bei 1120 px Schubladenbreite ergeben sich zwei
+ * Spalten zu je 526 px.
  *
  * ⛔ KEIN `gap: 20px` als Literal, obwohl der Elternteil dieselbe Zahl
- * traegt: das Raster steht INNERHALB des `display: grid; gap: 20` aus
- * ArtikelDrawer.tsx, und beide Werte beschreiben denselben Abstand
+ * traegt: das Raster steht INNERHALB von `.artikelRaster` (am Ende dieser
+ * Datei), und beide Werte beschreiben denselben Abstand
  * zwischen zwei Abschnitten. Sie hier ein zweites Mal hinzuschreiben,
  * heisst, sie beim naechsten Mal an einer Stelle zu aendern.
  */
 .buchungsspalten {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: inherit;
   align-items: start;
 }
@@ -115,12 +115,12 @@
  *
  * ⚠️ `auto-fit`/`minmax` MISST DEN KASTEN, eine `@media`-Abfrage das FENSTER
  * (CLAUDE.md, Falle 13). Diese Felder stehen in einer Schublade, deren Breite
- * `flyinBreite(880)` deckelt — auf einem schmalen Schirm ist der Kasten
+ * `flyinBreite(1120)` deckelt — auf einem schmalen Schirm ist der Kasten
  * laengst schmal, waehrend das Fenster noch breit aussieht.
  */
 .umlagerfelder {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 0 12px;
   align-items: start;
 }
@@ -159,4 +159,30 @@
   min-height: 44px;
   align-items: center;
   margin-inline-end: 0;
+}
+
+/*
+ * DAS RASTER DER ARTIKELSCHUBLADE — eine Spalte, die NIE breiter wird als
+ * die Schublade.
+ *
+ * ⚠️ OHNE `grid-template-columns` IST DIE SPALTE `auto`, und eine `auto`-Spur
+ * schrumpft nicht unter die min-content-Breite ihres breitesten Kindes.
+ * Das breiteste Kind ist hier eine Tabelle mit `scroll.x: "max-content"` —
+ * ihre min-content-Breite ist die VOLLE Tabellenbreite. Gemessen
+ * (21.09.2026, echter Chromium, 800 px Fenster): die Spur wuchs auf 725 px
+ * in einer 688 px breiten Schublade, und zwar je Artikel verschieden weit,
+ * weil die Tabelle mit ihren Daten wächst. Jeder Abschnitt lief rechts aus
+ * dem Bild, die Schublade bekam einen waagerechten Scrollbalken, und
+ * `buchungsspalten` legte bei 390 px Fensterbreite zwei Formulare neben-
+ * einander, weil es die aufgeblähte Spur für den Platz hielt.
+ *
+ * `minmax(0, 1fr)` nimmt der Spur den min-content-Boden: die Tabelle scrollt
+ * dann in sich, statt die ganze Schublade aufzuziehen. Dieselbe Überlegung
+ * steckt in jedem `minmax(min(Npx, 100%), 1fr)` darüber — ein fester Boden
+ * über der Kastenbreite ist derselbe Überlauf mit anderer Ursache.
+ */
+.artikelRaster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
 }
