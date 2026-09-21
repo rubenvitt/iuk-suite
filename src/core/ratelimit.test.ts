@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RateLimiter, clientIpAus } from "./ratelimit";
+import { RATELIMIT_MAX_SCHLUESSEL, RateLimiter, clientIpAus } from "./ratelimit";
 
 describe("RateLimiter", () => {
   it("erlaubt bis max und blockt dann im Fenster", () => {
@@ -23,6 +23,136 @@ describe("RateLimiter", () => {
     expect(rl.check("a")).toBe(false);
     t = 2001; // Fenster vorbei
     expect(rl.check("a")).toBe(true);
+  });
+});
+
+/**
+ * DRK-287 (CWE-770): die Map darf weder durch viele eindeutige Schlüssel noch durch
+ * abgelaufene Fenster unbegrenzt wachsen — und Kapazitätsdruck darf eine AKTIVE Sperre
+ * nicht verdrängen, sonst setzt ein Angreifer seine eigene Sperre durch Fluten zurück.
+ */
+describe("RateLimiter — Speicherrahmen (DRK-287)", () => {
+  it("entfernt abgelaufene Schlüssel, statt sie dauerhaft zu halten", () => {
+    let t = 1000;
+    const rl = new RateLimiter({ windowMs: 1000, max: 1, now: () => t });
+    for (let i = 0; i < 32; i++) rl.check(`k${i}`);
+    expect(rl.schluesselAnzahl).toBe(32);
+    t = 2001; // Fenster aller 32 vorbei
+    rl.check("neu");
+    expect(rl.schluesselAnzahl).toBe(1);
+  });
+
+  it("hält bei vielen eindeutigen Schlüsseln im selben Fenster die Obergrenze", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 10, maxKeys: 100, now: () => t });
+    for (let i = 0; i < 10_000; i++) rl.check(`k${i}`);
+    expect(rl.schluesselAnzahl).toBeLessThanOrEqual(100);
+  });
+
+  it("hat ohne Angabe eine feste Vorgabe-Obergrenze", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 10, now: () => t });
+    for (let i = 0; i < 50_000; i++) rl.check(`k${i}`);
+    expect(rl.schluesselAnzahl).toBeLessThanOrEqual(RATELIMIT_MAX_SCHLUESSEL);
+  });
+
+  it("verdrängt bei vollem Speicher nie eine aktive Sperre", () => {
+    let t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 3, maxKeys: 10, now: () => t });
+    for (let i = 0; i < 4; i++) rl.check("angreifer");
+    expect(rl.check("angreifer")).toBe(false);
+    // Fluten mit frischen Schlüsseln, weit über die Kapazität hinaus
+    for (let i = 0; i < 1000; i++) { t += 1; rl.check(`flut${i}`); }
+    expect(rl.check("angreifer")).toBe(false);
+    expect(rl.schluesselAnzahl).toBeLessThanOrEqual(10);
+  });
+
+  it("nimmt einen neuen Schlüssel an, solange ein ungesperrter Eintrag Platz machen kann", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 3, maxKeys: 2, now: () => t });
+    for (let i = 0; i < 4; i++) rl.check("gesperrt");
+    rl.check("halb");
+    expect(rl.check("frisch")).toBe(true);
+    expect(rl.check("gesperrt")).toBe(false);
+  });
+
+  it("weist neue Schlüssel ab, solange der Speicher nur aus aktiven Sperren besteht, und nimmt sie nach Fensterablauf wieder an", () => {
+    let t = 1000;
+    const rl = new RateLimiter({ windowMs: 1000, max: 1, maxKeys: 3, now: () => t });
+    for (const k of ["a", "b", "c"]) { rl.check(k); rl.check(k); }
+    expect(rl.check("d")).toBe(false);
+    expect(rl.schluesselAnzahl).toBe(3);
+    t = 2001;
+    expect(rl.check("d")).toBe(true);
+  });
+
+  it("gibt bei vollem Speicher den Platz frei, sobald die ERSTE Sperre fällt — nicht erst, wenn alle fallen", () => {
+    let t = 0;
+    const rl = new RateLimiter({ windowMs: 1000, max: 2, maxKeys: 2, now: () => t });
+    rl.check("a"); t = 1; rl.check("a");
+    t = 500; rl.check("b"); t = 501; rl.check("b");
+    t = 600;
+    expect(rl.check("c")).toBe(false);
+    t = 1000.5; // der ältere Treffer von "a" ist abgelaufen, "a" hält nur noch einen
+    expect(rl.check("c")).toBe(true);
+    expect(rl.check("b")).toBe(false);
+  });
+
+  it("ein voll gesperrter Speicher macht jede weitere Flut billig", () => {
+    let t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 1, maxKeys: 5_000, now: () => t });
+    for (let i = 0; i < 5_000; i++) { rl.check(`s${i}`); rl.check(`s${i}`); }
+    const start = performance.now();
+    for (let i = 0; i < 20_000; i++) { t += 0.001; expect(rl.check(`flut${i}`)).toBe(false); }
+    // Ohne Merker wären das 20 000 Durchläufe über 5 000 Einträge.
+    expect(performance.now() - start).toBeLessThan(2_000);
+    expect(rl.schluesselAnzahl).toBe(5_000);
+  });
+
+  it("auch ein GEMISCHT belegter Speicher (vorn Sperren, hinten offen) kostet je neuem Schlüssel keinen Durchlauf", () => {
+    let t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 2, maxKeys: 10_000, now: () => t });
+    for (let i = 0; i < 9_999; i++) { rl.check(`s${i}`); rl.check(`s${i}`); }
+    rl.check("offen");
+    const start = performance.now();
+    for (let i = 0; i < 50_000; i++) { t += 0.001; if (!rl.check(`flut${i}`)) throw new Error(`flut${i} abgewiesen`); }
+    // In EINER Map wären das 50 000 Durchläufe an 9 999 Sperren vorbei.
+    expect(performance.now() - start).toBeLessThan(2_000);
+    expect(rl.schluesselAnzahl).toBe(10_000);
+    expect(rl.check("s0")).toBe(false);
+  });
+
+  it("speichert einen überlangen Schlüssel nicht im Wortlaut, zählt ihn aber weiter getrennt", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 1000, max: 1, now: () => t });
+    const lang = "A".repeat(1024 * 1024);
+    expect(rl.check(lang)).toBe(true);
+    expect(rl.check(lang)).toBe(false);
+    expect(rl.check(lang + "B")).toBe(true);
+    expect(rl.schluesselLaengeMax).toBeLessThanOrEqual(64);
+  });
+
+  it("check mit nurVorhandene bucht auf bestehende Schlüssel, legt aber keinen neuen an", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 1000, max: 2, now: () => t });
+    expect(rl.check("neu", true)).toBe(true);
+    expect(rl.schluesselAnzahl).toBe(0);
+    rl.check("da");
+    expect(rl.check("da", true)).toBe(true);
+    expect(rl.check("da", true)).toBe(false);
+    expect(rl.check("da")).toBe(false);
+  });
+
+  it("istGesperrt fragt ab, ohne zu buchen oder einen Eintrag anzulegen", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 1000, max: 2, now: () => t });
+    expect(rl.istGesperrt("a")).toBe(false);
+    expect(rl.schluesselAnzahl).toBe(0);
+    rl.check("a");
+    expect(rl.istGesperrt("a")).toBe(false);
+    rl.check("a");
+    expect(rl.istGesperrt("a")).toBe(true);
+    expect(rl.istGesperrt("a")).toBe(true);
   });
 });
 
