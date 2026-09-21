@@ -286,7 +286,7 @@ services:
     # Neustartschleife laufen. Das ist LAUT (`docker compose ps`) und damit die richtige
     # Haelfte des Tauschs — die Alternative waere ein ZWEITES eigenes Image mit allem,
     # was daran haengt: eigener Build-Job, eigene Digest-Kette, eigener Rollout-Pfad.
-    image: ${SUITE_BACKUP_IMAGE:-alpine:3.22}
+    image: ${SUITE_BACKUP_IMAGE:-alpine:3.24}
     restart: unless-stopped
     # Reicht die .env durch — genau wie bei `suite` und aus demselben Grund: das Ziel
     # (`BACKUP_RCLONE_ZIEL`), die rclone-Zugangsdaten (`RCLONE_CONFIG_*`) und die
