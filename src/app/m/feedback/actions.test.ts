@@ -20,6 +20,7 @@ import {
   setGroupMembers,
   upsertKnownUser,
   insertResponse,
+  insertUserGroup,
   setSurveyStatus,
 } from "./_db/queries";
 import {
@@ -611,11 +612,11 @@ describe("releaseDeviceAction: leerer Bogen für die nächste Person", () => {
 /**
  * Ein angemeldeter Viewer, der Gruppenleitung EINER Gruppe ist: der Claim
  * `fachgruppen` trägt den Slug, `memberGroupIdsFor` löst ihn gegen `groups.slug`
- * auf. Kein Suite-Admin — der Zugang hängt damit an derselben Auflösung, die die
- * Oberfläche benutzt.
+ * auf. Dazu die Zugangsgruppe des Moduls — ohne sie ist die Zuordnung seit DRK-290
+ * kein Zugang (vorher stand hier `groups: []`, und genau das war die Lücke).
  */
 function alsGruppenleitung(slug: string): void {
-  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: [], fachgruppen: [slug] } });
+  authMock.mockResolvedValue({ user: { id: "leitung-1", groups: ["da-feedback-gl"], fachgruppen: [slug] } });
 }
 
 /** Gruppe + Abend (`daysAgo` Tage zurück) + Umfrage im Zustand `draft`. */
@@ -2122,4 +2123,188 @@ it("audit keeps a real feedback submission anonymous even inside an authenticate
   await withAuditContext({ actor: { kind: "user", id: "must-not-leak" }, correlationId: "12345678-1234-1234-1234-123456789012" }, () => submitResponseAction(token, submission()));
   const rows = sqlite.prepare("SELECT actor, correlation_id, object_ref FROM audit_outbox WHERE object_type = 'responses'").all();
   expect(rows).toEqual([{ actor: '{"kind":"anonymous"}', correlation_id: null, object_ref: null }]);
+});
+
+/*
+ * DRK-290: DER MODULZUGANG GILT AUCH AN DEN DIREKTEN SCHNITTSTELLEN.
+ *
+ * Die Layouts verlangen die Zugangs- oder Admin-Gruppe des Moduls; eine Server
+ * Action läuft aber ohne Layout. Vorher genügte ihr die Objektzuordnung allein —
+ * eine ehemalige Gruppenleitung mit entzogener Modulgruppe, aber stehen
+ * gebliebener `user_groups`-Zeile (oder weiter passendem `fachgruppen`-Claim)
+ * konnte ihre alte Gruppe weiter ändern. Eine nachgelagerte Layout-404 schützt
+ * dabei nichts: sie käme NACH der Mutation.
+ *
+ * Die Matrix nennt jede Action, die `guardGroup` ruft — zwölf, nicht die acht
+ * aus dem Befund: `planEveningsAction`, `freigebenAction`, `absagenAction` und
+ * `wiederAnsetzenAction` kamen mit DRK-426 dazu und laufen durch dieselbe Guard.
+ */
+describe("Gruppen-Actions verlangen den Modulzugang vor der Objektzuordnung (DRK-290)", () => {
+  type Actions = Awaited<ReturnType<typeof loadActions>>;
+  type Lage = {
+    groupId: number;
+    heldId: number;
+    draftSurveyId: number;
+    plannedId: number;
+    cancelledId: number;
+    activeSurveyId: number;
+  };
+
+  /** Eine Gruppe mit je einem Abend in jedem Zustand, den eine Action braucht. */
+  function seedLage(): Lage {
+    const { group, survey: aktiv } = seedActiveSurvey("bereitschaft", "abc12");
+    const gestern = new Date(todayMidnightUtc().getTime() - 86400_000);
+    const held = insertEvening(db, {
+      groupId: group.id, date: gestern, topic: null, notes: null,
+      participantCount: null, createdAt: new Date(),
+    });
+    const draft = insertSurvey(db, {
+      eveningId: held.id, questions: JSON.stringify(STANDARD_QUESTIONS),
+      closeAfterHours: 240, createdAt: new Date(),
+    });
+    const heute = todayMidnightUtc();
+    const planned = insertEvening(db, {
+      groupId: group.id, date: heute, topic: null,
+      notes: null, participantCount: null, status: "planned", createdAt: new Date(),
+    });
+    const cancelled = insertEvening(db, {
+      groupId: group.id, date: new Date(heute.getTime() + 14 * 86400_000), topic: null,
+      notes: null, participantCount: null, status: "cancelled", createdAt: new Date(),
+    });
+    return {
+      groupId: group.id, heldId: held.id, draftSurveyId: draft.id,
+      plannedId: planned.id, cancelledId: cancelled.id, activeSurveyId: aktiv.id,
+    };
+  }
+
+  function form(felder: Record<string, string | number>): FormData {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(felder)) f.set(k, String(v));
+    return f;
+  }
+
+  const LEER = { ok: false } as never;
+  const AUFRUFE: Record<string, (a: Actions, l: Lage) => Promise<unknown>> = {
+    updateGroupAction: (a, l) =>
+      a.updateGroupAction(LEER, form({ id: l.groupId, name: "Übernommen", closeAfterHours: 72 })),
+    regenerateSecretAction: (a, l) => a.regenerateSecretAction(form({ id: l.groupId })),
+    createEveningAction: (a, l) =>
+      a.createEveningAction(form({ groupId: l.groupId, date: "2026-10-01", topic: "Neu" })),
+    updateEveningAction: (a, l) => a.updateEveningAction(form({ id: l.heldId, topic: "Geändert" })),
+    deleteEveningAction: (a, l) => a.deleteEveningAction(form({ id: l.heldId })),
+    activateSurveyAction: (a, l) => a.activateSurveyAction(form({ id: l.draftSurveyId })),
+    startFeedbackAction: (a, l) =>
+      a.startFeedbackAction(LEER, form({ groupId: l.groupId, date: "2026-09-20", topic: "Start" })),
+    beendeFeedbackAction: (a, l) => a.beendeFeedbackAction(form({ surveyId: l.activeSurveyId })),
+    planEveningsAction: (a, l) =>
+      a.planEveningsAction(form({ groupId: l.groupId, date: "2026-12-01", topic: "Plan" })),
+    freigebenAction: (a, l) => a.freigebenAction(form({ eveningId: l.plannedId })),
+    absagenAction: (a, l) => a.absagenAction(form({ eveningId: l.plannedId })),
+    wiederAnsetzenAction: (a, l) => a.wiederAnsetzenAction(form({ eveningId: l.cancelledId })),
+  };
+
+  /** Alles, was eine Gruppen-Action ändern könnte — vorher und nachher gleich. */
+  function stand(): unknown {
+    return ["groups", "evenings", "surveys", "responses", "user_groups"].map((t) =>
+      sqlite.prepare(`SELECT * FROM ${t} ORDER BY 1`).all(),
+    );
+  }
+
+  function alsViewer(groups: string[], fachgruppen: string[]): void {
+    authMock.mockResolvedValue({ user: { id: "leitung-1", groups, fachgruppen } });
+  }
+
+  for (const [name, aufruf] of Object.entries(AUFRUFE)) {
+    describe(name, () => {
+      it("NEGATIV: groups=[] mit lokaler Zuordnung und leerem Claim — Forbidden, nichts geändert", async () => {
+        const actions = await loadActions();
+        const lage = seedLage();
+        insertUserGroup(db, "leitung-1", lage.groupId);
+        alsViewer([], []);
+        const vorher = stand();
+
+        await expect(aufruf(actions, lage)).rejects.toThrow("Forbidden");
+
+        expect(stand()).toEqual(vorher);
+        expect(revalidatePathMock).not.toHaveBeenCalled();
+      });
+
+      it("NEGATIV: groups=[] mit passendem fachgruppen-Claim — Forbidden, nichts geändert", async () => {
+        const actions = await loadActions();
+        const lage = seedLage();
+        alsViewer([], ["bereitschaft"]);
+        const vorher = stand();
+
+        await expect(aufruf(actions, lage)).rejects.toThrow("Forbidden");
+
+        expect(stand()).toEqual(vorher);
+        expect(revalidatePathMock).not.toHaveBeenCalled();
+      });
+
+      it("NEGATIV: Zugangsgruppe ohne Objektzuordnung — Forbidden", async () => {
+        const actions = await loadActions();
+        const lage = seedLage();
+        alsViewer(["da-feedback-gl"], []);
+        const vorher = stand();
+
+        await expect(aufruf(actions, lage)).rejects.toThrow("Forbidden");
+
+        expect(stand()).toEqual(vorher);
+      });
+
+      it("POSITIV: Zugangsgruppe plus lokale Zuordnung — die Action schreibt", async () => {
+        const actions = await loadActions();
+        const lage = seedLage();
+        insertUserGroup(db, "leitung-1", lage.groupId);
+        alsViewer(["da-feedback-gl"], []);
+        const vorher = stand();
+
+        await aufruf(actions, lage);
+
+        expect(stand()).not.toEqual(vorher);
+      });
+
+      it("POSITIV: Zugangsgruppe plus passender fachgruppen-Claim — die Action schreibt", async () => {
+        const actions = await loadActions();
+        const lage = seedLage();
+        alsViewer(["da-feedback-gl"], ["bereitschaft"]);
+        const vorher = stand();
+
+        await aufruf(actions, lage);
+
+        expect(stand()).not.toEqual(vorher);
+      });
+
+      it("POSITIV: Feedback-Admin ohne Zuordnung — die Action schreibt", async () => {
+        const actions = await loadActions();
+        const lage = seedLage();
+        alsViewer(["da-feedback-admin"], []);
+        const vorher = stand();
+
+        await aufruf(actions, lage);
+
+        expect(stand()).not.toEqual(vorher);
+      });
+    });
+  }
+
+  describe("umbenannte SSO-Gruppen (SUITE_ACCESS_GROUP_FEEDBACK)", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    it("die konfigurierte Zugangsgruppe trägt, die Vorgabegruppe nicht mehr", async () => {
+      vi.stubEnv("SUITE_ACCESS_GROUP_FEEDBACK", "gruppenleiter,da_feedback_admin");
+      vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK", "da_feedback_admin");
+      const actions = await loadActions();
+      const lage = seedLage();
+      insertUserGroup(db, "leitung-1", lage.groupId);
+
+      alsViewer(["da-feedback-gl"], []);
+      await expect(AUFRUFE.regenerateSecretAction(actions, lage)).rejects.toThrow("Forbidden");
+
+      alsViewer(["gruppenleiter"], []);
+      const vorher = stand();
+      await AUFRUFE.regenerateSecretAction(actions, lage);
+      expect(stand()).not.toEqual(vorher);
+    });
+  });
 });

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { getModule, requiredGroupsFor } from "@/core/registry";
 import { isModuleAdmin, suiteAdminGroup } from "@/core/groups";
-import { isFeedbackAdmin, assertGroupAccess, accessibleGroupFilter } from "./access";
+import {
+  isFeedbackAdmin,
+  assertGroupAccess,
+  accessibleGroupFilter,
+  hatFeedbackVerwaltungszugang,
+} from "./access";
 
 const admin = { sub: "a", groups: ["da-feedback-admin"], fachgruppen: [] };
 const gl = { sub: "g", groups: ["da-feedback-gl"], fachgruppen: [] };
@@ -122,5 +127,61 @@ describe("Zugang und Admin-Recht bei umbenannten SSO-Gruppen", () => {
     expect(erlaubt).not.toContain("da-feedback-gl");
     expect(gl.groups.some((g) => erlaubt.includes(g))).toBe(false);
     expect(isFeedbackAdmin(admin)).toBe(false);
+  });
+});
+
+/*
+ * DRK-290: DIE OBJEKTZUORDNUNG ALLEIN IST KEIN ZUGANG.
+ *
+ * `memberGroupIds` stammt aus `user_groups` ∪ aufgelöstem `fachgruppen`-Claim.
+ * Beides überlebt einen Entzug der Modulgruppe im IdP — die lokale Zeile löscht
+ * niemand, der Claim ist ein anderes Attribut. Vorher genügte die Zuordnung
+ * allein; eine ehemalige Gruppenleitung kam über einen Export-Link oder eine
+ * Server Action (beide ohne Layout) weiter an ihre alte Gruppe.
+ */
+describe("hatFeedbackVerwaltungszugang — das eine Modulprädikat", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("Zugangsgruppe und Admin-Gruppe tragen, sonst nichts", () => {
+    expect(hatFeedbackVerwaltungszugang(gl)).toBe(true);
+    expect(hatFeedbackVerwaltungszugang(admin)).toBe(true);
+    expect(hatFeedbackVerwaltungszugang({ sub: "x", groups: [], fachgruppen: ["sanitaet"] })).toBe(false);
+    expect(hatFeedbackVerwaltungszugang(null)).toBe(false);
+  });
+
+  it("der Suite-Admin allein trägt auch den Zugang nicht", () => {
+    const betreiber = { sub: "b", groups: [suiteAdminGroup()], fachgruppen: [] };
+    expect(hatFeedbackVerwaltungszugang(betreiber)).toBe(false);
+  });
+
+  it("liest SUITE_ACCESS_GROUP_FEEDBACK, nicht das Registry-Feld", () => {
+    vi.stubEnv("SUITE_ACCESS_GROUP_FEEDBACK", "gruppenleiter");
+    vi.stubEnv("SUITE_ADMIN_GROUP_FEEDBACK", "da_feedback_admin");
+    expect(hatFeedbackVerwaltungszugang({ sub: "n", groups: ["gruppenleiter"], fachgruppen: [] })).toBe(true);
+    expect(hatFeedbackVerwaltungszugang(gl)).toBe(false);
+    // Die Admin-Gruppe steht NICHT in der Zugangsliste und trägt trotzdem.
+    expect(hatFeedbackVerwaltungszugang({ sub: "m", groups: ["da_feedback_admin"], fachgruppen: [] })).toBe(true);
+  });
+});
+
+describe("assertGroupAccess verlangt den Modulzugang vor der Zuordnung (DRK-290)", () => {
+  const ehemalig = { sub: "e", groups: [], fachgruppen: [] };
+  const nurClaim = { sub: "c", groups: [], fachgruppen: ["bereitschaft"] };
+
+  it("NEGATIV: groups=[] mit lokaler Zuordnung wird abgewiesen", () => {
+    expect(() => assertGroupAccess(ehemalig, 7, [7])).toThrow("Forbidden");
+  });
+
+  it("NEGATIV: groups=[] mit aufgelöstem Claim wird abgewiesen", () => {
+    expect(() => assertGroupAccess(nurClaim, 7, [7])).toThrow("Forbidden");
+  });
+
+  it("die Gruppenliste bleibt ohne Modulzugang leer, auch mit Zuordnung", () => {
+    expect(accessibleGroupFilter(ehemalig, [7, 9])).toEqual([]);
+  });
+
+  it("POSITIV: Zugangsgruppe plus Zuordnung erlaubt, Admin auch ohne", () => {
+    expect(() => assertGroupAccess(gl, 7, [7])).not.toThrow();
+    expect(() => assertGroupAccess(admin, 7, [])).not.toThrow();
   });
 });
