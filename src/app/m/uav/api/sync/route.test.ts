@@ -122,3 +122,51 @@ it("audit attributes a real sync write to the server-resolved participant", asyn
   expect(JSON.stringify(rows)).not.toContain(code);
   sqlite.close();
 });
+
+/**
+ * DRK-285 über den echten Handler: B meldet sich mit dem eigenen Code an und
+ * schickt die ID einer Durchführung von A. Der Handler darf weder As Zeile
+ * ändern noch mit 200 quittieren.
+ */
+describe("POST /api/sync — fremde Execution-ID (DRK-285)", () => {
+  async function anmelden(loginCode: string): Promise<string> {
+    const { POST } = await import("../anmeldung/route");
+    const res = await POST(new Request("http://x/api/anmeldung", {
+      method: "POST", headers: { host: HOST, "content-type": "application/json" }, body: JSON.stringify({ code: loginCode }),
+    }));
+    return res.headers.get("set-cookie")!.split(";")[0];
+  }
+
+  it("weist die fremde ID mit 409 ab, nennt sie, lässt A bytegleich und wendet vom Batch nichts an", async () => {
+    const { getDb } = await import("../../_db/client");
+    const q = await import("../../_lib/queries");
+    const { openModuleDatabase } = await import("@/core/db");
+    const bob = q.teilnehmerAnlegen(getDb(), "Bob", null);
+    const { POST } = await import("./route");
+    const cookieA = await anmelden(code);
+    const cookieB = await anmelden(bob.loginCode);
+    const eintrag = { id: "a-exec", taskId: "1-1", datum: "2026-09-06", drohnensteuerer: "Ada", luftraumbeobachter: "Bea" };
+    expect((await POST(post({ since: null, executions: [eintrag], taskStatus: [] }, cookieA))).status).toBe(200);
+
+    const sqlite = openModuleDatabase(`${DIR}/uav.db`);
+    const zeile = () => sqlite.prepare("SELECT * FROM executions WHERE id = 'a-exec'").get();
+    const vorher = zeile();
+
+    const res = await POST(post({
+      since: null,
+      executions: [{ ...eintrag, id: "b-exec" }, { ...eintrag, deletedAt: "2026-09-07T00:00:00.000Z", drohnensteuerer: "Mallory" }],
+      taskStatus: [{ taskId: "1-1", zielanzahl: 9, nichtAnwendbar: false, updatedAt: "2026-09-07T00:00:00.000Z" }],
+    }, cookieB));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: { code: "fremde_durchfuehrung", message: expect.any(String), ids: ["a-exec"] } });
+    expect(zeile()).toEqual(vorher);
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM executions WHERE participant_id = ?").get(bob.id)).toEqual({ n: 0 });
+    expect(sqlite.prepare("SELECT COUNT(*) AS n FROM task_status WHERE participant_id = ?").get(bob.id)).toEqual({ n: 0 });
+
+    // Derselbe Batch ohne die fremde ID geht durch — der Client kann sich also erholen.
+    const retry = await POST(post({ since: null, executions: [{ ...eintrag, id: "b-exec" }], taskStatus: [] }, cookieB));
+    expect(retry.status).toBe(200);
+    expect((await retry.json()).executions.map((e: { id: string }) => e.id)).toEqual(["b-exec"]);
+    sqlite.close();
+  });
+});
