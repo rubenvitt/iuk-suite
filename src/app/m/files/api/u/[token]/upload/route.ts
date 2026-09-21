@@ -18,12 +18,16 @@ import { istSchreibbareKategorie } from "../../../../_lib/kategorien";
 import { MIME_PRAEFIX_BYTES, pruefeInhaltstyp } from "../../../../_lib/mime";
 import {
   AblageNichtSchreibbar,
+  BereitsAbgeschlossen,
+  BlobFehlt,
   GroesseUeberschritten,
   KeinPlatz,
+  SchreibbesitzBelegt,
   abschliesse,
   fortschritt,
   kopfBytes,
   loesche,
+  mitSchreibbesitz,
   schreibeStrom,
   type BlobZiel,
 } from "../../../../_lib/storage";
@@ -446,6 +450,52 @@ async function chunkWeg(anfrage: Request, link: Link, jetzt: Date): Promise<Resp
   // dastehen und nicht als Zufall der Zeilenreihenfolge gelesen werden.
   const g = grenzen();
 
+  // DER SCHREIBBESITZ UMSCHLIESST ALLES, was die Datei beruehrt (DRK-289):
+  // Offen-Pruefung, Offset, Schreiben, Typpruefung, Abschluss UND die
+  // Fehlerbehandlung. Ohne ihn passierten zwei ueberlappende Folgeanfragen
+  // beide die Offset-Pruefung; die eine hielt ihren Deskriptor ueber einen
+  // verzoegerten Rumpf offen, die andere schloss ab, und nach dem sauberen Scan
+  // wuchs der freigegebene Blob weiter. Die Fehlerbehandlung liegt INNEN, weil
+  // ihr `verwirf` sonst die Zwischendatei einer Folgeanfrage mitnaehme, die den
+  // Besitz schon uebernommen hat.
+  try {
+    return await mitSchreibbesitz(ziel, async () => {
+      // Die Offen-Pruefung ERNEUT, jetzt unter dem Besitz: `hole` oben lief
+      // davor, und dazwischen darf eine andere Anfrage abgeschlossen haben. Ohne
+      // diese Zeile begaenne eine Folgeanfrage mit `ab=0` eine neue
+      // Zwischendatei neben dem schon geprueften Blob.
+      if (id !== null) {
+        const nochOffen = hole(id, tokenId);
+        if (nochOffen instanceof Response) return nochOffen;
+      }
+      return await byteWeg(anfrage, suche, ziel, zeile, tokenId, ab, ende, jetzt, link, g);
+    });
+  } catch (grund) {
+    if (grund instanceof SchreibbesitzBelegt) {
+      // Dieselbe Antwort wie bei EEXIST unten: der Client uebernimmt den Stand
+      // und setzt fort, sobald die laufende Anfrage durch ist.
+      const stand = await fortschritt(ziel).catch(() => 0);
+      return fehler(409, "offset", "Für diese Abgabe läuft bereits eine Übertragung.", {
+        erwartetesAb: stand,
+      });
+    }
+    throw grund;
+  }
+}
+
+/** Der Byte-Weg einer Anfrage — ausschliesslich im Schreibbesitz aufgerufen. */
+async function byteWeg(
+  anfrage: Request,
+  suche: URLSearchParams,
+  ziel: BlobZiel,
+  zeile: Zeile,
+  tokenId: string,
+  ab: number,
+  ende: boolean,
+  jetzt: Date,
+  link: Link,
+  g: ReturnType<typeof grenzen>,
+): Promise<Response> {
   // DIE ENGERE DER BEIDEN GRENZEN begrenzt den Schreibstrom — und welche das ist,
   // entscheidet auch den Namen der Ablehnung. `schreibeStrom` zaehlt beim
   // Anhaengen die schon liegenden Bytes mit, die Schranke gilt also fuer die
@@ -670,7 +720,7 @@ async function schliesseAb(
     return fehler(429, "kontingent", KONTINGENT_ERSCHOEPFT);
   }
 
-  getDb()
+  const abgeschlossen = getDb()
     .update(inboxFiles)
     .set({
       size: endgueltig,
@@ -680,8 +730,17 @@ async function schliesseAb(
       mimeType: befund.typ,
       bytesVollstaendigAt: jetzt,
     })
-    .where(eq(inboxFiles.id, zeile.id))
+    // `IS NULL` als Vorbehalt (DRK-289): eine Zeile wird genau EINMAL
+    // abgeschlossen, und eine schon abgeschlossene behaelt ihre Groesse —
+    // gegen genau diese Groesse prueft jeder Leseweg vor der Auslieferung.
+    .where(and(eq(inboxFiles.id, zeile.id), isNull(inboxFiles.bytesVollstaendigAt)))
     .run();
+  if (abgeschlossen.changes !== 1) {
+    // Unter dem Schreibbesitz nur erreichbar, wenn die Zeile inzwischen weg ist
+    // (Verwaltung oder Aufraeum-Lauf). Der Blob hat dann keine Zeile mehr.
+    await raeumeBytesWeg(ziel);
+    return fehler(404, "unbekannt", "Diese Abgabe ist nicht (mehr) offen.");
+  }
 
   // Erst JETZT ist die Zeile Teil der Warteschlange (`bytes_vollstaendig_at IS
   // NOT NULL`); dieser Aufruf zieht sie nur vor den naechsten Takt und tut ohne
@@ -724,6 +783,20 @@ async function aufSchreibfehler(
           "zu-gross",
           `Die Datei ist größer als erlaubt (Grenze: ${maxDateiBytes} Bytes).`,
         );
+  }
+
+  if (grund instanceof BlobFehlt) {
+    // Die Zwischendatei ist unter dem laufenden Vorgang verschwunden — die
+    // Verwaltung hat die offene Abgabe entfernt. Kein 500: die Abgabe ist weg.
+    return fehler(404, "unbekannt", "Diese Abgabe ist nicht (mehr) offen.");
+  }
+
+  if (grund instanceof BereitsAbgeschlossen) {
+    // Die Zeile ist offen, der Blob liegt aber schon da — ein Abschluss, der
+    // zwischen `rename` und Zeilenupdate abbrach. Dieser Blob ist nie geprueft
+    // worden, und ersetzt wird er nicht (DRK-289): die Abgabe ist verloren.
+    await verwirf(ziel, inboxFileId);
+    return fehler(404, "unbekannt", "Diese Abgabe ist nicht (mehr) offen.");
   }
 
   if (grund instanceof KeinPlatz) {

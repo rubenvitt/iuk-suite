@@ -185,7 +185,7 @@ const STUNDEN_PRO_TAG = 24;
 
 /**
  * Die FORM einer Share-ID: `nanoid(10)`. Dieselbe wie `ID_MUSTER` in
- * `_lib/storage.ts:26` und bewusst eine zweite Kopie — dort ist sie privat, weil
+ * `_lib/storage.ts` (`ID_MUSTER`) und bewusst eine zweite Kopie — dort ist sie privat, weil
  * das PRUEFEN von IDs Sache der Ablage ist, und ein Export nur fuer diese Datei
  * machte aus einem strukturellen Guard eine geteilte Konstante. Damit die Kopie
  * nicht auseinanderlaeuft, vergleicht `aufraeumen.test.ts` beide Literale im
@@ -193,8 +193,8 @@ const STUNDEN_PRO_TAG = 24;
  *
  * WARUM DIE FORM UEBERHAUPT ZAEHLT: in der Ablagewurzel liegen neben den
  * Share-Verzeichnissen planmaessig Eintraege, die keine `shares`-Zeile haben und
- * nie eine bekommen — `inbox/` (das anonyme Postfach, `storage.ts:120-126`) und im
- * Fehlerfall eine liegen gebliebene `.ablage-probe` (`storage.ts:365`). „Kein
+ * nie eine bekommen — `inbox/` (das anonyme Postfach, `storage.ts`, `pfadFuer`) und im
+ * Fehlerfall eine liegen gebliebene `.ablage-probe` (`storage.ts`, `pruefeAblage`). „Kein
  * Share" allein machte daraus zwei dauerhafte Phantomeintraege im
  * Betreiber-Bericht, und wer ihn befolgt, loescht mit `inbox` das GANZE Postfach —
  * genau die Klasse, die §7.6 „der teuerste denkbare Fehler" nennt. Die

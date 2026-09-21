@@ -29,7 +29,7 @@ const IPV4_MAPPED_MARKER = 0xffff;
  * liefert `roh` ohne `cf-connecting-ip` den Sammelwert `"unknown"` —
  * `ipKuerzen("unknown")` ergibt `null`, weder `isIPv4` noch `isIPv6`
  * erkennen ihn. Auf dem APEX heisst das: die Auditspalten `client_ip_unbestaetigt`
- * (`src/app/m/files/_db/zaehler.ts:139`, `.../upload/route.ts:581`) werden
+ * (`src/app/m/files/_db/zaehler.ts:139`, `u/[token]/upload/route.ts`, `eroeffne`) werden
  * flaechendeckend leer, wo vorher (ueber `x-forwarded-for`) das Netz stand —
  * sichtbar als „—" (`shares/[id]/page.tsx`, Log-Tabelle). Auf MODUL-HOSTS (`qr`,
  * `feedback`, `files`, `lagerbuch`, `aufgaben`) ist die Lage schlimmer als

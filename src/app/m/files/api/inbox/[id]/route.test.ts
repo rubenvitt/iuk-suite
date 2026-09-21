@@ -122,7 +122,12 @@ async function legeInboxDatei(vorgabe: InboxVorgabe): Promise<void> {
     // Ueber die Ablage selbst, nicht ueber einen nachgebauten Pfad: das
     // Pfadschema ist die Zusage von `_lib/storage.ts`, und ein zweiter Pfad im
     // Test waere genau die Stelle, an der beide auseinanderlaufen.
-    const { schreibeStrom, abschliesse } = await import("@/app/m/files/_lib/storage");
+    // Beide nur im Schreibbesitz (DRK-289) — dieselbe Naht wie in den Upload-Wegen.
+    const ablage = await import("@/app/m/files/_lib/storage");
+    const schreibeStrom: typeof ablage.schreibeStrom = (z, q, o) =>
+      ablage.mitSchreibbesitz(z, () => ablage.schreibeStrom(z, q, o));
+    const abschliesse: typeof ablage.abschliesse = (z) =>
+      ablage.mitSchreibbesitz(z, () => ablage.abschliesse(z));
     const ziel = { art: "inbox", inboxFileId: vorgabe.id } as const;
     await schreibeStrom(ziel, alsStrom(inhalt), { maxBytes: 1_000_000 });
     await abschliesse(ziel);
@@ -299,23 +304,20 @@ describe("Punkt 3: der Erfolgsfall", () => {
     expect(Buffer.from(await res.arrayBuffer()).toString("utf8")).toBe("Zwölf Boxkämpfer");
   });
 
-  it("`Content-Length` kommt aus der GEMESSENEN Groesse, nicht aus der Spalte `size`", async () => {
-    // Ohne diese Abweichung sind beide Zahlen gleich und der Test koennte gar
-    // nicht sagen, welche gelesen wurde (§5.4).
-    const warnung = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("weicht der Blob von der geprüften Größe ab, geht KEIN Byte hinaus (DRK-289)", async () => {
+    // Bis DRK-289 lieferte dieser Weg die gemessene Groesse aus und warnte nur.
+    // Das war der letzte Schritt des Angriffs: ein nach dem sauberen Scan
+    // gewachsener Blob ging mit der Freigabe des kleineren hinaus.
+    const fehler = vi.spyOn(console, "error").mockImplementation(() => {});
     mitZugang();
     await legeInboxDatei({ id: "in00000001", inhalt: "abc", gemeldeteGroesse: 999 });
 
     const res = await rufeAuf("in00000001");
 
-    expect(res.headers.get("content-length")).toBe("3");
-    expect(Buffer.from(await res.arrayBuffer()).toString("utf8")).toBe("abc");
-    // §5.4: die Abweichung wird geloggt, sonst faellt sie nirgends auf.
-    expect(warnung).toHaveBeenCalled();
-    // Ueber ALLE Aufrufe, nicht ueber `calls[0]`: im selben Prozess kann eine
-    // fremde Warnung zuerst kommen, und der Test faende dann einen Defekt, der
-    // keiner ist.
-    expect(warnung.mock.calls.map((c) => String(c[0])).join("\n")).toContain("in00000001");
+    expect(res.status).toBe(409);
+    expect(res.headers.get("content-disposition")).toBeNull();
+    expect(await res.text()).toContain("verändert");
+    expect(fehler.mock.calls.map((c) => String(c[0])).join("\n")).toContain("in00000001");
   });
 
   it("kein `Accept-Ranges`, kein 206 — bewusst nicht ergaenzt (§7.7)", async () => {

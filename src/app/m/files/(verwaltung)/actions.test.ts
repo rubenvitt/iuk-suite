@@ -99,7 +99,19 @@ import {
 import { getDb } from "@/app/m/files/_db/client";
 import { downloadLogs, inboxFiles } from "@/app/m/files/_db/schema";
 import type { AvStatus } from "@/app/m/files/_lib/av";
-import { BlobFehlt, abschliesse, fortschritt, groesse, schreibeStrom } from "@/app/m/files/_lib/storage";
+import {
+  BlobFehlt,
+  abschliesse as abschliesseRoh,
+  fortschritt,
+  groesse,
+  mitSchreibbesitz,
+  schreibeStrom as schreibeStromRoh,
+} from "@/app/m/files/_lib/storage";
+
+// Beide nur im Schreibbesitz (DRK-289) — dieselbe Naht wie in den Upload-Wegen.
+const schreibeStrom: typeof schreibeStromRoh = (z, q, o) =>
+  mitSchreibbesitz(z, () => schreibeStromRoh(z, q, o));
+const abschliesse: typeof abschliesseRoh = (z) => mitSchreibbesitz(z, () => abschliesseRoh(z));
 
 const authMock = vi.mocked(auth);
 

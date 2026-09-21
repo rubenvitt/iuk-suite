@@ -581,7 +581,7 @@ describe("Boot-Haken der Module sind verdrahtet", () => {
    *
    * ⛔ UND DER NAHELIEGENDE GEGENVORSCHLAG IST GEMESSEN FALSCH: den Glob auf
    * `src/app/m/<modul>/_lib/<datei>.ts` zu weiten zoege `starteAvArbeiter`
-   * (`src/app/m/files/_lib/av.ts:505`) mit herein — die steht NICHT im Rumpf von
+   * (`src/app/m/files/_lib/av.ts`) mit herein — die steht NICHT im Rumpf von
    * `startBackgroundWork()`, sondern wird von `starteFilesHintergrund` gerufen
    * (`src/app/m/files/_lib/boot.ts:139`). Diese Klausel waere rot by construction.
    * Die Ausnahme faengt stattdessen Klausel (IIb) unten, ohne die Menge zu weiten.

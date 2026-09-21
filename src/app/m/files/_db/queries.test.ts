@@ -115,7 +115,12 @@ async function legeDatei(vorgabe: DateiVorgabe) {
     .run();
 
   if (vorgabe.mitBlob ?? vollstaendig) {
-    const { schreibeStrom, abschliesse } = await import("@/app/m/files/_lib/storage");
+    // Beide nur im Schreibbesitz (DRK-289) — dieselbe Naht wie in den Upload-Wegen.
+    const ablage = await import("@/app/m/files/_lib/storage");
+    const schreibeStrom: typeof ablage.schreibeStrom = (z, q, o) =>
+      ablage.mitSchreibbesitz(z, () => ablage.schreibeStrom(z, q, o));
+    const abschliesse: typeof ablage.abschliesse = (z) =>
+      ablage.mitSchreibbesitz(z, () => ablage.abschliesse(z));
     const ziel = { art: "share", shareId: vorgabe.shareId, fileId: vorgabe.id } as const;
     async function* quelle() {
       yield new Uint8Array(inhalt);

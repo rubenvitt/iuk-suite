@@ -71,8 +71,8 @@ vi.mock("@/app/m/files/_lib/storage", async (importOriginal) => {
   const { Readable: ReadableWert } = await import("node:stream");
   return {
     ...echt,
-    lieseStrom: async (ziel: Parameters<typeof echt.lieseStrom>[0]) => {
-      const ergebnis = await echt.lieseStrom(ziel);
+    lieseStrom: async (...args: Parameters<typeof echt.lieseStrom>) => {
+      const ergebnis = await echt.lieseStrom(...args);
       // Gezaehlt wird NACH dem echten Oeffnen, nicht davor: vorher stuenden bei
       // einem `Promise.all` ueber alle Eintraege drei Messungen gleichzeitig auf
       // null, und die Zusage „sequenziell" waere unbeobachtbar (gemessen).
@@ -220,8 +220,10 @@ async function legeDatei(vorgabe: {
     async function* quelle() {
       yield new Uint8Array(inhalt);
     }
-    await echt.schreibeStrom(ziel, quelle(), { maxBytes: 64 * 1024 * 1024 });
-    await echt.abschliesse(ziel);
+    await echt.mitSchreibbesitz(ziel, async () => {
+      await echt.schreibeStrom(ziel, quelle(), { maxBytes: 64 * 1024 * 1024 });
+      await echt.abschliesse(ziel);
+    });
   }
 }
 

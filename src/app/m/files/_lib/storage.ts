@@ -14,9 +14,9 @@
  * nicht `relPath`.
  */
 import { mkdir, open, readFile, rename, rmdir, stat, unlink } from "node:fs/promises";
-import { createReadStream } from "node:fs";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, join, resolve } from "node:path";
-import type { Readable } from "node:stream";
+import { Readable } from "node:stream";
 
 export type BlobZiel =
   | { art: "share"; shareId: string; fileId: string }
@@ -99,6 +99,118 @@ export class AblageNichtSchreibbar extends Error {
   constructor(botschaft: string, ursache?: unknown) {
     super(botschaft, { cause: ursache });
     this.name = "AblageNichtSchreibbar";
+  }
+}
+
+/**
+ * Ein zweiter Vorgang haelt die Datei gerade zum Schreiben (DRK-289). Der Aufrufer
+ * antwortet **409** — derselbe Weg wie ein falscher Offset, damit der Client nach
+ * dem Ende des laufenden Vorgangs mit dem gemeldeten Stand fortsetzt.
+ */
+export class SchreibbesitzBelegt extends Error {
+  constructor(botschaft: string) {
+    super(botschaft);
+    this.name = "SchreibbesitzBelegt";
+  }
+}
+
+/**
+ * Ein Schreibzugriff ausserhalb von `mitSchreibbesitz` — ein PROGRAMMFEHLER, kein
+ * Nutzerfehler. Er fliegt laut, damit ein dritter Schreibweg nicht still an der
+ * Exklusivitaet vorbeilaeuft (DRK-289).
+ */
+export class OhneSchreibbesitz extends Error {
+  constructor(botschaft: string) {
+    super(botschaft);
+    this.name = "OhneSchreibbesitz";
+  }
+}
+
+/** Das Ziel ist schon abgeschlossen; ein zweites `abschliesse` darf es nicht ersetzen. */
+export class BereitsAbgeschlossen extends Error {
+  constructor(botschaft: string) {
+    super(botschaft);
+    this.name = "BereitsAbgeschlossen";
+  }
+}
+
+/**
+ * Der Blob hat nicht die Groesse, die beim Abschluss gemessen und geprueft wurde
+ * (DRK-289). Ausgeliefert wird dann NICHTS: die Freigabe des Scanners gilt fuer
+ * genau die Bytes, die beim Abschluss dalagen, und eine andere Groesse ist eine
+ * andere Datei.
+ */
+export class GroesseAbweichend extends Error {
+  readonly erwartet: number;
+  readonly gemessen: number;
+  constructor(botschaft: string, erwartet: number, gemessen: number) {
+    super(botschaft);
+    this.name = "GroesseAbweichend";
+    this.erwartet = erwartet;
+    this.gemessen = gemessen;
+  }
+}
+
+/**
+ * DER SCHREIBBESITZ JE DATEI (DRK-289). Vorher gab es ihn nicht: zwei ueberlappende
+ * Folgeanfragen passierten beide die Offset-Pruefung, die eine hielt ihren
+ * `a`-Deskriptor ueber einen verzoegerten Rumpf offen, die andere schloss ab — und
+ * nach dem sauberen Scan haengte die erste Bytes an den FREIGEGEBENEN Blob an
+ * (gemessen 15 → 36 Byte). Ein `rename` schliesst keinen offenen Deskriptor.
+ *
+ * Gehalten wird er ueber den GANZEN Byte-Weg einer Anfrage: Offen-Pruefung,
+ * Offset-Pruefung, Schreiben, Typpruefung, Abschluss. Wer ihn nicht bekommt,
+ * wartet NICHT, sondern wird sofort abgewiesen — ein Warten liesse einen
+ * absichtlich langsamen Rumpf jede weitere Anfrage auf dieselbe Datei aufstauen.
+ *
+ * Zwei Formen von Zustand, und beide sind noetig:
+ * - Die MENGE der belegten Pfade ist prozessweit und liegt deshalb auf
+ *   `globalThis`: Next buendelt jeden Route Handler fuer sich, und eine zweite
+ *   Modulinstanz dieser Datei haette eine zweite, leere Menge — der Ausschluss
+ *   zwischen den Routen und dem Aufraeum-Lauf waere dann still wirkungslos.
+ * - Der BESITZ steht in einem `AsyncLocalStorage`: `schreibeStrom` und
+ *   `abschliesse` fragen nicht „haelt IRGENDWER die Datei?", sondern „haelt der
+ *   Aufrufer sie?". Ohne das bestuende ein zweiter Schreibweg die Pruefung genau
+ *   dann, wenn ein anderer die Datei gerade haelt — also im Wettlauf, gegen den
+ *   sie steht.
+ *
+ * GRENZE, benannt: der Ausschluss gilt innerhalb EINES Prozesses. Das ist die
+ * Betriebsform (ein Container, ein Node-Prozess, `compose.yaml` ohne
+ * `replicas:`); dieselbe Annahme traegt der AV-Arbeiter (`_lib/av.ts`).
+ */
+const BELEGT_SCHLUESSEL = Symbol.for("iuk.files.schreibbesitz");
+type MitBelegung = typeof globalThis & { [BELEGT_SCHLUESSEL]?: Set<string> };
+
+function belegtePfade(): Set<string> {
+  const g = globalThis as MitBelegung;
+  g[BELEGT_SCHLUESSEL] ??= new Set<string>();
+  return g[BELEGT_SCHLUESSEL];
+}
+
+const besitz = new AsyncLocalStorage<ReadonlySet<string>>();
+
+/**
+ * Fuehrt `arbeit` mit exklusivem Schreibbesitz an `ziel` aus. Belegt → sofort
+ * `SchreibbesitzBelegt`. Freigegeben wird in JEDEM Ausgang, auch bei einem Wurf.
+ */
+export async function mitSchreibbesitz<T>(ziel: BlobZiel, arbeit: () => Promise<T>): Promise<T> {
+  const pfad = pfadFuer(ziel);
+  const belegt = belegtePfade();
+  if (belegt.has(pfad)) {
+    throw new SchreibbesitzBelegt(`[files] ${benenne(ziel)} wird gerade beschrieben`);
+  }
+  belegt.add(pfad);
+  try {
+    const bisher = besitz.getStore() ?? new Set<string>();
+    return await besitz.run(new Set([...bisher, pfad]), arbeit);
+  } finally {
+    belegt.delete(pfad);
+  }
+}
+
+function verlangeBesitz(ziel: BlobZiel, pfad: string, was: string): void {
+  if (besitz.getStore()?.has(pfad) !== true) {
+    throw new OhneSchreibbesitz(`[files] ${was} fuer ${benenne(ziel)} ohne Schreibbesitz`);
   }
 }
 
@@ -206,7 +318,8 @@ async function laengeOderNull(pfad: string): Promise<number | null> {
  * gleichzeitige Uploads gleichen Namens → vier 200, ZWEI Dateien). `anhaengen: true` ist
  * ausschliesslich der FOLGEchunk; es oeffnet mit `a` und legte eine fehlende Zwischendatei
  * auch neu an, kann die Exklusivitaet also nicht tragen. Die Wache dagegen liegt beim
- * Aufrufer: `ab` gegen die aktuelle Laenge (`fortschritt`) pruefen und sonst 409 (§7.1).
+ * Aufrufer: `ab` gegen die aktuelle Laenge (`fortschritt`) pruefen und sonst 409 (§7.1) —
+ * und zwar IM Schreibbesitz (`mitSchreibbesitz`), ohne den diese Funktion laut abbricht.
  *
  * Liefert die **gemessene** Gesamtzahl der Bytes in der Zwischendatei; sie ist die Quelle
  * fuer `size`.
@@ -219,6 +332,7 @@ export async function schreibeStrom(
   const pfad = pfadFuer(ziel);
   const teil = `${pfad}${TEIL_SUFFIX}`;
   const eltern = dirname(pfad);
+  verlangeBesitz(ziel, pfad, "schreibeStrom");
 
   try {
     // In `core` legt der einzige `mkdirSync` das Verzeichnis einer DB-Datei an
@@ -281,13 +395,22 @@ export async function schreibeStrom(
  * Zwischendatei im selben Verzeichnis.
  *
  * Ohne Zwischendatei: `BlobFehlt` — es gibt nichts abzuschliessen.
+ *
+ * Nur im Schreibbesitz (DRK-289), und NIE ueber ein bestehendes Ziel: `rename`
+ * ersetzte einen bereits geprueften Blob still, waehrend seine Zeile ihren
+ * `av_status` behielte. Dass der Vergleich vor dem `rename` kein Wettlauf ist,
+ * traegt der Besitz — das Ziel entsteht ausschliesslich hier.
  */
 export async function abschliesse(ziel: BlobZiel): Promise<{ bytes: number }> {
   const pfad = pfadFuer(ziel);
   const teil = `${pfad}${TEIL_SUFFIX}`;
+  verlangeBesitz(ziel, pfad, "abschliesse");
 
   const bytes = await laengeOderNull(teil);
   if (bytes === null) throw new BlobFehlt(`[files] keine Zwischendatei fuer ${benenne(ziel)}`);
+  if ((await laengeOderNull(pfad)) !== null) {
+    throw new BereitsAbgeschlossen(`[files] ${benenne(ziel)} ist bereits abgeschlossen`);
+  }
 
   try {
     await rename(teil, pfad);
@@ -297,12 +420,55 @@ export async function abschliesse(ziel: BlobZiel): Promise<{ bytes: number }> {
   return { bytes };
 }
 
-/** Fehlende Datei → `BlobFehlt` (der Aufrufer antwortet 404, nicht 500). */
-export async function lieseStrom(ziel: BlobZiel): Promise<{ strom: Readable; bytes: number }> {
+/**
+ * Fehlende Datei → `BlobFehlt` (der Aufrufer antwortet 404, nicht 500).
+ *
+ * `erwarteteBytes` ist PFLICHT (DRK-289): es ist die beim Abschluss gemessene und
+ * so gepruefte Groesse aus der Zeile. Weicht der Blob davon ab, ist er nicht mehr
+ * die Datei, fuer die der Scanner gesprochen hat → `GroesseAbweichend`, und zwar
+ * VOR dem ersten Byte. Als Pflichtfeld sieht jeder Leseweg die Frage schon im
+ * Typ; ein Aufrufer ohne Groesse faellt in `pnpm typecheck` auf, nicht im Betrieb.
+ *
+ * Gelesen wird ueber EINEN Deskriptor, und die Groesse kommt aus `fstat` auf
+ * genau ihm — nicht aus einem `stat` auf den Pfad davor. Sonst laege zwischen
+ * Messung und Oeffnen ein Fenster, in dem ein Austausch des Pfades unbemerkt
+ * bliebe.
+ */
+export async function lieseStrom(
+  ziel: BlobZiel,
+  opts: { erwarteteBytes: number },
+): Promise<{ strom: Readable; bytes: number }> {
   const pfad = pfadFuer(ziel);
-  const bytes = await laengeOderNull(pfad);
-  if (bytes === null) throw new BlobFehlt(`[files] Blob fehlt: ${benenne(ziel)}`);
-  return { strom: createReadStream(pfad), bytes };
+  let griff;
+  try {
+    griff = await open(pfad, "r");
+  } catch (fehler) {
+    if (errnoCode(fehler) === "ENOENT") throw new BlobFehlt(`[files] Blob fehlt: ${benenne(ziel)}`);
+    throw uebersetze(fehler, pfad);
+  }
+  let bytes: number;
+  try {
+    bytes = (await griff.stat()).size;
+  } catch (fehler) {
+    await griff.close().catch(() => {});
+    throw uebersetze(fehler, pfad);
+  }
+  if (bytes !== opts.erwarteteBytes) {
+    await griff.close().catch(() => {});
+    throw new GroesseAbweichend(
+      `[files] ${benenne(ziel)}: erwartet ${opts.erwarteteBytes} Bytes, gemessen ${bytes}`,
+      opts.erwarteteBytes,
+      bytes,
+    );
+  }
+  // `end` begrenzt den Strom auf genau die gepruefte Laenge: selbst ein spaeter
+  // angehaengtes Byte ginge nicht mehr hinaus. `end` ist inklusiv, fuer null
+  // Bytes gibt es also keinen gueltigen Wert — dort ein leerer Strom.
+  if (bytes === 0) {
+    await griff.close().catch(() => {});
+    return { strom: Readable.from([]), bytes };
+  }
+  return { strom: griff.createReadStream({ start: 0, end: bytes - 1, autoClose: true }), bytes };
 }
 
 /** Fehlende Datei → `BlobFehlt`. */

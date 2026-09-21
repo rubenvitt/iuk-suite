@@ -49,7 +49,9 @@ const ENV_VORGABE: Record<string, string> = {
   FILES_MAX_ABLAUF_TAGE: "7",
 };
 
-const { grenzenUeberschreibung, storungAmSchreiben, storungAmAbschluss, auditDeniedMock } = vi.hoisted(() => ({
+const { grenzenUeberschreibung, storungAmSchreiben, storungAmAbschluss, auditDeniedMock, schreibBeobachtung } = vi.hoisted(() => ({
+  /** Wie oft ein Schreibstrom seinen Rumpf zu LESEN begann — also nach `open` (DRK-289). */
+  schreibBeobachtung: { lesend: 0 },
   grenzenUeberschreibung: { wert: null as Partial<Grenzen> | null },
   storungAmSchreiben: { art: null as null | "kein-platz" | "nicht-schreibbar" },
   storungAmAbschluss: { art: null as null | "kein-platz" },
@@ -94,7 +96,14 @@ vi.mock("../../../../_lib/storage", async (original) => {
   return {
     ...echt,
     schreibeStrom: async (...args: Parameters<typeof echt.schreibeStrom>) => {
-      const ergebnis = await echt.schreibeStrom(...args);
+      const [ziel, quelle, opts] = args;
+      // Der Generator-Rumpf laeuft erst beim ersten `next()` — und das ruft
+      // `schreibeStrom` erst, NACHDEM es die Zwischendatei geoeffnet hat.
+      const beobachtet = (async function* () {
+        schreibBeobachtung.lesend += 1;
+        yield* quelle;
+      })();
+      const ergebnis = await echt.schreibeStrom(ziel, beobachtet, opts);
       if (storungAmSchreiben.art === "kein-platz") {
         throw new echt.KeinPlatz("[files] kein Platz in der Ablage (Vorrichtung)");
       }
@@ -1120,5 +1129,158 @@ describe("POST /api/u/[token]/upload — T50 Punkte 4+6: der Altweg", () => {
     const { antwort } = await post({ token, host: "fremd.example" });
 
     expect(antwort.status).toBe(404);
+  });
+});
+
+// --- DRK-289: exklusiver Schreibbesitz je Datei --------------------------------
+
+/**
+ * Ein Rumpf, dessen Ende der TEST bestimmt — die Lage aus dem Befund: Anfrage A
+ * passiert Offen- und Offset-Pruefung, oeffnet die Zwischendatei und haelt ihren
+ * Rumpf offen, waehrend Anfrage B abschliessen will.
+ */
+function gehaltenerRumpf(erstes: Uint8Array | null): {
+  strom: ReadableStream<Uint8Array>;
+  weiter: (stueck: Uint8Array) => void;
+  ende: () => void;
+  brichAb: () => void;
+} {
+  let steuer!: ReadableStreamDefaultController<Uint8Array>;
+  const strom = new ReadableStream<Uint8Array>({
+    start(c) {
+      steuer = c;
+      if (erstes !== null) c.enqueue(erstes);
+    },
+  });
+  return {
+    strom,
+    weiter: (stueck) => steuer.enqueue(stueck),
+    ende: () => steuer.close(),
+    brichAb: () => steuer.error(new Error("Verbindung abgebrochen (Vorrichtung)")),
+  };
+}
+
+async function putStrom(token: string, frage: Frage, strom: ReadableStream<Uint8Array>): Promise<Response> {
+  const { PUT } = await import("./route");
+  const suche = new URLSearchParams();
+  for (const [name, wert] of Object.entries(frage)) {
+    if (wert !== undefined) suche.set(name, String(wert));
+  }
+  const anfrage = new Request(
+    `http://${INBOX_HOST}/m/files/api/u/${encodeURIComponent(token)}/upload?${suche.toString()}`,
+    {
+      method: "PUT",
+      headers: { "x-forwarded-host": INBOX_HOST, "cf-connecting-ip": neueIp() },
+      body: strom,
+      // Node verlangt fuer einen Strom-Rumpf die Halbduplex-Angabe.
+      duplex: "half",
+    } as RequestInit & { duplex: "half" },
+  );
+  return PUT(anfrage, { params: Promise.resolve({ token }) });
+}
+
+/** Wartet, bis A seine ersten Bytes wirklich in die Zwischendatei geschrieben hat. */
+async function warteAufZwischendatei(id: string, bytes: number): Promise<void> {
+  await vi.waitFor(() => {
+    expect(statSync(`${blobPfad(id)}.part`).size).toBe(bytes);
+  });
+}
+
+describe("PUT /api/u/[token]/upload — DRK-289: exklusiver Schreibbesitz", () => {
+  it("A hält den Append offen: B schließt NICHT ab, und es entsteht kein prüfbarer Blob", async () => {
+    const link = neuerLink();
+    const erst = await koerperVon(
+      await put({ token: link.token, koerper: PNG(7), frage: { ab: 0, name: "foto.png" } }),
+    );
+    expect(erst.empfangen).toBe(15);
+    const id = erst.id as string;
+
+    // A oeffnet die Zwischendatei und wartet auf seinen Rumpf, OHNE schon ein
+    // Byte geschrieben zu haben — der Offset bleibt also fuer B unveraendert.
+    const a = gehaltenerRumpf(null);
+    const vorher = schreibBeobachtung.lesend;
+    const antwortA = putStrom(link.token, { ab: 15, id }, a.strom);
+    await vi.waitFor(() => expect(schreibBeobachtung.lesend).toBe(vorher + 1));
+
+    // B: derselbe, noch unveraenderte Offset, `ende=1`, leerer Rumpf — genau
+    // der Ablauf aus dem Befund. Vorher: 200, `rename`, Zeile vollstaendig.
+    const b = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 15, id, ende: 1, typ: "image/png" },
+    });
+    expect(b.status).toBe(409);
+    expect((await koerperVon(b)).code).toBe("offset");
+    expect(existsSync(blobPfad(id))).toBe(false);
+    expect(inboxZeilen()[0]?.bytes_vollstaendig_at).toBeNull();
+    expect(reiheAvEinMock).not.toHaveBeenCalled();
+
+    // A schreibt weiter und endet OHNE `ende=1` — seine Bytes landen in der
+    // Zwischendatei, nicht in einem geprueften Blob.
+    a.weiter(new Uint8Array(21).fill(0x43));
+    a.ende();
+    const nachA = await koerperVon(await antwortA);
+    expect(nachA).toMatchObject({ empfangen: 36, fertig: false });
+
+    // Erst JETZT schliesst B ab — und die Zeile traegt exakt die Bytes, die
+    // danach vorliegen und gescannt werden.
+    const b2 = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 36, id, ende: 1, typ: "image/png" },
+    });
+    expect(b2.status).toBe(200);
+    expect(inboxZeilen()[0]?.size).toBe(36);
+    expect(statSync(blobPfad(id)).size).toBe(36);
+  });
+
+  it("nach dem Abschluss verändert weder eine alte noch eine neue Anfrage den Blob", async () => {
+    const link = neuerLink();
+    const erst = await koerperVon(
+      await put({ token: link.token, koerper: PNG(7), frage: { ab: 0, name: "foto.png" } }),
+    );
+    const id = erst.id as string;
+    const fertig = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 15, id, ende: 1, typ: "image/png" },
+    });
+    expect(fertig.status).toBe(200);
+
+    // Ein Neubeginn bei 0 (er oeffnete frueher mit `wx` eine NEUE
+    // Zwischendatei und ersetzte beim Abschluss den geprueften Blob) und ein
+    // Anhaengen an der alten Laenge — beide 404, der Blob bleibt, wie er ist.
+    for (const ab of [0, 15]) {
+      const spaet = await put({
+        token: link.token,
+        koerper: new Uint8Array(21).fill(0x44),
+        frage: { ab, id, ende: 1, typ: "image/png" },
+      });
+      expect(spaet.status).toBe(404);
+    }
+    expect(statSync(blobPfad(id)).size).toBe(15);
+    expect(existsSync(`${blobPfad(id)}.part`)).toBe(false);
+  });
+
+  it("gibt den Besitz frei, wenn A abbricht — B setzt am gemessenen Stand fort", async () => {
+    const link = neuerLink();
+    const erst = await koerperVon(
+      await put({ token: link.token, koerper: PNG(7), frage: { ab: 0, name: "foto.png" } }),
+    );
+    const id = erst.id as string;
+
+    const a = gehaltenerRumpf(Uint8Array.from([0x42]));
+    const antwortA = putStrom(link.token, { ab: 15, id }, a.strom);
+    await warteAufZwischendatei(id, 16);
+    a.brichAb();
+    await antwortA.catch(() => undefined);
+
+    const weiter = await put({
+      token: link.token,
+      koerper: new Uint8Array(),
+      frage: { ab: 16, id, ende: 1, typ: "image/png" },
+    });
+    expect(weiter.status).toBe(200);
+    expect(inboxZeilen()[0]?.size).toBe(16);
   });
 });

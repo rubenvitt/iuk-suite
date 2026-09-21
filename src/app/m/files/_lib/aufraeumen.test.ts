@@ -79,7 +79,7 @@ function inboxDatei(teil: Partial<InboxEingabe> & Pick<InboxEingabe, "id">): Inb
  * meist im Zusammenspiel (die Logzeile eines geloeschten Shares, die
  * unvollstaendige Datei IN einem geloeschten Share).
  *
- * Alle IDs sind zehnzeichig wie `nanoid(10)` (`_lib/storage.ts:26`) — mit
+ * Alle IDs sind zehnzeichig wie `nanoid(10)` (`_lib/storage.ts`, `ID_MUSTER`) — mit
  * kuerzeren IDs waere ein spaeterer Pfadbau im Test gruen und in Produktion
  * rot.
  */
@@ -400,7 +400,7 @@ describe("Regel 6: verwaiste Blobs werden BERICHTET, nicht geloescht", () => {
 
   it("meldet `inbox` und eine liegen gebliebene `.ablage-probe` NICHT", () => {
     // Beide liegen planmaessig in derselben Wurzel wie die Share-Verzeichnisse
-    // (`storage.ts:120-126` und `:365`) und bekommen NIE eine `shares`-Zeile.
+    // (`storage.ts`, `pfadFuer` und `pruefeAblage`) und bekommen NIE eine `shares`-Zeile.
     // Waeren sie im Bericht, stuenden dort zwei dauerhafte Phantomeintraege — und
     // wer den Bericht befolgt, loescht mit `inbox` das ganze anonyme Postfach.
     const plan = planeAufraeumen(lage());

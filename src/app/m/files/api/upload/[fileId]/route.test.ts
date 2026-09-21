@@ -76,6 +76,8 @@ const { steuerung } = vi.hoisted(() => ({
      */
     byteZaehlerVerschiebung: 0,
     reiheAvEin: vi.fn(),
+    /** Wie oft ein Schreibstrom seinen Rumpf zu LESEN begann — also nach `open` (DRK-289). */
+    lesend: 0,
   },
 }));
 
@@ -108,7 +110,14 @@ vi.mock("../../../_lib/storage", async (echt) => {
     schreibeStrom: async (...args: Parameters<typeof m.schreibeStrom>) => {
       const fehler = steuerung.schreibFehler;
       if (fehler !== null) throw fehler();
-      const ergebnis = await m.schreibeStrom(...args);
+      const [ziel, quelle, opts] = args;
+      // Der Generator-Rumpf laeuft erst beim ersten `next()` — und das ruft
+      // `schreibeStrom` erst, NACHDEM es die Zwischendatei geoeffnet hat.
+      const beobachtet = (async function* () {
+        steuerung.lesend += 1;
+        yield* quelle;
+      })();
+      const ergebnis = await m.schreibeStrom(ziel, beobachtet, opts);
       return { bytes: ergebnis.bytes + steuerung.byteZaehlerVerschiebung };
     },
   };
@@ -763,5 +772,66 @@ describe("Der Abbruch (DELETE)", () => {
     expect((await brichAb(DATEI_A)).status).toBe(204);
 
     expect((await holeShare())?.type).toBe("folder");
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("DRK-289: exklusiver Schreibbesitz auch auf dem Freigabeweg", () => {
+  /** Ein Rumpf, dessen Ende der Test bestimmt. */
+  function gehaltenerRumpf(): {
+    strom: ReadableStream<Uint8Array>;
+    weiter: (stueck: Uint8Array) => void;
+    ende: () => void;
+  } {
+    let steuer!: ReadableStreamDefaultController<Uint8Array>;
+    const strom = new ReadableStream<Uint8Array>({
+      start(c) {
+        steuer = c;
+      },
+    });
+    return { strom, weiter: (b) => steuer.enqueue(b), ende: () => steuer.close() };
+  }
+
+  async function putStrom(fileId: string, strom: ReadableStream<Uint8Array>, opt: PutOpt): Promise<Response> {
+    const { PUT } = await import("./route");
+    return PUT(
+      new Request(adresse(fileId, opt), {
+        method: "PUT",
+        body: strom,
+        headers: kopf(opt),
+        duplex: "half",
+      } as RequestInit & { duplex: "half" }),
+      { params: Promise.resolve({ fileId }) },
+    );
+  }
+
+  it("A hält den Append offen: B schließt nicht ab, und A kann den Blob danach nicht verändern", async () => {
+    await legeShare();
+    await legeDatei({ id: DATEI_A });
+    const kopfTeil = new Uint8Array([...PNG_KOPF, 1, 2, 3, 4, 5, 6, 7]);
+    expect((await put(DATEI_A, kopfTeil, { ab: 0 })).status).toBe(200);
+
+    const a = gehaltenerRumpf();
+    const vorher = steuerung.lesend;
+    const antwortA = putStrom(DATEI_A, a.strom, { ab: 15 });
+    await vi.waitFor(() => expect(steuerung.lesend).toBe(vorher + 1));
+
+    const b = await put(DATEI_A, new Uint8Array(), { ab: 15, ende: true, typ: "image/png" });
+    expect(b.status).toBe(409);
+    expect(existsSync(zielPfad(DATEI_A))).toBe(false);
+    expect((await holeDatei(DATEI_A))?.bytesVollstaendigAt).toBeNull();
+
+    // Auch der Abbruch wartet nicht auf A und nimmt dessen Zwischendatei nicht weg.
+    expect((await brichAb(DATEI_A)).status).toBe(409);
+    expect(existsSync(teilPfad(DATEI_A))).toBe(true);
+
+    a.weiter(new Uint8Array(21).fill(9));
+    a.ende();
+    expect((await antwortA).status).toBe(200);
+
+    const b2 = await put(DATEI_A, new Uint8Array(), { ab: 36, ende: true, typ: "image/png" });
+    expect(b2.status).toBe(200);
+    expect((await holeDatei(DATEI_A))?.size).toBe(36);
   });
 });

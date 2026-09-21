@@ -167,7 +167,7 @@ function nameZumToken(kanonisch: string): string | null {
  * nachlaessig: `filename*` gewinnt beim Empfaenger, und der roh uebernommene
  * Name lieferte dort eine ANDERE Datei als die, die `download` im Markup nennt
  * (`_ui/ZugangslinksListe.tsx`) — zwei Namen fuer eine Sache. §7.9 nennt genau
- * einen. Praezedenzfall im Modul: `api/inbox/[id]/route.ts:168`.
+ * einen. Praezedenzfall im Modul: `api/inbox/[id]/route.ts`, `dispositionKopfzeile`.
  *
  * `-qr.png` haengt NACH der Entschaerfung dran, wie `.zip` in
  * `archivDisposition`: der Punkt liegt ausserhalb von `[a-zA-Z0-9_-]` und wuerde
