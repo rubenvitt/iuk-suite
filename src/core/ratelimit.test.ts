@@ -132,6 +132,17 @@ describe("RateLimiter — Speicherrahmen (DRK-287)", () => {
     expect(rl.schluesselLaengeMax).toBeLessThanOrEqual(64);
   });
 
+  it("check mit nurVorhandene bucht auf bestehende Schlüssel, legt aber keinen neuen an", () => {
+    const t = 1000;
+    const rl = new RateLimiter({ windowMs: 1000, max: 2, now: () => t });
+    expect(rl.check("neu", true)).toBe(true);
+    expect(rl.schluesselAnzahl).toBe(0);
+    rl.check("da");
+    expect(rl.check("da", true)).toBe(true);
+    expect(rl.check("da", true)).toBe(false);
+    expect(rl.check("da")).toBe(false);
+  });
+
   it("istGesperrt fragt ab, ohne zu buchen oder einen Eintrag anzulegen", () => {
     const t = 1000;
     const rl = new RateLimiter({ windowMs: 1000, max: 2, now: () => t });

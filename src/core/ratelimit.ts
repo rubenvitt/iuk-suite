@@ -22,11 +22,11 @@ export class RateLimiter {
     this.now = opts.now ?? (() => Date.now());
     this.hits = new Schluesselspeicher(opts.maxKeys ?? RATELIMIT_MAX_SCHLUESSEL, opts.max, opts.windowMs); }
   /** Ist `key` gerade gesperrt? Fragt nur ab — bucht nichts und legt keinen Eintrag an. */ istGesperrt(key: string): boolean { return this.hits.istGesperrt(key, this.now() - this.windowMs); }
-  /** true = erlaubt, false = Limit erreicht (auch: Speicher voll und nur aktive Sperren darin). */
-  check(key: string): boolean {
+  /** true = erlaubt, false = Limit erreicht (auch: Speicher voll, nur Sperren). `nurVorhandene`: bucht, legt aber nichts neu an. */
+  check(key: string, nurVorhandene = false): boolean {
     const t = this.now();
     const cutoff = t - this.windowMs;
-    const recent = this.hits.lesen(key, cutoff); if (recent === null) return false;
+    const recent = this.hits.lesen(key, cutoff, nurVorhandene); if (recent === null) return false; if (recent === undefined) return true;
     if (recent.length >= this.max) {
       this.hits.schreiben(key, recent);
       return false;
@@ -187,10 +187,14 @@ class Schluesselspeicher {
     this.windowMs = windowMs;
   }
 
-  /** Die noch gültigen Treffer von `key` — oder `null`, wenn für einen neuen Schlüssel kein Platz ist. */
-  lesen(key: string, cutoff: number): number[] | null {
+  /**
+   * Die noch gültigen Treffer von `key` — `null`, wenn für einen neuen Schlüssel kein Platz
+   * ist, `undefined`, wenn es keinen gibt und `nurVorhandene` die Neuanlage verbietet.
+   */
+  lesen(key: string, cutoff: number, nurVorhandene: boolean): number[] | null | undefined {
     if (cutoff - this.letzterKehraus >= this.windowMs) this.kehraus(cutoff);
     const vorhanden = this.holen(schluesselFuer(key));
+    if (vorhanden === undefined && nurVorhandene) return undefined;
     if (vorhanden === undefined && this.anzahl >= this.maxKeys && !this.platzMachen(cutoff)) return null;
     return (vorhanden ?? []).filter((ts) => ts > cutoff);
   }

@@ -39,6 +39,13 @@ async function gebuchteSchluessel() {
   return () => spy.mock.calls.map(([k]) => k);
 }
 
+/** Wie `gebuchteSchluessel`, aber nur Aufrufe, die einen Eintrag NEU anlegen dürfen. */
+async function neuAngelegteSchluessel() {
+  const { RateLimiter } = await import("@/core/ratelimit");
+  const spy = vi.spyOn(RateLimiter.prototype, "check");
+  return () => spy.mock.calls.filter(([, nurVorhandene]) => !nurVorhandene).map(([k]) => k);
+}
+
 describe("POST /api/anmeldung", () => {
   it("setzt sid als httpOnly-Cookie mit path=/ und ohne Domain", async () => {
     const { POST } = await import("./route");
@@ -111,7 +118,7 @@ describe("POST /api/anmeldung — Speicherrahmen (DRK-287)", () => {
     const { POST } = await import("./route");
     const { ANMELDUNG_FEHLVERSUCHE_JE_ABSENDER_PRO_MIN: grenze } = await import("../../_lib/anmeldeSchranke");
     for (let i = 0; i < grenze; i++) expect((await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "203.0.113.66"))).status).toBe(401);
-    const schluessel = await gebuchteSchluessel();
+    const schluessel = await neuAngelegteSchluessel();
     expect((await POST(post("YYYYYYYY", undefined, "203.0.113.66"))).status).toBe(401);
     expect(schluessel()).not.toContain("YYYYYYYY");
     // Gegenprobe: ein anderer Absender legt für denselben neuen Code sehr wohl einen Eintrag an.
@@ -125,6 +132,15 @@ describe("POST /api/anmeldung — Speicherrahmen (DRK-287)", () => {
     for (let i = 0; i < 10; i++) await POST(post("AAAAAAAA", undefined, "198.51.100.8"));
     for (let i = 0; i < grenze; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "203.0.113.68"));
     expect((await POST(post("AAAAAAAA", undefined, "203.0.113.68"))).status).toBe(429);
+  });
+
+  it("ein Absender über dem Budget bucht auf einen bestehenden Code-Eintrag weiter — die Bremse je Code bleibt für ihn an", async () => {
+    const { POST } = await import("./route");
+    const { ANMELDUNG_FEHLVERSUCHE_JE_ABSENDER_PRO_MIN: grenze, ANMELDUNG_VERSUCHE_JE_CODE_PRO_MIN: jeCode } = await import("../../_lib/anmeldeSchranke");
+    for (let i = 0; i < grenze; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "203.0.113.69"));
+    expect((await POST(post("BBBBBBBB", undefined, "198.51.100.9"))).status).toBe(401); // Eintrag entsteht
+    for (let i = 1; i < jeCode; i++) expect((await POST(post("BBBBBBBB", undefined, "203.0.113.69"))).status).toBe(401);
+    expect((await POST(post("BBBBBBBB", undefined, "203.0.113.69"))).status).toBe(429);
   });
 
   it("gemeinsamer Vereins-Uplink (oder ein Sammel-Absender): auch weit über dem Budget meldet sich ein gültiger Code an", async () => {

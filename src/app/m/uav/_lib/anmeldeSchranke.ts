@@ -11,8 +11,8 @@ import { RateLimiter } from "@/core/ratelimit";
  * JE ABSENDER: der Code-Zähler sieht nicht, wer immer NEUE Codes durchprobiert — jeder frische
  * Code wäre ein frischer Eintrag. Der zweite Zähler zählt deshalb die FEHLVERSUCHE einer
  * Adresse (`clientIpAus`); eine erfolgreiche Anmeldung bucht nichts. Ist das Budget verbraucht,
- * legt dieser Absender bis zum Ablauf der Minute KEINEN neuen Code-Eintrag mehr an; bestehende
- * Code-Sperren gelten für ihn unverändert weiter.
+ * legt dieser Absender bis zum Ablauf der Minute KEINEN neuen Code-Eintrag mehr an; auf einen
+ * Code, für den schon ein Eintrag besteht, bucht er weiter wie jeder andere.
  *
  * ⛔ DAS BUDGET SPERRT NIEMANDEN AUS, und das ist Absicht, keine Nachsicht. Die Antwort bleibt
  * dieselbe wie ohne Budget (401 für einen unbekannten, 200 für einen gültigen Code). Grund
@@ -37,9 +37,10 @@ export function fehlversuchBuchen(absender: string): void {
 
 /**
  * Darf dieser Versuch auf einen FORMATGÜLTIGEN Code weiter? false = der Code ist gesperrt.
- * Bucht auf den Code nur, solange der Absender sein Fehlversuchsbudget nicht verbraucht hat.
+ * Über dem Budget bucht der Absender nur noch auf BESTEHENDE Code-Einträge — ein reines
+ * Nachsehen reichte nicht: dann zählte sein Verkehr auf keinen Code mehr, und die Bremse je
+ * Code wäre für genau den Absender aus, der sie ausgelöst hat.
  */
 export function codeVersuchErlaubt(code: string, absender: string): boolean {
-  if (jeAbsender.istGesperrt(absender)) return !jeCode.istGesperrt(code);
-  return jeCode.check(code);
+  return jeCode.check(code, jeAbsender.istGesperrt(absender));
 }
