@@ -40,8 +40,8 @@ import {
  * tragend: `riegel.test.ts` faengt eine faelschlich abgesenkte Seite im `(arbeit)`-Zweig
  * strukturell nicht.
  *
- * ⛔ **SEIT DEM 2026-08-28 SIND ES SECHSUNDZWANZIG `test()`-BLOECKE.** Die Zahl ist an
- * Playwrights eigener Zaehlzeile abgelesen — „26 passed (1.2m)" — und ⛔ **nicht** mit
+ * ⛔ **SEIT DEM 2026-09-21 SIND ES SIEBENUNDZWANZIG `test()`-BLOECKE** (DRK-335: Nachladen).
+ * Abgelesen an Playwrights eigener Zaehlzeile — „27 passed (1.6m)" — und ⛔ **nicht** mit
  * `grep -c "test("`, der `test.describe(` und Kommentartreffer mitzaehlt. Der letzte ist
  * „die Verwaltung misst 32" (die dritte Bediendichte); davor „L6 A" bis „L6 D" (Aufgabe L6): der
  * Verwaltungsweg als KETTE, von der Wurzel ueber den sichtbaren Link bis auf die 200 der
