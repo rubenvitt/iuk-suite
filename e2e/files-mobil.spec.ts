@@ -438,16 +438,16 @@ type Kasten = { x: number; y: number; width: number; height: number };
  * waeren sie derselbe Zustand. Solange sich das Layout dazwischen nicht regt,
  * faellt das nicht auf.
  *
- * SEIT DER MODULLEISTE (Aufgabe 2) REGT ES SICH. `next dev` — und der
- * Playwright-`webServer` ist einer — liefert antds cssinjs-Regeln erst nach dem
- * ersten Aufbau nach. Bis `.ant-layout-has-sider { flex-direction: row }` da
- * ist, steht die Seitenleiste UEBER dem Inhalt statt daneben: der Inhalt ist
+ * SEIT DER MODULLEISTE (Aufgabe 2) REGTE ES SICH. Nicht die cssinjs-Regel kam
+ * zu spaet, sondern die KLASSE `ant-layout-has-sider`: sie kam erst mit der
+ * Hydration (DRK-363, seither setzt `SuiteRahmen` `hasSider`). Bis dahin
+ * stand die Seitenleiste UEBER dem Inhalt statt daneben: der Inhalt war
  * volle Breite und alles darunter rund 180px tiefer. GEMESSEN im gebuendelten
  * Lauf zu Aufgabe 6, 1280px: „Ausgewaehlte herunterladen" bei x=16 y=709 (noch
- * ohne die Regel), „Ausgewaehlte loeschen" bei x=476 y=529 (mit ihr) — zwei
- * Knoepfe, die in Wahrheit nebeneinander stehen, gemeldet als Umbruch. Vor der
- * Leiste gab es diesen Unterschied nicht: ohne Sider sahen beide Zustaende
- * gleich aus.
+ * ohne die Klasse), „Ausgewaehlte loeschen" bei x=476 y=529 (mit ihr) — zwei
+ * Knoepfe, die in Wahrheit nebeneinander stehen, gemeldet als Umbruch. Die
+ * atomare Messung bleibt trotzdem: jede andere Regung waere derselbe Fehler
+ * (`e2e/shell-spaltenaufteilung.spec.ts` haelt die Klasse fest).
  *
  * Ein `evaluate` ist EIN Layout-Lesevorgang; die Kaesten stammen damit
  * garantiert aus derselben Fassung der Seite. Der Aufrufer wartet zusaetzlich
@@ -692,12 +692,12 @@ for (const vp of VIEWPORTS) {
       const leiste = page.getByTestId("files-inbox-sammelaktionen");
       await expect(leiste).toBeVisible();
       /*
-       * ERST RUHE, DANN MESSEN. `next dev` reicht antds cssinjs-Regeln nach; bis
-       * `.ant-layout-has-sider` da ist, steht die Modulleiste ueber statt neben
-       * dem Inhalt und alles darunter an der falschen Stelle (ausfuehrlich bei
-       * `kaesten`). Vor der Leiste (Aufgabe 2) war dieser Zwischenzustand vom
-       * Endzustand nicht zu unterscheiden — deshalb steht das Warten erst jetzt
-       * hier.
+       * ERST RUHE, DANN MESSEN. Bis DRK-363 kam `ant-layout-has-sider` erst mit
+       * der Hydration, und bis dahin stand die Modulleiste ueber statt neben
+       * dem Inhalt (ausfuehrlich bei `kaestenMitContainer`). Seither steht die
+       * Klasse im Server-HTML; das Warten bleibt, weil die Hydration auch
+       * anderes nachzieht und ein Messen mitten hinein nichts Belastbares
+       * liefert.
        */
       await page.waitForLoadState("networkidle");
       /*

@@ -82,10 +82,10 @@ const BREITEN = [
  * in einem `evaluate` und danach nur noch gerechnet. Die erste Messung ist die
  * einzige, und sie faellt in das Fenster.
  *
- * ⚠️ DAS IST KEINE EIGENHEIT VON `next dev`. Die Umstellung haengt an der
- * Hydration, nicht an der Auslieferung des CSS — sie faellt auch in Produktion
- * an, dort nur schneller. Dass die Huelle das ueberhaupt tut, statt `hasSider`
- * fest zu setzen, steht als DRK-363 auf dem Board.
+ * ⚠️ SEIT DRK-363 IST DIE PROBE SOFORT WAHR: `SuiteRahmen` setzt `hasSider`,
+ * die Klasse steht im Server-HTML (`e2e/shell-spaltenaufteilung.spec.ts`).
+ * Sie bleibt trotzdem stehen — sie kostet nichts und faengt es, falls die
+ * Klasse je wieder erst mit der Hydration kommt.
  *
  * Die Probe ist die Invariante des fertigen Rasters: der Inhalt beginnt dort,
  * wo die Leiste endet. Unterhalb von 768px steht die Leiste auf `display: none`
