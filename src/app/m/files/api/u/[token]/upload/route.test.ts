@@ -935,26 +935,17 @@ describe("PUT /api/u/[token]/upload — T50 Punkt 1: Mengenbudget", () => {
 
 describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
   /**
-   * DER WETTLAUF AUS §8.4, ohne Mock nachgestellt. Er ist nur erreichbar, wenn
-   * das Restbudget ZWISCHEN Vorpruefung und Buchung schrumpft — genau das tut
-   * hier die dazwischen liegende zweite Abgabe:
+   * DER WETTLAUF AUS §8.4 — bis DRK-288 war er der REGELFALL: offene Abgaben
+   * zaehlten nicht, und eine zweite Abgabe verbrauchte das Budget, auf das die
+   * erste schon Bytes gelegt hatte:
    *
-   *   Datei A, Chunk 1 (20 Bytes, ohne `ende`)  → Vorpruefung sieht 100 Bytes frei
-   *   Datei B, eine Anfrage (90 Bytes)          → gebucht, es bleiben 10 Bytes
-   *   Datei A, letzter Chunk (LEERER Rumpf)     → Vorpruefung sieht 10 Bytes frei
-   *                                               und der Schreibstrom prueft
-   *                                               nichts, weil kein Byte kommt;
-   *                                               erst die Buchung ueber die
-   *                                               GEMESSENEN 20 Bytes scheitert.
+   *   Datei A, Chunk 1 (20 Bytes, ohne `ende`)  → belegt 1 Platz und 20 Bytes
+   *   Datei B, eine Anfrage (90 Bytes)          → JETZT 429: 20 + 90 > 100
    *
-   * Der leere letzte Chunk ist tragend: mit auch nur einem Byte griffe die
-   * Vorpruefung, und der Test liefe in den Zweig von Punkt 1 statt in diesen.
-   *
-   * MUTATION: den Rueckabwicklungszweig entfernen (Rueckgabewert von
-   * `verbucheAbgabe` ignorieren) — dann steht Datei A als geprueft-und-scannend
-   * in der Liste, obwohl sie nie ins Budget passte.
+   * Frueher wurde B gebucht und A beim Abschluss verworfen — die Datei, die
+   * zuerst kam, verlor. Jetzt verliert die, die nicht mehr passt.
    */
-  it("raeumt Blob UND Zeile weg, wenn die Buchung null Zeilen trifft — kein stiller Waise", async () => {
+  it("offene Bytes zählen: die zweite Abgabe passt nicht mehr, die erste schließt ab (DRK-288)", async () => {
     const { id: tokenId, token } = neuerLink({ budgetDateien: 100, budgetBytes: 100 });
 
     const ersterChunk = await put({ token, koerper: PNG(12), frage: { ab: 0, name: "a.png" } });
@@ -962,9 +953,32 @@ describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
     const { id: idA } = await koerperVon(ersterChunk);
 
     const dazwischen = await abgabe(token, PNG(82), { name: "b.png" });
-    expect(dazwischen.status).toBe(200);
-    const { id: idB } = await koerperVon(dazwischen);
-    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 90 });
+    expect(dazwischen.status).toBe(429);
+    expect((await koerperVon(dazwischen)).code).toBe("kontingent");
+    expect(inboxZeilen().map((z) => z.id)).toEqual([idA]);
+
+    const letzterChunk = await put({
+      token,
+      koerper: new Uint8Array(),
+      frage: { id: idA, ab: 20, ende: 1, typ: "image/png" },
+    });
+    expect(letzterChunk.status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 20 });
+  });
+
+  /**
+   * Wird das Budget ZWISCHEN den Chunks unter das gesenkt, was schon liegt (hier
+   * per SQL, wie ein Eingriff in die Datenbank), passt die Datei nie mehr. Dann
+   * gehen Blob UND Zeile — und damit ihr Dateiplatz. Die Umwandlung selbst, die
+   * dann null Zeilen trifft, prueft `_lib/abgabeBudget.test.ts` ohne HTTP: ueber
+   * die Route ist sie nur in einem Wettlauf erreichbar.
+   */
+  it("raeumt Blob UND Zeile weg, wenn die Datei nicht mehr ins Budget passt — kein stiller Waise", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 100, budgetBytes: 100 });
+
+    const ersterChunk = await put({ token, koerper: PNG(12), frage: { ab: 0, name: "a.png" } });
+    const { id: idA } = await koerperVon(ersterChunk);
+    sqlite.prepare("UPDATE zugangslinks SET budget_bytes = 19 WHERE id = ?").run(tokenId);
 
     const letzterChunk = await put({
       token,
@@ -975,18 +989,12 @@ describe("PUT /api/u/[token]/upload — T50 Punkt 2: Wettlauf", () => {
     expect(letzterChunk.status).toBe(429);
     expect((await koerperVon(letzterChunk)).code).toBe("kontingent");
     // Von Datei A ist NICHTS mehr da — weder Blob noch Zwischendatei noch Zeile.
-    expect(inboxDateien()).toEqual([idB]);
-    expect(inboxZeilen().map((z) => z.id)).toEqual([idB]);
-    // Und das Budget steht unveraendert auf dem Stand von Datei B: das `UPDATE`
-    // hat wirklich nicht gegriffen, statt zu greifen und zurueckgedreht zu werden.
-    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 90 });
-    // Kein Scan fuer eine Datei, die es nicht mehr gibt (der eine Aufruf gehoert B).
-    expect(reiheAvEinMock).toHaveBeenCalledTimes(1);
-    expect(reiheAvEinMock).not.toHaveBeenCalledWith({ art: "inbox", inboxFileId: idA });
+    expect(inboxDateien()).toEqual([]);
+    expect(inboxZeilen()).toEqual([]);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 0, verbraucht_bytes: 0 });
+    expect(reiheAvEinMock).not.toHaveBeenCalled();
   });
 });
-
-// --- T50 Punkte 3 und 5: die IP-Notbremse und die Reihenfolge ---------------
 
 describe("PUT /api/u/[token]/upload — T50 Punkte 3+5: Notbremse zuletzt", () => {
   /**
@@ -1282,5 +1290,129 @@ describe("PUT /api/u/[token]/upload — DRK-289: exklusiver Schreibbesitz", () =
     });
     expect(weiter.status).toBe(200);
     expect(inboxZeilen()[0]?.size).toBe(16);
+  });
+});
+
+// --- DRK-288: offene Abgaben zaehlen aufs Kontingent -------------------------
+
+/** Ein Prozessneustart, soweit er diesen Weg betrifft: der Prozessspeicher ist leer. */
+function simuliereNeustart(): void {
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for("iuk.files.abgabeBudget")];
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for("iuk.files.schreibbesitz")];
+}
+
+/** Der erste Chunk einer Abgabe, OHNE `ende` — sie bleibt offen. */
+function oeffne(token: string, bytes: number, name = "a.png"): Promise<Response> {
+  return put({ token, koerper: PNG(bytes - 8), frage: { ab: 0, name } });
+}
+
+describe("PUT /api/u/[token]/upload — DRK-288: Kontingent für offene Abgaben", () => {
+  it("der Befund: 1 Datei / 32 Byte, drei offene erste Chunks à 16 Byte — nur der erste geht durch", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 32 });
+
+    const antworten = [];
+    for (const name of ["a.png", "b.png", "c.png"]) antworten.push(await oeffne(token, 16, name));
+
+    expect(antworten.map((a) => a.status)).toEqual([200, 429, 429]);
+    for (const a of antworten.slice(1)) expect((await koerperVon(a)).code).toBe("kontingent");
+    // Die abgewiesenen hinterlassen weder Zeile noch Bytes.
+    expect(inboxZeilen()).toHaveLength(1);
+    expect(inboxDateien()).toHaveLength(1);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 0, verbraucht_bytes: 0 });
+  });
+
+  it("parallel dasselbe: von zwei gleichzeitigen Eröffnungen belegt genau eine den Platz", async () => {
+    const { token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    const stati = (await Promise.all([oeffne(token, 16, "a.png"), oeffne(token, 16, "b.png")])).map(
+      (a) => a.status,
+    );
+
+    expect(stati.sort()).toEqual([200, 429]);
+    expect(inboxZeilen()).toHaveLength(1);
+  });
+
+  it("offene BYTES zählen: eine zweite Datei bekommt nur, was die erste übrig lässt — auch nach einem Neustart", async () => {
+    const { token } = neuerLink({ budgetDateien: 5, budgetBytes: 32 });
+    expect((await oeffne(token, 20, "a.png")).status).toBe(200);
+
+    simuliereNeustart();
+
+    const zuViel = await oeffne(token, 16, "b.png");
+    expect(zuViel.status).toBe(429);
+    expect((await koerperVon(zuViel)).code).toBe("kontingent");
+    // Der Platz der abgewiesenen Datei ist wieder frei, ihre Bytes sind weg.
+    expect(inboxZeilen()).toHaveLength(1);
+
+    expect((await oeffne(token, 12, "c.png")).status).toBe(200);
+  });
+
+  it("der Folgechunk einer offenen Datei zählt ihre eigenen Bytes nicht doppelt", async () => {
+    const { token } = neuerLink({ budgetDateien: 1, budgetBytes: 32 });
+    const { id } = await koerperVon(await oeffne(token, 16));
+
+    const weiter = await put({
+      token,
+      koerper: new Uint8Array(16).fill(0x42),
+      frage: { ab: 16, id, ende: 1, typ: "image/png" },
+    });
+
+    expect(weiter.status).toBe(200);
+    expect((await koerperVon(weiter)).empfangen).toBe(32);
+  });
+
+  it("ein laufender Chunk hält seinen Vorbehalt — eine parallele Abgabe sieht ihn, und danach ist er frei", async () => {
+    const { token } = neuerLink({ budgetDateien: 5, budgetBytes: 32 });
+    const { id } = await koerperVon(await oeffne(token, 16));
+
+    // A: ein Folgechunk, dessen Rumpf der Test haelt. Sein Vorbehalt reicht bis
+    // an das Budget (16 + min(4 MiB, 16) = 32).
+    const a = gehaltenerRumpf(null);
+    const vorher = schreibBeobachtung.lesend;
+    const antwortA = putStrom(token, { ab: 16, id }, a.strom);
+    await vi.waitFor(() => expect(schreibBeobachtung.lesend).toBe(vorher + 1));
+
+    const waehrend = await oeffne(token, 9, "b.png");
+    expect(waehrend.status).toBe(429);
+
+    // A schreibt nur 4 Bytes — nach seinem Ende zaehlt die LAENGE, nicht mehr
+    // der Vorbehalt, und fuer B bleiben 12.
+    a.weiter(new Uint8Array(4).fill(0x43));
+    a.ende();
+    expect((await koerperVon(await antwortA)).empfangen).toBe(20);
+
+    expect((await oeffne(token, 12, "b.png")).status).toBe(200);
+  });
+
+  it("Abschluss wandelt um: der Platz zählt einmal, als Verbrauch", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    expect((await abgabe(token, PNG(8))).status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 16 });
+    expect((await oeffne(token, 16, "b.png")).status).toBe(429);
+  });
+
+  it("eine abgelehnte Datei gibt ihren Platz genau einmal frei", async () => {
+    const { id: tokenId, token } = neuerLink({ budgetDateien: 1, budgetBytes: 1024 });
+
+    // 415 beim Abschluss: Zeile und Bytes gehen, der Platz ist wieder frei.
+    const abgelehnt = await abgabe(token, UNBEKANNT, { name: "x.bin", typ: "" });
+    expect(abgelehnt.status).toBe(415);
+    expect(inboxZeilen()).toHaveLength(0);
+
+    expect((await abgabe(token, PNG(8))).status).toBe(200);
+    expect(linkZeile(tokenId)).toMatchObject({ verbraucht_dateien: 1, verbraucht_bytes: 16 });
+  });
+
+  it("ein Abschnitt über FILES_CHUNK_BYTES wird benannt abgewiesen, nicht als Kontingent", async () => {
+    const { token } = neuerLink({ budgetDateien: 1, budgetBytes: 100 * 1024 * 1024 });
+    const riesig = new Uint8Array(4 * 1024 * 1024 + 1);
+    riesig.set(PNG(0));
+
+    const antwort = await put({ token, koerper: riesig, frage: { ab: 0, name: "gross.png" } });
+
+    expect(antwort.status).toBe(413);
+    expect((await koerperVon(antwort)).code).toBe("zu-gross");
+    expect(inboxZeilen()).toHaveLength(0);
   });
 });
