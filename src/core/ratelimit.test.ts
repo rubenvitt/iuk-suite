@@ -109,6 +109,19 @@ describe("RateLimiter — Speicherrahmen (DRK-287)", () => {
     expect(rl.schluesselAnzahl).toBe(5_000);
   });
 
+  it("auch ein GEMISCHT belegter Speicher (vorn Sperren, hinten offen) kostet je neuem Schlüssel keinen Durchlauf", () => {
+    let t = 1000;
+    const rl = new RateLimiter({ windowMs: 60_000, max: 2, maxKeys: 10_000, now: () => t });
+    for (let i = 0; i < 9_999; i++) { rl.check(`s${i}`); rl.check(`s${i}`); }
+    rl.check("offen");
+    const start = performance.now();
+    for (let i = 0; i < 50_000; i++) { t += 0.001; if (!rl.check(`flut${i}`)) throw new Error(`flut${i} abgewiesen`); }
+    // In EINER Map wären das 50 000 Durchläufe an 9 999 Sperren vorbei.
+    expect(performance.now() - start).toBeLessThan(2_000);
+    expect(rl.schluesselAnzahl).toBe(10_000);
+    expect(rl.check("s0")).toBe(false);
+  });
+
   it("speichert einen überlangen Schlüssel nicht im Wortlaut, zählt ihn aber weiter getrennt", () => {
     const t = 1000;
     const rl = new RateLimiter({ windowMs: 1000, max: 1, now: () => t });

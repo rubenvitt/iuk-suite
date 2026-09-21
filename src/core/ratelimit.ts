@@ -21,7 +21,7 @@ export class RateLimiter {
     this.max = opts.max;
     this.now = opts.now ?? (() => Date.now());
     this.hits = new Schluesselspeicher(opts.maxKeys ?? RATELIMIT_MAX_SCHLUESSEL, opts.max, opts.windowMs); }
-  /** Ist `key` gerade gesperrt? Fragt nur ab — bucht nichts und legt keinen Eintrag an. */ istGesperrt(key: string): boolean { return this.hits.gesperrt(key, this.now() - this.windowMs); }
+  /** Ist `key` gerade gesperrt? Fragt nur ab — bucht nichts und legt keinen Eintrag an. */ istGesperrt(key: string): boolean { return this.hits.istGesperrt(key, this.now() - this.windowMs); }
   /** true = erlaubt, false = Limit erreicht (auch: Speicher voll und nur aktive Sperren darin). */
   check(key: string): boolean {
     const t = this.now();
@@ -153,25 +153,33 @@ function zaehleSeit(ts: number[], cutoff: number): number {
  *    unterscheiden — es geht keine Information verloren.
  * 2. Die Schlüssellänge hängt nie am Aufrufer (`schluesselFuer`).
  * 3. Ist der Speicher voll, macht ein NEUER Schlüssel nur einem Eintrag Platz, der NICHT
- *    gesperrt ist — dem am längsten ruhenden zuerst (die Map hält die Reihenfolge der letzten
- *    Buchung, weil `schreiben` löscht und neu einfügt). Eine aktive Sperre wird nie verdrängt:
+ *    gesperrt ist — dem am längsten ruhenden zuerst. Eine aktive Sperre wird nie verdrängt:
  *    sonst setzte ein Angreifer seine eigene Sperre zurück, indem er mit frischen Schlüsseln
  *    flutet. Verdrängt er stattdessen einen halb vollen Zähler, gewinnt er höchstens `max − 1`
  *    Versuche für diesen einen Schlüssel — um den Preis von `maxKeys` frischen Anfragen.
  * 4. Besteht der Speicher NUR noch aus aktiven Sperren, wird der neue Schlüssel abgewiesen
- *    (fail-closed), bis das älteste Fenster abläuft. Dahin kommt nur, wer `maxKeys × max`
+ *    (fail-closed), bis die erste Sperre fällt. Dahin kommt nur, wer `maxKeys × max`
  *    Treffer in einem Fenster erzeugt; bestehende Schlüssel zählen dabei unverändert weiter.
  *    Die Alternative — dann doch eine Sperre verdrängen — hieße, dass genug Flut jede Sperre
  *    aufhebt; eine Notbremse, die unter Last öffnet, ist keine.
+ *
+ * ZWEI MAPS STATT EINER, und das ist die Rechenlast, nicht der Speicher: läge alles in einer
+ * Map, müsste die Suche nach einem verdrängbaren Eintrag an jeder vorn liegenden Sperre
+ * vorbei — bei vollem Speicher O(`maxKeys`) je Anfrage, ein Hebel für Rechenlast. `offen`
+ * hält nur Einträge unter `max` (jeder darf weichen, vorn der am längsten ruhende; Treffer
+ * laufen nur ab, ein offener Eintrag wird also nie von selbst gesperrt). `gesperrt` hält, was
+ * bei der letzten Buchung gesperrt war; erst wenn `offen` leer ist, prüft ein Durchlauf, was
+ * davon inzwischen frei ist, und merkt sich, wann die nächste Sperre frühestens fällt.
  */
 class Schluesselspeicher {
-  private readonly map = new Map<string, number[]>();
+  private readonly offen = new Map<string, number[]>();
+  private readonly gesperrt = new Map<string, number[]>();
   private readonly maxKeys: number;
   private readonly max: number;
   private readonly windowMs: number;
   private letzterKehraus = -Infinity;
-  /** Solange `cutoff` darunter liegt, ist jeder Eintrag gesperrt — `verdraengeUngesperrten` spart sich die Suche. */
-  private vollGesperrtBis = -Infinity;
+  /** Solange `cutoff` darunter liegt, ist kein Eintrag in `gesperrt` frei. */
+  private naechsteFreigabe = -Infinity;
 
   constructor(maxKeys: number, max: number, windowMs: number) {
     this.maxKeys = maxKeys;
@@ -182,57 +190,68 @@ class Schluesselspeicher {
   /** Die noch gültigen Treffer von `key` — oder `null`, wenn für einen neuen Schlüssel kein Platz ist. */
   lesen(key: string, cutoff: number): number[] | null {
     if (cutoff - this.letzterKehraus >= this.windowMs) this.kehraus(cutoff);
-    const vorhanden = this.map.get(schluesselFuer(key));
-    if (vorhanden === undefined && this.map.size >= this.maxKeys && !this.verdraengeUngesperrten(cutoff)) return null;
+    const vorhanden = this.holen(schluesselFuer(key));
+    if (vorhanden === undefined && this.anzahl >= this.maxKeys && !this.platzMachen(cutoff)) return null;
     return (vorhanden ?? []).filter((ts) => ts > cutoff);
   }
 
+  /** `recent` enthält nur Treffer im Fenster — seine Länge IST der Zählerstand. */
   schreiben(key: string, recent: number[]): void {
     const k = schluesselFuer(key);
-    this.map.delete(k);
-    this.map.set(k, recent);
+    this.offen.delete(k);
+    this.gesperrt.delete(k);
+    if (recent.length < this.max) {
+      this.offen.set(k, recent);
+      return;
+    }
+    this.gesperrt.set(k, recent);
+    this.naechsteFreigabe = Math.min(this.naechsteFreigabe, recent[recent.length - this.max]);
   }
 
-  gesperrt(key: string, cutoff: number): boolean {
-    const recent = this.map.get(schluesselFuer(key));
+  istGesperrt(key: string, cutoff: number): boolean {
+    const recent = this.holen(schluesselFuer(key));
     return recent !== undefined && zaehleSeit(recent, cutoff) >= this.max;
   }
 
   get anzahl(): number {
-    return this.map.size;
+    return this.offen.size + this.gesperrt.size;
   }
 
   laengsterSchluessel(): number {
     let m = 0;
-    for (const k of this.map.keys()) m = Math.max(m, k.length);
+    for (const k of [...this.offen.keys(), ...this.gesperrt.keys()]) m = Math.max(m, k.length);
     return m;
+  }
+
+  private holen(k: string): number[] | undefined {
+    return this.offen.get(k) ?? this.gesperrt.get(k);
   }
 
   private kehraus(cutoff: number): void {
     this.letzterKehraus = cutoff;
-    for (const [k, ts] of this.map) {
-      if (ts.length === 0 || ts[ts.length - 1] <= cutoff) this.map.delete(k);
+    for (const map of [this.offen, this.gesperrt]) {
+      for (const [k, ts] of map) if (ts.length === 0 || ts[ts.length - 1] <= cutoff) map.delete(k);
     }
   }
 
-  /**
-   * Entfernt den am längsten ruhenden UNGESPERRTEN Eintrag. Findet sich keiner, merkt sich
-   * die Suche, wann die erste Sperre frühestens fällt: ein gesperrter Eintrag bucht nicht
-   * mehr, er hält genau `max` Treffer, und er wird frei, sobald der älteste davon abläuft.
-   * Bis dahin kostet ein neuer Schlüssel keinen Durchlauf über die ganze Map — sonst wäre
-   * der volle Speicher ein Hebel für Rechenlast statt für Speicher.
-   */
-  private verdraengeUngesperrten(cutoff: number): boolean {
-    if (cutoff < this.vollGesperrtBis) return false;
-    let fruehesteFreigabe = Infinity;
-    for (const [k, ts] of this.map) {
-      if (zaehleSeit(ts, cutoff) < this.max) {
-        this.map.delete(k);
-        return true;
+  /** Entfernt den am längsten ruhenden ungesperrten Eintrag; false = alles gesperrt. */
+  private platzMachen(cutoff: number): boolean {
+    if (this.offen.size === 0) {
+      if (cutoff < this.naechsteFreigabe) return false;
+      let naechste = Infinity;
+      for (const [k, ts] of this.gesperrt) {
+        if (zaehleSeit(ts, cutoff) < this.max) {
+          this.gesperrt.delete(k);
+          this.offen.set(k, ts);
+        } else {
+          naechste = Math.min(naechste, ts[ts.length - this.max]);
+        }
       }
-      fruehesteFreigabe = Math.min(fruehesteFreigabe, ts[ts.length - this.max]);
+      this.naechsteFreigabe = naechste;
+      if (this.offen.size === 0) return false;
     }
-    this.vollGesperrtBis = fruehesteFreigabe;
-    return false;
+    const aeltester = this.offen.keys().next().value as string;
+    this.offen.delete(aeltester);
+    return true;
   }
 }

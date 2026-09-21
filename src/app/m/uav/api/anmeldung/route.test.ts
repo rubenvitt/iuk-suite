@@ -107,32 +107,33 @@ describe("POST /api/anmeldung — Speicherrahmen (DRK-287)", () => {
     },
   );
 
-  it("viele NEUE Codes von einem Absender → 429 für diesen Absender, ein anderer Absender meldet sich weiter an", async () => {
+  it("viele NEUE Codes von einem Absender: nach dem Budget legt er keinen Code-Eintrag mehr an — Antworten bleiben gleich", async () => {
     const { POST } = await import("./route");
     const { ANMELDUNG_FEHLVERSUCHE_JE_ABSENDER_PRO_MIN: grenze } = await import("../../_lib/anmeldeSchranke");
-    const codes = Array.from({ length: grenze }, (_, i) => `ZZZZ${String(i).padStart(4, "0")}`);
-    for (const c of codes) expect((await POST(post(c, undefined, "203.0.113.66"))).status).toBe(401);
-    expect((await POST(post("YYYYYYYY", undefined, "203.0.113.66"))).status).toBe(429);
-    expect((await POST(post(process.env.__TEST_CODE!, undefined, "198.51.100.7"))).status).toBe(200);
+    for (let i = 0; i < grenze; i++) expect((await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "203.0.113.66"))).status).toBe(401);
+    const schluessel = await gebuchteSchluessel();
+    expect((await POST(post("YYYYYYYY", undefined, "203.0.113.66"))).status).toBe(401);
+    expect(schluessel()).not.toContain("YYYYYYYY");
+    // Gegenprobe: ein anderer Absender legt für denselben neuen Code sehr wohl einen Eintrag an.
+    expect((await POST(post("YYYYYYYY", undefined, "198.51.100.7"))).status).toBe(401);
+    expect(schluessel()).toContain("YYYYYYYY");
   });
 
-  it("gemeinsamer Vereins-Uplink: einige Tippfehler vieler Leute sperren die gültigen Anmeldungen nicht", async () => {
+  it("ein Absender über dem Budget unterliegt bestehenden Code-Sperren weiter", async () => {
     const { POST } = await import("./route");
     const { ANMELDUNG_FEHLVERSUCHE_JE_ABSENDER_PRO_MIN: grenze } = await import("../../_lib/anmeldeSchranke");
-    for (let i = 0; i < grenze - 1; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "192.0.2.10"));
-    expect((await POST(post(process.env.__TEST_CODE!, undefined, "192.0.2.10"))).status).toBe(200);
-    // Erfolgreiche Anmeldungen zählen nicht gegen den Absender.
+    for (let i = 0; i < 10; i++) await POST(post("AAAAAAAA", undefined, "198.51.100.8"));
+    for (let i = 0; i < grenze; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "203.0.113.68"));
+    expect((await POST(post("AAAAAAAA", undefined, "203.0.113.68"))).status).toBe(429);
+  });
+
+  it("gemeinsamer Vereins-Uplink (oder ein Sammel-Absender): auch weit über dem Budget meldet sich ein gültiger Code an", async () => {
+    const { POST } = await import("./route");
+    const { ANMELDUNG_FEHLVERSUCHE_JE_ABSENDER_PRO_MIN: grenze } = await import("../../_lib/anmeldeSchranke");
+    for (let i = 0; i < grenze + 20; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "192.0.2.10"));
     for (let i = 0; i < 5; i++) expect((await POST(post(process.env.__TEST_CODE!, undefined, "192.0.2.10"))).status).toBe(200);
-  });
-
-  it("die Absenderschranke gibt nach Ablauf der Minute wieder frei", async () => {
-    const jetzt = Date.now();
-    const uhr = vi.spyOn(Date, "now").mockReturnValue(jetzt);
-    const { POST } = await import("./route");
-    const { ANMELDUNG_FEHLVERSUCHE_JE_ABSENDER_PRO_MIN: grenze } = await import("../../_lib/anmeldeSchranke");
-    for (let i = 0; i < grenze; i++) await POST(post(`ZZZZ${String(i).padStart(4, "0")}`, undefined, "203.0.113.67"));
-    expect((await POST(post(process.env.__TEST_CODE!, undefined, "203.0.113.67"))).status).toBe(429);
-    uhr.mockReturnValue(jetzt + 60_001);
-    expect((await POST(post(process.env.__TEST_CODE!, undefined, "203.0.113.67"))).status).toBe(200);
+    // Ohne `cf-connecting-ip` landen alle im Sammel-Eimer "unknown" — dieselbe Zusage.
+    for (let i = 0; i < grenze + 20; i++) await POST(post(`ZZZY${String(i).padStart(4, "0")}`));
+    expect((await POST(post(process.env.__TEST_CODE!))).status).toBe(200);
   });
 });

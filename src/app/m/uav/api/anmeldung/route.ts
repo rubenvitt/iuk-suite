@@ -4,7 +4,7 @@ import { z } from "zod";
 import { clientIpAus } from "@/core/ratelimit";
 import { getDb } from "../../_db/client";
 import { hostAbweisung } from "../../_lib/hostRiegel";
-import { absenderGesperrt, codeVersuchErlaubt, fehlversuchBuchen } from "../../_lib/anmeldeSchranke";
+import { codeVersuchErlaubt, fehlversuchBuchen } from "../../_lib/anmeldeSchranke";
 import { CODE_ROH_MAX_ZEICHEN, codeFormatGueltig, codeNormalisieren } from "../../_lib/code";
 import { teilnehmerGesehen, teilnehmerPerCode } from "../../_lib/queries";
 import { SID_COOKIE, sessionErzeugen, sidCookieOptionen } from "../../_lib/sitzung";
@@ -20,13 +20,12 @@ export async function POST(req: Request) {
   const abweisung = hostAbweisung(req); if (abweisung) return abweisung;
   let body: unknown; try { body = await req.json(); } catch { return fehler(400, "invalid_json", "Ungültiger JSON-Body"); }
   const parsed = schema.safeParse(body); if (!parsed.success) return fehler(400, "validation_error", "code fehlt oder ist zu lang");
-  // Zwei Zähler, erst Absender, dann Code — Begründung in `_lib/anmeldeSchranke.ts`.
+  // Zwei Zähler, je Code und je Absender — Begründung in `_lib/anmeldeSchranke.ts`.
   const absender = clientIpAus(req.headers);
-  if (absenderGesperrt(absender)) return zuVieleVersuche();
   const code = codeNormalisieren(parsed.data.code);
   const abgelehnt = () => { fehlversuchBuchen(absender); auditDenied("uav"); return fehler(401, "invalid_code", "Ungültiger oder inaktiver Code."); };
   if (!codeFormatGueltig(code)) return abgelehnt();
-  if (!codeVersuchErlaubt(code)) return zuVieleVersuche();
+  if (!codeVersuchErlaubt(code, absender)) return zuVieleVersuche();
   const db = getDb();
   const t = teilnehmerPerCode(db, code);
   if (!t) return abgelehnt();
