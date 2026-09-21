@@ -105,7 +105,7 @@ export async function einloesenAmGate(
    * TEXTPOSITIONEN der vier Riegel. In `loeseCodeEin(normalisiereCode(x), …)` steht
    * `loeseCodeEin(` textlich VOR `normalisiereCode(` — der Scan meldete dann „Einloesung
    * steht VOR normalisieren" fuer eine Datei, die sachlich richtig ist (Spec:2264-2268;
-   * dieselbe Form traegt `lagerbuch/_actions/gate.ts:71`).
+   * dieselbe Form traegt `lagerbuch/_actions/gate.ts`, SCHRITT 3).
    */
   const code = normalisiereCode(String(formData.get("code") ?? ""));
 

@@ -127,7 +127,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("../_lib/gateSchranke", () => ({ gateGesperrt, gateFehlversuchBuchen }));
 // ⚠️ N-3: `redeemToken` traegt hier seinen ECHTEN Namen. Ein Alias machte den
-// Reihenfolge-Scan aus T64 (`_lib/bauform.test.ts:865`) ueber diese Datei still
+// Reihenfolge-Scan aus T64 (`_lib/bauform.test.ts`) ueber diese Datei still
 // stumm — er sucht `\bredeemToken\s*\(`.
 vi.mock("../_lib/schreibpfade/tokenEinloesung", () => ({ redeemToken }));
 vi.mock("../_db/client", () => ({ getDb }));

@@ -74,7 +74,7 @@ export async function erneuereSitzung(rohCode: string): Promise<HelferErgebnis<n
   //
   // ⚠️ SIE STEHT ALS EIGENE ANWEISUNG DA, NICHT INLINE IM EINLOESEAUFRUF, und
   // das ist keine Formatierungsfrage: der Reihenfolge-Scan aus T64
-  // (`_lib/bauform.test.ts:865`, Betreiberentscheidung B2) vergleicht die
+  // (`_lib/bauform.test.ts`, Riegelreihenfolge, Entscheidung B2) vergleicht die
   // TEXTPOSITIONEN der vier Riegel. In `redeemToken(normalisiereCode(x), …)`
   // steht `redeemToken(` textlich VOR `normalisiereCode(` — der Scan meldet
   // dann „Einloesung steht VOR normalisieren" fuer eine Datei, die sachlich

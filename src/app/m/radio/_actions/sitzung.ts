@@ -46,7 +46,7 @@ import { loeseCodeEin } from "../_lib/schreibpfade/codeEinloesung";
  * ⚠️ ER TRAEGT BEWUSST KEINEN `grund`. Der Aufrufer ist bereits das Erneuerungsfeld selbst
  * (A19, `_ui/SitzungErneuern.tsx`, gerendert nur bei `grund === "sitzung"`); ein
  * `grund: "sitzung"` von hier baute ein zweites Feld im ersten auf
- * (`lagerbuch/_actions/sitzung.ts:46-49`).
+ * (`lagerbuch/_actions/sitzung.ts`, Kopf von `erneuereSitzung`).
  */
 export type ErneuerungErgebnis = { ok: true } | { ok: false; text: string };
 
@@ -55,7 +55,7 @@ export type ErneuerungErgebnis = { ok: true } | { ok: false; text: string };
  * ausstellen. ALLE DREI tragen dieselben sechs Schritte in derselben Reihenfolge"; §3.4.4
  * Spec:2563-2570 schreibt sie aus, Spec:3108 fuehrt diese Datei im Reihenfolge-Scan).
  * Planentscheidung E12, `briefs/KOPF.md:675-731`. Vorbild woertlich:
- * `src/app/m/lagerbuch/_actions/sitzung.ts:51-101`.
+ * `src/app/m/lagerbuch/_actions/sitzung.ts`, `erneuereSitzung`.
  *
  * Eine Ausleihe ist ein Formular mit eingetragenen Werten. Laeuft die Sitzung zwischen
  * Eingabe und Absenden ab, fuehrt JEDER naheliegende Weg — Redirect aufs Gate, Neuladen —
@@ -67,7 +67,7 @@ export type ErneuerungErgebnis = { ok: true } | { ok: false; text: string };
  * Gate; sie ist eine dritte Gate-Flaeche und kein Sonderweg.
  *
  * ⛔ SIE LEITET NICHT UM. Das ist der ganze Punkt: die Seite bleibt stehen, die eingetragenen
- * Werte bleiben stehen (Spec:2563-2567, `lagerbuch/_actions/sitzung.ts:42-44`).
+ * Werte bleiben stehen (Spec:2563-2567, `lagerbuch/_actions/sitzung.ts`, „SIE LEITET NICHT UM").
  * `_lib/bauform.test.ts` sichert das mit `not.toMatch(/\bredirect\s*\(/)` auf ihrem Koerper
  * zu.
  */
@@ -155,7 +155,7 @@ export async function erneuereSitzung(rohCode: string): Promise<ErneuerungErgebn
  * Server Action DARF Cookies setzen (Bauform-Zulaessigkeitstafel Zeile 1).
  *
  * ⛔ HIER WEICHT `radio` VON `lagerbuch` AB, UND DIE ABWEICHUNG IST BELEGT.
- * `lagerbuch`s `beenden` traegt KEINEN Host-Riegel (`lagerbuch/_actions/sitzung.ts:128-131`:
+ * `lagerbuch`s `beenden` traegt KEINEN Host-Riegel (`lagerbuch/_actions/sitzung.ts`, `beenden`:
  * „der schlechteste Fall ist ein Cookie, das man nicht loswird"). `radio`s traegt einen:
  * §3.5.5 (Spec:2774) fuehrt sie mit `requireRadioHost`, werfend, und Spec:6762 sagt fuer
  * beide Ausnahmen dieser Datei ausdruecklich „beide tragen `requireRadioHost` und
@@ -179,7 +179,7 @@ export async function beenden(): Promise<void> {
    *
    * Nexts `delete(name)` erzeugt `set({name, value:"", expires: new Date(0)})` OHNE `path`
    * (`next/dist/compiled/@edge-runtime/cookies/index.js:302-304`, im Bestand nachgeschlagen
-   * und in `lagerbuch/_actions/sitzung.ts:140-149` ausgeschrieben). Der Browser scopet ein
+   * und in `lagerbuch/_actions/sitzung.ts`, `beenden`, ausgeschrieben). Der Browser scopet ein
    * `Set-Cookie` ohne `Path` auf das Verzeichnis der Anfrage — ein Action-POST von
    * `/ausleihen` loeschte also unter `/ausleihen/`, waehrend das echte Cookie unter `Path=/`
    * UEBERLEBT. Der Knopf leitete trotzdem um und saehe aus wie ein Erfolg; die Sitzung

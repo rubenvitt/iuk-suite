@@ -516,7 +516,7 @@ describe("radio-bauform: die drei Gate-Flaechen", () => {
     /*
      * ⛔ UND SIE LEITET NICHT UM. Das ist ihr ganzer Zweck: die Seite bleibt stehen, die
      * eingetragenen Werte bleiben stehen (Spec:2563-2567,
-     * `lagerbuch/_actions/sitzung.ts:42-44`). Ein `redirect()` hier verwuerfe genau das,
+     * `lagerbuch/_actions/sitzung.ts`, „SIE LEITET NICHT UM"). Ein `redirect()` hier verwuerfe genau das,
      * wogegen die Funktion gebaut ist.
      */
     expect(erneuernKoerper, "erneuereSitzung darf nicht umleiten").not.toMatch(/\bredirect\s*\(/);

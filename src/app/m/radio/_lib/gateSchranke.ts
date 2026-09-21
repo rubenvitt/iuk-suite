@@ -100,7 +100,12 @@ const proAbsender = new RateLimiter({ windowMs: 60_000, max: g.gateProAbsenderPr
  * 140 bit (`_lib/code.ts`). Rechnung B der Spec (§3.7.1): selbst ungebremst, bei 10^6
  * Versuchen je Sekunde und 1.000 gueltigen Codes, 2,2 × 10^25 Jahre bis zum Treffer. Die
  * Codesuche selbst ist eine Gleichheitssuche auf dem `UNIQUE`-Index von
- * `zugangscodes.code` — billiger als die Anfrage, die sie ausloest. `lagerbuch` hat 10^6
+ * `zugangscodes.code` — billiger als die Anfrage, die sie ausloest.
+ * ⚠️ BEWUSSTER REST: die ZAHL solcher Suchen ist damit nicht mehr gedeckelt. Eine Kappe fuer
+ * wohlgeformte Eingaben haette einen Schluessel, den niemand rotieren kann — also wieder
+ * genau den Hebel, mit dem jeder Unangemeldete die Ausleihe fuer alle sperrt. Last erzeugen
+ * kann ein Angreifer auf jeder oeffentlichen Route; Volumenschutz gehoert vor den Prozess
+ * (Cloudflare/Traefik), nicht in einen Zaehler, der richtige Codes abweist. `lagerbuch` hat 10^6
  * Codes und braucht die Sperre vor der Suche; dort traegt ein Geraetemerkmal die
  * Verfuegbarkeit (`lagerbuch/_lib/gateSchrankeMerkmal.ts`).
  */

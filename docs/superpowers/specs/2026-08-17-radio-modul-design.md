@@ -3069,7 +3069,10 @@ unverändert gebucht.
 **Warum das hier sicher ist und in `lagerbuch` nicht:** Rechnung B (§3.7.1) — 140 bit halten auch
 ohne jede Schranke (2,2 × 10²⁵ Jahre bei 10⁶ Versuchen/s und 1.000 gültigen Codes). Die Codesuche
 ist eine Gleichheitssuche auf dem `UNIQUE`-Index von `zugangscodes.code` und billiger als die Anfrage,
-die sie auslöst. `lagerbuch` hat 10⁶ Codes und braucht die Sperre vor der Suche; dort trägt ein
+die sie auslöst. **Bewusster Rest:** die Zahl dieser Suchen ist damit nicht mehr gedeckelt. Eine Kappe
+für wohlgeformte Eingaben hätte einen unrotierbaren Schlüssel und wäre wieder genau der Hebel, mit dem
+jeder Unangemeldete die Ausleihe für alle sperrt; Volumenschutz gehört vor den Prozess (Cloudflare,
+Traefik), nicht in einen Zähler, der richtige Codes abweist. `lagerbuch` hat 10⁶ Codes und braucht die Sperre vor der Suche; dort trägt ein
 Gerätemerkmal die Verfügbarkeit (lagerbuch-Spec §3.5.3a). Eine zusätzliche Ausnahme für eine
 bestehende Sitzung wäre hier wirkungslos und entfällt: wer erneuert, gibt ohnehin einen
 wohlgeformten Code ein.
