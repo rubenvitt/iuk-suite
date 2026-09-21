@@ -377,6 +377,33 @@ test("Erfassung offline → online → in der Verwaltung sichtbar (Check 7)", as
 });
 
 /**
+ * DRK-287 (CWE-770), echter HTTP-Weg: ein Rohwert, der keinem ausgestellten Code gleichen
+ * kann, wird verworfen, bevor ein Zähler für ihn entsteht. Dass KEIN Zähler entsteht, sieht
+ * nur der Vitest-Fall (`api/anmeldung/route.test.ts`); hier zählt, dass der echte Handler
+ * hinter Proxy und Host-Riegel dieselben Antworten gibt und ein gültiger Code weiter durchgeht.
+ *
+ * Eigener `cf-connecting-ip` je Lauf: ohne ihn zählten die Fehlversuche gegen den
+ * Sammel-Eimer `"unknown"`, den alle anderen Fälle dieses Servers mitbenutzen.
+ */
+test("Anmelde-API: überlanger Rohwert 400, formatfalscher Code 401, gültiger Code 200 (DRK-287)", async ({
+  request,
+}) => {
+  const headers = { "cf-connecting-ip": "203.0.113.87" };
+  const anmelden = (code: string) => request.post(uavUrl("/api/anmeldung"), { data: { code }, headers });
+
+  const ueberlang = await anmelden("A".repeat(1024 * 1024));
+  expect(ueberlang.status()).toBe(400);
+  expect((await ueberlang.json()).error.code).toBe("validation_error");
+
+  const formatfalsch = await anmelden("ZZZZ!ZZZ");
+  expect(formatfalsch.status()).toBe(401);
+  expect((await formatfalsch.json()).error.code).toBe("invalid_code");
+
+  const gueltig = await anmelden(E2E_CODE_AKTIV.toLowerCase());
+  expect(gueltig.status()).toBe(200);
+});
+
+/**
  * DRK-286 — Kontowechsel A → B im SELBEN Browser (geteiltes Tablet), gegen den
  * echten Server. A hat synchronisierte Durchführungen (Seed) und eine offene,
  * die nie beim Server ankam; dann meldet sich B mit dem eigenen Code an.
