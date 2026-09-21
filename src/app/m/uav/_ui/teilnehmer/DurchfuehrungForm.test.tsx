@@ -17,7 +17,7 @@ afterEach(async () => {
 describe("DurchfuehrungForm", () => {
   it("ruft onAdd mit den Feldwerten auf", async () => {
     const onAdd = vi.fn();
-    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" />);
+    await mount(<DurchfuehrungForm onAdd={onAdd} heute="2026-06-02" besitzer="p1" />);
 
     await fill("#df-drohnensteuerer", "Max");
     await fill("#df-luftraumbeobachter", "Erika");
@@ -31,7 +31,7 @@ describe("DurchfuehrungForm", () => {
   });
 
   it("belegt das Datum mit heute vor", async () => {
-    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" />);
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" besitzer="p1" />);
     expect(query<HTMLInputElement>("#df-datum").value).toBe("2026-06-02");
   });
 
@@ -43,20 +43,33 @@ describe("DurchfuehrungForm", () => {
    * prueft den formatierten Text, nicht das Feld selbst.
    */
   it("stellt das gewählte Datum in deutscher Form neben die Beschriftung", async () => {
-    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" />);
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" besitzer="p1" />);
     expect(query("label[for='df-datum']").textContent).toContain("02.06.2026");
   });
 
   it("füllt die Namensfelder aus der letzten Eingabe vor", async () => {
-    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" />);
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" besitzer="p1" />);
     await fill("#df-drohnensteuerer", "Max");
     await fill("#df-luftraumbeobachter", "Erika");
     await submitForm();
     await unmount();
 
     // Neues Formular (z. B. andere Aufgabe oder Neustart) übernimmt die Namen.
-    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-03" />);
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-03" besitzer="p1" />);
     expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("Max");
     expect(query<HTMLInputElement>("#df-luftraumbeobachter").value).toBe("Erika");
+  });
+
+  // DRK-286: die Vorbelegung trägt Namen — sie gehört dem Konto, das sie erfasst hat.
+  it("gibt die Namen der letzten Eingabe nicht an ein anderes Konto weiter", async () => {
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-02" besitzer="p1" />);
+    await fill("#df-drohnensteuerer", "Max");
+    await fill("#df-luftraumbeobachter", "Erika");
+    await submitForm();
+    await unmount();
+
+    await mount(<DurchfuehrungForm onAdd={vi.fn()} heute="2026-06-03" besitzer="p2" />);
+    expect(query<HTMLInputElement>("#df-drohnensteuerer").value).toBe("");
+    expect(query<HTMLInputElement>("#df-luftraumbeobachter").value).toBe("");
   });
 });

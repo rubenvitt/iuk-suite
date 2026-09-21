@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../offline/client";
+import { localStore } from "../offline/localStore";
 import styles from "./uav.module.css";
 
 /**
@@ -13,6 +14,10 @@ import styles from "./uav.module.css";
  * (`codeNormalisieren` in `_lib/code.ts`). Erfolg → `window.location.replace("/")`,
  * ein VOLLER Reload, damit die Teilnehmer-Insel mit der neuen Session
  * (Cookie) startet statt mit einem clientseitig veralteten Identitäts-Cache.
+ * Diesen Cache und die Konto-Weiche verwirft `kontoWechselVorbereiten` nach dem
+ * Login und VOR dem Reload (DRK-286): sonst startete die Insel für einen Moment
+ * mit dem Konto der vorigen Person. Ein gescheiterter Login ändert das Cookie
+ * nicht und lässt beides stehen.
  */
 export function LoginForm({ code }: { code?: string }) {
   const [eingabe, setEingabe] = useState("");
@@ -29,6 +34,7 @@ export function LoginForm({ code }: { code?: string }) {
       setLaden(true);
       try {
         await api.participantLogin(code);
+        localStore.kontoWechselVorbereiten();
         window.location.replace("/");
       } catch (e) {
         setEingabe(code);
@@ -45,6 +51,7 @@ export function LoginForm({ code }: { code?: string }) {
     setFehler(null);
     try {
       await api.participantLogin(eingabe);
+      localStore.kontoWechselVorbereiten();
       window.location.replace("/");
     } catch (err) {
       setFehler(fehlermeldungAus(err));

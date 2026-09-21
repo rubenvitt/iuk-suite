@@ -5,19 +5,22 @@ import type { ProgressSnapshot, SyncRequest, SyncResponse, TaskDTO } from "../..
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** Vom Server genannte IDs (z. B. fremde Execution-IDs bei 409 `fremde_durchfuehrung`). */
+  readonly ids: string[];
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, ids: string[] = []) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.ids = ids;
   }
 }
 
 const BASIS = "/api";
 
 interface ServerFehler {
-  error?: { code?: string; message?: string };
+  error?: { code?: string; message?: string; ids?: unknown };
 }
 
 /**
@@ -50,14 +53,16 @@ async function anfrage<T>(
   if (!antwort.ok) {
     let code = "http_error";
     let message = `HTTP ${antwort.status}`;
+    let ids: string[] = [];
     try {
       const daten = (await antwort.json()) as ServerFehler;
       if (daten.error?.code) code = daten.error.code;
       if (daten.error?.message) message = daten.error.message;
+      if (Array.isArray(daten.error?.ids)) ids = daten.error.ids.filter((x): x is string => typeof x === "string");
     } catch {
       // kein JSON-Body — Standardmeldung beibehalten
     }
-    throw new ApiError(antwort.status, code, message);
+    throw new ApiError(antwort.status, code, message, ids);
   }
 
   if (antwort.status === 204) return undefined as T;
