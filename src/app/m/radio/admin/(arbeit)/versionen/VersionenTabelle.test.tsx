@@ -5,6 +5,23 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
 /**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * `data-rolle`-Marken, und das ist richtig: `display: none` nimmt die verborgene
+ * aus dem Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem.
+ * jsdom wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ * Dieselbe Lehre wie in DRK-421 (`Schmalkarten.tsx`, Abschnitt zu den
+ * Greifern).
+ */
+const BREIT = '[data-rolle="breitansicht"] ';
+
+/**
  * INSEL 3 — DIE SOFTWAREVERSIONEN DER VERWALTUNG (`Spec:4505`, §5.12; Aufgabe V19).
  *
  * ⛔ `// @vitest-environment jsdom` ALS ERSTE ZEILE. `vitest.config.ts:7` setzt
@@ -315,10 +332,10 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
      */
     await mount(<VersionenTabelle zeilen={[zeile({ deviceCount: 3 })]} />);
 
-    const knopf = query<HTMLButtonElement>('[data-rolle="radio-version-loeschen"]');
+    const knopf = query<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-loeschen"]`);
     expect(knopf.disabled, "der Loeschknopf ist trotz haengender Geraete bedienbar").toBe(true);
 
-    await ueberfahre(query('[data-rolle="radio-version-loeschen-huelle"]'));
+    await ueberfahre(query(`${BREIT}[data-rolle="radio-version-loeschen-huelle"]`));
     const hinweis = document.body.querySelector('[role="tooltip"]');
     expect(hinweis?.textContent, "der Grund der Sperre fehlt am Knopf").toBe(
       "Wird von 3 Gerät(en) genutzt — erst umstellen",
@@ -333,7 +350,7 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
      */
     await mount(<VersionenTabelle zeilen={[zeile({ deviceCount: 0 })]} />);
 
-    const knopf = query<HTMLButtonElement>('[data-rolle="radio-version-loeschen"]');
+    const knopf = query<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-loeschen"]`);
     expect(knopf.disabled, "ohne haengende Geraete ist der Knopf gesperrt").toBe(false);
 
     await click('[data-rolle="radio-version-loeschen"]');
@@ -365,7 +382,7 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
       />,
     );
 
-    const marken = queryAll('[data-rolle="radio-version-zielmarke"]');
+    const marken = queryAll(`${BREIT}[data-rolle="radio-version-zielmarke"]`);
     expect(marken.length, "die Ziel-Marke steht nicht genau einmal").toBe(1);
     expect((marken[0]!.textContent ?? "").trim()).toBe("Ziel");
     /* Und sie steht an der RICHTIGEN Zeile, nicht irgendwo in der Tabelle. */
@@ -426,8 +443,8 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
       />,
     );
 
-    const hoch = queryAll<HTMLButtonElement>('[data-rolle="radio-version-hoch"]');
-    const runter = queryAll<HTMLButtonElement>('[data-rolle="radio-version-runter"]');
+    const hoch = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-hoch"]`);
+    const runter = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-runter"]`);
     expect([hoch.length, runter.length], "je Zeile ein Knopf je Richtung").toEqual([3, 3]);
 
     expect(hoch.map((k) => k.disabled), "der obere Rand").toEqual([true, false, false]);
@@ -452,7 +469,7 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
       />,
     );
 
-    const runter = queryAll<HTMLButtonElement>('[data-rolle="radio-version-runter"]');
+    const runter = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-runter"]`);
     await act(async () => {
       runter[0]!.click();
     });
@@ -491,9 +508,9 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
     await mount(
       <VersionenTabelle zeilen={[zeile({ wert: "FW 9.1", deviceCount: 7, angelegtText: "01.02.2026, 08:00" })]} />,
     );
-    expect(query('[data-rolle="radio-version-wert"]').textContent).toBe("FW 9.1");
-    expect(query('[data-rolle="radio-version-anzahl"]').textContent).toBe("7");
-    expect(query('[data-rolle="radio-version-angelegt"]').textContent).toBe("01.02.2026, 08:00");
+    expect(query(`${BREIT}[data-rolle="radio-version-wert"]`).textContent).toBe("FW 9.1");
+    expect(query(`${BREIT}[data-rolle="radio-version-anzahl"]`).textContent).toBe("7");
+    expect(query(`${BREIT}[data-rolle="radio-version-angelegt"]`).textContent).toBe("01.02.2026, 08:00");
   });
 
   it("die vier Knoepfe und die Ziel-Marke tragen ihre Zeichen", async () => {
@@ -517,20 +534,20 @@ describe("radio-Versionen: die fuenf Spalten und ihre zwei Sperren", () => {
     );
 
     expect(
-      query('[data-rolle="radio-version-zielmarke"] [data-zeichen]').getAttribute("data-zeichen"),
+      query(`${BREIT}[data-rolle="radio-version-zielmarke"] [data-zeichen]`).getAttribute("data-zeichen"),
       "der Ziel-Marke fehlt ihr Zeichen",
     ).toBe("ziel");
     expect(
-      query('[data-rolle="radio-version-hoch"] [data-zeichen]').getAttribute("data-zeichen"),
+      query(`${BREIT}[data-rolle="radio-version-hoch"] [data-zeichen]`).getAttribute("data-zeichen"),
     ).toBe("pfeil-oben");
     expect(
-      query('[data-rolle="radio-version-runter"] [data-zeichen]').getAttribute("data-zeichen"),
+      query(`${BREIT}[data-rolle="radio-version-runter"] [data-zeichen]`).getAttribute("data-zeichen"),
     ).toBe("pfeil-unten");
     expect(
-      query('[data-rolle="radio-version-alsziel"] [data-zeichen]').getAttribute("data-zeichen"),
+      query(`${BREIT}[data-rolle="radio-version-alsziel"] [data-zeichen]`).getAttribute("data-zeichen"),
     ).toBe("haken");
     expect(
-      queryAll('[data-rolle="radio-version-loeschen"] [data-zeichen]').map((z) =>
+      queryAll(`${BREIT}[data-rolle="radio-version-loeschen"] [data-zeichen]`).map((z) =>
         z.getAttribute("data-zeichen"),
       ),
       "einem der zwei Loeschzweige fehlt der Papierkorb",
@@ -576,7 +593,7 @@ describe("radio-Versionen: die Reihenfolge nach dem Umsortieren", () => {
     queryAll("tbody tr[data-row-key]").map((r) => r.getAttribute("data-row-key"));
 
   const plaetze = () =>
-    queryAll('[data-rolle="radio-version-platz"]').map((z) => z.textContent);
+    queryAll(`${BREIT}[data-rolle="radio-version-platz"]`).map((z) => z.textContent);
 
   it("verschiebt nach dem Sortieren die Zeile am Knopf, nicht die an ihrer Anzeigeposition", async () => {
     await mount(<VersionenTabelle zeilen={DREI} />);
@@ -587,7 +604,7 @@ describe("radio-Versionen: die Reihenfolge nach dem Umsortieren", () => {
       .toEqual(["v-2", "v-3", "v-1"]);
 
     // v-3 steht jetzt an ZWEITER Anzeigeposition, gespeichert aber an dritter.
-    const hoch = queryAll<HTMLButtonElement>('[data-rolle="radio-version-hoch"]');
+    const hoch = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-hoch"]`);
     await act(async () => {
       hoch[1]!.click();
     });
@@ -610,8 +627,8 @@ describe("radio-Versionen: die Reihenfolge nach dem Umsortieren", () => {
      * „Nach oben" an v-1 (Platz 1, unten auf dem Schirm) und „Nach unten" an v-3
      * (Platz 3, in der Mitte). Der index-gekoppelte Stand sperrte die Anzeigeraender.
      */
-    const hoch = queryAll<HTMLButtonElement>('[data-rolle="radio-version-hoch"]');
-    const runter = queryAll<HTMLButtonElement>('[data-rolle="radio-version-runter"]');
+    const hoch = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-hoch"]`);
+    const runter = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-runter"]`);
     expect(hoch.map((k) => k.disabled), "der obere Rand haengt an der Anzeige")
       .toEqual([false, false, true]);
     expect(runter.map((k) => k.disabled), "der untere Rand haengt an der Anzeige")
@@ -823,7 +840,7 @@ describe("radio-Versionen: die VIER Fehlerpfade der Flaeche", () => {
             zeilen={[zeile({ id: "v-1", wert: "FW 12.3" }), zeile({ id: "v-2", wert: "FW 12.0" })]}
           />,
         );
-        await clickElement(queryAll<HTMLButtonElement>('[data-rolle="radio-version-runter"]')[0]!);
+        await clickElement(queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-version-runter"]`)[0]!);
       },
     },
     {
@@ -1131,6 +1148,7 @@ describe("radio-Versionen: die Bauform der Insel und ihrer Seite", () => {
         if (ziel === null) continue;
         if (/[/\\]_db[/\\]/.test(ziel)) {
           verstoesse.push(`${datei}: Wertimport aus _db/ (${spezifizierer})`);
+
           continue;
         }
         if (!gesehen.has(ziel)) {

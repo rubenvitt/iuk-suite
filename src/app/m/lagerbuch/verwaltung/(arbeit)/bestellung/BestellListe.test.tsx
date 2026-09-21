@@ -30,6 +30,25 @@ import { BESTELL_DATEINAME } from "@/app/m/lagerbuch/_lib/bestellExport";
 import { bestellListeText } from "@/app/m/lagerbuch/_lib/bestellText";
 import s from "../../../_ui/verwaltung.module.css";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 const mocks = vi.hoisted(() => ({
   markiereBestellt: vi.fn(),
 }));
@@ -173,7 +192,7 @@ describe("statusChip — Auflage 17", () => {
 describe("statusChip-Text im DOM — exakte Trennung ohne Teilstring-Kollision", () => {
   it("'bestellt' (exact) trifft nur den datumslosen Chip, nie 'bestellt seit …'", async () => {
     await mount(<BestellListe zeilen={[BESTELLT_OHNE_DATUM, BESTELLT]} />);
-    const chipTexte = queryAll(`.${s.chip}`).map((el) => el.textContent);
+    const chipTexte = queryAll(`${BREIT} .${s.chip}`).map((el) => el.textContent);
     expect(chipTexte.filter((text) => text === "bestellt")).toHaveLength(1);
     expect(chipTexte.filter((text) => text === "bestellt seit 01.08.2026")).toHaveLength(1);
   });

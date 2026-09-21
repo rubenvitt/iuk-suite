@@ -32,6 +32,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { SPACE } from "../theme/tokens";
 import { vollhoehe } from "./vollhoehe";
+import schmal from "./schmalkarten.module.css";
 import stil from "./vollhoehe.module.css";
 
 /**
@@ -57,6 +58,48 @@ const STARTWERT = 560;
  * Deckelung.
  */
 const KOERPER = ".ant-table-tbody-virtual-holder";
+
+/**
+ * Die Kartenliste, die unter 768px an die Stelle der Tabelle tritt (DRK-451).
+ *
+ * ⚠️ IHRE ANWESENHEIT HEBT DIE DECKELUNG AUF, UND OHNE DIESE ZEILE WÄRE SIE
+ * ABGESCHNITTEN. Die Deckelung gilt ausschließlich unter 768px, und sie
+ * existiert für genau einen Zweck: der virtuelle Tabellenkörper ist dort ein
+ * zweiter Scroller neben dem Dokument (Falle 16). Ersetzt eine Kartenliste die
+ * Tabelle, gibt es diesen zweiten Scroller gar nicht — die Liste scrollt mit
+ * dem Dokument. Ein Rahmen mit `overflow: hidden` schnitte sie dann bei der
+ * Fensterhöhe ab, und alles darunter wäre unerreichbar.
+ *
+ * ⚠️ DER TABELLENKÖRPER BLEIBT DABEI MESSBAR, UND GENAU DAS IST DIE FALLE.
+ * `display: none` nimmt die Tabelle aus dem Bild, nicht aus dem DOM:
+ * `querySelector` findet ihren virtuellen Körper weiterhin, nur liefert
+ * `getBoundingClientRect()` dann Nullen. `deckeln` bliebe also wahr, und die
+ * gerechnete Höhe käme aus lauter Nullen — die Seite stünde unter 768px auf
+ * einer sinnlosen Zahl mit `overflow: hidden`.
+ *
+ * ⚠️ ERKANNT WIRD ES AM DOM, NICHT AN EINER PROP. Eine Prop müsste jeder
+ * Aufrufer setzen, der eine `Kartentabelle` hineinstellt — fünfzigmal, und wer
+ * sie vergisst, bekommt eine abgeschnittene Liste, die kein Tor findet.
+ * Gemessen wird in derselben Runde wie der Tabellenkörper.
+ *
+ * ⚠️ ÜBER DIE KLASSE, NICHT ÜBER `data-rolle` — UND DAS IST EINE MESSUNG, KEIN
+ * GESCHMACK. Der erste Anlauf suchte `[data-rolle="schmalkarten"],
+ * [data-rolle="schmalkarten-leer"]`; diese Suche läuft nach JEDEM Render über
+ * den ganzen Tabellenteilbaum, und eine Attributselektor-LISTE zwingt jsdoms
+ * nwsapi dazu, jedes Element einzeln zu prüfen. Gemessen an
+ * `InventurForm.renderkosten.test.tsx` (120 Zeilen, unterhalb der
+ * Virtualisierungsschwelle, also 120 echte Zeilen im Baum): der Fall lief in
+ * sein 5-Sekunden-Budget, vorher brauchte er rund eine. Ein Klassenselektor
+ * geht über einen Index und kostet nichts. ⚠️ Kein Tor hätte das als
+ * LEISTUNGSproblem gemeldet — es kam als Zeitüberschreitung in einem Test, der
+ * Renderkosten zählt und mit dieser Datei nichts zu tun hat.
+ *
+ * ⚠️ NUR DIE GEFÜLLTE LISTE, nicht der Leertext. Eine leere Kartenliste hat
+ * nichts, was eine Deckelung abschneiden könnte — und ist die Liste leer, ist
+ * es die Tabelle auch, dann gibt es ohnehin keinen virtuellen Körper und keine
+ * Deckelung.
+ */
+const KARTEN = `.${schmal.karten}`;
 
 export type TabellenVollhoeheProps = {
   /** Werkzeugleiste, Hinweise, alles über der Tabelle. */
@@ -91,6 +134,7 @@ export function TabellenVollhoehe({
     if (!rahmen || !tabelle) return;
 
     const koerper = tabelle.querySelector<HTMLElement>(KOERPER);
+    const karten = tabelle.querySelector<HTMLElement>(KARTEN);
     const tabelleOben = tabelle.getBoundingClientRect().top;
     const ergebnis = vollhoehe({
       fensterHoehe: window.innerHeight,
@@ -110,7 +154,9 @@ export function TabellenVollhoehe({
       const neu: Mass = {
         rahmenHoehe: ergebnis.rahmenHoehe,
         koerperHoehe: ergebnis.koerperHoehe,
-        deckeln: koerper !== null && !ergebnis.gedeckelt,
+        // `karten !== null` heißt: unter 768px steht hier gar keine Tabelle,
+        // also auch kein zweiter Scroller — Begründung bei `KARTEN`.
+        deckeln: koerper !== null && karten === null && !ergebnis.gedeckelt,
       };
       return vorher.rahmenHoehe === neu.rahmenHoehe
         && vorher.koerperHoehe === neu.koerperHoehe

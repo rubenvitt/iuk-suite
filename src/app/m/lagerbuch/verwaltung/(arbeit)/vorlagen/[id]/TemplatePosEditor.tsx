@@ -12,7 +12,7 @@ import {
   type TableProps,
 } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachText,
   nachZahl,
   trifftWert,
@@ -238,11 +238,14 @@ export function TemplatePosEditor({
   return (
     <div style={{ display: "grid", gap: SPACE.md }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Datentabelle<TemplatePositionZeile>
+      <Kartentabelle<TemplatePositionZeile>
         rowKey="id"
         aria-label="Vorlagen-Positionen"
         dataSource={positionen}
-        locale={{ emptyText: "Noch keine Position. Lege unten die erste an." }}
+        leer={{
+          nichts: "Noch keine Position. Lege unten die erste an.",
+          gefiltert: "Keine Position passt zum Filter.",
+        }}
         columns={spalten}
       />
       <Flex gap={SPACE.sm} wrap align="center">

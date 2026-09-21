@@ -6,7 +6,7 @@ import { Alert, Button, Flex, Select, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
 import {
   angezeigteZeilen,
-  Datentabelle,
+  Kartentabelle,
   filterAktiv,
   nachDatum,
   nachText,
@@ -597,26 +597,45 @@ export function ArtikelTable({
         )}
       >
         {(koerperHoehe) => (
-          <Datentabelle<ArtikelAnzeigeZeile>
+          <Kartentabelle<ArtikelAnzeigeZeile>
             rowKey="id"
             virtuell={koerperHoehe}
             aria-label="Artikel und Bestand"
             dataSource={gefiltert}
             columns={spalten}
-            // NUR der Zustand wird gemerkt, nie die Liste — Begruendung oben
-            // bei `spaltenFilter`.
-            onChange={(_blaettern, neueFilter, neueSortierung) => {
-              setSpaltenFilter(neueFilter as FilterZustand);
-              const eine = Array.isArray(neueSortierung) ? neueSortierung[0] : neueSortierung;
-              setSortierung({
-                spalte: eine?.columnKey ?? (eine?.field as string | undefined),
-                richtung: eine?.order ?? null,
-              });
+            /*
+             * ⚠️ DER ZUSTAND BLEIBT HIER OBEN, obwohl `Kartentabelle` ihn selbst
+             * führen könnte: der EXPORT braucht ihn. „Exportiert genau das, was
+             * gerade in der Tabelle steht" ist eine Zusage über `angezeigt`, und
+             * die entsteht aus diesen beiden Feldern. Zwei Zustände nebeneinander
+             * hießen, dass die Mappe eine Menge enthält, die so nie auf dem
+             * Schirm stand — genau die Falle, gegen die `angezeigt.ts` steht.
+             *
+             * NUR der Zustand wird gemerkt, nie die Liste (Falle 15).
+             */
+            filter={spaltenFilter}
+            onFilter={setSpaltenFilter}
+            sortierung={sortierung}
+            onSortierung={setSortierung}
+            /*
+             * ⚠️ DIE KARTE ZEIGT NICHT ALLE SIEBEN SPALTEN. „Min." ist am Regal
+             * nicht die Frage — wer vor dem Schrank steht, will wissen, WAS es
+             * ist, WO es liegt und WIE VIEL da ist. Der Mindestbestand ist die
+             * Begründung einer Ampel, die als Kennzeichen schon oben steht.
+             */
+            karte={{
+              titel: "name",
+              kennzeichen: ["aktiv", "bestand"],
+              aus: ["mindestbestand"],
             }}
-            locale={{
-              emptyText: hatFilter || durchKategorienAusgeblendet > 0
-                ? "Kein Artikel passt zu Suche und Filter."
-                : "Noch keine Artikel. Lege oben den ersten an.",
+            kartenHoehe={190}
+            leer={{
+              nichts: "Noch keine Artikel. Lege oben den ersten an.",
+              gefiltert: "Kein Artikel passt zu Suche und Filter.",
+              // Suche und dauerhaft ausgeblendete Kategorien sieht dieses
+              // Bauteil nicht — ohne den Wink hielte es eine leergesuchte Liste
+              // für eine leere Datenbank.
+              aktiv: hatFilter || durchKategorienAusgeblendet > 0,
             }}
             rowSelection={{
               selectedRowKeys: auswahl,

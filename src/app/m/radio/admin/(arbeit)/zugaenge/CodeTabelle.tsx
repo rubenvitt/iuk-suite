@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Popconfirm, Space, Tag, type TableColumnType } from "antd";
-import { Datentabelle, nachDatum, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachDatum, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import type { CodeZeile } from "../../../_lib/lesepfade/codes";
 import { erstelleCode, setzeCodeAktiv } from "../../../_actions/codes";
 import { VIkone } from "../../../_ui/verwaltungIkonen";
@@ -449,12 +449,12 @@ export function CodeTabelle({ zeilen }: CodeTabelleProps) {
         Seiten; das waagerechte Scrollen ist das, was auf 390 px Platz schafft — nicht `size`
         (Falle 4).
       */}
-      <Datentabelle<CodeZeile>
+      <Kartentabelle<CodeZeile>
         rowKey="id"
         columns={spalten}
         dataSource={zeilen}
         aria-label={CODE_TEXTE.tabelleName}
-        locale={{ emptyText: CODE_TEXTE.leer }}
+        leer={{ nichts: CODE_TEXTE.leer }}
       />
       {fehler !== null && (
         /*

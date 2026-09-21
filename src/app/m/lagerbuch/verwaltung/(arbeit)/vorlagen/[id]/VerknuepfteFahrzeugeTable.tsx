@@ -2,7 +2,7 @@
 
 import type { TableProps } from "antd";
 import Link from "next/link";
-import { Datentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 import {
   einheitenartLabel,
   type Einheitenart,
@@ -87,11 +87,14 @@ export function VerknuepfteFahrzeugeTable({
   zeilen: VerknuepftesFahrzeugDto[];
 }) {
   return (
-    <Datentabelle<VerknuepftesFahrzeugDto>
+    <Kartentabelle<VerknuepftesFahrzeugDto>
       rowKey="id"
       aria-label="Verknüpfte Einheiten"
       dataSource={zeilen}
-      locale={{ emptyText: "Keine Einheit nutzt diese Vorlage." }}
+      leer={{
+        nichts: "Keine Einheit nutzt diese Vorlage.",
+        gefiltert: "Keine Einheit passt zum Filter.",
+      }}
       columns={SPALTEN}
     />
   );

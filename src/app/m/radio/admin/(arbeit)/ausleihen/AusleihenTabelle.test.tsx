@@ -78,6 +78,25 @@ const INSEL_SOLL = ["AusleihenTabelle.tsx"];
 
 import { act } from "react";
 import {
+
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
   click,
   clickElement,
   exists,
@@ -151,7 +170,7 @@ function Zellen({ z }: { z: AusleihZeile }) {
 
 /** Der Text jeder Zelle einer Rolle, ohne Randleerraum. */
 function texte(rolle: string): string[] {
-  return queryAll(`[data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
+  return queryAll(`${BREIT} [data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
 }
 
 /**

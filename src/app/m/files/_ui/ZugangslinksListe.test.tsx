@@ -397,7 +397,16 @@ describe("Punkt 3 — ohne Inbox-Host gibt es keinen Link und keinen QR", () => 
 describe("Punkt 4 — Kontingent aufstocken steht am Restbudget", () => {
   it("liegt in derselben Zelle wie das Restbudget", async () => {
     await zeige();
-    const knopf = query("[data-testid='files-zugangslink-aufstocken-zl-aaaaaaaa']");
+    /*
+     * ⚠️ EINGERAHMT AUF DIE BREITE DARSTELLUNG (DRK-451). Seit diese Liste eine
+     * `Kartentabelle` ist, steht jede Zeile ZWEIMAL im Baum — als Tabellenzeile
+     * und als Karte —, und `query` liefert die erste Fundstelle. Das war die
+     * Karte, in der es kein `<td>` gibt: die Meldung lautete „der Knopf steht
+     * in keiner Tabellenzelle" und klang nach einer verschobenen Spalte.
+     */
+    const knopf = query(
+      "[data-rolle='breitansicht'] [data-testid='files-zugangslink-aufstocken-zl-aaaaaaaa']",
+    );
     const zelle = knopf.closest("td");
     expect(zelle, "der Knopf steht in keiner Tabellenzelle").not.toBeNull();
     // Der Zustand ist dort ablesbar, wo gehandelt wird — sonst ist die Aktion
@@ -806,7 +815,17 @@ describe("die Seite — Naht zu `hostFuerRolle(\"inbox\")`", () => {
    * Zustaenden waere „das Wort steht irgendwo" keine Aussage mehr.
    */
   function zeileAusMarkup(markup: string, id: string): string {
-    const start = markup.indexOf(`data-row-key="${id}"`);
+    /*
+     * ⚠️ AB DER BREITANSICHT SUCHEN (DRK-451). `data-row-key` steht seit der
+     * Umstellung auf die `Kartentabelle` an ZWEI Knoten je Zeile: am `<li>` der
+     * Karte und am `<tr>` der Tabelle — und die Karte kommt im Markup zuerst.
+     * Ein `indexOf` von vorn traf damit die Karte, schnitt bis zum naechsten
+     * `</tr>` (also quer durch die halbe Seite) und die Zusicherung „dieses
+     * Wort steht NICHT in der Zeile" fiel an fremdem Text.
+     */
+    const breit = markup.indexOf('data-rolle="breitansicht"');
+    expect(breit, "keine breite Darstellung im Markup").toBeGreaterThan(-1);
+    const start = markup.indexOf(`data-row-key="${id}"`, breit);
     expect(start, `keine Tabellenzeile mit der id ${id}`).toBeGreaterThan(-1);
     const ende = markup.indexOf("</tr>", start);
     return markup.slice(start, ende);

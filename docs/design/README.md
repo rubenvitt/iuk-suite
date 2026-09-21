@@ -409,6 +409,33 @@ ein Telefon nicht hat. Auf Logbuch, Journal und Messungsverlauf deckelt allein d
 breite Tabelle steht unter 768px auf `display: none`. Sie ist das Vorbild, nicht der Mangel — und der
 Grund, warum „keine `scroll`-Prop" allein noch kein Befund ist.
 
+**Und seit DRK-451 ist das der NORMALFALL, nicht die Ausnahme: eine Liste von Datensätzen nimmt
+`Kartentabelle` aus `core/tabelle`.** Sie rendert dieselben Spalten unter 768px als Karten — der
+Spaltentitel wird die Beschriftung, `render` liefert den Wert — und bringt mit, was sonst je Tabelle
+abgeschrieben würde: Filter- und Sortierzustand, die beiden Leertexte („nichts angelegt" ≠ „nichts
+passt") und die Leiste über den Karten. Umgestellt sind damit rund vierzig Tabellen; der Aufruf
+kostet `aria-label`, `rowKey` und `leer`.
+
+⚠️ **Die Leiste ist der Teil, den man weglassen möchte und nicht darf.** Filter und Sortierung sitzen
+in dieser Suite ausschließlich im Spaltenkopf — und den gibt es auf einer Karte nicht. Eine
+Umstellung ohne Leiste **nimmt** dem Telefon also den Filter weg, statt ihm etwas zu geben: vorher kam
+man über die waagerecht gescrollte Zeile noch an den Trichter, danach gar nicht mehr. Bei DRK-421 ist
+genau das zweimal passiert und wurde zweimal einzeln nachgebessert; deshalb steckt sie jetzt im
+Bauteil und nicht im Aufrufer.
+
+**Eine Karte ist nicht die Zeile hochkant.** Acht Spalten untereinander sind kein Fortschritt
+gegenüber acht Spalten nebeneinander. `karte={{ titel, kennzeichen, aus }}` entscheidet, was auf 390px
+zählt; leergelassene Felder fallen von selbst weg. Wo die Karte mehr sein muss als ihre Zeile — ein
+Zähl-Stepper über die volle Breite, einzeln aufklappende Chargen —, bleibt `Schmalkarten` mit einem
+eigenen Rendervertrag der Weg (Vorbilder: `inventur/InventurKarte.tsx`, `radio/GeraeteTabelle.tsx`).
+
+⚠️ **`TabellenVollhoehe` deckelt nicht mehr, sobald eine Kartenliste danebensteht**, und das ist kein
+Sonderfall, sondern die Auflösung eines Widerspruchs: die Deckelung existiert allein wegen des
+zweiten Scrollers einer virtualisierten Tabelle (Falle 16) — ersetzt eine Kartenliste die Tabelle,
+gibt es diesen Scroller gar nicht, und ein `overflow: hidden` schnitte die Liste bei der Fensterhöhe
+ab. Erkannt wird es am DOM, nicht an einer Prop: `display: none` nimmt die Tabelle aus dem Bild,
+nicht aus dem DOM, ihr virtueller Körper bleibt also messbar und meldet lauter Nullen.
+
 **Eine virtualisierte Tabelle ist unter 768px ein zweiter Scroller — und das Dokument ist der erste.**
 Auf einer Modulseite scrollt das Dokument (die ganze Vorfahrenkette steht auf `overflow: visible`, die
 Seitenleiste bekommt ihren eigenen Scroller erst ab 768px). Eine Tabelle mit `virtuell` bringt einen

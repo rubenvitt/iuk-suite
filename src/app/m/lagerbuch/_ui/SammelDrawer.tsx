@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Alert, Button, Checkbox, Drawer, Flex, Input, Select, Space } from "antd";
-import { Datentabelle, nachText, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachText, zustandsFilter } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { SPACE } from "@/core/theme/tokens";
 import { sammelAendereArtikel } from "../_actions/artikel";
@@ -213,7 +213,7 @@ export function SammelDrawer({
         <section>
           <h3 style={{ ...SCHRIFT.abschnitt, marginBlock: "0 12px" }}>Vorschau</h3>
           <Zusammenfassung vorschau={vorschau} aenderung={aenderung} />
-          <Datentabelle<SammelVorschauZeile>
+          <Kartentabelle<SammelVorschauZeile>
             aria-label="Artikel dieser Sammeländerung"
             rowKey="id"
             dataSource={[...vorschau.zeilen]}
@@ -222,7 +222,7 @@ export function SammelDrawer({
             // nicht dem Lesen. Abweichend von der Vorgabe, deshalb ausdruecklich.
             scroll={{ y: 320, x: "max-content" }}
             style={{ marginBlockStart: SPACE.md }}
-            locale={{ emptyText: "Kein Artikel ausgewählt." }}
+            leer={{ nichts: "Kein Artikel ausgewählt." }}
             columns={[
               {
                 title: "Artikel",

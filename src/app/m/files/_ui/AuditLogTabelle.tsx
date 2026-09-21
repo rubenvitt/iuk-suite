@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Datentabelle, werteAlsFilter, trifftWert, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, werteAlsFilter, trifftWert, zustandsFilter } from "@/core/tabelle";
 import type { AuditLogZeile } from "./AuditLog";
 
 /**
@@ -146,9 +146,11 @@ export function AuditLogTabelle({ zeilen }: { zeilen: AuditLogZeile[] }) {
   );
 
   return (
-    <Datentabelle<AnzeigeZeile>
+    <Kartentabelle<AnzeigeZeile>
       rowKey="id"
+      aria-label="Zugriffsprotokoll"
       dataSource={anzeige}
+      leer={{ nichts: "Noch kein Zugriff protokolliert.", gefiltert: "Kein Eintrag passt zum Filter." }}
       columns={spalten}
       /* `size="small"` verdichtet die ZEILEN einer Tabelle und ist etwas
          anderes als `size` auf einem Bedienelement (dort wäre `large` 72px

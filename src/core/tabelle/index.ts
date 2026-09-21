@@ -13,6 +13,19 @@
 export { Datentabelle, type DatentabelleProps } from "./Datentabelle";
 export { Zellentext, type ZellentextProps } from "./Zellentext";
 export { Schmalkarten, NurSchmal, type SchmalkartenProps } from "./Schmalkarten";
+export { Kartentabelle, type KartentabelleProps } from "./Kartentabelle";
+export { Spaltenkarte, kartenName, type SpaltenkarteProps } from "./Spaltenkarte";
+export { Schmalsteuerung, type SchmalsteuerungProps } from "./Schmalsteuerung";
+export {
+  kartenaufbau,
+  schluesselAus,
+  traegtInhalt,
+  zellenInhalt,
+  type Kartenaufbau,
+  type Kartenfach,
+  type KartenSpalte,
+  type Kartenwunsch,
+} from "./kartenaufbau";
 export { useEntprellt } from "./useEntprellt";
 export {
   breitenSumme,
@@ -32,7 +45,9 @@ export {
 export { TabellenVollhoehe, type TabellenVollhoeheProps } from "./TabellenVollhoehe";
 export { vollhoehe, type VollhoeheEingabe, type VollhoeheErgebnis } from "./vollhoehe";
 export { VIRTUELL_AB_ZEILEN } from "./masse";
+export { STEUERUNG_AB_ZEILEN } from "./Schmalsteuerung";
 export {
+  anfangsSortierung,
   angezeigteAnzahl,
   angezeigteZeilen,
   blattSpalten,

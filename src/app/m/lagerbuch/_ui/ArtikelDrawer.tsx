@@ -20,7 +20,7 @@ import {
   Space,
   Switch,
 } from "antd";
-import { Datentabelle, nachRang, nachText, nachZahl, Zellentext } from "@/core/tabelle";
+import { Kartentabelle, nachRang, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { flyinBreite } from "@/core/theme/flyin";
 import { updateArtikel, setArtikelAktiv } from "../_actions/artikel";
 import { bucheEntnahme, bucheUmlagerung, bucheZugang } from "../_actions/buchung";
@@ -1088,11 +1088,11 @@ function ChargenTabelle({
 }) {
   return (
     <Abschnitt titel="Chargen · älteste zuerst (FEFO)">
-      <Datentabelle<ArtikelDetailCharge>
+      <Kartentabelle<ArtikelDetailCharge>
         aria-label="Chargen"
         rowKey="id"
         dataSource={chargen}
-        locale={{ emptyText: "Keine Chargen im Bestand." }}
+        leer={{ nichts: "Keine Chargen im Bestand." }}
         columns={[
           {
             title: "Verfall",
@@ -1164,11 +1164,11 @@ function HistorieTabelle({
 }) {
   return (
     <Abschnitt titel="Letzte Buchungen">
-      <Datentabelle<ArtikelDetailBuchung>
+      <Kartentabelle<ArtikelDetailBuchung>
         aria-label="Buchungshistorie des Artikels"
         rowKey="id"
         dataSource={historie}
-        locale={{ emptyText: "Noch keine Buchungen." }}
+        leer={{ nichts: "Noch keine Buchungen." }}
         columns={[
           {
             title: "Zeit",

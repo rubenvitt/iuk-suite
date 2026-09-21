@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Alert, Button, Flex } from "antd";
 import type { TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   filterAktiv,
   type Filterwert,
   type FilterZustand,
@@ -481,15 +481,19 @@ export function TokenTable({ zeilen }: { zeilen: TokenAnzeigeZeile[] }) {
         />
       ) : null}
 
-      <Datentabelle<TokenAnzeigeZeile>
+      <Kartentabelle<TokenAnzeigeZeile>
         rowKey="id"
         aria-label="Zugangs-Codes"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => setSpaltenFilter(filter)}
-        locale={{
-          emptyText: hatFilter
-            ? "Kein Code passt zu Suche und Filter."
-            : "Noch keine Codes. Öffne Verwaltung → Ortsetiketten — dort entstehen sie.",
+        filter={spaltenFilter}
+        onFilter={setSpaltenFilter}
+        leer={{
+          nichts: "Noch keine Codes. Öffne Verwaltung → Ortsetiketten — dort entstehen sie.",
+          gefiltert: "Kein Code passt zu Suche und Filter.",
+          // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
+          // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste
+          // für eine leere Datenbank.
+          aktiv: hatFilter,
         }}
         columns={spalten}
       />

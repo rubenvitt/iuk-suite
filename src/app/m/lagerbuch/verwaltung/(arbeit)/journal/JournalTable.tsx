@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Flex, Spin, type TableProps } from "antd";
 import { SPACE } from "@/core/theme/tokens";
-import { Datentabelle, Zellentext } from "@/core/tabelle";
+import { Kartentabelle, Zellentext } from "@/core/tabelle";
 import { naechsteJournalSeite } from "../../../_actions/journal";
 import { journalZeile } from "../../../_lib/journalZeile";
 import type { Vorgangsart } from "../../../_lib/vorgang";
@@ -385,11 +385,11 @@ export function JournalTable({
         {deckelText(zeilen.length, cursor !== null)}
       </div>
 
-      <Datentabelle<JournalAnzeigeZeile>
+      <Kartentabelle<JournalAnzeigeZeile>
         rowKey="id"
         aria-label="Buchungsjournal"
         dataSource={zeilen}
-        locale={{ emptyText: leertext }}
+        leer={{ nichts: leertext }}
         columns={SPALTEN}
       />
 

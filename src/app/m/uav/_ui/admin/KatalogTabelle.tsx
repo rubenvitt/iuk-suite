@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Button, Drawer, Tag } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   filterAktiv,
   nachJaNein,
   nachText,
@@ -162,15 +162,16 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
         }
       />
 
-      <Datentabelle<TaskDTO>
+      <Kartentabelle<TaskDTO>
         rowKey="id"
+        aria-label="Aufgabenkatalog"
         dataSource={aufgaben}
-        onChange={(_seite, filter) => setSpaltenFilter(filter)}
-        locale={{
+        filter={spaltenFilter}
+        onFilter={setSpaltenFilter}
+        leer={{
+          nichts: "Noch keine Aufgaben im Katalog.",
+          gefiltert: "Keine Aufgabe passt zum Filter.",
           /*
-           * „Noch nichts angelegt" und „nichts passt" sind zwei verschiedene
-           * Sätze; der falsche lädt zum Anlegen einer Aufgabe ein, die es gibt.
-           *
            * ⚠️ DIE LEERE LISTE WIRD ZUERST GEFRAGT, und das ist kein Stil. Der
            * Filter bleibt stehen, wenn die letzte Aufgabe darunter GELÖSCHT wird
            * (`geloescht` leert `aufgaben`, rührt `spaltenFilter` aber nicht an) —
@@ -178,10 +179,12 @@ export function KatalogTabelle({ aufgaben: anfangsAufgaben }: { aufgaben: TaskDT
            * nicht mehr gibt, genau vor der Person, die jetzt die erste neue
            * Aufgabe anlegen soll. Dieselbe Reihenfolge wie in
            * `lagerbuch/…/inventur/InventurForm.tsx`.
+           *
+           * ⚠️ DESHALB STEHT HIER `aktiv` UND NICHT DIE VORGABE: ohne den
+           * Ausdruck entschiede allein `filterAktiv(spaltenFilter)`, und genau
+           * der ist in diesem Fall wahr, obwohl es nichts mehr zu filtern gibt.
            */
-          emptyText: aufgaben.length > 0 && filterAktiv(spaltenFilter)
-            ? "Keine Aufgabe passt zum Filter."
-            : "Noch keine Aufgaben im Katalog.",
+          aktiv: aufgaben.length > 0 && filterAktiv(spaltenFilter),
         }}
         columns={[
           // Den Kicker setzt `Datentabelle`; `title` ist deshalb eine nackte Zeichenkette.

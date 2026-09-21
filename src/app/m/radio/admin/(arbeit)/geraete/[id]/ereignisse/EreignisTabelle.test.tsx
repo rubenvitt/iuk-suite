@@ -68,6 +68,25 @@ import type { EreignisZeile } from "../../../../../_lib/lesepfade/ereignisse";
 import { EreignisTabelle, QUELLE_TON } from "./EreignisTabelle";
 
 /**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * Marken, und das ist richtig: `display: none` nimmt die verborgene aus dem
+ * Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem. jsdom
+ * wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ *
+ * ⚠️ `tbody`- UND `thead`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder das
+ * eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
+/**
  * Eine Zeile, wie der Lesepfad sie liefert — VORFORMATIERT und serialisierbar, ohne `Date`
  * (`_lib/lesepfade/ereignisse.ts`, Kopf von `EreignisZeile`; Bauform-Zulaessigkeitstafel
  * Nr. 7). Die Vorbelegung ist die haeufigste Zeile der Flaeche: ein Feld von Hand geaendert.
@@ -91,7 +110,7 @@ function zeile(teil: Partial<EreignisZeile> = {}): EreignisZeile {
 
 /** Der Text einer Zelle, ohne Randleerraum — `textContent` traegt in antd keine Umbrueche. */
 function texte(rolle: string): string[] {
-  return queryAll(`[data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
+  return queryAll(`${BREIT} [data-rolle="${rolle}"]`).map((el) => (el.textContent ?? "").trim());
 }
 
 afterEach(async () => {
@@ -191,7 +210,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
       />,
     );
 
-    const zellen = queryAll('[data-rolle="radio-ereignis-wer"]');
+    const zellen = queryAll(`${BREIT} [data-rolle="radio-ereignis-wer"]`);
     expect(zellen.length, "die Wer-Spalte fehlt").toBe(2);
     // ⛔ DIE GLEICHHEIT TRAEGT BEIDE HAELFTEN. Hier stand bis zur Fix-Runde 1 zu V15 zusaetzlich
     // ein `not includes("sub-anna")` — STRUKTURELL TOT (REVIEW-V15, Fund 4): ein Text, der
@@ -250,7 +269,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
       />,
     );
 
-    const marken = queryAll('[data-rolle="radio-ereignis-quelle"]');
+    const marken = queryAll(`${BREIT} [data-rolle="radio-ereignis-quelle"]`);
     expect(marken.length, "die Quellmarke fehlt").toBe(4);
     roh.forEach((wert, i) => {
       const marke = marken[i]!;
@@ -300,7 +319,7 @@ describe("radio-Ereignisse: die vier Spalten der Insel", () => {
       />,
     );
 
-    const marken = queryAll('[data-rolle="radio-ereignis-quelle"]');
+    const marken = queryAll(`${BREIT} [data-rolle="radio-ereignis-quelle"]`);
     expect(marken.length, "eine unbekannte Quelle hat die Zeile verschluckt").toBe(2);
     expect(marken.map((m) => (m.textContent ?? "").trim())).toEqual(["geist", "angelegt"]);
     for (const marke of marken) {

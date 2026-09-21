@@ -9,7 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import { AutoComplete, Button, Input } from "antd";
-import { Datentabelle, nachText } from "@/core/tabelle";
+import { Kartentabelle, nachText } from "@/core/tabelle";
 import { SPACE } from "@/core/theme/tokens";
 import { addGroupLeaderAction, removeGroupLeaderAction, suchePersonenAction } from "../actions";
 import { FORM_START, feldFehler, feldWert } from "../_lib/formState";
@@ -171,7 +171,7 @@ export function Zuordnung({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: SPACE.md }}>
       <span style={T.kicker}>LEITUNG</span>
-      <Datentabelle<ZuordnungPerson>
+      <Kartentabelle<ZuordnungPerson>
         size="middle"
         rowKey="userId"
         dataSource={personen}
@@ -192,8 +192,9 @@ export function Zuordnung({
          * er ist sonst die einzige gerenderte Nennung im ganzen Modul und
          * ueberlebt keinen Anbieterwechsel.
          */
-        locale={{
-          emptyText: (
+        aria-label="Einzeln zugeordnete Personen"
+        leer={{
+          nichts: (
             <span style={T.meta}>
               Niemand einzeln zugeordnet — Zugang kann zusätzlich über das
               Fachgruppen-Attribut der Anmeldung bestehen.

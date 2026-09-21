@@ -5,6 +5,23 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 
 /**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. Beide tragen dieselben
+ * `data-rolle`-Marken, und das ist richtig: `display: none` nimmt die verborgene
+ * aus dem Zugaenglichkeitsbaum, ein Greifer ueber das DOM sieht sie trotzdem.
+ * jsdom wertet die Media Query gar nicht aus, dort sind also BEIDE „da".
+ *
+ * ⚠️ OHNE DIESEN RAHMEN MISST EIN FALL DIE DOPPELTE MENGE, und die Meldung
+ * fuehrt in die Irre: „erwartet 2, bekommen 4" liest sich wie ein doppelt
+ * gerenderter Lesepfad, nicht wie zwei Darstellungen derselben Zeile.
+ * Dieselbe Lehre wie in DRK-421 (`Schmalkarten.tsx`, Abschnitt zu den
+ * Greifern).
+ */
+const BREIT = '[data-rolle="breitansicht"] ';
+
+/**
  * INSEL 8 — DIE ZUGANGSVERWALTUNG (`Spec:4510`, §5.13; Aufgabe V20).
  *
  * ⛔ `// @vitest-environment jsdom` ALS ERSTE ZEILE. `vitest.config.ts:7` setzt
@@ -318,7 +335,7 @@ async function klickeSpaltenkopf(beschriftung: string): Promise<void> {
 
 /** Die Bezeichnungen in der Reihenfolge, in der sie auf dem Bildschirm stehen. */
 function bezeichnungen(): string[] {
-  return queryAll('[data-rolle="radio-code-bezeichnung"]').map((el) =>
+  return queryAll(`${BREIT}[data-rolle="radio-code-bezeichnung"]`).map((el) =>
     (el.textContent ?? "").trim(),
   );
 }
@@ -384,7 +401,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      */
     await mount(<CodeTabelle zeilen={[gesperrteZeile()]} />);
 
-    const angabe = query('[data-rolle="radio-code-gesperrt"]');
+    const angabe = query(`${BREIT}[data-rolle="radio-code-gesperrt"]`);
     expect(angabe.textContent, "der Zeitpunkt der Sperre fehlt").toContain("22.06.2026, 07:00");
     expect(angabe.textContent, "die sperrende Person fehlt").toContain("Berta Beispiel");
     expect(angabe.getAttribute("title"), "der rohe sub fehlt am title").toBe("sub-berta");
@@ -417,7 +434,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
       />,
     );
 
-    const angaben = queryAll('[data-rolle="radio-code-gesperrt"]');
+    const angaben = queryAll(`${BREIT}[data-rolle="radio-code-gesperrt"]`);
     expect(angaben.length, "eine halb gefuellte Zeile verschweigt ihre Sperrangabe").toBe(2);
     expect(angaben[0]!.textContent, "der bekannte Zeitpunkt fehlt").toBe(
       "gesperrt am 22.06.2026, 07:00",
@@ -435,7 +452,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      */
     await mount(<CodeTabelle zeilen={[zeile()]} />);
     expect(
-      queryAll('[data-rolle="radio-code-gesperrt"]').length,
+      queryAll(`${BREIT}[data-rolle="radio-code-gesperrt"]`).length,
       "ein aktiver Zugang zeigt eine Sperrangabe",
     ).toBe(0);
   });
@@ -449,7 +466,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      * gibt den Text WIRKLICH AUS und laesst die Zelle nicht leer.
      */
     await mount(<CodeTabelle zeilen={[zeile({ zuletztText: "nie eingelöst" })]} />);
-    const zelle = query('[data-rolle="radio-code-zuletzt"]');
+    const zelle = query(`${BREIT}[data-rolle="radio-code-zuletzt"]`);
     expect(zelle.textContent).toBe("nie eingelöst");
   });
 
@@ -533,7 +550,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      */
     await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
 
-    const knoepfe = queryAll<HTMLButtonElement>('[data-rolle="radio-code-umschalten"]');
+    const knoepfe = queryAll<HTMLButtonElement>(`${BREIT}[data-rolle="radio-code-umschalten"]`);
     expect(knoepfe.length, "nicht genau ein Knopf je Zeile").toBe(2);
     expect(knoepfe.map((k) => (k.textContent ?? "").trim())).toEqual(["Sperren", "Entsperren"]);
 
@@ -599,16 +616,16 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
      */
     await mount(<CodeTabelle zeilen={[zeile(), gesperrteZeile()]} />);
 
-    expect(queryAll('[data-rolle="radio-code-bezeichnung"]').map((k) => k.textContent)).toEqual([
+    expect(queryAll(`${BREIT}[data-rolle="radio-code-bezeichnung"]`).map((k) => k.textContent)).toEqual([
       "Aufsteller Funkraum",
       "Aufsteller Fahrzeughalle",
     ]);
-    expect(queryAll('[data-rolle="radio-code-wert"]').map((k) => k.textContent)).toEqual([
+    expect(queryAll(`${BREIT}[data-rolle="radio-code-wert"]`).map((k) => k.textContent)).toEqual([
       "A3F7-K92M-QRTV",
       "7QK2-M4XN-B9HV",
     ]);
     expect(
-      queryAll('[data-rolle="radio-code-zustand"]').map((k) => (k.textContent ?? "").trim()),
+      queryAll(`${BREIT}[data-rolle="radio-code-zustand"]`).map((k) => (k.textContent ?? "").trim()),
     ).toEqual(["aktiv", "gesperrt"]);
   });
   it("die zwei Knoepfe tragen ihre Zeichen", async () => {
@@ -626,7 +643,7 @@ describe("radio-Zugaenge: die fuenf Spalten und das Loeschverbot", () => {
       "am Anlegen fehlt das Pluszeichen",
     ).toBe("plus");
     expect(
-      query('[data-rolle="radio-code-umschalten"] [data-zeichen]').getAttribute("data-zeichen"),
+      query(`${BREIT}[data-rolle="radio-code-umschalten"] [data-zeichen]`).getAttribute("data-zeichen"),
       "am Umschalten fehlt der Schluessel",
     ).toBe("schluessel");
   });
@@ -1030,6 +1047,7 @@ describe("radio-Zugaenge: die Bauform der Insel und ihrer Seite", () => {
         if (ziel === null) continue;
         if (/[/\\]_db[/\\]/.test(ziel)) {
           verstoesse.push(`${datei}: Wertimport aus _db/ (${spezifizierer})`);
+
           continue;
         }
         if (!gesehen.has(ziel)) {

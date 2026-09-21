@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Alert, DatePicker, type TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachDatum,
   nachRang,
   nachText,
@@ -235,12 +235,13 @@ export function VerfallEditor({
       gap: SPACE.md,
     }}>
       {fehler ? <Alert type="warning" showIcon={false} title={fehler} /> : null}
-      <Datentabelle<VerfallAnzeigeZeile>
+      <Kartentabelle<VerfallAnzeigeZeile>
         rowKey="artikelId"
         aria-label={`Verfall ${inDerEinheit(einheitenart)}`}
         dataSource={eintraege}
-        locale={{
-          emptyText: "Keine aktive Soll-Position. Verfall wird je Soll-Artikel gepflegt.",
+        leer={{
+          nichts: "Keine aktive Soll-Position. Verfall wird je Soll-Artikel gepflegt.",
+          gefiltert: "Keine Soll-Position passt zum Filter.",
         }}
         columns={spalten}
       />

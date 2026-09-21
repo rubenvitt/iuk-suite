@@ -2,8 +2,8 @@
 
 // src/app/m/radio/admin/(arbeit)/geraete/GeraeteTabelle.tsx
 import { useCallback, useState, useSyncExternalStore } from "react";
-import { Button, Card, Grid, List, Tag, type TableProps } from "antd";
-import { Datentabelle } from "@/core/tabelle";
+import { Button, Card, Tag, type TableProps } from "antd";
+import { Datentabelle, Schmalkarten } from "@/core/tabelle";
 import { usePathname, useRouter } from "next/navigation";
 import type { GeraetZeile, Vorschlagsfeld } from "../../../_lib/lesepfade/geraete";
 import type { UpdateStand } from "../../../_lib/updateStand";
@@ -420,8 +420,6 @@ export function GeraeteTabelle({
 }: GeraeteTabelleProps) {
   const router = useRouter();
   const pfad = usePathname();
-  const bildschirm = Grid.useBreakpoint();
-  const breit = bildschirm.md === true;
 
   const spalten = useSyncExternalStore(abonniere, schnappschuss, serverSchnappschuss);
   const [filterOffen, setFilterOffen] = useState(false);
@@ -487,16 +485,69 @@ export function GeraeteTabelle({
         aufAnlegen={() => setAnlegenOffen(true)}
       />
 
-      {breit ? (
-        /*
+      {/*
+        ⚠️ DIE UMSCHALTUNG IST SEIT DRK-451 CSS UND NICHT MEHR JAVASCRIPT.
+        Vorher stand hier `Grid.useBreakpoint()` — ein Client-Hook, der beim
+        ERSTEN Render die falsche Variante zeigt und in dieser Suite
+        ausdruecklich verboten ist (`docs/design/README.md`, „Mobil — ein
+        Breakpoint"). `Schmalkarten` rendert beide Darstellungen ins HTML und
+        laesst die Media Query entscheiden; der Breakpoint steht damit an
+        derselben einen Stelle wie ueberall sonst.
+
+        ⚠️ DIE KARTE BLEIBT DIE HANDGEBAUTE. Sie ist nicht die Zeile hochkant,
+        sondern eine eigene Auswahl (Rufname ODER OPTA ODER ISSI als Name, die
+        Marken darunter) — genau der Fall, fuer den `Schmalkarten` den
+        Rendervertrag anbietet und `Kartentabelle` zu grob waere.
+
+        ⚠️ UND EIN NEBENEFFEKT, DER EINEN TEST BETRIFFT: der alte Kommentar
+        sagte, in Vitest rendere diese Insel den MOBILEN Zweig. Das gilt nicht
+        mehr — jetzt stehen BEIDE im Baum, und ein Greifer ohne Rahmen findet
+        jede Zeile zweimal (Begruendung im Kopf von `Schmalkarten.tsx`).
+      */}
+      <Schmalkarten<GeraetZeile>
+        zeilen={zeilen}
+        schluessel={(zeile) => zeile.id}
+        aria-label="Geräteliste"
+        leertext="Kein Gerät gefunden"
+        kartenHoehe={150}
+        karte={(zeile) => (
+          <Card
+            hoverable
+            className={s.mobilKarte}
+            onClick={() => router.push(`/admin/geraete/${zeile.id}`)}
+          >
+            <div className={s.mobilKopf}>
+              <span className={s.mobilName}>
+                {zeile.rufname || zeile.opta || zeile.issi}
+              </span>
+              <Tag color={STAND_TON[zeile.updateStand]}>{STAND_WORT[zeile.updateStand]}</Tag>
+            </div>
+            <span className={s.mobilNeben}>ISSI: {zeile.issi}</span>
+            {(zeile.funktion || zeile.geraeteTyp) && (
+              <span className={s.mobilNeben}>
+                {[zeile.funktion, zeile.geraeteTyp].filter(Boolean).join(" · ")}
+              </span>
+            )}
+            <div className={s.mobilMarken}>
+              {zeile.lagerort && <Tag>{zeile.lagerort}</Tag>}
+              {/* Die Marke „Abweichung" 1:1 aus `DeviceList.tsx:220-224`, mit Warndreieck. */}
+              {zeile.hatAbweichung && (
+                <Tag color="warning" icon={<VIkone name="warnung" />}>
+                  Abweichung
+                </Tag>
+              )}
+            </div>
+          </Card>
+        )}
+      >
+        {/*
           ⛔ KEINE BLAETTERUNG UND KEIN `scroll` HIER — beides ist die Vorgabe der
           `Datentabelle` (`src/core/tabelle/Datentabelle.tsx`). Die Begruendung gilt
           unveraendert: die Blaetterung laeuft ueber die URL (Regime B, antd-Zuordnung
           `.superpowers/sdd/planteil4/briefs/KOPF.md:1053`), und eine zweite, rein
           clientseitige Blaetterung ueber den bereits geschnittenen zwanzig Zeilen waere
-          schlicht falsch. ⚠️ Sie faellt in Vitest NICHT auf — dort rendert diese Insel den
-          MOBILEN Zweig; der Waechter ist der Playwright-Fall (V23).
-        */
+          schlicht falsch.
+        */}
         <Datentabelle<GeraetZeile>
           rowKey="id"
           columns={sichtbareSpalten}
@@ -522,49 +573,7 @@ export function GeraeteTabelle({
             onClick: () => router.push(`/admin/geraete/${zeile.id}`),
           })}
         />
-      ) : (
-        /*
-         * DER MOBILE ZWEIG — 1:1 aus `DeviceList.tsx:188-231`, ⛔ IN DERSELBEN INSEL, weil
-         * `Grid.useBreakpoint()` ein Client-Hook ist und `renderItem` Falle 9 waere.
-         * ⛔ OHNE `List`-eigene Blaetterung (`DeviceList.tsx:192-197`): sie liefe gegen die
-         * URL-Blaetterung darunter.
-         */
-        <List
-          dataSource={zeilen}
-          locale={{ emptyText: "Kein Gerät gefunden" }}
-          renderItem={(zeile) => (
-            <List.Item>
-              <Card
-                hoverable
-                className={s.mobilKarte}
-                onClick={() => router.push(`/admin/geraete/${zeile.id}`)}
-              >
-                <div className={s.mobilKopf}>
-                  <span className={s.mobilName}>
-                    {zeile.rufname || zeile.opta || zeile.issi}
-                  </span>
-                  <Tag color={STAND_TON[zeile.updateStand]}>{STAND_WORT[zeile.updateStand]}</Tag>
-                </div>
-                <span className={s.mobilNeben}>ISSI: {zeile.issi}</span>
-                {(zeile.funktion || zeile.geraeteTyp) && (
-                  <span className={s.mobilNeben}>
-                    {[zeile.funktion, zeile.geraeteTyp].filter(Boolean).join(" · ")}
-                  </span>
-                )}
-                <div className={s.mobilMarken}>
-                  {zeile.lagerort && <Tag>{zeile.lagerort}</Tag>}
-                  {/* Die Marke „Abweichung" 1:1 aus `DeviceList.tsx:220-224`, mit Warndreieck. */}
-                  {zeile.hatAbweichung && (
-                    <Tag color="warning" icon={<VIkone name="warnung" />}>
-                      Abweichung
-                    </Tag>
-                  )}
-                </div>
-              </Card>
-            </List.Item>
-          )}
-        />
-      )}
+      </Schmalkarten>
 
       <Blaetterung
         seite={seite}

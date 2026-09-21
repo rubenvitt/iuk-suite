@@ -16,6 +16,20 @@ import {
 } from "./VerfallEditor";
 import s from "../../../../_ui/verwaltung.module.css";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. jsdom wertet die Media
+ * Query nicht aus, dort sind also BEIDE „da", und ein Greifer ueber eine
+ * Klasse oder eine `data-rolle` findet jeden Wert doppelt.
+ *
+ * ⚠️ `thead`- UND `tbody`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder
+ * das eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 const mocks = vi.hoisted(() => ({ setzen: vi.fn(), aussondern: vi.fn() }));
 
 vi.mock("../../../../_actions/lagerortVerfall", () => ({
@@ -131,15 +145,15 @@ describe("VerfallEditor — serverfertige Zeilen und Monatsfelder", () => {
   it("rendert pro Zeile einen MonthPicker in voller Arbeitsdichte ohne Form", async () => {
     await mount(<VerfallEditor einheitenart="fahrzeug" lagerortId="fz-1" eintraege={ZEILEN} />);
 
-    expect(queryAll(".ant-picker")).toHaveLength(3);
+    expect(queryAll(`${BREIT} .ant-picker`)).toHaveLength(3);
     // KEIN size="small" (Arbeitsdichte, WCAG 2.5.5) -- volle 44px-Bedienhoehe,
     // keine `-small`-Modifikatorklasse.
-    expect(queryAll(".ant-picker-small")).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-picker-small`)).toHaveLength(0);
     expect(query<HTMLInputElement>("[aria-label='Verfall Mullbinde']").value)
       .toBe("2027-03");
     expect(query<HTMLInputElement>("[aria-label='Verfall Kompressen']").value)
       .toBe("");
-    expect(queryAll(".ant-form-item")).toHaveLength(0);
+    expect(queryAll(`${BREIT} .ant-form-item`)).toHaveLength(0);
 
     const quelle = readFileSync(
       "src/app/m/lagerbuch/verwaltung/(arbeit)/fahrzeuge/[id]/VerfallEditor.tsx",

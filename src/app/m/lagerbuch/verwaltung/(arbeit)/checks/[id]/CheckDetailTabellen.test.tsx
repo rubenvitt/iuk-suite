@@ -17,6 +17,20 @@ import {
   type CheckDetailTabellenProps,
 } from "./CheckDetailTabellen";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. jsdom wertet die Media
+ * Query nicht aus, dort sind also BEIDE „da", und ein Greifer ueber eine
+ * Klasse oder eine `data-rolle` findet jeden Wert doppelt.
+ *
+ * ⚠️ `thead`- UND `tbody`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat weder
+ * das eine noch das andere. Eingerahmt wird nur, was ohne sie greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 const GEFUELLT: CheckDetailTabellenProps = {
   abgleichZeilen: [{
     id: "artikel-1",
@@ -171,9 +185,9 @@ describe("CheckDetailTabellen", () => {
       document.querySelectorAll("tbody [data-zeichen]"),
       (zeichen) => zeichen.getAttribute("data-zeichen"),
     )).toEqual(["warnung", "warnung"]);
-    expect(queryAll(`.${s.rot}`).length).toBeGreaterThanOrEqual(2);
-    expect(queryAll(`.${s.ok}`).length).toBeGreaterThanOrEqual(2);
-    expect(queryAll(`.${s.gelb}`).length).toBeGreaterThanOrEqual(2);
+    expect(queryAll(`${BREIT} .${s.rot}`).length).toBeGreaterThanOrEqual(2);
+    expect(queryAll(`${BREIT} .${s.ok}`).length).toBeGreaterThanOrEqual(2);
+    expect(queryAll(`${BREIT} .${s.gelb}`).length).toBeGreaterThanOrEqual(2);
     expect(exists(".ant-pagination")).toBe(false);
 
     const quelle = readFileSync(
@@ -234,7 +248,18 @@ describe("CheckDetailTabellen", () => {
       />,
     );
 
-    expect(document.body.textContent?.match(new RegExp(SATZ, "g"))).toHaveLength(5);
+    /*
+     * ⚠️ GEZAEHLT WIRD IN DER BREITEN DARSTELLUNG (DRK-451). Seit die fuenf
+     * Tabellen `Kartentabelle`n sind, steht jeder Leertext ZWEIMAL im Baum —
+     * einmal an der Tabelle, einmal an der Kartenliste daneben. Ueber
+     * `document.body` kaemen also zehn Treffer heraus, und „zehn statt fuenf"
+     * liest sich wie ein doppelt gerendertes Bauteil. Die Aussage ist
+     * unveraendert: FUENF Tabellen, EIN Satz.
+     */
+    const breit = queryAll('[data-rolle="breitansicht"]');
+    expect(breit, "fuenf Tabellen, fuenf breite Darstellungen").toHaveLength(5);
+    const treffer = breit.filter((kasten) => (kasten.textContent ?? "").includes(SATZ));
+    expect(treffer).toHaveLength(5);
     expect(document.body.textContent).not.toContain("Keine Positionen erfasst.");
     expect(document.body.textContent).not.toContain("Keine Einzelposition erfasst.");
     expect(document.body.textContent).not.toContain("Keine Geräte in diesem Check.");

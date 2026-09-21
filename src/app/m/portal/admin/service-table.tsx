@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "antd";
-import { Datentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachJaNein, nachText, zustandsFilter } from "@/core/tabelle";
 
 export interface ServiceRow {
   id: string;
@@ -34,13 +34,14 @@ export function ServiceTable({
   // verschwindendes Testid wäre erst im nächsten Testlauf aufgefallen.
   return (
     <div data-testid="service-table">
-    <Datentabelle<ServiceRow>
+    <Kartentabelle<ServiceRow>
       rowKey="id"
+      aria-label="Dienste"
       dataSource={services}
       size="small"
       // Kein Diagramm, keine Karte darunter — der Leerzustand nennt den
       // naechsten Schritt direkt (Formular steht im selben Abschnitt darunter).
-      locale={{ emptyText: "Noch keine Dienste angelegt. Lege unten den ersten an." }}
+      leer={{ nichts: "Noch keine Dienste angelegt. Lege unten den ersten an." }}
       onRow={() => ({ "data-testid": "service-row" }) as React.HTMLAttributes<HTMLElement>}
       columns={[
         // Spaltenkoepfe sind nackte Zeichenketten — die Kicker-Rolle setzt

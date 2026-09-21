@@ -171,7 +171,16 @@ describe("LagerorteListe", () => {
    */
   it("zeigt jeden Schrank in der gepflegten Reihenfolge", async () => {
     await mount(<LagerorteListe zeilen={ZEILEN} />);
-    const namen = queryAll("[data-row-key]").map((tr) => tr.getAttribute("data-row-key"));
+    /*
+     * ⚠️ EINGERAHMT AUF DIE BREITE DARSTELLUNG (DRK-451). Seit diese Liste eine
+     * `Kartentabelle` ist, traegt `data-row-key` ZWEI Knoten je Zeile — das
+     * `<li>` der Karte und das `<tr>` der Tabelle. jsdom wertet die Media Query
+     * nicht aus, also stehen beide da, und die Reihenfolge kaeme als
+     * „1, gf, alt, 1, gf, alt" heraus. Die Aussage bleibt dieselbe: die
+     * gepflegte Reihenfolge, einmal.
+     */
+    const namen = queryAll('[data-rolle="breitansicht"] [data-row-key]')
+      .map((tr) => tr.getAttribute("data-row-key"));
     expect(namen).toEqual(["schrank-1", "schrank-alt", "schrank-gf"]);
   });
 

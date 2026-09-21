@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button, Flex } from "antd";
 import type { TableProps } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   filterAktiv,
   type FilterZustand,
   nachDatum,
@@ -277,15 +277,19 @@ export function BzListe({
         <NeuBzGeraet lagerorte={lagerorte} />
       </Flex>
 
-      <Datentabelle<BzAnzeigeZeile>
+      <Kartentabelle<BzAnzeigeZeile>
         rowKey="id"
         aria-label="BZ-Geräte"
         dataSource={gefiltert}
-        onChange={(_seite, filter) => setSpaltenFilter(filter)}
-        locale={{
-          emptyText: hatFilter
-            ? "Kein Gerät passt zu Suche und Filter."
-            : "Noch keine BZ-Geräte. Lege oben das erste an.",
+        filter={spaltenFilter}
+        onFilter={setSpaltenFilter}
+        leer={{
+          nichts: "Noch keine BZ-Geräte. Lege oben das erste an.",
+          gefiltert: "Kein Gerät passt zu Suche und Filter.",
+          // ⚠️ `hatFilter` SCHLIESST DIE SUCHE MIT EIN, die dieses Bauteil
+          // nicht sieht — ohne den Wink hielte es eine leergesuchte Liste
+          // für eine leere Datenbank.
+          aktiv: hatFilter,
         }}
         columns={spaltenliste}
       />

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Button } from "antd";
-import { Datentabelle, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
 
 import { avWiederholenAction } from "../(verwaltung)/actions";
 
@@ -209,9 +209,11 @@ export function ShareDateienTabelle({ zeilen }: { zeilen: ShareDateiZeile[] }) {
   );
 
   return (
-    <Datentabelle<ShareDateiZeile>
+    <Kartentabelle<ShareDateiZeile>
       rowKey="id"
+      aria-label="Dateien dieser Freigabe"
       dataSource={zeilen}
+      leer={{ nichts: "Keine Datei in dieser Freigabe.", gefiltert: "Keine Datei passt zum Filter." }}
       columns={spalten}
       /* Die Summe der Spaltenbreiten: eine Tabelle scrollt auf schmalen
          Geräten, sie bricht nicht um (`docs/design/README.md:174`). Sie bleibt

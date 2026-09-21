@@ -3,7 +3,7 @@
 // src/app/m/radio/admin/(arbeit)/import/ImportAssistent.tsx
 import { useState } from "react";
 import { Alert, Button, Card, Col, Result, Row, Select, Space, Statistic, Steps, Tag, Tooltip, Typography, Upload } from "antd";
-import { Datentabelle, nachRang, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
+import { Kartentabelle, nachRang, nachText, nachZahl, trifftWert, werteAlsFilter } from "@/core/tabelle";
 import { importSchreibenAction } from "../../actions";
 import {
   IMPORTIERBARE_FELDER,
@@ -531,8 +531,10 @@ export function ImportAssistent() {
             ))}
           </Row>
           <div className={s.abstand}>
-            <Datentabelle<KlassifizierteZeile>
+            <Kartentabelle<KlassifizierteZeile>
               rowKey="zeilenNummer"
+              aria-label="Import-Vorschau"
+              leer={{ nichts: "Keine Zeile in der Datei.", gefiltert: "Keine Zeile passt zum Filter." }}
               columns={vorschauSpalten(vorschau.zeilen)}
               dataSource={vorschau.zeilen}
               /*

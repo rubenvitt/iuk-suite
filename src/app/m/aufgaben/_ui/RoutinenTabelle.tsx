@@ -2,7 +2,7 @@
 
 import { Button } from "antd";
 import {
-  Datentabelle,
+  Kartentabelle,
   nachJaNein,
   nachText,
   nachZahl,
@@ -47,9 +47,11 @@ import s from "./aufgaben.module.css";
  */
 export function RoutinenTabelle({ routinen }: { routinen: RoutineRow[] }) {
   return (
-    <Datentabelle<RoutineRow>
+    <Kartentabelle<RoutineRow>
       rowKey="id"
+      aria-label="Routinen"
       dataSource={routinen}
+      leer={{ nichts: "Noch keine Routinen angelegt.", gefiltert: "Keine Routine passt zum Filter." }}
       columns={[
         {
           // SPALTENKOEPFE UEBER `columns[].title`, NIE UEBER EINE CSS-REGEL GEGEN

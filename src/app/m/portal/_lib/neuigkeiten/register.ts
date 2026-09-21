@@ -2,6 +2,7 @@ import ereignisseNachvollziehen from "./notizen/portal/2026-09-06-ereignisse-nac
 import zeichenVoruebergehendPausiert from "./notizen/portal/2026-09-07-zeichen-voruebergehend-pausiert";
 import versionsnummerImProfil from "./notizen/portal/2026-09-08-versionsnummer-im-profil";
 import berichteAlsExcel from "./notizen/portal/2026-09-16-berichte-als-excel";
+import listenAufDemTelefon from "./notizen/portal/2026-09-21-listen-auf-dem-telefon";
 import dankeSeiteNurDanke from "@/app/m/portal/_lib/neuigkeiten/notizen/feedback/2026-09-19-danke-seite-nur-danke";
 import type { Releasenotiz } from "@/app/m/portal/_lib/neuigkeiten/typen";
 
@@ -140,6 +141,7 @@ const NOTIZEN: readonly Releasenotiz[] = [
   versionsnummerImProfil,
   tabellenSortierenFiltern,
   berichteAlsExcel,
+  listenAufDemTelefon,
   funkInDerSuite,
   alteQrCodesGeltenWeiter,
   drohnentrainingInDerSuite,

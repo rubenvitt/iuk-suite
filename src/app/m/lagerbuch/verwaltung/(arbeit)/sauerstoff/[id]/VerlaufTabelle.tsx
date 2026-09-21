@@ -1,7 +1,7 @@
 "use client";
 
 import type { TableProps } from "antd";
-import { Datentabelle, nachDatum, nachText, nachZahl, Zellentext } from "@/core/tabelle";
+import { Kartentabelle, nachDatum, nachText, nachZahl, Zellentext } from "@/core/tabelle";
 import { SCHRIFT } from "../../../../_lib/schrift";
 import { Chip } from "../../../../_ui/Chip";
 import s from "../../../../_ui/verwaltung.module.css";
@@ -86,10 +86,13 @@ const VERLAUF_SPALTEN: TableProps<VerlaufAnzeigeZeile>["columns"] = [
 
 export function VerlaufTabelle({ zeilen }: { zeilen: VerlaufAnzeigeZeile[] }) {
   return (
-    <Datentabelle<VerlaufAnzeigeZeile>
+    <Kartentabelle<VerlaufAnzeigeZeile>
       rowKey="id"
       aria-label="Messungsverlauf"
-      locale={{ emptyText: "Für diese Flasche wurde noch keine Messung erfasst." }}
+      leer={{
+        nichts: "Für diese Flasche wurde noch keine Messung erfasst.",
+        gefiltert: "Keine Messung passt zum Filter.",
+      }}
       dataSource={zeilen}
       columns={VERLAUF_SPALTEN}
     />

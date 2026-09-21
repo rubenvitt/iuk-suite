@@ -3,6 +3,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clickElement, mount, query, queryAll, unmount } from "@/app/m/qr/_lib/test-dom";
 import type { TaskDTO } from "../../_lib/typen";
 
+/**
+ * DER RAHMEN UM DIE BREITE DARSTELLUNG (DRK-451).
+ *
+ * ⚠️ SEIT DIESE TABELLE EINE `Kartentabelle` IST, STEHT JEDE ZEILE ZWEIMAL IM
+ * BAUM — einmal als Tabellenzeile, einmal als Karte. jsdom wertet die Media
+ * Query nicht aus, dort sind also BEIDE „da", und ein Greifer ueber `button`
+ * oder eine `data-rolle` findet jede Aktion doppelt.
+ *
+ * ⚠️ `tbody tr`-GREIFER BRAUCHEN IHN NICHT — eine Karte hat kein `tbody`.
+ * Eingerahmt wird nur, was ueber Rolle oder Element greift.
+ */
+const BREIT = '[data-rolle="breitansicht"]';
+
+
 /*
  * DRK-333 — DER RANG HÄNGT AN DER ZEILE, NICHT AM ANZEIGE-INDEX.
  *
@@ -88,7 +102,7 @@ const zeilenSchluessel = () =>
   queryAll("tbody tr[data-row-key]").map((r) => r.getAttribute("data-row-key"));
 
 const plaetze = () =>
-  queryAll("[data-rolle='uav-katalog-platz']").map((s) => s.textContent);
+  queryAll(`${BREIT} [data-rolle='uav-katalog-platz']`).map((s) => s.textContent);
 
 async function filterOeffnen(beschriftung: string): Promise<void> {
   const ausloeser = spaltenkopf(beschriftung).querySelector<HTMLElement>(
@@ -199,7 +213,7 @@ describe("KatalogTabelle — die Filter im Spaltenkopf", () => {
     expect(zeilenSchluessel()).toEqual(["a2"]);
 
     await clickElement(
-      queryAll<HTMLElement>("button").find((k) => k.textContent === "Bearbeiten")!,
+      queryAll<HTMLElement>(`${BREIT} button`).find((k) => k.textContent === "Bearbeiten")!,
     );
     await clickElement(
       [...document.body.querySelectorAll<HTMLElement>("button")]

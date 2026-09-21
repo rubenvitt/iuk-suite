@@ -63,6 +63,8 @@ export type AnzeigeSpalte<T> = {
   filterDropdown?: unknown;
   /** Der Startwert eines UNGESTEUERTEN Filters — danach führt antd den Stand allein. */
   defaultFilteredValue?: unknown;
+  /** Die Sortierung, mit der die Tabelle AUFSCHLÄGT. Danach führt antd den Stand allein. */
+  defaultSortOrder?: SortRichtung;
   /** Unterspalten eines gruppierten Spaltenkopfes. Nur die Blätter filtern. */
   children?: readonly AnzeigeSpalte<T>[];
   /**
@@ -273,4 +275,33 @@ export function angezeigteAnzahl<T>(
     liste = liste.filter((zeile) => werte.some((wert: Key | boolean) => trifft(wert, zeile)));
   }
   return liste.length;
+}
+
+/**
+ * Der Sortierstand, mit dem eine Tabelle AUFSCHLÄGT — aus `defaultSortOrder`.
+ *
+ * ⚠️ WER DIE SORTIERUNG STEUERT, MUSS SIE AUCH STARTEN. `defaultSortOrder` ist
+ * antds Startwert für den Fall, dass NIEMAND von außen sortiert; sobald eine
+ * Spalte ein `sortOrder` bekommt, ist sie gesteuert und der Startwert wird
+ * schlicht ignoriert. Wer also `sortOrder` einhängt und diesen Wert nicht
+ * ausliest, dreht jede Tabelle mit Anfangssortierung still auf „unsortiert" —
+ * gemessen an sieben Tabellen dieser Suite, darunter die Schrankliste (nach
+ * Name aufsteigend) und drei Protokolle (neueste zuerst). Kein Tor sieht das:
+ * die Typen stimmen, es steht nur eine andere Reihenfolge da.
+ *
+ * ⚠️ DIE ERSTE GEWINNT. antd kann über mehrere Spalten sortieren
+ * (`sorter.multiple`); dieser Zustand trägt eine. Zwei Startspalten sind in
+ * dieser Suite nirgends vergeben — käme eine dazu, wäre hier die Stelle, an der
+ * es auffällt, statt an einer falsch sortierten Liste.
+ */
+export function anfangsSortierung<T>(
+  spalten: readonly AnzeigeSpalte<T>[] | undefined,
+): SortZustand {
+  for (const spalte of blattSpalten(spalten)) {
+    if (!spalte.defaultSortOrder) continue;
+    const schluessel = spaltenSchluessel(spalte);
+    if (!schluessel) continue;
+    return { spalte: schluessel, richtung: spalte.defaultSortOrder };
+  }
+  return {};
 }
